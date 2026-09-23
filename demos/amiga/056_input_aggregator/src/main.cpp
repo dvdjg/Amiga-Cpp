@@ -14,8 +14,8 @@
 
 #include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/platform/amiga_minimal.hpp>
-#include <eng/platform/input_poll.hpp>
+#include <eng/platform/amiga/backend.hpp>
+#include <eng/platform/amiga/input_poll.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -78,7 +78,7 @@ constexpr eng::u16 kRainbow[kRainbowLen] = {
 };
 
 struct InputAggregatorDemo {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		m_memory_ok = backend.configure_memory({
 			96u * 1024u,
@@ -114,7 +114,7 @@ struct InputAggregatorDemo {
 		eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_copper_words));
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		// 1) Entrada: el backend rellena el agregador (joystick + fuego) y el
 		//    teclado sintético se sondea aparte; el ratón se lee por delta.
@@ -164,7 +164,7 @@ struct InputAggregatorDemo {
 		(void)context;
 	}
 
-	void render(eng::amiga::MinimalBackend&, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend&, eng::GameContext& context) {
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -264,7 +264,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	InputAggregatorDemo game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

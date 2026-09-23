@@ -9,7 +9,7 @@
 //
 // Ver `docs/engine/architecture/GUI_LIBRARY.md` §14 y `docs/guides/roadmap/ROADMAP_GUI.md` (G8).
 #include <eng/api/api.hpp>          // fachada: escena, GUI (eng::ui), run_status
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -55,7 +55,7 @@ constexpr eng::Palette32 kPalette {{
 bool rect_fill_cb(void* ctx, eng::u8* base, eng::u8 planes, eng::u32 plane_stride,
 		  eng::u32 row_stride, eng::u16 row_bytes, eng::u16 bw, eng::u16 bh,
 		  eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h, eng::u8 color) {
-	auto* b = static_cast<eng::amiga::MinimalBackend*>(ctx);
+	auto* b = static_cast<eng::amiga::AmigaBackend*>(ctx);
 	return b->blitter_fill_rect(base, planes, plane_stride, row_stride, row_bytes, bw, bh, x, y, w,
 				    h, color, true);
 }
@@ -82,7 +82,7 @@ constexpr eng::u32 kBackingBytes = static_cast<eng::u32>(12u) * kWinH * kPlanes;
 
 /// Un "escritorio" con ventanas movibles sobre un compositor.
 struct CompositorDemo {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 
 		m_memory_ok = backend.configure_memory({
@@ -125,13 +125,13 @@ struct CompositorDemo {
 		eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_scene.words()));
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		(void)backend;
 		animate(static_cast<eng::u16>(context.frame.frame_index));
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (!m_scene.ok()) {
 			return;
 		}
@@ -146,7 +146,7 @@ struct CompositorDemo {
 
 private:
 	/// Reserva y enlaza los backings; pinta el contenido de cada ventana una sola vez.
-	bool build_windows(eng::amiga::MinimalBackend& backend) {
+	bool build_windows(eng::amiga::AmigaBackend& backend) {
 		m_win[0].frame = ui::Rect {16, 16, kWinW, kWinH};
 		m_win[1].frame = ui::Rect {208, 16, kWinW, kWinH};
 		m_win[2].frame = ui::Rect {112, 120, kWinW, kWinH};
@@ -195,7 +195,7 @@ private:
 	/// Comprueba el contenido del backing, que `present_blit` encola `CopyRect` (ruta Blitter) y
 	/// que el plan ejecutado deja pixeles de ventana en pantalla. Devuelve 0 si todo va bien, o un
 	/// codigo de fallo.
-	eng::u32 verify_blit_path(eng::amiga::MinimalBackend& backend) {
+	eng::u32 verify_blit_path(eng::amiga::AmigaBackend& backend) {
 		// 1) El backing de la ventana 0 tiene contenido (los widgets se pintaron).
 		const eng::u8* b0 = m_mem[0].view.data();
 		bool any = false;
@@ -247,7 +247,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	CompositorDemo game {};
 	eng::Engine engine {backend, game};
 	engine.run_frames_polling(0xffff);

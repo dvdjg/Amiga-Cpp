@@ -43,8 +43,8 @@ WINUAE_SIDE_CHANNEL_PORT=2421 bash tools/run/run-demo.sh demos/amiga/274_octamed
 
 ## Causa raíz (nueva, medida)
 
-**El `INTENA` del takeover.** `MinimalBackend::takeover_display` hace
-`INTENA = 0x7FFF` (`amiga_minimal.cpp:372`) — desarma **todo**, incluido el **master INTEN** — y lo
+**El `INTENA` del takeover.** `AmigaBackend::takeover_display` hace
+`INTENA = 0x7FFF` (`amiga.cpp:372`) — desarma **todo**, incluido el **master INTEN** — y lo
 deja apagado. El playroutine instala su timing por **`AddIntServer` (VBlank)**, que necesita **INTENA
 armado**; con el master apagado, su handler no corre.
 

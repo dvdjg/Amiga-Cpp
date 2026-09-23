@@ -63,7 +63,7 @@ criterio:
   ┌───────────────────────────────────────────┐       ┌──────────────────────────────┐
   │ Surface / PlaneView / SoftDpfComposition  │       │ BlitJob { const u16* ... }    │
   │ Pattern, PaletteWords, PatternWords       │──────►│ CopperBuilder (BPLxPT)        │
-  │ BitmapBase, FrontBase, ChipAddress        │  raw()│ amiga_minimal (registros)     │
+  │ BitmapBase, FrontBase, ChipAddress        │  raw()│ amiga_backend (registros)     │
   │ SpriteWords, AudioSample, CopperWords     │       │ c2p / blitter / audio_paula   │
   └───────────────────────────────────────────┘       └──────────────────────────────┘
         el error de dominio no compila                       el invariante está documentado
@@ -226,7 +226,7 @@ direcciones sí son tipos de dominio** y los productores los devuelven ya tipado
 | `SampleEvent { const u8* sample }` / `AudioMixer::setup(void*, void*, void*)` | `AudioSample`, `MixBuffer`, `PluginBuffer`, `PluginData` |
 | `MusicPlayer::init(const void* module, const void* samples, ...)` | `MusicModule`, `AudioSample` |
 | `BackgroundQueue::add(TaskStep, void* data)` | `add<TaskData>(u16 (*)(TaskData*, TaskSlice), Ref<TaskData>)` |
-| `MinimalBackend::set_vblank_service(void (*)(void*, u16), void*)` | `Service<Context>` tipado |
+| `AmigaBackend::set_vblank_service(void (*)(void*, u16), void*)` | `Service<Context>` tipado |
 
 ## 5. Ejemplo: `PlaneView` tipado
 
@@ -323,7 +323,7 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
 - **Fase 6 — hecha**: `BackgroundQueue` con tareas tipadas `TaskToken<T>` / `TaskFn<T>` (firma
   `u16(T&, const TaskSlice&)`, **referencia**) y fábrica `task_token(data, fn)` (HOST-017, 081).
   Servicios del backend tipados: `Service<C> = void(*)(C&, u16)` con `ServiceSlot` (thunk + bytes +
-  ctx) en `MinimalBackend` para `wait_vblank`/`set_blitter_service`/`set_vblank_service`/
+  ctx) en `AmigaBackend` para `wait_vblank`/`set_blitter_service`/`set_vblank_service`/
   `set_blit_service`/`background_timer_start`; sin `void*` en la API. `engine.hpp` pasa sus
   callbacks por referencia (`BackgroundPump&`, `BackgroundBlitterService&`, `InterruptTick&`).
   Verificado: 080/081/111/112 alcanzan READY y 111/112 siguen animando sin regresión.

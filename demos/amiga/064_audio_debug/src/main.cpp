@@ -17,7 +17,7 @@
 #include <eng/audio/wave_tables.hpp>
 #include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -66,7 +66,7 @@ constexpr eng::u16 kScale[6] = { 214, 190, 170, 160, 143, 127 };
 constexpr eng::u32 kNoteFrames = 20;    // frames por nota
 
 struct AudioDebugDemo {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		m_memory_ok = backend.configure_memory({ 96u * 1024u, 8u * 1024u, 4u * 1024u });
 		if (!m_memory_ok) { eng::debug::mark_failed(g_eng_run_status, 0x00006401u); return; }
@@ -126,7 +126,7 @@ struct AudioDebugDemo {
 		);
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		// Cambia el tono cada kNoteFrames frames: una escala de Do mayor. Esto
 		// demuestra que el tono de UN canal de Paula cambia (sin ptplayer ni mixer).
 		const eng::u8 note = static_cast<eng::u8>((context.frame.frame_index / kNoteFrames) % 6u);
@@ -136,7 +136,7 @@ struct AudioDebugDemo {
 		(void)backend;
 	}
 
-	void render(eng::amiga::MinimalBackend&, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend&, eng::GameContext& context) {
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -174,7 +174,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	AudioDebugDemo game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

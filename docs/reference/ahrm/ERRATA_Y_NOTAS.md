@@ -87,7 +87,7 @@ Estado en **CIA-A PRA** (`$BFE001`): `/RDY`(5), `/TK0`(4), `/WPRO`(3), `/CHNG`(2
 
 **Origen**: AHRM Table 8-5 + contraste con WinUAE-DBG (`cia.cpp:2431` decodifica el registro con
 `(addr & 0xf00) >> 8`, ignorando A0; `identify.cpp:83,98` dan `CIAB PRA` en `$BFD000` y `CIAA PRA`
-en `$BFE001`). Implementado en `eng/os/floppy.hpp` + `amiga_minimal_floppy.cpp`; la DMA cruda se
+en `$BFE001`). Implementado en `eng/os/floppy.hpp` + `amiga_floppy.cpp`; la DMA cruda se
 valida en la demo `214_floppy_raw`.
 
 Matiz sobre `SIDE` (bit 2): WinUAE lo **invierte** al traducir la cara física a índice de cara

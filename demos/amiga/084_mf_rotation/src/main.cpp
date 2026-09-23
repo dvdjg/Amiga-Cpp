@@ -10,7 +10,7 @@
 #include <eng/core/math/minifloat_math.hpp>
 #include <eng/debug/peripheral.hpp>
 #include <eng/api/api.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 #include <eng/retro/minifloat_fixed.hpp>
 
 #include <exec/execbase.h>
@@ -90,7 +90,7 @@ eng::u8 shade_of(eng::s16 z0, eng::s16 z1) {
 }
 
 struct DemoGame {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		Periph::counter_name(0, reinterpret_cast<eng::u32>("mf_calc_cycles"));
 		Periph::counter_name(1, reinterpret_cast<eng::u32>("mf_matrix_cycles"));
@@ -119,13 +119,13 @@ struct DemoGame {
 		eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_scene.words()));
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		compute_projection(); // matematica FUERA del vblank
 		(void)backend;        // la lista es estatica: `takeover` ya la instalo
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (!m_scene.ok()) return;
 		(void)backend;
 		field::Surface c = m_scene.surface();
@@ -248,7 +248,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	DemoGame game {};
 	eng::Engine engine {backend, game};
 	engine.run_frames_polling(0xffff);

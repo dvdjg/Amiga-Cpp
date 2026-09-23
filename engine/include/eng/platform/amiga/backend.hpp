@@ -625,8 +625,4 @@ private:
 	bool m_display_taken = false;
 };
 
-/// Alias de compatibilidad: nombre anterior del backend Amiga. El nombre canónico es
-/// `AmigaBackend` (docs/engine/architecture/PLATFORM_LAYERS.md).
-using MinimalBackend = AmigaBackend;
-
 } // namespace eng::amiga

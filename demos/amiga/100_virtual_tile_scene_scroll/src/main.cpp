@@ -1,6 +1,6 @@
 #include <eng/api/api.hpp>
 #include <eng/graphics/tilemap/tile_scroll.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 #include <eng/scene/virtual_scene.hpp>
 #include <eng/core/types/span.hpp>
 
@@ -269,7 +269,7 @@ void draw_viewport(
 }
 
 struct DemoGame {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({80u * 1024u, 16u * 1024u, 8u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000100u);
@@ -333,20 +333,20 @@ struct DemoGame {
 		m_ready_to_run = true;
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_ready_to_run) {
 			return;
 		}
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (m_scene.ok()) {
 		}
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
-	void draw_frame(eng::amiga::MinimalBackend& backend, eng::u16 camera_x) {
+	void draw_frame(eng::amiga::AmigaBackend& backend, eng::u16 camera_x) {
 		scene::Camera2D& camera = m_virtual_scene.camera();
 		camera.begin_frame();
 		m_camera_x = camera_x;
@@ -399,7 +399,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	eng::Engine engine { backend, g_game };
 	engine.run_frames_polling(0xffff);
 

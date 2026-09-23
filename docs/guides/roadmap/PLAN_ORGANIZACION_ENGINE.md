@@ -58,7 +58,7 @@ Migración segura: mover el fichero, dejar en la ruta antigua una cabecera-parag
 
 ## 4. Separación por plataformas: modelo de tres anillos
 
-Hoy hay **un solo backend** (`MinimalBackend`) cuyo nombre confunde *Amiga* con *este backend mínimo*. El modelo objetivo separa tres anillos:
+Hoy hay **un solo backend** (`AmigaBackend`) cuyo nombre confunde *Amiga* con *este backend mínimo*. El modelo objetivo separa tres anillos:
 
 ```
 ┌─ Anillo 0: DOMINIO (agnóstico de máquina) ────────────────────────────┐
@@ -75,7 +75,7 @@ Hoy hay **un solo backend** (`MinimalBackend`) cuyo nombre confunde *Amiga* con 
 │ eng/platform/atarist  → (futuro) Shifter, YM2149, MFP, IKBD            │
 │ eng/platform/megadrive→ (futuro) VDP, YM2612                           │
 ├─ Anillo 2: BACKEND (implementación por objetivo) ──────────────────────┤
-│ engine/src/platform/amiga/      (hoy amiga_minimal/)                    │
+│ engine/src/platform/amiga/       backend Amiga (OCS/ECS/AGA)           │
 │ engine/src/platform/atarist/    (futuro)                               │
 │ engine/src/platform/megadrive/  (futuro)                               │
 └────────────────────────────────────────────────────────────────────────┘
@@ -94,7 +94,7 @@ Conclusión: **A1200 no es un backend distinto; es el mismo backend Amiga con ot
 
 Acciones:
 
-1. Consolidar el anillo 1: `audio_paula.hpp` → `eng/platform/amiga/paula.hpp`, `input_poll.hpp` → `eng/platform/amiga/input_poll.hpp`, `amiga_minimal.hpp` → `eng/platform/amiga/backend.hpp`, con paraguas de compatibilidad en las rutas antiguas.
+1. Consolidar el anillo 1: `audio_paula.hpp` → `eng/platform/amiga/paula.hpp`, `input_poll.hpp` → `eng/platform/amiga/input_poll.hpp`, `amiga_minimal.hpp` → `eng/platform/amiga/backend.hpp` (con paraguas de compatibilidad durante la migración, ya retirados).
 2. Contrato de backend explícito en `eng/platform/backend.hpp` (concept que reúne lo que `Engine` usa por duck-typing): soportar Atari ST = satisfacer el contrato, no copiar el backend Amiga.
 3. Unificar el perfil de máquina con `eng::hw` (el `HardwareProfile` del backend duplica conceptualmente `eng::hw::probe`).
 4. Gate `tools/check/platform-boundaries.mjs`: las cabeceras de dominio no pueden incluir `eng/platform/<familia>` ni referenciar registros `$dff`. `cpu/m68k` queda permitido.

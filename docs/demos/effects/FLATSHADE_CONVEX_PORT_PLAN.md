@@ -33,9 +33,9 @@ system/*         (arranque, bucle de efecto, vblank)
 | `UpdateFaceVisibility` (dot + luz `InvSqrt`) | `update_face_visibility` (demo-local, fiel) | ✅ |
 | `UpdateEdgeVisibilityConvex` (XOR) | `update_edge_visibility_convex` (demo-local, fiel) | ✅ |
 | `TransformVertices` (`MULVERTEX1/2`) | `transform_vertices` (demo-local, verbatim) | ✅ |
-| `DrawObject` (`BC0F_LINE_EOR`, `ONEDOT`, `bltapt=derr`, `bltsize=(dmax<<6)+66`, por plano) | **`MinimalBackend::blitter_line_eor`** | ✅ |
-| `BitmapFillFast` (`BLITREVERSE|FILL_XOR`, seed = última word) | **`MinimalBackend::blitter_area_fill`** | ✅ |
-| `BitmapClearFast` | `MinimalBackend::blitter_clear` | ✅ |
+| `DrawObject` (`BC0F_LINE_EOR`, `ONEDOT`, `bltapt=derr`, `bltsize=(dmax<<6)+66`, por plano) | **`AmigaBackend::blitter_line_eor`** | ✅ |
+| `BitmapFillFast` (`BLITREVERSE|FILL_XOR`, seed = última word) | **`AmigaBackend::blitter_area_fill`** | ✅ |
+| `BitmapClearFast` | `AmigaBackend::blitter_clear` | ✅ |
 | `SetupPlayfield`/`LoadColors`/`CopSetupBitplanes`/parche `BPLxPT`/`EnableDMA(BLITHOG)` | `copper::Scheduler::emit_planes_display` + `emit_palette` + swap de copperlist | 🔶 equivalente (doble buffer 2×4 en vez de rotación de planos) |
 | `EFFECT` main loop / `TaskWaitVBlank` / `frameCount` | `Engine::run_frames_polling` + `g_eng_run_status` + VBlank del compositor | ✅ |
 
@@ -58,7 +58,7 @@ system/*         (arranque, bucle de efecto, vblank)
 El balón convexo se dibuja a 256×256×4 con su paleta, **caras sólidas limpias** y sin las líneas horizontales internas que aparecían con el area fill XOR del original.
 
 - **Diagnóstico del glitch**: el original dibuja aristas visibles (convexas por XOR) + **un** area fill `XOR` (1 fila, `bltsize=(0<<6)|(width>>4)`). El area fill tiene un "carry" vertical: en una fila con un número **impar** de cruces del contorno se rellena hasta el borde, y en los **vértices** (extremos locales de la silueta, donde el píxel se cancela por XOR entre dos aristas) la paridad se rompe → **línea horizontal en cada vértice**.
-- **Decisión**: sustituir el par aristas+area-fill `XOR` por **relleno por cara** con `MinimalBackend::blitter_fill_polygon` (máscara 1 bit + contorno `ONEDOT` + area fill **inclusivo** `FILL_OR` + cookie-cut por plano). No depende de la paridad de cruces → caras sólidas limpias.
+- **Decisión**: sustituir el par aristas+area-fill `XOR` por **relleno por cara** con `AmigaBackend::blitter_fill_polygon` (máscara 1 bit + contorno `ONEDOT` + area fill **inclusivo** `FILL_OR` + cookie-cut por plano). No depende de la paridad de cruces → caras sólidas limpias.
 - **Arreglo de engine reutilizable**: `blit_fill_region` estaba **ascendente** (`FILL_OR` sin `BLITREVERSE`) y rayaba; se corrigió a **descendente** (port fiel de `BlitterFillArea` de libblit). Mejora también las rutas Blitter del 078.
 
 Comparación con el original (captura por `.adf` en WinUAE): fondo `#001122`, caja ~498 px, cobertura **39.2 % vs 38.9 %**, luminancia media del cuerpo **147.5 vs 149.3**, descripción idéntica por visión (poliedro flat-shaded azul, caras sólidas).

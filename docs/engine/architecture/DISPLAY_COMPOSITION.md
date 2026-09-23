@@ -71,7 +71,7 @@ Reglas:
 - **N lo decide la escena, no el driver**: `N=1` (sin DB, con márgenes ocultos si hay scroll),
   `N=2` (efectos que reescriben lo visible; es el caso de 061/080/122), `N=3` solo para
   desacoplar un productor que tarda más de un campo (añade un frame de latencia).
-- **El swap es solo `COP1LC`** y nunca lleva `COPJMP1` (`amiga_minimal.cpp:602-617`).
+- **El swap es solo `COP1LC`** y nunca lleva `COPJMP1` (`amiga.cpp:602-617`).
 - **Quien posee memoria, posee el buffer**: una superficie de scroll o de efecto **no**
   reserva bitmaps ni decide el flip; escribe en el buffer trasero de la escena.
 - Excepción documentada: `PlaneView`/`SoftDpfComposition` hacen flip **de un plano** dentro

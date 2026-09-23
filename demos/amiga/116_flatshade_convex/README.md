@@ -32,18 +32,18 @@ original (latencia de 1 frame, mismo orden de ángulos).
   `material < 0` son de doble cara.
 - **Proyección**: port `1:1` de `TransformVertices` (`>>4`, `normfx`, `div_wide`),
   centrado en `WIDTH/2`, `HEIGHT/2`.
-- **Relleno**: las **aristas visibles** se dibujan con **`MinimalBackend::blitter_line_eor`**
+- **Relleno**: las **aristas visibles** se dibujan con **`AmigaBackend::blitter_line_eor`**
   (`ONEDOT`+EOR, replicadas en cada plano con el bit del color de arista; comunes fijados
   `1×/frame` con `blitter_lines_eor_begin` y Bresenham `1×/arista` con
   `blitter_line_eor_prepare/draw`, como el `DrawObject` original) y después **un único
-  `MinimalBackend::blitter_area_fill`** (`FILL_XOR` + `BLITREVERSE`, altura 0) rellena el
+  `AmigaBackend::blitter_area_fill`** (`FILL_XOR` + `BLITREVERSE`, altura 0) rellena el
   interior. `BLTDPTR` se deja en la **base del bitmap** (no en la dirección calculada de la
   línea): en modo línea el primer píxel va por el canal D, y mantenerlo en la base conserva la
   **paridad par/impar del contorno en los vértices**, de modo que el area fill `XOR` no filtra
   la raya horizontal por vértice. Ruta alternativa por cara (`-DFLATSHADE_FAITHFUL=0`):
   `blitter_fill_polygon` (máscara + cookie-cut).
 - **Rendimiento**: el original activa `DMAF_BLITHOG`; se replica con
-  `MinimalBackend::set_blitter_priority(true)` (BLTPRI, 0x0400). Con pipeline+BLITHOG el
+  `AmigaBackend::set_blitter_priority(true)` (BLTPRI, 0x0400). Con pipeline+BLITHOG el
   `update` queda bajo 284k (2 vblanks) y el frame emulado en ~20.7 fps. El `fill` coincide
   con el del original (131.8k vs 131k según su profiler), así que la brecha restante es el
   codegen del `transform` (1.8x) y de los `edges` (1.9x), no el emulador.
@@ -123,7 +123,7 @@ sólido convexo y transform + proyección de vértices) **son API del engine**:
 `eng::lib3d` en `engine/include/eng/platform/amiga/lib3d.hpp`, con test host **HOST-047** (y no
 viven en la demo). Se apoyan en `eng::object3d` (`object3d.hpp`, HOST-014) y en
 `lib2d`/`math3d` (HOST-010/011); el dibujo usa
-`MinimalBackend::blitter_line_eor` / `blitter_area_fill`.
+`AmigaBackend::blitter_line_eor` / `blitter_area_fill`.
 
 En la demo queda **solo lo específico del efecto**: la orquestación (pipeline de 3
 buffers, cobre, paleta) y el dibujo Amiga (líneas EOR + area fill XOR), que se

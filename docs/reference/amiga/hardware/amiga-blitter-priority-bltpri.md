@@ -50,7 +50,7 @@ Resumen: *nasty* interesa **si y solo si** el Blitter es el recurso limitante **
 
 ## En el engine
 
-- `MinimalBackend::set_blitter_priority(bool)` activa/desactiva el bit (sin tocar `MASTER`/`BLITTER`).
+- `AmigaBackend::set_blitter_priority(bool)` activa/desactiva el bit (sin tocar `MASTER`/`BLITTER`).
 - **Medido en `080_fire_rgb`** (fire+blitter, `bus-bound`): activar *nasty* **empeoró** el frame (**12.44** vs **13.55** fps) porque la CPU (el fuego) sí tiene trabajo de Chip RAM que solapar; el bus es el cuello. Se deja como **palanca de diagnóstico** (`-DK_BLIT_NASTY=1`), no como default. Confirma la regla: con CPU útil que solapar, `BLTPRI = 0`.
 
 ## Referencias

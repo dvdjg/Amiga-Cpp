@@ -45,7 +45,7 @@ código nuevo.
 | `SIN`/`COS` de la hélice | `eng::retro::sin/`cos`(`turns`)` (`fixed_trig.hpp`) |
 | `TransformVertices` (propia) | `eng::lib3d::transform_vertices` (`proj`) o la propia si difiere |
 | `DrawFlares` | `eng::amiga::OrBlobBatch` (lote de BOBs OR intercalados) |
-| `DrawLinks` | `blitter_line_eor` del `MinimalBackend` |
+| `DrawLinks` | `blitter_line_eor` del `AmigaBackend` |
 | Doble playfield + color/línea | `copper::Plan`/`Scheduler` + `wait_position_pal` |
 | Doble buffer | `MultiBuffered<...>` / 2 bitmaps (como 117) |
 

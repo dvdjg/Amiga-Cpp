@@ -66,7 +66,7 @@ hoy está repartido entre esos métodos sueltos.
                            │  → FramePlan (ya existe)
 ┌──────────────────────────▼──────────────────────────────────┐
 │ PlatformBackend (Amiga OCS/ECS; futuro Megadrive/PC)        │  con HW
-│   MinimalBackend hoy; ACE como backend interno opcional     │
+│   AmigaBackend hoy; ACE como backend interno opcional     │
 └──────────────────────────┬──────────────────────────────────┘
                            │  → UAF-R loader (chunks cocinados)
 ┌──────────────────────────▼──────────────────────────────────┐
@@ -290,7 +290,7 @@ esos chunks ya cocinados**, nunca algo que se depare en runtime.
   `copper_programming.md`): multiplexado, color multiplexing, "chasing the raster",
   sprite-as-playfield, y los antipatterns que este diseño convierte en invariantes explícitos.
 - **ACE**: es un *backend posible* (roadmap §1). En este diseño es una implementación alternativa
-  de `PlatformBackend`, no tipos visibles al juego. Hoy se usa `MinimalBackend`; ACE entraría
+  de `PlatformBackend`, no tipos visibles al juego. Hoy se usa `AmigaBackend`; ACE entraría
   como segundo backend o como base de un takeover más agresivo.
 - **Sevgi_Engine**: fuente de prior art para el sistema de plantillas/objetos; se ingiere con el
   protocolo de `DOC-MAP §6` (auditar → mapear → portar solo lo que aporta → descartar duplicado).

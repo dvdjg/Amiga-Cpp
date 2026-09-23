@@ -2,7 +2,7 @@
 #include <eng/debug/peripheral.hpp>
 #include <eng/graphics/drivers/ehb_tile_scroll.hpp>
 #include <eng/graphics/tilemap/tile_scroll.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 #include <eng/scene/route_camera.hpp>
 #include <eng/scene/virtual_scene.hpp>
 #include <eng/core/types/span.hpp>
@@ -282,7 +282,7 @@ struct DemoGame {
 	/// configurar arenas, reservar bitplanes/copperlist en Chip RAM, cargar tiles,
 	/// preparar la superficie fisica y publicar un primer estado lateral para que
 	/// las pruebas sepan que la demo esta viva.
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({280u * 1024u, 16u * 1024u, 8u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000110u);
@@ -364,7 +364,7 @@ struct DemoGame {
 	/// trabajos de Blitter y `EhbTileScrollScene` traduce la camara a punteros de
 	/// bitplane + `BPLCON1`. Esta separacion es la base para soportar otros drivers
 	/// y, mas adelante, otras maquinas.
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (m_ready) {
 			// Checkpoint 0: inicio de frame (el host mide el delta a otros slots).
@@ -402,7 +402,7 @@ struct DemoGame {
 	/// de que `Engine::run_frames` haya esperado VBlank. Esto evita disparar
 	/// `COPJMP1` en mitad de la zona visible, que partiria la imagen y haria que la
 	/// mitad inferior leyese punteros de bitplane reiniciados.
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (m_ready) {
 			m_scene.install(backend);
 		}
@@ -563,7 +563,7 @@ struct DemoGame {
 	/// escena retenida dice que tiles urgen, el driver decide presupuesto, y el
 	/// backend ejecuta trabajos concretos de Blitter sin que la logica de juego vea
 	/// registros custom.
-	eng::u8 upload_prefetch_tiles(eng::amiga::MinimalBackend& backend) {
+	eng::u8 upload_prefetch_tiles(eng::amiga::AmigaBackend& backend) {
 		const tilemap::ProgressiveTileUpdatePlan plan = m_scheduler.take_budget(tile_update_budget);
 		m_frame_plan.clear();
 		configure_tile_blit_budget(m_frame_plan);
@@ -644,13 +644,13 @@ DemoGame g_game {};
 
 // Evidencia del contrato de compositor de display (driver.hpp): el driver y el
 // backend concretos deben exponer takeover (una sola vez) + install (swap).
-static_assert(eng::DisplayDriver<drivers::EhbTileScrollScene, eng::amiga::MinimalBackend>);
+static_assert(eng::DisplayDriver<drivers::EhbTileScrollScene, eng::amiga::AmigaBackend>);
 
 int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	eng::Engine engine { backend, g_game };
 	engine.run_frames_polling(0xffffffffu);
 

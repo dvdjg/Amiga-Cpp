@@ -1,7 +1,7 @@
 #include <eng/api/api.hpp>
 #include <eng/graphics/drivers/tile_scroll.hpp>
 #include <eng/graphics/field_controller.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 #include <eng/core/types/span.hpp>
 
 #include <proto/exec.h>
@@ -25,7 +25,7 @@ using Field = eng::graphics::TileFieldController<Scene>;
 
 static_assert(Scene::surface_width == 704 && Scene::surface_height == 576);
 // Evidencia del contrato de compositor de display (driver.hpp).
-static_assert(eng::DisplayDriver<Scene, eng::amiga::MinimalBackend>);
+static_assert(eng::DisplayDriver<Scene, eng::amiga::AmigaBackend>);
 constexpr eng::u16 kTileSize = Scene::tile_size;
 constexpr eng::u16 kMapWidth = 256;
 constexpr eng::u16 kMapHeight = 128;
@@ -104,7 +104,7 @@ constexpr eng::u16 tile_row(eng::u8 tile, eng::u8 row, eng::u8 plane, bool foreg
 struct TileSet {
 	eng::MemoryBlock memory {};
 	eng::u8 planes = 0;
-	bool init(eng::amiga::MinimalBackend& backend, eng::u8 playfield) {
+	bool init(eng::amiga::AmigaBackend& backend, eng::u8 playfield) {
 		planes = Scene::playfield_planes(playfield);
 		memory = backend.memory().chip.allocate(Scene::playfield_tile_bytes(playfield) * 16u, 16);
 		if (!memory.valid()) return false;
@@ -124,7 +124,7 @@ struct DemoGame {
 	eng::graphics::FramePlan plan {};
 	bool ready = false;
 
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({384u * 1024u, 8u * 1024u, 8u * 1024u}) ||
 			!scene.init(backend.memory(), {&kPalette, kZones, 0, 1536}) ||
@@ -146,7 +146,7 @@ struct DemoGame {
 		eng::debug::mark_ready(g_eng_run_status, 0x10500000u);
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!ready) return;
 		plan.clear();
@@ -166,7 +166,7 @@ struct DemoGame {
 		eng::debug::mark_ready(g_eng_run_status, marker);
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (ready) scene.install(backend);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
@@ -188,7 +188,7 @@ DemoGame game {};
 int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	eng::Engine engine {backend, game};
 	engine.run_frames_polling(0xffffffffu);
 	return 0;

@@ -44,7 +44,7 @@ El backend declara sus capacidades y ofrece un atajo para instalar el rasterizad
 no conoce al backend:
 
 ```cpp
-// amiga_minimal (OCS/AGA): Blitter de 16 bits, fill/line/shift/minterms
+// amiga_backend (OCS/AGA): Blitter de 16 bits, fill/line/shift/minterms
 backend.install_raster(scene);   // elige kBlitterRaster/kCpuRaster segun raster_caps()
 scene.surface().fill_rect(x, y, w, h, color, field::RasterOp::Xor); // misma llamada
 ```
@@ -60,7 +60,7 @@ backend host (sin Blitter) declara `RasterCaps{ .blitter = false }` y se usa `kC
   (`BlitJobKind::LogicBlit`, `B = D` + minterm: sombras/glow/máscaras), copia enmascarada CPU y
   Blitter, **blit lógico** (`BlitJobKind::LogicBlit`, `B = D` + minterm: `Surface::blit_shadow`
   `$C0` / `blit_glow` `$FC`), copia enmascarada CPU y Blitter, y **colisión pixel-perfect**
-  (`field::collide_cpu` + `MinimalBackend::blitter_collide`, verificada en hardware por el
+  (`field::collide_cpu` + `AmigaBackend::blitter_collide`, verificada en hardware por el
   self-test de 077); `install_raster` con `RasterCaps` OCS/AGA por target; `row_bytes` a 4.
 - **Operaciones Blitter que aún NO cubre el seam** (ver `frame_plan.hpp`/AHRM cap. 6):
   - **Relleno con patrón** (suelos/techos 3D): `fill_polygon` con una fuente de patrón en vez de

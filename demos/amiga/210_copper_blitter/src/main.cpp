@@ -26,7 +26,7 @@
 #include <eng/api/effects.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/raster_intent.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -55,7 +55,7 @@ constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kRowBytes) * kRows;
 constexpr eng::u16 kBlitLine = 0x130;            // 304: borde inferior (referencia de ventana)
 
 struct ScrollEdgeDemo {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({ 32u * 1024u, 4u * 1024u, 4u * 1024u })) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021001u);
@@ -104,7 +104,7 @@ struct ScrollEdgeDemo {
 		eng::debug::mark_ready(g_eng_run_status, 0x00021000u);
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		// Blit del Copper (frame anterior): verifica la copia y limpia el destino.
 		m_last_ok = copied();
@@ -124,7 +124,7 @@ struct ScrollEdgeDemo {
 				       (static_cast<eng::u32>(fine) << 16u) | status);
 	}
 
-	void render(eng::amiga::MinimalBackend&, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend&, eng::GameContext& context) {
 		// Sin overlay: en modo takeover su `clear()` tapa el display del demo.
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
@@ -141,7 +141,7 @@ private:
 
 	/// **Borde de scroll fino** (`effects::FineScroll`): avanza 1 px/frame; al cruzar 16 px, el
 	/// helper da los `BlitJob` de shift + columna nueva. Verifica que el buffer quede coherente.
-	bool scroll_step(eng::amiga::MinimalBackend& backend) {
+	bool scroll_step(eng::amiga::AmigaBackend& backend) {
 		if (!m_scroll.step()) {
 			return true; // solo fine scroll (BPLCON1); el buffer no cambia
 		}
@@ -190,7 +190,7 @@ private:
 
 	/// **Tecnica B** (Blitter -> copperlist): parchea con el Blitter los data words de 8
 	/// MOVEs consecutivos y verifica que solo cambian los datos (los registros, no).
-	bool patch_selfcheck(eng::amiga::MinimalBackend& backend) {
+	bool patch_selfcheck(eng::amiga::AmigaBackend& backend) {
 		constexpr eng::u16 n = 8;
 		eng::Words<eng::CopperTag> cl = m_patch_cl.view.as_words();
 		eng::Words<eng::SpriteTag> vals = m_patch_vals.view.as_words();
@@ -287,7 +287,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	ScrollEdgeDemo game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

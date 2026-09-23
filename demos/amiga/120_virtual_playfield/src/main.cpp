@@ -28,7 +28,7 @@
 #include <eng/api/api.hpp>
 #include <eng/field/flat_playfield.hpp>
 #include <eng/field/xlimited.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -85,7 +85,7 @@ struct DemoGame {
 	eng::s32 m_dir_y = 1;
 	bool m_ready = false;
 
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({kChipNeed + 16u * 1024u, 8u * 1024u, 4u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012001u);
@@ -113,7 +113,7 @@ struct DemoGame {
 		eng::debug::mark_ready(g_eng_run_status, 0x12000000u);
 	}
 
-	void update(eng::amiga::MinimalBackend&, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_ready) return;
 		// SOLO se mueve la cámara: BigBufferScroll satura y reveer en los límites.
@@ -121,7 +121,7 @@ struct DemoGame {
 		sweep(m_pf.cam_y(), m_dir_y);
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (m_ready) {
 			if (m_comp.compose(m_pf.hardware_view())) {
 				m_comp.install(backend); // swap de COP1LC (doble buffer de copper)
@@ -193,7 +193,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	DemoGame game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

@@ -2,11 +2,11 @@
 //
 // Fuego en 80x64 -> chunky -> C2P por Blitter -> HAM6 320x256 con cuadruplicado de
 // lineas por Copper. La simulacion de fuego (MainLoop/fastrand/RandomizeBottom) se
-// copia VERBATIM (asm a mano); el C2P de 13 fases es `MinimalBackend::c2p_4bpp_step`
+// copia VERBATIM (asm a mano); el C2P de 13 fases es `AmigaBackend::c2p_4bpp_step`
 // (portado de ChunkyToPlanar) y los bits HAM fijos van por `set_bitplane_dat`.
 #include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 // Perfilado de ciclos NO cuantizados: `K_FIRE_PROF=1` publica en
 // `g_eng_run_status.detail` el coste de `RandomizeBottom+MainLoop`; `=2`, el del
@@ -198,7 +198,7 @@ void MainLoop(void) {
 }
 
 struct FireDemo {
-	void init(amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		// Chip RAM: chunky (x2) + fuego + bitplanes y copperlist del driver (x2).
 		m_memory_ok = backend.configure_memory({128u * 1024u, 16u * 1024u, 4u * 1024u});
@@ -293,7 +293,7 @@ struct FireDemo {
 		eng::debug::mark_ready(g_eng_run_status, 0x0080u);
 	}
 
-	void update(amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (!m_init_ok) return;
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 
@@ -375,7 +375,7 @@ struct FireDemo {
 #endif
 	}
 
-	void render(amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -404,7 +404,7 @@ struct FireDemo {
 private:
 #if K_FIRE_ASM
 	/// Salvaguarda: completa el C2P pendiente bloqueando (si la IRQ no llego a cerrarlo).
-	void FinishC2p(amiga::MinimalBackend& backend) {
+	void FinishC2p(amiga::AmigaBackend& backend) {
 		if (!m_c2p_pending) return;
 		m_c2p_irq = false;
 		while (m_c2p.phase < 13u) {
@@ -423,7 +423,7 @@ private:
 	short* m_fire = nullptr;
 	// Escena: display HAM + cuadruplicado con N buffers (doble buffer por BPLxPT).
 	scene::Scene m_scene {};
-	amiga::MinimalBackend* m_backend = nullptr;
+	amiga::AmigaBackend* m_backend = nullptr;
 	// Pipeline del C2P: la fase 0 la arranca `update`; las fases 1..12 las encadena la
 	// IRQ de blit (`on_blit`), que marca `m_c2p_done` al terminar.
 	eng::graphics::C2p4 m_c2p {};
@@ -438,7 +438,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	amiga::MinimalBackend backend {};
+	amiga::AmigaBackend backend {};
 	FireDemo game {};
 	eng::Engine engine {backend, game};
 	engine.run_frames_polling(0xffff);

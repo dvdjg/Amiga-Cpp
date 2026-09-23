@@ -65,7 +65,7 @@ jugada, el siguiente paso es perfilar y optimizar `movegen`/`eval` antes de baja
   transposición de 16384 entradas.
 - El objeto de la partida es `static ChessMatch game;` (~400 kB): dos TT de 16384
   entradas viven en estática, no en la pila del 68000.
-- `MinimalBackend::configure_memory({96 kB, 16 kB, 4 kB})` (Chip, Slow, frame); los
+- `AmigaBackend::configure_memory({96 kB, 16 kB, 4 kB})` (Chip, Slow, frame); los
   bitplanes EHB se reservan de Chip RAM.
 - Render por bytes alineados (`fill_bytes`, `draw_char_bytes`): el tablero y los
   paneles se escriben byte a byte por plano, y el refresco en vivo de los paneles es

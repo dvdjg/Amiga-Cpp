@@ -128,7 +128,7 @@ necesidad de máscara en RAM.
 | **Attached (15 colores)** | **no** | `SpriteConfig` no tiene `attach`; el allocator lo declara pendiente |
 | **Sprite DMA** (columna alta) | **sí** | `SpriteLayer` con `dma_channels` (estructura **con cabecera POS+CTL**; `SPRxPT`→cabecera) |
 | **Sprite-as-playfield** (capa de fondo) | **sí** | `effects::SpriteLayer` (sobre el rearmado horizontal) |
-| **Colisión hardware** (CLXCON/CLXDAT) | **sí** (utilidad + backend) | `graphics/sprite_collision.hpp`, `MinimalBackend::set/read_sprite_collision` |
+| **Colisión hardware** (CLXCON/CLXDAT) | **sí** (utilidad + backend) | `graphics/sprite_collision.hpp`, `AmigaBackend::set/read_sprite_collision` |
 | **Prioridad BPLCON2 por sprite** | parcial | `BPLCON2`/intent `Priority`, sin API de sprites |
 
 ## 12. Referencias

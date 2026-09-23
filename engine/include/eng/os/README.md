@@ -29,5 +29,5 @@ núcleo, [`MINI_OS_INPUT.md`](../../../../docs/engine/architecture/MINI_OS_INPUT
 | `task.hpp` | `TaskSystem`: tareas de fondo con ciclo de vida, scheduler de idle, `request_preempt`/`yield_if_preempt`, `TaskMsgPort` propio y `wait_or_idle`. | **Implementado** (HOST-305) |
 
 Reglas del engine: sin heap, sin excepciones ni RTTI, `gnu++23`, tipos de `eng/core`, API
-paramétrica y agnóstica del backend. El backend Amiga (`amiga_minimal`) es quien produce los
+paramétrica y agnóstica del backend. El backend Amiga (`amiga_backend`) es quien produce los
 mensajes desde sus ISR; el host puede implementar los mismos servicios con `std` para test.

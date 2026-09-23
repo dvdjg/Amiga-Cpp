@@ -31,7 +31,7 @@
 #if defined(K_DIAG_BG) || defined(K_DIAG_TOTAL)
 #include <eng/debug/peripheral.hpp>
 #endif
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 #include <eng/field/xlimited_scene.hpp>
 #include <eng/field/tile_demo.hpp>
 
@@ -132,7 +132,7 @@ struct DemoGame {
 	static constexpr eng::u16 kPatRowBytes = 128;  // 1024 px = 2 periodos (margen para la ventana)
 	static constexpr eng::u16 kPatRows = 512;
 
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		// Doble buffer del fondo = 1 bitmap extra (~72 KB con stride interleaved).
 		if (!backend.configure_memory({300u * 1024u, 16u * 1024u, 8u * 1024u})) {
@@ -217,7 +217,7 @@ struct DemoGame {
 		eng::debug::mark_ready(g_eng_run_status, 0x11200000u);
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!ready) return;
 		plan.clear();
@@ -374,7 +374,7 @@ struct DemoGame {
 			((scroll_x >> 8) & 0xffu);
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (ready) scene.install(backend);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
@@ -385,7 +385,7 @@ struct DemoGame {
 int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	DemoGame game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

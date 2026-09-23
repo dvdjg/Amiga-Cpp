@@ -27,7 +27,7 @@
 #include <eng/graphics/bob.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/platform/amiga/object3d.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -239,7 +239,7 @@ void transform_all_vertices(obj::Object3D& object) {
 }
 
 struct Bobs3DDemo {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		P_INIT(kProfCount);
 		if (!backend.configure_memory({192u * 1024u, 4u * 1024u, 4u * 1024u})) {
@@ -283,7 +283,7 @@ struct Bobs3DDemo {
 		eng::debug::mark_ready(g_eng_run_status, static_cast<u32>(pilka.vertices));
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (m_screen_block.view.data() == nullptr) {
 			return;
@@ -343,7 +343,7 @@ struct Bobs3DDemo {
 		P_END(kProfUpdate);
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -377,7 +377,7 @@ private:
 
 	/// Calcula el vertice y lanza su BOB en el MISMO bucle (estructura de `DrawObject`),
 	/// via el lote en streaming del backend: sin array intermedio.
-	void draw_bobs_stream(eng::amiga::MinimalBackend& backend, u8* screen) {
+	void draw_bobs_stream(eng::amiga::AmigaBackend& backend, u8* screen) {
 		s16* group = m_object.vertexGroups;
 
 		eng::amiga::OrBlobBatch batch;
@@ -554,7 +554,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	Bobs3DDemo game {};
 	eng::Engine engine {backend, game};
 #if K_117_IRQ

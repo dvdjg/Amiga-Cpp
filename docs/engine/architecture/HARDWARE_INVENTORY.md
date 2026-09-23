@@ -4,7 +4,7 @@
 suponerlas o de dispersar `#ifdef` de modelo. `eng::hw::probe()` sondea Exec, los custom chips, la
 ROM y los mapas de memoria, y rellena un `HwInfo` **POD estable y consultable**; el juego solo lee.
 Vive en `engine/include/eng/hw/info.hpp` (tipos, consultas y `probe` declarado); el sondeo lo
-implementa el backend (`engine/src/platform/amiga/amiga_minimal_hw.cpp`).
+implementa el backend (`engine/src/platform/amiga/amiga_hw.cpp`).
 
 ```text
 HwProbe::probe(HwInfo&)  →  HwInfo (POD estable)

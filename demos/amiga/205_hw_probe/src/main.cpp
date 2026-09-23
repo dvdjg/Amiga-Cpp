@@ -1,7 +1,7 @@
 #include <eng/api/api.hpp>
 #include <eng/api/effects.hpp>
 #include <eng/hw/info.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -89,7 +89,7 @@ const char* yes_no(bool v) {
 }
 
 struct DemoGame {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({ 80u * 1024u, 8u * 1024u, 4u * 1024u })) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020501u);
@@ -144,7 +144,7 @@ struct DemoGame {
 		}
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (m_fx_registered) {
 			// Ciclo del plan: abrir -> efectos (`tick` = `run_effects`) -> materializar -> cerrar.
@@ -159,7 +159,7 @@ struct DemoGame {
 		(void)backend;
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		auto& d = backend.debug();
 		d.clear();
 		d.filled_rect(40, 40, 720, 440, m_ok ? 0x00082030 : 0x00502020);
@@ -330,7 +330,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	DemoGame game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

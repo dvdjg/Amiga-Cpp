@@ -1,6 +1,6 @@
 #include <eng/api/api.hpp>
 #include <eng/graphics/effects/palette_transition.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -111,7 +111,7 @@ void build_ehb_test_pattern(eng::PlaneBytes planes) {
 /// `palette_zones`) en vez de conocer los registros: el `Scene` traduce a la copperlist. El
 /// fundido no reescribe la lista: parchea los `COLORxx` base a traves del `PatchZone`.
 struct DemoGame {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		m_memory_ok = backend.configure_memory({
 			scene::chip_bytes_for(kRes), // Chip: bitplanes EHB + copperlist doble + margen.
@@ -149,7 +149,7 @@ struct DemoGame {
 		m_scene.takeover(backend);
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_scene_ok) {
 			return;
@@ -194,7 +194,7 @@ struct DemoGame {
 		}
 	}
 
-	void render(eng::amiga::MinimalBackend&, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend&, eng::GameContext& context) {
 		// No dibujamos overlay: el analizador debe leer solo pixeles producidos por
 		// bitplanes EHB y cambios de paleta Copper.
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
@@ -213,7 +213,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	DemoGame game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

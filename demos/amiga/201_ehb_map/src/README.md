@@ -184,7 +184,7 @@ Las inclusiones y su uso real:
 | `graphics/frame_plan.hpp` | Cola de **blits** del frame (`FramePlan::add_tile_block_copy`, presupuesto y telemetría). |
 | `graphics/surface.hpp` | `Surface` para el lienzo del HUD. |
 | `memory/arena.hpp` | `MemorySystem`/arena de Chip RAM (200 KB para display+copper+relleno; el banco incbinado se alia sin copiar). |
-| `platform/amiga_minimal.hpp` | Backend mínimo: configura la memoria Chip, ejecuta el plan de frame, instala la copperlist y el display. |
+| `platform/amiga/backend.hpp` | Backend mínimo: configura la memoria Chip, ejecuta el plan de frame, instala la copperlist y el display. |
 | `debug/run_status.hpp` | `g_eng_run_status` (estado READY/FAILED por el canal lateral) y `g_eng_frame_telemetry` (jobs/words/copper por frame). |
 | `core/sinetable.hpp` | `SineTable<127,256>` a priori (Q7) para las trayectorias circular y Lissajous, sin float por frame. |
 

@@ -1,11 +1,11 @@
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include "support/gcc8_c_support.h"
 #include <proto/exec.h>
 #include <exec/memory.h>
 
 
-#include "amiga_minimal_internal.hpp"
+#include "amiga_internal.hpp"
 
 using namespace eng::amiga::detail;
 

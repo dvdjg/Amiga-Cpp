@@ -32,8 +32,8 @@
 #include <eng/core/util/static_string.hpp>
 #include <eng/core/util/text.hpp>
 #include <eng/graphics/font8.hpp>
-#include <eng/platform/amiga_minimal.hpp>
-#include <eng/platform/input_poll.hpp>
+#include <eng/platform/amiga/backend.hpp>
+#include <eng/platform/amiga/input_poll.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -83,7 +83,7 @@ constexpr eng::u8 kColorWarn = 26;
 GoSearcher g_searcher {};
 
 struct GoGame {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		m_memory_ok = backend.configure_memory({96u * 1024u, 24u * 1024u, 4u * 1024u});
 
@@ -114,7 +114,7 @@ struct GoGame {
 		eng::debug::mark_ready(g_eng_run_status, 0x000101FFu);
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		(void)backend;
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 
@@ -153,7 +153,7 @@ struct GoGame {
 		}
 	}
 
-	void render(eng::amiga::MinimalBackend&, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend&, eng::GameContext& context) {
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -423,7 +423,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	GoGame game {};
 	eng::Engine engine {backend, game};
 	engine.run_frames_polling(0xffff);

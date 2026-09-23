@@ -78,7 +78,7 @@ activo que pisa el frame).
 Analiza **todo el proceso de arranque** de una demo hasta tener una pantalla
 limpia y estable, desde el punto de vista de bajo nivel del Amiga:
 
-- Qué hace `MinimalBackend` (startup, `_start`, configuración de memoria,
+- Qué hace `AmigaBackend` (startup, `_start`, configuración de memoria,
   `configure_memory`, instalación de copper, VBlank).
 - Qué deja el sistema (Kickstart/AmigaDOS/Workbench) "vivo": interrupciones
   level 3/5/6, VBR, INTENA, DMACON, copperlist del sistema, sprite DMA, audio,
@@ -301,7 +301,7 @@ Nota operativa: el `poke` del canal lateral devuelve `status: queued` y aplica d
 
 ## 5. Bug C — instalación de la copperlist fuera de VBL / COPJMP1 por frame
 
-`MinimalBackend::install_copper_list` (`engine/src/platform/amiga/amiga_minimal.cpp:171-182`) hoy hace:
+`AmigaBackend::install_copper_list` (`engine/src/platform/amiga/amiga.cpp:171-182`) hoy hace:
 
 ```cpp
 *cop1lc = reinterpret_cast<u32>(copper_words);          // COP1LC
@@ -317,11 +317,11 @@ Problemas:
 
 **Dato clave**: el Copper recarga COP1LC automáticamente al inicio de cada VBL. Para swaps por frame NO hace falta COPJMP1: basta con actualizar el puntero COP1LCH/COP1LCL en cualquier momento del frame.
 
-### Fix diseñado para `MinimalBackend::install_copper_list`
+### Fix diseñado para `AmigaBackend::install_copper_list`
 
 ```cpp
 // Estado: bool m_display_taken = false; (miembro del backend)
-void MinimalBackend::install_copper_list(const u16* copper_words) {
+void AmigaBackend::install_copper_list(const u16* copper_words) {
     if (!m_display_taken) {
         // ---- TOMA DE CONTROL COMPLETA (una sola vez) ----
         // 1) Congelar el sistema: sin interrupciones ni DMA. A partir de aquí
@@ -406,7 +406,7 @@ Los cuatro bugs se corrigieron en el engine y en la demo 060. Evidencia reproduc
 |---|---|---|
 | A | `engine/include/eng/field/surface.hpp` (`Surface::draw_text`) | El bucle corta ahora en `cp == 0` (NUL o byte inválido), no en `cp == 0 && before != 0`. Antes rasterizaba la `.rodata` posterior a la cadena. |
 | A | `demos/amiga/060_eng_core_selfcheck/src/main.cpp` (`draw_text` local) | Ídem: `if (cp == 0u) break;`. |
-| B + C | `engine/src/platform/amiga/amiga_minimal.cpp` (`install_copper_list`) | Toma de control del display una sola vez: `INTENA=0x7FFF`, `INTREQ=0x7FFF`, `wait_blitter()`, `DMACON=0x7FFF`, programar `COP1LC`, espera activa de VBL (línea 311→0) y arranque `DMACON=SETCLR|DMAEN|COPEN` + `COPJMP1` alineado al inicio de línea. Instalaciones posteriores (doble buffer, la 201 reinstala por frame) hacen **solo swap de puntero `COP1LC`**, sin `COPJMP1`. |
+| B + C | `engine/src/platform/amiga/amiga.cpp` (`install_copper_list`) | Toma de control del display una sola vez: `INTENA=0x7FFF`, `INTREQ=0x7FFF`, `wait_blitter()`, `DMACON=0x7FFF`, programar `COP1LC`, espera activa de VBL (línea 311→0) y arranque `DMACON=SETCLR|DMAEN|COPEN` + `COPJMP1` alineado al inicio de línea. Instalaciones posteriores (doble buffer, la 201 reinstala por frame) hacen **solo swap de puntero `COP1LC`**, sin `COPJMP1`. |
 | B + C | `engine/include/eng/platform/amiga/backend.hpp` | Nuevo miembro `m_display_taken` para distinguir toma de control de swap. API separada en dos métodos con nombre propio: `takeover_display()` (toma de control, una sola vez en `init`) e `install_copper_list()` (swap de puntero por frame con retrocompatibilidad de toma de control en la primera llamada). |
 | D | `demos/amiga/060_eng_core_selfcheck/src/main.cpp` | `0x0aa` movido de índice 19 a índice 20, para que el pie dibujado con color 20 sea visible. |
 

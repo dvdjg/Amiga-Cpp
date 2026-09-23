@@ -28,7 +28,7 @@ Es evolutivo: se escribe para lo disponible y se adapta cuando lleguen los módu
 
 ```cpp
 // main.cpp de un juego
-eng::amiga::MinimalBackend backend {};
+eng::amiga::AmigaBackend backend {};
 MyGame game {};
 eng::App app {backend, game};   // junta bucle + pantalla + entrada + tareas
 app.run();                       // bucle por defecto (interrupt-driven, sin polling)

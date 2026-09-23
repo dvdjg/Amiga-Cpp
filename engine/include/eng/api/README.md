@@ -8,7 +8,7 @@ dibujo (`field::Surface`/`DrawTarget`/`graphics::FramePlan`), rasterizado CPU/Bl
 (`task::BackgroundQueue`) y los valores preparados de Blitter (`graphics::OrBob`/`LineEor`/
 `C2p4`).
 
-**No incluye el backend** (`eng/platform/amiga_minimal.hpp`): se instancia en `main()` y se
+**No incluye el backend** (`eng/platform/amiga/backend.hpp`): se instancia en `main()` y se
 pasa a `eng::Engine`. Un juego portable incluye solo esta fachada; una demo Amiga añade su
 backend.
 

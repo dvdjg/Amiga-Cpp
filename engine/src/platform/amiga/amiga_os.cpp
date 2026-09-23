@@ -1,11 +1,11 @@
-#include "amiga_minimal_internal.hpp"
+#include "amiga_internal.hpp"
 
 #include <eng/os/input.hpp>
 #include <eng/os/os.hpp>
 #include <eng/os/timer.hpp>
-#include <eng/platform/input_poll.hpp>
+#include <eng/platform/amiga/input_poll.hpp>
 
-/// \file amiga_minimal_os.cpp
+/// \file amiga_os.cpp
 /// Implementación Amiga de la fachada del mini-SO (`eng::os`): el puerto del sistema, el contador de
 /// frames y el **tick** que latcha el VBlank y pollea los productores de entrada (ratón en el
 /// puerto 1 con `JOY0DAT`, joystick en el 2 con `JOY1DAT`; fuegos en CIA-A PRA). Referencias:

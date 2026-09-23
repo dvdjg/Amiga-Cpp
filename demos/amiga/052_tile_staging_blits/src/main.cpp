@@ -1,6 +1,6 @@
 #include <eng/api/api.hpp>
 #include <eng/graphics/tilemap/tile_scroll.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 #include <eng/scene/virtual_scene.hpp>
 
 #include <proto/exec.h>
@@ -159,7 +159,7 @@ eng::graphics::BlitJob make_present_staging_job(
 }
 
 struct DemoGame {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({96u * 1024u, 8u * 1024u, 8u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000052u);
@@ -227,7 +227,7 @@ struct DemoGame {
 		m_ready = true;
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_ready) {
 			return;
@@ -244,7 +244,7 @@ struct DemoGame {
 		}
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (m_scene.ok()) {
 		}
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
@@ -308,7 +308,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	DemoGame game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

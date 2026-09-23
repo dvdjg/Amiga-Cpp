@@ -7,7 +7,7 @@
 // 0, 0]`) y `SPRxPT` apunta a su inicio (Agnus recarga POS/CTL de ahí). Con `CLXCON` se
 // habilita la colisión del par 0 con los bitplanes; cada frame se lee `CLXDAT` (que se
 // autolimpia) y, si hay choque, `COLOR00` cambia a rojo. Valida en hardware
-// `graphics/sprite_collision.hpp` y `MinimalBackend::set/read_sprite_collision`.
+// `graphics/sprite_collision.hpp` y `AmigaBackend::set/read_sprite_collision`.
 //
 //   bash ./tools/build/build-demo.sh demos/amiga/206_sprite_collision --debug
 //   bash ./tools/run/run-demo.sh demos/amiga/206_sprite_collision --warp
@@ -15,7 +15,7 @@
 
 #include <eng/api/api.hpp>
 #include <eng/graphics/sprite_collision.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -59,7 +59,7 @@ constexpr eng::Palette32 kPalette {{
 }};
 
 struct CollisionDemo {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({ 96u * 1024u, 8u * 1024u, 4u * 1024u })) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020601u);
@@ -86,7 +86,7 @@ struct CollisionDemo {
 		eng::debug::mark_ready(g_eng_run_status, 0x00020600u);
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		if (m_copper_ok) {
 			backend.install_copper_list(m_copper_ptr);
 		}
@@ -103,7 +103,7 @@ struct CollisionDemo {
 		backend.set_color(0, hit ? 0xf00u : 0x013u); // COLOR00 rojo si hay choque
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -167,7 +167,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	CollisionDemo game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

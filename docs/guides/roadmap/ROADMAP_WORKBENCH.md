@@ -45,9 +45,9 @@ Intuition «sea» el compositor del engine, sino de **misma API de servicio + ba
 | Tema/rect | `engine/include/eng/ui/theme.hpp:29` (`Rect = eng::Box`, `kThemeWb13`) |
 | `draw_tree` / `draw_widget` (pintado del árbol) | `engine/include/eng/ui/widgets.hpp:343`, `:191` |
 | Puente `Msg → UiEvent` y adaptador con keymap | `eng/ui/ui_bridge.hpp:15`, `eng/ui/msg_adapter.hpp:20` |
-| `Msg`/`MsgType`/`Signal`, `MsgPort`, `system_port()` (singleton) | `eng/os/message.hpp:20`, `port.hpp:218`, `os.hpp:15`, `amiga_minimal_os.cpp:38` |
+| `Msg`/`MsgType`/`Signal`, `MsgPort`, `system_port()` (singleton) | `eng/os/message.hpp:20`, `port.hpp:218`, `os.hpp:15`, `amiga_os.cpp:38` |
 | `HandlerTable`/`dispatch_all`, `pump_messages`/`MessagePumpGame` | `eng/os/dispatch.hpp:21`, `message_pump.hpp:17` |
-| E/S asíncrona sobre `dos.library` (`FileDone`/`FileError`) | `eng/os/file.hpp:66`, `amiga_minimal_file.cpp:131` |
+| E/S asíncrona sobre `dos.library` (`FileDone`/`FileError`) | `eng/os/file.hpp:66`, `amiga_file.cpp:131` |
 | `Compositor` + `WindowBacking` (pool fijo, backing por ventana) | `eng/ui/compositor.hpp:30`, `backing.hpp:17` |
 | `TimerService` puro (el backend aporta `frame_now`/`ticks_now`) | `eng/os/timer.hpp:35` |
 
@@ -203,7 +203,7 @@ void app_ui_main(Host& host) {
 
 - **Entregable**: `timer.device` (`TR_ADDREQUEST` al mismo `io_reply`) o `INTUITICKS` para UI a
   ~10 Hz; `file_read_async` de `dos.library` sobre el mismo puerto (ya genérica,
-  `amiga_minimal_file.cpp`). **No** usar el timer de CIA del juego si el OS posee las CIA.
+  `amiga_file.cpp`). **No** usar el timer de CIA del juego si el OS posee las CIA.
 - **Verificación**: **HOST** con IO simulado; demo WB que lea un archivo sin bloquear el task de
   Intuition.
 - **Estado**: pendiente.

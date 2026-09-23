@@ -16,7 +16,7 @@
 #include <eng/api/api.hpp>
 #include <eng/audio/audio_system.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -49,7 +49,7 @@ constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kBytesPerRow) * 256u;
 constexpr eng::u32 kReadyFrame = static_cast<eng::u32>(OCTAMED_READY_FRAME);
 
 struct OctaMedProbe {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 #if !defined(ENG_AUDIO_OCTAMED) || !defined(MED_MODULE_NUM)
 		// El reproductor MED es **opt-in**: sin `-DENG_AUDIO_OCTAMED -DMED_MODULE_NUM=<n>` no se
@@ -112,7 +112,7 @@ struct OctaMedProbe {
 		}
 	}
 
-	void update(eng::amiga::MinimalBackend&, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
 		m_audio.update_music(); // el playroutine MED es frame-driven
 		if (!m_ok || kReadyFrame == 0u) {
 			return;
@@ -128,7 +128,7 @@ struct OctaMedProbe {
 		}
 	}
 
-	void render(eng::amiga::MinimalBackend&, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend&, eng::GameContext& context) {
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -157,7 +157,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	OctaMedProbe game {};
 	eng::Engine engine {backend, game};
 	engine.run_frames_polling(0xffff);

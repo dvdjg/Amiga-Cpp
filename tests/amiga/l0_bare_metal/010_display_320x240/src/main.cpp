@@ -9,7 +9,7 @@
 //   CAPA 0 (bare metal)  - registros custom ($dffxxx), bitplanes planares,
 //                          construccion de una copperlist word a word, dibujo
 //                          de lineas por CPU y restauracion del sistema.
-//   CAPA 1 (backend)     - MinimalBackend se encarga de reservar Chip RAM
+//   CAPA 1 (backend)     - AmigaBackend se encarga de reservar Chip RAM
 //                          (AllocMem) y de instalar la copperlist. La logica
 //                          del test sigue conociendo el hardware porque esta
 //                          capa es justamente la que estamos aprendiendo.
@@ -34,7 +34,7 @@
 #include <eng/engine.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/memory/arena.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -315,7 +315,7 @@ constexpr eng::u16 kTestPalette[32] {
 };
 
 struct DemoGame {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 
 		// CAPA 1: reservar Chip RAM para bitplanes + copperlist. La arena chip
@@ -405,7 +405,7 @@ struct DemoGame {
 		}
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 
 		// Al llegar al frame de salida, restaurar el sistema: devolvemos la
@@ -421,7 +421,7 @@ struct DemoGame {
 		}
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		// Sin overlay: el analizador debe leer solo los bitplanes reales.
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
@@ -439,7 +439,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	DemoGame game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames(static_cast<eng::u16>(kExitFrame + 2));

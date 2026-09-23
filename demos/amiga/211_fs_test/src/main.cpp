@@ -4,7 +4,7 @@
 #include <eng/os/file_stream.hpp>
 #include <eng/os/os.hpp>
 #include <eng/res/dynloader.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -81,7 +81,7 @@ struct DemoGame {
 	eng::u32 m_stream_chunks = 0;
 	bool m_stream_ok = false;
 
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		(void)backend.configure_memory({16u * 1024u, 8u * 1024u, 4u * 1024u});
 
@@ -253,11 +253,11 @@ struct DemoGame {
 		eng::debug::mark_ready(g_eng_run_status, 0x00021100u | flags);
 	}
 
-	void update(eng::amiga::MinimalBackend&, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		auto& d = backend.debug();
 		d.clear();
 		d.filled_rect(40, 40, 720, 420, 0x00082030);
@@ -333,7 +333,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	DemoGame game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

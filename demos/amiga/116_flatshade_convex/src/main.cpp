@@ -22,7 +22,7 @@
 #include <eng/retro/flat_shade_xor.hpp>
 #include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -166,7 +166,7 @@ eng::u32 g_face_off_n = 0;
 /// (poligono proyectado) con su color de luz mediante `blitter_fill_polygon`
 /// (mascara + contorno ONEDOT + area fill inclusivo + cookie-cut). Da caras solidas
 /// sin depender de la paridad del area fill XOR, a cambio de mas blits por cara.
-void draw_faces(obj::Object3D& object, eng::PlaneBytes planes, eng::amiga::MinimalBackend& backend,
+void draw_faces(obj::Object3D& object, eng::PlaneBytes planes, eng::amiga::AmigaBackend& backend,
 		eng::MaskBuffer mask) {
 	// Orden n-gon por math3d: culling por la normal almacenada (sin 64 bits) + pintor.
 	eng::math3d::FaceOrder order[64];
@@ -288,7 +288,7 @@ inline eng::u32 gather_visible_edges(obj::Object3D& object, eng::retro::OutlineE
 /// registro custom), no de este bucle. Por eso aqui no hay nada que "optimizar en
 /// C++": el margen esta en reducir el numero de blits, no en el codegen.
 void draw_edges(obj::Object3D& object, eng::PlaneBytes planes,
-		eng::amiga::MinimalBackend& backend) {
+		eng::amiga::AmigaBackend& backend) {
 	const eng::u32 t0 = rcycles();
 	eng::u32 n_edges = 0u;
 	eng::u32 n_lines = 0u;
@@ -378,7 +378,7 @@ void draw_edges(obj::Object3D& object, eng::PlaneBytes planes,
 /// los 4 planos contiguos) y coincide con el del original (131.8k vs 131k), asi que
 /// no hay margen en C++ aqui: cualquier recorte vendria de tocar la tecnica (acotar
 /// el barrido), no el codegen.
-void area_fill_planes(eng::PlaneBytes planes, eng::amiga::MinimalBackend& backend, bool wait) {
+void area_fill_planes(eng::PlaneBytes planes, eng::amiga::AmigaBackend& backend, bool wait) {
 	const eng::u32 t0 = rcycles();
 #if !FLATSHADE_SKIP_FILL
 #if FLATSHADE_FILL_BBOX
@@ -421,7 +421,7 @@ inline void prepare_fs_args(eng::PlaneBytes planes, obj::Object3D& object) {
 #endif
 
 struct FlatShadeDemo {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		m_memory_ok = backend.configure_memory({128u * 1024u, 4u * 1024u, 4u * 1024u});
 		if (!m_memory_ok) {
@@ -512,7 +512,7 @@ struct FlatShadeDemo {
 	/// clear queda escondido bajo el fill. El wait del fill se absorbe en la espera de
 	/// VBlank del engine o en el primer wait del siguiente update: el buffer nunca se ve
 	/// a medias (se muestra en el swap del update siguiente).
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_init_ok) {
 			return;
@@ -613,7 +613,7 @@ struct FlatShadeDemo {
 		g_eng_prof.v[5] = t3 - t0;
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -632,7 +632,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	FlatShadeDemo game {};
 	eng::Engine engine {backend, game};
 	engine.run_frames_polling(0xffff);

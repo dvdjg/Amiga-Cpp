@@ -31,7 +31,7 @@
 #include <eng/graphics/copper/plan.hpp>
 #include <eng/graphics/effects/raster_gradient.hpp>
 #include <eng/graphics/raster_intent.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -100,7 +100,7 @@ constexpr eng::u16 kRainbow[32] = {
 constexpr eng::SineTable<64, 64> kSin {};
 
 struct CopperPlanDemo {
-	void init(amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({96u * 1024u, 8u * 1024u, 4u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008501u);
@@ -141,7 +141,7 @@ struct CopperPlanDemo {
 					       static_cast<eng::u32>(m_plan.words() & 0xffu));
 	}
 
-	void update(amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(amiga::AmigaBackend& backend, eng::GameContext& context) {
 		(void)backend;
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_ready) return;
@@ -159,7 +159,7 @@ struct CopperPlanDemo {
 		m_back = static_cast<eng::u8>(back ^ 1u);
 	}
 
-	void render(amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(amiga::AmigaBackend& backend, eng::GameContext& context) {
 		// Publica la lista del frame (swap de COP1LC) tras VBlank.
 		m_plan.commit(backend);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
@@ -324,7 +324,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	amiga::MinimalBackend backend {};
+	amiga::AmigaBackend backend {};
 	CopperPlanDemo game {};
 	eng::Engine engine {backend, game};
 	engine.run_frames_polling(0xffff);

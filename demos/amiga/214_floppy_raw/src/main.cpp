@@ -1,7 +1,7 @@
 #include <eng/api/api.hpp>
 #include <eng/core/data/byte_order.hpp>
 #include <eng/os/floppy.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -63,7 +63,7 @@ struct DemoGame {
 	// Etapa actual en `detail` (para localizar el cuelgue desde el runner si no llega a READY).
 	static void stage(eng::u32 code) { g_eng_run_status.detail = code; }
 
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		stage(0x214001u);
 		if (!backend.configure_memory({ 48u * 1024u, 8u * 1024u, 4u * 1024u })) {
@@ -139,11 +139,11 @@ struct DemoGame {
 		}
 	}
 
-	void update(eng::amiga::MinimalBackend&, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		auto& d = backend.debug();
 		d.clear();
 		d.filled_rect(40, 40, 720, 420, m_ok ? 0x00082030 : 0x00502020);
@@ -207,7 +207,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	DemoGame game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

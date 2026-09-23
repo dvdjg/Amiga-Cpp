@@ -1,5 +1,5 @@
 #include <eng/api/api.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -36,7 +36,7 @@ struct DemoGame {
 		return value;
 	}
 
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		static_assert(language_level_marker() == 23);
 
@@ -52,14 +52,14 @@ struct DemoGame {
 		}
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		const eng::u16 shade = clamp_to_demo_range<eng::u16>(context.frame.frame_index & 0x0f);
 		const eng::u16 color = static_cast<eng::u16>((shade << 8) | (shade << 4) | shade);
 		backend.set_color(0, color);
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		auto& debug = backend.debug();
 		debug.clear();
 		debug.filled_rect(64, 80, 540, 210, m_memory_ok ? 0x00103060 : 0x00601010);
@@ -83,7 +83,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	DemoGame game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

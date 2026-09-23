@@ -16,7 +16,7 @@
 #include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/platform/amiga/object3d.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -153,7 +153,7 @@ void transform_all(obj::Object3D& object) {
 }
 
 /// Port de `DrawLinks`: una linea por cara entre sus dos vertices.
-void draw_links(obj::Object3D& object, eng::PlaneBytes plane, eng::amiga::MinimalBackend& backend) {
+void draw_links(obj::Object3D& object, eng::PlaneBytes plane, eng::amiga::AmigaBackend& backend) {
 	s16* group = object.faceGroups;
 	do {
 		s16 f;
@@ -170,7 +170,7 @@ void draw_links(obj::Object3D& object, eng::PlaneBytes plane, eng::amiga::Minima
 
 /// Las DOS hebras (backbone): conecta nodos consecutivos de cada strand. Strand A =
 /// nodos pares; strand B = impares (`GenCircularDoubleHelix` escribe 2 nodos por paso).
-void draw_strands(obj::Object3D& object, eng::PlaneBytes plane, eng::amiga::MinimalBackend& backend) {
+void draw_strands(obj::Object3D& object, eng::PlaneBytes plane, eng::amiga::AmigaBackend& backend) {
 	for (int i = 0; i < kNPoints - 1; ++i) {
 		const s16 a0 = static_cast<s16>(2 + 14 * (2 * i));
 		const s16 a1 = static_cast<s16>(2 + 14 * (2 * i + 2));
@@ -184,7 +184,7 @@ void draw_strands(obj::Object3D& object, eng::PlaneBytes plane, eng::amiga::Mini
 }
 
 struct Dna3DDemo {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({128u * 1024u, 4u * 1024u, 4u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011801u);
@@ -210,7 +210,7 @@ struct Dna3DDemo {
 		eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(dna_helix.vertices));
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (m_bitplane_block.view.data() == nullptr) {
 			return;
@@ -233,7 +233,7 @@ struct Dna3DDemo {
 		m_active = static_cast<u8>((active + 1u) % kRing);
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -272,7 +272,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	Dna3DDemo game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

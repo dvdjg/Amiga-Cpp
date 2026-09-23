@@ -32,7 +32,7 @@
 #include <eng/api/api.hpp>
 #include <eng/graphics/c2p.hpp>
 #include <eng/graphics/effects/rotozoom.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -156,7 +156,7 @@ void render_rotozoom(const eng::graphics::Rotozoom& rot, eng::ChunkyBuffer dst, 
 }
 
 struct RotozoomDemo {
-	bool init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	bool init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		// Chip: 2 escenas (planos+copperlist), 2 chunky y el banco de referencia.
 		if (!backend.configure_memory({192u * 1024u, 8u * 1024u, 4u * 1024u})) {
@@ -259,7 +259,7 @@ struct RotozoomDemo {
 		return true;
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		(void)backend;
 		// Animacion: rota, oscila el zoom y desplaza la textura (paneo diagonal).
 		m_angle = static_cast<eng::u16>((m_angle + 2u) & 0xffu);
@@ -277,7 +277,7 @@ struct RotozoomDemo {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		// Swap de copperlist tras VBlank (el motor lo garantiza antes de `render`):
 		// el display muestra el buffer recien convertido, nunca el que se escribe.
 		m_scene.commit();
@@ -303,7 +303,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	RotozoomDemo game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

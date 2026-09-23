@@ -2,7 +2,7 @@
 // Demo 208 — self-test de copia lineal por Blitter (blitter_memcpy)
 // ============================================================================
 //
-// Valida en hardware `MinimalBackend::blitter_memcpy`:
+// Valida en hardware `AmigaBackend::blitter_memcpy`:
 //   1) **Síncrona**: copia un buffer conocido y compara byte a byte.
 //   2) **Asíncrona**: `blitter_memcpy_async` + IRQ BLIT que publica `BlitDone` en un
 //      `eng::os::MsgPort`; el bucle consume el mensaje y compara.
@@ -13,7 +13,7 @@
 
 #include <eng/api/api.hpp>
 #include <eng/os/port.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -48,7 +48,7 @@ void post_done(PostDone& s, eng::u16) {
 }
 
 struct DemoGame {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({ 64u * 1024u, 4u * 1024u, 4u * 1024u })) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020801u);
@@ -78,7 +78,7 @@ struct DemoGame {
 		eng::debug::mark_ready(g_eng_run_status, 0x00020800u);
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		if (!m_async_started || m_async_done) {
 			return;
 		}
@@ -96,7 +96,7 @@ struct DemoGame {
 		}
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		auto& d = backend.debug();
 		d.clear();
 		d.filled_rect(40, 40, 720, 300, 0x00082030);
@@ -140,7 +140,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	DemoGame game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

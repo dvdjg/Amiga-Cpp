@@ -1,6 +1,6 @@
 #include <eng/api/api.hpp>
 #include <eng/graphics/copper/copper.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -31,7 +31,7 @@ namespace {
 /// Copper va cambiando por bandas horizontales. El overlay de WinUAE-DBG se usa
 /// solo como texto/tutorial de validacion.
 struct DemoGame {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		m_memory_ok = backend.configure_memory({
 			8u * 1024u,  // Chip: copperlist y futuros recursos DMA pequenos.
@@ -95,7 +95,7 @@ struct DemoGame {
 		}
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		// La demo no anima nada desde CPU. El punto es que el Copper haga el trabajo
 		// de raster sin intervencion por frame.
@@ -104,7 +104,7 @@ struct DemoGame {
 		}
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		// No usamos overlay en esta demo: la captura debe validar solo el resultado
 		// de hardware. Si el overlay o AmigaDOS aparecen, el analizador debe fallar.
 		if (m_copper_ok && m_copper_words > 0) {
@@ -125,7 +125,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	DemoGame game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

@@ -1,4 +1,4 @@
-#include "amiga_minimal_internal.hpp"
+#include "amiga_internal.hpp"
 
 #include <eng/hw/info.hpp>
 
@@ -6,7 +6,7 @@
 #include <exec/memory.h>
 #include <proto/exec.h>
 
-/// \file amiga_minimal_hw.cpp
+/// \file amiga_hw.cpp
 /// Implementación Amiga de `eng::hw::probe`: sondea Exec (`AttnFlags`, `MemList`, versión),
 /// los custom chips (`DENISEID`, `VPOSR`, `BPLCON0`, `DIWSTRT/STOP`) y clasifica la RAM.
 /// Referencias: AHRM 3.ª (registros BPLCON0/DENISEID/VPOSR), `docs/reference/ahrm/`,

@@ -113,7 +113,7 @@ El log de audio de WinUAE **está compilado fuera** en el binario actual (`#defi
    gdbserver autoabre en `%TEMP%\winuae-gdb.log` (`:1454`). Así el log de audio queda en un fichero
    legible. El binario y las fuentes del emulador se restauran tras la sesión de medida.
 3. Alternativa sin depender del log: **GDB** (el runner ya conecta) con breakpoint en `AUDxLEN`
-   (`audio.cpp:2722`) y en `level4_dispatch` (`amiga_minimal.cpp:224`), volcando `v` y el estado de
+   (`audio.cpp:2722`) y en `level4_dispatch` (`amiga.cpp:224`), volcando `v` y el estado de
    la voz en cada IRQ para medir el intervalo real.
 
 Descartado leer los registros desde el 68000 (write-only; la lectura devuelve `0xFFFF`).

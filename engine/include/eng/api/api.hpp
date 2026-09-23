@@ -9,7 +9,7 @@
 /// (`eng::ui`)— sin definir tipos nuevos: solo incluye las fuentes canónicas, de modo que
 /// no hay duplicación ni una segunda verdad que mantener.
 ///
-/// **No incluye el backend** (p. ej. `eng/platform/amiga_minimal.hpp`): el backend se
+/// **No incluye el backend** (p. ej. `eng/platform/amiga/backend.hpp`): el backend se
 /// instancia en `main()` y se pasa a `eng::Engine`. Un juego portable incluye solo esta
 /// fachada; una demo Amiga añade su backend y (si procede) las utilidades de plataforma.
 ///

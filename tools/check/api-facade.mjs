@@ -2,7 +2,7 @@
 // Comprueba que la logica de demo/juego usa la fachada `eng/api/api.hpp` y no nombra tipos
 // del backend:
 //   - no incluye headers cubiertos por la fachada (los trae ella);
-//   - no usa `MinimalBackend::<tipo>` (debe usar el tipo de dominio o el seam).
+//   - no usa `AmigaBackend::<tipo>` (debe usar el tipo de dominio o el seam).
 // Regla: AGENTS.md 1.9. Uso: node tools/check/api-facade.mjs
 import fs from 'node:fs';
 import path from 'node:path';
@@ -53,8 +53,8 @@ for (const f of files) {
 		if (inc && COVERED.has(inc[1])) {
 			problems.push(`${rel}:${i + 1}: incluye <${inc[1]}> (lo trae eng/api/api.hpp)`);
 		}
-		if (code.includes('MinimalBackend::') || code.includes('AmigaBackend::')) {
-			problems.push(`${rel}:${i + 1}: usa un tipo del backend (MinimalBackend::/AmigaBackend::); usa el tipo de dominio o el seam`);
+		if (code.includes('AmigaBackend::')) {
+			problems.push(`${rel}:${i + 1}: usa un tipo del backend (AmigaBackend::); usa el tipo de dominio o el seam`);
 		}
 	}
 }

@@ -17,8 +17,8 @@
 #include <eng/core/types/span.hpp>
 #include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/platform/amiga_minimal.hpp>
-#include <eng/platform/input_poll.hpp>
+#include <eng/platform/amiga/backend.hpp>
+#include <eng/platform/amiga/input_poll.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -59,7 +59,7 @@ constexpr eng::u32 kPauseAt = 100u;
 constexpr eng::u32 kConfirmAt = 120u;
 
 struct GameExample {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({ 96u * 1024u, 8u * 1024u, 4u * 1024u })) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021701u);
@@ -111,7 +111,7 @@ struct GameExample {
 		m_init_ok = true;
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (!m_init_ok) {
 			return;
 		}
@@ -147,7 +147,7 @@ struct GameExample {
 		}
 	}
 
-	void render(eng::amiga::MinimalBackend&, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend&, eng::GameContext& context) {
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -203,7 +203,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	GameExample game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

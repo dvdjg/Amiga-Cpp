@@ -26,7 +26,7 @@
 #include <eng/graphics/c2p.hpp>
 #include <eng/graphics/palette32.hpp>
 #include <eng/graphics/scene/compose.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -110,7 +110,7 @@ void fire_cpp(eng::u16* fire) {
 }
 
 struct FireBenchDemo {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		m_memory_ok = backend.configure_memory({
 			96u * 1024u, 8u * 1024u, 4u * 1024u,
@@ -163,7 +163,7 @@ struct FireBenchDemo {
 		eng::debug::mark_ready(g_eng_run_status, 0x06300000u);
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		(void)backend;
 		// Benchmark en el primer frame (una sola vez), tras READY.
 		if (!m_benchmarked) {
@@ -194,7 +194,7 @@ struct FireBenchDemo {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -251,7 +251,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	FireBenchDemo game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

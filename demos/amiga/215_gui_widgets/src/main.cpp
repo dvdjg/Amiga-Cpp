@@ -16,8 +16,8 @@
 // cursor se valida por los registros/copperlist (self-test) y no por el gate de pixeles.
 #include <eng/api/api.hpp>          // fachada: escena, dibujo, paleta, GUI (eng::ui), run_status
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/platform/amiga_minimal.hpp>
-#include <eng/platform/input_poll.hpp>
+#include <eng/platform/amiga/backend.hpp>
+#include <eng/platform/amiga/input_poll.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -91,13 +91,13 @@ ui::UiTheme make_theme() {
 bool rect_fill_cb(void* ctx, eng::u8* base, eng::u8 planes, eng::u32 plane_stride,
 		  eng::u32 row_stride, eng::u16 row_bytes, eng::u16 bw, eng::u16 bh,
 		  eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h, eng::u8 color) {
-	auto* b = static_cast<eng::amiga::MinimalBackend*>(ctx);
+	auto* b = static_cast<eng::amiga::AmigaBackend*>(ctx);
 	return b->blitter_fill_rect(base, planes, plane_stride, row_stride, row_bytes, bw, bh, x, y, w,
 				    h, color, true);
 }
 
 struct DemoGame {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 
 		m_memory_ok = backend.configure_memory({
@@ -161,13 +161,13 @@ struct DemoGame {
 		eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_scene.words()));
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		(void)backend; // la lista es estatica: `takeover` ya la instalo
 		update_cursor(); // el cursor de hardware sigue al raton
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (!m_scene.ok()) {
 			return;
 		}
@@ -303,7 +303,7 @@ private:
 	/// Self-test EN HARDWARE del relleno de rect D-only por Blitter (`blitter_fill_rect`):
 	/// llena el rect (10,2)-(29,4) de un plano 64x16 y comprueba los bits dentro y fuera. Valida
 	/// el motor que consume el `RectFillSink` (equivalencia con el relleno CPU esperado).
-	bool verify_blitter_fill(eng::amiga::MinimalBackend& backend) {
+	bool verify_blitter_fill(eng::amiga::AmigaBackend& backend) {
 		constexpr eng::u16 fw = 64;
 		constexpr eng::u16 fh = 16;
 		constexpr eng::u16 frow = fw / 8u; // 8 bytes/fila
@@ -402,7 +402,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	DemoGame game {};
 	eng::Engine engine {backend, game};
 	engine.run_frames_polling(0xffff);

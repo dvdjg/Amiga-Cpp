@@ -1,6 +1,6 @@
 # 208 — self-test de copia lineal por Blitter (`blitter_memcpy`)
 
-Valida en hardware `MinimalBackend::blitter_memcpy` (copia **lineal** de RAM, `D=A`, módulos 0):
+Valida en hardware `AmigaBackend::blitter_memcpy` (copia **lineal** de RAM, `D=A`, módulos 0):
 
 1. **Síncrona**: copia un buffer conocido (2 KB) y compara byte a byte.
 2. **Asíncrona**: `blitter_memcpy_async` + **IRQ BLIT** que publica `Msg{BlitDone}` en un

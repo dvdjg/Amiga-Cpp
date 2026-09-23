@@ -34,5 +34,5 @@ Este contrato formaliza el patrón que corrigió el bug de "doble texto + banda
 cian" (`docs/debugging/investigaciones/debug-demo-arranque-doble-texto-banda.md`): la separación
 obligatoria entre `takeover` (toma de control del display, una sola vez, alineada
 al VBlank) y `install` (swap de puntero COP1LC por frame, sin COPJMP1). Ver
-también `MinimalBackend::takeover_display` y la política close-to-metal en
+también `AmigaBackend::takeover_display` y la política close-to-metal en
 `docs/engine/architecture/HARDWARE_AND_ROM_KERNEL_POLICY.md`.

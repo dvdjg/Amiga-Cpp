@@ -10,7 +10,7 @@ CIA-A (24 bits) a hora del día.
 - `1:01:01`, `23:59:59` y **envuelta a las 24 h**.
 - Propagación de `hz` y `total_seconds`.
 
-La **lectura** del registro la hace el backend (`MinimalBackend::cia_tod_ticks`, con el
+La **lectura** del registro la hace el backend (`AmigaBackend::cia_tod_ticks`, con el
 orden de latch `TODHI → TODMID → TODLO`). Referencia:
 `amiga-bootcamp/01_hardware/common/cia_chips.md` ("Time-of-Day").
 

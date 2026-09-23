@@ -1,6 +1,6 @@
 # Copia lineal por Blitter (`memcpy`)
 
-`MinimalBackend::blitter_memcpy(dst, src, wait)` copia RAM **arbitraria** (no planar) con el
+`AmigaBackend::blitter_memcpy(dst, src, wait)` copia RAM **arbitraria** (no planar) con el
 Blitter: `D = A` (minterm `$F0`), módulos 0, palabras contiguas. Para copias **planar**
 (bitplanes con stride/módulos) usar el seam `Rasterizer::copy_rect` / `FramePlan` (ver
 [`sprite-layer.md`](sprite-layer.md) y `field/raster.hpp`).
@@ -24,7 +24,7 @@ CPU con *stalls* de bus).
 
 - **Polling**: `backend.blitter_busy()` (bit `BBUSY` de `DMACONR`).
 - **IRQ de fin de Blit (recomendado)**: el chipset genera la interrupción **BLIT** (nivel 3) al
-  terminar; el backend la despacha en `level3_dispatch` (`amiga_minimal.cpp`) y llama a la tarea
+  terminar; el backend la despacha en `level3_dispatch` (`amiga.cpp`) y llama a la tarea
   registrada con **`install_blit_service`/`set_blit_service`** (slot `ServiceSlot`). Esa tarea
   **es la notificación de fin**, opcionalmente programable: la app puede encolar un mensaje en su
   cola (`task::BackgroundQueue`) o, cuando exista, en el **puerto de mensajes del mini-SO**

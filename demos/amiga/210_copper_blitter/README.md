@@ -18,7 +18,7 @@ Tres usos del Blitter, verificados en el demo y en `RunStatus` (`detail = (fine 
    dos `BlitJob`; el patrón procedural y la verificación del buffer son de la demo. El patrón del
    driver con *ring wrap* real es `graphics/drivers/tile_scroll.hpp`.
 
-Los blits sueltos se envían con **`MinimalBackend::blitter_submit(const BlitJob&, wait)`** (un
+Los blits sueltos se envían con **`AmigaBackend::blitter_submit(const BlitJob&, wait)`** (un
 job); `execute_frame_plan` encadena varios por el **mismo camino** (`submit_blit_job`).
 
 ## Serialización Copper↔CPU (automática)
@@ -27,7 +27,7 @@ El Blitter es **único**. El scroll de CPU lanza blits largos al principio del f
 Copper cae **mientras corren**, su `BLTSIZE` **aborta** el de CPU y el display se rompe. Por eso la
 ventana no es una línea cableada: se calcula con
 **`graphics::safe_blitter_window(0, current_raster_line(), border_line, last_line)`**, que toma como
-suelo la **línea de raster real al terminar los blits de CPU** (`MinimalBackend::current_raster_line`)
+suelo la **línea de raster real al terminar los blits de CPU** (`AmigaBackend::current_raster_line`)
 y el borde inferior. Reproducido y aislado en el hilo (sin el blit de CPU, un blit de Copper en el
 borde superior no molesta; con el de CPU en la misma franja, sí).
 
@@ -66,4 +66,4 @@ frame-exacta por valor de `fine` con `--sequence-fine-x`); Ollama
 - `docs/build/BUILD_AND_RUN.md` §Convención de `detail` (`cameraX`/`--sequence-fine-x`).
 - `engine/include/eng/graphics/{blit_job.hpp,raster_intent.hpp}` +
   `engine/include/eng/graphics/copper/scheduler.hpp` +
-  `engine/include/eng/platform/amiga_minimal.hpp` (`blitter_submit`).
+  `engine/include/eng/platform/amiga/backend.hpp` (`blitter_submit`).

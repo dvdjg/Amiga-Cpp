@@ -1,7 +1,7 @@
-/// \file amiga_minimal_c2p.cpp
+/// \file amiga_c2p.cpp
 /// Servicio de **C2P** (chunky -> planar) por Blitter: las 13 fases de `fire-rgb`.
 
-#include "amiga_minimal_internal.hpp"
+#include "amiga_internal.hpp"
 
 using namespace eng::amiga::detail;
 

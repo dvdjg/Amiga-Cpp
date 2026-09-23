@@ -353,13 +353,13 @@ struct MessagePumpGame {
 	App app {};
 	eng::os::MsgPort<64>* port = nullptr;
 
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext& ctx) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext& ctx) {
 		port = &eng::os::system_port();
 		eng::os::init(backend, ctx);   // IRQs, productores, timers
 		app.on_start(ctx);
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& ctx) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& ctx) {
 		// 1) Esperar señales (el VBlank ya ha despertado este tick; aquí se recogen
 		//    también input/E-S pendientes sin bloquear).
 		(void)port->wait(eng::os::SigVBlank | eng::os::SigInput | eng::os::SigFile |
@@ -387,7 +387,7 @@ struct MessagePumpGame {
 		app.on_frame(backend, ctx);
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& ctx) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& ctx) {
 		app.on_render(backend, ctx);
 	}
 };

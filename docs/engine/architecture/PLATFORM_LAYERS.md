@@ -71,4 +71,4 @@ Contratos vigentes:
 
 - `eng/platform/amiga/` agrupa el vocabulario Amiga (`backend.hpp`, `paula.hpp`, `input_poll.hpp`, `blob.hpp`, `gfx3d.hpp`, `lib3d.hpp`, `object3d.hpp`, `object3d_poly.hpp`, `polygon_fill.hpp`).
 - Las rutas antiguas (`eng/platform/amiga/backend.hpp`, `eng/platform/amiga/paula.hpp`, `eng/platform/amiga/input_poll.hpp`) se conservan como cabeceras-paraguas de compatibilidad mientras se migran los consumidores.
-- El backend canónico es `eng::amiga::AmigaBackend` (alias `MinimalBackend` por compatibilidad).
+- El backend canónico es `eng::amiga::AmigaBackend` (alias `AmigaBackend` por compatibilidad).

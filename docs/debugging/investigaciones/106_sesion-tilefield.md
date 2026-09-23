@@ -31,7 +31,7 @@ sentidos, diagonales, fronteras y guardia. Comprueba límites, ausencia de solap
 contenido determinista y cobertura exacta.
 
 El backend OCS sigue ejecutando cada job por plano porque no existe una operación
-multi-plano en el hardware actual. `MinimalBackend::blitter_starts()` expone los
+multi-plano en el hardware actual. `AmigaBackend::blitter_starts()` expone los
 arranques reales de `BLTSIZE`; un `TileBlockCopy` de N planos implica N arranques.
 
 ## Bloqueo de ejecución en A500
@@ -286,7 +286,7 @@ nueva API: dos `TileFieldController` + `DpfDisplayComposer`.
   `tools/analyze/*`) se invocan con Git Bash.
 - Captura de secuencia:
   `bash ./tools/run/run-demo.sh demos/amiga/106_tile_field_showcase --warp --sequence-frames 8 --sequence-interval-ms 800`.
-- `--warp` está en la config uae pero `MinimalBackend::boot()` llama
+- `--warp` está en la config uae pero `AmigaBackend::boot()` llama
   `set_warpmode(false)`, así que el run avanza en tiempo real (~50fps). Para que
   la cámara cruce páginas en la ventana de captura hay que alargar el intervalo
   (800ms) o el número de frames; el `analyze-sequence.sh` de la showcase usa

@@ -6,7 +6,7 @@ llevarlas al engine, partiendo de lo que ya hay.
 ## Qué ya tenemos
 
 - **`FramePlan`** (jobs de Blitter: `CopyRect`/`LogicBlit`/`Line`/`C2P`/…), ejecutados por
-  `MinimalBackend::execute_frame_plan` por **CPU** (`wait_blitter` antes de cada job).
+  `AmigaBackend::execute_frame_plan` por **CPU** (`wait_blitter` antes de cada job).
 - **`copper::Plan`/`Scheduler`/`StaticPlan`**: la copperlist se construye por **CPU** (moves) y
   se publica por **doble buffer** (`DoubleBuffer`, swap `COP1LC`); parcheo por `PatchHandle`/
   `Patch32`/`Template`.
@@ -51,7 +51,7 @@ El Blitter trata la copperlist como **destino**: genera o parchea en bloque wait
 - **Fases**: (1) medir (moves/frame reales); (2) prototipo de parcheo por Blitter de un tramo de
   la CL; (3) evaluar.
 - **Estado**: prototipo hecho (fase 2). Un `graphics::BlitJob` (`CopyRect`, 1 word de ancho,
-  `destination_modulo_bytes = 2`) enviado con `MinimalBackend::blitter_submit` escribe los **data
+  `destination_modulo_bytes = 2`) enviado con `AmigaBackend::blitter_submit` escribe los **data
   words** de `count` MOVEs consecutivos (stride 4 B) sin tocar los registros. Validado en
   `demos/amiga/210_copper_blitter` (`copperlist patch (Tecnica B): OK`). El mismo `BlitJob` cubre
   el **borde de scroll** (`CopyRect 20×256`, `mods = 2`). Pendiente: (1) medir moves/frame reales

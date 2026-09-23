@@ -55,7 +55,7 @@ El minterm es una función de **A/B/C** (8 combinaciones); cada bit dice si D=1.
 ## 5. Síncrono vs interrupción de blit
 
 - **Original**: la IRQ de blit llama a `ChunkyToPlanar`; cada llamada ejecuta la siguiente fase → el C2P avanza **en background** mientras la CPU calcula el fuego del siguiente frame.
-- **Cadena por IRQ de blit (implementada, fiel, por defecto en 080)**: `MinimalBackend::set_blit_service` instala el handler en el autovector de **nivel 3** (compartido con el VBlank, despacho por `INTREQR`) y `080_fire_rgb::on_blit` programa la fase siguiente al terminar cada blit (fases 1..12; la 12 marca `done`). El fuego crece correctamente (verificado).
+- **Cadena por IRQ de blit (implementada, fiel, por defecto en 080)**: `AmigaBackend::set_blit_service` instala el handler en el autovector de **nivel 3** (compartido con el VBlank, despacho por `INTREQR`) y `080_fire_rgb::on_blit` programa la fase siguiente al terminar cada blit (fases 1..12; la 12 marca `done`). El fuego crece correctamente (verificado).
 - **Medido (080, emulador)**: suelo sin C2P **16.6 fps (3.0 vblanks)**; cadena por IRQ **13.55 (3.7)**; cadena con **BLTPRI** (blitter *nasty*, `DMACON` bit 10) **12.44 (4.0)**. El C2P cuesta ~0.7 vblanks; BLTPRI lo **empeora**: el **bus de Chip RAM es el cuello** (fuego *bus-bound* + DMA del Blitter), dar prioridad al Blitter solo **para** a la CPU sin reducir el trabajo total.
 - **Tearing (corregido, 2026-09)**: instalar la copperlist del buffer convertido en el `update` **siguiente** daba una latencia de 2 frames; con **2 buffers**, eso hace que el display muestre el buffer que el C2P esta escribiendo → **tearing** visible como un borde dentado + manchas en la zona caliente (visto en captura). **Fix**: instalar la copperlist **al completar el C2P** (en la IRQ), latencia ~1 frame → el display muestra el buffer ya convertido, nunca el que se convierte. (Con el frame al limite, si el C2P se desborda al frame siguiente, harian falta 3 buffers.)
 - **Leccion de proceso (2026-09)**: la caida a ~11 fps **no** era la cadena por IRQ, sino el `BackgroundPump` llamando a la cola de fondo en **cada iteracion** del bucle de espera (aunque estuviera vacia). Ahora solo se bombea si hay tareas → el suelo vuelve a 3.0 vblanks. **Medir antes de atribuir.**
@@ -87,14 +87,14 @@ Esto es una **palanca de diseño para juegos con mucha CPU de fondo poco priorit
 ## 6. API del engine
 
 ```
-struct MinimalBackend::C2p4State {
+struct AmigaBackend::C2p4State {
     u8   phase;             // 0..12
     u8*  chunky;           // buffer (mitad src, mitad dst)
     u8*  planes[4];        // punteros de bitplane
     u16  bytes;            // BLTSIZE (10240 en fire-rgb)
 };
-bool MinimalBackend::c2p_4bpp_step(C2p4State& s);   // una fase + wait
-void MinimalBackend::set_bitplane_dat(u8 plane, u16 v); // BLTxDAT (bits HAM fijos)
+bool AmigaBackend::c2p_4bpp_step(C2p4State& s);   // una fase + wait
+void AmigaBackend::set_bitplane_dat(u8 plane, u16 v); // BLTxDAT (bits HAM fijos)
 ```
 
 El buffer `chunky` se usa como **origen y destino** (la segunda mitad es el intermedio planar), igual que en el original; por eso su tamaño es `2 * BLTSIZE`.

@@ -55,7 +55,7 @@ UI (`eng::ui`).
   hay un VBlank pendiente y `missed` cuenta los pisados. Demo: contar frames por mensaje y
   compararlos con `context.frame.frame_index` (sin sondear `VPOSR`).
 - **Estado**: **entregado** (`VBlankLatch`/`take_vblank` en `port.hpp`; HOST-236). El **productor**
-  del backend es `eng::os::tick` (`amiga_minimal_os.cpp`): latcha el VBlank y pollea la entrada; lo
+  del backend es `eng::os::tick` (`amiga_os.cpp`): latcha el VBlank y pollea la entrada; lo
   llama el bucle por frame (demo 208). La variante **por IRQ** (`set_vblank_service`) queda como
   mejora cuando el bucle sea interrupt-driven.
 
@@ -83,7 +83,7 @@ UI (`eng::ui`).
   **Inyección de entrada por el monitor**: **ratón** (`input mouse`, ya usado por `--mouse-*`) y
   **joystick** (`input joy <port> <dir> <1|0>`, que usa nombres de evento, **fiable**) verificados en
   la demo 212 (`--joy 1:left,1:up` → `joy_dirs=5`); el runner gana `--joy`. **Pendiente**: el **pad
-  CD32** (`POTGO`/`POTINP`) no está leído en el backend (`amiga_minimal_hw.cpp:190` solo lo menciona),
+  CD32** (`POTGO`/`POTINP`) no está leído en el backend (`amiga_hw.cpp:190` solo lo menciona),
   así que `PadProducer` (puro, HOST-252) no tiene productor de hardware todavía.
 
 ### M3 — Puente a la UI
@@ -140,18 +140,18 @@ UI (`eng::ui`).
   carga un `.englib` y prueba la escritura sobre `DH1:`). La E/S asíncrona real se valida en
   hardware con la demo; la decodificación diferida avanza por rebanadas de `BackgroundQueue`.
 - **Estado**: **casi entregado**. Entregado: el **contrato** `eng/os/file.hpp`, su implementación
-  Amiga sobre **`dos.library`** (`amiga_minimal_file.cpp`: `Open`/`Read`/`Write`/`Seek`/`Close`,
+  Amiga sobre **`dos.library`** (`amiga_file.cpp`: `Open`/`Read`/`Write`/`Seek`/`Close`,
   `CreateDir`/`DeleteFile`/`Rename`; la asíncrona como **diferida** con `file_pump` que postea
   `FileDone`/`FileError`), el **enrutado** `eng/res/resources.hpp` (HOST-255) y la **demo 211**
   (lee texto/imagen/sonido, carga un `.englib` y prueba la escritura).   **Disquete a bajo nivel**
-  (`eng/os/floppy.hpp` + `amiga_minimal_floppy.cpp`): DMA crudo (CIA-B PRB + `DSKPT`/`DSKLEN` doble +
+  (`eng/os/floppy.hpp` + `amiga_floppy.cpp`): DMA crudo (CIA-B PRB + `DSKPT`/`DSKLEN` doble +
   `DSKBLK`) y decode MFM en CPU — **sin `trackdisk.device`**. La DMA **funciona** en la demo
   `214_floppy_raw` (motor/seek/lectura de pista + syncs `$4489`) y el **decode del sector con búsqueda
   de sync bit a bit está implementado** (`floppy_find_sector`, ventana deslizante de 16 bits;
   `engine/include/eng/os/floppy.hpp:187-203`) y cubierto por **HOST-259** (recupera los 11 sectores
   con `verify_checksums`). *Verificación (2026-09)*: la demo `214` **alcanza `READY`** con el ADF
   montado (`--disk out/fs/211_fs_test.adf`). El fallo aparente era el **guard de espera de `DSKBLK`**
-  (`amiga_minimal_floppy.cpp`): `0x7fffff` iteraciones ≈ 40 s hacían parecer colgada la demo y
+  (`amiga_floppy.cpp`): `0x7fffff` iteraciones ≈ 40 s hacían parecer colgada la demo y
   agotaban el timeout del runner; ajustado a `0x3fffff` (una lectura de pista válida tarda cientos de
   miles de iteraciones). La demo es **lenta** (~30-60 s) por los `spin` de seek (120 pasos × 3 ms),
   así que la regresión necesita `--side-channel-timeout-ms` amplio y un `--disk` por demo (hoy la

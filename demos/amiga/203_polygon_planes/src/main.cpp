@@ -1,7 +1,7 @@
 // Demo 203 - Relleno de poligonos compuesto por bitplane.
 //
 // Motor poligonal 2D/3D minimo que usa el **relleno compuesto por bitplane**
-// (`eng/graphics/polygon_planes.hpp` + `MinimalBackend::fill_polygons_by_plane`):
+// (`eng/graphics/polygon_planes.hpp` + `AmigaBackend::fill_polygons_by_plane`):
 // en vez de rellenar poligono a poligono (un fill por cara), se rellena **por
 // plano**: para cada bitplane `p`, el contorno XOR (ONEDOT) de las caras cuyo
 // color tiene el bit `p` a 1 y **un solo area fill** (`FILL_XOR`) que cubre todas
@@ -22,7 +22,7 @@
 #include <eng/graphics/pattern_fill.hpp>
 #include <eng/graphics/polygon_planes.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 #include <eng/retro/fixed_mesh.hpp>
 
 #include <proto/exec.h>
@@ -134,7 +134,7 @@ eng::u8 shade_of(eng::s32 zsum) {
 }
 
 struct PolygonPlanesDemo {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		m_memory_ok = backend.configure_memory({96u * 1024u, 4u * 1024u, 4u * 1024u});
 		if (!m_memory_ok) {
@@ -180,7 +180,7 @@ struct PolygonPlanesDemo {
 		eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(kFaceCount));
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_memory_ok) {
 			return;
@@ -251,7 +251,7 @@ struct PolygonPlanesDemo {
 		m_scene.commit();
 	}
 
-	void render(eng::amiga::MinimalBackend&, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend&, eng::GameContext& context) {
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -267,7 +267,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	PolygonPlanesDemo game {};
 	eng::Engine engine {backend, game};
 	engine.run_frames_polling(0xffff);

@@ -37,7 +37,7 @@
 
 #include <eng/engine.hpp>
 #include <eng/debug/run_status.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <eng/core/math/geometry.hpp>
 #include <eng/core/math/interp.hpp>
@@ -895,7 +895,7 @@ int main() {
 
 	// El runner necesita margen para leer `g_math_report` por el canal lateral; se
 	// esperan ~240 frames PAL y se vuelve a Workbench sin haber tocado el display.
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	backend.boot();
 	for (u32 i = 0; i < 240u; ++i) {
 		backend.wait_vblank();

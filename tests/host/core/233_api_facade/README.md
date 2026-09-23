@@ -13,7 +13,7 @@ las cabeceras estables de la API sin necesidad de incluir cada una por separado.
 6. El contrato `eng::GameModule` es visible (con un backend ficticio, en `static_assert`).
 
 No instancia un backend (el backend va en `main()` y se pasa a `eng::Engine`): la fachada es
-deliberadamente agnóstica y no incluye `eng/platform/amiga_minimal.hpp`.
+deliberadamente agnóstica y no incluye `eng/platform/amiga/backend.hpp`.
 
 ## Salida de referencia
 

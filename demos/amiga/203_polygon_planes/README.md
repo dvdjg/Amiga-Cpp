@@ -30,7 +30,7 @@ es frontera real y separa dos colores. Así, `N` caras con `P` planos cuestan `P
 
 Un cubo gira; cada cara visible se sombrea por profundidad (`shade_of`) y se acumula en un
 `eng::graphics::PlaneFillBuilder` (patrón `SubmitPoly`/`EndFrame`). Al cerrar el frame se vuelca
-con `MinimalBackend::fill_polygons_by_plane` (camino Blitter, verificado en hardware). La
+con `AmigaBackend::fill_polygons_by_plane` (camino Blitter, verificado en hardware). La
 referencia CPU del mismo algoritmo es `fill_polygons_by_plane_cpu` (test **HOST-217**).
 
 Sobre la banda inferior se OR-ado un **suelo texturizado** con `graphics::add_rect_pattern`

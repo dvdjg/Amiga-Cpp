@@ -1,5 +1,5 @@
 #include <eng/api/api.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 #include <eng/field/xlimited_scene.hpp>
 #include <eng/field/tile_demo.hpp>
 #include <eng/core/math/sinetable.hpp>
@@ -513,7 +513,7 @@ struct DemoGame {
 	eng::u16 fbMismatch = 0;   // nº de celdas (de 260) con píxeles mal
 	eng::u16 fbFirstBad = 0;   // índice de la primera celda mal (cy*COLS+cx)
 
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		eng::debug::reset(g_eng_frame_telemetry);
 		// 200 KB de arena Chip para display+copper+relleno; el banco incbinado se
@@ -756,7 +756,7 @@ struct DemoGame {
 		return bad;
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!ready) return;
 
@@ -817,7 +817,7 @@ struct DemoGame {
 		++frameOfDay;
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (ready) {
 			if (hudDirty) { draw_hud(); hudDirty = false; }
 			// Redibuja el HUD al cambiar de segmento (una vez cada ~3 s).
@@ -829,7 +829,7 @@ struct DemoGame {
 };
 
 // Evidencia del contrato de compositor de display (driver.hpp).
-static_assert(eng::DisplayDriver<field::XlimitedScene<kScrollConsts>, eng::amiga::MinimalBackend>);
+static_assert(eng::DisplayDriver<field::XlimitedScene<kScrollConsts>, eng::amiga::AmigaBackend>);
 
 } // namespace
 
@@ -837,7 +837,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	DemoGame game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

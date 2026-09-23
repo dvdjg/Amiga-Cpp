@@ -39,7 +39,7 @@ no listo se marcaría como residente-vacío y nunca se reintentaría.
 
 ## 2. Restricción clave: el takeover apaga el disco y las interrupciones
 
-`MinimalBackend::takeover_display` escribe `INTENA=0x7FFF` (apaga la cadena de
+`AmigaBackend::takeover_display` escribe `INTENA=0x7FFF` (apaga la cadena de
 interrupciones de AmigaDOS/exec) y `DMACON=0x7FFF` (apaga **todo** el DMA, incluido el de
 disco). Ver `docs/engine/architecture/HARDWARE_AND_ROM_KERNEL_POLICY.md`.
 

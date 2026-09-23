@@ -1,8 +1,8 @@
 #pragma once
 
-/// \file amiga_minimal_internal.hpp
+/// \file amiga_internal.hpp
 /// Helpers internos del backend Amiga (registros custom, espera de Blitter, regiones
-/// planares y despacho de IRQ). Se extraen de `amiga_minimal.cpp` para que los servicios
+/// planares y despacho de IRQ). Se extraen de `amiga.cpp` para que los servicios
 /// (core, blitter, C2P) vivan en unidades de traduccion separadas compartiendo los mismos
 /// helpers. **No forma parte de la API**: la incluyen solo los .cpp del backend.
 

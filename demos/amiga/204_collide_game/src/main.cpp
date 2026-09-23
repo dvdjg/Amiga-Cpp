@@ -11,7 +11,7 @@
 //
 // Display 256x256x4 con doble buffer (`Scene::commit`).
 #include <eng/api/api.hpp>          // fachada: escena, dibujo, paleta, blitter preparado, run_status
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -71,7 +71,7 @@ constexpr eng::u16 kPlayerY = 120u;
 constexpr eng::u16 kHazardWord = 7u; ///< posicion del obstaculo en words (16 px)
 
 struct CollideGame {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		m_memory_ok = backend.configure_memory({96u * 1024u, 4u * 1024u, 4u * 1024u});
 		if (!m_memory_ok) {
@@ -112,7 +112,7 @@ struct CollideGame {
 		eng::debug::mark_ready(g_eng_run_status, kHazardWord);
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_memory_ok) {
 			return;
@@ -166,7 +166,7 @@ struct CollideGame {
 		m_scene.commit();
 	}
 
-	void render(eng::amiga::MinimalBackend&, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend&, eng::GameContext& context) {
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -190,7 +190,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	CollideGame game {};
 	eng::Engine engine {backend, game};
 	engine.run_frames_polling(0xffff);

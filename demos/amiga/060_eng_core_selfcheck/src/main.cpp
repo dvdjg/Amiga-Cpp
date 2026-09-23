@@ -33,7 +33,7 @@
 #include <eng/api/api.hpp>
 #include <eng/core/data/utf8.hpp>
 #include <eng/graphics/font8.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -180,7 +180,7 @@ const char* ok_fail(bool ok) {
 struct CoreSelfcheckDemo {
 	static consteval int language_level_marker() { return 23; }
 
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		static_assert(language_level_marker() == 23);
 
@@ -245,12 +245,12 @@ struct CoreSelfcheckDemo {
 		}
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		(void)backend;
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		// Instalar la copperlist UNA sola vez (en init). Reinstalarla en cada
 		// frame hace COPJMP1 (reinicio del Copper) y puede producir un glitch
 		// esporádico de 1 frame (banda azul vertical) si el reinicio cae a
@@ -311,7 +311,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	CoreSelfcheckDemo game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

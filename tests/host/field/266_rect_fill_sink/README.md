@@ -16,7 +16,7 @@ Test host del *seam* de **relleno de rectángulo axis-aligned por hardware**
 
 ## Notas
 
-- La ruta real por Blitter (`MinimalBackend::blitter_fill_rect`, D-only + reparación de bordes)
+- La ruta real por Blitter (`AmigaBackend::blitter_fill_rect`, D-only + reparación de bordes)
   se valida **en hardware** con el self-test de la demo 215. Aquí se fija el **contrato** del
   *seam* que esa ruta consume.
 - El Blitter solo accede a **Chip RAM**: por eso el relleno no usa una máscara fuente, sino

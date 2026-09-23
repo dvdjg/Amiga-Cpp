@@ -57,11 +57,11 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
   con exportador host `tools/assets/uaf-pack.ts` (chunky→planar, sprites/copper/malla
   `obj2c`, `packUaf`/`parseUaf`, doc `docs/tools/UAF_PACK.md`). La cola de
   blits/presupuesto ya existía (`frame_plan.hpp`); el borrado del sólido la usa vía
-  `MinimalBackend::execute_frame_plan` (Blitter). Validación en hardware con las demos
+  `AmigaBackend::execute_frame_plan` (Blitter). Validación en hardware con las demos
   `077_math3d_cube` (alambre) y `078_math3d_solid` (relleno por tramos de byte/word,
   malla cargada desde un blob UAF-R incbinado y borrado por Blitter). `mesh_painter_order`
   soporta caras de doble cara; gate visual `tools/analyze/verify-math3d-cube.mjs`.
-  Relleno por Blitter en `MinimalBackend::fill_triangles_blitter` (line + area fill
+  Relleno por Blitter en `AmigaBackend::fill_triangles_blitter` (line + area fill
   en máscara + cookie-cut, portado de `libblit`/amiga-bootcamp) y `blit_fill_from_mask`
   (máscara CPU + cookie-cut Blitter) tras `-DK_FILL_BLITTER=1`. WIP: ambas rutas Blitter
   dibujan pero el resultado sale rayado (alineación/carry de los canales A/C-D), así que
@@ -172,7 +172,7 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
   `SampleBank`/`allow_trigger`/`allow_group` (puros, `sfx_bank.hpp`): banco de
   sonidos por `id`, política de voces (cooldown, límite de instancias, agrupación,
   prioridad) y ducking; validado por HOST-008 y demo `062_game_audio`. **El audio
-  lo posee ahora el backend** (`MinimalBackend::audio()`/`audio_init()`); el
+  lo posee ahora el backend** (`AmigaBackend::audio()`/`audio_init()`); el
   `GameAudio` se enlaza con `attach(backend.audio())`. Guía completa (API +
   generación de música y sonidos desde herramientas externas) en
   `docs/engine/architecture/GAME_AUDIO.md`.
@@ -219,7 +219,7 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
 ## Inventario de hardware (`eng::hw`) — estado (2026-09)
 
 - **Hecho**: `eng/hw/info.hpp` (tipos POD, consultas de capacidad, heurísticas puras, `probe`
-  declarado) y sondeo Amiga en `amiga_minimal_hw.cpp` (Exec `AttnFlags`/versión, `DENISEID`,
+  declarado) y sondeo Amiga en `amiga_hw.cpp` (Exec `AttnFlags`/versión, `DENISEID`,
   `MemList`, `DIWSTRT/STOP`). Display **publicado por la composición**: `Scene::bind_hw_info` →
   `hw::set_display` al programar el modo (paso 4). Verificado en **A500** por la demo 205 y por
   HOST-234 (publicación) y HOST-235 (consultas/heurísticas). Doc:
@@ -470,11 +470,11 @@ desarrolla en varios turnos; el orden es 1→2→3.
 
 **Override Amiga del hook por Blitter — HECHO (API NO VERIFICADA por demo)**: el relleno de polígonos se delega al Blitter sin que el llamador cambie.
 - **Seam backend-agnóstico** `eng::field::PolygonFillSink` (`playfield.hpp`): `Playfield::fill_polygon` llama al sink si está instalado (geometría planar por `plane_base`/`plane_stride`/`row_stride`, que cubre contiguo e interleaved) y cae al scanline CPU si no. Test **HOST-062**.
-- **Motor** `MinimalBackend::blitter_fill_polygon_strided` (`amiga_minimal.hpp`): máscara 1 bit + contorno `ONEDOT` + area fill inclusivo + cookie-cut a cada plano, con strides explícitos; `blit_mask_to_plane` acepta `dst_row_stride` (variante interleaved). El `blitter_fill_polygon` contiguo de 116 delega en él.
+- **Motor** `AmigaBackend::blitter_fill_polygon_strided` (`backend.hpp`): máscara 1 bit + contorno `ONEDOT` + area fill inclusivo + cookie-cut a cada plano, con strides explícitos; `blit_mask_to_plane` acepta `dst_row_stride` (variante interleaved). El `blitter_fill_polygon` contiguo de 116 delega en él.
 - **Puente de plataforma** `eng::amiga::PolygonFillService` (`platform/amiga/polygon_fill.hpp`): envuelve backend + máscara Chip en el sink; la escena instala `scene.canvas_fg().set_polygon_fill_sink(...)`.
 - **Prueba en hardware (retirada)**: un cubo sólido (`mesh_render_filled`) se rellenó por Blitter sobre el lienzo FG interleaved del DPF, con el borrado del recuadro también por Blitter. Se descartó como demo por coste: ~66 blits serializados/frame (cada blit paga arranque + ~57 ciclos por escritura a registro custom y espera al anterior) → el frame no cabe y el redibujado sobre el lienzo de un solo buffer produce flicker.
 
-Pendiente: una demo que ejercite el relleno poligonal por frame exige **abaratarla** (menos blits por cara) y **doble buffer del lienzo FG** (`DoubleBufferScrollPlayfield` es la base para scroll; falta el equivalente para el FG del DPF). Hasta entonces el sink y la ruta Amiga quedan respaldados solo por **HOST-062** (NO VERIFICADA por hardware) e importar `flatshade`/`stencil3d` sobre él no es prioritario. Nota: el Blitter de `amiga_minimal` cobra ~57 ciclos por escritura a registro custom y cada blit espera al anterior, así que el número de blits por cara domina el coste.
+Pendiente: una demo que ejercite el relleno poligonal por frame exige **abaratarla** (menos blits por cara) y **doble buffer del lienzo FG** (`DoubleBufferScrollPlayfield` es la base para scroll; falta el equivalente para el FG del DPF). Hasta entonces el sink y la ruta Amiga quedan respaldados solo por **HOST-062** (NO VERIFICADA por hardware) e importar `flatshade`/`stencil3d` sobre él no es prioritario. Nota: el Blitter de `amiga` cobra ~57 ciclos por escritura a registro custom y cada blit espera al anterior, así que el número de blits por cara domina el coste.
 
 **Capa de bobs/personajes**: ver opción A del roadmap general (capa de objetos en el FG lineal DPF, 110/111 ya a medio pulir).
 
@@ -524,7 +524,7 @@ plano) en vez de polígono a polígono, cancelando las aristas compartidas por c
 - **Referencia CPU** `fill_polygons_by_plane_cpu` (even-odd scanline por plano), test **HOST-217**.
 - **API de alto nivel** `PlaneFillBuilder<MaxFaces>` (`submit`/`fill_cpu`/`faces`), patrón
   `SubmitPoly`/`EndFrame`; el llamador posee los vértices (sin heap).
-- **Camino Blitter** `MinimalBackend::fill_polygons_by_plane` (contorno XOR ONEDOT en lote por
+- **Camino Blitter** `AmigaBackend::fill_polygons_by_plane` (contorno XOR ONEDOT en lote por
   plano + area fill `FILL_XOR`), **verificado por el self-test de 077** y por la **demo 203**
   (cubo girando con caras sombreadas por profundidad + suelo con patrón).
 - **Pendiente**: una demo de juego que use colisión (`blitter_collide`) en el bucle, y llevar el

@@ -120,13 +120,13 @@ lo que hay en hardware real.
 
 ### Timer de CIA-A (implementado)
 
-`MinimalBackend::background_timer_start(latch, task, user)` programa el **timer A continuo**
+`AmigaBackend::background_timer_start(latch, task, user)` programa el **timer A continuo**
 (reloj E), enmascara su IRQ en la CIA (`ICR`) y monta el handler de **nivel 2** (`0x68`).
 Corre a `latch / 709379` s por tic. La demo 081 lo usa con `latch = 0x2000` → **~86 IRQ/s**
 (medido).
 
 - ✅ **Reloj de tiempo real**: la misma CIA-A tiene **TOD** por hardware.
-  `MinimalBackend::cia_tod_ticks()` lo lee (24 bits, `TODHI→TODMID→TODLO`) y
+  `AmigaBackend::cia_tod_ticks()` lo lee (24 bits, `TODHI→TODMID→TODLO`) y
   `eng::time::from_tod` (`eng/core/data/rtc.hpp`, test host **HOST-018**) lo convierte a hora del
   día; la demo 081 publica los segundos del RTC (avanzan a 1 Hz, verificado).
 

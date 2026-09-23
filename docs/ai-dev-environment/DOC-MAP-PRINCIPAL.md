@@ -49,7 +49,7 @@ Cuando termine la lectura contextual, puede abrir solo los enlaces que necesite.
 | Estilo/restricciones del engine | [CODING_STYLE.md](../engine/architecture/CODING_STYLE.md), [HARDWARE_AND_ROM_KERNEL_POLICY.md](../engine/architecture/HARDWARE_AND_ROM_KERNEL_POLICY.md) |
 | **Cómo se hacen las cosas** (patrones de escalares/mallas/raster + metodología) | [PATRONES_Y_PROCESO.md](../engine/architecture/PATRONES_Y_PROCESO.md) |
 | Contrato de bajo nivel Amiga (contrato técnico) | [amiga-lowlevel-agent-prompt.md](../guides/methodology/amiga-lowlevel-agent-prompt.md) y [amiga-lowlevel-technique-contract-template.md](../guides/methodology/amiga-lowlevel-technique-contract-template.md) |
-| Bucles de entrada/backend | [engine.hpp](../../engine/include/eng/engine.hpp), `amiga_minimal.cpp`, [MINI_OS_MESSAGE_LOOP.md](../engine/architecture/MINI_OS_MESSAGE_LOOP.md) (capa de mensajes) |
+| Bucles de entrada/backend | [engine.hpp](../../engine/include/eng/engine.hpp), `amiga.cpp`, [MINI_OS_MESSAGE_LOOP.md](../engine/architecture/MINI_OS_MESSAGE_LOOP.md) (capa de mensajes) |
 | Build/run/analyze | [BUILD_AND_RUN.md](../build/BUILD_AND_RUN.md) |
 | Depuración WinUAE/MCP | [debug-winuae-v2-guide.md](../debugging/system/debug-winuae-v2-guide.md) |
 | Sistema de depuración (índice) | [debugging/system/README.md](../debugging/system/README.md) |
@@ -191,7 +191,7 @@ orden:
 ## 8. Herramientas y rutas operativas de alto valor
 
 - **Build/run/analyze**: [BUILD_AND_RUN.md](../build/BUILD_AND_RUN.md) (comandos, runner, emulador, herramientas locales).
-- **Bucle de entrada del engine**: `engine/include/eng/engine.hpp` (`update -> wait_vblank -> render`; `render` es el punto de commit); backend Amiga: `engine/src/platform/amiga/amiga_minimal.cpp`.
+- **Bucle de entrada del engine**: `engine/include/eng/engine.hpp` (`update -> wait_vblank -> render`; `render` es el punto de commit); backend Amiga: `engine/src/platform/amiga/amiga.cpp`.
 - **Depuración interactiva**: `tools/debug/build-current-demo.sh` (compila con `-O0` el archivo en primer plano a `out/debug-current/`) + F5 con la config «Amiga 500: depurar archivo actual».
 - **Breakpoints y memoria en caliente**: `tools/debug/step-memory.mjs`.
 - **Self-test del harness** (canal lateral/READY/fps): `node tools/debug/verify-harness.mjs [--strict-fps --warp]`. Nota: el throughput del emulador (~11 fps) limita el gate fps absoluto.

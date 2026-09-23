@@ -17,7 +17,7 @@
 #include <eng/core/types/span.hpp>
 #include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -54,7 +54,7 @@ constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kBytesPerRow) * 256u;
 constexpr eng::u32 kBitplaneBytes = kPlaneBytes * kPlanes;
 
 struct SampleMixerDemo {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		m_memory_ok = backend.configure_memory({ 96u * 1024u, 8u * 1024u, 4u * 1024u });
 		if (!m_memory_ok) { eng::debug::mark_failed(g_eng_run_status, 0x00007301u); return; }
@@ -87,7 +87,7 @@ struct SampleMixerDemo {
 		m_init_ok = true;
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (!m_init_ok || m_confirmed) {
 			return;
 		}
@@ -112,7 +112,7 @@ struct SampleMixerDemo {
 		(void)backend;
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		draw_scope();
 		if (build_copper()) backend.install_copper_list(m_copper_ptr);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
@@ -178,7 +178,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	SampleMixerDemo game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

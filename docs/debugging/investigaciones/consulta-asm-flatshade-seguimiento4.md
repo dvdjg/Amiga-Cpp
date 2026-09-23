@@ -33,7 +33,7 @@ Con el mismo ángulo, el contorno asm sale **fragmentado/truncado** (tramos cort
 
 ## Lo que ya coincide (descartado)
 
-Comparando `fs_draw_edges` con `MinimalBackend::blitter_line_eor_prepare`/`_draw` (la ruta C++ que sí renderiza):
+Comparando `fs_draw_edges` con `AmigaBackend::blitter_line_eor_prepare`/`_draw` (la ruta C++ que sí renderiza):
 
 - `bltcon0 = ror16(x0&15,4) | blt_line_eor` → el asm usa `ror.w #4` + `0x0b4a` (mismo `blt_line_eor`).
 - `bltcon1` base = `blt_linemode|blt_onedot` + octante (`SUD`/`AUL`/`SUL`) → el asm usa `0x0013`/`0x0003` + `0x0004`/`0x0008`.

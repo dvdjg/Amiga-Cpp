@@ -15,7 +15,7 @@
 #include <eng/core/data/rtc.hpp>
 #include <eng/api/api.hpp>
 #include <eng/core/util/ring_buffer.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -117,7 +117,7 @@ struct BackgroundDemo {
 		m_backend->set_color(0, kRainbow[m_hue]);
 	}
 
-	void init(amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void init(amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({96u * 1024u, 4u * 1024u, 4u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008101u);
@@ -162,7 +162,7 @@ struct BackgroundDemo {
 		eng::debug::mark_ready(g_eng_run_status, 0x0081u);
 	}
 
-	void update(amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (!m_init_ok) return;
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 
@@ -209,7 +209,7 @@ struct BackgroundDemo {
 		}
 	}
 
-	void render(amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -227,7 +227,7 @@ struct BackgroundDemo {
 
 private:
 	scene::Scene m_scene {};
-	amiga::MinimalBackend* m_backend = nullptr;
+	amiga::AmigaBackend* m_backend = nullptr;
 	FrameTask m_frame_task {};
 	eng::PlaneBytes m_plane0 {};
 	eng::PlaneBytes m_plane1 {};
@@ -248,7 +248,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	amiga::MinimalBackend backend {};
+	amiga::AmigaBackend backend {};
 	BackgroundDemo game {};
 	eng::Engine engine {backend, game};
 	// Modo interrupt-driven: la IRQ de VBlank lleva el juego (update/render) y el bucle

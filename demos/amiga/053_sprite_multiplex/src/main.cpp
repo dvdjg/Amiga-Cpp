@@ -20,7 +20,7 @@
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/sprite.hpp>
 #include <eng/graphics/sprite_manager.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -69,7 +69,7 @@ constexpr eng::Palette32 kBasePalette {{
 constexpr eng::u16 kHues[kInstances] = { 0xf00, 0x0f0, 0x00f, 0xff0, 0x0ff, 0xf0f };
 
 struct SpriteMultiplexDemo {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		m_memory_ok = backend.configure_memory({
 			96u * 1024u,
@@ -102,7 +102,7 @@ struct SpriteMultiplexDemo {
 		eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_copper_words));
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		// Rebote horizontal suave (onda triangular): los seis sprites se desplazan en
 		// bloque, demostrando el reposicionado por Copper sin tocar los bitplanes.
 		const eng::u16 frame = context.frame.frame_index;
@@ -115,7 +115,7 @@ struct SpriteMultiplexDemo {
 		}
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -207,7 +207,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	SpriteMultiplexDemo game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

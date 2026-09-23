@@ -115,7 +115,7 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
   CPU, síncrono) y **repintar por zona** (la UI es estática salvo la pista del slider). Gate
   objetivo: `tools/analyze/verify-gui-widgets.mjs` (panel/texto/bisel/foco presentes y el slider
   cambia en una banda horizontal entre frames).
-- **`fill_rect` D-only por Blitter**: **entregado**. `MinimalBackend::blitter_fill_rect` rellena
+- **`fill_rect` D-only por Blitter**: **entregado**. `AmigaBackend::blitter_fill_rect` rellena
   el rect con minterm `$FF`/`$00` (D-only, sin fuente: el Blitter solo ve Chip RAM) y repara por
   CPU la primera/última palabra para x/w no alineados. Se conecta por el *seam*
   `field::RectFillSink` (`Playfield::fill_rect_hw`, `Scene::set_rect_fill_sink`), que

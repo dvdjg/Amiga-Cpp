@@ -79,7 +79,7 @@ activa con un solo blit (`BitmapClearI`, 768 filas x 16 palabras, `D=0`).
 | `DrawObject` (BOB OR intercalado, 1 blit) | `eng::graphics::bob` + `FramePlan` | ✅ (ver §5) |
 | `MakeCopperList` (DPF + paleta por linea) | `eng::copper::Scheduler` | ✅ |
 | `CopWaitSafe(Y(i), X(0))` | `Scheduler::wait_position_safe` | ➕ anadido (port de CopWaitSafe **con H**) |
-| `BitmapClearI` | `MinimalBackend::blitter_clear` | ✅ |
+| `BitmapClearI` | `AmigaBackend::blitter_clear` | ✅ |
 | assets `data/*.c` | copiados verbatim a `src/data/` | ✅ |
 
 La re-encodificacion del atlas de BOBs (de filas densas de 6 B a filas de 8 B con palabra
@@ -98,7 +98,7 @@ limpio) y confirmado con el modelo de vision local. Causa: el backend OR-BOB pon
 `BLTCON1 = shift<<12`, pero los bits 15-12 de `BLTCON1` son **BSH** (shift del canal B), no
 un duplicado de ASH. Como en el OR-BOB `B = D = destino`, BSH desplazaba la lectura del
 fondo y emborronaba. El original deja `bltcon1 = 0` y solo desplaza A via `BLTCON0`.
-Corregido en `amiga_minimal.cpp`; vision confirma circulos limpios. Referencia:
+Corregido en `amiga.cpp`; vision confirma circulos limpios. Referencia:
 `amiga-bootcamp/08_graphics/blitter_programming.md` ("Shift and Alignment", BLTCON1/BSH).
 
 ## 6. Rendimiento medido (A500_debug, `-O1`)
@@ -255,7 +255,7 @@ prefirio la via sincronizada de 2 buffers.
 
 Hecho:
 
-1. **Batch de BOBs**: `MinimalBackend::blitter_or_bobs` fija las constantes del blit
+1. **Batch de BOBs**: `AmigaBackend::blitter_or_bobs` fija las constantes del blit
    (`BLTCON1/AFWM/ALWM/AMOD/BMOD/DMOD/BLTSIZE`) UNA vez y por BOB solo escribe
    `BLTCON0/APT/BPT/DPT` + espera, como el `DrawObject` original.
 2. **3 palabras fieles**: atlas denso (sin guarda) y `BOBW/16 = 3` palabras, `bltcon1=0`.
@@ -303,8 +303,8 @@ Pendiente / descartado con la evidencia actual:
 
 - `engine/include/eng/platform/amiga/blob.hpp`: `eng::amiga::OrBlobBatch` (lote OR
   intercalado `inline`, constantes fijadas una vez, sin `jsr` por objeto).
-- `MinimalBackend::custom_registers()` (frontera unsafe para rutinas de lote inline).
-- `MinimalBackend::blitter_or_bobs_begin/one/end` delegan en el mismo `OrBlobBatch` (una
+- `AmigaBackend::custom_registers()` (frontera unsafe para rutinas de lote inline).
+- `AmigaBackend::blitter_or_bobs_begin/one/end` delegan en el mismo `OrBlobBatch` (una
   sola fuente de verdad para la secuencia de registros).
 - `object3d::update_object_transformation_forward(Object3D&)`: matriz directa **sin** la
   inversa ni la camara (para efectos de solo proyeccion).

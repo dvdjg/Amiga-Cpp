@@ -148,7 +148,7 @@ un polígono del Blitter (line-draw + area-fill, para relleno vectorial/3D).
 
 | Pieza | Estado | Dónde |
 |---|---|---|
-| Blit de BOB: descriptor + cola + ejecución HW | **EXISTE** | `frame_plan.hpp:44-50,182-199` (`BlitJob`, kinds `MaskedBobCookieCut`/`MaskedBlobNoSave`/`CopyRect`/`RestoreRect`), `MinimalBackend::execute_frame_plan` (`amiga_minimal.cpp:619-716`) |
+| Blit de BOB: descriptor + cola + ejecución HW | **EXISTE** | `frame_plan.hpp:44-50,182-199` (`BlitJob`, kinds `MaskedBobCookieCut`/`MaskedBlobNoSave`/`CopyRect`/`RestoreRect`), `AmigaBackend::execute_frame_plan` (`amiga.cpp:619-716`) |
 | Minterm elegible (OR-bob, glow) | **EXISTE** | `BlitJob::minterm` (`frame_plan.hpp`); kinds `OrBlob` (`$FC`, `D=A\|D`) y `ClearRect` (`$00`) en el ejecutor |
 | Layout intercalado en el path de blits | **EXISTE** | `BlitJob::interleaved` explícito (altura = alto×planos, `bitplane_count=1`, módulos propios); el patrón `bitplane_count=1` + altura = planelíneas sigue usándose en `xlimited.hpp`/`soft_dpf.hpp` |
 | Clase/manager de BOBs (posición, frame, máscara, clip, save/restore, ciclo de vida) | **PARCIAL** | `graphics/bob.hpp` (`Bob`/`BobTarget`/`bob_draw`/`bob_erase`; `RestoreUnder` pendiente, sin manager de actores); 050 sigue armando su save/restore a mano |

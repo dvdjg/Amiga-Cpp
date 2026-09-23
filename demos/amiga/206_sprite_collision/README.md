@@ -1,7 +1,7 @@
 # 206 — colisión de hardware de sprites (`CLXCON`/`CLXDAT`)
 
 Valida en hardware la colisión **pixel-perfect** de sprites del chipset y su utilidad en el
-engine (`graphics/sprite_collision.hpp` + `MinimalBackend::set_sprite_collision`/
+engine (`graphics/sprite_collision.hpp` + `AmigaBackend::set_sprite_collision`/
 `read_sprite_collision`).
 
 ## Qué hace

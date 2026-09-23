@@ -27,6 +27,6 @@ bash tools/run-host-tests.sh tests/host/field/062_polygon_fill_sink
 
 - Consumidor hardware: `eng::amiga::PolygonFillService`
   (`engine/include/eng/platform/amiga/polygon_fill.hpp`), que enruta al
-  `MinimalBackend::blitter_fill_polygon_strided` (máscara 1 bit + cookie-cut).
+  `AmigaBackend::blitter_fill_polygon_strided` (máscara 1 bit + cookie-cut).
 - Verificado en hardware por la demo `demos/amiga/110_ylimited_shooter` (cara FG
   del DPF rellenada por Blitter a través de `mesh_render_filled`).

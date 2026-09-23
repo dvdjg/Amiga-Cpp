@@ -1,5 +1,5 @@
 #include <eng/api/api.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 #include <eng/core/math/sinetable.hpp>
 #include <eng/field/xlimited_scene.hpp>
 
@@ -175,7 +175,7 @@ struct DemoGame {
 		return d * (mag < maxStep ? mag : maxStep);
 	}
 
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		eng::debug::reset(g_eng_frame_telemetry);
 		if (!backend.configure_memory({200u * 1024u, 16u * 1024u, 8u * 1024u})) {
@@ -259,7 +259,7 @@ struct DemoGame {
 		eng::debug::mark_ready(g_eng_run_status, 0x00020200u);
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!ready) return;
 
@@ -357,7 +357,7 @@ struct DemoGame {
 		++m_frameOfDay;
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (ready) {
 			scene.install(backend);
 		}
@@ -371,7 +371,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	DemoGame game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

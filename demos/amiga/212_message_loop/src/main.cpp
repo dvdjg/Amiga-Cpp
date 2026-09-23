@@ -1,7 +1,7 @@
 #include <eng/api/api.hpp>
 #include <eng/os/message_pump.hpp>
 #include <eng/os/os.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -191,7 +191,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	eng::os::MessagePumpGame<DemoApp> game {};
 	game.bind_port(eng::os::system_port());
 

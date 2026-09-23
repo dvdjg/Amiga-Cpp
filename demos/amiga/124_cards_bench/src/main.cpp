@@ -23,7 +23,7 @@
 #include <eng/api/api.hpp>
 #include <eng/core/util/static_string.hpp>
 #include <eng/core/util/text.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <eng/cards/ai/bot.hpp>
 #include <eng/cards/core/budget.hpp>
@@ -74,7 +74,7 @@ void append(char* dst, const char* src) {
 }
 
 struct CardsBench {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		m_memory_ok = backend.configure_memory({4096, 4096, 1024});
 
@@ -118,11 +118,11 @@ struct CardsBench {
 		eng::debug::mark_ready(g_eng_run_status, g_eng_run_status.detail);
 	}
 
-	void update(eng::amiga::MinimalBackend&, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		auto& debug = backend.debug();
 		debug.clear();
 		debug.filled_rect(40, 40, 560, 200, 0x00081018);
@@ -189,7 +189,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	CardsBench game {};
 	eng::Engine engine {backend, game};
 	engine.run_frames_polling(0xffff);

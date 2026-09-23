@@ -47,7 +47,7 @@ aquí se concreta con nombres de tipos, namespaces y dependencias.
                 │  → FramePlan (gráficos) + AudioPlan (sonido)
 ┌───────────────────────────────▼───────────────────────────────────┐
 │ PlatformBackend (display, input, reloj, audio, debug, memoria)    │  con HW
-│  MinimalBackend hoy; ACE como backend interno opcional            │
+│  AmigaBackend hoy; ACE como backend interno opcional            │
 └───────────────────────────────┬───────────────────────────────────┘
                                 │  → AssetRuntime (UAF-R chunks cocinados)
 ┌───────────────────────────────▼───────────────────────────────────┐
@@ -146,7 +146,7 @@ PlatformBackend (Amiga: potgo/ciaa/ciab + joyport + teclado)
   ejecuta `update` + `render` (el latido del juego, con *deadline* de 1 frame, medido en
   líneas de raster en `GameContext::irq`) y el **bucle principal** ejecuta el trabajo de
   fondo cooperativo, que la IRQ preempta. Es lo más natural en Amiga y **no quema ciclos en
-  *polling*** de VBlank. La IRQ se instala con `MinimalBackend::set_vblank_service`
+  *polling*** de VBlank. La IRQ se instala con `AmigaBackend::set_vblank_service`
   (`support/vbl_irq.s`).
 - **Modelo alternativo: *polling*** (`Engine::run_frames_polling`): `update -> wait_vblank
   -> render` en el bucle principal, con el fondo drenado en el hueco de VBlank y en las
@@ -160,7 +160,7 @@ PlatformBackend (Amiga: potgo/ciaa/ciab + joyport + teclado)
   drena durante el hueco de VBlank (`BackgroundPump`, como máximo
   `max_slices_per_frame` rebanadas/frame), con prioridad estricta al bucle principal. Si
   el juego expone `idle(backend, context)`, también se le llama ahí (p. ej. las fases del
-  C2P de `fire-rgb`). `MinimalBackend::wait_vblank(task, user)` entrega la línea de raster
+  C2P de `fire-rgb`). `AmigaBackend::wait_vblank(task, user)` entrega la línea de raster
   (`vpos`) como hook. Ver `BACKGROUND_TASKS.md`.
 - **Modo interrupt-driven** (`Engine::run_frames_interrupt_driven`): la IRQ de VBlank corre
   `update`/`render` (latido del juego, deadline de 1 frame) y el bucle principal ejecuta el

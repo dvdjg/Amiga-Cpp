@@ -14,7 +14,7 @@
 #include <eng/api/api.hpp>
 #include <eng/api/game.hpp>
 #include <eng/os/port.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -134,7 +134,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	if (!backend.configure_memory({ 64u * 1024u, 4u * 1024u, 4u * 1024u })) {
 		eng::debug::mark_failed(g_eng_run_status, 0x00020902u);
 		return 0;

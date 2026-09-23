@@ -182,7 +182,7 @@ Tras la respuesta de Grok, esto es lo **comprobado en el repo** y lo **decidido*
 | Símbolos HUNK (§4.5) | No depender de `HUNK_SYMBOL`; **exports propios** | **Decidido**: el `.englib` ya lleva exports propios; para HUNK, el pipeline debe emitir una tabla de exports propia (pendiente) |
 | Stub `.englib` (§5) | Generar con **vasm/CI**, no a mano | **Decidido** (pendiente): hoy se emite byte a byte en `tools/fs/make-volume.mjs` |
 | `df0:` sin Workbench (§1) | `Open` **espera** al volumen; montar en KS 1.3 no es fiable | **Confirmado**: demo 211 llega a READY con ADF insertado (no toca `df0:`); el volumen no queda montado. Ficha nueva: `docs/reference/emulators/winuae/trackdisk.md` |
-| `trackdisk` (§2) | `OpenDevice` + `IOExtTD` + `DoIO`, buffers Chip RAM, `DSKBLK` | **Implementado** (`eng/os/trackdisk.hpp` + `amiga_minimal_trackdisk.cpp`). **Bloqueado**: la demo que lo usa se **cuelga dentro de `td_open`** incluso con unidad ausente (`DF3:`) → es el `OpenDevice`/`CreateMsgPort` genérico en nuestro entorno `-nostdlib`, no el disco. Necesita sesión de depuración |
+| `trackdisk` (§2) | `OpenDevice` + `IOExtTD` + `DoIO`, buffers Chip RAM, `DSKBLK` | **Implementado** (`eng/os/trackdisk.hpp` + `amiga_trackdisk.cpp`). **Bloqueado**: la demo que lo usa se **cuelga dentro de `td_open`** incluso con unidad ausente (`DF3:`) → es el `OpenDevice`/`CreateMsgPort` genérico en nuestro entorno `-nostdlib`, no el disco. Necesita sesión de depuración |
 | Teclado (§6) | Inyectar en el **mismo** post que la ISR, o foco+tecla | **Decidido**: inyección por el canal lateral al mismo `post_msg` (pendiente) |
 | E/S async (§7) | El diferido es un scheduler sobre DOS, no `SendIO` | Confirmado; `trackdisk` (cuando funcione) irá por `SendIO` + señal → `Msg` |
 
@@ -208,6 +208,6 @@ rutinas propias:
 **HD → `dos.library` (filesystem).** `trackdisk` es solo floppy; el HD va por el controlador
 (SCSI/IDE) o por el filesystem. Un driver SCSI/IDE propio no compensa ahora.
 
-**Consecuencia**: `eng/os/trackdisk.hpp` + `amiga_minimal_trackdisk.cpp` quedan como
+**Consecuencia**: `eng/os/trackdisk.hpp` + `amiga_trackdisk.cpp` quedan como
 **implementación documentada y no verificada** (el cuelgue de `td_open` no se depura); la vía de
 disquete será un módulo propio (`eng/os/floppy` o similar) sobre la ficha del emulador.

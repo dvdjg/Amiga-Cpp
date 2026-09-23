@@ -35,7 +35,7 @@ system/*         (arranque, bucle de efecto, vblank, allocator)
 | `NewObject3D`/`DeleteObject3D` | — | ❌ falta (alloc del objeto + array `visibleFace`) |
 | `UpdateObjectTransformation` | primitivas en `math3d` | 🔶 falta la función (wrapper sobre `math3d` + `div16`) |
 | `UpdateFaceVisibilityFast`/`UpdateVertexVisibility` | culling en `mesh3d` | 🔶 falta la variante con flags |
-| `BlitterLine`/`DrawObject` | `MinimalBackend` (CopyRect) + mi `fill_triangles_blitter`/`blit_line` (WIP, basado en `BlitterLine.c` EOR+ONEDOT) | ❌ **falta el `DrawObject` exacto**: `bltcon0=rorw(x0&15,4)|BC0F_LINE_OR`, `bltcon1=LINEMODE|SUD/AUL/SUL|SIGNFLAG|rorw(x0&15,4)`, `bltamod=derr-dmax`, `bltbmod=dmin<<1`, `bltapt=(void*)derr`, `bltsize=(dmax<<6)+66`, sin ONEDOT |
+| `BlitterLine`/`DrawObject` | `AmigaBackend` (CopyRect) + mi `fill_triangles_blitter`/`blit_line` (WIP, basado en `BlitterLine.c` EOR+ONEDOT) | ❌ **falta el `DrawObject` exacto**: `bltcon0=rorw(x0&15,4)|BC0F_LINE_OR`, `bltcon1=LINEMODE|SUD/AUL/SUL|SIGNFLAG|rorw(x0&15,4)`, `bltamod=derr-dmax`, `bltbmod=dmin<<1`, `bltapt=(void*)derr`, `bltsize=(dmax<<6)+66`, sin ONEDOT |
 | `BlitterClear` | `FramePlan` `CopyRect` | 🔶 equivalente |
 | `BitmapT`/`NewBitmap` (planos separados) | `StaticEhbScene` (fijo 320×256×6 EHB) | 🔶 **falta playfield genérico W/H/planos** |
 | `NewCopList`/`CopSetupBitplanes`/`CopInsSet32` (parche `BPLxPT`) | `copper::Scheduler` (`emit_planes_display`, paramétrico) | 🔶 falta el parcheo por frame (swap de buffer) |
@@ -59,7 +59,7 @@ Correcto, con un matiz: lo que hay que importar es **`lib3d` tal cual** (modelo 
 ## Estado del porte (hecho)
 
 - ✅ **Modelo `obj2c` + `Object3D`** portado 1:1 en `engine/include/eng/platform/amiga/object3d.hpp` (`Node3D/Edge/Face/Mesh3D/Object3D`, macros de offset, `new_object3d`, `update_object_transformation` sobre `math2d`/`math3d`). Test **HOST-014**. `div16`/`normfx` del engine coinciden con el original (comprobado).
-- ✅ **Línea por Blitter** en `MinimalBackend::blitter_line` (secuencia idéntica a `DrawObject`: `BC0F_LINE_OR`, `bltapt=derr`, `bltsize=(dmax<<6)+66`, sin ONEDOT) + `blitter_clear`.
+- ✅ **Línea por Blitter** en `AmigaBackend::blitter_line` (secuencia idéntica a `DrawObject`: `BC0F_LINE_OR`, `bltapt=derr`, `bltsize=(dmax<<6)+66`, sin ONEDOT) + `blitter_clear`.
 - ✅ **Demo `079_wireframe`**: `pilka.c`/paleta copiados tal cual, recorrido (`UpdateFaceVisibilityFast`/`UpdateEdgeVisibility`/`TransformVertices`/`DrawObject`) portado verbatim; arranca (READY) y **visión (qwen3-vl) confirma el balón de alambre** centrado. Adaptaciones (versión B): display 320×256×4 del engine y sin doble buffer.
 
 ## Pendiente (para 1:1 exacto)

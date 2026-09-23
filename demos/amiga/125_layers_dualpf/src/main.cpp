@@ -26,7 +26,7 @@
 //   bash ./tools/run/run-demo.sh demos/amiga/125_layers_dualpf --warp
 #include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 #include <eng/retro/fixed_trig.hpp>
 
 #include <exec/execbase.h>
@@ -123,7 +123,7 @@ constexpr bool kBands = true;
 }
 
 struct LayersDemo {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({200u * 1024u, 8u * 1024u, 8u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012501u);
@@ -150,7 +150,7 @@ struct LayersDemo {
 		eng::debug::mark_ready(g_eng_run_status, kHeight);
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_planes_block.valid()) {
 			return;
@@ -164,7 +164,7 @@ struct LayersDemo {
 		m_active = static_cast<u8>((m_active + 1u) % kLists);
 	}
 
-	void render(eng::amiga::MinimalBackend&, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend&, eng::GameContext& context) {
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -370,7 +370,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	LayersDemo game {};
 	eng::Engine engine {backend, game};
 	engine.run_frames(0xffff);

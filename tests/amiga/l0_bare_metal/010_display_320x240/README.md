@@ -15,8 +15,8 @@ planar**, y demuestra el flujo completo de depuración asistida:
   `DDFSTRT/STOP`, `BPL1MOD`, punteros `BPLxPT`, `COLORxx`, `DMACON`, `COP1LC/COPJMP1`),
   dibujo planar de líneas (Bresenham), construcción de una copperlist word a word y
   restauración del sistema.
-- **Capa 1 (backend):** `MinimalBackend::configure_memory` (Chip RAM vía `AllocMem`) y
-  `MinimalBackend::install_copper_list`.
+- **Capa 1 (backend):** `AmigaBackend::configure_memory` (Chip RAM vía `AllocMem`) y
+  `AmigaBackend::install_copper_list`.
 
 ## Modo gráfico
 

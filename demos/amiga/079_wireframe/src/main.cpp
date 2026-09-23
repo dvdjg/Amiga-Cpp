@@ -4,7 +4,7 @@
 // cual la demo original. El modelo de objeto (formato `obj2c` + `Object3D`) se ha
 // portado fiel a `lib3d` en `eng/platform/amiga/object3d.hpp`; la matematica 4.12 viene de
 // `lib2d`/`math3d` (HOST-010/011), y la secuencia de registros de la linea vive en
-// `MinimalBackend::blitter_line` (identica a `DrawObject`).
+// `AmigaBackend::blitter_line` (identica a `DrawObject`).
 //
 // Display y doble buffer: ventana 256x256x4 con los registros del original
 // (`SetupPlayfield(MODE_LORES,4,X(32),Y(0),256,256)` + `SetupBitplaneFetch`) y doble
@@ -13,7 +13,7 @@
 #include <eng/platform/amiga/object3d.hpp>
 #include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -210,7 +210,7 @@ void draw_object(obj::Object3D& object, field::Surface& surf, graphics::FramePla
 }
 
 struct WireframeDemo {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		m_memory_ok = backend.configure_memory({96u * 1024u, 4u * 1024u, 4u * 1024u});
 		if (!m_memory_ok) {
@@ -246,7 +246,7 @@ struct WireframeDemo {
 		eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(pilka.vertices));
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (m_bitplane_block.view.data() == nullptr) {
 			return;
@@ -280,7 +280,7 @@ struct WireframeDemo {
 		m_active = static_cast<eng::u8>((active + 1u) % kRing);
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -321,7 +321,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	WireframeDemo game {};
 	eng::Engine engine {backend, game};
 	engine.run_frames_polling(0xffff);

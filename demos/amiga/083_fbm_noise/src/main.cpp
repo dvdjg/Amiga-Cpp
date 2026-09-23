@@ -13,7 +13,7 @@
 #include <eng/core/math/noise.hpp>
 #include <eng/api/api.hpp>
 #include <eng/api/effects.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -67,7 +67,7 @@ u8 mf_to_u8(MF x) {
 }
 
 struct FbmDemo {
-	void init(amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({64u * 1024u, 8u * 1024u, 2u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008301u);
@@ -88,7 +88,7 @@ struct FbmDemo {
 		eng::debug::mark_ready(g_eng_run_status, 0x0083u);
 	}
 
-	void update(amiga::MinimalBackend& backend, eng::GameContext&) {
+	void update(amiga::AmigaBackend& backend, eng::GameContext&) {
 		if (!m_init_ok) return;
 		// Offset de muestreo animado (Q8 de celda gruesa) en ping-pong, sin costura.
 		m_ox += m_dx;
@@ -101,7 +101,7 @@ struct FbmDemo {
 		draw_frame(backend);
 	}
 
-	void render(amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(amiga::AmigaBackend& backend, eng::GameContext& context) {
 		(void)backend;
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
@@ -163,7 +163,7 @@ private:
 	}
 
 	/// Un frame: colores en el bloque inactivo + flip + install.
-	void draw_frame(amiga::MinimalBackend& backend) {
+	void draw_frame(amiga::AmigaBackend& backend) {
 		m_fx.begin_frame(m_scene);
 		fill_colors();
 		m_fx.end_frame(m_scene, backend);
@@ -219,7 +219,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	amiga::MinimalBackend backend {};
+	amiga::AmigaBackend backend {};
 	FbmDemo game {};
 	eng::Engine engine {backend, game};
 	engine.run_frames(0xffff);

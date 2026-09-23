@@ -63,7 +63,7 @@ Engine base:
 - `engine/include/eng/memory/arena.hpp`
 - `engine/include/eng/graphics/driver.hpp`
 - `engine/include/eng/platform/amiga/backend.hpp`
-- `engine/src/platform/amiga/amiga_minimal.cpp`
+- `engine/src/platform/amiga/amiga.cpp`
 
 Demo inicial:
 
@@ -123,7 +123,7 @@ Resultado verificado:
 - se genera `out\run\000_toolchain_cpp23\screenshot.png`;
 - el analizador visual detecta el overlay y pasa.
 - la regresion completa pasa con `tools\test-regression.ps1`.
-- `010_chip_slow_memory` valida el bootstrap de arenas desde `MinimalBackend`.
+- `010_chip_slow_memory` valida el bootstrap de arenas desde `AmigaBackend`.
 - En la captura de `010_chip_slow_memory`, Chip aparece en rango bajo
   `0x00015050` y Slow en zona trapdoor/bogo `0x00C0F830` en la configuracion
   emulada actual.
@@ -221,7 +221,7 @@ Resultado verificado:
 - `FramePlan` ahora soporta operaciones de Blitter: `CopyRect`, `RestoreRect`,
   `MaskedBobCookieCut` y `MaskedBlobNoSave`, con presupuesto acumulado por jobs y
   words. El backend Amiga ejecuta esos jobs en
-  `MinimalBackend::execute_frame_plan()`.
+  `AmigaBackend::execute_frame_plan()`.
 - Se ha añadido `demos/amiga/050_blitter_bobs`: dibuja un BOB de 32x32 y dos blobs
   no-save no solapados, todos X alineados a 16 pixels, sobre una escena EHB. La
   demo valida el camino `FramePlan -> backend -> Blitter`.

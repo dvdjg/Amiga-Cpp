@@ -374,7 +374,7 @@ Blitter, sin *split* de Copper y con *saveword* de 2 B en lugar de bandas duplic
 | Paso | Circular | XLimited |
 |---|---|---|
 | Reserva | `TileFieldController::begin(memory,cfg,offset)` con `viewport+margin` | `XLimitedPlayfield::begin(memory,cfg)` — `cfg.bitmap_width=352/384`, `cfg.planes`, `cfg.fetch_mode`; valida interleaved |
-| Relleno inicial | `enqueue_initial()` + `pump` hasta `!busy()` | `fill_screen(plan)` → `22*16` jobs; ejecutar con `MinimalBackend` y *budget* (demo 107: 120) |
+| Relleno inicial | `enqueue_initial()` + `pump` hasta `!busy()` | `fill_screen(plan)` → `22*16` jobs; ejecutar con `AmigaBackend` y *budget* (demo 107: 120) |
 | Scroll | `update(cfg,delta,plan)` con clamp `[-5,5]` + `pump` | `scroll_right(plan)` / `scroll_left(plan)` — 1 job por llamada; `mapposx/videoposx` avanzan 1 px |
 | Composición | `hardware_view(first_plane)` → `FieldHardwareView` con `split_*` | `hardware_view()` → `XlimitedHardwareView{planeaddx,bplcon1,bpl1mod/bpl2mod,bitmap_bytes_per_row}` → `XlimitedDisplayComposer::compose/install` |
 | Copper | El compositor externo debe manejar `split_line` | `XlimitedDisplayComposer` sin *split*; `BPLMOD = row_bytes*planes - fetch - offset` |

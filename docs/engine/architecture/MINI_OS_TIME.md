@@ -3,7 +3,7 @@
 Cómo el mini-SO da **tiempo medible** y **temporizadores programables** sin sondeo, y cómo se
 conectan al puerto de mensajes ([`MINI_OS_MESSAGE_LOOP.md`](MINI_OS_MESSAGE_LOOP.md)). Fuentes:
 `../amiga-bootcamp/01_hardware/common/cia_chips.md` y `video_timing.md`, y el servicio CIA ya
-existente en `engine/src/platform/amiga/amiga_minimal.cpp`
+existente en `engine/src/platform/amiga/amiga.cpp`
 (`install_timer_service`, Timer A continuo de CIA-A sobre el autovector de nivel 2).
 
 ## 1. Qué fuente usar para qué
@@ -158,5 +158,5 @@ contador de reboses o se usa un timer de frames.
 
 - `../amiga-bootcamp/01_hardware/common/cia_chips.md` (CIA-A/B, timer A/B, ICR, CRA/CRB, TOD).
 - `../amiga-bootcamp/01_hardware/common/video_timing.md` (VPOSR/VHPOSR, líneas PAL/NTSC).
-- `engine/src/platform/amiga/amiga_minimal.cpp` (`install_timer_service`, Timer A continuo).
+- `engine/src/platform/amiga/amiga.cpp` (`install_timer_service`, Timer A continuo).
 - `docs/engine/architecture/BACKGROUND_TASKS.md` (tareas cooperativas que usan ese timer).

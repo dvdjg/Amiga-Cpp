@@ -36,7 +36,7 @@
 #include <eng/core/util/color.hpp>
 #include <eng/debug/prof.hpp>
 #include <eng/graphics/copper/plan.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -204,7 +204,7 @@ graphics::CopperIntent g_obj_needs[kBobCount > 0u ? kBobCount : 1u][kObjCopperSt
 constexpr eng::u16 kObjRainbow[kObjCopperSteps] = {0x00f, 0x0f0, 0xf00, 0xff0};
 
 struct BobObjectsDemo {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		ENG_PROF_INIT(kProfCount);
 		if (!backend.configure_memory({96u * 1024u, 8u * 1024u, 4u * 1024u})) {
@@ -241,7 +241,7 @@ struct BobObjectsDemo {
 		ENG_PROF_BEGIN(kProfLoop);
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		// CALIBRACION: bucle de coste conocido. `profile.mjs` dara ciclos/frame con 1.0
 		// llamadas/frame; dividiendo entre 1000 salen los ciclos por iteracion y, con las
@@ -317,7 +317,7 @@ struct BobObjectsDemo {
 					  static_cast<eng::u32>(kBobCount);
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		// Publica la lista del frame (swap de COP1LC) tras VBlank, como manda el contrato.
 		m_plan.commit(backend);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
@@ -484,7 +484,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	BobObjectsDemo game {};
 	eng::Engine engine {backend, game};
 	engine.run_frames_polling(0xffff);

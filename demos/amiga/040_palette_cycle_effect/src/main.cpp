@@ -2,7 +2,7 @@
 #include <eng/core/util/color.hpp>
 #include <eng/graphics/effects/palette_cycle.hpp>
 #include <eng/graphics/effects/palette_transition.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -111,7 +111,7 @@ void build_cycle_test_pattern(eng::PlaneBytes planes) {
 /// el patron que luego usaremos en drivers mas ambiciosos: el juego pide efectos, el plan
 /// describe los cambios y el driver decide como escribirlos en el hardware.
 struct DemoGame {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		m_memory_ok = backend.configure_memory({
 			scene::chip_bytes_for(scene::planar(320u, 256u, 6)),
@@ -148,7 +148,7 @@ struct DemoGame {
 		}
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_memory_ok || !m_scene_ok) {
 			return;
@@ -179,7 +179,7 @@ struct DemoGame {
 		}
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		(void)backend;
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index, 9);
 	}
@@ -198,7 +198,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	DemoGame game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

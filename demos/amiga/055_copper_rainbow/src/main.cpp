@@ -19,7 +19,7 @@
 #include <eng/graphics/copper/plan.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/raster_intent.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -67,7 +67,7 @@ constexpr eng::Palette32 kBasePalette {{
 }};
 
 struct CopperRainbowDemo {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		m_memory_ok = backend.configure_memory({
 			96u * 1024u,
@@ -95,7 +95,7 @@ struct CopperRainbowDemo {
 		eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_plan.words()));
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		// Fase avanza cada frame: el arcoíris se desplaza verticalmente.
 		m_phase = static_cast<eng::u8>(context.frame.frame_index & (kRainbowLen - 1u));
 		if (build_frame()) {
@@ -103,7 +103,7 @@ struct CopperRainbowDemo {
 		}
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		(void)backend;
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
@@ -165,7 +165,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	CopperRainbowDemo game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

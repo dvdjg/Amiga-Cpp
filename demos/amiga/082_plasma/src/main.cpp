@@ -13,7 +13,7 @@
 //     vblank via el engine.
 #include <eng/api/api.hpp>
 #include <eng/api/effects.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -78,7 +78,7 @@ struct Plasma {
 };
 
 struct PlasmaDemo {
-	void init(amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({64u * 1024u, 4u * 1024u, 4u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008201u);
@@ -100,20 +100,20 @@ struct PlasmaDemo {
 		eng::debug::mark_ready(g_eng_run_status, 0x0082u);
 	}
 
-	void update(amiga::MinimalBackend& backend, eng::GameContext&) {
+	void update(amiga::AmigaBackend& backend, eng::GameContext&) {
 		if (!m_init_ok) return;
 		m_plasma.advance();
 		draw_frame(backend);
 	}
 
-	void render(amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
 private:
 	/// Un frame: colores en el bloque inactivo + flip + install.
-	void draw_frame(amiga::MinimalBackend& backend) {
+	void draw_frame(amiga::AmigaBackend& backend) {
 		m_fx.begin_frame(m_scene);
 		fill_colors();
 		m_fx.end_frame(m_scene, backend);
@@ -147,7 +147,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	amiga::MinimalBackend backend {};
+	amiga::AmigaBackend backend {};
 	PlasmaDemo game {};
 	eng::Engine engine {backend, game};
 	engine.run_frames(0xffff); // modo por defecto: interrupt-driven

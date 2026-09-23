@@ -20,7 +20,7 @@
 #include <eng/api/api.hpp>
 #include <eng/field/mirror_playfield.hpp>
 #include <eng/field/xlimited.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -70,7 +70,7 @@ struct DemoGame {
 	eng::u16 m_palette[8] {};
 	bool m_ready = false;
 
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({kChipNeed + 16u * 1024u, 8u * 1024u, 4u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012101u);
@@ -98,13 +98,13 @@ struct DemoGame {
 		eng::debug::mark_ready(g_eng_run_status, 0x13000000u);
 	}
 
-	void update(eng::amiga::MinimalBackend&, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_ready) return;
 		m_pf.advance(1, 1); // X satura/revee, Y envuelve (espejo)
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (m_ready) {
 			if (m_comp.compose(m_pf.hardware_view())) {
 				m_comp.install(backend);
@@ -172,7 +172,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	DemoGame game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

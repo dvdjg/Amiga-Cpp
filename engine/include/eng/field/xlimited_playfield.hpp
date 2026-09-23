@@ -646,7 +646,7 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
     /// `BlitJobKind::MaskedBobCookieCut`): donde la máscara es 0 se conserva el
     /// fondo (transparencia), donde es 1 se escribe el plano. El plano de máscara
     /// tiene el MISMO layout de fila que un plano fuente (el backend reutiliza
-    /// `source_modulo_bytes` para el canal A=masks, ver amiga_minimal.cpp).
+    /// `source_modulo_bytes` para el canal A=masks, ver amiga.cpp).
     bool emit_world_rect_masked(graphics::FramePlan& plan, const u16* src, const u16* mask,
                                 u16 x_byte, u32 planeline_start, u16 words, u16 seg_rows,
                                 u16 src_row_bytes, u32 src_plane_stride, u8 planes) {

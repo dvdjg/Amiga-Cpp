@@ -14,7 +14,7 @@ de **fondo** cooperativo, que la IRQ preempta.
   Al completarse se reinicia (ciclo).
 - **Línea amarilla (COLOR02)**: la dibuja el **juego** (en la IRQ) por Blitter
   (`blitter_clear` + `blitter_line`). Sus esperas de Blitter (`wait_blitter`) son otro punto
-  donde se drena el fondo (`MinimalBackend::set_blitter_service`).
+  donde se drena el fondo (`AmigaBackend::set_blitter_service`).
 
 ## Invariantes / diseño
 
@@ -25,7 +25,7 @@ de **fondo** cooperativo, que la IRQ preempta.
   dura (preempta al fondo); cuando no hay más juego que hacer, vuelve (`RTE`) y el fondo sigue.
 - La tarea **se adapta al barrido del CRT**: si `vpos > 220`, procesa la mitad por rebanada.
   El cupo por frame (`max_slices_per_frame`) acota cuánto fondo se hace por frame.
-- **Drenado por blit IRQ** (`MinimalBackend::set_blit_service`): la IRQ de blit (nivel 3,
+- **Drenado por blit IRQ** (`AmigaBackend::set_blit_service`): la IRQ de blit (nivel 3,
   mismo autovector que el VBlank → handler único que despacha por `INTREQR`) drena el fondo
   mientras el juego espera a un blit.
 - **Motor de fondo por timer A de la CIA-A** (`background_timer_start`): timer **continuo**

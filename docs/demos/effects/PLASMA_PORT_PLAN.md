@@ -37,9 +37,9 @@ Método: `docs/guides/roadmap/PORT_PROMPT_1A1.md`. Técnica: `docs/reference/ami
 | Original | Engine |
 |---|---|
 | `NewCopList(n)` / `CopListFinish` | arena Chip + `copper::ListBuilder` (extendido) |
-| `CopListActivate` / `CopListRun` | `MinimalBackend::takeover_display` / `install_copper_list` |
+| `CopListActivate` / `CopListRun` | `AmigaBackend::takeover_display` / `install_copper_list` |
 | `CopSetColor`/`CopMove16`/`CopMove32`/`CopInsSet32`/`CopSkip`/`CopWaitH`/`cop2lc`/`copjmp2` | **ampliar `copper::ListBuilder`/`Scheduler`** (ver §4) |
-| `TaskWaitVBlank` | `MinimalBackend::wait_vblank` |
+| `TaskWaitVBlank` | `AmigaBackend::wait_vblank` |
 | `colors_pixels[]` | `constexpr` inmutable (como `dualtab` de fire-rgb) |
 | `EFFECT(...)` | `struct Plasma { init/update/render }` + `Engine` |
 

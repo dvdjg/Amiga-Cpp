@@ -663,7 +663,7 @@ inferiores, pero ejercita principalmente la suya):
 | Carpeta | Capa | Qué ejercita |
 |---------|------|--------------|
 | `tests/amiga/l0_bare_metal/` | L0 | Registros custom, bitplanes planares, copperlist a mano, DMA, Blitter. |
-| `tests/l1_backend/` | L1 | APIs de `MinimalBackend` (memoria, VBlank, copper, FramePlan). |
+| `tests/l1_backend/` | L1 | APIs de `AmigaBackend` (memoria, VBlank, copper, FramePlan). |
 | `tests/l2_copper_frameplan/` | L2 | `CopperScheduler`, `CopperTimeline`, `FramePlan` y presupuestos. |
 | `tests/l3_drivers/` | L3 | Drivers gráficos (`StaticEhbScene`, futuro `Standard5`, `DualPlayfield`...). |
 | `tests/l4_scene/` | L4 | `VirtualScene`, `Camera2D`, `TileLayer`, escenas retenidas. |
@@ -675,7 +675,7 @@ Catálogo inicial de tests:
   el canal lateral para verificar las líneas, escritura de figuras por `poke` con
   captura de pantalla, y restauración del sistema para volver a Workbench.
 - L0-020: copperlist a mano + Blitter cookie-cut con save/restore.
-- L1-010: ciclo de vida de `MinimalBackend` (memoria, VBlank, warpmode, overlay).
+- L1-010: ciclo de vida de `AmigaBackend` (memoria, VBlank, warpmode, overlay).
 - L2-010: `CopperScheduler` con timeline y aviso de over-budget.
 - L3-010: `StaticEhbScene` como referencia de driver (ya cubierto por demos 030/040,
   se reutiliza como test formal).

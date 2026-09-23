@@ -9,7 +9,7 @@
 
 #include <eng/os/floppy.hpp>
 
-#include "amiga_minimal_internal.hpp"
+#include "amiga_internal.hpp"
 
 namespace {
 

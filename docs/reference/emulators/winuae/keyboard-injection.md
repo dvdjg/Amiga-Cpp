@@ -54,7 +54,7 @@ fiable en esta build.
 
 ## Implicación para el engine / runner
 
-- **Handshake (engine, `engine/src/platform/amiga/amiga_minimal_os.cpp`)**: `os_kbd_isr` pulsa
+- **Handshake (engine, `engine/src/platform/amiga/amiga_os.cpp`)**: `os_kbd_isr` pulsa
   SP bajo y alto **con el orden correcto y con ≥ 85 µs** entre ambos (busy-wait corto). Con el orden
   invertido o el pulso partido entre ISR y `tick`, el MCU emulado **reenvía** el byte (duplicados) o
   **no envía** la siguiente tecla (solo llega la primera).
@@ -64,6 +64,6 @@ fiable en esta build.
 
 ## Enlaces al código
 
-- Engine: `engine/src/platform/amiga/amiga_minimal_os.cpp` (`os_kbd_isr`, `enable_keyboard`).
+- Engine: `engine/src/platform/amiga/amiga_os.cpp` (`os_kbd_isr`, `enable_keyboard`).
 - Runner: `tools/run/run-demo.ts` (`--keys`, `--key-events`, `--key-scan`).
 - Demo: `demos/amiga/212_message_loop` (reporta `g_key_last_raw` y `g_eng_run_status`).

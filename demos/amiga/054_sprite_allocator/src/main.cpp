@@ -30,7 +30,7 @@
 #include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/sprite_manager.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -84,7 +84,7 @@ constexpr eng::Palette32 kBasePalette {{
 }};
 
 struct SpriteAllocatorDemo {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({
 			96u * 1024u,
@@ -127,13 +127,13 @@ struct SpriteAllocatorDemo {
 		);
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		if (m_copper_ok) {
 			backend.install_copper_list(m_copper_ptr);
 		}
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -264,7 +264,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	SpriteAllocatorDemo game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

@@ -21,11 +21,11 @@ Evidencia medida en el repositorio:
 - **Disciplina de evidencia**: un test HOST por API, una demo por feature, `DOC-MAP`, numeración.
 - **Headers grandes**: `xlimited.hpp` (1864 líneas), `sim/world.hpp` (1231), `field/playfield.hpp`
   (888), `scene/actor.hpp` (772), `graphics/composition/compose.hpp` (753), `field/xlimited_scene.hpp`
-  (752), `graphics/drivers/tile_scroll.hpp` (735). El backend `amiga_minimal.cpp` tenía 1269.
+  (752), `graphics/drivers/tile_scroll.hpp` (735). El backend `amiga.cpp` tenía 1269.
 - **Cuatro rectángulos** con convenciones distintas: `eng::Rect` (linalg), `field::ClipRect`
   (inclusivo `x1/y1`), `field::SurfaceRect` (`s32` + `w/h`), `graphics::DirtyRect` (exclusivo).
 - **Acoplamiento puntual**: 3 ficheros de demo usaban tipos anidados del backend
-  (`MinimalBackend::C2p4State`/`LineEorParams`/`OrBobEntry`); `eng/api/` no existía pese a estar
+  (`AmigaBackend::C2p4State`/`LineEorParams`/`OrBobEntry`); `eng/api/` no existía pese a estar
   documentado como objetivo.
 - **Ciclo de includes**: `Playfield` declaraba `rasterize_c2p` y su definición vivía en `raster.hpp`
   (que define `Rasterizer`), porque `Playfield` no podía conocer el seam de C2P.
@@ -67,7 +67,7 @@ definir tipos nuevos (no duplica la verdad). **No** incluye el backend. Verifica
 `eng/graphics/blitter_state.hpp` reúne `graphics::OrBob`, `graphics::LineEor` y `graphics::C2p4`;
 el backend Amiga los **aliasa** (`using C2p4State = eng::graphics::C2p4;`, etc.) y sigue siendo
 quien los rellena y consume. Las demos **080**, **116** y **204** ya usan los nombres de dominio y
-no `MinimalBackend::…`. Los campos reflejan lo que el backend precalcula (p. ej. registros
+no `AmigaBackend::…`. Los campos reflejan lo que el backend precalcula (p. ej. registros
 `BLTCONx`), de modo que el layout es estable y no se recompone la aritmética cada frame.
 
 ### D6 — `BlitJob` por tipo y `frame_plan.hpp` partido (hecho)
@@ -89,10 +89,10 @@ siguen verdes.
 
 ### D8 — Backend troceado por servicios (hecho)
 
-`amiga_minimal.cpp` (1269 líneas) se divide en `amiga_minimal.cpp` (core: boot, memoria,
-servicios de IRQ, display/copper), `amiga_minimal_blitter.cpp` (ejecución del `FramePlan` y
-operaciones de Blitter) y `amiga_minimal_c2p.cpp` (las 13 fases del C2P), más
-`amiga_minimal_internal.hpp` con los helpers compartidos (registros custom, espera de Blitter,
+`amiga.cpp` (1269 líneas) se divide en `amiga.cpp` (core: boot, memoria,
+servicios de IRQ, display/copper), `amiga_blitter.cpp` (ejecución del `FramePlan` y
+operaciones de Blitter) y `amiga_c2p.cpp` (las 13 fases del C2P), más
+`amiga_internal.hpp` con los helpers compartidos (registros custom, espera de Blitter,
 regiones, globals de IRQ) marcados `inline`. El build globa `engine/src/**/*.cpp`, así que no hay
 que registrar las unidades. Verificado con 077/080/116 en hardware (READY).
 
@@ -118,7 +118,7 @@ en la ruta antigua mientras se migran los consumidores (patrón de D3). Lo vigil
 La plataforma se separa en **anillo 0 (dominio agnóstico)**, **anillo 1 (vocabulario de chipset
 por familia)** y **anillo 2 (backend por objetivo)**. Todo el vocabulario Amiga se agrupa en
 `eng/platform/amiga/` (con paraguas de compatibilidad en las rutas antiguas) y el backend canónico
-pasa a `eng::amiga::AmigaBackend` (alias `MinimalBackend`). A1200 no es un backend distinto: es el
+pasa a `eng::amiga::AmigaBackend` (alias `AmigaBackend`). A1200 no es un backend distinto: es el
 mismo backend Amiga con otro perfil (`HardwareProfile`) y otro target (`K_AGA`). Atari ST y
 Megadrive se acoplan implementando el **contrato de backend** (`eng/platform/backend.hpp`) sin
 tocar el dominio; la frontera la vigila `tools/check/platform-boundaries.mjs`. Canónico en
@@ -148,5 +148,5 @@ Taxonomía en [`../../testing/TAXONOMY.md`](../../testing/TAXONOMY.md).
   en la capa que ya conocía el tipo antiguo.
 - La fachada `eng/api/api.hpp` es la puerta del juego; el backend se instancia en `main()`.
 - Al añadir un tipo de dominio preparado por el backend, se declara en `eng::graphics` (o la capa
-  de dominio que corresponda) y el backend lo **aliasa**; nunca se nombra `MinimalBackend::X` en
+  de dominio que corresponda) y el backend lo **aliasa**; nunca se nombra `AmigaBackend::X` en
   la lógica de demo.

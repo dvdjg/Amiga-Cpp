@@ -134,7 +134,7 @@ La demo `050_blitter_bobs` debe:
 - mostrar un BOB cookie-cut amarillo/blanco y dos blobs no-save naranja/magenta
   sobre fondo EHB azul;
 - crear los trabajos como `BlitJob` dentro de `FramePlan`;
-- materializarlo desde `MinimalBackend::execute_frame_plan()` usando Blitter;
+- materializarlo desde `AmigaBackend::execute_frame_plan()` usando Blitter;
 - mover el BOB en pasos de 16 pixels usando save/restore real: restore anterior,
   save nuevo fondo y draw cookie-cut;
 - superar `demos\amiga\050_blitter_bobs\analyze-screenshot.ps1`;

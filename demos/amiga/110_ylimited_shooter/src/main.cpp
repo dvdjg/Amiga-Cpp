@@ -15,7 +15,7 @@
 // El FG de objetos (DPF) se anade en una fase posterior; esta demo es el BG.
 
 #include <eng/api/api.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 #include <eng/field/xlimited_scene.hpp>
 #include <eng/field/tile_demo.hpp>
 #include <eng/core/util/broadphase.hpp>
@@ -216,7 +216,7 @@ struct DemoGame {
 	eng::s16 m_enemy_x = 40; // torreta fija que apunta al jugador
 	eng::s16 m_enemy_y = 36;
 
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({300u * 1024u, 16u * 1024u, 8u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011001u);
@@ -286,7 +286,7 @@ struct DemoGame {
 		eng::debug::mark_ready(g_eng_run_status, 0x11000000u);
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!ready) return;
 
@@ -377,7 +377,7 @@ struct DemoGame {
 			(static_cast<eng::u32>(scene.bg().mapposy()) & 0x3ffu);
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (ready) scene.install(backend);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
@@ -389,7 +389,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	DemoGame game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

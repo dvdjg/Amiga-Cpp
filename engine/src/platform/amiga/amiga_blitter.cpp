@@ -1,8 +1,8 @@
-/// \file amiga_minimal_blitter.cpp
+/// \file amiga_blitter.cpp
 /// Servicio de **Blitter** del backend Amiga: ejecucion del `FramePlan` y operaciones
 /// (copias, cookie-cut, OR de BOBs, lineas, area fill, colision, relleno por plano).
 
-#include "amiga_minimal_internal.hpp"
+#include "amiga_internal.hpp"
 
 using namespace eng::amiga::detail;
 

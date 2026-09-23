@@ -127,7 +127,7 @@ El Copper **no puede escribir los registros del Blitter** (`$DFF040-$DFF074`, of
 salvo que `COPCON` (`$DFF02E`) tenga el bit **`CDANG`** (bit 1). Sin `CDANG`, la primera
 escritura del Copper a un registro `< $80` **detiene el Copper** (`COP_stop`), no la ignora
 (`WinUAE-DBG/custom.cpp:2835-2846`, `test_copper_dangerous`). `takeover_display`
-(`amiga_minimal.cpp`) activa `CDANG`, así que la **Técnica A** (Copper lanza blits,
+(`amiga.cpp`) activa `CDANG`, así que la **Técnica A** (Copper lanza blits,
 `CopperIntentKind::BlitterJob`) es viable en el engine. Detalle: `winuae/copper.md`.
 
 El Blitter es **único**: un blit lanzado por Copper debe **serializarse** con los de CPU. El

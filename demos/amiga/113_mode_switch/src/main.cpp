@@ -1,7 +1,7 @@
 #include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/mode_switch.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -68,7 +68,7 @@ struct DemoGame {
 	// Linea de corte: raster 0xcc (= viewport 160 desde DIWSTRT 0x2c).
 	static constexpr eng::u16 hud_raster = 0xcc;
 
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		m_memory_ok = backend.configure_memory({
 			112u * 1024u, // Chip: 10 planos (campo+HUD+veneno) + copperlist.
@@ -136,14 +136,14 @@ struct DemoGame {
 		}
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (m_copper_ok) {
 			backend.install_copper_list(m_copper_ptr);
 		}
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (m_copper_ok && m_copper_words > 0) {
 			backend.install_copper_list(m_copper_ptr);
 		}
@@ -204,7 +204,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	DemoGame game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

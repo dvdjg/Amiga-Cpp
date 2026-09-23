@@ -14,7 +14,7 @@
 #include <eng/api/api.hpp>
 #include <eng/api/effects.hpp>
 #include <eng/graphics/sprite_manager.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -60,7 +60,7 @@ constexpr eng::Palette32 kPalette {{
 }};
 
 struct SpriteLayerDemo {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({ 96u * 1024u, 8u * 1024u, 4u * 1024u })) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020701u);
@@ -119,7 +119,7 @@ struct SpriteLayerDemo {
 		eng::debug::mark_ready(g_eng_run_status, 0x00020700u);
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		// Reconstruye la lista cada frame con el scroll actual.
 		m_layer.set_scroll(static_cast<eng::u16>(m_frame * 2u));
 		++m_frame;
@@ -128,7 +128,7 @@ struct SpriteLayerDemo {
 		}
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -180,7 +180,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	SpriteLayerDemo game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);

@@ -24,7 +24,7 @@
 #include <eng/core/math/sinetable.hpp>
 #include <eng/graphics/c2p.hpp>
 #include <eng/graphics/effects/rotozoom.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -71,7 +71,7 @@ constexpr eng::ct_array<eng::u8, 64u * 64u> kTexture {[](eng::usize i) -> eng::u
 constexpr eng::SineTable<32768, 256> kZoomSin {};
 
 struct C2pSeamDemo {
-	bool init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	bool init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({192u * 1024u, 8u * 1024u, 4u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00027501u);
@@ -135,7 +135,7 @@ struct C2pSeamDemo {
 		return true;
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		m_angle = static_cast<eng::u16>((m_angle + 2u) & 0xffu);
 		m_phase = static_cast<eng::u16>((m_phase + 3u) & 0xffu);
 		m_rot.angle = m_angle;
@@ -155,7 +155,7 @@ struct C2pSeamDemo {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 	}
 
-	void render(eng::amiga::MinimalBackend&, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend&, eng::GameContext& context) {
 		m_scene.commit();
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
@@ -179,7 +179,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	C2pSeamDemo game {};
 	eng::Engine engine {backend, game};
 	engine.run_frames_polling(0xffff);

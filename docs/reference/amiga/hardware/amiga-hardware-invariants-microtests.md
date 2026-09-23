@@ -10,7 +10,7 @@ que la respalda, o "pendiente" si aún no hay un caso que la aísle.
 | ID | Invariante | Evidencia |
 |---|---|---|
 | MI01 | Un bitplane leído por DMA debe residir en **CHIP RAM**; un `BPLxPT` fuera de CHIP no es válido. | `MEMORY_MODEL.md`; todas las demos (arena Chip). |
-| MI02 | Actualizar `COP1LC` una vez por frame (sin `COPJMP1`) hace entrar la lista nueva en el siguiente frame, sin franjas mid-frame. | `amiga-a500-dma-copper-state-rules.md`; `MinimalBackend::install_copper_list`. |
+| MI02 | Actualizar `COP1LC` una vez por frame (sin `COPJMP1`) hace entrar la lista nueva en el siguiente frame, sin franjas mid-frame. | `amiga-a500-dma-copper-state-rules.md`; `AmigaBackend::install_copper_list`. |
 | MI03 | Forzar `COPJMP1` durante el barrido reinicia el Copper y parte el raster visible. | `debug-demo-arranque-doble-texto-banda.md`; comentario de `install_copper_list`. |
 | MI04 | El `WAIT` del Copper compara 8 bits de línea (0..255); por encima de 255 hay que manejar el overflow vertical o el cambio cae en línea incorrecta. Límite de **hardware** común a OCS/ECS/AGA (el Copper nunca gana V8): un split móvil en líneas ≥256 (p. ej. `raster ∈ [42,296]` del corkscrew) no tiene solución, solo cambiar de técnica (`linear_display` para 256 px, campo corto + HUD como canónico). Ratificado también por una IA externa. | `AMIGA_8WAY_SCROLLING.md` §7.4/§13; `robocod-layered-scroll.md` §3.2; demo `107_xlimited_corkscrew` (`K_LINEAR=1`); split del compositor single. |
 | MI05 | `BPLCON1` (fino) y el avance de punteros (coarse) son complementarios; ninguno resuelve el scroll por sí solo. | Demo `101_ehb_tile_scroll_driver` (resuelto); `modulo-tricks.md`. |

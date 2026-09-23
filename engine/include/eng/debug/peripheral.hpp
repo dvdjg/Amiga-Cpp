@@ -28,7 +28,7 @@
 ///
 /// API homogénea entre modos gráficos: esta clase es el contrato de alto nivel.
 /// Lo que falta para otros backends/máquinas (y que se debe añadir poco a poco):
-///   - la base `0xB70000` es la del backend `amiga_minimal` (A500); otros
+///   - la base `0xB70000` es la del backend `amiga` (A500); otros
 ///     backends deben mapear estos registros a su transporte de depuración;
 ///   - una salida con formato (printf-like) para la consola;
 ///   - un búfer de consola legible por el programa (hoy es write-only y el host

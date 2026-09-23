@@ -5,7 +5,7 @@
 #include <proto/exec.h>
 #include <dos/dos.h>
 
-/// \file amiga_minimal_file.cpp
+/// \file amiga_file.cpp
 /// Implementación Amiga de la E/S del mini-SO sobre **`dos.library`** (OFS/FFS, directorios):
 /// `Open`/`Read`/`Write`/`Seek`/`Close`, `CreateDir`, `DeleteFile`, `Rename`. Abre `dos.library`
 /// la primera vez. La "asíncrona" se resuelve como operación **diferida**: se encola y `file_pump`

@@ -8,7 +8,7 @@ backend y memoria.
 
 - `-std=gnu++23`.
 - `consteval`, templates y conceptos del engine.
-- Backend minimo `MinimalBackend`.
+- Backend minimo `AmigaBackend`.
 - Arenas `Chip` y `Slow`.
 - Overlay de debug de WinUAE-DBG.
 - Bucle de frames a 50 Hz mediante espera de VBlank.

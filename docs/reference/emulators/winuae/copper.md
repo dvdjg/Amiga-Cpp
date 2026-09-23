@@ -18,7 +18,7 @@ if (addr < ((copcon & 2) ? (ecs_agnus ? 0 : 0x40) : 0x80)) {
 - Con **`CDANG` = 1**, el umbral baja a `0x40` (OCS) o `0` (ECS Agnus): el Copper ya puede
   escribir los registros del Blitter.
 
-Consecuencia para el engine: `takeover_display` (`amiga_minimal.cpp`) activa `CDANG`
+Consecuencia para el engine: `takeover_display` (`amiga.cpp`) activa `CDANG`
 (`COPCON = $0002`) antes de arrancar la lista. Sin él, un `CopperIntentKind::BlitterJob` detenía
 el Copper en la primera escritura (`BLTCON0`) y la lista nunca llegaba al final (síntoma: la
 pantalla quedaba con el último color escrito y el blit no ocurría).

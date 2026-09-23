@@ -4,7 +4,7 @@
 // Valida que un `Playfield` con sink instalado DELEGA el relleno (con la geometria planar
 // correcta: planos, strides y dimensiones), que sin sink cae al relleno CPU (`draw_span` por
 // fila) y que `BlitterRaster` elige la ruta D-only cuando procede. La ruta real por Blitter
-// (`MinimalBackend::blitter_fill_rect`) se valida en hardware con la demo 215; aqui se fija el
+// (`AmigaBackend::blitter_fill_rect`) se valida en hardware con la demo 215; aqui se fija el
 // CONTRATO del seam que esa ruta consume.
 #include <eng/field/raster.hpp>
 #include <eng/field/surface.hpp>

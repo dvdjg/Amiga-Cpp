@@ -14,7 +14,7 @@
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/core/data/mesh3d.hpp>
 #include <eng/api/api.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -114,7 +114,7 @@ eng::u8 shade_of(eng::s16 zsum) {
 /// cara +Z (triangulos 0 y 1) es visible.
 
 struct DemoGame {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 
 		m_memory_ok = backend.configure_memory({
@@ -166,12 +166,12 @@ struct DemoGame {
 		}
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		(void)backend; // la lista es estatica: `takeover` ya la instalo
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (!m_scene.ok() || !m_blank_block.valid()) {
 			return;
 		}
@@ -352,7 +352,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	DemoGame game {};
 	eng::Engine engine {backend, game};
 	engine.run_frames_polling(0xffff);

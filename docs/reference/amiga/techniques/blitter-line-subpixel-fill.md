@@ -164,9 +164,9 @@ Secuencia canónica por frame (la del efecto `flatshade-convex`; ver §1 para el
 
 El backend ya implementa:
 
-- `MinimalBackend::blitter_line` — modo línea con minterm **OR** (`BC0F_LINE_OR`), port de `DrawObject` de `wireframe`.
-- `MinimalBackend::blitter_line_eor` — modo línea `ONEDOT` + minterm **EOR** (`BC0F_LINE_EOR`), port de `DrawObject` de `flatshade-convex`; acepta `d_base` para aplicar el truco de `BLTDPTR` (ver §1).
-- `MinimalBackend::blitter_area_fill` — **area fill exclusivo** (`FILL_XOR` + `BLITREVERSE`, altura 0), port de `BitmapFillFast` de `flatshade-convex`.
+- `AmigaBackend::blitter_line` — modo línea con minterm **OR** (`BC0F_LINE_OR`), port de `DrawObject` de `wireframe`.
+- `AmigaBackend::blitter_line_eor` — modo línea `ONEDOT` + minterm **EOR** (`BC0F_LINE_EOR`), port de `DrawObject` de `flatshade-convex`; acepta `d_base` para aplicar el truco de `BLTDPTR` (ver §1).
+- `AmigaBackend::blitter_area_fill` — **area fill exclusivo** (`FILL_XOR` + `BLITREVERSE`, altura 0), port de `BitmapFillFast` de `flatshade-convex`.
 - `blit_line` (interno) — modo línea `ONEDOT` + minterm XOR, usado para contornos.
 - `blit_fill_region` — **area fill inclusivo** (`FILL_OR` + `BLITREVERSE`), port de `BlitterFillArea` de libblit.
 - `fill_triangles_blitter` — contorno + area fill + cookie-cut por plano (demo 078).

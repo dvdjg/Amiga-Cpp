@@ -2,8 +2,8 @@
 #include <eng/debug/peripheral.hpp>
 #include <eng/field/tile_demo.hpp>
 #include <eng/field/xlimited_scene.hpp>
-#include <eng/platform/amiga_minimal.hpp>
-#include <eng/platform/input_poll.hpp>
+#include <eng/platform/amiga/backend.hpp>
+#include <eng/platform/amiga/input_poll.hpp>
 #include <eng/core/types/span.hpp>
 
 #include <proto/exec.h>
@@ -715,7 +715,7 @@ struct DemoGame {
         return bg_row(glyph, variant, row, plane);
     }
 
-    void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+    void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
         eng::debug::mark_init_started(g_eng_run_status);
         eng::debug::reset(g_eng_frame_telemetry);
         // La reserva es el bloque Chip contiguo total; el uso real (~145 KB en DPF,
@@ -967,7 +967,7 @@ scene_cfg.max_step = kStepMax;
 #endif
     }
 
-    void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+    void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
         eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
         if (!ready) return;
 
@@ -1055,7 +1055,7 @@ scene_cfg.max_step = kStepMax;
         eng::debug::mark_ready(g_eng_run_status, marker);
     }
 
-    void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+    void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
         if (ready) {
         scene.takeover(backend);
             draw_hud_cpu(); // primitivas CPU durante el vblank (seguro)
@@ -1073,7 +1073,7 @@ int main() {
     SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
     eng::debug::reset(g_eng_run_status);
 
-    eng::amiga::MinimalBackend backend {};
+    eng::amiga::AmigaBackend backend {};
     eng::Engine engine { backend, g_game };
     engine.run_frames_polling(0xffffffffu);
 

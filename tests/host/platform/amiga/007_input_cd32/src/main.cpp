@@ -9,7 +9,7 @@
 #include <cstdio>
 
 #include <eng/core/types/types.hpp>
-#include <eng/platform/input_poll.hpp>
+#include <eng/platform/amiga/input_poll.hpp>
 
 namespace {
 

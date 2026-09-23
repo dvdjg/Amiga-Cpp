@@ -1,5 +1,5 @@
 #include <eng/api/api.hpp>
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -54,7 +54,7 @@ void draw_bar(eng::amiga::DebugOverlay& debug, eng::s16 x, eng::s16 y, eng::s16 
 }
 
 struct DemoGame {
-	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		m_memory_ok = backend.configure_memory({
 			32u * 1024u,
@@ -85,13 +85,13 @@ struct DemoGame {
 		}
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		const eng::u16 pulse = static_cast<eng::u16>((context.frame.frame_index >> 2) & 0x0f);
 		backend.set_color(0, static_cast<eng::u16>((pulse << 8) | 0x002));
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		auto& debug = backend.debug();
 		const auto& memory = backend.memory();
 
@@ -120,7 +120,7 @@ struct DemoGame {
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
-	void log_memory(eng::amiga::MinimalBackend& backend) {
+	void log_memory(eng::amiga::AmigaBackend& backend) {
 		const auto& memory = backend.memory();
 		KPrintF(
 			"AMG010 chip base=%lx used=%ld cap=%ld slow base=%lx used=%ld cap=%ld frame used=%ld cap=%ld ok=%ld\n",
@@ -151,7 +151,7 @@ int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 
-	eng::amiga::MinimalBackend backend {};
+	eng::amiga::AmigaBackend backend {};
 	DemoGame game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);
