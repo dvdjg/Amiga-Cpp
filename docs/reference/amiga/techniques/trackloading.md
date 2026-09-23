@@ -33,6 +33,45 @@ Se toma el control total del hardware y se abandona el sistema operativo:
 El Disk DMA tiene prioridad alta, pero **no bloquea la CPU de forma total** como el Blitter en modo
 *nasty*: se puede solapar bastante trabajo.
 
+### 1.3 Formato de un sector AmigaDOS (MFM) y semantica del DMA
+
+Un sector ocupa **544 palabras MFM** (1088 bytes). Offsets en palabras desde el inicio del sector:
+
+| Offset | Contenido | Notas |
+|---|---|---|
+| 0-1 | `$AAAA $AAAA` | Preambulo (datos 00) |
+| 2-3 | `$4489 $4489` | Sync (**doble**) |
+| 4-5 | Cabecera (bits impares) | longword impar |
+| 6-7 | Cabecera (bits pares) | longword par -> `FF TT SS SG` |
+| 8-15 | Etiqueta de sector (impar) | normalmente 0 |
+| 16-23 | Etiqueta (par) | normalmente 0 |
+| 24-25 | Checksum de cabecera (impar) | |
+| 26-27 | Checksum de cabecera (par) | |
+| 28-29 | Checksum de datos (impar) | |
+| 30-31 | Checksum de datos (par) | |
+| 32-287 | Datos (impares), 256 palabras | 512 B de datos |
+| 288-543 | Datos (pares), 256 palabras | |
+
+`TT` = pista (`cyl*2 + side`), `SS` = sector (0-10), `SG` = sectores hasta el final de la escritura.
+Decodificacion MFM: `(impar & $55555555) | ((par & $55555555) << 1)`.
+
+**Semantica del DMA (clave para leer una pista cruda):**
+
+- Con **WORDSYNC** (`ADKCON` bit 10), el DMA **no transfiere hasta encontrar una palabra igual a
+  `DSKSYNC`** (`$4489`); el contador de bits se resetea ahi. Por tanto **el sector que se captura
+  depende de la fase rotacional** en que se arma la DMA (segunda escritura de `DSKLEN`): arrancara en
+  el **primer** sync que aparezca, sea cual sea el sector.
+- **No** hace falta escribir `DSKLEN=0` antes ni limpiar el bitoffset; basta `ADKCON=SETCLR|WORDSYNC`,
+  `DSKSYNC=$4489`, `DSKPT` (Chip), `DMACON=SETCLR|DMAEN|DSKEN` y `DSKLEN=$8000|N` **dos veces**.
+- **`trackdisk.device` lee una pista completa y busca el sector en memoria** (no usa el pulso INDEX
+  para leer sectores). El **interleave** hace que los sectores **no** vayan en orden 0..10 y que el
+  sector 0 **no** este necesariamente tras el INDEX: hay que **buscar todos los `$4489`**, decodificar
+  las cabeceras y localizar `SS == 0`/`1`. El pulso INDEX (linea FLAG de CIA-B, IRQ nivel 6) se usa
+  sobre todo para **formatear/escribir** pista completa y para `IOTF_INDEXSYNC`.
+
+Fuentes: Amiga HRM 3.ª (cap. del Floppy Disk Controller: WORDSYNC/`DSKSYNC`/`DSKLEN`); ADF Info
+(Laurent Clevy); `trackdisk.device` (AROS/NDK); WinUAE `disk.cpp` (comportamiento de Paula).
+
 ## 2. Flujo típico de un trackloader de demo
 
 ```text
