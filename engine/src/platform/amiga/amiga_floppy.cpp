@@ -150,9 +150,9 @@ eng::u16 eng::os::floppy_read_track(eng::u16 unit, eng::u8 track, bool side,
 	d::write_custom_pointer(kDskpt, dst.data());
 	d::custom_base[d::custom_dmacon_offset] =
 		static_cast<eng::u16>(d::dma_setclr | d::dma_master | d::dma_copper | kDmaDisk);
-	// DSKLEN=0 deja `prevlen` sin DMAEN, de modo que la primera escritura cargue y la segunda
-	// dispare (necesario al rearmar tras una lectura previa).
-	d::custom_base[kDsklen] = 0u;
+	// Doble escritura de DSKLEN para disparar la DMA. **No** se escribe `DSKLEN=0` antes: en
+	// WinUAE (`disk.cpp:4887`) `dsklength==0 && dma_enable` llama a `disk_dmafinished()` (un
+	// DSKBLK prematuro y la DMA a medio armar), y tras una lectura WORDSYNC `dma_enable` queda a 1.
 	const eng::u16 len = static_cast<eng::u16>(0x8000u | words);
 	d::custom_base[kDsklen] = len;
 	d::custom_base[kDsklen] = len; // segunda escritura: dispara la DMA
