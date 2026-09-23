@@ -135,7 +135,16 @@ struct DemoGame {
 			const eng::u32 why = (m_motor ? 1u : 0u) | (m_words != 0u ? 2u : 0u) |
 					     (m_sec_ok ? 4u : 0u) | (m_sig ? 8u : 0u) |
 					     (m_max_words != 0u ? 16u : 0u);
-			eng::debug::mark_failed(g_eng_run_status, 0x00021410u | why);
+			// Diagnostico: nº de syncs $4489 en el buffer leido (0 = la DMA no volco lo
+			// esperado; >0 = los syncs estan y el fallo es de decodificacion/fase).
+			eng::u16 syncs = 0u;
+			for (eng::u16 i = 0u; i < kTrackWords; ++i) {
+				if (m_track[i] == eng::os::kMfmSync) {
+					++syncs;
+				}
+			}
+			eng::debug::mark_failed(g_eng_run_status,
+						(static_cast<eng::u32>(syncs & 0xffu) << 8u) | (why & 0xffu));
 		}
 	}
 

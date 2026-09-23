@@ -316,11 +316,13 @@ UI (`eng::ui`).
   que la DMA **sí termina** (`disk dma finished ...`). **Correlación hecha** con un build de impacto
   mínimo (solo `disk_debug_logging`): en las corridas **fallidas** la DMA **también** arranca y
   termina (`dma_started=2`, `dma_finished=2`) ⇒ **el fallo no es la DMA ni el tope** (subir el guard a
-  `0x00ffffff` no mejora: sigue ~1/3) sino la **decodificación/fase de los sectores** del track leído
-  (la demo reintenta con desfase pero no basta). La demo reporta un bit extra en `why`
-  (**16 = alguna lectura devolvió `words!=0`**). Pendiente: leer sector a sector sincronizando por
-  `DSKSYNC` (en vez de volcar ~2 vueltas de track) o robustecer la decodificación. La regresión le
-  pasa el ADF y timeout amplio vía `demos/amiga/214_floppy_raw/run.args`.
+  `0x00ffffff` no mejora: sigue ~1/3). La demo ahora reporta `detail = (syncs << 8) | why`: en las
+  corridas fallidas el buffer leído tiene solo **1-9** syncs `$4489` (un track AmigaDOS tiene ~22) ⇒
+  **la DMA no está capturando el track MFM**; no es decodificación ni checksums (verificado:
+  desactivarlos no cambia el resultado). Pendiente: observar en WinUAE el DMA de disco
+  (`DSKPT`/`DSKLEN`/`DSKDAT`: qué escribe y dónde) para ver por qué el buffer no recibe el track;
+  después, leer sector a sector sincronizando por `DSKSYNC`. La regresión le pasa el ADF y timeout
+  amplio vía `demos/amiga/214_floppy_raw/run.args`.
 - **M8/A5 — reproducir por Paula desde RAM: RESUELTO.** La demo 272 **alcanza `READY`** con
   `detail=0x2c002c` (`irq == swaps`, **0 underruns**): el fallo eran los *underruns* por el feeder
   CPU-bound (sintetizaba+codificaba en cada frame), no la IRQ. Arreglo: pre-sintetizar/pre-codificar
