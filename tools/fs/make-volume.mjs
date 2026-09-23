@@ -112,7 +112,7 @@ function buildContent() {
 			big[i] = (Math.round(127 * Math.sin(i * step)) + 128) & 0xff;
 		}
 	}
-	return {
+	const files = {
 		'data/text/hello.txt': Buffer.from('Hola desde el sistema de archivos del Amiga.\nLinea 2 con tilde: accion.\n', 'utf8'),
 		'data/images/logo.raw': img,
 		'data/audio/beep.raw': snd,
@@ -120,6 +120,19 @@ function buildContent() {
 		'data/code/answer.englib': buildEngLib(),
 		'data/code/answer.hunk': buildHunk(),
 	};
+	// Modulos de musica reales (de assets/) para la demo 276: se cargan desde disco con
+	// `file_open`/`file_read_sync` en vez de incrustarlos. Si no existen, se omiten.
+	for (const [rel, src] of [
+		['data/audio/jazzcat-boogie_town.mod', 'assets/amiga/audio/jazzcat-boogie_town.mod'],
+		['data/audio/SneakyChick.mod', 'assets/amiga/audio/SneakyChick.mod'],
+		['data/audio/testmod.p61', 'assets/amiga/audio/testmod.p61'],
+	]) {
+		const abs = path.join(ROOT, src);
+		if (fs.existsSync(abs)) {
+			files[rel] = fs.readFileSync(abs);
+		}
+	}
+	return files;
 }
 
 const files = buildContent();

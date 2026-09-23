@@ -21,6 +21,7 @@
 #include <eng/audio/sfx_mixer.hpp>
 #include <eng/core/span.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
+#include <eng/os/file.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
 #include <exec/execbase.h>
@@ -38,7 +39,11 @@
 
 // La etiqueta va ANTES del incbin (si va despues apunta al final del modulo), y
 // `g_mod_end` en la MISMA directiva para que la distancia sea correcta.
-#if MED_MOD == 2
+// Con `MED_FROM_DISK` NO se incrusta nada (el modulo se carga de disco).
+#if defined(MED_FROM_DISK)
+__asm__(".section snd_mod.MEMF_ANY, \"aw\"\n.globl g_mod\ng_mod:\n"
+	".globl g_mod_end\ng_mod_end:\n.balign 4\n");
+#elif MED_MOD == 2
 #define MED_MOD_USE_PROTRACKER 1
 __asm__(".section snd_mod.MEMF_CHIP, \"aw\"\n.balign 4\n"
 	".globl g_mod\ng_mod:\n.incbin \"assets/amiga/audio/jazzcat-boogie_town.mod\"\n"
@@ -97,7 +102,13 @@ constexpr eng::u32 kSampleRate = 11025u;
 struct MusicMixerDemo {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		if (!backend.configure_memory({96u * 1024u, 8u * 1024u, 4u * 1024u})) {
+		// Chip: planos+copper+mixer + el modulo cargado de disco (hasta ~250 KB con jazzcat).
+#if defined(MED_FROM_DISK)
+		constexpr eng::u32 kChipBytes = 320u * 1024u;
+#else
+		constexpr eng::u32 kChipBytes = 96u * 1024u;
+#endif
+		if (!backend.configure_memory({kChipBytes, 8u * 1024u, 4u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00027601u);
 			return;
 		}
@@ -111,14 +122,45 @@ struct MusicMixerDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00027603u);
 			return;
 		}
-		backend.takeover_display(m_copper_ptr);
 
+		// 0) Cargar el modulo desde DISCO **ANTES del takeover**: `dos.library` necesita
+		// interrupciones/`DoIO`, que el takeover apaga. El fichero lo publica
+		// `tools/fs/make-volume.mjs` en `data/audio/`.
+#if defined(MED_FROM_DISK)
+		const eng::os::FileHandle h =
+			eng::os::file_open(MED_FROM_DISK, eng::os::FileMode::Read);
+		if (h == 0u) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00027607u);
+			return;
+		}
+		const eng::u32 bytes = eng::os::file_size(h);
+		m_disk_mod = backend.memory().chip.allocate_block<eng::AudioTag>(bytes, 4);
+		if (!m_disk_mod.valid() ||
+		    eng::os::file_read_sync(h, eng::Span<eng::u8>(m_disk_mod.view.data(), bytes), 0u) < 0) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00027608u);
+			return;
+		}
+		eng::os::file_close(h);
+#else
+		const eng::u32 bytes = static_cast<eng::u32>(g_mod_end - g_mod);
+		m_disk_mod = backend.memory().chip.allocate_block<eng::AudioTag>(bytes, 4);
+		for (eng::u32 i = 0; i < bytes; ++i) {
+			m_disk_mod.view.data()[i] = g_mod[i];
+		}
+#endif
+
+		backend.takeover_display(m_copper_ptr);
 		m_audio.attach(backend.audio());
 
-		// 1) Musica PRIMERO (el playroutine inicializa los 4 canales). Modulo real.
+		// 1) Musica PRIMERO (el playroutine inicializa los 4 canales). Modulo en Chip.
 		eng::audio::MusicModule mod {
-			eng::Span<const eng::u8>(g_mod, static_cast<eng::usize>(g_mod_end - g_mod))};
-#if MED_MOD_USE_PROTRACKER
+			eng::Span<const eng::u8>(m_disk_mod.view.as_const().data(), bytes)};
+#if defined(MED_FROM_DISK)
+#define MED_DISK_IS_PROTRACKER 1
+#else
+#define MED_DISK_IS_PROTRACKER MED_MOD_USE_PROTRACKER
+#endif
+#if MED_DISK_IS_PROTRACKER
 		m_music_ok = m_audio.play_music(mod, eng::audio::MusicFormat::Protracker);
 #else
 		// P61: si el modulo trae los samples empaquetados (bit 6 del byte 3), P61_Init
@@ -226,6 +268,7 @@ private:
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::Block<eng::CopperTag> m_copper_block {};
 	eng::Block<eng::AudioTag> m_mod_buf {}; ///< samples empaquetados P61 (si el modulo los trae)
+	eng::Block<eng::AudioTag> m_disk_mod {}; ///< modulo cargado desde disco (MED_FROM_DISK)
 	eng::audio::GameAudio m_audio {};
 };
 
