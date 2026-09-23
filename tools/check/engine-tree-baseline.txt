@@ -1,0 +1,3 @@
+# Deuda histórica aceptada por tools/check/engine-tree.mjs (mientras se
+# completa el split temático). Una entrada por línea (ruta relativa al repo).
+# Regenerar con --update-baseline solo si se decide aceptar deuda nueva.
