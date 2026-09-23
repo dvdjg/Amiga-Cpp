@@ -833,8 +833,6 @@ protected:
 	}
 
 	eng::util::StaticVector<Creature, MaxCreatures> m_creatures {};
-	eng::u16 m_next_id = 1u;
-	eng::util::StaticVector<RoomId, kMaxRoomLinks> m_links[MaxRooms] {};
 	eng::util::StaticVector<Plan, MaxPlans> m_plans {};
 	ItemStore m_items {};
 	Economy m_economy {};
@@ -845,11 +843,7 @@ protected:
 	Colony m_colony {};
 	ColonyParams m_colony_params {};
 	Society m_society {};
-	NeedRates m_rates {};
 	eng::u16 m_frame = 0;
-	eng::u8 m_cursor = 0;
-	Climate<MaxRooms> m_climate {};
-	RegionTerrain m_regions[MaxRooms] {};
 	GroupMemory<kMaxFactions> m_group_memory {};
 	RumorParams m_rumor_params {};
 	SenseParams m_sense_params {};
@@ -857,16 +851,24 @@ protected:
 	AttentionParams m_attention_params {};
 	SenseGenomeParams m_sense_genome_params {};
 	MentalMapParams m_mental_params {};
-	TerrainEventParams m_terrain_events {};
-	BiomeKind m_biome[MaxRooms] {};
 	SignalParams m_signal_params {};
 	CultureParams m_culture_params {};
 	PackParams m_pack_params {};
+	[[no_unique_address]] detail::PlannerHolder<Traits::planning, PlannerNodes,
+						     kMaxPlanSteps> m_planner {};
+
+private:
+	eng::u16 m_next_id = 1u;
+	eng::util::StaticVector<RoomId, kMaxRoomLinks> m_links[MaxRooms] {};
+	NeedRates m_rates {};
+	eng::u8 m_cursor = 0;
+	Climate<MaxRooms> m_climate {};
+	RegionTerrain m_regions[MaxRooms] {};
+	TerrainEventParams m_terrain_events {};
+	BiomeKind m_biome[MaxRooms] {};
 	LodParams m_lod {};
 	Season m_season = Season::Summer;
 	SeasonParams m_season_params {};
-	[[no_unique_address]] detail::PlannerHolder<Traits::planning, PlannerNodes,
-						     kMaxPlanSteps> m_planner {};
 };
 
 } // namespace eng::sim
