@@ -339,7 +339,14 @@ UI (`eng::ui`).
   (leer 544 palabras desde el sync y decodificar la cabecera, repitiendo hasta el sector pedido) y
   **tampoco** encontró el 0 (los intentos capturaban el mismo sector); se revirtió. Siguiente paso:
   **alinear por el pulso de índice** (`DSKINDEX`/IRQ de índice) o leer y **recoger las cabeceras** de
-  varios sectores seguidos para ver la secuencia real. Referencias del formato (repo hermano
+  varios sectores seguidos para ver la secuencia real.
+  **Progreso (2026-09)**: leer **una vuelta** (`kMfmTrackWords` = 6334 palabras) en vez de dos
+  **mejora mucho** la fiabilidad (de ~0-2/4 a **8/10**) — la lectura de 2 vueltas capturaba un tramo
+  malo. El fallo restante es de **fase**: la ventana capturada depende de dónde arranque el primer
+  sync, y los fallos son mascaras **contiguas** que dejan fuera el 0/1 (que caen en el "wrap" de la
+  pista; p. ej. `mask=2044` = sectores 2-10). El `detail` de fallo ahora es esa mascara. El reintento
+  con retardo **no** cambia la fase dentro de una corrida (16 intentos no mejora a 4); la via
+  determinista es **alinear por el INDEX**. Referencias del formato (repo hermano
   `amiga-bootcamp`): `10_devices/trackdisk.md` (geometría, formato de sector, `DSKLEN` doble, DMA de
   pista completa) y `02_boot_sequence/disk_boot.md` (cadena de arranque por floppy: CIA-B + Paula +
   decodificación por CPU).

@@ -36,7 +36,7 @@ namespace {
 
 // Una revolución completa + un sector de margen: el DMA arranca en el primer sync que ve y
 // parte el sector de ese sync, que así reaparece entero en la vuelta siguiente.
-constexpr eng::u16 kTrackWords = eng::os::kMfmReadWords;
+constexpr eng::u16 kTrackWords = eng::os::kMfmTrackWords; // una vuelta (11 sectores)
 constexpr eng::u16 kTrackBytes = kTrackWords * 2u;
 
 char* append(char* p, const char* s) {
@@ -87,11 +87,15 @@ struct DemoGame {
 		stage(m_motor ? 0x214005u : 0x214105u);
 		// La fase de rotación varía entre lecturas, así que se reintenta (como `trackdisk`)
 		// hasta verificar los dos sectores del bootblock.
+		// Una vuelta basta (11 sectores); leer dos vueltas no ayuda (verificado: la lectura larga
+		// se queda en un tramo). El sync de arranque depende de la fase rotacional, asi que se
+		// reintenta con un desfase creciente hasta dar con los sectores 0/1.
 		for (eng::u8 attempt = 0u; attempt < 4u; ++attempt) {
 			if (attempt > 0u) {
-				// Desfase respecto a la vuelta anterior: sin esto cada lectura arranca en la
-				// misma fase y el reintento no aporta nada.
-				for (volatile eng::u32 d = 0u; d < 300000u; ++d) {
+				// Desfase creciente (la fase cambia entre intentos): sin esto cada lectura
+				// arranca en la misma fase y el reintento no aporta nada.
+				const eng::u32 d = 200000u * attempt;
+				for (volatile eng::u32 i = 0u; i < d; ++i) {
 				}
 			}
 			stage(0x214010u | attempt); // antes de read_track (intento)
@@ -129,22 +133,20 @@ struct DemoGame {
 		if (m_ok) {
 			eng::debug::mark_ready(g_eng_run_status, 0x00021400u);
 		} else {
-			// Bitmask del motivo: 0 motor, 1 palabras DMA, 2 sectores (hck/dck), 3 firma DOS,
-			// 4 = **alguna** lectura devolvio words!=0 (distingue "nunca leyo" de "leyo pero no
-			// verifico los sectores"). `m_words` es el ultimo intento; `m_max_words`, el mejor.
-			const eng::u32 why = (m_motor ? 1u : 0u) | (m_words != 0u ? 2u : 0u) |
-					     (m_sec_ok ? 4u : 0u) | (m_sig ? 8u : 0u) |
-					     (m_max_words != 0u ? 16u : 0u);
-			// Diagnostico: nº de syncs $4489 en el buffer leido (0 = la DMA no volco lo
-			// esperado; >0 = los syncs estan y el fallo es de decodificacion/fase).
-			eng::u16 syncs = 0u;
-			for (eng::u16 i = 0u; i < kTrackWords; ++i) {
-				if (m_track[i] == eng::os::kMfmSync) {
-					++syncs;
+			// Diagnostico del fallo: mascara de sectores (0..10) presentes en el buffer leido
+			// (bit `s` = encontrado). Con la lectura de **una vuelta** la ventana capturada
+			// depende de la fase rotacional; los fallos tipicos son mascaras contiguas que dejan
+			// fuera el 0/1 (que caen en el "wrap" de la pista).
+			eng::u32 mask = 0u;
+			for (eng::u8 s = 0u; s < 11u; ++s) {
+				eng::u8 tmp[512];
+				if (eng::os::floppy_find_sector(
+					eng::Span<const eng::u16> { m_track, kTrackWords }, s,
+					eng::Span<eng::u8> { tmp, 512u }, {}, true)) {
+					mask |= (1u << s);
 				}
 			}
-			eng::debug::mark_failed(g_eng_run_status,
-						(static_cast<eng::u32>(syncs & 0xffu) << 8u) | (why & 0xffu));
+			eng::debug::mark_failed(g_eng_run_status, mask);
 		}
 	}
 
