@@ -52,9 +52,35 @@ nm tu.o | grep -E '__mul|__div|__mod|__float|__fix'
 aritmética y tablas; `Fixed<s16,E>` (E ≤ 15) en vez de `Fixed<s32,E>`; ver `AGENTS.md` §1.10 y
 `tools/analyze/asm-audit.mjs`.
 
+## 3. Codegen incorrecto a `-O1` en el bucle de mensajes del mini-SO
+
+**Síntoma**: con `os::add_timer` de **periodo > 1**, los `MsgType::Timer` se postean y el pump los
+drena, pero los contadores **miembro** del `App` **no se actualizan** (`msgs`/`timers` = 0); con
+periodo 1 sí. En `MessagePumpGame::update`, la llamada a `on_frame` recibe un **`this` erroneo** (el
+registro con `&app` queda clobberado en el camino inlineado
+`run_frames_polling` → `update` → `pump_messages` → `on_frame`).
+
+**Cuándo**: solo a **`-O1`** (perfil `--debug`, `tools/build/build-demo.sh`). A **`-O2`** (`--release`)
+**no** ocurre (los `Timer` llegan). No es la lógica del mini-SO (validada en host con **HOST-222** y
+**HOST-309**).
+
+**Caso mínimo**: demo `212_message_loop` con `eng::os::add_timer(1u, 2u)` (un `MessagePumpGame<App>`
+con un contador miembro que se incrementa en `on_msg` con `MsgType::Timer`).
+
+**Workarounds usados**:
+- Compilar el TU del demo a `-O2` dentro del perfil debug: `DEMO_OPT=-O2 bash tools/build/build-demo.sh <demo> --debug`
+  (el bug desaparece; medido `msgs`=16, `timers`=16).
+- **No** lo arreglan: contadores `volatile`, referencia local nombrada, reordenar `on_frame` antes del
+  pump, `always_inline` en `pump_messages`, barrera `asm volatile("" ::: "memory")`, ni desligar las
+  tasks. El `.s` no sirve para bisecar (todo queda inlineado en `main`).
+
+**Impacto**: la demo 212 usa periodo 1 mientras no se arregle; una demo con timer de periodo > 1 debe
+compilar su TU a `-O2`. Análisis completo:
+[`docs/debugging/investigaciones/pump-timer-o1-codegen.md`](../../debugging/investigaciones/pump-timer-o1-codegen.md).
+
 ## Re-verificación (al actualizar GCC)
 
-Script reproducible (adaptar rutas). Falla si **alguno** de los dos defectos ya no se reproduce (¡buena
+Script reproducible (adaptar rutas). Falla si **alguno** de los defectos ya no se reproduce (¡buena
 noticia: quitar el workaround!) o si **aparece** otro:
 
 ```bash
@@ -70,9 +96,10 @@ cat > /tmp/lc.cpp <<'EOF'
 unsigned f(unsigned a, unsigned b) { return a * b + a / b + a % b; }
 EOF
 "$GX" -std=gnu++23 -m68000 -nostdlib -O0 -c /tmp/lc.cpp -o /tmp/lc.o && nm /tmp/lc.o | grep -E '__mul|__div|__mod' && echo "DEFECTO 2 PRESENTE (esperado)" || echo "defecto 2 resuelto"
+# (c) codegen -O1: demo 212 con add_timer(1u, 2u) -> READY con msgs/timers != 0 (si sale 0, defecto 3 presente)
 ```
 
-## 3. Riesgo: las optimizaciones propias pueden OCULTAR defectos
+## 4. Riesgo: las optimizaciones propias pueden OCULTAR defectos
 
 Las libcalls (`__mulsi3`, `__divsf3`…) son una **señal barata**: si aparecen, sabes que algo es caro o
 incorrecto para `-nostdlib`. Al sustituirlas por rutinas propias (p. ej. `div_norm<Fixed<s32>>` sin
