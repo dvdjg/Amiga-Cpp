@@ -153,6 +153,22 @@ function findExtensionRoot() {
         return bestDir;
     throw new Error('No se encontro la extension bartmanabyss.amiga-debug-*.');
 }
+/// Directorio del emulador (contiene `winuae-gdb.exe`). Prioridad:
+///   1. `WINUAE_GDB_DIR` (override explicito).
+///   2. Nuestro fork `../WinUAE-DBG/bin` (side-channel + parches GDB del repo).
+///   3. La extension `bartmanabyss.amiga-debug-*` (su WinUAE stock).
+/// Asi actualizar la extension NO nos cambia el emulador por el stock de Bartman.
+function findWinuaeDir(extensionRoot) {
+    const override = process.env.WINUAE_GDB_DIR;
+    if (override && fs.existsSync(path.join(override, 'winuae-gdb.exe'))) {
+        return path.resolve(override);
+    }
+    const own = path.resolve(path.join(root, '..', 'WinUAE-DBG', 'bin'));
+    if (fs.existsSync(path.join(own, 'winuae-gdb.exe'))) {
+        return own;
+    }
+    return path.join(extensionRoot, 'bin/win32');
+}
 function patchConfig(configText, extensionRoot, stagedOutDir, warpEnabled, immediateBlits, diskAdf = '') {
     const dh0 = path.join(extensionRoot, 'bin/dh0');
     const normalizedDh0 = dh0.replace(/\//g, '\\');
@@ -921,7 +937,7 @@ if (fs.existsSync(statusFilePath)) {
 const screenshotPath = path.resolve(argValue('--screenshot', path.join(outputDir, 'screenshot.png')));
 fs.mkdirSync(path.dirname(screenshotPath), { recursive: true });
 const extensionRoot = findExtensionRoot();
-const winuaePath = path.join(extensionRoot, 'bin/win32');
+const winuaePath = findWinuaeDir(extensionRoot);
 const dh0 = path.join(extensionRoot, 'bin/dh0');
 const startupPath = path.join(dh0, 's/startup-sequence');
 fs.mkdirSync(path.dirname(startupPath), { recursive: true });

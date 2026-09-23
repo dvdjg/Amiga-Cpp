@@ -9,11 +9,17 @@ con el ejemplo C historico del workspace.
 - Toolchain `m68k-amiga-elf` incluido en el plugin.
 - Kickstart A500 configurada en el workspace para ejecucion manual desde el debugger.
 
-El script busca el toolchain en este orden:
+El script recoge **todos** los candidatos y elige el de **gcc mas moderno** (comparando la version
+con `sort -V`), no el primero que aparezca:
 
 1. Variable de entorno `AMIGA_BIN_PATH`.
-2. Extension de Cursor `bartmanabyss.amiga-debug-*` (version mas alta instalada).
-3. Extension de VS Code `bartmanabyss.amiga-debug-*` (version mas alta instalada).
+2. Extension de Cursor `bartmanabyss.amiga-debug-*`.
+3. Extension de VS Code `bartmanabyss.amiga-debug-*`.
+
+Asi, actualizar una extension a un gcc mas nuevo (p. ej. 15.2) gana automaticamente sin tocar el
+entorno. El build imprime el toolchain elegido y su version (`[build] toolchain: ... (gcc X.Y.Z)`).
+Ojo: el toolchain de **Windows** de la extension va por detras del README (que anuncia gcc 15.2);
+a dia de hoy las versiones instaladas (1.8.1/1.8.2 y el fork local) son **15.1.0**.
 
 ## Compilar una demo
 
@@ -89,6 +95,10 @@ El runner:
 - desactiva `warp` por defecto para que las demos que esperan VBlank se vean a
   ritmo real y permitan juzgar suavidad de scroll/animacion;
 - escribe un `startup-sequence` temporal;
+- resuelve el emulador en este orden: `WINUAE_GDB_DIR` → **nuestro** `../WinUAE-DBG/bin` (el fork
+  con canal lateral y parches GDB) → la extension `bartmanabyss.amiga-debug-*` (su WinUAE stock).
+  Asi **actualizar la extension no nos cambia el emulador** por el stock de Bartman (la extension
+  sigue usandose para `bin/dh0` y la config);
 - lanza `winuae-gdb.exe`;
 - conecta al servidor GDB de WinUAE-DBG;
 - continua la ejecucion tras el `debugging_trigger`;
@@ -329,7 +339,7 @@ suavidad o depurar visualmente, usa el menu o `run-demo.ps1` sin `-Warp`.
 
 - Windows + Git Bash + Node.js son obligatorios para el flujo de ejecución automatizada (`tools/run/run-demo.sh` → `dist/tools/run/run-demo.js`).
 - **NO usar WSL** para este proyecto: el entorno operativo es **Windows nativo**. Todo comando que invoque `node`, `g++`/el toolchain Amiga, WinUAE o el runner debe ejecutarse con los binarios de Windows (p. ej. `C:\Program Files\nodejs\node.exe`, el `.exe` de la extensión Bartman), no con el `bash` de WSL (que mangla rutas y rompe `cc1plus`/lanzamiento de WinUAE). Si un script necesita bash en Windows, usar Git Bash, nunca WSL. Usar rutas Windows (`C:\...`, `out\run\...`) o montajes `/mnt/c` solo para lectura.
-- El toolchain Amiga se resuelve en este orden: `AMIGA_BIN_PATH`, extensión de Cursor y luego extensión de VS Code `bartmanabyss.amiga-debug-*` (versión más alta instalada; el fork local es 1.8.1).
+- El toolchain Amiga se elige por **versión de gcc más moderna** entre `AMIGA_BIN_PATH` y las extensiones de Cursor/VS Code `bartmanabyss.amiga-debug-*` (a día de hoy todas son gcc 15.1.0; el toolchain de Windows de la extensión va por detrás del README, que anuncia 15.2).
 - `tools/run/run-demo.ts` importa dinámicamente `../mcp-winuae-emu/dist/winuae-connection.js` desde el repositorio hermano; si falta, el runner falla antes de abrir WinUAE.
 
 ## Reglas del runner/emulador

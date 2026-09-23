@@ -53,22 +53,51 @@ if [ -n "${AMIGA_BIN_PATH:-}" ]; then
 	AMIGA_BIN_PATH="${AMIGA_BIN_PATH//\\//}"
 fi
 
-# Devuelve 0 y escribe la ruta en AMIGA_BIN cuando se encuentra.
-find_toolchain() {
-	if [ -n "${AMIGA_BIN_PATH:-}" ] && [ -d "$AMIGA_BIN_PATH" ]; then
-		echo "$AMIGA_BIN_PATH"
-		return 0
-	fi
-	# Fallback Windows (extensiones Cursor/VS Code).
-	local cand
-	for cand in \
-		"$HOME/.cursor/extensions"/bartmanabyss.amiga-debug-*/bin/win32 \
-		"$HOME/.vscode/extensions"/bartmanabyss.amiga-debug-*/bin/win32; do
-		if [ -x "$cand/opt/bin/m68k-amiga-elf-g++.exe" ]; then
-			echo "$cand"
+# Version de gcc de un candidato (vacio si esa ruta no tiene toolchain). Se usa `--version`
+# porque el g++ cross de Bartman no responde a `-dumpversion`.
+toolchain_version() {
+	local cand="$1" gxx
+	for gxx in \
+		"$cand/opt/bin/m68k-amiga-elf-g++.exe" "$cand/m68k-amiga-elf-g++.exe" \
+		"$cand/opt/bin/m68k-amiga-elf-g++" "$cand/m68k-amiga-elf-g++"; do
+		if [ -x "$gxx" ]; then
+			# Primera linea, p. ej. "m68k-amiga-elf-g++.exe (GCC) 15.1.0" -> 15.1.0.
+			"$gxx" --version 2>/dev/null |
+				awk 'NR==1{for(i=1;i<=NF;i++) if($i ~ /^[0-9]+\.[0-9]/) v=$i} END{print v}'
 			return 0
 		fi
 	done
+	echo ""
+	return 0
+}
+
+# Elige el toolchain de **version mas alta** entre AMIGA_BIN_PATH y las extensiones de
+# Cursor/VS Code (asi una extension nueva con gcc mas moderno gana sin tocar el entorno).
+# Devuelve 0 y escribe la ruta (posiblemente vacia = usar PATH) en stdout.
+find_toolchain() {
+	local best="" best_ver="" cand ver
+	for cand in \
+		"${AMIGA_BIN_PATH:-}" \
+		$HOME/.cursor/extensions/bartmanabyss.amiga-debug-*/bin/win32 \
+		$HOME/.vscode/extensions/bartmanabyss.amiga-debug-*/bin/win32; do
+		[ -n "$cand" ] && [ -d "$cand" ] || continue
+		ver="$(toolchain_version "$cand")"
+		[ -n "$ver" ] || continue
+		if [ -z "$best_ver" ]; then
+			best="$cand"
+			best_ver="$ver"
+			continue
+		fi
+		if [ "$ver" != "$best_ver" ] &&
+		   [ "$(printf '%s\n%s\n' "$best_ver" "$ver" | sort -V | tail -1)" = "$ver" ]; then
+			best="$cand"
+			best_ver="$ver"
+		fi
+	done
+	if [ -n "$best" ]; then
+		echo "$best"
+		return 0
+	fi
 	# Toolchain en PATH (Linux/macOS: m68k-amiga-elf-*).
 	if command -v m68k-amiga-elf-gcc >/dev/null 2>&1; then
 		echo ""
@@ -82,6 +111,11 @@ if ! find_toolchain >/dev/null 2>&1; then
 	exit 1
 fi
 TOOLCHAIN="$(find_toolchain)"
+if [ -n "$TOOLCHAIN" ]; then
+	echo "[build] toolchain: $TOOLCHAIN (gcc $(toolchain_version "$TOOLCHAIN"))" >&2
+else
+	echo "[build] toolchain: m68k-amiga-elf-* del PATH" >&2
+fi
 
 # Selecciona un binario del toolchain (por ruta o por nombre en PATH).
 tool() {
