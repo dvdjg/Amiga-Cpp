@@ -459,7 +459,7 @@ public:
     /// **Rasterizador** (seam CPU/Blitter) que usan las `Surface` de este playfield.
     /// `nullptr` = rasterizador CPU por defecto (lo resuelve `Surface`).
     void set_rasterizer(eng::Ref<Rasterizer> r) { m_rasterizer = r; }
-    [[nodiscard]] Rasterizer* rasterizer() const { return m_rasterizer.get(); }
+    [[nodiscard]] eng::Ref<Rasterizer> rasterizer() const { return m_rasterizer; }
     /// Política de aceleración (modo + umbrales); ver `RasterPolicy`.
     void set_raster_policy(const RasterPolicy& p) { m_raster_policy = p; }
     [[nodiscard]] const RasterPolicy& raster_policy() const { return m_raster_policy; }

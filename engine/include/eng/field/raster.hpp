@@ -31,6 +31,7 @@
 /// ```
 
 #include <eng/core/box.hpp>
+#include <eng/core/ptr.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/graphics/c2p.hpp>
 #include <eng/graphics/frame_plan.hpp>
@@ -147,7 +148,7 @@ public:
 	/// `op == Xor` usa la variante **EOR/ONEDOT** (`LineEor`).
 	virtual bool draw_line(Playfield& pf, const ClipRect& clip, eng::s32 x0, eng::s32 y0,
 			       eng::s32 x1, eng::s32 y1, eng::u8 color,
-			       graphics::FramePlan* plan = nullptr,
+			       eng::Ref<graphics::FramePlan> plan = {},
 			       RasterOp op = RasterOp::Copy) = 0;
 	/// Copia rectangular (blit planar): encola el trabajo en `plan`. `op` (`Or`/`And`/
 	/// `Xor`) aplica la operación lógica con `B = D` (sombras/glow/máscaras).
@@ -165,7 +166,7 @@ public:
 	/// (`c2p_1x1_4`, o `c2p_1x1_naive` para 1..6 planos). El `BlitterRaster`, si recibe
 	/// un `plan` y 4 planos, **encola** un `BlitJobKind::C2P` (el backend ejecuta las 13
 	/// fases); sin plan, cae a CPU.
-	virtual bool c2p(const C2pRequest& req, graphics::FramePlan* plan = nullptr) = 0;
+	virtual bool c2p(const C2pRequest& req, eng::Ref<graphics::FramePlan> plan = {}) = 0;
 };
 
 /// Rasterizador **CPU**: relleno por scanline (`Playfield::draw_span_op`, con
@@ -187,7 +188,7 @@ public:
 	/// Línea por CPU (Bresenham), recortada al `clip` (un tramo horizontal usa `draw_span`).
 	bool draw_line(Playfield& pf, const ClipRect& clip, eng::s32 x0, eng::s32 y0,
 		       eng::s32 x1, eng::s32 y1, eng::u8 color,
-		       graphics::FramePlan* plan = nullptr,
+		       eng::Ref<graphics::FramePlan> plan = {},
 		       RasterOp op = RasterOp::Copy) override {
 		(void)plan;
 		(void)op; // el camino CPU dibuja con Copy (el EOR es del Blitter)
@@ -243,7 +244,7 @@ public:
 		return pf.copy_masked_cpu(src, mask, x, y, w, h, src_row_bytes, src_plane_stride, planes);
 	}
 	/// Chunky→planar por CPU: `c2p_1x1_4` (4 planos) o `c2p_1x1_naive` (1..6).
-	bool c2p(const C2pRequest& req, graphics::FramePlan* plan = nullptr) override {
+	bool c2p(const C2pRequest& req, eng::Ref<graphics::FramePlan> plan = {}) override {
 		(void)plan; // la CPU convierte ya; no encola trabajo
 		if (req.chunky.empty() || req.planes.empty() || req.width == 0u ||
 		    req.height == 0u || req.plane_count == 0u) {
@@ -293,9 +294,9 @@ public:
 	/// y encola una `BlitJobKind::Line` por plano. Si no hay plan (o no cabe), CPU.
 	bool draw_line(Playfield& pf, const ClipRect& clip, eng::s32 x0, eng::s32 y0,
 		       eng::s32 x1, eng::s32 y1, eng::u8 color,
-		       graphics::FramePlan* plan = nullptr,
+		       eng::Ref<graphics::FramePlan> plan = {},
 		       RasterOp op = RasterOp::Copy) override {
-		if (plan != nullptr) {
+		if (plan.valid()) {
 			eng::s32 cx0 = x0, cy0 = y0, cx1 = x1, cy1 = y1;
 			if (clip_segment(clip, cx0, cy0, cx1, cy1) &&
 			    pf.add_line(*plan, static_cast<eng::s16>(cx0), static_cast<eng::s16>(cy0),
@@ -325,8 +326,8 @@ public:
 	}
 	/// C2P por **Blitter** si hay `plan` y 4 planos: encola `BlitJobKind::C2P` (el
 	/// backend ejecuta las 13 fases). Sin plan (o distinto de 4 planos), CPU.
-	bool c2p(const C2pRequest& req, graphics::FramePlan* plan = nullptr) override {
-		if (plan != nullptr && req.plane_count == 4u && req.chunky.data() != nullptr &&
+	bool c2p(const C2pRequest& req, eng::Ref<graphics::FramePlan> plan = {}) override {
+		if (plan.valid() && req.plane_count == 4u && req.chunky.data() != nullptr &&
 		    req.planes.data() != nullptr) {
 			const eng::u32 px = req.width * req.height;
 			if (px >= 2u && px / 2u <= 0xffffu) {

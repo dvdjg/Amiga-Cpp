@@ -118,7 +118,7 @@ int main() {
 		Ctx d {};
 		const eng::os::TaskDesc pd {&counting_task, &d, "port", 128u, /*own_port=*/true, 0u};
 		const eng::os::TaskId idd = tp.create(pd);
-		check(tp.port(idd) != nullptr, "own_port -> port() valido");
+		check(tp.port(idd).valid(), "own_port -> port() valido");
 		eng::os::Msg pm {};
 		pm.type = eng::os::MsgType::User;
 		check(tp.port(idd)->post(pm), "post a la cola propia");

@@ -5,6 +5,7 @@
 /// `XlimitedDisplayComposer` (single) y `XlimitedDualComposer` (DPF). Definido aparte de
 /// `xlimited_base.hpp`; `xlimited.hpp` es la cabecera de familia.
 
+#include <eng/core/ptr.hpp>
 #include <eng/field/xlimited_playfield.hpp>
 
 namespace eng::field {
@@ -56,10 +57,9 @@ public:
         u16 diwstop = xlimited_detail::kDiwStop;
         u16 ddfstrt = xlimited_detail::kDdfStrt;
         u16 ddfstop = xlimited_detail::kDdfStop;
-        const graphics::SpriteManager* sprites = nullptr; // opcional
+        eng::Ref<const graphics::SpriteManager> sprites {}; // opcional
         // Raster colors opcionales (gradiente del color del patrón de fondo).
-        const ColorZone* color_zones = nullptr;
-        u8 color_zone_count = 0;
+        eng::Span<const ColorZone> color_zones {};
     };
 
     bool init(MemorySystem& memory, const Config& cfg) {
@@ -92,7 +92,7 @@ public:
         graphics::ModeSwitchZone mode_switch {};
     };
 
-    bool compose(const PlayfieldHardwareView& view, const OverlayZone* hud) {
+    bool compose(const PlayfieldHardwareView& view, eng::Ref<const OverlayZone> hud) {
         if (!m_initialized || !view.bitplanes) return false;
         if (!valid_view(view)) return false;
         if (!m_copper_initialized) {
@@ -160,14 +160,14 @@ private:
         return true;
     }
 
-    bool emit_full(const PlayfieldHardwareView& view, const OverlayZone* hud = nullptr) {
+    bool emit_full(const PlayfieldHardwareView& view, eng::Ref<const OverlayZone> hud = {}) {
         copper::SchedulerT<false> sched { m_copper.inactive_block() };
         const u16 bplcon0 = static_cast<u16>(
             0x0200u | (static_cast<u16>(view.planes) << 12u));
         sched.move(copper::Register::DMACON,
             static_cast<u16>(copper::DmaSetClear | copper::DmaMaster |
                              copper::DmaCopper | copper::DmaBitplane |
-                             (m_cfg.sprites ? m_cfg.sprites->dma_bits() : 0)));
+                             (m_cfg.sprites.valid() ? m_cfg.sprites->dma_bits() : 0)));
         sched.move(copper::Register::BPLCON0, bplcon0);
         sched.move(copper::Register::BPLCON1, view.bplcon1);
         sched.move(copper::Register::BPLCON2, 0x0000);
@@ -198,7 +198,7 @@ private:
         }
         // Raster colors: WAIT en cada línea + MOVE del color (orden ASCENDENTE).
         // Requieren un display lineal (sin split de Copper) para no desordenar el raster.
-        for (u8 z = 0; z < m_cfg.color_zone_count; ++z) {
+        for (eng::usize z = 0; z < m_cfg.color_zones.size(); ++z) {
             const ColorZone& zone = m_cfg.color_zones[z];
             sched.wait_line(zone.line);
             sched.move(zone.reg, zone.color);
@@ -230,7 +230,7 @@ private:
             }
         }
         // El blanking de abajo solo si no estorba con un split en línea alta.
-        if (hud != nullptr) {
+        if (hud.valid()) {
             if (hud->use_mode_switch) {
                 // Geometría DISTINTA (p. ej. HUD con menos planos que el campo):
                 // `ModeSwitchZone` reprograma BPLCON0/BPLCON4/BPLCON1/DDF/BPLMOD y
@@ -263,7 +263,7 @@ private:
             sched.move(copper::Register::COLOR00, 0x0000);
         }
         // Sprites hardware (delante de los playfields): SPRxCTL/POS/PT + paleta 16-31.
-        if (m_cfg.sprites != nullptr && m_cfg.sprites->any_enabled()) {
+        if (m_cfg.sprites.valid() && m_cfg.sprites->any_enabled()) {
             sched.emit_palette(m_cfg.palette, 16, 16); // paleta de sprites (COLOR16-31)
             m_cfg.sprites->emit_into(sched);
         }
@@ -302,8 +302,7 @@ public:
         u16 ddfstrt = xlimited_detail::kDdfStrt;
         u16 ddfstop = xlimited_detail::kDdfStop;
         // Raster colors opcionales (gradiente del color del patron de fondo).
-        const ColorZone* color_zones = nullptr;
-        u8 color_zone_count = 0;
+        eng::Span<const ColorZone> color_zones {};
     };
 
     bool init(MemorySystem& memory, const Config& cfg) {
@@ -425,7 +424,7 @@ private:
         // Raster colors: WAIT en cada linea + MOVE del color (orden ascendente).
         // Se emiten tras los punteros; requieren que el campo NO use split de
         // Copper (linear_display) para no desordenar el raster.
-        for (u8 z = 0; z < m_cfg.color_zone_count; ++z) {
+        for (eng::usize z = 0; z < m_cfg.color_zones.size(); ++z) {
             const ColorZone& zone = m_cfg.color_zones[z];
             sched.wait_line(zone.line);
             sched.move(zone.reg, zone.color);

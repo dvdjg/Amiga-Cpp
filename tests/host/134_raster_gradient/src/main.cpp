@@ -47,10 +47,10 @@ int main() {
 		e.configure({0x2cu, 8u, 4u, 0u});
 		e.set_cyclic(false);
 		const eng::u16 keys[2] = {0x000u, 0xfffu};
-		e.set_keys(eng::Span<const eng::u16> {keys});
+		e.set_keys(keys);
 
 		eng::graphics::CopperIntent out[effects::RasterGradientEffect::max_bands] {};
-		const eng::u16 n = e.fill_intents(out, effects::RasterGradientEffect::max_bands);
+		const eng::u16 n = e.fill_intents(out);
 		check(n == 4u, "lineal: 4 bandas");
 		check(out[0].top == 0x2cu && out[1].top == 0x34u && out[3].top == 0x44u,
 		      "lineal: top = first_line + b*band_height");
@@ -69,16 +69,16 @@ int main() {
 		e.configure({0x2cu, 16u, 3u, 0u});
 		e.set_cyclic(true);
 		const eng::u16 keys[3] = {0x00fu, 0x0f0u, 0xf00u};
-		e.set_keys(eng::Span<const eng::u16> {keys});
+		e.set_keys(keys);
 
 		eng::graphics::CopperIntent out[effects::RasterGradientEffect::max_bands] {};
-		e.fill_intents(out, effects::RasterGradientEffect::max_bands);
+		e.fill_intents(out);
 		check(out[0].colors[0] == 0x00fu && out[1].colors[0] == 0x0f0u &&
 			      out[2].colors[0] == 0xf00u,
 		      "ciclico: bandas = claves en orden");
 
 		e.set_phase(1u);
-		e.fill_intents(out, effects::RasterGradientEffect::max_bands);
+		e.fill_intents(out);
 		check(out[0].colors[0] == 0x0f0u && out[1].colors[0] == 0xf00u &&
 			      out[2].colors[0] == 0x00fu,
 		      "ciclico: phase=1 rota las claves");
@@ -89,9 +89,9 @@ int main() {
 		effects::RasterGradientEffect e;
 		e.configure({0x2cu, 1u, 2u, 1u});
 		const eng::u16 keys[2] = {0x123u, 0x456u};
-		e.set_keys(eng::Span<const eng::u16> {keys});
+		e.set_keys(keys);
 		eng::graphics::CopperIntent out[effects::RasterGradientEffect::max_bands] {};
-		e.fill_intents(out, effects::RasterGradientEffect::max_bands);
+		e.fill_intents(out);
 		check(out[0].first == 1u && out[0].colors.size() == 2u, "first=1: vista de 2");
 		check(out[0].colors[1] == 0x123u, "first=1: color en el indice 1");
 	}
@@ -101,13 +101,13 @@ int main() {
 		effects::RasterGradientEffect e;
 		e.configure({0x2cu, 4u, 8u, 0u});
 		const eng::u16 keys[2] = {0x000u, 0xfffu};
-		e.set_keys(eng::Span<const eng::u16> {keys});
+		e.set_keys(keys);
 		eng::graphics::CopperIntent out[effects::RasterGradientEffect::max_bands] {};
-		check(e.fill_intents(out, 3u) == 3u, "cap: recorta al maximo pedido");
+		check(e.fill_intents({out, 3u}) == 3u, "cap: recorta al maximo pedido");
 
 		effects::RasterGradientEffect empty;
 		empty.configure({0x2cu, 4u, 8u, 0u});
-		check(empty.fill_intents(out, 8u) == 0u, "sin claves: 0 intenciones");
+		check(empty.fill_intents({out, 8u}) == 0u, "sin claves: 0 intenciones");
 
 		FakePlan plan;
 		e.apply_into(plan);
@@ -118,7 +118,7 @@ int main() {
 	{
 		eng::effects::Gradient g;
 		const eng::u16 keys[2] = {0x000u, 0xfffu};
-		check(g.attach({0x2cu, 8u, 4u, 0u}, eng::Span<const eng::u16> {keys}),
+		check(g.attach({0x2cu, 8u, 4u, 0u}, keys),
 		      "Gradient: attach con claves");
 		FakePlan plan;
 		g.apply_into(plan);

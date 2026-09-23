@@ -8,6 +8,7 @@
 #include <cstdio>
 
 #include <eng/core/ptr.hpp>
+#include <eng/core/span.hpp>
 
 namespace {
 
@@ -74,6 +75,22 @@ int main() {
 	check(rc.valid() && rc->get() == 42 && rc.get() == &a, "Ref<const T> desde referencia");
 	eng::Ref<const Obj> rc2 {static_cast<const Obj*>(&a)};
 	check(rc2 == rc, "Ref<const T> desde puntero y comparacion");
+
+	// Span: CTAD (`{ptr, n}` sin nombrar el tipo), array sin count y conversion
+	// cualificante `Span<T> -> Span<const T>` (como `std::span`).
+	int buf[8] {1, 2, 3, 4, 5, 6, 7, 8};
+	int* p = buf;
+	eng::Span s_ctad {p, 5u};
+	static_assert(eng::detail::same<decltype(s_ctad), eng::Span<int>>::value,
+		      "CTAD (T*, usize) deduce Span<int>");
+	check(s_ctad.size() == 5u && s_ctad[4] == 5, "Span por CTAD {ptr, n}");
+	eng::Span s_arr = buf;
+	static_assert(eng::detail::same<decltype(s_arr), eng::Span<int>>::value,
+		      "array deduce Span<int> y su tamano");
+	check(s_arr.size() == 8u, "Span desde array deduce el tamano");
+	eng::Span<const int> s_const = (eng::Span {p, 3u});
+	check(s_const.size() == 3u && s_const[0] == 1, "Span<T> -> Span<const T> implicita");
+	check(eng::Span<const int> {p, 2u}.size() == 2u, "inicializador {ptr, n} en Span<const T>");
 
 	if (g_fail == 0) {
 		std::printf("OK: ptr (Ref/NonNull/Opt, sin heap) validado.\n");

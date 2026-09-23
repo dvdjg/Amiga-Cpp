@@ -258,7 +258,7 @@ void test_sort_items() {
         { 3, 0 }, { 1, 1 }, { 2, 2 }, { 3, 3 }, { 1, 4 }, { 2, 5 },
     };
     const auto n = static_cast<eng::usize>(sizeof(items) / sizeof(items[0]));
-    eng::sort_items(eng::Span<eng::SortItem>{items});
+    eng::sort_items(items);
 
     // Ordenadas por key (el orden de los iguales no está garantizado).
     for (eng::usize i = 1; i < n; ++i) {

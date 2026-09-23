@@ -15,6 +15,8 @@
 /// No son propietarios: no borran nada (`delete` no existe aquí). Para propiedad real, el
 /// engine usa arenas (`Block<T>`, `MemorySystem`).
 
+#include <eng/core/types.hpp>
+
 namespace eng {
 
 /// Referencia no propietaria y anulable. Construcción **implícita** desde `T&`, `T*` o
@@ -30,6 +32,12 @@ public:
 	/// se construye solo, sin escribir el tipo (el puntero crudo es anulable por contrato).
 	constexpr Ref(T* ptr) : m_ptr(ptr) {}
 	constexpr Ref(decltype(nullptr)) : m_ptr(nullptr) {}
+
+	/// Conversión cualificante `Ref<U> -> Ref<T>` cuando `U*` convierte a `T*`
+	/// (típicamente `Ref<T> -> Ref<const T>`). El `requires` evita la conversión a sí misma.
+	template <typename U>
+		requires requires (U* q) { static_cast<T*>(q); } && (!detail::same<U, T>::value)
+	constexpr Ref(const Ref<U>& other) : m_ptr(other.get()) {}
 
 	[[nodiscard]] constexpr bool valid() const { return m_ptr != nullptr; }
 	explicit constexpr operator bool() const { return m_ptr != nullptr; }

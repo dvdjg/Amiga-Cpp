@@ -16,6 +16,7 @@
 ///
 /// Es lógica pura (sin hardware, sin heap), host-testable.
 
+#include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/graphics/raster_intent.hpp>
 
@@ -52,7 +53,8 @@ public:
 	/// Las **tiras horizontales** (`strip_span > 1`) reservan una corrida de canales
 	/// contiguos: si no hay una corrida libre del tamaño pedido, la tira ENTERA va a
 	/// `as_bob` (no se parte a medias).
-	u8 assign(const SpriteIntent* intents, u8 count, SpriteSlot* out) {
+	u8 assign(eng::Span<const SpriteIntent> intents, eng::Span<SpriteSlot> out) {
+		const u8 count = static_cast<u8>(intents.size());
 		u16 busy_until[kChannels] {};
 		u8 in_hardware = 0;
 		u8 run_id = 0;   // tira en curso (0 = ninguna)

@@ -84,8 +84,9 @@ public:
 	/// Rellena `out` con una intencion `PaletteLine` por banda y devuelve cuantas escribio
 	/// (a lo sumo `cap`). Los colores viven en un buffer propio del efecto, estable hasta
 	/// el siguiente `fill_intents`.
-	u16 fill_intents(graphics::CopperIntent* out, u16 cap) {
-		if (out == nullptr || m_key_count == 0u) {
+	u16 fill_intents(eng::Span<graphics::CopperIntent> out) {
+		const u16 cap = static_cast<u16>(out.size());
+		if (out.empty() || m_key_count == 0u) {
 			return 0u;
 		}
 		const u16 bands = m_range.bands;
@@ -113,7 +114,7 @@ public:
 	/// `eng::copper::Plan`). Es el metodo del concepto `Effect<RasterGradientEffect, Plan>`.
 	template <typename Plan>
 	void apply_into(Plan& plan) {
-		const u16 n = fill_intents(m_intents, max_bands);
+		const u16 n = fill_intents(m_intents);
 		plan.add(m_intents, n);
 	}
 

@@ -99,15 +99,15 @@ public:
 	/// `Surface` lo tiene instalado) y cada intersección **alineada a palabra** (destino `x`, ancho
 	/// y origen `sx` múltiplos de 16) se copia con `Surface::blit` (`CopyRect` por Blitter). El
 	/// `plan` lo ejecuta el backend; las intersecciones no alineadas caen al bucle de píxeles.
-	void present_blit(eng::graphics::FramePlan& plan) noexcept { compose(&plan); }
+	void present_blit(eng::graphics::FramePlan& plan) noexcept { compose(plan); }
 
 	[[nodiscard]] eng::u8 damage_count() const noexcept { return m_damage.count; }
 	[[nodiscard]] eng::u8 window_count() const noexcept { return m_count; }
 
 private:
-	/// Compone con o sin plan (`plan == nullptr` = solo CPU). El fondo va por `fill_rect`; cada
+	/// Compone con o sin plan (`Ref` no válida = solo CPU). El fondo va por `fill_rect`; cada
 	/// intersección intenta el blit planar y, si no procede, cae al bucle de píxeles.
-	void compose(eng::graphics::FramePlan* plan) noexcept {
+	void compose(eng::Ref<eng::graphics::FramePlan> plan) noexcept {
 		if (!m_screen.valid()) {
 			return;
 		}
@@ -124,7 +124,7 @@ private:
 				if (I.empty()) {
 					continue;
 				}
-				if (plan != nullptr && blit_backing(*plan, scr, w, I)) {
+				if (plan.valid() && blit_backing(*plan, scr, w, I)) {
 					continue;
 				}
 				for (eng::s16 y = I.y; y <= I.bottom(); ++y) {

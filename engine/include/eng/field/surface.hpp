@@ -72,7 +72,7 @@ public:
         : m_target(target), m_clip(clip) {}
 
     constexpr bool valid() const { return m_target.valid(); }
-    constexpr const Playfield* target() const { return m_target.get(); }
+    constexpr eng::Ref<const Playfield> target() const { return m_target; }
     constexpr const SurfaceRect& clip() const { return m_clip; }
 
     /// ¿El punto (mundo/pantalla) está dentro del clip?
@@ -148,7 +148,7 @@ public:
     /// defecto; un rasterizador Blitter la traza por hardware si se pasa `plan`;
     /// `op == Xor` usa la variante EOR/ONEDOT).
     bool draw_line(s32 x0, s32 y0, s32 x1, s32 y1, u8 color,
-                   graphics::FramePlan* plan = nullptr, RasterOp op = RasterOp::Copy) {
+                   eng::Ref<graphics::FramePlan> plan = {}, RasterOp op = RasterOp::Copy) {
         if (!valid()) return false;
         const ClipRect clip {m_clip.x, m_clip.y,
                              m_clip.x + static_cast<s32>(m_clip.w) - 1,
@@ -295,10 +295,10 @@ public:
     }
 
 private:
-    /// Rasterizador efectivo: el del playfield o el CPU por defecto.
-    Rasterizer* rasterizer() const {
-        Rasterizer* r = m_target->rasterizer();
-        return (r != nullptr) ? r : &kCpuRaster;
+    /// Rasterizador efectivo: el del playfield o el CPU por defecto (nunca nulo).
+    eng::NonNull<Rasterizer> rasterizer() const {
+        const eng::Ref<Rasterizer> r = m_target->rasterizer();
+        return r.valid() ? eng::NonNull<Rasterizer>(*r) : eng::NonNull<Rasterizer>(kCpuRaster);
     }
     /// Pinta los bits ACTIVOS de una fila de glifo como tramos horizontales (una palabra por
     /// plano, `Playfield::draw_span`). `msb_first` = el bit `nbits-1` es la columna 0 (fuente 5x7).

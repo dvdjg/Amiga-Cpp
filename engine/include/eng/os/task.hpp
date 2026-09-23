@@ -104,8 +104,8 @@ public:
 
 	/// Arranca una tarea `Created` → `Ready`. `false` si no lo estaba.
 	bool start(TaskId id) noexcept {
-		Task* t = get(id);
-		if (t == nullptr || t->state != TaskState::Created) {
+		auto t = get(id);
+		if (!t.valid() || t->state != TaskState::Created) {
 			return false;
 		}
 		t->state = TaskState::Ready;
@@ -114,8 +114,8 @@ public:
 
 	/// Pausa una tarea viva → `Suspended`. `false` si ya terminó/abortó.
 	bool suspend(TaskId id) noexcept {
-		Task* t = get(id);
-		if (t == nullptr || t->state == TaskState::Finished || t->state == TaskState::Aborted ||
+		auto t = get(id);
+		if (!t.valid() || t->state == TaskState::Finished || t->state == TaskState::Aborted ||
 		    t->state == TaskState::Invalid) {
 			return false;
 		}
@@ -125,8 +125,8 @@ public:
 
 	/// Reactiva una tarea `Suspended` → `Ready`. `false` si no lo estaba.
 	bool resume(TaskId id) noexcept {
-		Task* t = get(id);
-		if (t == nullptr || t->state != TaskState::Suspended) {
+		auto t = get(id);
+		if (!t.valid() || t->state != TaskState::Suspended) {
 			return false;
 		}
 		t->state = TaskState::Ready;
@@ -135,8 +135,8 @@ public:
 
 	/// Cancela una tarea → `Aborted` (no vuelve a correr en idle).
 	bool abort(TaskId id) noexcept {
-		Task* t = get(id);
-		if (t == nullptr || t->state == TaskState::Invalid) {
+		auto t = get(id);
+		if (!t.valid() || t->state == TaskState::Invalid) {
 			return false;
 		}
 		t->state = TaskState::Aborted;
@@ -146,8 +146,8 @@ public:
 	/// Espera a que la tarea termine, ejecutando idle (solo desde el hilo principal). Devuelve
 	/// `false` si la tarea es inválida o se quedó `Blocked`/`Suspended` (no puede progresar).
 	bool join(TaskId id) noexcept {
-		Task* t = get(id);
-		if (t == nullptr) {
+		auto t = get(id);
+		if (!t.valid()) {
 			return false;
 		}
 		while (t->state != TaskState::Finished && t->state != TaskState::Aborted) {
@@ -164,36 +164,36 @@ public:
 
 	/// Estado actual de la tarea (`Invalid` si el id no existe).
 	[[nodiscard]] TaskState state(TaskId id) const noexcept {
-		const Task* t = get(id);
-		return (t != nullptr) ? t->state : TaskState::Invalid;
+		const auto t = get(id);
+		return (t.valid()) ? t->state : TaskState::Invalid;
 	}
 
 	/// Nombre de la tarea (`nullptr` si el id no existe).
 	[[nodiscard]] const char* name(TaskId id) const noexcept {
-		const Task* t = get(id);
-		return (t != nullptr) ? t->name : nullptr;
+		const auto t = get(id);
+		return (t.valid()) ? t->name : nullptr;
 	}
 
 	/// Prioridad de la tarea (0 si el id es inválido).
 	[[nodiscard]] eng::u8 priority(TaskId id) const noexcept {
-		const Task* t = get(id);
-		return (t != nullptr) ? t->priority : 0u;
+		const auto t = get(id);
+		return (t.valid()) ? t->priority : 0u;
 	}
 
-	/// Cola propia de la tarea (`nullptr` si no se pidió `own_port` o el id es inválido).
-	[[nodiscard]] TaskMsgPort* port(TaskId id) noexcept {
-		Task* t = get(id);
-		if (t == nullptr || !t->own_port) {
-			return nullptr;
+	/// Cola propia de la tarea (`Ref` no válida si no se pidió `own_port` o el id es inválido).
+	[[nodiscard]] eng::Ref<TaskMsgPort> port(TaskId id) noexcept {
+		auto t = get(id);
+		if (!t.valid() || !t->own_port) {
+			return {};
 		}
-		return &m_ports[id - 1u];
+		return eng::Ref<TaskMsgPort>(m_ports[id - 1u]);
 	}
 
 	/// Marca una tarea `Blocked` (la tarea la llama desde su `poll()` cuando no puede avanzar, o la
 	/// aplicación para una tarea `Ready`).
 	bool block(TaskId id) noexcept {
-		Task* t = get(id);
-		if (t == nullptr ||
+		auto t = get(id);
+		if (!t.valid() ||
 		    (t->state != TaskState::Running && t->state != TaskState::Ready)) {
 			return false;
 		}
@@ -203,8 +203,8 @@ public:
 
 	/// Despierta una tarea `Blocked` (la aplicación, al llegar su señal/mensaje).
 	bool unblock(TaskId id) noexcept {
-		Task* t = get(id);
-		if (t == nullptr || t->state != TaskState::Blocked) {
+		auto t = get(id);
+		if (!t.valid() || t->state != TaskState::Blocked) {
 			return false;
 		}
 		t->state = TaskState::Ready;
@@ -218,11 +218,11 @@ public:
 		if (preempt_requested()) {
 			return false;
 		}
-		Task* t = pick_ready();
-		if (t == nullptr) {
+		auto t = pick_ready();
+		if (!t.valid()) {
 			return false;
 		}
-		const TaskId id = static_cast<TaskId>(static_cast<eng::u8>(t - m_tasks) + 1u);
+		const TaskId id = static_cast<TaskId>(static_cast<eng::u8>(t.get() - m_tasks) + 1u);
 		t->state = TaskState::Running;
 		const bool alive = t->fn(id, t->user, max_slice_us);
 		// Si la tarea no cambió su estado desde dentro (Blocked/Suspended/Aborted), lo
@@ -254,29 +254,30 @@ private:
 	};
 
 	/// Tarea por `id` (`nullptr` si no existe o está libre).
-	[[nodiscard]] Task* get(TaskId id) noexcept {
+	[[nodiscard]] eng::Ref<Task> get(TaskId id) noexcept {
 		if (id == 0u || static_cast<eng::u8>(id - 1u) >= m_max) {
-			return nullptr;
+			return {};
 		}
 		Task& t = m_tasks[id - 1u];
-		return (t.state != TaskState::Invalid) ? &t : nullptr;
+		return (t.state != TaskState::Invalid) ? eng::Ref<Task>(t) : eng::Ref<Task>();
 	}
 	/// Tarea por `id` (versión const).
-	[[nodiscard]] const Task* get(TaskId id) const noexcept {
-		return const_cast<TaskSystem*>(this)->get(id);
+	[[nodiscard]] eng::Ref<const Task> get(TaskId id) const noexcept {
+		auto t = const_cast<TaskSystem*>(this)->get(id);
+		return t.valid() ? eng::Ref<const Task>(*t) : eng::Ref<const Task>();
 	}
 
 	/// Tarea `Ready` de mayor prioridad (empate: la de menor índice). Recorre todas.
-	[[nodiscard]] Task* pick_ready() noexcept {
-		Task* best = nullptr;
+	[[nodiscard]] eng::Ref<Task> pick_ready() noexcept {
+		eng::Ref<Task> best {};
 		eng::u8 best_pri = 0u;
 		for (eng::u8 i = 0u; i < m_max; ++i) {
 			Task& t = m_tasks[i];
 			if (t.state != TaskState::Ready) {
 				continue;
 			}
-			if (best == nullptr || t.priority > best_pri) {
-				best = &t;
+			if (!best.valid() || t.priority > best_pri) {
+				best = eng::Ref<Task>(t);
 				best_pri = t.priority;
 			}
 		}

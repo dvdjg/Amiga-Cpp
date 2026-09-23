@@ -25,6 +25,18 @@ using s64 = long long;
 using usize = __SIZE_TYPE__;
 using uintptr = __UINTPTR_TYPE__;
 
+namespace detail {
+/// `is_same` minimo (sin STL): lo usan `Ref`/`Span` para restringir sus conversiones.
+template <typename A, typename B>
+struct same {
+	static constexpr bool value = false;
+};
+template <typename A>
+struct same<A, A> {
+	static constexpr bool value = true;
+};
+} // namespace detail
+
 /// Tamano 2D pequeno para resoluciones, tiles, sprites y buffers.
 struct Size2u {
 	u16 width;

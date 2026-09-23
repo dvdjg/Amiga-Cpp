@@ -25,12 +25,12 @@ class UiPainter {
 public:
 	/// Pinta sobre una `Surface` (atajo de `PaintTarget::from_surface`: recorte natural, píxel
 	/// cuadrado).
-	UiPainter(eng::field::Surface& surface, eng::graphics::FramePlan* plan,
+	UiPainter(eng::field::Surface& surface, eng::Ref<eng::graphics::FramePlan> plan,
 		  const UiTheme& theme) noexcept
 		: UiPainter(PaintTarget::from_surface(surface), plan, theme) {}
 
 	/// Pinta sobre un destino cualquiera (`Surface` hoy; `RastPort` con `-DENG_UI_INTUITION`).
-	UiPainter(PaintTarget target, eng::graphics::FramePlan* plan, const UiTheme& theme) noexcept
+	UiPainter(PaintTarget target, eng::Ref<eng::graphics::FramePlan> plan, const UiTheme& theme) noexcept
 		: m_target(target)
 		, m_plan(plan)
 		, m_theme(theme) {}
@@ -45,10 +45,10 @@ public:
 		m_target.surface->fill_rect(r.x, r.y, r.w, r.h, color);
 	}
 	void hline(eng::s16 x0, eng::s16 x1, eng::s16 y, eng::u8 color) {
-		m_target.surface->draw_line(x0, y, x1, y, color, m_plan.get());
+		m_target.surface->draw_line(x0, y, x1, y, color, m_plan);
 	}
 	void vline(eng::s16 x, eng::s16 y0, eng::s16 y1, eng::u8 color) {
-		m_target.surface->draw_line(x, y0, x, y1, color, m_plan.get());
+		m_target.surface->draw_line(x, y0, x, y1, color, m_plan);
 	}
 	void frame(Rect r, eng::u8 color);
 	void bevel_out(Rect r); ///< relieve: shine arriba/izquierda, shadow abajo/derecha

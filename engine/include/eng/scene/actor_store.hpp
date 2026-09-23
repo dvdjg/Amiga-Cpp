@@ -4,6 +4,8 @@
 /// Almacen generacional de actores (`ActorStore`) y sus funciones de emision. Definido
 /// aparte de `actor_types.hpp`; `actor.hpp` es la cabecera de familia.
 
+#include <eng/core/ptr.hpp>
+#include <eng/core/span.hpp>
 #include <eng/scene/actor_types.hpp>
 
 namespace eng::scene {
@@ -83,14 +85,14 @@ inline bool emit_bob(FramePlan& plan, const Actor& a, const Frame& f, eng::s16 x
 /// llamador con `actor_emit_copper` (usando el rect devuelto), para que quepan en su
 /// propio buffer de intenciones.
 inline ActorEmitStatus actor_emit(FramePlan& plan, Actor& a, const ActorEmitContext& ctx,
-				  DirtyRect* out_rect = nullptr) {
+				  eng::Ref<DirtyRect> out_rect = {}) {
 	if (a.desc.visual.pixels.empty() || a.desc.visual.w == 0u || a.desc.visual.h == 0u) {
 		return ActorEmitStatus::Nothing;
 	}
 	if (ctx.buffer >= kActorBuffers) {
 		return ActorEmitStatus::Full;
 	}
-	if (ctx.targets == nullptr || a.desc.surface >= ctx.target_count) {
+	if (ctx.targets.empty() || a.desc.surface >= ctx.targets.size()) {
 		return ActorEmitStatus::Full; // superficie declarada fuera de la composición
 	}
 	const BobTarget& target = ctx.targets[a.desc.surface];
@@ -140,7 +142,7 @@ inline ActorEmitStatus actor_emit(FramePlan& plan, Actor& a, const ActorEmitCont
 
 	a.prev[ctx.buffer] = rect;
 	plan.add_dirty_rect(rect);
-	if (out_rect != nullptr) {
+	if (out_rect.valid()) {
 		*out_rect = rect;
 	}
 	return plan.ok() ? ActorEmitStatus::Ok : ActorEmitStatus::Full;
@@ -149,14 +151,14 @@ inline ActorEmitStatus actor_emit(FramePlan& plan, Actor& a, const ActorEmitCont
 /// Escribe las necesidades de Copper del actor como líneas ABSOLUTAS, dado su borde
 /// superior de pantalla y la primera línea del display. Devuelve cuántas escribió.
 inline eng::u8 actor_emit_copper(const Actor& a, eng::s16 screen_y, eng::u16 display_top,
-				 CopperIntent* out, eng::u8 capacity) {
-	if (out == nullptr) {
+				 eng::Span<CopperIntent> out) {
+	if (out.empty()) {
 		return 0u;
 	}
 	const eng::s32 base = static_cast<eng::s32>(display_top) + screen_y;
 	eng::u8 n = 0;
 	for (const CopperIntent& need : a.desc.copper) {
-		if (n >= capacity) {
+		if (n >= out.size()) {
 			break;
 		}
 		CopperIntent abs = need;
@@ -227,9 +229,9 @@ public:
 
 	constexpr bool remove(ActorId id) { return m_pool.remove(to_handle(id)); }
 
-	constexpr Actor* get(ActorId id) { return m_pool.get(to_handle(id)); }
+	constexpr eng::Ref<Actor> get(ActorId id) { return m_pool.get(to_handle(id)); }
 
-	constexpr const Actor* get(ActorId id) const { return m_pool.get(to_handle(id)); }
+	constexpr eng::Ref<const Actor> get(ActorId id) const { return m_pool.get(to_handle(id)); }
 
 	constexpr bool valid_id(ActorId id) const { return m_pool.valid(to_handle(id)); }
 
@@ -265,9 +267,8 @@ constexpr eng::u32 actor_order_key(const ActorDesc& d, eng::u16 index) {
 /// de atrás hacia delante por `z`. Devuelve cuántos escribió, o 0 si no caben en
 /// `capacity` (rechazo controlado). Ordenación por inserción: sin heap y determinista.
 template <eng::u16 MaxActors>
-inline eng::u16 plan_actor_order(const ActorStore<MaxActors>& store, ActorId* out,
-				 eng::u16 capacity) {
-	if (out == nullptr || store.count() > capacity) {
+inline eng::u16 plan_actor_order(const ActorStore<MaxActors>& store, eng::Span<ActorId> out) {
+	if (out.empty() || store.count() > out.size()) {
 		return 0u;
 	}
 	eng::u16 n = 0;
@@ -298,16 +299,15 @@ inline eng::u16 plan_actor_order(const ActorStore<MaxActors>& store, ActorId* ou
 /// `order` o si algún actor devuelve `Full` (rechazo controlado).
 template <eng::u16 MaxActors>
 inline eng::u16 emit_actors_in_order(FramePlan& plan, ActorStore<MaxActors>& store,
-				     const ActorEmitContext& ctx, ActorId* order,
-				     eng::u16 capacity) {
-	const eng::u16 n = plan_actor_order(store, order, capacity);
+				     const ActorEmitContext& ctx, eng::Span<ActorId> order) {
+	const eng::u16 n = plan_actor_order(store, order);
 	if (n == 0u) {
 		return 0u;
 	}
 	eng::u16 emitted = 0;
 	for (eng::u16 i = 0; i < n; ++i) {
-		Actor* a = store.get(order[i]);
-		if (a == nullptr) {
+		auto a = store.get(order[i]);
+		if (!a.valid()) {
 			return 0u;
 		}
 		const ActorEmitStatus st = actor_emit(plan, *a, ctx);
@@ -326,17 +326,19 @@ inline eng::u16 emit_actors_in_order(FramePlan& plan, ActorStore<MaxActors>& sto
 /// slot del actor de `intents[i]`, para asociar después los `SpriteSlot` con su actor.
 /// Devuelve cuántas escribió, o 0 si no caben en `capacity` (rechazo controlado).
 template <eng::u16 MaxActors>
-inline eng::u16 build_sprite_intents(const ActorStore<MaxActors>& store, const ActorId* order,
-				     eng::u16 count, const ActorEmitContext& ctx,
-				     SpriteIntent* intents, eng::u16* intent_actor,
-				     eng::u16 capacity) {
-	if (intents == nullptr || intent_actor == nullptr || count > capacity) {
+inline eng::u16 build_sprite_intents(const ActorStore<MaxActors>& store,
+				     eng::Span<const ActorId> order, const ActorEmitContext& ctx,
+				     eng::Span<SpriteIntent> intents,
+				     eng::Span<eng::u16> intent_actor) {
+	const eng::u16 count = static_cast<eng::u16>(order.size());
+	if (intents.empty() || intent_actor.empty() || order.size() > intents.size() ||
+	    order.size() > intent_actor.size()) {
 		return 0u;
 	}
 	eng::u16 n = 0;
 	for (eng::u16 i = 0; i < count; ++i) {
-		const Actor* a = store.get(order[i]);
-		if (a == nullptr) {
+		const auto a = store.get(order[i]);
+		if (!a.valid()) {
 			return 0u;
 		}
 		const Frame f = actor_current_frame(*a);
@@ -368,9 +370,11 @@ inline eng::u16 build_sprite_intents(const ActorStore<MaxActors>& store, const A
 /// camino de sprite). Devuelve cuántos emitió; 0 si algún actor devuelve `Full`.
 template <eng::u16 MaxActors>
 inline eng::u16 emit_bob_fallbacks(FramePlan& plan, ActorStore<MaxActors>& store,
-				   const eng::u16* intent_actor, const SpriteSlot* slots,
-				   eng::u16 count, const ActorEmitContext& ctx) {
-	if (intent_actor == nullptr || slots == nullptr) {
+				   eng::Span<const eng::u16> intent_actor,
+				   eng::Span<const SpriteSlot> slots, eng::u16 count,
+				   const ActorEmitContext& ctx) {
+	if (intent_actor.empty() || slots.empty() || count > intent_actor.size() ||
+	    count > slots.size()) {
 		return 0u;
 	}
 	eng::util::StaticVector<eng::u16, MaxActors> fallback;
@@ -395,8 +399,8 @@ inline eng::u16 emit_bob_fallbacks(FramePlan& plan, ActorStore<MaxActors>& store
 	}
 	eng::u16 emitted = 0;
 	for (eng::u16 i = 0; i < nf; ++i) {
-		Actor* a = store.get(store.id_at(fallback[i]));
-		if (a == nullptr) {
+		auto a = store.get(store.id_at(fallback[i]));
+		if (!a.valid()) {
 			return 0u;
 		}
 		const ActorEmitStatus st = actor_emit(plan, *a, ctx);

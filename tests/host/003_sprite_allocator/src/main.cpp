@@ -55,7 +55,7 @@ void test_vertical_multiplexing() {
 	};
 	SpriteSlot slots[6] {};
 
-	const eng::u8 in_hw = SpriteAllocator{}.assign(intents, 6, slots);
+	const eng::u8 in_hw = SpriteAllocator{}.assign({intents, 6}, slots);
 	CHECK(in_hw == 6u);
 	// Sin solape vertical, el first-fit los apila todos en el canal 0.
 	for (int i = 0; i < 6; ++i) {
@@ -72,7 +72,7 @@ void test_horizontal_overflow() {
 	for (int i = 0; i < 9; ++i) intents[i] = make_intent(50, 80);
 	SpriteSlot slots[9] {};
 
-	const eng::u8 in_hw = SpriteAllocator{}.assign(intents, 9, slots);
+	const eng::u8 in_hw = SpriteAllocator{}.assign({intents, 9}, slots);
 	CHECK(in_hw == 8u);
 	// Los 8 primeros ocupan canales distintos; el noveno desborda a BOB.
 	for (int i = 0; i < 8; ++i) {
@@ -92,7 +92,7 @@ void test_mixed_reuse() {
 	};
 	SpriteSlot slots[6] {};
 
-	const eng::u8 in_hw = SpriteAllocator{}.assign(intents, 6, slots);
+	const eng::u8 in_hw = SpriteAllocator{}.assign({intents, 6}, slots);
 	CHECK(in_hw == 6u);
 	// Primer grupo ocupa canales 0,1,2; el segundo los reutiliza (no solapa).
 	for (int i = 0; i < 3; ++i) CHECK(slots[i].channel == static_cast<eng::u8>(i));
@@ -108,7 +108,7 @@ void test_no_overflow_boundary() {
 	SpriteIntent intents[2] { make_intent(40, 63), make_intent(64, 87) };
 	SpriteSlot slots[2] {};
 
-	const eng::u8 in_hw = SpriteAllocator{}.assign(intents, 2, slots);
+	const eng::u8 in_hw = SpriteAllocator{}.assign({intents, 2}, slots);
 	CHECK(in_hw == 2u);
 	CHECK(slots[0].channel == slots[1].channel);
 }
@@ -126,7 +126,7 @@ void test_horizontal_strip() {
 	}
 	SpriteSlot slots[3] {};
 
-	const eng::u8 in_hw = SpriteAllocator{}.assign(intents, 3, slots);
+	const eng::u8 in_hw = SpriteAllocator{}.assign({intents, 3}, slots);
 	CHECK(in_hw == 3u);
 	CHECK(!slots[0].as_bob && !slots[1].as_bob && !slots[2].as_bob);
 	CHECK(slots[0].channel == 0u && slots[1].channel == 1u && slots[2].channel == 2u);
@@ -148,7 +148,7 @@ void test_strip_starts_after_busy_channel() {
 	intents[2].strip_span = 2u;
 	SpriteSlot slots[3] {};
 
-	const eng::u8 in_hw = SpriteAllocator{}.assign(intents, 3, slots);
+	const eng::u8 in_hw = SpriteAllocator{}.assign({intents, 3}, slots);
 	CHECK(in_hw == 3u);
 	CHECK(slots[0].channel == 0u);
 	CHECK(slots[1].channel == 1u && slots[2].channel == 2u);
@@ -168,7 +168,7 @@ void test_strip_overflow_to_bob() {
 	}
 	SpriteSlot slots[9] {};
 
-	const eng::u8 in_hw = SpriteAllocator{}.assign(intents, 9, slots);
+	const eng::u8 in_hw = SpriteAllocator{}.assign({intents, 9}, slots);
 	CHECK(in_hw == 6u);
 	CHECK(slots[6].as_bob && slots[7].as_bob && slots[8].as_bob);
 }
@@ -188,7 +188,7 @@ void test_strip_bad_order_rejected() {
 	intents[1].strip_span = 2u;
 	SpriteSlot slots[2] {};
 
-	const eng::u8 in_hw = SpriteAllocator{}.assign(intents, 2, slots);
+	const eng::u8 in_hw = SpriteAllocator{}.assign({intents, 2}, slots);
 	CHECK(in_hw == 0u);
 	CHECK(slots[0].as_bob && slots[1].as_bob);
 }
@@ -202,7 +202,7 @@ void test_attached_pair() {
 	intents[1] = make_intent(40, 80);
 	intents[1].attach = true;
 	SpriteSlot slots[2] {};
-	const eng::u8 in_hw = SpriteAllocator{}.assign(intents, 2, slots);
+	const eng::u8 in_hw = SpriteAllocator{}.assign({intents, 2}, slots);
 	CHECK(in_hw == 2u);
 	CHECK(!slots[0].as_bob && !slots[1].as_bob);
 	CHECK(slots[0].channel % 2u == 0u);
@@ -215,7 +215,7 @@ void test_attached_pair() {
 	intents2[2] = make_intent(0, 200);
 	intents2[2].attach = true;
 	SpriteSlot slots2[3] {};
-	const eng::u8 hw2 = SpriteAllocator{}.assign(intents2, 3, slots2);
+	const eng::u8 hw2 = SpriteAllocator{}.assign({intents2, 3}, slots2);
 	CHECK(hw2 == 3u);
 	CHECK(slots2[0].channel == 0u);
 	CHECK(slots2[1].channel == 2u && slots2[2].channel == 3u);
@@ -227,7 +227,7 @@ void test_attached_pair() {
 	intents3[9] = make_intent(0, 200);
 	intents3[9].attach = true;
 	SpriteSlot slots3[10] {};
-	const eng::u8 hw3 = SpriteAllocator{}.assign(intents3, 10, slots3);
+	const eng::u8 hw3 = SpriteAllocator{}.assign({intents3, 10}, slots3);
 	CHECK(hw3 == 8u);
 	CHECK(slots3[8].as_bob && slots3[9].as_bob);
 }
@@ -244,7 +244,7 @@ void test_aga_wide_sprite() {
 	intents[1].width_words = 1u;
 	SpriteSlot slots[2] {};
 
-	const eng::u8 in_hw = SpriteAllocator{}.assign(intents, 2, slots);
+	const eng::u8 in_hw = SpriteAllocator{}.assign({intents, 2}, slots);
 	CHECK(in_hw == 2u);
 	CHECK(!slots[0].as_bob && slots[0].channel == 0u);
 	CHECK(!slots[1].as_bob && slots[1].channel == 0u); // reusa el canal (no solapan)

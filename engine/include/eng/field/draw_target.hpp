@@ -37,10 +37,11 @@ public:
 
 	[[nodiscard]] Surface& surface() noexcept { return m_surface; }
 	[[nodiscard]] const Surface& surface() const noexcept { return m_surface; }
-	[[nodiscard]] graphics::FramePlan* plan() const noexcept { return m_plan.get(); }
-	/// Rasterizador efectivo del destino (el del playfield o el CPU por defecto).
-	[[nodiscard]] Rasterizer* rasterizer() const noexcept {
-		return m_rasterizer.valid() ? m_rasterizer.get() : &kCpuRaster;
+	[[nodiscard]] eng::Ref<graphics::FramePlan> plan() const noexcept { return m_plan; }
+	/// Rasterizador efectivo del destino (el del playfield o el CPU por defecto; nunca nulo).
+	[[nodiscard]] eng::NonNull<Rasterizer> rasterizer() const noexcept {
+		return m_rasterizer.valid() ? eng::NonNull<Rasterizer>(*m_rasterizer)
+					    : eng::NonNull<Rasterizer>(kCpuRaster);
 	}
 	[[nodiscard]] bool valid() const noexcept { return m_surface.valid(); }
 
@@ -53,7 +54,7 @@ public:
 	}
 	bool line(eng::s16 x0, eng::s16 y0, eng::s16 x1, eng::s16 y1, eng::u8 color,
 		  RasterOp op = RasterOp::Copy) {
-		return m_surface.draw_line(x0, y0, x1, y1, color, m_plan.get(), op);
+		return m_surface.draw_line(x0, y0, x1, y1, color, m_plan, op);
 	}
 	/// Marco de 1 px alrededor de `b` (4 líneas).
 	bool frame(eng::Box b, eng::u8 color) {
@@ -82,9 +83,9 @@ public:
 	/// llegaba al display). Sin `plan`, o fuera de 4 planos, se cae al CPU del playfield.
 	bool c2p(const C2pRequest& req) {
 		if (m_plan.valid()) {
-			return eng::field::kBlitterRaster.c2p(req, m_plan.get());
+			return eng::field::kBlitterRaster.c2p(req, m_plan);
 		}
-		return rasterizer()->c2p(req, nullptr);
+		return rasterizer()->c2p(req, {});
 	}
 
 private:

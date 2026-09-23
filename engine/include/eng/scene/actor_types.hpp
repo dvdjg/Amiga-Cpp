@@ -22,6 +22,7 @@
 /// (almacén generacional, políticas, geometría, jobs de fondo/dibujo y Copper anclado).
 /// **NO VERIFICADA por demo**: todavía no hay una demo con gate visual que lo consuma.
 
+#include <eng/core/ptr.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/core/util/array.hpp>
@@ -156,7 +157,7 @@ constexpr BackgroundPolicy resolve_background(BackgroundPolicy policy, eng::u16 
 /// Descripción que aporta la aplicación (sin mecanismo ni registros).
 struct ActorDesc {
 	Visual visual {};
-	const Animation* animation = nullptr; ///< opcional; sin ella el frame es el Visual
+	eng::Ref<const Animation> animation {}; ///< opcional; sin ella el frame es el Visual
 	eng::s16 x = 0;                       ///< posición de mundo del ANCLA
 	eng::s16 y = 0;
 	/// Superficie de la composición donde se dibuja (índice en `ActorEmitContext::targets`):
@@ -221,7 +222,7 @@ inline Bob bob_from_visual(const Visual& v, BobLayout layout, TransparencyMode t
 
 /// Frame vigente: el de la animación, o el Visual completo si no hay animación.
 constexpr Frame actor_current_frame(const Actor& a) {
-	if (a.desc.animation != nullptr && !a.desc.animation->frames.empty()) {
+	if (a.desc.animation.valid() && !a.desc.animation->frames.empty()) {
 		return a.desc.animation->current(a.anim);
 	}
 	return Frame {0u, 0u, a.desc.visual.w, a.desc.visual.h, 1u, 0u};
@@ -230,7 +231,7 @@ constexpr Frame actor_current_frame(const Actor& a) {
 /// Avanza la animación `game_ticks` ticks de juego aplicando la velocidad del actor.
 /// Devuelve true si cambió el frame. Sin división: acumulador + resta.
 inline bool actor_tick(Actor& a, eng::u16 game_ticks) {
-	if (a.desc.animation == nullptr) {
+	if (!a.desc.animation.valid()) {
 		return false;
 	}
 	const eng::u16 num = a.desc.anim_rate_num != 0u ? a.desc.anim_rate_num : 1u;
@@ -297,8 +298,7 @@ enum class ActorEmitStatus : eng::u8 {
 struct ActorEmitContext {
 	/// Superficies de dibujo de la composición, indexadas por `ActorDesc::surface`
 	/// (p. ej. [0] = PF1/BG, [1] = PF2/FG en un DPF; o un único bitmap suelto).
-	const BobTarget* targets = nullptr;
-	eng::u8 target_count = 0;
+	eng::Span<const BobTarget> targets {};
 	DirtyRect clip {};            ///< ventana visible; si es inválida, no se recorta
 	eng::s16 cam_x = 0;
 	eng::s16 cam_y = 0;

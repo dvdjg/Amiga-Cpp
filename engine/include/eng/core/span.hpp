@@ -49,16 +49,6 @@ namespace detail {
 	__builtin_trap();
 }
 
-/// `is_same` minimo: evita arrastrar `core/util/type_traits.hpp` a esta cabecera base.
-template <typename A, typename B>
-struct same {
-	static constexpr bool value = false;
-};
-template <typename A>
-struct same<A, A> {
-	static constexpr bool value = true;
-};
-
 } // namespace detail
 
 /// Vista no propietaria de un rango contiguo de `T`.

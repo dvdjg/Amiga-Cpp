@@ -182,8 +182,7 @@ private:
 	/// Compone los sprites del frame y vuelca los que caben al `SpriteManager`.
 	bool compose() {
 		scene::ActorEmitContext ctx {};
-		ctx.targets = nullptr; // sin destino de BOB en esta demo (ver cabecera)
-		ctx.target_count = 0u;
+		// sin destino de BOB en esta demo (`ctx.targets` vacío; ver cabecera)
 		ctx.cam_x = 0;
 		ctx.cam_y = 0;
 		ctx.buffer = 0u;
@@ -195,8 +194,6 @@ private:
 		sc.intent_actor = m_intent_actor;
 		sc.slots = m_slots;
 		sc.placements = m_placements;
-		sc.capacity = kActors;
-		sc.placement_capacity = kActors;
 
 		m_frame_plan.clear();
 		const scene::SpriteComposeResult res =

@@ -25,6 +25,7 @@
 /// `/RDY`(5), `/TK0`(4). Ficha: `docs/reference/emulators/winuae/trackdisk.md`.
 
 #include <eng/core/span.hpp>
+#include <eng/core/ptr.hpp>
 #include <eng/core/types.hpp>
 
 namespace eng::os {
@@ -133,8 +134,8 @@ namespace detail {
 /// (`format != 0xFF`) o, con `verify_checksums`, los checksums hck/dck no cuadran. Si
 /// `out_header` no es nulo, deja la cabecera encontrada. `track.size()` debe cubrir una pista.
 [[nodiscard]] inline bool floppy_find_sector(eng::Span<const eng::u16> track,
-					     eng::u8 want_sector, eng::Span<eng::u8> dst,
-					     FloppySectorHeader* out_header = nullptr,
+					     eng::u8 want_sector, 					     eng::Span<eng::u8> dst,
+					     eng::Ref<FloppySectorHeader> out_header = {},
 					     bool verify_checksums = false) noexcept {
 	if (dst.size() < kSectorBytes || track.size() < 4u) {
 		return false;
@@ -174,7 +175,7 @@ namespace detail {
 			dst[o + 2u] = static_cast<eng::u8>(v >> 8u);
 			dst[o + 3u] = static_cast<eng::u8>(v);
 		}
-		if (out_header != nullptr) {
+		if (out_header.valid()) {
 			*out_header = sh;
 		}
 		return true;

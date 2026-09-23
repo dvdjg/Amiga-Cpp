@@ -20,15 +20,12 @@ struct SpriteComposeResult {
 
 /// Buffers del llamador para `compose_sprites` (capacidad fija, sin heap).
 struct SpriteComposeScratch {
-	ActorId* order = nullptr;              ///< capacidad = `capacity`
-	SpriteIntent* intents = nullptr;       ///< capacidad = `capacity`
-	eng::u16* intent_actor = nullptr;      ///< capacidad = `capacity`
-	SpriteSlot* slots = nullptr;           ///< capacidad = `capacity`
-	SpritePlacement* placements = nullptr; ///< capacidad = `placement_capacity`
-	CopperIntent* copper = nullptr;        ///< capacidad = `copper_capacity`
-	eng::u16 capacity = 0;                 ///< actores que caben en los buffers
-	eng::u16 placement_capacity = 0;
-	eng::u16 copper_capacity = 0;
+	eng::Span<ActorId> order {};           ///< orden de emisión (tamaño = aforo)
+	eng::Span<SpriteIntent> intents {};    ///< una intención por actor
+	eng::Span<eng::u16> intent_actor {};   ///< slot del actor de `intents[i]`
+	eng::Span<SpriteSlot> slots {};        ///< canales asignados por el allocator
+	eng::Span<SpritePlacement> placements {}; ///< sprites publicados
+	eng::Span<CopperIntent> copper {};     ///< intenciones de Copper ancladas
 };
 
 /// Compone los sprites del frame a partir de los actores:
@@ -48,52 +45,50 @@ template <eng::u16 MaxActors>
 inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors>& store,
 					   const ActorEmitContext& ctx, eng::u16 display_top,
 					   SpriteComposeScratch& s,
-					   Plan* copper_plan = nullptr) {
+					   eng::Ref<Plan> copper_plan = {}) {
 	SpriteComposeResult r {};
 	if (store.count() == 0u) {
 		r.ok = true; // nada que componer
 		return r;
 	}
-	if (s.order == nullptr || s.intents == nullptr || s.intent_actor == nullptr ||
-	    s.slots == nullptr || s.placements == nullptr || s.capacity == 0u ||
-	    s.placement_capacity == 0u) {
+	if (s.order.empty() || s.intents.empty() || s.intent_actor.empty() ||
+	    s.slots.empty() || s.placements.empty()) {
 		return r;
 	}
-	const eng::u16 n = plan_actor_order(store, s.order, s.capacity);
+	const eng::u16 n = plan_actor_order(store, s.order);
 	if (n == 0u) {
 		return r; // no caben en el buffer del llamador
 	}
-	if (build_sprite_intents(store, s.order, n, ctx, s.intents, s.intent_actor, s.capacity) != n) {
+	if (build_sprite_intents(store, s.order.first(n), ctx, s.intents, s.intent_actor) != n) {
 		return r;
 	}
-	SpriteAllocator{}.assign(s.intents, static_cast<eng::u8>(n), s.slots);
+	SpriteAllocator{}.assign(s.intents.first(n), s.slots);
 
 	for (eng::u16 i = 0; i < n; ++i) {
-		Actor* a = store.get(store.id_at(s.intent_actor[i]));
-		if (a == nullptr) {
+		auto a = store.get(store.id_at(s.intent_actor[i]));
+		if (!a.valid()) {
 			return r;
 		}
 		const Frame f = actor_current_frame(*a);
 		const DirtyRect rect = actor_screen_rect(*a, f, ctx.cam_x, ctx.cam_y);
-		if (copper_plan != nullptr) {
+		if (copper_plan.valid()) {
 			// Al Plan, con la prioridad (superficie, z) del actor: activa la fusion de
 			// conflictos en la misma linea.
 			r.copper = static_cast<eng::u16>(
 				r.copper + actor_add_copper(*copper_plan, *a, rect.top, display_top));
 		} else {
-			const eng::u16 room = s.copper_capacity > r.copper
-						      ? static_cast<eng::u16>(s.copper_capacity - r.copper)
-						      : 0u;
+			const eng::usize room = s.copper.size() > r.copper
+							? s.copper.size() - r.copper
+							: 0u;
 			r.copper = static_cast<eng::u16>(
 				r.copper + actor_emit_copper(*a, rect.top, display_top,
-							     s.copper != nullptr ? s.copper + r.copper : nullptr,
-							     static_cast<eng::u8>(room > 255u ? 255u : room)));
+							     s.copper.subspan(r.copper, room)));
 		}
 		if (s.slots[i].as_bob) {
 			++r.degraded;
 			continue;
 		}
-		if (r.sprites >= s.placement_capacity) {
+		if (r.sprites >= s.placements.size()) {
 			return r; // sin sitio para publicar el sprite
 		}
 		SpritePlacement& p = s.placements[r.sprites];

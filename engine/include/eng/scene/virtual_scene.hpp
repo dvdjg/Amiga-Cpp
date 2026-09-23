@@ -18,6 +18,7 @@
 /// - mantiene los detalles OCS fuera de esta capa, aunque deja pistas para que el
 ///   driver Amiga sepa si debe preparar margenes, doble buffer o scroll fino.
 
+#include <eng/core/ptr.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/graphics/tilemap/tile_scroll.hpp>
@@ -201,13 +202,13 @@ struct TileScrollStrategy {
 /// trabajos `FramePlan::add_tile_block_copy` y, mas adelante, cambios de Copper.
 struct TileLayer {
 	const char* id = nullptr;
-	graphics::tilemap::TileMap16* map = nullptr;
+	eng::Ref<graphics::tilemap::TileMap16> map {}; ///< mapa observado (no propietario)
 	TileScrollStrategy strategy {};
 	u8 target_buffer = 0;
 	u8 priority = 0;
 
 	constexpr bool ok() const {
-		return id != nullptr && map != nullptr && map->ok();
+		return id != nullptr && map.valid() && map->ok();
 	}
 };
 
@@ -218,7 +219,7 @@ struct TileLayer {
 /// queda descompuesto el scroll. Asi se puede probar en C++ puro antes de tocar
 /// hardware.
 struct TileLayerFrame {
-	const TileLayer* layer = nullptr;
+	eng::Ref<const TileLayer> layer {};
 	graphics::tilemap::TileScrollFrame scroll {};
 };
 
@@ -284,8 +285,8 @@ public:
 				layer.strategy.margin_tiles_y
 			);
 
-			TileLayerFrame& layer_frame = frame.tile_layers[frame.tile_layer_count++];
-			layer_frame.layer = &layer;
+		TileLayerFrame& layer_frame = frame.tile_layers[frame.tile_layer_count++];
+		layer_frame.layer = layer;
 			layer_frame.scroll = layer.map->prepare_frame(
 				m_camera.scroll_position(),
 				visible_tiles_x,

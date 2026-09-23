@@ -8,6 +8,7 @@
 /// El reloj E del CIA es ≈ 709379 Hz (PAL) / 715909 Hz (NTSC) → ~1,4 µs por tick. Las conversiones
 /// usan kHz enteros (`709`/`715`) para **no arrastrar `__mulsi3`/`__udivdi3`** en el 68000.
 
+#include <eng/core/ptr.hpp>
 #include <eng/core/types.hpp>
 
 namespace eng::os {
@@ -40,10 +41,10 @@ struct TickSource {
 
 /// Mide un tramo con una `TickSource`.
 struct ScopedTimer {
-	const TickSource* src = nullptr;
+	eng::Ref<const TickSource> src {};
 	eng::u32 t0 = 0u;
 
-	explicit ScopedTimer(const TickSource& s) noexcept : src(&s), t0(s.ticks()) {}
+	explicit ScopedTimer(const TickSource& s) noexcept : src(s), t0(s.ticks()) {}
 
 	[[nodiscard]] eng::u32 elapsed_ticks() const noexcept { return src->ticks() - t0; }
 	[[nodiscard]] eng::u32 elapsed_us() const noexcept { return ticks_to_us(elapsed_ticks()); }

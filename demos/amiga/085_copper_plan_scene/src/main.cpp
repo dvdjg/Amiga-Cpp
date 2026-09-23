@@ -127,7 +127,7 @@ struct CopperPlanDemo {
 		// Cielo: degradado por banda generado por el efecto (claves `kSky`, cíclico).
 		m_sky.configure({kFirstLine, kSkyBandHeight, kSkyBands, 0u});
 		m_sky.set_cyclic(true);
-		m_sky.set_keys(eng::Span<const eng::u16> {kSky, 16u});
+		m_sky.set_keys(kSky);
 		build_shape();         // prerenderiza el disco (8 variantes de offset sub-byte)
 		draw_bob(0u);          // primer frame en el bitmap 0
 		if (!build_frame(0u)) {
@@ -174,7 +174,7 @@ private:
 	void add_sky_intents() {
 		m_sky.set_phase(m_sky_phase);
 		const eng::u16 room = static_cast<eng::u16>(copper::Plan::max_intents - m_n);
-		m_n = static_cast<eng::u16>(m_n + m_sky.fill_intents(&m_intents[m_n], room));
+		m_n = static_cast<eng::u16>(m_n + m_sky.fill_intents({m_intents + m_n, room}));
 	}
 
 	/// BOB: comunica su necesidad a la escena — su degradado (COLOR01) viaja con su Y con

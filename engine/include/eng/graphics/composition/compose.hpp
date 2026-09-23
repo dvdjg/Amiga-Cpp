@@ -290,7 +290,8 @@ public:
 	/// **Chunky→planar** a través del rasterizador de la escena: con `BlitterRaster` y
 	/// un `plan` encola un `BlitJobKind::C2P` (el backend ejecuta las 13 fases); con el
 	/// rasterizador CPU convierte ya sin usar `plan`.
-	[[nodiscard]] bool c2p(const field::C2pRequest& req, graphics::FramePlan* plan = nullptr) {
+	[[nodiscard]] bool c2p(const field::C2pRequest& req,
+			       eng::Ref<graphics::FramePlan> plan = {}) {
 		return draw_target(plan).c2p(req);
 	}
 

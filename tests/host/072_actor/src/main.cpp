@@ -135,7 +135,6 @@ void use_targets(ActorEmitContext& ctx) {
 	g_targets[1] = make_target();
 	g_targets[1].base = g_screen + kPlaneBytes; // "otro" playfield
 	ctx.targets = g_targets;
-	ctx.target_count = 2u;
 }
 
 int fails = 0;
@@ -157,7 +156,7 @@ void test_store() {
 	const ActorId a = store.add(make_desc(), alloc);
 	CHECK(a.valid(), "alta valida");
 	CHECK(store.count() == 1u, "cuenta tras alta");
-	CHECK(store.get(a) != nullptr, "get del id valido");
+	CHECK(store.get(a).valid(), "get del id valido");
 	CHECK(store.get(a)->actual == Representation::Sprite, "16x8 cabe como sprite");
 
 	const ActorId b = store.add(make_desc(), alloc);
@@ -169,15 +168,15 @@ void test_store() {
 	CHECK(!extra.valid(), "sin capacidad devuelve id invalido");
 
 	CHECK(store.remove(b), "baja valida");
-	CHECK(store.get(b) == nullptr, "id dado de baja no resuelve");
+	CHECK(!store.get(b).valid(), "id dado de baja no resuelve");
 	CHECK(store.count() == 3u, "cuenta tras baja");
 
 	const ActorId e = store.add(make_desc(), alloc);
 	CHECK(e.valid(), "alta recicla slot");
 	CHECK(e.index == b.index, "recicla el mismo slot");
 	CHECK(e.generation != b.generation, "generacion nueva");
-	CHECK(store.get(b) == nullptr, "id viejo sigue invalido");
-	CHECK(store.get(e) != nullptr, "id nuevo valido");
+	CHECK(!store.get(b).valid(), "id viejo sigue invalido");
+	CHECK(store.get(e).valid(), "id nuevo valido");
 
 	CHECK(!store.remove(ActorId {0xffffu, 0u}), "baja de id invalido");
 
@@ -214,7 +213,7 @@ void test_geometry() {
 	RepresentationAllocator alloc {};
 	alloc.reset(RepresentationBudget {8u, 10000u, 0u});
 	const ActorId id = store.add(make_desc(), alloc);
-	const Actor* a = store.get(id);
+	auto a = store.get(id);
 
 	CHECK(a->bob.draw == eng::graphics::BobDraw::CookieCut, "bob draw segun transparencia");
 	CHECK(a->bob.mask != nullptr, "bob con mascara");
@@ -242,7 +241,7 @@ void test_animation_speed() {
 	d.anim_rate_num = 1u;
 	d.anim_rate_den = 2u; // media velocidad
 	const ActorId id = store.add(d, alloc);
-	Actor* a = store.get(id);
+	auto a = store.get(id);
 
 	CHECK(!eng::scene::actor_tick(*a, 1u), "sin llegar al medio tick no avanza");
 	CHECK(a->anim.index == 0u, "sigue en el frame 0");
@@ -258,7 +257,7 @@ void test_emit_clear() {
 	RepresentationAllocator alloc {};
 	alloc.reset(RepresentationBudget {8u, 10000u, 0u});
 	const ActorId id = store.add(make_desc(), alloc);
-	Actor* a = store.get(id);
+	auto a = store.get(id);
 	a->prev[0] = DirtyRect {10, 20, 26, 28}; // caja previa (16x8)
 
 	FramePlan plan {};
@@ -305,7 +304,7 @@ void test_emit_frame_offset() {
 	RepresentationAllocator alloc {};
 	alloc.reset(RepresentationBudget {8u, 10000u, 0u});
 	const ActorId id = store.add(make_desc(), alloc);
-	Actor* a = store.get(id);
+	auto a = store.get(id);
 	eng::scene::actor_tick(*a, 1u); // pasa al frame 1 (x = 16 en la hoja)
 
 	FramePlan plan {};
@@ -327,7 +326,7 @@ void test_emit_clipped_and_full() {
 	RepresentationAllocator alloc {};
 	alloc.reset(RepresentationBudget {8u, 10000u, 0u});
 	const ActorId id = store.add(make_desc(), alloc);
-	Actor* a = store.get(id);
+	auto a = store.get(id);
 
 	FramePlan plan {};
 	plan.clear();
@@ -355,7 +354,7 @@ void test_emit_clipped_and_full() {
 	RepresentationAllocator alloc2 {};
 	alloc2.reset(RepresentationBudget {8u, 10000u, 0u});
 	const ActorId id2 = store2.add(lejos, alloc2);
-	Actor* a2 = store2.get(id2);
+	auto a2 = store2.get(id2);
 	FramePlan plan2 {};
 	plan2.clear();
 	CHECK(eng::scene::actor_emit(plan2, *a2, ctx) == ActorEmitStatus::Full, "surface fuera de rango");
@@ -373,7 +372,7 @@ void test_surface_selection_and_sprite_intent() {
 	d.z = 10u;
 	d.sprite_priority = 2u;
 	const ActorId id = store.add(d, alloc);
-	Actor* a = store.get(id);
+	auto a = store.get(id);
 
 	FramePlan plan {};
 	plan.clear();
@@ -409,7 +408,7 @@ void test_emit_save_under() {
 	d.save_words_per_row = 2u; // con desplazamiento fino el blit cubre 1 palabra extra
 	d.save_height = 8u;
 	const ActorId id = store.add(d, alloc);
-	Actor* a = store.get(id);
+	auto a = store.get(id);
 	a->prev[0] = DirtyRect {10, 20, 26, 28};
 
 	FramePlan plan {};
@@ -438,7 +437,7 @@ void test_emit_save_under() {
 	ActorStore<2> store2;
 	store2.reset();
 	const ActorId id2 = store2.add(sin_buffer, alloc);
-	Actor* a2 = store2.get(id2);
+	auto a2 = store2.get(id2);
 	FramePlan plan2 {};
 	plan2.clear();
 	CHECK(eng::scene::actor_emit(plan2, *a2, ctx) == ActorEmitStatus::Full, "sin buffer -> rechazo");
@@ -459,14 +458,14 @@ void test_copper_anchoring() {
 	ActorDesc d = make_desc();
 	d.copper = eng::Span<const CopperIntent> {needs, 2u};
 	const ActorId id = store.add(d, alloc);
-	const Actor* a = store.get(id);
+	auto a = store.get(id);
 
 	CopperIntent out[4] {};
-	const eng::u8 n = eng::scene::actor_emit_copper(*a, 33, 0x2cu, out, 4u);
+	const eng::u8 n = eng::scene::actor_emit_copper(*a, 33, 0x2cu, out);
 	CHECK(n == 2u, "dos intenciones de copper");
 	CHECK(out[0].top == 0x2cu + 33u && out[0].bottom == 0x2cu + 37u, "ancla relativa a absoluta (0..4)");
 	CHECK(out[1].top == 0x2cu + 37u && out[1].bottom == 0x2cu + 41u, "ancla relativa a absoluta (4..8)");
-	CHECK(eng::scene::actor_emit_copper(*a, 33, 0x2cu, out, 1u) == 1u, "respeta la capacidad");
+	CHECK(eng::scene::actor_emit_copper(*a, 33, 0x2cu, {out, 1u}) == 1u, "respeta la capacidad");
 }
 
 void test_emit_order_by_surface_and_z() {
@@ -493,7 +492,7 @@ void test_emit_order_by_surface_and_z() {
 	add(1u, 10u, 10);
 
 	ActorId order[8] {};
-	const eng::u16 n = eng::scene::plan_actor_order(store, order, 8u);
+	const eng::u16 n = eng::scene::plan_actor_order(store, order);
 	CHECK(n == 4u, "cuatro actores ordenados");
 	CHECK(store.at(order[0].index).desc.surface == 0u && store.at(order[0].index).desc.z == 50u,
 	      "1o: superficie 0, z 50");
@@ -508,7 +507,7 @@ void test_emit_order_by_surface_and_z() {
 	plan.clear();
 	ActorEmitContext ctx {};
 	use_targets(ctx);
-	const eng::u16 emitted = eng::scene::emit_actors_in_order(plan, store, ctx, order, 8u);
+	const eng::u16 emitted = eng::scene::emit_actors_in_order(plan, store, ctx, order);
 	CHECK(emitted == 4u, "se emiten los cuatro");
 	CHECK(plan.blit_job_count() == 4u, "un job por actor");
 	CHECK(plan.blit_job(0).destination.words ==
@@ -523,7 +522,7 @@ void test_emit_order_by_surface_and_z() {
 	      "job 3: superficie 1, z 200");
 
 	// El orden no cabe en el buffer del llamador: rechazo controlado.
-	CHECK(eng::scene::plan_actor_order(store, order, 2u) == 0u, "orden rechazado si no cabe");
+	CHECK(eng::scene::plan_actor_order(store, {order, 2u}) == 0u, "orden rechazado si no cabe");
 }
 
 void test_sprite_template_projection() {
@@ -606,12 +605,12 @@ void test_sprite_allocation_and_bob_fallback() {
 
 	SpriteIntent intents[12] {};
 	eng::u16 intent_actor[12] {};
-	CHECK(eng::scene::build_sprite_intents(store, order, n, ctx, intents, intent_actor, 12u) == 10u,
+	CHECK(eng::scene::build_sprite_intents(store, {order, n}, ctx, intents, intent_actor) == 10u,
 	      "una intencion por actor");
 	CHECK(intents[0].top == intents[9].top, "franja solapada: mismo top");
 
 	SpriteSlot slots[12] {};
-	const eng::u8 in_hw = SpriteAllocator{}.assign(intents, 10u, slots);
+	const eng::u8 in_hw = SpriteAllocator{}.assign({intents, 10u}, slots);
 	CHECK(in_hw == 8u, "ocho caben en hardware");
 	CHECK(slots[8].as_bob && slots[9].as_bob, "los dos ultimos de la intencion degradan");
 	CHECK(intent_actor[8] == 1u && intent_actor[9] == 0u, "degradan los slots 1 y 0");
@@ -628,7 +627,7 @@ void test_sprite_allocation_and_bob_fallback() {
 	      reinterpret_cast<const eng::u16*>(g_pixel_pool + 16u), "job 1: mayor z (slot 1)");
 
 	// Capacidad insuficiente para las intenciones: rechazo controlado.
-	CHECK(eng::scene::build_sprite_intents(store, order, n, ctx, intents, intent_actor, 4u) == 0u,
+	CHECK(eng::scene::build_sprite_intents(store, {order, n}, ctx, {intents, 4u}, intent_actor) == 0u,
 	      "intents rechazadas si no caben");
 }
 
@@ -675,10 +674,7 @@ void test_compose_sprites() {
 	sc.intent_actor = intent_actor;
 	sc.slots = slots;
 	sc.placements = placements;
-	sc.placement_capacity = 12u;
 	sc.copper = copper;
-	sc.copper_capacity = 16u;
-	sc.capacity = 12u;
 
 	const eng::scene::SpriteComposeResult res =
 		eng::scene::compose_sprites(plan, store, ctx, 0x2cu, sc);
@@ -729,8 +725,8 @@ void test_copper_priority_wiring() {
 	d.offset = {0, 0};
 	d.y = 100;
 	const ActorId id = store.add(d, alloc);
-	Actor* a = store.get(id);
-	CHECK(a != nullptr, "actor con necesidad de copper");
+	auto a = store.get(id);
+	CHECK(a.valid(), "actor con necesidad de copper");
 
 	plan.begin_frame();
 	CHECK(eng::scene::actor_add_copper(plan, *a, 100u, 0u) == 1u, "necesidad al Plan");
@@ -764,12 +760,10 @@ void test_copper_priority_wiring() {
 	sc.intent_actor = intent_actor;
 	sc.slots = slots;
 	sc.placements = placements;
-	sc.placement_capacity = 4u;
-	sc.capacity = 4u;
 	FramePlan frame {};
 	frame.clear();
 	const eng::scene::SpriteComposeResult res =
-		eng::scene::compose_sprites(frame, store, ctx, 0x00u, sc, &cplan);
+		eng::scene::compose_sprites(frame, store, ctx, 0x00u, sc, cplan);
 	CHECK(res.copper == 1u, "una necesidad enrutada");
 	CHECK(cplan.intent_count() == 1u, "el Plan la recibio con su prioridad");
 }

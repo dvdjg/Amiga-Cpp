@@ -263,8 +263,8 @@ struct BobObjectsDemo {
 		// Cada objeto se mueve dentro de su celda (los borrados por caja/save-under no
 		// deben invadir la caja de otro).
 		for (eng::u8 i = 0; i < kBobCount; ++i) {
-			scene::Actor* a = m_actors.get(m_ids[i]);
-			if (a == nullptr) {
+			auto a = m_actors.get(m_ids[i]);
+			if (!a.valid()) {
 				continue;
 			}
 			const eng::u16 col = static_cast<eng::u16>(i % kCols);
@@ -279,16 +279,15 @@ struct BobObjectsDemo {
 		m_blits.clear();
 		m_blits.set_blit_budget_limits({8192u, 16384u, 32u, 64u});
 		scene::ActorEmitContext ctx {};
-		ctx.targets = &m_target;
-		ctx.target_count = 1u;
+		ctx.targets = {&m_target, 1u};
 		ctx.clip = graphics::DirtyRect {0, 0, static_cast<eng::s16>(kWidth),
 						static_cast<eng::s16>(kHeight)};
 		ctx.buffer = 0u;
 
 		eng::u16 emitted = 0;
 		for (eng::u8 i = 0; i < kBobCount; ++i) {
-			scene::Actor* a = m_actors.get(m_ids[i]);
-			if (a == nullptr) {
+			auto a = m_actors.get(m_ids[i]);
+			if (!a.valid()) {
 				continue;
 			}
 			if (scene::actor_emit(m_blits, *a, ctx) == scene::ActorEmitStatus::Ok) {
@@ -452,8 +451,8 @@ private:
 		// Necesidades de cada objeto, con su (superficie, z).
 		ENG_PROF_BEGIN(kProfObjCopper);
 		for (eng::u8 i = 0; i < kBobCount; ++i) {
-			const scene::Actor* a = m_actors.get(m_ids[i]);
-			if (a == nullptr) {
+			const auto a = m_actors.get(m_ids[i]);
+			if (!a.valid()) {
 				continue;
 			}
 			const graphics::Frame f = scene::actor_current_frame(*a);

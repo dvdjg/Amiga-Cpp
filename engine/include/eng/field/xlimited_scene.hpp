@@ -211,8 +211,7 @@ struct XlimitedDualConfig {
     eng::u8 parallax_y_div = 1;       // 1 = comparte el split vertical
     // Raster colors opcionales (gradiente del color del patron de fondo). Orden
     // ASCENDENTE de linea. Requieren linear_display (sin split de Copper).
-    const eng::field::XlimitedDualComposer::ColorZone* color_zones = nullptr;
-    eng::u8 color_zone_count = 0;
+    eng::Span<const eng::field::XlimitedDualComposer::ColorZone> color_zones {};
 };
 
 /// Conductor de VALIDACIÓN (recorrido de las 8 direcciones del harness). Es un
@@ -313,8 +312,7 @@ struct XlimitedSceneConfigT {
     eng::PaletteWords palette {}; // 2^planes colores (single) o 16 (DPF: PF1 0..7, PF2 8..15)
     eng::u32 copper_bytes = 1536;
     // Raster colors del display single (en DPF se usan `dpf.color_zones`).
-    const eng::field::RasterColorZone* color_zones = nullptr;
-    eng::u8 color_zone_count = 0;
+    eng::Span<const eng::field::RasterColorZone> color_zones {};
 
     // --- Sprites hardware (a nivel de escena) ------------------------------
     eng::u32 sprite_data_bytes = 0;   // 0 = sin sprites; si > 0, reserva DATA Chip
@@ -485,19 +483,20 @@ public:
         const u16 diwstop = hud_zone
             ? xlimited_detail::diwstop_for_viewport(cfg.viewport_h)
             : xlimited_detail::diwstop_for_viewport(main_h);
-        const graphics::SpriteManager* sprites =
-            (cfg.sprite_data_bytes != 0) ? &m_sprites : nullptr;
+        const eng::Ref<const graphics::SpriteManager> sprites =
+            (cfg.sprite_data_bytes != 0) ? eng::Ref<const graphics::SpriteManager>(m_sprites)
+                                         : eng::Ref<const graphics::SpriteManager>();
         if (cfg.dpf.enabled) {
             if (!m_dual.init(memory, {cfg.palette, cfg.copper_bytes, cfg.planes,
                 cfg.dpf.foreground_is_pf2,
                 xlimited_detail::kDiwStrt, diwstop,
                 xlimited_detail::kDdfStrt, xlimited_detail::kDdfStop,
-                cfg.dpf.color_zones, cfg.dpf.color_zone_count})) return eng::util::unexpected(eng::Result::OutOfMemory);
+                cfg.dpf.color_zones})) return eng::util::unexpected(eng::Result::OutOfMemory);
         } else {
             if (!m_single.init(memory, {cfg.palette, cfg.copper_bytes, cfg.planes,
                 xlimited_detail::kDiwStrt, diwstop,
                 xlimited_detail::kDdfStrt, xlimited_detail::kDdfStop,
-                sprites, cfg.color_zones, cfg.color_zone_count})) return eng::util::unexpected(eng::Result::OutOfMemory);
+                sprites, cfg.color_zones})) return eng::util::unexpected(eng::Result::OutOfMemory);
         }
         if (cfg.sprite_data_bytes != 0) {
             if (!m_sprites.init(memory, cfg.sprite_data_bytes)) return eng::util::unexpected(eng::Result::OutOfMemory);

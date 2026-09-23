@@ -9,6 +9,7 @@
 /// cada índice lo escribe un solo lado. `signal` es OR-eado (barato desde la ISR); el consumidor
 /// drena la cola entera al despertar.
 
+#include <eng/core/ptr.hpp>
 #include <eng/core/types.hpp>
 #include <eng/os/message.hpp>
 
@@ -134,14 +135,14 @@ public:
 	}
 
 	/// Retira el de mayor prioridad disponible.
-	bool pop(Msg& out, MsgPrio* out_prio = nullptr) noexcept {
+	bool pop(Msg& out, eng::Ref<MsgPrio> out_prio = {}) noexcept {
 		for (eng::u8 i = kLevels; i-- > 0u;) {
 			if (m_tail[i] == m_head[i]) {
 				continue;
 			}
 			out = m_buf[i][m_tail[i]];
 			m_tail[i] = static_cast<eng::u16>((m_tail[i] + 1u) & (N - 1u));
-			if (out_prio != nullptr) {
+			if (out_prio.valid()) {
 				*out_prio = static_cast<MsgPrio>(i);
 			}
 			return true;
@@ -150,13 +151,13 @@ public:
 	}
 
 	/// Mira el de mayor prioridad sin retirarlo.
-	[[nodiscard]] bool peek(Msg& out, MsgPrio* out_prio = nullptr) const noexcept {
+	[[nodiscard]] bool peek(Msg& out, eng::Ref<MsgPrio> out_prio = {}) const noexcept {
 		for (eng::u8 i = kLevels; i-- > 0u;) {
 			if (m_tail[i] == m_head[i]) {
 				continue;
 			}
 			out = m_buf[i][m_tail[i]];
-			if (out_prio != nullptr) {
+			if (out_prio.valid()) {
 				*out_prio = static_cast<MsgPrio>(i);
 			}
 			return true;
