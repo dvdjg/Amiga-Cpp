@@ -8,3 +8,4 @@
 # Una ruta por linea (relativa a la raiz del repo); `#` inicia comentario.
 docs/debugging
 docs/reference/emulators
+docs/reference/toolchain

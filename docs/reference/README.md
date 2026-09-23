@@ -17,6 +17,8 @@ reference/
 ├── megadrive/         → (futuro) hardware y técnicas Megadrive
 ├── ahrm/              → AHRM 3.ª edición (texto) + índice navegable
 ├── amc-wrobel/        → curso Amiga Machine Code (Mark Wrobel)
+├── emulators/         → rarezas del emulador (fuente, `fichero:línea`)
+├── toolchain/         → defectos del compilador/ensamblador (caso mínimo + re-verificación)
 └── amiga-authoritative-sources.md
 ```
 
@@ -30,6 +32,7 @@ reference/
 | [amiga/hardware/](amiga/hardware/README.md) | Conocimiento de bajo nivel del Amiga 500: DMA, copper, ABI 68000, loader, invariantes. |
 | [amiga/techniques/](amiga/techniques/README.md) | Fichas de técnicas de programación Amiga (módulos, dual playfield, copper chunky, audio, sprites…). |
 | [emulators/](emulators/README.md) | Hallazgos del **código fuente de los emuladores** (rarezas de comportamiento, con `fichero:línea`): `winuae/` (colisión de sprites, sprite DMA, copper, disco, IRQ de audio). |
+| [toolchain/](toolchain/README.md) | **Defectos del compilador/ensamblador** con **caso mínimo** y **re-verificación al actualizar** versión: `m68k-gcc.md` (ICE de CFI a `-O0`, libcalls en `-nostdlib`). |
 
 ## El AHRM
 

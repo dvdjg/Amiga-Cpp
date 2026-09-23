@@ -10,7 +10,7 @@
 /// que el llamador comparte entre las tres filas (como el `MULVERTEX` del original).
 /// El VALOR es idéntico al genérico (comprobado por HOST-053).
 
-#include <eng/core/affine.hpp>
+#include <eng/core/fixed_affine.hpp>
 #include <eng/retro/fixed_q.hpp>
 
 namespace eng::math {

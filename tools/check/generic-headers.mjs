@@ -23,7 +23,16 @@ const QUIET = process.argv.includes('--quiet');
 // Directorios/cabeceras exentas (implementación concreta o del propio escalar). `field/` es
 // la capa de dispositivo de display (playfield/surface = hardware Amiga), como `platform/`.
 const EXEMPT_DIR = [/(^|\/)(retro|platform|cpu|field)\//];
-const EXEMPT_FILE = [/fixed(_math)?\.hpp$/, /minifloat(_math)?\.hpp$/, /scalar\.hpp$/, /scalar_fwd\.hpp$/];
+// Exentas por fichero: el propio escalar (`fixed`/`minifloat` + su `_math`) y las cabeceras cuya
+// dependencia del escalar es EXPLÍCITA en el nombre (`fixed_affine`, etc.) o que son de conveniencia
+// (`scalar`, `scalar_fwd`). Ver AGENTS §1.10.
+const EXEMPT_FILE = [
+	/fixed(_math)?\.hpp$/,
+	/minifloat(_math)?\.hpp$/,
+	/fixed_.*\.hpp$/, // implementación específica de Fixed (nombre lo declara): fixed_affine, …
+	/scalar\.hpp$/,
+	/scalar_fwd\.hpp$/,
+];
 
 // Patrones de tipo concreto (en código, no en comentarios).
 const PATTERNS = [

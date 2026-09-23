@@ -82,8 +82,16 @@ const PATTERNS = [
 	['shift', /\b_*(__ashlsi3|__ashrsi3|__lshrsi3)\b/, 2],
 ];
 const ZEXT = /\band[il]?\.l\s+#255\b|\band[il]?\.w\s+#255\b|\band[il]?\.l\s+#65535\b/i;
-const KEYS = ['mul32', 'div32', 'mod32', 'float', 'shift', 'calls', 'zext'];
-const zero = () => ({ mul32: 0, div32: 0, mod32: 0, float: 0, shift: 0, calls: 0, zext: 0 });
+
+// **Instrucciones NO disponibles en un 68000/OCS** (68020+/FPU): si aparecen, el binario
+// se cuelga con excepción ilegal en un A500. Son la salvaguarda que sustituye a las libcalls
+// cuando el engine ya las evita (`u16`, `Fixed`, asm): sin esto, una "optimización" que meta
+// `muls.l`/`fmove`/`extb.l` pasaría desapercibida. `-M68000` del toolchain ya lo impide, pero
+// esto lo comprueba **en el binario** (por si viene de asm/incbin o de flags erróneos).
+const BAD020 = /\b(muls\.l|div[su]\.l|extb\.l|bfins|bfchg|bfclr|bfext|bfset|bftst|pack|unpk|cas\.l|cas2|chk2|cmp2|rtd|trapcc|fmove|fadd|fsub|fmul|fdiv|fneg|fabs|fsqrt|fint|fintrz|fcmp|fsgldiv|fsglmul|flogn|fetox|ftwotox|ftentox|fasin|facos|fatan|ftan|fgetexp|fgetman|fmod|frem|fscale|fsincos|fsin|fcos|fsincos|faddx|fsubx|fmulx|fdivx|fabs|fmovem|fmoved|fdbcc|fbf|fbeq|fbne|fbgt|fbge|fblt|fble|fbt|fbsf|fbra|fbsr|fjeq|fjne|fjgt|fjge|fjlt|fjle|fjt|fjsf)\b/i;
+
+const KEYS = ['mul32', 'div32', 'mod32', 'float', 'shift', 'calls', 'zext', 'bad020'];
+const zero = () => ({ mul32: 0, div32: 0, mod32: 0, float: 0, shift: 0, calls: 0, zext: 0, bad020: 0 });
 const scoreOf = (f) => f.mul32 * 3 + (f.div32 + f.mod32 + f.float) * 5 + f.shift * 2;
 
 function parseElf(elf) {
@@ -109,6 +117,7 @@ function parseElf(elf) {
 		for (const [key, re] of PATTERNS) if (re.test(line)) f[key]++;
 		if (/\b(jsr|jbsr|bsr)\b/.test(line)) f.calls++;
 		if (flags.has('--ext') && ZEXT.test(line)) f.zext++;
+		if (BAD020.test(line)) f.bad020++; // 68020+/FPU: cuelga en 68000/OCS
 	}
 	return { funcs, ignored };
 }
@@ -120,13 +129,13 @@ function printRows(rows, srcLabel) {
 		console.log('  (ninguna) — el hot path no llama a libgcc/soft-float: no hace falta asm por este motivo.');
 		return;
 	}
-	console.log('  peso  mul div mod flt shf  calls  funcion');
+	console.log('  peso  mul div mod flt shf  calls  b020  funcion');
 	for (const r of rows.slice(0, topN)) {
 		console.log(
-			`  ${String(r.score).padStart(4)}  ${String(r.mul32).padStart(3)} ${String(r.div32).padStart(3)} ${String(r.mod32).padStart(3)} ${String(r.float).padStart(3)} ${String(r.shift).padStart(3)}  ${String(r.calls).padStart(5)}  ${r.name}`);
+			`  ${String(r.score).padStart(4)}  ${String(r.mul32).padStart(3)} ${String(r.div32).padStart(3)} ${String(r.mod32).padStart(3)} ${String(r.float).padStart(3)} ${String(r.shift).padStart(3)}  ${String(r.calls).padStart(5)}  ${String(r.bad020).padStart(4)}  ${r.name}`);
 	}
 	const totals = {};
-	for (const r of rows) for (const k of ['mul32', 'div32', 'mod32', 'float', 'shift', 'zext']) if (r[k]) totals[k] = (totals[k] || 0) + r[k];
+	for (const r of rows) for (const k of ['mul32', 'div32', 'mod32', 'float', 'shift', 'zext', 'bad020']) if (r[k]) totals[k] = (totals[k] || 0) + r[k];
 	console.log('  TOTAL ' + (Object.entries(totals).map(([k, v]) => `${k}=${v}`).join(' ') || '(nada)'));
 }
 
@@ -136,18 +145,30 @@ if (flags.has('--all')) {
 	const elfs = findAllElfs(root);
 	const agg = new Map(); // name -> counts(max) + demos
 	let scanned = 0;
+	let bad020_total = 0;
+	const bad020_demos = new Set();
 	for (const e of elfs) {
 		const parsed = parseElf(e);
 		if (!parsed) continue;
 		scanned++;
 		const demo = path.basename(path.dirname(path.dirname(e)));
 		for (const [name, f] of parsed.funcs) {
+			if (f.bad020 > 0) {
+				bad020_total += f.bad020;
+				bad020_demos.add(demo);
+			}
 			if (scoreOf(f) <= 0) continue;
 			const cur = agg.get(name) || { ...zero(), demos: new Set() };
 			for (const k of KEYS) cur[k] = Math.max(cur[k], f[k]);
 			cur.demos.add(demo);
 			agg.set(name, cur);
 		}
+	}
+	// **Gate duro**: cualquier instruccion 68020+/FPU invalida el binario en 68000/OCS. Falla siempre.
+	if (bad020_total > 0) {
+		console.error(`FALLO: ${bad020_total} instruccion(es) 68020+/FPU en ${bad020_demos.size} demo(s): ${[...bad020_demos].join(', ')}`);
+		console.error('  (no corren en 68000/OCS; revisa flags del toolchain, asm o incbin)');
+		process.exit(1);
 	}
 	let rows = [...agg.entries()].map(([name, f]) => ({ name, ...f, score: scoreOf(f) }));
 	if (flags.has('--engine')) rows = rows.filter((r) => r.name.includes('eng::'));
@@ -180,6 +201,13 @@ if (flags.has('--json')) {
 	console.log(JSON.stringify({ elf, functions: rows, ignored: [...parsed.ignored] }, null, 2));
 } else {
 	printRows(rows, elf);
+}
+// **Instrucciones 68020+/FPU** = error SIEMPRE (no cabe en un A500/OCS): la salvaguarda que evita
+// que un "cuelgue por instrucción ilegal" se cuele cuando ya no hay libcalls que lo delaten.
+const badTotal = [...parsed.funcs.values()].reduce((s, f) => s + f.bad020, 0);
+if (badTotal > 0) {
+	console.error(`FALLO: ${badTotal} instruccion(es) no disponibles en 68000/OCS (68020+/FPU; ver columna b020).`);
+	process.exit(1);
 }
 if (flags.has('--strict') && rows.length > 0) {
 	console.error('FALLO --strict: hay llamadas a helpers caros (ver arriba).');
