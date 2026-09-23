@@ -1,4 +1,5 @@
 #include <eng/api/api.hpp>
+#include <eng/audio/pcm_stream.hpp>
 #include <eng/os/file.hpp>
 #include <eng/os/file_stream.hpp>
 #include <eng/os/os.hpp>
@@ -197,15 +198,27 @@ struct DemoGame {
 			if (h != 0u) {
 				m_stream_total = eng::os::file_size(h);
 				FileSource src {h};
-				eng::os::ChunkStream<kStreamBufs> stream;
+				// Composición M8: el feeder alimenta el `ChunkStream` del `PcmStream` con PCM crudo
+				// (`Codec::None`), es decir, lee del disquete y lo deja listo para reproducir.
+				eng::audio::PcmStream<kStreamBufs> stream;
+				const eng::u16 num_chunks = static_cast<eng::u16>(
+					(m_stream_total + kStreamChunk - 1u) / kStreamChunk);
+				const eng::audio::PcmStream<kStreamBufs>::Config pcfg {
+					8000u, static_cast<eng::u16>(kStreamChunk), num_chunks,
+					static_cast<eng::u8>(eng::audio::pcm_codec::Codec::None)};
+				const eng::Span<eng::u8> pbufs[kStreamBufs] = {
+					eng::Span<eng::u8> {m_stream_bufs, kStreamChunk},
+					eng::Span<eng::u8> {m_stream_bufs + kStreamChunk, kStreamChunk}};
+				stream.begin(pcfg, pbufs);
 				eng::os::FileChunkFeeder<kStreamBufs, FileSource> feeder;
-				feeder.init(stream, eng::Span<eng::u8> {m_stream_bufs, sizeof(m_stream_bufs)},
+				feeder.init(stream.state(),
+					    eng::Span<eng::u8> {m_stream_bufs, sizeof(m_stream_bufs)},
 					    kStreamChunk, m_stream_total, src);
 				feeder.pump();
 				bool error = false;
 				for (eng::u32 guard = 0u; guard < 100000u && !stream.eof() && !error; ++guard) {
 					// "Reproduce" (libera buffers) para dejar sitio al siguiente chunk.
-					if (stream.play_ready()) {
+					if (stream.state().play_ready()) {
 						(void)stream.advance();
 					}
 					// El backend resuelve la asíncrona como **diferida**: `file_pump`

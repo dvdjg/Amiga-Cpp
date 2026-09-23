@@ -60,23 +60,31 @@ char* append_u32(char* p, eng::u32 v) {
 }
 
 struct DemoGame {
+	// Etapa actual en `detail` (para localizar el cuelgue desde el runner si no llega a READY).
+	static void stage(eng::u32 code) { g_eng_run_status.detail = code; }
+
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
+		stage(0x214001u);
 		if (!backend.configure_memory({ 48u * 1024u, 8u * 1024u, 4u * 1024u })) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021401u);
 			return;
 		}
+		stage(0x214002u);
 		const eng::MemoryBlock mb = backend.memory().chip.allocate(kTrackBytes, 2u);
 		if (!mb.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021402u);
 			return;
 		}
+		stage(0x214003u);
 		m_track = static_cast<eng::u16*>(mb.data);
 		for (eng::u16 i = 0u; i < kTrackWords; ++i) {
 			m_track[i] = 0u;
 		}
 
+		stage(0x214004u); // antes de motor on
 		m_motor = eng::os::floppy_motor(0u, true);
+		stage(m_motor ? 0x214005u : 0x214105u);
 		// La fase de rotación varía entre lecturas, así que se reintenta (como `trackdisk`)
 		// hasta verificar los dos sectores del bootblock.
 		for (eng::u8 attempt = 0u; attempt < 4u; ++attempt) {
@@ -86,8 +94,10 @@ struct DemoGame {
 				for (volatile eng::u32 d = 0u; d < 300000u; ++d) {
 				}
 			}
+			stage(0x214010u | attempt); // antes de read_track (intento)
 			m_words = eng::os::floppy_read_track(
 				0u, 0u, false, eng::Span<eng::u16> { m_track, kTrackWords });
+			stage(m_words != 0u ? (0x214020u | attempt) : (0x214120u | attempt));
 			if (m_words == 0u) {
 				break; // la DMA no completo (DSKBLK): no insistir
 			}
@@ -114,7 +124,10 @@ struct DemoGame {
 		if (m_ok) {
 			eng::debug::mark_ready(g_eng_run_status, 0x00021400u);
 		} else {
-			eng::debug::mark_failed(g_eng_run_status, 0x00021410u);
+			// Bitmask del motivo: 0 motor, 1 palabras DMA, 2 sectores (hck/dck), 3 firma DOS.
+			const eng::u32 why = (m_motor ? 1u : 0u) | (m_words != 0u ? 2u : 0u) |
+					     (m_sec_ok ? 4u : 0u) | (m_sig ? 8u : 0u);
+			eng::debug::mark_failed(g_eng_run_status, 0x00021410u | why);
 		}
 	}
 

@@ -142,8 +142,10 @@ eng::u16 eng::os::floppy_read_track(eng::u16 unit, eng::u8 track, bool side,
 	d::custom_base[kDsklen] = len;
 	d::custom_base[kDsklen] = len; // segunda escritura: dispara la DMA
 
-	// Espera de fin de bloque (DSKBLK), con tope anti-bloqueo (acotado para no agotar el arranque).
-	eng::u32 guard = 0x007fffffu;
+	// Espera de fin de bloque (DSKBLK), con tope anti-bloqueo. La lectura de una pista tarda varios
+	// cientos de miles de iteraciones de este bucle (a 7 MHz); el tope da margen y acota una DMA que
+	// no completa a ~15 s (antes 0x7fffff ≈ 40 s, que hacía parecer colgada la demo).
+	eng::u32 guard = 0x003fffffu;
 	while ((d::custom_base[d::custom_intreqr_offset] & kIntDskblk) == 0u) {
 		if (--guard == 0u) {
 			break;

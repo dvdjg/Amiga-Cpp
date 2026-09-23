@@ -32,6 +32,7 @@ enum class Codec : eng::u8 {
 	Zx0 = 0,      ///< ZX0 (Einar Saukas): PCM crudo comprimido (sin delta)
 	APLib = 1,    ///< aPLib (pendiente)
 	DeltaRle = 2, ///< Delta + RLE (ByteRun1)
+	None = 3,     ///< PCM crudo sin compresión (p. ej. streaming de un `.raw` tal cual)
 };
 
 /// **Decodifica** `src` a PCM 8-bit con signo en `dst` (código `compression`).
@@ -43,6 +44,16 @@ enum class Codec : eng::u8 {
 				    eng::u8 compression) noexcept {
 	if (compression == static_cast<eng::u8>(Codec::Zx0)) {
 		return zx0::decompress(src, dst);
+	}
+	if (compression == static_cast<eng::u8>(Codec::None)) {
+		// PCM crudo: copia directa. El chunk debe traer exactamente las muestras del buffer.
+		if (src.size() != dst.size()) {
+			return -1;
+		}
+		for (eng::usize i = 0; i < src.size(); ++i) {
+			dst[i] = src[i];
+		}
+		return static_cast<eng::s32>(dst.size());
 	}
 	if (compression != static_cast<eng::u8>(Codec::DeltaRle)) {
 		return -1;

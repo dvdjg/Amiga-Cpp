@@ -1157,7 +1157,12 @@ try {
         report.status = `side_channel_${side.status}`;
         fs.writeFileSync(path.join(outputDir, 'run-report.json'), JSON.stringify(report, null, 2), 'utf8');
         if (!hasArg('--allow-timeout-fallback')) {
-          throw new Error(`La demo no alcanzo READY por canal lateral en ${sideChannelTimeoutMs} ms: ${side.status}`);
+          const lastState = side.value?.state;
+          const lastDetail = side.value?.detail;
+          throw new Error(
+            `La demo no alcanzo READY por canal lateral en ${sideChannelTimeoutMs} ms: ${side.status}` +
+              ` (ultimo state=${lastState ?? '?'} detail=0x${(lastDetail ?? 0).toString(16)})`,
+          );
         }
         console.log(`[run-demo] side-channel ${side.status}; explicit fallback wait ${waitMs} ms`);
         await sleep(waitMs);

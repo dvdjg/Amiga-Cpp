@@ -149,9 +149,14 @@ UI (`eng::ui`).
   `214_floppy_raw` (motor/seek/lectura de pista + syncs `$4489`) y el **decode del sector con búsqueda
   de sync bit a bit está implementado** (`floppy_find_sector`, ventana deslizante de 16 bits;
   `engine/include/eng/os/floppy.hpp:187-203`) y cubierto por **HOST-259** (recupera los 11 sectores
-  con `verify_checksums`). *Nota de verificación (2026-09)*: en este entorno la demo `214` no alcanza
-  `READY` con el ADF montado en `DF0:` (`runner.uae` lo inserta), pese a que su README la da por
-  validada — issue abierto en la **ejecución en hardware**, ajeno al decode (que pasa en host). `eng/os/trackdisk.hpp` queda como alternativa
+  con `verify_checksums`). *Verificación (2026-09)*: la demo `214` **alcanza `READY`** con el ADF
+  montado (`--disk out/fs/211_fs_test.adf`). El fallo aparente era el **guard de espera de `DSKBLK`**
+  (`amiga_minimal_floppy.cpp`): `0x7fffff` iteraciones ≈ 40 s hacían parecer colgada la demo y
+  agotaban el timeout del runner; ajustado a `0x3fffff` (una lectura de pista válida tarda cientos de
+  miles de iteraciones). La demo es **lenta** (~30-60 s) por los `spin` de seek (120 pasos × 3 ms),
+  así que la regresión necesita `--side-channel-timeout-ms` amplio y un `--disk` por demo (hoy la
+  regresión no lo pasa; se ejecuta a mano). Instrumentación añadida: la demo marca etapas en
+  `detail` y el fallo codifica el motivo; el runner reporta `state`/`detail` en el timeout. `eng/os/trackdisk.hpp` queda como alternativa
   documentada y no verificada (`td_open` se cuelga en `-nostdlib`). Decisión y detalle en
   `docs/debugging/investigaciones/consulta-grok-disco-y-loader.md`; errata CIA-B en `docs/reference/ahrm/ERRATA_Y_NOTAS.md` §5. **Imágenes de disquete**: `tools/fs/make-volume.mjs --adf` genera un
   ADF (FFS/OFS con `xdftool`) y `run-demo.sh --disk <adf>` lo monta en `DF0:`; el disquete se monta,
@@ -170,8 +175,11 @@ UI (`eng::ui`).
   con IRQ de nivel 4) y el **feeder fichero→ChunkStream** (`eng/os/file_stream.hpp`; HOST-306). La
   **lectura por rebanadas del fichero de 512 KB en hardware** la valida la demo **211_fs_test**: lee
   `DH1:data/audio/tone_8k_512k.raw` en chunks de 4 KB con doble buffer sobre `file_read_async` hasta
-  el EOF (128 chunks; el run-status lo reporta con `flags` bit 4). El **reproducir** simultáneo
-  (PcmStream sobre el mismo feeder) queda como composición opcional con A5 (272).
+  el EOF (128 chunks; el run-status lo reporta con `flags` bit 4). Además la **composición
+  feeder→`PcmStream`** está hecha: el `FileChunkFeeder` alimenta el `ChunkStream` del `PcmStream`
+  (`PcmStream::state()`) con PCM crudo (`pcm_codec::Codec::None`, añadido; HOST-242), de modo que
+  leer y dejar listo para reproducir es el mismo paso (verificado en 211, `stream=true`). El
+  **sonido real por Paula** (IRQ de audio) sigue pendiente del bug A5 (demo 272, WIP).
 
 ### M9 — Telemetría
 
@@ -261,16 +269,15 @@ UI (`eng::ui`).
   hardware** — el runner no pone el puerto 2 de WinUAE en modo pad CD32 ni inyecta los botones
   `JOYBUTTON_CD32_*` (`input joy` solo cubre fire/2nd/3rd). Ratón y joystick (`input joy`)
   verificados en la demo 212.
-- **M7 — demo `214_floppy_raw` no alcanza `READY`: ABIERTO.** La DMA y el decode MFM están
-  implementados y validados (HOST-259 + README de la demo), pero en este entorno la demo se queda
-  antes de `mark_ready`. Descartado que arranque del ADF (su bootblock es **no arrancable**, checksum
-  inválido). Falta instrumentar el bucle DMA/seek (ver §Estado de M7).
-- **M8 — componer streaming de disco + audio: PENDIENTE (ligado a A5).** Falta enganchar el
-  `FileChunkFeeder` (que ya lee el fichero de 512 KB en la demo 211) a `PcmStream` (demo 272) para
-  "leer y reproducir" de una vez. Dos bloqueos: (1) `PcmStream::provide` espera chunks
-  **comprimidos** (`Codec::Zx0`/`DeltaRle`; no hay códec `None`), así que el pipeline debería emitir
-  el stream comprimido (o añadir un códec `None`); (2) la demo 272 sigue **WIP** por el bug abierto
-  de ritmo de la IRQ de audio (A5, `docs/debugging/investigaciones/audio-stream-irq-rate.md`).
+- **M7 — demo `214_floppy_raw`: RESUELTO (guard de DMA).** No era un cuelgue: el guard de espera de
+  `DSKBLK` (`0x7fffff` ≈ 40 s) agotaba el timeout del runner; ajustado a `0x3fffff`, la demo alcanza
+  `READY` con `--disk`. Sigue **lenta** (~30-60 s por los seeks), y la regresión no le pasa el ADF:
+  **pendiente** un `--disk` por demo (o excluirla del barrido por defecto).
+- **M8 — reproducir por Paula desde disco: PENDIENTE (ligado a A5).** La **composición
+  feeder→`PcmStream`** está hecha (codec `Codec::None` + `PcmStream::state()`; verificado en 211), así
+  que "leer y dejar listo" es un solo paso. Lo que falta es el **sonido real**: la demo 272 sigue
+  **WIP** por el bug abierto de ritmo de la IRQ de audio (A5,
+  `docs/debugging/investigaciones/audio-stream-irq-rate.md`).
 - **M11 — corrutinas: BLOQUEADA** por el toolchain (`<coroutine>`/`<type_traits>` no compilan en
   `m68k-amiga-elf`); ver el aviso en M11.
 
