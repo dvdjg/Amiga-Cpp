@@ -24,5 +24,5 @@ OK: Sim climate fronts (propagacion, avance, disipacion, global)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/165_sim_climate_fronts
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/sim/165_sim_climate_fronts
 ```

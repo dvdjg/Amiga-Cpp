@@ -18,7 +18,7 @@ Valida la codificación **exacta de libgfx** que necesita el efecto `plasma` (di
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/019_copper_ext
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/graphics/019_copper_ext
 ```
 
 Contexto: `docs/demos/effects/PLASMA_PORT_PLAN.md`.

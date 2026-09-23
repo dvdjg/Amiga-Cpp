@@ -13,7 +13,7 @@
 // assets. El test verifica round-trip, limites exactos y copias de bloques.
 //
 // Se ejecuta con:
-//   bash tools/run-host-tests.sh tests/host/150_binary
+//   bash tools/run-host-tests.sh tests/host/core/150_binary
 
 #include <cstdio>
 

@@ -7,7 +7,7 @@
 // rango, y el parche de paleta que aporta al `FramePlan`. Es un efecto gráfico, pero su
 // lógica es pura (sin hardware), así que se valida en host como el resto de algoritmos.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/133_palette_transition
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/graphics/133_palette_transition
 
 #include <cstdio>
 

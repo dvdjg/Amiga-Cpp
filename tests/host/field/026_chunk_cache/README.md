@@ -11,7 +11,7 @@ Se comprueban: init válido/inválido, carga y datos correctos, hit devuelve el 
 puntero, y la política de evicción LRU.
 
 ```bash
-bash tools/run-host-tests.sh tests/host/026_chunk_cache
+bash tools/run-host-tests.sh tests/host/field/026_chunk_cache
 ```
 
 Contexto: `docs/engine/architecture/CONTENT_AND_TILEMAP.md` §2.

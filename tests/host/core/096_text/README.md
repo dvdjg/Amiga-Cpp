@@ -18,5 +18,5 @@ de `StringView`/`StaticString` sin heap.
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/096_text
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/096_text
 ```

@@ -6,7 +6,7 @@
 // `on_msg`), llama a `on_frame` con el frame y a `on_render`, y que sin puerto sigue funcionando.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/253_os_pump
+//   bash tools/run-host-tests.sh tests/host/os/253_os_pump
 
 #include <cstdio>
 

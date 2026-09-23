@@ -1,20 +1,20 @@
 // ============================================================================
-// Test HOST-104: trigonometría y sqrt para Fixed (eng/core/fixed_math.hpp).
+// Test HOST-104: trigonometría y sqrt para Fixed (eng/core/math/fixed_math.hpp).
 // ============================================================================
 //
 // Respalda `scalar_sin`/`scalar_cos`/`scalar_sqrt` de `Fixed<s16,E>` (tabla de seno +
 // isqrt), y comprueba que `stddev<q12>` y los easings senoidales compilan y son correc-
 // tos. Tambien pasa por MiniFloat16 (su trig es la de minifloat_math).
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/104_fixed_math
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/104_fixed_math
 
 #include <cmath>
 #include <cstdio>
 
-#include <eng/core/fixed_math.hpp>
-#include <eng/core/geometry.hpp>
-#include <eng/core/interp.hpp>
-#include <eng/core/minifloat_math.hpp>
+#include <eng/core/math/fixed_math.hpp>
+#include <eng/core/math/geometry.hpp>
+#include <eng/core/math/interp.hpp>
+#include <eng/core/math/minifloat_math.hpp>
 #include <eng/core/util/stats.hpp>
 #include <eng/retro/fixed_q.hpp>
 

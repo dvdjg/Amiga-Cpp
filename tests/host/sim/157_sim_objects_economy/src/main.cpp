@@ -11,7 +11,7 @@
 //     reputacion de una faccion (`Society`).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/157_sim_objects_economy
+//   bash tools/run-host-tests.sh tests/host/sim/157_sim_objects_economy
 
 #include <cstdio>
 

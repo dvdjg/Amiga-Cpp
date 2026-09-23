@@ -25,5 +25,5 @@ OK: Sim attention (foco, sentidos por genoma, atencion)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/162_sim_attention
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/sim/162_sim_attention
 ```

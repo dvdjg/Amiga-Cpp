@@ -11,7 +11,7 @@
 //   4) La ruta fina (astar) sigue encontrando paso pero penalizando el peligro recordado.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/166_sim_world_mental_routes
+//   bash tools/run-host-tests.sh tests/host/sim/166_sim_world_mental_routes
 
 #include <cstdio>
 

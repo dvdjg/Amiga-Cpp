@@ -3,7 +3,7 @@
 Test host de `engine/include/eng/ai/planning/goap.hpp`: el planificador **GOAP**
 (Goal-Oriented Action Planning) con hechos booleanos, acciones (precondiciones,
 efectos, coste) y objetivo. Modelo y referencias en
-[`GAME_AI_LIBRARY.md`](../../../docs/engine/architecture/GAME_AI_LIBRARY.md).
+[`GAME_AI_LIBRARY.md`](../../../../docs/engine/architecture/GAME_AI_LIBRARY.md).
 
 ## Qué comprueba
 
@@ -45,5 +45,5 @@ El dominio se declara una sola vez (`using Ai = eng::ai::Goap<>;`, 32 hechos); e
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/107_goap
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/ai/107_goap
 ```

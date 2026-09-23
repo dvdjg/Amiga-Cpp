@@ -6,11 +6,11 @@
 // pista + pomo. Ver GUI_LIBRARY.md §11.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/262_ui_slider
+//   bash tools/run-host-tests.sh tests/host/ui/262_ui_slider
 
 #include <cstdio>
 
-#include <eng/core/box.hpp>
+#include <eng/core/types/box.hpp>
 #include <eng/field/surface.hpp>
 #include <eng/ui/context.hpp>
 #include <eng/ui/slider.hpp>

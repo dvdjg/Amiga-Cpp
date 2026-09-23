@@ -6,12 +6,12 @@
 // hora del dia). Referencia: amiga-bootcamp/01_hardware/common/cia_chips.md
 // ("Time-of-Day"): TOD de 24 bits, 50 Hz PAL / 60 Hz NTSC.
 //
-//   bash tools/run-host-tests.sh tests/host/018_rtc   (solo este)
+//   bash tools/run-host-tests.sh tests/host/core/018_rtc   (solo este)
 
 #include <cstdio>
 
-#include <eng/core/rtc.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/data/rtc.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace {
 

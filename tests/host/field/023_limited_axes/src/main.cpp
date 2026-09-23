@@ -12,7 +12,7 @@
 // alto, viewport 320×256, tile 16. X `Finite` (recorrido 0..80), Y anillo
 // (corkscrew) one-direction (solo la fila entrante).
 //
-//   bash tools/run-host-tests.sh tests/host/023_limited_axes
+//   bash tools/run-host-tests.sh tests/host/field/023_limited_axes
 
 #include <cstdio>
 

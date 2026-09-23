@@ -8,7 +8,7 @@
 //   - `ai/perception/agent_memory.hpp`: `AgentMemory` (see/tick/fresh/stale/forget).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/117_perception
+//   bash tools/run-host-tests.sh tests/host/ai/117_perception
 
 #include <cstdio>
 

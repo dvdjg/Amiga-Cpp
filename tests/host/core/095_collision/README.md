@@ -19,5 +19,5 @@ así los productos y las distancias al cuadrado caben en `s32` sin promoción a 
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/095_collision
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/095_collision
 ```

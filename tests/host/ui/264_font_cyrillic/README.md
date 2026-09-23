@@ -23,5 +23,5 @@ OK: Font8 con cirilico ruso validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/264_font_cyrillic
+bash tools/run-host-tests.sh tests/host/ui/264_font_cyrillic
 ```

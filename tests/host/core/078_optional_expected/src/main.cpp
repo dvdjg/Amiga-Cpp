@@ -4,7 +4,7 @@
 //
 // Respalda `eng/core/util/optional.hpp` y `eng/core/util/expected.hpp`.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/078_optional_expected
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/078_optional_expected
 
 #include <cstdio>
 

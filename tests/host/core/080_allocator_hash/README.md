@@ -23,5 +23,5 @@ muestra `__mulsi3`, `__udivsi3` ni instrucciones de 68020.
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/080_allocator_hash
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/080_allocator_hash
 ```

@@ -6,7 +6,7 @@
 // que las relocaciones se aplican y que `symbol` resuelve por nombre. No ejecuta codigo.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/248_dynloader
+//   bash tools/run-host-tests.sh tests/host/res/248_dynloader
 
 #include <cstdio>
 #include <cstdint>

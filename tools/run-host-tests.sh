@@ -11,9 +11,11 @@
 # toolchain del proyecto, p. ej. el que resuelve `AMIGA_BIN_PATH` o la
 # extensión Bartman). No hay dependencia de WSL.
 #
-# Uso: tools/run-host-tests.sh [tests/host/NNN_nombre ...]
+# Uso: tools/run-host-tests.sh [--category <cat>] [tests/host/<cat>/NNN_nombre ...]
 #   Sin argumentos: compila y corre TODOS los tests/host.
 #   Con rutas: solo esos tests.
+#   Con --category: solo los tests de esa categoría (p. ej. core, graphics, platform/amiga).
+#   Ver docs/testing/TAXONOMY.md.
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
@@ -25,6 +27,19 @@ STD="gnu++23"
 CXXFLAGS="-std=$STD -I$ROOT/engine/include -Wall -Wextra -Werror=narrowing -O2"
 
 CXX="${CXX:-g++}"
+
+# --- Argumentos -------------------------------------------------------------
+# Sin argumentos: todos los tests host. Con rutas: solo esos. Con `--category X`:
+# solo los tests de la categoría X (`tests/host/X/...`). Ver docs/testing/TAXONOMY.md.
+CATEGORY=""
+ARGS=()
+while [ "$#" -gt 0 ]; do
+	case "$1" in
+		--category) CATEGORY="${2:-}"; shift 2 ;;
+		--category=*) CATEGORY="${1#*=}"; shift ;;
+		*) ARGS+=("$1"); shift ;;
+	esac
+done
 
 if ! command -v "$CXX" >/dev/null 2>&1; then
 	echo "ERROR: no se encontró el compilador '$CXX'." >&2
@@ -54,7 +69,7 @@ run_test() {
 
 # Comprobacion estatica del sistema de tipos (solo en la pasada completa, para no
 # estorbar al iterar un test suelto). Falla si un MemoryBlock crudo se convierte.
-if [ "$#" -eq 0 ]; then
+if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 	TYPE_CHECK="$ROOT/tools/check/type-tagging.mjs"
 	if [ -f "$TYPE_CHECK" ] && command -v node >/dev/null 2>&1; then
 		echo "== type-tagging =="
@@ -125,6 +140,30 @@ if [ "$#" -eq 0 ]; then
 			exit 1
 		fi
 	fi
+	# Frontera dominio <-> plataforma (anillo 0 no toca vocabulario de chipset).
+	PLATFORM_BOUNDARIES="$ROOT/tools/check/platform-boundaries.mjs"
+	if [ -f "$PLATFORM_BOUNDARIES" ] && command -v node >/dev/null 2>&1; then
+		echo "== platform-boundaries =="
+		if ! node "$PLATFORM_BOUNDARIES"; then
+			echo "platform-boundaries fallo: el dominio incluye vocabulario de plataforma." >&2
+			exit 1
+		fi
+	fi
+	# Estructura tematica del engine (eng/ y core/ por tema; familias de backend).
+	ENGINE_TREE="$ROOT/tools/check/engine-tree.mjs"
+	if [ -f "$ENGINE_TREE" ] && command -v node >/dev/null 2>&1; then
+		echo "== engine-tree =="
+		if ! node "$ENGINE_TREE"; then
+			echo "engine-tree fallo: estructura tematica del engine fuera de canon." >&2
+			exit 1
+		fi
+	fi
+	# Politica de cabeceras (advisory): cabeceras grandes y funciones no-inline.
+	HEADER_IMPL="$ROOT/tools/check/header-impl.mjs"
+	if [ -f "$HEADER_IMPL" ] && command -v node >/dev/null 2>&1; then
+		echo "== header-impl (advisory) =="
+		node "$HEADER_IMPL" || true
+	fi
 	# No-propietarios: los punteros a objeto en miembros deben ser eng::Ref/NonNull.
 	RAW_PTR="$ROOT/tools/check/raw-pointer-members.mjs"
 	if [ -f "$RAW_PTR" ] && command -v node >/dev/null 2>&1; then
@@ -164,15 +203,23 @@ if [ "$#" -eq 0 ]; then
 fi
 
 # Selección de tests.
-if [ "$#" -gt 0 ]; then
-	for arg in "$@"; do
+if [ "${#ARGS[@]}" -gt 0 ]; then
+	for arg in "${ARGS[@]}"; do
 		run_test "$arg"
 	done
+elif [ -n "$CATEGORY" ]; then
+	CAT_DIR="$ROOT/tests/host/$CATEGORY"
+	if [ ! -d "$CAT_DIR" ]; then
+		echo "ERROR: no existe la categoría '$CATEGORY' ($CAT_DIR)." >&2
+		exit 1
+	fi
+	while IFS= read -r test_dir; do
+		run_test "$test_dir"
+	done < <(find "$CAT_DIR" -type d -name '[0-9][0-9][0-9]_*' | sort)
 else
-	for test_dir in "$ROOT"/tests/host/*/; do
-		[ -d "$test_dir" ] || continue
-		run_test "${test_dir%/}"
-	done
+	while IFS= read -r test_dir; do
+		run_test "$test_dir"
+	done < <(find "$ROOT/tests/host" -type d -name '[0-9][0-9][0-9]_*' | sort)
 	# Regresion de nivel de los naipes: barrido determinista de selfplay contra la
 	# linea base congelada. Solo en la pasada completa (necesita g++ y node).
 	CARDS_REGRESSION="$ROOT/tools/cards/regression.sh"

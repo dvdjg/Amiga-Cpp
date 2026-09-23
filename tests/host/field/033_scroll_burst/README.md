@@ -10,7 +10,7 @@ corkscrew (2 bloques clásico; `guard_tiles` en los rápidos), que `ScrollFastN`
 frontera).
 
 ```bash
-bash tools/run-host-tests.sh tests/host/033_scroll_burst
+bash tools/run-host-tests.sh tests/host/field/033_scroll_burst
 ```
 
 Contexto: `docs/engine/architecture/FAST_SCROLL.md`.

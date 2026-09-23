@@ -16,7 +16,7 @@ los builders) o **aliaseado** a un `incbin` de solo lectura.
 ## Cómo corre
 
 ```bash
-bash tools/run-host-tests.sh tests/host/043_xlimited_tile_bank
+bash tools/run-host-tests.sh tests/host/field/043_xlimited_tile_bank
 ```
 
 ## Relación

@@ -24,5 +24,5 @@ OK: fachada publica (eng/api/api.hpp) expone la API estable.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/233_api_facade
+bash tools/run-host-tests.sh tests/host/core/233_api_facade
 ```

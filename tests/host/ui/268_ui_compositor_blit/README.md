@@ -29,5 +29,5 @@ OK: compositor por blit (equivalencia con el copiado por pixel) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/268_ui_compositor_blit
+bash tools/run-host-tests.sh tests/host/ui/268_ui_compositor_blit
 ```

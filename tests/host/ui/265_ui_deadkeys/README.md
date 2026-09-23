@@ -32,5 +32,5 @@ OK: teclas muertas (composicion de acentos) validadas.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/265_ui_deadkeys
+bash tools/run-host-tests.sh tests/host/ui/265_ui_deadkeys
 ```

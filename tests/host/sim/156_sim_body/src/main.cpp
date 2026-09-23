@@ -14,11 +14,11 @@
 //   5) Genérico sobre `double` y `q12` (fixed), sin heap.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/156_sim_body
+//   bash tools/run-host-tests.sh tests/host/sim/156_sim_body
 
 #include <cstdio>
 
-#include <eng/core/fixed_math.hpp>
+#include <eng/core/math/fixed_math.hpp>
 #include <eng/retro/fixed_q.hpp>
 #include <eng/sim/body.hpp>
 

@@ -11,7 +11,7 @@
 //   3) `pump()` drena lo no consumido y no rompe el consumo del juego.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/251_reactive_loop
+//   bash tools/run-host-tests.sh tests/host/os/251_reactive_loop
 
 #include <cstdio>
 

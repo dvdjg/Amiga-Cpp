@@ -7,7 +7,7 @@
 // 68000 y lo que diferencia a `eng::u32` (4 bytes en m68k/MinGW) de `unsigned
 // long` en otros hosts.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/074_bit_ops
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/074_bit_ops
 
 #include <cstdio>
 

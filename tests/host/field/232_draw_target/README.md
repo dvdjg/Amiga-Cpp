@@ -30,5 +30,5 @@ OK: DrawTarget (fill/line/frame/c2p + box) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/232_draw_target
+bash tools/run-host-tests.sh tests/host/field/232_draw_target
 ```

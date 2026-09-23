@@ -1,18 +1,18 @@
 // ============================================================================
-// Test HOST-020: tabla de seno EXACTA del original (eng/core/sinetable.hpp).
+// Test HOST-020: tabla de seno EXACTA del original (eng/core/math/sinetable.hpp).
 // ============================================================================
 //
 // La tabla se genera desde `libmisc/sintab.c` (reconstruyendo los deltas). Aqui se
 // fijan invariantes + checksum de regresion y se comprueba que `math2d` la usa.
 //
-//   bash tools/run-host-tests.sh tests/host/020_sinetable
+//   bash tools/run-host-tests.sh tests/host/core/020_sinetable
 
 #include <eng/retro/fixed_trig.hpp>
 #include <cstdio>
 
 #include <eng/retro/lib2d.hpp>
 #include <eng/retro/sintab.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/retro/fixed_q.hpp>
 using namespace eng::retro;
 

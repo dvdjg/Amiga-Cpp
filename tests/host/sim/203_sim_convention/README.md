@@ -22,5 +22,5 @@ OK: eng::sim convention (pacto, disimulo, exposicion e inferencia)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/203_sim_convention
+CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/sim/203_sim_convention
 ```

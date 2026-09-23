@@ -17,11 +17,11 @@
 //   6) `permille_of` sin desbordar u32.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/017_background_task   (solo este)
+//   bash tools/run-host-tests.sh tests/host/os/017_background_task   (solo este)
 
 #include <cstdio>
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/task/background.hpp>
 
 namespace {

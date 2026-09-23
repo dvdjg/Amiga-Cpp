@@ -27,5 +27,5 @@ OK: Sim senses (geometria, sentidos, novedad)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/160_sim_senses
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/sim/160_sim_senses
 ```

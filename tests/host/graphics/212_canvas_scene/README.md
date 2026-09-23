@@ -33,5 +33,5 @@ OK: scene::compose interleaved y contiguo (Surface + copperlist).
 ## Ejecutar
 
 ```bash
-CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/212_canvas_scene
+CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/graphics/212_canvas_scene
 ```

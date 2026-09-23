@@ -30,5 +30,5 @@ cámara en espacio objeto de las demos 079/116 depende de él. `inverse_rigid` e
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/055_inverse_rigid
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/055_inverse_rigid
 ```

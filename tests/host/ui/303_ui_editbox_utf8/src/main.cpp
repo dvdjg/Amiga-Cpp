@@ -7,7 +7,7 @@
 // que el cirilico llega al campo por la via de eventos (`event_edit`).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/303_ui_editbox_utf8
+//   bash tools/run-host-tests.sh tests/host/ui/303_ui_editbox_utf8
 
 #include <cstdio>
 

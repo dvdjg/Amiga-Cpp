@@ -20,5 +20,5 @@ Todo con un backend de pega y un `MemorySystem` sobre un buffer estático: sin h
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/070_copper_plan
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/graphics/070_copper_plan
 ```

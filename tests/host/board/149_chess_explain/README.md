@@ -25,5 +25,5 @@ OK: NLG (dama prematura, material, jaque, tono y truncado) ES/EN
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/149_chess_explain
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/board/149_chess_explain
 ```

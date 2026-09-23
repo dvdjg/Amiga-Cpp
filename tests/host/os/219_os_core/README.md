@@ -20,5 +20,5 @@ OK: mini-SO nucleo (Msg, cola SPSC, senales, prioridad) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/219_os_core
+bash tools/run-host-tests.sh tests/host/os/219_os_core
 ```

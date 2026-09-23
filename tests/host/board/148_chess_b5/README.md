@@ -26,5 +26,5 @@ OK: B5 (null-move, tiempo, PV/Multi-PV, analisis paralelo determinista)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/148_chess_b5
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/board/148_chess_b5
 ```

@@ -17,5 +17,5 @@ OK: tiempo (ticks/us PAL-NTSC, ScopedTimer) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/238_os_time
+bash tools/run-host-tests.sh tests/host/os/238_os_time
 ```

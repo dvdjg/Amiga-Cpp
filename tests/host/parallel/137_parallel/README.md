@@ -27,5 +27,5 @@ OK: eng::parallel (hilos, mutex, atomicos, cv, stop, for_each_index)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/137_parallel
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/parallel/137_parallel
 ```

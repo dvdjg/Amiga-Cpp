@@ -5,7 +5,7 @@
 // Valida las conversiones ticks<->us (PAL/NTSC) y `ScopedTimer` con una `TickSource` falsa.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/238_os_time
+//   bash tools/run-host-tests.sh tests/host/os/238_os_time
 
 #include <cstdio>
 

@@ -11,7 +11,7 @@
 //     cubierto; `region_passable` filtra por capacidades.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/158_sim_terrain_climate
+//   bash tools/run-host-tests.sh tests/host/sim/158_sim_terrain_climate
 
 #include <cstdio>
 

@@ -20,5 +20,5 @@ OK: streaming de chunks (doble buffer, underrun, eof) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/257_os_stream
+bash tools/run-host-tests.sh tests/host/os/257_os_stream
 ```

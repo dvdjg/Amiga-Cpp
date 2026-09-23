@@ -18,5 +18,5 @@ Todo entero con `muls.w` y desplazamientos; sin `float` ni divisiones libgcc.
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/097_grid
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/097_grid
 ```

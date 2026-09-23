@@ -27,5 +27,5 @@ OK: cursor por sprite de hardware (estructura + emision) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/301_ui_hardware_cursor
+bash tools/run-host-tests.sh tests/host/ui/301_ui_hardware_cursor
 ```

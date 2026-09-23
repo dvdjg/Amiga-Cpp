@@ -5,7 +5,7 @@
 // Respalda `eng/core/util/priority_queue.hpp`: max-heap/min-heap, llenado, rechazo al
 // estar llena, comparador propio y `emplace`.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/089_priority_queue
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/089_priority_queue
 
 #include <cstdio>
 

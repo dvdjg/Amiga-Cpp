@@ -21,5 +21,5 @@ Es el respaldo determinista que le faltaba a la demo 122 (F0.4 de
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/068_double_buffer_scroll
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/field/068_double_buffer_scroll
 ```

@@ -21,7 +21,7 @@ que la geometría y el estado se conservan.
 ## Ejecución
 
 ```bash
-bash tools/run-host-tests.sh tests/host/002_raster_intent   # solo este
+bash tools/run-host-tests.sh tests/host/graphics/002_raster_intent   # solo este
 bash tools/run-host-tests.sh                                # todos
 ```
 

@@ -7,9 +7,9 @@
 // (`Turns`, tabla 4.12 exacta). La referencia usa `kSinTab` directo (el original) y se
 // compara punto a punto con el port, para cazar errores de shifts/swap/negacion.
 //
-//   bash tools/run-host-tests.sh tests/host/178_dna_helix
+//   bash tools/run-host-tests.sh tests/host/graphics/178_dna_helix
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/retro/fixed_trig.hpp>
 
 #include <cstdio>

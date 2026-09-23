@@ -16,7 +16,7 @@
 #include <type_traits>
 
 #include <eng/audio/audio.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace {
 

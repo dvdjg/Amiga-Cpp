@@ -24,5 +24,5 @@ OK: Sim spatial memory (lugares, rutas macro, refugio recordado)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/163_sim_spatial_memory
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/sim/163_sim_spatial_memory
 ```

@@ -46,20 +46,22 @@ function parseBlocks() {
 
 function usedNumbers() {
 	const used = new Set();
+	// Recursivo: los tests host viven en `tests/host/<categoría>/NNN_*` y los demos en
+	// `demos/<plataforma>/NNN_*`. No se entra en un directorio que ya es de test/demo.
 	const collect = (dir) => {
 		if (!fs.existsSync(dir)) return;
-		for (const entry of fs.readdirSync(dir)) {
-			const m = entry.match(/^(\d+)_/);
-			if (m) used.add(parseInt(m[1], 10));
+		for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+			const m = entry.name.match(/^(\d+)_/);
+			if (m) {
+				used.add(parseInt(m[1], 10));
+				continue;
+			}
+			if (entry.isDirectory()) collect(path.join(dir, entry.name));
 		}
 	};
 	collect(path.join(root, 'tests/host'));
-	const demosRoot = path.join(root, 'demos');
-	if (fs.existsSync(demosRoot)) {
-		for (const platform of fs.readdirSync(demosRoot)) {
-			collect(path.join(demosRoot, platform));
-		}
-	}
+	collect(path.join(root, 'tests/amiga'));
+	collect(path.join(root, 'demos'));
 	return used;
 }
 

@@ -17,7 +17,7 @@
 // dama prematura, rey en el centro, enroques, torres en columnas abiertas y fase.
 //
 // Se ejecuta con:
-//   bash tools/run-host-tests.sh tests/host/145_chess_eval
+//   bash tools/run-host-tests.sh tests/host/board/145_chess_eval
 
 #include <cstdio>
 

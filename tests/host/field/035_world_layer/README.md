@@ -9,7 +9,7 @@ Se comprueba: la capa como `TileMap` directo (bounds, celdas, cruce de chunk, bo
 `prefetch`, equivalencia con el acceso directo en un barrido, y chunk ausente → `Empty`.
 
 ```bash
-bash tools/run-host-tests.sh tests/host/035_world_layer
+bash tools/run-host-tests.sh tests/host/field/035_world_layer
 ```
 
 Contexto: `docs/engine/architecture/WORLD_FORMAT.md`,

@@ -2,7 +2,7 @@
 // Test HOST-057: matemáticas clásicas sobre MiniFloat16.
 // ============================================================================
 //
-// Respalda `eng/core/minifloat_math.hpp`: sqrt, exp, log, pow y trigonometría
+// Respalda `eng/core/math/minifloat_math.hpp`: sqrt, exp, log, pow y trigonometría
 // (sin/cos/tan) implementadas solo con aritmética de 16 bits (sin float, sin libgcc).
 // Se comparan contra `std::sqrt/exp/log/pow/sin/cos/tan` sobre ENTRADAS IDÉNTICAS (las
 // ya redondeadas a MiniFloat16) y se fijan las tolerancias a partir de lo medido.
@@ -12,12 +12,12 @@
 //   sin/cos ~2e-3 abs   tan ~1e-2 rel (crece cerca de los polos)
 //   pow ~1e-2 rel (crece con |e·log(base)|, que es inherente a exp(e·log base))
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/057_minifloat16_math
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/057_minifloat16_math
 
 #include <cmath>
 #include <cstdio>
 
-#include <eng/core/minifloat_math.hpp>
+#include <eng/core/math/minifloat_math.hpp>
 
 using eng::math::MiniFloat16;
 namespace m = eng::math;

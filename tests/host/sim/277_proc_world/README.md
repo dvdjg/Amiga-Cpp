@@ -32,5 +32,5 @@ OK: W0 (generacion procedural determinista de topologia) validada.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/277_proc_world
+bash tools/run-host-tests.sh tests/host/sim/277_proc_world
 ```

@@ -24,5 +24,5 @@ OK: Sim culture (rituales, efecto, disparo, ensenanza, mundo)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/171_sim_culture
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/sim/171_sim_culture
 ```

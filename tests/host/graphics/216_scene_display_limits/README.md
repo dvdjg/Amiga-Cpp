@@ -30,5 +30,5 @@ OK: scene::limits — perfiles OCS/ECS/AGA, DmaCost (fetch 1x/2x/4x), validacion
 ## Ejecutar
 
 ```bash
-CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/216_scene_display_limits
+CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/graphics/216_scene_display_limits
 ```

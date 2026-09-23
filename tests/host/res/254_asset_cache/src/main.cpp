@@ -6,7 +6,7 @@
 // desalojo (menor prioridad primero; a igualdad, LRU) con `pin`/`refcount` protegiendo.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/254_asset_cache
+//   bash tools/run-host-tests.sh tests/host/res/254_asset_cache
 
 #include <cstdio>
 

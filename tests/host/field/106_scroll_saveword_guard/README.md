@@ -19,5 +19,5 @@ Usa un sink de pega que falla el primer `add_draw` posterior al primer `save_wor
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/106_scroll_saveword_guard
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/field/106_scroll_saveword_guard
 ```

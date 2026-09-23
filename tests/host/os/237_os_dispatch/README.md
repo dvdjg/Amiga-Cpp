@@ -19,5 +19,5 @@ OK: despacho por tabla (cobertura, default, drenado) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/237_os_dispatch
+bash tools/run-host-tests.sh tests/host/os/237_os_dispatch
 ```

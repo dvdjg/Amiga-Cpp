@@ -30,5 +30,5 @@ OK: NavMeshLite (localizar, portales, poligonos y string-pulling)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/118_navmesh
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/ai/118_navmesh
 ```

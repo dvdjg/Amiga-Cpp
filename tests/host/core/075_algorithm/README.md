@@ -1,7 +1,7 @@
 # HOST-075 — algoritmos sobre Span
 
 Respalda `engine/include/eng/core/util/algorithm.hpp`: los recorridos y
-transformaciones genéricas que no cubre `eng/core/sort.hpp`.
+transformaciones genéricas que no cubre `eng/core/data/sort.hpp`.
 
 ## Qué cubre
 
@@ -24,5 +24,5 @@ transformaciones genéricas que no cubre `eng/core/sort.hpp`.
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/075_algorithm
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/075_algorithm
 ```

@@ -25,5 +25,5 @@ OK: storage (BlockSource 3 estados, cache LRU, ausentes e invalidos)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/146_board_storage
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/board/146_board_storage
 ```

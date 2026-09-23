@@ -25,5 +25,5 @@ OK: ajedrez (repeticion 3x, ventana, finales teoricos, regla del cuadrado)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/141_chess_draw_endgame
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/board/141_chess_draw_endgame
 ```

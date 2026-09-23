@@ -2,22 +2,22 @@
 // Test HOST-059: base matemática genérica (escalar-independiente).
 // ============================================================================
 //
-// Respalda `eng/core/numeric_traits.hpp` (rasgos y guards de compilación),
-// `eng/core/interp.hpp` (interpolación/easing) y `eng/core/geometry.hpp` (vocabulario
+// Respalda `eng/core/math/numeric_traits.hpp` (rasgos y guards de compilación),
+// `eng/core/math/interp.hpp` (interpolación/easing) y `eng/core/math/geometry.hpp` (vocabulario
 // geométrico). Los MISMOS algoritmos se ejercitan con `double` y con `MiniFloat16`.
 //
 // La referencia se calcula en `double` a partir de las MISMAS entradas que recibe el
 // algoritmo (`to_double` del valor redondeado), no de los literales originales.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/059_scalar_math
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/059_scalar_math
 
 #include <cmath>
 #include <cstdio>
 
-#include <eng/core/geometry.hpp>
-#include <eng/core/interp.hpp>
-#include <eng/core/minifloat_math.hpp>
-#include <eng/core/numeric_traits.hpp>
+#include <eng/core/math/geometry.hpp>
+#include <eng/core/math/interp.hpp>
+#include <eng/core/math/minifloat_math.hpp>
+#include <eng/core/math/numeric_traits.hpp>
 #include <eng/retro/fixed_q.hpp>
 
 using eng::math::MiniFloat16;

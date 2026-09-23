@@ -7,7 +7,7 @@
 // intenciones `PaletteLine` que produce (`first`/`count`/vista de color). Es lógica pura:
 // no necesita `copper::Plan` ni hardware, así que se prueba en host.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/134_raster_gradient
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/graphics/134_raster_gradient
 
 #include <cstdio>
 

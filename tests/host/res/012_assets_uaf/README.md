@@ -33,5 +33,5 @@ Big-endian (nativo m68k); los lectores `read_be16/32` funcionan igual en host.
 
 ```
 CXX="C:\Users\dvdjg\Documents\programa\AI\Amiga\mingw64\bin\g++.exe" \
-  bash tools/run-host-tests.sh tests/host/012_assets_uaf
+  bash tools/run-host-tests.sh tests/host/res/012_assets_uaf
 ```

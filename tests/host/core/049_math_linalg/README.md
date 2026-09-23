@@ -27,5 +27,5 @@ la decisión se mide en F4.
 
 ```
 CXX="C:\Users\dvdjg\Documents\programa\AI\Amiga\mingw64\bin\g++.exe" \
-  bash tools/run-host-tests.sh tests/host/049_math_linalg
+  bash tools/run-host-tests.sh tests/host/core/049_math_linalg
 ```

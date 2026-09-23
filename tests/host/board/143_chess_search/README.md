@@ -28,5 +28,5 @@ OK: buscador (mate en 1, equilibrio, captura, quiescence, presupuesto, stop)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/143_chess_search
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/board/143_chess_search
 ```

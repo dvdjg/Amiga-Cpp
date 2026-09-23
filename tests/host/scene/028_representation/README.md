@@ -12,7 +12,7 @@ canales de sprite consumidos y reasignación a BOB al agotarse, y el consumo del
 presupuesto de BOB y de slots de capa.
 
 ```bash
-bash tools/run-host-tests.sh tests/host/028_representation
+bash tools/run-host-tests.sh tests/host/scene/028_representation
 ```
 
 Contexto: `docs/engine/architecture/SCENE_AND_RESOURCES.md` §2 y §3.

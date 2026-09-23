@@ -4,7 +4,7 @@
 //
 // Respalda `eng/core/util/array.hpp` y `eng/core/util/bitset.hpp`.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/076_array_bitset
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/076_array_bitset
 
 #include <cstdio>
 

@@ -6,11 +6,11 @@
 // 0xffff), `CopMove32` (reg+2 low, luego reg high) y el parcheo de instrucciones
 // (equivalente a guardar el CopInsT* y hacer CopSetColor). Base del porte de plasma.
 //
-//   bash tools/run-host-tests.sh tests/host/019_copper_ext
+//   bash tools/run-host-tests.sh tests/host/graphics/019_copper_ext
 
 #include <cstdio>
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/copper/template.hpp>
 #include <eng/memory/arena.hpp>

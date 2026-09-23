@@ -7,11 +7,11 @@
 // un irascible entra en tilt y un flematico aguanta.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/202_sim_psyche
+//   bash tools/run-host-tests.sh tests/host/sim/202_sim_psyche
 
 #include <cstdio>
 
-#include <eng/core/random.hpp>
+#include <eng/core/math/random.hpp>
 #include <eng/sim/psyche.hpp>
 
 namespace {

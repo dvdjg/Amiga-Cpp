@@ -17,5 +17,5 @@ asignar memoria (max-heap sobre almacenamiento inline).
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/089_priority_queue
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/089_priority_queue
 ```

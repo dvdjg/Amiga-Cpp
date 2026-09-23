@@ -1,8 +1,8 @@
 # HOST-065 — primitivas de escalar, easing `_back` y Bézier
 
-Respalda `eng/core/scalar_ops.hpp` (`min`/`max`/`abs`/`sign`/`move_towards`/`deadzone`),
-los easing `_back` de `eng/core/interp.hpp` (`ease_in/out/in_out_back`), `smooth_damp` y
-`repeat`/`pingpong`, y `bezier2`/`bezier3` de `eng/core/spline.hpp`. Los MISMOS algoritmos
+Respalda `eng/core/math/scalar_ops.hpp` (`min`/`max`/`abs`/`sign`/`move_towards`/`deadzone`),
+los easing `_back` de `eng/core/math/interp.hpp` (`ease_in/out/in_out_back`), `smooth_damp` y
+`repeat`/`pingpong`, y `bezier2`/`bezier3` de `eng/core/math/spline.hpp`. Los MISMOS algoritmos
 con `double`, `MiniFloat16` y `q12` (fixed 4.12), contra una referencia en `double`.
 
 ## Qué cubre
@@ -26,5 +26,5 @@ en fixed) y las constantes fraccionarias de `_back` se construyen con
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/065_scalar_ops
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/065_scalar_ops
 ```

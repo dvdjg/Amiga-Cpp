@@ -6,7 +6,7 @@
 // `nullptr` seguro) y `dispatch_all` (drena el puerto).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/237_os_dispatch
+//   bash tools/run-host-tests.sh tests/host/os/237_os_dispatch
 
 #include <cstdio>
 

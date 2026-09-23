@@ -1,5 +1,5 @@
 // ============================================================================
-// Test HOST-207: expression templates lite (`eng/core/expr.hpp`)
+// Test HOST-207: expression templates lite (`eng/core/math/expr.hpp`)
 // ============================================================================
 //
 // Valida que el arbol de expresion se evalua una sola vez y de forma correcta en tres
@@ -8,15 +8,15 @@
 // FUSIONADA por componente para `Vec`/`Mat` (un solo bucle, sin contenedores temporales).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/207_math_expr
+//   bash tools/run-host-tests.sh tests/host/core/207_math_expr
 
 #include <cstdio>
 
-#include <eng/core/expr.hpp>
-#include <eng/core/fixed.hpp>
-#include <eng/core/linalg.hpp>
-#include <eng/core/minifloat.hpp>
-#include <eng/core/numeric_traits.hpp>
+#include <eng/core/math/expr.hpp>
+#include <eng/core/math/fixed.hpp>
+#include <eng/core/math/linalg.hpp>
+#include <eng/core/math/minifloat.hpp>
+#include <eng/core/math/numeric_traits.hpp>
 
 namespace {
 

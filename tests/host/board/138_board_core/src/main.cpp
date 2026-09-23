@@ -7,7 +7,7 @@
 // contrato `GameRules` (con una policy de prueba).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/138_board_core
+//   bash tools/run-host-tests.sh tests/host/board/138_board_core
 
 #include <cstdio>
 

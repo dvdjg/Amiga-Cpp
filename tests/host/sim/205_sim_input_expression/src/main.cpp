@@ -7,7 +7,7 @@
 // de lectura). Base para la interfaz realista en ajedrez/Go y poker.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/205_sim_input_expression
+//   bash tools/run-host-tests.sh tests/host/sim/205_sim_input_expression
 
 #include <cstdio>
 

@@ -21,5 +21,5 @@ fixed, ausencia de `sqrt`/`sin` en `Fixed`) se documentan en cada cabecera escal
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/103_scalar_util
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/103_scalar_util
 ```

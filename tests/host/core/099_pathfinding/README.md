@@ -21,5 +21,5 @@ llamador; sin heap.
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/099_pathfinding
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/099_pathfinding
 ```

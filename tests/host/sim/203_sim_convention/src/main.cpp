@@ -6,7 +6,7 @@
 // exposicion, e inferencia de la convencion por un observador externo.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/203_sim_convention
+//   bash tools/run-host-tests.sh tests/host/sim/203_sim_convention
 
 #include <cstdio>
 

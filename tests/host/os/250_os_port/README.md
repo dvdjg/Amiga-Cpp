@@ -11,7 +11,7 @@ del mini-SO que usa el bucle reactivo (y, en particular, la **notificación de f
 ## Ejecución
 
 ```
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/250_os_port
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/os/250_os_port
 ```
 
 Diseño canónico: `docs/engine/architecture/MINI_OS_MESSAGE_LOOP.md`.

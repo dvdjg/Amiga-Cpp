@@ -3,7 +3,7 @@
 // ============================================================================
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/250_os_port
+//   bash tools/run-host-tests.sh tests/host/os/250_os_port
 
 #include <cstdio>
 

@@ -22,5 +22,5 @@ así que no hay `__mulsi3`. La sonda de codegen no muestra libcalls.
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/083_hash_map_set
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/083_hash_map_set
 ```

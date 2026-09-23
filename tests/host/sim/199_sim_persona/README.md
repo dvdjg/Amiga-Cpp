@@ -25,5 +25,5 @@ OK: eng::sim persona (rasgos de psique, aptitudes, defectos y arquetipos)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/199_sim_persona
+CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/sim/199_sim_persona
 ```

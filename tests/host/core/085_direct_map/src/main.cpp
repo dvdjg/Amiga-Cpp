@@ -4,7 +4,7 @@
 //
 // Respalda `eng/core/util/direct_map.hpp`.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/085_direct_map
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/085_direct_map
 
 #include <cstdio>
 

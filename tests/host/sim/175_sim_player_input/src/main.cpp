@@ -10,7 +10,7 @@
 //   3) El mundo sigue coherente tras la entrada (busqueda por id intacta).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/175_sim_player_input
+//   bash tools/run-host-tests.sh tests/host/sim/175_sim_player_input
 
 #include <cstdio>
 

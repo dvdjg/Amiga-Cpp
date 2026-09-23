@@ -21,7 +21,7 @@
 
 #include <cstdio>
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/platform/input_poll.hpp>
 
 namespace {

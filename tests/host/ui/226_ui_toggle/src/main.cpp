@@ -6,11 +6,11 @@
 // los hermanos del mismo `group_id`) sobre `UiContext`. Ver ROADMAP_GUI.md (G3).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/226_ui_toggle
+//   bash tools/run-host-tests.sh tests/host/ui/226_ui_toggle
 
 #include <cstdio>
 
-#include <eng/core/box.hpp>
+#include <eng/core/types/box.hpp>
 #include <eng/ui/context.hpp>
 #include <eng/ui/widgets.hpp>
 

@@ -21,5 +21,5 @@ OK: copper::PatchHandle (MOVE parcheable por frame).
 ## Ejecutar
 
 ```bash
-CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/214_copper_patch
+CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/graphics/214_copper_patch
 ```

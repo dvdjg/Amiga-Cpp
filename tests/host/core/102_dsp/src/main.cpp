@@ -4,12 +4,12 @@
 //
 // Respalda `eng/core/util/dsp.hpp`: Adsr, OnePole, DelayLine, soft_clip y osciladores.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/102_dsp
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/102_dsp
 
 #include <cmath>
 #include <cstdio>
 
-#include <eng/core/minifloat_math.hpp>
+#include <eng/core/math/minifloat_math.hpp>
 #include <eng/core/util/dsp.hpp>
 #include <eng/retro/fixed_q.hpp>
 

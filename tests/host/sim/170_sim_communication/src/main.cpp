@@ -12,7 +12,7 @@
 //   5) `broadcast_signals`: entrega entre criaturas de la misma region.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/170_sim_communication
+//   bash tools/run-host-tests.sh tests/host/sim/170_sim_communication
 
 #include <cstdio>
 

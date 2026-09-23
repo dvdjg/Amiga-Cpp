@@ -24,5 +24,5 @@ estos tests, pero 8 en Linux. Por eso las funciones enmascaran al ancho exacto d
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/074_bit_ops
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/074_bit_ops
 ```

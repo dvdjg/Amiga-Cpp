@@ -16,11 +16,11 @@
 // `docs/guides/roadmap/NORMALIZACION_REPO.md`).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/068_double_buffer_scroll
+//   bash tools/run-host-tests.sh tests/host/field/068_double_buffer_scroll
 
 #include <cstdio>
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/field/double_buffer_playfield.hpp>
 #include <eng/memory/arena.hpp>
 

@@ -15,7 +15,7 @@
 // sirve por bloques sin cargar todo en RAM y sin `reinterpret_cast`.
 //
 // Se ejecuta con:
-//   bash tools/run-host-tests.sh tests/host/151_board_file
+//   bash tools/run-host-tests.sh tests/host/board/151_board_file
 
 #include <cstdio>
 

@@ -20,5 +20,5 @@ OK: DynamicBitSet (init, set/test/count, capacidad, palabra parcial)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/122_dynamic_bitset
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/core/122_dynamic_bitset
 ```

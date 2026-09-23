@@ -31,5 +31,5 @@ OK: evaluacion (simetria, centralizacion, rasgos de desarrollo)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/145_chess_eval
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/board/145_chess_eval
 ```

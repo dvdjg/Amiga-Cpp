@@ -7,7 +7,7 @@
 // tabla de transposicion.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/139_board_budget
+//   bash tools/run-host-tests.sh tests/host/board/139_board_budget
 
 #include <cstdio>
 

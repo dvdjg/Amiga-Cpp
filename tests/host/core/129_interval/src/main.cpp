@@ -6,7 +6,7 @@
 // conjunto que fusiona solapes y adyacencias, con consulta por búsqueda binaria.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/129_interval
+//   bash tools/run-host-tests.sh tests/host/core/129_interval
 
 #include <cstdio>
 

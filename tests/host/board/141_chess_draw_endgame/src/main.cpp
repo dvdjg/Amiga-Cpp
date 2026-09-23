@@ -18,7 +18,7 @@
 //      coronacion no supera los avances del peon.
 //
 // Se ejecuta con:
-//   bash tools/run-host-tests.sh tests/host/141_chess_draw_endgame
+//   bash tools/run-host-tests.sh tests/host/board/141_chess_draw_endgame
 
 #include <cstdio>
 

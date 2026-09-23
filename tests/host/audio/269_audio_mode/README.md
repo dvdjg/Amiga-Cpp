@@ -29,5 +29,5 @@ OK: modos de audio (reparto de canales + period_for_hz) validados.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/269_audio_mode
+bash tools/run-host-tests.sh tests/host/audio/269_audio_mode
 ```

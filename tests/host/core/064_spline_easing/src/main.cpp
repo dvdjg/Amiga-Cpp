@@ -2,20 +2,20 @@
 // Test HOST-064: splines (Hermite/Catmull-Rom) y easing genéricos.
 // ============================================================================
 //
-// Respalda `eng/core/spline.hpp` y los easing de `eng/core/interp.hpp` sobre el escalar:
+// Respalda `eng/core/math/spline.hpp` y los easing de `eng/core/math/interp.hpp` sobre el escalar:
 // los MISMOS algoritmos con `double`, `MiniFloat16` y `q12` (fixed), comparando contra
 // una referencia en `double` calculada desde las MISMAS entradas redondeadas.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/064_spline_easing
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/064_spline_easing
 
 #include <cmath>
 #include <cstdio>
 #include <type_traits>
 
-#include <eng/core/fixed_math.hpp>
-#include <eng/core/interp.hpp>
-#include <eng/core/minifloat_math.hpp>
-#include <eng/core/spline.hpp>
+#include <eng/core/math/fixed_math.hpp>
+#include <eng/core/math/interp.hpp>
+#include <eng/core/math/minifloat_math.hpp>
+#include <eng/core/math/spline.hpp>
 #include <eng/retro/fixed_q.hpp>
 
 using eng::math::MiniFloat16;

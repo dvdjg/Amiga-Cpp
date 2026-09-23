@@ -11,7 +11,7 @@ recarga, `prefetch` repetido sin recargar, y evicciones LRU al superar la capaci
 pool del llamador.
 
 ```bash
-bash tools/run-host-tests.sh tests/host/029_streaming_map
+bash tools/run-host-tests.sh tests/host/field/029_streaming_map
 ```
 
 Contexto: `docs/engine/architecture/CONTENT_AND_TILEMAP.md` §2.

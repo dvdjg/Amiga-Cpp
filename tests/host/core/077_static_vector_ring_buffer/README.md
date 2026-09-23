@@ -21,5 +21,5 @@ usar un pool/arena.
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/077_static_vector_ring_buffer
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/077_static_vector_ring_buffer
 ```

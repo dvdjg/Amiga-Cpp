@@ -23,5 +23,5 @@ OK: eng::sim input_expression (gestos explicitos, timing y lectura simetrica)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/205_sim_input_expression
+CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/sim/205_sim_input_expression
 ```

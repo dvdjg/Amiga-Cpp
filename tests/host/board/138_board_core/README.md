@@ -25,5 +25,5 @@ OK: eng::board core (tipos, 0x88, moves, score, zobrist, GameRules)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/138_board_core
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/board/138_board_core
 ```

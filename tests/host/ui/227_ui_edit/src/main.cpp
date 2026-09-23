@@ -7,12 +7,12 @@
 // ROADMAP_GUI.md (G4) y GUI_LIBRARY.md §10-§11.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/227_ui_edit
+//   bash tools/run-host-tests.sh tests/host/ui/227_ui_edit
 
 #include <cstdio>
 #include <cstring>
 
-#include <eng/core/box.hpp>
+#include <eng/core/types/box.hpp>
 #include <eng/ui/context.hpp>
 #include <eng/ui/editbox.hpp>
 #include <eng/ui/widgets.hpp>

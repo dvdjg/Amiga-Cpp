@@ -7,7 +7,7 @@
 // delatan siempre y las microexpresiones.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/200_sim_expression
+//   bash tools/run-host-tests.sh tests/host/sim/200_sim_expression
 
 #include <cstdio>
 

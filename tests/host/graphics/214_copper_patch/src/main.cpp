@@ -2,7 +2,7 @@
 // app escribe por frame con precisión quirúrgica (sin offsets cableados).
 //
 // Ejecución:
-//   bash tools/run-host-tests.sh tests/host/214_copper_patch
+//   bash tools/run-host-tests.sh tests/host/graphics/214_copper_patch
 
 #include <cstdio>
 

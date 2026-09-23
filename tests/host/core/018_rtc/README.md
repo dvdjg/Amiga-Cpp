@@ -1,6 +1,6 @@
 # HOST-018 — Reloj de tiempo real (TOD de la CIA-A)
 
-Valida `engine/include/eng/core/rtc.hpp`: la conversión pura del contador **TOD** de la
+Valida `engine/include/eng/core/data/rtc.hpp`: la conversión pura del contador **TOD** de la
 CIA-A (24 bits) a hora del día.
 
 ## Qué cubre
@@ -17,5 +17,5 @@ orden de latch `TODHI → TODMID → TODLO`). Referencia:
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/018_rtc
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/018_rtc
 ```

@@ -21,5 +21,5 @@ con `os::enable_cd32_pad`) se valida en emulador. Orden del stream calibrado con
 ## Build / run
 
 ```
-CXX=<g++> bash tools/run-host-tests.sh tests/host/308_os_cd32_pad
+CXX=<g++> bash tools/run-host-tests.sh tests/host/platform/amiga/308_os_cd32_pad
 ```

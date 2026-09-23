@@ -29,7 +29,7 @@ vuelta (8 KB en `s16`), generada en compile-time reutilizando el
 
 ```
 CXX="C:\Users\dvdjg\Documents\programa\AI\Amiga\mingw64\bin\g++.exe" \
-  bash tools/run-host-tests.sh tests/host/010_lib2d
+  bash tools/run-host-tests.sh tests/host/graphics/010_lib2d
 ```
 
 Origen: `demoscene-repo-orig/lib/lib2d` (`LoadIdentity2D`, `Translate2D`,

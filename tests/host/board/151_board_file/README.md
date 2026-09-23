@@ -29,5 +29,5 @@ OK: file source (empaquetar -> fichero -> bloques -> probe)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/151_board_file
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/board/151_board_file
 ```

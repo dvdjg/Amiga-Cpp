@@ -23,5 +23,5 @@ cuadruplicado: `display` + `palette` + `row_repeat`.
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/016_ham_scene
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/graphics/016_ham_scene
 ```

@@ -1,6 +1,6 @@
 # HOST-101 — worley/cellular y variantes de fbm
 
-Respalda las incorporaciones a `engine/include/eng/core/noise.hpp`.
+Respalda las incorporaciones a `engine/include/eng/core/math/noise.hpp`.
 
 ## Qué cubre
 
@@ -20,5 +20,5 @@ queda fuera por **rango**: la rejilla tiene 1024 niveles. `worley2` exige ademá
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/101_noise_extra
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/101_noise_extra
 ```

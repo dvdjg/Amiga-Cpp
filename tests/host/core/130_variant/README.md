@@ -22,5 +22,5 @@ OK: Variant (comandos heterogeneos: index/holds/get/visit/emplace)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/130_variant
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/core/130_variant
 ```

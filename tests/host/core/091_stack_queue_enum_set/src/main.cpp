@@ -5,7 +5,7 @@
 // Respalda `eng/core/util/stack_queue.hpp` (incluye push_front/pop_back de RingBuffer)
 // y `eng/core/util/enum_set.hpp`.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/091_stack_queue_enum_set
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/091_stack_queue_enum_set
 
 #include <cstdio>
 

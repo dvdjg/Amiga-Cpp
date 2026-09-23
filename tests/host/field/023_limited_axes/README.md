@@ -14,7 +14,7 @@ Escenario: shooter vertical de 400×10000 px, viewport 320×256, tile 16, X `Fin
 (recorrido 0..80) y Y anillo.
 
 ```bash
-bash tools/run-host-tests.sh tests/host/023_limited_axes
+bash tools/run-host-tests.sh tests/host/field/023_limited_axes
 ```
 
 Contexto: `docs/guides/roadmap/ROADMAP_UNIFICADO.md` y las demos

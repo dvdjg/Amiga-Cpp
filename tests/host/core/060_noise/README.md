@@ -1,4 +1,4 @@
-# HOST-060 — ruido procedural genérico (`eng/core/noise.hpp`)
+# HOST-060 — ruido procedural genérico (`eng/core/math/noise.hpp`)
 
 Respalda `value_noise1/2/3` y `fbm2` (suma de octavas), genéricos sobre el escalar. El
 MISMO algoritmo se ejecuta con `double` y con `MiniFloat16` sobre las mismas entradas.
@@ -23,5 +23,5 @@ demo de ruido se usa en el precalculado, no por píxel y frame.
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/060_noise
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/060_noise
 ```

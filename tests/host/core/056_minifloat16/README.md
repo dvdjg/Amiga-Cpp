@@ -1,8 +1,8 @@
-# HOST-056 — coma flotante de 16 bits `MiniFloat16` (`eng/core/minifloat.hpp`)
+# HOST-056 — coma flotante de 16 bits `MiniFloat16` (`eng/core/math/minifloat.hpp`)
 
 Fija el formato, las conversiones y la aritmética del escalar de 16 bits `MiniFloat16`
 (1|5|10, sesgo 15) y comprueba que funciona como escalar de la librería genérica
-(`Vec`/`Mat`/`Affine` de `eng/core/linalg.hpp`).
+(`Vec`/`Mat`/`Affine` de `eng/core/math/linalg.hpp`).
 
 ## Qué cubre
 
@@ -33,5 +33,5 @@ normalización o un signo mal).
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/056_minifloat16
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/056_minifloat16
 ```

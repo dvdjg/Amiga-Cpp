@@ -28,5 +28,5 @@ OK: ZX0 (vector del compresor de referencia) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/271_zx0
+bash tools/run-host-tests.sh tests/host/audio/271_zx0
 ```

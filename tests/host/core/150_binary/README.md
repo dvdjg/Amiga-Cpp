@@ -23,5 +23,5 @@ OK: binary (round-trip, little-endian, limites y copias)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/150_binary
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/core/150_binary
 ```

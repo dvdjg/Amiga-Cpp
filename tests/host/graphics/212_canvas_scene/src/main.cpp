@@ -3,7 +3,7 @@
 // Cierra el hueco «efecto -> dibujo con Surface» sin depender de `CanvasScene`.
 //
 // Ejecución:
-//   bash tools/run-host-tests.sh tests/host/212_canvas_scene
+//   bash tools/run-host-tests.sh tests/host/graphics/212_canvas_scene
 
 #include <cstdio>
 

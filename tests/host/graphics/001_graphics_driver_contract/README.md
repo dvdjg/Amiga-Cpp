@@ -21,7 +21,7 @@ backend concreto (Amiga, Mega Drive, PC…).
 Desde la raíz del repo:
 
 ```bash
-bash tools/run-host-tests.sh tests/host/001_graphics_driver_contract   # solo este
+bash tools/run-host-tests.sh tests/host/graphics/001_graphics_driver_contract   # solo este
 bash tools/run-host-tests.sh                                            # todos
 ```
 

@@ -22,5 +22,5 @@ OK: Sim world mental routes (sesgo, overlay para astar, influencia)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/166_sim_world_mental_routes
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/sim/166_sim_world_mental_routes
 ```

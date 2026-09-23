@@ -5,7 +5,7 @@
 // Respalda `eng/core/util/pool.hpp`: alta/baja O(1), reciclado de slots y validación
 // por generación (un handle viejo deja de ser válido al reutilizar su slot).
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/088_pool
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/088_pool
 
 #include <cstdio>
 

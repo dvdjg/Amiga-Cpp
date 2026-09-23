@@ -18,5 +18,5 @@ local que hoy vive en la demo 086.
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/094_color
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/094_color
 ```

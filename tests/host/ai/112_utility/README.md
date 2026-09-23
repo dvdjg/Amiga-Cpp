@@ -22,5 +22,5 @@ OK: Utility (media ponderada, selector, decision del guardia)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/112_utility
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/ai/112_utility
 ```

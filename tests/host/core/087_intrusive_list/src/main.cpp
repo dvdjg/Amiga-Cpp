@@ -5,7 +5,7 @@
 // Respalda `eng/core/util/intrusive_list.hpp`: enlace dentro del objeto, O(1) sin
 // asignar, iteración y uso como free-list.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/087_intrusive_list
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/087_intrusive_list
 
 #include <cstdio>
 

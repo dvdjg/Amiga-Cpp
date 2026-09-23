@@ -7,11 +7,11 @@
 // un `ContiguousPlayfield` host leyendo el color de cada pixel (como HOST-223).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/224_ui_widgets
+//   bash tools/run-host-tests.sh tests/host/ui/224_ui_widgets
 
 #include <cstdio>
 
-#include <eng/core/box.hpp>
+#include <eng/core/types/box.hpp>
 #include <eng/field/surface.hpp>
 #include <eng/ui/dirty.hpp>
 #include <eng/ui/widget.hpp>

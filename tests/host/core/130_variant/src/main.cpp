@@ -6,7 +6,7 @@
 // comandos heterogeneos de juego (mover, atacar, esperar) que se despachan con `visit`.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/130_variant
+//   bash tools/run-host-tests.sh tests/host/core/130_variant
 
 #include <cstdio>
 

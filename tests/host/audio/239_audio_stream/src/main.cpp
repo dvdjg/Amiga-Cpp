@@ -8,7 +8,7 @@
 // Ver docs/guides/roadmap/ROADMAP_AUDIO.md (A5) y docs/engine/architecture/AUDIO_STREAMING.md §3-5.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/239_audio_stream
+//   bash tools/run-host-tests.sh tests/host/audio/239_audio_stream
 
 #include <cstdio>
 

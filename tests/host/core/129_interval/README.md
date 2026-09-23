@@ -21,5 +21,5 @@ OK: Interval (fusion de solapes/adyacencias, contains, capacidad)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/129_interval
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/core/129_interval
 ```

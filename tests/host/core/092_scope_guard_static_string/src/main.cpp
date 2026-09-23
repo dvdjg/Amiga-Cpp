@@ -4,7 +4,7 @@
 //
 // Respalda `eng/core/util/scope_guard.hpp` y `eng/core/util/static_string.hpp`.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/092_scope_guard_static_string
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/092_scope_guard_static_string
 
 #include <cstdio>
 

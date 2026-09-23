@@ -9,12 +9,12 @@
 //   3) Generico sobre el escalar: `double` y `q12` (fixed) con fixed_math.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/115_steering
+//   bash tools/run-host-tests.sh tests/host/ai/115_steering
 
 #include <cstdio>
 
 #include <eng/ai/steering/steering.hpp>
-#include <eng/core/fixed_math.hpp>
+#include <eng/core/math/fixed_math.hpp>
 #include <eng/retro/fixed_q.hpp>
 
 namespace {

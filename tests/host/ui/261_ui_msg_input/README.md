@@ -21,5 +21,5 @@ OK: GUI entrada por mensajes (keymap + dispatch_msg) validada.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/261_ui_msg_input
+bash tools/run-host-tests.sh tests/host/ui/261_ui_msg_input
 ```

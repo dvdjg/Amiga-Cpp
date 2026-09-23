@@ -3,7 +3,7 @@
 // un PatchHandle), sin una clase por driver.
 //
 // Ejecución:
-//   bash tools/run-host-tests.sh tests/host/215_scene_compose
+//   bash tools/run-host-tests.sh tests/host/graphics/215_scene_compose
 
 #include <cstdio>
 

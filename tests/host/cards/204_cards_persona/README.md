@@ -23,5 +23,5 @@ OK: eng::cards persona (parametros por arquetipo, tells y lectura)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/204_cards_persona
+CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/cards/204_cards_persona
 ```

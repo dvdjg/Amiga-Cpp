@@ -4,7 +4,7 @@
 //
 // Respalda `eng/core/util/string_view.hpp` y `eng/core/util/function_ref.hpp`.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/079_string_view_function_ref
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/079_string_view_function_ref
 
 #include <cstdio>
 

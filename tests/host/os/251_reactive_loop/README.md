@@ -12,7 +12,7 @@ Valida el bucle reactivo que integra el mini-SO (`eng::os`) con el `Engine` y la
 ## Ejecución
 
 ```
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/251_reactive_loop
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/os/251_reactive_loop
 ```
 
 Diseño canónico: `docs/engine/architecture/MINI_OS_MESSAGE_LOOP.md` §6–§7.

@@ -1,6 +1,6 @@
 # Test HOST-022: `fast_div` y utilidades de potencia de dos
 
-Respalda la API de `engine/include/eng/core/fast_div.hpp` que usa el hot path del
+Respalda la API de `engine/include/eng/core/math/fast_div.hpp` que usa el hot path del
 campo de tiles (`TileFieldController`).
 
 En 68000 **no hay multiplicación 32×32**, así que GCC no puede convertir una
@@ -18,7 +18,7 @@ Se comprueba:
   de dos (16, 256) y no potencia de dos (288, 768).
 
 ```bash
-bash tools/run-host-tests.sh tests/host/022_fast_div
+bash tools/run-host-tests.sh tests/host/core/022_fast_div
 ```
 
 Contexto y auditoría de codegen: `docs/guides/optimization/OPTIMIZACION_GPP_68000.md`

@@ -10,7 +10,7 @@
 //   4) Parametros configurables y efecto solo en la region objetivo.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/167_sim_dynamic_terrain
+//   bash tools/run-host-tests.sh tests/host/sim/167_sim_dynamic_terrain
 
 #include <cstdio>
 

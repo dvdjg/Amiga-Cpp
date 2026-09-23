@@ -6,7 +6,7 @@
 // estrés determinista (xorshift) contra un modelo de referencia en arrays, para
 // cubrir el borrado por back-shift en todas sus transiciones.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/083_hash_map_set
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/083_hash_map_set
 
 #include <cstdio>
 

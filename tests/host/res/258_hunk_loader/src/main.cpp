@@ -9,12 +9,12 @@
 // RELOC32SHORT, la deteccion de formato del `DynLoader` y los errores de formato.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/258_hunk_loader
+//   bash tools/run-host-tests.sh tests/host/res/258_hunk_loader
 
 #include <cstdio>
 #include <cstdint>
 
-#include <eng/core/memory_kind.hpp>
+#include <eng/core/types/memory_kind.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/res/dynloader.hpp>
 #include <eng/res/hunk.hpp>

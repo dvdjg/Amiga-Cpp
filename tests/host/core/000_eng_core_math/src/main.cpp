@@ -21,17 +21,17 @@
 //
 // Ejecución:
 //   bash tools/run-host-tests.sh            (compila y corre todos)
-//   bash tools/run-host-tests.sh tests/host/000_eng_core_math   (solo este)
+//   bash tools/run-host-tests.sh tests/host/core/000_eng_core_math   (solo este)
 
 #include <cstdio>
 
-#include <eng/core/crc32.hpp>
-#include <eng/core/isqrt.hpp>
-#include <eng/core/random.hpp>
-#include <eng/core/sort.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
-#include <eng/core/utf8.hpp>
+#include <eng/core/data/crc32.hpp>
+#include <eng/core/math/isqrt.hpp>
+#include <eng/core/math/random.hpp>
+#include <eng/core/data/sort.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
+#include <eng/core/data/utf8.hpp>
 #include <eng/graphics/font8.hpp>
 
 namespace {

@@ -18,5 +18,5 @@ OK: prioridad, peek, coalescing y VBlank latched validados.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/236_os_latched
+bash tools/run-host-tests.sh tests/host/os/236_os_latched
 ```

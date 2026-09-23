@@ -4,7 +4,7 @@ Test host de `engine/include/eng/ai/decision/agent_fsm.hpp`:
 `eng::ai::AgentFsm<State, Event, MaxStates>` **contiene** `eng::util::StateMachine`
 (no duplica transiciones) y añade los efectos que el agente ejecuta al entrar y al salir
 de cada estado (animación, objetivo, sonido, blackboard). Modelo en
-[`GAME_AI_LIBRARY.md`](../../../docs/engine/architecture/GAME_AI_LIBRARY.md).
+[`GAME_AI_LIBRARY.md`](../../../../docs/engine/architecture/GAME_AI_LIBRARY.md).
 
 ## Qué comprueba
 
@@ -28,5 +28,5 @@ OK: AgentFsm (efectos de entrada/salida, sin transicion, reemplazo)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/110_agent_fsm
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/ai/110_agent_fsm
 ```

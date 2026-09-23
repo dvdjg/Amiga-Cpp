@@ -30,5 +30,5 @@ OK: tareas de fondo del mini-SO (ciclo de vida + idle + preempt) validadas.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/305_os_tasks
+bash tools/run-host-tests.sh tests/host/os/305_os_tasks
 ```

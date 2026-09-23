@@ -9,7 +9,7 @@
 // destino pequeno. Ver ROADMAP_AUDIO.md (A4; planificado como HOST-243).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/271_zx0
+//   bash tools/run-host-tests.sh tests/host/audio/271_zx0
 
 #include <cstdio>
 

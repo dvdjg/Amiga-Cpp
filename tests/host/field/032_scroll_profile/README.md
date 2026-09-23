@@ -11,7 +11,7 @@ máximo por tamaño de tile (`max_step_px`), el default que reproduce el comport
 en compilación.
 
 ```bash
-bash tools/run-host-tests.sh tests/host/032_scroll_profile
+bash tools/run-host-tests.sh tests/host/field/032_scroll_profile
 ```
 
 Contexto: `docs/engine/architecture/FAST_SCROLL.md`.

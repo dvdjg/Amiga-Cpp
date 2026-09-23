@@ -31,5 +31,5 @@ OK: RectFillSink (delegacion del rect + strides + eleccion del raster) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/266_rect_fill_sink
+bash tools/run-host-tests.sh tests/host/field/266_rect_fill_sink
 ```

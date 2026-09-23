@@ -17,7 +17,7 @@
 // de el y no hay que repetir el numero de hechos.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/107_goap
+//   bash tools/run-host-tests.sh tests/host/ai/107_goap
 
 #include <cstdio>
 

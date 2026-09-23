@@ -24,5 +24,5 @@ OK: Event (suscripcion, capacidad, clear y orden)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/109_event
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/core/109_event
 ```

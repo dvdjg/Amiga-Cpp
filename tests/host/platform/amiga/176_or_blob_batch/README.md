@@ -25,5 +25,5 @@ OK: OrBlobBatch (secuencia de registros del lote) validado.
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/176_or_blob_batch
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/platform/amiga/176_or_blob_batch
 ```

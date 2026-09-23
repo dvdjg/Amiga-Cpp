@@ -2,7 +2,7 @@
 
 Test host del modelo de malla sobre `math3d` (lib3d): transformación por lotes,
 **back-face culling** y **orden de pintado** (painter's algorithm) sin asignación
-dinámica (`engine/include/eng/core/mesh3d.hpp`).
+dinámica (`engine/include/eng/core/data/mesh3d.hpp`).
 
 ## Qué valida
 
@@ -19,5 +19,5 @@ dinámica (`engine/include/eng/core/mesh3d.hpp`).
 
 ```
 CXX="C:\Users\dvdjg\Documents\programa\AI\Amiga\mingw64\bin\g++.exe" \
-  bash tools/run-host-tests.sh tests/host/013_math3d_mesh
+  bash tools/run-host-tests.sh tests/host/graphics/013_math3d_mesh
 ```

@@ -6,7 +6,7 @@
 // adyacencia de capacidad fija) y sus algoritmos.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/126_graph
+//   bash tools/run-host-tests.sh tests/host/core/126_graph
 
 #include <cstdio>
 

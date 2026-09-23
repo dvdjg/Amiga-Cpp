@@ -9,7 +9,7 @@ Se comprueban (con punteros crudos): activación según `parallax_plane`/`planes
 con el shift del barrel shifter, los módulos, `make_copy_job` (fila completa) y el caso inactivo.
 
 ```bash
-bash tools/run-host-tests.sh tests/host/039_soft_dpf
+bash tools/run-host-tests.sh tests/host/field/039_soft_dpf
 ```
 
 Contexto: `docs/engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md` §3.2,

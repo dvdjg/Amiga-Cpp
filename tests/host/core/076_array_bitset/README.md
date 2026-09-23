@@ -21,5 +21,5 @@ palabra no cuentan en `count`/`all`/`any`, aunque se invierta todo con `flip()`.
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/076_array_bitset
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/076_array_bitset
 ```

@@ -20,7 +20,7 @@ Test host del **seam de relleno por hardware** del engine
 ## Cómo corre
 
 ```bash
-bash tools/run-host-tests.sh tests/host/062_polygon_fill_sink
+bash tools/run-host-tests.sh tests/host/field/062_polygon_fill_sink
 ```
 
 ## Relación

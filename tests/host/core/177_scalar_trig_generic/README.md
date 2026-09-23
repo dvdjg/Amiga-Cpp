@@ -30,5 +30,5 @@ OK: trig escalar generica: misma funcion con float y q12 (desviacion^2 max <umbr
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/177_scalar_trig_generic
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/core/177_scalar_trig_generic
 ```

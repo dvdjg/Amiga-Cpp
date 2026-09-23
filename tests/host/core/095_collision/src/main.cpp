@@ -5,7 +5,7 @@
 // Respalda `eng/core/util/collision.hpp`: AABB, orientación, segmentos, triángulo y
 // círculos (con `muls.w`, sin división).
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/095_collision
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/095_collision
 
 #include <cstdio>
 

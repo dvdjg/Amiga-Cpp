@@ -5,7 +5,7 @@
 // Respalda `eng/core/util/allocator.hpp` y `eng/core/util/hash.hpp`: el contrato
 // `Allocator`, los bumps (Null/Bump/Inline) y los hashes sin `__mulsi3`.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/080_allocator_hash
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/080_allocator_hash
 
 #include <cstdio>
 

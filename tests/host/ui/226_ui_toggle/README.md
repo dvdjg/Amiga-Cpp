@@ -20,5 +20,5 @@ OK: GUI G3 (CheckBox + RadioButton/grupos) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/226_ui_toggle
+bash tools/run-host-tests.sh tests/host/ui/226_ui_toggle
 ```

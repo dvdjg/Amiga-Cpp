@@ -15,13 +15,13 @@
 //   6) La huella estatica (`row_repeat_words`) coincide con la emision real de la etapa.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/016_ham_scene   (solo este)
+//   bash tools/run-host-tests.sh tests/host/graphics/016_ham_scene   (solo este)
 //   bash tools/run-host-tests.sh                            (todos)
 
 #include <cstdio>
 #include <type_traits>
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/composition/compose.hpp>
 #include <eng/memory/arena.hpp>

@@ -5,7 +5,7 @@
 // Respalda `eng/core/util/color.hpp`: empaquetado, interpolación, escalado, HSV y
 // operaciones de paleta completa (`palette_lerp`/`palette_scale`).
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/094_color
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/094_color
 
 #include <cstdio>
 

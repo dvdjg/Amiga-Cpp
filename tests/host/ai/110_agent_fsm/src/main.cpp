@@ -15,7 +15,7 @@
 // la FSM; aquí viven todo el programa.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/110_agent_fsm
+//   bash tools/run-host-tests.sh tests/host/ai/110_agent_fsm
 
 #include <cstdio>
 

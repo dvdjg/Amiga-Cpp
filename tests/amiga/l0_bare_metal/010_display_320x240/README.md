@@ -47,14 +47,14 @@ Los puntos de verificación se publican en `g_test_contract`:
 
 ```powershell
 # 1) Compilar
-powershell -ExecutionPolicy Bypass -File .\tools\build\build-demo.ps1 tests\l0_bare_metal\010_display_320x240 -DebugBuild -Clean
+powershell -ExecutionPolicy Bypass -File .\tools\build\build-demo.ps1 tests\amiga\l0_bare_metal\010_display_320x240 -DebugBuild -Clean
 
 # 2) Ejecutar + verificar por canal lateral (lee framebuffer, poke figuras, captura)
-node .\tests\l0_bare_metal\010_display_320x240\verify-framebuffer.mjs --demo tests\l0_bare_metal\010_display_320x240
+node .\tests\amiga\l0_bare_metal\010_display_320x240\verify-framebuffer.mjs --demo tests\amiga\l0_bare_metal\010_display_320x240
 
 # 3) Análisis estándar de la demo (build->run->analyze)
-powershell -ExecutionPolicy Bypass -File .\tools\run\run-demo.ps1 tests\l0_bare_metal\010_display_320x240
-powershell -ExecutionPolicy Bypass -File .\tools\analyze\analyze-demo.ps1 tests\l0_bare_metal\010_display_320x240
+powershell -ExecutionPolicy Bypass -File .\tools\run\run-demo.ps1 tests\amiga\l0_bare_metal\010_display_320x240
+powershell -ExecutionPolicy Bypass -File .\tools\analyze\analyze-demo.ps1 tests\amiga\l0_bare_metal\010_display_320x240
 ```
 
 ### Evidencia generada en `out/run/010_display_320x240/`

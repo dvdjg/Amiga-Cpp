@@ -10,7 +10,7 @@
 //   4) `Delay` espera N ticks.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/128_task
+//   bash tools/run-host-tests.sh tests/host/core/128_task
 
 #include <cstdio>
 

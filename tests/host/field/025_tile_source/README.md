@@ -13,7 +13,7 @@ coordenadas negativas y chunks ausentes) y la semántica que usa el scroll: los 
 `empty_tile` **no se pintan**.
 
 ```bash
-bash tools/run-host-tests.sh tests/host/025_tile_source
+bash tools/run-host-tests.sh tests/host/field/025_tile_source
 ```
 
 Contexto: `docs/engine/architecture/CONTENT_AND_TILEMAP.md` §2/§2.1.

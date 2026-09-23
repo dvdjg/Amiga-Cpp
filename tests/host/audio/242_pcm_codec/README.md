@@ -22,5 +22,5 @@ OK: codec PCM Delta+RLE (round-trip y rechazos) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/242_pcm_codec
+bash tools/run-host-tests.sh tests/host/audio/242_pcm_codec
 ```

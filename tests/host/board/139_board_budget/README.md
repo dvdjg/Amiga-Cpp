@@ -23,5 +23,5 @@ OK: eng::board budget (perfiles, seleccion, monotonia)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/139_board_budget
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/board/139_board_budget
 ```

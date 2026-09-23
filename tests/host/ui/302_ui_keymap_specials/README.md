@@ -40,5 +40,5 @@ OK: teclas comunes del keymap (AHRM 40-5F) validadas.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/302_ui_keymap_specials
+bash tools/run-host-tests.sh tests/host/ui/302_ui_keymap_specials
 ```

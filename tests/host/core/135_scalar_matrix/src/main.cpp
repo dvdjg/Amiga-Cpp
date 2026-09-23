@@ -8,23 +8,23 @@
 // la raiz de `Fixed<s32,E>` (F1 del roadmap del escalar generico).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/135_scalar_matrix
+//   bash tools/run-host-tests.sh tests/host/core/135_scalar_matrix
 //   (con -DENG_SCALAR_RETRO16 simula la seleccion de 16 bits en host)
 
 #include <cstdio>
 #include <cmath>
 
-#include <eng/core/fixed.hpp>
-#include <eng/core/fixed_math.hpp>
-#include <eng/core/geometry.hpp>
-#include <eng/core/interp.hpp>
-#include <eng/core/minifloat.hpp>
-#include <eng/core/minifloat_math.hpp>
-#include <eng/core/noise.hpp>
-#include <eng/core/numeric_traits.hpp>
-#include <eng/core/scalar.hpp>
-#include <eng/core/scalar_math.hpp>
-#include <eng/core/scalar_ops.hpp>
+#include <eng/core/math/fixed.hpp>
+#include <eng/core/math/fixed_math.hpp>
+#include <eng/core/math/geometry.hpp>
+#include <eng/core/math/interp.hpp>
+#include <eng/core/math/minifloat.hpp>
+#include <eng/core/math/minifloat_math.hpp>
+#include <eng/core/math/noise.hpp>
+#include <eng/core/math/numeric_traits.hpp>
+#include <eng/core/math/scalar.hpp>
+#include <eng/core/math/scalar_math.hpp>
+#include <eng/core/math/scalar_ops.hpp>
 
 namespace {
 

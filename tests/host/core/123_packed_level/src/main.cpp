@@ -10,7 +10,7 @@
 //      arena, marcando/limpiando regiones.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/123_packed_level
+//   bash tools/run-host-tests.sh tests/host/core/123_packed_level
 
 #include <cstdio>
 

@@ -4,7 +4,7 @@
 //
 // Respalda `eng/core/util/broadphase.hpp`: SpatialHash con Pool + listas intrusivas.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/098_broadphase
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/098_broadphase
 
 #include <cstdio>
 

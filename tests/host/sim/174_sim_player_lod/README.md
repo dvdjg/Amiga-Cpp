@@ -28,5 +28,5 @@ OK: Sim player lod (bandas, wake, aforo dinamico, avatar, percepcion)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/174_sim_player_lod
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/sim/174_sim_player_lod
 ```

@@ -3,7 +3,7 @@
 // proyección -> `Surface::fill_polygon`) con un cubo de caras cuadradas, a un ángulo fijo.
 //
 // Ejecución:
-//   bash tools/run-host-tests.sh tests/host/211_mesh_poly_render
+//   bash tools/run-host-tests.sh tests/host/graphics/211_mesh_poly_render
 
 #include <cstdio>
 #include <vector>

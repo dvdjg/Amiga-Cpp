@@ -11,7 +11,7 @@
 //   - Aforo por region (capacidad del bioma).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/174_sim_player_lod
+//   bash tools/run-host-tests.sh tests/host/sim/174_sim_player_lod
 
 #include <cstdio>
 

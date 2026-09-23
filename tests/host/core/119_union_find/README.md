@@ -22,5 +22,5 @@ OK: UnionFind (unir, conectividad, tamanos, islas)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/119_union_find
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/core/119_union_find
 ```

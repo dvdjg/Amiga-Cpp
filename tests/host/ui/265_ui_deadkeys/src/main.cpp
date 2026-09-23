@@ -4,7 +4,7 @@
 // las teclas de acento con Alt, que `rawkey_to_char` encadena muerta + letra, y que
 // `dispatch_msg` inserta el carácter compuesto en un EditBox (entrada por mensajes).
 //
-//   CXX=<g++> bash tools/run-host-tests.sh tests/host/265_ui_deadkeys
+//   CXX=<g++> bash tools/run-host-tests.sh tests/host/ui/265_ui_deadkeys
 
 #include <cstdio>
 

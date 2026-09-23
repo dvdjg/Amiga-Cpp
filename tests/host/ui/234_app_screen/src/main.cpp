@@ -7,7 +7,7 @@
 // backend ni `GameContext`/`FramePlan`. `Screen` es el contexto de dibujo de alto nivel.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/234_app_screen
+//   bash tools/run-host-tests.sh tests/host/ui/234_app_screen
 
 #include <cstdio>
 

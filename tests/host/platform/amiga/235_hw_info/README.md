@@ -29,5 +29,5 @@ OK: eng::hw inventario (consultas y heuristicas) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/235_hw_info
+bash tools/run-host-tests.sh tests/host/platform/amiga/235_hw_info
 ```

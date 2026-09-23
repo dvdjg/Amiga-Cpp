@@ -22,5 +22,5 @@ OK: cache de assets (ciclo, prioridad, LRU, pin/refcount) validada.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/254_asset_cache
+bash tools/run-host-tests.sh tests/host/res/254_asset_cache
 ```

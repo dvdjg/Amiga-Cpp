@@ -6,7 +6,7 @@
 // modificadores (Shift/Ctrl/Alt/Amiga).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/256_os_keyboard
+//   bash tools/run-host-tests.sh tests/host/os/256_os_keyboard
 
 #include <cstdio>
 

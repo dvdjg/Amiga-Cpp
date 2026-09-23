@@ -25,5 +25,5 @@ OK: scene::compose (etapas display/paleta/zonas/row_repeat + PatchHandle + ciclo
 ## Ejecutar
 
 ```bash
-CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/215_scene_compose
+CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/graphics/215_scene_compose
 ```

@@ -38,5 +38,5 @@ OK: GUI G0 (UiPainter/UiTheme/texto) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/223_ui_painter
+bash tools/run-host-tests.sh tests/host/ui/223_ui_painter
 ```

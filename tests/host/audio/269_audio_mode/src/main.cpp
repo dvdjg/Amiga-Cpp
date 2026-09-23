@@ -8,7 +8,7 @@
 // Ver §7 de GAME_AUDIO.md y ROADMAP_AUDIO.md (A0; el test se planificó como HOST-240).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/269_audio_mode
+//   bash tools/run-host-tests.sh tests/host/audio/269_audio_mode
 
 #include <cstdio>
 

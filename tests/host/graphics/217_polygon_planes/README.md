@@ -30,5 +30,5 @@ OK: polygon_planes (relleno compuesto por bitplane, CPU).
 ## Ejecutar
 
 ```bash
-CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/217_polygon_planes
+CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/graphics/217_polygon_planes
 ```

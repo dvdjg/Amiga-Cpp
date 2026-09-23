@@ -23,5 +23,5 @@ Vocabulario explícito de estructuras clásicas (sin heap) y flags de estado tip
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/091_stack_queue_enum_set
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/091_stack_queue_enum_set
 ```

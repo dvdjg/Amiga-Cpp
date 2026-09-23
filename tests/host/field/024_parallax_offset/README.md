@@ -20,7 +20,7 @@ desfasar `src = bg_x - scroll_x`; la posición aparente es `src + scroll_x`.
 - `bg_shift_for(src_x)`: reparto word+shift del barrel shifter (`q - S == src_x`).
 
 ```bash
-bash tools/run-host-tests.sh tests/host/024_parallax_offset
+bash tools/run-host-tests.sh tests/host/field/024_parallax_offset
 ```
 
 Contexto: `docs/reference/amiga/techniques/robocod-layered-scroll.md` §3.

@@ -14,7 +14,7 @@ el offset de cámara sobre el buffer completo (el display mueve el puntero/BPLxP
 ## Cómo corre
 
 ```bash
-bash tools/run-host-tests.sh tests/host/044_big_buffer_scroll
+bash tools/run-host-tests.sh tests/host/field/044_big_buffer_scroll
 ```
 
 ## Relación

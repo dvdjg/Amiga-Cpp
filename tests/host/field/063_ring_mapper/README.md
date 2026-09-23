@@ -18,7 +18,7 @@ Es la fórmula extraída de `XLimitedPlayfield::hardware_view()` (réplica de `U
 ## Cómo corre
 
 ```bash
-bash tools/run-host-tests.sh tests/host/063_ring_mapper
+bash tools/run-host-tests.sh tests/host/field/063_ring_mapper
 ```
 
 ## Relación

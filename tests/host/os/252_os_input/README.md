@@ -20,5 +20,5 @@ OK: productores de entrada (joystick, gamepad, raton) validados.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/252_os_input
+bash tools/run-host-tests.sh tests/host/os/252_os_input
 ```

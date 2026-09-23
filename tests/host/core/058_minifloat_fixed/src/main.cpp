@@ -12,7 +12,7 @@
 // La referencia es `float` sobre las MISMAS entradas redondeadas. Como las coordenadas
 // tienen 12 (o 8) bits de fracción y la matriz ~10 bits, el error útil es pequeño.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/058_minifloat_fixed
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/058_minifloat_fixed
 
 #include <cmath>
 #include <cstdio>

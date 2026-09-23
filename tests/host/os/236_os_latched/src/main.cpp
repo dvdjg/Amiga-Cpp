@@ -6,7 +6,7 @@
 // `push_mouse_coalesced`) y `VBlankLatch` (secuencia + frames perdidos, como maximo uno pendiente).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/236_os_latched
+//   bash tools/run-host-tests.sh tests/host/os/236_os_latched
 
 #include <cstdio>
 

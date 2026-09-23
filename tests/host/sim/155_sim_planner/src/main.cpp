@@ -14,7 +14,7 @@
 // El dominio (hechos y acciones) es de ejemplo; el engine solo aporta el conductor.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/155_sim_planner
+//   bash tools/run-host-tests.sh tests/host/sim/155_sim_planner
 
 #include <cstdio>
 

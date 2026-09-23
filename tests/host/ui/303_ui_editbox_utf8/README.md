@@ -28,5 +28,5 @@ OK: EditBox UTF-8 (edicion por code point) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/303_ui_editbox_utf8
+bash tools/run-host-tests.sh tests/host/ui/303_ui_editbox_utf8
 ```

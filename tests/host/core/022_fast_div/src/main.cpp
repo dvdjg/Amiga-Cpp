@@ -2,18 +2,18 @@
 // Test HOST-022: utilidades de division por constante / potencia de dos.
 // ============================================================================
 //
-// Respalda la API de `eng/core/fast_div.hpp` que usa el hot path del campo de
+// Respalda la API de `eng/core/math/fast_div.hpp` que usa el hot path del campo de
 // tiles (`TileFieldController`): deteccion runtime de potencia de dos, log2,
 // shift aritmetico (floor) y `fast_div<N>` (pow2 -> shift/mask; general ->
 // cociente/resto exactos). En 68000 la division por una constante NO potencia
 // de dos es un libcall (~150 ciclos), asi que estas utilidades son la base para
 // evitarlo.
 //
-//   bash tools/run-host-tests.sh tests/host/022_fast_div
+//   bash tools/run-host-tests.sh tests/host/core/022_fast_div
 
 #include <cstdio>
 
-#include <eng/core/fast_div.hpp>
+#include <eng/core/math/fast_div.hpp>
 
 namespace {
 int g_fail = 0;

@@ -7,11 +7,11 @@
 // deshabilitado no recibe el hit, foco al pulsar y dibujo del boton (bisel segun `WfPressed`).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/225_ui_context
+//   bash tools/run-host-tests.sh tests/host/ui/225_ui_context
 
 #include <cstdio>
 
-#include <eng/core/box.hpp>
+#include <eng/core/types/box.hpp>
 #include <eng/field/surface.hpp>
 #include <eng/ui/context.hpp>
 #include <eng/ui/widgets.hpp>

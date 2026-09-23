@@ -20,5 +20,5 @@ OK: Sim dynamic terrain (inundacion, incendio, derrumbe, regeneracion)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/167_sim_dynamic_terrain
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/sim/167_sim_dynamic_terrain
 ```

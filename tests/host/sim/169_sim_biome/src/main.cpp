@@ -13,7 +13,7 @@
 //   4) `biome_species`/`biome_food`/`biome_name`.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/169_sim_biome
+//   bash tools/run-host-tests.sh tests/host/sim/169_sim_biome
 
 #include <cstdio>
 

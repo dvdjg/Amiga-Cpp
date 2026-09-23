@@ -20,11 +20,11 @@ detienen la CPU (parada `illegal` en m68k).
 
 ## Relación con `eng::Result`
 
-`eng::Result` (`eng/core/types.hpp`) es el enum de causas sin valor;
+`eng::Result` (`eng/core/types/types.hpp`) es el enum de causas sin valor;
 `Expected<T, E>` transporta además el valor en caso de éxito.
 
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/078_optional_expected
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/078_optional_expected
 ```

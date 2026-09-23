@@ -9,7 +9,7 @@
 #include <cstdio>
 
 #include <eng/audio/wave_tables.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace {
 

@@ -1,6 +1,6 @@
 // Test host del escalar fixed-point genérico (eng::math::Fixed<Repr,Exp>).
 // Fija las INVARIANTES del sistema de tipos y del redondeo (F0 del roadmap).
-#include <eng/core/fixed.hpp>
+#include <eng/core/math/fixed.hpp>
 
 #include <cstdio>
 #include <concepts>

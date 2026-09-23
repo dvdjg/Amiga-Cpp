@@ -6,7 +6,7 @@
 // que no cambia no genera mensaje), y que el raton mantiene la posicion absoluta clampada.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/252_os_input
+//   bash tools/run-host-tests.sh tests/host/os/252_os_input
 
 #include <cstdio>
 

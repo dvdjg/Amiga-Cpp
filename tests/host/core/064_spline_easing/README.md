@@ -1,7 +1,7 @@
 # HOST-064 — splines y easing genéricos
 
-Respalda `eng/core/spline.hpp` (Hermite cúbica y Catmull-Rom) y los easing de
-`eng/core/interp.hpp` sobre el escalar: los MISMOS algoritmos con `double`,
+Respalda `eng/core/math/spline.hpp` (Hermite cúbica y Catmull-Rom) y los easing de
+`eng/core/math/interp.hpp` sobre el escalar: los MISMOS algoritmos con `double`,
 `MiniFloat16`, `q12` (fixed 4.12) y `Fixed<s32,12>`, contra una referencia en `double`
 calculada desde las MISMAS entradas redondeadas.
 
@@ -25,5 +25,5 @@ calculada desde las MISMAS entradas redondeadas.
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/064_spline_easing
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/064_spline_easing
 ```

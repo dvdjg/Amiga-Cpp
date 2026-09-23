@@ -29,5 +29,5 @@ OK: ajedrez (SAN, enroque, captura, promocion, desambiguacion, mate, UCI)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/142_chess_notation
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/board/142_chess_notation
 ```

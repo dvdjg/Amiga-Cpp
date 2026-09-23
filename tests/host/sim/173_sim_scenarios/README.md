@@ -29,5 +29,5 @@ OK: Sim scenarios (mundo viable: natalidad y mortalidad observadas)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/173_sim_scenarios
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/sim/173_sim_scenarios
 ```

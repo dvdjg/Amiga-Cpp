@@ -22,5 +22,5 @@ OK: Blackboard (set/find/get_or/erase/clear, structs)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/111_blackboard
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/ai/111_blackboard
 ```

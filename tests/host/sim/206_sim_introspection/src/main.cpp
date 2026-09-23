@@ -7,7 +7,7 @@
 // tras la jugada del rival), mas su efecto sobre el afecto/estado.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/206_sim_introspection
+//   bash tools/run-host-tests.sh tests/host/sim/206_sim_introspection
 
 #include <cstdio>
 

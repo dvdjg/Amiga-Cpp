@@ -11,12 +11,12 @@
 //   5) Geometria de los `BlitJob` de desplazamiento y de columna entrante.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/267_fine_scroll
+//   bash tools/run-host-tests.sh tests/host/graphics/267_fine_scroll
 
 #include <cstdio>
 
 #include <eng/api/effects.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/field/soft_dpf.hpp>
 #include <eng/field/xlimited.hpp>
 

@@ -19,5 +19,5 @@ de objetos accesibles por `Handle` estable y reutilizable.
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/088_pool
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/088_pool
 ```

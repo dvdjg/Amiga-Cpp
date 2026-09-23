@@ -20,5 +20,5 @@ empaquetado de `object3d`.
 
 ```
 CXX="C:\Users\dvdjg\Documents\programa\AI\Amiga\mingw64\bin\g++.exe" \
-  bash tools/run-host-tests.sh tests/host/047_lib3d
+  bash tools/run-host-tests.sh tests/host/graphics/047_lib3d
 ```

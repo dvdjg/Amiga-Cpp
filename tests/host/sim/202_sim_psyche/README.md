@@ -22,5 +22,5 @@ OK: eng::sim psyche (eventos, tilt, confianza, racha y modificador)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/202_sim_psyche
+CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/sim/202_sim_psyche
 ```

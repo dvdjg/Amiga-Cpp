@@ -7,11 +7,11 @@
 // capta input. Ver ROADMAP_GUI.md (G6) y GUI_LIBRARY.md §13.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/229_ui_windows
+//   bash tools/run-host-tests.sh tests/host/ui/229_ui_windows
 
 #include <cstdio>
 
-#include <eng/core/box.hpp>
+#include <eng/core/types/box.hpp>
 #include <eng/ui/context.hpp>
 #include <eng/ui/widgets.hpp>
 #include <eng/ui/window.hpp>

@@ -11,7 +11,7 @@
 //   5) `clear`.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/124_string_interner
+//   bash tools/run-host-tests.sh tests/host/core/124_string_interner
 
 #include <cstdio>
 

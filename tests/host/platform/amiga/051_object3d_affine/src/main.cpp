@@ -4,7 +4,7 @@
 // y la misma cámara que `object3d::update_object_transformation` actual.
 #include <eng/retro/fixed_trig.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
-#include <eng/core/linalg.hpp>
+#include <eng/core/math/linalg.hpp>
 #include <eng/platform/amiga/object3d.hpp>
 
 #include <cstdio>
@@ -70,7 +70,7 @@ static NewTransform new_update(s16 rx, s16 ry, s16 rz, s16 sx, s16 sy, s16 sz, s
 	r.w2o.t = Vec<3, q0> {{from_int<s16>(static_cast<s16>(-tx)), from_int<s16>(static_cast<s16>(-ty)),
 			       from_int<s16>(static_cast<s16>(-tz))}};
 	// camara = M * (M.t), normalizada a q12
-	for (int i = 0; i < 3; ++i) r.camera.v[i] = dot(r.w2o.m.row(i), r.w2o.t);
+	for (int i = 0; i < 3; ++i) r.camera.v[i] = dot_fixed_row<3>(r.w2o.m.row(i), r.w2o.t);
 	return r;
 }
 

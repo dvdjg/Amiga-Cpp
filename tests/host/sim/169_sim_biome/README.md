@@ -23,5 +23,5 @@ OK: Sim biome (perfiles, especies, volcado al mundo)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/169_sim_biome
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/sim/169_sim_biome
 ```

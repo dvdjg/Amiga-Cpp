@@ -30,5 +30,5 @@ OK: GUI keymaps nacionales (ES/FR/IT/DE/RU) validados.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/263_ui_keymap_layouts
+bash tools/run-host-tests.sh tests/host/ui/263_ui_keymap_layouts
 ```

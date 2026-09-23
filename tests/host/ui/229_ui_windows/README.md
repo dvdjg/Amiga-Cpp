@@ -21,5 +21,5 @@ OK: GUI G6 (ventanas + modalidad) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/229_ui_windows
+bash tools/run-host-tests.sh tests/host/ui/229_ui_windows
 ```

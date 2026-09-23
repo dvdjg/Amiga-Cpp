@@ -1,6 +1,6 @@
 # HOST-208 - ptr
 
-Test host de `eng/core/ptr.hpp` y `eng/core/span.hpp`: punteros y vistas "inteligentes"
+Test host de `eng/core/types/ptr.hpp` y `eng/core/types/span.hpp`: punteros y vistas "inteligentes"
 **sin heap** para el engine.
 
 - `Ref<T>`: observador **no propietario** y anulable (sustituye al `T*` crudo en APIs).
@@ -11,7 +11,7 @@ Test host de `eng/core/ptr.hpp` y `eng/core/span.hpp`: punteros y vistas "inteli
 ## Build / run
 
 ```
-CXX=<g++> bash tools/run-host-tests.sh tests/host/208_ptr
+CXX=<g++> bash tools/run-host-tests.sh tests/host/core/208_ptr
 ```
 
 `Ref`: construcción desde referencia, `T*` y `nullptr` (**implícitas**, para escribir

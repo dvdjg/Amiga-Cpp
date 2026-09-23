@@ -24,5 +24,5 @@ OK: conocimiento (libro, nombres, round-trip por bloque, tablas de finales)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/147_board_knowledge
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/board/147_board_knowledge
 ```

@@ -6,12 +6,12 @@
 // este test los ejercita con los escalares de 16 bits del engine (`MiniFloat16` y el
 // fixed `q12`) para fijar que funcionan sin especializaciones.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/103_scalar_util
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/103_scalar_util
 
 #include <cmath>
 #include <cstdio>
 
-#include <eng/core/minifloat_math.hpp>
+#include <eng/core/math/minifloat_math.hpp>
 #include <eng/core/util/algorithm.hpp>
 #include <eng/core/util/flat_map.hpp>
 #include <eng/core/util/optional.hpp>

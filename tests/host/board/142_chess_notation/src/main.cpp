@@ -17,7 +17,7 @@
 // `to_uci` produce `e2e4`/`e7e8q`, util para depurar y hablar con herramientas.
 //
 // Se ejecuta con:
-//   bash tools/run-host-tests.sh tests/host/142_chess_notation
+//   bash tools/run-host-tests.sh tests/host/board/142_chess_notation
 
 #include <cstdio>
 #include <cstring>

@@ -18,5 +18,5 @@ entregan correctamente cuando se llaman en el orden del bucle real. La discrepan
 apunta a la interacción hook↔pump en el backend Amiga, no a `TimerService`.
 
 ```bash
-bash tools/run-host-tests.sh tests/host/309_os_hook_pump_order
+bash tools/run-host-tests.sh tests/host/os/309_os_hook_pump_order
 ```

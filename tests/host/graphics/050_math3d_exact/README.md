@@ -24,5 +24,5 @@ resultado).
 
 ```
 CXX="C:\Users\dvdjg\Documents\programa\AI\Amiga\mingw64\bin\g++.exe" \
-  bash tools/run-host-tests.sh tests/host/050_math3d_exact
+  bash tools/run-host-tests.sh tests/host/graphics/050_math3d_exact
 ```

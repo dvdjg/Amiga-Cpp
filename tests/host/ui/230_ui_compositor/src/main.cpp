@@ -7,11 +7,11 @@
 // pixeles de la pantalla del mapeo planar. Ver ROADMAP_GUI.md (G7) y GUI_LIBRARY.md §14.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/230_ui_compositor
+//   bash tools/run-host-tests.sh tests/host/ui/230_ui_compositor
 
 #include <cstdio>
 
-#include <eng/core/box.hpp>
+#include <eng/core/types/box.hpp>
 #include <eng/ui/compositor.hpp>
 
 namespace {

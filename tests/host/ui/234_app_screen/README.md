@@ -29,5 +29,5 @@ OK: App/Screen (fachada de juego) validados.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/234_app_screen
+bash tools/run-host-tests.sh tests/host/ui/234_app_screen
 ```

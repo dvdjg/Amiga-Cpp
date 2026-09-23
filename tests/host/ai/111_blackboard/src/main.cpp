@@ -10,7 +10,7 @@
 //   3) Valores de tipo struct (no solo escalares).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/111_blackboard
+//   bash tools/run-host-tests.sh tests/host/ai/111_blackboard
 
 #include <cstdio>
 

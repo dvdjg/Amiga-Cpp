@@ -6,7 +6,7 @@
 // metadatos de compilación y operaciones de valor que el runtime freestanding no
 // puede tomar de `<type_traits>`/`<utility>`.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/073_basic_type_traits
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/073_basic_type_traits
 
 #include <cstdio>
 

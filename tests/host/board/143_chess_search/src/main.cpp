@@ -22,7 +22,7 @@
 // (nodos y cancelacion).
 //
 // Se ejecuta con:
-//   bash tools/run-host-tests.sh tests/host/143_chess_search
+//   bash tools/run-host-tests.sh tests/host/board/143_chess_search
 
 #include <cstdio>
 #include <cstdlib>

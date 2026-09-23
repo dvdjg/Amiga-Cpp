@@ -33,5 +33,5 @@ fracción y no pasa por la mantisa de 10 bits del MF. Verificado en el `.o` de m
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/058_minifloat_fixed
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/058_minifloat_fixed
 ```

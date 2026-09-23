@@ -10,7 +10,7 @@ búsqueda binaria (`find_chunk`), lectura de celdas, **cruce de chunk**, **wrap 
 el rechazo de payload corto, versión inválida y bloques fuera de rango.
 
 ```bash
-bash tools/run-host-tests.sh tests/host/031_world_view
+bash tools/run-host-tests.sh tests/host/field/031_world_view
 ```
 
 Contexto: `docs/engine/architecture/WORLD_FORMAT.md`,

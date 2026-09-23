@@ -4,7 +4,7 @@ Test host de `engine/include/eng/core/util/state_machine.hpp`:
 `eng::util::StateMachine<State, Event>` con tabla de transiciones `constexpr` externa
 (sin heap, sin virtuals). Es el motor genérico de decisión del engine y la base sobre la
 que se apoya `eng::ai::decision` (ver
-[`GAME_AI_LIBRARY.md`](../../../docs/engine/architecture/GAME_AI_LIBRARY.md)).
+[`GAME_AI_LIBRARY.md`](../../../../docs/engine/architecture/GAME_AI_LIBRARY.md)).
 
 ## Qué comprueba
 
@@ -25,5 +25,5 @@ OK: StateMachine (semaforo, guardia de IA, orden de tabla)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/108_state_machine
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/ai/108_state_machine
 ```

@@ -21,5 +21,5 @@ OK: .englib (relocacion y simbolos) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/248_dynloader
+bash tools/run-host-tests.sh tests/host/res/248_dynloader
 ```

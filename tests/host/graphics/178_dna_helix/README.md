@@ -22,5 +22,5 @@ escribir la demo, y usa la tabla exacta como referencia compartida.
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/178_dna_helix
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/graphics/178_dna_helix
 ```

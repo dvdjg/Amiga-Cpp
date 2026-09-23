@@ -20,5 +20,5 @@ OK: Task (secuencia, espera, fallo, Delay)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/128_task
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/core/128_task
 ```

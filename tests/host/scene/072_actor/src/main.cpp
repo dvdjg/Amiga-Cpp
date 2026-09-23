@@ -12,7 +12,7 @@
 //   5. Necesidades de Copper ancladas: de relativas al actor a líneas absolutas.
 //
 // Ejecución:
-//   bash tools/run-host-tests.sh tests/host/072_actor
+//   bash tools/run-host-tests.sh tests/host/scene/072_actor
 
 #include <cstdio>
 

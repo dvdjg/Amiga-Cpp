@@ -5,12 +5,12 @@
 // Fija los checksums de `tab1/2/3` (calculados desde la sintab EXACTA del original,
 // con el `>>16` aritmetico y el envolvimiento a `s8`) y de la paleta (256 RGB12).
 //
-//   bash tools/run-host-tests.sh tests/host/021_plasma_tables
+//   bash tools/run-host-tests.sh tests/host/core/021_plasma_tables
 
 #include <cstdio>
 
-#include "../../../../demos/amiga/082_plasma/src/data/plasma_colors.hpp"
-#include "../../../../demos/amiga/082_plasma/src/data/plasma_tables.hpp"
+#include "../../../../../demos/amiga/082_plasma/src/data/plasma_colors.hpp"
+#include "../../../../../demos/amiga/082_plasma/src/data/plasma_tables.hpp"
 
 int main() {
 	const auto& t = plasma_data::kTables;

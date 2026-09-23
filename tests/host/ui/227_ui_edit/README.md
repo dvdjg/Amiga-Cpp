@@ -25,5 +25,5 @@ OK: GUI G4 (foco + EditBox) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/227_ui_edit
+bash tools/run-host-tests.sh tests/host/ui/227_ui_edit
 ```

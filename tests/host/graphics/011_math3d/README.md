@@ -20,7 +20,7 @@ traslación (como el `Compose3D` original).
 
 ```
 CXX="C:\Users\dvdjg\Documents\programa\AI\Amiga\mingw64\bin\g++.exe" \
-  bash tools/run-host-tests.sh tests/host/011_math3d
+  bash tools/run-host-tests.sh tests/host/graphics/011_math3d
 ```
 
 Origen: `demoscene-repo-orig/lib/lib3d` (`LoadIdentity3D`, `Translate3D`,

@@ -9,7 +9,7 @@ alineado, con `stepy != 0` (rama de fillup), 2 tiles de golpe y con inversión d
 (`restore_saveword`).
 
 ```bash
-bash tools/run-host-tests.sh tests/host/034_scroll_burst_equiv
+bash tools/run-host-tests.sh tests/host/field/034_scroll_burst_equiv
 ```
 
 Contexto: `docs/engine/architecture/FAST_SCROLL.md`.

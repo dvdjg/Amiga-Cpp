@@ -16,7 +16,7 @@ del Copper (modelo objetivo §5 de `PLAYFIELD_SCROLL_ARCHITECTURE.md`).
 ## Cómo corre
 
 ```bash
-bash tools/run-host-tests.sh tests/host/061_flat_mapper
+bash tools/run-host-tests.sh tests/host/field/061_flat_mapper
 ```
 
 ## Relación

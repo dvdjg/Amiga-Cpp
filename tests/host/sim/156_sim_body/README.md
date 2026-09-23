@@ -26,5 +26,5 @@ OK: Sim body (cadena, IK, postura, generico double/q12)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/156_sim_body
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/sim/156_sim_body
 ```

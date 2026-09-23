@@ -11,7 +11,7 @@
 //   5) Transmision por ensenanza (`share`) y actuacion en el mundo.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/171_sim_culture
+//   bash tools/run-host-tests.sh tests/host/sim/171_sim_culture
 
 #include <cstdio>
 

@@ -16,13 +16,13 @@
 //   3) Runtime: `CopperIntent` anotado por franja conserva su geometría.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/002_raster_intent   (solo este)
+//   bash tools/run-host-tests.sh tests/host/graphics/002_raster_intent   (solo este)
 //   bash tools/run-host-tests.sh                                (todos)
 
 #include <cstdio>
 #include <type_traits>
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/graphics/raster_intent.hpp>
 #include <eng/graphics/sprite.hpp>
 #include <eng/graphics/copper/scheduler.hpp>

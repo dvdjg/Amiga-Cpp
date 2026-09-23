@@ -20,7 +20,7 @@ exacta, HOST-020).
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/021_plasma_tables
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/021_plasma_tables
 ```
 
 Contexto: `docs/demos/effects/PLASMA_PORT_PLAN.md`.

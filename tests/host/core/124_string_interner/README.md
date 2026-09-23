@@ -23,5 +23,5 @@ OK: StringInterner (dedup por contenido, lookup, capacidad, arena)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/124_string_interner
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/core/124_string_interner
 ```

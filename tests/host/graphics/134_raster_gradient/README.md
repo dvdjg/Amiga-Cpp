@@ -19,5 +19,5 @@ Test host de `eng/graphics/effects/raster_gradient.hpp`: valida la lógica pura 
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/134_raster_gradient
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/graphics/134_raster_gradient
 ```

@@ -29,5 +29,5 @@ OK: decodificacion MFM de pista AmigaDOS validada.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/259_floppy_mfm
+bash tools/run-host-tests.sh tests/host/platform/amiga/259_floppy_mfm
 ```

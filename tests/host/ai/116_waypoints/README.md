@@ -22,5 +22,5 @@ OK: WaypointGraph (ruta optima, inalcanzable, capacidad)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/116_waypoints
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/ai/116_waypoints
 ```

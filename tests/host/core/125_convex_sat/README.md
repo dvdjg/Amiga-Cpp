@@ -23,5 +23,5 @@ OK: SAT 2D (cuadrados, rombo, sentido de giro, bordes y punto)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/125_convex_sat
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/core/125_convex_sat
 ```

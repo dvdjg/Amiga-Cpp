@@ -27,5 +27,5 @@ OK: seam C2P (Rasterizer::c2p) valida chunky->planar.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/218_seam_c2p
+bash tools/run-host-tests.sh tests/host/graphics/218_seam_c2p
 ```

@@ -23,10 +23,10 @@ la STL.
   categorías se especializan a mano; el resto usa los builtins que sí existen.
 - `eng::util::min`/`max`/`clamp` son genéricos (cualquier tipo con `operator<`,
   devuelven referencia). Los de escalares (`Fixed`/`MiniFloat16`) siguen en
-  `eng::math` (`eng/core/scalar_ops.hpp`).
+  `eng::math` (`eng/core/math/scalar_ops.hpp`).
 
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/073_basic_type_traits
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/073_basic_type_traits
 ```

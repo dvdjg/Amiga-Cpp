@@ -31,5 +31,5 @@ OK: eng::sim introspection (confianza, duda, presion, sorpresa, ritmo y puente c
 ## Ejecutar
 
 ```bash
-CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/206_sim_introspection
+CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/sim/206_sim_introspection
 ```

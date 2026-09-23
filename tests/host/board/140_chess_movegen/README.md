@@ -31,5 +31,5 @@ OK: ajedrez 0x88 (fen, make/unmake, zobrist, perft, terminal, GameRules)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/140_chess_movegen
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/board/140_chess_movegen
 ```

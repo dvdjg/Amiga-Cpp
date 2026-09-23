@@ -24,5 +24,5 @@ OK: GUI G5 (layout + tema) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/228_ui_layout
+bash tools/run-host-tests.sh tests/host/ui/228_ui_layout
 ```

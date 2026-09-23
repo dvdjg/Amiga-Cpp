@@ -7,12 +7,12 @@
 // generico sobre el escalar (se prueba con `s32` y con `float`).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/249_crowd
+//   bash tools/run-host-tests.sh tests/host/ai/249_crowd
 
 #include <cstdio>
 
 #include <eng/ai/steering/crowd.hpp>
-#include <eng/core/fixed_math.hpp>
+#include <eng/core/math/fixed_math.hpp>
 #include <eng/retro/fixed_q.hpp>
 
 using namespace eng;

@@ -9,7 +9,7 @@
 using namespace eng::object3d;
 
 // La `pilka` real (icosaedro truncado, asset de la demo 116) para el adaptador n-gon.
-#include "../../../../demos/amiga/116_flatshade_convex/src/data/pilka.c"
+#include "../../../../../../demos/amiga/116_flatshade_convex/src/data/pilka.c"
 
 static int failures = 0;
 static void check(bool ok, const char* msg) {

@@ -19,5 +19,5 @@ reutiliza `Pool` + `IntrusiveSList` (sin heap).
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/098_broadphase
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/098_broadphase
 ```

@@ -9,11 +9,11 @@
 //   4) `emit_into` emite SPR0PTH/L -> estructura y DMACON con SPREN.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/301_ui_hardware_cursor
+//   bash tools/run-host-tests.sh tests/host/ui/301_ui_hardware_cursor
 
 #include <cstdio>
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/memory/arena.hpp>

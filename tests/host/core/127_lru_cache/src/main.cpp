@@ -6,7 +6,7 @@
 // la entrada menos recientemente usada al llenarse.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/127_lru_cache
+//   bash tools/run-host-tests.sh tests/host/core/127_lru_cache
 
 #include <cstdio>
 

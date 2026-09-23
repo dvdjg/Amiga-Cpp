@@ -7,7 +7,7 @@
 // è/ò/ù en IT; cirilico en RU). Ver `amiga-bootcamp/11_libraries/keymap.md`.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/263_ui_keymap_layouts
+//   bash tools/run-host-tests.sh tests/host/ui/263_ui_keymap_layouts
 
 #include <cstdio>
 #include <cstring>

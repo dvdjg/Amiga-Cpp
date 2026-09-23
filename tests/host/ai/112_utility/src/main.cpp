@@ -10,7 +10,7 @@
 //   3) Caso de uso: un guardia elige atacar o huir segun distancia y salud.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/112_utility
+//   bash tools/run-host-tests.sh tests/host/ai/112_utility
 
 #include <cstdio>
 

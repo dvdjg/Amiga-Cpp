@@ -13,7 +13,7 @@
 // frases. El coste es de pocos kB y es viable en un A500 ampliado.
 //
 // Se ejecuta con:
-//   bash tools/run-host-tests.sh tests/host/149_chess_explain
+//   bash tools/run-host-tests.sh tests/host/board/149_chess_explain
 
 #include <cstdio>
 #include <cstring>

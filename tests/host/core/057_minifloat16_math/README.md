@@ -1,4 +1,4 @@
-# HOST-057 — matemáticas clásicas sobre `MiniFloat16` (`eng/core/minifloat_math.hpp`)
+# HOST-057 — matemáticas clásicas sobre `MiniFloat16` (`eng/core/math/minifloat_math.hpp`)
 
 Fija `sqrt`, `exp`, `log`, `log2`/`log10`, `pow`, `hypot`, trigonometría
 (`sin`/`cos`/`tan` + `sincos`) e inversas (`atan`/`atan2`/`asin`/`acos`) implementadas
@@ -48,5 +48,5 @@ coma flotante.
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/057_minifloat16_math
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/057_minifloat16_math
 ```

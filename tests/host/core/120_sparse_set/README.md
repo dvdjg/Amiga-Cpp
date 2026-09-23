@@ -22,5 +22,5 @@ OK: SparseSet (insert/find, iteracion densa, swap-remove, capacidad)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/120_sparse_set
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/core/120_sparse_set
 ```

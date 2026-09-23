@@ -20,5 +20,5 @@ orden, sin función hash y determinista. Para cardinalidades mayores, `HashMap`/
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/082_flat_map_set
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/082_flat_map_set
 ```

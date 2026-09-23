@@ -28,5 +28,5 @@ OK: Steering (seek/flee/arrive, flocking, pursue/evade/wander/avoid)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/115_steering
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/ai/115_steering
 ```

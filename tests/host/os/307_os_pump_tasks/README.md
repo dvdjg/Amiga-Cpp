@@ -20,5 +20,5 @@ número de mensajes entregados (para decidir el idle).
 ## Build / run
 
 ```
-CXX=<g++> bash tools/run-host-tests.sh tests/host/307_os_pump_tasks
+CXX=<g++> bash tools/run-host-tests.sh tests/host/os/307_os_pump_tasks
 ```

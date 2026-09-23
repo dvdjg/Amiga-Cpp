@@ -9,7 +9,7 @@
 #include <cstdio>
 
 #include <eng/audio/sfx_bank.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace {
 

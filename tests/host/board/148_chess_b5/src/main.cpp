@@ -21,7 +21,7 @@
 //      reales en el host, con resultado determinista (mismo ranking con 1 o N hilos).
 //
 // Se ejecuta con:
-//   bash tools/run-host-tests.sh tests/host/148_chess_b5
+//   bash tools/run-host-tests.sh tests/host/board/148_chess_b5
 
 #include <cstdio>
 

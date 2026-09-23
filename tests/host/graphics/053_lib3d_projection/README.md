@@ -25,5 +25,5 @@ la demo, permite afirmar "esto no cambia la imagen" con evidencia.
 
 ```
 CXX="C:\Users\dvdjg\Documents\programa\AI\Amiga\mingw64\bin\g++.exe" \
-  bash tools/run-host-tests.sh tests/host/053_lib3d_projection
+  bash tools/run-host-tests.sh tests/host/graphics/053_lib3d_projection
 ```

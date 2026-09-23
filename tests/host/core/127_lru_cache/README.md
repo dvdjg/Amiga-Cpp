@@ -21,5 +21,5 @@ OK: LruCache (eviccion LRU, get/peek, erase, clear)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/127_lru_cache
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/core/127_lru_cache
 ```

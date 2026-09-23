@@ -1,6 +1,6 @@
 # HOST-104 — matemáticas para `Fixed` (`fixed_math.hpp`)
 
-Respalda `engine/include/eng/core/fixed_math.hpp`: especializa `scalar_sin`/`scalar_cos`/
+Respalda `engine/include/eng/core/math/fixed_math.hpp`: especializa `scalar_sin`/`scalar_cos`/
 `scalar_sqrt` para `Fixed<s16,E>` usando la tabla de seno y `isqrt`.
 
 ## Qué cubre
@@ -23,5 +23,5 @@ satura).
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/104_fixed_math
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/104_fixed_math
 ```

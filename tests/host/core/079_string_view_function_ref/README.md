@@ -20,5 +20,5 @@ no vale).
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/079_string_view_function_ref
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/079_string_view_function_ref
 ```

@@ -24,5 +24,5 @@ OK: Sim communication (gestos, recepcion, emocion, difusion)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/170_sim_communication
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/sim/170_sim_communication
 ```

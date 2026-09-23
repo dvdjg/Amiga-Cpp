@@ -9,7 +9,7 @@
 //   - 0x4C = cursor ARRIBA y 0x4D = cursor ABAJO (se corrigio una inversion).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/302_ui_keymap_specials
+//   bash tools/run-host-tests.sh tests/host/ui/302_ui_keymap_specials
 
 #include <cstdio>
 

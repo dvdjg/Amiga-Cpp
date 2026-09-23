@@ -9,7 +9,7 @@
 // El test no usa float: el veredicto sale de comparar enteros (max_err vs tol, en
 // unidades de 1/4096). Este script solo formatea y agrega.
 //
-// Uso: tests/l0_bare_metal/020_math_scalars/verify-math.sh [--demo <ruta>] [--skip-build]
+// Uso: tests/amiga/l0_bare_metal/020_math_scalars/verify-math.sh [--demo <ruta>] [--skip-build]
 //      [--port N] [--wait-ms N] [--keep]
 // ---------------------------------------------------------------------------
 import * as fs from 'fs';

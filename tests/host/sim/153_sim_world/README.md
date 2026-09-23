@@ -48,5 +48,5 @@ OK: Sim world (poblacion, LOD, ticks, migracion, sociedad, ciclo de vida, puesta
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/153_sim_world
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/sim/153_sim_world
 ```

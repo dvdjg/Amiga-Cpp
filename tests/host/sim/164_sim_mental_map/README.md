@@ -25,5 +25,5 @@ OK: Sim mental map (sesgo, overlay para astar, influencia, olvido)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/164_sim_mental_map
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/sim/164_sim_mental_map
 ```

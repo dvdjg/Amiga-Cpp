@@ -6,7 +6,7 @@
 // copia, reducción, búsqueda binaria, permutación y compactación, todo sobre
 // memoria contigua y sin asignar.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/075_algorithm
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/075_algorithm
 
 #include <cstdio>
 

@@ -11,5 +11,5 @@ Rasterizado CPU de un polígono convexo por scanline sobre un `Playfield` de pru
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/045_surface_polygon
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/field/045_surface_polygon
 ```

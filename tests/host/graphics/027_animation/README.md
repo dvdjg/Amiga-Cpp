@@ -10,7 +10,7 @@ frame, determinismo, equivalencia de un tick grande frente a ticks de 1, y anima
 vacía.
 
 ```bash
-bash tools/run-host-tests.sh tests/host/027_animation
+bash tools/run-host-tests.sh tests/host/graphics/027_animation
 ```
 
 Contexto: `docs/engine/architecture/CONTENT_AND_TILEMAP.md` §3.

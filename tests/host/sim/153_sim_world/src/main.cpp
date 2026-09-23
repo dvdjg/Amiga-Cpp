@@ -15,11 +15,11 @@
 //   7) Determinismo: mismo estado + misma semilla => mismo resultado.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/153_sim_world
+//   bash tools/run-host-tests.sh tests/host/sim/153_sim_world
 
 #include <cstdio>
 
-#include <eng/core/random.hpp>
+#include <eng/core/math/random.hpp>
 #include <eng/sim/domain.hpp>
 #include <eng/sim/inventory.hpp>
 #include <eng/sim/lifecycle.hpp>

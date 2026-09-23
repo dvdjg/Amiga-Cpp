@@ -10,7 +10,7 @@
 //   4) `SimWorld::offer_trade`: cierra el trato entre criaturas y sube su reputacion.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/168_sim_trade
+//   bash tools/run-host-tests.sh tests/host/sim/168_sim_trade
 
 #include <cstdio>
 

@@ -3,7 +3,7 @@
 // vez, horizontales descartadas, una línea por plano del color y un solo area fill.
 //
 // Ejecución:
-//   bash tools/run-host-tests.sh tests/host/213_outline_xor
+//   bash tools/run-host-tests.sh tests/host/graphics/213_outline_xor
 
 #include <cstdio>
 

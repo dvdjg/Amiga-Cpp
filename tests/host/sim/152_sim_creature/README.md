@@ -46,5 +46,5 @@ gate de `tools/analyze/codegen-report.mjs` fija los valores de las piezas clave 
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/152_sim_creature
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/sim/152_sim_creature
 ```

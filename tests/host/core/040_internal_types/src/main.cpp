@@ -2,13 +2,13 @@
 // Test HOST-040: sistema de tipos internos (vistas con tag + unidades fuertes)
 // ============================================================================
 //
-// Valida `eng/core/typed.hpp`: los buffers con dominio NO son intercambiables
+// Valida `eng/core/types/typed.hpp`: los buffers con dominio NO son intercambiables
 // (fallo de compilación intencionado, comprobado con conceptos), la reinterpretación
 // byte<->word es explícita, y las vistas no añaden tamaño sobre `Span`.
 
 #include <cstdio>
 
-#include <eng/core/typed.hpp>
+#include <eng/core/types/typed.hpp>
 
 namespace {
 int g_fail = 0;

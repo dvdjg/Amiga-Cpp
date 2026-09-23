@@ -2,9 +2,9 @@
 // Test HOST-056: escalar de coma flotante de 16 bits `eng::math::MiniFloat16`.
 // ============================================================================
 //
-// Respalda la API de `eng/core/minifloat.hpp`: formato (1|5|10, sesgo 15), conversión
+// Respalda la API de `eng/core/math/minifloat.hpp`: formato (1|5|10, sesgo 15), conversión
 // explícita a/desde `float`, aritmética (+ - * / con signo) y los rasgos que lo hacen
-// usable como escalar de la librería genérica (`scalar_traits`, `eng/core/linalg.hpp`).
+// usable como escalar de la librería genérica (`scalar_traits`, `eng/core/math/linalg.hpp`).
 //
 // La validación no es "compila y da algo": se compara la MISMA operación hecha en
 // `MiniFloat16` contra la hecha en `float`, sobre entradas idénticas (las ya
@@ -21,13 +21,13 @@
 // resultado cercano a cero por cancelación no dispara un error relativo enorme que no
 // informa de nada. El error relativo por operación elemental es ~2^-11 ≈ 4.9e-4.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/056_minifloat16
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/056_minifloat16
 
 #include <cmath>
 #include <cstdio>
 
-#include <eng/core/linalg.hpp>
-#include <eng/core/minifloat.hpp>
+#include <eng/core/math/linalg.hpp>
+#include <eng/core/math/minifloat.hpp>
 
 using eng::math::MiniFloat16;
 namespace m = eng::math;

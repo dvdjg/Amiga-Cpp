@@ -23,7 +23,7 @@ El patrón del buffer lo genera el llamador (procedural o tilemap); para conteni
 ## Ejecución
 
 ```
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/267_fine_scroll
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/graphics/267_fine_scroll
 ```
 
 Referencias: `docs/reference/amiga/techniques/README.md` (scroll fino `BPLCON1`/`DDFSTRT`),

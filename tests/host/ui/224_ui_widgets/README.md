@@ -35,5 +35,5 @@ OK: GUI G1 (arbol, dirty, medida, Panel/Label) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/224_ui_widgets
+bash tools/run-host-tests.sh tests/host/ui/224_ui_widgets
 ```

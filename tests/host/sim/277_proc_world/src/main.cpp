@@ -9,12 +9,12 @@
 // fija). Ver docs/guides/roadmap/ROADMAP_PROCEDURAL_WORLDS.md (W0).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/277_proc_world
+//   bash tools/run-host-tests.sh tests/host/sim/277_proc_world
 
 #include <cstdio>
 
-#include <eng/core/minifloat.hpp>
-#include <eng/core/minifloat_math.hpp>
+#include <eng/core/math/minifloat.hpp>
+#include <eng/core/math/minifloat_math.hpp>
 #include <eng/sim/gen/world_gen.hpp>
 
 namespace {

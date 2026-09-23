@@ -7,11 +7,11 @@
 // `field::ClipRect` (bordes inclusivos x1/y1) y `graphics::DirtyRect` (bordes exclusivos).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/231_box
+//   bash tools/run-host-tests.sh tests/host/core/231_box
 
 #include <cstdio>
 
-#include <eng/core/box.hpp>
+#include <eng/core/types/box.hpp>
 #include <eng/field/raster.hpp>
 #include <eng/field/surface.hpp>
 #include <eng/graphics/frame_plan.hpp>

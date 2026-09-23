@@ -29,5 +29,5 @@ OK: Sim terrain/climate (terreno, astar, clima, region)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/158_sim_terrain_climate
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/sim/158_sim_terrain_climate
 ```

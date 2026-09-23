@@ -23,5 +23,5 @@ OK: GUI G2 (UiContext + hit-test + Button) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/225_ui_context
+bash tools/run-host-tests.sh tests/host/ui/225_ui_context
 ```

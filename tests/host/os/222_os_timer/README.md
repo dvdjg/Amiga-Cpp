@@ -19,5 +19,5 @@ OK: timers de usuario (frames/us, periodico, stop, capacidad) validados.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/222_os_timer
+bash tools/run-host-tests.sh tests/host/os/222_os_timer
 ```

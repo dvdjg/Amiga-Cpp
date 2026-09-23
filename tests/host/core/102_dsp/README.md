@@ -19,5 +19,5 @@ ni heap; las tasas se fijan a la frecuencia del mixer.
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/102_dsp
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/102_dsp
 ```

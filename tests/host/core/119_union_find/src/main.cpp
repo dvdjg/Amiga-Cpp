@@ -11,7 +11,7 @@
 //   5) Caso de uso: islas de celdas transitables en una tira (componentes conexas).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/119_union_find
+//   bash tools/run-host-tests.sh tests/host/core/119_union_find
 
 #include <cstdio>
 

@@ -16,5 +16,5 @@ offsets de byte y `UpdateObjectTransformation` (sobre `eng/retro`/`math3d`).
 
 ```
 CXX="C:\Users\dvdjg\Documents\programa\AI\Amiga\mingw64\bin\g++.exe" \
-  bash tools/run-host-tests.sh tests/host/014_object3d
+  bash tools/run-host-tests.sh tests/host/platform/amiga/014_object3d
 ```

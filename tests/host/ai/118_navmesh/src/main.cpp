@@ -14,7 +14,7 @@
 // La malla se instancia con el escalar `s32`.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/118_navmesh
+//   bash tools/run-host-tests.sh tests/host/ai/118_navmesh
 
 #include <cstdio>
 

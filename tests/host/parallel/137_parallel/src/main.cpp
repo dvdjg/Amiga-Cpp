@@ -9,7 +9,7 @@
 // este binario).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/137_parallel
+//   bash tools/run-host-tests.sh tests/host/parallel/137_parallel
 
 #include <cstdio>
 

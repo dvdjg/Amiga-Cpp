@@ -1,9 +1,9 @@
 # HOST-136: escalares generales en simulacion (`eng::real`/`coord`/`intw`)
 
 Test host que escribe un algoritmo de simulacion **una sola vez** contra los alias de
-`eng/core/scalar.hpp` (`eng::real`, `eng::coord`, `eng::intw`) y lo compila en los tres modos
+`eng/core/math/scalar.hpp` (`eng::real`, `eng::coord`, `eng::intw`) y lo compila en los tres modos
 del escalar. Es la evidencia de la fase **F5** del
-[roadmap del escalar genérico](../../../docs/guides/roadmap/REFACTOR_SCALAR_GENERICO.md): el
+[roadmap del escalar genérico](../../../../docs/guides/roadmap/REFACTOR_SCALAR_GENERICO.md): el
 código no cambia entre anchos, solo la selección en compilación.
 
 ## Qué comprueba
@@ -26,7 +26,7 @@ Modos y escalares:
 
 ```bash
 # Un modo (nativo en host), dentro del runner normal:
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/136_real_scalar
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/core/136_real_scalar
 
 # Los tres modos, comparados en la misma pasada:
 CXX="/c/.../mingw64/bin/g++.exe" bash tools/run/run-scalar-modes.sh

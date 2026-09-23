@@ -14,7 +14,7 @@
 // una FSM propia (ver docs/engine/architecture/GAME_AI_LIBRARY.md).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/108_state_machine
+//   bash tools/run-host-tests.sh tests/host/ai/108_state_machine
 
 #include <cstdio>
 

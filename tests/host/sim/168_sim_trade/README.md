@@ -21,5 +21,5 @@ OK: Sim trade (valor, regateo, intercambio, reputacion)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/168_sim_trade
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/sim/168_sim_trade
 ```

@@ -6,7 +6,7 @@
 // sobre un asignador (BumpAlloc), capacidad inline (SmallVector) y el caso sin
 // asignador (NullAlloc) que no crece.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/081_vector_small_vector
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/081_vector_small_vector
 
 #include <cstdio>
 

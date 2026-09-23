@@ -23,5 +23,5 @@ OK: eng::sim read (aprendizaje de tells, Bayes-lite, prior y suspicacia)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/201_sim_read
+CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/sim/201_sim_read
 ```

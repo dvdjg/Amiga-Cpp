@@ -15,11 +15,11 @@
 //      `eng::ai::InfluenceMap` (depositar/seguir/decair feromonas).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/154_sim_mind_society
+//   bash tools/run-host-tests.sh tests/host/sim/154_sim_mind_society
 
 #include <cstdio>
 
-#include <eng/core/random.hpp>
+#include <eng/core/math/random.hpp>
 #include <eng/sim/colony.hpp>
 #include <eng/sim/genetics.hpp>
 #include <eng/sim/hierarchy.hpp>

@@ -6,7 +6,7 @@
 // siguiente (con underrun si no estaba listo) y el fin de archivo.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/257_os_stream
+//   bash tools/run-host-tests.sh tests/host/os/257_os_stream
 
 #include <cstdio>
 

@@ -21,7 +21,7 @@
 // exactamente Capacity*BlockSize.
 //
 // Se ejecuta con:
-//   bash tools/run-host-tests.sh tests/host/146_board_storage
+//   bash tools/run-host-tests.sh tests/host/board/146_board_storage
 
 #include <cstdio>
 

@@ -6,7 +6,7 @@
 // `eng/core/util/chunked_vector.hpp` (crecimiento por bloques con direcciones
 // estables). Ejercita Vector sobre el arena del engine.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/084_arena_chunked
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/084_arena_chunked
 
 #include <cstdio>
 

@@ -27,5 +27,5 @@ OK: Sim objects/economy (inventario, objetos, economia y reputacion)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/157_sim_objects_economy
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/sim/157_sim_objects_economy
 ```

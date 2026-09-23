@@ -6,7 +6,7 @@
 // al subsistema correcto (cache/loader) sin cruzar consumidores, y descarta lo que no es E/S.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/255_io_route
+//   bash tools/run-host-tests.sh tests/host/res/255_io_route
 
 #include <cstdio>
 

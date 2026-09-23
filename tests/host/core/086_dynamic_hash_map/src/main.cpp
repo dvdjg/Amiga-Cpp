@@ -6,7 +6,7 @@
 // arena/bump, estres contra un modelo de referencia (cubre rehash + back-shift) e
 // internado de cadenas con clave `StringView`.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/086_dynamic_hash_map
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/086_dynamic_hash_map
 
 #include <cstdio>
 

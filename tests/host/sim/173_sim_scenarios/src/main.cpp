@@ -12,7 +12,7 @@
 // poblacion no explota) para poder correr en regresion; el valor esta en el digesto.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/173_sim_scenarios
+//   bash tools/run-host-tests.sh tests/host/sim/173_sim_scenarios
 
 #include <cstdio>
 

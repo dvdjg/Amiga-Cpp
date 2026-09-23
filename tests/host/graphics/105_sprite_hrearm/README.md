@@ -24,5 +24,5 @@ Todo con un `MemorySystem` sobre un buffer estático: sin hardware.
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/105_sprite_hrearm
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/graphics/105_sprite_hrearm
 ```

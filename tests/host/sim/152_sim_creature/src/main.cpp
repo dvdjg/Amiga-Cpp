@@ -20,11 +20,11 @@
 //   8) `AbstractCreature`: dano/curacion, flags y refugio.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/152_sim_creature
+//   bash tools/run-host-tests.sh tests/host/sim/152_sim_creature
 
 #include <cstdio>
 
-#include <eng/core/random.hpp>
+#include <eng/core/math/random.hpp>
 #include <eng/sim/behavior.hpp>
 #include <eng/sim/creature.hpp>
 #include <eng/sim/mind.hpp>

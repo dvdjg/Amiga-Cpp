@@ -14,12 +14,12 @@
 //      solapan reutilizan.
 //
 // Ejecución:
-//   bash tools/run-host-tests.sh tests/host/003_sprite_allocator   (solo este)
+//   bash tools/run-host-tests.sh tests/host/graphics/003_sprite_allocator   (solo este)
 //   bash tools/run-host-tests.sh                                    (todos)
 
 #include <cstdio>
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/graphics/sprite_allocator.hpp>
 
 namespace {

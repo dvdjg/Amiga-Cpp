@@ -22,7 +22,7 @@
 // limita a comprobar que el driver puede invocarlos; no ejecuta nada.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/001_graphics_driver_contract   (solo este)
+//   bash tools/run-host-tests.sh tests/host/graphics/001_graphics_driver_contract   (solo este)
 //   bash tools/run-host-tests.sh                                            (todos)
 
 #include <cstdio>

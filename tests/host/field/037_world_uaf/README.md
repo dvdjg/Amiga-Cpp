@@ -9,7 +9,7 @@ Se comprueban: `add_chunk`/`finish`, `Blob::bind`/`find`, y la lectura del mundo
 `tools/assets/uaf-pack.*` con `--world world.bin`.
 
 ```bash
-bash tools/run-host-tests.sh tests/host/037_world_uaf
+bash tools/run-host-tests.sh tests/host/field/037_world_uaf
 ```
 
 Contexto: `docs/engine/architecture/WORLD_FORMAT.md`, `docs/tools/UAF_PACK.md`.

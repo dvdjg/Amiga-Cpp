@@ -1,6 +1,6 @@
 // Test host del álgebra lineal genérica (eng::math::Vec/Mat/Affine).
 // El MISMO código sirve para fixed-point y para float (F2 del roadmap).
-#include <eng/core/linalg.hpp>
+#include <eng/core/math/linalg.hpp>
 
 #include <cstdio>
 #include <eng/retro/fixed_q.hpp>

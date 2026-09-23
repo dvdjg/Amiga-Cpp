@@ -1,6 +1,6 @@
 # HOST-231: `eng::Box` y adaptadores de rectángulos
 
-Test host del **tipo único de rectángulo** `eng::Box` (`engine/include/eng/core/box.hpp`) y de sus
+Test host del **tipo único de rectángulo** `eng::Box` (`engine/include/eng/core/types/box.hpp`) y de sus
 conversiones a/desde los tipos con semántica distinta que ya existían en el engine.
 
 ## Qué comprueba
@@ -25,5 +25,5 @@ OK: Box y adaptadores (SurfaceRect/ClipRect/DirtyRect) validados.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/231_box
+bash tools/run-host-tests.sh tests/host/core/231_box
 ```

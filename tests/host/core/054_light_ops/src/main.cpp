@@ -1,6 +1,6 @@
 // Test host del sombreado por cara (eng::math::light_ops) y de hi16: la parte del culling
 // de lib3d que convierte `normal·vista` en un color 0..15 sin sqrt en runtime.
-#include <eng/core/light.hpp>
+#include <eng/core/math/light.hpp>
 
 #include <cstdio>
 

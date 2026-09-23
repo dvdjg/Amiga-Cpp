@@ -6,11 +6,11 @@
 // que la emision/lectura de tells conecta con `eng::sim` (expression/read).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/204_cards_persona
+//   bash tools/run-host-tests.sh tests/host/cards/204_cards_persona
 
 #include <cstdio>
 
-#include <eng/core/random.hpp>
+#include <eng/core/math/random.hpp>
 
 #include <eng/cards/ai/persona_bot.hpp>
 #include <eng/cards/core/types.hpp>

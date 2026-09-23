@@ -7,7 +7,7 @@
 // del backend y sondea hardware real; se verifica en la demo 205 sobre A500).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/235_hw_info
+//   bash tools/run-host-tests.sh tests/host/platform/amiga/235_hw_info
 
 #include <cstdio>
 #include <cstring>

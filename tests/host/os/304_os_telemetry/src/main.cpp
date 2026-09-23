@@ -7,7 +7,7 @@
 // silencioso. Tambien comprueba `PrioMsgQueue::depth`/`depth_total` (los datos que lee).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/304_os_telemetry
+//   bash tools/run-host-tests.sh tests/host/os/304_os_telemetry
 
 #include <cstdio>
 

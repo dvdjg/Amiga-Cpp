@@ -11,7 +11,7 @@
 //      percibe; la novedad sube la saliencia (memoria de largo plazo).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/160_sim_senses
+//   bash tools/run-host-tests.sh tests/host/sim/160_sim_senses
 
 #include <cstdio>
 

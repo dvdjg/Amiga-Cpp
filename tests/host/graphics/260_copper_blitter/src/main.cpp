@@ -9,11 +9,11 @@
 //      la ventana se emite; fuera se cuenta como `unhandled_intents` y no escribe registros.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/260_copper_blitter
+//   bash tools/run-host-tests.sh tests/host/graphics/260_copper_blitter
 
 #include <cstdio>
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/raster_intent.hpp>

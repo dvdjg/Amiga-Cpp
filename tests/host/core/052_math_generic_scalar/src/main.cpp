@@ -1,7 +1,7 @@
 // HOST-052 — la librería es AGNÓSTICA del escalar.
 // El MISMO Vec/Mat/Affine y las MISMAS operaciones funcionan con: 4.12, 8.8, float
 // (FPU/emulación) y un escalar de usuario (complejo de dos fix, definido aquí mismo).
-#include <eng/core/linalg.hpp>
+#include <eng/core/math/linalg.hpp>
 #include <eng/retro/lib2d.hpp>
 
 #include <cstdio>

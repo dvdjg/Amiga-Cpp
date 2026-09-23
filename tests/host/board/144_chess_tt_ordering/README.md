@@ -25,5 +25,5 @@ OK: TT (12 B, sondeo, reemplazo, reuso) y ordenacion (MVV-LVA, killer)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/144_chess_tt_ordering
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/board/144_chess_tt_ordering
 ```

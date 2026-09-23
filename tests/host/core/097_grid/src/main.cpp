@@ -5,7 +5,7 @@
 // Respalda `eng/core/util/grid.hpp`: tile<->pixel, proyección diamante e inversa y
 // vecinos/distancia hexagonal.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/097_grid
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/097_grid
 
 #include <cstdio>
 

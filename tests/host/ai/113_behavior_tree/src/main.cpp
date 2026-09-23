@@ -10,7 +10,7 @@
 //   4) Caso de uso: guardia que dispara si tiene municion o recarga si no.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/113_behavior_tree
+//   bash tools/run-host-tests.sh tests/host/ai/113_behavior_tree
 
 #include <cstdio>
 

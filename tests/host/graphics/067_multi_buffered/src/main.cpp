@@ -15,11 +15,11 @@
 // hardware ni RAM Amiga.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/067_multi_buffered
+//   bash tools/run-host-tests.sh tests/host/graphics/067_multi_buffered
 
 #include <cstdio>
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/graphics/composition/compose.hpp>
 #include <eng/memory/arena.hpp>
 

@@ -4,7 +4,7 @@
 //
 // Respalda `eng/core/util/static_vector.hpp` y `eng/core/util/ring_buffer.hpp`.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/077_static_vector_ring_buffer
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/077_static_vector_ring_buffer
 
 #include <cstdio>
 

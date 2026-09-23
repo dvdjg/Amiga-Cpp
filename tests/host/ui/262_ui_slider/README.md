@@ -19,5 +19,5 @@ OK: GUI Slider (click/flechas/dibujo) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/262_ui_slider
+bash tools/run-host-tests.sh tests/host/ui/262_ui_slider
 ```

@@ -18,6 +18,6 @@ como binario nativo. El `main.cpp` usa `printf` solo para informar.
 ## Ejecución
 
 ```bash
-bash tools/run-host-tests.sh tests/host/003_sprite_allocator   # solo este
+bash tools/run-host-tests.sh tests/host/graphics/003_sprite_allocator   # solo este
 bash tools/run-host-tests.sh                                    # todos
 ```

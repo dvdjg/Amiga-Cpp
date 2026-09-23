@@ -25,5 +25,5 @@ OK: scene::compose doble buffer (parcheo de BPLxPT en commit).
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/067_multi_buffered
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/graphics/067_multi_buffered
 ```

@@ -17,5 +17,5 @@ que un desajuste de signos, de redondeo o de periodicidad falla de forma determi
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/132_rotozoom
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/graphics/132_rotozoom
 ```

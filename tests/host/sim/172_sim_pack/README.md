@@ -22,5 +22,5 @@ OK: Sim pack (roles, flanqueo, coordinacion)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/172_sim_pack
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/sim/172_sim_pack
 ```

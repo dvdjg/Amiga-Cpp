@@ -27,5 +27,5 @@ que devuelve `Scheduler::move_at`.
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/069_copper_double_buffer
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/graphics/069_copper_double_buffer
 ```

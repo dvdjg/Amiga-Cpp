@@ -19,5 +19,5 @@ OK: teclado (bit-reverse, down/up, modificadores) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/256_os_keyboard
+bash tools/run-host-tests.sh tests/host/os/256_os_keyboard
 ```

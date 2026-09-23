@@ -6,7 +6,7 @@
 // OR-eadas, take_signals selectivo) y `prio_of`/`signal_for`.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/219_os_core
+//   bash tools/run-host-tests.sh tests/host/os/219_os_core
 
 #include <cstdio>
 #include <type_traits>

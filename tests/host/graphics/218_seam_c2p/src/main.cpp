@@ -7,11 +7,11 @@
 // `Rasterizer` sin que el llamador sepa si detras hay CPU o Blitter.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/218_seam_c2p
+//   bash tools/run-host-tests.sh tests/host/graphics/218_seam_c2p
 
 #include <cstdio>
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/field/raster.hpp>
 #include <eng/graphics/c2p.hpp>
 

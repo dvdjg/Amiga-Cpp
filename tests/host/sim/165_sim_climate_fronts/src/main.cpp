@@ -10,7 +10,7 @@
 //   4) `set_hazard` sigue fijando un peligro global (todas las regiones).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/165_sim_climate_fronts
+//   bash tools/run-host-tests.sh tests/host/sim/165_sim_climate_fronts
 
 #include <cstdio>
 

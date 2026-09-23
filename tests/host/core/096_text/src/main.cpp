@@ -5,7 +5,7 @@
 // Respalda `eng/core/util/text.hpp`: trim, split_next, equal_ci, parse de enteros,
 // conversion a decimal (sin division) y join.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/096_text
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/096_text
 
 #include <cstdio>
 

@@ -28,7 +28,7 @@ OK: flat_shade_xor (contorno EOR por plano + un area fill XOR).
 ## Ejecutar
 
 ```bash
-CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/213_outline_xor
+CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/graphics/213_outline_xor
 ```
 
 ## Validación en hardware

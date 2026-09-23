@@ -85,10 +85,10 @@ test espera ~240 frames y vuelve a Workbench (no toca el display).
 
 ```bash
 # Compilar
-bash ./tools/build/build-demo.sh tests/l0_bare_metal/020_math_scalars --debug
+bash ./tools/build/build-demo.sh tests/amiga/l0_bare_metal/020_math_scalars --debug
 
 # Compilar + ejecutar + verificar por canal lateral (falla si algún caso no pasa)
-bash tests/l0_bare_metal/020_math_scalars/verify-math.sh
+bash tests/amiga/l0_bare_metal/020_math_scalars/verify-math.sh
 
 # Opciones: --skip-build, --port N, --wait-ms N, --verbose (imprime todos los casos), --keep
 ```

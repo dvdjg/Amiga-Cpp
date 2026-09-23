@@ -10,7 +10,7 @@
 
 #include <cstdio>
 
-#include <eng/core/random.hpp>
+#include <eng/core/math/random.hpp>
 
 #include <eng/cards/core/deck.hpp>
 #include <eng/cards/core/types.hpp>

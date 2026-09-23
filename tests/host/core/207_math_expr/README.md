@@ -1,6 +1,6 @@
 # HOST-207: expression templates lite
 
-Test host de `engine/include/eng/core/expr.hpp` (`eng::math::et`): el árbol de expresión se
+Test host de `engine/include/eng/core/math/expr.hpp` (`eng::math::et`): el árbol de expresión se
 construye en compilación y se evalúa **una sola vez** al convertir al tipo final, sin
 temporales por operador.
 
@@ -38,5 +38,5 @@ OK: expression templates lite (escalar constexpr, Fixed, MF16, Vec/Mat fusionado
 ## Ejecutar
 
 ```bash
-CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/207_math_expr
+CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/core/207_math_expr
 ```

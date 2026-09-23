@@ -9,11 +9,11 @@
 // (Blitter). Ver ROADMAP_GUI.md (G8) y GUI_LIBRARY.md §14.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/268_ui_compositor_blit
+//   bash tools/run-host-tests.sh tests/host/ui/268_ui_compositor_blit
 
 #include <cstdio>
 
-#include <eng/core/box.hpp>
+#include <eng/core/types/box.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/ui/compositor.hpp>
 

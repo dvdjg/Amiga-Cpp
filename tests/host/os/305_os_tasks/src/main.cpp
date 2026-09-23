@@ -7,7 +7,7 @@
 // el `block`/`unblock`, y el orden por prioridad.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/305_os_tasks
+//   bash tools/run-host-tests.sh tests/host/os/305_os_tasks
 
 #include <cstdio>
 

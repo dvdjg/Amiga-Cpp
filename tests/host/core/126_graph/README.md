@@ -23,5 +23,5 @@ OK: Graph (adyacencia, BFS, A*, orden topologico, capacidad)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/126_graph
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/core/126_graph
 ```

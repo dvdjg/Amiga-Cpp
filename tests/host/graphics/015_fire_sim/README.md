@@ -18,5 +18,5 @@ la matemática equivalente en host, de forma determinista y rápida.
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/015_fire_sim
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/graphics/015_fire_sim
 ```

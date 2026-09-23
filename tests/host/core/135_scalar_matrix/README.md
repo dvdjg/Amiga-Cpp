@@ -4,7 +4,7 @@ Test host que instancia los **mismos** algoritmos genéricos con varios escalare
 compara contra una referencia `double`, midiendo el error relativo. Sirve de referencia de
 cómo se comporta cada ancho (16 bits retro vs 32 bits vs nativo) y cierra las fases **F0**
 (`scalar.hpp`) y **F1** (división/raíz de `Fixed<s32,E>`) del
-[roadmap del escalar genérico](../../../docs/guides/roadmap/REFACTOR_SCALAR_GENERICO.md).
+[roadmap del escalar genérico](../../../../docs/guides/roadmap/REFACTOR_SCALAR_GENERICO.md).
 
 ## Qué comprueba
 
@@ -37,5 +37,5 @@ Con `-DENG_SCALAR_RETRO16` se fuerza en host la selección de 16 bits (simulaci�
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/135_scalar_matrix
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/core/135_scalar_matrix
 ```

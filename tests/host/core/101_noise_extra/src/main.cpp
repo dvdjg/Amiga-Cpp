@@ -2,15 +2,15 @@
 // Test HOST-101: worley/cellular y variantes de fbm (eng::math/noise).
 // ============================================================================
 //
-// Respalda `eng/core/noise.hpp`: worley2_sq/worley2, turbulence2 y ridged2.
+// Respalda `eng/core/math/noise.hpp`: worley2_sq/worley2, turbulence2 y ridged2.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/101_noise_extra
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/101_noise_extra
 
 #include <cmath>
 #include <cstdio>
 
-#include <eng/core/minifloat_math.hpp>
-#include <eng/core/noise.hpp>
+#include <eng/core/math/minifloat_math.hpp>
+#include <eng/core/math/noise.hpp>
 
 using eng::math::MiniFloat16;
 namespace em = eng::math;

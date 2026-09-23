@@ -2,7 +2,7 @@
 // Test host de eng::assets::Blob (contenedor UAF-R, big-endian).
 // Construye un blob mínimo (header + chunks) y valida bind/find/data y errores.
 #include <eng/assets/uaf.hpp>
-#include <eng/core/mesh3d.hpp>
+#include <eng/core/data/mesh3d.hpp>
 
 #include <cstdio>
 #include <cstring>

@@ -5,7 +5,7 @@
 // Respalda `eng/core/util/pathfinding.hpp`: BFS y A* en rejilla 8x8 con obstáculos y
 // reconstrucción de camino.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/099_pathfinding
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/099_pathfinding
 
 #include <cstdio>
 

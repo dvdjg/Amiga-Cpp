@@ -11,7 +11,7 @@
 //     percibe por varios sentidos pesa mas.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/162_sim_attention
+//   bash tools/run-host-tests.sh tests/host/sim/162_sim_attention
 
 #include <cstdio>
 

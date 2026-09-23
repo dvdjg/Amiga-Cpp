@@ -37,5 +37,5 @@ normalizar; `float` porque no hay nada que normalizar. Nada de eso está cablead
 
 ```
 CXX="C:\Users\dvdjg\Documents\programa\AI\Amiga\mingw64\bin\g++.exe" \
-  bash tools/run-host-tests.sh tests/host/052_math_generic_scalar
+  bash tools/run-host-tests.sh tests/host/core/052_math_generic_scalar
 ```

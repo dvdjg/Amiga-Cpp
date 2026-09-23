@@ -11,7 +11,7 @@ Se comprueba que una mitad no implica la otra, que el sink completo exige ambas,
 `static_assert`) que `XLimitedPlayfield` cumple las tres.
 
 ```bash
-bash tools/run-host-tests.sh tests/host/036_scroll_target_emitter
+bash tools/run-host-tests.sh tests/host/field/036_scroll_target_emitter
 ```
 
 Contexto: `docs/engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md` §3.1.

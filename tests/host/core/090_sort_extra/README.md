@@ -1,6 +1,6 @@
 # HOST-090 — ordenación ampliada
 
-Respalda `engine/include/eng/core/sort.hpp` (las incorporaciones sobre `quick_sort`).
+Respalda `engine/include/eng/core/data/sort.hpp` (las incorporaciones sobre `quick_sort`).
 
 ## Qué cubre
 
@@ -22,5 +22,5 @@ contadores `u32`) y no depende de la distribución.
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/090_sort_extra
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/090_sort_extra
 ```

@@ -20,5 +20,5 @@ el `scratch` del llamador.
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/093_stats
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/093_stats
 ```

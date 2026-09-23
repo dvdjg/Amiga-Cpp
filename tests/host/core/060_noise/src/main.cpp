@@ -1,19 +1,19 @@
 // ============================================================================
-// Test HOST-060: ruido procedural genérico (`eng/core/noise.hpp`).
+// Test HOST-060: ruido procedural genérico (`eng/core/math/noise.hpp`).
 // ============================================================================
 //
 // El MISMO algoritmo (value noise + fbm) se ejecuta con `double` (referencia) y con
 // `MiniFloat16`, sobre las mismas entradas redondeadas. Comprueba determinismo, rango
 // [0,1], ruido periódico (tileable) y fbm1/fbm2/fbm3.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/060_noise
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/060_noise
 
 #include <cmath>
 #include <cstdio>
 
 // `noise.hpp` es genérico y NO incluye escalares concretos (§1.10): el test trae el suyo.
-#include <eng/core/minifloat.hpp>
-#include <eng/core/noise.hpp>
+#include <eng/core/math/minifloat.hpp>
+#include <eng/core/math/noise.hpp>
 
 using eng::math::MiniFloat16;
 namespace em = eng::math;

@@ -6,10 +6,10 @@ primeros algoritmos portados de `demoscene-repo-orig/lib/libmisc` y
 
 | Cabecera | Origen | Qué valida |
 |---|---|---|
-| [engine/include/eng/core/isqrt.hpp](../../../../engine/include/eng/core/isqrt.hpp) | `libmisc/fx.c` (`isqrt`) | `eng::isqrt` con equivalencia al C original (raíz por tabla con sesgo, no exacta). |
-| [engine/include/eng/core/sort.hpp](../../../../engine/include/eng/core/sort.hpp) | `libmisc/sort.c` (`SortItemArray`) | `eng::quick_sort` genérico y `eng::sort_items` (orden por key). |
-| [engine/include/eng/core/crc32.hpp](../../../../engine/include/eng/core/crc32.hpp) | `libmisc/crc32.c` | CRC-32 IEEE; equivalencia con el C original (y con el valor canónico de "123456789"). |
-| [engine/include/eng/core/random.hpp](../../../../engine/include/eng/core/random.hpp) | `libc/stdlib/random.c` | xoroshiro64++ (la variante `swap` del origen equivale a `rotl32` estándar); equivalencia con el C compilado. |
+| [engine/include/eng/core/math/isqrt.hpp](../../../../engine/include/eng/core/math/isqrt.hpp) | `libmisc/fx.c` (`isqrt`) | `eng::isqrt` con equivalencia al C original (raíz por tabla con sesgo, no exacta). |
+| [engine/include/eng/core/data/sort.hpp](../../../../engine/include/eng/core/data/sort.hpp) | `libmisc/sort.c` (`SortItemArray`) | `eng::quick_sort` genérico y `eng::sort_items` (orden por key). |
+| [engine/include/eng/core/data/crc32.hpp](../../../../engine/include/eng/core/data/crc32.hpp) | `libmisc/crc32.c` | CRC-32 IEEE; equivalencia con el C original (y con el valor canónico de "123456789"). |
+| [engine/include/eng/core/math/random.hpp](../../../../engine/include/eng/core/math/random.hpp) | `libc/stdlib/random.c` | xoroshiro64++ (la variante `swap` del origen equivale a `rotl32` estándar); equivalencia con el C compilado. |
 
 Al ser algoritmos puros (freestanding), se validan en host de forma rápida y
 determinista, en el mismo compilador GCC que usa el toolchain Amiga. No
@@ -21,7 +21,7 @@ Desde la raíz del repo:
 
 ```bash
 bash tools/run-host-tests.sh                                  # todos
-bash tools/run-host-tests.sh tests/host/000_eng_core_math      # solo este
+bash tools/run-host-tests.sh tests/host/core/000_eng_core_math      # solo este
 ```
 
 Salida: `OK: todas las comprobaciones pasaron` y código de salida 0 (éxito).
@@ -46,5 +46,5 @@ distinto de 0.
 ## Enlaces
 
 - Roadmap de portación de librerías:
-  [`../docs/demos/effects/LIBRARIES-CPP23-IMPORT-ROADMAP.md`](../../../docs/demos/effects/LIBRARIES-CPP23-IMPORT-ROADMAP.md).
+  [`../docs/demos/effects/LIBRARIES-CPP23-IMPORT-ROADMAP.md`](../../../../docs/demos/effects/LIBRARIES-CPP23-IMPORT-ROADMAP.md).
 - Repo origen: `C:\Users\dvdjg\Documents\programa\AI\Amiga\demoscene-repo-orig\lib\libmisc\`.

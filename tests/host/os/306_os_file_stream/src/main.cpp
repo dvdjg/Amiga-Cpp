@@ -8,7 +8,7 @@
 // el backend inyecta `file_read_async`.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/306_os_file_stream
+//   bash tools/run-host-tests.sh tests/host/os/306_os_file_stream
 
 #include <cstdio>
 #include <cstring>

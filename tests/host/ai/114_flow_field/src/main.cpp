@@ -10,7 +10,7 @@
 //   4) Buffer vacio de objetivos -> false.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/114_flow_field
+//   bash tools/run-host-tests.sh tests/host/ai/114_flow_field
 
 #include <cstdio>
 

@@ -23,5 +23,5 @@ OK: mesh_render_poly_filled (cubo n-gon: transform, culling, proyeccion y rellen
 ## Ejecutar
 
 ```bash
-CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/211_mesh_poly_render
+CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/graphics/211_mesh_poly_render
 ```

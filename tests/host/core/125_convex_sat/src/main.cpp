@@ -11,7 +11,7 @@
 //   5) Poligono degenerado (<3 vertices) -> false.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/125_convex_sat
+//   bash tools/run-host-tests.sh tests/host/core/125_convex_sat
 
 #include <cstdio>
 

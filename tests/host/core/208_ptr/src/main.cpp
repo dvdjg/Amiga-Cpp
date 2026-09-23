@@ -1,14 +1,14 @@
-// Test HOST-208: punteros "inteligentes" sin heap (eng/core/ptr.hpp).
+// Test HOST-208: punteros "inteligentes" sin heap (eng/core/types/ptr.hpp).
 //
 // Valida `Ref<T>` (observador no propietario y anulable), `NonNull<T>` (no nulo por
 // contrato) y `Opt<T>` (opcional en sitio). Sustituyen al `T*` crudo y a `std::optional`
 // en un engine freestanding (sin heap, sin STL).
 //
-//   CXX=<g++> bash tools/run-host-tests.sh tests/host/208_ptr
+//   CXX=<g++> bash tools/run-host-tests.sh tests/host/core/208_ptr
 #include <cstdio>
 
-#include <eng/core/ptr.hpp>
-#include <eng/core/span.hpp>
+#include <eng/core/types/ptr.hpp>
+#include <eng/core/types/span.hpp>
 
 namespace {
 

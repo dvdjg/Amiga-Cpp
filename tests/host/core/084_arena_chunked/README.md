@@ -21,5 +21,5 @@ que el Blitter ya apunta) y pruebas de fase `init` sobre la memoria del backend.
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/084_arena_chunked
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/084_arena_chunked
 ```

@@ -13,7 +13,7 @@
 //   - `bg_split_rects(d, display_h, viewport_h, bg_y)`: descompone el blit de fondo
 //     en 1 o 2 rectángulos contiguos para compensar el Copper split del corkscrew.
 //
-//   bash tools/run-host-tests.sh tests/host/024_parallax_offset
+//   bash tools/run-host-tests.sh tests/host/field/024_parallax_offset
 
 #include <cstdio>
 

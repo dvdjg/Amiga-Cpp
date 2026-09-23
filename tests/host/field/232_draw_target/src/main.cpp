@@ -10,11 +10,11 @@
 // palabras y el orden de bits depende del endianness del host; el conteo es portable.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/232_draw_target
+//   bash tools/run-host-tests.sh tests/host/field/232_draw_target
 
 #include <cstdio>
 
-#include <eng/core/box.hpp>
+#include <eng/core/types/box.hpp>
 #include <eng/field/draw_target.hpp>
 #include <eng/field/raster.hpp>
 #include <eng/field/surface.hpp>

@@ -21,5 +21,5 @@ determinista; su integración con el driver de copper se respalda con la demo 04
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/133_palette_transition
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/graphics/133_palette_transition
 ```

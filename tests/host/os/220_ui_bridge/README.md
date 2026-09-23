@@ -19,5 +19,5 @@ OK: puente Msg->UiEvent (raton, teclado, joystick, descartes) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/220_ui_bridge
+bash tools/run-host-tests.sh tests/host/os/220_ui_bridge
 ```

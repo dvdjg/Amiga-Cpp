@@ -20,5 +20,5 @@ mantiene `PriorityQueue`. (Decisión de R5.5, registrada en `ROADMAP_UTIL_LIBRAR
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/131_heap_bench
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/core/131_heap_bench
 ```

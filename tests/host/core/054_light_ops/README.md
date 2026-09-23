@@ -14,5 +14,5 @@ convierte `normal·vista` en un color 0..15) y la operación `hi16`.
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/054_light_ops
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/054_light_ops
 ```

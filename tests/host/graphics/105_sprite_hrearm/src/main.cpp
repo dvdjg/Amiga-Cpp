@@ -12,12 +12,12 @@
 //   4) Los offsets de registro son los del canal (`0x140 + ch*8`, etc.).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/105_sprite_hrearm
+//   bash tools/run-host-tests.sh tests/host/graphics/105_sprite_hrearm
 
 #include <cstdio>
 
 #include <eng/api/effects.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/raster_intent.hpp>

@@ -10,7 +10,7 @@
 // Verificacion: mismo orden de salida en ambos (correctitud) + tabla de comparaciones.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/131_heap_bench
+//   bash tools/run-host-tests.sh tests/host/core/131_heap_bench
 
 #include <cstdio>
 

@@ -10,7 +10,7 @@
 //   - la tabla de seno 16.16 es exacta en los cuartos.
 // Todas las comprobaciones son aritmética entera (nada de floats en el hot path).
 //
-//   bash tools/run-host-tests.sh tests/host/132_rotozoom
+//   bash tools/run-host-tests.sh tests/host/graphics/132_rotozoom
 
 #include <cstdio>
 #include <vector>

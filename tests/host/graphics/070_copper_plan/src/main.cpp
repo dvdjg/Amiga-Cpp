@@ -13,11 +13,11 @@
 //   5) El overflow de intenciones no publica una lista parcial (`end_frame` false).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/070_copper_plan
+//   bash tools/run-host-tests.sh tests/host/graphics/070_copper_plan
 
 #include <cstdio>
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/copper/plan.hpp>
 #include <eng/graphics/copper/static_plan.hpp>

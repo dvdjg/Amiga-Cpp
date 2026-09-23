@@ -20,5 +20,5 @@ el caso más barato posible (sin hash ni comparaciones).
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/085_direct_map
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/085_direct_map
 ```

@@ -14,7 +14,7 @@
 //   6) Integracion en `SimWorld`: percibir -> integrar -> consolidar.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/161_sim_memory
+//   bash tools/run-host-tests.sh tests/host/sim/161_sim_memory
 
 #include <cstdio>
 

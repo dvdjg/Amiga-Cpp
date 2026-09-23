@@ -11,7 +11,7 @@
 //      refugio percibido (Den) a memoria de largo plazo.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/163_sim_spatial_memory
+//   bash tools/run-host-tests.sh tests/host/sim/163_sim_spatial_memory
 
 #include <cstdio>
 

@@ -1,87 +1,79 @@
-# Batería de tests del engine (por capas de abstracción)
+# Batería de tests del engine
 
-Esta batería reactiva el desarrollo partiendo del **conocimiento bare metal del Amiga 500**
-y valida cada capa de abstracción del engine por separado. Los tests no son demos de
-lucimiento: son **tutoriales didácticos verificables**. El código está comentado como una
-clase, cada test incluye un `README.md` con los pasos y un **script de verificación
-determinista** (canal lateral WinUAE o pixel assertions) que prueba que lo que se dibuja
-o escribe es correcto.
+Batería de validación del engine organizada por **plataforma**, **nivel** y **categoría** (taxonomía canónica en [`../docs/testing/TAXONOMY.md`](../docs/testing/TAXONOMY.md)). Los tests no son demos de lucimiento: son **tutoriales didácticos verificables**. Cada test incluye un `README.md` con los pasos y, cuando aplica, un script de verificación determinista (canal lateral WinUAE, pixel assertions o equivalencia contra una referencia).
 
-## Capas
+## Ejes
 
-El engine se construye de abajo hacia arriba. Un test de una capa puede apoyarse en capas
-inferiores (eso es lo realista), pero ejercita principalmente la suya:
+- **Plataforma**: `host` (g++ nativo) · `amiga` (on-target, WinUAE) · `atarist` (futuro) · `megadrive` (futuro).
+- **Nivel**: `L0` bare-metal · `L1` unitario host · `L2` integración on-target · `L3` visual.
+- **Categoría (dominio)**: core, graphics, field, scene, platform/amiga, ai, sim, board, cards, os, ui, audio, res, parallel.
 
-| Carpeta | Capa | Qué ejercita |
-|---------|------|--------------|
-| [host/](host/README.md) | HOST | Algoritmos/APIs puras de `eng/core` (isqrt, sort, tablas…) compilados con g++ del host, sin WinUAE. |
-| [l0_bare_metal/](l0_bare_metal/README.md) | L0 | Registros custom, bitplanes planares, copperlist a mano, DMA y Blitter. |
-| `l1_backend/` | L1 | APIs de `MinimalBackend` (memoria, VBlank, copper, FramePlan). |
-| `l2_copper_frameplan/` | L2 | `CopperScheduler`, `CopperTimeline`, `FramePlan` y presupuestos. |
-| `l3_drivers/` | L3 | Drivers gráficos (`TileScrollScene`, futuro `Standard5`, `DualPlayfield`…). |
-| `l4_scene/` | L4 | `VirtualScene`, `Camera2D`, `TileLayer`, escenas retenidas. |
+## Árbol
+
+```
+tests/
+├── README.md             → este documento (pirámide y taxonomía)
+├── host/                 → L1: algoritmos/APIs puras (g++ del host, sin WinUAE)
+│   ├── README.md         → índice de categorías
+│   └── <categoría>/      → README.md de catálogo + NNN_<nombre>/
+├── amiga/                → on-target (WinUAE)
+│   └── l0_bare_metal/    → registros custom, bitplanes, copperlist a mano, DMA, Blitter
+└── atarist/ · megadrive/ → (futuro)
+```
+
+- **Tests HOST** (`tests/host/`): algoritmos y APIs puras que no dependen de hardware. Se compilan con el `g++` del entorno (sin MSVC ni WSL) y corren como binario nativo; son la validación más rápida y determinista. Índice de categorías en [`host/README.md`](host/README.md).
+- **Tests L0** (`tests/amiga/l0_bare_metal/`): conocimiento bare metal del Amiga (registros, planos, copper, DMA, Blitter), verificados por canal lateral/pixel assertions. Ver [`amiga/l0_bare_metal/README.md`](amiga/l0_bare_metal/README.md).
+- Los niveles `l1_backend/` y `l2_copper_frameplan/` (on-target) se añadirán bajo `tests/amiga/` cuando hagan falta.
 
 ## Convenciones de cada test
 
-Cada test vive en `tests/<capa>/<NNN_<nombre>/` y debe contener:
+Cada test vive en `tests/<plataforma>/[<nivel>/]<categoría>/NNN_<nombre>/` y debe contener:
 
 - `src/main.cpp` — código didáctico comentado por capas, sin STL, `gnu++23` freestanding.
 - `README.md` — qué hace, qué capas ejercita, qué registros/APIs usa y cómo verificar.
-- `verify-<algo>.mjs` (o `.ps1`) — script determinista por canal lateral/GDB.
-- `analyze-screenshot.ps1` — comprobación de la captura de pantalla cuando aplica.
+- `verify-<algo>.mjs` (o `.sh`/`.ts`) — script determinista por canal lateral/GDB, cuando aplica.
+- `analyze-screenshot.sh` — comprobación de la captura, cuando aplica.
 
-Además, cada test debe:
+Los tests on-target además exponen `g_eng_run_status`, alcanzan `Ready` y restauran el sistema (o documentan por qué no aplica).
 
-- exponer `g_eng_run_status` y alcanzar `Ready` (el runner depende de ello);
-- terminar restaurando el sistema (volver a Workbench) o documentar por qué no aplica;
-- dejar evidencia en `out/run/<test>/` (capturas, informe).
+## Numeración
 
-## Cómo ejecutar un test
+- El ID `HOST-NNN` (host) y el prefijo `NNN_` (on-target) son **únicos y no reutilizables**. Agrupar por categoría **no renumera**.
+- Lo valida `tools/check/test-numbering.mjs` (host) en `tools/run-host-tests.sh`.
 
-Los scripts de `tools/` aceptan cualquier ruta de demo/test (derivan el nombre del leaf),
-así que el flujo es el mismo que para las demos:
+## Cómo ejecutar
 
-```powershell
-# Compilar
-powershell -ExecutionPolicy Bypass -File .\tools\build\build-demo.ps1 tests\l0_bare_metal\010_display_320x240 -DebugBuild -Clean
+```bash
+# Tests host (todos)
+bash ./tools/run-host-tests.sh
 
-# Ejecutar y capturar (el runner espera READY por canal lateral)
-powershell -ExecutionPolicy Bypass -File .\tools\run\run-demo.ps1 tests\l0_bare_metal\010_display_320x240
+# Tests host de una categoría
+bash ./tools/run-host-tests.sh --category graphics
 
-# Analizar
-powershell -ExecutionPolicy Bypass -File .\tools\analyze\analyze-demo.ps1 tests\l0_bare_metal\010_display_320x240
+# Test host concreto
+bash ./tools/run-host-tests.sh tests/host/graphics/016_ham_scene
+```
 
-# Verificación determinista por canal lateral (si el test tiene verify-*.mjs)
-node .\tests\l0_bare_metal\010_display_320x240\verify-framebuffer.mjs --demo tests\l0_bare_metal\010_display_320x240
+Los tests on-target usan el flujo común de demos/tests:
+
+```bash
+bash ./tools/build/build-demo.sh tests/amiga/l0_bare_metal/010_display_320x240 --debug
+bash ./tools/run/run-demo.sh tests/amiga/l0_bare_metal/010_display_320x240
+bash ./tools/analyze/analyze-demo.sh tests/amiga/l0_bare_metal/010_display_320x240
 ```
 
 Los artefactos se generan en `out/demos/<leaf>/` (build) y `out/run/<leaf>/` (ejecución).
 
 ## Cómo añadir un test
 
-1. Elige la capa (`l0_bare_metal`, `l1_backend`, ...) y el siguiente número.
-2. Escribe `src/main.cpp` como tutorial: cada paso con su comentario y la capa que toca.
-3. Añade `README.md` con los pasos y el contrato de verificación.
-4. Añade el `verify-*.mjs` si el test debe leerse/verificarse por canal lateral.
-5. Regístralo en el catálogo del roadmap:
-   `docs/engine/architecture/ROADMAP_ENGINE_CPP_AMIGA500.md` (sección 21).
-
-## Catálogo
-
-| ID | Test | Capa | Estado |
-|----|------|------|--------|
-| HOST-000 | [eng_core_math](host/000_eng_core_math/README.md) — `eng::core::isqrt` y `eng::core::sort` (port de `libmisc` de demoscene-repo-orig), validados contra el C original con g++ del host. | HOST | implementado |
-| L0-010 | [display_320x240](l0_bare_metal/010_display_320x240/README.md) — modo 320x240, 5 bitplanes, paleta 32, líneas, verificación framebuffer y vuelta a Workbench. | L0/L1 | implementado |
-| L0-020 | [math_scalars](l0_bare_metal/020_math_scalars/README.md) — batería de matemáticas **sin float** en hardware: mismo vocabulario con MF, q12 y q8 + operaciones entre tipos (`transform`, `mul_fixed`, `project`), verificada por canal lateral. | L0/HOST | implementado |
-
-> **Tests HOST** (`tests/host/`): algoritmos y APIs puras que no dependen de
-> hardware se compilan con g++ del entorno (el mismo GCC del toolchain, sin
-> MSVC) y corren como binario nativo; son la validación más rápida y
-> determinista para APIs reutilizables sin abrir WinUAE. Ver
-> [host/README.md](host/README.md).
+1. Elige plataforma, nivel y categoría.
+2. Colócalo en `tests/host/<categoría>/NNN_<nombre>/` (host) o `tests/amiga/<nivel>/NNN_<nombre>/` (on-target).
+3. Escribe `src/main.cpp` como tutorial: cada paso con su comentario y la capa que toca.
+4. Añade el `README.md`.
+5. Regístralo en el catálogo de su categoría (`tests/host/<categoría>/README.md`) o en el roadmap on-target.
 
 ## Herramientas de verificación usadas
 
-- Canal lateral WinUAE-DBG (puerto 2346): `tools/debug/winuae-side-channel.ps1`.
+- Canal lateral WinUAE-DBG: `tools/debug/winuae-side-channel.sh`.
 - Verificación de símbolos desde el `.map`: patrón de `tools/debug/verify-side-channel-takeover.mjs`.
 - Especificación del canal lateral: `docs/emulation/WINUAE_SIDE_CHANNEL_DEBUG.md`.

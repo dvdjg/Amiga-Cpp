@@ -8,11 +8,11 @@
 // `text_width` (UTF-8) y `draw_text_clipped` (sin partir glifos a medias).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/223_ui_painter
+//   bash tools/run-host-tests.sh tests/host/ui/223_ui_painter
 
 #include <cstdio>
 
-#include <eng/core/box.hpp>
+#include <eng/core/types/box.hpp>
 #include <eng/field/surface.hpp>
 #include <eng/ui/painter.hpp>
 #include <eng/ui/text.hpp>

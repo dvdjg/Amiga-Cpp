@@ -7,11 +7,11 @@
 // materializacion de una persona con jitter determinista.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/199_sim_persona
+//   bash tools/run-host-tests.sh tests/host/sim/199_sim_persona
 
 #include <cstdio>
 
-#include <eng/core/random.hpp>
+#include <eng/core/math/random.hpp>
 #include <eng/sim/archetypes.hpp>
 #include <eng/sim/persona.hpp>
 #include <eng/sim/psyche_traits.hpp>

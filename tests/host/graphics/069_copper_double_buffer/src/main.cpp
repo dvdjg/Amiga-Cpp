@@ -19,11 +19,11 @@
 // cableados), que es justo lo que el refactor elimina.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/069_copper_double_buffer
+//   bash tools/run-host-tests.sh tests/host/graphics/069_copper_double_buffer
 
 #include <cstdio>
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/copper/double_buffer.hpp>
 #include <eng/graphics/palette32.hpp>

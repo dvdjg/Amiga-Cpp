@@ -10,7 +10,7 @@
 // aquí se valida el contrato puro, sin backend.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/309_os_hook_pump_order
+//   bash tools/run-host-tests.sh tests/host/os/309_os_hook_pump_order
 
 #include <cstdio>
 

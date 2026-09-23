@@ -6,11 +6,11 @@
 // de 2 bytes (`eng::utf8::decode`) entrega el code point correcto para un literal
 // cirílico (la cadena que un HUD escribiría).
 //
-//   CXX=<g++> bash tools/run-host-tests.sh tests/host/264_font_cyrillic
+//   CXX=<g++> bash tools/run-host-tests.sh tests/host/ui/264_font_cyrillic
 
 #include <cstdio>
 
-#include <eng/core/utf8.hpp>
+#include <eng/core/data/utf8.hpp>
 #include <eng/graphics/font8.hpp>
 
 namespace {

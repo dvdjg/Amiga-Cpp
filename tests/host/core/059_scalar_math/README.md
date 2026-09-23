@@ -1,6 +1,6 @@
 # HOST-059 — base matemática genérica (escalar-independiente)
 
-Respalda `eng/core/numeric_traits.hpp`, `eng/core/interp.hpp` y `eng/core/geometry.hpp`:
+Respalda `eng/core/math/numeric_traits.hpp`, `eng/core/math/interp.hpp` y `eng/core/math/geometry.hpp`:
 los MISMOS algoritmos se ejercitan con `double` y con `MiniFloat16`, comparando contra
 una referencia en `double` calculada a partir de las **mismas entradas redondeadas**.
 
@@ -19,7 +19,7 @@ una referencia en `double` calculada a partir de las **mismas entradas redondead
 
 ## Cómo está estructurado
 
-Ver [`docs/engine/architecture/SCALAR_LIBRARY.md`](../../../docs/engine/architecture/SCALAR_LIBRARY.md):
+Ver [`docs/engine/architecture/SCALAR_LIBRARY.md`](../../../../docs/engine/architecture/SCALAR_LIBRARY.md):
 algoritmos genéricos header-only + rasgos del escalar (`scalar_traits`, `numeric_traits`,
 `scalar_sqrt`) como puntos de extensión; las optimizaciones concretas son
 especializaciones (de CPU, de escalar), y el `.cpp` queda para lo no-plantilla (backend).
@@ -27,5 +27,5 @@ especializaciones (de CPU, de escalar), y el `.cpp` queda para lo no-plantilla (
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/059_scalar_math
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/059_scalar_math
 ```

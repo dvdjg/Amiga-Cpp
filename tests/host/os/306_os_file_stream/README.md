@@ -29,5 +29,5 @@ OK: feeder fichero->ChunkStream (secuencial, EOF, underrun) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/306_os_file_stream
+bash tools/run-host-tests.sh tests/host/os/306_os_file_stream
 ```

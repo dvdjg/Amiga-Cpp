@@ -6,7 +6,7 @@
 // autoasignado y capacidad.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/222_os_timer
+//   bash tools/run-host-tests.sh tests/host/os/222_os_timer
 
 #include <cstdio>
 

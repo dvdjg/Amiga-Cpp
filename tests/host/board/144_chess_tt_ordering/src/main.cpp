@@ -19,7 +19,7 @@
 //      caliente explora MENOS nodos.
 //
 // Se ejecuta con:
-//   bash tools/run-host-tests.sh tests/host/144_chess_tt_ordering
+//   bash tools/run-host-tests.sh tests/host/board/144_chess_tt_ordering
 
 #include <cstdio>
 

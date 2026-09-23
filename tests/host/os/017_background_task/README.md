@@ -26,7 +26,7 @@ drena en el hueco de VBlank (tarea ociosa que recibe `vpos`), como máximo
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/017_background_task
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/os/017_background_task
 ```
 
 Ver `docs/engine/architecture/BACKGROUND_TASKS.md`.

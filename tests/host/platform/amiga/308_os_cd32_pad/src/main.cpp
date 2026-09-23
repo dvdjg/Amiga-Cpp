@@ -7,7 +7,7 @@
 // CIA-A PRA bit 7 + dato en POTINP, `os::enable_cd32_pad`) se valida en emulador.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/308_os_cd32_pad
+//   bash tools/run-host-tests.sh tests/host/platform/amiga/308_os_cd32_pad
 
 #include <cstdio>
 

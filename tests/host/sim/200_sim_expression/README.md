@@ -25,5 +25,5 @@ OK: eng::sim expression (canales, control, compostura y fugas)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/200_sim_expression
+CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/sim/200_sim_expression
 ```

@@ -29,5 +29,5 @@ OK: crowd generico (rejilla, separacion, limites, float) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/249_crowd
+bash tools/run-host-tests.sh tests/host/ai/249_crowd
 ```

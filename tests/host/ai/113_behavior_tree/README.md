@@ -24,5 +24,5 @@ OK: BehaviorTree (secuencia, selector, cortocircuito, capacidad)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/113_behavior_tree
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/ai/113_behavior_tree
 ```

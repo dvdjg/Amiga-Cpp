@@ -10,7 +10,7 @@
 
 #include <cstdio>
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/memory/arena.hpp>
 

@@ -23,5 +23,5 @@ OK: GUI G7 (compositor + backing) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/230_ui_compositor
+bash tools/run-host-tests.sh tests/host/ui/230_ui_compositor
 ```

@@ -2,14 +2,14 @@
 // Test HOST-090: ordenación ampliada (stable/nth/partial/is_sorted/radix).
 // ============================================================================
 //
-// Respalda `eng/core/sort.hpp`: stable_sort (con y sin scratch), nth_element,
+// Respalda `eng/core/data/sort.hpp`: stable_sort (con y sin scratch), nth_element,
 // partial_sort, is_sorted y radix_sort_u16.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/090_sort_extra
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/090_sort_extra
 
 #include <cstdio>
 
-#include <eng/core/sort.hpp>
+#include <eng/core/data/sort.hpp>
 
 namespace {
 

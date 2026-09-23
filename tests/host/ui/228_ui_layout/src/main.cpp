@@ -6,11 +6,11 @@
 // ademas de `measure` de un boton y `mark_all_dirty`. Ver ROADMAP_GUI.md (G5).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/228_ui_layout
+//   bash tools/run-host-tests.sh tests/host/ui/228_ui_layout
 
 #include <cstdio>
 
-#include <eng/core/box.hpp>
+#include <eng/core/types/box.hpp>
 #include <eng/field/surface.hpp>
 #include <eng/ui/layout.hpp>
 #include <eng/ui/widgets.hpp>

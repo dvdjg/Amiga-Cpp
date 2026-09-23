@@ -29,5 +29,5 @@ OK: telemetria del mini-SO (overflows/missed/marcas de agua) validada.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/304_os_telemetry
+bash tools/run-host-tests.sh tests/host/os/304_os_telemetry
 ```

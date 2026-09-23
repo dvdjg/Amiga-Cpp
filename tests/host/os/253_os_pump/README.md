@@ -19,5 +19,5 @@ OK: bucle reactivo (drena, on_frame, on_render) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/253_os_pump
+bash tools/run-host-tests.sh tests/host/os/253_os_pump
 ```

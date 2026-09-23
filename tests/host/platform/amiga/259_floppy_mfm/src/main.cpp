@@ -7,7 +7,7 @@
 // sync, cabecera (format/track/sector), y los 512 bytes de datos (layout dodd/deven).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/259_floppy_mfm
+//   bash tools/run-host-tests.sh tests/host/platform/amiga/259_floppy_mfm
 
 #include <cstdio>
 #include <cstdint>

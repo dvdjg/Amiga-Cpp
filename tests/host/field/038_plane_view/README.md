@@ -9,7 +9,7 @@ coinciden; con doble buffer `display_base`/`write_base` seleccionan delantero/tr
 conmuta; y `bind_raw` sin bloque extra queda en modo simple.
 
 ```bash
-bash tools/run-host-tests.sh tests/host/038_plane_view
+bash tools/run-host-tests.sh tests/host/field/038_plane_view
 ```
 
 Contexto: `docs/engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md` §3.2,

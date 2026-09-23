@@ -16,7 +16,7 @@
 // hace el round-trip struct -> bytes -> bloque -> struct y consulta por clave.
 //
 // Se ejecuta con:
-//   bash tools/run-host-tests.sh tests/host/147_board_knowledge
+//   bash tools/run-host-tests.sh tests/host/board/147_board_knowledge
 
 #include <cstdio>
 

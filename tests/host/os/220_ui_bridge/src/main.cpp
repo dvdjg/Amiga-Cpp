@@ -6,7 +6,7 @@
 // modificadores, joystick/pad) y que los tipos que no son de entrada se descartan.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/220_ui_bridge
+//   bash tools/run-host-tests.sh tests/host/os/220_ui_bridge
 
 #include <cstdio>
 

@@ -12,11 +12,11 @@
 //   3) color 0 no rellena.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/217_polygon_planes
+//   bash tools/run-host-tests.sh tests/host/graphics/217_polygon_planes
 
 #include <cstdio>
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/pattern_fill.hpp>
 #include <eng/graphics/polygon_planes.hpp>

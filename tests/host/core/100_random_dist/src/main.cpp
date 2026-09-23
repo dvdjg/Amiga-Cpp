@@ -2,14 +2,14 @@
 // Test HOST-100: distribuciones sobre el PRNG (eng::core/random).
 // ============================================================================
 //
-// Respalda las utilidades de `eng/core/random.hpp`: next_range, next_symmetric,
+// Respalda las utilidades de `eng/core/math/random.hpp`: next_range, next_symmetric,
 // chance, pick, shuffle (Fisher-Yates) y next_gaussian_approx.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/100_random_dist
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/100_random_dist
 
 #include <cstdio>
 
-#include <eng/core/random.hpp>
+#include <eng/core/math/random.hpp>
 
 namespace {
 

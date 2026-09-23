@@ -19,5 +19,5 @@ OK: E/S asincrona (IoUser) y enrutado por tag validados.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/255_io_route
+bash tools/run-host-tests.sh tests/host/res/255_io_route
 ```

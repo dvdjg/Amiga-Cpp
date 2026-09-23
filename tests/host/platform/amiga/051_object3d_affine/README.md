@@ -28,5 +28,5 @@ demo, que indexa esos 24 bytes por offset fijo.
 
 ```
 CXX="C:\Users\dvdjg\Documents\programa\AI\Amiga\mingw64\bin\g++.exe" \
-  bash tools/run-host-tests.sh tests/host/051_object3d_affine
+  bash tools/run-host-tests.sh tests/host/platform/amiga/051_object3d_affine
 ```

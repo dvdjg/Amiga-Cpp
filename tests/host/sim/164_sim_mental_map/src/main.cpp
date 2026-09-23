@@ -13,7 +13,7 @@
 //      lugares, no las creencias sobre individuos).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/164_sim_mental_map
+//   bash tools/run-host-tests.sh tests/host/sim/164_sim_mental_map
 
 #include <cstdio>
 

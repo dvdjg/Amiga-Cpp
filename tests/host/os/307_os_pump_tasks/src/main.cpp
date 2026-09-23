@@ -10,7 +10,7 @@
 //   - sigue llamando a `on_frame` en todos los casos.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/307_os_pump_tasks
+//   bash tools/run-host-tests.sh tests/host/os/307_os_pump_tasks
 
 #include <cstdio>
 

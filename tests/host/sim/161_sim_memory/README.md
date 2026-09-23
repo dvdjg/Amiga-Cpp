@@ -27,5 +27,5 @@ OK: Sim memory (corto plazo, olvido, consolidacion, largo plazo)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/161_sim_memory
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/sim/161_sim_memory
 ```

@@ -7,7 +7,7 @@
 // flujos truncados/desbordados, y que el silencio comprime de verdad.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/242_pcm_codec
+//   bash tools/run-host-tests.sh tests/host/audio/242_pcm_codec
 
 #include <cstdio>
 

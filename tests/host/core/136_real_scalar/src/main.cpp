@@ -2,26 +2,26 @@
 // Test HOST-136: tipos generales de simulacion (eng::real / eng::coord / eng::intw)
 // ============================================================================
 //
-// El MISMO codigo, escrito contra los alias de `eng/core/scalar.hpp`, se compila en los
+// El MISMO codigo, escrito contra los alias de `eng/core/math/scalar.hpp`, se compila en los
 // tres modos del escalar: RETRO16 (s16 / Fixed<s16,12>), RETRO32 (s32 / Fixed<s32,12>) y
 // NATIVE (int / float). El script `tools/run/run-scalar-modes.sh` compila este fuente con
 // `-DENG_SCALAR_RETRO16`, `-DENG_SCALAR_RETRO32` y sin macro, y compara las salidas. En el
 // runner normal (host sin macro) corre en modo nativo.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/136_real_scalar
+//   bash tools/run-host-tests.sh tests/host/core/136_real_scalar
 //   bash tools/run/run-scalar-modes.sh           (compara los tres modos)
 
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 
-#include <eng/core/interp.hpp>
-#include <eng/core/linalg.hpp>
-#include <eng/core/numeric_traits.hpp>
-#include <eng/core/scalar.hpp>
-#include <eng/core/scalar_math.hpp>
-#include <eng/core/scalar_ops.hpp>
+#include <eng/core/math/interp.hpp>
+#include <eng/core/math/linalg.hpp>
+#include <eng/core/math/numeric_traits.hpp>
+#include <eng/core/math/scalar.hpp>
+#include <eng/core/math/scalar_math.hpp>
+#include <eng/core/math/scalar_ops.hpp>
 
 namespace {
 using namespace eng::math;

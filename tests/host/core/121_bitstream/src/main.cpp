@@ -10,7 +10,7 @@
 //   4) Anchos invalidos (0 y >32).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/121_bitstream
+//   bash tools/run-host-tests.sh tests/host/core/121_bitstream
 
 #include <cstdio>
 

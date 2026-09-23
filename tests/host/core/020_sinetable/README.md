@@ -24,5 +24,5 @@ del original **4096/4096 (0 diferencias)**. La generación es numérica pero det
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/020_sinetable
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/020_sinetable
 ```

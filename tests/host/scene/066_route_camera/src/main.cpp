@@ -14,7 +14,7 @@
 //   - espejo: `mirror_x` refleja x como `max_x + min_x − x`;
 //   - salto: tras `jump_start_frames` la cámara se mantiene dentro de los límites.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/066_route_camera
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/scene/066_route_camera
 
 #include <cstdio>
 

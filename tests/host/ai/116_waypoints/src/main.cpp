@@ -9,7 +9,7 @@
 //   3) Capacidad de nodos/aristas.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/116_waypoints
+//   bash tools/run-host-tests.sh tests/host/ai/116_waypoints
 
 #include <cstdio>
 

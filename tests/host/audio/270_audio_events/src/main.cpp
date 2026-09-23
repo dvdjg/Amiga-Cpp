@@ -8,7 +8,7 @@
 // planificado como HOST-241).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/270_audio_events
+//   bash tools/run-host-tests.sh tests/host/audio/270_audio_events
 
 #include <cstdio>
 

@@ -25,5 +25,5 @@ la demo `101_ehb_tile_scroll_driver` lo cubre en hardware.
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/066_route_camera
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/scene/066_route_camera
 ```

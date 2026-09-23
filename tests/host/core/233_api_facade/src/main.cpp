@@ -9,7 +9,7 @@
 // tipos publicos.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/233_api_facade
+//   bash tools/run-host-tests.sh tests/host/core/233_api_facade
 
 #include <cstdio>
 

@@ -1,7 +1,7 @@
 # HOST-048 — escalar fixed-point genérico (`eng::math::Fixed`)
 
 Test **tutorial** del núcleo de la librería de matemáticas
-(`engine/include/eng/core/fixed.hpp`). El exponente y la política van **en el tipo**, y
+(`engine/include/eng/core/math/fixed.hpp`). El exponente y la política van **en el tipo**, y
 la aritmética los combina en compilación.
 
 ## 1. Tipos y formatos
@@ -75,6 +75,6 @@ c_matmul3 (3x3)            45       3       1         0
 
 ```
 CXX="C:\Users\dvdjg\Documents\programa\AI\Amiga\mingw64\bin\g++.exe" \
-  bash tools/run-host-tests.sh tests/host/048_math_fixed
+  bash tools/run-host-tests.sh tests/host/core/048_math_fixed
 node tools/analyze/codegen-report.mjs
 ```

@@ -21,5 +21,5 @@ marcadores y nombres generados sin heap, pareja de escritura de `StringView`.
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/092_scope_guard_static_string
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/092_scope_guard_static_string
 ```

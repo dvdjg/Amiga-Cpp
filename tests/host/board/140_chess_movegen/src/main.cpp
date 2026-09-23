@@ -10,7 +10,7 @@
 // al paso de CPW y una de promociones).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/140_chess_movegen
+//   bash tools/run-host-tests.sh tests/host/board/140_chess_movegen
 
 #include <cstdio>
 #include <cstring>

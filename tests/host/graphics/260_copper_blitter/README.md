@@ -11,7 +11,7 @@ Valida `CopperIntentKind::BlitterJob` + `Scheduler::emit_blitter_job`/`set_blitt
 ## Ejecución
 
 ```
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/260_copper_blitter
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/graphics/260_copper_blitter
 ```
 
 Roadmap: `docs/guides/roadmap/ROADMAP_BLITTER_COPPER.md` (Técnica A).

@@ -12,5 +12,5 @@ Render de una malla 3D a una `Surface`: proyección en perspectiva, back-face cu
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/046_mesh_renderer
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/graphics/046_mesh_renderer
 ```

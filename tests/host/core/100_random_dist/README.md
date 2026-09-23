@@ -1,6 +1,6 @@
 # HOST-100 — distribuciones de aleatoriedad
 
-Respalda las utilidades de `engine/include/eng/core/random.hpp` (además del PRNG
+Respalda las utilidades de `engine/include/eng/core/math/random.hpp` (además del PRNG
 `Xoroshiro64pp`).
 
 ## Qué cubre
@@ -19,5 +19,5 @@ sonda `c_random_ops` no muestra libcalls.
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/100_random_dist
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/100_random_dist
 ```

@@ -5,12 +5,12 @@
 // Respalda `eng/core/util/stats.hpp` con `double`, `MiniFloat16` y `q12` (fixed):
 // media, varianza/desviación, estadísticos de orden, histograma y medias móviles.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/093_stats
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/093_stats
 
 #include <cmath>
 #include <cstdio>
 
-#include <eng/core/minifloat_math.hpp>
+#include <eng/core/math/minifloat_math.hpp>
 #include <eng/core/util/stats.hpp>
 #include <eng/retro/fixed_q.hpp>
 

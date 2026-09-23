@@ -24,5 +24,5 @@ OK: FlowField (camino minimo, muro, inalcanzable, sin objetivos)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/114_flow_field
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/ai/114_flow_field
 ```

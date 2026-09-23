@@ -3,18 +3,18 @@
 //               easing "back" y Bézier (cuadrática/cúbica).
 // ============================================================================
 //
-// Respalda `eng/core/scalar_ops.hpp`, los easing `_back` de `eng/core/interp.hpp` y
-// `bezier2`/`bezier3` de `eng/core/spline.hpp`. Los MISMOS algoritmos con `double`,
+// Respalda `eng/core/math/scalar_ops.hpp`, los easing `_back` de `eng/core/math/interp.hpp` y
+// `bezier2`/`bezier3` de `eng/core/math/spline.hpp`. Los MISMOS algoritmos con `double`,
 // `MiniFloat16` y `q12` (fixed), contra una referencia en `double`.
 //
-//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/065_scalar_ops
+//   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/065_scalar_ops
 
 #include <cmath>
 #include <cstdio>
 
-#include <eng/core/minifloat_math.hpp>
-#include <eng/core/scalar_ops.hpp>
-#include <eng/core/spline.hpp>
+#include <eng/core/math/minifloat_math.hpp>
+#include <eng/core/math/scalar_ops.hpp>
+#include <eng/core/math/spline.hpp>
 #include <eng/retro/fixed_q.hpp>
 
 using eng::math::MiniFloat16;

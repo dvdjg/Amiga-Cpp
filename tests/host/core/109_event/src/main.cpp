@@ -10,7 +10,7 @@
 //   4) Orden de invocacion: en orden de suscripcion; eventos sin argumentos.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/109_event
+//   bash tools/run-host-tests.sh tests/host/core/109_event
 
 #include <cstdio>
 

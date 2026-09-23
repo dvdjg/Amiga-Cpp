@@ -27,5 +27,5 @@ OK: HUNK (segmentos, relocaciones y simbolos) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/258_hunk_loader
+bash tools/run-host-tests.sh tests/host/res/258_hunk_loader
 ```

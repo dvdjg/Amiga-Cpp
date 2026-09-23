@@ -22,5 +22,5 @@ OK: Sim player input (movimiento, interaccion, paridad IA/humano)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/175_sim_player_input
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/sim/175_sim_player_input
 ```

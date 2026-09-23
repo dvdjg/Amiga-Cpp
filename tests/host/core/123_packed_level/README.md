@@ -20,5 +20,5 @@ OK: consumidores (nivel empaquetado y set de tiles sucios)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/123_packed_level
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/core/123_packed_level
 ```

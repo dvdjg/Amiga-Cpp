@@ -7,7 +7,7 @@
 // por MENSAJES, no por sondeo. Ver MINI_OS_INPUT.md y GUI_LIBRARY.md §15.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/261_ui_msg_input
+//   bash tools/run-host-tests.sh tests/host/ui/261_ui_msg_input
 
 #include <cstdio>
 #include <cstring>

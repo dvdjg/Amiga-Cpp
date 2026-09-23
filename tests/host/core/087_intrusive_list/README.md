@@ -19,5 +19,5 @@ El enlace vive **dentro** del objeto, así que insertar/borrar no asigna memoria
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/087_intrusive_list
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/087_intrusive_list
 ```

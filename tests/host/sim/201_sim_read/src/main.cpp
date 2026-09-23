@@ -7,7 +7,7 @@
 // rival legible (pardillo) y uno ruidoso (listillo).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/201_sim_read
+//   bash tools/run-host-tests.sh tests/host/sim/201_sim_read
 
 #include <cstdio>
 

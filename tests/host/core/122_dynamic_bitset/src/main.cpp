@@ -9,7 +9,7 @@
 //   3) init(0) y mascara de la ultima palabra parcial.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/122_dynamic_bitset
+//   bash tools/run-host-tests.sh tests/host/core/122_dynamic_bitset
 
 #include <cstdio>
 

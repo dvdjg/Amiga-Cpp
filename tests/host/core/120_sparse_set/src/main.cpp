@@ -10,7 +10,7 @@
 //   4) insert_or_assign, capacidad, id fuera de rango y clear.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/120_sparse_set
+//   bash tools/run-host-tests.sh tests/host/core/120_sparse_set
 
 #include <cstdio>
 

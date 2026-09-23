@@ -22,5 +22,5 @@ bump): úsalo en fase `init`/carga, no en `frame`.
 ## Ejecución
 
 ```bash
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/086_dynamic_hash_map
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/086_dynamic_hash_map
 ```

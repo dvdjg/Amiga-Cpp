@@ -11,7 +11,7 @@ una celda residente, wrap en X con cotas negativas y por encima del ancho, borde
 evicciones al superar la capacidad del pool (acceso **solo-residentes**).
 
 ```bash
-bash tools/run-host-tests.sh tests/host/030_tile_map_view
+bash tools/run-host-tests.sh tests/host/field/030_tile_map_view
 ```
 
 Contexto: `docs/engine/architecture/CONTENT_AND_TILEMAP.md` §2. Demo que lo ejercita en

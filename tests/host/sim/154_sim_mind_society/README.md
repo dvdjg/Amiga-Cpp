@@ -42,5 +42,5 @@ OK: Sim mind/society (conocimiento, emociones, jerarquia, genetica, colonia, afe
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/154_sim_mind_society
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/sim/154_sim_mind_society
 ```

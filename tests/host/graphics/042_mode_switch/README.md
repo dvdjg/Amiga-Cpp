@@ -18,7 +18,7 @@ que el campo).
 ## Cómo corre
 
 ```bash
-bash tools/run-host-tests.sh tests/host/042_mode_switch
+bash tools/run-host-tests.sh tests/host/graphics/042_mode_switch
 ```
 
 ## Relación

@@ -24,5 +24,5 @@ OK: Sim rumors (memoria de grupo, reputacion colectiva, difusion)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/159_sim_rumors
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/sim/159_sim_rumors
 ```

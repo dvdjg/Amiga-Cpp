@@ -34,5 +34,5 @@ OK: Sim planner (decision, PlanRunner, PlannerDriver GOAP, dominio de construcci
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/155_sim_planner
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/sim/155_sim_planner
 ```

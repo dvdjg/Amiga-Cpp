@@ -14,7 +14,7 @@
 #include <cstdio>
 #include <type_traits>
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/input/input.hpp>
 
 namespace {

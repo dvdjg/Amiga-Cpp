@@ -29,5 +29,5 @@ OK: PcmStream (doble buffer, underrun, EOF) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/239_audio_stream
+bash tools/run-host-tests.sh tests/host/audio/239_audio_stream
 ```

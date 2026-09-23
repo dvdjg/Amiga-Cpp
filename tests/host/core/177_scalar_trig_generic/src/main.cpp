@@ -8,11 +8,11 @@
 // (`Fixed<s16,12>`), se normalizan ambos resultados a double y se mide la desviacion de
 // la version fixed. El angulo va en radianes en los dos casos.
 //
-//   bash tools/run-host-tests.sh tests/host/177_scalar_trig_generic
+//   bash tools/run-host-tests.sh tests/host/core/177_scalar_trig_generic
 
-#include <eng/core/fixed.hpp>
-#include <eng/core/linalg.hpp>
-#include <eng/core/scalar_math.hpp>
+#include <eng/core/math/fixed.hpp>
+#include <eng/core/math/linalg.hpp>
+#include <eng/core/math/scalar_math.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/retro/fixed_q.hpp>
 #include <eng/retro/fixed_trig.hpp>

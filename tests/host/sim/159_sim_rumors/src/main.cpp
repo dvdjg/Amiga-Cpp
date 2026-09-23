@@ -12,7 +12,7 @@
 //      alimenta la memoria de grupo y aplica sus efectos sociales.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/159_sim_rumors
+//   bash tools/run-host-tests.sh tests/host/sim/159_sim_rumors
 
 #include <cstdio>
 

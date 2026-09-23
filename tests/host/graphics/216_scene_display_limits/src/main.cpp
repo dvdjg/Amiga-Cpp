@@ -14,11 +14,11 @@
 //   5) `geometry_for`: la geometria derivada de 320x256 es `kPal320x256`.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/216_scene_display_limits   (solo este)
+//   bash tools/run-host-tests.sh tests/host/graphics/216_scene_display_limits   (solo este)
 
 #include <cstdio>
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/graphics/composition/compose.hpp>
 #include <eng/graphics/composition/limits.hpp>
 

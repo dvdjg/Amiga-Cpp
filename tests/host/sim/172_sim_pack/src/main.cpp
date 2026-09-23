@@ -10,7 +10,7 @@
 //      `Pack` hacia el) a posiciones de flanqueo y los pone a cazar.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/172_sim_pack
+//   bash tools/run-host-tests.sh tests/host/sim/172_sim_pack
 
 #include <cstdio>
 

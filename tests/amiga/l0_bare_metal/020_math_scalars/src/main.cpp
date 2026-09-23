@@ -33,22 +33,22 @@
 // `failed_count == 0`. Además resume el recuento en `g_eng_run_status.detail` y espera
 // unos frames antes de volver a Workbench (el runner necesita ese margen).
 //
-// Verificación por host: `tests/l0_bare_metal/020_math_scalars/verify-math.sh`.
+// Verificación por host: `tests/amiga/l0_bare_metal/020_math_scalars/verify-math.sh`.
 
 #include <eng/engine.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
-#include <eng/core/geometry.hpp>
-#include <eng/core/interp.hpp>
-#include <eng/core/noise.hpp>
-#include <eng/core/scalar_ops.hpp>
-#include <eng/core/spline.hpp>
-#include <eng/core/fast_div.hpp>
-#include <eng/core/isqrt.hpp>
-#include <eng/core/light.hpp>
-#include <eng/core/mesh3d.hpp>
-#include <eng/core/minifloat_math.hpp>
+#include <eng/core/math/geometry.hpp>
+#include <eng/core/math/interp.hpp>
+#include <eng/core/math/noise.hpp>
+#include <eng/core/math/scalar_ops.hpp>
+#include <eng/core/math/spline.hpp>
+#include <eng/core/math/fast_div.hpp>
+#include <eng/core/math/isqrt.hpp>
+#include <eng/core/math/light.hpp>
+#include <eng/core/data/mesh3d.hpp>
+#include <eng/core/math/minifloat_math.hpp>
 #include <eng/retro/fixed_trig.hpp>
 #include <eng/retro/fixed_q.hpp>
 #include <eng/retro/minifloat_fixed.hpp>
