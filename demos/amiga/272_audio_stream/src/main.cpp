@@ -14,10 +14,11 @@
 //     servicio llama a `advance()` y reprograma `AUDxLCH/LCL/LEN` con el nuevo
 //     buffer (cambio de puntero sin parar el DMA). No descomprime.
 //
-// **Estado: WIP, sin verificar.** El informe objetivo es `mark_ready` en el frame
-// `kFrameReport` si hubo IRQs, cambios de buffer y cero underruns (`detail = (irq << 16) |
-// swaps`); hoy NO se cumple: la IRQ de audio dispara ~34x mas rapido que `AUDxPER * AUDxLEN`
-// (underruns). Hallazgos y siguientes pasos: docs/debugging/investigaciones/audio-stream-irq-rate.md.
+// **Estado: VERIFICADA.** Informa `mark_ready` en el frame `kFrameReport` con
+// `detail = (irq << 16) | swaps`; medido `irq == swaps` (0 underruns). La melodia se
+// **pre-sintetiza y pre-codifica una sola vez** en `init` (`m_enc`): hacerlo por frame hundia el
+// ritmo y provocaba los underruns. Analisis y log del emulador:
+// docs/debugging/investigaciones/audio-stream-irq-rate.md.
 // Ver tambien docs/engine/architecture/AUDIO_STREAMING.md y ROADMAP_AUDIO.md (A5).
 // ============================================================================
 
@@ -81,8 +82,9 @@ struct AudioStreamDemo {
 		m_pcm0 = backend.memory().chip.allocate_block<eng::AudioTag>(kChunkSamples, 4);
 		m_pcm1 = backend.memory().chip.allocate_block<eng::AudioTag>(kChunkSamples, 4);
 		m_comp = backend.memory().chip.allocate_block<eng::AudioTag>(kMaxComp, 4);
+		m_enc = backend.memory().chip.allocate_block<eng::AudioTag>(kMelodyChunks * kMaxComp, 4);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid() || !m_pcm0.valid() ||
-		    !m_pcm1.valid() || !m_comp.valid()) {
+		    !m_pcm1.valid() || !m_comp.valid() || !m_enc.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00027202u);
 			return;
 		}
@@ -100,6 +102,22 @@ struct AudioStreamDemo {
 			eng::Span<eng::u8>(m_pcm0.view.data(), kChunkSamples),
 			eng::Span<eng::u8>(m_pcm1.view.data(), kChunkSamples)};
 		m_stream.begin(cfg, bufs);
+
+		// Pre-sintetiza y pre-codifica la melodia UNA sola vez (8 chunks). El feeder por frame
+		// solo copia el chunk ya codificado: sintetizar+codificar 2048 muestras por frame hundia
+		// el ritmo de la demo y provocaba los *underruns* (ver audio-stream-irq-rate.md).
+		for (eng::u8 c = 0u; c < kMelodyChunks; ++c) {
+			const eng::s32 n = synth_chunk(c);
+			if (n <= 0) {
+				eng::debug::mark_failed(g_eng_run_status, 0x00027205u);
+				return;
+			}
+			eng::u8* dst = m_enc.view.data() + static_cast<eng::u32>(c) * kMaxComp;
+			for (eng::s32 i = 0; i < n; ++i) {
+				dst[i] = m_comp.view.data()[i];
+			}
+			m_enc_len[c] = static_cast<eng::u32>(n);
+		}
 
 		// 1) Servicio de la IRQ de audio ANTES de arrancar el DMA (arma INTENA de AUD0..3).
 		if (!backend.set_audio_service(&AudioStreamDemo::audio_service, *this)) {
@@ -165,11 +183,12 @@ private:
 			if (idx >= kNumBuffers) {
 				break;
 			}
-			const eng::s32 n =
-				synth_chunk(static_cast<eng::u8>(m_stream.next_chunk() % kMelodyChunks));
-			if (n <= 0 ||
-			    !m_stream.provide(idx, eng::Span<const eng::u8>(m_comp.view.data(),
-									     static_cast<eng::usize>(n)))) {
+			const eng::u8 c = static_cast<eng::u8>(m_stream.next_chunk() % kMelodyChunks);
+			const eng::u32 n = m_enc_len[c];
+			if (n == 0u ||
+			    !m_stream.provide(idx, eng::Span<const eng::u8>(
+						       m_enc.view.data() + static_cast<eng::u32>(c) * kMaxComp,
+						       static_cast<eng::usize>(n)))) {
 				break;
 			}
 		}
@@ -201,8 +220,15 @@ private:
 		eng::copper::SchedulerT<false> sched {m_copper_block};
 		sched.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0, kBytesPerRow, 0x1200, 1u,
 					  m_bitplane_block.view, kPlaneBytes);
-		sched.move(eng::copper::color_register(0), 0x001u);
+		// Paleta con blanco/verde/amarillo (gate visual de la regresion): el fondo (color 0) va
+		// blanco arriba, verde a la altura de la barra y amarillo abajo, cambiando por Copper. La
+		// barra de progreso (bit 1 del plano) usa color 1.
+		sched.move(eng::copper::color_register(0), 0xfffu);
 		sched.move(eng::copper::color_register(1), 0x00fu);
+		sched.wait_line(kBarRow);
+		sched.move(eng::copper::color_register(0), 0x0f0u);
+		sched.wait_line(static_cast<eng::u8>(kBarRow + 20u));
+		sched.move(eng::copper::color_register(0), 0xff0u);
 		sched.end();
 		m_copper_ptr = sched.data();
 		return sched.ok();
@@ -220,6 +246,8 @@ private:
 	eng::Block<eng::AudioTag> m_pcm0 {};
 	eng::Block<eng::AudioTag> m_pcm1 {};
 	eng::Block<eng::AudioTag> m_comp {};
+	eng::Block<eng::AudioTag> m_enc {}; ///< melodia pre-codificada (kMelodyChunks * kMaxComp)
+	eng::u32 m_enc_len[kMelodyChunks] {}; ///< tamano codificado de cada chunk de la melodia
 	eng::audio::PcmStream<kNumBuffers> m_stream {};
 	eng::amiga::PaulaAudio m_paula {};
 };

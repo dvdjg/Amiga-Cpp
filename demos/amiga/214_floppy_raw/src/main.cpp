@@ -98,6 +98,9 @@ struct DemoGame {
 			m_words = eng::os::floppy_read_track(
 				0u, 0u, false, eng::Span<eng::u16> { m_track, kTrackWords });
 			stage(m_words != 0u ? (0x214020u | attempt) : (0x214120u | attempt));
+			if (m_words > m_max_words) {
+				m_max_words = m_words;
+			}
 			if (m_words == 0u) {
 				// La DMA no completo (DSKBLK). Reintentar con el desfase del bucle alarga la demo
 				// mucho (cada intento agota el guard ≈ 15 s); se corta y se reporta el motivo.
@@ -126,9 +129,12 @@ struct DemoGame {
 		if (m_ok) {
 			eng::debug::mark_ready(g_eng_run_status, 0x00021400u);
 		} else {
-			// Bitmask del motivo: 0 motor, 1 palabras DMA, 2 sectores (hck/dck), 3 firma DOS.
+			// Bitmask del motivo: 0 motor, 1 palabras DMA, 2 sectores (hck/dck), 3 firma DOS,
+			// 4 = **alguna** lectura devolvio words!=0 (distingue "nunca leyo" de "leyo pero no
+			// verifico los sectores"). `m_words` es el ultimo intento; `m_max_words`, el mejor.
 			const eng::u32 why = (m_motor ? 1u : 0u) | (m_words != 0u ? 2u : 0u) |
-					     (m_sec_ok ? 4u : 0u) | (m_sig ? 8u : 0u);
+					     (m_sec_ok ? 4u : 0u) | (m_sig ? 8u : 0u) |
+					     (m_max_words != 0u ? 16u : 0u);
 			eng::debug::mark_failed(g_eng_run_status, 0x00021410u | why);
 		}
 	}
@@ -184,6 +190,7 @@ struct DemoGame {
 private:
 	eng::u16* m_track = nullptr;
 	eng::u16 m_words = 0u;
+	eng::u16 m_max_words = 0u; ///< mejor `words` visto (diagnostico)
 	eng::u8 m_boot[1024] {}; // bootblock completo (2 sectores)
 	eng::u8 m_kind = 0xffu;
 	eng::u8 m_hdr_track = 0xffu;

@@ -275,11 +275,18 @@ UI (`eng::ui`).
     `game.app` (escribiendo `game.app.msgs` desde `main`). En otra corrida el pump popeó 0. Es
     **no determinista**, lo que apunta a interacción/timing en el backend Amiga (o a un problema de
     optimización/aliasing con los contadores del `App`), no al servicio. Hacer los contadores
-    `volatile` **no** lo arregla. Un test de punteros `&app` (pump vs `on_frame`) dio bytes bajos
-    iguales (mismo objeto probable) pero comparación completa distinta, resultado **inconcluso**
-    porque la sonda era una función `inline` con estático local (puede no fusionarse entre TUs en
-    m68k). Próximo paso: repetir el test con un global plano (sin `inline`), y revisar el bucle
-    hook↔`update` en el backend.
+    `volatile` **no** lo arregla.
+  - **Investigación de punteros (con globales planos, sin `inline`)**: `on_msg` corre con un `this`
+    de byte alto `0xC2` y `on_frame` con uno de byte alto `0x00`, **pero los 24 bits bajos coinciden**
+    ⇒ en el 68000 solo cuentan 24 bits de dirección, así que es **la misma dirección física**: el
+    "objeto distinto" era un **falso positivo** de comparar los 32 bits (el byte alto es basura).
+    Confirmado que `on_msg` corre sobre `&game.app` y que el pump entrega ahí.
+  - **Estado**: el pump **llama** a `on_msg` (un contador **global** sube) pero los contadores
+    **miembro** del `App` no se actualizan con periodo > 1; con periodo 1 sí. Los contadores
+    `volatile` no lo arreglan, y probar una referencia local / reordenar `on_frame` antes del pump
+    tampoco. Queda como **codegen/aliasing sutil en m68k** sin causa raíz cerrada. Próximo paso:
+    aislar con un `App` mínimo (un solo contador miembro) y `-O0` vs `-O2`, y revisar el `.s` del
+    bucle del pump.
   Reproducir con `add_timer(1u, 2u)` en la demo 212. Mientras se resuelve, la demo usa periodo 1.
 - **M2 — calibración `--keys` (rawkey→event id): BLOQUEADA.** El monitor `input key <sc>` de esta
   build mapea a `256+sc`, que cae en eventos `SPC_*` (acciones), no en teclas. La tabla de eventos
@@ -304,17 +311,22 @@ UI (`eng::ui`).
   indica que el disco **sí está listo** pero la lectura no se completa ⇒ **no es el arranque del
   motor**. Con el log de disco de WinUAE (mismo plumbing que A5) se ve que el **armado es correcto**
   (`disk read DMA started ... PC=00C0D32E`, `LEN=317C (12668) SYNC=4489 PT=00015058 ADKCON=1500`) y
-  que la DMA **sí termina** (`disk dma finished 00015058-0001B34E (317B, 12667)`), pese a lo cual la
-  demo reporta `words=0`. Subir el guard a `0x00ffffff` **no** arregla el fallo (probado) ⇒ no es el
-  tope. Reintentar con desfase mejora la fiabilidad pero dispara el tiempo, así que la demo corta al
-  primer `words=0`. Pendiente: correlacionar corridas buenas/malas con el log de disco activo (el
-  build con logging altera el timing, hay que aislarlo) y ver por qué `DSKBLK` no se observa a
-  tiempo. La regresión le pasa el ADF y timeout amplio vía `demos/amiga/214_floppy_raw/run.args`.
-- **M8 — reproducir por Paula desde disco: PENDIENTE (ligado a A5).** La **composición
-  feeder→`PcmStream`** está hecha (codec `Codec::None` + `PcmStream::state()`; verificado en 211), así
-  que "leer y dejar listo" es un solo paso. Lo que falta es el **sonido real**: la demo 272 sigue
-  **WIP** por el bug abierto de ritmo de la IRQ de audio (A5,
-  `docs/debugging/investigaciones/audio-stream-irq-rate.md`).
+  que la DMA **sí termina** (`disk dma finished 00015058-0001B34E (317B, 12667)`). Subir el guard a
+  `0x00ffffff` **no** arregla el fallo (probado) ⇒ no es el tope. La demo ahora reporta un bit extra
+  en `why` (**16 = alguna lectura devolvió `words!=0`**): con el emulador limpio, `why=1` ⇒ **ninguna
+  lectura completa** (la DMA no termina con ese timing), mientras que con el build de logging (que
+  altera el timing) la DMA sí terminaba ⇒ **la finalización depende del timing**. Reintentar con
+  desfase mejora la fiabilidad pero dispara el tiempo, así que la demo corta al primer `words=0`.
+  Pendiente: capturar el log de disco con un build de impacto mínimo (solo `disk_debug_logging`) y
+  correlacionar; y revisar por qué la DMA no arranca/completa de forma estable (¿fase de rotación?).
+  La regresión le pasa el ADF y timeout amplio vía `demos/amiga/214_floppy_raw/run.args`.
+- **M8/A5 — reproducir por Paula desde RAM: RESUELTO.** La demo 272 **alcanza `READY`** con
+  `detail=0x2c002c` (`irq == swaps`, **0 underruns**): el fallo eran los *underruns* por el feeder
+  CPU-bound (sintetizaba+codificaba en cada frame), no la IRQ. Arreglo: pre-sintetizar/pre-codificar
+  la melodia una vez en `init` (`m_enc`). La **composición feeder→`PcmStream`** (codec `Codec::None`
+  + `PcmStream::state()`) está verificada en 211, así que leer-y-dejar-listo es un paso; falta unir
+  la fuente de disco (M7) al stream y probar sonido real. Detalle y log del emulador:
+  `docs/debugging/investigaciones/audio-stream-irq-rate.md`.
 - **M11 — corrutinas: BLOQUEADA** por el toolchain (`<coroutine>`/`<type_traits>` no compilan en
   `m68k-amiga-elf`); ver el aviso en M11.
 

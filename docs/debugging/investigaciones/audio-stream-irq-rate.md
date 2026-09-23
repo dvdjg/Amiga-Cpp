@@ -1,9 +1,11 @@
 # Ritmo de la IRQ de audio en el streaming (A5) — 272_audio_stream
 
 La demo `demos/amiga/272_audio_stream` reproduce PCM desde RAM con `PcmStream` y cambia de buffer
-en la **IRQ de audio (nivel 4)**. El sintoma observable es que la demo **no alcanza el frame de
-informe** (se queda en `state=2`) y acumula *underruns* (solo una fraccion de los bloques acaban en
-*swap*). A5 **no queda verificado**.
+en la **IRQ de audio (nivel 4)**. **RESUELTO y verificado en hardware**: con la melodia
+**pre-sintetizada y pre-codificada una sola vez** en `init`, la demo alcanza el frame de informe con
+`state=3` y `detail=0x2c002c` ⇒ **`irq == swaps` (0 underruns)**. La causa de los *underruns* no era
+la IRQ (que dispara bien) sino el **coste por frame** del feeder (sintetizar+codificar 2048 muestras
+en cada frame hundia el ritmo). El informe previo de «IRQ ~34× mas rapida» era un artefacto.
 
 ## Medición (log del emulador)
 
@@ -69,23 +71,23 @@ Conclusión: ni la técnica del *swap* ni una re-armadura explícita explican la
    **desgarra** (daba `swap > irq`, imposible). Los contadores de la IRQ son ahora `volatile u8`
    (un byte se lee/escribe de forma atómica).
 
-## Hipótesis abierta (para retomar)
+## Causa y arreglo
 
 El registro y la IRQ están **bien** (el log del emulador lo confirma: `AUD3LEN=1024`, `AUD3PER=221`,
-`SETIRQ3` ≈ `looped`). El problema es de **alimentación**: el feeder repone pocos buffers frente a los
-bloques que Paula consume, así que la mayoría de IRQs no encuentran buffer y cuentan como *underrun*.
-La causa próxima es que la demo es **CPU-bound** en `refill()`/`synth_chunk()` (sintetiza 2048
-muestras y las codifica con Delta+RLE **por chunk**, en el bucle principal), de modo que su ritmo de
-frame queda muy por debajo de los 50 Hz y no da tiempo a reponer. Verificado en código que los
-registros se escriben bien: `PaulaAudio::set_pointer` (LCH/LCL), `set_length` (`AUDxLEN`),
-`set_period` (`AUDxPER`), `start_channel` (`DMACON`), con stride `channel*8` words y orden
-`[LCH, LCL, LEN, PER, VOL]` (`engine/include/eng/platform/audio_paula.hpp`), y que `AUDxLEN(nr, v)`
-en WinUAE guarda `cdp->len = v` sin transformar (`audio.cpp:2722-2732`).
+`SETIRQ3` ≈ `looped`). El problema era de **alimentación**: el feeder reponía pocos buffers frente a
+los bloques que Paula consume, así que la mayoría de IRQs no encontraban buffer y contaban como
+*underrun*. La causa próxima era que la demo era **CPU-bound** en `refill()`/`synth_chunk()`
+(sintetizaba 2048 muestras y las codificaba con Delta+RLE **en cada frame**, en el bucle principal),
+de modo que su ritmo de frame quedaba muy por debajo de los 50 Hz.
 
-Siguientes pasos: (1) medir el ritmo real de frame de la demo (¿por qué no llega al frame 240?);
-(2) aligerar el feeder (pre-sintetizar/codificar los chunks una vez, o sintetizar PCM directo sin
-codec para aislar el coste); (3) comprobar `PcmStream::advance()`/`needs_data()` con el feeder
-aligerado.
+**Arreglo**: pre-sintetizar y pre-codificar la melodia **una sola vez** en `init` (bloque `m_enc`,
+`kMelodyChunks * kMaxComp` en Chip); el feeder por frame solo copia el chunk ya codificado. Medido en
+hardware: `state=3`, `detail=0x2c002c` (`irq=44`, `swaps=44`, **0 underruns**).
+
+Verificado en código que los registros se escriben bien: `PaulaAudio::set_pointer` (LCH/LCL),
+`set_length` (`AUDxLEN`), `set_period` (`AUDxPER`), `start_channel` (`DMACON`), con stride
+`channel*8` words y orden `[LCH, LCL, LEN, PER, VOL]` (`engine/include/eng/platform/audio_paula.hpp`),
+y que `AUDxLEN(nr, v)` en WinUAE guarda `cdp->len = v` sin transformar (`audio.cpp:2722-2732`).
 
 ## Observación pendiente (para retomar)
 
