@@ -15,7 +15,7 @@ encolaba. `DrawTarget::c2p` ahora enruta a `kBlitterRaster` cuando hay `plan`.
 `detail != 0` (≈9861): el planar que produce la ruta Blitter del seam **no** coincide con la
 referencia CPU `c2p_1x1_4`. **Causa conocida**: el `C2p4` del `BlitterRaster` usa el buffer
 `chunky` como **fuente + su 2ª mitad como scratch planar** de las 13 fases
-(`eng/graphics/blitter_state.hpp`, `C2p4::chunky`; `amiga_minimal_c2p.cpp:15` `dst = chunky + bytes`).
+(`eng/graphics/blitter_state.hpp`, `C2p4::chunky`; `amiga_c2p.cpp:15` `dst = chunky + bytes`).
 Esta demo le pasa un chunky de `w*h` bytes y el contrato del seam exige el layout con scratch.
 **Pendiente**: dar el layout correcto (o documentar el contrato en `C2pRequest`) y volver a
 verificar; entonces `detail` debe ser `0`.

@@ -43,7 +43,7 @@ bash ./tools/run/run-demo.sh demos/amiga/214_floppy_raw --disk out/fs/211_fs_tes
 ## Qué usa
 
 - `eng/os/floppy.hpp`: `floppy_motor`/`floppy_present`/`floppy_read_track` (backend
-  `amiga_minimal_floppy.cpp`) y el decode puro `mfm_decode_long`/`floppy_find_sector`.
+  `amiga_floppy.cpp`) y el decode puro `mfm_decode_long`/`floppy_find_sector`.
 - Ficha del emulador: `docs/reference/emulators/winuae/trackdisk.md` (registros, DMA y layout).
 - Formato de pista: `WinUAE-DBG/disk.cpp:2168-2277`. CIA-B PRB `$BFD100` / CIA-A PRA `$BFE001`
   (AHRM Table 8-5).

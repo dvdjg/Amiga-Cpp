@@ -326,7 +326,7 @@ frames corruptos con blits activos, ver `docs/engine/architecture/DISPLAY_COMPOS
 
 ## 9. Los blits y el presupuesto
 
-`execute_frame_plan` (en `amiga_minimal.cpp`) traduce cada `BlitJob` a la
+`execute_frame_plan` (en `amiga.cpp`) traduce cada `BlitJob` a la
 programación real del Blitter:
 
 1. **Espera** a que el Blitter esté libre (`wait_blitter` leyendo `DMACONR`).
