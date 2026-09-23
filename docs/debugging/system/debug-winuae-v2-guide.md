@@ -40,17 +40,32 @@ expuestas por `mcp-winuae-emu`. Léela junto a
 `disasm`, `screenshot`, `input ...`, `profile`, `offset`, `logfile`.
 Cualquier tool MCP que acabe en `monitor X` es un wrapper de `monitor X`.
 
-### 1.3 Canal lateral (puerto 2346)
+### 1.3 Canal lateral
 
 `state`, `regs`, `mem <addr> <len>`, `runstatus <addr>`, `screenshot`, `input`.
 Independiente de GDB; útil cuando GDB no está disponible o quedó inerte.
 
-**Puertos (varias instancias).** En este build el **GDB del emulador es fijo (2345)**: `WINUAE_GDB_PORT` solo indica al cliente a dónde conectarse, así que no debe cambiarse (poner otro valor rompe el enlace). El **canal lateral** sí se configura con `WINUAE_SIDE_CHANNEL_PORT` (por defecto 2346), lo que permite varias instancias con canales distintos; `WINUAE_GDB_PERSIST_LISTENER` mantiene el GDB server escuchando tras desconectar. Como el GDB 2345 es único, **no se puede depurar GDB en paralelo** con dos instancias: hay que coordinar su uso entre hilos. `run-demo.sh` respeta `WINUAE_SIDE_CHANNEL_PORT` (o `--side-channel-port`) y, antes de lanzar, comprueba con `netstat` que los puertos estén libres: si están ocupados **falla con un mensaje claro** (no se conecta a una instancia ajena), `--wait-port <segundos>` espera a que se liberen (serializa el GDB entre hilos) y `--reset-emulator` libera **solo** los PIDs que los escuchan. Las herramientas de profiling (`tools/debug/measure-fps.mjs`, `tools/debug/ports.mjs`) usan las vars del entorno.
+**Puertos configurables (varias instancias en paralelo).** **Ambos** puertos se eligen por entorno:
+el servidor GDB del fork lee **`WINUAE_GDB_PORT`** (por defecto 2345) y el canal lateral lee
+**`WINUAE_SIDE_CHANNEL_PORT`** (por defecto 2346) — ver `WinUAE-DBG/od-win32/barto_gdbserver.cpp`.
+El runner (`run-demo.sh`) pasa el puerto GDB al proceso del emulador (el `spawn` lo hereda), así que
+**cliente y servidor coinciden**. Por tanto **sí se puede depurar en paralelo**: cada hilo/instancia
+usa un par de puertos propio (p. ej. GDB 2355 + canal 2421) y no colisiona. `WINUAE_GDB_PERSIST_LISTENER`
+mantiene el GDB escuchando tras desconectar. Antes de lanzar, el runner comprueba con `netstat` que
+los puertos estén libres: si están ocupados **falla con un mensaje claro** (no se conecta a una
+instancia ajena), `--wait-port <segundos>` espera a que se liberen y `--reset-emulator` libera **solo**
+los PIDs que los escuchan. Las herramientas de profiling (`tools/debug/measure-fps.mjs`,
+`tools/debug/ports.mjs`) usan las mismas vars del entorno.
+
+> **Requisito**: el `winuae-gdb.exe` debe ser una build con el cambio «GDB port configurable»
+> (commit `6783d952` del fork). `WinUAE-DBG/build.bat` **compila y despliega automáticamente** el
+> binario a todas las extensiones `bartmanabyss.amiga-debug-*` (`build.bat` → Win32, `build.bat x64`
+> → x64): no hace falta copiar a mano.
 
 **Regla de convivencia (no somos el único usuario del emulador; respeto entre
 instancias/agentes):**
 
-- Elegir al **empezar el hilo** un canal lateral propio (`WINUAE_SIDE_CHANNEL_PORT`) si se va a convivir con otra instancia; el GDB (2345) es único, así que coordinar su uso entre hilos. Si un puerto está ocupado, no forzar.
+- **Cada hilo/agente elige al empezar un par de puertos propio** (`WINUAE_GDB_PORT` + `WINUAE_SIDE_CHANNEL_PORT`) distinto del resto. Sin colisión no hay `READY` cruzados ni capturas ajenas. Si un puerto está ocupado, **no forzar**: usar otro par.
 - **Nunca matar** procesos `winuae-gdb`/`winuae64` que no se hayan lanzado uno mismo. Antes de matar, comprobar si son propios (por PID/instancia).
 - **Controlar y limpiar las propias**: registrar los PIDs lanzados y cerrarlos al terminar; no dejar instancias huérfanas ocupando puertos.
 
@@ -242,8 +257,9 @@ las tools estén cargadas como tools del asistente.
     `readMemory(addr,len)`, `writeMemory(addr,buf)`, `sendMonitorCommand(cmd)`.
   - Ejemplos reales de uso: `mcp-winuae-emu/scripts/*.mjs` (p. ej. `test-step.mjs`,
     `verify-mcp-tools.mjs`, `test-full-bp.mjs`).
-- **Puertos**: GDB RSP en **2345**; **canal lateral** en **2346** (`side-channel`), independiente
-  de GDB para leer `state`/`regs`/`mem`/`runstatus`/`screenshot` cuando GDB esté inerte.
+- **Puertos** (configurables por entorno, ver §1.3): GDB RSP en `WINUAE_GDB_PORT` (def. **2345**);
+  **canal lateral** en `WINUAE_SIDE_CHANNEL_PORT` (def. **2346**), independiente de GDB para leer
+  `state`/`regs`/`mem`/`runstatus`/`screenshot` cuando GDB esté inerte.
 - **Símbolos**: resolver la dirección runtime de un símbolo (p. ej. `fire_loop`) desde el `.map`
   del build (`out/demos/<demo>/<cfg>/<demo>.<cfg>.map`) o con `winuae_print` + `mapPath` (DWARF).
 - **Patrón típico de depuración** (equivalente a paso a paso manual):
@@ -253,6 +269,6 @@ las tools estén cargadas como tools del asistente.
   4. `step()` N veces leyendo registros/memoria en cada parada.
   5. `readMemory(addr,len)` para volcar el chunky/fire y comparar con lo esperado.
   6. `postmortem_capture` tras un cuelgue/exception.
-- **Atajo por GDB RSP crudo** (si el import no procede): abrir socket a `127.0.0.1:2345` y
+- **Atajo por GDB RSP crudo** (si el import no procede): abrir socket a `127.0.0.1:<WINUAE_GDB_PORT>` (def. 2345) y
   enviar paquetes `$… #cs` (`g`=registros, `vCont;s`=step, `Z0,addr,2`=breakpoint, `m addr,len`=
   leer, `M addr,len:hex`=escribir). Ver `scripts/test-step.mjs` como plantilla.

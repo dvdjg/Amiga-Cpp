@@ -23,6 +23,38 @@ struct MusicModule {
 	Span<const u8> data {}; // datos del módulo (.p61 / .mod)
 };
 
+/// ¿El módulo P61 tiene los samples **empaquetados**? (bit 6 del `byte 3`, tras el signo
+/// opcional `P61A`). Si es así, `P61_Init` exige un buffer de descompresión y el tamaño
+/// requerido está en el `offset 4` (little-endian) del módulo. Ver `Player61A.guide`.
+[[nodiscard]] inline bool p61_needs_sample_buffer(eng::Span<const eng::u8> module) noexcept {
+	if (module.size() < 5u) {
+		return false;
+	}
+	// El signo `P61A` es opcional: los datos empiezan en el offset 4 si está.
+	const bool has_sign = module[0] == 'P' && module[1] == '6' && module[2] == '1' &&
+			      module[3] == 'A';
+	const eng::usize base = has_sign ? 4u : 0u;
+	if (module.size() <= base + 4u) {
+		return false;
+	}
+	return (module[base + 3u] & 0x40u) != 0u;
+}
+
+/// Tamaño del buffer de muestras empaquetadas (little-endian en el offset 4 del módulo), o 0.
+[[nodiscard]] inline eng::u32 p61_sample_buffer_size(eng::Span<const eng::u8> module) noexcept {
+	if (module.size() < 8u) {
+		return 0u;
+	}
+	const bool has_sign = module[0] == 'P' && module[1] == '6' && module[2] == '1' &&
+			      module[3] == 'A';
+	const eng::usize base = has_sign ? 4u : 0u;
+	if (module.size() <= base + 4u) {
+		return 0u;
+	}
+	return static_cast<eng::u32>(module[base + 4u]) |
+	       (static_cast<eng::u32>(module[base + 5u]) << 8u);
+}
+
 namespace p61_amiga {
 
 /// Bloque de control de P61 (espejo de `p61.h`). Vive en el símbolo global
@@ -77,11 +109,23 @@ inline void set_position(u8 position) {
 class P61Player {
 public:
 	/// Inicia la reproducción del módulo. Devuelve true si P61_Init tuvo éxito.
+	///
+	/// Válido para módulos con los samples **internos sin empaquetar** (bit 6 de `byte 3` = 0).
+	/// Si el módulo tiene los samples **empaquetados** (bit 6 = 1, típico de P61Con con
+	/// `--pack-samples`), `P61_Init` **exige un buffer** del tamaño que indica el `offset 4` del
+	/// módulo: usar la sobrecarga `play(module, buffer)`.
 	bool play(const MusicModule& module) {
+		return play(module, {});
+	}
+
+	/// Inicia la reproducción dando un **buffer de descompresión** de muestras empaquetadas
+	/// (A2). Necesario si el módulo tiene el bit 6 de `byte 3` a 1; el tamaño requerido está en
+	/// el `offset 4` del módulo (ver `Player61A.guide` y `docs/.../MUSIC_PLAYER.md`).
+	bool play(const MusicModule& module, eng::Span<eng::u8> buffer) {
 		if (module.data.empty()) {
 			return false;
 		}
-		m_playing = (p61_amiga::init(module.data.data(), nullptr, nullptr) == 0);
+		m_playing = (p61_amiga::init(module.data.data(), nullptr, buffer.data()) == 0);
 		return m_playing;
 	}
 

@@ -980,12 +980,15 @@ const report = {
     status: 'started',
 };
 try {
+    // El puerto GDB es configurable: el gdbserver del fork Bartman lee `WINUAE_GDB_PORT`
+    // del entorno (`barto_gdbserver.cpp`, default 2345) y el `spawn` del emulador hereda el
+    // entorno, asi que el servidor escucha en el mismo puerto al que conecta el cliente. El
+    // canal lateral tambien (`WINUAE_SIDE_CHANNEL_PORT`). Dos instancias conviven usando
+    // puertos distintos (p. ej. GDB 2355 + side 2421) sin pisarse.
     if (gdbPort !== 2345) {
-        console.error(`[run-demo] AVISO: en este build WinUAE-DBG escucha el GDB en 2345 fijo;`);
-        console.error(`  WINUAE_GDB_PORT=${gdbPort} solo cambia la conexion del cliente y rompera el enlace.`);
+        console.log(`[run-demo] GDB en puerto ${gdbPort} (WINUAE_GDB_PORT); el emulador escuchara ahi.`);
     }
-    // El GDB (2345) es un recurso único: varios hilos deben serializarse. `--wait-port`
-    // espera a que se libere; `--reset-emulator` libera SOLO los PIDs que lo escuchan.
+    // `--wait-port` espera a que se liberen; `--reset-emulator` libera SOLO los PIDs que los escuchan.
     const waitPortSeconds = parseInt(argValue('--wait-port', process.env.WINUAE_WAIT_PORT || '0'), 10);
     let owners = pidsListeningOn([gdbPort, sideChannelPort]);
     if (owners.length > 0 && hasArg('--reset-emulator')) {

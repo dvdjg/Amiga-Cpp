@@ -28,19 +28,31 @@
 
 #include "support/gcc8_c_support.h"
 
-// Modulo ProTracker real incrustado en Chip RAM (lo lee `PtPlayer`/CIA). Por defecto
-// `SneakyChick.mod` (87 KB), que deja avanzar al mixer; `-DMED_BIG=1` usa
-// `jazzcat-boogie_town.mod` (241 KB), que **estrangula** el mixer (ver README/nota).
-#if defined(MED_BIG)
-__asm__(".section snd_mod.MEMF_CHIP, \"aw\"\n"
-	".balign 4\n"
+// Modulo incrustado en Chip RAM. Se elige con `-DMED_MOD=<n>` (por defecto P61 3-canales):
+//   0 = testmod.p61 (5 KB, formato P61A)     -> MusicFormat::P61   (defecto)
+//   1 = SneakyChick.mod (87 KB, M.K.)        -> MusicFormat::Protracker
+//   2 = jazzcat-boogie_town.mod (241 KB)     -> MusicFormat::Protracker (estrangula el mixer)
+#ifndef MED_MOD
+#define MED_MOD 0
+#endif
+
+// La etiqueta va ANTES del incbin (si va despues apunta al final del modulo), y
+// `g_mod_end` en la MISMA directiva para que la distancia sea correcta.
+#if MED_MOD == 2
+#define MED_MOD_USE_PROTRACKER 1
+__asm__(".section snd_mod.MEMF_CHIP, \"aw\"\n.balign 4\n"
 	".globl g_mod\ng_mod:\n.incbin \"assets/amiga/audio/jazzcat-boogie_town.mod\"\n"
-	".globl g_mod_end\ng_mod_end:\n");
-#else
-__asm__(".section snd_mod.MEMF_CHIP, \"aw\"\n"
-	".balign 4\n"
+	".globl g_mod_end\ng_mod_end:\n.balign 4\n");
+#elif MED_MOD == 1
+#define MED_MOD_USE_PROTRACKER 1
+__asm__(".section snd_mod.MEMF_CHIP, \"aw\"\n.balign 4\n"
 	".globl g_mod\ng_mod:\n.incbin \"assets/amiga/audio/SneakyChick.mod\"\n"
-	".globl g_mod_end\ng_mod_end:\n");
+	".globl g_mod_end\ng_mod_end:\n.balign 4\n");
+#else
+#define MED_MOD_USE_PROTRACKER 0
+__asm__(".section snd_mod.MEMF_CHIP, \"aw\"\n.balign 4\n"
+	".globl g_mod\ng_mod:\n.incbin \"assets/amiga/audio/testmod.p61\"\n"
+	".globl g_mod_end\ng_mod_end:\n.balign 4\n");
 #endif
 __asm__(
 	// SFX reales de st-xx (8-bit con signo, 11025 Hz, pico/4 para sumar 4 voces).
@@ -106,7 +118,23 @@ struct MusicMixerDemo {
 		// 1) Musica PRIMERO (el playroutine inicializa los 4 canales). Modulo real.
 		eng::audio::MusicModule mod {
 			eng::Span<const eng::u8>(g_mod, static_cast<eng::usize>(g_mod_end - g_mod))};
+#if MED_MOD_USE_PROTRACKER
 		m_music_ok = m_audio.play_music(mod, eng::audio::MusicFormat::Protracker);
+#else
+		// P61: si el modulo trae los samples empaquetados (bit 6 del byte 3), P61_Init
+		// exige un buffer de descompresion. Su tamano esta en el offset 4 del modulo.
+		eng::Span<eng::u8> mod_buf {};
+		if (eng::audio::p61_needs_sample_buffer(mod.data)) {
+			const eng::u32 need = eng::audio::p61_sample_buffer_size(mod.data);
+			m_mod_buf = backend.memory().chip.allocate_block<eng::AudioTag>(need, 4);
+			if (!m_mod_buf.valid()) {
+				eng::debug::mark_failed(g_eng_run_status, 0x00027606u);
+				return;
+			}
+			mod_buf = eng::Span<eng::u8>(m_mod_buf.view.data(), need);
+		}
+		m_music_ok = m_audio.play_music(mod, eng::audio::MusicFormat::P61, mod_buf);
+#endif
 		if (!m_music_ok) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00027604u);
 			return;
@@ -197,6 +225,7 @@ private:
 	const eng::u16* m_copper_ptr = nullptr;
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::Block<eng::CopperTag> m_copper_block {};
+	eng::Block<eng::AudioTag> m_mod_buf {}; ///< samples empaquetados P61 (si el modulo los trae)
 	eng::audio::GameAudio m_audio {};
 };
 
