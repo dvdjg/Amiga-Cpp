@@ -38,6 +38,34 @@ struct JoyProducer {
 	}
 };
 
+/// Botones del **pad CD32** (bitmask estable para la app, independiente del orden del stream).
+enum Cd32Btn : eng::u16 {
+	Cd32Blue = 1u << 0,    ///< botón azul (acción primaria)
+	Cd32Red = 1u << 1,     ///< botón rojo
+	Cd32Yellow = 1u << 2,  ///< botón amarillo
+	Cd32Green = 1u << 3,   ///< botón verde
+	Cd32Forward = 1u << 4, ///< hombro derecho
+	Cd32Reverse = 1u << 5, ///< hombro izquierdo
+	Cd32Play = 1u << 6,    ///< Play/Pause
+};
+
+/// Decodifica los **8 bits serie** del pad CD32 al bitmask estable. El pad envía por la línea de
+/// pot un registro de desplazamiento (74LS165) **activo a 0**: `bit i` de `bits` es el nivel leído
+/// en el i-ésimo pulso de reloj (1 = no pulsado, 0 = pulsado). Orden del stream (calibrado contra
+/// WinUAE, `inputdevice.cpp:4050-4053`): primero **Blue**, luego Red, Yellow, Green, Forward,
+/// Reverse, Play; el 8.º bit es la firma (1 = pad CD32). Ver `MINI_OS_INPUT.md` §6.
+[[nodiscard]] constexpr eng::u16 cd32_mask_from_shift(eng::u8 bits) noexcept {
+	eng::u16 m = 0u;
+	if ((bits & 0x01u) == 0u) m = static_cast<eng::u16>(m | Cd32Blue);
+	if ((bits & 0x02u) == 0u) m = static_cast<eng::u16>(m | Cd32Red);
+	if ((bits & 0x04u) == 0u) m = static_cast<eng::u16>(m | Cd32Yellow);
+	if ((bits & 0x08u) == 0u) m = static_cast<eng::u16>(m | Cd32Green);
+	if ((bits & 0x10u) == 0u) m = static_cast<eng::u16>(m | Cd32Forward);
+	if ((bits & 0x20u) == 0u) m = static_cast<eng::u16>(m | Cd32Reverse);
+	if ((bits & 0x40u) == 0u) m = static_cast<eng::u16>(m | Cd32Play);
+	return m;
+}
+
 /// **Productor de gamepad** (CD32 / multi-botón). Emite `Gamepad` solo si cambia el bitmask.
 struct PadProducer {
 	eng::u8 port = 2u;

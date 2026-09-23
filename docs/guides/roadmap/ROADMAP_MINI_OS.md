@@ -244,6 +244,36 @@ UI (`eng::ui`).
 | 208_message_loop | demo | Bucle reactivo en hardware: VBlank + input + UI sin sondeo. |
 | 272_audio_stream | demo | Streaming PCM de audio desde RAM con IRQ de Paula. |
 
+## Pendientes y bloqueos abiertos (2026-09)
+
+- **M2 — calibración `--keys` (rawkey→event id): BLOQUEADA.** El monitor `input key <sc>` de esta
+  build mapea a `256+sc`, que cae en eventos `SPC_*` (acciones), no en teclas. La tabla de eventos
+  del **binario** es una permutación de la del árbol de fuentes Y **no es estable entre ejecuciones**
+  (el MCU del teclado emulado acepta teclas con latencia/variación): el mismo id da rawkeys distintos.
+  Por eso no se publica tabla y `--keys` queda con aviso; la vía fiable es `--key-events <id>` (la
+  tecla **llega**). Exploración con `--key-scan`. Detalle:
+  [winuae/keyboard-injection.md](../../reference/emulators/winuae/keyboard-injection.md).
+- **M2 — pad CD32: PARCIAL.** Implementados el **decodificador puro** (`cd32_mask_from_shift` +
+  `Cd32Btn`; **HOST-308**) y la **lectura de hardware** en el backend (`read_cd32_shift_port2`:
+  reloj por CIA-A PRA bit 7 como salida + dato en `POTINP` bit 14 + `POTGO`; `os::enable_cd32_pad()`
+  hace que el puerto 2 se lea como `Gamepad` en lugar de `Joystick`; `poll` en `os::tick`). Orden del
+  stream calibrado contra `WinUAE-DBG/inputdevice.cpp:4050-4053`. **Pendiente**: **verificación en
+  hardware** — el runner no pone el puerto 2 de WinUAE en modo pad CD32 ni inyecta los botones
+  `JOYBUTTON_CD32_*` (`input joy` solo cubre fire/2nd/3rd). Ratón y joystick (`input joy`)
+  verificados en la demo 212.
+- **M7 — demo `214_floppy_raw` no alcanza `READY`: ABIERTO.** La DMA y el decode MFM están
+  implementados y validados (HOST-259 + README de la demo), pero en este entorno la demo se queda
+  antes de `mark_ready`. Descartado que arranque del ADF (su bootblock es **no arrancable**, checksum
+  inválido). Falta instrumentar el bucle DMA/seek (ver §Estado de M7).
+- **M8 — componer streaming de disco + audio: PENDIENTE (ligado a A5).** Falta enganchar el
+  `FileChunkFeeder` (que ya lee el fichero de 512 KB en la demo 211) a `PcmStream` (demo 272) para
+  "leer y reproducir" de una vez. Dos bloqueos: (1) `PcmStream::provide` espera chunks
+  **comprimidos** (`Codec::Zx0`/`DeltaRle`; no hay códec `None`), así que el pipeline debería emitir
+  el stream comprimido (o añadir un códec `None`); (2) la demo 272 sigue **WIP** por el bug abierto
+  de ritmo de la IRQ de audio (A5, `docs/debugging/investigaciones/audio-stream-irq-rate.md`).
+- **M11 — corrutinas: BLOQUEADA** por el toolchain (`<coroutine>`/`<type_traits>` no compilan en
+  `m68k-amiga-elf`); ver el aviso en M11.
+
 ## Riesgos y decisiones abiertas
 
 - **IRQ vs soft-int para el input.** La entrada por flanco de CIA es más limpia, pero comparte el
