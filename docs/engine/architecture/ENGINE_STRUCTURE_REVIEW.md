@@ -130,21 +130,24 @@ Los tests se organizan por **plataforma** (`host`/`amiga`/`atarist`/`megadrive`)
 `tools/check/test-numbering.mjs` (árbol anidado) y `tools/run-host-tests.sh --category`.
 Taxonomía en [`../../testing/TAXONOMY.md`](../../testing/TAXONOMY.md).
 
-### D13 — Cabeceras grandes: `compose.hpp` troceado; god-classes pendientes (parcial)
+### D13 — Cabeceras grandes troceadas por tema (hecho)
 
-`graphics/composition/compose.hpp` (927 líneas) se parte en `scene.hpp` (la clase `Scene`) y
-`stages.hpp` (etapas/presets y huellas `*_words`), con `compose.hpp` como **cabecera de familia**
-(patrón de D3). En cambio, `field/xlimited_playfield.hpp` y `sim/world.hpp` son **una sola clase**
-cada uno: trocearlos por tema exige un refactor de clase (base + mixins, o definiciones fuera de
-clase) con su propia verificación en hardware. Se dejan como están, señalados por
-`tools/check/header-impl.mjs` (advisory), y no se fuerzan sin plan y evidencia (ver §3).
+Tres cabeceras de clase única se parten con el **patrón de cabecera de familia** (D3), quedando
+todas bajo el umbral de `tools/check/header-impl.mjs` (advisory):
+
+- `graphics/composition/compose.hpp` (927) → `scene.hpp` (clase `Scene`) + `stages.hpp`
+  (etapas/presets y huellas `*_words`), con `compose.hpp` de familia.
+- `field/xlimited_playfield.hpp` (972) → base `XLimitedMapping` (`xlimited_mapping.hpp`: hooks de
+  mapeo, geometría del bucle, `fetch_*` y contrato `ScrollSink`) + derivada `XLimitedPlayfield`
+  (`xlimited_playfield.hpp`: scroll, blits y ciclo de vida).
+- `sim/world.hpp` (1338) → base `SimWorldCore` (`world_core.hpp`: población, grafo de regiones,
+  clima/terreno/sociedad, LOD, ticks y el estado del mundo) + derivada `SimWorld` (`world.hpp`:
+  planificación, reproducción, objetos/economía, percepción/memoria, lenguaje y mapa mental).
+
+Verificado por la suite host (incluye los grupos de `field` y `sim`) y builds de demo (107, 202).
 
 ## 3. Límites de esta revisión (excepciones deliberadas)
 
-- **God-classes no troceadas**: `field/xlimited_playfield.hpp` y `sim/world.hpp` son una sola
-  clase; trocearlas es un refactor grande que merece su propio plan y su propia verificación (D13).
-  La fachada (D4), los tipos de dominio (D5), el troceo del backend (D8) y el de `compose.hpp`
-  (D13) ya reducen el acoplamiento visible.
 - **`graphics::LineEor`/`C2p4` exponen campos que el backend precalcula.** Es deliberado: ocultarlos
   tras un handle opaco obligaría a cambiar las firmas del backend y las rutas calientes de 116
   (batch de líneas por plano) y 080 (C2P encadenado por IRQ de blit), con riesgo de regresión. Se
