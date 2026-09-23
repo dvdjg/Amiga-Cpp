@@ -19,6 +19,13 @@
 /// buffers de arenas, planos de bitplane, caches de tiles y listas de comandos
 /// del Copper.
 ///
+/// **Construcción y ruido en las llamadas.** Un array de tamaño conocido se convierte
+/// en `Span` **sin contar** (`Span{arr}` o directamente `arr`, por el ctor
+/// `Span(T (&)[N])`); el tamaño se deduce. En cambio, cuando el número es una
+/// **capacidad** distinta del tamaño del array (cuánto admite el contrato: pasos de un
+/// plan, hits de una consulta), el count es **explícito y semántico** y **no** debe
+/// deducirse del array. Regla: `{ptr, n}` = tope del contrato; `arr` = vista completa.
+///
 /// ```text
 ///   productor (arena/bitplanes)          Span<T> / Bytes<Tag> (NO posee)        consumidor
 ///   ───────────────────────────          ─────────────────────────────         ──────────
@@ -141,6 +148,11 @@ private:
 /// Guia de deduccion para arrays C: `Span span = my_array;`.
 template <typename T, usize N>
 Span(T (&)[N]) -> Span<T>;
+
+/// Guia de deduccion `(puntero, tamano)`: permite `Span {ptr, n}` sin nombrar `T`
+/// (el tipo sale del puntero). El count sigue siendo explicito: es una capacidad.
+template <typename T>
+Span(T*, usize) -> Span<T>;
 
 /// Rellena una vista con ceros.
 template <typename T>

@@ -118,6 +118,12 @@ aporta sus propias piezas de seguridad de C++23 sin depender de `std::span`:
   pueden recibir el puntero crudo, y solo el tiempo justo para programar registros.
 - Evitar "puntero + count" en firmas de API; si una funcion necesita memoria
   propia, pedir `Span` por valor y devolver `Span` (mutable solo si escribe).
+- **`Span` con o sin count explicito**: un array de tamano conocido se pasa **sin contar**
+  (`Span{arr}` o `arr` a secas; el ctor `Span(T (&)[N])` deduce el tamano), y asi el
+  artefacto de C++ no se ve en la llamada. El count **explicito** (`Span{ptr, n}`) se reserva
+  para cuando `n` es una **capacidad** distinta del tamano del array (pasos de un plan,
+  hits de una consulta, muestras de un buffer mayor): deducir el array cambiaria el contrato.
+  Regla: `arr` = vista completa; `{ptr, n}` = tope semantico del contrato.
 - **Nada de punteros crudos ni `char*` en la frontera**: el texto de solo lectura se pasa
   como `StringView`; las tablas de tamano fijo, como `eng::util::Array`; los datos
   empaquetados se leen/escriben con `ByteReader`/`ByteWriter` (`core/util/binary.hpp`),
