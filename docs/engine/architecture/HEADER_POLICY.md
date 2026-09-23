@@ -32,4 +32,4 @@ Sin ese paso, una unidad de dominio en `.cpp` incumple la regla de cierre de [`.
 
 ## 4. Cabeceras gigantes: partir por tema, no por `.cpp`
 
-Una cabecera de cientos de líneas (p. ej. `field/xlimited.hpp`) se arregla **partiéndola por tema** en varias cabeceras con una cabecera-paraguas que las incluya (patrón de la familia de playfields en `ENGINE_STRUCTURE_REVIEW.md` §D3), no moviéndola a `.cpp`. Así se conserva el inline y no se rompen consumidores. La estructura temática de `eng/` la vigila `tools/check/engine-tree.mjs`.
+Una cabecera de cientos de líneas se arregla **partiéndola por tema** en varias cabeceras con una **cabecera de familia** que las incluya (patrón de `ENGINE_STRUCTURE_REVIEW.md` §D3), no moviéndola a `.cpp`. Así se conserva el inline y no se rompen consumidores. Ya troceadas: `composition/compose.hpp` (`scene.hpp` + `stages.hpp`), `field/xlimited_playfield.hpp` (`xlimited_mapping.hpp`) y `sim/world.hpp` (`world_core.hpp`). Lo vigilan `tools/check/header-impl.mjs --strict` (falla por encima del umbral de líneas o por funciones no-`inline` a nivel de espacio de nombres) y `tools/check/engine-tree.mjs` (estructura temática de `eng/`).

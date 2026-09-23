@@ -146,6 +146,8 @@ todas bajo el umbral de `tools/check/header-impl.mjs` (advisory):
 
 Verificado por la suite host (incluye los grupos de `field` y `sim`) y builds de demo (107, 202).
 
+**Accesos en las clases troceadas:** el estado compartido vive `protected` en la base y la derivada lo cualifica con `this->`; en `world_core.hpp` los miembros que solo usa el núcleo (`m_next_id`, `m_links`, `m_rates`, `m_cursor`, `m_climate`, `m_regions`, `m_terrain_events`, `m_biome`, `m_lod`, `m_season`, `m_season_params`) quedan `private`. Se descartó CRTP/`friend` para los métodos: añade boilerplate y acoplamiento oculto sin beneficio sobre la cualificación explícita.
+
 ## 3. Límites de esta revisión (excepciones deliberadas)
 
 - **`graphics::LineEor`/`C2p4` exponen campos que el backend precalcula.** Es deliberado: ocultarlos

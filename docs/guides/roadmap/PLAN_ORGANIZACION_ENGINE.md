@@ -150,10 +150,10 @@ Reglas: los IDs `HOST-NNN` se conservan (son estables y citados en docs); agrupa
 
 ## 8. Fases
 
+Estado: **1-5 hechas**; además, el troceo de las cabeceras de clase única (`compose.hpp`, `xlimited_playfield.hpp`, `world.hpp`) está hecho (ver `ENGINE_STRUCTURE_REVIEW.md` D3/D13) y `header-impl.mjs` corre `--strict` en CI.
+
 1. **Documentar la decisión** (este plan + PLATFORM_LAYERS + HEADER_POLICY + TAXONOMY + STRUCTURE).
-2. **Consolidar el anillo de plataforma** (`eng/platform/amiga/`, backend canónico, `BackendConcept`), con paraguas de compatibilidad.
-3. **Split temático de `eng/core/`** con cabeceras-paraguas.
+2. **Consolidar el anillo de plataforma** (`eng/platform/amiga/`, backend canónico, `BackendConcept`).
+3. **Split temático de `eng/core/`** (`math/`, `types/`, `data/`).
 4. **Reestructurar `tests/host/`** por categoría y adaptar las herramientas.
 5. **Gates de frontera** (`platform-boundaries.mjs`, `engine-tree.mjs`).
-
-No se trocean de golpe `xlimited.hpp`/`actor.hpp` (excluidos deliberadamente en `ENGINE_STRUCTURE_REVIEW.md` §3): su troceo es un plan aparte con su propia verificación.
