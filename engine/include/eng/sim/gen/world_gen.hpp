@@ -18,7 +18,9 @@
 ///                                         └─ semilla por nodo          (para W6)
 /// ```
 
-#include <eng/core/fixed.hpp>
+// NADA de escalares concretos (`fixed.hpp`/`minifloat.hpp`): el escalar es **parámetro de plantilla**
+// (`Fx`) y lo aporta el llamador. Este header solo usa el vocabulario genérico (`scalar_const`,
+// `mul_norm`, `fbm2`, `worley2`, `scalar_traits`), que no ata a una representación (AGENTS §1.10).
 #include <eng/core/noise.hpp>
 #include <eng/core/random.hpp>
 #include <eng/core/types.hpp>
