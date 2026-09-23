@@ -35,7 +35,7 @@ mecanismos + topología de superficies); este roadmap lo **mejora y lo adapta al
 | Biomas y perfiles | `eng/sim/biome.hpp:26` (`BiomeKind`), `:53` (`biome_profile`) | temática por región; **no** crear `BiomeType` propio |
 | Terreno semántico | `eng/sim/terrain.hpp:31` (`TerrainKind`), `:69` (`can_traverse`), `:197` (`TerrainMap<W,H>`) | superficies (agua/trepar/hueco/cobertura) para física y pathfinding |
 | Clima/exposición | `eng/sim/climate.hpp:46`, `:112` | gradientes ambientales por región |
-| Grafo macro + BFS de salas | `eng/sim/world.hpp:943` (`route_room`), `add_link` (~`:1242`) | topología del mundo |
+| Grafo macro + BFS de salas | `eng/sim/world_core.hpp:612` (`route_room`), `:177` (`link_rooms`) | topología del mundo |
 | Ruido procedural | `eng/core/math/noise.hpp:211` (`fbm2`), `:319` (`worley2`), `:352` (`ridged2`) | alturas/biomas/cavernas con **coherencia espacial** |
 | RNG determinista | `eng/core/math/random.hpp:40` (`Xoroshiro64pp`), `:101` (`chance`), `:119` (`shuffle`) | todo lo aleatorio |
 | Grafo genérico + A\* | `eng/core/util/graph.hpp:199` (`graph_astar`), `:162` (`graph_bfs`) | solvencia y rutas macro |

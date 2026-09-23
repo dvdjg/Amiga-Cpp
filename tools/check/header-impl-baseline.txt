@@ -1,0 +1,7 @@
+# Deuda aceptada por tools/check/header-impl.mjs (umbral 850 líneas).
+# Una entrada por línea: ruta relativa a engine/include/eng/ (o `ruta:línea` para una
+# función no-inline). Regenerar/añadir solo con justificación.
+#
+# world_core.hpp (875): base de SimWorld; el estado compartido y los ticks lo mantienen
+# grande a propósito (trocearlo más exigiría partir el estado en varios mixins).
+sim/world_core.hpp

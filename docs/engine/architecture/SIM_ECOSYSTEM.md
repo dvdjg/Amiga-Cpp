@@ -333,7 +333,13 @@ de modo que no ocupa RAM si no se usa (verificado por el gate de tamaños m68k).
 | `planner.hpp` | `PlannerDriver`/`PlanRunner` sobre `Goap`, `PlanParams` | HOST-155 |
 | `domain.hpp` | dominio de ejemplo de objetos/construcción, `SimInventory` | HOST-155 |
 | `body.hpp` | `ChainBody` (IK FABRIK) y postura expresiva (`BodyPose`) | HOST-156 |
-| `world.hpp` | `SimWorld`: población, grafo de rooms, LOD, entorno, terreno, objetos, economía, sensores/memoria, ciclo de vida, reproducción, `Tend`, planificación | HOST-153 |
+| `world.hpp` + `world_core.hpp` | `SimWorld`: población, grafo de rooms, LOD, entorno, terreno, objetos, economía, sensores/memoria, ciclo de vida, reproducción, `Tend`, planificación | HOST-153 |
+
+`SimWorld` se parte en **base + derivada** (D13 de `ENGINE_STRUCTURE_REVIEW.md`): `world_core.hpp`
+define `SimWorldCore` (población, grafo de regiones, clima/terreno/sociedad, LOD y ticks, más el
+estado del mundo) y `world.hpp` define `SimWorld : SimWorldCore<...>` (planificación, reproducción,
+objetos/economía, percepción/memoria, lenguaje y mapa mental). Los consumidores incluyen
+`<eng/sim/world.hpp>` (la derivada trae la base) y usan la API pública de `SimWorld` sin cambios.
 
 Los módulos están **verificados por test host** y con gate de codegen; al no tener todavía
 un consumidor en una demo, están **NO VERIFICADOS por demo** (ver

@@ -20,7 +20,7 @@ const ENG = path.join(ROOT, 'engine/include/eng');
 const QUIET = process.argv.includes('--quiet');
 const STRICT = process.argv.includes('--strict');
 const linesArg = process.argv.indexOf('--lines');
-const LINE_THRESHOLD = linesArg >= 0 ? Number(process.argv[linesArg + 1]) : 900;
+const LINE_THRESHOLD = linesArg >= 0 ? Number(process.argv[linesArg + 1]) : 850;
 
 const baselinePath = path.join(__dirname, 'header-impl-baseline.txt');
 const baseline = new Set(
