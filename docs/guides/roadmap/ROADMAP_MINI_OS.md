@@ -326,13 +326,13 @@ UI (`eng::ui`).
   CPU-bound (sintetizaba+codificaba en cada frame), no la IRQ. Arreglo: pre-sintetizar/pre-codificar
   la melodia una vez en `init` (`m_enc`). La **composición feeder→`PcmStream`** (codec `Codec::None`
   + `PcmStream::state()`) está verificada en 211, así que leer-y-dejar-listo es un paso.
-  **Bloqueo al unir la fuente de disco (probado)**: en la demo 272, `os::file_open` funciona, pero
-  la **lectura** (`file_read_sync`) **se cuelga** si se hace tras `backend.takeover_display(...)`
-  (tomar el display con la copperlist propia rompe la E/S de dos.library/trackdisk); moviendo el
-  takeover al final del `init`, la lectura pasa pero el **DMA de audio no arranca** (`detail=0`,
-  `irq=0`). Hay que desacoplar la fuente de disco del takeover de display (p. ej. precargar en Chip
-  antes del takeover, o un takeover que no toque el DMA del sistema). Detalle y log del emulador:
-  `docs/debugging/investigaciones/audio-stream-irq-rate.md`.
+  **Fuente de disco unida (M8)**: la demo 272 precarga `data/audio/tone_8k_512k.raw` (8 kHz,
+  `Codec::None`) en Chip **antes** del takeover y la streamea por la IRQ de audio; medido `state=3`,
+  `detail=0x260026` (`irq == swaps`, 0 underruns). La lectura va antes del takeover porque
+  `takeover_display` hace `DMACON=dma_clear_all` y congela las IRQs del sistema: **despues la E/S de
+  disco (dos/trackdisk, que necesitan DMA+IRQ) no puede funcionar** (era el bloqueo; no es
+  "streaming concurrente desde disco", que exigiria un takeover que no toque el DMA del sistema).
+  Detalle y log del emulador: `docs/debugging/investigaciones/audio-stream-irq-rate.md`.
 - **M11 — corrutinas: BLOQUEADA** por el toolchain (`<coroutine>`/`<type_traits>` no compilan en
   `m68k-amiga-elf`); ver el aviso en M11.
 

@@ -72,3 +72,40 @@ oro aprendidas a golpes:
 
 **Y la regla que resume todo**: cada cosa que se programa tiene un impacto en el rendimiento. Si no se
 mide, no se sabe; y si no se sabe, no se puede afirmar que la demo funciona.
+
+## 3. Lecciones de la sesion del mini-SO / audio (2026-09)
+
+**El 68000 solo usa 24 bits de direccion.** Comparar punteros de 32 bits engaña: el byte alto es
+basura y dos valores que difieren solo ahi apuntan a la **misma** direccion fisica. Se perdio tiempo
+persiguiendo un "objeto distinto" (`on_msg` vs `on_frame`) que era un falso positivo de la
+comparacion. Al comparar direcciones en el 68000, enmascarar a `0x00ffffff`.
+
+**Cuando un comportamiento cambia entre perfiles de optimizacion, sospechar del codegen.** El bug de
+`os::add_timer` con periodo > 1 (los `Timer` no llegaban al `App`) reproducia a **`-O1`** (perfil
+`--debug`) y **no** a `-O2` (`--release`): era un fallo de codegen de gcc 15 m68k en el camino
+inlineado del bucle de mensajes, no de la logica (validada en host con **HOST-222**/**HOST-309**).
+Leccion: aislar con `-O0`/`-O1`/`-O2` antes de tocar la logica; y al instrumentar, usar **globales
+planos** (no funciones `inline` con estatico local, que pueden no fusionarse entre TUs). Detalle:
+[`pump-timer-o1-codegen.md`](../../debugging/investigaciones/pump-timer-o1-codegen.md).
+
+**`takeover_display` apaga TODO el DMA y congela las IRQs del sistema.** Tras el, dos.library /
+trackdisk (que necesitan DMA de disco + IRQ) **se cuelgan**: por eso la E/S de disco de una demo debe
+hacerse **antes** del takeover. No es un fallo del fichero ni del `file_open`.
+
+**Las extensiones de depuracion no son de fiar como fuente del emulador.** `bartmanabyss.amiga-debug`
+trae su **propio** `winuae-gdb.exe` (stock), y el runner cogia el de la extension de version mas alta:
+actualizar la extension **cambio** el emulador por el stock y rompio las demos (sin canal lateral ni
+parches GDB). Leccion: el runner debe priorizar **nuestro** `../WinUAE-DBG/bin` (o `WINUAE_GDB_DIR`);
+nunca depender del orden ni de la version de las extensiones. Igual con el toolchain: elegirlo por
+**version de gcc mas moderna**, no por el primero que aparezca.
+
+**El log de WinUAE no va al fichero del runner.** `write_log` sale por **paquete GDB `O`**
+(`barto_gdbserver::log_output`), no por `stderr` (WinUAE en Windows es app GUI sin consola). Para
+volcarlo a un fichero hay que hacer que `log_output` escriba al `log_file` del gdbserver
+(`%TEMP%\winuae-gdb.log`). Y ojo: el toolchain de **Windows** de la extension va por detras del README
+(anuncia gcc 15.2; el binario real es **15.1.0**, byte-identico entre 1.8.1 y 1.8.2).
+
+**Un diagnostico puede ser un artefacto de la ventana temporal.** El informe de A5 ("la IRQ de audio
+dispara ~34x mas rapido") era falso: asumia 50 fps cuando la demo corria mucho mas lento. El log del
+emulador mostro `SETIRQ3` ≈ `looped` (**una IRQ por bloque**); el problema real eran los *underruns*
+por el feeder CPU-bound. Leccion: medir la ventana temporal real antes de concluir una tasa.

@@ -15,9 +15,14 @@
 //     buffer (cambio de puntero sin parar el DMA). No descomprime.
 //
 // **Estado: VERIFICADA.** Informa `mark_ready` en el frame `kFrameReport` con
-// `detail = (irq << 16) | swaps`; medido `irq == swaps` (0 underruns). La melodia se
-// **pre-sintetiza y pre-codifica una sola vez** en `init` (`m_enc`): hacerlo por frame hundia el
-// ritmo y provocaba los underruns. Analisis y log del emulador:
+// `detail = (irq << 16) | swaps`; medido `irq == swaps` (0 underruns).
+//
+// Dos fuentes: si existe `data/audio/tone_8k_512k.raw` (M8) se **precarga de disco** en Chip
+// (`load_pcm_from_disk`, `Codec::None`, 8 kHz) y se streamea; si no, se **pre-sintetiza y
+// pre-codifica la melodia una sola vez** (`m_enc`, DeltaRle, 16 kHz). En ambos casos el feeder por
+// frame solo copia datos ya listos: sintetizar+codificar por frame hundia el ritmo (underruns).
+// La lectura de disco va **antes** de `takeover_display` porque este apaga todo el DMA y congela
+// las IRQs del sistema (dos/trackdisk necesitan DMA+IRQ). Analisis y log del emulador:
 // docs/debugging/investigaciones/audio-stream-irq-rate.md.
 // Ver tambien docs/engine/architecture/AUDIO_STREAMING.md y ROADMAP_AUDIO.md (A5).
 // ============================================================================
@@ -26,6 +31,7 @@
 #include <eng/audio/audio_mode.hpp>
 #include <eng/audio/pcm_codec.hpp>
 #include <eng/audio/pcm_stream.hpp>
+#include <eng/os/file.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/platform/audio_paula.hpp>
@@ -57,6 +63,9 @@ constexpr eng::u16 kChunkSamples = 2048u; ///< muestras PCM por chunk (buffer de
 constexpr eng::u8 kNumBuffers = 2u;
 constexpr eng::u8 kChannel = 3u;          ///< voz de Paula del stream
 constexpr eng::u16 kRateHz = 16000u;
+constexpr eng::u16 kFileRateHz = 8000u;  ///< `tone_8k_512k.raw` (mono 8-bit)
+constexpr eng::u8 kPreloadChunks = 32u;  ///< chunks PCM precargados de disco (M8)
+constexpr const char* kFilePath = "data/audio/tone_8k_512k.raw";
 constexpr eng::u8 kVolume = 48u;
 constexpr eng::u16 kMaxComp = 640u;       ///< cota del chunk comprimido (Delta+RLE)
 
@@ -73,7 +82,7 @@ eng::u8 g_scratch[kChunkSamples] {};
 struct AudioStreamDemo {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		if (!backend.configure_memory({ 128u * 1024u, 16u * 1024u, 4u * 1024u })) {
+		if (!backend.configure_memory({ 192u * 1024u, 32u * 1024u, 8u * 1024u })) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00027201u);
 			return;
 		}
@@ -83,40 +92,53 @@ struct AudioStreamDemo {
 		m_pcm1 = backend.memory().chip.allocate_block<eng::AudioTag>(kChunkSamples, 4);
 		m_comp = backend.memory().chip.allocate_block<eng::AudioTag>(kMaxComp, 4);
 		m_enc = backend.memory().chip.allocate_block<eng::AudioTag>(kMelodyChunks * kMaxComp, 4);
+		m_file = backend.memory().chip.allocate_block<eng::AudioTag>(
+			static_cast<eng::u32>(kPreloadChunks) * kChunkSamples, 4);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid() || !m_pcm0.valid() ||
-		    !m_pcm1.valid() || !m_comp.valid() || !m_enc.valid()) {
+		    !m_pcm1.valid() || !m_comp.valid() || !m_enc.valid() || !m_file.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00027202u);
 			return;
 		}
+
+		// M8: leer el PCM de disco **antes** del takeover. `takeover_display` apaga TODO el DMA
+		// (DMACON=dma_clear_all) y congela las IRQs del sistema, asi que despues la E/S de disco
+		// (dos/trackdisk, que necesitan DMA+IRQ) se cuelga. Se precargan `kPreloadChunks` chunks.
+		load_pcm_from_disk();
+
 		if (!build_copper()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00027203u);
 			return;
 		}
 		backend.takeover_display(m_copper_ptr);
 
-		// Stream: 2 buffers PCM del llamador (Chip); melodia en bucle de kNumChunks chunks.
+		// Stream: 2 buffers PCM del llamador (Chip). En modo fichero el PCM ya viene crudo
+		// (`Codec::None`); en modo sintetizado, la melodia va comprimida (`DeltaRle`).
 		eng::audio::PcmStream<kNumBuffers>::Config cfg {
-			kRateHz, kChunkSamples, kStreamChunks,
-			static_cast<eng::u8>(eng::audio::pcm_codec::Codec::DeltaRle)};
+			static_cast<eng::u16>(m_file_chunks > 0u ? kFileRateHz : kRateHz), kChunkSamples,
+			kStreamChunks,
+			static_cast<eng::u8>(m_file_chunks > 0u ? eng::audio::pcm_codec::Codec::None
+								: eng::audio::pcm_codec::Codec::DeltaRle)};
 		eng::Span<eng::u8> bufs[kNumBuffers] = {
 			eng::Span<eng::u8>(m_pcm0.view.data(), kChunkSamples),
 			eng::Span<eng::u8>(m_pcm1.view.data(), kChunkSamples)};
 		m_stream.begin(cfg, bufs);
 
-		// Pre-sintetiza y pre-codifica la melodia UNA sola vez (8 chunks). El feeder por frame
-		// solo copia el chunk ya codificado: sintetizar+codificar 2048 muestras por frame hundia
-		// el ritmo de la demo y provocaba los *underruns* (ver audio-stream-irq-rate.md).
-		for (eng::u8 c = 0u; c < kMelodyChunks; ++c) {
-			const eng::s32 n = synth_chunk(c);
-			if (n <= 0) {
-				eng::debug::mark_failed(g_eng_run_status, 0x00027205u);
-				return;
+		// En modo sintetizado, pre-sintetiza y pre-codifica la melodia UNA sola vez (8 chunks).
+		// El feeder por frame solo copia el chunk ya codificado: sintetizar+codificar 2048
+		// muestras por frame hundia el ritmo y provocaba *underruns* (audio-stream-irq-rate.md).
+		if (m_file_chunks == 0u) {
+			for (eng::u8 c = 0u; c < kMelodyChunks; ++c) {
+				const eng::s32 n = synth_chunk(c);
+				if (n <= 0) {
+					eng::debug::mark_failed(g_eng_run_status, 0x00027205u);
+					return;
+				}
+				eng::u8* dst = m_enc.view.data() + static_cast<eng::u32>(c) * kMaxComp;
+				for (eng::s32 i = 0; i < n; ++i) {
+					dst[i] = m_comp.view.data()[i];
+				}
+				m_enc_len[c] = static_cast<eng::u32>(n);
 			}
-			eng::u8* dst = m_enc.view.data() + static_cast<eng::u32>(c) * kMaxComp;
-			for (eng::s32 i = 0; i < n; ++i) {
-				dst[i] = m_comp.view.data()[i];
-			}
-			m_enc_len[c] = static_cast<eng::u32>(n);
 		}
 
 		// 1) Servicio de la IRQ de audio ANTES de arrancar el DMA (arma INTENA de AUD0..3).
@@ -176,12 +198,40 @@ private:
 		}
 	}
 
+	/// M8: precarga el PCM de disco en Chip **antes** del takeover. Deja `m_file_chunks` con el
+	/// numero de chunks completos leidos (0 = no hay fichero -> se sintetiza).
+	void load_pcm_from_disk() {
+		m_file_chunks = 0u;
+		const eng::os::FileHandle h = eng::os::file_open(kFilePath, eng::os::FileMode::Read);
+		if (h == 0u) {
+			return;
+		}
+		const eng::u32 want = static_cast<eng::u32>(kPreloadChunks) * kChunkSamples;
+		const eng::s32 n = eng::os::file_read_sync(
+			h, eng::Span<eng::u8> { m_file.view.data(), want }, 0u);
+		eng::os::file_close(h);
+		if (n > 0) {
+			m_file_chunks = static_cast<eng::u8>(static_cast<eng::u32>(n) / kChunkSamples);
+		}
+	}
+
 	/// Rellena todos los buffers libres con el siguiente chunk de la melodia.
 	void refill() {
 		while (m_stream.needs_data()) {
 			const eng::u8 idx = m_stream.first_free();
 			if (idx >= kNumBuffers) {
 				break;
+			}
+			if (m_file_chunks > 0u) {
+				// Modo fichero: PCM crudo precargado; se recorre en bucle.
+				const eng::u8 c = static_cast<eng::u8>(m_stream.next_chunk() % m_file_chunks);
+				if (!m_stream.provide(idx, eng::Span<const eng::u8>(
+							 m_file.view.data() +
+								 static_cast<eng::u32>(c) * kChunkSamples,
+							 kChunkSamples))) {
+					break;
+				}
+				continue;
 			}
 			const eng::u8 c = static_cast<eng::u8>(m_stream.next_chunk() % kMelodyChunks);
 			const eng::u32 n = m_enc_len[c];
@@ -248,6 +298,8 @@ private:
 	eng::Block<eng::AudioTag> m_comp {};
 	eng::Block<eng::AudioTag> m_enc {}; ///< melodia pre-codificada (kMelodyChunks * kMaxComp)
 	eng::u32 m_enc_len[kMelodyChunks] {}; ///< tamano codificado de cada chunk de la melodia
+	eng::Block<eng::AudioTag> m_file {}; ///< PCM de disco precargado (M8)
+	eng::u8 m_file_chunks = 0u;          ///< chunks PCM validos en `m_file` (0 = sintetizar)
 	eng::audio::PcmStream<kNumBuffers> m_stream {};
 	eng::amiga::PaulaAudio m_paula {};
 };
