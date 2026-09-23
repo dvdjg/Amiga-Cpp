@@ -99,7 +99,9 @@ struct DemoGame {
 				0u, 0u, false, eng::Span<eng::u16> { m_track, kTrackWords });
 			stage(m_words != 0u ? (0x214020u | attempt) : (0x214120u | attempt));
 			if (m_words == 0u) {
-				break; // la DMA no completo (DSKBLK): no insistir
+				// La DMA no completo (DSKBLK). Reintentar con el desfase del bucle alarga la demo
+				// mucho (cada intento agota el guard ≈ 15 s); se corta y se reporta el motivo.
+				break;
 			}
 			eng::os::FloppySectorHeader hdr0 {};
 			const bool sec0 = eng::os::floppy_find_sector(

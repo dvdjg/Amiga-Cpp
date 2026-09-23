@@ -60,6 +60,7 @@ struct DemoApp {
 	eng::u16 missed = 0;
 	eng::u8 joy_dirs = 0;
 	eng::u8 joy_seen = 0; ///< OR de las direcciones vistas (para el run-status; pegajoso)
+	eng::u32 timers = 0;  ///< `MsgType::Timer` recibidos (os::add_timer)
 	eng::u32 keys = 0;
 	eng::u16 key_last = 0u;
 	eng::u32 bg_work = 0;
@@ -95,6 +96,11 @@ struct DemoApp {
 			g_eng_run_status.detail =
 			    0x21210000u | (static_cast<eng::u32>(key_last) << 8) | (keys & 0xffu);
 			break;
+		case eng::os::MsgType::Timer:
+			++timers;
+			// Reporta el conteo de timers (0x2123TTTT) para verificarlo desde el runner.
+			g_eng_run_status.detail = 0x21230000u | (timers & 0xffffu);
+			break;
 		case eng::os::MsgType::MouseMove:
 			// El ratón (puerto 1) también mueve la caja (posición absoluta ya escalada).
 			box_x = clamp_s16(static_cast<eng::s16>(m.payload.mouse.x * 2), 44, 700);
@@ -110,9 +116,10 @@ struct DemoApp {
 		bg_work = g_bg_work;
 		// Reporta el avance del fondo por el run-status (0x2120BBBB). Si ya llegó alguna tecla,
 		// conserva su marca (0x2121KKKK) para que el runner pueda verla al final.
-		if (keys == 0u && joy_seen == 0u) {
+		if (keys == 0u && joy_seen == 0u && timers == 0u) {
 			g_eng_run_status.detail = 0x21200000u | (g_bg_work & 0xffffu);
 		}
+
 		// kJoyRight=1<<3, kJoyLeft=1<<2, kJoyDown=1<<1, kJoyUp=1<<0.
 		if ((joy_dirs & 0x08u) != 0u) { box_x = clamp_s16(static_cast<eng::s16>(box_x + 3), 44, 700); }
 		if ((joy_dirs & 0x04u) != 0u) { box_x = clamp_s16(static_cast<eng::s16>(box_x - 3), 44, 700); }
@@ -141,6 +148,8 @@ struct DemoApp {
 		p = append_u32(p, keys);
 		p = append(p, "   bg: ");
 		p = append_u32(p, bg_work);
+		p = append(p, "   t: ");
+		p = append_u32(p, timers);
 		p = append(p, "   last: 0x");
 		p = append_hex(p, key_last);
 		*p = '\0';
@@ -185,7 +194,6 @@ int main() {
 	eng::amiga::MinimalBackend backend {};
 	eng::os::MessagePumpGame<DemoApp> game {};
 	game.bind_port(eng::os::system_port());
-	game.tick = &eng::os::tick;
 
 	// Tarea de fondo (M10): el bucle le da un slice de idle solo en frames sin mensajes.
 	eng::os::TaskSystem tasks {};
@@ -195,6 +203,12 @@ int main() {
 	game.bind_tasks(tasks);
 
 	eng::Engine engine { backend, game };
+	// Fachada del mini-SO: habilita la entrada y **engancha el latido al VBlank del `Engine`**
+	// (ya no se llama `os::tick` en el bucle). El timer de usuario va a 1 frame: es el único
+	// periodo verificado en hardware; con periodo > 1 el backend postea los `Timer` pero el
+	// pump no los recibe (bug abierto, ver ROADMAP_MINI_OS.md).
+	(void)eng::os::init(engine, eng::os::InputAll);
+	eng::os::add_timer(1u, 1u);
 	engine.run_frames_polling(0xffff);
 
 	return 0;

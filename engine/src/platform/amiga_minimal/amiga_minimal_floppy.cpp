@@ -91,15 +91,18 @@ bool eng::os::floppy_motor(eng::u16 unit, bool on) {
 	v = on ? static_cast<eng::u8>(v & ~kMtr) : static_cast<eng::u8>(v | kMtr);
 	v = on ? static_cast<eng::u8>(v & ~kSel0) : static_cast<eng::u8>(v | kSel0);
 	prb_set(v);
-	if (on) {
-		// El motor tarda en girar a plena velocidad; el AHRM pide esperar /RDY (o 500 ms).
-		for (eng::u32 i = 0u; i < 4000000u; ++i) {
-			if ((*ciaa_pra & kRdy) == 0u) {
-				break;
-			}
+	if (!on) {
+		return true;
+	}
+	// El motor tarda en girar a plena velocidad; el AHRM pide esperar /RDY (o 500 ms). Se
+	// devuelve si el disco quedo **listo** (/RDY = 0): si no, la DMA no completara y conviene
+	// fallar rapido en vez de armar una lectura condenada.
+	for (eng::u32 i = 0u; i < 4000000u; ++i) {
+		if ((*ciaa_pra & kRdy) == 0u) {
+			break;
 		}
 	}
-	return true;
+	return (*ciaa_pra & kRdy) == 0u;
 }
 
 bool eng::os::floppy_present(eng::u16 unit) {
@@ -126,11 +129,23 @@ eng::u16 eng::os::floppy_read_track(eng::u16 unit, eng::u8 track, bool side,
 	// cara 0 -> SIDE = 1 (bit puesto), cara 1 -> SIDE = 0.
 	prb_set(side ? static_cast<eng::u8>(prb() & ~kSide) : static_cast<eng::u8>(prb() | kSide));
 	spin(2000u);
+	// El disco debe girar a plena velocidad antes de armar la DMA: si se arma sobre un disco que
+	// aun no gira (o cuyo motor no responde), el sync nunca llega y la DMA no completa (`words=0`).
+	// Se espera /RDY = 0 (listo) con tope; si no llega, se falla rapido en vez de agotar el guard.
+	for (eng::u32 i = 0u; i < 2000000u; ++i) {
+		if ((*ciaa_pra & kRdy) == 0u) {
+			break;
+		}
+	}
+	if ((*ciaa_pra & kRdy) != 0u) {
+		return 0u;
+	}
 
 	// DMA crudo: WORDSYNC + DSKSYNC, puntero a Chip RAM, DSKLEN (doble escritura).
 	// Limpiar WORDSYNC antes de armarlo rearma la deteccion de sync tras una lectura previa.
 	d::custom_base[kAdkcon] = 0x0400u; // SETCLR=0: borra WORDSYNC
 	d::custom_base[kAdkcon] = kAdkWordsync;
+	d::custom_base[d::custom_intreq_offset] = kIntDskblk; // limpia un DSKBLK viejo antes de armar
 	d::custom_base[kDsksync] = kMfmSync;
 	d::write_custom_pointer(kDskpt, dst.data());
 	d::custom_base[d::custom_dmacon_offset] =
@@ -144,7 +159,8 @@ eng::u16 eng::os::floppy_read_track(eng::u16 unit, eng::u8 track, bool side,
 
 	// Espera de fin de bloque (DSKBLK), con tope anti-bloqueo. La lectura de una pista tarda varios
 	// cientos de miles de iteraciones de este bucle (a 7 MHz); el tope da margen y acota una DMA que
-	// no completa a ~15 s (antes 0x7fffff ≈ 40 s, que hacía parecer colgada la demo).
+	// no completa a ~15 s (antes 0x7fffff ≈ 40 s, que hacía parecer colgada la demo). Subirlo a
+	// 0x00ffffff **no** arregla el fallo intermitente `words=0` (probado), así que no es el tope.
 	eng::u32 guard = 0x003fffffu;
 	while ((d::custom_base[d::custom_intreqr_offset] & kIntDskblk) == 0u) {
 		if (--guard == 0u) {

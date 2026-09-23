@@ -276,6 +276,18 @@ for demo_path in "${DEMO_DIRS[@]}"; do
 			run="pending"
 			run_args=("$RUN" "$relative_demo")
 			if [ "$WARP" -eq 1 ]; then run_args+=("--warp"); fi
+			# Args por demo: fichero `run.args` en el dir de la demo, una opcion por linea
+			# (ignora lineas vacias y comentarios `#`). Sirve para demos que necesitan extras
+			# (p. ej. `--disk <adf>` en 214, o un timeout mayor).
+			if [ -f "$demo_path/run.args" ]; then
+				while IFS= read -r _a; do
+					[ -z "$_a" ] && continue
+					case "$_a" in \#*) continue ;; esac
+					# Cada linea puede traer varios tokens (`--flag valor`): separar por palabras.
+					read -r -a _words <<< "$_a"
+					run_args+=("${_words[@]}")
+				done < "$demo_path/run.args"
+			fi
 			# En un barrido, el emulador de la demo anterior puede quedar colgado ocupando el
 			# puerto GDB 2345 (falso fallo "puerto ocupado"); libera SOLO los PIDs que escuchan
 			# esos puertos (los de este barrido). No usar el script en paralelo con otro emulador.

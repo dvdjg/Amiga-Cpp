@@ -254,6 +254,33 @@ UI (`eng::ui`).
 
 ## Pendientes y bloqueos abiertos (2026-09)
 
+- **Fachada `os::add_timer` con periodo > 1: BUG ABIERTO.** Con periodo 1 el timer periódico
+  funciona de extremo a extremo en hardware (demo 212: `detail=0x2123000a`, 10 `Timer` recibidos).
+  Con periodo 2/3 el **backend postea** los mensajes (`poll_and_post` dispara 16 veces) pero el
+  **pump del demo recibe 0** (`msgs` = 0). Aislamiento hecho en la demo 212:
+  - `game.port.get() == &os::system_port()` ⇒ el pump y el backend usan **el mismo** `MsgPort`.
+  - Profundidad post-pump (en `on_frame`): **1** con periodo 1 (y `msgs` = frames) frente a **11-12**
+    con periodo 2 (`msgs` = 0) ⇒ con periodo 2 el pump **no drena**.
+  - `game.idle_slice_us = 0` (sin slice de fondo) **no** cambia el resultado ⇒ no es el idle/M10.
+  - Un `post` manual de `MsgType::Timer` **desde `on_frame`** (posterior al pump) **sí** se entrega
+    (`msgs` = 11) ⇒ el pump funciona; lo que no llega son los `Timer` del hook.
+  - Patrón: los mensajes que llegan **cada frame** (periodo 1) se entregan; los que llegan **cada 2
+    frames** no. `TimerService` está validado en host (**HOST-222**, incluye periodo 2), así que el
+    fallo está en la interacción hook↔pump, no en el servicio.
+  - El **contrato puro** hook→pump queda fijado por **HOST-309** (`poll_and_post` + `update`
+    entregan en el mismo frame, periodo 1 y 2); el servicio y el orden son correctos en host.
+  - Evidencia en HW **contradictoria** (con instrumentación temporal ya retirada): en una corrida el
+    pump **sí** popeó (`pump_debug_count` = 5) y `on_msg` corrió 5 veces (contador global), pero el
+    contador `msgs` del `App` **no** subió; se verificó que `on_frame` lee el mismo objeto que
+    `game.app` (escribiendo `game.app.msgs` desde `main`). En otra corrida el pump popeó 0. Es
+    **no determinista**, lo que apunta a interacción/timing en el backend Amiga (o a un problema de
+    optimización/aliasing con los contadores del `App`), no al servicio. Hacer los contadores
+    `volatile` **no** lo arregla. Un test de punteros `&app` (pump vs `on_frame`) dio bytes bajos
+    iguales (mismo objeto probable) pero comparación completa distinta, resultado **inconcluso**
+    porque la sonda era una función `inline` con estático local (puede no fusionarse entre TUs en
+    m68k). Próximo paso: repetir el test con un global plano (sin `inline`), y revisar el bucle
+    hook↔`update` en el backend.
+  Reproducir con `add_timer(1u, 2u)` en la demo 212. Mientras se resuelve, la demo usa periodo 1.
 - **M2 — calibración `--keys` (rawkey→event id): BLOQUEADA.** El monitor `input key <sc>` de esta
   build mapea a `256+sc`, que cae en eventos `SPC_*` (acciones), no en teclas. La tabla de eventos
   del **binario** es una permutación de la del árbol de fuentes Y **no es estable entre ejecuciones**
@@ -269,10 +296,20 @@ UI (`eng::ui`).
   hardware** — el runner no pone el puerto 2 de WinUAE en modo pad CD32 ni inyecta los botones
   `JOYBUTTON_CD32_*` (`input joy` solo cubre fire/2nd/3rd). Ratón y joystick (`input joy`)
   verificados en la demo 212.
-- **M7 — demo `214_floppy_raw`: RESUELTO (guard de DMA).** No era un cuelgue: el guard de espera de
-  `DSKBLK` (`0x7fffff` ≈ 40 s) agotaba el timeout del runner; ajustado a `0x3fffff`, la demo alcanza
-  `READY` con `--disk`. Sigue **lenta** (~30-60 s por los seeks), y la regresión no le pasa el ADF:
-  **pendiente** un `--disk` por demo (o excluirla del barrido por defecto).
+- **M7 — demo `214_floppy_raw`: PARCIAL.** El guard de espera de `DSKBLK` (`0x7fffff` ≈ 40 s) hacía
+  parecer colgada la demo; ajustado a `0x3fffff`. Con `--disk` **~1/3** de las corridas alcanza
+  `READY` y ~2/3 fallan con `words=0` (**la DMA no completa**, `detail=0x21411`); lenta (~30-60 s por
+  los seeks).   **Aislamiento hecho**: `floppy_motor` ahora devuelve si `/RDY` bajó (listo) y
+  `floppy_read_track` espera `/RDY` y limpia `DSKBLK` antes de armar; con eso, el fallo `why=1`
+  indica que el disco **sí está listo** pero la lectura no se completa ⇒ **no es el arranque del
+  motor**. Con el log de disco de WinUAE (mismo plumbing que A5) se ve que el **armado es correcto**
+  (`disk read DMA started ... PC=00C0D32E`, `LEN=317C (12668) SYNC=4489 PT=00015058 ADKCON=1500`) y
+  que la DMA **sí termina** (`disk dma finished 00015058-0001B34E (317B, 12667)`), pese a lo cual la
+  demo reporta `words=0`. Subir el guard a `0x00ffffff` **no** arregla el fallo (probado) ⇒ no es el
+  tope. Reintentar con desfase mejora la fiabilidad pero dispara el tiempo, así que la demo corta al
+  primer `words=0`. Pendiente: correlacionar corridas buenas/malas con el log de disco activo (el
+  build con logging altera el timing, hay que aislarlo) y ver por qué `DSKBLK` no se observa a
+  tiempo. La regresión le pasa el ADF y timeout amplio vía `demos/amiga/214_floppy_raw/run.args`.
 - **M8 — reproducir por Paula desde disco: PENDIENTE (ligado a A5).** La **composición
   feeder→`PcmStream`** está hecha (codec `Codec::None` + `PcmStream::state()`; verificado en 211), así
   que "leer y dejar listo" es un solo paso. Lo que falta es el **sonido real**: la demo 272 sigue

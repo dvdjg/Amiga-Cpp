@@ -2,6 +2,7 @@
 
 #include <eng/os/input.hpp>
 #include <eng/os/os.hpp>
+#include <eng/os/timer.hpp>
 #include <eng/platform/input_poll.hpp>
 
 /// \file amiga_minimal_os.cpp
@@ -21,6 +22,8 @@ MouseProducer g_mouse {};
 KeyProducer g_keys {};
 PadProducer g_pad {};
 bool g_cd32_enabled = false;
+eng::u8 g_input_mask = InputAll; ///< dispositivos habilitados (`input_enable`); por defecto, todos
+TimerService g_timers {};        ///< timers de usuario (`add_timer`)
 
 /// Lee el registro de desplazamiento del **pad CD32** del puerto 2. Devuelve 9 bits: `bit i` = nivel
 /// en el i-ésimo pulso de reloj (1 = alto). Reloj = CIA-A PRA bit 7 como **salida** (el pin de fire
@@ -122,7 +125,10 @@ void enable_keyboard() {
 	custom_base[custom_intena_offset] = 0xc008u;  // SETCLR | INTEN | PORTS
 }
 
-void tick() {
+/// Cuerpo del **latido** del mini-SO: avanza el frame, señaliza el VBlank, pollea los productores
+/// habilitados (`input_enable`) y postea los timers vencidos. Lo llama `tick()` (polling desde el
+/// bucle) o la **IRQ de VBlank** que instala `os::init`.
+void tick_body() {
 	using eng::amiga::detail::ciaa_reg;
 	using eng::amiga::detail::custom_base;
 
@@ -132,19 +138,19 @@ void tick() {
 
 	// JOY0DAT ($DFF00A) = ratón (puerto 1); JOY1DAT ($DFF00C) = joystick (puerto 2). Fuegos en
 	// CIA-A PRA ($BFE001): bit 6 = FIRE0, bit 7 = FIRE1; 0 = pulsado.
-	const eng::u16 joy0 = custom_base[0x00a / 2];
-	const eng::u16 joy1 = custom_base[0x00c / 2];
-	const eng::u8 pra = *ciaa_reg(0x00u);
-
 	Msg m {};
-	const eng::u8 mx = static_cast<eng::u8>(joy0 & 0xffu);
-	const eng::u8 my = static_cast<eng::u8>((joy0 >> 8u) & 0xffu);
-	const eng::u8 mbtn = ((pra & 0x40u) == 0u) ? 1u : 0u;
-	if (g_mouse.update(mx, my, mbtn, g_frame, m)) {
-		(void)g_port.post(m);
+	if ((g_input_mask & InputMouse) != 0u) {
+		const eng::u16 joy0 = custom_base[0x00a / 2];
+		const eng::u8 pra = *ciaa_reg(0x00u);
+		const eng::u8 mx = static_cast<eng::u8>(joy0 & 0xffu);
+		const eng::u8 my = static_cast<eng::u8>((joy0 >> 8u) & 0xffu);
+		const eng::u8 mbtn = ((pra & 0x40u) == 0u) ? 1u : 0u;
+		if (g_mouse.update(mx, my, mbtn, g_frame, m)) {
+			(void)g_port.post(m);
+		}
 	}
 
-	if (g_cd32_enabled) {
+	if ((g_input_mask & InputCd32Pad) != 0u) {
 		// Pad CD32: el puerto 2 usa el protocolo serie (reloj/POTGO), no `decode_joystick`.
 		const eng::u16 shift = read_cd32_shift_port2();
 		if (cd32_present(shift)) {
@@ -154,14 +160,45 @@ void tick() {
 				(void)g_port.post(m);
 			}
 		}
-	} else {
+	} else if ((g_input_mask & InputJoystick) != 0u) {
+		const eng::u16 joy1 = custom_base[0x00c / 2];
+		const eng::u8 pra = *ciaa_reg(0x00u);
 		const eng::u8 dirs = eng::amiga::decode_joystick(joy1);
 		const eng::u8 fire = ((pra & 0x80u) == 0u) ? 1u : 0u;
 		if (g_joy.update(dirs, fire, g_frame, m)) {
 			(void)g_port.post(m);
 		}
 	}
+
+	(void)g_timers.poll_and_post(g_port, g_frame, 0u);
 }
+
+void tick() { tick_body(); }
+
+/// Habilita los dispositivos de `mask` (los demás no se pollean). El teclado instala su IRQ de
+/// CIA-A; el pad CD32 cambia el puerto 2 a protocolo serie.
+void input_enable(eng::u8 mask) {
+	g_input_mask = mask;
+	if ((mask & InputKeyboard) != 0u) {
+		enable_keyboard();
+	}
+	if ((mask & InputCd32Pad) != 0u) {
+		g_cd32_enabled = true;
+	}
+}
+
+/// Añade/actualiza un **timer de usuario**: `MsgType::Timer` con `id` cada `frames` VBlanks.
+/// `frames == 0` lo elimina.
+void add_timer(eng::u16 id, eng::u16 frames) {
+	if (frames == 0u) {
+		g_timers.stop(id);
+		return;
+	}
+	(void)g_timers.start(id, frames, TimerUnit::Frames, true, g_frame, 0u);
+}
+
+/// Hook de VBlank del mini-SO (lo registra `os::init` en el `Engine`): ejecuta el latido.
+void vblank_hook(void*) { tick_body(); }
 
 /// Activa la lectura del **pad CD32** en el puerto 2 (en lugar del joystick). Ver `MINI_OS_INPUT.md`
 /// §6 y `docs/reference/emulators/winuae/keyboard-injection.md` (no cubre el pad; pendiente).

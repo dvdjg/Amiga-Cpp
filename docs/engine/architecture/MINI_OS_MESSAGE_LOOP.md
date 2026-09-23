@@ -455,24 +455,39 @@ Contrato de responsabilidades:
 
 ## 9. Servicios del mini-SO
 
+La fachada (`eng/os/os.hpp`) arranca el mini-SO con una sola llamada y **engancha el latido al VBlank
+del `Engine`**: el `Engine` es el dueño de la IRQ de VBlank, así que `eng::os` **no** instala un
+segundo servicio, solo registra un hook (`Engine::set_vblank_hook`).
+
+```cpp
+// Arranque: habilita la entrada pedida y registra el latido como hook de VBlank del Engine.
+// Devuelve false si el Engine no acepta el hook.
+const bool ok = eng::os::init(engine, eng::os::InputAll);
+
+eng::os::input_enable(eng::os::InputKeyboard); // (re)habilita dispositivos por máscara
+eng::os::add_timer(1u, 25u);                   // -> MsgType::Timer cada 25 frames (periódico)
+eng::os::system_port();                        // MsgPort de la aplicación
+eng::os::frame_count();                        // contador de VBlank
+```
+
 ```text
-os::init(backend, ctx)        // IRQs, puerto de sistema, productores, timers
-os::system_port()             // MsgPort de la aplicación
+InputMask:  InputMouse | InputKeyboard | InputJoystick | InputCd32Pad | InputAll (= 0x0f)
+```
 
-// Tiempo
-os::frame_count()             // contador de VBlank
-os::add_timer(id, frames)     // -> MsgType::Timer cada `frames`
+`init<EngineT>(engine, inputs)` equivale a `input_enable(inputs)` más
+`engine.set_vblank_hook(&vblank_hook, nullptr)`; el hook ejecuta el **latido** una vez por frame
+(`++frame`, latch de VBlank, sondeo de los productores habilitados y `poll_and_post` de los timers).
+La app **no** llama a `os::tick` desde su bucle: el latido lo dispara el `Engine` antes de
+`update`. El productor de cada dispositivo solo se sondea si su bit está en la máscara.
 
-// Entrada (habilitar dispositivos; la app NO lee hardware)
-os::input_enable(mouse | kbd | joy)
+**Pendiente de arreglo** (`add_timer` con periodo > 1): postea los `Timer` pero el bucle no los
+entrega; en hardware solo está verificado el periodo 1. Detalle y reproducción en
+[`docs/guides/roadmap/ROADMAP_MINI_OS.md`](../../guides/roadmap/ROADMAP_MINI_OS.md).
 
-// E-S asíncrona
-os::FileHandle os::file_open(path)
-os::file_read_async(h, buf, len, off)   // -> FileDone / FileError
-os::file_write_async(h, buf, len, off)
-os::file_close(h)
+**Previstos** (diseño, aún sin implementar):
 
-// Aplicación
+```text
+os::file_open(path) / file_read_async / file_write_async / file_close  // -> FileDone / FileError
 os::post_user(code, a, b)     // desde cualquier sitio (ISR-safe)
 os::request_quit()
 ```

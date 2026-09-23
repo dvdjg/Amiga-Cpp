@@ -47,4 +47,39 @@ void enable_keyboard();
 /// `MINI_OS_INPUT.md` §6.
 void enable_cd32_pad();
 
+/// Dispositivos de entrada que `os::input_enable` puede activar (bitmask).
+enum InputMask : eng::u8 {
+	InputMouse = 1u << 0,
+	InputKeyboard = 1u << 1,
+	InputJoystick = 1u << 2,
+	InputCd32Pad = 1u << 3,
+	InputAll = 0x0fu,
+};
+
+/// Habilita los dispositivos de `mask`: los demás **no** se pollean. El teclado instala su IRQ de
+/// CIA-A; el pad CD32 cambia el puerto 2 a protocolo serie (en lugar del joystick). Lo implementa
+/// el backend. Sin llamar, el backend pollea **todos** (compatibilidad).
+void input_enable(eng::u8 mask);
+
+/// Añade/actualiza un **timer de usuario**: postea `MsgType::Timer` con `id` cada `frames` VBlanks.
+/// `frames == 0` lo elimina. Lo implementa el backend (sobre `TimerService`).
+void add_timer(eng::u16 id, eng::u16 frames);
+
+/// **Hook de VBlank** del mini-SO (lo implementa el backend): avanza el frame, señaliza
+/// `SigVBlank` y pollea la entrada habilitada + los timers. Es el mismo latido que `os::tick`
+/// (polling); `os::init` lo registra como `vblank_hook` del `Engine`, que es quien posee la IRQ de
+/// VBlank, de modo que el latido corre **dentro de la IRQ** (sin sondeo en el bucle).
+void vblank_hook(void* user);
+
+/// **Arranca el mini-SO**: habilita los dispositivos de `inputs` y registra el latido del mini-SO
+/// en el VBlank del `engine` (`engine.set_vblank_hook`). A partir de aquí el frame avanza y la
+/// entrada/timers se publican por **IRQ**; **no** hay que llamar a `os::tick` en el bucle. Devuelve
+/// `true` (el registro del hook no falla). Ver §9 de `MINI_OS_MESSAGE_LOOP.md`.
+template <class EngineT>
+[[nodiscard]] bool init(EngineT& engine, eng::u8 inputs = InputAll) noexcept {
+	input_enable(inputs);
+	engine.set_vblank_hook(&vblank_hook, nullptr);
+	return true;
+}
+
 } // namespace eng::os

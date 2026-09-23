@@ -1,0 +1,4 @@
+# Args extra para `tools/test-regression.sh` (una opcion por linea).
+# 214 lee la pista 0 de DF0: a bajo nivel: necesita el ADF montado y es lenta (seeks).
+--disk out/fs/211_fs_test.adf
+--side-channel-timeout-ms 150000
