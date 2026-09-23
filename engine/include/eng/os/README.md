@@ -25,8 +25,8 @@ núcleo, [`MINI_OS_INPUT.md`](../../../../docs/engine/architecture/MINI_OS_INPUT
 | `time.hpp` | Tiempo: conversiones ticks↔µs (PAL/NTSC) y `TickSource`/`ScopedTimer`. | **Implementado** (HOST-238) |
 | `timer.hpp` | `TimerService` (timers de frames/µs → `MsgType::Timer`). | **Implementado** (HOST-222) |
 | `input.hpp` | Productores puros de entrada (`JoyProducer`/`PadProducer`/`MouseProducer`): emiten solo al cambiar. | **Implementado** (HOST-252) |
-| `message_pump.hpp` | `MessagePumpGame<App>`: drena el puerto en `update` y llama a `on_frame`/`on_render`. | **Implementado** (HOST-253) |
-| `task.hpp` | `TaskSystem`: tareas de fondo con ciclo de vida, scheduler de idle, `request_preempt`/`yield_if_preempt`, `TaskMsgPort` propio y tareas-corrutina. | prevista |
+| `message_pump.hpp` | `MessagePumpGame<App>`: drena el puerto en `update`, da un slice de idle si no hubo mensajes (`bind_tasks`) y llama a `on_frame`/`on_render`. | **Implementado** (HOST-253/307) |
+| `task.hpp` | `TaskSystem`: tareas de fondo con ciclo de vida, scheduler de idle, `request_preempt`/`yield_if_preempt`, `TaskMsgPort` propio y `wait_or_idle`. | **Implementado** (HOST-305) |
 
 Reglas del engine: sin heap, sin excepciones ni RTTI, `gnu++23`, tipos de `eng/core`, API
 paramétrica y agnóstica del backend. El backend Amiga (`amiga_minimal`) es quien produce los

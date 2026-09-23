@@ -20,17 +20,26 @@ JoyProducer g_joy {};
 MouseProducer g_mouse {};
 KeyProducer g_keys {};
 
-/// IRQ del teclado (SP de CIA-A): lee `SDR`, reconoce con `SPMODE` y produce `KeyDown`/`KeyUp`.
+/// IRQ del teclado (SP de CIA-A): lee `SDR`, produce `KeyDown`/`KeyUp` y pulsa el handshake.
+///
+/// Handshake (AHRM 3.ª, "The Keyboard"): tras recibir un byte hay que pulsar SP **bajo y luego
+/// alto**, con el pulso bajo de >= 85 µs, para que el teclado envíe la siguiente tecla. Las **dos
+/// transiciones deben ir juntas** (un solo pulso): si se separan (p. ej. el alta en el siguiente
+/// `tick`), el MCU emulado interpreta cada transición como un handshake y **reenvía** el byte
+/// (duplicado). El pulso bajo se hace con una espera activa corta; a 7 MHz PAL ~150 iteraciones
+/// superan los 85 µs. Se ejecuta dentro de la ISR de nivel 2, que puede ser preemptada por IRQ de
+/// nivel 3/4 (audio), así que no bloquea el camino crítico.
 void os_kbd_isr() {
 	using eng::amiga::detail::ciaa_reg;
-	const eng::u8 raw = *ciaa_reg(0x0cu); // SDR ($BFEC01)
-	volatile eng::u8* const cra = ciaa_reg(0x0eu);
-	*cra = static_cast<eng::u8>(*cra | 0x40u); // SPMODE: reconocer el byte
-	*cra = static_cast<eng::u8>(*cra & 0xbfu);
 	Msg m {};
+	const eng::u8 raw = *ciaa_reg(0x0cu); // SDR ($BFEC01)
 	if (g_keys.update(raw, g_frame, m)) {
 		(void)g_port.post(m);
 	}
+	volatile eng::u8* const cra = ciaa_reg(0x0eu);
+	*cra = static_cast<eng::u8>(*cra & 0xbfu);            // SPMODE=0: SP bajo
+	for (volatile eng::u16 i = 0u; i < 150u; ++i) {}      // >= 85 µs (AHRM)
+	*cra = static_cast<eng::u8>(*cra | 0x40u);            // SPMODE=1: SP alto (fin del pulso)
 }
 
 } // namespace
@@ -69,6 +78,7 @@ void enable_keyboard() {
 		g_cia_installed = true;
 	}
 	*ciaa_reg(0x0du) = 0x88u;                     // ICR: SETCLR | SP (enmascarar el teclado)
+	*ciaa_reg(0x0eu) = static_cast<eng::u8>(*ciaa_reg(0x0eu) | 0x40u); // SPMODE=1: SP alto (listo)
 	custom_base[custom_intena_offset] = 0xc008u;  // SETCLR | INTEN | PORTS
 }
 

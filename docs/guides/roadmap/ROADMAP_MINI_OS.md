@@ -68,12 +68,23 @@ UI (`eng::ui`).
 - **Detalle**: [`MINI_OS_INPUT.md`](../../engine/architecture/MINI_OS_INPUT.md).
 - **Verificación**: el decodificado puro ya está cubierto por HOST-006/HOST-007; se añade un test
   de que un cambio de registro produce **exactamente un mensaje** (y ninguno si no cambia).
-- **Estado**: **casi entregado**. Entregado: los **productores puros** (`eng/os/input.hpp`:
-  `JoyProducer`/`PadProducer`/`MouseProducer`/`KeyProducer` emiten solo al cambiar / por scancode;
-  **HOST-252/256**), la **lectura de registros** en el backend (`eng::os::tick`: `JOYxDAT` +
-  CIA-A PRA) y el **teclado** por IRQ de CIA-A serie (`os::enable_keyboard`, `SP` → `KeyDown`/`KeyUp`).
-  Pendiente: verificar el teclado en hardware (el runner **no inyecta teclas**: no hay opción de
-  inyección, solo `--automation-key`, que escribe un valor en memoria para el selector de técnicas).
+- **Estado**: **entregado (teclado verificado en hardware)**. Entregado: los **productores puros**
+  (`eng/os/input.hpp`: `JoyProducer`/`PadProducer`/`MouseProducer`/`KeyProducer` emiten solo al
+  cambiar / por scancode; **HOST-252/256**), la **lectura de registros** en el backend (`eng::os::tick`:
+  `JOYxDAT` + CIA-A PRA) y el **teclado** por IRQ de CIA-A serie (`os::enable_keyboard`, `SP` →
+  `KeyDown`/`KeyUp`). El teclado **llega** en la demo 212 (run-status reporta el rawkey). Dos
+  correcciones necesarias: (1) el **handshake** de la ISR debe pulsar SP **bajo→alto** con un pulso
+  ≥ 85 µs (AHRM); con el orden invertido o el pulso partido solo llegaba la primera tecla o se
+  duplicaba; (2) el runner inyecta con `--key-events <id>` (id crudo de WinUAE), porque el monitor
+  `input key` de esta build mapea a `256+sc`, que cae en eventos `SPC_*` (acciones), no en teclas.
+  La tabla `rawkey→id` está **permutada** respecto al árbol de fuentes de WinUAE y **no es estable**
+  entre ejecuciones (el MCU acepta teclas con latencia): `--key-scan` la explora pero no se publica
+  tabla fiable. Detalle: `docs/reference/emulators/winuae/keyboard-injection.md`.
+  **Inyección de entrada por el monitor**: **ratón** (`input mouse`, ya usado por `--mouse-*`) y
+  **joystick** (`input joy <port> <dir> <1|0>`, que usa nombres de evento, **fiable**) verificados en
+  la demo 212 (`--joy 1:left,1:up` → `joy_dirs=5`); el runner gana `--joy`. **Pendiente**: el **pad
+  CD32** (`POTGO`/`POTINP`) no está leído en el backend (`amiga_minimal_hw.cpp:190` solo lo menciona),
+  así que `PadProducer` (puro, HOST-252) no tiene productor de hardware todavía.
 
 ### M3 — Puente a la UI
 
@@ -132,11 +143,15 @@ UI (`eng::ui`).
   Amiga sobre **`dos.library`** (`amiga_minimal_file.cpp`: `Open`/`Read`/`Write`/`Seek`/`Close`,
   `CreateDir`/`DeleteFile`/`Rename`; la asíncrona como **diferida** con `file_pump` que postea
   `FileDone`/`FileError`), el **enrutado** `eng/res/resources.hpp` (HOST-255) y la **demo 211**
-  (lee texto/imagen/sonido, carga un `.englib` y prueba la escritura). **Disquete a bajo nivel**
+  (lee texto/imagen/sonido, carga un `.englib` y prueba la escritura).   **Disquete a bajo nivel**
   (`eng/os/floppy.hpp` + `amiga_minimal_floppy.cpp`): DMA crudo (CIA-B PRB + `DSKPT`/`DSKLEN` doble +
   `DSKBLK`) y decode MFM en CPU — **sin `trackdisk.device`**. La DMA **funciona** en la demo
-  `214_floppy_raw` (motor/seek/lectura de pista + syncs `$4489`); el decode del sector necesita
-  búsqueda de sync **bit a bit** (pendiente). `eng/os/trackdisk.hpp` queda como alternativa
+  `214_floppy_raw` (motor/seek/lectura de pista + syncs `$4489`) y el **decode del sector con búsqueda
+  de sync bit a bit está implementado** (`floppy_find_sector`, ventana deslizante de 16 bits;
+  `engine/include/eng/os/floppy.hpp:187-203`) y cubierto por **HOST-259** (recupera los 11 sectores
+  con `verify_checksums`). *Nota de verificación (2026-09)*: en este entorno la demo `214` no alcanza
+  `READY` con el ADF montado en `DF0:` (`runner.uae` lo inserta), pese a que su README la da por
+  validada — issue abierto en la **ejecución en hardware**, ajeno al decode (que pasa en host). `eng/os/trackdisk.hpp` queda como alternativa
   documentada y no verificada (`td_open` se cuelga en `-nostdlib`). Decisión y detalle en
   `docs/debugging/investigaciones/consulta-grok-disco-y-loader.md`; errata CIA-B en `docs/reference/ahrm/ERRATA_Y_NOTAS.md` §5. **Imágenes de disquete**: `tools/fs/make-volume.mjs --adf` genera un
   ADF (FFS/OFS con `xdftool`) y `run-demo.sh --disk <adf>` lo monta en `DF0:`; el disquete se monta,
@@ -150,12 +165,13 @@ UI (`eng::ui`).
 - **Detalle**: §5 de [`MINI_OS_IO.md`](../../engine/architecture/MINI_OS_IO.md).
 - **Verificación**: **HOST-257** (`ChunkStream<NumBuffers>`: doble buffer, underrun, EOF) y
   **HOST-239**/**HOST-271** (`PcmStream` sobre `ChunkStream` + decoder ZX0, con IRQ de Paula).
-- **Estado**: **contrato, audio y puente fichero entregados**. `eng/os/stream.hpp` (`ChunkStream`;
-  HOST-257), el **streaming PCM** de audio (`eng/audio/pcm_stream.hpp` + `eng/audio/zx0.hpp`;
-  HOST-239/271, demo **272_audio_stream** con IRQ de nivel 4) y el **feeder fichero→ChunkStream**
-  (`eng/os/file_stream.hpp`; HOST-306: lecturas secuenciales por buffer, EOF/underrun). **Pendiente**:
-  la **demo en hardware** que lee el fichero grande (512 KB) de la imagen de disquete por rebanadas y
-  lo reproduce (la imagen `out/fs/211_fs_test.adf` ya lo incluye).
+- **Estado**: **entregado**. `eng/os/stream.hpp` (`ChunkStream`; HOST-257), el **streaming PCM** de
+  audio (`eng/audio/pcm_stream.hpp` + `eng/audio/zx0.hpp`; HOST-239/271, demo **272_audio_stream**
+  con IRQ de nivel 4) y el **feeder fichero→ChunkStream** (`eng/os/file_stream.hpp`; HOST-306). La
+  **lectura por rebanadas del fichero de 512 KB en hardware** la valida la demo **211_fs_test**: lee
+  `DH1:data/audio/tone_8k_512k.raw` en chunks de 4 KB con doble buffer sobre `file_read_async` hasta
+  el EOF (128 chunks; el run-status lo reporta con `flags` bit 4). El **reproducir** simultáneo
+  (PcmStream sobre el mismo feeder) queda como composición opcional con A5 (272).
 
 ### M9 — Telemetría
 
@@ -174,20 +190,39 @@ UI (`eng::ui`).
 - **Detalle**: [`MINI_OS_TASKS.md`](../../engine/architecture/MINI_OS_TASKS.md).
 - **Verificación**: **HOST-305** — una tarea `poll()` avanza por rebanadas solo en idle; `preempt`
   detiene el idle y `yield_if_preempt` lo ve; `suspend`/`resume`/`abort`/`join` y `block`/`unblock`
-  se comportan; con dos `Ready` se elige la de mayor prioridad.
-- **Estado**: **núcleo entregado** (`eng/os/task.hpp`; HOST-305): `create/start/suspend/resume/
-  abort/join/state/block/unblock/run_idle/request_preempt/yield_if_preempt`. **Pendiente**:
-  `TaskMsgPort` propio (`own_port`), `stack_words` (stack propio) y la integración del `run_idle`
-  en el bucle de mensajes (`wait_or_idle`).
+  se comportan; con dos `Ready` se elige la de mayor prioridad. **HOST-307** — integración en el
+  bucle: `MessagePumpGame` da un slice de idle **solo** si no hubo mensajes, y respeta/limpia
+  `preempt`.
+- **Estado**: **entregado** (`eng/os/task.hpp` + integración en `eng/os/message_pump.hpp`;
+  HOST-305/307): `create/start/suspend/resume/abort/join/state/block/unblock/run_idle/
+  request_preempt/yield_if_preempt`, `TaskMsgPort` propio (`own_port`), `wait_or_idle` y
+  `MessagePumpGame::bind_tasks` (idle si no hay mensajes). **Evidencia hardware**: la demo **212**
+  liga un `TaskSystem` y su contador `bg` avanza (lectura del run-status `0x21200002` →
+  `0x2120001F`). **Pendiente** (M11): `stack_words` (stack propio) y las corrutinas
+  (`co_await idle_yield`); ver el bloqueo de toolchain en M11.
 
-### M11 — Tareas-corrutina (opcional)
+### M11 — Tareas-corrutina (opcional) — **bloqueada por toolchain**
+
+> **Bloqueo (2026-09)**: el toolchain `m68k-amiga-elf-g++` **no compila corrutinas**. `#include
+> <coroutine>` falla con `'__void_t' was not declared in this scope` (línea 76 del header) y su
+> prerrequisito `#include <type_traits>` falla con `#error "libstdc++ bug: is_corresponding_member
+> and is_layout_compatible are provided but their FTM is not set"`. El host (`g++` de WSL) sí las
+> compila, así que no es un problema de sintaxis del engine sino de las cabeceras libstdc++ del
+> toolchain freestanding. Sin `<coroutine>`/`<type_traits>` no hay `std::coroutine_handle` ni
+> `coroutine_traits`, y `co_await` no puede bajarse. Alternativas descartadas: reimplementar
+> `std::coroutine_handle` a mano (frágil, depende de intrinsics internos del compilador) y
+> `ucontext`/asm (fuera del alcance del engine). **M11 queda aparcada**; las tareas `poll()` (M10)
+> cubren el caso cooperativo con la misma API de scheduler.
+
 
 - **Entregable**: tareas con `co_await idle_yield{}`/`co_await wait_for_signal{}` sobre el mismo
   `TaskSystem` (frame en buffer fijo, sin heap).
 - **Detalle**: §8 de [`MINI_OS_TASKS.md`](../../engine/architecture/MINI_OS_TASKS.md).
 - **Verificación**: **HOST-251** — una corrutina cede y reanuda conservando estado; medición de
   codegen en 68000 (sin libcalls) y comparación con la tarea `poll()`.
-- **Estado**: pendiente.
+- **Estado**: **bloqueada por toolchain** (ver el aviso arriba): `<coroutine>`/`<type_traits>` no
+  compilan con `m68k-amiga-elf-g++`. Se retomará si el toolchain da soporte o aparece un consumidor
+  que lo justifique.
 
 ## Tests y demos previstos
 
@@ -205,6 +240,7 @@ UI (`eng::ui`).
 | HOST-304 | test | Telemetría de saturación (`IrqTelemetry`): overflows, VBlank pisados, marcas de agua. |
 | HOST-305 | test | Tareas de fondo (`TaskSystem`): ciclo de vida, idle/preempt, prioridad. |
 | HOST-306 | test | Feeder fichero→`ChunkStream`: lecturas secuenciales por buffer, EOF/underrun. |
+| HOST-307 | test | Fondo integrado en el bucle: idle solo sin mensajes; `preempt` respetado y limpiado. |
 | 208_message_loop | demo | Bucle reactivo en hardware: VBlank + input + UI sin sondeo. |
 | 272_audio_stream | demo | Streaming PCM de audio desde RAM con IRQ de Paula. |
 
@@ -238,10 +274,13 @@ VBlank) y en Workbench se mapea a `Wait` de Exec.
 Entregados: **M0** (núcleo; HOST-219), **M1** (VBlank latched; HOST-236), **M3** (puente UI;
 HOST-220), **M4** (bucle reactivo; HOST-253 + demo 208), **M5** (prioridad/despacho; HOST-236/237) y
 **M6** (tiempo/timers; HOST-222/238). **M2** (entrada) y **M7** (E/S async) están casi entregados
-(falta verificar teclado en hardware y el decode de sector MFM); **M8** (streaming) tiene el contrato
-(`stream.hpp`, HOST-257) y el **streaming PCM** de audio (`pcm_stream.hpp`/`zx0.hpp`, HOST-239/271 +
-demo 272), pero falta la **lectura real por `trackdisk`** desde una demo; **M9** (telemetría) está
-**entregado** (`telemetry.hpp`; HOST-304) y **M10** (`TaskSystem`) tiene el **núcleo entregado**
-(`task.hpp`; HOST-305). **M11** (corrutinas) sigue **pendiente**. La estructura de código
+(falta verificar teclado en hardware y el decode de sector MFM); **M8** (streaming) está **entregado**:
+contrato (`stream.hpp`, HOST-257), **streaming PCM** de audio (`pcm_stream.hpp`/`zx0.hpp`,
+HOST-239/271 + demo 272) y **lectura por rebanadas del fichero de 512 KB en hardware** (demo 211,
+`FileChunkFeeder`); **M9** (telemetría) está
+**entregado** (`telemetry.hpp`; HOST-304) y **M10** (`TaskSystem` + integración en el bucle) está
+**entregado** (`task.hpp` + `message_pump.hpp`; HOST-305/307; demo 212). **M11** (corrutinas) queda
+**bloqueada por el toolchain** (`<coroutine>`/`<type_traits>` no compilan en
+`m68k-amiga-elf-g++`). La estructura de código
 (`engine/include/eng/os/`, `engine/include/eng/ui/`) y el diseño están fijados. Soporte de
 **Workbench** (W5/W6): `os::wait` + `MsgPort::pending` ya existen.

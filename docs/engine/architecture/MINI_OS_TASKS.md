@@ -252,10 +252,13 @@ El scheduler coopera con **cualquier** modelo de tarea; las **corrutinas de C++2
 `co_yield`) encajan como **front-end** sobre el mismo `TaskSystem`: una corrutina es una tarea cuyo
 `poll()` reanuda el `coroutine_handle`.
 
-- **Aplicabilidad en 68000**: sí, con matices. `gnu++23` habilita corrutinas en GCC; el *frame* de
-  la corrutina se asigna por defecto en heap, pero se puede colocar en un **buffer fijo** con un
-  `operator new(size_t, void*)` en el `promise_type` (sin heap, coherente con el engine). El frame
-  es pequeño; reanudar son unos pocos `jsr`.
+- **Aplicabilidad en 68000**: **bloqueada por el toolchain actual**. `gnu++23` habilita corrutinas
+  en GCC, pero el toolchain `m68k-amiga-elf` no aporta las cabeceras que las backean: `#include
+  <coroutine>` falla con `'__void_t' was not declared` y `#include <type_traits>` con
+  `#error "libstdc++ bug: ... is_corresponding_member ... FTM is not set"`. Sin ellas no hay
+  `std::coroutine_handle`/`coroutine_traits`. (El host `g++` sí las compila; el problema es el
+  entorno freestanding.) Cuando exista soporte, el *frame* se colocaría en un **buffer fijo** con un
+  `operator new` en el `promise_type` (sin heap). Por ahora se usan las tareas `poll()` de §5.
 - **Suspensión = ceder al idle**: un `co_await idle_yield{}` marca la tarea `Ready` y devuelve el
   control al scheduler; `co_await wait_for_signal{SigFile}` la marca `Blocked` hasta que llegue la
   señal. El scheduler no cambia: solo distingue `Ready`/`Blocked`.
