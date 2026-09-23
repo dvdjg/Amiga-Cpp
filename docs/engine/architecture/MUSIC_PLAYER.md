@@ -52,6 +52,50 @@ documentación del mixer.
 Arrancar la música primero y el mixer después (muchos reproductores inicializan
 todos los canales al arrancar, incluso los vacíos).
 
+## Límite medido: el tamaño del módulo ralentiza al mixer (demo 276)
+
+Hallazgo (medido, no resuelto del todo): con música **+** mixer a la vez, el **contador de la IRQ de
+audio del mixer** avanza a ritmo **constante pero mucho menor** cuanto **más grande** es el módulo. En
+`demos/amiga/276_music_mixer` (música en AUD1‑3 por P61/PtPlayer + mixer en AUD0, a frame 120):
+
+| Módulo | Tamaño | Contador del mixer | Golpes |
+|---|---|---|---|
+| `testmod.p61` (P61) | 5 KB | ~119 (~60 Hz) | 18 |
+| `SneakyChick.mod` (ProTracker) | 87 KB | ~119 | 18 |
+| `jazzcat-boogie_town.mod` (ProTracker) | 241 KB | **~16 (~8 Hz)** | 2 |
+
+**Acotado por experimentos:**
+
+- **Es ritmo, no arranque tardío**: a frame 480 el módulo grande da ~59 (~proporcional a 120→480); el
+  mixer avanza lento desde el principio.
+- **No es el reproductor**: P61 y ProTracker dan 119 con módulos pequeños → el tipo de player no importa.
+- **No es la RAM del módulo**: mover el módulo de Chip a `MEMF_ANY` no cambia el contador (descartada
+  la contención de bus por el hunk en Chip).
+
+**Hipótesis abierta**: con módulos grandes, el reproductor (que corre en **CIA**, nivel 2) **se come la
+IRQ de audio del mixer** (nivel 4) o **reescribe registros de audio más a menudo**; el mixer pierde
+IRQs. Para reproducirlo: `demos/amiga/276_music_mixer` con `-DMED_MOD=2` (y `-DK_REPORT_FRAME=N`). Un
+módulo **moderado** (≤ ~100 KB) va fino.
+
+**No hay límite documentado del tamaño del módulo** en el reproductor (P61/PtPlayer) ni en el mixer.
+El mixer solo documenta límites de **sus buffers internos** (`mixer_buffer_size`,
+`mixer_plugin_buffer_size` en `support/audio_mixer/mixer.i`), que son **pequeños y fijos** (fracción
+de segundo × nº de voces) y **no crecen con el módulo**: el mixer no "carga" el módulo.
+
+La vía correcta para audio grande **no** es incrustarlo entero (es lo que agrava el problema medido),
+sino **streaming desde disco con footprint pequeño**, ya diseñado en
+[`AUDIO_STREAMING.md`](AUDIO_STREAMING.md) (`PcmStream`/`ChunkStream`, chunks de 4–8 KB, roadmap A5):
+mientras Paula reproduce un buffer, el disco llena el siguiente. Para un reproductor de módulos, la
+analogía es cargar el módulo (o sus samples) por partes, no `INCBIN`ar 200+ KB en el ejecutable.
+
+## Protocolo P61 (`testmod.p61`) y samples empaquetados
+
+Un `.p61` puede llevar los **samples empaquetados** (bit 6 del `byte 3`, tras el signo opcional `P61A`);
+entonces `P61_Init` **exige un buffer** de descompresión cuyo tamaño está en el `offset 4` del módulo.
+Se detecta con `p61_needs_sample_buffer` / `p61_sample_buffer_size` (`music_player.hpp`) y se pasa a
+`AudioSystem::play_music(module, format, buffer)`. El `.p61` oficial es la playroutine
+`support/music/p61/P6112-Play.i` (P6112 de Photon/Scoopex), integrada por `support/music/p61.asm`.
+
 ## Referencias
 
 - Cabeceras: `demoscene-repo-orig/include/p61.h`, `ptplayer.h`, `ahx.h`.

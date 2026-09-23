@@ -109,10 +109,16 @@ public:
 
 	/// Reproduce un módulo en el formato dado (detiene la música previa).
 	bool play_music(const MusicModule& module, MusicFormat format) {
+		return play_music(module, format, {});
+	}
+
+	/// Como `play_music`, pero con un **buffer de descompresión** para el formato P61 cuando
+	/// el módulo trae los samples empaquetados (ver `P61Player::play`).
+	bool play_music(const MusicModule& module, MusicFormat format, eng::Span<eng::u8> buffer) {
 		stop_music();
 		switch (format) {
 			case MusicFormat::P61:
-				if (m_p61.play(module)) { m_format = MusicFormat::P61; }
+				if (m_p61.play(module, buffer)) { m_format = MusicFormat::P61; }
 				break;
 			case MusicFormat::Protracker:
 				if (m_pt.play(module)) { m_format = MusicFormat::Protracker; }

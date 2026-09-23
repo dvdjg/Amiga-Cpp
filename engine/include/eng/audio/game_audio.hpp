@@ -113,6 +113,10 @@ public:
 	bool play_music(const MusicModule& module, MusicFormat format) {
 		return m_audio->play_music(module, format);
 	}
+	/// Como `play_music`, con buffer de descompresión (P61 con samples empaquetados).
+	bool play_music(const MusicModule& module, MusicFormat format, eng::Span<eng::u8> buffer) {
+		return m_audio->play_music(module, format, buffer);
+	}
 	void stop_music() { m_audio->stop_music(); }
 	void update_music() { m_audio->update_music(); }
 
