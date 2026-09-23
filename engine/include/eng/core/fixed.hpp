@@ -109,62 +109,10 @@ struct DefaultPolicy {
 // ============================================================================
 //  Promoción de la representación
 // ============================================================================
-
-/// El producto de dos `R` necesita más ancho o desborda. Es contrato del algoritmo.
-template <typename R>
-struct wide;
-template <>
-struct wide<s16> {
-	using type = s32;
-};
-template <>
-struct wide<s32> {
-	using type = long long; // no se usa en el camino caliente del 68000
-};
-template <>
-struct wide<float> {
-	using type = float; // en coma flotante no hace falta ensanchar
-};
-
-/// Representación común de dos (la más ancha): la usa la SUMA, que no puede mezclar
-/// anchuras sin perder bits.
-template <typename A, typename B>
-struct common_repr {
-	using type = A; // mismo tipo
-};
-template <>
-struct common_repr<s16, s32> {
-	using type = s32;
-};
-template <>
-struct common_repr<s32, s16> {
-	using type = s32;
-};
-template <>
-struct common_repr<s16, float> {
-	using type = float;
-};
-template <>
-struct common_repr<float, s16> {
-	using type = float;
-};
-template <>
-struct common_repr<s32, float> {
-	using type = float;
-};
-template <>
-struct common_repr<float, s32> {
-	using type = float;
-};
-
-/// Representación del PRODUCTO de dos: la común, ensanchada. El exponente del
-/// resultado es `Ea + Eb` (lo combina el operador). Toda la coherencia de tipos se
-/// resuelve aquí, en compilación: no hay conversiones implícitas ni comprobaciones en
-/// runtime.
-template <typename A, typename B>
-struct mul_repr {
-	using type = typename wide<typename common_repr<A, B>::type>::type;
-};
+//
+// `wide`/`common_repr`/`mul_repr` viven ahora en `numeric_traits.hpp` (genéricas, sin atarse a
+// `Fixed`): las cabeceras de algoritmo (linalg/geometry/noise…) pueden usarlas sin arrastrar una
+// representación concreta (AGENTS §1.10). Aquí se consume vía el include de `numeric_traits.hpp`.
 
 namespace detail {
 
@@ -673,5 +621,22 @@ struct scalar_div<Fixed<s32, E, P>> {
 #endif
 	}
 };
+
+/// `fila · vector`: `dot` de N pares con normalización **FUSIONADA** (los productos comparten
+/// exponente, se suman exactos y se normaliza una vez al escalar del vector). Lee una fórmula de
+/// transformación como lo que es: la fila `i` de `M*v`. Específico de `Fixed` (usa `repr`/`exp`/
+/// `policy`), por eso vive aquí y no en `linalg.hpp` (AGENTS §1.10). `v` es un `Vec<N,S>` de
+/// `linalg.hpp`; se acepta por plantilla para no crear dependencia.
+template <int N, typename SR, class Vec>
+[[nodiscard]] constexpr auto dot_fixed_row(const SR* row, const Vec& v) {
+	using SL = decltype(v.v[0]);
+	using WR = typename mul_repr<typename SR::repr, typename SL::repr>::type;
+	using W = Fixed<WR, SR::exp + SL::exp, typename SR::policy>;
+	W acc = row[0] * v.v[0];
+	for (int k = 1; k < N; ++k) {
+		acc = acc + row[k] * v.v[k];
+	}
+	return acc.template rescale<SL::exp>().template cast<typename SL::repr>();
+}
 
 } // namespace eng::math

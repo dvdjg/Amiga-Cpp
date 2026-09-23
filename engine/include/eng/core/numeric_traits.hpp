@@ -108,4 +108,66 @@ constexpr bool in_range(S x, double lo, double hi) {
 	return d >= lo && d <= hi;
 }
 
+// --- Promoción de representaciones (genérica, sin depender de `Fixed`) ---------------------
+//
+// Viven aquí (no en `fixed.hpp`) para que las cabeceras de ALGORITMO (linalg, geometry, noise…)
+// puedan usar la promoción de producto/suma sin arrastrar una representación concreta (§1.10).
+// `Fixed` las usa; cualquier otro escalar con representación ancha también puede.
+
+/// El producto de dos `R` necesita más ancho o desborda. Es contrato del algoritmo.
+template <typename R>
+struct wide;
+
+template <>
+struct wide<s16> {
+	using type = s32;
+};
+template <>
+struct wide<s32> {
+	using type = long long; // no se usa en el camino caliente del 68000
+};
+template <>
+struct wide<float> {
+	using type = float; // en coma flotante no hace falta ensanchar
+};
+
+/// Representación común de dos (la más ancha): la usa la SUMA, que no puede mezclar
+/// anchuras sin perder bits.
+template <typename A, typename B>
+struct common_repr {
+	using type = A; // mismo tipo
+};
+template <>
+struct common_repr<s16, s32> {
+	using type = s32;
+};
+template <>
+struct common_repr<s32, s16> {
+	using type = s32;
+};
+template <>
+struct common_repr<s16, float> {
+	using type = float;
+};
+template <>
+struct common_repr<float, s16> {
+	using type = float;
+};
+template <>
+struct common_repr<s32, float> {
+	using type = float;
+};
+template <>
+struct common_repr<float, s32> {
+	using type = float;
+};
+
+/// Representación del PRODUCTO de dos: la común, ensanchada. El exponente del resultado es
+/// `Ea + Eb` (lo combina el operador de `Fixed`). Toda la coherencia de tipos se resuelve aquí,
+/// en compilación: sin conversiones implícitas ni comprobaciones en runtime.
+template <typename A, typename B>
+struct mul_repr {
+	using type = typename wide<typename common_repr<A, B>::type>::type;
+};
+
 } // namespace eng::math

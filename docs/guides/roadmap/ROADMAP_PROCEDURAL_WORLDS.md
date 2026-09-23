@@ -167,6 +167,21 @@ la **física de actores** (gravedad/nadar/escalar). Este roadmap los cubre.
 3. **`Fixed<s32,E>` no se divide en m68k** (`div_norm` usa libgcc de 64 bits); usar `Fixed<s16,E>`
    (E ≤ 15). Ver `engine/include/eng/core/fixed.hpp`.
 
+## Bloqueo medido: W1-fijo (ruido en punto fijo) — requiere revisar `noise.hpp`
+
+Intentado (W1-fijo) instanciar `fbm2<Fixed<s16,E>>` para generar el bioma con ruido **en Amiga** sin
+libcalls. **No compila**: `value_noise2` **exige rango ±1024** (`noise.hpp:115`
+`require_range<S,-1024,1024>`), y `Fixed<s16,12>` solo cubre **±8** (probado con E=8/10/12: el
+`static_assert` de `numeric_traits` salta). Con `Fixed<s32,E>` (rango suficiente) el `fbm2` **no
+enlaza** en m68k porque su normalización final usa `div_norm` de `Fixed<s32>` = libgcc de 64 bits.
+
+→ **Conflicto de contrato real**: `fbm2`/`worley2` piden un escalar de **rango amplio** (`±1024`) y
+**división**; en m68k eso solo lo cumplen `float`/`MiniFloat16` (con libcalls) o `Fixed<s32>` (sin
+`div_norm`). **Trabajo pendiente**: (a) un `div_norm` de `Fixed<s32>` sin libgcc (rutina 68000), o
+(b) reescalar el contrato del ruido (rango menor / normalización por producto en vez de división),
+o (c) un ruido específico de Amiga con `Fixed<s16>` y comparaciones de enteros. Mientras tanto, el
+bioma se genera con **bandas enteras** en Amiga y con **ruido** en host (precocinado).
+
 ## Cómo verificar el código en m68k (además del host)
 
 ```bash

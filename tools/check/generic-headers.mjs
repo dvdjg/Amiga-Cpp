@@ -30,9 +30,15 @@ const PATTERNS = [
 	/Fixed<\s*(eng::)?s(8|16|32|64)/,
 	/\bq(0|8|12|24)\b/,
 	/\bMiniFloat16\b/,
-	// Una cabecera genérica tampoco debe incluir el soporte matemático de un escalar ni un
-	// backend retro: eso la ata a esa representación (se incluye el escalar, no su formato).
-	/#\s*include\s*[<"]eng\/(core\/(fixed_math|minifloat_math)\.hpp|retro\/)/,
+	// Alias INTERNO a un escalar concreto (`using MF = MiniFloat16;`, `using W = Fixed<WR,…>`):
+	// fijar el escalar aunque sea "genérico" en la representación. Se excluye el alias que
+	// envuelve `typename …` (p. ej. `using T = Fixed<typename common_repr<A,B>::type,…>`, que es
+	// promoción genérica legítima).
+	/using\s+\w+\s*=\s*(eng::math::)?(Fixed\s*<(?!\s*typename)|MiniFloat16\b)/,
+	// Una cabecera genérica tampoco debe INCLUIR un escalar concreto ni su soporte matemático, ni
+	// un backend retro: eso la ata a esa representación (se incluye el escalar, no su formato).
+	// (§1.10: el escalar lo elige el consumidor; el algoritmo usa solo el vocabulario genérico.)
+	/#\s*include\s*[<"]eng\/(core\/(fixed|minifloat)(_math)?\.hpp|retro\/)/,
 ];
 
 const baseline = new Set(
