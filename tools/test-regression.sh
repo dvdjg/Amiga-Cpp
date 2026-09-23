@@ -194,6 +194,21 @@ if [ -f "$DOC_INDEX_CHECK" ]; then
 	fi
 fi
 
+# --- Gate de codegen: ningun ELF de demo con instrucciones 68020+/FPU (no corren en 68000/OCS) ---
+# Audita los `.elf` ya compilados (`out/demos/**`). Falla si aparece `muls.l`/`fmove`/`extb.l`/`bf*`.
+# Es la salvaguarda que sustituye a las libcalls cuando el engine las evita (ver
+# docs/reference/toolchain/m68k-gcc.md). Solo corre si hay ELFs (no compila por si mismo).
+ASM_AUDIT="$ROOT/tools/analyze/asm-audit.mjs"
+if [ -f "$ASM_AUDIT" ] && command -v node >/dev/null 2>&1 && [ -d "$ROOT/out/demos" ]; then
+	echo "== codegen (68000) =="
+	if ! node "$ASM_AUDIT" --all; then
+		echo "codegen fallo: hay instrucciones 68020+/FPU en un binario (no corre en 68000/OCS)." >&2
+		exit 1
+	fi
+else
+	echo "node/out-demos no disponible; se omite el gate de codegen." >&2
+fi
+
 # --- Gate de fps (opt-in): mide las demos de la bitacora y detecta deriva ---
 # Lanza WinUAE por cada fila de la tabla trazable; por eso es opt-in. Falla si una
 # demo medida en la misma fase (`detail`) baja del umbral (por defecto -10 %).

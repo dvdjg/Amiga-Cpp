@@ -21,7 +21,7 @@
 // Build/run:
 //   bash ./tools/build/build-demo.sh demos/amiga/117_bobs3d --debug
 //   bash ./tools/run/run-demo.sh demos/amiga/117_bobs3d
-#include <eng/core/affine.hpp>
+#include <eng/core/fixed_affine.hpp>
 #include <eng/api/api.hpp>
 #include <eng/debug/prof.hpp>
 #include <eng/graphics/bob.hpp>

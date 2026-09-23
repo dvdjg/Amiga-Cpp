@@ -46,6 +46,7 @@
 #include <eng/core/arith.hpp>
 #include <eng/core/numeric_traits.hpp>
 #include <eng/core/scalar_fwd.hpp>
+#include <eng/core/util/type_traits.hpp>
 #include <eng/core/types.hpp>
 
 namespace eng::math {
@@ -629,7 +630,7 @@ struct scalar_div<Fixed<s32, E, P>> {
 /// `linalg.hpp`; se acepta por plantilla para no crear dependencia.
 template <int N, typename SR, class Vec>
 [[nodiscard]] constexpr auto dot_fixed_row(const SR* row, const Vec& v) {
-	using SL = decltype(v.v[0]);
+	using SL = eng::util::remove_cvref_t<decltype(v.v[0])>;
 	using WR = typename mul_repr<typename SR::repr, typename SL::repr>::type;
 	using W = Fixed<WR, SR::exp + SL::exp, typename SR::policy>;
 	W acc = row[0] * v.v[0];

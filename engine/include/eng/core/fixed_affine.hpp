@@ -1,10 +1,14 @@
 #pragma once
 
-/// \file affine.hpp
-/// Proyección de un vértice crudo con una transformación afín. Es un **punto de
-/// personalización**: el genérico de aquí es portable (un producto por multiplicación) y
-/// un backend de CPU puede especializarlo para empaquetar dos productos en una sola
-/// instrucción (el 68000 lo hace con `muls.w`).
+/// \file fixed_affine.hpp
+/// Proyección de un vértice crudo con una transformación afín **sobre `Fixed`** (4.12). Es un
+/// **punto de personalización**: el genérico de aquí es portable (un producto por multiplicación) y
+/// un backend de CPU puede especializarlo para empaquetar dos productos en una sola instrucción (el
+/// 68000 lo hace con `muls.w`).
+///
+/// **No es genérico sobre el escalar** (§1.10, ver `generic-headers-baseline.txt`): usa
+/// `SR::repr`/`SR::exp`/`SR::policy` y `dot_fixed_row`. Por eso el fichero se llama `fixed_affine`
+/// (dependencia de `Fixed` explícita) y no vive en `affine`.
 ///
 /// Convención de escalas (la del original, idéntica en genérico y backend): la fila se
 /// pliega con `>> 4` y un término de traslación preescalado (`e`), y el resultado son los

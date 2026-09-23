@@ -177,10 +177,21 @@ enlaza** en m68k porque su normalización final usa `div_norm` de `Fixed<s32>` =
 
 → **Conflicto de contrato real**: `fbm2`/`worley2` piden un escalar de **rango amplio** (`±1024`) y
 **división**; en m68k eso solo lo cumplen `float`/`MiniFloat16` (con libcalls) o `Fixed<s32>` (sin
-`div_norm`). **Trabajo pendiente**: (a) un `div_norm` de `Fixed<s32>` sin libgcc (rutina 68000), o
-(b) reescalar el contrato del ruido (rango menor / normalización por producto en vez de división),
-o (c) un ruido específico de Amiga con `Fixed<s16>` y comparaciones de enteros. Mientras tanto, el
-bioma se genera con **bandas enteras** en Amiga y con **ruido** en host (precocinado).
+`div_norm`).
+
+**Intentado (y por qué se paró)**:
+- `div_norm<Fixed<s32>>` **sin libgcc** con resta binaria: a `-O2` compila sin libcalls, pero (1) el
+  **GCC m68k da `internal compiler error` de CFI (`dwarf2cfi.cc`) a `-O0`** con ese cuerpo
+  `constexpr` (el modo **debug** de las demos), y **`#pragma GCC optimize` no se aplica a
+  `constexpr`** (el ICE persiste); y (2) la descomposición `q0<<E + (r0<<E)/b` **no es exacta** con
+  `r0` grande → `value_noise1<Fixed<s32,12>>` fallaba. Un `div_norm` s32 correcto y sin libgcc exige
+  **división larga 64/32 a mano** (dos palabras), y el ICE a `-O0` seguiría bloqueando el build debug.
+
+**Vías pendientes**: (a) `div_norm` 64/32 con división larga de dos palabras **no-`constexpr`**
+(evita el ICE, que es de `constexpr`+CFI) o en **asm 68000**; (b) reescalar el contrato del ruido
+(rango menor, normalización por producto en vez de división); o (c) ruido de Amiga con `Fixed<s16>` y
+comparaciones enteras. Mientras tanto, el bioma se genera con **bandas enteras** en Amiga y con
+**ruido** en host (precocinado).
 
 ## Cómo verificar el código en m68k (además del host)
 

@@ -12,7 +12,7 @@
 //
 // Build/run:
 //   bash ./tools/build/build-demo.sh demos/amiga/118_dna3d --debug
-#include <eng/core/affine.hpp>
+#include <eng/core/fixed_affine.hpp>
 #include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/platform/amiga/object3d.hpp>

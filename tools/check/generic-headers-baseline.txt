@@ -1,8 +1,6 @@
 # Cabeceras genericas con tipos concretos, pendientes de reubicar. Un fichero AQUI esta
 # aceptado de forma explicita; cualquier fichero NUEVO con un tipo concreto falla.
-# La ruta es relativa a engine/include/eng/ (p. ej. `core/affine.hpp`).
+# La ruta es relativa a engine/include/eng/ (p. ej. `core/foo.hpp`).
 #
-# core/affine.hpp: proyeccion de vertices sobre `Fixed` (usa `SR::repr`/`exp`/`policy` y `dot`
-#   fusionado). Es implementacion de un formato concreto, no algoritmo generico; pendiente de mover
-#   a `eng/core/fixed_affine.hpp` (o de generalizar el punto de personalizacion `pack3_ops`).
-core/affine.hpp
+# Vacio: `affine.hpp` se renombro a `fixed_affine.hpp` (el nombre declara la dependencia de `Fixed`,
+# como `fixed.hpp`). Mantener este fichero sin entradas: si algo aparece aqui, es deuda a justificar.

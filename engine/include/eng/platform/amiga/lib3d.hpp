@@ -45,7 +45,7 @@
 /// enteros con `mul_wide`/`div_wide` (`eng/core/arith.hpp`): no le hace falta otro tipo de
 /// escalar, solo garantizar `muls.w`/`divs.w` en el camino caliente.
 
-#include <eng/core/affine.hpp>
+#include <eng/core/fixed_affine.hpp>
 #include <eng/core/arith.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/platform/amiga/object3d.hpp>
