@@ -112,7 +112,10 @@ la **física de actores** (gravedad/nadar/escalar). Este roadmap los cubre.
 - **Verificación**: **HOST-277** — misma semilla → mismo grafo (byte a byte); semillas distintas →
   grafos distintos; nº de salas y conectividad dentro de cotas; sin asignación dinámica (contadores
   de arena).
-- **Estado**: pendiente.
+- **Estado**: **entregado**. `eng/sim/gen/world_gen.hpp`: `WorldGenParams`, `WorldGenOutput`
+  (`Graph<MaxRooms,MaxEdges>` + bioma/peligro/semilla por sala), `generate()` (reparto en rejilla de
+  macro-celdas, árbol de expansión por proximidad, **atajos** que crean bucles, bioma provisional y
+  peligro por BFS). Puro y sin heap. HOST-277 verde. La decisión de **sala fija** está fijada aquí.
 
 ### W1 — Regiones y biomas con ruido
 
@@ -144,7 +147,10 @@ la **física de actores** (gravedad/nadar/escalar). Este roadmap los cubre.
   actual → recoger → repetir hasta punto fijo), sin dedup por estado. Reutiliza `eng/util/graph.hpp`.
 - **Verificación**: **HOST** — un mundo **insoluble** inyectado a mano se detecta; el generado de W3
   es soluble; coste O(objetos × salas) medido.
-- **Estado**: pendiente.
+- **Estado**: **entregado (base)**. `is_solvable()` en `world_gen.hpp`: BFS de **frontera de
+  inventario** hasta punto fijo, sin dedup por `(sala,máscara)`, memoria fija. Cubierto por HOST-277
+  (mundo soluble + nodo aislado insoluble). **Pendiente**: conectar el filtrado por requisito
+  (`PathGate`/`item_of`) cuando W3 coloque llaves+gates; hoy en W0 todas las aristas están abiertas.
 
 ### W5 — Distancia/peligro y colocación de entidades
 
@@ -241,9 +247,11 @@ Números reservados del bloque D; `node tools/check/next-number.mjs` da el sigui
 - **`eng/world/` nuevo vs `eng/sim/gen/`.** El generador *produce* el modelo de `eng::sim`; como es
   lógica pura de simulación, encaja en `eng/sim/gen/` (evita una capa nueva). Alternativa: `eng/world/`
   si crece con render/persistencia. **Decidir en W0.**
-- **Tipo de sala.** ¿La rejilla de sala es fija (p. ej. 32×16 celdas) o variable? Fija simplifica el
-  empaquetado y el pooling; variable da variedad. **Propuesta**: fija + «macro-celdas» de 2×2 para
-  salas grandes.
+- **Tipo de sala — DECIDIDO**: **rejilla fija de sala** (`RoomW×RoomH` en celdas, potencia de dos) +
+  **macro-geometría** para salas grandes (una «sala» del grafo ocupa `1×1`, `2×1`, `1×2` o `2×2` de
+  **macro-celdas**). Motivo: el tamaño fijo hace **trivial** el empaquetado (offset = sala×slots), el
+  `Pool` y el `WorldMap` por chunks; la variedad de tamaño se logra **combinando** macro-celdas, sin
+  rejilla variable. Se fija en W0 como `constexpr`.
 - **Generar en runtime o precocinar.** W12 lo decide con medida; por defecto **precocinar** en host
   (no gasta frame de juego) y dejar runtime para prototipado/semillas por partida.
 - **Punto fijo para el ruido.** `eng/core/noise.hpp` es genérico sobre escalar: usar `MiniFloat16`/
