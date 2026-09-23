@@ -123,14 +123,23 @@ la **física de actores** (gravedad/nadar/escalar). Este roadmap los cubre.
   región), gradiente de peligro inicial; emite `SimWorld::set_biome`/`set_region`.
 - **Verificación**: **HOST** — biomas **contiguos** (un region y sus vecinos tienden al mismo bioma),
   no franjas; cobertura de todos los biomas; determinismo.
-- **Estado**: pendiente.
+- **Estado**: **host entregado; m68k pendiente**. `classify_biome` (fbm temp + fbm humedad + worley
+  cueva) con `MiniFloat16`, y bioma **contiguo** verificado en HOST-277 (≥50 % de salas comparten
+  bioma con un vecino). **Hallazgo medido (bloqueo real)**: en **m68k** el ruido `MiniFloat16` genera
+  **libcalls prohibidas** (`__divsf3`/`__floatsisf`/`__mulsi3`) que **no enlazan** con `-nostdlib`.
+  Por eso, con `__m68k__` activo, el bioma cae a **bandas enteras** (contiguo, determinista, sin
+  float) y el ruido se reserva al **host (precocinado)**. **Pendiente (W1-fijo)**: ruido en **punto
+  fijo** (`Fixed<s16,E>` + `mul_norm`, sin `worley`/sqrt) para generar en runtime en Amiga — ver W12.
 
 ### W2 — Topología metroidvania (grafo con bucles)
 
 - **Entregable**: grafo sobre rejilla de regiones + conectividad garantizada (BFS) + aristas extra
-  (atajos); tipos de transición (`OpenPath`, `DoorRequiresKey`, `WallRequiresAbility`, `OneWayDrop`).
-- **Verificación**: **HOST** — grafo **conexo**; hay ciclos (atajos); grados dentro de cotas del pool.
-- **Estado**: pendiente.
+  (atajos); tipos de transición (`PathKind`: `Open`/`KeyDoor`/`AbilityWall`/`OneWay`) y **grado
+  acotado** por sala (cabe en el pool de vecinos del runtime).
+- **Verificación**: **HOST** — grafo **conexo**; hay ciclos (atajos); grado máximo dentro de cota.
+- **Estado**: **entregado**. `PathKind` en el header; HOST-277 verifica grafo dentro de cotas y
+  **grado máximo ≤ 12** (pool de vecinos). Mejora al engine: `Graph::neighbor_count`/`neighbor_at`
+  (acceso a vecinos **sin callback**, ver nota del compilador abajo).
 
 ### W3 — Layout, progresión y colocación de llaves
 
@@ -139,7 +148,34 @@ la **física de actores** (gravedad/nadar/escalar). Este roadmap los cubre.
   salas de jefe por **excentricidad** (distancia al spawn, ver W5).
 - **Verificación**: **HOST** — solvencia **por construcción** (ver W4) para N semillas; ninguna llave
   queda tras su propia cerradura.
-- **Estado**: pendiente.
+- **Estado**: **entregado**. `place_gates()`: recorre el **árbol de expansión** y, cada `gate_every`
+  salas, cierra la arista padre→hijo con una **llave nueva colocada en el padre** (ya alcanzable) →
+  la puerta nunca queda sin su llave delante (nunca hay que reparar). HOST-277: hay puertas y llaves,
+  tantas llaves como puertas, **todas las salas solubles**, gating determinista.
+
+## Hallazgos del compilador m68k (¡leer antes de tocar W0/W1!)
+
+1. **ICE a `-O0` con lambdas**: el GCC m68k (`vscode-amiga-debug/.../m68k-amiga-elf-g++`) da
+   `internal compiler error: in dwarf2out_frame_debug_adjust_cfa, at dwarf2cfi.cc` en **cuerpos con
+   lambdas locales** a `-O0` (el modo **debug** de las demos). **Solución**: no usar lambdas locales
+   en el código de generación; para recorrer vecinos, `Graph::neighbor_count`/`neighbor_at` (sin
+   callback). A `-O1/-O2` el ICE no aparece.
+2. **Libcalls prohibidas**: `-nostdlib` **no enlaza** `__mulsi3`, `__udivsi3`, `__modsi3`,
+   `__divsf3`, `__floatsisf`… `MiniFloat16`+`worley2` las generan. **Regla**: enteros `u16` para
+   `*`/`/` (nativos `mulu.w`/`divu.w`), nada de `float`, nada de u32 `%`/`/`, nada de `u64 *`.
+   Verificar con `nm <obj> | grep -E '__mul|__div|__mod'` + el gate `generic-headers`.
+3. **`Fixed<s32,E>` no se divide en m68k** (`div_norm` usa libgcc de 64 bits); usar `Fixed<s16,E>`
+   (E ≤ 15). Ver `engine/include/eng/core/fixed.hpp`.
+
+## Cómo verificar el código en m68k (además del host)
+
+```bash
+# ICE de compilador:
+<toolchain>/opt/bin/m68k-amiga-elf-g++ -std=gnu++23 -m68000 -nostdlib -O0 \
+  -I engine/include -I <sys-include> -c <tu.cpp> -o <tu.o>
+# libcalls prohibidas:
+nm <tu.o> | grep -E '__mul|__div|__mod'
+```
 
 ### W4 — Análisis de solvencia (frontera de objetos)
 
@@ -147,10 +183,11 @@ la **física de actores** (gravedad/nadar/escalar). Este roadmap los cubre.
   actual → recoger → repetir hasta punto fijo), sin dedup por estado. Reutiliza `eng/util/graph.hpp`.
 - **Verificación**: **HOST** — un mundo **insoluble** inyectado a mano se detecta; el generado de W3
   es soluble; coste O(objetos × salas) medido.
-- **Estado**: **entregado (base)**. `is_solvable()` en `world_gen.hpp`: BFS de **frontera de
-  inventario** hasta punto fijo, sin dedup por `(sala,máscara)`, memoria fija. Cubierto por HOST-277
-  (mundo soluble + nodo aislado insoluble). **Pendiente**: conectar el filtrado por requisito
-  (`PathGate`/`item_of`) cuando W3 coloque llaves+gates; hoy en W0 todas las aristas están abiertas.
+- **Estado**: **entregado**. `is_solvable()` en `world_gen.hpp`: BFS de **frontera de inventario**
+  hasta punto fijo, sin dedup por `(sala,máscara)`, memoria fija, y **filtra por el gating real**
+  (`gate_obj`/`item_of` de W3): una arista del árbol cerrada bloquea el paso hasta tener su llave;
+  los **atajos** quedan abiertos (progresión). HOST-277: todas las salas solubles; nodo aislado
+  insoluble (red de seguridad).
 
 ### W5 — Distancia/peligro y colocación de entidades
 

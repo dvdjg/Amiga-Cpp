@@ -13,6 +13,8 @@
 
 #include <cstdio>
 
+#include <eng/core/minifloat.hpp>
+#include <eng/core/minifloat_math.hpp>
 #include <eng/sim/gen/world_gen.hpp>
 
 namespace {
@@ -79,11 +81,18 @@ int main() {
 	check(eng::sim::gen::generate(a, 0xACE123456789ull, p), "generate: cupo en cotas");
 	check(eng::sim::gen::generate(b, 0xACE123456789ull, p), "generate: cupo (2)");
 	check(a.graph.node_count() == 32u, "32 salas");
+	// W1: bioma por ruido `fbm2`/`worley2` (escalar del llamador; host -> MiniFloat16).
+	eng::sim::gen::assign_biomes_fbm<64u, 256u, eng::math::MiniFloat16>(a, 0xACE123456789ull, a.cell_of_room,
+								     32u, p.grid_w, 3u, 3u);
+	eng::sim::gen::assign_biomes_fbm<64u, 256u, eng::math::MiniFloat16>(b, 0xACE123456789ull, b.cell_of_room,
+								     32u, p.grid_w, 3u, 3u);
 	check(graph_fingerprint(a) == graph_fingerprint(b), "misma semilla -> mismo grafo");
 
 	// 2) Semillas distintas -> grafos distintos (probabilístico, con 2 semillas).
 	Gen c {};
 	check(eng::sim::gen::generate(c, 0x1234ull, p), "generate: otra semilla");
+	eng::sim::gen::assign_biomes_fbm<64u, 256u, eng::math::MiniFloat16>(c, 0x1234ull, c.cell_of_room, 32u,
+								     p.grid_w, 3u, 3u);
 	check(graph_fingerprint(a) != graph_fingerprint(c), "semillas distintas -> grafos distintos");
 
 	// 3) Conectividad y bucles.
@@ -104,6 +113,26 @@ int main() {
 	check(danger_ok, "peligro 0..100");
 	check(a.danger[p.spawn] == 0u, "spawn con peligro 0");
 
+	// 4b) W1: el bioma es **espacialmente coherente** (no franjas por índice). Se cuenta cuántas
+	//     salas comparten bioma con algún vecino del grafo: en un mapa por ruido la mayoría sí
+	//     (contigüidad); en uno por `índice/total` (el documento original) sería casi ninguna.
+	{
+		eng::u16 same_as_neighbor = 0u;
+		for (eng::u16 i = 0u; i < a.graph.node_count(); ++i) {
+			bool shares = false;
+			a.graph.for_each_neighbor(i, [&](eng::u16 nb, eng::u16) {
+				if (a.biome[nb] == a.biome[i]) {
+					shares = true;
+				}
+			});
+			if (shares) {
+				++same_as_neighbor;
+			}
+		}
+		check(same_as_neighbor * 2u >= a.graph.node_count(),
+		      "W1: biomas contiguos (>= 50% salas comparten bioma con un vecino)");
+	}
+
 	// 5) Semilla por sala distinta (para W6) y no cero degenerado.
 	check(a.node_seed[0] != a.node_seed[1], "semilla por sala distinta");
 
@@ -112,39 +141,68 @@ int main() {
 	const eng::sim::gen::WorldGenParams too_many {200u, 8u, 8u, 20u, 0u};
 	check(!eng::sim::gen::generate(small, 1ull, too_many), "rechaza rooms > MaxRooms");
 
-	// 7) Solvencia (W4): el mundo generado (sin gates en W0) es soluble desde el spawn a cualquier
-	//    sala; e insoluble se detecta si el objetivo está tras una arista que nunca se abre.
+	// 7) Gating por construcción (W3) + solvencia (W4): tras colocar llaves/puertas, TODAS las
+	//    salas son alcanzables desde el spawn (gating por construcción -> soluble siempre), y hay
+	//    puertas con llave colocadas.
 	{
-		eng::u8 item_of[64];
-		for (eng::u16 i = 0; i < 64u; ++i) {
-			item_of[i] = eng::sim::gen::kNoItem;
+		eng::sim::gen::place_gates(a, 0xACE123456789ull, p.spawn, 3u);
+
+		eng::u8 gates = 0u, keys = 0u;
+		for (eng::u16 i = 0u; i < a.graph.node_count(); ++i) {
+			if (a.gate_obj[i] != eng::sim::gen::kNoItem) {
+				++gates;
+			}
+			if (a.item_of[i] != eng::sim::gen::kNoItem) {
+				++keys;
+			}
 		}
-		const eng::u16 last = static_cast<eng::u16>(a.graph.node_count() - 1u);
-		check(eng::sim::gen::is_solvable(a, p.spawn, last, item_of, 64u),
-		      "mundo generado es soluble (sin gates)");
+		check(gates > 0u, "W3: hay puertas con llave");
+		check(keys >= gates, "W3: hay al menos tantas llaves como puertas");
 
-		// Mundo de 2 salas con la arista de la sala 1 sin abrir: inventario nunca la abre ->
-		// la sala 1 no es alcanzable. Se construye un grafo mínimo a mano.
-		Gen mini {};
-		mini.graph.add_node();
-		mini.graph.add_node();
-		mini.graph.add_edge(0u, 1u, 1u, true);
-		eng::u8 item_mini[64];
-		item_mini[0] = eng::sim::gen::kNoItem;
-		item_mini[1] = eng::sim::gen::kNoItem;
-		// Sin gates, la 1 es alcanzable.
-		check(eng::sim::gen::is_solvable(mini, 0u, 1u, item_mini, 64u), "2 salas conectadas: soluble");
+		bool all_solvable = true;
+		for (eng::u16 t = 0u; t < a.graph.node_count(); ++t) {
+			if (!eng::sim::gen::is_solvable(a, p.spawn, t)) {
+				all_solvable = false;
+			}
+		}
+		check(all_solvable, "W3/W4: todas las salas solubles con gating por construccion");
 
-		// Nodo aislado (sin aristas): no alcanzable.
+		// Determinismo del gating.
+		Gen a2 {};
+		eng::sim::gen::generate(a2, 0xACE123456789ull, p);
+		eng::sim::gen::place_gates(a2, 0xACE123456789ull, p.spawn, 3u);
+		bool gate_same = true;
+		for (eng::u16 i = 0u; i < a.graph.node_count(); ++i) {
+			if (a.gate_obj[i] != a2.gate_obj[i] || a.item_of[i] != a2.item_of[i]) {
+				gate_same = false;
+			}
+		}
+		check(gate_same, "W3: gating determinista");
+
+		// Nodo aislado (sin aristas): no alcanzable (red de seguridad de W4).
 		Gen iso {};
 		iso.graph.add_node();
-		iso.graph.add_node(); // el nodo 1 queda aislado
-		eng::u8 item_iso[64];
-		for (eng::u16 i = 0; i < 64u; ++i) {
-			item_iso[i] = eng::sim::gen::kNoItem;
+		iso.graph.add_node();
+		check(!eng::sim::gen::is_solvable(iso, 0u, 1u), "W4: nodo aislado insoluble");
+	}
+
+	// 8) W2: topología fina — el grafo cabe en las cotas (pool), y el grado por sala es razonable
+	//    (no hay un "hub" que desborde el array de vecinos de una sala en runtime).
+	{
+		check(a.graph.node_count() <= 64u && a.graph.edge_count() <= 256u, "W2: grafo dentro de cotas");
+		eng::u16 max_degree = 0u;
+		for (eng::u16 i = 0u; i < a.graph.node_count(); ++i) {
+			eng::u16 deg = 0u;
+			a.graph.for_each_neighbor(i, [&](eng::u16, eng::u16) { ++deg; });
+			if (deg > max_degree) {
+				max_degree = deg;
+			}
 		}
-		check(!eng::sim::gen::is_solvable(iso, 0u, 1u, item_iso, 64u),
-		      "nodo aislado: insoluble");
+		check(max_degree <= 12u, "W2: grado maximo por sala <= 12 (cabe en el pool de vecinos)");
+		// Tipos de tránsito disponibles (PathKind) — el gating usa llaves; los tipos existen.
+		check(static_cast<eng::u8>(eng::sim::gen::PathKind::KeyDoor) == 1u &&
+			      static_cast<eng::u8>(eng::sim::gen::PathKind::OneWay) == 3u,
+		      "W2: PathKind (Open/KeyDoor/AbilityWall/OneWay)");
 	}
 
 	if (failures == 0) {
