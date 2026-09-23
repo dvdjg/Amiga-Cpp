@@ -17,8 +17,9 @@
 /// se normalizan **una sola vez** al escalar destino. N es constante, así que los
 /// bucles se desenrollan; no se crean matrices temporales.
 
-#include <eng/core/fixed.hpp>
-#include <eng/core/minifloat.hpp>
+// Sin escalares concretos: `linalg` es una cabecera de ALGORITMO genérica. La promoción de
+// representación (`mul_repr`) vive en `numeric_traits.hpp`. El `dot` de fila Fixed-específico se
+// movió a `fixed.hpp` (`dot_fixed_row`), que es donde vive el formato. Ver AGENTS §1.10.
 #include <eng/core/numeric_traits.hpp>
 #include <eng/core/types.hpp>
 
@@ -331,19 +332,8 @@ template <int N, typename S, int M, typename T>
 	return {};
 }
 
-/// `fila · vector`: es el `dot` de N pares con la normalización FUSIONADA (los productos
-/// comparten exponente, se suman exactos y se normaliza una vez al escalar del vector).
-/// Lee una fórmula de transformación como lo que es: la fila `i` de `M*v`.
-template <int N, typename SR, typename SL>
-[[nodiscard]] constexpr SL dot(const SR* row, const Vec<N, SL>& v) {
-	using WR = typename mul_repr<typename SR::repr, typename SL::repr>::type;
-	using W = Fixed<WR, SR::exp + SL::exp, typename SR::policy>;
-	W acc = row[0] * v.v[0];
-	for (int k = 1; k < N; ++k) {
-		acc = acc + row[k] * v.v[k];
-	}
-	return acc.template rescale<SL::exp>().template cast<typename SL::repr>();
-}
+// `fila · vector` con normalización FUSIONADA (Fixed): vive en `fixed.hpp` como
+// `dot_fixed_row` (depende del formato `Fixed`, no del algoritmo de `linalg`). Ver AGENTS §1.10.
 
 // ============================================================================
 //  Rectángulo (AABB 2D) — genérico sobre el escalar

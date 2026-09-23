@@ -1,2 +1,8 @@
-# Cabeceras genéricas con tipos concretos, pendientes de reubicar. Hoy vacío: las
-# especializaciones de Fixed/MiniFloat16 viven en fixed.hpp/minifloat.hpp (+minifloat_math).
+# Cabeceras genericas con tipos concretos, pendientes de reubicar. Un fichero AQUI esta
+# aceptado de forma explicita; cualquier fichero NUEVO con un tipo concreto falla.
+# La ruta es relativa a engine/include/eng/ (p. ej. `core/affine.hpp`).
+#
+# core/affine.hpp: proyeccion de vertices sobre `Fixed` (usa `SR::repr`/`exp`/`policy` y `dot`
+#   fusionado). Es implementacion de un formato concreto, no algoritmo generico; pendiente de mover
+#   a `eng/core/fixed_affine.hpp` (o de generalizar el punto de personalizacion `pack3_ops`).
+core/affine.hpp

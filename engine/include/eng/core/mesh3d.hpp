@@ -33,8 +33,10 @@
 ///       draw_triangle(world[f.a], world[f.b], world[f.c]);
 ///   }
 
+// `mesh3d` es genérico sobre el escalar (Vec3t<S>/MeshViewT<S>); NO incluye el escalar concreto.
+// El alias por defecto `Coord = eng::coord` viene de `scalar.hpp` (cabecera de selección de escalar
+// por target, exenta). Ver AGENTS §1.10.
 #include <eng/core/arith.hpp>
-#include <eng/core/fixed.hpp>
 #include <eng/core/linalg.hpp>
 #include <eng/core/polygon.hpp>
 #include <eng/core/scalar.hpp>

@@ -84,6 +84,39 @@ public:
 		}
 	}
 
+	/// Nº de vecinos de `node` (grado de salida). Sin callback.
+	[[nodiscard]] constexpr eng::u16 neighbor_count(eng::u16 node) const noexcept {
+		if (node >= m_nodes) {
+			return 0u;
+		}
+		eng::u16 n = 0u;
+		for (eng::u16 e = m_head[node]; e != no_node; e = m_edges[e].next) {
+			++n;
+		}
+		return n;
+	}
+
+	/// `i`-ésimo vecino de `node` (orden de la lista). `to`/`cost` por referencia; `false` si `i`
+	/// está fuera de rango. Alternativa a `for_each_neighbor` **sin callback**: útil donde una
+	/// lambda no es viable (p. ej. el GCC m68k a `-O0` da un ICE de CFI con lambdas) y más barato
+	/// (indexado directo). `i` se recorre con `next` desde la cabeza.
+	[[nodiscard]] constexpr bool neighbor_at(eng::u16 node, eng::u16 i, eng::u16& to,
+						 eng::u16& cost) const noexcept {
+		if (node >= m_nodes) {
+			return false;
+		}
+		eng::u16 e = m_head[node];
+		for (eng::u16 k = 0u; e != no_node && k < i; ++k) {
+			e = m_edges[e].next;
+		}
+		if (e == no_node) {
+			return false;
+		}
+		to = m_edges[e].to;
+		cost = m_edges[e].cost;
+		return true;
+	}
+
 private:
 	struct Edge {
 		eng::u16 to;

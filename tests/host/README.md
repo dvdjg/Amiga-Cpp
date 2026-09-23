@@ -310,4 +310,5 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-269 | [audio_mode](269_audio_mode/README.md) | Modos de audio (`audio_mode.hpp`): reparto de los 4 canales de Paula por modo (`channel_quota`, sin solape) y `paula::period_for_hz` acotado. |
 | HOST-270 | [audio_events](270_audio_events/README.md) | Eventos de audio (`audio_events.hpp`): `AudioMsgEdges` emite `MusicEnd`/`AudioUnderrun` una vez por evento (flanco), no por buffer. |
 | HOST-271 | [zx0](271_zx0/README.md) | Descompresor ZX0 (`eng/audio/zx0.hpp`, port de `dzx0.c` v2) verificado contra un vector del compresor de referencia; dispatch `pcm_codec` (`Zx0`/`DeltaRle`/`APLib`). |
+| HOST-277 | [proc_world](277_proc_world/README.md) | W0/W4 de generación procedural de mundos (`eng/sim/gen/world_gen.hpp`): topología determinista (semilla→grafo, conexo, con bucles) y solvencia por frontera de inventario; sin heap. |
 | HOST-208 | [ptr](208_ptr/README.md) | `eng/core/ptr.hpp` y `span.hpp`: punteros/vistas inteligentes sin heap (`Ref`/`NonNull`/`Opt`; `Span` con CTAD `{ptr,n}`, array sin count y conversión `Span<T>`→`Span<const T>`). |

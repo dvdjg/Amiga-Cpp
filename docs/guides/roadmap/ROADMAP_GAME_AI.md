@@ -169,7 +169,7 @@ en el navmesh; la variante `SpatialHashBroadphase` reutiliza la rejilla de colis
 | Formación / asignación de huecos | movimiento | `ai/steering/` | — | Candidato opcional |
 | Heurística parametrizable (grilla) | navegación | `util/pathfinding.hpp` | — | Candidato menor |
 | SAT 2D (polígonos convexos) | colisión (`util`) | `util/collision.hpp` | — | Candidato |
-| Autómata celular | procedural | `util/` o demo | — | Candidato menor |
+| Autómata celular | procedural | `util/` o demo | — | Candidato menor; consumidor en [ROADMAP_PROCEDURAL_WORLDS.md](ROADMAP_PROCEDURAL_WORLDS.md) (W6, geometría de sala) |
 | Filtmation | presentación/animación | por definir | *Heads over Heels* / *Batman 3D* | Pendiente de ficha técnica |
 
 > **Filtmation**: la técnica aún no está documentada en el repositorio. La ficha debe
@@ -186,7 +186,7 @@ en el navmesh; la variante `SpatialHashBroadphase` reutiliza la rejilla de colis
 | Recompensas (intervalo/ratio variable) | Motivación y economía | `design/reward_scheduler.hpp` |
 | Flow / intensidad | Alternar tensión y calma | Documento + hooks en el juego |
 | Faucets y sinks (economía) | Control de recursos | Documento + reglas del juego |
-| Diseño de niveles (gating, breadcrumbing, landmarks) | Guiar al jugador | Documento + editor/pipeline de mapas |
+| Diseño de niveles (gating, breadcrumbing, landmarks) | Guiar al jugador | Documento + editor/pipeline de mapas; **automatizado** por generación procedural → [ROADMAP_PROCEDURAL_WORLDS.md](ROADMAP_PROCEDURAL_WORLDS.md) (W3/W5) |
 | Enseñar sin texto (teach-then-test) | Tutorialización | Documento de metodología |
 
 Estos patrones se documentan primero (sin duplicar fuentes) y se convierten en código solo
