@@ -884,12 +884,19 @@ if (!demoArg || demoArg.startsWith('--')) {
 
 const demoPath = path.resolve(root, demoArg);
 const demoName = path.basename(demoPath);
+// Id de build/out (misma regla que build-demo.sh): `features/<feature>/<plataforma>/NNN`
+// usa la ruta relativa a `demos/features/` (evita que el mismo nombre de demo en varias
+// plataformas se machaque); el resto usa el leaf.
+const demoRel = demoArg.replace(/\\/g, '/').replace(/^demos\//, '');
+const demoId = demoRel.startsWith('features/')
+  ? demoRel.slice('features/'.length).replace(/\//g, '_')
+  : demoName;
 // El build nombra el ejecutable con un CONFIG_ID (MACHINE_flags_modo) y aísla
 // los artefactos por configuración: out/demos/<demo>/<CONFIG_ID>/<demo>.<CONFIG_ID>.exe.
 // Aquí seleccionamos la configuración más reciente (por mtime) de las presentes.
-const demosRoot = path.join(root, 'out/demos', demoName);
-let builtExe = path.join(demosRoot, `${demoName}.exe`);
-let builtMap = path.join(demosRoot, `${demoName}.map`);
+const demosRoot = path.join(root, 'out/demos', demoId);
+let builtExe = path.join(demosRoot, `${demoId}.exe`);
+let builtMap = path.join(demosRoot, `${demoId}.map`);
 let configId = '';
 // Prioridad de selección (de mejor a peor):
 //   0  A500_debug            (default canónico: máquina + modo _debug, sin flags)
@@ -913,12 +920,12 @@ if (fs.existsSync(demosRoot)) {
     const cfgDir = path.join(demosRoot, entry);
     const st = fs.statSync(cfgDir);
     if (!st.isDirectory()) continue;
-    const exe = path.join(cfgDir, `${demoName}.${entry}.exe`);
+    const exe = path.join(cfgDir, `${demoId}.${entry}.exe`);
     if (!fs.existsSync(exe)) continue;
     const rank = configRank(entry);
     const mt = fs.statSync(exe).mtimeMs;
     if (rank < best.rank || (rank === best.rank && mt > best.mtime)) {
-      best = { rank, mtime: mt, exe, map: path.join(cfgDir, `${demoName}.${entry}.map`), cfg: entry };
+      best = { rank, mtime: mt, exe, map: path.join(cfgDir, `${demoId}.${entry}.map`), cfg: entry };
     }
   }
   if (best.exe) { builtExe = best.exe; builtMap = best.map; configId = best.cfg; }
@@ -928,12 +935,12 @@ if (fs.existsSync(demosRoot)) {
 const forcedConfig = argValue('--config', '');
 if (forcedConfig) {
   const forcedDir = path.join(demosRoot, forcedConfig);
-  const forcedExe = path.join(forcedDir, `${demoName}.${forcedConfig}.exe`);
+  const forcedExe = path.join(forcedDir, `${demoId}.${forcedConfig}.exe`);
   if (!fs.existsSync(forcedExe)) {
     throw new Error(`--config "${forcedConfig}": no existe ${forcedExe}. Compila esa config antes.`);
   }
   builtExe = forcedExe;
-  builtMap = path.join(forcedDir, `${demoName}.${forcedConfig}.map`);
+  builtMap = path.join(forcedDir, `${demoId}.${forcedConfig}.map`);
   configId = forcedConfig;
 }
 const builtMapSections = findMapAllocSections(builtMap);
@@ -979,8 +986,8 @@ const mouseButton = Math.max(0, parseInt(argValue('--mouse-button', '0'), 10));
 const stopEmulator = !hasArg('--keep-running');
 const protectSpecs = parseProtectSpecs();
 const outputDir = configId
-  ? path.join(root, 'out/run', demoName, configId)
-  : path.join(root, 'out/run', demoName);
+  ? path.join(root, 'out/run', demoId, configId)
+  : path.join(root, 'out/run', demoId);
 const stagedDir = path.join(outputDir, 'dh1');
 fs.mkdirSync(stagedDir, { recursive: true });
 fs.copyFileSync(builtExe, path.join(stagedDir, 'a.exe'));

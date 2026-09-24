@@ -46,6 +46,17 @@ if [ ! -d "$DEMO_PATH" ]; then
 fi
 DEMO_NAME="$(basename "$DEMO_PATH")"
 
+# --- Id de build (por ruta para features) -----------------------------------
+# El id de build/out aísla los artefactos. `techniques/` usa el leaf (nombres únicos
+# por construcción); `features/<feature>/<plataforma>/NNN_<tema>` usa la **ruta** relativa
+# a `demos/features/` (mismo nombre de demo en varias plataformas → no se machacan).
+# La variante de build (A500/A1200/ST/STE) ya va en el CONFIG_ID.
+DEMO_REL="${DEMO//\\//}"
+case "$DEMO_REL" in
+	demos/features/*) DEMO_ID="$(printf '%s' "${DEMO_REL#demos/features/}" | tr '/' '_')" ;;
+	*) DEMO_ID="$DEMO_NAME" ;;
+esac
+
 # --- Resolucion del toolchain ----------------------------------------------
 # Normaliza separadores de Windows (C:\\ruta) a posix (/c/ruta o C:/ruta) para
 # que el script funcione igual en bash de Windows, Linux y macOS.
@@ -176,8 +187,8 @@ if [ -n "$GEN_FLAGS" ]; then CONFIG_ID="${CONFIG_ID}_${GEN_FLAGS}"; fi
 CONFIG_ID="${CONFIG_ID}_${GEN_MODE}"
 
 # --- Directorios de salida --------------------------------------------------
-OBJ_DIR="$ROOT/obj/demos/$DEMO_NAME/$CONFIG_ID"
-OUT_DIR="$ROOT/out/demos/$DEMO_NAME/$CONFIG_ID"
+OBJ_DIR="$ROOT/obj/demos/$DEMO_ID/$CONFIG_ID"
+OUT_DIR="$ROOT/out/demos/$DEMO_ID/$CONFIG_ID"
 
 if [ "$CLEAN" -eq 1 ]; then
 	rm -rf "$OBJ_DIR" "$OUT_DIR"
@@ -191,7 +202,7 @@ mkdir -p "$OBJ_DIR" "$OUT_DIR"
 # que hace reproducible el flujo exportador -> incbin -> runtime (como la 078).
 if [ -f "$DEMO_PATH/src/prebuild.sh" ]; then
 	echo "[build-demo] prebuild $DEMO_NAME"
-	( cd "$ROOT" && bash "$DEMO_PATH/src/prebuild.sh" )
+	( cd "$ROOT" && MACHINE_ID="$MACHINE_ID" TARGET_MACHINE="$MACHINE_ID" bash "$DEMO_PATH/src/prebuild.sh" )
 fi
 
 # --- Flags ------------------------------------------------------------------
@@ -321,10 +332,10 @@ for VASM_SRC in $(find "$ROOT/support/audio_mixer" -maxdepth 1 -name 'mixer.asm'
 done
 
 # --- Enlazado y hunk --------------------------------------------------------
-ELF="$OUT_DIR/$DEMO_NAME.$CONFIG_ID.elf"
-EXE="$OUT_DIR/$DEMO_NAME.$CONFIG_ID.exe"
-MAP="$OUT_DIR/$DEMO_NAME.$CONFIG_ID.map"
-LISTING="$OUT_DIR/$DEMO_NAME.$CONFIG_ID.s"
+ELF="$OUT_DIR/$DEMO_ID.$CONFIG_ID.elf"
+EXE="$OUT_DIR/$DEMO_ID.$CONFIG_ID.exe"
+MAP="$OUT_DIR/$DEMO_ID.$CONFIG_ID.map"
+LISTING="$OUT_DIR/$DEMO_ID.$CONFIG_ID.s"
 
 echo "  LINK  $ELF"
 "$GXX" "${COMMON[@]}" "-Wl,--emit-relocs,--gc-sections,-Ttext=0x400,-Map=$MAP" "${OBJECTS[@]}" -o "$ELF"

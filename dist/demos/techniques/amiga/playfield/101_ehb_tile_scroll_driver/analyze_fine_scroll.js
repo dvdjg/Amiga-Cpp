@@ -8,13 +8,13 @@
  * - el borde izquierdo del playfield no debe saltar al cruzar de fine 15 a 0;
  * - el contenido debe desplazarse un pixel lowres por paso (dos pixels PNG).
  *
- * Uso: node dist/demos/amiga/101_ehb_tile_scroll_driver/analyze_fine_scroll.js \
+ * Uso: node dist/demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver/analyze_fine_scroll.js \
  *       <sequence_dir> <run-report.json> <cameraX> <shifts>
  */
 import * as fs from 'fs';
 import * as path from 'path';
-import { readPng } from '../../../tools/lib/image.js';
-import { fail } from '../../../tools/lib/cli.js';
+import { readPng } from '../../../../../tools/lib/image.js';
+import { fail } from '../../../../../tools/lib/cli.js';
 /** Recorta una imagen RGBA a (left,top,right,bottom) y devuelve RGB. */
 function cropRgb(framePath, left, top, right, bottom) {
     const image = readPng(framePath);

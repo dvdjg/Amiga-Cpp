@@ -69,11 +69,17 @@ Regla `techniques` vs `features`:
 - **Ámbito del número = (clase, feature/categoría, plataforma)**: p. ej.
   `features/ui/amiga/007_foo`, `features/ui/megadrive/007_foo` y
   `techniques/amiga/copper/020_basic` **no colisionan** (el path difiere).
-- **El id de build/out deriva de la ruta** (no del basename) para que dos ámbitos con el mismo leaf
-  no se machaquen; los **perfiles** (`A500`/`A1200`/`ST`/`STE`) van en el `CONFIG_ID`.
+- **Id de build/out**: `features/<…>/NNN_<tema>` usa la **ruta** relativa a `demos/features/`
+  (p. ej. `features/ui/amiga/007_menu` → `ui_amiga_007_menu`), de modo que la **misma demo en
+  varias plataformas** no se machaca; `techniques/…` y los tests usan el **leaf** (nombres únicos
+  por construcción). Los **perfiles** (`A500`/`A1200`/`ST`/`STE`) van en el `CONFIG_ID` del binario
+  (p. ej. `A500_debug` vs `A1200_debug`).
+- **Assets por variante**: si una demo genera assets dependientes del perfil, van a
+  `out/assets/<pipeline>/<MACHINE_ID>/…` (o con el perfil en el nombre). El `prebuild.sh` recibe
+  `MACHINE_ID`/`TARGET_MACHINE` en el entorno (lo exporta `build-demo.sh`).
 - `tools/check/demo-numbering.mjs` valida **por ámbito** (sin duplicados dentro de cada ámbito y sin
-  mezclar demos/categorías); `tools/check/next-number.mjs <ámbito>` da el siguiente libre de un
-  ámbito. `NUMBERING.md` reserva **sub-bloques por ámbito** solo cuando dos ramas tocan el mismo.
+  leafs repetidos); `tools/check/next-number.mjs <ámbito>` da el siguiente libre de un ámbito.
+  `NUMBERING.md` reserva **sub-bloques por ámbito** solo cuando dos ramas tocan el mismo.
 
 ## 6. Decisiones adoptadas
 
