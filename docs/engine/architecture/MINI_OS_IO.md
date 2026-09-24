@@ -22,6 +22,19 @@ en A500 con footprint mínimo** → `trackdisk` async + tabla de archivos propia
 tomada sin Exec** → loader MFM propio (ver `STREAMING_LOADER.md`). Implementar OFS/FFS + directorios
 a mano **no compensa**; implementar **cola de pedidos de sector + doble buffer + mensajes** sí.
 
+### 1.1 Que API del engine usar
+
+| Necesidad | API (`eng::os`) | Notas |
+|---|---|---|
+| Archivo normal (OFS/FFS, HD/ADF) | `file_*` (`dos.library`) | Rutas y buffering; requiere DOS (`df0:` montado) |
+| Sectores por offset, sin DOS | `trackdisk` (`trackdisk.device`) | `td_open`/`td_read_sync`/`td_motor`; **Chip RAM**; `DoIO` bloqueante; el device lee la pista completa y cachea |
+| MFM crudo sin Exec (system-killing) | `floppy_*` (`floppy.hpp`) | Control total; **Chip RAM**; la DMA arranca en el primer `$4489` (alinear con el **INDEX**) y `DSKLEN` se escribe **dos veces** |
+
+`trackdisk.device` necesita el **OS/Exec vivo** (el device y sus IRQs): vale para un juego que toma
+la pantalla pero deja Exec. `floppy_*` es para cuando la maquina esta **100 % tomada** (sin Exec).
+Referencias: `docs/reference/emulators/winuae/trackdisk.md` (registros/DMA), la ficha de la demo
+`demos/techniques/amiga/io/214_floppy_raw` (MFM a pelo) y `docs/reference/amiga/techniques/trackloading.md`.
+
 ## 2. API orientada a mensajes
 
 ```cpp
