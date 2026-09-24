@@ -21,8 +21,9 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+. "$ROOT/tools/lib/demos.sh"
 
-PLATFORM="amiga"
+PLATFORM=""
 PATTERN=""
 BUILD_FLAG="--debug"
 CLEAN="--clean"
@@ -41,12 +42,6 @@ while [ $# -gt 0 ]; do
 	esac
 done
 
-DEMOS_DIR="$ROOT/demos/$PLATFORM"
-if [ ! -d "$DEMOS_DIR" ]; then
-	echo "No existe demos/$PLATFORM" >&2
-	exit 2
-fi
-
 # Un asset GENERADO ausente lo delatan el ensamblador (`.incbin`) o el include
 # del preprocesador; ambos nombran una ruta bajo `out/assets/`.
 ASSET_RE='file not found: out/assets/|out/assets/[A-Za-z0-9_./-]+: No such file or directory'
@@ -60,14 +55,15 @@ ok=0
 asset=0
 fail=0
 
-for d in "$DEMOS_DIR"/*/; do
-	[ -d "$d" ] || continue
-	name="$(basename "$d")"
+for rel in $(list_demos_rel "$ROOT"); do
+	name="$(basename "$rel")"
 	if [ -n "$PATTERN" ]; then
 		case "$name" in *"$PATTERN"*) ;; *) continue ;; esac
 	fi
+	if [ -n "$PLATFORM" ]; then
+		case "$rel" in *"$PLATFORM"*) ;; *) continue ;; esac
+	fi
 
-	rel="demos/$PLATFORM/$name"
 	if bash "$ROOT/tools/build/build-demo.sh" "$rel" "$BUILD_FLAG" $CLEAN >"$ONE" 2>&1; then
 		ok=$((ok + 1))
 		printf 'OK    %s\n' "$name"

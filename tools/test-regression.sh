@@ -17,6 +17,7 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+. "$ROOT/tools/lib/demos.sh"
 
 # --- Argumentos -------------------------------------------------------------
 DEMO=""
@@ -93,15 +94,9 @@ fi
 if [ -n "$DEMO" ]; then
 	DEMO_DIRS=("$ROOT/$DEMO")
 else
-	DEMO_DIRS=()
-	# Las demos se agrupan por plataforma: demos/<plataforma>/<demo>/ (docs/STRUCTURE.md §4).
-	for p in "$ROOT"/demos/*/; do
-		[ -d "$p" ] || continue
-		for d in "$p"*/; do
-			[ -d "$d" ] || continue
-			DEMO_DIRS+=("$d")
-		done
-	done
+	# Descubrimiento por contenido (dirs con src/*.cpp): la profundidad varia con
+	# techniques/features (tools/lib/demos.sh).
+	mapfile -t DEMO_DIRS < <(list_demos "$ROOT")
 fi
 
 if [ ${#DEMO_DIRS[@]} -eq 0 ]; then

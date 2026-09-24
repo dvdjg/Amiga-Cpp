@@ -6,14 +6,15 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+. "$ROOT/tools/lib/demos.sh"
 BUILD="$ROOT/tools/build/build-demo.sh"
 RUN="$ROOT/tools/run/run-demo.sh"
 ANALYZE="$ROOT/tools/analyze/analyze-demo.sh"
 CHANNEL="$ROOT/tools/debug/winuae-side-channel.sh"
 
 echo "Demos disponibles:"
-# Las demos se agrupan por plataforma: demos/<plataforma>/<demo>/ (docs/STRUCTURE.md §4).
-mapfile -t DEMOS < <(find "$ROOT/demos" -mindepth 2 -maxdepth 2 -type d -printf '%P\n' | sort)
+# Descubrimiento por contenido (dirs con src/*.cpp): la profundidad varia con techniques/features.
+mapfile -t DEMOS < <(list_demos_rel "$ROOT")
 i=0
 for d in "${DEMOS[@]}"; do
 	echo "  $i) $d"
@@ -34,13 +35,13 @@ echo -n "Elige una accion: "
 read -r action
 
 case "$action" in
-	1) "$BUILD" "demos/$demo" --debug --clean ;;
-	2) "$BUILD" "demos/$demo" --clean ;;
-	3) "$RUN" "demos/$demo" ;;
-	4) "$ANALYZE" "demos/$demo" ;;
+	1) "$BUILD" "$demo" --debug --clean ;;
+	2) "$BUILD" "$demo" --clean ;;
+	3) "$RUN" "$demo" ;;
+	4) "$ANALYZE" "$demo" ;;
 	5) echo "Escribe una orden del canal lateral (state, regs, mem <addr> <len>, ...):"
 	   read -r -a cmd
 	   "$CHANNEL" "${cmd[@]}" ;;
-	6) "$ROOT/tools/test-regression.sh" --demo "demos/$demo" ;;
+	6) "$ROOT/tools/test-regression.sh" --demo "$demo" ;;
 	*) echo "Accion invalida." >&2; exit 1 ;;
 esac
