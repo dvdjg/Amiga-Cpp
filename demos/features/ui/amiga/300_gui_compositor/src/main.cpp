@@ -5,7 +5,9 @@
 // sin repintar a las vecinas. La composicion a pantalla usa `Compositor::present_blit`, que copia
 // cada backing con `Surface::blit`: con el `BlitterRaster` instalado encola un `CopyRect` por plano
 // en el `FramePlan` (ruta del Blitter), y el plan se ejecuta con `backend.execute_frame_plan`.
-// Las ventanas se mueven en pasos de 16 px para que las copias queden alineadas a palabra.
+// Las ventanas se mueven **1 px por frame** (movimiento suave); el compositor envía al Blitter las
+// copias con destino alineado y usa el *shift* de origen (`source_shift`) para las no alineadas,
+// cayendo al bucle de píxeles solo cuando el destino no está alineado a palabra.
 //
 // Ver `docs/engine/architecture/GUI_LIBRARY.md` §14 y `docs/guides/roadmap/ROADMAP_GUI.md` (G8).
 #include <eng/api/api.hpp>          // fachada: escena, GUI (eng::ui), run_status
@@ -181,14 +183,18 @@ private:
 		p.text(12, 32, "Aceptar", s_theme.text);
 	}
 
-	/// Mueve las ventanas en pasos de 16 px (copias alineadas a palabra) y dana su region.
-	/// La posicion depende directamente del frame (avanza aunque la tasa sea baja).
+	/// Mueve las ventanas **1 px por frame** (movimiento suave, sin saltos) y dana su region.
+	/// El compositor copia por Blitter cuando el destino esta alineado a palabra y usa el
+	/// *shift* de origen (`source_shift`) cuando no lo esta, de modo que un desplazamiento de
+	/// 1 px no cae al bucle de pixeles. El rebote (triangular) evita frames congelados.
 	void animate(eng::u16 f) {
-		// A: horizontal en pasos de 16 px, de x=16 a x=96 (sin solapar con B, en x=208).
-		const eng::s16 ax = static_cast<eng::s16>(16 + (f % 6u) * 16u);
+		// A: horizontal, triangulo de x=16 a x=96 y vuelta (periodo 160 frames ~3,2 s).
+		const eng::u16 pa = static_cast<eng::u16>(f % 160u);
+		const eng::s16 ax = static_cast<eng::s16>(16 + (pa < 80u ? pa : (159u - pa)));
 		m_comp.move_window(*m_win[0].win, ax, 16);
-		// C: vertical en pasos de 16 px, de y=120 a y=168 (sin solapar con A/B).
-		const eng::s16 cy = static_cast<eng::s16>(120 + (f % 4u) * 16u);
+		// C: vertical, triangulo de y=120 a y=168 y vuelta (periodo 96 frames).
+		const eng::u16 pc = static_cast<eng::u16>(f % 96u);
+		const eng::s16 cy = static_cast<eng::s16>(120 + (pc < 48u ? pc : (95u - pc)));
 		m_comp.move_window(*m_win[2].win, 112, cy);
 	}
 
