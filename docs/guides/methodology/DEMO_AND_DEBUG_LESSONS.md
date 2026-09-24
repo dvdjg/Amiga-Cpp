@@ -110,6 +110,15 @@ dispara ~34x mas rapido") era falso: asumia 50 fps cuando la demo corria mucho m
 emulador mostro `SETIRQ3` ≈ `looped` (**una IRQ por bloque**); el problema real eran los *underruns*
 por el feeder CPU-bound. Leccion: medir la ventana temporal real antes de concluir una tasa.
 
+**Buscar PRIMERO si ya hay una ficha de ese hardware en `docs/reference/emulators/`.** Cuando algo
+del chipset no cuadra, antes de razonar de cero (o de sondear) hay que mirar si ya existe una ficha
+escrita del fuente del emulador. En el floppy (214) **la respuesta ya estaba** en
+`docs/reference/emulators/winuae/trackdisk.md` §5.1: (a) hay que **escribir `DSKLEN=0`** antes de
+rearmar (quitarlo, razonando sobre `disk.cpp:4887`, fue justo el bug) y (b) el DMA arranca en el
+primer `$4489`, asi que hay que **alinear por el pulso INDEX**. Con las dos, la lectura quedó
+determinista (20/20). Leccion: la referencia propia del repo se consulta **antes** de reinventar el
+analisis; ahorra horas.
+
 **Ante hardware que no cuadra, leer el codigo del emulador ANTES de sondear.** Es la regla de
 `AGENTS.md` §1.11 y se pago caro no aplicarla desde el principio en el floppy (214): despues de varias
 rondas de "leer el buffer y contar cosas", la lectura de `../WinUAE-DBG/disk.cpp` dio en minutos el
