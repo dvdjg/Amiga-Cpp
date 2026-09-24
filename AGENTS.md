@@ -120,7 +120,7 @@ La organización de directorios es canónica y está especificada en **`docs/STR
 | Área | Contenido |
 |---|---|
 | `engine/` | Código del engine: `include/eng/` (API, algoritmos, librerías, capas de abstracción) + `src/platform/` (implementaciones backend por máquina). |
-| `demos/` | Demos por plataforma: `demos/<plataforma>/<NNN>_<tema>/`. Hoy todas en `demos/amiga/`. Los assets que usa una demo no viven en ella: fuente en `assets/`, generados en `out/assets/<pipeline>/`, incrustados por `incbin`/include. |
+| `demos/` | Demos en dos raíces: `techniques/<familia>/<categoría>/NNN_<tema>/` (técnicas de hardware) y `features/<feature>/<plataforma>/NNN_<tema>/` (features portables con lógica en el engine). Variante de build (`A500`/`A1200`/`ST`/`STE`) por `TARGET_MACHINE`, no por directorio. Los assets no viven en la demo: fuente en `assets/`, generados en `out/assets/<pipeline>/`. Ver `docs/guides/roadmap/PLAN_ORGANIZACION_DEMOS.md`. |
 | `assets/` | Assets fuente (raw, con licencia): `assets/<plataforma>/<dominio>/` (tiles-reference/, sprites/, audio/, maps/). Solo lectura por pipelines. |
 | `tools/` | Herramientas host del pipeline (TypeScript/bash, compiladas a `dist/`); `scripts/` = scripts de entorno; `support/` = ASM/C de apoyo al linkado. |
 | `host-tools/` | Programas de apoyo independientes del engine (Go/C++ para PC). |

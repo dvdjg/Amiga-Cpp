@@ -40,6 +40,7 @@ Cuando termine la lectura contextual, puede abrir solo los enlaces que necesite.
 | Capas de plataforma y contrato de backend (dominio ↔ chipset ↔ backend) | [PLATFORM_LAYERS.md](../engine/architecture/PLATFORM_LAYERS.md) |
 | Política de cabeceras (header-only vs `.cpp`) | [HEADER_POLICY.md](../engine/architecture/HEADER_POLICY.md) |
 | Taxonomía de tests (plataforma/nivel/categoría) | [testing/TAXONOMY.md](../testing/TAXONOMY.md) |
+| Organización de demos (techniques/features, variantes, numeración) | [PLAN_ORGANIZACION_DEMOS.md](../guides/roadmap/PLAN_ORGANIZACION_DEMOS.md) |
 | Arquitectura del engine C++ | [docs/engine/architecture/](../engine/README.md) y sus subcarpetas |
 | Modelo objetivo playfield/scroll (contrato de refactor) | [PLAYFIELD_SCROLL_ARCHITECTURE.md](../engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md) + [REFACTOR_PLAYFIELD_SCROLL.md](../guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md) |
 | API pública (la app no ve hardware) | [PUBLIC_API.md](../engine/architecture/PUBLIC_API.md) + [SCENE_AND_RESOURCES.md](../engine/architecture/SCENE_AND_RESOURCES.md) (escena retenida y ocupación de recursos) |

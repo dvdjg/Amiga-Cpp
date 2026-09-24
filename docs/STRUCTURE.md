@@ -145,19 +145,35 @@ Reglas:
 
 ## 4. Demos (`demos/`)
 
-Agrupadas **por plataforma objetivo**; dentro de cada plataforma, numeradas:
+Dos raíces **hermanas**: `techniques/` (técnicas de hardware, por familia de máquina) y `features/`
+(features portables, con una variante por plataforma y paridad de comportamiento). Detalle en
+`docs/guides/roadmap/PLAN_ORGANIZACION_DEMOS.md`.
 
 ```
 demos/
-├── amiga/                → demos Amiga OCS/ECS (A500)
-│   ├── 000_toolchain_cpp23/        → boilerplate/toolchain, hola mundo
-│   ├── 010_chip_slow_memory/       → conceptos de Chip RAM
-│   ├── 020_copper_basic/ …         → copper, paletas, blitter, bobs…
-│   ├── 100_virtual_tile_scene_scroll/ … → scroll y tile fields
-│   ├── 200_… / 201_ehb_map/ / 202_xlimited_dpf/ → escenas X-Limited con pipeline de assets
-├── atarist/              → (futuro) técnicas Atari ST
-└── megadrive/            → (futuro) técnicas Megadrive
+├── techniques/                 → TÉCNICAS de hardware (no portables)
+│   ├── amiga/    copper/ blitter/ sprites/ playfield/ c2p/ input/ audio/ io/ debug/ aga/
+│   ├── atarist/  st/ ste/
+│   └── megadrive/ vdp/ z80/
+├── features/                   → FEATURES portables (lógica en el engine; adaptador por plataforma)
+│   ├── ui/        <plataforma>/NNN_<tema>/
+│   ├── cards/     <subfeature>/<plataforma>/NNN_<tema>/
+│   ├── board/     <subfeature>/<plataforma>/NNN_<tema>/
+│   ├── sim/       <plataforma>/NNN_<tema>/
+│   ├── emulation/ <plataforma>/NNN_<tema>/
+│   └── audio/  scene/  graphics/  …
+└── README.md
 ```
+
+Reglas:
+- `techniques/<familia>/<categoría>/NNN_<tema>/` usa vocabulario de chipset (Copper, Blitter, VDP…).
+- `features/<feature>/<plataforma>/NNN_<tema>/` es un **adaptador fino**: la lógica portable vive en
+  el engine (anillo 0); no usa hardware directo.
+- **Variante de build** (`A500`/`A1200`/`ST`/`STE`): es un eje de `TARGET_MACHINE`, **no** un
+  directorio; el `CONFIG_ID` de build y el nombre de los assets llevan el perfil para no machacarse.
+- `host` **no** es raíz de demos: las pruebas técnicas/algorítmicas viven en `tests/host/` y
+  `playground/`.
+- Numeración de demos **por ámbito** (clase/feature/plataforma): ver `docs/ai-dev-environment/NUMBERING.md`.
 
 Estructura interna de una demo (obligatoria):
 
