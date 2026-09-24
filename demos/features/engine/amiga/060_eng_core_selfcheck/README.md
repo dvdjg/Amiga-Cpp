@@ -39,9 +39,9 @@ cubre LATIN-1, así que acentos/diéresis/ñ se pintan igual que el resto.
 ## Build & run & analyze
 
 ```bash
-tools/build/build-demo.sh demos/amiga/060_eng_core_selfcheck --clean
-tools/run/run-demo.sh       demos/amiga/060_eng_core_selfcheck
-tools/analyze/analyze-demo.sh demos/amiga/060_eng_core_selfcheck
+tools/build/build-demo.sh demos/features/engine/amiga/060_eng_core_selfcheck --clean
+tools/run/run-demo.sh       demos/features/engine/amiga/060_eng_core_selfcheck
+tools/analyze/analyze-demo.sh demos/features/engine/amiga/060_eng_core_selfcheck
 ```
 
 ## Criterio de aceptación

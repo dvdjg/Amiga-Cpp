@@ -42,7 +42,7 @@ Toolchain/extension usada por el runner: `.vscode\extensions\bartmanabyss.amiga-
 
 ## Problema reportado (bien descrito, no asumir que está resuelto)
 
-La demo `demos/amiga/060_eng_core_selfcheck` (y según el usuario también la
+La demo `demos/features/engine/amiga/060_eng_core_selfcheck` (y según el usuario también la
 `201_ehb_map`) se muestra **mal visualmente** cuando se ejecuta con la
 extensión/F5 o con el runner capturando secuencias:
 
@@ -108,13 +108,13 @@ Ejecuta y captura con Windows nativo:
 ```powershell
 # Compilar (manual, toolchain Windows; build-demo.sh requiere Git Bash nativo)
 & "C:\Users\dvdjg\Documents\programa\AI\Amiga\vscode-amiga-debug\bin\win32\opt\bin\m68k-amiga-elf-g++.exe" ...
-# (o, si tienes Git Bash de Windows, bash tools/build/build-demo.sh demos/amiga/060_eng_core_selfcheck --clean)
+# (o, si tienes Git Bash de Windows, bash tools/build/build-demo.sh demos/features/engine/amiga/060_eng_core_selfcheck --clean)
 
 # Correr + screenshot
-& "C:\Program Files\nodejs\node.exe" "C:\Users\dvdjg\Documents\programa\AI\Amiga\Amiga-Cpp\dist\tools\run\run-demo.js" demos\amiga\060_eng_core_selfcheck --warp
+& "C:\Program Files\nodejs\node.exe" "C:\Users\dvdjg\Documents\programa\AI\Amiga\Amiga-Cpp\dist\tools\run\run-demo.js" demos\features\engine\amiga\060_eng_core_selfcheck --warp
 
 # Secuencia sin warp (para ver la banda)
-& "C:\Program Files\nodejs\node.exe" "C:\Users\dvdjg\Documents\programa\AI\Amiga\Amiga-Cpp\dist\tools\run\run-demo.js" demos\amiga\060_eng_core_selfcheck --sequence-frames 30 --sequence-interval-ms 400
+& "C:\Program Files\nodejs\node.exe" "C:\Users\dvdjg\Documents\programa\AI\Amiga\Amiga-Cpp\dist\tools\run\run-demo.js" demos\features\engine\amiga\060_eng_core_selfcheck --sequence-frames 30 --sequence-interval-ms 400
 ```
 
 - Screenshot: `out/run/060_eng_core_selfcheck/A500_debug/screenshot.png`
@@ -173,7 +173,7 @@ Ejecuta y captura con Windows nativo:
 
 # Depuración: artefactos de arranque/display en demos (060 y 201)
 
-Diagnóstico de los dos artefactos reportados en `demos/amiga/060_eng_core_selfcheck` y `demos/techniques/amiga/playfield/201_ehb_map`: doble texto solapado amarillo+blanco y banda vertical cian (0x0AA) intermitente de 1-2 frames. Todo lo aquí escrito está verificado con evidencia reproducible salvo donde se marque como hipótesis abierta. Comando de reproducción y sondas incluidos al final.
+Diagnóstico de los dos artefactos reportados en `demos/features/engine/amiga/060_eng_core_selfcheck` y `demos/techniques/amiga/playfield/201_ehb_map`: doble texto solapado amarillo+blanco y banda vertical cian (0x0AA) intermitente de 1-2 frames. Todo lo aquí escrito está verificado con evidencia reproducible salvo donde se marque como hipótesis abierta. Comando de reproducción y sondas incluidos al final.
 
 ## 1. Resumen ejecutivo
 
@@ -192,13 +192,13 @@ La demo 201 se beneficia de B y C sin tocar su código: su `render()` llama `sce
 
 ```
 compilar  (Git Bash de Windows, NO WSL):
-  & "C:\Program Files\Git\bin\bash.exe" ./tools/build/build-demo.sh demos/amiga/060_eng_core_selfcheck --debug --clean
+  & "C:\Program Files\Git\bin\bash.exe" ./tools/build/build-demo.sh demos/features/engine/amiga/060_eng_core_selfcheck --debug --clean
 
 ejecutar + captura:
-  & "C:\Program Files\nodejs\node.exe" dist\tools\run\run-demo.js demos\amiga\060_eng_core_selfcheck --warp
+  & "C:\Program Files\nodejs\node.exe" dist\tools\run\run-demo.js demos\features\engine\amiga\060_eng_core_selfcheck --warp
 
 secuencia (la banda NO aparece con warp; validar SIEMPRE sin warp):
-  & "C:\Program Files\nodejs\node.exe" dist\tools\run\run-demo.js demos\amiga\060_eng_core_selfcheck --sequence-frames 30 --sequence-interval-ms 300
+  & "C:\Program Files\nodejs\node.exe" dist\tools\run\run-demo.js demos\features\engine\amiga\060_eng_core_selfcheck --sequence-frames 30 --sequence-interval-ms 300
 ```
 
 Salidas: `out/run/060_eng_core_selfcheck/A500_debug/screenshot.png` y `out/run/.../sequence/frame_*.png`. El runner usa por defecto la config `A500_debug` (`out/demos/<demo>/A500_debug/<demo>.A500_debug.exe`).
@@ -227,7 +227,7 @@ paleta demo: 17=0x000, 18=0x000, 19=0x0AA, 20=0x000, 30=0xFF0, 31=0xFFF
 
 ## 3. Bug A — doble texto: desbordamiento de `draw_text` (causa raíz confirmada)
 
-En `demos/amiga/060_eng_core_selfcheck/src/main.cpp:258-290` y en la API del engine `engine/include/eng/field/surface.hpp:109-125` (`Surface::draw_text`), el bucle de decodificación termina con:
+En `demos/features/engine/amiga/060_eng_core_selfcheck/src/main.cpp:258-290` y en la API del engine `engine/include/eng/field/surface.hpp:109-125` (`Surface::draw_text`), el bucle de decodificación termina con:
 
 ```cpp
 const eng::u8 before = *p;
@@ -366,7 +366,7 @@ Con este backend, la 201 no necesita cambios: su `scene.install(backend)` por fr
 
 ## 6. Bug D — paleta del pie (cosmético pero confunde el análisis)
 
-En `demos/amiga/060_eng_core_selfcheck/src/main.cpp:187-192` la paleta define `0x0aa` en el índice **19** y `0x000` en el 20, pero `main.cpp:226` dibuja el pie con color **20** ("cian 20 (pie)" según el comentario) → el pie sale negro (invisible). Fix: `0x0aa` en palette[20] (o dibujar el pie con 19). NOTA IMPORTANTE para el análisis de la banda: si se cambia la paleta, el índice del color de banda cambia de sitio; el color 0x0AA debe quedarse en ALGÚN COLOR17-19 para que la sonda de banda siga siendo válida... en realidad tras el fix B no debería aparecer ninguna franja de sprite en ningún color; mantener el detector por color RGB (0,170,170) y no por índice.
+En `demos/features/engine/amiga/060_eng_core_selfcheck/src/main.cpp:187-192` la paleta define `0x0aa` en el índice **19** y `0x000` en el 20, pero `main.cpp:226` dibuja el pie con color **20** ("cian 20 (pie)" según el comentario) → el pie sale negro (invisible). Fix: `0x0aa` en palette[20] (o dibujar el pie con 19). NOTA IMPORTANTE para el análisis de la banda: si se cambia la paleta, el índice del color de banda cambia de sitio; el color 0x0AA debe quedarse en ALGÚN COLOR17-19 para que la sonda de banda siga siendo válida... en realidad tras el fix B no debería aparecer ninguna franja de sprite en ningún color; mantener el detector por color RGB (0,170,170) y no por índice.
 
 Fondo: `kBgIndex = 1` (0x06a) está definido y nunca se pinta → el fondo es COLOR00 = negro. Si se quiere el fondo azul diseñado, rellenar el plano 0 con 0xFF en init (10240 bytes con `memclr`/blit; el texto con OR sigue legible: blanco 31 conserva bit0, amarillo 30 no lo pone y pisa el fondo). Decidir con el usuario; no bloquea nada.
 
@@ -405,10 +405,10 @@ Los cuatro bugs se corrigieron en el engine y en la demo 060. Evidencia reproduc
 | Bug | Archivo | Cambio |
 |---|---|---|
 | A | `engine/include/eng/field/surface.hpp` (`Surface::draw_text`) | El bucle corta ahora en `cp == 0` (NUL o byte inválido), no en `cp == 0 && before != 0`. Antes rasterizaba la `.rodata` posterior a la cadena. |
-| A | `demos/amiga/060_eng_core_selfcheck/src/main.cpp` (`draw_text` local) | Ídem: `if (cp == 0u) break;`. |
+| A | `demos/features/engine/amiga/060_eng_core_selfcheck/src/main.cpp` (`draw_text` local) | Ídem: `if (cp == 0u) break;`. |
 | B + C | `engine/src/platform/amiga/amiga.cpp` (`install_copper_list`) | Toma de control del display una sola vez: `INTENA=0x7FFF`, `INTREQ=0x7FFF`, `wait_blitter()`, `DMACON=0x7FFF`, programar `COP1LC`, espera activa de VBL (línea 311→0) y arranque `DMACON=SETCLR|DMAEN|COPEN` + `COPJMP1` alineado al inicio de línea. Instalaciones posteriores (doble buffer, la 201 reinstala por frame) hacen **solo swap de puntero `COP1LC`**, sin `COPJMP1`. |
 | B + C | `engine/include/eng/platform/amiga/backend.hpp` | Nuevo miembro `m_display_taken` para distinguir toma de control de swap. API separada en dos métodos con nombre propio: `takeover_display()` (toma de control, una sola vez en `init`) e `install_copper_list()` (swap de puntero por frame con retrocompatibilidad de toma de control en la primera llamada). |
-| D | `demos/amiga/060_eng_core_selfcheck/src/main.cpp` | `0x0aa` movido de índice 19 a índice 20, para que el pie dibujado con color 20 sea visible. |
+| D | `demos/features/engine/amiga/060_eng_core_selfcheck/src/main.cpp` | `0x0aa` movido de índice 19 a índice 20, para que el pie dibujado con color 20 sea visible. |
 
 ### 11.2 Evidencia de verificación (criterios de §10)
 
@@ -426,5 +426,5 @@ Los cuatro bugs se corrigieron en el engine y en la demo 060. Evidencia reproduc
 
 ### 11.4 Aclaraciones finales
 - El «texto del sistema» que leía el VLM en las capturas 1-8 era el desbordamiento de `draw_text` rasterizando `.rodata` (bug A) y el frame de instalación a media pantalla (bug C); no era el CLI de AmigaDOS. Tras A+B+C no asoma ningún texto ajeno (verificado).
-- El fondo de la 060 queda **negro** (COLOR00) de forma intencionada: el texto se rasteriza por OR y el amarillo (30) no pone el bit 0, por lo que rellenar el plano 0 con el azul de `kBgIndex=1` mancharía los glifos amarillos. Para un fondo de color haría falta rasterizar con máscara (fuera del alcance de este self-check). Decisión documentada en `demos/amiga/060_eng_core_selfcheck/src/main.cpp`.
+- El fondo de la 060 queda **negro** (COLOR00) de forma intencionada: el texto se rasteriza por OR y el amarillo (30) no pone el bit 0, por lo que rellenar el plano 0 con el azul de `kBgIndex=1` mancharía los glifos amarillos. Para un fondo de color haría falta rasterizar con máscara (fuera del alcance de este self-check). Decisión documentada en `demos/features/engine/amiga/060_eng_core_selfcheck/src/main.cpp`.
 - La paleta ahora deja `0x0aa` en COLOR20; el detector de banda por color RGB (0,170,170) y no por índice sigue siendo válido.

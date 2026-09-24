@@ -10,11 +10,11 @@
 # la secuencia: exige que la pista del slider cambie entre frames y que el cambio
 # se concentre en una banda horizontal (repintado por zona).
 #
-# Uso: demos/amiga/215_gui_widgets/analyze-screenshot.sh <imagen.png>
+# Uso: demos/features/ui/amiga/215_gui_widgets/analyze-screenshot.sh <imagen.png>
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
 IMAGE="${1:-}"
 if [ -z "$IMAGE" ]; then
 	echo "Uso: analyze-screenshot.sh <imagen.png>" >&2

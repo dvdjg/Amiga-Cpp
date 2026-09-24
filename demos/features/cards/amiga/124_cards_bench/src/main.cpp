@@ -14,8 +14,8 @@
 // y lo dibuja en pantalla. Cambiar el target (`TARGET_MACHINE`) compararia CPU.
 //
 // Build/run/analyze (mismos wrappers que una demo):
-//   bash tools/build/build-demo.sh demos/amiga/124_cards_bench --release --clean
-//   bash tools/run/run-demo.sh demos/amiga/124_cards_bench --warp
+//   bash tools/build/build-demo.sh demos/features/cards/amiga/124_cards_bench --release --clean
+//   bash tools/run/run-demo.sh demos/features/cards/amiga/124_cards_bench --warp
 //
 // Verificacion: build -> run -> READY OK (evidencia en el README).
 

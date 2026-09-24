@@ -4,12 +4,12 @@
 # verifica que las ventanas se pintan (relleno + titulo + texto) y que se mueven entre frames.
 # La invoca tools/test-regression.sh (puede recibir --warp; aqui solo se reenvia --warp).
 #
-# Uso: demos/amiga/300_gui_compositor/analyze-sequence.sh [--warp] [...]
+# Uso: demos/features/ui/amiga/300_gui_compositor/analyze-sequence.sh [--warp] [...]
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-DEMO="demos/amiga/300_gui_compositor"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
+DEMO="demos/features/ui/amiga/300_gui_compositor"
 
 RUN_ARGS=("$ROOT/tools/run/run-demo.sh" "$DEMO" --sequence-frames 4 --sequence-interval-ms 400)
 for a in "$@"; do

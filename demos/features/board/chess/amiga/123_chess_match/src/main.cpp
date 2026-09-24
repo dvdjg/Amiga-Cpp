@@ -20,8 +20,8 @@
 // bando a la derecha y panel del juez abajo-izquierda.
 //
 // Build/run/analyze:
-//   bash tools/build/build-demo.sh demos/amiga/123_chess_match --debug --clean
-//   bash tools/run/run-demo.sh demos/amiga/123_chess_match
+//   bash tools/build/build-demo.sh demos/features/board/chess/amiga/123_chess_match --debug --clean
+//   bash tools/run/run-demo.sh demos/features/board/chess/amiga/123_chess_match
 
 #include <eng/board/eval/styled_eval.hpp>
 #include <eng/board/explain/explain.hpp>

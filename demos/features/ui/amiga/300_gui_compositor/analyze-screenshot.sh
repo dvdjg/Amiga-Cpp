@@ -6,11 +6,11 @@
 # dibuja overlay, sino ventanas movibles. Se comprueba la paleta de la escena (relleno de ventana,
 # barra de titulo, texto) y, si hay secuencia, que las ventanas se mueven entre frames.
 #
-# Uso: demos/amiga/300_gui_compositor/analyze-screenshot.sh <imagen.png>
+# Uso: demos/features/ui/amiga/300_gui_compositor/analyze-screenshot.sh <imagen.png>
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
 IMAGE="${1:-}"
 if [ -z "$IMAGE" ]; then
 	echo "Uso: analyze-screenshot.sh <imagen.png>" >&2

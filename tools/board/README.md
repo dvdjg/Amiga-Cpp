@@ -53,7 +53,7 @@ tools/board/selfplay.sh [games] [--variant standard|chess960] [--seed N]
 ```
 
 Juega partidas completas **sin UI** con la misma configuración que la demo
-`demos/amiga/123_chess_match`: estilos agresivo (blancas) y posicional (negras)
+`demos/features/board/chess/amiga/123_chess_match`: estilos agresivo (blancas) y posicional (negras)
 sobre el mismo `StyledEval`, libro de aperturas incorporado, búsqueda por rebanadas
 (32 nodos por frame, hasta 8 frames) y relojes de 5:00 sin incremento. Los valores
 por defecto son los de la demo; `--slice-nodes`/`--frames` permiten simular más

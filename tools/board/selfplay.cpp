@@ -1,6 +1,6 @@
 // ============================================================================
 // selfplay: partidas completas en host con la MISMA configuracion que la demo
-// `demos/amiga/123_chess_match` (estilos agresivo/posicional, libro de aperturas,
+// `demos/features/board/chess/amiga/123_chess_match` (estilos agresivo/posicional, libro de aperturas,
 // busqueda por rebanadas y relojes), sin UI, exportando cada partida a PGN.
 // ============================================================================
 //
@@ -48,7 +48,7 @@ using eng::usize;
 
 namespace {
 
-// --- Configuracion identica a demos/amiga/123_chess_match -------------------
+// --- Configuracion identica a demos/features/board/chess/amiga/123_chess_match -------------------
 constexpr eng::u32 kTtEntries = 16384u;
 constexpr eng::u16 kMaxDepth = 12u;
 constexpr eng::u64 kMoveNodes = 24u;

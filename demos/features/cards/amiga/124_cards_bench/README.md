@@ -1,4 +1,4 @@
-# `demos/amiga/124_cards_bench` — benchmark de `eng::cards` en Amiga
+# `demos/features/cards/amiga/124_cards_bench` — benchmark de `eng::cards` en Amiga
 
 Mide la **tasa real de trabajo** del motor de naipes en hardware emulado: repite una
 unidad ("1 mano completa + N muestras de equity") hasta agotar un presupuesto de
@@ -38,10 +38,10 @@ Evidencia: `out/run/124_cards_bench/A500_release/run-report.json` (`status=ok`).
 Comandos:
 
 ```bash
-bash tools/build/build-demo.sh demos/amiga/124_cards_bench --release --clean
-bash tools/run/run-demo.sh demos/amiga/124_cards_bench --warp
+bash tools/build/build-demo.sh demos/features/cards/amiga/124_cards_bench --release --clean
+bash tools/run/run-demo.sh demos/features/cards/amiga/124_cards_bench --warp
 # variante por perfil:
-EXTRA_DEFINES="-DCARDS_BENCH_PROFILE=2" bash tools/build/build-demo.sh demos/amiga/124_cards_bench --release
+EXTRA_DEFINES="-DCARDS_BENCH_PROFILE=2" bash tools/build/build-demo.sh demos/features/cards/amiga/124_cards_bench --release
 ```
 
 Lectura del resultado (el runner lo guarda en `run-report.json`):

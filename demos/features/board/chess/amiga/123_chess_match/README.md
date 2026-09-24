@@ -1,4 +1,4 @@
-# `demos/amiga/123_chess_match` — Partida de ajedrez entre dos motores
+# `demos/features/board/chess/amiga/123_chess_match` — Partida de ajedrez entre dos motores
 
 Demo de partida completa y autónoma entre **dos motores de ajedrez** del engine
 (`eng::board::chess`). No hay entrada de usuario: las blancas y las negras juegan
@@ -75,15 +75,15 @@ jugada, el siguiente paso es perfilar y optimizar `movegen`/`eval` antes de baja
 ## Build / run / analyze
 
 ```bash
-bash tools/build/build-demo.sh demos/amiga/123_chess_match --debug --clean
-bash tools/run/run-demo.sh demos/amiga/123_chess_match --warp
-bash tools/analyze/analyze-demo.sh demos/amiga/123_chess_match
+bash tools/build/build-demo.sh demos/features/board/chess/amiga/123_chess_match --debug --clean
+bash tools/run/run-demo.sh demos/features/board/chess/amiga/123_chess_match --warp
+bash tools/analyze/analyze-demo.sh demos/features/board/chess/amiga/123_chess_match
 ```
 
 Para observar la partida avanzar en la captura, ampliar el asentamiento:
 
 ```bash
-bash tools/run/run-demo.sh demos/amiga/123_chess_match --warp --settle-ms 12000
+bash tools/run/run-demo.sh demos/features/board/chess/amiga/123_chess_match --warp --settle-ms 12000
 ```
 
 ## Simulación host (partidas completas con PGN)

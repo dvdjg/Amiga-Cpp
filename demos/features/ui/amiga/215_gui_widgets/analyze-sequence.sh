@@ -5,12 +5,12 @@
 # anima. La invoca tools/test-regression.sh (puede recibir --warp; aqui solo se
 # reenvia --warp al runner).
 #
-# Uso: demos/amiga/215_gui_widgets/analyze-sequence.sh [--warp] [...]
+# Uso: demos/features/ui/amiga/215_gui_widgets/analyze-sequence.sh [--warp] [...]
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-DEMO="demos/amiga/215_gui_widgets"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
+DEMO="demos/features/ui/amiga/215_gui_widgets"
 
 RUN_ARGS=("$ROOT/tools/run/run-demo.sh" "$DEMO" --sequence-frames 4 --sequence-interval-ms 250)
 for a in "$@"; do

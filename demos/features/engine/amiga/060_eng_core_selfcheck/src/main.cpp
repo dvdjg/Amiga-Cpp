@@ -22,8 +22,8 @@
 //   0x06000203  random fallo  ·  0x06000204  sort fallo
 //
 // Build (Windows nativo):
-//   bash tools/build/build-demo.sh demos/amiga/060_eng_core_selfcheck --clean
-//   <Node de Windows> dist/tools/run/run-demo.js demos\amiga\060_eng_core_selfcheck --warp
+//   bash tools/build/build-demo.sh demos/features/engine/amiga/060_eng_core_selfcheck --clean
+//   <Node de Windows> dist/tools/run/run-demo.js demos\features\engine\amiga\060_eng_core_selfcheck --warp
 
 #include <eng/core/data/crc32.hpp>
 #include <eng/core/math/isqrt.hpp>

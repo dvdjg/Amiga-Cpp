@@ -49,7 +49,7 @@ CPU vs CPU para ajustar el nivel; el juego con UI en el Amiga cierra la verifica
   de conocimiento externo si se quieren libros/rangos en disquete.
 - **Verificación en hardware**: `games/200_holdem` (Texas Hold'em No-Limit, N20) es el
   consumidor real; corre en emulador (build → run → analyze OK). El benchmark
-  `demos/amiga/124_cards_bench` mide el coste por perfil en A500.
+  `demos/features/cards/amiga/124_cards_bench` mide el coste por perfil en A500.
 
 ## 3. Reglas transversales (criterios de aceptación)
 
@@ -128,7 +128,7 @@ Pendiente: rangos de subida, farol inducido por el tablero y equilibrio (bluff/v
 |---|---|---|---|
 | C4.1 | `sim/session.hpp` | `run_session`: N manos, botón rota, net y `bb/100` | **HOST-192** (hecho) |
 | C4.2 | `tools/cards/selfplay` | Herramienta host de torneos CPU vs CPU (perfiles, estilos, tabla y rango) | **Hecho** (ejecutada); **regresión de nivel** `regression.sh` + línea base, integrada en `run-host-tests.sh` |
-| C4.3 | Matriz de rendimiento | Manos/s y muestras/s por CPU (68000/020/030) y perfil | **A500 completo**: `demos/amiga/124_cards_bench` mide por TOD (50 Hz) — `N20` 30 u/s (33 ms), `N64` 1 u/s (641 ms), `N128` 2,75 s, `N256` 5,09 s, `N512` 44,6 s por unidad. Solo N20/N64 viables en 68000. 020/030 pendientes |
+| C4.3 | Matriz de rendimiento | Manos/s y muestras/s por CPU (68000/020/030) y perfil | **A500 completo**: `demos/features/cards/amiga/124_cards_bench` mide por TOD (50 Hz) — `N20` 30 u/s (33 ms), `N64` 1 u/s (641 ms), `N128` 2,75 s, `N256` 5,09 s, `N512` 44,6 s por unidad. Solo N20/N64 viables en 68000. 020/030 pendientes |
 
 Cierre: el nivel se ajusta desde host sin emulador; la matriz fija qué perfil es jugable en
 un A500 base. Resultado: **solo N20 y N64 son viables en A500**; `N128`+ quedan para máquinas
