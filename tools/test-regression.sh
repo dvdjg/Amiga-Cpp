@@ -9,7 +9,8 @@
 #       [--keep-going] [--warp] [--pixel-assert] [--require-pixel-assert-ok]
 #       [--pixel-assert-selftest] [--vision-review] [--require-vision-review-ok]
 #       [--vision-provider <ruta>] [--vision-send-mode multi-image|contact-sheet]
-#       [--require-essential-ok] [--skip-essential] [--flicker]   (vision Ollama: frames esenciales y parpadeo)
+#       [--require-essential-ok] [--skip-essential] [--flicker] [--require-flicker-ok]
+#          (vision Ollama: frames esenciales; parpadeo determinista+VLM)
 #       [--build-all]                                      (barrido de compilacion de TODAS las demos)
 #       [--protect <target>,<block|set:0xVALUE>,<size>]   (repetible; WinUAE-DBG v2.1)
 #       [--fps-gate] [--fps-warn-only] [--fps-threshold <n>]  (gate de fps, opt-in)
@@ -36,6 +37,7 @@ VISION_SEND_MODE="multi-image"
 REQUIRE_ESSENTIAL_OK=0
 SKIP_ESSENTIAL=0
 FLICKER=0
+REQUIRE_FLICKER_OK=0
 PROTECTS=()
 FPS_GATE=0
 FPS_WARN_ONLY=0
@@ -66,6 +68,7 @@ while [ "$#" -gt 0 ]; do
 		--require-essential-ok) REQUIRE_ESSENTIAL_OK=1; shift ;;
 		--skip-essential) SKIP_ESSENTIAL=1; shift ;;
 		--flicker) FLICKER=1; shift ;;
+--require-flicker-ok) FLICKER=1; REQUIRE_FLICKER_OK=1; shift ;;
 		--protect) next_arg "$1" "$2"; PROTECTS+=("$2"); shift 2 ;;
 		--fps-gate) FPS_GATE=1; shift ;;
 		--fps-warn-only) FPS_GATE=1; FPS_WARN_ONLY=1; shift ;;
@@ -279,6 +282,13 @@ for demo_path in "${DEMO_DIRS[@]}"; do
 	demo_name="$(basename "$demo_path")"
 	# build/run/analyze esperan rutas relativas a ROOT (demos/<nombre>/).
 	relative_demo="${demo_path#"$ROOT"/}"
+	# Id de build/out (misma regla que build-demo.sh y las tools de vision): una feature usa la
+	# ruta relativa a `demos/features/` con `/`→`_` (p. ej. `ui_amiga_300_gui_compositor`).
+	if [[ "$relative_demo" == demos/features/* ]]; then
+		demo_id="${relative_demo#demos/features/}"; demo_id="${demo_id//\//_}"
+	else
+		demo_id="$demo_name"
+	fi
 	build="pending"; run="skipped"; analyze="pending"; sequence="none"; pixel_assert="none"; essential="none"; flicker="none"; notes=""
 
 	echo "== ${demo_name}: build =="
@@ -374,10 +384,22 @@ for demo_path in "${DEMO_DIRS[@]}"; do
 		esac
 	fi
 
-	# Parpadeo/glitch (opt-in `--flicker`): zonas con oscilación temporal + descripción del modelo.
+	# Parpadeo/glitch (opt-in `--flicker`): detector determinista (OpenCV) + modelo de visión solo
+	# sobre la sospecha localizada. Columna `Flicker`: ok (sin candidatos), candidates (hay zonas
+	# sospechosas), skip (sin secuencia/detector). Con `--require-flicker-ok`, `candidates` es fallo.
 	if [ "$FLICKER" -eq 1 ] && [ "$SKIP_RUN" -eq 0 ] && command -v node >/dev/null 2>&1; then
 		echo "== ${demo_name}: flicker =="
-		if node "$FLICKER_TOOL" --demo "$relative_demo"; then flicker="reported"; else flicker="skip"; fi
+		node "$FLICKER_TOOL" --demo "$relative_demo" >/dev/null 2>&1
+		flicker_json="$ROOT/out/vision-review/${demo_id:-}/flicker-report.json"
+		if [ -f "$flicker_json" ]; then
+			ncand="$(node -e "const j=require('$flicker_json');const d=j.detector;process.stdout.write(String(d&&d.candidates?d.candidates.length:0))" 2>/dev/null || echo 0)"
+			if [ "${ncand:-0}" = "0" ]; then flicker="ok"; else
+				flicker="candidates"
+				notes="${notes:+$notes,}flicker"
+			fi
+		else
+			flicker="skip"
+		fi
 	fi
 
 	{
@@ -387,7 +409,8 @@ for demo_path in "${DEMO_DIRS[@]}"; do
 	if [ "$build" != "ok" ] || { [ "$run" != "ok" ] && [ "$run" != "skipped" ]; } || \
 	   [ "$analyze" != "ok" ] || { [ "$sequence" != "ok" ] && [ "$sequence" != "none" ]; } || \
 	   { [ "$pixel_assert" != "ok" ] && [ "$pixel_assert" != "none" ]; } || \
-	   [ "$essential" = "fail" ]; then
+	   [ "$essential" = "fail" ] || \
+	   { [ "$REQUIRE_FLICKER_OK" -eq 1 ] && [ "$flicker" = "candidates" ]; }; then
 		FAILED=$((FAILED + 1))
 		if [ "$KEEP_GOING" -eq 0 ]; then
 			break

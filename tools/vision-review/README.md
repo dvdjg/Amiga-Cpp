@@ -4,6 +4,10 @@ Herramienta ligera para pedir una segunda opinion visual a un modelo con vision
 sobre pocos frames seleccionados. Esta carpeta contiene el contrato operativo; el
 roadmap completo está en `docs/testing/VISION_REVIEW_ROADMAP.md`.
 
+> **Prompts y flujo híbrido**: contrato de los prompts (referencia+comparación, respuesta
+> estructurada, regiones relativas, few-shot) y descripción del pipeline determinista→visión en
+> [`PROMPTS.md`](PROMPTS.md).
+
 ## Objetivo
 
 FrameScope y los scripts deterministas deciden donde mirar. Vision Review prepara

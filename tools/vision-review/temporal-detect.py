@@ -43,21 +43,50 @@ def load_frames(folder, max_frames=None):
     return files, frames
 
 
+def _is_motion(prev, curr, x, y, bs, search):
+    """¿El bloque `curr[y:y+bs, x:x+bs]` es contenido **desplazado** (movimiento legítimo)?
+
+    Dos señales:
+      1. El bloque se parece mucho a la **misma posición** de `prev` (solo entra/sale un borde de
+         1 px: cambio sub-píxel de un objeto móvil) → movimiento.
+      2. El bloque aparece en `prev` **desplazado** dentro de ±`search` px (traslación) → movimiento.
+    Un parpadeo puro cambia el bloque a un valor/patrón que **no** está ni en su posición ni cerca,
+    así que no se descarta. Resuelve los falsos positivos en bordes de objetos que se mueven.
+    """
+    h, w = curr.shape
+    x0, y0 = max(0, x - search), max(0, y - search)
+    x1, y1 = min(w, x + bs + search), min(h, y + bs + search)
+    if x1 - x0 < bs or y1 - y0 < bs:
+        return False
+    block = curr[y:y + bs, x:x + bs]
+    # Un bloque **plano** (sin estructura) no permite decidir por contenido (un parpadeo de color
+    # plano coincide trivialmente con zonas planas): se omite el matcher.
+    if float(np.std(block)) < 6.0:
+        return False
+    region = prev[y0:y1, x0:x1]
+    res = cv2.matchTemplate(region, block, cv2.TM_SQDIFF_NORMED)
+    _, best, minloc, _ = cv2.minMaxLoc(res)
+    dx = (x0 + minloc[0]) - x
+    dy = (y0 + minloc[1]) - y
+    # (1) mismo sitio, muy parecido; (2) mismo contenido desplazado.
+    return best < 0.10
+
+
 def compute_suspicion(frames, block_size=16, flow_threshold=0.5, diff_threshold=30):
     """Analiza la secuencia y devuelve (mapas_de_sospecha, candidatos).
 
     Criterio primario (fiable para parpadeo): **oscilación A→B→A**. Un píxel que en `f-1` y `f+1`
     vale lo mismo pero en `f` es distinto está parpadeando; un movimiento **no** lo cumple (el valor
-    se desplaza, no vuelve). El *optical flow* se usa solo como clasificador secundario:
-      - oscilación alta y localizada       → `flicker`
-      - cambio alto sin retorno + flujo disperso → `tearing`
-      - cambio muy alto sin retorno        → `corruption`
+    se desplaza, no vuelve). Se añade un **matcher de vecindad** (`_is_motion`) que descarta los
+    bloques que simplemente se han desplazado (bordes de objetos móviles), y el *optical flow* como
+    clasificador secundario de tearing/corruption.
     """
     if len(frames) < 3:
         return [], []
     h, w = frames[0].shape[:2]
     gray = [cv2.cvtColor(f, cv2.COLOR_BGR2GRAY) for f in frames]
     maps, anomalies = [], []
+    search = max(2, block_size // 2)  # ventana de búsqueda del matcher (±px)
     for i in range(1, len(gray) - 1):
         prev, curr, nxt = gray[i - 1], gray[i], gray[i + 1]
         back = cv2.absdiff(prev, curr)                         # f-1 -> f
@@ -73,27 +102,43 @@ def compute_suspicion(frames, block_size=16, flow_threshold=0.5, diff_threshold=
         diff_u8 = cv2.normalize(diff, None, 0, 255, cv2.NORM_MINMAX)
         susp = cv2.GaussianBlur(cv2.addWeighted(diff_u8, 0.6, mag_u8, 0.4, 0), (5, 5), 0)
         maps.append({"frame": i, "suspicion": susp})
-        for y in range(0, h, block_size):
-            for x in range(0, w, block_size):
+        # Bloques con **solape** (paso = mitad del bloque): un artefacto pequeño no alineado a la
+        # rejilla cae dentro de al menos un bloque con su superficie completa (si no, se diluye).
+        step = max(4, block_size // 2)
+        for y in range(0, h - block_size + 1, step):
+            for x in range(0, w - block_size + 1, step):
                 bo = osc[y:y + block_size, x:x + block_size]
+                bb = back[y:y + block_size, x:x + block_size]
+                bf = fwd[y:y + block_size, x:x + block_size]
                 bd = diff[y:y + block_size, x:x + block_size]
                 bm = mag[y:y + block_size, x:x + block_size]
                 mean_osc = float(np.mean(bo))
                 mean_diff = float(np.mean(bd))
+                # Dirección del cambio: una **aparición/desaparición** (flicker de 1 frame, corrupción
+                # que entra) se ve en `back` o `fwd`, no en su media. Se usa el máximo.
+                mean_jump = max(float(np.mean(bb)), float(np.mean(bf)))
                 mean_mag = float(np.mean(bm))
                 std_mag = float(np.std(bm))
+                # Cambio alto: decidir si es movimiento (bloque desplazado) o glitch.
+                if max(mean_osc, mean_jump) <= diff_threshold:
+                    continue
+                if max(mean_osc, mean_jump) <= diff_threshold * 2.0 and \
+                   (_is_motion(prev, curr, x, y, block_size, search) or
+                        _is_motion(nxt, curr, x, y, block_size, search)):
+                    continue  # cambio moderado con contenido desplazado → movimiento
                 kind = None
                 if mean_osc > diff_threshold:
                     kind = "flicker"           # vuelve al valor original: parpadeo
-                elif mean_diff > diff_threshold * 2.0:
-                    kind = "corruption"
-                elif mean_diff > diff_threshold and std_mag > 3.0:
-                    kind = "tearing"
+                elif mean_jump > diff_threshold * 3.0:
+                    kind = "corruption"        # cambio muy alto en una dirección: aparece/desaparece
+                elif mean_jump > diff_threshold * 2.0 and std_mag > 5.0:
+                    kind = "tearing"           # cambio alto con flujo disperso (línea rasgada)
                 if kind:
                     anomalies.append({
                         "frame": i, "x": int(x), "y": int(y),
                         "w": block_size, "h": block_size,
                         "mean_diff": round(mean_diff, 2),
+                        "mean_jump": round(mean_jump, 2),
                         "mean_osc": round(mean_osc, 2),
                         "mean_mag": round(mean_mag, 2),
                         "std_mag": round(std_mag, 2),
@@ -122,7 +167,8 @@ def merge_candidates(anomalies, frame_pad=1, space_pad=8, region_pad=8, frame_co
     for a in sorted(anomalies, key=lambda z: (z["frame"], z["y"], z["x"])):
         placed = False
         for m in merged:
-            if abs(m["frame"] - a["frame"]) <= frame_pad and _overlaps(m, a, space_pad):
+            if abs(m["frame"] - a["frame"]) <= frame_pad and _overlaps(m, a, space_pad) and \
+               (a["type"] in m["types"] or not m["types"]):
                 m["x"] = min(m["x"], a["x"])
                 m["y"] = min(m["y"], a["y"])
                 m["x2"] = max(m["x2"], a["x"] + a["w"])

@@ -139,6 +139,7 @@ const windowFiles = files.slice(from, from + nFrames);
 // --- Capa 2: modelo de visión (Ollama) sobre la sospecha ya localizada ---
 // Prompt estructurado (sí/no + tipo + zona RELATIVA + confianza) y, si hay candidatos del
 // detector, se centra en su región con frames de referencia+contexto. Prohibido dar píxeles.
+// Contrato de los prompts: `tools/vision-review/PROMPTS.md`.
 const STRUCTURED = [
   'Responde SOLO en este formato (sin píxeles, sin coordenadas numéricas):',
   '- Anomalía: sí / no',
