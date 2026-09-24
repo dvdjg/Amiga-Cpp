@@ -48,16 +48,6 @@ const demoId = rel.startsWith('features/') ? rel.slice('features/'.length).repla
 
 const demoDir = path.join(ROOT, demoArg);
 const pointsFile = path.join(demoDir, 'vision-points.json');
-if (!fs.existsSync(pointsFile)) {
-  console.log(`[essential-frames] ${demoArg}: sin vision-points.json (se omite).`);
-  process.exit(3);
-}
-const decl = JSON.parse(fs.readFileSync(pointsFile, 'utf8'));
-const points = decl.points || [];
-if (points.length === 0) {
-  console.log(`[essential-frames] ${demoArg}: sin puntos declarados (se omite).`);
-  process.exit(3);
-}
 
 // Localiza la secuencia (config más reciente con sequence/).
 const runBase = path.join(ROOT, 'out/run', demoId);
@@ -116,6 +106,18 @@ if (has('--suggest')) {
   }
   console.log('  -> declara los elegidos en vision-points.json (index/frames/last/every/max_diff).');
   process.exit(0);
+}
+
+// A partir de aquí se necesitan los puntos declarados (el modo --suggest no).
+if (!fs.existsSync(pointsFile)) {
+  console.log(`[essential-frames] ${demoArg}: sin vision-points.json (se omite).`);
+  process.exit(3);
+}
+const decl = JSON.parse(fs.readFileSync(pointsFile, 'utf8'));
+const points = decl.points || [];
+if (points.length === 0) {
+  console.log(`[essential-frames] ${demoArg}: sin puntos declarados (se omite).`);
+  process.exit(3);
 }
 
 // --- Ollama (health check + arranque opcional) ---
