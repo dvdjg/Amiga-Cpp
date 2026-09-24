@@ -23,6 +23,12 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BITACORA="$ROOT/docs/guides/roadmap/BITACORA_SCROLL_TILES.md"
 BUILD="$ROOT/tools/build/build-demo.sh"
 RUN="$ROOT/tools/run/run-demo.sh"
+
+# Resuelve el directorio de una demo por su nombre bajo la estructura actual
+# (`demos/techniques/<familia>/<categoria>/<demo>/`, `demos/features/<feature>/<plataforma>/<demo>/`).
+demo_dir() {
+	find "$ROOT/demos" -path "*/$1/src/main.cpp" | sed 's|/src/main.cpp$||' | head -1
+}
 CHECK="$ROOT/tools/debug/check-fps.mjs"
 
 SAMPLES=2
@@ -63,14 +69,16 @@ if [ "$PREPARE" -eq 1 ]; then
 		flag="--debug"
 		case "$config" in *release*) flag="--release" ;; esac
 		elf="$ROOT/out/demos/$demo/$config/$demo.$config.elf"
+		dpath="$(demo_dir "$demo")"
+		[ -z "$dpath" ] && { echo "aviso: no encontrada la demo $demo" >&2; continue; }
 		if [ ! -f "$elf" ]; then
 			echo "== build $demo ($config) =="
-			bash "$BUILD" "demos/amiga/$demo" "$flag" || echo "aviso: fallo el build de $demo" >&2
+			bash "$BUILD" "$dpath" "$flag" || echo "aviso: fallo el build de $demo" >&2
 		fi
 		uae="$ROOT/out/run/$demo/$config/runner.uae"
 		if [ ! -f "$uae" ]; then
 			echo "== preparar runner $demo ($config) =="
-			bash "$RUN" "demos/amiga/$demo" >/dev/null 2>&1 || echo "aviso: fallo la preparacion de $demo" >&2
+			bash "$RUN" "$dpath" >/dev/null 2>&1 || echo "aviso: fallo la preparacion de $demo" >&2
 		fi
 	done <<< "$ROWS"
 fi
