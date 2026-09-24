@@ -164,6 +164,23 @@ los describe y se compara con lo declarado.
   se admite `frames: [i, j, …]` para enviar varios (una transición como ventana).
 - `expect` es la descripción que el modelo debe confirmar.
 
+**Selectores** (en vez de un índice fijo) para localizar el frame de interés:
+
+- `last: true` — el último frame (p. ej. fin de una ruta).
+- `every: N` — muestreo periódico (cambios que conmutan cada N frames).
+- `max_diff: true` — el frame con mayor cambio de píxeles respecto al anterior
+  (transición: aparece/desaparece algo, cambia una figura de sitio).
+
+Como los frames de interés **dependen de cada demo**, un análisis asistido los propone:
+
+```bash
+node tools/vision-review/essential-frames.mjs --demo <ruta> --suggest
+```
+
+Imprime el último frame, los **picos de cambio** (diff por frame, vía `pngjs`) y un posible
+periodo; el autor elige y los declara en `vision-points.json`. Los cambios de **geometría**
+(mode switch) se marcan con diff `999`.
+
 Herramienta: `tools/vision-review/essential-frames.mjs --demo <ruta>` (informe en
 `out/vision-review/<demoId>/essential-frames.md`). Códigos de salida: `0` = coincide,
 `3` = se omite (sin Ollama/secuencia/puntos), `4` = algún MISMATCH (informativo),

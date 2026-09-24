@@ -24,6 +24,8 @@
 // se pasó --require-ok (si no, solo informa).
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
 
 const ROOT = process.cwd();
 const arg = (name, fb) => {
@@ -77,6 +79,45 @@ if (!seqDir) {
 }
 const frames = fs.readdirSync(seqDir).filter((f) => /^frame_\d{3,}\.png$/.test(f)).sort();
 
+// --- Diferencia entre frames (para localizar transiciones) ---
+function meanDiff(a, b) {
+  // Diferencia media por canal entre dos PNG (via pngjs). Sin pngjs, 0.
+  let PNG;
+  try { ({ PNG } = require('pngjs')); } catch { return 0; }
+  const ia = PNG.sync.read(fs.readFileSync(a));
+  const ib = PNG.sync.read(fs.readFileSync(b));
+  if (ia.width !== ib.width || ia.height !== ib.height) return 999; // cambio de geometria (p. ej. mode switch)
+  let sum = 0, n = 0;
+  for (let i = 0; i < ia.data.length; i += 4) {
+    sum += Math.abs(ia.data[i] - ib.data[i]) + Math.abs(ia.data[i + 1] - ib.data[i + 1]) + Math.abs(ia.data[i + 2] - ib.data[i + 2]);
+    n += 3;
+  }
+  return n ? sum / n : 0;
+}
+function frameDiffs() {
+  const d = [];
+  for (let i = 1; i < frames.length; i++) {
+    d.push({ i, diff: meanDiff(path.join(seqDir, frames[i - 1]), path.join(seqDir, frames[i])) });
+  }
+  return d;
+}
+
+// Modo sugerencia: propone frames de interes (picos de cambio + ultimo) para que el
+// autor de la demo elija y los declare en vision-points.json.
+if (has('--suggest')) {
+  const d = frameDiffs();
+  const peaks = [...d].sort((a, b) => b.diff - a.diff).slice(0, 6).filter((x) => x.diff > 0);
+  console.log(`[essential-frames] ${leaf}: ${frames.length} frames en ${path.relative(ROOT, seqDir).replace(/\\/g, '/')}`);
+  console.log('  ultimo:', frames.length - 1);
+  console.log('  picos de cambio (frame, diff):', peaks.map((x) => `${x.i}(${x.diff.toFixed(1)})`).join(' ') || '(sin pngjs)');
+  if (d.length) {
+    const period = d.findIndex((x, k) => k > 2 && x.diff > 0 && d[0].diff > 0 && Math.abs(x.diff - d[0].diff) < d[0].diff * 0.3);
+    if (period > 0) console.log('  posible cambio periodico cada ~', period, 'frames');
+  }
+  console.log('  -> declara los elegidos en vision-points.json (index/frames/last/every/max_diff).');
+  process.exit(0);
+}
+
 // --- Ollama (health check + arranque opcional) ---
 const rawHost = process.env.OLLAMA_HOST || '';
 const BASE = rawHost.includes('://')
@@ -111,10 +152,20 @@ if (!ver) {
 }
 const model = arg('--model', decl.model || process.env.OLLAMA_VL_MODEL || 'qwen3-vl:8b-instruct-q8_0');
 
+// Resuelve los indices de frame de un punto (selectores: index/frames/last/every/max_diff).
+function resolveIndices(point) {
+  if (Array.isArray(point.frames)) return point.frames;
+  if (typeof point.index === 'number') return [point.index];
+  if (point.last) return [frames.length - 1];
+  if (point.every) { const out = []; for (let i = 0; i < frames.length; i += point.every) out.push(i); return out.slice(0, 8); }
+  if (point.max_diff) { const d = frameDiffs().filter((x) => Number.isFinite(x.diff)); return d.length ? [d.reduce((a, b) => (b.diff > a.diff ? b : a)).i] : [0]; }
+  return [0];
+}
+
 async function describe(point) {
-  const idxs = point.frames || [point.index];
+  const idxs = resolveIndices(point);
   const files = idxs.map((i) => frames[i]).filter(Boolean);
-  if (files.length === 0) return { ok: false, text: `(no hay frame ${idxs.join(',')}: secuencia tiene ${frames.length})` };
+  if (files.length === 0) return { ok: false, idxs, text: `(no hay frame ${idxs.join(',')}: secuencia tiene ${frames.length})` };
   const images = files.map((f) => fs.readFileSync(path.join(seqDir, f)).toString('base64'));
   const prompt = [
     `Captura(s) esencial(es) de la demo "${leaf}" (punto "${point.name || ''}").`,
@@ -133,18 +184,18 @@ async function describe(point) {
   const j = await res.json();
   const text = j.message?.content ?? '';
   const mismatch = /VERDICT:\s*MISMATCH/i.test(text);
-  return { ok: !mismatch, text, files };
+  return { ok: !mismatch, text, files, idxs };
 }
 
 const results = [];
 for (const p of points) {
-  console.log(`[essential-frames] ${leaf}: ${p.name || 'punto'} (frames ${(p.frames || [p.index]).join(',')})...`);
+  console.log(`[essential-frames] ${leaf}: ${p.name || 'punto'} (frames ${resolveIndices(p).join(',')})...`);
   try {
     const r = await describe(p);
     results.push({ point: p, ...r });
     console.log(`  -> ${r.ok ? 'MATCH' : 'MISMATCH'}`);
   } catch (e) {
-    results.push({ point: p, ok: false, error: e.message });
+    results.push({ point: p, ok: false, error: e.message, idxs: resolveIndices(p) });
     console.log(`  -> error: ${e.message}`);
   }
 }
@@ -158,7 +209,7 @@ const md = [
   `Modelo: \`${model}\` · secuencia: \`${path.relative(ROOT, seqDir).replace(/\\/g, '/')}\``,
   '',
   ...results.map((r) => [
-    `## ${r.point.name || 'punto'} (frames ${(r.point.frames || [r.point.index]).join(',')})`,
+    `## ${r.point.name || 'punto'} (frames ${(r.idxs || []).join(',')})`,
     '',
     `- Esperado: ${r.point.expect || '(no declarado)'}`,
     `- Veredicto: **${r.ok ? 'MATCH' : 'MISMATCH'}**`,
