@@ -58,7 +58,13 @@ BUILD_SCRIPT="$ROOT/tools/build/build-demo.sh"
 "$BUILD_SCRIPT" "$TARGET" --debug --clean
 
 TARGET_NAME="$(basename "$TARGET")"
-SOURCE_OUT="$ROOT/out/demos/$TARGET_NAME"
+# Id de build (features por ruta, resto por leaf), igual que build-demo.sh.
+TARGET_REL="${TARGET#demos/}"; TARGET_REL="${TARGET_REL#tests/}"
+case "$TARGET_REL" in
+	features/*) DEMO_ID="$(printf '%s' "${TARGET_REL#features/}" | tr '/' '_')" ;;
+	*) DEMO_ID="$TARGET_NAME" ;;
+esac
+SOURCE_OUT="$ROOT/out/demos/$DEMO_ID"
 CURRENT_OUT="$ROOT/out/debug-current"
 mkdir -p "$CURRENT_OUT"
 # Build por configuraciones: --debug = -O1 se publica en .../A500_debug/.
