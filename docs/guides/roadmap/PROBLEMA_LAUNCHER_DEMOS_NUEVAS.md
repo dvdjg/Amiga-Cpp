@@ -10,7 +10,7 @@ compilan con `m68k-amiga-elf-gcc 15.1.0` (toolchain bebbo) a un ELF y se convier
 ## El problema (síntoma)
 Una demo **nueva** (`demos/techniques/amiga/playfield/201_ehb_map`) compila perfectamente, pero al lanzarla con el
 runner la pantalla queda en el **escritorio/CLI de AmigaDOS 1.3** (no se ejecuta el exe).
-Demos **existentes** (`demos/techniques/amiga/setup/000_toolchain_cpp23`, `demos/amiga/102_tile_scroll_dualpf`) SÍ
+Demos **existentes** (`demos/techniques/amiga/setup/000_toolchain_cpp23`, `demos/amiga/102_tile_scroll_dualpf (retirada)`) SÍ
 bootean con el mismo runner (el harness `tools/debug/verify-harness.mjs` pasa 3/3 en 102).
 
 ## Cómo reproducirlo

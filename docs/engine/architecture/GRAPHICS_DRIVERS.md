@@ -162,7 +162,7 @@ crucen el borde visible. El mismo template se instancia para:
 - dual playfield 2+3 y 3+3, con scroll fino/coarse independiente por playfield.
 
 `demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver` demuestra el modo single 6 (EHB) con una ruta
-circular; `demos/amiga/102_tile_scroll_dualpf` demuestra el dual 2+3 con un fondo que
+circular; `demos/amiga/102_tile_scroll_dualpf (retirada)` demuestra el dual 2+3 con un fondo que
 deriva a la derecha y un primer plano de tiles con el 50% de pixels transparentes
 que deriva a la izquierda y bobea. Cada frame se reconstruye la copperlist y los
 tiles offscreen aceptados por presupuesto se convierten en `TileBlockCopy` que el

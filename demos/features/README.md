@@ -23,7 +23,8 @@ El **id de build/out** de una feature deriva de la **ruta** (`features/ui/amiga/
 
 Un ✅ es una demo existente; `—` es pendiente. El objetivo es que cada feature tenga una variante
 por plataforma con **comportamiento equivalente** (misma secuencia de decisiones → mismo resultado
-lógico), que se probará con un contrato de equivalencia en host.
+lógico), que se prueba con un contrato de equivalencia en host: ver
+[`PARITY_CONTRACT.md`](PARITY_CONTRACT.md).
 
 ## Reglas de una feature
 

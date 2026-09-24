@@ -417,7 +417,7 @@ Scroll generico multi-modo (2026-08):
   `BPLCON1` por playfield y `DDFSTRT=$30` compartido.
 - `ehb_tile_scroll.hpp` quedo como shim de compatibilidad
   (`EhbTileScrollScene = TileScrollScene<TileScrollMode::ehb()>`).
-- `demos/amiga/102_tile_scroll_dualpf` demuestra dual 2+3: fondo 3 planos (PF1) con
+- `demos/amiga/102_tile_scroll_dualpf (retirada)` demuestra dual 2+3: fondo 3 planos (PF1) con
   glifos y primer plano 2 planos (PF2) con tramado del 50% transparente; cada
   playfield sigue un patron de movimiento distinto (fondo derecha, primer plano
   izquierda + bob vertical). Valida con `analyze-sequence.sh --warp`.

@@ -250,7 +250,7 @@ Se ha re-medido con el tooling actual y el resultado trazable (fecha + commit + 
 
 - **La cifra histórica de 103/104 era falsa** (~50 y ~47,6); la medición real los deja en ~33/~30 fps.
 - **No es de los refactors de normalización**: el A/B de la 103 (con y sin `MultiBuffered`/`DoubleBuffer`) da 33,50 vs 32,67.
-- **La fila de la 102 no es reproducible**: la demo `102_tile_scroll_dualpf` ya no existe en `demos/amiga/` (solo queda el artifact en `out/demos/`).
+- **La fila de la 102 no es reproducible**: la demo `102_tile_scroll_dualpf (retirada)` ya no existe en `demos/amiga/` (solo queda el artifact en `out/demos/`).
 - **Causa de que la cifra no cuadrara**: parte era no tener fecha/commit/config; y `measure-fps.mjs` medía contra el `dh1/a.exe` de un `run-demo` previo, que podía ser una build vieja distinta del `.map` → dirección de `g_eng_run_status` errónea y `detail=0x0`. La tool ahora **copia la build recién compilada a `dh1` antes de medir**, así que la fila es reproducible.
 - El `git bisect` histórico queda como curiosidad opcional, ya no bloquea: lo que importa es la tabla trazable y el protocolo nuevos.
 
