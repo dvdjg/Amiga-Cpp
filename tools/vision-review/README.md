@@ -190,3 +190,26 @@ Integración en la regresión: si la demo tiene `vision-points.json` y Ollama re
 `tools/test-regression.sh` añade la columna **Vision** (ok / skip / mismatch / fail).
 `--require-essential-ok` convierte un MISMATCH en fallo; `--skip-essential` lo desactiva.
 
+## Parpadeo / glitch (`flicker-check.mjs`)
+
+Analiza **frames consecutivos** para detectar parpadeo o glitches (bandas que destellan, tiles
+que saltan, bordes que aparecen/desaparecen) y produce un informe accionable:
+
+```bash
+node tools/vision-review/flicker-check.mjs --demo <ruta> [--frames 6] [--cells 16] [--top 4]
+```
+
+1. **Determinista**: rejilla de celdas; para cada celda mide la **oscilación temporal** de
+   luminancia (`media |L[f+1]-L[f]|`). Las celdas más inestables son candidatas (una zona que
+   debería ser estable y cambia cada frame es sospechosa).
+2. **Modelo de visión** (si Ollama está disponible): mira los frames consecutivos de la peor
+   zona (ventana donde más cambia) y describe el patrón.
+
+Informe: `out/vision-review/<demoId>/flicker-report.{json,md}` con la zona (`x,y,w,h`), su
+oscilación, la ventana de frames analizada y la descripción del modelo → **dónde mirar** para
+arreglar la demo (copper/blitter/punteros de planos) y, si el defecto es del engine, el engine.
+
+Integración: `tools/test-regression.sh --flicker` añade la columna **Flicker** (`reported`/`skip`;
+descriptiva, no falla). Es opt-in por el coste del modelo.
+
+

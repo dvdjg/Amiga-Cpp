@@ -9,7 +9,7 @@
 #       [--keep-going] [--warp] [--pixel-assert] [--require-pixel-assert-ok]
 #       [--pixel-assert-selftest] [--vision-review] [--require-vision-review-ok]
 #       [--vision-provider <ruta>] [--vision-send-mode multi-image|contact-sheet]
-#       [--require-essential-ok] [--skip-essential]   (frames esenciales con Ollama; ver abajo)
+#       [--require-essential-ok] [--skip-essential] [--flicker]   (vision Ollama: frames esenciales y parpadeo)
 #       [--build-all]                                      (barrido de compilacion de TODAS las demos)
 #       [--protect <target>,<block|set:0xVALUE>,<size>]   (repetible; WinUAE-DBG v2.1)
 #       [--fps-gate] [--fps-warn-only] [--fps-threshold <n>]  (gate de fps, opt-in)
@@ -35,6 +35,7 @@ VISION_PROVIDER=""
 VISION_SEND_MODE="multi-image"
 REQUIRE_ESSENTIAL_OK=0
 SKIP_ESSENTIAL=0
+FLICKER=0
 PROTECTS=()
 FPS_GATE=0
 FPS_WARN_ONLY=0
@@ -64,6 +65,7 @@ while [ "$#" -gt 0 ]; do
 		--vision-send-mode) next_arg "$1" "$2"; VISION_SEND_MODE="$2"; shift 2 ;;
 		--require-essential-ok) REQUIRE_ESSENTIAL_OK=1; shift ;;
 		--skip-essential) SKIP_ESSENTIAL=1; shift ;;
+		--flicker) FLICKER=1; shift ;;
 		--protect) next_arg "$1" "$2"; PROTECTS+=("$2"); shift 2 ;;
 		--fps-gate) FPS_GATE=1; shift ;;
 		--fps-warn-only) FPS_GATE=1; FPS_WARN_ONLY=1; shift ;;
@@ -76,6 +78,7 @@ BUILD="$ROOT/tools/build/build-demo.sh"
 RUN="$ROOT/tools/run/run-demo.sh"
 ANALYZE="$ROOT/tools/analyze/analyze-demo.sh"
 ESSENTIAL="$ROOT/tools/vision-review/essential-frames.mjs"
+FLICKER_TOOL="$ROOT/tools/vision-review/flicker-check.mjs"
 PIXEL_SELFTEST="$ROOT/tools/analyze/verify-pixel-assert.sh"
 TYPE_CHECK="$ROOT/tools/check/type-tagging.mjs"
 ENCODING_CHECK="$ROOT/tools/check/encoding.mjs"
@@ -265,8 +268,8 @@ MD="$REPORT_DIR/regression-report.md"
 {
 	echo "# Regression $TIMESTAMP"
 	echo ""
-	echo "| Demo | Build | Run | Analyze | Sequence | PixelAssert | Vision | Notes |"
-	echo "|---|---:|---:|---:|---:|---:|---:|---|"
+	echo "| Demo | Build | Run | Analyze | Sequence | PixelAssert | Vision | Flicker | Notes |"
+	echo "|---|---:|---:|---:|---:|---:|---:|---:|---|"
 } >"$MD"
 
 JSON_RESULTS="[]"
@@ -276,7 +279,7 @@ for demo_path in "${DEMO_DIRS[@]}"; do
 	demo_name="$(basename "$demo_path")"
 	# build/run/analyze esperan rutas relativas a ROOT (demos/<nombre>/).
 	relative_demo="${demo_path#"$ROOT"/}"
-	build="pending"; run="skipped"; analyze="pending"; sequence="none"; pixel_assert="none"; essential="none"; notes=""
+	build="pending"; run="skipped"; analyze="pending"; sequence="none"; pixel_assert="none"; essential="none"; flicker="none"; notes=""
 
 	echo "== ${demo_name}: build =="
 	build_args=("$BUILD" "$relative_demo")
@@ -371,8 +374,14 @@ for demo_path in "${DEMO_DIRS[@]}"; do
 		esac
 	fi
 
+	# Parpadeo/glitch (opt-in `--flicker`): zonas con oscilación temporal + descripción del modelo.
+	if [ "$FLICKER" -eq 1 ] && [ "$SKIP_RUN" -eq 0 ] && command -v node >/dev/null 2>&1; then
+		echo "== ${demo_name}: flicker =="
+		if node "$FLICKER_TOOL" --demo "$relative_demo"; then flicker="reported"; else flicker="skip"; fi
+	fi
+
 	{
-		echo "| $demo_name | $build | $run | $analyze | $sequence | $pixel_assert | $essential | $notes |"
+		echo "| $demo_name | $build | $run | $analyze | $sequence | $pixel_assert | $essential | $flicker | $notes |"
 	} >>"$MD"
 
 	if [ "$build" != "ok" ] || { [ "$run" != "ok" ] && [ "$run" != "skipped" ]; } || \
