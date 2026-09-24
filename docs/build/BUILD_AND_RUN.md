@@ -98,7 +98,10 @@ El runner:
 - resuelve el emulador en este orden: `WINUAE_GDB_DIR` → **nuestro** `../WinUAE-DBG/bin` (el fork
   con canal lateral y parches GDB) → la extension `bartmanabyss.amiga-debug-*` (su WinUAE stock).
   Asi **actualizar la extension no nos cambia el emulador** por el stock de Bartman (la extension
-  sigue usandose para `bin/dh0` y la config);
+  sigue usandose para `bin/dh0` y la config). **El emulador se lanza con `cwd` = su propio `bin/`**:
+  en `-portable` lee de ahi su `winuae.ini`, y cambiar ese `cwd` (p. ej. con `WINUAE_CWD` a un dir de
+  scratch) le da otra configuracion y **rompe las demos** (medido). Efecto colateral: el conector
+  escribe su `default.uae` en ese `bin/` (inocuo: el runner pasa `-f <config>`);
 - lanza `winuae-gdb.exe`;
 - conecta al servidor GDB de WinUAE-DBG;
 - continua la ejecucion tras el `debugging_trigger`;
