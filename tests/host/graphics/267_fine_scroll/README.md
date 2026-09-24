@@ -1,7 +1,7 @@
 # HOST-267 — Scroll horizontal fino (`effects::FineScroll`)
 
 Valida `eng::effects::FineScroll` (`eng/api/effects.hpp`), el helper reusable de **scroll fino
-de 1 px/frame** promovido desde la demo 210 (`demos/amiga/210_copper_blitter`):
+de 1 px/frame** promovido desde la demo 210 (`demos/techniques/amiga/blitter/210_copper_blitter`):
 
 - **`attach`** rechaza configuración inválida (`plane == nullptr`, `rows == 0`, `visible_words == 0`)
   y fija la columna inicial en `visible_words`.
@@ -27,4 +27,4 @@ CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/graphics/267_fine_
 ```
 
 Referencias: `docs/reference/amiga/techniques/README.md` (scroll fino `BPLCON1`/`DDFSTRT`),
-`demos/amiga/210_copper_blitter/README.md`.
+`demos/techniques/amiga/blitter/210_copper_blitter/README.md`.

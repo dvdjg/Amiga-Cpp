@@ -33,14 +33,14 @@ buffers y copper está en `docs/engine/architecture/DISPLAY_COMPOSITION.md`.
 
 | # | Tarea | Fichero | Estado |
 |---|---|---|---|
-| 0.1 | Arreglar la rama no-ASM de la 080 (`m_scene[active]` sin declarar) | `demos/amiga/080_fire_rgb/src/main.cpp:361` | **hecho** (`418dc52`) |
+| 0.1 | Arreglar la rama no-ASM de la 080 (`m_scene[active]` sin declarar) | `demos/techniques/amiga/effects/080_fire_rgb/src/main.cpp:361` | **hecho** (`418dc52`) |
 | 0.2 | Corregir el comentario: `XlimitedDisplayComposer` **reemite** la lista completa, no parchea 13 words | `engine/include/eng/field/xlimited.hpp:1488-1491` | **hecho** |
 | 0.3 | Marcar `DoubleBufferedHiddenMargins` / `TileScrollStrategy::double_buffered` como **política no implementada** | `engine/include/eng/scene/virtual_scene.hpp:168,186` | **hecho** |
 | 0.4 | Test host de `DoubleBufferScrollPlayfield` (2 bitmaps, `flip()`, `hardware_view()` del delantero) | `tests/host/field/068_double_buffer_scroll` | **hecho** |
 | 0.5 | Test host de `TileScrollScene` (geometría de la lista + alternancia de los 2 bloques + 13 words parcheadas) | `tests/host/graphics/069_copper_double_buffer` | **hecho** |
 | 0.6 | Crear los documentos canónicos de F0: contrato (`DISPLAY_COMPOSITION.md`) y roadmap (este) + enlazarlos en los índices | `docs/engine/architecture/`, `docs/guides/roadmap/` | **hecho** |
 | 0.7 | Re-medir y corregir las cifras de fps de `BITACORA_SCROLL_TILES.md` (101/102/103/104) o indicar su contexto de medida; hoy 103 mide 32,7 y no 50 | `docs/guides/roadmap/BITACORA_SCROLL_TILES.md` | **hecho**: tabla trazable 2026-09-17 + `measure-fps` corregido (ver abajo) |
-| 0.8 | **Demo canónica rota**: 107 (corkscrew 8-way) **no alcanza READY**. Estado: la demo escribe su marcador previo a `scene.begin` (`detail=0x107ab`) y luego **muere antes de la primera instrucción de `XlimitedScene::begin`** (instrumentado el `begin` con marcas de paso en el engine: ninguna se ejecutó, ni con build limpio). PC clavado en ROM de Kickstart y marcador superviviente → **guru sin reboot**. A/B con y sin F1.3 → pre-existente. Hipótesis: fallo en la **entrada/llamada** (desbordamiento del marco de pila o arena corrupta antes), no en el cuerpo de `begin`. Requiere sesión GDB (breakpoint en la entrada + volcado de pila); la instrumentación temporal ya se retiró | `demos/amiga/107_xlimited_corkscrew`, `engine/include/eng/field/xlimited_scene.hpp` | **localizado, pendiente (no es de un turno)**. Re-confirmado 2026-09: compila y **sigue sin alcanzar READY** (timeout por canal lateral). Plan: sesión GDB dedicada (breakpoint en la entrada de `begin` + volcado de pila) |
+| 0.8 | **Demo canónica rota**: 107 (corkscrew 8-way) **no alcanza READY**. Estado: la demo escribe su marcador previo a `scene.begin` (`detail=0x107ab`) y luego **muere antes de la primera instrucción de `XlimitedScene::begin`** (instrumentado el `begin` con marcas de paso en el engine: ninguna se ejecutó, ni con build limpio). PC clavado en ROM de Kickstart y marcador superviviente → **guru sin reboot**. A/B con y sin F1.3 → pre-existente. Hipótesis: fallo en la **entrada/llamada** (desbordamiento del marco de pila o arena corrupta antes), no en el cuerpo de `begin`. Requiere sesión GDB (breakpoint en la entrada + volcado de pila); la instrumentación temporal ya se retiró | `demos/techniques/amiga/playfield/107_xlimited_corkscrew`, `engine/include/eng/field/xlimited_scene.hpp` | **localizado, pendiente (no es de un turno)**. Re-confirmado 2026-09: compila y **sigue sin alcanzar READY** (timeout por canal lateral). Plan: sesión GDB dedicada (breakpoint en la entrada de `begin` + volcado de pila) |
 | 0.9 | **Triaje runtime de demos**: barrido de salud con `tools/analyze/sweep-demo-health.sh` → **53 OK, 0 FAILED, 3 TIMEOUT (070, 071, 107), 4 NOEXE (assets sin construir: 072/073/074/076)**. El build da 0 FAIL; las "rotas" son runtime y son 3, no "muchas" | todas | **hecho** |
 
 Gate: suite host + encoding. Sin cambios de comportamiento, así que no exige regresión de demos.
@@ -66,7 +66,7 @@ master** (ver 0.8).
 
 | # | Tarea | Fichero | Estado |
 |---|---|---|---|
-| 2.1 | Migrar `082_plasma` y `083_fbm_noise` (hoy 2 instancias + `m_active` manual) | `demos/amiga/082_plasma`, `083_fbm_noise` | **hecho** |
+| 2.1 | Migrar `082_plasma` y `083_fbm_noise` (hoy 2 instancias + `m_active` manual) | `demos/techniques/amiga/effects/082_plasma`, `083_fbm_noise` | **hecho** |
 | 2.2 | Exponer **N por configuración** (`-DK_<DEMO>_BUFFERS=1\|2\|3`) y documentar «con y sin doble/triple buffer» | `demos/amiga/061…`, `080…`, `082…`, `083…` | **hecho** |
 | 2.3 | Evaluar `079` (anillo de 5, rastro temporal) y `116` (triple buffer real): ¿encajan como `MultiBuffered<Driver,N>` o son otro caso? | `demos/amiga/079…`, `116…` | **decidido** (ver abajo) |
 
@@ -99,7 +99,7 @@ compilan y **082 con N=1 arranca** (`A500_k_082_buffers1_debug`).
 | # | Tarea | Fichero | Estado |
 |---|---|---|---|
 | 3.1 | `DoubleBufferScrollPlayfield` pasa a **superficie ligada a slots** (conserva cámaras/mapper/`hardware_view`; deja de poseer `Bitmap[2]`) | `engine/include/eng/field/double_buffer_playfield.hpp:100` | **hecho**: `bind(cfg, gfx::Bitmap&, gfx::Bitmap&)` liga los dos bitmaps del display con `eng::Ref` (no posee memoria); `buffer_bytes`/`row_bytes`/`flip`/`hardware_view` igual. Gate: **HOST-068** |
-| 3.2 | Migrar la demo `122` al nuevo contrato | `demos/amiga/122_doublebuffer_scroll` | **hecho**: la demo reserva los dos bitmaps y `bind`; **READY** + mapa correcto |
+| 3.2 | Migrar la demo `122` al nuevo contrato | `demos/techniques/amiga/playfield/122_doublebuffer_scroll` | **hecho**: la demo reserva los dos bitmaps y `bind`; **READY** + mapa correcto |
 | 3.3 | Decidir el destino de `FlatScrollPlayfield`/`MirrorScrollPlayfield` (misma regla: no poseer memoria) | `engine/include/eng/field/{flat,mirror}_playfield.hpp` | **decidido**: misma regla que el resto — **superficies sin memoria**; la memoria la posee la escena/el display. El refactor va con 3.1/3.2 |
 | 3.4 | `PlaneView`/`SoftDpfComposition`: documentar que es flip **de un plano** (excepción deliberada) | `plane_view.hpp:43-65`, `soft_dpf.hpp` | **hecho**: `DISPLAY_COMPOSITION.md` §6 lo documenta como excepción deliberada («`PlaneView`/`SoftDpfComposition` hacen flip de un plano dentro del buffer que les da el display») |
 
@@ -114,7 +114,7 @@ Gate: demo `122` + gate visual/secuencia; host `038/039`.
 | 4.3 | Portar como **tracks** los casos que hoy emiten copper a mano: empezar por `055_copper_rainbow` | demo `055` | **hecho** (055 usa ya el plan y gana doble buffer de copperlist) |
 | 4.4 | Test host del `CopperPlan` (orden por línea, patch vs reemisión, handles válidos, presupuesto) | `tests/host/graphics/070_copper_plan` | **hecho** |
 | 4.5 | **Topología de display conocida por el plan**: declarar zonas (rango de líneas + ventana de contenido) para que un efecto exprese su necesidad en coordenadas de contenido y el plan la traduzca a raster — el caso XYlimited, que reparte la pantalla en campos/splits, debe ser transparente para los efectos | `engine/include/eng/graphics/copper/plan.hpp`, `xlimited*` | pendiente |
-| 4.6 | **Gradiente por línea**: hoy el `Plan` ya lo soporta (capacidad 320 + sort O(n)), pero en la 085 el cielo con 256 intenciones dispara el frame a **14 campos** y el BOB por Blitter a **3** (update ~65k, bucle ~425k). Medido en la **086** con el perfil por secciones (`tools/debug/profile.mjs`): 8 BOBs + cielo por línea = **9,01 campos**, de los cuales **`build_frame` (el Plan) = 1.078.660 ciclos/frame (84 %)**, `actor_emit` = 139.772 (10,9 %), blits = 44.001 (3,4 %) y la espera de VBlank + `render` = **16.485 (1,3 %)**. ⇒ No es espera: es **CPU propio del `Plan`**, ~3.7k ciclos por intención con código O(1) en toda la ruta (`add`/`sort_by_top`/`sort_priority_within_lines`/`emit_copper_intents`/`write_pair`). Siguiente: partir `build_frame` en subsecciones (cielo / intenciones de objeto / `materialize`) para localizar el coste | `demos/amiga/085…`, `demos/amiga/086_bob_objects` | pendiente (sesión de perfil dedicada; el plan es instrumentar `build_frame` por subsecciones con `tools/debug/profile.mjs`) |
+| 4.6 | **Gradiente por línea**: hoy el `Plan` ya lo soporta (capacidad 320 + sort O(n)), pero en la 085 el cielo con 256 intenciones dispara el frame a **14 campos** y el BOB por Blitter a **3** (update ~65k, bucle ~425k). Medido en la **086** con el perfil por secciones (`tools/debug/profile.mjs`): 8 BOBs + cielo por línea = **9,01 campos**, de los cuales **`build_frame` (el Plan) = 1.078.660 ciclos/frame (84 %)**, `actor_emit` = 139.772 (10,9 %), blits = 44.001 (3,4 %) y la espera de VBlank + `render` = **16.485 (1,3 %)**. ⇒ No es espera: es **CPU propio del `Plan`**, ~3.7k ciclos por intención con código O(1) en toda la ruta (`add`/`sort_by_top`/`sort_priority_within_lines`/`emit_copper_intents`/`write_pair`). Siguiente: partir `build_frame` en subsecciones (cielo / intenciones de objeto / `materialize`) para localizar el coste | `demos/amiga/085…`, `demos/techniques/amiga/blitter/086_bob_objects` | pendiente (sesión de perfil dedicada; el plan es instrumentar `build_frame` por subsecciones con `tools/debug/profile.mjs`) |
 
 **Resultado de F4.1/F4.3/F4.4**: `eng::copper::Plan` implementado
 (`begin`/`begin_frame`/`scheduler`/`add`/`materialize`/`end_frame`/`commit`/`takeover`),
@@ -239,7 +239,7 @@ de sprite, en `docs/engine/architecture/VISUAL_EFFECT_SPRITE_DESIGN.md`.
 | Doc↔código (13 words vs reemisión) | `xlimited.hpp:1488-1491` | F0 |
 | Referencia con deriva de línea | `debug-demo-arranque-doble-texto-banda.md:189` | F0 |
 | Cifras de fps sin contexto de medida | `docs/guides/roadmap/BITACORA_SCROLL_TILES.md` (nota de rendimiento del scroll) | **resuelto** (F0.7): tabla trazable (fecha, commit, `CONFIG_ID`, `detail`) y `measure-fps` copia la build recién compilada a `dh1` antes de medir |
-| Demo canónica **rota**: 107 (corkscrew) no alcanza READY (A/B confirma que no es de F1.3) | `demos/amiga/107_xlimited_corkscrew` | F0 |
+| Demo canónica **rota**: 107 (corkscrew) no alcanza READY (A/B confirma que no es de F1.3) | `demos/techniques/amiga/playfield/107_xlimited_corkscrew` | F0 |
 | Supervisión de copper por escena inexistente | — (nace en F4) | F4 |
 | NO VERIFICADAS sin consumidor | `PolygonFillSink` (`platform/amiga/polygon_fill.hpp:14`, `field/playfield.hpp:87`), `CameraQ16` (`field/tile_demo.hpp:16`) | F0/F5 |
 | Tests host que solapan demos (o al revés) | `038/039` vs `112`; `067` vs `061/080`; `044` vs `120`; `061` vs `120/121/122` | transversal |
@@ -250,7 +250,7 @@ Se ha re-medido con el tooling actual y el resultado trazable (fecha + commit + 
 
 - **La cifra histórica de 103/104 era falsa** (~50 y ~47,6); la medición real los deja en ~33/~30 fps.
 - **No es de los refactors de normalización**: el A/B de la 103 (con y sin `MultiBuffered`/`DoubleBuffer`) da 33,50 vs 32,67.
-- **La fila de la 102 no es reproducible**: la demo `102_tile_scroll_dualpf` ya no existe en `demos/amiga/` (solo queda el artifact en `out/demos/`).
+- **La fila de la 102 no es reproducible**: la demo `102_tile_scroll_dualpf (retirada)` ya no existe en `demos/amiga/` (solo queda el artifact en `out/demos/`).
 - **Causa de que la cifra no cuadrara**: parte era no tener fecha/commit/config; y `measure-fps.mjs` medía contra el `dh1/a.exe` de un `run-demo` previo, que podía ser una build vieja distinta del `.map` → dirección de `g_eng_run_status` errónea y `detail=0x0`. La tool ahora **copia la build recién compilada a `dh1` antes de medir**, así que la fila es reproducible.
 - El `git bisect` histórico queda como curiosidad opcional, ya no bloquea: lo que importa es la tabla trazable y el protocolo nuevos.
 

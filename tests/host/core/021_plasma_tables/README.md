@@ -5,7 +5,7 @@ colores, idénticas al original.
 
 ## Qué cubre
 
-- **`tab1/2/3`** (`demos/amiga/082_plasma/src/data/plasma_tables.hpp`): `fx4i(3·47/31/37) ·
+- **`tab1/2/3`** (`demos/techniques/amiga/effects/082_plasma/src/data/plasma_tables.hpp`): `fx4i(3·47/31/37) ·
   SIN/COS(i·32) >> 16` **verbatim** (con la sintab exacta y el `>>16` aritmético). Checksums
   `-425422980 / -1961918596 / 753422204` y valor concreto `tab[64]`.
 - **Paleta** (`plasma_colors.hpp`): 256 × RGB12 extraídos del original

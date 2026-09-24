@@ -86,5 +86,5 @@ podría adelantar cómputo.
 - `amiga-bootcamp/17_demoscene/timing_optimization.md` (§Technique 2, §Antipatterns)
 - [copper-timing-and-budget.md](copper-timing-and-budget.md) — presupuesto, contención y lo medido
 - `engine/src/platform/amiga/amiga_internal.hpp` (`wait_blitter`, servicio)
-- `demos/amiga/081_background_tasks/` — servicio de fondo durante la espera
+- `demos/techniques/amiga/os/081_background_tasks/` — servicio de fondo durante la espera
 - AHRM 3.ª, capítulo del Blitter (`BLTPRI`, `DMACONR`)

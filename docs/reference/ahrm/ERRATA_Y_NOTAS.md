@@ -65,7 +65,7 @@ rearmado **después del fetch DMA** (`DDFSTRT`) y antes de la primera columna.
 
 **Origen**: WinUAE-DBG `custom.cpp:10055-10120` (`generate_sprites`), `custom.cpp:12012-12023`
 (fetch e incremento de `s->pt`), `custom.cpp:4018-4083` (`sprstartstop`/`SPRxCTL`). Detalle:
-`docs/reference/emulators/winuae/sprite-dma.md`; validado en `demos/amiga/207_sprite_layer` (sin
+`docs/reference/emulators/winuae/sprite-dma.md`; validado en `demos/techniques/amiga/sprites/207_sprite_layer` (sin
 fantasma y con la DATA del Copper visible).
 
 ## 6. Disquete: el control va por CIA-B **PRB** (`$BFD100`), no PRA

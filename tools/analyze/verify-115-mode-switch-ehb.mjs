@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { PNG } = require('pngjs');
 
-/// Verifica el microtest MI09 EHB (`demos/amiga/115_mode_switch_ehb_hud`): campo
+/// Verifica el microtest MI09 EHB (`demos/techniques/amiga/playfield/115_mode_switch_ehb_hud`): campo
 /// EHB (6 planos) arriba + HUD de 4 planos SIN EHB (BPLCON4=0 por zona) abajo. Es
 /// el uso real de 201. La franja del HUD debe mostrar 2^4 = 16 colores (sin
 /// half-brite), y el campo > 32 (EHB).

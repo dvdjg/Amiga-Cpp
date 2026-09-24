@@ -1,6 +1,6 @@
 # Lecciones: cómo se hace una demo y cómo se depura
 
-Notas de método del trabajo sobre la 086 (`demos/amiga/086_bob_objects`) y la 054. No es un
+Notas de método del trabajo sobre la 086 (`demos/techniques/amiga/blitter/086_bob_objects`) y la 054. No es un
 documento de arquitectura: es lo que hay que hacer y lo que no, con el porqué y las cifras reales.
 
 ## 1. Cómo se hace una demo

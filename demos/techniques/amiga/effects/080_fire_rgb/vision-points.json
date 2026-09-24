@@ -1,0 +1,15 @@
+{
+  "#": "Puntos de verificación visual de 080 (fuego HAM6 + C2P). Selectores: sin indice fijo.",
+  "points": [
+    {
+      "name": "fuego animado (HAM6)",
+      "last": true,
+      "expect": "Efecto de fuego a color (HAM6) ocupando la pantalla; el fuego evoluciona de forma continua, sin bandas negras ni parpadeo del resto."
+    },
+    {
+      "name": "mayor cambio entre frames",
+      "max_diff": true,
+      "expect": "El mayor cambio entre frames es la evolucion del fuego (no un glitch ni una zona que destella)."
+    }
+  ]
+}

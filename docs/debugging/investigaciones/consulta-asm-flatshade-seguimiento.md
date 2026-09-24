@@ -181,6 +181,6 @@ siguiente). El display es 256×256×4 con copperlist.
    estado del Blitter/copper inconsistente por timing (p. ej. por ser más rápido/lento que
    la versión C++ y cambiar cuándo se lanza el pre-clear del siguiente frame)?
 
-Repro: `bash ./tools/build/build-demo.sh demos/amiga/116_flatshade_convex --debug --clean`
-y `bash ./tools/run/run-demo.sh demos/amiga/116_flatshade_convex` con
+Repro: `bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/116_flatshade_convex --debug --clean`
+y `bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/116_flatshade_convex` con
 `-DK_FLATSHADE_ASM=1`.

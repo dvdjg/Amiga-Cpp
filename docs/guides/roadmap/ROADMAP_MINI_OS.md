@@ -308,12 +308,10 @@ UI (`eng::ui`).
 - **M7 — demo `214_floppy_raw`: RESUELTO.** La lectura cruda de la pista es **determinista**
   (20/20 y 5/5 `READY` en tandas seguidas; la regresion vio ademas un **cierre del emulador**,
   `ECONNRESET` exit 1, de forma intermitente — no del codigo). Las dos claves estaban en la ficha
-  del emulador
-  (`docs/reference/emulators/winuae/trackdisk.md` §5.1, escrita del fuente de WinUAE):
+  del emulador (`docs/reference/emulators/winuae/trackdisk.md` §5.1, escrita del fuente de WinUAE):
   1. **Escribir `DSKLEN=0` antes de rearmar** (deja `prevlen` sin DMAEN y `dskdmaen=OFF`; la
      primera escritura de `0x8000|len` carga y la segunda dispara). Quitarlo (razonando sobre
-     `disk.cpp:4887`) fue el bug que provocaba "pocas syncs": la eliminacion era el problema, no el
-     `DSKLEN=0`.
+     `disk.cpp:4887`) fue el bug que provocaba "pocas syncs".
   2. **Alinear por el pulso INDEX** (FLG del ICR de CIA-B, `$BFDD00` bit 4; WinUAE lo emula en
      `cia_diskindex()` -> `CIA_sync_interrupt(1, ICR_FLAG)`): la DMA arranca en el primer `$4489`,
      asi que sin referencia la fase rotacional es aleatoria. `floppy_read_track` habilita el FLG y
@@ -321,7 +319,7 @@ UI (`eng::ui`).
   Con eso, la lectura de **dos vueltas** (`kMfmReadWords`) captura la pista completa y los sectores
   0/1 (el sector de arranque queda partido en la primera vuelta). El `detail` de fallo, si lo
   hubiera, es la mascara de sectores 0..10 presentes (diagnostico). La regresion le pasa el ADF y
-  timeout amplio via `demos/amiga/214_floppy_raw/run.args`.
+  timeout amplio via `demos/techniques/amiga/io/214_floppy_raw/run.args`.
 - **M8/A5 — reproducir por Paula desde RAM: RESUELTO.** La demo 272 **alcanza `READY`** con
   `detail=0x2c002c` (`irq == swaps`, **0 underruns**): el fallo eran los *underruns* por el feeder
   CPU-bound (sintetizaba+codificaba en cada frame), no la IRQ. Arreglo: pre-sintetizar/pre-codificar

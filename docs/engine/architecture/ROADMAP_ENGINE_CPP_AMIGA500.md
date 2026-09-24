@@ -96,10 +96,10 @@ docs/
 Cada demo debe poder compilarse y ejecutarse con un comando unico, por ejemplo:
 
 ```powershell
-.\tools\build\build-demo.ps1 demos\amiga\030_ehb_palette_zones
-.\tools\run\run-demo.ps1 demos\amiga\030_ehb_palette_zones
-.\tools\capture\capture-demo.ps1 demos\amiga\030_ehb_palette_zones
-.\tools\analyze\analyze-demo.ps1 demos\amiga\030_ehb_palette_zones
+.\tools\build\build-demo.ps1 demos\techniques\amiga\copper\030_ehb_palette_zones
+.\tools\run\run-demo.ps1 demos\techniques\amiga\copper\030_ehb_palette_zones
+.\tools\capture\capture-demo.ps1 demos\techniques\amiga\copper\030_ehb_palette_zones
+.\tools\analyze\analyze-demo.ps1 demos\techniques\amiga\copper\030_ehb_palette_zones
 ```
 
 La IA no debe dar una fase por terminada si no ha comprobado:

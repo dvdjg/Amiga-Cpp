@@ -2,7 +2,7 @@
 
 Test host de `eng/board/rules/chess/pgn.hpp` y
 `eng/board/rules/chess/opening_book.hpp`, las dos piezas que comparten la demo
-`demos/amiga/123_chess_match` y la simulación host `tools/board/selfplay.cpp`.
+`demos/features/board/chess/amiga/123_chess_match` y la simulación host `tools/board/selfplay.cpp`.
 
 ## Qué enseña / comprueba
 

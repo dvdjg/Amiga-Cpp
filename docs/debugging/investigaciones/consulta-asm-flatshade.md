@@ -473,6 +473,6 @@ runtime vía el `.map`/magic ENG; volcar los nodos y diferenciar ambas rutas.
    (el ASM no los toca, pero el render sí); (d) que el dump se lea en un frame distinto
    al renderizado. Se agradece una **secuencia de pasos reproducibles** para localizarlo.
 
-**Archivos**: `support/flatshade_asm.s` (ASM), `demos/amiga/116_flatshade_convex/src/main.cpp`
+**Archivos**: `support/flatshade_asm.s` (ASM), `demos/techniques/amiga/effects/116_flatshade_convex/src/main.cpp`
 (C++ canónico + llamadas), `engine/include/eng/platform/amiga/object3d.hpp` (layouts). El build
 `--debug` emite además el `.s` de GCC para comparar codegen.

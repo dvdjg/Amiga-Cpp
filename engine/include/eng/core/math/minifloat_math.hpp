@@ -45,7 +45,7 @@
 /// asignación dinámica. Depende de `eng/core/math/minifloat.hpp` y de `eng/core/math/arith.hpp`
 /// (para forzar `muls.w` en el núcleo Q1.14).
 ///
-/// **Estado de verificación: verificada por demo** — `demos/amiga/084_mf_rotation`
+/// **Estado de verificación: verificada por demo** — `demos/techniques/amiga/3d/084_mf_rotation`
 /// construye una rotación 3D con `sin`/`cos` de `MiniFloat16` y un self-test en hardware
 /// de `sin(π/2)`, `exp(0)` y `sqrt(4)` (build/run/analyze OK). Ampliada por el test host
 /// `tests/host/core/057_minifloat16_math`.

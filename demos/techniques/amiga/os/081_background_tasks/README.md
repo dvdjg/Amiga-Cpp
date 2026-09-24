@@ -1,0 +1,59 @@
+# Demo 081 — Tareas de fondo cooperativas
+
+Demuestra `eng::task::BackgroundQueue` (`engine/include/eng/task/background.hpp`, test
+HOST-017) en el **modo interrupt-driven**: la **IRQ de VBlank** corre el **juego**
+(update/render, con *deadline* de 1 frame) y el **bucle principal** ejecuta el trabajo
+de **fondo** cooperativo, que la IRQ preempta.
+
+## Qué se ve
+
+- **Fondo (azul, COLOR00)**: lo pulsa el **juego** (en la IRQ de VBlank) por CPU cada frame
+  (la copperlist no toca COLOR00) → prueba viva de que el latido del juego va a 50 fps.
+- **Barra blanca (COLOR01)**: la rellena la **tarea de fondo** fila a fila en una banda
+  central, desde el bucle principal. Su longitud es el progreso (`progress().permille`).
+  Al completarse se reinicia (ciclo).
+- **Línea amarilla (COLOR02)**: la dibuja el **juego** (en la IRQ) por Blitter
+  (`blitter_clear` + `blitter_line`). Sus esperas de Blitter (`wait_blitter`) son otro punto
+  donde se drena el fondo (`AmigaBackend::set_blitter_service`).
+
+## Invariantes / diseño
+
+- Display 4 planos 320×256 con `scene::compose` (sin repetición de filas).
+- **Modo interrupt-driven** (`Engine::run_frames`, el **por defecto**): el tick del juego
+  (update+render) corre en la IRQ de VBlank (`support/vbl_irq.s` + `set_vblank_service`); el
+  bucle principal hace `while (frames < N) background.run_slice(...)`. La IRQ tiene prioridad
+  dura (preempta al fondo); cuando no hay más juego que hacer, vuelve (`RTE`) y el fondo sigue.
+- La tarea **se adapta al barrido del CRT**: si `vpos > 220`, procesa la mitad por rebanada.
+  El cupo por frame (`max_slices_per_frame`) acota cuánto fondo se hace por frame.
+- **Drenado por blit IRQ** (`AmigaBackend::set_blit_service`): la IRQ de blit (nivel 3,
+  mismo autovector que el VBlank → handler único que despacha por `INTREQR`) drena el fondo
+  mientras el juego espera a un blit.
+- **Motor de fondo por timer A de la CIA-A** (`background_timer_start`): timer **continuo**
+  (CRA `RUNMODE=0`), nivel 2, que avanza el fondo a su propio ritmo; con `latch = 0x2000`
+  corre a **~86 IRQ/s**.
+- **Reloj de tiempo real**: lee el **TOD** de la CIA-A (`cia_tod_ticks` +
+  `eng::time::from_tod`) y publica los segundos en `runStatus.detail` (bits bajos).
+- **Rendimiento de fondo medido**: un `eng::util::RingBuffer<u16, 16>` guarda las últimas
+  rebanadas (`last_slice_units`) y publica su media móvil en `runStatus.detail` (bits 16+),
+  como telemetría del throughput del fondo. Es la verificación por demo de `RingBuffer`
+  (`docs/engine/architecture/TEMPLATE_LIBRARY.md`).
+
+## Validación
+
+```
+bash ./tools/build/build-demo.sh demos/techniques/amiga/os/081_background_tasks --debug --clean
+bash ./tools/run/run-demo.sh demos/techniques/amiga/os/081_background_tasks --sequence-frames 6 --sequence-interval-ms 600
+bash ./tools/analyze/analyze-demo.sh demos/techniques/amiga/os/081_background_tasks
+```
+
+Evidencia: la fracción blanca (la barra) varía entre frames de la secuencia (progresa y se
+reinicia) y el color de fondo cambia (el juego sigue pulsando desde la IRQ); la captura
+tiene 4 colores (fondo, barra, **línea amarilla** por Blitter, borde). `runStatus.detail`
+lleva la media móvil del throughput del fondo (bits 16+, `RingBuffer`) y los segundos del
+RTC (bits bajos). Analizador propio (`analyze-screenshot.sh`).
+
+La config (`kSceneResources`) es `constexpr`: `static_assert` valida la escena contra
+`ocs_a500` y comprueba que `display_words`+`palette_words` caben en `copper_word_budget`
+(puerta de presupuesto en compilación, sin ejecutar la escena).
+
+Ver `docs/engine/architecture/BACKGROUND_TASKS.md`.

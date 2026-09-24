@@ -1,6 +1,6 @@
 # Ritmo de la IRQ de audio en el streaming (A5) — 272_audio_stream
 
-La demo `demos/amiga/272_audio_stream` reproduce PCM desde RAM con `PcmStream` y cambia de buffer
+La demo `demos/techniques/amiga/audio/272_audio_stream` reproduce PCM desde RAM con `PcmStream` y cambia de buffer
 en la **IRQ de audio (nivel 4)**. **RESUELTO y verificado en hardware**: con la melodia
 **pre-sintetizada y pre-codificada una sola vez** en `init`, la demo alcanza el frame de informe con
 `state=3` y `detail=0x2c002c` ⇒ **`irq == swaps` (0 underruns)**. La causa de los *underruns* no era

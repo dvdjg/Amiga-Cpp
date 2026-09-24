@@ -110,4 +110,4 @@ El buffer `chunky` se usa como **origen y destino** (la segunda mitad es el inte
 
 - Origen: `demoscene-repo-orig/effects/fire-rgb/fire-rgb.c` (`ChunkyToPlanar`).
 - Port ASM genérico: `support/c2p_1x1_4.s` (`demoscene-repo-orig/lib/libgfx/c2p_1x1_4.asm`).
-- Demo que lo valida: `demos/amiga/080_fire_rgb` (+ plan `docs/demos/effects/FIRE_RGB_PORT_PLAN.md`).
+- Demo que lo valida: `demos/techniques/amiga/effects/080_fire_rgb` (+ plan `docs/demos/effects/FIRE_RGB_PORT_PLAN.md`).

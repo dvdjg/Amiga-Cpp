@@ -28,7 +28,7 @@ La imagen ADF se construye con **`xdftool`** (paquete `amitools`, `python -m ami
 ## Montar la imagen en el runner
 
 ```bash
-bash ./tools/run/run-demo.sh demos/amiga/211_fs_test --disk out/fs/211_fs_test.adf
+bash ./tools/run/run-demo.sh demos/techniques/amiga/io/211_fs_test --disk out/fs/211_fs_test.adf
 ```
 
 `--disk <adf>` añade `floppy0=<adf>` al `runner.uae` (disquete en `DF0:`, lectura/escritura).

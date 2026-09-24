@@ -1,0 +1,15 @@
+{
+  "#": "Puntos de verificación visual de 077 (cubo math3d). Selectores: sin indice fijo.",
+  "points": [
+    {
+      "name": "cubo 3D rotando (EHB)",
+      "last": true,
+      "expect": "Cubo en alambre rotando sobre fondo EHB; el cubo es reconocible (aristas) y no se rompe ni parpadea."
+    },
+    {
+      "name": "mayor cambio entre frames",
+      "max_diff": true,
+      "expect": "El frame de mayor cambio es una rotacion coherente del cubo; sin saltos de geometria ni zonas negras."
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
 # selfplay.sh: compila y ejecuta partidas completas en host con la MISMA
-# configuracion que la demo demos/amiga/123_chess_match (estilos, libro,
+# configuracion que la demo demos/features/board/chess/amiga/123_chess_match (estilos, libro,
 # rebanadas y relojes), sin UI. Exporta cada partida a PGN.
 #
 # Uso: tools/board/selfplay.sh [games] [--variant standard|chess960] [--seed N]

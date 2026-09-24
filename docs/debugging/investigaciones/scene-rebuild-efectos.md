@@ -52,6 +52,6 @@ su coste con `SpriteLayer::words_estimate()`, en vez de llamar `emit_into(sched)
 
 ## Referencias
 
-- `demos/amiga/207_sprite_layer/` (versión validada).
+- `demos/techniques/amiga/sprites/207_sprite_layer/` (versión validada).
 - `docs/engine/architecture/EFFECT_MODEL.md` (§3-§6), `docs/reference/amiga/techniques/sprite-horizontal-multiplex.md`.
 - `engine/include/eng/graphics/composition/compose.hpp` (`Scene::tick`, `add_effect`), `copper/plan.hpp`.

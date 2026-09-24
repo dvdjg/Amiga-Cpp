@@ -8,15 +8,15 @@ compilan con `m68k-amiga-elf-gcc 15.1.0` (toolchain bebbo) a un ELF y se convier
 **WinUAE-DBG** con un **runner** Node (`tools/run/run-demo.ts`, compilado a `dist/`).
 
 ## El problema (síntoma)
-Una demo **nueva** (`demos/amiga/201_ehb_map`) compila perfectamente, pero al lanzarla con el
+Una demo **nueva** (`demos/techniques/amiga/playfield/201_ehb_map`) compila perfectamente, pero al lanzarla con el
 runner la pantalla queda en el **escritorio/CLI de AmigaDOS 1.3** (no se ejecuta el exe).
-Demos **existentes** (`demos/amiga/000_toolchain_cpp23`, `demos/amiga/102_tile_scroll_dualpf`) SÍ
+Demos **existentes** (`demos/techniques/amiga/setup/000_toolchain_cpp23`, `demos/amiga/102_tile_scroll_dualpf (retirada)`) SÍ
 bootean con el mismo runner (el harness `tools/debug/verify-harness.mjs` pasa 3/3 en 102).
 
 ## Cómo reproducirlo
-1. Compilar: `bash ./tools/build/build-demo.sh demos/amiga/201_ehb_map --debug --clean`
+1. Compilar: `bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/201_ehb_map --debug --clean`
    (debe poner `OK out/demos/201_ehb_map/A500_debug/201_ehb_map.A500_debug.exe`).
-2. Lanzar: `bash ./tools/run/run-demo.sh demos/amiga/201_ehb_map --reset-emulator
+2. Lanzar: `bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/201_ehb_map --reset-emulator
    --allow-timeout-fallback --sequence-frames 3 --sequence-interval-ms 250`
    (Windows + Git Bash + Node; `AMIGA_BIN_PATH=...\bin\win32`).
 3. Captura en `out/run/201_ehb_map/A500_debug/screenshot.png` → **AmigaDOS 1.3**.
@@ -76,7 +76,7 @@ Prioriza evidencia reproducida frente a hipótesis sin probar.
 
 Instrumentación del runner (`sideChannelFail`) confirmó que la CPU ejecuta `a.exe`,
 llega a `main()` y emite `mark_failed(g_eng_run_status, 0x00020102u)` en
-`demos/amiga/201_ehb_map/src/main.cpp:52`:
+`demos/techniques/amiga/playfield/201_ehb_map/src/main.cpp:52`:
 
 ```
 detail = 0x00020102 = m_planes.valid() || m_copper.valid()  → false
@@ -120,7 +120,7 @@ alineación:
 + const eng::u32 need = static_cast<eng::u32>(6u) * kPlaneBytes + 4096u + 16u;
 ```
 
-Archivo: `demos/amiga/201_ehb_map/src/main.cpp`, línea ~41.
+Archivo: `demos/techniques/amiga/playfield/201_ehb_map/src/main.cpp`, línea ~41.
 
 ### Fix preventivo para demos futuras
 
@@ -130,8 +130,8 @@ incluir `+16` de headroom en el `need`. La demo 102 ya tiene margen suficiente
 
 ### Verificación
 
-1. `bash ./tools/build/build-demo.sh demos/amiga/201_ehb_map --debug --clean`
-2. `bash ./tools/run/run-demo.sh demos/amiga/201_ehb_map --reset-emulator --allow-timeout-fallback`
+1. `bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/201_ehb_map --debug --clean`
+2. `bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/201_ehb_map --reset-emulator --allow-timeout-fallback`
 3. `out/run/201_ehb_map/A500_debug/screenshot.png` debe mostrar la demo
    (colores EHB, mapa), no AmigaDOS.
 4. `out/run/201_ehb_map/A500_debug/run-report.json`: `status: "ok"`,

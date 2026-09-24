@@ -11,7 +11,7 @@ pierda entre hilos.
   `TileFieldState`, `TilePendingStrip` (región 2D + cursor), `FieldHardwareView`,
   `BitmapFieldConfig`, `TileFieldController`.
 - `engine/include/eng/field/dpf_composer.hpp`: `DpfDisplayComposer`.
-- `demos/amiga/106_tile_field_showcase/`: demo ÚNICA parametrizable (dual 3+3 o
+- `demos/amiga/106_tile_field_showcase (retirada)/`: demo ÚNICA parametrizable (dual 3+3 o
   single 5 planos, tiles 16/32/48px). Sustituye a 106 y 107.
   ambos ejes, Lissajous de 2 pantallas, seno de alta resolución.
 
@@ -259,7 +259,7 @@ el tile ancho se dibuja completo.
 
 ## Migración de la demo 102 a la nueva API (HECHO)
 
-La 102 (`demos/amiga/102_tile_scroll_dualpf`) se migró de `TileScrollScene<Mode>` a la
+La 102 (`demos/amiga/102_tile_scroll_dualpf (retirada)`) se migró de `TileScrollScene<Mode>` a la
 nueva API: dos `TileFieldController` + `DpfDisplayComposer`.
 
 - Se mantuvo la identidad: modo dual 3+3, paleta, tiles de glifos hex con tile 63

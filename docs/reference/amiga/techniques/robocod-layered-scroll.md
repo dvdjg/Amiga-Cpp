@@ -236,7 +236,7 @@ blit del FG no pisa el BG por construcción). Es más simple de emitir pero usa 
 
 ## 8. Demo de referencia
 
-`demos/amiga/112_xlimited_robocod`: single playfield de **5 planos** (4 FG plataformas +
+`demos/techniques/amiga/playfield/112_xlimited_robocod`: single playfield de **5 planos** (4 FG plataformas +
 1 BG con bandas diagonales **FIJO** en pantalla), X `Finite` + corkscrew Y con **Copper split**,
 paleta 32→16 duplicada, copia de fondo con shift sub-píxel, guarda X y **compensación del split
 en dos rects** (§3.1). Campo visible **208** (límite §3.2). Verificación visual:

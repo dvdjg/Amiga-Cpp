@@ -16,8 +16,8 @@ import * as net from 'net';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
-import { repoRoot } from '../../../tools/lib/paths.js';
-import { readPng } from '../../../tools/lib/image.js';
+import { repoRoot } from '../../../../tools/lib/paths.js';
+import { readPng } from '../../../../tools/lib/image.js';
 const root = repoRoot(import.meta.url);
 function sleep(ms) {
   return new Promise<any>((resolve) => setTimeout(resolve, ms));

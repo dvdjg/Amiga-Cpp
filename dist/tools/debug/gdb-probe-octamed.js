@@ -122,7 +122,7 @@ function sideCommand(port, command, timeoutMs = 2500) {
         socket.on('error', (e) => { clearTimeout(timer); done = true; socket.destroy(); reject(e); });
     });
 }
-const demoName = path.basename(String(argValue('--demo', 'demos/amiga/274_octamed_probe')).replace(/\\/g, '/'));
+const demoName = path.basename(String(argValue('--demo', 'demos/techniques/amiga/audio/274_octamed_probe')).replace(/\\/g, '/'));
 const demoDir = path.join(root, 'out/demos', demoName);
 const forced = String(argValue('--config', ''));
 let cfg = forced, exe = '', map = '';

@@ -66,4 +66,4 @@ fiable en esta build.
 
 - Engine: `engine/src/platform/amiga/amiga_os.cpp` (`os_kbd_isr`, `enable_keyboard`).
 - Runner: `tools/run/run-demo.ts` (`--keys`, `--key-events`, `--key-scan`).
-- Demo: `demos/amiga/212_message_loop` (reporta `g_key_last_raw` y `g_eng_run_status`).
+- Demo: `demos/techniques/amiga/os/212_message_loop` (reporta `g_key_last_raw` y `g_eng_run_status`).

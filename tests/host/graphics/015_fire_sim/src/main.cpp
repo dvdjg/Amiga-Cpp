@@ -8,7 +8,7 @@ static constexpr int W = 80;
 static constexpr int H = 64;
 
 #include "dualtab.c" // static uint32_t dualtab[256]
-#include "../../../../../demos/amiga/080_fire_rgb/src/data/dualtab.hpp" // fire_rgb::kDualTab
+#include "../../../../../demos/techniques/amiga/effects/080_fire_rgb/src/data/dualtab.hpp" // fire_rgb::kDualTab
 
 alignas(4) static int16_t fire[W * H];
 alignas(4) static uint8_t chunky[20480];

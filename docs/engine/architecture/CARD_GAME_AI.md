@@ -88,7 +88,7 @@ materializa en un `CardPlan` (`core/budget.hpp`); ningún tamaño se fija con ma
 | `N256` | ~256 kB | 32 | 6 rivales | 256 acciones | rica |
 | `N512` | ~512 kB | 64 | 8 rivales | 512 acciones | completa |
 
-Las muestras están **calibradas en un A500 real** con `demos/amiga/124_cards_bench`
+Las muestras están **calibradas en un A500 real** con `demos/features/cards/amiga/124_cards_bench`
 (unidad = 1 mano + 1 muestra, cronometrada por TOD a 50 Hz): `N20` ≈ 30 unidades/s
 (33 ms), `N64` ≈ 1 unidad/s (641 ms), `N128` ≈ 2,75 s, `N256` ≈ 5,09 s y `N512` ≈ 44,6 s
 por unidad. `N20`/`N64` son los perfiles viables en un A500 base; `N128` y superiores
@@ -248,7 +248,7 @@ Notas:
 | `rules/seven_stud.hpp` (Seven-Card Stud: ante, bring-in, 5 calles) | **Implementado**: HOST-197 |
 | `rules/five_draw.hpp` + `evaluate_deuces_wild` (Draw / Deuces Wild) | **Implementado**: HOST-198 |
 | Herramienta host `tools/cards/selfplay.sh` | **Implementado y ejecutado** (torneos CPU vs CPU) |
-| Benchmark hardware `demos/amiga/124_cards_bench` | **Implementado y medido en A500**: `N20` ≈ 30 unidades/s, `N64` (8 muestras) ≈ 685 ms/unidad; `N128`+ no jugables. Muestras por perfil calibradas con esta tabla |
+| Benchmark hardware `demos/features/cards/amiga/124_cards_bench` | **Implementado y medido en A500**: `N20` ≈ 30 unidades/s, `N64` (8 muestras) ≈ 685 ms/unidad; `N128`+ no jugables. Muestras por perfil calibradas con esta tabla |
 | Juego `games/200_holdem` (UI, N20) | **Implementado y verificado**: build → run → analyze OK (READY y captura con contenido) |
 
 > Estado: núcleo, reglas (Hold'em, Omaha, Limit, Seven-Card Stud, Five-Card Draw), comodines

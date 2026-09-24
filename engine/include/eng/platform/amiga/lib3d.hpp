@@ -37,7 +37,7 @@
 ///   aritmética, no aquí.
 ///
 /// Ver `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` (§9) para la bitácora
-/// de estos hallazgos y `demos/amiga/116_flatshade_convex/README.md` para el port.
+/// de estos hallazgos y `demos/techniques/amiga/effects/116_flatshade_convex/README.md` para el port.
 ///
 /// **Por qué aquí no hay escalares nuevos.** El modelo (`object3d`) es layout crudo
 /// empaquetado y sus punteros se recorren por offset; la matemática que se le aplica es

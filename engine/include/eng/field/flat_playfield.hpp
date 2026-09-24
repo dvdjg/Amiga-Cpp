@@ -9,7 +9,7 @@
 /// Compone superficie (CanvasPlayfield, layout interleaved) + estrategia
 /// (BigBufferScroll) + vista (PlayfieldHardwareView) sin que la demo conozca
 /// registros, según `docs/engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md`.
-/// Verificada por la demo `demos/amiga/120_virtual_playfield`.
+/// Verificada por la demo `demos/techniques/amiga/playfield/120_virtual_playfield`.
 
 #include <eng/core/types/types.hpp>
 #include <eng/field/amiga_display_mapper.hpp>

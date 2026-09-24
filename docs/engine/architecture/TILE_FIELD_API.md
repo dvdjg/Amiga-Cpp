@@ -2,7 +2,7 @@
 
 > **RETIRADO (2026-09).** `field::TileFieldController` (modelo circular, "superficie
 > recentrable") y `DpfDisplayComposer` se **eliminaron** del engine, junto con las demos
-> `102_tile_scroll_dualpf` y `106_tile_field_showcase`. Su modelo de dos bandas de guarda +
+> `102_tile_scroll_dualpf (retirada)` y `106_tile_field_showcase (retirada)`. Su modelo de dos bandas de guarda +
 > recentrado **no puede funcionar**: al recentrar, todas las celdas físicas cambian de tile de
 > mundo y el contenido solo cuadraría si ya estuviera pintado el viewport futuro, que no cabe
 > en el margen (para `left+right == margen == size-viewport` la ventana no tiene recorrido). Ver
