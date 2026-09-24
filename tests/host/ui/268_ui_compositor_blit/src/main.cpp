@@ -127,6 +127,68 @@ int main() {
 		check(pixel_at(screen_mem, 4, 20) == 0u, "present_blit: escritorio intacto");
 	}
 
+	// --- origen con shift, destino alineado: blit con source_shift ---
+	// Backing de 32 px (row_bytes = 4) con dos mitades de palabra de color distinto
+	// (word 0 -> color 1, word 1 -> color 2). Al dañar una franja dentro de la ventana,
+	// el origen puede caer desplazado (`source_shift`); se compara con present() (CPU).
+	{
+		constexpr eng::u16 dRow = 4u;                 // bytes/fila de un plano (32 px)
+		constexpr eng::u32 dPlane = dRow * 16u;       // 64 bytes por plano
+		alignas(2) eng::u8 mem_d[dPlane * kPlanes] {};
+		eng::ui::CompWindow* d = comp.add();
+		check(d != nullptr && d->backing.bind(mem_d, sizeof(mem_d), 32u, 16u, kPlanes), "bind D");
+		d->frame = eng::ui::Rect {8, 16, 32u, 16u};
+		d->backing.surface.fill_rect(0, 0, 16u, 16u, 1u);
+		d->backing.surface.fill_rect(16, 0, 16u, 16u, 2u);
+
+		// Misma funcion de lectura que usa el compositor, con el row del backing.
+		auto dpx = [&](eng::s16 x, eng::s16 y) {
+			eng::u8 c = 0u;
+			for (eng::u8 p = 0u; p < kPlanes; ++p) {
+				const eng::u16* w = reinterpret_cast<const eng::u16*>(
+					mem_d + p * dPlane + static_cast<eng::u32>(y) * dRow +
+					static_cast<eng::u32>(x / 16) * 2u);
+				c = static_cast<eng::u8>(c |
+					(static_cast<eng::u8>((*w >> (15u - (x & 15))) & 1u) << p));
+			}
+			return c;
+		};
+		check(dpx(4, 5) == 1u && dpx(20, 5) == 2u, "D: patron por mitades de palabra");
+
+		// Franja I.x=8,w=16 (destino alineado, origen sx=0): ruta blit. La ventana D
+		// empieza en x=8, asi que I.x=8 -> sx=0; I.x=24 -> sx=16 (alineado); I.x=16 -> sx=8
+		// (shift). Se daña toda la fila de D donde toca.
+		for (eng::u32 i = 0u; i < kPlaneStride * kPlanes; ++i) {
+			screen_mem[i] = 0xabu;
+		}
+		eng::graphics::FramePlan plan3 {};
+		comp.damage_screen(eng::ui::Rect {8, 16, 16u, 16u});
+		comp.present_blit(plan3);
+		check(pixel_at(screen_mem, 12, 21) == 1u,
+		      "present_blit: franja x=8 (sx=0, destino alineado)");
+
+		// Franja I.x=16,w=16 (destino alineado) con origen sx=8: el blit debe desplazar
+		// el origen (sx=8 -> mitad de la palabra 0 del backing, color 1). x=24 cae en la
+		// palabra 1 del backing (color 2).
+		for (eng::u32 i = 0u; i < kPlaneStride * kPlanes; ++i) {
+			screen_mem[i] = 0xabu;
+		}
+		eng::graphics::FramePlan plan4 {};
+		comp.damage_screen(eng::ui::Rect {16, 16, 16u, 16u});
+		comp.present_blit(plan4);
+		check(pixel_at(screen_mem, 16, 21) == 1u && pixel_at(screen_mem, 24, 21) == 2u,
+		      "present_blit: franja x=16 con shift (sx=8)");
+
+		// Franja I.x=24 (no alineada) -> bucle de pixeles; sigue correcta (color 2).
+		for (eng::u32 i = 0u; i < kPlaneStride * kPlanes; ++i) {
+			screen_mem[i] = 0xabu;
+		}
+		eng::graphics::FramePlan plan5 {};
+		comp.damage_screen(eng::ui::Rect {24, 16, 16u, 16u});
+		comp.present_blit(plan5);
+		check(pixel_at(screen_mem, 24, 21) == 2u, "present_blit: franja x=24 via CPU");
+	}
+
 	if (failures == 0) {
 		std::printf("OK: compositor por blit (equivalencia con el copiado por pixel) validado.\n");
 		return 0;

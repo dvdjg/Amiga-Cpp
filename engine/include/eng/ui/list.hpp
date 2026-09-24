@@ -7,6 +7,7 @@
 /// `ScrollBar`. Con foco: flechas (1) y `Shift`+flecha (página), `Home`/`End`. Ver
 /// `docs/engine/architecture/GUI_LIBRARY.md` §11.
 
+#include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/ui/event.hpp>
 #include <eng/ui/keys.hpp>
@@ -21,13 +22,13 @@ namespace eng::ui {
 inline constexpr eng::u8 kListItemH = 10u;
 
 struct ListView : Widget {
-	/// Lista sobre un array de cadenas propio (`items[0..count-1]`); acepta foco.
+	/// Lista sobre una vista de cadenas (`items[0..count-1]`); acepta foco.
 	ListView() noexcept {
 		type = WidgetType::List;
 		set_flag(WfAcceptsFocus);
 	}
 
-	const char* const* items = nullptr;
+	eng::Span<const char* const> items {}; ///< cadenas (no propietario; capacidad fija)
 	eng::u16 count = 0u;
 	eng::s16* selected = nullptr; ///< índice externo (`-1` = ninguno)
 	eng::u8 item_h = kListItemH;
@@ -89,7 +90,7 @@ inline void draw_list(ListView& l, UiPainter& p) {
 	}
 	p.fill(l.bounds, p.theme().edit_bg);
 	p.bevel_in(l.bounds);
-	if (l.items == nullptr || l.count == 0u) {
+	if (l.items.empty() || l.count == 0u) {
 		return;
 	}
 	l.clamp_top();

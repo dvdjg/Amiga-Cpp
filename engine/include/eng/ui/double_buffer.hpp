@@ -49,6 +49,7 @@ public:
 		return a && b;
 	}
 
+	/// `true` si los dos buffers quedaron enlazados con `bind`.
 	[[nodiscard]] bool valid() const noexcept {
 		return m_buffers[0].valid && m_buffers[1].valid;
 	}
@@ -87,6 +88,7 @@ public:
 	}
 
 private:
+	/// Enlaza un buffer (playfield contiguo + `Surface` de dibujo) sobre memoria del llamador.
 	static bool bind_buffer(Buffer& b, eng::u8* mem, eng::u32 bytes, eng::u16 w, eng::u16 h,
 				eng::u8 depth) noexcept {
 		if (mem == nullptr || !b.playfield.bind_raw(mem, bytes, w, h, depth)) {
