@@ -164,12 +164,12 @@ Windows nativo + Git Bash + Node.js. **No usar WSL** para invocar binarios `.exe
 
 ### 3.4 WinUAE concurrente: puertos y convivencia entre hilos
 
-- En este build, **el puerto GDB de WinUAE-DBG es fijo (2345)**: `WINUAE_GDB_PORT` solo cambia a dónde conecta el cliente, no el puerto del emulador; ponerlo a otro valor rompe el enlace. El **canal lateral** sí es configurable con `WINUAE_SIDE_CHANNEL_PORT` (verificado). Consecuencia: **solo una instancia de WinUAE-DBG puede usar GDB a la vez**.
-- Antes de lanzar, el runner comprueba con `netstat` si 2345 o el canal lateral están ocupados. Si lo están, **falla con un mensaje claro** en vez de conectarse a una instancia ajena (evita capturas cruzadas). Para serializar el GDB entre hilos: `--wait-port <segundos>` espera a que se libere; `--reset-emulator` libera **solo** los PIDs que escuchan esos puertos.
-- **Nunca matar** procesos `winuae-gdb`/`winuae64` ajenos: solo cerrar los propios (por PID) al terminar. Nunca `taskkill /IM winuae-gdb.exe`, que mata a todas las instancias.
-- Cada hilo puede usar un **canal lateral propio** (`WINUAE_SIDE_CHANNEL_PORT`) para reducir colisiones, pero al compartir el GDB 2345 debe coordinarse con otros hilos. Detalle: `docs/debugging/system/debug-winuae-v2-guide.md` §1.3–1.4.
+- **Los dos puertos son configurables** por entorno: el servidor GDB del fork lee **`WINUAE_GDB_PORT`** (por defecto 2345) y el canal lateral lee **`WINUAE_SIDE_CHANNEL_PORT`** (por defecto 2346). El runner pasa el puerto al proceso del emulador (el `spawn` lo hereda), así que **cliente y servidor coinciden**: cada hilo/agente puede depurar en paralelo con su **par de puertos propio** (p. ej. GDB 2355 + canal 2421) sin colisión. `WINUAE_GDB_PERSIST_LISTENER` mantiene el GDB escuchando tras desconectar. Requiere la build del fork con «GDB port configurable» (commit `6783d952`).
+- **Regla de convivencia**: **cada hilo/agente elige al empezar su par de puertos** y lo usa siempre; **si un puerto está ocupado, no forzar: usar otro par** (no conectarse a una instancia ajena). Antes de lanzar, el runner comprueba con `netstat` si los puertos están ocupados y **falla con un mensaje claro**; `--wait-port <segundos>` espera a que se liberen y `--reset-emulator` libera **solo** los PIDs que los escuchan.
+- **Nunca matar** procesos `winuae-gdb`/`winuae64` ajenos: solo cerrar los propios (por PID) al terminar. Nunca `taskkill /IM winuae-gdb.exe`, que mata a todas las instancias. Registrar los PIDs lanzados y limpiarlos al terminar (no dejar instancias huérfanas ocupando puertos).
+- Detalle completo y bases de puertos: `docs/debugging/system/debug-winuae-v2-guide.md` §1.3–1.4.
 
-Ejemplo: `WINUAE_SIDE_CHANNEL_PORT=2418 bash ./tools/run/run-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23`.
+Ejemplo: `WINUAE_GDB_PORT=2355 WINUAE_SIDE_CHANNEL_PORT=2421 bash ./tools/run/run-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23`.
 
 ---
 
@@ -180,6 +180,7 @@ Estas reglas son obligatorias, pero solo son relevantes cuando se toca su domini
 | Regla / dominio | Documento obligatorio |
 |---|---|
 | **Tests y verificación por demo** (toda API con test; NO VERIFICADA si no hay demo) | `docs/testing/README.md` |
+| **Construcción por etapas de efectos gráficos/hardware** (CPU primero, luego Blitter/Copper; equivalencia CPU como referencia; parar tras 3–4 intentos) | `docs/guides/methodology/PROTOCOLO_ETAPAS_GRAFICOS.md` |
 | **Demos atractivas, validación visual (Ollama) y gate de optimizaciones de render** | `docs/guides/methodology/DEMO_VISUAL_DEBUG.md` |
 | **API del engine** (sin hardware, sin punteros, versátil, prueba de diseño) | `docs/engine/architecture/PUBLIC_API.md` |
 | **Estilo y restricciones de diseño** (gnu++23, sin excepciones/RTTI/heap, APIs paramétricas, agnosticismo del backend, comentarios didácticos) | `docs/engine/architecture/CODING_STYLE.md` |
