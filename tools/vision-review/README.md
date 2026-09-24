@@ -141,6 +141,13 @@ modelo local. Esto mantiene rapido y estable el pipeline base.
 
 ## Frames esenciales (`vision-points.json`)
 
+**Cada demo declara lo que se espera ver de ella** (y, si aplica, oír); esa declaración es la que
+se compara con lo que describe el modelo de visión. El chequeo genérico del overlay
+(verde/amarillo/blanco) es solo **informativo**: muchas demos no dibujan overlay (audio, escenas
+oscuras) y no debe ser un fallo. El gate duro es el **analizador propio** de la demo
+(`analyze-screenshot.sh`) o su `pixel-contract`; si no hay ninguno, el veredicto visual lo da
+`vision-points.json` comparado con Ollama.
+
 Para complementar los checks deterministas, cada demo puede declarar los **frames
 esenciales** (los puntos con un cambio interno importante, no necesariamente los
 primeros) y qué debe verse en ellos. Si Ollama está disponible, un modelo de visión
