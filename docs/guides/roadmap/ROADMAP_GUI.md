@@ -152,6 +152,10 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 | HOST-261 | test | Entrada por **mensajes** (`os::Msg` → `UiContext`) con `keymap` rawkey→tecla lógica. |
 | HOST-262 | test | `Slider` (click/arrastre y flechas). |
 | HOST-263 | test | Keymaps nacionales (ES/FR/IT/DE/RU) y `dispatch_msg` con el layout del contexto. |
+| HOST-303 | test | `EditBox` UTF-8 (edición por code point, incluye cirílico). |
+| HOST-310 | test | Pantalla de **doble buffer** (`DoubleBufferScreen`): componer en el trasero sin cambiar el delantero; `flip` publica. |
+| HOST-311 | test | `ScrollBar` (vertical/horizontal): pomo proporcional, click→valor y teclado. |
+| HOST-312 | test | `ListView`: selección y desplazamiento lógico (solo filas visibles). |
 | `215_gui_widgets` | demo | Widgets y tema en hardware (G0–G6). **Entregada y verificada** (G8). |
 | `300_gui_compositor` | demo | Ventanas movibles con backing store y **copias por Blitter** (`present_blit`). **Entregada y verificada**. |
 
@@ -174,7 +178,7 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 ## Estado
 
 **G0–G8 entregados**. `theme`/`painter`/`text`, `widget`/`dirty`/`widgets`
-(`Panel`/`Label`/`Button`/`CheckBox`/`RadioButton`/`Slider`), `keys`/`keymap`/`editbox`/`context`
+(`Panel`/`Label`/`Button`/`CheckBox`/`RadioButton`/`Slider`/`ScrollBar`/`ListView`), `keys`/`keymap`/`editbox`/`context`
 (foco), `layout`, `window` (Window/Popup/Toast/Dialog), `backing`/`compositor` y la **entrada por
 mensajes** (`msg_adapter` + `ui_bridge`, HOST-261/262) con **keymaps nacionales** (HOST-263) y
 **teclas muertas** (HOST-265). La distribución nacional es **estado del `UiContext`** (`ctx.layout`),
@@ -192,6 +196,8 @@ si no caen al bucle de píxeles.
 **Extras tras G8**: **`eng::ui::HardwareCursor`** por sprite de hardware (HOST-301), **teclas comunes
 del keymap** validadas contra la AHRM 3.ª (HOST-302: Space 0x40, cursores 0x4C/0x4D corregidos),
 **cirílico** en `Font8` (HOST-264) y **`EditBox` UTF-8** (HOST-303) para teclearlo en campos.
+
+**Doble buffer y widgets de scroll (post-G8)**: `eng/ui/double_buffer.hpp` (`DoubleBufferScreen`) compone en el buffer **trasero** mientras el display lee el **delantero**; `flip()` intercambia y publica (parcheo de `BPLxPT`/`COP1LC` en VBlank), de modo que nunca se ve una composición a medias (HOST-310). `eng/ui/scroll.hpp` (`ScrollBar`, vertical u horizontal) y `eng/ui/list.hpp` (`ListView`) dan desplazamiento **lógico** con selección: la barra fija el índice superior y la lista pinta solo las filas visibles (HOST-311/312).
 
 Pendiente: volcar la asignación de carácter de cada **distribución nacional** y los **Alt+tecla**
 de las teclas muertas desde `DEVS:Keymaps` del ROM (no disponibles en el repo; hoy *best-effort*).

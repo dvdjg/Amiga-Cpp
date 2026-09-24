@@ -27,16 +27,19 @@ No depende del mini-SO (`eng::os`), pero se integra con él por el puente `os::M
 | `widget.hpp` | `WidgetType`, `WidgetFlags` y `Widget` (árbol intrusivo, sin heap ni `virtual`). **Implementado** (HOST-224). |
 | `dirty.hpp` | `DirtyList<Max>` con fusión de regiones (rects = `eng::Box`). **Implementado** (HOST-224). |
 | `event.hpp` | `UiEvent`, `UiEventKind`. **Implementado** (HOST-220). |
-| `widgets.hpp` | `Panel`/`Label` (G1), `Button` (G2), `CheckBox`/`RadioButton` (G3), `Window` (G6), `Slider`. Despacho por `switch` exhaustivo y `measure`. **Implementado** (HOST-224/225/226/229/262). |
+| `widgets.hpp` | `Panel`/`Label` (G1), `Button` (G2), `CheckBox`/`RadioButton` (G3), `Window` (G6), `Slider`, `ScrollBar`, `ListView`. Despacho por `switch` exhaustivo y `measure`. **Implementado** (HOST-224/225/226/229/262/311/312). |
 | `keys.hpp` | Teclas lógicas de la UI (imprimibles ASCII/Latin-1 + edición/navegación). **Implementado** (HOST-227). |
 | `keymap.hpp` | Traducción **rawkey Amiga → carácter** por **distribución nacional** (US/ES/FR/IT/DE/RU) + Shift + **teclas muertas** (`compose`/`rawkey_to_char`). **Implementado** (HOST-261/263/265); validar las tablas contra el ROM, pendiente. |
 | `editbox.hpp` | `EditBox` (buffer externo **UTF-8**, caret/vista por byte, edición por code point). **Implementado** (HOST-227/303). |
 | `slider.hpp` | `Slider` (sobre `s16*`, click/arrastre y flechas). **Implementado** (HOST-262). |
+| `scroll.hpp` | `ScrollBar` (vertical/horizontal, sobre `s16*`): pomo proporcional a la página, click→valor y teclado. **Implementado** (HOST-311). |
+| `list.hpp` | `ListView`: lista de cadenas con selección (índice externo) y desplazamiento lógico (solo filas visibles). **Implementado** (HOST-312). |
 | `context.hpp` | `UiContext`: hit-test, foco (`Tab`), modalidad, `Esc`, popups, TTL de toasts y la **distribución nacional** (`layout`, la fija la app al arrancar). **Implementado** (HOST-225/229). |
 | `layout.hpp` | `layout_stack_v`/`layout_stack_h` y `anchor`. **Implementado** (HOST-228). |
 | `window.hpp` | `Window`, `WindowKind` (`Window`/`Popup`/`Toast`/`Dialog`) y Z-order. **Implementado** (HOST-229). |
 | `backing.hpp` | `WindowBacking` (lienzo planar + `Surface`). **Implementado** (HOST-230). |
 | `compositor.hpp` | `Compositor` (add/raise/move/resize/damage/`present`; `present_blit` copia por `Surface::blit` con vuelta a CPU). **Implementado** (HOST-230/300). |
+| `double_buffer.hpp` | `DoubleBufferScreen`: dos buffers de pantalla; compose en el trasero y `flip()` publica el delantero (flicker-free). **Implementado** (HOST-310). |
 | `hardware_cursor.hpp` | `HardwareCursor`: cursor de ratón por sprite de hardware (estructura DMA 16×16 + `SPR0PT`/`SPREN`). **Implementado** (HOST-301). |
 | `ui_bridge.hpp` | Puente `eng::os::Msg` → `UiEvent`. **Implementado** (HOST-220). |
 | `msg_adapter.hpp` | `dispatch_msg`: `os::Msg` de entrada → `UiContext` (traduce con `ctx.layout` y compone con `ctx.dead`). **Implementado** (HOST-261/263/265). |

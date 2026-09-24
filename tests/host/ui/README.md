@@ -25,3 +25,5 @@ Categoría `ui` de la batería host (L1). El índice de categorías está en [..
 | HOST-302 | [ui_keymap_specials](302_ui_keymap_specials/README.md) | Teclas comunes del keymap (0x40–0x5F) validadas contra la AHRM 3.ª. |
 | HOST-303 | [ui_editbox_utf8](303_ui_editbox_utf8/README.md) | `EditBox` UTF-8: inserción/borrado/movimiento por code point (incluye cirílico). |
 | HOST-310 | [ui_double_buffer](310_ui_double_buffer/README.md) | Pantalla de doble buffer (`DoubleBufferScreen`): componer en el trasero sin cambiar el delantero; `flip` publica (flicker-free). |
+| HOST-311 | [ui_scrollbar](311_ui_scrollbar/README.md) | `ScrollBar` (vertical/horizontal): pomo proporcional a la página, click→valor y teclado (flechas/página/`Home`/`End`). |
+| HOST-312 | [ui_listview](312_ui_listview/README.md) | `ListView`: selección + desplazamiento lógico (solo filas visibles), click/flechas/`Home`/`End` y `ensure_visible`. |
