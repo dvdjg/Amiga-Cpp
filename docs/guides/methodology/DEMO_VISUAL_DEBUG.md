@@ -43,6 +43,25 @@ y estaba roto en plena animación (el fondo desaparecía al scrollear).
 - **Analizador de captura propio** (`analyze-screenshot.sh` de la demo) cuando la paleta no
   encaja con el genérico (que exige overlay verde/amarillo/blanco).
 
+### 2.1 Parpadeo/glitch: enfoque híbrido (determinista + visión)
+
+Los modelos de visión son **poco fiables** en glitches **temporales** (parpadeo de 1–2 frames,
+tearing, corrupción de copperlist) y **alucinan** coordenadas si se les pide buscarlos a ciegas.
+El flujo fiable es de **dos capas**:
+
+1. **Determinista** (`tools/vision-review/temporal-detect.py`, OpenCV): diferencia + *optical flow*
+   (Farneback) + análisis por bloques. Localiza candidatos (`flicker`/`tearing`/`corruption`) y
+   **descarta el movimiento coherente** (objetos/scroll). Es la **referencia**.
+2. **Visión** (`flicker-check.mjs`, Ollama): solo sobre la **región candidata** con frames de
+   referencia+contexto, con respuesta **estructurada** (sí/no + tipo + **zona relativa**, sin
+   píxeles, + confianza). El modelo confirma/descarta una sospecha ya localizada.
+
+Además, el **frame-diff determinista** (`out/tmp/framediff.cjs <seq>`) es la forma directa de
+distinguir movimiento de glitch: cuenta píxeles cambiados y su bbox entre frames consecutivos. Si
+una **zona estable** cambia erráticamente, es glitch; si solo cambian las zonas que se mueven, es
+movimiento. Ante discrepancia con el modelo, prevalece el frame-diff. Modelo recomendado:
+**Qwen3-VL** (evitar LLaVA clásico). Regla: nunca pedir coordenadas en píxeles al modelo.
+
 ## 3. Fallos típicos a buscar (checklist)
 
 - **Huecos negros** donde debería haber contenido (fondo que "desaparece" en una zona/altura).
