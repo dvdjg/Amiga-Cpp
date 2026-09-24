@@ -1,4 +1,5 @@
-# Duplicados de numeracion de demo aceptados (deuda historica). Formato: <plataforma>/<NNN>.
+# Duplicados de numeracion de demo aceptados (deuda historica).
+# Formato: <ambito>/<NNN> (p. ej. amiga/060 o techniques/amiga/copper/060).
 # El check `tools/check/demo-numbering.mjs` falla con cualquier duplicado que NO este aqui.
 # Regenerar solo si se decide aceptar explicitamente uno nuevo (no como atajo).
 amiga/060
