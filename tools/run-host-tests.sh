@@ -149,6 +149,15 @@ if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 			exit 1
 		fi
 	fi
+	# Features: demos portables sin hardware directo (registros ni vocabulario de chipset).
+	DEMO_PLATFORM_BOUNDARIES="$ROOT/tools/check/demo-platform-boundaries.mjs"
+	if [ -f "$DEMO_PLATFORM_BOUNDARIES" ] && command -v node >/dev/null 2>&1; then
+		echo "== demo-platform-boundaries =="
+		if ! node "$DEMO_PLATFORM_BOUNDARIES"; then
+			echo "demo-platform-boundaries fallo: una feature usa hardware directo." >&2
+			exit 1
+		fi
+	fi
 	# Estructura tematica del engine (eng/ y core/ por tema; familias de backend).
 	ENGINE_TREE="$ROOT/tools/check/engine-tree.mjs"
 	if [ -f "$ENGINE_TREE" ] && command -v node >/dev/null 2>&1; then
