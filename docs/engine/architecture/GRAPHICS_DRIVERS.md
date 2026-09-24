@@ -32,7 +32,7 @@ Primer objetivo serio. Pensado para aventura grafica moderna:
 - copper por zonas y efectos baratos;
 - cambios completos de paleta solo en zonas seguras o transiciones.
 
-La primera prueba ejecutable es `demos/amiga/030_ehb_palette_zones`: genera una reticula
+La primera prueba ejecutable es `demos/techniques/amiga/copper/030_ehb_palette_zones`: genera una reticula
 planar de indices 0..63 y usa el Copper para cambiar la paleta completa en tres
 zonas verticales.
 

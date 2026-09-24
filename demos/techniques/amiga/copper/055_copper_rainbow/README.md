@@ -25,6 +25,6 @@ un efecto/actor produce intenciones; el scheduler las compila.
 ## Build & run
 
 ```bash
-tools/build/build-demo.sh demos/amiga/055_copper_rainbow --clean
-tools/run/run-demo.sh       demos/amiga/055_copper_rainbow
+tools/build/build-demo.sh demos/techniques/amiga/copper/055_copper_rainbow --clean
+tools/run/run-demo.sh       demos/techniques/amiga/copper/055_copper_rainbow
 ```

@@ -15,9 +15,9 @@ Objetivo: instalar una copperlist real en Chip RAM y demostrar que el Copper cam
 ## Build, run y analisis
 
 ```powershell
-.\tools\build\build-demo.ps1 demos\amiga\020_copper_basic -DebugBuild
-.\tools\run\run-demo.ps1 demos\amiga\020_copper_basic
-.\tools\analyze\analyze-demo.ps1 demos\amiga\020_copper_basic
+.\tools\build\build-demo.ps1 demos\techniques\amiga\copper\020_copper_basic -DebugBuild
+.\tools\run\run-demo.ps1 demos\techniques\amiga\copper\020_copper_basic
+.\tools\analyze\analyze-demo.ps1 demos\techniques\amiga\copper\020_copper_basic
 ```
 
 O como parte de la regresion completa:

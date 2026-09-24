@@ -134,7 +134,7 @@ de pedir la imagen.
 Opciones utiles:
 
 ```powershell
-.\tools\run\run-demo.ps1 demos\amiga\030_ehb_palette_zones `
+.\tools\run\run-demo.ps1 demos\techniques\amiga\copper\030_ehb_palette_zones `
   -SideChannelTimeoutMs 10000 `
   -SideChannelPort 2346
 ```

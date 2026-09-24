@@ -23,8 +23,8 @@
 // lista del plan apunta a ese con `move_bitplane_pointer` cada frame.
 //
 // Build/run:
-//   bash ./tools/build/build-demo.sh demos/amiga/085_copper_plan_scene --debug
-//   bash ./tools/run/run-demo.sh demos/amiga/085_copper_plan_scene
+//   bash ./tools/build/build-demo.sh demos/techniques/amiga/copper/085_copper_plan_scene --debug
+//   bash ./tools/run/run-demo.sh demos/techniques/amiga/copper/085_copper_plan_scene
 
 #include <eng/core/math/sinetable.hpp>
 #include <eng/api/api.hpp>

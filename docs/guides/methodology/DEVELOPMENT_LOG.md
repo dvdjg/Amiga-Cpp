@@ -71,12 +71,12 @@ Demo inicial:
 - `demos/amiga/000_toolchain_cpp23/README.md`
 - `demos/amiga/010_chip_slow_memory/src/main.cpp`
 - `demos/amiga/010_chip_slow_memory/README.md`
-- `demos/amiga/020_copper_basic/src/main.cpp`
-- `demos/amiga/020_copper_basic/README.md`
-- `demos/amiga/020_copper_basic/analyze-screenshot.ps1`
-- `demos/amiga/030_ehb_palette_zones/src/main.cpp`
-- `demos/amiga/030_ehb_palette_zones/README.md`
-- `demos/amiga/030_ehb_palette_zones/analyze-screenshot.ps1`
+- `demos/techniques/amiga/copper/020_copper_basic/src/main.cpp`
+- `demos/techniques/amiga/copper/020_copper_basic/README.md`
+- `demos/techniques/amiga/copper/020_copper_basic/analyze-screenshot.ps1`
+- `demos/techniques/amiga/copper/030_ehb_palette_zones/src/main.cpp`
+- `demos/techniques/amiga/copper/030_ehb_palette_zones/README.md`
+- `demos/techniques/amiga/copper/030_ehb_palette_zones/analyze-screenshot.ps1`
 
 Copper:
 

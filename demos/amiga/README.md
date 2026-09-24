@@ -1,19 +1,21 @@
-# Demos Amiga
+## Demos Amiga
 
 Demos del engine para **Amiga OCS/ECS (A500)**. Convención de nombres y
-estructura: `docs/STRUCTURE.md` §4. Clasificación por concepto:
+estructura: `docs/STRUCTURE.md` §4. Las **técnicas de hardware** se agrupan en
+`demos/techniques/amiga/<categoría>/` (p. ej. `copper/`); esta carpeta conserva las
+demos aún sin reclasificar. Clasificación por concepto:
 
 - **Fundamentos (`0xx`)**: toolchain/boilerplate, Chip RAM, Copper, paletas,
   bobs/Blitter.
   - `000_toolchain_cpp23` — herramienta/toolchain, hola mundo con READY.
   - `010_chip_slow_memory` — Chip vs Fast RAM.
-  - `020_copper_basic` — copperlist básica.
-  - `030_ehb_palette_zones` — paletas EHB por zonas.
+  - `techniques/amiga/copper/020_copper_basic` — copperlist básica.
+  - `techniques/amiga/copper/030_ehb_palette_zones` — paletas EHB por zonas.
   - `040_palette_cycle_effect` — ciclo de paleta.
   - `050_blitter_bobs`, `051_blitter_shifted_bobs`, `052_tile_staging_blits` — Blitter y bobs.
 - **Sprites, Copper e input (`053-056`)**:
   - `053_sprite_multiplex`, `054_sprite_allocator` — multiplexado y reparto de sprites.
-  - `055_copper_rainbow` — rainbow de Copper.
+  - `techniques/amiga/copper/055_copper_rainbow` — rainbow de Copper.
   - `056_input_aggregator` — joystick/ratón/teclado (poll + decode); tests HOST-004/006/007.
 - **C2P y fuego**:
   - `061_c2p_chunky_4bpl` — conversión chunky→planar por Blitter. El efecto de fuego es `080_fire_rgb` (ver abajo); el benchmark aislado C++ vs asm vive en `playground/fire-benchmark`.

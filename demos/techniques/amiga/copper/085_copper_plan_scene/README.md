@@ -66,7 +66,7 @@ vez de polígono + cookie-cut, o BOB en fast RAM).
 ## Build & run & analyze
 
 ```bash
-tools/build/build-demo.sh demos/amiga/085_copper_plan_scene --clean
-tools/run/run-demo.sh       demos/amiga/085_copper_plan_scene
-tools/analyze/analyze-demo.sh demos/amiga/085_copper_plan_scene
+tools/build/build-demo.sh demos/techniques/amiga/copper/085_copper_plan_scene --clean
+tools/run/run-demo.sh       demos/techniques/amiga/copper/085_copper_plan_scene
+tools/analyze/analyze-demo.sh demos/techniques/amiga/copper/085_copper_plan_scene
 ```

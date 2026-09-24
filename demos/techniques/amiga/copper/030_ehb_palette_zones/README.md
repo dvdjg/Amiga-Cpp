@@ -47,9 +47,9 @@ encendida, no un frame de la transicion.
 ## Verificacion
 
 ```powershell
-.\tools\build\build-demo.ps1 demos\amiga\030_ehb_palette_zones -DebugBuild
-.\tools\run\run-demo.ps1 demos\amiga\030_ehb_palette_zones
-.\tools\analyze\analyze-demo.ps1 demos\amiga\030_ehb_palette_zones
+.\tools\build\build-demo.ps1 demos\techniques\amiga\copper\030_ehb_palette_zones -DebugBuild
+.\tools\run\run-demo.ps1 demos\techniques\amiga\copper\030_ehb_palette_zones
+.\tools\analyze\analyze-demo.ps1 demos\techniques\amiga\copper\030_ehb_palette_zones
 ```
 
 El analizador especifico comprueba que la captura contiene colores de las tres
