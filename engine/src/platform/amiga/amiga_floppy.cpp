@@ -20,6 +20,9 @@ namespace d = eng::amiga::detail;
 // error; el registro es PRB.)
 volatile eng::u8* const ciab_prb = reinterpret_cast<volatile eng::u8*>(0xbfd100u);
 volatile eng::u8* const ciaa_pra = reinterpret_cast<volatile eng::u8*>(0xbfe001u);
+// CIA-B ICR ($BFDD00): el pulso INDEX llega por el bit FLG (4). WinUAE lo emula en
+// `cia_diskindex()` -> `CIA_sync_interrupt(1, ICR_FLAG)` (`cia.cpp:811`). La lectura limpia flags.
+volatile eng::u8* const ciab_icr = reinterpret_cast<volatile eng::u8*>(0xbfdd00u);
 
 // Registros custom (offsets en palabras).
 constexpr eng::u16 kDskpt = 0x020u / 2u;
@@ -113,6 +116,25 @@ bool eng::os::floppy_present(eng::u16 unit) {
 	return (*ciaa_pra & kRdy) == 0u && (*ciaa_pra & kChng) == 0u;
 }
 
+namespace eng::os {
+namespace {
+
+/// Espera al **pulso INDEX** del disco (una vez por vuelta, ~200 ms): habilita el FLG de CIA-B y
+/// espera a que latch (la lectura limpia los flags). Alinear aqui hace **determinista** la fase
+/// rotacional en que se arma la DMA (que arranca en el primer `$4489`). `false` si no llega.
+bool wait_index() {
+	*ciab_icr = 0x90u; // ICR: SET (bit 7) | FLG (bit 4)
+	for (eng::u32 i = 0u; i < 4000000u; ++i) {
+		if ((*ciab_icr & 0x10u) != 0u) {
+			return true;
+		}
+	}
+	return false;
+}
+
+} // namespace
+} // namespace eng::os
+
 eng::u16 eng::os::floppy_read_track(eng::u16 unit, eng::u8 track, bool side,
 				    eng::Span<eng::u16> dst) {
 	if (unit != 0u || dst.size() < kMfmWordsPerSector) {
@@ -140,6 +162,9 @@ eng::u16 eng::os::floppy_read_track(eng::u16 unit, eng::u8 track, bool side,
 	if ((*ciaa_pra & kRdy) != 0u) {
 		return 0u;
 	}
+	// Alinear con el pulso INDEX: la DMA arranca en el primer `$4489`, asi que sin referencia la
+	// fase rotacional es aleatoria (el sector de arranque varia). El INDEX la fija.
+	(void)wait_index();
 
 	// DMA crudo: WORDSYNC + DSKSYNC, puntero a Chip RAM, DSKLEN (doble escritura).
 	// Limpiar WORDSYNC antes de armarlo rearma la deteccion de sync tras una lectura previa.
@@ -150,9 +175,11 @@ eng::u16 eng::os::floppy_read_track(eng::u16 unit, eng::u8 track, bool side,
 	d::write_custom_pointer(kDskpt, dst.data());
 	d::custom_base[d::custom_dmacon_offset] =
 		static_cast<eng::u16>(d::dma_setclr | d::dma_master | d::dma_copper | kDmaDisk);
-	// Doble escritura de DSKLEN para disparar la DMA. **No** se escribe `DSKLEN=0` antes: en
-	// WinUAE (`disk.cpp:4887`) `dsklength==0 && dma_enable` llama a `disk_dmafinished()` (un
-	// DSKBLK prematuro y la DMA a medio armar), y tras una lectura WORDSYNC `dma_enable` queda a 1.
+	// DSKLEN=0 **antes** de rearmar: deja `prevlen` sin DMAEN y `dskdmaen=OFF`, de modo que la
+	// primera escritura cargue y la segunda dispare (ver `docs/reference/emulators/winuae/trackdisk.md`
+	// §5.1 «Rearme»). Puede disparar un `disk_dmafinished` espurio (`disk.cpp:4887`, con `dma_enable`
+	// a 1 tras una lectura WORDSYNC); el `DSKBLK` se limpia arriba y el estado queda listo.
+	d::custom_base[kDsklen] = 0u;
 	const eng::u16 len = static_cast<eng::u16>(0x8000u | words);
 	d::custom_base[kDsklen] = len;
 	d::custom_base[kDsklen] = len; // segunda escritura: dispara la DMA

@@ -36,7 +36,7 @@ namespace {
 
 // Una revolución completa + un sector de margen: el DMA arranca en el primer sync que ve y
 // parte el sector de ese sync, que así reaparece entero en la vuelta siguiente.
-constexpr eng::u16 kTrackWords = eng::os::kMfmTrackWords; // una vuelta (11 sectores)
+constexpr eng::u16 kTrackWords = eng::os::kMfmReadWords; // dos vueltas
 constexpr eng::u16 kTrackBytes = kTrackWords * 2u;
 
 char* append(char* p, const char* s) {
