@@ -11,7 +11,7 @@ vecinos de abajo, buffer `u16[80×64]`):
 **No es una demo**: no hay efecto que ver (el render es solo el fuego crudo, sin color ni
 C2P) y por eso vive en `playground/` y **no** entra en el barrido de demos
 (`tools/build/build-all-demos.sh`). La demo canónica del efecto es
-`demos/amiga/080_fire_rgb` (que sí funde simulación + color + escalado + chunky y usa el
+`demos/techniques/amiga/effects/080_fire_rgb` (que sí funde simulación + color + escalado + chunky y usa el
 C2P por Blitter); su plan de porte es `docs/demos/effects/FIRE_RGB_PORT_PLAN.md`.
 
 Mide los **ciclos de CPU** de 32 iteraciones de cada versión con el periférico de

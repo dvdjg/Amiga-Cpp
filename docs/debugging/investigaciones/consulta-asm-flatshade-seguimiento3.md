@@ -6,7 +6,7 @@
 > salva/restaura `d0`. Añadidos además `ext.l d3` para `BLTAPT` (acumulador de 32 bits) y
 > `blt_signflag` cuando `derr<0`. Con `-DK_FLATSHADE_ASM=1`: `verify-116` PASS y **25.0 fps**
 > (~283k ciclos/frame) frente a ~20.7 de la ruta C++. Ver la bitácora
-> `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` y `demos/amiga/116_flatshade_convex/README.md`.
+> `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` y `demos/techniques/amiga/effects/116_flatshade_convex/README.md`.
 
 **Tu diagnóstico era correcto** y lo apliqué.
 
@@ -73,4 +73,4 @@ da **0**.
    `draw_edges` del frame siguiente no pinte? (Descarté el negro "limpio permanente" antes,
    pero ahora que la visibilidad es correcta, encaja más.)
 
-Repro: `-DK_FLATSHADE_ASM=1` sobre `demos/amiga/116_flatshade_convex`.
+Repro: `-DK_FLATSHADE_ASM=1` sobre `demos/techniques/amiga/effects/116_flatshade_convex`.

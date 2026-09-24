@@ -4,7 +4,7 @@
 // esas direcciones y los registros de paleta/DMA. Cruzar todo en el mismo instante es lo
 // que permite separar «el canal no dibuja por la DATA» de «no dibuja por el DMA».
 //
-// Uso:  bash ./tools/run/run-demo.sh demos/amiga/054_sprite_allocator
+// Uso:  bash ./tools/run/run-demo.sh demos/techniques/amiga/sprites/054_sprite_allocator
 //       node tools/debug/probe-sprite-emission.mjs 054_sprite_allocator [CONFIG_NAME]
 //
 // Puertos: WINUAE_GDB_PORT (2345). Ver docs/build/BUILD_AND_RUN.md.

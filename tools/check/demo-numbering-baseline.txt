@@ -2,5 +2,5 @@
 # Formato: <ambito>/<NNN> (p. ej. amiga/060 o techniques/amiga/copper/060).
 # El check `tools/check/demo-numbering.mjs` falla con cualquier duplicado que NO este aqui.
 # Regenerar solo si se decide aceptar explicitamente uno nuevo (no como atajo).
-amiga/060
-amiga/061
+# (Vacio: tras migrar las tecnicas a `techniques/amiga/*`, los duplicados 060/061 se
+#  separaron en ambitos distintos.)

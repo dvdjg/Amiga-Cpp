@@ -74,7 +74,7 @@ Amiga-Cpp/
 
 ### 2.3 Rutas relativas al repo
 - Las herramientas se invocan desde la raíz del repo con rutas relativas:
-  `demos/amiga/107_xlimited_corkscrew`, `tools/build/build-demo.sh`.
+  `demos/techniques/amiga/playfield/107_xlimited_corkscrew`, `tools/build/build-demo.sh`.
 - El código C++ de las demos que incrusta assets generados usa rutas relativas
   a la raíz del repo con el número exacto de `../` según su profundidad, o
   `incbin` con ruta relativa al cwd del build (la raíz del repo).

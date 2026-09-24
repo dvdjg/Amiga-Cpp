@@ -150,11 +150,11 @@ Windows nativo + Git Bash + Node.js. **No usar WSL** para invocar binarios `.exe
 
 ### 3.2 Comandos canónicos
 
-- Compilar una demo: `bash ./tools/build/build-demo.sh demos/amiga/000_toolchain_cpp23 --debug --clean`
-- Ejecutar una demo y capturar: `bash ./tools/run/run-demo.sh demos/amiga/000_toolchain_cpp23`
-- Analizar una demo: `bash ./tools/analyze/analyze-demo.sh demos/amiga/000_toolchain_cpp23`
+- Compilar una demo: `bash ./tools/build/build-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23 --debug --clean`
+- Ejecutar una demo y capturar: `bash ./tools/run/run-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23`
+- Analizar una demo: `bash ./tools/analyze/analyze-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23`
 - Regresión completa: `bash ./tools/test-regression.sh`
-- Bucle de regresión de una demo: `bash ./tools/test-regression.sh --demo demos/amiga/101_ehb_tile_scroll_driver --warp`
+- Bucle de regresión de una demo: `bash ./tools/test-regression.sh --demo demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver --warp`
 
 ### 3.3 Orden de verificación (no saltar)
 
@@ -169,7 +169,7 @@ Windows nativo + Git Bash + Node.js. **No usar WSL** para invocar binarios `.exe
 - **Nunca matar** procesos `winuae-gdb`/`winuae64` ajenos: solo cerrar los propios (por PID) al terminar. Nunca `taskkill /IM winuae-gdb.exe`, que mata a todas las instancias.
 - Cada hilo puede usar un **canal lateral propio** (`WINUAE_SIDE_CHANNEL_PORT`) para reducir colisiones, pero al compartir el GDB 2345 debe coordinarse con otros hilos. Detalle: `docs/debugging/system/debug-winuae-v2-guide.md` §1.3–1.4.
 
-Ejemplo: `WINUAE_SIDE_CHANNEL_PORT=2418 bash ./tools/run/run-demo.sh demos/amiga/000_toolchain_cpp23`.
+Ejemplo: `WINUAE_SIDE_CHANNEL_PORT=2418 bash ./tools/run/run-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23`.
 
 ---
 

@@ -370,7 +370,7 @@ desarrolla en varios turnos; el orden es 1→2→3.
   `display_height = 256+32`, cámara inicial a media altura (`set_camera`).
 - **DPF**: BG = tilemap XYLimited; FG = capa de objetos (planos pares) para
   naves/disparos.
-- Demo prevista: `demos/amiga/110_ylimited_shooter`.
+- Demo prevista: `demos/techniques/amiga/playfield/110_ylimited_shooter`.
 
 ### Parte 2 — Side-scroller horizontal (después)
 - Mundo **4096 px de ancho × 320 px de alto**; tiles 16×16 → **256×20** celdas.
@@ -378,7 +378,7 @@ desarrolla en varios turnos; el orden es 1→2→3.
   `Off`** (alto corto). **DPF** con FG de objetos.
 - Requiere simetría de ejes: `y_mode` (`Finite`/`Off`) y X `Ring` largo (hoy X
   `Ring` ya existe; falta el `y_mode`).
-- Demo prevista: `demos/amiga/111_xlimited_sidescroller`.
+- Demo prevista: `demos/techniques/amiga/playfield/111_xlimited_sidescroller`.
 
 ### Parte 3 — XYLimited 5 planos con fondo estilo RoboCod
 - Escena **XYLimited de 5 bitplanes**; el **fondo** usa el truco **RoboCod**
@@ -503,7 +503,7 @@ prioridad:
    devolvía `true` sin encolar el C2P del Blitter (la conversión CPU sí se hacía, pero sobre el
    buffer de la escena mientras el display esperaba el commit). `DrawTarget::c2p` enruta ahora a
    `kBlitterRaster` cuando hay `plan`. **Pendiente**: demo que consuma el seam con resultado
-   verificado (`demos/amiga/275_c2p_seam` es **WIP**: `detail != 0`, el contrato del buffer
+   verificado (`demos/techniques/amiga/c2p/275_c2p_seam` es **WIP**: `detail != 0`, el contrato del buffer
    `chunky` del `BlitterRaster` exige que su **2ª mitad** sea el *scratch* planar de las 13 fases
    — `eng/graphics/blitter_state.hpp` `C2p4::chunky`; hay que darle ese layout y comparar con la
    referencia CPU).

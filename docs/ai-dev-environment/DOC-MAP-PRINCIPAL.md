@@ -197,9 +197,9 @@ orden:
 - **Breakpoints y memoria en caliente**: `tools/debug/step-memory.mjs`.
 - **Self-test del harness** (canal lateral/READY/fps): `node tools/debug/verify-harness.mjs [--strict-fps --warp]`. Nota: el throughput del emulador (~11 fps) limita el gate fps absoluto.
 - **Perfiles y visión local**: [tools/profile/README.md](../../tools/profile/README.md). Para la IA: `node tools/profile/ai-analyze.mjs <outName> [frames] --prompt "…"` captura por canal lateral, extrae frames y analiza con Ollama local (sin tokens de nube); `--demo <demo>` lanza WinUAE directo y lo apaga al terminar.
-- **Validación temporal por demo**: `demos/amiga/101_ehb_tile_scroll_driver/analyze-sequence.sh`.
-- **Scroll multi-modo (XYLimited)**: demos `demos/amiga/201_ehb_map` (8-way EHB) y `202_xlimited_dpf`; test host `node tools/analyze/verify-tile-scroll-modes.mjs`.
-- **Checklist del corkscrew XYLimited (201)**: §7 de `demos/amiga/201_ehb_map/src/README.md` (invariantes del anillo vertical, `block_videoposy` y `visible_tile_bias`).
+- **Validación temporal por demo**: `demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver/analyze-sequence.sh`.
+- **Scroll multi-modo (XYLimited)**: demos `demos/techniques/amiga/playfield/201_ehb_map` (8-way EHB) y `202_xlimited_dpf`; test host `node tools/analyze/verify-tile-scroll-modes.mjs`.
+- **Checklist del corkscrew XYLimited (201)**: §7 de `demos/techniques/amiga/playfield/201_ehb_map/src/README.md` (invariantes del anillo vertical, `block_videoposy` y `visible_tile_bias`).
 - **Pipeline de tiles/EHB y herramienta todo-en-uno**: `tools/amiga-tiles/README.md` + [PIPELINE_TILES_EHB.md](../demos/tile-pipeline/PIPELINE_TILES_EHB.md) + [REGLAS_PIPELINE_TILES.md](../guides/roadmap/REGLAS_PIPELINE_TILES.md).
 - **Harness DAP sin VS Code**: `tools/dap-test/README.md`.
 - **Reinstalar el entorno en otro equipo**: [setup-nuevo-equipo.md](../debugging/system/setup-nuevo-equipo.md).

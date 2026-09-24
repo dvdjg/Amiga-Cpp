@@ -2,7 +2,7 @@
 
 Documento técnico del porte de `demoscene-repo-orig/effects/bobs3d/bobs3d.c` al engine:
 qué hace el original, cómo se mapea, qué se verificó y qué coste tiene. La demo vive en
-`demos/amiga/117_bobs3d/`.
+`demos/techniques/amiga/effects/117_bobs3d/`.
 
 ## 1. La rebanada
 

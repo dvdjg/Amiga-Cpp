@@ -15,5 +15,5 @@ bash tools/run-host-tests.sh tests/host/field/030_tile_map_view
 ```
 
 Contexto: `docs/engine/architecture/CONTENT_AND_TILEMAP.md` §2. Demo que lo ejercita en
-hardware: `demos/amiga/111_xlimited_sidescroller` (mundo `StreamingWorldMap` + `prefetch` de
+hardware: `demos/techniques/amiga/playfield/111_xlimited_sidescroller` (mundo `StreamingWorldMap` + `prefetch` de
 la banda por frame).

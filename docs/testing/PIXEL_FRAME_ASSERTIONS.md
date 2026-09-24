@@ -140,7 +140,7 @@ Notas:
   - deteccion viewport `auto_non_black`;
   - checks `shifted_region_match`, `equal_region`, `forbidden_color_ratio`;
   - salida JSON + Markdown + exit code.
-- Integrar en `demos/amiga/101_ehb_tile_scroll_driver/analyze-sequence.ps1` con flag
+- Integrar en `demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver/analyze-sequence.ps1` con flag
   `-PixelAssert` y opcion estricta `-RequirePixelAssertOk`.
 
 ### Fase 2 (robustez)
@@ -169,7 +169,7 @@ Notas:
 ### Ejecucion manual de secuencia
 
 ```powershell
-.\tools\run\run-demo.ps1 demos\amiga\101_ehb_tile_scroll_driver `
+.\tools\run\run-demo.ps1 demos\techniques\amiga\playfield\101_ehb_tile_scroll_driver `
   -SequenceFrames 16 `
   -SequenceIntervalMs 120
 ```
@@ -184,7 +184,7 @@ captura **frames consecutivos** (1 frame entre capturas), de modo que el run sta
 quedan en el mismo frame:
 
 ```bash
-bash ./tools/run/run-demo.sh demos/amiga/210_copper_blitter --warp \
+bash ./tools/run/run-demo.sh demos/techniques/amiga/blitter/210_copper_blitter --warp \
   --sequence-step-frames 14 --sequence-step-start-fine 2
 ```
 
@@ -197,8 +197,8 @@ El helper `tools/analyze/step-shift-check.sh` encapsula la captura y la comproba
 rutas, que incluyen el `CONFIG_ID`):
 
 ```bash
-bash ./tools/analyze/step-shift-check.sh --demo demos/amiga/210_copper_blitter \
-  --contract demos/amiga/210_copper_blitter/pixel-contract.json \
+bash ./tools/analyze/step-shift-check.sh --demo demos/techniques/amiga/blitter/210_copper_blitter \
+  --contract demos/techniques/amiga/blitter/210_copper_blitter/pixel-contract.json \
   --frames 14 --start-fine 2 --settle-ms 1200 --warp
 ```
 
@@ -212,7 +212,7 @@ imagen con `viewport.logicalWidth`). Para scroll fino de **1 px/frame** el contr
 ```powershell
 .\tools\analyze\assert-pixel-contract.ps1 `
   -SequenceDir .\out\run\101_ehb_tile_scroll_driver\sequence `
-  -Contract .\demos\amiga\101_ehb_tile_scroll_driver\pixel-contract.json `
+  -Contract .\demos\techniques\amiga\playfield\101_ehb_tile_scroll_driver\pixel-contract.json `
   -RunReport .\out\run\101_ehb_tile_scroll_driver\run-report.json `
   -OutDir .\out\analysis\101_pixel_assert
 ```
@@ -220,7 +220,7 @@ imagen con `viewport.logicalWidth`). Para scroll fino de **1 px/frame** el contr
 ### Integracion en analizador de demo
 
 ```powershell
-.\demos\amiga\101_ehb_tile_scroll_driver\analyze-sequence.ps1 `
+.\demos\techniques\amiga\playfield\101_ehb_tile_scroll_driver\analyze-sequence.ps1 `
   -RequirePixelAssertOk
 ```
 
@@ -274,18 +274,18 @@ Ya existe un MVP funcional integrado en el repositorio:
 
 - Motor Python: `tools/analyze/assert-pixel-contract.py`
 - Wrapper PowerShell: `tools/analyze/assert-pixel-contract.ps1`
-- Contrato inicial demo 101: `demos/amiga/101_ehb_tile_scroll_driver/pixel-contract.json`
+- Contrato inicial demo 101: `demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver/pixel-contract.json`
 - Contratos adicionales demos 050/051/052:
-  - `demos/amiga/050_blitter_bobs/pixel-contract.json`
-  - `demos/amiga/051_blitter_shifted_bobs/pixel-contract.json`
-  - `demos/amiga/052_tile_staging_blits/pixel-contract.json`
+  - `demos/techniques/amiga/blitter/050_blitter_bobs/pixel-contract.json`
+  - `demos/techniques/amiga/blitter/051_blitter_shifted_bobs/pixel-contract.json`
+  - `demos/techniques/amiga/blitter/052_tile_staging_blits/pixel-contract.json`
 - Integracion opcional en secuencia demo 101:
   - `-PixelAssert`
   - `-RequirePixelAssertOk`
 - Integracion en secuencia demos 050/051/052:
-  - `demos/amiga/050_blitter_bobs/analyze-sequence.ps1`
-  - `demos/amiga/051_blitter_shifted_bobs/analyze-sequence.ps1`
-  - `demos/amiga/052_tile_staging_blits/analyze-sequence.ps1`
+  - `demos/techniques/amiga/blitter/050_blitter_bobs/analyze-sequence.ps1`
+  - `demos/techniques/amiga/blitter/051_blitter_shifted_bobs/analyze-sequence.ps1`
+  - `demos/techniques/amiga/blitter/052_tile_staging_blits/analyze-sequence.ps1`
 - Integracion en regresion global:
   - `tools/test-regression.ps1 -PixelAssert -RequirePixelAssertOk`
   - nueva columna `PixelAssert` en `regression-report.md`

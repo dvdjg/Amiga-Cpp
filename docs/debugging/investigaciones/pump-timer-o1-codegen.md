@@ -52,7 +52,7 @@ timer de periodo > 1, compilar su TU a `-O2` o fijar/reportar el bug de gcc.
 
 ## Repro
 
-La demo 212 con `eng::os::add_timer(1u, 2u)` es el repro reproducible (`demos/amiga/212_message_loop`).
+La demo 212 con `eng::os::add_timer(1u, 2u)` es el repro reproducible (`demos/techniques/amiga/os/212_message_loop`).
 Minimizado, el patrón es: un `MessagePumpGame<App>` con **un contador miembro** que se incrementa en
 `on_msg` cuando llega un `MsgType::Timer`, un `add_timer(id, 2)` y lectura del contador en `on_frame`.
 

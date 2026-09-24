@@ -185,16 +185,16 @@ del álgebra, en [MATH_LIBRARY.md](MATH_LIBRARY.md).
 - Codegen 68000: `tools/analyze/codegen-report.mjs` compila sondas de las funciones nuevas
   (`c_fx_*`/`c_mf_*`) y **falla** si aparecen libcalls de libgcc, instrucciones 68020 o si
   los helpers de gameplay no quedan inlineados (incluido en la pasada de tests host).
-- Demo: `demos/amiga/083_fbm_noise` construye un mapa de altura con `fbm2<MiniFloat16>`
+- Demo: `demos/techniques/amiga/effects/083_fbm_noise` construye un mapa de altura con `fbm2<MiniFloat16>`
   en hardware (build/run/analyze OK) — ejemplo canónico de `noise.hpp` y verificación por
   demo del escalar.
-- Demo: `demos/amiga/084_mf_rotation` compone una rotación 3D con `sin`/`cos` de
+- Demo: `demos/techniques/amiga/3d/084_mf_rotation` compone una rotación 3D con `sin`/`cos` de
   `MiniFloat16` y transforma coordenadas `q0` con `eng/retro/minifloat_fixed`
   (self-test de `sin`/`exp`/`sqrt` en hardware) — verificación por demo de
   `minifloat_math.hpp`.
 - Fixed: `eng/core/math/fixed_math.hpp` (`sin`/`cos`/`sqrt`/`exp2`/`log2`/`exp`/`log`/`pow`
   para `Fixed<s16,E>`, con tablas compartidas) está respaldado por HOST-104 y
-  **verificado por demo** en `demos/amiga/110_ylimited_shooter` (self-test en `init`,
+  **verificado por demo** en `demos/techniques/amiga/playfield/110_ylimited_shooter` (self-test en `init`,
   sin `float`).
 
 ## 7. Tabla función × escalar (generada)

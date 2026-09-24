@@ -24,7 +24,7 @@ a dia de hoy las versiones instaladas (1.8.1/1.8.2 y el fork local) son **15.1.0
 ## Compilar una demo
 
 ```powershell
-.\tools\build\build-demo.ps1 demos\amiga\000_toolchain_cpp23 -Clean
+.\tools\build\build-demo.ps1 demos\techniques\amiga\setup\000_toolchain_cpp23 -Clean
 ```
 
 La salida queda en:
@@ -52,7 +52,7 @@ La regresion puede incluir el barrido estricto con `--build-all`:
 
 ```bash
 bash ./tools/test-regression.sh --build-all                 # barrido --strict y luego la regresion
-bash ./tools/test-regression.sh --build-all --demo demos/amiga/101_ehb_tile_scroll_driver
+bash ./tools/test-regression.sh --build-all --demo demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver
 ```
 
 Las demos 201 y 202 se autogeneran los assets en `src/prebuild.sh` (como la 078), asi que el
@@ -64,7 +64,7 @@ dependiendo de WAVs no versionados (ver `tools/audio/README.md`) y salen `ASSET`
 Si la demo incluye `src/prebuild.sh`, `tools/build/build-demo.sh` lo ejecuta **antes de compilar** (con cwd = raíz del repo). Es el gancho para regenerar assets derivados de forma reproducible, por ejemplo un blob UAF-R que luego se incbina:
 
 ```text
-demos/amiga/078_math3d_solid/src/prebuild.sh
+demos/techniques/amiga/3d/078_math3d_solid/src/prebuild.sh
   -> node dist/tools/assets/uaf-pack.js out/assets/uaf/cube.uafr --mesh
 ```
 
@@ -73,7 +73,7 @@ Así el flujo `exportador -> incbin -> runtime` se reconstruye en cada build sin
 ## Analizar una demo
 
 ```powershell
-.\tools\analyze\analyze-demo.ps1 demos\amiga\000_toolchain_cpp23
+.\tools\analyze\analyze-demo.ps1 demos\techniques\amiga\setup\000_toolchain_cpp23
 ```
 
 Esta primera version comprueba que existen los artefactos y que el mapa contiene
@@ -83,7 +83,7 @@ ejecuta un analisis visual automatico de la imagen.
 ## Ejecutar una demo
 
 ```powershell
-.\tools\run\run-demo.ps1 demos\amiga\000_toolchain_cpp23
+.\tools\run\run-demo.ps1 demos\techniques\amiga\setup\000_toolchain_cpp23
 ```
 
 El runner:
@@ -143,7 +143,7 @@ Para observar una demo manualmente sin que el runner cierre WinUAE al terminar l
 captura:
 
 ```powershell
-.\tools\run\run-demo.ps1 demos\amiga\101_ehb_tile_scroll_driver -KeepRunning
+.\tools\run\run-demo.ps1 demos\techniques\amiga\playfield\101_ehb_tile_scroll_driver -KeepRunning
 ```
 
 Tambien hay un lanzador con menu para uso humano:
@@ -211,7 +211,7 @@ Para consultar una instancia viva manualmente:
 Para mover el raton del Amiga sin usar ni capturar el raton fisico de Windows:
 
 ```powershell
-.\tools\run\run-demo.ps1 demos\amiga\000_toolchain_cpp23 `
+.\tools\run\run-demo.ps1 demos\techniques\amiga\setup\000_toolchain_cpp23 `
   -WaitMs 3000 `
   -MouseFrom 32,40 `
   -MouseTo 280,170 `
@@ -231,7 +231,7 @@ El runner aplica reglas `monitor protect` (bloquear escrituras o forzar valor)
 tras alcanzar READY, antes de las capturas. Sintaxis (repetible):
 
 ```bash
-./tools/run/run-demo.sh demos/amiga/101_ehb_tile_scroll_driver \
+./tools/run/run-demo.sh demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver \
   --protect g_eng_run_status,set:0x5,8 \
   --protect 0x40000,block,16
 ```
@@ -293,7 +293,7 @@ Ese documento define contratos por ROI/frame y checks como
 Uso rapido sobre la demo 101:
 
 ```powershell
-.\tools\test-regression.ps1 -Demo demos\amiga\101_ehb_tile_scroll_driver -PixelAssert -RequirePixelAssertOk
+.\tools\test-regression.ps1 -Demo demos\techniques\amiga\playfield\101_ehb_tile_scroll_driver -PixelAssert -RequirePixelAssertOk
 ```
 
 El informe de regresion incluye columna `PixelAssert`.
@@ -303,7 +303,7 @@ la regresion de demos:
 
 ```powershell
 .\tools\test-regression.ps1 `
-  -Demo demos\amiga\101_ehb_tile_scroll_driver `
+  -Demo demos\techniques\amiga\playfield\101_ehb_tile_scroll_driver `
   -PixelAssert -RequirePixelAssertOk `
   -PixelAssertSelftest
 ```
@@ -312,7 +312,7 @@ Para ejecutar tambien el selftest sintetico (casos positivos/negativos) antes de
 la regresion:
 
 ```powershell
-.\tools\test-regression.ps1 -Demo demos\amiga\101_ehb_tile_scroll_driver -PixelAssert -RequirePixelAssertOk -PixelAssertSelftest
+.\tools\test-regression.ps1 -Demo demos\techniques\amiga\playfield\101_ehb_tile_scroll_driver -PixelAssert -RequirePixelAssertOk -PixelAssertSelftest
 ```
 
 El informe queda en:
@@ -326,7 +326,7 @@ Opciones utiles:
 
 ```powershell
 .\tools\test-regression.ps1 -SkipRun
-.\tools\test-regression.ps1 -Demo demos\amiga\000_toolchain_cpp23
+.\tools\test-regression.ps1 -Demo demos\techniques\amiga\setup\000_toolchain_cpp23
 .\tools\test-regression.ps1 -ReleaseBuild
 .\tools\test-regression.ps1 -KeepGoing
 .\tools\test-regression.ps1 -Warp

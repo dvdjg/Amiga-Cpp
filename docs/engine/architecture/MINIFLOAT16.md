@@ -206,7 +206,7 @@ saturación correcta fuera de rango.
 
 ## 9. Estado y verificación
 
-`MiniFloat16` está **verificada por demo**: `demos/amiga/083_fbm_noise` usa
+`MiniFloat16` está **verificada por demo**: `demos/techniques/amiga/effects/083_fbm_noise` usa
 `fbm2<MiniFloat16>` (`eng/core/math/noise.hpp`) para construir un mapa de altura en el
 emulador (build/run/analyze OK), ejercitando la aritmética, `from_int` y las
 comparaciones en hardware. Su corrección la amplían los tests host:
@@ -225,6 +225,6 @@ comparaciones en hardware. Su corrección la amplían los tests host:
   con `MiniFloat16` contra `double` (el mismo camino que usa la demo 083).
 
 Las funciones de `minifloat_math.hpp` (trascendentes) están **verificadas por demo**:
-`demos/amiga/084_mf_rotation` compone una rotación 3D con `sin`/`cos` de `MiniFloat16` y
+`demos/techniques/amiga/3d/084_mf_rotation` compone una rotación 3D con `sin`/`cos` de `MiniFloat16` y
 hace un self-test en hardware de `sin(π/2)`, `exp(0)` y `sqrt(4)` (build/run/analyze OK).
 Además las cubre el test host 057.

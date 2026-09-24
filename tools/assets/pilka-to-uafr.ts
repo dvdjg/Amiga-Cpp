@@ -14,7 +14,7 @@ import path from 'node:path';
 import { packUaf, polyMeshChunkData, UafChunkType } from './uaf-pack.js';
 
 const ROOT = process.cwd(); // ejecutar desde la raíz del repo
-const SRC = path.join(ROOT, 'demos/amiga/116_flatshade_convex/src/data/pilka.c');
+const SRC = path.join(ROOT, 'demos/techniques/amiga/effects/116_flatshade_convex/src/data/pilka.c');
 const OUT = process.argv[2] ?? path.join(ROOT, 'out/assets/mesh/pilka.uafr');
 
 /** Extrae los enteros del inicializador de un array C `name[] = { ... };`. */

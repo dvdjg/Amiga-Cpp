@@ -57,9 +57,9 @@ Dos condiciones evitan el fantasma:
 
 ## Validación
 
-- `demos/amiga/206_sprite_collision`: sprite en estructura con cabecera → la **colisión
+- `demos/techniques/amiga/sprites/206_sprite_collision`: sprite en estructura con cabecera → la **colisión
   registra** (bit 1 de `CLXDAT`); sin cabecera, no.
-- `demos/amiga/207_sprite_layer`: una estructura DMA por canal (DMA y Copper) + `WAIT` de
+- `demos/techniques/amiga/sprites/207_sprite_layer`: una estructura DMA por canal (DMA y Copper) + `WAIT` de
   rearmado en `arm_hpos` → render correcto y **sin** columna fantasma.
 
 ## Referencias

@@ -1,7 +1,7 @@
 # Pipeline de tiles EHB para el mapa de la demo 201
 
 Este documento describe, de forma verificada y reproducible, cómo se genera el mapa
-EHB que dibuja `demos/amiga/201_ehb_map` a partir de un bitmap de tiles genérico: qué
+EHB que dibuja `demos/techniques/amiga/playfield/201_ehb_map` a partir de un bitmap de tiles genérico: qué
 scripts de `tools/ehb` intervienen, con qué argumentos se llamaron, qué producen
 cada uno y cómo esos datos se incrustan en el programa. El objetivo del pipeline es
 que el Amiga **no transforme píxeles en CPU**: todo lo que se incbina (banco,
@@ -62,8 +62,8 @@ node tools/ehb/emit-const-201.mjs   # -> out/assets/ehb/const_game_201.h
 node tools/ehb/emit-xlimited-bank.mjs # -> out/assets/ehb/tilebank.xlimited.bin (+.h)
 
 # 5) Compilar y ejecutar la demo.
-bash ./tools/build/build-demo.sh demos/amiga/201_ehb_map --debug --clean
-bash ./tools/run/run-demo.sh demos/amiga/201_ehb_map
+bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/201_ehb_map --debug --clean
+bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/201_ehb_map
 ```
 
 Resultados medidos de una regeneración limpia (señales de la salida real):
@@ -148,7 +148,7 @@ el banco (222 KB) más el display en 512 KB de Chip RAM.
 ```
 
 - El banco se incbina en Chip RAM con `__asm__(".section tiles.MEMF_CHIP...")` en
-  `demos/amiga/201_ehb_map/src/main.cpp:43-50`; `elf2hunk` lo emite como hunk HUNKF_CHIP y
+  `demos/techniques/amiga/playfield/201_ehb_map/src/main.cpp:43-50`; `elf2hunk` lo emite como hunk HUNKF_CHIP y
   `LoadSeg` lo sitúa en Chip RAM.
 - `XlimitedScene` **alia** el banco (`scene_cfg.blocks_prebuilt`), no lo copia ni lo
   transforma: el rectángulo de Chip total (banco + display + copper) cabe en 512 KB.

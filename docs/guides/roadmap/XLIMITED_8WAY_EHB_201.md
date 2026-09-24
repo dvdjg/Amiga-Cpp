@@ -46,7 +46,7 @@ reusable al engine y luego se hace el DPF en 202.
 > EHB** para renderizar el HUD con su propia paleta. El `scene_cfg.hud_planes` estaba mal
 > (se heredó de una config de 4 planos) y la zona HUD no cuadraba con el canvas del HUD
 > `draw_hud` (que pinta fondo negro + 3 líneas de texto). El fix es **`hud_planes=6`**
-> (`demos/amiga/201_ehb_map/src/main.cpp`, `scene_cfg`), que hace que la zona HUD del copper
+> (`demos/techniques/amiga/playfield/201_ehb_map/src/main.cpp`, `scene_cfg`), que hace que la zona HUD del copper
 > emigre a planos 1-6 y apague el EHB (BPLCON4=0) correctamente.
 >
 > **Evidencia concluyente (3 vías independientes):** (1) dump real del copper de la zona HUD
@@ -135,7 +135,7 @@ a `max_step` ≤ 16px ejecutándolo como sub-pasos atómicos de 1 px
 implementa H/V/HV/diagonal Lissajous. Hay que añadir los caminos **cuadrado** y **circular**
 con **clamping en los bordes del mapa** (recorrido acotado, no wrap infinito).
 
-Se trabaja sobre demo 107 (`demos/amiga/107_xlimited_corkscrew`, `K_TILE_WIDTH`, `K_STEP`).
+Se trabaja sobre demo 107 (`demos/techniques/amiga/playfield/107_xlimited_corkscrew`, `K_TILE_WIDTH`, `K_STEP`).
 
 ## Objetivo
 Un motor A500 medible: primero el **scroll 8-way X-Limited impecable**, expuesto en la
@@ -253,7 +253,7 @@ ninguna transformación de CPU sobre los píxeles**:
   índice intercalado `v` a su índice EHB `e = (v>>1) | ((v&1)<<5)` (base `2k` → `k`,
   half `2k+1` → `32+k`), biyectiva sobre 0..63. Reordena igualmente la paleta a
   bases-primero. Ya aplicado a `out/assets/ehb/tilebank.raw.bin` y `out/assets/ehb/const_game_201.h`.
-- **Paleta** (`demos/amiga/201_ehb_map/src/main.cpp`): cargar solo las 32 bases en `COLOR0..31`,
+- **Paleta** (`demos/techniques/amiga/playfield/201_ehb_map/src/main.cpp`): cargar solo las 32 bases en `COLOR0..31`,
   `palette[i] = kEhbPalette[i]` (índices 0..31, ya bases-primero); el half lo genera el
   hardware.
 - **Plano half** (`fill_planes`): la demo lee el byte del banco **directo** como índice EHB

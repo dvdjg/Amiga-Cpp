@@ -2,5 +2,5 @@
 # Comprueba la captura de pantalla de esta demo (helper multiplataforma).
 # Uso: analyze-screenshot.sh <imagen.png>
 set -euo pipefail
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
 exec node "$ROOT/dist/tools/analyze/analyze_demo_screenshot.js" --image "$1" --demo "030_ehb_palette_zones" 

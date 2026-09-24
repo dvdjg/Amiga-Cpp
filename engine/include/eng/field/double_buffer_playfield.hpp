@@ -11,7 +11,7 @@
 /// **No posee memoria**: `bind` la liga a **dos bitmaps del display** que reserva el llamador
 /// (la escena/el display poseen los buffers; la superficie solo escribe y conmuta). El scroll por
 /// punteros lo aporta el mapper flat (`map_flat_scroll`). Verificada por la demo
-/// `demos/amiga/122_doublebuffer_scroll`.
+/// `demos/techniques/amiga/playfield/122_doublebuffer_scroll`.
 
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/types.hpp>

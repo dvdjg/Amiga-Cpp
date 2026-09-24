@@ -67,10 +67,10 @@ Engine base:
 
 Demo inicial:
 
-- `demos/amiga/000_toolchain_cpp23/src/main.cpp`
-- `demos/amiga/000_toolchain_cpp23/README.md`
-- `demos/amiga/010_chip_slow_memory/src/main.cpp`
-- `demos/amiga/010_chip_slow_memory/README.md`
+- `demos/techniques/amiga/setup/000_toolchain_cpp23/src/main.cpp`
+- `demos/techniques/amiga/setup/000_toolchain_cpp23/README.md`
+- `demos/techniques/amiga/setup/010_chip_slow_memory/src/main.cpp`
+- `demos/techniques/amiga/setup/010_chip_slow_memory/README.md`
 - `demos/techniques/amiga/copper/020_copper_basic/src/main.cpp`
 - `demos/techniques/amiga/copper/020_copper_basic/README.md`
 - `demos/techniques/amiga/copper/020_copper_basic/analyze-screenshot.ps1`
@@ -110,9 +110,9 @@ Documentacion:
 ## Comandos verificados
 
 ```powershell
-.\tools\build\build-demo.ps1 demos\amiga\000_toolchain_cpp23 -DebugBuild
-.\tools\run\run-demo.ps1 demos\amiga\000_toolchain_cpp23
-.\tools\analyze\analyze-demo.ps1 demos\amiga\000_toolchain_cpp23
+.\tools\build\build-demo.ps1 demos\techniques\amiga\setup\000_toolchain_cpp23 -DebugBuild
+.\tools\run\run-demo.ps1 demos\techniques\amiga\setup\000_toolchain_cpp23
+.\tools\analyze\analyze-demo.ps1 demos\techniques\amiga\setup\000_toolchain_cpp23
 ```
 
 Resultado verificado:
@@ -222,7 +222,7 @@ Resultado verificado:
   `MaskedBobCookieCut` y `MaskedBlobNoSave`, con presupuesto acumulado por jobs y
   words. El backend Amiga ejecuta esos jobs en
   `AmigaBackend::execute_frame_plan()`.
-- Se ha añadido `demos/amiga/050_blitter_bobs`: dibuja un BOB de 32x32 y dos blobs
+- Se ha añadido `demos/techniques/amiga/blitter/050_blitter_bobs`: dibuja un BOB de 32x32 y dos blobs
   no-save no solapados, todos X alineados a 16 pixels, sobre una escena EHB. La
   demo valida el camino `FramePlan -> backend -> Blitter`.
 - `050_blitter_bobs` ahora anima el BOB usando save/restore real por Blitter:
@@ -367,7 +367,7 @@ Resultado verificado:
   `out\vision-review\101_lmstudio_multi_v2` con `status=ok`. El proveedor
   recomendado queda en `tools/vision-review/providers/lmstudio.legion.json`.
 - `Vision Review` queda integrado de forma opcional en
-  `demos/amiga/101_ehb_tile_scroll_driver/analyze-sequence.ps1`: `-VisionReview` genera
+  `demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver/analyze-sequence.ps1`: `-VisionReview` genera
   informe y `-RequireVisionReviewOk` exige aprobacion del modelo. La regresion
   acepta los mismos flags y, sin ellos, no llama a LM Studio. Se verifico
   `analyze-sequence.ps1 -Warp -RequireVisionReviewOk` y una regresion normal de la
@@ -411,7 +411,7 @@ Resultado verificado:
   Blitter. Esto separa degradacion intencional de regresiones de coste ocultas.
 - Se implementa `Pixel Assertions` como capa determinista de validacion por frame:
   `tools/analyze/assert-pixel-contract.py` + wrapper PowerShell y contrato inicial
-  `demos/amiga/101_ehb_tile_scroll_driver/pixel-contract.json`. La demo 101 ya acepta
+  `demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver/pixel-contract.json`. La demo 101 ya acepta
   `-PixelAssert`/`-RequirePixelAssertOk` en `analyze-sequence.ps1` y la regresion
   global anade columna `PixelAssert` en `tools/test-regression.ps1`. Evidencia:
   `out\regression\20260603-223245\regression-report.md`.

@@ -49,4 +49,4 @@ Comparando `fs_draw_edges` con `AmigaBackend::blitter_line_eor_prepare`/`_draw` 
 2. El C++ calcula `row_offset = (y0<<5) + ((x0>>3)&~1)`; el asm hace `(y0<<5) + ((x0>>3)&~1)` con **shifts de 16 bits** (`lsl.w`/`lsr.w`). ¿Puede el uso de `.w` (en vez de `.l`) en algún paso introducir el desfase?
 3. ¿Ves algún sitio donde el asm escriba los registros del Blitter en un orden que importe (p. ej. `BLTCPT` antes de `BLTAPT`, y ambos como `move.l` que pisan `BLTBPT`/`BLTDPT`)? El C++ usa otro orden.
 
-**Repro**: `-DK_FLATSHADE_ASM=1` sobre `demos/amiga/116_flatshade_convex`; wireframe con `-DFLATSHADE_SKIP_FILL=1`. Referencia C++: `-DK_FLATSHADE_ASM=0`.
+**Repro**: `-DK_FLATSHADE_ASM=1` sobre `demos/techniques/amiga/effects/116_flatshade_convex`; wireframe con `-DFLATSHADE_SKIP_FILL=1`. Referencia C++: `-DK_FLATSHADE_ASM=0`.

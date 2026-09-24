@@ -354,7 +354,7 @@ UI (`eng::ui`).
   la escritura `DSKLEN=0` (que en `:4887` dispara un `disk_dmafinished` prematuro con `dma_enable` a 1).
   Pendiente: un `write_log` dirigido (`DISK_DEBUG_X`, `:4276` `buffer load`) para ver qué escribe el DMA
   y por qué el buffer recibe pocos syncs; después, leer sector a sector sincronizando por `DSKSYNC`. La
-  regresión le pasa el ADF y timeout amplio vía `demos/amiga/214_floppy_raw/run.args`.
+  regresión le pasa el ADF y timeout amplio vía `demos/techniques/amiga/io/214_floppy_raw/run.args`.
 - **M8/A5 — reproducir por Paula desde RAM: RESUELTO.** La demo 272 **alcanza `READY`** con
   `detail=0x2c002c` (`irq == swaps`, **0 underruns**): el fallo eran los *underruns* por el feeder
   CPU-bound (sintetizaba+codificaba en cada frame), no la IRQ. Arreglo: pre-sintetizar/pre-codificar

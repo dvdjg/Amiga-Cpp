@@ -173,7 +173,7 @@ Ejecuta y captura con Windows nativo:
 
 # Depuración: artefactos de arranque/display en demos (060 y 201)
 
-Diagnóstico de los dos artefactos reportados en `demos/amiga/060_eng_core_selfcheck` y `demos/amiga/201_ehb_map`: doble texto solapado amarillo+blanco y banda vertical cian (0x0AA) intermitente de 1-2 frames. Todo lo aquí escrito está verificado con evidencia reproducible salvo donde se marque como hipótesis abierta. Comando de reproducción y sondas incluidos al final.
+Diagnóstico de los dos artefactos reportados en `demos/amiga/060_eng_core_selfcheck` y `demos/techniques/amiga/playfield/201_ehb_map`: doble texto solapado amarillo+blanco y banda vertical cian (0x0AA) intermitente de 1-2 frames. Todo lo aquí escrito está verificado con evidencia reproducible salvo donde se marque como hipótesis abierta. Comando de reproducción y sondas incluidos al final.
 
 ## 1. Resumen ejecutivo
 
@@ -186,7 +186,7 @@ Hay **cuatro bugs** independientes. El doble texto y la banda NO comparten causa
 | C. Instalación a media pantalla | Basura/contenido del sistema asomando 1 frame en el arranque (capturas 1-8 del perfil) | `install_copper_list` hace COPJMP1 desde `init()` fuera de VBlank; el Copper arranca a media línea | Instalar DENTRO del VBL la primera vez; swaps posteriores solo escribiendo COP1LC (sin COPJMP1) |
 | D. Paleta/pie | El texto del pie es invisible y 0x0AA queda en índice equivocado | La paleta pone 0x0aa en índice 19 pero el código dibuja el pie con color 20 (0x000=negro) | Poner 0x0aa en palette[20] (o dibujar con 19) |
 
-La demo 201 se beneficia de B y C sin tocar su código: su `render()` llama `scene.install(backend)` cada frame (`demos/amiga/201_ehb_map/src/main.cpp:828`) y con el doble buffer `XlimitedDisplayComposer` (`engine/include/eng/field/xlimited.hpp:1386`) eso hoy provoca un COPJMP1 por frame; tras un `draw_hud()` lento dentro de render el COPJMP1 cae a media pantalla → banda de 1 frame cada cambio de segmento (~3 s). Con el fix C (swaps = solo puntero COP1LC) ese patrón pasa a ser correcto y seguro.
+La demo 201 se beneficia de B y C sin tocar su código: su `render()` llama `scene.install(backend)` cada frame (`demos/techniques/amiga/playfield/201_ehb_map/src/main.cpp:828`) y con el doble buffer `XlimitedDisplayComposer` (`engine/include/eng/field/xlimited.hpp:1386`) eso hoy provoca un COPJMP1 por frame; tras un `draw_hud()` lento dentro de render el COPJMP1 cae a media pantalla → banda de 1 frame cada cambio de segmento (~3 s). Con el fix C (swaps = solo puntero COP1LC) ese patrón pasa a ser correcto y seguro.
 
 ## 2. Cómo reproducir (Windows nativo, sin WSL)
 

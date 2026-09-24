@@ -110,7 +110,7 @@ La demo 202 trae **por defecto** el modo de independencia (FG field0/PF1 lineal,
 BG field1/PF2 corkscrew/split) para que se vea Y desacoplada:
 
 ```
-bash ./tools/run/run-demo.sh demos/amiga/202_xlimited_dpf --warp --settle-ms 50000
+bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/202_xlimited_dpf --warp --settle-ms 50000
 ```
 
 El `detail` del run-status publica `phase<<24 | maxΔY<<12 | bgY`, donde `maxΔY` es
@@ -119,7 +119,7 @@ observan, por ejemplo, instantes con `bgY≈272` y `fgY≈115` (Δ grande), lo q
 demuestra que **las dos Y son independientes**. En la variante corkscrew dual
 compartida `maxΔY≈0`.
 
-Variante corkscrew dual clásico (Y compartida): en `demos/amiga/202_xlimited_dpf/src/main.cpp`
+Variante corkscrew dual clásico (Y compartida): en `demos/techniques/amiga/playfield/202_xlimited_dpf/src/main.cpp`
 pon `static constexpr bool kShareY = true;` (constante paramétrica con `if constexpr`,
 sin macros) y recompila. El modo se elige así en el código; el ENGINE no usa macros:
 la vía es siempre `XlimitedSceneConfig.dual_linear_field` (0 = ambos corkscrew /

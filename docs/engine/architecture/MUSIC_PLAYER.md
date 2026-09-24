@@ -56,7 +56,7 @@ todos los canales al arrancar, incluso los vacíos).
 
 Hallazgo (medido, no resuelto del todo): con música **+** mixer a la vez, el **contador de la IRQ de
 audio del mixer** avanza a ritmo **constante pero mucho menor** cuanto **más grande** es el módulo. En
-`demos/amiga/276_music_mixer` (música en AUD1‑3 por P61/PtPlayer + mixer en AUD0, a frame 120):
+`demos/techniques/amiga/audio/276_music_mixer` (música en AUD1‑3 por P61/PtPlayer + mixer en AUD0, a frame 120):
 
 | Módulo | Tamaño | Contador del mixer | Golpes |
 |---|---|---|---|
@@ -74,7 +74,7 @@ audio del mixer** avanza a ritmo **constante pero mucho menor** cuanto **más gr
 
 **Hipótesis abierta**: con módulos grandes, el reproductor (que corre en **CIA**, nivel 2) **se come la
 IRQ de audio del mixer** (nivel 4) o **reescribe registros de audio más a menudo**; el mixer pierde
-IRQs. Para reproducirlo: `demos/amiga/276_music_mixer` con `-DMED_MOD=2` (y `-DK_REPORT_FRAME=N`). Un
+IRQs. Para reproducirlo: `demos/techniques/amiga/audio/276_music_mixer` con `-DMED_MOD=2` (y `-DK_REPORT_FRAME=N`). Un
 módulo **moderado** (≤ ~100 KB) va fino.
 
 **No hay límite documentado del tamaño del módulo** en el reproductor (P61/PtPlayer) ni en el mixer.

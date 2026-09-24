@@ -102,7 +102,7 @@ input.enable_cd32_port2(hw.port2.is_cd32_pad);
 
 ## Verificación
 
-- **Demo 205** (`demos/amiga/205_hw_probe`): ejecuta `probe()`, liga la escena con
+- **Demo 205** (`demos/techniques/amiga/debug/205_hw_probe`): ejecuta `probe()`, liga la escena con
   `bind_hw_info` (el display sale de la composición) y muestra el `HwInfo` en el overlay del
   depurador. Verificada en **A500 (OCS, 68000, Kickstart 34.2, 512 KB chip + 504 KB slow)**.
 - **HOST-234**: comprueba que `Scene::bind_hw_info` publica el tamaño, la profundidad y los colores

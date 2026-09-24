@@ -59,7 +59,7 @@ superan un presupuesto conservador de H-BLANK y alimenta `ScheduleReport`.
 El primer efecto reusable esta en
 `engine/include/eng/graphics/effects/palette_cycle.hpp`. `PaletteCycleEffect`
 rota un tramo de paleta fisica sin tocar bitplanes; la demo
-`demos/amiga/040_palette_cycle_effect` lo valida con captura y `runStatus.detail`.
+`demos/techniques/amiga/effects/040_palette_cycle_effect` lo valida con captura y `runStatus.detail`.
 Su hermano `PaletteTransitionEffect` (`effects/palette_transition.hpp`) hace un
 **fundido/transicion** entre dos paletas cocinadas (fundir a negro = transicion a una
 paleta de ceros) reutilizando `eng::util::palette_lerp`/`palette_scale`; la misma demo lo
@@ -73,7 +73,7 @@ parche de paleta en `FramePlan` y la escena actualiza solo los valores de
 los MOVEs `COLORxx` existentes, sin recompilar la copperlist completa. Los parches de
 efectos distintos se componen sin solaparse.
 
-La primera prueba de Blitter esta en `demos/amiga/050_blitter_bobs`. La demo crea
+La primera prueba de Blitter esta en `demos/techniques/amiga/blitter/050_blitter_bobs`. La demo crea
 trabajos `BlitJob` dentro de `FramePlan`; el backend Amiga los ejecuta con el
 Blitter hardware sobre los 6 bitplanes EHB. Ya existen tipos para copia,
 restore, BOB cookie-cut y `MaskedBlobNoSave`. Este ultimo modela la tecnica tipo
@@ -90,12 +90,12 @@ La demo 050 usa limites pequenos para fallar de forma controlada si su frame de
 restore/save/draw crece mas alla del contrato esperado, conservando el estado
 saludable `0x05020311`.
 
-`demos/amiga/051_blitter_shifted_bobs` valida el siguiente contrato: un `BlitJob`
+`demos/techniques/amiga/blitter/051_blitter_shifted_bobs` valida el siguiente contrato: un `BlitJob`
 enmascarado puede pedir `source_shift` y el backend lo traduce a los shifts A/B
 de `BLTCON0`/`BLTCON1`. Esto permite X no alineada a 16 pixels con una word extra
 por fila de fuente.
 
-`demos/amiga/052_tile_staging_blits` separa los blits de tiles de los blits de sprites.
+`demos/techniques/amiga/blitter/052_tile_staging_blits` separa los blits de tiles de los blits de sprites.
 `TileBlockCopy` usa la misma copia rectangular que `CopyRect`, pero representa una
 intencion distinta: preparar columnas, filas o bloques de tilemap en zonas no
 visibles del playfield. La demo compone un bloque 4x4 de tiles en un buffer Chip
@@ -126,7 +126,7 @@ capas, margenes ocultos y estrategia de scroll. La demo 052 ya pasa por esa capa
 antes de emitir blits, de modo que las proximas demos podran crecer hacia un
 `TileScrollDriver` sin reescribir la logica.
 
-`demos/amiga/100_virtual_tile_scene_scroll` es el primer MVP visual sobre esa fachada.
+`demos/techniques/amiga/playfield/100_virtual_tile_scene_scroll` es el primer MVP visual sobre esa fachada.
 Muestra un mapa 64x16 con camara X=57, `fine_x=9`, paletas EHB por zonas Copper y
 tiles generados como words planares. Todavia no es el driver definitivo: recompone
 el viewport de forma didactica. Su valor es fijar el contrato estetico y de API
@@ -161,7 +161,7 @@ crucen el borde visible. El mismo template se instancia para:
 - single playfield de 4, 5 o 6 bitplanes (6 = EHB);
 - dual playfield 2+3 y 3+3, con scroll fino/coarse independiente por playfield.
 
-`demos/amiga/101_ehb_tile_scroll_driver` demuestra el modo single 6 (EHB) con una ruta
+`demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver` demuestra el modo single 6 (EHB) con una ruta
 circular; `demos/amiga/102_tile_scroll_dualpf` demuestra el dual 2+3 con un fondo que
 deriva a la derecha y un primer plano de tiles con el 50% de pixels transparentes
 que deriva a la izquierda y bobea. Cada frame se reconstruye la copperlist y los

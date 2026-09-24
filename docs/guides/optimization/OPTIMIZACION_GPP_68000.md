@@ -319,7 +319,7 @@ desensambla un ELF (o un `.o`) y reporta, **por función**, cuántas llamadas a 
 emite:
 
 ```
-node tools/analyze/asm-audit.mjs --demo demos/amiga/107_xlimited_corkscrew [--ext] [--top N] [--json] [--strict]
+node tools/analyze/asm-audit.mjs --demo demos/techniques/amiga/playfield/107_xlimited_corkscrew [--ext] [--top N] [--json] [--strict]
 node tools/analyze/asm-audit.mjs out/demos/<demo>/<cfg>/<demo>.<cfg>.elf
 ```
 

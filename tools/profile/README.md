@@ -35,7 +35,7 @@ node tools/profile/ai-analyze.mjs demo101 6 \
 
 # Lanzando la demo directamente (WinUAE como hijo de ai-analyze) y esperando READY
 node tools/profile/ai-analyze.mjs demo050 4 \
-  --demo demos/amiga/050_blitter_bobs \
+  --demo demos/techniques/amiga/blitter/050_blitter_bobs \
   --prompt-file tools/profile/prompts/050-blitter-bobs.md
 ```
 

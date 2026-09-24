@@ -31,7 +31,7 @@
 ///   amplitud **bajoflow** a 0 (`amp < 2^-14`) y deja de aportar.
 /// - **`float`/`double`**: sin límites prácticos; el hash sigue siendo 32 bits.
 ///
-/// **Estado de verificación: verificada por demo** — `demos/amiga/083_fbm_noise` usa
+/// **Estado de verificación: verificada por demo** — `demos/techniques/amiga/effects/083_fbm_noise` usa
 /// `fbm2<MiniFloat16>` para un mapa de altura en hardware (build/run/analyze OK);
 /// `tests/host/core/060_noise` compara `value_noise`/`fbm` de `MiniFloat16` contra `double`;
 /// `tests/host/core/135_scalar_matrix` ejercita `value_noise1`/`fbm1` con `Fixed<s32,12>`.
