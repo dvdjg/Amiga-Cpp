@@ -24,6 +24,7 @@ OpenAI-compatible, opcional). La regresión completa las encadena por demo.
 4. `frame-scope.ps1` con perfil `amiga-scroll` para correlacionar movimiento observado con la cámara.
 5. Opcional: `vision-review.ps1` con LM Studio (`-VisionReview`).
 6. `tools/test-regression.ps1` ejecuta todo el pipeline por demo y genera el informe en `out/regression/`.
+7. **Frames esenciales** (`<demo>/vision-points.json`): si Ollama está disponible, `tools/vision-review/essential-frames.mjs` describe con un modelo de visión los frames de **transición** que declara la demo y compara con lo esperado. La regresión añade la columna `Vision` (no falla salvo `--require-essential-ok`). Ver `tools/vision-review/README.md`.
 
 ## Reglas obligatorias de tests y verificación
 

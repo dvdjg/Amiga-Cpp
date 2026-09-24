@@ -138,3 +138,38 @@ Tambien se puede activar desde la regresion:
 
 Sin `-VisionReview` ni `-RequireVisionReviewOk`, la regresion normal no llama al
 modelo local. Esto mantiene rapido y estable el pipeline base.
+
+## Frames esenciales (`vision-points.json`)
+
+Para complementar los checks deterministas, cada demo puede declarar los **frames
+esenciales** (los puntos con un cambio interno importante, no necesariamente los
+primeros) y qué debe verse en ellos. Si Ollama está disponible, un modelo de visión
+los describe y se compara con lo declarado.
+
+`<demo>/vision-points.json`:
+
+```json
+{
+  "model": "qwen3-vl:8b-instruct-q8_0",
+  "points": [
+    { "name": "cruce de tile (columna entrante)",
+      "index": 16,
+      "expect": "escena de tiles a color, llena; sin banda vertical negra en el borde derecho" }
+  ]
+}
+```
+
+- `index` (0-based) es el frame de la **secuencia capturada** por
+  `analyze-sequence.sh` (`out/run/<demoId>/<config>/sequence/frame_NNN.png`). También
+  se admite `frames: [i, j, …]` para enviar varios (una transición como ventana).
+- `expect` es la descripción que el modelo debe confirmar.
+
+Herramienta: `tools/vision-review/essential-frames.mjs --demo <ruta>` (informe en
+`out/vision-review/<demoId>/essential-frames.md`). Códigos de salida: `0` = coincide,
+`3` = se omite (sin Ollama/secuencia/puntos), `4` = algún MISMATCH (informativo),
+`1` = MISMATCH con `--require-ok`.
+
+Integración en la regresión: si la demo tiene `vision-points.json` y Ollama responde,
+`tools/test-regression.sh` añade la columna **Vision** (ok / skip / mismatch / fail).
+`--require-essential-ok` convierte un MISMATCH en fallo; `--skip-essential` lo desactiva.
+

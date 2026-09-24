@@ -9,6 +9,7 @@
 #       [--keep-going] [--warp] [--pixel-assert] [--require-pixel-assert-ok]
 #       [--pixel-assert-selftest] [--vision-review] [--require-vision-review-ok]
 #       [--vision-provider <ruta>] [--vision-send-mode multi-image|contact-sheet]
+#       [--require-essential-ok] [--skip-essential]   (frames esenciales con Ollama; ver abajo)
 #       [--build-all]                                      (barrido de compilacion de TODAS las demos)
 #       [--protect <target>,<block|set:0xVALUE>,<size>]   (repetible; WinUAE-DBG v2.1)
 #       [--fps-gate] [--fps-warn-only] [--fps-threshold <n>]  (gate de fps, opt-in)
@@ -31,6 +32,8 @@ PIXEL_ASSERT_SELFTEST=0
 BUILD_ALL=0
 VISION_PROVIDER=""
 VISION_SEND_MODE="multi-image"
+REQUIRE_ESSENTIAL_OK=0
+SKIP_ESSENTIAL=0
 PROTECTS=()
 FPS_GATE=0
 FPS_WARN_ONLY=0
@@ -58,6 +61,8 @@ while [ "$#" -gt 0 ]; do
 		--build-all) BUILD_ALL=1; shift ;;
 		--vision-provider) next_arg "$1" "$2"; VISION_PROVIDER="$2"; shift 2 ;;
 		--vision-send-mode) next_arg "$1" "$2"; VISION_SEND_MODE="$2"; shift 2 ;;
+		--require-essential-ok) REQUIRE_ESSENTIAL_OK=1; shift ;;
+		--skip-essential) SKIP_ESSENTIAL=1; shift ;;
 		--protect) next_arg "$1" "$2"; PROTECTS+=("$2"); shift 2 ;;
 		--fps-gate) FPS_GATE=1; shift ;;
 		--fps-warn-only) FPS_GATE=1; FPS_WARN_ONLY=1; shift ;;
@@ -69,6 +74,7 @@ done
 BUILD="$ROOT/tools/build/build-demo.sh"
 RUN="$ROOT/tools/run/run-demo.sh"
 ANALYZE="$ROOT/tools/analyze/analyze-demo.sh"
+ESSENTIAL="$ROOT/tools/vision-review/essential-frames.mjs"
 PIXEL_SELFTEST="$ROOT/tools/analyze/verify-pixel-assert.sh"
 TYPE_CHECK="$ROOT/tools/check/type-tagging.mjs"
 ENCODING_CHECK="$ROOT/tools/check/encoding.mjs"
@@ -264,8 +270,8 @@ MD="$REPORT_DIR/regression-report.md"
 {
 	echo "# Regression $TIMESTAMP"
 	echo ""
-	echo "| Demo | Build | Run | Analyze | Sequence | PixelAssert | Notes |"
-	echo "|---|---:|---:|---:|---:|---:|---|"
+	echo "| Demo | Build | Run | Analyze | Sequence | PixelAssert | Vision | Notes |"
+	echo "|---|---:|---:|---:|---:|---:|---:|---|"
 } >"$MD"
 
 JSON_RESULTS="[]"
@@ -275,7 +281,7 @@ for demo_path in "${DEMO_DIRS[@]}"; do
 	demo_name="$(basename "$demo_path")"
 	# build/run/analyze esperan rutas relativas a ROOT (demos/<nombre>/).
 	relative_demo="${demo_path#"$ROOT"/}"
-	build="pending"; run="skipped"; analyze="pending"; sequence="none"; pixel_assert="none"; notes=""
+	build="pending"; run="skipped"; analyze="pending"; sequence="none"; pixel_assert="none"; essential="none"; notes=""
 
 	echo "== ${demo_name}: build =="
 	build_args=("$BUILD" "$relative_demo")
@@ -353,13 +359,31 @@ for demo_path in "${DEMO_DIRS[@]}"; do
 		fi
 	fi
 
+	# Frames esenciales con modelo de visión (solo si la demo los declara en
+	# `vision-points.json` y Ollama está disponible; ver tools/vision-review/).
+	# Salida del tool: 0=ok, 3=skip (sin Ollama/secuencia), 4=mismatch (informativo),
+	# 1=fail (mismatch con --require-ok).
+	if [ "$SKIP_ESSENTIAL" -eq 0 ] && [ "$SKIP_RUN" -eq 0 ] && [ -f "$demo_path/vision-points.json" ] && command -v node >/dev/null 2>&1; then
+		echo "== ${demo_name}: essential-frames =="
+		ess_args=("$ESSENTIAL" --demo "$relative_demo")
+		[ "$REQUIRE_ESSENTIAL_OK" -eq 1 ] && ess_args+=(--require-ok)
+		"${ess_args[@]}"; ec=$?
+		case "$ec" in
+			0) essential="ok" ;;
+			3) essential="skip" ;;
+			4) essential="mismatch"; notes="${notes:+$notes,}vision" ;;
+			*) essential="fail"; notes="${notes:+$notes,}vision" ;;
+		esac
+	fi
+
 	{
-		echo "| $demo_name | $build | $run | $analyze | $sequence | $pixel_assert | $notes |"
+		echo "| $demo_name | $build | $run | $analyze | $sequence | $pixel_assert | $essential | $notes |"
 	} >>"$MD"
 
 	if [ "$build" != "ok" ] || { [ "$run" != "ok" ] && [ "$run" != "skipped" ]; } || \
 	   [ "$analyze" != "ok" ] || { [ "$sequence" != "ok" ] && [ "$sequence" != "none" ]; } || \
-	   { [ "$pixel_assert" != "ok" ] && [ "$pixel_assert" != "none" ]; }; then
+	   { [ "$pixel_assert" != "ok" ] && [ "$pixel_assert" != "none" ]; } || \
+	   [ "$essential" = "fail" ]; then
 		FAILED=$((FAILED + 1))
 		if [ "$KEEP_GOING" -eq 0 ]; then
 			break
