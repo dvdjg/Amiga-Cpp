@@ -103,6 +103,16 @@ public:
 				return has_plan(id);
 			}
 			apply_budget(this->m_planner.driver, params);
+			// Si la criatura ya tiene un plan en curso, intenta **reutilizar su sufijo**
+			// (el conductor trabaja sobre su propio runner: se le presta el de la criatura)
+			// antes de abrir búsqueda. Ver HOST-313.
+			if (auto prev = this->find_plan(id); prev.valid() && prev->runner.active) {
+				this->m_planner.driver.runner() = prev->runner;
+				if (this->m_planner.driver.replan_reusing(start, goal, actions)) {
+					prev->runner = this->m_planner.driver.runner();
+					return prev->runner.active;
+				}
+			}
 			return replan(id, start, goal, actions);
 		}
 	}

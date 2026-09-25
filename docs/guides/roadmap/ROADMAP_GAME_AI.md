@@ -166,8 +166,8 @@ entregó con consumidor (`domain.hpp::build_shelter_htn`) y vive en cabecera pro
 ~6–8 KB) se instancia en **memoria estática o de fondo** (`PlannerHolder`), nunca en la pila del
 68000; se mide con `codegen-report.mjs` (gate de tamaños) y su rendimiento real en 68000 con la demo
 `demos/features/sim/amiga/001_sim_bench` (A500 con 12 criaturas: la planificación realista
-cuesta ~1.2x el tick; el peor caso sin caché era ~18x y se cerró usando `plan_cached` en el
-driver y el intervalo de replan).
+cuesta ~1.1x el tick; el peor caso sin caché era ~18x y se cerró usando `plan_cached` en el
+driver, el intervalo de replan y el LOD de quién planifica).
 
 ## 5. Catálogo de técnicas a incorporar
 

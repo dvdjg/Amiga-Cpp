@@ -37,19 +37,21 @@ Tres ventanas separadas: tick solo, búsqueda de planificación **sin caché** (
 pase) y tick + planificación **realista** (con caché e intervalo de replan).
 
 ```
-tick solo/s                     : 131
-frames/s (tick + planificacion) : 113
+tick solo/s                     : 40
+frames/s (tick + planificacion) : 38
 ```
 
-Con `--warp` la cifra **absoluta depende de la carga del host** (la misma build puede dar 131
-o 40 según lo ocupada que esté la máquina): lo robusto es el **cociente** dentro de la misma
-ejecución. La planificación realista cuesta ~1.2x el tick (~14% de sobrecarga), no el ~18x del
-peor caso sin caché. Dos razones, y las dos son de uso normal:
+Con `--warp` la cifra **absoluta depende de la carga del host** y del **estado del mundo** (un
+mundo maduro es más caro de ticar que uno recién creado). Por eso el tick se mide en la **misma
+ventana de mundo** que el combinado (la última), y lo robusto es el **cociente**: la
+planificación realista cuesta **~1.1x** el tick (~10% de sobrecarga), no el ~18x del peor caso
+sin caché. Dos razones, y las dos son de uso normal:
 
 1. **La caché de planes se usa de verdad** (`PlannerDriver::replan` llama a `plan_cached`):
    muchas criaturas replantean el mismo objetivo desde el mismo estado y no vuelven a buscar.
-2. **No todas planifican cada frame**: el intervalo de replan (la histéresis) reparte las
-   consultas.
+2. **No todas planifican cada frame**: el LOD marca cada frame quién está cerca de la cámara
+   (solo lo *realizado* planifica) y el intervalo de replan (la histéresis) reparte las
+   consultas. En un juego, `realize_room(cámara, N)` va en el bucle, como en la demo.
 
 El peor caso sigue medido en la ventana de búsqueda (todas las criaturas, sin caché) para no
 esconder el coste real de A*.

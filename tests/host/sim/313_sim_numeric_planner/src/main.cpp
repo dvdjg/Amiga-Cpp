@@ -172,6 +172,33 @@ void test_plan_tick() {
 	      "plan_tick: entidad invalida no planifica");
 }
 
+void test_plan_tick_reusing() {
+	// Tras ejecutar un paso, el sufijo del plan sigue valiendo: `plan_tick` lo reutiliza.
+	SimWorld<SimTraits, 8, 4, 4, 8, 8, 64> w;
+	const EntityId id = w.spawn(1u, 0u, 0u, 0, 0);
+	w.creature(0u).personality.curiosity = 200u;
+	w.creature(0u).personality.autonomy = 200u;
+	w.realize_room(0u, 8u);
+
+	const auto acts = ConstructionDomain::actions();
+	const SimGoap::Goal goal = ConstructionDomain::goal(false, true);
+	PlanParams pp {};
+	pp.budget = 64u;
+	pp.replan_interval = 0u;
+
+	check(w.plan_tick(id, start_state(SimInventory {}), goal, acts.span(), 0u, pp),
+	      "reuse: plan inicial");
+	check(w.planner_expansions() > 0u, "reuse: la primera vez busca");
+
+	// Se ha ejecutado el primer paso (Gather): hay materiales y el sufijo ya aplica.
+	SimInventory after_inv {};
+	after_inv.has_materials = true;
+	w.advance_plan(id);
+	check(w.plan_tick(id, start_state(after_inv), goal, acts.span(), 1u, pp),
+	      "reuse: replanifica tras el paso");
+	check(w.planner_expansions() == 0u, "reuse: no vuelve a buscar (sufijo aplicable)");
+}
+
 void test_htn_driver() {
 	// La criatura tambien puede planificar por **HTN** (descomposicion): el mundo guarda ese
 	// plan y lo consume igual que uno del GOAP.
@@ -234,6 +261,7 @@ int main() {
 	test_world_propagates_domain();
 	test_decide_plan();
 	test_plan_tick();
+	test_plan_tick_reusing();
 	test_htn_driver();
 	test_plan_selection();
 

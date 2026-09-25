@@ -90,6 +90,10 @@ void tick_world() {
 /// expansiones de GOAP acumuladas.
 eng::u32 plan_pass(eng::u32 frame, eng::Span<const SimGoap::Action> acts,
 		   const SimGoap::Goal& goal, const PlanParams& params) {
+	// **LOD**: como haria un juego cada frame, se marca quien esta cerca de la camara (aqui
+	// la camara esta fija en la room 0); solo lo realizado planifica.
+	g_world.realize_room(0u, kCreatures);
+
 	eng::u32 expansions = 0u;
 	const SimGoap::State start = start_state(SimInventory {});
 	for (eng::usize i = 0u; i < g_world.creature_count(); ++i) {
@@ -115,13 +119,12 @@ struct SimBench {
 					    static_cast<eng::s16>(i * 8), 0);
 		}
 		m_creatures = g_world.creature_count();
-		// Todas curiosas y autonomas (la histeresis deja que planifiquen) y **realizadas**
-		// (el LOD decide quien planifica: solo lo cercano a la camara).
+		// Todas curiosas y autonomas: la histeresis deja que planifiquen. El LOD (quien esta
+		// cerca de la camara) se actualiza **cada frame** en `plan_pass`, como en un juego.
 		for (eng::usize i = 0u; i < g_world.creature_count(); ++i) {
 			g_world.creature(i).personality.curiosity = 200u;
 			g_world.creature(i).personality.autonomy = 200u;
 		}
-		g_world.realize_room(0u, kCreatures);
 
 		// Red HTN del dominio de construccion (se descompone una vez para medirla).
 		g_htn.set_domain(build_shelter_htn());
@@ -134,28 +137,15 @@ struct SimBench {
 		const auto acts = ConstructionDomain::actions();
 		const SimGoap::Goal goal = ConstructionDomain::goal(false, true);
 
-		// Ventana 1: **tick solo** (sin planificar).
-		const eng::u32 t_tick = backend.cia_tod_ticks();
-		eng::u32 ticks = 0u;
 		eng::u32 elapsed = 0u;
-		while (ticks < kMaxIter) {
-			tick_world();
-			++ticks;
-			elapsed = (backend.cia_tod_ticks() - t_tick) & 0x00ffffffu;
-			if (elapsed >= kPhaseTicks) {
-				break;
-			}
-		}
-		m_tick_per_s = elapsed == 0u ? 0u : eng::util::div32(ticks * 50u, elapsed);
 
-		// Ventana 2: **busqueda sola** (todas las criaturas, sin cache: se vacia cada pase).
+		// Ventana 1: **busqueda sola** (todas las criaturas, sin cache: se vacia cada pase).
 		PlanParams stress {};
 		stress.budget = kPlanBudget;
 		stress.replan_interval = 0u; // todas, cada pase
 		const eng::u32 t_plan = backend.cia_tod_ticks();
 		eng::u32 passes = 0u;
 		eng::u32 expansions = 0u;
-		elapsed = 0u;
 		while (passes < kMaxIter) {
 			g_world.clear_plan_cache();
 			expansions += plan_pass(passes, acts.span(), goal, stress);
@@ -169,13 +159,12 @@ struct SimBench {
 		const eng::u32 per_pass = passes == 0u ? 0u : expansions / passes;
 		m_exp_per_frame = per_pass > 0xffffu ? 0xffffu : per_pass;
 
-		// Ventana 3: **tick + planificacion realista** (con cache e intervalo de replan).
+		// Ventana 2: **tick + planificacion realista** (con cache e intervalo de replan).
 		PlanParams reali {};
 		reali.budget = kPlanBudget;
 		reali.replan_interval = 120u; // uso normal: se replanifica de vez en cuando
 		const eng::u32 t_both = backend.cia_tod_ticks();
 		eng::u32 frames = 0u;
-		elapsed = 0u;
 		while (frames < kMaxIter) {
 			tick_world();
 			(void)plan_pass(frames, acts.span(), goal, reali);
@@ -188,6 +177,20 @@ struct SimBench {
 		m_combined_per_s = elapsed == 0u ? 0u : eng::util::div32(frames * 50u, elapsed);
 		m_frames = frames;
 		m_expansions = expansions;
+
+		// Ventana 3: **tick solo**, ya en el mundo maduro de las ventanas anteriores (para
+		// comparar cociente limpio contra la ventana 2, sin el sesgo de medir el mundo fresco).
+		const eng::u32 t_tick = backend.cia_tod_ticks();
+		eng::u32 ticks = 0u;
+		while (ticks < kMaxIter) {
+			tick_world();
+			++ticks;
+			elapsed = (backend.cia_tod_ticks() - t_tick) & 0x00ffffffu;
+			if (elapsed >= kPhaseTicks) {
+				break;
+			}
+		}
+		m_tick_per_s = elapsed == 0u ? 0u : eng::util::div32(ticks * 50u, elapsed);
 
 		const eng::u32 tick_clamped = m_tick_per_s > 0xffffu ? 0xffffu : m_tick_per_s;
 		const eng::u32 both_clamped =
