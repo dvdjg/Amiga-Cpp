@@ -64,6 +64,7 @@ void test_basic_htn() {
 	    h.plan(s, h.compound_at(0u), acts.span(), eng::Span<eng::u16> {out, 8u});
 	check(n == 3u, "htn: descompone en 3 acciones");
 	check(out[0] == 0u && out[1] == 1u && out[2] == 2u, "htn: orden comprar, batir, hornear");
+	check(h.plan_cost() == 3u, "htn: coste del respaldo (comprar+batir+hornear)");
 
 	// Con la mezcla ya hecha, el primer metodo basta.
 	Ai::State s2 {};
@@ -71,12 +72,73 @@ void test_basic_htn() {
 	const eng::usize n2 =
 	    h.plan(s2, h.compound_at(0u), acts.span(), eng::Span<eng::u16> {out, 8u});
 	check(n2 == 1u && out[0] == 2u,
-	      "htn: prioridad elige el metodo mejor (precondicion), no el declarado antes");
+	      "htn: coste minimo elige el metodo mejor (precondicion), no el declarado antes");
+	check(h.plan_cost() == 1u, "htn: coste minimo del metodo corto");
 
 	// La compuesta 1 solo sabe hornear: sin mezcla, no hay descomposicion.
 	const eng::usize n3 =
 	    h.plan(s, h.compound_at(1u), acts.span(), eng::Span<eng::u16> {out, 8u});
 	check(n3 == 0u, "htn: sin descomposicion aplicable devuelve 0");
+}
+
+void test_method_cost() {
+	using Ai = eng::ai::Goap<32u>;
+	using H = eng::ai::Htn<32u, 4u, 1u, 2u, 8u>;
+
+	// 3 = comprar mezcla ya hecha (caro): dos caminos al pastel con costes distintos.
+	const eng::util::Array<Ai::Action, 4> acts {{
+	    Ai::Builder {}.named("buy").produce(0u, 1u).build(),
+	    Ai::Builder {}.named("mix").require(0u, 1u).produce(2u).build(),
+	    Ai::Builder {}.named("bake").require(2u).produce(3u).build(),
+	    Ai::Builder {}.named("buy_mix").cost(9u).produce(2u).build(),
+	}};
+
+	H h {};
+	h.add_subtask(0u).add_subtask(1u).add_subtask(2u); // camino barato: buy, mix, bake
+	h.add_subtask(3u).add_subtask(2u);                 // camino caro: buy_mix, bake
+	const H::Facts none {};
+	// El metodo caro tiene MAS prioridad: aun asi debe ganar el de menor **coste**.
+	h.add_method(none, none, 0u, 3u, 0u, 0u); // prioridad 0 -> coste 1+1+1 = 3
+	h.add_method(none, none, 3u, 2u, 9u, 0u); // prioridad 9 -> coste 9+1 = 10
+	h.add_compound(0u, 2u);
+
+	Ai::State s {};
+	eng::u16 out[8] {};
+	const eng::usize n =
+	    h.plan(s, h.compound_at(0u), acts.span(), eng::Span<eng::u16> {out, 8u});
+	check(n == 3u && out[0] == 0u && out[1] == 1u && out[2] == 2u,
+	      "htn coste: elige el camino barato aunque el caro tenga mas prioridad");
+	check(h.plan_cost() == 3u, "htn coste: 3 (barato), no 10 (prioritario)");
+}
+
+void test_nested_compound() {
+	using Ai = eng::ai::Goap<32u>;
+	using H = eng::ai::Htn<32u, 3u, 2u, 4u, 8u>;
+
+	const eng::util::Array<Ai::Action, 3> acts {{
+	    Ai::Builder {}.named("buy").produce(0u, 1u).build(),
+	    Ai::Builder {}.named("mix").require(0u, 1u).produce(2u).build(),
+	    Ai::Builder {}.named("bake").require(2u).produce(3u).build(),
+	}};
+
+	H h {};
+	// «preparar» (compuesta 0): comprar y batir.
+	h.add_subtask(0u).add_subtask(1u);
+	// «hacer pastel» (compuesta 1): preparar (compuesta 0) y hornear.
+	h.add_subtask(H::compound(0u)).add_subtask(2u);
+	const H::Facts none {};
+	h.add_method(none, none, 0u, 2u, 0u); // metodo 0 -> preparar
+	h.add_method(none, none, 2u, 2u, 0u); // metodo 1 -> hacer pastel
+	h.add_compound(0u, 1u);               // compuesta 0 = preparar
+	h.add_compound(1u, 1u);               // compuesta 1 = hacer pastel
+
+	Ai::State s {};
+	eng::u16 out[8] {};
+	const eng::usize n =
+	    h.plan(s, h.compound_at(1u), acts.span(), eng::Span<eng::u16> {out, 8u});
+	check(n == 3u, "htn anidado: 3 acciones");
+	check(out[0] == 0u && out[1] == 1u && out[2] == 2u,
+	      "htn anidado: compuesta dentro de compuesta (comprar, batir, hornear)");
 }
 
 void test_construction_consumer() {
@@ -122,6 +184,8 @@ void test_construction_consumer() {
 int main() {
 	std::printf("HTN:\n");
 	test_basic_htn();
+	test_method_cost();
+	test_nested_compound();
 	test_construction_consumer();
 
 	if (g_fail == 0u) {

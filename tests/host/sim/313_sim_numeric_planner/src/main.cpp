@@ -188,6 +188,38 @@ void test_htn_driver() {
 	      "htn driver: segunda accion");
 }
 
+void test_plan_selection() {
+	// El mundo y el HTN comparten dominio (hechos booleanos), como exige `plan_for`.
+	SimWorld<SimTraits, 8, 4, 4, 8, 8, 64> w;
+	const EntityId id = w.spawn(1u, 0u, 0u, 0, 0);
+	w.creature(0u).personality.curiosity = 80u;
+	w.creature(0u).personality.autonomy = 60u;
+
+	HtnDriver<32u, 5u, 1u, 4u, 8u> htn;
+	htn.set_domain(build_shelter_htn());
+	const auto acts = ConstructionDomain::actions();
+	const SimGoap::State start = start_state(SimInventory {});
+	SimGoap::Goal goal {};
+	goal.want_true.facts.set(static_cast<eng::ai::Fact>(SimFact::Fed));
+	const eng::ai::HtnCompound root = htn.domain().compound_at(0u);
+
+	// Objetivo suelto -> GOAP (el mundo decide y replanifica).
+	check(plan_for(w, htn, PlanKind::Goap, id, start, goal, root, acts.span(), 0u,
+		       PlanParams {}),
+	      "seleccion: objetivo suelto -> GOAP");
+	check(w.has_plan(id), "seleccion: GOAP deja plan");
+	check(w.current_action(id) == static_cast<eng::u16>(SimActionKind::Forage),
+	      "seleccion: GOAP empieza por forage");
+
+	// Tarea compuesta -> HTN (descomposicion).
+	w.abort_plan(id);
+	check(plan_for(w, htn, PlanKind::Htn, id, start, goal, root, acts.span(), 0u,
+		       PlanParams {}),
+	      "seleccion: tarea compuesta -> HTN");
+	check(w.current_action(id) == static_cast<eng::u16>(SimActionKind::Gather),
+	      "seleccion: HTN empieza por gather");
+}
+
 } // namespace
 
 int main() {
@@ -198,6 +230,7 @@ int main() {
 	test_decide_plan();
 	test_plan_tick();
 	test_htn_driver();
+	test_plan_selection();
 
 	if (g_fail == 0u) {
 		std::printf("OK: Sim numeric planner (dominio GOAP por plantilla, driver y mundo)\n");

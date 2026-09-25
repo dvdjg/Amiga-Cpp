@@ -33,7 +33,8 @@ struct HtnMethod {
 	eng::util::BitSet<MaxFacts> pre_false {};
 	eng::u16 first = 0u;
 	eng::u16 count = 0u;
-	eng::u8 priority = 0u;
+	eng::u8 priority = 0u; ///< desempate: a igual coste, mayor prioridad primero
+	eng::u16 cost = 0u;    ///< coste propio del metodo (se suma al de sus acciones)
 };
 
 /// Tarea compuesta: tramo de metodos `[first, first + count)` (se prueban en orden).
@@ -61,11 +62,14 @@ public:
 
 	// --- Construccion (se usa en `constexpr` desde un dominio) ---
 
-	/// Añade un metodo (precondicion + subtareas ya volcadas con `add_subtask` + prioridad).
+	/// Añade un metodo (precondicion + subtareas ya volcadas con `add_subtask`). `priority`
+	/// desempata a igual coste (mayor primero) y `cost` es el coste propio del metodo.
 	constexpr Htn& add_method(const Facts& pre_true, const Facts& pre_false, eng::u16 first,
-				  eng::u16 count, eng::u8 priority = 0u) noexcept {
+				  eng::u16 count, eng::u8 priority = 0u,
+				  eng::u16 cost = 0u) noexcept {
 		if (m_method_count < MaxMethods) {
-			m_methods[m_method_count++] = Method {pre_true, pre_false, first, count, priority};
+			m_methods[m_method_count++] =
+			    Method {pre_true, pre_false, first, count, priority, cost};
 		}
 		return *this;
 	}
@@ -87,17 +91,28 @@ public:
 		return m_compounds[index];
 	}
 
-	/// Descompone `root` desde `start` sobre `actions`. Escribe las acciones primitivas (en
+	/// Coste "sin solucion".
+	static constexpr u32 no_cost = 0xffffffffu;
+
+	/// Descompone `root` desde `start` sobre `actions` buscando la descomposicion de **coste
+	/// minimo** (coste de las acciones + de los metodos). Escribe las acciones primitivas (en
 	/// orden de ejecucion) en `out` y devuelve cuantas; 0 si no hay descomposicion aplicable.
+	/// El coste del ultimo plan queda en `plan_cost()`.
 	[[nodiscard]] constexpr usize plan(const State& start, const HtnCompound& root,
 					   Span<const Action> actions, Span<u16> out) const noexcept {
 		State s = start;
 		usize out_n = 0u;
-		if (!decompose_compound(actions, root, s, out, out_n, 0u)) {
+		m_last_cost = 0u;
+		const u32 cost = solve_compound(actions, root, s, out, out_n, 0u);
+		if (cost == no_cost) {
 			return 0u;
 		}
+		m_last_cost = cost;
 		return out_n;
 	}
+
+	/// Coste de la ultima descomposicion (0 si no hubo).
+	[[nodiscard]] constexpr u32 plan_cost() const noexcept { return m_last_cost; }
 
 private:
 	/// ¿Se cumple la precondicion de un metodo en `s`?
@@ -116,72 +131,79 @@ private:
 		return true;
 	}
 
-	/// Prueba los metodos de `c` en orden; el primero que descomponga gana.
-	[[nodiscard]] constexpr bool decompose_compound(Span<const Action> actions,
-							const HtnCompound& c, State& s, Span<u16> out,
-							usize& out_n, usize depth) const noexcept {
-		if (depth >= MaxDepth) {
-			return false;
-		}
-		// Se prueban los metodos aplicables en orden de **prioridad** descendente (a igual
-		// prioridad, el primero declarado). Si una descomposicion falla, se pasa a la
-		// siguiente.
-		u32 tried = 0u;
-		for (usize n = 0u; n < c.count; ++n) {
-			usize best = MaxMethods;
-			eng::u8 best_prio = 0u;
-			for (usize mi = 0u; mi < c.count; ++mi) {
-				if ((tried & (1u << static_cast<u32>(mi))) != 0u) {
-					continue;
-				}
-				const Method& cand = m_methods[c.first + mi];
-				if (!pre_ok(s, cand)) {
-					tried |= (1u << static_cast<u32>(mi));
-					continue;
-				}
-				if (best == MaxMethods || cand.priority > best_prio) {
-					best = mi;
-					best_prio = cand.priority;
-				}
-			}
-			if (best == MaxMethods) {
-				break;
-			}
-			tried |= (1u << static_cast<u32>(best));
-			const Method& m = m_methods[c.first + best];
-			const State saved = s;
-			const usize saved_out = out_n;
-			if (decompose_list(actions, m, s, out, out_n, depth + 1u)) {
-				return true;
-			}
-			s = saved; // backtracking
-			out_n = saved_out;
-		}
-		return false;
-	}
-
-	/// Descompone las subtareas de un metodo **en orden**, aplicando cada primitiva.
-	[[nodiscard]] constexpr bool decompose_list(Span<const Action> actions, const Method& m,
-						    State& s, Span<u16> out, usize& out_n,
-						    usize depth) const noexcept {
+	/// Coste minimo de descomponer las subtareas de un metodo desde `s`, escribiendo la
+	/// descomposicion en `out[out_n..)`. Devuelve `no_cost` si no es aplicable.
+	[[nodiscard]] constexpr u32 solve_method(Span<const Action> actions, const Method& m,
+						 State& s, Span<u16> out, usize& out_n,
+						 usize depth) const noexcept {
+		u32 total = m.cost;
 		for (eng::u16 i = 0u; i < m.count; ++i) {
 			const eng::u16 t = m_subtasks[m.first + i];
 			if (t < MaxActions) {
 				const Action& a = actions[t];
-				if (!applicable(s, a)) {
-					return false;
-				}
-				if (out_n >= out.size()) {
-					return false;
+				if (!applicable(s, a) || out_n >= out.size()) {
+					return no_cost;
 				}
 				apply(s, a);
 				out[out_n++] = t;
-			} else if (!decompose_compound(
-				       actions, m_compounds[t - MaxActions], s, out, out_n, depth)) {
-				return false;
+				total += a.cost;
+			} else {
+				const u32 sub = solve_compound(actions, m_compounds[t - MaxActions],
+							       s, out, out_n, depth);
+				if (sub == no_cost) {
+					return no_cost;
+				}
+				total += sub;
 			}
 		}
-		return true;
+		return total;
+	}
+
+	/// Evalua **todas** las descomposiciones de `c` y devuelve el coste minimo, escribiendo
+	/// la mejor en `out[out_n..)`. La `priority` desempata a igual coste.
+	[[nodiscard]] constexpr u32 solve_compound(Span<const Action> actions, const HtnCompound& c,
+						   State& s, Span<u16> out, usize& out_n,
+						   usize depth) const noexcept {
+		if (depth >= MaxDepth) {
+			return no_cost;
+		}
+		u32 best_cost = no_cost;
+		eng::u8 best_prio = 0u;
+		usize best_n = 0u;
+		eng::u16 best_plan[MaxPlan] {};
+		State best_state = s;
+		for (usize mi = 0u; mi < c.count; ++mi) {
+			const Method& m = m_methods[c.first + mi];
+			if (!pre_ok(s, m)) {
+				continue;
+			}
+			State s2 = s;
+			eng::u16 scratch[MaxPlan] {};
+			usize scratch_n = 0u;
+			const u32 cost = solve_method(actions, m, s2,
+						      eng::Span<eng::u16> {scratch, MaxPlan},
+						      scratch_n, depth + 1u);
+			if (cost == no_cost) {
+				continue;
+			}
+			if (cost < best_cost || (cost == best_cost && m.priority > best_prio)) {
+				best_cost = cost;
+				best_prio = m.priority;
+				best_n = scratch_n;
+				best_state = s2; // efectos de la mejor descomposicion
+				for (usize k = 0u; k < scratch_n; ++k) {
+					best_plan[k] = scratch[k];
+				}
+			}
+		}
+		if (best_cost == no_cost || out_n + best_n > out.size()) {
+			return no_cost;
+		}
+		s = best_state; // propaga el estado resultante al llamador
+		for (usize k = 0u; k < best_n; ++k) {
+			out[out_n++] = best_plan[k];
+		}
+		return best_cost;
 	}
 
 	Method m_methods[MaxMethods] {};
@@ -190,6 +212,7 @@ private:
 	usize m_method_count = 0u;
 	usize m_subtask_count = 0u;
 	usize m_compound_count = 0u;
+	mutable u32 m_last_cost = 0u; ///< coste de la ultima descomposicion (ver `plan_cost`)
 };
 
 } // namespace eng::ai

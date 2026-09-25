@@ -222,9 +222,10 @@ Verificación: HOST-185 (enteros, decimales, saturación, memo y sufijo) y HOST-
 con A\* sino que **descompone** una tarea compuesta en subtareas por **métodos**
 (precondición → lista de subtareas) hasta acciones primitivas, comprobando que cada una sea
 aplicable en el estado que va resultando, con **backtracking acotado** (`MaxDepth`/`MaxPlan`).
-Los métodos se prueban por **prioridad** (mayor primero; la fija el llamador, p. ej. la
-inversa del coste estimado), no por orden de declaración. Reutiliza `Goap`'s `State`/`Action`
-y `applicable`/`apply`; determinista y sin heap.
+Explora **todas** las descomposiciones y elige la de **coste mínimo** (coste de las acciones
++ coste propio del método); la `priority` desempata a igual coste. Los subtasks pueden ser
+**compuestos anidados** (`compound(i)`) y el estado resultante se propaga al llamador.
+Reutiliza `Goap`'s `State`/`Action` y `applicable`/`apply`; determinista y sin heap.
 
 Codificación de una subtarea (`u16`): `< MaxActions` = acción primitiva; `>= MaxActions` =
 compuesta (`compound(i)`). Consumidor real: `sim/domain.hpp::build_shelter_htn` («conseguir

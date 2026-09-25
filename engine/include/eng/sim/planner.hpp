@@ -244,4 +244,32 @@ private:
 	PlanRunner<MaxSteps> m_runner {};
 };
 
+/// Tipo de objetivo: un **objetivo suelto** lo resuelve el GOAP (búsqueda A\*); una **tarea
+/// compuesta** la descompone el HTN. El juego lo declara con este enum y no repite el `if`.
+enum class PlanKind : eng::u8 {
+	Goap = 0u,
+	Htn = 1u,
+};
+
+/// Ejecuta el planificador adecuado para `kind` y deja el plan asociado a `id`: con `Goap`
+/// va el bucle del mundo (`plan_tick`: decisión + presupuesto + replan); con `Htn`,
+/// descompone `root` con el conductor HTN y guarda el resultado (`store_plan`). Así el juego
+/// solo declara el **tipo de objetivo**. Ver HOST-313.
+template <class WorldT, class HtnDriverT>
+[[nodiscard]] constexpr bool plan_for(WorldT& world, HtnDriverT& htn_driver, PlanKind kind,
+				      EntityId id, const typename WorldT::Ai::State& start,
+				      const typename WorldT::Ai::Goal& goal,
+				      const eng::ai::HtnCompound& root,
+				      eng::Span<const typename WorldT::Ai::Action> actions,
+				      eng::u16 frame_now,
+				      const PlanParams& params = PlanParams {}) noexcept {
+	if (kind == PlanKind::Htn) {
+		if (!htn_driver.replan(start, root, actions)) {
+			return false;
+		}
+		return world.store_plan(id, htn_driver.runner());
+	}
+	return world.plan_tick(id, start, goal, actions, frame_now, params);
+}
+
 } // namespace eng::sim

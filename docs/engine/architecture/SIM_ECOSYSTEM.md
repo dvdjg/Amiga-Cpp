@@ -278,8 +278,11 @@ umbrales numéricos. El algoritmo no cambia y el caso booleano conserva su footp
 
 La criatura puede planificar por **GOAP** (búsqueda A\*) o por **HTN** (descomposición): el
 `HtnDriver` produce un `PlanRunner` que el mundo guarda con `store_plan` y consume igual
-(`current_action`/`advance_plan`/`abort_plan`). Así una tarea compuesta (`build_shelter_htn`)
-convive con los objetivos GOAP sin duplicar la ejecución (HOST-313/318).
+(`current_action`/`advance_plan`/`abort_plan`). La elección se declara con `PlanKind`
+(`Goap` para un objetivo suelto, `Htn` para una tarea compuesta) y `plan_for` despacha
+—decisión + presupuesto + replan en GOAP, o descomposición + `store_plan` en HTN—, de modo
+que el juego no repite el `if`. Así una tarea compuesta (`build_shelter_htn`) convive con los
+objetivos GOAP sin duplicar la ejecución (HOST-313/318).
 
 ## 10. Cómo se reutiliza `eng::ai` (sin duplicar)
 
