@@ -35,10 +35,7 @@
 struct ExecBase* SysBase = nullptr;
 
 extern "C" {
-// Seccion propia: al crecer `.rodata` con los assets, el orden de hunks runtime deja de casar
-// con el `.map` y el runner no resuelve `g_eng_run_status` por indice; al ser el unico simbolo de
-// su seccion, su direccion coincide con la base de un hunk y el runner la encuentra escaneando.
-__attribute__((used, section(".eng_run_status"))) volatile eng::debug::RunStatus g_eng_run_status {
+__attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 	eng::debug::run_status_magic,
 	eng::debug::run_status_version,
 	static_cast<eng::u16>(eng::debug::RunState::Cold),

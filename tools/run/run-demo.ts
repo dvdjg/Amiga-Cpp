@@ -643,6 +643,27 @@ async function resolveRunStatusAddress(client, linkedSymbol, mapSections, runtim
         }
       } catch { /* noop */ }
     }
+
+    // Segundo fallback: escanear MEMORIA dentro de cada seccion (el inicio de un hunk no
+    // siempre coincide con `g_eng_run_status` y el orden de hunks puede no casar con el
+    // `.map`, p. ej. cuando `.rodata` crece con assets). Buscamos el magic (big-endian) en
+    // una ventana por seccion y validamos con `runstatus`.
+    for (const sec of runtimeSections) {
+      const base = parseHexNumber(sec);
+      if (!base) continue;
+      try {
+        const mem = await client.command(`mem ${base.toString(16)} 4096`, 2500);
+        const hex = typeof mem?.data === 'string' ? mem.data : null;
+        if (hex === null) continue;
+        const idx = hex.indexOf('454e4752');
+        if (idx < 0 || (idx & 1) !== 0) continue;
+        const candidate = base + (idx >> 1);
+        const status = await client.command(`runstatus ${candidate.toString(16)}`, 1500);
+        if (status && status.ok && status.magic === '0x454e4752' && status.version === 1) {
+          return candidate;
+        }
+      } catch { /* noop */ }
+    }
   }
 
   // Sin match: devuelve la resolución exacta (aunque su magic no haya validado)

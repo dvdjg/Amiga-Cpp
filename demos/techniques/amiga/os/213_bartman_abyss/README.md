@@ -53,6 +53,28 @@ bash ./tools/analyze/analyze-demo.sh demos/techniques/amiga/os/213_bartman_abyss
 
 - `run-report.json`: `state=3`, `detail=0x22130`.
 - Captura: imagen + bobs + degradado (ver `out/tmp/213.png`).
+- **Audio**: `detail` bit 17 = 1 confirma que `P61_Init` tuvo éxito, pero el runner **no captura
+  PCM** (no hay grabación de audio en el harness), así que la salida de Paula no se verifica aquí;
+  el reproductor P61 ya está validado por las demos 060 (`music_pt`) y 272 (`audio_stream`).
+
+## Rendimiento
+
+El coste del bucle se midió con los checkpoints del periférico de WinUAE (`debugperiph checkpoints`,
+`--warp`). Con 16 BOBs + clear, el trabajo de CPU del engine es pequeño y **el grueso es la
+ejecución del Blitter** (inherente al efecto, igual que el original):
+
+| Tramo | Ciclos/frame |
+|---|---|
+| `os::tick` (VBlank + input) | ~3.100 |
+| música P61 | ~1.600 |
+| clear + 16 BOBs (construcción de jobs + `blitter_submit` + ejecución) | ~165.000 |
+| overlay de debug | ~3.100 |
+
+El `blitter_submit` por BOB ejecuta ≈ `2 palabras × 80 filas × 4 canales` slots, con contención del
+display DMA; el `clear` es un D-only de `20×280` palabras. Optimizaciones aplicadas al engine en
+esta pasada: DMACON del Blitter solo si está apagado (no por job), `FramePlan::add_blit_job` con una
+sola copia, `memcpy`/`memset` con camino rápido a palabra, y en la demo la fase del seno con avance
+incremental (sin `% 51` por BOB).
 
 ## Assets
 
@@ -66,16 +88,11 @@ En `assets/amiga/sprites/abyss/` (origen `BartmanBasic`, uso interno de prueba):
 
 Módulo: `assets/amiga/audio/testmod.p61` (mismo que usa la demo 276).
 
-## Rendimiento
-
-16 BOBs × 1 blit + 1 clear = 17 blits por frame (el original hace lo mismo). El coste dominante es el
-bus del Blitter en la banda de 56 filas.
-
 ## Referencias
 
 - Original: `BartmanBasic/main.c` del fork Bartman/vscode-amiga-debug.
+- Técnica del BOB: `docs/reference/amiga/techniques/interleaved-bob-single-blit.md`.
 - Mini-SO: `docs/engine/architecture/MINI_OS_MESSAGE_LOOP.md`, `ROADMAP_MINI_OS.md`.
 - Música: `docs/engine/architecture/MUSIC_PLAYER.md`.
-- Blitter/cookie-cut: `docs/reference/amiga/techniques/blitter_programming.md`.
 
 Tests: HOST-219 (núcleo del mini-SO), HOST-239/271 (P61/streaming), HOST-238 (tiempo).
