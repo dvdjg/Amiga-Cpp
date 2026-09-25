@@ -32,6 +32,7 @@
 #include <eng/input/input.hpp>
 #include <eng/os/port.hpp>
 #include <eng/res/budget.hpp>
+#include <eng/scene/world.hpp>
 #include <eng/task/background.hpp>
 
 namespace eng {
@@ -175,6 +176,22 @@ public:
 	/// El juego registra su escena (en `init`); `screen()`/`present()` la usan.
 	void bind_scene(graphics::composition::Scene& scene) noexcept { m_scene = scene; }
 
+	/// **Mundo retenido** del juego (`app.world().add_layer("fondo", 0)`): capas con su
+	/// cámara. Contenedor aditivo; el planner que lo materializa llega después
+	/// (`PUBLIC_GAME_API.md` §2.1.3).
+	[[nodiscard]] scene::World<8u>& world() noexcept { return m_world; }
+	[[nodiscard]] const scene::World<8u>& world() const noexcept { return m_world; }
+
+	/// **Toma el control del display** mostrando el buffer 0 de la escena ligada (una vez, en
+	/// `init`). Es lo que instala la copperlist del camino planar (`Scene` + `DrawTarget`);
+	/// sin él, `present()`/`commit()` no tienen lista sobre la que parchear `BPLxPT`. No hace
+	/// nada si no hay escena (el modo copper-chunky se instala con su propio efecto).
+	void takeover() {
+		if (m_scene.valid()) {
+			m_scene.get()->takeover(m_backend);
+		}
+	}
+
 	/// **Contexto de dibujo del frame** (buffer activo + plan del frame). Válido hasta `present`.
 	[[nodiscard]] Screen screen() noexcept { return Screen {m_scene.get()->draw_target(&m_plan)}; }
 
@@ -243,6 +260,7 @@ private:
 	volatile u32 m_vblank_count = 0;                    ///< VBlanks publicados (IRQ)
 	volatile u32 m_blitdone_count = 0;                  ///< fines de blit publicados (IRQ)
 	eng::Ref<graphics::composition::Scene> m_scene {};  ///< escena del juego (no propietaria)
+	scene::World<8u> m_world {};                         ///< mundo retenido (capas + cámaras)
 	input::InputAggregator m_input {};                  ///< entrada del frame (la lee/rellena el juego)
 	graphics::FramePlan m_plan {};
 	u32 m_frame = 0;

@@ -35,7 +35,9 @@
 #include <eng/input/input.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/res/budget.hpp>
+#include <eng/res/load.hpp>
 #include <eng/scene/actor.hpp>
 #include <eng/scene/virtual_scene.hpp>
+#include <eng/scene/world.hpp>
 #include <eng/task/background.hpp>
 #include <eng/ui/ui.hpp>

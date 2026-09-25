@@ -126,17 +126,19 @@ struct AbyssDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021302u);
 			return false;
 		}
-		m_image = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitmapBytes + 16u, 16u);
-		m_bob_block = backend.memory().chip.allocate_block<eng::BobTag>(bob_bytes + 16u, 4u);
-		m_mod_block = backend.memory().chip.allocate_block<eng::MusicTag>(mod_bytes + 16u, 4u);
+		// Carga tipada a Chip (`res::load` fija medio y alineación por dominio: planos/BOB a
+		// 16, módulo a 4); el origen en `.rodata` puede estar en Fast RAM.
+		m_image = eng::res::load<eng::PlaneTag>(
+			backend.memory(), eng::Span<const eng::u8> {g_abyss_img, kBitmapBytes});
+		m_bob_block = eng::res::load<eng::BobTag>(
+			backend.memory(), eng::Span<const eng::u8> {g_abyss_bob, bob_bytes});
+		m_mod_block = eng::res::load<eng::MusicTag>(
+			backend.memory(), eng::Span<const eng::u8> {g_abyss_mod, mod_bytes});
 		m_copper = backend.memory().chip.allocate_block<eng::CopperTag>(2048u, 16u);
 		if (!m_image.valid() || !m_bob_block.valid() || !m_mod_block.valid() || !m_copper.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021305u);
 			return false;
 		}
-		memcpy(m_image.view.data(), g_abyss_img, kBitmapBytes);
-		memcpy(m_bob_block.view.data(), g_abyss_bob, bob_bytes);
-		memcpy(m_mod_block.view.data(), g_abyss_mod, mod_bytes);
 		m_bitmap = m_image.view.data();
 		m_bob = m_bob_block.view.data();
 

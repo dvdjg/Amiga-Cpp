@@ -11,6 +11,8 @@ Estructura y numeración: [../../../../docs/STRUCTURE.md](../../../../docs/STRUC
 | [081_background_tasks](081_background_tasks/README.md) |
 | [209_reactive_loop](209_reactive_loop/README.md) |
 | [212_message_loop](212_message_loop/README.md) |
+| [213_bartman_abyss](213_bartman_abyss/README.md) |
+| [214_app_sprite](214_app_sprite/README.md) |
 
 ## Build / run / analyze
 
