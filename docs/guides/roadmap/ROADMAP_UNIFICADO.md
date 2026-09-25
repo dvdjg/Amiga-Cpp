@@ -95,7 +95,7 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
   (HOST-155), con gate de codegen 68000. Reutiliza `eng::ai` (utility, percepción,
   navegación, steering, GOAP). La planificación cubre además **anytime** (`set_budget`/
   `partial`), **caché selectiva** (`invalidate_selective` + LRU), **HTN** (`planning/htn.hpp`,
-  descomposición de coste mínimo) y **selección GOAP/HTN** (`PlanKind`/`plan_for`); HOST-313/316/317/318.
+  descomposición de coste mínimo) y **selección GOAP/HTN** (`PlanKind`/`plan_for`); HOST-322/316/317/318.
   Hay **benchmark Amiga** (`demos/features/sim/amiga/001_sim_bench`): A500 con 12 criaturas, la
   planificación realista cuesta **~1.1x** el tick (el peor caso sin caché era ~18x), cerrado
   usando la **caché de planes** en el driver, el **intervalo de replan** y el **LOD** de quién

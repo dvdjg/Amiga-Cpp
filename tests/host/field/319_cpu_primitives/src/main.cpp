@@ -1,5 +1,5 @@
 // ============================================================================
-// Test HOST-267: primitivas CPU optimizadas (rect, linea run-slice, poligono).
+// Test HOST-319: primitivas CPU optimizadas (rect, linea run-slice, poligono).
 // ============================================================================
 //
 // Valida `eng/field/cpu_primitives.hpp` sobre un `ContiguousPlayfield`:

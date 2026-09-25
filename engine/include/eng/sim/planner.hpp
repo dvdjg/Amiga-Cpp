@@ -36,7 +36,7 @@ using SimGoap = eng::ai::Goap<>;
 
 /// Dominio GOAP **numerico** del ecosistema: hechos + `MaxVars` magnitudes (hambre,
 /// energia, miedo...). Se instancian solo las variables usadas; elige el dominio pasandolo
-/// como parametro de plantilla al `PlannerDriver`. Ver `GOAP_EXTENDED.md` y HOST-313.
+/// como parametro de plantilla al `PlannerDriver`. Ver `GOAP_EXTENDED.md` y HOST-322.
 template <eng::u8 MaxVars = 4u>
 using SimNumericGoap = eng::ai::NumericGoap<MaxVars>;
 
@@ -191,7 +191,7 @@ public:
 
 	/// Presupuesto *anytime* de la búsqueda (0 = sin límite). Con presupuesto, `replan`
 	/// puede dejar un plan **parcial** (`partial()`), con menos pasos que el óptimo; el
-	/// llamador decide si lo ejecuta o espera más presupuesto. Ver HOST-313.
+	/// llamador decide si lo ejecuta o espera más presupuesto. Ver HOST-322.
 	constexpr void set_budget(eng::usize max_expansions) noexcept {
 		m_planner.set_budget(max_expansions);
 	}
@@ -228,7 +228,7 @@ constexpr void apply_budget(PlannerDriver<MaxNodes, MaxSteps, DomainT>& driver,
 /// Conductor **HTN**: guarda una red de tareas (`eng::ai::Htn`) y planifica por
 /// **descomposición** (sin A\*), cargando el resultado en un `PlanRunner` — igual que
 /// `PlannerDriver` con GOAP. La criatura planifica así cuando el objetivo es una tarea
-/// compuesta; el mundo consume el plan con `store_plan`. Ver HOST-313.
+/// compuesta; el mundo consume el plan con `store_plan`. Ver HOST-322.
 template <usize MaxFacts, usize MaxActions, usize MaxCompounds, usize MaxMethods,
 	  usize MaxSubtasks, eng::u8 MaxSteps = kMaxPlanSteps>
 class HtnDriver {
@@ -305,7 +305,7 @@ enum class PlanKind : eng::u8 {
 /// Ejecuta el planificador adecuado para `kind` y deja el plan asociado a `id`: con `Goap`
 /// va el bucle del mundo (`plan_tick`: decisión + presupuesto + replan); con `Htn`,
 /// descompone `root` con el conductor HTN y guarda el resultado (`store_plan`). Así el juego
-/// solo declara el **tipo de objetivo**. Ver HOST-313.
+/// solo declara el **tipo de objetivo**. Ver HOST-322.
 template <class WorldT, class HtnDriverT>
 [[nodiscard]] constexpr bool plan_for(WorldT& world, HtnDriverT& htn_driver, PlanKind kind,
 				      EntityId id, const typename WorldT::Ai::State& start,

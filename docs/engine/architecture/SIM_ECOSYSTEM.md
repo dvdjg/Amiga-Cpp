@@ -274,7 +274,7 @@ El **dominio GOAP es un parámetro de plantilla** de `PlannerDriver` y de `SimWo
 (último parámetro): por defecto el booleano ligero `SimGoap` (0 variables), o
 `SimNumericGoap<N>` (hechos + `N` magnitudes: hambre, energía, miedo…) para objetivos con
 umbrales numéricos. El algoritmo no cambia y el caso booleano conserva su footprint
-(HOST-313).
+(HOST-322).
 
 La criatura puede planificar por **GOAP** (búsqueda A\*) o por **HTN** (descomposición): el
 `HtnDriver` produce un `PlanRunner` que el mundo guarda con `store_plan` y consume igual
@@ -282,7 +282,7 @@ La criatura puede planificar por **GOAP** (búsqueda A\*) o por **HTN** (descomp
 (`Goap` para un objetivo suelto, `Htn` para una tarea compuesta) y `plan_for` despacha
 —decisión + presupuesto + replan en GOAP, o descomposición + `store_plan` en HTN—, de modo
 que el juego no repite el `if`. Así una tarea compuesta (`build_shelter_htn`) convive con los
-objetivos GOAP sin duplicar la ejecución (HOST-313/318).
+objetivos GOAP sin duplicar la ejecución (HOST-322/318).
 
 En Amiga real/emulado, `demos/features/sim/amiga/001_sim_bench` mide el ecosistema completo
 (`SimWorld` + planificación) con el reloj TOD de la CIA-A, separando tick de planificación:
@@ -352,7 +352,7 @@ pila del 68000).
 | `avatar.hpp` | jugador simulado (IA y entrada humana), percepción y carga | HOST-174 / HOST-175 |
 | `world.hpp` (laboratorio) | escenarios largos con digesto y ajuste de parámetros | HOST-173 |
 | `society.hpp` | `Society` (reputación), `Pack` | HOST-153 |
-| `planner.hpp` | `PlannerDriver`/`PlanRunner` sobre `Goap`/`NumericGoap` (dominio por plantilla), `PlanParams` | HOST-155, HOST-313 |
+| `planner.hpp` | `PlannerDriver`/`PlanRunner` sobre `Goap`/`NumericGoap` (dominio por plantilla), `PlanParams` | HOST-155, HOST-322 |
 | `domain.hpp` | dominio de ejemplo de objetos/construcción, `SimInventory` | HOST-155 |
 | `body.hpp` | `ChainBody` (IK FABRIK) y postura expresiva (`BodyPose`) | HOST-156 |
 | `world.hpp` + `world_core.hpp` | `SimWorld`: población, grafo de rooms, LOD, entorno, terreno, objetos, economía, sensores/memoria, ciclo de vida, reproducción, `Tend`, planificación | HOST-153 |

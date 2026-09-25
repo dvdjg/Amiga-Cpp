@@ -1,4 +1,4 @@
-# HOST-314: GOAP con presupuesto *anytime* (`eng::ai::Goap`)
+# HOST-320: GOAP con presupuesto *anytime* (`eng::ai::Goap`)
 
 Test host de la búsqueda **acotada** de `engine/include/eng/ai/planning/goap.hpp`. Con
 `set_budget(n)` el planner expande como máximo `n` nodos y, si no alcanza el objetivo,

@@ -173,7 +173,7 @@ El planner booleano (`Goap`, `goap.hpp`) ya expone `set_budget(n)` (0 = sin lím
 `partial()`. El parcial es el mejor nodo visitado (menor `h`; a igual `h`, mayor avance
 `g`) y **solo se devuelve si el presupuesto corta la búsqueda**; si el espacio se agota sin
 objetivo, no hay solución (0 acciones). Sin presupuesto el comportamiento es el histórico
-(HOST-107); verificado por HOST-314.
+(HOST-107); verificado por HOST-320.
 
 ```text
    plan_lazy(start, goal, budget) -> Plan{ actions[], length, cost, complete }
@@ -202,7 +202,7 @@ Los dos planners implementan ya la invalidación selectiva: cada entrada guarda 
 dependencias (`used_facts` = unión de `pre_true`/`pre_false`/`eff_add`/`eff_del` de las
 acciones del plan, y `used_vars` en el numérico) e `invalidate_selective(changed)` descarta
 solo las entradas afectadas, compactando el pool; `clear_plan_cache()` sigue siendo el
-vaciado total (HOST-315 y HOST-316). El planner numérico añade además la política
+vaciado total (HOST-321 y HOST-316). El planner numérico añade además la política
 **LRU+menos-usos** (desaloja la entrada con menos `hits` al llenarse, HOST-316).
 
 ```cpp
@@ -272,7 +272,7 @@ magnitudes) y la **política de planificación** añade presupuesto e histeresis
 ```
 
 El dominio por defecto es el booleano (`SimGoap` = `Goap<32,0>`): elegir el numerico no
-cambia el algoritmo ni el footprint del caso booleano (HOST-313).
+cambia el algoritmo ni el footprint del caso booleano (HOST-322).
 
 El planner de `HybridState` ocupa miles de bytes: se instancia en memoria estatica o de fondo
 (`world_core.hpp::PlannerHolder`), **nunca** en la pila del 68000.

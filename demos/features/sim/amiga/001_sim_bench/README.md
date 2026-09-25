@@ -17,7 +17,7 @@ y lo dibuja en pantalla junto con el número de criaturas y los pasos del HTN.
 
 `SimWorld<>` (~24 KB) y el planificador van en **memoria estática**: en la pila del 68000 no
 caben. El demo comprueba que el ecosistema completo compila y corre en el target m68k (no
-solo en host: HOST-313/317 lo prueban allí) y da una cifra real de frames/s y de trabajo de
+solo en host: HOST-322/317 lo prueban allí) y da una cifra real de frames/s y de trabajo de
 planificación por frame en el 68000.
 
 ## Ejecutar

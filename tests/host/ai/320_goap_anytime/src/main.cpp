@@ -1,5 +1,5 @@
 // ============================================================================
-// Test HOST-314: GOAP con presupuesto *anytime* (`set_budget`/`partial`)
+// Test HOST-320: GOAP con presupuesto *anytime* (`set_budget`/`partial`)
 // ============================================================================
 //
 // Valida la busqueda acotada de `eng::ai::Goap`: con `set_budget(n)` el planner expande

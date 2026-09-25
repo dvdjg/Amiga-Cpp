@@ -1,5 +1,5 @@
 // ============================================================================
-// Test HOST-313: GOAP numerico en el ecosistema (`eng::sim`, dominio por plantilla)
+// Test HOST-322: GOAP numerico en el ecosistema (`eng::sim`, dominio por plantilla)
 // ============================================================================
 //
 // Valida que la capa de planificacion de `eng::sim` es generica sobre el dominio GOAP:

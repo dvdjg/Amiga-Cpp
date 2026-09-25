@@ -1,4 +1,4 @@
-# HOST-315: invalidación selectiva de la caché de planes (`eng::ai::Goap`)
+# HOST-321: invalidación selectiva de la caché de planes (`eng::ai::Goap`)
 
 Test host de `invalidate_selective` en `engine/include/eng/ai/planning/goap.hpp`. Cuando
 cambia un hecho del dominio, `plan_cached` no necesita vaciar toda la caché: basta con

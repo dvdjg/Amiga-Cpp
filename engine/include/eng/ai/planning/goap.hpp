@@ -54,8 +54,8 @@
 /// aborta); con `set_budget` devuelve el mejor parcial.
 ///
 /// Verificacion: HOST-107 (Hanoi, pastel, soldado y dominio de 64 hechos), HOST-185/186
-/// (numerico: enteros, decimales, saturacion, memo, sufijo y heuristica relajada), HOST-314
-/// (anytime), HOST-315/316 (invalidacion selectiva y LRU).
+/// (numerico: enteros, decimales, saturacion, memo, sufijo y heuristica relajada), HOST-320
+/// (anytime), HOST-321/316 (invalidacion selectiva y LRU).
 
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>

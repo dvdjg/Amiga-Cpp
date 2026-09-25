@@ -1,4 +1,4 @@
-# HOST-313: GOAP numérico en el ecosistema (`eng::sim`)
+# HOST-322: GOAP numérico en el ecosistema (`eng::sim`)
 
 Test host de `engine/include/eng/sim/planner.hpp` y `world.hpp` con el **dominio GOAP
 numérico** (`eng::ai::NumericGoap`). Comprueba que la capa de planificación del ecosistema

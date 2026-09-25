@@ -73,7 +73,7 @@ public:
 			}
 			// **LOD**: solo planifica lo *realizado* (cerca de la cámara); lo abstracto y lo
 			// dormido no gastan planificación. La histéresis decide *cuándo*, esto decide
-			// *quién*. Ver HOST-313.
+			// *quién*. Ver HOST-322.
 			if (!c->realized()) {
 				return false;
 			}
@@ -84,7 +84,7 @@ public:
 	/// Bucle de planificación **completo en un tick**: si toca (`decide_plan`), aplica el
 	/// presupuesto (`apply_budget`) y replanifica; si no, deja el plan que hubiera. El juego
 	/// solo aporta el **dominio** (estado, objetivo y acciones); no repite el bucle.
-	/// Devuelve si queda un plan activo. Ver HOST-313.
+	/// Devuelve si queda un plan activo. Ver HOST-322.
 	template <class Actions>
 	[[nodiscard]] constexpr bool plan_tick(EntityId id, const typename Ai::State& start,
 					       const typename Ai::Goal& goal, Actions actions,
@@ -105,7 +105,7 @@ public:
 			apply_budget(this->m_planner.driver, params);
 			// Si la criatura ya tiene un plan en curso, intenta **reutilizar su sufijo**
 			// (el conductor trabaja sobre su propio runner: se le presta el de la criatura)
-			// antes de abrir búsqueda. Ver HOST-313.
+			// antes de abrir búsqueda. Ver HOST-322.
 			if (auto prev = this->find_plan(id); prev.valid() && prev->runner.active) {
 				this->m_planner.driver.runner() = prev->runner;
 				if (this->m_planner.driver.replan_reusing(start, goal, actions)) {
@@ -119,7 +119,7 @@ public:
 
 	/// Asocia a `id` el plan ya calculado por un conductor externo (p. ej. un `HtnDriver`),
 	/// para consumirlo con `current_action`/`advance_plan`/`abort_plan` igual que uno del
-	/// GOAP. Ver HOST-313.
+	/// GOAP. Ver HOST-322.
 	[[nodiscard]] constexpr bool store_plan(EntityId id,
 						const PlanRunner<kMaxPlanSteps>& runner) noexcept {
 		if constexpr (!Traits::planning) {

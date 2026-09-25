@@ -1,5 +1,5 @@
 // ============================================================================
-// Test HOST-315: invalidacion selectiva de la cache de planes (`invalidate_selective`)
+// Test HOST-321: invalidacion selectiva de la cache de planes (`invalidate_selective`)
 // ============================================================================
 //
 // La cache de `plan_cached` guarda dos planes distintos; `invalidate_selective(changed)`
