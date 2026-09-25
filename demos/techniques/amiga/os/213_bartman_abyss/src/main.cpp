@@ -162,16 +162,18 @@ struct AbyssDemo {
 		}
 		m_music_ok = m_music.play(eng::audio::MusicModule {mod}, sbuf);
 
+		// La música es una **tarea de frame del mini-SO**: se avanza dentro del tick (IRQ de
+		// VBlank, vía `os::start_vblank_irq`) y postea `MusicEnd` al puerto cuando termina.
+		eng::os::set_frame_task(&AbyssDemo::music_task, this);
+
 		eng::debug::mark_ready(g_eng_run_status,
 				       (m_music_ok ? 0x00020000u : 0u) | 0x00002130u);
 		return true;
 	}
 
-	/// Un frame de la demo: avanza la música, parchea el fine-scroll, limpia la banda y dibuja
-	/// los 16 BOBs. Se ejecuta entre latidos del mini-SO (`os::tick`).
+	/// Un frame de la demo: parchea el fine-scroll, limpia la banda y dibuja los 16 BOBs. La
+	/// música ya se avanza en el **tick del mini-SO** (IRQ), no aquí.
 	void frame(eng::u32 f) {
-		m_music.update();
-
 		const eng::u8 sin = kSinus15[f & 63u];
 		m_copper_words[m_scroll_index] = static_cast<eng::u16>(sin | (sin << 4u));
 
@@ -263,6 +265,18 @@ struct AbyssDemo {
 
 	[[nodiscard]] bool quit() const { return m_quit; }
 
+	/// Tarea de frame del mini-SO (`os::set_frame_task`): avanza la música P61 y postea
+	/// `MusicEnd` cuando el módulo termina. Corre en el tick (IRQ de VBlank).
+	static void music_task(void* user, eng::u16) {
+		auto* self = static_cast<AbyssDemo*>(user);
+		self->m_music.update();
+		if (self->m_music.ended()) {
+			eng::os::Msg m {};
+			m.type = eng::os::MsgType::MusicEnd;
+			(void)eng::os::system_port().post(m);
+		}
+	}
+
 private:
 	bool build_copper() {
 		copper::SchedulerT<false> sched {m_copper};
@@ -331,24 +345,22 @@ int main() {
 		return 0;
 	}
 
-	// Mini-SO: habilita la entrada y usa `os::tick` como latido (VBlank + sondeo de entrada),
-	// drenando el puerto cada frame. La salida es por el botón izquierdo del ratón.
-	eng::os::input_enable(eng::os::InputAll);
+	// Mini-SO por **IRQ de VBlank** (`os::start_vblank_irq`): el input, los timers y la tarea de
+	// frame (música) corren dentro de la IRQ; el bucle principal solo drena el puerto y renderiza.
+	// La salida es por el botón izquierdo del ratón (mensaje `MouseButton`).
 	eng::os::MsgPort<32>& port = eng::os::system_port();
+	(void)eng::os::start_vblank_irq(backend, eng::os::InputAll);
 
-	eng::u32 frame = 0u;
 	while (!game.quit()) {
-		// Latido del mini-SO: latcha el VBlank, pollea la entrada y avanza los timers.
-		eng::os::tick();
 		eng::os::Msg m;
 		while (port.pop(m)) {
 			game.on_msg(m);
 		}
+		const eng::u32 frame = eng::os::frame_count();
 		game.frame(frame);
 		backend.wait_vblank();
 		eng::debug::mark_frame(g_eng_run_status, frame);
 		eng::debug::probe_when_ready(g_eng_run_status, frame);
-		++frame;
 	}
 
 	game.shutdown();

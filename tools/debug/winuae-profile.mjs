@@ -27,7 +27,8 @@ const GDB_PORT = parseInt(process.env.WINUAE_GDB_PORT || '2345', 10);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const conn = new WinUAEConnection({
-  winuaePath: 'C:/Users/dvdjg/.vscode/extensions/bartmanabyss.amiga-debug-1.8.1/bin/win32',
+  winuaePath: (process.env.AMIGA_WINUAE_PATH ||
+    'C:/Users/dvdjg/Documents/programa/AI/Amiga/WinUAE-DBG/bin').replace(/\\/g, '/'),
   configFile: `${ROOT}/out/run/${DEMO}/${CONFIG_NAME}/runner.uae`,
   gdbPort: GDB_PORT,
 });

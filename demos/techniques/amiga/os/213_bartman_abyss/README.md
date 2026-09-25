@@ -59,22 +59,26 @@ bash ./tools/analyze/analyze-demo.sh demos/techniques/amiga/os/213_bartman_abyss
 
 ## Rendimiento
 
-El coste del bucle se midió con los checkpoints del periférico de WinUAE (`debugperiph checkpoints`,
-`--warp`). Con 16 BOBs + clear, el trabajo de CPU del engine es pequeño y **el grueso es la
-ejecución del Blitter** (inherente al efecto, igual que el original):
+El coste del bucle se midió con el profiler de WinUAE (`tools/debug/winuae-profile.mjs`, DMA por
+tipo y ciclos) y con los checkpoints (`debugperiph checkpoints`). Comparado con el **original** bajo
+el **mismo `runner.uae`** (sin warp):
 
-| Tramo | Ciclos/frame |
+| Versión | fps |
 |---|---|
-| `os::tick` (VBlank + input) | ~3.100 |
-| música P61 | ~1.600 |
-| clear + 16 BOBs (construcción de jobs + `blitter_submit` + ejecución) | ~165.000 |
-| overlay de debug | ~3.100 |
+| Original (Bartman) | 49,85 |
+| Esta demo, música en el **bucle principal** | ~25 |
+| Esta demo, música en la **IRQ de VBlank** (actual) | **49,8** |
 
-El `blitter_submit` por BOB ejecuta ≈ `2 palabras × 80 filas × 4 canales` slots, con contención del
-display DMA; el `clear` es un D-only de `20×280` palabras. Optimizaciones aplicadas al engine en
-esta pasada: DMACON del Blitter solo si está apagado (no por job), `FramePlan::add_blit_job` con una
-sola copia, `memcpy`/`memset` con camino rápido a palabra, y en la demo la fase del seno con avance
-incremental (sin `% 51` por BOB).
+**Causa del 2×**: los 17 blits (clear + 16 BOBs) ya rozan el presupuesto de un frame PAL
+(~142k ciclos); con la música P61 avanzada **en serie** en el bucle principal, el frame se
+sobrepasaba y el bucle caía a 2 VBlanks por iteración (el profiler lo confirmaba: el Blitter usaba
+la mitad de slots DMA y la CPU el doble → frame-skip). El original avanza la música **dentro de la
+IRQ de VBlank**, solapada con la espera del Blitter. Al integrar la música como **tarea de frame del
+mini-SO** (`os::set_frame_task`) y arrancar el tick **por IRQ** (`os::start_vblank_irq`), la demo
+recupera 50 fps sin tocar el clear (mismo `280×20`) ni los BOBs.
+
+Coste CPU no-Blitter del engine (checkpoints): `os::tick` + música + overlay ≈ 8k ciclos/frame,
+despreciable frente a los ~165k del tramo de Blitter.
 
 ## Assets
 

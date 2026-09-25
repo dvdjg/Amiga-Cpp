@@ -460,18 +460,23 @@ del `Engine`**: el `Engine` es el dueño de la IRQ de VBlank, así que `eng::os`
 segundo servicio, solo registra un hook (`Engine::set_vblank_hook`).
 
 ```cpp
-// Arranque: habilita la entrada pedida y registra el latido como hook de VBlank del Engine.
-// Devuelve false si el Engine no acepta el hook.
+// Arranque con Engine: habilita la entrada pedida y registra el latido como hook de
+// VBlank del Engine (que es el dueño de la IRQ).
 const bool ok = eng::os::init(engine, eng::os::InputAll);
+// Alternativa SIN Engine: instala el latido directamente como servicio de VBlank del
+// backend (corre dentro de la IRQ); el bucle principal solo drena y renderiza.
+const bool ok2 = eng::os::start_vblank_irq(backend, eng::os::InputAll);
 
 eng::os::input_enable(eng::os::InputKeyboard); // (re)habilita dispositivos por máscara
 eng::os::add_timer(1u, 25u);                   // -> MsgType::Timer cada 25 frames (periódico)
 eng::os::system_port();                        // MsgPort de la aplicación
 eng::os::frame_count();                        // contador de VBlank
+// Tarea de frame (p. ej. música): corre en el tick, tras el sondeo de entrada/timers.
+eng::os::set_frame_task(&music_tick, &game);
 ```
 
 ```text
-InputMask:  InputMouse | InputKeyboard | InputJoystick | InputCd32Pad | InputAll (= 0x0f)
+InputMask:  InputMouse | InputKeyboard | InputJoystick | InputCd32Pad | InputAll (= 0x07)
 ```
 
 `init<EngineT>(engine, inputs)` equivale a `input_enable(inputs)` más
@@ -480,9 +485,20 @@ InputMask:  InputMouse | InputKeyboard | InputJoystick | InputCd32Pad | InputAll
 La app **no** llama a `os::tick` desde su bucle: el latido lo dispara el `Engine` antes de
 `update`. El productor de cada dispositivo solo se sondea si su bit está en la máscara.
 
-**Pendiente de arreglo** (`add_timer` con periodo > 1): postea los `Timer` pero el bucle no los
-entrega; en hardware solo está verificado el periodo 1. Detalle y reproducción en
-[`docs/guides/roadmap/ROADMAP_MINI_OS.md`](../../guides/roadmap/ROADMAP_MINI_OS.md).
+`InputAll` activa los dispositivos que **conviven** (ratón + teclado + joystick); el pad CD32 se
+añade explícitamente con `enable_cd32_pad()` (comparte el puerto 2 con el joystick, con
+auto-detección).
+
+`start_vblank_irq<BackendT>(backend, inputs)` es la vía **sin `Engine`**: instala el latido como
+**servicio de VBlank del backend** (`backend.set_vblank_service`), de modo que input/timers/tarea de
+frame corren **dentro de la IRQ** y el bucle principal queda para el render (sincronizando con
+`backend.wait_vblank()`). Es el modelo clásico (juego en el bucle, tiempo/entrada/música en el
+VBlank); la demo 213 lo usa y recupera 50 fps al solapar la música con la espera del Blitter.
+
+`set_frame_task(cb, user)` registra una **tarea de frame** que se ejecuta al final de cada tick (en
+el mismo contexto que el latido: IRQ de VBlank si va por IRQ). Es el punto reutilizable para trabajo
+frame-driven atado al ciclo de mensajes (p. ej. `P61Player::update()` y postear `MusicEnd`; la
+`AudioSystem` lo hace con `tick_frame(port)`).
 
 **Previstos** (diseño, aún sin implementar):
 
