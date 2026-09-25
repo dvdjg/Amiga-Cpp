@@ -8,8 +8,10 @@
 
 #include <eng/core/types/box.hpp>
 #include <eng/core/types/ptr.hpp>
+#include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/field/surface.hpp>
+#include <eng/graphics/glyph_cache.hpp>
 #include <eng/ui/paint_target.hpp>
 #include <eng/ui/text.hpp>
 #include <eng/ui/theme.hpp>
@@ -64,6 +66,18 @@ public:
 	/// Un solo code point (lo usa `draw_text_clipped`).
 	void codepoint(eng::s16 x, eng::s16 y, eng::u32 cp, eng::u8 fg) {
 		m_target.surface->draw_codepoints(x, y, &cp, 1u, fg);
+	}
+
+	/// Texto por **Blitter con caché de glifos** (acelerado). Requiere un `FramePlan` y `x`
+	/// múltiplo de 16; la caché y el buffer de trabajo son del llamador (sin heap). Equivalente a
+	/// `text` (mismo resultado); ver `eng/graphics/glyph_cache.hpp`.
+	bool text_blit(eng::s16 x, eng::s16 y, const char* s, eng::u8 fg,
+		       eng::graphics::GlyphCache<>& cache, eng::Span<eng::u16> scratch, eng::u8 planes) {
+		if (!m_plan.valid()) {
+			return false;
+		}
+		return eng::graphics::draw_text_blit(*m_target.surface, *m_plan.get(), cache, x, y, s,
+						     fg, scratch, planes);
 	}
 
 	/// Glifo 1-bit `w × h` desde filas `bits[row]` (bit `w-1` = columna 0, MSB primero).

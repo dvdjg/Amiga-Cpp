@@ -156,6 +156,7 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 | HOST-310 | test | Pantalla de **doble buffer** (`DoubleBufferScreen`): componer en el trasero sin cambiar el delantero; `flip` publica. |
 | HOST-311 | test | `ScrollBar` (vertical/horizontal): pomo proporcional, click→valor y teclado. |
 | HOST-312 | test | `ListView`: selección y desplazamiento lógico (solo filas visibles). |
+| HOST-313 | test | Texto por Blitter con caché de glifos (`glyph_cache.hpp`): cookie-cut, 2 glifos/palabra, equivalencia CPU. |
 | `215_gui_widgets` | demo | Widgets y tema en hardware (G0–G6). **Entregada y verificada** (G8). |
 | `300_gui_compositor` | demo | Ventanas movibles con backing store y **copias por Blitter** (`present_blit`). **Entregada y verificada**. |
 
@@ -198,6 +199,8 @@ del keymap** validadas contra la AHRM 3.ª (HOST-302: Space 0x40, cursores 0x4C/
 **cirílico** en `Font8` (HOST-264) y **`EditBox` UTF-8** (HOST-303) para teclearlo en campos.
 
 **Doble buffer y widgets de scroll (post-G8)**: `eng/ui/double_buffer.hpp` (`DoubleBufferScreen`) compone en el buffer **trasero** mientras el display lee el **delantero**; `flip()` intercambia y publica (parcheo de `BPLxPT`/`COP1LC` en VBlank), de modo que nunca se ve una composición a medias (HOST-310). `eng/ui/scroll.hpp` (`ScrollBar`, vertical u horizontal) y `eng/ui/list.hpp` (`ListView`) dan desplazamiento **lógico** con selección: la barra fija el índice superior y la lista pinta solo las filas visibles (HOST-311/312).
+
+**Texto por Blitter (post-G8)**: `eng/graphics/glyph_cache.hpp` (`GlyphMask`, `GlyphCache<Max>`, `draw_text_blit`) sustituye el pintado CPU de texto por un **cookie-cut del Blitter** (`$CA`), con la máscara del glifo como canal A y un plano sólido del color como B, agrupando **dos glifos por palabra**; `UiPainter::text_blit` lo expone. La ruta CPU (`Surface::draw_text`) es la referencia de equivalencia (HOST-313).
 
 Pendiente: volcar la asignación de carácter de cada **distribución nacional** y los **Alt+tecla**
 de las teclas muertas desde `DEVS:Keymaps` del ROM (no disponibles en el repo; hoy *best-effort*).

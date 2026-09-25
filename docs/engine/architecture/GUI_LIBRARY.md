@@ -161,6 +161,23 @@ void draw_text_clipped(UiPainter& p, Rect clip, eng::s16 x, eng::s16 y,
 Para etiquetas estáticas se prefiere `Surface::draw_text_literal<"...">`, que decodifica el
 UTF-8 **en compilación** (ya existe en el engine) y no procesa la cadena en runtime.
 
+### 6.1 Texto por Blitter (caché de glifos)
+
+La ruta CPU (`Surface::draw_code_point` → `draw_glyph_row` por tramos) es la **referencia de
+equivalencia**. La ruta **acelerada** vive en `eng/graphics/glyph_cache.hpp`:
+
+- `GlyphMask`: máscara planar de 1 bit (8 filas) de un glifo de `Font8`.
+- `GlyphCache<Max>`: caché de capacidad fija, sin heap, de máscaras por *code point*.
+- `draw_text_blit(...)`: **cookie-cut del Blitter** (`MaskedBobCookieCut`, minterm `$CA`,
+  `D = (A·B) + (¬A·D)`) con A = máscara del glifo y B = plano sólido del bit de color. El Blitter
+  opera por **palabra** (16 px), así que el texto se agrupa de **dos glifos por palabra**; el
+  destino debe estar alineado a palabra (`x` múltiplo de 16). Un **solo** `blit_masked` cubre todos
+  los planos (varios blits de 1 plano escribirían siempre el plano 0 del destino).
+
+`UiPainter::text_blit(x, y, s, fg, cache, scratch, planes)` es el punto de uso desde la UI (requiere
+`FramePlan`). Equivalencia CPU↔Blitter verificada en **HOST-313**; la ejecución real del Blitter se
+valida en la demo de GUI en emulador.
+
 ## 7. Tema / branding
 
 Un tema es una tabla de **colores lógicos** (que mapean a índices de la paleta del playfield) más
