@@ -161,6 +161,7 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 | HOST-315 | test | Variantes de fuente: cursiva (`shear`) y micro-fuente `Font3x5`. |
 | `215_gui_widgets` | demo | Widgets y tema en hardware (G0–G6). **Entregada y verificada** (G8). |
 | `300_gui_compositor` | demo | Ventanas movibles con backing store y **copias por Blitter** (`present_blit`). **Entregada y verificada**. |
+| `301_gui_layouts` | demo | Layouts adaptables (grid/flow+wrap/fit), texto ajustado y colección de fuentes (cursiva/micro) en hardware. Verificador `verify-gui-layouts.mjs`. |
 
 ## Riesgos y decisiones abiertas
 
