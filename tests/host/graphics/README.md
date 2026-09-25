@@ -39,3 +39,4 @@ Categoría `graphics` de la batería host (L1). El índice de categorías está 
 | HOST-218 | [seam_c2p](218_seam_c2p/README.md) | `Rasterizer::c2p` (seam): chunky→planar unificado (CPU vía `c2p_1x1_4`/`naive`), comparado con la referencia. |
 | HOST-260 | [copper_blitter](260_copper_blitter/README.md) | Copper lanza blits (Técnica A): `CopperIntentKind::BlitterJob` (`BLTCON*`/punteros/módulos/`BLTSIZE`) y **ventana segura** (`set_blitter_window`) que lo serializa con los blits de CPU. |
 | HOST-267 | [fine_scroll](267_fine_scroll/README.md) | `eng::effects::FineScroll`: scroll horizontal fino de una capa planar (1 px/frame) — `step`/`bplcon1`/columna y `BlitJob` de desplazamiento + columna entrante. |
+| HOST-323 | [palette](323_palette/README.md) | `eng/graphics/palette.hpp`: paleta de juego (`Palette`/`Color`/`ColorIndex`) — `set`/`get`/`fill`/`fade`/`mix` (`constexpr`), índice recortado a 0..31 y parche base al `FramePlan`. |

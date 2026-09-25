@@ -80,6 +80,70 @@ s.sprite(...);            // cuando exista el sistema de objetos
 app.present();            // ejecuta el plan del frame y publica
 ```
 
+## 2.1 Contrato de las abstracciones de juego (dibujo, color, scroll, recursos)
+
+Estas cuatro familias son las que el port de la demo 213 midió como **huecos** (`PUBLIC_API.md` §8.1). El contrato fija **nombres de dominio, tipos fuertes y manejo de error**; la implementación envuelve lo ya existente (`Bob`/`bob_draw`, `Palette32`/`util::palette_*`, `Camera2D`/`TileScrollDriver`, `AssetCache`/`DynLoader`) sin introducir una segunda verdad.
+
+Reglas comunes a todas (previenen errores por construcción):
+
+- **Sin punteros ni offsets en la firma**: el juego nunca ve `u16*`, `u8*`, strides, número de planos ni módulos. Eso viaja dentro del *asset cocinado* y del *contexto de dispositivo*.
+- **Identidad fuerte**: `SpriteId`, `ColorIndex`, `LayerId`, `AssetHandle<T>` son tipos distintos, no `u8`/`u16` sueltos: no se puede pasar el índice de color donde va un canal ni un handle de música donde va uno de sprite.
+- **Error sin excepciones**: `[[nodiscard]] bool` para lo que puede fallar por presupuesto; los *setters* de valor (color, scroll) no fallan si ya hay sitio, o devuelven `bool` si el recurso está lleno.
+- **Una llamada por intención**, configuración por *designated initializers* con defectos.
+
+### 2.1.1 Dibujo de objetos — `Sprite` y `screen.sprite(...)`
+
+Un `Sprite` es un **asset cocinado**: geometría (ancho, alto, planos), el bitmap de frames y, opcionalmente, la máscara de cookie-cut, todo junto. Como la geometría viaja con el asset, es **imposible** dibujar con un número de planos o un stride que no corresponda al bitmap.
+
+```cpp
+eng::Sprite nave = app.load_sprite("assets/nave.bpl").value();   // asset cocinado
+// render:
+s.sprite(nave, 100, 40);                        // frame 0, cookie-cut, anclado arriba-izquierda
+s.sprite(nave, 100, 40, {.frame = 3});          // un frame concreto
+s.sprite(nave, x, y, {.anchor = eng::Anchor::Center, .erases = eng::Erase::Auto});
+```
+
+`screen.sprite` reemplaza hoy a `graphics::bob_draw(plan, bob, frame, x, y, target)`; el `BobTarget` (base, `row_bytes`, `plane_bytes`, planos, layout) se lo da el **contexto de dispositivo**, que lo construye desde la escena (`Scene::bitplanes()`), no el juego.
+
+### 2.1.2 Color y paleta — `Color`, `ColorIndex`, `Palette`
+
+`Color` es un RGB444 con constructores con nombre (valida 0..15); `ColorIndex` es el índice `0..31`. La `Palette` da los métodos que hoy no existen (`set`/`get`/`mix`/`fade`) y puede ser la **paleta de una capa** o la global.
+
+```cpp
+s.palette().set(eng::ColorIndex {1}, eng::Color::rgb(15, 8, 0));
+s.palette().fade(1, 2);                          // al 50 % hacia negro (util::palette_scale)
+s.palette().mix(fondo, niebla, frame, 100);      // transición (util::palette_lerp)
+eng::Color c = s.palette().get(eng::ColorIndex {1});
+```
+
+Por debajo escribe un `Palette32` y lo publica con `FramePlan::add_base_palette_patch` (o `PaletteTransitionEffect`/`PaletteCycleEffect` si se pide animación); reutiliza `eng::util::palette_lerp`/`palette_scale`/`lerp444` y **nunca** expone `color_register`.
+
+### 2.1.3 Scroll y cámara — `Camera` y `Layer`
+
+Una `Camera` es la ventana de la capa al mundo; `scroll_x`/`scroll_y` son su posición, no palabras de `BPLCON1`. Una `Layer` agrupa un bitmap de fondo (o tilemap) con su cámara y su prioridad; un `Actor`/`Sprite` puede ser promovido a capa (Jim Power, `SCENE_AND_RESOURCES.md`).
+
+```cpp
+eng::Layer& fondo = app.world().add_layer({.id = "fondo", .depth = 0});
+fondo.camera().scroll_x = 128;                   // mueve la vista, no un registro
+fondo.camera().scroll_x += 2;                    // avance por frame
+s.sprite(nave, 100, 40);                         // los objetos van en coordenadas de pantalla
+```
+
+Reutiliza `scene::Camera2D` (`virtual_scene.hpp`) y `TileScrollDriver`/`FineScroll`; el `scroll_x` de la cámara es lo que hoy se parchea a mano en `BPLCON1` (en la 213, un `PatchHandle`).
+
+### 2.1.4 Recursos — `app.load<T>(...)` y presupuesto
+
+`load<T>` declara, carga y **cachea** un asset tipado, eligiendo Chip/Fast según el tipo (los datos que consume DMA —bitmaps, música P61, samples— van a Chip). El tipo `T` fija la decodificación (`Sprite`, `Music`, `Sample`, `Planes`), coherente con el `AssetCache` bytes-only + capa de decodificación separada (`RESOURCE_SYSTEM.md` §7).
+
+```cpp
+auto mod  = app.load<eng::Music>("assets/testmod.p61");   // -> AssetHandle<Music> / Result
+auto spr  = app.load<eng::Sprite>("assets/abyss.bob");
+sprite->draw(s, x, y);
+app.resources().used_chip();                      // presupuesto consultable antes de pedir
+```
+
+`load<T>` es el sustituto del boilerplate actual (símbolo `incbin` + `allocate_block<Tag>` + `memcpy` + miembro por tag) y se apoya en `AssetCache` (`asset_cache.hpp`), el `Backend` de IO (`os::file_*`) y el presupuesto agregado (`HwInfo` + `LinearArena::remaining`). Devuelve handle/`Result`, no `Span<u8>` ni `Block<Tag>`.
+
 ## 3. Mapeo interno → público (guía al tocar cada módulo)
 
 | Interno (hoy) | Público (objetivo) |
@@ -95,6 +159,10 @@ app.present();            // ejecuta el plan del frame y publica
 | `eng::scene::Actor`/`ActorStore` | `world.add_actor({...})` |
 | `graphics::FramePlan` (jobs de Blitter) | interno del `Screen`/planner |
 | `backend.audio()` | `app.audio()` |
+| `graphics::bob_draw` + `BobTarget` | `Sprite` + `screen.sprite(...)` (§2.1.1) |
+| `Palette32` + `copper::color_register` + `emit_palette` | `screen.palette().set/mix/fade` (§2.1.2) |
+| `PatchHandle` de `BPLCON1` + `Camera2D`/`TileScrollDriver` | `layer.camera().scroll_x` (§2.1.3) |
+| `incbin` + `Block<Tag>` + `memcpy` a Chip | `app.load<T>(...)` + `resources()` (§2.1.4) |
 
 ## 4. Reglas de diseño del API público
 
@@ -120,6 +188,11 @@ app.present();            // ejecuta el plan del frame y publica
    082/083); faltan degradados y otros.
 4. **Actores** (`ActorStore`) tras la representación elegida por el engine.
 5. **UI** (`eng::ui`) cuando se implemente.
+6. **`Sprite` + `screen.sprite(...)`** (§2.1.1): envolver `Bob`/`bob_draw` con un asset cocinado y un `BobTarget` que prepare el contexto de dispositivo; puerta visual `086_bob_objects`.
+7. **`Palette` (`set`/`mix`/`fade`)** (§2.1.2): envolver `Palette32` + `util::palette_*` + `add_base_palette_patch`; gate host de la aritmética de color.
+8. **`Camera`/`Layer` con `scroll_x`** (§2.1.3): unificar `Camera2D` + `TileScrollDriver`/`FineScroll` tras una capa con cámara.
+9. **`app.load<T>(...)` + `resources()`** (§2.1.4): `Backend` Amiga para `AssetCache` + decodificación tipada + presupuesto agregado.
+10. **Migrar una demo** al API completo (candidata: `204_collide_game` o la 086) como gate de cada abstracción.
 
 Mientras tanto, el API de `eng/api/api.hpp` (fachada de tipos) sigue siendo la puerta de lo
 existente; `App`/`Screen` lo envuelven para el caso de juego.
