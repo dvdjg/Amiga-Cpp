@@ -93,9 +93,16 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
   gradual y reparto por frames), **aforo dinámico** (estación/clima) y **entrada humana**
   (HOST-174/175), y **planificación GOAP integrada** con dominio de construcción
   (HOST-155), con gate de codegen 68000. Reutiliza `eng::ai` (utility, percepción,
-  navegación, steering, GOAP). Falta **consumidor real en `games/`** (demo Amiga con
-  render) y las líneas de crecimiento (percepción imperfecta, tácticas de manada).
-  Detalle: `docs/engine/architecture/SIM_ECOSYSTEM.md`.
+  navegación, steering, GOAP). La planificación cubre además **anytime** (`set_budget`/
+  `partial`), **caché selectiva** (`invalidate_selective` + LRU), **HTN** (`planning/htn.hpp`,
+  descomposición de coste mínimo) y **selección GOAP/HTN** (`PlanKind`/`plan_for`); HOST-322/316/317/318.
+  Hay **benchmark Amiga** (`demos/features/sim/amiga/001_sim_bench`): A500 con 12 criaturas, la
+  planificación realista cuesta **~1.1x** el tick (el peor caso sin caché era ~18x), cerrado
+  usando la **caché de planes** en el driver, el **intervalo de replan** y el **LOD** de quién
+  planifica. Destapó y corrigió el libcall `__popcountsi2` (ahora SWAR freestanding). Falta el
+  **consumidor real en `games/`** y las líneas de
+  crecimiento (percepción imperfecta, tácticas de manada). Detalle:
+  `docs/engine/architecture/SIM_ECOSYSTEM.md`.
 
 ## Sprites hardware — estado (2026-09)
 

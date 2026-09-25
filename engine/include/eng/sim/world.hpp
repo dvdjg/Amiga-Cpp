@@ -12,11 +12,12 @@ namespace eng::sim {
 
 template <class Traits = SimTraits, eng::u16 MaxCreatures = 64u,
 	  eng::u8 MaxTrackers = kDefaultMaxTrackers, eng::u8 MaxRelations = kDefaultMaxRelations,
-	  eng::u8 MaxRooms = 64u, eng::u8 MaxPlans = 8u, eng::u16 PlannerNodes = 64u>
-class SimWorld : public SimWorldCore<Traits, MaxCreatures, MaxTrackers, MaxRelations, MaxRooms, MaxPlans, PlannerNodes> {
+	  eng::u8 MaxRooms = 64u, eng::u8 MaxPlans = 8u, eng::u16 PlannerNodes = 64u,
+	  class AiT = SimGoap>
+class SimWorld : public SimWorldCore<Traits, MaxCreatures, MaxTrackers, MaxRelations, MaxRooms, MaxPlans, PlannerNodes, AiT> {
 public:
 	using Creature = AbstractCreature<MaxTrackers, MaxRelations>;
-	using Ai = SimGoap;
+	using Ai = AiT;
 	using Plan = detail::ActivePlan<kMaxPlanSteps>;
 	static constexpr eng::u8 max_plan_steps = kMaxPlanSteps;
 
@@ -51,6 +52,108 @@ public:
 			}
 			p->runner = this->m_planner.driver.runner();
 			return true;
+		}
+	}
+
+	/// ¿Toca (re)planificar para `id` en `frame_now`? Aplica la **histéresis** sobre el
+	/// `Mind` de la criatura (`should_replan`) y **actualiza su estado**. El juego llama a
+	/// esto en su bucle; si devuelve `true`, aplica el presupuesto (`apply_budget`) y llama a
+	/// `replan`. Ver HOST-155.
+	[[nodiscard]] constexpr bool decide_plan(EntityId id, eng::u16 frame_now,
+						 const PlanParams& params = PlanParams {}) noexcept {
+		if constexpr (!Traits::planning) {
+			(void)id;
+			(void)frame_now;
+			(void)params;
+			return false;
+		} else {
+			auto c = this->find(id);
+			if (!c.valid()) {
+				return false;
+			}
+			// **LOD**: solo planifica lo *realizado* (cerca de la cámara); lo abstracto y lo
+			// dormido no gastan planificación. La histéresis decide *cuándo*, esto decide
+			// *quién*. Ver HOST-322.
+			if (!c->realized()) {
+				return false;
+			}
+			return should_replan(c->personality, c->mind.plan, frame_now, params);
+		}
+	}
+
+	/// Bucle de planificación **completo en un tick**: si toca (`decide_plan`), aplica el
+	/// presupuesto (`apply_budget`) y replanifica; si no, deja el plan que hubiera. El juego
+	/// solo aporta el **dominio** (estado, objetivo y acciones); no repite el bucle.
+	/// Devuelve si queda un plan activo. Ver HOST-322.
+	template <class Actions>
+	[[nodiscard]] constexpr bool plan_tick(EntityId id, const typename Ai::State& start,
+					       const typename Ai::Goal& goal, Actions actions,
+					       eng::u16 frame_now,
+					       const PlanParams& params = PlanParams {}) noexcept {
+		if constexpr (!Traits::planning) {
+			(void)id;
+			(void)start;
+			(void)goal;
+			(void)actions;
+			(void)frame_now;
+			(void)params;
+			return false;
+		} else {
+			if (!decide_plan(id, frame_now, params)) {
+				return has_plan(id);
+			}
+			apply_budget(this->m_planner.driver, params);
+			// Si la criatura ya tiene un plan en curso, intenta **reutilizar su sufijo**
+			// (el conductor trabaja sobre su propio runner: se le presta el de la criatura)
+			// antes de abrir búsqueda. Ver HOST-322.
+			if (auto prev = this->find_plan(id); prev.valid() && prev->runner.active) {
+				this->m_planner.driver.runner() = prev->runner;
+				if (this->m_planner.driver.replan_reusing(start, goal, actions)) {
+					prev->runner = this->m_planner.driver.runner();
+					return prev->runner.active;
+				}
+			}
+			return replan(id, start, goal, actions);
+		}
+	}
+
+	/// Asocia a `id` el plan ya calculado por un conductor externo (p. ej. un `HtnDriver`),
+	/// para consumirlo con `current_action`/`advance_plan`/`abort_plan` igual que uno del
+	/// GOAP. Ver HOST-322.
+	[[nodiscard]] constexpr bool store_plan(EntityId id,
+						const PlanRunner<kMaxPlanSteps>& runner) noexcept {
+		if constexpr (!Traits::planning) {
+			(void)id;
+			(void)runner;
+			return false;
+		} else {
+			if (!this->find(id).valid()) {
+				return false;
+			}
+			auto p = this->get_or_make_plan(id);
+			if (!p.valid()) {
+				return false;
+			}
+			p->runner = runner;
+			return true;
+		}
+	}
+
+	/// Vacía la caché de planes del planificador compartido (llamar si cambia el dominio de
+	/// acciones). Útil también para medir el coste de búsqueda frente al de caché.
+	constexpr void clear_plan_cache() noexcept {
+		if constexpr (Traits::planning) {
+			this->m_planner.driver.clear_plan_cache();
+		}
+	}
+
+	/// Nodos expandidos por la **última** búsqueda del planificador compartido (diagnóstico y
+	/// benchmark; 0 si la planificación está desactivada o no hubo búsqueda).
+	[[nodiscard]] constexpr eng::usize planner_expansions() const noexcept {
+		if constexpr (!Traits::planning) {
+			return 0u;
+		} else {
+			return this->m_planner.driver.expansions();
 		}
 	}
 

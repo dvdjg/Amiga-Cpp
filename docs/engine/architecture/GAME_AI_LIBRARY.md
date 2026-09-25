@@ -41,8 +41,9 @@ Puntos de reutilización explícitos:
 - La capa de **ecosistema vivo** `eng::sim` ([SIM_ECOSYSTEM.md](SIM_ECOSYSTEM.md)) se
   construye **sobre** esta librería (utilidad, percepción, navegación y GOAP) y añade el
   estado de criatura (necesidades, personalidad, mente, conocimiento, jerarquía, genética,
-  sociedad) y el LOD abstracto/realizado; `sim/planner.hpp` **envuelve** `Goap` para las
-  criaturas que planifican. No reimplementa las primitivas de `eng::ai`.
+  sociedad) y el LOD abstracto/realizado; `sim/planner.hpp` **envuelve** `Goap`/`NumericGoap`
+  (dominio por plantilla) para las criaturas que planifican. No reimplementa las primitivas
+  de `eng::ai`.
 
 ## 2. Organización por familias
 
@@ -102,7 +103,9 @@ por el código.
 | `Ai::goal(hechos…)` | construye un `Goal` con los hechos exigidos a 1 |
 | `Ai::Domain<MaxActions>` | dominio listo: `actions` (`Array`) + `goal`; el planner lo acepta directo |
 | `Ai::Planner<MaxNodes>` | A* hacia delante; `plan()`, `found()`, `plan_cost()`, `expansions()` |
-| `Ai::Planner::plan_cached` | como `plan()` pero con **caché** por `(estado, objetivo)`; `clear_plan_cache()` |
+| `Ai::Planner::set_budget` | **presupuesto de expansiones**; si no alcanza el objetivo, `partial()` y el **mejor plan parcial** (prefijo; no se cachea). Ver HOST-320 |
+| `Ai::Planner::plan_cached` | como `plan()` pero con **caché** por `(estado, objetivo)`; `clear_plan_cache()` (vaciado total) |
+| `Ai::Planner::invalidate_selective` | descarta solo las entradas cuyo plan **depende** (`used_facts`) de un hecho cambiado; compacta el pool. Ver HOST-321 |
 
 `MaxFacts` solo admite dos valores: **32** (por defecto, clave `u32`) o **64** (clave de
 64 bits empaquetada en dos palabras). No hay valores intermedios útiles: `BitSet<N>` ocupa
@@ -180,9 +183,10 @@ Además, el test cubre los casos límite (objetivo ya cumplido, objetivo sin sol
 último válido, y ejercita la clave de dos palabras (`StateKey64`). El contenedor `Ai::Domain`
 se prueba con un problema mínimo (3 acciones encadenadas, coste 3).
 
-### 3.5 GOAP numérico (cuantizado, `goap_numeric.hpp`)
+### 3.5 GOAP numérico (cuantizado) — `NumericGoap`, alias de `goap.hpp`
 
-`eng::ai::NumericGoap<MaxVars>` extiende el GOAP booleano con hasta **4 variables de
+`eng::ai::NumericGoap<MaxVars>` (alias de `eng::ai::Goap<32, MaxVars>`) añade al GOAP
+booleano hasta **4 variables de
 nivel** (`u8`, 0..255): los enteros son niveles directos y los **decimales**, niveles
 escalados (p. ej. `Fixed` q4.4 = nivel/16). La clave sigue siendo **exacta** (32 bits de
 hechos + 32 de niveles) y el planner es el mismo A* determinista, sin heap.
@@ -191,15 +195,41 @@ hechos + 32 de niveles) y el planner es el mismo A* determinista, sin heap.
   (`var_ge`, `var_le`, `add`, `sub`, `set_var`), saturados a 0..255.
 - **Cachés**: `plan_cached` (memo de planes por `(start, goal)` con pool) y
   `plan_reusing` (reutiliza el **sufijo** del plan anterior tras ejecutar un paso).
+- **Invalidación selectiva**: cada entrada guarda `used_facts`/`used_vars` (unión de
+  precondiciones y efectos del plan); `invalidate_selective` descarta solo lo afectado y la
+  política **LRU+menos-usos** desaloja al llenarse. Ver HOST-316.
 - **Heurística relajada** (`plan_relaxed`): `h_max` sobre hechos (relajación por
   borrado) + cota numérica por el mayor delta por acción, con **memo de `h` por estado
   entre llamadas** (`heuristic_hits`). Guía mejor; no garantiza optimalidad estricta.
-- Límites: `MaxFacts <= 32` y `MaxVars <= 4` (clave de 64 bits exacta). Para más
-  variables, componer dominios o esperar al planner numérico general (heurística de
-  grafo relajado completa).
+- Límites: `MaxFacts <= 32` y `MaxVars <= 8` (clave exacta de 64 bits hasta 4 variables;
+  **ancha**, `StateKeyNVWide<2>`, de 5 a 8). Para más, componer dominios.
+
+En `eng::sim` el dominio es un **parámetro de plantilla** de `PlannerDriver` y de
+`SimWorld`: `SimGoap` (booleano, por defecto y más ligero) o `SimNumericGoap<N>`
+(magnitudes). Ver `SIM_ECOSYSTEM.md` §9 y HOST-322.
+
+La **versión ampliada** de la planificación (estado híbrido hechos+niveles, acciones con `target` y
+coste dinámico, *anytime* con presupuesto, caché con invalidación selectiva, plan coordinado y HTN
+ligero) se especifica en [`GOAP_EXTENDED.md`](GOAP_EXTENDED.md); se adopta por fases en
+`ROADMAP_GAME_AI.md` (G7).
 
 Verificación: HOST-185 (enteros, decimales, saturación, memo y sufijo) y HOST-186
 (heurística relajada con memo).
+
+### 3.6 HTN: planificación jerárquica (`htn.hpp`)
+
+`eng::ai::Htn<MaxFacts, MaxActions, ...>` es la **otra familia** de planificación: no busca
+con A\* sino que **descompone** una tarea compuesta en subtareas por **métodos**
+(precondición → lista de subtareas) hasta acciones primitivas, comprobando que cada una sea
+aplicable en el estado que va resultando, con **backtracking acotado** (`MaxDepth`/`MaxPlan`).
+Explora **todas** las descomposiciones y elige la de **coste mínimo** (coste de las acciones
++ coste propio del método); la `priority` desempata a igual coste. Los subtasks pueden ser
+**compuestos anidados** (`compound(i)`) y el estado resultante se propaga al llamador.
+Reutiliza `Goap`'s `State`/`Action` y `applicable`/`apply`; determinista y sin heap.
+
+Codificación de una subtarea (`u16`): `< MaxActions` = acción primitiva; `>= MaxActions` =
+compuesta (`compound(i)`). Consumidor real: `sim/domain.hpp::build_shelter_htn` («conseguir
+refugio»), cuyo plan coincide con el GOAP del mismo dominio. Ver HOST-318.
 
 ## 4. Decisión por tick (`eng/ai/decision/`)
 La decisión se apoya en dos motores genéricos de `eng::util` (no se duplican):
@@ -287,8 +317,9 @@ HOST-117.
 
 | Cabecera | Tipos / funciones | Estado |
 |---|---|---|
-| `planning/goap.hpp` | `Goap<MaxFacts>` (dominio: `State`/`state`/`Action`/`Builder`/`Goal`/`Planner`), caché de planes (`plan_cached`), `Fact`, `applicable`, `apply`, `satisfies`, `goal_distance` | Implementado, HOST-107 |
-| `planning/numeric_goap.hpp` | `NumericGoap<MaxVars>`: GOAP con variables numéricas cuantizadas (enteros y decimales), `plan_cached`, `plan_reusing`, `plan_relaxed` con heurística `h_max` y memo | Implementado, HOST-185/159 |
+| `planning/goap.hpp` | **Cabecera única**: `Goap<MaxFacts, MaxVars>` (dominio: `State`/`state`/`Action`/`Builder`/`Goal`/`Planner`), `plan`/`plan_relaxed`, cachés (`plan_cached`/`plan_reusing`/`invalidate_selective`), anytime (`set_budget`/`partial`), `Fact`, `applicable`, `apply`, `satisfies`, `goal_distance` | Implementado, HOST-107/185/186/314/315/316 |
+| `planning/numeric_goap.hpp` | Alias de la cabecera única: `NumericGoap<MaxVars> = Goap<32, MaxVars>` (y las constantes `numeric_goap_*`) | Implementado, HOST-185/186/316 |
+| `planning/htn.hpp` | `Htn<...>`: planificación **jerárquica** (descomposición por métodos, backtracking acotado); reutiliza `Goap`'s `State`/`Action` | Implementado, HOST-318 |
 | `decision/agent_fsm.hpp` | `AgentFsm<State,Event,MaxStates>`: FSM de agente con efectos de entrada/salida sobre `eng::util::StateMachine` | Implementado, HOST-110 |
 | `decision/utility.hpp` | `Utility`/`UtilitySelector<MaxOptions>`: utilidad ponderada; entero y determinista | Implementado, HOST-112 |
 | `decision/behavior_tree.hpp` | `BehaviorTree<MaxNodes>`, `BtStatus`, `BtTask`: secuencia/selector sin heap | Implementado, HOST-113 |

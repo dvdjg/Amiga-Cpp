@@ -234,13 +234,22 @@ inline constexpr void approach(eng::u8& value, eng::u8 target, eng::u8 step) noe
 	return scaled;
 }
 
-/// Mente de una criatura: afectos, pulsiones, memoria y agregados.
+/// Estado de planificación de una criatura (histéresis y último replan). Vive en la mente
+/// para que el mundo pueda decidir cuándo replanificar sin estado externo (`should_replan`).
+struct PlanState {
+	bool active = false;  ///< dentro de la banda de histéresis (planificando)
+	bool planned = false; ///< ya se planificó alguna vez
+	eng::u16 last = 0u;   ///< tick del último replan
+};
+
+/// Mente de una criatura: afectos, pulsiones, memoria, planificación y agregados.
 struct Mind {
 	Emotions emotions {};
 	eng::u8 autonomy = 128u;  ///< deseo de libertad (alto = no someterse)
 	eng::u8 deference = 128u; ///< disposición a someterse (alto = obedecer)
 	eng::u8 stress = 0;
 	eng::u8 morale = 128u;
+	PlanState plan {}; ///< estado del bucle de planificación (histéresis)
 	eng::util::StaticVector<MemoryEvent, kMaxMemoryEvents> recent {};
 
 	/// Registra un recuerdo. Envejece los anteriores y, si está lleno, descarta el más

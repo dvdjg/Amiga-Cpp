@@ -1,4 +1,4 @@
-# HOST-267 — Primitivas CPU optimizadas (rect, línea, polígono)
+# HOST-319 — Primitivas CPU optimizadas (rect, línea, polígono)
 
 ## Qué cubre
 

@@ -140,6 +140,35 @@ en el navmesh; la variante `SpatialHashBroadphase` reutiliza la rejilla de colis
 (`eng::util::SpatialHash`) para evitar el `O(N²)` y `NavCrossWide`/`q12` evitan las libcalls en el
 68000.
 
+### G7 — GOAP ampliado
+
+Adopción de la versión **ampliada y versátil** del GOAP (diseño:
+[`GOAP_EXTENDED.md`](../../engine/architecture/GOAP_EXTENDED.md)). Todo se **extiende** sobre lo ya
+entregado (G1.1/G1.3/G1.4/G1.5): **una sola cabecera** para la familia A\*-GOAP
+(`Goap<MaxFacts, MaxVars, Key, Heur>`), no un tercer planner; `numeric_goap.hpp` queda como alias.
+El orden va por impacto/riesgo: primero lo que da expresividad y rendimiento con coste bajo, y al
+final lo que necesita consumidor.
+
+| Paso | Entrega | Detalle | Verificación |
+|---|---|---|---|
+| G7.1 | `planning/goap.hpp` (generalización) | **Cabecera única**: `Goap<MaxFacts, MaxVars>` que subsume el booleano (`MaxVars=0`, hechos hasta 64) y el numérico (`MaxVars=1..4`, hechos 32); clave por política (`u32`/`StateKey64`/`StateKeyNV`); las variables se eliden con `MaxVars=0`; `numeric_goap.hpp` pasa a **alias** | **Equivalencia**: HOST-107/185/186/313/314/315/316 **sin cambiar su lógica**; footprint `State`/`Action` idénticos y `Planner` +48/+64 B (`codegen-report.mjs`) |
+| G7.2 | `planning/goap.hpp` (anytime) | **Presupuesto de expansiones** (`set_budget`) y devolución del **mejor plan parcial** (`partial()`); el parcial solo aplica si el presupuesto **corta** la búsqueda y no se cachea | **HOST-320** (parcial vs. completo, prefijo y límite) + HOST-107 intacto |
+| G7.3 | caché (invalidación selectiva) | **Dependencias por entrada** (`used_facts`/`used_vars`) + `invalidate_selective` (conserva y compacta lo no afectado) y política **LRU+menos-usos** | **HOST-321** (booleano) y **HOST-316** (numérico: hecho/variable y LRU) |
+| G7.4 | `planning/goap.hpp` (acción) | **`target` (entidad/sala)** y **coste dinámico** (`cost_fn` o tabla); por defecto coste estático | HOST propio (mismo plan con distintos targets; coste que cambia con el estado) |
+| G7.5 | `sim/planner.hpp` | Integración en el mundo: **dominio GOAP como parámetro de plantilla** en `PlannerDriver` y `SimWorld` (booleano ligero `SimGoap` por defecto; `SimNumericGoap<N>` para magnitudes), y `PlannerParams` con **histeresis y presupuesto** | **HOST-322** (dominio numérico en driver y mundo) + **HOST-155** intacto |
+| G7.6 | `sim/planner.hpp` (coordinado) | **Plan compartido de manada**: el líder planifica y reparte objetivos (`PackRole`/`Relationship`/`Signal` como precondiciones y efectos); los miembros no planifican | HOST propio + escenario en `sim-ecosystem-scenarios` |
+| G7.7 | `planning/htn.hpp` (algoritmo distinto) | **HTN**: cabecera propia (descomposición por métodos con backtracking acotado, **no** A\*); consumidor real `sim/domain.hpp::build_shelter_htn` | **HOST-318** (mecanismo, métodos con precondición, fallo y **equivalencia con el plan GOAP**) |
+
+G7.1–G7.4 son independientes del mundo (se prueban en host y no tocan `eng::sim`); G7.5 es el punto de
+unión y el que habilita el resto en el ecosistema; G7.6 se pospone hasta tener consumidor. G7.7 se
+entregó con consumidor (`domain.hpp::build_shelter_htn`) y vive en cabecera propia, por ser
+**algoritmo distinto** (HTN, el `htn.hpp` de G1.2). Regla de footprint: el planner (`Goap<32,8>`
+~6–8 KB) se instancia en **memoria estática o de fondo** (`PlannerHolder`), nunca en la pila del
+68000; se mide con `codegen-report.mjs` (gate de tamaños) y su rendimiento real en 68000 con la demo
+`demos/features/sim/amiga/001_sim_bench` (A500 con 12 criaturas: la planificación realista
+cuesta ~1.1x el tick; el peor caso sin caché era ~18x y se cerró usando `plan_cached` en el
+driver, el intervalo de replan y el LOD de quién planifica).
+
 ## 5. Catálogo de técnicas a incorporar
 
 ### 5.1 IA clásica

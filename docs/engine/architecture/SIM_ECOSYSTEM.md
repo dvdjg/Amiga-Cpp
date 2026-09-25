@@ -270,6 +270,28 @@ consumen; `planning_count` informa de los planes activos (hasta `MaxPlans`). El
 `PlannerDriver` se guarda en un `PlannerHolder` vacío cuando `Traits::planning` es falso,
 de modo que no ocupa RAM si no se usa (verificado por el gate de tamaños m68k).
 
+El **dominio GOAP es un parámetro de plantilla** de `PlannerDriver` y de `SimWorld`
+(último parámetro): por defecto el booleano ligero `SimGoap` (0 variables), o
+`SimNumericGoap<N>` (hechos + `N` magnitudes: hambre, energía, miedo…) para objetivos con
+umbrales numéricos. El algoritmo no cambia y el caso booleano conserva su footprint
+(HOST-322).
+
+La criatura puede planificar por **GOAP** (búsqueda A\*) o por **HTN** (descomposición): el
+`HtnDriver` produce un `PlanRunner` que el mundo guarda con `store_plan` y consume igual
+(`current_action`/`advance_plan`/`abort_plan`). La elección se declara con `PlanKind`
+(`Goap` para un objetivo suelto, `Htn` para una tarea compuesta) y `plan_for` despacha
+—decisión + presupuesto + replan en GOAP, o descomposición + `store_plan` en HTN—, de modo
+que el juego no repite el `if`. Así una tarea compuesta (`build_shelter_htn`) convive con los
+objetivos GOAP sin duplicar la ejecución (HOST-322/318).
+
+En Amiga real/emulado, `demos/features/sim/amiga/001_sim_bench` mide el ecosistema completo
+(`SimWorld` + planificación) con el reloj TOD de la CIA-A, separando tick de planificación:
+A500 con 12 criaturas, el cociente entre el tick solo y con planificación realista es **~1.1x**
+(~10% de sobrecarga), medido en la misma ventana de mundo. El peor caso sin caché era ~18x: la diferencia se cierra usando
+la **caché de planes** (`PlannerDriver::replan` llama a `plan_cached`) y el **intervalo de
+replan**, que reparte las consultas. El mundo (~24 KB) va en memoria estática (no cabe en la
+pila del 68000).
+
 ## 10. Cómo se reutiliza `eng::ai` (sin duplicar)
 
 | Necesidad del ecosistema | Primitiva existente |
@@ -330,7 +352,7 @@ de modo que no ocupa RAM si no se usa (verificado por el gate de tamaños m68k).
 | `avatar.hpp` | jugador simulado (IA y entrada humana), percepción y carga | HOST-174 / HOST-175 |
 | `world.hpp` (laboratorio) | escenarios largos con digesto y ajuste de parámetros | HOST-173 |
 | `society.hpp` | `Society` (reputación), `Pack` | HOST-153 |
-| `planner.hpp` | `PlannerDriver`/`PlanRunner` sobre `Goap`, `PlanParams` | HOST-155 |
+| `planner.hpp` | `PlannerDriver`/`PlanRunner` sobre `Goap`/`NumericGoap` (dominio por plantilla), `PlanParams` | HOST-155, HOST-322 |
 | `domain.hpp` | dominio de ejemplo de objetos/construcción, `SimInventory` | HOST-155 |
 | `body.hpp` | `ChainBody` (IK FABRIK) y postura expresiva (`BodyPose`) | HOST-156 |
 | `world.hpp` + `world_core.hpp` | `SimWorld`: población, grafo de rooms, LOD, entorno, terreno, objetos, economía, sensores/memoria, ciclo de vida, reproducción, `Tend`, planificación | HOST-153 |
