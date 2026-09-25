@@ -93,6 +93,8 @@ def main():
     ap.add_argument("--metric", choices=["diff", "ssim", "both"], default="both")
     ap.add_argument("--block", type=int, default=16)
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--heatmap", action="store_true",
+                    help="escribe un PNG de mapa de calor de las diferencias (para el VLM)")
     args = ap.parse_args()
 
     files, frames = load_frames(args.sequence)
@@ -130,6 +132,19 @@ def main():
     with open(os.path.join(out_dir, "frame-diff.json"), "w", encoding="utf-8") as fp:
         json.dump(report, fp, indent=2, ensure_ascii=False)
 
+    # Mapa de calor: acumula |Δ| de todos los pares y lo colorea (JET) sobre el último frame.
+    # Sirve para enseñar al VLM exactamente *dónde* cambió (evita coordenadas inventadas).
+    heat_path = None
+    if args.heatmap and len(frames) >= 2:
+        acc = np.zeros((h, w), dtype=np.float64)
+        for f in range(1, len(frames)):
+            acc += np.abs(frames[f - 1].astype(np.int16) - frames[f].astype(np.int16)).sum(axis=2)
+        acc = np.clip(acc / max(1, len(frames) - 1), 0, 255)
+        heat = cv2.applyColorMap(acc.astype(np.uint8), cv2.COLORMAP_JET)
+        overlay = cv2.addWeighted(frames[-1], 0.4, heat, 0.6, 0)
+        heat_path = os.path.join(out_dir, "heat-diff.png")
+        cv2.imwrite(heat_path, overlay)
+
     cols = ["par"]
     if args.metric in ("diff", "both"):
         cols += ["px cambiados", "bbox", "Δ medio"]
@@ -155,6 +170,7 @@ def main():
         "",
         "> `diff` mide píxeles cambiados (movimiento o glitch); `SSIM` mide cambio **estructural** "
         "(1.0 = idéntico). Un cambio localizado con SSIM alto y diff alto suele ser movimiento.",
+        *( [f"", f"Mapa de calor: `{os.path.basename(heat_path)}`"] if heat_path else [] ),
     ]) + "\n"
     with open(os.path.join(out_dir, "frame-diff.md"), "w", encoding="utf-8") as fp:
         fp.write(md)

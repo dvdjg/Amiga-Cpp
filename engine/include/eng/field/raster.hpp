@@ -32,6 +32,7 @@
 
 #include <eng/core/types/box.hpp>
 #include <eng/core/types/ptr.hpp>
+#include <eng/field/cpu_primitives.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/graphics/c2p.hpp>
 #include <eng/graphics/frame_plan.hpp>
@@ -185,41 +186,24 @@ public:
 		}
 		return true;
 	}
-	/// Línea por CPU (Bresenham), recortada al `clip` (un tramo horizontal usa `draw_span`).
+	/// Línea por CPU en **spans por fila** (`cpu_line`, run-slice) para no ir píxel a píxel.
+	/// Recortada al `clip` (Cohen-Sutherland). Un tramo puramente horizontal usa un solo `draw_span`.
 	bool draw_line(Playfield& pf, const ClipRect& clip, eng::s32 x0, eng::s32 y0,
 		       eng::s32 x1, eng::s32 y1, eng::u8 color,
 		       eng::Ref<graphics::FramePlan> plan = {},
 		       RasterOp op = RasterOp::Copy) override {
 		(void)plan;
 		(void)op; // el camino CPU dibuja con Copy (el EOR es del Blitter)
-		if (y0 == y1) {
-			if (y0 < clip.y0 || y0 > clip.y1) return false;
-			eng::s32 a = x0 < x1 ? x0 : x1;
-			eng::s32 b = x0 < x1 ? x1 : x0;
-			const bool inside = a >= clip.x0 && b <= clip.x1;
-			if (a < clip.x0) a = clip.x0;
-			if (b > clip.x1) b = clip.x1;
-			if (b < a) return false;
-			return pf.draw_span(a, b, y0, color) && inside;
+		eng::s32 cx0 = x0, cy0 = y0, cx1 = x1, cy1 = y1;
+		if (!clip_segment(clip, cx0, cy0, cx1, cy1)) {
+			return false;
 		}
-		const eng::s32 dx = x1 > x0 ? x1 - x0 : x0 - x1;
-		const eng::s32 dy = y1 > y0 ? y1 - y0 : y0 - y1;
-		const eng::s32 sx = x0 < x1 ? 1 : -1;
-		const eng::s32 sy = y0 < y1 ? 1 : -1;
-		eng::s32 err = dx - dy;
-		bool ok = true;
-		for (;;) {
-			if (x0 >= clip.x0 && x0 <= clip.x1 && y0 >= clip.y0 && y0 <= clip.y1) {
-				pf.write_pixel(x0, y0, color);
-			} else {
-				ok = false;
-			}
-			if (x0 == x1 && y0 == y1) break;
-			const eng::s32 e2 = 2 * err;
-			if (e2 > -dy) { err -= dy; x0 += sx; }
-			if (e2 < dx) { err += dx; y0 += sy; }
+		if (cy0 == cy1) {
+			const eng::s32 a = cx0 < cx1 ? cx0 : cx1;
+			const eng::s32 b = cx0 < cx1 ? cx1 : cx0;
+			return pf.draw_span(a, b, cy0, color);
 		}
-		return ok;
+		return eng::field::cpu_line(pf, cx0, cy0, cx1, cy1, color) != 0u;
 	}
 	/// Copia rectangular por **CPU** (`Playfield::copy_rect_cpu`, con ruta de 32 bits en
 	/// 68020+); no encola trabajo. `source_shift` sí aplica (barrel shift por palabras);

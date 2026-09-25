@@ -10,7 +10,22 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { createRequire } from 'node:module';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 const require = createRequire(import.meta.url);
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+
+// Punto de entrada unificado: si hay Python + OpenCV, delega en `frame-diff.py` (NumPy/OpenCV, SIMD
+// y SSIM). Si no, usa esta implementación Node (pngjs). Así hay una sola verdad para el usuario.
+if (!process.argv.includes('--node') && !process.env.FRAME_DIFF_FORCE_NODE) {
+  try {
+    execFileSync(process.env.PYTHON || 'python', ['-c', 'import cv2, numpy'], { stdio: 'ignore' });
+    const py = path.join(ROOT, 'tools/vision-review/frame-diff.py');
+    const args = process.argv.slice(2).filter((a) => a !== '--node');
+    execFileSync(process.env.PYTHON || 'python', [py, ...args], { stdio: 'inherit' });
+    process.exit(0);
+  } catch { /* sin Python: sigue con la implementación Node */ }
+}
 
 const arg = (n, fb) => { const i = process.argv.indexOf(n); return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : fb; };
 const has = (n) => process.argv.includes(n);

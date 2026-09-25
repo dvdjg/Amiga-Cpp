@@ -34,10 +34,48 @@ const planeStride = parseInt(arg('--plane-stride', String(planeBytes)), 10);
 const gapMs = parseInt(arg('--gap-ms', '500'), 10);
 const sidePort = parseInt(arg('--side-port', process.env.WINUAE_SIDE_CHANNEL_PORT || '2346'), 10);
 const thresh = parseInt(arg('--thresh', '1'), 10);
+const fromCopper = has('--from-copper'); // deduce base/geometria de la copperlist activa
 
 if (!Number.isFinite(addr) || planes <= 0 || rowBytes <= 0 || width <= 0 || height <= 0) {
-  console.error('Uso: screendump-diff.mjs --addr <hex> --planes N --row-bytes N --width N --height N [--plane-bytes N] [--gap-ms N] [--side-port N]');
-  process.exit(2);
+  if (!fromCopper) {
+    console.error('Uso: screendump-diff.mjs --addr <hex> --planes N --row-bytes N --width N --height N [--plane-bytes N] [--gap-ms N] [--side-port N]');
+    console.error('  o: screendump-diff.mjs --from-copper --planes N --width N --height N [--side-port N]');
+    process.exit(2);
+  }
+}
+
+// --- Deducción de la geometría desde la copperlist activa (--from-copper) ---
+// Lee COP1LC (0xDFF080) y recorre la lista (pares registro,$FFFF-dato terminador) buscando
+// BPL1PT (0x0E0) y BPL1MOD (0x108); con `--planes` y `--width`/`--height` deriva el resto.
+async function geometryFromCopper(port) {
+  const copResp = await sideCommand('mem dff080 4', port);
+  const coplc = parseInt(String(copResp.data), 16); // long big-endian → valor
+  if (!Number.isFinite(coplc)) throw new Error('COP1LC no disponible');
+  // Lee un tramo de la lista (512 bytes) y busca los MOVEs.
+  const list = await readMem(coplc, 1024, port);
+  let base = 0, mod = 0;
+  for (let off = 0; off + 3 < list.length; off += 4) {
+    const reg = (list[off] << 8) | list[off + 1];
+    const val = (list[off + 2] << 8) | list[off + 3];
+    if (reg === 0x00e0) base = (base & 0xffff) | (val << 16); // BPL1PTH
+    else if (reg === 0x00e2) base = (base & 0xffff0000) | val; // BPL1PTL
+    else if (reg === 0x0108) mod = val;                        // BPL1MOD
+    else if (reg === 0xffff) break;                            // fin de lista
+  }
+  return { base, mod };
+}
+
+let geoBase = addr, geoRowBytes = rowBytes, geoPlaneStride = planeStride, geoPlaneBytes = planeBytes;
+if (fromCopper) {
+  const g = await geometryFromCopper(sidePort).catch((e) => { console.error(`[screendump-diff] --from-copper falló: ${e.message}`); process.exit(1); });
+  geoBase = g.base;
+  // row_bytes = ancho visible/8 redondeado a 4; BPL1MOD aporta el padding (mod = row_bytes - visible/8).
+  const visBytes = Math.ceil(width / 8);
+  geoRowBytes = Math.max(visBytes, visBytes + g.mod);
+  geoRowBytes = (Math.ceil(geoRowBytes / 4) * 4); // alineado a 4 (padding del engine)
+  geoPlaneBytes = geoRowBytes * height;
+  geoPlaneStride = geoPlaneBytes;
+  console.error(`[screendump-diff] copper: base=0x${geoBase.toString(16)} mod=${g.mod} row_bytes=${geoRowBytes}`);
 }
 
 // --- Cliente mínimo del canal lateral (una orden, una respuesta JSON) ---
@@ -91,18 +129,18 @@ async function readMem(addr, len, port) {
 /// Decodifica el color de un píxel desde los planos (contiguo: plano p en base + p*planeStride).
 function pixel(mem, baseOff, x, y) {
   let c = 0;
-  const byteIdx = baseOff + y * rowBytes + (x >> 3);
+  const byteIdx = baseOff + y * geoRowBytes + (x >> 3);
   const bit = 7 - (x & 7);
   for (let p = 0; p < planes; p++) {
-    const b = mem[byteIdx + p * planeStride];
+    const b = mem[byteIdx + p * geoPlaneStride];
     c |= ((b >> bit) & 1) << p;
   }
   return c;
 }
 
-const baseA = await readMem(addr, planes * planeStride, sidePort).catch((e) => { console.error(`[screendump-diff] lectura A falló: ${e.message}`); process.exit(1); });
+const baseA = await readMem(geoBase, planes * geoPlaneStride, sidePort).catch((e) => { console.error(`[screendump-diff] lectura A falló: ${e.message}`); process.exit(1); });
 await new Promise((r) => setTimeout(r, gapMs));
-const baseB = await readMem(addr, planes * planeStride, sidePort).catch((e) => { console.error(`[screendump-diff] lectura B falló: ${e.message}`); process.exit(1); });
+const baseB = await readMem(geoBase, planes * geoPlaneStride, sidePort).catch((e) => { console.error(`[screendump-diff] lectura B falló: ${e.message}`); process.exit(1); });
 
 // Diff por píxel (Buffer es memoria contigua; la decodificación planar es simple pero rápida).
 let changed = 0;
@@ -122,8 +160,8 @@ for (let y = 0; y < height; y++) {
       if (x < minx) minx = x; if (x > maxx) maxx = x;
       if (y < miny) miny = y; if (y > maxy) maxy = y;
       for (let p = 0; p < planes; p++) {
-        const ba = baseA[y * rowBytes + (x >> 3) + p * planeStride];
-        const bb = baseB[y * rowBytes + (x >> 3) + p * planeStride];
+        const ba = baseA[y * geoRowBytes + (x >> 3) + p * geoPlaneStride];
+        const bb = baseB[y * geoRowBytes + (x >> 3) + p * geoPlaneStride];
         if ((((ba >> (7 - (x & 7))) & 1) !== ((bb >> (7 - (x & 7))) & 1))) perPlane[p]++;
       }
     }
@@ -136,7 +174,7 @@ const hotBlocks = blocks.map((v, i) => ({ v, x: (i % bw) * block, y: (i / bw | 0
 const outDir = path.join(ROOT, 'out/vision-review/screendump-diff');
 fs.mkdirSync(outDir, { recursive: true });
 const report = {
-  addr: '0x' + addr.toString(16), planes, width, height, rowBytes, planeStride, gapMs, thresh,
+  addr: '0x' + geoBase.toString(16), planes, width, height, rowBytes: geoRowBytes, planeStride: geoPlaneStride, gapMs, thresh,
   changed, total, pct: round(changed / total * 100), bbox: maxx >= 0 ? [minx, miny, maxx, maxy] : null,
   perPlane, hotBlocks,
 };
