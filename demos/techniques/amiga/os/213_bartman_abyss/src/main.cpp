@@ -20,6 +20,7 @@
 
 #include <eng/api/api.hpp>
 #include <eng/audio/music_player.hpp>
+#include <eng/core/data/ct_array.hpp>
 #include <eng/graphics/blit_job.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
@@ -87,25 +88,24 @@ constexpr eng::u16 kBobH = 16;
 constexpr eng::u16 kBobWords = kBobW / 16u;              // 2 palabras/fila
 constexpr eng::u32 kBobFrameStride = kBobH * kPlanes * 2u * kBobWords * 2u; // 640 B
 
-// Senos de la demo original (BartmanBasic/main.c).
-constexpr eng::u8 kSinus15[64] = {
-	8, 8, 9, 10, 10, 11, 12, 12, 13, 13, 14, 14, 14, 15, 15, 15,
-	15, 15, 15, 15, 14, 14, 14, 13, 13, 12, 12, 11, 10, 10, 9, 8,
-	8, 7, 6, 5, 5, 4, 3, 3, 2, 2, 1, 1, 1, 0, 0, 0,
-	0, 0, 0, 0, 1, 1, 1, 2, 2, 3, 3, 4, 5, 5, 6, 7,
-};
-constexpr eng::u8 kSinus40[64] = {
-	20, 22, 24, 26, 28, 30, 31, 33, 34, 36, 37, 38, 39, 39, 40, 40,
-	40, 40, 39, 39, 38, 37, 36, 35, 34, 32, 30, 29, 27, 25, 23, 21,
-	19, 17, 15, 13, 11, 10, 8, 6, 5, 4, 3, 2, 1, 1, 0, 0,
-	0, 0, 1, 1, 2, 3, 4, 6, 7, 9, 10, 12, 14, 16, 18, 20,
-};
-constexpr eng::u8 kSinus32[51] = {
-	16, 18, 20, 22, 24, 25, 27, 28, 30, 30, 31, 32, 32, 32, 32, 31,
-	30, 30, 28, 27, 25, 24, 22, 20, 18, 16, 14, 12, 10, 8, 7, 5,
-	4, 2, 2, 1, 0, 0, 0, 0, 1, 2, 2, 4, 5, 7, 8, 10,
-	12, 14, 16,
-};
+// Ondas **generadas en compilación** (`eng::ct_array`, patrón de la 107): una tabla de seno
+// con valores `0..Max` en vez de la ristra de literales de la demo original. Aproximación entera
+// de Bhaskara I (`sin(x°) ≈ 4x(180−x)/(40500 − x(180−x))`), suficiente para el vaivén de los BOBs.
+template <eng::u16 N, eng::u8 Max>
+[[nodiscard]] constexpr eng::ct_array<eng::u8, N> make_wave() noexcept {
+	return eng::ct_array<eng::u8, N> {[](eng::usize i) -> eng::u8 {
+		const eng::s32 deg = static_cast<eng::s32>((360u * i) / N) % 360;
+		const bool neg = deg > 180;
+		const eng::s32 x = neg ? deg - 180 : deg; // 0..180
+		const eng::s32 p = x * (180 - x);
+		const eng::s32 s = (4 * p * 256) / (40500 - p); // 0..256
+		const eng::s32 v = neg ? -s : s;                // -256..256
+		return static_cast<eng::u8>(((v + 256) * Max) / 512);
+	}};
+}
+constexpr auto kWaveScroll = make_wave<64u, 15u>(); // fine-scroll de BPLCON1 (0..15)
+constexpr auto kWaveY = make_wave<64u, 40u>();      // desplazamiento vertical (0..40)
+constexpr auto kWaveX = make_wave<51u, 32u>();      // desplazamiento horizontal (0..32)
 
 struct AbyssDemo {
 	bool init(eng::amiga::AmigaBackend& backend) {
@@ -174,8 +174,8 @@ struct AbyssDemo {
 	/// Un frame de la demo: parchea el fine-scroll, limpia la banda y dibuja los 16 BOBs. La
 	/// música ya se avanza en el **tick del mini-SO** (IRQ), no aquí.
 	void frame(eng::u32 f) {
-		const eng::u8 sin = kSinus15[f & 63u];
-		m_copper_words[m_scroll_index] = static_cast<eng::u16>(sin | (sin << 4u));
+		const eng::u8 sin = kWaveScroll[f & 63u];
+		m_scroll.set(static_cast<eng::u16>(sin | (sin << 4u))); // fine-scroll por el PatchHandle
 
 		// Limpia la banda de juego (filas 200..255, los 5 planos) en un solo blit D-only.
 		eng::graphics::BlitJob clear {};
@@ -190,17 +190,15 @@ struct AbyssDemo {
 		clear.interleaved = true;
 		(void)m_backend->blitter_submit(clear, true);
 
-		// 16 BOBs enmascarados por senos. Fuente interleaved del BOB original: A=máscara,
-		// B=imagen; un solo blit de `16*planos` filas (el truco del cookie-cut interleaved).
-		// Fase del seno de 51 posiciones con avance incremental (sin `% 51` por BOB, que en
-		// 68000 es un `__umodsi3` costoso).
+		// 16 BOBs enmascarados por las ondas (una sola pasada por BOB: el helper encapsula el
+		// contrato `[máscara][imagen]` del layout interleaved). Fase con avance incremental
+		// (sin `% 51` por BOB, que en 68000 es un `__umodsi3` costoso).
 		eng::u32 phase = f % 51u;
 		eng::u8 fi = 0u;
 		for (eng::u16 i = 0u; i < 16u; ++i) {
-			const eng::u32 sa = kSinus32[phase];
-			const eng::s16 x =
-				static_cast<eng::s16>(static_cast<eng::u32>(i) * 16u + sa * 2u);
-			const eng::s16 y = static_cast<eng::s16>(kSinus40[((f + i) * 2u) & 63u] / 2u);
+			const eng::s16 x = static_cast<eng::s16>(
+				static_cast<eng::u32>(i) * 16u + static_cast<eng::u32>(kWaveX[phase]) * 2u);
+			const eng::s16 y = static_cast<eng::s16>(kWaveY[((f + i) * 2u) & 63u] / 2u);
 			const eng::u8* const src = m_bob + static_cast<eng::u32>(fi) * kBobFrameStride;
 			if (++phase >= 51u) {
 				phase = 0u;
@@ -210,25 +208,13 @@ struct AbyssDemo {
 			}
 
 			eng::graphics::BlitJob bob {};
-			bob.kind = eng::graphics::BlitJobKind::MaskedBobCookieCut;
-			bob.mask = eng::graphics::BlitSource {reinterpret_cast<const eng::u16*>(src)};
-			bob.source =
-				eng::graphics::BlitSource {reinterpret_cast<const eng::u16*>(src + 4)};
-			bob.destination = eng::graphics::BlitDest {
+			eng::graphics::make_interleaved_masked_bob(
+				bob, reinterpret_cast<const eng::u16*>(src),
 				reinterpret_cast<eng::u16*>(m_bitmap +
 							    static_cast<eng::u32>(kRowStride) *
 								    static_cast<eng::u16>(200 + y) +
-							    static_cast<eng::u32>(x >> 3))};
-			bob.words_per_row = kBobWords;
-			bob.height = static_cast<eng::u16>(kBobH * kPlanes); // 80
-			bob.source_modulo_bytes = 4;
-			// Cada fila del blit es una fila de UN plano del interleaved (40 B): lee/escribe
-			// 2 palabras y salta a la siguiente (DMOD = 40 - 4 = 36), como el original.
-			bob.destination_modulo_bytes = static_cast<eng::s16>(kBytesPerRow - 4);
-			bob.bitplane_count = 1u;
-			bob.source_shift = static_cast<eng::u8>(x & 15);
-			bob.minterm = 0xCAu;
-			bob.interleaved = true;
+							    static_cast<eng::u32>(x >> 3)),
+				kBobW, kBobH, kPlanes, kBytesPerRow, static_cast<eng::u8>(x & 15));
 			(void)m_backend->blitter_submit(bob, true);
 		}
 
@@ -279,39 +265,40 @@ struct AbyssDemo {
 
 private:
 	bool build_copper() {
-		copper::SchedulerT<false> sched {m_copper};
-		sched.move(copper::Register::DMACON,
-			   static_cast<eng::u16>(copper::DmaSetClear | copper::DmaMaster |
-						 copper::DmaCopper | copper::DmaBitplane |
-						 copper::DmaBlitter));
-		sched.move(copper::Register::BPLCON0, 0x5200u); // 5 planos + COLOR
-		// BPLCON1 (fine scroll): se parchea por frame; guardamos el índice de su word de dato.
-		sched.move(copper::Register::BPLCON1, 0x0000u);
-		m_scroll_index = static_cast<eng::u16>(sched.words_used() - 1u);
-		sched.move(copper::Register::BPLCON2, 1u << 6u); // prioridad de playfield
-		sched.move(copper::Register::BPL1MOD, static_cast<eng::u16>(kRowStride - kBytesPerRow));
-		sched.move(copper::Register::BPL2MOD, static_cast<eng::u16>(kRowStride - kBytesPerRow));
-		sched.move(copper::Register::DIWSTRT, 0x2c81u);
-		sched.move(copper::Register::DIWSTOP, 0x2cc1u);
-		sched.move(copper::Register::DDFSTRT, 0x0038u);
-		sched.move(copper::Register::DDFSTOP, 0x00d0u);
+		// `m_sched` es **miembro** para que el `PatchHandle` del fine-scroll siga válido.
+		m_sched.retarget(m_copper);
+		m_sched.move(copper::Register::DMACON,
+			     static_cast<eng::u16>(copper::DmaSetClear | copper::DmaMaster |
+						   copper::DmaCopper | copper::DmaBitplane |
+						   copper::DmaBlitter));
+		m_sched.move(copper::Register::BPLCON0, 0x5200u); // 5 planos + COLOR
+		// BPLCON1 (fine scroll): MOVE **parcheable** por frame (handle tipado del scheduler,
+		// en vez de indexar palabras de copper a mano).
+		m_scroll = m_sched.patchable(copper::Register::BPLCON1, 0x0000u);
+		m_sched.move(copper::Register::BPLCON2, 1u << 6u); // prioridad de playfield
+		m_sched.move(copper::Register::BPL1MOD, static_cast<eng::u16>(kRowStride - kBytesPerRow));
+		m_sched.move(copper::Register::BPL2MOD, static_cast<eng::u16>(kRowStride - kBytesPerRow));
+		m_sched.move(copper::Register::DIWSTRT, 0x2c81u);
+		m_sched.move(copper::Register::DIWSTOP, 0x2cc1u);
+		m_sched.move(copper::Register::DDFSTRT, 0x0038u);
+		m_sched.move(copper::Register::DDFSTOP, 0x00d0u);
 		for (eng::u8 p = 0u; p < kPlanes; ++p) {
-			sched.move_bitplane_pointer(
+			m_sched.move_bitplane_pointer(
 				p, eng::ChipAddress {reinterpret_cast<eng::uintptr>(m_bitmap) +
 						     static_cast<eng::u32>(p) * kBytesPerRow});
 		}
 		for (eng::u8 i = 0u; i < 32u; ++i) {
-			sched.move(copper::color_register(i), g_abyss_pal[i]);
+			m_sched.move(copper::color_register(i), g_abyss_pal[i]);
 		}
 		// Degradado de COLOR00 en las líneas 0x41..0x4f (como `copper2` del original).
 		for (eng::u8 k = 0u; k < 15u; ++k) {
-			sched.wait_line(static_cast<eng::u8>(0x41u + k));
+			m_sched.wait_line(static_cast<eng::u8>(0x41u + k));
 			const eng::u16 v = static_cast<eng::u16>(0x0111u * (k + 1u));
-			sched.move(copper::Register::COLOR00, v);
+			m_sched.move(copper::Register::COLOR00, v);
 		}
-		sched.end();
-		m_copper_words = sched.data();
-		m_copper_ok = sched.ok();
+		m_sched.end();
+		m_copper_words = m_sched.data();
+		m_copper_ok = m_sched.ok();
 		return m_copper_ok;
 	}
 
@@ -319,7 +306,8 @@ private:
 	eng::u8* m_bitmap = nullptr;
 	const eng::u8* m_bob = nullptr;
 	eng::u16* m_copper_words = nullptr;
-	eng::u16 m_scroll_index = 0;
+	copper::SchedulerT<false> m_sched {}; ///< emisor de la copperlist (miembro: el handle vive aquí)
+	copper::PatchHandle m_scroll {};      ///< MOVE de BPLCON1 parcheado por frame
 	eng::Block<eng::PlaneTag> m_image {};
 	eng::Block<eng::BobTag> m_bob_block {};
 	eng::Block<eng::MusicTag> m_mod_block {};
