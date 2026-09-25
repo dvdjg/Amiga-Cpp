@@ -76,11 +76,16 @@ Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
   archivo (`AUZX`) con `compression` (0=ZX0, 1=aPLib, 2=delta+RLE).
 - **Verificación**: **HOST-243** — vectores ZX0/aPLib generados en el host (compresor de
   referencia) se decodifican a la misma PCM; comparación byte a byte.
-- **Estado**: **parcial**. **ZX0 entregado y verificado**: decoder `eng/audio/zx0.hpp` (port de
-  `dzx0.c` v2, MIT) + `Codec::Zx0` en `pcm_codec::decode`, con **HOST-271** contra un vector del
-  **compresor de referencia `zx0`** (literales + match de nuevo offset + EOF; la clave del formato
-  es el Elias gamma *interlazado* y el `write_byte` que no toca el estado de bits). **Pendiente**:
-  aPLib y la cabecera contenedora `AUZX` (que consume `compression`).
+- **Estado**: **parcial**. Entregados y verificados en `pcm_codec`:
+  - **ZX0** (`Codec::Zx0`, `eng/audio/zx0.hpp`, port de `dzx0.c` v2) — **HOST-271** con vector del
+    compresor de referencia.
+  - **Delta + ZX0** (`Codec::DeltaZx0`, sin pérdida) — preprocesado delta + ZX0; **HOST-324**.
+  - **Fibonacci Delta** (`Codec::FibDelta`, IFF 8SVX, con pérdida 2:1, `eng/audio/fib_delta.hpp`) —
+    **HOST-323**, contra el Apéndice C del estándar.
+
+  **Pendiente**: aPLib, **IMA ADPCM 4-bit** y la cabecera contenedora `AUZX` (que consume
+  `compression`). Los formatos exactos y la receta de compresión en PC están en
+  `docs/engine/architecture/AUDIO_STREAMING.md` §7.1.
 
 ### A5 — Streaming digital desde disquete
 
@@ -118,6 +123,8 @@ Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
 | HOST-270 | test | `MusicEnd`/`AudioUnderrun` (semántica, sin mensaje por buffer; planificado como HOST-241). |
 | HOST-242 | test | Codec Delta + RLE (round-trip byte a byte). |
 | HOST-271 | test | Descompresor ZX0 con vector del compresor de referencia (planificado como HOST-243); aPLib pendiente. |
+| HOST-323 | test | Fibonacci Delta (IFF 8SVX): decoder contra el estándar + vector dorado; encoder `decode(encode(x))==x`. |
+| HOST-324 | test | Delta + ZX0 sin pérdida: `differentiate`/`integrate_deltas` y `Codec::DeltaZx0` sobre vector ZX0 real. |
 | HOST-239 | test | Streaming (`PcmStream<NumBuffers>`: doble buffer, underrun, EOF, chunk inválido) con E/S simulada. **Entregado**. |
 | (por numerar) | demo | Grabación continua desde disquete con `PcmStream` (elegir nº libre del bloque D; `209` lo ocupa `209_reactive_loop`). |
 

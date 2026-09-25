@@ -42,7 +42,7 @@ dependen de hardware y no necesitan WinUAE.
 | Categoría | Tests | Catálogo |
 |-----------|-------|----------|
 | `ai` | 18 | [ai/README.md](ai/README.md) |
-| `audio` | 8 | [audio/README.md](audio/README.md) |
+| `audio` | 10 | [audio/README.md](audio/README.md) |
 | `board` | 20 | [board/README.md](board/README.md) |
 | `cards` | 12 | [cards/README.md](cards/README.md) |
 | `core` | 73 | [core/README.md](core/README.md) |

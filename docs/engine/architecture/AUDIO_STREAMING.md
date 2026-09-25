@@ -14,12 +14,20 @@ CPU queda libre, se prioriza el **ratio de compresión** sobre la velocidad de d
 
 ## 2. Compresión y formato
 
-| Prioridad | Método | Ratio (audio 8-bit) | Descompresión 68000 | Notas |
-|---|---|---|---|---|
-| 1.º | **ZX0** sobre PCM/delta-PCM | muy bueno (~40–55 %) | buena | mejor equilibrio |
-| 2.º | **aPLib** sobre PCM/delta-PCM | excelente | buena | descompresor minúsculo |
-| 3.º | **Delta + RLE (ByteRun1)** | medio | muy rápida | si la CPU escasea |
-| alt. | ADPCM 4-bit + ZX0 | muy alto | media | con pérdida ligera |
+Se distinguen los **códecs de audio** (explotan la correlación entre muestras) de los
+**compresores de propósito general** (LZ sobre cadenas repetidas). Un LZ puro sobre PCM crudo
+rinde mal (las muestras varían de forma continua y no hay repeticiones exactas de bytes); por eso
+el LZ se aplica **tras** un preprocesado delta, o se usa un códec específico de audio.
+
+| Prioridad | Método | Ratio (audio 8-bit) | Descompresión 68000 | Pérdida | Código `compression` |
+|---|---|---|---|---|---|
+| 1.º | **Delta + ZX0** | ~40–60 % | media (bloques) | no | `5` |
+| 2.º | **ZX0** sobre PCM crudo | bueno | media | no | `0` |
+| 3.º | **aPLib** sobre PCM/delta-PCM | excelente | buena | no | `1` (reservado) |
+| — | **Delta + RLE (ByteRun1)** | medio | muy rápida | no | `2` |
+| — | **Fibonacci Delta (IFF 8SVX)** | 50 % (2:1) | **muy rápida** | sí | `4` |
+| — | **IMA ADPCM 4-bit** | 50–75 % | alta | sí | `6` (planificado) |
+| — | PCM crudo | 0 % | — | no | `3` |
 
 Recomendación: **delta-PCM + ZX0** (o aPLib). El *delta encoding* (diferencias entre muestras
 consecutivas) mejora mucho el ratio antes de comprimir. El engine incorpora el **Delta + RLE** como
@@ -35,7 +43,7 @@ Header (32–48 bytes)
 ├── channels      (1 = mono)
 ├── bits          (8)
 ├── total_samples (sin comprimir)
-├── compression   (0 = ZX0, 1 = aPLib, 2 = delta+RLE)
+├── compression   (códigos de pcm_codec::Codec, §7.1)
 ├── num_chunks
 ├── chunk_samples (potencia de 2: 4 KB / 8 KB)
 └── (opcional) checksum
@@ -137,10 +145,51 @@ Al arrancar se descomprimen los `kNumBuffers` primeros chunks, se programa Paula
 
 ## 7. Decodificadores
 
-El engine incorpora un codec **Delta + RLE (ByteRun1)** propio y freestanding
-(`eng/audio/pcm_codec.hpp`, validado por test host): decodifica directo a Chip, sin heap, apto para
-el 68000. Los formatos de mayor ratio (**ZX0**, **aPLib**) se integran como descompresores externos
-(port de `unzx0_68000`/`aPLib`), con el mismo contrato `decode(comprimido, destino, tipo)`. Ver el
+El engine despacha por el campo `compression` con un contrato único
+`pcm_codec::decode(comprimido, destino, compression)`, freestanding y sin heap: decodifica directo
+al buffer Chip. Implementados: **ZX0** (`eng/audio/zx0.hpp`, port de `dzx0.c`), **Delta + RLE**
+propio, **Fibonacci Delta** (`eng/audio/fib_delta.hpp`, IFF 8SVX) y **Delta + ZX0**. Cada uno tiene
+test host (HOST-271, 242, 323, 324). Pendiente: **aPLib** (`Codec::APLib`) e **IMA ADPCM 4-bit**.
+
+### 7.1 Formatos exactos (compatibilidad PC → Amiga)
+
+Los valores del campo `compression` son los de `eng::audio::pcm_codec::Codec` y **no se reordenan**
+(los históricos 0..3 se conservan); los nuevos se añaden al final. Un compresor en PC debe emitir
+exactamente estos flujos para que el fichero sea compatible.
+
+**Fibonacci Delta — `4`** (IFF 8SVX, `sCompression = 1`; EA 1985, Apéndice C, con pérdida):
+
+```text
+cuerpo = [pad = 0x00] [semilla x (s8)] [pares de nibbles: primero el alto, luego el bajo]
+muestra[k] = muestra[k-1] + TABLA[nibble]      muestra[-1] = semilla
+salida     = 2 * (tamaño_cuerpo - 2) muestras s8
+TABLA[16]  = {-34,-21,-13,-8,-5,-3,-2,-1, 0,1,2,3,5,8,13,21}
+```
+
+El encoder del engine emite `pad = 0` y `semilla = 0` y codifica **todas** las muestras como
+incrementos desde 0 (`2 + ceil(N/2)` bytes). Cualquier semilla es válida para el decodificador
+(el estándar la pasa como parámetro a `D1Unpack`), así que un fichero 8SVX de cualquier herramienta
+se decodifica correctamente.
+
+**Delta + ZX0 — `5`** (sin pérdida):
+
+```text
+deltas[i] = PCM[i] - PCM[i-1]     (mod 256; PCM[-1] = 0)
+cuerpo    = ZX0(deltas)            (formato ZX0 v2 estándar)
+```
+
+Decodificar = `integrate(zx0::decompress(cuerpo))`. El preprocesado delta concentra los valores
+alrededor de cero y mejora el ratio del LZ.
+
+**Delta + RLE — `2`** (ByteRun1 de PackBits): mismo preprocesado delta; control `0..127` copia
+`control+1` literales, `129..255` repite el byte siguiente `257-control` veces, `128` es no-op.
+
+**ZX0 — `0`**: ZX0 v2 (Einar Saukas) sobre PCM directo, sin delta.
+
+**IMA ADPCM — `6`** (planificado; con pérdida, 4 bits/muestra, tablas del estándar IMA/DVI).
+
+Para producir estos ficheros desde un PC: `tools/audio/prep-sample.ts` (WAV → PCM mono 8-bit con
+signo) y, según el códec, el paso delta y/o la herramienta ZX0 de referencia (`zx0 -f`). Ver el
 roadmap en [`ROADMAP_AUDIO.md`](../../guides/roadmap/ROADMAP_AUDIO.md).
 
 ## 8. Detalles de implementación

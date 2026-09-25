@@ -21,19 +21,48 @@
 /// El identificador de códec (`Codec::DeltaRle`) coincide con el campo `compression` de la
 /// cabecera de archivo AUZX (`AUDIO_STREAMING.md` §2).
 
+#include <eng/audio/fib_delta.hpp>
 #include <eng/audio/zx0.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 
 namespace eng::audio::pcm_codec {
 
-/// Identificador del códec (campo `compression` de la cabecera AUZX).
+/// Identificador del códec (campo `compression` de la cabecera AUZX). Los valores 0..3 son
+/// históricos (no reordenar); los nuevos se añaden al final para no romper ficheros ya
+/// serializados.
 enum class Codec : eng::u8 {
 	Zx0 = 0,      ///< ZX0 (Einar Saukas): PCM crudo comprimido (sin delta)
 	APLib = 1,    ///< aPLib (pendiente)
 	DeltaRle = 2, ///< Delta + RLE (ByteRun1)
 	None = 3,     ///< PCM crudo sin compresión (p. ej. streaming de un `.raw` tal cual)
+	FibDelta = 4, ///< Fibonacci Delta (IFF 8SVX, con pérdida, 2:1)
+	DeltaZx0 = 5, ///< Delta + ZX0 (sin pérdida; el ZX0 lo produce la herramienta host)
 };
+
+/// Integra en el sitio un vector de **deltas** (`D_n = S_n - S_{n-1}`, con `S_-1 = 0`):
+/// tras la llamada cada byte es `S_n`. Es el preprocesado/proceso inverso del esquema
+/// Delta+ZX0 (y de Delta+RLE); la primera muestra es `S_0 = D_0`.
+inline void integrate_deltas(eng::Span<eng::u8> buf) noexcept {
+	eng::u8 acc = 0u;
+	for (eng::usize i = 0u; i < buf.size(); ++i) {
+		acc = static_cast<eng::u8>(acc + buf[i]);
+		buf[i] = acc;
+	}
+}
+
+/// Transforma en el sitio PCM a **deltas** (inverso de `integrate_deltas`).
+inline void differentiate(eng::Span<eng::u8> buf) noexcept {
+	if (buf.empty()) {
+		return;
+	}
+	eng::u8 prev = 0u;
+	for (eng::usize i = 0u; i < buf.size(); ++i) {
+		const eng::u8 cur = buf[i];
+		buf[i] = static_cast<eng::u8>(cur - prev);
+		prev = cur;
+	}
+}
 
 /// **Decodifica** `src` a PCM 8-bit con signo en `dst` (código `compression`).
 /// Devuelve los bytes escritos, o `-1` si el flujo es inválido, el códec no existe o no cabe en
@@ -44,6 +73,18 @@ enum class Codec : eng::u8 {
 				    eng::u8 compression) noexcept {
 	if (compression == static_cast<eng::u8>(Codec::Zx0)) {
 		return zx0::decompress(src, dst);
+	}
+	if (compression == static_cast<eng::u8>(Codec::FibDelta)) {
+		return fib_delta::decode(src, dst);
+	}
+	if (compression == static_cast<eng::u8>(Codec::DeltaZx0)) {
+		// ZX0 descomprime las diferencias; una pasada las integra a PCM.
+		const eng::s32 n = zx0::decompress(src, dst);
+		if (n < 0) {
+			return -1;
+		}
+		integrate_deltas(eng::Span<eng::u8> {dst.data(), static_cast<eng::usize>(n)});
+		return n;
 	}
 	if (compression == static_cast<eng::u8>(Codec::None)) {
 		// PCM crudo: copia directa. El chunk debe traer exactamente las muestras del buffer.
@@ -151,6 +192,20 @@ enum class Codec : eng::u8 {
 		return -1;
 	}
 	return static_cast<eng::s32>(out);
+}
+
+/// **Comprime** `pcm` al códec indicado. Soporta `DeltaRle` y `FibDelta`; `Zx0`, `APLib` y
+/// `DeltaZx0` requieren un compresor de ZX0 y los produce la **herramienta host**
+/// (`tools/audio/`), por lo que aquí devuelven `-1`.
+[[nodiscard]] inline eng::s32 encode(eng::Span<const eng::u8> pcm, eng::Span<eng::u8> dst,
+				     eng::u8 compression) noexcept {
+	if (compression == static_cast<eng::u8>(Codec::DeltaRle)) {
+		return encode(pcm, dst);
+	}
+	if (compression == static_cast<eng::u8>(Codec::FibDelta)) {
+		return fib_delta::encode(pcm, dst);
+	}
+	return -1;
 }
 
 } // namespace eng::audio::pcm_codec
