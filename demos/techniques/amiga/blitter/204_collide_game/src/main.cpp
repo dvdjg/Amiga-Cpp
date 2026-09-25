@@ -8,7 +8,7 @@
 //
 // **Fachada de juego**: la demo usa `eng::App` (bucle + pantalla + servicios de Blitter).
 // El dibujo va por `app.screen()` (contexto de alto nivel) y la colision por los
-// `app.blitter_*` (operaciones de dominio, sin nombrar el backend). Ver
+// `app.device().blitter_*` (operaciones de dominio, sin nombrar el backend). Ver
 // `docs/engine/architecture/PUBLIC_GAME_API.md` §2 y §5/12.
 //
 // Display 256x256x4 con doble buffer (`app.present()` -> `Scene::commit`).
@@ -77,26 +77,26 @@ struct CollideGame {
 
 		scene::SceneResources res = scene::planar(kWidth, kHeight, kPlanes);
 		res.buffers = kBuffers;
-		if (!scene::compose(m_scene, app.memory(), res, scene::ocs_a500,
+		if (!scene::compose(m_scene, app.device().memory(), res, scene::ocs_a500,
 				    scene::display(kDiwstrt, kDiwstop, kDdfstrt, kDdfstop, kBplcon0),
 				    scene::palette(kPalette, 0u, 16u))) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020402u);
 			return;
 		}
 		app.bind_scene(m_scene);
-		app.install_raster(m_scene); // rellenos de `screen()` por Blitter
+		app.device().install_raster(m_scene); // rellenos de `screen()` por Blitter
 		app.takeover();
 
 		m_player_mask =
-			app.memory().chip.template allocate_block<eng::PlaneTag>(kMaskPlaneBytes + 16u, 16u);
+			app.device().memory().chip.template allocate_block<eng::PlaneTag>(kMaskPlaneBytes + 16u, 16u);
 		m_hazard_mask =
-			app.memory().chip.template allocate_block<eng::PlaneTag>(kMaskPlaneBytes + 16u, 16u);
+			app.device().memory().chip.template allocate_block<eng::PlaneTag>(kMaskPlaneBytes + 16u, 16u);
 		m_band_a =
-			app.memory().chip.template allocate_block<eng::PlaneTag>(kBandPlaneBytes + 16u, 16u);
+			app.device().memory().chip.template allocate_block<eng::PlaneTag>(kBandPlaneBytes + 16u, 16u);
 		m_band_b =
-			app.memory().chip.template allocate_block<eng::PlaneTag>(kBandPlaneBytes + 16u, 16u);
+			app.device().memory().chip.template allocate_block<eng::PlaneTag>(kBandPlaneBytes + 16u, 16u);
 		m_scan =
-			app.memory().chip.template allocate_block<eng::PlaneTag>(kBandPlaneBytes + 16u, 16u);
+			app.device().memory().chip.template allocate_block<eng::PlaneTag>(kBandPlaneBytes + 16u, 16u);
 		if (!m_player_mask.valid() || !m_hazard_mask.valid() || !m_band_a.valid() ||
 		    !m_band_b.valid() || !m_scan.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020403u);
@@ -108,7 +108,7 @@ struct CollideGame {
 		}
 
 		for (eng::u8 b = 0; b < kBuffers; ++b) {
-			app.blitter_clear(m_scene.buffer(b), kPlanes, kBytesPerRow, kPlaneBytes,
+			app.device().blitter_clear(m_scene.buffer(b), kPlanes, kBytesPerRow, kPlaneBytes,
 					  kWidth, kHeight, true);
 		}
 		eng::debug::mark_ready(g_eng_run_status, kHazardWord);
@@ -116,7 +116,7 @@ struct CollideGame {
 
 	void update(auto& app) {
 		eng::debug::mark_frame(g_eng_run_status, app.frame());
-		app.wait_blitter();
+		app.device().wait_blitter();
 
 		// 1) Posicion del jugador: avanza 1 word (16 px) y rebota.
 		m_px = static_cast<eng::u16>(m_px + m_dir);
@@ -127,21 +127,21 @@ struct CollideGame {
 
 		// 2) Colision pixel-perfect por Blitter: bandas a 0, OR de las mascaras a su
 		//    posicion (1 word de ancho, 8 filas), AND $80 + escaneo.
-		app.blitter_clear(m_band_a.view, 1u, kBytesPerRow, kBandPlaneBytes, kWidth, 8u, true);
-		app.blitter_clear(m_band_b.view, 1u, kBytesPerRow, kBandPlaneBytes, kWidth, 8u, true);
+		app.device().blitter_clear(m_band_a.view, 1u, kBytesPerRow, kBandPlaneBytes, kWidth, 8u, true);
+		app.device().blitter_clear(m_band_b.view, 1u, kBytesPerRow, kBandPlaneBytes, kWidth, 8u, true);
 		const eng::graphics::OrBob pa {
 			m_player_mask.view.data(),
 			m_band_a.view.data() + static_cast<eng::u32>(m_px) * 2u, 0u};
 		const eng::graphics::OrBob hb {
 			m_hazard_mask.view.data(),
 			m_band_b.view.data() + static_cast<eng::u32>(kHazardWord) * 2u, 0u};
-		(void)app.blitter_or_bobs(&pa, 1u, 1u, 8u,
+		(void)app.device().blitter_or_bobs(&pa, 1u, 1u, 8u,
 					  static_cast<eng::s16>(kMaskRowBytes - 2u),
 					  static_cast<eng::s16>(kBytesPerRow - 2u));
-		(void)app.blitter_or_bobs(&hb, 1u, 1u, 8u,
+		(void)app.device().blitter_or_bobs(&hb, 1u, 1u, 8u,
 					  static_cast<eng::s16>(kMaskRowBytes - 2u),
 					  static_cast<eng::s16>(kBytesPerRow - 2u));
-		const bool hit = app.blitter_collide(m_band_a.view, m_band_b.view, m_scan.view,
+		const bool hit = app.device().blitter_collide(m_band_a.view, m_band_b.view, m_scan.view,
 						     1u, kBytesPerRow, kBandPlaneBytes,
 						     kBandWords, 8u);
 		if (hit) {

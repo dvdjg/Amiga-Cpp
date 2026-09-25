@@ -21,6 +21,7 @@
 /// `docs/engine/architecture/PUBLIC_GAME_API.md`; los principios, en `PUBLIC_API.md` §1.1.
 /// Es **evolutivo**: cubre lo que ya existe y se amplía cuando lleguen los demás módulos.
 
+#include <eng/api/device.hpp>
 #include <eng/core/types/box.hpp>
 #include <eng/core/types/domains.hpp>
 #include <eng/core/types/ptr.hpp>
@@ -381,6 +382,11 @@ public:
 
 	/// El juego registra su escena (en `init`); `screen()`/`present()` la usan.
 	void bind_scene(graphics::composition::Scene& scene) noexcept { m_scene = scene; }
+
+	/// **Servicios de hardware** (`app.device()`): memoria, Blitter, Copper, raster. Es la vía
+	/// canónica para el hardware; el juego simple lo ignora. (Los métodos `app.blitter_*`/
+	/// `app.memory()`/`app.copper()` directos quedan como transición y se retirarán — F2b.)
+	[[nodiscard]] Device<Backend> device() noexcept { return Device<Backend> {m_backend, m_scene}; }
 
 	/// **Escena ligada** (`bind_scene`): para efectos avanzados que el `Screen` de alto nivel
 	/// no cubre (copper por objeto, chunky, parcheo de punteros). Requiere escena ligada.

@@ -208,14 +208,14 @@ struct BobObjectsDemo {
 	void init(auto& app) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		ENG_PROF_INIT(kProfCount);
-		m_bitmap = app.memory().chip.template allocate_block<eng::PlaneTag>(kBitplaneBytes, 16);
-		m_sheet = app.memory().chip.template allocate_block<eng::BobTag>(kSheetBytes, 16);
-		m_save = app.memory().chip.template allocate_block<eng::BobTag>(kSaveWords * 2u, 16);
+		m_bitmap = app.device().memory().chip.template allocate_block<eng::PlaneTag>(kBitplaneBytes, 16);
+		m_sheet = app.device().memory().chip.template allocate_block<eng::BobTag>(kSheetBytes, 16);
+		m_save = app.device().memory().chip.template allocate_block<eng::BobTag>(kSaveWords * 2u, 16);
 		if (!m_bitmap.valid() || !m_sheet.valid() || !m_save.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008602u);
 			return;
 		}
-		app.blitter_clear(m_bitmap.view, kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight, true);
+		app.device().blitter_clear(m_bitmap.view, kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight, true);
 		build_sheet();
 		if (!add_actors()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008603u);
@@ -223,7 +223,7 @@ struct BobObjectsDemo {
 		}
 		// El plan reserva su doble buffer de copperlist; `first_line` es el arranque del
 		// display, para ordenar las intenciones relativas a él (cruce de 256 líneas).
-		if (!m_plan.begin(app.memory(), {4096u, kFirstLine})) {
+		if (!m_plan.begin(app.device().memory(), {4096u, kFirstLine})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008604u);
 			return;
 		}
@@ -231,7 +231,7 @@ struct BobObjectsDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008605u);
 			return;
 		}
-		app.takeover_copper(m_plan);
+		app.device().takeover_copper(m_plan);
 		eng::debug::mark_ready(g_eng_run_status,
 				       (static_cast<eng::u32>(kBobCount) << 8u) |
 					       static_cast<eng::u32>(m_plan.intent_count() & 0xffu));
@@ -293,7 +293,7 @@ struct BobObjectsDemo {
 		}
 		ENG_PROF_END(kProfActors);
 		ENG_PROF_BEGIN(kProfBlits);
-		if (!app.execute_frame_plan(m_blits)) {
+		if (!app.device().execute_frame_plan(m_blits)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008606u);
 			return;
 		}
@@ -316,7 +316,7 @@ struct BobObjectsDemo {
 
 	void render(auto& app) {
 		// Publica la lista del frame (swap de COP1LC) tras VBlank, como manda el contrato.
-		app.commit_copper(m_plan);
+		app.device().commit_copper(m_plan);
 		eng::debug::probe_when_ready(g_eng_run_status, app.frame());
 		// `loop` mide el ciclo completo (update+wait_vblank+render) entre dos renders: la
 		// diferencia con la suma de secciones de `update` es el tiempo de `wait_vblank`.

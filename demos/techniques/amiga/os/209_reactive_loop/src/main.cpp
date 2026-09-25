@@ -42,8 +42,8 @@ struct ReactiveDemo {
 	// --- init(App&): reserva buffers por la API del App ---------------------
 	void init(auto& app) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		m_src = app.memory().chip.template allocate_block<eng::PlaneTag>(kBytes, 16);
-		m_dst = app.memory().chip.template allocate_block<eng::PlaneTag>(kBytes, 16);
+		m_src = app.device().memory().chip.template allocate_block<eng::PlaneTag>(kBytes, 16);
+		m_dst = app.device().memory().chip.template allocate_block<eng::PlaneTag>(kBytes, 16);
 		if (!m_src.valid() || !m_dst.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020901u);
 			return;

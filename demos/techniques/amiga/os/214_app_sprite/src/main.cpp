@@ -64,7 +64,7 @@ struct AppSpriteDemo {
 	void init(auto& app) {
 		eng::debug::mark_init_started(g_eng_run_status);
 
-		if (!scene::compose(m_scene, app.memory(), kRes, scene::ocs_a500,
+		if (!scene::compose(m_scene, app.device().memory(), kRes, scene::ocs_a500,
 				    scene::display(scene::kPal320x256, scene::kBplcon0_4Planes),
 				    scene::palette(kPalette.words()))) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021401u);
@@ -81,7 +81,7 @@ struct AppSpriteDemo {
 		fondo->camera().reset(eng::scene::WorldRect {0u, 0u, 2048u, 256u},
 				      eng::Size2u {kWidth, kHeight});
 
-		m_sheet = app.memory().chip.template allocate_block<eng::BobTag>(kSheetBytes, 16u);
+		m_sheet = app.device().memory().chip.template allocate_block<eng::BobTag>(kSheetBytes, 16u);
 		if (!m_sheet.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021402u);
 			return;
