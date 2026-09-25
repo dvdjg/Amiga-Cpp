@@ -255,6 +255,28 @@ public:
 		return m_runner.load(eng::Span<const eng::u16> {raw, n});
 	}
 
+	/// Reutiliza el **sufijo** del plan en curso: si las primitivas que quedan desde `taken`
+	/// (el paso ya ejecutado) siguen aplicándose desde `start`, no vuelve a descomponer; si
+	/// no, replantea. El HTN no tiene objetivo: basta con que el resto siga aplicándose.
+	[[nodiscard]] constexpr bool replan_reusing(const State& start,
+						    const eng::ai::HtnCompound& root,
+						    eng::Span<const Action> actions,
+						    eng::u8 taken) noexcept {
+		if (taken == 0u || taken >= m_runner.count) {
+			return replan(start, root, actions); // nada ejecutado: descomposicion normal
+		}
+		State s = start;
+		for (eng::u8 i = taken; i < m_runner.count; ++i) {
+			const eng::u16 a = m_runner.steps[i];
+			if (a >= actions.size() || !eng::ai::applicable(s, actions[a])) {
+				return replan(start, root, actions); // el sufijo ya no aplica
+			}
+			eng::ai::apply(s, actions[a]);
+		}
+		m_taken = taken; // el runner ya contiene el sufijo; solo se consume
+		return true;
+	}
+
 	[[nodiscard]] constexpr bool has_plan() const noexcept { return m_runner.active; }
 	[[nodiscard]] constexpr bool done() const noexcept { return m_runner.done(); }
 	[[nodiscard]] constexpr eng::u16 current() const noexcept { return m_runner.current(); }
@@ -264,10 +286,13 @@ public:
 	[[nodiscard]] constexpr const PlanRunner<MaxSteps>& runner() const noexcept {
 		return m_runner;
 	}
+	/// ¿La ultima `replan_reusing` reutilizo el sufijo? (diagnostico)
+	[[nodiscard]] constexpr bool reused() const noexcept { return m_taken != 0u; }
 
 private:
 	Domain m_domain {};
 	PlanRunner<MaxSteps> m_runner {};
+	eng::u8 m_taken = 0u; ///< pasos del plan ya ejecutados (para el diagnostico)
 };
 
 /// Tipo de objetivo: un **objetivo suelto** lo resuelve el GOAP (búsqueda A\*); una **tarea

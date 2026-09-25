@@ -217,6 +217,15 @@ void test_htn_driver() {
 	w.advance_plan(id);
 	check(w.current_action(id) == static_cast<eng::u16>(SimActionKind::CraftTool),
 	      "htn driver: segunda accion");
+
+	// Tras ejecutar el primer paso (Gather) el sufijo sigue aplicando: no hay que
+	// re-descomponer. Con el estado acorde (ya hay materiales).
+	SimInventory after_inv {};
+	after_inv.has_materials = true;
+	check(htn.replan_reusing(start_state(after_inv), htn.domain().compound_at(0u),
+				 acts.span(), 1u),
+	      "htn driver: reutiliza el sufijo");
+	check(htn.reused(), "htn driver: marca la reutilizacion");
 }
 
 void test_plan_selection() {
