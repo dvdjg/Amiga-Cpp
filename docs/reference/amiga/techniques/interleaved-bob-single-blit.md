@@ -49,10 +49,13 @@ a 1 y **conserva el fondo** donde está a 0. El puntero de destino puede caer en
 **En el engine.** `Bob`/`bob_draw` (`eng/graphics/bob.hpp`) **no** cubre cookie-cut interleaved
 (devuelve `false`: la máscara expandida no la produce el ejecutor). Para este caso se describe el
 blit con un `BlitJob` (`MaskedBobCookieCut`, `BlitJob::interleaved = true`, `height` ya incluye los
-planos) y se envía con `AmigaBackend::blitter_submit`. La demo **213_bartman_abyss** lo usa: su
-`bob.bpl` (generado con `kingcon ... -Interleaved -Format=5 -Mask`) ya viene en este layout, y un
-solo `blitter_submit` por BOB lo reproduce. Ver `engine/graphics/blit_job.hpp` y
-`docs/reference/amiga/techniques/blitter-memcpy.md` para el descriptor.
+planos) y se envía con `AmigaBackend::blitter_submit`. El helper
+`eng::graphics::make_interleaved_masked_bob(job, src, dest, w, h, planes, dest_row_bytes, shift)`
+rellena ese `BlitJob` a partir del layout `[máscara][imagen]` (evita al llamador conocer los
+campos de módulo/altura). La demo **213_bartman_abyss** lo usa con su `bob.bpl` (generado con
+`kingcon ... -Interleaved -Format=5 -Mask`) y un solo `blitter_submit` por BOB. Ver
+`engine/graphics/blit_job.hpp` y `docs/reference/amiga/techniques/blitter-memcpy.md` para el
+descriptor.
 
 **Generar el asset.** El conversor `kingcon image.png out -Interleaved -Format=N [-Mask]` produce
 este layout (interleaved, `N` planos, con máscara expandida si `-Mask`). El original es la demo de
