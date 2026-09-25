@@ -33,12 +33,15 @@ struct Panel : Widget {
 	Panel() noexcept { type = WidgetType::Panel; }
 };
 
-/// Etiqueta de texto estático.
+/// Etiqueta de texto estático. Con `wrap != None` el texto se ajusta a `wrap_w` (o al ancho de
+/// `bounds` si `wrap_w == 0`); `measure` devuelve el tamaño preferido ya ajustado.
 struct Label : Widget {
 	Label() noexcept { type = WidgetType::Label; }
 	const char* text = nullptr;
 	eng::u8 color = 0u;          ///< color fijo si `use_theme_color == false`
 	bool use_theme_color = true; ///< usar `theme.text` (por defecto)
+	WrapMode wrap = WrapMode::None; ///< política de ajuste de línea
+	eng::u16 wrap_w = 0u;           ///< ancho de ajuste (0 = usar `bounds.w`)
 };
 
 /// Botón: cara + bisel según `WfPressed`; dispara `on_click(user)` al soltar dentro.
@@ -89,7 +92,11 @@ inline constexpr eng::u16 kTickGlyph[8] = {
 	switch (w.type) {
 	case WidgetType::Label: {
 		const auto& l = static_cast<const Label&>(w);
-		return Rect {0, 0, text_width(l.text), 8u};
+		const eng::u16 ww = (l.wrap_w != 0u) ? l.wrap_w : l.bounds.w;
+		const eng::u16 lines = text_wrap_lines(l.text, ww, l.wrap);
+		const eng::u16 width = (l.wrap == WrapMode::None) ? text_width(l.text)
+								  : text_wrapped_width(l.text, ww, l.wrap);
+		return Rect {0, 0, width, static_cast<eng::u16>(lines * 8u)};
 	}
 	case WidgetType::Button: {
 		const auto& b = static_cast<const Button&>(w);
@@ -129,13 +136,18 @@ inline void draw_panel(Panel& pa, UiPainter& p) {
 	p.panel(pa.bounds);
 }
 
-/// Dibuja la etiqueta (color del tema o fijo).
+/// Dibuja la etiqueta (color del tema o fijo). Con `wrap != None` ajusta el texto al ancho.
 inline void draw_label(Label& l, UiPainter& p) {
 	if (!l.has(WfVisible)) {
 		return;
 	}
 	const eng::u8 fg = l.use_theme_color ? p.theme().text : l.color;
-	p.text(l.bounds.x, l.bounds.y, l.text, fg);
+	if (l.wrap == WrapMode::None) {
+		p.text(l.bounds.x, l.bounds.y, l.text, fg);
+		return;
+	}
+	const eng::u16 ww = (l.wrap_w != 0u) ? l.wrap_w : l.bounds.w;
+	draw_text_wrapped(p, l.bounds.x, l.bounds.y, l.text, fg, ww, l.wrap);
 }
 
 /// Dibuja la cara del botón (según `WfPressed`) y su texto centrado.

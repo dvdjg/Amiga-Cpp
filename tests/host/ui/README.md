@@ -28,3 +28,5 @@ Categoría `ui` de la batería host (L1). El índice de categorías está en [..
 | HOST-311 | [ui_scrollbar](311_ui_scrollbar/README.md) | `ScrollBar` (vertical/horizontal): pomo proporcional a la página, click→valor y teclado (flechas/página/`Home`/`End`). |
 | HOST-312 | [ui_listview](312_ui_listview/README.md) | `ListView`: selección + desplazamiento lógico (solo filas visibles), click/flechas/`Home`/`End` y `ensure_visible`. |
 | HOST-313 | [ui_text_blit](313_ui_text_blit/README.md) | Texto por Blitter con caché de glifos (`GlyphMask`/`GlyphCache`/`draw_text_blit`): cookie-cut, 2 glifos/palabra, equivalencia píxel a píxel con la CPU. |
+| HOST-314 | [ui_layout_adaptive](314_ui_layout_adaptive/README.md) | Layout adaptable: `grid`, `flow`+wrap, `column_fill`, `fit al contenido`, `center`; texto ajustado (`text_wrap_lines`/`draw_text_wrapped`, `Label.wrap`). |
+| HOST-315 | [font_variants](315_font_variants/README.md) | Variantes de fuente: cursiva (*shear*) de `Font8`/`Font5x7` y micro-fuente `Font3x5` derivada. |

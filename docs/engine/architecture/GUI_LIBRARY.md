@@ -174,9 +174,21 @@ equivalencia**. La ruta **acelerada** vive en `eng/graphics/glyph_cache.hpp`:
   destino debe estar alineado a palabra (`x` múltiplo de 16). Un **solo** `blit_masked` cubre todos
   los planos (varios blits de 1 plano escribirían siempre el plano 0 del destino).
 
-`UiPainter::text_blit(x, y, s, fg, cache, scratch, planes)` es el punto de uso desde la UI (requiere
-`FramePlan`). Equivalencia CPU↔Blitter verificada en **HOST-313**; la ejecución real del Blitter se
-valida en la demo de GUI en emulador.
+`UiPainter::text_blit(x, y, s, fg, cache, scratch, planes[, clip])` es el punto de uso desde la UI
+(requiere `FramePlan`). Equivalencia CPU↔Blitter verificada en **HOST-313**; la ejecución real del
+Blitter se valida en la demo de GUI en emulador.
+
+### 6.2 Colección de glifos y variantes
+
+La colección de fuentes del engine es: `Font8` (8×8), `Font5x7` (5×7, HUD) y la **micro-fuente**
+`Font3x5` (derivada de `Font5x7`), cada una con su **variante cursiva**. Las cursivas y la
+micro-fuente se **derivan** por transformación (`eng/graphics/font_italic.hpp`), sin duplicar tablas:
+
+- **Cursiva** (*italic*): *shear* horizontal progresivo por fila (`italic_shift`); la fila `r` se
+  desplaza `slant` px a la derecha. No cambia el avance: el glifo puede recortar en el borde si no se
+  reserva el margen.
+- **Micro-fuente `Font3x5`**: submuestreo determinista de `Font5x7` (3 de 5 columnas, 5 de 7 filas).
+  `Font3x5::row`/`row_italic` leen de `Font5x7`.
 
 ## 7. Tema / branding
 
@@ -377,16 +389,38 @@ Return, Esc) y el texto imprimible inserta en el `caret` desplazando el resto.
 
 ## 12. Layout
 
-Sin motor de *constraints*: para A500 basta con
+Sin motor de *constraints*: para A500 basta con layouts **deterministas** que colocan los hijos en
+**orden de creación** y capacidad fija (sin heap). Disponibles:
 
 - **Absoluto**: `bounds` fijas (lo más simple y predecible).
-- **Pila vertical/horizontal**: los hijos se colocan en fila con el `gap` y los paddings del
-  tema; el tamaño del botón sale de `theme.btn_h` y de `text_width`.
-- **Anclaje**: pegar a un borde del padre con un *offset* (p. ej. un botón abajo a la derecha).
+- **Pila vertical/horizontal**: `layout_stack_v`/`layout_stack_h` (fila con `gap`).
+- **Rejilla**: `layout_grid(g, cols, gap_x, gap_y)` — `cols` columnas; la altura de fila la fija el
+  hijo más alto.
+- **Flujo con *wrap***: `layout_flow(g, gap_x, gap_y)` — los hijos fluyen horizontalmente y saltan
+  de línea al llegar al ancho del padre (layout natural para etiquetas/botones).
+- **Columna que rellena**: `layout_column_fill(g, gap)` — cada hijo expande su ancho al del padre
+  (formularios).
+- **Adaptable al contenido**: `layout_fit_children(g, measure, gap, vertical, expand_width)` — ajusta
+  el tamaño de cada hijo a su **contenido** (`measure`) y devuelve el total; el padre se redimensiona
+  a sus hijos. Es el caso «una `Label` que se ajusta al texto».
+- **Columna centrada**: `layout_center_column(g, gap)` — para diálogos/mensajes.
+- **Anclaje**: `anchor(w, Anchor, dx, dy)` — pegar a un borde del padre.
+
+El **texto ajustado** (wrapping) es parte del layout adaptable: `Label` acepta `wrap`
+(`WrapMode::None`/`Char`/`Word`) y `wrap_w`; `measure` devuelve el alto como `8 × líneas`, y
+`draw_text_wrapped`/`text_wrap_lines`/`text_wrapped_width` (en `text.hpp`) calculan y pintan las
+líneas con la **misma** política de corte.
 
 ```cpp
-void layout_stack_v(Widget* group, eng::u8 gap) noexcept;
-void layout_stack_h(Widget* group, eng::u8 gap) noexcept;
+void layout_stack_v(Widget& g, eng::u8 gap) noexcept;
+void layout_stack_h(Widget& g, eng::u8 gap) noexcept;
+void layout_grid(Widget& g, eng::u8 cols, eng::u8 gap_x, eng::u8 gap_y) noexcept;
+void layout_flow(Widget& g, eng::u8 gap_x, eng::u8 gap_y) noexcept;
+void layout_column_fill(Widget& g, eng::u8 gap) noexcept;
+void layout_center_column(Widget& g, eng::u8 gap) noexcept;
+template <class MeasureFn> Rect layout_fit_children(Widget& g, MeasureFn&& measure,
+                                                    eng::u8 gap, bool vertical,
+                                                    bool expand_width = false) noexcept;
 ```
 
 ## 13. Ventanas
