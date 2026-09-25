@@ -195,8 +195,12 @@ hechos + 32 de niveles) y el planner es el mismo A* determinista, sin heap.
   borrado) + cota numérica por el mayor delta por acción, con **memo de `h` por estado
   entre llamadas** (`heuristic_hits`). Guía mejor; no garantiza optimalidad estricta.
 - Límites: `MaxFacts <= 32` y `MaxVars <= 4` (clave de 64 bits exacta). Para más
-  variables, componer dominios o esperar al planner numérico general (heurística de
-  grafo relajado completa).
+  variables, componer dominios o usar la versión ampliada.
+
+La **versión ampliada** de la planificación (estado híbrido hechos+niveles, acciones con `target` y
+coste dinámico, *anytime* con presupuesto, caché con invalidación selectiva, plan coordinado y HTN
+ligero) se especifica en [`GOAP_EXTENDED.md`](GOAP_EXTENDED.md); se adopta por fases en
+`ROADMAP_GAME_AI.md` (G7).
 
 Verificación: HOST-185 (enteros, decimales, saturación, memo y sufijo) y HOST-186
 (heurística relajada con memo).
