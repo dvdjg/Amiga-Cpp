@@ -116,6 +116,9 @@ bool draw_text_blit(eng::field::Surface& s, eng::graphics::FramePlan& plan, Glyp
 		// Nada que pintar; el clip/alineación se comprueban al emitir.
 		return text != nullptr;
 	}
+	// El Blitter opera a nivel de **palabra** (16 px) y el destino debe estar alineado: `x` debe
+	// ser múltiplo de 16. Texto en `x` arbitrario (con `source_shift`) requeriría blits de 2
+	// palabras por par; pendiente (ver la nota de pendientes en HOST-313).
 	if ((x & 15) != 0) {
 		return false;
 	}
@@ -156,9 +159,10 @@ bool draw_text_blit(eng::field::Surface& s, eng::graphics::FramePlan& plan, Glyp
 		// un glifo a medias, como `draw_text_clipped`). `blit_masked` rechazaría si excede el clip.
 		bool emit = true;
 		if (!clip.empty()) {
-			const eng::s16 cw = static_cast<eng::s16>(cx + 16);
-			emit = cx >= clip.x && cw <= clip.right() &&
-			       y >= clip.y && static_cast<eng::s16>(y + 8) <= clip.bottom();
+			// La palabra ocupa `[cx, cx+16)`; cabe si está dentro de `[clip.x, clip.x+clip.w)`.
+			const eng::s32 right = static_cast<eng::s32>(clip.x) + clip.w;
+			emit = cx >= clip.x && (cx + 16) <= right &&
+			       y >= clip.y && static_cast<eng::s32>(y) + 8 <= static_cast<eng::s32>(clip.y) + clip.h;
 		}
 		if (emit) {
 			for (eng::u8 p = 0u; p < planes; ++p) {
@@ -181,6 +185,22 @@ bool draw_text_blit(eng::field::Surface& s, eng::graphics::FramePlan& plan, Glyp
 		}
 		cx = static_cast<eng::s32>(cx + 16);
 	}
+}
+
+/// Texto con **sombra** (dos pasadas por Blitter): el texto en `shadow` desplazado **1 px abajo**
+/// (y+1) y luego el texto en `color` (y). La pasada de sombra pinta primero; el texto encima la
+/// tapa dentro del glifo, dejando la sombra como borde inferior (efecto de relieve típico de UI).
+/// Mismo contrato que `draw_text_blit` (`x` alineado, `scratch`, `planes`, `clip`).
+template <eng::u16 Max>
+bool draw_text_shadow_blit(eng::field::Surface& s, eng::graphics::FramePlan& plan,
+			   GlyphCache<Max>& cache, eng::s32 x, eng::s32 y, const char* text,
+			   eng::u8 color, eng::u8 shadow, eng::Span<eng::u16> src_scratch,
+			   eng::u8 planes, eng::Box clip = {}) noexcept {
+	if (!draw_text_blit(s, plan, cache, x, static_cast<eng::s32>(y + 1), text, shadow, src_scratch,
+			    planes, clip)) {
+		return false;
+	}
+	return draw_text_blit(s, plan, cache, x, y, text, color, src_scratch, planes, clip);
 }
 
 } // namespace eng::graphics

@@ -241,8 +241,8 @@ public:
 			 eng::u16 src_row_bytes, eng::u32 src_plane_stride, eng::u8 planes,
 			 eng::u8 source_shift = 0u) override {
 		(void)plan;
-		(void)source_shift;
-		return pf.copy_masked_cpu(src, mask, x, y, w, h, src_row_bytes, src_plane_stride, planes);
+		return pf.copy_masked_cpu(src, mask, x, y, w, h, src_row_bytes, src_plane_stride, planes,
+					  source_shift);
 	}
 	/// Chunky→planar por CPU: `c2p_1x1_4` (4 planos) o `c2p_1x1_naive` (1..6).
 	bool c2p(const C2pRequest& req, eng::Ref<graphics::FramePlan> plan = {}) override {

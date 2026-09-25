@@ -358,7 +358,8 @@ public:
     /// palabra a palabra, con la máscara de 1 bit (misma geometría que
     /// `add_world_bitmap_masked`). No encola nada.
     bool copy_masked_cpu(Span<const u16> src, Span<const u16> mask, s32 wx, s32 wy,
-                         u16 w, u16 h, u16 src_row_bytes, u32 src_plane_stride, u8 planes) {
+                         u16 w, u16 h, u16 src_row_bytes, u32 src_plane_stride, u8 planes,
+                         u8 source_shift = 0u) {
         if (!m_initialized || src.empty() || mask.empty() || planes == 0u) return false;
         if (wx < 0 || (wx & 15) != 0 ||
             static_cast<u32>(wx / 8) + (w / 8u) > m_bytes_per_row) {
@@ -366,13 +367,15 @@ public:
         }
         if (wy < 0 || static_cast<u32>(wy) + h > m_height) return false;
         const u16 words = static_cast<u16>(w / 16u);
+        // Con `source_shift != 0` se lee una palabra extra por fila (shift del barrel).
+        const u32 extra = (source_shift != 0u) ? 1u : 0u;
         const u32 need_src =
             (planes > 1u ? eng::math::mulu16(static_cast<u16>(planes - 1u), static_cast<u16>(src_plane_stride / 2u)) : 0u) +
             (h > 1u ? eng::math::mulu16(static_cast<u16>(h - 1u), static_cast<u16>(src_row_bytes / 2u)) : 0u) +
-            static_cast<u32>(words);
+            static_cast<u32>(words) + extra;
         const u32 need_mask =
             (h > 1u ? eng::math::mulu16(static_cast<u16>(h - 1u), static_cast<u16>(src_row_bytes / 2u)) : 0u) +
-            static_cast<u32>(words);
+            static_cast<u32>(words) + extra;
         if (src.size() < need_src || mask.size() < need_mask) return false;
         const u16 x_byte = static_cast<u16>(wx / 8u);
         const u32 y0_off = eng::math::mulu16(static_cast<u16>(wy), static_cast<u16>(m_row_stride));
@@ -387,9 +390,22 @@ public:
                 const u16* s = reinterpret_cast<const u16*>(srow);
                 const u16* mrow16 = reinterpret_cast<const u16*>(mrow);
                 u16* d = reinterpret_cast<u16*>(drow);
-                for (u16 i = 0; i < words; ++i) {
-                    const u16 m = mrow16[i];
-                    d[i] = static_cast<u16>((d[i] & static_cast<u16>(~m)) | (s[i] & m));
+                if (source_shift == 0u) {
+                    for (u16 i = 0; i < words; ++i) {
+                        const u16 m = mrow16[i];
+                        d[i] = static_cast<u16>((d[i] & static_cast<u16>(~m)) | (s[i] & m));
+                    }
+                } else {
+                    // Barrel shift de máscara y fuente: `cur = (x[i]<<sh) | (x[i-1]>>(16-sh))`.
+                    const u16 inv = static_cast<u16>(16u - source_shift);
+                    u16 pm = 0u, ps = 0u; // palabras previas (0 al inicio de fila)
+                    for (u16 i = 0; i < words; ++i) {
+                        const u16 cm = static_cast<u16>((mrow16[i] << source_shift) | (pm >> inv));
+                        const u16 cs = static_cast<u16>((s[i] << source_shift) | (ps >> inv));
+                        d[i] = static_cast<u16>((d[i] & static_cast<u16>(~cm)) | (cs & cm));
+                        pm = mrow16[i];
+                        ps = s[i];
+                    }
                 }
                 srow += src_row_bytes;
                 mrow += src_row_bytes;

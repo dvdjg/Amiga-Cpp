@@ -18,6 +18,7 @@
 #include <eng/graphics/font8.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/glyph_cache.hpp>
+#include <eng/ui/theme.hpp>
 
 namespace {
 
@@ -133,6 +134,48 @@ int main() {
 	check(!eng::graphics::draw_text_blit(s_blit, plan3, cache, 4, 4, "A", 3u,
 					     eng::Span<eng::u16>(scratch), kPlanes),
 	      "x no alineado a palabra -> false");
+
+	// --- Clip por palabra: con un clip que solo contiene el primer par, el segundo no se pinta ---
+	{
+		alignas(2) eng::u8 mclip[kPlaneStride * kPlanes] {};
+		eng::field::ContiguousPlayfield pfc {};
+		pfc.bind_raw(mclip, sizeof(mclip), kSW, kSH, kPlanes);
+		eng::field::Surface sc {pfc, eng::field::SurfaceRect {0, 0, kSW, kSH}};
+		sc.fill_rect(0, 0, kSW, kSH, kBg);
+		eng::graphics::GlyphCache<8> cc;
+		eng::u16 sc2[kPlanes * eng::Font8::kRows] {};
+		eng::graphics::FramePlan pc {};
+		// "ABCD" = 2 palabras; clip x=0..16 -> solo la primera palabra (A,B) cabe.
+		(void)eng::graphics::draw_text_blit(sc, pc, cc, 0, 4, "ABCD", 3u,
+						    eng::Span<eng::u16>(sc2), kPlanes,
+						    eng::ui::Rect {0, 0, 16, kSH});
+		check(pixel_at(mclip, 2, 5) == 3u, "clip: primer par pintado (A)");
+		check(pixel_at(mclip, 20, 5) == kBg, "clip: segundo par fuera del clip (no pintado)");
+	}
+
+	// --- Sombra: color sombra 1 px abajo, texto encima ---
+	{
+		alignas(2) eng::u8 msh[kPlaneStride * kPlanes] {};
+		eng::field::ContiguousPlayfield pfsh {};
+		pfsh.bind_raw(msh, sizeof(msh), kSW, kSH, kPlanes);
+		eng::field::Surface ssh {pfsh, eng::field::SurfaceRect {0, 0, kSW, kSH}};
+		ssh.fill_rect(0, 0, kSW, kSH, 0u); // fondo 0 para distinguir la sombra (2)
+		eng::graphics::GlyphCache<8> cs;
+		eng::u16 sc3[kPlanes * eng::Font8::kRows] {};
+		eng::graphics::FramePlan ps {};
+		(void)eng::graphics::draw_text_shadow_blit(ssh, ps, cs, 0, 4, "A", 3u, 2u,
+							   eng::Span<eng::u16>(sc3), kPlanes);
+		// La sombra (color 2) aparece 1 px por debajo del texto (color 3).
+		bool shadow_seen = false, text_seen = false;
+		for (eng::s16 y = 4; y < 14; ++y) {
+			for (eng::s16 x = 0; x < 8; ++x) {
+				const eng::u8 c = pixel_at(msh, x, y);
+				if (c == 2u) shadow_seen = true;
+				if (c == 3u) text_seen = true;
+			}
+		}
+		check(shadow_seen && text_seen, "sombra: color de sombra (2) y de texto (3) presentes");
+	}
 
 	// El glifo pintado realmente tiene tinta del color 3 dentro de 'A'.
 	check(pixel_at(mem_blit, 2, 5) == 3u || pixel_at(mem_blit, 3, 5) == 3u ||
