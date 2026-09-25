@@ -49,6 +49,9 @@ const server = net.createServer((sock) => {
       if (!m) { sock.write(JSON.stringify({ ok: false, error: 'cmd' }) + '\n'); continue; }
       const addr = parseInt(m[1], 16);
       const len = parseInt(m[2], 10);
+      // Registros de display activos: `--from-copper` los consulta primero.
+      if (addr === 0xdff0e0) { sock.write(JSON.stringify({ ok: true, data: BASE.toString(16).padStart(8, '0') }) + '\n'); continue; }
+      if (addr === 0xdff108) { sock.write(JSON.stringify({ ok: true, data: '0000' }) + '\n'); continue; }
       const snap = reads++ === 0 ? snapA : snapB;
       const off = addr - BASE;
       const slice = snap.subarray(Math.max(0, off), Math.max(0, off) + len);
@@ -86,6 +89,25 @@ try {
   check(j.perPlane && j.perPlane[1] === 1, `cambio en el plano 1 (fue [${j.perPlane}])`);
   check(j.bbox && j.bbox[0] === 0 && j.bbox[1] === 0, `bbox en (0,0) (fue ${JSON.stringify(j.bbox)})`);
   check(j.total === W * H, `total de pixeles correcto (${j.total})`);
+
+  // Segunda pasada con `--from-copper`: debe deducir la base del registro BPL1PT activo.
+  const args2 = [
+    path.join(ROOT, 'tools/vision-review/screendump-diff.mjs'),
+    '--from-copper', '--planes', String(PLANES),
+    '--width', String(W), '--height', String(H), '--gap-ms', '0', '--side-port', String(port),
+    '--json',
+  ];
+  const out2 = await new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, args2, { encoding: 'utf8' });
+    let stdout = '', stderr = '';
+    child.stdout.on('data', (d) => { stdout += d; });
+    child.stderr.on('data', (d) => { stderr += d; });
+    child.on('error', reject);
+    child.on('close', (code) => (code === 0 ? resolve(stdout) : reject(new Error(stderr || `exit ${code}`))));
+  });
+  const j2 = JSON.parse(out2);
+  check(j2.addr === '0x' + BASE.toString(16), `--from-copper deduce la base del registro (fue ${j2.addr})`);
+  check(j2.rowBytes === ROW, `--from-copper deduce row_bytes (fue ${j2.rowBytes})`);
 } catch (e) {
   check(false, `ejecucion falló: ${(e.stderr || e.message || '').toString().split('\n')[0]}`);
 }

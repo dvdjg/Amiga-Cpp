@@ -170,13 +170,16 @@ equivalencia**. La ruta **acelerada** vive en `eng/graphics/glyph_cache.hpp`:
 - `GlyphCache<Max>`: caché de capacidad fija, sin heap, de máscaras por *code point*.
 - `draw_text_blit(...)`: **cookie-cut del Blitter** (`MaskedBobCookieCut`, minterm `$CA`,
   `D = (A·B) + (¬A·D)`) con A = máscara del glifo y B = plano sólido del bit de color. El Blitter
-  opera por **palabra** (16 px), así que el texto se agrupa de **dos glifos por palabra**; el
-  destino debe estar alineado a palabra (`x` múltiplo de 16). Un **solo** `blit_masked` cubre todos
-  los planos (varios blits de 1 plano escribirían siempre el plano 0 del destino).
+  opera por **palabra** (16 px), así que el texto se agrupa de **dos glifos por palabra**; con `x`
+  no alineado el par se **pre-desplaza a dos palabras** y se emite desde `x & ~15`. Un **solo**
+  `blit_masked` cubre todos los planos (varios blits de 1 plano escribirían siempre el plano 0).
+  `src_scratch` y `mask_scratch` son buffers del **llamador** que deben persistir hasta ejecutar el
+  `FramePlan` (el encolado solo guarda punteros).
 
-`UiPainter::text_blit(x, y, s, fg, cache, scratch, planes[, clip])` es el punto de uso desde la UI
-(requiere `FramePlan`). Equivalencia CPU↔Blitter verificada en **HOST-313**; la ejecución real del
-Blitter se valida en la demo de GUI en emulador.
+`UiPainter::text_blit(x, y, s, fg, cache, src_scratch, mask_scratch, planes[, clip])` es el punto de
+uso desde la UI (requiere `FramePlan`). Equivalencia CPU↔Blitter y geometría del job verificadas en
+**HOST-313**; la ejecución real del Blitter está **pendiente** (ver §8 de
+`docs/debugging/investigaciones/pending-verification.md`).
 
 ### 6.2 Colección de glifos y variantes
 

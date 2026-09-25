@@ -9,6 +9,8 @@
   minterm `$CA`). Con `x` alineado a 16 px agrupa **dos glifos por palabra** (2 glifos/blit); con
   `x` no alineado pre-desplaza el par a **dos palabras** y emite desde `x & ~15` (blit de 32 px),
   manteniendo la equivalencia píxel a píxel con la CPU.
+- `src_scratch`/`mask_scratch` son buffers del **llamador** que persisten hasta ejecutar el
+  `FramePlan` (el encolado del job solo guarda punteros: un buffer local sería pila muerta).
 
 ## Invariantes
 
@@ -17,6 +19,8 @@
    `Surface::draw_text` (referencia canónica de equivalencia), tanto con `x` alineado como no.
 3. Texto de longitud impar: la segunda mitad de la última palabra conserva el fondo.
 4. `x` no alineado a palabra: el par pre-desplazado a 2 palabras == CPU píxel a píxel.
+5. Con `BlitterRaster`, la **geometría del job** encolado es la esperada: `words_per_row` 1
+   (alineado) o 2 (no alineado), `source_plane_stride_bytes = kRows*2` o `kRows*4`, un job por plano.
 
 ## Ejecución
 

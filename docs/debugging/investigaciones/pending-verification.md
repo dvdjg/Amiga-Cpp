@@ -88,5 +88,29 @@ Notas de deuda de diseño detectadas al trabajar en el modelo de escena, para un
   `compose_unchecked` y `Scene::init_unchecked` pasó a `init_raw` **privado**. La única vía
   pública de construcción es `init`/`compose` con `DisplayLimits`.
 
+## 8. `text_blit` (texto por Blitter) no verificado en hardware
+
+- **Estado**: `eng::graphics::draw_text_blit` (`glyph_cache.hpp`) tiene **equivalencia CPU píxel a
+  píxel** validada por HOST-313, incluido `x` **no alineado** (el par se pre-desplaza a 2 palabras
+  y se emite desde `x & ~15`), **texto largo (varios pares)** y la **geometría del job** encolado,
+  todo ello con un **ejecutor software** del cookie-cut que replica el Blitter. El algoritmo y el
+  cableado escena↔plan↔buffer son correctos.
+- **Corregido (3 causas reales)**:
+  1. **Lifetime**: la máscara era un array **local** de `draw_text_blit`; el `FramePlan` guarda
+     punteros y se ejecuta después de retornar → el Blitter leía pila liberada. Ahora
+     `src_scratch`/`mask_scratch` son buffers del **llamador** que persisten hasta ejecutar el plan.
+  2. **Chip RAM**: el Blitter solo accede a Chip por DMA. Los scratch deben reservarse en Chip
+     (`memory.chip.allocate_block`), no en pila. Sin esto no se pintaba **nada**.
+  3. **Máscara por par**: reutilizar una sola máscara para todos los pares perdía todos menos el
+     último (el plan se ejecuta al final). Ahora cada par tiene su máscara en `mask_scratch`
+     (`pares * 2 * Font8::kRows` palabras).
+- **Residual**: con las tres causas resueltas, la ejecución real del Blitter **deja tinta pero no
+  reproduce el patrón exacto de `Font8`** (ni con `x` **alineado**). El ejecutor software sí
+  coincide con la CPU, así que el defecto está en el backend Amiga (`amiga_blitter.cpp`, ruta
+  `masked`): revisar `BLTCMOD`/`BLTDMOD`, el orden de canales A=máscara/B=fuente/C=D=destino y
+  `BLTALWM`/`BLTAFWM` para el cookie-cut con 6 planos.
+- **Mientras**: la demo 301 pinta el texto por CPU y lo declara en su comentario.
+
+
 
 

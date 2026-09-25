@@ -48,6 +48,34 @@ eng::u8 pixel_at(const eng::u8* base, eng::s16 x, eng::s16 y) {
 	return c;
 }
 
+/// Ejecuta en **software** los jobs `MaskedBobCookieCut` de `plan` aplicando el minterm `$CA`
+/// (`D = A·B + ¬A·D`), con los modulos de A/B/D del propio job. Replica el Blitter (rueda de
+/// canales A=mascara, B=fuente, C=D=destino) para aislar el cableado del job y sus punteros de
+/// la ejecucion real del backend.
+void exec_masked_bob_jobs(const eng::graphics::FramePlan& plan) {
+	for (eng::u8 j = 0u; j < plan.blit_job_count(); ++j) {
+		const eng::graphics::BlitJob& job = plan.blit_job(j);
+		if (job.kind != eng::graphics::BlitJobKind::MaskedBobCookieCut) continue;
+		const eng::u16* a = job.mask.words;
+		const eng::u16* b = job.source.words;
+		eng::u16* d = job.destination.words;
+		const eng::s32 amod = job.source_modulo_bytes / 2;
+		// En el backend, B (fuente) tambien usa el modulo de A (`src_mod`).
+		const eng::s32 bmod = job.source_modulo_bytes / 2;
+		const eng::s32 dmod = job.destination_modulo_bytes / 2;
+		const eng::u16 wpr = job.words_per_row;
+		for (eng::u16 row = 0u; row < job.height; ++row) {
+			for (eng::u16 w = 0u; w < wpr; ++w) {
+				const eng::u16 m = a[w];
+				d[w] = static_cast<eng::u16>((m & b[w]) | (static_cast<eng::u16>(~m) & d[w]));
+			}
+			a += wpr + amod;
+			b += wpr + bmod;
+			d += wpr + dmod;
+		}
+	}
+}
+
 } // namespace
 
 int main() {
@@ -75,7 +103,8 @@ int main() {
 	// --- Equivalencia CPU vs draw_text_blit ---
 	alignas(2) eng::u8 mem_ref[kPlaneStride * kPlanes] {};
 	alignas(2) eng::u8 mem_blit[kPlaneStride * kPlanes] {};
-	alignas(2) eng::u16 scratch[kPlanes * eng::Font8::kRows] {};
+	alignas(2) eng::u16 scratch[kPlanes * 2u * eng::Font8::kRows] {};
+	alignas(2) eng::u16 mask_scratch[2u * eng::Font8::kRows] {};
 
 	eng::field::ContiguousPlayfield pf_ref {};
 	eng::field::ContiguousPlayfield pf_blit {};
@@ -94,7 +123,8 @@ int main() {
 	check(s_ref.draw_text(0, 4, txt, 3u), "draw_text CPU");
 	eng::graphics::FramePlan plan {};
 	check(eng::graphics::draw_text_blit(s_blit, plan, cache, 0, 4, txt, 3u,
-					    eng::Span<eng::u16>(scratch), kPlanes),
+					    eng::Span<eng::u16>(scratch),
+					    eng::Span<eng::u16>(mask_scratch), kPlanes),
 	      "draw_text_blit encola");
 
 	bool same = true;
@@ -118,7 +148,8 @@ int main() {
 	s2r.draw_text(0, 4, "A", 3u);
 	eng::graphics::FramePlan plan2 {};
 	eng::graphics::draw_text_blit(s2b, plan2, cache, 0, 4, "A", 3u,
-				      eng::Span<eng::u16>(scratch), kPlanes);
+				      eng::Span<eng::u16>(scratch),
+				      eng::Span<eng::u16>(mask_scratch), kPlanes);
 	bool same2 = true;
 	for (eng::u32 i = 0u; i < kPlaneStride * kPlanes; ++i) {
 		if (m2_ref[i] != m2_blit[i]) same2 = false;
@@ -139,11 +170,13 @@ int main() {
 		snr.fill_rect(0, 0, kSW, kSH, kBg);
 		snb.fill_rect(0, 0, kSW, kSH, kBg);
 		eng::graphics::GlyphCache<8> cn;
-		eng::u16 scn[kPlanes * eng::Font8::kRows] {};
+		eng::u16 scn[kPlanes * 2u * eng::Font8::kRows] {};
+		eng::u16 mscn[2u * eng::Font8::kRows] {};
 		snr.draw_text(4, 4, txt, 3u);
 		eng::graphics::FramePlan pn {};
 		check(eng::graphics::draw_text_blit(snb, pn, cn, 4, 4, txt, 3u,
-						    eng::Span<eng::u16>(scn), kPlanes),
+						    eng::Span<eng::u16>(scn),
+						    eng::Span<eng::u16>(mscn), kPlanes),
 		      "draw_text_blit x=4 encola");
 		bool samen = true;
 		for (eng::u32 i = 0u; i < kPlaneStride * kPlanes; ++i) {
@@ -160,12 +193,13 @@ int main() {
 		eng::field::Surface sc {pfc, eng::field::SurfaceRect {0, 0, kSW, kSH}};
 		sc.fill_rect(0, 0, kSW, kSH, kBg);
 		eng::graphics::GlyphCache<8> cc;
-		eng::u16 sc2[kPlanes * eng::Font8::kRows] {};
+		eng::u16 sc2[kPlanes * 2u * eng::Font8::kRows] {};
+		eng::u16 ms2[2u * eng::Font8::kRows] {};
 		eng::graphics::FramePlan pc {};
 		// "ABCD" = 2 palabras; clip x=0..16 -> solo la primera palabra (A,B) cabe.
 		(void)eng::graphics::draw_text_blit(sc, pc, cc, 0, 4, "ABCD", 3u,
-						    eng::Span<eng::u16>(sc2), kPlanes,
-						    eng::ui::Rect {0, 0, 16, kSH});
+						    eng::Span<eng::u16>(sc2), eng::Span<eng::u16>(ms2),
+						    kPlanes, eng::ui::Rect {0, 0, 16, kSH});
 		check(pixel_at(mclip, 2, 5) == 3u, "clip: primer par pintado (A)");
 		check(pixel_at(mclip, 20, 5) == kBg, "clip: segundo par fuera del clip (no pintado)");
 	}
@@ -178,10 +212,12 @@ int main() {
 		eng::field::Surface ssh {pfsh, eng::field::SurfaceRect {0, 0, kSW, kSH}};
 		ssh.fill_rect(0, 0, kSW, kSH, 0u); // fondo 0 para distinguir la sombra (2)
 		eng::graphics::GlyphCache<8> cs;
-		eng::u16 sc3[kPlanes * eng::Font8::kRows] {};
+		eng::u16 sc3[kPlanes * 2u * eng::Font8::kRows] {};
+		eng::u16 ms3[2u * eng::Font8::kRows] {};
 		eng::graphics::FramePlan ps {};
 		(void)eng::graphics::draw_text_shadow_blit(ssh, ps, cs, 0, 4, "A", 3u, 2u,
-							   eng::Span<eng::u16>(sc3), kPlanes);
+							   eng::Span<eng::u16>(sc3),
+							   eng::Span<eng::u16>(ms3), kPlanes);
 		// La sombra (color 2) aparece 1 px por debajo del texto (color 3).
 		bool shadow_seen = false, text_seen = false;
 		for (eng::s16 y = 4; y < 14; ++y) {
@@ -192,6 +228,103 @@ int main() {
 			}
 		}
 		check(shadow_seen && text_seen, "sombra: color de sombra (2) y de texto (3) presentes");
+	}
+
+	// --- Camino Blitter: la geometria del `MaskedBobCookieCut` encolado ---
+	// Con `BlitterRaster` instalado, `draw_text_blit` encola `planes` jobs (uno por plano). Se
+	// inspeccionan sus campos para aislar el cableado del job de la ejecucion en hardware: con
+	// `x` alineado son 1 palabra/fila (`src_plane_stride = kRows*2`); con `x` no alineado, 2
+	// palabras/fila desde `x & ~15` (`src_plane_stride = kRows*4`, `bitplane_count = 1`).
+	{
+		alignas(2) eng::u8 mbt[kPlaneStride * kPlanes] {};
+		eng::field::ContiguousPlayfield pbt {};
+		pbt.bind_raw(mbt, sizeof(mbt), kSW, kSH, kPlanes);
+		pbt.set_rasterizer(&eng::field::kBlitterRaster);
+		eng::field::Surface sbt {pbt, eng::field::SurfaceRect {0, 0, kSW, kSH}};
+		eng::graphics::GlyphCache<8> cbt;
+		eng::u16 scb[kPlanes * 2u * eng::Font8::kRows] {};
+		eng::u16 msb[6u * 2u * eng::Font8::kRows] {};
+		// Alineado: x=0.
+		eng::graphics::FramePlan p0 {};
+		check(eng::graphics::draw_text_blit(sbt, p0, cbt, 0, 4, "A", 3u,
+						    eng::Span<eng::u16>(scb), eng::Span<eng::u16>(msb),
+						    kPlanes),
+		      "blitter: encola (x alineado)");
+		check(p0.blit_job_count() == kPlanes, "blitter: 1 job por plano");
+		check(p0.blit_job(0).kind == eng::graphics::BlitJobKind::MaskedBobCookieCut,
+		      "blitter: el job es cookie-cut");
+		check(p0.blit_job(0).words_per_row == 1u, "blitter alineado: 1 palabra/fila");
+		check(p0.blit_job(0).source_plane_stride_bytes == eng::Font8::kRows * 2u,
+		      "blitter alineado: stride de plano 8 palabras (16 B)");
+		// No alineado: x=4 -> 2 palabras/fila desde x&~15=0.
+		eng::graphics::FramePlan p4 {};
+		check(eng::graphics::draw_text_blit(sbt, p4, cbt, 4, 4, "A", 3u,
+						    eng::Span<eng::u16>(scb), eng::Span<eng::u16>(msb),
+						    kPlanes),
+		      "blitter: encola (x no alineado)");
+		check(p4.blit_job_count() == kPlanes, "blitter x=4: 1 job por plano");
+		check(p4.blit_job(0).words_per_row == 2u, "blitter x=4: 2 palabras/fila");
+		check(p4.blit_job(0).source_plane_stride_bytes == eng::Font8::kRows * 4u,
+		      "blitter x=4: stride de plano 16 palabras (32 B)");
+		check(p4.blit_job(0).bitplane_count == 1u, "blitter x=4: bitplane_count = 1");
+
+		// Aislar cableado+geometria: ejecutar el job en SW y comparar con la CPU sobre el MISMO
+		// buffer. Si coincide, el job apunta bien y el fallo (si lo hay) seria del backend Amiga.
+		{
+			alignas(2) eng::u8 refc[kPlaneStride * kPlanes] {};
+			eng::field::ContiguousPlayfield pfc2 {};
+			pfc2.bind_raw(refc, sizeof(refc), kSW, kSH, kPlanes);
+			eng::field::Surface sfc2 {pfc2, eng::field::SurfaceRect {0, 0, kSW, kSH}};
+			sfc2.fill_rect(0, 0, kSW, kSH, kBg);
+			sfc2.draw_text(0, 4, "A", 3u);
+			// `mbt` no se filtro a fondo; pon el mismo fondo para comparar.
+			eng::field::Surface sbt2 {pbt, eng::field::SurfaceRect {0, 0, kSW, kSH}};
+			sbt2.fill_rect(0, 0, kSW, kSH, kBg);
+			eng::graphics::FramePlan pe {};
+			eng::graphics::GlyphCache<8> ce;
+			(void)eng::graphics::draw_text_blit(sbt2, pe, ce, 0, 4, "A", 3u,
+							    eng::Span<eng::u16>(scb),
+							    eng::Span<eng::u16>(msb), kPlanes);
+			exec_masked_bob_jobs(pe);
+			bool eq = true;
+			for (eng::u32 i = 0u; i < kPlaneStride * kPlanes; ++i) {
+				if (mbt[i] != refc[i]) eq = false;
+			}
+			check(eq, "blitter SW: cookie-cut $CA aplicado == CPU (cableado y geometria OK)");
+		}
+
+		// Texto LARGO (9 glifos = 5 pares): cada par tiene su propia mascara en `mask_scratch`.
+		// Reutilizar una sola perderia todos los pares menos el ultimo (por eso la mascara por par).
+		{
+			alignas(2) eng::u8 mlong[kPlaneStride * kPlanes] {};
+			eng::field::ContiguousPlayfield pl {};
+			pl.bind_raw(mlong, sizeof(mlong), kSW, kSH, kPlanes);
+			pl.set_rasterizer(&eng::field::kBlitterRaster);
+			eng::field::Surface sl {pl, eng::field::SurfaceRect {0, 0, kSW, kSH}};
+			sl.fill_rect(0, 0, kSW, kSH, kBg);
+			eng::graphics::GlyphCache<16> cl;
+			eng::u16 scl[kPlanes * 2u * eng::Font8::kRows] {};
+			eng::u16 msl[6u * 2u * eng::Font8::kRows] {};
+			eng::graphics::FramePlan pl2 {};
+			check(eng::graphics::draw_text_blit(sl, pl2, cl, 0, 4, "Blit x=1", 3u,
+							    eng::Span<eng::u16>(scl),
+							    eng::Span<eng::u16>(msl), kPlanes),
+			      "blitter texto largo: encola");
+			check(pl2.blit_job_count() == kPlanes * 4u, "blitter texto largo: 4 pares x planos");
+			exec_masked_bob_jobs(pl2);
+			// Referencia CPU sobre otro buffer.
+			alignas(2) eng::u8 rlong[kPlaneStride * kPlanes] {};
+			eng::field::ContiguousPlayfield pr {};
+			pr.bind_raw(rlong, sizeof(rlong), kSW, kSH, kPlanes);
+			eng::field::Surface sr {pr, eng::field::SurfaceRect {0, 0, kSW, kSH}};
+			sr.fill_rect(0, 0, kSW, kSH, kBg);
+			sr.draw_text(0, 4, "Blit x=1", 3u);
+			bool eql = true;
+			for (eng::u32 i = 0u; i < kPlaneStride * kPlanes; ++i) {
+				if (mlong[i] != rlong[i]) eql = false;
+			}
+			check(eql, "blitter SW texto largo: == CPU (mascaras por par OK)");
+		}
 	}
 
 	// El glifo pintado realmente tiene tinta del color 3 dentro de 'A'.

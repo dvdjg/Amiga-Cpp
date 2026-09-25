@@ -44,25 +44,51 @@ if (!Number.isFinite(addr) || planes <= 0 || rowBytes <= 0 || width <= 0 || heig
   }
 }
 
-// --- Deducción de la geometría desde la copperlist activa (--from-copper) ---
-// Lee COP1LC (0xDFF080) y recorre la lista (pares registro,$FFFF-dato terminador) buscando
-// BPL1PT (0x0E0) y BPL1MOD (0x108); con `--planes` y `--width`/`--height` deriva el resto.
+// --- Deducción de la geometría desde el estado del hardware / copperlist activa (--from-copper) ---
+// Vía principal: los registros ACTIVOS `BPL1PT` ($DFF0E0) y `BPL1MOD` ($DFF108), que reflejan el
+// valor en curso aunque la copperlist no sea parseable. Reserva: recorrer la copperlist desde
+// `COP1LC` ($DFF080) buscando `BPL1PTH`/`BPL1PTL`/`BPL1MOD` (por si el registro activo aún no se
+// programó en el instante de la lectura).
 async function geometryFromCopper(port) {
+  // Vía directa: registros de display activos.
+  try {
+    const ptResp = await sideCommand('mem dff0e0 4', port);
+    const modResp = await sideCommand('mem dff108 2', port);
+    const pt = parseInt(String(ptResp.data || ''), 16) >>> 0;
+    const mod = parseInt(String(modResp.data || ''), 16);
+    if (Number.isFinite(pt) && pt !== 0) {
+      return { base: pt, mod: Number.isFinite(mod) ? mod : 0, source: 'BPL1PT active register' };
+    }
+  } catch { /* cae a la copperlist */ }
+  // Reserva: recorrer la copperlist activa.
   const copResp = await sideCommand('mem dff080 4', port);
-  const coplc = parseInt(String(copResp.data), 16); // long big-endian → valor
+  const coplc = parseInt(String(copResp.data), 16) >>> 0; // long big-endian → valor
   if (!Number.isFinite(coplc)) throw new Error('COP1LC no disponible');
-  // Lee un tramo de la lista (4 KiB: la copperlist puede llevar el BPL1PT tras WAITs/modulos).
-  const list = await readMem(coplc, 4096, port);
-  let base = 0, mod = 0;
-  for (let off = 0; off + 3 < list.length; off += 4) {
-    const reg = (list[off] << 8) | list[off + 1];
-    const val = (list[off + 2] << 8) | list[off + 3];
-    if (reg === 0x00e0) base = (base & 0xffff) | (val << 16); // BPL1PTH
-    else if (reg === 0x00e2) base = (base & 0xffff0000) | val; // BPL1PTL
-    else if (reg === 0x0108) mod = val;                        // BPL1MOD
-    else if (reg === 0xffff) break;                            // fin de lista
+  // Lee 4 KiB (la copperlist puede llevar el BPL1PT tras WAITs/modulos) y sigue la cadena si el
+  // primer tramo no lo contiene: un `COPJMP1`/`COPJMP2` enlaza con otra lista (cuyo puntero está en
+  // la dirección que indica `$DFF088`/`$DFF08A`, o el propio registro auto-reiniciado).
+  const seen = new Set();
+  let cursor = coplc;
+  for (let hop = 0; hop < 8 && cursor && !seen.has(cursor); ++hop) {
+    seen.add(cursor);
+    const list = await readMem(cursor, 4096, port);
+    let base = 0, mod = 0, next = 0;
+    for (let off = 0; off + 3 < list.length; off += 4) {
+      const reg = (list[off] << 8) | list[off + 1];
+      const val = (list[off + 2] << 8) | list[off + 3];
+      if (reg === 0x00e0) base = (base & 0xffff) | (val << 16); // BPL1PTH
+      else if (reg === 0x00e2) base = (base & 0xffff0000) | val; // BPL1PTL
+      else if (reg === 0x0108) mod = val;                        // BPL1MOD
+      else if (reg === 0x0088 || reg === 0x008a) {               // COPJMP1/2: salta
+        next = val;
+        break;
+      } else if (reg === 0xffff) break;                          // fin de lista
+    }
+    if (base !== 0) return { base, mod, source: 'copperlist', cursor };
+    if (!next) break;
+    cursor = next;
   }
-  return { base, mod };
+  return { base: 0, mod: 0, source: 'none' };
 }
 
 let geoBase = addr, geoRowBytes = rowBytes, geoPlaneStride = planeStride, geoPlaneBytes = planeBytes;
@@ -75,7 +101,7 @@ if (fromCopper) {
   geoRowBytes = (Math.ceil(geoRowBytes / 4) * 4); // alineado a 4 (padding del engine)
   geoPlaneBytes = geoRowBytes * height;
   geoPlaneStride = geoPlaneBytes;
-  console.error(`[screendump-diff] copper: base=0x${geoBase.toString(16)} mod=${g.mod} row_bytes=${geoRowBytes}`);
+  console.error(`[screendump-diff] copper(${g.source}): base=0x${geoBase.toString(16)} mod=${g.mod} row_bytes=${geoRowBytes}`);
 }
 
 // --- Cliente mínimo del canal lateral (una orden, una respuesta JSON) ---

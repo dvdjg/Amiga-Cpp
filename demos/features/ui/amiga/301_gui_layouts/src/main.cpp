@@ -4,8 +4,9 @@
 //   - layouts deterministicos: `layout_fit_children` (adaptable al contenido), `layout_flow` (con
 //     *wrap*) y `layout_stack_v`.
 //   - **texto ajustado** (`Label.wrap`/`wrap_w`).
-//   - **texto por Blitter** con cache de glifos (`GlyphCache` + `UiPainter::text_blit`), validando
-//     en hardware la ruta acelerada (el host solo prueba equivalencia).
+//   - **texto por Blitter** con cache de glifos (`GlyphCache` + `UiPainter::text_blit`): la
+//     equivalencia CPU y el algoritmo de varios pares los cubre HOST-313; la ejecucion en
+//     hardware sigue pendiente (§8 de pending-verification).
 //   - **coleccion de fuentes**: `Font8` (y su cursiva), `Font5x7` (y cursiva) y micro `Font3x5`.
 //
 // Escena EHB 320x256. `text_blit` necesita un `FramePlan`: la demo lo usa y ejecuta el plan con el
@@ -237,9 +238,15 @@ private:
 		m_wrap.bounds = ui::Rect {20, 196, 280, 40};
 		ui::draw_widget(m_wrap, p);
 
-		// Nota: la ruta **texto por Blitter** (`UiPainter::text_blit`) esta cubierta por HOST-313
-		// (equivalencia CPU), pero su ejecucion en hardware (MaskedBobCookieCut de 6 planos) esta
-		// PENDIENTE de verificacion; por eso esta demo pinta el texto por CPU.
+		// --- Ruta **texto por Blitter** (`UiPainter::text_blit`) ---
+		// La equivalencia CPU, la geometria del job y el algoritmo de varios pares (mascara por
+		// par) los cubre HOST-313. La **ejecucion real del Blitter** sobre esta escena sigue sin
+		// reproducir el patron exacto de `Font8` (ni con `x` alineado), tras resolver: buffers de
+		// trabajo en el llamador (el plan guarda punteros), en **Chip RAM** (el Blitter solo accede
+		// a Chip) y una **mascara por par**. Queda un defecto residual del backend
+		// (`amiga_blitter.cpp`, ruta `masked`) que se investiga en
+		// `docs/debugging/investigaciones/pending-verification.md` §8. Por eso esta demo pinta el
+		// texto por CPU.
 
 		// Self-test en hardware: verifica que el texto ajustado pinto tinta (color 3) en su zona.
 		eng::u32 hits = 0u;

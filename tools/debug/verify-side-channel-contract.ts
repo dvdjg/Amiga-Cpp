@@ -213,10 +213,13 @@ async function main() {
       profileBytes: fs.statSync(profile).size,
     };
     // Evidencia de la copperlist activa (base para `--from-copper`).
-    report.copper = { cop1lc: null as string | null };
+    report.copper = { cop1lc: null as string | null, head: null as string | null };
     const copResp = await client.command('mem dff080 4');
     if (copResp.ok) {
-      report.copper.cop1lc = `0x${parseInt(String(copResp.data), 16).toString(16)}`;
+      const coplc = parseInt(String(copResp.data), 16);
+      report.copper.cop1lc = `0x${coplc.toString(16)}`;
+      const headResp = await client.command(`mem ${coplc.toString(16)} 16`);
+      if (headResp.ok) report.copper.head = String(headResp.data);
     }
     // El canal lateral admite un cliente: cierro el del contrato antes de que `screendump-diff`
     // abra el suyo para leer COP1LC/BPL1PT y comparar el framebuffer por planos.
