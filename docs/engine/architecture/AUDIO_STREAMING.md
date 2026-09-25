@@ -172,10 +172,16 @@ salida     = 2 * (tamaño_cuerpo - 2) muestras s8
 TABLA[16]  = {-34,-21,-13,-8,-5,-3,-2,-1, 0,1,2,3,5,8,13,21}
 ```
 
-El encoder del engine emite `pad = 0` y `semilla = 0` y codifica **todas** las muestras como
-incrementos desde 0 (`2 + ceil(N/2)` bytes). Cualquier semilla es válida para el decodificador
-(el estándar la pasa como parámetro a `D1Unpack`), así que un fichero 8SVX de cualquier herramienta
-se decodifica correctamente.
+El encoder del engine emite `pad = 0`, la **semilla** y codifica **todas** las muestras como
+incrementos desde esa semilla (`2 + ceil(N/2)` bytes). Cualquier semilla es válida para el
+decodificador (el estándar la pasa como parámetro a `D1Unpack`), así que un fichero 8SVX de
+cualquier herramienta se decodifica correctamente.
+
+> **Bloques consecutivos: hay que encadenar la semilla.** Un AUZX con varios chunks FibDelta debe
+> usar como semilla del chunk `k` la **última muestra reconstruida** del chunk `k-1` (no 0). Con
+> semilla 0 por chunk, cada chunk arranca en 0 y salta al nivel real en su primera muestra: el
+> salto es un **clic** en cada frontera (cada `chunk_samples`/rate segundos). `pack-pcm` lo hace
+> así; el test HOST-323 lo comprueba (una frontera encadenada sigue la señal; con semilla 0 salta).
 
 **Delta + ZX0 — `5`** (sin pérdida):
 
@@ -208,8 +214,9 @@ elige el ASM. Las tablas se pasan por puntero desde el C++ (una sola fuente de v
 Rutinas en `support/codec_asm.s` (propias): `eng_fib_delta_decode`, `eng_ima_adpcm_decode`,
 `eng_delta_integrate` (ABI de este toolchain m68k GCC 15: argumentos **por pila**, retorno en
 `d0`; ver nota en el `.s`). Además, el **depacker ZX0 68000** `zx0_decompress`
-(`support/dzx0_68000.s`, port a GAS del original de Emmanuel Marty, **licencia zlib**; ABI de
-registro `a0` = comprimido, `a1` = salida), que cubre ZX0 y el paso ZX0 de Delta+ZX0.
+(`support/dzx0_68000.s`) y el **depacker aPLib 68000** `eng_aplib_decompress`
+(`support/aplib_68000.s`; ambos de Emmanuel Marty, **licencia zlib**, port a GAS), que cubren ZX0
+(el paso ZX0 de Delta+ZX0) y aPLib. La demo 277 los compara byte a byte con la referencia C++.
 
 La **equivalencia byte a byte** con la referencia C++ se verifica en hardware/emulador con la
 demo **`277_codec_equiv`** (gate en `detail`: `0` = idéntico; medido `0x00040000`), que cubre

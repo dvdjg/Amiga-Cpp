@@ -24,6 +24,22 @@
 |    as being the original software.
 | 3. This notice may not be removed or altered from any source distribution.
 
+| Envoltorio con ABI C (argumentos por pila, retorno en d0): evita el inline-asm por registros
+| fijos, que dispara un ICE del gcc m68k 15.1 (ver docs/reference/toolchain/m68k-gcc.md 3.1).
+|   eng::s32 eng_aplib_decompress(const u8* src, u8* dst)
+	.section .text.eng_aplib_decompress,"ax",@progbits
+	.type eng_aplib_decompress, function
+	.globl eng_aplib_decompress
+eng_aplib_decompress:
+	move.l	8(sp),-(sp)	| guarda el inicio del destino (arg2)
+	move.l	8(sp),a0	| src (arg1, desplazado por el push)
+	move.l	12(sp),a1	| dst (arg2)
+	jsr	apl_decompress
+	move.l	(sp)+,d1	| recupera el inicio del destino
+	move.l	a1,d0		| fin de salida
+	sub.l	d1,d0		| tamano = fin - inicio
+	rts
+
 	.section .text.apl_decompress,"ax",@progbits
 	.type apl_decompress, function
 	.globl apl_decompress

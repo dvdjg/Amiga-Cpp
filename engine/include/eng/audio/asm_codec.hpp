@@ -86,13 +86,16 @@ inline void delta_integrate(eng::Span<eng::u8> buf) noexcept {
 	return static_cast<eng::s32>(static_cast<eng::usize>(a1v - dst.data()));
 }
 
-/// Descompresor **aPLib**. La rutina ASM está en `support/aplib_68000.s` (Emmanuel Marty, zlib)
-/// pero **no se invoca** todavía: el gcc m68k 15.1 da un *ICE* (`print_operand_address` /
-/// `dwarf2cfi`) con su inline-asm (ver `docs/reference/toolchain/m68k-gcc.md`). Hasta arreglarlo
-/// se usa la referencia C++, que es correcta y está verificada (HOST-328).
+/// Descompresor **aPLib** por ASM (`support/aplib_68000.s`, Emmanuel Marty, zlib). Se llama por el
+/// **envoltorio C `eng_aplib_decompress`** (ABI de pila, sin inline-asm), que evita el *ICE* del
+/// gcc m68k 15.1 con ABI de registro (ver `docs/reference/toolchain/m68k-gcc.md` §3.1).
+/// `dst` debe tener capacidad suficiente (el flujo aPLib lleva su marcador EOD).
+extern "C" eng::s32 eng_aplib_decompress(const eng::u8* src, eng::u8* dst) noexcept;
+
+/// `aplib::decompress` por ASM (mismo contrato: `dst` con capacidad suficiente).
 [[nodiscard]] inline eng::s32 aplib_decompress(eng::Span<const eng::u8> src,
 					       eng::Span<eng::u8> dst) noexcept {
-	return aplib::decompress(src, dst);
+	return eng_aplib_decompress(src.data(), dst.data());
 }
 
 } // namespace eng::audio::asm_codec

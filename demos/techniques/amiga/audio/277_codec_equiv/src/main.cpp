@@ -206,8 +206,27 @@ struct CodecEquiv {
 			}
 		}
 
-		// aPLib: verificado por HOST-328 (C++ vs vector de apultra). La rutina ASM esta
-		// vendorizada (`support/aplib_68000.s`) pero deshabilitada por un ICE del gcc m68k.
+		// --- aPLib (ASM vs referencia C++) ---
+		{
+			eng::u8 aa[128] {};
+			eng::u8 ar[128] {};
+			const eng::s32 na = eng::audio::asm_codec::aplib_decompress(
+			    eng::Span<const eng::u8>(kAPLib, sizeof(kAPLib)),
+			    eng::Span<eng::u8>(aa, sizeof(aa)));
+			const eng::s32 nr = eng::audio::aplib::decompress(
+			    eng::Span<const eng::u8>(kAPLib, sizeof(kAPLib)),
+			    eng::Span<eng::u8>(ar, sizeof(ar)));
+			if (na != nr || na != static_cast<eng::s32>(kAPLibOut)) {
+				m_detail = static_cast<eng::u32>(m_detail | 32u);
+			} else {
+				for (eng::usize i = 0u; i < kAPLibOut; ++i) {
+					if (aa[i] != ar[i]) {
+						m_detail = static_cast<eng::u32>(m_detail | 32u);
+						break;
+					}
+				}
+			}
+		}
 
 		eng::debug::mark_ready(g_eng_run_status, 0x00040000u | m_detail);
 	}

@@ -78,28 +78,27 @@ namespace detail {
 
 } // namespace detail
 
-/// **Comprime** `pcm` (8-bit con signo) al flujo 8SVX en `dst`. Devuelve los bytes escritos
-/// (`2 + ceil(muestras/2)`) o `-1` si `pcm` está vacío o no cabe.
+/// **Comprime** `pcm` (8-bit con signo) al flujo 8SVX en `dst`, **encadenando la semilla**:
+/// `seed` es la muestra anterior al bloque (la del último bloque) y queda actualizada a la
+/// última muestra reconstruida, para pasar como semilla al bloque siguiente. Así el flujo de
+/// bloques consecutivos es **continuo** (sin clic en las fronteras): el decodificador arranca
+/// del nivel real, no de 0.
 ///
-/// Convención de semilla: `dst[1] = 0` y los nibbles codifican **todas** las muestras como
-/// incrementos desde el acumulador (que arranca en 0), de modo que `decode(encode(x)) == x`
-/// cuando los deltas son representables. El estándar pasa la semilla como parámetro a
-/// `D1Unpack`, así que cualquier valor es válido para el decodificador; usar 0 es la
-/// convención natural (idéntica a la de Delta+RLE).
+/// Devuelve los bytes escritos (`2 + ceil(muestras/2)`) o `-1` si `pcm` está vacío o no cabe.
+/// Para un bloque aislado, llama a la sobrecarga sin semilla (usa 0).
 ///
-/// El codificador es *greedy*: para cada muestra elige el delta tabulado más cercano a la
-/// diferencia real, avanzando el acumulador. El estándar sugiere además repartir el error
-/// hacia delante y hacia atrás para minimizar la distorsión global; eso mejora la calidad
-/// pero **no** cambia el formato (el flujo sigue siendo válido), así que puede sustituirse.
-[[nodiscard]] inline eng::s32 encode(eng::Span<const eng::u8> pcm,
-				     eng::Span<eng::u8> dst) noexcept {
+/// El codificador es *greedy*: elige el delta tabulado más cercano a la diferencia real,
+/// avanzando el acumulador. El estándar sugiere repartir además el error hacia delante y hacia
+/// atrás; eso mejora la calidad pero **no** cambia el formato.
+[[nodiscard]] inline eng::s32 encode(eng::Span<const eng::u8> pcm, eng::Span<eng::u8> dst,
+				     eng::u8& seed) noexcept {
 	if (pcm.empty() || dst.size() < 2u) {
 		return -1;
 	}
-	dst[0] = 0u; // pad (el estándar lo ignora)
-	dst[1] = 0u; // semilla (x inicial del D1Unpack)
+	dst[0] = 0u;    // pad (el estándar lo ignora)
+	dst[1] = seed;  // semilla (x inicial del D1Unpack): continua con el bloque anterior
 	eng::usize out = 2u;
-	eng::u8 x = 0u;
+	eng::u8 x = seed;
 	eng::usize i = 0u;
 	while (i < pcm.size()) {
 		const eng::u8 hi = detail::nearest_code(
@@ -118,7 +117,15 @@ namespace detail {
 		}
 		dst[out++] = static_cast<eng::u8>((static_cast<eng::u8>(hi) << 4u) | lo);
 	}
+	seed = x; // semilla de salida para el bloque siguiente
 	return static_cast<eng::s32>(out);
+}
+
+/// Bloque aislado (semilla 0). Para varios bloques consecutivos usa la sobrecarga con semilla.
+[[nodiscard]] inline eng::s32 encode(eng::Span<const eng::u8> pcm,
+				     eng::Span<eng::u8> dst) noexcept {
+	eng::u8 seed = 0u;
+	return encode(pcm, dst, seed);
 }
 
 } // namespace eng::audio::fib_delta

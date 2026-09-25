@@ -23,6 +23,7 @@
 // `pcm_codec::decode` y comprueba el round-trip byte a byte (informa OK/FALLO).
 
 #include <eng/audio/auzx.hpp>
+#include <eng/audio/fib_delta.hpp>
 #include <eng/audio/pcm_codec.hpp>
 
 #include <cstdio>
@@ -107,6 +108,9 @@ int main(int argc, char** argv) {
 	const eng::usize entries = static_cast<eng::usize>(num_chunks) * eng::audio::auzx::kChunkEntrySize;
 	eng::u32 at = static_cast<eng::u32>(hdr + entries);
 	eng::usize done = 0u;
+	// Fibonacci Delta se codifica **encadenando la semilla** entre chunks (la ultima muestra
+	// reconstruida del anterior); con semilla 0 por chunk habria un clic en cada frontera.
+	eng::u8 fib_seed = 0u;
 	for (eng::u16 c = 0u; c < num_chunks; ++c) {
 		const eng::usize n = (total - done) < chunk ? (total - done) : chunk;
 		// Techo de salida generoso: None = n; RLE peor caso = n + n/128 + 1; FibDelta = n/2+2;
@@ -118,6 +122,10 @@ int main(int argc, char** argv) {
 				enc[i] = pcm[done + i];
 			}
 			en = static_cast<eng::s32>(n);
+		} else if (comp == static_cast<eng::u8>(eng::audio::pcm_codec::Codec::FibDelta)) {
+			en = eng::audio::fib_delta::encode(eng::Span<const eng::u8>(pcm.data() + done, n),
+							   eng::Span<eng::u8>(enc.data(), enc.size()),
+							   fib_seed);
 		} else {
 			en = eng::audio::pcm_codec::encode(
 			    eng::Span<const eng::u8>(pcm.data() + done, n),
@@ -209,5 +217,22 @@ int main(int argc, char** argv) {
 	}
 	std::printf("round-trip: %s (%s)\n", diff == 0u ? "exacto" : "con perdida",
 		    lossy ? "codec con perdida" : "sin perdida");
+
+	// Continuidad en las fronteras de chunk: con la semilla encadenada (FibDelta) el salto es
+	// del tamano de un paso de la senal; con semilla 0 por chunk habia un clic.
+	int max_boundary = 0;
+	for (eng::usize b = chunk; b < got; b += chunk) {
+		const int d = static_cast<int>(static_cast<eng::s8>(out[b])) -
+			      static_cast<int>(static_cast<eng::s8>(out[b - 1u]));
+		const int ad = d < 0 ? -d : d;
+		if (ad > max_boundary) {
+			max_boundary = ad;
+		}
+	}
+	std::printf("fronteras de chunk: salto maximo = %d\n", max_boundary);
+	if (max_boundary > 64) {
+		std::fprintf(stderr, "frontera discontinua (posible clic): %d\n", max_boundary);
+		return 1;
+	}
 	return 0;
 }

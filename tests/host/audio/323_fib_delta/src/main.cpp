@@ -103,6 +103,41 @@ void test_lossless_on_tabulated_deltas() {
 	      "fib-delta: PCM vacio -> -1");
 }
 
+// Continuidad entre chunks: sin encadenar la semilla, cada chunk arranca en 0 y salta (clic).
+void test_chunk_chain_continuity() {
+	eng::u8 pcm[64] {};
+	for (int i = 0; i < 64; ++i) {
+		pcm[i] = static_cast<eng::u8>(static_cast<eng::s8>(i)); // rampa 0..63
+	}
+	eng::u8 e0[40] {}, e1[40] {};
+	eng::u8 seed = 0u;
+	const eng::s32 n0 = eng::audio::fib_delta::encode(
+	    eng::Span<const eng::u8>(pcm, 32u), eng::Span<eng::u8>(e0, sizeof(e0)), seed);
+	const eng::s32 n1 = eng::audio::fib_delta::encode(
+	    eng::Span<const eng::u8>(pcm + 32, 32u), eng::Span<eng::u8>(e1, sizeof(e1)), seed);
+	check(n0 > 0 && n1 > 0, "cadena: codifica los dos chunks");
+	eng::u8 d0[32] {}, d1[32] {};
+	(void)eng::audio::fib_delta::decode(eng::Span<const eng::u8>(e0, static_cast<eng::usize>(n0)),
+					    eng::Span<eng::u8>(d0, sizeof(d0)));
+	(void)eng::audio::fib_delta::decode(eng::Span<const eng::u8>(e1, static_cast<eng::usize>(n1)),
+					    eng::Span<eng::u8>(d1, sizeof(d1)));
+	const int boundary = static_cast<int>(static_cast<eng::s8>(d1[0])) -
+			     static_cast<int>(static_cast<eng::s8>(d0[31]));
+	check(boundary >= -4 && boundary <= 16, "cadena: la frontera sigue la rampa (continua)");
+
+	// Con semilla 0 en el chunk 1, su primer valor se queda en el delta maximo (clic).
+	eng::u8 f1[40] {};
+	eng::u8 zero = 0u;
+	(void)eng::audio::fib_delta::encode(eng::Span<const eng::u8>(pcm + 32, 32u),
+					    eng::Span<eng::u8>(f1, sizeof(f1)), zero);
+	eng::u8 g1[32] {};
+	(void)eng::audio::fib_delta::decode(eng::Span<const eng::u8>(f1, 40u),
+					    eng::Span<eng::u8>(g1, sizeof(g1)));
+	const int jump = static_cast<int>(static_cast<eng::s8>(g1[0])) -
+			 static_cast<int>(static_cast<eng::s8>(d0[31]));
+	check(jump < boundary - 8 || jump > boundary + 8, "cadena: sin semilla hay salto (detectado)");
+}
+
 // Dispatch del codec y errores de tamano.
 void test_codec_dispatch() {
 	const eng::u8 src[] = {0x00, 0x00, 0x01, 0x8F};
@@ -143,6 +178,7 @@ int main() {
 	test_golden_vector();
 	test_matches_reference();
 	test_lossless_on_tabulated_deltas();
+	test_chunk_chain_continuity();
 	test_codec_dispatch();
 	if (failures == 0) {
 		std::printf("OK: Fibonacci Delta (IFF 8SVX) validado contra el estandar.\n");
