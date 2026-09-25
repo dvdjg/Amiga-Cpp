@@ -247,6 +247,22 @@ if [ -n "$EXTRA_DEFINES" ]; then
 	COMMON+=($EXTRA_DEFINES)
 fi
 
+# Overrides por demo (`build.args` en el dir de la demo): una asignacion `CLAVE=valor` por
+# linea (comentarios con `#`). Claves admitidas: ENGINE_OPT / DEMO_OPT / C_OPT. Mismo espiritu
+# que `run.args` (opciones de ejecucion), pero para el build. No cambia el CONFIG_ID. Caso de
+# uso: la 212 fija `DEMO_OPT=-O2` por el bug de codegen de gcc 15 m68k a `-O1`.
+if [ -f "$DEMO_PATH/build.args" ]; then
+	while IFS='=' read -r _k _v || [ -n "$_k" ]; do
+		_k="${_k%%[[:space:]]*}"
+		case "$_k" in
+			""|\#*) continue ;;
+			ENGINE_OPT) ENGINE_OPT="$_v" ;;
+			DEMO_OPT) DEMO_OPT="$_v" ;;
+			C_OPT) C_OPT="$_v" ;;
+		esac
+	done <"$DEMO_PATH/build.args"
+fi
+
 # --- Flags por origen (override para bisecar un cuelgue de optimizacion) -----
 # ENGINE_OPT / DEMO_OPT / C_OPT permiten compilar el engine, la demo y el
 # soporte C con niveles distintos de $OPT sin cambiar el CONFIG_ID. Default:

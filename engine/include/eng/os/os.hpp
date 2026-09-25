@@ -42,18 +42,20 @@ void request_quit();
 void enable_keyboard();
 
 /// **Habilita el pad CD32** en el puerto 2 (protocolo serie por `POTGO`/`POTINP`): a partir de aquí
-/// el puerto 2 se lee como `Gamepad` (en lugar de `Joystick`) y sus botones llegan como
-/// `MsgType::Gamepad` por el puerto del sistema. Lo implementa el backend Amiga. Ver
+/// el puerto 2 se prueba como `Gamepad` y sus botones llegan como `MsgType::Gamepad`; si no hay
+/// pad, el `tick` **cae al joystick** (misma puerto). Lo implementa el backend Amiga. Ver
 /// `MINI_OS_INPUT.md` §6.
 void enable_cd32_pad();
 
-/// Dispositivos de entrada que `os::input_enable` puede activar (bitmask).
+/// Dispositivos de entrada que `os::input_enable` puede activar (bitmask). `InputJoystick` y
+/// `InputCd32Pad` comparten el **puerto 2**; `InputAll` activa los que conviven (ratón + teclado +
+/// joystick) y el pad CD32 se añade explícitamente con `enable_cd32_pad()` (auto-detección).
 enum InputMask : eng::u8 {
 	InputMouse = 1u << 0,
 	InputKeyboard = 1u << 1,
 	InputJoystick = 1u << 2,
 	InputCd32Pad = 1u << 3,
-	InputAll = 0x0fu,
+	InputAll = 0x07u,
 };
 
 /// Habilita los dispositivos de `mask`: los demás **no** se pollean. El teclado instala su IRQ de

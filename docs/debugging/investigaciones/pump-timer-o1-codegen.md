@@ -47,8 +47,9 @@ DEMO_OPT=-O2 bash tools/build/build-demo.sh <demo> --debug
 ```
 
 Compila el TU del demo a `-O2` dentro del perfil debug y **el bug desaparece** (`msgs`=16,
-`timers`=16). Decisión: mantener las demos a **periodo 1** (estado verde); si una demo necesita un
-timer de periodo > 1, compilar su TU a `-O2` o fijar/reportar el bug de gcc.
+`timers`=16). Para que no dependa de una variable de entorno, la demo 212 lo fija en un fichero
+por demo `build.args` (`DEMO_OPT=-O2`) que `build-demo.sh` lee sin cambiar el `CONFIG_ID`. La 212
+usa `add_timer(1u, 2u)` y recibe los `Timer` (`t: 25` en el overlay; `detail=0x2123TTTT`).
 
 ## Repro
 

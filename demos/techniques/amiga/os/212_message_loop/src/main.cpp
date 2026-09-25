@@ -61,6 +61,7 @@ struct DemoApp {
 	eng::u8 joy_dirs = 0;
 	eng::u8 joy_seen = 0; ///< OR de las direcciones vistas (para el run-status; pegajoso)
 	eng::u32 timers = 0;  ///< `MsgType::Timer` recibidos (os::add_timer)
+	eng::u16 pad_mask = 0; ///< OR de botones del pad CD32 vistos (para el run-status; pegajoso)
 	eng::u32 keys = 0;
 	eng::u16 key_last = 0u;
 	eng::u32 bg_work = 0;
@@ -70,6 +71,10 @@ struct DemoApp {
 		// Teclado por IRQ de CIA-A serie: a partir de aqui los scancodes llegan como
 		// KeyDown/KeyUp por el puerto (el runner los inyecta con `--keys <hex>`).
 		eng::os::enable_keyboard();
+		// Pad CD32 en el puerto 2: se prueba y, si hay pad, sus botones llegan como
+		// `Gamepad`; si no, el tick cae al joystick (auto-deteccion). El runner lo
+		// configura con `--cd32` (WinUAE presenta un pad en el puerto 2).
+		eng::os::enable_cd32_pad();
 		eng::debug::mark_ready(g_eng_run_status, 0x00021200u);
 	}
 
@@ -81,6 +86,12 @@ struct DemoApp {
 			joy_seen = static_cast<eng::u8>(joy_seen | joy_dirs);
 			// Reporta las direcciones vistas (0x2122DDDD; pegajoso) para verificarlo desde el runner.
 			g_eng_run_status.detail = 0x21220000u | joy_seen;
+			break;
+		case eng::os::MsgType::Gamepad:
+			// Pad CD32 (puerto 2): acumula el bitmask de botones vistos (pegajoso) y lo reporta
+			// (0x2124MMMM) para verificarlo desde el runner (`--cd32`).
+			pad_mask = static_cast<eng::u16>(pad_mask | m.payload.pad.buttons);
+			g_eng_run_status.detail = 0x21240000u | pad_mask;
 			break;
 		case eng::os::MsgType::KeyDown:
 			key_last = m.payload.key.code;
@@ -98,8 +109,11 @@ struct DemoApp {
 			break;
 		case eng::os::MsgType::Timer:
 			++timers;
-			// Reporta el conteo de timers (0x2123TTTT) para verificarlo desde el runner.
-			g_eng_run_status.detail = 0x21230000u | (timers & 0xffffu);
+			// Reporta el conteo de timers (0x2123TTTT). No pisa la evidencia de entrada (tecla,
+			// joystick o pad) si ya hay alguna; asi el run-status conserva lo que se busca verificar.
+			if (keys == 0u && joy_seen == 0u && pad_mask == 0u) {
+				g_eng_run_status.detail = 0x21230000u | (timers & 0xffffu);
+			}
 			break;
 		case eng::os::MsgType::MouseMove:
 			// El ratón (puerto 1) también mueve la caja (posición absoluta ya escalada).
@@ -115,8 +129,8 @@ struct DemoApp {
 		frames = f;
 		bg_work = g_bg_work;
 		// Reporta el avance del fondo por el run-status (0x2120BBBB). Si ya llegó alguna tecla,
-		// conserva su marca (0x2121KKKK) para que el runner pueda verla al final.
-		if (keys == 0u && joy_seen == 0u && timers == 0u) {
+		// joystick, pad o timer, conserva su marca para que el runner pueda verla al final.
+		if (keys == 0u && joy_seen == 0u && pad_mask == 0u && timers == 0u) {
 			g_eng_run_status.detail = 0x21200000u | (g_bg_work & 0xffffu);
 		}
 
@@ -150,6 +164,8 @@ struct DemoApp {
 		p = append_u32(p, bg_work);
 		p = append(p, "   t: ");
 		p = append_u32(p, timers);
+		p = append(p, "   pad: ");
+		p = append_u32(p, pad_mask);
 		p = append(p, "   last: 0x");
 		p = append_hex(p, key_last);
 		*p = '\0';
@@ -204,11 +220,11 @@ int main() {
 
 	eng::Engine engine { backend, game };
 	// Fachada del mini-SO: habilita la entrada y **engancha el latido al VBlank del `Engine`**
-	// (ya no se llama `os::tick` en el bucle). El timer de usuario va a 1 frame: es el único
-	// periodo verificado en hardware; con periodo > 1 el backend postea los `Timer` pero el
-	// pump no los recibe (bug abierto, ver ROADMAP_MINI_OS.md).
+	// (ya no se llama `os::tick` en el bucle). Timer de usuario con periodo **2** frames: verifica
+	// el caso periodo>1. El TU del demo se compila a `-O2` (build.args) por el bug de codegen de
+	// gcc 15 m68k a `-O1` (ver pump-timer-o1-codegen.md).
 	(void)eng::os::init(engine, eng::os::InputAll);
-	eng::os::add_timer(1u, 1u);
+	eng::os::add_timer(1u, 2u);
 	engine.run_frames_polling(0xffff);
 
 	return 0;

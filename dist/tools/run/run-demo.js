@@ -169,7 +169,7 @@ function findWinuaeDir(extensionRoot) {
     }
     return path.join(extensionRoot, 'bin/win32');
 }
-function patchConfig(configText, extensionRoot, stagedOutDir, warpEnabled, immediateBlits, diskAdf = '') {
+function patchConfig(configText, extensionRoot, stagedOutDir, warpEnabled, immediateBlits, diskAdf = '', cd32Pad = false) {
     const dh0 = path.join(extensionRoot, 'bin/dh0');
     const normalizedDh0 = dh0.replace(/\//g, '\\');
     const normalizedOut = stagedOutDir.replace(/\//g, '\\');
@@ -211,6 +211,14 @@ function patchConfig(configText, extensionRoot, stagedOutDir, warpEnabled, immed
     // el overhead de emular cada blit. Útil para el gate de fps del harness.
     if (immediateBlits) {
         out = setConfigValue(out, 'immediate_blits', 'true');
+    }
+    // Pad CD32 en el puerto 2: `joyport1mode=cd32joy`. LIMITACION CONOCIDA: WinUAE solo activa
+    // `cd32_pad_enabled[1]` si el `eventid[]` de un dispositivo **joystick/raton** incluye un
+    // evento `JOY2_CD32_*` (los mapeos de teclado no valen). Sin hardware joystick real en el host
+    // no se ha encontrado todavia la forma de inyectar ese evento por config, asi que `--cd32`
+    // deja el puerto en modo CD32 pero el pad puede no detectarse (ver ROADMAP_MINI_OS M2).
+    if (cd32Pad) {
+        out = setConfigValue(out, 'joyport1mode', 'cd32joy');
     }
     return out;
 }
@@ -917,6 +925,9 @@ const telemetrySamples = Math.max(0, parseInt(argValue('--telemetry-samples', '0
 const telemetryIntervalMs = Math.max(10, parseInt(argValue('--telemetry-interval-ms', '120'), 10));
 const warpEnabled = hasArg('--warp');
 const immediateBlits = hasArg('--immediate-blits');
+// --cd32: WinUAE presenta un **pad CD32** en el puerto 2 (en vez de joystick), para verificar
+// `os::enable_cd32_pad()`. Los botones se inyectan con `--joy 1:<dir|fire>` (`fire` = rojo).
+const cd32Pad = hasArg('--cd32');
 const diskArg = argValue('--disk', '');
 const diskAdf = diskArg !== '' ? path.resolve(diskArg) : '';
 const mousePath = buildMousePathFromArgs();
@@ -956,7 +967,7 @@ fs.writeFileSync(startupPath, 'stack 131072\ncd dh1:\n:a.exe\n', 'utf8');
 const baseConfigPath = path.join(root, 'config/mcp-amiga-c-debug.uae');
 const runnerConfigPath = path.join(outputDir, 'runner.uae');
 const configText = fs.readFileSync(baseConfigPath, 'utf8');
-fs.writeFileSync(runnerConfigPath, patchConfig(configText, extensionRoot, stagedDir, warpEnabled, immediateBlits, diskAdf), 'utf8');
+fs.writeFileSync(runnerConfigPath, patchConfig(configText, extensionRoot, stagedDir, warpEnabled, immediateBlits, diskAdf, cd32Pad), 'utf8');
 const gdbPort = parseInt(process.env.WINUAE_GDB_PORT || '2345', 10);
 /// PIDs que están ESCUCHANDO en alguno de `ports` (Windows, vía `netstat -ano`).
 /// Se usa `netstat` y no una conexión TCP porque el GDB server de WinUAE-DBG acepta
