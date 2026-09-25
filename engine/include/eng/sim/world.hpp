@@ -123,6 +123,14 @@ public:
 		}
 	}
 
+	/// Vacía la caché de planes del planificador compartido (llamar si cambia el dominio de
+	/// acciones). Útil también para medir el coste de búsqueda frente al de caché.
+	constexpr void clear_plan_cache() noexcept {
+		if constexpr (Traits::planning) {
+			this->m_planner.driver.clear_plan_cache();
+		}
+	}
+
 	/// Nodos expandidos por la **última** búsqueda del planificador compartido (diagnóstico y
 	/// benchmark; 0 si la planificación está desactivada o no hubo búsqueda).
 	[[nodiscard]] constexpr eng::usize planner_expansions() const noexcept {

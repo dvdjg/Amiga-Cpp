@@ -89,11 +89,7 @@ void tick_world() {
 /// Un **pase de planificacion**: todas las criaturas planifican una vez. Devuelve las
 /// expansiones de GOAP acumuladas.
 eng::u32 plan_pass(eng::u32 frame, eng::Span<const SimGoap::Action> acts,
-		   const SimGoap::Goal& goal) {
-	PlanParams params {};
-	params.budget = kPlanBudget;
-	params.replan_interval = 0u; // en el bench, todas planifican cada pase
-
+		   const SimGoap::Goal& goal, const PlanParams& params) {
 	eng::u32 expansions = 0u;
 	const SimGoap::State start = start_state(SimInventory {});
 	for (eng::usize i = 0u; i < g_world.creature_count(); ++i) {
@@ -150,13 +146,17 @@ struct SimBench {
 		}
 		m_tick_per_s = elapsed == 0u ? 0u : eng::util::div32(ticks * 50u, elapsed);
 
-		// Ventana 2: **planificacion sola** (un pase = todas las criaturas).
+		// Ventana 2: **busqueda sola** (todas las criaturas, sin cache: se vacia cada pase).
+		PlanParams stress {};
+		stress.budget = kPlanBudget;
+		stress.replan_interval = 0u; // todas, cada pase
 		const eng::u32 t_plan = backend.cia_tod_ticks();
 		eng::u32 passes = 0u;
 		eng::u32 expansions = 0u;
 		elapsed = 0u;
 		while (passes < kMaxIter) {
-			expansions += plan_pass(passes, acts.span(), goal);
+			g_world.clear_plan_cache();
+			expansions += plan_pass(passes, acts.span(), goal, stress);
 			++passes;
 			elapsed = (backend.cia_tod_ticks() - t_plan) & 0x00ffffffu;
 			if (elapsed >= kPhaseTicks) {
@@ -167,13 +167,16 @@ struct SimBench {
 		const eng::u32 per_pass = passes == 0u ? 0u : expansions / passes;
 		m_exp_per_frame = per_pass > 0xffffu ? 0xffffu : per_pass;
 
-		// Ventana 3: **tick + planificacion juntos** (la referencia).
+		// Ventana 3: **tick + planificacion realista** (con cache e intervalo de replan).
+		PlanParams reali {};
+		reali.budget = kPlanBudget;
+		reali.replan_interval = 120u; // uso normal: se replanifica de vez en cuando
 		const eng::u32 t_both = backend.cia_tod_ticks();
 		eng::u32 frames = 0u;
 		elapsed = 0u;
 		while (frames < kMaxIter) {
 			tick_world();
-			(void)plan_pass(frames, acts.span(), goal);
+			(void)plan_pass(frames, acts.span(), goal, reali);
 			++frames;
 			elapsed = (backend.cia_tod_ticks() - t_both) & 0x00ffffffu;
 			if (elapsed >= kPhaseTicks) {

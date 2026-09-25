@@ -33,14 +33,24 @@ expansiones GOAP/frame y los pasos del HTN.
 
 ## Medición (A500, 12 criaturas, presupuesto 24)
 
+Tres ventanas separadas: tick solo, búsqueda de planificación **sin caché** (vaciándola cada
+pase) y tick + planificación **realista** (con caché e intervalo de replan).
+
 ```
-tick solo/s                     : 125
-frames/s (tick + planificacion) : 7
+tick solo/s                     : 131
+frames/s (tick + planificacion) : 113
 ```
 
-Es decir, **planificar cuesta ~18x más que el tick del ecosistema**: el cuello de botella es
-el planner, no la simulación. El objetivo de optimización es la planificación (presupuesto por
-frame, caché, LOD de quién planifica), no el tick.
+La planificación **realista** cuesta ~1.2x el tick (~14% de sobrecarga), no el ~18x que daba
+el peor caso sin caché. Dos razones, y las dos son de uso normal:
+
+1. **La caché de planes se usa de verdad** (`PlannerDriver::replan` llama a `plan_cached`):
+   muchas criaturas replantean el mismo objetivo desde el mismo estado y no vuelven a buscar.
+2. **No todas planifican cada frame**: el intervalo de replan (la histéresis) reparte las
+   consultas.
+
+El peor caso sigue medido en la ventana de búsqueda (todas las criaturas, sin caché) para no
+esconder el coste real de A*.
 
 ## Verificación
 

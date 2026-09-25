@@ -143,15 +143,16 @@ public:
 	using Ai = DomainT;
 
 	/// Planifica desde `start` hacia `goal`. Devuelve `true` si hay plan (o el objetivo ya
-	/// se cumple). Escribe los pasos en el `PlanRunner`. Usa producto/cociente nativos de
-	/// 16 bits (sin libcalls). Con presupuesto (`set_budget`), puede devolver un plan
-	/// **parcial** (`partial()`) en vez de fallar.
+	/// se cumple). Escribe los pasos en el `PlanRunner`. Usa la **caché de planes**
+	/// (`plan_cached`): replantear el mismo objetivo desde el mismo estado no vuelve a
+	/// buscar (clave en el bucle del sim, donde muchas criaturas repiten consulta). Con
+	/// presupuesto (`set_budget`), puede devolver un plan **parcial** (`partial()`).
 	[[nodiscard]] constexpr bool replan(const typename Ai::State& start,
 					    const typename Ai::Goal& goal,
 					    eng::Span<const typename Ai::Action> actions) noexcept {
 		eng::u16 raw[MaxSteps] {};
-		const eng::usize n = m_planner.plan(start, goal, actions,
-						    {raw, MaxSteps});
+		const eng::usize n = m_planner.plan_cached(start, goal, actions,
+							   {raw, MaxSteps});
 		if (!m_planner.found() && n == 0u) {
 			m_runner.abort();
 			return false;
@@ -177,6 +178,9 @@ public:
 	[[nodiscard]] constexpr eng::usize expansions() const noexcept {
 		return m_planner.expansions();
 	}
+
+	/// Vacía la caché de planes (llamar si cambia el dominio de acciones).
+	constexpr void clear_plan_cache() noexcept { m_planner.clear_plan_cache(); }
 	[[nodiscard]] constexpr eng::u16 plan_cost() const noexcept { return m_planner.plan_cost(); }
 	[[nodiscard]] constexpr PlanRunner<MaxSteps>& runner() noexcept { return m_runner; }
 	[[nodiscard]] constexpr const PlanRunner<MaxSteps>& runner() const noexcept {
