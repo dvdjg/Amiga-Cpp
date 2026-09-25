@@ -63,8 +63,8 @@ describe **intención**; el engine decide **materialización**; el hardware no s
   hardware; `eng::graphics::…` → **interno** (nunca en código de juego).
 - **Un concepto, un nombre.** Un único `Sprite`, un único tipo de música, un único enum de
   layout.
-- **Fallo explícito.** `[[nodiscard]]` + un `Result<T>`/`Status` común; nunca `0`, ni bloque
-  inválido, ni `Ref` nulo como error silencioso.
+- **Fallo explícito.** `[[nodiscard]]` + un `Expected<T>` común (valor o `eng::Result`); nunca
+  `0`, ni bloque inválido, ni `Ref` nulo como error silencioso.
 - **Sin registros, punteros ni offsets** en la frontera (ya en `PUBLIC_API.md` §12); lo
   específico de hardware vive en el driver/`Device`.
 
@@ -87,7 +87,7 @@ describe **intención**; el engine decide **materialización**; el hardware no s
 ### 3.3 Frontera pública (qué se expone)
 
 - **Juego**: `App`, `Screen`, `World`/`Layer`, `Sprite`, `Palette`/`Color`, `Input`,
-  `Audio`, `Assets`, `Task`, `Box`, `Color`, `Result`.
+  `Audio`, `Assets`, `Task`, `Box`, `Color`, `Expected<T>`/`Result`.
 - **Dispositivo**: `Device` (servicios), `Screen`. El juego lo usa cuando necesita Blitter/
   copper, pero **por intención** (`device.fill_rect(...)`, `device.or_bobs(...)`,
   `device.install_copper(...)`), no por registros.
@@ -132,7 +132,7 @@ app.run();
 | `Sprite` (objeto) + sprite hardware | `Sprite` (objeto) y `HwSprite` (representación) |
 | `SceneLayout` + `BobLayout` | un `PlaneLayout` |
 | `MemoryKind{Fast}` sin arena / `frame` sin kind | `MemoryKind` y `MemorySystem` alineados |
-| `bool`/`0`/bloque inválido | `Result<T>`/`Status` + `[[nodiscard]]` |
+| `bool`/`0`/bloque inválido | `Expected<T>` (valor o `eng::Result`) + `[[nodiscard]]` |
 | `takeover`/`commit`/`present` | `install`/`publish` (vocabulario único) |
 
 ## 4. Roadmap por fases
@@ -189,7 +189,7 @@ gate; ninguna fase rompe una demo verde sin migrarla en la misma pasada.
 - **Sin hardware en juego**: `grep` sobre `demos/games` no encuentra `copper::`, `BPLCON`,
   `DMACON`, `BobTarget`, `FramePlan`, `Blitter`.
 - **Un nombre por concepto**: sin `MusicModule` duplicado ni `Sprite` ambiguo.
-- **Fallo explícito**: las APIs nuevas devuelven `Result`/`Status` con `[[nodiscard]]`.
+- **Fallo explícito**: las APIs nuevas devuelven `Expected<T>`/`Result` con `[[nodiscard]]`.
 - **Memoria coherente**: `MemoryKind` ⇔ `MemorySystem` (sin mapeos implícitos).
 - **Demos y HOST verdes** en cada fase.
 
