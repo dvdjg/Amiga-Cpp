@@ -96,9 +96,10 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
   navegación, steering, GOAP). La planificación cubre además **anytime** (`set_budget`/
   `partial`), **caché selectiva** (`invalidate_selective` + LRU), **HTN** (`planning/htn.hpp`,
   descomposición de coste mínimo) y **selección GOAP/HTN** (`PlanKind`/`plan_for`); HOST-313/316/317/318.
-  Hay **benchmark Amiga** (`demos/features/sim/amiga/001_sim_bench`): A500 con 12 criaturas,
-  ~7 frames/s y ~120 expansiones GOAP/frame; destapó y corrigió el libcall `__popcountsi2`
-  (ahora SWAR freestanding). Falta el **consumidor real en `games/`** y las líneas de
+  Hay **benchmark Amiga** (`demos/features/sim/amiga/001_sim_bench`): A500 con 12 criaturas da
+  **125 ticks/s** solo y **7 frames/s** con planificación — planificar cuesta ~18x más que
+  simular, así que el cuello de botella es el planner; destapó y corrigió el libcall
+  `__popcountsi2` (ahora SWAR freestanding). Falta el **consumidor real en `games/`** y las líneas de
   crecimiento (percepción imperfecta, tácticas de manada). Detalle:
   `docs/engine/architecture/SIM_ECOSYSTEM.md`.
 

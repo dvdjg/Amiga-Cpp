@@ -165,8 +165,8 @@ entregó con consumidor (`domain.hpp::build_shelter_htn`) y vive en cabecera pro
 **algoritmo distinto** (HTN, el `htn.hpp` de G1.2). Regla de footprint: el planner (`Goap<32,8>`
 ~6–8 KB) se instancia en **memoria estática o de fondo** (`PlannerHolder`), nunca en la pila del
 68000; se mide con `codegen-report.mjs` (gate de tamaños) y su rendimiento real en 68000 con la demo
-`demos/features/sim/amiga/001_sim_bench` (A500: ~7 frames/s, ~120 expansiones GOAP/frame con 12
-criaturas).
+`demos/features/sim/amiga/001_sim_bench` (A500 con 12 criaturas: 125 ticks/s solo frente a 7
+frames/s con planificación; **planificar cuesta ~18x más que simular**).
 
 ## 5. Catálogo de técnicas a incorporar
 

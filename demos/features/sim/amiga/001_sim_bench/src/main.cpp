@@ -6,11 +6,15 @@
 // (GOAP con presupuesto; ademas se descompone una tarea HTN) sobre Amiga real/emulado, con
 // el contador TOD de la CIA-A (50 Hz PAL), sin depender de que quepa en un frame.
 //
-// Publica en `g_eng_run_status.detail`:
-//   bits 31..16  frames de simulacion por segundo
-//   bits 15..0   expansiones de GOAP por frame (media)
+// Mide **tres ventanas por separado** (para saber donde optimizar): tick del ecosistema solo,
+// planificacion sola (un "pase" = todas las criaturas) y ambas juntas (la referencia).
 //
-// y lo dibuja en pantalla. Cambiar el target (`TARGET_MACHINE`) compararia CPU.
+// Publica en `g_eng_run_status.detail`:
+//   bits 31..16  ticks de simulacion por segundo (sin planificar)
+//   bits 15..0   frames/s con tick + planificacion (referencia)
+//
+// y lo dibuja en pantalla (ticks/s, pases/s, frames/s, expansiones/frame). Cambiar el target
+// (`TARGET_MACHINE`) compararia CPU.
 //
 // El mundo (~24 KB) va en **memoria estatica**: en la pila del 68000 no cabe.
 //
@@ -57,9 +61,9 @@ using World = SimWorld<SimTraits, 12, 4, 4, 8>;
 using Htn = HtnDriver<32u, 5u, 1u, 4u, 8u>;
 
 constexpr eng::u8 kCreatures = 12u;
-constexpr eng::u16 kPlanBudget = 24u;   // presupuesto de expansiones por busqueda
-constexpr eng::u32 kTargetTicks = 250u; // presupuesto de medida: 5 s emulados (50 Hz)
-constexpr eng::u32 kMaxFrames = 20000u;
+constexpr eng::u16 kPlanBudget = 24u;  // presupuesto de expansiones por busqueda
+constexpr eng::u32 kPhaseTicks = 100u; // 2 s emulados (50 Hz) por ventana de medida
+constexpr eng::u32 kMaxIter = 20000u;
 
 // Memoria **estatica** (no pila): el mundo (~24 KB), la red HTN y el generador aleatorio.
 World g_world {};
@@ -76,16 +80,19 @@ void append(char* dst, const char* src) {
 	*dst = '\0';
 }
 
-/// Un "frame de simulacion": tick del ecosistema + planificacion de cada criatura.
-/// Devuelve las expansiones de GOAP acumuladas en el frame.
-eng::u32 run_frame(eng::u32 frame, eng::Span<const SimGoap::Action> acts,
-		   const SimGoap::Goal& goal) {
+/// Tick del ecosistema, **sin** planificar.
+void tick_world() {
 	g_world.tick_realized(g_rng);
 	g_world.tick_abstract(g_rng);
+}
 
+/// Un **pase de planificacion**: todas las criaturas planifican una vez. Devuelve las
+/// expansiones de GOAP acumuladas.
+eng::u32 plan_pass(eng::u32 frame, eng::Span<const SimGoap::Action> acts,
+		   const SimGoap::Goal& goal) {
 	PlanParams params {};
 	params.budget = kPlanBudget;
-	params.replan_interval = 0u; // en el bench, todas planifican cada frame
+	params.replan_interval = 0u; // en el bench, todas planifican cada pase
 
 	eng::u32 expansions = 0u;
 	const SimGoap::State start = start_state(SimInventory {});
@@ -129,25 +136,58 @@ struct SimBench {
 		const auto acts = ConstructionDomain::actions();
 		const SimGoap::Goal goal = ConstructionDomain::goal(false, true);
 
-		// Ventana de medida adaptativa por TOD (50 Hz).
-		const eng::u32 t0 = backend.cia_tod_ticks();
-		eng::u32 frames = 0u;
+		// Ventana 1: **tick solo** (sin planificar).
+		const eng::u32 t_tick = backend.cia_tod_ticks();
+		eng::u32 ticks = 0u;
 		eng::u32 elapsed = 0u;
-		eng::u32 expansions = 0u;
-		while (frames < kMaxFrames) {
-			expansions += run_frame(frames, acts.span(), goal);
-			++frames;
-			elapsed = (backend.cia_tod_ticks() - t0) & 0x00ffffffu;
-			if (elapsed >= kTargetTicks) {
+		while (ticks < kMaxIter) {
+			tick_world();
+			++ticks;
+			elapsed = (backend.cia_tod_ticks() - t_tick) & 0x00ffffffu;
+			if (elapsed >= kPhaseTicks) {
 				break;
 			}
 		}
+		m_tick_per_s = elapsed == 0u ? 0u : eng::util::div32(ticks * 50u, elapsed);
+
+		// Ventana 2: **planificacion sola** (un pase = todas las criaturas).
+		const eng::u32 t_plan = backend.cia_tod_ticks();
+		eng::u32 passes = 0u;
+		eng::u32 expansions = 0u;
+		elapsed = 0u;
+		while (passes < kMaxIter) {
+			expansions += plan_pass(passes, acts.span(), goal);
+			++passes;
+			elapsed = (backend.cia_tod_ticks() - t_plan) & 0x00ffffffu;
+			if (elapsed >= kPhaseTicks) {
+				break;
+			}
+		}
+		m_plan_pass_per_s = elapsed == 0u ? 0u : eng::util::div32(passes * 50u, elapsed);
+		const eng::u32 per_pass = passes == 0u ? 0u : expansions / passes;
+		m_exp_per_frame = per_pass > 0xffffu ? 0xffffu : per_pass;
+
+		// Ventana 3: **tick + planificacion juntos** (la referencia).
+		const eng::u32 t_both = backend.cia_tod_ticks();
+		eng::u32 frames = 0u;
+		elapsed = 0u;
+		while (frames < kMaxIter) {
+			tick_world();
+			(void)plan_pass(frames, acts.span(), goal);
+			++frames;
+			elapsed = (backend.cia_tod_ticks() - t_both) & 0x00ffffffu;
+			if (elapsed >= kPhaseTicks) {
+				break;
+			}
+		}
+		m_combined_per_s = elapsed == 0u ? 0u : eng::util::div32(frames * 50u, elapsed);
 		m_frames = frames;
 		m_expansions = expansions;
-		m_frames_per_s = elapsed == 0u ? 0u : eng::util::div32(frames * 50u, elapsed);
-		const eng::u32 per_frame = frames == 0u ? 0u : expansions / frames;
-		m_exp_per_frame = per_frame > 0xffffu ? 0xffffu : per_frame;
-		g_eng_run_status.detail = (m_frames_per_s << 16u) | m_exp_per_frame;
+
+		const eng::u32 tick_clamped = m_tick_per_s > 0xffffu ? 0xffffu : m_tick_per_s;
+		const eng::u32 both_clamped =
+		    m_combined_per_s > 0xffffu ? 0xffffu : m_combined_per_s;
+		g_eng_run_status.detail = (tick_clamped << 16u) | both_clamped;
 		eng::debug::mark_ready(g_eng_run_status, g_eng_run_status.detail);
 	}
 
@@ -158,8 +198,8 @@ struct SimBench {
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		auto& debug = backend.debug();
 		debug.clear();
-		debug.filled_rect(40, 40, 560, 240, 0x00081018);
-		debug.rect(40, 40, 560, 240, 0x00ffffff);
+		debug.filled_rect(40, 40, 560, 280, 0x00081018);
+		debug.rect(40, 40, 560, 280, 0x00ffffff);
 		debug.text(60, 60, "sim bench - eng::sim on Amiga", 0x00ffffff);
 
 		auto number = [](eng::u32 v) {
@@ -176,19 +216,29 @@ struct SimBench {
 		debug.text(60, 90, line, 0x0080ff80);
 
 		line[0] = '\0';
-		append(line, "frames/s: ");
-		append(line, number(m_frames_per_s));
+		append(line, "tick solo/s: ");
+		append(line, number(m_tick_per_s));
 		debug.text(60, 120, line, 0x00ffff00);
+
+		line[0] = '\0';
+		append(line, "pases plan/s: ");
+		append(line, number(m_plan_pass_per_s));
+		debug.text(60, 150, line, 0x00ff9000);
+
+		line[0] = '\0';
+		append(line, "frames/s (tick+plan): ");
+		append(line, number(m_combined_per_s));
+		debug.text(60, 180, line, 0x00ffff80);
 
 		line[0] = '\0';
 		append(line, "expansiones GOAP/frame: ");
 		append(line, number(m_exp_per_frame));
-		debug.text(60, 150, line, 0x00ffc040);
+		debug.text(60, 210, line, 0x00ffc040);
 
 		line[0] = '\0';
 		append(line, "pasos HTN (refugio): ");
 		append(line, number(m_htn_steps));
-		debug.text(60, 180, line, 0x00c080ff);
+		debug.text(60, 240, line, 0x00c080ff);
 
 		eng::debug::probe_when_ready(g_eng_run_status, 0u);
 	}
@@ -196,7 +246,9 @@ struct SimBench {
 private:
 	eng::u32 m_frames = 0u;
 	eng::u32 m_expansions = 0u;
-	eng::u32 m_frames_per_s = 0u;
+	eng::u32 m_tick_per_s = 0u;
+	eng::u32 m_plan_pass_per_s = 0u;
+	eng::u32 m_combined_per_s = 0u;
 	eng::u32 m_exp_per_frame = 0u;
 	eng::u16 m_htn_steps = 0u;
 	eng::u16 m_creatures = 0u;

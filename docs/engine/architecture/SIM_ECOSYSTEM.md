@@ -285,9 +285,10 @@ que el juego no repite el `if`. Así una tarea compuesta (`build_shelter_htn`) c
 objetivos GOAP sin duplicar la ejecución (HOST-313/318).
 
 En Amiga real/emulado, `demos/features/sim/amiga/001_sim_bench` mide el ecosistema completo
-(`SimWorld` + planificación) con el reloj TOD de la CIA-A: A500 con 12 criaturas da ~7
-frames/s y ~120 expansiones GOAP/frame. El mundo (~24 KB) va en memoria estática (no cabe en
-la pila del 68000).
+(`SimWorld` + planificación) con el reloj TOD de la CIA-A, separando tick de planificación:
+A500 con 12 criaturas da **125 ticks/s** solo y **7 frames/s** con planificación (~18x más
+caro planificar que simular), así que el cuello de botella es el planner. El mundo (~24 KB) va
+en memoria estática (no cabe en la pila del 68000).
 
 ## 10. Cómo se reutiliza `eng::ai` (sin duplicar)
 

@@ -27,7 +27,20 @@ bash tools/build/build-demo.sh demos/features/sim/amiga/001_sim_bench --release 
 bash tools/run/run-demo.sh demos/features/sim/amiga/001_sim_bench --warp
 ```
 
-`analyze` en la salida del runner da el `detail` (frames/s y expansiones/frame).
+`analyze` en la salida del runner da el `detail` (ticks solo/s en los bits altos y frames/s con
+planificación en los bajos). En pantalla se ven además los pases de planificación/s, las
+expansiones GOAP/frame y los pasos del HTN.
+
+## Medición (A500, 12 criaturas, presupuesto 24)
+
+```
+tick solo/s                     : 125
+frames/s (tick + planificacion) : 7
+```
+
+Es decir, **planificar cuesta ~18x más que el tick del ecosistema**: el cuello de botella es
+el planner, no la simulación. El objetivo de optimización es la planificación (presupuesto por
+frame, caché, LOD de quién planifica), no el tick.
 
 ## Verificación
 
