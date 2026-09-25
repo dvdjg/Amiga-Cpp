@@ -21,6 +21,7 @@
 ///
 /// Ver `docs/engine/architecture/RESOURCE_SYSTEM.md` §1/§4 y `PUBLIC_GAME_API.md` §2.1.4.
 
+#include <eng/core/types/domains.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/os/message.hpp>
 #include <eng/res/asset_cache.hpp>
@@ -61,6 +62,16 @@ public:
 	[[nodiscard]] const Cache& cache() const noexcept { return m_cache; }
 	[[nodiscard]] AssetState state(AssetId id) const noexcept { return m_cache.state(id); }
 	[[nodiscard]] eng::Span<eng::u8> get(AssetId id) noexcept { return m_cache.get(id); }
+
+	/// **Vista tipada** de un asset ya cargado (`Tag` de dominio). Vacía mientras no esté
+	/// `Ready`. La "decodificación" es la reinterpretación al dominio (los bytes se cargan
+	/// tal cual); para formatos con decoders (música, imágenes cocinadas) se añadirá encima.
+	template <class Tag>
+	[[nodiscard]] eng::ByteView<Tag> bytes(AssetId id) noexcept {
+		const eng::Span<eng::u8> s = m_cache.get(id);
+		return eng::ByteView<Tag> {s.data(), s.size()};
+	}
+
 	[[nodiscard]] eng::u32 used_chip() const noexcept { return m_cache.used_chip(); }
 	[[nodiscard]] eng::u32 used_fast() const noexcept { return m_cache.used_fast(); }
 

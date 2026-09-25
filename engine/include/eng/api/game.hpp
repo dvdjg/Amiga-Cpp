@@ -29,6 +29,8 @@
 #include <eng/field/draw_target.hpp>
 #include <eng/graphics/blitter_state.hpp>
 #include <eng/graphics/composition/compose.hpp>
+#include <eng/graphics/copper/plan.hpp>
+#include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/sprite_asset.hpp>
 #include <eng/input/input.hpp>
@@ -309,8 +311,51 @@ public:
 		}
 	}
 
+	/// `true` si el asset `id` ya está cargado (`Ready`).
+	template <class B = Backend>
+	[[nodiscard]] bool asset_ready(eng::u16 id) const {
+		if constexpr (requires(const B& b, eng::u16 i) { b.assets().state(i); }) {
+			return m_backend.assets().state(id) == res::AssetState::Ready;
+		} else {
+			(void)id;
+			return false;
+		}
+	}
+
+	/// **Vista tipada** del asset `id` (`Tag` de dominio): vacía si aún no está `Ready`. La
+	/// "decodificación" es la reinterpretación al dominio (los bytes se cargan tal cual).
+	template <class Tag, class B = Backend>
+	[[nodiscard]] eng::ByteView<Tag> asset(eng::u16 id) {
+		if constexpr (requires(B& b, eng::u16 i) { b.assets().template bytes<Tag>(i); }) {
+			return m_backend.assets().template bytes<Tag>(id);
+		} else {
+			(void)id;
+			return {};
+		}
+	}
+
+	/// **Carga tipada** de un asset desde fichero: declara + lanza (asíncrona) y devuelve su
+	/// id. Cuando `asset_ready(id)`, `asset<Tag>(id)` da la vista de dominio. `0` si no cabe o
+	/// el backend no tiene runtime de assets. (`PUBLIC_GAME_API.md` §2.1.4.)
+	template <class Tag, class B = Backend>
+	eng::u16 load(const char* path, eng::u32 size, res::MemBank bank = res::MemBank::Chip,
+		      eng::u8 prio = 128u) {
+		return load_asset<B>(path, size, bank, prio);
+	}
+
 	/// El juego registra su escena (en `init`); `screen()`/`present()` la usan.
 	void bind_scene(graphics::composition::Scene& scene) noexcept { m_scene = scene; }
+
+	/// **Escena ligada** (`bind_scene`): para efectos avanzados que el `Screen` de alto nivel
+	/// no cubre (copper por objeto, chunky, parcheo de punteros). Requiere escena ligada.
+	[[nodiscard]] graphics::composition::Scene& scene() noexcept { return *m_scene.get(); }
+
+	/// **Programa de Copper** de la escena ligada: `app.copper().add(...)`/`scheduler()` para
+	/// emitir intenciones directamente. Requiere escena ligada.
+	[[nodiscard]] copper::Plan& copper() noexcept { return m_scene.get()->plan(); }
+	[[nodiscard]] copper::Scheduler& copper_scheduler() noexcept {
+		return m_scene.get()->scheduler();
+	}
 
 	/// **Mundo retenido** del juego (`app.world().add_layer("fondo", 0)`): capas con su
 	/// cámara. Contenedor aditivo; el planner que lo materializa llega después
