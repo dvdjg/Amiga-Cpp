@@ -37,12 +37,22 @@ template <class T>
 }
 
 /// Número de bits a 1 del valor, contando en el ancho de `T`.
+///
+/// SWAR de 32 bits **sin `__builtin_popcount`**: en el m68k-amiga-elf el builtin acaba en
+/// `__popcountsi2`, que el libgcc de ese target no enlaza (undefined reference). El
+/// `static_cast<U>` zero-extiende, así que los bits altos no cuentan para `T` menor de 32.
 template <class T>
 [[nodiscard]] constexpr int popcount(T value) noexcept {
 	static_assert(is_integral_v<T>, "popcount: T no es un entero");
 	static_assert(sizeof(T) <= 4u, "popcount: ancho máximo 32 bits");
 	using U = make_unsigned_t<T>;
-	return __builtin_popcountl(static_cast<unsigned long>(static_cast<U>(value)));
+	eng::u32 x = static_cast<eng::u32>(static_cast<U>(value));
+	x = x - ((x >> 1u) & 0x55555555u);
+	x = (x & 0x33333333u) + ((x >> 2u) & 0x33333333u);
+	x = (x + (x >> 4u)) & 0x0f0f0f0fu;
+	x = x + (x >> 8u);
+	x = x + (x >> 16u);
+	return static_cast<int>(x & 0x3fu);
 }
 
 /// Ceros a la izquierda (bits altos a 0) dentro del ancho de `T`. Devuelve el

@@ -160,11 +160,13 @@ final lo que necesita consumidor.
 | G7.7 | `planning/htn.hpp` (algoritmo distinto) | **HTN**: cabecera propia (descomposición por métodos con backtracking acotado, **no** A\*); consumidor real `sim/domain.hpp::build_shelter_htn` | **HOST-318** (mecanismo, métodos con precondición, fallo y **equivalencia con el plan GOAP**) |
 
 G7.1–G7.4 son independientes del mundo (se prueban en host y no tocan `eng::sim`); G7.5 es el punto de
-unión y el que habilita el resto en el ecosistema; G7.6 y G7.7 se posponen hasta tener consumidor.
-G7.7 es el **único** que vive en cabecera propia, por ser **algoritmo distinto** (HTN, el `htn.hpp`
-de G1.2). Regla de footprint: el planner (`Goap<32,8>` ~6–8 KB) se instancia en **memoria estática o
-de fondo** (`PlannerHolder`), nunca en la pila del 68000; y se mide con `codegen-report.mjs`/`size`
-que la generalización no engorda la instanciación del enjambre (`Goap<32,0>`).
+unión y el que habilita el resto en el ecosistema; G7.6 se pospone hasta tener consumidor. G7.7 se
+entregó con consumidor (`domain.hpp::build_shelter_htn`) y vive en cabecera propia, por ser
+**algoritmo distinto** (HTN, el `htn.hpp` de G1.2). Regla de footprint: el planner (`Goap<32,8>`
+~6–8 KB) se instancia en **memoria estática o de fondo** (`PlannerHolder`), nunca en la pila del
+68000; se mide con `codegen-report.mjs` (gate de tamaños) y su rendimiento real en 68000 con la demo
+`demos/features/sim/amiga/001_sim_bench` (A500: ~7 frames/s, ~120 expansiones GOAP/frame con 12
+criaturas).
 
 ## 5. Catálogo de técnicas a incorporar
 

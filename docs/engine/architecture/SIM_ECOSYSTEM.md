@@ -284,6 +284,11 @@ La criatura puede planificar por **GOAP** (búsqueda A\*) o por **HTN** (descomp
 que el juego no repite el `if`. Así una tarea compuesta (`build_shelter_htn`) convive con los
 objetivos GOAP sin duplicar la ejecución (HOST-313/318).
 
+En Amiga real/emulado, `demos/features/sim/amiga/001_sim_bench` mide el ecosistema completo
+(`SimWorld` + planificación) con el reloj TOD de la CIA-A: A500 con 12 criaturas da ~7
+frames/s y ~120 expansiones GOAP/frame. El mundo (~24 KB) va en memoria estática (no cabe en
+la pila del 68000).
+
 ## 10. Cómo se reutiliza `eng::ai` (sin duplicar)
 
 | Necesidad del ecosistema | Primitiva existente |

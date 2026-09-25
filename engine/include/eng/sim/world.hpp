@@ -123,6 +123,16 @@ public:
 		}
 	}
 
+	/// Nodos expandidos por la **última** búsqueda del planificador compartido (diagnóstico y
+	/// benchmark; 0 si la planificación está desactivada o no hubo búsqueda).
+	[[nodiscard]] constexpr eng::usize planner_expansions() const noexcept {
+		if constexpr (!Traits::planning) {
+			return 0u;
+		} else {
+			return this->m_planner.driver.expansions();
+		}
+	}
+
 	[[nodiscard]] constexpr bool has_plan(EntityId id) const noexcept {
 		auto p = this->find_plan(id);
 		return p.valid() && p->runner.active;
