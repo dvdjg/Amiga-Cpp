@@ -15,6 +15,7 @@
 /// Restricción del Blitter: el destino debe estar **alineado a palabra** (16 px). El texto se
 /// dibuja en x múltiplo de 16; `draw_text_blit` lo exige y avisa (`false`) si no.
 
+#include <eng/core/types/box.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/core/data/utf8.hpp>
@@ -103,12 +104,14 @@ inline void solid_color_plane(eng::u16* rows, eng::u8 color, eng::u8 p) noexcept
 ///
 /// `x` debe ser múltiplo de 16 (restricción del Blitter). `src_scratch` es un buffer de trabajo
 /// (`planes * Font8::kRows` palabras) que construye el plan sólido del color; vive en el llamador
-/// (sin heap). Devuelve `false` si no se pudo encolar (x no alineado, clip, tamaño…). La ruta CPU
-/// equivalente es `Surface::draw_text` (mismo resultado).
+/// (sin heap). `clip`: si no está vacío, solo se emiten las palabras que caben **enteras** (no
+/// parte glifos a medias; coherente con `draw_text_clipped`). Devuelve `false` si no se pudo
+/// encolar (x no alineado, tamaño…). La ruta CPU equivalente es `Surface::draw_text`.
 template <eng::u16 Max>
 bool draw_text_blit(eng::field::Surface& s, eng::graphics::FramePlan& plan, GlyphCache<Max>& cache,
 		    eng::s32 x, eng::s32 y, const char* text, eng::u8 color,
-		    eng::Span<eng::u16> src_scratch, eng::u8 planes) noexcept {
+		    eng::Span<eng::u16> src_scratch, eng::u8 planes,
+		    eng::Box clip = {}) noexcept {
 	if (text == nullptr || planes == 0u) {
 		// Nada que pintar; el clip/alineación se comprueban al emitir.
 		return text != nullptr;
@@ -149,19 +152,29 @@ bool draw_text_blit(eng::field::Surface& s, eng::graphics::FramePlan& plan, Glyp
 		for (eng::u8 r = 0u; r < eng::Font8::kRows; ++r) {
 			mask_rows[r] = static_cast<eng::u16>(m0_rows[r] | (m1_rows[r] >> 8));
 		}
-		for (eng::u8 p = 0u; p < planes; ++p) {
-			eng::u16* base = src_scratch.data() + static_cast<eng::u32>(p) * eng::Font8::kRows;
-			solid_color_plane(base, color, p);
+		// Recorte: si hay `clip`, solo se emite la palabra que **cabe entera** dentro (no se parte
+		// un glifo a medias, como `draw_text_clipped`). `blit_masked` rechazaría si excede el clip.
+		bool emit = true;
+		if (!clip.empty()) {
+			const eng::s16 cw = static_cast<eng::s16>(cx + 16);
+			emit = cx >= clip.x && cw <= clip.right() &&
+			       y >= clip.y && static_cast<eng::s16>(y + 8) <= clip.bottom();
 		}
-		// Un solo `blit_masked` con TODOS los planos: el destino recorre sus planos contiguos
-		// (mientras que varios blits de 1 plano escribirían siempre el plano 0).
-		const bool ok = s.blit_masked(plan,
-					      eng::Span<const eng::u16>(src_scratch.data(),
-									static_cast<eng::u32>(planes) * eng::Font8::kRows),
-					      eng::Span<const eng::u16>(mask_rows, eng::Font8::kRows),
-					      cx, y, 16u, 8u, 2u, eng::Font8::kRows * 2u, planes);
-		if (!ok) {
-			return false;
+		if (emit) {
+			for (eng::u8 p = 0u; p < planes; ++p) {
+				eng::u16* base = src_scratch.data() + static_cast<eng::u32>(p) * eng::Font8::kRows;
+				solid_color_plane(base, color, p);
+			}
+			// Un solo `blit_masked` con TODOS los planos: el destino recorre sus planos contiguos
+			// (mientras que varios blits de 1 plano escribirían siempre el plano 0).
+			const bool ok = s.blit_masked(plan,
+						      eng::Span<const eng::u16>(src_scratch.data(),
+										static_cast<eng::u32>(planes) * eng::Font8::kRows),
+						      eng::Span<const eng::u16>(mask_rows, eng::Font8::kRows),
+						      cx, y, 16u, 8u, 2u, eng::Font8::kRows * 2u, planes);
+			if (!ok) {
+				return false;
+			}
 		}
 		if (cp1 == 0u) {
 			return true;

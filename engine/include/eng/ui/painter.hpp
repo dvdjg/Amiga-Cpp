@@ -72,12 +72,13 @@ public:
 	/// múltiplo de 16; la caché y el buffer de trabajo son del llamador (sin heap). Equivalente a
 	/// `text` (mismo resultado); ver `eng/graphics/glyph_cache.hpp`.
 	bool text_blit(eng::s16 x, eng::s16 y, const char* s, eng::u8 fg,
-		       eng::graphics::GlyphCache<>& cache, eng::Span<eng::u16> scratch, eng::u8 planes) {
+		       eng::graphics::GlyphCache<>& cache, eng::Span<eng::u16> scratch, eng::u8 planes,
+		       Rect clip = {}) {
 		if (!m_plan.valid()) {
 			return false;
 		}
 		return eng::graphics::draw_text_blit(*m_target.surface, *m_plan.get(), cache, x, y, s,
-						     fg, scratch, planes);
+						     fg, scratch, planes, clip);
 	}
 
 	/// Glifo 1-bit `w × h` desde filas `bits[row]` (bit `w-1` = columna 0, MSB primero).
