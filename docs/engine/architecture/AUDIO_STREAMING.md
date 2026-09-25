@@ -222,8 +222,18 @@ Fibonacci, IMA, la integración delta, ZX0 y Delta+ZX0.
 chunks (lo que consume `pcm_stream`). Así el juego no distingue formatos.
 
 Para preparar el contenido de un volumen desde PC, `tools/fs/tar-extract.mjs` extrae un archivo
-`.tar` (creado con la orden `tar` estándar) a un directorio, que luego se monta en el ADF con
-`tools/fs/make-volume.mjs`: el "archivo original" puede contener un sistema de archivos completo.
+`.tar` (creado con la orden `tar` estándar) a un directorio; `make-volume.mjs` acepta `--tar <f>`
+(lo extrae y lo vuelca al volumen) y `--add <f>[:<rel>]` (añade un fichero suelto), de modo que el
+"archivo original" puede contener un sistema de archivos completo.
+
+Ejemplos extremo a extremo:
+
+- **Streaming desde disco**: `demos/techniques/amiga/audio/278_stream_disk` lee un AUZX de `DH1:`
+  (melodía de dominio público generada con `tools/audio/gen-melody.mjs` y comprimida con
+  `host-tools/pack-pcm`), lo reconoce con `media` y lo streamea con `PcmStream`; verificado
+  `detail=0x260026` (0 underruns).
+- **Rendimiento**: `demos/techniques/amiga/audio/279_codec_bench` mide muestras/s de los
+  descompresores ASM frente a C++ (`detail=0x00027900` = idénticos).
 
 ## 8. Detalles de implementación
 

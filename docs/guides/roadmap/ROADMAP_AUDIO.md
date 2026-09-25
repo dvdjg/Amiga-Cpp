@@ -83,15 +83,23 @@ Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
   - **Fibonacci Delta** (`Codec::FibDelta`, IFF 8SVX, con pérdida 2:1, `eng/audio/fib_delta.hpp`) —
     **HOST-323**, contra el Apéndice C del estándar.
 
-  **Pendiente**: aPLib, **IMA ADPCM 4-bit** y la cabecera contenedora `AUZX` (que consume
-  `compression`). Los formatos exactos y la receta de compresión en PC están en
-  `docs/engine/architecture/AUDIO_STREAMING.md` §7.1.
+  Entregados además: **IMA ADPCM 4-bit** (`Codec::ImaAdpcm`, HOST-325), la **cabecera
+  contenedora `AUZX`** (`eng/audio/auzx.hpp`, HOST-326) con **interfaz de medios**
+  (`eng/audio/media.hpp`, HOST-327), el packer de PC (`host-tools/pack-pcm`) y `tar`
+  (`tools/fs/tar-extract.mjs` + `make-volume --tar/--add`). En 68000, los descompresores corren
+  en **ASM** (`support/codec_asm.s` + `support/dzx0_68000.s`) con equivalencia verificada en
+  hardware (demo 277, `detail=0`). **Pendiente**: solo aPLib. Los formatos exactos y la receta de
+  compresión en PC están en `docs/engine/architecture/AUDIO_STREAMING.md` §7.1/§7.2/§7.3.
 
 ### A5 — Streaming digital desde disquete
 
 - **Entregable**: `PcmStream` (doble/triple buffer) con la IRQ de audio cambiando de buffer y la
   descompresión en tarea de fondo; `file_read_async` para los chunks.
 - **Detalle**: [`AUDIO_STREAMING.md`](../../engine/architecture/AUDIO_STREAMING.md).
+- **Demo de streaming desde disco**: **`278_stream_disk`** lee un **AUZX** de `DH1:` (melodía de
+  dominio público, `tools/audio/gen-melody.mjs` + `pack-pcm`) y lo streamea con `media` +
+  `PcmStream`; verificado `detail=0x260026` (0 underruns). **`279_codec_bench`** mide muestras/s de
+  los descompresores ASM frente a C++ (`detail=0x00027900`).
 - **Verificación**: **HOST-239** (con E/S simulada: llena N buffers, detecta *underrun*, termina en
   EOF) y **demo 209_audio_stream** (grabación continua desde disquete en hardware).
 - **Estado**: **parcial**. Entregado: la **máquina de estados** de buffers `eng/os/stream.hpp`
