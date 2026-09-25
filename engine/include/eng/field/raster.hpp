@@ -273,7 +273,7 @@ public:
 					static_cast<eng::s16>(x + w - 1), static_cast<eng::s16>(x)};
 		const eng::s16 ys[4] = {static_cast<eng::s16>(y), static_cast<eng::s16>(y),
 					static_cast<eng::s16>(y + h - 1), static_cast<eng::s16>(y + h - 1)};
-		return pf.fill_polygon(xs, ys, 4u, color);
+		return pf.fill_polygon(xs, ys, color);
 	}
 	/// Línea por **Blitter** si hay `plan`: recorta el segmento al clip (Cohen-Sutherland)
 	/// y encola una `BlitJobKind::Line` por plano. Si no hay plan (o no cabe), CPU.

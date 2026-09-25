@@ -65,17 +65,17 @@ public:
     [[nodiscard]] constexpr eng::PlaneBytes bitplanes() const { return m_bound.view; }
 
     // --- Hooks (layout plano) ---------------------------------------------
-    u32 planeline_for(s32 wy) const override {
+    u32 planeline_for(eng::pix wy) const override {
         // `wy * planes` con `mulu.w` (16x16 -> 32), no `__mulsi3`: es el camino por fila de
         // las primitivas de `Surface` (write_pixel/draw_span) y del relleno de polígono.
         return eng::math::mulu16(static_cast<u16>(wy), m_planes);
     }
-    u32 byte_for(s32 wx) const override {
+    u32 byte_for(eng::pix wx) const override {
         return static_cast<u32>(wx / 8) & ~1u;
     }
     u32 mirror_planelines() const override { return 0; }
     bool supports_walk() const override { return false; }
-    bool in_bounds(s32 wx, s32 wy) const override {
+    bool in_bounds(eng::pix wx, eng::pix wy) const override {
         return wx >= 0 && wy >= 0 && static_cast<u32>(wx) < m_width && static_cast<u32>(wy) < m_height;
     }
 

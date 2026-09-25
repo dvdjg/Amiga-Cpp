@@ -210,18 +210,18 @@ public:
     constexpr bool initialized() const { return m_initialized; }
 
     // --- Hooks de mapeo lógico->físico (implementa cada tipo) -------------
-    virtual u32 planeline_for(s32 wy) const = 0;
-    virtual u32 byte_for(s32 wx) const = 0;
+    virtual u32 planeline_for(eng::pix wy) const = 0;
+    virtual u32 byte_for(eng::pix wx) const = 0;
     virtual u32 mirror_planelines() const { return 0; }
     virtual bool supports_walk() const { return false; }
-    virtual bool in_bounds(s32 wx, s32 wy) const { return wx >= 0 && wy >= 0; }
+    virtual bool in_bounds(eng::pix wx, eng::pix wy) const { return wx >= 0 && wy >= 0; }
     virtual u32 total_bytes() const { return m_total_bytes; }
 
     // --- Escritura atómica vía el mapeo (lo usa `Surface`) ----------------
     /// Escribe un píxel de mundo (lo atómico del mapeo lógico→físico). Devuelve
     /// false si está fuera de rango. En playfields con espejo (linear_display)
     /// duplica al espejo. `Surface` añade el recorte (clip) por encima de esto.
-    bool write_pixel(s32 wx, s32 wy, u8 color) {
+    bool write_pixel(eng::pix wx, eng::pix wy, u8 color) {
         if (!m_initialized || !in_bounds(wx, wy)) return false;
         const u32 byte = byte_for(wx);
         if (!supports_walk() && byte >= m_bytes_per_row) return false;
@@ -237,7 +237,7 @@ public:
     /// (16 píxeles) se resuelve con una sola escritura por plano; los extremos parciales van
     /// con máscara. Es la versión rápida del bucle de `write_pixel` para el relleno de
     /// polígonos (`fill_polygon`).
-    bool draw_span(s32 x0, s32 x1, s32 wy, u8 color) {
+    bool draw_span(eng::pix x0, eng::pix x1, eng::pix wy, u8 color) {
         if (!m_initialized || !in_bounds(x0, wy) || x1 < x0) return false;
         const u32 pl = planeline_for(wy);
         const u32 mir = mirror_planelines();
@@ -269,7 +269,7 @@ public:
 
     /// `draw_span` con **operación lógica**. `Copy`/`Clear` reutilizan la ruta rápida
     /// (`draw_span`); `Or`/`And`/`Xor` van por `write_planes_op` (palabra a palabra).
-    bool draw_span_op(s32 x0, s32 x1, s32 wy, u8 color, RasterOp op) {
+    bool draw_span_op(eng::pix x0, eng::pix x1, eng::pix wy, u8 color, RasterOp op) {
         if (op == RasterOp::Copy) return draw_span(x0, x1, wy, color);
         if (op == RasterOp::Clear) return draw_span(x0, x1, wy, 0u);
         if (!m_initialized || !in_bounds(x0, wy) || x1 < x0) return false;
@@ -501,11 +501,13 @@ public:
     /// Si hay un `PolygonFillSink` instalado (p. ej. el Blitter del backend Amiga),
     /// delega en él; en caso contrario usa el relleno CPU. El llamador dibuja a
     /// través de `Surface` y no distingue la ruta.
-    virtual bool fill_polygon(const s16* xs, const s16* ys, u8 n, u8 color) {
-        if (xs == nullptr || ys == nullptr || n < 3u) return false;
+    virtual bool fill_polygon(eng::Span<const s16> xs, eng::Span<const s16> ys, u8 color) {
+        const u8 n = static_cast<u8>(xs.size());
+        if (ys.size() != xs.size() || n < 3u) return false;
         if (m_fill_sink.ready()) {
             return m_fill_sink.fn(m_fill_sink.ctx, m_frontbuffer, m_planes, plane_stride(),
-                                  row_stride(), m_bytes_per_row, m_width, m_height, xs, ys, n, color);
+                                  row_stride(), m_bytes_per_row, m_width, m_height, xs.data(),
+                                  ys.data(), n, color);
         }
         // Relleno CPU por DOS CADENAS (poligono convexo): O(altura) frente a O(lados*altura)
         // del barrido que recalcula min/max por scanline. El polígono ya llega convexo.
@@ -516,11 +518,17 @@ public:
         for (u8 i = 0u; i < n; ++i) {
             x32[i] = xs[i];
             y32[i] = ys[i];
-        }
-        eng::math3d::convex_spans(
+        }        eng::math3d::convex_spans(
             eng::Span<const s32>(x32, n), eng::Span<const s32>(y32, n),
             [&](s32 y, s32 xl, s32 xr) { draw_span(xl, xr, y, color); });
         return true;
+    }
+
+    /// Atajo para arrays de tamaño fijo: `pf.fill_polygon(xs, ys, color)` sin escribir `Span`.
+    /// El nº de vértices se deduce del array (deben tener la misma longitud).
+    template <eng::usize N>
+    bool fill_polygon(const s16 (&xs)[N], const s16 (&ys)[N], u8 color) {
+        return fill_polygon(Span<const s16>(xs, N), Span<const s16>(ys, N), color);
     }
 
     // --- Blits (virtuales; la costura/espejo dependen del layout) ---------    /// Fuente y máscara viajan como `Span<const u16>`: el tamaño que el caller

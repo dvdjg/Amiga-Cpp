@@ -17,6 +17,7 @@
 /// el *fallback* CPU y la referencia canónica frente a la ruta Blitter (ver
 /// `docs/guides/methodology/PROTOCOLO_ETAPAS_GRAFICOS.md`, etapa 4).
 
+#include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/field/playfield_base.hpp>
 
@@ -24,7 +25,9 @@ namespace eng::field {
 
 /// Rellena el rectángulo `[x, x+w) × [y, y+h)` con `color` por **spans** (una fila = un tramo).
 /// Recorta contra los límites del playfield. Devuelve el nº de filas pintadas.
-inline eng::u32 cpu_fill_rect(Playfield& pf, eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h,
+/// Las coordenadas son `eng::pix` (16 bits en 68000) y los **intermedios** van en `s32`
+/// explícito (`x + w` puede superar 16 bits).
+inline eng::u32 cpu_fill_rect(Playfield& pf, eng::pix x, eng::pix y, eng::u16 w, eng::u16 h,
 			      eng::u8 color) {
 	if (!pf.initialized() || w == 0u || h == 0u) {
 		return 0u;
@@ -46,9 +49,11 @@ inline eng::u32 cpu_fill_rect(Playfield& pf, eng::s32 x, eng::s32 y, eng::u16 w,
 /// como Bresenham (misma cobertura de píxeles), pero los píxeles consecutivos de la **misma fila**
 /// se pintan con un solo `Playfield::draw_span` en lugar de uno a uno. Para líneas mayormente
 /// horizontales esto reduce de `|dx|` escrituras a `|dy|+1`. Recortado a la altura del playfield.
-/// Devuelve el nº de tramos (filas) pintados.
-inline eng::u32 cpu_line(Playfield& pf, eng::s32 x0, eng::s32 y0, eng::s32 x1, eng::s32 y1,
-			 eng::u8 color) {
+/// Devuelve el nº de tramos (filas) pintados. Coordenadas `eng::pix`; los **intermedios** del
+/// Bresenham (`dx`, `dy`, `err`, y `2*err`) se calculan en `s32` explícito porque `2*(|dx|+|dy|)`
+/// puede superar 16 bits.
+inline eng::u32 cpu_line(Playfield& pf, eng::pix x0, eng::pix y0, eng::pix x1,
+			 eng::pix y1, eng::u8 color) {
 	if (!pf.initialized()) {
 		return 0u;
 	}
@@ -57,35 +62,38 @@ inline eng::u32 cpu_line(Playfield& pf, eng::s32 x0, eng::s32 y0, eng::s32 x1, e
 	const eng::s32 sx = x0 < x1 ? 1 : -1;
 	const eng::s32 sy = y0 < y1 ? 1 : -1;
 	eng::s32 err = dx - dy;
-	// Estado del tramo en curso (fila actual y rango de x contiguo).
-	eng::s32 run_y = y0;
-	eng::s32 run_x0 = x0;
-	eng::s32 run_x1 = x0;
+	// Estado del tramo en curso (fila actual y rango de x contiguo). `run_*` en `s32` porque el
+	// barrido cruza filas y su aritmética intermedia puede desbordar `coord`.
+	eng::s32 cy = y0;
+	eng::s32 cx = x0;
+	eng::s32 run_y = cy;
+	eng::s32 run_x0 = cx;
+	eng::s32 run_x1 = cx;
 	eng::u32 spans = 0u;
 	for (;;) {
-		if (y0 != run_y) {
+		if (cy != run_y) {
 			// Cambió la fila: pinta el tramo acumulado y empieza el nuevo.
 			pf.draw_span(run_x0, run_x1, run_y, color);
 			++spans;
-			run_y = y0;
-			run_x0 = x0;
-			run_x1 = x0;
-		} else if (x0 < run_x0) {
-			run_x0 = x0;
-		} else if (x0 > run_x1) {
-			run_x1 = x0;
+			run_y = cy;
+			run_x0 = cx;
+			run_x1 = cx;
+		} else if (cx < run_x0) {
+			run_x0 = cx;
+		} else if (cx > run_x1) {
+			run_x1 = cx;
 		}
-		if (x0 == x1 && y0 == y1) {
+		if (cx == x1 && cy == y1) {
 			break;
 		}
 		const eng::s32 e2 = 2 * err;
 		if (e2 > -dy) {
 			err -= dy;
-			x0 += sx;
+			cx += sx;
 		}
 		if (e2 < dx) {
 			err += dx;
-			y0 += sy;
+			cy += sy;
 		}
 	}
 	pf.draw_span(run_x0, run_x1, run_y, color);
@@ -93,23 +101,22 @@ inline eng::u32 cpu_line(Playfield& pf, eng::s32 x0, eng::s32 y0, eng::s32 x1, e
 	return spans;
 }
 
-/// Rellena un polígono convexo dado por `n` vértices (`xs`,`ys`) con **edge table** y barrido por
-/// filas (even-odd, regla top-left mínima), pintando cada tramo con `draw_span`. `n <= 16`.
-/// Devuelve el nº de filas pintadas. No recorta el polígono (el llamador ya lo recortó al clip).
-inline eng::u32 cpu_fill_polygon(Playfield& pf, const eng::s16* xs, const eng::s16* ys, eng::u8 n,
-				 eng::u8 color) {
+/// Rellena un polígono convexo dado por los vértices `xs`/`ys` (`Span`, misma longitud) con
+/// **edge table** y barrido por filas (even-odd, regla top-left mínima), pintando cada tramo con
+/// `draw_span`. `n = xs.size()`; capacidad fija `kMaxV`. Los intermedios (`xb-xa)*(y-ya)`) van en
+/// `s32` explícito. Devuelve el nº de filas pintadas. No recorta (el llamador ya recortó al clip).
+inline eng::u32 cpu_fill_polygon(Playfield& pf, eng::Span<const eng::s16> xs,
+				 eng::Span<const eng::s16> ys, eng::u8 color) {
 	constexpr eng::u8 kMaxV = 16u;
-	if (!pf.initialized() || xs == nullptr || ys == nullptr || n < 3u || n > kMaxV) {
+	const eng::usize n = xs.size();
+	if (!pf.initialized() || ys.size() != n || n < 3u || n > kMaxV) {
 		return 0u;
 	}
 	// Rango vertical del polígono.
 	eng::s32 ymin = ys[0], ymax = ys[0];
-	eng::s32 xmin = xs[0], xmax = xs[0];
-	for (eng::u8 i = 1u; i < n; ++i) {
+	for (eng::usize i = 1u; i < n; ++i) {
 		if (ys[i] < ymin) ymin = ys[i];
 		if (ys[i] > ymax) ymax = ys[i];
-		if (xs[i] < xmin) xmin = xs[i];
-		if (xs[i] > xmax) xmax = xs[i];
 	}
 	if (ymin < 0) ymin = 0;
 	if (static_cast<eng::u32>(ymax) >= pf.height()) {
@@ -120,11 +127,10 @@ inline eng::u32 cpu_fill_polygon(Playfield& pf, const eng::s16* xs, const eng::s
 	}
 	eng::u32 rows = 0u;
 	for (eng::s32 y = ymin; y <= ymax; ++y) {
-		// Intersecciones de las aristas con la fila y (even-odd). Máximo n/2 por fila.
 		eng::s32 xints[kMaxV];
 		eng::u8 m = 0u;
-		for (eng::u8 i = 0u; i < n; ++i) {
-			const eng::u8 j = static_cast<eng::u8>((i + 1u) % n);
+		for (eng::usize i = 0u; i < n; ++i) {
+			const eng::usize j = (i + 1u) % n;
 			const eng::s32 ya = ys[i], yb = ys[j];
 			// Regla: incluir la arista si [min, max) contiene y (evita doble conteo en vértices).
 			const eng::s32 lo = ya < yb ? ya : yb;
@@ -134,7 +140,7 @@ inline eng::u32 cpu_fill_polygon(Playfield& pf, const eng::s16* xs, const eng::s
 			}
 			const eng::s32 xa = xs[i], xb = xs[j];
 			const eng::s32 xint = static_cast<eng::s32>(
-				xa + static_cast<eng::s32>((xb - xa) * (y - ya) / (yb - ya)));
+				xa + static_cast<eng::s32>(static_cast<eng::s64>(xb - xa) * (y - ya) / (yb - ya)));
 			if (m < kMaxV) {
 				xints[m++] = xint;
 			}
@@ -142,7 +148,7 @@ inline eng::u32 cpu_fill_polygon(Playfield& pf, const eng::s16* xs, const eng::s
 		if (m < 2u) {
 			continue;
 		}
-		// Ordena las intersecciones (pocas: inserción) y pinta pares (even-odd).
+		// Ordena las intersecciones (inserción: pocas) y pinta pares (even-odd).
 		for (eng::u8 a = 1u; a < m; ++a) {
 			const eng::s32 v = xints[a];
 			eng::u8 b = a;

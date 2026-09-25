@@ -22,12 +22,12 @@ public:
 
     /// Fila (en planelíneas) de inicio de la fila de mundo `wy` en el bucle
     /// vertical (costura del split). Hook del mapeo de la base `Playfield`.
-    u32 planeline_for(s32 wy) const override {
+    u32 planeline_for(eng::pix wy) const override {
         return static_cast<u32>(dmod2(wy)) * cplanes();
     }
     /// Word byte del píxel de mundo (el *walk* horizontal cruza planelíneas
     /// cuando `wx/8 >= bitmap_bytes_per_row`; se acota en `write_planes`).
-    u32 byte_for(s32 wx) const override {
+    u32 byte_for(eng::pix wx) const override {
         return static_cast<u32>(wx / 8) & ~1u;
     }
     /// Espejo del modo lineal (0 si no hay espejo).

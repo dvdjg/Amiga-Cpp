@@ -121,7 +121,8 @@ int main() {
 	for (eng::u32 i = 0u; i < sizeof(mem); ++i) mem[i] = 0u;
 	const eng::s16 xs[3] = {6, 40, 20};
 	const eng::s16 ys[3] = {34, 34, 8};
-	const eng::u32 prows = eng::field::cpu_fill_polygon(pf, xs, ys, 3u, 6u);
+	const eng::u32 prows = eng::field::cpu_fill_polygon(
+		pf, eng::Span<const eng::s16>(xs, 3u), eng::Span<const eng::s16>(ys, 3u), 6u);
 	check(prows > 20u, "poligono rellena varias filas");
 	// Un punto interior conocido debe estar relleno (centroide ~ (22,25)).
 	check(pixel_at(mem, 22, 25) == 6u, "poligono: interior relleno");
