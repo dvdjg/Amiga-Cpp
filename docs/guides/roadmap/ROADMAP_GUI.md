@@ -156,8 +156,12 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 | HOST-310 | test | Pantalla de **doble buffer** (`DoubleBufferScreen`): componer en el trasero sin cambiar el delantero; `flip` publica. |
 | HOST-311 | test | `ScrollBar` (vertical/horizontal): pomo proporcional, click→valor y teclado. |
 | HOST-312 | test | `ListView`: selección y desplazamiento lógico (solo filas visibles). |
+| HOST-313 | test | Texto por Blitter con caché de glifos (`glyph_cache.hpp`): cookie-cut, 2 glifos/palabra, equivalencia CPU. |
+| HOST-314 | test | Layout adaptable (`grid`/`flow`+wrap/`fit`) y texto ajustado (`wrap`). |
+| HOST-315 | test | Variantes de fuente: cursiva (`shear`) y micro-fuente `Font3x5`. |
 | `215_gui_widgets` | demo | Widgets y tema en hardware (G0–G6). **Entregada y verificada** (G8). |
 | `300_gui_compositor` | demo | Ventanas movibles con backing store y **copias por Blitter** (`present_blit`). **Entregada y verificada**. |
+| `301_gui_layouts` | demo | Layouts adaptables (grid/flow+wrap/fit), texto ajustado y colección de fuentes (cursiva/micro) en hardware. Verificador `verify-gui-layouts.mjs`. |
 
 ## Riesgos y decisiones abiertas
 
@@ -198,6 +202,10 @@ del keymap** validadas contra la AHRM 3.ª (HOST-302: Space 0x40, cursores 0x4C/
 **cirílico** en `Font8` (HOST-264) y **`EditBox` UTF-8** (HOST-303) para teclearlo en campos.
 
 **Doble buffer y widgets de scroll (post-G8)**: `eng/ui/double_buffer.hpp` (`DoubleBufferScreen`) compone en el buffer **trasero** mientras el display lee el **delantero**; `flip()` intercambia y publica (parcheo de `BPLxPT`/`COP1LC` en VBlank), de modo que nunca se ve una composición a medias (HOST-310). `eng/ui/scroll.hpp` (`ScrollBar`, vertical u horizontal) y `eng/ui/list.hpp` (`ListView`) dan desplazamiento **lógico** con selección: la barra fija el índice superior y la lista pinta solo las filas visibles (HOST-311/312).
+
+**Texto por Blitter (post-G8)**: `eng/graphics/glyph_cache.hpp` (`GlyphMask`, `GlyphCache<Max>`, `draw_text_blit`) sustituye el pintado CPU de texto por un **cookie-cut del Blitter** (`$CA`), con la máscara del glifo como canal A y un plano sólido del color como B, agrupando **dos glifos por palabra**; `UiPainter::text_blit` lo expone (con recorte por `clip`). La ruta CPU (`Surface::draw_text`) es la referencia de equivalencia (HOST-313).
+
+**Layout adaptable y colección de glifos (post-G8)**: `eng/ui/layout.hpp` añade `layout_grid`, `layout_flow` (con *wrap*), `layout_column_fill`, `layout_fit_children` (adaptable al contenido) y `layout_center_column`, además de la pila y el anclaje previos. `eng/ui/text.hpp` añade `text_wrap_lines`/`text_wrapped_width`/`draw_text_wrapped` y `Label` acepta `wrap`/`wrap_w` para ajustar el texto (por carácter o palabra). La colección de glifos se completa con `eng/graphics/font_italic.hpp`: cursiva por *shear* de `Font8`/`Font5x7` y micro-fuente `Font3x5` derivada de `Font5x7` (HOST-314/315).
 
 Pendiente: volcar la asignación de carácter de cada **distribución nacional** y los **Alt+tecla**
 de las teclas muertas desde `DEVS:Keymaps` del ROM (no disponibles en el repo; hoy *best-effort*).

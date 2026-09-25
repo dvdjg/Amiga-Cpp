@@ -8,8 +8,10 @@
 
 #include <eng/core/types/box.hpp>
 #include <eng/core/types/ptr.hpp>
+#include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/field/surface.hpp>
+#include <eng/graphics/glyph_cache.hpp>
 #include <eng/ui/paint_target.hpp>
 #include <eng/ui/text.hpp>
 #include <eng/ui/theme.hpp>
@@ -64,6 +66,37 @@ public:
 	/// Un solo code point (lo usa `draw_text_clipped`).
 	void codepoint(eng::s16 x, eng::s16 y, eng::u32 cp, eng::u8 fg) {
 		m_target.surface->draw_codepoints(x, y, &cp, 1u, fg);
+	}
+
+	/// Texto por **Blitter con caché de glifos** (acelerado). Requiere un `FramePlan` y dos buffers
+	/// de trabajo del llamador en **Chip RAM** que **persisten hasta ejecutar el plan**:
+	/// `src_scratch` (`planes * 2 * Font8::kRows` palabras, sólido compartido) y `mask_scratch`
+	/// (`pares * 2 * Font8::kRows` palabras, una máscara por par). `x` es arbitrario (la ruta
+	/// pre-desplaza el par si no está alineado). Equivalente a `text`. Ver `glyph_cache.hpp`.
+	template <eng::u16 Max>
+	bool text_blit(eng::s16 x, eng::s16 y, const char* s, eng::u8 fg,
+		       eng::graphics::GlyphCache<Max>& cache, eng::Span<eng::u16> src_scratch,
+		       eng::Span<eng::u16> mask_scratch, eng::u8 planes, Rect clip = {}) {
+		if (!m_plan.valid()) {
+			return false;
+		}
+		return eng::graphics::draw_text_blit(*m_target.surface, *m_plan.get(), cache, x, y, s,
+						     fg, src_scratch, mask_scratch, planes, clip);
+	}
+
+	/// Texto por Blitter con **sombra** (color `shadow` 1 px abajo). Dos pasadas comparten
+	/// `mask_scratch`, así que este debe tener el **doble** (`2 * pares * 2 * Font8::kRows`
+	/// palabras). Ver `glyph_cache.hpp`.
+	template <eng::u16 Max>
+	bool text_shadow_blit(eng::s16 x, eng::s16 y, const char* s, eng::u8 fg, eng::u8 shadow,
+			      eng::graphics::GlyphCache<Max>& cache, eng::Span<eng::u16> src_scratch,
+			      eng::Span<eng::u16> mask_scratch, eng::u8 planes, Rect clip = {}) {
+		if (!m_plan.valid()) {
+			return false;
+		}
+		return eng::graphics::draw_text_shadow_blit(*m_target.surface, *m_plan.get(), cache, x, y,
+							    s, fg, shadow, src_scratch, mask_scratch, planes,
+							    clip);
 	}
 
 	/// Glifo 1-bit `w × h` desde filas `bits[row]` (bit `w-1` = columna 0, MSB primero).

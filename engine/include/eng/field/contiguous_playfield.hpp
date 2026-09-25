@@ -67,9 +67,9 @@ public:
     }
 
     // --- Hooks (layout contiguo) ------------------------------------------
-    u32 planeline_for(s32 wy) const override { return static_cast<u32>(wy); }
-    u32 byte_for(s32 wx) const override { return static_cast<u32>(wx / 8) & ~1u; }
-    bool in_bounds(s32 wx, s32 wy) const override {
+    u32 planeline_for(eng::pix wy) const override { return static_cast<u32>(wy); }
+    u32 byte_for(eng::pix wx) const override { return static_cast<u32>(wx / 8) & ~1u; }
+    bool in_bounds(eng::pix wx, eng::pix wy) const override {
         return wx >= 0 && wy >= 0 && static_cast<u32>(wx) < m_width &&
                static_cast<u32>(wy) < m_height;
     }

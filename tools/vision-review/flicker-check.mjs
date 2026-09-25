@@ -55,14 +55,27 @@ let detector = null;
 let frameDiff = null;
 const outDirEarly = path.join(ROOT, 'out/vision-review', demoId);
 
-// Frame-diff determinista: cuántos píxeles cambian y en qué bbox entre frames consecutivos. Es la
-// referencia para separar movimiento (cambia la zona que se desplaza) de glitch (cambia una zona
-// estable). Prevalece ante una respuesta dudosa del modelo.
-try {
-  const fd = execFileSync(process.execPath, [path.join(ROOT, 'tools/vision-review/frame-diff.mjs'),
-    '--sequence', seqDir, '--json'], { stdio: ['ignore', 'pipe', 'pipe'] });
-  frameDiff = JSON.parse(fd.toString('utf8'));
-} catch { frameDiff = null; }
+// Frame-diff determinista: cuántos píxeles cambian y en qué bbox entre frames consecutivos, más
+// SSIM (cambio estructural). Es la referencia para separar movimiento (cambia la zona que se
+// desplaza) de glitch (cambia una zona estable). Prevalece ante una respuesta dudosa del modelo.
+// Se usa la versión Python (NumPy/OpenCV, SIMD) si está disponible; si no, la de Node.
+{
+  const pyFile = path.join(ROOT, 'tools/vision-review/frame-diff.py');
+  let got = null;
+  try {
+    const out = execFileSync(process.env.PYTHON || 'python',
+      [pyFile, '--sequence', seqDir, '--json'], { stdio: ['ignore', 'pipe', 'pipe'] });
+    got = JSON.parse(out.toString('utf8'));
+  } catch { got = null; }
+  if (!got) {
+    try {
+      const fd = execFileSync(process.execPath, [path.join(ROOT, 'tools/vision-review/frame-diff.mjs'),
+        '--sequence', seqDir, '--json'], { stdio: ['ignore', 'pipe', 'pipe'] });
+      got = JSON.parse(fd.toString('utf8'));
+    } catch { got = null; }
+  }
+  frameDiff = got;
+}
 
 if (!has('--no-detect')) {
   const py = process.env.PYTHON || 'python';
@@ -217,14 +230,20 @@ const md = [
 if (detector) {
   if (frameDiff && frameDiff.pairs) {
     const frozen = frameDiff.pairs.filter((p) => p.changed === 0).length;
+    const hasSsim = frameDiff.pairs.some((p) => typeof p.ssim === 'number');
     md.push(
       '## Frame-diff determinista (referencia)',
       '',
       `Pares de frames con cambio de píxeles (umbral 40): ${frameDiff.pairs.length - frozen}/${frameDiff.pairs.length} con cambio` +
-      (frozen ? `, ${frozen} congelado(s).` : '.'),
+      (frozen ? `, ${frozen} congelado(s).` : '.') + (hasSsim ? ' SSIM = cambio estructural (1.0 = idéntico).' : ''),
       '',
-      '| par | px cambiados | bbox |', '|---|---|---|',
-      ...frameDiff.pairs.map((p) => `| f${p.from}→f${p.to} | ${p.changed} | ${p.bbox ? `${p.bbox[0]},${p.bbox[1]}–${p.bbox[2]},${p.bbox[3]}` : '(sin cambio)'} |`),
+      hasSsim ? '| par | px cambiados | bbox | SSIM |' : '| par | px cambiados | bbox |',
+      hasSsim ? '|---|---|---|---|' : '|---|---|---|',
+      ...frameDiff.pairs.map((p) => {
+        const bb = p.bbox ? `${p.bbox[0]},${p.bbox[1]}–${p.bbox[2]},${p.bbox[3]}` : '(sin cambio)';
+        return hasSsim ? `| f${p.from}→f${p.to} | ${p.changed} | ${bb} | ${p.ssim ?? '—'} |`
+                       : `| f${p.from}→f${p.to} | ${p.changed} | ${bb} |`;
+      }),
       '');
   }
   md.push(

@@ -141,7 +141,13 @@ public:
             cx[i] = in[i].x().v;
             cy[i] = in[i].y().v;
         }
-        return m_target->fill_polygon(cx, cy, static_cast<u8>(m), color);
+        return m_target->fill_polygon(eng::Span<const s16>(cx, m), eng::Span<const s16>(cy, m), color);
+    }
+
+    /// Atajo para arrays de tamaño fijo: `surf.fill_polygon(xs, ys, color)` sin el `n`.
+    template <eng::usize N>
+    bool fill_polygon(const s16 (&xs)[N], const s16 (&ys)[N], u8 color) {
+        return fill_polygon(xs, ys, static_cast<u8>(N), color);
     }
 
     /// Línea, recortada al clip de la superficie. Delegada en el `Rasterizer` (CPU por

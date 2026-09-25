@@ -22,7 +22,7 @@ No depende del mini-SO (`eng::os`), pero se integra con él por el puente `os::M
 | Cabecera | Contenido |
 |---|---|
 | `theme.hpp` | `UiTheme` (colores lógicos + métricas) y presets (`kThemeWb13`/`kThemeWb2`/`kThemeFlat`); `Rect` = `eng::Box`. **Implementado** (HOST-223). |
-| `painter.hpp` | `UiPainter`: *chrome* sobre `Surface` (fills, marcos, bevels, paneles, glifos). **Implementado** (HOST-223). |
+| `painter.hpp` | `UiPainter`: *chrome* sobre `Surface` (fills, marcos, bevels, paneles, glifos) y `text_blit` (texto por Blitter con caché de glifos). **Implementado** (HOST-223/313). |
 | `text.hpp` | `text_width`, `draw_text_clipped` (reusa `Font8`/`Font5x7`). **Implementado** (HOST-223). |
 | `widget.hpp` | `WidgetType`, `WidgetFlags` y `Widget` (árbol intrusivo, sin heap ni `virtual`). **Implementado** (HOST-224). |
 | `dirty.hpp` | `DirtyList<Max>` con fusión de regiones (rects = `eng::Box`). **Implementado** (HOST-224). |

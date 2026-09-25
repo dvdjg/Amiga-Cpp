@@ -223,6 +223,16 @@ if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 			exit 1
 		fi
 	fi
+	# Diff de buffers gráficos (canal lateral): auto-test con servidor fake (sin emulador).
+	ST_SCREENDUMP="$ROOT/tools/vision-review/selftest-screendump.mjs"
+	if [ -f "$ST_SCREENDUMP" ] && command -v node >/dev/null 2>&1; then
+		echo "== selftest-screendump =="
+		node "$ST_SCREENDUMP"; ec=$?
+		if [ "$ec" -ne 0 ]; then
+			echo "selftest-screendump fallo: el diff de buffer grafico no detecta el cambio esperado." >&2
+			exit 1
+		fi
+	fi
 fi
 
 # Selección de tests.

@@ -161,6 +161,38 @@ void draw_text_clipped(UiPainter& p, Rect clip, eng::s16 x, eng::s16 y,
 Para etiquetas estáticas se prefiere `Surface::draw_text_literal<"...">`, que decodifica el
 UTF-8 **en compilación** (ya existe en el engine) y no procesa la cadena en runtime.
 
+### 6.1 Texto por Blitter (caché de glifos)
+
+La ruta CPU (`Surface::draw_code_point` → `draw_glyph_row` por tramos) es la **referencia de
+equivalencia**. La ruta **acelerada** vive en `eng/graphics/glyph_cache.hpp`:
+
+- `GlyphMask`: máscara planar de 1 bit (8 filas) de un glifo de `Font8`.
+- `GlyphCache<Max>`: caché de capacidad fija, sin heap, de máscaras por *code point*.
+- `draw_text_blit(...)`: **cookie-cut del Blitter** (`MaskedBobCookieCut`, minterm `$CA`,
+  `D = (A·B) + (¬A·D)`) con A = máscara del glifo y B = plano sólido del bit de color. El Blitter
+  opera por **palabra** (16 px), así que el texto se agrupa de **dos glifos por palabra**; con `x`
+  no alineado el par se **pre-desplaza a dos palabras** y se emite desde `x & ~15`. Un **solo**
+  `blit_masked` cubre todos los planos (varios blits de 1 plano escribirían siempre el plano 0).
+  `src_scratch` y `mask_scratch` son buffers del **llamador** que deben persistir hasta ejecutar el
+  `FramePlan` (el encolado solo guarda punteros).
+
+`UiPainter::text_blit(x, y, s, fg, cache, src_scratch, mask_scratch, planes[, clip])` es el punto de
+uso desde la UI (requiere `FramePlan`). Equivalencia CPU↔Blitter y geometría del job verificadas en
+**HOST-313**; la ejecución real del Blitter está **pendiente** (ver §8 de
+`docs/debugging/investigaciones/pending-verification.md`).
+
+### 6.2 Colección de glifos y variantes
+
+La colección de fuentes del engine es: `Font8` (8×8), `Font5x7` (5×7, HUD) y la **micro-fuente**
+`Font3x5` (derivada de `Font5x7`), cada una con su **variante cursiva**. Las cursivas y la
+micro-fuente se **derivan** por transformación (`eng/graphics/font_italic.hpp`), sin duplicar tablas:
+
+- **Cursiva** (*italic*): *shear* horizontal progresivo por fila (`italic_shift`); la fila `r` se
+  desplaza `slant` px a la derecha. No cambia el avance: el glifo puede recortar en el borde si no se
+  reserva el margen.
+- **Micro-fuente `Font3x5`**: submuestreo determinista de `Font5x7` (3 de 5 columnas, 5 de 7 filas).
+  `Font3x5::row`/`row_italic` leen de `Font5x7`.
+
 ## 7. Tema / branding
 
 Un tema es una tabla de **colores lógicos** (que mapean a índices de la paleta del playfield) más
@@ -360,16 +392,38 @@ Return, Esc) y el texto imprimible inserta en el `caret` desplazando el resto.
 
 ## 12. Layout
 
-Sin motor de *constraints*: para A500 basta con
+Sin motor de *constraints*: para A500 basta con layouts **deterministas** que colocan los hijos en
+**orden de creación** y capacidad fija (sin heap). Disponibles:
 
 - **Absoluto**: `bounds` fijas (lo más simple y predecible).
-- **Pila vertical/horizontal**: los hijos se colocan en fila con el `gap` y los paddings del
-  tema; el tamaño del botón sale de `theme.btn_h` y de `text_width`.
-- **Anclaje**: pegar a un borde del padre con un *offset* (p. ej. un botón abajo a la derecha).
+- **Pila vertical/horizontal**: `layout_stack_v`/`layout_stack_h` (fila con `gap`).
+- **Rejilla**: `layout_grid(g, cols, gap_x, gap_y)` — `cols` columnas; la altura de fila la fija el
+  hijo más alto.
+- **Flujo con *wrap***: `layout_flow(g, gap_x, gap_y)` — los hijos fluyen horizontalmente y saltan
+  de línea al llegar al ancho del padre (layout natural para etiquetas/botones).
+- **Columna que rellena**: `layout_column_fill(g, gap)` — cada hijo expande su ancho al del padre
+  (formularios).
+- **Adaptable al contenido**: `layout_fit_children(g, measure, gap, vertical, expand_width)` — ajusta
+  el tamaño de cada hijo a su **contenido** (`measure`) y devuelve el total; el padre se redimensiona
+  a sus hijos. Es el caso «una `Label` que se ajusta al texto».
+- **Columna centrada**: `layout_center_column(g, gap)` — para diálogos/mensajes.
+- **Anclaje**: `anchor(w, Anchor, dx, dy)` — pegar a un borde del padre.
+
+El **texto ajustado** (wrapping) es parte del layout adaptable: `Label` acepta `wrap`
+(`WrapMode::None`/`Char`/`Word`) y `wrap_w`; `measure` devuelve el alto como `8 × líneas`, y
+`draw_text_wrapped`/`text_wrap_lines`/`text_wrapped_width` (en `text.hpp`) calculan y pintan las
+líneas con la **misma** política de corte.
 
 ```cpp
-void layout_stack_v(Widget* group, eng::u8 gap) noexcept;
-void layout_stack_h(Widget* group, eng::u8 gap) noexcept;
+void layout_stack_v(Widget& g, eng::u8 gap) noexcept;
+void layout_stack_h(Widget& g, eng::u8 gap) noexcept;
+void layout_grid(Widget& g, eng::u8 cols, eng::u8 gap_x, eng::u8 gap_y) noexcept;
+void layout_flow(Widget& g, eng::u8 gap_x, eng::u8 gap_y) noexcept;
+void layout_column_fill(Widget& g, eng::u8 gap) noexcept;
+void layout_center_column(Widget& g, eng::u8 gap) noexcept;
+template <class MeasureFn> Rect layout_fit_children(Widget& g, MeasureFn&& measure,
+                                                    eng::u8 gap, bool vertical,
+                                                    bool expand_width = false) noexcept;
 ```
 
 ## 13. Ventanas

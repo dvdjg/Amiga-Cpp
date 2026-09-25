@@ -387,21 +387,28 @@ for demo_path in "${DEMO_DIRS[@]}"; do
 	# Parpadeo/glitch (opt-in `--flicker`): detector determinista (OpenCV) + modelo de visión solo
 	# sobre la sospecha localizada. Columna `Flicker`: ok (sin candidatos), candidates (hay zonas
 	# sospechosas), skip (sin secuencia/detector).
-	# Gate por demo: si existe `<demo>/flicker-baseline.json` (`{"max_candidates": N}`), el número
-	# de candidatos no debe superarlo (aunque no se pase `--require-flicker-ok`). Así una demo
-	# declara explícitamente que es estable (max_candidates=0) o su nivel aceptado.
+	# Gate por demo: si existe `<demo>/flicker-baseline.json`, se comprueban sus límites:
+	#   - `max_candidates` (nº de candidatos del detector);
+	#   - `max_blocks_low` (máx. de bloques con SSIM bajo del frame-diff = cambio estructural).
+	# Superar un límite es fallo aunque no se pase `--require-flicker-ok`. Así una demo declara
+	# explícitamente su estabilidad (p. ej. ambos a 0).
 	if [ "$FLICKER" -eq 1 ] && [ "$SKIP_RUN" -eq 0 ] && command -v node >/dev/null 2>&1; then
 		echo "== ${demo_name}: flicker =="
 		node "$FLICKER_TOOL" --demo "$relative_demo" >/dev/null 2>&1
 		flicker_json="$ROOT/out/vision-review/${demo_id}/flicker-report.json"
 		if [ -f "$flicker_json" ]; then
 			ncand="$(node -e "const j=require('$flicker_json');const d=j.detector;process.stdout.write(String(d&&d.candidates?d.candidates.length:0))" 2>/dev/null || echo 0)"
-			baseline=""
-			[ -f "$demo_path/flicker-baseline.json" ] && baseline="$(node -e "try{process.stdout.write(String(require('$demo_path/flicker-baseline.json').max_candidates))}catch{}" 2>/dev/null)"
-			if [ -n "$baseline" ] && [ "${ncand:-0}" -le "$baseline" ]; then
-				flicker="ok"
-			elif [ -n "$baseline" ]; then
+			nblocks="$(node -e "const j=require('$flicker_json');const p=(j.frameDiff||[]).map(x=>x.blocks_low||0);process.stdout.write(String(p.length?Math.max(...p):0))" 2>/dev/null || echo 0)"
+			base_c=""; base_b=""
+			[ -f "$demo_path/flicker-baseline.json" ] && base_c="$(node -e "try{process.stdout.write(String(require('$demo_path/flicker-baseline.json').max_candidates))}catch{}" 2>/dev/null)"
+			[ -f "$demo_path/flicker-baseline.json" ] && base_b="$(node -e "try{const v=require('$demo_path/flicker-baseline.json').max_blocks_low;if(v!==undefined)process.stdout.write(String(v))}catch{}" 2>/dev/null)"
+			over="no"
+			[ -n "$base_c" ] && [ "${ncand:-0}" -gt "$base_c" ] && over="yes"
+			[ -n "$base_b" ] && [ "${nblocks:-0}" -gt "$base_b" ] && over="yes"
+			if [ "$over" = "yes" ]; then
 				flicker="fail"; notes="${notes:+$notes,}flicker"
+			elif [ -n "$base_c" ] || [ -n "$base_b" ]; then
+				flicker="ok"
 			elif [ "${ncand:-0}" = "0" ]; then
 				flicker="ok"
 			else

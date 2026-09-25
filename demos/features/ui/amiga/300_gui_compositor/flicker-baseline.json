@@ -1,4 +1,5 @@
 {
   "max_candidates": 0,
-  "note": "Compositor con ventanas moviles 1 px/frame; el detector no debe marcar movimiento como glitch."
+  "max_blocks_low": 40,
+  "note": "Compositor con ventanas moviles 1 px/frame: el detector no debe marcar movimiento como glitch; el SSIM estructural puede subir por el movimiento (tope amplio)."
 }

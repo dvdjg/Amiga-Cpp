@@ -72,7 +72,21 @@ def _is_motion(prev, curr, x, y, bs, search):
     return best < 0.10
 
 
-def compute_suspicion(frames, block_size=16, flow_threshold=0.5, diff_threshold=30):
+def _ssim(a, b):
+    """SSIM medio de dos bloques (uint8) con la fórmula clásica (medias/varianzas). NumPy SIMD."""
+    a = a.astype(np.float64)
+    b = b.astype(np.float64)
+    C1 = (0.01 * 255.0) ** 2
+    C2 = (0.03 * 255.0) ** 2
+    mu_a, mu_b = a.mean(), b.mean()
+    va, vb = a.var(), b.var()
+    cov = ((a - mu_a) * (b - mu_b)).mean()
+    return ((2 * mu_a * mu_b + C1) * (2 * cov + C2)) / \
+           ((mu_a * mu_a + mu_b * mu_b + C1) * (va + vb + C2))
+
+
+def compute_suspicion(frames, block_size=16, flow_threshold=0.5, diff_threshold=30,
+                      ssim_structural=0.85):
     """Analiza la secuencia y devuelve (mapas_de_sospecha, candidatos).
 
     Criterio primario (fiable para parpadeo): **oscilación A→B→A**. Un píxel que en `f-1` y `f+1`
@@ -134,16 +148,23 @@ def compute_suspicion(frames, block_size=16, flow_threshold=0.5, diff_threshold=
                 elif mean_jump > diff_threshold * 2.0 and std_mag > 5.0:
                     kind = "tearing"           # cambio alto con flujo disperso (línea rasgada)
                 if kind:
-                    anomalies.append({
-                        "frame": i, "x": int(x), "y": int(y),
-                        "w": block_size, "h": block_size,
-                        "mean_diff": round(mean_diff, 2),
-                        "mean_jump": round(mean_jump, 2),
-                        "mean_osc": round(mean_osc, 2),
-                        "mean_mag": round(mean_mag, 2),
-                        "std_mag": round(std_mag, 2),
-                        "type": kind,
-                    })
+                    # SSIM del bloque (curr vs prev): confirma cambio **estructural**. Si el
+                    # contenido se parece (SSIM alto) pese al diff, es variación de brillo/ruido,
+                    # no un glitch estructural → se descarta para no dar falsos positivos.
+                    s = _ssim(prev[y:y + block_size, x:x + block_size],
+                              curr[y:y + block_size, x:x + block_size])
+                    if s < ssim_structural or kind == "flicker":
+                        anomalies.append({
+                            "frame": i, "x": int(x), "y": int(y),
+                            "w": block_size, "h": block_size,
+                            "mean_diff": round(mean_diff, 2),
+                            "mean_jump": round(mean_jump, 2),
+                            "mean_osc": round(mean_osc, 2),
+                            "mean_mag": round(mean_mag, 2),
+                            "std_mag": round(std_mag, 2),
+                            "ssim": round(float(s), 4),
+                            "type": kind,
+                        })
     return maps, anomalies
 
 
@@ -226,6 +247,7 @@ def main():
     ap.add_argument("--block", type=int, default=16)
     ap.add_argument("--diff", type=float, default=30.0)
     ap.add_argument("--flow", type=float, default=0.5)
+    ap.add_argument("--ssim", type=float, default=0.85)
     ap.add_argument("--max-frames", type=int, default=None)
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
@@ -236,7 +258,7 @@ def main():
         return 3
 
     h, w = frames[0].shape[:2]
-    maps, anomalies = compute_suspicion(frames, args.block, args.flow, args.diff)
+    maps, anomalies = compute_suspicion(frames, args.block, args.flow, args.diff, args.ssim)
     candidates = merge_candidates(anomalies, frame_count=len(frames), img_w=w, img_h=h)
     for c in candidates:
         x1, y1, x2, y2 = c["region"]

@@ -25,6 +25,25 @@ using s64 = long long;
 using usize = __SIZE_TYPE__;
 using uintptr = __UINTPTR_TYPE__;
 
+/// **Coordenada/índice de píxel de pantalla** dependiente de la plataforma.
+///
+/// En **68000** conviene `s16`: las coordenadas de pantalla caben de sobra (320×256, 640×512) y la
+/// aritmética de 16 bits es mucho más barata que la de 32 (no arrastra `mulu32`/`divs32` ni
+/// registros completos). En **host** (64 bits) se usa `s32` para no desbordar en tests y algoritmos
+/// grandes. No es «el `int` de C» (dependiente de ABI): es explícito por plataforma.
+///
+/// No confundir con `eng::coord` (coordenada de simulación, `Fixed`) ni con `eng::intw` (entero de
+/// palabra natural): `pix` es el tipo de dominio de las primitivas de rasterizado.
+///
+/// Regla de uso: el **tipo de dominio** de coordenadas de píxel es `eng::pix`; los **intermedios que
+/// pueden desbordar** (`dx*dy`, divisiones de línea, áreas, `x + w`) se calculan en `s32`/`s64`
+/// **local y explícito**, con comentario. Ver `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` §12.
+#if defined(__m68k__)
+using pix = s16;
+#else
+using pix = s32;
+#endif
+
 namespace detail {
 /// `is_same` minimo (sin STL): lo usan `Ref`/`Span` para restringir sus conversiones.
 template <typename A, typename B>
