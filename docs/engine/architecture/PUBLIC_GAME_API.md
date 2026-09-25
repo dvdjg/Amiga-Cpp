@@ -142,7 +142,7 @@ sprite->draw(s, x, y);
 app.resources().used_chip();                      // presupuesto consultable antes de pedir
 ```
 
-`load<T>` es el sustituto del boilerplate actual (símbolo `incbin` + `allocate_block<Tag>` + `memcpy` + miembro por tag) y se apoya en `AssetCache` (`asset_cache.hpp`), el `Backend` de IO (`os::file_*`) y el presupuesto agregado (`HwInfo` + `LinearArena::remaining`). Devuelve handle/`Result`, no `Span<u8>` ni `Block<Tag>`. **Estado:** el **presupuesto** (`eng/res/budget.hpp`, `app.resources()`, HOST-325) y la **carga síncrona tipada** `res::load<Tag>` (`eng/res/load.hpp`: medio/alineación por dominio `DomainAsset`, copia y rechazo por overflow; HOST-326, gate en la demo 213) ya existen; falta el **backend Amiga de `AssetCache`** (E/S asíncrona por `os::file_*`) para `load<T>("path")` desde fichero.
+`load<T>` es el sustituto del boilerplate actual (símbolo `incbin` + `allocate_block<Tag>` + `memcpy` + miembro por tag) y se apoya en `AssetCache` (`asset_cache.hpp`), el `Backend` de IO (`os::file_*`) y el presupuesto agregado (`HwInfo` + `LinearArena::remaining`). Devuelve handle/`Result`, no `Span<u8>` ni `Block<Tag>`. **Estado:** existen el **presupuesto** (`eng/res/budget.hpp`, `app.resources()`, HOST-325), la **carga síncrona tipada** `res::load<Tag>` (memoria, HOST-326, gate en la demo 213) y la **carga desde fichero** `res::load_file<Tag>` (`os::file_*`, HOST-328); falta el **backend Amiga de `AssetCache`** (E/S **asíncrona** por `os::file_read_async` + `route_io`) para el `load<T>("path")` no bloqueante con caché/desalojo.
 
 ## 3. Mapeo interno → público (guía al tocar cada módulo)
 
@@ -191,9 +191,10 @@ app.resources().used_chip();                      // presupuesto consultable ant
 6. **`Sprite` + `screen.sprite(...)`** (§2.1.1): **hecho** en `eng/graphics/sprite_asset.hpp` — `Sprite` envuelve `Bob`, `Scene::bob_target()` prepara el destino para el `DrawTarget` y `Screen::sprite(...)` lo usa. Gate: demo **117_bobs3d** (`Sprite::draw`) + demo **214_app_sprite** (`app.screen().sprite(...)` con `eng::App`) + HOST-324.
 7. **`Palette` (`set`/`mix`/`fade`)** (§2.1.2): envolver `Palette32` + `util::palette_*` + `add_base_palette_patch`; gate host de la aritmética de color.
 8. **`Camera`/`Layer` con `scroll_x`** (§2.1.3): unificar `Camera2D` + `TileScrollDriver`/`FineScroll` tras una capa con cámara.
-9. **`app.resources()` + `res::load<T>`** (§2.1.4): **presupuesto** (HOST-325) y **carga síncrona tipada** `res::load<Tag>` (HOST-326, gate en la demo 213) **hechos**; falta el **backend Amiga de `AssetCache`** (`MemorySystem` + `os::file_read_async`) para `load<T>("path")` desde fichero.
+9. **`app.resources()` + `res::load<T>`** (§2.1.4): **presupuesto** (HOST-325), **carga síncrona tipada** `res::load<Tag>` (HOST-326, gate en la demo 213) y **carga desde fichero** `res::load_file<Tag>` (HOST-328) **hechos**; falta el **backend Amiga de `AssetCache`** (`MemorySystem` + `os::file_read_async` + `route_io`) para el `load<T>("path")` asíncrono con caché/desalojo.
 10. **Migrar una demo** al API completo (candidata: `204_collide_game` o la 086) como gate de cada abstracción.
-11. **`World`/`Layer` + planner** (§2.1.3): el contenedor **hecho** (`eng/scene/world.hpp`, `app.world()`, HOST-327, gate `214_app_sprite`); falta el **planner** que materializa cada capa (playfield/tilemap/efecto), integra `ActorStore` y reparte recursos (`SCENE_AND_RESOURCES.md`).
+11. **`World`/`Layer` + planner** (§2.1.3): el contenedor **hecho** (`eng/scene/world.hpp`: capas + `ActorStore` + `emit`; `app.world()`, HOST-327/329, gate `214_app_sprite`); falta el **planner** que materializa cada capa (playfield/tilemap/efecto) y reparte recursos (`SCENE_AND_RESOURCES.md`).
+12. **Servicios de hardware en `App`** (bloquea la migración de la 204/086): el `App` no expone aún las operaciones de Blitter de dominio (`blitter_or_bobs`/`blitter_collide`/`install_raster`) sin nombrar el backend. Hace falta una fachada de **servicios** (`app.blitter()`/efectos) para migrar juegos que usan colisión por Blitter o rasterizador propio.
 
 Mientras tanto, el API de `eng/api/api.hpp` (fachada de tipos) sigue siendo la puerta de lo
 existente; `App`/`Screen` lo envuelven para el caso de juego.

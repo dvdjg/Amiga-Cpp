@@ -20,6 +20,9 @@
 
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/graphics/bob.hpp>
+#include <eng/graphics/frame_plan.hpp>
+#include <eng/scene/actor.hpp>
 #include <eng/scene/virtual_scene.hpp>
 
 namespace eng::scene {
@@ -44,9 +47,10 @@ private:
 	Camera2D m_camera {};
 };
 
-/// **Mundo**: conjunto fijo de capas (sin heap). El orden de dibujo lo fija la profundidad
-/// (menor = al fondo); el planner lo usará al componer.
-template <u8 MaxLayers = 8u>
+/// **Mundo**: conjunto fijo de capas (sin heap) y de actores. El orden de dibujo lo fija la
+/// profundidad de capa (menor = al fondo) y, dentro del plan, el `z` del actor; el planner
+/// lo usará al componer.
+template <u8 MaxLayers = 8u, u8 MaxActors = 16u>
 class World {
 public:
 	/// Añade una capa. Devuelve `Ref<Layer>` inválido si el mundo está lleno (no hay fallo
@@ -80,6 +84,41 @@ public:
 		return nullptr;
 	}
 
+	// --- Actores retenidos ---------------------------------------------------
+	/// Limpia los actores y fija el presupuesto de representación (canales de sprite /
+	/// palabras de Blitter / capas). Llámalo antes de dar de alta actores.
+	void reset_actors(s32 sprite_channels = 0, u16 bob_budget_words = 60000u,
+			  u8 layer_slots = 0) noexcept {
+		m_actors.reset();
+		m_allocator.reset(RepresentationBudget {
+			static_cast<u8>(sprite_channels < 0 ? 0 : sprite_channels), bob_budget_words,
+			layer_slots});
+	}
+	/// Da de alta un actor; la **representación** (sprite/BOB/CPU/playfield) la elige el
+	/// engine según el presupuesto. `ActorId` inválido si no cabe.
+	[[nodiscard]] ActorId add_actor(const ActorDesc& desc) noexcept {
+		return m_actors.add(desc, m_allocator);
+	}
+	[[nodiscard]] Actor* actor(ActorId id) noexcept { return m_actors.get(id).get(); }
+	[[nodiscard]] ActorStore<MaxActors>& actors() noexcept { return m_actors; }
+	[[nodiscard]] const ActorStore<MaxActors>& actors() const noexcept { return m_actors; }
+
+	/// **Emite los actores** al plan (orden por superficie/`z`) con el destino y el clip
+	/// dados. Devuelve cuántos se dibujaron (0 si el orden no cabe o algo no cupo).
+	[[nodiscard]] u16 emit(graphics::FramePlan& plan,
+			       eng::Span<const graphics::BobTarget> targets,
+			       graphics::DirtyRect clip, s16 cam_x = 0, s16 cam_y = 0,
+			       u8 buffer = 0) noexcept {
+		ActorEmitContext ctx {};
+		ctx.targets = targets;
+		ctx.clip = clip;
+		ctx.cam_x = cam_x;
+		ctx.cam_y = cam_y;
+		ctx.buffer = buffer;
+		return emit_actors_in_order(plan, m_actors, ctx,
+					    eng::Span<ActorId> {m_order, MaxActors});
+	}
+
 private:
 	[[nodiscard]] static bool same_id(const char* a, const char* b) noexcept {
 		if (a == nullptr || b == nullptr) {
@@ -94,6 +133,9 @@ private:
 
 	Layer m_layers[MaxLayers] {};
 	u8 m_count = 0u;
+	ActorStore<MaxActors> m_actors {};
+	RepresentationAllocator m_allocator {};
+	ActorId m_order[MaxActors] {};
 };
 
 } // namespace eng::scene

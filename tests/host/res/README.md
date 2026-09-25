@@ -13,3 +13,4 @@ Categoría `res` de la batería host (L1). El índice de categorías está en [.
 | HOST-258 | [hunk_loader](258_hunk_loader/README.md) | Recursos: cargador **HUNK** (`eng/res/hunk.hpp`) — segmentos en `LinearArena`, relocaciones (32/32SHORT) y símbolos; detección de formato `.englib`/HUNK en `DynLoader`. |
 | HOST-325 | [budget](325_budget/README.md) | Recursos: `Budget` (`eng/res/budget.hpp`) — presupuesto de memoria (used/remaining/capacity, `can_fit` Chip/Slow/Fast) sobre las arenas del `MemorySystem`. |
 | HOST-326 | [load](326_load/README.md) | Recursos: `res::load<Tag>` (`eng/res/load.hpp`) — carga tipada a `Block<Tag>` con medio/alineación por dominio (`DomainAsset`), copia y rechazo por overflow. |
+| HOST-328 | [load_file](328_load_file/README.md) | Recursos: `res::load_file<Tag>` (fichero, `os::file_*`) — abrir/medir/reservar/leer/cerrar con backend falso en memoria; caminos de error (no existe, lectura corta, overflow). |

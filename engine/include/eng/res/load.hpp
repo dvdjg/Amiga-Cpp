@@ -24,6 +24,7 @@
 #include <eng/core/types/typed.hpp>
 #include <eng/core/util/binary.hpp>
 #include <eng/memory/arena.hpp>
+#include <eng/os/file.hpp>
 
 namespace eng::res {
 
@@ -97,6 +98,50 @@ template <class Tag>
 template <class Tag>
 [[nodiscard]] inline Block<Tag> load(MemorySystem& mem, Span<const u8> src) {
 	return load<Tag>(mem, src, DomainAsset<Tag>::kind, DomainAsset<Tag>::align);
+}
+
+/// **Carga un asset desde fichero** por la E/S **síncrona** del mini-SO (`os::file_*`):
+/// abre, mide, reserva en la arena del dominio y lee. Escribe el tamaño útil en
+/// `out_bytes` (el bloque lleva margen de alineación, así que su `view().size()` es mayor).
+/// Devuelve un bloque **inválido** si no se puede abrir/leer o no cabe. Debe llamarse
+/// **antes** del `takeover_display` (`dos.library` necesita interrupciones).
+template <class Tag>
+[[nodiscard]] inline Block<Tag> load_file(MemorySystem& mem, const char* path, u32& out_bytes,
+					  MemoryKind kind, u32 align) {
+	out_bytes = 0u;
+	const eng::os::FileHandle h = eng::os::file_open(path, eng::os::FileMode::Read);
+	if (h == 0u) {
+		return {};
+	}
+	const u32 bytes = eng::os::file_size(h);
+	Block<Tag> block =
+		arena_for(mem, kind).allocate_block<Tag>(static_cast<u32>(bytes + kLoadHeadroom), align);
+	if (!block.valid()) {
+		eng::os::file_close(h);
+		return {};
+	}
+	const eng::s32 got =
+		eng::os::file_read_sync(h, eng::Span<u8> {block.view.data(), bytes}, 0u);
+	eng::os::file_close(h);
+	if (got < 0 || static_cast<u32>(got) != bytes) {
+		return {};
+	}
+	out_bytes = bytes;
+	return block;
+}
+
+/// Como arriba, con el medio y la alineación del dominio (`DomainAsset<Tag>`), pero
+/// devolviendo además el tamaño útil en `out_bytes`.
+template <class Tag>
+[[nodiscard]] inline Block<Tag> load_file(MemorySystem& mem, const char* path, u32& out_bytes) {
+	return load_file<Tag>(mem, path, out_bytes, DomainAsset<Tag>::kind, DomainAsset<Tag>::align);
+}
+
+/// Como arriba, con el medio y la alineación del dominio (`DomainAsset<Tag>`).
+template <class Tag>
+[[nodiscard]] inline Block<Tag> load_file(MemorySystem& mem, const char* path) {
+	u32 ignore = 0u;
+	return load_file<Tag>(mem, path, ignore, DomainAsset<Tag>::kind, DomainAsset<Tag>::align);
 }
 
 } // namespace eng::res
