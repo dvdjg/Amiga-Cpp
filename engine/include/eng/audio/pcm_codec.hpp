@@ -21,7 +21,9 @@
 /// El identificador de códec (`Codec::DeltaRle`) coincide con el campo `compression` de la
 /// cabecera de archivo AUZX (`AUDIO_STREAMING.md` §2).
 
+#include <eng/audio/asm_codec.hpp>
 #include <eng/audio/fib_delta.hpp>
+#include <eng/audio/ima_adpcm.hpp>
 #include <eng/audio/zx0.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
@@ -38,6 +40,7 @@ enum class Codec : eng::u8 {
 	None = 3,     ///< PCM crudo sin compresión (p. ej. streaming de un `.raw` tal cual)
 	FibDelta = 4, ///< Fibonacci Delta (IFF 8SVX, con pérdida, 2:1)
 	DeltaZx0 = 5, ///< Delta + ZX0 (sin pérdida; el ZX0 lo produce la herramienta host)
+	ImaAdpcm = 6, ///< IMA ADPCM 4-bit (con pérdida, 50–75 %)
 };
 
 /// Integra en el sitio un vector de **deltas** (`D_n = S_n - S_{n-1}`, con `S_-1 = 0`):
@@ -75,15 +78,18 @@ inline void differentiate(eng::Span<eng::u8> buf) noexcept {
 		return zx0::decompress(src, dst);
 	}
 	if (compression == static_cast<eng::u8>(Codec::FibDelta)) {
-		return fib_delta::decode(src, dst);
+		return asm_codec::fib_delta_decode(src, dst); // ASM en m68k, C++ en host
+	}
+	if (compression == static_cast<eng::u8>(Codec::ImaAdpcm)) {
+		return asm_codec::ima_adpcm_decode(src, dst);
 	}
 	if (compression == static_cast<eng::u8>(Codec::DeltaZx0)) {
-		// ZX0 descomprime las diferencias; una pasada las integra a PCM.
+		// ZX0 descomprime las diferencias; una pasada las integra a PCM (ASM en m68k).
 		const eng::s32 n = zx0::decompress(src, dst);
 		if (n < 0) {
 			return -1;
 		}
-		integrate_deltas(eng::Span<eng::u8> {dst.data(), static_cast<eng::usize>(n)});
+		asm_codec::delta_integrate(eng::Span<eng::u8> {dst.data(), static_cast<eng::usize>(n)});
 		return n;
 	}
 	if (compression == static_cast<eng::u8>(Codec::None)) {
@@ -204,6 +210,9 @@ inline void differentiate(eng::Span<eng::u8> buf) noexcept {
 	}
 	if (compression == static_cast<eng::u8>(Codec::FibDelta)) {
 		return fib_delta::encode(pcm, dst);
+	}
+	if (compression == static_cast<eng::u8>(Codec::ImaAdpcm)) {
+		return ima_adpcm::encode(pcm, dst);
 	}
 	return -1;
 }

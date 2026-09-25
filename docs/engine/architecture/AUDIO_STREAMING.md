@@ -50,6 +50,12 @@ Header (32–48 bytes)
 Chunk 0 (comprimido) · Chunk 1 · …
 ```
 
+La definición **exacta** de la cabecera (32 bytes) y del índice de chunks (entradas
+`{offset,size}` de 8 bytes) está en `engine/include/eng/audio/auzx.hpp`, que además valida el
+fichero (`auzx::parse`/`auzx::chunk`); el test **HOST-326** la cubre. En PC, la herramienta
+`host-tools/pack-pcm` genera el AUZX con los **mismos codificadores del engine** (sin deriva de
+formato).
+
 Preparación del audio: **mono 8-bit con signo**, delta antes de comprimir, chunks de **4–8 KB**
 descomprimidos (cómodos en Chip y con buen margen de streaming).
 
@@ -191,6 +197,19 @@ alrededor de cero y mejora el ratio del LZ.
 Para producir estos ficheros desde un PC: `tools/audio/prep-sample.ts` (WAV → PCM mono 8-bit con
 signo) y, según el códec, el paso delta y/o la herramienta ZX0 de referencia (`zx0 -f`). Ver el
 roadmap en [`ROADMAP_AUDIO.md`](../../guides/roadmap/ROADMAP_AUDIO.md).
+
+### 7.2 Vía rápida en ASM 68000
+
+En el 68000 los bucles de descompresión se ejecutan con rutinas en ensamblador
+(`support/codec_asm.s`, GAS), invocadas desde `eng/audio/asm_codec.hpp` con el **mismo contrato**
+que el C++ (mismas comprobaciones y retorno). En host siempre se usa la referencia C++; en m68k se
+elige el ASM. Las tablas se pasan por puntero desde el C++ (una sola fuente de verdad).
+
+Rutinas: `eng_fib_delta_decode`, `eng_ima_adpcm_decode` y `eng_delta_integrate`. ABI: la de este
+toolchain m68k GCC 15 (argumentos **por pila**, retorno en `d0`; ver nota en el propio `.s`).
+
+La **equivalencia byte a byte** con la referencia C++ se verifica en hardware/emulador con la
+demo **`277_codec_equiv`** (gate en `detail`: `0` = idéntico; medido `0x00040000`).
 
 ## 8. Detalles de implementación
 

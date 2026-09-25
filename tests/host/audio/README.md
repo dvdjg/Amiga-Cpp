@@ -16,3 +16,5 @@ Categoría `audio` de la batería host (L1). El índice de categorías está en 
 | HOST-271 | [zx0](271_zx0/README.md) | Descompresor ZX0 (`eng/audio/zx0.hpp`, port de `dzx0.c` v2) verificado contra un vector del compresor de referencia; dispatch `pcm_codec` (`Zx0`/`DeltaRle`/`APLib`). |
 | HOST-323 | [fib_delta](323_fib_delta/README.md) | Fibonacci Delta (IFF 8SVX `sCompression=1`, `eng/audio/fib_delta.hpp`): decoder contra el estándar (Apéndice C) + vector dorado, encoder `decode(encode(x))==x`, `Codec::FibDelta`. |
 | HOST-324 | [delta_zx0](324_delta_zx0/README.md) | Delta+ZX0 sin pérdida: `differentiate`/`integrate_deltas` inversas y `Codec::DeltaZx0` sobre un flujo ZX0 real de referencia. |
+| HOST-325 | [ima_adpcm](325_ima_adpcm/README.md) | IMA ADPCM 4-bit (`eng/audio/ima_adpcm.hpp`): decodificador contra el estándar IMA/DVI y round-trip con error acotado; `Codec::ImaAdpcm`. |
+| HOST-326 | [auzx](326_auzx/README.md) | Contenedor AUZX (`eng/audio/auzx.hpp`): cabecera de 32 bytes + índice de chunks (offset/tamaño), parseo y rechazos. |
