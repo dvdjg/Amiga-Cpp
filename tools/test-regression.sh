@@ -386,14 +386,25 @@ for demo_path in "${DEMO_DIRS[@]}"; do
 
 	# Parpadeo/glitch (opt-in `--flicker`): detector determinista (OpenCV) + modelo de visión solo
 	# sobre la sospecha localizada. Columna `Flicker`: ok (sin candidatos), candidates (hay zonas
-	# sospechosas), skip (sin secuencia/detector). Con `--require-flicker-ok`, `candidates` es fallo.
+	# sospechosas), skip (sin secuencia/detector).
+	# Gate por demo: si existe `<demo>/flicker-baseline.json` (`{"max_candidates": N}`), el número
+	# de candidatos no debe superarlo (aunque no se pase `--require-flicker-ok`). Así una demo
+	# declara explícitamente que es estable (max_candidates=0) o su nivel aceptado.
 	if [ "$FLICKER" -eq 1 ] && [ "$SKIP_RUN" -eq 0 ] && command -v node >/dev/null 2>&1; then
 		echo "== ${demo_name}: flicker =="
 		node "$FLICKER_TOOL" --demo "$relative_demo" >/dev/null 2>&1
-		flicker_json="$ROOT/out/vision-review/${demo_id:-}/flicker-report.json"
+		flicker_json="$ROOT/out/vision-review/${demo_id}/flicker-report.json"
 		if [ -f "$flicker_json" ]; then
 			ncand="$(node -e "const j=require('$flicker_json');const d=j.detector;process.stdout.write(String(d&&d.candidates?d.candidates.length:0))" 2>/dev/null || echo 0)"
-			if [ "${ncand:-0}" = "0" ]; then flicker="ok"; else
+			baseline=""
+			[ -f "$demo_path/flicker-baseline.json" ] && baseline="$(node -e "try{process.stdout.write(String(require('$demo_path/flicker-baseline.json').max_candidates))}catch{}" 2>/dev/null)"
+			if [ -n "$baseline" ] && [ "${ncand:-0}" -le "$baseline" ]; then
+				flicker="ok"
+			elif [ -n "$baseline" ]; then
+				flicker="fail"; notes="${notes:+$notes,}flicker"
+			elif [ "${ncand:-0}" = "0" ]; then
+				flicker="ok"
+			else
 				flicker="candidates"
 				notes="${notes:+$notes,}flicker"
 			fi
@@ -410,6 +421,7 @@ for demo_path in "${DEMO_DIRS[@]}"; do
 	   [ "$analyze" != "ok" ] || { [ "$sequence" != "ok" ] && [ "$sequence" != "none" ]; } || \
 	   { [ "$pixel_assert" != "ok" ] && [ "$pixel_assert" != "none" ]; } || \
 	   [ "$essential" = "fail" ] || \
+	   [ "$flicker" = "fail" ] || \
 	   { [ "$REQUIRE_FLICKER_OK" -eq 1 ] && [ "$flicker" = "candidates" ]; }; then
 		FAILED=$((FAILED + 1))
 		if [ "$KEEP_GOING" -eq 0 ]; then

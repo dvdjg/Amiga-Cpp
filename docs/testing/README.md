@@ -25,7 +25,7 @@ OpenAI-compatible, opcional). La regresión completa las encadena por demo.
 5. Opcional: `vision-review.ps1` con LM Studio (`-VisionReview`).
 6. `tools/test-regression.ps1` ejecuta todo el pipeline por demo y genera el informe en `out/regression/`.
 7. **Frames esenciales** (`<demo>/vision-points.json`): si Ollama está disponible, `tools/vision-review/essential-frames.mjs` describe con un modelo de visión los frames de **transición** que declara la demo y compara con lo esperado. La regresión añade la columna `Vision` (no falla salvo `--require-essential-ok`). Ver `tools/vision-review/README.md`.
-8. **Parpadeo / glitch** (`tools/vision-review/flicker-check.mjs`): detecta zonas con oscilación temporal en **frames consecutivos** y pide al modelo que las describa → informe accionable en `out/vision-review/<demo>/flicker-report.md`. En la regresión, `--flicker` añade la columna `Flicker` (descriptiva).
+8. **Parpadeo / glitch** (`tools/vision-review/flicker-check.mjs`): enfoque **híbrido** de tres capas — `frame-diff.mjs` (determinista), `temporal-detect.py` (OpenCV: oscilación A-B-A + optical flow, descarta movimiento) y el VLM **solo** sobre la región candidata con prompt estructurado. Informe en `out/vision-review/<demo>/flicker-report.md`. En la regresión, `--flicker` añade la columna `Flicker` (`ok`/`candidates`/`skip`); una demo declara su nivel con `flicker-baseline.json` (`max_candidates`); `--require-flicker-ok` convierte `candidates` en fallo. Contrato de prompts y pipeline: `tools/vision-review/PROMPTS.md`.
 
 ## Reglas obligatorias de tests y verificación
 
