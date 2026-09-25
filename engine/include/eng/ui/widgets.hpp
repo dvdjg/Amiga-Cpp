@@ -17,7 +17,9 @@
 #include <eng/ui/editbox.hpp>
 #include <eng/ui/event.hpp>
 #include <eng/ui/layout.hpp>
+#include <eng/ui/list.hpp>
 #include <eng/ui/painter.hpp>
+#include <eng/ui/scroll.hpp>
 #include <eng/ui/slider.hpp>
 #include <eng/ui/text.hpp>
 #include <eng/ui/theme.hpp>
@@ -111,6 +113,7 @@ inline constexpr eng::u16 kTickGlyph[8] = {
 	case WidgetType::Panel:
 	case WidgetType::Edit:
 	case WidgetType::Slider:
+	case WidgetType::ScrollBar:
 	case WidgetType::List:
 	case WidgetType::Window:
 		return w.bounds;
@@ -214,8 +217,12 @@ inline void draw_widget(Widget& w, UiPainter& p) {
 	case WidgetType::Slider:
 		draw_slider(static_cast<Slider&>(w), p);
 		break;
+	case WidgetType::ScrollBar:
+		draw_scroll_bar(static_cast<ScrollBar&>(w), p);
+		break;
 	case WidgetType::List:
-		break; // pendiente
+		draw_list(static_cast<ListView&>(w), p);
+		break;
 	}
 }
 
@@ -328,10 +335,13 @@ inline bool event_widget(Widget& w, const UiEvent& ev) {
 		return event_edit(static_cast<EditBox&>(w), ev);
 	case WidgetType::Slider:
 		return event_slider(static_cast<Slider&>(w), ev);
+	case WidgetType::ScrollBar:
+		return event_scroll_bar(static_cast<ScrollBar&>(w), ev);
+	case WidgetType::List:
+		return event_list(static_cast<ListView&>(w), ev);
 	case WidgetType::Panel:
 	case WidgetType::Label:
 	case WidgetType::Window:
-	case WidgetType::List:
 		return false;
 	}
 	return false;

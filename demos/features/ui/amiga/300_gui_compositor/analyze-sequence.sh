@@ -17,7 +17,7 @@ for a in "$@"; do
 done
 bash "${RUN_ARGS[@]}"
 
-SEQ="$(find "$ROOT/out/run/300_gui_compositor" -maxdepth 2 -type d -name sequence 2>/dev/null | head -1)"
+SEQ="$(find "$ROOT/out/run" -maxdepth 3 -type d -name sequence -path '*300_gui_compositor*' 2>/dev/null | head -1)"
 if [ -z "$SEQ" ]; then
 	echo "No se encontro la secuencia de la demo 300" >&2
 	exit 1

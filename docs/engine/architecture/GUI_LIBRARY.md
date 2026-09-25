@@ -212,7 +212,7 @@ objeto. El árbol es intrusivo (padre/hijo/siguiente), sin heap.
 ```cpp
 namespace eng::ui {
 
-enum class WidgetType : eng::u8 { Panel, Label, Button, Check, Radio, Edit, Slider, List };
+enum class WidgetType : eng::u8 { Panel, Label, Button, Check, Radio, Edit, Slider, ScrollBar, List, Window };
 
 enum WidgetFlags : eng::u16 {
 	WfVisible      = 1u << 0,
@@ -348,7 +348,8 @@ struct UiEvent {
 4. **CheckBox**: caja + tick 1-bit; alterna un `bool*`.
 5. **RadioButton**: círculo/glifo + `group_id`; activa uno y desactiva el grupo.
 6. **EditBox**: fondo *recessed*, caret, inserción/borrado, buffer externo, *scroll* horizontal.
-7. Después: **Slider**, **List**, **Scrollbar** si el juego los pide.
+7. **Slider** (sobre `s16*`), **ScrollBar** (vertical/horizontal, pomo proporcional) y **ListView**
+   (selección + desplazamiento lógico).
 
 Cada widget expone conceptualmente `measure()` (tamaño preferido), `draw(UiPainter&)` y
 `on_event(const UiEvent&)` (devuelve `true` si consumió el evento).

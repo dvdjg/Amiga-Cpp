@@ -212,6 +212,17 @@ if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 			exit 1
 		fi
 	fi
+	# Detector temporal de parpadeo: auto-test con secuencias sintéticas (se omite si no hay
+	# OpenCV/Python; exit 3 = omitido, no falla).
+	ST_TEMPORAL="$ROOT/tools/vision-review/selftest-temporal.mjs"
+	if [ -f "$ST_TEMPORAL" ] && command -v node >/dev/null 2>&1; then
+		echo "== selftest-temporal =="
+		node "$ST_TEMPORAL"; ec=$?
+		if [ "$ec" -ne 0 ] && [ "$ec" -ne 3 ]; then
+			echo "selftest-temporal fallo: el detector de parpadeo no distingue glitch de movimiento." >&2
+			exit 1
+		fi
+	fi
 fi
 
 # Selección de tests.

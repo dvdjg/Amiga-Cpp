@@ -183,6 +183,12 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 		}
 		const bool shifted_copy = !masked && !or_blob && !logic && job.source_shift != 0u;
 		const bool source_by_a = masked || or_blob || logic || shifted_copy;
+		// Fuente con ancho de fila propio (`source_words_per_row != 0`): el módulo de A
+		// debe avanzar el ancho real de la fuente, no solo el del bloque copiado. Si el job
+		// no lo declara, se usa el módulo clásico `source_modulo_bytes` (fuente compacta).
+		const s16 src_mod = (job.source_words_per_row != 0u)
+			? static_cast<s16>((static_cast<s16>(job.source_words_per_row) - static_cast<s16>(job.words_per_row)) * 2)
+			: job.source_modulo_bytes;
 		// En copias/OR con shift, la ultima word de cada fila se enmascara para que
 		// los bits desplazados hacia fuera (que el Blitter reinyecta al principio
 		// de la fila siguiente) sean cero: deja una guarda de `shift` px al
@@ -191,10 +197,10 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 		custom_base[custom_bltalwm_offset] = (shifted_copy || or_blob || logic)
 			? static_cast<u16>(0xffffu << job.source_shift)
 			: 0xffff;
-		custom_base[custom_bltamod_offset] = static_cast<u16>(source_by_a ? job.source_modulo_bytes : 0);
+		custom_base[custom_bltamod_offset] = static_cast<u16>(source_by_a ? src_mod : 0);
 		custom_base[custom_bltbmod_offset] = static_cast<u16>(
-			masked ? job.source_modulo_bytes : ((or_blob || logic) ? job.destination_modulo_bytes : 0));
-		custom_base[custom_bltcmod_offset] = static_cast<u16>(masked ? job.destination_modulo_bytes : job.source_modulo_bytes);
+			masked ? src_mod : ((or_blob || logic) ? job.destination_modulo_bytes : 0));
+		custom_base[custom_bltcmod_offset] = static_cast<u16>(masked ? job.destination_modulo_bytes : src_mod);
 		custom_base[custom_bltdmod_offset] = static_cast<u16>(job.destination_modulo_bytes);
 
 		if (masked) {

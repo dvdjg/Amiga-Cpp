@@ -18,8 +18,9 @@ for a in "$@"; do
 done
 bash "${RUN_ARGS[@]}"
 
-# La secuencia vive en out/run/<demo>/<CONFIG_ID>/sequence.
-SEQ="$(find "$ROOT/out/run/215_gui_widgets" -maxdepth 2 -type d -name sequence 2>/dev/null | head -1)"
+# La secuencia vive en out/run/<demo>/<CONFIG_ID>/sequence; el id de build de una feature
+# incluye la ruta (p. ej. `ui_amiga_215_gui_widgets`), por eso se busca por el leaf.
+SEQ="$(find "$ROOT/out/run" -maxdepth 3 -type d -name sequence -path '*215_gui_widgets*' 2>/dev/null | head -1)"
 if [ -z "$SEQ" ]; then
 	echo "No se encontro la secuencia de la demo 215" >&2
 	exit 1

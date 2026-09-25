@@ -4,6 +4,10 @@ Herramienta ligera para pedir una segunda opinion visual a un modelo con vision
 sobre pocos frames seleccionados. Esta carpeta contiene el contrato operativo; el
 roadmap completo está en `docs/testing/VISION_REVIEW_ROADMAP.md`.
 
+> **Prompts y flujo híbrido**: contrato de los prompts (referencia+comparación, respuesta
+> estructurada, regiones relativas, few-shot) y descripción del pipeline determinista→visión en
+> [`PROMPTS.md`](PROMPTS.md).
+
 ## Objetivo
 
 FrameScope y los scripts deterministas deciden donde mirar. Vision Review prepara
@@ -197,26 +201,71 @@ Integración en la regresión: si la demo tiene `vision-points.json` y Ollama re
 `tools/test-regression.sh` añade la columna **Vision** (ok / skip / mismatch / fail).
 `--require-essential-ok` convierte un MISMATCH en fallo; `--skip-essential` lo desactiva.
 
-## Parpadeo / glitch (`flicker-check.mjs`)
+## Frame-diff determinista (`frame-diff.mjs`)
 
-Analiza **frames consecutivos** para detectar parpadeo o glitches (bandas que destellan, tiles
-que saltan, bordes que aparecen/desaparecen) y produce un informe accionable:
+Referencia directa para separar **movimiento** de **glitch**: cuenta los píxeles cambiados y su
+bbox entre frames consecutivos.
+
+```bash
+node tools/vision-review/frame-diff.mjs --sequence <dir> [--thresh 40] [--json]
+```
+
+Si una **zona estable** cambia erráticamente, es glitch; si solo cambian las zonas que se desplazan,
+es movimiento. Ante discrepancia con el modelo de visión, **prevalece el frame-diff**.
+
+## Detección temporal (`temporal-detect.py`, OpenCV)
+
+Capa determinista de `flicker-check.mjs` (requiere `python` + `opencv-python` + `numpy`). Localiza
+candidatos `flicker`/`tearing`/`corruption` por frame-diff + *optical flow* (Farneback) + bloques,
+descartando el movimiento coherente de la escena.
+
+```bash
+python tools/vision-review/temporal-detect.py --sequence <dir> [--block 16] [--diff 30] [--flow 0.5]
+```
+
+Salida: `out/vision-review/<demoId>/temporal-detect.{json,md}`.
+
+## Parpadeo / glitch (`flicker-check.mjs`) — enfoque **híbrido**
+
+Los VLM fallan más en glitches **temporales** (parpadeo, flickering, objetos que aparecen/desaparecen)
+que en glitches espaciales. Por eso el análisis de parpadeo tiene **dos capas**: una determinista
+(barata y reproducible) que localiza la sospecha, y el modelo de visión **solo** para confirmarla o
+descartarla. Así el modelo no busca a ciegas (menos alucinaciones).
 
 ```bash
 node tools/vision-review/flicker-check.mjs --demo <ruta> [--frames 6] [--cells 16] [--top 4]
+                                           [--no-ollama] [--no-detect]
 ```
 
-1. **Determinista**: rejilla de celdas; para cada celda mide la **oscilación temporal** de
-   luminancia (`media |L[f+1]-L[f]|`). Las celdas más inestables son candidatas (una zona que
-   debería ser estable y cambia cada frame es sospechosa).
-2. **Modelo de visión** (si Ollama está disponible): mira los frames consecutivos de la peor
-   zona (ventana donde más cambia) y describe el patrón.
+1. **Capa 1 — detección temporal determinista** (`tools/vision-review/temporal-detect.py`, OpenCV):
+   diferencia de frames + *optical flow* denso (Farneback) + análisis por bloques. Clasifica:
+   `flicker` (cambia **sin** flujo: parpadeo/oscilación), `tearing` (cambio con flujo disperso),
+   `corruption` (cambio muy alto). El **movimiento coherente** (objetos/scroll que se desplazan) se
+   descarta comparándolo con el flujo de referencia de la escena. Ventana de contexto ±1 frame.
+   Parámetros (por CLI): `--block` (8/16 px), `--diff` (umbral de cambio, 30 por defecto),
+   `--flow` (umbral de flujo, 0.5 por defecto). Salida `temporal-detect.{json,md}`.
+2. **Capa 2 — modelo de visión (Ollama)**, solo sobre la **región candidata** con frames de
+   referencia+contexto. Respuesta **estructurada** (sí/no + tipo + **zona relativa**, sin píxeles +
+   confianza + explicación breve). Modelo por defecto `OLLAMA_VL_MODEL` = `qwen3-vl:8b-instruct-q8_0`.
 
-Informe: `out/vision-review/<demoId>/flicker-report.{json,md}` con la zona (`x,y,w,h`), su
-oscilación, la ventana de frames analizada y la descripción del modelo → **dónde mirar** para
-arreglar la demo (copper/blitter/punteros de planos) y, si el defecto es del engine, el engine.
+Informe: `out/vision-review/<demoId>/flicker-report.{json,md}` (candidatos + respuesta del modelo) y
+`temporal-detect.{json,md}` (detalle). Integración: `tools/test-regression.sh --flicker` añade la
+columna **Flicker** (`reported`/`skip`; descriptiva, no falla).
 
-Integración: `tools/test-regression.sh --flicker` añade la columna **Flicker** (`reported`/`skip`;
-descriptiva, no falla). Es opt-in por el coste del modelo.
+### Modelos de visión recomendados (Ollama)
+
+| Modelo | Tamaño | Notas |
+|---|---|---|
+| **Qwen3-VL** (principal) | 8B / 32B | Mejor comprensión temporal/espacial; multi-imagen y vídeo; menos alucinaciones en "qué cambia entre frames". |
+| Qwen2.5-VL | 7B / 32B | Alternativa sólida (vídeo largo, localización temporal). |
+| Gemma 3 | 12B / 27B | Buena con varias imágenes en una consulta (comparar con referencia). |
+
+Evitar **LLaVA clásico**: es el que más alucina coordenadas. Regla: **prohibir píxeles** en el prompt
+y pedir **regiones relativas**; pasar siempre pares/tríos (referencia + actual + siguiente).
+
+> Cautela: **ningún** VLM open-weight es 100 % fiable en glitches temporales finos (parpadeo de 1–2
+> frames, tearing sutil, corrupción de copperlist). La referencia fiable es la **capa determinista**;
+> la respuesta del modelo es **apoyo**, no veredicto. Ante discrepancia, prevalece el frame-diff.
+
 
 

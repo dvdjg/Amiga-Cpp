@@ -344,6 +344,7 @@ suavidad o depurar visualmente, usa el menu o `run-demo.ps1` sin `-Warp`.
 - **NO usar WSL** para este proyecto: el entorno operativo es **Windows nativo**. Todo comando que invoque `node`, `g++`/el toolchain Amiga, WinUAE o el runner debe ejecutarse con los binarios de Windows (p. ej. `C:\Program Files\nodejs\node.exe`, el `.exe` de la extensión Bartman), no con el `bash` de WSL (que mangla rutas y rompe `cc1plus`/lanzamiento de WinUAE). Si un script necesita bash en Windows, usar Git Bash, nunca WSL. Usar rutas Windows (`C:\...`, `out\run\...`) o montajes `/mnt/c` solo para lectura.
 - El toolchain Amiga se elige por **versión de gcc más moderna** entre `AMIGA_BIN_PATH` y las extensiones de Cursor/VS Code `bartmanabyss.amiga-debug-*` (a día de hoy todas son gcc 15.1.0; el toolchain de Windows de la extensión va por detrás del README, que anuncia 15.2).
 - `tools/run/run-demo.ts` importa dinámicamente `../mcp-winuae-emu/dist/winuae-connection.js` desde el repositorio hermano; si falta, el runner falla antes de abrir WinUAE.
+- **Python + OpenCV (opcional)** para la capa determinista de análisis visual de parpadeo (`tools/vision-review/temporal-detect.py`): `pip install opencv-python numpy`. Si no está, `flicker-check.mjs` avisa y usa el fallback de rejilla de luminancia; el resto del pipeline no depende de Python. La `tools/vision-review/PROMPTS.md` detalla el flujo híbrido (determinista → visión).
 
 ## Reglas del runner/emulador
 

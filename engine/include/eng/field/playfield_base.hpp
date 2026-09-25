@@ -295,7 +295,8 @@ public:
     /// bytes, copia de 32 en 32 (ruta 68020+: `move.l`; *CPU blit assist*, ver
     /// `docs/guides/optimization/OPTIMIZACION_GPP_68000.md`). No encola nada.
     bool copy_rect_cpu(Span<const u16> src, s32 wx, s32 wy, u16 w, u16 h,
-                       u16 src_row_bytes, u32 src_plane_stride, u8 planes) {
+                       u16 src_row_bytes, u32 src_plane_stride, u8 planes,
+                       u8 source_shift = 0u) {
         if (!m_initialized || src.empty() || planes == 0u) return false;
         if (wx < 0 || (wx & 15) != 0 ||
             static_cast<u32>(wx / 8) + (w / 8u) > m_bytes_per_row) {
@@ -306,7 +307,7 @@ public:
         const u32 need_src =
             (planes > 1u ? eng::math::mulu16(static_cast<u16>(planes - 1u), static_cast<u16>(src_plane_stride / 2u)) : 0u) +
             (h > 1u ? eng::math::mulu16(static_cast<u16>(h - 1u), static_cast<u16>(src_row_bytes / 2u)) : 0u) +
-            static_cast<u32>(words);
+            static_cast<u32>(words) + ((source_shift != 0u) ? 1u : 0u);
         if (src.size() < need_src) return false;
         const u16 x_byte = static_cast<u16>(wx / 8u);
         // Sin multiplicaciones de 32 bits en el bucle: `wy*m_row_stride` con `mulu16`
@@ -318,19 +319,31 @@ public:
             const u8* srow = srow0;
             u8* drow = drow0;
             for (u16 row = 0; row < h; ++row) {
-                const u16* s = reinterpret_cast<const u16*>(srow);
-                u16* d = reinterpret_cast<u16*>(drow);
-                const bool wide = m_raster_policy.cpu_fast && words >= 2u &&
-                                  (reinterpret_cast<eng::uintptr>(s) & 3u) == 0u &&
-                                  (reinterpret_cast<eng::uintptr>(d) & 3u) == 0u;
-                u16 i = 0;
-                if (wide) {
-                    for (; i + 1u < words; i += 2u) {
-                        *reinterpret_cast<u32*>(d + i) = *reinterpret_cast<const u32*>(s + i);
+                if (source_shift == 0u) {
+                    const u16* s = reinterpret_cast<const u16*>(srow);
+                    u16* d = reinterpret_cast<u16*>(drow);
+                    const bool wide = m_raster_policy.cpu_fast && words >= 2u &&
+                                      (reinterpret_cast<eng::uintptr>(s) & 3u) == 0u &&
+                                      (reinterpret_cast<eng::uintptr>(d) & 3u) == 0u;
+                    u16 i = 0;
+                    if (wide) {
+                        for (; i + 1u < words; i += 2u) {
+                            *reinterpret_cast<u32*>(d + i) = *reinterpret_cast<const u32*>(s + i);
+                        }
                     }
-                }
-                for (; i < words; ++i) {
-                    d[i] = s[i];
+                    for (; i < words; ++i) {
+                        d[i] = s[i];
+                    }
+                } else {
+                    const u16* s = reinterpret_cast<const u16*>(srow);
+                    u16* d = reinterpret_cast<u16*>(drow);
+                    u16 carry = static_cast<u16>(
+                        reinterpret_cast<const u16*>(s - 1)[0] >> (16u - source_shift));
+                    for (u16 i = 0; i < words; ++i) {
+                        const u16 cur = static_cast<u16>(s[i] << source_shift);
+                        d[i] = static_cast<u16>(cur | carry);
+                        carry = static_cast<u16>(s[i] >> (16u - source_shift));
+                    }
                 }
                 srow += src_row_bytes;
                 drow += m_row_stride;

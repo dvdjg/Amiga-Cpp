@@ -119,6 +119,9 @@ public:
         const u32 y0_off = eng::math::mulu16(static_cast<u16>(wy), static_cast<u16>(m_row_stride));
         const u8* sp = reinterpret_cast<const u8*>(sbase);
         u8* dp = m_frontbuffer + y0_off + x_byte;
+        // Fuente con su propio ancho de fila (`source_words_per_row`): el blit puede usar este
+        // playfield como fuente (p. ej. `copy_rect_from`) o leer un bitmap con padding propio.
+        const u16 src_wpr = static_cast<u16>(src_row_bytes / 2u);
         for (u8 p = 0; p < planes; ++p) {
             const u16* s = reinterpret_cast<const u16*>(sp);
             u16* d = reinterpret_cast<u16*>(dp);
@@ -127,6 +130,7 @@ public:
                 words, h, src_mod, dst_mod,
                 1, source_shift, src_plane_stride, m_plane_stride, descending
             };
+            job.source_words_per_row = src_wpr;
             job.minterm = logic ? raster_op_minterm(op) : job.minterm;
             if (logic ? !plan.add_logic_blit(job) : !plan.add_copy_rect(job)) return false;
             sp += src_plane_stride;

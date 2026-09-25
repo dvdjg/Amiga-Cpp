@@ -109,6 +109,15 @@ struct BlitJob {
 	/// *Use Case 4: interleaved bitplane BOBs*). Exime de dar strides de plano.
 	bool interleaved = false;
 
+	/// Palabras de **fuente por scanline**. Sólo se usa si `source_words_per_row != 0`: la
+	/// fuente es un bitmap con su propio ancho de fila (A) distinto del bloque a copiar
+	/// (`words_per_row`); el módulo de A se deriva como
+	/// `(source_words_per_row - words_per_row) * 2` y el avance por plano es
+	/// `source_plane_stride_bytes` (fuente en un playfield aparte). Si es `0`, la fuente se
+	/// lee compacta como `words_per_row` palabras por fila (fuente «apretada»). Campo al
+	/// final para no romper los *aggregate initializers* posicionales existentes.
+	u16 source_words_per_row = 0;
+
 	/// Campos de **línea** (`BlitJobKind::Line`/`LineEor`): coordenadas y módulo de fila.
 	struct Line {
 		s16 x0 = 0;        ///< x del punto inicial

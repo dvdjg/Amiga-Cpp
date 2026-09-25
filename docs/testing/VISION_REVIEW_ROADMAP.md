@@ -32,8 +32,11 @@ Fuera del MVP:
 - construir un tracker universal de entidades;
 - entender audio;
 - entrenar modelos;
-- depender obligatoriamente de OpenCV;
 - convertir esto en un producto interactivo con UI.
+
+OpenCV entra **solo** en la capa determinista de analisis de parpadeo (§Analisis de parpadeo:
+enfoque hibrido), como dependencia **opcional** con fallback a la rejilla de luminancia; no es
+obligatoria para el resto del pipeline.
 
 ## Relacion con FrameScope
 
@@ -54,6 +57,56 @@ Vision Review se activa despues, solo sobre puntos interesantes. Puede usar:
 OpenCV u otras librerias solo entraran si resuelven una necesidad muy acotada:
 recortar viewport, generar crops, hacer overlays o calcular diferencias simples.
 La descripcion semantica queda para el modelo con vision.
+
+## Analisis de parpadeo: enfoque hibrido (tres capas)
+
+Los VLM fallan mas en glitches **temporales** (parpadeo, flickering, objetos que aparecen y
+desaparecen) que en glitches espaciales, y ademas **alucinan** coordenadas si se les pide buscarlos
+a ciegas. Por eso el analisis de parpadeo se organiza en **tres capas**, de mas a menos determinista:
+
+```text
+secuencia PNG
+   |-- 1. frame-diff.mjs      px cambiados + bbox por par (referencia directa movimiento/glitch)
+   |-- 2. temporal-detect.py  candidatos flicker/tearing/corruption (OpenCV: oscilacion A-B-A +
+   |                          optical flow + bloques; descarta el movimiento coherente)
+   \-- 3. flicker-check.mjs   VLM SOLO sobre la region candidata con frames de referencia+contexto,
+                              respuesta estructurada y regiones relativas (sin pixeles)
+```
+
+1. **`frame-diff.mjs`** (determinista, sin dependencias): cuenta pixeles cambiados y su bbox entre
+   frames consecutivos. Una zona **estable** que cambia erradicamente es glitch; si solo cambian las
+   zonas que se desplazan, es movimiento. Es lo que **prevalece** ante una respuesta dudosa del VLM.
+2. **`temporal-detect.py`** (determinista, OpenCV opcional): criterio primario **oscilacion A-B-A**
+   (un pixel que en `f-1` y `f+1` vale igual pero en `f` no = parpadeo), *optical flow* (Farneback)
+   como clasificador secundario de `tearing`/`corruption`, analisis por bloques con solape y un
+   *matcher* de vecindad que descarta los bloques desplazados. Salida:
+   `out/vision-review/<demoId>/temporal-detect.{json,md}`.
+3. **`flicker-check.mjs`** (hibrido): ejecuta las dos capas deterministas y envia al modelo de vision
+   **solo** la region candidata con frames de referencia+contexto, con prompt **estructurado**
+   (si/no + tipo + zona relativa + confianza) y **prohibicion de pixeles**. Si no hay candidatos, usa
+   la rejilla de luminancia como fallback. Salida: `flicker-report.{json,md}`.
+
+Contrato de los prompts (referencia+comparacion, respuesta estructurada, regiones relativas,
+few-shot) y diagrama del pipeline: `tools/vision-review/PROMPTS.md`. Modelo recomendado:
+**Qwen3-VL**; evitar LLaVA clasico. La capa determinista es la referencia; el modelo es **apoyo**.
+Descripcion de las herramientas: `tools/vision-review/README.md`.
+
+### Gating en la regresion
+
+`tools/test-regression.sh --flicker` anade la columna **Flicker** (`ok` sin candidatos,
+`candidates` con zonas sospechosas, `skip` sin secuencia/detector). Una demo declara su nivel
+aceptado con `flicker-baseline.json` (`{"max_candidates": N}`): si el numero de candidatos lo
+supera, la demo **falla** aunque no se pase `--require-flicker-ok`; con `max_candidates: 0` declara
+que es estable (sin glitch temporal). `--require-flicker-ok` convierte `candidates` en fallo para
+todas las demos del barrido.
+
+### Calibracion y auto-test
+
+`tools/vision-review/selftest-temporal.mjs` genera secuencias **sinteticas** con artefactos
+conocidos (`make-synth-seq.mjs`: parpadeo, corrupcion, banda movil) y comprueba que el detector
+distingue glitch de movimiento (parpadeo/corrupcion detectados; banda movil ignorada). Se ejecuta en
+`tools/run-host-tests.sh` y se **omite** (no falla) si no hay OpenCV/Python. Dependencia opcional:
+`pip install opencv-python numpy` (ver `docs/build/BUILD_AND_RUN.md`).
 
 ## Estructura propuesta
 
@@ -360,6 +413,7 @@ simbolicos con glifos `0..F` para validar scroll, tile-pop y corrupcion local.
 
 ## Siguiente paso
 
-Implementar la Fase 1: `vision-review.ps1` + `vision-review.mjs` en modo offline,
-con prompts y ejemplos de proveedor. Despues se conectara LM Studio cuando el
-usuario proporcione endpoint/modelo.
+La base de Vision Review (paquete offline, proveedor OpenAI-compatible, seleccion automatica y
+gating) esta implementada. El estado vigente y las tres capas del analisis de parpadeo estan en
+§Analisis de parpadeo: enfoque hibrido. Proximos pasos: few-shot de pares bueno/malo para demos con
+parpadeo conocido, y extender los `flicker-baseline.json` a las demos declaradas estables.

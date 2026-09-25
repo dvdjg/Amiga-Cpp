@@ -222,17 +222,18 @@ public:
 		return ok;
 	}
 	/// Copia rectangular por **CPU** (`Playfield::copy_rect_cpu`, con ruta de 32 bits en
-	/// 68020+); no encola trabajo. `source_shift`/`descending` no aplican al camino CPU.
+	/// 68020+); no encola trabajo. `source_shift` sí aplica (barrel shift por palabras);
+	/// `descending`/`op` no.
 	bool copy_rect(Playfield& pf, graphics::FramePlan& plan, eng::Span<const eng::u16> src,
 		       eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h,
 		       eng::u16 src_row_bytes, eng::u32 src_plane_stride, eng::u8 planes,
 		       eng::u8 source_shift = 0u, bool descending = false,
 		       RasterOp op = RasterOp::Copy) override {
 		(void)plan;
-		(void)source_shift;
 		(void)descending;
 		(void)op;
-		return pf.copy_rect_cpu(src, x, y, w, h, src_row_bytes, src_plane_stride, planes);
+		return pf.copy_rect_cpu(src, x, y, w, h, src_row_bytes, src_plane_stride, planes,
+					source_shift);
 	}
 	/// BOB enmascarado por **CPU** (`Playfield::copy_masked_cpu`); no encola trabajo.
 	bool copy_masked(Playfield& pf, graphics::FramePlan& plan, eng::Span<const eng::u16> src,
