@@ -15,6 +15,7 @@
 /// Ver `docs/engine/architecture/RESOURCE_SYSTEM.md` y `PUBLIC_GAME_API.md` §2.1.4.
 
 #include <eng/core/types/domains.hpp>
+#include <eng/core/types/ptr.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/os/file.hpp>
@@ -26,7 +27,7 @@ namespace eng::amiga {
 class AssetCacheBackend {
 public:
 	constexpr AssetCacheBackend() = default;
-	explicit constexpr AssetCacheBackend(eng::MemorySystem& memory) noexcept : m_memory(&memory) {}
+	explicit constexpr AssetCacheBackend(eng::MemorySystem& memory) noexcept : m_memory(memory) {}
 
 	/// Reserva `bytes` en la arena del banco (Chip, o Slow para `Fast`). El cache usa el
 	/// tamaño real del destino; aquí se añade margen de alineación interno de la arena.
@@ -53,7 +54,7 @@ public:
 	}
 
 private:
-	eng::MemorySystem* m_memory = nullptr;
+	eng::Ref<eng::MemorySystem> m_memory {};
 };
 
 } // namespace eng::amiga

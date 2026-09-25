@@ -40,6 +40,7 @@ public:
 	[[nodiscard]] bool empty() const noexcept { return m_buf.empty(); }
 	[[nodiscard]] char* data() noexcept { return m_buf.data(); }
 	[[nodiscard]] const char* data() const noexcept { return m_buf.data(); }
+	/// Vista de solo lectura del contenido.
 	[[nodiscard]] StringView view() const noexcept {
 		return StringView(m_buf.data(), m_buf.size());
 	}

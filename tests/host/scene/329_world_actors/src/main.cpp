@@ -65,7 +65,7 @@ int main() {
 	const scene::ActorId b = w.add_actor(make_bob(48, 16, 20u));
 	check(a.valid() && b.valid(), "dos actores dados de alta");
 	check(w.actors().count() == 2u, "el store cuenta 2");
-	check(w.actor(a) != nullptr, "actor(a) accesible");
+	check(w.actor(a).valid(), "actor(a) accesible");
 	check(w.actor(a)->desc.z == 10u, "z preservado");
 
 	// Emision al plan: un BOB planar cookie-cut con mascara -> jobs.

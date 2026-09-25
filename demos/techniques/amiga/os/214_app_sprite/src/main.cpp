@@ -132,7 +132,7 @@ struct AppSpriteDemo {
 
 	void update(auto& app) {
 		// La cámara de la capa de fondo avanza; el sprite se dibuja según su scroll.
-		if (auto* l = app.world().layer(0u)) {
+		if (auto l = app.world().layer(0u)) {
 			l->camera().set_scroll_x(static_cast<eng::u16>(app.frame() * 2u));
 		}
 	}
@@ -140,13 +140,13 @@ struct AppSpriteDemo {
 	void render(auto& app) {
 		auto s = app.screen();
 		s.clear(0u);
-		const auto* fondo = app.world().layer(0u);
-		const eng::u16 scroll = fondo != nullptr ? fondo->camera().scroll_x() : 0u;
+		const auto fondo = app.world().layer(0u);
+		const eng::u16 scroll = fondo.valid() ? fondo->camera().scroll_x() : 0u;
 		const eng::s16 x = static_cast<eng::s16>(16u + scroll % (kWidth - kObjW));
 		const eng::s16 y = static_cast<eng::s16>(96u + ((app.frame() >> 1u) % 64u));
 		s.sprite(m_sprite, x, y); // una llamada: la geometría del destino la pone el contexto
 		// Actor del mundo retenido (segunda vía): se mueve y lo emite el planner del App.
-		if (auto* a = app.world().actor(m_actor)) {
+		if (auto a = app.world().actor(m_actor)) {
 			a->desc.x = static_cast<eng::s16>(16u + ((app.frame() * 3u) % (kWidth - kObjW)));
 			a->desc.y = static_cast<eng::s16>(176u + ((app.frame() >> 1u) % 48u));
 		}

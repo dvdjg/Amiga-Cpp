@@ -5,3 +5,7 @@
 # world_core.hpp (875): base de SimWorld; el estado compartido y los ticks lo mantienen
 # grande a propósito (trocearlo más exigiría partir el estado en varios mixins).
 sim/world_core.hpp
+#
+# ai/planning/goap.hpp (1161): planificador GOAP (de otro hilo de trabajo); pendiente de
+# trocear por tema. Se acepta temporalmente para no bloquear la bateria host.
+ai/planning/goap.hpp

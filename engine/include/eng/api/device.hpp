@@ -11,6 +11,7 @@
 
 #include <eng/core/types/domains.hpp>
 #include <eng/core/types/ptr.hpp>
+#include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/blitter_state.hpp>
 #include <eng/graphics/composition/compose.hpp>
@@ -59,6 +60,7 @@ public:
 		}
 	}
 
+	/// Borra `planes` planos (`w`×`h`, `D = 0`). `wait` sincroniza con el fin del blit.
 	template <class B = Backend>
 	bool blitter_clear(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 w,
 			   u16 h, bool wait = true) {
@@ -78,17 +80,20 @@ public:
 		}
 	}
 
+	/// **BOBs OR en lote** (`D = A | D`) en orden; `source_modulo`/`dest_modulo` son
+	/// `BLTAMOD`/`BLTBMOD`=`BLTDMOD`.
 	template <class B = Backend>
-	bool blitter_or_bobs(const graphics::OrBob* bobs, u32 count, u16 words, u16 height,
+	bool blitter_or_bobs(eng::Span<const graphics::OrBob> bobs, u16 words, u16 height,
 			     s16 source_modulo, s16 dest_modulo) {
-		if constexpr (requires(B& b, const graphics::OrBob* o) {
-				      b.blitter_or_bobs(o, u32 {}, u16 {}, u16 {}, s16 {}, s16 {});
+		if constexpr (requires(B& b, eng::Span<const graphics::OrBob> o) {
+				      b.blitter_or_bobs(o.data(), u32 {}, u16 {}, u16 {}, s16 {},
+							s16 {});
 			      }) {
-			return m_backend.blitter_or_bobs(bobs, count, words, height, source_modulo,
-							 dest_modulo);
+			return m_backend.blitter_or_bobs(bobs.data(),
+							 static_cast<u32>(bobs.size()), words, height,
+							 source_modulo, dest_modulo);
 		} else {
 			(void)bobs;
-			(void)count;
 			(void)words;
 			(void)height;
 			(void)source_modulo;
@@ -97,6 +102,8 @@ public:
 		}
 	}
 
+	/// **Colisión pixel-perfect** por Blitter: `scratch = a & b` por plano y `true` si hay
+	/// algún bit. `words`×`rows` es el rect en palabras de 16 px × filas.
 	template <class B = Backend>
 	bool blitter_collide(eng::PlaneBytes a, eng::PlaneBytes b, eng::PlaneBytes scratch, u8 planes,
 			     u16 row_bytes, u32 plane_bytes, u16 words, u16 rows) {

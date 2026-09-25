@@ -84,6 +84,21 @@ public:
 		return spr.erase(*m_target.plan(), m_target.bob_target(), x, y);
 	}
 
+	/// **Blit planar** al plan del frame (copia desde una hoja planar). Para primitivas que
+	/// `Screen` no cubre (chunky→planar usa `c2p`). El plan lo pone el contexto.
+	bool blit(eng::Span<const u16> src, s32 x, s32 y, u16 w, u16 h, u16 src_row_bytes,
+		  u32 src_plane_stride, u8 planes, u8 source_shift = 0u, bool descending = false,
+		  field::RasterOp op = field::RasterOp::Copy) {
+		if (!m_target.plan().valid()) {
+			return false;
+		}
+		return m_target.blit(*m_target.plan(), src, x, y, w, h, src_row_bytes, src_plane_stride,
+				    planes, source_shift, descending, op);
+	}
+
+	/// **Chunky→planar** por el seam (Blitter si hay plan, si no CPU del playfield).
+	bool c2p(const field::C2pRequest& req) { return m_target.c2p(req); }
+
 	/// El objetivo de dibujo subyacente (para efectos avanzados; el juego normal no lo necesita).
 	[[nodiscard]] field::DrawTarget& target() noexcept { return m_target; }
 

@@ -135,12 +135,12 @@ struct CollideGame {
 		const eng::graphics::OrBob hb {
 			m_hazard_mask.view.data(),
 			m_band_b.view.data() + static_cast<eng::u32>(kHazardWord) * 2u, 0u};
-		(void)app.device().blitter_or_bobs(&pa, 1u, 1u, 8u,
-					  static_cast<eng::s16>(kMaskRowBytes - 2u),
-					  static_cast<eng::s16>(kBytesPerRow - 2u));
-		(void)app.device().blitter_or_bobs(&hb, 1u, 1u, 8u,
-					  static_cast<eng::s16>(kMaskRowBytes - 2u),
-					  static_cast<eng::s16>(kBytesPerRow - 2u));
+		(void)app.device().blitter_or_bobs(eng::Span<const eng::graphics::OrBob> {&pa, 1u}, 1u, 8u,
+						  static_cast<eng::s16>(kMaskRowBytes - 2u),
+						  static_cast<eng::s16>(kBytesPerRow - 2u));
+		(void)app.device().blitter_or_bobs(eng::Span<const eng::graphics::OrBob> {&hb, 1u}, 1u, 8u,
+						  static_cast<eng::s16>(kMaskRowBytes - 2u),
+						  static_cast<eng::s16>(kBytesPerRow - 2u));
 		const bool hit = app.device().blitter_collide(m_band_a.view, m_band_b.view, m_scan.view,
 						     1u, kBytesPerRow, kBandPlaneBytes,
 						     kBandWords, 8u);

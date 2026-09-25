@@ -55,10 +55,10 @@ int main() {
 	check(id_is(sprites->id(), "sprites") && sprites->depth() == 2u, "id/depth de la segunda");
 
 	// Busqueda por indice e id.
-	check(w.layer(0u) == fondo.get(), "layer(0) = primera");
-	check(w.layer(9u) == nullptr, "layer fuera de rango -> nullptr");
-	check(w.find("sprites") == sprites.get(), "find por id");
-	check(w.find("nope") == nullptr, "find inexistente -> nullptr");
+	check(w.layer(0u).get() == fondo.get(), "layer(0) = primera");
+	check(!w.layer(9u).valid(), "layer fuera de rango -> Ref invalido");
+	check(w.find("sprites").get() == sprites.get(), "find por id");
+	check(!w.find("nope").valid(), "find inexistente -> Ref invalido");
 
 	// Camara de la capa: scroll recortado al mundo.
 	fondo->camera().reset(eng::scene::WorldRect {0u, 0u, 640u, 256u}, eng::Size2u {320u, 256u});

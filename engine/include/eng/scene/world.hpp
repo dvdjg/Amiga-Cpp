@@ -69,19 +69,21 @@ public:
 	[[nodiscard]] constexpr u8 capacity() const noexcept { return MaxLayers; }
 	[[nodiscard]] constexpr bool full() const noexcept { return m_count >= MaxLayers; }
 
-	/// Capa por índice (`nullptr` si fuera de rango).
-	[[nodiscard]] Layer* layer(u8 i) noexcept { return i < m_count ? &m_layers[i] : nullptr; }
-	[[nodiscard]] const Layer* layer(u8 i) const noexcept {
-		return i < m_count ? &m_layers[i] : nullptr;
+	/// Capa por índice (`Ref` inválido si fuera de rango).
+	[[nodiscard]] Ref<Layer> layer(u8 i) noexcept {
+		return i < m_count ? Ref<Layer> {m_layers[i]} : Ref<Layer> {};
 	}
-	/// Capa por id (`nullptr` si no existe).
-	[[nodiscard]] Layer* find(const char* id) noexcept {
+	[[nodiscard]] Ref<const Layer> layer(u8 i) const noexcept {
+		return i < m_count ? Ref<const Layer> {m_layers[i]} : Ref<const Layer> {};
+	}
+	/// Capa por id (`Ref` inválido si no existe).
+	[[nodiscard]] Ref<Layer> find(const char* id) noexcept {
 		for (u8 i = 0; i < m_count; ++i) {
 			if (same_id(m_layers[i].id(), id)) {
-				return &m_layers[i];
+				return Ref<Layer> {m_layers[i]};
 			}
 		}
-		return nullptr;
+		return {};
 	}
 
 	// --- Actores retenidos ---------------------------------------------------
@@ -99,7 +101,7 @@ public:
 	[[nodiscard]] ActorId add_actor(const ActorDesc& desc) noexcept {
 		return m_actors.add(desc, m_allocator);
 	}
-	[[nodiscard]] Actor* actor(ActorId id) noexcept { return m_actors.get(id).get(); }
+	[[nodiscard]] Ref<Actor> actor(ActorId id) noexcept { return m_actors.get(id); }
 	[[nodiscard]] ActorStore<MaxActors>& actors() noexcept { return m_actors; }
 	[[nodiscard]] const ActorStore<MaxActors>& actors() const noexcept { return m_actors; }
 
@@ -120,6 +122,7 @@ public:
 	}
 
 private:
+	/// Compara dos ids C sin `strcmp` (freestanding).
 	[[nodiscard]] static bool same_id(const char* a, const char* b) noexcept {
 		if (a == nullptr || b == nullptr) {
 			return false;

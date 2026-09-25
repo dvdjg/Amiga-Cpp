@@ -44,6 +44,7 @@ struct ColorIndex {
 struct Color {
 	u16 value = 0; ///< empaquetado `0x0RGB`
 
+	/// Empaqueta tres componentes (0..15) en un color RGB444.
 	[[nodiscard]] static constexpr Color rgb(u16 r, u16 g, u16 b) noexcept {
 		return Color {eng::util::rgb444(r, g, b)};
 	}
@@ -77,12 +78,14 @@ public:
 		return Color {static_cast<u16>(m_data.color[color_index(i.value).value] & 0x0fffu)};
 	}
 
+	/// Pinta los 32 colores con `c`.
 	constexpr void fill(Color c) noexcept {
 		for (u8 i = 0; i < 32u; ++i) {
 			m_data.color[i] = static_cast<u16>(c.value & 0x0fffu);
 		}
 	}
 	constexpr void copy_from(const Palette32& src) noexcept { m_data = src; }
+	/// Copia los colores de una vista (`PaletteWords`); rellena con negro si es más corta.
 	constexpr void copy_from(PaletteWords src) noexcept {
 		for (u8 i = 0; i < 32u; ++i) {
 			m_data.color[i] = i < src.size() ? static_cast<u16>(src.data()[i] & 0x0fffu) : 0u;

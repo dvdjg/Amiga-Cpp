@@ -62,6 +62,7 @@ private:
 	[[nodiscard]] constexpr const LinearArena& chip() const noexcept { return m_memory->chip; }
 	[[nodiscard]] constexpr const LinearArena& slow() const noexcept { return m_memory->slow; }
 	[[nodiscard]] constexpr const LinearArena& frame() const noexcept { return m_memory->frame; }
+	/// Arena del `MemorySystem` que corresponde a `kind` (`Fast` se sirve de `slow`).
 	[[nodiscard]] constexpr const LinearArena& arena_for(MemoryKind kind) const noexcept {
 		switch (kind) {
 			case MemoryKind::Slow:
