@@ -139,8 +139,9 @@ public:
         return true;
     }
 
-    /// BOB enmascarado (cookie-cut) sobre lienzo **contiguo**: un `MaskedBobCookieCut`
-    /// por plano, con la máscara de 1 bit compartida.
+    /// BOB enmascarado (cookie-cut) sobre lienzo **contiguo**: **un solo** `MaskedBobCookieCut`
+    /// con `bitplane_count = planes` (el backend avanza plano a plano), con la máscara de 1 bit
+    /// compartida. Mismo patrón que `bob.hpp::bob_draw` (ruta de cookie-cut verificada).
     bool add_world_bitmap_masked(graphics::FramePlan& plan, Span<const u16> src,
                                  Span<const u16> mask, s32 wx, s32 wy,
                                  u16 w, u16 h, u16 src_row_bytes,
@@ -159,24 +160,16 @@ public:
         const u16 x_byte = static_cast<u16>(wx / 8u);
         const s16 src_mod = static_cast<s16>(src_row_bytes - words * 2);
         const s16 dst_mod = static_cast<s16>(m_bytes_per_row - words * 2);
+        const u32 y0_off = eng::math::mulu16(static_cast<u16>(wy), static_cast<u16>(m_row_stride));
         const u16* sbase = src.data();
         const u16* mbase = mask.data();
-        const u32 y0_off = eng::math::mulu16(static_cast<u16>(wy), static_cast<u16>(m_row_stride));
-        const u8* sp = reinterpret_cast<const u8*>(sbase);
-        u8* dp = m_frontbuffer + y0_off + x_byte;
-        for (u8 p = 0; p < planes; ++p) {
-            const u16* s = reinterpret_cast<const u16*>(sp);
-            u16* d = reinterpret_cast<u16*>(dp);
-            graphics::BlitJob job {
-                graphics::BlitJobKind::MaskedBobCookieCut, graphics::BlitSource {mbase}, graphics::BlitSource {s}, graphics::BlitDest {d},
-                words, h, src_mod, dst_mod,
-                1, source_shift, src_plane_stride, m_plane_stride, false
-            };
-            if (!plan.add_masked_bob(job)) return false;
-            sp += src_plane_stride;
-            dp += m_plane_stride;
-        }
-        return true;
+        u16* dp = reinterpret_cast<u16*>(m_frontbuffer + y0_off + x_byte);
+        graphics::BlitJob job {
+            graphics::BlitJobKind::MaskedBobCookieCut, graphics::BlitSource {mbase}, graphics::BlitSource {sbase}, graphics::BlitDest {dp},
+            words, h, src_mod, dst_mod,
+            planes, source_shift, src_plane_stride, m_plane_stride, false
+        };
+        return plan.add_masked_bob(job);
     }
 
 private:

@@ -11,6 +11,9 @@
   manteniendo la equivalencia píxel a píxel con la CPU.
 - `src_scratch`/`mask_scratch` son buffers del **llamador** que persisten hasta ejecutar el
   `FramePlan` (el encolado del job solo guarda punteros: un buffer local sería pila muerta).
+- `TextBlitScratch<Planes, MaxPairs>`: reserva esos buffers en el `LinearArena` de **Chip RAM**
+  con los tamaños correctos (sólido compartido + **una máscara por par**), encapsulando el
+  contrato. El test comprueba la reserva y que el resultado con el helper == referencia CPU.
 
 ## Invariantes
 
@@ -20,7 +23,10 @@
 3. Texto de longitud impar: la segunda mitad de la última palabra conserva el fondo.
 4. `x` no alineado a palabra: el par pre-desplazado a 2 palabras == CPU píxel a píxel.
 5. Con `BlitterRaster`, la **geometría del job** encolado es la esperada: `words_per_row` 1
-   (alineado) o 2 (no alineado), `source_plane_stride_bytes = kRows*2` o `kRows*4`, un job por plano.
+   (alineado) o 2 (no alineado), `source_plane_stride_bytes = kRows*2` o `kRows*4`, y **un solo
+   job por par** con `bitplane_count = planes` (el backend avanza plano a plano).
+6. `TextBlitScratch` reserva `src` (`planes*2*filas`) y `mask` (`pares*2*filas`) y produce el
+   mismo resultado que la referencia CPU.
 
 ## Ejecución
 
@@ -35,4 +41,4 @@ bash tools/run-host-tests.sh tests/host/ui/313_ui_text_blit
   `docs/guides/methodology/PROTOCOLO_ETAPAS_GRAFICOS.md`.
 - Ruta CPU de referencia: `Surface::draw_text`/`draw_code_point` (`eng/field/surface.hpp`).
 - Uso desde la UI: `UiPainter::text_blit` (`eng/ui/painter.hpp`). La ruta de hardware
-  (Blitter real) se valida en la demo de GUI en emulador.
+  (Blitter real) se valida en emulador por la demo **301** (self-test contra `Font8`).

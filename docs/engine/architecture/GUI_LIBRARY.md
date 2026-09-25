@@ -175,10 +175,16 @@ equivalencia**. La ruta **acelerada** vive en `eng/graphics/glyph_cache.hpp`:
   `blit_masked` cubre todos los planos (varios blits de 1 plano escribirían siempre el plano 0).
   `src_scratch` y `mask_scratch` son buffers del **llamador** que deben persistir hasta ejecutar el
   `FramePlan` (el encolado solo guarda punteros).
+- `TextBlitScratch<Planes, MaxPairs>`: reserva esos dos buffers en el `LinearArena` de **Chip RAM**
+  con los tamaños correctos (sólido compartido y **una máscara por par**), encapsulando el contrato
+  para no volver a equivocar arena/tamaño. Una llamada de `text_blit` reescribe la máscara desde el
+  índice 0, así que dos `text_blit` al **mismo** `FramePlan` necesitan buffers separados o ejecutar
+  el plan entre ambas.
 
 `UiPainter::text_blit(x, y, s, fg, cache, src_scratch, mask_scratch, planes[, clip])` es el punto de
 uso desde la UI (requiere `FramePlan`). Equivalencia CPU↔Blitter y geometría del job verificadas en
-**HOST-313**; la ejecución real del Blitter está **pendiente** (ver §8 de
+**HOST-313**; la **ejecución real del Blitter está verificada en hardware** por la demo **301**
+(self-test contra `Font8` píxel a píxel, con `x` alineado y no alineado; ver §8 de
 `docs/debugging/investigaciones/pending-verification.md`).
 
 ### 6.2 Colección de glifos y variantes

@@ -5,8 +5,9 @@
 //     *wrap*) y `layout_stack_v`.
 //   - **texto ajustado** (`Label.wrap`/`wrap_w`).
 //   - **texto por Blitter** con cache de glifos (`GlyphCache` + `UiPainter::text_blit`): la
-//     equivalencia CPU y el algoritmo de varios pares los cubre HOST-313; la ejecucion en
-//     hardware sigue pendiente (§8 de pending-verification).
+//     equivalencia CPU y el algoritmo de varios pares los cubre HOST-313; la demo dibuja una
+//     linea real por cookie-cut y la **verifica en hardware** contra `Font8` pixel a pixel.
+//     Los buffers de trabajo los encapsula `TextBlitScratch` (Chip RAM, mascara por par).
 //   - **coleccion de fuentes**: `Font8` (y su cursiva), `Font5x7` (y cursiva) y micro `Font3x5`.
 //
 // Escena EHB 320x256. `text_blit` necesita un `FramePlan`: la demo lo usa y ejecuta el plan con el
@@ -154,6 +155,14 @@ struct DemoGame {
 		m_scene.set_raster(&eng::field::kBlitterRaster,
 				   eng::field::RasterPolicy {eng::field::AccelMode::Auto, 64u, true});
 
+		// Buffers de trabajo del texto por Blitter (`TextBlitScratch`): en **Chip RAM** (el
+		// Blitter solo lee Chip por DMA) y con los tamaños correctos (sólido compartido +
+		// una máscara por par). El helper encapsula el contrato de `draw_text_blit`.
+		if (!m_text_scratch.allocate(backend.memory().chip)) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00000320u);
+			return;
+		}
+
 		if (!build_and_draw(backend)) {
 			eng::debug::mark_failed(g_eng_run_status, m_fail != 0u ? m_fail : 0x00000311u);
 			return;
@@ -239,14 +248,67 @@ private:
 		ui::draw_widget(m_wrap, p);
 
 		// --- Ruta **texto por Blitter** (`UiPainter::text_blit`) ---
-		// La equivalencia CPU, la geometria del job y el algoritmo de varios pares (mascara por
-		// par) los cubre HOST-313, y el plan encola los jobs `MaskedBobCookieCut` correctos (5
-		// pares x 6 planos = 30). La **ejecucion real del Blitter** sobre esta escena no reproduce
-		// el patron exacto de `Font8` (ni con `x` alineado), tras resolver: buffers de trabajo en
-		// el llamador, en **Chip RAM** y con una **mascara por par**. La lectura directa de los
-		// registros del Blitter desde el programa devuelve 0 (no fiable en este entorno), asi que
-		// el residual se investiga con GDB sobre `submit_blit_job` (ver pending-verification §8).
-		// Por eso esta demo pinta el texto por CPU.
+		// Cookie-cut del Blitter (`MaskedBobCookieCut`, minterm `$CA`): la máscara planar
+		// del glifo (`GlyphCache`) es el canal A y un plano sólido del color el canal B, dos
+		// glifos por palabra. Los buffers de trabajo viven en **Chip RAM** y persisten hasta
+		// ejecutar el plan (`TextBlitScratch`, que encapsula el contrato de tamaños: sólido
+		// compartido + una máscara por par). La ruta CPU (`Surface::draw_text`) es la
+		// referencia de equivalencia (HOST-313); aquí se verifica en hardware contra `Font8`.
+		// Verificación hardware contra `Font8` píxel a píxel: dentro del glifo el Blitter
+		// pone el color del texto; fuera conserva el fondo del panel.
+		auto verify_font8 = [&](eng::s16 x0, eng::s16 y0, const char* text) -> eng::u32 {
+			eng::u32 wrong = 0u;
+			eng::s16 i = 0;
+			for (const char* q = text; *q != 0; ++q, ++i) {
+				const eng::u16 ch = static_cast<eng::u16>(static_cast<eng::u8>(*q));
+				for (eng::u8 r = 0u; r < eng::Font8::kRows; ++r) {
+					const eng::u8 row = eng::Font8::row(ch, r);
+					for (eng::u8 c = 0u; c < 8u; ++c) {
+						const bool on = ((row >> c) & 1u) != 0u;
+						const eng::u8 want = on ? m_theme.text : m_theme.fill;
+						if (read_pixel(static_cast<eng::s16>(x0 + i * 8 + c),
+							       static_cast<eng::s16>(y0 + r)) != want) {
+							++wrong;
+						}
+					}
+				}
+			}
+			return wrong;
+		};
+		// Dos líneas con el MISMO scratch reutilizado: como cada `text_blit` reescribe la
+		// máscara desde el índice 0, hay que **ejecutar el plan entre llamadas** (si no, la
+		// segunda pisaría las máscaras de la primera; ver `TextBlitScratch`). La primera usa
+		// `x` no alineado (20) y es larga (varios pares); la segunda `x` alineado (176).
+		{
+			eng::graphics::FramePlan plan {};
+			ui::UiPainter bp(screen, plan, m_theme);
+			if (!bp.text_blit(20, 228, "Blit: Blit 123", m_theme.text, m_glyph_cache,
+					  m_text_scratch.src(), m_text_scratch.mask(), kPlanes) ||
+			    !backend.execute_frame_plan(plan)) {
+				m_fail = 0x31350u;
+				return false;
+			}
+			const eng::u32 wrong = verify_font8(20, 228, "Blit: Blit 123");
+			if (wrong != 0u) {
+				m_fail = 0x31360u + (wrong & 0x3ffu);
+				return false;
+			}
+		}
+		{
+			eng::graphics::FramePlan plan {};
+			ui::UiPainter bp(screen, plan, m_theme);
+			if (!bp.text_blit(176, 228, "Aligned", m_theme.text, m_glyph_cache,
+					  m_text_scratch.src(), m_text_scratch.mask(), kPlanes) ||
+			    !backend.execute_frame_plan(plan)) {
+				m_fail = 0x31352u;
+				return false;
+			}
+			const eng::u32 wrong = verify_font8(176, 228, "Aligned");
+			if (wrong != 0u) {
+				m_fail = 0x31370u + (wrong & 0x3ffu);
+				return false;
+			}
+		}
 
 		// Self-test en hardware: verifica que el texto ajustado pinto tinta (color 3) en su zona.
 		eng::u32 hits = 0u;
@@ -284,6 +346,11 @@ private:
 	bool m_memory_ok = false;
 	bool m_scene_ok = false;
 	eng::u32 m_fail = 0u;
+
+	// Texto por Blitter: caché de glifos y buffers de trabajo en Chip RAM (el helper
+	// reserva sólido compartido + máscara por par; `MaxPairs` cubre el texto más largo).
+	eng::graphics::GlyphCache<64> m_glyph_cache {};
+	eng::graphics::TextBlitScratch<kPlanes, 32u> m_text_scratch {};
 
 	ui::Panel m_box1 {}, m_box2 {}, m_box3 {}, m_box4 {};
 	ui::Panel m_fit_parent {};

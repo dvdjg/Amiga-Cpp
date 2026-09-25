@@ -18,12 +18,14 @@
 /// punteros hasta que se ejecuta).
 
 #include <eng/core/types/box.hpp>
+#include <eng/core/types/domains.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/core/data/utf8.hpp>
 #include <eng/field/surface.hpp>
 #include <eng/graphics/font8.hpp>
 #include <eng/graphics/frame_plan.hpp>
+#include <eng/memory/arena.hpp>
 
 namespace eng::graphics {
 
@@ -89,6 +91,61 @@ private:
 	eng::u16 m_count = 0u;
 };
 
+/// **Buffers de trabajo en Chip RAM** de `draw_text_blit`, con el contrato de tamaño
+/// encapsulado. El Blitter solo lee **Chip** por DMA y los punteros de `src`/`mask`
+/// deben persistir hasta que el `FramePlan` se ejecute; reservar a mano estos buffers
+/// (arena equivocada, tamaño mal calculado, máscara compartida) es la fuente de los
+/// fallos del texto por Blitter. El helper los toma del `LinearArena` de Chip del
+/// llamador con los tamaños correctos.
+///
+/// `Planes` = profundidad de la escena; `MaxPairs` = nº máximo de pares de glifos que
+/// se dibujarán (un par = 2 glifos). El sólido (`src`) es compartido y mide
+/// `Planes * 2 * Font8::kRows` palabras; la máscara es **una por par** y mide
+/// `MaxPairs * 2 * Font8::kRows` (con `x` alineado solo se usa `MaxPairs * kRows`,
+/// pero se reserva el doble para cubrir también el camino no alineado). Para
+/// `text_shadow_blit` (dos pasadas que comparten `mask`), instanciar con el **doble**
+/// de pares.
+///
+/// Un texto de hasta `2 * MaxPairs` glifos cabe; el clip y la geometría los valida
+/// `draw_text_blit`.
+template <eng::u8 Planes, eng::u16 MaxPairs>
+class TextBlitScratch {
+public:
+	static_assert(Planes > 0u, "TextBlitScratch: al menos un plano");
+	static_assert(MaxPairs > 0u, "TextBlitScratch: al menos un par");
+	/// Palabras del sólido compartido (`planes * 2 * kRows`) y de la máscara por par.
+	static constexpr eng::u32 kSrcWords =
+		static_cast<eng::u32>(Planes) * 2u * eng::Font8::kRows;
+	static constexpr eng::u32 kMaskWords =
+		static_cast<eng::u32>(MaxPairs) * 2u * eng::Font8::kRows;
+	static constexpr eng::u32 kSrcBytes = kSrcWords * 2u;
+	static constexpr eng::u32 kMaskBytes = kMaskWords * 2u;
+
+	/// Reserva ambos buffers en `chip` (arena de Chip del backend). `headroom` cubre el
+	/// *peyote* de alineación de `AllocMem` (ver `LinearArena`). Devuelve `false` si el
+	/// arena no tiene espacio (misma política que `allocate_block`).
+	[[nodiscard]] bool allocate(eng::LinearArena& chip, eng::u32 headroom = 16u) noexcept {
+		const eng::Block<eng::PlaneTag> src = chip.allocate_block<eng::PlaneTag>(kSrcBytes + headroom, 16u);
+		const eng::Block<eng::MaskTag> mask = chip.allocate_block<eng::MaskTag>(kMaskBytes + headroom, 16u);
+		if (!src.valid() || !mask.valid()) {
+			return false;
+		}
+		m_src = eng::Span<eng::u16>(reinterpret_cast<eng::u16*>(src.view.data()), kSrcWords);
+		m_mask = eng::Span<eng::u16>(reinterpret_cast<eng::u16*>(mask.view.data()), kMaskWords);
+		return true;
+	}
+
+	/// Sólido por plano (compartido entre pares) y máscara por par, listos para
+	/// `draw_text_blit`. Vacíos si `allocate` no se llamó o falló.
+	[[nodiscard]] eng::Span<eng::u16> src() const noexcept { return m_src; }
+	[[nodiscard]] eng::Span<eng::u16> mask() const noexcept { return m_mask; }
+	[[nodiscard]] bool valid() const noexcept { return !m_src.empty() && !m_mask.empty(); }
+
+private:
+	eng::Span<eng::u16> m_src {};
+	eng::Span<eng::u16> m_mask {};
+};
+
 /// Dibuja `text` (UTF-8) en `(x, y)` con `color` usando **cookie-cut del Blitter**. El Blitter
 /// opera a nivel de **palabra** (16 px), así que el texto se agrupa de **dos glifos en dos glifos**
 /// (cada par = una palabra): la máscara del par es la de dos glifos consecutivos (8+8 px). Los
@@ -104,6 +161,10 @@ private:
 /// `src_scratch` necesita `planes * 2 * Font8::kRows` palabras (el **sólido** es igual para todos
 /// los pares: se comparte). `mask_scratch` necesita `pares * 2 * Font8::kRows` palabras, una máscara
 /// **por par**: reutilizar una sola perdería todas menos la última (el plan se ejecuta al final).
+/// Para no calcular a mano estos tamaños ni elegir la arena, usar
+/// [`TextBlitScratch<Planes, MaxPairs>`] (reserva ambos en el `LinearArena` de Chip). **Ojo**:
+/// cada llamada reescribe `mask_scratch` desde el índice 0, así que dos `draw_text_blit` al
+/// **mismo** plan necesitan buffers separados (o ejecutar el plan entre ambas).
 /// `clip`: si no está vacío, solo se emiten los bloques que caben **enteros** (no parte glifos a
 /// medias; coherente con `draw_text_clipped`). Devuelve `false` si no se pudo encolar (tamaño de los
 /// buffers, planos…). La ruta CPU equivalente es `Surface::draw_text`.

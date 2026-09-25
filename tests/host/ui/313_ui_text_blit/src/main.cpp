@@ -50,28 +50,31 @@ eng::u8 pixel_at(const eng::u8* base, eng::s16 x, eng::s16 y) {
 
 /// Ejecuta en **software** los jobs `MaskedBobCookieCut` de `plan` aplicando el minterm `$CA`
 /// (`D = A·B + ¬A·D`), con los modulos de A/B/D del propio job. Replica el Blitter (rueda de
-/// canales A=mascara, B=fuente, C=D=destino) para aislar el cableado del job y sus punteros de
-/// la ejecucion real del backend.
+/// canales A=mascara, B=fuente, C=D=destino), iterando `bitplane_count` planos con sus strides
+/// (un solo job puede cubrir todos los planos, como `bob_draw`).
 void exec_masked_bob_jobs(const eng::graphics::FramePlan& plan) {
 	for (eng::u8 j = 0u; j < plan.blit_job_count(); ++j) {
 		const eng::graphics::BlitJob& job = plan.blit_job(j);
 		if (job.kind != eng::graphics::BlitJobKind::MaskedBobCookieCut) continue;
-		const eng::u16* a = job.mask.words;
-		const eng::u16* b = job.source.words;
-		eng::u16* d = job.destination.words;
 		const eng::s32 amod = job.source_modulo_bytes / 2;
-		// En el backend, B (fuente) tambien usa el modulo de A (`src_mod`).
-		const eng::s32 bmod = job.source_modulo_bytes / 2;
 		const eng::s32 dmod = job.destination_modulo_bytes / 2;
-		const eng::u16 wpr = job.words_per_row;
-		for (eng::u16 row = 0u; row < job.height; ++row) {
-			for (eng::u16 w = 0u; w < wpr; ++w) {
-				const eng::u16 m = a[w];
-				d[w] = static_cast<eng::u16>((m & b[w]) | (static_cast<eng::u16>(~m) & d[w]));
+		const eng::u32 sstride = job.source_plane_stride_bytes / 2u;
+		const eng::u32 dstride = job.destination_plane_stride_bytes / 2u;
+		const eng::u8 nplanes = (job.bitplane_count != 0u) ? job.bitplane_count : 1u;
+		for (eng::u8 plane = 0u; plane < nplanes; ++plane) {
+			const eng::u16* a = job.mask.words;
+			const eng::u16* b = job.source.words + static_cast<eng::u32>(plane) * sstride;
+			eng::u16* d = job.destination.words + static_cast<eng::u32>(plane) * dstride;
+			const eng::u16 wpr = job.words_per_row;
+			for (eng::u16 row = 0u; row < job.height; ++row) {
+				for (eng::u16 w = 0u; w < wpr; ++w) {
+					const eng::u16 m = a[w];
+					d[w] = static_cast<eng::u16>((m & b[w]) | (static_cast<eng::u16>(~m) & d[w]));
+				}
+				a += wpr + amod;
+				b += wpr + amod; // B (fuente) usa el modulo de A (`src_mod`)
+				d += wpr + dmod;
 			}
-			a += wpr + amod;
-			b += wpr + bmod;
-			d += wpr + dmod;
 		}
 	}
 }
@@ -250,9 +253,10 @@ int main() {
 						    eng::Span<eng::u16>(scb), eng::Span<eng::u16>(msb),
 						    kPlanes),
 		      "blitter: encola (x alineado)");
-		check(p0.blit_job_count() == kPlanes, "blitter: 1 job por plano");
+		check(p0.blit_job_count() == 1u, "blitter: un job por par (cubre los planos)");
 		check(p0.blit_job(0).kind == eng::graphics::BlitJobKind::MaskedBobCookieCut,
 		      "blitter: el job es cookie-cut");
+		check(p0.blit_job(0).bitplane_count == kPlanes, "blitter: bitplane_count = planos");
 		check(p0.blit_job(0).words_per_row == 1u, "blitter alineado: 1 palabra/fila");
 		check(p0.blit_job(0).source_plane_stride_bytes == eng::Font8::kRows * 2u,
 		      "blitter alineado: stride de plano 8 palabras (16 B)");
@@ -262,11 +266,11 @@ int main() {
 						    eng::Span<eng::u16>(scb), eng::Span<eng::u16>(msb),
 						    kPlanes),
 		      "blitter: encola (x no alineado)");
-		check(p4.blit_job_count() == kPlanes, "blitter x=4: 1 job por plano");
+		check(p4.blit_job_count() == 1u, "blitter x=4: un job por par");
 		check(p4.blit_job(0).words_per_row == 2u, "blitter x=4: 2 palabras/fila");
 		check(p4.blit_job(0).source_plane_stride_bytes == eng::Font8::kRows * 4u,
 		      "blitter x=4: stride de plano 16 palabras (32 B)");
-		check(p4.blit_job(0).bitplane_count == 1u, "blitter x=4: bitplane_count = 1");
+		check(p4.blit_job(0).bitplane_count == kPlanes, "blitter x=4: bitplane_count = planos");
 
 		// Aislar cableado+geometria: ejecutar el job en SW y comparar con la CPU sobre el MISMO
 		// buffer. Si coincide, el job apunta bien y el fallo (si lo hay) seria del backend Amiga.
@@ -310,7 +314,7 @@ int main() {
 							    eng::Span<eng::u16>(scl),
 							    eng::Span<eng::u16>(msl), kPlanes),
 			      "blitter texto largo: encola");
-			check(pl2.blit_job_count() == kPlanes * 4u, "blitter texto largo: 4 pares x planos");
+			check(pl2.blit_job_count() == 4u, "blitter texto largo: 4 pares (1 job c/u)");
 			exec_masked_bob_jobs(pl2);
 			// Referencia CPU sobre otro buffer.
 			alignas(2) eng::u8 rlong[kPlaneStride * kPlanes] {};
@@ -331,6 +335,36 @@ int main() {
 	check(pixel_at(mem_blit, 2, 5) == 3u || pixel_at(mem_blit, 3, 5) == 3u ||
 		      pixel_at(mem_blit, 4, 5) == 3u,
 	      "hay tinta (color 3) en la zona del glifo");
+
+	// --- `TextBlitScratch`: reserva en arena (Chip) con tamanos correctos y uso real ---
+	{
+		alignas(16) eng::u8 arena_mem[4096] {};
+		eng::LinearArena chip_arena(arena_mem, sizeof(arena_mem), eng::MemoryKind::Chip);
+		eng::graphics::TextBlitScratch<kPlanes, 8u> scratch;
+		check(scratch.allocate(chip_arena), "TextBlitScratch reserva en Chip");
+		check(scratch.valid(), "TextBlitScratch valido");
+		check(scratch.src().size() == static_cast<eng::u32>(kPlanes) * 2u * eng::Font8::kRows,
+		      "TextBlitScratch: src = planos*2*filas");
+		check(scratch.mask().size() == 8u * 2u * eng::Font8::kRows,
+		      "TextBlitScratch: mask = pares*2*filas");
+		// Con el helper, dibujar "AB" (un par) en la MISMA configuracion que `mem_blit` (la
+		// referencia CPU) y comprobar equivalencia.
+		alignas(2) eng::u8 mh[kPlaneStride * kPlanes] {};
+		eng::field::ContiguousPlayfield ph {};
+		ph.bind_raw(mh, sizeof(mh), kSW, kSH, kPlanes);
+		eng::field::Surface sh {ph, eng::field::SurfaceRect {0, 0, kSW, kSH}};
+		sh.fill_rect(0, 0, kSW, kSH, kBg);
+		eng::graphics::GlyphCache<8> ch;
+		eng::graphics::FramePlan pph {};
+		check(eng::graphics::draw_text_blit(sh, pph, ch, 0, 4, "AB", 3u, scratch.src(),
+						    scratch.mask(), kPlanes),
+		      "draw_text_blit con TextBlitScratch encola");
+		bool eqh = true;
+		for (eng::u32 i = 0u; i < kPlaneStride * kPlanes; ++i) {
+			if (mh[i] != mem_blit[i]) eqh = false;
+		}
+		check(eqh, "TextBlitScratch: == referencia CPU (mem_blit)");
+	}
 
 	if (failures == 0) {
 		std::printf("OK: texto por Blitter (cache de glifos) == CPU validado.\n");
