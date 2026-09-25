@@ -90,6 +90,12 @@ int main(int argc, char** argv) {
 	}
 	std::fclose(fin);
 
+	// Rellena el ultimo chunk para que TODOS descompriman a `chunk` muestras: es el contrato de
+	// `PcmStream` (`provide` exige exactamente `chunk_samples`). El relleno va al final (muestra
+	// 0) y `total_samples` lo incluye.
+	while ((pcm.size() % static_cast<size_t>(chunk)) != 0u) {
+		pcm.push_back(0u);
+	}
 	const eng::usize total = pcm.size();
 	const eng::u16 num_chunks =
 	    static_cast<eng::u16>((total + chunk - 1u) / static_cast<eng::usize>(chunk));

@@ -18,6 +18,7 @@
 /// En host (`__m68k__` no definido) se usa siempre la referencia C++. La **equivalencia byte a
 /// byte** del ASM se verifica en la demo `277_codec_equiv` (gate en `detail`: 0 = idéntico).
 
+#include <eng/audio/aplib.hpp>
 #include <eng/audio/fib_delta.hpp>
 #include <eng/audio/ima_adpcm.hpp>
 #include <eng/audio/zx0.hpp>
@@ -85,6 +86,15 @@ inline void delta_integrate(eng::Span<eng::u8> buf) noexcept {
 	return static_cast<eng::s32>(static_cast<eng::usize>(a1v - dst.data()));
 }
 
+/// Descompresor **aPLib**. La rutina ASM está en `support/aplib_68000.s` (Emmanuel Marty, zlib)
+/// pero **no se invoca** todavía: el gcc m68k 15.1 da un *ICE* (`print_operand_address` /
+/// `dwarf2cfi`) con su inline-asm (ver `docs/reference/toolchain/m68k-gcc.md`). Hasta arreglarlo
+/// se usa la referencia C++, que es correcta y está verificada (HOST-328).
+[[nodiscard]] inline eng::s32 aplib_decompress(eng::Span<const eng::u8> src,
+					       eng::Span<eng::u8> dst) noexcept {
+	return aplib::decompress(src, dst);
+}
+
 } // namespace eng::audio::asm_codec
 
 #else
@@ -113,6 +123,12 @@ inline void delta_integrate(eng::Span<eng::u8> buf) noexcept {
 [[nodiscard]] inline eng::s32 zx0_decompress(eng::Span<const eng::u8> src,
 					     eng::Span<eng::u8> dst) noexcept {
 	return zx0::decompress(src, dst);
+}
+
+/// En host, la referencia C++ de aPLib.
+[[nodiscard]] inline eng::s32 aplib_decompress(eng::Span<const eng::u8> src,
+					       eng::Span<eng::u8> dst) noexcept {
+	return aplib::decompress(src, dst);
 }
 
 } // namespace eng::audio::asm_codec

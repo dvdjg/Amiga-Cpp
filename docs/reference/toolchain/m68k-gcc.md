@@ -105,6 +105,19 @@ EOF
 # (c) codegen -O1: demo 212 con add_timer(1u, 2u) -> READY con msgs/timers != 0 (si sale 0, defecto 3 presente)
 ```
 
+## 3.1 ICE al envolver ASM con ABI de registro (inline-asm)
+
+**Síntoma**: `internal compiler error: in print_operand_address` (pass `final`) o
+`in dwarf2out_frame_debug_adjust_cfa` (`dwarf2cfi`) al compilar una función que llama a una
+rutina ASM por **registros fijos** (patrón `register T x asm("a0")` + `asm volatile("jsr ...")`).
+Reproducido con el wrapper de aPLib (`support/aplib_68000.s`, ABI `a0`/`a1`); el de ZX0 con la
+misma forma sí compila, así que depende de la presión de registros/lista de clobbers.
+
+**Estado**: sin arreglar en gcc 15.1.0 m68k. Por eso el descompresor aPLib usa la referencia
+**C++** (`eng/audio/aplib.hpp`) también en m68k; la rutina ASM queda vendorizada para cuando el
+ICE se resuelva. Los otros wrappers ASM (ZX0, fib/ima/delta-integrate) sí compilan y están
+verificados en hardware (demo 277).
+
 ## 4. Riesgo: las optimizaciones propias pueden OCULTAR defectos
 
 Las libcalls (`__mulsi3`, `__divsf3`…) son una **señal barata**: si aparecen, sabes que algo es caro o

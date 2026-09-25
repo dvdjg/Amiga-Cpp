@@ -65,6 +65,15 @@ public:
 	/// Índice del chunk que toca leer para el próximo `provide`.
 	[[nodiscard]] eng::u16 next_chunk() const noexcept { return m_next; }
 
+	/// **Reposiciona** el stream en el chunk `chunk` (se acota a `[0, num_chunks)`) y reinicia el
+	/// estado de buffers: útil para *seek*/bucle en streams largos, aprovechando el índice de
+	/// chunks del AUZX (saltar sin leer los anteriores). Tras `seek` el llamador debe volver a
+	/// rellenar los buffers con `provide` antes de reanudar el DMA.
+	void seek(eng::u16 chunk) noexcept {
+		m_state = eng::os::ChunkStream<NumBuffers> {};
+		m_next = (chunk < m_cfg.num_chunks) ? chunk : 0u;
+	}
+
 	/// Índice del primer buffer libre (para `provide`), o `NumBuffers` si no hay.
 	[[nodiscard]] eng::u8 first_free() const noexcept {
 		const eng::u8 m = free_mask();

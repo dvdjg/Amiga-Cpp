@@ -2,8 +2,9 @@
 
 Camino completo de streaming digital: lee un fichero **AUZX** de `DH1:` (melodía de dominio
 público comprimida con **Fibonacci Delta**), lo reconoce con `eng::audio::media`, lo streamea con
-`PcmStream` (la CPU descomprime cada chunk directo a Chip, en ASM en m68k) y Paula lo reproduce
-por DMA; la IRQ de audio solo cambia el puntero.
+**`PcmStream<3>` (triple buffer)** desde un chunk elegido con **`seek`** (mitad de la melodía,
+saltando por el índice del AUZX) y Paula lo reproduce por DMA; la IRQ de audio solo cambia el
+puntero. La CPU descomprime cada chunk directo a Chip (en ASM en m68k).
 
 ## Pipeline de PC
 
@@ -22,5 +23,6 @@ bash tools/run/run-demo.sh demos/techniques/amiga/audio/278_stream_disk --warp
 
 ## Verificación
 
-`detail = (irq << 16) | swaps`; medido `0x260026` → **38 IRQs = 38 swaps, 0 underruns** (READY
-`0x00027800`). El log del emulador (`audio-stream-irq-rate.md`) sirve de contraste.
+`detail = (irq << 16) | swaps`; con triple buffer y `seek` a la mitad, medido `0x260017` → **38
+IRQs, 23 swaps, 0 underruns** (23 = los chunks de la segunda mitad). El log del emulador
+(`audio-stream-irq-rate.md`) sirve de contraste.

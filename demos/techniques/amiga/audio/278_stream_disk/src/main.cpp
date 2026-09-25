@@ -46,7 +46,7 @@ namespace {
 
 constexpr eng::usize kMaxFile = 64u * 1024u; ///< tamano maximo del AUZX en disco
 constexpr eng::usize kMaxChunk = 2048u;      ///< muestras PCM por chunk (buffer de Chip)
-constexpr eng::u8 kNumBuffers = 2u;
+constexpr eng::u8 kNumBuffers = 3u;          ///< **triple buffer** (mas margen ante seeks)
 constexpr eng::u8 kChannel = 3u;
 constexpr eng::u8 kVolume = 48u;
 constexpr const char* kFilePath = "data/audio/melody.auzx";
@@ -61,8 +61,9 @@ struct StreamDiskDemo {
 		}
 		m_pcm0 = backend.memory().chip.allocate_block<eng::AudioTag>(kMaxChunk, 4);
 		m_pcm1 = backend.memory().chip.allocate_block<eng::AudioTag>(kMaxChunk, 4);
+		m_pcm2 = backend.memory().chip.allocate_block<eng::AudioTag>(kMaxChunk, 4);
 		m_file = backend.memory().chip.allocate_block<eng::AudioTag>(kMaxFile, 4);
-		if (!m_pcm0.valid() || !m_pcm1.valid() || !m_file.valid()) {
+		if (!m_pcm0.valid() || !m_pcm1.valid() || !m_pcm2.valid() || !m_file.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00027802u);
 			return;
 		}
@@ -98,8 +99,11 @@ struct StreamDiskDemo {
 			static_cast<eng::u8>(m_info.codec)};
 		eng::Span<eng::u8> bufs[kNumBuffers] = {
 			eng::Span<eng::u8>(m_pcm0.view.data(), chunk),
-			eng::Span<eng::u8>(m_pcm1.view.data(), chunk)};
+			eng::Span<eng::u8>(m_pcm1.view.data(), chunk),
+			eng::Span<eng::u8>(m_pcm2.view.data(), chunk)};
 		m_stream.begin(cfg, bufs);
+		// **Seek**: empieza por un chunk del indice AUZX (salta la primera mitad sin leerla).
+		m_stream.seek(static_cast<eng::u16>(m_info.num_chunks / 2u));
 
 		if (!backend.set_audio_service(&StreamDiskDemo::audio_service, *this)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00027803u);
@@ -148,8 +152,8 @@ private:
 		if (m_stream.advance()) {
 			m_paula.set_buffer(kChannel, m_stream.play_pcm(), m_info.chunk_samples / 2u);
 			++m_swap;
-		} else {
-			++m_underrun;
+		} else if (!m_stream.finished()) {
+			++m_underrun; // `false` al final del stream es fin normal, no underrun
 		}
 	}
 
@@ -175,7 +179,7 @@ private:
 	eng::Span<const eng::u8> m_blob {};
 	eng::audio::PcmStream<kNumBuffers> m_stream {};
 	eng::amiga::PaulaAudio m_paula {};
-	eng::Block<eng::AudioTag> m_pcm0 {}, m_pcm1 {}, m_file {};
+	eng::Block<eng::AudioTag> m_pcm0 {}, m_pcm1 {}, m_pcm2 {}, m_file {};
 	// Contadores de 8 bits `volatile` compartidos con la IRQ (una lectura de `u32` se desgarra).
 	volatile eng::u8 m_irq = 0u;
 	volatile eng::u8 m_swap = 0u;

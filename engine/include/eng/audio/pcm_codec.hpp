@@ -21,6 +21,7 @@
 /// El identificador de códec (`Codec::DeltaRle`) coincide con el campo `compression` de la
 /// cabecera de archivo AUZX (`AUDIO_STREAMING.md` §2).
 
+#include <eng/audio/aplib.hpp>
 #include <eng/audio/asm_codec.hpp>
 #include <eng/audio/fib_delta.hpp>
 #include <eng/audio/ima_adpcm.hpp>
@@ -76,6 +77,9 @@ inline void differentiate(eng::Span<eng::u8> buf) noexcept {
 				    eng::u8 compression) noexcept {
 	if (compression == static_cast<eng::u8>(Codec::Zx0)) {
 		return asm_codec::zx0_decompress(src, dst); // ASM en m68k, C++ en host
+	}
+	if (compression == static_cast<eng::u8>(Codec::APLib)) {
+		return asm_codec::aplib_decompress(src, dst);
 	}
 	if (compression == static_cast<eng::u8>(Codec::FibDelta)) {
 		return asm_codec::fib_delta_decode(src, dst); // ASM en m68k, C++ en host

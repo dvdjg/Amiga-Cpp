@@ -11,7 +11,8 @@
 //   bit 2 = integracion delta difiere
 //   bit 3 = ZX0 difiere
 //   bit 4 = Delta+ZX0 difiere
-//   bit 5 = fallo de codificacion previa (los flujos de prueba no se generaron)
+//   bit 5 = (reservado; aPLib se verifica en HOST-328)
+//   bit 6 = fallo de codificacion previa (los flujos de prueba no se generaron)
 //
 // `detail == 0` (y `0x000400FF` de READY) = ASM identico a la referencia.
 //
@@ -24,6 +25,7 @@
 #include <eng/core/util/text.hpp>
 #include <eng/platform/amiga/backend.hpp>
 
+#include <eng/audio/aplib.hpp>
 #include <eng/audio/asm_codec.hpp>
 #include <eng/audio/fib_delta.hpp>
 #include <eng/audio/ima_adpcm.hpp>
@@ -56,6 +58,11 @@ constexpr eng::u8 kZX0[] = {0x00, 0xF5, 0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86
 			    0x89, 0x8A, 0x8B, 0x8C, 0x8D, 0x8E, 0x8F, 0xE0, 0xD5, 0x55, 0x60};
 constexpr eng::usize kZX0Out = 32u;
 
+// Flujo aPLib real (apultra) de 96 bytes periodicos b[i] = (i%8)*16, de HOST-328.
+constexpr eng::u8 kAPLib[] = {0x00, 0x01, 0x10, 0x20, 0x30, 0x40, 0x50,
+			      0x60, 0x70, 0x4E, 0x08, 0xF9, 0x80, 0x00};
+constexpr eng::usize kAPLibOut = 96u;
+
 // PCM de prueba determinista (triangular suave + un tramo "plano").
 void make_pcm(eng::u8* pcm) noexcept {
 	for (eng::usize i = 0u; i < kSamples; ++i) {
@@ -79,7 +86,7 @@ struct CodecEquiv {
 		const eng::s32 fn = eng::audio::fib_delta::encode(
 		    eng::Span<const eng::u8>(pcm, kSamples), eng::Span<eng::u8>(fenc, sizeof(fenc)));
 		if (fn <= 0) {
-			m_detail = static_cast<eng::u32>(m_detail | 32u);
+			m_detail = static_cast<eng::u32>(m_detail | 64u);
 		} else {
 			eng::u8 asm_out[kSamples] {};
 			eng::u8 ref_out[kSamples] {};
@@ -106,7 +113,7 @@ struct CodecEquiv {
 		const eng::s32 in = eng::audio::ima_adpcm::encode(
 		    eng::Span<const eng::u8>(pcm, kSamples), eng::Span<eng::u8>(ienc, sizeof(ienc)));
 		if (in <= 0) {
-			m_detail = static_cast<eng::u32>(m_detail | 32u);
+			m_detail = static_cast<eng::u32>(m_detail | 64u);
 		} else {
 			eng::u8 asm_out[kSamples] {};
 			eng::u8 ref_out[kSamples] {};
@@ -198,6 +205,9 @@ struct CodecEquiv {
 				}
 			}
 		}
+
+		// aPLib: verificado por HOST-328 (C++ vs vector de apultra). La rutina ASM esta
+		// vendorizada (`support/aplib_68000.s`) pero deshabilitada por un ICE del gcc m68k.
 
 		eng::debug::mark_ready(g_eng_run_status, 0x00040000u | m_detail);
 	}

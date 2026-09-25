@@ -16,7 +16,9 @@ pack-pcm <in.raw> <out.auzx> [none|rle|fib|ima] [sample_rate] [chunk_samples]
 - `codec`: `none` (crudo), `rle` (Delta+RLE, por defecto), `fib` (Fibonacci Delta / 8SVX),
   `ima` (IMA ADPCM).
 - `sample_rate`: 8000 / 11025 / 16000 / 22050 (por defecto 8000).
-- `chunk_samples`: potencia de 2 (por defecto 4096).
+- `chunk_samples`: potencia de 2 (por defecto 4096). El PCM se **rellena** al final hasta un
+  múltiplo de `chunk_samples`, para que todos los chunks descompriman a `chunk_samples` (contrato
+  de `PcmStream`); `total_samples` incluye ese relleno.
 
 Para **Delta+ZX0** / **ZX0**: aplicar el paso delta y comprimir con la herramienta de
 referencia `zx0 -f` (ver `docs/engine/architecture/AUDIO_STREAMING.md` §7.1); el motor AUZX
