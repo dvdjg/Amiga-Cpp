@@ -75,6 +75,32 @@ public:
 		}
 	}
 
+	/// Bucle de planificación **completo en un tick**: si toca (`decide_plan`), aplica el
+	/// presupuesto (`apply_budget`) y replanifica; si no, deja el plan que hubiera. El juego
+	/// solo aporta el **dominio** (estado, objetivo y acciones); no repite el bucle.
+	/// Devuelve si queda un plan activo. Ver HOST-313.
+	template <class Actions>
+	[[nodiscard]] constexpr bool plan_tick(EntityId id, const typename Ai::State& start,
+					       const typename Ai::Goal& goal, Actions actions,
+					       eng::u16 frame_now,
+					       const PlanParams& params = PlanParams {}) noexcept {
+		if constexpr (!Traits::planning) {
+			(void)id;
+			(void)start;
+			(void)goal;
+			(void)actions;
+			(void)frame_now;
+			(void)params;
+			return false;
+		} else {
+			if (!decide_plan(id, frame_now, params)) {
+				return has_plan(id);
+			}
+			apply_budget(this->m_planner.driver, params);
+			return replan(id, start, goal, actions);
+		}
+	}
+
 	[[nodiscard]] constexpr bool has_plan(EntityId id) const noexcept {
 		auto p = this->find_plan(id);
 		return p.valid() && p->runner.active;

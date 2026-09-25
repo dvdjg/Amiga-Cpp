@@ -157,7 +157,7 @@ final lo que necesita consumidor.
 | G7.4 | `planning/goap.hpp` (acción) | **`target` (entidad/sala)** y **coste dinámico** (`cost_fn` o tabla); por defecto coste estático | HOST propio (mismo plan con distintos targets; coste que cambia con el estado) |
 | G7.5 | `sim/planner.hpp` | Integración en el mundo: **dominio GOAP como parámetro de plantilla** en `PlannerDriver` y `SimWorld` (booleano ligero `SimGoap` por defecto; `SimNumericGoap<N>` para magnitudes), y `PlannerParams` con **histeresis y presupuesto** | **HOST-313** (dominio numérico en driver y mundo) + **HOST-155** intacto |
 | G7.6 | `sim/planner.hpp` (coordinado) | **Plan compartido de manada**: el líder planifica y reparte objetivos (`PackRole`/`Relationship`/`Signal` como precondiciones y efectos); los miembros no planifican | HOST propio + escenario en `sim-ecosystem-scenarios` |
-| G7.7 | `planning/htn.hpp` (algoritmo distinto) | **HTN / macro-acciones**: cabecera propia (descomposición por métodos, **no** A\*); planes de varios objetivos encadenados | HOST propio; **solo con consumidor** |
+| G7.7 | `planning/htn.hpp` (algoritmo distinto) | **HTN**: cabecera propia (descomposición por métodos con backtracking acotado, **no** A\*); consumidor real `sim/domain.hpp::build_shelter_htn` | **HOST-318** (mecanismo, métodos con precondición, fallo y **equivalencia con el plan GOAP**) |
 
 G7.1–G7.4 son independientes del mundo (se prueban en host y no tocan `eng::sim`); G7.5 es el punto de
 unión y el que habilita el resto en el ecosistema; G7.6 y G7.7 se posponen hasta tener consumidor.

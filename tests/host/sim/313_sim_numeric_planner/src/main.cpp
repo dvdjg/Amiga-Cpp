@@ -144,6 +144,29 @@ void test_decide_plan() {
 	check(w.decide_plan(id, 7u) == expected, "decide_plan: coincide con should_replan");
 }
 
+void test_plan_tick() {
+	SimWorld<SimTraits, 8, 4, 4, 8, 8, 64, SimNumericGoap<2u>> w;
+	const EntityId id = w.spawn(1u, 0u, 0u, 0, 0);
+	// Criatura planificadora (curiosa y autonoma).
+	w.creature(0u).personality.curiosity = 80u;
+	w.creature(0u).personality.autonomy = 60u;
+
+	const auto acts = needs_domain();
+	Ai::State start {};
+	start.set_var(0u, 6u);
+	Ai::Goal goal {};
+	goal.var_le[0u] = 1u;
+	PlanParams pp {};
+	pp.budget = 4u;
+
+	check(w.plan_tick(id, start, goal, acts.span(), 0u, pp), "plan_tick: planifica en el tick");
+	check(w.has_plan(id), "plan_tick: deja plan activo");
+	// En el mismo intervalo no replanifica, pero conserva el plan.
+	check(w.plan_tick(id, start, goal, acts.span(), 1u, pp), "plan_tick: mantiene el plan");
+	check(!w.plan_tick(no_entity, start, goal, acts.span(), 0u, pp),
+	      "plan_tick: entidad invalida no planifica");
+}
+
 } // namespace
 
 int main() {
@@ -152,6 +175,7 @@ int main() {
 	test_budget_partial();
 	test_world_propagates_domain();
 	test_decide_plan();
+	test_plan_tick();
 
 	if (g_fail == 0u) {
 		std::printf("OK: Sim numeric planner (dominio GOAP por plantilla, driver y mundo)\n");

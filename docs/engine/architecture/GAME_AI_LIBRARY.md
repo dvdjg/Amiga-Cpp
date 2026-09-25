@@ -216,6 +216,18 @@ ligero) se especifica en [`GOAP_EXTENDED.md`](GOAP_EXTENDED.md); se adopta por f
 Verificación: HOST-185 (enteros, decimales, saturación, memo y sufijo) y HOST-186
 (heurística relajada con memo).
 
+### 3.6 HTN: planificación jerárquica (`htn.hpp`)
+
+`eng::ai::Htn<MaxFacts, MaxActions, ...>` es la **otra familia** de planificación: no busca
+con A\* sino que **descompone** una tarea compuesta en subtareas por **métodos**
+(precondición → lista de subtareas) hasta acciones primitivas, comprobando que cada una sea
+aplicable en el estado que va resultando, con **backtracking acotado** (`MaxDepth`/`MaxPlan`).
+Reutiliza `Goap`'s `State`/`Action` y `applicable`/`apply`; determinista y sin heap.
+
+Codificación de una subtarea (`u16`): `< MaxActions` = acción primitiva; `>= MaxActions` =
+compuesta (`compound(i)`). Consumidor real: `sim/domain.hpp::build_shelter_htn` («conseguir
+refugio»), cuyo plan coincide con el GOAP del mismo dominio. Ver HOST-318.
+
 ## 4. Decisión por tick (`eng/ai/decision/`)
 La decisión se apoya en dos motores genéricos de `eng::util` (no se duplican):
 `StateMachine` (transiciones) y `Event` (difusión). Encima:
@@ -304,6 +316,7 @@ HOST-117.
 |---|---|---|
 | `planning/goap.hpp` | **Cabecera única**: `Goap<MaxFacts, MaxVars>` (dominio: `State`/`state`/`Action`/`Builder`/`Goal`/`Planner`), `plan`/`plan_relaxed`, cachés (`plan_cached`/`plan_reusing`/`invalidate_selective`), anytime (`set_budget`/`partial`), `Fact`, `applicable`, `apply`, `satisfies`, `goal_distance` | Implementado, HOST-107/185/186/314/315/316 |
 | `planning/numeric_goap.hpp` | Alias de la cabecera única: `NumericGoap<MaxVars> = Goap<32, MaxVars>` (y las constantes `numeric_goap_*`) | Implementado, HOST-185/186/316 |
+| `planning/htn.hpp` | `Htn<...>`: planificación **jerárquica** (descomposición por métodos, backtracking acotado); reutiliza `Goap`'s `State`/`Action` | Implementado, HOST-318 |
 | `decision/agent_fsm.hpp` | `AgentFsm<State,Event,MaxStates>`: FSM de agente con efectos de entrada/salida sobre `eng::util::StateMachine` | Implementado, HOST-110 |
 | `decision/utility.hpp` | `Utility`/`UtilitySelector<MaxOptions>`: utilidad ponderada; entero y determinista | Implementado, HOST-112 |
 | `decision/behavior_tree.hpp` | `BehaviorTree<MaxNodes>`, `BtStatus`, `BtTask`: secuencia/selector sin heap | Implementado, HOST-113 |
