@@ -16,8 +16,18 @@
 
 #include <cstdio>
 
+#include <eng/core/types/types.hpp>
 #include <eng/field/contiguous_playfield.hpp>
 #include <eng/field/cpu_primitives.hpp>
+
+// El ancho del tipo de coordenada de pixel es el contrato de rendimiento del 68000:
+// 16 bits alli (aritmetica word) y 32 en host. Un cambio accidental aqui pasaria
+// desapercibido en los valores pero romperia el objetivo en el target.
+#if defined(__m68k__)
+static_assert(sizeof(eng::pix) == 2u, "eng::pix debe ser s16 en 68000");
+#else
+static_assert(sizeof(eng::pix) == 4u, "eng::pix debe ser s32 en host");
+#endif
 
 namespace {
 
@@ -86,6 +96,8 @@ int main() {
 	alignas(2) eng::u8 mem[kPlaneStride * kPlanes] {};
 	eng::field::ContiguousPlayfield pf {};
 	check(pf.bind_raw(mem, sizeof(mem), kW, kH, kPlanes), "bind playfield");
+	// Ya blindado con static_assert arriba; aqui solo se deja constancia en el log.
+	std::printf("  eng::pix = %u bytes\n", static_cast<unsigned>(sizeof(eng::pix)));
 
 	// --- Rectangulo por spans ---
 	const eng::u32 rows = eng::field::cpu_fill_rect(pf, 4, 6, 20u, 10u, 5u);

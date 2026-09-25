@@ -51,8 +51,8 @@ async function geometryFromCopper(port) {
   const copResp = await sideCommand('mem dff080 4', port);
   const coplc = parseInt(String(copResp.data), 16); // long big-endian → valor
   if (!Number.isFinite(coplc)) throw new Error('COP1LC no disponible');
-  // Lee un tramo de la lista (512 bytes) y busca los MOVEs.
-  const list = await readMem(coplc, 1024, port);
+  // Lee un tramo de la lista (4 KiB: la copperlist puede llevar el BPL1PT tras WAITs/modulos).
+  const list = await readMem(coplc, 4096, port);
   let base = 0, mod = 0;
   for (let off = 0; off + 3 < list.length; off += 4) {
     const reg = (list[off] << 8) | list[off + 1];

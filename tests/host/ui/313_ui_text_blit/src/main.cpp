@@ -98,11 +98,9 @@ int main() {
 	      "draw_text_blit encola");
 
 	bool same = true;
-	int diff = 0;
 	for (eng::u32 i = 0u; i < kPlaneStride * kPlanes; ++i) {
 		if (mem_ref[i] != mem_blit[i]) {
 			same = false;
-			++diff;
 		}
 	}
 	check(same, "draw_text_blit == draw_text (pixel a pixel, 2 glifos/palabra)");
@@ -129,11 +127,30 @@ int main() {
 	// La segunda mitad (x=8) debe quedar con el fondo.
 	check(pixel_at(m2_blit, 12, 5) == kBg, "mitad derecha conserva el fondo");
 
-	// x no alineado -> rechazo.
-	eng::graphics::FramePlan plan3 {};
-	check(!eng::graphics::draw_text_blit(s_blit, plan3, cache, 4, 4, "A", 3u,
-					     eng::Span<eng::u16>(scratch), kPlanes),
-	      "x no alineado a palabra -> false");
+	// x no alineado (x=4): el par se pre-desplaza a 2 palabras y debe seguir == CPU pixel a pixel.
+	{
+		alignas(2) eng::u8 nr[kPlaneStride * kPlanes] {};
+		alignas(2) eng::u8 nb[kPlaneStride * kPlanes] {};
+		eng::field::ContiguousPlayfield pnr {}, pnb {};
+		pnr.bind_raw(nr, sizeof(nr), kSW, kSH, kPlanes);
+		pnb.bind_raw(nb, sizeof(nb), kSW, kSH, kPlanes);
+		eng::field::Surface snr {pnr, eng::field::SurfaceRect {0, 0, kSW, kSH}};
+		eng::field::Surface snb {pnb, eng::field::SurfaceRect {0, 0, kSW, kSH}};
+		snr.fill_rect(0, 0, kSW, kSH, kBg);
+		snb.fill_rect(0, 0, kSW, kSH, kBg);
+		eng::graphics::GlyphCache<8> cn;
+		eng::u16 scn[kPlanes * eng::Font8::kRows] {};
+		snr.draw_text(4, 4, txt, 3u);
+		eng::graphics::FramePlan pn {};
+		check(eng::graphics::draw_text_blit(snb, pn, cn, 4, 4, txt, 3u,
+						    eng::Span<eng::u16>(scn), kPlanes),
+		      "draw_text_blit x=4 encola");
+		bool samen = true;
+		for (eng::u32 i = 0u; i < kPlaneStride * kPlanes; ++i) {
+			if (nr[i] != nb[i]) samen = false;
+		}
+		check(samen, "draw_text_blit x=4 == draw_text (desplazado, pixel a pixel)");
+	}
 
 	// --- Clip por palabra: con un clip que solo contiene el primer par, el segundo no se pinta ---
 	{

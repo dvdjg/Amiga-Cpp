@@ -2,7 +2,7 @@
 import * as fs from 'fs';
 import * as net from 'net';
 import * as path from 'path';
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { repoRoot } from '../lib/paths.js';
 const root = repoRoot(import.meta.url);
@@ -212,6 +212,37 @@ async function main() {
       profile,
       profileBytes: fs.statSync(profile).size,
     };
+    // Evidencia de la copperlist activa (base para `--from-copper`).
+    report.copper = { cop1lc: null as string | null };
+    const copResp = await client.command('mem dff080 4');
+    if (copResp.ok) {
+      report.copper.cop1lc = `0x${parseInt(String(copResp.data), 16).toString(16)}`;
+    }
+    // El canal lateral admite un cliente: cierro el del contrato antes de que `screendump-diff`
+    // abra el suyo para leer COP1LC/BPL1PT y comparar el framebuffer por planos.
+    client.close();
+    // `screendump-diff --from-copper`: valida que el tool deduce base/geometria de la copperlist
+    // activa por el canal lateral y produce el diff por planos (no solo el PNG escalado).
+    const screendump = path.join(root, 'tools', 'vision-review', 'screendump-diff.mjs');
+    const screendumpOut = path.join(root, 'out', 'vision-review', 'screendump-diff');
+    fs.rmSync(screendumpOut, { recursive: true, force: true });
+    const scArgs = [
+      screendump,
+      '--from-copper',
+      '--planes', '6',
+      '--width', '320',
+      '--height', '256',
+      '--gap-ms', '300',
+      '--side-port', String(port),
+    ];
+    const sc = spawnSync(process.execPath, scArgs, { encoding: 'utf8', timeout: 30000 });
+    assertOk(
+      sc.status === 0,
+      `screendump-diff --from-copper must succeed; status=${sc.status} stderr=${sc.stderr?.slice(0, 400)}`,
+    );
+    const scJson = path.join(screendumpOut, 'screendump-diff.json');
+    assertOk(fs.existsSync(scJson), `screendump-diff must write ${scJson}`);
+    report.screendumpDiff = JSON.parse(fs.readFileSync(scJson, 'utf8'));
     console.log(JSON.stringify(report, null, 2));
   } finally {
     client.close();

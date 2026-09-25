@@ -102,11 +102,13 @@ inline void solid_color_plane(eng::u16* rows, eng::u8 color, eng::u8 p) noexcept
 /// (cada par = una palabra): la máscara del par es la de dos glifos consecutivos (8+8 px). Los
 /// glifos se leen con `Font8` y se cachean (`GlyphCache`).
 ///
-/// `x` debe ser múltiplo de 16 (restricción del Blitter). `src_scratch` es un buffer de trabajo
-/// (`planes * Font8::kRows` palabras) que construye el plan sólido del color; vive en el llamador
-/// (sin heap). `clip`: si no está vacío, solo se emiten las palabras que caben **enteras** (no
-/// parte glifos a medias; coherente con `draw_text_clipped`). Devuelve `false` si no se pudo
-/// encolar (x no alineado, tamaño…). La ruta CPU equivalente es `Surface::draw_text`.
+/// `x` puede ser arbitrario: alineado a 16 px agrupa **dos glifos por palabra** (2 glifos/blit); con
+/// `x` no alineado pre-desplaza el par a **dos palabras** y emite desde `x & ~15` (coste doble solo
+/// en esa ruta). `src_scratch` es un buffer de trabajo (`planes * Font8::kRows` palabras) que
+/// construye el plan sólido del color; vive en el llamador (sin heap). `clip`: si no está vacío,
+/// solo se emiten los bloques que caben **enteros** (no parte glifos a medias; coherente con
+/// `draw_text_clipped`). Devuelve `false` si no se pudo encolar (tamaño de `src_scratch`, planos…).
+/// La ruta CPU equivalente es `Surface::draw_text`.
 template <eng::u16 Max>
 bool draw_text_blit(eng::field::Surface& s, eng::graphics::FramePlan& plan, GlyphCache<Max>& cache,
 		    eng::s32 x, eng::s32 y, const char* text, eng::u8 color,
@@ -116,18 +118,26 @@ bool draw_text_blit(eng::field::Surface& s, eng::graphics::FramePlan& plan, Glyp
 		// Nada que pintar; el clip/alineación se comprueban al emitir.
 		return text != nullptr;
 	}
-	// El Blitter opera a nivel de **palabra** (16 px) y el destino debe estar alineado: `x` debe
-	// ser múltiplo de 16. Texto en `x` arbitrario (con `source_shift`) requeriría blits de 2
-	// palabras por par; pendiente (ver la nota de pendientes en HOST-313).
-	if ((x & 15) != 0) {
+	// El Blitter opera a nivel de **palabra** (16 px) y el destino debe estar alineado. Con `x`
+	// alineado, cada par de glifos ocupa una palabra (2 glifos/palabra). Con `x` **no** alineado
+	// (`s = x & 15 != 0`) el par desplazado ocupa **dos** palabras: se pre-desplaza la máscara y el
+	// sólido en `s` bits y se emite desde `ax = x & ~15` con `source_shift = 0` (la ruta CPU y la
+	// Blitter ven el mismo caso base alineado; no se depende del barrel shifter del Blitter). El
+	// coste es el doble de palabras y de ancho de blit solo en esa ruta.
+	const eng::s32 sh = x & 15;
+	const eng::s32 ax = x & ~15;
+	const eng::u16 words_per_pair = (sh != 0) ? 2u : 1u;
+	if (src_scratch.size() < static_cast<eng::u32>(planes) * eng::Font8::kRows) {
 		return false;
 	}
-	if (src_scratch.size() < static_cast<eng::u32>(planes) * eng::Font8::kRows) {
+	// Sólido local para la ruta desplazada (2 palabras/fila); la ruta alineada usa `src_scratch`.
+	eng::u16 solid2[8u * 2u * eng::Font8::kRows] {}; // hasta 8 planos x 2 palabras x filas
+	if (sh != 0 && planes > 8u) {
 		return false;
 	}
 	// Decodifica el texto a code points, en pares (una palabra = 2 glifos).
 	const eng::u8* q = reinterpret_cast<const eng::u8*>(text);
-	eng::s32 cx = x;
+	eng::s32 cx = (sh == 0) ? x : ax; // posición de la palabra física emitida
 	for (;;) {
 		const eng::u32 cp0 = eng::utf8::decode(q);
 		if (cp0 == 0u) {
@@ -151,31 +161,65 @@ bool draw_text_blit(eng::field::Surface& s, eng::graphics::FramePlan& plan, Glyp
 			for (eng::u8 r = 0u; r < eng::Font8::kRows; ++r) m1_rows[r] = 0u;
 		}
 		// Máscara del par: glifo 0 en la mitad alta, glifo 1 en la baja (MSB = izquierda).
-		eng::u16 mask_rows[eng::Font8::kRows] {};
+		// Con `sh != 0` se pre-desplaza a 2 palabras (el par de 16 px ocupa [sh, sh+16)).
+		eng::u16 mask_words[2u * eng::Font8::kRows] {};
 		for (eng::u8 r = 0u; r < eng::Font8::kRows; ++r) {
-			mask_rows[r] = static_cast<eng::u16>(m0_rows[r] | (m1_rows[r] >> 8));
+			const eng::u16 pair = static_cast<eng::u16>(m0_rows[r] | (m1_rows[r] >> 8));
+			if (sh == 0) {
+				mask_words[r] = pair;
+			} else {
+				// Bit 15 = columna 0 (izquierda): mover el par `sh` px a la derecha es `>> sh`.
+				// Layout **intercalado por fila** (2 palabras/fila), el stride que espera
+				// `copy_masked_cpu` (`src_row_bytes`).
+				mask_words[static_cast<eng::usize>(r) * 2u] = static_cast<eng::u16>(pair >> sh);
+				mask_words[static_cast<eng::usize>(r) * 2u + 1u] =
+					static_cast<eng::u16>(pair << (16 - sh));
+			}
 		}
-		// Recorte: si hay `clip`, solo se emite la palabra que **cabe entera** dentro (no se parte
-		// un glifo a medias, como `draw_text_clipped`). `blit_masked` rechazaría si excede el clip.
+		// Recorte: si hay `clip`, solo se emite el bloque si **cabe entero** (no se parte un glifo a
+		// medias, como `draw_text_clipped`). `blit_masked` rechazaría si excede el clip.
 		bool emit = true;
 		if (!clip.empty()) {
-			// La palabra ocupa `[cx, cx+16)`; cabe si está dentro de `[clip.x, clip.x+clip.w)`.
 			const eng::s32 right = static_cast<eng::s32>(clip.x) + clip.w;
-			emit = cx >= clip.x && (cx + 16) <= right &&
+			emit = cx >= clip.x &&
+			       (cx + static_cast<eng::s32>(words_per_pair) * 16) <= right &&
 			       y >= clip.y && static_cast<eng::s32>(y) + 8 <= static_cast<eng::s32>(clip.y) + clip.h;
 		}
 		if (emit) {
-			for (eng::u8 p = 0u; p < planes; ++p) {
-				eng::u16* base = src_scratch.data() + static_cast<eng::u32>(p) * eng::Font8::kRows;
-				solid_color_plane(base, color, p);
+			const eng::u16* solid_words = src_scratch.data();
+			if (sh != 0) {
+				// Sólido pre-desplazado a 2 palabras/fila (bit 15 = columna 0; `>> sh` = derecha).
+				const eng::u16 hi = static_cast<eng::u16>(0xffffu >> sh);
+				const eng::u16 lo = static_cast<eng::u16>(0xffffu << (16 - sh));
+				for (eng::u8 p = 0u; p < planes; ++p) {
+					const eng::u16 v = ((color >> p) & 1u) != 0u ? 0xffffu : 0x0000u;
+					eng::u16* base = solid2 + static_cast<eng::u32>(p) * 2u * eng::Font8::kRows;
+					for (eng::u8 r = 0u; r < eng::Font8::kRows; ++r) {
+						// Intercalado por fila (2 palabras/fila), como la máscara.
+						base[static_cast<eng::usize>(r) * 2u] = static_cast<eng::u16>(v & hi);
+						base[static_cast<eng::usize>(r) * 2u + 1u] = static_cast<eng::u16>(v & lo);
+					}
+				}
+				solid_words = solid2;
+			} else {
+				for (eng::u8 p = 0u; p < planes; ++p) {
+					eng::u16* base = src_scratch.data() + static_cast<eng::u32>(p) * eng::Font8::kRows;
+					solid_color_plane(base, color, p);
+				}
 			}
 			// Un solo `blit_masked` con TODOS los planos: el destino recorre sus planos contiguos
 			// (mientras que varios blits de 1 plano escribirían siempre el plano 0).
+			const eng::u32 solid_span = static_cast<eng::u32>(planes) * words_per_pair *
+						    eng::Font8::kRows;
+			const eng::u16 row_bytes = static_cast<eng::u16>(words_per_pair * 2u);
+			const eng::u32 plane_stride = static_cast<eng::u32>(words_per_pair) * eng::Font8::kRows * 2u;
 			const bool ok = s.blit_masked(plan,
-						      eng::Span<const eng::u16>(src_scratch.data(),
-										static_cast<eng::u32>(planes) * eng::Font8::kRows),
-						      eng::Span<const eng::u16>(mask_rows, eng::Font8::kRows),
-						      cx, y, 16u, 8u, 2u, eng::Font8::kRows * 2u, planes);
+						      eng::Span<const eng::u16>(solid_words, solid_span),
+						      eng::Span<const eng::u16>(mask_words,
+										static_cast<eng::u32>(words_per_pair) *
+											eng::Font8::kRows),
+						      cx, y, static_cast<eng::u16>(words_per_pair * 16u), 8u,
+						      row_bytes, plane_stride, planes);
 			if (!ok) {
 				return false;
 			}

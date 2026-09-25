@@ -234,6 +234,17 @@ Lee la base de bitplanes en dos momentos (A, B), decodifica cada plano y compara
 informa píxeles cambiados, bbox, **por plano** y bloques calientes. Requiere una instancia viva
 (canal lateral activo). Auto-test sin emulador: `selftest-screendump.mjs` (servidor TCP fake).
 
+Con `--from-copper` deduce base y geometría de la **copperlist activa** (`COP1LC` → `BPL1PT`/`BPL1MOD`)
+en lugar de recibirlas por argumento; el resto (`--planes`/`--width`/`--height`) se pasa a mano.
+
+Validación en emulador real: `tools/debug/verify-side-channel-contract.sh` lanza una demo, espera
+`side-channel READY`, cierra su cliente del canal lateral y ejecuta `screendump-diff --from-copper`,
+comprobando que deduce la geometría (p. ej. `row_bytes 40`, `plane_stride 10240`, 6 planos) y produce
+`screendump-diff.json`. Limitación conocida: si la copperlist de la demo no expone `BPL1PT` en su
+tramo inicial legible (algunas la mueven tras `WAIT`/`COPJMP` o el volcado sale a cero), la base sale
+`0x0`; en ese caso hay que pasar `--addr`/geometría explícitos.
+
+
 ## Detección temporal (`temporal-detect.py`, OpenCV)
 
 Capa determinista de `flicker-check.mjs` (requiere `python` + `opencv-python` + `numpy`). Localiza
