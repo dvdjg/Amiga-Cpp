@@ -101,6 +101,28 @@ public:
 		}
 	}
 
+	/// Asocia a `id` el plan ya calculado por un conductor externo (p. ej. un `HtnDriver`),
+	/// para consumirlo con `current_action`/`advance_plan`/`abort_plan` igual que uno del
+	/// GOAP. Ver HOST-313.
+	[[nodiscard]] constexpr bool store_plan(EntityId id,
+						const PlanRunner<kMaxPlanSteps>& runner) noexcept {
+		if constexpr (!Traits::planning) {
+			(void)id;
+			(void)runner;
+			return false;
+		} else {
+			if (!this->find(id).valid()) {
+				return false;
+			}
+			auto p = this->get_or_make_plan(id);
+			if (!p.valid()) {
+				return false;
+			}
+			p->runner = runner;
+			return true;
+		}
+	}
+
 	[[nodiscard]] constexpr bool has_plan(EntityId id) const noexcept {
 		auto p = this->find_plan(id);
 		return p.valid() && p->runner.active;

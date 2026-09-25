@@ -24,13 +24,16 @@
 
 namespace eng::ai {
 
-/// Metodo HTN: precondicion (hechos) + tramo de subtareas `[first, first + count)`.
+/// Metodo HTN: precondicion (hechos) + tramo de subtareas `[first, first + count)` y
+/// **prioridad** (mayor = se prueba antes; el llamador la fija, p. ej. la inversa del coste
+/// estimado). A igual prioridad se respeta el orden de declaracion.
 template <usize MaxFacts>
 struct HtnMethod {
 	eng::util::BitSet<MaxFacts> pre_true {};
 	eng::util::BitSet<MaxFacts> pre_false {};
 	eng::u16 first = 0u;
 	eng::u16 count = 0u;
+	eng::u8 priority = 0u;
 };
 
 /// Tarea compuesta: tramo de metodos `[first, first + count)` (se prueban en orden).
@@ -43,6 +46,8 @@ struct HtnCompound {
 template <usize MaxFacts, usize MaxActions, usize MaxCompounds, usize MaxMethods,
 	  usize MaxSubtasks, usize MaxPlan = 24u, usize MaxDepth = 8u>
 class Htn {
+	static_assert(MaxMethods <= 32u, "Htn: MaxMethods <= 32 (mascara de metodos probados)");
+
 public:
 	using State = typename Goap<MaxFacts>::State;
 	using Action = typename Goap<MaxFacts>::Action;
@@ -56,11 +61,11 @@ public:
 
 	// --- Construccion (se usa en `constexpr` desde un dominio) ---
 
-	/// Añade un metodo (precondicion + subtareas ya volcadas con `add_subtask`).
+	/// Añade un metodo (precondicion + subtareas ya volcadas con `add_subtask` + prioridad).
 	constexpr Htn& add_method(const Facts& pre_true, const Facts& pre_false, eng::u16 first,
-				  eng::u16 count) noexcept {
+				  eng::u16 count, eng::u8 priority = 0u) noexcept {
 		if (m_method_count < MaxMethods) {
-			m_methods[m_method_count++] = Method {pre_true, pre_false, first, count};
+			m_methods[m_method_count++] = Method {pre_true, pre_false, first, count, priority};
 		}
 		return *this;
 	}
@@ -118,11 +123,32 @@ private:
 		if (depth >= MaxDepth) {
 			return false;
 		}
-		for (usize mi = 0; mi < c.count; ++mi) {
-			const Method& m = m_methods[c.first + mi];
-			if (!pre_ok(s, m)) {
-				continue;
+		// Se prueban los metodos aplicables en orden de **prioridad** descendente (a igual
+		// prioridad, el primero declarado). Si una descomposicion falla, se pasa a la
+		// siguiente.
+		u32 tried = 0u;
+		for (usize n = 0u; n < c.count; ++n) {
+			usize best = MaxMethods;
+			eng::u8 best_prio = 0u;
+			for (usize mi = 0u; mi < c.count; ++mi) {
+				if ((tried & (1u << static_cast<u32>(mi))) != 0u) {
+					continue;
+				}
+				const Method& cand = m_methods[c.first + mi];
+				if (!pre_ok(s, cand)) {
+					tried |= (1u << static_cast<u32>(mi));
+					continue;
+				}
+				if (best == MaxMethods || cand.priority > best_prio) {
+					best = mi;
+					best_prio = cand.priority;
+				}
 			}
+			if (best == MaxMethods) {
+				break;
+			}
+			tried |= (1u << static_cast<u32>(best));
+			const Method& m = m_methods[c.first + best];
 			const State saved = s;
 			const usize saved_out = out_n;
 			if (decompose_list(actions, m, s, out, out_n, depth + 1u)) {

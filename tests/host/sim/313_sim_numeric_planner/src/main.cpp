@@ -21,6 +21,7 @@
 
 #include <cstdio>
 
+#include <eng/sim/domain.hpp>
 #include <eng/sim/planner.hpp>
 #include <eng/sim/world.hpp>
 
@@ -167,6 +168,26 @@ void test_plan_tick() {
 	      "plan_tick: entidad invalida no planifica");
 }
 
+void test_htn_driver() {
+	// La criatura tambien puede planificar por **HTN** (descomposicion): el mundo guarda ese
+	// plan y lo consume igual que uno del GOAP.
+	SimWorld<SimTraits, 8, 4, 4, 8, 8, 64, SimNumericGoap<2u>> w;
+	const EntityId id = w.spawn(1u, 0u, 0u, 0, 0);
+
+	HtnDriver<32u, 5u, 1u, 4u, 8u> htn;
+	htn.set_domain(build_shelter_htn());
+	const auto acts = ConstructionDomain::actions();
+	check(htn.replan(start_state(SimInventory {}), htn.domain().compound_at(0u), acts.span()),
+	      "htn driver: descompone la tarea compuesta");
+	check(w.store_plan(id, htn.runner()), "htn driver: el mundo guarda el plan");
+	check(w.has_plan(id), "htn driver: plan activo");
+	check(w.current_action(id) == static_cast<eng::u16>(SimActionKind::Gather),
+	      "htn driver: primera accion");
+	w.advance_plan(id);
+	check(w.current_action(id) == static_cast<eng::u16>(SimActionKind::CraftTool),
+	      "htn driver: segunda accion");
+}
+
 } // namespace
 
 int main() {
@@ -176,6 +197,7 @@ int main() {
 	test_world_propagates_domain();
 	test_decide_plan();
 	test_plan_tick();
+	test_htn_driver();
 
 	if (g_fail == 0u) {
 		std::printf("OK: Sim numeric planner (dominio GOAP por plantilla, driver y mundo)\n");

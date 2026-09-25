@@ -21,6 +21,7 @@
 /// Verificación: HOST-155.
 
 #include <eng/ai/planning/goap.hpp>
+#include <eng/ai/planning/htn.hpp>
 #include <eng/ai/planning/numeric_goap.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
@@ -197,5 +198,50 @@ constexpr void apply_budget(PlannerDriver<MaxNodes, MaxSteps, DomainT>& driver,
 			    const PlanParams& params) noexcept {
 	driver.set_budget(params.budget);
 }
+
+/// Conductor **HTN**: guarda una red de tareas (`eng::ai::Htn`) y planifica por
+/// **descomposición** (sin A\*), cargando el resultado en un `PlanRunner` — igual que
+/// `PlannerDriver` con GOAP. La criatura planifica así cuando el objetivo es una tarea
+/// compuesta; el mundo consume el plan con `store_plan`. Ver HOST-313.
+template <usize MaxFacts, usize MaxActions, usize MaxCompounds, usize MaxMethods,
+	  usize MaxSubtasks, eng::u8 MaxSteps = kMaxPlanSteps>
+class HtnDriver {
+public:
+	using Domain = eng::ai::Htn<MaxFacts, MaxActions, MaxCompounds, MaxMethods, MaxSubtasks>;
+	using State = typename Domain::State;
+	using Action = typename Domain::Action;
+
+	/// Fija la red de tareas (una vez, al arrancar el juego).
+	constexpr void set_domain(const Domain& domain_in) noexcept { m_domain = domain_in; }
+	[[nodiscard]] constexpr const Domain& domain() const noexcept { return m_domain; }
+
+	/// Descompone `root` desde `start` y carga el plan en el runner. Devuelve `true` si hay
+	/// plan (una descomposición de longitud 0 no se considera plan).
+	[[nodiscard]] constexpr bool replan(const State& start, const eng::ai::HtnCompound& root,
+					    eng::Span<const Action> actions) noexcept {
+		eng::u16 raw[MaxSteps] {};
+		const eng::usize n =
+		    m_domain.plan(start, root, actions, eng::Span<eng::u16> {raw, MaxSteps});
+		if (n == 0u) {
+			m_runner.abort();
+			return false;
+		}
+		return m_runner.load(eng::Span<const eng::u16> {raw, n});
+	}
+
+	[[nodiscard]] constexpr bool has_plan() const noexcept { return m_runner.active; }
+	[[nodiscard]] constexpr bool done() const noexcept { return m_runner.done(); }
+	[[nodiscard]] constexpr eng::u16 current() const noexcept { return m_runner.current(); }
+	constexpr void advance() noexcept { m_runner.advance(); }
+	constexpr void abort() noexcept { m_runner.abort(); }
+	[[nodiscard]] constexpr PlanRunner<MaxSteps>& runner() noexcept { return m_runner; }
+	[[nodiscard]] constexpr const PlanRunner<MaxSteps>& runner() const noexcept {
+		return m_runner;
+	}
+
+private:
+	Domain m_domain {};
+	PlanRunner<MaxSteps> m_runner {};
+};
 
 } // namespace eng::sim

@@ -276,6 +276,11 @@ El **dominio GOAP es un parámetro de plantilla** de `PlannerDriver` y de `SimWo
 umbrales numéricos. El algoritmo no cambia y el caso booleano conserva su footprint
 (HOST-313).
 
+La criatura puede planificar por **GOAP** (búsqueda A\*) o por **HTN** (descomposición): el
+`HtnDriver` produce un `PlanRunner` que el mundo guarda con `store_plan` y consume igual
+(`current_action`/`advance_plan`/`abort_plan`). Así una tarea compuesta (`build_shelter_htn`)
+convive con los objetivos GOAP sin duplicar la ejecución (HOST-313/318).
+
 ## 10. Cómo se reutiliza `eng::ai` (sin duplicar)
 
 | Necesidad del ecosistema | Primitiva existente |

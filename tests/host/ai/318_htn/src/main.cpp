@@ -50,9 +50,11 @@ void test_basic_htn() {
 	const H::Facts none {};
 	H::Facts has_mix {};
 	has_mix.set(2u);
-	h.add_method(has_mix, none, 2u, 1u); // metodo 0: con mezcla -> solo hornear
-	h.add_method(none, none, 0u, 3u);    // metodo 1 (respaldo): comprar, batir, hornear
-	h.add_method(none, none, 3u, 1u);    // metodo 2: hornear (para el fallo)
+	// Se declara PRIMERO el respaldo (prioridad 0) y despues el metodo con precondicion
+	// (prioridad 1): el orden de prueba lo fija la **prioridad**, no la declaracion.
+	h.add_method(none, none, 0u, 3u, 0u);    // metodo 0 (respaldo): comprar, batir, hornear
+	h.add_method(has_mix, none, 2u, 1u, 1u); // metodo 1: con mezcla -> solo hornear
+	h.add_method(none, none, 3u, 1u, 0u);    // metodo 2: hornear (para el fallo)
 	h.add_compound(0u, 2u);              // compuesta 0 = pastel (metodos 0 y 1)
 	h.add_compound(2u, 1u);              // compuesta 1 = hornear solo (metodo 2)
 
@@ -68,7 +70,8 @@ void test_basic_htn() {
 	s2.facts.set(2u);
 	const eng::usize n2 =
 	    h.plan(s2, h.compound_at(0u), acts.span(), eng::Span<eng::u16> {out, 8u});
-	check(n2 == 1u && out[0] == 2u, "htn: metodo con precondicion (solo hornear)");
+	check(n2 == 1u && out[0] == 2u,
+	      "htn: prioridad elige el metodo mejor (precondicion), no el declarado antes");
 
 	// La compuesta 1 solo sabe hornear: sin mezcla, no hay descomposicion.
 	const eng::usize n3 =
