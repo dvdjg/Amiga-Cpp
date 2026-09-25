@@ -11,15 +11,18 @@ Publica en `g_eng_run_status.detail`:
 bit 0 = Fibonacci Delta difiere (ASM vs C++)
 bit 1 = IMA ADPCM difiere
 bit 2 = integracion delta difiere
-bit 3 = fallo al codificar los flujos de prueba
+bit 3 = ZX0 difiere
+bit 4 = Delta+ZX0 difiere
+bit 5 = fallo al codificar los flujos de prueba
 ```
 
 `detail == 0` (READY = `0x00040000`) = los descompresores ASM son idénticos a la referencia.
 
 ## Rutinas verificadas
 
-`eng_fib_delta_decode`, `eng_ima_adpcm_decode`, `eng_delta_integrate` (esta última cubre la
-integración delta de Delta+ZX0 / Delta+RLE).
+`eng_fib_delta_decode`, `eng_ima_adpcm_decode`, `eng_delta_integrate` (integración delta de
+Delta+ZX0 / Delta+RLE) y `zx0_decompress` (depacker ZX0 de Emmanuel Marty, `support/dzx0_68000.s`,
+licencia zlib; ABI `a0`/`a1`).
 
 ## Ejecutar
 

@@ -20,6 +20,7 @@
 
 #include <eng/audio/fib_delta.hpp>
 #include <eng/audio/ima_adpcm.hpp>
+#include <eng/audio/zx0.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 
@@ -70,6 +71,20 @@ inline void delta_integrate(eng::Span<eng::u8> buf) noexcept {
 	eng_delta_integrate(buf.data(), buf.size());
 }
 
+/// Descompresor **ZX0** por ASM (`support/dzx0_68000.s`, Emmanuel Marty, zlib; ABI de registro
+/// `a0` = comprimido, `a1` = salida). Devuelve los bytes escritos (el flujo ZX0 lleva su propio
+/// marcador de fin, así que no se pasa `len`; `dst` debe tener capacidad suficiente).
+[[nodiscard]] inline eng::s32 zx0_decompress(eng::Span<const eng::u8> src,
+					     eng::Span<eng::u8> dst) noexcept {
+	register const eng::u8* a0v asm("a0") = src.data();
+	register eng::u8* a1v asm("a1") = dst.data();
+	asm volatile("jsr zx0_decompress"
+		     : "+a"(a0v), "+a"(a1v)
+		     :
+		     : "d0", "d1", "d2", "a2", "cc", "memory");
+	return static_cast<eng::s32>(static_cast<eng::usize>(a1v - dst.data()));
+}
+
 } // namespace eng::audio::asm_codec
 
 #else
@@ -92,6 +107,12 @@ inline void delta_integrate(eng::Span<eng::u8> buf) noexcept {
 		acc = static_cast<eng::u8>(acc + buf[i]);
 		buf[i] = acc;
 	}
+}
+
+/// En host, la referencia C++ de ZX0.
+[[nodiscard]] inline eng::s32 zx0_decompress(eng::Span<const eng::u8> src,
+					     eng::Span<eng::u8> dst) noexcept {
+	return zx0::decompress(src, dst);
 }
 
 } // namespace eng::audio::asm_codec

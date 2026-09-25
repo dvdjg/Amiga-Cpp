@@ -9,7 +9,9 @@
 //   bit 0 = Fibonacci Delta difiere     (ASM vs C++)
 //   bit 1 = IMA ADPCM difiere
 //   bit 2 = integracion delta difiere
-//   bit 3 = fallo de codificacion previa (los flujos de prueba no se generaron)
+//   bit 3 = ZX0 difiere
+//   bit 4 = Delta+ZX0 difiere
+//   bit 5 = fallo de codificacion previa (los flujos de prueba no se generaron)
 //
 // `detail == 0` (y `0x000400FF` de READY) = ASM identico a la referencia.
 //
@@ -26,6 +28,7 @@
 #include <eng/audio/fib_delta.hpp>
 #include <eng/audio/ima_adpcm.hpp>
 #include <eng/audio/pcm_codec.hpp>
+#include <eng/audio/zx0.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -47,6 +50,11 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 namespace {
 
 constexpr eng::usize kSamples = 256u;
+
+// Flujo ZX0 real (compresor de referencia) de 32 bytes, de HOST-271: literales + match + EOF.
+constexpr eng::u8 kZX0[] = {0x00, 0xF5, 0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88,
+			    0x89, 0x8A, 0x8B, 0x8C, 0x8D, 0x8E, 0x8F, 0xE0, 0xD5, 0x55, 0x60};
+constexpr eng::usize kZX0Out = 32u;
 
 // PCM de prueba determinista (triangular suave + un tramo "plano").
 void make_pcm(eng::u8* pcm) noexcept {
@@ -71,7 +79,7 @@ struct CodecEquiv {
 		const eng::s32 fn = eng::audio::fib_delta::encode(
 		    eng::Span<const eng::u8>(pcm, kSamples), eng::Span<eng::u8>(fenc, sizeof(fenc)));
 		if (fn <= 0) {
-			m_detail = static_cast<eng::u32>(m_detail | 8u);
+			m_detail = static_cast<eng::u32>(m_detail | 32u);
 		} else {
 			eng::u8 asm_out[kSamples] {};
 			eng::u8 ref_out[kSamples] {};
@@ -98,7 +106,7 @@ struct CodecEquiv {
 		const eng::s32 in = eng::audio::ima_adpcm::encode(
 		    eng::Span<const eng::u8>(pcm, kSamples), eng::Span<eng::u8>(ienc, sizeof(ienc)));
 		if (in <= 0) {
-			m_detail = static_cast<eng::u32>(m_detail | 8u);
+			m_detail = static_cast<eng::u32>(m_detail | 32u);
 		} else {
 			eng::u8 asm_out[kSamples] {};
 			eng::u8 ref_out[kSamples] {};
@@ -139,6 +147,55 @@ struct CodecEquiv {
 			if (asm_i[i] != ref_i[i]) {
 				m_detail = static_cast<eng::u32>(m_detail | 4u);
 				break;
+			}
+		}
+
+		// --- ZX0 (ASM vs referencia C++) ---
+		{
+			eng::u8 za[64] {};
+			eng::u8 zr[64] {};
+			const eng::s32 na = eng::audio::asm_codec::zx0_decompress(
+			    eng::Span<const eng::u8>(kZX0, sizeof(kZX0)),
+			    eng::Span<eng::u8>(za, sizeof(za)));
+			const eng::s32 nr = eng::audio::zx0::decompress(
+			    eng::Span<const eng::u8>(kZX0, sizeof(kZX0)),
+			    eng::Span<eng::u8>(zr, sizeof(zr)));
+			if (na != nr || na != static_cast<eng::s32>(kZX0Out)) {
+				m_detail = static_cast<eng::u32>(m_detail | 8u);
+			} else {
+				for (eng::usize i = 0u; i < kZX0Out; ++i) {
+					if (za[i] != zr[i]) {
+						m_detail = static_cast<eng::u32>(m_detail | 8u);
+						break;
+					}
+				}
+			}
+		}
+
+		// --- Delta+ZX0 (camino integrado del codec vs C++ en dos pasos) ---
+		{
+			eng::u8 d1[64] {};
+			eng::u8 d2[64] {};
+			const eng::s32 n1 = eng::audio::pcm_codec::decode(
+			    eng::Span<const eng::u8>(kZX0, sizeof(kZX0)),
+			    eng::Span<eng::u8>(d1, sizeof(d1)),
+			    static_cast<eng::u8>(eng::audio::pcm_codec::Codec::DeltaZx0));
+			const eng::s32 n2 = eng::audio::zx0::decompress(
+			    eng::Span<const eng::u8>(kZX0, sizeof(kZX0)),
+			    eng::Span<eng::u8>(d2, sizeof(d2)));
+			if (n2 > 0) {
+				eng::audio::pcm_codec::integrate_deltas(
+				    eng::Span<eng::u8>(d2, static_cast<eng::usize>(n2)));
+			}
+			if (n1 != n2 || n1 != static_cast<eng::s32>(kZX0Out)) {
+				m_detail = static_cast<eng::u32>(m_detail | 16u);
+			} else {
+				for (eng::usize i = 0u; i < kZX0Out; ++i) {
+					if (d1[i] != d2[i]) {
+						m_detail = static_cast<eng::u32>(m_detail | 16u);
+						break;
+					}
+				}
 			}
 		}
 

@@ -205,11 +205,25 @@ En el 68000 los bucles de descompresión se ejecutan con rutinas en ensamblador
 que el C++ (mismas comprobaciones y retorno). En host siempre se usa la referencia C++; en m68k se
 elige el ASM. Las tablas se pasan por puntero desde el C++ (una sola fuente de verdad).
 
-Rutinas: `eng_fib_delta_decode`, `eng_ima_adpcm_decode` y `eng_delta_integrate`. ABI: la de este
-toolchain m68k GCC 15 (argumentos **por pila**, retorno en `d0`; ver nota en el propio `.s`).
+Rutinas en `support/codec_asm.s` (propias): `eng_fib_delta_decode`, `eng_ima_adpcm_decode`,
+`eng_delta_integrate` (ABI de este toolchain m68k GCC 15: argumentos **por pila**, retorno en
+`d0`; ver nota en el `.s`). Además, el **depacker ZX0 68000** `zx0_decompress`
+(`support/dzx0_68000.s`, port a GAS del original de Emmanuel Marty, **licencia zlib**; ABI de
+registro `a0` = comprimido, `a1` = salida), que cubre ZX0 y el paso ZX0 de Delta+ZX0.
 
 La **equivalencia byte a byte** con la referencia C++ se verifica en hardware/emulador con la
-demo **`277_codec_equiv`** (gate en `detail`: `0` = idéntico; medido `0x00040000`).
+demo **`277_codec_equiv`** (gate en `detail`: `0` = idéntico; medido `0x00040000`), que cubre
+Fibonacci, IMA, la integración delta, ZX0 y Delta+ZX0.
+
+### 7.3 Reconocimiento de medios y `tar`
+
+`eng/audio/media.hpp` es el **punto único** para gestionar un medio: reconoce el contenedor
+(PCM crudo o AUZX) y expone códec/rate/chunks, con `decode_chunk(i, dst)` para decodificar por
+chunks (lo que consume `pcm_stream`). Así el juego no distingue formatos.
+
+Para preparar el contenido de un volumen desde PC, `tools/fs/tar-extract.mjs` extrae un archivo
+`.tar` (creado con la orden `tar` estándar) a un directorio, que luego se monta en el ADF con
+`tools/fs/make-volume.mjs`: el "archivo original" puede contener un sistema de archivos completo.
 
 ## 8. Detalles de implementación
 

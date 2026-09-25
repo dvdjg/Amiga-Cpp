@@ -75,7 +75,7 @@ inline void differentiate(eng::Span<eng::u8> buf) noexcept {
 [[nodiscard]] inline eng::s32 decode(eng::Span<const eng::u8> src, eng::Span<eng::u8> dst,
 				    eng::u8 compression) noexcept {
 	if (compression == static_cast<eng::u8>(Codec::Zx0)) {
-		return zx0::decompress(src, dst);
+		return asm_codec::zx0_decompress(src, dst); // ASM en m68k, C++ en host
 	}
 	if (compression == static_cast<eng::u8>(Codec::FibDelta)) {
 		return asm_codec::fib_delta_decode(src, dst); // ASM en m68k, C++ en host
@@ -84,8 +84,8 @@ inline void differentiate(eng::Span<eng::u8> buf) noexcept {
 		return asm_codec::ima_adpcm_decode(src, dst);
 	}
 	if (compression == static_cast<eng::u8>(Codec::DeltaZx0)) {
-		// ZX0 descomprime las diferencias; una pasada las integra a PCM (ASM en m68k).
-		const eng::s32 n = zx0::decompress(src, dst);
+		// ZX0 descomprime las diferencias; una pasada las integra a PCM (ambas en ASM en m68k).
+		const eng::s32 n = asm_codec::zx0_decompress(src, dst);
 		if (n < 0) {
 			return -1;
 		}

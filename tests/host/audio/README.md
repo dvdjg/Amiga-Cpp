@@ -18,3 +18,4 @@ Categoría `audio` de la batería host (L1). El índice de categorías está en 
 | HOST-324 | [delta_zx0](324_delta_zx0/README.md) | Delta+ZX0 sin pérdida: `differentiate`/`integrate_deltas` inversas y `Codec::DeltaZx0` sobre un flujo ZX0 real de referencia. |
 | HOST-325 | [ima_adpcm](325_ima_adpcm/README.md) | IMA ADPCM 4-bit (`eng/audio/ima_adpcm.hpp`): decodificador contra el estándar IMA/DVI y round-trip con error acotado; `Codec::ImaAdpcm`. |
 | HOST-326 | [auzx](326_auzx/README.md) | Contenedor AUZX (`eng/audio/auzx.hpp`): cabecera de 32 bytes + índice de chunks (offset/tamaño), parseo y rechazos. |
+| HOST-327 | [media](327_media/README.md) | Interfaz de medios (`eng/audio/media.hpp`): reconoce PCM crudo/AUZX y decodifica por chunk (`decode_chunk`), con el códec de `pcm_codec`. |
