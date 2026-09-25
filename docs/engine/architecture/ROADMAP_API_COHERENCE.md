@@ -157,7 +157,9 @@ gate; ninguna fase rompe una demo verde sin migrarla en la misma pasada.
 - `App` se queda con: bucle, `screen`, `world`, `input`, `audio`, `tasks`, `assets`, `port`.
 - `Device` agrupa `memory`/`blitter_*`/`copper`/`raster`/`presupuesto`; se accede por
   `app.device()` y es **ignorable** por juegos simples.
-- Deprecar y migrar los usos (`204/086/213/214`).
+- **Hecho**: `app.device()` + demos 204/086/209/214 migradas; el check `api-facade.mjs`
+  prohíbe en demos/juegos el hardware directo de `App` (`app.memory/blitter_*/copper/scene/…`).
+- Retirar los métodos directos de `App` (delegados a `Device`) es limpieza mecánica (F2b).
 - *Gate*: check de F0 pasa; demos migradas verdes.
 
 ### F3 — Unificar el dibujo en `Screen`
