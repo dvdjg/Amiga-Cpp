@@ -115,11 +115,13 @@ struct SimBench {
 					    static_cast<eng::s16>(i * 8), 0);
 		}
 		m_creatures = g_world.creature_count();
-		// Todas curiosas y autonomas: asi la histeresis deja que planifiquen.
+		// Todas curiosas y autonomas (la histeresis deja que planifiquen) y **realizadas**
+		// (el LOD decide quien planifica: solo lo cercano a la camara).
 		for (eng::usize i = 0u; i < g_world.creature_count(); ++i) {
 			g_world.creature(i).personality.curiosity = 200u;
 			g_world.creature(i).personality.autonomy = 200u;
 		}
+		g_world.realize_room(0u, kCreatures);
 
 		// Red HTN del dominio de construccion (se descompone una vez para medirla).
 		g_htn.set_domain(build_shelter_htn());

@@ -135,6 +135,9 @@ void test_decide_plan() {
 	SimWorld<SimTraits, 8, 4, 4, 8, 8, 64, SimNumericGoap<2u>> w;
 	const EntityId id = w.spawn(1u, 0u, 0u, 0, 0);
 
+	// LOD: sin realized no se planifica; tras realizarla, si.
+	check(!w.decide_plan(id, 0u), "decide_plan: LOD (abstracta) no planifica");
+	w.realize_room(0u, 8u);
 	check(!w.decide_plan(no_entity, 0u), "decide_plan: entidad invalida no planifica");
 
 	// La decision del mundo usa la histeresis sobre la mente de la criatura: con la mente
@@ -148,9 +151,10 @@ void test_decide_plan() {
 void test_plan_tick() {
 	SimWorld<SimTraits, 8, 4, 4, 8, 8, 64, SimNumericGoap<2u>> w;
 	const EntityId id = w.spawn(1u, 0u, 0u, 0, 0);
-	// Criatura planificadora (curiosa y autonoma).
+	// Criatura planificadora (curiosa y autonoma) y **realizada** (LOD).
 	w.creature(0u).personality.curiosity = 80u;
 	w.creature(0u).personality.autonomy = 60u;
+	w.realize_room(0u, 8u);
 
 	const auto acts = needs_domain();
 	Ai::State start {};
@@ -194,6 +198,7 @@ void test_plan_selection() {
 	const EntityId id = w.spawn(1u, 0u, 0u, 0, 0);
 	w.creature(0u).personality.curiosity = 80u;
 	w.creature(0u).personality.autonomy = 60u;
+	w.realize_room(0u, 8u); // LOD: realizada para que planifique
 
 	HtnDriver<32u, 5u, 1u, 4u, 8u> htn;
 	htn.set_domain(build_shelter_htn());

@@ -41,6 +41,12 @@ libgcc**: toda operación que el compilador resuelva con una *libcall* **rompe e
 **Cuándo**: `u32`/`s32` `*`, `/`, `%`; `float` (soft-float); `u64 *`; `Fixed<s32>` con `div_norm`.
 **`u16` `*`/`/`** son nativos (`mulu.w`/`divu.w`) y **no** generan libcall.
 
+**Qué rutinas sí están y cuáles no** (medido con `001_sim_bench`, 2026-09): el libgcc del
+`m68k-amiga-elf` **sí** enlaza `__clzsi2`/`__ctzsi2` (los usa el tick del sim a plena
+velocidad), pero **no** `__popcountsi2` (el enlazado falla con *undefined reference*). Por eso
+`eng::util::popcount` es un SWAR propio, mientras que `countl_zero`/`countr_zero` siguen usando
+`__builtin_clz`/`ctz` (sustituirlos por una versión manual **no** mejora; medido).
+
 **Cómo detectarlo**:
 ```bash
 <toolchain>/opt/bin/m68k-amiga-elf-g++ -std=gnu++23 -m68000 -nostdlib -O0 \

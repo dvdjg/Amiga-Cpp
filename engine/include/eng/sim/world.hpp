@@ -71,6 +71,12 @@ public:
 			if (!c.valid()) {
 				return false;
 			}
+			// **LOD**: solo planifica lo *realizado* (cerca de la cámara); lo abstracto y lo
+			// dormido no gastan planificación. La histéresis decide *cuándo*, esto decide
+			// *quién*. Ver HOST-313.
+			if (!c->realized()) {
+				return false;
+			}
 			return should_replan(c->personality, c->mind.plan, frame_now, params);
 		}
 	}

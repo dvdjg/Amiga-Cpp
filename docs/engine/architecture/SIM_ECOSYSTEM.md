@@ -286,8 +286,8 @@ objetivos GOAP sin duplicar la ejecución (HOST-313/318).
 
 En Amiga real/emulado, `demos/features/sim/amiga/001_sim_bench` mide el ecosistema completo
 (`SimWorld` + planificación) con el reloj TOD de la CIA-A, separando tick de planificación:
-A500 con 12 criaturas da **131 ticks/s** solo y **113 frames/s** con planificación realista
-(~1.2x, ~14% de sobrecarga). El peor caso sin caché era ~18x: la diferencia se cierra usando
+A500 con 12 criaturas, el cociente entre el tick solo y con planificación realista es **~1.2x**
+(~14% de sobrecarga). El peor caso sin caché era ~18x: la diferencia se cierra usando
 la **caché de planes** (`PlannerDriver::replan` llama a `plan_cached`) y el **intervalo de
 replan**, que reparte las consultas. El mundo (~24 KB) va en memoria estática (no cabe en la
 pila del 68000).

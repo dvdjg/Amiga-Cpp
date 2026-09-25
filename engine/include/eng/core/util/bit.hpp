@@ -64,6 +64,9 @@ template <class T>
 	using U = make_unsigned_t<T>;
 	constexpr int width = static_cast<int>(sizeof(T) * 8u);
 	constexpr int long_width = static_cast<int>(sizeof(unsigned long) * 8u);
+	// `__builtin_clzl` acaba en `__clzsi2`, que el libgcc del 68000 **si** enlaza (a
+	// diferencia de `__popcountsi2`; medido en `001_sim_bench`). No se sustituye por SWAR:
+	// la version manual es mas lenta.
 	const unsigned long v = static_cast<unsigned long>(static_cast<U>(value));
 	if (v == 0ul) {
 		return width;
@@ -78,6 +81,8 @@ template <class T>
 	static_assert(sizeof(T) <= 4u, "countr_zero: ancho máximo 32 bits");
 	using U = make_unsigned_t<T>;
 	constexpr int width = static_cast<int>(sizeof(T) * 8u);
+	// `__builtin_ctzl` acaba en `__ctzsi2`, que el libgcc del 68000 **si** enlaza (ver
+	// `countl_zero`). No se sustituye por De Bruijn: la multiplicacion es mas lenta.
 	const unsigned long v = static_cast<unsigned long>(static_cast<U>(value));
 	if (v == 0ul) {
 		return width;

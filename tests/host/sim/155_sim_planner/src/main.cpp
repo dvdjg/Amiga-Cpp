@@ -92,6 +92,30 @@ void test_apply_budget() {
 	check(driver.expansions() <= 1u, "presupuesto: respeta el limite");
 }
 
+void test_replan_reusing() {
+	using Ai = SimGoap;
+	constexpr eng::util::Array<Ai::Action, 3> acts {{
+	    Ai::Builder {}.require(0u).produce(1u).build(),
+	    Ai::Builder {}.require(1u).produce(2u).build(),
+	    Ai::Builder {}.require(2u).produce(3u).build(),
+	}};
+	Ai::Goal goal {};
+	goal.want_true.facts.set(static_cast<eng::ai::Fact>(3u));
+	Ai::State start {};
+	start.facts.set(static_cast<eng::ai::Fact>(0u));
+
+	PlannerDriver<64, 8> driver;
+	check(driver.replan(start, goal, acts.span()), "sufijo: plan inicial de 3 pasos");
+
+	// Ejecuta el primer paso y **reutiliza el sufijo**: no vuelve a buscar.
+	Ai::State after = start;
+	eng::ai::apply(after, acts[driver.current()]);
+	driver.advance();
+	check(driver.replan_reusing(after, goal, acts.span()), "sufijo: encuentra el sufijo");
+	check(driver.expansions() == 0u, "sufijo: no abre busqueda");
+	check(driver.current() == 1u, "sufijo: continua por el segundo paso");
+}
+
 void test_plan_runner() {
 	PlanRunner<4> runner;
 	check(runner.done() && !runner.has_next(), "runner: arranca terminado");
@@ -201,6 +225,7 @@ int main() {
 	test_plan_decision();
 	test_replan_hysteresis();
 	test_apply_budget();
+	test_replan_reusing();
 	test_plan_runner();
 	test_driver();
 	test_construction_domain();

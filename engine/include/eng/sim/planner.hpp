@@ -161,6 +161,28 @@ public:
 		return m_runner.load(eng::Span<const eng::u16> {raw, n});
 	}
 
+	/// Tras ejecutar pasos del plan en curso, **reutiliza el sufijo**: si el resto sigue
+	/// siendo aplicable desde `start` y cumple el objetivo, lo devuelve sin buscar; si no,
+	/// replantea (caché + búsqueda). Evita repetir la búsqueda cuando la criatura solo ha
+	/// avanzado un paso. Ver HOST-155.
+	[[nodiscard]] constexpr bool replan_reusing(const typename Ai::State& start,
+						    const typename Ai::Goal& goal,
+						    eng::Span<const typename Ai::Action> actions) noexcept {
+		if (m_runner.cursor == 0u) {
+			return replan(start, goal, actions); // nada ejecutado aun: plan normal
+		}
+		eng::u16 raw[MaxSteps] {};
+		const eng::usize taken = static_cast<eng::usize>(m_runner.cursor - 1u);
+		const eng::usize n = m_planner.plan_reusing(
+		    start, goal, actions, eng::Span<eng::u16> {raw, MaxSteps},
+		    eng::Span<const eng::u16> {m_runner.steps, m_runner.count}, taken);
+		if (!m_planner.found() && n == 0u) {
+			m_runner.abort();
+			return false;
+		}
+		return m_runner.load(eng::Span<const eng::u16> {raw, n});
+	}
+
 	[[nodiscard]] constexpr bool has_plan() const noexcept { return m_runner.active; }
 	[[nodiscard]] constexpr bool done() const noexcept { return m_runner.done(); }
 	[[nodiscard]] constexpr eng::u16 current() const noexcept { return m_runner.current(); }
