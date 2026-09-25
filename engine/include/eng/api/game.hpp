@@ -250,6 +250,42 @@ public:
 		}
 	}
 
+	/// **Ejecuta un `FramePlan`** (jobs de Blitter) en el backend. `false` si no lo soporta.
+	template <class B = Backend>
+	bool execute_frame_plan(graphics::FramePlan& plan) {
+		if constexpr (requires(B& b, const graphics::FramePlan& p) { b.execute_frame_plan(p); }) {
+			return m_backend.execute_frame_plan(plan);
+		} else {
+			(void)plan;
+			return false;
+		}
+	}
+
+	/// **Instala** un programa de Copper propio (`copper::Plan`) en el backend (una vez, en
+	/// `init`). Para juegos que montan su propio `copper::Plan` en vez de una `Scene`.
+	template <class B = Backend>
+	bool takeover_copper(copper::Plan& plan) {
+		if constexpr (requires(B& b, copper::Plan& p) { p.takeover(b); }) {
+			plan.takeover(m_backend);
+			return true;
+		} else {
+			(void)plan;
+			return false;
+		}
+	}
+
+	/// **Publica** un programa de Copper propio (swap de `COP1LC`, tras VBlank).
+	template <class B = Backend>
+	bool commit_copper(copper::Plan& plan) {
+		if constexpr (requires(B& b, copper::Plan& p) { p.commit(b); }) {
+			plan.commit(m_backend);
+			return true;
+		} else {
+			(void)plan;
+			return false;
+		}
+	}
+
 	/// **Overlay de depuración del backend** (texto/rectángulos sobre el frame), si lo expone.
 	/// Es la vía de las demos para rotular estado sin romper la abstracción. Template para no
 	/// exigir `debug()` a backends que no lo tengan.
