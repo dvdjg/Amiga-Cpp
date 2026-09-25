@@ -71,10 +71,10 @@ public:
 
 	/// Fija un color. El índice se recorta a 0..31 (no hay fallo que comprobar).
 	constexpr void set(ColorIndex i, Color c) noexcept {
-		m_data.color[i.value & 31u] = static_cast<u16>(c.value & 0x0fffu);
+		m_data.color[color_index(i.value).value] = static_cast<u16>(c.value & 0x0fffu);
 	}
 	[[nodiscard]] constexpr Color get(ColorIndex i) const noexcept {
-		return Color {static_cast<u16>(m_data.color[i.value & 31u] & 0x0fffu)};
+		return Color {static_cast<u16>(m_data.color[color_index(i.value).value] & 0x0fffu)};
 	}
 
 	constexpr void fill(Color c) noexcept {
@@ -92,11 +92,11 @@ public:
 	/// **Fundido *in place***: cada canal a `num/den` (`0` apaga la paleta, `num == den` la
 	/// deja igual). Es `util::palette_scale` sobre los 32 colores.
 	constexpr void fade(u16 num, u16 den) noexcept {
-		eng::util::palette_scale({m_data.color, 32u}, {m_data.color, 32u}, num, den);
+		(void)eng::util::palette_scale({m_data.color, 32u}, {m_data.color, 32u}, num, den);
 	}
 	/// Fundido desde `src` **sin** tocar `src` (`m_data[i] = scale(src[i], num, den)`).
 	constexpr void fade_from(const Palette32& src, u16 num, u16 den) noexcept {
-		eng::util::palette_scale({m_data.color, 32u}, {src.color, 32u}, num, den);
+		(void)eng::util::palette_scale({m_data.color, 32u}, {src.color, 32u}, num, den);
 	}
 	/// **Interpola** `a`→`b` (`num == 0` deja `a`, `num == den` deja `b`) en el tramo
 	/// `[first, first+count)`; el resto de colores queda igual a `a`. Es `util::palette_lerp`.
@@ -110,10 +110,9 @@ public:
 				n = 32u - first;
 			}
 		}
-		eng::util::palette_lerp({m_data.color + first, n}, {a.color + first, n},
-					{b.color + first, n}, num, den);
+		(void)eng::util::palette_lerp({m_data.color + first, n}, {a.color + first, n},
+					      {b.color + first, n}, num, den);
 	}
-
 	[[nodiscard]] constexpr const Palette32& storage() const noexcept { return m_data; }
 	[[nodiscard]] constexpr Palette32& storage() noexcept { return m_data; }
 	/// Vista de dominio para las APIs que piden `PaletteWords` (p. ej. `emit_palette`).
