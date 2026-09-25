@@ -34,6 +34,8 @@ assets/
 |---|---|
 | `amiga/tiles-reference/real/pac_man.jpg`, `apple_guy.jpg`, `aussie_bum.jpg`, `forgotten_relict.jpg`, `landscape_painting.jpg`, `metalslug.png` | Fan-art/ilustraciones usadas como banco de pruebas del pipeline; propiedad de sus autores (uso interno de prueba). |
 | `amiga/tiles-reference/real_640/*` | Redimensiones Lanczos a ~640px usadas como referencia del pipeline (generadas a partir de las fuentes anteriores). |
+| `amiga/sprites/abyss/abyss.bpl`, `abyss.pal`, `bob.bpl` | Assets de la demo clásica de Bartman/vscode-amiga-debug (`BartmanBasic`): imagen interleaved 320×256×5, paleta de 32 colores y hoja de 6 BOBs 32×16 enmascarados. Uso interno de prueba; la demo 213 los reproduce. |
+| `amiga/audio/testmod.p61` | Módulo P61 de ejemplo ("P61.testmod" de Skylord/Sector 7) usado por las demos de música; mismo fichero que el del ejemplo de Bartman. |
 
 *Nota: `assets/amiga/tiles-reference` fue reubicado aquí en la reorganización; las
 tools leen de esta ruta canónica.*
