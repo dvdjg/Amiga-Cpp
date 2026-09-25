@@ -99,8 +99,35 @@ struct AppSpriteDemo {
 		m_bob.erase = graphics::BobErase::None; // se repinta el fondo entero cada frame
 		m_sprite = graphics::Sprite {m_bob};
 
+		// Segundo objeto por el **mundo retenido**: un actor BOB (el engine elige la
+		// representación; aquí BOB) que `app.draw_world()` emite al plan.
+		app.world().reset_actors(0, 60000u, 0u);
+		eng::scene::ActorDesc ad {};
+		ad.visual.kind = graphics::VisualKind::Bob;
+		ad.visual.pixels = eng::Span<const eng::u16> {
+			reinterpret_cast<const eng::u16*>(m_sheet.view.data()),
+			static_cast<eng::usize>(kObjData / 2u)};
+		ad.visual.mask = eng::Span<const eng::u16> {
+			reinterpret_cast<const eng::u16*>(m_sheet.view.data() + kObjData),
+			static_cast<eng::usize>(kObjMask / 2u)};
+		ad.visual.w = kObjW;
+		ad.visual.h = kObjH;
+		ad.visual.bitplanes = kObjPlanes;
+		ad.layout = graphics::BobLayout::Planar;
+		ad.transparency = eng::scene::TransparencyMode::Mask1Bit;
+		ad.background = eng::scene::BackgroundPolicy::None;
+		ad.surface = 0u;
+		ad.z = 10u;
+		ad.preferred = eng::scene::Representation::Bob;
+		m_actor = app.world().add_actor(ad);
+		if (!m_actor.valid()) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00021405u);
+			return;
+		}
+
 		app.takeover(); // instala la copperlist del camino planar
-		eng::debug::mark_ready(g_eng_run_status, 0x00021400u);
+		// READY se marca en el primer `render` (con el frame ya dibujado/commitido), para que
+		// la captura del runner no caiga en un frame sin publicar.
 	}
 
 	void update(auto& app) {
@@ -118,7 +145,17 @@ struct AppSpriteDemo {
 		const eng::s16 x = static_cast<eng::s16>(16u + scroll % (kWidth - kObjW));
 		const eng::s16 y = static_cast<eng::s16>(96u + ((app.frame() >> 1u) % 64u));
 		s.sprite(m_sprite, x, y); // una llamada: la geometría del destino la pone el contexto
+		// Actor del mundo retenido (segunda vía): se mueve y lo emite el planner del App.
+		if (auto* a = app.world().actor(m_actor)) {
+			a->desc.x = static_cast<eng::s16>(16u + ((app.frame() * 3u) % (kWidth - kObjW)));
+			a->desc.y = static_cast<eng::s16>(176u + ((app.frame() >> 1u) % 48u));
+		}
+		app.draw_world();
 		app.present();
+		// READY en el primer frame ya publicado (el runner captura tras el primer render).
+		if (app.frame() < 2u) {
+			eng::debug::mark_ready(g_eng_run_status, 0x00021400u);
+		}
 		eng::debug::probe_when_ready(g_eng_run_status, app.frame());
 	}
 
@@ -150,6 +187,7 @@ private:
 	}
 
 	scene::Scene m_scene {};
+	eng::scene::ActorId m_actor {};
 	eng::Block<eng::BobTag> m_sheet {};
 	graphics::Bob m_bob {};
 	graphics::Sprite m_sprite {};

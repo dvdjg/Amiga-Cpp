@@ -22,10 +22,12 @@
 /// Es **evolutivo**: cubre lo que ya existe y se amplía cuando lleguen los demás módulos.
 
 #include <eng/core/types/box.hpp>
+#include <eng/core/types/domains.hpp>
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/engine.hpp>
 #include <eng/field/draw_target.hpp>
+#include <eng/graphics/blitter_state.hpp>
 #include <eng/graphics/composition/compose.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/sprite_asset.hpp>
@@ -150,6 +152,100 @@ public:
 		return m_backend.audio();
 	}
 
+	// --- Servicios de Blitter (fachada de hardware del juego) ---------------------------
+	// Operaciones de **dominio** (sin nombrar registros ni el backend). Cada método reenvía si
+	// el backend lo soporta; si no, es no-op (`false`/nada). Son las que usan los juegos con
+	// colisión por Blitter o rasterizador propio (204/086). Ver `PUBLIC_GAME_API.md` §5/12.
+
+	/// Espera a que el Blitter termine el blit en curso.
+	template <class B = Backend>
+	bool wait_blitter() {
+		if constexpr (requires(B& b) { b.wait_blitter(); }) {
+			return m_backend.wait_blitter();
+		} else {
+			return false;
+		}
+	}
+
+	/// Instala el **rasterizador por Blitter** de la escena (los rellenos de `screen()` usan
+	/// el Blitter en vez de la CPU). `false` si el backend no lo soporta.
+	template <class B = Backend>
+	bool install_raster(graphics::composition::Scene& scene) {
+		if constexpr (requires(B& b, graphics::composition::Scene& s) {
+				      b.install_raster(s);
+			      }) {
+			m_backend.install_raster(scene);
+			return true;
+		} else {
+			(void)scene;
+			return false;
+		}
+	}
+
+	/// Borra `planes` planos (`w`×`h`, `D = 0`). `wait` sincroniza con el fin del blit.
+	template <class B = Backend>
+	bool blitter_clear(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 w,
+			   u16 h, bool wait = true) {
+		if constexpr (requires(B& b, eng::PlaneBytes d) {
+				      b.blitter_clear(d, u8 {}, u16 {}, u32 {}, u16 {}, u16 {}, bool {});
+			      }) {
+			return m_backend.blitter_clear(dst, planes, row_bytes, plane_bytes, w, h, wait);
+		} else {
+			(void)dst;
+			(void)planes;
+			(void)row_bytes;
+			(void)plane_bytes;
+			(void)w;
+			(void)h;
+			(void)wait;
+			return false;
+		}
+	}
+
+	/// **BOBs OR en lote** (`D = A | D`): las `count` entradas se procesan en orden.
+	/// `source_modulo`/`dest_modulo` son `BLTAMOD`/`BLTBMOD`=`BLTDMOD`.
+	template <class B = Backend>
+	bool blitter_or_bobs(const graphics::OrBob* bobs, u32 count, u16 words, u16 height,
+			     s16 source_modulo, s16 dest_modulo) {
+		if constexpr (requires(B& b, const graphics::OrBob* o) {
+				      b.blitter_or_bobs(o, u32 {}, u16 {}, u16 {}, s16 {}, s16 {});
+			      }) {
+			return m_backend.blitter_or_bobs(bobs, count, words, height, source_modulo,
+							 dest_modulo);
+		} else {
+			(void)bobs;
+			(void)count;
+			(void)words;
+			(void)height;
+			(void)source_modulo;
+			(void)dest_modulo;
+			return false;
+		}
+	}
+
+	/// **Colisión pixel-perfect por Blitter**: `scratch = a & b` por plano y `true` si hay
+	/// algún bit. `words`×`rows` es el rect en palabras de 16 px × filas.
+	template <class B = Backend>
+	bool blitter_collide(eng::PlaneBytes a, eng::PlaneBytes b, eng::PlaneBytes scratch, u8 planes,
+			     u16 row_bytes, u32 plane_bytes, u16 words, u16 rows) {
+		if constexpr (requires(B& bk, eng::PlaneBytes p) {
+				      bk.blitter_collide(p, p, p, u8 {}, u16 {}, u32 {}, u16 {}, u16 {});
+			      }) {
+			return m_backend.blitter_collide(a, b, scratch, planes, row_bytes, plane_bytes,
+							 words, rows);
+		} else {
+			(void)a;
+			(void)b;
+			(void)scratch;
+			(void)planes;
+			(void)row_bytes;
+			(void)plane_bytes;
+			(void)words;
+			(void)rows;
+			return false;
+		}
+	}
+
 	/// **Overlay de depuración del backend** (texto/rectángulos sobre el frame), si lo expone.
 	/// Es la vía de las demos para rotular estado sin romper la abstracción. Template para no
 	/// exigir `debug()` a backends que no lo tengan.
@@ -181,6 +277,20 @@ public:
 	/// (`PUBLIC_GAME_API.md` §2.1.3).
 	[[nodiscard]] scene::World<8u>& world() noexcept { return m_world; }
 	[[nodiscard]] const scene::World<8u>& world() const noexcept { return m_world; }
+
+	/// **Planner (actores)**: emite los actores del `world()` al plan del frame con el clip y
+	/// el destino del contexto de dibujo de la escena ligada. Devuelve cuántos se dibujaron.
+	/// Llámalo antes de `present()`. (La materialización de **capas** —playfield/tilemap— llega
+	/// cuando exista el modelo de contenido de capa; ver `SCENE_AND_RESOURCES.md`.)
+	eng::u16 draw_world() {
+		if (!m_scene.valid()) {
+			return 0u;
+		}
+		field::DrawTarget target = m_scene.get()->draw_target(&m_plan);
+		const eng::Box b = target.box();
+		return m_world.emit(m_plan, eng::Span<const graphics::BobTarget> {&target.bob_target(), 1u},
+				    graphics::DirtyRect {b.x, b.y, b.w, b.h});
+	}
 
 	/// **Toma el control del display** mostrando el buffer 0 de la escena ligada (una vez, en
 	/// `init`). Es lo que instala la copperlist del camino planar (`Scene` + `DrawTarget`);
