@@ -201,8 +201,8 @@ hechos + 32 de niveles) y el planner es el mismo A* determinista, sin heap.
 - **Heurística relajada** (`plan_relaxed`): `h_max` sobre hechos (relajación por
   borrado) + cota numérica por el mayor delta por acción, con **memo de `h` por estado
   entre llamadas** (`heuristic_hits`). Guía mejor; no garantiza optimalidad estricta.
-- Límites: `MaxFacts <= 32` y `MaxVars <= 4` (clave de 64 bits exacta). Para más
-  variables, componer dominios o usar la versión ampliada.
+- Límites: `MaxFacts <= 32` y `MaxVars <= 8` (clave exacta de 64 bits hasta 4 variables;
+  **ancha**, `StateKeyNVWide<2>`, de 5 a 8). Para más, componer dominios.
 
 En `eng::sim` el dominio es un **parámetro de plantilla** de `PlannerDriver` y de
 `SimWorld`: `SimGoap` (booleano, por defecto y más ligero) o `SimNumericGoap<N>`

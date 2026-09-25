@@ -41,8 +41,8 @@
 ///
 /// `MaxFacts` admite **32** (por defecto) o **64** (dos palabras, sin `long long`: el 68000
 /// no tiene aritmetica de 64 bits y acabaria en libcalls). Las **variables** solo se admiten
-/// con `MaxFacts <= 32` (su clave sigue siendo exacta: `u32` hechos + `u32` niveles). Cuando
-/// `MaxVars == 0`, las variables se eliden del estado (0 bytes).
+/// con `MaxFacts <= 32`: hasta 4 la clave es exacta (`u32` hechos + `u32` niveles) y de 5 a 8
+/// pasa a **ancha** (`StateKeyNVWide<2>`). Con `MaxVars == 0` se eliden del estado (0 bytes).
 ///
 /// ## Coste y limites (68000)
 ///
@@ -77,8 +77,9 @@ using Fact = eng::u16;
 /// Techo duro de hechos (clave de 64 bits).
 inline constexpr usize goap_max_facts = 64u;
 
-/// Techo de variables de nivel por dominio (clave exacta de 64 bits).
-inline constexpr usize goap_max_vars = 4u;
+/// Techo de variables de nivel por dominio: 4 con clave exacta de 64 bits, hasta 8 con la
+/// clave ancha (`StateKeyNVWide<2>`).
+inline constexpr usize goap_max_vars = 8u;
 
 /// Indice invalido (raiz del arbol de busqueda, sin padre o sin accion).
 inline constexpr u16 no_fact_link = 0xffffu;
@@ -113,13 +114,33 @@ struct StateKeyNV {
 	}
 };
 
+/// Clave **ancha** de hechos (<=32) + niveles: `u32` hechos + `Words` palabras de niveles
+/// (para `MaxVars` 5..8, que no caben en una sola palabra).
+template <usize Words>
+struct StateKeyNVWide {
+	u32 facts = 0u;
+	u32 vars[Words] {};
+	[[nodiscard]] constexpr bool operator==(const StateKeyNVWide& other) const noexcept {
+		if (facts != other.facts) {
+			return false;
+		}
+		for (usize i = 0u; i < Words; ++i) {
+			if (vars[i] != other.vars[i]) {
+				return false;
+			}
+		}
+		return true;
+	}
+};
+
 /// Ancho de la clave segun `MaxFacts`/`MaxVars`.
 template <usize MaxFacts, usize MaxVars>
 struct KeyOf {
 	static constexpr bool wide = (MaxFacts > 32u);
 	static constexpr bool with_vars = (MaxVars > 0u);
+	using vars_key = typename Cond<(MaxVars > 4u), StateKeyNVWide<2>, StateKeyNV>::type;
 	using type = typename Cond<wide, StateKey64,
-				   typename Cond<with_vars, StateKeyNV, u32>::type>::type;
+				   typename Cond<with_vars, vars_key, u32>::type>::type;
 };
 
 /// "Sin valor" para `var_le` (sin cota superior) y `var_set` (sin asignacion).
@@ -189,19 +210,23 @@ struct State {
 	eng::util::BitSet<MaxFacts> facts {};
 	[[no_unique_address]] VarCells<eng::u8, MaxVars, TagState> vars {};
 
-	// Hechos (estilo booleano).
-	constexpr void set(Fact f) noexcept { facts.set(f); }
-	constexpr void clear(Fact f) noexcept { facts.reset(f); }
-	[[nodiscard]] constexpr bool has(Fact f) const noexcept { return facts.test(f); }
-	[[nodiscard]] constexpr bool empty() const noexcept { return facts.none(); }
-
-	// Variables (estilo numerico).
+	// Hechos: se leen y escriben por `facts` (un `BitSet<MaxFacts>`), igual que las mascaras
+	// de `Action` y `Goal` — convencion unica en todo el dominio.
+	// Variables: `var(i)` / `set_var(i, nivel)`.
 	[[nodiscard]] constexpr eng::u8 var(usize i) const noexcept { return vars[i]; }
 	constexpr void set_var(usize i, eng::u8 level) noexcept { vars[i] = level; }
 
 	/// Clave densa del estado (`u32`, `StateKey64` o `StateKeyNV`).
 	[[nodiscard]] constexpr Key key() const noexcept {
-		if constexpr (MaxVars > 0u) {
+		if constexpr (MaxVars > 4u) {
+			Key k {};
+			k.facts = static_cast<u32>(facts.words()[0]);
+			for (usize i = 0u; i < MaxVars; ++i) {
+				k.vars[i / 4u] |= static_cast<u32>(vars[i])
+						  << (8u * static_cast<u32>(i % 4u));
+			}
+			return k;
+		} else if constexpr (MaxVars > 0u) {
 			StateKeyNV k {};
 			k.facts = static_cast<u32>(facts.words()[0]);
 			u32 packed = 0u;
@@ -221,7 +246,13 @@ struct State {
 	/// Reconstruye el estado a partir de su clave (inverso de `key()`).
 	[[nodiscard]] static constexpr State from_key(Key k) noexcept {
 		State s {};
-		if constexpr (MaxVars > 0u) {
+		if constexpr (MaxVars > 4u) {
+			s.facts.words()[0] = static_cast<Word>(k.facts);
+			for (usize i = 0u; i < MaxVars; ++i) {
+				s.vars[i] = static_cast<eng::u8>(
+				    (k.vars[i / 4u] >> (8u * static_cast<u32>(i % 4u))) & 0xffu);
+			}
+		} else if constexpr (MaxVars > 0u) {
 			s.facts.words()[0] = static_cast<Word>(k.facts);
 			for (usize i = 0u; i < MaxVars; ++i) {
 				s.vars[i] =
@@ -1059,6 +1090,19 @@ template <>
 struct Hash<eng::ai::detail::StateKeyNV> {
 	[[nodiscard]] constexpr u32 operator()(const eng::ai::detail::StateKeyNV& k) const noexcept {
 		return hash_u32(k.facts ^ rotl(hash_u32(k.vars), 16u));
+	}
+};
+
+/// `HashMap` hashea la clave ancha de hechos+niveles (`StateKeyNVWide`).
+template <usize Words>
+struct Hash<eng::ai::detail::StateKeyNVWide<Words>> {
+	[[nodiscard]] constexpr u32 operator()(
+	    const eng::ai::detail::StateKeyNVWide<Words>& k) const noexcept {
+		u32 h = k.facts;
+		for (usize i = 0u; i < Words; ++i) {
+			h = hash_u32(h ^ rotl(hash_u32(k.vars[i]), 16u));
+		}
+		return h;
 	}
 };
 

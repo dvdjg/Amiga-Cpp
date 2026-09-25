@@ -39,14 +39,50 @@ using SimGoap = eng::ai::Goap<>;
 template <eng::u8 MaxVars = 4u>
 using SimNumericGoap = eng::ai::NumericGoap<MaxVars>;
 
-/// ¿Cuándo merece la pena planificar? Parámetros de diseño.
+/// ¿Cuándo merece la pena planificar? Parámetros de diseño. Los umbrales de **entrada**
+/// (`min_*`) y de **salida** (`exit_*`, menores) forman la banda de histéresis: una criatura
+/// empieza a planificar al superar los de entrada y no deja de hacerlo hasta bajar de los de
+/// salida, de modo que no parpadea si ronda el umbral.
 struct PlanParams {
-	eng::u8 min_curiosity = 60u; ///< curiosidad mínima del planificador
-	eng::u8 min_autonomy = 40u;  ///< autonomía mínima (independencia)
+	eng::u8 min_curiosity = 60u;  ///< curiosidad para **empezar** a planificar
+	eng::u8 min_autonomy = 40u;   ///< autonomía para empezar
+	eng::u8 exit_curiosity = 40u; ///< curiosidad por debajo de la cual se deja de planificar
+	eng::u8 exit_autonomy = 25u;  ///< autonomía por debajo de la cual se deja de planificar
 	eng::u16 replan_interval = 120u; ///< ticks mínimos entre replanificaciones
 	eng::u16 budget = 0u; ///< presupuesto de expansiones por búsqueda (0 = sin límite);
 			      ///< el juego lo aplica al `PlannerDriver` con `set_budget`
 };
+
+/// Estado por criatura del bucle de decisión de planificación (histéresis + último replan).
+struct PlanState {
+	bool active = false;  ///< dentro de la banda (planificando)
+	bool planned = false; ///< ya se planificó alguna vez
+	eng::u16 last = 0u;   ///< tick del último replan
+};
+
+/// ¿Toca planificar en `frame_now`? Aplica la **histéresis** (entra con `min_*`, se mantiene
+/// hasta bajar de `exit_*`) y respeta `replan_interval` entre replanes. Actualiza `st`.
+[[nodiscard]] constexpr bool should_replan(const Personality& p, PlanState& st, eng::u16 frame_now,
+					   const PlanParams& params = PlanParams {}) noexcept {
+	if (p.curiosity >= params.min_curiosity && p.autonomy >= params.min_autonomy) {
+		st.active = true;
+	} else if (p.curiosity <= params.exit_curiosity ||
+		   p.autonomy <= params.exit_autonomy) {
+		st.active = false;
+	}
+	if (!st.active) {
+		return false;
+	}
+	if (st.planned &&
+	    static_cast<eng::u16>(frame_now - st.last) < params.replan_interval) {
+		return false;
+	}
+	st.planned = true;
+	st.last = frame_now;
+	return true;
+}
+
+
 
 /// ¿La criatura es de las que planifican? (curiosa y con cierta independencia)
 [[nodiscard]] constexpr bool plans(const Personality& personality,
@@ -160,5 +196,13 @@ private:
 	static_assert(MaxNodes > 0u, "PlannerDriver: MaxNodes > 0");
 	static_assert(MaxSteps > 0u, "PlannerDriver: MaxSteps > 0");
 };
+
+/// Aplica el presupuesto de `PlanParams` al conductor (0 = sin límite). Se llama una vez por
+/// criatura/tick, antes de `replan`. Ver HOST-155.
+template <eng::u16 MaxNodes, eng::u8 MaxSteps, class DomainT>
+constexpr void apply_budget(PlannerDriver<MaxNodes, MaxSteps, DomainT>& driver,
+			    const PlanParams& params) noexcept {
+	driver.set_budget(params.budget);
+}
 
 } // namespace eng::sim

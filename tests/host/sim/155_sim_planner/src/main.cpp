@@ -50,6 +50,48 @@ void test_plan_decision() {
 	check(!plans(dull), "plans: sin curiosidad no planifica");
 }
 
+void test_replan_hysteresis() {
+	Personality p {};
+	p.curiosity = 80u;
+	p.autonomy = 60u;
+	const PlanParams params {};
+	PlanState st {};
+	check(should_replan(p, st, 0u, params), "histeresis: entra al superar el umbral de entrada");
+	check(!should_replan(p, st, 10u, params), "histeresis: respeta el intervalo");
+	check(should_replan(p, st, params.replan_interval, params),
+	      "histeresis: replanifica tras el intervalo");
+
+	// Baja dentro de la banda (entre salida y entrada): se mantiene planificando.
+	p.curiosity = 50u;
+	check(should_replan(p, st, static_cast<eng::u16>(params.replan_interval * 2u), params),
+	      "histeresis: se mantiene dentro de la banda");
+
+	// Baja por debajo de la salida: deja de planificar.
+	p.curiosity = 20u;
+	check(!should_replan(p, st, static_cast<eng::u16>(params.replan_interval * 3u), params),
+	      "histeresis: sale al bajar del umbral de salida");
+}
+
+void test_apply_budget() {
+	using Ai = SimGoap;
+	constexpr eng::util::Array<Ai::Action, 2> acts {{
+	    Ai::Builder {}.require(0u).produce(1u).build(),
+	    Ai::Builder {}.require(1u).produce(2u).build(),
+	}};
+	Ai::Goal goal {};
+	goal.want_true.facts.set(static_cast<eng::ai::Fact>(2u));
+	Ai::State start {};
+	start.facts.set(static_cast<eng::ai::Fact>(0u));
+
+	PlanParams params {};
+	params.budget = 1u; // una sola expansion: no llega al objetivo -> parcial
+	PlannerDriver<64, 8> driver;
+	apply_budget(driver, params);
+	check(driver.replan(start, goal, acts.span()), "presupuesto: replan devuelve plan");
+	check(driver.partial(), "presupuesto: el plan es parcial");
+	check(driver.expansions() <= 1u, "presupuesto: respeta el limite");
+}
+
 void test_plan_runner() {
 	PlanRunner<4> runner;
 	check(runner.done() && !runner.has_next(), "runner: arranca terminado");
@@ -157,6 +199,8 @@ void test_construction_domain() {
 int main() {
 	std::printf("Sim planner:\n");
 	test_plan_decision();
+	test_replan_hysteresis();
+	test_apply_budget();
 	test_plan_runner();
 	test_driver();
 	test_construction_domain();

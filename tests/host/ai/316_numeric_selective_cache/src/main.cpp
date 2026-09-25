@@ -46,7 +46,7 @@ eng::util::Array<Ai::Action, 1> var_inc() {
 
 Ai::Goal goal_fact(Fact f) {
 	Ai::Goal g {};
-	g.want_true.set(f); // en el dominio numerico `want_true` es un `Facts`, no un `State`
+	g.want_true.facts.set(f);
 	return g;
 }
 Ai::Goal goal_var_ge(eng::usize v, eng::u8 min) {

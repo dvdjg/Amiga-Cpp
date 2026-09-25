@@ -54,8 +54,8 @@ void test_numeric_plan() {
 
 	State start {};
 	Goal goal {};
-	goal.var_ge[1u] = 2u;          // oro >= 2
-	goal.want_true.set(kHasMap);   // y tener el mapa
+	goal.var_ge[1u] = 2u;               // oro >= 2
+	goal.want_true.facts.set(kHasMap);  // y tener el mapa
 
 	eng::u16 plan[16] {};
 	const eng::usize n = planner.plan(start, goal, actions.span(), eng::Span<eng::u16> {plan, 16u});
@@ -125,7 +125,7 @@ void test_suffix_reuse() {
 	State start {};
 	Goal goal {};
 	goal.var_ge[1u] = 2u;
-	goal.want_true.set(kHasMap);
+	goal.want_true.facts.set(kHasMap);
 
 	eng::u16 plan[16] {};
 	const eng::usize n = planner.plan(start, goal, actions.span(), eng::Span<eng::u16> {plan, 16u});
@@ -142,6 +142,28 @@ void test_suffix_reuse() {
 	check(planner.expansions() == 0u, "sufijo: sin abrir busqueda");
 }
 
+void test_wide_vars_key() {
+	// 8 variables: la clave pasa a ser ancha (dos palabras de niveles, sin `long long`).
+	using Wide = eng::ai::Goap<32u, 8u>;
+	Wide::State s {};
+	s.set_var(7u, 200u);
+	s.set_var(5u, 40u);
+	const Wide::State r = Wide::State::from_key(s.key());
+	check(r.vars[7u] == 200u && r.vars[5u] == 40u && r.vars[0u] == 0u,
+	      "clave ancha: round-trip de 8 variables");
+
+	// Planifica usando la variable 7 (0 -> 20 con delta 5 = 4 pasos).
+	const eng::util::Array<Wide::Action, 1> acts {
+	    {Wide::Builder {}.add(7u, 5).cost(1).build()}};
+	Wide::Goal g {};
+	g.var_ge[7u] = 20u;
+	Wide::Planner<128> planner;
+	const Wide::State start {};
+	eng::u16 plan[8] {};
+	const eng::usize n = planner.plan(start, g, acts.span(), eng::Span<eng::u16> {plan, 8u});
+	check(planner.found() && n == 4u, "clave ancha: plan de 4 pasos con la variable 7");
+}
+
 } // namespace
 
 int main() {
@@ -151,6 +173,7 @@ int main() {
 	test_saturation_and_key();
 	test_plan_cache();
 	test_suffix_reuse();
+	test_wide_vars_key();
 
 	if (g_fail == 0u) {
 		std::printf("OK: GOAP numerico (enteros, decimales, saturacion, memo y sufijo)\n");
