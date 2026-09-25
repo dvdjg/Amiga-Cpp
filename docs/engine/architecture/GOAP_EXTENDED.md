@@ -74,7 +74,8 @@ El estado de la versión ampliada unifica **hechos** y **niveles** en una sola e
 tipo nuevo de un tercer header: vive en el `Goap<...>` único, con la capacidad como parámetro:
 
 ```cpp
-// Dentro de Goap<MaxFacts, MaxVars, Key, Heur>:
+// Dentro de Goap<MaxFacts, MaxVars> (la clave sale de una politica interna; `plan` y
+// `plan_relaxed` eligen la heuristica):
 template <eng::u16 MaxFacts, eng::u8 MaxVars>
 struct State {
     eng::util::BitSet<MaxFacts> facts {};

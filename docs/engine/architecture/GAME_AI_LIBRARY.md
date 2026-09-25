@@ -183,9 +183,10 @@ Además, el test cubre los casos límite (objetivo ya cumplido, objetivo sin sol
 último válido, y ejercita la clave de dos palabras (`StateKey64`). El contenedor `Ai::Domain`
 se prueba con un problema mínimo (3 acciones encadenadas, coste 3).
 
-### 3.5 GOAP numérico (cuantizado, `goap_numeric.hpp`)
+### 3.5 GOAP numérico (cuantizado) — `NumericGoap`, alias de `goap.hpp`
 
-`eng::ai::NumericGoap<MaxVars>` extiende el GOAP booleano con hasta **4 variables de
+`eng::ai::NumericGoap<MaxVars>` (alias de `eng::ai::Goap<32, MaxVars>`) añade al GOAP
+booleano hasta **4 variables de
 nivel** (`u8`, 0..255): los enteros son niveles directos y los **decimales**, niveles
 escalados (p. ej. `Fixed` q4.4 = nivel/16). La clave sigue siendo **exacta** (32 bits de
 hechos + 32 de niveles) y el planner es el mismo A* determinista, sin heap.
@@ -301,8 +302,8 @@ HOST-117.
 
 | Cabecera | Tipos / funciones | Estado |
 |---|---|---|
-| `planning/goap.hpp` | `Goap<MaxFacts>` (dominio: `State`/`state`/`Action`/`Builder`/`Goal`/`Planner`), caché de planes (`plan_cached`), `Fact`, `applicable`, `apply`, `satisfies`, `goal_distance` | Implementado, HOST-107 |
-| `planning/numeric_goap.hpp` | `NumericGoap<MaxVars>`: GOAP con variables numéricas cuantizadas (enteros y decimales), `plan_cached`, `plan_reusing`, `plan_relaxed` con heurística `h_max` y memo | Implementado, HOST-185/159 |
+| `planning/goap.hpp` | **Cabecera única**: `Goap<MaxFacts, MaxVars>` (dominio: `State`/`state`/`Action`/`Builder`/`Goal`/`Planner`), `plan`/`plan_relaxed`, cachés (`plan_cached`/`plan_reusing`/`invalidate_selective`), anytime (`set_budget`/`partial`), `Fact`, `applicable`, `apply`, `satisfies`, `goal_distance` | Implementado, HOST-107/185/186/314/315/316 |
+| `planning/numeric_goap.hpp` | Alias de la cabecera única: `NumericGoap<MaxVars> = Goap<32, MaxVars>` (y las constantes `numeric_goap_*`) | Implementado, HOST-185/186/316 |
 | `decision/agent_fsm.hpp` | `AgentFsm<State,Event,MaxStates>`: FSM de agente con efectos de entrada/salida sobre `eng::util::StateMachine` | Implementado, HOST-110 |
 | `decision/utility.hpp` | `Utility`/`UtilitySelector<MaxOptions>`: utilidad ponderada; entero y determinista | Implementado, HOST-112 |
 | `decision/behavior_tree.hpp` | `BehaviorTree<MaxNodes>`, `BtStatus`, `BtTask`: secuencia/selector sin heap | Implementado, HOST-113 |

@@ -142,12 +142,12 @@ using eng::u16;
 // cruzada falla y hay que revisar el presupuesto de RAM del planificador.
 static_assert(sizeof(eng::ai::Goap<>::State) == 4u, "Goap<32>::State");
 static_assert(sizeof(eng::ai::Goap<>::Action) == 22u, "Goap<32>::Action");
-static_assert(sizeof(eng::ai::Goap<>::Planner<128>) == 4358u, "Goap<32>::Planner<128>");
-static_assert(sizeof(eng::ai::Goap<>::Planner<256>) == 8486u, "Goap<32>::Planner<256>");
+static_assert(sizeof(eng::ai::Goap<>::Planner<128>) == 4406u, "Goap<32>::Planner<128>");
+static_assert(sizeof(eng::ai::Goap<>::Planner<256>) == 8534u, "Goap<32>::Planner<256>");
 static_assert(sizeof(eng::ai::Goap<64>::State) == 8u, "Goap<64>::State");
 static_assert(sizeof(eng::ai::Goap<64>::Action) == 38u, "Goap<64>::Action");
-static_assert(sizeof(eng::ai::Goap<64>::Planner<128>) == 6454u, "Goap<64>::Planner<128>");
-static_assert(sizeof(eng::ai::Goap<64>::Planner<256>) == 12630u, "Goap<64>::Planner<256>");
+static_assert(sizeof(eng::ai::Goap<64>::Planner<128>) == 6518u, "Goap<64>::Planner<128>");
+static_assert(sizeof(eng::ai::Goap<64>::Planner<256>) == 12694u, "Goap<64>::Planner<256>");
 
 // Gate de layout de eng::cards (m68k): fija los sizeof del estado de poker. Si cambian,
 // la compilacion cruzada falla y hay que revisar el presupuesto de RAM por perfil.
@@ -189,7 +189,7 @@ static_assert(sizeof(eng::sim::KnowledgeEntry) == 6u, "Sim::KnowledgeEntry");
 static_assert(sizeof(eng::sim::Inventory) == 12u, "Sim::Inventory");
 static_assert(sizeof(eng::sim::Item) == 12u, "Sim::Item");
 static_assert(sizeof(eng::sim::AbstractCreature<>) == 308u, "Sim::AbstractCreature<>");
-static_assert(sizeof(eng::sim::SimWorld<>) == 23998u, "Sim::SimWorld<>");
+static_assert(sizeof(eng::sim::SimWorld<>) == 24046u, "Sim::SimWorld<>");
 
 struct HalfEvenPolicy { using Round = rounding::HalfEven; using Overflow = overflow::Wrap; };
 using q14 = Fixed<s16, 14>;
