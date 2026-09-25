@@ -16,8 +16,9 @@ La base actual es deliberadamente sencilla y correcta:
 - **GOAP numérico** (`numeric_goap.hpp`): además de los hechos, hasta **4 variables de nivel**
   (`u8`, 0..255) con `var_ge`/`var_le` como precondiciones y `add`/`sub`/`set_var` como efectos,
   saturados a 0..255; `plan_cached` y `plan_reusing`.
-- **Capa de criatura** (`sim/planner.hpp`, `sim/domain.hpp`): `SimGoap`, `PlanRunner`,
-  `PlannerDriver`, `plans()` (curiosidad/autonomía) y un dominio de ejemplo.
+- **Capa de criatura** (`sim/planner.hpp`, `sim/domain.hpp`): `SimGoap`, `SimNumericGoap<N>`
+  (dominio por plantilla), `PlanRunner`, `PlannerDriver`, `plans()` (curiosidad/autonomía) y
+  un dominio de ejemplo.
 
 Lo que se pide aquí es una versión **más expresiva y más barata de reutilizar**, sin perder el
 footprint. Las mejoras se agrupan en seis ejes y cada uno se apoya en lo que ya existe:
@@ -36,24 +37,55 @@ footprint. Las mejoras se agrupan en seis ejes y cada uno se apoya en lo que ya 
 capa fina encima; nunca duplicando el planificador ni el dominio. El dominio sigue siendo del juego y
 se instancia con un alias (`using Ai = eng::ai::Goap<>;`).
 
-## 2. Estado del mundo híbrido
-
-El estado de la versión ampliada unifica **hechos** y **niveles** en una sola estructura, con la
-capacidad como parámetro de plantilla:
+**Cabecera única vs. implementaciones separadas.** El booleano y el numérico **no son dos algoritmos,
+son el mismo (familia A\* GOAP) con un eje más**: `NumericState` es estructuralmente `State` más
+`u8 vars[MaxVars]`, y `applicable`/`apply`/`satisfies`/`goal_distance` son los del booleano más la
+parte numérica. Por eso el diseño **no** añade una tercera cabecera ni mantiene dos forks: **generaliza
+`planning/goap.hpp`** como el planificador único de la familia, con `MaxVars`, la política de **clave**
+y la de **heurística** como parámetros de plantilla (el patrón ya usado en el repo: `Cross` del
+navmesh, `Broadphase` del crowd). `numeric_goap.hpp` queda como **alias de compatibilidad**.
 
 ```cpp
-namespace eng::ai {
+// planning/goap.hpp — ÚNICO planificador de la familia A*-GOAP
+template <eng::u16 MaxFacts = 32,     // 32 (clave u32) o 64 (dos palabras)
+          eng::u8  MaxVars  = 0,      // 0 = booleano puro; 1..8 = niveles
+          class    Key      = ExactKey,   // ExactKey | WideKey | HashedKey (política)
+          class    Heur     = GoalDist>   // GoalDist | RelaxedHMax       (política)
+class Goap { /* estado, acción, goal, planner, caché, anytime... */ };
 
-/// Estado GOAP híbrido: `MaxFacts` hechos booleanos + `MaxVars` niveles (u8, 0..255).
-template <eng::u16 MaxFacts = 32, eng::u8 MaxVars = 8>
-struct HybridState {
-    eng::util::BitSet<MaxFacts> facts {};
-    eng::u8 levels[MaxVars] {};
-    // test/set/clear (hechos) y get/set/add_sat/sub_sat (niveles), con saturación 0..255.
-};
-
-} // namespace eng::ai
+using GoapBool = Goap<32, 0>;                  // el booleano de hoy
+template <eng::u8 V> using NumericGoap = Goap<32, V>;  // HOST-185/186 sin cambios
 ```
+
+La variación es de **política** (clave, heurística), no de algoritmo, y `if constexpr (MaxVars == 0)`
+elimina del binario la ruta numérica: la instanciación booleana genera el mismo código que hoy (lo
+comprueba `asm-audit`/`codegen-report`).
+
+**Cuándo SÍ se parte en cabeceras distintas**: cuando cambia el **algoritmo**, no el número de
+características. Son cabeceras propias el **HTN** (descomposición de tareas por métodos, no búsqueda
+A\*) y un **plan lineal/scripted** (secuencia fija, sin búsqueda). Dentro de A\*-GOAP, todo por
+parámetros; una variante minimalista solo si se **mide** que la instanciación genérica arrastra de más,
+y aun así como **especialización de política**, no como fork.
+
+## 2. Estado del mundo híbrido
+
+El estado de la versión ampliada unifica **hechos** y **niveles** en una sola estructura, que es la
+**generalización** de las dos actuales (`State` del booleano y `NumericState` del numérico). No es un
+tipo nuevo de un tercer header: vive en el `Goap<...>` único, con la capacidad como parámetro:
+
+```cpp
+// Dentro de Goap<MaxFacts, MaxVars, Key, Heur>:
+template <eng::u16 MaxFacts, eng::u8 MaxVars>
+struct State {
+    eng::util::BitSet<MaxFacts> facts {};
+    eng::util::Array<eng::u8, MaxVars> levels {}; // vacío/elidido si MaxVars == 0
+    // test/set/clear (hechos) y get/set/add_sat/sub_sat (niveles), saturación 0..255.
+};
+```
+
+Con `MaxVars == 0` la estructura y el código generado son los de hoy (el array de niveles se elide);
+con `MaxVars >= 1` aparecen `get`/`add_sat` y las precondiciones/efectos numéricos de
+`numeric_goap.hpp`. El `Goap` booleano pasa a ser `Goap<32, 0>` y el numérico `Goap<32, V>`.
 
 Los niveles son **enteros de nivel**: un valor decimal se representa escalado (el mismo criterio que
 `numeric_goap.hpp`, p. ej. `Fixed` q4.4 → nivel `v*16`), de modo que toda la aritmética queda en
@@ -136,6 +168,12 @@ expansiones** y devuelve el **mejor plan parcial** encontrado si se agota. El pl
 cachea (solo los completos), pero permite que la criatura **empiece a actuar** y siga refinando en
 frames posteriores (*pondering*).
 
+El planner booleano (`Goap`, `goap.hpp`) ya expone `set_budget(n)` (0 = sin límite) y
+`partial()`. El parcial es el mejor nodo visitado (menor `h`; a igual `h`, mayor avance
+`g`) y **solo se devuelve si el presupuesto corta la búsqueda**; si el espacio se agota sin
+objetivo, no hay solución (0 acciones). Sin presupuesto el comportamiento es el histórico
+(HOST-107); verificado por HOST-314.
+
 ```text
    plan_lazy(start, goal, budget) -> Plan{ actions[], length, cost, complete }
 
@@ -158,6 +196,12 @@ Presupuestos orientativos (`max_expansions`), ajustables por carga de CPU:
 La caché ya existe (`plan_cached`, `plan_reusing`). La ampliación añade **dependencias** por entrada
 y **invalidación selectiva**, para no tirar toda la caché cuando solo cambia el hambre de una
 criatura:
+
+El planner booleano ya implementa la parte de hechos: cada entrada guarda `used_facts` (unión
+de `pre_true`/`pre_false`/`eff_add`/`eff_del` de las acciones del plan) e
+`invalidate_selective(changed)` descarta solo las entradas afectadas, compactando el pool;
+`clear_plan_cache()` sigue siendo el vaciado total (HOST-315). Las **variables**
+(`used_vars`) y la política **LRU+hits** llegan con la cabecera única (G7.1).
 
 ```cpp
 struct PlanCacheEntry {
@@ -209,13 +253,14 @@ solo se adopta cuando aparezcan misiones de varios objetivos encadenados.
 
 ## 9. Integración en `eng::sim`
 
-El punto de unión sigue siendo `sim/planner.hpp`. La ampliación **elige el planner** por traits y
-añade una **política de planificación** con presupuesto, en vez de la decisión de un solo criterio:
+El punto de unión sigue siendo `sim/planner.hpp`. El **dominio GOAP es un parámetro de
+plantilla** (booleano ligero por defecto; numerico/hibrido cuando el objetivo tiene
+magnitudes) y la **política de planificación** añade presupuesto e histeresis:
 
 ```text
-   PlannerDriver (ampliado)
+   PlannerDriver<MaxNodes, MaxSteps, DomainT>
      +-- sim/domain y needs   -> fija start (hechos) y goal (hechos + niveles)
-     +-- Traits planificacion -> elige planner: booleano | numerico | hibrido
+     +-- DomainT (plantilla)  -> SimGoap (booleano ligero) | SimNumericGoap<N> (magnitudes)
      +-- PlannerParams        -> cuando planificar (curiosidad/autonomia + intervalo + histeresis)
      +-- budget (max_expansions) segun maquina y carga
      +-- PlanRunner           -> avanza un paso por tick (ya existe)
@@ -223,6 +268,9 @@ añade una **política de planificación** con presupuesto, en vez de la decisi�
    Decision por tick: utilidad (`behavior.hpp`) elige QUE hacer;
    GOAP solo entra en los comportamientos que requieren varios pasos.
 ```
+
+El dominio por defecto es el booleano (`SimGoap` = `Goap<32,0>`): elegir el numerico no
+cambia el algoritmo ni el footprint del caso booleano (HOST-313).
 
 El planner de `HybridState` ocupa miles de bytes: se instancia en memoria estatica o de fondo
 (`world_core.hpp::PlannerHolder`), **nunca** en la pila del 68000.
@@ -243,9 +291,9 @@ decisión** baja (caché + anytime + presupuesto), no que el footprint suba.
 
 | Variante | Cuándo | Evitar cuando |
 |---|---|---|
-| Booleano (`goap.hpp`) | tareas de "estado de cosas" (tiene/hizo/fue) | hay magnitudes (hambre, distancia) |
-| Numérico (`numeric_goap.hpp`, ≤4 vars) | pocas magnitudes, clave exacta, coste mínimo | hacen falta más de 4 magnitudes |
-| Híbrido (`HybridState`) | magnitudes y hechos mezclados, objetivos con entidad | no hay planificación multi-paso |
+| `Goap<32, 0>` (booleano) | tareas de "estado de cosas" (tiene/hizo/fue) | hay magnitudes (hambre, distancia) |
+| `Goap<32, 1..4>` (numérico) | pocas magnitudes, clave exacta de 64 bits, coste mínimo | hacen falta más de 4 magnitudes |
+| `Goap<32, 5..8>` (híbrido) | magnitudes y hechos mezclados, objetivos con entidad | no hay planificación multi-paso |
 | Anytime + presupuesto | poco CPU, reacciones rápidas, pondering | el plan debe ser óptimo sí o sí |
 | Invalidación selectiva | mundos dinámicos con muchas magnitudes | mundo casi estático |
 | Coordinado (líder) | manadas, colonias, formaciones | agentes independientes |
@@ -258,6 +306,9 @@ tests existentes y añadiendo los suyos:
 
 - **Existentes**: `HOST-107` (GOAP booleano), `HOST-185`/`HOST-186` (GOAP numérico y relajado),
   `HOST-155` (planificador de criatura), `HOST-153` (integración en el mundo).
+- **Equivalencia (red de seguridad de la unificación)**: el `Goap<32, 0>` generalizado debe producir
+  el **mismo plan** que el `Goap` booleano actual (y `Goap<32, V>` el mismo que `NumericGoap<V>`) en
+  HOST-107/185/186, sin cambiar la lógica de esos tests.
 - **Añadir**: estado híbrido + clave ancha, condiciones/efectos mixtos, *anytime* (parcial vs.
   completo), invalidación selectiva (que no invalide de más), coste dinámico, acción con `target`, y
   plan compartido de manada.

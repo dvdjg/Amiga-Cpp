@@ -20,3 +20,5 @@ Categoría `ai` de la batería host (L1). El índice de categorías está en [..
 | HOST-185 | [goap_numeric](185_goap_numeric/README.md) | `ai/planning/numeric_goap.hpp`: GOAP con variables numéricas cuantizadas (enteros y decimales), saturación y caché (memo de planes + sufijo). |
 | HOST-186 | [goap_numeric_relaxed](186_goap_numeric_relaxed/README.md) | GOAP numérico con heurística relajada (h_max) y memo de heurística entre llamadas. |
 | HOST-249 | [crowd](249_crowd/README.md) | Crowd genérico (`eng/ai/steering/crowd.hpp`): separación/evasión con fase amplia como política (`SpatialHash`, no `O(N²)`), probado con `s32` y `float`. |
+| HOST-314 | [goap_anytime](314_goap_anytime/README.md) | `ai/planning/goap.hpp`: búsqueda **acotada** (`set_budget`/`partial`) — sin presupuesto plan completo; con presupuesto corto, mejor parcial prefijo que respeta el límite; el parcial no se cachea. |
+| HOST-315 | [goap_selective_cache](315_goap_selective_cache/README.md) | `ai/planning/goap.hpp`: **invalidación selectiva** de la caché de planes (`invalidate_selective`) por dependencias (`used_facts`) — solo cae lo que toca el hecho cambiado, con compactación del pool. |

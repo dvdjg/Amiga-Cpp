@@ -144,25 +144,27 @@ en el navmesh; la variante `SpatialHashBroadphase` reutiliza la rejilla de colis
 
 Adopción de la versión **ampliada y versátil** del GOAP (diseño:
 [`GOAP_EXTENDED.md`](../../engine/architecture/GOAP_EXTENDED.md)). Todo se **extiende** sobre lo ya
-entregado (G1.1/G1.3/G1.4/G1.5): no se duplica el planificador ni el dominio. El orden está pensado
-por impacto/riesgo: primero lo que da expresividad y rendimiento con coste bajo, y al final lo que
-necesita consumidor.
+entregado (G1.1/G1.3/G1.4/G1.5): **una sola cabecera** para la familia A\*-GOAP
+(`Goap<MaxFacts, MaxVars, Key, Heur>`), no un tercer planner; `numeric_goap.hpp` queda como alias.
+El orden va por impacto/riesgo: primero lo que da expresividad y rendimiento con coste bajo, y al
+final lo que necesita consumidor.
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| G7.1 | `planning/hybrid_goap.hpp` | **Estado híbrido** `HybridState<MaxFacts, MaxVars>` (hechos + hasta 8 niveles) y **clave ancha** (exacta ≤4 niveles; igualdad/hash por encima). Condiciones/efectos mixtos con la semántica ya existente | HOST propio (equivalencia con `goap`/`numeric_goap` en los casos que estos cubren) |
-| G7.2 | `hybrid_goap.hpp` (anytime) | **Presupuesto de expansiones** y devolución del **mejor plan parcial** (`Plan.complete`); el parcial no se cachea | HOST propio (parcial vs. completo; el parcial no es peor que lo que permite el presupuesto) |
-| G7.3 | caché (invalidación selectiva) | **Dependencias por entrada** (`used_facts`/`used_vars`) + `invalidate_selective`; política LRU+hits | HOST propio (caso positivo y **negativo**: no dejar pasar un plan inválido) |
-| G7.4 | `hybrid_goap.hpp` (acción) | **`target` (entidad/sala)** y **coste dinámico** (`cost_fn` o tabla); por defecto coste estático | HOST propio (mismo plan con distintos targets; coste que cambia con el estado) |
-| G7.5 | `sim/planner.hpp` | Integración en el mundo: **selección de planner por traits** (booleano/numérico/híbrido), `PlannerParams` con **histeresis y presupuesto**, y uso del híbrido en `world_core` (hoy solo el booleano) | **HOST-155** ampliado + test de integración en `tests/host/sim/` (multi-paso con LOD) |
+| G7.1 | `planning/goap.hpp` (generalización) | **Cabecera única**: `Goap<MaxFacts, MaxVars, Key, Heur>` que subsume el booleano (`MaxVars=0`) y el numérico (`MaxVars=1..4`); **clave** exacta ≤4 niveles (ancha/igualdad por encima, como política); `numeric_goap.hpp` pasa a **alias** | **Equivalencia**: HOST-107 (`Goap<32,0>` = plan de hoy) y HOST-185/186 (`Goap<32,V>` = `NumericGoap<V>`) **sin cambiar su lógica** |
+| G7.2 | `planning/goap.hpp` (anytime) | **Presupuesto de expansiones** (`set_budget`) y devolución del **mejor plan parcial** (`partial()`); el parcial solo aplica si el presupuesto **corta** la búsqueda y no se cachea | **HOST-314** (parcial vs. completo, prefijo y límite) + HOST-107 intacto |
+| G7.3 | caché (invalidación selectiva) | **Dependencias por entrada** (`used_facts`) + `invalidate_selective` (conserva y compacta lo no afectado); pendiente la política LRU+hits | **HOST-315** (caso positivo y **negativo**: no dejar pasar un plan inválido) |
+| G7.4 | `planning/goap.hpp` (acción) | **`target` (entidad/sala)** y **coste dinámico** (`cost_fn` o tabla); por defecto coste estático | HOST propio (mismo plan con distintos targets; coste que cambia con el estado) |
+| G7.5 | `sim/planner.hpp` | Integración en el mundo: **dominio GOAP como parámetro de plantilla** en `PlannerDriver` y `SimWorld` (booleano ligero `SimGoap` por defecto; `SimNumericGoap<N>` para magnitudes), y `PlannerParams` con **histeresis y presupuesto** | **HOST-313** (dominio numérico en driver y mundo) + **HOST-155** intacto |
 | G7.6 | `sim/planner.hpp` (coordinado) | **Plan compartido de manada**: el líder planifica y reparte objetivos (`PackRole`/`Relationship`/`Signal` como precondiciones y efectos); los miembros no planifican | HOST propio + escenario en `sim-ecosystem-scenarios` |
-| G7.7 | `planning/hybrid_goap.hpp` (HTN) | **Macro-acciones** (acción compuesta -> sub-plan) para misiones de varios objetivos encadenados | HOST propio; **solo con consumidor** |
+| G7.7 | `planning/htn.hpp` (algoritmo distinto) | **HTN / macro-acciones**: cabecera propia (descomposición por métodos, **no** A\*); planes de varios objetivos encadenados | HOST propio; **solo con consumidor** |
 
 G7.1–G7.4 son independientes del mundo (se prueban en host y no tocan `eng::sim`); G7.5 es el punto de
-unión y el que habilita el resto en el ecosistema; G7.6 y G7.7 se posponen hasta tener consumidor
-(G7.7 es el último: `htn.hpp` de G1.2 queda como su variante "completa"). Regla de footprint: el
-planner híbrido (`HybridState<32,8>` ~6–8 KB) se instancia en **memoria estática o de fondo**
-(`PlannerHolder`), nunca en la pila del 68000.
+unión y el que habilita el resto en el ecosistema; G7.6 y G7.7 se posponen hasta tener consumidor.
+G7.7 es el **único** que vive en cabecera propia, por ser **algoritmo distinto** (HTN, el `htn.hpp`
+de G1.2). Regla de footprint: el planner (`Goap<32,8>` ~6–8 KB) se instancia en **memoria estática o
+de fondo** (`PlannerHolder`), nunca en la pila del 68000; y se mide con `codegen-report.mjs`/`size`
+que la generalización no engorda la instanciación del enjambre (`Goap<32,0>`).
 
 ## 5. Catálogo de técnicas a incorporar
 

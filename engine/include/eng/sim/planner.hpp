@@ -21,6 +21,7 @@
 /// Verificación: HOST-155.
 
 #include <eng/ai/planning/goap.hpp>
+#include <eng/ai/planning/numeric_goap.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/sim/mind.hpp>
@@ -29,8 +30,14 @@
 
 namespace eng::sim {
 
-/// Alias del dominio GOAP del ecosistema (32 hechos, el caso normal).
+/// Alias del dominio GOAP del ecosistema (32 hechos, el caso normal y mas ligero).
 using SimGoap = eng::ai::Goap<>;
+
+/// Dominio GOAP **numerico** del ecosistema: hechos + `MaxVars` magnitudes (hambre,
+/// energia, miedo...). Se instancian solo las variables usadas; elige el dominio pasandolo
+/// como parametro de plantilla al `PlannerDriver`. Ver `GOAP_EXTENDED.md` y HOST-313.
+template <eng::u8 MaxVars = 4u>
+using SimNumericGoap = eng::ai::NumericGoap<MaxVars>;
 
 /// ¿Cuándo merece la pena planificar? Parámetros de diseño.
 struct PlanParams {
@@ -95,11 +102,13 @@ struct PlanRunner {
 	}
 };
 
-/// Conductor: planifica con `Goap` y ejecuta el plan por ticks.
-template <eng::u16 MaxNodes = 96u, eng::u8 MaxSteps = kMaxPlanSteps>
+/// Conductor: planifica con el dominio `DomainT` y ejecuta el plan por ticks. El dominio
+/// por defecto es el booleano ligero (`SimGoap`, 0 variables); pasa `SimNumericGoap<N>` —u
+/// otro tipo con `State`/`Goal`/`Action`/`Planner`— para planificar magnitudes.
+template <eng::u16 MaxNodes = 96u, eng::u8 MaxSteps = kMaxPlanSteps, class DomainT = SimGoap>
 class PlannerDriver {
 public:
-	using Ai = SimGoap;
+	using Ai = DomainT;
 
 	/// Planifica desde `start` hacia `goal`. Devuelve `true` si hay plan (o el objetivo ya
 	/// se cumple). Escribe los pasos en el `PlanRunner`. Usa producto/cociente nativos de

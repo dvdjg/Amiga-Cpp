@@ -41,8 +41,9 @@ Puntos de reutilización explícitos:
 - La capa de **ecosistema vivo** `eng::sim` ([SIM_ECOSYSTEM.md](SIM_ECOSYSTEM.md)) se
   construye **sobre** esta librería (utilidad, percepción, navegación y GOAP) y añade el
   estado de criatura (necesidades, personalidad, mente, conocimiento, jerarquía, genética,
-  sociedad) y el LOD abstracto/realizado; `sim/planner.hpp` **envuelve** `Goap` para las
-  criaturas que planifican. No reimplementa las primitivas de `eng::ai`.
+  sociedad) y el LOD abstracto/realizado; `sim/planner.hpp` **envuelve** `Goap`/`NumericGoap`
+  (dominio por plantilla) para las criaturas que planifican. No reimplementa las primitivas
+  de `eng::ai`.
 
 ## 2. Organización por familias
 
@@ -102,7 +103,9 @@ por el código.
 | `Ai::goal(hechos…)` | construye un `Goal` con los hechos exigidos a 1 |
 | `Ai::Domain<MaxActions>` | dominio listo: `actions` (`Array`) + `goal`; el planner lo acepta directo |
 | `Ai::Planner<MaxNodes>` | A* hacia delante; `plan()`, `found()`, `plan_cost()`, `expansions()` |
-| `Ai::Planner::plan_cached` | como `plan()` pero con **caché** por `(estado, objetivo)`; `clear_plan_cache()` |
+| `Ai::Planner::set_budget` | **presupuesto de expansiones**; si no alcanza el objetivo, `partial()` y el **mejor plan parcial** (prefijo; no se cachea). Ver HOST-314 |
+| `Ai::Planner::plan_cached` | como `plan()` pero con **caché** por `(estado, objetivo)`; `clear_plan_cache()` (vaciado total) |
+| `Ai::Planner::invalidate_selective` | descarta solo las entradas cuyo plan **depende** (`used_facts`) de un hecho cambiado; compacta el pool. Ver HOST-315 |
 
 `MaxFacts` solo admite dos valores: **32** (por defecto, clave `u32`) o **64** (clave de
 64 bits empaquetada en dos palabras). No hay valores intermedios útiles: `BitSet<N>` ocupa
@@ -196,6 +199,10 @@ hechos + 32 de niveles) y el planner es el mismo A* determinista, sin heap.
   entre llamadas** (`heuristic_hits`). Guía mejor; no garantiza optimalidad estricta.
 - Límites: `MaxFacts <= 32` y `MaxVars <= 4` (clave de 64 bits exacta). Para más
   variables, componer dominios o usar la versión ampliada.
+
+En `eng::sim` el dominio es un **parámetro de plantilla** de `PlannerDriver` y de
+`SimWorld`: `SimGoap` (booleano, por defecto y más ligero) o `SimNumericGoap<N>`
+(magnitudes). Ver `SIM_ECOSYSTEM.md` §9 y HOST-313.
 
 La **versión ampliada** de la planificación (estado híbrido hechos+niveles, acciones con `target` y
 coste dinámico, *anytime* con presupuesto, caché con invalidación selectiva, plan coordinado y HTN

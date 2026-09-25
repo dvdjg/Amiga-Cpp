@@ -270,6 +270,12 @@ consumen; `planning_count` informa de los planes activos (hasta `MaxPlans`). El
 `PlannerDriver` se guarda en un `PlannerHolder` vacío cuando `Traits::planning` es falso,
 de modo que no ocupa RAM si no se usa (verificado por el gate de tamaños m68k).
 
+El **dominio GOAP es un parámetro de plantilla** de `PlannerDriver` y de `SimWorld`
+(último parámetro): por defecto el booleano ligero `SimGoap` (0 variables), o
+`SimNumericGoap<N>` (hechos + `N` magnitudes: hambre, energía, miedo…) para objetivos con
+umbrales numéricos. El algoritmo no cambia y el caso booleano conserva su footprint
+(HOST-313).
+
 ## 10. Cómo se reutiliza `eng::ai` (sin duplicar)
 
 | Necesidad del ecosistema | Primitiva existente |
@@ -330,7 +336,7 @@ de modo que no ocupa RAM si no se usa (verificado por el gate de tamaños m68k).
 | `avatar.hpp` | jugador simulado (IA y entrada humana), percepción y carga | HOST-174 / HOST-175 |
 | `world.hpp` (laboratorio) | escenarios largos con digesto y ajuste de parámetros | HOST-173 |
 | `society.hpp` | `Society` (reputación), `Pack` | HOST-153 |
-| `planner.hpp` | `PlannerDriver`/`PlanRunner` sobre `Goap`, `PlanParams` | HOST-155 |
+| `planner.hpp` | `PlannerDriver`/`PlanRunner` sobre `Goap`/`NumericGoap` (dominio por plantilla), `PlanParams` | HOST-155, HOST-313 |
 | `domain.hpp` | dominio de ejemplo de objetos/construcción, `SimInventory` | HOST-155 |
 | `body.hpp` | `ChainBody` (IK FABRIK) y postura expresiva (`BodyPose`) | HOST-156 |
 | `world.hpp` + `world_core.hpp` | `SimWorld`: población, grafo de rooms, LOD, entorno, terreno, objetos, economía, sensores/memoria, ciclo de vida, reproducción, `Tend`, planificación | HOST-153 |

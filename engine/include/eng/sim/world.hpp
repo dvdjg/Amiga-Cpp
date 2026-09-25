@@ -12,11 +12,12 @@ namespace eng::sim {
 
 template <class Traits = SimTraits, eng::u16 MaxCreatures = 64u,
 	  eng::u8 MaxTrackers = kDefaultMaxTrackers, eng::u8 MaxRelations = kDefaultMaxRelations,
-	  eng::u8 MaxRooms = 64u, eng::u8 MaxPlans = 8u, eng::u16 PlannerNodes = 64u>
-class SimWorld : public SimWorldCore<Traits, MaxCreatures, MaxTrackers, MaxRelations, MaxRooms, MaxPlans, PlannerNodes> {
+	  eng::u8 MaxRooms = 64u, eng::u8 MaxPlans = 8u, eng::u16 PlannerNodes = 64u,
+	  class AiT = SimGoap>
+class SimWorld : public SimWorldCore<Traits, MaxCreatures, MaxTrackers, MaxRelations, MaxRooms, MaxPlans, PlannerNodes, AiT> {
 public:
 	using Creature = AbstractCreature<MaxTrackers, MaxRelations>;
-	using Ai = SimGoap;
+	using Ai = AiT;
 	using Plan = detail::ActivePlan<kMaxPlanSteps>;
 	static constexpr eng::u8 max_plan_steps = kMaxPlanSteps;
 

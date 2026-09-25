@@ -345,15 +345,33 @@ public:
 	/// Nodos expandidos en la ultima busqueda (diagnostico de presupuesto).
 	[[nodiscard]] constexpr usize expansions() const noexcept { return m_expansions; }
 
+	/// Fija el **presupuesto** de la busqueda: maximo de nodos a expandir (0 = sin limite).
+	/// Con presupuesto, `plan()` devuelve el mejor **parcial** si no alcanza el objetivo
+	/// (ver `partial()`); pensado para reparto de CPU por tick en el 68000.
+	constexpr void set_budget(usize max_expansions) noexcept {
+		m_max_expansions = max_expansions;
+	}
+	[[nodiscard]] constexpr usize budget() const noexcept { return m_max_expansions; }
+
+	/// ¿El ultimo plan es **parcial**? (el presupuesto se agoto sin alcanzar el objetivo).
+	/// El parcial es el mejor nodo visitado (menor `h`; a igual `h`, el de mayor avance
+	/// `g`): acerca al objetivo, pero no lo garantiza. El llamador decide si lo ejecuta o
+	/// espera mas presupuesto. No se cachea.
+	[[nodiscard]] constexpr bool partial() const noexcept { return m_partial; }
+
 	/// Busca el plan de coste minimo de `start` a `goal` con `actions` y escribe los
 	/// indices de accion (de primero a ultimo) en `out`. Devuelve el numero de acciones
 	/// (0 si el plan es vacio o no se encontro; ver `found()`), o 0 si no cabe en `out`.
 	[[nodiscard]] constexpr usize plan(const StateT& start, const GoalT& goal,
 					   Span<const ActionT> actions, Span<u16> out) noexcept {
 		m_found = false;
+		m_partial = false;
 		m_cost = 0u;
 		m_expansions = 0u;
 		m_node_count = 0u;
+		m_best_partial_node = no_fact_link;
+		m_best_partial_h = 0xffffu;
+		m_best_partial_g = 0u;
 		m_best.clear();
 		m_open.clear();
 
@@ -365,12 +383,21 @@ public:
 			return 0u;
 		}
 
+		const u16 root_h = static_cast<u16>(goal_distance(start, goal));
 		const u16 root = add_node(start.key(), no_fact_link, no_fact_link, 0u);
 		m_best.insert(start.key(), 0u);
-		m_open.push(OpenNode {start.key(), 0u, goal_distance(start, goal), root});
+		m_open.push(OpenNode {start.key(), 0u, root_h, root});
+		m_best_partial_h = root_h; // referencia: el parcial debe ser al menos igual de bueno
 
 		u16 goal_node = no_fact_link;
+		// Un parcial solo es valido si el **presupuesto** corto la busqueda; si el espacio
+		// se agoto sin objetivo (sin presupuesto), no hay solucion (devuelve 0).
+		bool budget_stopped = false;
 		while (!m_open.empty()) {
+			if (m_max_expansions != 0u && m_expansions >= m_max_expansions) {
+				budget_stopped = true;
+				break;
+			}
 			const OpenNode current = m_open.top();
 			m_open.pop();
 			const u16* best = m_best.find(current.key);
@@ -404,9 +431,16 @@ public:
 				const u16 child = add_node(next.key(), current.node,
 							   static_cast<u16>(ai), ng);
 				m_best.insert_or_assign(next.key(), ng);
-				const u32 f = static_cast<u32>(ng) + goal_distance(next, goal);
-				const u16 fc = f > 0xffffu ? static_cast<u16>(0xffffu)
-							   : static_cast<u16>(f);
+				const u16 h = static_cast<u16>(goal_distance(next, goal));
+				const u16 fc = static_cast<u16>(static_cast<u32>(ng) + h > 0xffffu
+								    ? 0xffffu
+								    : static_cast<u32>(ng) + h);
+				if (h < m_best_partial_h ||
+				    (h == m_best_partial_h && ng > m_best_partial_g)) {
+					m_best_partial_h = h;
+					m_best_partial_node = child;
+					m_best_partial_g = ng;
+				}
 				if (!m_open.push(OpenNode {next.key(), ng, fc, child})) {
 					return 0u; // cola llena: no hay hueco para mas candidatos
 				}
@@ -414,6 +448,12 @@ public:
 		}
 
 		if (goal_node == no_fact_link) {
+			if (budget_stopped && m_best_partial_node != no_fact_link) {
+				// Presupuesto agotado con avance: se devuelve el mejor parcial.
+				m_partial = true;
+				m_cost = m_best_partial_g;
+				return reconstruct(m_best_partial_node, out);
+			}
 			return 0u;
 		}
 		m_found = true;
@@ -464,7 +504,17 @@ public:
 			e.offset = m_plan_used;
 			e.length = static_cast<u16>(n);
 			e.cost = m_cost;
+			e.used_facts.clear();
 			for (usize j = 0; j < n; ++j) {
+				const ActionT& a = actions[out[j]];
+				for (usize w = 0u;
+				     w < eng::util::BitSet<MaxFacts>::word_count; ++w) {
+					e.used_facts.words()[w] |=
+					    a.pre_true.facts.words()[w] |
+					    a.pre_false.facts.words()[w] |
+					    a.eff_add.facts.words()[w] |
+					    a.eff_del.facts.words()[w];
+				}
 				m_plan_pool[m_plan_used + j] = out[j];
 			}
 			m_plan_used = static_cast<u16>(m_plan_used + n);
@@ -475,6 +525,42 @@ public:
 	constexpr void clear_plan_cache() noexcept {
 		m_cache_count = 0u;
 		m_plan_used = 0u;
+	}
+
+	/// Invalida solo las entradas cuyo plan **depende** de algun hecho marcado en
+	/// `changed` (precondicion, efecto o parte del objetivo): conserva las demas y compacta
+	/// el pool. Pensado para cambios locales del dominio (p. ej. un productor que deja de
+	/// existir); `clear_plan_cache()` sigue siendo el vaciado total. Ver HOST-315.
+	constexpr void invalidate_selective(const StateT& changed) noexcept {
+		if (m_cache_count == 0u) {
+			return;
+		}
+		usize keep = 0u;
+		u16 pool_at = 0u;
+		for (usize i = 0u; i < m_cache_count; ++i) {
+			const CacheEntry& e = m_cache[i];
+			bool affects = false;
+			for (usize w = 0u; w < eng::util::BitSet<MaxFacts>::word_count; ++w) {
+				if ((e.used_facts.words()[w] & changed.facts.words()[w]) !=
+				    static_cast<eng::util::BitSet<MaxFacts>::word_type>(0)) {
+					affects = true;
+					break;
+				}
+			}
+			if (affects) {
+				continue; // dependencia cambiada: se descarta
+			}
+			CacheEntry moved = e;
+			moved.offset = pool_at;
+			for (u16 j = 0u; j < e.length; ++j) {
+				m_plan_pool[pool_at + j] = m_plan_pool[e.offset + j];
+			}
+			m_cache[keep] = moved;
+			pool_at = static_cast<u16>(pool_at + e.length);
+			++keep;
+		}
+		m_cache_count = keep;
+		m_plan_used = pool_at;
 	}
 
 private:
@@ -531,6 +617,9 @@ private:
 		KeyT start {};
 		KeyT want_true {};
 		KeyT want_false {};
+		/// Hechos que el plan **requiere o modifica** (union de `pre_true`/`pre_false`/
+		/// `eff_add`/`eff_del` de sus acciones): base de la invalidacion selectiva.
+		eng::util::BitSet<MaxFacts> used_facts {};
 		u16 offset = 0u;
 		u16 length = 0u;
 		u16 cost = 0u;
@@ -541,8 +630,13 @@ private:
 	Node m_nodes[MaxNodes] {};
 	usize m_node_count = 0u;
 	usize m_expansions = 0u;
+	usize m_max_expansions = 0u; ///< 0 = sin limite (ver `set_budget`)
+	u16 m_best_partial_node = no_fact_link;
+	u16 m_best_partial_h = 0xffffu;
+	u16 m_best_partial_g = 0u;
 	u16 m_cost = 0u;
 	bool m_found = false;
+	bool m_partial = false;
 
 	CacheEntry m_cache[MaxCachedPlans] {};
 	usize m_cache_count = 0u;
