@@ -70,6 +70,11 @@ bool AmigaBackend::configure_memory(const MemoryConfig& config) {
 	m_memory.slow.reset(m_slow_alloc, m_slow_alloc_size, MemoryKind::Slow);
 	m_memory.frame.reset(m_frame_alloc, m_frame_alloc_size, MemoryKind::Chip);
 
+	// Caché de assets con el presupuesto de las arenas. El backend es estable, así que la
+	// `Ref` que guarda la caché es válida; el runtime posee su propio backend-copia.
+	(void)m_assets.init(AssetCacheBackend {m_memory},
+			    res::CacheConfig {m_chip_alloc_size, m_slow_alloc_size, 8u});
+
 	m_memory_report.chip = m_memory.chip.snapshot();
 	m_memory_report.slow = m_memory.slow.snapshot();
 	m_memory_report.frame = m_memory.frame.snapshot();

@@ -33,6 +33,7 @@
 #include <eng/graphics/sprite_asset.hpp>
 #include <eng/input/input.hpp>
 #include <eng/os/port.hpp>
+#include <eng/res/asset_cache.hpp>
 #include <eng/res/budget.hpp>
 #include <eng/scene/world.hpp>
 #include <eng/task/background.hpp>
@@ -125,6 +126,7 @@ public:
 	void pump() noexcept {
 		eng::os::Msg m;
 		while (m_port.pop(m)) {
+			(void)route_resource_io(m);
 		}
 	}
 	[[nodiscard]] u32 vblank_count() const noexcept { return m_vblank_count; }
@@ -267,6 +269,44 @@ public:
 	template <class B = Backend>
 	[[nodiscard]] res::Budget resources() noexcept {
 		return res::Budget {m_backend.memory()};
+	}
+
+	/// **Runtime de assets** del backend si lo expone: `app.assets().load(path, size, bank)`.
+	template <class B = Backend>
+	[[nodiscard]] decltype(auto) assets() {
+		return m_backend.assets();
+	}
+
+	/// **Carga un asset** por id (declara + lanza la E/S asíncrona): atajo de
+	/// `app.assets().load(path, size, bank)`. `0` si no cabe; la carga se completa al drenar
+	/// el puerto (`pump()`/`route_resource_io`) con los `FileDone`. En backends sin runtime de
+	/// assets devuelve `0`. La decodificación tipada (`load<T>`) llegará con los decoders.
+	template <class B = Backend>
+	eng::u16 load_asset(const char* path, eng::u32 size,
+			    res::MemBank bank = res::MemBank::Chip, eng::u8 prio = 128u) {
+		if constexpr (requires(B& b, const char* p, eng::u32 s, res::MemBank mb, eng::u8 pr) {
+				      b.assets().load(p, s, mb, pr);
+			      }) {
+			return m_backend.assets().load(path, size, bank, prio);
+		} else {
+			(void)path;
+			(void)size;
+			(void)bank;
+			(void)prio;
+			return 0u;
+		}
+	}
+
+	/// **Enruta** un mensaje de E/S a los recursos del backend (caché de assets). `true` si lo
+	/// consumió. `pump()` ya lo hace; llámalo tú si consumes `port()` a mano.
+	template <class B = Backend>
+	bool route_resource_io(const eng::os::Msg& m) {
+		if constexpr (requires(B& b, const eng::os::Msg& mm) { b.assets().on_msg(mm); }) {
+			return m_backend.assets().on_msg(m);
+		} else {
+			(void)m;
+			return false;
+		}
 	}
 
 	/// El juego registra su escena (en `init`); `screen()`/`present()` la usan.
