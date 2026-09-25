@@ -197,11 +197,12 @@ La caché ya existe (`plan_cached`, `plan_reusing`). La ampliación añade **dep
 y **invalidación selectiva**, para no tirar toda la caché cuando solo cambia el hambre de una
 criatura:
 
-El planner booleano ya implementa la parte de hechos: cada entrada guarda `used_facts` (unión
-de `pre_true`/`pre_false`/`eff_add`/`eff_del` de las acciones del plan) e
-`invalidate_selective(changed)` descarta solo las entradas afectadas, compactando el pool;
-`clear_plan_cache()` sigue siendo el vaciado total (HOST-315). Las **variables**
-(`used_vars`) y la política **LRU+hits** llegan con la cabecera única (G7.1).
+Los dos planners implementan ya la invalidación selectiva: cada entrada guarda sus
+dependencias (`used_facts` = unión de `pre_true`/`pre_false`/`eff_add`/`eff_del` de las
+acciones del plan, y `used_vars` en el numérico) e `invalidate_selective(changed)` descarta
+solo las entradas afectadas, compactando el pool; `clear_plan_cache()` sigue siendo el
+vaciado total (HOST-315 y HOST-316). El planner numérico añade además la política
+**LRU+menos-usos** (desaloja la entrada con menos `hits` al llenarse, HOST-316).
 
 ```cpp
 struct PlanCacheEntry {

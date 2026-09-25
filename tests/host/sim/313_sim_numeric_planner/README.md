@@ -15,6 +15,9 @@ el booleano ligero por defecto (`SimGoap`, 0 variables) como el numérico
 2. **`SimWorld<..., SimNumericGoap<2>>`**: el mundo propaga el dominio por el último
    parámetro de plantilla; `replan`/`has_plan`/`current_action`/`advance_plan`/`abort_plan`
    funcionan con estado y acciones numéricas.
+3. **Presupuesto *anytime*** (`set_budget`/`partial`): con límite 2, el planner numérico
+   devuelve un plan parcial (más corto, respeta el límite) y el `PlannerDriver` lo expone
+   igual; sin límite, el plan completo de 10 pasos.
 
 El caso booleano por defecto no cambia (lo cubre HOST-155). El dominio (var 0 = hambre,
 var 1 = energía) es de ejemplo; el juego define el suyo.

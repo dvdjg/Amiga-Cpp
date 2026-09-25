@@ -294,6 +294,17 @@ public:
 	[[nodiscard]] constexpr u16 plan_cost() const noexcept { return m_cost; }
 	[[nodiscard]] constexpr usize expansions() const noexcept { return m_expansions; }
 
+	/// Presupuesto *anytime*: maximo de nodos a expandir (0 = sin limite). Con presupuesto,
+	/// `plan()`/`plan_relaxed()` devuelven el mejor **parcial** si no alcanzan el objetivo
+	/// (ver `partial()`); pensado para repartir CPU por tick en el 68000. Ver HOST-316.
+	constexpr void set_budget(usize max_expansions) noexcept { m_max_expansions = max_expansions; }
+	[[nodiscard]] constexpr usize budget() const noexcept { return m_max_expansions; }
+
+	/// ¿El ultimo plan es **parcial**? (el presupuesto corto la busqueda sin objetivo). El
+	/// parcial es el mejor nodo visitado (menor `h`; a igual `h`, mayor avance `g`) y no se
+	/// cachea. Ver HOST-316.
+	[[nodiscard]] constexpr bool partial() const noexcept { return m_partial; }
+
 	[[nodiscard]] constexpr usize plan(const StateT& start, const GoalT& goal,
 					   Span<const ActionT> actions, Span<u16> out) noexcept {
 		return plan_impl<false>(start, goal, actions, out);
@@ -319,9 +330,13 @@ public:
 	[[nodiscard]] constexpr usize plan_impl(const StateT& start, const GoalT& goal,
 						Span<const ActionT> actions, Span<u16> out) noexcept {
 		m_found = false;
+		m_partial = false;
 		m_cost = 0u;
 		m_expansions = 0u;
 		m_node_count = 0u;
+		m_best_partial_node = no_fact_link;
+		m_best_partial_h = 0xffffu;
+		m_best_partial_g = 0u;
 		m_best.clear();
 		m_open.clear();
 
@@ -333,12 +348,20 @@ public:
 			return 0u;
 		}
 
+		const u16 root_h = heuristic<Relaxed>(start, goal, actions);
 		const u16 root = add_node(start.key(), no_fact_link, no_fact_link, 0u);
 		m_best.insert(start.key(), 0u);
-		m_open.push(OpenNode {start.key(), 0u, heuristic<Relaxed>(start, goal, actions), root});
+		m_open.push(OpenNode {start.key(), 0u, root_h, root});
+		m_best_partial_h = root_h; // el parcial debe ser al menos igual de bueno
 
 		u16 goal_node = no_fact_link;
+		// Un parcial solo es valido si el **presupuesto** corto la busqueda.
+		bool budget_stopped = false;
 		while (!m_open.empty()) {
+			if (m_max_expansions != 0u && m_expansions >= m_max_expansions) {
+				budget_stopped = true;
+				break;
+			}
 			const OpenNode current = m_open.top();
 			m_open.pop();
 			const u16* best = m_best.find(current.key);
@@ -369,14 +392,27 @@ public:
 				}
 				const u16 child = add_node(next.key(), current.node, static_cast<u16>(ai), ng);
 				m_best.insert_or_assign(next.key(), ng);
-				const u32 f = static_cast<u32>(ng) + heuristic<Relaxed>(next, goal, actions);
-				const u16 fc = f > 0xffffu ? static_cast<u16>(0xffffu) : static_cast<u16>(f);
+				const u16 h = heuristic<Relaxed>(next, goal, actions);
+				const u16 fc = static_cast<u16>(static_cast<u32>(ng) + h > 0xffffu
+								    ? 0xffffu
+								    : static_cast<u32>(ng) + h);
+				if (h < m_best_partial_h ||
+				    (h == m_best_partial_h && ng > m_best_partial_g)) {
+					m_best_partial_h = h;
+					m_best_partial_node = child;
+					m_best_partial_g = ng;
+				}
 				if (!m_open.push(OpenNode {next.key(), ng, fc, child})) {
 					return 0u;
 				}
 			}
 		}
 		if (goal_node == no_fact_link) {
+			if (budget_stopped && m_best_partial_node != no_fact_link) {
+				m_partial = true;
+				m_cost = m_best_partial_g;
+				return reconstruct(m_best_partial_node, out);
+			}
 			return 0u;
 		}
 		m_found = true;
@@ -390,7 +426,7 @@ public:
 		const KeyT k_start = start.key();
 		const u32 k_goal = goal_signature(goal);
 		for (usize i = 0; i < m_cache_count; ++i) {
-			const CacheEntry& e = m_cache[i];
+			CacheEntry& e = m_cache[i];
 			if (e.start == k_start && e.goal == k_goal) {
 				if (e.length > out.size()) {
 					break;
@@ -398,6 +434,7 @@ public:
 				for (usize j = 0; j < e.length; ++j) {
 					out[j] = m_plan_pool[e.offset + j];
 				}
+				++e.hits;
 				m_found = true;
 				m_cost = e.cost;
 				m_expansions = 0u;
@@ -405,19 +442,61 @@ public:
 			}
 		}
 		const usize n = plan(start, goal, actions, out);
-		if (m_found && m_cache_count < MaxCachedPlans && m_plan_used + n <= MaxCachedActions) {
-			CacheEntry& e = m_cache[m_cache_count++];
-			e.start = k_start;
-			e.goal = k_goal;
-			e.offset = m_plan_used;
-			e.length = static_cast<u16>(n);
-			e.cost = m_cost;
-			for (usize j = 0; j < n; ++j) {
-				m_plan_pool[m_plan_used + j] = out[j];
+		if (m_found && m_plan_used + n <= MaxCachedActions) {
+			if (m_cache_count >= MaxCachedPlans) {
+				drop_lru(); // politica LRU+menos-usos
 			}
-			m_plan_used = static_cast<u16>(m_plan_used + n);
+			if (m_cache_count < MaxCachedPlans) {
+				CacheEntry& e = m_cache[m_cache_count++];
+				e.start = k_start;
+				e.goal = k_goal;
+				e.hits = 0u;
+				e.used_facts = used_facts_of(actions, out, n);
+				e.used_vars = used_vars_of(actions, out, n);
+				e.offset = m_plan_used;
+				e.length = static_cast<u16>(n);
+				e.cost = m_cost;
+				for (usize j = 0; j < n; ++j) {
+					m_plan_pool[m_plan_used + j] = out[j];
+				}
+				m_plan_used = static_cast<u16>(m_plan_used + n);
+			}
 		}
 		return n;
+	}
+
+	/// Invalida solo las entradas cuyo plan **depende** de lo cambiado (hechos o
+	/// variables): conserva las demas y compacta el pool. `clear_plan_cache()` sigue siendo
+	/// el vaciado total. Ver HOST-316.
+	constexpr void invalidate_selective(const StateT& changed) noexcept {
+		usize keep = 0u;
+		u16 at = 0u;
+		for (usize i = 0u; i < m_cache_count; ++i) {
+			const CacheEntry& e = m_cache[i];
+			const bool fact_hit =
+			    (static_cast<u32>(e.used_facts.words()[0]) &
+			     static_cast<u32>(changed.facts.words()[0])) != 0u;
+			bool var_hit = false;
+			for (usize v = 0u; v < MaxVars; ++v) {
+				if ((e.used_vars & (1u << v)) != 0u && changed.vars[v] != 0u) {
+					var_hit = true;
+					break;
+				}
+			}
+			if (fact_hit || var_hit) {
+				continue;
+			}
+			CacheEntry moved = e;
+			moved.offset = at;
+			for (u16 j = 0u; j < e.length; ++j) {
+				m_plan_pool[at + j] = m_plan_pool[e.offset + j];
+			}
+			m_cache[keep] = moved;
+			at = static_cast<u16>(at + e.length);
+			++keep;
+		}
+		m_cache_count = keep;
+		m_plan_used = at;
 	}
 
 	/// Reutiliza el **sufijo** del plan anterior tras ejecutar el paso `taken`: si el
@@ -458,6 +537,70 @@ public:
 	}
 
 private:
+	/// Hechos que el plan requiere o modifica (union de las acciones), para la invalidacion
+	/// selectiva.
+	[[nodiscard]] static constexpr Facts used_facts_of(Span<const ActionT> actions,
+							   Span<const u16> plan,
+							   usize n) noexcept {
+		u32 bits = 0u;
+		for (usize j = 0u; j < n; ++j) {
+			const ActionT& a = actions[plan[j]];
+			bits |= static_cast<u32>(a.pre_true.words()[0]) |
+				static_cast<u32>(a.pre_false.words()[0]) |
+				static_cast<u32>(a.eff_add.words()[0]) |
+				static_cast<u32>(a.eff_del.words()[0]);
+		}
+		Facts used {};
+		used.words()[0] = static_cast<typename Facts::word_type>(bits);
+		return used;
+	}
+
+	/// Mascara de variables que intervienen en el plan (bit i = variable i), para la
+	/// invalidacion selectiva.
+	[[nodiscard]] static constexpr u8 used_vars_of(Span<const ActionT> actions,
+						       Span<const u16> plan,
+						       usize n) noexcept {
+		u8 mask = 0u;
+		for (usize j = 0u; j < n; ++j) {
+			const ActionT& a = actions[plan[j]];
+			for (usize i = 0u; i < MaxVars; ++i) {
+				if (a.var_min[i] != 0u || a.var_max[i] != var_no_max ||
+				    a.var_add[i] != var_no_delta ||
+				    a.var_set[i] != numeric_goap_no_level) {
+					mask = static_cast<u8>(mask | (1u << i));
+				}
+			}
+		}
+		return mask;
+	}
+
+	/// Desaloja la entrada con menos usos (`hits`) y recompacta el pool (LRU+menos-usos).
+	constexpr void drop_lru() noexcept {
+		if (m_cache_count == 0u) {
+			return;
+		}
+		usize victim = 0u;
+		for (usize i = 1u; i < m_cache_count; ++i) {
+			if (m_cache[i].hits < m_cache[victim].hits) {
+				victim = i;
+			}
+		}
+		for (usize i = victim; i + 1u < m_cache_count; ++i) {
+			m_cache[i] = m_cache[i + 1u];
+		}
+		--m_cache_count;
+		u16 at = 0u;
+		for (usize i = 0u; i < m_cache_count; ++i) {
+			CacheEntry& e = m_cache[i];
+			for (u16 j = 0u; j < e.length; ++j) {
+				m_plan_pool[at + j] = m_plan_pool[e.offset + j];
+			}
+			e.offset = at;
+			at = static_cast<u16>(at + e.length);
+		}
+		m_plan_used = at;
+	}
+
 	/// Heurística de grafo relajado: h_max sobre hechos (ignorando efectos de borrado)
 	/// + cota numérica por el mayor delta por acción. Con memo por clave de estado.
 	[[nodiscard]] constexpr u16 relaxed_distance(const StateT& s, const GoalT& g,
@@ -576,6 +719,11 @@ private:
 	struct CacheEntry {
 		KeyT start {};
 		u32 goal = 0u;
+		/// Dependencias del plan (para invalidacion selectiva): hechos y variables que sus
+		/// acciones requieren o modifican.
+		Facts used_facts {};
+		u8 used_vars = 0u; ///< bit i = la variable i interviene (hasta 8)
+		u16 hits = 0u;     ///< usos (politica LRU+menos-usos)
 		u16 offset = 0u;
 		u16 length = 0u;
 		u16 cost = 0u;
@@ -623,8 +771,13 @@ private:
 	Node m_nodes[MaxNodes] {};
 	usize m_node_count = 0u;
 	usize m_expansions = 0u;
+	usize m_max_expansions = 0u; ///< 0 = sin limite (ver `set_budget`)
+	u16 m_best_partial_node = no_fact_link;
+	u16 m_best_partial_h = 0xffffu;
+	u16 m_best_partial_g = 0u;
 	u16 m_cost = 0u;
 	bool m_found = false;
+	bool m_partial = false;
 
 	CacheEntry m_cache[MaxCachedPlans] {};
 	usize m_cache_count = 0u;

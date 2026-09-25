@@ -194,6 +194,9 @@ hechos + 32 de niveles) y el planner es el mismo A* determinista, sin heap.
   (`var_ge`, `var_le`, `add`, `sub`, `set_var`), saturados a 0..255.
 - **Cachés**: `plan_cached` (memo de planes por `(start, goal)` con pool) y
   `plan_reusing` (reutiliza el **sufijo** del plan anterior tras ejecutar un paso).
+- **Invalidación selectiva**: cada entrada guarda `used_facts`/`used_vars` (unión de
+  precondiciones y efectos del plan); `invalidate_selective` descarta solo lo afectado y la
+  política **LRU+menos-usos** desaloja al llenarse. Ver HOST-316.
 - **Heurística relajada** (`plan_relaxed`): `h_max` sobre hechos (relajación por
   borrado) + cota numérica por el mayor delta por acción, con **memo de `h` por estado
   entre llamadas** (`heuristic_hits`). Guía mejor; no garantiza optimalidad estricta.

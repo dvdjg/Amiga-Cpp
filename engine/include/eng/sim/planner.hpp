@@ -44,6 +44,8 @@ struct PlanParams {
 	eng::u8 min_curiosity = 60u; ///< curiosidad mínima del planificador
 	eng::u8 min_autonomy = 40u;  ///< autonomía mínima (independencia)
 	eng::u16 replan_interval = 120u; ///< ticks mínimos entre replanificaciones
+	eng::u16 budget = 0u; ///< presupuesto de expansiones por búsqueda (0 = sin límite);
+			      ///< el juego lo aplica al `PlannerDriver` con `set_budget`
 };
 
 /// ¿La criatura es de las que planifican? (curiosa y con cierta independencia)
@@ -112,7 +114,8 @@ public:
 
 	/// Planifica desde `start` hacia `goal`. Devuelve `true` si hay plan (o el objetivo ya
 	/// se cumple). Escribe los pasos en el `PlanRunner`. Usa producto/cociente nativos de
-	/// 16 bits (sin libcalls).
+	/// 16 bits (sin libcalls). Con presupuesto (`set_budget`), puede devolver un plan
+	/// **parcial** (`partial()`) en vez de fallar.
 	[[nodiscard]] constexpr bool replan(const typename Ai::State& start,
 					    const typename Ai::Goal& goal,
 					    eng::Span<const typename Ai::Action> actions) noexcept {
@@ -132,6 +135,14 @@ public:
 	[[nodiscard]] constexpr eng::u16 current() const noexcept { return m_runner.current(); }
 	constexpr void advance() noexcept { m_runner.advance(); }
 	constexpr void abort() noexcept { m_runner.abort(); }
+
+	/// Presupuesto *anytime* de la búsqueda (0 = sin límite). Con presupuesto, `replan`
+	/// puede dejar un plan **parcial** (`partial()`), con menos pasos que el óptimo; el
+	/// llamador decide si lo ejecuta o espera más presupuesto. Ver HOST-313.
+	constexpr void set_budget(eng::usize max_expansions) noexcept {
+		m_planner.set_budget(max_expansions);
+	}
+	[[nodiscard]] constexpr bool partial() const noexcept { return m_planner.partial(); }
 
 	[[nodiscard]] constexpr eng::usize expansions() const noexcept {
 		return m_planner.expansions();

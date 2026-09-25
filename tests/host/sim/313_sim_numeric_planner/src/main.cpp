@@ -80,6 +80,36 @@ void test_numeric_driver() {
 	check(driver.done(), "driver numerico: tras fallar no queda plan");
 }
 
+void test_budget_partial() {
+	// Cadena numerica: subir el nivel 0 de 0 a 10 exige 10 acciones iguales.
+	const eng::util::Array<Ai::Action, 1> acts {
+	    {Ai::Builder {}.named("inc").add(0u, 1).cost(1).build()}};
+	Ai::State start {};
+	Ai::Goal goal {};
+	goal.var_ge[0u] = 10u;
+
+	Ai::Planner<64> full_planner;
+	eng::u16 full[16] {};
+	const eng::usize nf =
+	    full_planner.plan(start, goal, acts.span(), eng::Span<eng::u16> {full, 16u});
+	check(nf == 10u && full_planner.found() && !full_planner.partial(),
+	      "presupuesto: sin limite plan completo de 10");
+
+	Ai::Planner<64> planner;
+	planner.set_budget(2u);
+	eng::u16 plan[16] {};
+	const eng::usize n = planner.plan(start, goal, acts.span(), eng::Span<eng::u16> {plan, 16u});
+	check(!planner.found() && planner.partial(), "presupuesto: devuelve parcial");
+	check(n >= 1u && n < 10u, "presupuesto: parcial mas corto que el plan");
+	check(planner.expansions() <= 2u, "presupuesto: respeta el limite");
+
+	// A traves del driver del ecosistema.
+	PlannerDriver<64, 8, SimNumericGoap<2u>> driver;
+	driver.set_budget(2u);
+	check(driver.replan(start, goal, acts.span()), "driver con presupuesto: hay plan parcial");
+	check(driver.partial() && driver.has_plan(), "driver con presupuesto: parcial activo");
+}
+
 void test_world_propagates_domain() {
 	// El mundo hereda el dominio por el ultimo parametro de plantilla.
 	SimWorld<SimTraits, 8, 4, 4, 8, 8, 64, SimNumericGoap<2u>> w;
@@ -105,6 +135,7 @@ void test_world_propagates_domain() {
 int main() {
 	std::printf("Sim numeric planner:\n");
 	test_numeric_driver();
+	test_budget_partial();
 	test_world_propagates_domain();
 
 	if (g_fail == 0u) {
