@@ -130,6 +130,20 @@ void test_world_propagates_domain() {
 	check(!w.has_plan(id), "mundo numerico: abortado");
 }
 
+void test_decide_plan() {
+	SimWorld<SimTraits, 8, 4, 4, 8, 8, 64, SimNumericGoap<2u>> w;
+	const EntityId id = w.spawn(1u, 0u, 0u, 0, 0);
+
+	check(!w.decide_plan(no_entity, 0u), "decide_plan: entidad invalida no planifica");
+
+	// La decision del mundo usa la histeresis sobre la mente de la criatura: con la mente
+	// recien creada coincide con `should_replan` sobre una copia de su estado.
+	const auto& c = w.creature(0u);
+	PlanState st = c.mind.plan;
+	const bool expected = should_replan(c.personality, st, 7u, PlanParams {});
+	check(w.decide_plan(id, 7u) == expected, "decide_plan: coincide con should_replan");
+}
+
 } // namespace
 
 int main() {
@@ -137,6 +151,7 @@ int main() {
 	test_numeric_driver();
 	test_budget_partial();
 	test_world_propagates_domain();
+	test_decide_plan();
 
 	if (g_fail == 0u) {
 		std::printf("OK: Sim numeric planner (dominio GOAP por plantilla, driver y mundo)\n");

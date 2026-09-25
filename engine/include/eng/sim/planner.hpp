@@ -53,13 +53,6 @@ struct PlanParams {
 			      ///< el juego lo aplica al `PlannerDriver` con `set_budget`
 };
 
-/// Estado por criatura del bucle de decisión de planificación (histéresis + último replan).
-struct PlanState {
-	bool active = false;  ///< dentro de la banda (planificando)
-	bool planned = false; ///< ya se planificó alguna vez
-	eng::u16 last = 0u;   ///< tick del último replan
-};
-
 /// ¿Toca planificar en `frame_now`? Aplica la **histéresis** (entra con `min_*`, se mantiene
 /// hasta bajar de `exit_*`) y respeta `replan_interval` entre replanes. Actualiza `st`.
 [[nodiscard]] constexpr bool should_replan(const Personality& p, PlanState& st, eng::u16 frame_now,

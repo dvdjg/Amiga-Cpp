@@ -53,7 +53,7 @@ dependen de hardware y no necesitan WinUAE.
 | `platform/amiga` | 8 | [platform/amiga/README.md](platform/amiga/README.md) |
 | `res` | 5 | [res/README.md](res/README.md) |
 | `scene` | 3 | [scene/README.md](scene/README.md) |
-| `sim` | 33 | [sim/README.md](sim/README.md) |
+| `sim` | 34 | [sim/README.md](sim/README.md) |
 | `ui` | 18 | [ui/README.md](ui/README.md) |
 
 Total: 271 tests. Los IDs `HOST-NNN` son únicos en todo `tests/host/` (no por categoría).

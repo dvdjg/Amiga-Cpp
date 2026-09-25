@@ -55,6 +55,26 @@ public:
 		}
 	}
 
+	/// ¿Toca (re)planificar para `id` en `frame_now`? Aplica la **histéresis** sobre el
+	/// `Mind` de la criatura (`should_replan`) y **actualiza su estado**. El juego llama a
+	/// esto en su bucle; si devuelve `true`, aplica el presupuesto (`apply_budget`) y llama a
+	/// `replan`. Ver HOST-155.
+	[[nodiscard]] constexpr bool decide_plan(EntityId id, eng::u16 frame_now,
+						 const PlanParams& params = PlanParams {}) noexcept {
+		if constexpr (!Traits::planning) {
+			(void)id;
+			(void)frame_now;
+			(void)params;
+			return false;
+		} else {
+			auto c = this->find(id);
+			if (!c.valid()) {
+				return false;
+			}
+			return should_replan(c->personality, c->mind.plan, frame_now, params);
+		}
+	}
+
 	[[nodiscard]] constexpr bool has_plan(EntityId id) const noexcept {
 		auto p = this->find_plan(id);
 		return p.valid() && p->runner.active;
