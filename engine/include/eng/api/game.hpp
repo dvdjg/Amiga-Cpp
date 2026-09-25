@@ -28,8 +28,10 @@
 #include <eng/field/draw_target.hpp>
 #include <eng/graphics/composition/compose.hpp>
 #include <eng/graphics/frame_plan.hpp>
+#include <eng/graphics/sprite_asset.hpp>
 #include <eng/input/input.hpp>
 #include <eng/os/port.hpp>
+#include <eng/res/budget.hpp>
 #include <eng/task/background.hpp>
 
 namespace eng {
@@ -56,6 +58,24 @@ public:
 		return m_target.line(x0, y0, x1, y1, color, op);
 	}
 	bool text(s16 x, s16 y, const char* s, u8 color) { return m_target.text(x, y, s, color); }
+
+	/// **Dibuja un sprite** (BOB cocinado) en `(x, y)`. La geometría del destino la trae el
+	/// contexto de dibujo (`DrawTarget::bob_target`, preparado por la escena), así que el
+	/// juego no ve planos, strides ni minterns. `false` si no hay plan de frame o el
+	/// sprite/frame no es válido (ver `graphics::Sprite::draw`).
+	bool sprite(const graphics::Sprite& spr, s16 x, s16 y, u8 frame = 0u) {
+		if (!m_target.plan().valid()) {
+			return false;
+		}
+		return spr.draw(*m_target.plan(), m_target.bob_target(), frame, x, y);
+	}
+	/// **Borra la caja de un sprite** en `(x, y)` (si su política es `ClearRect`).
+	bool erase_sprite(const graphics::Sprite& spr, s16 x, s16 y) {
+		if (!m_target.plan().valid()) {
+			return false;
+		}
+		return spr.erase(*m_target.plan(), m_target.bob_target(), x, y);
+	}
 
 	/// El objetivo de dibujo subyacente (para efectos avanzados; el juego normal no lo necesita).
 	[[nodiscard]] field::DrawTarget& target() noexcept { return m_target; }
@@ -142,6 +162,14 @@ public:
 	template <class B = Backend>
 	[[nodiscard]] decltype(auto) memory() {
 		return m_backend.memory();
+	}
+
+	/// **Presupuesto de memoria** (`app.resources().used_chip()`/`can_fit_chip(...)`): vista
+	/// de solo lectura de las arenas para decidir si un recurso cabe antes de pedirlo. La
+	/// caché de assets + `load<T>` se construye encima (ver `PUBLIC_GAME_API.md` §2.1.4).
+	template <class B = Backend>
+	[[nodiscard]] res::Budget resources() noexcept {
+		return res::Budget {m_backend.memory()};
 	}
 
 	/// El juego registra su escena (en `init`); `screen()`/`present()` la usan.

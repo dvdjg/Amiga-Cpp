@@ -449,6 +449,9 @@ private:
 		bob.draw = graphics::BobDraw::Or;
 		bob.erase = graphics::BobErase::None;
 
+		// Capa de juego: `Sprite` envuelve el `Bob` ya cocinado (misma geometría/política).
+		const graphics::Sprite sprite {bob};
+
 		const graphics::BobTarget target {
 			screen, kBytesPerRow, 0u, kBobPlanes, graphics::BobLayout::Interleaved};
 
@@ -474,7 +477,7 @@ private:
 					z = bobs_height - kBobH;
 				}
 
-				graphics::bob_draw(m_plan, bob, static_cast<u8>(z >> 5), x, y, target);
+				sprite.draw(m_plan, target, static_cast<u8>(z >> 5), x, y);
 			}
 		} while (*group);
 	}

@@ -16,6 +16,7 @@
 #include <eng/field/playfield.hpp>
 #include <eng/field/raster.hpp>
 #include <eng/field/surface.hpp>
+#include <eng/graphics/bob.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/copper/plan.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
@@ -173,6 +174,20 @@ public:
 	[[nodiscard]] constexpr u16 rows() const { return m_res.rows != 0u ? m_res.rows : m_res.height; }
 	/// Disposición de los bitplanes (contiguos o interleaved).
 	[[nodiscard]] constexpr SceneLayout layout() const { return m_res.layout; }
+	/// **Geometría de BOB** del bitmap de dibujo activo (base del plano 0, fila de un plano,
+	/// separación entre planos y layout). La consume `Sprite::draw` a través del
+	/// `DrawTarget`; el juego nunca la construye a mano. Ver `PUBLIC_GAME_API.md` §2.1.1.
+	[[nodiscard]] graphics::BobTarget bob_target() const {
+		graphics::BobTarget t {};
+		t.base = bitplanes().data();
+		t.row_bytes = row_bytes();
+		t.plane_bytes = plane_bytes();
+		t.planes = planes();
+		t.layout = (m_res.layout == SceneLayout::Interleaved)
+				   ? graphics::BobLayout::Interleaved
+				   : graphics::BobLayout::Planar;
+		return t;
+	}
 	/// Recursos de la escena (geometría, modo, layout, buffers) tal como se configuraron.
 	[[nodiscard]] constexpr const SceneResources& resources() const { return m_res; }
 	/// Playfield (solo layout interleaved): base de `surface()`.
@@ -255,7 +270,7 @@ public:
 		field::Playfield& pf = interleaved
 					       ? static_cast<field::Playfield&>(m_playfield)
 					       : static_cast<field::Playfield&>(m_contiguous);
-		return field::DrawTarget {surface(), pf.rasterizer(), plan};
+		return field::DrawTarget {surface(), pf.rasterizer(), plan, bob_target()};
 	}
 
 	/// **Chunky→planar** a través del rasterizador de la escena: con `BlitterRaster` y

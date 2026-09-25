@@ -30,9 +30,12 @@
 #include <eng/graphics/glyph_cache.hpp>
 #include <eng/graphics/palette.hpp>
 #include <eng/graphics/palette32.hpp>
+#include <eng/graphics/sprite_asset.hpp>
 #include <eng/graphics/composition/compose.hpp>
 #include <eng/input/input.hpp>
 #include <eng/memory/arena.hpp>
+#include <eng/res/budget.hpp>
 #include <eng/scene/actor.hpp>
+#include <eng/scene/virtual_scene.hpp>
 #include <eng/task/background.hpp>
 #include <eng/ui/ui.hpp>
