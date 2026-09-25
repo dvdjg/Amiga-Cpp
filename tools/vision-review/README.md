@@ -201,17 +201,38 @@ Integración en la regresión: si la demo tiene `vision-points.json` y Ollama re
 `tools/test-regression.sh` añade la columna **Vision** (ok / skip / mismatch / fail).
 `--require-essential-ok` convierte un MISMATCH en fallo; `--skip-essential` lo desactiva.
 
-## Frame-diff determinista (`frame-diff.mjs`)
+## Frame-diff determinista (`frame-diff.mjs` / `frame-diff.py`)
 
 Referencia directa para separar **movimiento** de **glitch**: cuenta los píxeles cambiados y su
-bbox entre frames consecutivos.
+bbox entre frames consecutivos. Hay dos implementaciones equivalentes:
 
 ```bash
-node tools/vision-review/frame-diff.mjs --sequence <dir> [--thresh 40] [--json]
+node tools/vision-review/frame-diff.mjs --sequence <dir> [--thresh 40] [--json]   # JS (pngjs)
+python tools/vision-review/frame-diff.py --sequence <dir> --metric both [--json]  # NumPy/OpenCV (SIMD)
 ```
 
-Si una **zona estable** cambia erráticamente, es glitch; si solo cambian las zonas que se desplazan,
-es movimiento. Ante discrepancia con el modelo de visión, **prevalece el frame-diff**.
+La versión **Python** (`frame-diff.py`) es más rápida (operaciones de array con SIMD: SSE/AVX) y
+añade **SSIM** por par (`--metric diff|ssim|both`): 1.0 = idéntico; `blocks_low` cuenta bloques con
+SSIM bajo (cambio **estructural** real, no solo brillo). `flicker-check.mjs` prefiere la versión
+Python si está disponible y cae a la de Node si no. Si una **zona estable** cambia erráticamente,
+es glitch; si solo cambian las zonas que se desplazan, es movimiento. Ante discrepancia con el
+modelo de visión, **prevalece el frame-diff**.
+
+## Diff de buffers gráficos (`screendump-diff.mjs`, canal lateral)
+
+Compara el **framebuffer real** (por planos) leído por el canal lateral de WinUAE-DBG
+(`mem <addr> <len>`), sin pasar por el PNG escalado: comparación "buffer a buffer" para análisis
+diferencial de pantalla.
+
+```bash
+node tools/vision-review/screendump-diff.mjs \
+  --addr <hex-base> --planes 6 --row-bytes 40 --plane-bytes 10240 \
+  --width 320 --height 256 [--gap-ms 500] [--side-port 2346]
+```
+
+Lee la base de bitplanes en dos momentos (A, B), decodifica cada plano y compara píxel a píxel;
+informa píxeles cambiados, bbox, **por plano** y bloques calientes. Requiere una instancia viva
+(canal lateral activo). Auto-test sin emulador: `selftest-screendump.mjs` (servidor TCP fake).
 
 ## Detección temporal (`temporal-detect.py`, OpenCV)
 
