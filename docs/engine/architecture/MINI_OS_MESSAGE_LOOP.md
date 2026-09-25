@@ -500,6 +500,11 @@ el mismo contexto que el latido: IRQ de VBlank si va por IRQ). Es el punto reuti
 frame-driven atado al ciclo de mensajes (p. ej. `P61Player::update()` y postear `MusicEnd`; la
 `AudioSystem` lo hace con `tick_frame(port)`).
 
+En el lado del **pump**, `MessagePumpGame::bind_frame_task(cb, user)` ejecuta la misma tarea una vez
+por `update`, **después** de drenar el puerto y **antes** de `App::on_frame`. Es el contrato que
+valida HOST-309, y el sitio donde la lógica de juego delega el trabajo por frame sin un callback
+suelto.
+
 **Previstos** (diseño, aún sin implementar):
 
 ```text

@@ -146,4 +146,33 @@ struct BlitJob {
 	C2p c2p {};
 };
 
+/// Configura `job` como **BOB interleaved enmascarado en UNA pasada** (cookie-cut `$CA` con
+/// **máscara expandida**: una copia de la máscara por plano). `src` apunta al par
+/// `[máscara `w/16` palabras][imagen `w/16` palabras]` de la primera fila del BOB (layout que
+/// produce `kingcon ... -Interleaved -Format=N -Mask`); `dest` al bitmap interleaved en
+/// `x & ~15`; `w`/`h` = tamaño en píxeles (`w` múltiplo de 16); `planes` = planos del bitmap;
+/// `dest_row_bytes` = bytes de **una fila de un plano**; `shift` = `x & 15`.
+///
+/// Un solo blit recorre `h*planes` filas: `A` = máscara, `B` = imagen, `DMOD` = fila de plano.
+/// Ver `docs/reference/amiga/techniques/interleaved-bob-single-blit.md`. El job queda listo
+/// para `FramePlan::add_masked_bob` o `AmigaBackend::blitter_submit`.
+inline void make_interleaved_masked_bob(BlitJob& job, const u16* src, u16* dest, u16 w, u16 h,
+					u8 planes, u16 dest_row_bytes, u8 shift) noexcept {
+	const u16 words = static_cast<u16>(w / 16u);
+	job = BlitJob {};
+	job.kind = BlitJobKind::MaskedBobCookieCut;
+	job.mask = BlitSource {src};
+	job.source = BlitSource {src + words}; // 2ª mitad de la fila = imagen
+	job.destination = BlitDest {dest};
+	job.words_per_row = words;
+	job.height = static_cast<u16>(h * planes);
+	// Avance por "fila" (una fila de UN plano): el par ocupa `2*words` palabras.
+	job.source_modulo_bytes = static_cast<s16>(words * 2u);
+	job.destination_modulo_bytes = static_cast<s16>(dest_row_bytes - words * 2u);
+	job.bitplane_count = 1u;
+	job.source_shift = shift;
+	job.minterm = 0xCAu;
+	job.interleaved = true;
+}
+
 } // namespace eng::graphics
