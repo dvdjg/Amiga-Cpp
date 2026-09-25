@@ -240,13 +240,13 @@ private:
 
 		// --- Ruta **texto por Blitter** (`UiPainter::text_blit`) ---
 		// La equivalencia CPU, la geometria del job y el algoritmo de varios pares (mascara por
-		// par) los cubre HOST-313. La **ejecucion real del Blitter** sobre esta escena sigue sin
-		// reproducir el patron exacto de `Font8` (ni con `x` alineado), tras resolver: buffers de
-		// trabajo en el llamador (el plan guarda punteros), en **Chip RAM** (el Blitter solo accede
-		// a Chip) y una **mascara por par**. Queda un defecto residual del backend
-		// (`amiga_blitter.cpp`, ruta `masked`) que se investiga en
-		// `docs/debugging/investigaciones/pending-verification.md` §8. Por eso esta demo pinta el
-		// texto por CPU.
+		// par) los cubre HOST-313, y el plan encola los jobs `MaskedBobCookieCut` correctos (5
+		// pares x 6 planos = 30). La **ejecucion real del Blitter** sobre esta escena no reproduce
+		// el patron exacto de `Font8` (ni con `x` alineado), tras resolver: buffers de trabajo en
+		// el llamador, en **Chip RAM** y con una **mascara por par**. La lectura directa de los
+		// registros del Blitter desde el programa devuelve 0 (no fiable en este entorno), asi que
+		// el residual se investiga con GDB sobre `submit_blit_job` (ver pending-verification §8).
+		// Por eso esta demo pinta el texto por CPU.
 
 		// Self-test en hardware: verifica que el texto ajustado pinto tinta (color 3) en su zona.
 		eng::u32 hits = 0u;

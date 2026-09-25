@@ -105,10 +105,14 @@ Notas de deuda de diseño detectadas al trabajar en el modelo de escena, para un
      último (el plan se ejecuta al final). Ahora cada par tiene su máscara en `mask_scratch`
      (`pares * 2 * Font8::kRows` palabras).
 - **Residual**: con las tres causas resueltas, la ejecución real del Blitter **deja tinta pero no
-  reproduce el patrón exacto de `Font8`** (ni con `x` **alineado**). El ejecutor software sí
-  coincide con la CPU, así que el defecto está en el backend Amiga (`amiga_blitter.cpp`, ruta
-  `masked`): revisar `BLTCMOD`/`BLTDMOD`, el orden de canales A=máscara/B=fuente/C=D=destino y
-  `BLTALWM`/`BLTAFWM` para el cookie-cut con 6 planos.
+  reproduce el patrón exacto de `Font8`** (ni con `x` **alineado**). El plan encola los
+  `MaskedBobCookieCut` correctos (5 pares × 6 planos = 30, verificado en la demo) y el ejecutor
+  software de esos mismos jobs coincide con la CPU, así que el defecto está en la ejecución del
+  backend Amiga (`amiga_blitter.cpp`, ruta `masked`). La lectura directa de los registros del
+  Blitter desde el programa devuelve 0 (poco fiable en este entorno), así que **hay que depurarlo
+  con GDB paso a paso sobre `submit_blit_job`**: comparar `BLTCON0/1`, `BLTAMOD/BMOD/CMOD/DMOD` y
+  `BLTSIZE` en el momento del submit con los valores esperados
+  (cookie-cut `$CA`: `CON0=0x0FCA`, `AMOD=BMOD=0`, `DMOD=CMOD=38`, `SIZE=8·64+1` para `x=16`).
 - **Mientras**: la demo 301 pinta el texto por CPU y lo declara en su comentario.
 
 
