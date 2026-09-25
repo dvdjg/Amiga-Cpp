@@ -178,7 +178,7 @@ struct AbyssDemo {
 		const eng::u8 sin = kSinus15[f & 63u];
 		m_copper_words[m_scroll_index] = static_cast<eng::u16>(sin | (sin << 4u));
 
-		// 1) Limpia la banda de juego (filas 200..255, los 5 planos) en un solo blit D-only.
+		// Limpia la banda de juego (filas 200..255, los 5 planos) en un solo blit D-only.
 		eng::graphics::BlitJob clear {};
 		clear.kind = eng::graphics::BlitJobKind::ClearRect;
 		clear.destination = eng::graphics::BlitDest {
@@ -188,16 +188,27 @@ struct AbyssDemo {
 		clear.destination_modulo_bytes = 0;
 		clear.bitplane_count = 1u;
 		clear.minterm = 0x00u;
+		clear.interleaved = true;
 		(void)m_backend->blitter_submit(clear, true);
 
-		// 2) 16 BOBs enmascarados por senos. Fuente interleaved del BOB original: A=máscara,
+		// 16 BOBs enmascarados por senos. Fuente interleaved del BOB original: A=máscara,
 		// B=imagen; un solo blit de `16*planos` filas (el truco del cookie-cut interleaved).
+		// Fase del seno de 51 posiciones con avance incremental (sin `% 51` por BOB, que en
+		// 68000 es un `__umodsi3` costoso).
+		eng::u32 phase = f % 51u;
+		eng::u8 fi = 0u;
 		for (eng::u16 i = 0u; i < 16u; ++i) {
-			const eng::s16 x = static_cast<eng::s16>(
-				static_cast<eng::u32>(i) * 16u +
-				static_cast<eng::u32>(kSinus32[(f + i) % 51u]) * 2u);
+			const eng::u32 sa = kSinus32[phase];
+			const eng::s16 x =
+				static_cast<eng::s16>(static_cast<eng::u32>(i) * 16u + sa * 2u);
 			const eng::s16 y = static_cast<eng::s16>(kSinus40[((f + i) * 2u) & 63u] / 2u);
-			const eng::u8* const src = m_bob + (i % 6u) * kBobFrameStride;
+			const eng::u8* const src = m_bob + static_cast<eng::u32>(fi) * kBobFrameStride;
+			if (++phase >= 51u) {
+				phase = 0u;
+			}
+			if (++fi >= 6u) {
+				fi = 0u;
+			}
 
 			eng::graphics::BlitJob bob {};
 			bob.kind = eng::graphics::BlitJobKind::MaskedBobCookieCut;
@@ -218,6 +229,7 @@ struct AbyssDemo {
 			bob.bitplane_count = 1u;
 			bob.source_shift = static_cast<eng::u8>(x & 15);
 			bob.minterm = 0xCAu;
+			bob.interleaved = true;
 			(void)m_backend->blitter_submit(bob, true);
 		}
 
@@ -329,6 +341,7 @@ int main() {
 
 	eng::u32 frame = 0u;
 	while (!game.quit()) {
+		// Latido del mini-SO: latcha el VBlank, pollea la entrada y avanza los timers.
 		eng::os::tick();
 		eng::os::Msg m;
 		while (port.pop(m)) {

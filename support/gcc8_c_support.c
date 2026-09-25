@@ -52,17 +52,43 @@ void memclr(void* dest, unsigned long len) { // dest: 16bit-aligned, len: multip
 
 __attribute__((optimize("no-tree-loop-distribute-patterns"))) 
 void* memset(void *dest, int val, unsigned long len) {
-	unsigned char *ptr = (unsigned char *)dest;
-	while(len-- > 0)
-		*ptr++ = val;
+	unsigned char *d = (unsigned char *)dest;
+	const unsigned char b = (unsigned char)val;
+	// Camino rapido a palabra (2 B) cuando el destino esta alineado: las copias de
+	// structs del engine (BlitJob, Msg, ...) son pequenas y frecuentes en el bucle, y un
+	// bucle byte a byte cuesta ~2x mas. La cola de 1 byte se hace aparte.
+	if ((len >= 2u) && ((((unsigned long)d) & 1u) == 0u)) {
+		unsigned short *w = (unsigned short *)d;
+		const unsigned short wv =
+			(unsigned short)((unsigned short)b | ((unsigned short)b << 8));
+		while (len >= 2u) {
+			*w++ = wv;
+			len -= 2u;
+		}
+		d = (unsigned char *)w;
+	}
+	while (len-- > 0u)
+		*d++ = b;
 	return dest;
 }
 
 __attribute__((optimize("no-tree-loop-distribute-patterns"))) 
 void* memcpy(void *dest, const void *src, unsigned long len) {
-	char *d = (char *)dest;
-	const char *s = (const char *)src;
-	while(len--)
+	unsigned char *d = (unsigned char *)dest;
+	const unsigned char *s = (const unsigned char *)src;
+	// Camino rapido a palabra (2 B) con ambos punteros alineados (fuente y destino de los
+	// structs del engine lo estan); cola de 1 byte aparte.
+	if ((len >= 2u) && ((((unsigned long)d | ((unsigned long)s)) & 1u) == 0u)) {
+		unsigned short *dw = (unsigned short *)d;
+		const unsigned short *sw = (const unsigned short *)s;
+		while (len >= 2u) {
+			*dw++ = *sw++;
+			len -= 2u;
+		}
+		d = (unsigned char *)dw;
+		s = (const unsigned char *)sw;
+	}
+	while (len-- > 0u)
 		*d++ = *s++;
 	return dest;
 }
