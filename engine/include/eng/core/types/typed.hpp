@@ -6,19 +6,19 @@
 /// de dominio no compile: un buffer de audio no puede usarse como origen de un
 /// Blitter gráfico sin una conversión explícita.
 ///
-/// - `Bytes<Tag>` / `ByteView<Tag>`: rango de bytes de un dominio concreto.
-/// - `Words<Tag>` / `WordView<Tag>`: rango de words (u16) de un dominio concreto.
-/// - `Block<Tag>`: resultado tipado de una reserva de arena.
-/// - Direcciones/base: `BitmapBase`, `FrontBase`, `Address<eng::MemoryKind::Chip>`.
+/// Las vistas son **una sola clase** `TaggedSpan<T, Tag>` (elemento `T` — `u8`/`u16`, mutable o
+/// `const` — + tag de dominio) con cuatro alias cómodos:
+/// - `Bytes<Tag>` / `ByteView<Tag>`: bytes, mutable / solo lectura.
+/// - `Words<Tag>` / `WordView<Tag>`: words (u16), mutable / solo lectura.
 ///
 /// ```text
 ///   reserva de arena                vistas tipadas (Tag)                frontera unsafe
 ///   ──────────────────              ────────────────────────────       ───────────────
-///   Block<Tag> (MemoryKind+dom) ──► Bytes<Tag> / ByteView<Tag> ─raw()─► u8* / u16* (backend)
+///   Block<Tag,Bank> (medio+dom) ──► Bytes<Tag> / ByteView<Tag> ─raw()─► u8* / u16* (backend)
 ///                                   Words<Tag> / WordView<Tag>          (Blitter / DMA / Copper)
-///   Address<eng::MemoryKind::Chip> / BitmapBase / FrontBase: direcciones y roles con semantica propia
+///   Address<MemoryKind::Chip> / BitmapBase / FrontBase: direcciones y roles con semantica propia
 ///   un uso de dominio cruzado (p. ej. audio como plano grafico) NO compila
-///   Span<T> (SIN tag): la vista contigua corriente; Bytes/Words anaden el TAG encima
+///   Span<T> (SIN tag): la vista contigua corriente; TaggedSpan anade el TAG encima
 /// ```
 ///
 /// Vocabulario deliberadamente **sin escalares fuertes**: ancho, alto, `row_bytes`,
@@ -32,19 +32,23 @@
 #include <eng/core/types/memory_kind.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/core/util/type_traits.hpp>
 
 namespace eng {
 
 namespace detail {
 /// Detiene la CPU ante un índice de plano inválido (como `Span::at`).
 [[noreturn]] inline void typed_range_error() { __builtin_trap(); }
+
+/// `U` con el `const` de `From` propagado (para `as_const`/`as_words`/`as_bytes`).
+template <class From, class U>
+using const_prop_t =
+	eng::util::conditional_t<eng::util::detail::is_const_qualified<From>::value, const U, U>;
 } // namespace detail
 
-// --- Vistas de bytes con TAG de dominio --------------------------------------
-
-// Direcciones con semántica distinta (antes de las vistas, para que `Bytes::address`
-// pueda devolver `Address<eng::MemoryKind::Chip>`). Nota: NO se envuelven escalares (ancho/alto/stride/
-// planes); solo se tipan buffers/punteros, direcciones y roles.
+// Direcciones con semántica distinta (antes de las vistas, para que la vista de bytes
+// pueda devolver `Address<eng::MemoryKind::Chip>`). Nota: NO se envuelven escalares
+// (ancho/alto/stride/planes); solo se tipan buffers/punteros, direcciones y roles.
 /// Base de la reserva de un bitmap (lo que va a `BPLxPT`), en **chip RAM** (Agnus la lee por DMA).
 struct BitmapBase {
 	Address<MemoryKind::Chip> value {};
@@ -55,37 +59,46 @@ struct FrontBase {
 };
 // Dirección DMA-visible de chip RAM: `Address<MemoryKind::Chip>` (ver `memory_kind.hpp`).
 
-// Declaraciones adelantadas: las vistas se convierten entre sí (`as_words`/`as_bytes`).
-template <class Tag> class Bytes;
-template <class Tag> class ByteView;
-template <class Tag> class Words;
-template <class Tag> class WordView;
+// --- Vista contigua con TAG de dominio (UNA sola clase; 4 alias) -------------
 
-/// Rango mutable de bytes de un dominio. `Tag` es un struct vacío por dominio.
-/// Replica la ergonomía de `Span`: constructor de array (deduce el tamaño),
-/// iteradores para range-for y conversiones de dominio explícitas.
-template <class Tag>
-class Bytes {
+template <class T, class Tag>
+class TaggedSpan;
+
+/// Bytes de un dominio: mutable (`Bytes`) o solo lectura (`ByteView`).
+template <class Tag> using Bytes = TaggedSpan<eng::u8, Tag>;
+template <class Tag> using ByteView = TaggedSpan<const eng::u8, Tag>;
+/// Words (u16) de un dominio: mutable (`Words`) o solo lectura (`WordView`).
+template <class Tag> using Words = TaggedSpan<eng::u16, Tag>;
+template <class Tag> using WordView = TaggedSpan<const eng::u16, Tag>;
+
+/// Vista contigua de elementos `T` (u8/u16, `T` puede ser `const`) con **tag de dominio** `Tag`.
+/// Replica la ergonomía de `Span` (array deduce tamaño, iteradores, `operator[]`, `subspan`).
+/// La mutabilidad va en `T` (`const`), como en `Span`; así no hacen falta `Bytes`/`ByteView`/
+/// `Words`/`WordView` como clases distintas, solo como alias.
+template <class T, class Tag>
+class TaggedSpan {
 public:
-	using value_type = eng::u8;
-	using iterator = eng::u8*;
-	using const_iterator = const eng::u8*;
+	using value_type = eng::util::remove_const_t<T>;
+	using iterator = T*;
+	using const_iterator = const T*;
 	using size_type = eng::usize;
 
-	constexpr Bytes() noexcept = default;
-	constexpr Bytes(eng::u8* data, size_type count) noexcept : m_span(data, count) {}
+	constexpr TaggedSpan() noexcept = default;
+	constexpr TaggedSpan(T* data, size_type count) noexcept : m_span(data, count) {}
 	template <size_type N>
-	constexpr Bytes(eng::u8 (&arr)[N]) noexcept : m_span(arr, N) {}
-	static constexpr Bytes from(Span<eng::u8> s) noexcept { return Bytes(s.data(), s.size()); }
+	constexpr TaggedSpan(T (&arr)[N]) noexcept : m_span(arr, N) {}
+	static constexpr TaggedSpan from(Span<T> s) noexcept { return TaggedSpan(s.data(), s.size()); }
 
 	/// Frontera explícita hacia la capa unsafe.
-	[[nodiscard]] constexpr Span<eng::u8> raw() const noexcept { return m_span; }
-	/// Dirección DMA-visible del inicio (o de `off`, que puede ser negativo), como
-	/// `Address<eng::MemoryKind::Chip>`.
-	[[nodiscard]] constexpr Address<eng::MemoryKind::Chip> address(eng::s32 off = 0) const noexcept {
+	[[nodiscard]] constexpr Span<T> raw() const noexcept { return m_span; }
+	/// Dirección DMA-visible del inicio (o de `off`, que puede ser negativo). Solo para vistas de
+	/// **byte**; la procedencia (Chip) la certifica quien la construye (`gfx::Bitmap`, `ChipStorage`,
+	/// `Block<Tag, Chip>`), no la vista.
+	[[nodiscard]] constexpr Address<eng::MemoryKind::Chip> address(eng::s32 off = 0) const noexcept
+		requires (sizeof(T) == 1u) {
 		return Address<eng::MemoryKind::Chip>::from_storage(m_span.data() + off);
 	}
-	[[nodiscard]] constexpr eng::u8* data() const noexcept { return m_span.data(); }
+	[[nodiscard]] constexpr T* data() const noexcept { return m_span.data(); }
 	[[nodiscard]] constexpr size_type size() const noexcept { return m_span.size(); }
 	[[nodiscard]] constexpr bool empty() const noexcept { return m_span.empty(); }
 
@@ -94,174 +107,43 @@ public:
 	[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return m_span.data(); }
 	[[nodiscard]] constexpr const_iterator cend() const noexcept { return m_span.data() + m_span.size(); }
 
-	constexpr eng::u8& operator[](size_type i) const noexcept { return m_span[i]; }
-	constexpr eng::u8& at(size_type i) const noexcept { return m_span.at(i); }
-	[[nodiscard]] constexpr eng::u8& front() const noexcept { return m_span[0]; }
-	[[nodiscard]] constexpr eng::u8& back() const noexcept { return m_span[m_span.size() - 1u]; }
+	constexpr T& operator[](size_type i) const noexcept { return m_span[i]; }
+	constexpr T& at(size_type i) const noexcept { return m_span.at(i); }
+	[[nodiscard]] constexpr T& front() const noexcept { return m_span[0]; }
+	[[nodiscard]] constexpr T& back() const noexcept { return m_span[m_span.size() - 1u]; }
 
-	[[nodiscard]] constexpr Bytes subspan(size_type off, size_type n) const noexcept {
-		return Bytes(m_span.data() + off, n);
+	[[nodiscard]] constexpr TaggedSpan subspan(size_type off, size_type n) const noexcept {
+		return TaggedSpan(m_span.data() + off, n);
 	}
-	[[nodiscard]] constexpr Bytes subspan(size_type off) const noexcept {
-		return Bytes(m_span.data() + off, m_span.size() - off);
+	[[nodiscard]] constexpr TaggedSpan subspan(size_type off) const noexcept {
+		return TaggedSpan(m_span.data() + off, m_span.size() - off);
 	}
 	/// Vista de solo lectura de la misma memoria.
-	[[nodiscard]] constexpr ByteView<Tag> as_const() const noexcept {
-		return ByteView<Tag>(m_span.data(), m_span.size());
+	[[nodiscard]] constexpr TaggedSpan<const T, Tag> as_const() const noexcept {
+		return {m_span.data(), m_span.size()};
 	}
-	/// Reinterpretación explícita a words del MISMO dominio (requiere tamaño par y
-	/// alineación a 2 del inicio; el contrato lo documenta el llamador).
-	[[nodiscard]] constexpr Words<Tag> as_words() const noexcept {
-		return Words<Tag>{reinterpret_cast<eng::u16*>(m_span.data()), m_span.size() / 2u};
+	/// Reinterpretación explícita a words del MISMO dominio (requiere bytes: `sizeof(T)==1`).
+	[[nodiscard]] constexpr TaggedSpan<detail::const_prop_t<T, eng::u16>, Tag> as_words() const noexcept
+		requires (sizeof(T) == 1u) {
+		using U = detail::const_prop_t<T, eng::u16>;
+		return TaggedSpan<U, Tag>{reinterpret_cast<U*>(m_span.data()), m_span.size() / 2u};
 	}
-	constexpr void fill(eng::u8 v) const noexcept { m_span.fill(v); }
-
-private:
-	Span<eng::u8> m_span {};
-};
-
-/// Rango de solo lectura de bytes de un dominio.
-template <class Tag>
-class ByteView {
-public:
-	using value_type = eng::u8;
-	using iterator = const eng::u8*;
-	using const_iterator = const eng::u8*;
-	using size_type = eng::usize;
-
-	constexpr ByteView() noexcept = default;
-	constexpr ByteView(const eng::u8* data, size_type count) noexcept : m_span(data, count) {}
-	template <size_type N>
-	constexpr ByteView(const eng::u8 (&arr)[N]) noexcept : m_span(arr, N) {}
-	static constexpr ByteView from(Span<const eng::u8> s) noexcept { return ByteView(s.data(), s.size()); }
-
-	[[nodiscard]] constexpr Span<const eng::u8> raw() const noexcept { return m_span; }
-	[[nodiscard]] constexpr const eng::u8* data() const noexcept { return m_span.data(); }
-	/// Dirección DMA-visible del inicio (o de `off`, que puede ser negativo), como
-	/// `Address<eng::MemoryKind::Chip>`. Simétrico a `Bytes::address`.
-	[[nodiscard]] constexpr Address<eng::MemoryKind::Chip> address(eng::s32 off = 0) const noexcept {
-		return Address<eng::MemoryKind::Chip>::from_storage(m_span.data() + off);
+	/// Reinterpretación explícita a bytes del MISMO dominio (requiere words: `sizeof(T)==2`).
+	[[nodiscard]] constexpr TaggedSpan<detail::const_prop_t<T, eng::u8>, Tag> as_bytes() const noexcept
+		requires (sizeof(T) == 2u) {
+		using U = detail::const_prop_t<T, eng::u8>;
+		return TaggedSpan<U, Tag>{reinterpret_cast<U*>(m_span.data()), m_span.size() * 2u};
 	}
-	[[nodiscard]] constexpr size_type size() const noexcept { return m_span.size(); }
-	[[nodiscard]] constexpr bool empty() const noexcept { return m_span.empty(); }
-
-	[[nodiscard]] constexpr iterator begin() const noexcept { return m_span.data(); }
-	[[nodiscard]] constexpr iterator end() const noexcept { return m_span.data() + m_span.size(); }
-	[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return m_span.data(); }
-	[[nodiscard]] constexpr const_iterator cend() const noexcept { return m_span.data() + m_span.size(); }
-
-	constexpr const eng::u8& operator[](size_type i) const noexcept { return m_span[i]; }
-	constexpr const eng::u8& at(size_type i) const noexcept { return m_span.at(i); }
-	[[nodiscard]] constexpr const eng::u8& front() const noexcept { return m_span[0]; }
-	[[nodiscard]] constexpr const eng::u8& back() const noexcept { return m_span[m_span.size() - 1u]; }
-
-	[[nodiscard]] constexpr ByteView subspan(size_type off, size_type n) const noexcept {
-		return ByteView(m_span.data() + off, n);
-	}
-	[[nodiscard]] constexpr ByteView subspan(size_type off) const noexcept {
-		return ByteView(m_span.data() + off, m_span.size() - off);
-	}
-	[[nodiscard]] constexpr WordView<Tag> as_words() const noexcept {
-		return WordView<Tag>{reinterpret_cast<const eng::u16*>(m_span.data()), m_span.size() / 2u};
+	/// Rellena con `v` (solo vistas mutables).
+	constexpr void fill(T v) const noexcept requires (!eng::util::detail::is_const_qualified<T>::value) {
+		m_span.fill(v);
 	}
 
 private:
-	Span<const eng::u8> m_span {};
+	Span<T> m_span {};
 };
 
-/// Rango mutable de words (u16) de un dominio.
-template <class Tag>
-class Words {
-public:
-	using value_type = eng::u16;
-	using iterator = eng::u16*;
-	using const_iterator = const eng::u16*;
-	using size_type = eng::usize;
-
-	constexpr Words() noexcept = default;
-	constexpr Words(eng::u16* data, size_type count) noexcept : m_span(data, count) {}
-	template <size_type N>
-	constexpr Words(eng::u16 (&arr)[N]) noexcept : m_span(arr, N) {}
-	static constexpr Words from(Span<eng::u16> s) noexcept { return Words(s.data(), s.size()); }
-
-	[[nodiscard]] constexpr Span<eng::u16> raw() const noexcept { return m_span; }
-	[[nodiscard]] constexpr eng::u16* data() const noexcept { return m_span.data(); }
-	[[nodiscard]] constexpr size_type size() const noexcept { return m_span.size(); }
-	[[nodiscard]] constexpr bool empty() const noexcept { return m_span.empty(); }
-
-	[[nodiscard]] constexpr iterator begin() const noexcept { return m_span.data(); }
-	[[nodiscard]] constexpr iterator end() const noexcept { return m_span.data() + m_span.size(); }
-	[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return m_span.data(); }
-	[[nodiscard]] constexpr const_iterator cend() const noexcept { return m_span.data() + m_span.size(); }
-
-	constexpr eng::u16& operator[](size_type i) const noexcept { return m_span[i]; }
-	constexpr eng::u16& at(size_type i) const noexcept { return m_span.at(i); }
-	[[nodiscard]] constexpr eng::u16& front() const noexcept { return m_span[0]; }
-	[[nodiscard]] constexpr eng::u16& back() const noexcept { return m_span[m_span.size() - 1u]; }
-
-	[[nodiscard]] constexpr Words subspan(size_type off, size_type n) const noexcept {
-		return Words(m_span.data() + off, n);
-	}
-	[[nodiscard]] constexpr Words subspan(size_type off) const noexcept {
-		return Words(m_span.data() + off, m_span.size() - off);
-	}
-	[[nodiscard]] constexpr WordView<Tag> as_const() const noexcept {
-		return WordView<Tag>(m_span.data(), m_span.size());
-	}
-	/// Reinterpretación explícita a bytes del MISMO dominio (mismo tamaño).
-	[[nodiscard]] constexpr Bytes<Tag> as_bytes() const noexcept {
-		return Bytes<Tag>{reinterpret_cast<eng::u8*>(m_span.data()), m_span.size() * 2u};
-	}
-
-private:
-	Span<eng::u16> m_span {};
-};
-
-/// Rango de solo lectura de words (u16) de un dominio.
-template <class Tag>
-class WordView {
-public:
-	using value_type = eng::u16;
-	using iterator = const eng::u16*;
-	using const_iterator = const eng::u16*;
-	using size_type = eng::usize;
-
-	constexpr WordView() noexcept = default;
-	constexpr WordView(const eng::u16* data, size_type count) noexcept : m_span(data, count) {}
-	template <size_type N>
-	constexpr WordView(const eng::u16 (&arr)[N]) noexcept : m_span(arr, N) {}
-	static constexpr WordView from(Span<const eng::u16> s) noexcept { return WordView(s.data(), s.size()); }
-
-	[[nodiscard]] constexpr Span<const eng::u16> raw() const noexcept { return m_span; }
-	[[nodiscard]] constexpr const eng::u16* data() const noexcept { return m_span.data(); }
-	[[nodiscard]] constexpr size_type size() const noexcept { return m_span.size(); }
-	[[nodiscard]] constexpr bool empty() const noexcept { return m_span.empty(); }
-
-	[[nodiscard]] constexpr iterator begin() const noexcept { return m_span.data(); }
-	[[nodiscard]] constexpr iterator end() const noexcept { return m_span.data() + m_span.size(); }
-	[[nodiscard]] constexpr const_iterator cbegin() const noexcept { return m_span.data(); }
-	[[nodiscard]] constexpr const_iterator cend() const noexcept { return m_span.data() + m_span.size(); }
-
-	constexpr const eng::u16& operator[](size_type i) const noexcept { return m_span[i]; }
-	constexpr const eng::u16& at(size_type i) const noexcept { return m_span.at(i); }
-	[[nodiscard]] constexpr const eng::u16& front() const noexcept { return m_span[0]; }
-	[[nodiscard]] constexpr const eng::u16& back() const noexcept { return m_span[m_span.size() - 1u]; }
-
-	[[nodiscard]] constexpr WordView subspan(size_type off, size_type n) const noexcept {
-		return WordView(m_span.data() + off, n);
-	}
-	[[nodiscard]] constexpr WordView subspan(size_type off) const noexcept {
-		return WordView(m_span.data() + off, m_span.size() - off);
-	}
-	[[nodiscard]] constexpr ByteView<Tag> as_bytes() const noexcept {
-		return ByteView<Tag>{reinterpret_cast<const eng::u8*>(m_span.data()), m_span.size() * 2u};
-	}
-
-private:
-	Span<const eng::u16> m_span {};
-};
-
-// --- Bloque tipado (resultado de una reserva de arena) -----------------------
+// --- Bloque tipado (resultado de una reserva) --------------------------------
 
 /// Bloque de memoria tipado: vista `Bytes<Tag>` de la reserva **y** su medio.
 ///
@@ -293,7 +175,5 @@ struct Block {
 /// Bloque de un banco **concreto** (compile-time): alias de `Block<Tag, K>`.
 template <class Tag, MemoryKind K>
 using TypedBlock = Block<Tag, K>;
-
-// --- Direcciones y bases: definidas arriba (antes de las vistas) -------------
 
 } // namespace eng

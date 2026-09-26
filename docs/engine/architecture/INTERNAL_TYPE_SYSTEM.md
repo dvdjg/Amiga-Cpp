@@ -74,27 +74,31 @@ solo la capa unsafe los construye desde memoria (arena/backend) con `from_raw()`
 
 ## 3. Catálogo de tipos propuestos
 
-### 3.1 Vistas tipadas (sustituyen `Span<u8>`/`Span<const u16>` sin dominio)
+### 3.1 Vistas tipadas (una sola clase; 4 alias)
+
+Las cuatro son la **misma** clase genérica sobre el elemento `T` (`u8`/`u16`, mutable o `const`),
+más el tag de dominio. No son 4 tipos distintos, sino 4 alias:
 
 ```cpp
 namespace eng {
 
-template <class Tag> class Bytes;      // Span<u8> mutable
-template <class Tag> class ByteView;   // Span<const u8> (o Bytes<const Tag>)
-template <class Tag> class Words;      // Span<u16> mutable
-template <class Tag> class WordView;   // Span<const u16>
+template <class T, class Tag> class TaggedSpan;          // (T* + n) + Tag
+
+template <class Tag> using Bytes    = TaggedSpan<u8, Tag>;        // mutable
+template <class Tag> using ByteView = TaggedSpan<const u8, Tag>;  // solo lectura
+template <class Tag> using Words    = TaggedSpan<u16, Tag>;
+template <class Tag> using WordView = TaggedSpan<const u16, Tag>;
 
 } // namespace eng
 ```
 
-- Cada una envuelve un `Span<u8>`/`Span<u16>` y **solo** expone operaciones del dominio
-  (`size`, `subspan`, `at` con `illegal`, `fill`).
+- Cada alias envuelve un `Span<T>` y **solo** expone operaciones del dominio
+  (`size`, `subspan`, `at`, `fill` en las mutables).
 - **Ergonomía tipo `Span`**: constructor de array nativo que **deduce el tamaño**
   (`Pattern p{arr};`), iteradores `begin/end/cbegin/cend` (range-for y algoritmos), `front`/`back`,
   `subspan(off)` y typedefs `value_type`/`iterator`/`size_type`. Todo `constexpr` y a coste cero.
-- `Bytes<Tag>::words<Tag>()` / `WordView<Tag>::bytes()` hacen la reinterpretación **explícita**
-  (alineación y tamaño comprobados con `static_assert`/runtime); `as_const()` pasa de mutable a
-  vista de solo lectura **conservando el tag**.
+- `as_words()`/`as_bytes()` hacen la reinterpretación **explícita** (tamaño exige `sizeof(T)`
+  correcto, aplicado con `requires`); `as_const()` pasa de mutable a solo lectura **conservando el tag**.
 - `raw()` es el único camino a `Span<u8>`/`Span<const u16>` y se documenta como frontera.
 
 Tags (structs vacíos, cero coste) y alias de dominio:
@@ -198,7 +202,7 @@ Los tipos de memoria son **ejes ortogonales**; un tipo nuevo solo se justifica s
 | Eje | Tipo(s) | Regla |
 |-----|---------|-------|
 | Dominio (qué dato) | `Tag` (struct vacío): `PlaneTag`, `AudioTag`, `CopperTag`… | lo lleva la vista/bloque |
-| Elemento + mutabilidad | `Bytes<Tag>` / `ByteView<Tag>` / `Words<Tag>` / `WordView<Tag>` | 4 formas de la MISMA idea (u8/u16 × mutable/const). Candidatas a un único `TaggedSpan<T,Tag>` con 4 alias |
+| Elemento + mutabilidad | `Bytes<Tag>` / `ByteView<Tag>` / `Words<Tag>` / `WordView<Tag>` | 4 **alias** de una única `TaggedSpan<T,Tag>` (u8/u16 × mutable/const) |
 | Medio (compile-time) | `MemoryKind` + `Address<Bank>` | la **dirección** lleva el banco; no compila entre bancos |
 | Bloque | `Block<Tag, Bank = Any>` | **uno solo**: `Any` = medio como **dato** (el que decide la arena); banco concreto = DMA. `TypedBlock<Tag, K>` es **alias** de `Block<Tag, K>` |
 | Banco / alocador | `MemBank<K>` (pool por banco), `LinearArena` (bump), `BlockPool` (first-fit) | mecanismos distintos, no combinaciones |
@@ -209,7 +213,7 @@ Reglas para no repetir el problema:
 
 - **Un tipo por eje, no por combinación.** Si dos nombres solo difieren en un dato (medio, elemento, mutabilidad), debe ser **un tipo con ese dato/parámetro**, no dos clases casi iguales.
 - **Antes de crear un tipo, preguntar «¿qué eje nuevo aporta?».** Si no aporta corrección, usar un alias o un parámetro.
-- Ya fusionados: `ChipPool`→`BlockPool`, y `TypedBlock`→`Block<Tag, Bank>`. Pendiente barato: unificar las 4 vistas en `TaggedSpan<T, Tag>`.
+- Ya fusionados: `ChipPool`→`BlockPool`, `TypedBlock`→`Block<Tag, Bank>`, y las 4 vistas→`TaggedSpan<T, Tag>` (4 alias).
 
 ## 4. Auditoría por subsistema
 
