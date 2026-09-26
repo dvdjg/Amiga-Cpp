@@ -710,7 +710,7 @@ struct DemoGame {
 	eng::u16 framebuffer_mismatch_tiles() {
 		const auto& pf = scene.bg();
 		const auto hw = pf.hardware_view();
-		const eng::u8* fp = hw.bitplanes;
+		const eng::u8* fp = hw.bitplanes.cptr();
 		const eng::u16 bpr = hw.bitmap_bytes_per_row;
 		const eng::u8 planes = hw.planes;
 		const eng::u16 dh = hw.display_height;

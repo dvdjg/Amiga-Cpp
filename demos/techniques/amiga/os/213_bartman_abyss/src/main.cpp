@@ -286,7 +286,7 @@ private:
 		m_sched.move(copper::Register::DDFSTOP, 0x00d0u);
 		for (eng::u8 p = 0u; p < kPlanes; ++p) {
 			m_sched.move_bitplane_pointer(
-				p, eng::Address<eng::MemoryKind::Chip> { m_bitmap } +
+				p, eng::Address<eng::MemoryKind::Chip>::from_storage(m_bitmap) +
 					   static_cast<eng::u32>(p) * kBytesPerRow);
 		}
 		for (eng::u8 i = 0u; i < 32u; ++i) {

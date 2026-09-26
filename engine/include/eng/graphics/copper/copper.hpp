@@ -340,7 +340,7 @@ public:
 
 	/// Word de la direccion de una instruccion (para calcular labels de copper).
 	constexpr eng::Address<eng::MemoryKind::Chip> instruction_address(u16 instruction_word) const {
-		return eng::Address<eng::MemoryKind::Chip> { m_words } + instruction_word * 2u;
+		return eng::Address<eng::MemoryKind::Chip>::from_storage(m_words) + instruction_word * 2u;
 	}
 
 	constexpr bool ok() const {

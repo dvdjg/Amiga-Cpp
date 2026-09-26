@@ -83,7 +83,7 @@ public:
 	/// Dirección DMA-visible del inicio (o de `off`, que puede ser negativo), como
 	/// `Address<eng::MemoryKind::Chip>`.
 	[[nodiscard]] constexpr Address<eng::MemoryKind::Chip> address(eng::s32 off = 0) const noexcept {
-		return Address<eng::MemoryKind::Chip> { m_span.data() + off };
+		return Address<eng::MemoryKind::Chip>::from_storage(m_span.data() + off);
 	}
 	[[nodiscard]] constexpr eng::u8* data() const noexcept { return m_span.data(); }
 	[[nodiscard]] constexpr size_type size() const noexcept { return m_span.size(); }
@@ -140,7 +140,7 @@ public:
 	/// Dirección DMA-visible del inicio (o de `off`, que puede ser negativo), como
 	/// `Address<eng::MemoryKind::Chip>`. Simétrico a `Bytes::address`.
 	[[nodiscard]] constexpr Address<eng::MemoryKind::Chip> address(eng::s32 off = 0) const noexcept {
-		return Address<eng::MemoryKind::Chip> { m_span.data() + off };
+		return Address<eng::MemoryKind::Chip>::from_storage(m_span.data() + off);
 	}
 	[[nodiscard]] constexpr size_type size() const noexcept { return m_span.size(); }
 	[[nodiscard]] constexpr bool empty() const noexcept { return m_span.empty(); }

@@ -113,9 +113,7 @@ inline constexpr u16 kBplcon0_Ham6 = 0x7a00;         ///< HAM6 (6 planos, COLOR,
 			s.move(copper::Register::DDFSTOP, ddfstop);
 			const u32 row = hv.bitmap_bytes_per_row;
 			for (u8 p = 0u; p < sc.planes(); ++p) {
-				const eng::uintptr addr = reinterpret_cast<eng::uintptr>(
-					hv.bitplanes + static_cast<u32>(p) * row);
-				s.move_bitplane_pointer(p, eng::Address<eng::MemoryKind::Chip> {addr});
+				s.move_bitplane_pointer(p, hv.bitplanes + static_cast<u32>(p) * row);
 			}
 		} else {
 			s.move(copper::Register::DMACON,

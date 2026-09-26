@@ -111,7 +111,7 @@ int main() {
 	const eng::u32 bitmap_bytes = static_cast<eng::u32>(row_bytes) * kWorldH * kPlanes;
 	{
 		const eng::field::PlayfieldHardwareView v = pf.hardware_view();
-		if (v.bitplanes != pf.buffer_bytes(pf.front_index())) {
+		if (v.bitplanes.cptr() != pf.buffer_bytes(pf.front_index())) {
 			std::printf("[FAIL] hardware_view no apunta al buffer delantero\n");
 			return 1;
 		}
@@ -135,7 +135,7 @@ int main() {
 	pf.flip();
 	{
 		const eng::field::PlayfieldHardwareView v = pf.hardware_view();
-		if (v.bitplanes != pf.buffer_bytes(1)) {
+		if (v.bitplanes.cptr() != pf.buffer_bytes(1)) {
 			std::printf("[FAIL] tras flip, hardware_view no sigue al nuevo delantero\n");
 			return 1;
 		}

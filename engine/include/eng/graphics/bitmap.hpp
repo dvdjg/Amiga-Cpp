@@ -69,7 +69,7 @@ public:
         const u32 alloc = m_total + cfg.guard_bytes;
         m_block = memory.chip.allocate_block<eng::PlaneTag>(alloc, cfg.alignment);
         if (!m_block.valid()) return false;
-        m_real_base = Address<MemoryKind::Chip> { m_block.view.data() };
+        m_real_base = Address<MemoryKind::Chip>::from_storage(m_block.view.data());
         m_frontbuffer = m_real_base + cfg.frontbase_offset;
         return true;
     }

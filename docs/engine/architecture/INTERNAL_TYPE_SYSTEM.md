@@ -183,7 +183,13 @@ Regla: **solo el eje que afecta a la corrección va al tipo.** El requisito `Chi
                                └ req=Any/NonChip -> handle con MemoryKind (dato)
 ```
 
-`Block<Tag>` (reserva de arena *bump*) sigue llevando `MemoryKind` **como dato**; el uso **DMA nuevo** pasa por `Address<Chip>`/`TypedBlock<Tag, Chip>` (`MemBank<Chip>`), que **impide en compilación** usar Fast/Slow. En `platform/amiga`, el backend entrega los buffers por banco (`MemoryManager::configure`) al arrancar.
+`Block<Tag>` (reserva de arena *bump*) sigue llevando `MemoryKind` **como dato**; el uso **DMA nuevo** pasa por `Address<Chip>`/`TypedBlock<Tag, Chip>` (`MemBank<Chip>`), que **impide en compilación** usar Fast/Slow. En `platform/amiga`, el backend entrega los buffers por bancos (`MemoryManager::configure`) al arrancar.
+
+**Procedencia de un `Address<Chip>`.** No hay constructor implícito desde `void*`: el único puente desde una dirección de almacenamiento es `Address<K>::from_storage(ptr)`, que nombra el acto como frontera explícita y solo es lícito cuando el búfer ya garantiza el medio `K` (banco/arena tipado, `gfx::Bitmap` —siempre Chip— o una tabla estática certificada). Una tabla constante de DMA se coloca con `eng::ChipStorage<Tag, N>` + `ENG_CHIP_RAM` (`eng/memory/chip_storage.hpp`), que la pone en `.MEMF_CHIP` y entrega la `Address<Chip>` y la vista de dominio **sin cast**; para assets, `INCBIN_CHIP` (`support/gcc8_c_support.h`). Preferible a reservarla dinámicamente. Regla del cast: `CODING_STYLE.md` («ante un `cast`, revisar el tipo de origen»).
+
+**Por qué las vistas (`Bytes`/`Words`) no llevan `MemoryKind`.** Una vista es (puntero, tamaño) sobre bytes de un dominio; el medio no es un eje de corrección *de la vista* —leer/escribir funciona en cualquier RAM—, solo importa al entregar la dirección a **DMA**. Por eso el medio vive en la frontera DMA (`Address<K>` compile-time, `TypedBlock<Tag, K>`, `MemBank<K>`) o como **dato** (`Block<Tag>`, cuando el medio lo decide el setup en runtime). Meterlo en cada vista duplicaría `Bytes`/`Words` por banco, arrastraría el medio a código CPU que no lo necesita y no podría representar el medio runtime (sería una especialización por un dato). Es preferible la vista **agnóstica** y tipar solo la frontera.
+
+**Panel de telemetría.** El **panel de telemetría** (`eng/debug/telemetry.hpp`) compone fps/frame/uso de memoria con `StaticString`/`to_chars_u32` y los dibuja en el **overlay del depurador** (`debug_text`/`debug_filled_rect`, vía cualquier sink con `text(x, y, cstr, rgb)`), sin tocar la escena ni aparecer en las capturas; es el complemento visual de `RunStatus`/`ProfBlock`.
 
 ## 4. Auditoría por subsistema
 

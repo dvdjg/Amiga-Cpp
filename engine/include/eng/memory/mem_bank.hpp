@@ -34,7 +34,7 @@ struct TypedBlock {
 	Bytes<Tag> view {};
 	[[nodiscard]] constexpr bool valid() const noexcept { return !view.empty(); }
 	[[nodiscard]] constexpr Address<K> address() const noexcept {
-		return Address<K> {reinterpret_cast<eng::uintptr>(view.data())};
+		return Address<K>::from_storage(view.data());
 	}
 	[[nodiscard]] constexpr eng::u8* data() const noexcept { return view.data(); }
 	[[nodiscard]] constexpr eng::usize size() const noexcept { return view.size(); }

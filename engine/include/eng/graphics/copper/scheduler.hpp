@@ -348,16 +348,16 @@ public:
 		move(Register::BLTAMOD, static_cast<u16>(job.bltamod));
 		move(Register::BLTDMOD, static_cast<u16>(job.bltdmod));
 		if (job.bltapt != nullptr) {
-			(void)move32(Register::BLTAPTH, eng::Address<eng::MemoryKind::Chip> { job.bltapt });
+			(void)move32(Register::BLTAPTH, eng::Address<eng::MemoryKind::Chip>::from_storage(job.bltapt));
 		}
 		if (job.bltbpt != nullptr) {
-			(void)move32(Register::BLTBPTH, eng::Address<eng::MemoryKind::Chip> { job.bltbpt });
+			(void)move32(Register::BLTBPTH, eng::Address<eng::MemoryKind::Chip>::from_storage(job.bltbpt));
 		}
 		if (job.bltcpt != nullptr) {
-			(void)move32(Register::BLTCPTH, eng::Address<eng::MemoryKind::Chip> { job.bltcpt });
+			(void)move32(Register::BLTCPTH, eng::Address<eng::MemoryKind::Chip>::from_storage(job.bltcpt));
 		}
 		if (job.bltdpt != nullptr) {
-			(void)move32(Register::BLTDPTH, eng::Address<eng::MemoryKind::Chip> { job.bltdpt });
+			(void)move32(Register::BLTDPTH, eng::Address<eng::MemoryKind::Chip>::from_storage(job.bltdpt));
 		}
 		move(Register::BLTSIZE, job.bltsize); // arranca el blit (ULTIMO)
 	}
@@ -666,7 +666,8 @@ private:
 					// Re-pointa el puntero de DATA del sprite (SPRxPT) para el rearm
 					// vertical ("chasing the raster"). No toca SPRxPOS/CTL: el
 					// `SpriteManager` los programa por separado.
-					const eng::Address<eng::MemoryKind::Chip> addr { intent.sprite_ptr };
+					const eng::Address<eng::MemoryKind::Chip> addr =
+						eng::Address<eng::MemoryKind::Chip>::from_storage(intent.sprite_ptr);
 					move(static_cast<u16>(0x120u + static_cast<u16>(intent.sprite_channel) * 4u), static_cast<u16>(addr.value >> 16));
 					move(static_cast<u16>(0x122u + static_cast<u16>(intent.sprite_channel) * 4u), static_cast<u16>(addr.value & 0xffffu));
 				}

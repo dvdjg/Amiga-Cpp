@@ -65,7 +65,7 @@ struct MockPlayfield : Playfield {
 		m_bytes_per_row = static_cast<u16>((w / 8) & ~1u);
 		m_total_bytes = static_cast<u32>(m_bytes_per_row) * m_planes * m_height;
 		mem.assign(m_total_bytes, 0);
-		m_frontbuffer = mem.data();
+		m_frontbuffer = eng::Address<eng::MemoryKind::Chip>::from_storage(mem.data());
 		m_initialized = true;
 	}
 	u32 planeline_for(s32 wy) const override { return static_cast<u32>(wy) * m_planes; }

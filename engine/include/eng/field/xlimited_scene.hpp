@@ -86,7 +86,7 @@ inline eng::Block<eng::TileBankTag> xlimited_build_blocks_bitmap(
     eng::Block<eng::TileBankTag> block = memory.chip.allocate_block<eng::TileBankTag>(bytes, 16);
     if (!block.valid() || row_fn == nullptr) return block;
     eng::u8* data = block.view.data();
-    for (eng::u32 i = 0; i < bytes; ++i) data[i] = 0;
+    __builtin_memset(data, 0, bytes);
     for (eng::u16 tile = 0; tile < tile_count; ++tile) {
         const eng::u8 glyph = static_cast<eng::u8>(tile & 15u);
         const eng::u8 variant = static_cast<eng::u8>((tile >> 4u) & 3u);
@@ -142,7 +142,7 @@ inline eng::Block<eng::TileBankTag> xlimited_build_blocks_bitmap_from_indexed(
     eng::Block<eng::TileBankTag> block = memory.chip.allocate_block<eng::TileBankTag>(bytes, 16);
     if (!block.valid() || indexed.empty()) return block;
     eng::u8* data = block.view.data();
-    for (eng::u32 i = 0; i < bytes; ++i) data[i] = 0;
+    __builtin_memset(data, 0, bytes);
     const eng::u32 tw8 = tile_width / 8u; // bytes por planelínea de tile (2 a 16px)
     for (eng::u16 tile = 0; tile < tile_count; ++tile) {
         const eng::u16 bx = tile % blocks_per_row;

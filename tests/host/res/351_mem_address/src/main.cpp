@@ -28,13 +28,26 @@ void check(bool ok, const char* what) {
 	}
 }
 
+/// API ficticia que exige Chip (frontera DMA): solo acepta `Address<Chip>`.
+struct DmaApi {
+	/// Exige Chip RAM; con otro banco la llamada no compila.
+	static void takes_chip(eng::Address<eng::MemoryKind::Chip>) {}
+};
+/// Concepto con parametro de plantilla (SFINAE): `DmaApi::takes_chip` con otro banco no compila.
+template <class A>
+concept DmaOk = requires(A a) { DmaApi::takes_chip(a); };
+
+// El banco va en el TIPO: no se mezclan. Una API DMA acepta Chip y rechaza Fast/Slow.
+static_assert(!std::is_same_v<Chip, Fast>, "Address<Chip> y Address<Fast> deben ser tipos distintos");
+static_assert(DmaOk<Chip>, "DMA acepta Address<Chip>");
+static_assert(!DmaOk<Fast>, "DMA rechaza Address<Fast>");
+static_assert(!DmaOk<eng::Address<eng::MemoryKind::Slow>>, "DMA rechaza Address<Slow>");
+
 } // namespace
 
 int main() {
 	std::printf("== HOST-351 mem_address ==\n");
 
-	// El banco va en el TIPO: no se mezclan.
-	static_assert(!std::is_same_v<Chip, Fast>, "Address<Chip> y Address<Fast> deben ser tipos distintos");
 	// Aritmetica: address + offset -> address (mismo banco).
 	static_assert(std::is_same_v<decltype(std::declval<Chip>() + eng::uintptr {1}), Chip>,
 		      "addr + offset conserva el banco");
@@ -61,7 +74,7 @@ int main() {
 
 	// Frontera con puntero: escape explicito (cptr()/ptr()), una sola vez.
 	eng::u8 buf[16] {};
-	const Chip p {static_cast<const void*>(buf)};
+	const Chip p = Chip::from_storage(buf);
 	check(p.cptr() == buf, "Address desde puntero");
 	check((p + 8u - p) == 8u, "tamano por diferencia");
 

@@ -101,13 +101,14 @@ int main() {
 		check(words_from_bytes.size() == 2u && words_from_bytes[1] == 0x2222u, "bytes<->words redondo");
 	}
 
-	// Direcciones con semántica distinta. La base de un bitmap va a `BPLxPT` (DMA de Agnus:
-	// SOLO Chip RAM), así que el búfer de origen debe estar **realmente en Chip** (`ENG_CHIP_RAM`).
-	// Forzar la conversión desde un array cualquiera ocultaría que no se puede garantizar el medio.
-	ENG_CHIP_RAM alignas(2) eng::u8 chip_planes[8] = {1, 2, 3, 4, 5, 6, 7, 8};
-	eng::BitmapBase bb {eng::Address<eng::MemoryKind::Chip> {chip_planes}};
-	eng::FrontBase fb {eng::Address<eng::MemoryKind::Chip> {chip_planes}};
-	check(bb.value == fb.value, "misma memoria, tipos distintos");
+	// Direcciones con semántica distinta: `BitmapBase` (base del bitmap, va a `BPLxPT`) y
+	// `FrontBase` (buffer de escritura) son tipos que NO se mezclan. El MEDIO (Chip) no se prueba
+	// aquí: un test host no tiene Chip RAM real y forzar un `Address<Chip>` desde un array
+	// cualquiera sería un cast que oculta el error. El `Address<Chip>` con procedencia (banco)
+	// se cubre en HOST-349 con `MemBank<Chip>`.
+	eng::BitmapBase bb {};
+	eng::FrontBase fb {};
+	check(!bb.value.valid() && !fb.value.valid(), "roles por defecto sin base");
 	static_assert(!ConstructibleFrom<eng::FrontBase, eng::BitmapBase>, "base y front no se mezclan");
 	static_assert(!ConstructibleFrom<eng::BitmapBase, eng::FrontBase>, "front y base no se mezclan");
 

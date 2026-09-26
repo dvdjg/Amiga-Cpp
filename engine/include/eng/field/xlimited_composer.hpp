@@ -93,7 +93,7 @@ public:
     };
 
     bool compose(const PlayfieldHardwareView& view, eng::Ref<const OverlayZone> hud) {
-        if (!m_initialized || !view.bitplanes) return false;
+        if (!m_initialized || !view.bitplanes.valid()) return false;
         if (!valid_view(view)) return false;
         if (!m_copper_initialized) {
             // Primer frame: emitir la lista completa en AMBOS bloques y dejar activo
@@ -141,7 +141,7 @@ private:
     }
 
     bool valid_view(const PlayfieldHardwareView& v) const {
-        if (!v.bitplanes || v.planes == 0 || v.planes > 6) return false;
+        if (!v.bitplanes.valid() || v.planes == 0 || v.planes > 6) return false;
         if (v.bitmap_bytes_per_row == 0) return false;
         if (v.bitmap_height == 0) return false;
         if (v.display_height == 0 || v.display_offset >= v.display_height) return false;
@@ -364,7 +364,7 @@ private:
 
     bool valid(const PlayfieldHardwareView& a, const PlayfieldHardwareView& b) const {
         g_dbg_dual_valid = 0;
-        if (!a.bitplanes || !b.bitplanes) { return false; }
+        if (!a.bitplanes.valid() || !b.bitplanes.valid()) { return false; }
         if (a.planes != m_cfg.planes_per_field || b.planes != m_cfg.planes_per_field) { return false; }
         if (a.planes + b.planes > 6) { return false; }
         // Un campo puede ser ESTÁTICO (CanvasPlayfield, display_height == su

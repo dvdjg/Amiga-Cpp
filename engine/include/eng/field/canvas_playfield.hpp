@@ -31,8 +31,7 @@ public:
         bc.layout = gfx::PlaneLayout::Interleaved;
         if (!m_bitmap.init(memory, bc)) return false;
         sync_from_bitmap();
-        u8* d = m_frontbuffer;
-        for (u32 i = 0; i < m_total_bytes; ++i) d[i] = 0;
+        __builtin_memset(m_frontbuffer.ptr(), 0, m_total_bytes);
         m_initialized = true;
         return true;
     }
@@ -55,7 +54,7 @@ public:
         m_planes = cfg.planes;
         m_bytes_per_row = row;
         m_total_bytes = need;
-        m_frontbuffer = bitplanes.view.data(); // vía cruda interna (núcleo)
+        m_frontbuffer = Address<MemoryKind::Chip>::from_storage(bitplanes.view.data()); // vía cruda interna (núcleo)
         m_initialized = true;
         return true;
     }
@@ -84,7 +83,7 @@ public:
     PlayfieldHardwareView hardware_view() const override {
         PlayfieldHardwareView v;
         v.bitplanes = m_frontbuffer;
-        v.real_base = Address<MemoryKind::Chip> { m_frontbuffer }; // base del bloque (para BPLxPT)
+        v.real_base = m_frontbuffer; // base del bloque (para BPLxPT)
         v.bitmap_bytes_per_row = m_bytes_per_row;
         v.plane_bytes = m_total_bytes;
         v.planes = m_planes;
@@ -134,7 +133,7 @@ public:
         const u16* sbase = src.data();
         for (u8 p = 0; p < planes; ++p) {
             const u16* s = sbase + eng::math::mulu16(p, static_cast<u16>(src_plane_stride / 2u));
-            u16* d = reinterpret_cast<u16*>(m_frontbuffer + eng::math::mulu16(static_cast<u16>(pl + p), m_bytes_per_row) + x_byte);
+            u16* d = reinterpret_cast<u16*>((m_frontbuffer + eng::math::mulu16(static_cast<u16>(pl + p), m_bytes_per_row) + x_byte).ptr());
             graphics::BlitJob job {
                 graphics::BlitJobKind::CopyRect, graphics::BlitSource {}, graphics::BlitSource {s}, graphics::BlitDest {d},
                 words, h, src_mod, dst_mod,
@@ -172,7 +171,7 @@ public:
         const u16* mbase = mask.data();
         for (u8 p = 0; p < planes; ++p) {
             const u16* s = sbase + eng::math::mulu16(p, static_cast<u16>(src_plane_stride / 2u));
-            u16* d = reinterpret_cast<u16*>(m_frontbuffer + eng::math::mulu16(static_cast<u16>(pl + p), m_bytes_per_row) + x_byte);
+            u16* d = reinterpret_cast<u16*>((m_frontbuffer + eng::math::mulu16(static_cast<u16>(pl + p), m_bytes_per_row) + x_byte).ptr());
             graphics::BlitJob job {
                 graphics::BlitJobKind::MaskedBobCookieCut, graphics::BlitSource {mbase}, graphics::BlitSource {s}, graphics::BlitDest {d},
                 words, h, src_mod, dst_mod,
@@ -191,7 +190,7 @@ private:
         m_planes = m_bitmap.planes();
         m_bytes_per_row = m_bitmap.row_bytes();
         m_total_bytes = m_bitmap.total_bytes();
-        m_frontbuffer = m_bitmap.bytes().data(); // vía cruda interna (núcleo)
+        m_frontbuffer = Address<MemoryKind::Chip>::from_storage(m_bitmap.bytes().data()); // vía cruda interna (núcleo)
     }
     gfx::Bitmap m_bitmap {};
     /// Bitplanes externos cuando el lienzo se construyó con `bind` (vacio con `begin`).

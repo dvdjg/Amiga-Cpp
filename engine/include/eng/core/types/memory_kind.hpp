@@ -13,17 +13,6 @@
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/type_traits.hpp>
 
-/// Coloca un objeto **estático en Chip RAM** (la que ve el DMA de Agnus: bitplanes, copper,
-/// sprites, audio). En m68k usa la sección `.MEMF_CHIP` que el linker asigna a Chip; en host
-/// (tests de tipos) no tiene efecto. Es la vía para garantizar la procedencia de un
-/// `Address<MemoryKind::Chip>` a partir de una tabla fija — **preferible a reservar
-/// dinámicamente** cuando el búfer es constante.
-#if defined(__mc68000__) || defined(__m68k__)
-#define ENG_CHIP_RAM __attribute__((section(".MEMF_CHIP")))
-#else
-#define ENG_CHIP_RAM
-#endif
-
 namespace eng {
 
 /// Tipo logico de memoria desde el punto de vista del engine.
@@ -52,11 +41,18 @@ struct Address {
 
 	constexpr Address() noexcept = default;
 	explicit constexpr Address(uintptr v) noexcept : value(v) {}
-	explicit constexpr Address(const void* p) noexcept : value(reinterpret_cast<uintptr>(p)) {}
+	/// Frontera explícita: interpreta una **dirección de almacenamiento** como `Address<K>`.
+	/// Solo es lícito cuando la procedencia del búfer ya garantiza el medio `K` (banco/arena,
+	/// `gfx::Bitmap`, o un búfer en la sección `.MEMF_CHIP`). Se nombra para que el acto se lea como tal;
+	/// no hay ctor implícito desde `void*`. Ver regla del cast en `CODING_STYLE.md`.
+	[[nodiscard]] static constexpr Address from_storage(const void* p) noexcept {
+		return Address { reinterpret_cast<uintptr>(p) };
+	}
 
 	[[nodiscard]] constexpr bool valid() const noexcept { return value != 0u; }
 	/// Puntero mutable a la dirección (escape explícito solo en la frontera con API de punteros).
-	[[nodiscard]] constexpr u8* ptr() noexcept { return reinterpret_cast<u8*>(value); }
+	/// `const` como un puntero-miembro: la dirección no cambia, el almacén sí puede escribirse.
+	[[nodiscard]] constexpr u8* ptr() const noexcept { return reinterpret_cast<u8*>(value); }
 	/// Puntero constante a la dirección (escape explícito en la frontera).
 	[[nodiscard]] constexpr const u8* cptr() const noexcept {
 		return reinterpret_cast<const u8*>(value);
