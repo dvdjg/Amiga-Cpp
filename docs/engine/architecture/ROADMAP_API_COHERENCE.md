@@ -238,22 +238,28 @@ Todo lo de abajo es **reutilizable** por cualquier juego/emulador; el adaptador 
 ello. Ordenados por dependencia:
 
 1. **`chr_to_planar`** (`eng::graphics`): decode 2bpp (y variantes) → planar; cubre
-   `IPatternCache::define` y `ISpriteEngine::define`. Gate HOST.
+   `IPatternCache::define` y `ISpriteEngine::define`. **Hecho** (`eng/graphics/chr.hpp`,
+   HOST-338).
 2. **Tile layer de juego**: `set_tile`/`set_attribute`/`flush(dirty)` sobre `TileLayer` +
-   `TileScrollDriver`; cubre `IScrollingLayer`. Gate en 100/052.
+   `TileScrollDriver`; cubre `IScrollingLayer`. **Hecho (modelo)**: `tilemap::TileEditor`
+   (HOST-342) + `tilemap::AttributeTable` (HOST-344); falta el **driver** que materializa lo
+   sucio (ligado a F7.3). Gate en 100/052.
 3. **Drivers de scroll por `ScrollKind`**: `XLimited` (existe) + `XYUnlimited`/`CopperSplit` y
-   `BlitterColumns` (robocod), con `region_cost` reservando bandas en `copper::Plan`. Gate: demo de
-   scroll 8-way.
+   `BlitterColumns` (robocod), con `region_cost` reservando bandas en `copper::Plan`.
+   **Núcleo hecho** (`eng/scene/scroll_plan.hpp`: `choose_scroll`/`scroll_memory`,
+   HOST-343); faltan los **drivers** (materializar ring/split). Gate: demo de scroll 8-way.
 4. **Fachada de Copper** en `Device`/`Screen` (`begin`/`wait_line`/`set_color`/`set_scroll`/
-   `split`/`commit`/`free_words`): cubre `ICopper`; hoy `copper::Plan`/`Scheduler` es de bajo nivel
-   (F4d).
+   `split`/`commit`/`free_words`): cubre `ICopper`. **Hecho** (`eng::Copper`,
+   `Device::copper_builder()`, HOST-339).
 5. **Voz Paula**: **cubierto** por `AudioMixer::play(AudioPlan::Channel{period,...})` +
    `paula::period_for_hz` (`eng/audio/audio.hpp`, `audio_mode.hpp`); el consumidor mapea
    `IAudio::play/set_period` a un `SampleEvent` sin código nuevo.
 6. **`res::ChipPool`** (bloques fijos con `free`) + `res::Budget`: cubre `IChipMem` reutilizable.
-7. **`SpriteEngine` a alto nivel** (`begin_frame`/`place`/`draw_bobs`/`add_to_copper`) sobre
-   `ActorStore`+`SpriteAllocator` (ya existe ~80%): cubre `ISpriteEngine` con semántica NES
-   (8 sprites/línea, overflow → descartar).
+   **Hecho** (`eng/res/chip_pool.hpp`, HOST-340).
+7. **`SpriteEngine` a alto nivel** (`begin_frame`/`place`/`draw_bobs`/`add_to_copper`): cubre
+   `ISpriteEngine` con semántica NES (8 sprites/línea, overflow → descartar). **Cubierto** por
+   `scene::compose_sprites` + `build_sprite_intents` + `emit_bob_fallbacks` + `actor_add_copper`
+   sobre `ActorStore`/`SpriteAllocator` (el consumidor mapea `place` a `add_actor`).
 
 Adaptadores triviales (ya cubiertos por el engine): `IBlitter`→`Device`/`FramePlan`;
 `IPalette`→`Palette`/`FramePlan`; `IInput`→`App::input()`; `IDisplay`→`c2p`+`present`; `ISurface`→

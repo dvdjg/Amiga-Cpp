@@ -32,6 +32,8 @@
 #include <eng/graphics/font_italic.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/glyph_cache.hpp>
+#include <eng/graphics/tilemap/attribute_table.hpp>
+#include <eng/graphics/tilemap/tile_editor.hpp>
 #include <eng/graphics/palette.hpp>
 #include <eng/graphics/palette32.hpp>
 #include <eng/graphics/sprite_asset.hpp>
