@@ -84,6 +84,7 @@ struct WorldRegion {
 	graphics::composition::SceneMode mode = graphics::composition::SceneMode::Standard;
 	ScrollKind scroll = ScrollKind::None;
 	u8 planes = 0;
+	u8 speed_px = 4u; ///< velocidad máxima de scroll pedida (px/frame); acota las guardas
 	[[nodiscard]] constexpr bool ok() const noexcept { return bottom > top; }
 	[[nodiscard]] constexpr RegionCost cost() const noexcept {
 		return region_cost(mode, scroll, planes);

@@ -106,4 +106,32 @@ struct ScrollMemory {
 	return ScrollKind::None;
 }
 
+/// Presupuesto del planner para una región.
+struct RegionBudget {
+	u16 copper_per_line = 0xffffu;    ///< MOVEs de Copper disponibles por línea
+	u32 chip_available = 0xffffffffu; ///< bytes de Chip disponibles
+};
+
+/// Resultado de planificar una región: la técnica de scroll **efectiva**, su coste y su memoria.
+struct RegionPlan {
+	ScrollKind scroll = ScrollKind::None;
+	RegionCost cost {};
+	ScrollMemory memory {};
+	bool ok = false; ///< `false` si ni la técnica mínima cabe en el presupuesto
+};
+
+/// **Planifica una región**: elige el `ScrollKind` efectivo (degradando) que quepa en Copper y
+/// Chip, con su `RegionCost` y su `ScrollMemory`. La capa **pide** (`region.scroll`,
+/// `region.speed_px`); el planner **dispone**. La materialización (playfield/Copper) va encima.
+[[nodiscard]] constexpr RegionPlan plan_region(const WorldRegion& region, u16 visible_w,
+					       u16 visible_h, RegionBudget budget) noexcept {
+	RegionPlan p {};
+	p.scroll = choose_scroll_fitting(region.scroll, visible_w, visible_h, region.planes,
+					 region.speed_px, budget.copper_per_line, budget.chip_available);
+	p.cost = region_cost(region.mode, p.scroll, region.planes);
+	p.memory = scroll_memory(p.scroll, visible_w, visible_h, region.planes, region.speed_px);
+	p.ok = (p.scroll != ScrollKind::None) || (region.scroll == ScrollKind::None);
+	return p;
+}
+
 } // namespace eng::scene
