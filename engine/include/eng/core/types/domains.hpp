@@ -30,6 +30,7 @@ struct UafTag {};
 struct MapCellsTag {};     // celdas de un mapa (indices de tile, u16)
 struct BobTag {};          // BOB planar: planos de color + mascara de cookie-cut
 struct MixerBufferTag {};  // buffer de trabajo del mezclador (consumido por asm)
+struct StackTag {};        // pila de CPU (hilo principal o tarea)
 
 // Aliases de dominio.
 using Pattern = ByteView<PatternTag>;           // patrón de fondo (bytes)

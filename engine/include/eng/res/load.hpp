@@ -24,6 +24,7 @@
 #include <eng/core/types/typed.hpp>
 #include <eng/core/util/binary.hpp>
 #include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
 #include <eng/os/file.hpp>
 
 namespace eng::res {
@@ -98,6 +99,27 @@ template <class Tag>
 template <class Tag>
 [[nodiscard]] inline Block<Tag> load(MemorySystem& mem, Span<const u8> src) {
 	return load<Tag>(mem, src, DomainAsset<Tag>::kind, DomainAsset<Tag>::align);
+}
+
+/// Carga tipada con los **bancos** (`MemoryManager`): DMA (`DomainAsset<Tag>::kind == Chip`) ->
+/// `MemBank<Chip>` (tipado, compile-time); datos de CPU -> **Fast si la hay, si no Slow**
+/// (`fast_or_slow`). Es la puerta para datos que la CPU procesa intensivamente.
+template <class Tag>
+[[nodiscard]] inline Block<Tag> load(MemoryManager& mm, Span<const u8> src) {
+	const u32 need = static_cast<u32>(src.size());
+	if (need == 0u) {
+		return {};
+	}
+	Block<Tag> block = (DomainAsset<Tag>::kind == MemoryKind::Chip)
+				   ? Block<Tag> {mm.chip().reserve<Tag>(need + kLoadHeadroom,
+									DomainAsset<Tag>::align)}
+				   : fast_or_slow<Tag>(mm, need + kLoadHeadroom, DomainAsset<Tag>::align);
+	if (!block.valid()) {
+		return {};
+	}
+	eng::util::ByteReader reader {src};
+	(void)reader.read_into(eng::Span<u8> {block.view.data(), need});
+	return block;
 }
 
 /// **Carga un asset desde fichero** por la E/S **síncrona** del mini-SO (`os::file_*`):

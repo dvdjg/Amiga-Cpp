@@ -238,6 +238,7 @@ struct MemoryConfig {
 	u32 chip_bytes = 0;
 	u32 slow_bytes = 0;
 	u32 frame_bytes = 0;
+	u32 fast_bytes = 0; ///< Fast RAM (solo CPU); 0 = no reservar (o no hay)
 };
 
 /// Resultado de la configuracion de memoria.
@@ -248,6 +249,7 @@ struct MemoryReport {
 	bool chip_ok = false;
 	bool slow_ok = false;
 	bool frame_ok = false;
+	bool fast_ok = false; ///< Fast RAM reservada (opcional; `false` = no había o no se pidió)
 
 	constexpr bool ok() const {
 		return chip_ok && slow_ok && frame_ok;

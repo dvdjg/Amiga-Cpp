@@ -13,6 +13,7 @@
 
 #include <eng/core/types/domains.hpp>
 #include <eng/memory/memory_manager.hpp>
+#include <eng/memory/stack.hpp>
 
 namespace {
 
@@ -51,6 +52,27 @@ int main() {
 	check(mm.slow().free_bytes() > slow_free, "release devuelve al banco");
 	mm.chip().release(planes);
 	check(mm.chip().free_bytes() == mm.chip().capacity(), "Chip restaurado");
+
+	// Banco Fast presente + `fast_or_slow` (CPU: Fast si hay, si no Slow).
+	eng::u8 fast_buf[256] {};
+	eng::MemoryManager mm2 {};
+	check(mm2.configure(chip_buf, sizeof(chip_buf), slow_buf, sizeof(slow_buf), fast_buf,
+			    sizeof(fast_buf), 16u),
+	      "configure con Fast");
+	check(mm2.has_fast(), "has_fast");
+	const auto cpu_fast = eng::fast_or_slow<eng::PlaneTag>(mm2, 64u);
+	check(cpu_fast.valid() && cpu_fast.kind == eng::MemoryKind::Fast, "fast_or_slow elige Fast");
+	const auto cpu_slow = eng::fast_or_slow<eng::PlaneTag>(mm, 64u);
+	check(cpu_slow.valid() && cpu_slow.kind == eng::MemoryKind::Slow, "fast_or_slow cae a Slow");
+
+	// Pila de CPU: banco seleccionable; tope alineado (valor para SP).
+	const eng::Stack st = eng::fast_or_slow_stack(mm2, 128u);
+	check(st.valid() && (st.top & 7u) == 0u && st.block.kind == eng::MemoryKind::Fast,
+	      "fast_or_slow_stack (Fast, tope alineado)");
+	const eng::Stack st_slow = eng::fast_or_slow_stack(mm, 128u);
+	check(st_slow.valid() && st_slow.block.kind == eng::MemoryKind::Slow, "pila cae a Slow");
+	const eng::Stack st_chip = eng::stack_from(mm.chip(), 128u);
+	check(st_chip.valid() && st_chip.block.kind == eng::MemoryKind::Chip, "stack_from<Chip>");
 
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);

@@ -61,4 +61,14 @@ private:
 	bool m_configured = false;
 };
 
+/// Reserva **CPU** (no DMA): **Fast si la hay, si no Slow**. Es la decisión de runtime para
+/// buffers que la CPU procesa intensivamente (descompresión, simulación, pilas): el banco se
+/// elige según disponibilidad. Devuelve `Block<Tag>` (el medio va como dato).
+template <class Tag>
+[[nodiscard]] inline Block<Tag> fast_or_slow(MemoryManager& mm, u32 bytes,
+					     u32 alignment = 0u) noexcept {
+	return mm.has_fast() ? Block<Tag> {mm.fast().reserve<Tag>(bytes, alignment)}
+			     : Block<Tag> {mm.slow().reserve<Tag>(bytes, alignment)};
+}
+
 } // namespace eng

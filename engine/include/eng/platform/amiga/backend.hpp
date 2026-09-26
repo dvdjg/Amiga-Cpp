@@ -627,6 +627,8 @@ private:
 	u32 m_slow_alloc_size = 0; ///< tamaño (KB) del bloque de Slow RAM
 	void* m_frame_alloc = nullptr; ///< bloque base de Frame scratch reservado
 	u32 m_frame_alloc_size = 0; ///< tamaño (KB) del bloque de Frame scratch
+	void* m_fast_alloc = nullptr; ///< bloque base de Fast RAM (CPU) reservado, si hay
+	u32 m_fast_alloc_size = 0; ///< tamaño (KB) del bloque de Fast RAM
 	u32 m_blitter_starts = 0; ///< contador de blits lanzados (diagnóstico)
 	/// Estado del lote de BOBs no-inline (`blitter_or_bobs_begin/one/end`): delega en
 	/// la misma implementacion `inline` de `blob.hpp` que usa el camino de coste cero.

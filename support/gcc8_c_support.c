@@ -9,6 +9,14 @@ unsigned long strlen(const char* s) {
 	return t;
 }
 
+void* eng_fast_stack_alloc(unsigned long bytes) {
+	if (bytes < 8) bytes = 8;
+	APTR p = AllocMem(bytes, MEMF_FAST | MEMF_CLEAR);
+	if (!p) return NULL;
+	// Tope alineado a 8 (SP no debe quedar desalineado).
+	return (void*)((((unsigned long)p) + bytes) & ~7ul);
+}
+
 void memclr(void* dest, unsigned long len) { // dest: 16bit-aligned, len: multiple of 2
 	__asm volatile (
 		"add.l %[len], %[dest]\n"

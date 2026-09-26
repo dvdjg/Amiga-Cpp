@@ -66,14 +66,20 @@ bool AmigaBackend::configure_memory(const MemoryConfig& config) {
 		m_frame_alloc_size = m_frame_alloc ? config.frame_bytes : 0;
 	}
 
+	if (config.fast_bytes != 0) {
+		// Fast RAM: CPU-privada (Agnus no la ve). Solo para trabajo de CPU (descompresión,
+		// simulación, pilas). Si no hay, queda vacía y `MemoryManager::has_fast()` es false.
+		m_fast_alloc = AllocMem(config.fast_bytes, MEMF_FAST | MEMF_CLEAR);
+		m_fast_alloc_size = m_fast_alloc ? config.fast_bytes : 0;
+	}
+
 	m_memory.chip.reset(m_chip_alloc, m_chip_alloc_size, MemoryKind::Chip);
 	m_memory.slow.reset(m_slow_alloc, m_slow_alloc_size, MemoryKind::Slow);
 	m_memory.frame.reset(m_frame_alloc, m_frame_alloc_size, MemoryKind::Chip);
 
-	// Bancos tipados por uso (mismos buffers que las arenas). Sin Fast propia: el engine aún no
-	// reserva una arena Fast; cuando exista, se entrega aquí.
+	// Bancos tipados por uso (mismos buffers que las arenas + el pool Fast).
 	(void)m_memmanager.configure(m_chip_alloc, m_chip_alloc_size, m_slow_alloc,
-				     m_slow_alloc_size, nullptr, 0u);
+				     m_slow_alloc_size, m_fast_alloc, m_fast_alloc_size);
 
 	// Caché de assets con el presupuesto de las arenas. El backend es estable, así que la
 	// `Ref` que guarda la caché es válida; el runtime posee su propio backend-copia.
@@ -86,11 +92,18 @@ bool AmigaBackend::configure_memory(const MemoryConfig& config) {
 	m_memory_report.chip_ok = config.chip_bytes == 0 || m_chip_alloc != nullptr;
 	m_memory_report.slow_ok = config.slow_bytes == 0 || m_slow_alloc != nullptr;
 	m_memory_report.frame_ok = config.frame_bytes == 0 || m_frame_alloc != nullptr;
+	m_memory_report.fast_ok = config.fast_bytes == 0 || m_fast_alloc != nullptr;
 
 	return m_memory_report.ok();
 }
 
 void AmigaBackend::release_memory() {
+	if (m_fast_alloc) {
+		FreeMem(m_fast_alloc, m_fast_alloc_size);
+		m_fast_alloc = nullptr;
+		m_fast_alloc_size = 0;
+	}
+
 	if (m_frame_alloc) {
 		FreeMem(m_frame_alloc, m_frame_alloc_size);
 		m_frame_alloc = nullptr;

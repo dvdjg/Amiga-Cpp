@@ -213,6 +213,20 @@ Reglas para no repetir el problema:
 - **Antes de crear un tipo, preguntar «¿qué eje nuevo aporta?».** Si no aporta corrección, usar un alias o un parámetro.
 - Ya fusionados: `ChipPool`→`BlockPool`, `TypedBlock`→`Block<Tag, Bank>`, y las 4 vistas→`TaggedSpan<T, Tag>` (4 alias).
 
+### 3.8 Fast RAM: reporte en setup, buffers de CPU y pila
+
+**Reporte.** El backend reserva un pool **Fast** (`AllocMem(MEMF_FAST)`) cuando se pide (`MemoryConfig::fast_bytes`) y lo entrega a `MemoryManager::fast()`; `has_fast()` indica disponibilidad en runtime. El «slow» del engine es la RAM no-Chip y no-Fast (ranger); su reserva no debe apoyarse en `MEMF_FAST`.
+
+**Buffers de CPU.** Para datos que la CPU procesa intensivamente (descompresión, simulación, estado) el medio es una decisión de **runtime**: `fast_or_slow(mm, bytes)` elige `MemBank<Fast>` si la hay, si no `Slow`. `res::load<Tag>(mm, src)` usa Chip para dominios DMA y `fast_or_slow` para el resto.
+
+**Pila e IRQs.** En 68000 las IRQs usan el **supervisor stack (SSP)**; si el SSP vive en Fast, todos los frames de las ISR van a Fast (y no compiten con el bus de Agnus). Receta:
+
+1. `eng_fast_stack_alloc(bytes)` (`support/`) reserva Fast y devuelve el **tope** alineado.
+2. En la **entrada** (`_start`), y **antes de habilitar IRQs**, cargar ese tope en `SP` (`move.l #top,%sp`). Si el programa corre en **modo supervisor** (takeover), `SP == SSP` y también las IRQs van a Fast; si corre en **modo usuario** (proceso de Exec), solo se mueve la pila del hilo principal y el SSP sigue siendo de Exec (no manipulable en 68000 sin un trap).
+3. El cambio debe hacerse en un `_start` **naked** (no tras el prólogo de una función C): una vez cambiado `SP` no se puede `rts` desde la pila antigua.
+
+**Tareas.** Una tarea con pila propia la reserva con `Stack`/`stack_from<Bank>`/`fast_or_slow_stack` (Fast por defecto; Chip/Slow opt-in); `Stack::top` es el valor para `SP` del *context switch*.
+
 ## 4. Auditoría por subsistema
 
 ### 4.1 `PlaneView` / `SoftDpfComposition` (punto de partida del usuario)
