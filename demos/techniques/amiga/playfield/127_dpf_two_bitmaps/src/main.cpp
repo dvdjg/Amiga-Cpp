@@ -2,15 +2,15 @@
 // Demo 127 - dpf_two_bitmaps
 // ----------------------------------------------------------------------------
 // Tutorial (§1.12 de AGENTS.md): **dual playfield de dos bitmaps** compuesto por bandas
-// (`eng::scene::RasterLayout` + `band_from_dual_view`). Cada campo (PF1 frontal, PF2 fondo) es
-// un bitmap independiente de 3 planos; la composicion los intercala en los planos pares/impares
-// del hardware con sus modulos y fine scroll. Un BOB (copia con padding) se dibuja en PF1.
+// (`eng::scene::RasterLayout` + `band_from_dual_view`), con el fondo (PF2) **scrolleando** por
+// frame y un BOB (copia con padding) sobre el primer plano (PF1).
 //
 // Que ilustra:
-//   1. `PlayfieldHardwareView` = la **superficie** de cada campo; `band_from_dual_view` la
-//      convierte en una banda. El juego declara superficies, no punteros de plano.
-//   2. `Band::bob_target()` da el destino de BOBs de PF1 en ese layout (interleave de 3 planos).
-//      El juego pinta con `eng::scene::FastBobLayer` sin ver `BlitJob`.
+//   1. `PlayfieldHardwareView` = la **superficie** de cada campo. El "driver" de scroll solo
+//      actualiza su offset; la composicion reconstruye la banda por frame (`band_from_dual_view`)
+//      y publica la copperlist nueva. El juego nunca calcula punteros de plano.
+//   2. `Band::bob_target()` da el destino de BOBs de PF1; `eng::scene::FastBobLayer` pinta sin que
+//      el juego vea `BlitJob`.
 //   3. Una franja inferior de 0 planos cierra la composicion (efectos copper).
 //
 //   bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/127_dpf_two_bitmaps --debug
@@ -55,6 +55,10 @@ constexpr u16 kHeight = 256u;
 constexpr u16 kBytesPerRow = kWidth / 8u; // 40
 constexpr u8 kFieldPlanes = 3u;           // cada campo: 3 planos (DPF 3+3)
 constexpr u32 kFieldBytes = static_cast<u32>(kBytesPerRow) * kFieldPlanes * kHeight;
+// PF2 (fondo) tiene el doble de alto: se scrollea sin envolver (el wrap del corkscrew necesita
+// split por campo, fuera de esta demo).
+constexpr u16 kField2Height = 512u;
+constexpr u32 kField2Bytes = static_cast<u32>(kBytesPerRow) * kFieldPlanes * kField2Height;
 constexpr u16 kBandBottom = 208u;
 
 constexpr u16 kBobPadded = 32u;
@@ -71,6 +75,7 @@ constexpr eng::Palette32 kPalette {{
 }};
 
 constexpr u16 kCopperWords = 2048u;
+constexpr u8 kLists = 2u; // doble buffer de copperlist
 
 [[nodiscard]] constexpr s16 tri(u32 t, u32 period) noexcept {
 	const u32 p = t % period;
@@ -80,28 +85,25 @@ constexpr u16 kCopperWords = 2048u;
 struct DpfTwoBitmapsDemo {
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		if (!backend.configure_memory({96u * 1024u, 8u * 1024u, 4u * 1024u})) {
+		if (!backend.configure_memory({128u * 1024u, 8u * 1024u, 4u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012701u);
 			return;
 		}
 		m_pf1 = backend.memory().chip.allocate_block<eng::PlaneTag>(kFieldBytes, 16u);
-		m_pf2 = backend.memory().chip.allocate_block<eng::PlaneTag>(kFieldBytes, 16u);
+		m_pf2 = backend.memory().chip.allocate_block<eng::PlaneTag>(kField2Bytes, 16u);
 		m_sheet = backend.memory().chip.allocate_block<eng::BobTag>(kBobSheetBytes, 16u);
-		m_copper = backend.memory().chip.allocate_block<eng::CopperTag>(kCopperWords, 16u);
+		m_copper = backend.memory().chip.allocate_block<eng::CopperTag>(kLists * kCopperWords, 16u);
 		if (!m_pf1.valid() || !m_pf2.valid() || !m_sheet.valid() || !m_copper.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012702u);
 			return;
 		}
-		build_field(m_pf1.view.data(), 0u);            // PF1 = vacio de origen
-		build_field(m_pf2.view.data(), 0x55u);         // PF2 = rayas
+		build_field(m_pf1.view.data(), 0u, kHeight);        // PF1 = vacio de origen
+		build_field(m_pf2.view.data(), 0x55u, kField2Height); // PF2 = rayas
 		build_sheet();
 
 		// Superficies de los dos campos: la composicion las intercala en el DPF.
-		eng::field::PlayfieldHardwareView v1 {};
-		configure_view(v1, m_pf1.view.data());
-		eng::field::PlayfieldHardwareView v2 {};
-		configure_view(v2, m_pf2.view.data());
-		m_band = eng::scene::band_from_dual_view(v1, v2, 0u);
+		configure_view(m_v1, m_pf1.view.data(), kHeight);
+		configure_view(m_v2, m_pf2.view.data(), kField2Height);
 
 		// BOB con padding (copia = dibuja y limpia en un blit) en PF1.
 		eng::graphics::Bob bob {};
@@ -116,10 +118,12 @@ struct DpfTwoBitmapsDemo {
 		m_bobs.set_slow_sheet(m_sprite);
 		m_bobs.resize(2u);
 
-		if (!build_display(backend)) {
+		if (!build_display(0u) || !build_display(1u)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012703u);
 			return;
 		}
+		backend.takeover_display(m_copper_ptrs[0]);
+		m_active = 1u;
 		eng::debug::mark_ready(g_eng_run_status, kHeight);
 	}
 
@@ -129,6 +133,18 @@ struct DpfTwoBitmapsDemo {
 			return;
 		}
 		const u32 f = context.frame.frame_index;
+
+		// "Driver de scroll": solo actualiza el offset vertical del fondo y la composicion
+		// reconstruye la banda; el juego no calcula punteros.
+		m_v2.planeaddy = (f * (kFieldPlanes * kBytesPerRow)) % (kHeight * kFieldPlanes * kBytesPerRow);
+		if (!build_display(m_active)) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00012704u);
+			return;
+		}
+		backend.install_copper_list(m_copper_ptrs[m_active]);
+		m_active = static_cast<u8>((m_active + 1u) % kLists);
+
+		// BOB sobre PF1 (estatico): la capa decide y el backend ejecuta el plan.
 		m_bobs[0] = {static_cast<s16>(16 + tri(f, 192u)), static_cast<s16>(32 + tri(f * 2u, 128u)),
 			     0u, true};
 		m_bobs[1] = {static_cast<s16>(176 + tri(f * 3u, 128u)),
@@ -143,28 +159,27 @@ struct DpfTwoBitmapsDemo {
 	}
 
 private:
-	static void configure_view(eng::field::PlayfieldHardwareView& v, u8* base) {
+	static void configure_view(eng::field::PlayfieldHardwareView& v, u8* base, u16 bitmap_h) {
 		v.planes = kFieldPlanes;
 		v.bitmap_bytes_per_row = kBytesPerRow;
-		v.bitmap_height = kHeight;
+		v.bitmap_height = bitmap_h;
 		v.viewport_w = kWidth;
 		v.viewport_h = kHeight;
 		v.display_height = kHeight;
-		v.plane_bytes = kFieldBytes;
+		v.plane_bytes = static_cast<u32>(kBytesPerRow) * kFieldPlanes * bitmap_h;
 		v.real_base = eng::Address<eng::MemoryKind::Chip>::from_storage(base);
 		v.bpl1mod = static_cast<u16>(kBytesPerRow * (kFieldPlanes - 1u)); // 80 (interleave)
 		v.bpl2mod = v.bpl1mod;
 	}
 
-	static void build_field(u8* data, u8 pattern) {
-		for (u32 i = 0u; i < kFieldBytes; ++i) {
+	static void build_field(u8* data, u8 pattern, u16 rows) {
+		for (u32 i = 0u; i < static_cast<u32>(kBytesPerRow) * kFieldPlanes * rows; ++i) {
 			data[i] = 0u;
 		}
 		if (pattern == 0u) {
 			return;
 		}
-		// Rayas en el plano 0 del campo (interleave: fila = planes*bpr, plano a p*bpr).
-		for (u16 y = 0u; y < kHeight; ++y) {
+		for (u16 y = 0u; y < rows; ++y) {
 			u8* row = data + static_cast<u32>(y) * (kBytesPerRow * kFieldPlanes);
 			for (u16 b = 0u; b < kBytesPerRow; ++b) {
 				row[b] = ((b + (y >> 2u)) & 1u) ? pattern : static_cast<u8>(pattern ^ 0xffu);
@@ -177,7 +192,6 @@ private:
 		for (u32 i = 0u; i < kBobSheetBytes; ++i) {
 			sheet[i] = 0u;
 		}
-		// Hoja **interleaved** de 3 planos: por fila, los 3 planos (cada uno 3 palabras).
 		const auto put = [&](u8 plane, u16 x, u16 y) {
 			u8* p = sheet + static_cast<u32>(y) * kBobRowBytes +
 				static_cast<u32>(plane) * (kBobWordsPerPlaneRow * 2u) + (x >> 3u);
@@ -195,8 +209,10 @@ private:
 		}
 	}
 
-	bool build_display(eng::amiga::AmigaBackend& backend) {
-		m_band.planes = static_cast<u8>(kFieldPlanes * 2u); // 6 planos de hardware
+	/// Reconstruye la banda desde las superficies (el driver solo movio sus offsets) y la
+	/// materializa en la copperlist `list`.
+	bool build_display(u8 list) {
+		m_band = eng::scene::band_from_dual_view(m_v1, m_v2, 0u);
 		m_band.palette = kPalette.words();
 		m_band.palette_colors = 16u;
 
@@ -204,12 +220,14 @@ private:
 		layout.add(m_band);
 		layout.add({.top = kBandBottom, .planes = 0u, .color = false});
 
-		copper::SchedulerT<false> sched {eng::Block<eng::CopperTag> {m_copper.view, m_copper.kind}};
+		const eng::Bytes<eng::CopperTag> slice =
+			m_copper.view.subspan(static_cast<u32>(list) * kCopperWords, kCopperWords);
+		copper::SchedulerT<false> sched {eng::Block<eng::CopperTag> {slice, m_copper.kind}};
 		if (!layout.materialize(sched)) {
 			return false;
 		}
 		sched.end();
-		backend.takeover_display(sched.data());
+		m_copper_ptrs[list] = sched.data();
 		return sched.ok();
 	}
 
@@ -217,10 +235,14 @@ private:
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_pf2 {};
 	eng::Block<eng::BobTag> m_sheet {};
 	eng::Block<eng::CopperTag> m_copper {};
+	eng::field::PlayfieldHardwareView m_v1 {};
+	eng::field::PlayfieldHardwareView m_v2 {};
 	eng::scene::Band m_band {};
 	eng::graphics::Sprite m_sprite {};
 	eng::scene::FastBobLayer m_bobs {};
 	eng::graphics::FramePlan m_plan {};
+	const u16* m_copper_ptrs[kLists] = {nullptr, nullptr};
+	u8 m_active = 0u;
 };
 
 } // namespace
