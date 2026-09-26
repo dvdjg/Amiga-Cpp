@@ -60,9 +60,9 @@ int main() {
 
 	check(layout.count() == 2u, "dos bandas");
 	check(layout[0].bplcon0() == 0x6600u, "banda 0: 6 planos + COLOR + DBLPF");
-	check(layout[0].modulo() == 200u, "banda 0: modulo interleaved");
+	check(layout[0].bpl1mod == 200u, "banda 0: modulo interleaved");
 	check(layout[1].bplcon0() == 0x0000u, "banda 1: 0 planos, sin COLOR");
-	check(layout[1].modulo() == 0u, "banda 1: sin modulo");
+	check(layout[1].bpl1mod == 0u, "banda 1: sin modulo");
 	const auto t0 = layout[0].bob_target();
 	check(t0.base == planes.view.data() && t0.planes == 3u && t0.row_bytes == 240u &&
 		      t0.plane_bytes == 80u && t0.layout == eng::graphics::BobLayout::Planar,
@@ -92,6 +92,36 @@ int main() {
 	check(bplcon0[1] == 0x0000u, "mode switch: planos apagados");
 	check(color0_seen, "paleta del tramo emitida");
 	check(last_color0 == chunky_pal[0], "COLOR00 final = paleta chunky");
+
+	// Banda desde una superficie de scroll: refleja base + fine scroll sin campo propio.
+	{
+		eng::field::PlayfieldHardwareView view {};
+		view.planes = 3u;
+		view.bitmap_bytes_per_row = 48u;
+		view.bitplanes = planes.mem_view().address(0);
+		view.plane_bytes = 3u * 48u * 256u;
+		view.bplcon1 = 0x0033u;
+		view.bpl1mod = 0x0050u;
+		view.bpl2mod = 0x0050u;
+		eng::scene::RasterLayout l2 {};
+		l2.add(eng::scene::band_from_view(view, 0u));
+		check(l2[0].planes == 3u && l2[0].bytes_per_row == 48u && l2[0].bplcon1 == 0x0033u &&
+			      l2[0].bpl1mod == 0x0050u,
+		      "band_from_view refleja la superficie");
+		eng::u16 cop[256] {};
+		eng::MemoryBlock cb {cop, sizeof(cop), eng::MemoryKind::Chip};
+		eng::copper::SchedulerT<false> s2 {cb};
+		check(l2.materialize(s2), "band_from_view materializa");
+		s2.end();
+		bool bplcon1_ok = false;
+		for (eng::u32 i = 0u; i + 1u < s2.words_used(); ++i) {
+			if (cop[i] == 0x0102u) { // BPLCON1
+				bplcon1_ok = (cop[i + 1u] == 0x0033u);
+				break;
+			}
+		}
+		check(bplcon1_ok, "BPLCON1 = fine scroll de la vista");
+	}
 
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);

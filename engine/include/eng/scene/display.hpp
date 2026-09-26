@@ -15,6 +15,7 @@
 
 #include <eng/core/types/domains.hpp>
 #include <eng/core/types/typed.hpp>
+#include <eng/field/playfield_base.hpp>
 #include <eng/graphics/bob.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
@@ -30,9 +31,14 @@ struct DisplayDesc {
 	eng::u16 ddfstrt = 0x0038u;
 	eng::u16 ddfstop = 0x00d0u;
 	eng::u16 bplcon0 = 0x5200u; ///< 5 planos + COLOR
+	eng::u16 bplcon1 = 0u;      ///< fine scroll (nibble bajo = PF1, alto = PF2 en DPF)
 	eng::u16 bplcon2 = 0u;
 	eng::u8 planes = 5u;
 	eng::u16 bytes_per_row = 40u; ///< bytes por fila de un plano (320 px / 8)
+	/// `BPLxMOD` explícitos (corkscrew). Con `auto_mod = true` se calculan como interleaved.
+	bool auto_mod = true;
+	eng::u16 bpl1mod = 0u;
+	eng::u16 bpl2mod = 0u;
 	eng::ChipPlaneView planes_view {}; ///< base Chip de los planos (DMA)
 	eng::u16 dmacon = static_cast<eng::u16>(::eng::copper::DmaSetClear | ::eng::copper::DmaMaster |
 						::eng::copper::DmaCopper | ::eng::copper::DmaBitplane |
@@ -45,13 +51,16 @@ template <class Scheduler>
 void emit_display(Scheduler& sched, const DisplayDesc& d) {
 	sched.move(::eng::copper::Register::DMACON, d.dmacon);
 	sched.move(::eng::copper::Register::BPLCON0, d.bplcon0);
-	sched.move(::eng::copper::Register::BPLCON1, 0u);
+	sched.move(::eng::copper::Register::BPLCON1, d.bplcon1);
 	sched.move(::eng::copper::Register::BPLCON2, d.bplcon2);
 	// Interleaved: tras leer una fila de un plano (bytes_per_row), el siguiente plano está a
-	// bytes_per_row; el "salto" a la fila siguiente es (planes-1)*bytes_per_row.
-	const eng::u16 mod = static_cast<eng::u16>(d.bytes_per_row * (d.planes - 1u));
-	sched.move(::eng::copper::Register::BPL1MOD, mod);
-	sched.move(::eng::copper::Register::BPL2MOD, mod);
+	// bytes_per_row; el "salto" a la fila siguiente es (planes-1)*bytes_per_row. Con
+	// `auto_mod = false` se usan los módulos explícitos (p. ej. corkscrew).
+	const eng::u16 auto_mod = static_cast<eng::u16>(d.bytes_per_row * (d.planes - 1u));
+	const eng::u16 mod1 = d.auto_mod ? auto_mod : d.bpl1mod;
+	const eng::u16 mod2 = d.auto_mod ? auto_mod : d.bpl2mod;
+	sched.move(::eng::copper::Register::BPL1MOD, mod1);
+	sched.move(::eng::copper::Register::BPL2MOD, mod2);
 	sched.move(::eng::copper::Register::DIWSTRT, d.diwstrt);
 	sched.move(::eng::copper::Register::DIWSTOP, d.diwstop);
 	sched.move(::eng::copper::Register::DDFSTRT, d.ddfstrt);
@@ -100,6 +109,7 @@ struct Band {
 	eng::u8  planes = 0;
 	eng::u16 ddfstrt = 0x0038u;
 	eng::u16 ddfstop = 0x00d0u;
+	eng::u16 bplcon1 = 0u; ///< fine scroll (PF1 en el nibble bajo, PF2 en el alto)
 	eng::u16 bytes_per_row = 40u; ///< bytes por fila de un plano (320 px / 8)
 	/// Stride entre planos: `0` = interleaved (módulo `bytes_per_row × (planes − 1)`); si no,
 	/// los planos van en bloques contiguos separados `plane_bytes` (módulo `0`).
@@ -116,7 +126,12 @@ struct Band {
 	eng::PaletteWords palette {}; ///< paleta opcional de la banda
 	eng::u8 palette_colors = 0;
 
-	/// `BPL1MOD`/`BPL2MOD` de la banda (interleaved vs bloques contiguos; `0` sin planos).
+	/// `BPL1MOD`/`BPL2MOD` de la banda. Las fábricas (`band_of_planes`, `band_from_view`) los
+	/// rellenan; un desplazamiento discontinuo (corkscrew) los trae de la superficie.
+	eng::u16 bpl1mod = 0u;
+	eng::u16 bpl2mod = 0u;
+
+	/// Módulo **interleaved** por defecto: `bytes_per_row × (planes − 1)` (`0` sin planos).
 	[[nodiscard]] constexpr eng::u16 modulo() const noexcept {
 		return (plane_bytes != 0u || planes == 0u)
 			       ? 0u
@@ -176,6 +191,26 @@ struct Band {
 	b.bytes_per_row = bytes_per_row;
 	b.planes_view = block.mem_view();
 	b.bob_base = block.view;
+	b.bpl1mod = b.modulo();
+	b.bpl2mod = b.modulo();
+	return b;
+}
+
+/// Banda a partir de la **superficie** de un playfield (`PlayfieldHardwareView`): el algoritmo de
+/// scroll mantiene esa instantánea (base, fine scroll, módulos) y la composición la coloca en su
+/// tramo. Así la banda **no** lleva un campo `scroll`: refleja lo que el driver de scroll ya
+/// calculó (ver `PLAYFIELD_SCROLL_ARCHITECTURE.md` §2-§4). El `top` lo fija el llamador.
+[[nodiscard]] inline Band band_from_view(const eng::field::PlayfieldHardwareView& view,
+					 eng::u16 top) noexcept {
+	Band b {};
+	b.top = top;
+	b.planes = view.planes;
+	b.bytes_per_row = view.bitmap_bytes_per_row;
+	b.bplcon1 = view.bplcon1;
+	b.planes_view = eng::ChipPlaneView {view.bitplanes, view.plane_bytes};
+	b.bob_base = eng::Bytes<eng::PlaneTag> {view.bitplanes.ptr(), view.plane_bytes};
+	b.bpl1mod = view.bpl1mod;
+	b.bpl2mod = view.bpl2mod;
 	return b;
 }
 
@@ -217,9 +252,13 @@ public:
 		const Band& b0 = m_bands[0];
 		DisplayDesc d {};
 		d.bplcon0 = b0.bplcon0();
+		d.bplcon1 = b0.bplcon1;
 		d.bplcon2 = b0.bplcon2;
 		d.planes = b0.planes;
 		d.bytes_per_row = b0.bytes_per_row;
+		d.auto_mod = false;
+		d.bpl1mod = b0.bpl1mod;
+		d.bpl2mod = b0.bpl2mod;
 		d.planes_view = b0.planes_view;
 		d.ddfstrt = b0.ddfstrt;
 		d.ddfstop = b0.ddfstop;
@@ -232,10 +271,12 @@ public:
 			eng::graphics::ModeSwitchZone z {};
 			z.top = b.top;
 			z.bplcon0 = b.bplcon0();
+			z.set_bplcon1 = true;
+			z.bplcon1 = b.bplcon1;
 			z.ddfstrt = b.ddfstrt;
 			z.ddfstop = b.ddfstop;
-			z.bpl1mod = b.modulo();
-			z.bpl2mod = b.modulo();
+			z.bpl1mod = b.bpl1mod;
+			z.bpl2mod = b.bpl2mod;
 			z.planes = b.planes;
 			z.plane_bytes = (b.plane_bytes != 0u) ? b.plane_bytes : b.bytes_per_row;
 			z.bitplanes = b.planes_view;
