@@ -203,7 +203,7 @@ Los tipos de memoria son **ejes ortogonales**; un tipo nuevo solo se justifica s
 | Medio (compile-time) | `MemoryKind` + `Address<Bank>` | la **dirección** lleva el banco; no compila entre bancos |
 | Vista con banco | `MemView<Tag, Bank>` (`ChipView`/`SlowView`/`FastView`) | **uno solo** parametrizado por banco; lo consume el DMA (`Bank=Chip`) o la CPU (`Fast`/`Slow`) |
 | Bloque | `Block<Tag, Bank = Any>` | **uno solo**: `Any` = medio como **dato** (el que decide la arena); banco concreto = DMA. `TypedBlock<Tag, K>` es **alias** de `Block<Tag, K>` |
-| Banco / alocador | `MemBank<K>` (pool por banco), `LinearArena` (bump), `BlockPool` (first-fit) | mecanismos distintos, no combinaciones |
+| Banco / alocador | `MemBank<K>` (pool), `ChipArena`/`LinearArena` (bump; chip en el tipo vs agnóstica), `BlockPool` (first-fit) | mecanismos distintos, no combinaciones |
 | Estático chip | `ChipStorage<Tag, N>` + `ENG_CHIP_RAM` | búfer fijo **certificado** en Chip RAM |
 | Rol de bitmap | (nombre del método `base()`/`front()`) | **no** es un tipo: el eje de corrección es el medio (`Address<Chip>`) |
 

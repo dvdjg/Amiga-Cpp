@@ -69,7 +69,7 @@ public:
         const u32 alloc = m_total + cfg.guard_bytes;
         m_block = memory.chip.allocate_block<eng::PlaneTag>(alloc, cfg.alignment);
         if (!m_block.valid()) return false;
-        m_real_base = m_block.mem_view_chip().address();
+        m_real_base = m_block.address();
         m_frontbuffer = m_real_base + cfg.frontbase_offset;
         return true;
     }
@@ -117,7 +117,7 @@ public:
     }
 
 private:
-    eng::Block<eng::PlaneTag> m_block {};
+    eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_block {};
     BitmapConfig m_cfg {};
     Address<MemoryKind::Chip> m_real_base {};
     Address<MemoryKind::Chip> m_frontbuffer {};

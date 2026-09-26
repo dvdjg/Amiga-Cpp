@@ -71,8 +71,8 @@ struct MockPlayfield : Playfield {
 		m_frontbuffer = bank.reserve<eng::PlaneTag>(m_total_bytes, 2u).address();
 		m_initialized = true;
 	}
-	u32 planeline_for(s32 wy) const override { return static_cast<u32>(wy) * m_planes; }
-	u32 byte_for(s32 wx) const override { return (static_cast<u32>(wx) / 8u) & ~1u; }
+	u32 planeline_for(s32 wy) const override { return wy * m_planes; }
+	u32 byte_for(s32 wx) const override { return wx / 8 & ~1; }
 	u32 plane_stride() const override {
 		return contiguous ? static_cast<u32>(m_bytes_per_row) * m_height : m_bytes_per_row;
 	}

@@ -44,9 +44,9 @@ int main() {
 	eng::u8 chip_buf[1024] {};
 	eng::u8 slow_buf[256] {};
 	eng::MemorySystem ms {
-		eng::LinearArena {chip_buf, sizeof(chip_buf), eng::MemoryKind::Chip},
+		eng::ChipArena {chip_buf, sizeof(chip_buf), eng::MemoryKind::Chip},
 		eng::LinearArena {slow_buf, sizeof(slow_buf), eng::MemoryKind::Slow},
-		eng::LinearArena {},
+		eng::ChipArena {},
 	};
 
 	// --- Carga a Chip con la alineación del dominio -------------------------
@@ -77,9 +77,9 @@ int main() {
 	{
 		eng::u8 tiny[8] {};
 		eng::MemorySystem ms2 {
-			eng::LinearArena {tiny, sizeof(tiny), eng::MemoryKind::Chip},
-			eng::LinearArena {},
-			eng::LinearArena {},
+			eng::ChipArena {tiny, sizeof(tiny), eng::MemoryKind::Chip},
+			eng::ChipArena {},
+			eng::ChipArena {},
 		};
 		const auto o =
 			eng::res::load<eng::PlaneTag>(ms2, eng::Span<const eng::u8> {src, sizeof(src)});

@@ -111,7 +111,7 @@ public:
 	/// Vista **certificada en Chip** de los bitplanes del buffer trasero: fuente para el **DMA**
 	/// (Copper/`BPLxPT`). Sale del `Block<Tag>` del buffer (medio en la arena) con la comprobación
 	/// de que es Chip; no se fabrica una dirección a mano.
-	[[nodiscard]] eng::ChipPlaneView chip_planes() const { return m_buffers[m_back].mem_view_chip(); }
+	[[nodiscard]] eng::ChipPlaneView chip_planes() const { return m_buffers[m_back].mem_view(); }
 	/// Buffer de display que se está dibujando (el trasero).
 	[[nodiscard]] constexpr eng::PlaneBytes back() const { return m_buffers[m_back].view; }
 	/// Buffer de display `i` (para leer/escribir otro); vacío si `i` fuera de rango.
@@ -149,7 +149,7 @@ public:
 			return false;
 		}
 		const u8 src = (m_plane_source[p] < m_res.planes) ? m_plane_source[p] : p;
-		const eng::ChipPlaneView planes = m_buffers[index].mem_view_chip();
+		const eng::ChipPlaneView planes = m_buffers[index].mem_view();
 		const eng::Address<eng::MemoryKind::Chip> want =
 			planes.address(static_cast<eng::s32>(static_cast<eng::u32>(src) * m_plane_bytes));
 		return display_plane_address(p) == static_cast<u32>(want.value);
@@ -463,18 +463,17 @@ private:
 		if (m_res.layout == SceneLayout::Interleaved || index >= m_buffer_count) {
 			return;
 		}
-		const eng::u8* addr = m_buffers[index].view.data();
+		const eng::ChipPlaneView planes = m_buffers[index].mem_view();
 		u16* words = m_plan.active_words();
 		for (u8 p = 0u; p < m_res.planes; ++p) {
 			const u8 src = (m_plane_source[p] < m_res.planes) ? m_plane_source[p] : p;
 			const eng::u32 off = eng::math::mulu32x16(m_plane_bytes, static_cast<u16>(src));
-			m_plane_patch[p].apply(words, static_cast<eng::u32>(
-							 reinterpret_cast<eng::uintptr>(addr + off)));
+			m_plane_patch[p].apply(words, planes.address(static_cast<eng::s32>(off)).value);
 		}
 	}
 
 	SceneResources m_res {}; ///< geometría/recursos de la escena (copiados en `init`)
-	eng::util::Array<eng::Block<eng::PlaneTag>, kMaxSceneBuffers> m_buffers {}; ///< buffers de bitplanes (Chip)
+	eng::util::Array<eng::Block<eng::PlaneTag, eng::MemoryKind::Chip>, kMaxSceneBuffers> m_buffers {}; ///< buffers de bitplanes (Chip)
 	field::CanvasPlayfield m_playfield {}; ///< playfield del layout interleaved (base de `surface()`)
 	field::ContiguousPlayfield m_contiguous {}; ///< playfield del layout contiguo (base de `surface()`)
 	copper::Plan m_plan {}; ///< programa de Copper (lista + presupuesto + emisor)

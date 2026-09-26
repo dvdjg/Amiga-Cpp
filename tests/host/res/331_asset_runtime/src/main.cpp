@@ -39,9 +39,9 @@ int main() {
 
 	eng::u8 chip_buf[4096] {};
 	eng::MemorySystem ms {
-		eng::LinearArena {chip_buf, sizeof(chip_buf), eng::MemoryKind::Chip},
-		eng::LinearArena {},
-		eng::LinearArena {},
+		eng::ChipArena {chip_buf, sizeof(chip_buf), eng::MemoryKind::Chip},
+		eng::ChipArena {},
+		eng::ChipArena {},
 	};
 	eng::res::AssetRuntime<eng::amiga::AssetCacheBackend, 4u> assets;
 	check(assets.init(eng::amiga::AssetCacheBackend {ms}, eng::res::CacheConfig {4096u, 0u, 4u}),

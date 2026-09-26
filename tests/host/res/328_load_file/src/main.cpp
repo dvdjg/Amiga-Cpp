@@ -70,9 +70,9 @@ int main() {
 
 	eng::u8 chip_buf[1024] {};
 	eng::MemorySystem ms {
-		eng::LinearArena {chip_buf, sizeof(chip_buf), eng::MemoryKind::Chip},
-		eng::LinearArena {},
-		eng::LinearArena {},
+		eng::ChipArena {chip_buf, sizeof(chip_buf), eng::MemoryKind::Chip},
+		eng::ChipArena {},
+		eng::ChipArena {},
 	};
 
 	// --- Fichero existente: se carga y el tamaño útil es el real ------------
@@ -112,9 +112,9 @@ int main() {
 	{
 		eng::u8 tiny[8] {};
 		eng::MemorySystem ms2 {
-			eng::LinearArena {tiny, sizeof(tiny), eng::MemoryKind::Chip},
-			eng::LinearArena {},
-			eng::LinearArena {},
+			eng::ChipArena {tiny, sizeof(tiny), eng::MemoryKind::Chip},
+			eng::ChipArena {},
+			eng::ChipArena {},
 		};
 		eng::u32 bytes = 0u;
 		const auto b = eng::res::load_file<eng::PlaneTag>(ms2, "mem://ok", bytes);

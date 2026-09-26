@@ -57,9 +57,9 @@ int main() {
 	eng::u8 chip_buf[4096] {};
 	eng::u8 slow_buf[1024] {};
 	eng::MemorySystem ms {
-		eng::LinearArena {chip_buf, sizeof(chip_buf), eng::MemoryKind::Chip},
+		eng::ChipArena {chip_buf, sizeof(chip_buf), eng::MemoryKind::Chip},
 		eng::LinearArena {slow_buf, sizeof(slow_buf), eng::MemoryKind::Slow},
-		eng::LinearArena {},
+		eng::ChipArena {},
 	};
 	eng::amiga::AssetCacheBackend backend {ms};
 

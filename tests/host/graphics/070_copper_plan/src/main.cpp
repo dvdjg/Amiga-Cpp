@@ -47,7 +47,7 @@ alignas(16) eng::u8 g_chip[64 * 1024];
 
 MemorySystem make_memory() {
 	MemorySystem mem;
-	mem.chip = LinearArena {g_chip, sizeof(g_chip), MemoryKind::Chip};
+	mem.chip = eng::ChipArena {g_chip, sizeof(g_chip), MemoryKind::Chip};
 	return mem;
 }
 
@@ -435,7 +435,7 @@ int main() {
 		// El Plan DINAMICO con la MISMA escena debe emitir la misma lista.
 		static eng::u8 chip_static[32 * 1024];
 		eng::MemorySystem mem2 {};
-		mem2.chip = eng::LinearArena {chip_static, sizeof(chip_static), eng::MemoryKind::Chip};
+		mem2.chip = eng::ChipArena {chip_static, sizeof(chip_static), eng::MemoryKind::Chip};
 		eng::copper::Plan dyn;
 		if (!dyn.begin(mem2, {8192u, 0x2cu})) {
 			std::printf("[FAIL] Plan::begin del camino estatico\n");

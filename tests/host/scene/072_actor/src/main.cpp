@@ -706,7 +706,7 @@ void test_copper_priority_wiring() {
 	static eng::u16 lo_cols[2] {0u, 0x0aau};
 
 	eng::MemorySystem mem {};
-	mem.chip = eng::LinearArena {g_chip_plan, sizeof(g_chip_plan), eng::MemoryKind::Chip};
+	mem.chip = eng::ChipArena {g_chip_plan, sizeof(g_chip_plan), eng::MemoryKind::Chip};
 	eng::copper::Plan plan {};
 	CHECK(plan.begin(mem, {4096u, 0x00u}), "plan.begin");
 

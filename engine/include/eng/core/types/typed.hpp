@@ -215,6 +215,13 @@ struct Block {
 	[[nodiscard]] constexpr const Bytes<Tag>& operator*() const noexcept { return view; }
 	[[nodiscard]] constexpr Bytes<Tag>* operator->() noexcept { return &view; }
 	[[nodiscard]] constexpr const Bytes<Tag>* operator->() const noexcept { return &view; }
+
+	/// Un bloque de banco **concreto** se usa como bloque con el medio **como dato** (bajar de
+	/// banco): seguro, el medio sigue viajando en `kind`. El inverso (subir a `Chip`) no existe.
+	[[nodiscard]] constexpr operator Block<Tag, MemoryKind::Any>() const noexcept
+		requires (Bank != MemoryKind::Any) {
+		return Block<Tag, MemoryKind::Any> {view, kind};
+	}
 };
 
 /// Bloque de un banco **concreto** (compile-time): alias de `Block<Tag, K>`.

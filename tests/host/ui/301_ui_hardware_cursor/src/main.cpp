@@ -33,7 +33,7 @@ alignas(16) eng::u8 g_chip[16 * 1024];
 
 eng::MemorySystem make_memory() {
 	eng::MemorySystem mem;
-	mem.chip = eng::LinearArena {g_chip, sizeof(g_chip), eng::MemoryKind::Chip};
+	mem.chip = eng::ChipArena {g_chip, sizeof(g_chip), eng::MemoryKind::Chip};
 	return mem;
 }
 
