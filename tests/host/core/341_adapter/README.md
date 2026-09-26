@@ -1,8 +1,9 @@
 # HOST-341 — prueba de decisión §7.6 (adaptador de consumidor sobre `api.hpp`)
 
 Demuestra la decisión del roadmap (§7.6): las interfaces `I*` de un **consumidor externo**
-**viven fuera del engine** y se implementan con **solo** `<eng/api/api.hpp>` + los helpers
-generales, sin tocar `field`/`BobTarget`/planos ni registros. El test define interfaces externas
+**viven fuera del engine** y se implementan con `eng/api/api.hpp` + **helpers públicos opt-in**
+(`eng/api/copper.hpp`, `eng/res/chip_pool.hpp`), sin tocar `field`/`BobTarget`/planos ni registros.
+El test define interfaces externas
 (`IChipMem`, `ICopper`) y **adaptadores finos** sobre el engine:
 
 - `IChipMem` → `eng::res::ChipPool` (alloc/free/free_bytes);

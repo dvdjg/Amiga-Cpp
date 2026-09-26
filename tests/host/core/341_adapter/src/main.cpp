@@ -11,7 +11,9 @@
 
 #include <cstdio>
 
-#include <eng/api/api.hpp> // unica puerta
+#include <eng/api/api.hpp> // fachada base
+#include <eng/api/copper.hpp> // helper opcional (opt-in, fuera del umbrella)
+#include <eng/res/chip_pool.hpp> // helper opcional (opt-in, fuera del umbrella)
 
 namespace {
 
