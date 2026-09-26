@@ -215,7 +215,7 @@ public:
         if (!m_bitmap.init(memory, bc)) return false;
         this->m_total_bytes = m_bitmap.total_bytes();
         m_real_base = m_bitmap.allocation_start(); // base del bloque (BPLxPT)
-        this->m_frontbuffer = Address<MemoryKind::Chip>::from_storage(m_bitmap.bytes().data()); // vía cruda interna (núcleo)
+        this->m_frontbuffer = m_bitmap.front(); // vía cruda interna (núcleo)
         // Soft DPF (RoboCod): configurar la composición y enlazar el bitmap
         // principal; si está activa reserva UN bitmap extra (doble buffer del plano
         // de fondo). Ver `soft_dpf.hpp`.

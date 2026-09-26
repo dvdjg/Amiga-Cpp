@@ -54,7 +54,7 @@ public:
         m_planes = cfg.planes;
         m_bytes_per_row = row;
         m_total_bytes = need;
-        m_frontbuffer = Address<MemoryKind::Chip>::from_storage(bitplanes.view.data()); // vía cruda interna (núcleo)
+        m_frontbuffer = bitplanes.mem_view_chip().address(); // vía cruda interna (núcleo)
         m_initialized = true;
         return true;
     }
@@ -190,7 +190,7 @@ private:
         m_planes = m_bitmap.planes();
         m_bytes_per_row = m_bitmap.row_bytes();
         m_total_bytes = m_bitmap.total_bytes();
-        m_frontbuffer = Address<MemoryKind::Chip>::from_storage(m_bitmap.bytes().data()); // vía cruda interna (núcleo)
+        m_frontbuffer = m_bitmap.front(); // vía cruda interna (núcleo)
     }
     gfx::Bitmap m_bitmap {};
     /// Bitplanes externos cuando el lienzo se construyó con `bind` (vacio con `begin`).

@@ -1,5 +1,6 @@
 #define ENG_SCALAR_RETRO16  // host: instancia retro (eng::real=q12, coord=q0)
 #include <eng/retro/fixed_mesh.hpp>
+#include <eng/memory/mem_bank.hpp>
 // Test host de `eng::graphics::mesh_renderer` (malla 3D -> Surface):
 // proyección en perspectiva, back-face culling (mesh_painter_order) y relleno de
 // las caras visibles vía `Surface::fill_polygon`. `Playfield` de prueba en RAM.
@@ -24,7 +25,9 @@ struct MockPlayfield : Playfield {
 		m_bytes_per_row = static_cast<u16>((w / 8) & ~1u);
 		m_total_bytes = static_cast<u32>(m_bytes_per_row) * m_planes * m_height;
 		mem.assign(m_total_bytes, 0);
-		m_frontbuffer = eng::Address<eng::MemoryKind::Chip>::from_storage(mem.data());
+		eng::MemBank<eng::MemoryKind::Chip> bank {};
+		bank.configure(mem.data(), static_cast<eng::u32>(mem.size()), 2u);
+		m_frontbuffer = bank.reserve<eng::PlaneTag>(m_total_bytes, 2u).address();
 		m_initialized = true;
 	}
 	u32 planeline_for(s32 wy) const override { return static_cast<u32>(wy) * m_planes; }

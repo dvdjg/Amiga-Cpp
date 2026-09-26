@@ -170,21 +170,16 @@ public:
 		return Block<Tag> { mb.buffer<Tag>(), mb.kind };
 	}
 
-	/// Reserva un array de objetos triviales.
-	/// De momento no llama constructores. Esta funcion esta pensada para PODs,
-	/// tablas, comandos y estructuras de runtime controladas.
-	template <typename T>
-	T* allocate_array(u16 count, u32 alignment = alignof(T)) {
-		MemoryBlock block = allocate(sizeof(T) * static_cast<u32>(count), alignment);
-		return static_cast<T*>(block.data);
-	}
-
 	constexpr u32 capacity() const { return m_size; }
 	constexpr u32 used() const { return m_used; }
 	constexpr u32 peak() const { return m_peak; }
 	constexpr u32 remaining() const { return m_size - m_used; }
 	constexpr MemoryKind kind() const { return m_kind; }
-	constexpr void* base() const { return m_base; }
+	/// Dirección base de la arena como `Address<Any>` (el banco es un dato, `kind()`): evita
+	/// exponer un `void*` crudo en la API.
+	constexpr Address<MemoryKind::Any> base() const {
+		return Address<MemoryKind::Any>::from_storage(m_base);
+	}
 
 	/// True si la ultima allocate() fallo por falta de espacio (overflow).
 	/// Util para diagnosticar bug de alineacion sin examinar cada puntero.

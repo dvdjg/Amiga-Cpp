@@ -48,8 +48,9 @@ struct FakeOverlay {
 	}
 };
 
-// ChipStorage global con la macro de seccion (no-op en host; real en m68k).
-ENG_CHIP_RAM eng::ChipStorage<eng::PlaneTag, 32> g_chip {};
+// ChipStorage global (sin `ENG_CHIP_RAM`: el macro es de target y en host es un no-op; el tipo
+// sigue siendo la fuente certificada para la API).
+eng::ChipStorage<eng::PlaneTag, 32> g_chip {};
 
 } // namespace
 

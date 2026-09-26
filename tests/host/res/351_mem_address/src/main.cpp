@@ -13,7 +13,9 @@
 #include <type_traits>
 #include <utility>
 
+#include <eng/core/types/domains.hpp>
 #include <eng/core/types/memory_kind.hpp>
+#include <eng/memory/mem_bank.hpp>
 
 namespace {
 
@@ -72,10 +74,12 @@ int main() {
 	check(!Chip {}.valid(), "direccion nula no valida");
 	check(base.valid(), "direccion no nula valida");
 
-	// Frontera con puntero: escape explicito (cptr()/ptr()), una sola vez.
-	eng::u8 buf[16] {};
-	const Chip p = Chip::from_storage(buf);
-	check(p.cptr() == buf, "Address desde puntero");
+	// Dirección certificada: se obtiene de una fuente Chip (`MemBank<Chip>`), no con un cast.
+	static eng::u8 buf[16] {};
+	eng::MemBank<eng::MemoryKind::Chip> bank {};
+	bank.configure(buf, sizeof(buf), 2u);
+	const Chip p = bank.reserve<eng::PlaneTag>(16u, 2u).address();
+	check(p.valid() && p.cptr() == buf, "Address certificada (MemBank<Chip>)");
 	check((p + 8u - p) == 8u, "tamano por diferencia");
 
 	if (g_fail != 0) {

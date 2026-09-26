@@ -111,8 +111,8 @@ struct DemoGame {
 		draw_bar(debug, 76, 258, 460, 22, memory.frame.used(), memory.frame.capacity(), 0x00ffff00);
 		debug.text(552, 262, "Frame scratch", 0x00ffffff);
 
-		const HexBuffer chip_base = hex32(static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(memory.chip.base())));
-		const HexBuffer slow_base = hex32(static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(memory.slow.base())));
+		const HexBuffer chip_base = hex32(static_cast<eng::u32>(memory.chip.base().value));
+		const HexBuffer slow_base = hex32(static_cast<eng::u32>(memory.slow.base().value));
 		debug.text(76, 314, "Chip base:", 0x00ffffff);
 		debug.text(196, 314, chip_base.text, 0x000080ff);
 		debug.text(76, 342, "Slow base:", 0x00ffffff);
@@ -124,10 +124,10 @@ struct DemoGame {
 		const auto& memory = backend.memory();
 		KPrintF(
 			"AMG010 chip base=%lx used=%ld cap=%ld slow base=%lx used=%ld cap=%ld frame used=%ld cap=%ld ok=%ld\n",
-			static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(memory.chip.base())),
+			static_cast<eng::u32>(memory.chip.base().value),
 			memory.chip.used(),
 			memory.chip.capacity(),
-			static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(memory.slow.base())),
+			static_cast<eng::u32>(memory.slow.base().value),
 			memory.slow.used(),
 			memory.slow.capacity(),
 			memory.frame.used(),

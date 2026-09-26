@@ -8,6 +8,7 @@
 // CONTRATO del seam que esa ruta consume.
 #include <eng/field/raster.hpp>
 #include <eng/field/surface.hpp>
+#include <eng/memory/mem_bank.hpp>
 
 #include <cstdio>
 #include <vector>
@@ -64,7 +65,9 @@ struct MockPlayfield : Playfield {
 		m_bytes_per_row = static_cast<u16>((w / 8) & ~1u);
 		m_total_bytes = static_cast<u32>(m_bytes_per_row) * m_planes * m_height;
 		mem.assign(m_total_bytes, 0);
-		m_frontbuffer = eng::Address<eng::MemoryKind::Chip>::from_storage(mem.data());
+		eng::MemBank<eng::MemoryKind::Chip> bank {};
+		bank.configure(mem.data(), static_cast<eng::u32>(mem.size()), 2u);
+		m_frontbuffer = bank.reserve<eng::PlaneTag>(m_total_bytes, 2u).address();
 		m_initialized = true;
 	}
 	u32 planeline_for(s32 wy) const override { return static_cast<u32>(wy) * m_planes; }

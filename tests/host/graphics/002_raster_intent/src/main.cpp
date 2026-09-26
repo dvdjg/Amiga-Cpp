@@ -26,6 +26,7 @@
 #include <eng/graphics/raster_intent.hpp>
 #include <eng/graphics/sprite.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
+#include <eng/memory/mem_bank.hpp>
 
 namespace {
 
@@ -163,8 +164,17 @@ int main() {
         MemoryBlock copper_block { copper_words, sizeof(copper_words), MemoryKind::Chip };
         eng::copper::Scheduler sched { copper_block };
 
-        eng::u8 base[6 * 10240] {};
-        eng::u8 split[6 * 10240] {};
+        // Planos en una fuente **certificada** (`MemBank<Chip>`): no se fabrica una dirección
+        // Chip con un cast (eso sería el agujero que el sistema de tipos cierra).
+        static eng::u8 base_buf[6 * 10240] {};
+        static eng::u8 split_buf[6 * 10240] {};
+        eng::MemBank<eng::MemoryKind::Chip> base_bank {}, split_bank {};
+        base_bank.configure(base_buf, sizeof(base_buf), 2u);
+        split_bank.configure(split_buf, sizeof(split_buf), 2u);
+        const eng::ChipPlaneView base =
+            base_bank.reserve<eng::PlaneTag>(sizeof(base_buf), 2u).mem_view();
+        const eng::ChipPlaneView split =
+            split_bank.reserve<eng::PlaneTag>(sizeof(split_buf), 2u).mem_view();
         CopperIntent intents[2] {
             { CopperIntentKind::BitplaneSplit, 100, 100, 0, {}, 0, 0, 0, split, 0, nullptr },
             { CopperIntentKind::ShiftLines,    150, 150, 0, {}, 0, 0, 4, {}, 0, nullptr },

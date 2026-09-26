@@ -188,7 +188,7 @@ struct CopperIntent {
     u8  first = 0;
     u8  count = 0;
     s16 shift_x = 0;              // ShiftLines
-    eng::PlaneBytes bitplanes {};  // BitplaneSplit (base del primer plano)
+    eng::ChipPlaneView bitplanes {};  // BitplaneSplit (base del primer plano, Chip)
     u8  sprite_channel = 0;       // SpriteRearm
     const u16* sprite_ptr = nullptr; // SpriteRearm (nueva DATA del canal)
     const BlitterJob* blitter_job = nullptr; // BlitterJob (registros a programar)

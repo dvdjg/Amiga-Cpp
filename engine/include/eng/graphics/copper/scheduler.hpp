@@ -371,7 +371,7 @@ public:
 	void emit_planes_display(
 		u16 diwstrt, u16 diwstop, u16 ddfstrt, u16 ddfstop,
 		u16 bytes_per_row, u16 bplcon0, u8 planes,
-		eng::PlaneBytes bitplanes, u32 plane_bytes
+		eng::ChipPlaneView bitplanes, u32 plane_bytes
 	) {
 		move(
 			Register::DMACON,
@@ -577,7 +577,7 @@ public:
 	/// bytes). `plane_bytes` es el stride entre planos y `planes` cuántos re-pointar.
 	void emit_copper_intents_full(
 		const graphics::CopperIntent* intents, u8 count,
-		eng::PlaneBytes bitplane_base, u32 plane_bytes, u8 planes
+		eng::ChipPlaneView bitplane_base, u32 plane_bytes, u8 planes
 	) {
 		if (intents == nullptr) {
 			return;
@@ -618,7 +618,7 @@ private:
 	/// `materialize`, gcc expandia ~2,5 KB de codigo dentro del bucle (medido en la 086)
 	/// en lugar de compartir el despacho. Aqui interesa una llamada por intencion.
 	void emit_single_intent(
-		const graphics::CopperIntent& intent, eng::PlaneBytes bitplane_base, u32 plane_bytes, u8 planes
+		const graphics::CopperIntent& intent, eng::ChipPlaneView bitplane_base, u32 plane_bytes, u8 planes
 	) {
 		switch (intent.kind) {
 			case graphics::CopperIntentKind::PaletteLine:

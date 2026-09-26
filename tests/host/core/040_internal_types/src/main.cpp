@@ -9,6 +9,7 @@
 #include <cstdio>
 
 #include <eng/core/types/typed.hpp>
+#include <eng/memory/mem_bank.hpp>
 
 namespace {
 int g_fail = 0;
@@ -101,14 +102,16 @@ int main() {
 		check(words_from_bytes.size() == 2u && words_from_bytes[1] == 0x2222u, "bytes<->words redondo");
 	}
 
-	// Dirección DMA-visible de Chip RAM. El **rol** (base de `BPLxPT` vs buffer de escritura) no
-	// es un tipo aparte: lo da el nombre del método (`Bitmap::base()`/`front()`). El medio (Chip)
-	// va en `Address<Chip>`, y su procedencia se cubre en HOST-349 con `MemBank<Chip>`.
+	// Dirección DMA-visible de Chip RAM: de una fuente **certificada** (`MemBank<Chip>`), no
+	// fabricando un `Address<Chip>` con un cast. El rol (base/front) no es un tipo: lo da el nombre
+	// del método.
+	static eng::u8 chip_buf[8] {};
+	eng::MemBank<eng::MemoryKind::Chip> bank {};
+	bank.configure(chip_buf, sizeof(chip_buf), 2u);
 	eng::Address<eng::MemoryKind::Chip> chip_addr {};
 	check(!chip_addr.valid(), "dirección Chip por defecto vacía");
-	const eng::u8 chip_store[8] {};
-	chip_addr = eng::Address<eng::MemoryKind::Chip>::from_storage(chip_store);
-	check(chip_addr.valid() && chip_addr.cptr() == chip_store, "dirección Chip desde almacén");
+	chip_addr = bank.reserve<PatternTag>(8u, 2u).address();
+	check(chip_addr.valid() && chip_addr.cptr() == chip_buf, "dirección Chip certificada");
 
 	if (g_fail != 0) { std::printf("%d fallo(s)\n", g_fail); return 1; }
 	std::printf("OK: sistema de tipos internos (tags, unidades, direcciones) validado.\n");

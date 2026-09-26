@@ -83,13 +83,6 @@ public:
 
 	/// Frontera explícita hacia la capa unsafe.
 	[[nodiscard]] constexpr Span<T> raw() const noexcept { return m_span; }
-	/// Dirección DMA-visible del inicio (o de `off`, que puede ser negativo). Solo para vistas de
-	/// **byte**; la procedencia (Chip) la certifica quien la construye (`gfx::Bitmap`, `ChipStorage`,
-	/// `Block<Tag, Chip>`), no la vista.
-	[[nodiscard]] constexpr Address<eng::MemoryKind::Chip> address(eng::s32 off = 0) const noexcept
-		requires (sizeof(T) == 1u) {
-		return Address<eng::MemoryKind::Chip>::from_storage(m_span.data() + off);
-	}
 	[[nodiscard]] constexpr T* data() const noexcept { return m_span.data(); }
 	[[nodiscard]] constexpr size_type size() const noexcept { return m_span.size(); }
 	[[nodiscard]] constexpr bool empty() const noexcept { return m_span.empty(); }
@@ -163,6 +156,10 @@ public:
 	[[nodiscard]] constexpr ByteView<Tag> view() const noexcept {
 		return ByteView<Tag>(m_base.cptr(), m_size);
 	}
+	/// Adaptador **seguro**: un `MemView` (con banco) se usa donde se espera una vista agnóstica
+	/// sin conversión explícita. El **inverso** (agnóstica → banco) no existe a propósito: exigiría
+	/// inventar la procedencia (el agujero que cerramos).
+	[[nodiscard]] constexpr operator ByteView<Tag>() const noexcept { return view(); }
 
 private:
 	Address<Bank> m_base {};
@@ -199,6 +196,18 @@ struct Block {
 	[[nodiscard]] constexpr MemView<Tag, Bank> mem_view() const noexcept {
 		return MemView<Tag, Bank> {Address<Bank>::from_storage(view.data()),
 					   static_cast<eng::usize>(view.size())};
+	}
+	/// Puente **controlado** arena(medio runtime) → DMA: para `Bank == Any` comprueba que el medio
+	/// sea Chip (si no, **trapa**: no se programa `BPLxPT` con memoria que Agnus no ve) y devuelve
+	/// la vista `MemView<Tag, Chip>`. Para un banco concreto, usa `mem_view()`.
+	[[nodiscard]] MemView<Tag, MemoryKind::Chip> mem_view_chip() const noexcept
+		requires (Bank == MemoryKind::Any) {
+		if (kind != MemoryKind::Chip) {
+			detail::typed_range_error();
+		}
+		return MemView<Tag, MemoryKind::Chip> {
+			Address<MemoryKind::Chip>::from_storage(view.data()),
+			static_cast<eng::usize>(view.size())};
 	}
 	[[nodiscard]] constexpr eng::u8* data() const noexcept { return view.data(); }
 	[[nodiscard]] constexpr eng::usize size() const noexcept { return view.size(); }
