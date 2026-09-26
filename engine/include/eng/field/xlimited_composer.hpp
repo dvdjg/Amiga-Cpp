@@ -6,6 +6,7 @@
 /// `xlimited_base.hpp`; `xlimited.hpp` es la cabecera de familia.
 
 #include <eng/core/types/ptr.hpp>
+#include <eng/field/field_display.hpp>
 #include <eng/field/xlimited_playfield.hpp>
 
 namespace eng::field {
@@ -185,29 +186,30 @@ private:
     /// reutilizarla en vez de reescribir el display.
     template <class Sched>
     void emit_display_header(Sched& sched, const PlayfieldHardwareView& view) const {
-        const u16 bplcon0 = static_cast<u16>(
-            0x0200u | (static_cast<u16>(view.planes) << 12u));
-        sched.move(copper::Register::DMACON,
-            static_cast<u16>(copper::DmaSetClear | copper::DmaMaster |
-                             copper::DmaCopper | copper::DmaBitplane |
-                             (m_cfg.sprites.valid() ? m_cfg.sprites->dma_bits() : 0)));
-        sched.move(copper::Register::BPLCON0, bplcon0);
-        sched.move(copper::Register::BPLCON1, view.bplcon1);
-        sched.move(copper::Register::BPLCON2, 0x0000);
+        // Fuente única de la cabecera (la misma que usa `scene::RasterLayout`).
+        FieldHeaderConfig h {};
+        h.dmacon = static_cast<u16>(copper::DmaSetClear | copper::DmaMaster |
+                                    copper::DmaCopper | copper::DmaBitplane |
+                                    (m_cfg.sprites.valid() ? m_cfg.sprites->dma_bits() : 0));
+        h.bplcon0 = static_cast<u16>(0x0200u | (static_cast<u16>(view.planes) << 12u));
+        h.bplcon1 = view.bplcon1;
+        h.bplcon2 = 0x0000u;
         // EHB (HalfBrite): con 6 planos en modo SINGLE, el bit 0 de BPLCON4 activa
         // el modo EHB — el plano 6 deja de ser un bit de color y actúa como
         // selector "half": color = base/2. Es la semántica del tilebank BASES-
         // PRIMERO de la 201 (índices 0..31 base, 32..63 = half automático).
-        if (view.planes == 6u) sched.move(copper::Register::BPLCON4, 0x0001u);
-        sched.move(copper::Register::BPL1MOD, view.bpl1mod);
-        sched.move(copper::Register::BPL2MOD, view.bpl2mod);
-        sched.move(copper::Register::DIWSTRT, m_cfg.diwstrt);
-        sched.move(copper::Register::DIWSTOP, m_cfg.diwstop);
-        sched.move(copper::Register::DDFSTRT, m_cfg.ddfstrt);
-        sched.move(copper::Register::DDFSTOP, m_cfg.ddfstop);
+        h.set_bplcon4 = (view.planes == 6u);
+        h.bplcon4 = 0x0001u;
+        h.bpl1mod = view.bpl1mod;
+        h.bpl2mod = view.bpl2mod;
+        h.diwstrt = m_cfg.diwstrt;
+        h.diwstop = m_cfg.diwstop;
+        h.ddfstrt = m_cfg.ddfstrt;
+        h.ddfstop = m_cfg.ddfstop;
         // Paleta primero: si el split está en una línea alta, los MOVEs de color
         // deben aplicar al inicio del frame y no tras el WAIT del split.
-        sched.emit_palette(m_cfg.palette);
+        h.palette = m_cfg.palette;
+        emit_field_display_header(sched, h);
     }
 
     bool emit_full(const PlayfieldHardwareView& view, eng::Ref<const OverlayZone> hud = {}) {

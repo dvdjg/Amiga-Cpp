@@ -15,6 +15,7 @@
 
 #include <eng/core/types/domains.hpp>
 #include <eng/core/types/typed.hpp>
+#include <eng/field/field_display.hpp>
 #include <eng/field/playfield_base.hpp>
 #include <eng/graphics/bob.hpp>
 #include <eng/graphics/copper/copper.hpp>
@@ -53,22 +54,22 @@ struct DisplayDesc {
 /// cabecera (geometría), para que la composición emita los punteros con `emit_band_pointers`.
 template <class Scheduler>
 void emit_display(Scheduler& sched, const DisplayDesc& d, bool pointers = true) {
-	sched.move(::eng::copper::Register::DMACON, d.dmacon);
-	sched.move(::eng::copper::Register::BPLCON0, d.bplcon0);
-	sched.move(::eng::copper::Register::BPLCON1, d.bplcon1);
-	sched.move(::eng::copper::Register::BPLCON2, d.bplcon2);
 	// Interleaved: tras leer una fila de un plano (bytes_per_row), el siguiente plano está a
 	// bytes_per_row; el "salto" a la fila siguiente es (planes-1)*bytes_per_row. Con
 	// `auto_mod = false` se usan los módulos explícitos (p. ej. corkscrew).
 	const eng::u16 auto_mod = static_cast<eng::u16>(d.bytes_per_row * (d.planes - 1u));
-	const eng::u16 mod1 = d.auto_mod ? auto_mod : d.bpl1mod;
-	const eng::u16 mod2 = d.auto_mod ? auto_mod : d.bpl2mod;
-	sched.move(::eng::copper::Register::BPL1MOD, mod1);
-	sched.move(::eng::copper::Register::BPL2MOD, mod2);
-	sched.move(::eng::copper::Register::DIWSTRT, d.diwstrt);
-	sched.move(::eng::copper::Register::DIWSTOP, d.diwstop);
-	sched.move(::eng::copper::Register::DDFSTRT, d.ddfstrt);
-	sched.move(::eng::copper::Register::DDFSTOP, d.ddfstop);
+	eng::field::FieldHeaderConfig h {};
+	h.dmacon = d.dmacon;
+	h.bplcon0 = d.bplcon0;
+	h.bplcon1 = d.bplcon1;
+	h.bplcon2 = d.bplcon2;
+	h.bpl1mod = d.auto_mod ? auto_mod : d.bpl1mod;
+	h.bpl2mod = d.auto_mod ? auto_mod : d.bpl2mod;
+	h.diwstrt = d.diwstrt;
+	h.diwstop = d.diwstop;
+	h.ddfstrt = d.ddfstrt;
+	h.ddfstop = d.ddfstop;
+	eng::field::emit_field_display_header(sched, h);
 	if (!pointers) {
 		return;
 	}
@@ -114,8 +115,13 @@ struct Band {
 	eng::u16 top = 0;
 	eng::u16 height = 0; ///< alto en líneas (informativo; el recorte lo fija DIW)
 	eng::u8  planes = 0;
+	eng::u16 diwstrt = 0x2c81u;
+	eng::u16 diwstop = 0x2cc1u;
 	eng::u16 ddfstrt = 0x0038u;
 	eng::u16 ddfstop = 0x00d0u;
+	eng::u16 dmacon = static_cast<eng::u16>(::eng::copper::DmaSetClear | ::eng::copper::DmaMaster |
+						::eng::copper::DmaCopper | ::eng::copper::DmaBitplane |
+						::eng::copper::DmaBlitter);
 	eng::u16 bplcon1 = 0u; ///< fine scroll (PF1 en el nibble bajo, PF2 en el alto)
 	eng::u16 bytes_per_row = 40u; ///< bytes por fila de un plano (320 px / 8)
 	/// Stride entre planos: `0` = interleaved (módulo `bytes_per_row × (planes − 1)`); si no,
@@ -177,6 +183,14 @@ struct Band {
 		}
 		return v;
 	}
+	/// Fine scroll de **PF1** del tramo en píxeles (`BPLCON1`, nibble bajo). Para que un BOB no
+	/// "tiemble" con el campo, el juego lo dibuja a `x - bob_fine_scroll()` (el campo desplaza todo
+	/// el playfield, incluido lo que escribe el Blitter). En las capas de Fast BOB (PF1 estático)
+	/// es `0`.
+	[[nodiscard]] constexpr eng::u8 bob_fine_scroll() const noexcept {
+		return static_cast<eng::u8>(bplcon1 & 0x0fu);
+	}
+
 	/// Destino de BOBs de esta banda (`BobTarget`), para `BobLayer`/`FastBobLayer`/`clear_box`.
 	///
 	/// En **dual playfield** devuelve el destino del playfield **frontal** (PF1, planos pares):
@@ -351,23 +365,23 @@ public:
 			return false;
 		}
 		const Band& b0 = m_bands[0];
-		DisplayDesc d {};
-		d.bplcon0 = b0.bplcon0();
-		d.bplcon1 = b0.bplcon1;
-		d.bplcon2 = b0.bplcon2;
-		d.planes = b0.planes;
-		d.bytes_per_row = b0.bytes_per_row;
-		d.auto_mod = false;
-		d.bpl1mod = b0.bpl1mod;
-		d.bpl2mod = b0.bpl2mod;
-		d.planes_view = b0.planes_view;
-		d.ddfstrt = b0.ddfstrt;
-		d.ddfstop = b0.ddfstop;
-		emit_display(sched, d, false);
-		emit_band_pointers(sched, b0, 0);
-		if (!b0.palette.empty() && b0.palette_colors != 0u) {
-			emit_palette(sched, b0.palette.data(), b0.palette_colors);
+		// Cabecera por la fuente única (`emit_field_display_header`), igual que el driver de scroll.
+		eng::field::FieldHeaderConfig h {};
+		h.dmacon = b0.dmacon;
+		h.bplcon0 = b0.bplcon0();
+		h.bplcon1 = b0.bplcon1;
+		h.bplcon2 = b0.bplcon2;
+		h.bpl1mod = b0.bpl1mod;
+		h.bpl2mod = b0.bpl2mod;
+		h.diwstrt = b0.diwstrt;
+		h.diwstop = b0.diwstop;
+		h.ddfstrt = b0.ddfstrt;
+		h.ddfstop = b0.ddfstop;
+		if (!b0.palette.empty()) {
+			h.palette = eng::PaletteWords {b0.palette.data(), b0.palette_colors};
 		}
+		eng::field::emit_field_display_header(sched, h);
+		emit_band_pointers(sched, b0, 0);
 		if (b0.split_active) {
 			// Wrap del corkscrew: a mitad del tramo los planos vuelven al inicio del bucle.
 			sched.wait_line(static_cast<eng::u16>(b0.top + b0.split_line));

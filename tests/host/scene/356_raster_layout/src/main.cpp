@@ -284,6 +284,51 @@ int main() {
 		check(bpl1 == 2u, "split en tramo: punteros reemitidos");
 	}
 
+	// La cabecera es la MISMA pieza para el display y para el campo (fuente única).
+	{
+		eng::scene::DisplayDesc d {};
+		d.bplcon0 = 0x5200u;
+		d.bplcon1 = 0x0003u;
+		d.bplcon2 = 0x0011u;
+		d.planes = 3u;
+		d.bytes_per_row = 48u;
+		eng::u16 a[128] {};
+		eng::u16 b[128] {};
+		eng::MemoryBlock ca {a, sizeof(a), eng::MemoryKind::Chip};
+		eng::MemoryBlock cb {b, sizeof(b), eng::MemoryKind::Chip};
+		eng::copper::SchedulerT<false> sa {ca};
+		eng::copper::SchedulerT<false> sb {cb};
+		eng::scene::emit_display(sa, d, false); // solo cabecera
+		eng::field::FieldHeaderConfig h {};
+		h.dmacon = d.dmacon;
+		h.bplcon0 = d.bplcon0;
+		h.bplcon1 = d.bplcon1;
+		h.bplcon2 = d.bplcon2;
+		h.bpl1mod = static_cast<eng::u16>(d.bytes_per_row * (d.planes - 1u));
+		h.bpl2mod = h.bpl1mod;
+		h.diwstrt = d.diwstrt;
+		h.diwstop = d.diwstop;
+		h.ddfstrt = d.ddfstrt;
+		h.ddfstop = d.ddfstop;
+		eng::field::emit_field_display_header(sb, h);
+		sa.end();
+		sb.end();
+		bool same = (sa.words_used() == sb.words_used());
+		for (eng::u32 i = 0u; same && i < sa.words_used(); ++i) {
+			same = (a[i] == b[i]);
+		}
+		check(same, "cabecera unica: display == campo");
+	}
+
+	// El fine scroll de PF1 se expone para compensar la posicion del BOB.
+	{
+		eng::scene::Band b {};
+		b.bplcon1 = 0x0103u; // PF2 = 1, PF1 = 3
+		check(b.bob_fine_scroll() == 3u, "bob_fine_scroll = nibble PF1");
+		eng::scene::Band z {};
+		check(z.bob_fine_scroll() == 0u, "sin fine scroll -> 0");
+	}
+
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;
