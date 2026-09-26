@@ -146,16 +146,8 @@ public:
     /// esto: la geometría es de la composición; el driver aporta los punteros que van cambiando.
     template <class Sched>
     void emit_scroll_pointers(Sched& sched, const PlayfieldHardwareView& view) const {
-        for (u8 p = 0; p < view.planes; ++p) {
-            // soft DPF: el plano de fondo se lee de su propio buffer (doble buffer).
-            const Address<MemoryKind::Chip> base =
-                (view.bg_plane_base.valid() && p == view.parallax_plane) ? view.bg_plane_base
-                                                                         : view.real_base;
-            // En interleaved, Planes[p] = base + p*bpr + Y*planes*bpr; planeaddx/planeaddy son
-            // los offsets actuales del scroll. La aritmética de `Address<Chip>` conserva el banco.
-            sched.move_bitplane_pointer(p, base + view.planeaddx + view.planeaddy +
-                                               static_cast<u32>(p) * view.bitmap_bytes_per_row);
-        }
+        // Fuente única de los punteros de una superficie: la misma que usa `scene::RasterLayout`.
+        emit_view_pointers(sched, view);
     }
 
 private:

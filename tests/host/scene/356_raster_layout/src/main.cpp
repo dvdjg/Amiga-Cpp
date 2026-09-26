@@ -217,6 +217,73 @@ int main() {
 		check(bpl1 == 2u, "split: punteros reemitidos");
 	}
 
+	// Composición por bandas y driver comparten la MISMA emisión de punteros (fuente única).
+	{
+		eng::field::PlayfieldHardwareView view {};
+		view.planes = 3u;
+		view.bitmap_bytes_per_row = 48u;
+		view.real_base = planes.mem_view().address(0);
+		view.plane_bytes = 3u * 48u * 256u;
+		view.planeaddx = 64u;
+		eng::u16 a[128] {};
+		eng::u16 b[128] {};
+		eng::MemoryBlock ca {a, sizeof(a), eng::MemoryKind::Chip};
+		eng::MemoryBlock cb {b, sizeof(b), eng::MemoryKind::Chip};
+		eng::copper::SchedulerT<false> sa {ca};
+		eng::copper::SchedulerT<false> sb {cb};
+		const eng::scene::Band band = eng::scene::band_from_view(view, 0u);
+		eng::scene::emit_band_pointers(sa, band, 0);
+		eng::field::emit_view_pointers(sb, view);
+		sa.end();
+		sb.end();
+		bool same = (sa.words_used() == sb.words_used());
+		for (eng::u32 i = 0u; same && i < sa.words_used(); ++i) {
+			same = (a[i] == b[i]);
+		}
+		check(same, "banda y driver: misma emision de punteros");
+	}
+
+	// Los BOB de una banda con scroll se compensan con el desplazamiento vertical.
+	{
+		eng::field::PlayfieldHardwareView view {};
+		view.planes = 3u;
+		view.bitmap_bytes_per_row = 48u;
+		view.real_base = planes.mem_view().address(0);
+		view.plane_bytes = 3u * 48u * 256u;
+		view.planeaddy = 480u;
+		const eng::scene::Band band = eng::scene::band_from_view(view, 0u);
+		check(band.bob_target().base == planes.view.data() + 480u,
+		      "bob_target compensa el scroll vertical");
+	}
+
+	// El split tambien funciona en un tramo (banda != 0).
+	{
+		eng::scene::RasterLayout l {};
+		l.add({.top = 0u, .planes = 0u, .color = false});
+		eng::field::PlayfieldHardwareView view {};
+		view.planes = 3u;
+		view.bitmap_bytes_per_row = 48u;
+		view.real_base = planes.mem_view().address(0);
+		view.plane_bytes = 3u * 48u * 256u;
+		eng::scene::Band zb = eng::scene::band_from_view(view, 100u);
+		zb.split_active = true;
+		zb.split_line = 20u;
+		zb.split_base_off = 0;
+		l.add(zb);
+		eng::u16 cop[512] {};
+		eng::MemoryBlock cb {cop, sizeof(cop), eng::MemoryKind::Chip};
+		eng::copper::SchedulerT<false> s {cb};
+		check(l.materialize(s), "materializa con tramo split");
+		s.end();
+		eng::u8 bpl1 = 0u;
+		for (eng::u32 i = 0u; i + 1u < s.words_used(); ++i) {
+			if (cop[i] == 0x00e0u) {
+				++bpl1;
+			}
+		}
+		check(bpl1 == 2u, "split en tramo: punteros reemitidos");
+	}
+
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;

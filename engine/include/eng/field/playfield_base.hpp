@@ -141,6 +141,25 @@ struct PlayfieldHardwareView {
     s32 mapposy = 0;
 };
 
+/// Emite los `BPLxPT` de una superficie: un plano por paso `bitmap_bytes_per_row`, con la base
+/// desplazada por el scroll actual (`planeaddx`/`planeaddy`) y, si el plano de parallax (soft DPF)
+/// está configurado, su base propia. `extra_off` añade un desplazamiento (p. ej. el wrap del
+/// split). Es la **fuente única** de los punteros de una superficie: la usan el driver de scroll
+/// (`XlimitedDisplayComposer`) y la composición por bandas (`scene::RasterLayout`).
+template <class Sched>
+inline void emit_view_pointers(Sched& sched, const PlayfieldHardwareView& view,
+			       eng::s32 extra_off = 0) {
+    for (u8 p = 0u; p < view.planes; ++p) {
+        const Address<MemoryKind::Chip> base =
+            (view.bg_plane_base.valid() && p == view.parallax_plane) ? view.bg_plane_base
+                                                                     : view.real_base;
+        sched.move_bitplane_pointer(
+            p, base + static_cast<eng::s32>(view.planeaddx) +
+                   static_cast<eng::s32>(view.planeaddy) + extra_off +
+                   static_cast<eng::s32>(p) * static_cast<eng::s32>(view.bitmap_bytes_per_row));
+    }
+}
+
 /// Seam opcional para delegar el **relleno de polígonos al hardware** (Blitter).
 ///
 /// El `Playfield` es agnóstico del backend: guarda un puntero de función + un

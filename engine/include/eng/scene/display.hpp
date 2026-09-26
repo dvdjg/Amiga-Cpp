@@ -125,6 +125,13 @@ struct Band {
 	/// Segunda superficie (**dual playfield**): PF1 en `planes_view` (planos pares) y PF2 en
 	/// `planes_view_b` (impares). No la usa `bob_target` (los BOB van a PF1).
 	eng::ChipPlaneView planes_view_b {};
+	/// Superficie de origen si la banda viene de un `PlayfieldHardwareView` (`band_from_view` /
+	/// `update_from_view`): habilita la emisión de punteros con `eng::field::emit_view_pointers`
+	/// (fuente única, con parallax/soft-DPF). Vacía = banda explícita (bloque o DPF de dos vistas).
+	eng::field::PlayfieldHardwareView source_view {};
+	/// Desplazamiento de la base por el scroll actual (bytes): alinea los BOB con la posición de
+	/// pantalla. Lo fija `update_from_view` (`planeaddx + planeaddy`).
+	eng::s32 scroll_off = 0;
 	/// Vista **mutable** de los planos (Chip) para dibujar BOBs en esta banda: la misma memoria
 	/// que `planes_view`, pero escribible. Vacía = la banda no dibuja BOBs.
 	eng::Bytes<eng::PlaneTag> bob_base {};
@@ -178,7 +185,7 @@ struct Band {
 	/// planos, layout `Planar`), de modo que el Blitter cubre solo los planos de PF1.
 	[[nodiscard]] eng::graphics::BobTarget bob_target() const noexcept {
 		eng::graphics::BobTarget t {};
-		t.base = bob_base.data();
+		t.base = (bob_base.data() != nullptr) ? bob_base.data() + scroll_off : nullptr;
 		if (dual_playfield && !planes_view_b.empty() && (planes % 2u) == 0u) {
 			// DPF de **dos bitmaps** (cada campo interleave propio): PF1 = `planes_view`,
 			// interleave de `planes / 2` planos con módulo interleaved estándar.
@@ -213,6 +220,8 @@ struct Band {
 		const eng::s32 off = static_cast<eng::s32>(view.planeaddx + view.planeaddy);
 		planes_view = eng::ChipPlaneView {view.real_base + off, view.plane_bytes};
 		bob_base = eng::Bytes<eng::PlaneTag> {view.real_base.ptr(), view.plane_bytes};
+		scroll_off = off;
+		source_view = view;
 	}
 };
 
@@ -223,6 +232,11 @@ struct Band {
 template <class Scheduler>
 void emit_band_pointers(Scheduler& sched, const Band& b, eng::s32 off = 0) {
 	if (b.planes == 0u) {
+		return;
+	}
+	if (b.source_view.planes != 0u) {
+		// Banda desde superficie: fuente única (incluye parallax/soft-DPF).
+		eng::field::emit_view_pointers(sched, b.source_view, off);
 		return;
 	}
 	if (!b.planes_view_b.empty() && (b.planes % 2u) == 0u) {
@@ -297,6 +311,7 @@ void emit_band_pointers(Scheduler& sched, const Band& b, eng::s32 off = 0) {
 	b.planes_view = eng::ChipPlaneView {pf1.real_base + off1, pf1.plane_bytes};
 	b.planes_view_b = eng::ChipPlaneView {pf2.real_base + off2, pf2.plane_bytes};
 	b.bob_base = eng::Bytes<eng::PlaneTag> {pf1.real_base.ptr(), pf1.plane_bytes};
+	b.scroll_off = off1;
 	return b;
 }
 
@@ -376,6 +391,11 @@ public:
 			z.palette_colors = b.palette_colors;
 			if (!sched.emit_mode_switch_zone(z)) {
 				return false;
+			}
+			if (b.split_active) {
+				// Wrap del corkscrew dentro del tramo.
+				sched.wait_line(static_cast<eng::u16>(b.top + b.split_line));
+				emit_band_pointers(sched, b, b.split_base_off);
 			}
 		}
 		return true;
