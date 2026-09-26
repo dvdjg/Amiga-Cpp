@@ -106,6 +106,13 @@ El objetivo es que el usuario pueda **revisar** el trabajo antes de que se conso
 - Documentar el hallazgo en `docs/reference/emulators/<emulador>/<tema>.md` (índice en `docs/reference/emulators/README.md`), citando **fichero y línea**. Ficha de referencia por **tema**: mecanismo observado (tabla `registro/handler/fuente`), contraste con el AHRM, implicación para el engine y enlaces al código que la usa. Ejemplo: [`winuae/audio-irq.md`](docs/reference/emulators/winuae/audio-irq.md) (IRQ de audio: `setirq`/`event_audxdat_func`, `AUDxLEN`/`AUDxLCH`, contraste AHRM `:4378`, y por qué el servicio de nivel 4 es el sitio del *swap*).
 - **Completar la referencia**: si el emulador aclara o corrige la doc del manual, añadir la aclaración a la copia local (`docs/reference/ahrm/ERRATA_Y_NOTAS.md` o la ficha de técnica), indicando **de dónde se obtuvo** (emulador + `fichero:línea`).
 
+### 1.12 Las demos son tutoriales
+
+- **Toda demo debe poder leerse como un tutorial de cómo se programa el engine**: enseña el camino correcto (la fachada estable) resolviendo un caso concreto, no solo «funciona». El código es material didáctico de primera clase.
+- **Comentarios al nivel de la intención**: cada bloque explica **qué** se hace con el vocabulario del engine (`App`/`Screen`/`Scene`/`BobLayer`/`RasterLayout`/`CopperIntent`…), **por qué** es así y **qué haría mal un lector** si bajara a bajo nivel; las decisiones no obvias (alineación, orden de registros, `MEMF_*`, límites de hardware) citan la referencia canónica.
+- **Sin bajo nivel gratuito**: la lógica de la demo usa la fachada (`eng/api/api.hpp` + tipos de dominio); no nombra registros del chipset, punteros crudos, `BlitJob`, bancos de memoria ni tipos del backend. Si algo obliga a bajar, es una abstracción que falta (§1.9) y se resuelve en el engine — no se deja crudo en la demo.
+- **El comentario enseña la regla, no el paso a paso de la máquina**: nada de narrar cronología ni intentos descartados (eso va a `docs/debugging/`); el `README.md` de la demo presenta el efecto, la técnica (con su ficha en `docs/reference/`) y el contrato que ilustra.
+
 ---
 
 ## 2. El repositorio

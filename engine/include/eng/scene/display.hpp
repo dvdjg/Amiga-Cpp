@@ -105,9 +105,9 @@ struct Band {
 	/// los planos van en bloques contiguos separados `plane_bytes` (módulo `0`).
 	eng::u16 plane_bytes = 0;
 	eng::ChipPlaneView planes_view {}; ///< base Chip del plano 0 (DMA); vacío si `planes == 0`
-	/// Base **mutable** (Chip) para dibujar BOBs en esta banda (la misma memoria que
-	/// `planes_view`). `nullptr` = la banda no dibuja BOBs.
-	eng::u8* bob_base = nullptr;
+	/// Vista **mutable** de los planos (Chip) para dibujar BOBs en esta banda: la misma memoria
+	/// que `planes_view`, pero escribible. Vacía = la banda no dibuja BOBs.
+	eng::Bytes<eng::PlaneTag> bob_base {};
 	eng::u16 bplcon2 = 0;
 	bool color = true;         ///< bit COLOR de `BPLCON0`
 	bool dual_playfield = false; ///< `DBLPF`: 3+3 (PF1 planos pares, PF2 impares)
@@ -148,7 +148,7 @@ struct Band {
 	/// planos, layout `Planar`), de modo que el Blitter cubre solo los planos de PF1.
 	[[nodiscard]] eng::graphics::BobTarget bob_target() const noexcept {
 		eng::graphics::BobTarget t {};
-		t.base = bob_base;
+		t.base = bob_base.data();
 		if (dual_playfield && planes >= 2u) {
 			t.row_bytes = static_cast<eng::u16>(bytes_per_row * static_cast<eng::u16>(planes));
 			t.plane_bytes = static_cast<eng::u32>(bytes_per_row) * 2u;
@@ -175,7 +175,7 @@ struct Band {
 	b.planes = planes;
 	b.bytes_per_row = bytes_per_row;
 	b.planes_view = block.mem_view();
-	b.bob_base = block.view.data();
+	b.bob_base = block.view;
 	return b;
 }
 
