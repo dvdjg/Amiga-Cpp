@@ -19,3 +19,4 @@ Categoría `res` de la batería host (L1). El índice de categorías está en [.
 | HOST-340 | [block_pool](340_block_pool/README.md) | Recursos: `BlockPool` (`eng/memory/block_pool.hpp`) — pool *first-fit* con `free`/fusión sobre un buffer, genérico por medio (`MemoryKind`). |
 | HOST-348 | [memory_manager](348_memory_manager/README.md) | Recursos: `MemoryManager` (`eng/memory/memory_manager.hpp`) — bundle de **bancos tipados** Chip/Slow/Fast (`MemBank`), acceso por banco sin `MemoryKind` en runtime. |
 | HOST-349 | [mem_bank](349_mem_bank/README.md) | Recursos: `MemBank<Bank>` (`eng/memory/mem_bank.hpp`) — reserva **tipada por banco** (`TypedBlock<Tag,Bank>`/`Address<Bank>`); el medio va en el tipo (compile-fail si DMA recibe Fast). |
+| HOST-350 | [mem_spec](350_mem_spec/README.md) | Recursos: `MemSpec`/`resolve_bank` (`eng/memory/mem_spec.hpp`) — petición de memoria en **2 ejes** (`MemReq` × `MemHint`) con fallbacks; `Chip` solo Chip, `NonChip` nunca Chip. |

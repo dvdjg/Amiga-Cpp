@@ -166,6 +166,23 @@ direcciones sí son tipos de dominio** y los productores los devuelven ya tipado
 - Se distingue **rol** además de contenido: `BlitSource` (const) y `BlitDest` (mut) evitan
   intercambiar origen y destino.
 
+### 3.6 Memoria: medio (dato) vs petición (MemSpec) vs vida
+
+La memoria se **pide** con ejes **ortogonales**, no con un enum de combinaciones (evita explosión):
+
+- **Medio** (`MemoryKind`: Chip/Slow/Fast/Any) — **dato** del bloque reservado (`Block<Tag>` lleva su kind). Describe *dónde* cayó.
+- **Petición** (`MemSpec`): **requisito** duro (`MemReq::Any/Chip/NonChip`, corrección) × **preferencia** blanda (`MemHint::None/Fast/Slow`, rendimiento). `resolve_bank(spec, avail)` lo mapea a un banco físico.
+- **Vida** (persistente vs *scratch* de frame) es **otro eje** (`MemLifetime`/arena), no un `MemoryKind`.
+- **Alineación** (parámetro) y **cero** (flag) tampoco son bancos.
+
+Regla: **solo el eje que afecta a la corrección va al tipo.** El requisito `Chip` (DMA) se materializa en el tipo `Address<Chip>`/`TypedBlock<Tag, Chip>` (`MemBank<Chip>`); `Any`/`NonChip` devuelven un handle con el medio **como dato** (aunque salga de Chip, su tipo **no** es `Address<Chip>` → no compila en APIs DMA). Coste cero: etiquetas vacías.
+
+```text
+  MemoryKind (medio, dato)  ⊥  MemSpec { MemReq, MemHint } (petición)  ⊥  MemLifetime (vida)  ⊥  align/clear
+                               └ req=Chip -> Address<Chip> (tipo, DMA)
+                               └ req=Any/NonChip -> handle con MemoryKind (dato)
+```
+
 ## 4. Auditoría por subsistema
 
 ### 4.1 `PlaneView` / `SoftDpfComposition` (punto de partida del usuario)
