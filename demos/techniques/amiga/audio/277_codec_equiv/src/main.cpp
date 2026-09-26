@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/277_codec_equiv --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/277_codec_equiv
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/277_codec_equiv --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/277_codec_equiv
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/277_codec_equiv --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/277_codec_equiv --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/277_codec_equiv --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/277_codec_equiv --keep-running
 
 // ============================================================================
 // Demo 277: equivalencia de los descompresores ASM 68000 (`support/codec_asm.s`).

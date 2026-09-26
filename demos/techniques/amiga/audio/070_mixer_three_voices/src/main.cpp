@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/070_mixer_three_voices --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/070_mixer_three_voices
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/070_mixer_three_voices --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/070_mixer_three_voices
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/070_mixer_three_voices --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/070_mixer_three_voices --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/070_mixer_three_voices --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/070_mixer_three_voices --keep-running
 
 // ============================================================================
 // Demo 070: "mixer three voices" — TRES voces pre-renderizadas en el mixer.

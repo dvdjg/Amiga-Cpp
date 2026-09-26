@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/sprites/054_sprite_allocator --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/sprites/054_sprite_allocator
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/sprites/054_sprite_allocator --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/sprites/054_sprite_allocator
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/sprites/054_sprite_allocator --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/sprites/054_sprite_allocator --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/sprites/054_sprite_allocator --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/sprites/054_sprite_allocator --keep-running
 
 // ============================================================================
 // Demo 054: sistema de objetos — composición de sprites y overflow a BOB.

@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/c2p/275_c2p_seam --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/c2p/275_c2p_seam
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/c2p/275_c2p_seam --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/c2p/275_c2p_seam
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/c2p/275_c2p_seam --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/c2p/275_c2p_seam --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/c2p/275_c2p_seam --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/c2p/275_c2p_seam --keep-running
 
 // ============================================================================
 // Demo 275: C2P por el seam (`Scene::c2p`) — valida el arreglo de `DrawTarget::c2p`.

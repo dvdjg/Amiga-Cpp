@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/features/ui/amiga/215_gui_widgets --debug   && bash ./tools/run/run-demo.sh demos/features/ui/amiga/215_gui_widgets
-//   Optimizada: bash ./tools/build/build-demo.sh demos/features/ui/amiga/215_gui_widgets --release && bash ./tools/run/run-demo.sh demos/features/ui/amiga/215_gui_widgets
+//   Depurar   : bash ./tools/build/build-demo.sh demos/features/ui/amiga/215_gui_widgets --debug   && bash ./tools/run/run-demo.sh demos/features/ui/amiga/215_gui_widgets --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/features/ui/amiga/215_gui_widgets --release && bash ./tools/run/run-demo.sh demos/features/ui/amiga/215_gui_widgets --keep-running
 
 // Demo 215 - Widgets de `eng::ui` sobre EHB (320x256).
 //

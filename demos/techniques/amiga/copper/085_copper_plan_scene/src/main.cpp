@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/copper/085_copper_plan_scene --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/copper/085_copper_plan_scene
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/copper/085_copper_plan_scene --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/copper/085_copper_plan_scene
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/copper/085_copper_plan_scene --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/copper/085_copper_plan_scene --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/copper/085_copper_plan_scene --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/copper/085_copper_plan_scene --keep-running
 
 // ============================================================================
 // Demo 085: escena con el copper orquestado por `copper::Plan`.

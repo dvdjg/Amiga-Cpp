@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/blitter/087_sprite_horizontal_rearm --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/blitter/087_sprite_horizontal_rearm
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/blitter/087_sprite_horizontal_rearm --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/blitter/087_sprite_horizontal_rearm
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/blitter/087_sprite_horizontal_rearm --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/blitter/087_sprite_horizontal_rearm --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/blitter/087_sprite_horizontal_rearm --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/blitter/087_sprite_horizontal_rearm --keep-running
 
 // ============================================================================
 // Demo 087: rearmado HORIZONTAL de sprite (multiplexado por linea).

@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/111_xlimited_sidescroller --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/111_xlimited_sidescroller
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/111_xlimited_sidescroller --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/111_xlimited_sidescroller
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/111_xlimited_sidescroller --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/111_xlimited_sidescroller --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/111_xlimited_sidescroller --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/111_xlimited_sidescroller --keep-running
 
 // ============================================================================
 // Demo 111 - Side-scroller horizontal (limite del scroll X) sobre XYLimited

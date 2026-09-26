@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/066_polyphony --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/066_polyphony
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/066_polyphony --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/066_polyphony
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/066_polyphony --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/066_polyphony --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/066_polyphony --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/066_polyphony --keep-running
 
 // ============================================================================
 // Demo 066: "polyphony" — tres voces independientes (lead, contramelodía, bajo).

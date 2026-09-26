@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/058_sfx_mixer --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/058_sfx_mixer
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/058_sfx_mixer --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/058_sfx_mixer
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/058_sfx_mixer --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/058_sfx_mixer --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/058_sfx_mixer --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/058_sfx_mixer --keep-running
 
 // ============================================================================
 // Demo 058: "sfx mixer" — efectos de sonido por el Audio Mixer 3.7 (Photon).

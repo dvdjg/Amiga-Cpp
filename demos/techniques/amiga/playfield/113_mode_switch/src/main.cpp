@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/113_mode_switch --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/113_mode_switch
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/113_mode_switch --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/113_mode_switch
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/113_mode_switch --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/113_mode_switch --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/113_mode_switch --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/113_mode_switch --keep-running
 
 #include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>

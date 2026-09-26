@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/126_fast_bobs --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/126_fast_bobs
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/126_fast_bobs --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/126_fast_bobs
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/126_fast_bobs --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/126_fast_bobs --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/126_fast_bobs --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/126_fast_bobs --keep-running
 
 // ============================================================================
 // Demo 126 - fast_bobs

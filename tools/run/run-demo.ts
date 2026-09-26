@@ -1682,3 +1682,10 @@ if (index !== injectSample - 1) return;
 if (report.status !== 'ok') {
   process.exit(1);
 }
+
+// `--keep-running`: no dejar morir el proceso (si no, el emulador hijo se cierra y la demo
+// "desaparece" tras la captura). El usuario sale con Ctrl+C.
+if (!stopEmulator) {
+  console.log('[run-demo] --keep-running: la demo sigue en marcha (Ctrl+C para salir).');
+  setInterval(() => {}, 1 << 30);
+}

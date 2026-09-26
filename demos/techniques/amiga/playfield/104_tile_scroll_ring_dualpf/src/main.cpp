@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/104_tile_scroll_ring_dualpf --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/104_tile_scroll_ring_dualpf
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/104_tile_scroll_ring_dualpf --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/104_tile_scroll_ring_dualpf
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/104_tile_scroll_ring_dualpf --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/104_tile_scroll_ring_dualpf --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/104_tile_scroll_ring_dualpf --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/104_tile_scroll_ring_dualpf --keep-running
 
 #include <eng/api/api.hpp>
 #include <eng/graphics/drivers/tile_scroll.hpp>

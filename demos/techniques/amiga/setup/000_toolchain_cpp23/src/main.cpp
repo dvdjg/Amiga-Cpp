@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23 --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23 --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23 --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23 --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23 --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23 --keep-running
 
 #include <eng/api/api.hpp>
 #include <eng/platform/amiga/backend.hpp>

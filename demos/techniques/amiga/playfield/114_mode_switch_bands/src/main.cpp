@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/114_mode_switch_bands --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/114_mode_switch_bands
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/114_mode_switch_bands --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/114_mode_switch_bands
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/114_mode_switch_bands --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/114_mode_switch_bands --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/114_mode_switch_bands --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/114_mode_switch_bands --keep-running
 
 #include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>

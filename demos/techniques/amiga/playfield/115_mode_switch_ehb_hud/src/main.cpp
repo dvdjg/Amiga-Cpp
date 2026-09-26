@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/115_mode_switch_ehb_hud --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/115_mode_switch_ehb_hud
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/115_mode_switch_ehb_hud --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/115_mode_switch_ehb_hud
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/115_mode_switch_ehb_hud --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/115_mode_switch_ehb_hud --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/115_mode_switch_ehb_hud --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/115_mode_switch_ehb_hud --keep-running
 
 #include <eng/api/api.hpp>
 #include <eng/graphics/copper/copper.hpp>

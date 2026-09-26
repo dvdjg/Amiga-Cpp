@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/060_music_pt --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/060_music_pt
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/060_music_pt --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/060_music_pt
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/060_music_pt --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/060_music_pt --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/060_music_pt --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/060_music_pt --keep-running
 
 // ============================================================================
 // Demo 060: "music pt" — música Protracker (.mod) por PTPlayer (Frank Wille).

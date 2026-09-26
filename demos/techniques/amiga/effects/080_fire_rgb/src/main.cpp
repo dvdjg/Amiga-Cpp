@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/080_fire_rgb --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/080_fire_rgb
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/080_fire_rgb --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/080_fire_rgb
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/080_fire_rgb --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/080_fire_rgb --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/080_fire_rgb --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/080_fire_rgb --keep-running
 
 // Demo 080 - fire-rgb (PORTE 1:1 de demoscene-repo-orig/effects/fire-rgb/fire-rgb.c)
 //

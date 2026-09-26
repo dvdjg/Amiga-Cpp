@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/os/212_message_loop --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/os/212_message_loop
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/os/212_message_loop --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/os/212_message_loop
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/os/212_message_loop --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/os/212_message_loop --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/os/212_message_loop --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/os/212_message_loop --keep-running
 
 #include <eng/api/api.hpp>
 #include <eng/os/message_pump.hpp>

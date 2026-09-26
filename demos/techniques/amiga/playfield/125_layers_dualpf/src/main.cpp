@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/125_layers_dualpf --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/125_layers_dualpf
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/125_layers_dualpf --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/125_layers_dualpf
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/125_layers_dualpf --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/125_layers_dualpf --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/125_layers_dualpf --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/125_layers_dualpf --keep-running
 
 // Demo 125 - layers_dualpf (PORTE de demoscene-repo-orig/effects/layers/layers.c)
 //

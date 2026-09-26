@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/122_doublebuffer_scroll --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/122_doublebuffer_scroll
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/122_doublebuffer_scroll --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/122_doublebuffer_scroll
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/122_doublebuffer_scroll --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/122_doublebuffer_scroll --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/122_doublebuffer_scroll --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/122_doublebuffer_scroll --keep-running
 
 // ============================================================================
 // Demo 122 — Doble buffer de bitmap + swap (COP1LC) con scroll por punteros

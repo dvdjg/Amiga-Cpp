@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/127_dpf_two_bitmaps --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/127_dpf_two_bitmaps
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/127_dpf_two_bitmaps --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/127_dpf_two_bitmaps
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/127_dpf_two_bitmaps --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/127_dpf_two_bitmaps --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/127_dpf_two_bitmaps --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/127_dpf_two_bitmaps --keep-running
 
 // ============================================================================
 // Demo 127 - dpf_two_bitmaps

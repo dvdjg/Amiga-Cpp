@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/features/cards/amiga/124_cards_bench --debug   && bash ./tools/run/run-demo.sh demos/features/cards/amiga/124_cards_bench
-//   Optimizada: bash ./tools/build/build-demo.sh demos/features/cards/amiga/124_cards_bench --release && bash ./tools/run/run-demo.sh demos/features/cards/amiga/124_cards_bench
+//   Depurar   : bash ./tools/build/build-demo.sh demos/features/cards/amiga/124_cards_bench --debug   && bash ./tools/run/run-demo.sh demos/features/cards/amiga/124_cards_bench --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/features/cards/amiga/124_cards_bench --release && bash ./tools/run/run-demo.sh demos/features/cards/amiga/124_cards_bench --keep-running
 
 // ============================================================================
 // Demo 124: benchmark del motor de naipes (`eng::cards`) en Amiga.

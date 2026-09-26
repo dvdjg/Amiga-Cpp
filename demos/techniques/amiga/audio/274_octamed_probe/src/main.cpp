@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/274_octamed_probe --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/274_octamed_probe
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/274_octamed_probe --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/274_octamed_probe
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/274_octamed_probe --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/274_octamed_probe --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/274_octamed_probe --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/274_octamed_probe --keep-running
 
 // ============================================================================
 // Demo 274: A1 — repro del cuelgue de `_startmusic` (OctaMED).

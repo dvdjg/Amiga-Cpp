@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/110_ylimited_shooter --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/110_ylimited_shooter
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/110_ylimited_shooter --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/110_ylimited_shooter
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/110_ylimited_shooter --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/110_ylimited_shooter --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/110_ylimited_shooter --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/110_ylimited_shooter --keep-running
 
 // ============================================================================
 // Demo 110 - Shooter vertical (limite del scroll Y) sobre XYLimited

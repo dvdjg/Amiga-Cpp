@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/278_stream_disk --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/278_stream_disk
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/278_stream_disk --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/278_stream_disk
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/278_stream_disk --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/278_stream_disk --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/278_stream_disk --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/278_stream_disk --keep-running
 
 // ============================================================================
 // Demo 278: streaming de audio comprimido DESDE DISCO — AUZX + media + PcmStream.

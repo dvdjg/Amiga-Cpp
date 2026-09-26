@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/076_mixer_sample_channels --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/076_mixer_sample_channels
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/076_mixer_sample_channels --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/076_mixer_sample_channels
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/076_mixer_sample_channels --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/076_mixer_sample_channels --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/076_mixer_sample_channels --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/076_mixer_sample_channels --keep-running
 
 // ============================================================================
 // Demo 076: "mixer sample channels" — un sample REAL por cada voz del mixer.

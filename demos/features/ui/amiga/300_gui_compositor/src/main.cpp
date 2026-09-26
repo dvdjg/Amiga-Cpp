@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/features/ui/amiga/300_gui_compositor --debug   && bash ./tools/run/run-demo.sh demos/features/ui/amiga/300_gui_compositor
-//   Optimizada: bash ./tools/build/build-demo.sh demos/features/ui/amiga/300_gui_compositor --release && bash ./tools/run/run-demo.sh demos/features/ui/amiga/300_gui_compositor
+//   Depurar   : bash ./tools/build/build-demo.sh demos/features/ui/amiga/300_gui_compositor --debug   && bash ./tools/run/run-demo.sh demos/features/ui/amiga/300_gui_compositor --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/features/ui/amiga/300_gui_compositor --release && bash ./tools/run/run-demo.sh demos/features/ui/amiga/300_gui_compositor --keep-running
 
 // Demo 300 - Compositor de `eng::ui` con backing store y copias por Blitter.
 //

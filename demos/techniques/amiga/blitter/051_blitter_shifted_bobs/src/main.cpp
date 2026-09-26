@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/blitter/051_blitter_shifted_bobs --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/blitter/051_blitter_shifted_bobs
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/blitter/051_blitter_shifted_bobs --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/blitter/051_blitter_shifted_bobs
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/blitter/051_blitter_shifted_bobs --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/blitter/051_blitter_shifted_bobs --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/blitter/051_blitter_shifted_bobs --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/blitter/051_blitter_shifted_bobs --keep-running
 
 #include <eng/api/api.hpp>
 #include <eng/platform/amiga/backend.hpp>

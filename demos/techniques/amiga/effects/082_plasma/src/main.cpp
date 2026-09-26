@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/082_plasma --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/082_plasma
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/082_plasma --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/082_plasma
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/082_plasma --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/082_plasma --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/082_plasma --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/082_plasma --keep-running
 
 // Demo 082 - plasma (PORTE 1:1 de demoscene-repo-orig/effects/plasma/plasma.c).
 //

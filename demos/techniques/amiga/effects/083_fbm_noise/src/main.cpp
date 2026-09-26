@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/083_fbm_noise --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/083_fbm_noise
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/083_fbm_noise --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/083_fbm_noise
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/083_fbm_noise --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/083_fbm_noise --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/083_fbm_noise --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/083_fbm_noise --keep-running
 
 // Demo 083 - fbm noise (value noise + fbm de eng/core/math/noise.hpp).
 //

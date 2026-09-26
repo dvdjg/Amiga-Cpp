@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/107_xlimited_corkscrew --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/107_xlimited_corkscrew
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/107_xlimited_corkscrew --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/107_xlimited_corkscrew
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/107_xlimited_corkscrew --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/107_xlimited_corkscrew --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/107_xlimited_corkscrew --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/107_xlimited_corkscrew --keep-running
 
 #include <eng/api/api.hpp>
 #include <eng/debug/peripheral.hpp>

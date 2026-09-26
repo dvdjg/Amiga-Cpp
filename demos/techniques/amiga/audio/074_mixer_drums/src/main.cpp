@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/074_mixer_drums --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/074_mixer_drums
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/074_mixer_drums --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/074_mixer_drums
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/074_mixer_drums --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/074_mixer_drums --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/074_mixer_drums --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/074_mixer_drums --keep-running
 
 // ============================================================================
 // Demo 074: "mixer drums" — caja de ritmos con 4 samples reales (st-xx).

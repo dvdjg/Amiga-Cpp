@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/075_mixer_tones --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/075_mixer_tones
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/075_mixer_tones --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/075_mixer_tones
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/075_mixer_tones --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/075_mixer_tones --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/075_mixer_tones --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/075_mixer_tones --keep-running
 
 // ============================================================================
 // Demo 075: "mixer tones" — tonos puros por las 4 voces, activados por un

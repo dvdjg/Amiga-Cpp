@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/068_mixer_ref --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/068_mixer_ref
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/068_mixer_ref --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/068_mixer_ref
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/068_mixer_ref --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/068_mixer_ref --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/068_mixer_ref --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/068_mixer_ref --keep-running
 
 // ============================================================================
 // Demo 068: "mixer ref" — test mínimo ESPEJO de CMixer.c (Audio Mixer 3.7).

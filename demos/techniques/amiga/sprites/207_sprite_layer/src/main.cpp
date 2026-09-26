@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/sprites/207_sprite_layer --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/sprites/207_sprite_layer
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/sprites/207_sprite_layer --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/sprites/207_sprite_layer
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/sprites/207_sprite_layer --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/sprites/207_sprite_layer --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/sprites/207_sprite_layer --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/sprites/207_sprite_layer --keep-running
 
 // ============================================================================
 // Demo 207 — capa de fondo con sprites rearmados horizontalmente (SpriteLayer)

@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/067_mixer_melody --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/067_mixer_melody
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/067_mixer_melody --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/067_mixer_melody
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/067_mixer_melody --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/067_mixer_melody --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/067_mixer_melody --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/067_mixer_melody --keep-running
 
 // ============================================================================
 // Demo 067: "mixer melody" — UNA melodía por UNA voz del mixer (AUD0).

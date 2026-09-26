@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/057_audio_mixer --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/057_audio_mixer
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/057_audio_mixer --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/057_audio_mixer
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/057_audio_mixer --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/057_audio_mixer --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/057_audio_mixer --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/057_audio_mixer --keep-running
 
 // ============================================================================
 // Demo 057: "audio mixer" — tono de Paula vía AudioMixer → AudioPlan → Paula.

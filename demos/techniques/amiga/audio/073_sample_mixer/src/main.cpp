@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/073_sample_mixer --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/073_sample_mixer
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/073_sample_mixer --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/073_sample_mixer
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/073_sample_mixer --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/073_sample_mixer --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/073_sample_mixer --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/073_sample_mixer --keep-running
 
 // ============================================================================
 // Demo 073: "sample mixer" — un sample REAL (st-xx) por el mixer.

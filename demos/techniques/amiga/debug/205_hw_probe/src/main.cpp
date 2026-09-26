@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/debug/205_hw_probe --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/debug/205_hw_probe
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/debug/205_hw_probe --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/debug/205_hw_probe
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/debug/205_hw_probe --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/debug/205_hw_probe --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/debug/205_hw_probe --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/debug/205_hw_probe --keep-running
 
 #include <eng/api/api.hpp>
 #include <eng/api/effects.hpp>

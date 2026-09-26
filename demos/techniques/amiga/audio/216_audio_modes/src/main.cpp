@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/216_audio_modes --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/216_audio_modes
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/216_audio_modes --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/216_audio_modes
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/216_audio_modes --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/216_audio_modes --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/216_audio_modes --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/216_audio_modes --keep-running
 
 // ============================================================================
 // Demo 216: modos de audio y eventos (A0/A2) sin tracker.

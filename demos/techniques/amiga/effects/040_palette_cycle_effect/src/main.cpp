@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/040_palette_cycle_effect --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/040_palette_cycle_effect
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/040_palette_cycle_effect --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/040_palette_cycle_effect
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/040_palette_cycle_effect --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/040_palette_cycle_effect --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/040_palette_cycle_effect --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/040_palette_cycle_effect --keep-running
 
 #include <eng/api/api.hpp>
 #include <eng/core/util/color.hpp>

@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/features/ui/amiga/301_gui_layouts --debug   && bash ./tools/run/run-demo.sh demos/features/ui/amiga/301_gui_layouts
-//   Optimizada: bash ./tools/build/build-demo.sh demos/features/ui/amiga/301_gui_layouts --release && bash ./tools/run/run-demo.sh demos/features/ui/amiga/301_gui_layouts
+//   Depurar   : bash ./tools/build/build-demo.sh demos/features/ui/amiga/301_gui_layouts --debug   && bash ./tools/run/run-demo.sh demos/features/ui/amiga/301_gui_layouts --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/features/ui/amiga/301_gui_layouts --release && bash ./tools/run/run-demo.sh demos/features/ui/amiga/301_gui_layouts --keep-running
 
 // Demo 301 - `eng::ui`: layouts adaptables, texto ajustado y coleccion de fuentes.
 //

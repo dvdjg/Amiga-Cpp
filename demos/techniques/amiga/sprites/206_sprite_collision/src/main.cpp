@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/sprites/206_sprite_collision --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/sprites/206_sprite_collision
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/sprites/206_sprite_collision --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/sprites/206_sprite_collision
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/sprites/206_sprite_collision --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/sprites/206_sprite_collision --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/sprites/206_sprite_collision --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/sprites/206_sprite_collision --keep-running
 
 // ============================================================================
 // Demo 206 — colisión de hardware de sprites (CLXCON / CLXDAT)

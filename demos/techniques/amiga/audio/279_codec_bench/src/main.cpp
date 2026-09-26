@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/279_codec_bench --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/279_codec_bench
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/279_codec_bench --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/279_codec_bench
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/279_codec_bench --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/279_codec_bench --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/279_codec_bench --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/279_codec_bench --keep-running
 
 // ============================================================================
 // Demo 279: banco de los descompresores de audio (ASM vs C++).

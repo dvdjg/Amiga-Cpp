@@ -1581,3 +1581,7 @@ finally {
 if (report.status !== 'ok') {
     process.exit(1);
 }
+if (!stopEmulator) {
+    console.log('[run-demo] --keep-running: la demo sigue en marcha (Ctrl+C para salir).');
+    setInterval(() => { }, 1 << 30);
+}

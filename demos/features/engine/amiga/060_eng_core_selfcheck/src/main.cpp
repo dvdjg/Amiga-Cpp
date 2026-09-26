@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/features/engine/amiga/060_eng_core_selfcheck --debug   && bash ./tools/run/run-demo.sh demos/features/engine/amiga/060_eng_core_selfcheck
-//   Optimizada: bash ./tools/build/build-demo.sh demos/features/engine/amiga/060_eng_core_selfcheck --release && bash ./tools/run/run-demo.sh demos/features/engine/amiga/060_eng_core_selfcheck
+//   Depurar   : bash ./tools/build/build-demo.sh demos/features/engine/amiga/060_eng_core_selfcheck --debug   && bash ./tools/run/run-demo.sh demos/features/engine/amiga/060_eng_core_selfcheck --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/features/engine/amiga/060_eng_core_selfcheck --release && bash ./tools/run/run-demo.sh demos/features/engine/amiga/060_eng_core_selfcheck --keep-running
 
 // ============================================================================
 // Demo 060: self-check de eng::core (isqrt, sort, crc32, random) en hardware.

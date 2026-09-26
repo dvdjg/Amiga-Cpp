@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/3d/077_math3d_cube --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/3d/077_math3d_cube
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/3d/077_math3d_cube --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/3d/077_math3d_cube
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/3d/077_math3d_cube --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/3d/077_math3d_cube --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/3d/077_math3d_cube --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/3d/077_math3d_cube --keep-running
 
 #include <eng/retro/fixed_mesh.hpp>
 // Demo 077 - Cubo 3D en alambre (math3d + mesh3d) sobre EHB.

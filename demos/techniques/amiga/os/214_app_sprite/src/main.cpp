@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/os/214_app_sprite --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/os/214_app_sprite
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/os/214_app_sprite --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/os/214_app_sprite
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/os/214_app_sprite --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/os/214_app_sprite --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/os/214_app_sprite --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/os/214_app_sprite --keep-running
 
 // ============================================================================
 // Demo 214 — sprite de juego por la fachada `App`/`Screen`

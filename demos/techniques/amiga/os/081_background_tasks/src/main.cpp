@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/os/081_background_tasks --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/os/081_background_tasks
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/os/081_background_tasks --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/os/081_background_tasks
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/os/081_background_tasks --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/os/081_background_tasks --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/os/081_background_tasks --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/os/081_background_tasks --keep-running
 
 // Demo 081 - Tareas de fondo cooperativas (eng::task::BackgroundQueue).
 //

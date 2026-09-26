@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/065_single_voice --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/065_single_voice
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/065_single_voice --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/065_single_voice
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/065_single_voice --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/065_single_voice --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/065_single_voice --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/065_single_voice --keep-running
 
 // ============================================================================
 // Demo 065: "single voice" — melodía de UNA voz por ptplayer (sin armonía).

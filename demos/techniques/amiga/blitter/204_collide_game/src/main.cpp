@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/blitter/204_collide_game --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/blitter/204_collide_game
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/blitter/204_collide_game --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/blitter/204_collide_game
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/blitter/204_collide_game --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/blitter/204_collide_game --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/blitter/204_collide_game --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/blitter/204_collide_game --keep-running
 
 // Demo 204 - Juego minimo con COLISION pixel-perfect por Blitter.
 //

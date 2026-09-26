@@ -1,6 +1,6 @@
 // Lanzar:
-//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/input/056_input_aggregator --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/input/056_input_aggregator
-//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/input/056_input_aggregator --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/input/056_input_aggregator
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/input/056_input_aggregator --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/input/056_input_aggregator --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/input/056_input_aggregator --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/input/056_input_aggregator --keep-running
 
 // ============================================================================
 // Demo 056: "input aggregator" — entrada unificada (joystick + fuego + teclado).
