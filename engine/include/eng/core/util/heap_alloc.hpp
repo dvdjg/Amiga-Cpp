@@ -23,7 +23,7 @@
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 
-#if defined(__m68k__)
+#if defined(ENG_AMIGA)
 #error "HeapAlloc es solo para herramientas host; el runtime Amiga no tiene heap"
 #endif
 

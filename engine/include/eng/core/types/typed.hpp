@@ -263,25 +263,36 @@ private:
 
 // --- Bloque tipado (resultado de una reserva de arena) -----------------------
 
-/// Bloque de memoria tipado: vista `Bytes<Tag>` de la reserva **y** su
-/// `MemoryKind` (medio donde vive). Lo devuelven las arenas
-/// (`LinearArena::allocate_block<Tag>()`, `MemoryBlock::block<Tag>()`) para que el
-/// consumidor reciba ya el dominio y el medio, sin casts. `valid()` = reserva con
-/// datos. El dominio (que `Tag` describe el dato) y el `kind` (Chip/Slow/Fast) son
-/// ortogonales: p. ej. una copperlist puede construirse y copiarse desde otro medio.
-template <class Tag>
+/// Bloque de memoria tipado: vista `Bytes<Tag>` de la reserva **y** su medio.
+///
+/// `Bank` es el banco en el **tipo** (`MemoryKind`): `Block<Tag, MemoryKind::Chip>` da una
+/// `Address<Chip>` (DMA), mientras que `Block<Tag>` (`Bank = Any`) lleva el medio **como dato**
+/// (`kind`, el que decide el setup/arena). Un solo tipo cubre los dos casos: no hace falta un
+/// `TypedBlock` aparte (es su alias). `valid()` = reserva con datos.
+template <class Tag, MemoryKind Bank = MemoryKind::Any>
 struct Block {
 	Bytes<Tag> view {};
-	MemoryKind kind = MemoryKind::Any;
+	MemoryKind kind = Bank;
 
 	constexpr Block() noexcept = default;
-	constexpr Block(Bytes<Tag> v, MemoryKind k = MemoryKind::Any) noexcept : view(v), kind(k) {}
+	constexpr Block(Bytes<Tag> v, MemoryKind k = Bank) noexcept : view(v), kind(k) {}
 	[[nodiscard]] constexpr bool valid() const noexcept { return !view.empty(); }
+	/// Dirección tipada por el banco. `Bank == Any` = dirección sin banco (no DMA);
+	/// un banco concreto la vuelve DMA-safe y no compila en APIs de otro banco.
+	[[nodiscard]] constexpr Address<Bank> address() const noexcept {
+		return Address<Bank>::from_storage(view.data());
+	}
+	[[nodiscard]] constexpr eng::u8* data() const noexcept { return view.data(); }
+	[[nodiscard]] constexpr eng::usize size() const noexcept { return view.size(); }
 	[[nodiscard]] constexpr Bytes<Tag>& operator*() noexcept { return view; }
 	[[nodiscard]] constexpr const Bytes<Tag>& operator*() const noexcept { return view; }
 	[[nodiscard]] constexpr Bytes<Tag>* operator->() noexcept { return &view; }
 	[[nodiscard]] constexpr const Bytes<Tag>* operator->() const noexcept { return &view; }
 };
+
+/// Bloque de un banco **concreto** (compile-time): alias de `Block<Tag, K>`.
+template <class Tag, MemoryKind K>
+using TypedBlock = Block<Tag, K>;
 
 // --- Direcciones y bases: definidas arriba (antes de las vistas) -------------
 

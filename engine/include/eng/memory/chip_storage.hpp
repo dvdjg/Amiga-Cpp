@@ -19,17 +19,21 @@
 /// eng::Address<eng::MemoryKind::Chip> dma = g_copper.address();   // solo esto es DMA
 /// ```
 ///
-/// En host (tests de tipos) `ENG_CHIP_RAM` no tiene efecto: no hay mapa de memoria Amiga; el
-/// tipo sigue siendo útil para comprobar la API, pero la garantía física es del target.
+/// En host u otros targets (sin Chip RAM) `ENG_CHIP_RAM` no tiene efecto: no hay mapa de memoria
+/// Amiga; el tipo sigue siendo útil para comprobar la API, pero la garantía física es del target.
+/// `ENG_CHIP_RAM` se activa con el macro de proyecto `ENG_AMIGA` (lo define el build de Amiga):
+/// **no** basta `__m68k__`, porque Mega Drive y Atari ST también son m68k y no tienen Chip RAM.
 
 #include <eng/core/types/memory_kind.hpp>
 #include <eng/core/types/typed.hpp>
 #include <eng/core/types/types.hpp>
 
-#if defined(__mc68000__) || defined(__m68k__)
-/// Coloca la variable en la sección `.MEMF_CHIP` (Chip RAM). En host es un no-op.
+#if defined(ENG_AMIGA)
+/// Coloca la variable en la sección `.MEMF_CHIP` (Chip RAM). Solo Amiga: Mega Drive y Atari ST
+/// son m68k pero **no** tienen el concepto de Chip RAM, así que `__m68k__` no basta.
 #define ENG_CHIP_RAM __attribute__((section(".MEMF_CHIP")))
 #else
+/// En host u otros targets (sin Chip RAM) no tiene efecto.
 #define ENG_CHIP_RAM
 #endif
 

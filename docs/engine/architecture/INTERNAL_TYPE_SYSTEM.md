@@ -191,6 +191,26 @@ Regla: **solo el eje que afecta a la corrección va al tipo.** El requisito `Chi
 
 **Panel de telemetría.** El **panel de telemetría** (`eng/debug/telemetry.hpp`) compone fps/frame/uso de memoria con `StaticString`/`to_chars_u32` y los dibuja en el **overlay del depurador** (`debug_text`/`debug_filled_rect`, vía cualquier sink con `text(x, y, cstr, rgb)`), sin tocar la escena ni aparecer en las capturas; es el complemento visual de `RunStatus`/`ProfBlock`.
 
+### 3.7 Inventario y modelo reducido (evitar la sopa de tipos)
+
+Los tipos de memoria son **ejes ortogonales**; un tipo nuevo solo se justifica si cambia la **corrección**. El modelo vigente, ya reducido:
+
+| Eje | Tipo(s) | Regla |
+|-----|---------|-------|
+| Dominio (qué dato) | `Tag` (struct vacío): `PlaneTag`, `AudioTag`, `CopperTag`… | lo lleva la vista/bloque |
+| Elemento + mutabilidad | `Bytes<Tag>` / `ByteView<Tag>` / `Words<Tag>` / `WordView<Tag>` | 4 formas de la MISMA idea (u8/u16 × mutable/const). Candidatas a un único `TaggedSpan<T,Tag>` con 4 alias |
+| Medio (compile-time) | `MemoryKind` + `Address<Bank>` | la **dirección** lleva el banco; no compila entre bancos |
+| Bloque | `Block<Tag, Bank = Any>` | **uno solo**: `Any` = medio como **dato** (el que decide la arena); banco concreto = DMA. `TypedBlock<Tag, K>` es **alias** de `Block<Tag, K>` |
+| Banco / alocador | `MemBank<K>` (pool por banco), `LinearArena` (bump), `BlockPool` (first-fit) | mecanismos distintos, no combinaciones |
+| Estático chip | `ChipStorage<Tag, N>` + `ENG_CHIP_RAM` | búfer fijo **certificado** en Chip RAM |
+| Rol de bitmap | `BitmapBase` / `FrontBase` | base vs buffer de escritura (no se mezclan) |
+
+Reglas para no repetir el problema:
+
+- **Un tipo por eje, no por combinación.** Si dos nombres solo difieren en un dato (medio, elemento, mutabilidad), debe ser **un tipo con ese dato/parámetro**, no dos clases casi iguales.
+- **Antes de crear un tipo, preguntar «¿qué eje nuevo aporta?».** Si no aporta corrección, usar un alias o un parámetro.
+- Ya fusionados: `ChipPool`→`BlockPool`, y `TypedBlock`→`Block<Tag, Bank>`. Pendiente barato: unificar las 4 vistas en `TaggedSpan<T, Tag>`.
+
 ## 4. Auditoría por subsistema
 
 ### 4.1 `PlaneView` / `SoftDpfComposition` (punto de partida del usuario)

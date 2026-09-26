@@ -33,7 +33,7 @@ Documento de referencia para **cualquier sesión que persiga rendimiento** en la
 
 ## 2. Instrumentación por secciones (`engine/include/eng/debug/prof.hpp`)
 
-El engine expone `ENG_PROF_INIT/FRAME/BEGIN/END` y un bloque `inline volatile` de contadores; **fuera de `__m68k__` las macros son no-ops**, de modo que el código se instrumenta una sola vez y compila igual en host. Las secciones del engine viven en `copper/plan.hpp` (`prof_sort_lines=7`, `prof_sort_prio=8`, `prof_emit=9`).
+El engine expone `ENG_PROF_INIT/FRAME/BEGIN/END` y un bloque `inline volatile` de contadores; **fuera del target Amiga (`ENG_AMIGA`) las macros son no-ops**, de modo que el código se instrumenta una sola vez y compila igual en host (o en otro m68k sin el periférico de WinUAE). Las secciones del engine viven en `copper/plan.hpp` (`prof_sort_lines=7`, `prof_sort_prio=8`, `prof_emit=9`).
 
 Reglas:
 

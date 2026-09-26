@@ -238,6 +238,7 @@ COMMON=(
 	"-Wno-unused-function" "-Wno-volatile-register-var"
 	"-fomit-frame-pointer" "-fno-exceptions"
 	"-ffunction-sections" "-fdata-sections"
+	"-DENG_AMIGA=1"
 	"-I$ROOT" "-I$ROOT/engine/include" "-I$SDKDIR"
 )
 # Macros extra reproducibles (p. ej. EXTRA_DEFINES="-DK_TILE_WIDTH=32 -DK_DUAL=0").

@@ -28,20 +28,9 @@
 
 namespace eng {
 
-/// Bloque tipado por dominio (`Tag`) **y** banco (`K`): la vista y su dirección son coherentes.
-template <class Tag, MemoryKind K>
-struct TypedBlock {
-	Bytes<Tag> view {};
-	[[nodiscard]] constexpr bool valid() const noexcept { return !view.empty(); }
-	[[nodiscard]] constexpr Address<K> address() const noexcept {
-		return Address<K>::from_storage(view.data());
-	}
-	[[nodiscard]] constexpr eng::u8* data() const noexcept { return view.data(); }
-	[[nodiscard]] constexpr eng::usize size() const noexcept { return view.size(); }
-};
-
 /// **Banco de memoria** de un `MemoryKind` concreto. Posee un `BlockPool` de su banco y entrega
-/// `TypedBlock<Tag, K>`. Sin bytes asignados (banco ausente) devuelve bloques inválidos.
+/// `Block<Tag, K>` (`TypedBlock<Tag, K>`, el mismo tipo). Sin bytes asignados (banco ausente)
+/// los bloques salen inválidos.
 template <MemoryKind K>
 class MemBank {
 public:
@@ -53,17 +42,17 @@ public:
 		m_pool = BlockPool {base, size, K, align};
 	}
 
-	/// Reserva `bytes` (alineados) como `TypedBlock<Tag, K>`. Inválido si no cabe o el banco
+	/// Reserva `bytes` (alineados) como `Block<Tag, K>`. Inválido si no cabe o el banco
 	/// está vacío.
 	template <class Tag>
-	[[nodiscard]] TypedBlock<Tag, K> reserve(u32 bytes, u32 alignment = 0u) noexcept {
+	[[nodiscard]] Block<Tag, K> reserve(u32 bytes, u32 alignment = 0u) noexcept {
 		const MemoryBlock mb = m_pool.allocate(bytes, alignment);
-		return TypedBlock<Tag, K> {mb.buffer<Tag>()};
+		return Block<Tag, K> {mb.buffer<Tag>(), K};
 	}
 
 	/// Devuelve un bloque al banco (cualquier dominio `Tag` del mismo banco).
 	template <class Tag>
-	void release(const TypedBlock<Tag, K>& block) noexcept {
+	void release(const Block<Tag, K>& block) noexcept {
 		m_pool.free(block.data());
 	}
 	void release(const void* ptr) noexcept { m_pool.free(const_cast<void*>(ptr)); }
