@@ -17,3 +17,4 @@ Categoría `scene` de la batería host (L1). El índice de categorías está en 
 | HOST-343 | [scroll_plan](343_scroll_plan/README.md) | `eng/scene/scroll_plan.hpp`: scroll adaptativo — degrada `CopperSplit→CopperRing→Fine` por Copper y estima memoria de la ventana (F7.3). |
 | HOST-345 | [region_plan](345_region_plan/README.md) | `eng/scene/scroll_plan.hpp`: `plan_region` — elige el scroll efectivo de una `WorldRegion` por presupuesto (Copper/Chip) con coste y memoria (F4c/decisión). |
 | HOST-346 | [scroll_ring](346_scroll_ring/README.md) | `eng/scene/scroll_plan.hpp`: geometría del anillo de scroll (`scroll_ring`) y bandas cruzadas (`ring_crossed`) — base de los drivers con guardas (F7.3). |
+| HOST-347 | [ring_split](347_ring_split/README.md) | `eng/scene/scroll_plan.hpp`: `ring_split` — split vertical del anillo (vista cruza el final); base del materializador XYUnlimited/CopperSplit (F7.3). |

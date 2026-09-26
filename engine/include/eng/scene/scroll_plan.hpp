@@ -126,6 +126,34 @@ struct ScrollRing {
 	return (b >= a) ? static_cast<u16>(b - a) : static_cast<u16>(a - b);
 }
 
+/// **Split vertical del anillo**: describe cómo se muestra la ventana visible sobre un anillo de
+/// `window_h` filas cuando la vista empieza en `start_row` y **cruza el final** del anillo. Es lo
+/// que el driver materializa con un reapuntado de `BPLxPT` a la línea del split (Copper).
+struct RingSplit {
+	u16 start_row = 0u; ///< fila del anillo donde empieza la vista (`scroll_y % window_h`)
+	u16 top_rows = 0u;  ///< filas de la PRIMERA parte (desde `start_row` hasta el final)
+	bool wrap = false;  ///< `true` si la vista cruza el final del anillo (hay split)
+};
+
+/// Calcula el split vertical. Sin wrap, `top_rows == visible_h`. Con wrap, la segunda parte
+/// empieza en la fila 0 del anillo (el driver reapunta ahí en la línea `top_rows`).
+[[nodiscard]] constexpr RingSplit ring_split(u16 scroll_y, u16 visible_h, u16 window_h) noexcept {
+	RingSplit s {};
+	if (window_h == 0u) {
+		return s;
+	}
+	s.start_row = static_cast<u16>(scroll_y % window_h);
+	const u32 end = static_cast<u32>(s.start_row) + visible_h;
+	if (end <= window_h) {
+		s.wrap = false;
+		s.top_rows = visible_h;
+	} else {
+		s.wrap = true;
+		s.top_rows = static_cast<u16>(window_h - s.start_row);
+	}
+	return s;
+}
+
 /// Elige la mejor técnica cuyo **coste de Copper** quepa y cuya **memoria** quepa en
 /// `chip_available`. Degrada desde `requested`.
 [[nodiscard]] constexpr ScrollKind choose_scroll_fitting(ScrollKind requested, u16 visible_w,
