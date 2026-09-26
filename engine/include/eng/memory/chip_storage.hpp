@@ -49,18 +49,16 @@ struct ChipStorage {
 	static_assert(Capacity >= 1u, "ChipStorage: tamano no nulo");
 	alignas(2) u8 storage[Capacity] {};
 
+	/// El **bloque estándar** (`Block<Tag, MemoryKind::Chip>`): reúne la vista y la dirección DMA.
+	/// Así no se duplica la API del handle; el resto usa `block().view`/`block().address()`.
+	[[nodiscard]] constexpr Block<Tag, MemoryKind::Chip> block() noexcept {
+		return Block<Tag, MemoryKind::Chip> {Bytes<Tag> {storage, static_cast<usize>(Capacity)},
+						     MemoryKind::Chip};
+	}
 	/// Dirección DMA-visible de Chip RAM (la procedencia la garantiza `ENG_CHIP_RAM`).
-	[[nodiscard]] constexpr Address<MemoryKind::Chip> address() const noexcept {
-		return Address<MemoryKind::Chip>::from_storage(storage);
-	}
+	[[nodiscard]] constexpr Address<MemoryKind::Chip> address() noexcept { return block().address(); }
 	/// Vista mutable con el tag de dominio de su contenido.
-	[[nodiscard]] constexpr Bytes<Tag> view() noexcept {
-		return Bytes<Tag> {storage, static_cast<usize>(Capacity)};
-	}
-	/// Vista de solo lectura.
-	[[nodiscard]] constexpr ByteView<Tag> view() const noexcept {
-		return ByteView<Tag> {storage, static_cast<usize>(Capacity)};
-	}
+	[[nodiscard]] constexpr Bytes<Tag> view() noexcept { return block().view; }
 };
 
 } // namespace eng

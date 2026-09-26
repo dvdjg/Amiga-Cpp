@@ -23,7 +23,8 @@ class PlaneView {
 public:
 	/// Enlaza el bitmap principal (sin doble buffer): display y escritura apuntan
 	/// al mismo bloque.
-	void bind_single(eng::BitmapBase main_real, eng::FrontBase main_front) {
+	void bind_single(eng::Address<eng::MemoryKind::Chip> main_real,
+	                 eng::Address<eng::MemoryKind::Chip> main_front) {
 		m_main_real = main_real;
 		m_main_front = main_front;
 		m_db = false;
@@ -31,19 +32,21 @@ public:
 	}
 
 	/// Enlace crudo (tests o memoria ya gestionada por el llamador).
-	void bind_raw(eng::BitmapBase main_real, eng::FrontBase main_front,
-	              eng::BitmapBase extra_real, eng::FrontBase extra_front) {
+	void bind_raw(eng::Address<eng::MemoryKind::Chip> main_real,
+	              eng::Address<eng::MemoryKind::Chip> main_front,
+	              eng::Address<eng::MemoryKind::Chip> extra_real,
+	              eng::Address<eng::MemoryKind::Chip> extra_front) {
 		bind_single(main_real, main_front);
 		m_extra_real = extra_real;
 		m_extra_front = extra_front;
-		m_db = extra_real.value.valid() && extra_front.value.valid();
+		m_db = extra_real.valid() && extra_front.valid();
 	}
 
 	/// Reserva el bloque extra con el MISMO layout que el principal (doble buffer).
 	bool enable_double_buffer(eng::MemorySystem& memory, const eng::gfx::BitmapConfig& bc) {
 		if (!m_extra.init(memory, bc)) return false;
-		m_extra_real = { m_extra.allocation_start() };
-		m_extra_front = { Address<MemoryKind::Chip>::from_storage(m_extra.bytes().data()) };
+		m_extra_real = m_extra.allocation_start();
+		m_extra_front = Address<MemoryKind::Chip>::from_storage(m_extra.bytes().data());
 		m_db = true;
 		m_active = 0;
 		return true;
@@ -52,12 +55,12 @@ public:
 	constexpr bool double_buffered() const { return m_db; }
 
 	/// Base del buffer DELANTERO (la que usa `BPLxPT` del display).
-	[[nodiscard]] eng::BitmapBase display_base() const {
+	[[nodiscard]] eng::Address<eng::MemoryKind::Chip> display_base() const {
 		if (!m_db) return m_main_real;
 		return m_active ? m_extra_real : m_main_real;
 	}
 	/// Base del buffer TRASERO (destino del Blit de fondo, con `frontbase_offset`).
-	[[nodiscard]] eng::FrontBase write_base() const {
+	[[nodiscard]] eng::Address<eng::MemoryKind::Chip> write_base() const {
 		if (!m_db) return m_main_front;
 		return m_active ? m_main_front : m_extra_front;
 	}
@@ -68,10 +71,10 @@ public:
 
 private:
 	eng::gfx::Bitmap m_extra {};
-	eng::BitmapBase m_main_real {};
-	eng::FrontBase m_main_front {};
-	eng::BitmapBase m_extra_real {};
-	eng::FrontBase m_extra_front {};
+	eng::Address<eng::MemoryKind::Chip> m_main_real {};
+	eng::Address<eng::MemoryKind::Chip> m_main_front {};
+	eng::Address<eng::MemoryKind::Chip> m_extra_real {};
+	eng::Address<eng::MemoryKind::Chip> m_extra_front {};
 	bool m_db = false;
 	eng::u8 m_active = 0;
 };

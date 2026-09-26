@@ -16,7 +16,7 @@
 ///   ──────────────────              ────────────────────────────       ───────────────
 ///   Block<Tag,Bank> (medio+dom) ──► Bytes<Tag> / ByteView<Tag> ─raw()─► u8* / u16* (backend)
 ///                                   Words<Tag> / WordView<Tag>          (Blitter / DMA / Copper)
-///   Address<MemoryKind::Chip> / BitmapBase / FrontBase: direcciones y roles con semantica propia
+///   Address<MemoryKind::Chip>: direccion DMA-visible (el rol lo da el nombre del metodo)
 ///   un uso de dominio cruzado (p. ej. audio como plano grafico) NO compila
 ///   Span<T> (SIN tag): la vista contigua corriente; TaggedSpan anade el TAG encima
 /// ```
@@ -46,18 +46,10 @@ using const_prop_t =
 	eng::util::conditional_t<eng::util::detail::is_const_qualified<From>::value, const U, U>;
 } // namespace detail
 
-// Direcciones con semántica distinta (antes de las vistas, para que la vista de bytes
-// pueda devolver `Address<eng::MemoryKind::Chip>`). Nota: NO se envuelven escalares
-// (ancho/alto/stride/planes); solo se tipan buffers/punteros, direcciones y roles.
-/// Base de la reserva de un bitmap (lo que va a `BPLxPT`), en **chip RAM** (Agnus la lee por DMA).
-struct BitmapBase {
-	Address<MemoryKind::Chip> value {};
-};
-/// Buffer de escritura de un bitmap (con `frontbase_offset`), en **chip RAM** (destino del Blitter).
-struct FrontBase {
-	Address<MemoryKind::Chip> value {};
-};
-// Dirección DMA-visible de chip RAM: `Address<MemoryKind::Chip>` (ver `memory_kind.hpp`).
+// Direcciones DMA-visible de chip RAM: `Address<MemoryKind::Chip>` (ver `memory_kind.hpp`). El
+// **rol** (base para `BPLxPT` vs buffer de escritura) lo expresa el nombre del método
+// (`Bitmap::base()`/`front()`), no un tipo aparte: el eje que cambia la corrección es el **medio**
+// (Chip), y ese ya va en `Address<Chip>`.
 
 // --- Vista contigua con TAG de dominio (UNA sola clase; 4 alias) -------------
 

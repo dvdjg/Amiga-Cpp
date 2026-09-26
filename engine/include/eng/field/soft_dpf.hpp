@@ -158,12 +158,14 @@ public:
 	constexpr bool active() const { return m_geo.parallax_plane < m_geo.planes; }
 	constexpr bool double_buffered() const { return m_view.double_buffered(); }
 	void flip() { m_view.flip(); }
-	[[nodiscard]] eng::BitmapBase display_base() const { return m_view.display_base(); }
-	[[nodiscard]] eng::FrontBase write_base() const { return m_view.write_base(); }
+	[[nodiscard]] eng::Address<eng::MemoryKind::Chip> display_base() const { return m_view.display_base(); }
+	[[nodiscard]] eng::Address<eng::MemoryKind::Chip> write_base() const { return m_view.write_base(); }
 
 	/// Enlace crudo del bitmap principal y del extra (tests o memoria ya gestionada).
-	void bind_raw(eng::BitmapBase main_real, eng::FrontBase main_front,
-	              eng::BitmapBase extra_real, eng::FrontBase extra_front) {
+	void bind_raw(eng::Address<eng::MemoryKind::Chip> main_real,
+	              eng::Address<eng::MemoryKind::Chip> main_front,
+	              eng::Address<eng::MemoryKind::Chip> extra_real,
+	              eng::Address<eng::MemoryKind::Chip> extra_front) {
 		m_view.bind_raw(main_real, main_front, extra_real, extra_front);
 	}
 
@@ -192,7 +194,7 @@ public:
 			? static_cast<eng::u32>(rows - 1u) * pat_row + width_bytes : 0u);
 		if (pattern.data() == nullptr || last > pattern.size()) eng::detail::typed_range_error();
 		const eng::u8* src = pattern.data() + first;
-		eng::u8* dst_base = m_view.write_base().value.ptr();
+		eng::u8* dst_base = m_view.write_base().ptr();
 		eng::u16* dst = reinterpret_cast<eng::u16*>(dst_base +
 			(static_cast<eng::u32>(dest_row) * m_geo.planes + m_geo.parallax_plane) * row +
 			dest_byte_off);

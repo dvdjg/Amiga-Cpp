@@ -26,12 +26,12 @@ int main() {
 
 	SoftDpfComposition c {};
 	c.configure({row, /*display_height=*/288u, /*planes=*/5u, /*parallax_plane=*/4u});
-	c.bind_raw({eng::Address<eng::MemoryKind::Chip>::from_storage(mr)},
-	           {eng::Address<eng::MemoryKind::Chip>::from_storage(mf)},
-	           {eng::Address<eng::MemoryKind::Chip>::from_storage(er)},
-	           {eng::Address<eng::MemoryKind::Chip>::from_storage(ef)});
+	c.bind_raw(eng::Address<eng::MemoryKind::Chip>::from_storage(mr),
+	           eng::Address<eng::MemoryKind::Chip>::from_storage(mf),
+	           eng::Address<eng::MemoryKind::Chip>::from_storage(er),
+	           eng::Address<eng::MemoryKind::Chip>::from_storage(ef));
 	check(c.active() && c.double_buffered(), "activa y con doble buffer");
-	check(c.display_base().value.cptr() == mr && c.write_base().value.cptr() == ef, "front=main, back=extra");
+	check(c.display_base().cptr() == mr && c.write_base().cptr() == ef, "front=main, back=extra");
 
 	// Blit: destino en el buffer trasero, fila del plano de parallax.
 	const eng::Pattern pat {pattern, sizeof(pattern)};
@@ -62,8 +62,8 @@ int main() {
 	// Inactiva: parallax_plane fuera de planes -> sin doble buffer.
 	SoftDpfComposition c2 {};
 	c2.configure({row, 288u, /*planes=*/4u, /*parallax_plane=*/4u});
-	c2.bind_raw({eng::Address<eng::MemoryKind::Chip>::from_storage(mr)},
-	            {eng::Address<eng::MemoryKind::Chip>::from_storage(mf)}, {}, {});
+	c2.bind_raw(eng::Address<eng::MemoryKind::Chip>::from_storage(mr),
+	            eng::Address<eng::MemoryKind::Chip>::from_storage(mf), {}, {});
 	check(!c2.active() && !c2.double_buffered(), "inactiva: sin doble buffer");
 
 	if (g_fail != 0) { std::printf("%d fallo(s)\n", g_fail); return 1; }

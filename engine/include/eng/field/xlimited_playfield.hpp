@@ -694,7 +694,7 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
             // el modo antiguo de puntero por plano (parallax_div != 0).
             v.parallax_plane = this->m_cfg.parallax_plane;
             v.bg_plane_base = m_soft_dpf.double_buffered()
-                                  ? m_soft_dpf.display_base().value
+                                  ? m_soft_dpf.display_base()
                                   : Address<MemoryKind::Chip> {};
             if (this->m_cfg.parallax_div != 0u) {
                 const s32 ppos = (m_scroll.state().mapposx / this->m_cfg.parallax_div) +

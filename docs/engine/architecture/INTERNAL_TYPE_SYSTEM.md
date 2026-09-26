@@ -23,8 +23,7 @@ criterio:
 
 - **Tipos de dominio, no `T*`**: cada buffer/registro tiene su tipo (`Pattern`, `AudioSample`,
   `PaletteWords`, `CopperWords`…) y no son intercambiables.
-- **Semántica en el tipo**: `BitmapBase` (base de `BPLxPT`) ≠ `FrontBase` (buffer de escritura)
-  ≠ `PlaneBytes`/`PlaneViewBytes` (buffer de un plano) ≠ `ChipAddress` (dirección DMA).
+- **Semántica en el tipo**: `Address<MemoryKind::Chip>` (dirección DMA-visible; el **medio** va en el tipo) ≠ `PlaneBytes`/`PlaneViewBytes` (buffer de un plano, medio-agnóstico). El **rol** de un bitmap (base vs escritura) va en el nombre del método, no en un tipo.
 - **Solo se tipan buffers/punteros, no escalares**: los tipos de dominio envuelven rangos de
   memoria (`Bytes`/`Words`), direcciones/base y roles. **No** se envuelven enteros sueltos
   (ancho/alto/stride/planes): no aportan seguridad real, ensucian las llamadas y obligan a casts.
@@ -63,7 +62,7 @@ criterio:
   ┌───────────────────────────────────────────┐       ┌──────────────────────────────┐
   │ Surface / PlaneView / SoftDpfComposition  │       │ BlitJob { const u16* ... }    │
   │ Pattern, PaletteWords, PatternWords       │──────►│ CopperBuilder (BPLxPT)        │
-  │ BitmapBase, FrontBase, ChipAddress        │  raw()│ amiga_backend (registros)     │
+  │ Address<MemoryKind::Chip>, PlaneBytes     │  raw()│ amiga_backend (registros)     │
   │ SpriteWords, AudioSample, CopperWords     │       │ c2p / blitter / audio_paula   │
   └───────────────────────────────────────────┘       └──────────────────────────────┘
         el error de dominio no compila                       el invariante está documentado
@@ -126,17 +125,14 @@ Además de las vistas, un **descriptor** puede combinar una vista de dominio con
 `eng::field::XlimitedTileBank` (§8.1). Así el dueño no guarda un `MemoryBlock` crudo y el banco
 aliaseado no necesita `const_cast`.
 
-### 3.2 Tipos de dirección/base
+### 3.2 Tipos de dirección
 
 | Tipo | Envuelve | Semántica |
 |---|---|---|
-| `BitmapBase` | `u8*` | `Bitmap::allocation_start()` (lo que va a `BPLxPT`) |
-| `FrontBase` | `u8*` | `bytes().data()` (con `frontbase_offset`) |
-| `ChipAddress` | `uintptr` | dirección DMA-visible (chip RAM) |
+| `Address<MemoryKind::Chip>` | `uintptr` | dirección DMA-visible (chip RAM); el **medio** va en el tipo |
+| `Address<MemoryKind::Any>` | `uintptr` | dirección sin banco (no DMA-safe); el medio es un dato |
 
-`BitmapBase` y `FrontBase` son **distintos a propósito**: el bug "usar el frontbuffer como base
-de `BPLxPT`" deja de compilar. Para señalar la base de un plano concreto basta `PlaneViewBytes`
-(solo lectura) o `PlaneBytes` (mutable), que ya llevan el tag de plano.
+El **rol** de un bitmap (base de `BPLxPT` vs buffer de escritura) **no** es un tipo aparte: lo da el nombre del método (`Bitmap::base()`/`front()`). El eje que cambia la corrección es el **medio** (Chip), y ese ya va en `Address<Chip>`; envolver también el rol crecía el número de tipos sin aportar corrección.
 
 ### 3.3 Escalares: **no** se envuelven
 
@@ -207,7 +203,7 @@ Los tipos de memoria son **ejes ortogonales**; un tipo nuevo solo se justifica s
 | Bloque | `Block<Tag, Bank = Any>` | **uno solo**: `Any` = medio como **dato** (el que decide la arena); banco concreto = DMA. `TypedBlock<Tag, K>` es **alias** de `Block<Tag, K>` |
 | Banco / alocador | `MemBank<K>` (pool por banco), `LinearArena` (bump), `BlockPool` (first-fit) | mecanismos distintos, no combinaciones |
 | Estático chip | `ChipStorage<Tag, N>` + `ENG_CHIP_RAM` | búfer fijo **certificado** en Chip RAM |
-| Rol de bitmap | `BitmapBase` / `FrontBase` | base vs buffer de escritura (no se mezclan) |
+| Rol de bitmap | (nombre del método `base()`/`front()`) | **no** es un tipo: el eje de corrección es el medio (`Address<Chip>`) |
 
 Reglas para no repetir el problema:
 
@@ -221,17 +217,17 @@ Reglas para no repetir el problema:
 
 | Actual | Propuesta |
 |---|---|
-| `bind_single(u8* main_real, u8* main_front)` | `bind(BitmapBase, FrontBase)` |
-| `bind_raw(u8*, u8*, u8*, u8*)` | `bind(BitmapBase, FrontBase, BitmapBase, FrontBase)` |
-| `display_base() -> u8*` | `display() -> BitmapBase` (o `ChipAddress` para el Copper) |
-| `write_base() -> u8*` | `back() -> FrontBase` |
+| `bind_single(u8* main_real, u8* main_front)` | `bind(Address<MemoryKind::Chip>, Address<MemoryKind::Chip>)` |
+| `bind_raw(u8*, u8*, u8*, u8*)` | `bind(Address<MemoryKind::Chip>, Address<MemoryKind::Chip>, Address<MemoryKind::Chip>, Address<MemoryKind::Chip>)` |
+| `display_base() -> u8*` | `display() -> Address<MemoryKind::Chip>` (o `Address<MemoryKind::Chip>` para el Copper) |
+| `write_base() -> u8*` | `back() -> Address<MemoryKind::Chip>` |
 | `make_copy_rect_job(const u8* pattern, ...)` | `make_copy_rect_job(Pattern, u16 row_bytes, ...)` |
 
 ### 4.2 Bitmap / arena / memoria
 
 | Actual | Propuesta |
 |---|---|
-| `Bitmap::allocation_start() -> u8*` | `BitmapBase` |
+| `Bitmap::allocation_start() -> u8*` | `Address<MemoryKind::Chip>` |
 | `Bitmap::bytes() -> Span<u8>` | `Bytes<PlanarRegion>` (mutable) / `ByteView<PlanarRegion>` |
 | `MemoryBlock { void* data; u32 size; MemoryKind }` | `Block<Tag> { Bytes<Tag> view; MemoryKind }` |
 | `LinearArena::allocate(...) -> MemoryBlock` | `allocate_block<Tag>(bytes, align) -> Block<Tag>` |
@@ -245,7 +241,7 @@ Reglas para no repetir el problema:
 | `blit_fill_from_mask(const u8* mask, u8* dst, ...)` | `blit_fill_from_mask(MaskBytes, PlaneBytes, u8 planes, ...)` |
 | `blitter_line(u8* plane, u16 row_bytes, ...)` | `blitter_line(PlaneBytes, u16 row_bytes, ...)` |
 | `c2p(const void* chunky, void* planes)` | `c2p(u32 w, u32 h, u32 stride, ChunkyView, PlaneBytes)` |
-| `move_bitplane_pointer(u8 plane, const void* address)` | `u8 plane` + `ChipAddress` |
+| `move_bitplane_pointer(u8 plane, const void* address)` | `u8 plane` + `Address<MemoryKind::Chip>` |
 | `bitplanes() -> u8*` (escenas) | `bitplanes() -> PlaneBytes` (devuelto, sin cast) |
 | `MemoryBlock::data` crudo | `MemoryBlock::buffer<Tag>()` / `view<Tag>()` |
 
@@ -253,7 +249,7 @@ Reglas para no repetir el problema:
 
 | Actual | Propuesta |
 |---|---|
-| `CopperBuilder(m_words)` sobre `u16*` | `Words<CopperTag>`; `patch_move32(..., const void*)` → `ChipAddress` |
+| `CopperBuilder(m_words)` sobre `u16*` | `Words<CopperTag>`; `patch_move32(..., const void*)` → `Address<MemoryKind::Chip>` |
 | `emit_palette(const u16* colors, u8 first, u8 count)` | `PaletteWords`, `u8 first`, `u8 count` |
 | `ehb_scene::bitplanes() -> u8*` | `PlaneBytes` |
 
@@ -286,12 +282,12 @@ using PlaneViewConst = eng::ByteView<PlaneTag>;  // vista de solo lectura
 
 class PlaneView {
 public:
-    void bind(eng::BitmapBase real, eng::FrontBase front);            // single
-    void bind(eng::BitmapBase real, eng::FrontBase front,
-              eng::BitmapBase extra_real, eng::FrontBase extra_front); // doble buffer
+    void bind(eng::Address<MemoryKind::Chip> real, eng::Address<MemoryKind::Chip> front);            // single
+    void bind(eng::Address<MemoryKind::Chip> real, eng::Address<MemoryKind::Chip> front,
+              eng::Address<MemoryKind::Chip> extra_real, eng::Address<MemoryKind::Chip> extra_front); // doble buffer
 
     /// Base del buffer delantero para `BPLxPT` (dirección DMA, solo lectura por CPU).
-    [[nodiscard]] eng::ChipAddress display() const;
+    [[nodiscard]] eng::Address<MemoryKind::Chip> display() const;
     /// Buffer trasero donde escribe el Blit (bytes del plano de fondo).
     [[nodiscard]] PlaneBytes back() const;
     void flip() noexcept;
@@ -322,11 +318,11 @@ resultante sigue crudo, generado **dentro** de la capa segura.
 ## 8. Migración por fases
 
 1. **Fundamento**: `eng/core/types/typed.hpp` con `Bytes/ByteView/Words/WordView` (array/iteradores) +
-   `eng/core/types/domains.hpp` con los tags/alias y tipos de dirección/base (`ChipAddress`…), más un test
+   `eng/core/types/domains.hpp` con los tags/alias y tipos de dirección/base (`Address<MemoryKind::Chip>`…), más un test
    host puro.
-2. **Frontera de memoria**: `BitmapBase`/`FrontBase`, `Bitmap`, `Block<Tag>`/`LinearArena`.
+2. **Frontera de memoria**: `Address<MemoryKind::Chip>`/`Address<MemoryKind::Chip>`, `Bitmap`, `Block<Tag>`/`LinearArena`.
 3. **PlaneView + SoftDpfComposition**: primer consumidor real (los punteros `u8*` pasan a
-   `BitmapBase`/`FrontBase`/`PlaneBytes`).
+   `Address<MemoryKind::Chip>`/`Address<MemoryKind::Chip>`/`PlaneBytes`).
 4. **Blits/`FramePlan`**: `BlitSource`/`BlitDest` y productores tipados; `BlitJob` crudo.
 5. **Contenido/streaming**: `WorldView`, `ChunkLoader`, UAF (`ByteView<UafPayload>`).
 6. **Backend**: blitter/C2P/audio/copper reciben los tipos de dominio en su firma pública
@@ -341,7 +337,7 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
 - **Fase 1 — hecha**: `eng/core/types/typed.hpp` (vistas con tag, array/iteradores, direcciones/base) y
   `eng/core/types/domains.hpp` (tags/alias de dominio). Test HOST-040.
 - **Fase 2 — hecha**: `Bitmap::base()`/`front()`; `PlaneView` y `SoftDpfComposition` usan
-  `BitmapBase`/`FrontBase` en `bind*`/`display_base`/`write_base` (`XLimitedPlayfield` cruza a
+  `Address<MemoryKind::Chip>`/`Address<MemoryKind::Chip>` en `bind*`/`display_base`/`write_base` (`XLimitedPlayfield` cruza a
   crudo solo en `hardware_view`). HOST-038/039 actualizados; 112 sin regresión.
   **Productores tipados**: `MemoryBlock::buffer<Tag>()`/`view<Tag>()`, y escenas/bitmaps devuelven
   `PlaneBytes` (`bitplanes()`, `plane(i)`); los consumidores conectan sin cast.
@@ -353,7 +349,7 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
   030/040/107/201/202 READY y 111/112 sin regresión. **Copper/mapper tipados**:
   `CopperScheduler::emit_planes_display`/`emit_copper_intents_full` reciben `eng::PlaneBytes`,
   `Copper::move_bitplane_pointer`/`move32`/`patch_move32`/`instruction_address` usan
-  `eng::ChipAddress` y `CopperIntent::bitplanes`/`colors` son `PlaneBytes`/`PaletteWords`; las
+  `eng::Address<MemoryKind::Chip>` y `CopperIntent::bitplanes`/`colors` son `PlaneBytes`/`PaletteWords`; las
   escenas y demos pasan sus vistas (`bitplanes()`, `Palette32` con `operator PaletteWords`).
 - **Fase 4 — hecha**: `Blob`/`Reader`/`BlobWriter`, las vistas UAF y `WorldView::read` usan
   `eng::UafPayload` (`ByteView<UafTag>`); `ChunkCache::Loader`, `StreamingWorldMap::Source`,

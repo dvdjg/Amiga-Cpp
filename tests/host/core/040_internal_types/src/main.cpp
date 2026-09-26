@@ -101,16 +101,14 @@ int main() {
 		check(words_from_bytes.size() == 2u && words_from_bytes[1] == 0x2222u, "bytes<->words redondo");
 	}
 
-	// Direcciones con semántica distinta: `BitmapBase` (base del bitmap, va a `BPLxPT`) y
-	// `FrontBase` (buffer de escritura) son tipos que NO se mezclan. El MEDIO (Chip) no se prueba
-	// aquí: un test host no tiene Chip RAM real y forzar un `Address<Chip>` desde un array
-	// cualquiera sería un cast que oculta el error. El `Address<Chip>` con procedencia (banco)
-	// se cubre en HOST-349 con `MemBank<Chip>`.
-	eng::BitmapBase bb {};
-	eng::FrontBase fb {};
-	check(!bb.value.valid() && !fb.value.valid(), "roles por defecto sin base");
-	static_assert(!ConstructibleFrom<eng::FrontBase, eng::BitmapBase>, "base y front no se mezclan");
-	static_assert(!ConstructibleFrom<eng::BitmapBase, eng::FrontBase>, "front y base no se mezclan");
+	// Dirección DMA-visible de Chip RAM. El **rol** (base de `BPLxPT` vs buffer de escritura) no
+	// es un tipo aparte: lo da el nombre del método (`Bitmap::base()`/`front()`). El medio (Chip)
+	// va en `Address<Chip>`, y su procedencia se cubre en HOST-349 con `MemBank<Chip>`.
+	eng::Address<eng::MemoryKind::Chip> chip_addr {};
+	check(!chip_addr.valid(), "dirección Chip por defecto vacía");
+	const eng::u8 chip_store[8] {};
+	chip_addr = eng::Address<eng::MemoryKind::Chip>::from_storage(chip_store);
+	check(chip_addr.valid() && chip_addr.cptr() == chip_store, "dirección Chip desde almacén");
 
 	if (g_fail != 0) { std::printf("%d fallo(s)\n", g_fail); return 1; }
 	std::printf("OK: sistema de tipos internos (tags, unidades, direcciones) validado.\n");
