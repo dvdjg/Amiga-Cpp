@@ -21,6 +21,7 @@
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/bob.hpp>
+#include <eng/graphics/composition/limits.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/scene/actor.hpp>
 #include <eng/scene/virtual_scene.hpp>
@@ -33,8 +34,37 @@ enum class WorldLayerKind : u8 {
 	Tilemap, ///< capa de tiles (contenido en `TileLayer`)
 };
 
-/// Una capa del mundo: identidad, profundidad, cámara y **contenido** (actores o tilemap). El
-/// engine la materializa como playfield/DPF/efecto (planner); el juego describe y lee su cámara.
+/// **Algoritmo de scroll pedido por una capa**. La capa lo **pide**; el planner lo acepta,
+/// degrada o rechaza según el presupuesto de Copper/planos (ver `OBJECT_SYSTEM.md` §15).
+enum class LayerScroll : u8 {
+	Static,      ///< sin scroll (Copper mínimo)
+	Fine,        ///< `BPLCON1` (delay fino, barato en Copper)
+	XLimited,    ///< desplazamiento por `BPLxPT`/módulo (bitmap ring)
+	XYUnlimited, ///< ring + split por línea (caro en Copper; una por banda)
+};
+
+/// **Playfield preferido** de una capa (el planner decide la materialización final).
+enum class LayerPlayfield : u8 {
+	Any,         ///< el planner elige
+	Pf1,         ///< playfield 1 (delante en DPF)
+	Pf2,         ///< playfield 2 (detrás en DPF)
+	SpriteLayer, ///< capa de sprites hardware (fondo sprite-as-playfield)
+};
+
+/// **Región vertical** del display (banda de líneas) con su playfield/modo/planos. Permite
+/// expresar un DPF + una banda de otra altura/planos (reconfiguración por Copper en `top`).
+struct WorldRegion {
+	u16 top = 0;
+	u16 bottom = 0;
+	LayerPlayfield playfield = LayerPlayfield::Pf1;
+	graphics::composition::SceneMode mode = graphics::composition::SceneMode::Standard;
+	u8 planes = 0;
+	[[nodiscard]] constexpr bool ok() const noexcept { return bottom > top; }
+};
+
+/// Una capa del mundo: identidad, profundidad, cámara, **contenido** (actores o tilemap) y el
+/// **algoritmo de scroll pedido** + playfield preferido. El engine la materializa (planner);
+/// el juego describe y lee su cámara.
 class Layer {
 public:
 	constexpr void configure(const char* id, u8 depth) noexcept {
@@ -58,10 +88,18 @@ public:
 	[[nodiscard]] constexpr TileLayer& tilemap() noexcept { return m_tile; }
 	[[nodiscard]] constexpr const TileLayer& tilemap() const noexcept { return m_tile; }
 
+	/// **Scroll pedido** y playfield preferido (los valida el planner).
+	[[nodiscard]] constexpr LayerScroll scroll() const noexcept { return m_scroll; }
+	constexpr void set_scroll(LayerScroll s) noexcept { m_scroll = s; }
+	[[nodiscard]] constexpr LayerPlayfield prefer() const noexcept { return m_prefer; }
+	constexpr void set_prefer(LayerPlayfield p) noexcept { m_prefer = p; }
+
 private:
 	const char* m_id = "";
 	u8 m_depth = 0;
 	WorldLayerKind m_kind = WorldLayerKind::Actors;
+	LayerScroll m_scroll = LayerScroll::Static;
+	LayerPlayfield m_prefer = LayerPlayfield::Any;
 	TileLayer m_tile {};
 	Camera2D m_camera {};
 };
@@ -69,7 +107,7 @@ private:
 /// **Mundo**: conjunto fijo de capas (sin heap) y de actores. El orden de dibujo lo fija la
 /// profundidad de capa (menor = al fondo) y, dentro del plan, el `z` del actor; el planner
 /// lo usará al componer.
-template <u8 MaxLayers = 8u, u8 MaxActors = 16u>
+template <u8 MaxLayers = 8u, u8 MaxActors = 16u, u8 MaxRegions = 8u>
 class World {
 public:
 	/// Añade una capa. Devuelve `Ref<Layer>` inválido si el mundo está lleno (no hay fallo
@@ -117,6 +155,23 @@ public:
 			}
 		}
 		return {};
+	}
+
+	// --- Regiones del display (bandas verticales) ----------------------------
+	/// Añade una **región** (banda vertical) con su playfield/modo/planos: es lo que permite
+	/// expresar un DPF + una banda de otra altura. `false` si no cabe o es inválida.
+	[[nodiscard]] bool add_region(const WorldRegion& r) noexcept {
+		if (m_region_count >= MaxRegions || !r.ok()) {
+			return false;
+		}
+		m_regions[m_region_count] = r;
+		++m_region_count;
+		return true;
+	}
+	[[nodiscard]] constexpr u8 region_count() const noexcept { return m_region_count; }
+	[[nodiscard]] Ref<const WorldRegion> region(u8 i) const noexcept {
+		return i < m_region_count ? Ref<const WorldRegion> {m_regions[i]}
+					  : Ref<const WorldRegion> {};
 	}
 
 	// --- Actores retenidos ---------------------------------------------------
@@ -172,6 +227,8 @@ private:
 	ActorStore<MaxActors> m_actors {};
 	RepresentationAllocator m_allocator {};
 	ActorId m_order[MaxActors] {};
+	WorldRegion m_regions[MaxRegions] {};
+	u8 m_region_count = 0u;
 };
 
 } // namespace eng::scene

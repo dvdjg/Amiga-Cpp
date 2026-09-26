@@ -378,3 +378,9 @@ Esta sección fija **qué es cada pieza** (framebuffer, vista, descriptor, algor
 2. **Un emisor por coprocesador**: `FramePlan` (Blitter) y `copper::Plan` (Copper); nadie más.
 3. **El juego no ve hardware**: solo `App`/`Screen`/`World`/`Device` (gate `api-facade`).
 4. **Descriptor único de objeto**: `Visual` es la intención; `Sprite` la cocina; no multiplicar tipos.
+
+### 15.8 Capas declarativas y planner: «la capa pide, el planner dispone»
+
+`Layer` **no es** un tipo de playfield: describe identidad, profundidad, cámara, **contenido** (actores o tilemap), el **scroll pedido** (`LayerScroll`: `Static`/`Fine`/`XLimited`/`XYUnlimited`) y el **playfield preferido** (`LayerPlayfield`: `Any`/`Pf1`/`Pf2`/`SpriteLayer`). El **planner** (F4c) materializa: asigna cada capa a `(PF1|PF2 × región)` o a la capa de sprites, valida y **degrada** si no cabe.
+
+El chipset tiene **2 playfields** + **8 sprites**; más capas se logran con **regiones verticales** (`WorldRegion {top,bottom,playfield,mode,planes}`, cambio por Copper en `top`: un DPF de 208 px + una banda de 48 px a 4 planos) y con sprite-layers. Los **algoritmos de scroll no son gratis**: `XYUnlimited` usa *split por línea* (Copper), `XLimited` usa `BPLxPT`/módulo, `Fine` usa `BPLCON1`. Por eso el planner aplica reglas como **una `XYUnlimited` por banda**: la capa lo pide, el planner acepta/degradar/rechaza según el **presupuesto de Copper por línea** (`copper::Plan::reserve_band`/`EffectCost`), los **planos** (`DisplayLimits`) y la **memoria** (`SceneResources`), con `ConfigError`/diagnóstico. La capa nunca elige registros ni modo.
