@@ -135,6 +135,7 @@ Notas de diseño:
 
 - El **minterm es un campo del `BlitJob`** (`BlitJob::minterm`, por defecto `$CA`), así que el mismo camino de ejecución sirve para cookie-cut, OR, copia y borrado; no se multiplican los tipos de job ni las ramas de la aplicación.
 - El **layout** del destino también es un campo explícito (`BlitJob::interleaved`): con planos intercalados, un objeto es **un solo blit** con `height = alto × planos`; con planos contiguos son N blits (uno por plano).
+- La **máscara** del cookie-cut puede venir de dos formas (`Bob::mask_pack`, `graphics/bob.hpp`): en un **plano aparte** (`SeparatePlane`, el camino planar) o **intercalada por pares** `[máscara][imagen]` en cada fila de cada plano (`InterleavedPair`), que resuelve el cookie-cut con destino intercalado en **un solo** blit `$CA` (kind `MaskedBobCookieCut`) sin materializar una máscara expandida; es la forma del BOB de la demo 213.
 - La transparencia se combina con el **orden de dibujo dentro de la superficie**: los BOB y objetos CPU de un mismo playfield se emiten de atrás hacia delante por `z` (estable, y solo entre objetos de esa misma superficie). Los sprites no entran en ese orden: se superponen por su prioridad de hardware, que además decide si van delante o detrás de cada playfield (`sprite_priority`).
 - Un sprite multiplexado reutiliza el canal y, por tanto, sus registros `COLOR16..31`: los cambios de paleta de dos objetos que compartan canal deben respetar el par N/N+1 o degradarse (ver §7).
 
@@ -234,6 +235,12 @@ Un tile es, para el hardware, **una copia de bitmap en una rejilla**: la misma g
 Consecuencia para este diseño: el algoritmo de scroll por tiles de X-Limited no es un sistema aparte, sino un **emisor masivo de BOB** que comparte el `FramePlan`, el presupuesto de Blitter, el orden dentro de la superficie y las reglas de módulo/guarda del anillo. Lo que cambia es quién decide qué se dibuja (el campo de tiles, por celdas del mapa) y que su emisión es por lotes y con su propio criterio de reuso (franjas, prefetch), no un `actor_emit` por objeto.
 
 Regla práctica: cuando una entidad se pueda describir como "imagen de un banco, posición entera en pantalla, copia por Blitter", debe emitir `BlitJob`s por el mismo camino que un BOB, aunque su origen sea un mapa y no un `Actor`.
+
+### 8.7 Capa declarativa de BOBs (`BobLayer`)
+
+`eng/scene/bobs.hpp` es la capa de juego sobre `bob_draw`: una **hoja** homogénea (`graphics::Sprite`) y un vector fijo de **actores** (`BobActor`: `x`, `y`, `frame`, `visible`). El juego escribe la pose por frame y llama `layer.emit(plan, scene.bob_target())`; no nombra `BlitJob`, minterns ni strides. `scene::clear_box(plan, target, x, y, w, h)` limpia bandas/zonas del playfield con la misma geometría de borrado (un blit intercalado), sin que el juego describa un `BlitJob`. La demo 213 usa esta capa para sus 16 BOBs cookie-cut intercalados.
+
+`scene::FastBobLayer` es la variante para **dual playfield** (PF frontal vacío): mantiene el historial de lo pintado por actor y decide, por frame, entre la **copia con padding** (`BobDraw::Opaque`, dibuja y limpia en un blit) y la degradación (**clear del área previa + cookie-cut**) cuando el actor se mueve más que el padding o su área se solapa con la de otro. El juego sigue moviendo solo actores; la técnica es una política, no un tipo de objeto (ver `docs/reference/amiga/techniques/dual-playfield-fastbobs.md` y `HOST-355`).
 
 ## 9. Memoria y presupuesto
 

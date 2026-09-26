@@ -18,4 +18,5 @@ Categoría `scene` de la batería host (L1). El índice de categorías está en 
 | HOST-345 | [region_plan](345_region_plan/README.md) | `eng/scene/scroll_plan.hpp`: `plan_region` — elige el scroll efectivo de una `WorldRegion` por presupuesto (Copper/Chip) con coste y memoria (F4c/decisión). |
 | HOST-346 | [scroll_ring](346_scroll_ring/README.md) | `eng/scene/scroll_plan.hpp`: geometría del anillo de scroll (`scroll_ring`) y bandas cruzadas (`ring_crossed`) — base de los drivers con guardas (F7.3). |
 | HOST-347 | [ring_split](347_ring_split/README.md) | `eng/scene/scroll_plan.hpp`: `ring_split` — split vertical del anillo (vista cruza el final); base del materializador XYUnlimited/CopperSplit (F7.3). |
-| HOST-354 | [scene_facade](354_scene_facade/README.md) | `eng/scene/display.hpp` (display declarativo + efectos sobre Copper) y `eng/scene/bobs.hpp` (`BobLayer`/`Actor`) — el juego no nombra registros ni `BlitJob`. |
+| HOST-354 | [scene_facade](354_scene_facade/README.md) | `eng/scene/display.hpp` (display declarativo + efectos sobre Copper) y `eng/scene/bobs.hpp` (`BobLayer`/`BobActor`) — el juego no nombra registros ni `BlitJob`. |
+| HOST-355 | [fast_bobs](355_fast_bobs/README.md) | `eng/scene/bobs.hpp::FastBobLayer`: Fast BOBs (copia con padding `$F0`) con degradación a clear + cookie-cut `$CA` por movimiento excesivo o solape. |

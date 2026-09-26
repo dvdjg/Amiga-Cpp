@@ -79,6 +79,20 @@ int main() {
 	bobs.resize(99u); // recorta al maximo
 	check(bobs.count() == eng::scene::BobLayer::kMaxActors, "resize recorta");
 
+	// --- Limpieza de zona (clear_box) --------------------------------------
+	eng::graphics::FramePlan plan {};
+	plan.clear();
+	eng::graphics::BobTarget t {};
+	t.base = reinterpret_cast<eng::u8*>(copper);
+	t.row_bytes = 4u;
+	t.planes = 2u;
+	t.layout = eng::graphics::BobLayout::Interleaved;
+	check(eng::scene::clear_box(plan, t, 0, 8, 32u, 4u), "clear_box encola");
+	check(plan.blit_job_count() == 1u, "clear_box: un blit");
+	check(plan.blit_job(0).kind == eng::graphics::BlitJobKind::ClearRect, "clear_box kind");
+	check(plan.blit_job(0).height == 4u * 2u, "clear_box altura = filas x planos");
+	check(plan.blit_job(0).words_per_row == 2u, "clear_box palabras/fila");
+
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;
