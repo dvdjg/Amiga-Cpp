@@ -46,16 +46,17 @@ namespace eng::graphics::composition {
 [[nodiscard]] inline auto reverse_ptrs() {
 	return [](Scene& sc) {
 		copper::Scheduler& s = sc.scheduler();
-		const eng::u8* base = sc.bitplanes().data();
+		const eng::ChipPlaneView planes = sc.chip_planes();
 		const u32 pb = sc.plane_bytes();
 		for (eng::u8 p = 0u; p < sc.planes(); ++p) {
 			const eng::u32 src = eng::math::mulu16(static_cast<u16>(sc.planes() - 1u - p),
 							      static_cast<u16>(pb));
-			const eng::uintptr ip = reinterpret_cast<eng::uintptr>(base + src);
+			const eng::Address<eng::MemoryKind::Chip> ip =
+				planes.address(static_cast<eng::s32>(src));
 			const u16 idx = s.move_at(copper::bitplane_pointer_high_register(p),
-						  static_cast<u16>(ip >> 16));
+						  static_cast<u16>(ip.value >> 16));
 			(void)s.move_at(copper::bitplane_pointer_low_register(p),
-					static_cast<u16>(ip & 0xffffu));
+					static_cast<u16>(ip.value & 0xffffu));
 			// Registra este MOVE como el parche del registro `p`, pero mostrando el plano
 			// `planes-1-p` (la permutación inversa). Así `commit` repunta correctamente en
 			// doble buffer sin deshacer la inversión.
@@ -131,14 +132,14 @@ inline constexpr u16 kBplcon0_Ham6 = 0x7a00;         ///< HAM6 (6 planos, COLOR,
 			// Punteros BPLxPT parcheables (uno por plano): habilitan el doble buffer por
 			// parcheo (`Scene::commit`). `move_at` devuelve el índice del MOVE (PTH); el
 			// PTL va 2 words después.
-			const eng::u8* base = sc.bitplanes().data();
+			const eng::ChipPlaneView planes = sc.chip_planes();
 			for (u8 p = 0u; p < sc.planes(); ++p) {
-				const eng::uintptr ip = reinterpret_cast<eng::uintptr>(
-					base + static_cast<eng::u32>(p) * sc.plane_bytes());
+				const eng::Address<eng::MemoryKind::Chip> ip = planes.address(
+					static_cast<eng::s32>(static_cast<eng::u32>(p) * sc.plane_bytes()));
 				const u16 idx = s.move_at(copper::bitplane_pointer_high_register(p),
-							  static_cast<u16>(ip >> 16));
+							  static_cast<u16>(ip.value >> 16));
 				(void)s.move_at(copper::bitplane_pointer_low_register(p),
-						static_cast<u16>(ip & 0xffffu));
+						static_cast<u16>(ip.value & 0xffffu));
 				sc.set_plane_patch(p, patch32_at(s, idx));
 			}
 		}

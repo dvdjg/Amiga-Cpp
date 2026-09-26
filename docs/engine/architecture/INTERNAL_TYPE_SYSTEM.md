@@ -166,21 +166,22 @@ direcciones sí son tipos de dominio** y los productores los devuelven ya tipado
 - Se distingue **rol** además de contenido: `BlitSource` (const) y `BlitDest` (mut) evitan
   intercambiar origen y destino.
 
-### 3.6 Memoria: medio (dato) vs petición (MemSpec) vs vida
+### 3.6 Memoria: medio (dato) vs vida
 
-La memoria se **pide** con ejes **ortogonales**, no con un enum de combinaciones (evita explosión):
+La memoria se describe con ejes **ortogonales**, no con un enum de combinaciones (evita explosión):
 
 - **Medio** (`MemoryKind`: Chip/Slow/Fast/Any) — **dato** del bloque reservado (`Block<Tag>` lleva su kind). Describe *dónde* cayó.
-- **Petición** (`MemSpec`): **requisito** duro (`MemReq::Any/Chip/NonChip`, corrección) × **preferencia** blanda (`MemHint::None/Fast/Slow`, rendimiento). `resolve_bank(spec, avail)` lo mapea a un banco físico.
-- **Vida** (persistente vs *scratch* de frame) es **otro eje** (`MemLifetime`/arena), no un `MemoryKind`.
+- **Vida** (persistente vs *scratch* de frame) es **otro eje** (arena), no un `MemoryKind`.
 - **Alineación** (parámetro) y **cero** (flag) tampoco son bancos.
 
-Regla: **solo el eje que afecta a la corrección va al tipo.** El requisito `Chip` (DMA) se materializa en el tipo `Address<Chip>`/`TypedBlock<Tag, Chip>` (`MemBank<Chip>`); `Any`/`NonChip` devuelven un handle con el medio **como dato** (aunque salga de Chip, su tipo **no** es `Address<Chip>` → no compila en APIs DMA). Coste cero: etiquetas vacías.
+Un uso «general» se resuelve **eligiendo el banco en el código** (compile-time): el DMA va a `MemBank<Chip>::reserve<Tag>()` (tipado) y lo que no necesita DMA a un banco `Slow`/`Fast`. No hay una "petición" en runtime con ejes: el banco es una decisión de código/setup.
+
+Regla: **solo el eje que afecta a la corrección va al tipo.** El requisito `Chip` (DMA) se materializa en el tipo `Address<Chip>`/`Block<Tag, Chip>` (`MemBank<Chip>`); el resto lleva el medio **como dato**. Coste cero: etiquetas vacías.
 
 ```text
-  MemoryKind (medio, dato)  ⊥  MemSpec { MemReq, MemHint } (petición)  ⊥  MemLifetime (vida)  ⊥  align/clear
-                               └ req=Chip -> Address<Chip> (tipo, DMA)
-                               └ req=Any/NonChip -> handle con MemoryKind (dato)
+  MemoryKind (medio, dato)  ⊥  vida (arena)  ⊥  align/clear
+                               └ DMA (Chip)          -> Address<Chip> (tipo)
+                               └ CPU (Slow/Fast/Any) -> Address<Bank> / dato
 ```
 
 `Block<Tag>` (reserva de arena *bump*) sigue llevando `MemoryKind` **como dato**; el uso **DMA nuevo** pasa por `Address<Chip>`/`TypedBlock<Tag, Chip>` (`MemBank<Chip>`), que **impide en compilación** usar Fast/Slow. En `platform/amiga`, el backend entrega los buffers por bancos (`MemoryManager::configure`) al arrancar.

@@ -20,7 +20,6 @@
 #include <eng/core/types/memory_kind.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/memory/mem_bank.hpp>
-#include <eng/memory/mem_spec.hpp>
 
 namespace eng {
 
@@ -55,36 +54,7 @@ public:
 	[[nodiscard]] constexpr bool has_slow() const noexcept { return m_slow.capacity() != 0u; }
 	[[nodiscard]] constexpr bool has_fast() const noexcept { return m_fast.capacity() != 0u; }
 
-	/// Disponibilidad de bancos (para `resolve_bank`).
-	[[nodiscard]] constexpr MemAvail available() const noexcept {
-		return MemAvail {m_configured, m_slow.capacity() != 0u, m_fast.capacity() != 0u};
-	}
-
-	/// Reserva **por petición** (`MemSpec`): resuelve banco por requisito + preferencia y reserva
-	/// ahí. Para `MemReq::Chip` (DMA) usa `chip().reserve<Tag>()` (**tipado**, compile-time); esta
-	/// vía es para `Any`/`NonChip`, donde el banco es una decisión de runtime y el bloque lleva su
-	/// `MemoryKind` como dato. Devuelve un `MemoryBlock` inválido si ningún banco válido cabe.
-	[[nodiscard]] MemoryBlock allocate(MemSpec spec, u32 bytes, u32 alignment = 0u) noexcept {
-		const MemoryKind k = resolve_bank(spec, available());
-		if (k == MemoryKind::Any) {
-			return {};
-		}
-		return try_bank(k, bytes, alignment);
-	}
-
 private:
-	/// Intenta reservar en un banco concreto (`MemoryBlock` inválido si no cabe).
-	[[nodiscard]] MemoryBlock try_bank(MemoryKind kind, u32 bytes, u32 alignment) noexcept {
-		switch (kind) {
-		case MemoryKind::Fast:
-			return m_fast.pool().allocate(bytes, alignment);
-		case MemoryKind::Slow:
-			return m_slow.pool().allocate(bytes, alignment);
-		default:
-			return m_chip.pool().allocate(bytes, alignment);
-		}
-	}
-
 	MemBank<MemoryKind::Chip> m_chip {};
 	MemBank<MemoryKind::Slow> m_slow {};
 	MemBank<MemoryKind::Fast> m_fast {};

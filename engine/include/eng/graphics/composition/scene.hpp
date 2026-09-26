@@ -108,6 +108,10 @@ public:
 	[[nodiscard]] const copper::Plan& plan() const { return m_plan; }
 	/// Vista de los bitplanes del buffer trasero (el que se está dibujando).
 	[[nodiscard]] constexpr eng::PlaneBytes bitplanes() const { return m_buffers[m_back].view; }
+	/// Vista **certificada en Chip** de los bitplanes del buffer trasero: fuente para el **DMA**
+	/// (Copper/`BPLxPT`). Sale del `Block<Tag>` del buffer (medio en la arena) con la comprobación
+	/// de que es Chip; no se fabrica una dirección a mano.
+	[[nodiscard]] eng::ChipPlaneView chip_planes() const { return m_buffers[m_back].mem_view_chip(); }
 	/// Buffer de display que se está dibujando (el trasero).
 	[[nodiscard]] constexpr eng::PlaneBytes back() const { return m_buffers[m_back].view; }
 	/// Buffer de display `i` (para leer/escribir otro); vacío si `i` fuera de rango.
@@ -145,10 +149,10 @@ public:
 			return false;
 		}
 		const u8 src = (m_plane_source[p] < m_res.planes) ? m_plane_source[p] : p;
-		const eng::u8* base = m_buffers[index].view.data();
-		const eng::uintptr want =
-			reinterpret_cast<eng::uintptr>(base) + static_cast<eng::u32>(src) * m_plane_bytes;
-		return display_plane_address(p) == static_cast<u32>(want);
+		const eng::ChipPlaneView planes = m_buffers[index].mem_view_chip();
+		const eng::Address<eng::MemoryKind::Chip> want =
+			planes.address(static_cast<eng::s32>(static_cast<eng::u32>(src) * m_plane_bytes));
+		return display_plane_address(p) == static_cast<u32>(want.value);
 	}
 	/// Plano `i` del bitmap (layout contiguo; vacío si fuera de rango).
 	[[nodiscard]] constexpr eng::PlaneBytes plane(u8 i) const {
