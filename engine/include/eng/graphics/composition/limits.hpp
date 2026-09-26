@@ -35,14 +35,12 @@
 /// ```
 
 #include <eng/core/types/types.hpp>
+#include <eng/graphics/plane_layout.hpp>
 
 namespace eng::graphics::composition {
 
-/// **Layout de los bitplanes** en memoria.
-enum class SceneLayout : eng::u8 {
-	Contiguous = 0, ///< un plano tras otro (cada fila de un plano, contiguas)
-	Interleaved = 1, ///< fila a fila con los N planos (el que espera `CanvasPlayfield`)
-};
+/// **Layout de los bitplanes** de la escena (alias del enum único `eng::graphics::PlaneLayout`).
+using SceneLayout = PlaneLayout;
 
 /// **Modo de playfield**: determina qué límites de planos y fetch aplican (y qué `BPLCON0`).
 /// No es "cómo se programa" (eso lo hace la etapa `display`), sino el contrato que valida

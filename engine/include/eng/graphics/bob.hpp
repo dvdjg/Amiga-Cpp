@@ -41,6 +41,7 @@
 
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/frame_plan.hpp>
+#include <eng/graphics/plane_layout.hpp>
 
 namespace eng::graphics {
 
@@ -70,11 +71,8 @@ enum class BobErase : u8 {
 	RestoreUnder,
 };
 
-/// Layout de los planos (hoja del objeto y bitmap destino).
-enum class BobLayout : u8 {
-	Planar,      ///< N planos contiguos: N blits por objeto.
-	Interleaved, ///< filas de planos alternadas: 1 blit por objeto.
-};
+/// Layout de los planos (alias del enum único `PlaneLayout`); `BobLayout::Planar` = contiguo.
+using BobLayout = PlaneLayout;
 
 /// Descripción de un objeto de bitmap. No posee memoria (apunta a bloques del
 /// llamador, en Chip RAM: el Blitter solo lee Chip).

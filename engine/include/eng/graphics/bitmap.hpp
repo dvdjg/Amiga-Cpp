@@ -28,15 +28,14 @@
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/typed.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/graphics/plane_layout.hpp>
 #include <eng/memory/arena.hpp>
 
 namespace eng::gfx {
 
-/// Layout de los bitplanes en memoria.
-enum class PlaneLayout : u8 {
-    Interleaved,  // planelínea = fila*planes + plano; direccionar 1 fila por planelínea
-    Separate,     // cada plano contiguo: addr = plano*row_bytes*height + fila*row_bytes + x/8
-};
+/// Layout de los bitplanes (alias del enum único `eng::graphics::PlaneLayout`; `Separate` =
+/// planos contiguos, el vocabulario histórico de `Bitmap`).
+using PlaneLayout = eng::graphics::PlaneLayout;
 
 /// Dominio de memoria (determina quién puede acceder por DMA).
 enum class MemoryDomain : u8 {

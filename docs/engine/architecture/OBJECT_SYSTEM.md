@@ -305,3 +305,76 @@ Ordenadas por dependencia, dentro del roadmap F6:
 6. **Cableado de la degradación sprite → BOB**: `SpriteAllocator::as_bob` a `BlitJob` con el mismo `Visual`. **HECHO en el engine**: `build_sprite_intents` (una intención por actor, ordenada por `top`) + `emit_bob_fallbacks` (emite como BOB los degradados, en orden por superficie y `z`, con `bob_from_visual`); falta reescribir la demo 054 para consumirlo.
 7. **Objeto CPU** sobre `Surface` con política de fondo y presupuesto. **PENDIENTE**.
 8. **Demo con gate visual** que consuma el sistema (hoy solo hay test host): pendiente, es lo que convierte la capa en verificada según `docs/testing/README.md`.
+
+## 15. Repaso final: clasificación de abstracciones, fronteras y huecos
+
+Esta sección fija **qué es cada pieza** (framebuffer, vista, descriptor, algoritmo, emisión), **cómo se gestiona el Copper** y **cómo se comparte el Blitter** (incluida la GUI), para que la separación no deje huecos ni ambigüedades.
+
+### 15.1 Clasificación
+
+```text
+  ALGORITMO/ESTADO        VIEWPORT/SECTOR (vista)      FRAMEBUFFER (dueño)        EMISIÓN
+  ─────────────────       ──────────────────────       ───────────────────        ───────
+  Camera2D (scroll)  ─┐
+  TileScrollDriver    ├─► Surface (Playfield+clip)    Bitmap (bloque+geom)  ─►  BlitJob
+  FineScroll          │   DrawTarget (+raster+plan)   Playfield (mapeo)         FramePlan (cola+presupuesto)
+  Palette*/RasterGrad  │   Screen (contexto)           Scene (bitplanes+copper)  CopperIntent
+  SpriteAllocator     │   BobTarget (geom. destino)                            ─► copper::Plan (listas)
+  RepresentationAlloc ┘   ActorEmitContext (targets)                             copper::Scheduler (emisor)
+                          Layer/Camera2D (ventana)                               copper::Timeline (presupuesto)
+```
+
+- **Framebuffer (dueños de memoria)**: `MemorySystem`/`Block`, `eng::gfx::Bitmap`, `field::Playfield` (+ derivados), `composition::Scene`.
+- **Vistas/sectores (no poseen)**: `field::Surface`, `field::DrawTarget`, `Screen`, `BobTarget`, `scene::ActorEmitContext`, `scene::Layer`/`Camera2D`, `copper::BandScope`.
+- **Descriptores de contenido**: `graphics::Visual`, `graphics::Sprite` (BOB cocinado), `graphics::Bob` (crudo), `HwSpriteTemplate`/`HwSpritePlacement`, `SpriteIntent`, `BlitJob`, `CopperIntent`.
+- **Algoritmos**: `Camera2D`, `TileScrollDriver`/`FineScroll`, `PaletteTransition`/`PaletteCycle`/`RasterGradient`/`Rotozoom`, `SpriteAllocator`, `RepresentationAllocator`, `copper::Timeline`/`Plan`, `FramePlan`, `Animation`.
+- **Retenido/planner**: `Actor`/`ActorStore`, `World`/`Layer`, `SceneResources`/`DisplayLimits`/`compose`.
+
+### 15.2 Tabla de responsabilidades
+
+| Pieza | Clase | Qué es |
+|---|---|---|
+| `gfx::Bitmap` | framebuffer | bloque + geometría + layout + addressing |
+| `field::Playfield` | framebuffer | mapeo lógico→físico + rasterizer + sinks de relleno |
+| `composition::Scene` | framebuffer/planner | posee bitplanes + copperlist + buffers; ciclo |
+| `field::Surface`/`DrawTarget` | vista | `Playfield`+clip (+raster+plan); primitivas |
+| `Screen` | vista/contexto | contexto de dibujo de juego |
+| `BobTarget`/`ActorEmitContext` | vista | geometría de destino / targets+clip+cam |
+| `Camera2D`/`Layer`/`WorldRect` | vista+algo | ventana al mundo (scroll) |
+| `Sprite`/`Bob`/`Visual`/`HwSprite*` | descriptor | contenido dibujable (BOB/hardware/tile/rect) |
+| `BlitJob`/`FramePlan` | emisión | trabajo de Blitter y su cola/presupuesto |
+| `CopperIntent`/`copper::Plan`/`Scheduler` | emisión | intención y lista de Copper |
+| `Camera2D`/`TileScrollDriver`/`FineScroll` | algoritmo | scroll |
+| `PaletteTransition`/`Cycle`/`RasterGradient` | algoritmo | color/raster |
+| `SpriteAllocator`/`RepresentationAllocator` | algoritmo | reparto/representación |
+
+### 15.3 Copperlist
+
+`copper::Plan` es **dueño** de la(s) lista(s) (doble buffer); `copper::Scheduler` es el **emisor tipado** (`move`, `move_bitplane_pointer`, `wait_line/_position`, `emit_palette[_zone]`); `copper::Timeline` da el presupuesto por línea; `copper::static_plan`/`double_buffer` los casos fijos. Nadie escribe `$DFFxxx` a mano. `Scene` posee el `Plan` y orquesta (`begin_build/end_build`, `takeover/present/commit/flip`); un juego con su propio `Plan` usa `app.device().takeover_copper/commit_copper`. Las `CopperIntent`/`HwSpritePlacement` se materializan en el `Plan` (que ordena y respeta bandas/presupuesto).
+
+### 15.4 Subsistema gráfico y primitivas
+
+`Screen` (`app.screen()`) es la **API de dibujo**: `fill/line/frame/text/sprite/erase_sprite/blit/c2p`. Internamente `DrawTarget`→`Surface`→`Rasterizer` (seam CPU/Blitter) + `FramePlan` + `BobTarget`. Los **sinks** `RectFillSink`/`PolygonFillSink` (instalados por el backend) convierten rellenos en jobs de Blitter. La ejecución la hace `app.device().execute_frame_plan(...)` (o `blitter_*`), serializada con la ventana segura del Copper.
+
+### 15.5 GUI acelerada por Blitter
+
+`eng::ui` (`Context`/`Painter`/`Compositor`/`backing`/`double_buffer`/`HardwareCursor`) dibuja sobre `Surface`; los rellenos de widgets van por `RectFillSink` (Blit D-only) y las formas por `PolygonFillSink`, el texto por `GlyphCache`+blits. Todo **encola en el mismo `FramePlan`** que sprites/BOBs → **un solo Blitter serializado**. Las **paletas** son compartidas (`Palette`/`Palette32` + parches de `FramePlan`); los **recursos** salen de `MemorySystem`/`res::load` (backing como `Bitmap`). El reparto ordenado lo garantizan el `FramePlan` (presupuesto) y el `copper::Timeline` (bandas de efectos).
+
+### 15.6 Huecos detectados y resolución
+
+| Hueco | Resolución |
+|---|---|
+| Tres descriptores de objeto (`Visual`/`Sprite`/`Bob`) y `Sprite` no integrado en `ActorStore` | **Converger**: `ActorDesc` construible desde `Sprite`; un solo camino `add_actor`/`screen.sprite` |
+| Tiles (`VirtualScene`/`TileLayer`) fuera de `World`/`Layer` | **Unificar** capa *tilemap* y *capa de actores* bajo `Layer` |
+| UI con compositor propio, no es una `Layer` | Composición vía `Surface`+sinks; integrar como capa/efecto cuando haya planner |
+| Copper por objeto aún a mano (086) | Subir `CopperIntent`/`actor_add_copper` a la fachada |
+| `Screen` vs `Surface`/`DrawTarget` (solape) | F3b: `Screen` única; el resto internos |
+| `eng::gfx::PlaneLayout` homónimo | Aliasar a `eng::graphics::PlaneLayout` (`Separate = Contiguous`) |
+| `World` sin planner; `emit` recibe `BobTarget` | Planner de capas + `World::present(Screen&)` |
+
+### 15.7 Reglas de frontera (no romper)
+
+1. **Un dueño de framebuffer**: solo `Scene`/`Bitmap` reservan; las vistas (`Surface`/`Screen`/`BobTarget`) no.
+2. **Un emisor por coprocesador**: `FramePlan` (Blitter) y `copper::Plan` (Copper); nadie más.
+3. **El juego no ve hardware**: solo `App`/`Screen`/`World`/`Device` (gate `api-facade`).
+4. **Descriptor único de objeto**: `Visual` es la intención; `Sprite` la cocina; no multiplicar tipos.

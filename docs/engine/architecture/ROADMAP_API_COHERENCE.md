@@ -36,7 +36,8 @@ Ordenadas por impacto sobre el diseño interno y la usabilidad de la API.
    `ByteView<MusicTag>`) y `eng::audio::MusicModule` (`music_player.hpp`, struct) — **resuelto**
    renombrando el alias a `MusicBytes`; `Sprite` (objeto BOB en `sprite_asset.hpp`) y el sprite
    hardware (`sprite.hpp`, `HwSpriteTemplate`/`HwSpritePlacement`) — **resuelto** con el prefijo
-   `Hw*`; queda `SceneLayout` y `BobLayout` (mismo concepto).
+   `Hw*`; `SceneLayout`/`BobLayout` — **resuelto**: unificados como alias de
+   `eng::graphics::PlaneLayout` (y `eng::gfx::PlaneLayout` ya aliasa al mismo; `Separate = Contiguous`).
 6. **Tipo y sistema de memoria no cuadran.** `MemoryKind {Chip,Slow,Fast,Any}` pero
    `MemorySystem {chip,slow,frame}`: **no hay arena Fast** (se mapea `Fast → slow`) y **no hay
    `MemoryKind::Frame`**. Tipo y almacenamiento se contradicen.
@@ -150,7 +151,7 @@ gate; ninguna fase rompe una demo verde sin migrarla en la misma pasada.
 
 ### F1 — Puerta única y dominio (bajo riesgo)
 - `api.hpp` incluye `game.hpp` y deja de reexportar cabeceras internas que el juego no usa.
-- Unificar nombres: `Music` (un tipo) vs `HwSprite*` (**hecho**), `PlaneLayout` (pendiente).
+- Unificar nombres: `Music` (un tipo) vs `HwSprite*` (**hecho**), `PlaneLayout` (**hecho** como alias único).
 - Introducir `Result<T>`/`Status` y usarlo en las APIs **nuevas**.
 - *Gate*: todas las demos compilan/run igual; HOST en verde.
 
