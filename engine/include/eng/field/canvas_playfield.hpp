@@ -84,7 +84,7 @@ public:
     PlayfieldHardwareView hardware_view() const override {
         PlayfieldHardwareView v;
         v.bitplanes = m_frontbuffer;
-        v.real_base = m_frontbuffer; // base del bloque (para BPLxPT)
+        v.real_base = Address<MemoryKind::Chip> { m_frontbuffer }; // base del bloque (para BPLxPT)
         v.bitmap_bytes_per_row = m_bytes_per_row;
         v.plane_bytes = m_total_bytes;
         v.planes = m_planes;

@@ -41,6 +41,7 @@
 #include <eng/core/math/arith.hpp>
 #include <eng/core/math/arith.hpp>
 #include <eng/core/data/polygon.hpp>
+#include <eng/core/types/memory_kind.hpp>
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
@@ -110,7 +111,7 @@ class Rasterizer; ///< seam de rasterizado (definido en `raster.hpp`)
 /// split (`display_offset`, `split_line`, `split_active`).
 struct PlayfieldHardwareView {
     const u8* bitplanes = nullptr; // frontbuffer (Planes[0] + bitmapoffset)
-    const u8* real_base = nullptr; // base real del AllocBitMap (para BPLxPT)
+    Address<MemoryKind::Chip> real_base {}; // base real del AllocBitMap (para BPLxPT), Chip RAM
     u32 planeaddx = 0;             // coarse X en bytes
     u32 planeaddy = 0;             // offset Y interleaved = display_offset*planes*bytes
     u16 bplcon1 = 0;               // scroll fino duplicado en ambos nibbles
@@ -132,8 +133,8 @@ struct PlayfieldHardwareView {
     // contenido (p. ej. un patrón de fondo) scrollea a otra velocidad.
     u8 parallax_plane = 0xffu;     // plano con parallax propio (0xff = ninguno)
     u32 parallax_planeaddx = 0;    // coarse X propio del plano de parallax (bytes)
-    const u8* bg_plane_base = nullptr; // base del plano de fondo si es doble-buffer
-                                        // (soft DPF): ESE plano se lee de aquí, no de real_base
+    Address<MemoryKind::Chip> bg_plane_base {}; // base del plano de fondo si es doble-buffer
+                                                 // (soft DPF): ESE plano se lee de aquí, no de real_base
     s32 videoposx = 0;
     s32 mapposx = 0;
     s32 videoposy = 0;

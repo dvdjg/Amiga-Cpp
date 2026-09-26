@@ -9,14 +9,14 @@
 /// - `Bytes<Tag>` / `ByteView<Tag>`: rango de bytes de un dominio concreto.
 /// - `Words<Tag>` / `WordView<Tag>`: rango de words (u16) de un dominio concreto.
 /// - `Block<Tag>`: resultado tipado de una reserva de arena.
-/// - Direcciones/base: `BitmapBase`, `FrontBase`, `ChipAddress`.
+/// - Direcciones/base: `BitmapBase`, `FrontBase`, `Address<eng::MemoryKind::Chip>`.
 ///
 /// ```text
 ///   reserva de arena                vistas tipadas (Tag)                frontera unsafe
 ///   ──────────────────              ────────────────────────────       ───────────────
 ///   Block<Tag> (MemoryKind+dom) ──► Bytes<Tag> / ByteView<Tag> ─raw()─► u8* / u16* (backend)
 ///                                   Words<Tag> / WordView<Tag>          (Blitter / DMA / Copper)
-///   ChipAddress / BitmapBase / FrontBase: direcciones y roles con semantica propia
+///   Address<eng::MemoryKind::Chip> / BitmapBase / FrontBase: direcciones y roles con semantica propia
 ///   un uso de dominio cruzado (p. ej. audio como plano grafico) NO compila
 ///   Span<T> (SIN tag): la vista contigua corriente; Bytes/Words anaden el TAG encima
 /// ```
@@ -43,14 +43,17 @@ namespace detail {
 // --- Vistas de bytes con TAG de dominio --------------------------------------
 
 // Direcciones con semántica distinta (antes de las vistas, para que `Bytes::address`
-// pueda devolver `ChipAddress`). Nota: NO se envuelven escalares (ancho/alto/stride/
+// pueda devolver `Address<eng::MemoryKind::Chip>`). Nota: NO se envuelven escalares (ancho/alto/stride/
 // planes); solo se tipan buffers/punteros, direcciones y roles.
-/// Base de la reserva de un bitmap (lo que va a `BPLxPT`).
-struct BitmapBase { eng::u8* value = nullptr; };
-/// Buffer de escritura de un bitmap (con `frontbase_offset`).
-struct FrontBase { eng::u8* value = nullptr; };
-/// Dirección DMA-visible (chip RAM), en formato entero.
-struct ChipAddress { eng::uintptr value = 0; };
+/// Base de la reserva de un bitmap (lo que va a `BPLxPT`), en **chip RAM** (Agnus la lee por DMA).
+struct BitmapBase {
+	Address<MemoryKind::Chip> value {};
+};
+/// Buffer de escritura de un bitmap (con `frontbase_offset`), en **chip RAM** (destino del Blitter).
+struct FrontBase {
+	Address<MemoryKind::Chip> value {};
+};
+// Dirección DMA-visible de chip RAM: `Address<MemoryKind::Chip>` (ver `memory_kind.hpp`).
 
 // Declaraciones adelantadas: las vistas se convierten entre sí (`as_words`/`as_bytes`).
 template <class Tag> class Bytes;
@@ -78,9 +81,9 @@ public:
 	/// Frontera explícita hacia la capa unsafe.
 	[[nodiscard]] constexpr Span<eng::u8> raw() const noexcept { return m_span; }
 	/// Dirección DMA-visible del inicio (o de `off`, que puede ser negativo), como
-	/// `ChipAddress`.
-	[[nodiscard]] constexpr ChipAddress address(eng::s32 off = 0) const noexcept {
-		return ChipAddress { reinterpret_cast<eng::uintptr>(m_span.data() + off) };
+	/// `Address<eng::MemoryKind::Chip>`.
+	[[nodiscard]] constexpr Address<eng::MemoryKind::Chip> address(eng::s32 off = 0) const noexcept {
+		return Address<eng::MemoryKind::Chip> { m_span.data() + off };
 	}
 	[[nodiscard]] constexpr eng::u8* data() const noexcept { return m_span.data(); }
 	[[nodiscard]] constexpr size_type size() const noexcept { return m_span.size(); }
@@ -135,9 +138,9 @@ public:
 	[[nodiscard]] constexpr Span<const eng::u8> raw() const noexcept { return m_span; }
 	[[nodiscard]] constexpr const eng::u8* data() const noexcept { return m_span.data(); }
 	/// Dirección DMA-visible del inicio (o de `off`, que puede ser negativo), como
-	/// `ChipAddress`. Simétrico a `Bytes::address`.
-	[[nodiscard]] constexpr ChipAddress address(eng::s32 off = 0) const noexcept {
-		return ChipAddress { reinterpret_cast<eng::uintptr>(m_span.data() + off) };
+	/// `Address<eng::MemoryKind::Chip>`. Simétrico a `Bytes::address`.
+	[[nodiscard]] constexpr Address<eng::MemoryKind::Chip> address(eng::s32 off = 0) const noexcept {
+		return Address<eng::MemoryKind::Chip> { m_span.data() + off };
 	}
 	[[nodiscard]] constexpr size_type size() const noexcept { return m_span.size(); }
 	[[nodiscard]] constexpr bool empty() const noexcept { return m_span.empty(); }

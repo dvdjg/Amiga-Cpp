@@ -197,18 +197,18 @@ public:
 	u16 wait_masked(u16 vp, u16 hp, u16 vpmask, u16 hpmask) {
 		return m_builder.wait_masked(vp, hp, vpmask, hpmask);
 	}
-	u16 move32(Register reg, eng::ChipAddress address) { return m_builder.move32(reg, address); }
-	void patch_move32(u16 instruction_word, eng::ChipAddress address) {
+	u16 move32(Register reg, eng::Address<eng::MemoryKind::Chip> address) { return m_builder.move32(reg, address); }
+	void patch_move32(u16 instruction_word, eng::Address<eng::MemoryKind::Chip> address) {
 		m_builder.patch_move32(instruction_word, address);
 	}
-	[[nodiscard]] constexpr eng::ChipAddress instruction_address(u16 instruction_word) const {
+	[[nodiscard]] constexpr eng::Address<eng::MemoryKind::Chip> instruction_address(u16 instruction_word) const {
 		return m_builder.instruction_address(instruction_word);
 	}
 	u16 skip(u16 vpos, u16 hpos) { return m_builder.skip(vpos, hpos); }
 
 	/// Carga un puntero BPLxPT desde una intención de display. Mantiene los dos
 	/// MOVEs del puntero en el scheduler, también para los splits verticales.
-	void move_bitplane_pointer(u8 plane, eng::ChipAddress address) {
+	void move_bitplane_pointer(u8 plane, eng::Address<eng::MemoryKind::Chip> address) {
 		m_builder.move_bitplane_pointer(plane, address);
 		m_report.display_moves = static_cast<u16>(m_report.display_moves + 2u);
 	}
@@ -348,16 +348,16 @@ public:
 		move(Register::BLTAMOD, static_cast<u16>(job.bltamod));
 		move(Register::BLTDMOD, static_cast<u16>(job.bltdmod));
 		if (job.bltapt != nullptr) {
-			(void)move32(Register::BLTAPTH, eng::ChipAddress {reinterpret_cast<uintptr>(job.bltapt)});
+			(void)move32(Register::BLTAPTH, eng::Address<eng::MemoryKind::Chip> { job.bltapt });
 		}
 		if (job.bltbpt != nullptr) {
-			(void)move32(Register::BLTBPTH, eng::ChipAddress {reinterpret_cast<uintptr>(job.bltbpt)});
+			(void)move32(Register::BLTBPTH, eng::Address<eng::MemoryKind::Chip> { job.bltbpt });
 		}
 		if (job.bltcpt != nullptr) {
-			(void)move32(Register::BLTCPTH, eng::ChipAddress {reinterpret_cast<uintptr>(job.bltcpt)});
+			(void)move32(Register::BLTCPTH, eng::Address<eng::MemoryKind::Chip> { job.bltcpt });
 		}
 		if (job.bltdpt != nullptr) {
-			(void)move32(Register::BLTDPTH, eng::ChipAddress {reinterpret_cast<uintptr>(job.bltdpt)});
+			(void)move32(Register::BLTDPTH, eng::Address<eng::MemoryKind::Chip> { job.bltdpt });
 		}
 		move(Register::BLTSIZE, job.bltsize); // arranca el blit (ULTIMO)
 	}
@@ -666,9 +666,9 @@ private:
 					// Re-pointa el puntero de DATA del sprite (SPRxPT) para el rearm
 					// vertical ("chasing the raster"). No toca SPRxPOS/CTL: el
 					// `SpriteManager` los programa por separado.
-					const uintptr addr = reinterpret_cast<uintptr>(intent.sprite_ptr);
-					move(static_cast<u16>(0x120u + static_cast<u16>(intent.sprite_channel) * 4u), static_cast<u16>(addr >> 16));
-					move(static_cast<u16>(0x122u + static_cast<u16>(intent.sprite_channel) * 4u), static_cast<u16>(addr & 0xffffu));
+					const eng::Address<eng::MemoryKind::Chip> addr { intent.sprite_ptr };
+					move(static_cast<u16>(0x120u + static_cast<u16>(intent.sprite_channel) * 4u), static_cast<u16>(addr.value >> 16));
+					move(static_cast<u16>(0x122u + static_cast<u16>(intent.sprite_channel) * 4u), static_cast<u16>(addr.value & 0xffffu));
 				}
 				break;
 			case graphics::CopperIntentKind::Priority:

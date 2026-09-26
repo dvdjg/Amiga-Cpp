@@ -286,8 +286,8 @@ private:
 		m_sched.move(copper::Register::DDFSTOP, 0x00d0u);
 		for (eng::u8 p = 0u; p < kPlanes; ++p) {
 			m_sched.move_bitplane_pointer(
-				p, eng::ChipAddress {reinterpret_cast<eng::uintptr>(m_bitmap) +
-						     static_cast<eng::u32>(p) * kBytesPerRow});
+				p, eng::Address<eng::MemoryKind::Chip> { m_bitmap } +
+					   static_cast<eng::u32>(p) * kBytesPerRow);
 		}
 		for (eng::u8 i = 0u; i < 32u; ++i) {
 			m_sched.move(copper::color_register(i), g_abyss_pal[i]);

@@ -24,6 +24,7 @@
 #include <eng/graphics/polygon_planes.hpp>
 #include <eng/graphics/sprite_collision.hpp>
 #include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
 #include <eng/platform/amiga/asset_backend.hpp>
 #include <eng/res/asset_runtime.hpp>
 #include <eng/platform/amiga/blob.hpp>
@@ -584,6 +585,10 @@ public:
 	constexpr MemorySystem& memory() { return m_memory; }
 	constexpr const MemorySystem& memory() const { return m_memory; }
 	constexpr const MemoryReport& memory_report() const { return m_memory_report; }
+	/// **Bancos tipados** (Chip/Slow/Fast) para pedir memoria por uso; los buffers los entrega
+	/// `configure_memory`. Ver `INTERNAL_TYPE_SYSTEM.md` §3.6.
+	constexpr MemoryManager& memory_manager() { return m_memmanager; }
+	constexpr const MemoryManager& memory_manager() const { return m_memmanager; }
 	/// **Runtime de assets** (caché + E/S asíncrona): `backend.assets().load(path, size, bank)`.
 	constexpr res::AssetRuntime<AssetCacheBackend, 8u>& assets() { return m_assets; }
 	constexpr const res::AssetRuntime<AssetCacheBackend, 8u>& assets() const { return m_assets; }
@@ -607,6 +612,7 @@ private:
 	Profile m_profile; ///< perfil de máquina configurado
 	MemorySystem m_memory {}; ///< arenas (Chip/Slow/Frame) entregadas al engine
 	MemoryReport m_memory_report {}; ///< informe de la reserva de memoria
+	MemoryManager m_memmanager {}; ///< bancos tipados por uso (mismos buffers que las arenas)
 	res::AssetRuntime<AssetCacheBackend, 8u> m_assets {}; ///< caché de assets + E/S
 	DebugOverlay m_debug {}; ///< overlay de debug (host/WinUAE)
 	eng::audio::AudioSystem m_audio {}; ///< sistema de audio

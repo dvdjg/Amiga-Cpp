@@ -11,6 +11,18 @@
 /// Blitter antes de instalarla.
 
 #include <eng/core/types/types.hpp>
+#include <eng/core/util/type_traits.hpp>
+
+/// Coloca un objeto **estático en Chip RAM** (la que ve el DMA de Agnus: bitplanes, copper,
+/// sprites, audio). En m68k usa la sección `.MEMF_CHIP` que el linker asigna a Chip; en host
+/// (tests de tipos) no tiene efecto. Es la vía para garantizar la procedencia de un
+/// `Address<MemoryKind::Chip>` a partir de una tabla fija — **preferible a reservar
+/// dinámicamente** cuando el búfer es constante.
+#if defined(__mc68000__) || defined(__m68k__)
+#define ENG_CHIP_RAM __attribute__((section(".MEMF_CHIP")))
+#else
+#define ENG_CHIP_RAM
+#endif
 
 namespace eng {
 
@@ -24,6 +36,70 @@ enum class MemoryKind : u8 {
 	Slow,
 	Fast,
 	Any,
+};
+
+/// **Dirección de un banco concreto** (rol tipado): `Address<MemoryKind::Chip>` y
+/// `Address<MemoryKind::Fast>` son tipos **distintos** y no se mezclan; una API que exige DMA
+/// (Chip) no compila si recibe otra. Etiqueta vacía: **coste cero**. Ver
+/// `INTERNAL_TYPE_SYSTEM.md` §3.2/§3.6.
+///
+/// Aritmética de dirección: `address + offset -> address` (conserva el banco) y
+/// `address - address -> offset` (desplazamiento en bytes). Nunca se pierde el tipo al sumar
+/// enteros puros, así el resultado se pasa tal cual a una API DMA sin `cast`.
+template <MemoryKind K>
+struct Address {
+	uintptr value = 0u;
+
+	constexpr Address() noexcept = default;
+	explicit constexpr Address(uintptr v) noexcept : value(v) {}
+	explicit constexpr Address(const void* p) noexcept : value(reinterpret_cast<uintptr>(p)) {}
+
+	[[nodiscard]] constexpr bool valid() const noexcept { return value != 0u; }
+	/// Puntero mutable a la dirección (escape explícito solo en la frontera con API de punteros).
+	[[nodiscard]] constexpr u8* ptr() noexcept { return reinterpret_cast<u8*>(value); }
+	/// Puntero constante a la dirección (escape explícito en la frontera).
+	[[nodiscard]] constexpr const u8* cptr() const noexcept {
+		return reinterpret_cast<const u8*>(value);
+	}
+
+	/// Suma un **offset entero** (bytes): el resultado sigue siendo `Address<K>` (mismo banco).
+	/// El offset conserva su tipo dentro de la expresión (no se fuerza a `uintptr`), así GCC puede
+	/// usar direccionamiento indexado de 16 bits (`.w`) cuando cabe en `s16`/`s8`.
+	template <class Off>
+		requires eng::util::is_integral_v<Off>
+	[[nodiscard]] constexpr Address operator+(Off off) const noexcept {
+		return Address { static_cast<uintptr>(value + off) };
+	}
+	/// Resta un **offset entero** (bytes): el resultado sigue siendo `Address<K>` (mismo banco).
+	template <class Off>
+		requires eng::util::is_integral_v<Off>
+	[[nodiscard]] constexpr Address operator-(Off off) const noexcept {
+		return Address { static_cast<uintptr>(value - off) };
+	}
+	/// Avanza la dirección en sitio sumando un offset entero de bytes.
+	template <class Off>
+		requires eng::util::is_integral_v<Off>
+	constexpr Address& operator+=(Off off) noexcept {
+		value = static_cast<uintptr>(value + off);
+		return *this;
+	}
+	/// Retrocede la dirección en sitio restando un offset entero de bytes.
+	template <class Off>
+		requires eng::util::is_integral_v<Off>
+	constexpr Address& operator-=(Off off) noexcept {
+		value = static_cast<uintptr>(value - off);
+		return *this;
+	}
+	/// Distancia en bytes entre dos direcciones **del mismo banco**.
+	[[nodiscard]] constexpr uintptr operator-(Address o) const noexcept {
+		return static_cast<uintptr>(value - o.value);
+	}
+	/// Igualdad de dirección (mismo banco).
+	[[nodiscard]] constexpr bool operator==(Address o) const noexcept { return value == o.value; }
+	/// Desigualdad de dirección (mismo banco).
+	[[nodiscard]] constexpr bool operator!=(Address o) const noexcept { return value != o.value; }
+	/// Orden por dirección (mismo banco).
+	[[nodiscard]] constexpr bool operator<(Address o) const noexcept { return value < o.value; }
 };
 
 } // namespace eng

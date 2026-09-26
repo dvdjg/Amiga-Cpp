@@ -187,14 +187,16 @@ private:
         sched.emit_palette(m_cfg.palette);
         for (u8 p = 0; p < view.planes; ++p) {
             // soft DPF: el plano de fondo se lee de su propio buffer (doble buffer).
-            const u8* base = (view.bg_plane_base != nullptr && p == view.parallax_plane)
-                             ? view.bg_plane_base : view.real_base;
-            const u32 addr = static_cast<u32>(reinterpret_cast<uintptr>(base)) +
-                             view.planeaddx + view.planeaddy +
-                             static_cast<u32>(p) * view.bitmap_bytes_per_row;
+            const Address<MemoryKind::Chip> base =
+                (view.bg_plane_base.valid() && p == view.parallax_plane) ? view.bg_plane_base
+                                                                         : view.real_base;
             // En interleaved, Planes[p] = base + p*BITMAPBYTESPERROW + Y*planes*bytes.
             // planeaddy aporta el offset vertical (display_offset) y planeaddx el horizontal.
-            sched.move_bitplane_pointer(p, eng::ChipAddress { addr });
+            // La aritmética de `Address<Chip>` conserva el banco: no hace falta `cast`.
+            const Address<MemoryKind::Chip> addr =
+                base + view.planeaddx + view.planeaddy +
+                static_cast<u32>(p) * view.bitmap_bytes_per_row;
+            sched.move_bitplane_pointer(p, addr);
         }
         // Raster colors: WAIT en cada línea + MOVE del color (orden ASCENDENTE).
         // Requieren un display lineal (sin split de Copper) para no desordenar el raster.
@@ -221,12 +223,13 @@ private:
             const u8 wait = raster > 0xffu ? 0xffu : static_cast<u8>(raster);
             sched.wait_line(wait);
             for (u8 p = 0; p < view.planes; ++p) {
-                const u8* base = (view.bg_plane_base != nullptr && p == view.parallax_plane)
-                                 ? view.bg_plane_base : view.real_base;
-                const u32 addr = static_cast<u32>(reinterpret_cast<uintptr>(base)) +
-                                 view.planeaddx + view.split_planeaddy +
-                                 static_cast<u32>(p) * view.bitmap_bytes_per_row;
-                sched.move_bitplane_pointer(p, eng::ChipAddress { addr });
+                const Address<MemoryKind::Chip> base =
+                    (view.bg_plane_base.valid() && p == view.parallax_plane) ? view.bg_plane_base
+                                                                             : view.real_base;
+                const Address<MemoryKind::Chip> addr =
+                    base + view.planeaddx + view.split_planeaddy +
+                    static_cast<u32>(p) * view.bitmap_bytes_per_row;
+                sched.move_bitplane_pointer(p, addr);
             }
         }
         // El blanking de abajo solo si no estorba con un split en línea alta.
@@ -250,9 +253,9 @@ private:
             sched.wait_line(hud_raster > 0xffu ? 0xffu : static_cast<u8>(hud_raster));
             sched.move(copper::Register::BPLCON1, 0x0000);
             for (u8 p = 0; p < hud->view.planes; ++p) {
-                const u32 addr = static_cast<u32>(reinterpret_cast<uintptr>(hud->view.real_base)) +
-                                 static_cast<u32>(p) * hud->view.bitmap_bytes_per_row;
-                sched.move_bitplane_pointer(p, eng::ChipAddress { addr });
+                const Address<MemoryKind::Chip> addr =
+                    hud->view.real_base + static_cast<u32>(p) * hud->view.bitmap_bytes_per_row;
+                sched.move_bitplane_pointer(p, addr);
             }
             if (!hud->palette.empty()) {
                 sched.emit_palette(hud->palette, 0, hud->palette_colors);
@@ -353,8 +356,9 @@ private:
         return static_cast<u8>(pf1_plane * 2u + (is_pf1 ? 0u : 1u));
     }
 
-    static u32 field_plane_address(const PlayfieldHardwareView& v, u8 plane, u32 y_offset) {
-        return static_cast<u32>(reinterpret_cast<uintptr>(v.real_base)) + v.planeaddx + y_offset +
+    static Address<MemoryKind::Chip> field_plane_address(const PlayfieldHardwareView& v, u8 plane,
+                                                         u32 y_offset) {
+        return v.real_base + v.planeaddx + y_offset +
                static_cast<u32>(plane) * v.bitmap_bytes_per_row;
     }
 
@@ -415,10 +419,8 @@ private:
         for (u8 i = 0; i < m_cfg.planes_per_field; ++i) {
             const u8 hw1 = hardware_plane(i, true);
             const u8 hw2 = hardware_plane(i, false);
-            sched.move_bitplane_pointer(hw1,
-                eng::ChipAddress { field_plane_address(pf1, i, pf1.planeaddy) });
-            sched.move_bitplane_pointer(hw2,
-                eng::ChipAddress { field_plane_address(pf2, i, pf2.planeaddy) });
+            sched.move_bitplane_pointer(hw1, field_plane_address(pf1, i, pf1.planeaddy));
+            sched.move_bitplane_pointer(hw2, field_plane_address(pf2, i, pf2.planeaddy));
         }
         u16 raster = 0;
         // Raster colors: WAIT en cada linea + MOVE del color (orden ascendente).
@@ -442,11 +444,11 @@ private:
             for (u8 i = 0; i < m_cfg.planes_per_field; ++i) {
                 if (aS) {
                     sched.move_bitplane_pointer(hardware_plane(i, true),
-                        eng::ChipAddress { field_plane_address(pf1, i, pf1.split_planeaddy) });
+                        field_plane_address(pf1, i, pf1.split_planeaddy));
                 }
                 if (bS) {
                     sched.move_bitplane_pointer(hardware_plane(i, false),
-                        eng::ChipAddress { field_plane_address(pf2, i, pf2.split_planeaddy) });
+                        field_plane_address(pf2, i, pf2.split_planeaddy));
                 }
             }
         }

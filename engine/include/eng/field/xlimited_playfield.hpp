@@ -210,7 +210,6 @@ public:
         bc.row_bytes = this->m_bytes_per_row;
         bc.layout = gfx::PlaneLayout::Interleaved;
         bc.alignment = 16;
-        bc.domain = gfx::MemoryDomain::Chip;
         bc.frontbase_offset = this->fetch_bitmap_offset(this->m_cfg.fetch_mode);
         bc.guard_bytes = 64u;
         if (!m_bitmap.init(memory, bc)) return false;
@@ -694,7 +693,9 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
             // buffer delantero (`bg_plane_base`); `parallax_planeaddx` solo se usa en
             // el modo antiguo de puntero por plano (parallax_div != 0).
             v.parallax_plane = this->m_cfg.parallax_plane;
-            v.bg_plane_base = m_soft_dpf.double_buffered() ? m_soft_dpf.display_base().value : nullptr;
+            v.bg_plane_base = m_soft_dpf.double_buffered()
+                                  ? m_soft_dpf.display_base().value
+                                  : Address<MemoryKind::Chip> {};
             if (this->m_cfg.parallax_div != 0u) {
                 const s32 ppos = (m_scroll.state().mapposx / this->m_cfg.parallax_div) +
                                  static_cast<s32>(I) - 1;
@@ -794,7 +795,7 @@ private:
 
 
     gfx::Bitmap m_bitmap {};   // capa de memoria (posee el bloque Chip)
-    u8* m_real_base = nullptr;
+    Address<MemoryKind::Chip> m_real_base {};
     // Soft DPF (RoboCod): la composición (vista del plano de fondo + doble buffer)
     // vive en `soft_dpf.hpp`; el playfield solo la configura y la consulta.
     SoftDpfComposition m_soft_dpf {};

@@ -28,14 +28,6 @@
 
 namespace eng {
 
-/// Dirección de un **banco concreto**. `Address<Chip>` y `Address<Fast>` son tipos distintos: no
-/// se pueden mezclar. Coste cero.
-template <MemoryKind K>
-struct Address {
-	uintptr value = 0u;
-	[[nodiscard]] constexpr bool valid() const noexcept { return value != 0u; }
-};
-
 /// Bloque tipado por dominio (`Tag`) **y** banco (`K`): la vista y su dirección son coherentes.
 template <class Tag, MemoryKind K>
 struct TypedBlock {

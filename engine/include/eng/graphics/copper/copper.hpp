@@ -185,7 +185,7 @@ public:
 	/// Esta funcion no valida que la direccion apunte a Chip RAM: esa garantia debe
 	/// venir de la arena usada por el driver. Aqui solo codificamos el formato que
 	/// espera Agnus en BPLxPTH/BPLxPTL.
-	void move_bitplane_pointer(u8 plane, eng::ChipAddress address) {
+	void move_bitplane_pointer(u8 plane, eng::Address<eng::MemoryKind::Chip> address) {
 		const uintptr raw = address.value;
 		move(bitplane_pointer_high_register(plane), static_cast<u16>(raw >> 16));
 		move(bitplane_pointer_low_register(plane), static_cast<u16>(raw & 0xffffu));
@@ -320,7 +320,7 @@ public:
 
 	/// MOVE de 32 bits (puntero) con el **orden del original** (libgfx `CopMove32`):
 	/// primero `reg+2` (word bajo) y luego `reg` (word alto). Devuelve el indice.
-	u16 move32(Register reg, eng::ChipAddress address) {
+	u16 move32(Register reg, eng::Address<eng::MemoryKind::Chip> address) {
 		const uintptr raw = address.value;
 		const u16 index = m_used_words;
 		write_pair(static_cast<u16>(static_cast<u16>(reg) + 2u), static_cast<u16>(raw & 0xffffu));
@@ -330,7 +330,7 @@ public:
 
 	/// Parchea un MOVE32 emitido con `move32` (indice) con otra direccion (equivale a
 	/// `CopInsSet32` del original; p. ej. apuntar `COP2LC` al label de una fila).
-	void patch_move32(u16 instruction_word, eng::ChipAddress address) {
+	void patch_move32(u16 instruction_word, eng::Address<eng::MemoryKind::Chip> address) {
 		const uintptr raw = address.value;
 		patch_data(instruction_word, static_cast<u16>(raw & 0xffffu));
 		if (m_ok && (instruction_word + 3u) < m_used_words) {
@@ -339,8 +339,8 @@ public:
 	}
 
 	/// Word de la direccion de una instruccion (para calcular labels de copper).
-	constexpr eng::ChipAddress instruction_address(u16 instruction_word) const {
-		return eng::ChipAddress { reinterpret_cast<uintptr>(m_words) + instruction_word * 2u };
+	constexpr eng::Address<eng::MemoryKind::Chip> instruction_address(u16 instruction_word) const {
+		return eng::Address<eng::MemoryKind::Chip> { m_words } + instruction_word * 2u;
 	}
 
 	constexpr bool ok() const {

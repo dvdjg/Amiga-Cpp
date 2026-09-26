@@ -70,6 +70,11 @@ bool AmigaBackend::configure_memory(const MemoryConfig& config) {
 	m_memory.slow.reset(m_slow_alloc, m_slow_alloc_size, MemoryKind::Slow);
 	m_memory.frame.reset(m_frame_alloc, m_frame_alloc_size, MemoryKind::Chip);
 
+	// Bancos tipados por uso (mismos buffers que las arenas). Sin Fast propia: el engine aún no
+	// reserva una arena Fast; cuando exista, se entrega aquí.
+	(void)m_memmanager.configure(m_chip_alloc, m_chip_alloc_size, m_slow_alloc,
+				     m_slow_alloc_size, nullptr, 0u);
+
 	// Caché de assets con el presupuesto de las arenas. El backend es estable, así que la
 	// `Ref` que guarda la caché es válida; el runtime posee su propio backend-copia.
 	(void)m_assets.init(AssetCacheBackend {m_memory},

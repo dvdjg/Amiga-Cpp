@@ -82,7 +82,7 @@ public:
     PlayfieldHardwareView hardware_view() const override {
         PlayfieldHardwareView v;
         v.bitplanes = m_frontbuffer;
-        v.real_base = m_frontbuffer;
+        v.real_base = Address<MemoryKind::Chip> { m_frontbuffer };
         v.bitmap_bytes_per_row = m_bytes_per_row;
         v.plane_bytes = m_plane_stride;
         v.planes = m_planes;

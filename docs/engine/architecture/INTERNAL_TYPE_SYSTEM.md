@@ -183,6 +183,8 @@ Regla: **solo el eje que afecta a la corrección va al tipo.** El requisito `Chi
                                └ req=Any/NonChip -> handle con MemoryKind (dato)
 ```
 
+`Block<Tag>` (reserva de arena *bump*) sigue llevando `MemoryKind` **como dato**; el uso **DMA nuevo** pasa por `Address<Chip>`/`TypedBlock<Tag, Chip>` (`MemBank<Chip>`), que **impide en compilación** usar Fast/Slow. En `platform/amiga`, el backend entrega los buffers por banco (`MemoryManager::configure`) al arrancar.
+
 ## 4. Auditoría por subsistema
 
 ### 4.1 `PlaneView` / `SoftDpfComposition` (punto de partida del usuario)

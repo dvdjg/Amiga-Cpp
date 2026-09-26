@@ -362,7 +362,7 @@ inline graphics::ModeSwitchZone make_hud_mode_switch_zone(
     z.bpl2mod = z.bpl1mod;
     z.planes = hud.planes;
     z.plane_bytes = field.bitmap_bytes_per_row; // interleaved: plano p a base + p*row
-    z.bitplanes = eng::PlaneViewBytes { hud.real_base, hud.plane_bytes };
+    z.bitplanes = eng::PlaneViewBytes { hud.real_base.cptr(), hud.plane_bytes };
     z.palette = palette;
     z.palette_colors = static_cast<eng::u8>(1u << hud.planes);
     return z;
