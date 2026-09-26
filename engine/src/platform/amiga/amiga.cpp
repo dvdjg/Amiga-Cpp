@@ -3,6 +3,7 @@
 #include "support/gcc8_c_support.h"
 #include <proto/exec.h>
 #include <exec/memory.h>
+#include <eng/hw/info.hpp>
 
 
 #include "amiga_internal.hpp"
@@ -11,6 +12,25 @@ using namespace eng::amiga::detail;
 
 
 namespace eng::amiga {
+
+namespace {
+/// Etiqueta un bloque por su **direccion** (`hw::classify_region`), no por el flag de `AllocMem`:
+/// en un A1200, `AllocMem(MEMF_ANY)` puede caer en Fast RAM (que no es Slow). Frontera: se
+/// convierte el puntero a direccion solo para clasificar.
+eng::MemoryKind mem_kind_of(const void* p, bool asked_chip, bool asked_fast) {
+	if (p == nullptr) {
+		return eng::MemoryKind::Any;
+	}
+	const eng::hw::MemRegionKind k = eng::hw::classify_region(
+		asked_chip, asked_fast, static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(p)));
+	switch (k) {
+	case eng::hw::MemRegionKind::Chip: return eng::MemoryKind::Chip;
+	case eng::hw::MemRegionKind::Fast: return eng::MemoryKind::Fast;
+	case eng::hw::MemRegionKind::Slow: return eng::MemoryKind::Slow;
+	default: return eng::MemoryKind::Any;
+	}
+}
+} // namespace
 
 void DebugOverlay::clear() {
 	debug_clear();
@@ -71,9 +91,10 @@ bool AmigaBackend::configure_memory(const MemoryConfig& config) {
 		m_fast_alloc_size = m_fast_alloc ? config.fast_bytes : 0;
 	}
 
-	m_memory.chip.reset(m_chip_alloc, m_chip_alloc_size, MemoryKind::Chip);
-	m_memory.slow.reset(m_slow_alloc, m_slow_alloc_size, MemoryKind::Slow);
-	m_memory.frame.reset(m_frame_alloc, m_frame_alloc_size, MemoryKind::Chip);
+	// Arena por bloque, etiquetada por **direccion** (no por el flag pedido).
+	m_memory.chip.reset(m_chip_alloc, m_chip_alloc_size, mem_kind_of(m_chip_alloc, true, false));
+	m_memory.slow.reset(m_slow_alloc, m_slow_alloc_size, mem_kind_of(m_slow_alloc, false, false));
+	m_memory.frame.reset(m_frame_alloc, m_frame_alloc_size, mem_kind_of(m_frame_alloc, true, false));
 
 	// Bancos tipados por uso (mismos buffers que las arenas + el pool Fast).
 	(void)m_memmanager.configure(m_chip_alloc, m_chip_alloc_size, m_slow_alloc,
