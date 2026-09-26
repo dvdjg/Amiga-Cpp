@@ -188,6 +188,20 @@ public:
 		return res::Budget {m_backend.memory()};
 	}
 
+	/// **Configura la memoria del backend** (budget por banco). Normalmente en `init`; el motor
+	/// podría fijarlo solo a partir del perfil de hardware (pendiente).
+	template <class B = Backend>
+	bool configure_memory(const MemoryConfig& cfg) {
+		return m_backend.configure_memory(cfg);
+	}
+
+	/// **Bancos / arenas** (solo si el juego reserva a mano; lo normal es que no lo necesite:
+	/// assets/actores/música reservan por dentro). Devuelve lo que exponga el backend.
+	template <class B = Backend>
+	[[nodiscard]] decltype(auto) memory_manager() {
+		return m_backend.memory_manager();
+	}
+
 	/// **Runtime de assets** del backend si lo expone: `app.assets().load(path, size, bank)`.
 	template <class B = Backend>
 	[[nodiscard]] decltype(auto) assets() {
