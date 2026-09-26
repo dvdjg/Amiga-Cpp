@@ -42,3 +42,4 @@ Categoría `graphics` de la batería host (L1). El índice de categorías está 
 | HOST-323 | [palette](323_palette/README.md) | `eng/graphics/palette.hpp`: paleta de juego (`Palette`/`Color`/`ColorIndex`) — `set`/`get`/`fill`/`fade`/`mix` (`constexpr`), índice recortado a 0..31 y parche base al `FramePlan`. |
 | HOST-324 | [sprite](324_sprite/README.md) | `eng/graphics/sprite_asset.hpp`: sprite de juego (`Sprite` sobre `graphics::bob`) — geometría, `draw`/`erase` y los `BlitJob`s (planar cookie-cut/OR, interleaved OR, borrado y rechazos). |
 | HOST-338 | [chr](338_chr/README.md) | `eng/graphics/chr.hpp`: decode **2bpp → planar** (`chr_to_planar`) — helper para `IPatternCache`/sprite de consumidores externos. |
+| HOST-342 | [tile_editor](342_tile_editor/README.md) | `eng/graphics/tilemap/tile_editor.hpp`: editor de tiles de juego (`set_tile`/`dirty_rect`/`flush` sobre `PackedTileCell`) — `IScrollingLayer` (F7.2). |
