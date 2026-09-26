@@ -27,6 +27,7 @@
 #include <eng/os/message_pump.hpp>
 #include <eng/os/os.hpp>
 #include <eng/platform/amiga/backend.hpp>
+#include <eng/scene/display.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -269,35 +270,18 @@ private:
 	bool build_copper() {
 		// `m_sched` es **miembro** para que el `PatchHandle` del fine-scroll siga válido.
 		m_sched.retarget(m_copper);
-		m_sched.move(copper::Register::DMACON,
-			     static_cast<eng::u16>(copper::DmaSetClear | copper::DmaMaster |
-						   copper::DmaCopper | copper::DmaBitplane |
-						   copper::DmaBlitter));
-		m_sched.move(copper::Register::BPLCON0, 0x5200u); // 5 planos + COLOR
-		// BPLCON1 (fine scroll): MOVE **parcheable** por frame (handle tipado del scheduler,
-		// en vez de indexar palabras de copper a mano).
-		m_scroll = m_sched.patchable(copper::Register::BPLCON1, 0x0000u);
-		m_sched.move(copper::Register::BPLCON2, 1u << 6u); // prioridad de playfield
-		m_sched.move(copper::Register::BPL1MOD, static_cast<eng::u16>(kRowStride - kBytesPerRow));
-		m_sched.move(copper::Register::BPL2MOD, static_cast<eng::u16>(kRowStride - kBytesPerRow));
-		m_sched.move(copper::Register::DIWSTRT, 0x2c81u);
-		m_sched.move(copper::Register::DIWSTOP, 0x2cc1u);
-		m_sched.move(copper::Register::DDFSTRT, 0x0038u);
-		m_sched.move(copper::Register::DDFSTOP, 0x00d0u);
-		for (eng::u8 p = 0u; p < kPlanes; ++p) {
-			m_sched.move_bitplane_pointer(
-				p, eng::Address<eng::MemoryKind::Chip>::from_storage(m_bitmap) +
-					   static_cast<eng::u32>(p) * kBytesPerRow);
-		}
-		for (eng::u8 i = 0u; i < 32u; ++i) {
-			m_sched.move(copper::color_register(i), g_abyss_pal[i]);
-		}
-		// Degradado de COLOR00 en las líneas 0x41..0x4f (como `copper2` del original).
-		for (eng::u8 k = 0u; k < 15u; ++k) {
-			m_sched.wait_line(static_cast<eng::u8>(0x41u + k));
-			const eng::u16 v = static_cast<eng::u16>(0x0111u * (k + 1u));
-			m_sched.move(copper::Register::COLOR00, v);
-		}
+		// Display declarativo (Capa 3): DMACON/BPLCONx/módulos interleaved/DIW-DDF/BPLxPT,
+		// sin nombrar registros ni calcular direcciones a mano.
+		eng::scene::DisplayDesc d {};
+		d.bplcon0 = 0x5200u;                              // 5 planos + COLOR
+		d.bplcon2 = static_cast<eng::u16>(1u << 6u);      // prioridad de playfield
+		d.planes = kPlanes;
+		d.bytes_per_row = kBytesPerRow;
+		d.planes_view = m_image.mem_view_chip();          // base Chip (DMA)
+		eng::scene::emit_display(m_sched, d);
+		m_scroll = eng::scene::emit_fine_scroll(m_sched, 0x0000u); // BPLCON1 parcheable
+		eng::scene::emit_palette(m_sched, g_abyss_pal, 32u);
+		eng::scene::emit_gradient(m_sched, 0x41u, 0x4fu, 0x0111u); // COLOR00 0x41..0x4f
 		m_sched.end();
 		m_copper_words = m_sched.data();
 		m_copper_ok = m_sched.ok();
