@@ -37,7 +37,7 @@
 
 | Capa | Qué es | Responde a |
 |---|---|---|
-| `Bitmap` | memoria Chip/Fast + layout (interleaved/separate) + planos | ¿dónde vive la memoria? |
+| `Bitmap` | framebuffer en **Chip** + layout (interleaved/separate) + planos | ¿dónde vive la memoria? |
 | `Playfield` | un `Bitmap` + mapeo lógico→físico + config de display + `hardware_view()` | ¿cómo se muestra / a qué dirección física va un píxel lógico? |
 | `Surface` | subregión rectangular (origen + tamaño + clip) sobre un playfield, con las primitivas de dibujo | ¿dónde dibujo y qué recorto? |
 | `ScrollEngine` | algoritmo de scroll por tiles (mapa + tileset + modo) que mueve la cámara y emite blits | ¿cómo scrollea este playfield? |

@@ -36,14 +36,14 @@ public:
 		bind_single(main_real, main_front);
 		m_extra_real = extra_real;
 		m_extra_front = extra_front;
-		m_db = extra_real.value != nullptr && extra_front.value != nullptr;
+		m_db = extra_real.value.valid() && extra_front.value.valid();
 	}
 
 	/// Reserva el bloque extra con el MISMO layout que el principal (doble buffer).
 	bool enable_double_buffer(eng::MemorySystem& memory, const eng::gfx::BitmapConfig& bc) {
 		if (!m_extra.init(memory, bc)) return false;
 		m_extra_real = { m_extra.allocation_start() };
-		m_extra_front = { m_extra.bytes().data() };
+		m_extra_front = { Address<MemoryKind::Chip> { m_extra.bytes().data() } };
 		m_db = true;
 		m_active = 0;
 		return true;

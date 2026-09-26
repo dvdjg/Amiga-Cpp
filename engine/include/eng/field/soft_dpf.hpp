@@ -192,7 +192,7 @@ public:
 			? static_cast<eng::u32>(rows - 1u) * pat_row + width_bytes : 0u);
 		if (pattern.data() == nullptr || last > pattern.size()) eng::detail::typed_range_error();
 		const eng::u8* src = pattern.data() + first;
-		eng::u8* dst_base = m_view.write_base().value;
+		eng::u8* dst_base = m_view.write_base().value.ptr();
 		eng::u16* dst = reinterpret_cast<eng::u16*>(dst_base +
 			(static_cast<eng::u32>(dest_row) * m_geo.planes + m_geo.parallax_plane) * row +
 			dest_byte_off);
