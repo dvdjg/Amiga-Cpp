@@ -44,5 +44,6 @@
 #include <eng/scene/actor.hpp>
 #include <eng/scene/virtual_scene.hpp>
 #include <eng/scene/world.hpp>
+#include <eng/scene/scroll_plan.hpp>
 #include <eng/task/background.hpp>
 #include <eng/ui/ui.hpp>

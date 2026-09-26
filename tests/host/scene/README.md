@@ -14,3 +14,4 @@ Categoría `scene` de la batería host (L1). El índice de categorías está en 
 | HOST-335 | [sprite_actor](335_sprite_actor/README.md) | Descriptor único de objeto: `Sprite`↔`Visual`/`ActorDesc` (`actor_desc_from_sprite`); `Sprite` declara `sheet_bytes`/`mask_bytes` y `Visual` transporta frames. |
 | HOST-336 | [world_layers](336_world_layers/README.md) | `eng/scene/world.hpp`: contenido de capa (actores vs **tilemap** vía `TileLayer`), `add_tile_layer`/`kind`/`is_tilemap` (F4b). |
 | HOST-337 | [layer_plan](337_layer_plan/README.md) | `eng/scene/world.hpp`: regiones con **técnica genérica** (modo `SceneMode` × scroll `ScrollKind` + `region_cost`) y capa declarativa; «la capa pide, el planner dispone» (F4c-modelo). |
+| HOST-343 | [scroll_plan](343_scroll_plan/README.md) | `eng/scene/scroll_plan.hpp`: scroll adaptativo — degrada `CopperSplit→CopperRing→Fine` por Copper y estima memoria de la ventana (F7.3). |

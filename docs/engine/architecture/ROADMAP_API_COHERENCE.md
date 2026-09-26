@@ -212,6 +212,8 @@ interfaces `I*` (vocabulario **suyo**: `IChipMem`, `IBlitter`, `IScrollingLayer`
 `ISpriteEngine`, …). Regla: **las `I*` son externas**; el engine **no** las adopta. El engine da
 su **API de dominio** + unos *helpers generales*, y el consumidor escribe un **adaptador fino**.
 Las `I*` deben ser **implementables o, al menos, equivalentes** con lo que el engine ofrece.
+La ficha del consumidor NES (opciones de implementación, índice de la referencia y **decisión de
+scroll**) vive en [NES_CONSUMER.md](../NES_CONSUMER.md).
 
 ### 7.1 Principio
 
