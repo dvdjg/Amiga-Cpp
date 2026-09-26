@@ -1,4 +1,4 @@
-# HOST-329: `PcmStream` con triple buffer y `seek`
+# HOST-363: `PcmStream` con triple buffer y `seek`
 
 Test host de `eng/audio/pcm_stream.hpp`: confirma que `PcmStream<3>` (triple buffer) funciona y
 que el nuevo `seek(chunk)` **reposiciona** el stream en un chunk (aprovechando el índice del
@@ -19,5 +19,5 @@ OK: PcmStream triple buffer + seek.
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/audio/329_pcm_stream_seek
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/audio/363_pcm_stream_seek
 ```

@@ -1,5 +1,5 @@
 // ============================================================================
-// Test HOST-327: interfaz de medios (`eng::audio::media`).
+// Test HOST-361: interfaz de medios (`eng::audio::media`).
 // ============================================================================
 //
 // Valida el punto unico de despacho por contenedor/codec: reconoce PCM crudo y AUZX, y
@@ -7,7 +7,7 @@
 // codificados con Delta+RLE (con el propio encoder del engine) y se comprueba el round-trip
 // por chunk; y se comprueba el caso PCM crudo (sin cabecera).
 //
-//   bash tools/run-hosts-tests.sh tests/host/audio/327_media
+//   bash tools/run-hosts-tests.sh tests/host/audio/361_media
 
 #include <cstdio>
 

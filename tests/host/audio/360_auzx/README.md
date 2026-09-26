@@ -1,4 +1,4 @@
-# HOST-326: contenedor AUZX
+# HOST-360: contenedor AUZX
 
 Test host de `engine/include/eng/audio/auzx.hpp`: cabecera de **32 bytes** (magic `AUZX`,
 version, `compression`, rate, canales, bits, total de muestras, tamaño de chunk, nº de chunks,
@@ -20,5 +20,5 @@ OK: contenedor AUZX (cabecera, indice de chunks y rechazos).
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/audio/326_auzx
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/audio/360_auzx
 ```

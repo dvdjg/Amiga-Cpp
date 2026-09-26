@@ -1,12 +1,12 @@
 // ============================================================================
-// Test HOST-329: PcmStream con triple buffer y seek.
+// Test HOST-363: PcmStream con triple buffer y seek.
 // ============================================================================
 //
 // Valida `PcmStream<3>` (triple buffer: mas margen ante seeks/descompresion irregular) y el
 // nuevo `seek(chunk)`: reposiciona el stream en un chunk sin leer los anteriores, rellenando
 // despues los buffers. Se usa Delta+RLE (encoder+decoder del engine).
 //
-//   bash tools/run-host-tests.sh tests/host/audio/329_pcm_stream_seek
+//   bash tools/run-host-tests.sh tests/host/audio/363_pcm_stream_seek
 
 #include <cstdio>
 

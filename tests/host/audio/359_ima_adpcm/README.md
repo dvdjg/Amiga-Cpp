@@ -1,4 +1,4 @@
-# HOST-325: IMA ADPCM 4-bit
+# HOST-359: IMA ADPCM 4-bit
 
 Test host de `engine/include/eng/audio/ima_adpcm.hpp`: códec de audio **con pérdida** (tablas
 estándar IMA/DVI, predictor de 16 bits + índice de paso adaptativo, 4 bits por muestra).
@@ -20,5 +20,5 @@ OK: IMA ADPCM (referencia independiente + round-trip acotado).
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/audio/325_ima_adpcm
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/audio/359_ima_adpcm
 ```

@@ -1,4 +1,4 @@
-# HOST-328: descompresor aPLib
+# HOST-362: descompresor aPLib
 
 Test host de `engine/include/eng/audio/aplib.hpp`: port freestanding del descompresor aPLib de
 `apultra` (Emmanuel Marty, zlib), sin diccionario ni flags.
@@ -19,5 +19,5 @@ OK: aPLib (vector del compresor apultra de referencia).
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/audio/328_aplib
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/audio/362_aplib
 ```

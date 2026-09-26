@@ -1,4 +1,4 @@
-# HOST-323: Fibonacci Delta (IFF 8SVX)
+# HOST-357: Fibonacci Delta (IFF 8SVX)
 
 Test host de `engine/include/eng/audio/fib_delta.hpp`: el códec de audio **con pérdida** del
 estándar IFF 8SVX (`sCompression = 1`), 4 bits por muestra (2:1 constante). La decodificación
@@ -25,5 +25,5 @@ OK: Fibonacci Delta (IFF 8SVX) validado contra el estandar.
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/audio/323_fib_delta
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/audio/357_fib_delta
 ```

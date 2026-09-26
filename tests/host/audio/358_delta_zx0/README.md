@@ -1,4 +1,4 @@
-# HOST-324: Delta + ZX0 (sin pérdida)
+# HOST-358: Delta + ZX0 (sin pérdida)
 
 Test host del esquema **sin pérdida** para audio: diferenciar el PCM
 (`D_n = S_n - S_{n-1}`) y comprimir las diferencias con ZX0; al descomprimir, integrar.
@@ -21,5 +21,5 @@ OK: Delta+ZX0 (capa delta e integracion sobre flujo ZX0 real).
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/audio/324_delta_zx0
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/audio/358_delta_zx0
 ```

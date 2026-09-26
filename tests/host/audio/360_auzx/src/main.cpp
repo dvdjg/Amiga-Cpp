@@ -1,12 +1,12 @@
 // ============================================================================
-// Test HOST-326: contenedor AUZX (cabecera + indice de chunks).
+// Test HOST-360: contenedor AUZX (cabecera + indice de chunks).
 // ============================================================================
 //
 // Valida el parser `eng::audio::auzx` (cabecera fija de 32 bytes + indice de chunks de 8).
 // Se construye un fichero sintetico con dos chunks, se parsea y se accede a los payloads; y se
 // comprueban los rechazos (buffer corto, magic, version, canales, indice fuera de rango).
 //
-//   bash tools/run-host-tests.sh tests/host/audio/326_auzx
+//   bash tools/run-host-tests.sh tests/host/audio/360_auzx
 
 #include <cstdio>
 

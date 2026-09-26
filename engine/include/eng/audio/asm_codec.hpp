@@ -15,8 +15,9 @@
 ///   `eng_delta_integrate(buf, len) -> void`
 ///   `eng_ima_adpcm_decode(src, len, dst, step_table, idx_table) -> s32`
 ///
-/// En host (`__m68k__` no definido) se usa siempre la referencia C++. La **equivalencia byte a
-/// byte** del ASM se verifica en la demo `277_codec_equiv` (gate en `detail`: 0 = idéntico).
+/// En host (sin `ENG_AMIGA`) se usa siempre la referencia C++. La **equivalencia byte a byte** del
+/// ASM se verifica en la demo `277_codec_equiv` (gate en `detail`: 0 = idéntico). El target Amiga
+/// se detecta con `ENG_AMIGA` (lo define el build), no con `__m68k__` (ver `CODING_STYLE.md`).
 
 #include <eng/audio/aplib.hpp>
 #include <eng/audio/fib_delta.hpp>
@@ -25,7 +26,7 @@
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 
-#if defined(__m68k__)
+#if defined(ENG_AMIGA)
 
 extern "C" {
 eng::s32 eng_fib_delta_decode(const eng::u8* src, eng::usize len, eng::u8* dst,

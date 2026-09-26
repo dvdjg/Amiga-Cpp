@@ -1,5 +1,5 @@
 // ============================================================================
-// Test HOST-323: Fibonacci Delta (IFF 8SVX, sCompression = 1).
+// Test HOST-357: Fibonacci Delta (IFF 8SVX, sCompression = 1).
 // ============================================================================
 //
 // Valida `eng::audio::fib_delta` contra el algoritmo del estandar IFF 8SVX (EA, 1985,
@@ -7,7 +7,7 @@
 // vector dorado calculado a mano. Comprueba tambien el dispatch de `pcm_codec` y los
 // errores de tamano.
 //
-//   bash tools/run-host-tests.sh tests/host/audio/323_fib_delta
+//   bash tools/run-host-tests.sh tests/host/audio/357_fib_delta
 
 #include <cstdio>
 

@@ -179,7 +179,8 @@ private:
 	eng::Span<const eng::u8> m_blob {};
 	eng::audio::PcmStream<kNumBuffers> m_stream {};
 	eng::amiga::PaulaAudio m_paula {};
-	eng::Block<eng::AudioTag> m_pcm0 {}, m_pcm1 {}, m_pcm2 {}, m_file {};
+	// Buffers DMA de Paula: el banco (Chip) va en el tipo, así no pueden acabar en Slow/Fast.
+	eng::Block<eng::AudioTag, eng::MemoryKind::Chip> m_pcm0 {}, m_pcm1 {}, m_pcm2 {}, m_file {};
 	// Contadores de 8 bits `volatile` compartidos con la IRQ (una lectura de `u32` se desgarra).
 	volatile eng::u8 m_irq = 0u;
 	volatile eng::u8 m_swap = 0u;

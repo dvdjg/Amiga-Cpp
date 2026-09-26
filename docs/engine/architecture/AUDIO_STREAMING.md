@@ -52,7 +52,7 @@ Chunk 0 (comprimido) · Chunk 1 · …
 
 La definición **exacta** de la cabecera (32 bytes) y del índice de chunks (entradas
 `{offset,size}` de 8 bytes) está en `engine/include/eng/audio/auzx.hpp`, que además valida el
-fichero (`auzx::parse`/`auzx::chunk`); el test **HOST-326** la cubre. En PC, la herramienta
+fichero (`auzx::parse`/`auzx::chunk`); el test **HOST-360** la cubre. En PC, la herramienta
 `host-tools/pack-pcm` genera el AUZX con los **mismos codificadores del engine** (sin deriva de
 formato).
 
@@ -181,7 +181,7 @@ cualquier herramienta se decodifica correctamente.
 > usar como semilla del chunk `k` la **última muestra reconstruida** del chunk `k-1` (no 0). Con
 > semilla 0 por chunk, cada chunk arranca en 0 y salta al nivel real en su primera muestra: el
 > salto es un **clic** en cada frontera (cada `chunk_samples`/rate segundos). `pack-pcm` lo hace
-> así; el test HOST-323 lo comprueba (una frontera encadenada sigue la señal; con semilla 0 salta).
+> así; el test HOST-357 lo comprueba (una frontera encadenada sigue la señal; con semilla 0 salta).
 
 **Delta + ZX0 — `5`** (sin pérdida):
 

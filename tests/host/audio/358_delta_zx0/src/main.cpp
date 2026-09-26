@@ -1,5 +1,5 @@
 // ============================================================================
-// Test HOST-324: Delta + ZX0 (sin perdida) — preprocesado delta y su integracion.
+// Test HOST-358: Delta + ZX0 (sin perdida) — preprocesado delta y su integracion.
 // ============================================================================
 //
 // El esquema sin perdida para audio es: **diferenciar** el PCM (`D_n = S_n - S_{n-1}`) y
@@ -11,7 +11,7 @@
 //      (vector de HOST-271): `decode(DeltaZx0) == integrate(zx0::decompress)` byte a byte;
 //   3) que el encoder DeltaZx0 devuelve -1 (lo produce la herramienta host con ZX0).
 //
-//   bash tools/run-host-tests.sh tests/host/audio/324_delta_zx0
+//   bash tools/run-host-tests.sh tests/host/audio/358_delta_zx0
 
 #include <cstdio>
 

@@ -1,5 +1,5 @@
 // ============================================================================
-// Test HOST-325: IMA ADPCM 4-bit (con perdida).
+// Test HOST-359: IMA ADPCM 4-bit (con perdida).
 // ============================================================================
 //
 // Valida `eng::audio::ima_adpcm` (tablas estandar IMA/DVI, bloque autocontenido con
@@ -7,7 +7,7 @@
 // independiente escrita aparte en este test, el round-trip `decode(encode(x))` con error
 // acotado sobre una senal suave, el dispatch de `pcm_codec` y los rechazos de tamano.
 //
-//   bash tools/run-host-tests.sh tests/host/audio/325_ima_adpcm
+//   bash tools/run-host-tests.sh tests/host/audio/359_ima_adpcm
 
 #include <cstdio>
 

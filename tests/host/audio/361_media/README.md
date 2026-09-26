@@ -1,4 +1,4 @@
-# HOST-327: interfaz de medios (`eng::audio::media`)
+# HOST-361: interfaz de medios (`eng::audio::media`)
 
 Test host del punto único de despacho por **contenedor** y **códec**: reconoce PCM crudo o AUZX
 y decodifica por **chunks**.
@@ -19,5 +19,5 @@ OK: interfaz de medios (dispatch AUZX/PCM y decode por chunk).
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/audio/327_media
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/audio/361_media
 ```

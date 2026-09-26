@@ -1,12 +1,12 @@
 // ============================================================================
-// Test HOST-328: descompresor aPLib (vector del compresor de referencia).
+// Test HOST-362: descompresor aPLib (vector del compresor de referencia).
 // ============================================================================
 //
 // Verifica `eng::audio::aplib::decompress` contra un flujo aPLib REAL generado con `apultra`
 // (emmanuel-marty/apultra, licencia zlib): 96 bytes de patron periodico comprimidos a 14.
 // Comprueba tambien el dispatch de `pcm_codec` (Codec::APLib) y los rechazos.
 //
-//   bash tools/run-host-tests.sh tests/host/audio/328_aplib
+//   bash tools/run-host-tests.sh tests/host/audio/362_aplib
 
 #include <cstdio>
 
