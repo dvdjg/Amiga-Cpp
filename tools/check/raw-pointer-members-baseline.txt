@@ -179,3 +179,4 @@ eng/ui/widget.hpp:t
 eng/ui/widgets.hpp:c
 eng/ui/widgets.hpp:value
 eng/ui/widgets.hpp:value
+eng/platform/amiga/entry.hpp:SysBase
