@@ -89,6 +89,43 @@ struct ScrollMemory {
 	return m;
 }
 
+/// **Geometría de un anillo de scroll** (ring con márgenes de guarda en ambos ejes): ventana =
+/// visible + `2·margen`, bytes por plano y total. Es la base de los drivers de scroll con
+/// guardas (`CopperRing`/`CopperSplit`/`BlitterColumns`) para reservar y direccionar.
+struct ScrollRing {
+	u16 window_w = 0u; ///< ancho de la ventana (visible + 2·margen_x)
+	u16 window_h = 0u; ///< alto de la ventana (visible + 2·margen_y)
+	u16 margin_x = 0u;
+	u16 margin_y = 0u;
+	u16 row_bytes = 0u; ///< bytes por fila de un plano
+	u32 bytes = 0u;     ///< total (todos los planos)
+};
+
+/// Construye la geometría del anillo para `planes` y márgenes dados.
+[[nodiscard]] constexpr ScrollRing scroll_ring(u16 visible_w, u16 visible_h, u8 planes,
+					       u16 margin_x, u16 margin_y) noexcept {
+	ScrollRing r {};
+	r.margin_x = margin_x;
+	r.margin_y = margin_y;
+	r.window_w = static_cast<u16>(visible_w + 2u * margin_x);
+	r.window_h = static_cast<u16>(visible_h + 2u * margin_y);
+	r.row_bytes = planar_row_bytes(r.window_w);
+	r.bytes = static_cast<u32>(r.row_bytes) * r.window_h * planes;
+	return r;
+}
+
+/// Columnas (o filas) de tile **cruzadas** al pasar el scroll de `from` a `to` (px): cuántas
+/// bandas nuevas hay que rellenar en el anillo (0 si no se cruza ningún tile). Devuelve el valor
+/// absoluto (sirve para cualquier sentido).
+[[nodiscard]] constexpr u16 ring_crossed(u16 from, u16 to, u16 tile_size) noexcept {
+	if (tile_size == 0u) {
+		return 0u;
+	}
+	const u16 a = static_cast<u16>(from / tile_size);
+	const u16 b = static_cast<u16>(to / tile_size);
+	return (b >= a) ? static_cast<u16>(b - a) : static_cast<u16>(a - b);
+}
+
 /// Elige la mejor técnica cuyo **coste de Copper** quepa y cuya **memoria** quepa en
 /// `chip_available`. Degrada desde `requested`.
 [[nodiscard]] constexpr ScrollKind choose_scroll_fitting(ScrollKind requested, u16 visible_w,
