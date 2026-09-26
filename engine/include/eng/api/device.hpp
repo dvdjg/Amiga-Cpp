@@ -102,6 +102,14 @@ public:
 		}
 	}
 
+	/// **Un solo BOB OR** (azúcar del anterior, sin envolver en `Span` a mano).
+	template <class B = Backend>
+	bool blitter_or_bobs(const graphics::OrBob& bob, u16 words, u16 height, s16 source_modulo,
+			     s16 dest_modulo) {
+		return blitter_or_bobs<B>(eng::Span<const graphics::OrBob> {&bob, 1u}, words, height,
+					  source_modulo, dest_modulo);
+	}
+
 	/// **Colisión pixel-perfect** por Blitter: `scratch = a & b` por plano y `true` si hay
 	/// algún bit. `words`×`rows` es el rect en palabras de 16 px × filas.
 	template <class B = Backend>

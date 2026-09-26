@@ -12,7 +12,7 @@
 /// puede dibujar con un número de planos o un layout que no le correspondan.
 ///
 /// No confundir con `graphics/sprite.hpp`, que describe **sprites hardware**
-/// (`SpriteTemplate`/`SpritePlacement`); éste es el objeto de bitmap (BOB) que dibuja el
+/// (`HwSpriteTemplate`/`HwSpritePlacement`); éste es el objeto de bitmap (BOB) que dibuja el
 /// Blitter. Ver `docs/engine/architecture/PUBLIC_GAME_API.md` §2.1.1.
 ///
 /// ```cpp

@@ -131,21 +131,21 @@ public:
         }
     }
 
-    /// Emite un `SpriteTemplate` con multiplexado vertical y cambios de paleta.
+    /// Emite un `HwSpriteTemplate` con multiplexado vertical y cambios de paleta.
     ///
-    /// Toma UNA imagen fuente troceada en segmentos (`SpriteTemplate::segments`) y la
+    /// Toma UNA imagen fuente troceada en segmentos (`HwSpriteTemplate::segments`) y la
     /// sirve por el MISMO canal hardware: cada segmento se rearma en su linea (técnica
     /// "chasing the raster" / multiplexado vertical). Además aplica los cambios de
     /// paleta por franja (`switches`) escribiendo COLORxx entre medias.
     ///
     /// `channel` es el canal 0..7; `base_y` la primera linea del primer segmento.
-    /// Requiere que la `SpriteTemplate` describa segmentos con `data_offset` creciente
+    /// Requiere que la `HwSpriteTemplate` describa segmentos con `data_offset` creciente
     /// (words desde el inicio de `bitmap`); cada linea de sprite ocupa
     /// `width_words*2` words (DAT y DATB intercalados).
     template <u8 MS, u8 MP, class Sched>
     void emit_template_into(
         Sched& sched,
-        const SpriteTemplate<MS, MP>& tpl,
+        const HwSpriteTemplate<MS, MP>& tpl,
         u8 channel,
         u16 base_y,
         u16 hpos = 0
@@ -153,7 +153,7 @@ public:
         if (channel >= 8) return;
         u16 line = base_y;
         for (u8 i = 0; i < tpl.segment_count; ++i) {
-            const SpriteSegment& seg = tpl.segments[i];
+            const HwSpriteSegment& seg = tpl.segments[i];
             const Span<const u16> data = tpl.bitmap.subspan(seg.data_offset, seg.height * (tpl.width_words * 2u));
             SpriteConfig cfg {
                 true, data, tpl.width_words, static_cast<u8>(seg.height & 0xffu),
@@ -172,7 +172,7 @@ public:
             // que estamos servir: lo aplicamos aqui (el Copper ya espero a esa linea).
             const u16 seg_end = static_cast<u16>(line + seg.height);
             for (u8 s = 0; s < tpl.switch_count; ++s) {
-                const SpritePaletteSwitch& sw = tpl.switches[s];
+                const HwSpritePaletteSwitch& sw = tpl.switches[s];
                 if (sw.line < line || sw.line >= seg_end) continue;
                 for (u8 c = 0; c < sw.count; ++c) {
                     sched.move(
@@ -192,13 +192,13 @@ public:
         return w;
     }
 
-    /// Vuelca una lista de `SpritePlacement` (salida del compositor) a los 8 canales,
+    /// Vuelca una lista de `HwSpritePlacement` (salida del compositor) a los 8 canales,
     /// dejando el gestor listo para `emit_into`. No toca hardware.
-    u8 apply(const SpritePlacement* placements, u8 count) {
+    u8 apply(const HwSpritePlacement* placements, u8 count) {
         if (placements == nullptr) return 0;
         u8 applied = 0;
         for (u8 i = 0; i < count; ++i) {
-            const SpritePlacement& p = placements[i];
+            const HwSpritePlacement& p = placements[i];
             if (p.channel >= 8u || p.data == nullptr || p.height == 0u || p.width_words == 0u) {
                 continue;
             }

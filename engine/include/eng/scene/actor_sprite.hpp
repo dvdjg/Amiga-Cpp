@@ -24,7 +24,7 @@ struct SpriteComposeScratch {
 	eng::Span<SpriteIntent> intents {};    ///< una intención por actor
 	eng::Span<eng::u16> intent_actor {};   ///< slot del actor de `intents[i]`
 	eng::Span<SpriteSlot> slots {};        ///< canales asignados por el allocator
-	eng::Span<SpritePlacement> placements {}; ///< sprites publicados
+	eng::Span<HwSpritePlacement> placements {}; ///< sprites publicados
 	eng::Span<CopperIntent> copper {};     ///< intenciones de Copper ancladas
 };
 
@@ -33,7 +33,7 @@ struct SpriteComposeScratch {
 ///   1. orden de emisión por superficie y `z` (`plan_actor_order`);
 ///   2. una intención de sprite por actor, ordenada por `top` (`build_sprite_intents`);
 ///   3. reparto de canales con multiplexado y tiras (`SpriteAllocator`);
-///   4. los que caben se publican como `SpritePlacement` (para `SpriteManager::apply`);
+///   4. los que caben se publican como `HwSpritePlacement` (para `SpriteManager::apply`);
 ///   5. los degradados a BOB se dibujan en el `FramePlan`, en orden por superficie y `z`;
 ///   6. las necesidades de Copper ancladas de cada actor se escriben en `copper`.
 ///
@@ -91,8 +91,8 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 		if (r.sprites >= s.placements.size()) {
 			return r; // sin sitio para publicar el sprite
 		}
-		SpritePlacement& p = s.placements[r.sprites];
-		p = SpritePlacement {};
+		HwSpritePlacement& p = s.placements[r.sprites];
+		p = HwSpritePlacement {};
 		p.channel = s.slots[i].channel;
 		p.priority = a->desc.sprite_priority;
 		p.hpos = s.intents[i].hpos;

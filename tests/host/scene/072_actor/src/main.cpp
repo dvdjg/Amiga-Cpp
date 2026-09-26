@@ -38,12 +38,12 @@ using eng::graphics::FramePlan;
 using eng::graphics::SpriteAllocator;
 using eng::graphics::SpriteIntent;
 using eng::graphics::SpriteIntentSet;
-using eng::graphics::SpritePaletteSwitch;
-using eng::graphics::SpritePlacement;
+using eng::graphics::HwSpritePaletteSwitch;
+using eng::graphics::HwSpritePlacement;
 using eng::graphics::SpriteManager;
-using eng::graphics::SpriteSegment;
+using eng::graphics::HwSpriteSegment;
 using eng::graphics::SpriteSlot;
-using eng::graphics::SpriteTemplate;
+using eng::graphics::HwSpriteTemplate;
 using eng::graphics::Visual;
 using eng::graphics::VisualKind;
 using eng::scene::Actor;
@@ -528,13 +528,13 @@ void test_emit_order_by_surface_and_z() {
 void test_sprite_template_projection() {
 	static eng::u16 tpl_bitmap[64] {};
 	static const eng::u16 sw_colors[2] {0x0f0u, 0x00fu};
-	SpriteTemplate<3, 2> tpl {};
+	HwSpriteTemplate<3, 2> tpl {};
 	tpl.bitmap = eng::Span<const eng::u16> {tpl_bitmap, 64u};
 	tpl.width_words = 2u;
 	tpl.attach = true;
-	tpl.add_segment(SpriteSegment {0u, 8u, 0u});
-	tpl.add_segment(SpriteSegment {16u, 8u, 8u});
-	tpl.add_switch(SpritePaletteSwitch {104u, sw_colors, 16u, 2u});
+	tpl.add_segment(HwSpriteSegment {0u, 8u, 0u});
+	tpl.add_segment(HwSpriteSegment {16u, 8u, 8u});
+	tpl.add_switch(HwSpritePaletteSwitch {104u, sw_colors, 16u, 2u});
 
 	SpriteIntent intents[4] {};
 	CopperIntent copper[4] {};
@@ -666,7 +666,7 @@ void test_compose_sprites() {
 	SpriteIntent intents[12] {};
 	eng::u16 intent_actor[12] {};
 	SpriteSlot slots[12] {};
-	SpritePlacement placements[12] {};
+	HwSpritePlacement placements[12] {};
 	CopperIntent copper[16] {};
 	eng::scene::SpriteComposeScratch sc {};
 	sc.order = order;
@@ -753,7 +753,7 @@ void test_copper_priority_wiring() {
 	SpriteIntent intents[4] {};
 	eng::u16 intent_actor[4] {};
 	SpriteSlot slots[4] {};
-	SpritePlacement placements[4] {};
+	HwSpritePlacement placements[4] {};
 	eng::scene::SpriteComposeScratch sc {};
 	sc.order = order;
 	sc.intents = intents;

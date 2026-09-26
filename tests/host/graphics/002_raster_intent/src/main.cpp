@@ -33,7 +33,7 @@ using eng::graphics::CopperIntent;
 using eng::graphics::CopperIntentKind;
 using eng::graphics::Effect;
 using eng::graphics::SpriteIntent;
-using eng::graphics::SpriteTemplate;
+using eng::graphics::HwSpriteTemplate;
 using eng::graphics::Visual;
 using eng::graphics::VisualKind;
 using eng::MemoryBlock;
@@ -43,7 +43,7 @@ using eng::MemoryKind;
 static_assert(std::is_trivially_copyable_v<Visual>);
 static_assert(std::is_trivially_copyable_v<CopperIntent>);
 static_assert(std::is_trivially_copyable_v<SpriteIntent>);
-static_assert(std::is_trivially_copyable_v<SpriteTemplate<4, 4>>);
+static_assert(std::is_trivially_copyable_v<HwSpriteTemplate<4, 4>>);
 
 // Un "plan" mínimo para el concept `Effect`: en el engine real es `FramePlan`.
 struct MockPlan {
@@ -103,18 +103,18 @@ int main() {
         return 1;
     }
 
-    // Runtime: una SpriteTemplate trocea la imagen y respeta su límite fijo sin heap.
-    SpriteTemplate<4, 4> tpl {};
+    // Runtime: una HwSpriteTemplate trocea la imagen y respeta su límite fijo sin heap.
+    HwSpriteTemplate<4, 4> tpl {};
     tpl.width_words = 1;
     tpl.add_segment({0, 8, 0});
     tpl.add_segment({16, 8, 8});
     if (tpl.segment_count != 2 || tpl.segments[1].height != 8) {
-        std::printf("[FAIL] SpriteTemplate no trocea la imagen\n");
+        std::printf("[FAIL] HwSpriteTemplate no trocea la imagen\n");
         return 1;
     }
     for (int i = 0; i < 10; ++i) tpl.add_segment({0, 1, 0});
     if (tpl.segment_count != 4) {
-        std::printf("[FAIL] SpriteTemplate no respeta MaxSegments (segment_count=%d)\n", (int)tpl.segment_count);
+        std::printf("[FAIL] HwSpriteTemplate no respeta MaxSegments (segment_count=%d)\n", (int)tpl.segment_count);
         return 1;
     }
 
@@ -217,6 +217,6 @@ int main() {
         }
     }
 
-    std::printf("OK: vocabulario de intenciones validado (Visual/CopperIntent/SpriteIntent/SpriteTemplate/Effect/scheduler).\n");
+    std::printf("OK: vocabulario de intenciones validado (Visual/CopperIntent/SpriteIntent/HwSpriteTemplate/Effect/scheduler).\n");
     return 0;
 }

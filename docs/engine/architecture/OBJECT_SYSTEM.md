@@ -2,7 +2,7 @@
 
 Este documento especifica el sistema de objetos del engine: cómo un actor descrito por la aplicación se materializa como **sprite hardware**, **BOB por Blitter** u **objeto CPU**, qué políticas de **transparencia** y de **gestión del fondo** admite, y cómo declara sus **necesidades de Copper** para que una instancia superior (el compositor) monte la copperlist del frame.
 
-Es la pieza de diseño que cierra la infraestructura de objetos del roadmap (`docs/guides/roadmap/NORMALIZACION_REPO.md`, F6). No repite el vocabulario de intenciones ni las plantillas de sprite, que ya están especificados en `VISUAL_EFFECT_SPRITE_DESIGN.md` (`Visual`, `CopperIntent`, `SpriteTemplate`, concept `Effect`), ni el modelo de escena retenida de `SCENE_AND_RESOURCES.md`.
+Es la pieza de diseño que cierra la infraestructura de objetos del roadmap (`docs/guides/roadmap/NORMALIZACION_REPO.md`, F6). No repite el vocabulario de intenciones ni las plantillas de sprite, que ya están especificados en `VISUAL_EFFECT_SPRITE_DESIGN.md` (`Visual`, `CopperIntent`, `HwSpriteTemplate`, concept `Effect`), ni el modelo de escena retenida de `SCENE_AND_RESOURCES.md`.
 
 Estado: **diseño objetivo**. Las piezas marcadas como EXISTE están implementadas; las marcadas como PROPUESTO son el contrato a implementar.
 
@@ -44,7 +44,7 @@ La separación de capas es la misma que en `VISUAL_EFFECT_SPRITE_DESIGN.md` §2:
 | BOB de bitmap (`Bob`, `BobTarget`, `bob_draw`, `bob_erase_box`) | EXISTE | `engine/include/eng/graphics/bob.hpp` |
 | Lote de BOBs OR intercalado (mismo tamaño, 1 blit/objeto, sin `jsr` por objeto) (`OrBlobBatch`, `begin/one/end`) | EXISTE | `engine/include/eng/platform/amiga/blob.hpp` (test HOST-176) |
 | Construcción del BOB desde un `Visual` (`bob_from_visual`) | EXISTE | `engine/include/eng/scene/actor.hpp` |
-| Plantilla de sprite (`SpriteTemplate`, `SpriteSegment`, `SpritePaletteSwitch`) | EXISTE | `engine/include/eng/graphics/sprite.hpp` |
+| Plantilla de sprite (`HwSpriteTemplate`, `HwSpriteSegment`, `HwSpritePaletteSwitch`) | EXISTE | `engine/include/eng/graphics/sprite.hpp` |
 | Asignación de canales (`SpriteAllocator`, `SpriteSlot` con `as_bob`) | EXISTE | `engine/include/eng/graphics/sprite_allocator.hpp` |
 | Emisión de sprites (`SpriteManager`) | EXISTE | `engine/include/eng/graphics/sprite_manager.hpp` |
 | Orquestación de Copper (`copper::Plan`, `Scheduler`, `DoubleBuffer`) | EXISTE | `engine/include/eng/graphics/copper/` |
@@ -71,7 +71,7 @@ La separación de capas es la misma que en `VISUAL_EFFECT_SPRITE_DESIGN.md` §2:
 | Intenciones de sprite de los actores y reparto (`build_sprite_intents`, `actor_to_sprite_intent`) | EXISTE | `engine/include/eng/scene/actor.hpp` |
 | Degradación sprite → BOB (`emit_bob_fallbacks` sobre `SpriteSlot::as_bob`) | EXISTE | `engine/include/eng/scene/actor.hpp` |
 | Composición de sprites del frame (`compose_sprites`, `SpriteComposeScratch`, `SpriteComposeResult`) | EXISTE | `engine/include/eng/scene/actor.hpp` |
-| Contrato del sprite resuelto (`SpritePlacement`) y volcado al emisor (`SpriteManager::apply`) | EXISTE | `graphics/sprite.hpp`, `graphics/sprite_manager.hpp` |
+| Contrato del sprite resuelto (`HwSpritePlacement`) y volcado al emisor (`SpriteManager::apply`) | EXISTE | `graphics/sprite.hpp`, `graphics/sprite_manager.hpp` |
 | Franjas de sprite y rearme intra-scanline (Risky Woods / Jim Power) | PARCIAL | proyección de franjas/rearme/paleta hecha; falta conectarla a la emisión real del compositor |
 | Tiles como BOB (blit desde banco común + posición de mapa) | EXISTE | `BlitJobKind::TileBlockCopy` (`frame_plan.hpp`), `field/xlimited.hpp` |
 | Objeto CPU sobre `Surface` con política de fondo | PROPUESTO | §14.7 |
@@ -172,7 +172,7 @@ Un objeto no escribe registros: **declara** `CopperIntent` (vocabulario de `rast
 
 Prioridad del sprite frente a los playfields: un sprite hardware puede quedar **delante o detrás** de cada playfield según la prioridad de `BPLCON2` (y ordenarse entre canales por su propia prioridad). El actor la declara en `sprite_priority` (0..3) y el compositor la materializa con la intención `Priority`. No se confunde con el `z` de los BOB: `z` ordena objetos **dentro de un mismo playfield**; `sprite_priority` sitúa el sprite en la pila de prioridades del chipset.
 
-Reconfiguración intra-scanline: un sprite se puede **reapuntar mientras avanza el haz**. La plantilla declara franjas (`SpriteSegment`) con su altura y su desplazamiento dentro de la imagen, y los puntos de rearme (`SpriteRearm`), los cambios de posición (`hpos_delta`) y los cambios de color (`SpritePaletteSwitch`) se convierten en intenciones que el compositor emite en la línea que toca. `sprite_template_to_intents` hace esa proyección sin escribir registros: una `SpriteIntent` por franja (con el tramo que le toca tras el gap de 1 línea del DMA), un `SpriteRearm` por franja a partir de la segunda y una `PaletteLine` por cada cambio de paleta dentro del tramo. Con eso se construyen los fondos de sprites tipo Risky Woods o Jim Power. La composición **horizontal** (varios tramos contiguos en la misma línea) se hace con **varios canales** cubriendo tramos uno al lado del otro: un solo canal no puede aparecer dos veces en la misma línea, porque su *fetch* se resuelve al principio de la línea. El modelo lo expresa como plantilla más lista de franjas; cuántos canales contiguos se pueden sostener lo decide el `SpriteAllocator`.
+Reconfiguración intra-scanline: un sprite se puede **reapuntar mientras avanza el haz**. La plantilla declara franjas (`HwSpriteSegment`) con su altura y su desplazamiento dentro de la imagen, y los puntos de rearme (`SpriteRearm`), los cambios de posición (`hpos_delta`) y los cambios de color (`HwSpritePaletteSwitch`) se convierten en intenciones que el compositor emite en la línea que toca. `sprite_template_to_intents` hace esa proyección sin escribir registros: una `SpriteIntent` por franja (con el tramo que le toca tras el gap de 1 línea del DMA), un `SpriteRearm` por franja a partir de la segunda y una `PaletteLine` por cada cambio de paleta dentro del tramo. Con eso se construyen los fondos de sprites tipo Risky Woods o Jim Power. La composición **horizontal** (varios tramos contiguos en la misma línea) se hace con **varios canales** cubriendo tramos uno al lado del otro: un solo canal no puede aparecer dos veces en la misma línea, porque su *fetch* se resuelve al principio de la línea. El modelo lo expresa como plantilla más lista de franjas; cuántos canales contiguos se pueden sostener lo decide el `SpriteAllocator`.
 
 Anclaje al objeto: las intenciones de un actor se declaran **relativas a su Y** (o a su Y de pantalla) y el planner las convierte a líneas absolutas sumando la posición efectiva. Así un degradado de paleta «viaja» con el objeto sin que la aplicación calcule la línea del raster.
 

@@ -54,7 +54,7 @@ using eng::graphics::Frame;
 using eng::graphics::FramePlan;
 using eng::graphics::SpriteAllocator;
 using eng::graphics::SpriteIntent;
-using eng::graphics::SpritePlacement;
+using eng::graphics::HwSpritePlacement;
 using eng::graphics::SpriteSlot;
 using eng::graphics::Visual;
 using eng::graphics::VisualKind;

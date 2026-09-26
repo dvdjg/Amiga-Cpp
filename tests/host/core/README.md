@@ -80,3 +80,4 @@ Categoría `core` de la batería host (L1). El índice de categorías está en [
 | HOST-231 | [box](231_box/README.md) | `eng::Box` (rect 16 bits) + adaptadores a/desde `SurfaceRect`/`ClipRect`/`DirtyRect` (round-trip y bordes). |
 | HOST-233 | [api_facade](233_api_facade/README.md) | Fachada pública `eng/api/api.hpp`: un solo include expone la API estable (Box, FramePlan, raster, entrada, tareas, paleta, `GameModule`). |
 | HOST-333 | [expected](333_expected/README.md) | `eng/core/types/result.hpp`: `eng::Expected<T>` (valor o `eng::Result`) — idioma de error sin excepciones: `ok`/`status`, `value`/`value_or`. |
+| HOST-334 | [device_single](334_device_single/README.md) | `eng/api/device.hpp`: ergonomía de un solo elemento (`Device::blitter_or_bobs(const OrBob&, …)`) — evita envolver `Span` a mano (y no se añade ctor implícito a `Span`). |
