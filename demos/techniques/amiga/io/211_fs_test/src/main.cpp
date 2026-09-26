@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/io/211_fs_test --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/io/211_fs_test
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/io/211_fs_test --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/io/211_fs_test
+
 #include <eng/api/api.hpp>
 #include <eng/audio/pcm_stream.hpp>
 #include <eng/os/file.hpp>

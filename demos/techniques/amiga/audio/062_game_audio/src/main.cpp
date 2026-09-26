@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/062_game_audio --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/062_game_audio
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/062_game_audio --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/062_game_audio
+
 // ============================================================================
 // Demo 062: "game audio" — capa de audio de juego (GameAudio: banco + política).
 // ============================================================================

@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/c2p/061_c2p_chunky_4bpl --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/c2p/061_c2p_chunky_4bpl
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/c2p/061_c2p_chunky_4bpl --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/c2p/061_c2p_chunky_4bpl
+
 // ============================================================================
 // Demo 061: c2p_1x1_4 (chunky 4bpp -> planar) + rotozoom por CPU.
 // ============================================================================

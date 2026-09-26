@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/202_xlimited_dpf --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/202_xlimited_dpf
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/202_xlimited_dpf --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/202_xlimited_dpf
+
 #include <eng/api/api.hpp>
 #include <eng/platform/amiga/backend.hpp>
 #include <eng/core/math/sinetable.hpp>

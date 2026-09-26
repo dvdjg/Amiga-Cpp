@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/blitter/208_blitter_memcpy --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/blitter/208_blitter_memcpy
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/blitter/208_blitter_memcpy --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/blitter/208_blitter_memcpy
+
 // ============================================================================
 // Demo 208 — self-test de copia lineal por Blitter (blitter_memcpy)
 // ============================================================================

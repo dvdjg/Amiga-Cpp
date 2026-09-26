@@ -1,222 +1,163 @@
-// Demo 213 - "Bartman Abyss": port de la demo clásica de Bartman/vscode-amiga-debug
-// (`BartmanBasic/main.c`) al engine, usando el **mini-SO** (`eng::os`) como bucle reactivo.
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/os/213_bartman_abyss --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/os/213_bartman_abyss
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/os/213_bartman_abyss --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/os/213_bartman_abyss
+
+// Demo 213 - "Bartman Abyss": port de la demo clásica de Bartman/vscode-amiga-debug al engine,
+// escrita con la **fachada de juego** (`eng::App`/`Screen`, `Scene` + `effects::Gradient` +
+// `app.audio()`). No hay `main`, `SysBase`, punteros crudos, registros ni `BlitJob`: el juego
+// describe QUÉ quiere y el engine decide CÓMO. Ver `docs/engine/architecture/GAME_API_TWO_LEVELS.md`.
 //
 // Reproduce la demo original:
-//   - Escena 320x256 de **5 planos interleaved** con la imagen "abyss" (assets/amiga/sprites/abyss).
-//   - **Copper**: paleta de 32 colores, degradado de COLOR00 en las líneas 0x41..0x4f y
-//     fine-scroll horizontal por BPLCON1 movido por seno.
-//   - **16 BOBs enmascarados** (cookie-cut `$CA`) desplazados por senos (una sola pasada por BOB,
-//     aprovechando el layout interleaved del BOB original: A=máscara, B=imagen).
-//   - **Música P61** (ThePlayer) avanzada una vez por frame.
-//   - El juego **no sondea hardware**: el latido del mini-SO (`os::tick`) latcha el VBlank y
-//     pollea la entrada; el **botón izquierdo del ratón** (mensaje `MouseButton`) termina la demo.
-//
-// El bitmap es el propio blob incrustado en **Chip** (se dibuja *in place*, como el original, que
-// no usa doble buffer); la copperlist se construye con `copper::SchedulerT` y se parchea BPLCON1
-// por frame escribiendo su word de dato.
-//
-// Ver `docs/guides/roadmap/ROADMAP_MINI_OS.md`, `docs/engine/architecture/MINI_OS_MESSAGE_LOOP.md`
-// y `docs/engine/architecture/MUSIC_PLAYER.md`.
+//   - Escena 320x256 de 5 planos con la imagen "abyss".
+//   - Degradado de `COLOR00` por raster (efecto de alto nivel, sin listar `COLOR`).
+//   - 16 BOB enmascarados (cookie-cut) movidos por senos; el juego solo pinta sprites.
+//   - Música P61 por `app.audio()`.
 
 #include <eng/api/api.hpp>
-#include <eng/audio/music_player.hpp>
-#include <eng/core/data/ct_array.hpp>
-#include <eng/graphics/copper/copper.hpp>
-#include <eng/graphics/copper/scheduler.hpp>
-#include <eng/graphics/frame_plan.hpp>
-#include <eng/os/message_pump.hpp>
-#include <eng/os/os.hpp>
-#include <eng/platform/amiga/backend.hpp>
-#include <eng/scene/bobs.hpp>
-#include <eng/scene/display.hpp>
-
-#include <proto/exec.h>
-#include <exec/execbase.h>
+#include <eng/api/effects.hpp>
+#include <eng/platform/amiga/entry.hpp>
 
 #include "support/gcc8_c_support.h"
 
-struct ExecBase* SysBase = nullptr;
+// --- Assets incrustados (ámbito global para que casen los símbolos `incbin_*`) ----------------
+// `INCBIN` deja el blob en `.rodata` (sección estándar; sin hunks extra que descuadren la
+// reubicación del runner); el engine lo copia a **Chip** con `res::load` (DMA: Blitter/música).
+INCBIN(abyss_img, "assets/amiga/sprites/abyss/abyss.bpl");
+INCBIN(abyss_bob, "assets/amiga/sprites/abyss/bob.bpl");
+INCBIN(abyss_mod, "assets/amiga/audio/testmod.p61");
+INCBIN(abyss_pal, "assets/amiga/sprites/abyss/abyss.pal");
 
-extern "C" {
-__attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
-	eng::debug::run_status_magic,
-	eng::debug::run_status_version,
-	static_cast<eng::u16>(eng::debug::RunState::Cold),
-	0,
-	0,
-};
-}
-
-// --- Assets incrustados -----------------------------------------------------
-// Los blobs van a `.rodata` (seccion estandar, sin hunks extra que descoloquen la
-// relocalizacion de simbolos del runner) y en `init` se **copian a Chip** con el CPU: el Blitter
-// necesita Chip, pero el origen puede vivir en cualquier RAM. Así la demo funciona también en
-// máquinas con Fast RAM.
-__asm__(".section .rodata\n.balign 4\n"
-	".globl g_abyss_img\ng_abyss_img:\n"
-	".incbin \"assets/amiga/sprites/abyss/abyss.bpl\"\n"
-	".globl g_abyss_img_end\ng_abyss_img_end:\n"
-	".globl g_abyss_bob\ng_abyss_bob:\n"
-	".incbin \"assets/amiga/sprites/abyss/bob.bpl\"\n"
-	".globl g_abyss_bob_end\ng_abyss_bob_end:\n"
-	".globl g_abyss_mod\ng_abyss_mod:\n"
-	".incbin \"assets/amiga/audio/testmod.p61\"\n"
-	".globl g_abyss_mod_end\ng_abyss_mod_end:\n"
-	".globl g_abyss_pal\ng_abyss_pal:\n"
-	".incbin \"assets/amiga/sprites/abyss/abyss.pal\"\n"
-	".globl g_abyss_pal_end\ng_abyss_pal_end:\n.balign 2\n");
-
-extern "C" const eng::u8 g_abyss_img[];
-extern "C" const eng::u8 g_abyss_img_end[];
-extern "C" const eng::u8 g_abyss_bob[];
-extern "C" const eng::u8 g_abyss_bob_end[];
-extern "C" const eng::u8 g_abyss_mod[];
-extern "C" const eng::u8 g_abyss_mod_end[];
-extern "C" const eng::u16 g_abyss_pal[];
+#define INCBIN_SIZE(name) \
+	static_cast<eng::u32>(reinterpret_cast<const char*>(&incbin_##name##_end) - incbin_##name##_start)
 
 namespace {
 
-namespace copper = eng::copper;
+namespace comp = eng::graphics::composition;
 
-constexpr eng::u16 kWidth = 320;
-constexpr eng::u16 kHeight = 256;
-constexpr eng::u8 kPlanes = 5;
-constexpr eng::u16 kBytesPerRow = kWidth / 8u;          // 40
-constexpr eng::u16 kRowStride = kBytesPerRow * kPlanes; // 200 (interleaved)
-constexpr eng::u32 kBitmapBytes = static_cast<eng::u32>(kRowStride) * kHeight; // 51200
+constexpr eng::u16 kWidth = 320u;
+constexpr eng::u16 kHeight = 256u;
+constexpr eng::u8 kPlanes = 5u;
+constexpr eng::u32 kImageBytes = static_cast<eng::u32>(kWidth / 8u) * kPlanes * kHeight;
 
-constexpr eng::u16 kBobW = 32;
-constexpr eng::u16 kBobH = 16;
-constexpr eng::u16 kBobWords = kBobW / 16u;              // 2 palabras/fila
-constexpr eng::u32 kBobFrameStride = kBobH * kPlanes * 2u * kBobWords * 2u; // 640 B
+constexpr eng::u16 kBobW = 32u;
+constexpr eng::u16 kBobH = 16u;
+constexpr eng::u32 kBobFrameStride = kBobH * kPlanes * 2u * (kBobW / 16u) * 2u; // 640 B
 
-// Ondas **generadas en compilación** (`eng::ct_array`, patrón de la 107): una tabla de seno
-// con valores `0..Max` en vez de la ristra de literales de la demo original. Aproximación entera
-// de Bhaskara I (`sin(x°) ≈ 4x(180−x)/(40500 − x(180−x))`), suficiente para el vaivén de los BOBs.
+// Ondas generadas en compilación (`eng::ct_array`), aproximación entera de seno (Bhaskara I).
 template <eng::u16 N, eng::u8 Max>
 [[nodiscard]] constexpr eng::ct_array<eng::u8, N> make_wave() noexcept {
 	return eng::ct_array<eng::u8, N> {[](eng::usize i) -> eng::u8 {
 		const eng::s32 deg = static_cast<eng::s32>((360u * i) / N) % 360;
 		const bool neg = deg > 180;
-		const eng::s32 x = neg ? deg - 180 : deg; // 0..180
+		const eng::s32 x = neg ? deg - 180 : deg;
 		const eng::s32 p = x * (180 - x);
-		const eng::s32 s = (4 * p * 256) / (40500 - p); // 0..256
-		const eng::s32 v = neg ? -s : s;                // -256..256
+		const eng::s32 s = (4 * p * 256) / (40500 - p);
+		const eng::s32 v = neg ? -s : s;
 		return static_cast<eng::u8>(((v + 256) * Max) / 512);
 	}};
 }
-constexpr auto kWaveScroll = make_wave<64u, 15u>(); // fine-scroll de BPLCON1 (0..15)
-constexpr auto kWaveY = make_wave<64u, 40u>();      // desplazamiento vertical (0..40)
-constexpr auto kWaveX = make_wave<51u, 32u>();      // desplazamiento horizontal (0..32)
+constexpr auto kWaveY = make_wave<64u, 40u>();
+constexpr auto kWaveX = make_wave<51u, 32u>();
 
 struct AbyssDemo {
-	bool init(eng::amiga::AmigaBackend& backend) {
+	void init(auto& app) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		m_backend = &backend;
-
-		if (!backend.configure_memory({96u * 1024u, 8u * 1024u, 4u * 1024u})) {
+		if (!app.configure_memory({96u * 1024u, 8u * 1024u, 4u * 1024u, 0u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021301u);
-			return false;
+			return;
 		}
 
-		// Copia los assets a **Chip** (el Blitter y P61 los leen por DMA): imagen (bitmap),
-		// BOB (máscara+imagen) y módulo. El origen en `.rodata` puede estar en Fast RAM.
-		const eng::u32 img_bytes = static_cast<eng::u32>(g_abyss_img_end - g_abyss_img);
-		const eng::u32 bob_bytes = static_cast<eng::u32>(g_abyss_bob_end - g_abyss_bob);
-		const eng::u32 mod_bytes = static_cast<eng::u32>(g_abyss_mod_end - g_abyss_mod);
-		if (img_bytes < kBitmapBytes) {
+		// --- Display de alto nivel: escena planar de 5 planos (interleaved) + paleta --------
+		comp::SceneResources res = comp::planar(kWidth, kHeight, kPlanes);
+		res.layout = comp::SceneLayout::Interleaved; // el bitmap abyss es interleaved
+		const eng::u16* pal = reinterpret_cast<const eng::u16*>(abyss_pal);
+		if (!comp::compose(m_scene, app.device().memory(), res, comp::ocs_a500,
+				   comp::display(res, 0x5200u), // 5 planos + COLOR
+				   comp::palette(eng::PaletteWords {pal, 32u}, 0u, 32u))) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021302u);
-			return false;
+			return;
 		}
-		// Carga tipada a Chip (`res::load` fija medio y alineación por dominio: planos/BOB a
-		// 16, módulo a 4); el origen en `.rodata` puede estar en Fast RAM.
-		m_image = eng::res::load<eng::PlaneTag>(
-			backend.memory(), eng::Span<const eng::u8> {g_abyss_img, kBitmapBytes});
+		// Vuelca la imagen (una vez) al bitmap de la escena; a partir de aquí el juego dibuja
+		// con primitivas de `Screen`, no tocando memoria.
+		eng::Span<eng::u8> dst = m_scene.bitplanes().raw();
+		const eng::u8* src = reinterpret_cast<const eng::u8*>(abyss_img);
+		for (eng::u32 i = 0u; i < kImageBytes && i < dst.size(); ++i) {
+			dst[i] = src[i];
+		}
+		app.bind_scene(m_scene);
+
+		// --- Los assets a Chip (carga tipada: medio y alineación por dominio) ---------------
 		m_bob_block = eng::res::load<eng::BobTag>(
-			backend.memory(), eng::Span<const eng::u8> {g_abyss_bob, bob_bytes});
+			app.memory_manager(),
+			eng::Span<const eng::u8> {reinterpret_cast<const eng::u8*>(abyss_bob),
+						  INCBIN_SIZE(abyss_bob)});
+		const eng::u32 mod_bytes = INCBIN_SIZE(abyss_mod);
 		m_mod_block = eng::res::load<eng::MusicTag>(
-			backend.memory(), eng::Span<const eng::u8> {g_abyss_mod, mod_bytes});
-		m_copper = backend.memory().chip.allocate_block<eng::CopperTag>(2048u, 16u);
-		if (!m_image.valid() || !m_bob_block.valid() || !m_mod_block.valid() || !m_copper.valid()) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00021305u);
-			return false;
-		}
-		m_bitmap = m_image.view.data();
-		m_bob = m_bob_block.view.data();
-
-		// Hoja de BOBs (Capa 4): el layout "par" ([máscara][imagen] por fila de plano) dibuja
-		// cookie-cut interleaved en un solo blit. El juego solo mueve actores.
-		eng::graphics::Bob bb {};
-		bb.sheet = m_bob;
-		bb.width = kBobW;
-		bb.height = kBobH;
-		bb.planes = kPlanes;
-		bb.frame_count = 6u;
-		bb.frame_stride = kBobFrameStride;
-		bb.layout = eng::graphics::BobLayout::Interleaved;
-		bb.draw = eng::graphics::BobDraw::CookieCut;
-		bb.mask_pack = eng::graphics::BobMaskPack::InterleavedPair;
-		m_sheet = eng::graphics::Sprite {bb, bob_bytes};
-		m_bobs.set_sheet(m_sheet);
-		m_bobs.resize(16u);
-
-		if (!build_copper()) {
+			app.memory_manager(), eng::Span<const eng::u8> {
+						      reinterpret_cast<const eng::u8*>(abyss_mod), mod_bytes});
+		if (!m_bob_block.valid() || !m_mod_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021303u);
-			return false;
+			return;
 		}
 
-		backend.takeover_display(m_copper_words);
+		// --- El objeto como asset de juego -------------------------------------------------
+		eng::graphics::Bob bob {};
+		bob.sheet = m_bob_block.view.data();
+		bob.width = kBobW;
+		bob.height = kBobH;
+		bob.planes = kPlanes;
+		bob.frame_count = 6u;
+		bob.frame_stride = kBobFrameStride;
+		bob.layout = eng::graphics::BobLayout::Interleaved;
+		bob.draw = eng::graphics::BobDraw::CookieCut;
+		bob.mask_pack = eng::graphics::BobMaskPack::InterleavedPair;
+		m_sprite = eng::graphics::Sprite {bob, INCBIN_SIZE(abyss_bob)};
 
-		// Música P61 (ThePlayer): si el módulo trae samples empaquetados, se reserva el buffer
-		// que exige `P61_Init`.
-		const eng::Span<const eng::u8> mod(m_mod_block.view.data(), mod_bytes);
+		// --- Efecto de alto nivel: degradado de COLOR00 (líneas 0x41..0x4f) ----------------
+		eng::u16 keys[15] {};
+		for (eng::u8 i = 0u; i < 15u; ++i) {
+			keys[i] = static_cast<eng::u16>(0x0111u * (i + 1u));
+		}
+		(void)m_sky.attach({.first_line = 0x41u, .band_height = 1u, .bands = 15u, .first = 0u},
+				   eng::Span<const eng::u16> {keys, 15u}, false);
+
+		// --- Música por la fachada de audio ------------------------------------------------
+		const eng::Span<const eng::u8> mod {m_mod_block.view.data(), mod_bytes};
 		eng::Span<eng::u8> sbuf {};
 		if (eng::audio::p61_needs_sample_buffer(mod)) {
 			const eng::u32 need = eng::audio::p61_sample_buffer_size(mod);
-			m_sample = backend.memory().chip.allocate_block<eng::AudioTag>(need, 4u);
+			m_sample = app.memory_manager().chip().template reserve<eng::AudioTag>(need, 4u);
 			if (!m_sample.valid()) {
 				eng::debug::mark_failed(g_eng_run_status, 0x00021304u);
-				return false;
+				return;
 			}
-			sbuf = eng::Span<eng::u8>(m_sample.view.data(), need);
+			sbuf = eng::Span<eng::u8> {m_sample.view.data(), need};
 		}
-		m_music_ok = m_music.play(eng::audio::MusicModule {mod}, sbuf);
+		(void)app.audio().play_music(eng::audio::MusicModule {mod},
+					     eng::audio::MusicFormat::P61, sbuf);
 
-		// La música es una **tarea de frame del mini-SO**: se avanza dentro del tick (IRQ de
-		// VBlank, vía `os::start_vblank_irq`) y postea `MusicEnd` al puerto cuando termina.
-		eng::os::set_frame_task(&AbyssDemo::music_task, this);
-
-		eng::debug::mark_ready(g_eng_run_status,
-				       (m_music_ok ? 0x00020000u : 0u) | 0x00002130u);
-		return true;
+		app.takeover();
+		m_ready = true;
 	}
 
-	/// Un frame de la demo: parchea el fine-scroll, limpia la banda y dibuja los 16 BOBs. La
-	/// música ya se avanza en el **tick del mini-SO** (IRQ), no aquí.
-	void frame(eng::u32 f) {
-		const eng::u8 sin = kWaveScroll[f & 63u];
-		m_scroll.set(static_cast<eng::u16>(sin | (sin << 4u))); // fine-scroll por el PatchHandle
+	void update(auto& app) {
+		eng::debug::mark_frame(g_eng_run_status, app.frame());
+		app.audio().update_music(); // música P61: avanza una vez por frame
+		m_sky.set_phase(static_cast<eng::u16>(app.frame()));
+	}
 
-		// Destino común de los blits de este frame (los planos delplayfield).
-		eng::graphics::BobTarget target {};
-		target.base = m_bitmap;
-		target.row_bytes = kBytesPerRow;
-		target.planes = kPlanes;
-		target.layout = eng::graphics::BobLayout::Interleaved;
-
-		m_blits.clear();
-		// Limpia la banda de juego (filas 200..255, los 5 planos) sin describir un `BlitJob`.
-		eng::scene::clear_box(m_blits, target, 0, 200, kWidth, 56u);
-
-		// 16 BOBs enmascarados movidos por las ondas. Fase con avance incremental (sin `% 51`
-		// por BOB, que en 68000 es un `__umodsi3` costoso).
-		eng::u32 phase = f % 51u;
+	void render(auto& app) {
+		auto s = app.screen();
+		// Limpia la banda de juego (blit `D=0` encolado en el plan, en orden con los sprites) y
+		// dibuja los 16 BOB; el juego solo pinta y limpia con primitivas de `Screen`.
+		s.clear_box(eng::Box {0, 200, kWidth, 56u});
+		eng::u32 phase = app.frame() % 51u;
 		eng::u8 fi = 0u;
 		for (eng::u16 i = 0u; i < 16u; ++i) {
 			const eng::s16 x = static_cast<eng::s16>(
 				static_cast<eng::u32>(i) * 16u + static_cast<eng::u32>(kWaveX[phase]) * 2u);
 			const eng::s16 y = static_cast<eng::s16>(
-				200u + static_cast<eng::u32>(kWaveY[((f + i) * 2u) & 63u]) / 2u);
+				200u + static_cast<eng::u32>(kWaveY[((app.frame() + i) * 2u) & 63u]) / 2u);
 			const eng::u8 frame = fi;
 			if (++phase >= 51u) {
 				phase = 0u;
@@ -224,132 +165,26 @@ struct AbyssDemo {
 			if (++fi >= 6u) {
 				fi = 0u;
 			}
-			m_bobs[i] = eng::scene::BobActor {x, y, frame, true};
+			s.sprite(m_sprite, x, y, frame);
 		}
-		m_bobs.emit(m_blits, target);
-		(void)m_backend->execute_frame_plan(m_blits);
+		m_sky.frame(m_scene); // aporta el degradado al plan del frame
+		app.present();
 
-		// Overlay de depuración de WinUAE (no aparece en la captura del framebuffer).
-		auto& d = m_backend->debug();
-		d.clear();
-		d.filled_rect(static_cast<eng::s16>(f + 100u), 400,
-			      static_cast<eng::s16>(f + 400u), 440, 0x0000ff00);
-		d.rect(static_cast<eng::s16>(f + 90u), 380, static_cast<eng::s16>(f + 400u), 440,
-		       0x000000ff);
-		d.text(static_cast<eng::s16>(f + 130u), 418,
-		       "abyss + mini-OS (raton izq. para salir)", 0x00ff00ff);
-	}
-
-	void on_msg(const eng::os::Msg& m) {
-		switch (m.type) {
-		case eng::os::MsgType::MouseButton:
-			// Bit 0 = botón izquierdo (como `MouseLeft()` del original).
-			if ((m.payload.mouse.buttons & 0x01u) != 0u) {
-				m_quit = true;
-			}
-			break;
-		case eng::os::MsgType::KeyDown:
-			if ((m.payload.key.code & 0x7fu) == 0x45u) { // ESC
-				m_quit = true;
-			}
-			break;
-		default:
-			break;
+		if (m_ready && app.frame() < 2u) {
+			eng::debug::mark_ready(g_eng_run_status, 0x00021300u);
 		}
+		eng::debug::probe_when_ready(g_eng_run_status, app.frame());
 	}
 
-	void shutdown() { m_music.stop(); }
-
-	[[nodiscard]] bool quit() const { return m_quit; }
-
-	/// Tarea de frame del mini-SO (`os::set_frame_task`): avanza la música P61 y postea
-	/// `MusicEnd` cuando el módulo termina. Corre en el tick (IRQ de VBlank).
-	static void music_task(void* user, eng::u16) {
-		auto* self = static_cast<AbyssDemo*>(user);
-		self->m_music.update();
-		if (self->m_music.ended()) {
-			eng::os::Msg m {};
-			m.type = eng::os::MsgType::MusicEnd;
-			(void)eng::os::system_port().post(m);
-		}
-	}
-
-private:
-	bool build_copper() {
-		// `m_sched` es **miembro** para que el `PatchHandle` del fine-scroll siga válido.
-		m_sched.retarget(m_copper);
-		// Display declarativo (Capa 3): DMACON/BPLCONx/módulos interleaved/DIW-DDF/BPLxPT,
-		// sin nombrar registros ni calcular direcciones a mano.
-		eng::scene::Band band {};
-		band.planes = kPlanes;
-		band.bytes_per_row = kBytesPerRow;
-		band.bplcon2 = static_cast<eng::u16>(1u << 6u);      // prioridad de playfield
-		band.planes_view = m_image.mem_view_chip();          // base Chip (DMA)
-		band.bpl1mod = band.modulo();
-		band.bpl2mod = band.modulo();
-		band.palette = eng::PaletteWords {g_abyss_pal, 32u};
-		band.palette_colors = 32u;
-		eng::scene::emit_display(m_sched, band);
-		m_scroll = eng::scene::emit_fine_scroll(m_sched, 0x0000u); // BPLCON1 parcheable
-		eng::scene::emit_gradient(m_sched, 0x41u, 0x4fu, 0x0111u); // COLOR00 0x41..0x4f
-		m_sched.end();
-		m_copper_words = m_sched.data();
-		m_copper_ok = m_sched.ok();
-		return m_copper_ok;
-	}
-
-	eng::amiga::AmigaBackend* m_backend = nullptr;
-	eng::u8* m_bitmap = nullptr;
-	const eng::u8* m_bob = nullptr;
-	eng::u16* m_copper_words = nullptr;
-	eng::scene::BobLayer m_bobs {};       ///< actores BOB (Capa 4)
-	eng::graphics::Sprite m_sheet {};     ///< hoja de BOBs (asset)
-	eng::graphics::FramePlan m_blits {};  ///< plan de blits del frame (se re-materializa)
-	copper::SchedulerT<false> m_sched {}; ///< emisor de la copperlist (miembro: el handle vive aquí)
-	copper::PatchHandle m_scroll {};      ///< MOVE de BPLCON1 parcheado por frame
-	eng::Block<eng::PlaneTag> m_image {};
+	eng::graphics::composition::Scene m_scene {};
+	eng::graphics::Sprite m_sprite {};
+	eng::effects::Gradient m_sky {};
 	eng::Block<eng::BobTag> m_bob_block {};
 	eng::Block<eng::MusicTag> m_mod_block {};
-	eng::Block<eng::CopperTag> m_copper {};
 	eng::Block<eng::AudioTag> m_sample {};
-	eng::audio::P61Player m_music {};
-	bool m_copper_ok = false;
-	bool m_music_ok = false;
-	bool m_quit = false;
+	bool m_ready = false;
 };
 
 } // namespace
 
-int main() {
-	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
-	eng::debug::reset(g_eng_run_status);
-
-	eng::amiga::AmigaBackend backend {};
-	backend.boot();
-
-	AbyssDemo game {};
-	if (!game.init(backend)) {
-		return 0;
-	}
-
-	// Mini-SO por **IRQ de VBlank** (`os::start_vblank_irq`): el input, los timers y la tarea de
-	// frame (música) corren dentro de la IRQ; el bucle principal solo drena el puerto y renderiza.
-	// La salida es por el botón izquierdo del ratón (mensaje `MouseButton`).
-	eng::os::MsgPort<32>& port = eng::os::system_port();
-	(void)eng::os::start_vblank_irq(backend, eng::os::InputAll);
-
-	while (!game.quit()) {
-		eng::os::Msg m;
-		while (port.pop(m)) {
-			game.on_msg(m);
-		}
-		const eng::u32 frame = eng::os::frame_count();
-		game.frame(frame);
-		backend.wait_vblank();
-		eng::debug::mark_frame(g_eng_run_status, frame);
-		eng::debug::probe_when_ready(g_eng_run_status, frame);
-	}
-
-	game.shutdown();
-	return 0;
-}
+ENG_APP_MAIN(AbyssDemo);

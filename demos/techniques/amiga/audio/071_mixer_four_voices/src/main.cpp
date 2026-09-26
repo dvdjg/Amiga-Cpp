@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/071_mixer_four_voices --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/071_mixer_four_voices
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/071_mixer_four_voices --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/071_mixer_four_voices
+
 // ============================================================================
 // Demo 071: "mixer four voices" — CUATRO voces pre-renderizadas (máximo single).
 // ============================================================================

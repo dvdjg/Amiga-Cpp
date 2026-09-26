@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/117_bobs3d --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/117_bobs3d
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/117_bobs3d --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/117_bobs3d
+
 // Demo 117 - bobs3d (PORTE 1:1 de demoscene-repo-orig/effects/bobs3d/bobs3d.c)
 //
 // Recrea el efecto original "bobs3d": el objeto `pilka` (malla obj2c de `lib3d`) rota en

@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/debug/205_hw_probe --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/debug/205_hw_probe
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/debug/205_hw_probe --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/debug/205_hw_probe
+
 #include <eng/api/api.hpp>
 #include <eng/api/effects.hpp>
 #include <eng/hw/info.hpp>

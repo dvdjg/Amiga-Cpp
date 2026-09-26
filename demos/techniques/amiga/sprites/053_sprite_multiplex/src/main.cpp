@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/sprites/053_sprite_multiplex --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/sprites/053_sprite_multiplex
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/sprites/053_sprite_multiplex --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/sprites/053_sprite_multiplex
+
 // ============================================================================
 // Demo 053: multiplexado de sprites hardware + color multiplexing.
 // ============================================================================

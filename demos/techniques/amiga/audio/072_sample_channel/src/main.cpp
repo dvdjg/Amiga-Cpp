@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/072_sample_channel --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/072_sample_channel
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/072_sample_channel --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/072_sample_channel
+
 // ============================================================================
 // Demo 072: "sample channel" — un sample REAL (st-xx) en un canal de Paula.
 // ============================================================================

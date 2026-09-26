@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/276_music_mixer --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/276_music_mixer
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/276_music_mixer --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/276_music_mixer
+
 // ============================================================================
 // Demo 276: musica real (3 canales HW) + mixer de SFX (4 voces SW) — modo `Game`.
 // ============================================================================

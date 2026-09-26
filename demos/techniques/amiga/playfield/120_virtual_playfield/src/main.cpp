@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/120_virtual_playfield --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/120_virtual_playfield
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/120_virtual_playfield --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/120_virtual_playfield
+
 // ============================================================================
 // Demo 120 — Virtual playfield: bitmap FLAT contiguo + scroll SOLO por punteros
 // ============================================================================

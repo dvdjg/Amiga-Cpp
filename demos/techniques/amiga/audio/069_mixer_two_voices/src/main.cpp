@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/069_mixer_two_voices --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/069_mixer_two_voices
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/069_mixer_two_voices --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/069_mixer_two_voices
+
 // ============================================================================
 // Demo 069: "mixer two voices" — DOS voces pre-renderizadas en el mixer.
 // ============================================================================

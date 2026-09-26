@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/io/214_floppy_raw --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/io/214_floppy_raw
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/io/214_floppy_raw --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/io/214_floppy_raw
+
 #include <eng/api/api.hpp>
 #include <eng/core/data/byte_order.hpp>
 #include <eng/os/floppy.hpp>

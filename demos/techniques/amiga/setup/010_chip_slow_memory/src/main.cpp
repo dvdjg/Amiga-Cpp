@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/setup/010_chip_slow_memory --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/setup/010_chip_slow_memory
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/setup/010_chip_slow_memory --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/setup/010_chip_slow_memory
+
 #include <eng/api/api.hpp>
 #include <eng/platform/amiga/backend.hpp>
 

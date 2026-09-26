@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/063_harmony --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/063_harmony
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/063_harmony --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/063_harmony
+
 // ============================================================================
 // Demo 063: "harmony" — armonía reconocible: 3 canales de música + SFX mixer.
 // ============================================================================

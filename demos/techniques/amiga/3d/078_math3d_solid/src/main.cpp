@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/3d/078_math3d_solid --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/3d/078_math3d_solid
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/3d/078_math3d_solid --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/3d/078_math3d_solid
+
 #include <eng/retro/fixed_mesh.hpp>
 // Demo 078 - Solido 3D relleno (math3d + mesh3d + Blitter).
 //

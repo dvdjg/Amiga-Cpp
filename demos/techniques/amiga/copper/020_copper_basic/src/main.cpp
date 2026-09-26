@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/copper/020_copper_basic --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/copper/020_copper_basic
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/copper/020_copper_basic --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/copper/020_copper_basic
+
 #include <eng/api/api.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/platform/amiga/backend.hpp>

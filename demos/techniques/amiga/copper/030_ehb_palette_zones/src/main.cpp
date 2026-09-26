@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/copper/030_ehb_palette_zones --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/copper/030_ehb_palette_zones
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/copper/030_ehb_palette_zones --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/copper/030_ehb_palette_zones
+
 #include <eng/api/api.hpp>
 #include <eng/graphics/effects/palette_transition.hpp>
 #include <eng/platform/amiga/backend.hpp>

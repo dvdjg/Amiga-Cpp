@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/118_dna3d --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/118_dna3d
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/118_dna3d --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/118_dna3d
+
 // Demo 118 - dna3d (PORTE PARCIAL de demoscene-repo-orig/effects/dna3d/dna3d.c)
 //
 // Nucleo del efecto: la DOBLE HELICE de ADN generada en runtime con trigonometria

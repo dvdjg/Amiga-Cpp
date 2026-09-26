@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/blitter/086_bob_objects --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/blitter/086_bob_objects
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/blitter/086_bob_objects --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/blitter/086_bob_objects
+
 // ============================================================================
 // Demo 086: objetos de bitmap (BOB) por Blitter + copper de escena orquestado.
 // ============================================================================

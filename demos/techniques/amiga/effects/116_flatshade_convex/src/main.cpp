@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/116_flatshade_convex --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/116_flatshade_convex
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/116_flatshade_convex --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/116_flatshade_convex
+
 // Demo 116 - flatshade-convex (IMPORTE FIEL de demoscene-repo-orig/effects/flatshade-convex)
 //
 // Objeto CONVEXO `pilka` girando, con SOMBREADO PLANO: se calcula la luz de cada

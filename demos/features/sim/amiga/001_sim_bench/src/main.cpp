@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/features/sim/amiga/001_sim_bench --debug   && bash ./tools/run/run-demo.sh demos/features/sim/amiga/001_sim_bench
+//   Optimizada: bash ./tools/build/build-demo.sh demos/features/sim/amiga/001_sim_bench --release && bash ./tools/run/run-demo.sh demos/features/sim/amiga/001_sim_bench
+
 // ============================================================================
 // Demo 001 (features/sim/amiga): benchmark del ecosistema (`eng::sim`) en Amiga.
 // ============================================================================

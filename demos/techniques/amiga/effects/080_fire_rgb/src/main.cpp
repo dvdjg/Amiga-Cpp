@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/080_fire_rgb --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/080_fire_rgb
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/080_fire_rgb --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/080_fire_rgb
+
 // Demo 080 - fire-rgb (PORTE 1:1 de demoscene-repo-orig/effects/fire-rgb/fire-rgb.c)
 //
 // Fuego en 80x64 -> chunky -> C2P por Blitter -> HAM6 320x256 con cuadruplicado de

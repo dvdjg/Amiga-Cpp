@@ -14,6 +14,7 @@ mapa «tarea → documentación», en [DOC-MAP-PRINCIPAL.md](../ai-dev-environme
 
 - [PUBLIC_API.md](architecture/PUBLIC_API.md) — principios de la API pública (la app no ve hardware; intuitivo/simple/sin restringir).
 - [PUBLIC_GAME_API.md](architecture/PUBLIC_GAME_API.md) — **fachada de juego** (`eng::App`/`Screen`/`World`/`Device`) y mapeo desde el API interno.
+- [GAME_API_TWO_LEVELS.md](architecture/GAME_API_TWO_LEVELS.md) — **intención del API de juego**: dos niveles (dominio por defecto + escape *close-to-the-metal*), reglas y checklist.
 - [ROADMAP_API_COHERENCE.md](architecture/ROADMAP_API_COHERENCE.md) — diagnóstico + **plan por fases** (F1–F7) hacia una API coherente; incluye **consumidores externos** (§7) y la ficha del **emulador NES** ([NES_CONSUMER.md](NES_CONSUMER.md)).
 - [ROADMAP_ENGINE_CPP_AMIGA500.md](architecture/ROADMAP_ENGINE_CPP_AMIGA500.md) — hoja de ruta completa del engine por fases.
 

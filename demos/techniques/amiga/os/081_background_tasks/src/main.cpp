@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/os/081_background_tasks --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/os/081_background_tasks
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/os/081_background_tasks --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/os/081_background_tasks
+
 // Demo 081 - Tareas de fondo cooperativas (eng::task::BackgroundQueue).
 //
 // Demuestra el trabajo de fondo del engine: un proceso "pesado" rellena una barra

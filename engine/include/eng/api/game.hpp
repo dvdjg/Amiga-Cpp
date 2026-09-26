@@ -38,6 +38,7 @@
 #include <eng/os/port.hpp>
 #include <eng/res/asset_cache.hpp>
 #include <eng/res/budget.hpp>
+#include <eng/scene/bobs.hpp>
 #include <eng/scene/world.hpp>
 #include <eng/task/background.hpp>
 
@@ -65,6 +66,16 @@ public:
 		return m_target.line(x0, y0, x1, y1, color, op);
 	}
 	bool text(s16 x, s16 y, const char* s, u8 color) { return m_target.text(x, y, s, color); }
+
+	/// Borra `b` (`D = 0`) **encolado en el plan del frame**, en orden con los sprites (a
+	/// diferencia de `fill`, que se vuelca con el rasterizador y puede pisar lo dibujado después).
+	/// Es la forma de limpiar una banda/región antes de pintar objetos. `false` si no hay plan.
+	bool clear_box(Box b) {
+		if (!m_target.plan().valid()) {
+			return false;
+		}
+		return eng::scene::clear_box(*m_target.plan(), m_target.bob_target(), b.x, b.y, b.w, b.h);
+	}
 
 	/// **Dibuja un sprite** (BOB cocinado) en `(x, y)`. La geometría del destino la trae el
 	/// contexto de dibujo (`DrawTarget::bob_target`, preparado por la escena), así que el

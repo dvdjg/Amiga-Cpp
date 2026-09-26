@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/copper/055_copper_rainbow --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/copper/055_copper_rainbow
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/copper/055_copper_rainbow --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/copper/055_copper_rainbow
+
 // ============================================================================
 // Demo 055: "copper rainbow" — degradado vertical animado vía CopperIntent.
 // ============================================================================

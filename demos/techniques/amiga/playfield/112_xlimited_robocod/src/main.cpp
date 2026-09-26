@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/112_xlimited_robocod --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/112_xlimited_robocod
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/112_xlimited_robocod --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/112_xlimited_robocod
+
 // ============================================================================
 // Demo 112 - RoboCod: single playfield de 5 planos (4 FG + 1 BG por blitter)
 // ============================================================================

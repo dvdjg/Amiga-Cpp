@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/3d/084_mf_rotation --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/3d/084_mf_rotation
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/3d/084_mf_rotation --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/3d/084_mf_rotation
+
 // Demo 084 - Cubo 3D con rotacion en MiniFloat16 (minifloat_math) sobre EHB.
 //
 // Objetivo: validar EN HARDWARE (68000, sin soft-float) la cadena

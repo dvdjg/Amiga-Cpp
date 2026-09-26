@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/064_audio_debug --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/064_audio_debug
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/064_audio_debug --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/064_audio_debug
+
 // ============================================================================
 // Demo 064: "audio debug" — onda senoidal pura en UN canal (prueba mínima).
 // ============================================================================

@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/os/209_reactive_loop --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/os/209_reactive_loop
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/os/209_reactive_loop --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/os/209_reactive_loop
+
 // ============================================================================
 // Demo 209 — bucle reactivo del mini-SO sobre `eng::App`
 // ============================================================================

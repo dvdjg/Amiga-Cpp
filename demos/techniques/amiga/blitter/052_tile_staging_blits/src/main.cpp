@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/blitter/052_tile_staging_blits --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/blitter/052_tile_staging_blits
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/blitter/052_tile_staging_blits --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/blitter/052_tile_staging_blits
+
 #include <eng/api/api.hpp>
 #include <eng/graphics/tilemap/tile_scroll.hpp>
 #include <eng/platform/amiga/backend.hpp>

@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/features/ui/amiga/215_gui_widgets --debug   && bash ./tools/run/run-demo.sh demos/features/ui/amiga/215_gui_widgets
+//   Optimizada: bash ./tools/build/build-demo.sh demos/features/ui/amiga/215_gui_widgets --release && bash ./tools/run/run-demo.sh demos/features/ui/amiga/215_gui_widgets
+
 // Demo 215 - Widgets de `eng::ui` sobre EHB (320x256).
 //
 // Objetivo: validar EN HARDWARE (68000) la cadena de la libreria GUI:

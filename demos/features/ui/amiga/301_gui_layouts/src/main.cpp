@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/features/ui/amiga/301_gui_layouts --debug   && bash ./tools/run/run-demo.sh demos/features/ui/amiga/301_gui_layouts
+//   Optimizada: bash ./tools/build/build-demo.sh demos/features/ui/amiga/301_gui_layouts --release && bash ./tools/run/run-demo.sh demos/features/ui/amiga/301_gui_layouts
+
 // Demo 301 - `eng::ui`: layouts adaptables, texto ajustado y coleccion de fuentes.
 //
 // Objetivo: validar EN HARDWARE (68000) las extensiones de la GUI:

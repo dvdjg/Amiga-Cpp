@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/blitter/203_polygon_planes --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/blitter/203_polygon_planes
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/blitter/203_polygon_planes --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/blitter/203_polygon_planes
+
 // Demo 203 - Relleno de poligonos compuesto por bitplane.
 //
 // Motor poligonal 2D/3D minimo que usa el **relleno compuesto por bitplane**

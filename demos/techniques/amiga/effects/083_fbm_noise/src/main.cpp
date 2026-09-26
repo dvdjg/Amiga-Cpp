@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/083_fbm_noise --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/083_fbm_noise
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/083_fbm_noise --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/083_fbm_noise
+
 // Demo 083 - fbm noise (value noise + fbm de eng/core/math/noise.hpp).
 //
 // Muestra el ruido procedural como **mapa de altura animado** sobre un display copper

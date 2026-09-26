@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/100_virtual_tile_scene_scroll --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/100_virtual_tile_scene_scroll
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/100_virtual_tile_scene_scroll --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/100_virtual_tile_scene_scroll
+
 #include <eng/api/api.hpp>
 #include <eng/graphics/tilemap/tile_scroll.hpp>
 #include <eng/platform/amiga/backend.hpp>

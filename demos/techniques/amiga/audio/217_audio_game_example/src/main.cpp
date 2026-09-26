@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/217_audio_game_example --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/217_audio_game_example
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/217_audio_game_example --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/217_audio_game_example
+
 // ============================================================================
 // Demo 217: ejemplo de juego completo (A6) — boot -> título -> gameplay -> pausa.
 // ============================================================================

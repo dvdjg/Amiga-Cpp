@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/272_audio_stream --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/272_audio_stream
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/272_audio_stream --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/272_audio_stream
+
 // ============================================================================
 // Demo 272: streaming digital PCM desde RAM (A5) — `PcmStream` + IRQ de audio.
 // ============================================================================

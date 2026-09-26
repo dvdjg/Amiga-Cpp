@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/121_mirror_scroll --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/121_mirror_scroll
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/121_mirror_scroll --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/121_mirror_scroll
+
 // ============================================================================
 // Demo 121 — Espejo vertical: scroll de 256 px SIN split de Copper
 // ============================================================================

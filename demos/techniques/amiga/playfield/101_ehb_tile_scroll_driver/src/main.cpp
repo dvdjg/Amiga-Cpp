@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver
+
 #include <eng/api/api.hpp>
 #include <eng/debug/peripheral.hpp>
 #include <eng/graphics/drivers/ehb_tile_scroll.hpp>

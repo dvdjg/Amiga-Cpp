@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/3d/079_wireframe --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/3d/079_wireframe
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/3d/079_wireframe --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/3d/079_wireframe
+
 // Demo 079 - wireframe (PORTE 1:1 de demoscene-repo-orig/effects/wireframe/wireframe.c)
 //
 // Dibuja el objeto `pilka` (malla `obj2c`) en ALAMBRE con la LINEA POR BLITTER, tal

@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/059_music_player --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/059_music_player
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/059_music_player --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/059_music_player
+
 // ============================================================================
 // Demo 059: "music player" — SFX (Audio Mixer) + música (P61) conviviendo.
 // ============================================================================

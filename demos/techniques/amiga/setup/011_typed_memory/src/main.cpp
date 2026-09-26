@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/setup/011_typed_memory --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/setup/011_typed_memory
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/setup/011_typed_memory --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/setup/011_typed_memory
+
 // Demo piloto de la **API de memoria tipada** usando el arranque de alto nivel (`ENG_APP_MAIN`)
 // y `App`: reserva DMA con `MemoryManager::chip()` -> `Block<PlaneTag, Chip>` -> `MemView`
 // (dirección DMA en el tipo) y un buffer de CPU con `fast_or_slow` (Fast RAM si la hay).

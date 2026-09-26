@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/features/board/chess/amiga/123_chess_match --debug   && bash ./tools/run/run-demo.sh demos/features/board/chess/amiga/123_chess_match
+//   Optimizada: bash ./tools/build/build-demo.sh demos/features/board/chess/amiga/123_chess_match --release && bash ./tools/run/run-demo.sh demos/features/board/chess/amiga/123_chess_match
+
 // ============================================================================
 // Demo 123: "chess match" — dos IAs de ajedrez se enfrentan con estilos distintos
 // ============================================================================

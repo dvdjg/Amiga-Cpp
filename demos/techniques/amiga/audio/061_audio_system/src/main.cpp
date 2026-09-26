@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/061_audio_system --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/061_audio_system
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/061_audio_system --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/061_audio_system
+
 // ============================================================================
 // Demo 061: "audio system" — fachada unificada SFX + música (eng::audio::AudioSystem).
 // ============================================================================

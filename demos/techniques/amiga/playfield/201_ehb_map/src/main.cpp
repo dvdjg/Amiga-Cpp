@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/201_ehb_map --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/201_ehb_map
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/201_ehb_map --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/201_ehb_map
+
 #include <eng/api/api.hpp>
 #include <eng/platform/amiga/backend.hpp>
 #include <eng/field/xlimited_scene.hpp>

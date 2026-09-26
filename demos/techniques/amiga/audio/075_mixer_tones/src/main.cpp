@@ -1,3 +1,7 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/075_mixer_tones --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/075_mixer_tones
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/audio/075_mixer_tones --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/audio/075_mixer_tones
+
 // ============================================================================
 // Demo 075: "mixer tones" — tonos puros por las 4 voces, activados por un
 // contador binario de 4 bits que cambia cada ~0.5 s.
