@@ -150,8 +150,9 @@ public:
 		}
 		const u8 src = (m_plane_source[p] < m_res.planes) ? m_plane_source[p] : p;
 		const eng::ChipPlaneView planes = m_buffers[index].mem_view();
-		const eng::Address<eng::MemoryKind::Chip> want =
-			planes.address(static_cast<eng::s32>(static_cast<eng::u32>(src) * m_plane_bytes));
+		const eng::Address<eng::MemoryKind::Chip> want = planes.address(src * m_plane_bytes);
+		// `BPLxPT` es de 32 bits; en host el puntero es de 64, de modo que el truncado a u32 es
+		// necesario (en target, no-op).
 		return display_plane_address(p) == static_cast<u32>(want.value);
 	}
 	/// Plano `i` del bitmap (layout contiguo; vacío si fuera de rango).

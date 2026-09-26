@@ -51,8 +51,7 @@ namespace eng::graphics::composition {
 		for (eng::u8 p = 0u; p < sc.planes(); ++p) {
 			const eng::u32 src = eng::math::mulu16(static_cast<u16>(sc.planes() - 1u - p),
 							      static_cast<u16>(pb));
-			const eng::Address<eng::MemoryKind::Chip> ip =
-				planes.address(static_cast<eng::s32>(src));
+			const eng::Address<eng::MemoryKind::Chip> ip = planes.address(src);
 			const u16 idx = s.move_at(copper::bitplane_pointer_high_register(p),
 						  static_cast<u16>(ip.value >> 16));
 			(void)s.move_at(copper::bitplane_pointer_low_register(p),
@@ -114,7 +113,7 @@ inline constexpr u16 kBplcon0_Ham6 = 0x7a00;         ///< HAM6 (6 planos, COLOR,
 			s.move(copper::Register::DDFSTOP, ddfstop);
 			const u32 row = hv.bitmap_bytes_per_row;
 			for (u8 p = 0u; p < sc.planes(); ++p) {
-				s.move_bitplane_pointer(p, hv.bitplanes + static_cast<u32>(p) * row);
+				s.move_bitplane_pointer(p, hv.bitplanes + p * row);
 			}
 		} else {
 			s.move(copper::Register::DMACON,
@@ -134,8 +133,8 @@ inline constexpr u16 kBplcon0_Ham6 = 0x7a00;         ///< HAM6 (6 planos, COLOR,
 			// PTL va 2 words después.
 			const eng::ChipPlaneView planes = sc.chip_planes();
 			for (u8 p = 0u; p < sc.planes(); ++p) {
-				const eng::Address<eng::MemoryKind::Chip> ip = planes.address(
-					static_cast<eng::s32>(static_cast<eng::u32>(p) * sc.plane_bytes()));
+				const eng::Address<eng::MemoryKind::Chip> ip =
+					planes.address(p * sc.plane_bytes());
 				const u16 idx = s.move_at(copper::bitplane_pointer_high_register(p),
 							  static_cast<u16>(ip.value >> 16));
 				(void)s.move_at(copper::bitplane_pointer_low_register(p),
