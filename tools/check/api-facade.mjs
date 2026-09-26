@@ -24,6 +24,23 @@ const stripComment = (l) => {
 	return i >= 0 ? l.slice(0, i) : l;
 };
 
+// Hardware directo de `App` (debe ir por `app.device()`). Ver
+// docs/engine/architecture/ROADMAP_API_COHERENCE.md (F2b).
+const FORBIDDEN_APP = [
+	/\bapp\.memory\s*\(/,
+	/\bapp\.scene\s*\(/,
+	/\bapp\.copper\s*\(/,
+	/\bapp\.copper_scheduler\s*\(/,
+	/\bapp\.install_raster\s*\(/,
+	/\bapp\.wait_blitter\s*\(/,
+	/\bapp\.blitter_clear\s*\(/,
+	/\bapp\.blitter_or_bobs\s*\(/,
+	/\bapp\.blitter_collide\s*\(/,
+	/\bapp\.execute_frame_plan\s*\(/,
+	/\bapp\.takeover_copper\s*\(/,
+	/\bapp\.commit_copper\s*\(/,
+];
+
 function collect(dir, depth) {
 	const out = [];
 	const base = path.join(ROOT, dir);
@@ -55,6 +72,12 @@ for (const f of files) {
 		}
 		if (code.includes('AmigaBackend::')) {
 			problems.push(`${rel}:${i + 1}: usa un tipo del backend (AmigaBackend::); usa el tipo de dominio o el seam`);
+		}
+		for (const re of FORBIDDEN_APP) {
+			if (re.test(code)) {
+				problems.push(`${rel}:${i + 1}: hardware directo de App; usa app.device() (ROADMAP_API_COHERENCE F2)`);
+				break;
+			}
 		}
 	}
 }

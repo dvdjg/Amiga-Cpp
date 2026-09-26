@@ -210,13 +210,12 @@ public:
         bc.row_bytes = this->m_bytes_per_row;
         bc.layout = gfx::PlaneLayout::Interleaved;
         bc.alignment = 16;
-        bc.domain = gfx::MemoryDomain::Chip;
         bc.frontbase_offset = this->fetch_bitmap_offset(this->m_cfg.fetch_mode);
         bc.guard_bytes = 64u;
         if (!m_bitmap.init(memory, bc)) return false;
         this->m_total_bytes = m_bitmap.total_bytes();
         m_real_base = m_bitmap.allocation_start(); // base del bloque (BPLxPT)
-        this->m_frontbuffer = m_bitmap.bytes().data();   // vía cruda interna (núcleo)
+        this->m_frontbuffer = m_bitmap.front(); // vía cruda interna (núcleo)
         // Soft DPF (RoboCod): configurar la composición y enlazar el bitmap
         // principal; si está activa reserva UN bitmap extra (doble buffer del plano
         // de fondo). Ver `soft_dpf.hpp`.
@@ -264,7 +263,7 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
     /// El scroll de ese plano lo da su `BPLxPT` (no se repinta por frame). Sustituir
     /// por un tileset artístico es cambiar esta función.
     void fill_parallax_pattern() {
-        eng::field::fill_parallax_pattern(this->m_frontbuffer, this->m_bytes_per_row, this->m_cfg.planes,
+        eng::field::fill_parallax_pattern(this->m_frontbuffer.ptr(), this->m_bytes_per_row, this->m_cfg.planes,
                                           this->m_cfg.parallax_plane, this->m_bitmap_width, this->m_bitmap_height);
     }
 
@@ -378,7 +377,7 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
         const u8* src = m_blocks_buffer ? m_blocks_buffer + src_offset : nullptr;
         // Destino interleaved: frontbuffer + y*BITMAPBYTESPERROW + x_word
         u16* dst = reinterpret_cast<u16*>(
-            const_cast<u8*>(this->m_frontbuffer) + dst_offset);
+            (this->m_frontbuffer + dst_offset).ptr());
 
         // Un único blit de BLOCKPLANELINES líneas y words_per_block words.
         // El Blitter ve el bitmap interleaved como una sola columna tall.
@@ -504,8 +503,8 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
         const s16 dst_mod = static_cast<s16>(this->m_bytes_per_row * planes - words * 2);
         for (u8 p = 0; p < planes; ++p) {
             const u16* s = src + static_cast<u32>(p) * (src_plane_stride / 2u);
-            u16* d = reinterpret_cast<u16*>(const_cast<u8*>(this->m_frontbuffer) +
-                (planeline_start + static_cast<u32>(p)) * this->m_bytes_per_row + x_byte);
+            u16* d = reinterpret_cast<u16*>((this->m_frontbuffer +
+                (planeline_start + static_cast<u32>(p)) * this->m_bytes_per_row + x_byte).ptr());
             graphics::BlitJob job {
                 graphics::BlitJobKind::CopyRect, graphics::BlitSource {}, graphics::BlitSource {s}, graphics::BlitDest {d},
                 words, seg_rows, src_mod, dst_mod,
@@ -574,8 +573,8 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
         const s16 dst_mod = static_cast<s16>(this->m_bytes_per_row * planes - words * 2);
         for (u8 p = 0; p < planes; ++p) {
             const u16* s = src + static_cast<u32>(p) * (src_plane_stride / 2u);
-            u16* d = reinterpret_cast<u16*>(const_cast<u8*>(this->m_frontbuffer) +
-                (planeline_start + static_cast<u32>(p)) * this->m_bytes_per_row + x_byte);
+            u16* d = reinterpret_cast<u16*>((this->m_frontbuffer +
+                (planeline_start + static_cast<u32>(p)) * this->m_bytes_per_row + x_byte).ptr());
             graphics::BlitJob job {
                 graphics::BlitJobKind::MaskedBobCookieCut, graphics::BlitSource {mask}, graphics::BlitSource {s}, graphics::BlitDest {d},
                 words, seg_rows, src_mod, dst_mod,
@@ -633,7 +632,7 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
     /// playfield (sink) la ejecuta sobre su propio framebuffer.
     void save_word(u32 byte_offset) {
         m_savewordpointer = reinterpret_cast<u16*>(
-            const_cast<u8*>(this->m_frontbuffer) + byte_offset);
+            (this->m_frontbuffer + byte_offset).ptr());
         m_saveword = *m_savewordpointer;
     }
     void restore_saveword() {
@@ -694,7 +693,9 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
             // buffer delantero (`bg_plane_base`); `parallax_planeaddx` solo se usa en
             // el modo antiguo de puntero por plano (parallax_div != 0).
             v.parallax_plane = this->m_cfg.parallax_plane;
-            v.bg_plane_base = m_soft_dpf.double_buffered() ? m_soft_dpf.display_base().value : nullptr;
+            v.bg_plane_base = m_soft_dpf.double_buffered()
+                                  ? m_soft_dpf.display_base()
+                                  : Address<MemoryKind::Chip> {};
             if (this->m_cfg.parallax_div != 0u) {
                 const s32 ppos = (m_scroll.state().mapposx / this->m_cfg.parallax_div) +
                                  static_cast<s32>(I) - 1;
@@ -794,7 +795,7 @@ private:
 
 
     gfx::Bitmap m_bitmap {};   // capa de memoria (posee el bloque Chip)
-    u8* m_real_base = nullptr;
+    Address<MemoryKind::Chip> m_real_base {};
     // Soft DPF (RoboCod): la composición (vista del plano de fondo + doble buffer)
     // vive en `soft_dpf.hpp`; el playfield solo la configura y la consulta.
     SoftDpfComposition m_soft_dpf {};

@@ -238,6 +238,7 @@ COMMON=(
 	"-Wno-unused-function" "-Wno-volatile-register-var"
 	"-fomit-frame-pointer" "-fno-exceptions"
 	"-ffunction-sections" "-fdata-sections"
+	"-DENG_AMIGA=1"
 	"-I$ROOT" "-I$ROOT/engine/include" "-I$SDKDIR"
 )
 # Macros extra reproducibles (p. ej. EXTRA_DEFINES="-DK_TILE_WIDTH=32 -DK_DUAL=0").
@@ -245,6 +246,31 @@ COMMON=(
 EXTRA_DEFINES="${EXTRA_DEFINES:-}"
 if [ -n "$EXTRA_DEFINES" ]; then
 	COMMON+=($EXTRA_DEFINES)
+fi
+
+# Overrides por demo (`build.args` en el dir de la demo): una asignacion `CLAVE=valor` por
+# linea (comentarios con `#`). Claves admitidas: ENGINE_OPT / DEMO_OPT / C_OPT. Mismo espiritu
+# que `run.args` (opciones de ejecucion), pero para el build. No cambia el CONFIG_ID. Caso de
+# uso: la 212 fija `DEMO_OPT=-O2` por el bug de codegen de gcc 15 m68k a `-O1`.
+if [ -f "$DEMO_PATH/build.args" ]; then
+	while IFS='=' read -r _k _v || [ -n "$_k" ]; do
+		_k="${_k%%[[:space:]]*}"
+		case "$_k" in
+			""|\#*) continue ;;
+			ENGINE_OPT) ENGINE_OPT="$_v" ;;
+			DEMO_OPT) DEMO_OPT="$_v" ;;
+			C_OPT) C_OPT="$_v" ;;
+			FAST_STACK) FAST_STACK="$_v" ;;
+		esac
+	done <"$DEMO_PATH/build.args"
+fi
+
+# **Pila en Fast RAM** (opcional, por app): `FAST_STACK=1` en el `build.args` de la demo mueve la
+# pila del hilo principal (y el SSP/IRQs en modo supervisor) a Fast RAM si existe (`_start` en
+# `support/gcc8_c_support.c`, ver `INTERNAL_TYPE_SYSTEM.md` §3.8). Se expone como parámetro de
+# compilacion para que **cada app elija**.
+if [ "${FAST_STACK:-0}" = "1" ]; then
+	COMMON+=("-DENG_FAST_STACK=1")
 fi
 
 # --- Flags por origen (override para bisecar un cuelgue de optimizacion) -----

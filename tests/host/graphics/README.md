@@ -39,3 +39,8 @@ Categoría `graphics` de la batería host (L1). El índice de categorías está 
 | HOST-218 | [seam_c2p](218_seam_c2p/README.md) | `Rasterizer::c2p` (seam): chunky→planar unificado (CPU vía `c2p_1x1_4`/`naive`), comparado con la referencia. |
 | HOST-260 | [copper_blitter](260_copper_blitter/README.md) | Copper lanza blits (Técnica A): `CopperIntentKind::BlitterJob` (`BLTCON*`/punteros/módulos/`BLTSIZE`) y **ventana segura** (`set_blitter_window`) que lo serializa con los blits de CPU. |
 | HOST-267 | [fine_scroll](267_fine_scroll/README.md) | `eng::effects::FineScroll`: scroll horizontal fino de una capa planar (1 px/frame) — `step`/`bplcon1`/columna y `BlitJob` de desplazamiento + columna entrante. |
+| HOST-323 | [palette](323_palette/README.md) | `eng/graphics/palette.hpp`: paleta de juego (`Palette`/`Color`/`ColorIndex`) — `set`/`get`/`fill`/`fade`/`mix` (`constexpr`), índice recortado a 0..31 y parche base al `FramePlan`. |
+| HOST-324 | [sprite](324_sprite/README.md) | `eng/graphics/sprite_asset.hpp`: sprite de juego (`Sprite` sobre `graphics::bob`) — geometría, `draw`/`erase` y los `BlitJob`s (planar cookie-cut/OR, interleaved OR, borrado y rechazos). |
+| HOST-338 | [tile_planar](338_tile_planar/README.md) | `eng/graphics/tile_planar.hpp`: decode de tiles indexados → planos (`decode_2bpp_planar`): planos secuenciales → contiguos con fila alineada. |
+| HOST-342 | [tile_editor](342_tile_editor/README.md) | `eng/graphics/tilemap/tile_editor.hpp`: editor de tiles de juego (`set_tile`/`dirty_rect`/`flush` sobre `PackedTileCell`) — set_tile/flush (F7.2). |
+| HOST-344 | [attribute_table](344_attribute_table/README.md) | `eng/graphics/tilemap/attribute_table.hpp`: paleta por bloque (`set`/`get`/`fill`) — `set_attribute` de una capa de tiles (F7.2). |

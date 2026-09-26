@@ -38,7 +38,8 @@ int main() {
 	std::printf("== HOST-073 type_traits + util ==\n");
 
 	// --- Identidad y cualificadores -----------------------------------------
-	static_assert(eu::is_same_v<eng::u32, unsigned long>, "u32 es unsigned long");
+	static_assert(sizeof(eng::u32) == 4u, "u32 es de 32 bits");
+	static_assert(eu::is_same_v<eng::u32, __UINT32_TYPE__>, "u32 es el entero sin signo de 32 bits");
 	static_assert(eu::is_same_v<eng::util::remove_cv_t<const volatile int>, int>, "remove_cv");
 	static_assert(eu::is_same_v<eng::util::remove_reference_t<int&>, int>, "remove_reference");
 	static_assert(eu::is_same_v<eng::util::remove_reference_t<int&&>, int>, "remove_reference rvalue");

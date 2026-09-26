@@ -53,7 +53,7 @@ public:
         m_planes = planes;
         m_bytes_per_row = row;
         m_total_bytes = need;
-        m_frontbuffer = base; // vía cruda interna (núcleo)
+        m_frontbuffer = Address<MemoryKind::Chip>::from_storage(base); // vía cruda interna (núcleo)
         m_plane_stride = pbytes;
         m_row_stride = row;
         m_initialized = true;
@@ -63,7 +63,7 @@ public:
     /// Planos del lienzo (vista de dominio; vacía si se enlazó con `bind_raw`).
     [[nodiscard]] constexpr eng::PlaneBytes bitplanes() const {
         return m_bound.valid() ? m_bound.view
-                               : eng::PlaneBytes {m_frontbuffer, m_total_bytes};
+                               : eng::PlaneBytes {m_frontbuffer.ptr(), m_total_bytes};
     }
 
     // --- Hooks (layout contiguo) ------------------------------------------
@@ -118,7 +118,7 @@ public:
         const u16* sbase = src.data();
         const u32 y0_off = eng::math::mulu16(static_cast<u16>(wy), static_cast<u16>(m_row_stride));
         const u8* sp = reinterpret_cast<const u8*>(sbase);
-        u8* dp = m_frontbuffer + y0_off + x_byte;
+        u8* dp = (m_frontbuffer + y0_off + x_byte).ptr();
         // Fuente con su propio ancho de fila (`source_words_per_row`): el blit puede usar este
         // playfield como fuente (p. ej. `copy_rect_from`) o leer un bitmap con padding propio.
         const u16 src_wpr = static_cast<u16>(src_row_bytes / 2u);
@@ -163,7 +163,7 @@ public:
         const u32 y0_off = eng::math::mulu16(static_cast<u16>(wy), static_cast<u16>(m_row_stride));
         const u16* sbase = src.data();
         const u16* mbase = mask.data();
-        u16* dp = reinterpret_cast<u16*>(m_frontbuffer + y0_off + x_byte);
+        u16* dp = reinterpret_cast<u16*>((m_frontbuffer + y0_off + x_byte).ptr());
         graphics::BlitJob job {
             graphics::BlitJobKind::MaskedBobCookieCut, graphics::BlitSource {mbase}, graphics::BlitSource {sbase}, graphics::BlitDest {dp},
             words, h, src_mod, dst_mod,

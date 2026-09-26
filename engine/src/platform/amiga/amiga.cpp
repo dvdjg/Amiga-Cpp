@@ -3,6 +3,7 @@
 #include "support/gcc8_c_support.h"
 #include <proto/exec.h>
 #include <exec/memory.h>
+#include <eng/hw/info.hpp>
 
 
 #include "amiga_internal.hpp"
@@ -11,6 +12,25 @@ using namespace eng::amiga::detail;
 
 
 namespace eng::amiga {
+
+namespace {
+/// Etiqueta un bloque por su **direccion** (`hw::classify_region`), no por el flag de `AllocMem`:
+/// en un A1200, `AllocMem(MEMF_ANY)` puede caer en Fast RAM (que no es Slow). Frontera: se
+/// convierte el puntero a direccion solo para clasificar.
+eng::MemoryKind mem_kind_of(const void* p, bool asked_chip, bool asked_fast) {
+	if (p == nullptr) {
+		return eng::MemoryKind::Any;
+	}
+	const eng::hw::MemRegionKind k = eng::hw::classify_region(
+		asked_chip, asked_fast, static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(p)));
+	switch (k) {
+	case eng::hw::MemRegionKind::Chip: return eng::MemoryKind::Chip;
+	case eng::hw::MemRegionKind::Fast: return eng::MemoryKind::Fast;
+	case eng::hw::MemRegionKind::Slow: return eng::MemoryKind::Slow;
+	default: return eng::MemoryKind::Any;
+	}
+}
+} // namespace
 
 void DebugOverlay::clear() {
 	debug_clear();
@@ -51,13 +71,11 @@ bool AmigaBackend::configure_memory(const MemoryConfig& config) {
 	}
 
 	if (config.slow_bytes != 0) {
-		// On an A500 trapdoor expansion AmigaOS exposes this as non-chip memory.
-		// It is still "Slow" from the engine perspective because it is not true
-		// CPU-private Fast RAM.
-		m_slow_alloc = AllocMem(config.slow_bytes, MEMF_FAST | MEMF_CLEAR);
-		if (!m_slow_alloc) {
-			m_slow_alloc = AllocMem(config.slow_bytes, MEMF_ANY | MEMF_CLEAR);
-		}
+		// "Slow" NO es verdadera Fast (CPU-privada): es RAM no-Chip que Agnus no ve. Por eso NO
+		// se pide con MEMF_FAST (eso daría Fast RAM); se pide como MEMF_ANY. El slow ranger
+		// ($C00000, trapdoor A500) no es pedible por flag: `hw::info` lo clasifica por **dirección**
+		// (`MemRegionKind::Slow`). Ver §3.8 de INTERNAL_TYPE_SYSTEM.md.
+		m_slow_alloc = AllocMem(config.slow_bytes, MEMF_ANY | MEMF_CLEAR);
 		m_slow_alloc_size = m_slow_alloc ? config.slow_bytes : 0;
 	}
 
@@ -66,9 +84,26 @@ bool AmigaBackend::configure_memory(const MemoryConfig& config) {
 		m_frame_alloc_size = m_frame_alloc ? config.frame_bytes : 0;
 	}
 
-	m_memory.chip.reset(m_chip_alloc, m_chip_alloc_size, MemoryKind::Chip);
-	m_memory.slow.reset(m_slow_alloc, m_slow_alloc_size, MemoryKind::Slow);
-	m_memory.frame.reset(m_frame_alloc, m_frame_alloc_size, MemoryKind::Chip);
+	if (config.fast_bytes != 0) {
+		// Fast RAM: CPU-privada (Agnus no la ve). Solo para trabajo de CPU (descompresión,
+		// simulación, pilas). Si no hay, queda vacía y `MemoryManager::has_fast()` es false.
+		m_fast_alloc = AllocMem(config.fast_bytes, MEMF_FAST | MEMF_CLEAR);
+		m_fast_alloc_size = m_fast_alloc ? config.fast_bytes : 0;
+	}
+
+	// Arena por bloque, etiquetada por **direccion** (no por el flag pedido).
+	m_memory.chip.reset(m_chip_alloc, m_chip_alloc_size, mem_kind_of(m_chip_alloc, true, false));
+	m_memory.slow.reset(m_slow_alloc, m_slow_alloc_size, mem_kind_of(m_slow_alloc, false, false));
+	m_memory.frame.reset(m_frame_alloc, m_frame_alloc_size, mem_kind_of(m_frame_alloc, true, false));
+
+	// Bancos tipados por uso (mismos buffers que las arenas + el pool Fast).
+	(void)m_memmanager.configure(m_chip_alloc, m_chip_alloc_size, m_slow_alloc,
+				     m_slow_alloc_size, m_fast_alloc, m_fast_alloc_size);
+
+	// Caché de assets con el presupuesto de las arenas. El backend es estable, así que la
+	// `Ref` que guarda la caché es válida; el runtime posee su propio backend-copia.
+	(void)m_assets.init(AssetCacheBackend {m_memory},
+			    res::CacheConfig {m_chip_alloc_size, m_slow_alloc_size, 8u});
 
 	m_memory_report.chip = m_memory.chip.snapshot();
 	m_memory_report.slow = m_memory.slow.snapshot();
@@ -76,11 +111,18 @@ bool AmigaBackend::configure_memory(const MemoryConfig& config) {
 	m_memory_report.chip_ok = config.chip_bytes == 0 || m_chip_alloc != nullptr;
 	m_memory_report.slow_ok = config.slow_bytes == 0 || m_slow_alloc != nullptr;
 	m_memory_report.frame_ok = config.frame_bytes == 0 || m_frame_alloc != nullptr;
+	m_memory_report.fast_ok = config.fast_bytes == 0 || m_fast_alloc != nullptr;
 
 	return m_memory_report.ok();
 }
 
 void AmigaBackend::release_memory() {
+	if (m_fast_alloc) {
+		FreeMem(m_fast_alloc, m_fast_alloc_size);
+		m_fast_alloc = nullptr;
+		m_fast_alloc_size = 0;
+	}
+
 	if (m_frame_alloc) {
 		FreeMem(m_frame_alloc, m_frame_alloc_size);
 		m_frame_alloc = nullptr;

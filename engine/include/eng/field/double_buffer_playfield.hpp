@@ -67,12 +67,11 @@ public:
 
     PlayfieldHardwareView hardware_view() const {
         const gfx::Bitmap& b = *m_buf[m_front].get();
-        const u8* const base = b.bytes().data();
         const FlatDisplayMapping m =
             map_flat_scroll(m_cam_x.position, m_cam_y.position, b.row_bytes(), b.planes(), m_cfg.fetch_bytes);
         PlayfieldHardwareView v {};
-        v.bitplanes = base;
-        v.real_base = base;
+        v.bitplanes = b.front();
+        v.real_base = b.front();
         v.bitmap_bytes_per_row = b.row_bytes();
         v.plane_bytes = b.total_bytes();
         v.planes = b.planes();

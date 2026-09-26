@@ -217,7 +217,7 @@ if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 	ST_TEMPORAL="$ROOT/tools/vision-review/selftest-temporal.mjs"
 	if [ -f "$ST_TEMPORAL" ] && command -v node >/dev/null 2>&1; then
 		echo "== selftest-temporal =="
-		node "$ST_TEMPORAL"; ec=$?
+		ec=0; node "$ST_TEMPORAL" || ec=$?
 		if [ "$ec" -ne 0 ] && [ "$ec" -ne 3 ]; then
 			echo "selftest-temporal fallo: el detector de parpadeo no distingue glitch de movimiento." >&2
 			exit 1
@@ -227,7 +227,7 @@ if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 	ST_SCREENDUMP="$ROOT/tools/vision-review/selftest-screendump.mjs"
 	if [ -f "$ST_SCREENDUMP" ] && command -v node >/dev/null 2>&1; then
 		echo "== selftest-screendump =="
-		node "$ST_SCREENDUMP"; ec=$?
+		ec=0; node "$ST_SCREENDUMP" || ec=$?
 		if [ "$ec" -ne 0 ]; then
 			echo "selftest-screendump fallo: el diff de buffer grafico no detecta el cambio esperado." >&2
 			exit 1

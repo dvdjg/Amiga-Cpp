@@ -104,6 +104,16 @@ public:
 	constexpr u16 x() const { return m_x; }
 	constexpr u16 y() const { return m_y; }
 
+	/// **Scroll de la capa**: posición de la vista en píxeles de mundo. Es el vocabulario
+	/// de juego para `layer.camera().scroll_x` (`PUBLIC_GAME_API.md` §2.1.3); `x()`/`y()`
+	/// son el mismo dato. El driver de la capa (tiles/fine-scroll) consume la posición.
+	[[nodiscard]] constexpr u16 scroll_x() const { return m_x; }
+	[[nodiscard]] constexpr u16 scroll_y() const { return m_y; }
+	/// Fija el scroll horizontal (recortado al mundo). Equivale a `set_position(x, y)`.
+	constexpr void set_scroll_x(u16 x) { set_position(x, m_y); }
+	/// Fija el scroll vertical (recortado al mundo). Equivale a `set_position(x, y)`.
+	constexpr void set_scroll_y(u16 y) { set_position(m_x, y); }
+
 private:
 	static constexpr u16 add_signed_clamped(u16 value, s16 delta) {
 		const s32 next = static_cast<s32>(value) + static_cast<s32>(delta);

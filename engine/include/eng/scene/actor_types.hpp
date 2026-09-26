@@ -34,6 +34,7 @@
 #include <eng/graphics/copper/plan.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/raster_intent.hpp>
+#include <eng/graphics/sprite_asset.hpp>
 #include <eng/graphics/sprite.hpp>
 #include <eng/graphics/sprite_allocator.hpp>
 
@@ -54,7 +55,7 @@ using eng::graphics::Frame;
 using eng::graphics::FramePlan;
 using eng::graphics::SpriteAllocator;
 using eng::graphics::SpriteIntent;
-using eng::graphics::SpritePlacement;
+using eng::graphics::HwSpritePlacement;
 using eng::graphics::SpriteSlot;
 using eng::graphics::Visual;
 using eng::graphics::VisualKind;
@@ -212,12 +213,33 @@ inline Bob bob_from_visual(const Visual& v, BobLayout layout, TransparencyMode t
 	b.width = v.w;
 	b.height = v.h;
 	b.planes = v.bitplanes;
-	b.frame_count = 1u;
-	b.frame_stride = 0u;
+	b.frame_count = v.frame_count != 0u ? v.frame_count : 1u;
+	b.frame_stride = v.frame_stride;
 	b.layout = layout;
 	b.draw = bob_draw_for(transparency);
 	b.erase = BobErase::None; // el fondo lo decide la política, no el BOB
 	return b;
+}
+
+/// **Descriptor único de objeto**: `ActorDesc` a partir de un `Sprite` cocinado. Unifica
+/// `Screen::sprite(...)` y `World::add_actor(...)` sobre el mismo asset (el `Visual` de actor y
+/// el `Sprite` de dibujo pasan a ser la misma cosa). Requiere que el `Sprite` declare
+/// `sheet_bytes`/`mask_bytes` (si no, `visual().pixels` queda vacío).
+[[nodiscard]] inline ActorDesc actor_desc_from_sprite(const graphics::Sprite& spr, s16 x, s16 y,
+						      u8 z, u8 surface = 0u,
+						      TransparencyMode tr = TransparencyMode::Mask1Bit,
+						      BackgroundPolicy bg = BackgroundPolicy::None) {
+	ActorDesc d {};
+	d.visual = spr.visual();
+	d.layout = spr.layout();
+	d.transparency = tr;
+	d.background = bg;
+	d.x = x;
+	d.y = y;
+	d.surface = surface;
+	d.z = z;
+	d.preferred = Representation::Bob;
+	return d;
 }
 
 /// Frame vigente: el de la animación, o el Visual completo si no hay animación.

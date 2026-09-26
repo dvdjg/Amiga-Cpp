@@ -16,8 +16,10 @@
 /// Ver `docs/engine/architecture/ENGINE_STRUCTURE_REVIEW.md` para el estado de la
 /// consolidación de la API pública.
 
+#include <eng/api/game.hpp>
 #include <eng/core/types/box.hpp>
 #include <eng/core/types/domains.hpp>
+#include <eng/core/types/result.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
@@ -28,10 +30,16 @@
 #include <eng/graphics/font_italic.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/glyph_cache.hpp>
+#include <eng/graphics/palette.hpp>
 #include <eng/graphics/palette32.hpp>
+#include <eng/graphics/sprite_asset.hpp>
 #include <eng/graphics/composition/compose.hpp>
 #include <eng/input/input.hpp>
 #include <eng/memory/arena.hpp>
+#include <eng/res/budget.hpp>
+#include <eng/res/load.hpp>
 #include <eng/scene/actor.hpp>
+#include <eng/scene/virtual_scene.hpp>
+#include <eng/scene/world.hpp>
 #include <eng/task/background.hpp>
 #include <eng/ui/ui.hpp>

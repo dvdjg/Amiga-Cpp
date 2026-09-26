@@ -28,7 +28,7 @@ struct SampleEvent {
 
 /// Evento de música (tracker): reproducir o parar un módulo.
 struct MusicEvent {
-	eng::MusicModule module {};   // módulo del tracker (p61/pt/ahx)
+	eng::MusicBytes module {};   // módulo del tracker (p61/pt/ahx)
 	bool play = false;
 	bool stop = false;
 };

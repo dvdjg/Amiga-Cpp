@@ -106,7 +106,7 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
 
 ## Sprites hardware — estado (2026-09)
 
-- **Hecho**: `SpriteTemplate` + `SpriteManager::emit_template_into` (multiplexado
+- **Hecho**: `HwSpriteTemplate` + `SpriteManager::emit_template_into` (multiplexado
   vertical "chasing the raster" + color multiplexing) validados por la demo 053.
   Se corrigió la codificación de `SPRxPOS`/`SPRxCTL` (VSTART byte alto, HSTART÷2 en
   byte bajo; ver `amiga-bootcamp/08_graphics/sprites.md`) y los offsets de registro

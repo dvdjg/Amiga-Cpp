@@ -23,8 +23,7 @@ criterio:
 
 - **Tipos de dominio, no `T*`**: cada buffer/registro tiene su tipo (`Pattern`, `AudioSample`,
   `PaletteWords`, `CopperWords`…) y no son intercambiables.
-- **Semántica en el tipo**: `BitmapBase` (base de `BPLxPT`) ≠ `FrontBase` (buffer de escritura)
-  ≠ `PlaneBytes`/`PlaneViewBytes` (buffer de un plano) ≠ `ChipAddress` (dirección DMA).
+- **Semántica en el tipo**: `Address<MemoryKind::Chip>` (dirección DMA-visible; el **medio** va en el tipo) ≠ `PlaneBytes`/`PlaneViewBytes` (buffer de un plano, medio-agnóstico). El **rol** de un bitmap (base vs escritura) va en el nombre del método, no en un tipo.
 - **Solo se tipan buffers/punteros, no escalares**: los tipos de dominio envuelven rangos de
   memoria (`Bytes`/`Words`), direcciones/base y roles. **No** se envuelven enteros sueltos
   (ancho/alto/stride/planes): no aportan seguridad real, ensucian las llamadas y obligan a casts.
@@ -63,7 +62,7 @@ criterio:
   ┌───────────────────────────────────────────┐       ┌──────────────────────────────┐
   │ Surface / PlaneView / SoftDpfComposition  │       │ BlitJob { const u16* ... }    │
   │ Pattern, PaletteWords, PatternWords       │──────►│ CopperBuilder (BPLxPT)        │
-  │ BitmapBase, FrontBase, ChipAddress        │  raw()│ amiga_backend (registros)     │
+  │ Address<MemoryKind::Chip>, PlaneBytes     │  raw()│ amiga_backend (registros)     │
   │ SpriteWords, AudioSample, CopperWords     │       │ c2p / blitter / audio_paula   │
   └───────────────────────────────────────────┘       └──────────────────────────────┘
         el error de dominio no compila                       el invariante está documentado
@@ -74,27 +73,31 @@ solo la capa unsafe los construye desde memoria (arena/backend) con `from_raw()`
 
 ## 3. Catálogo de tipos propuestos
 
-### 3.1 Vistas tipadas (sustituyen `Span<u8>`/`Span<const u16>` sin dominio)
+### 3.1 Vistas tipadas (una sola clase; 4 alias)
+
+Las cuatro son la **misma** clase genérica sobre el elemento `T` (`u8`/`u16`, mutable o `const`),
+más el tag de dominio. No son 4 tipos distintos, sino 4 alias:
 
 ```cpp
 namespace eng {
 
-template <class Tag> class Bytes;      // Span<u8> mutable
-template <class Tag> class ByteView;   // Span<const u8> (o Bytes<const Tag>)
-template <class Tag> class Words;      // Span<u16> mutable
-template <class Tag> class WordView;   // Span<const u16>
+template <class T, class Tag> class TaggedSpan;          // (T* + n) + Tag
+
+template <class Tag> using Bytes    = TaggedSpan<u8, Tag>;        // mutable
+template <class Tag> using ByteView = TaggedSpan<const u8, Tag>;  // solo lectura
+template <class Tag> using Words    = TaggedSpan<u16, Tag>;
+template <class Tag> using WordView = TaggedSpan<const u16, Tag>;
 
 } // namespace eng
 ```
 
-- Cada una envuelve un `Span<u8>`/`Span<u16>` y **solo** expone operaciones del dominio
-  (`size`, `subspan`, `at` con `illegal`, `fill`).
+- Cada alias envuelve un `Span<T>` y **solo** expone operaciones del dominio
+  (`size`, `subspan`, `at`, `fill` en las mutables).
 - **Ergonomía tipo `Span`**: constructor de array nativo que **deduce el tamaño**
   (`Pattern p{arr};`), iteradores `begin/end/cbegin/cend` (range-for y algoritmos), `front`/`back`,
   `subspan(off)` y typedefs `value_type`/`iterator`/`size_type`. Todo `constexpr` y a coste cero.
-- `Bytes<Tag>::words<Tag>()` / `WordView<Tag>::bytes()` hacen la reinterpretación **explícita**
-  (alineación y tamaño comprobados con `static_assert`/runtime); `as_const()` pasa de mutable a
-  vista de solo lectura **conservando el tag**.
+- `as_words()`/`as_bytes()` hacen la reinterpretación **explícita** (tamaño exige `sizeof(T)`
+  correcto, aplicado con `requires`); `as_const()` pasa de mutable a solo lectura **conservando el tag**.
 - `raw()` es el único camino a `Span<u8>`/`Span<const u16>` y se documenta como frontera.
 
 Tags (structs vacíos, cero coste) y alias de dominio:
@@ -122,17 +125,14 @@ Además de las vistas, un **descriptor** puede combinar una vista de dominio con
 `eng::field::XlimitedTileBank` (§8.1). Así el dueño no guarda un `MemoryBlock` crudo y el banco
 aliaseado no necesita `const_cast`.
 
-### 3.2 Tipos de dirección/base
+### 3.2 Tipos de dirección
 
 | Tipo | Envuelve | Semántica |
 |---|---|---|
-| `BitmapBase` | `u8*` | `Bitmap::allocation_start()` (lo que va a `BPLxPT`) |
-| `FrontBase` | `u8*` | `bytes().data()` (con `frontbase_offset`) |
-| `ChipAddress` | `uintptr` | dirección DMA-visible (chip RAM) |
+| `Address<MemoryKind::Chip>` | `uintptr` | dirección DMA-visible (chip RAM); el **medio** va en el tipo |
+| `Address<MemoryKind::Any>` | `uintptr` | dirección sin banco (no DMA-safe); el medio es un dato |
 
-`BitmapBase` y `FrontBase` son **distintos a propósito**: el bug "usar el frontbuffer como base
-de `BPLxPT`" deja de compilar. Para señalar la base de un plano concreto basta `PlaneViewBytes`
-(solo lectura) o `PlaneBytes` (mutable), que ya llevan el tag de plano.
+El **rol** de un bitmap (base de `BPLxPT` vs buffer de escritura) **no** es un tipo aparte: lo da el nombre del método (`Bitmap::base()`/`front()`). El eje que cambia la corrección es el **medio** (Chip), y ese ya va en `Address<Chip>`; envolver también el rol crecía el número de tipos sin aportar corrección.
 
 ### 3.3 Escalares: **no** se envuelven
 
@@ -166,23 +166,84 @@ direcciones sí son tipos de dominio** y los productores los devuelven ya tipado
 - Se distingue **rol** además de contenido: `BlitSource` (const) y `BlitDest` (mut) evitan
   intercambiar origen y destino.
 
+### 3.6 Memoria: medio (dato) vs vida
+
+La memoria se describe con ejes **ortogonales**, no con un enum de combinaciones (evita explosión):
+
+- **Medio** (`MemoryKind`: Chip/Slow/Fast/Any) — **dato** del bloque reservado (`Block<Tag>` lleva su kind). Describe *dónde* cayó.
+- **Vida** (persistente vs *scratch* de frame) es **otro eje** (arena), no un `MemoryKind`.
+- **Alineación** (parámetro) y **cero** (flag) tampoco son bancos.
+
+Un uso «general» se resuelve **eligiendo el banco en el código** (compile-time): el DMA va a `MemBank<Chip>::reserve<Tag>()` (tipado) y lo que no necesita DMA a un banco `Slow`/`Fast`. No hay una "petición" en runtime con ejes: el banco es una decisión de código/setup.
+
+Regla: **solo el eje que afecta a la corrección va al tipo.** El requisito `Chip` (DMA) se materializa en el tipo `Address<Chip>`/`Block<Tag, Chip>` (`MemBank<Chip>`); el resto lleva el medio **como dato**. Coste cero: etiquetas vacías.
+
+```text
+  MemoryKind (medio, dato)  ⊥  vida (arena)  ⊥  align/clear
+                               └ DMA (Chip)          -> Address<Chip> (tipo)
+                               └ CPU (Slow/Fast/Any) -> Address<Bank> / dato
+```
+
+`Block<Tag>` (reserva de arena *bump*) sigue llevando `MemoryKind` **como dato**; el uso **DMA nuevo** pasa por `Address<Chip>`/`TypedBlock<Tag, Chip>` (`MemBank<Chip>`), que **impide en compilación** usar Fast/Slow. En `platform/amiga`, el backend entrega los buffers por bancos (`MemoryManager::configure`) al arrancar.
+
+**Procedencia de un `Address<Chip>`.** No hay constructor implícito desde `void*`: el único puente desde una dirección de almacenamiento es `Address<K>::from_storage(ptr)`, que nombra el acto como frontera explícita y solo es lícito cuando el búfer ya garantiza el medio `K` (banco/arena tipado, `gfx::Bitmap` —siempre Chip— o una tabla estática certificada). Una tabla constante de DMA se coloca con `eng::ChipStorage<Tag, N>` + `ENG_CHIP_RAM` (`eng/memory/chip_storage.hpp`), que la pone en `.MEMF_CHIP` y entrega la `Address<Chip>` y la vista de dominio **sin cast**; para assets, `INCBIN_CHIP` (`support/gcc8_c_support.h`). Preferible a reservarla dinámicamente. Regla del cast: `CODING_STYLE.md` («ante un `cast`, revisar el tipo de origen»).
+
+**Por qué las vistas (`Bytes`/`Words`) no llevan `MemoryKind`.** Una vista es (puntero, tamaño) sobre bytes de un dominio; el medio no es un eje de corrección *de la vista* —leer/escribir funciona en cualquier RAM—, solo importa al entregar la dirección a **DMA**. Por eso el medio vive en la frontera DMA (`Address<K>` compile-time, `TypedBlock<Tag, K>`, `MemBank<K>`) o como **dato** (`Block<Tag>`, cuando el medio lo decide el setup en runtime). Meterlo en cada vista duplicaría `Bytes`/`Words` por banco, arrastraría el medio a código CPU que no lo necesita y no podría representar el medio runtime (sería una especialización por un dato). Es preferible la vista **agnóstica** y tipar solo la frontera.
+
+**Panel de telemetría.** El **panel de telemetría** (`eng/debug/telemetry.hpp`) compone fps/frame/uso de memoria con `StaticString`/`to_chars_u32` y los dibuja en el **overlay del depurador** (`debug_text`/`debug_filled_rect`, vía cualquier sink con `text(x, y, cstr, rgb)`), sin tocar la escena ni aparecer en las capturas; es el complemento visual de `RunStatus`/`ProfBlock`.
+
+### 3.7 Inventario y modelo reducido (evitar la sopa de tipos)
+
+Los tipos de memoria son **ejes ortogonales**; un tipo nuevo solo se justifica si cambia la **corrección**. El modelo vigente, ya reducido:
+
+| Eje | Tipo(s) | Regla |
+|-----|---------|-------|
+| Dominio (qué dato) | `Tag` (struct vacío): `PlaneTag`, `AudioTag`, `CopperTag`… | lo lleva la vista/bloque |
+| Elemento + mutabilidad | `Bytes<Tag>` / `ByteView<Tag>` / `Words<Tag>` / `WordView<Tag>` | 4 **alias** de una única `TaggedSpan<T,Tag>` (u8/u16 × mutable/const) |
+| Medio (compile-time) | `MemoryKind` + `Address<Bank>` | la **dirección** lleva el banco; no compila entre bancos |
+| Vista con banco | `MemView<Tag, Bank>` (`ChipView`/`SlowView`/`FastView`) | **uno solo** parametrizado por banco; lo consume el DMA (`Bank=Chip`) o la CPU (`Fast`/`Slow`) |
+| Bloque | `Block<Tag, Bank = Any>` | **uno solo**: `Any` = medio como **dato** (el que decide la arena); banco concreto = DMA. `TypedBlock<Tag, K>` es **alias** de `Block<Tag, K>` |
+| Banco / alocador | `MemBank<K>` (pool), `ChipArena`/`LinearArena` (bump; chip en el tipo vs agnóstica), `BlockPool` (first-fit) | mecanismos distintos, no combinaciones |
+| Estático chip | `ChipStorage<Tag, N>` + `ENG_CHIP_RAM` | búfer fijo **certificado** en Chip RAM |
+| Rol de bitmap | (nombre del método `base()`/`front()`) | **no** es un tipo: el eje de corrección es el medio (`Address<Chip>`) |
+
+Reglas para no repetir el problema:
+
+- **Un tipo por eje, no por combinación.** Si dos nombres solo difieren en un dato (medio, elemento, mutabilidad), debe ser **un tipo con ese dato/parámetro**, no dos clases casi iguales.
+- **Antes de crear un tipo, preguntar «¿qué eje nuevo aporta?».** Si no aporta corrección, usar un alias o un parámetro.
+- Ya fusionados: `ChipPool`→`BlockPool`, `TypedBlock`→`Block<Tag, Bank>`, y las 4 vistas→`TaggedSpan<T, Tag>` (4 alias).
+
+### 3.8 Fast RAM: reporte en setup, buffers de CPU y pila
+
+**Reporte.** El backend reserva un pool **Fast** (`AllocMem(MEMF_FAST)`) cuando se pide (`MemoryConfig::fast_bytes`) y lo entrega a `MemoryManager::fast()`; `has_fast()` indica disponibilidad en runtime. El «slow» del engine es la RAM no-Chip y no-Fast (ranger); su reserva no debe apoyarse en `MEMF_FAST`.
+
+**Buffers de CPU.** Para datos que la CPU procesa intensivamente (descompresión, simulación, estado) el medio es una decisión de **runtime**: `fast_or_slow(mm, bytes)` elige `MemBank<Fast>` si la hay, si no `Slow`. `res::load<Tag>(mm, src)` usa Chip para dominios DMA y `fast_or_slow` para el resto.
+
+**Pila e IRQs.** En 68000 las IRQs usan el **supervisor stack (SSP)**; si el SSP vive en Fast, todos los frames de las ISR van a Fast (y no compiten con el bus de Agnus). Receta:
+
+1. `eng_fast_stack_alloc(bytes)` (`support/`) reserva Fast y devuelve el **tope** alineado.
+2. En la **entrada** (`_start`), y **antes de habilitar IRQs**, cargar ese tope en `SP` (`move.l #top,%sp`). Si el programa corre en **modo supervisor** (takeover), `SP == SSP` y también las IRQs van a Fast; si corre en **modo usuario** (proceso de Exec), solo se mueve la pila del hilo principal y el SSP sigue siendo de Exec (no manipulable en 68000 sin un trap).
+3. El cambio debe hacerse en un `_start` **naked** (no tras el prólogo de una función C): una vez cambiado `SP` no se puede `rts` desde la pila antigua.
+
+**Tareas.** Una tarea con pila propia la reserva con `Stack`/`stack_from<Bank>`/`fast_or_slow_stack` (Fast por defecto; Chip/Slow opt-in); `Stack::top` es el valor para `SP` del *context switch*.
+
 ## 4. Auditoría por subsistema
 
 ### 4.1 `PlaneView` / `SoftDpfComposition` (punto de partida del usuario)
 
 | Actual | Propuesta |
 |---|---|
-| `bind_single(u8* main_real, u8* main_front)` | `bind(BitmapBase, FrontBase)` |
-| `bind_raw(u8*, u8*, u8*, u8*)` | `bind(BitmapBase, FrontBase, BitmapBase, FrontBase)` |
-| `display_base() -> u8*` | `display() -> BitmapBase` (o `ChipAddress` para el Copper) |
-| `write_base() -> u8*` | `back() -> FrontBase` |
+| `bind_single(u8* main_real, u8* main_front)` | `bind(Address<MemoryKind::Chip>, Address<MemoryKind::Chip>)` |
+| `bind_raw(u8*, u8*, u8*, u8*)` | `bind(Address<MemoryKind::Chip>, Address<MemoryKind::Chip>, Address<MemoryKind::Chip>, Address<MemoryKind::Chip>)` |
+| `display_base() -> u8*` | `display() -> Address<MemoryKind::Chip>` (o `Address<MemoryKind::Chip>` para el Copper) |
+| `write_base() -> u8*` | `back() -> Address<MemoryKind::Chip>` |
 | `make_copy_rect_job(const u8* pattern, ...)` | `make_copy_rect_job(Pattern, u16 row_bytes, ...)` |
 
 ### 4.2 Bitmap / arena / memoria
 
 | Actual | Propuesta |
 |---|---|
-| `Bitmap::allocation_start() -> u8*` | `BitmapBase` |
+| `Bitmap::allocation_start() -> u8*` | `Address<MemoryKind::Chip>` |
 | `Bitmap::bytes() -> Span<u8>` | `Bytes<PlanarRegion>` (mutable) / `ByteView<PlanarRegion>` |
 | `MemoryBlock { void* data; u32 size; MemoryKind }` | `Block<Tag> { Bytes<Tag> view; MemoryKind }` |
 | `LinearArena::allocate(...) -> MemoryBlock` | `allocate_block<Tag>(bytes, align) -> Block<Tag>` |
@@ -196,7 +257,7 @@ direcciones sí son tipos de dominio** y los productores los devuelven ya tipado
 | `blit_fill_from_mask(const u8* mask, u8* dst, ...)` | `blit_fill_from_mask(MaskBytes, PlaneBytes, u8 planes, ...)` |
 | `blitter_line(u8* plane, u16 row_bytes, ...)` | `blitter_line(PlaneBytes, u16 row_bytes, ...)` |
 | `c2p(const void* chunky, void* planes)` | `c2p(u32 w, u32 h, u32 stride, ChunkyView, PlaneBytes)` |
-| `move_bitplane_pointer(u8 plane, const void* address)` | `u8 plane` + `ChipAddress` |
+| `move_bitplane_pointer(u8 plane, const void* address)` | `u8 plane` + `Address<MemoryKind::Chip>` |
 | `bitplanes() -> u8*` (escenas) | `bitplanes() -> PlaneBytes` (devuelto, sin cast) |
 | `MemoryBlock::data` crudo | `MemoryBlock::buffer<Tag>()` / `view<Tag>()` |
 
@@ -204,7 +265,7 @@ direcciones sí son tipos de dominio** y los productores los devuelven ya tipado
 
 | Actual | Propuesta |
 |---|---|
-| `CopperBuilder(m_words)` sobre `u16*` | `Words<CopperTag>`; `patch_move32(..., const void*)` → `ChipAddress` |
+| `CopperBuilder(m_words)` sobre `u16*` | `Words<CopperTag>`; `patch_move32(..., const void*)` → `Address<MemoryKind::Chip>` |
 | `emit_palette(const u16* colors, u8 first, u8 count)` | `PaletteWords`, `u8 first`, `u8 count` |
 | `ehb_scene::bitplanes() -> u8*` | `PlaneBytes` |
 
@@ -237,12 +298,12 @@ using PlaneViewConst = eng::ByteView<PlaneTag>;  // vista de solo lectura
 
 class PlaneView {
 public:
-    void bind(eng::BitmapBase real, eng::FrontBase front);            // single
-    void bind(eng::BitmapBase real, eng::FrontBase front,
-              eng::BitmapBase extra_real, eng::FrontBase extra_front); // doble buffer
+    void bind(eng::Address<MemoryKind::Chip> real, eng::Address<MemoryKind::Chip> front);            // single
+    void bind(eng::Address<MemoryKind::Chip> real, eng::Address<MemoryKind::Chip> front,
+              eng::Address<MemoryKind::Chip> extra_real, eng::Address<MemoryKind::Chip> extra_front); // doble buffer
 
     /// Base del buffer delantero para `BPLxPT` (dirección DMA, solo lectura por CPU).
-    [[nodiscard]] eng::ChipAddress display() const;
+    [[nodiscard]] eng::Address<MemoryKind::Chip> display() const;
     /// Buffer trasero donde escribe el Blit (bytes del plano de fondo).
     [[nodiscard]] PlaneBytes back() const;
     void flip() noexcept;
@@ -273,11 +334,11 @@ resultante sigue crudo, generado **dentro** de la capa segura.
 ## 8. Migración por fases
 
 1. **Fundamento**: `eng/core/types/typed.hpp` con `Bytes/ByteView/Words/WordView` (array/iteradores) +
-   `eng/core/types/domains.hpp` con los tags/alias y tipos de dirección/base (`ChipAddress`…), más un test
+   `eng/core/types/domains.hpp` con los tags/alias y tipos de dirección/base (`Address<MemoryKind::Chip>`…), más un test
    host puro.
-2. **Frontera de memoria**: `BitmapBase`/`FrontBase`, `Bitmap`, `Block<Tag>`/`LinearArena`.
+2. **Frontera de memoria**: `Address<MemoryKind::Chip>`/`Address<MemoryKind::Chip>`, `Bitmap`, `Block<Tag>`/`LinearArena`.
 3. **PlaneView + SoftDpfComposition**: primer consumidor real (los punteros `u8*` pasan a
-   `BitmapBase`/`FrontBase`/`PlaneBytes`).
+   `Address<MemoryKind::Chip>`/`Address<MemoryKind::Chip>`/`PlaneBytes`).
 4. **Blits/`FramePlan`**: `BlitSource`/`BlitDest` y productores tipados; `BlitJob` crudo.
 5. **Contenido/streaming**: `WorldView`, `ChunkLoader`, UAF (`ByteView<UafPayload>`).
 6. **Backend**: blitter/C2P/audio/copper reciben los tipos de dominio en su firma pública
@@ -292,7 +353,7 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
 - **Fase 1 — hecha**: `eng/core/types/typed.hpp` (vistas con tag, array/iteradores, direcciones/base) y
   `eng/core/types/domains.hpp` (tags/alias de dominio). Test HOST-040.
 - **Fase 2 — hecha**: `Bitmap::base()`/`front()`; `PlaneView` y `SoftDpfComposition` usan
-  `BitmapBase`/`FrontBase` en `bind*`/`display_base`/`write_base` (`XLimitedPlayfield` cruza a
+  `Address<MemoryKind::Chip>`/`Address<MemoryKind::Chip>` en `bind*`/`display_base`/`write_base` (`XLimitedPlayfield` cruza a
   crudo solo en `hardware_view`). HOST-038/039 actualizados; 112 sin regresión.
   **Productores tipados**: `MemoryBlock::buffer<Tag>()`/`view<Tag>()`, y escenas/bitmaps devuelven
   `PlaneBytes` (`bitplanes()`, `plane(i)`); los consumidores conectan sin cast.
@@ -304,7 +365,7 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
   030/040/107/201/202 READY y 111/112 sin regresión. **Copper/mapper tipados**:
   `CopperScheduler::emit_planes_display`/`emit_copper_intents_full` reciben `eng::PlaneBytes`,
   `Copper::move_bitplane_pointer`/`move32`/`patch_move32`/`instruction_address` usan
-  `eng::ChipAddress` y `CopperIntent::bitplanes`/`colors` son `PlaneBytes`/`PaletteWords`; las
+  `eng::Address<MemoryKind::Chip>` y `CopperIntent::bitplanes`/`colors` son `PlaneBytes`/`PaletteWords`; las
   escenas y demos pasan sus vistas (`bitplanes()`, `Palette32` con `operator PaletteWords`).
 - **Fase 4 — hecha**: `Blob`/`Reader`/`BlobWriter`, las vistas UAF y `WorldView::read` usan
   `eng::UafPayload` (`ByteView<UafTag>`); `ChunkCache::Loader`, `StreamingWorldMap::Source`,

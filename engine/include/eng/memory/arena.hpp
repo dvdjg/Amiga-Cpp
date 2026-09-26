@@ -170,21 +170,16 @@ public:
 		return Block<Tag> { mb.buffer<Tag>(), mb.kind };
 	}
 
-	/// Reserva un array de objetos triviales.
-	/// De momento no llama constructores. Esta funcion esta pensada para PODs,
-	/// tablas, comandos y estructuras de runtime controladas.
-	template <typename T>
-	T* allocate_array(u16 count, u32 alignment = alignof(T)) {
-		MemoryBlock block = allocate(sizeof(T) * static_cast<u32>(count), alignment);
-		return static_cast<T*>(block.data);
-	}
-
 	constexpr u32 capacity() const { return m_size; }
 	constexpr u32 used() const { return m_used; }
 	constexpr u32 peak() const { return m_peak; }
 	constexpr u32 remaining() const { return m_size - m_used; }
 	constexpr MemoryKind kind() const { return m_kind; }
-	constexpr void* base() const { return m_base; }
+	/// Dirección base de la arena como `Address<Any>` (el banco es un dato, `kind()`): evita
+	/// exponer un `void*` crudo en la API.
+	constexpr Address<MemoryKind::Any> base() const {
+		return Address<MemoryKind::Any>::from_storage(m_base);
+	}
 
 	/// True si la ultima allocate() fallo por falta de espacio (overflow).
 	/// Util para diagnosticar bug de alineacion sin examinar cada puntero.
@@ -210,11 +205,29 @@ private:
 	MemoryKind m_kind = MemoryKind::Any;
 };
 
-/// Tres arenas base que todo backend debe intentar ofrecer.
+/// Arena de **Chip RAM**: como `LinearArena`, pero `allocate_block<Tag>()` devuelve
+/// `Block<Tag, MemoryKind::Chip>` — el medio va en el **tipo** (DMA), sin comprobación en runtime.
+/// Hereda de `LinearArena` para que `res::load`/`glyph_cache`/`ArenaAlloc` (que toman `LinearArena&`)
+/// sigan funcionando sin saber del medio.
+struct ChipArena : LinearArena {
+	constexpr ChipArena() = default;
+	using LinearArena::LinearArena;
+	using LinearArena::reset;
+
+	template <class Tag>
+	/// Reserva tipada en Chip: `Block<Tag, Chip>` (lo que va a DMA sin comprobación runtime).
+	[[nodiscard]] Block<Tag, MemoryKind::Chip> allocate_block(u32 bytes, u32 alignment = 2) {
+		return Block<Tag, MemoryKind::Chip> {LinearArena::allocate_block<Tag>(bytes, alignment).view,
+						     MemoryKind::Chip};
+	}
+};
+
+/// Tres arenas base que todo backend debe intentar ofrecer. `chip`/`frame` son Chip (`ChipArena`,
+/// medio en el tipo); `slow` es medio-agnóstica.
 struct MemorySystem {
-	LinearArena chip;
+	ChipArena chip;
 	LinearArena slow;
-	LinearArena frame;
+	ChipArena frame;
 };
 
 /// Peticion de memoria para inicializar un backend o una demo.
@@ -225,6 +238,7 @@ struct MemoryConfig {
 	u32 chip_bytes = 0;
 	u32 slow_bytes = 0;
 	u32 frame_bytes = 0;
+	u32 fast_bytes = 0; ///< Fast RAM (solo CPU); 0 = no reservar (o no hay)
 };
 
 /// Resultado de la configuracion de memoria.
@@ -235,6 +249,7 @@ struct MemoryReport {
 	bool chip_ok = false;
 	bool slow_ok = false;
 	bool frame_ok = false;
+	bool fast_ok = false; ///< Fast RAM reservada (opcional; `false` = no había o no se pidió)
 
 	constexpr bool ok() const {
 		return chip_ok && slow_ok && frame_ok;

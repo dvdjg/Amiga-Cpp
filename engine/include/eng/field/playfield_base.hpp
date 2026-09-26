@@ -41,6 +41,7 @@
 #include <eng/core/math/arith.hpp>
 #include <eng/core/math/arith.hpp>
 #include <eng/core/data/polygon.hpp>
+#include <eng/core/types/memory_kind.hpp>
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
@@ -109,8 +110,8 @@ class Rasterizer; ///< seam de rasterizado (definido en `raster.hpp`)
 /// fino/coarse, modulos y, en los playfields con wrap vertical (corkscrew), el
 /// split (`display_offset`, `split_line`, `split_active`).
 struct PlayfieldHardwareView {
-    const u8* bitplanes = nullptr; // frontbuffer (Planes[0] + bitmapoffset)
-    const u8* real_base = nullptr; // base real del AllocBitMap (para BPLxPT)
+    Address<MemoryKind::Chip> bitplanes {}; // frontbuffer (Planes[0] + bitmapoffset), Chip RAM
+    Address<MemoryKind::Chip> real_base {}; // base real del AllocBitMap (para BPLxPT), Chip RAM
     u32 planeaddx = 0;             // coarse X en bytes
     u32 planeaddy = 0;             // offset Y interleaved = display_offset*planes*bytes
     u16 bplcon1 = 0;               // scroll fino duplicado en ambos nibbles
@@ -132,13 +133,32 @@ struct PlayfieldHardwareView {
     // contenido (p. ej. un patrón de fondo) scrollea a otra velocidad.
     u8 parallax_plane = 0xffu;     // plano con parallax propio (0xff = ninguno)
     u32 parallax_planeaddx = 0;    // coarse X propio del plano de parallax (bytes)
-    const u8* bg_plane_base = nullptr; // base del plano de fondo si es doble-buffer
-                                        // (soft DPF): ESE plano se lee de aquí, no de real_base
+    Address<MemoryKind::Chip> bg_plane_base {}; // base del plano de fondo si es doble-buffer
+                                                 // (soft DPF): ESE plano se lee de aquí, no de real_base
     s32 videoposx = 0;
     s32 mapposx = 0;
     s32 videoposy = 0;
     s32 mapposy = 0;
 };
+
+/// Emite los `BPLxPT` de una superficie: un plano por paso `bitmap_bytes_per_row`, con la base
+/// desplazada por el scroll actual (`planeaddx`/`planeaddy`) y, si el plano de parallax (soft DPF)
+/// está configurado, su base propia. `extra_off` añade un desplazamiento (p. ej. el wrap del
+/// split). Es la **fuente única** de los punteros de una superficie: la usan el driver de scroll
+/// (`XlimitedDisplayComposer`) y la composición por bandas (`scene::RasterLayout`).
+template <class Sched>
+inline void emit_view_pointers(Sched& sched, const PlayfieldHardwareView& view,
+			       eng::s32 extra_off = 0) {
+    for (u8 p = 0u; p < view.planes; ++p) {
+        const Address<MemoryKind::Chip> base =
+            (view.bg_plane_base.valid() && p == view.parallax_plane) ? view.bg_plane_base
+                                                                     : view.real_base;
+        sched.move_bitplane_pointer(
+            p, base + static_cast<eng::s32>(view.planeaddx) +
+                   static_cast<eng::s32>(view.planeaddy) + extra_off +
+                   static_cast<eng::s32>(p) * static_cast<eng::s32>(view.bitmap_bytes_per_row));
+    }
+}
 
 /// Seam opcional para delegar el **relleno de polígonos al hardware** (Blitter).
 ///
@@ -314,7 +334,7 @@ public:
         // y avance por suma de punteros (evita `__mulsi3` en 68000).
         const u32 y0_off = eng::math::mulu16(static_cast<u16>(wy), static_cast<u16>(m_row_stride));
         const u8* srow0 = reinterpret_cast<const u8*>(src.data());
-        u8* drow0 = m_frontbuffer + y0_off + x_byte;
+        u8* drow0 = (m_frontbuffer + y0_off + x_byte).ptr();
         for (u8 p = 0; p < planes; ++p) {
             const u8* srow = srow0;
             u8* drow = drow0;
@@ -381,7 +401,7 @@ public:
         const u32 y0_off = eng::math::mulu16(static_cast<u16>(wy), static_cast<u16>(m_row_stride));
         const u8* srow0 = reinterpret_cast<const u8*>(src.data());
         const u8* mrow0 = reinterpret_cast<const u8*>(mask.data());
-        u8* drow0 = m_frontbuffer + y0_off + x_byte;
+        u8* drow0 = (m_frontbuffer + y0_off + x_byte).ptr();
         for (u8 p = 0; p < planes; ++p) {
             const u8* srow = srow0;
             const u8* mrow = mrow0;
@@ -443,7 +463,7 @@ public:
     bool fill_rect_hw(s32 x, s32 y, u16 w, u16 h, u8 color) {
         if (!m_initialized || w == 0u || h == 0u) return false;
         if (m_rect_sink.ready()) {
-            return m_rect_sink.fn(m_rect_sink.ctx, m_frontbuffer, m_planes, plane_stride(),
+            return m_rect_sink.fn(m_rect_sink.ctx, m_frontbuffer.ptr(), m_planes, plane_stride(),
                                   row_stride(), m_bytes_per_row, m_width, m_height, x, y, w, h,
                                   color);
         }
@@ -472,8 +492,8 @@ public:
             if ((color & (1u << p)) == 0u) continue;
             graphics::BlitJob job {};
             job.destination = graphics::BlitDest {
-                reinterpret_cast<u16*>(m_frontbuffer + static_cast<u32>(p) * pstride)};
-            job.line.base = graphics::BlitDest {reinterpret_cast<u16*>(m_frontbuffer)};
+                reinterpret_cast<u16*>((m_frontbuffer + static_cast<u32>(p) * pstride).ptr())};
+            job.line.base = graphics::BlitDest {reinterpret_cast<u16*>(m_frontbuffer.ptr())};
             job.bitplane_count = 1;
             job.line.x0 = x0;
             job.line.y0 = y0;
@@ -505,7 +525,7 @@ public:
         const u8 n = static_cast<u8>(xs.size());
         if (ys.size() != xs.size() || n < 3u) return false;
         if (m_fill_sink.ready()) {
-            return m_fill_sink.fn(m_fill_sink.ctx, m_frontbuffer, m_planes, plane_stride(),
+            return m_fill_sink.fn(m_fill_sink.ctx, m_frontbuffer.ptr(), m_planes, plane_stride(),
                                   row_stride(), m_bytes_per_row, m_width, m_height, xs.data(),
                                   ys.data(), n, color);
         }
@@ -572,8 +592,8 @@ protected:
         // acumula (suma) para no meter un producto de 32 bits en el camino por píxel.
         const u32 pstride = (m_plane_stride != 0u) ? m_plane_stride : m_bytes_per_row;
         const u32 rstride = (m_row_stride != 0u) ? m_row_stride : m_bytes_per_row;
-        u8* base = m_frontbuffer +
-                   eng::math::mulu16(static_cast<u16>(planeline), static_cast<u16>(rstride));
+        u8* base = (m_frontbuffer +
+                    eng::math::mulu16(static_cast<u16>(planeline), static_cast<u16>(rstride))).ptr();
         u32 off = word_byte;
         for (u8 p = 0; p < m_planes; ++p) {
             if (off >= m_total_bytes) return; // fuera del bitmap
@@ -591,8 +611,8 @@ protected:
     void write_planes32(u32 planeline, u32 word_byte, u32 mask32, u8 color) {
         const u32 pstride = (m_plane_stride != 0u) ? m_plane_stride : m_bytes_per_row;
         const u32 rstride = (m_row_stride != 0u) ? m_row_stride : m_bytes_per_row;
-        u8* base = m_frontbuffer +
-                   eng::math::mulu16(static_cast<u16>(planeline), static_cast<u16>(rstride));
+        u8* base = (m_frontbuffer +
+                    eng::math::mulu16(static_cast<u16>(planeline), static_cast<u16>(rstride))).ptr();
         u32 off = word_byte;
         for (u8 p = 0; p < m_planes; ++p) {
             if (off + 3u >= m_total_bytes) return; // fuera del bitmap
@@ -617,8 +637,8 @@ protected:
     void write_planes_op(u32 planeline, u32 word_byte, u16 mask, u8 color, RasterOp op) {
         const u32 pstride = (m_plane_stride != 0u) ? m_plane_stride : m_bytes_per_row;
         const u32 rstride = (m_row_stride != 0u) ? m_row_stride : m_bytes_per_row;
-        u8* base = m_frontbuffer +
-                   eng::math::mulu16(static_cast<u16>(planeline), static_cast<u16>(rstride));
+        u8* base = (m_frontbuffer +
+                    eng::math::mulu16(static_cast<u16>(planeline), static_cast<u16>(rstride))).ptr();
         u32 off = word_byte;
         for (u8 p = 0; p < m_planes; ++p) {
             if (off >= m_total_bytes) return;
@@ -634,7 +654,7 @@ protected:
         }
     }
 
-    u8* m_frontbuffer = nullptr; ///< base de los bitplanes (Chip RAM) del playfield
+    Address<MemoryKind::Chip> m_frontbuffer {}; ///< base de los bitplanes (Chip RAM) del playfield
     u16 m_width = 0;             ///< ancho visible en píxeles
     u16 m_height = 0;            ///< alto en filas
     u16 m_bytes_per_row = 0;     ///< bytes por fila de un plano

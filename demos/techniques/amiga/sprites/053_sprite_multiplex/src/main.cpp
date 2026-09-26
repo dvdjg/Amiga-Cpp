@@ -3,7 +3,7 @@
 // ============================================================================
 //
 // Valida el camino de sprites de la nueva estructura del engine:
-// `SpriteTemplate` (plantilla portable con segmentos y cambios de paleta) +
+// `HwSpriteTemplate` (plantilla portable con segmentos y cambios de paleta) +
 // `SpriteManager::emit_template_into` (reuso vertical "chasing the raster" y
 // color multiplexing por franja).
 //
@@ -57,7 +57,7 @@ constexpr eng::u16 kBaseY = 40;         // primera línea del primer segmento
 constexpr eng::u16 kSpriteHpos = 152;   // centrado: (320-16)/2
 
 // Fondo navy (COLOR00) + grises. COLOR17 (cuerpo del sprite) se sobreescribe por
-// instancia con los `SpritePaletteSwitch`.
+// instancia con los `HwSpritePaletteSwitch`.
 constexpr eng::Palette32 kBasePalette {{
 	0x013, 0x111, 0x222, 0x333, 0x444, 0x555, 0x666, 0x777,
 	0x888, 0x999, 0xaaa, 0xbbb, 0xccc, 0xddd, 0xeee, 0xfff,
@@ -196,7 +196,7 @@ private:
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::Block<eng::CopperTag> m_copper_block {};
 	eng::Block<eng::SpriteTag> m_sprite_block {};
-	eng::graphics::SpriteTemplate<kInstances, kInstances> m_template {};
+	eng::graphics::HwSpriteTemplate<kInstances, kInstances> m_template {};
 	eng::graphics::SpriteManager m_sprites {};
 	eng::u16 m_hpos = kSpriteHpos;   // posición horizontal animada en update()
 };

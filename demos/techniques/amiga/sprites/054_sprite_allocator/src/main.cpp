@@ -8,7 +8,7 @@
 //   1. ordena los actores por superficie y `z`;
 //   2. construye una `SpriteIntent` por actor (ordenada por `top`);
 //   3. reparte canales con el `SpriteAllocator` (multiplexado vertical);
-//   4. publica los `SpritePlacement` que caben, que el `SpriteManager` materializa
+//   4. publica los `HwSpritePlacement` que caben, que el `SpriteManager` materializa
 //      en registros (`SPRxPOS/CTL/PT`) dentro de la copperlist;
 //   5. cuenta los que no caben (`as_bob`).
 //
@@ -253,7 +253,7 @@ private:
 	eng::graphics::SpriteIntent m_intents[kActors] {};
 	eng::u16 m_intent_actor[kActors] {};
 	eng::graphics::SpriteSlot m_slots[kActors] {};
-	eng::graphics::SpritePlacement m_placements[kActors] {};
+	eng::graphics::HwSpritePlacement m_placements[kActors] {};
 	eng::graphics::FramePlan m_frame_plan {};
 	eng::graphics::SpriteManager m_sprites {};
 };

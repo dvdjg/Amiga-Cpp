@@ -29,6 +29,7 @@ using eng::graphics::Bob;
 using eng::graphics::BobDraw;
 using eng::graphics::BobErase;
 using eng::graphics::BobLayout;
+using eng::graphics::BobMaskPack;
 using eng::graphics::BobTarget;
 using eng::graphics::CopperIntent;
 using eng::graphics::CopperIntentKind;
@@ -38,12 +39,12 @@ using eng::graphics::FramePlan;
 using eng::graphics::SpriteAllocator;
 using eng::graphics::SpriteIntent;
 using eng::graphics::SpriteIntentSet;
-using eng::graphics::SpritePaletteSwitch;
-using eng::graphics::SpritePlacement;
+using eng::graphics::HwSpritePaletteSwitch;
+using eng::graphics::HwSpritePlacement;
 using eng::graphics::SpriteManager;
-using eng::graphics::SpriteSegment;
+using eng::graphics::HwSpriteSegment;
 using eng::graphics::SpriteSlot;
-using eng::graphics::SpriteTemplate;
+using eng::graphics::HwSpriteTemplate;
 using eng::graphics::Visual;
 using eng::graphics::VisualKind;
 using eng::scene::Actor;
@@ -528,13 +529,13 @@ void test_emit_order_by_surface_and_z() {
 void test_sprite_template_projection() {
 	static eng::u16 tpl_bitmap[64] {};
 	static const eng::u16 sw_colors[2] {0x0f0u, 0x00fu};
-	SpriteTemplate<3, 2> tpl {};
+	HwSpriteTemplate<3, 2> tpl {};
 	tpl.bitmap = eng::Span<const eng::u16> {tpl_bitmap, 64u};
 	tpl.width_words = 2u;
 	tpl.attach = true;
-	tpl.add_segment(SpriteSegment {0u, 8u, 0u});
-	tpl.add_segment(SpriteSegment {16u, 8u, 8u});
-	tpl.add_switch(SpritePaletteSwitch {104u, sw_colors, 16u, 2u});
+	tpl.add_segment(HwSpriteSegment {0u, 8u, 0u});
+	tpl.add_segment(HwSpriteSegment {16u, 8u, 8u});
+	tpl.add_switch(HwSpritePaletteSwitch {104u, sw_colors, 16u, 2u});
 
 	SpriteIntent intents[4] {};
 	CopperIntent copper[4] {};
@@ -666,7 +667,7 @@ void test_compose_sprites() {
 	SpriteIntent intents[12] {};
 	eng::u16 intent_actor[12] {};
 	SpriteSlot slots[12] {};
-	SpritePlacement placements[12] {};
+	HwSpritePlacement placements[12] {};
 	CopperIntent copper[16] {};
 	eng::scene::SpriteComposeScratch sc {};
 	sc.order = order;
@@ -706,7 +707,7 @@ void test_copper_priority_wiring() {
 	static eng::u16 lo_cols[2] {0u, 0x0aau};
 
 	eng::MemorySystem mem {};
-	mem.chip = eng::LinearArena {g_chip_plan, sizeof(g_chip_plan), eng::MemoryKind::Chip};
+	mem.chip = eng::ChipArena {g_chip_plan, sizeof(g_chip_plan), eng::MemoryKind::Chip};
 	eng::copper::Plan plan {};
 	CHECK(plan.begin(mem, {4096u, 0x00u}), "plan.begin");
 
@@ -753,7 +754,7 @@ void test_copper_priority_wiring() {
 	SpriteIntent intents[4] {};
 	eng::u16 intent_actor[4] {};
 	SpriteSlot slots[4] {};
-	SpritePlacement placements[4] {};
+	HwSpritePlacement placements[4] {};
 	eng::scene::SpriteComposeScratch sc {};
 	sc.order = order;
 	sc.intents = intents;
@@ -828,6 +829,29 @@ void test_bob_job_matrix() {
 		CHECK(j.source_plane_stride_bytes == 32u * 8u, "stride de plano origen");
 		CHECK(j.source_modulo_bytes == 2, "modulo origen con shift 0 (guarda)");
 		CHECK(!j.interleaved, "planar sin flag interleaved");
+	}
+
+	// Cookie-cut interleaved "par" ([máscara][imagen] por fila de plano): 1 blit $CA.
+	{
+		FramePlan plan {};
+		plan.clear();
+		Bob b = mk(BobLayout::Interleaved, BobDraw::CookieCut, 4u);
+		b.mask_pack = BobMaskPack::InterleavedPair;
+		CHECK(bob_draw(plan, b, 0u, 3, 10, tgt(BobLayout::Interleaved)), "cookie-cut par dibuja");
+		CHECK(plan.blit_job_count() == 1u, "cookie-cut par: 1 blit");
+		const auto& j = plan.blit_job(0);
+		CHECK(j.kind == BlitJobKind::MaskedBobCookieCut, "kind cookie-cut");
+		CHECK(j.minterm == 0x00cau, "minterm $CA");
+		CHECK(j.words_per_row == 3u, "3 palabras (48/16)");
+		CHECK(j.height == 32u * 4u, "altura = alto x planos");
+		CHECK(j.source_modulo_bytes == 6, "modulo origen = palabras*2");
+		CHECK(j.destination_modulo_bytes == static_cast<eng::s16>(kRowBytes - 6u),
+		      "modulo destino");
+		CHECK(j.interleaved && j.bitplane_count == 1u, "intercalado de 1 columna");
+		CHECK(j.mask.words == reinterpret_cast<const eng::u16*>(g_matrix_sheet),
+		      "mascara = inicio de la hoja");
+		CHECK(j.source.words == reinterpret_cast<const eng::u16*>(g_matrix_sheet) + 3u,
+		      "imagen = mascara + palabras");
 	}
 
 	// Cookie-cut con destino intercalado: rechazado (documentado).

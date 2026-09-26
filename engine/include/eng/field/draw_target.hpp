@@ -24,20 +24,27 @@
 #include <eng/core/types/ptr.hpp>
 #include <eng/field/raster.hpp>
 #include <eng/field/surface.hpp>
+#include <eng/graphics/bob.hpp>
 #include <eng/graphics/frame_plan.hpp>
 
 namespace eng::field {
 
-/// Destino de dibujo: `Surface` + `Rasterizer` + `FramePlan` (opcional).
+/// Destino de dibujo: `Surface` + `Rasterizer` + `FramePlan` (opcional) + la geometría
+/// del bitmap para los BOBs (`BobTarget`).
 class DrawTarget {
 public:
 	DrawTarget(Surface surface, eng::Ref<Rasterizer> rasterizer,
-		   eng::Ref<graphics::FramePlan> plan) noexcept
-		: m_surface(surface), m_rasterizer(rasterizer), m_plan(plan) {}
+		   eng::Ref<graphics::FramePlan> plan,
+		   graphics::BobTarget bob_target = {}) noexcept
+		: m_surface(surface), m_rasterizer(rasterizer), m_plan(plan),
+		  m_bob_target(bob_target) {}
 
 	[[nodiscard]] Surface& surface() noexcept { return m_surface; }
 	[[nodiscard]] const Surface& surface() const noexcept { return m_surface; }
 	[[nodiscard]] eng::Ref<graphics::FramePlan> plan() const noexcept { return m_plan; }
+	/// Geometría del bitmap de dibujo para los BOBs (`Sprite::draw`). La prepara el
+	/// dueño del destino (p. ej. `Scene::draw_target`); el juego no la construye.
+	[[nodiscard]] const graphics::BobTarget& bob_target() const noexcept { return m_bob_target; }
 	/// Rasterizador efectivo del destino (el del playfield o el CPU por defecto; nunca nulo).
 	[[nodiscard]] eng::NonNull<Rasterizer> rasterizer() const noexcept {
 		return m_rasterizer.valid() ? eng::NonNull<Rasterizer>(*m_rasterizer)
@@ -92,6 +99,7 @@ private:
 	Surface m_surface;
 	eng::Ref<Rasterizer> m_rasterizer {};          ///< seam CPU/Blitter (no propietario)
 	eng::Ref<graphics::FramePlan> m_plan {};       ///< cola de BlitJobs del frame (no propietaria)
+	graphics::BobTarget m_bob_target {};           ///< geometría del bitmap para BOBs
 };
 
 } // namespace eng::field

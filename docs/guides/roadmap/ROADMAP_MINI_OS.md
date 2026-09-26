@@ -81,10 +81,21 @@ UI (`eng::ui`).
   entre ejecuciones (el MCU acepta teclas con latencia): `--key-scan` la explora pero no se publica
   tabla fiable. Detalle: `docs/reference/emulators/winuae/keyboard-injection.md`.
   **Inyección de entrada por el monitor**: **ratón** (`input mouse`, ya usado por `--mouse-*`) y
-  **joystick** (`input joy <port> <dir> <1|0>`, que usa nombres de evento, **fiable**) verificados en
-  la demo 212 (`--joy 1:left,1:up` → `joy_dirs=5`); el runner gana `--joy`. **Pendiente**: el **pad
-  CD32** (`POTGO`/`POTINP`) no está leído en el backend (`amiga_hw.cpp:190` solo lo menciona),
-  así que `PadProducer` (puro, HOST-252) no tiene productor de hardware todavía.
+  **joystick** (`input joy <port> <dir> <1|0>`, que usa nombres de evento, **fiable**); el runner
+  gana `--joy`.
+  **Pad CD32 (`POTGO`/`POTINP`)**: el **productor de hardware está implementado**
+  (`amiga_os.cpp:read_cd32_shift_port2`: reloj por CIA-A PRA bit 7 salida + dato en `POTINP` bit 14
+  + `POTGO`; `os::enable_cd32_pad()`; `Gamepad` por el puerto) y el decodificador puro por
+  **HOST-308**. Se corrigieron dos defectos: `enable_cd32_pad()` era un **no-op** (escribía una
+  variable muerta en vez del mask de entrada) y `InputAll` incluía `InputCd32Pad`, lo que
+  **deshabilitaba el joystick** del puerto 2 por el `else if`; ahora `InputAll` = ratón+teclado+
+  joystick y el pad se añade con `enable_cd32_pad()`, con **fallback a joystick** si no hay pad.
+  **Pendiente (emulador)**: la verificación en hardware del pad no cierra todavía porque WinUAE
+  solo activa `cd32_pad_enabled[1]` si el `eventid[]` de un dispositivo **joystick/ratón** incluye
+  un evento `JOY2_CD32_*` (los mapeos de teclado no valen), y sin hardware joystick real no se ha
+  encontrado la vía de inyectarlo por config; `run-demo.sh --cd32` deja el puerto en modo CD32
+  (`joyport1mode=cd32joy`) y la demo 212 reporta `0x2124MMMM` en `detail`, pero el pad no se
+  detecta aún.
 
 ### M3 — Puente a la UI
 
@@ -206,31 +217,17 @@ UI (`eng::ui`).
   request_preempt/yield_if_preempt`, `TaskMsgPort` propio (`own_port`), `wait_or_idle` y
   `MessagePumpGame::bind_tasks` (idle si no hay mensajes). **Evidencia hardware**: la demo **212**
   liga un `TaskSystem` y su contador `bg` avanza (lectura del run-status `0x21200002` →
-  `0x2120001F`). **Pendiente** (M11): `stack_words` (stack propio) y las corrutinas
-  (`co_await idle_yield`); ver el bloqueo de toolchain en M11.
+  `0x2120001F`). **Pendiente**: `stack_words` (stack propio). Las corrutinas (M11) quedan **no
+  planificadas** (ver abajo).
 
-### M11 — Tareas-corrutina (opcional) — **bloqueada por toolchain**
+### M11 — Tareas-corrutina (opcional) — **no planificado**
 
-> **Bloqueo (2026-09)**: el toolchain `m68k-amiga-elf-g++` **no compila corrutinas**. `#include
-> <coroutine>` falla con `'__void_t' was not declared in this scope` (línea 76 del header) y su
-> prerrequisito `#include <type_traits>` falla con `#error "libstdc++ bug: is_corresponding_member
-> and is_layout_compatible are provided but their FTM is not set"`. El host (`g++` de WSL) sí las
-> compila, así que no es un problema de sintaxis del engine sino de las cabeceras libstdc++ del
-> toolchain freestanding. Sin `<coroutine>`/`<type_traits>` no hay `std::coroutine_handle` ni
-> `coroutine_traits`, y `co_await` no puede bajarse. Alternativas descartadas: reimplementar
-> `std::coroutine_handle` a mano (frágil, depende de intrinsics internos del compilador) y
-> `ucontext`/asm (fuera del alcance del engine). **M11 queda aparcada**; las tareas `poll()` (M10)
-> cubren el caso cooperativo con la misma API de scheduler.
-
-
-- **Entregable**: tareas con `co_await idle_yield{}`/`co_await wait_for_signal{}` sobre el mismo
-  `TaskSystem` (frame en buffer fijo, sin heap).
-- **Detalle**: §8 de [`MINI_OS_TASKS.md`](../../engine/architecture/MINI_OS_TASKS.md).
-- **Verificación**: **HOST-251** — una corrutina cede y reanuda conservando estado; medición de
-  codegen en 68000 (sin libcalls) y comparación con la tarea `poll()`.
-- **Estado**: **bloqueada por toolchain** (ver el aviso arriba): `<coroutine>`/`<type_traits>` no
-  compilan con `m68k-amiga-elf-g++`. Se retomará si el toolchain da soporte o aparece un consumidor
-  que lo justifique.
+> **Decisión**: no se implementan corrutinas. El toolchain `m68k-amiga-elf-g++` no compila
+> `<coroutine>`/`<type_traits>` (cabeceras libstdc++ del *freestanding*), y el caso cooperativo
+> (ceder y reanudar conservando estado) ya lo cubre `TaskSystem` con tareas `poll()` (M10), con la
+> misma API de scheduler. La única alternativa considerada sería un fallback **basado en
+> plantillas** al estilo de las *coroutine libraries* de Boost, que tampoco se aborda por ahora.
+> Se retomará solo si aparece un consumidor que lo justifique y el toolchain da soporte.
 
 ## Tests y demos previstos
 
@@ -254,42 +251,16 @@ UI (`eng::ui`).
 
 ## Pendientes y bloqueos abiertos (2026-09)
 
-- **Fachada `os::add_timer` con periodo > 1: BUG ABIERTO.** Con periodo 1 el timer periódico
-  funciona de extremo a extremo en hardware (demo 212: `detail=0x2123000a`, 10 `Timer` recibidos).
-  Con periodo 2/3 el **backend postea** los mensajes (`poll_and_post` dispara 16 veces) pero el
-  **pump del demo recibe 0** (`msgs` = 0). Aislamiento hecho en la demo 212:
-  - `game.port.get() == &os::system_port()` ⇒ el pump y el backend usan **el mismo** `MsgPort`.
-  - Profundidad post-pump (en `on_frame`): **1** con periodo 1 (y `msgs` = frames) frente a **11-12**
-    con periodo 2 (`msgs` = 0) ⇒ con periodo 2 el pump **no drena**.
-  - `game.idle_slice_us = 0` (sin slice de fondo) **no** cambia el resultado ⇒ no es el idle/M10.
-  - Un `post` manual de `MsgType::Timer` **desde `on_frame`** (posterior al pump) **sí** se entrega
-    (`msgs` = 11) ⇒ el pump funciona; lo que no llega son los `Timer` del hook.
-  - Patrón: los mensajes que llegan **cada frame** (periodo 1) se entregan; los que llegan **cada 2
-    frames** no. `TimerService` está validado en host (**HOST-222**, incluye periodo 2), así que el
-    fallo está en la interacción hook↔pump, no en el servicio.
-  - El **contrato puro** hook→pump queda fijado por **HOST-309** (`poll_and_post` + `update`
-    entregan en el mismo frame, periodo 1 y 2); el servicio y el orden son correctos en host.
-  - Evidencia en HW **contradictoria** (con instrumentación temporal ya retirada): en una corrida el
-    pump **sí** popeó (`pump_debug_count` = 5) y `on_msg` corrió 5 veces (contador global), pero el
-    contador `msgs` del `App` **no** subió; se verificó que `on_frame` lee el mismo objeto que
-    `game.app` (escribiendo `game.app.msgs` desde `main`). En otra corrida el pump popeó 0. Es
-    **no determinista**, lo que apunta a interacción/timing en el backend Amiga (o a un problema de
-    optimización/aliasing con los contadores del `App`), no al servicio. Hacer los contadores
-    `volatile` **no** lo arregla.
-  - **Causa aislada: codegen de gcc 15 m68k a `-O1`.** En el camino de `MessagePumpGame::update`,
-    la llamada a `on_frame` recibe un `this` distinto del que ve `on_msg` (y de `&game.app`), así que
-    los contadores **miembro** del `App` no se actualizan. A **`-O2`** (perfil `--release`) **no
-    reproduce**: `state=3`, `msgs`=16, `timers`=16 (los `Timer` de periodo 2 llegan). El perfil
-    `--debug` usa **`-O1`** (`tools/build/build-demo.sh`), y ahí falla.
-  - Workarounds probados que **no** lo arreglan: contadores `volatile`, referencia local nombrada,
-    reordenar `on_frame` antes del pump, `always_inline` en `pump_messages`, desligar las tasks.
-  - `TimerService` está validado en host (**HOST-222**, incluye periodo 2) y **HOST-309** fija el
-    contrato hook→pump (periodo 1 y 2); la **lógica del mini-SO es correcta**.
-  - **Mitigación confirmada**: `DEMO_OPT=-O2 bash tools/build/build-demo.sh <demo> --debug` compila
-    el TU del demo a `-O2` dentro del perfil debug y **el bug desaparece** (`msgs`=16, `timers`=16).
-    El `.s` no sirve para bisecar (todo queda inlineado en `main`). Decision: mantener la demo a
-    periodo 1 (estado verde); si una demo necesita timer de periodo > 1, compilar su TU a `-O2` o
-    fijar/reportar el bug de gcc. Reproducir con `add_timer(1u, 2u)` en la demo 212.
+- **Fachada `os::add_timer` con periodo > 1: MITIGADO (pin `-O2` por demo).** La lógica del
+  mini-SO es correcta (HOST-222 y HOST-309 fijan el contrato hook→pump, periodo 1 y 2). El fallo
+  es un **bug de codegen de gcc 15 m68k a `-O1`**: en el camino inlineado
+  `run_frames_polling → update → pump_messages → on_frame`, `on_frame` recibe un `this` erroneo y
+  los contadores miembro del `App` no se actualizan (a `-O2` no reproduce). **Solución aplicada**:
+  la demo 212 fija su TU a `-O2` con un fichero por demo `build.args` (`DEMO_OPT=-O2`), que
+  `build-demo.sh` lee sin cambiar el `CONFIG_ID`; el resto del perfil sigue a `-O1`. Con eso la 212
+  corre `add_timer(1u, 2u)` y recibe los `Timer` (`t: 25` en el overlay, `detail=0x2123TTTT`).
+  Aislamiento y workarounds descartados: `docs/debugging/investigaciones/pump-timer-o1-codegen.md`.
+  **Pendiente**: aislar el flag/pase exacto de gcc y reportarlo con un repro mínimo.
 - **M2 — calibración `--keys` (rawkey→event id): BLOQUEADA.** El monitor `input key <sc>` de esta
   build mapea a `256+sc`, que cae en eventos `SPC_*` (acciones), no en teclas. La tabla de eventos
   del **binario** es una permutación de la del árbol de fuentes Y **no es estable entre ejecuciones**
@@ -297,14 +268,18 @@ UI (`eng::ui`).
   Por eso no se publica tabla y `--keys` queda con aviso; la vía fiable es `--key-events <id>` (la
   tecla **llega**). Exploración con `--key-scan`. Detalle:
   [winuae/keyboard-injection.md](../../reference/emulators/winuae/keyboard-injection.md).
-- **M2 — pad CD32: PARCIAL.** Implementados el **decodificador puro** (`cd32_mask_from_shift` +
-  `Cd32Btn`; **HOST-308**) y la **lectura de hardware** en el backend (`read_cd32_shift_port2`:
-  reloj por CIA-A PRA bit 7 como salida + dato en `POTINP` bit 14 + `POTGO`; `os::enable_cd32_pad()`
-  hace que el puerto 2 se lea como `Gamepad` en lugar de `Joystick`; `poll` en `os::tick`). Orden del
-  stream calibrado contra `WinUAE-DBG/inputdevice.cpp:4050-4053`. **Pendiente**: **verificación en
-  hardware** — el runner no pone el puerto 2 de WinUAE en modo pad CD32 ni inyecta los botones
-  `JOYBUTTON_CD32_*` (`input joy` solo cubre fire/2nd/3rd). Ratón y joystick (`input joy`)
-  verificados en la demo 212.
+- **M2 — pad CD32: PARCIAL (código corregido; verificación HW pendiente del emulador).**
+  Implementados el **decodificador puro** (`cd32_mask_from_shift` + `Cd32Btn`; **HOST-308**) y la
+  **lectura de hardware** en el backend (`read_cd32_shift_port2`: reloj por CIA-A PRA bit 7 como
+  salida + dato en `POTINP` bit 14 + `POTGO`; `os::enable_cd32_pad()`; `tick` prueba CD32 y **cae a
+  joystick** si no hay pad). Corregidos dos defectos reales: `enable_cd32_pad()` era **no-op**
+  (escribía una variable muerta) y `InputAll` incluía `InputCd32Pad`, lo que **desactivaba el
+  joystick** del puerto 2. **Pendiente (emulador)**: WinUAE solo activa `cd32_pad_enabled[1]` si el
+  `eventid[]` de un dispositivo **joystick/ratón** incluye un `JOY2_CD32_*` (los mapeos de teclado
+  no valen) y no se ha encontrado la vía sin hardware joystick real; `run-demo.sh --cd32` deja el
+  puerto en modo CD32 y la demo 212 reporta `0x2124MMMM`, pero el pad no se detecta aún. Los
+  botones se inyectarían con `input joy 1 fire` (= rojo) salvo azul/verde/amarillo, que exigen
+  extender el monitor del fork.
 - **M7 — demo `214_floppy_raw`: RESUELTO.** La lectura cruda de la pista es **determinista**
   (20/20 y 5/5 `READY` en tandas seguidas; la regresion vio ademas un **cierre del emulador**,
   `ECONNRESET` exit 1, de forma intermitente — no del codigo). Las dos claves estaban en la ficha
@@ -332,8 +307,6 @@ UI (`eng::ui`).
   disco (dos/trackdisk, que necesitan DMA+IRQ) no puede funcionar** (era el bloqueo; no es
   "streaming concurrente desde disco", que exigiria un takeover que no toque el DMA del sistema).
   Detalle y log del emulador: `docs/debugging/investigaciones/audio-stream-irq-rate.md`.
-- **M11 — corrutinas: BLOQUEADA** por el toolchain (`<coroutine>`/`<type_traits>` no compilan en
-  `m68k-amiga-elf`); ver el aviso en M11.
 
 ## Riesgos y decisiones abiertas
 
@@ -363,15 +336,16 @@ VBlank) y en Workbench se mapea a `Wait` de Exec.
 ## Estado
 
 Entregados: **M0** (núcleo; HOST-219), **M1** (VBlank latched; HOST-236), **M3** (puente UI;
-HOST-220), **M4** (bucle reactivo; HOST-253 + demo 208), **M5** (prioridad/despacho; HOST-236/237) y
-**M6** (tiempo/timers; HOST-222/238). **M2** (entrada) y **M7** (E/S async) están casi entregados
-(falta verificar teclado en hardware y el decode de sector MFM); **M8** (streaming) está **entregado**:
-contrato (`stream.hpp`, HOST-257), **streaming PCM** de audio (`pcm_stream.hpp`/`zx0.hpp`,
-HOST-239/271 + demo 272) y **lectura por rebanadas del fichero de 512 KB en hardware** (demo 211,
-`FileChunkFeeder`); **M9** (telemetría) está
-**entregado** (`telemetry.hpp`; HOST-304) y **M10** (`TaskSystem` + integración en el bucle) está
-**entregado** (`task.hpp` + `message_pump.hpp`; HOST-305/307; demo 212). **M11** (corrutinas) queda
-**bloqueada por el toolchain** (`<coroutine>`/`<type_traits>` no compilan en
-`m68k-amiga-elf-g++`). La estructura de código
-(`engine/include/eng/os/`, `engine/include/eng/ui/`) y el diseño están fijados. Soporte de
-**Workbench** (W5/W6): `os::wait` + `MsgPort::pending` ya existen.
+HOST-220), **M4** (bucle reactivo; HOST-253 + demo 212), **M5** (prioridad/despacho; HOST-236/237) y
+**M6** (tiempo/timers; HOST-222/238). **M2** (entrada) está entregado (teclado por IRQ verificado en
+hardware; ratón/joystick por `input joy`; pad CD32 con lectura de hardware implementada y bugs
+corregidos, verificación HW pendiente del emulador) y **M7** (E/S async) está entregado (contrato +
+`dos.library` + demo 211; disquete crudo 214 resuelto con HOST-259). **M8** (streaming) está
+**entregado**: contrato (`stream.hpp`, HOST-257), **streaming PCM** de audio
+(`pcm_stream.hpp`/`zx0.hpp`, HOST-239/271 + demo 272) y **lectura por rebanadas del fichero de
+512 KB en hardware** (demo 211, `FileChunkFeeder`); **M9** (telemetría) está **entregado**
+(`telemetry.hpp`; HOST-304) y **M10** (`TaskSystem` + integración en el bucle) está **entregado**
+(`task.hpp` + `message_pump.hpp`; HOST-305/307; demo 212). **M11** (corrutinas) queda **no
+planificado** (el toolchain no compila `<coroutine>` y el caso cooperativo lo cubren las tareas
+`poll()`). La estructura de código (`engine/include/eng/os/`, `engine/include/eng/ui/`) y el diseño
+están fijados. Soporte de **Workbench** (W5/W6): `os::wait` + `MsgPort::pending` ya existen.

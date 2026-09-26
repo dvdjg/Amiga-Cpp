@@ -1,10 +1,10 @@
 # Demo 053: sprites hardware — multiplexado y color multiplexing
 
-Valida el camino de sprites de la nueva estructura del engine: `SpriteTemplate`
+Valida el camino de sprites de la nueva estructura del engine: `HwSpriteTemplate`
 (plantilla portable con segmentos y cambios de paleta) + `SpriteManager`
 (`emit_template_into`), que reusa UN canal de sprite hardware para dibujar SEIS
 objetos distintos en franjas verticales distintas ("chasing the raster"), cada uno
-con su propio color (`SpritePaletteSwitch` cambia `COLORxx` por franja).
+con su propio color (`HwSpritePaletteSwitch` cambia `COLORxx` por franja).
 
 Qué muestra: seis barras de 16 px (anchura decreciente, a modo de pirámide), cada
 una de un tono saturado distinto (rojo, verde, azul, amarillo, cian, magenta),

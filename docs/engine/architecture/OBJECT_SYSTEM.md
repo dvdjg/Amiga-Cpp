@@ -2,7 +2,7 @@
 
 Este documento especifica el sistema de objetos del engine: cómo un actor descrito por la aplicación se materializa como **sprite hardware**, **BOB por Blitter** u **objeto CPU**, qué políticas de **transparencia** y de **gestión del fondo** admite, y cómo declara sus **necesidades de Copper** para que una instancia superior (el compositor) monte la copperlist del frame.
 
-Es la pieza de diseño que cierra la infraestructura de objetos del roadmap (`docs/guides/roadmap/NORMALIZACION_REPO.md`, F6). No repite el vocabulario de intenciones ni las plantillas de sprite, que ya están especificados en `VISUAL_EFFECT_SPRITE_DESIGN.md` (`Visual`, `CopperIntent`, `SpriteTemplate`, concept `Effect`), ni el modelo de escena retenida de `SCENE_AND_RESOURCES.md`.
+Es la pieza de diseño que cierra la infraestructura de objetos del roadmap (`docs/guides/roadmap/NORMALIZACION_REPO.md`, F6). No repite el vocabulario de intenciones ni las plantillas de sprite, que ya están especificados en `VISUAL_EFFECT_SPRITE_DESIGN.md` (`Visual`, `CopperIntent`, `HwSpriteTemplate`, concept `Effect`), ni el modelo de escena retenida de `SCENE_AND_RESOURCES.md`.
 
 Estado: **diseño objetivo**. Las piezas marcadas como EXISTE están implementadas; las marcadas como PROPUESTO son el contrato a implementar.
 
@@ -44,7 +44,7 @@ La separación de capas es la misma que en `VISUAL_EFFECT_SPRITE_DESIGN.md` §2:
 | BOB de bitmap (`Bob`, `BobTarget`, `bob_draw`, `bob_erase_box`) | EXISTE | `engine/include/eng/graphics/bob.hpp` |
 | Lote de BOBs OR intercalado (mismo tamaño, 1 blit/objeto, sin `jsr` por objeto) (`OrBlobBatch`, `begin/one/end`) | EXISTE | `engine/include/eng/platform/amiga/blob.hpp` (test HOST-176) |
 | Construcción del BOB desde un `Visual` (`bob_from_visual`) | EXISTE | `engine/include/eng/scene/actor.hpp` |
-| Plantilla de sprite (`SpriteTemplate`, `SpriteSegment`, `SpritePaletteSwitch`) | EXISTE | `engine/include/eng/graphics/sprite.hpp` |
+| Plantilla de sprite (`HwSpriteTemplate`, `HwSpriteSegment`, `HwSpritePaletteSwitch`) | EXISTE | `engine/include/eng/graphics/sprite.hpp` |
 | Asignación de canales (`SpriteAllocator`, `SpriteSlot` con `as_bob`) | EXISTE | `engine/include/eng/graphics/sprite_allocator.hpp` |
 | Emisión de sprites (`SpriteManager`) | EXISTE | `engine/include/eng/graphics/sprite_manager.hpp` |
 | Orquestación de Copper (`copper::Plan`, `Scheduler`, `DoubleBuffer`) | EXISTE | `engine/include/eng/graphics/copper/` |
@@ -71,7 +71,7 @@ La separación de capas es la misma que en `VISUAL_EFFECT_SPRITE_DESIGN.md` §2:
 | Intenciones de sprite de los actores y reparto (`build_sprite_intents`, `actor_to_sprite_intent`) | EXISTE | `engine/include/eng/scene/actor.hpp` |
 | Degradación sprite → BOB (`emit_bob_fallbacks` sobre `SpriteSlot::as_bob`) | EXISTE | `engine/include/eng/scene/actor.hpp` |
 | Composición de sprites del frame (`compose_sprites`, `SpriteComposeScratch`, `SpriteComposeResult`) | EXISTE | `engine/include/eng/scene/actor.hpp` |
-| Contrato del sprite resuelto (`SpritePlacement`) y volcado al emisor (`SpriteManager::apply`) | EXISTE | `graphics/sprite.hpp`, `graphics/sprite_manager.hpp` |
+| Contrato del sprite resuelto (`HwSpritePlacement`) y volcado al emisor (`SpriteManager::apply`) | EXISTE | `graphics/sprite.hpp`, `graphics/sprite_manager.hpp` |
 | Franjas de sprite y rearme intra-scanline (Risky Woods / Jim Power) | PARCIAL | proyección de franjas/rearme/paleta hecha; falta conectarla a la emisión real del compositor |
 | Tiles como BOB (blit desde banco común + posición de mapa) | EXISTE | `BlitJobKind::TileBlockCopy` (`frame_plan.hpp`), `field/xlimited.hpp` |
 | Objeto CPU sobre `Surface` con política de fondo | PROPUESTO | §14.7 |
@@ -135,6 +135,7 @@ Notas de diseño:
 
 - El **minterm es un campo del `BlitJob`** (`BlitJob::minterm`, por defecto `$CA`), así que el mismo camino de ejecución sirve para cookie-cut, OR, copia y borrado; no se multiplican los tipos de job ni las ramas de la aplicación.
 - El **layout** del destino también es un campo explícito (`BlitJob::interleaved`): con planos intercalados, un objeto es **un solo blit** con `height = alto × planos`; con planos contiguos son N blits (uno por plano).
+- La **máscara** del cookie-cut puede venir de dos formas (`Bob::mask_pack`, `graphics/bob.hpp`): en un **plano aparte** (`SeparatePlane`, el camino planar) o **intercalada por pares** `[máscara][imagen]` en cada fila de cada plano (`InterleavedPair`), que resuelve el cookie-cut con destino intercalado en **un solo** blit `$CA` (kind `MaskedBobCookieCut`) sin materializar una máscara expandida; es la forma del BOB de la demo 213.
 - La transparencia se combina con el **orden de dibujo dentro de la superficie**: los BOB y objetos CPU de un mismo playfield se emiten de atrás hacia delante por `z` (estable, y solo entre objetos de esa misma superficie). Los sprites no entran en ese orden: se superponen por su prioridad de hardware, que además decide si van delante o detrás de cada playfield (`sprite_priority`).
 - Un sprite multiplexado reutiliza el canal y, por tanto, sus registros `COLOR16..31`: los cambios de paleta de dos objetos que compartan canal deben respetar el par N/N+1 o degradarse (ver §7).
 
@@ -172,7 +173,7 @@ Un objeto no escribe registros: **declara** `CopperIntent` (vocabulario de `rast
 
 Prioridad del sprite frente a los playfields: un sprite hardware puede quedar **delante o detrás** de cada playfield según la prioridad de `BPLCON2` (y ordenarse entre canales por su propia prioridad). El actor la declara en `sprite_priority` (0..3) y el compositor la materializa con la intención `Priority`. No se confunde con el `z` de los BOB: `z` ordena objetos **dentro de un mismo playfield**; `sprite_priority` sitúa el sprite en la pila de prioridades del chipset.
 
-Reconfiguración intra-scanline: un sprite se puede **reapuntar mientras avanza el haz**. La plantilla declara franjas (`SpriteSegment`) con su altura y su desplazamiento dentro de la imagen, y los puntos de rearme (`SpriteRearm`), los cambios de posición (`hpos_delta`) y los cambios de color (`SpritePaletteSwitch`) se convierten en intenciones que el compositor emite en la línea que toca. `sprite_template_to_intents` hace esa proyección sin escribir registros: una `SpriteIntent` por franja (con el tramo que le toca tras el gap de 1 línea del DMA), un `SpriteRearm` por franja a partir de la segunda y una `PaletteLine` por cada cambio de paleta dentro del tramo. Con eso se construyen los fondos de sprites tipo Risky Woods o Jim Power. La composición **horizontal** (varios tramos contiguos en la misma línea) se hace con **varios canales** cubriendo tramos uno al lado del otro: un solo canal no puede aparecer dos veces en la misma línea, porque su *fetch* se resuelve al principio de la línea. El modelo lo expresa como plantilla más lista de franjas; cuántos canales contiguos se pueden sostener lo decide el `SpriteAllocator`.
+Reconfiguración intra-scanline: un sprite se puede **reapuntar mientras avanza el haz**. La plantilla declara franjas (`HwSpriteSegment`) con su altura y su desplazamiento dentro de la imagen, y los puntos de rearme (`SpriteRearm`), los cambios de posición (`hpos_delta`) y los cambios de color (`HwSpritePaletteSwitch`) se convierten en intenciones que el compositor emite en la línea que toca. `sprite_template_to_intents` hace esa proyección sin escribir registros: una `SpriteIntent` por franja (con el tramo que le toca tras el gap de 1 línea del DMA), un `SpriteRearm` por franja a partir de la segunda y una `PaletteLine` por cada cambio de paleta dentro del tramo. Con eso se construyen los fondos de sprites tipo Risky Woods o Jim Power. La composición **horizontal** (varios tramos contiguos en la misma línea) se hace con **varios canales** cubriendo tramos uno al lado del otro: un solo canal no puede aparecer dos veces en la misma línea, porque su *fetch* se resuelve al principio de la línea. El modelo lo expresa como plantilla más lista de franjas; cuántos canales contiguos se pueden sostener lo decide el `SpriteAllocator`.
 
 Anclaje al objeto: las intenciones de un actor se declaran **relativas a su Y** (o a su Y de pantalla) y el planner las convierte a líneas absolutas sumando la posición efectiva. Así un degradado de paleta «viaja» con el objeto sin que la aplicación calcule la línea del raster.
 
@@ -234,6 +235,12 @@ Un tile es, para el hardware, **una copia de bitmap en una rejilla**: la misma g
 Consecuencia para este diseño: el algoritmo de scroll por tiles de X-Limited no es un sistema aparte, sino un **emisor masivo de BOB** que comparte el `FramePlan`, el presupuesto de Blitter, el orden dentro de la superficie y las reglas de módulo/guarda del anillo. Lo que cambia es quién decide qué se dibuja (el campo de tiles, por celdas del mapa) y que su emisión es por lotes y con su propio criterio de reuso (franjas, prefetch), no un `actor_emit` por objeto.
 
 Regla práctica: cuando una entidad se pueda describir como "imagen de un banco, posición entera en pantalla, copia por Blitter", debe emitir `BlitJob`s por el mismo camino que un BOB, aunque su origen sea un mapa y no un `Actor`.
+
+### 8.7 Capa declarativa de BOBs (`BobLayer`)
+
+`eng/scene/bobs.hpp` es la capa de juego sobre `bob_draw`: una **hoja** homogénea (`graphics::Sprite`) y un vector fijo de **actores** (`BobActor`: `x`, `y`, `frame`, `visible`). El juego escribe la pose por frame y llama `layer.emit(plan, scene.bob_target())`; no nombra `BlitJob`, minterns ni strides. `scene::clear_box(plan, target, x, y, w, h)` limpia bandas/zonas del playfield con la misma geometría de borrado (un blit intercalado), sin que el juego describa un `BlitJob`. La demo 213 usa esta capa para sus 16 BOBs cookie-cut intercalados.
+
+`scene::FastBobLayer` es la variante para **dual playfield** (PF frontal vacío): mantiene el historial de lo pintado por actor y decide, por frame, entre la **copia con padding** (`BobDraw::Opaque`, dibuja y limpia en un blit) y la degradación (**clear del área previa + cookie-cut**) cuando el actor se mueve más que el padding o su área se solapa con la de otro. El juego sigue moviendo solo actores; la técnica es una política, no un tipo de objeto (ver `docs/reference/amiga/techniques/dual-playfield-fastbobs.md` y `HOST-355`).
 
 ## 9. Memoria y presupuesto
 
@@ -305,3 +312,82 @@ Ordenadas por dependencia, dentro del roadmap F6:
 6. **Cableado de la degradación sprite → BOB**: `SpriteAllocator::as_bob` a `BlitJob` con el mismo `Visual`. **HECHO en el engine**: `build_sprite_intents` (una intención por actor, ordenada por `top`) + `emit_bob_fallbacks` (emite como BOB los degradados, en orden por superficie y `z`, con `bob_from_visual`); falta reescribir la demo 054 para consumirlo.
 7. **Objeto CPU** sobre `Surface` con política de fondo y presupuesto. **PENDIENTE**.
 8. **Demo con gate visual** que consuma el sistema (hoy solo hay test host): pendiente, es lo que convierte la capa en verificada según `docs/testing/README.md`.
+
+## 15. Repaso final: clasificación de abstracciones, fronteras y huecos
+
+Esta sección fija **qué es cada pieza** (framebuffer, vista, descriptor, algoritmo, emisión), **cómo se gestiona el Copper** y **cómo se comparte el Blitter** (incluida la GUI), para que la separación no deje huecos ni ambigüedades.
+
+### 15.1 Clasificación
+
+```text
+  ALGORITMO/ESTADO        VIEWPORT/SECTOR (vista)      FRAMEBUFFER (dueño)        EMISIÓN
+  ─────────────────       ──────────────────────       ───────────────────        ───────
+  Camera2D (scroll)  ─┐
+  TileScrollDriver    ├─► Surface (Playfield+clip)    Bitmap (bloque+geom)  ─►  BlitJob
+  FineScroll          │   DrawTarget (+raster+plan)   Playfield (mapeo)         FramePlan (cola+presupuesto)
+  Palette*/RasterGrad  │   Screen (contexto)           Scene (bitplanes+copper)  CopperIntent
+  SpriteAllocator     │   BobTarget (geom. destino)                            ─► copper::Plan (listas)
+  RepresentationAlloc ┘   ActorEmitContext (targets)                             copper::Scheduler (emisor)
+                          Layer/Camera2D (ventana)                               copper::Timeline (presupuesto)
+```
+
+- **Framebuffer (dueños de memoria)**: `MemorySystem`/`Block`, `eng::gfx::Bitmap`, `field::Playfield` (+ derivados), `composition::Scene`.
+- **Vistas/sectores (no poseen)**: `field::Surface`, `field::DrawTarget`, `Screen`, `BobTarget`, `scene::ActorEmitContext`, `scene::Layer`/`Camera2D`, `copper::BandScope`.
+- **Descriptores de contenido**: `graphics::Visual`, `graphics::Sprite` (BOB cocinado), `graphics::Bob` (crudo), `HwSpriteTemplate`/`HwSpritePlacement`, `SpriteIntent`, `BlitJob`, `CopperIntent`.
+- **Algoritmos**: `Camera2D`, `TileScrollDriver`/`FineScroll`, `PaletteTransition`/`PaletteCycle`/`RasterGradient`/`Rotozoom`, `SpriteAllocator`, `RepresentationAllocator`, `copper::Timeline`/`Plan`, `FramePlan`, `Animation`.
+- **Retenido/planner**: `Actor`/`ActorStore`, `World`/`Layer`, `SceneResources`/`DisplayLimits`/`compose`.
+
+### 15.2 Tabla de responsabilidades
+
+| Pieza | Clase | Qué es |
+|---|---|---|
+| `gfx::Bitmap` | framebuffer | bloque + geometría + layout + addressing |
+| `field::Playfield` | framebuffer | mapeo lógico→físico + rasterizer + sinks de relleno |
+| `composition::Scene` | framebuffer/planner | posee bitplanes + copperlist + buffers; ciclo |
+| `field::Surface`/`DrawTarget` | vista | `Playfield`+clip (+raster+plan); primitivas |
+| `Screen` | vista/contexto | contexto de dibujo de juego |
+| `BobTarget`/`ActorEmitContext` | vista | geometría de destino / targets+clip+cam |
+| `Camera2D`/`Layer`/`WorldRect` | vista+algo | ventana al mundo (scroll) |
+| `Sprite`/`Bob`/`Visual`/`HwSprite*` | descriptor | contenido dibujable (BOB/hardware/tile/rect) |
+| `BlitJob`/`FramePlan` | emisión | trabajo de Blitter y su cola/presupuesto |
+| `CopperIntent`/`copper::Plan`/`Scheduler` | emisión | intención y lista de Copper |
+| `Camera2D`/`TileScrollDriver`/`FineScroll` | algoritmo | scroll |
+| `PaletteTransition`/`Cycle`/`RasterGradient` | algoritmo | color/raster |
+| `SpriteAllocator`/`RepresentationAllocator` | algoritmo | reparto/representación |
+
+### 15.3 Copperlist
+
+`copper::Plan` es **dueño** de la(s) lista(s) (doble buffer); `copper::Scheduler` es el **emisor tipado** (`move`, `move_bitplane_pointer`, `wait_line/_position`, `emit_palette[_zone]`); `copper::Timeline` da el presupuesto por línea; `copper::static_plan`/`double_buffer` los casos fijos. Nadie escribe `$DFFxxx` a mano. `Scene` posee el `Plan` y orquesta (`begin_build/end_build`, `takeover/present/commit/flip`); un juego con su propio `Plan` usa `app.device().takeover_copper/commit_copper`. Las `CopperIntent`/`HwSpritePlacement` se materializan en el `Plan` (que ordena y respeta bandas/presupuesto).
+
+### 15.4 Subsistema gráfico y primitivas
+
+`Screen` (`app.screen()`) es la **API de dibujo**: `fill/line/frame/text/sprite/erase_sprite/blit/c2p`. Internamente `DrawTarget`→`Surface`→`Rasterizer` (seam CPU/Blitter) + `FramePlan` + `BobTarget`. Los **sinks** `RectFillSink`/`PolygonFillSink` (instalados por el backend) convierten rellenos en jobs de Blitter. La ejecución la hace `app.device().execute_frame_plan(...)` (o `blitter_*`), serializada con la ventana segura del Copper.
+
+### 15.5 GUI acelerada por Blitter
+
+`eng::ui` (`Context`/`Painter`/`Compositor`/`backing`/`double_buffer`/`HardwareCursor`) dibuja sobre `Surface`; los rellenos de widgets van por `RectFillSink` (Blit D-only) y las formas por `PolygonFillSink`, el texto por `GlyphCache`+blits. Todo **encola en el mismo `FramePlan`** que sprites/BOBs → **un solo Blitter serializado**. Las **paletas** son compartidas (`Palette`/`Palette32` + parches de `FramePlan`); los **recursos** salen de `MemorySystem`/`res::load` (backing como `Bitmap`). El reparto ordenado lo garantizan el `FramePlan` (presupuesto) y el `copper::Timeline` (bandas de efectos).
+
+### 15.6 Huecos detectados y resolución
+
+| Hueco | Resolución |
+|---|---|
+| Tres descriptores de objeto (`Visual`/`Sprite`/`Bob`) y `Sprite` no integrado en `ActorStore` | **Resuelto (F4a)**: `Sprite` declara `sheet_bytes`/`mask_bytes` y expone `visual()`; `actor_desc_from_sprite` une `add_actor`/`screen.sprite` (HOST-335, gate 214) |
+| Tiles (`VirtualScene`/`TileLayer`) fuera de `World`/`Layer` | **Resuelto (F4b, modelo)**: `World` capas con contenido (actores o tilemap vía `TileLayer`, HOST-336); la materialización de capas es el planner (F4c) |
+| UI con compositor propio, no es una `Layer` | Composición vía `Surface`+sinks; integrar como capa/efecto cuando haya planner |
+| Copper por objeto aún a mano (086) | Subir `CopperIntent`/`actor_add_copper` a la fachada |
+| `Screen` vs `Surface`/`DrawTarget` (solape) | F3b: `Screen` única; el resto internos |
+| `eng::gfx::PlaneLayout` homónimo | Aliasar a `eng::graphics::PlaneLayout` (`Separate = Contiguous`) |
+| `World` sin planner; `emit` recibe `BobTarget` | Planner de capas + `World::present(Screen&)` |
+
+### 15.7 Reglas de frontera (no romper)
+
+1. **Un dueño de framebuffer**: solo `Scene`/`Bitmap` reservan; las vistas (`Surface`/`Screen`/`BobTarget`) no.
+2. **Un emisor por coprocesador**: `FramePlan` (Blitter) y `copper::Plan` (Copper); nadie más.
+3. **El juego no ve hardware**: solo `App`/`Screen`/`World`/`Device` (gate `api-facade`).
+4. **Descriptor único de objeto**: `Visual` es la intención; `Sprite` la cocina; no multiplicar tipos.
+
+### 15.8 Capas declarativas y planner: «la capa pide, el planner dispone»
+
+`Layer` **no es** un tipo de playfield: describe identidad, profundidad, cámara, **contenido** (actores o tilemap), el **scroll pedido** (`ScrollKind`) y el **playfield preferido** (`LayerPlayfield`). La **técnica de cada región** es **genérica**: no es solo scroll, sino **modo de display × scroll**, con **coste declarado** (`region_cost` → `RegionCost`: palabras de Copper/línea, planos, palabras de Blitter, uso de sprites). El **planner** (F4c) materializa: asigna cada capa a `(PF1|PF2 × región)` o a la capa de sprites, valida y **degrada** si no cabe.
+
+`SceneMode` (`Standard`/`Ham`/`Ehb`/`DualPlayfield`/`CopperChunky`) y `ScrollKind` (`None`/`Fine`/`BlitterColumns`/`CopperRing`/`CopperSplit`) se combinan por región: así los **48 px inferiores** pueden ser **copper-chunky** (`mode=CopperChunky`, `planes=0`) mientras el resto es un **DPF con scroll por Copper** (`CopperRing`); y un playfield suelto puede usar **scroll por columnas de Blitter** (técnica tipo *robocod*, demo 112). El chipset tiene **2 playfields** + **8 sprites**; más capas se logran con **regiones verticales** (`WorldRegion {top,bottom,playfield,mode,scroll,planes}`, cambio por Copper en `top`) y con sprite-layers. Los costes **no son gratis**: `CopperSplit` usa *split por línea* (Copper), `CopperRing` usa `BPLxPT`/módulo, `BlitterColumns` usa Blitter, `Fine` usa `BPLCON1`. El planner aplica reglas como **una `CopperSplit` por banda** y degrada `CopperSplit→CopperRing→Fine` con `ConfigError`/`config_error()`. La capa nunca elige registros ni modo.

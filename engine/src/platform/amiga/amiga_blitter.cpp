@@ -14,6 +14,12 @@ bool AmigaBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 	}
 
 	m_blitter_starts = 0;
+	// Habilita el DMA del Blitter **solo si no lo está** (el Copper ya lo activa en el display):
+	// un MOVE a DMACON es caro con `cpu_cycle_exact` y escribirlo por job dominaba el bucle
+	// (16 BOBs/frame). La lectura de DMACONR cuesta una fracción de la escritura.
+	if ((custom_base[custom_dmaconr_offset] & dma_blitter) == 0u) {
+		custom_base[custom_dmacon_offset] = dma_setclr | dma_master | dma_blitter;
+	}
 	bool eor_open = false; // racha de líneas EOR con los registros comunes ya fijados
 	for (u8 job_index = 0; job_index < plan.blit_job_count(); ++job_index) {
 		if (!submit_blit_job(plan.blit_job(job_index), eor_open)) {
@@ -26,6 +32,9 @@ bool AmigaBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 
 bool AmigaBackend::blitter_submit(const graphics::BlitJob& job, bool wait) {
 	m_blitter_starts = 0;
+	if ((custom_base[custom_dmaconr_offset] & dma_blitter) == 0u) {
+		custom_base[custom_dmacon_offset] = dma_setclr | dma_master | dma_blitter;
+	}
 	bool eor_open = false;
 	if (!submit_blit_job(job, eor_open)) {
 		return false;
@@ -101,8 +110,6 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 		}
 		return true;
 	}
-
-	custom_base[custom_dmacon_offset] = dma_setclr | dma_master | dma_blitter;
 
 	const u32 source_plane_stride_words = job.source_plane_stride_bytes / sizeof(u16);
 	const u32 destination_plane_stride_words = job.destination_plane_stride_bytes / sizeof(u16);

@@ -32,6 +32,7 @@
 //   bash ./tools/run/run-demo.sh demos/techniques/amiga/blitter/086_bob_objects
 
 #include <eng/api/api.hpp>          // fachada: escena, actores, dibujo, paleta, run_status
+#include <eng/api/game.hpp>         // App/Screen + servicios (Blitter/copper)
 #include <eng/core/math/sinetable.hpp>
 #include <eng/core/util/color.hpp>
 #include <eng/debug/prof.hpp>
@@ -204,21 +205,17 @@ graphics::CopperIntent g_obj_needs[kBobCount > 0u ? kBobCount : 1u][kObjCopperSt
 constexpr eng::u16 kObjRainbow[kObjCopperSteps] = {0x00f, 0x0f0, 0xf00, 0xff0};
 
 struct BobObjectsDemo {
-	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
+	void init(auto& app) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		ENG_PROF_INIT(kProfCount);
-		if (!backend.configure_memory({96u * 1024u, 8u * 1024u, 4u * 1024u})) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00008601u);
-			return;
-		}
-		m_bitmap = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitplaneBytes, 16);
-		m_sheet = backend.memory().chip.allocate_block<eng::BobTag>(kSheetBytes, 16);
-		m_save = backend.memory().chip.allocate_block<eng::BobTag>(kSaveWords * 2u, 16);
+		m_bitmap = app.device().memory().chip.template allocate_block<eng::PlaneTag>(kBitplaneBytes, 16);
+		m_sheet = app.device().memory().chip.template allocate_block<eng::BobTag>(kSheetBytes, 16);
+		m_save = app.device().memory().chip.template allocate_block<eng::BobTag>(kSaveWords * 2u, 16);
 		if (!m_bitmap.valid() || !m_sheet.valid() || !m_save.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008602u);
 			return;
 		}
-		backend.blitter_clear(m_bitmap.view, kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight, true);
+		app.device().blitter_clear(m_bitmap.view, kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight, true);
 		build_sheet();
 		if (!add_actors()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008603u);
@@ -226,7 +223,7 @@ struct BobObjectsDemo {
 		}
 		// El plan reserva su doble buffer de copperlist; `first_line` es el arranque del
 		// display, para ordenar las intenciones relativas a él (cruce de 256 líneas).
-		if (!m_plan.begin(backend.memory(), {4096u, kFirstLine})) {
+		if (!m_plan.begin(app.device().memory(), {4096u, kFirstLine})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008604u);
 			return;
 		}
@@ -234,15 +231,15 @@ struct BobObjectsDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008605u);
 			return;
 		}
-		m_plan.takeover(backend);
+		app.device().takeover_copper(m_plan);
 		eng::debug::mark_ready(g_eng_run_status,
 				       (static_cast<eng::u32>(kBobCount) << 8u) |
 					       static_cast<eng::u32>(m_plan.intent_count() & 0xffu));
 		ENG_PROF_BEGIN(kProfLoop);
 	}
 
-	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
+	void update(auto& app) {
+		eng::debug::mark_frame(g_eng_run_status, app.frame());
 		// CALIBRACION: bucle de coste conocido. `profile.mjs` dara ciclos/frame con 1.0
 		// llamadas/frame; dividiendo entre 1000 salen los ciclos por iteracion y, con las
 		// ~4 instrucciones del bucle, la velocidad efectiva del CPU en este contexto (con
@@ -258,7 +255,7 @@ struct BobObjectsDemo {
 		ENG_PROF_END(kProfCalib);
 		ENG_PROF_FRAME();
 		ENG_PROF_BEGIN(kProfActors);
-		const eng::u16 t = static_cast<eng::u16>(context.frame.frame_index);
+		const eng::u16 t = static_cast<eng::u16>(app.frame());
 
 		// Cada objeto se mueve dentro de su celda (los borrados por caja/save-under no
 		// deben invadir la caja de otro).
@@ -296,7 +293,7 @@ struct BobObjectsDemo {
 		}
 		ENG_PROF_END(kProfActors);
 		ENG_PROF_BEGIN(kProfBlits);
-		if (!backend.execute_frame_plan(m_blits)) {
+		if (!app.device().execute_frame_plan(m_blits)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008606u);
 			return;
 		}
@@ -317,10 +314,10 @@ struct BobObjectsDemo {
 					  static_cast<eng::u32>(kBobCount);
 	}
 
-	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
+	void render(auto& app) {
 		// Publica la lista del frame (swap de COP1LC) tras VBlank, como manda el contrato.
-		m_plan.commit(backend);
-		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
+		app.device().commit_copper(m_plan);
+		eng::debug::probe_when_ready(g_eng_run_status, app.frame());
 		// `loop` mide el ciclo completo (update+wait_vblank+render) entre dos renders: la
 		// diferencia con la suma de secciones de `update` es el tiempo de `wait_vblank`.
 		ENG_PROF_END(kProfLoop);
@@ -485,9 +482,13 @@ int main() {
 	eng::debug::reset(g_eng_run_status);
 
 	eng::amiga::AmigaBackend backend {};
+	if (!backend.configure_memory({96u * 1024u, 8u * 1024u, 4u * 1024u})) {
+		eng::debug::mark_failed(g_eng_run_status, 0x00008601u);
+		return 0;
+	}
 	BobObjectsDemo game {};
-	eng::Engine engine {backend, game};
-	engine.run_frames_polling(0xffff);
+	eng::App app {backend, game};
+	app.run(0xffffu);
 
 	return 0;
 }

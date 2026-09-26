@@ -163,7 +163,7 @@ un polígono del Blitter (line-draw + area-fill, para relleno vectorial/3D).
 | 6.2 | `Bob` (bitmap) + manager: hoja de planos (+máscara opcional), frame de animación, clip y política de save/restore; emite `BlitJob`s con el presupuesto del `FramePlan` | **HECHO**: `graphics/bob.hpp` (`Bob`, `BobTarget`, `bob_draw`, `bob_erase_box`; minterm `$CA`/`$FC`/`$F0`, stride de hoja explícito) + emisión desde el actor (`actor_emit`: borrado, save-under y dibujo). Geometría y emisión en `072_actor` y **gate visual** en la demo `086_bob_objects` (cookie-cut/OR/opaco + caja/save-under). Queda `RestoreUnder` como política de primera clase del actor (hoy el save-under es la secuencia restore+save) |
 | 6.3 | **Minterm en `BlitJob`** (cookie-cut / OR / copy) para OR-bobs y uniformar 050/051/bobs3d | **HECHO**: `BlitJob::minterm` (por defecto `$CA`); kind `OrBlob` (`$FC`) y `ClearRect` (`$00`) en `frame_plan.hpp`/`execute_frame_plan` |
 | 6.4 | Layout **explícito** en `BlitJob` (interleaved vs planar) para expresar «1 blit/objeto» sin el placeholder de stride | **HECHO**: `BlitJob::interleaved` (altura = alto×planos, un blit/objeto) con validación propia |
-| 6.5 | Cablear `SpriteAllocator::as_bob` → `BlitJob` (transición sprite→BOB real) y cerrar el bug de la 054 | **HECHO**: `compose_sprites` ordena, reparte canales, publica `SpritePlacement` (que `SpriteManager::apply` materializa) y manda los `as_bob` al `FramePlan`; la demo 054 lo consume y ya muestra los sprites (el «bug» era el `hpos` fuera de la ventana, ver Nota 6.5b) |
+| 6.5 | Cablear `SpriteAllocator::as_bob` → `BlitJob` (transición sprite→BOB real) y cerrar el bug de la 054 | **HECHO**: `compose_sprites` ordena, reparte canales, publica `HwSpritePlacement` (que `SpriteManager::apply` materializa) y manda los `as_bob` al `FramePlan`; la demo 054 lo consume y ya muestra los sprites (el «bug» era el `hpos` fuera de la ventana, ver Nota 6.5b) |
 | 6.6 | Objeto CPU 2D sobre `Surface` (posición + imagen/redibujo + clip) | pendiente |
 
 **Nota 6.2 — resuelto con la demo 086**: la 085 montó un BOB por Blitter y el render presentó
@@ -187,9 +187,9 @@ descartaba el canal que terminaba justo en `top`; ahora es `<= top`. Cubierto po
 
 **Nota 6.5 — camino de sprite del sistema de objetos**: `build_sprite_intents` construye una
 `SpriteIntent` por actor y las ordena por `top` (contrato del `SpriteAllocator`);
-`sprite_template_to_intents` proyecta una `SpriteTemplate` a intenciones (franja + `SpriteRearm` +
-`SpritePaletteSwitch` sin escribir registros); `compose_sprites` reúne todo (orden por superficie y
-`z`, reparto de canales, `SpritePlacement` para el emisor, `as_bob` al `FramePlan` y necesidades de
+`sprite_template_to_intents` proyecta una `HwSpriteTemplate` a intenciones (franja + `SpriteRearm` +
+`HwSpritePaletteSwitch` sin escribir registros); `compose_sprites` reúne todo (orden por superficie y
+`z`, reparto de canales, `HwSpritePlacement` para el emisor, `as_bob` al `FramePlan` y necesidades de
 Copper ancladas); `SpriteManager::apply` vuelca los placements a los 8 canales. La demo 054 ya lo
 consume. Todo con tests host.
 

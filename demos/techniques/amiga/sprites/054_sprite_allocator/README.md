@@ -2,7 +2,7 @@
 
 Consume la capa de objetos del engine (`docs/engine/architecture/OBJECT_SYSTEM.md`): la escena
 describe actores (`ActorDesc`) y `compose_sprites` ordena, reparte canales, publica los
-`SpritePlacement` (que `SpriteManager::apply` materializa en `SPRxPOS/CTL/PT`) y dibuja como BOB los
+`HwSpritePlacement` (que `SpriteManager::apply` materializa en `SPRxPOS/CTL/PT`) y dibuja como BOB los
 que no caben.
 
 ## Qué muestra

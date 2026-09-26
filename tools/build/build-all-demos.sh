@@ -12,6 +12,8 @@
 #   ASSET -> falla porque falta un asset GENERADO en out/ (un `.raw` de audio,
 #            un header del pipeline de tiles, …). No es un fallo de codigo.
 #   FAIL  -> error de compilacion/enlace: rotura de codigo.
+#   SKIP  -> demo marcada "a adaptar" en tools/build/skip-demos.txt (no cuenta
+#            como fallo; se rehace con el mini-OS + la API certificada).
 #
 # Codigo de salida: 1 si hay algun FAIL; 0 si solo hay ASSET. Con --strict
 # tambien devuelve 1 si hay ASSET (para exigir el arbol de assets completo).
@@ -54,6 +56,8 @@ ONE="$ROOT/out/tmp/build-all-one.log"
 ok=0
 asset=0
 fail=0
+skip=0
+SKIP_LIST="$ROOT/tools/build/skip-demos.txt"
 
 for rel in $(list_demos_rel "$ROOT"); do
 	name="$(basename "$rel")"
@@ -62,6 +66,11 @@ for rel in $(list_demos_rel "$ROOT"); do
 	fi
 	if [ -n "$PLATFORM" ]; then
 		case "$rel" in *"$PLATFORM"*) ;; *) continue ;; esac
+	fi
+	if [ -f "$SKIP_LIST" ] && grep -qxF "$rel" "$SKIP_LIST"; then
+		skip=$((skip + 1))
+		printf 'SKIP  %s\n' "$name"
+		continue
 	fi
 
 	if bash "$ROOT/tools/build/build-demo.sh" "$rel" "$BUILD_FLAG" $CLEAN >"$ONE" 2>&1; then
@@ -85,7 +94,7 @@ for rel in $(list_demos_rel "$ROOT"); do
 done
 
 echo ""
-echo "TOTAL ok=$ok asset=$asset fail=$fail  (detalle: out/tmp/build-all.log)"
+echo "TOTAL ok=$ok asset=$asset fail=$fail skip=$skip  (detalle: out/tmp/build-all.log)"
 
 if [ "$fail" -gt 0 ]; then
 	exit 1

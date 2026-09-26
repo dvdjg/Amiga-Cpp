@@ -180,7 +180,7 @@ function findWinuaeDir(extensionRoot: string): string {
   return path.join(extensionRoot, 'bin/win32');
 }
 
-function patchConfig(configText, extensionRoot, stagedOutDir, warpEnabled, immediateBlits, diskAdf = '') {
+function patchConfig(configText, extensionRoot, stagedOutDir, warpEnabled, immediateBlits, diskAdf = '', cd32Pad = false) {
   const dh0 = path.join(extensionRoot, 'bin/dh0');
   const normalizedDh0 = dh0.replace(/\//g, '\\');
   const normalizedOut = stagedOutDir.replace(/\//g, '\\');
@@ -225,6 +225,15 @@ function patchConfig(configText, extensionRoot, stagedOutDir, warpEnabled, immed
   // el overhead de emular cada blit. Útil para el gate de fps del harness.
   if (immediateBlits) {
     out = setConfigValue(out, 'immediate_blits', 'true');
+  }
+
+  // Pad CD32 en el puerto 2: `joyport1mode=cd32joy`. LIMITACION CONOCIDA: WinUAE solo activa
+  // `cd32_pad_enabled[1]` si el `eventid[]` de un dispositivo **joystick/raton** incluye un
+  // evento `JOY2_CD32_*` (los mapeos de teclado no valen). Sin hardware joystick real en el host
+  // no se ha encontrado todavia la forma de inyectar ese evento por config, asi que `--cd32`
+  // deja el puerto en modo CD32 pero el pad puede no detectarse (ver ROADMAP_MINI_OS M2).
+  if (cd32Pad) {
+    out = setConfigValue(out, 'joyport1mode', 'cd32joy');
   }
 
   return out;
@@ -634,6 +643,27 @@ async function resolveRunStatusAddress(client, linkedSymbol, mapSections, runtim
         }
       } catch { /* noop */ }
     }
+
+    // Segundo fallback: escanear MEMORIA dentro de cada seccion (el inicio de un hunk no
+    // siempre coincide con `g_eng_run_status` y el orden de hunks puede no casar con el
+    // `.map`, p. ej. cuando `.rodata` crece con assets). Buscamos el magic (big-endian) en
+    // una ventana por seccion y validamos con `runstatus`.
+    for (const sec of runtimeSections) {
+      const base = parseHexNumber(sec);
+      if (!base) continue;
+      try {
+        const mem = await client.command(`mem ${base.toString(16)} 4096`, 2500);
+        const hex = typeof mem?.data === 'string' ? mem.data : null;
+        if (hex === null) continue;
+        const idx = hex.indexOf('454e4752');
+        if (idx < 0 || (idx & 1) !== 0) continue;
+        const candidate = base + (idx >> 1);
+        const status = await client.command(`runstatus ${candidate.toString(16)}`, 1500);
+        if (status && status.ok && status.magic === '0x454e4752' && status.version === 1) {
+          return candidate;
+        }
+      } catch { /* noop */ }
+    }
   }
 
   // Sin match: devuelve la resolución exacta (aunque su magic no haya validado)
@@ -978,6 +1008,9 @@ const telemetrySamples = Math.max(0, parseInt(argValue('--telemetry-samples', '0
 const telemetryIntervalMs = Math.max(10, parseInt(argValue('--telemetry-interval-ms', '120'), 10));
 const warpEnabled = hasArg('--warp');
 const immediateBlits = hasArg('--immediate-blits');
+// --cd32: WinUAE presenta un **pad CD32** en el puerto 2 (en vez de joystick), para verificar
+// `os::enable_cd32_pad()`. Los botones se inyectan con `--joy 1:<dir|fire>` (`fire` = rojo).
+const cd32Pad = hasArg('--cd32');
 const diskArg = argValue('--disk', '');
 const diskAdf = diskArg !== '' ? path.resolve(diskArg) : '';
 const mousePath = buildMousePathFromArgs();
@@ -1021,7 +1054,7 @@ fs.writeFileSync(startupPath, 'stack 131072\ncd dh1:\n:a.exe\n', 'utf8');
 const baseConfigPath = path.join(root, 'config/mcp-amiga-c-debug.uae');
 const runnerConfigPath = path.join(outputDir, 'runner.uae');
 const configText = fs.readFileSync(baseConfigPath, 'utf8');
-fs.writeFileSync(runnerConfigPath, patchConfig(configText, extensionRoot, stagedDir, warpEnabled, immediateBlits, diskAdf), 'utf8');
+fs.writeFileSync(runnerConfigPath, patchConfig(configText, extensionRoot, stagedDir, warpEnabled, immediateBlits, diskAdf, cd32Pad), 'utf8');
 
 const gdbPort = parseInt(process.env.WINUAE_GDB_PORT || '2345', 10);
 

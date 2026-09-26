@@ -24,6 +24,9 @@
 #include <eng/graphics/polygon_planes.hpp>
 #include <eng/graphics/sprite_collision.hpp>
 #include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
+#include <eng/platform/amiga/asset_backend.hpp>
+#include <eng/res/asset_runtime.hpp>
 #include <eng/platform/amiga/blob.hpp>
 
 namespace eng::amiga {
@@ -582,6 +585,13 @@ public:
 	constexpr MemorySystem& memory() { return m_memory; }
 	constexpr const MemorySystem& memory() const { return m_memory; }
 	constexpr const MemoryReport& memory_report() const { return m_memory_report; }
+	/// **Bancos tipados** (Chip/Slow/Fast) para pedir memoria por uso; los buffers los entrega
+	/// `configure_memory`. Ver `INTERNAL_TYPE_SYSTEM.md` §3.6.
+	constexpr MemoryManager& memory_manager() { return m_memmanager; }
+	constexpr const MemoryManager& memory_manager() const { return m_memmanager; }
+	/// **Runtime de assets** (caché + E/S asíncrona): `backend.assets().load(path, size, bank)`.
+	constexpr res::AssetRuntime<AssetCacheBackend, 8u>& assets() { return m_assets; }
+	constexpr const res::AssetRuntime<AssetCacheBackend, 8u>& assets() const { return m_assets; }
 	/// Arranques reales de BLTSIZE durante la última ejecución del plan.
 	constexpr u32 blitter_starts() const { return m_blitter_starts; }
 	constexpr DebugOverlay& debug() { return m_debug; }
@@ -602,6 +612,8 @@ private:
 	Profile m_profile; ///< perfil de máquina configurado
 	MemorySystem m_memory {}; ///< arenas (Chip/Slow/Frame) entregadas al engine
 	MemoryReport m_memory_report {}; ///< informe de la reserva de memoria
+	MemoryManager m_memmanager {}; ///< bancos tipados por uso (mismos buffers que las arenas)
+	res::AssetRuntime<AssetCacheBackend, 8u> m_assets {}; ///< caché de assets + E/S
 	DebugOverlay m_debug {}; ///< overlay de debug (host/WinUAE)
 	eng::audio::AudioSystem m_audio {}; ///< sistema de audio
 	ServiceSlot m_blitter_slot {}; ///< servicio de espera de Blitter
@@ -615,6 +627,8 @@ private:
 	u32 m_slow_alloc_size = 0; ///< tamaño (KB) del bloque de Slow RAM
 	void* m_frame_alloc = nullptr; ///< bloque base de Frame scratch reservado
 	u32 m_frame_alloc_size = 0; ///< tamaño (KB) del bloque de Frame scratch
+	void* m_fast_alloc = nullptr; ///< bloque base de Fast RAM (CPU) reservado, si hay
+	u32 m_fast_alloc_size = 0; ///< tamaño (KB) del bloque de Fast RAM
 	u32 m_blitter_starts = 0; ///< contador de blits lanzados (diagnóstico)
 	/// Estado del lote de BOBs no-inline (`blitter_or_bobs_begin/one/end`): delega en
 	/// la misma implementacion `inline` de `blob.hpp` que usa el camino de coste cero.

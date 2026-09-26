@@ -45,15 +45,13 @@ constexpr eng::Palette32 source_palette {{
 }};
 
 /// Version atenuada de una paleta (cada canal a `num/den`): destino del fundido del
-/// segundo efecto. Demuestra que `palette_scale` (fundido de paleta completa) se integra
-/// como un `Effect` mas.
+/// segundo efecto. Usa `eng::Palette::fade_from` (la misma aritmetica `util::scale444`
+/// que antes se hacia a mano): demuestra la paleta de juego como valor `constexpr`.
 constexpr eng::Palette32 dim_palette_of(const eng::Palette32& src, eng::u16 num,
 					     eng::u16 den) {
-	eng::Palette32 out {};
-	for (eng::u8 i = 0; i < 32u; ++i) {
-		out.color[i] = eng::util::scale444(src.color[i], num, den);
-	}
-	return out;
+	eng::Palette p {};
+	p.fade_from(src, num, den);
+	return p.storage();
 }
 constexpr eng::Palette32 dim_source_palette = dim_palette_of(source_palette, 1u, 4u);
 

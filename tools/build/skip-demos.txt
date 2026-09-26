@@ -1,0 +1,52 @@
+# Demos marcadas como "A ADAPTAR": no rompen el build (se saltan) y se rehacen
+# con el mini-OS + la API certificada del engine.
+#
+# Motivo: usaban la API antigua del Copper (`emit_planes_display`/zonas con
+# vistas de bytes) o fabricaban `Address<Chip>`/`.view.address()`. Ahora el DMA
+# exige `MemView<Tag, Chip>` (fuente: `MemBank<Chip>` o `Block::mem_view()`).
+#
+# Formato: una ruta repo-relativa por linea (comentarios con `#`). La consume
+# `tools/build/build-all-demos.sh` (categoria SKIP).
+#
+demos/techniques/amiga/3d/079_wireframe
+demos/techniques/amiga/audio/057_audio_mixer
+demos/techniques/amiga/audio/058_sfx_mixer
+demos/techniques/amiga/audio/059_music_player
+demos/techniques/amiga/audio/060_music_pt
+demos/techniques/amiga/audio/061_audio_system
+demos/techniques/amiga/audio/062_game_audio
+demos/techniques/amiga/audio/063_harmony
+demos/techniques/amiga/audio/064_audio_debug
+demos/techniques/amiga/audio/065_single_voice
+demos/techniques/amiga/audio/066_polyphony
+demos/techniques/amiga/audio/067_mixer_melody
+demos/techniques/amiga/audio/068_mixer_ref
+demos/techniques/amiga/audio/069_mixer_two_voices
+demos/techniques/amiga/audio/070_mixer_three_voices
+demos/techniques/amiga/audio/071_mixer_four_voices
+demos/techniques/amiga/audio/072_sample_channel
+demos/techniques/amiga/audio/073_sample_mixer
+demos/techniques/amiga/audio/074_mixer_drums
+demos/techniques/amiga/audio/075_mixer_tones
+demos/techniques/amiga/audio/076_mixer_sample_channels
+demos/techniques/amiga/audio/216_audio_modes
+demos/techniques/amiga/audio/217_audio_game_example
+demos/techniques/amiga/audio/272_audio_stream
+demos/techniques/amiga/audio/274_octamed_probe
+demos/techniques/amiga/audio/276_music_mixer
+demos/techniques/amiga/blitter/086_bob_objects
+demos/techniques/amiga/blitter/087_sprite_horizontal_rearm
+demos/techniques/amiga/blitter/210_copper_blitter
+demos/techniques/amiga/copper/055_copper_rainbow
+demos/techniques/amiga/copper/085_copper_plan_scene
+demos/techniques/amiga/effects/117_bobs3d
+demos/techniques/amiga/effects/118_dna3d
+demos/techniques/amiga/input/056_input_aggregator
+demos/techniques/amiga/playfield/113_mode_switch
+demos/techniques/amiga/playfield/114_mode_switch_bands
+demos/techniques/amiga/playfield/115_mode_switch_ehb_hud
+demos/techniques/amiga/playfield/125_layers_dualpf
+demos/techniques/amiga/sprites/053_sprite_multiplex
+demos/techniques/amiga/sprites/054_sprite_allocator
+demos/techniques/amiga/sprites/206_sprite_collision
+demos/techniques/amiga/sprites/207_sprite_layer

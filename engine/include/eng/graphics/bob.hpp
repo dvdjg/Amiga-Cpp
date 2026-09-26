@@ -41,6 +41,7 @@
 
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/frame_plan.hpp>
+#include <eng/graphics/plane_layout.hpp>
 
 namespace eng::graphics {
 
@@ -70,10 +71,19 @@ enum class BobErase : u8 {
 	RestoreUnder,
 };
 
-/// Layout de los planos (hoja del objeto y bitmap destino).
-enum class BobLayout : u8 {
-	Planar,      ///< N planos contiguos: N blits por objeto.
-	Interleaved, ///< filas de planos alternadas: 1 blit por objeto.
+/// Layout de los planos (alias del enum único `PlaneLayout`); `BobLayout::Planar` = contiguo.
+using BobLayout = PlaneLayout;
+
+/// Empaquetado de la **máscara** del cookie-cut dentro de la hoja.
+enum class BobMaskPack : u8 {
+	/// La máscara es un plano de 1 bit **aparte** (`Bob::mask`, misma rejilla). Es la forma
+	/// del cookie-cut planar.
+	SeparatePlane,
+	/// La hoja intercala `[máscara][imagen]` por cada fila de cada plano (`width/16` palabras
+	/// de máscara seguidas de `width/16` de imagen, sin guarda): cookie-cut con planos
+	/// intercalados en **un solo** blit (minterm `$CA`). `Bob::mask` se ignora (la máscara
+	/// va en la propia hoja). Contrato de `make_interleaved_masked_bob` (`blit_job.hpp`).
+	InterleavedPair,
 };
 
 /// Descripción de un objeto de bitmap. No posee memoria (apunta a bloques del
@@ -93,6 +103,7 @@ struct Bob {
 	BobLayout layout = BobLayout::Interleaved;
 	BobDraw draw = BobDraw::Or;
 	BobErase erase = BobErase::None;
+	BobMaskPack mask_pack = BobMaskPack::SeparatePlane;
 };
 
 /// Geometría del bitmap destino (los planos del playfield).
@@ -179,6 +190,44 @@ inline bool bob_erase(FramePlan& plan, const Bob& bob, s16 x, s16 y, const BobTa
 	return bob_erase_box(plan, bob, bob.width, bob.height, x, y, t);
 }
 
+/// Dibuja un objeto cookie-cut con hoja **par** (`BobMaskPack::InterleavedPair`): un único
+/// blit `$CA` con la máscara en el canal A y la imagen en el B. La hoja intercala, por cada
+/// fila de cada plano, `width/16` palabras de máscara seguidas de `width/16` de imagen (sin
+/// palabra de guarda). Es la geometría de `make_interleaved_masked_bob` (`blit_job.hpp`); el
+/// bit de máscara de cada plano se materializa en el propio blit, sin copia expandida.
+inline bool bob_draw_interleaved_pair(FramePlan& plan, const Bob& bob, u8 frame, s16 x, s16 y,
+				      const BobTarget& t) {
+	using namespace bob_detail;
+	if (!valid(bob, t) || frame >= bob.frame_count) {
+		return false;
+	}
+	const u16 words = static_cast<u16>(bob.width / 16u);
+	if (words == 0u) {
+		return false;
+	}
+	const u8 shift = static_cast<u8>(x & 15);
+	const s16 wx = static_cast<s16>(x & ~15);
+	const s16 x_start = (wx < 0) ? 0 : wx;
+	const u32 start_row = static_cast<u32>(t.row_bytes) * t.planes;
+	const u16* src = reinterpret_cast<const u16*>(bob.sheet +
+						      static_cast<u32>(frame) * bob.frame_stride);
+	BlitJob job {};
+	job.mask = BlitSource {src};                 // 1ª mitad de la fila = máscara
+	job.source = BlitSource {src + words};       // 2ª mitad = imagen
+	job.destination = BlitDest {reinterpret_cast<u16*>(t.base +
+							   static_cast<u32>(y) * start_row +
+							   (static_cast<u32>(x_start) >> 3u))};
+	job.words_per_row = words;
+	job.height = static_cast<u16>(bob.height * bob.planes);
+	job.source_modulo_bytes = static_cast<s16>(words * 2u);
+	job.destination_modulo_bytes = static_cast<s16>(t.row_bytes - static_cast<u32>(words) * 2u);
+	job.bitplane_count = 1u;
+	job.source_shift = shift;
+	job.minterm = 0x00cau;
+	job.interleaved = true;
+	return plan.add_masked_bob(job);
+}
+
 /// Dibuja el `frame` del objeto en `(x,y)`.
 ///
 /// Camino caliente (un BOB por objeto y frame): `always_inline` para que el contrato
@@ -190,8 +239,13 @@ __attribute__((always_inline)) inline bool bob_draw(FramePlan& plan, const Bob& 
 		return false;
 	}
 	if (bob.draw == BobDraw::CookieCut && bob.layout == BobLayout::Interleaved) {
-		// Cookie-cut con planos intercalados exige máscara "expandida" (una copia por
-		// plano) y modulos A/B distintos: no lo cubre el ejecutor actual (documentado).
+		if (bob.mask_pack == BobMaskPack::InterleavedPair) {
+			return bob_draw_interleaved_pair(plan, bob, frame, x, y, t);
+		}
+		// Con máscara en un plano suelto, el cookie-cut intercalado exigiría una máscara
+		// "expandida" (una copia por plano) y modulos A/B distintos: no lo cubre el
+		// ejecutor actual (documentado). Usar `BobMaskPack::InterleavedPair` para el
+		// camino de un solo blit.
 		return false;
 	}
 	const u8 shift = static_cast<u8>(x & 15);

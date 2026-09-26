@@ -9,9 +9,12 @@ Cubre:
 
 - periodo 1: un `Timer` por frame (10 en 10 frames);
 - **periodo 2**: un `Timer` cada 2 frames (5 en 10 frames) — el caso que en hardware no llega
-  (bug abierto, ver `docs/guides/roadmap/ROADMAP_MINI_OS.md`);
+  a `-O1` (bug de codegen, ver `docs/guides/roadmap/ROADMAP_MINI_OS.md`);
 - dos timers con periodos distintos, entregados en su frame;
-- un `post` del juego previo al `update` se entrega en ese `update`.
+- un `post` del juego previo al `update` se entrega en ese `update`;
+- **tarea de frame** (`MessagePumpGame::bind_frame_task`): se ejecuta una vez por `update`,
+  **después** de drenar (ve los mensajes de ese frame) y antes de `App::on_frame` — el punto
+  donde la demo 213 integra la música (`P61Player::update` + `MusicEnd`).
 
 Es un test de **contrato puro** (sin backend): valida que `poll_and_post` + `pump_messages`
 entregan correctamente cuando se llaman en el orden del bucle real. La discrepancia con hardware

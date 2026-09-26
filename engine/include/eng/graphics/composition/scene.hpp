@@ -16,6 +16,7 @@
 #include <eng/field/playfield.hpp>
 #include <eng/field/raster.hpp>
 #include <eng/field/surface.hpp>
+#include <eng/graphics/bob.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/copper/plan.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
@@ -107,6 +108,10 @@ public:
 	[[nodiscard]] const copper::Plan& plan() const { return m_plan; }
 	/// Vista de los bitplanes del buffer trasero (el que se está dibujando).
 	[[nodiscard]] constexpr eng::PlaneBytes bitplanes() const { return m_buffers[m_back].view; }
+	/// Vista **certificada en Chip** de los bitplanes del buffer trasero: fuente para el **DMA**
+	/// (Copper/`BPLxPT`). Sale del `Block<Tag>` del buffer (medio en la arena) con la comprobación
+	/// de que es Chip; no se fabrica una dirección a mano.
+	[[nodiscard]] eng::ChipPlaneView chip_planes() const { return m_buffers[m_back].mem_view(); }
 	/// Buffer de display que se está dibujando (el trasero).
 	[[nodiscard]] constexpr eng::PlaneBytes back() const { return m_buffers[m_back].view; }
 	/// Buffer de display `i` (para leer/escribir otro); vacío si `i` fuera de rango.
@@ -144,10 +149,11 @@ public:
 			return false;
 		}
 		const u8 src = (m_plane_source[p] < m_res.planes) ? m_plane_source[p] : p;
-		const eng::u8* base = m_buffers[index].view.data();
-		const eng::uintptr want =
-			reinterpret_cast<eng::uintptr>(base) + static_cast<eng::u32>(src) * m_plane_bytes;
-		return display_plane_address(p) == static_cast<u32>(want);
+		const eng::ChipPlaneView planes = m_buffers[index].mem_view();
+		const eng::Address<eng::MemoryKind::Chip> want = planes.address(src * m_plane_bytes);
+		// `BPLxPT` es de 32 bits; en host el puntero es de 64, de modo que el truncado a u32 es
+		// necesario (en target, no-op).
+		return display_plane_address(p) == static_cast<u32>(want.value);
 	}
 	/// Plano `i` del bitmap (layout contiguo; vacío si fuera de rango).
 	[[nodiscard]] constexpr eng::PlaneBytes plane(u8 i) const {
@@ -173,6 +179,20 @@ public:
 	[[nodiscard]] constexpr u16 rows() const { return m_res.rows != 0u ? m_res.rows : m_res.height; }
 	/// Disposición de los bitplanes (contiguos o interleaved).
 	[[nodiscard]] constexpr SceneLayout layout() const { return m_res.layout; }
+	/// **Geometría de BOB** del bitmap de dibujo activo (base del plano 0, fila de un plano,
+	/// separación entre planos y layout). La consume `Sprite::draw` a través del
+	/// `DrawTarget`; el juego nunca la construye a mano. Ver `PUBLIC_GAME_API.md` §2.1.1.
+	[[nodiscard]] graphics::BobTarget bob_target() const {
+		graphics::BobTarget t {};
+		t.base = bitplanes().data();
+		t.row_bytes = row_bytes();
+		t.plane_bytes = plane_bytes();
+		t.planes = planes();
+		t.layout = (m_res.layout == SceneLayout::Interleaved)
+				   ? graphics::BobLayout::Interleaved
+				   : graphics::BobLayout::Planar;
+		return t;
+	}
 	/// Recursos de la escena (geometría, modo, layout, buffers) tal como se configuraron.
 	[[nodiscard]] constexpr const SceneResources& resources() const { return m_res; }
 	/// Playfield (solo layout interleaved): base de `surface()`.
@@ -255,7 +275,7 @@ public:
 		field::Playfield& pf = interleaved
 					       ? static_cast<field::Playfield&>(m_playfield)
 					       : static_cast<field::Playfield&>(m_contiguous);
-		return field::DrawTarget {surface(), pf.rasterizer(), plan};
+		return field::DrawTarget {surface(), pf.rasterizer(), plan, bob_target()};
 	}
 
 	/// **Chunky→planar** a través del rasterizador de la escena: con `BlitterRaster` y
@@ -444,18 +464,17 @@ private:
 		if (m_res.layout == SceneLayout::Interleaved || index >= m_buffer_count) {
 			return;
 		}
-		const eng::u8* addr = m_buffers[index].view.data();
+		const eng::ChipPlaneView planes = m_buffers[index].mem_view();
 		u16* words = m_plan.active_words();
 		for (u8 p = 0u; p < m_res.planes; ++p) {
 			const u8 src = (m_plane_source[p] < m_res.planes) ? m_plane_source[p] : p;
 			const eng::u32 off = eng::math::mulu32x16(m_plane_bytes, static_cast<u16>(src));
-			m_plane_patch[p].apply(words, static_cast<eng::u32>(
-							 reinterpret_cast<eng::uintptr>(addr + off)));
+			m_plane_patch[p].apply(words, planes.address(static_cast<eng::s32>(off)).value);
 		}
 	}
 
 	SceneResources m_res {}; ///< geometría/recursos de la escena (copiados en `init`)
-	eng::util::Array<eng::Block<eng::PlaneTag>, kMaxSceneBuffers> m_buffers {}; ///< buffers de bitplanes (Chip)
+	eng::util::Array<eng::Block<eng::PlaneTag, eng::MemoryKind::Chip>, kMaxSceneBuffers> m_buffers {}; ///< buffers de bitplanes (Chip)
 	field::CanvasPlayfield m_playfield {}; ///< playfield del layout interleaved (base de `surface()`)
 	field::ContiguousPlayfield m_contiguous {}; ///< playfield del layout contiguo (base de `surface()`)
 	copper::Plan m_plan {}; ///< programa de Copper (lista + presupuesto + emisor)

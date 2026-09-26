@@ -36,6 +36,15 @@ out\demos\<demo>\<demo>.map
 out\demos\<demo>\<demo>.s
 ```
 
+### Overrides por demo (`build.args`)
+
+Si una demo necesita un nivel de optimizacion distinto para su **TU** sin cambiar el `CONFIG_ID`
+(el resto del perfil sigue igual), puede incluir un fichero `build.args` en su carpeta con una
+asignacion `CLAVE=valor` por linea (comentarios con `#`). Claves admitidas: `ENGINE_OPT`, `DEMO_OPT`
+y `C_OPT`. Es el analogo de `run.args` para el build. Caso de uso: la demo 212 fija `DEMO_OPT=-O2`
+por un bug de codegen de gcc 15 m68k a `-O1` (ver
+`docs/debugging/investigaciones/pump-timer-o1-codegen.md`).
+
 ## Compilar todas las demos (barrido)
 
 ```bash

@@ -68,10 +68,10 @@ inline eng::u32 prof_clock() {
 
 } // namespace eng::debug
 
-// Fuera del target (host) el perfilado es NO-OP: el contador es un periferico del emulador
-// y leerlo en un test host seria un acceso invalido. En m68k instrumenta (~2 lecturas por
-// seccion y frame).
-#if defined(__m68k__)
+// Fuera del target Amiga (host u otro m68k) el perfilado es NO-OP: el contador es un periferico
+// del emulador y leerlo en un test host (o en Mega Drive/Atari) seria un acceso invalido. En
+// Amiga (`ENG_AMIGA`, lo define el build) instrumenta (~2 lecturas por seccion y frame).
+#if defined(ENG_AMIGA)
 
 #define ENG_PROF_INIT(n)                                                                          \
 	do {                                                                                       \
