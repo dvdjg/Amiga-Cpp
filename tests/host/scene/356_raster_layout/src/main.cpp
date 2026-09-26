@@ -98,7 +98,7 @@ int main() {
 		eng::field::PlayfieldHardwareView view {};
 		view.planes = 3u;
 		view.bitmap_bytes_per_row = 48u;
-		view.bitplanes = planes.mem_view().address(0);
+		view.real_base = planes.mem_view().address(0);
 		view.plane_bytes = 3u * 48u * 256u;
 		view.bplcon1 = 0x0033u;
 		view.bpl1mod = 0x0050u;
@@ -160,6 +160,61 @@ int main() {
 			}
 		}
 		check(bplcon0_ok, "BPLCON0 del DPF por bandas");
+	}
+
+	// El driver refresca la banda por frame (base/bplcon1) sin campo `scroll`.
+	{
+		eng::field::PlayfieldHardwareView view {};
+		view.planes = 3u;
+		view.bitmap_bytes_per_row = 48u;
+		view.real_base = planes.mem_view().address(0);
+		view.plane_bytes = 3u * 48u * 256u;
+		eng::scene::Band band = eng::scene::band_from_view(view, 0u);
+		view.planeaddx = 16u; // el driver avanza el scroll
+		view.bplcon1 = 0x07u;
+		band.update_from_view(view);
+		check(band.bplcon1 == 0x07u, "update_from_view refresca bplcon1");
+		eng::u16 cop[128] {};
+		eng::MemoryBlock cb {cop, sizeof(cop), eng::MemoryKind::Chip};
+		eng::copper::SchedulerT<false> s {cb};
+		eng::scene::emit_band_pointers(s, band, 0);
+		s.end();
+		const eng::u32 want = static_cast<eng::u32>(planes.mem_view().address(0).value) + 16u;
+		bool ptr_ok = false;
+		for (eng::u32 i = 0u; i + 1u < s.words_used(); ++i) {
+			if (cop[i] == 0x00e0u) { // BPL1PTH
+				ptr_ok = (cop[i + 1u] == static_cast<eng::u16>(want >> 16));
+				break;
+			}
+		}
+		check(ptr_ok, "los punteros siguen al scroll");
+	}
+
+	// El split vertical (wrap del corkscrew) es una intención de banda: reemite los punteros.
+	{
+		eng::field::PlayfieldHardwareView view {};
+		view.planes = 3u;
+		view.bitmap_bytes_per_row = 48u;
+		view.real_base = planes.mem_view().address(0);
+		view.plane_bytes = 3u * 48u * 256u;
+		eng::scene::Band band = eng::scene::band_from_view(view, 0u);
+		band.split_active = true;
+		band.split_line = 100u;
+		band.split_base_off = 240u;
+		eng::scene::RasterLayout l {};
+		l.add(band);
+		eng::u16 cop[256] {};
+		eng::MemoryBlock cb {cop, sizeof(cop), eng::MemoryKind::Chip};
+		eng::copper::SchedulerT<false> s {cb};
+		check(l.materialize(s), "materializa con split");
+		s.end();
+		eng::u8 bpl1 = 0u;
+		for (eng::u32 i = 0u; i + 1u < s.words_used(); ++i) {
+			if (cop[i] == 0x00e0u) {
+				++bpl1;
+			}
+		}
+		check(bpl1 == 2u, "split: punteros reemitidos");
 	}
 
 	if (g_fail != 0) {

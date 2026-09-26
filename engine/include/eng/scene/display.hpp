@@ -49,9 +49,10 @@ struct DisplayDesc {
 };
 
 /// Emite el display estándar en `sched`: DMACON/BPLCONx, módulos interleaved, DIW/DDF y `BPLxPT`
-/// (un plano por paso `row_bytes`). El juego no ve registros.
+/// (un plano por paso `row_bytes`). El juego no ve registros. Con `pointers = false` emite solo la
+/// cabecera (geometría), para que la composición emita los punteros con `emit_band_pointers`.
 template <class Scheduler>
-void emit_display(Scheduler& sched, const DisplayDesc& d) {
+void emit_display(Scheduler& sched, const DisplayDesc& d, bool pointers = true) {
 	sched.move(::eng::copper::Register::DMACON, d.dmacon);
 	sched.move(::eng::copper::Register::BPLCON0, d.bplcon0);
 	sched.move(::eng::copper::Register::BPLCON1, d.bplcon1);
@@ -68,16 +69,7 @@ void emit_display(Scheduler& sched, const DisplayDesc& d) {
 	sched.move(::eng::copper::Register::DIWSTOP, d.diwstop);
 	sched.move(::eng::copper::Register::DDFSTRT, d.ddfstrt);
 	sched.move(::eng::copper::Register::DDFSTOP, d.ddfstop);
-	if (!d.planes_view_b.empty() && (d.planes % 2u) == 0u) {
-		// Dual playfield: `planes_view` = PF1 (planos pares), `planes_view_b` = PF2 (impares).
-		const eng::u8 ppf = static_cast<eng::u8>(d.planes / 2u);
-		for (eng::u8 i = 0u; i < ppf; ++i) {
-			const eng::u16 off = static_cast<eng::u16>(i * d.bytes_per_row);
-			sched.move_bitplane_pointer(static_cast<eng::u8>(i * 2u),
-						    d.planes_view.address(off));
-			sched.move_bitplane_pointer(static_cast<eng::u8>(i * 2u + 1u),
-						    d.planes_view_b.address(off));
-		}
+	if (!pointers) {
 		return;
 	}
 	for (eng::u8 p = 0u; p < d.planes; ++p) {
@@ -148,6 +140,11 @@ struct Band {
 	/// rellenan; un desplazamiento discontinuo (corkscrew) los trae de la superficie.
 	eng::u16 bpl1mod = 0u;
 	eng::u16 bpl2mod = 0u;
+	/// **Split vertical** (corkscrew/ring): a partir de `top + split_line` los planos vuelven a la
+	/// fila `split_base_off` del bitmap hasta el pie del tramo. Es la “intención de banda” del wrap.
+	bool split_active = false;
+	eng::u16 split_line = 0;
+	eng::s32 split_base_off = 0;
 
 	/// Módulo **interleaved** por defecto: `bytes_per_row × (planes − 1)` (`0` sin planos).
 	[[nodiscard]] constexpr eng::u16 modulo() const noexcept {
@@ -202,7 +199,49 @@ struct Band {
 		}
 		return t;
 	}
+
+	/// Refresca la geometría dependiente del **scroll** desde la superficie (base, fine scroll,
+	/// módulos), sin tocar `top`/`height`/modo. El driver de scroll actualiza su
+	/// `PlayfieldHardwareView`; la composición llama esto por frame y re-`materialize`. Así la
+	/// banda **no** lleva un campo `scroll`: refleja lo que el driver ya calculó.
+	void update_from_view(const eng::field::PlayfieldHardwareView& view) noexcept {
+		planes = view.planes;
+		bytes_per_row = view.bitmap_bytes_per_row;
+		bplcon1 = view.bplcon1;
+		bpl1mod = view.bpl1mod;
+		bpl2mod = view.bpl2mod;
+		const eng::s32 off = static_cast<eng::s32>(view.planeaddx + view.planeaddy);
+		planes_view = eng::ChipPlaneView {view.real_base + off, view.plane_bytes};
+		bob_base = eng::Bytes<eng::PlaneTag> {view.real_base.ptr(), view.plane_bytes};
+	}
 };
+
+/// Emite los `BPLxPT` de una banda desde su base desplazada `off` bytes: un plano por paso
+/// `bytes_per_row`. Con **dual playfield** (`planes_view_b`) emite PF1 en los planos pares y PF2
+/// en los impares, intercalados. Es lo que usa `RasterLayout` para el display y para el **split
+/// vertical** (reapuntar al inicio del bucle a mitad del tramo).
+template <class Scheduler>
+void emit_band_pointers(Scheduler& sched, const Band& b, eng::s32 off = 0) {
+	if (b.planes == 0u) {
+		return;
+	}
+	if (!b.planes_view_b.empty() && (b.planes % 2u) == 0u) {
+		const eng::u8 ppf = static_cast<eng::u8>(b.planes / 2u);
+		for (eng::u8 i = 0u; i < ppf; ++i) {
+			const eng::s32 o =
+				static_cast<eng::s32>(off + static_cast<eng::s32>(i) * b.bytes_per_row);
+			sched.move_bitplane_pointer(static_cast<eng::u8>(i * 2u),
+						    b.planes_view.address(o));
+			sched.move_bitplane_pointer(static_cast<eng::u8>(i * 2u + 1u),
+						    b.planes_view_b.address(o));
+		}
+		return;
+	}
+	for (eng::u8 p = 0u; p < b.planes; ++p) {
+		sched.move_bitplane_pointer(
+			p, b.planes_view.address(off + static_cast<eng::s32>(p) * b.bytes_per_row));
+	}
+}
 
 /// Banda a partir de un bloque de planos en Chip: fija la vista de display (solo lectura) y la
 /// base mutable de BOBs a la **misma** memoria.
@@ -228,13 +267,7 @@ struct Band {
 					 eng::u16 top) noexcept {
 	Band b {};
 	b.top = top;
-	b.planes = view.planes;
-	b.bytes_per_row = view.bitmap_bytes_per_row;
-	b.bplcon1 = view.bplcon1;
-	b.planes_view = eng::ChipPlaneView {view.bitplanes, view.plane_bytes};
-	b.bob_base = eng::Bytes<eng::PlaneTag> {view.bitplanes.ptr(), view.plane_bytes};
-	b.bpl1mod = view.bpl1mod;
-	b.bpl2mod = view.bpl2mod;
+	b.update_from_view(view);
 	return b;
 }
 
@@ -313,12 +346,17 @@ public:
 		d.bpl1mod = b0.bpl1mod;
 		d.bpl2mod = b0.bpl2mod;
 		d.planes_view = b0.planes_view;
-		d.planes_view_b = b0.planes_view_b;
 		d.ddfstrt = b0.ddfstrt;
 		d.ddfstop = b0.ddfstop;
-		emit_display(sched, d);
+		emit_display(sched, d, false);
+		emit_band_pointers(sched, b0, 0);
 		if (!b0.palette.empty() && b0.palette_colors != 0u) {
 			emit_palette(sched, b0.palette.data(), b0.palette_colors);
+		}
+		if (b0.split_active) {
+			// Wrap del corkscrew: a mitad del tramo los planos vuelven al inicio del bucle.
+			sched.wait_line(static_cast<eng::u16>(b0.top + b0.split_line));
+			emit_band_pointers(sched, b0, b0.split_base_off);
 		}
 		for (eng::u8 i = 1u; i < m_count; ++i) {
 			const Band& b = m_bands[i];
