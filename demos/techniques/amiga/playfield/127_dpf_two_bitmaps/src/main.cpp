@@ -1,17 +1,17 @@
 // ============================================================================
 // Demo 127 - dpf_two_bitmaps
 // ----------------------------------------------------------------------------
-// Tutorial (§1.12 de AGENTS.md): **dual playfield de dos bitmaps** compuesto por bandas
-// (`eng::scene::RasterLayout` + `band_from_dual_view`), con el fondo (PF2) **scrolleando** por
-// frame y un BOB (copia con padding) sobre el primer plano (PF1).
+// Tutorial (§1.12 de AGENTS.md): **dual playfield de dos bitmaps** (PF1 + PF2) compuesto por
+// bandas (`eng::scene::RasterLayout` + `band_from_dual_view`) con scroll **XLimited**: cada campo
+// se desplaza en **X** (coarse por `planeaddx`), en direcciones opuestas (parallax). XLimited es
+// "solo X, sin split" (`XYLIMITED_ALGORITMO_GENERICO.md` §0): el bitmap es un poco mas ancho y el
+// fetch lineal hace el resto; NO hay split de Copper. El BOB (copia con padding) va en PF1.
 //
 // Que ilustra:
-//   1. `PlayfieldHardwareView` = la **superficie** de cada campo. El "driver" de scroll solo
-//      actualiza su offset; la composicion reconstruye la banda por frame (`band_from_dual_view`)
-//      y publica la copperlist nueva. El juego nunca calcula punteros de plano.
-//   2. `Band::bob_target()` da el destino de BOBs de PF1; `eng::scene::FastBobLayer` pinta sin que
-//      el juego vea `BlitJob`.
-//   3. Una franja inferior de 0 planos cierra la composicion (efectos copper).
+//   1. `PlayfieldHardwareView` = la **superficie** de cada campo. El "driver" de scroll solo mueve
+//      `planeaddx`; la composicion reconstruye la banda por frame y publica la copperlist.
+//   2. `Band::bob_target()` da el destino de BOBs de PF1 (con el offset de scroll, asi que el BOB
+//      queda fijo en pantalla aunque su campo scrollee) y `eng::scene::FastBobLayer` lo pinta.
 //
 //   bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/127_dpf_two_bitmaps --debug
 //   bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/127_dpf_two_bitmaps --warp
@@ -52,13 +52,13 @@ using eng::u8;
 
 constexpr u16 kWidth = 320u;
 constexpr u16 kHeight = 256u;
-constexpr u16 kBytesPerRow = kWidth / 8u; // 40
-constexpr u8 kFieldPlanes = 3u;           // cada campo: 3 planos (DPF 3+3)
-constexpr u32 kFieldBytes = static_cast<u32>(kBytesPerRow) * kFieldPlanes * kHeight;
-// PF2 (fondo) tiene el doble de alto: se scrollea sin envolver (el wrap del corkscrew necesita
-// split por campo, fuera de esta demo).
-constexpr u16 kField2Height = 512u;
-constexpr u32 kField2Bytes = static_cast<u32>(kBytesPerRow) * kFieldPlanes * kField2Height;
+constexpr u16 kScreenBytesPerRow = kWidth / 8u; // 40 (lo que fetcha el display)
+constexpr u8 kFieldPlanes = 3u;                 // cada campo: 3 planos (DPF 3+3)
+// XLimited: el bitmap es mas ancho que la pantalla (margen de scroll X). El puntero se mueve por
+// `planeaddx`; no hace falta split (el fetch lineal lee dentro de la fila).
+constexpr u16 kPitch = 80u;                                   // bitmap_bytes_per_row (320 + 320 px)
+constexpr u32 kFieldBytes = static_cast<u32>(kPitch) * kFieldPlanes * kHeight;
+constexpr u16 kScrollBytes = kPitch - kScreenBytesPerRow;     // 40 B = 320 px de recorrido X
 constexpr u16 kBandBottom = 208u;
 
 constexpr u16 kBobPadded = 32u;
@@ -90,20 +90,20 @@ struct DpfTwoBitmapsDemo {
 			return;
 		}
 		m_pf1 = backend.memory().chip.allocate_block<eng::PlaneTag>(kFieldBytes, 16u);
-		m_pf2 = backend.memory().chip.allocate_block<eng::PlaneTag>(kField2Bytes, 16u);
+		m_pf2 = backend.memory().chip.allocate_block<eng::PlaneTag>(kFieldBytes, 16u);
 		m_sheet = backend.memory().chip.allocate_block<eng::BobTag>(kBobSheetBytes, 16u);
 		m_copper = backend.memory().chip.allocate_block<eng::CopperTag>(kLists * kCopperWords, 16u);
 		if (!m_pf1.valid() || !m_pf2.valid() || !m_sheet.valid() || !m_copper.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012702u);
 			return;
 		}
-		build_field(m_pf1.view.data(), 0u, kHeight);        // PF1 = vacio de origen
-		build_field(m_pf2.view.data(), 0x55u, kField2Height); // PF2 = rayas
+		build_field(m_pf1.view.data(), 0u);   // PF1 = vacio de origen (solo BOBs)
+		build_field(m_pf2.view.data(), 0x55u); // PF2 = rayas
 		build_sheet();
 
 		// Superficies de los dos campos: la composicion las intercala en el DPF.
-		configure_view(m_v1, m_pf1.view.data(), kHeight);
-		configure_view(m_v2, m_pf2.view.data(), kField2Height);
+		configure_view(m_v1, m_pf1.view.data());
+		configure_view(m_v2, m_pf2.view.data());
 
 		// BOB con padding (copia = dibuja y limpia en un blit) en PF1.
 		eng::graphics::Bob bob {};
@@ -134,9 +134,16 @@ struct DpfTwoBitmapsDemo {
 		}
 		const u32 f = context.frame.frame_index;
 
-		// "Driver de scroll": solo actualiza el offset vertical del fondo y la composicion
-		// reconstruye la banda; el juego no calcula punteros.
-		m_v2.planeaddy = (f * (kFieldPlanes * kBytesPerRow)) % (kHeight * kFieldPlanes * kBytesPerRow);
+		// "Driver XLimited": scroll X de 1 px por frame con **fine + coarse** (la forma canonica:
+		// `planeaddx` coarse cada 16 px + `BPLCON1` fino), en sentidos opuestos (parallax). Como el
+		// BOB se dibuja a 1 px/frame, el padding (8 px) limpia sin estela.
+		const u32 px_range = static_cast<u32>(kScrollBytes) * 8u; // 320 px de recorrido
+		const u32 x1 = static_cast<u32>(tri(f, 2u * px_range));   // 0..px_range-1
+		const u32 x2 = px_range - 1u - x1;                        // sentido opuesto
+		m_v1.planeaddx = (x1 / 16u) * 2u; // coarse en bytes
+		m_v1.bplcon1 = static_cast<u16>(15u - (x1 & 15u));
+		m_v2.planeaddx = (x2 / 16u) * 2u;
+		m_v2.bplcon1 = static_cast<u16>(15u - (x2 & 15u));
 		if (!build_display(m_active)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012704u);
 			return;
@@ -144,13 +151,14 @@ struct DpfTwoBitmapsDemo {
 		backend.install_copper_list(m_copper_ptrs[m_active]);
 		m_active = static_cast<u8>((m_active + 1u) % kLists);
 
-		// BOB sobre PF1 (estatico): la capa decide y el backend ejecuta el plan.
+		// BOB sobre PF1: `bob_target()` incluye el offset de scroll, asi que queda fijo en pantalla;
+		// la capa decide y el backend ejecuta el plan.
 		m_bobs[0] = {static_cast<s16>(16 + tri(f, 192u)), static_cast<s16>(32 + tri(f * 2u, 128u)),
 			     0u, true};
 		m_bobs[1] = {static_cast<s16>(176 + tri(f * 3u, 128u)),
 			     static_cast<s16>(128 + tri(f, 96u)), 0u, true};
 		m_plan.clear();
-		(void)m_bobs.emit(m_plan, m_band.bob_target());
+		(void)m_bobs.emit(m_plan, m_band.bob_target(), m_band.bob_fine_scroll());
 		(void)backend.execute_frame_plan(m_plan);
 	}
 
@@ -159,29 +167,31 @@ struct DpfTwoBitmapsDemo {
 	}
 
 private:
-	static void configure_view(eng::field::PlayfieldHardwareView& v, u8* base, u16 bitmap_h) {
+	static void configure_view(eng::field::PlayfieldHardwareView& v, u8* base) {
 		v.planes = kFieldPlanes;
-		v.bitmap_bytes_per_row = kBytesPerRow;
-		v.bitmap_height = bitmap_h;
+		v.bitmap_bytes_per_row = kPitch;
+		v.bitmap_height = kHeight;
 		v.viewport_w = kWidth;
 		v.viewport_h = kHeight;
 		v.display_height = kHeight;
-		v.plane_bytes = static_cast<u32>(kBytesPerRow) * kFieldPlanes * bitmap_h;
+		v.plane_bytes = kFieldBytes;
 		v.real_base = eng::Address<eng::MemoryKind::Chip>::from_storage(base);
-		v.bpl1mod = static_cast<u16>(kBytesPerRow * (kFieldPlanes - 1u)); // 80 (interleave)
+		// XLimited: módulo = pitch*planos − bytes que fetcha el display (así tras leer una fila de
+		// un plano, el DMA salta a la fila siguiente del MISMO plano).
+		v.bpl1mod = static_cast<u16>(static_cast<u32>(kPitch) * kFieldPlanes - kScreenBytesPerRow);
 		v.bpl2mod = v.bpl1mod;
 	}
 
-	static void build_field(u8* data, u8 pattern, u16 rows) {
-		for (u32 i = 0u; i < static_cast<u32>(kBytesPerRow) * kFieldPlanes * rows; ++i) {
+	static void build_field(u8* data, u8 pattern) {
+		for (u32 i = 0u; i < kFieldBytes; ++i) {
 			data[i] = 0u;
 		}
 		if (pattern == 0u) {
 			return;
 		}
-		for (u16 y = 0u; y < rows; ++y) {
-			u8* row = data + static_cast<u32>(y) * (kBytesPerRow * kFieldPlanes);
-			for (u16 b = 0u; b < kBytesPerRow; ++b) {
+		for (u16 y = 0u; y < kHeight; ++y) {
+			u8* row = data + static_cast<u32>(y) * (kPitch * kFieldPlanes);
+			for (u16 b = 0u; b < kPitch; ++b) {
 				row[b] = ((b + (y >> 2u)) & 1u) ? pattern : static_cast<u8>(pattern ^ 0xffu);
 			}
 		}
@@ -209,7 +219,7 @@ private:
 		}
 	}
 
-	/// Reconstruye la banda desde las superficies (el driver solo movio sus offsets) y la
+	/// Reconstruye la banda desde las superficies (el driver solo movio sus offsets X) y la
 	/// materializa en la copperlist `list`.
 	bool build_display(u8 list) {
 		m_band = eng::scene::band_from_dual_view(m_v1, m_v2, 0u);
