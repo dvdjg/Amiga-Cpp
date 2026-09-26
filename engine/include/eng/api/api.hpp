@@ -16,6 +16,7 @@
 /// Ver `docs/engine/architecture/ENGINE_STRUCTURE_REVIEW.md` para el estado de la
 /// consolidación de la API pública.
 
+#include <eng/api/copper.hpp>
 #include <eng/api/game.hpp>
 #include <eng/core/types/box.hpp>
 #include <eng/core/types/domains.hpp>

@@ -9,6 +9,7 @@
 /// juego simple puede **ignorar** `device()` por completo. Ver
 /// `docs/engine/architecture/ROADMAP_API_COHERENCE.md` (F2) y `PUBLIC_GAME_API.md` §5/12.
 
+#include <eng/api/copper.hpp>
 #include <eng/core/types/domains.hpp>
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/span.hpp>
@@ -175,6 +176,10 @@ public:
 	[[nodiscard]] copper::Plan& copper() noexcept { return m_scene.get()->plan(); }
 	[[nodiscard]] copper::Scheduler& copper_scheduler() noexcept {
 		return m_scene.get()->scheduler();
+	}
+	/// **Fachada de Copper** de alto nivel (por intención) sobre el scheduler de la escena.
+	[[nodiscard]] Copper copper_builder() noexcept {
+		return Copper {m_scene.get()->scheduler()};
 	}
 
 private:
