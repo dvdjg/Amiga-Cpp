@@ -27,6 +27,7 @@
 #include <eng/field/raster.hpp>
 #include <eng/field/surface.hpp>
 #include <eng/graphics/blitter_state.hpp>
+#include <eng/graphics/chr.hpp>
 #include <eng/graphics/font_italic.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/glyph_cache.hpp>

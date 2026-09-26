@@ -41,3 +41,4 @@ Categoría `graphics` de la batería host (L1). El índice de categorías está 
 | HOST-267 | [fine_scroll](267_fine_scroll/README.md) | `eng::effects::FineScroll`: scroll horizontal fino de una capa planar (1 px/frame) — `step`/`bplcon1`/columna y `BlitJob` de desplazamiento + columna entrante. |
 | HOST-323 | [palette](323_palette/README.md) | `eng/graphics/palette.hpp`: paleta de juego (`Palette`/`Color`/`ColorIndex`) — `set`/`get`/`fill`/`fade`/`mix` (`constexpr`), índice recortado a 0..31 y parche base al `FramePlan`. |
 | HOST-324 | [sprite](324_sprite/README.md) | `eng/graphics/sprite_asset.hpp`: sprite de juego (`Sprite` sobre `graphics::bob`) — geometría, `draw`/`erase` y los `BlitJob`s (planar cookie-cut/OR, interleaved OR, borrado y rechazos). |
+| HOST-338 | [chr](338_chr/README.md) | `eng/graphics/chr.hpp`: decode **2bpp → planar** (`chr_to_planar`) — helper para `IPatternCache`/sprite de consumidores externos. |

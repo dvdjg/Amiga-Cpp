@@ -204,3 +204,68 @@ gate; ninguna fase rompe una demo verde sin migrarla en la misma pasada.
 - Modelo retenido y recursos: [SCENE_AND_RESOURCES.md](SCENE_AND_RESOURCES.md).
 - Consolidación y decisiones: [ENGINE_STRUCTURE_REVIEW.md](ENGINE_STRUCTURE_REVIEW.md).
 - Estilo y restricciones: [CODING_STYLE.md](CODING_STYLE.md).
+
+## 7. Adaptaciones para consumidores externos (emulador NES)
+
+Un consumidor externo (p. ej. el emulador NES → Amiga 500, `RetroReverse`) define sus propias
+interfaces `I*` (vocabulario **suyo**: `IChipMem`, `IBlitter`, `IScrollingLayer`, `ICopper`,
+`ISpriteEngine`, …). Regla: **las `I*` son externas**; el engine **no** las adopta. El engine da
+su **API de dominio** + unos *helpers generales*, y el consumidor escribe un **adaptador fino**.
+Las `I*` deben ser **implementables o, al menos, equivalentes** con lo que el engine ofrece.
+
+### 7.1 Principio
+
+> «La app pide; el engine dispone.» El consumidor expresa **intención** (mover el fondo, cambiar un
+> color en una línea, colocar N sprites); el engine decide el *cómo* y **mantiene la propiedad de
+> los recursos** (`Scene`/`World` poseen bitplanes/capas; `res` posee los assets). El adaptador solo
+> traduce intención externa → API del engine (no toca planos, Copper ni Blitter).
+
+### 7.2 Sobre `IChipMem`
+
+No hace falta exponer un asignador crudo: si el consumidor necesita **un recurso concreto**
+(buffer de audio, superficie de dibujo, nametable), el engine **se lo entrega como objeto** de su
+sistema (`Scene`/`Layer`/`AudioSystem`), y la *cuota* se consulta con `res::Budget`
+(`remaining_chip`/`can_fit`). El `alloc/free` por bloque de `IChipMem` no encaja con la arena *bump*
+del engine; si de verdad hace falta memoria **reutilizable** (nametables/CHR que cambian), se añade
+`res::ChipPool` (bloques fijos con `free`, sobre `core/util/pool.hpp`) — **general**, útil a
+cualquier juego/streaming.
+
+### 7.3 Fase F7 — helpers generales (no específicos de NES)
+
+Todo lo de abajo es **reutilizable** por cualquier juego/emulador; el adaptador NES se apoya en
+ello. Ordenados por dependencia:
+
+1. **`chr_to_planar`** (`eng::graphics`): decode 2bpp (y variantes) → planar; cubre
+   `IPatternCache::define` y `ISpriteEngine::define`. Gate HOST.
+2. **Tile layer de juego**: `set_tile`/`set_attribute`/`flush(dirty)` sobre `TileLayer` +
+   `TileScrollDriver`; cubre `IScrollingLayer`. Gate en 100/052.
+3. **Drivers de scroll por `ScrollKind`**: `XLimited` (existe) + `XYUnlimited`/`CopperSplit` y
+   `BlitterColumns` (robocod), con `region_cost` reservando bandas en `copper::Plan`. Gate: demo de
+   scroll 8-way.
+4. **Fachada de Copper** en `Device`/`Screen` (`begin`/`wait_line`/`set_color`/`set_scroll`/
+   `split`/`commit`/`free_words`): cubre `ICopper`; hoy `copper::Plan`/`Scheduler` es de bajo nivel
+   (F4d).
+5. **Voz Paula** (`set_period`/volumen) en `eng::audio`: cubre `IAudio::set_period` (chiptune/APU)
+   además del mixer.
+6. **`res::ChipPool`** (bloques fijos con `free`) + `res::Budget`: cubre `IChipMem` reutilizable.
+7. **`SpriteEngine` a alto nivel** (`begin_frame`/`place`/`draw_bobs`/`add_to_copper`) sobre
+   `ActorStore`+`SpriteAllocator` (ya existe ~80%): cubre `ISpriteEngine` con semántica NES
+   (8 sprites/línea, overflow → descartar).
+
+Adaptadores triviales (ya cubiertos por el engine): `IBlitter`→`Device`/`FramePlan`;
+`IPalette`→`Palette`/`FramePlan`; `IInput`→`App::input()`; `IDisplay`→`c2p`+`present`; `ISurface`→
+`gfx::Bitmap`.
+
+### 7.4 XYUnlimited y DPF para el caso NES
+
+El NES necesita scroll **en ambos ejes** con wrap: se implementa con `ScrollKind::CopperSplit`
+(*xyunlimited*, split por línea) — una **por banda** (coste Copper) — no con `XLimited`
+(solo útil en horizontal). El BG NES se materializa como `Layer{Tilemap, CopperSplit, Pf2}` en un
+`SceneMode::DualPlayfield`, con `WorldRegion` para la status bar (banda superior). La capa **pide**;
+el planner (F4c) **dispone/degrada**.
+
+### 7.5 Gate
+
+El propio **emulador NES** (DPF + BG `XYUnlimited` + sprites por `ActorStore` + audio Paula) como
+consumidor de referencia: si las `I*` se implementan sin tocar planos/Copper/Blitter, la frontera
+es correcta.
