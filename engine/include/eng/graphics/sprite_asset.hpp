@@ -27,9 +27,11 @@
 /// `Scene::bob_target()`), no el juego. Ver
 /// `docs/reference/amiga/techniques/interleaved-bob-single-blit.md`.
 
+#include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/bob.hpp>
 #include <eng/graphics/frame_plan.hpp>
+#include <eng/graphics/raster_intent.hpp>
 
 namespace eng::graphics {
 
@@ -37,8 +39,10 @@ namespace eng::graphics {
 class Sprite {
 public:
 	constexpr Sprite() = default;
-	/// Envuelve un `Bob` ya descrito (la misma hoja y política).
-	explicit constexpr Sprite(const Bob& b) noexcept : m_bob(b) {}
+	/// Envuelve un `Bob` ya descrito. `sheet_bytes`/`mask_bytes` son el tamaño de la hoja y la
+	/// máscara (0 = desconocido); se necesitan para exponer la **vista de dominio** `visual()`.
+	explicit constexpr Sprite(const Bob& b, u32 sheet_bytes = 0u, u32 mask_bytes = 0u) noexcept
+		: m_bob(b), m_sheet_bytes(sheet_bytes), m_mask_bytes(mask_bytes) {}
 
 	[[nodiscard]] constexpr u16 width() const noexcept { return m_bob.width; }
 	[[nodiscard]] constexpr u16 height() const noexcept { return m_bob.height; }
@@ -46,6 +50,8 @@ public:
 	[[nodiscard]] constexpr u8 frames() const noexcept { return m_bob.frame_count; }
 	[[nodiscard]] constexpr BobLayout layout() const noexcept { return m_bob.layout; }
 	[[nodiscard]] constexpr BobDraw draw_mode() const noexcept { return m_bob.draw; }
+	[[nodiscard]] constexpr u32 sheet_bytes() const noexcept { return m_sheet_bytes; }
+	[[nodiscard]] constexpr u32 mask_bytes() const noexcept { return m_mask_bytes; }
 	/// `true` si tiene hoja y geometría mínima (ancho/alto/planos != 0).
 	[[nodiscard]] constexpr bool valid() const noexcept {
 		return m_bob.sheet != nullptr && m_bob.width != 0u && m_bob.height != 0u &&
@@ -55,6 +61,25 @@ public:
 	/// El `Bob` subyacente (para APIs que aún piden el tipo de bajo nivel).
 	[[nodiscard]] constexpr const Bob& bob() const noexcept { return m_bob; }
 	[[nodiscard]] constexpr Bob& bob() noexcept { return m_bob; }
+
+	/// **Vista de dominio** (`Visual`) equivalente, para el camino de actores/planner (un único
+	/// descriptor de objeto). El campo `pixels` queda vacío si no se declaró `sheet_bytes`.
+	[[nodiscard]] Visual visual() const noexcept {
+		Visual v {};
+		v.kind = VisualKind::Bob;
+		v.pixels = eng::Span<const u16> {reinterpret_cast<const u16*>(m_bob.sheet),
+						 m_sheet_bytes / 2u};
+		v.mask = (m_bob.mask != nullptr)
+				 ? eng::Span<const u16> {reinterpret_cast<const u16*>(m_bob.mask),
+							 m_mask_bytes / 2u}
+				 : eng::Span<const u16> {};
+		v.w = m_bob.width;
+		v.h = m_bob.height;
+		v.bitplanes = m_bob.planes;
+		v.frame_count = m_bob.frame_count;
+		v.frame_stride = m_bob.frame_stride;
+		return v;
+	}
 
 	/// Dibuja el frame `frame` en `(x, y)`. Añade el/los `BlitJob(s)` al plan.
 	/// `false` si el sprite es inválido, el frame está fuera de rango, o el cookie-cut
@@ -72,6 +97,8 @@ public:
 
 private:
 	Bob m_bob {};
+	u32 m_sheet_bytes = 0u;
+	u32 m_mask_bytes = 0u;
 };
 
 } // namespace eng::graphics

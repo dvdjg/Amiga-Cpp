@@ -50,6 +50,8 @@ struct Visual {
     u16 w = 0;
     u16 h = 0;
     u8  bitplanes = 0;
+    u8  frame_count = 1;        // frames en la hoja (1 = imagen suelta)
+    u32 frame_stride = 0;       // bytes entre frames (0 = denso/una sola imagen)
     u16 offset_x = 0;           // shift de blit (X no alineada a 16 px)
     u16 palette_base = 16;      // COLORxx base (sprites usan COLOR16+)
 };

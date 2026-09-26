@@ -97,29 +97,12 @@ struct AppSpriteDemo {
 		m_bob.layout = graphics::BobLayout::Planar;
 		m_bob.draw = graphics::BobDraw::CookieCut;
 		m_bob.erase = graphics::BobErase::None; // se repinta el fondo entero cada frame
-		m_sprite = graphics::Sprite {m_bob};
+		m_sprite = graphics::Sprite {m_bob, kObjData, kObjMask};
 
-		// Segundo objeto por el **mundo retenido**: un actor BOB (el engine elige la
-		// representación; aquí BOB) que `app.draw_world()` emite al plan.
+		// Segundo objeto por el **mundo retenido**: el engine elige la representación (aquí
+		// BOB). Usa el **mismo descriptor** que `screen.sprite` (`actor_desc_from_sprite`).
 		app.world().reset_actors(0, 60000u, 0u);
-		eng::scene::ActorDesc ad {};
-		ad.visual.kind = graphics::VisualKind::Bob;
-		ad.visual.pixels = eng::Span<const eng::u16> {
-			reinterpret_cast<const eng::u16*>(m_sheet.view.data()),
-			static_cast<eng::usize>(kObjData / 2u)};
-		ad.visual.mask = eng::Span<const eng::u16> {
-			reinterpret_cast<const eng::u16*>(m_sheet.view.data() + kObjData),
-			static_cast<eng::usize>(kObjMask / 2u)};
-		ad.visual.w = kObjW;
-		ad.visual.h = kObjH;
-		ad.visual.bitplanes = kObjPlanes;
-		ad.layout = graphics::BobLayout::Planar;
-		ad.transparency = eng::scene::TransparencyMode::Mask1Bit;
-		ad.background = eng::scene::BackgroundPolicy::None;
-		ad.surface = 0u;
-		ad.z = 10u;
-		ad.preferred = eng::scene::Representation::Bob;
-		m_actor = app.world().add_actor(ad);
+		m_actor = app.world().add_actor(eng::scene::actor_desc_from_sprite(m_sprite, 0, 0, 10u));
 		if (!m_actor.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021405u);
 			return;
