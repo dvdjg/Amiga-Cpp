@@ -148,6 +148,17 @@ void test_invisible_skipped() {
 	check(plan.blit_job_count() == 1u, "un solo job");
 }
 
+void test_fine_scroll() {
+	eng::scene::FastBobLayer l = make_layer();
+	l.resize(1u);
+	l[0] = {64, 32, 0u, true};
+	eng::graphics::FramePlan plan {};
+	plan.clear();
+	(void)l.emit(plan, target(), 3u); // compensa 3 px de fine scroll
+	// Dibuja en (x - pad - fine) = 64 - 8 - 3 = 53 -> word 48, shift 5.
+	check(plan.blit_job(0).source_shift == 5u, "fine scroll -> shift compensado");
+}
+
 } // namespace
 
 int main() {
@@ -156,6 +167,7 @@ int main() {
 	test_degrade_by_move();
 	test_degrade_by_overlap();
 	test_invisible_skipped();
+	test_fine_scroll();
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;

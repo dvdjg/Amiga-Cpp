@@ -41,11 +41,13 @@ int main() {
 	eng::MemoryBlock copper_block {copper, sizeof(copper), eng::MemoryKind::Chip};
 	eng::copper::SchedulerT<false> sched {copper_block};
 
-	eng::scene::DisplayDesc d {};
-	d.planes = 2u;
-	d.bytes_per_row = 4u;
-	d.planes_view = planes_blk.mem_view();
-	eng::scene::emit_display(sched, d);
+	eng::scene::Band band {};
+	band.planes = 2u;
+	band.bytes_per_row = 4u;
+	band.planes_view = planes_blk.mem_view();
+	band.bpl1mod = band.modulo();
+	band.bpl2mod = band.modulo();
+	eng::scene::emit_display(sched, band);
 	const auto scroll = eng::scene::emit_fine_scroll(sched, 0u);
 	eng::scene::emit_gradient(sched, 0x41u, 0x43u, 0x0111u);
 	sched.end();

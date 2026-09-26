@@ -45,13 +45,17 @@ public:
 	[[nodiscard]] BobActor& operator[](eng::u8 i) noexcept { return m_actors[i]; }
 	[[nodiscard]] const BobActor& operator[](eng::u8 i) const noexcept { return m_actors[i]; }
 
-	/// Dibuja los actores **visibles** en `target`; devuelve cuántos se dibujaron.
+	/// Dibuja los actores **visibles** en `target`; devuelve cuántos se dibujaron. `fine_scroll`
+	/// (px) compensa el fine scroll del campo (`Band::bob_fine_scroll()`): el campo desplaza todo
+	/// el playfield, así que el objeto se dibuja a `x - fine_scroll` para no "temblar".
 	[[nodiscard]] eng::u16 emit(eng::graphics::FramePlan& plan,
-				    const eng::graphics::BobTarget& target) const {
+				    const eng::graphics::BobTarget& target,
+				    eng::u8 fine_scroll = 0u) const {
 		eng::u16 drawn = 0u;
 		for (eng::u8 i = 0u; i < m_count; ++i) {
 			const BobActor& a = m_actors[i];
-			if (a.visible && m_sheet.draw(plan, target, a.frame, a.x, a.y)) {
+			const eng::s16 dx = a.x - fine_scroll; // compensa el fine scroll del campo
+			if (a.visible && m_sheet.draw(plan, target, a.frame, dx, a.y)) {
 				++drawn;
 			}
 		}
@@ -184,8 +188,10 @@ public:
 	[[nodiscard]] const BobActor& operator[](eng::u8 i) const noexcept { return m_actors[i]; }
 
 	/// Dibuja y limpia según la política de Fast BOBs; devuelve cuántos actores se pintaron.
+	/// `fine_scroll` (px) compensa el fine scroll del campo (`Band::bob_fine_scroll()`).
 	[[nodiscard]] eng::u16 emit(eng::graphics::FramePlan& plan,
-				    const eng::graphics::BobTarget& target) {
+				    const eng::graphics::BobTarget& target,
+				    eng::u8 fine_scroll = 0u) {
 		using fast_bob_detail::PRect;
 		using fast_bob_detail::overlaps;
 		using fast_bob_detail::unite;
@@ -204,8 +210,9 @@ public:
 			if (!live[i]) {
 				continue;
 			}
-			fast[i] = PRect {static_cast<eng::s16>(a.x - px),
-					 static_cast<eng::s16>(a.y - py), w, h};
+			const eng::s16 fx = a.x - fine_scroll - px;
+			const eng::s16 fy = a.y - py;
+			fast[i] = PRect {fx, fy, w, h};
 			// Área que el actor toca: lo que pintó antes y lo que pintará ahora.
 			span[i] = unite(fast[i], m_painted[i]);
 		}
@@ -248,8 +255,9 @@ public:
 			const BobActor& a = m_actors[i];
 			bool ok = false;
 			if (slow[i]) {
-				ok = m_cookie.draw(plan, target, a.frame, a.x, a.y);
-				m_painted[i] = PRect {a.x, a.y, m_cookie.width(), m_cookie.height()};
+				const eng::s16 fx = a.x - fine_scroll;
+				ok = m_cookie.draw(plan, target, a.frame, fx, a.y);
+				m_painted[i] = PRect {fx, a.y, m_cookie.width(), m_cookie.height()};
 			} else {
 				ok = m_sheet.draw(plan, target, a.frame, fast[i].x, fast[i].y);
 				m_painted[i] = fast[i];

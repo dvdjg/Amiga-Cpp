@@ -280,15 +280,17 @@ private:
 		m_sched.retarget(m_copper);
 		// Display declarativo (Capa 3): DMACON/BPLCONx/módulos interleaved/DIW-DDF/BPLxPT,
 		// sin nombrar registros ni calcular direcciones a mano.
-		eng::scene::DisplayDesc d {};
-		d.bplcon0 = 0x5200u;                              // 5 planos + COLOR
-		d.bplcon2 = static_cast<eng::u16>(1u << 6u);      // prioridad de playfield
-		d.planes = kPlanes;
-		d.bytes_per_row = kBytesPerRow;
-		d.planes_view = m_image.mem_view_chip();          // base Chip (DMA)
-		eng::scene::emit_display(m_sched, d);
+		eng::scene::Band band {};
+		band.planes = kPlanes;
+		band.bytes_per_row = kBytesPerRow;
+		band.bplcon2 = static_cast<eng::u16>(1u << 6u);      // prioridad de playfield
+		band.planes_view = m_image.mem_view_chip();          // base Chip (DMA)
+		band.bpl1mod = band.modulo();
+		band.bpl2mod = band.modulo();
+		band.palette = eng::PaletteWords {g_abyss_pal, 32u};
+		band.palette_colors = 32u;
+		eng::scene::emit_display(m_sched, band);
 		m_scroll = eng::scene::emit_fine_scroll(m_sched, 0x0000u); // BPLCON1 parcheable
-		eng::scene::emit_palette(m_sched, g_abyss_pal, 32u);
 		eng::scene::emit_gradient(m_sched, 0x41u, 0x4fu, 0x0111u); // COLOR00 0x41..0x4f
 		m_sched.end();
 		m_copper_words = m_sched.data();

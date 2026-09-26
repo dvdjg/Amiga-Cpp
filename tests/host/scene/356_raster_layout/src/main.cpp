@@ -284,40 +284,51 @@ int main() {
 		check(bpl1 == 2u, "split en tramo: punteros reemitidos");
 	}
 
-	// La cabecera es la MISMA pieza para el display y para el campo (fuente única).
+	// El display de una banda sale por la cabecera compartida (fuente única).
 	{
-		eng::scene::DisplayDesc d {};
-		d.bplcon0 = 0x5200u;
-		d.bplcon1 = 0x0003u;
-		d.bplcon2 = 0x0011u;
-		d.planes = 3u;
-		d.bytes_per_row = 48u;
+		eng::scene::Band band {};
+		band.planes = 3u;
+		band.bytes_per_row = 48u;
+		band.bpl1mod = band.modulo();
+		band.bpl2mod = band.modulo();
+		band.bplcon1 = 0x0003u;
+		band.bplcon2 = 0x0011u;
 		eng::u16 a[128] {};
-		eng::u16 b[128] {};
 		eng::MemoryBlock ca {a, sizeof(a), eng::MemoryKind::Chip};
-		eng::MemoryBlock cb {b, sizeof(b), eng::MemoryKind::Chip};
 		eng::copper::SchedulerT<false> sa {ca};
-		eng::copper::SchedulerT<false> sb {cb};
-		eng::scene::emit_display(sa, d, false); // solo cabecera
-		eng::field::FieldHeaderConfig h {};
-		h.dmacon = d.dmacon;
-		h.bplcon0 = d.bplcon0;
-		h.bplcon1 = d.bplcon1;
-		h.bplcon2 = d.bplcon2;
-		h.bpl1mod = static_cast<eng::u16>(d.bytes_per_row * (d.planes - 1u));
-		h.bpl2mod = h.bpl1mod;
-		h.diwstrt = d.diwstrt;
-		h.diwstop = d.diwstop;
-		h.ddfstrt = d.ddfstrt;
-		h.ddfstop = d.ddfstop;
-		eng::field::emit_field_display_header(sb, h);
+		eng::scene::emit_display(sa, band);
 		sa.end();
-		sb.end();
-		bool same = (sa.words_used() == sb.words_used());
-		for (eng::u32 i = 0u; same && i < sa.words_used(); ++i) {
-			same = (a[i] == b[i]);
+		eng::u16 bplcon0 = 0xffffu;
+		for (eng::u32 i = 0u; i + 1u < sa.words_used(); ++i) {
+			if (a[i] == 0x0100u) {
+				bplcon0 = a[i + 1u];
+				break;
+			}
 		}
-		check(same, "cabecera unica: display == campo");
+		check(bplcon0 == 0x3200u, "emit_display (Band) -> 3 planos + COLOR");
+	}
+
+	// Split por campo (dual playfield): cada field vuelve a su fila 0 en su propio offset.
+	{
+		eng::field::PlayfieldHardwareView pf1 {};
+		pf1.planes = 3u;
+		pf1.bitmap_bytes_per_row = 48u;
+		pf1.real_base = planes.mem_view().address(0);
+		pf1.plane_bytes = 3u * 48u * 256u;
+		pf1.split_active = true;
+		pf1.split_line = 100u;
+		pf1.split_planeaddy = 0u;
+		eng::field::PlayfieldHardwareView pf2 {};
+		pf2.planes = 3u;
+		pf2.bitmap_bytes_per_row = 48u;
+		pf2.real_base = planes.mem_view().address(0) + 240;
+		pf2.plane_bytes = 3u * 48u * 256u;
+		pf2.split_active = true;
+		pf2.split_line = 100u;
+		pf2.split_planeaddy = 48u * 3u;
+		const eng::scene::Band b = eng::scene::band_from_dual_view(pf1, pf2, 0u);
+		check(b.split_active && b.split_base_off == 0 && b.split_base_off_b == 144,
+		      "split por campo (PF1/PF2 distinto offset)");
 	}
 
 	// El fine scroll de PF1 se expone para compensar la posicion del BOB.
