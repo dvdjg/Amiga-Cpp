@@ -160,8 +160,13 @@ private:
         return true;
     }
 
-    bool emit_full(const PlayfieldHardwareView& view, eng::Ref<const OverlayZone> hud = {}) {
-        copper::SchedulerT<false> sched { m_copper.inactive_block() };
+    /// **Cabecera de composición** (geometría estática del campo): DMACON/BPLCONx/BPLxMOD/DIW/DDF
+    /// + paleta. Es el corte §4/§5 de `PLAYFIELD_SCROLL_ARCHITECTURE.md`: la composición posee la
+    /// geometría del tramo; el driver de scroll aporta solo los cambios por frame (los punteros de
+    /// `emit_full`). Extraída para que una composición por bandas (`scene::RasterLayout`) pueda
+    /// reutilizarla en vez de reescribir el display.
+    template <class Sched>
+    void emit_display_header(Sched& sched, const PlayfieldHardwareView& view) const {
         const u16 bplcon0 = static_cast<u16>(
             0x0200u | (static_cast<u16>(view.planes) << 12u));
         sched.move(copper::Register::DMACON,
@@ -185,6 +190,11 @@ private:
         // Paleta primero: si el split está en una línea alta, los MOVEs de color
         // deben aplicar al inicio del frame y no tras el WAIT del split.
         sched.emit_palette(m_cfg.palette);
+    }
+
+    bool emit_full(const PlayfieldHardwareView& view, eng::Ref<const OverlayZone> hud = {}) {
+        copper::SchedulerT<false> sched { m_copper.inactive_block() };
+        emit_display_header(sched, view);
         for (u8 p = 0; p < view.planes; ++p) {
             // soft DPF: el plano de fondo se lee de su propio buffer (doble buffer).
             const Address<MemoryKind::Chip> base =
