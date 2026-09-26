@@ -59,7 +59,7 @@ int main() {
 	m.payload.file.result = 512;
 	check(assets.on_msg(m), "on_msg");
 
-	const eng::MusicModule mod = assets.bytes<eng::MusicTag>(id);
+	const eng::MusicBytes mod = assets.bytes<eng::MusicTag>(id);
 	check(mod.size() == 512u, "vista con el tamano cargado");
 	check(mod.data() != nullptr, "vista con datos");
 	check(reinterpret_cast<eng::uintptr>(mod.data()) % 4u == 0u, "vista alineada a 4 (musica)");

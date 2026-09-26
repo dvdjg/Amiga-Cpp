@@ -144,7 +144,9 @@ int main() {
 	check(ksurf.blit_masked(plan2, Span<const u16> {src, 64}, Span<const u16> {mask, 16},
 				0, 8, 32, 4, 4, 16, 4),
 	      "Surface::blit_masked (Blitter) encola");
-	check(plan2.blit_job_count() == 4u, "blit enmascarado contiguo = 1 job por plano");
+	// El camino enmascarado contiguo usa UN job multi-plano (`BlitJob::bitplane_count = planes`),
+	// no uno por plano (el ejecutor recorre los planos dentro del job).
+	check(plan2.blit_job_count() == 1u, "blit enmascarado contiguo = 1 job multi-plano");
 
 	// Blit por **CPU** (CpuRaster): copia los pixeles sin encolar jobs.
 	s3.set_raster(&field::kCpuRaster);
