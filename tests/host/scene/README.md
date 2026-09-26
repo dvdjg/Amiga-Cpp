@@ -13,4 +13,4 @@ Categoría `scene` de la batería host (L1). El índice de categorías está en 
 | HOST-329 | [world_actors](329_world_actors/README.md) | `eng/scene/world.hpp` (actores): `reset_actors`/`add_actor` con representación elegida, acceso por `ActorId` y `emit` al `FramePlan` (jobs de BOB). |
 | HOST-335 | [sprite_actor](335_sprite_actor/README.md) | Descriptor único de objeto: `Sprite`↔`Visual`/`ActorDesc` (`actor_desc_from_sprite`); `Sprite` declara `sheet_bytes`/`mask_bytes` y `Visual` transporta frames. |
 | HOST-336 | [world_layers](336_world_layers/README.md) | `eng/scene/world.hpp`: contenido de capa (actores vs **tilemap** vía `TileLayer`), `add_tile_layer`/`kind`/`is_tilemap` (F4b). |
-| HOST-337 | [layer_plan](337_layer_plan/README.md) | `eng/scene/world.hpp`: capa declarativa (`LayerScroll`/`LayerPlayfield`) y regiones (`WorldRegion`, `add_region`) — «la capa pide, el planner dispone» (F4c-modelo). |
+| HOST-337 | [layer_plan](337_layer_plan/README.md) | `eng/scene/world.hpp`: regiones con **técnica genérica** (modo `SceneMode` × scroll `ScrollKind` + `region_cost`) y capa declarativa; «la capa pide, el planner dispone» (F4c-modelo). |

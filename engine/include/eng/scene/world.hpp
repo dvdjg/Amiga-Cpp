@@ -34,13 +34,14 @@ enum class WorldLayerKind : u8 {
 	Tilemap, ///< capa de tiles (contenido en `TileLayer`)
 };
 
-/// **Algoritmo de scroll pedido por una capa**. La capa lo **pide**; el planner lo acepta,
-/// degrada o rechaza según el presupuesto de Copper/planos (ver `OBJECT_SYSTEM.md` §15).
-enum class LayerScroll : u8 {
-	Static,      ///< sin scroll (Copper mínimo)
-	Fine,        ///< `BPLCON1` (delay fino, barato en Copper)
-	XLimited,    ///< desplazamiento por `BPLxPT`/módulo (bitmap ring)
-	XYUnlimited, ///< ring + split por línea (caro en Copper; una por banda)
+/// **Técnica de scroll** de una región/capa (desplazamiento, independiente del modo de display).
+/// La capa lo **pide**; el planner lo acepta, degrada o rechaza según su coste (ver `region_cost`).
+enum class ScrollKind : u8 {
+	None,            ///< sin scroll
+	Fine,            ///< `BPLCON1` (delay fino); coste Copper mínimo
+	BlitterColumns,  ///< columnas nuevas por Blitter (robocod) + fino por `BPLCON1`
+	CopperRing,      ///< `BPLxPT`/módulo (xlimited): bitmap ring, sin split por línea
+	CopperSplit,     ///< split por línea (xyunlimited): una por banda (caro en Copper)
 };
 
 /// **Playfield preferido** de una capa (el planner decide la materialización final).
@@ -51,15 +52,42 @@ enum class LayerPlayfield : u8 {
 	SpriteLayer, ///< capa de sprites hardware (fondo sprite-as-playfield)
 };
 
-/// **Región vertical** del display (banda de líneas) con su playfield/modo/planos. Permite
-/// expresar un DPF + una banda de otra altura/planos (reconfiguración por Copper en `top`).
+/// **Coste declarado de una técnica de región**: lo que consume del frame. El planner lo usa
+/// para validar y degradar (`OBJECT_SYSTEM.md` §15.8). Unidades aproximadas y comparables.
+struct RegionCost {
+	u16 copper_words_per_line = 0;  ///< MOVEs de Copper por línea (0 = banda estática)
+	u16 planes = 0;                 ///< planos de bitplane de la región
+	u16 blitter_words_per_frame = 0; ///< palabras de Blitter por frame (scroll por columnas)
+	bool uses_sprite_layer = false;  ///< ocupa canales de sprite
+};
+
+/// **Coste de una técnica** (`mode` × `scroll` × `planes`). Es la función que el planner
+/// consulta para aceptar/degradar; aquí solo se declara (no materializa).
+[[nodiscard]] constexpr RegionCost region_cost(graphics::composition::SceneMode mode,
+					       ScrollKind scroll, u8 planes) noexcept {
+	using Mode = graphics::composition::SceneMode;
+	RegionCost c {};
+	c.planes = (mode == Mode::CopperChunky) ? 0u : planes;
+	c.copper_words_per_line =
+		(scroll == ScrollKind::CopperSplit) ? 4u : (scroll == ScrollKind::CopperRing ? 2u : 0u);
+	c.blitter_words_per_frame = (scroll == ScrollKind::BlitterColumns) ? 1u : 0u;
+	return c;
+}
+
+/// **Región vertical** del display (banda de líneas) con su **técnica** (modo de display +
+/// scroll), su playfield preferido y sus planos. Permite expresar un DPF + una banda con otra
+/// técnica (p. ej. *copper-chunky* en los 48 px inferiores) por Copper en `top`.
 struct WorldRegion {
 	u16 top = 0;
 	u16 bottom = 0;
 	LayerPlayfield playfield = LayerPlayfield::Pf1;
 	graphics::composition::SceneMode mode = graphics::composition::SceneMode::Standard;
+	ScrollKind scroll = ScrollKind::None;
 	u8 planes = 0;
 	[[nodiscard]] constexpr bool ok() const noexcept { return bottom > top; }
+	[[nodiscard]] constexpr RegionCost cost() const noexcept {
+		return region_cost(mode, scroll, planes);
+	}
 };
 
 /// Una capa del mundo: identidad, profundidad, cámara, **contenido** (actores o tilemap) y el
@@ -89,8 +117,8 @@ public:
 	[[nodiscard]] constexpr const TileLayer& tilemap() const noexcept { return m_tile; }
 
 	/// **Scroll pedido** y playfield preferido (los valida el planner).
-	[[nodiscard]] constexpr LayerScroll scroll() const noexcept { return m_scroll; }
-	constexpr void set_scroll(LayerScroll s) noexcept { m_scroll = s; }
+	[[nodiscard]] constexpr ScrollKind scroll() const noexcept { return m_scroll; }
+	constexpr void set_scroll(ScrollKind s) noexcept { m_scroll = s; }
 	[[nodiscard]] constexpr LayerPlayfield prefer() const noexcept { return m_prefer; }
 	constexpr void set_prefer(LayerPlayfield p) noexcept { m_prefer = p; }
 
@@ -98,7 +126,7 @@ private:
 	const char* m_id = "";
 	u8 m_depth = 0;
 	WorldLayerKind m_kind = WorldLayerKind::Actors;
-	LayerScroll m_scroll = LayerScroll::Static;
+	ScrollKind m_scroll = ScrollKind::None;
 	LayerPlayfield m_prefer = LayerPlayfield::Any;
 	TileLayer m_tile {};
 	Camera2D m_camera {};
