@@ -269,3 +269,21 @@ el planner (F4c) **dispone/degrada**.
 El propio **emulador NES** (DPF + BG `XYUnlimited` + sprites por `ActorStore` + audio Paula) como
 consumidor de referencia: si las `I*` se implementan sin tocar planos/Copper/Blitter, la frontera
 es correcta.
+
+### 7.6 Decisión: ¿las `I*` en el engine o fuera?
+
+**Recomendación: las `I*` viven FUERA del engine.** Razones:
+- Son **vocabulario de un consumidor** concreto; meterlas en `engine/` acopla el engine a una app
+  y multiplica superficies públicas (una por consumidor).
+- Arrastran **virtuals/ABI** (o punteros a función + `void* self`), que el engine evita en el hot
+  path y en sus cabeceras (`CODING_STYLE.md`).
+- El consumidor **debe seguir siendo libre** de elegir C++ virtual, ABI C o adaptadores `static`.
+
+La frontera correcta son los **helpers generales** (F7.1–F7.7) + `eng/api/api.hpp`. El consumidor
+define sus `I*` en **su proyecto** e implementa un **adaptador fino** sobre el engine (manteniendo
+la propiedad de recursos en el engine). Si conviene, el engine puede incluir un **adaptador de
+referencia** fuera del core (`host-tools/` o `examples/`, no `engine/`) que demuestre la frontera.
+
+**Prueba de la decisión**: implementar las `I*` **solo** con `<eng/api/api.hpp>` y los helpers,
+sin `#include` de `eng/graphics/copper/*`, `eng/field/*`, `BobTarget`, `FramePlan` ni planos. Si
+compila y no filtra registros, la separación es correcta y **el engine no se ve afectado**.
