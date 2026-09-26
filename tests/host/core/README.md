@@ -82,3 +82,4 @@ Categoría `core` de la batería host (L1). El índice de categorías está en [
 | HOST-333 | [expected](333_expected/README.md) | `eng/core/types/result.hpp`: `eng::Expected<T>` (valor o `eng::Result`) — idioma de error sin excepciones: `ok`/`status`, `value`/`value_or`. |
 | HOST-334 | [device_single](334_device_single/README.md) | `eng/api/device.hpp`: ergonomía de un solo elemento (`Device::blitter_or_bobs(const OrBob&, …)`) — evita envolver `Span` a mano (y no se añade ctor implícito a `Span`). |
 | HOST-339 | [copper_builder](339_copper_builder/README.md) | `eng/api/copper.hpp`: fachada de Copper de alto nivel (`wait_line`/`set_color`/`set_palette`/`set_scroll`) — para `ICopper` externo. |
+| HOST-341 | [adapter](341_adapter/README.md) | Prueba de decisión §7.6: un consumidor implementa sus `I*` (externas) con solo `eng/api/api.hpp` + helpers (`ChipPool`/`Copper`), sin tocar `field`/`BobTarget`/registros. |

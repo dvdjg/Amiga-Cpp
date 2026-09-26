@@ -245,8 +245,9 @@ ello. Ordenados por dependencia:
 4. **Fachada de Copper** en `Device`/`Screen` (`begin`/`wait_line`/`set_color`/`set_scroll`/
    `split`/`commit`/`free_words`): cubre `ICopper`; hoy `copper::Plan`/`Scheduler` es de bajo nivel
    (F4d).
-5. **Voz Paula** (`set_period`/volumen) en `eng::audio`: cubre `IAudio::set_period` (chiptune/APU)
-   además del mixer.
+5. **Voz Paula**: **cubierto** por `AudioMixer::play(AudioPlan::Channel{period,...})` +
+   `paula::period_for_hz` (`eng/audio/audio.hpp`, `audio_mode.hpp`); el consumidor mapea
+   `IAudio::play/set_period` a un `SampleEvent` sin código nuevo.
 6. **`res::ChipPool`** (bloques fijos con `free`) + `res::Budget`: cubre `IChipMem` reutilizable.
 7. **`SpriteEngine` a alto nivel** (`begin_frame`/`place`/`draw_bobs`/`add_to_copper`) sobre
    `ActorStore`+`SpriteAllocator` (ya existe ~80%): cubre `ISpriteEngine` con semántica NES
@@ -287,3 +288,4 @@ referencia** fuera del core (`host-tools/` o `examples/`, no `engine/`) que demu
 **Prueba de la decisión**: implementar las `I*` **solo** con `<eng/api/api.hpp>` y los helpers,
 sin `#include` de `eng/graphics/copper/*`, `eng/field/*`, `BobTarget`, `FramePlan` ni planos. Si
 compila y no filtra registros, la separación es correcta y **el engine no se ve afectado**.
+Demostrado por **HOST-341** (adaptadores `IChipMem`→`ChipPool`, `ICopper`→`Copper`).
