@@ -229,7 +229,7 @@ No hace falta exponer un asignador crudo: si el consumidor necesita **un recurso
 sistema (`Scene`/`Layer`/`AudioSystem`), y la *cuota* se consulta con `res::Budget`
 (`remaining_chip`/`can_fit`). El `alloc/free` por bloque de `IChipMem` no encaja con la arena *bump*
 del engine; si de verdad hace falta memoria **reutilizable** (nametables/CHR que cambian), se añade
-`res::ChipPool` (bloques fijos con `free`, sobre `core/util/pool.hpp`) — **general**, útil a
+`eng::BlockPool` (bloques fijos con `free`, sobre `core/util/pool.hpp`) — **general**, útil a
 cualquier juego/streaming.
 
 ### 7.3 Fase F7 — helpers generales (no específicos de NES)
@@ -255,8 +255,8 @@ ello. Ordenados por dependencia:
 5. **Voz Paula**: **cubierto** por `AudioMixer::play(AudioPlan::Channel{period,...})` +
    `paula::period_for_hz` (`eng/audio/audio.hpp`, `audio_mode.hpp`); el consumidor mapea
    `IAudio::play/set_period` a un `SampleEvent` sin código nuevo.
-6. **`res::ChipPool`** (bloques fijos con `free`) + `res::Budget`: cubre `IChipMem` reutilizable.
-   **Hecho** (`eng/res/chip_pool.hpp`, HOST-340).
+6. **`eng::BlockPool`** (bloques fijos con `free`) + `res::Budget`: cubre `IChipMem` reutilizable.
+   **Hecho** (`eng/memory/block_pool.hpp`, HOST-340).
 7. **`SpriteEngine` a alto nivel** (`begin_frame`/`place`/`draw_bobs`/`add_to_copper`): cubre
    `ISpriteEngine` con semántica NES (8 sprites/línea, overflow → descartar). **Cubierto** por
    `scene::compose_sprites` + `build_sprite_intents` + `emit_bob_fallbacks` + `actor_add_copper`
@@ -297,4 +297,4 @@ referencia** fuera del core (`host-tools/` o `examples/`, no `engine/`) que demu
 **Prueba de la decisión**: implementar las `I*` **solo** con `<eng/api/api.hpp>` y los helpers,
 sin `#include` de `eng/graphics/copper/*`, `eng/field/*`, `BobTarget`, `FramePlan` ni planos. Si
 compila y no filtra registros, la separación es correcta y **el engine no se ve afectado**.
-Demostrado por **HOST-341** (adaptadores `IChipMem`→`ChipPool`, `ICopper`→`Copper`).
+Demostrado por **HOST-341** (adaptadores `IChipMem`→`BlockPool`, `ICopper`→`Copper`).

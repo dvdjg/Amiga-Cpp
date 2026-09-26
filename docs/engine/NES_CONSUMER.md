@@ -23,7 +23,7 @@ Referencia **engine-side** (lo que implementa el contrato):
 - Adaptador de decisión: `tests/host/core/341_adapter` (HOST-341) — implementa `I*` solo con
   `api.hpp` + helpers.
 - Helpers generales F7 (ver §5): `decode_2bpp_planar`, `tilemap::TileEditor`, `eng::Copper`,
-  `res::ChipPool`, `AudioMixer`.
+  `eng::BlockPool`, `AudioMixer`.
 
 ## 2. Dos niveles (como propone `SERVICES.md`)
 
@@ -38,7 +38,7 @@ El emulador pregunta `services.has(...)`; si falta, cae al `Host`. Ese patrón e
 
 | `I*` | Con qué se implementa (engine) | Estado |
 |---|---|---|
-| `IChipMem` | `res::Budget` (cuota) + recursos como objetos; `res::ChipPool` si hace falta `free` | ✅ (ChipPool) |
+| `IChipMem` | `res::Budget` (cuota) + recursos como objetos; `eng::BlockPool` si hace falta `free` | ✅ (BlockPool) |
 | `IBlitter` | `Device` (`blitter_*`/`execute_frame_plan`/`wait_blitter`) + `FramePlan` | ✅ |
 | `ISurface` | `gfx::Bitmap` / `PlaneBytes` | ✅ |
 | `IPatternCache` | **`decode_2bpp_planar`** + tile bank | ✅ (F7.1) |
@@ -60,7 +60,7 @@ quiere, se añade un **adaptador de referencia** fuera del core (`host-tools/`/`
 ## 5. Estado de los helpers F7
 
 ✅ F7.1 `decode_2bpp_planar` · ✅ F7.2 `tilemap::TileEditor` · ✅ F7.4 `eng::Copper` · ✅ F7.5 Paula
-(existente) · ✅ F7.6 `res::ChipPool` · ⏳ **F7.3 drivers de scroll por `ScrollKind`** ·
+(existente) · ✅ F7.6 `eng::BlockPool` · ⏳ **F7.3 drivers de scroll por `ScrollKind`** ·
 ⏳ **F7.7 `SpriteEngine` de alto nivel** (NES 8/línea + overflow).
 
 ## 6. Decisión: scroll del BG NES — **XYUnlimited vs XYLimited**

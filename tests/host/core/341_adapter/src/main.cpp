@@ -13,7 +13,7 @@
 
 #include <eng/api/api.hpp> // fachada base
 #include <eng/api/copper.hpp> // helper opcional (opt-in, fuera del umbrella)
-#include <eng/res/chip_pool.hpp> // helper opcional (opt-in, fuera del umbrella)
+#include <eng/memory/block_pool.hpp> // helper opcional (opt-in, fuera del umbrella)
 
 namespace {
 
@@ -39,11 +39,11 @@ struct ICopper {
 	virtual eng::u16 words_used() const = 0;
 };
 
-// --- Adaptadores finos sobre el engine (solo api.hpp + helpers) ---
+// --- Adaptadores finos sobre el engine (api.hpp + helpers) ---
 struct ChipMemAdapter final : IChipMem {
-	eng::res::ChipPool pool;
-	ChipMemAdapter(eng::u8* base, eng::u32 n) : pool(base, n, 16u) {}
-	void* alloc(eng::u32 bytes) override { return pool.alloc(bytes); }
+	eng::BlockPool pool;
+	ChipMemAdapter(eng::u8* base, eng::u32 n) : pool(base, n, eng::MemoryKind::Chip, 16u) {}
+	void* alloc(eng::u32 bytes) override { return pool.allocate(bytes).data; }
 	void free(void* p) override { pool.free(p); }
 	eng::u32 free_bytes() const override { return pool.free_bytes(); }
 };
