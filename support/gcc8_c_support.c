@@ -156,7 +156,7 @@ extern void (*__init_array_end[])() __attribute__((weak));
 extern void (*__fini_array_start[])() __attribute__((weak));
 extern void (*__fini_array_end[])() __attribute__((weak));
 
-__attribute__((used)) __attribute__((section(".text.unlikely"))) void _start() {
+__attribute__((used)) __attribute__((section(".text.unlikely"))) void eng_c_start(void) {
 	// initialize globals, ctors etc.
 	unsigned long count;
 	unsigned long i;
@@ -176,6 +176,37 @@ __attribute__((used)) __attribute__((section(".text.unlikely"))) void _start() {
 	for (i = count; i > 0; i--)
 		__fini_array_start[i - 1]();
 }
+
+#ifdef ENG_FAST_STACK
+// Arranque con la **pila en Fast RAM**: antes de `main` (y de las IRQs) se intenta mover `SP` a
+// un buffer Fast. En modo **supervisor** (takeover) `SP == SSP`, de modo que tambien las IRQs
+// usan Fast; en modo usuario, solo el hilo principal. Ver INTERNAL_TYPE_SYSTEM.md §3.8.
+//
+// `_start` se define en **asm de nivel superior** (sin prologo C: tras cambiar `SP` no se puede
+// `rts` desde la pila antigua; el atributo `naked` lo ignora este toolchain). El cuerpo C
+// (`eng_c_start`) hace ctors + main. Tamano de pila: cambiar `16384` si hace falta.
+unsigned long eng_old_sp;
+__asm__(
+	".section .text.unlikely,\"ax\",@progbits\n"
+	".globl _start\n"
+	".type _start,@function\n"
+	"_start:\n"
+	"\tmove.l %sp, eng_old_sp\n"
+	"\tmove.l #16384, -(%sp)\n"
+	"\tjsr eng_fast_stack_alloc\n"
+	"\taddq.l #4, %sp\n"
+	"\ttst.l %d0\n"
+	"\tbeq.s 1f\n"
+	"\tmove.l %d0, %sp\n"
+	"1:\n"
+	"\tjsr eng_c_start\n"
+	"\tmove.l eng_old_sp, %sp\n"
+	"\trts\n");
+#else
+__attribute__((used)) __attribute__((section(".text.unlikely"))) void _start(void) {
+	eng_c_start();
+}
+#endif
 
 void warpmode(int on) { // bool
 	long(*UaeConf)(long mode, int index, const char* param, int param_len, char* outbuf, int outbuf_len);

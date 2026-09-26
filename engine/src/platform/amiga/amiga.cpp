@@ -51,13 +51,11 @@ bool AmigaBackend::configure_memory(const MemoryConfig& config) {
 	}
 
 	if (config.slow_bytes != 0) {
-		// On an A500 trapdoor expansion AmigaOS exposes this as non-chip memory.
-		// It is still "Slow" from the engine perspective because it is not true
-		// CPU-private Fast RAM.
-		m_slow_alloc = AllocMem(config.slow_bytes, MEMF_FAST | MEMF_CLEAR);
-		if (!m_slow_alloc) {
-			m_slow_alloc = AllocMem(config.slow_bytes, MEMF_ANY | MEMF_CLEAR);
-		}
+		// "Slow" NO es verdadera Fast (CPU-privada): es RAM no-Chip que Agnus no ve. Por eso NO
+		// se pide con MEMF_FAST (eso daría Fast RAM); se pide como MEMF_ANY. El slow ranger
+		// ($C00000, trapdoor A500) no es pedible por flag: `hw::info` lo clasifica por **dirección**
+		// (`MemRegionKind::Slow`). Ver §3.8 de INTERNAL_TYPE_SYSTEM.md.
+		m_slow_alloc = AllocMem(config.slow_bytes, MEMF_ANY | MEMF_CLEAR);
 		m_slow_alloc_size = m_slow_alloc ? config.slow_bytes : 0;
 	}
 
