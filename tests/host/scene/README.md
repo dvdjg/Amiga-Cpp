@@ -20,3 +20,4 @@ Categoría `scene` de la batería host (L1). El índice de categorías está en 
 | HOST-347 | [ring_split](347_ring_split/README.md) | `eng/scene/scroll_plan.hpp`: `ring_split` — split vertical del anillo (vista cruza el final); base del materializador XYUnlimited/CopperSplit (F7.3). |
 | HOST-354 | [scene_facade](354_scene_facade/README.md) | `eng/scene/display.hpp` (display declarativo + efectos sobre Copper) y `eng/scene/bobs.hpp` (`BobLayer`/`BobActor`) — el juego no nombra registros ni `BlitJob`. |
 | HOST-355 | [fast_bobs](355_fast_bobs/README.md) | `eng/scene/bobs.hpp::FastBobLayer`: Fast BOBs (copia con padding `$F0`) con degradación a clear + cookie-cut `$CA` por movimiento excesivo o solape. |
+| HOST-356 | [raster_layout](356_raster_layout/README.md) | `eng/scene/display.hpp::RasterLayout`: pantalla por **bandas** (DPF 3+3 + franja de 0 planos para copper chunky) sobre `ModeSwitchZone`. |
