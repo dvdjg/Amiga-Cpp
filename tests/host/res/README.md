@@ -16,4 +16,4 @@ Categoría `res` de la batería host (L1). El índice de categorías está en [.
 | HOST-328 | [load_file](328_load_file/README.md) | Recursos: `res::load_file<Tag>` (fichero, `os::file_*`) — abrir/medir/reservar/leer/cerrar con backend falso en memoria; caminos de error (no existe, lectura corta, overflow). |
 | HOST-331 | [asset_runtime](331_asset_runtime/README.md) | Recursos: `res::AssetRuntime` (`AssetCache` + `route_io`) — `load` (declara + lanza), `on_msg(FileDone)`, `get` y descarte de mensajes ajenos. |
 | HOST-332 | [asset_typed](332_asset_typed/README.md) | Recursos: `AssetRuntime::bytes<Tag>` — vista de dominio (`ByteView<Tag>`) de un asset cargado: vacía antes de `Ready`, con tamaño/datos/alineación después. |
-| HOST-340 | [chip_pool](340_chip_pool/README.md) | Recursos: `ChipPool` (`eng/res/chip_pool.hpp`) — pool *first-fit* con `free`/fusión sobre un buffer (memoria reutilizable; `IChipMem`). |
+| HOST-340 | [chip_pool](340_chip_pool/README.md) | Recursos: `ChipPool` (`eng/res/chip_pool.hpp`) — pool *first-fit* con `free`/fusión sobre un buffer (memoria reutilizable). |

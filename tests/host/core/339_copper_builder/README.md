@@ -6,7 +6,7 @@ Respalda `engine/include/eng/api/copper.hpp`: construye la copperlist por **inte
 - `wait_line(line)`, `set_color(index, 0x0RGB)`, `set_palette(PaletteWords, first, count)`,
   `set_scroll(bplcon1)`, `words_used()` (presupuesto consumido).
 
-Es el helper general para que un consumidor externo implemente `ICopper` sin tocar el Copper. El
+Es el helper general para que un consumidor externo construya su copperlist sin tocar el Copper. El
 ciclo de vida (doble buffer, `begin`/`commit`, instalación) lo llevan `Scene`/`Device`
 (`scene.begin_build`/`end_build`, `app.present()`, `device.commit_copper`); expuesto en
 `Device::copper_builder()`.

@@ -4,7 +4,7 @@
 //
 // Respalda `eng/api/copper.hpp`: construye la copperlist por intencion (`wait_line`, `set_color`,
 // `set_palette`, `set_scroll`) sobre un `copper::Scheduler`, sin nombrar WAIT/MOVE. Es el helper
-// general para `ICopper` de consumidores externos.
+// general para consumidores externos que quieran Copper de alto nivel.
 //
 //   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/339_copper_builder
 

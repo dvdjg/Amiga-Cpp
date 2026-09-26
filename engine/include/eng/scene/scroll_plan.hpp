@@ -9,7 +9,7 @@
 /// Escalera de degradación (Copper por línea): `CopperSplit → CopperRing → Fine → None`.
 /// `BlitterColumns` es ortogonal (no usa Copper); se conserva tal cual.
 ///
-/// Ver `docs/engine/NES_CONSUMER.md` §6 y `ROADMAP_API_COHERENCE.md` §7.3.
+/// Ver `ROADMAP_API_COHERENCE.md` §7.3 y `OBJECT_SYSTEM.md` §15.
 
 #include <eng/core/types/types.hpp>
 #include <eng/scene/world.hpp>

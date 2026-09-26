@@ -1,9 +1,8 @@
 # HOST-343 — planificador de scroll adaptativo (`eng::scene::scroll_plan`) — F7.3
 
 Respalda `engine/include/eng/scene/scroll_plan.hpp`: elige el **scroll efectivo** de una capa
-degradando por presupuesto y **estima la memoria** de la ventana. Implementa el acuerdo del
-consumidor NES ([NES_CONSUMER.md](../../../docs/engine/NES_CONSUMER.md) §6): «la capa pide
-(`ScrollKind`), el planner dispone».
+degradando por presupuesto y **estima la memoria** de la ventana. Implementa «la capa pide
+(`ScrollKind`), el planner dispone» ([OBJECT_SYSTEM.md](../../../docs/engine/architecture/OBJECT_SYSTEM.md) §15.8).
 
 - `scroll_copper_per_line(kind)`: coste de Copper por línea (`CopperSplit`=4, `CopperRing`=2).
 - `choose_scroll(requested, copper_per_line)`: degrada `CopperSplit → CopperRing → Fine → None`;

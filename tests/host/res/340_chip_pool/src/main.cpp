@@ -3,7 +3,7 @@
 // ============================================================================
 //
 // Respalda `eng/res/chip_pool.hpp`: asignador *first-fit* con fusion de huecos sobre un buffer
-// (sin heap), para consumidores que reciclan memoria (IChipMem reutilizable). Comprueba
+// (sin heap), para quien recicla memoria (memoria reutilizable). Comprueba
 // alineacion, free, fusion y rechazo cuando no cabe.
 //
 //   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/res/340_chip_pool

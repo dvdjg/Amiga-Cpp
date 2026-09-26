@@ -2,7 +2,7 @@
 
 /// \file attribute_table.hpp
 /// **Tabla de atributos** (`eng::graphics::tilemap::AttributeTable`): rejilla mutable de paleta
-/// por bloque (estilo *attribute table* de la NES, una entrada cada 16×16 px = 2×2 tiles). Da al
+/// por bloque (una entrada por celda, p. ej. 16×16 px = 2×2 tiles). Da al
 /// juego/consumidor el `set_attribute`/`get` de una capa de tiles sin tocar el framebuffer; el
 /// driver de la capa la traduce a parches de paleta/Copper al redibujar.
 ///

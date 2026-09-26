@@ -44,7 +44,7 @@ int main() {
 	check(eng::scene::choose_scroll(ScrollKind::BlitterColumns, 0u) == ScrollKind::BlitterColumns,
 	      "blitter columns no se degrada");
 
-	// Estimacion de memoria (supuestos NES: 256x240, 3 planos, velocidad 4).
+	// Estimacion de memoria (supuestos tipicos: 256x240, 3 planos, velocidad 4).
 	const auto ring = eng::scene::scroll_memory(ScrollKind::CopperRing, 256u, 240u, 3u, 4u);
 	check(ring.window_w == 280u && ring.window_h == 264u, "ventana xlimited = visible + 2*guarda");
 	check(ring.bytes == 28512u, "memoria xlimited estimada");

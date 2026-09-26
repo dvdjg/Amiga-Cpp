@@ -22,7 +22,7 @@ Referencia **engine-side** (lo que implementa el contrato):
 - Puerta única: `engine/include/eng/api/api.hpp`.
 - Adaptador de decisión: `tests/host/core/341_adapter` (HOST-341) — implementa `I*` solo con
   `api.hpp` + helpers.
-- Helpers generales F7 (ver §5): `chr_to_planar`, `tilemap::TileEditor`, `eng::Copper`,
+- Helpers generales F7 (ver §5): `decode_2bpp_planar`, `tilemap::TileEditor`, `eng::Copper`,
   `res::ChipPool`, `AudioMixer`.
 
 ## 2. Dos niveles (como propone `SERVICES.md`)
@@ -41,7 +41,7 @@ El emulador pregunta `services.has(...)`; si falta, cae al `Host`. Ese patrón e
 | `IChipMem` | `res::Budget` (cuota) + recursos como objetos; `res::ChipPool` si hace falta `free` | ✅ (ChipPool) |
 | `IBlitter` | `Device` (`blitter_*`/`execute_frame_plan`/`wait_blitter`) + `FramePlan` | ✅ |
 | `ISurface` | `gfx::Bitmap` / `PlaneBytes` | ✅ |
-| `IPatternCache` | **`chr_to_planar`** + tile bank | ✅ (F7.1) |
+| `IPatternCache` | **`decode_2bpp_planar`** + tile bank | ✅ (F7.1) |
 | `IScrollingLayer` | `Layer` (tilemap) + `tilemap::TileEditor` + driver por `ScrollKind` | parcial (F7.3) |
 | `IPalette` | `Palette` + `FramePlan` (parches) | ✅ |
 | `ICopper` | **`eng::Copper`** + `Device::commit_copper` | ✅ (F7.4) |
@@ -59,7 +59,7 @@ quiere, se añade un **adaptador de referencia** fuera del core (`host-tools/`/`
 
 ## 5. Estado de los helpers F7
 
-✅ F7.1 `chr_to_planar` · ✅ F7.2 `tilemap::TileEditor` · ✅ F7.4 `eng::Copper` · ✅ F7.5 Paula
+✅ F7.1 `decode_2bpp_planar` · ✅ F7.2 `tilemap::TileEditor` · ✅ F7.4 `eng::Copper` · ✅ F7.5 Paula
 (existente) · ✅ F7.6 `res::ChipPool` · ⏳ **F7.3 drivers de scroll por `ScrollKind`** ·
 ⏳ **F7.7 `SpriteEngine` de alto nivel** (NES 8/línea + overflow).
 

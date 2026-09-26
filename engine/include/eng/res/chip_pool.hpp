@@ -3,8 +3,8 @@
 /// \file chip_pool.hpp
 /// **Pool de bloques de memoria con `free`** (`eng::res::ChipPool`): un asignador *first-fit* sin
 /// heap sobre un buffer dado (p. ej. la arena Chip), con fusión de huecos. Complementa la arena
-/// *bump* (`LinearArena`, sin `free`) para consumidores que **reciclan** memoria (nametables/CHR
-/// que cambian), como un emulador. Es **general** (cualquier juego con buffers reutilizables).
+/// *bump* (`LinearArena`, sin `free`) para quien **recicla** memoria (buffers/tablas que cambian).
+/// Es **general** (cualquier juego con buffers reutilizables).
 ///
 /// ```cpp
 /// eng::res::ChipPool pool {chip_base, chip_bytes};

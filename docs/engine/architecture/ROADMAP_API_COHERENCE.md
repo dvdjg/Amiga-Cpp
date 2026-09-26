@@ -237,8 +237,8 @@ cualquier juego/streaming.
 Todo lo de abajo es **reutilizable** por cualquier juego/emulador; el adaptador NES se apoya en
 ello. Ordenados por dependencia:
 
-1. **`chr_to_planar`** (`eng::graphics`): decode 2bpp (y variantes) → planar; cubre
-   `IPatternCache::define` y `ISpriteEngine::define`. **Hecho** (`eng/graphics/chr.hpp`,
+1. **`decode_2bpp_planar`** (`eng::graphics`): decode de tiles indexados → planos; cubre
+   `IPatternCache::define` y `ISpriteEngine::define`. **Hecho** (`eng/graphics/tile_planar.hpp`,
    HOST-338).
 2. **Tile layer de juego**: `set_tile`/`set_attribute`/`flush(dirty)` sobre `TileLayer` +
    `TileScrollDriver`; cubre `IScrollingLayer`. **Hecho (modelo)**: `tilemap::TileEditor`

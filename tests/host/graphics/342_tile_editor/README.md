@@ -8,8 +8,8 @@ operaciones de una capa de tiles sin tocar framebuffers ni Blitter:
 - `mark_all_dirty()`;
 - `dirty_rect(buffer)` (caja envolvente de celdas sucias) y `flush(buffer)`.
 
-Es el `set_tile`/`flush` de `IScrollingLayer`; el **redibujado** (jobs de `FramePlan`/Copper) lo
-hace el driver de la capa al consumir el `dirty_rect`. La attribute table NES (paleta por bloques)
+Es el `set_tile`/`flush` de una capa de tiles; el **redibujado** (jobs de `FramePlan`/Copper) lo
+hace el driver de la capa al consumir el `dirty_rect`. La tabla de atributos (paleta por bloques)
 queda como tabla paralela (futuro).
 
 ```bash
