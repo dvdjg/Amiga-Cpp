@@ -244,10 +244,11 @@ ello. Ordenados por dependencia:
    `TileScrollDriver`; cubre `IScrollingLayer`. **Hecho (modelo)**: `tilemap::TileEditor`
    (HOST-342) + `tilemap::AttributeTable` (HOST-344); falta el **driver** que materializa lo
    sucio (ligado a F7.3). Gate en 100/052.
-3. **Drivers de scroll por `ScrollKind`**: `XLimited` (existe) + `XYUnlimited`/`CopperSplit` y
-   `BlitterColumns` (robocod), con `region_cost` reservando bandas en `copper::Plan`.
-   **Núcleo hecho** (`eng/scene/scroll_plan.hpp`: `choose_scroll`/`scroll_memory`,
-   HOST-343); faltan los **drivers** (materializar ring/split). Gate: demo de scroll 8-way.
+3. **Drivers de scroll por `ScrollKind`**: `XLimited` (`CopperRing`) y `BlitterColumns`/`Fine`
+   **ya existen** (`field::TileScrollDriver`/`xlimited_*`, `effects::FineScroll`); falta el driver
+   **`CopperSplit` (`XYUnlimited`)** (ring + split por línea + guardas). **Núcleo de decisión
+   hecho** (`scroll_plan.hpp`: `choose_scroll`/`scroll_memory`/`plan_region`, HOST-343/345).
+   Gate: demo de scroll 8-way.
 4. **Fachada de Copper** en `Device`/`Screen` (`begin`/`wait_line`/`set_color`/`set_scroll`/
    `split`/`commit`/`free_words`): cubre `ICopper`. **Hecho** (`eng::Copper`,
    `Device::copper_builder()`, HOST-339).
