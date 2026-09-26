@@ -21,12 +21,13 @@
 #include <eng/api/api.hpp>
 #include <eng/audio/music_player.hpp>
 #include <eng/core/data/ct_array.hpp>
-#include <eng/graphics/blit_job.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
+#include <eng/graphics/frame_plan.hpp>
 #include <eng/os/message_pump.hpp>
 #include <eng/os/os.hpp>
 #include <eng/platform/amiga/backend.hpp>
+#include <eng/scene/bobs.hpp>
 #include <eng/scene/display.hpp>
 
 #include <proto/exec.h>
@@ -143,6 +144,22 @@ struct AbyssDemo {
 		m_bitmap = m_image.view.data();
 		m_bob = m_bob_block.view.data();
 
+		// Hoja de BOBs (Capa 4): el layout "par" ([máscara][imagen] por fila de plano) dibuja
+		// cookie-cut interleaved en un solo blit. El juego solo mueve actores.
+		eng::graphics::Bob bb {};
+		bb.sheet = m_bob;
+		bb.width = kBobW;
+		bb.height = kBobH;
+		bb.planes = kPlanes;
+		bb.frame_count = 6u;
+		bb.frame_stride = kBobFrameStride;
+		bb.layout = eng::graphics::BobLayout::Interleaved;
+		bb.draw = eng::graphics::BobDraw::CookieCut;
+		bb.mask_pack = eng::graphics::BobMaskPack::InterleavedPair;
+		m_sheet = eng::graphics::Sprite {bb, bob_bytes};
+		m_bobs.set_sheet(m_sheet);
+		m_bobs.resize(16u);
+
 		if (!build_copper()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021303u);
 			return false;
@@ -180,46 +197,37 @@ struct AbyssDemo {
 		const eng::u8 sin = kWaveScroll[f & 63u];
 		m_scroll.set(static_cast<eng::u16>(sin | (sin << 4u))); // fine-scroll por el PatchHandle
 
-		// Limpia la banda de juego (filas 200..255, los 5 planos) en un solo blit D-only.
-		eng::graphics::BlitJob clear {};
-		clear.kind = eng::graphics::BlitJobKind::ClearRect;
-		clear.destination = eng::graphics::BlitDest {
-			reinterpret_cast<eng::u16*>(m_bitmap + static_cast<eng::u32>(kRowStride) * 200u)};
-		clear.words_per_row = kWidth / 16u; // 20
-		clear.height = static_cast<eng::u16>(56u * kPlanes); // 280 filas interleaved
-		clear.destination_modulo_bytes = 0;
-		clear.bitplane_count = 1u;
-		clear.minterm = 0x00u;
-		clear.interleaved = true;
-		(void)m_backend->blitter_submit(clear, true);
+		// Destino común de los blits de este frame (los planos delplayfield).
+		eng::graphics::BobTarget target {};
+		target.base = m_bitmap;
+		target.row_bytes = kBytesPerRow;
+		target.planes = kPlanes;
+		target.layout = eng::graphics::BobLayout::Interleaved;
 
-		// 16 BOBs enmascarados por las ondas (una sola pasada por BOB: el helper encapsula el
-		// contrato `[máscara][imagen]` del layout interleaved). Fase con avance incremental
-		// (sin `% 51` por BOB, que en 68000 es un `__umodsi3` costoso).
+		m_blits.clear();
+		// Limpia la banda de juego (filas 200..255, los 5 planos) sin describir un `BlitJob`.
+		eng::scene::clear_box(m_blits, target, 0, 200, kWidth, 56u);
+
+		// 16 BOBs enmascarados movidos por las ondas. Fase con avance incremental (sin `% 51`
+		// por BOB, que en 68000 es un `__umodsi3` costoso).
 		eng::u32 phase = f % 51u;
 		eng::u8 fi = 0u;
 		for (eng::u16 i = 0u; i < 16u; ++i) {
 			const eng::s16 x = static_cast<eng::s16>(
 				static_cast<eng::u32>(i) * 16u + static_cast<eng::u32>(kWaveX[phase]) * 2u);
-			const eng::s16 y = static_cast<eng::s16>(kWaveY[((f + i) * 2u) & 63u] / 2u);
-			const eng::u8* const src = m_bob + static_cast<eng::u32>(fi) * kBobFrameStride;
+			const eng::s16 y = static_cast<eng::s16>(
+				200u + static_cast<eng::u32>(kWaveY[((f + i) * 2u) & 63u]) / 2u);
+			const eng::u8 frame = fi;
 			if (++phase >= 51u) {
 				phase = 0u;
 			}
 			if (++fi >= 6u) {
 				fi = 0u;
 			}
-
-			eng::graphics::BlitJob bob {};
-			eng::graphics::make_interleaved_masked_bob(
-				bob, reinterpret_cast<const eng::u16*>(src),
-				reinterpret_cast<eng::u16*>(m_bitmap +
-							    static_cast<eng::u32>(kRowStride) *
-								    static_cast<eng::u16>(200 + y) +
-							    static_cast<eng::u32>(x >> 3)),
-				kBobW, kBobH, kPlanes, kBytesPerRow, static_cast<eng::u8>(x & 15));
-			(void)m_backend->blitter_submit(bob, true);
+			m_bobs[i] = eng::scene::BobActor {x, y, frame, true};
 		}
+		m_bobs.emit(m_blits, target);
+		(void)m_backend->execute_frame_plan(m_blits);
 
 		// Overlay de depuración de WinUAE (no aparece en la captura del framebuffer).
 		auto& d = m_backend->debug();
@@ -292,6 +300,9 @@ private:
 	eng::u8* m_bitmap = nullptr;
 	const eng::u8* m_bob = nullptr;
 	eng::u16* m_copper_words = nullptr;
+	eng::scene::BobLayer m_bobs {};       ///< actores BOB (Capa 4)
+	eng::graphics::Sprite m_sheet {};     ///< hoja de BOBs (asset)
+	eng::graphics::FramePlan m_blits {};  ///< plan de blits del frame (se re-materializa)
 	copper::SchedulerT<false> m_sched {}; ///< emisor de la copperlist (miembro: el handle vive aquí)
 	copper::PatchHandle m_scroll {};      ///< MOVE de BPLCON1 parcheado por frame
 	eng::Block<eng::PlaneTag> m_image {};
