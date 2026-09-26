@@ -29,6 +29,7 @@ using eng::graphics::Bob;
 using eng::graphics::BobDraw;
 using eng::graphics::BobErase;
 using eng::graphics::BobLayout;
+using eng::graphics::BobMaskPack;
 using eng::graphics::BobTarget;
 using eng::graphics::CopperIntent;
 using eng::graphics::CopperIntentKind;
@@ -828,6 +829,29 @@ void test_bob_job_matrix() {
 		CHECK(j.source_plane_stride_bytes == 32u * 8u, "stride de plano origen");
 		CHECK(j.source_modulo_bytes == 2, "modulo origen con shift 0 (guarda)");
 		CHECK(!j.interleaved, "planar sin flag interleaved");
+	}
+
+	// Cookie-cut interleaved "par" ([máscara][imagen] por fila de plano): 1 blit $CA.
+	{
+		FramePlan plan {};
+		plan.clear();
+		Bob b = mk(BobLayout::Interleaved, BobDraw::CookieCut, 4u);
+		b.mask_pack = BobMaskPack::InterleavedPair;
+		CHECK(bob_draw(plan, b, 0u, 3, 10, tgt(BobLayout::Interleaved)), "cookie-cut par dibuja");
+		CHECK(plan.blit_job_count() == 1u, "cookie-cut par: 1 blit");
+		const auto& j = plan.blit_job(0);
+		CHECK(j.kind == BlitJobKind::MaskedBobCookieCut, "kind cookie-cut");
+		CHECK(j.minterm == 0x00cau, "minterm $CA");
+		CHECK(j.words_per_row == 3u, "3 palabras (48/16)");
+		CHECK(j.height == 32u * 4u, "altura = alto x planos");
+		CHECK(j.source_modulo_bytes == 6, "modulo origen = palabras*2");
+		CHECK(j.destination_modulo_bytes == static_cast<eng::s16>(kRowBytes - 6u),
+		      "modulo destino");
+		CHECK(j.interleaved && j.bitplane_count == 1u, "intercalado de 1 columna");
+		CHECK(j.mask.words == reinterpret_cast<const eng::u16*>(g_matrix_sheet),
+		      "mascara = inicio de la hoja");
+		CHECK(j.source.words == reinterpret_cast<const eng::u16*>(g_matrix_sheet) + 3u,
+		      "imagen = mascara + palabras");
 	}
 
 	// Cookie-cut con destino intercalado: rechazado (documentado).
