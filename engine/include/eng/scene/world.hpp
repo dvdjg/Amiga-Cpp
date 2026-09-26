@@ -27,8 +27,14 @@
 
 namespace eng::scene {
 
-/// Una capa del mundo: identidad, profundidad y cámara. El engine la materializa como
-/// playfield/tilemap/efecto (planner); el juego describe y lee su cámara.
+/// **Contenido de una capa del mundo**: actores (por defecto) o un tilemap (reusa `TileLayer`).
+enum class WorldLayerKind : u8 {
+	Actors,  ///< capa de actores (BOBs/sprites) hermanada por `ActorStore`
+	Tilemap, ///< capa de tiles (contenido en `TileLayer`)
+};
+
+/// Una capa del mundo: identidad, profundidad, cámara y **contenido** (actores o tilemap). El
+/// engine la materializa como playfield/DPF/efecto (planner); el juego describe y lee su cámara.
 class Layer {
 public:
 	constexpr void configure(const char* id, u8 depth) noexcept {
@@ -41,9 +47,22 @@ public:
 	[[nodiscard]] constexpr Camera2D& camera() noexcept { return m_camera; }
 	[[nodiscard]] constexpr const Camera2D& camera() const noexcept { return m_camera; }
 
+	/// **Contenido**: actores (por defecto) o tilemap.
+	[[nodiscard]] constexpr WorldLayerKind kind() const noexcept { return m_kind; }
+	[[nodiscard]] constexpr bool is_tilemap() const noexcept { return m_kind == WorldLayerKind::Tilemap; }
+	/// Liga el contenido de tilemap (reusa `TileLayer`); pasa la capa a `Tilemap`.
+	constexpr void bind_tilemap(const TileLayer& t) noexcept {
+		m_tile = t;
+		m_kind = WorldLayerKind::Tilemap;
+	}
+	[[nodiscard]] constexpr TileLayer& tilemap() noexcept { return m_tile; }
+	[[nodiscard]] constexpr const TileLayer& tilemap() const noexcept { return m_tile; }
+
 private:
 	const char* m_id = "";
 	u8 m_depth = 0;
+	WorldLayerKind m_kind = WorldLayerKind::Actors;
+	TileLayer m_tile {};
 	Camera2D m_camera {};
 };
 
@@ -61,6 +80,20 @@ public:
 		}
 		Layer& l = m_layers[m_count];
 		l.configure(id, depth);
+		++m_count;
+		return l;
+	}
+
+	/// Añade una **capa de tilemap** (contenido vía `TileLayer`). `Ref<Layer>` inválido si el
+	/// mundo está lleno.
+	[[nodiscard]] Ref<Layer> add_tile_layer(const char* id, u8 depth,
+						const TileLayer& tile) noexcept {
+		if (m_count >= MaxLayers) {
+			return {};
+		}
+		Layer& l = m_layers[m_count];
+		l.configure(id, depth);
+		l.bind_tilemap(tile);
 		++m_count;
 		return l;
 	}

@@ -365,7 +365,7 @@ Esta sección fija **qué es cada pieza** (framebuffer, vista, descriptor, algor
 | Hueco | Resolución |
 |---|---|
 | Tres descriptores de objeto (`Visual`/`Sprite`/`Bob`) y `Sprite` no integrado en `ActorStore` | **Resuelto (F4a)**: `Sprite` declara `sheet_bytes`/`mask_bytes` y expone `visual()`; `actor_desc_from_sprite` une `add_actor`/`screen.sprite` (HOST-335, gate 214) |
-| Tiles (`VirtualScene`/`TileLayer`) fuera de `World`/`Layer` | **Unificar** capa *tilemap* y *capa de actores* bajo `Layer` |
+| Tiles (`VirtualScene`/`TileLayer`) fuera de `World`/`Layer` | **Resuelto (F4b, modelo)**: `World` capas con contenido (actores o tilemap vía `TileLayer`, HOST-336); la materialización de capas es el planner (F4c) |
 | UI con compositor propio, no es una `Layer` | Composición vía `Surface`+sinks; integrar como capa/efecto cuando haya planner |
 | Copper por objeto aún a mano (086) | Subir `CopperIntent`/`actor_add_copper` a la fachada |
 | `Screen` vs `Surface`/`DrawTarget` (solape) | F3b: `Screen` única; el resto internos |
