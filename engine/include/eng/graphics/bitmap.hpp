@@ -83,6 +83,10 @@ public:
     [[nodiscard]] constexpr Address<MemoryKind::Chip> base() const { return m_real_base; }
     /// Buffer de escritura (con `frontbase_offset`), como `Address<Chip>`.
     [[nodiscard]] constexpr Address<MemoryKind::Chip> front() const { return m_frontbuffer; }
+    /// Planos como vista **certificada en Chip** (lo que consume el Copper/`BPLxPT`).
+    [[nodiscard]] constexpr ChipView<PlaneTag> chip_planes() const {
+        return ChipView<PlaneTag> { m_real_base, static_cast<usize>(m_total) };
+    }
     constexpr u16 frontbase_offset() const { return m_cfg.frontbase_offset; }
 
     /// Vista acotada del bloque (el tamaño viaja con el puntero). NO es la vía

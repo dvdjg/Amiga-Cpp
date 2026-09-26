@@ -36,6 +36,7 @@ using Pattern = ByteView<PatternTag>;           // patrón de fondo (bytes)
 using PatternWords = WordView<PatternTag>;      // patrón de fondo (words)
 using PlaneBytes = Bytes<PlaneTag>;             // buffer de un plano (mutable)
 using PlaneViewBytes = ByteView<PlaneTag>;      // vista de plano (solo lectura)
+using ChipPlaneView = ChipView<PlaneTag>;       // plano **certificado en Chip** (DMA: BPLxPT)
 using PaletteWords = WordView<PaletteTag>;      // paleta RGB444
 using SpriteWords = WordView<SpriteTag>;        // palabras de sprite hardware
 using SpriteBuffer = Words<SpriteTag>;          // buffer de sprite (escritura)

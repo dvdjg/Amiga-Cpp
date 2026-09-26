@@ -135,6 +135,44 @@ private:
 	Span<T> m_span {};
 };
 
+// --- Vista de bytes con el **banco** en el tipo (Chip/Fast/Slow) --------------
+
+/// Vista de bytes cuya dirección lleva el **banco** (`Address<Bank>`): `Chip` para DMA (Copper,
+/// `BPLxPT`, blitter), `Fast`/`Slow` para trabajo de CPU con el banco explícito. Una
+/// `TaggedSpan` agnóstica **no** se convierte aquí: el medio lo garantiza la fuente (Bitmap,
+/// `ChipStorage`, `Block<Tag, Bank>`).
+template <class Tag, MemoryKind Bank>
+class MemView {
+public:
+	using size_type = eng::usize;
+
+	constexpr MemView() noexcept = default;
+	constexpr MemView(Address<Bank> base, size_type count) noexcept : m_base(base), m_size(count) {}
+
+	/// Dirección del banco (`off` en bytes).
+	[[nodiscard]] constexpr Address<Bank> address(eng::s32 off = 0) const noexcept {
+		return m_base + off;
+	}
+	[[nodiscard]] constexpr const eng::u8* data() const noexcept { return m_base.cptr(); }
+	[[nodiscard]] constexpr size_type size() const noexcept { return m_size; }
+	[[nodiscard]] constexpr bool empty() const noexcept { return m_size == 0u; }
+	[[nodiscard]] constexpr MemView subview(eng::s32 off, size_type n) const noexcept {
+		return MemView(m_base + off, n);
+	}
+	/// Vista de dominio (CPU) sobre la misma memoria.
+	[[nodiscard]] constexpr ByteView<Tag> view() const noexcept {
+		return ByteView<Tag>(m_base.cptr(), m_size);
+	}
+
+private:
+	Address<Bank> m_base {};
+	size_type m_size = 0u;
+};
+
+template <class Tag> using ChipView = MemView<Tag, MemoryKind::Chip>;
+template <class Tag> using SlowView = MemView<Tag, MemoryKind::Slow>;
+template <class Tag> using FastView = MemView<Tag, MemoryKind::Fast>;
+
 // --- Bloque tipado (resultado de una reserva) --------------------------------
 
 /// Bloque de memoria tipado: vista `Bytes<Tag>` de la reserva **y** su medio.
@@ -151,10 +189,16 @@ struct Block {
 	constexpr Block() noexcept = default;
 	constexpr Block(Bytes<Tag> v, MemoryKind k = Bank) noexcept : view(v), kind(k) {}
 	[[nodiscard]] constexpr bool valid() const noexcept { return !view.empty(); }
-	/// Dirección tipada por el banco. `Bank == Any` = dirección sin banco (no DMA);
+	/// Dirección tipada por el banco (`off` en bytes). `Bank == Any` = dirección sin banco (no DMA);
 	/// un banco concreto la vuelve DMA-safe y no compila en APIs de otro banco.
-	[[nodiscard]] constexpr Address<Bank> address() const noexcept {
-		return Address<Bank>::from_storage(view.data());
+	[[nodiscard]] constexpr Address<Bank> address(eng::s32 off = 0) const noexcept {
+		return Address<Bank>::from_storage(view.data() + off);
+	}
+	/// Vista con el **banco** en el tipo (`MemView<Tag, Bank>`): `Bank=Chip` para DMA (Copper/
+	/// `BPLxPT`), `Fast`/`Slow` para CPU. `Bank=Any` da una dirección sin banco (no DMA).
+	[[nodiscard]] constexpr MemView<Tag, Bank> mem_view() const noexcept {
+		return MemView<Tag, Bank> {Address<Bank>::from_storage(view.data()),
+					   static_cast<eng::usize>(view.size())};
 	}
 	[[nodiscard]] constexpr eng::u8* data() const noexcept { return view.data(); }
 	[[nodiscard]] constexpr eng::usize size() const noexcept { return view.size(); }

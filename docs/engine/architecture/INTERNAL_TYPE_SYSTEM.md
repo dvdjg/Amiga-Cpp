@@ -200,6 +200,7 @@ Los tipos de memoria son **ejes ortogonales**; un tipo nuevo solo se justifica s
 | Dominio (qué dato) | `Tag` (struct vacío): `PlaneTag`, `AudioTag`, `CopperTag`… | lo lleva la vista/bloque |
 | Elemento + mutabilidad | `Bytes<Tag>` / `ByteView<Tag>` / `Words<Tag>` / `WordView<Tag>` | 4 **alias** de una única `TaggedSpan<T,Tag>` (u8/u16 × mutable/const) |
 | Medio (compile-time) | `MemoryKind` + `Address<Bank>` | la **dirección** lleva el banco; no compila entre bancos |
+| Vista con banco | `MemView<Tag, Bank>` (`ChipView`/`SlowView`/`FastView`) | **uno solo** parametrizado por banco; lo consume el DMA (`Bank=Chip`) o la CPU (`Fast`/`Slow`) |
 | Bloque | `Block<Tag, Bank = Any>` | **uno solo**: `Any` = medio como **dato** (el que decide la arena); banco concreto = DMA. `TypedBlock<Tag, K>` es **alias** de `Block<Tag, K>` |
 | Banco / alocador | `MemBank<K>` (pool por banco), `LinearArena` (bump), `BlockPool` (first-fit) | mecanismos distintos, no combinaciones |
 | Estático chip | `ChipStorage<Tag, N>` + `ENG_CHIP_RAM` | búfer fijo **certificado** en Chip RAM |

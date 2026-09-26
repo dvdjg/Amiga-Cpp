@@ -63,6 +63,20 @@ int main() {
 	g_chip.view().fill(0x5Au);
 	check(g_chip.storage[0] == 0x5Au && g_chip.storage[31] == 0x5Au, "ChipStorage: vista escribe");
 
+	// ChipView (MemView<Tag, Chip>): vista con el banco en el tipo (solo desde una fuente chip).
+	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> chip_block {
+		eng::Bytes<eng::PlaneTag> {g_chip.storage, 32u}, eng::MemoryKind::Chip};
+	const eng::ChipView<eng::PlaneTag> cv = chip_block.mem_view();
+	check(cv.size() == 32u && cv.address().valid(), "ChipView: desde Block<Chip>");
+	check(cv.address().cptr() == g_chip.storage, "ChipView: apunta al bloque");
+	check(cv.subview(4, 8).size() == 8u, "ChipView: subview");
+	check(cv.view().size() == 32u, "ChipView: vista de dominio");
+	// El MISMO mecanismo sirve para otro banco (Fast): no hay un tipo por banco.
+	eng::Block<eng::PlaneTag, eng::MemoryKind::Fast> fast_block {
+		eng::Bytes<eng::PlaneTag> {g_chip.storage, 32u}, eng::MemoryKind::Fast};
+	const eng::FastView<eng::PlaneTag> fv = fast_block.mem_view();
+	check(fv.size() == 32u && fv.address().valid(), "FastView: mismo MemView, banco Fast");
+
 	// Panel de telemetria.
 	FakeOverlay o {};
 	eng::debug::Telemetry t {};
