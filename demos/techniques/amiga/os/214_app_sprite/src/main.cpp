@@ -2,10 +2,17 @@
 // Demo 214 — sprite de juego por la fachada `App`/`Screen`
 // ============================================================================
 //
-// Gate del camino de **alto nivel** de dibujo de objetos: el juego no arma `BlitJob`s ni
-// `BobTarget`; describe su sprite (`eng::graphics::Sprite`) y lo pinta con
-// `app.screen().sprite(...)`. La geometría del destino la prepara la escena
-// (`Scene::bob_target()` -> `DrawTarget`) y `app.present()` ejecuta el plan de Blitter.
+// Tutorial (§1.12 de AGENTS.md): como pintar un objeto de juego por la fachada de ALTO NIVEL,
+// sin armar `BlitJob`s ni `BobTarget`. El juego describe su sprite
+// (`eng::graphics::Sprite`) y lo pinta con `app.screen().sprite(...)`; la geometría del
+// destino la prepara la escena (`Scene::bob_target()` -> `DrawTarget`) y `app.present()`
+// ejecuta el plan de Blitter. La segunda vía (mundo retenido: `add_layer`/`add_actor` +
+// `draw_world`) muestra que el MISMO descriptor (`actor_desc_from_sprite`) elige representación
+// sin que el juego la fije: si mañana el sprite cabe en un canal de hardware, cambia solo.
+//
+// Qué mirar para aprender: (1) que NO aparece ningún `BlitJob`, puntero ni registro; (2) que la
+// transición sprite<->BOB es transparente porque el `Visual` conserva su identidad; (3) que el
+// orden por `z` lo resuelve el engine, no el juego.
 //
 //   bash ./tools/build/build-demo.sh demos/techniques/amiga/os/214_app_sprite --debug
 //   bash ./tools/run/run-demo.sh demos/techniques/amiga/os/214_app_sprite --warp

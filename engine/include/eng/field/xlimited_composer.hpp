@@ -132,6 +132,32 @@ public:
         return m_copper_initialized ? m_copper.active_words() : nullptr;
     }
 
+    /// **Cabecera de composición** reutilizable: geometría estática del campo (DMACON/BPLCONx/
+    /// BPLxMOD/DIW/DDF + paleta). La posee quien compone; p. ej. `scene::RasterLayout` puede emitir
+    /// su banda y dejar que el driver aporte solo los punteros que cambian por frame
+    /// (`emit_scroll_pointers`). Es el corte §4/§5 de `PLAYFIELD_SCROLL_ARCHITECTURE.md`.
+    template <class Sched>
+    void emit_header(Sched& sched, const PlayfieldHardwareView& view) const {
+        emit_display_header(sched, view);
+    }
+
+    /// **Intenciones por frame** del driver de scroll: reapunta los planos a la base actual de la
+    /// superficie, SIN tocar BPLCON0/DDF/módulos (los posee la composición). Un driver de scroll es
+    /// esto: la geometría es de la composición; el driver aporta los punteros que van cambiando.
+    template <class Sched>
+    void emit_scroll_pointers(Sched& sched, const PlayfieldHardwareView& view) const {
+        for (u8 p = 0; p < view.planes; ++p) {
+            // soft DPF: el plano de fondo se lee de su propio buffer (doble buffer).
+            const Address<MemoryKind::Chip> base =
+                (view.bg_plane_base.valid() && p == view.parallax_plane) ? view.bg_plane_base
+                                                                         : view.real_base;
+            // En interleaved, Planes[p] = base + p*bpr + Y*planes*bpr; planeaddx/planeaddy son
+            // los offsets actuales del scroll. La aritmética de `Address<Chip>` conserva el banco.
+            sched.move_bitplane_pointer(p, base + view.planeaddx + view.planeaddy +
+                                               static_cast<u32>(p) * view.bitmap_bytes_per_row);
+        }
+    }
+
 private:
     static constexpr u16 pointer_high_word(u8 plane) {
         return static_cast<u16>(21u + plane * 4u);
@@ -195,19 +221,7 @@ private:
     bool emit_full(const PlayfieldHardwareView& view, eng::Ref<const OverlayZone> hud = {}) {
         copper::SchedulerT<false> sched { m_copper.inactive_block() };
         emit_display_header(sched, view);
-        for (u8 p = 0; p < view.planes; ++p) {
-            // soft DPF: el plano de fondo se lee de su propio buffer (doble buffer).
-            const Address<MemoryKind::Chip> base =
-                (view.bg_plane_base.valid() && p == view.parallax_plane) ? view.bg_plane_base
-                                                                         : view.real_base;
-            // En interleaved, Planes[p] = base + p*BITMAPBYTESPERROW + Y*planes*bytes.
-            // planeaddy aporta el offset vertical (display_offset) y planeaddx el horizontal.
-            // La aritmética de `Address<Chip>` conserva el banco: no hace falta `cast`.
-            const Address<MemoryKind::Chip> addr =
-                base + view.planeaddx + view.planeaddy +
-                static_cast<u32>(p) * view.bitmap_bytes_per_row;
-            sched.move_bitplane_pointer(p, addr);
-        }
+        emit_scroll_pointers(sched, view);
         // Raster colors: WAIT en cada línea + MOVE del color (orden ASCENDENTE).
         // Requieren un display lineal (sin split de Copper) para no desordenar el raster.
         for (eng::usize z = 0; z < m_cfg.color_zones.size(); ++z) {

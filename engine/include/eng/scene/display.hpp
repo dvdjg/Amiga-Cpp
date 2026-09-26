@@ -40,6 +40,9 @@ struct DisplayDesc {
 	eng::u16 bpl1mod = 0u;
 	eng::u16 bpl2mod = 0u;
 	eng::ChipPlaneView planes_view {}; ///< base Chip de los planos (DMA)
+	/// Segunda superficie (**dual playfield**): si no está vacía, `planes_view` alimenta los
+	/// planos pares (PF1) y `planes_view_b` los impares (PF2), intercalados uno a uno.
+	eng::ChipPlaneView planes_view_b {};
 	eng::u16 dmacon = static_cast<eng::u16>(::eng::copper::DmaSetClear | ::eng::copper::DmaMaster |
 						::eng::copper::DmaCopper | ::eng::copper::DmaBitplane |
 						::eng::copper::DmaBlitter);
@@ -65,6 +68,18 @@ void emit_display(Scheduler& sched, const DisplayDesc& d) {
 	sched.move(::eng::copper::Register::DIWSTOP, d.diwstop);
 	sched.move(::eng::copper::Register::DDFSTRT, d.ddfstrt);
 	sched.move(::eng::copper::Register::DDFSTOP, d.ddfstop);
+	if (!d.planes_view_b.empty() && (d.planes % 2u) == 0u) {
+		// Dual playfield: `planes_view` = PF1 (planos pares), `planes_view_b` = PF2 (impares).
+		const eng::u8 ppf = static_cast<eng::u8>(d.planes / 2u);
+		for (eng::u8 i = 0u; i < ppf; ++i) {
+			const eng::u16 off = static_cast<eng::u16>(i * d.bytes_per_row);
+			sched.move_bitplane_pointer(static_cast<eng::u8>(i * 2u),
+						    d.planes_view.address(off));
+			sched.move_bitplane_pointer(static_cast<eng::u8>(i * 2u + 1u),
+						    d.planes_view_b.address(off));
+		}
+		return;
+	}
 	for (eng::u8 p = 0u; p < d.planes; ++p) {
 		sched.move_bitplane_pointer(p, d.planes_view.address(
 						      static_cast<eng::s32>(static_cast<eng::u32>(p) *
@@ -115,6 +130,9 @@ struct Band {
 	/// los planos van en bloques contiguos separados `plane_bytes` (módulo `0`).
 	eng::u16 plane_bytes = 0;
 	eng::ChipPlaneView planes_view {}; ///< base Chip del plano 0 (DMA); vacío si `planes == 0`
+	/// Segunda superficie (**dual playfield**): PF1 en `planes_view` (planos pares) y PF2 en
+	/// `planes_view_b` (impares). No la usa `bob_target` (los BOB van a PF1).
+	eng::ChipPlaneView planes_view_b {};
 	/// Vista **mutable** de los planos (Chip) para dibujar BOBs en esta banda: la misma memoria
 	/// que `planes_view`, pero escribible. Vacía = la banda no dibuja BOBs.
 	eng::Bytes<eng::PlaneTag> bob_base {};
@@ -164,7 +182,13 @@ struct Band {
 	[[nodiscard]] eng::graphics::BobTarget bob_target() const noexcept {
 		eng::graphics::BobTarget t {};
 		t.base = bob_base.data();
-		if (dual_playfield && planes >= 2u) {
+		if (dual_playfield && !planes_view_b.empty() && (planes % 2u) == 0u) {
+			// DPF de **dos bitmaps** (cada campo interleave propio): PF1 = `planes_view`,
+			// interleave de `planes / 2` planos con módulo interleaved estándar.
+			t.row_bytes = bytes_per_row;
+			t.planes = static_cast<eng::u8>(planes / 2u);
+			t.layout = eng::graphics::BobLayout::Interleaved;
+		} else if (dual_playfield && planes >= 2u) {
 			t.row_bytes = static_cast<eng::u16>(bytes_per_row * static_cast<eng::u16>(planes));
 			t.plane_bytes = static_cast<eng::u32>(bytes_per_row) * 2u;
 			t.planes = static_cast<eng::u8>(planes / 2u);
@@ -214,6 +238,35 @@ struct Band {
 	return b;
 }
 
+/// Banda **dual playfield** a partir de dos superficies (PF1 = frontal, PF2 = fondo), cada una un
+/// bitmap con su propio interleave/scroll (el layout del `XlimitedDualComposer`): `planes_view` =
+/// PF1 (planos de hardware pares) y `planes_view_b` = PF2 (impares), cada plano a `i·bpr`, con los
+/// módulos y el fine scroll (dos nibbles) de cada campo. `RasterLayout` emite así el DPF sin bajar
+/// al compositor. Es el caso “DPF con bg y fg independientes”.
+[[nodiscard]] inline Band band_from_dual_view(const eng::field::PlayfieldHardwareView& pf1,
+					      const eng::field::PlayfieldHardwareView& pf2,
+					      eng::u16 top) noexcept {
+	Band b {};
+	const eng::u8 ppf = pf1.planes;
+	b.top = top;
+	b.planes = static_cast<eng::u8>(ppf + pf2.planes);
+	b.dual_playfield = true;
+	b.bytes_per_row = pf1.bitmap_bytes_per_row;
+	b.bplcon1 = static_cast<eng::u16>(((pf2.bplcon1 & 0x0fu) << 4u) | (pf1.bplcon1 & 0x0fu));
+	b.bpl1mod = pf1.bpl1mod;
+	// Fetch real de PF1 (la ventana la marca PF1): módulo de PF2 para que lea su propia fila.
+	const eng::u16 fetch1 = static_cast<eng::u16>(
+		static_cast<eng::u32>(pf1.bitmap_bytes_per_row) * ppf - pf1.bpl1mod);
+	b.bpl2mod = static_cast<eng::u16>(
+		static_cast<eng::u32>(pf2.bitmap_bytes_per_row) * pf2.planes - fetch1);
+	const eng::s32 off1 = static_cast<eng::s32>(pf1.planeaddx + pf1.planeaddy);
+	const eng::s32 off2 = static_cast<eng::s32>(pf2.planeaddx + pf2.planeaddy);
+	b.planes_view = eng::ChipPlaneView {pf1.real_base + off1, pf1.plane_bytes};
+	b.planes_view_b = eng::ChipPlaneView {pf2.real_base + off2, pf2.plane_bytes};
+	b.bob_base = eng::Bytes<eng::PlaneTag> {pf1.real_base.ptr(), pf1.plane_bytes};
+	return b;
+}
+
 /// **Layout de pantalla por bandas**: compone varios tramos con geometría distinta (p.ej. un
 /// dual playfield 3+3 arriba y una franja de 0 planos para efectos *copper chunky* abajo) sobre un
 /// `copper::Scheduler`, sin que el juego nombre registros ni compute módulos.
@@ -260,6 +313,7 @@ public:
 		d.bpl1mod = b0.bpl1mod;
 		d.bpl2mod = b0.bpl2mod;
 		d.planes_view = b0.planes_view;
+		d.planes_view_b = b0.planes_view_b;
 		d.ddfstrt = b0.ddfstrt;
 		d.ddfstop = b0.ddfstop;
 		emit_display(sched, d);

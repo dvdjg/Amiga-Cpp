@@ -123,6 +123,45 @@ int main() {
 		check(bplcon1_ok, "BPLCON1 = fine scroll de la vista");
 	}
 
+	// DPF de dos superficies (bg XYLimited + fg XLimited) + franja 0-bpp, por bandas.
+	{
+		eng::field::PlayfieldHardwareView pf1 {};
+		pf1.planes = 3u;
+		pf1.bitmap_bytes_per_row = 48u;
+		pf1.real_base = planes.mem_view().address(0);
+		pf1.plane_bytes = 3u * 48u * 256u;
+		pf1.bpl1mod = 0x28u;
+		pf1.bplcon1 = 0x03u;
+		eng::field::PlayfieldHardwareView pf2 {};
+		pf2.planes = 3u;
+		pf2.bitmap_bytes_per_row = 48u;
+		pf2.real_base = planes.mem_view().address(0) + 240; // segunda superficie
+		pf2.plane_bytes = 3u * 48u * 256u;
+		pf2.bpl1mod = 0x28u;
+		pf2.bplcon1 = 0x05u;
+
+		eng::scene::RasterLayout l3 {};
+		l3.add(eng::scene::band_from_dual_view(pf1, pf2, 0u));
+		l3.add({.top = 208u, .planes = 0u, .color = false});
+		check(l3[0].planes == 6u && l3[0].dual_playfield, "banda DPF 3+3");
+		check(l3[0].bplcon1 == 0x0053u, "BPLCON1 = nibble PF1 | PF2<<4");
+		check(l3[0].bpl1mod == 0x28u, "BPL1MOD de PF1");
+
+		eng::u16 cop[512] {};
+		eng::MemoryBlock cb {cop, sizeof(cop), eng::MemoryKind::Chip};
+		eng::copper::SchedulerT<false> s3 {cb};
+		check(l3.materialize(s3), "materializa DPF por bandas");
+		s3.end();
+		bool bplcon0_ok = false;
+		for (eng::u32 i = 0u; i + 1u < s3.words_used(); ++i) {
+			if (cop[i] == 0x0100u) {
+				bplcon0_ok = (cop[i + 1u] == 0x6600u); // 6 planos + COLOR + DBLPF
+				break;
+			}
+		}
+		check(bplcon0_ok, "BPLCON0 del DPF por bandas");
+	}
+
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;

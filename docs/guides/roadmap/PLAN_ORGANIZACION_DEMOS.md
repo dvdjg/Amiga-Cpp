@@ -90,6 +90,10 @@ Regla `techniques` vs `features`:
 4. **`pc` (SDL) no es de primera clase** hasta que Amiga esté al 100 %; igual que Atari ST/Megadrive.
    Aun así, **el core no hace nada Amiga-only** (lo vigila `platform-boundaries.mjs`).
 5. Categorías nuevas: **`sim`** (simulación) y **`emulation`** (retroemulación), como features.
+6. **Las demos son tutoriales** (regla §1.12 de `AGENTS.md`): cada demo enseña el camino de la fachada
+   con comentarios de intención, sin bajo nivel gratuito (registros, punteros, `BlitJob`, backend) y
+   sin narrar cronología. La plantilla de estilo es `demos/techniques/amiga/playfield/126_fast_bobs`;
+   el `README.md` presenta efecto + técnica (ficha en `docs/reference/`) + contrato ilustrado.
 
 ## 7. Migración (por lotes)
 
