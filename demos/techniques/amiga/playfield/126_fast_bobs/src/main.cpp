@@ -1,18 +1,31 @@
 // ============================================================================
-// Demo 126 - fast_bobs (dual playfield, BOBs con copia + padding)
-// ============================================================================
+// Demo 126 - fast_bobs
+// ----------------------------------------------------------------------------
+// Tutorial: como dibujar BOBs con la tecnica **Fast Bobs** (dual playfield) usando
+// SOLO la fachada de escena del engine. No se nombra ni un registro del chipset, ni
+// un `BlitJob`, ni un puntero crudo: eso lo resuelven las capas de abajo.
 //
-// Gate en hardware de la tecnica **Fast BOBs** (`docs/reference/amiga/techniques/
-// dual-playfield-fastbobs.md`) por la fachada de escena:
-//   - Pantalla por bandas (`eng::scene::RasterLayout`): un **dual playfield 3+3** (6 planos,
-//     DBLPF) arriba y una franja inferior de **0 planos** (para efectos copper), compuesta sobre
-//     `ModeSwitchZone`.
-//   - PF2 (planos impares) = fondo a rayas; PF1 (planos pares) **arranca vacio**.
-//   - Los BOB viven en PF1 y se dibujan con `eng::scene::FastBobLayer` (copia con padding: el
-//     propio padding limpia los restos del frame anterior). El juego **solo mueve actores**.
+// Que ilustra (y con que tipo del engine):
+//   1. Pantalla por **bandas** -> `eng::scene::RasterLayout`:
+//        banda 0: dual playfield 3+3 (6 planos, `DBLPF`) en las lineas 0..207.
+//        banda 1: franja de 0 planos en 208..255 (apaga el DMA de planos; sitio para
+//                 efectos "copper chunky"). Se materializa como `ModeSwitchZone`.
+//      El juego declara GEOMETRIA y el engine emite el display + las conmutaciones.
+//   2. Un BOB es un asset (`eng::graphics::Sprite`) mas una **capa** que lo mueve:
+//      `eng::scene::FastBobLayer`. La capa conoce la tecnica (copia con padding: el
+//      propio padding limpia los restos del frame anterior) y degrada sola a
+//      clear+cookie-cut cuando hace falta. El juego SOLO mueve actores (`BobActor`).
+//   3. El dibujo por frame es un `eng::graphics::FramePlan`: la capa lo RELLENA
+//      (`emit`) y el backend lo EJECUTA (`execute_frame_plan`). El juego nunca
+//      programa el Blitter.
 //
-// El asset del BOB se genera en runtime (no hay pipeline): un cuadrado con 8 px de padding de
-// color 0, en planar de 3 planos.
+// La tecnica, con su justificacion y limites, esta en la ficha
+// `docs/reference/amiga/techniques/dual-playfield-fastbobs.md` (dual playfield +
+// BOB con padding; PF1 vacio de origen, el fondo real vive en PF2).
+//
+// Por que es un buen tutorial: si intentaras hacer lo mismo "a mano" tendrias que
+// calcular modulos, punteros de plano, el layout interleaved del DPF y el padding;
+// aqui todo eso es una consecuencia de declarar la banda y mover un actor.
 //
 //   bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/126_fast_bobs --debug
 //   bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/126_fast_bobs --warp
@@ -97,6 +110,11 @@ struct FastBobsDemo {
 		build_background();
 		build_sheet();
 
+		// --- El BOB como ASSET de juego (no como geometria de Blitter) ----------------
+		// `graphics::Sprite` reune geometria + hoja + politica. `BobDraw::Opaque` es la
+		// "copia" del Fast Bob: escribe el bitmap TAL CUAL (incluido su padding de color 0),
+		// de modo que el padding borra por si solo lo que quede del frame anterior. No hay
+		// mascara: la transparencia la da el propio padding sobre un PF1 vacio.
 		eng::graphics::Bob bob {};
 		bob.sheet = m_sheet_block.view.data();
 		bob.width = kBobPadded;
@@ -106,6 +124,9 @@ struct FastBobsDemo {
 		bob.draw = eng::graphics::BobDraw::Opaque; // copia: dibuja y limpia con el padding
 		m_sprite = eng::graphics::Sprite {bob};
 
+		// --- La CAPA que conoce la tecnica --------------------------------------------
+		// Le damos la hoja **con padding** (8 px por lado); la capa decide por frame si
+		// copia (rapido) o degrada a clear + cookie-cut. El juego nunca ve un `BlitJob`.
 		m_bobs.set_sheet(m_sprite, kBobPad, kBobPad);
 		m_bobs.set_slow_sheet(m_sprite);
 		m_bobs.resize(2u);
@@ -131,6 +152,8 @@ struct FastBobsDemo {
 			     static_cast<s16>(128 + tri(f, 96u)), 0u, true};
 
 		m_plan.clear();
+		// La capa RELLENA el `FramePlan` (¿que blits?) y el backend lo EJECUTA. El juego no
+		// describe minterns, modulos ni strides: solo dijo donde esta cada actor.
 		(void)m_bobs.emit(m_plan, m_band.bob_target());
 		(void)backend.execute_frame_plan(m_plan);
 	}
@@ -180,6 +203,10 @@ private:
 	}
 
 	bool build_display() {
+		// --- Composicion por BANDAS (`RasterLayout`) ----------------------------------
+		// Declaramos GEOMETRIA, no registros: la banda 0 es un dual playfield 3+3 y la banda 1
+		// una franja sin planos. `band_of_planes` ata el display y la base de BOBs a la MISMA
+		// memoria (una sola verdad). El engine emite el display y la `ModeSwitchZone`.
 		eng::scene::RasterLayout layout {};
 		eng::scene::Band band = eng::scene::band_of_planes(m_planes, kPlanes, kBytesPerRow, 0u);
 		band.dual_playfield = true;

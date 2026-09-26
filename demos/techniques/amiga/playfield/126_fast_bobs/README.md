@@ -1,7 +1,8 @@
 # 126 - fast_bobs
 
 Gate en hardware de la técnica **Fast BOBs** (dual playfield, copia con padding) por la fachada
-de escena del engine.
+de escena del engine. Está escrita como **tutorial** (`AGENTS.md` §1.12): el `src/main.cpp`
+enseña el camino correcto (bandas + capa de BOBs) sin nombrar registros ni `BlitJob`.
 
 ## Qué muestra
 
