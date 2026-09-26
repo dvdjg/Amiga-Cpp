@@ -1,0 +1,2 @@
+# Esta demo pide la **pila en Fast RAM** (si existe): el `_start` la mueve antes de las IRQs.
+FAST_STACK=1
