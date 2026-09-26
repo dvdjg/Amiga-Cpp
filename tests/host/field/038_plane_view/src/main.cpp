@@ -20,8 +20,10 @@ using eng::field::PlaneView;
 
 int main() {
 	eng::u8 main_real[8] {}, main_front[8] {}, extra_real[8] {}, extra_front[8] {};
-	const eng::BitmapBase mr {main_real}, er {extra_real};
-	const eng::FrontBase mf {main_front}, ef {extra_front};
+	const eng::BitmapBase mr {eng::Address<eng::MemoryKind::Chip> {main_real}},
+	                       er {eng::Address<eng::MemoryKind::Chip> {extra_real}};
+	const eng::FrontBase mf {eng::Address<eng::MemoryKind::Chip> {main_front}},
+	                      ef {eng::Address<eng::MemoryKind::Chip> {extra_front}};
 	const eng::BitmapBase no_b {};
 	const eng::FrontBase no_f {};
 

@@ -101,11 +101,15 @@ int main() {
 		check(words_from_bytes.size() == 2u && words_from_bytes[1] == 0x2222u, "bytes<->words redondo");
 	}
 
-	// Direcciones con semantica distinta.
-	eng::BitmapBase bb {data};
-	eng::FrontBase fb {data};
+	// Direcciones con semántica distinta. La base de un bitmap va a `BPLxPT` (DMA de Agnus:
+	// SOLO Chip RAM), así que el búfer de origen debe estar **realmente en Chip** (`ENG_CHIP_RAM`).
+	// Forzar la conversión desde un array cualquiera ocultaría que no se puede garantizar el medio.
+	ENG_CHIP_RAM alignas(2) eng::u8 chip_planes[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+	eng::BitmapBase bb {eng::Address<eng::MemoryKind::Chip> {chip_planes}};
+	eng::FrontBase fb {eng::Address<eng::MemoryKind::Chip> {chip_planes}};
 	check(bb.value == fb.value, "misma memoria, tipos distintos");
 	static_assert(!ConstructibleFrom<eng::FrontBase, eng::BitmapBase>, "base y front no se mezclan");
+	static_assert(!ConstructibleFrom<eng::BitmapBase, eng::FrontBase>, "front y base no se mezclan");
 
 	if (g_fail != 0) { std::printf("%d fallo(s)\n", g_fail); return 1; }
 	std::printf("OK: sistema de tipos internos (tags, unidades, direcciones) validado.\n");
