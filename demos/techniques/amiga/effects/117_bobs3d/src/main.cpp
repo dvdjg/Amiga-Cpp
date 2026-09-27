@@ -97,6 +97,13 @@ struct PixmapT {
 #ifndef K_117_BATCH
 #define K_117_BATCH 1
 #endif
+// 1 = pase **fusionado** project+stamp: proyecta un vertice y lanza su BOB en el MISMO bucle,
+// de forma que la CPU proyecta el vertice N+1 mientras el Blitter estampa el N (solapa el
+// transform, que corria con el Blitter parado, con el tramo activo del Blitter). 0 = dos
+// pases (transform completo y luego el lote), como el `DrawObject` del original.
+#ifndef K_117_FUSE
+#define K_117_FUSE 0
+#endif
 // Diagnostico de coste: 0 desactiva la fase (para medirla aislada).
 #ifndef K_117_CLEAR
 #define K_117_CLEAR 1
@@ -331,10 +338,17 @@ struct Bobs3DDemo {
 		P_BEGIN(kProfForward);
 		obj::update_object_transformation_forward(m_object);
 		P_END(kProfForward);
+#if !(K_117_BOBS && K_117_BATCH && K_117_FUSE)
 		transform_all_vertices(m_object);
+#endif
 		P_END(kProfTransform);
 
-#if K_117_BOBS && K_117_BATCH
+#if K_117_BOBS && K_117_BATCH && K_117_FUSE
+		// Pase fusionado: proyecta y estampa en el mismo bucle (solapa transform <-> Blitter).
+		P_BEGIN(kProfBlits);
+		project_and_draw_stream(backend, screen.data());
+		P_END(kProfBlits);
+#elif K_117_BOBS && K_117_BATCH
 		// Fusor: calculo del vertice + programacion del blit en el mismo bucle.
 		P_BEGIN(kProfBlits);
 		draw_bobs_stream(backend, screen.data());
@@ -413,6 +427,64 @@ private:
 				s16 x = static_cast<s16>(data->x.v - 16);
 				const s16 y = static_cast<s16>(data->y.v - 16);
 				s16 z = data->z.v;
+
+				z >>= 4;
+				z -= static_cast<s16>(-256);
+				z += 128 - 32;
+				z = static_cast<s16>(z + z + z - 32);
+				z = static_cast<s16>(z & ~31);
+				if (z < 0) {
+					z = 0;
+				} else if (z > bobs_height - kBobH) {
+					z = bobs_height - kBobH;
+				}
+
+				s16 x_start = static_cast<s16>(x & ~15);
+				if (x_start < 0) {
+					x_start = 0;
+				}
+
+				batch.one(
+					m_frame_src[static_cast<u8>(z >> 5)],
+					screen + static_cast<s32>(y) * static_cast<s32>(kBytesPerRow * kPlanes) +
+						(static_cast<s32>(x_start) >> 3),
+					static_cast<u8>(x & 15));
+			}
+			if (drawn >= static_cast<u32>(K_117_MAXBLOBS)) {
+				break;
+			}
+		} while (*group);
+		batch.end();
+	}
+
+	/// Pase **fusionado** (project+stamp): por cada vertice proyecta (CPU) y lanza su BOB
+	/// (Blitter) en el MISMO bucle. Asi la CPU proyecta el vertice N+1 mientras el Blitter
+	/// estampa el N: se solapa el transform (que corria con el Blitter parado) con el tramo
+	/// activo del Blitter. Misma salida que `transform_all_vertices` + `draw_bobs_stream` (no
+	/// hace falta escribir el array `vertex`).
+	void project_and_draw_stream(eng::amiga::AmigaBackend& backend, u8* screen) {
+		using Proj = eng::math::projector<eng::math3d::Affine3<>>;
+		const Proj::cache pc = Proj::make(m_object.objectToWorld);
+		s16* group = m_object.vertexGroups;
+
+		eng::amiga::OrBlobBatch batch;
+		batch.begin(backend.custom_registers(), kBobWords, K_117_BLITROWS, 0, kBobDestModulo);
+		u32 drawn = 0;
+		do {
+			s16 i;
+			while ((i = *group++)) {
+				if (drawn >= static_cast<u32>(K_117_MAXBLOBS)) {
+					break;
+				}
+				++drawn;
+				obj::Point3D* p = m_object.point(i);
+				const eng::math::Projected3 pr =
+					Proj::project(pc, p->x.v, p->y.v, p->z.v);
+				const s16 zp = static_cast<s16>(pr.zp);
+				s16 x = static_cast<s16>(eng::math::div_wide(pr.xp, zp) + kWidth / 2u - 16u);
+				const s16 y =
+					static_cast<s16>(eng::math::div_wide(pr.yp, zp) + kHeight / 2u - 16u);
+				s16 z = zp;
 
 				z >>= 4;
 				z -= static_cast<s16>(-256);

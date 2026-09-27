@@ -50,6 +50,16 @@ bucle de blits corre sin interrupción. Los "campos/frame" de la tabla de arriba
 `update`; la **tasa del bucle** (con la espera de VBlank de cada frame) queda algo por debajo
 (≈22 fps con 56 BOBs en `A500_debug`).
 
+## Solape transform↔Blitter (`K_117_FUSE`)
+
+El `transform` (≈86k ciclos) corría con el Blitter **parado**: un pase de proyección de los 60
+vértices y, después, el lote de BOBs. El pase **fusionado** (`K_117_FUSE=1`) proyecta cada
+vértice y lanza su BOB en el MISMO bucle, para que la CPU proyecte el vértice N+1 mientras el
+Blitter estampa el N. Medido (`measure-fps`): **sin ganancia** — 60 BOBs dan 427 727 ciclos
+fusionado vs 429 148 en dos pases; con `BLTPRI` (blitter-nasty) desactivado, idéntico. El cuello
+es el **bus/Blitter**, no la secuencia CPU↔Blitter, así que por defecto se mantiene
+`K_117_FUSE=0` (dos pases, fiel al original).
+
 ## Diagnóstico por capas
 
 Interruptores de compilación para aislar componentes (validación incremental con visión):
