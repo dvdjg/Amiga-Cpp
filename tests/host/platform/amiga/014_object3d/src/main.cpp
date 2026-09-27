@@ -56,11 +56,11 @@ int main() {
 	}
 
 	// Offsets de las macros (indice = offset de byte; primer vertice = 2).
-	const Point3D* p = point3d(bytes, 2);
-	check(p->x.v == 111 && p->y.v == 222 && p->z.v == 333, "point3d(i) -> point del nodo");
-	const Point3D* v = vertex3d(bytes, 2);
-	check(v->x.v == 0 && v->y.v == 0 && v->z.v == 0, "vertex3d(i) -> vertex del nodo");
-	check(reinterpret_cast<short*>(node3d(bytes, 2)) == data, "node3d(i) = objdat + i - 2");
+	const Point3D* p = MeshBlob {bytes}.point(2);
+	check(p->x.v == 111 && p->y.v == 222 && p->z.v == 333, "MeshBlob::point(2) -> point del nodo");
+	const Point3D* v = MeshBlob {bytes}.vertex(2);
+	check(v->x.v == 0 && v->y.v == 0 && v->z.v == 0, "MeshBlob::vertex(2) -> vertex del nodo");
+	check(reinterpret_cast<short*>(MeshBlob {bytes}.node(2)) == data, "MeshBlob::node(2) = objdat + i - 2");
 
 	// Transformacion: identidad + traslacion.
 	obj.rotate = {};

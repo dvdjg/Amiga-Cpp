@@ -51,7 +51,7 @@ inline PolyMeshCounts build_poly_mesh(const Object3D& object, eng::Span<eng::mat
 					g = nullptr;
 					break;
 				}
-				const Point3D* p = point3d(bytes, off);
+				const Point3D* p = MeshBlob {bytes}.point(off);
 				verts[c.vertices] = eng::math3d::Vec3t<S> {
 					{T::from_int(p->x.v), T::from_int(p->y.v), T::from_int(p->z.v)}};
 				offsets[c.vertices] = off;
@@ -67,7 +67,7 @@ inline PolyMeshCounts build_poly_mesh(const Object3D& object, eng::Span<eng::mat
 		do {
 			s16 foff;
 			while (room && (foff = *fg++) != 0) {
-				Face* f = face3d(bytes, foff);
+				Face* f = MeshBlob {bytes}.face(foff);
 				const u32 cnt = static_cast<u32>(f->count);
 				if (f->count < 3) {
 					continue;

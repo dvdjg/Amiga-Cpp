@@ -207,11 +207,8 @@ struct Mesh3D {
 struct Object3D;
 [[nodiscard]] inline eng::Span<eng::u8> object_bytes(const Object3D& object);
 
-[[nodiscard]] inline Node3D* node3d(MeshBlob b, s16 i) { return b.node(i); }
-[[nodiscard]] inline Point3D* point3d(MeshBlob b, s16 i) { return b.point(i); }
-[[nodiscard]] inline Point3D* vertex3d(MeshBlob b, s16 i) { return b.vertex(i); }
-[[nodiscard]] inline Edge* edge3d(MeshBlob b, s16 i) { return b.edge(i); }
-[[nodiscard]] inline Face* face3d(MeshBlob b, s16 i) { return b.face(i); }
+// (Los accesores libres `node3d`/`point3d`/`vertex3d`/`edge3d`/`face3d` se han eliminado: eran
+// wrappers de una línea sobre `MeshBlob`. Usa los métodos `MeshBlob::node/point/vertex/...`.)
 
 /// Objeto 3D: mesh enlazado + estado de transformación + cámara en espacio objeto.
 ///
@@ -237,11 +234,11 @@ struct Object3D {
 
 	/// Accesores tipados al blob empaquetado (evitan manejar el `Span` a mano en los
 	/// efectos). Reenvían a `point3d`/`face`… con la vista del propio objeto.
-	[[nodiscard]] Node3D* node(s16 i) { return node3d(object_bytes(*this), i); }
-	[[nodiscard]] Point3D* point(s16 i) { return point3d(object_bytes(*this), i); }
-	[[nodiscard]] Point3D* vertex(s16 i) { return vertex3d(object_bytes(*this), i); }
-	[[nodiscard]] Edge* edge(s16 i) { return edge3d(object_bytes(*this), i); }
-	[[nodiscard]] Face* face(s16 i) { return face3d(object_bytes(*this), i); }
+	[[nodiscard]] Node3D* node(s16 i) { return MeshBlob {object_bytes(*this)}.node(i); }
+	[[nodiscard]] Point3D* point(s16 i) { return MeshBlob {object_bytes(*this)}.point(i); }
+	[[nodiscard]] Point3D* vertex(s16 i) { return MeshBlob {object_bytes(*this)}.vertex(i); }
+	[[nodiscard]] Edge* edge(s16 i) { return MeshBlob {object_bytes(*this)}.edge(i); }
+	[[nodiscard]] Face* face(s16 i) { return MeshBlob {object_bytes(*this)}.face(i); }
 };
 
 // Invariante de layout: los tipos con escala (`q0`/`q12`) describen el `objdat` empaquetado
