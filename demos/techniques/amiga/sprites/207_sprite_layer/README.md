@@ -19,6 +19,8 @@ Los canales Copper **también** necesitan una estructura DMA válida (`[POS, CTL
 - Canales 0..3 DMA (patrón ajedrezado), canales 4..7 Copper (pattern `DATA = 0xAAAA`, barras verticales).
 - Una estructura DMA por canal (`kDmaStride = 2 + 40*2 + 2` words): cabecera POS+CTL, 40 líneas de DATA y terminador.
 - `BPLCON2 = 0x0008` (sprites detrás de PF1 = fondo). Scroll: `hpos` avanza 2 px por frame.
+- La copperlist se construye **una sola vez** (setup, `SpriteLayer::bind`); por frame solo se **parchean**
+  las palabras `SPRxPOS` con el scroll (`SpriteLayer::patch`) — sin re-emitir la lista (coste ~0).
 
 ## Referencias
 
