@@ -31,6 +31,19 @@ Se revisaron las rutinas de memoria recientes y **no** eran la causa:
 
 **Observación aparte (latente, no era la causa)**: con `ENG_APP_MAIN`, `main` coloca `AmigaBackend` + el `Game` + `App` en **pila**; `sizeof(AbyssDemo)` medido = **18954 B** (un `Scene` grande). Si la pila de arranque es pequeña (p. ej. CLI de AmigaOS), podría desbordar. Mitigación propuesta: mover esos objetos a **estáticos/BSS** (requiere un `atexit` no-op en el soporte freestanding) o subir la pila. No se aplicó aquí para no ampliar el cambio.
 
+## ¿Regresión o bug latente?
+
+Es un **bug latente**, no un fix perdido: `git log -S '"d1"' -- music_player.hpp` muestra que `music_player.hpp` **nunca** declaró el clobber (ni se añadió ni se borró). El wrapper de `p61.asm` no cambió (siempre salvó `d2-d7/a2-a6`), y las estructuras del `.i` viejo (`support/music/P6112-Play.i`) y del nuevo (`support/music/p61/P6112-Play.i`) son idénticas en los prólogos. La manifestación depende del **contexto de llamada** (qué valor vive en `d1` al entrar): por eso puede haber funcionado con el mini-SO y romperse con el `App`.
+
+## Mismo patrón en otros wrappers (pendiente, misma clase de bug)
+
+Los envoltorios de asm inline que hacen `jsr` a rutinas demoscene **sin declarar los clobbers** tienen el mismo riesgo:
+
+- `engine/include/eng/audio/sfx_mixer.hpp`: los 15 `jsr _Mixer*` (solo `"cc","memory"`; algunos con `"=r"(result)`).
+- `engine/include/eng/audio/music_player.hpp`: PT (`jsr _PtInit`/`_PtInstallCIA`/…/`_mt_mastervol`/`_mt_channelmask`) y MED (`jsr _startmusic`/`_endmusic`).
+
+Además, varios de ellos pasan argumentos con `"r"(…)` (registro elegido por el compilador) a rutinas que los esperan en **registros concretos** — conviene fijarlos con `__asm("dN")`/`__asm("aN")` y declarar los clobbers reales. Es un dominio aparte (mixer/PT) que merece su propia pasada.
+
 ## Referencias
 
 - Playroutine: `support/music/p61/P6112-Play.i` (`P61_dmason`, `P61_Music`), `support/music/p61.asm`.
