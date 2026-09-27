@@ -66,13 +66,15 @@ marca ≈2× los ciclos de CPU; `142102` = **1 frame PAL**):
 | Sin `clear_box` (la banda de juego) | 34,7 | 204654 |
 | Sin música (`play_music`) | 28,4 | 250133 |
 | **Sin los 16 BOBs** (`Screen::sprite`) | **49,9** | 142102 |
+| **Sin ejecutar el Blitter** (CPU sí; ver texto) | **48,8** | 145485 |
 
-**Lectura**: sin los BOBs la demo cabe **exacta** en un frame PAL (49,9 fps, igual que el original);
-los 16 `Screen::sprite` cuestan ~55k ciclos (≈0,8 frame) y fuerzan el frame-skip a ~28 fps. El
-`clear_box` cuesta ~24k (≈0,34 frame) y la música (en la IRQ de VBlank) es **despreciable** (el
-solape funciona). El camino del BOB (`Screen::sprite` → `Sprite::draw` → `BlitJob`, ~3.400
-ciclos/BOB) es el candidato a optimizar frente al blit interleaved de una pasada del original
-(`A=máscara`, `B=imagen`, 80×2 words, `$CA`).
+**Lectura**: sin los BOBs la demo cabe **exacta** en un frame PAL (49,9 fps) y, saltando **solo la
+ejecución del Blitter** (manteniendo el CPU que encola los jobs), también (**48,8 fps**) → el cuello
+es la **ejecución del Blitter** (los 17 blits ≈ 55k ciclos ≈ 0,8 frame), **no** el CPU que los
+prepara. El `clear_box` cuesta ~24k (≈0,34 frame); la música (en la IRQ de VBlank) es
+**despreciable**. El DMA de Blitter propio es **+43%** que el del original (22265 vs 15569) con los
+mismos 17 blits y la misma geometría → margen en la ejecución (`amiga_blitter.cpp`: ~10-13
+escrituras de registro por job, sin caché del estado de registros entre jobs).
 
 ## Assets
 
