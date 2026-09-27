@@ -99,6 +99,50 @@ struct Face {
 	s16 count = 0;
 };
 
+/// **Vista tipada del `objdat` empaquetado** (formato de `obj2c`). Es el **único** sitio donde se
+/// convierte el blob de bytes a los structs del formato: aquí viven el `reinterpret_cast`
+/// byte->struct y la aritmética de offsets, con el tamaño del blob a la vista. El layout es fijo
+/// (lo lee `flatshade_asm.s` y el original lo indexa por offset de byte), así que el blob **sigue
+/// siendo bytes** — lo que pasa a estar tipado es el **acceso**, no el almacenamiento. El resto del
+/// engine y los efectos usan `MeshBlob::point/vertex/face/...`, nunca bytes crudos.
+class MeshBlob {
+public:
+	constexpr MeshBlob() noexcept = default;
+	constexpr MeshBlob(eng::u8* data, eng::u32 size) noexcept : m_base(data), m_size(size) {}
+	/// Implícita desde una vista de bytes: los descriptores de mesh (`Mesh3D`) la usan tal cual.
+	MeshBlob(eng::Span<eng::u8> bytes) noexcept
+		: m_base(bytes.data()), m_size(static_cast<eng::u32>(bytes.size())) {}
+
+	[[nodiscard]] constexpr bool empty() const noexcept { return m_base == nullptr || m_size == 0u; }
+	[[nodiscard]] constexpr eng::u8* data() const noexcept { return m_base; }
+	[[nodiscard]] constexpr eng::u32 size() const noexcept { return m_size; }
+
+	/// Acceso tipado por offset de byte (como las macros del original). La conversión vive AQUÍ.
+	[[nodiscard]] Node3D* node(s16 off) const noexcept {
+		return reinterpret_cast<Node3D*>(m_base + (off - 2));
+	}
+	[[nodiscard]] Point3D* point(s16 off) const noexcept {
+		return reinterpret_cast<Point3D*>(m_base + off);
+	}
+	[[nodiscard]] Point3D* vertex(s16 off) const noexcept {
+		return reinterpret_cast<Point3D*>(m_base + (off + 6));
+	}
+	[[nodiscard]] Edge* edge(s16 off) const noexcept {
+		return reinterpret_cast<Edge*>(m_base + off);
+	}
+	[[nodiscard]] Face* face(s16 off) const noexcept {
+		return reinterpret_cast<Face*>(m_base + off);
+	}
+	/// Índices (vértice, arista) de una cara: van tras el cuerpo fijo (`offset 10` de `Face`).
+	[[nodiscard]] static FaceIndex* face_indices(Face* f) noexcept {
+		return reinterpret_cast<FaceIndex*>(reinterpret_cast<eng::u8*>(f) + 10);
+	}
+
+private:
+	eng::u8* m_base = nullptr;
+	eng::u32 m_size = 0u;
+};
+
 /// Cabecera de malla (la que genera `obj2c`; los punteros son offsets absolutos).
 struct Mesh3D {
 	s16 vertices = 0;
@@ -106,10 +150,9 @@ struct Mesh3D {
 	s16 edges = 0;
 	s16 faces = 0;
 	s16 materials = 0;
-	/// Blob empaquetado de `obj2c` como **bytes tipados** (los grupos lo indexan por
-	/// offset de byte). Sustituye al `void*` crudo: el formato por campo lo describen los
-	/// structs `Point3D`/`Node3D`/`Edge`/`Face` de más abajo.
-	eng::Span<eng::u8> bytes {};
+	/// Blob empaquetado de `obj2c` como vista **tipada** (`MeshBlob`): los grupos lo indexan
+	/// por offset de byte y el acceso tipado encapsula la conversión. Sustituye al `Span<u8>`.
+	MeshBlob bytes {};
 	/// Grupos de índices (offsets de byte) terminados por 0, dentro de `bytes`.
 	eng::Span<s16> vertexGroups {};
 	eng::Span<s16> edgeGroups {};
@@ -122,11 +165,12 @@ struct Mesh3D {
 // Declaraciones para los accesores de `Object3D` (se definen más abajo).
 struct Object3D;
 [[nodiscard]] inline eng::Span<eng::u8> object_bytes(const Object3D& object);
-inline Node3D* node3d(eng::Span<eng::u8> bytes, s16 i);
-inline Point3D* point3d(eng::Span<eng::u8> bytes, s16 i);
-inline Point3D* vertex3d(eng::Span<eng::u8> bytes, s16 i);
-inline Edge* edge3d(eng::Span<eng::u8> bytes, s16 i);
-inline Face* face3d(eng::Span<eng::u8> bytes, s16 i);
+
+[[nodiscard]] inline Node3D* node3d(MeshBlob b, s16 i) { return b.node(i); }
+[[nodiscard]] inline Point3D* point3d(MeshBlob b, s16 i) { return b.point(i); }
+[[nodiscard]] inline Point3D* vertex3d(MeshBlob b, s16 i) { return b.vertex(i); }
+[[nodiscard]] inline Edge* edge3d(MeshBlob b, s16 i) { return b.edge(i); }
+[[nodiscard]] inline Face* face3d(MeshBlob b, s16 i) { return b.face(i); }
 
 /// Objeto 3D: mesh enlazado + estado de transformación + cámara en espacio objeto.
 ///
@@ -257,33 +301,14 @@ inline void new_object3d(Object3D& object, const Mesh3D& mesh) {
 	}
 }
 
-/// Vista de bytes del blob de un `Object3D` (mutable): lo que consumen los accesores.
+/// Vista de bytes del blob de un `Object3D` (mutable): la consume `MeshBlob`.
 [[nodiscard]] inline eng::Span<eng::u8> object_bytes(const Object3D& object) {
 	return eng::Span<eng::u8> {object.objdat, object.objdat_size};
 }
 
-// --- Acceso al `objdat` empaquetado (macros del original) --------------------
-// Reciben la vista `Span<u8>` del blob; devuelven punteros a los structs de formato.
-inline eng::u8* objdat_byte(eng::Span<eng::u8> bytes, s16 i) {
-	return bytes.data() + i; // promocion s16->int implicita; el cast era ruido (CODING_STYLE §233)
-}
-inline Node3D* node3d(eng::Span<eng::u8> bytes, s16 i) {
-	return reinterpret_cast<Node3D*>(objdat_byte(bytes, i - 2));
-}
-inline Point3D* point3d(eng::Span<eng::u8> bytes, s16 i) {
-	return reinterpret_cast<Point3D*>(objdat_byte(bytes, i));
-}
-inline Point3D* vertex3d(eng::Span<eng::u8> bytes, s16 i) {
-	return reinterpret_cast<Point3D*>(objdat_byte(bytes, i + 6));
-}
-inline Edge* edge3d(eng::Span<eng::u8> bytes, s16 i) {
-	return reinterpret_cast<Edge*>(objdat_byte(bytes, i));
-}
-inline Face* face3d(eng::Span<eng::u8> bytes, s16 i) {
-	return reinterpret_cast<Face*>(objdat_byte(bytes, i));
-}
-inline FaceIndex* face_indices(Face* face) {
-	return reinterpret_cast<FaceIndex*>(reinterpret_cast<eng::u8*>(face) + 10);
+/// Índices (vértice, arista) de una cara — acceso tipado del `MeshBlob` (sin bytes crudos).
+[[nodiscard]] inline FaceIndex* face_indices(Face* face) {
+	return MeshBlob::face_indices(face);
 }
 
 /// Actualiza `objectToWorld`/`worldToObject` y la cámara en espacio objeto.

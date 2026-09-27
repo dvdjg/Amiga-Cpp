@@ -5,12 +5,9 @@
   1  engine/include/eng/api/effects.hpp
   4  engine/include/eng/assets/uaf.hpp
   1  engine/include/eng/audio/music_player.hpp
-  1  engine/include/eng/board/knowledge/book.hpp
-  1  engine/include/eng/core/data/utf8.hpp
   3  engine/include/eng/core/types/memory_kind.hpp
   2  engine/include/eng/core/types/typed.hpp
   2  engine/include/eng/core/util/allocator.hpp
-  1  engine/include/eng/core/util/binary.hpp
   1  engine/include/eng/core/util/chunked_vector.hpp
   2  engine/include/eng/core/util/direct_map.hpp
   1  engine/include/eng/core/util/dynamic_bitset.hpp

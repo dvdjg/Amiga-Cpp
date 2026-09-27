@@ -45,9 +45,11 @@ const RE = {
   'void*': /void\s*\*/g,
 };
 const count = (t, re) => (t.match(re) || []).length;
+// Ignora comentarios: cuentan solo el CODIGO (una mencion en un comentario no es un cast).
+const stripComments = (t) => t.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ');
 
 const rows = files.map((f) => {
-  const t = fs.readFileSync(f, 'utf8');
+  const t = stripComments(fs.readFileSync(f, 'utf8'));
   const rel = path.relative(ROOT, f).replace(/\\/g, '/');
   const c = {};
   for (const [k, re] of Object.entries(RE)) c[k] = count(t, re);
