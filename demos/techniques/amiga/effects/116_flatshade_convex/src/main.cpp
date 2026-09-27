@@ -184,7 +184,7 @@ void draw_faces(obj::Object3D& object, eng::PlaneBytes planes, eng::amiga::Amiga
 		if (face->count < 3 || face->count > kMaxFaceVerts) {
 			continue;
 		}
-		const obj::FaceIndex* idx = obj::face_indices(face);
+		const eng::Span<obj::FaceIndex> idx = obj::face_indices(face);
 		for (eng::s16 k = 0; k < face->count; ++k) {
 			const obj::Point3D* v = object.vertex(idx[k].vertex);
 			xs[k] = v->x.v;

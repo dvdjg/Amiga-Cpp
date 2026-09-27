@@ -77,7 +77,7 @@ inline PolyMeshCounts build_poly_mesh(const Object3D& object, eng::Span<eng::mat
 					room = false;
 					break;
 				}
-				const FaceIndex* fi = face_indices(f);
+				const eng::Span<FaceIndex> fi = face_indices(f);
 				for (u32 k = 0; k < cnt; ++k) {
 					u32 vi = 0;
 					bool found = false;

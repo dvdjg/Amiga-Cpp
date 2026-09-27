@@ -45,7 +45,7 @@
   7  engine/include/eng/platform/amiga/blob.hpp
   1  engine/include/eng/platform/amiga/entry.hpp
  10  engine/include/eng/platform/amiga/input_poll.hpp
-  2  engine/include/eng/platform/amiga/lib3d.hpp
+  1  engine/include/eng/platform/amiga/lib3d.hpp
   9  engine/include/eng/platform/amiga/object3d.hpp
   4  engine/include/eng/platform/amiga/paula.hpp
   5  engine/include/eng/res/dynloader.hpp

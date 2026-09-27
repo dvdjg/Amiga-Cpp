@@ -113,8 +113,11 @@ public:
 	/// Implícita desde una vista de bytes: los descriptores de mesh (`Mesh3D`) la usan tal cual.
 	MeshBlob(eng::Span<eng::u8> bytes) noexcept : m_bytes(bytes) {}
 
+	/// ¿Blob vacío (sin base o tamaño 0)?
 	[[nodiscard]] constexpr bool empty() const noexcept { return m_bytes.empty(); }
+	/// Base del blob (para validación/procedencia).
 	[[nodiscard]] constexpr eng::u8* data() const noexcept { return m_bytes.data(); }
+	/// Tamaño del blob en bytes.
 	[[nodiscard]] constexpr eng::u32 size() const noexcept {
 		return static_cast<eng::u32>(m_bytes.size());
 	}
@@ -136,8 +139,12 @@ public:
 		return reinterpret_cast<Face*>(m_bytes.data() + off);
 	}
 	/// Índices (vértice, arista) de una cara: van tras el cuerpo fijo (`offset 10` de `Face`).
-	[[nodiscard]] static FaceIndex* face_indices(Face* f) noexcept {
-		return reinterpret_cast<FaceIndex*>(reinterpret_cast<eng::u8*>(f) + 10);
+	/// Devuelve una **vista** (`Span<FaceIndex>`, `count` entradas) — los llamadores indexan
+	/// `fi[k].vertex`/`fi[k].edge`, sin `reinterpret_cast<s16*>` intercalado.
+	[[nodiscard]] static eng::Span<FaceIndex> face_indices(Face* f) noexcept {
+		return eng::Span<FaceIndex> {
+			reinterpret_cast<FaceIndex*>(reinterpret_cast<eng::u8*>(f) + 10),
+			static_cast<eng::usize>(f->count)};
 	}
 
 private:
@@ -310,7 +317,7 @@ inline void new_object3d(Object3D& object, const Mesh3D& mesh) {
 }
 
 /// Índices (vértice, arista) de una cara — acceso tipado del `MeshBlob` (sin bytes crudos).
-[[nodiscard]] inline FaceIndex* face_indices(Face* face) {
+[[nodiscard]] inline eng::Span<FaceIndex> face_indices(Face* face) {
 	return MeshBlob::face_indices(face);
 }
 

@@ -163,9 +163,9 @@ void draw_links(obj::Object3D& object, eng::PlaneBytes plane, eng::amiga::AmigaB
 		s16 f;
 		while ((f = *group++)) {
 			obj::Face* face = object.face(f);
-			s16* vi = reinterpret_cast<s16*>(obj::face_indices(face));
-			const s16 v0 = vi[0];
-			const s16 v1 = vi[1]; // formato linea: vertices contiguos (sin campo edge)
+			const eng::Span<obj::FaceIndex> vi = obj::face_indices(face);
+			const s16 v0 = vi[0].vertex;
+			const s16 v1 = vi[0].edge; // formato linea: vertices contiguos (sin campo edge)
 			backend.blitter_line(plane, kBytesPerRow, object.vertex(v0)->x.v, object.vertex(v0)->y.v,
 					     object.vertex(v1)->x.v, object.vertex(v1)->y.v);
 		}

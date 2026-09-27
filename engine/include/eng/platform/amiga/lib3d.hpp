@@ -183,17 +183,16 @@ inline void update_edge_visibility_convex(Object3D& object) {
 			object3d::Face* face = object.face(f);
 			const s8 flags = face->flags;
 			if (flags >= 0) {
-				s16* index = reinterpret_cast<s16*>(object3d::face_indices(face));
-				s16 vertices = static_cast<s16>(face->count - 3);
-				s16 i;
-				i = *index++; object.node(i)->flags = s;
-				i = *index++; object.edge(i)->flags = static_cast<s8>(object.edge(i)->flags ^ flags);
-				i = *index++; object.node(i)->flags = s;
-				i = *index++; object.edge(i)->flags = static_cast<s8>(object.edge(i)->flags ^ flags);
-				do {
-					i = *index++; object.node(i)->flags = s;
-					i = *index++; object.edge(i)->flags = static_cast<s8>(object.edge(i)->flags ^ flags);
-				} while (--vertices != -1);
+				const eng::Span<object3d::FaceIndex> fi = object3d::face_indices(face);
+				object.node(fi[0].vertex)->flags = s;
+				object.edge(fi[0].edge)->flags = static_cast<s8>(object.edge(fi[0].edge)->flags ^ flags);
+				object.node(fi[1].vertex)->flags = s;
+				object.edge(fi[1].edge)->flags = static_cast<s8>(object.edge(fi[1].edge)->flags ^ flags);
+				for (s16 k = 2; k < face->count; ++k) {
+					object.node(fi[k].vertex)->flags = s;
+					object.edge(fi[k].edge)->flags =
+						static_cast<s8>(object.edge(fi[k].edge)->flags ^ flags);
+				}
 			}
 		}
 	} while (*group);

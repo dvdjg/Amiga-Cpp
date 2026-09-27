@@ -111,17 +111,15 @@ void update_edge_visibility(obj::Object3D& object) {
 		while ((f = *group++)) {
 			obj::Face* face = object.face(f);
 			if (face->flags >= 0) {
-				eng::s16* index = reinterpret_cast<eng::s16*>(obj::face_indices(face));
-				eng::s16 vertices = static_cast<eng::s16>(face->count - 3);
-				eng::s16 i;
-				i = *index++; object.node(i)->flags = static_cast<eng::s8>(s);
-				i = *index++; object.edge(i)->flags = static_cast<eng::s8>(s);
-				i = *index++; object.node(i)->flags = static_cast<eng::s8>(s);
-				i = *index++; object.edge(i)->flags = static_cast<eng::s8>(s);
-				do {
-					i = *index++; object.node(i)->flags = static_cast<eng::s8>(s);
-					i = *index++; object.edge(i)->flags = static_cast<eng::s8>(s);
-				} while (--vertices != -1);
+				const eng::Span<obj::FaceIndex> fi = obj::face_indices(face);
+				object.node(fi[0].vertex)->flags = static_cast<eng::s8>(s);
+				object.edge(fi[0].edge)->flags = static_cast<eng::s8>(s);
+				object.node(fi[1].vertex)->flags = static_cast<eng::s8>(s);
+				object.edge(fi[1].edge)->flags = static_cast<eng::s8>(s);
+				for (eng::s16 k = 2; k < face->count; ++k) {
+					object.node(fi[k].vertex)->flags = static_cast<eng::s8>(s);
+					object.edge(fi[k].edge)->flags = static_cast<eng::s8>(s);
+				}
 			}
 		}
 	} while (*group);
