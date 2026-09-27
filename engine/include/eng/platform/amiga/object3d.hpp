@@ -265,16 +265,16 @@ inline void new_object3d(Object3D& object, const Mesh3D& mesh) {
 // --- Acceso al `objdat` empaquetado (macros del original) --------------------
 // Reciben la vista `Span<u8>` del blob; devuelven punteros a los structs de formato.
 inline eng::u8* objdat_byte(eng::Span<eng::u8> bytes, s16 i) {
-	return bytes.data() + static_cast<s32>(i);
+	return bytes.data() + i; // promocion s16->int implicita; el cast era ruido (CODING_STYLE §233)
 }
 inline Node3D* node3d(eng::Span<eng::u8> bytes, s16 i) {
-	return reinterpret_cast<Node3D*>(objdat_byte(bytes, static_cast<s16>(i - 2)));
+	return reinterpret_cast<Node3D*>(objdat_byte(bytes, i - 2));
 }
 inline Point3D* point3d(eng::Span<eng::u8> bytes, s16 i) {
 	return reinterpret_cast<Point3D*>(objdat_byte(bytes, i));
 }
 inline Point3D* vertex3d(eng::Span<eng::u8> bytes, s16 i) {
-	return reinterpret_cast<Point3D*>(objdat_byte(bytes, static_cast<s16>(i + 6)));
+	return reinterpret_cast<Point3D*>(objdat_byte(bytes, i + 6));
 }
 inline Edge* edge3d(eng::Span<eng::u8> bytes, s16 i) {
 	return reinterpret_cast<Edge*>(objdat_byte(bytes, i));

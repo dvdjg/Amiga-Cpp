@@ -57,17 +57,10 @@ Top por fichero (los que más concentran el problema):
 - Script `tools/analyze/cast-audit.mjs`: cuenta por fichero y, para cada `static_cast`, marca los
   candidatos a **ruido** (cast que no silencia narrowing ni `void*`). Es el "medidor" de las fases.
 
-### Fase 1 — `object3d.hpp` (el fichero señalado)
-- `reinterpret_cast<Face*>(base + off)`, `Point3D*`, `Node3D*`, `Edge*`, `FaceIndex*` (líneas 215,
-  222, 271-286): sustituir por **vistas tipadas** sobre el formato del `.obj` con los **cursores
-  seguros de `eng/core/util/binary.hpp`** (los mismos que ya usa la serialización), o por un
-  `MeshView` que exponga `point(i)/face(i)` **sin** `reinterpret_cast` ni aritmética de punteros.
-- `s16 i` como offset/índice (267-286): pasar a un **tipo de índice del dominio** (`MeshIndex`/`u16`)
-  y hacer explícito el rango; eliminar `static_cast<s16>(i ± k)`.
-- `static_cast<s16>(dot_fixed_row(...).v)` (338-342): el resultado es **punto fijo** (q12); devolver
-  el tipo de dominio (`q12`) en vez de estrechar a `s16` a mano.
-- Criterio de salida: `object3d.hpp` sin `reinterpret_cast` de dominio (solo el del blob crudo si se
-  demuestra frontera) y sin `static_cast` que no silencie narrowing.
+### Fase 1 — `object3d.hpp` (aclaración: **ya usa `Fixed`**)
+- **Hallazgo:** `object3d` **ya está tipado con `Fixed`**: `Point3D` son `q0` (LONGITUD), `Face.normal` y `Point3R` son `q12` (RATIO), `Angle3` son `Turns`, y la matriz es `math3d::Affine3<>` (Fixed). El propio header lo documenta ("Por qué los structs siguen en `s16`"): el LAYOUT del `objdat` no puede cambiar porque lo lee `flatshade_asm.s` y lo indexa el original por offset de byte; la capa de cálculo **sí** es tipada y genérica.
+- Sus `reinterpret_cast<X*>(base + off)` son la **frontera declarada** del `objdat` empaquetado (byte→struct de un formato fijo), justificada en el código y **probada por HOST-014** (`node3d(i) == objdat + i - 2`). **No** son ruido: sin el cast no compila (§233 "void*→tipo" = legítimo). → se documentan y entran en la lista blanca del gate.
+- Acción real de esta fase: **(a)** aplicar el test §233 a los casts *de ruido* — hecho aquí (`static_cast<s32>(i)` y `static_cast<s16>(i ± k)` eliminados; HOST-014 sigue verde); **(b)** opcional: migrar las **lecturas** a los cursores de `eng/core/util/binary.hpp` (`ByteReader`), dejando los accesores mutables (`point`/`vertex`) como única frontera.
 
 ### Fase 2 — Hooks `void*` + puntero a función → `concept`/plantilla
 - `field/playfield_base.hpp` (`Fn = bool(*)(void* ctx, u8* plane_base, ...)`): el "contexto" y los
