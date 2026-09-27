@@ -156,7 +156,7 @@
   0     1  engine/include/eng/field/plane_view.hpp
  22    76  engine/include/eng/field/playfield_base.hpp
   3    27  engine/include/eng/field/raster.hpp
-  0   155  engine/include/eng/field/scroll_engine.hpp
+  0   152  engine/include/eng/field/scroll_engine.hpp
   0     3  engine/include/eng/field/scroll_profile.hpp
   2    30  engine/include/eng/field/soft_dpf.hpp
   0     7  engine/include/eng/field/streaming_map.hpp

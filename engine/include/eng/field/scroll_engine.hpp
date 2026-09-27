@@ -85,11 +85,13 @@ struct BigBufferScroll {
 /// se conocen a priori (potencias de dos casi siempre), el engine usa `fast_div`
 /// y evita las divisiones por frame.
 struct ScrollConsts {
-    u32 tile_width = 0;        // 0 = sn.tile_width()
-    u32 tile_height = 0;       // 0 = sn.tile_height()
-    u32 display_height = 0;    // 0 = sn.display_height()
-    u32 display_planelines = 0;// 0 = sn.display_planelines()
-    u32 planes = 0;            // 0 = sn.planes()
+	// Tipos del DOMINIO (no `u32`): un tile no pasa de 256 px (u16), la altura de display y sus
+	// planelines (alto×planos) caben en u16, y `planes` es 1..8 (u8). El tipo ancho forzaba casts.
+	u16 tile_width = 0;        // 0 = sn.tile_width()
+	u16 tile_height = 0;       // 0 = sn.tile_height()
+	u16 display_height = 0;    // 0 = sn.display_height()
+	u16 display_planelines = 0;// 0 = sn.display_planelines() (alto*planos)
+	u8 planes = 0;             // 0 = sn.planes() (1..8)
 };
 
 /// Geometría del anillo/layout que una estrategia de scroll consulta (SIN dibujar):
@@ -151,19 +153,19 @@ public:
 
     // --- Geometría: constante NTTP si se conoce, runtime del sink si no. -----
     inline u16 tw(const Sink& sn) const {
-        return C.tile_width ? static_cast<u16>(C.tile_width) : sn.tile_width();
+        return C.tile_width ? C.tile_width : sn.tile_width();
     }
     inline u16 th(const Sink& sn) const {
-        return C.tile_height ? static_cast<u16>(C.tile_height) : sn.tile_height();
+        return C.tile_height ? C.tile_height : sn.tile_height();
     }
-    inline u32 dh(const Sink& sn) const {
+    inline u16 dh(const Sink& sn) const {
         return C.display_height ? C.display_height : sn.display_height();
     }
-    inline u32 dph(const Sink& sn) const {
+    inline u16 dph(const Sink& sn) const {
         return C.display_planelines ? C.display_planelines : sn.display_planelines();
     }
     inline u8 planes(const Sink& sn) const {
-        return C.planes ? static_cast<u8>(C.planes) : sn.planes();
+        return C.planes ? C.planes : sn.planes();
     }
     /// ¿El eje X es lineal acotado (sin anillo)? Opcional en el sink (false por
     /// defecto = XLimited de anillo, comportamiento histórico).
