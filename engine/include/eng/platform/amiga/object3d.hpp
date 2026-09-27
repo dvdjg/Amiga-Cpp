@@ -134,10 +134,8 @@ public:
 	[[nodiscard]] constexpr bool empty() const noexcept { return m_bytes.empty(); }
 	/// Base del blob (para validación/procedencia).
 	[[nodiscard]] constexpr eng::u8* data() const noexcept { return m_bytes.data(); }
-	/// Tamaño del blob en bytes.
-	[[nodiscard]] constexpr eng::u32 size() const noexcept {
-		return static_cast<eng::u32>(m_bytes.size());
-	}
+	/// Tamaño del blob en bytes (mismo tipo que `Span::size()`, `usize` — sin cast).
+	[[nodiscard]] constexpr eng::usize size() const noexcept { return m_bytes.size(); }
 
 	/// Acceso tipado por offset de byte (como las macros del original). La conversión vive AQUÍ.
 	[[nodiscard]] Node3D* node(s16 off) const noexcept {
@@ -235,7 +233,7 @@ struct Object3D {
 
 	Point3C camera {}; // posicion de camara en espacio objeto (q0)
 
-	eng::u32 objdat_size = 0; // tamaño del blob (para la vista `Span<u8>`)
+	eng::usize objdat_size = 0; // tamaño del blob (mismo tipo que `Span::size()`)
 
 	/// Accesores tipados al blob empaquetado (evitan manejar el `Span` a mano en los
 	/// efectos). Reenvían a `point3d`/`face`… con la vista del propio objeto.
@@ -278,14 +276,14 @@ static_assert(__builtin_offsetof(Object3D, objdat) == 0 &&
 		return false;
 	}
 	const eng::u8* base = mesh.bytes.data();
-	const eng::u32 n = static_cast<eng::u32>(mesh.bytes.size());
+	const eng::usize n = mesh.bytes.size();
 	const eng::u8* end = base + n;
 	auto valid_group = [&](const eng::Span<s16>& g) {
 		for (s16 off : g) {
 			if (off == 0) {
 				continue;
 			}
-			if (off < 0 || static_cast<eng::u32>(off) >= n || (off & 1) != 0) {
+			if (off < 0 || static_cast<eng::usize>(off) >= n || (off & 1) != 0) {
 				return false;
 			}
 		}
@@ -303,15 +301,15 @@ static_assert(__builtin_offsetof(Object3D, objdat) == 0 &&
 		if (f->count < 0) {
 			return false;
 		}
-		if (base + off + 10 + static_cast<eng::u32>(f->count) * 4u > end) {
+		if (base + off + 10 + static_cast<eng::usize>(f->count) * 4u > end) {
 			return false;
 		}
 		const FaceIndex* fi = reinterpret_cast<const FaceIndex*>(base + off + 10);
 		for (s16 k = 0; k < f->count; ++k) {
-			if (fi[k].vertex < 0 || static_cast<eng::u32>(fi[k].vertex) >= n) {
+			if (fi[k].vertex < 0 || static_cast<eng::usize>(fi[k].vertex) >= n) {
 				return false;
 			}
-			if (fi[k].edge < 0 || static_cast<eng::u32>(fi[k].edge) >= n) {
+			if (fi[k].edge < 0 || static_cast<eng::usize>(fi[k].edge) >= n) {
 				return false;
 			}
 		}
@@ -326,7 +324,7 @@ static_assert(__builtin_offsetof(Object3D, objdat) == 0 &&
 		return false;
 	}
 	object.objdat = mesh.bytes.data();
-	object.objdat_size = static_cast<eng::u32>(mesh.bytes.size());
+	object.objdat_size = mesh.bytes.size();
 	object.vertexGroups = mesh.vertexGroups.data();
 	object.edgeGroups = mesh.edgeGroups.data();
 	object.faceGroups = mesh.faceGroups.data();
