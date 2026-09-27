@@ -106,7 +106,8 @@ struct DemoGame {
 			0x2c81, 0x2cc1, 0x0038, 0x00d0, bytes_per_row,
 			static_cast<eng::u16>(0x0200u | (static_cast<eng::u16>(field_planes_count) << 12u)),
 			field_planes_count,
-			eng::PlaneBytes { planes + field_off, static_cast<eng::usize>(field_planes_count) * plane_bytes },
+			m_plane_block.mem_view_chip().subview(static_cast<eng::s32>(field_off),
+							      static_cast<eng::usize>(field_planes_count) * plane_bytes),
 			plane_bytes);
 		sched.emit_palette(eng::PaletteWords { field_palette, 32u });
 
@@ -121,7 +122,8 @@ struct DemoGame {
 		zone.bpl2mod = 0x0000u;
 		zone.planes = hud_planes_count;
 		zone.plane_bytes = plane_bytes;
-		zone.bitplanes = eng::PlaneViewBytes { planes + hud_off, static_cast<eng::usize>(hud_planes_count) * plane_bytes };
+		zone.bitplanes = m_plane_block.mem_view_chip().subview(static_cast<eng::s32>(hud_off),
+							      static_cast<eng::usize>(hud_planes_count) * plane_bytes);
 		zone.palette = eng::PaletteWords { hud_palette, 4u };
 		zone.palette_colors = 4u;
 		zone_ok = sched.emit_mode_switch_zone(zone);

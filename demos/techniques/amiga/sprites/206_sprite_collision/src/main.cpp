@@ -138,7 +138,7 @@ private:
 	bool build_copper() {
 		eng::copper::SchedulerT<false> sched { m_copper_block };
 		sched.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0, kBytesPerRow, 0x4200,
-					  kPlanes, m_bitplane_block.view, kPlaneBytes);
+					  kPlanes, m_bitplane_block.mem_view_chip(), kPlaneBytes);
 		// SPR0PT -> estructura DMA (cabecera + DATA). El resto de canales, sin sprite.
 		const eng::uintptr sp = reinterpret_cast<eng::uintptr>(m_sprite_block.view.data());
 		sched.move(static_cast<eng::copper::Register>(0x120u), static_cast<eng::u16>(sp >> 16));

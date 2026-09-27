@@ -143,7 +143,7 @@ private:
 		m_plan.begin_frame();
 		m_plan.scheduler().emit_planes_display(
 			0x2c81, 0x2cc1, 0x0038, 0x00d0,
-			kBytesPerRow, 0x6200, kPlanes, m_bitplane_block.view, kPlaneBytes
+			kBytesPerRow, 0x6200, kPlanes, m_bitplane_block.mem_view_chip(), kPlaneBytes
 		);
 		m_plan.scheduler().emit_palette(kBasePalette.color);
 		build_intents();

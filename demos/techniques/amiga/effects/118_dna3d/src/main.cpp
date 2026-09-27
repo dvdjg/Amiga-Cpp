@@ -249,11 +249,11 @@ private:
 			static_cast<u32>(active) * kCopperPerList, kCopperPerList);
 		copper::Scheduler sched { eng::Block<eng::CopperTag> { slice, m_copper_block.kind } };
 		sched.emit_planes_display(kDiwstrt, kDiwstop, kDdfstrt, kDdfstop, kBytesPerRow, kBplcon0,
-					  kPlanes, m_bitplane_block.view, kPlaneBytes);
+					  kPlanes, m_bitplane_block.mem_view_chip(), kPlaneBytes);
 		for (u8 n = 0; n < kPlanes; ++n) {
 			const u8 idx = static_cast<u8>((active + 2u + n) % kRing);
 			sched.move_bitplane_pointer(
-				n, m_bitplane_block.view.address(static_cast<eng::s32>(idx) *
+				n, m_bitplane_block.mem_view_chip().address(static_cast<eng::s32>(idx) *
 								 static_cast<eng::s32>(kPlaneBytes)));
 		}
 		sched.move(copper::Register::BPLCON1, kBplcon1);

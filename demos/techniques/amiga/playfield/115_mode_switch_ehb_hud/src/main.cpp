@@ -72,7 +72,8 @@ struct DemoGame {
 			0x2c81, 0x2cc1, ddfstrt, ddfstop, bytes_per_row,
 			static_cast<eng::u16>(0x0200u | (static_cast<eng::u16>(field_planes) << 12u)),
 			field_planes,
-			eng::PlaneBytes { planes, static_cast<eng::usize>(field_planes) * plane_bytes },
+			m_plane_block.mem_view_chip().subview(0,
+							      static_cast<eng::usize>(field_planes) * plane_bytes),
 			plane_bytes);
 		sched.move(eng::copper::Register::BPLCON4, 0x0001u); // EHB en el campo
 		sched.emit_palette(eng::PaletteWords { colors, 32u });
@@ -86,7 +87,8 @@ struct DemoGame {
 		z.bpl1mod = 0x0000u; z.bpl2mod = 0x0000u;
 		z.planes = hud_planes;
 		z.plane_bytes = plane_bytes;
-		z.bitplanes = eng::PlaneViewBytes { planes + hud_off, static_cast<eng::usize>(hud_planes) * plane_bytes };
+		z.bitplanes = m_plane_block.mem_view_chip().subview(static_cast<eng::s32>(hud_off),
+								    static_cast<eng::usize>(hud_planes) * plane_bytes);
 		z.palette = eng::PaletteWords { colors, static_cast<eng::usize>(1u << hud_planes) };
 		z.palette_colors = static_cast<eng::u8>(1u << hud_planes);
 		const bool zone_ok = sched.emit_mode_switch_zone(z);

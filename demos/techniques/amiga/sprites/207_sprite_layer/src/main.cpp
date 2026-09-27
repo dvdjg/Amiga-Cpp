@@ -123,13 +123,12 @@ struct SpriteLayerDemo {
 		eng::debug::mark_ready(g_eng_run_status, 0x00020700u);
 	}
 
-	void update(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
-		// Reconstruye la lista cada frame con el scroll actual.
+	void update(eng::amiga::AmigaBackend&, eng::GameContext&) {
+		// La lista se construyó **una vez** en `init` (con `bind`); aquí solo se reescriben las
+		// palabras `SPRxPOS` con el scroll actual — sin re-emitir la copperlist (coste ~0).
 		m_layer.set_scroll(static_cast<eng::u16>(m_frame * 2u));
 		++m_frame;
-		if (build_copper()) {
-			backend.install_copper_list(m_copper_ptr);
-		}
+		m_layer.patch(m_copper_block.view.as_words().data());
 	}
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
@@ -140,7 +139,7 @@ private:
 	bool build_copper() {
 		eng::copper::SchedulerT<false> sched { m_copper_block };
 		sched.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0, kBytesPerRow, 0x4200,
-					  kPlanes, m_bitplane_block.view, kPlaneBytes);
+					  kPlanes, m_bitplane_block.mem_view_chip(), kPlaneBytes);
 		// Estado inicial de los sprites (desarmados) y `SPRxPT` a la estructura de cada
 		// canal; `emit_into` vuelve a fijarlos (con el scroll del frame) más abajo.
 		const eng::uintptr sprite_base =
@@ -159,8 +158,9 @@ private:
 						 eng::copper::DmaCopper | eng::copper::DmaBitplane |
 						 eng::copper::DmaSprite));
 		sched.emit_palette(kPalette.color);
-		// La capa emite BPLCON2 + los rearms horizontales (por línea y canal).
-		m_layer.emit_into(sched);
+		// La capa emite BPLCON2 + los rearms horizontales (por línea y canal) y **registra**
+		// la posición de las palabras `SPRxPOS` (para parchear el scroll por frame).
+		m_layer.bind(sched);
 		sched.wait_line(0xf8);
 		sched.end();
 

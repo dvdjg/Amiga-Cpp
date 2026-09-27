@@ -222,13 +222,13 @@ private:
 		for (u8 i = 0; i < 3u; ++i) {
 			sched.move_bitplane_pointer(
 				static_cast<u8>(i * 2u),
-				m_planes_block.view.address(bg_off + static_cast<s32>(i) *
+				m_planes_block.mem_view_chip().address(bg_off + static_cast<s32>(i) *
 								 static_cast<s32>(kBmpPlaneBytes)));
 		}
 		for (u8 i = 0; i < 3u; ++i) {
 			sched.move_bitplane_pointer(
 				static_cast<u8>(i * 2u + 1u),
-				m_planes_block.view.address(static_cast<s32>(kBmpBytes) + fg_off +
+				m_planes_block.mem_view_chip().address(static_cast<s32>(kBmpBytes) + fg_off +
 							    static_cast<s32>(i) *
 								    static_cast<s32>(kBmpPlaneBytes)));
 		}

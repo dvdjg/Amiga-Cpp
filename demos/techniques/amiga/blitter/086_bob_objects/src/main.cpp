@@ -439,7 +439,7 @@ private:
 		ENG_PROF_BEGIN(kProfStatic);
 		m_plan.begin_frame();
 		m_plan.scheduler().emit_planes_display(0x2c81u, 0x2cc1u, 0x0038u, 0x00d0u, kBytesPerRow,
-						       0x4200u, kPlanes, m_bitmap.view, kPlaneBytes);
+						       0x4200u, kPlanes, m_bitmap.mem_view_chip(), kPlaneBytes);
 		m_plan.scheduler().emit_palette(kPalette.color);
 		ENG_PROF_END(kProfStatic);
 		// Cielo: `kSkyBands` intenciones repartidas por el raster (una por banda). Con

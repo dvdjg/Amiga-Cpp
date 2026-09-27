@@ -513,11 +513,11 @@ private:
 		sched.move(copper::Register::BPL2MOD, kBpl2mod);
 
 		const u32 screen_off = static_cast<u32>(active) * kScreenBytes;
-		sched.move_bitplane_pointer(0, m_screen_block.view.address(static_cast<s32>(screen_off)));
-		sched.move_bitplane_pointer(1, m_carrion_block.view.address(0));
-		sched.move_bitplane_pointer(2, m_screen_block.view.address(static_cast<s32>(screen_off + 32u)));
-		sched.move_bitplane_pointer(3, m_carrion_block.view.address(32));
-		sched.move_bitplane_pointer(4, m_screen_block.view.address(static_cast<s32>(screen_off + 64u)));
+		sched.move_bitplane_pointer(0, m_screen_block.mem_view_chip().address(static_cast<s32>(screen_off)));
+		sched.move_bitplane_pointer(1, m_carrion_block.mem_view_chip().address(0));
+		sched.move_bitplane_pointer(2, m_screen_block.mem_view_chip().address(static_cast<s32>(screen_off + 32u)));
+		sched.move_bitplane_pointer(3, m_carrion_block.mem_view_chip().address(32));
+		sched.move_bitplane_pointer(4, m_screen_block.mem_view_chip().address(static_cast<s32>(screen_off + 64u)));
 
 		sched.emit_palette(bobs_colors, 0, 8);
 #if K_117_BG

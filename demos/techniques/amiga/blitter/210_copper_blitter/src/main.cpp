@@ -231,7 +231,7 @@ private:
 	[[nodiscard]] const eng::u16* build_copper() {
 		eng::copper::SchedulerT<false> sched { m_copper };
 		sched.emit_planes_display(0x2c81, 0x2cc1, eng::effects::FineScroll::ddfstrt(), 0x00d0,
-					  kRowBytes, 0x1200, 1u, m_bitmap.view, kPlaneBytes);
+					  kRowBytes, 0x1200, 1u, m_bitmap.mem_view_chip(), kPlaneBytes);
 		// Scroll fino: `BPLCON1` es un delay; `effects::FineScroll` da el valor del frame.
 		sched.move(eng::copper::Register::BPLCON1, m_scroll.bplcon1());
 		sched.move(eng::copper::Register::DMACON,

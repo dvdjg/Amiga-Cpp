@@ -222,7 +222,7 @@ private:
 		eng::copper::SchedulerT<false> sched { m_copper_block };
 		sched.emit_planes_display(
 			0x2c81, 0x2cc1, 0x0038, 0x00d0,
-			kBytesPerRow, 0x6200, kPlanes, m_bitplane_block.view, kPlaneBytes
+			kBytesPerRow, 0x6200, kPlanes, m_bitplane_block.mem_view_chip(), kPlaneBytes
 		);
 		// Paleta: emitimos los MOVEs uno a uno para guardar el indice de la palabra de
 		// valor de COLOR01, que es lo unico que cambia por frame (color de la cruz).

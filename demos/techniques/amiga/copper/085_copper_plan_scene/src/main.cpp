@@ -220,7 +220,7 @@ private:
 		m_plan.begin_frame();
 		copper::Scheduler& s = m_plan.scheduler();
 		s.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0, kBytesPerRow, kBplcon0, kPlanes,
-				      m_bitmaps[back].view, kPlaneBytes);
+				      m_bitmaps[back].mem_view_chip(), kPlaneBytes);
 		s.emit_palette(eng::PaletteWords {kBasePalette, 16u});
 		m_n = 0;
 		m_sky_phase = static_cast<eng::u8>((m_sky_phase + 1u) & 15u);
