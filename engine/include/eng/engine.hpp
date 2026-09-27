@@ -244,15 +244,14 @@ public:
 		m_vblank_user = user;
 	}
 
-	/// Ejecuta `frame_count` frames en el modo **por defecto: interrupt-driven**.
-	///
-	/// La IRQ de VBlank corre `update`/`render` (el latido del juego, deadline de 1
-	/// frame) y el bucle principal ejecuta el trabajo de fondo cooperativo, que la IRQ
-	/// preempta. Es el modelo mas natural en Amiga y el que **no quema ciclos en
-	/// polling** de VBlank: la CPU no espera, solo trabaja (juego en la IRQ, fondo en el
-	/// bucle). Requiere un backend con `set_vblank_service`; si no lo tiene, cae a
-	/// `run_frames_polling`.
-	void run_frames(u32 frame_count) {
+	/// Ejecuta `frame_count` frames con el **tick del juego dentro de la IRQ** (modo
+	/// interrupt-driven, **explícito**; el default es `run_frames`). La IRQ de VBlank corre
+	/// `update`/`render` (deadline de 1 frame) y el bucle principal solo drena el fondo. Es
+	/// útil si el trabajo **debe** correr en la IRQ (p. ej. sincronía estricta con el raster),
+	/// pero un `render` pesado alarga el handler y puede invadir VBlanks: para trabajo normal usar
+	/// `run_frames` (latido en la IRQ, render en el bucle). Requiere backend con
+	/// `set_vblank_service`; si no lo tiene, cae a `run_frames_polling`.
+	void run_frames_irq(u32 frame_count) {
 		GameContext context {};
 		context.background = &m_background;
 
@@ -289,13 +288,14 @@ public:
 		run_frames_polling(frame_count, /*already_booted=*/true);
 	}
 
-	/// Modo **IRQ mínima** (§`VBlankHeartbeat`): la IRQ de VBlank solo lleva el **latido**
-	/// (el `vblank_hook`, p. ej. `os::tick` + cola del mini-SO) y el contador de frames;
-	/// `update`/`render` corren en el **bucle principal** (su propia pila), notificados por
-	/// el contador. Evita el handler largo de `run_frames` manteniendo el latido en la IRQ
-	/// (a diferencia de `run_frames_polling`, que lo mueve al bucle). Si el backend no tiene
-	/// servicio de VBlank, cae a `run_frames_polling`.
-	void run_frames_minimal_irq(u32 frame_count) {
+	/// **Bucle por defecto**: modo **IRQ mínima** (§`VBlankHeartbeat`). La IRQ de VBlank solo
+	/// lleva el **latido** (el `vblank_hook`, p. ej. `os::tick` + cola del mini-SO) y el
+	/// contador de frames; `update`/`render` corren en el **bucle principal** (su propia pila),
+	/// notificados por el contador. Es el modelo de un SO real y evita el handler largo de
+	/// `run_frames_irq` (el render en la IRQ) manteniendo el latido en la IRQ (a diferencia de
+	/// `run_frames_polling`, que lo mueve al bucle). Si el backend no tiene servicio de VBlank,
+	/// cae a `run_frames_polling`.
+	void run_frames(u32 frame_count) {
 		GameContext context {};
 		context.background = &m_background;
 

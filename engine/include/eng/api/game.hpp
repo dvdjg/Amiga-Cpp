@@ -136,7 +136,7 @@ public:
 	/// `MsgType::VBlank` en el puerto.
 	void run(u32 frames = 0xffffffffu) {
 		m_engine.set_vblank_hook(&App::on_vblank, this);
-		m_engine.run_frames_minimal_irq(frames);
+		m_engine.run_frames(frames);
 	}
 
 	[[nodiscard]] u32 frame() const noexcept { return m_frame; }
