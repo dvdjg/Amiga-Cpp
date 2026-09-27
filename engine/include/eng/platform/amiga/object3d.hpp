@@ -24,6 +24,7 @@
 /// el ángulo en radianes). La crudeza vive solo en el almacenamiento, no en la aritmética.
 
 #include <eng/core/math/arith.hpp>
+#include <eng/core/types/ptr.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
@@ -99,6 +100,22 @@ struct Face {
 	s16 count = 0;
 };
 
+/// **Offset de byte** dentro del blob `obj2c`. Tipo fuerte: un offset no es "un `s16` cualquiera".
+struct ObjOffset {
+	s16 bytes;
+};
+/// **Referencias fuertes** a las piezas del blob: el compilador impide mezclar un `VertexRef` con
+/// un `EdgeRef`/`FaceRef`, y un offset no se confunde con un dato.
+struct VertexRef {
+	ObjOffset o;
+};
+struct EdgeRef {
+	ObjOffset o;
+};
+struct FaceRef {
+	ObjOffset o;
+};
+
 /// **Vista tipada del `objdat` empaquetado** (formato de `obj2c`). Es el **único** sitio donde se
 /// convierte el blob de bytes a los structs del formato: aquí viven el `reinterpret_cast`
 /// byte->struct y la aritmética de offsets, con el tamaño del blob a la vista. El layout es fijo
@@ -147,11 +164,27 @@ public:
 			static_cast<eng::usize>(f->count)};
 	}
 
+	// --- Acceso por REFERENCIAS FUERTES (camino nuevo): devuelven `Ref<T>`, no `T*` ---
+	[[nodiscard]] eng::Ref<Node3D> node(VertexRef v) const noexcept { return node(v.o.bytes); }
+	[[nodiscard]] eng::Ref<Point3D> point(VertexRef v) const noexcept { return point(v.o.bytes); }
+	[[nodiscard]] eng::Ref<Point3D> vertex(VertexRef v) const noexcept { return vertex(v.o.bytes); }
+	[[nodiscard]] eng::Ref<Edge> edge(EdgeRef v) const noexcept { return edge(v.o.bytes); }
+	[[nodiscard]] eng::Ref<Face> face(FaceRef v) const noexcept { return face(v.o.bytes); }
+	/// Índices de una cara por referencia fuerte (mismo `Span` que `face_indices`).
+	[[nodiscard]] eng::Span<FaceIndex> indices(FaceRef v) const noexcept {
+		return face_indices(face(v.o.bytes));
+	}
+
 private:
 	/// Vista sobre el blob: `Span` (data + tamaño) es el tipo del engine para "buffer + count"
 	/// (CODING_STYLE §"Seguridad de tipos sobre punteros crudos"), en vez de `u8* + u32` sueltos.
 	eng::Span<eng::u8> m_bytes {};
 };
+
+/// Resultado de **validar** un descriptor de malla (el `obj2c` generado). `Ok` si el blob y los
+/// grupos son coherentes (offsets dentro de rango y alineados a palabra, caras con `count >= 0`
+/// y `FaceIndex` dentro del blob).
+enum class MeshStatus : eng::u8 { Ok, Empty, BadGroup, OutOfRange, Misaligned };
 
 /// Cabecera de malla (la que genera `obj2c`; los punteros son offsets absolutos).
 struct Mesh3D {
