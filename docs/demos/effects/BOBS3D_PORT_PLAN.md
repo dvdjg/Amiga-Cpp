@@ -4,6 +4,13 @@ Documento técnico del porte de `demoscene-repo-orig/effects/bobs3d/bobs3d.c` al
 qué hace el original, cómo se mapea, qué se verificó y qué coste tiene. La demo vive en
 `demos/techniques/amiga/effects/117_bobs3d/`.
 
+> **Nota (modelo de bucle).** El `Engine::run_frames` que cita este plan era el modo
+> *interrupt-driven* (el juego dentro de la IRQ). Hoy `run_frames` es el **modo IRQ mínima**
+> (latido en la IRQ, `update`/`render` en el bucle) — ver
+> `docs/engine/architecture/BACKGROUND_TASKS.md`. Las cifras de fps de este plan corresponden
+> al modo antiguo; con el actual la 117 mide **~25 fps**. El análisis de coste del render sigue
+> vigente (lo que queda es el dibujo, no el bucle).
+
 ## 1. La rebanada
 
 ```
