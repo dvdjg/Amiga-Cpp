@@ -12,10 +12,7 @@ La diferencia de fondo con el original es que aquí **el juego no sondea hardwar
 
 ## Qué muestra
 
-- La imagen *abyss* (5 planos) con el **cielo del original**: `COLOR00` en **negro** en la parte
-  superior, un **ramp** `$0111..$0fff` por las líneas `0x41..0x4f` y `$0fff` por debajo. El degradado
-  es **estático** (como el original, que lo pone en una lista copper `copper2` que arranca con
-  `MOVE COLOR00=$0000`).
+- La imagen *abyss* (5 planos) tal cual, con el **degradado de copper** en la banda superior.
 - Los 16 BOBs (cada `あ` de un color) recorriendo la banda inferior en seno, con **cookie-cut `$CA`**
   a nivel de píxel (no `copy`): el fondo se conserva fuera de la máscara.
 - **Fine-scroll** horizontal del playfield por `BPLCON1` (`sin | sin<<4`), sin tocar los punteros.

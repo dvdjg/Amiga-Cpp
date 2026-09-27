@@ -71,17 +71,7 @@ struct AbyssDemo {
 		// --- Display de alto nivel: escena planar de 5 planos (interleaved) + paleta --------
 		comp::SceneResources res = comp::planar(kWidth, kHeight, kPlanes);
 		res.layout = comp::SceneLayout::Interleaved; // el bitmap abyss es interleaved
-		// El original deja `COLOR00` en **negro** al inicio del frame (primer `MOVE` de su
-		// `copper2`, antes del degradado): el "cielo" del abyss es oscuro arriba. Lo aplicamos
-		// sobre la paleta (mismo efecto que el `MOVE COLOR00` del copper original).
-		eng::u16 pal[32] {};
-		{
-			const eng::u16* src = reinterpret_cast<const eng::u16*>(abyss_pal);
-			for (eng::u8 i = 0u; i < 32u; ++i) {
-				pal[i] = src[i];
-			}
-			pal[0] = 0x0000u;
-		}
+		const eng::u16* pal = reinterpret_cast<const eng::u16*>(abyss_pal);
 
 		// --- Efecto de alto nivel: degradado de COLOR00 (líneas 0x41..0x4f) ----------------
 		// Se configura **antes** del build: entra como etapa del setup y `bind` deja sus
@@ -144,6 +134,7 @@ struct AbyssDemo {
 
 	void update(auto& app) {
 		eng::debug::mark_frame(g_eng_run_status, app.frame());
+		m_sky.set_phase(static_cast<eng::u16>(app.frame()));
 	}
 
 	void render(auto& app) {
@@ -172,7 +163,7 @@ struct AbyssDemo {
 			}
 			s.sprite(m_sprite, x, y, frame);
 		}
-		m_sky.patch(m_scene); // el degradado es estático (fiel al original); el parcheo es ~0
+		m_sky.patch(m_scene); // anima el degradado parcheando la lista ya construida
 		app.present();
 
 		if (m_ready && app.frame() < 2u) {
