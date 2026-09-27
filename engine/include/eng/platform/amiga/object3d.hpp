@@ -402,12 +402,11 @@ inline void update_object_transformation(Object3D& object) {
 	{
 		const math3d::Affine3<>& M = object.worldToObject;
 		const math3d::P3<> t = M.t;
-		object.camera.x = eng::retro::q0 {
-			static_cast<s16>(eng::math::dot_fixed_row<3>(M.m.row(0), t).v)};
-		object.camera.y = eng::retro::q0 {
-			static_cast<s16>(eng::math::dot_fixed_row<3>(M.m.row(1), t).v)};
-		object.camera.z = eng::retro::q0 {
-			static_cast<s16>(eng::math::dot_fixed_row<3>(M.m.row(2), t).v)};
+		// `dot_fixed_row` devuelve ya un `q0` (rescale<0>().cast<s16>()): asignacion directa, sin
+		// `q0{...}` ni `static_cast<s16>` (eran ruido, CODING_STYLE §233).
+		object.camera.x = eng::math::dot_fixed_row<3>(M.m.row(0), t);
+		object.camera.y = eng::math::dot_fixed_row<3>(M.m.row(1), t);
+		object.camera.z = eng::math::dot_fixed_row<3>(M.m.row(2), t);
 	}
 }
 
