@@ -1,0 +1,107 @@
+# Roadmap: corrección de tipos y eliminación de casts forzados
+
+Plan de refactor del engine para alinear los tipos con el dato que representan y quitar los `cast`
+que hoy los compensan. Referencia de reglas: `docs/engine/architecture/CODING_STYLE.md`
+§"Seguridad de tipos sobre punteros crudos" (líneas 113-241), `docs/engine/architecture/PUBLIC_API.md`
+§"sin punteros" y `docs/ai-dev-environment/AGENTS.md` §1.
+
+## 1. Directrices aplicables (la fuente, no la inventamos)
+
+- **Evitar punteros siempre que se pueda**; "puntero + count" está prohibido: buffers contiguos →
+  `eng::Span<T>`; texto → `eng::Str`/`encoding::Str`. `CODING_STYLE.md:126,134,150`.
+- **Puntero crudo a OBJETO: prohibido; solo memoria cruda** (`CODING_STYLE.md:141`). El `T*` legítimo
+  es el que **es** el mecanismo (memoria cruda, `T*` autopropietario de un recurso con `free`), y
+  está listado en `CODING_STYLE.md:161-166`.
+- **Nada de `void*` + puntero a función en dominio**: para "algo variable" (escalar, estrategia) se
+  usa un **tipo/`concept` de plantilla**, no `void*` ni puntero a función (`CODING_STYLE.md:140,152`).
+- **El cast es un indicio de tipo mal elegido** (`CODING_STYLE.md:232`): ante un cast, **revisar el
+  tipo de ORIGEN**; si el origen no **garantiza** lo que el destino afirma, cambiar el tipo o la
+  **procedencia** del dato, nunca forzar el cast.
+- **Todo cast debe demostrar que hace falta** (`CODING_STYLE.md:233`): quitar el cast y recompilar con
+  `-Wall -Wextra` (narrowing solo en *list-init* `T{.}`). Si no hay aviso y el destino admite el
+  valor, el cast es **ruido** y se elimina.
+- **Buffers con dominio, escalares sin envolver** (`CODING_STYLE.md:179`); los internos usan tipos de
+  dominio (`PlaneTag`, `CopperTag`, `Address<K>`, `q0/q12`), no `u8*`/`short` crudos sueltos.
+
+## 2. Diagnóstico (medido, `2026-09`)
+
+```
+reinterpret_cast 241   static_cast 4445   const_cast 12   void* 156   mem* 20
+```
+
+Top por fichero (los que más concentran el problema):
+
+| Patrón | Ficheros (nº) |
+|---|---|
+| `reinterpret_cast` | `field/playfield_base.hpp` (22), `debug/peripheral.hpp` (16), `amiga/amiga.cpp` (12), `amiga_blitter.cpp` (12), `amiga/input_poll.hpp` (10), `core/util/dynamic_hash_map.hpp` (9), **`amiga/object3d.hpp` (9)**, `amiga/blob.hpp` (7), `amiga_internal.hpp` (7) |
+| `void*` | `amiga/backend.hpp` (19), `amiga_internal.hpp` (13), **`audio/music_player.hpp` (11)**, **`audio/sfx_mixer.hpp` (9)**, `core/util/heap_alloc.hpp` (6), **`ui/widgets.hpp` (6)** |
+| `static_cast` | `amiga_blitter.cpp` (173), `field/scroll_engine.hpp` (155), `core/math/minifloat.hpp` (105), `field/xlimited_playfield.hpp` (86), `field/playfield_base.hpp` (76) |
+
+**Clasificación (importa tanto como el número):**
+
+- **Legítimo — NO tocar**: acceso a registros custom y frontera de hardware (`amiga.cpp`,
+  `amiga_blitter.cpp`, `amiga_internal.hpp`, `blob.hpp`, `peripheral.hpp`, `input_poll.hpp`);
+  almacenamiento interno de contenedores (`dynamic_hash_map`, `small_vector`); la frontera ABI del
+  asm de audio (`__asm("a0")` + `void*`); la **vista de formato de fichero** (el `.obj` de `object3d`,
+  que es un layout de bytes fijo). Aquí el cast es la frontera declarada (§161, §148).
+- **A corregir — tipo mal elegido (fase por fase abajo)**: hooks `void* + fn` en headers de
+  dominio; `reinterpret_cast` en acceso de dominio (no de formato); `static_cast` **ruido** (§233);
+  offsets/índices en `s16/s32` crudos donde hay tipo de dominio.
+
+## 3. Fases (ordenadas por relación valor/riesgo)
+
+### Fase 0 — Red y medida (barato, primero)
+- Añadir a `tools/check/` un gate de patrones prohibidos (`reinterpret_cast`/`const_cast`/`void*` +
+  puntero a función) con **lista blanca por fichero** (backend, contenedores, ABI). Falla si aparece
+  fuera de la lista → evita reincidir y hace visible el progreso.
+- Script `tools/analyze/cast-audit.mjs`: cuenta por fichero y, para cada `static_cast`, marca los
+  candidatos a **ruido** (cast que no silencia narrowing ni `void*`). Es el "medidor" de las fases.
+
+### Fase 1 — `object3d.hpp` (el fichero señalado)
+- `reinterpret_cast<Face*>(base + off)`, `Point3D*`, `Node3D*`, `Edge*`, `FaceIndex*` (líneas 215,
+  222, 271-286): sustituir por **vistas tipadas** sobre el formato del `.obj` con los **cursores
+  seguros de `eng/core/util/binary.hpp`** (los mismos que ya usa la serialización), o por un
+  `MeshView` que exponga `point(i)/face(i)` **sin** `reinterpret_cast` ni aritmética de punteros.
+- `s16 i` como offset/índice (267-286): pasar a un **tipo de índice del dominio** (`MeshIndex`/`u16`)
+  y hacer explícito el rango; eliminar `static_cast<s16>(i ± k)`.
+- `static_cast<s16>(dot_fixed_row(...).v)` (338-342): el resultado es **punto fijo** (q12); devolver
+  el tipo de dominio (`q12`) en vez de estrechar a `s16` a mano.
+- Criterio de salida: `object3d.hpp` sin `reinterpret_cast` de dominio (solo el del blob crudo si se
+  demuestra frontera) y sin `static_cast` que no silencie narrowing.
+
+### Fase 2 — Hooks `void*` + puntero a función → `concept`/plantilla
+- `field/playfield_base.hpp` (`Fn = bool(*)(void* ctx, u8* plane_base, ...)`): el "contexto" y los
+  punteros de plano de los hooks pasan a **parámetros de plantilla** (`class Target`, `concept
+  PlaneWriter`) o a un `DrawTarget` tipado; el `void*`/`u8*` desaparece de la firma.
+- `ui/widgets.hpp` (6 `void*`): modelo de callbacks tipado.
+- Salida: prohibido `void*` + puntero a función en `engine/include` fuera del backend/ABI.
+
+### Fase 3 — `static_cast` ruido (§233) en cabeceras de dominio
+- Aplicar el test de §233 en `scroll_engine.hpp`, `xlimited_playfield.hpp`, `field_controller.hpp`,
+  `behavior.hpp`, `goap.hpp`, `scheduler.hpp`: **quitar** los `static_cast` que solo repiten una
+  conversión implícita (promociones `int`→`s16`, etc.). Dejar solo los que evitan *narrowing* en
+  list-init `T{.}` o documentan una frontera.
+- Los `static_cast` de `minifloat.hpp`/`fixed.hpp`/`fixed_math.hpp`/`minifloat_math.hpp` son
+  **conversiones numéricas** del formato: revisar uno a uno, pero **no** es "tipo mal elegido" salvo
+  que oculten pérdida de rango.
+
+### Fase 4 — Audio: `void*` de API → vistas tipadas
+- `audio/music_player.hpp` / `sfx_mixer.hpp`: la **API pública** pasa `Span<const u8>`/`Address<..>`
+  (módulo, samples, buffer); el `void*` queda **solo** en la llamada al asm (`__asm("a0") a0...`).
+- Salida: la frontera asm documentada y encapsulada; la API sin `void*`.
+
+### Fase 5 — Cierre
+- Gate (Fase 0) en verde con la lista blanca ya reducida; `cast-audit.mjs` sin candidatos de ruido.
+- Documentar en `CODING_STYLE.md` los patrones nuevos (vistas de formato, hooks tipados) y bajar de
+  la lista blanca lo que se haya limpiado.
+
+## 4. Orden recomendado y valor
+1. **Fase 0** (medir + blindar) — habilita todo lo demás y evita regresiones.
+2. **Fase 1 (`object3d.hpp`)** — el ejemplo que pediste; alto valor didáctico (patrón de vista).
+3. **Fase 2 (hooks `void*`)** — la directriz más citada; toca cabeceras muy reutilizadas.
+4. **Fase 3 (ruido)** — mucha superficie, bajo riesgo, mejora legibilidad y señala tipos mal elegidos.
+5. **Fase 4 (audio)** — encapsula la ABI.
+
+Regla de parada por fichero: si un `reinterpret_cast` se demuestra **frontera real** (registro custom,
+layout de fichero, ABI), se **documenta y se añade a la lista blanca** — no se fuerza una "abstracción"
+que solo esconde el puntero.
