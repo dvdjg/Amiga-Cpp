@@ -130,11 +130,13 @@ public:
 	App(const App&) = delete;
 	App& operator=(const App&) = delete;
 
-	/// Ejecuta el bucle del engine (`run_frames`: por defecto interrupt-driven). Registra el
-	/// **hook de VBlank** que alimenta el puerto de mensajes: cada tick publica `MsgType::VBlank`.
+	/// Ejecuta el bucle del engine en el modo **IRQ mínima**: la IRQ de VBlank solo lleva el
+	/// **latido** (el hook que alimenta el puerto de mensajes / el mini-SO) y `update`/`render`
+	/// corren en el **bucle principal**. Registra el **hook de VBlank** que publica
+	/// `MsgType::VBlank` en el puerto.
 	void run(u32 frames = 0xffffffffu) {
 		m_engine.set_vblank_hook(&App::on_vblank, this);
-		m_engine.run_frames(frames);
+		m_engine.run_frames_minimal_irq(frames);
 	}
 
 	[[nodiscard]] u32 frame() const noexcept { return m_frame; }

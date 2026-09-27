@@ -152,6 +152,28 @@ struct InterruptTick {
 	}
 };
 
+/// **Latido de VBlank mínimo** (`Engine::run_frames_minimal_irq`): la IRQ **solo anuncia**
+/// el frame — `vblank_hook` (p. ej. el mini-SO: input, timers, cola) + contador — y
+/// `update`/`render` los corre el **bucle principal**, sobre su propia pila, al ver el
+/// contador avanzar. Es el modelo de un SO real: la interrupción avisa, el trabajo se hace
+/// fuera de ella. Frente a `InterruptTick`, el handler no contiene el frame (no invade
+/// VBlanks) y frente a `run_frames_polling`, el latido sigue en la IRQ.
+template <typename Backend, typename Game>
+struct VBlankHeartbeat {
+	GameContext* context = nullptr;
+	volatile u32 frames = 0u;
+	VBlankHook vblank_hook = nullptr; ///< latido (p. ej. `os::tick`) — debe ser corto
+	void* vblank_user = nullptr;
+
+	static void run(VBlankHeartbeat& hb, u16) {
+		hb.context->frame.frame_index = hb.frames;
+		if (hb.vblank_hook != nullptr) {
+			hb.vblank_hook(hb.vblank_user);
+		}
+		++hb.frames;
+	}
+};
+
 /// Engine generico parametrizado por backend y juego.
 ///
 /// Esta clase es el primer paso para evitar que el juego sea "codigo Amiga". El
@@ -264,6 +286,52 @@ public:
 			}
 		}
 		// Backend sin IRQ de VBlank: modo polling.
+		run_frames_polling(frame_count, /*already_booted=*/true);
+	}
+
+	/// Modo **IRQ mínima** (§`VBlankHeartbeat`): la IRQ de VBlank solo lleva el **latido**
+	/// (el `vblank_hook`, p. ej. `os::tick` + cola del mini-SO) y el contador de frames;
+	/// `update`/`render` corren en el **bucle principal** (su propia pila), notificados por
+	/// el contador. Evita el handler largo de `run_frames` manteniendo el latido en la IRQ
+	/// (a diferencia de `run_frames_polling`, que lo mueve al bucle). Si el backend no tiene
+	/// servicio de VBlank, cae a `run_frames_polling`.
+	void run_frames_minimal_irq(u32 frame_count) {
+		GameContext context {};
+		context.background = &m_background;
+
+		m_backend.boot();
+		m_game.init(m_backend, context);
+
+		VBlankHeartbeat<Backend, Game> hb {&context, 0u, m_vblank_hook, m_vblank_user};
+		if constexpr (requires { m_backend.set_vblank_service(&VBlankHeartbeat<Backend, Game>::run, hb); }) {
+			if (m_backend.set_vblank_service(&VBlankHeartbeat<Backend, Game>::run, hb)) {
+				[[maybe_unused]] auto services_off = eng::util::make_scope_guard([&] {
+					if constexpr (requires { m_backend.clear_blit_service(); }) {
+						m_backend.clear_blit_service();
+					}
+					m_backend.clear_vblank_service();
+				});
+				BackgroundBlitterService blitter_service {&m_background, &context};
+				if constexpr (requires { m_backend.set_blit_service(&BackgroundBlitterService::run, blitter_service); }) {
+					m_backend.set_blit_service(&BackgroundBlitterService::run, blitter_service);
+				}
+				// El bucle consume el latido: mientras no avance el contador, adelanta el
+				// fondo (equivale al hueco de VBlank); cuando avanza, corre el frame fuera
+				// de la IRQ.
+				u32 seen = 0u;
+				while (seen < frame_count) {
+					if (hb.frames == seen) {
+						m_background.run_slice(seen, 0u);
+						continue;
+					}
+					seen = hb.frames;
+					context.frame.frame_index = static_cast<u32>(seen - 1u);
+					m_game.update(m_backend, context);
+					m_game.render(m_backend, context);
+				}
+				return;
+			}
+		}
 		run_frames_polling(frame_count, /*already_booted=*/true);
 	}
 
