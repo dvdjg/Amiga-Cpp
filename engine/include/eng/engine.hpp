@@ -205,17 +205,21 @@ public:
 				}
 				// El bucle consume el latido: mientras no avance el contador, adelanta el
 				// fondo (equivale al hueco de VBlank); cuando avanza, corre el frame fuera
-				// de la IRQ.
+				// de la IRQ. `frame_index` cuenta **frames completados** (como en
+				// `run_frames_polling`), no latidos: asi el run-status/gate miden la tasa
+				// real de update y las animaciones avanzan por frame dibujado.
 				u32 seen = 0u;
-				while (seen < frame_count) {
+				u32 done = 0u;
+				while (done < frame_count) {
 					if (hb.frames == seen) {
-						m_background.run_slice(seen, 0u);
+						m_background.run_slice(done, 0u);
 						continue;
 					}
 					seen = hb.frames;
-					context.frame.frame_index = static_cast<u32>(seen - 1u);
+					context.frame.frame_index = done;
 					m_game.update(m_backend, context);
 					m_game.render(m_backend, context);
+					++done;
 				}
 				return;
 			}

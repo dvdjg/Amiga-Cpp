@@ -30,6 +30,24 @@ Con **56** el `update` cabe en 2 campos (25 fps) manteniendo el sincronismo estr
 buffers. `>=64` dibuja los 60 (como el original). Para los 60 BOBs a 2 campos habría que
 recortar ~2,5k de `load_rotate` (medido 2.676 c), sin vía limpia.
 
+## Modo de bucle y coste real (`Blits`/`Update`)
+
+Medido con `profile.mjs` (secciones `clear/transform/draw/blits/install/update/forward`), mismo
+binario y config:
+
+| modo | `Update` | `Blits` | `Transform` |
+|---|---|---|---|
+| `polling` (`K_117_IRQ=0`, por defecto) | 276 617 | 188 153 | 86 470 |
+| IRQ-mínima (`K_117_IRQ=1`) | 384 111 | 291 022 | 89 366 |
+
+El **modo IRQ-mínima añade +103k a `Blits`** (espera por BOB), sin que la causa sea la IRQ de
+VBlank (enmascarar `VERTB` durante el `update` no lo cambia), el clear (~13k) ni la
+instrumentación (~2k). Por eso la demo usa **`polling`** (`run_frames_polling`), que **también es
+mini-SO** (mismo `os::init` + `MessagePumpGame`): `wait_vblank()` sondea `VPOSR` sin IRQ y el
+bucle de blits corre sin interrupción. Los "campos/frame" de la tabla de arriba son el coste del
+`update`; la **tasa del bucle** (con la espera de VBlank de cada frame) queda algo por debajo
+(≈22 fps con 56 BOBs en `A500_debug`).
+
 ## Diagnóstico por capas
 
 Interruptores de compilación para aislar componentes (validación incremental con visión):

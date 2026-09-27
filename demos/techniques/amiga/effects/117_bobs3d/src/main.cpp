@@ -32,6 +32,8 @@
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/platform/amiga/object3d.hpp>
 #include <eng/platform/amiga/backend.hpp>
+#include <eng/os/message_pump.hpp>
+#include <eng/os/os.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -107,9 +109,11 @@ struct PixmapT {
 #ifndef K_117_BLITROWS
 #define K_117_BLITROWS kBobHeight
 #endif
-// 1 = bucle de frame interrupt-driven (`Engine::run_frames`); 0 = polling de VBlank
-// (`run_frames_polling`), que arranca `update` alineado al VBlank (necesario para 2
-// buffers sin tearing). Ver BOBS3D_PORT_PLAN.md §6.
+// 1 = bucle IRQ-mínima (`Engine::run_frames`); 0 = polling de VBlank (`run_frames_polling`),
+// que arranca `update` alineado al VBlank. Medido (`profile.mjs`): el modo IRQ-mínima suma
+// ~+103k a `Blits` (espera por BOB) sin que sea la IRQ (enmascarar VERTB no lo cambia), el
+// clear (~13k) ni el profiler (~2k); por eso el defecto es **polling**, que también es mini-SO.
+// Ver README §"Modo de bucle" y BOBS3D_PORT_PLAN.md §6.
 #ifndef K_117_IRQ
 #define K_117_IRQ 0
 #endif
@@ -243,7 +247,13 @@ void transform_all_vertices(obj::Object3D& object) {
 }
 
 struct Bobs3DDemo {
-	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
+	/// Lazo con el backend para el arranque y el frame. El mini-SO (`MessagePumpGame`) entrega el
+	/// backend solo en `on_render`; `on_start`/`on_frame` (que preparan memoria, Blitter y Copper)
+	/// lo reciben por esta referencia no propietaria, ligada en `main()` antes de crear el `Engine`.
+	void bind_backend(eng::amiga::AmigaBackend& backend) { m_backend = &backend; }
+
+	void on_start(eng::GameContext&) {
+		eng::amiga::AmigaBackend& backend = *m_backend;
 		eng::debug::mark_init_started(g_eng_run_status);
 		P_INIT(kProfCount);
 		if (!backend.configure_memory({192u * 1024u, 4u * 1024u, 4u * 1024u})) {
@@ -287,8 +297,10 @@ struct Bobs3DDemo {
 		eng::debug::mark_ready(g_eng_run_status, static_cast<u32>(pilka.vertices));
 	}
 
-	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
+	void on_frame(eng::u32 frame) {
+		m_frame = frame;
+		eng::amiga::AmigaBackend& backend = *m_backend;
+		eng::debug::mark_frame(g_eng_run_status, frame);
 		if (m_screen_block.view.data() == nullptr) {
 			return;
 		}
@@ -312,7 +324,7 @@ struct Bobs3DDemo {
 
 #if K_117_WORK
 		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z =
-			eng::retro::turns(static_cast<eng::u16>(context.frame.frame_index * 12u));
+			eng::retro::turns(static_cast<eng::u16>(frame * 12u));
 
 		P_BEGIN(kProfTransform);
 		// bobs3d no usa la inversa ni la camara: solo la matriz directa para proyectar.
@@ -347,9 +359,12 @@ struct Bobs3DDemo {
 		P_END(kProfUpdate);
 	}
 
-	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
+	void on_render(eng::amiga::AmigaBackend& backend) {
+		(void)backend;
+		eng::debug::probe_when_ready(g_eng_run_status, m_frame);
 	}
+
+	void on_msg(const eng::os::Msg&) {}
 
 private:
 	/// Reempaqueta el atlas denso `_bobs_bpl` (6 B/fila) a filas con palabra de guarda
@@ -543,6 +558,8 @@ private:
 		return sched.ok();
 	}
 
+	eng::amiga::AmigaBackend* m_backend = nullptr;
+	eng::u32 m_frame = 0;
 	u8 m_active = 0;
 	eng::Block<eng::PlaneTag> m_screen_block {};
 	eng::Block<eng::PlaneTag> m_bob_block {};
@@ -562,8 +579,17 @@ int main() {
 	eng::debug::reset(g_eng_run_status);
 
 	eng::amiga::AmigaBackend backend {};
-	Bobs3DDemo game {};
+	// Bucle reactivo del mini-SO: drena el puerto (VBlank + entrada) y entrega cada mensaje al App
+	// antes de `on_frame`. El latido del mini-SO se engancha al VBlank del `Engine` con `os::init`.
+	eng::os::MessagePumpGame<Bobs3DDemo> game {};
+	game.app.bind_backend(backend);
+	game.bind_port(eng::os::system_port());
+
 	eng::Engine engine {backend, game};
+	// La 117 no consume entrada: arranca el mini-SO **sin** dispositivos (el bucle y el latido del
+	// VBlank siguen activos). Habilitar `InputAll` solo anadiria sondeo de teclado/raton/joystick
+	// por VBlank sin usarse.
+	(void)eng::os::init(engine, 0u);
 #if K_117_IRQ
 	engine.run_frames(0xffff);
 #else
