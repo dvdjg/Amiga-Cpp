@@ -273,7 +273,7 @@ private:
 	bool build_copper() {
 		eng::copper::SchedulerT<false> sched {m_copper_block};
 		sched.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0, kBytesPerRow, 0x1200, 1u,
-					  m_bitplane_block.view, kPlaneBytes);
+					  m_bitplane_block.mem_view(), kPlaneBytes);
 		// Paleta con blanco/verde/amarillo (gate visual de la regresion): el fondo (color 0) va
 		// blanco arriba, verde a la altura de la barra y amarillo abajo, cambiando por Copper. La
 		// barra de progreso (bit 1 del plano) usa color 1.
@@ -295,8 +295,8 @@ private:
 	volatile eng::u8 m_swap = 0;
 	volatile eng::u8 m_underrun = 0;
 	const eng::u16* m_copper_ptr = nullptr;
-	eng::Block<eng::PlaneTag> m_bitplane_block {};
-	eng::Block<eng::CopperTag> m_copper_block {};
+	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bitplane_block {};
+	eng::Block<eng::CopperTag, eng::MemoryKind::Chip> m_copper_block {};
 	eng::Block<eng::AudioTag> m_pcm0 {};
 	eng::Block<eng::AudioTag> m_pcm1 {};
 	eng::Block<eng::AudioTag> m_comp {};

@@ -175,7 +175,7 @@ private:
 		const eng::u16 bplcon0 = static_cast<eng::u16>((static_cast<eng::u16>(kPlanes) << 12u) | 0x0200u);
 		sched.emit_planes_display(
 			0x2c81, 0x2cc1, 0x0038, 0x00d0,
-			kBytesPerRow, bplcon0, kPlanes, m_bitplane_block.view, kPlaneBytes
+			kBytesPerRow, bplcon0, kPlanes, m_bitplane_block.mem_view(), kPlaneBytes
 		);
 		for (eng::u8 i = 0; i < 32; ++i) {
 			sched.move(eng::copper::color_register(i), 0x0000);
@@ -203,8 +203,8 @@ private:
 	eng::Block<eng::AudioTag> m_melody_block {};
 	eng::Block<eng::AudioTag> m_bass_block {};
 	eng::Block<eng::AudioTag> m_counter_block {};
-	eng::Block<eng::PlaneTag> m_bitplane_block {};
-	eng::Block<eng::CopperTag> m_copper_block {};
+	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bitplane_block {};
+	eng::Block<eng::CopperTag, eng::MemoryKind::Chip> m_copper_block {};
 	eng::audio::SfxMixer m_sfx {};
 };
 

@@ -88,9 +88,18 @@ static_assert(__builtin_offsetof(MixerEffect, plugin) == 16);
 /// registros Amiga) y `jsr _MixerXxx` (alias C que crea `MIXER_C_DEFS=1`).
 /// Patrón idéntico al de `mixer.h` para Bartman GCC.
 
+/// Las `_MixerXxx` **no siguen el ABI C**: el contrato es que preservan lo que usan salvo el
+/// scratch ABI (`d0/d1/a0/a1`). Sin declararlo, el compilador puede mantener un valor vivo en un
+/// registro que la rutina pisa. Se declaran esos registros menos los fijados como entrada/salida.
+/// NO se sobre-declara con los que la rutina salva: un clobber grande dispara ICEs de gcc m68k
+/// (`dwarf2out_frame_debug_adjust_cfa`). Ver `docs/debugging/investigaciones/p61-audio-dma.md`.
+#define MX_CB_ALL "d0", "d1", "a0", "a1"
+#define MX_CB_NO_D0 "d1", "a0", "a1"
+#define MX_CB_NO_A0D0 "d1", "a1"
+
 inline u32 get_buffer_size() {
 	register volatile u32 result __asm("d0");
-	__asm__ volatile("jsr _MixerGetBufferSize" : "=r"(result) : : "cc", "memory");
+	__asm__ volatile("jsr _MixerGetBufferSize" : "=r"(result) : : MX_CB_NO_D0, "cc", "memory");
 	return result;
 }
 
@@ -106,24 +115,24 @@ inline void setup(void* buffer, void* plugin_buffer, void* plugin_data, u16 vide
 inline void install_handler(void* vbr, u16 save_vector) {
 	register volatile void* v __asm("a0") = vbr;
 	register volatile u16 s __asm("d0") = save_vector;
-	__asm__ volatile("jsr _MixerInstallHandler" : : "r"(v), "r"(s) : "cc", "memory");
+	__asm__ volatile("jsr _MixerInstallHandler" : : "r"(v), "r"(s) : MX_CB_NO_A0D0, "cc", "memory");
 }
 
 inline void remove_handler() {
-	__asm__ volatile("jsr _MixerRemoveHandler" : : : "cc", "memory");
+	__asm__ volatile("jsr _MixerRemoveHandler" : : : MX_CB_ALL, "cc", "memory");
 }
 
 inline void start() {
-	__asm__ volatile("jsr _MixerStart" : : : "cc", "memory");
+	__asm__ volatile("jsr _MixerStart" : : : MX_CB_ALL, "cc", "memory");
 }
 
 inline void stop() {
-	__asm__ volatile("jsr _MixerStop" : : : "cc", "memory");
+	__asm__ volatile("jsr _MixerStop" : : : MX_CB_ALL, "cc", "memory");
 }
 
 inline void volume(u16 volume) {
 	register volatile u16 v __asm("d0") = volume;
-	__asm__ volatile("jsr _MixerVolume" : : "r"(v) : "cc", "memory");
+	__asm__ volatile("jsr _MixerVolume" : : "r"(v) : MX_CB_NO_D0, "cc", "memory");
 }
 
 /// Reproduce un efecto en el mejor canal libre (por prioridad/edad).
@@ -132,7 +141,7 @@ inline s32 play_fx(const MixerEffect& fx, u32 hardware_channel) {
 	register volatile const MixerEffect* e __asm("a0") = &fx;
 	register volatile u32 hc __asm("d0") = hardware_channel;
 	register volatile u32 result __asm("d0");
-	__asm__ volatile("jsr _MixerPlayFX" : "=r"(result) : "r"(e), "r"(hc) : "cc", "memory");
+	__asm__ volatile("jsr _MixerPlayFX" : "=r"(result) : "r"(e), "r"(hc) : MX_CB_NO_A0D0, "cc", "memory");
 	return static_cast<s32>(result);
 }
 
@@ -141,45 +150,49 @@ inline s32 play_channel_fx(const MixerEffect& fx, u32 mixer_channel) {
 	register volatile const MixerEffect* e __asm("a0") = &fx;
 	register volatile u32 mc __asm("d0") = mixer_channel;
 	register volatile u32 result __asm("d0");
-	__asm__ volatile("jsr _MixerPlayChannelFX" : "=r"(result) : "r"(e), "r"(mc) : "cc", "memory");
+	__asm__ volatile("jsr _MixerPlayChannelFX" : "=r"(result) : "r"(e), "r"(mc) : MX_CB_NO_A0D0, "cc", "memory");
 	return static_cast<s32>(result);
 }
 
 inline void stop_fx(u16 mixer_channel_mask) {
 	register volatile u16 m __asm("d0") = mixer_channel_mask;
-	__asm__ volatile("jsr _MixerStopFX" : : "r"(m) : "cc", "memory");
+	__asm__ volatile("jsr _MixerStopFX" : : "r"(m) : MX_CB_NO_D0, "cc", "memory");
 }
 
 inline u32 channel_status(u16 mixer_channel) {
 	register volatile u16 c __asm("d0") = mixer_channel;
 	register volatile u32 result __asm("d0");
-	__asm__ volatile("jsr _MixerGetChannelStatus" : "=r"(result) : "r"(c) : "cc", "memory");
+	__asm__ volatile("jsr _MixerGetChannelStatus" : "=r"(result) : "r"(c) : MX_CB_NO_D0, "cc", "memory");
 	return result;
 }
 
 inline u32 total_channel_count() {
 	register volatile u32 result __asm("d0");
-	__asm__ volatile("jsr _MixerGetTotalChannelCount" : "=r"(result) : : "cc", "memory");
+	__asm__ volatile("jsr _MixerGetTotalChannelCount" : "=r"(result) : : MX_CB_NO_D0, "cc", "memory");
 	return result;
 }
 
 inline u32 sample_min_size() {
 	register volatile u32 result __asm("d0");
-	__asm__ volatile("jsr _MixerGetSampleMinSize" : "=r"(result) : : "cc", "memory");
+	__asm__ volatile("jsr _MixerGetSampleMinSize" : "=r"(result) : : MX_CB_NO_D0, "cc", "memory");
 	return result;
 }
 
 /// Reinicia el contador de interrupciones del mixer (requiere MIXER_COUNTER=1).
 inline void reset_counter() {
-	__asm__ volatile("jsr _MixerResetCounter" : : : "cc", "memory");
+	__asm__ volatile("jsr _MixerResetCounter" : : : MX_CB_ALL, "cc", "memory");
 }
 
 /// Nº de interrupciones del mixer desde el último reset (requiere MIXER_COUNTER=1).
 inline u16 get_counter() {
 	register volatile u32 result __asm("d0");
-	__asm__ volatile("jsr _MixerGetCounter" : "=r"(result) : : "cc", "memory");
+	__asm__ volatile("jsr _MixerGetCounter" : "=r"(result) : : MX_CB_NO_D0, "cc", "memory");
 	return static_cast<u16>(result & 0xffffu);
 }
+
+#undef MX_CB_ALL
+#undef MX_CB_NO_D0
+#undef MX_CB_NO_A0D0
 
 } // namespace mixer_amiga
 

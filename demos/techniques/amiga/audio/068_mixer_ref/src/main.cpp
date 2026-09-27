@@ -175,7 +175,7 @@ private:
 		eng::copper::SchedulerT<false> sched { m_copper_block };
 		sched.emit_planes_display(
 			0x2c81, 0x2cc1, 0x0038, 0x00d0,
-			kBytesPerRow, 0x6200, kPlanes, m_bitplane_block.view, kPlaneBytes
+			kBytesPerRow, 0x6200, kPlanes, m_bitplane_block.mem_view(), kPlaneBytes
 		);
 		for (eng::u8 i = 0; i < 32; ++i) {
 			sched.move(eng::copper::color_register(i), 0x0000);
@@ -202,8 +202,8 @@ private:
 	eng::Block<eng::MixerBufferTag> m_buffer_block {};
 	eng::Block<eng::MixerBufferTag> m_plugin_buffer_block {};
 	eng::Block<eng::MixerBufferTag> m_plugin_data_block {};
-	eng::Block<eng::PlaneTag> m_bitplane_block {};
-	eng::Block<eng::CopperTag> m_copper_block {};
+	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bitplane_block {};
+	eng::Block<eng::CopperTag, eng::MemoryKind::Chip> m_copper_block {};
 };
 
 } // namespace

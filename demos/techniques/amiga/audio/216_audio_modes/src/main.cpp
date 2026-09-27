@@ -127,7 +127,7 @@ private:
 	bool build_copper() {
 		eng::copper::SchedulerT<false> sched { m_copper_block };
 		sched.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0, kBytesPerRow, 0x1200, 1u,
-					  m_bitplane_block.view, kPlaneBytes);
+					  m_bitplane_block.mem_view(), kPlaneBytes);
 		sched.move(eng::copper::color_register(0), 0x001u);
 		sched.move(eng::copper::color_register(1), 0x00Fu);
 		sched.end();
@@ -138,8 +138,8 @@ private:
 	bool m_init_ok = false;
 	bool m_underrun_seen = false;
 	const eng::u16* m_copper_ptr = nullptr;
-	eng::Block<eng::PlaneTag> m_bitplane_block {};
-	eng::Block<eng::CopperTag> m_copper_block {};
+	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bitplane_block {};
+	eng::Block<eng::CopperTag, eng::MemoryKind::Chip> m_copper_block {};
 	eng::Block<eng::AudioTag> m_beep_block {};
 	eng::audio::AudioSystem m_audio {};
 	eng::os::MsgPort<> m_port {};

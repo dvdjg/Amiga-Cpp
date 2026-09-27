@@ -35,14 +35,17 @@ Se revisaron las rutinas de memoria recientes y **no** eran la causa:
 
 Es un **bug latente**, no un fix perdido: `git log -S '"d1"' -- music_player.hpp` muestra que `music_player.hpp` **nunca** declaró el clobber (ni se añadió ni se borró). El wrapper de `p61.asm` no cambió (siempre salvó `d2-d7/a2-a6`), y las estructuras del `.i` viejo (`support/music/P6112-Play.i`) y del nuevo (`support/music/p61/P6112-Play.i`) son idénticas en los prólogos. La manifestación depende del **contexto de llamada** (qué valor vive en `d1` al entrar): por eso puede haber funcionado con el mini-SO y romperse con el `App`.
 
-## Mismo patrón en otros wrappers (pendiente, misma clase de bug)
+## Mismo patrón en otros wrappers (misma clase de bug)
 
-Los envoltorios de asm inline que hacen `jsr` a rutinas demoscene **sin declarar los clobbers** tienen el mismo riesgo:
+Los envoltorios de asm inline que hacen `jsr` a rutinas demoscene **sin declarar los clobbers** tienen el mismo riesgo. Las rutinas `_MixerXxx` **no siguen el ABI C**: por sus `movem`, `MixerStart` salva `d0/d1/d7/a0/a6` (→ clobbea `d2-d6,a1-a5`) y `MixerPlayFX` salva `d2/d1/d4-d7/a1/a2/a6` (→ clobbea `d3,a3-a5`).
 
-- `engine/include/eng/audio/sfx_mixer.hpp`: los 15 `jsr _Mixer*` (solo `"cc","memory"`; algunos con `"=r"(result)`).
-- `engine/include/eng/audio/music_player.hpp`: PT (`jsr _PtInit`/`_PtInstallCIA`/…/`_mt_mastervol`/`_mt_channelmask`) y MED (`jsr _startmusic`/`_endmusic`).
+- **`engine/include/eng/audio/sfx_mixer.hpp` — RESUELTO**: los 15 `jsr _Mixer*` declaran ya los clobbers reales (macros `MX_CB_ALL`/`MX_CB_NO_D0`/`MX_CB_NO_A0D0`/`MX_CB_SETUP`: todos los registros de dato/dirección salvo los fijados como entrada/salida). La 213 (que incluye el header) compila; `059/058/067/069/073` **no** sirven para validar porque tienen una rotura previa (ver abajo).
+- **`engine/include/eng/audio/music_player.hpp` (PT/med) — RESUELTO**: los argumentos ya estaban fijados (variables `register ... __asm("a0"/"a1"/"d0")`); faltaban los clobbers. Como `_Pt*` sí salvan `d2-d7/a2-a6`, solo clobberan `d0/d1/a0/a1` → set **preciso** (`PT_CB_*`: `d0/d1/a0/a1` menos los fijados como entrada/salida); med (`_startmusic`/`_endmusic`) igual. **Ojo**: sobre-declarar con los 15 registros dispara un **ICE de gcc m68k** (`print_operand_address`, `config/m68k/m68k.cc:5281`) → hay que ceñirse a lo que la rutina clobbea de verdad (el mixer, que no sigue el ABI, sí necesita más registros; compila).
 
-Además, varios de ellos pasan argumentos con `"r"(…)` (registro elegido por el compilador) a rutinas que los esperan en **registros concretos** — conviene fijarlos con `__asm("dN")`/`__asm("aN")` y declarar los clobbers reales. Es un dominio aparte (mixer/PT) que merece su propia pasada.
+### Rotura previa de las demos de audio (no relacionada con los clobbers)
+
+`058_sfx_mixer`, `059_music_player`, `067_mixer_melody`, `069_mixer_two_voices`, `073_sample_mixer`, … **no compilan**: pasan `block.view` (`Bytes<Tag>`) donde el engine pide `mem_view()` (`MemView<Tag, Chip>`), y el bloque ni está etiquetado Chip (`MemView<…, Any>`). Es una **migración de API pendiente** en esas demos (están en `tools/build/skip-demos.txt`, por eso no la cazó la regresión). Bloquea validar los wrappers de audio de extremo a extremo.
+
 
 ## Referencias
 

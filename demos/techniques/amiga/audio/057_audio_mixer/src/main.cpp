@@ -212,7 +212,7 @@ private:
 		eng::copper::SchedulerT<false> sched { m_copper_block };
 		sched.emit_planes_display(
 			0x2c81, 0x2cc1, 0x0038, 0x00d0,
-			kBytesPerRow, 0x6200, kPlanes, m_bitplane_block.view, kPlaneBytes
+			kBytesPerRow, 0x6200, kPlanes, m_bitplane_block.mem_view(), kPlaneBytes
 		);
 		sched.emit_palette(m_palette);
 		build_bands();
@@ -236,8 +236,8 @@ private:
 	const eng::u16* m_copper_ptr = nullptr;
 	eng::u8* m_sample = nullptr;
 	eng::Block<eng::AudioTag> m_sample_block {};
-	eng::Block<eng::PlaneTag> m_bitplane_block {};
-	eng::Block<eng::CopperTag> m_copper_block {};
+	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bitplane_block {};
+	eng::Block<eng::CopperTag, eng::MemoryKind::Chip> m_copper_block {};
 	eng::graphics::CopperIntent m_intents[kBands] {};
 	eng::audio::AudioMixer m_mixer {};
 	eng::amiga::PaulaAudio m_paula {};
