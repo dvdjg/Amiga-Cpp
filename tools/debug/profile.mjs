@@ -65,6 +65,12 @@ function runtimeAddr(linked, ms, rs) {
 const u32delta = (a, b) => { let d = b - a; if (d < 0) d += 4294967296; return d; };
 
 const SECTION_NAMES = ['actors', 'blits', 'copper', 'static', 'sky', 'objcopper', 'materialize', 'sort_lines', 'sort_prio', 'emit', 'calib', 'loop'];
+// Los nombres de seccion son por demo. `--names a,b,c` los fija (indice 0..); si no, se usa
+// el mapa generico de arriba y, para indices sin nombre, `seccionN`.
+const namesArgIdx = process.argv.indexOf('--names');
+const CUSTOM_NAMES = (namesArgIdx >= 0 && process.argv[namesArgIdx + 1])
+  ? process.argv[namesArgIdx + 1].split(',')
+  : null;
 
 // WinUAE de la extension Bartman: autodetecta la version MAS NUEVA instalada (fijar una antigua
 // colgaba el arranque de algunas demos y con ello fallaban las lecturas GDB).
@@ -88,21 +94,34 @@ await sleep(3000);
 
 const st = await sideChannelCommand('state', SIDE_PORT, 5000);
 const linked = findMapSymbol('g_eng_prof');
-// Resolucion robusta: primero el mapeo por indice; si el magic no cuadra (el runtime
-// incluye `.eh_frame` y el .map no, o hay un `.s` extra de `support/`), escanea cada
-// seccion runtime. Mismo criterio que `tools/profile/launch-winuae.mjs`.
+// Lectura por el **canal lateral** (`mem`): el `readMemory` GDB da timeouts en este entorno.
+// Devuelve un Buffer con los bytes (los enteros son big-endian en memoria Amiga).
+const readMem = async (a, len) => {
+  try {
+    const r = await sideChannelCommand('mem 0x' + a.toString(16) + ' ' + len, SIDE_PORT, 2500);
+    const hex = (r && r.reply && typeof r.reply.data === 'string') ? r.reply.data : null;
+    return hex ? Buffer.from(hex, 'hex') : null;
+  } catch { return null; }
+};
 const profOk = async (a) => {
   if (!a) return false;
-  try {
-    const b = await p.readMemory(a, 4);
-    return b.readUInt32BE(0) === PROF_MAGIC;
-  } catch { return false; }
+  const b = await readMem(a, 4);
+  return !!b && b.length >= 4 && b.readUInt32BE(0) === PROF_MAGIC;
 };
-let addr = linked !== null ? runtimeAddr(linked, mapSections(), st.reply.sections) : null;
-if (!(await profOk(addr))) {
-  addr = null;
-  if (Array.isArray(st.reply.sections)) {
-    for (const sec of st.reply.sections) {
+// Resolucion robusta: (1) MISMO offset en cada seccion runtime (los hunks runtime no casan
+// con el `.map`); (2) inicio de cada seccion. Mismo criterio que `measure-fps.mjs`.
+const ms = mapSections();
+const rs = st.reply.sections;
+const cand = (linked !== null && Array.isArray(ms)) ? ms.find((s) => linked >= s.start && linked < s.end) : null;
+const off = cand ? (linked - cand.start) : (linked !== null ? (linked - 0x400) : 0);
+let addr = null;
+if (Array.isArray(rs)) {
+  for (const sec of rs) {
+    const a = parseInt(sec, 16) + off;
+    if (await profOk(a)) { addr = a; break; }
+  }
+  if (addr === null) {
+    for (const sec of rs) {
       const a = parseInt(sec, 16);
       if (a && await profOk(a)) { addr = a; break; }
     }
@@ -117,8 +136,8 @@ if (addr === null) {
 // magic(4)+sections(1)+pad(3)+frames(4) + cycles[16] + calls[16] + min[16] + max[16]
 const BLOCK = 12 + 16 * 4 * 4;
 async function sample() {
-  const b = await p.readMemory(addr, BLOCK);
-  if (b.readUInt32BE(0) !== PROF_MAGIC) return null;
+  const b = await readMem(addr, BLOCK);
+  if (!b || b.length < BLOCK || b.readUInt32BE(0) !== PROF_MAGIC) return null;
   const sections = b.readUInt8(4);
   const frames = b.readUInt32BE(8);
   const cycles = [], calls = [], minc = [], maxc = [];
@@ -129,7 +148,15 @@ async function sample() {
     minc.push(b.readUInt32BE(base + 128 + i * 4));
     maxc.push(b.readUInt32BE(base + 192 + i * 4));
   }
-  const clock = (await p.readMemory(0xb7e928, 4)).readUInt32BE(0);
+  // Contador de ciclos = periferico de depuracion (0xB7E928). Si el canal lateral no lo lee,
+  // se intenta por GDB y si no queda 0 (se pierde el `%` del frame, no la tabla por seccion).
+  let clock = 0;
+  const cm = await readMem(0xb7e928, 4);
+  if (cm && cm.length >= 4) {
+    clock = cm.readUInt32BE(0);
+  } else {
+    try { clock = (await p.readMemory(0xb7e928, 4)).readUInt32BE(0); } catch { clock = 0; }
+  }
   return { sections, frames, cycles, calls, minc, maxc, clock };
 }
 
@@ -155,7 +182,7 @@ for (let i = 0; i < Math.max(a.sections, 10); ++i) {
   const minc = z.minc[i];
   const maxc = z.maxc[i];
   sum += perFrame;
-  const name = SECTION_NAMES[i] || `seccion${i}`;
+  const name = (CUSTOM_NAMES && CUSTOM_NAMES[i]) || SECTION_NAMES[i] || `seccion${i}`;
   console.log(`  ${name.padEnd(8)} ${perFrame.toFixed(0).padStart(8)} ${(100 * perFrame / total).toFixed(1).padStart(6)}% ${calls.toFixed(1).padStart(10)} ${String(minc).padStart(11)} ${String(maxc).padStart(11)}`);
 }
 const rest = total - sum;

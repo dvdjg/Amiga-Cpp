@@ -34,6 +34,7 @@ La cifra histórica (101=~48, 102=~50, 103=~50, 104=~47,6) no era reproducible: 
 | `057_audio_mixer` | `A500_debug` | 12,60 | 562 799 | 0x381 | 2026-09-18 | `83f1bba` |
 | `058_sfx_mixer` | `A500_debug` | 12,44 | 570 303 | 0x3810004 | 2026-09-18 | `83f1bba` |
 | `213_bartman_abyss` | `A500_debug` | 49,92 | 142 102 | 0x21300 | 2026-09-27 | `9d130787` |
+| `117_bobs3d` | `A500_debug` | 24,96 | 284 204 | 0x3c | 2026-09-27 | `99f08c8a` |
 
 Contexto de medida: `CONFIG_ID` **`A500_debug`** (build `--debug`, `-O1`), emulador **WinUAE-DBG x86**, herramienta `tools/debug/measure-fps.mjs` (contador de ciclos del periférico `0xB7E928`, 7,09379 MHz). El fps depende de la **fase** del recorrido (`detail`): comparar siempre con el mismo `detail`. En hardware real las demos de scroll van a 50 fps.
 
