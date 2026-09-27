@@ -364,13 +364,19 @@ private:
 	/// Productor del hook de VBlank: sube el contador y publica en el puerto (IRQ-safe).
 	static void on_vblank(void* user) noexcept {
 		// Corre el **latido del mini-SO** (`os::tick`: avanza el frame, entrada, timers y
-		// **tareas de frame**) en la IRQ de VBlank. Es imprescindible para el trabajo frame-driven
-		// que debe correr en ese contexto (p. ej. la música P61, que Gurea si se avanza desde
-		// `update`); el juego registra esas tareas con `os::set_frame_task`. Solo existe en Amiga.
+		// **tareas de frame**) en la IRQ de VBlank; el juego registra las suyas con
+		// `os::set_frame_task`. La **música** la conduce el propio `App` (abajo), no el juego.
+		// Solo existe en Amiga.
 #if defined(ENG_AMIGA)
 		eng::os::tick();
 #endif
 		auto& self = *static_cast<App*>(user);
+		// El **engine conduce la música** (no el juego): avanza el reproductor de audio en el mismo
+		// latido de VBlank. Así el juego solo llama a `app.audio().play_music(...)` y no necesita
+		// registrar una tarea de frame del mini-SO (ver `ROADMAP_GAME_API.md` §2).
+		if constexpr (requires { self.m_backend.audio().update_music(); }) {
+			self.m_backend.audio().update_music();
+		}
 		const u32 seq = self.m_vblank_count + 1u;
 		self.m_vblank_count = seq;
 		eng::os::Msg msg {};
