@@ -98,3 +98,33 @@ Top por fichero (los que más concentran el problema):
 Regla de parada por fichero: si un `reinterpret_cast` se demuestra **frontera real** (registro custom,
 layout de fichero, ABI), se **documenta y se añade a la lista blanca** — no se fuerza una "abstracción"
 que solo esconde el puntero.
+
+## 6. Estado y método §233 (herramienta)
+
+El medidor es `tools/analyze/cast-audit.mjs`:
+
+- `--check` → gate de **no-reincidencia** contra `tools/check/casts-baseline.txt`, que ahora guarda
+  **dos columnas** por fichero: `<reinterpret+const>  <static_cast>`. Ambas **solo pueden bajar**.
+- `--list <fichero>` → imprime cada `static_cast<...>(...)` con su línea: el candidato a la pasada §233.
+- `--update-baseline` → regenera (solo justificando cada subida).
+
+**Método §233 (quitar-y-compilar).** Para cada `static_cast<T>(x)`: quitarlo, recompilar con las
+mismas banderas; si **no** hay aviso y el valor entra, era **ruido** → fuera. Si hay error o *warning*
+(narrowing en *list-init* `T{.}`, `void*→tipo`, truncado intencionado), es frontera → se queda y se
+comenta. **Antes de quitarlo, mirar si el tipo debería ser el mismo**: muchos casts desaparecen
+**unificando el tipo** (p. ej. `static_cast<u32>(span.size())` porque `Span::size()` es `usize`).
+
+**Hecho (2026-09):**
+
+- **F0 (red)**: `cast-audit.mjs` con gate de dos columnas + `--list`. Baseline inicial: 249 duros.
+- **F1 parcial (`object3d.hpp`)**: aclarado que ya usa `Fixed`; aplicado el método §233 —
+  fuera los `static_cast<s16>` de ruido en los accesores y en la cámara
+  (`dot_fixed_row` ya devuelve `q0`); **unificados los tipos de tamaño a `usize`** (`MeshBlob::size`,
+  `objdata_size`, `mesh_validate`) → cayeron los `static_cast<u32>(size())`.
+- **Fase A del rediseño del mesh**: tipos fuertes (`ObjOffset`/`VertexRef`/`EdgeRef`/`FaceRef`),
+  `MeshStatus` y accesores que devuelven `eng::Ref<T>`. Diseño en
+  [`OBJECT3D_MESH_VIEW.md`](../../engine/architecture/OBJECT3D_MESH_VIEW.md).
+
+**Pendiente:** F2 (`playfield_base` hooks `void*`→`concept`), F3 (§233 en `scroll_engine`,
+`xlimited_playfield`, `amiga_blitter`, `minifloat`), F4 (audio), y las fases B/C del mesh
+(wrappers libres fuera + `MeshAbi` + `Object3D` sin `u8*` público).

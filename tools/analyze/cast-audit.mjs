@@ -23,6 +23,20 @@ const asJson = ARGS.includes('--json');
 const check = ARGS.includes('--check');
 const update = ARGS.includes('--update-baseline');
 
+// `--list <fichero>`: imprime cada `static_cast<...>(...)` con su linea, para la pasada §233
+// (quitar el cast y compilar: si no hay aviso, era ruido).
+const listIdx = ARGS.indexOf('--list');
+if (listIdx >= 0) {
+  const target = ARGS[listIdx + 1];
+  const lines = fs.readFileSync(path.resolve(ROOT, target), 'utf8').split(/\r?\n/);
+  lines.forEach((line, i) => {
+    if (/\bstatic_cast\s*</.test(line)) {
+      console.log(`${target}:${i + 1}: ${line.trim()}`);
+    }
+  });
+  process.exit(0);
+}
+
 function walk(dir, acc) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
@@ -62,14 +76,16 @@ for (const k of [...Object.keys(RE), 'hard']) totals[k] = rows.reduce((a, r) => 
 
 if (update) {
   const lines = rows
-    .filter((r) => r.hard > 0)
+    .filter((r) => r.hard > 0 || r.static_cast > 0)
     .sort((a, b) => a.file.localeCompare(b.file))
-    .map((r) => `${String(r.hard).padStart(3)}  ${r.file}`);
+    .map((r) => `${String(r.hard).padStart(3)} ${String(r.static_cast).padStart(5)}  ${r.file}`);
   fs.writeFileSync(
     BASELINE,
-    `# Baseline de casts "duros" (reinterpret_cast + const_cast) por fichero.\n` +
-      `# Regenerar solo tras JUSTIFICAR cada subida: node tools/analyze/cast-audit.mjs --update-baseline\n` +
-      `# Formato: <n>  <ruta relativa>\n${lines.join('\n')}\n`,
+    `# Baseline de casts por fichero: <reinterpret+const> <static_cast>  <ruta>.\n` +
+      `# NO-REINCIDENCIA: cada columna solo puede BAJAR. Regenerar SOLO tras justificar cada subida:\n` +
+      `#   node tools/analyze/cast-audit.mjs --update-baseline\n` +
+      lines.join('\n') +
+      '\n',
   );
   console.log(`[casts] baseline -> ${path.relative(ROOT, BASELINE)} (${lines.length} ficheros)`);
   process.exit(0);
@@ -79,16 +95,16 @@ if (check) {
   const base = new Map();
   if (fs.existsSync(BASELINE)) {
     for (const line of fs.readFileSync(BASELINE, 'utf8').split(/\r?\n/)) {
-      const m = line.match(/^\s*(\d+)\s+(.+?)\s*$/);
-      if (m && !line.startsWith('#')) base.set(m[2], parseInt(m[1], 10));
+      if (line.startsWith('#')) continue;
+      const m = line.match(/^\s*(\d+)\s+(\d+)\s+(.+?)\s*$/);
+      if (m) base.set(m[3], { hard: parseInt(m[1], 10), st: parseInt(m[2], 10) });
     }
   }
   const fails = [];
   for (const r of rows) {
-    const allowed = base.get(r.file) ?? 0;
-    if (r.hard > allowed) {
-      fails.push(`  ${r.file}: ${r.hard} > baseline ${allowed}`);
-    }
+    const b = base.get(r.file) ?? { hard: 0, st: 0 };
+    if (r.hard > b.hard) fails.push(`  ${r.file}: reinterpret+const ${r.hard} > baseline ${b.hard}`);
+    if (r.static_cast > b.st) fails.push(`  ${r.file}: static_cast ${r.static_cast} > baseline ${b.st}`);
   }
   if (fails.length) {
     console.error(`[casts] FALLO: casts "duros" por encima del baseline (${fails.length}):`);
