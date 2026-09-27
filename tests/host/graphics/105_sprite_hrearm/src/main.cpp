@@ -295,6 +295,48 @@ void test_sprite_layer() {
 	CHECK(!bad2.attach(b2), "SpriteLayer: DMA sin data -> false");
 }
 
+/// `bind`/`patch`: con la emisión registrada una vez (setup), `patch` reproduce EXACTAMENTE la
+/// lista que re-emitir con el scroll nuevo (equivalencia palabra a palabra).
+void test_bind_patch() {
+	MemorySystem mem = make_memory();
+	eng::copper::Scheduler a = make_scheduler(mem, 512u);
+	eng::copper::Scheduler b = make_scheduler(mem, 512u);
+
+	eng::effects::SpriteLayer layer;
+	eng::effects::SpriteLayer::Config cfg {};
+	cfg.first_line = 100u;
+	cfg.lines = 4u;
+	cfg.channels = 8u;
+	cfg.hpos0 = 64u;
+	cfg.hpos_step = 16u;
+	cfg.data_high = 0xAAAAu;
+	cfg.data_low = 0x0000u;
+	cfg.bplcon2 = 0x0008u;
+	CHECK(layer.attach(cfg), "bind/patch: attach");
+
+	// Setup: emite y **registra** (scroll 0).
+	layer.bind(a);
+	a.end();
+	const u16 setup_words = a.words_used();
+
+	// Por frame: nuevo scroll -> solo parcheo (sin re-emitir).
+	layer.set_scroll(16u);
+	layer.patch(a.data());
+
+	// Referencia: re-emitir con el scroll nuevo.
+	layer.emit_into(b);
+	b.end();
+
+	const u16 na = a.words_used();
+	const u16 nb = b.words_used();
+	CHECK(na == nb && na == setup_words && na > 0u, "bind/patch: la longitud no cambia");
+	bool same = (na == nb);
+	for (u16 i = 0u; i < na && same; ++i) {
+		same = (a.data()[i] == b.data()[i]);
+	}
+	CHECK(same, "bind/patch: la lista parcheada == la re-emitida");
+}
+
 /// Integracion con el plan de la escena: `apply_into` (Effect) reserva la banda, anota el
 /// coste y emite; un solape de banda se detecta con `reserve_band`.
 void test_layer_effect() {
@@ -338,6 +380,7 @@ int main() {
 	test_attach();
 	test_collision();
 	test_sprite_layer();
+	test_bind_patch();
 	test_layer_effect();
 	if (g_fail == 0u) {
 		std::printf("OK: sprite horizontal rearm (codificacion, secuencia, orden, plan)\n");

@@ -2,9 +2,8 @@
 
 Port al engine de la demo clásica de **Bartman/vscode-amiga-debug** (`BartmanBasic/main.c`):
 escena 320×256 de **5 planos interleaved** con la imagen *abyss*, **16 BOBs enmascarados** que se
-desplazan por senos sobre la banda inferior, **degradado de COLOR00** por las líneas `0x41..0x4f` y
-**fine-scroll** de `BPLCON1` movido por seno, con **música P61** (ThePlayer) y salida al pulsar el
-**botón izquierdo del ratón**.
+desplazan por senos sobre la banda inferior y **fine-scroll** de `BPLCON1` movido por seno, con
+**música P61** (ThePlayer) y salida al pulsar el **botón izquierdo del ratón**.
 
 La diferencia de fondo con el original es que aquí **el juego no sondea hardware**: el latido del
 **mini-SO** (`eng::os::tick`) latcha el VBlank y pollea la entrada, que llega como mensajes
@@ -12,7 +11,7 @@ La diferencia de fondo con el original es que aquí **el juego no sondea hardwar
 
 ## Qué muestra
 
-- La imagen *abyss* (5 planos) tal cual, con el **degradado de copper** en la banda superior.
+- La imagen *abyss* (5 planos) tal cual, sobre fondo claro.
 - Los 16 BOBs (cada `あ` de un color) recorriendo la banda inferior en seno, con **cookie-cut `$CA`**
   a nivel de píxel (no `copy`): el fondo se conserva fuera de la máscara.
 - **Fine-scroll** horizontal del playfield por `BPLCON1` (`sin | sin<<4`), sin tocar los punteros.
@@ -37,8 +36,7 @@ La diferencia de fondo con el original es que aquí **el juego no sondea hardwar
 ## Criterio de aceptación
 
 - `state=3` (Ready) con `detail=0x22130` (bit 17 = música P61 iniciada).
-- En la captura: la imagen *abyss*, el degradado de color en la banda superior y los `あ` de colores
-  repartidos por la banda inferior.
+- En la captura: la imagen *abyss* y los `あ` de colores repartidos por la banda inferior.
 
 ## Compilar / ejecutar / analizar
 
@@ -52,7 +50,7 @@ bash ./tools/analyze/analyze-demo.sh demos/techniques/amiga/os/213_bartman_abyss
 ## Evidencia de referencia (A500)
 
 - `run-report.json`: `state=3`, `detail=0x22130`.
-- Captura: imagen + bobs + degradado (ver `out/tmp/213.png`).
+- Captura: imagen + bobs (ver `out/tmp/213.png`).
 - **Audio**: `detail` bit 17 = 1 confirma que `P61_Init` tuvo éxito, pero el runner **no captura
   PCM** (no hay grabación de audio en el harness), así que la salida de Paula no se verifica aquí;
   el reproductor P61 ya está validado por las demos 060 (`music_pt`) y 272 (`audio_stream`).

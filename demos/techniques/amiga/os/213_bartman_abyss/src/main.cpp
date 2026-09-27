@@ -3,19 +3,17 @@
 //   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/os/213_bartman_abyss --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/os/213_bartman_abyss --keep-running
 
 // Demo 213 - "Bartman Abyss": port de la demo clásica de Bartman/vscode-amiga-debug al engine,
-// escrita con la **fachada de juego** (`eng::App`/`Screen`, `Scene` + `effects::Gradient` +
-// `app.audio()`). No hay `main`, `SysBase`, punteros crudos, registros ni `BlitJob`: el juego
-// describe QUÉ quiere y el engine decide CÓMO. Ver `docs/engine/architecture/GAME_API_TWO_LEVELS.md`.
+// escrita con la **fachada de juego** (`eng::App`/`Screen`, `Scene` + `app.audio()`). No hay
+// `main`, `SysBase`, punteros crudos, registros ni `BlitJob`: el juego describe QUÉ quiere y el
+// engine decide CÓMO. Ver `docs/engine/architecture/GAME_API_TWO_LEVELS.md`.
 //
 // Reproduce la demo original:
-//   - Escena 320x256 de 5 planos con la imagen "abyss".
-//   - Degradado de `COLOR00` por raster (efecto de alto nivel, sin listar `COLOR`).
+//   - Escena 320x256 de 5 planos con la imagen "abyss" sobre fondo claro.
 //   - 16 BOB enmascarados (cookie-cut) movidos por senos; el juego solo pinta sprites.
 //   - Música P61 por `app.audio()`.
 
 #include <eng/api/api.hpp>
 #include <eng/api/assets.hpp>
-#include <eng/api/effects.hpp>
 #include <eng/platform/amiga/entry.hpp>
 
 #include "support/gcc8_c_support.h"
@@ -73,22 +71,8 @@ struct AbyssDemo {
 		res.layout = comp::SceneLayout::Interleaved; // el bitmap abyss es interleaved
 		const eng::u16* pal = reinterpret_cast<const eng::u16*>(abyss_pal);
 
-		// --- Efecto de alto nivel: degradado de COLOR00 (líneas 0x41..0x4f) ----------------
-		// Se configura **antes** del build: entra como etapa del setup y `bind` deja sus
-		// palabras de dato registradas para animarlas luego por frame.
-		eng::u16 keys[15] {};
-		for (eng::u8 i = 0u; i < 15u; ++i) {
-			keys[i] = static_cast<eng::u16>(0x0111u * (i + 1u));
-		}
-		(void)m_sky.attach({.first_line = 0x41u, .band_height = 1u, .bands = 15u, .first = 0u},
-				   eng::Span<const eng::u16> {keys, 15u}, false);
-
 		// El motor elige perfil y `BPLCON0` (sin `ocs_a500`/`0x5200` en el código de juego).
-		// El degradado se **materializa una vez** aquí (etapa del build) y queda **animable** por
-		// parcheo (`m_sky.patch` por frame), sin re-emitir la copperlist.
-		if (!comp::compose(m_scene, app.device().memory(), res, comp::ocs_a500,
-				   comp::display(res), comp::palette(eng::PaletteWords {pal, 32u}),
-				   [this](comp::Scene& sc) { m_sky.bind(sc); })) {
+		if (!comp::compose(m_scene, app.device().memory(), res, eng::PaletteWords {pal, 32u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021302u);
 			return;
 		}
@@ -134,7 +118,6 @@ struct AbyssDemo {
 
 	void update(auto& app) {
 		eng::debug::mark_frame(g_eng_run_status, app.frame());
-		m_sky.set_phase(static_cast<eng::u16>(app.frame()));
 	}
 
 	void render(auto& app) {
@@ -163,9 +146,7 @@ struct AbyssDemo {
 			}
 			s.sprite(m_sprite, x, y, frame);
 		}
-		m_sky.patch(m_scene); // anima el degradado parcheando la lista ya construida
 		app.present();
-
 		if (m_ready && app.frame() < 2u) {
 			eng::debug::mark_ready(g_eng_run_status, 0x00021300u);
 		}
@@ -174,7 +155,6 @@ struct AbyssDemo {
 
 	eng::graphics::composition::Scene m_scene {};
 	eng::graphics::Sprite m_sprite {};
-	eng::effects::Gradient m_sky {};
 	eng::Assets m_assets {};
 	eng::u32 m_phase51 = 0u; ///< desfase de onda (módulo 51) sin división por frame
 	bool m_ready = false;

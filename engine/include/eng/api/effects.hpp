@@ -239,6 +239,16 @@ public:
 								  static_cast<u16>(ch) * m_cfg.hpos_step + m_scroll);
 				const u16 pos = static_cast<u16>(((line & 0xffu) << 8u) |
 								 ((hpos >> 1u) & 0xffu));
+				if (m_binding && line == m_cfg.first_line && ch == m_cfg.dma_channels) {
+					// Palabra de DATO del primer `SPRxPOS` (el MOVE son 2 palabras: registro +
+					// valor; el POS es el 2.º de los 4 MOVEs del canal). `patch` reescribe desde
+					// aquí con strides regulares (`+8` por canal, `+2` por el WAIT de la línea).
+					// `if constexpr` para no exigir `words_used()` a schedulers de prueba.
+					if constexpr (requires { sched.words_used(); }) {
+						m_pos_base = static_cast<u16>(sched.words_used() + 3u);
+						m_pos_valid = true;
+					}
+				}
 				sched.move(static_cast<copper::Register>(0x142u + ch * 8u), ctl);          // SPRxCTL
 				sched.move(static_cast<copper::Register>(0x140u + ch * 8u), pos);          // SPRxPOS
 				sched.move(static_cast<copper::Register>(0x146u + ch * 8u), m_cfg.data_low);  // SPRxDATB
@@ -249,6 +259,40 @@ public:
 
 	/// Emite la capa al plan de la escena (azúcar de `emit_into(scene.scheduler())`).
 	void frame(graphics::composition::Scene& scene) { emit_into(scene.scheduler()); }
+
+	/// **Prepara el parcheo por frame**: emite la capa (como `emit_into`) **registrando** dónde
+	/// caen las palabras `SPRxPOS`. Llamar **una vez** (setup). Después, `patch(words)` reescribe
+	/// solo esas palabras con el scroll actual, sin re-emitir (coste ~0 por frame).
+	template <class Sched>
+	void bind(Sched& sched) {
+		m_binding = true;
+		emit_into(sched);
+		m_binding = false;
+	}
+
+	/// Reescribe las palabras `SPRxPOS` (canales Copper, por línea) y el `POS` de cabecera de
+	/// los canales DMA con el `m_scroll` actual. `words` = la copperlist ya materializada
+	/// (p. ej. `scene.plan().active_words()`). Requiere haber llamado `bind` en el setup.
+	void patch(u16* words) const noexcept {
+		if (!m_pos_valid || words == nullptr) {
+			return;
+		}
+		u16 idx = m_pos_base;
+		const u16 vstop = static_cast<u16>(m_cfg.first_line + m_cfg.lines);
+		for (u16 line = m_cfg.first_line; line < vstop; ++line) {
+			for (u8 ch = m_cfg.dma_channels; ch < m_cfg.channels; ++ch) {
+				words[idx] = pos_for(line, ch);
+				idx = static_cast<u16>(idx + 8u);
+			}
+			idx = static_cast<u16>(idx + 2u); // WAIT de la línea siguiente
+		}
+		if (m_cfg.dma_data != nullptr && m_cfg.dma_stride != 0u) {
+			for (u8 ch = 0u; ch < m_cfg.dma_channels; ++ch) {
+				m_cfg.dma_data[static_cast<eng::u32>(ch) * m_cfg.dma_stride] =
+					pos_for(m_cfg.first_line, ch);
+			}
+		}
+	}
 
 	/// Contrato `Effect`: avanza el estado temporal. La capa no anima por sí sola (el
 	/// llamador fija el scroll con `set_scroll`), así que aquí no hace nada.
@@ -297,8 +341,20 @@ public:
 	}
 
 private:
+	/// `SPRxPOS` de la línea `line` y canal `ch` con el `m_scroll` actual.
+	[[nodiscard]] u16 pos_for(u16 line, u8 ch) const noexcept {
+		const u16 hpos = static_cast<u16>(m_cfg.hpos0 +
+						  static_cast<u16>(ch) * m_cfg.hpos_step + m_scroll);
+		return static_cast<u16>(((line & 0xffu) << 8u) | ((hpos >> 1u) & 0xffu));
+	}
+
 	Config m_cfg {};
 	u16 m_scroll = 0;
+	/// Palabra de DATO del primer `SPRxPOS` (canal Copper). La registra `bind` durante la
+	/// emisión; `patch` reescribe desde ahí con strides regulares.
+	mutable u16 m_pos_base = 0;
+	mutable bool m_pos_valid = false; ///< `bind` registró la posición de parcheo
+	bool m_binding = false;           ///< `emit_into` está registrando (lo activa `bind`)
 };
 
 /// **Scroll horizontal fino de una capa planar** (`visible_words` words = 320 px). Mantiene el
