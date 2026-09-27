@@ -86,16 +86,16 @@ inline s32 init(const void* module, const void* samples, const void* buffer) {
 	register volatile const void* s __asm("a1") = samples;
 	register volatile const void* b __asm("a2") = buffer;
 	register volatile u32 result __asm("d0");
-	__asm__ volatile("jsr _P61_Init" : "=r"(result) : "r"(m), "r"(s), "r"(b) : "cc", "memory");
+	__asm__ volatile("jsr _P61_Init" : "=r"(result) : "r"(m), "r"(s), "r"(b) : "d1", "cc", "memory");
 	return static_cast<s32>(result);
 }
 
 inline void music() {
-	__asm__ volatile("jsr _P61_Music" : : : "cc", "memory");
+	__asm__ volatile("jsr _P61_Music" : : : "d0", "d1", "cc", "memory");
 }
 
 inline void end() {
-	__asm__ volatile("jsr _P61_End" : : : "cc", "memory");
+	__asm__ volatile("jsr _P61_End" : : : "d0", "d1", "cc", "memory");
 }
 
 /// **Re-arma el DMA de audio** como `P61_dmason`: escribe los bits pendientes (`_P61_dma`) en
@@ -110,7 +110,7 @@ inline void apply_pending_dma() {
 
 inline void set_position(u8 position) {
 	register volatile u8 p __asm("d0") = position;
-	__asm__ volatile("jsr _P61_SetPosition" : : "r"(p) : "cc", "memory");
+	__asm__ volatile("jsr _P61_SetPosition" : : "r"(p) : "d1", "cc", "memory");
 }
 
 } // namespace p61_amiga

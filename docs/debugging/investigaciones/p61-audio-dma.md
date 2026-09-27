@@ -1,39 +1,37 @@
-# P61 en la demo 213: el DMA de audio no se enciende y `m_playing` no cuadra
+# P61 en la demo 213: el DMA de audio no se encendía (resuelto)
 
-**Estado: abierto (2026-09).** La música P61 de la demo `213_bartman_abyss` no suena: el DMA de audio de Paula queda a 0. Se aislaron dos capas; la segunda (contradicción de `m_playing`) no se ha resuelto.
+**Resuelto (2026-09).** La música P61 de `213_bartman_abyss` no sonaba. Eran **dos** causas encadenadas; la clave fue un **clobber de asm inline**.
 
-## Cómo se midió
+## Síntomas
 
-La demo expone el estado real por `g_eng_run_status.detail` y se lee en `out/run/213_bartman_abyss/A500_debug/run-report.json`, campo **`sideChannel.value.detail`** (no está en la raíz del JSON). Registros de Paula: `DMACON` se lee en `$dff002` (no en `$dff096`, que es de escritura), `AUDxLEN` en `$dff0a6..`.
+- Sonido ausente; `DMACON` (`$dff002`) con **`audio_bits = 0`**.
+- Contradicción: `AudioSystem::play_music()` devolvía **true**, pero `P61Player::is_playing()` era **false** en el mismo objeto y al instante (comprobado con lecturas `noinline`).
 
-## Capa 1 — el DMA de audio no se enciende (mecanismo entendido)
+## Causa 1 — el DMA lo difiere el playroutine a una IRQ que el `App` no atiende
 
-Con `p61.asm` (`p61system=0`, modo VBlank), `P61_Init` escribe `DMACON=$000F` (loop silencioso) y `P61_Music`, al iniciar una nota, **apaga** el canal (`move d0,$dff096`) y **delega el encendido** a `P61_dmason`, que corre desde la **IRQ de CIA-B (nivel 6)** que el playroutine instala (vector `$78` + CIA-B `$bfd600/$bfd700/$bfdf00`). `P61_dmason` hace `move P61_dma,$dff096` (incluye `$8200`).
+Con `p61.asm` (`p61system=0`, modo VBlank), `P61_Music` **apaga** el canal al iniciar nota y **delega el encendido** a `P61_dmason`, que corre desde la **IRQ de CIA-B (nivel 6)** que el playroutine instala. El `App` no la atiende. **Fix**: el engine aplica el mismo encendido en el frame task — `P61Player::update` llama a `p61_amiga::apply_pending_dma()` (escribe `_P61_dma`, exportado por `p61.asm`, en `DMACON`). Ver [`MUSIC_PLAYER.md`](../../engine/architecture/MUSIC_PLAYER.md) §«Encendido del DMA de audio».
 
-Medido: `DMACON=0x03C0` (**`audio_bits=0x00`**). Descartado que el display lo borre (`su copperlist` escribe `0x8380` = SET, no CLR).
+Verificado a nivel de registro: forzar `DMACON=$820F` ya producía sample (`audio_bits=0x0F`, `AUD0LEN=18496`).
 
-Intentos:
+## Causa 2 (raíz) — clobber de registro no declarado en el asm inline
 
-- `INTENA` **EXTER** (`0xA000`) tras el takeover → **no** cambia.
-- `INTENA` EXTER **+ máscara TB de CIA-B** (`$BFDD00=0x82`) → **no** cambia.
-- Encendido **inmediato** tras `P61_Music` (`DMACON=$820F`) → **sí** (`audio_bits=0x0F`, `AUD0LEN=18496`, sample real). Es el «mismo efecto» de `P61_dmason` en el frame task; implementado en el engine como `p61_amiga::apply_pending_dma()` (`_P61_dma` exportado por `p61.asm`).
+Las envolturas `p61_amiga::init/music/end/set_position` (`music_player.hpp`) hacen `jsr _P61_*` con asm inline. Los `_P61_*` de `p61.asm` salvan/restauran `d2-d7/a2-a6`, pero **clobberan `d0/d1`** (y `a0/a1`). El asm inline **no declaraba `d1`**, así que el compilador mantenía un valor vivo en `d1` a través del `jsr` → corrompía el estado C++ circundante: `P61Player::play()` devolvía `m_playing` (true) pero el **almacén de `m_playing`** quedaba mal → `is_playing()` false → `P61_Music` nunca se llamaba → la música no avanzaba ni el DMA marcaba canales.
 
-## Capa 2 — `m_playing` no cuadra (abierto)
+**Fix**: declarar los clobbers reales — `"d1"` en `init`/`set_position` y `"d0","d1"` en `music`/`end`.
 
-Bloqueante real: en la 213, `AudioSystem::play_music()` devuelve **true** (⇒ `m_format == P61`, que **solo** se fija si `P61Player::play()` —que además fija `m_playing`— tuvo éxito) pero `P61Player::is_playing()` es **false** en el mismo instante y en frames posteriores. Comprobado con un centinela `(music_ok, playing_init, playing_now) = (1,0,0)`.
+Medido tras el fix: `is_playing=1`, `DMACON audio_bits != 0` (sin necesidad de otros cambios).
 
-Consecuencia: `P61Player::update()` nunca llama a `P61_Music` (ni a `apply_pending_dma`), la música **no avanza** y el `P61_dma` no marca canales.
+## Auditoría de gestión de memoria (a raíz de la duda)
 
-Contradice el código (`play()` escribe `m_playing`), así que apunta a:
+Se revisaron las rutinas de memoria recientes y **no** eran la causa:
 
-- **corrupción de memoria / pila**: `main` coloca en pila objetos grandes (`AmigaBackend backend`, `AbyssDemo game`, `App app`); el backend contiene el `AudioSystem`. Candidato principal.
-- dos instancias de `AudioSystem` (descartado a nivel de tipos: `App::audio()` → `m_backend.audio()` referencia; `p61()` devuelve `m_p61`).
-- codegen (descartado: quitar `constexpr` a `is_playing()` no cambió el resultado).
+- `AssetCacheBackend` guarda `eng::Ref<MemorySystem>` (referencia, no copia): sin cursor congelado.
+- El fix del asignador (`configure_backing`: los bancos delegan en las arenas) comparte buffer **y cursor** → sin solape (cubierto por HOST-364).
+- El `Block`s/`MemBank` devuelven bloques del tamaño pedido; la arena *bump* no retrocede.
 
-Diagnóstico siguiente: leer por GDB la dirección de `m_playing` y la pila de `main` en un frame; o mover `backend`/`game` fuera de la pila y re-medir.
+**Observación aparte (latente, no era la causa)**: con `ENG_APP_MAIN`, `main` coloca `AmigaBackend` + el `Game` + `App` en **pila**; `sizeof(AbyssDemo)` medido = **18954 B** (un `Scene` grande). Si la pila de arranque es pequeña (p. ej. CLI de AmigaOS), podría desbordar. Mitigación propuesta: mover esos objetos a **estáticos/BSS** (requiere un `atexit` no-op en el soporte freestanding) o subir la pila. No se aplicó aquí para no ampliar el cambio.
 
 ## Referencias
 
-- Contrato del encendido del DMA: [`MUSIC_PLAYER.md`](../../engine/architecture/MUSIC_PLAYER.md) §«Encendido del DMA de audio».
-- Registros de audio en el emulador: [`../../reference/emulators/winuae/audio-irq.md`](../../reference/emulators/winuae/audio-irq.md).
 - Playroutine: `support/music/p61/P6112-Play.i` (`P61_dmason`, `P61_Music`), `support/music/p61.asm`.
+- Contrato del DMA: [`MUSIC_PLAYER.md`](../../engine/architecture/MUSIC_PLAYER.md).
