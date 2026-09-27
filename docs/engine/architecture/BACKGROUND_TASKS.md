@@ -77,24 +77,28 @@ u16 prepare_level_step(void* data, const eng::task::TaskSlice& s) {
 }
 ```
 
-## Dos modos de bucle
+## Modos de bucle
 
-El engine soporta dos organizaciones, segun dónde viva el **juego** y dónde el **fondo**:
+El engine soporta tres organizaciones, segun dónde viva el **juego** y dónde el **fondo**:
 
-| Modo | Juego (`update`/`render`) | Fondo | API |
+| Modo | Juego (`update`/`render`) | IRQ de VBlank | API |
 |---|---|---|---|
-| **Interrupt-driven** (por defecto) | **IRQ de VBlank** (latido del juego, *deadline* de 1 frame) | bucle principal (`while (frames < N) background.run_slice(...)`) | `Engine::run_frames` |
-| **Polling** (alternativo) | bucle principal (`update -> wait_vblank -> render`) | drenado en el hueco de VBlank y en las esperas de Blitter | `Engine::run_frames_polling` |
+| **IRQ mínima** (por defecto) | **bucle principal** | solo el **latido**: `vblank_hook` (mini-SO: input/timers/cola) + contador | `Engine::run_frames` |
+| **Interrupt-driven** (explícito) | **IRQ de VBlank** (*deadline* de 1 frame) | el juego completo + el latido | `Engine::run_frames_irq` |
+| **Polling** (fallback) | bucle principal (`update -> wait_vblank -> render`) | — (todo en el bucle) | `Engine::run_frames_polling` |
 
-El modo **por defecto** es el más natural en Amiga y el que **no quema ciclos en *polling***:
-la CPU nunca espera al VBlank, solo trabaja (el juego en la IRQ, el fondo en el bucle). El
-tick del juego mide su coste en **líneas de raster** (`GameContext::irq`: `last_lines`,
+El modo **por defecto (IRQ mínima)** es el modelo de un SO real: la interrupción solo **avisa**
+(el latido) y el trabajo (`update`/`render`) se hace **fuera** de la IRQ, sobre la pila del bucle
+principal, al ver avanzar el contador. Evita que un `render` pesado alargue el handler e invada
+VBlanks: **un latido = un frame**. El fondo cooperativo se drena en el bucle, en el hueco entre
+latidos (el mismo hueco que antes se drenaba en la IRQ).
+
+El modo **interrupt-driven** (`run_frames_irq`) corre el juego **dentro** de la IRQ con **prioridad
+dura** (preempta al fondo): útil si el trabajo debe sincronizarse estrictamente con el raster, pero
+un `render` que no quepa en un frame **retrasa el latido** (el bucle se cae a N VBlanks por frame).
+
+El tick del juego mide su coste en **líneas de raster** (`GameContext::irq`: `last_lines`,
 `max_lines`, `overruns`, `budget_lines`) para vigilar el presupuesto.
-
-En el modo **interrupt-driven** (el más fiel al estilo Amiga clásico) la IRQ de VBlank
-lleva el trabajo del juego (avanzar animación, actualizar el Copper, input) con **prioridad
-dura**: preempta al fondo. El bucle principal ejecuta el trabajo de fondo cooperativo; cuando
-la IRQ no tiene nada más que hacer, vuelve (`RTE`) y el fondo continúa.
 
 Implementación: `support/level3_irq.s` es el **handler único del autovector de nivel 3**
 (`0x6C` en 68000 / `VBR+0x6C`), porque `VERTB`, `BLIT` y `COPER` **comparten vector**. Salva
