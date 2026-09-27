@@ -162,8 +162,11 @@ Camino `update`/`render` de la 213 revisado con la regla «coste ~cero en el buc
 - **`App::on_vblank`**: `os::tick` (entrada/timers) + tick de audio + post del puerto. Acotado. OK.
 - **`effects::Gradient::frame` — NO cumple**: `RasterGradient::apply_into` recalcula el color de **cada banda cada
   frame** con `div_wide` **y un `% k` de divisor runtime** (división real) → ~`bands` divisiones/frame (15 en la
-  213, ≈4–6 % de un frame PAL). **Fix propuesto**: precalcular en `attach` una tabla de colores (fase × banda) y en
-  el bucle **solo indexar** (sin división); el setup puede ser lento. Pendiente (hot path, con su test de equivalencia).
+  213, ≈4–6 % de un frame PAL). **Fix propuesto**: `local = (b*span)%den` es **independiente de la fase** y
+  `seg = (b*span/den + phase) % k` → precalcular `q_b`/`r_b` por banda en `set_keys` (setup) y dejar el bucle con
+  `seg = (q_b + phase) % k` (una `&` si `k` es potencia de dos). Alternativa: tabla (fase × banda) a cambio de RAM.
+  Pendiente (hot path, con test de equivalencia). **Ojo**: `div_wide` devuelve `s16` y `phase` puede excederlo
+  (la 213 usa `phase = frame`) → normalizar `phase` módulo el ciclo al reescribir.
 
 ## 13. Relación con otros documentos
 

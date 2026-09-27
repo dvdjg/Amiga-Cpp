@@ -121,6 +121,15 @@ public:
 private:
 	/// Color de la banda `b`: interpola las claves en la posicion `b + phase` (en unidades
 	/// de clave), con o sin vuelta.
+	///
+	/// **Coste (regla `CODING_STYLE`, auditoria §12 del roadmap)**: hace `div_wide` **y** un `%` de
+	/// divisor **runtime** por banda y **cada frame** (≈`bands` divisiones/frame). Reducible **sin
+	/// cambiar el resultado**: `local = (b*span)%den` es **independiente de la fase** y
+	/// `seg = (b*span/den + phase) % k` -> se pueden **precalcular `q_b=(b*span)/den` y
+	/// `r_b=(b*span)%den`** en `set_keys` (setup, puede ser lento) y en el bucle dejar solo
+	/// `seg = (q_b + phase) % k` (una `&` si `k` es potencia de dos). Alternativa: tabla (fase x banda)
+	/// a cambio de RAM. **Cuidado al reescribir**: `div_wide` devuelve `s16` y `phase` puede excederlo
+	/// (la 213 usa `phase = frame`), asi que hay que **normalizar `phase` modulo el ciclo** para no truncar.
 	u16 sample(u16 b) const {
 		const s32 k = m_key_count;
 		const s32 bands = m_range.bands;

@@ -508,6 +508,12 @@ van a 48-50 fps, *vblank-gated*); reducirlo es **margen** para hardware real, no
 - Toda **dimensión de geometría** que se pueda elegir libremente → **potencia de dos** (y como
   NTTP si es posible). Evita el libcall y el truco mágico imposible en 68000.
 - Todo **divisor conocido a priori** → NTTP + `fast_div<N>` (no `u16` runtime).
+- **Restringir el divisor por el tipo (C++23)**: cuando una división sea necesaria, que el divisor sea **potencia de
+  dos** y que el **lenguaje impida** otros valores — NTTP/`consteval` + `static_assert`/`concept` (p. ej.
+  `pow2_divisor<N>` o extender `fast_div<N>`) — de modo que `/` y `%` salgan como **desplazamiento de bits**. **`256`
+  no se divide**: se **lee con otro offset** (se descarta un byte entero, o se accede por byte/mitad). Si la potencia
+  de dos no encaja, **cambiar el algoritmo** (incremental, compás, tabla precalculada) antes de aceptar una división
+  runtime en el bucle.
 - Todo **`%`/`/` por un valor runtime** dentro de un bucle → reducir a incrementos/compases.
 - Antes de tocar: `asm-audit.mjs` para localizar, y **medir** el camino ejecutado (el conteo
   estático incluye ramas no tomadas).
