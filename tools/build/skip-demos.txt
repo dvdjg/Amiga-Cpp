@@ -1,15 +1,11 @@
-# Demos bloqueadas por un ASSET GENERADO ausente (no por código): el pipeline de
-# audio debe producir `out/assets/audio/*.raw`. Hasta entonces no compilan y se
-# saltan (categoría SKIP). Ver `tools/build/build-all-demos.sh`.
+# Demos "A ADAPTAR": no rompen el build (se saltan) y se rehacen con el mini-OS
+# + la API certificada del engine.
 #
-# La deuda histórica de la API antigua del Copper (`Block.view` bytes vs
-# `MemView<Tag, Chip>`) ya está resuelta: las demos afectadas se migraron a
-# `Block::mem_view_chip()` / `MemView::subview(...)` y compilan.
+# Actualmente VACÍA: la deuda histórica (API antigua del Copper —`Block.view`
+# bytes vs `MemView<Tag, Chip>`—) está resuelta. Las demos del mixer que
+# dependían de WAV no versionados ahora se abastecen con assets sintéticos
+# reproducibles vía `tools/audio/gen-demo-assets.sh` (si faltan, `build-all`
+# las marca `ASSET`, no `FAIL`).
 #
 # Formato: una ruta repo-relativa por línea (comentarios con `#`).
 #
-demos/techniques/amiga/audio/072_sample_channel
-demos/techniques/amiga/audio/073_sample_mixer
-demos/techniques/amiga/audio/074_mixer_drums
-demos/techniques/amiga/audio/076_mixer_sample_channels
-demos/techniques/amiga/audio/276_music_mixer

@@ -53,6 +53,13 @@ el repo no guarda el comando exacto con que se generó cada `.raw`.
 ## Los WAV de entrada NO están en el repositorio
 
 Los ficheros fuente (p. ej. `alien.wav` y las muestras de percusión) **no** están versionados:
-la media no entra en git. Consecuencia: en un checkout limpio, las demos **072, 073, 074 y 076**
-no compilan hasta aportar WAVs equivalentes y ejecutar `prep-sample` para producir los `.raw`.
-Para ondas sintéticas (tonos) no hace falta fuente externa: `gen-wave` las genera.
+la media no entra en git. Para que un checkout limpio pueda compilar y ejercitar el mixer sin
+ellos, hay un generador **reproducible de assets sintéticos**:
+
+```bash
+tools/audio/gen-demo-assets.sh     # genera los 6 .raw de out/assets/audio/ con gen-wave
+```
+
+Basta para compilar y probar el mixer (el sonido exacto no se versiona). Si faltan los `.raw`,
+`tools/build/build-all-demos.sh` clasifica esas demos como `ASSET` (no `FAIL`). Con WAVs reales
+equivalentes, usar `prep-sample` (ejemplo de percusión arriba).
