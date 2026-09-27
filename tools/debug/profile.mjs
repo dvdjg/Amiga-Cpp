@@ -66,8 +66,18 @@ const u32delta = (a, b) => { let d = b - a; if (d < 0) d += 4294967296; return d
 
 const SECTION_NAMES = ['actors', 'blits', 'copper', 'static', 'sky', 'objcopper', 'materialize', 'sort_lines', 'sort_prio', 'emit', 'calib', 'loop'];
 
+// WinUAE de la extension Bartman: autodetecta la version MAS NUEVA instalada (fijar una antigua
+// colgaba el arranque de algunas demos y con ello fallaban las lecturas GDB).
+const EXT_BIN = (() => {
+  const base = `${process.env.USERPROFILE || process.env.HOME || ''}/.vscode/extensions`;
+  try {
+    const dirs = fs.readdirSync(base).filter((d) => d.startsWith('bartmanabyss.amiga-debug-')).sort();
+    if (dirs.length) return `${base}/${dirs[dirs.length - 1]}/bin`;
+  } catch { /* fallback */ }
+  return `${base}/bartmanabyss.amiga-debug-1.8.2/bin`;
+})();
 const conn = new WinUAEConnection({
-  winuaePath: 'C:/Users/dvdjg/.vscode/extensions/bartmanabyss.amiga-debug-1.8.1/bin/win32',
+  winuaePath: `${EXT_BIN}/win32`,
   configFile: `${ROOT}/out/run/${DEMO}/${CONFIG_NAME}/runner.uae`,
   gdbPort: GDB_PORT,
 });

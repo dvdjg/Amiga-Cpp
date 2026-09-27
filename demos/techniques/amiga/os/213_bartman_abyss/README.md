@@ -57,26 +57,22 @@ bash ./tools/analyze/analyze-demo.sh demos/techniques/amiga/os/213_bartman_abyss
 
 ## Rendimiento
 
-El coste del bucle se midió con el profiler de WinUAE (`tools/debug/winuae-profile.mjs`, DMA por
-tipo y ciclos) y con los checkpoints (`debugperiph checkpoints`). Comparado con el **original** bajo
-el **mismo `runner.uae`** (sin warp):
+Medido en `A500_debug` con `tools/debug/measure-fps.mjs` (el contador del periférico de depuración
+marca ≈2× los ciclos de CPU; `142102` = **1 frame PAL**):
 
-| Versión | fps |
-|---|---|
-| Original (Bartman) | 49,85 |
-| Esta demo, música en el **bucle principal** | ~25 |
-| Esta demo, música en la **IRQ de VBlank** (actual) | **49,8** |
+| Variante | fps | ciclos/iteración |
+|---|---|---|
+| Demo actual (`clear_box` + 16 BOBs + música) | **28,0** | 253093 |
+| Sin `clear_box` (la banda de juego) | 34,7 | 204654 |
+| Sin música (`play_music`) | 28,4 | 250133 |
+| **Sin los 16 BOBs** (`Screen::sprite`) | **49,9** | 142102 |
 
-**Causa del 2×**: los 17 blits (clear + 16 BOBs) ya rozan el presupuesto de un frame PAL
-(~142k ciclos); con la música P61 avanzada **en serie** en el bucle principal, el frame se
-sobrepasaba y el bucle caía a 2 VBlanks por iteración (el profiler lo confirmaba: el Blitter usaba
-la mitad de slots DMA y la CPU el doble → frame-skip). El original avanza la música **dentro de la
-IRQ de VBlank**, solapada con la espera del Blitter. Al integrar la música como **tarea de frame del
-mini-SO** (`os::set_frame_task`) y arrancar el tick **por IRQ** (`os::start_vblank_irq`), la demo
-recupera 50 fps sin tocar el clear (mismo `280×20`) ni los BOBs.
-
-Coste CPU no-Blitter del engine (checkpoints): `os::tick` + música + overlay ≈ 8k ciclos/frame,
-despreciable frente a los ~165k del tramo de Blitter.
+**Lectura**: sin los BOBs la demo cabe **exacta** en un frame PAL (49,9 fps, igual que el original);
+los 16 `Screen::sprite` cuestan ~55k ciclos (≈0,8 frame) y fuerzan el frame-skip a ~28 fps. El
+`clear_box` cuesta ~24k (≈0,34 frame) y la música (en la IRQ de VBlank) es **despreciable** (el
+solape funciona). El camino del BOB (`Screen::sprite` → `Sprite::draw` → `BlitJob`, ~3.400
+ciclos/BOB) es el candidato a optimizar frente al blit interleaved de una pasada del original
+(`A=máscara`, `B=imagen`, 80×2 words, `$CA`).
 
 ## Assets
 
