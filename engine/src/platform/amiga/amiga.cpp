@@ -166,6 +166,10 @@ void AmigaBackend::install_blitter_service(ServiceSlot& slot) {
 	g_blitter_service_user = &slot;
 }
 
+AmigaBackend::BlitWaitService AmigaBackend::blitter_wait_service() const noexcept {
+	return { g_blitter_service, g_blitter_service_user };
+}
+
 u16 AmigaBackend::current_raster_line() const {
 	return static_cast<u16>((*vpos_long & 0x1ff00u) >> 8);
 }

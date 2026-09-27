@@ -576,6 +576,21 @@ Efecto esperado en el número de `write_planes` (trabajo, no ciclos): para un re
 
 > Medición en objetivo pendiente: requiere el emulador (perfil por secciones). **Banco correcto**: la demo 078 **no** usa `Playfield::fill_polygon` (tiene su propio `Canvas`); la ruta cambiada la consume `Surface` (HOST-046 o un demo de GUI). Medir ahí, no en la 078. El contador determinista de `write_planes` y la equivalencia de píxeles los fijan HOST-045 y HOST-046.
 
+## 14. BLTPRI (blitter-nasty) y Fast RAM
+
+`BLTPRI` (DMACON bit 10, `DmaBlitterPriority`, el "blitter nasty" de OCS) hace que el **Blitter no ceda sus slots del bus de chip a la CPU**: el DMA de blit avanza a plena velocidad y la CPU —o sus esperas activas a `BBUSY`— quedan detenidas mientras el Blitter tiene el bus. El engine lo controla con `AmigaBackend::set_blitter_priority(bool)` (DMACON `0x8400`); el DMACON del Copper de la demo también puede fijarlo (la 117 lo activa, como el original).
+
+**Por qué `BLTPRI` merece la pena en general:** en un A500 de serie **todo** está en **Chip RAM**, así que la CPU comparte el bus de chip con el Blitter **hasta para sus fetches de instrucción y accesos a datos**; ahí `BLTPRI` la estrangula. Pero si el **código y los datos de trabajo están en Fast RAM**, la CPU **no usa el bus de chip** para ejecutar (sus fetches van por su propio bus). Entonces:
+
+- el **Blitter va a plena velocidad** (prioridad en el bus de chip, sin ceder slots), y
+- la **CPU no pierde ciclos** por ese bus: su espera (p. ej. sondeando `BBUSY`) **no le roba ancho de banda al Blitter**.
+
+Es decir, **`BLTPRI` + Fast RAM es la combinación buena**; `BLTPRI` con todo en chip es la mala (esta es la lección: el efecto de `BLTPRI` depende de dónde viva el código). El engine detecta la Fast RAM con `eng::hw::has_fast_ram(hw)` / `HwInfo::fast_ram_bytes` (`eng/hw/info.hpp`); una demo intensiva puede usarla para los **datos de trabajo** (p. ej. el búfer de transformación) — el `BlockPool`/`MemoryManager` ya distinguen Fast/Chip.
+
+**Mover el código a Fast RAM:** AmigaDOS suele cargar el ejecutable en la primera RAM libre (con Fast RAM, a menudo ya es Fast), pero garantizarlo exige un loader/relocador propio (copiar `.text` a un `Block<Fast>` y saltar a él); el engine no lo hace hoy — mecanismo pendiente. Lo inmediato es poner los **datos de trabajo** en Fast RAM.
+
+**Relación con la espera de Blitter:** `AmigaBackend::wait_blitter()` **drena el servicio de fondo** (`set_blitter_service`) durante el sondeo; y ahora `OrBlobBatch` puede hacer lo mismo pasándole el servicio (`AmigaBackend::blitter_wait_service()`), de modo que esa espera deja de ser tiempo muerto cuando hay tareas de fondo.
+
 
 
 

@@ -31,11 +31,21 @@ class OrBlobBatch {
 public:
 	using Reg = volatile eng::u16;
 
+	/// Espera de Blitter con **servicio de fondo opcional**: si se pasa `wait_fn`, se llama
+	/// `wait_fn(user, vpos)` en cada vuelta del sondeo a BBUSY (igual que
+	/// `AmigaBackend::wait_blitter`), de modo que las tareas de fondo avanzan en vez de ser tiempo
+	/// muerto. `nullptr` = bucle apretado (identico al original). El servicio se obtiene de
+	/// `AmigaBackend::blitter_wait_service()`.
+	using WaitFn = void (*)(void*, eng::u16);
+
 	/// Fija las constantes del lote. `custom` = base de registros $dff000.
 	__attribute__((always_inline)) inline void begin(Reg* custom, eng::u16 words,
 							 eng::u16 height, eng::s16 amod,
-							 eng::s16 dmod) {
+							 eng::s16 dmod, WaitFn wait_fn = nullptr,
+							 void* wait_user = nullptr) {
 		c = custom;
+		wait_fn_ = wait_fn;
+		wait_user_ = wait_user;
 		// DMACON: SET de MASTER + BLITTER. No toca BLTPRI (lo fija el copper), que
 		// hace que el Blitter no ceda slots a la CPU (mismo efecto que el original).
 		c[kDmacon] = static_cast<eng::u16>(0x8000u | 0x0200u | 0x0040u);
@@ -74,13 +84,22 @@ public:
 	}
 
 private:
-	/// BBUSY (DMACONR bit 14): `btst` sobre la palabra completa.
+	/// BBUSY (DMACONR bit 14): `btst` sobre la palabra completa. Con servicio de fondo, lo drena
+	/// en cada vuelta (mismo patron que `AmigaBackend::wait_blitter`).
 	__attribute__((always_inline)) inline void wait() const {
+		if (wait_fn_ == nullptr) {
+			while ((c[kDmaconr] & 0x4000u) != 0u) {
+			}
+			return;
+		}
 		while ((c[kDmaconr] & 0x4000u) != 0u) {
+			const eng::u32 vposr = *reinterpret_cast<volatile eng::u32*>(&c[kVposr]);
+			wait_fn_(wait_user_, static_cast<eng::u16>((vposr & 0x1ff00u) >> 8u));
 		}
 	}
 
 	static constexpr eng::u16 kDmaconr = 0x002u / 2u;
+	static constexpr eng::u16 kVposr = 0x004u / 2u;
 	static constexpr eng::u16 kDmacon = 0x096u / 2u;
 	static constexpr eng::u16 kBltcon0 = 0x040u / 2u;
 	static constexpr eng::u16 kBltcon1 = 0x042u / 2u;
@@ -101,6 +120,8 @@ private:
 	Reg* c = nullptr;
 	eng::u16 con0 = 0;
 	eng::u16 size = 0;
+	WaitFn wait_fn_ = nullptr;
+	void* wait_user_ = nullptr;
 };
 
 } // namespace eng::amiga

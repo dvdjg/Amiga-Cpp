@@ -256,6 +256,16 @@ public:
 	/// para cadenas de blits que deben terminar cuanto antes (p. ej. el C2P encadenado).
 	void set_blitter_priority(bool enabled);
 
+	/// Servicio de **espera de Blitter** (`set_blitter_service`), expuesto para que un bucle de
+	/// blits propio (p. ej. `OrBlobBatch`) pueda drenar el fondo durante la espera, igual que hace
+	/// `wait_blitter()`, en vez de perder esos ciclos en un sondeo activo. `{nullptr, nullptr}` si
+	/// no hay ninguno registrado.
+	struct BlitWaitService {
+		void (*fn)(void*, eng::u16) = nullptr;
+		void* user = nullptr;
+	};
+	[[nodiscard]] BlitWaitService blitter_wait_service() const noexcept;
+
 	/// Arranca un motor de fondo por **timer A de la CIA-A** (IRQ nivel 2). El timer
 	/// corre **continuo** a `latch / 709379` s por tic y llama a `task(user, vpos)` en
 	/// cada uno (una rebanada corta), de forma independiente al frame. Tambien sirve
