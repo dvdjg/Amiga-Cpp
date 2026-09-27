@@ -135,14 +135,21 @@ struct AbyssDemo {
 		}
 		(void)app.audio().play_music(eng::audio::MusicModule {mod},
 					     eng::audio::MusicFormat::P61, sbuf);
+		// La música es una **tarea de frame del mini-SO**: corre dentro de `os::tick` (IRQ de
+		// VBlank, que el `App` conduce). Avanzarla desde `update` Gurea con P61.
+		m_audio = &app.audio();
+		eng::os::set_frame_task(&AbyssDemo::music_tick, this);
 
 		app.takeover();
 		m_ready = true;
 	}
 
+	static void music_tick(void* user, eng::u16) {
+		static_cast<AbyssDemo*>(user)->m_audio->update_music();
+	}
+
 	void update(auto& app) {
 		eng::debug::mark_frame(g_eng_run_status, app.frame());
-		app.audio().update_music(); // música P61: avanza una vez por frame
 		m_sky.set_phase(static_cast<eng::u16>(app.frame()));
 	}
 
@@ -182,6 +189,7 @@ struct AbyssDemo {
 	eng::Block<eng::BobTag> m_bob_block {};
 	eng::Block<eng::MusicTag> m_mod_block {};
 	eng::Block<eng::AudioTag> m_sample {};
+	eng::audio::AudioSystem* m_audio = nullptr; ///< música avanzada por la tarea de frame
 	bool m_ready = false;
 };
 

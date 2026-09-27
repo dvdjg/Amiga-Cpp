@@ -36,6 +36,7 @@
 #include <eng/graphics/sprite_asset.hpp>
 #include <eng/input/input.hpp>
 #include <eng/os/port.hpp>
+#include <eng/os/os.hpp>
 #include <eng/res/asset_cache.hpp>
 #include <eng/res/budget.hpp>
 #include <eng/scene/bobs.hpp>
@@ -362,6 +363,13 @@ private:
 
 	/// Productor del hook de VBlank: sube el contador y publica en el puerto (IRQ-safe).
 	static void on_vblank(void* user) noexcept {
+		// Corre el **latido del mini-SO** (`os::tick`: avanza el frame, entrada, timers y
+		// **tareas de frame**) en la IRQ de VBlank. Es imprescindible para el trabajo frame-driven
+		// que debe correr en ese contexto (p. ej. la música P61, que Gurea si se avanza desde
+		// `update`); el juego registra esas tareas con `os::set_frame_task`. Solo existe en Amiga.
+#if defined(ENG_AMIGA)
+		eng::os::tick();
+#endif
 		auto& self = *static_cast<App*>(user);
 		const u32 seq = self.m_vblank_count + 1u;
 		self.m_vblank_count = seq;
