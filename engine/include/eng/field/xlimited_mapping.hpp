@@ -56,9 +56,9 @@ public:
     // deja que el compilador pliegue `320/tile_width`, `block%blocks_per_row`,
     // `tile_width/16`... (con `m_cfg` son división/módulo runtime → libcall en
     // 68000). Si SC no trae el valor, se cae al campo runtime (mismo resultado).
-    constexpr u16 ctw() const { return SC.tile_width ? static_cast<u16>(SC.tile_width) : m_cfg.tile_width; }
-    constexpr u16 cth() const { return SC.tile_height ? static_cast<u16>(SC.tile_height) : m_cfg.tile_height; }
-    constexpr u8 cplanes() const { return SC.planes ? static_cast<u8>(SC.planes) : m_cfg.planes; }
+    constexpr u16 ctw() const { return SC.tile_width ? SC.tile_width : m_cfg.tile_width; }
+    constexpr u16 cth() const { return SC.tile_height ? SC.tile_height : m_cfg.tile_height; }
+    constexpr u8 cplanes() const { return SC.planes ? SC.planes : m_cfg.planes; }
 
     /// Calcula la altura total según la fórmula canónica de Steger parametrizada.
     ///
