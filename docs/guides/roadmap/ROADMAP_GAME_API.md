@@ -74,9 +74,10 @@ Todo lo que hoy **no** sea esto es trabajo de este roadmap: `configure_memory`, 
   `.sfx("n")`, `.tilemap("n")`).
 - **Salida**: `auto hero = app.assets().sprite("hero"); app.audio().play_music(app.assets().music("n"));` — sin
   `INCBIN`, sin `Block<Tag>`, sin memcpy, sin `reserve<AudioTag>`.
-- **Progreso**: ✅ el **audio** resuelve **formato** (detección por cabecera en `play_music(module)`: P61/PT/OctaMED) y
-  **buffer** (§2); la 213 ya no nombra `MusicFormat`. ⏳ falta `assets().sprite(...)` (el blob necesita una **fuente de
-  geometría**: tabla/pipeline) y quitar `INCBIN`/`res::load` de la demo.
+- **Progreso**: ✅ `eng::Assets` (`eng/api/assets.hpp`): `add<Tag>` (copia a Chip) + `music/sprite/bytes/palette`
+  **por nombre**; la 213 ya **no** usa `res::load` ni `Block<BobTag>/<MusicTag>` (sprite y música por nombre). ✅ el
+  audio resuelve **formato** (detección por cabecera) y **buffer** (§2). ⏳ falta: el **bitmap de fondo** por nombre
+  (`bytes()` existe, pero la 213 copia a mano) y quitar el `INCBIN` del código de juego.
 
 ## 5. Actores, animación y colisión (2D)
 

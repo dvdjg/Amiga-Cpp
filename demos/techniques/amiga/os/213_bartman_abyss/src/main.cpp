@@ -14,6 +14,7 @@
 //   - Música P61 por `app.audio()`.
 
 #include <eng/api/api.hpp>
+#include <eng/api/assets.hpp>
 #include <eng/api/effects.hpp>
 #include <eng/platform/amiga/entry.hpp>
 
@@ -85,32 +86,27 @@ struct AbyssDemo {
 		}
 		app.bind_scene(m_scene);
 
-		// --- Los assets a Chip (carga tipada: medio y alineación por dominio) ---------------
-		m_bob_block = eng::res::load<eng::BobTag>(
-			app.memory_manager(),
-			eng::Span<const eng::u8> {reinterpret_cast<const eng::u8*>(abyss_bob),
-						  INCBIN_SIZE(abyss_bob)});
-		const eng::u32 mod_bytes = INCBIN_SIZE(abyss_mod);
-		m_mod_block = eng::res::load<eng::MusicTag>(
-			app.memory_manager(), eng::Span<const eng::u8> {
-						      reinterpret_cast<const eng::u8*>(abyss_mod), mod_bytes});
-		if (!m_bob_block.valid() || !m_mod_block.valid()) {
+		// --- Assets de juego por nombre (el engine copia a Chip y resuelve el dominio) ------
+		m_assets.bind(app.memory_manager());
+		if (!m_assets.add<eng::SpriteTag>("bob", reinterpret_cast<const eng::u8*>(abyss_bob),
+						  INCBIN_SIZE(abyss_bob)) ||
+		    !m_assets.add<eng::MusicTag>("mod", reinterpret_cast<const eng::u8*>(abyss_mod),
+						 INCBIN_SIZE(abyss_mod))) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021303u);
 			return;
 		}
 
-		// --- El objeto como asset de juego -------------------------------------------------
-		eng::graphics::Bob bob {};
-		bob.sheet = m_bob_block.view.data();
-		bob.width = kBobW;
-		bob.height = kBobH;
-		bob.planes = kPlanes;
-		bob.frame_count = 6u;
-		bob.frame_stride = kBobFrameStride;
-		bob.layout = eng::graphics::BobLayout::Interleaved;
-		bob.draw = eng::graphics::BobDraw::CookieCut;
-		bob.mask_pack = eng::graphics::BobMaskPack::InterleavedPair;
-		m_sprite = eng::graphics::Sprite {bob, INCBIN_SIZE(abyss_bob)};
+		// --- El objeto como asset de juego (geometría declarada; el sheet lo pone `Assets`) --
+		eng::graphics::Bob desc {};
+		desc.width = kBobW;
+		desc.height = kBobH;
+		desc.planes = kPlanes;
+		desc.frame_count = 6u;
+		desc.frame_stride = kBobFrameStride;
+		desc.layout = eng::graphics::BobLayout::Interleaved;
+		desc.draw = eng::graphics::BobDraw::CookieCut;
+		desc.mask_pack = eng::graphics::BobMaskPack::InterleavedPair;
+		m_sprite = m_assets.sprite("bob", desc);
 
 		// --- Efecto de alto nivel: degradado de COLOR00 (líneas 0x41..0x4f) ----------------
 		eng::u16 keys[15] {};
@@ -121,11 +117,9 @@ struct AbyssDemo {
 				   eng::Span<const eng::u16> {keys, 15u}, false);
 
 		// --- Música por la fachada de audio ------------------------------------------------
-		const eng::Span<const eng::u8> mod {m_mod_block.view.data(), mod_bytes};
-		// El engine resuelve **formato** y **buffer** (ROADMAP_GAME_API §4/§2): el juego solo pasa el módulo.
-		(void)app.audio().play_music(eng::audio::MusicModule {mod});
-		// La música la **conduce el engine** (el `App` avanza el reproductor en su latido de
-		// VBlank): el juego solo la arranca, sin registrar tareas de frame.
+		// El engine resuelve **formato** y **buffer** (§4/§2) y **conduce** la música en su VBlank:
+		// el juego solo la arranca por nombre.
+		(void)app.audio().play_music(m_assets.music("mod"));
 
 		app.takeover();
 		m_ready = true;
@@ -169,8 +163,7 @@ struct AbyssDemo {
 	eng::graphics::composition::Scene m_scene {};
 	eng::graphics::Sprite m_sprite {};
 	eng::effects::Gradient m_sky {};
-	eng::Block<eng::BobTag> m_bob_block {};
-	eng::Block<eng::MusicTag> m_mod_block {};
+	eng::Assets m_assets {};
 	bool m_ready = false;
 };
 
