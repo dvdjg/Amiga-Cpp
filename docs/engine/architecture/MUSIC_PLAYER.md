@@ -96,6 +96,14 @@ Se detecta con `p61_needs_sample_buffer` / `p61_sample_buffer_size` (`music_play
 `AudioSystem::play_music(module, format, buffer)`. El `.p61` oficial es la playroutine
 `support/music/p61/P6112-Play.i` (P6112 de Photon/Scoopex), integrada por `support/music/p61.asm`.
 
+## Encendido del DMA de audio (modo VBlank)
+
+El P61 configurado por `support/music/p61.asm` (**`p61system=0`**, VBlank) **no** enciende el DMA de audio dentro de `P61_Music`: al iniciar una nota **apaga** el canal (`move d0,$dff096`) y **delega el encendido** a `P61_dmason`, que corre desde la **IRQ de CIA-B (nivel 6)** que el propio playroutine instala (vector `$78` + programa CIA-B en `$bfd600/$bfd700/$bfdf00`). `P61_dmason` escribe los bits pendientes acumulados en `P61_dma` (incluye `$8200`) sobre `DMACON`.
+
+El `App`/engine **no** da servicio a esa IRQ, así que el motor aplica el mismo encendido desde el **frame task**: tras `P61_Music`, `P61Player::update` llama a `p61_amiga::apply_pending_dma()`, que escribe `_P61_dma` en `DMACON` (`_P61_dma` es un símbolo exportado por `p61.asm` = `P61_dma`). El efecto es idéntico al de `P61_dmason`, en el mismo contexto de `os::tick`. Verificado a nivel de registro forzando `DMACON=$820F` (`audio_bits=0x0F`).
+
+Alternativas de config descartadas: `copdma=1` movería el encendido a la copperlist (exige un byte `DMA ON` que el engine no provee vía A4) y `nowaveforms=1` **solo** no evita la IRQ (el bloque `ifeq copdma&nowaveforms` se ensambla salvo con **ambos** a 1). Se conserva la config del playroutine y el engine compensa.
+
 ## Referencias
 
 - Cabeceras: `demoscene-repo-orig/include/p61.h`, `ptplayer.h`, `ahx.h`.

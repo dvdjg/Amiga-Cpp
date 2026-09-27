@@ -72,6 +72,13 @@ extern "C" struct P61ControlBlock {
 	s32 ChannelOffset[4];
 } _P61_ControlBlock;
 
+/// Bits de DMA de audio pendientes (`P61_dma` del playroutine, **incluye `$8200`**). En el
+/// playroutine los aplica `P61_dmason` desde la IRQ de CIA-B (nivel 6); `apply_pending_dma` hace lo
+/// mismo desde el frame task cuando esa IRQ no está atendida.
+extern "C" {
+extern u16 _P61_dma;
+}
+
 /// Envolturas de bajo nivel (convención de registros Amiga, vía `jsr _P61Xxx`).
 
 inline s32 init(const void* module, const void* samples, const void* buffer) {
@@ -90,6 +97,16 @@ inline void music() {
 inline void end() {
 	__asm__ volatile("jsr _P61_End" : : : "cc", "memory");
 }
+
+/// **Re-arma el DMA de audio** como `P61_dmason`: escribe los bits pendientes (`_P61_dma`) en
+/// `DMACON`. El P61 en modo VBlank **difiere** el encendido del DMA a la IRQ de CIA-B (nivel 6), que
+/// el `App` no atiende; el frame task (dentro de `os::tick`) lo aplica aquí tras `P61_Music`, con el
+/// mismo efecto (encender los canales que el playroutine ha marcado). Ver `MUSIC_PLAYER.md`.
+#if defined(ENG_AMIGA)
+inline void apply_pending_dma() {
+	*reinterpret_cast<volatile u16*>(0xdff096u) = _P61_dma;
+}
+#endif
 
 inline void set_position(u8 position) {
 	register volatile u8 p __asm("d0") = position;
@@ -141,6 +158,10 @@ public:
 	void update() {
 		if (m_playing) {
 			p61_amiga::music();
+#if defined(ENG_AMIGA)
+			// El P61 difiere el encendido del DMA a la IRQ de CIA-B (nivel 6); la aplicamos aquí.
+			p61_amiga::apply_pending_dma();
+#endif
 		}
 	}
 

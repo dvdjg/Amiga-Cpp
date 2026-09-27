@@ -11,6 +11,7 @@ Hallazgos concretos de depuración: **bloqueos abiertos**, **post-mortems/leccio
 | [captura-negra-intermitente-050-051.md](captura-negra-intermitente-050-051.md) | Las demos 050/051 producen a veces una captura 100 % negra pese a READY. No es el fuente (051↔050), ni el config (ruta `dh1`), ni los blits; es intermitente/por estado. Siguiente paso: leer registros reales por GDB. |
 | [scene-rebuild-efectos.md](scene-rebuild-efectos.md) | Migrar una demo al modelo de efectos con **reconstrucción por frame** del `Scene` descoloca la copperlist (la demo validada se revirtió). Hipótesis y cómo atacarlo (test host comparativo). |
 | [winuae-pantalla-negra-arranque.md](winuae-pantalla-negra-arranque.md) | Pantalla negra al arrancar WinUAE (el sistema no botea). |
+| [p61-audio-dma.md](p61-audio-dma.md) | **213 / P61**: el DMA de audio no se enciende (`DMACON` audio bits = 0) porque el playroutine (`p61system=0`) lo difiere a la IRQ de CIA-B (nivel 6), que el `App` no atiende; el encendido inmediato (`$820F`) sí produce sample. **Abierto**: `play_music()` devuelve true pero `is_playing()` es false (apunta a corrupción de pila/memoria). |
 | [diagnostico-adf-negro.md](diagnostico-adf-negro.md) | El ADF se queda en negro (diagnóstico). |
 | [diagnostico-depurador-f5.md](diagnostico-depurador-f5.md) | El depurador no se lanza con F5 (diagnóstico). |
 | [pending-verification.md](pending-verification.md) | Repaso pendiente de generalidad de interfaces y modelado del engine. |
