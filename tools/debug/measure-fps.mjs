@@ -33,12 +33,22 @@ const CONFIG_NAME = POSITIONAL[1] || 'A500_debug';
 const GDB_PORT = parseInt(process.env.WINUAE_GDB_PORT || '2345', 10);
 const SIDE_PORT = parseInt(process.env.WINUAE_SIDE_CHANNEL_PORT || '2346', 10);
 const MAP = `${ROOT}/out/demos/${DEMO}/${CONFIG_NAME}/${DEMO}.${CONFIG_NAME}.map`;
-const DH0 = 'C:/Users/dvdjg/.vscode/extensions/bartmanabyss.amiga-debug-1.8.1/bin/dh0';
+// WinUAE + dh0 de la extension Bartman: se autodetecta la version MAS NUEVA instalada (usar una
+// fija desincronizaba con run-demo/launch-winuae y podia colgar el arranque de algunas demos).
+const EXT_BIN = (() => {
+  const base = `${process.env.USERPROFILE || process.env.HOME || ''}/.vscode/extensions`;
+  try {
+    const dirs = fs.readdirSync(base).filter((d) => d.startsWith('bartmanabyss.amiga-debug-')).sort();
+    if (dirs.length) return `${base}/${dirs[dirs.length - 1]}/bin`;
+  } catch { /* fallback */ }
+  return `${base}/bartmanabyss.amiga-debug-1.8.2/bin`;
+})();
+const DH0 = `${EXT_BIN}/dh0`;
 fs.mkdirSync(DH0 + '/s', { recursive: true });
 fs.writeFileSync(DH0 + '/s/startup-sequence', 'stack 131072\ncd dh1:\n:a.exe\n', 'utf8');
 
 const CONFIG = {
-  winuaePath: 'C:/Users/dvdjg/.vscode/extensions/bartmanabyss.amiga-debug-1.8.1/bin/win32',
+  winuaePath: `${EXT_BIN}/win32`,
   configFile: `${ROOT}/out/run/${DEMO}/${CONFIG_NAME}/runner.uae`,
   gdbPort: GDB_PORT,
 };
