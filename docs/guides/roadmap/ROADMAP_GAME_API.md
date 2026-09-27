@@ -169,6 +169,10 @@ Camino `update`/`render` de la 213 revisado con la regla «coste ~cero en el buc
   (emite O(líneas×canales)) queda como candidato al mismo tratamiento cuando se use por frame.
 - **`AudioSystem::update_music`** (lo llama `App::on_vblank`): `P61_Music` + armado de DMA, una vez por VBlank. OK.
 - **`App::on_vblank`**: `os::tick` (entrada/timers) + tick de audio + post del puerto. Acotado. OK.
+- **Zonas de paleta (`scene::zone_color` en 030/040) — OK**: la lista se compone **una vez** en el setup
+  (`scene::compose` + `palette_patchable(..., &zone)`) y por frame solo se **parchean** las palabras de color de
+  la zona (`zone_color(sched, zone, i).set(...)`). Mismo patrón «construir una vez + parchear» que el degradado;
+  no re-emite la copperlist. El `PaletteCycleEffect` (040) también parchea, no reconstruye.
 - **`effects::Gradient::frame` — RESUELTO**: `RasterGradient` **precalcula en setup** una tabla `[fase][banda]`
   (`rebuild` en `configure`/`set_keys`/`set_cyclic`) y el bucle **solo copia la fila** de la fase (`phase_index`:
   **máscara** si `k` es potencia de dos, si no un `%`). Cero divisiones por banda (antes ~`5*bands`: el `div_wide` más
