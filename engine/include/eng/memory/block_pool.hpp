@@ -16,6 +16,7 @@
 /// ```
 
 #include <eng/core/types/memory_kind.hpp>
+#include <eng/core/types/ptr.hpp>
 #include <eng/core/types/typed.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/memory/arena.hpp>
@@ -39,9 +40,26 @@ public:
 		}
 	}
 
+	/// Enlaza el pool a una **`LinearArena` existente** en vez de a un buffer propio: desde aquí
+	/// `allocate` **delega en la arena** (mismo cursor), de modo que una arena y un banco que
+	/// comparten buffer **no se solapan**. `free` es no-op (la arena es *bump*) y `free_bytes`
+	/// refleja lo que queda en la arena. Es lo que usa `configure_memory` para que
+	/// `MemorySystem`/`MemoryManager` sean **un único asignador** por medio. Ver
+	/// `docs/engine/architecture/INTERNAL_TYPE_SYSTEM.md` §3.6.
+	void configure_backing(LinearArena& arena) noexcept {
+		m_backing = eng::Ref<LinearArena> {arena};
+		m_base = nullptr;
+		m_size = 0u;
+		m_align = 16u;
+		m_count = 0u;
+	}
+
 	/// Reserva `bytes` alineados a `alignment` (0 = la alineación por defecto del pool).
 	/// `MemoryBlock` inválido si no cabe.
 	MemoryBlock allocate(u32 bytes, u32 alignment = 0u) noexcept {
+		if (m_backing.valid()) {
+			return m_backing.get()->allocate(bytes, alignment != 0u ? alignment : m_align);
+		}
 		if (bytes == 0u || m_base == nullptr) {
 			return {};
 		}
@@ -74,6 +92,9 @@ public:
 
 	/// Libera un bloque de `allocate` (y fusiona huecos contiguos).
 	void free(void* ptr) noexcept {
+		if (m_backing.valid()) {
+			return; // la arena es *bump*: no recicla
+		}
 		if (ptr == nullptr || m_base == nullptr) {
 			return;
 		}
@@ -89,6 +110,9 @@ public:
 
 	/// Bytes libres (suma de bloques libres).
 	[[nodiscard]] u32 free_bytes() const noexcept {
+		if (m_backing.valid()) {
+			return m_backing.get()->remaining();
+		}
 		u32 t = 0u;
 		for (u8 i = 0u; i < m_count; ++i) {
 			if (m_blocks[i].state == 0u) {
@@ -97,8 +121,12 @@ public:
 		}
 		return t;
 	}
-	[[nodiscard]] u32 capacity() const noexcept { return m_size; }
-	[[nodiscard]] MemoryKind kind() const noexcept { return m_kind; }
+	[[nodiscard]] u32 capacity() const noexcept {
+		return m_backing.valid() ? m_backing.get()->capacity() : m_size;
+	}
+	[[nodiscard]] MemoryKind kind() const noexcept {
+		return m_backing.valid() ? m_backing.get()->kind() : m_kind;
+	}
 	[[nodiscard]] u8 block_count() const noexcept { return m_count; }
 
 private:
@@ -132,6 +160,7 @@ private:
 	u32 m_size = 0u;
 	MemoryKind m_kind = MemoryKind::Any;
 	u32 m_align = 16u;
+	eng::Ref<LinearArena> m_backing {}; ///< si es válido, `allocate` delega en esta arena (cursor único)
 	Slot m_blocks[kMaxBlocks] {};
 	u8 m_count = 0u;
 };

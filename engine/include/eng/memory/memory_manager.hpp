@@ -37,6 +37,19 @@ public:
 	}
 	[[nodiscard]] constexpr bool configured() const noexcept { return m_configured; }
 
+	/// Enlaza los bancos de Chip/Slow a las **arenas del `MemorySystem`** (mismo buffer y **mismo
+	/// cursor**) en vez de a buffers propios, de modo que las arenas y los bancos **no se solapan**:
+	/// hay **un único asignador por medio**. Fast no tiene arena (CPU-privada) y recibe su buffer.
+	/// Es lo que usa `AmigaBackend::configure_memory`. Ver `INTERNAL_TYPE_SYSTEM.md` §3.6.
+	bool configure_backing(LinearArena& chip, LinearArena& slow, void* fast, u32 fast_bytes,
+			       u32 align = 16u) noexcept {
+		m_chip.pool().configure_backing(chip);
+		m_slow.pool().configure_backing(slow);
+		m_fast.configure(fast, fast_bytes, align);
+		m_configured = chip.capacity() != 0u;
+		return m_configured;
+	}
+
 	/// **Bancos tipados** (tag de plantilla; sin `MemoryKind` como variable).
 	[[nodiscard]] constexpr MemBank<MemoryKind::Chip>& chip() noexcept { return m_chip; }
 	[[nodiscard]] constexpr MemBank<MemoryKind::Slow>& slow() noexcept { return m_slow; }
