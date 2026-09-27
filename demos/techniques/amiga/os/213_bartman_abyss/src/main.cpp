@@ -123,18 +123,9 @@ struct AbyssDemo {
 
 		// --- Música por la fachada de audio ------------------------------------------------
 		const eng::Span<const eng::u8> mod {m_mod_block.view.data(), mod_bytes};
-		eng::Span<eng::u8> sbuf {};
-		if (eng::audio::p61_needs_sample_buffer(mod)) {
-			const eng::u32 need = eng::audio::p61_sample_buffer_size(mod);
-			m_sample = app.memory_manager().chip().template reserve<eng::AudioTag>(need, 4u);
-			if (!m_sample.valid()) {
-				eng::debug::mark_failed(g_eng_run_status, 0x00021304u);
-				return;
-			}
-			sbuf = eng::Span<eng::u8> {m_sample.view.data(), need};
-		}
+		// El engine resuelve el **formato** y el **buffer de descompresión** (ROADMAP_GAME_API §2).
 		(void)app.audio().play_music(eng::audio::MusicModule {mod},
-					     eng::audio::MusicFormat::P61, sbuf);
+					     eng::audio::MusicFormat::P61);
 		// La música la **conduce el engine** (el `App` avanza el reproductor en su latido de
 		// VBlank): el juego solo la arranca, sin registrar tareas de frame.
 
@@ -182,7 +173,6 @@ struct AbyssDemo {
 	eng::effects::Gradient m_sky {};
 	eng::Block<eng::BobTag> m_bob_block {};
 	eng::Block<eng::MusicTag> m_mod_block {};
-	eng::Block<eng::AudioTag> m_sample {};
 	bool m_ready = false;
 };
 

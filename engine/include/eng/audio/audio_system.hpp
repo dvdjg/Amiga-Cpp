@@ -23,6 +23,8 @@
 #include <eng/audio/audio_mode.hpp>
 #include <eng/audio/music_player.hpp>
 #include <eng/audio/sfx_mixer.hpp>
+#include <eng/core/types/ptr.hpp>
+#include <eng/core/types/typed.hpp>
 #include <eng/os/message.hpp>
 
 namespace eng::audio {
@@ -45,6 +47,7 @@ public:
 	/// Inicia el SFX mixer (reserva el buffer Chip y arranca). La música se
 	/// arranca aparte con `play_music()`.
 	bool init(MemorySystem& memory) {
+		m_memory = memory; // el engine reserva aquí el buffer de descompresión de la música
 		return m_sfx.init(memory);
 	}
 
@@ -117,9 +120,24 @@ public:
 	bool play_music(const MusicModule& module, MusicFormat format, eng::Span<eng::u8> buffer) {
 		stop_music();
 		switch (format) {
-			case MusicFormat::P61:
-				if (m_p61.play(module, buffer)) { m_format = MusicFormat::P61; }
+			case MusicFormat::P61: {
+				// El **engine resuelve el buffer de descompresión** si el módulo lo pide y no lo
+				// dan (`ROADMAP_GAME_API.md` §2): el juego no ve `p61_needs_sample_buffer`.
+				eng::Span<eng::u8> buf = buffer;
+				if (buf.empty() && eng::audio::p61_needs_sample_buffer(module.data) &&
+				    m_memory.valid()) {
+					const eng::u32 need = eng::audio::p61_sample_buffer_size(module.data);
+					if (need != 0u) {
+						m_music_buf = m_memory.get()->chip.allocate_block<eng::AudioTag>(
+							need, 4u);
+						if (m_music_buf.valid()) {
+							buf = eng::Span<eng::u8> {m_music_buf.view.data(), need};
+						}
+					}
+				}
+				if (m_p61.play(module, buf)) { m_format = MusicFormat::P61; }
 				break;
+			}
 			case MusicFormat::Protracker:
 				if (m_pt.play(module)) { m_format = MusicFormat::Protracker; }
 				break;
@@ -218,6 +236,8 @@ public:
 
 private:
 	SfxMixer m_sfx {};
+	eng::Ref<MemorySystem> m_memory {};                              ///< para el buffer de música (Chip)
+	eng::Block<eng::AudioTag, eng::MemoryKind::Chip> m_music_buf {}; ///< buffer de descompresión P61
 	P61Player m_p61 {};
 	PtPlayer m_pt {};
 #if defined(ENG_AUDIO_OCTAMED)
