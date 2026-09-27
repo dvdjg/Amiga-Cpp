@@ -88,3 +88,26 @@ podría adelantar cómputo.
 - `engine/src/platform/amiga/amiga_internal.hpp` (`wait_blitter`, servicio)
 - `demos/techniques/amiga/os/081_background_tasks/` — servicio de fondo durante la espera
 - AHRM 3.ª, capítulo del Blitter (`BLTPRI`, `DMACONR`)
+
+## 7. Técnicas para eliminar la espera de CPU (apps reales)
+
+La espera de Blitter (§2-§4) es **inherente** con registros compartidos: para programar el
+siguiente blit hay que esperar a `BBUSY` (no se puede reescribir `BLTxPT`/`BLTCON`/`BLTSIZE`
+mientras el Blitter corre). Para que la CPU **no** se quede esperando en juegos/demos reales,
+hay tres vías complementarias (documentadas aquí para usarlas cuando compensen; el camino por
+defecto del engine es secuencial):
+
+1. **Blits por Copper** (la más potente): poner las escrituras de registro (`BLTxPT`, `BLTxMOD`,
+   `BLTcon`, `BLTAFWM/LWM`) y el arranque (`BLTSIZE`) **en la copperlist**, en la línea de raster
+   adecuada. El **Copper** programa y arranca los blits **en paralelo a la CPU** → la CPU nunca
+   hace `wait_blitter`. Es el patrón clásico para muchos blits (BOBs) y la forma natural de
+   "compilar el frame": el programa del frame son escrituras de Copper y por frame solo se
+   **parchean** posiciones/`BLTSIZE`. Ver [copper-timing-and-budget.md](copper-timing-and-budget.md).
+2. **Solape CPU↔Blit** (§1-§3): lanzar el blit y hacer cómputo **solo-registros** durante la
+   espera; el engine ya tiene el mecanismo (servicio de fondo + espera diferida `wait = false`).
+3. **Menos blits / más grandes**: cubrir con **un** blit lo de varios — la **unión de dirty
+   rects** en vez de un rect por objeto, o un solo clear de banda en vez de uno por BOB — reduce
+   el número de programaciones+esperas.
+
+Cuándo: la vía 1 cuando el coste de CPU de programar los blits sea significativo; las vías 2-3
+siempre que se pueda. Límites en §5.
