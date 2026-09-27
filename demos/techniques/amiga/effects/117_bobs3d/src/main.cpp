@@ -120,7 +120,7 @@ struct PixmapT {
 // Numero maximo de BOBs dibujados por frame (diagnostico de coste vs objetivo).
 // >= 64 dibuja todos los vertices.
 #ifndef K_117_MAXBLOBS
-#define K_117_MAXBLOBS 56
+#define K_117_MAXBLOBS 52
 #endif
 // Instrumentacion por secciones. Off por defecto: los ciclos que mide el profiler
 // cuentan en el presupuesto del frame (puede costar ~2-3k y hacer perder el 2.o campo).

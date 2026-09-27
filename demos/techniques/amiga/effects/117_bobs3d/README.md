@@ -20,15 +20,17 @@ node tools/debug/measure-fps.mjs 117_bobs3d A500_debug
 
 El efecto original dibuja **60 BOBs** (uno por vértice). El nº dibujado es configurable:
 
-| `K_117_MAXBLOBS` | BOBs | campos/frame | fps |
+| `K_117_MAXBLOBS` | BOBs | campos/frame (bucle) | fps |
 |---|---|---|---|
 | 60 | 60 (fiel) | 3,0 | ~16,6 |
-| 58 | 58 | 2,3 | ~21,8 |
-| **56 (defecto)** | 56 | **2,0** | **~25** |
+| 56 | 56 | 2,3 | ~22 |
+| **52 (defecto)** | 52 | **2,0** | **~25** |
+| 48 | 48 | 2,0 | ~25 |
 
-Con **56** el `update` cabe en 2 campos (25 fps) manteniendo el sincronismo estricto de 2
-buffers. `>=64` dibuja los 60 (como el original). Para los 60 BOBs a 2 campos habría que
-recortar ~2,5k de `load_rotate` (medido 2.676 c), sin vía limpia.
+Medido con `measure-fps.mjs` (métrica corregida): **52 BOBs es el máximo que mantiene 2,0
+campos (≈25 fps)** en `A500_debug` con `polling`; 48 da el mismo 2,0 con más margen. `>=64`
+dibuja los 60 (como el original, ~3 campos). Bajar de ahí exige un blit más barato — la carga
+de Blitter es ~188k/56 ≈ 3,4k por BOB.
 
 ## Modo de bucle y coste real (`Blits`/`Update`)
 
