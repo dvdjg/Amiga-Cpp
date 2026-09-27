@@ -74,6 +74,9 @@ Todo lo que hoy **no** sea esto es trabajo de este roadmap: `configure_memory`, 
   `.sfx("n")`, `.tilemap("n")`).
 - **Salida**: `auto hero = app.assets().sprite("hero"); app.audio().play_music(app.assets().music("n"));` — sin
   `INCBIN`, sin `Block<Tag>`, sin memcpy, sin `reserve<AudioTag>`.
+- **Progreso**: ✅ el **audio** resuelve **formato** (detección por cabecera en `play_music(module)`: P61/PT/OctaMED) y
+  **buffer** (§2); la 213 ya no nombra `MusicFormat`. ⏳ falta `assets().sprite(...)` (el blob necesita una **fuente de
+  geometría**: tabla/pipeline) y quitar `INCBIN`/`res::load` de la demo.
 
 ## 5. Actores, animación y colisión (2D)
 
@@ -120,7 +123,22 @@ Todo lo que hoy **no** sea esto es trabajo de este roadmap: `configure_memory`, 
 Cada paso se cierra cuando la 213 (o el "juego de 30 líneas" de §0) puede escribirlo sin la línea técnica que ese paso
 elimina, y con la evidencia de siempre (build + run + suite + checks).
 
-## 11. Relación con otros documentos
+## 11. Modelo de memoria unificado (observación de diseño)
+
+Principio: **todo componente que reserva memoria lo hace por las clases del engine** (`MemorySystem`
+arenas / `MemoryManager` bancos), nunca `AllocMem` suelto. Estado:
+
+- **Ya se cumple en el engine**: `Scene` (bitplanes/framebuffers), `copper::DoubleBuffer` (copperlist),
+  `Bitmap`, `GlyphCache`, `SpriteManager`, `XlimitedScene` (tile banks), `TileScroll`, `SfxMixer` y
+  `AudioSystem` (música) reservan de `memory.chip`/`memory.slow`; el único `AllocMem` es el del backend
+  en `configure_memory`.
+- **Hueco**: **63 demos** reservan su bloque de copper/bitplanes a mano
+  (`backend.memory().chip.allocate_block<…>`) y montan la copperlist. Eso debería hacerlo el
+  **componente** (una `Scene`/`Screen` dueña de su copperlist), no la demo: al migrar a la fachada ese
+  `Block<Tag>` desaparece.
+- **`configure_memory`** sigue siendo manual (§1): el juego no debería elegir pool ni tamaños.
+
+## 12. Relación con otros documentos
 
 - Visión de las dos capas: [`GAME_API_TWO_LEVELS.md`](../../engine/architecture/GAME_API_TWO_LEVELS.md).
 - Audio (contrato actual): [`MUSIC_PLAYER.md`](../../engine/architecture/MUSIC_PLAYER.md), [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),

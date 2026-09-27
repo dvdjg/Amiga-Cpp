@@ -37,6 +37,30 @@ enum class MusicFormat : u8 {
 	OctaMED = 3,    // módulo MED incrustado (OctaMedPlayer, A1)
 };
 
+/// **Detecta el formato** de un módulo por su cabecera, para `play_music(module)` sin formato
+/// explícito: P61 (signo `P61A`) / Protracker (magic en el offset 1080: `M.K.`/`M!K!`/`4CHN`/`6CHN`)
+/// / OctaMED (`MMDx`). `None` si no se reconoce.
+[[nodiscard]] inline MusicFormat detect_music_format(eng::Span<const eng::u8> m) noexcept {
+	const auto eq = [&](eng::usize i, const char* s) {
+		for (eng::usize k = 0u; s[k] != '\0'; ++k) {
+			if (i + k >= m.size() || m[i + k] != static_cast<eng::u8>(s[k])) {
+				return false;
+			}
+		}
+		return true;
+	};
+	if (eq(0u, "MMD0") || eq(0u, "MMD1") || eq(0u, "MMD2") || eq(0u, "MMD3")) {
+		return MusicFormat::OctaMED;
+	}
+	if (eq(0u, "P61A")) {
+		return MusicFormat::P61;
+	}
+	if (eq(1080u, "M.K.") || eq(1080u, "M!K!") || eq(1080u, "4CHN") || eq(1080u, "6CHN")) {
+		return MusicFormat::Protracker;
+	}
+	return MusicFormat::None;
+}
+
 /// Sistema de audio del engine (SFX + música).
 class AudioSystem {
 public:
@@ -109,6 +133,11 @@ public:
 	u32 total_sfx_channels() const { return m_sfx.total_channels(); }
 
 	// ---- Música -----------------------------------------------------------
+
+	/// Reproduce un módulo **detectando el formato** por su cabecera (P61/Protracker/OctaMED).
+	bool play_music(const MusicModule& module) {
+		return play_music(module, detect_music_format(module.data));
+	}
 
 	/// Reproduce un módulo en el formato dado (detiene la música previa).
 	bool play_music(const MusicModule& module, MusicFormat format) {

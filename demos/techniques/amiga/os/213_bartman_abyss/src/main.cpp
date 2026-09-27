@@ -122,9 +122,8 @@ struct AbyssDemo {
 
 		// --- Música por la fachada de audio ------------------------------------------------
 		const eng::Span<const eng::u8> mod {m_mod_block.view.data(), mod_bytes};
-		// El engine resuelve el **formato** y el **buffer de descompresión** (ROADMAP_GAME_API §2).
-		(void)app.audio().play_music(eng::audio::MusicModule {mod},
-					     eng::audio::MusicFormat::P61);
+		// El engine resuelve **formato** y **buffer** (ROADMAP_GAME_API §4/§2): el juego solo pasa el módulo.
+		(void)app.audio().play_music(eng::audio::MusicModule {mod});
 		// La música la **conduce el engine** (el `App` avanza el reproductor en su latido de
 		// VBlank): el juego solo la arranca, sin registrar tareas de frame.
 
