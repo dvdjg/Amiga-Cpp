@@ -192,6 +192,7 @@ Estas reglas son obligatorias, pero solo son relevantes cuando se toca su domini
 | **API del engine** (sin hardware, sin punteros, versátil, prueba de diseño) | `docs/engine/architecture/PUBLIC_API.md` |
 | **Estilo y restricciones de diseño** (gnu++23, sin excepciones/RTTI/heap, APIs paramétricas, agnosticismo del backend, comentarios didácticos) | `docs/engine/architecture/CODING_STYLE.md` |
 | **Rendimiento, comentario de optimizaciones y port de rutinas calientes a asm** | §12 de `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` |
+| **Análisis de rendimiento de una demo** (medir SIEMPRE con el perfil `.amigaprofile` + IA local; hotspots por rutina y defectos de pantalla con visión) | `docs/tools/PROFILING_FROM_AGENT.md` |
 | **Copper y buffers de display** (`copper::Plan`, `MultiBuffered`, doble buffer de copperlist) | §6 de `docs/engine/architecture/DISPLAY_COMPOSITION.md` |
 | **Objetos: BOB ≠ polígono, transparencia, fondo, copper por objeto** | `docs/engine/architecture/OBJECT_SYSTEM.md` |
 | **Blitter / minterms / líneas y polígonos** | `docs/reference/amiga/techniques/README.md` y `blitter-line-subpixel-fill.md` |
