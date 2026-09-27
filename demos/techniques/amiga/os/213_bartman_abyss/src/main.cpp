@@ -135,7 +135,12 @@ struct AbyssDemo {
 		// Limpia la banda de juego (blit `D=0` encolado en el plan, en orden con los sprites) y
 		// dibuja los 16 BOB; el juego solo pinta y limpia con primitivas de `Screen`.
 		s.clear_box(eng::Box {0, 200, kWidth, 56u});
-		eng::u32 phase = app.frame() % 51u;
+		// Desfase de onda **sin división por frame** (regla de coste ~cero en el bucle): se mantiene
+		// el módulo 51 con un contador que envuelve, en vez de `app.frame() % 51u`.
+		eng::u32 phase = m_phase51;
+		if (++m_phase51 >= 51u) {
+			m_phase51 = 0u;
+		}
 		eng::u8 fi = 0u;
 		for (eng::u16 i = 0u; i < 16u; ++i) {
 			const eng::s16 x = static_cast<eng::s16>(
@@ -164,6 +169,7 @@ struct AbyssDemo {
 	eng::graphics::Sprite m_sprite {};
 	eng::effects::Gradient m_sky {};
 	eng::Assets m_assets {};
+	eng::u32 m_phase51 = 0u; ///< desfase de onda (módulo 51) sin división por frame
 	bool m_ready = false;
 };
 

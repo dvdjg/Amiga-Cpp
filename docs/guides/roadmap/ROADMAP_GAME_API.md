@@ -35,6 +35,11 @@ ENG_GAME_MAIN(MyGame);
 Todo lo que hoy **no** sea esto es trabajo de este roadmap: `configure_memory`, `res::load`, `Block<Tag, Chip>`,
 `INCBIN`+memcpy, `0x5200`, `os::set_frame_task`, `p61_needs_sample_buffer`, `bob.sheet/width/...`, `#if ENG_AMIGA`.
 
+**Premisa de coste** (canónica en [`CODING_STYLE.md`](../../engine/architecture/CODING_STYLE.md)): el API de juego es
+de **coste ~cero en el bucle de animación** — la fachada no añade ciclos por frame; el **setup** (init, carga,
+composición) puede ser lento; lo resoluble en compilación se resuelve con C++23 (`consteval`/`constexpr`,
+`if constexpr`, `concept`, parámetros `constexpr`).
+
 ## 1. Arranque cero-config
 
 - **Problema**: el juego llama `app.configure_memory({96k, 8k, 4k, 0})` y `comp::compose(...)` con `ocs_a500`,

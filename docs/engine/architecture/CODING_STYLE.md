@@ -12,6 +12,13 @@ abstraccion, pero sin perder control sobre memoria, coste y layout.
 - Sin dependencias de STL pesada en runtime Amiga.
 - Interfaces calientes mediante templates/concepts o funciones simples, no virtuales.
 - Polimorfismo runtime solo donde el coste este fuera de bucles criticos.
+- **Coste ~cero en el bucle de animación** (regla del API): la fachada **no debe añadir ciclos** sobre el
+  algoritmo del juego en el `update`/`render` por frame. El **setup** (init, carga, composición) **sí** puede
+  ser costoso o lento; lo que no se admite es **sobrecarga por frame**: `virtual`/dispatch runtime, copias,
+  reservas, `switch` de modo o consultas que podrían resolverse antes. El dato conocido en compilación se
+  resuelve con **C++23** (`consteval`/`constexpr`, plantillas, `if constexpr`, `concept`, parámetros
+  `constexpr`); el dato de runtime se pasa como **parámetro**, no se relee en el bucle. Criterio de diseño:
+  si una abstracción del API cuesta ciclos por frame, o se elimina en compilación o no entra en la capa A.
 - Recursos con ownership explicito: arena, pool o handle.
 - Datos para DMA siempre marcados por memoria objetivo: Chip, Slow, Fast o Any.
 - Cada unidad de codigo fuente debe estar comentada como un tutorial pequeno.
