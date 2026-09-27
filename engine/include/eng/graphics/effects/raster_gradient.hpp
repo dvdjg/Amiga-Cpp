@@ -62,6 +62,7 @@ public:
 			range.first = 1u;
 		}
 		m_range = range;
+		rebuild();
 	}
 
 	/// Copia la lista de colores clave (se recorta a `max_keys`).
@@ -71,9 +72,15 @@ public:
 			m_keys[i] = keys[i];
 		}
 		m_key_count = n;
+		rebuild();
 	}
 
-	void set_cyclic(bool cyclic) { m_cyclic = cyclic; }
+	/// Elige **ciclico** (la lista de claves se recorre en bucle) o **lineal** (extremos fijos);
+	/// recalcula la tabla (setup).
+	void set_cyclic(bool cyclic) {
+		m_cyclic = cyclic;
+		rebuild();
+	}
 
 	/// Desplaza el muestreo en unidades de clave (animacion del degradado).
 	void set_phase(u16 phase) { m_phase = phase; }
@@ -91,9 +98,10 @@ public:
 		}
 		const u16 bands = m_range.bands;
 		const u16 stride = static_cast<u16>(m_range.first) + 1u; // 1 o 2
+		const u16* const row = m_table[phase_index()];           // fila precalculada (sin divisiones)
 		u16 n = 0;
 		for (u16 b = 0; b < bands && n < cap; ++b) {
-			const u16 color = sample(b);
+			const u16 color = row[b];
 			const u16 slot = static_cast<u16>(b * 2u);
 			m_colors[static_cast<u16>(slot + m_range.first)] = color;
 			graphics::CopperIntent& it = out[n];
@@ -119,18 +127,33 @@ public:
 	}
 
 private:
-	/// Color de la banda `b`: interpola las claves en la posicion `b + phase` (en unidades
-	/// de clave), con o sin vuelta.
-	///
-	/// **Coste (regla `CODING_STYLE`, auditoria §12 del roadmap)**: hace `div_wide` **y** un `%` de
-	/// divisor **runtime** por banda y **cada frame** (≈`bands` divisiones/frame). Reducible **sin
-	/// cambiar el resultado**: `local = (b*span)%den` es **independiente de la fase** y
-	/// `seg = (b*span/den + phase) % k` -> se pueden **precalcular `q_b=(b*span)/den` y
-	/// `r_b=(b*span)%den`** en `set_keys` (setup, puede ser lento) y en el bucle dejar solo
-	/// `seg = (q_b + phase) % k` (una `&` si `k` es potencia de dos). Alternativa: tabla (fase x banda)
-	/// a cambio de RAM. **Cuidado al reescribir**: `div_wide` devuelve `s16` y `phase` puede excederlo
-	/// (la 213 usa `phase = frame`), asi que hay que **normalizar `phase` modulo el ciclo** para no truncar.
-	u16 sample(u16 b) const {
+	/// Indice de fase para la tabla (`phase % k`): **mascara** si `k` es potencia de dos, si no `%`
+	/// (una sola vez por `fill_intents`, no por banda -> cumple la regla de coste).
+	[[nodiscard]] u16 phase_index() const noexcept {
+		if (m_pow2) {
+			return static_cast<u16>(m_phase & m_pmask);
+		}
+		return (m_key_count != 0u) ? static_cast<u16>(m_phase % m_key_count) : 0u;
+	}
+
+	/// **Precalcula la tabla** `[fase][banda]` (una vez, en setup): `calc` para cada fase del ciclo
+	/// (`0..k-1`) y banda. Aqui si hay divisiones, pero es **setup**, no bucle.
+	void rebuild() {
+		const u16 k = m_key_count;
+		m_pow2 = (k != 0u) && ((k & static_cast<u16>(k - 1u)) == 0u);
+		m_pmask = m_pow2 ? static_cast<u16>(k - 1u) : 0u;
+		const u16 bands = m_range.bands;
+		for (u16 p = 0u; p < k; ++p) {
+			for (u16 b = 0u; b < bands; ++b) {
+				m_table[p][b] = calc(p, b);
+			}
+		}
+	}
+
+	/// Color de la banda `b` en la fase `phase` (0..`k-1`). Es la **matematica original** de muestreo
+	/// (interpola claves; lineal o ciclico); ahora solo la usa `rebuild` en **setup** para llenar
+	/// `m_table`. El bucle (`fill_intents`) **no la llama** -> cero divisiones por frame.
+	u16 calc(u16 phase, u16 b) const {
 		const s32 k = m_key_count;
 		const s32 bands = m_range.bands;
 		s32 span = m_cyclic ? k : (k - 1);
@@ -138,7 +161,7 @@ private:
 			span = 1;
 		}
 		const s32 den = m_cyclic ? bands : (bands > 1 ? bands - 1 : 1);
-		const s32 unum = static_cast<s32>(b) * span + static_cast<s32>(m_phase) * den;
+		const s32 unum = static_cast<s32>(b) * span + static_cast<s32>(phase) * den;
 		const s16 seg_raw = eng::math::div_wide(unum, static_cast<s16>(den));
 		const u16 local = static_cast<u16>(unum - static_cast<s32>(seg_raw) * den);
 		s32 seg = seg_raw % k;
@@ -164,6 +187,14 @@ private:
 	graphics::CopperIntent m_intents[max_bands] {};
 	/// Dos slots por banda para que la vista `colors[first]` sea valida con `first` = 0 o 1.
 	eng::util::Array<u16, max_bands * 2u> m_colors {};
+	/// **Tabla precalculada** `[fase % k][banda]`: color de cada banda para cada fase del ciclo. La
+	/// rellena `rebuild` (setup) y el bucle solo **copia** la fila de la fase — sin divisiones.
+	/// Coste en RAM: `max_keys * max_bands * 2` bytes (2 KB con los maximos; menos si son menores).
+	u16 m_table[max_keys][max_bands] {};
+	/// `true` si `m_key_count` es **potencia de dos** -> el indice de fase es una **mascara** (`&`), no `%`.
+	bool m_pow2 = false;
+	/// Mascara `m_key_count - 1` cuando `m_pow2` (si no, 0).
+	u16 m_pmask = 0;
 };
 
 } // namespace eng::graphics::effects

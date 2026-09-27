@@ -160,13 +160,12 @@ Camino `update`/`render` de la 213 revisado con la regla «coste ~cero en el buc
   Es el trabajo del frame, no sobrecarga. OK.
 - **`AudioSystem::update_music`** (lo llama `App::on_vblank`): `P61_Music` + armado de DMA, una vez por VBlank. OK.
 - **`App::on_vblank`**: `os::tick` (entrada/timers) + tick de audio + post del puerto. Acotado. OK.
-- **`effects::Gradient::frame` — NO cumple**: `RasterGradient::apply_into` recalcula el color de **cada banda cada
-  frame** con `div_wide` **y un `% k` de divisor runtime** (división real) → ~`bands` divisiones/frame (15 en la
-  213, ≈4–6 % de un frame PAL). **Fix propuesto**: `local = (b*span)%den` es **independiente de la fase** y
-  `seg = (b*span/den + phase) % k` → precalcular `q_b`/`r_b` por banda en `set_keys` (setup) y dejar el bucle con
-  `seg = (q_b + phase) % k` (una `&` si `k` es potencia de dos). Alternativa: tabla (fase × banda) a cambio de RAM.
-  Pendiente (hot path, con test de equivalencia). **Ojo**: `div_wide` devuelve `s16` y `phase` puede excederlo
-  (la 213 usa `phase = frame`) → normalizar `phase` módulo el ciclo al reescribir.
+- **`effects::Gradient::frame` — RESUELTO**: `RasterGradient` **precalcula en setup** una tabla `[fase][banda]`
+  (`rebuild` en `configure`/`set_keys`/`set_cyclic`) y el bucle **solo copia la fila** de la fase (`phase_index`:
+  **máscara** si `k` es potencia de dos, si no un `%`). Cero divisiones por banda (antes ~`5*bands`: el `div_wide` más
+  los 3 `divs.w` de `lerp444`). Coste en RAM: `max_keys*max_bands*2` bytes (2 KB con los máximos). Equivalencia de
+  colores verificada con **HOST-134**. Bonus: la tabla usa fases `0..k-1` → no sufre el truncado `s16` del original
+  cuando `phase` es grande (la 213 usa `phase = frame`).
 
 ## 13. Relación con otros documentos
 
