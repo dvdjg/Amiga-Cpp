@@ -77,28 +77,70 @@ function runtimeAddr(linked, ms, rs) {
 
 const RUN_STATUS_MAGIC = '0x454e4752';
 
-/// Resuelve la direccion runtime de `g_eng_run_status` de forma robusta: primero el
-/// mapeo por indice; si el magic no coincide (el runtime incluye `.eh_frame` y el .map
-/// no, o hay un `.s` extra de `support/` que desalinea), escanea cada seccion runtime.
-/// Mismo criterio que `tools/profile/launch-winuae.mjs`.
+/// Resuelve la direccion runtime de `g_eng_run_status` de forma robusta. Candidatos, en orden,
+/// validados con `runstatus` (magic + `version === 1`):
+///   1) mapeo por indice (seccion `.map` -> seccion runtime);
+///   2) **mismo offset dentro de CADA seccion runtime** (el numero/orden de hunks runtime no
+///      casa con el `.map`: p. ej. `.rodata`/`.data` desplazadas por assets o un `.s` de support);
+///   3) inicio de cada seccion runtime;
+///   4) escaneo amplio de memoria buscando el magic big-endian (ENGR).
+/// Devuelve `null` si ningun candidato valida. El check `version === 1` descarta falsos
+/// positivos del escaneo (bytes "ENGR" en codigo/strings).
 async function resolveRunStatusAddr(linked, ms, rs) {
   const ok = async (addr) => {
     if (!addr) return false;
-    const r = await sideChannelCommand('runstatus 0x' + addr.toString(16), SIDE_PORT, 2000);
-    const v = r.reply;
-    return !!(v && v.magic === RUN_STATUS_MAGIC);
+    try {
+      const r = await sideChannelCommand('runstatus 0x' + addr.toString(16), SIDE_PORT, 2000);
+      const v = r.reply;
+      return !!(v && v.magic === RUN_STATUS_MAGIC && v.version === 1);
+    } catch {
+      return false;
+    }
   };
-  if (!Array.isArray(rs) || rs.length === 0) return 0;
-  // Offset del simbolo dentro de su seccion del `.map`. El `.map` puede OMITIR secciones que el
-  // runtime si carga (p. ej. `.eh_frame`), asi que el indice no casa: se prueba el MISMO offset en
-  // cada seccion runtime y se elige la que devuelva el magic de `g_eng_run_status`.
+  if (!Array.isArray(rs) || rs.length === 0) return null;
   const cand = ms.find((s) => linked >= s.start && linked < s.end);
   const off = cand ? (linked - cand.start) : (linked - 0x400);
+  // 1) Mapeo por indice (seccion del `.map` -> seccion runtime).
+  const idx = cand ? ms.indexOf(cand) : -1;
+  if (cand && rs.length > idx) {
+    const a = parseInt(rs[idx], 16) + off;
+    if (await ok(a)) return a;
+  }
+  // 2) MISMO offset dentro de CADA seccion runtime: el numero/orden de hunks runtime no casa con
+  //    el `.map` (p. ej. `.rodata` partida por assets), asi que se prueba cada base con el offset
+  //    que el simbolo tiene en su seccion del `.map`.
   for (const sec of rs) {
     const a = parseInt(sec, 16) + off;
     if (await ok(a)) return a;
   }
-  return 0;
+  // 3) Inicio de cada seccion runtime.
+  for (const sec of rs) {
+    const a = parseInt(sec, 16);
+    if (a && await ok(a)) return a;
+  }
+  // 3) Escaneo AMPLIO de memoria (de la 1.ª a la última sección + margen): el símbolo no cae
+  //    al inicio de un hunk y los hunks runtime no casan con el `.map` (p. ej. `.data` tras
+  //    `.rodata` con assets). Se busca el magic big-endian (ENGR) y se valida con `runstatus`.
+  if (rs.length) {
+    const lo = parseInt(rs[0], 16);
+    const hi = parseInt(rs[rs.length - 1], 16) + 0x8000;
+    for (let base = lo; base < hi; base += 0x1000) {
+      try {
+        const r = await sideChannelCommand('mem 0x' + base.toString(16) + ' 4096', SIDE_PORT, 2500);
+        const hex = (r && r.reply && typeof r.reply.data === 'string') ? r.reply.data : null;
+        if (!hex) continue;
+        for (let from = 0; ; from += 2) {
+          const j = hex.indexOf('454e4752', from);
+          if (j < 0) break;
+          if ((j & 1) === 0) {
+            const candidate = base + (j >> 1);
+            if (await ok(candidate)) return candidate;
+          }
+        }
+      } catch { /* noop */ }
+    }
+  }
+  return null;
 }
 
 // La medida exige que el `a.exe` montado en `dh1` sea EXACTAMENTE la build cuyo
@@ -132,7 +174,7 @@ const st = await sideChannelCommand('state', SIDE_PORT, 5000);
 const linked = findMapSymbol('g_eng_run_status');
 const magicAddr = linked !== null ? await resolveRunStatusAddr(linked, mapSections(), st.reply.sections) : null;
 console.log('[fps] map=' + MAP + ' linked=' + (linked ?? 'null') + ' runtime=0x' + (magicAddr ?? 0).toString(16));
-if (magicAddr === null) {
+if (!magicAddr) {
   console.log('[fps] no se pudo resolver g_eng_run_status (¿map? ¿sections?)');
   await conn.disconnect(true);
   process.exit(1);
