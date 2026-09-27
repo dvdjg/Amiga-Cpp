@@ -429,4 +429,12 @@ bool compose(Scene& scene, MemorySystem& memory, const SceneResources& res,
 	return scene.end_build();
 }
 
+/// **Composición de juego sin config explícita**: perfil OCS/A500 y display derivado de `res`
+/// (modo/planos/geometría) + paleta. Es la vía del juego (`ROADMAP_GAME_API.md` §1): el motor elige
+/// el perfil y el `BPLCON0`; el `compose` con `DisplayLimits` + etapas queda como escape.
+inline bool compose(Scene& scene, MemorySystem& memory, const SceneResources& res,
+		    eng::PaletteWords colors, u8 first = 0u, u8 count = 32u) {
+	return compose(scene, memory, res, ocs_a500, display(res), palette(colors, first, count));
+}
+
 } // namespace eng::graphics::composition

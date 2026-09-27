@@ -62,6 +62,8 @@ Todo lo que hoy **no** sea esto es trabajo de este roadmap: `configure_memory`, 
   `SceneResources`/`ocs_a500`/`BPLCON0` (`comp::display(res, 0x5200)`) en código de juego.
 - **Salida**: el juego dibuja solo con `Screen`; el display se pide a alto nivel ("fondo 320x256, N planos, esta
   imagen/paleta") y `Scene`/`Band`/`BPLCON0`/copperlist quedan tras el motor y el escape.
+- **Progreso**: ✅ `comp::compose(scene, memory, res, paleta)` compone **sin** `DisplayLimits`/`BPLCON0`; la 213 ya
+  no nombra `ocs_a500` ni `0x5200`. ⏳ falta: la **imagen de fondo** por la fachada (hoy `bitplanes().raw()` + memcpy).
 
 ## 4. Assets tipados con formato resuelto
 

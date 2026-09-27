@@ -71,9 +71,8 @@ struct AbyssDemo {
 		comp::SceneResources res = comp::planar(kWidth, kHeight, kPlanes);
 		res.layout = comp::SceneLayout::Interleaved; // el bitmap abyss es interleaved
 		const eng::u16* pal = reinterpret_cast<const eng::u16*>(abyss_pal);
-		if (!comp::compose(m_scene, app.device().memory(), res, comp::ocs_a500,
-				   comp::display(res, 0x5200u), // 5 planos + COLOR
-				   comp::palette(eng::PaletteWords {pal, 32u}, 0u, 32u))) {
+		// El motor elige perfil y `BPLCON0` (sin `ocs_a500`/`0x5200` en el código de juego).
+		if (!comp::compose(m_scene, app.device().memory(), res, eng::PaletteWords {pal, 32u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021302u);
 			return;
 		}
