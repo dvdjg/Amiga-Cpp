@@ -2,7 +2,7 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Amiga-Optimizations: compilar archivo actual",
+      "label": "Amiga: compilar archivo actual",
       "type": "process",
       "command": "C:\\Program Files\\Git\\bin\\bash.exe",
       "args": [
@@ -15,7 +15,7 @@
       "problemMatcher": []
     },
     {
-      "label": "Amiga-Optimizations: compilar archivo actual (optimizado)",
+      "label": "Amiga: compilar archivo actual (optimizado)",
       "type": "process",
       "command": "C:\\Program Files\\Git\\bin\\bash.exe",
       "args": [

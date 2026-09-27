@@ -10,6 +10,16 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+# Invalida SIEMPRE el binario publicado al EMPEZAR. Si la resolucion del target o el build
+# fallan (p. ej. `set -e` sale en `build-demo.sh`), NO debe quedar un `current` viejo que el
+# depurador arranque como si fuera la demo activa ("ejecuta lo que le de la gana"). Solo se
+# republica al final, en exito.
+CURRENT_OUT="$ROOT/out/debug-current"
+mkdir -p "$CURRENT_OUT"
+rm -f "$CURRENT_OUT/current" "$CURRENT_OUT/current.exe" "$CURRENT_OUT/current.elf" \
+      "$CURRENT_OUT/current.map" "$CURRENT_OUT/current.s"
+
 SOURCE_INPUT="${1:-}"
 if [ -z "$SOURCE_INPUT" ]; then
 	echo "Uso: tools/debug/build-current-demo.sh <archivo-fuente>" >&2

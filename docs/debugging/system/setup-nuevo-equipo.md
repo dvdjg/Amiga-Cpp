@@ -74,7 +74,8 @@ Configuración en `.vscode/launch.json` (`type: "amiga"`, `breakpointRelocation:
 La carpeta `.vscode/` NO se versiona (`.*/` en `.gitignore`): cada máquina
 tiene su propia config de editor. Al montar un equipo nuevo hay que recrearla:
 
-**`.vscode/launch.json`** (solo la config `amiga`; NO incluir la "C/C++ Runner"
+**`.vscode/launch.json`** (solo configs `amiga`: **debug** y **optimizada**, las dos
+compilan el `src` del archivo ACTIVO (`${file}`); NO incluir la "C/C++ Runner"
 generada por cpptools, que referencia `outDebug` y rutas absolutas):
 
 ```json
@@ -84,12 +85,26 @@ generada por cpptools, que referencia `outDebug` y rutas absolutas):
     {
       "type": "amiga",
       "request": "launch",
-      "name": "Amiga 500: depurar archivo actual",
+      "name": "Amiga 500: depurar archivo actual (debug)",
       "preLaunchTask": "Amiga: compilar archivo actual",
       "config": "A500",
       "program": "${workspaceFolder}/out/debug-current/current",
       "stopOnEntry": false,
       "breakpointRelocation": true,
+      "kickstart": "C:/Amiga/KICK13.rom",
+      "stack": "65536",
+      "emuargs": ["-norawinput_mouse"],
+      "internalConsoleOptions": "openOnSessionStart"
+    },
+    {
+      "type": "amiga",
+      "request": "launch",
+      "name": "Amiga 500: ejecutar archivo actual (optimizado)",
+      "preLaunchTask": "Amiga: compilar archivo actual (optimizado)",
+      "config": "A500",
+      "program": "${workspaceFolder}/out/debug-current/current_opt",
+      "stopOnEntry": false,
+      "breakpointRelocation": false,
       "kickstart": "C:/Amiga/KICK13.rom",
       "stack": "65536",
       "emuargs": ["-norawinput_mouse"],
@@ -112,10 +127,20 @@ generada por cpptools, que referencia `outDebug` y rutas absolutas):
       "args": ["-lc", "./tools/debug/build-current-demo.sh \"$(cygpath -u '${file}')\""],
       "options": { "cwd": "${workspaceFolder}" },
       "problemMatcher": []
+    },
+    {
+      "label": "Amiga: compilar archivo actual (optimizado)",
+      "type": "process",
+      "command": "C:\\\\Program Files\\\\Git\\\\bin\\\\bash.exe",
+      "args": ["-lc", "./tools/debug/build-current-demo-opt.sh \"$(cygpath -u '${file}')\""],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
     }
   ]
 }
 ```
+
+La config **(debug)** compila con `--debug` (-O1, depuracion fiable); la **(optimizado)** con `--release` (-O2). La unica diferencia es el nivel de optimizacion, y las dos compilan el `src` del archivo ACTIVO.
 
 **`.vscode/c_cpp_properties.json`** (IntelliSense → compilador Amiga m68k, no `gcc`/MSVC):
 
