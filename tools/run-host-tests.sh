@@ -85,6 +85,11 @@ if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 		echo "== links =="
 		node "$LINKS_CHECK"
 	fi
+	CAST_CHECK="$ROOT/tools/analyze/cast-audit.mjs"
+	if [ -f "$CAST_CHECK" ] && command -v node >/dev/null 2>&1; then
+		echo "== casts =="
+		node "$CAST_CHECK" --check
+	fi
 	MATH_DIAG="$ROOT/tools/check/math-diagnostics.sh"
 	if [ -f "$MATH_DIAG" ]; then
 		echo "== math-diagnostics =="
