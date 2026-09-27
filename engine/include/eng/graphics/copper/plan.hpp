@@ -119,6 +119,7 @@ public:
 		m_cost_count = 0;
 		m_over_effect = no_effect;
 		m_overflow = false;
+		m_slot_count = 0;
 		m_sched.retarget(m_copper->inactive_block()); // sin copiar la Timeline (512+ B)
 	}
 
@@ -219,10 +220,27 @@ public:
 		// emite de una en una pero con el emisor inline (sin coste de llamada por elemento).
 		ENG_PROF_BEGIN(eng::debug::prof_emit);
 		for (u16 i = 0; i < m_count; ++i) {
-			m_sched.emit_copper_intents_fast(&m_intents[m_perm[i]], 1u);
+			const u16 idx = m_perm[i];
+			m_sched.emit_copper_intents_fast(&m_intents[idx], 1u);
+			// Registra la última palabra emitida (la de DATO de una `PaletteLine` de 1 color)
+			// y la identidad de la intención, para que un efecto pre-construido pueda
+			// **parchear por frame** sin re-emitir la lista (ver `slot_*`).
+			m_slot_word[i] = static_cast<u16>(m_sched.words_used() - 1u);
+			m_slot_reg[i] = m_intents[idx].first;
+			m_slot_line[i] = m_intents[idx].top;
 		}
+		m_slot_count = m_count;
 		ENG_PROF_END(eng::debug::prof_emit);
 	}
+
+	/// Slots de las intenciones materializadas en el último `materialize()` (misma cantidad
+	/// que intenciones emitidas). Permiten que un efecto **pre-construido una vez** (setup)
+	/// actualice sus colores por frame escribiendo solo la palabra de DATO, sin re-emitir.
+	/// Casan por identidad `(slot_reg, slot_line)`; típicamente `PaletteLine` de 1 color.
+	[[nodiscard]] constexpr u16 slot_count() const { return m_slot_count; }
+	[[nodiscard]] constexpr u16 slot_word(u16 j) const { return m_slot_word[j]; }
+	[[nodiscard]] constexpr u8 slot_reg(u16 j) const { return m_slot_reg[j]; }
+	[[nodiscard]] constexpr u16 slot_line(u16 j) const { return m_slot_line[j]; }
 
 	/// Cierra la lista (`end`), guarda el informe y **voltea** el buffer. Devuelve false si
 	/// hubo overflow o la lista no cupo; en ese caso no debe publicarse.
@@ -333,6 +351,10 @@ private:
 	eng::util::Array<graphics::CopperIntent, max_intents> m_intents {}; ///< intenciones registradas este frame
 	eng::util::Array<u16, max_intents> m_prio {};      ///< (superficie << 8) | z
 	eng::util::Array<u16, max_intents> m_perm {};      ///< orden de emisión (índices a `m_intents`)
+	eng::util::Array<u16, max_intents> m_slot_word {}; ///< palabra de DATO de cada intent materializado
+	eng::util::Array<u8, max_intents> m_slot_reg {};   ///< registro COLOR de arranque (identidad del slot)
+	eng::util::Array<u16, max_intents> m_slot_line {}; ///< línea raster (identidad del slot)
+	u16 m_slot_count = 0; ///< nº de slots registrados en el último `materialize()`
 	eng::util::Array<u16, 257u> m_line_start {};       ///< inicio de grupo por línea
 	/// Contadores del counting sort: miembros (no pila) para que el compilador no
 	/// reconstruya el marco ni recalcule punteros a la pila en cada acceso.

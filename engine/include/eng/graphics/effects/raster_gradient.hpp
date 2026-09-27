@@ -126,6 +126,42 @@ public:
 		plan.add(m_intents, n);
 	}
 
+	/// Tras **materializar** sus intenciones una vez (setup), casa cada banda con la palabra de
+	/// DATO que el `Plan` registró (por registro+fila). Habilita la animación barata: a partir
+	/// de aquí `patch_into` solo reescribe esas palabras, sin re-emitir la copperlist. Si el
+	/// `Plan` no expone slots (`slot_count`), la animación por parcheo queda desactivada.
+	template <typename Plan>
+	void bind_slots(const Plan& plan) {
+		for (u16 b = 0; b < m_range.bands; ++b) {
+			m_slot[b] = no_slot;
+			const u16 line = static_cast<u16>(m_range.first_line +
+							 static_cast<u32>(b) * m_range.band_height);
+			for (u16 j = 0; j < plan.slot_count(); ++j) {
+				if (plan.slot_reg(j) == m_range.first && plan.slot_line(j) == line) {
+					m_slot[b] = plan.slot_word(j);
+					break;
+				}
+			}
+		}
+	}
+
+	/// Actualiza los colores del degradado en la lista ya materializada (por frame): recalcula
+	/// la fila de la fase (sin divisiones) y escribe **solo las palabras de dato** (coste ~0).
+	/// Requiere `bind_slots` tras el `materialize` del setup.
+	template <typename Plan>
+	void patch_into(Plan& plan) const {
+		if (m_key_count == 0u) {
+			return;
+		}
+		const u16* const row = m_table[phase_index()];
+		u16* const words = plan.active_words();
+		for (u16 b = 0; b < m_range.bands; ++b) {
+			if (m_slot[b] != no_slot) {
+				words[m_slot[b]] = row[b];
+			}
+		}
+	}
+
 private:
 	/// Indice de fase para la tabla (`phase % k`): **mascara** si `k` es potencia de dos, si no `%`
 	/// (una sola vez por `fill_intents`, no por banda -> cumple la regla de coste).
@@ -195,6 +231,10 @@ private:
 	bool m_pow2 = false;
 	/// Mascara `m_key_count - 1` cuando `m_pow2` (si no, 0).
 	u16 m_pmask = 0;
+	/// Palabra de DATO por banda en la copperlist ya materializada (`no_slot` si no casó). La
+	/// fija `bind_slots` en setup; la usa `patch_into` para animar sin re-emitir.
+	static constexpr u16 no_slot = 0xffffu;
+	eng::util::Array<u16, max_bands> m_slot {};
 };
 
 } // namespace eng::graphics::effects

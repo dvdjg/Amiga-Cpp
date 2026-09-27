@@ -72,8 +72,23 @@ struct AbyssDemo {
 		comp::SceneResources res = comp::planar(kWidth, kHeight, kPlanes);
 		res.layout = comp::SceneLayout::Interleaved; // el bitmap abyss es interleaved
 		const eng::u16* pal = reinterpret_cast<const eng::u16*>(abyss_pal);
+
+		// --- Efecto de alto nivel: degradado de COLOR00 (líneas 0x41..0x4f) ----------------
+		// Se configura **antes** del build: entra como etapa del setup y `bind` deja sus
+		// palabras de dato registradas para animarlas luego por frame.
+		eng::u16 keys[15] {};
+		for (eng::u8 i = 0u; i < 15u; ++i) {
+			keys[i] = static_cast<eng::u16>(0x0111u * (i + 1u));
+		}
+		(void)m_sky.attach({.first_line = 0x41u, .band_height = 1u, .bands = 15u, .first = 0u},
+				   eng::Span<const eng::u16> {keys, 15u}, false);
+
 		// El motor elige perfil y `BPLCON0` (sin `ocs_a500`/`0x5200` en el código de juego).
-		if (!comp::compose(m_scene, app.device().memory(), res, eng::PaletteWords {pal, 32u})) {
+		// El degradado se **materializa una vez** aquí (etapa del build) y queda **animable** por
+		// parcheo (`m_sky.patch` por frame), sin re-emitir la copperlist.
+		if (!comp::compose(m_scene, app.device().memory(), res, comp::ocs_a500,
+				   comp::display(res), comp::palette(eng::PaletteWords {pal, 32u}),
+				   [this](comp::Scene& sc) { m_sky.bind(sc); })) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021302u);
 			return;
 		}
@@ -107,14 +122,6 @@ struct AbyssDemo {
 		desc.draw = eng::graphics::BobDraw::CookieCut;
 		desc.mask_pack = eng::graphics::BobMaskPack::InterleavedPair;
 		m_sprite = m_assets.sprite("bob", desc);
-
-		// --- Efecto de alto nivel: degradado de COLOR00 (líneas 0x41..0x4f) ----------------
-		eng::u16 keys[15] {};
-		for (eng::u8 i = 0u; i < 15u; ++i) {
-			keys[i] = static_cast<eng::u16>(0x0111u * (i + 1u));
-		}
-		(void)m_sky.attach({.first_line = 0x41u, .band_height = 1u, .bands = 15u, .first = 0u},
-				   eng::Span<const eng::u16> {keys, 15u}, false);
 
 		// --- Música por la fachada de audio ------------------------------------------------
 		// El engine resuelve **formato** y **buffer** (§4/§2) y **conduce** la música en su VBlank:
@@ -156,7 +163,7 @@ struct AbyssDemo {
 			}
 			s.sprite(m_sprite, x, y, frame);
 		}
-		m_sky.frame(m_scene); // aporta el degradado al plan del frame
+		m_sky.patch(m_scene); // anima el degradado parcheando la lista ya construida
 		app.present();
 
 		if (m_ready && app.frame() < 2u) {

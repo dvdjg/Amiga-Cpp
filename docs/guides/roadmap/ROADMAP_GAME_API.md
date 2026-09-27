@@ -158,6 +158,15 @@ Camino `update`/`render` de la 213 revisado con la regla «coste ~cero en el buc
   reservas); `Sprite::draw` calcula los jobs **sin divisiones**. OK.
 - **`Screen::present`/`Scene::commit`**: ejecuta el plan (Blitter) y parchea los `BPLxPT` (unos `MOVE` de copper).
   Es el trabajo del frame, no sobrecarga. OK.
+- **Efectos dinámicos en la ruta planar — RESUELTO**: la copperlist se construye **una sola vez** en el setup
+  (`compose`) y por frame solo se parcheaban los `BPLxPT`; los `plan.add(...)` de efectos por frame
+  (`Gradient::frame`, `SpriteLayer::frame`) **no se materializaban** (no-op silencioso: la animación se perdía).
+  El `Plan` registra ahora, en su `materialize()`, la **palabra de dato** de cada intención materializada
+  (`slot_word`/`slot_reg`/`slot_line`); el efecto la **ata** tras el materialize del setup
+  (`RasterGradientEffect::bind_slots`) y por frame **parchea solo esas palabras** (`patch_into`), sin re-emitir.
+  La API lo expone como `Gradient::bind(scene)` (setup) + `Gradient::patch(scene)` (frame). Verificado con
+  **HOST-134** (los colores cambian de fase en su sitio, no solo la estructura). `SpriteLayer::emit_into`
+  (emite O(líneas×canales)) queda como candidato al mismo tratamiento cuando se use por frame.
 - **`AudioSystem::update_music`** (lo llama `App::on_vblank`): `P61_Music` + armado de DMA, una vez por VBlank. OK.
 - **`App::on_vblank`**: `os::tick` (entrada/timers) + tick de audio + post del puerto. Acotado. OK.
 - **`effects::Gradient::frame` — RESUELTO**: `RasterGradient` **precalcula en setup** una tabla `[fase][banda]`

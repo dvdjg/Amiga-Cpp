@@ -103,6 +103,19 @@ public:
 	/// Aporta al plan de la escena (azúcar de `apply_into(scene.plan())`).
 	void frame(graphics::composition::Scene& scene) { m_fx.apply_into(scene.plan()); }
 
+	/// Aporta el degradado al plan del **setup** y **ata sus palabras de dato** (una sola vez):
+	/// materializa las intenciones y registra dónde quedaron. Después, `patch` anima por frame
+	/// reescribiendo solo esas palabras, sin re-emitir la copperlist (coste ~0 en el bucle).
+	/// Equivale a la etapa que aporta intenciones fijas pero dejándolas **animables**.
+	void bind(graphics::composition::Scene& scene) {
+		m_fx.apply_into(scene.plan());
+		scene.plan().materialize();
+		m_fx.bind_slots(scene.plan());
+	}
+
+	/// Anima el degradado **parcheando** la lista ya construida (tras `bind`). Por frame.
+	void patch(graphics::composition::Scene& scene) const { m_fx.patch_into(scene.plan()); }
+
 	[[nodiscard]] eng::u16 bands() const noexcept { return m_fx.bands(); }
 
 private:

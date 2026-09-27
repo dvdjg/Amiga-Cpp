@@ -88,15 +88,17 @@ async function resolveRunStatusAddr(linked, ms, rs) {
     const v = r.reply;
     return !!(v && v.magic === RUN_STATUS_MAGIC);
   };
-  const cand = runtimeAddr(linked, ms, rs);
-  if (cand && await ok(cand)) return cand;
-  if (Array.isArray(rs)) {
-    for (const sec of rs) {
-      const a = parseInt(sec, 16);
-      if (a && await ok(a)) return a;
-    }
+  if (!Array.isArray(rs) || rs.length === 0) return 0;
+  // Offset del simbolo dentro de su seccion del `.map`. El `.map` puede OMITIR secciones que el
+  // runtime si carga (p. ej. `.eh_frame`), asi que el indice no casa: se prueba el MISMO offset en
+  // cada seccion runtime y se elige la que devuelva el magic de `g_eng_run_status`.
+  const cand = ms.find((s) => linked >= s.start && linked < s.end);
+  const off = cand ? (linked - cand.start) : (linked - 0x400);
+  for (const sec of rs) {
+    const a = parseInt(sec, 16) + off;
+    if (await ok(a)) return a;
   }
-  return cand;
+  return 0;
 }
 
 // La medida exige que el `a.exe` montado en `dh1` sea EXACTAMENTE la build cuyo
