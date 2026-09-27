@@ -47,6 +47,9 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
 - **Salida**: `ENG_GAME_MAIN(Game)` bootea hardware (detección en `eng::hw`), elige memoria y un display por defecto
   (320x256, planos según el fondo que pida el juego), y llama `init/update/render`. El juego **no** nombra
   `MemoryConfig`, `SceneResources`, `ocs_a500` ni registros.
+- **Decisión (`configure_memory`)**: el default del engine será «todo lo posible menos headroom» (sin **restringir**,
+  regla §1.1 del API), detectado con `hw`/`AvailMem`; el juego podrá **ajustar** (dejará de ser obligatorio
+  configurar). Pendiente de implementar.
 
 ## 2. Audio auto-conducido (el eslabón con más dolor)
 
@@ -83,6 +86,9 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
   **por nombre**; la 213 ya **no** usa `res::load` ni `Block<BobTag>/<MusicTag>` (sprite y música por nombre). ✅ el
   audio resuelve **formato** (detección por cabecera) y **buffer** (§2). ⏳ falta: el **bitmap de fondo** por nombre
   (`bytes()` existe, pero la 213 copia a mano) y quitar el `INCBIN` del código de juego.
+- **Decisión (geometría del sprite)**: el `desc` (ancho/alto/planos/frames/stride) se queda como **dato del juego**
+  hasta que exista un **pipeline/tabla** que lo incruste con el blob (cabecera por asset). No se inventa un formato
+  ahora: incrustar geometría es decisión del pipeline, no del API.
 
 ## 5. Actores, animación y colisión (2D)
 
@@ -144,7 +150,22 @@ arenas / `MemoryManager` bancos), nunca `AllocMem` suelto. Estado:
   `Block<Tag>` desaparece.
 - **`configure_memory`** sigue siendo manual (§1): el juego no debería elegir pool ni tamaños.
 
-## 12. Relación con otros documentos
+## 12. Auditoría de coste del bucle (regla `CODING_STYLE`)
+
+Camino `update`/`render` de la 213 revisado con la regla «coste ~cero en el bucle»:
+
+- **`Screen::sprite`/`clear_box`/`blit`**: encolan un `BlitJob` en el `FramePlan` (array de capacidad fija, sin
+  reservas); `Sprite::draw` calcula los jobs **sin divisiones**. OK.
+- **`Screen::present`/`Scene::commit`**: ejecuta el plan (Blitter) y parchea los `BPLxPT` (unos `MOVE` de copper).
+  Es el trabajo del frame, no sobrecarga. OK.
+- **`AudioSystem::update_music`** (lo llama `App::on_vblank`): `P61_Music` + armado de DMA, una vez por VBlank. OK.
+- **`App::on_vblank`**: `os::tick` (entrada/timers) + tick de audio + post del puerto. Acotado. OK.
+- **`effects::Gradient::frame` — NO cumple**: `RasterGradient::apply_into` recalcula el color de **cada banda cada
+  frame** con `div_wide` **y un `% k` de divisor runtime** (división real) → ~`bands` divisiones/frame (15 en la
+  213, ≈4–6 % de un frame PAL). **Fix propuesto**: precalcular en `attach` una tabla de colores (fase × banda) y en
+  el bucle **solo indexar** (sin división); el setup puede ser lento. Pendiente (hot path, con su test de equivalencia).
+
+## 13. Relación con otros documentos
 
 - Visión de las dos capas: [`GAME_API_TWO_LEVELS.md`](../../engine/architecture/GAME_API_TWO_LEVELS.md).
 - Audio (contrato actual): [`MUSIC_PLAYER.md`](../../engine/architecture/MUSIC_PLAYER.md), [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
