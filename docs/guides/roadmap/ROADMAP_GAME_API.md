@@ -54,21 +54,24 @@ Todo lo que hoy **no** sea esto es trabajo de este roadmap: `configure_memory`, 
 - **Nota**: unificar el vocabulario (ver §8): `play_sfx`/`play_music` en `AudioSystem`; `sfx()` deja de exponerse a juego.
 - **Progreso**: ✅ el `App` **avanza la música en su latido** (`on_vblank` → `audio().update_music()`); la 213 ya **no** llama `os::set_frame_task` ni tiene `music_tick`/`m_audio`. ⏳ falta: que `play_music` **resuelva el formato y el buffer de descompresión** (que el juego no vea `p61_needs_sample_buffer`/`reserve<AudioTag>`).
 
-## 3. `Screen` de juego (5 primitivas) y ocultar el display
+## 3. `Screen` de juego y ocultar el display
 
-- **Problema**: hoy hay **siete** tipos para "dibujar" (`Screen`, `DrawTarget`, `Surface`, `Playfield`,
-  `CanvasPlayfield`, `Rasterizer`, `FramePlan`) y el juego **sí** toca `Scene`/`Band`/`BPLCON0`/`bitplanes().raw()`
-  (213 copia la imagen a mano).
-- **Salida**: una sola superficie de juego con `cls(color)`, `rect(x,y,w,h,color)`, `line`, `text(x,y,cstr)`,
-  `sprite(anim,i,x,y)`, `blit`. `Scene`/`Band`/`BPLCON0`/copperlist quedan **solo** para el motor y el escape.
+- **Estado (corrección de la revisión)**: las **primitivas ya existen** — `Screen::clear`, `fill(Box,color)`,
+  `frame`, `line`, `text`, `clear_box`, `sprite`, `erase_sprite`, `blit`, `c2p`. No es una carencia de API.
+- **Problema real**: la demo 213 **no las usa** (copia `bitplanes().raw()` a mano) y el montaje del display mete
+  `SceneResources`/`ocs_a500`/`BPLCON0` (`comp::display(res, 0x5200)`) en código de juego.
+- **Salida**: el juego dibuja solo con `Screen`; el display se pide a alto nivel ("fondo 320x256, N planos, esta
+  imagen/paleta") y `Scene`/`Band`/`BPLCON0`/copperlist quedan tras el motor y el escape.
 
 ## 4. Assets tipados con formato resuelto
 
-- **Problema**: la 213 hace `INCBIN` + un `for` de memcpy a `bitplanes().raw()`; y `res::load<Tag>` para bob/mod/pal;
-  el juego gestiona Chip y alineación.
-- **Salida**: `app.assets().sprite("hero")`, `.music("level1")`, `.sfx("boom")`, `.tilemap("cave")`, `.palette("x")`.
-  El engine resuelve **formato**, medio (Chip cuando toca), alineación y `INCBIN`/pipeline. Devuelve handles de dominio
-  (`Sprite`, `Anim`, `Sound`), no `Block<Tag>` ni punteros.
+- **Estado (corrección)**: existen `App::assets()` (`res::AssetRuntime`), `AssetTable` (blobs por nombre/dominio) y
+  `res::load<Tag>`. No faltan del todo.
+- **Problema real**: la 213 **no los usa** (emplea `INCBIN` + `res::load` + un `memcpy` a `bitplanes().raw()`), y no
+  hay accesores de **dominio** con el **formato** resuelto (`assets().sprite("hero")` → `Sprite`, `.music("n")`,
+  `.sfx("n")`, `.tilemap("n")`).
+- **Salida**: `auto hero = app.assets().sprite("hero"); app.audio().play_music(app.assets().music("n"));` — sin
+  `INCBIN`, sin `Block<Tag>`, sin memcpy, sin `reserve<AudioTag>`.
 
 ## 5. Actores, animación y colisión (2D)
 
