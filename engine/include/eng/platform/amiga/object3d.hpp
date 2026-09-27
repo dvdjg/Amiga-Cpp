@@ -108,30 +108,32 @@ struct Face {
 class MeshBlob {
 public:
 	constexpr MeshBlob() noexcept = default;
-	constexpr MeshBlob(eng::u8* data, eng::u32 size) noexcept : m_base(data), m_size(size) {}
+	constexpr MeshBlob(eng::u8* data, eng::u32 size) noexcept
+		: m_bytes(eng::Span<eng::u8> {data, size}) {}
 	/// Implícita desde una vista de bytes: los descriptores de mesh (`Mesh3D`) la usan tal cual.
-	MeshBlob(eng::Span<eng::u8> bytes) noexcept
-		: m_base(bytes.data()), m_size(static_cast<eng::u32>(bytes.size())) {}
+	MeshBlob(eng::Span<eng::u8> bytes) noexcept : m_bytes(bytes) {}
 
-	[[nodiscard]] constexpr bool empty() const noexcept { return m_base == nullptr || m_size == 0u; }
-	[[nodiscard]] constexpr eng::u8* data() const noexcept { return m_base; }
-	[[nodiscard]] constexpr eng::u32 size() const noexcept { return m_size; }
+	[[nodiscard]] constexpr bool empty() const noexcept { return m_bytes.empty(); }
+	[[nodiscard]] constexpr eng::u8* data() const noexcept { return m_bytes.data(); }
+	[[nodiscard]] constexpr eng::u32 size() const noexcept {
+		return static_cast<eng::u32>(m_bytes.size());
+	}
 
 	/// Acceso tipado por offset de byte (como las macros del original). La conversión vive AQUÍ.
 	[[nodiscard]] Node3D* node(s16 off) const noexcept {
-		return reinterpret_cast<Node3D*>(m_base + (off - 2));
+		return reinterpret_cast<Node3D*>(m_bytes.data() + (off - 2));
 	}
 	[[nodiscard]] Point3D* point(s16 off) const noexcept {
-		return reinterpret_cast<Point3D*>(m_base + off);
+		return reinterpret_cast<Point3D*>(m_bytes.data() + off);
 	}
 	[[nodiscard]] Point3D* vertex(s16 off) const noexcept {
-		return reinterpret_cast<Point3D*>(m_base + (off + 6));
+		return reinterpret_cast<Point3D*>(m_bytes.data() + (off + 6));
 	}
 	[[nodiscard]] Edge* edge(s16 off) const noexcept {
-		return reinterpret_cast<Edge*>(m_base + off);
+		return reinterpret_cast<Edge*>(m_bytes.data() + off);
 	}
 	[[nodiscard]] Face* face(s16 off) const noexcept {
-		return reinterpret_cast<Face*>(m_base + off);
+		return reinterpret_cast<Face*>(m_bytes.data() + off);
 	}
 	/// Índices (vértice, arista) de una cara: van tras el cuerpo fijo (`offset 10` de `Face`).
 	[[nodiscard]] static FaceIndex* face_indices(Face* f) noexcept {
@@ -139,8 +141,9 @@ public:
 	}
 
 private:
-	eng::u8* m_base = nullptr;
-	eng::u32 m_size = 0u;
+	/// Vista sobre el blob: `Span` (data + tamaño) es el tipo del engine para "buffer + count"
+	/// (CODING_STYLE §"Seguridad de tipos sobre punteros crudos"), en vez de `u8* + u32` sueltos.
+	eng::Span<eng::u8> m_bytes {};
 };
 
 /// Cabecera de malla (la que genera `obj2c`; los punteros son offsets absolutos).
