@@ -112,10 +112,10 @@ private:
 	static constexpr eng::u16 kBltbmod = 0x062u / 2u;
 	static constexpr eng::u16 kBltamod = 0x064u / 2u;
 	static constexpr eng::u16 kBltdmod = 0x066u / 2u;
-	static constexpr eng::u16 kUseA = 0x0800u;
-	static constexpr eng::u16 kUseB = 0x0400u;
-	static constexpr eng::u16 kUseD = 0x0100u;
-	static constexpr eng::u16 kMintermAOrB = 0x00fcu;
+	static constexpr eng::u16 kUseA = eng::graphics::kBlitterUseA;
+	static constexpr eng::u16 kUseB = eng::graphics::kBlitterUseB;
+	static constexpr eng::u16 kUseD = eng::graphics::kBlitterUseD;
+	static constexpr eng::u16 kMintermAOrB = eng::graphics::kBlitterMintermAOrB;
 
 	Reg* c = nullptr;
 	eng::u16 con0 = 0;
