@@ -143,6 +143,11 @@ Un **solo** sumidero recibe las intenciones de todos los productores y las gobie
   `FramePlan` (una sola ruta). El planner es la capa de **arriba** (vocabulario + completación).
 - **`eng::os`** pone el **evento** y el **despacho**; **`eng::audio`** pone su plan/mezclador. El
   planner los **coordina** sin fundirlos.
+- **Estado en código** (la ruta ya existe y está probada): `DrawRecipe`/`scene::DrawLayer` (setup) →
+  `IntentQueue` (mecanismo, `Item` genérico) → el **sumidero** `FramePlan` (por `PlanExecutor`) **o**
+  el **evento** `Msg IntentDone` (por `IntentDonePoster`). HOST-368 (cola + receta + capa) y
+  HOST-369 (intención → evento) lo fijan. La **capa** vive en `eng::scene` (política); la **cola** y
+  el **vocabulario**, en `eng::graphics` (mecanismo).
 
 ### 7.1 Decisión: un **sumidero único**, vías como políticas
 

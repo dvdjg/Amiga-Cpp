@@ -17,8 +17,9 @@ cada petición se **avisa** por la política `Done`. Ver
 - `flush()` ejecuta la cola **sin esperar** y **avisa por ticket** (`Done`).
 - `wait(t)` espera —solo si se pide— a que la petición `t` se haya ejecutado.
 - **`DrawRecipe`** (setup): `emit` solo encola; el bucle la reproduce con trabajo mínimo.
-- **`SceneLayer`** (el caso general): `add(forma, x, y)` en el setup + `move`/`emit` por frame — el
-  frame **solo** toca lo dinámico (la posición); la forma es invariante.
+- **`scene::DrawLayer`** (el caso general, en `eng/scene/layer.hpp`): `add(forma, x, y)` en el setup
+  + `move`/`emit` por frame — el frame **solo** toca lo dinámico (la posición); la forma es
+  invariante. Es **política de capa** (en `scene`), no de cola (en `graphics`).
 
 **Nota de diseño**: el `Done` se **copia** en la cola, así que debe ser un **handle** (referencia a
 un posteador/puerto), no un valor con estado propio.

@@ -6,6 +6,7 @@
 //   CXX=<g++> bash tools/run-host-tests.sh tests/host/graphics/368_intent_queue
 
 #include <eng/graphics/intent_queue.hpp>
+#include <eng/scene/layer.hpp>
 
 #include <cstdio>
 
@@ -92,9 +93,9 @@ int main() {
 		check(r2.ran == 2 && dn2 == 2, "la receta se ejecuta en el frame");
 	}
 
-	// 5) SceneLayer: setup (forma+posicion) + frame (mover) — emit solo toca lo dinamico.
+	// 5) DrawLayer (scene): setup (forma+posicion) + frame (mover) — emit solo toca lo dinamico.
 	{
-		eng::graphics::SceneLayer<4u> layer;
+		eng::scene::DrawLayer<4u> layer;
 		layer.add(DrawIntent {DrawKind::Sprite, 0, 0, 0u, 0u, 0, 0, 0u, 1u}, 10, 20);
 		layer.add(DrawIntent {DrawKind::Sprite, 0, 0, 0u, 0u, 0, 0, 0u, 2u}, 30, 40);
 		check(layer.count() == 2u, "la capa guarda sus objetos (setup)");

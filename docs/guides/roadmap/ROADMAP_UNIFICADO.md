@@ -49,7 +49,11 @@ tipos descriptivos que hagan **imposible** el uso equivocado.
 1. **El vocabulario único de intención (alto nivel).** Hoy las intenciones viven dispersas
    (`BlitOp`, `CopperIntent`/`SpriteIntent`, los efectos, la declaración de escena). Falta **un**
    modelo declarativo (la escena/capa/efecto como intención) que el **planner** compile a lo bajo
-   (ver `PUBLIC_API.md` §4). Es el corazón del API de intenciones.
+   (ver `PUBLIC_API.md` §4). Es el corazón del API de intenciones. **En marcha**: el mecanismo
+   (`IntentQueue` + `DrawRecipe`/`scene::DrawLayer` + `IntentDone` por evento) y su contrato
+   ([`INTENT_PLANNER.md`](../../engine/architecture/INTENT_PLANNER.md)) ya existen y están probados
+   (HOST-368/369); falta **el vocabulario completo** (Sprite/efectos/audio) y el planner que lo
+   compile.
 2. **Un sumidero de ejecución.** `FramePlan` (lote del frame) y `BlitQueue` (cola asíncrona)
    coexisten; ya hay `PlanExecutor` (la cola vuelca al plan). **Decidido** (§7.1 de
    [`INTENT_PLANNER.md`](../../engine/architecture/INTENT_PLANNER.md)): el **`FramePlan` es *el*
