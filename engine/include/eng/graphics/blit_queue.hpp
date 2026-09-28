@@ -21,6 +21,7 @@
 #include <eng/graphics/bitmap_view.hpp>
 #include <eng/graphics/blit_job.hpp>
 #include <eng/graphics/blitter_state.hpp>
+#include <eng/graphics/intent_queue.hpp>
 #include <eng/graphics/raster_intent.hpp>
 
 namespace eng::graphics {
@@ -216,15 +217,15 @@ struct BlitOp {
 
 /// Ejecutor de Blitter **por Copper** (Técnica A): la intención (`BlitOp`) se traduce a un
 /// `BlitterJob` que el **Copper** emite contra los registros (`Scheduler::emit_blitter_job`), en vez
-/// de programarlos la CPU. `blitter_free()` = siempre `true` (lo arranca el Copper en la línea) y el
+/// de programarlos la CPU. `ready()` = siempre `true` (lo arranca el Copper en la línea) y el
 /// punto de dependencia es el raster. `Sched` = `copper::Scheduler` (o un doble de test).
 template <class Sched>
 class CopperBlitterExecutor {
 public:
 	constexpr CopperBlitterExecutor(Sched& sched, eng::u16 top) noexcept
 		: m_sched(sched), m_top(top) {}
-	[[nodiscard]] constexpr bool blitter_free() const noexcept { return true; }
-	void submit(const BlitOp& op) noexcept {
+	[[nodiscard]] constexpr bool ready() const noexcept { return true; }
+	void run(const BlitOp& op) noexcept {
 		m_sched.emit_blitter_job(m_top, blitter_job_from(blit_job_from(op)));
 	}
 
@@ -235,59 +236,37 @@ private:
 
 /// Ejecutor cuyo destino es un **sumidero de trabajo** (`sink.add(BlitJob)`), no el hardware: la
 /// intención (`BlitOp`) se convierte con `blit_job_from` y se **añade al plan**
-/// (`FramePlan::add`) en vez de programar registros aquí. `blitter_free()` = siempre `true` (no
+/// (`FramePlan::add`) en vez de programar registros aquí. `ready()` = siempre `true` (no
 /// toca el Blitter); el presupuesto/ejecución los gobierna el plan. Es la forma en que la
 /// `BlitQueue` es un **front-end** del `FramePlan` (un solo dueño de la ejecución).
 template <class Sink>
 class SinkBlitExecutor {
 public:
 	constexpr explicit SinkBlitExecutor(Sink& sink) noexcept : m_sink(sink) {}
-	[[nodiscard]] constexpr bool blitter_free() const noexcept { return true; }
-	bool submit(const BlitOp& op) noexcept { return m_sink.add(blit_job_from(op)); }
+	[[nodiscard]] constexpr bool ready() const noexcept { return true; }
+	bool run(const BlitOp& op) noexcept { return m_sink.add(blit_job_from(op)); }
 
 private:
 	Sink& m_sink;
 };
 
-/// Contrato del **ejecutor**: sabe si el Blitter está libre (BBUSY) y programa una petición.
-template <class E>
-concept BlitExecutor = requires(E& e, const BlitOp& op) {
-	{ e.blitter_free() }; // devuelve algo convertible a bool
-	e.submit(op);
-};
-
-/// **Cola FIFO de peticiones** de capacidad fija `N` (sin heap). El desarrollador encola y sigue;
-/// `pump()` avanza mientras el Blitter admite trabajo; `wait()` vacía (dependencia explícita).
-template <eng::u16 N, BlitExecutor Executor>
-class BlitQueue {
-	static_assert((N & (N - 1u)) == 0u, "BlitQueue: N potencia de dos");
-
+/// **Cola de intención de blit**: una `IntentQueue` con `Item = BlitOp` y los atajos de intención
+/// (`fill`/`stamp`/`masked_stamp`/`all`). **No** bloquea al declarar; `flush` avanza sin esperar;
+/// `wait` es el único bloqueo. El ejecutor es **el mismo** contrato que el resto de colas
+/// (`ready()`/`run(item)`): una sola forma de encolar, para blit y no-blit.
+template <eng::u16 N, class Executor>
+	requires QueueExecutor<Executor, BlitOp>
+class BlitQueue : public IntentQueue<N, BlitOp, Executor, NoDone> {
 public:
-	/// Liga el ejecutor (el backend Amiga, o un doble de host). No es propietario.
-	void bind(Executor& executor) noexcept { m_exec = executor; }
-
-	/// Encola una petición ya formada.
-	void enqueue(const BlitOp& op) noexcept {
-		// Si está llena, drena un poco antes de encolar (no bloquea si el Blitter va al día).
-		if (full()) {
-			pump();
-		}
-		if (full()) {
-			wait(); // último recurso: la cola es de capacidad fija
-		}
-		m_ops[m_head] = op;
-		m_head = (m_head + 1u) & (N - 1u);
-	}
-
 	/// **Intención**: rellenar (`D = 0`) un rectángulo del destino (una petición).
 	void fill(BitmapView<PlaneTag, MemoryKind::Chip> dst, BlitRect rect) noexcept {
-		enqueue(BlitOp {BlitOp::Kind::Fill, dst, {}, {}, rect, 0});
+		this->enqueue(BlitOp {BlitOp::Kind::Fill, dst, {}, {}, rect, 0});
 	}
 
 	/// **Intención**: OR de un asset sobre el destino (fino con `ashift`), una petición.
 	void stamp(BitmapView<BobTag, MemoryKind::Chip> src, BitmapView<PlaneTag, MemoryKind::Chip> dst,
 		   BlitRect rect, eng::u8 ashift = 0) noexcept {
-		enqueue(BlitOp {BlitOp::Kind::Stamp, dst, src, {}, rect, ashift});
+		this->enqueue(BlitOp {BlitOp::Kind::Stamp, dst, src, {}, rect, ashift});
 	}
 
 	/// **Intención**: cookie-cut (`D = (A & B) | (~A & C)`), una petición. `mask` es el plano de
@@ -296,50 +275,18 @@ public:
 			  BitmapView<BobTag, MemoryKind::Chip> mask,
 			  BitmapView<PlaneTag, MemoryKind::Chip> dst, BlitRect rect,
 			  eng::u8 ashift = 0) noexcept {
-		enqueue(BlitOp {BlitOp::Kind::MaskedStamp, dst, src, mask, rect, ashift});
+		this->enqueue(BlitOp {BlitOp::Kind::MaskedStamp, dst, src, mask, rect, ashift});
 	}
 
 	/// **Intención en array de golpe**: encola muchas de una vez.
 	void all(eng::Span<const BlitOp> ops) noexcept {
 		for (const BlitOp& op : ops) {
-			enqueue(op);
+			this->enqueue(op);
 		}
 	}
 
-	/// Avanza la cola **sin esperar**: programa mientras el Blitter esté libre.
-	void pump() noexcept {
-		while (!empty() && m_exec->blitter_free()) {
-			m_exec->submit(m_ops[m_tail]);
-			m_tail = (m_tail + 1u) & (N - 1u);
-		}
-	}
-
-	/// Garantiza que se está drenando (un intento de avance; NO vacía).
-	void flush() noexcept { pump(); }
-
-	/// **Punto de dependencia**: vacía la cola (espera a que el Blitter admita cada petición).
-	void wait() noexcept {
-		while (!empty()) {
-			if (!m_exec->blitter_free()) {
-				continue; // el Blitter está ocupado: se reintenta (poll)
-			}
-			m_exec->submit(m_ops[m_tail]);
-			m_tail = (m_tail + 1u) & (N - 1u);
-		}
-	}
-
-	/// ¿Cola vacía (nada pendiente de ejecutar)?
-	[[nodiscard]] bool empty() const noexcept { return m_head == m_tail; }
-	/// ¿Cola llena (una entrada libre menos: el anillo reserva un hueco)?
-	[[nodiscard]] bool full() const noexcept {
-		return ((m_head + 1u) & (N - 1u)) == m_tail;
-	}
-
-private:
-	BlitOp m_ops[N] {};
-	eng::u16 m_head = 0;
-	eng::u16 m_tail = 0;
-	eng::Ref<Executor> m_exec {}; ///< ejecutor (no propietario)
+	/// Alias de `flush` (avanza sin esperar).
+	void pump() noexcept { this->flush(); }
 };
 
 } // namespace eng::graphics

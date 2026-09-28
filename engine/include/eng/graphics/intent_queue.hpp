@@ -20,12 +20,26 @@ namespace eng::graphics {
 /// creciente que el `Done` devuelve tal cual; el juego lo resuelve (p. ej. en su tabla de eventos).
 using Ticket = eng::u32;
 
+/// Contrato de la **vía de ejecución**: dice si admite trabajo (`ready`) y ejecuta una petición
+/// (`run`). Es **el mismo** para blit y para lo no-blit — una sola forma de encolar en el engine.
+template <class E, class Item>
+concept QueueExecutor = requires(E& e, const Item& item) {
+	{ e.ready() }; // convertible a bool
+	e.run(item);
+};
+
+/// Política de completación **nula** (para colas que no avisan, p. ej. la de blit).
+struct NoDone {
+	constexpr void operator()(Ticket) const noexcept {}
+};
+
 /// Cola FIFO de capacidad fija `N`, **no bloqueante**, con aviso de completación.
 ///
 /// - `Item`: el valor de la intención (pequeño y copiable; sin punteros propietarios).
 /// - `Executor`: `{ bool ready(); void run(const Item&); }` — la vía de ejecución (CPU/Blitter/…).
 /// - `Done`: `void operator()(Ticket)` — el **aviso** cuando una petición se ejecuta (evento).
 template <eng::u16 N, class Item, class Executor, class Done>
+	requires QueueExecutor<Executor, Item>
 class IntentQueue {
 	static_assert((N & (N - 1u)) == 0u, "IntentQueue: N potencia de dos");
 
@@ -58,6 +72,13 @@ public:
 	/// **Único** punto de bloqueo: espera a que `t` se haya ejecutado (como `glFinish`).
 	void wait(Ticket t) noexcept {
 		while (m_done_seq < t && !empty()) {
+			drain();
+		}
+	}
+
+	/// **Punto de dependencia** total: vacía la cola (espera a que la vía admita cada petición).
+	void wait_all() noexcept {
+		while (!empty()) {
 			drain();
 		}
 	}

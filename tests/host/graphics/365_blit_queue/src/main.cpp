@@ -1,5 +1,5 @@
 // Test host de eng::graphics::BlitQueue (API de blitter por intencion: cola FIFO + feeder poll).
-// El Blitter real se dobla con un FakeBlitter: `blitter_free()` sondea (y "avanza el tiempo" un
+// El Blitter real se dobla con un FakeBlitter: `ready()` sondea (y "avanza el tiempo" un
 // paso por sondeo) y `submit()` programa (queda ocupado unos sondeos). Sin hardware.
 #define ENG_SCALAR_RETRO16
 #include <eng/graphics/blit_queue.hpp>
@@ -48,13 +48,13 @@ struct FakeBlitter {
 	eng::u8 kinds[16] {};
 	eng::u8 last_ashift = 0xff;
 	// Sondea BBUSY: cada llamada "pasa un sondeo"; ocupado durante kBusyPolls.
-	bool blitter_free() {
+	bool ready() {
 		if (busy > 0) {
 			--busy;
 		}
 		return busy == 0;
 	}
-	void submit(const BlitOp& op) {
+	void run(const BlitOp& op) {
 		if (submitted < 16) {
 			kinds[submitted] = static_cast<eng::u8>(op.kind);
 		}
@@ -212,7 +212,7 @@ int main() {
 	ops[2].kind = BlitOp::Kind::Stamp;
 	q.all(eng::Span<const BlitOp> {ops, 3});
 	check(!q.empty() && blitter.submitted == 2, "all() encola en bloque sin ejecutar");
-	q.wait();
+	q.wait_all();
 	check(q.empty() && blitter.submitted == 5, "wait() vacia la cola (3 ejecutadas)");
 	check(blitter.kinds[2] == static_cast<eng::u8>(BlitOp::Kind::Stamp) &&
 		      blitter.kinds[3] == static_cast<eng::u8>(BlitOp::Kind::Fill) &&
@@ -272,8 +272,8 @@ int main() {
 		eng::graphics::BlitQueue<4, eng::graphics::CopperBlitterExecutor<FakeCopper>> cq;
 		cq.bind(ex);
 		cq.stamp(src, dst, {5, 0, 32u, 96u}, 5);
-		check(ex.blitter_free() && cu.emitted == 0, "copper: encolar no emite");
-		cq.wait();
+		check(ex.ready() && cu.emitted == 0, "copper: encolar no emite");
+		cq.wait_all();
 		check(cu.emitted == 1 && cu.last_top == 300u && cu.last.bltcon0 == 0x5dfcu,
 		      "copper: wait emite el BlitterJob en su linea");
 	}
@@ -290,7 +290,7 @@ int main() {
 		pq.bind(sink);
 		pq.stamp(src, dst, {0, 0, 32u, 8u}, 0);
 		pq.fill(dst, {0, 0, 32u, 8u});
-		pq.wait();
+		pq.wait_all();
 		check(plan.blit_job_count() == 2u && plan.blit_job(0u).kind == BlitJobKind::OrBlob &&
 			      plan.blit_job(1u).kind == BlitJobKind::ClearRect,
 		      "SinkBlitExecutor: cola -> FramePlan (OrBlob + ClearRect)");

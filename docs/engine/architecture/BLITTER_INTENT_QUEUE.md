@@ -145,7 +145,7 @@ del trabajo de la 213. Diseño: `BitmapView` (base) **+** `CopperIntent` (superi
 
 El `BlitQueue<N, Executor>` inyecta el ejecutor por `concept`. Un **`CopperBlitterExecutor`**
 implementa `submit(op)` **emitiendo instrucciones de Copper** (con `COPCON`/CDANG — la "Técnica A"
-documentada) en vez de programar registros: `blitter_free()` = siempre `true` (lo hará el Copper en la
+documentada) en vez de programar registros: `ready()` = siempre `true` (lo hará el Copper en la
 línea) y `wait()` = el punto del raster (el commit). **El mismo `BlitOp` se ejecuta por CPU/IRQ o por
 Copper** — es una estrategia, no un API distinto. **Sí hay compatibilidad futura.**
 

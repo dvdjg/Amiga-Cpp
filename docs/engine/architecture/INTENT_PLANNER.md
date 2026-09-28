@@ -154,9 +154,8 @@ Un **solo** sumidero recibe las intenciones de todos los productores y las gobie
 - **El audio es un `plan` análogo** (`AudioPlan`): reparto de voces (Sfx/Music), presupuesto por
   frame e IRQ (Paula) como feeders — la misma forma que el plan de blit. Hoy `eng::audio` ya tiene
   mezclador/reproductores; el `AudioPlan` es el **contrato** que los unifica con el planner.
-- **Naming**: alinear los `concept`s de ejecutor (`ready`/`run` del `IntentQueue` frente a
-  `blitter_free`/`submit` del `BlitQueue`) es el paso mecánico para que el `BlitQueue` **sea** un
-  `IntentQueue` (hoy conviven con nombres distintos).
+- **Hecho**: el `BlitQueue` **es** una `IntentQueue` con `Item = BlitOp` — el mismo `concept` de
+  ejecutor (`ready`/`run`) y el mismo mecanismo (ticket + completación) que el resto de colas.
 
 ## 8. Qué **no** es
 
