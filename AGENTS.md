@@ -58,6 +58,7 @@ contexto irrelevante a quien trabaja en otra cosa.
 ### 1.6 Buscar antes de implementar
 
 - **Nunca implementar una utilidad o API del engine sin comprobar antes que no existe ya.** Antes de escribir `draw_text`, una fuente, un blit, un driver o cualquier ayuda reusable, buscar en `engine/include/`, `demos/` y `tools/` (grep por nombre y por concepto: «text», «font», «blit», «surface», «scene», «palette»…) y en los índices de `docs/` (`DOC-MAP-PRINCIPAL.md`, READMEs, roadmaps).
+- Para **constantes, máscaras y valores mágicos**: `node tools/analyze/duplicate-constants.mjs` lista los valores ya declarados bajo **otro nombre** en otro fichero (evita duplicar; p. ej. cazó `kBlitterMintermCopyC`/`blt_minterm_copy_c` y `kMintermAOrB` en `blob.hpp`). Si ya existe, se **reutiliza o se aliasa**; no se redeclara.
 - Si ya existe (incluso en una demo): **reutilizar, generalizar o subir al engine**, nunca duplicar. Una implementación local en una demo que sirve a otras debe promoverse a `engine/` como utilidad reutilizable.
 - Antes de añadir un archivo nuevo en `engine/`, listar los helpers existentes del dominio y decidir explícitamente: ¿esto ya lo cubre `X`? ¿Puedo extender `X` en vez de crear `Y`?
 - Aplica también a **fuentes, tablas y glifos**: buscar si el carácter/glifo ya está antes de redibujarlo.
