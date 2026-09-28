@@ -27,6 +27,53 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
 | `docs/guides/roadmap/ROADMAP_MINI_OS.md` | **vigente (M0–M6 entregados; M2/M7 casi, M8 parcial; M9–M11 pendientes)** | **Mini-SO de mensajes** (`eng::os`) y capa de UI reactiva (`eng::ui`): puerto IRQ-safe, señales, productores de VBlank/input/disco/timers y bucle de aplicación sin espera activa, componiendo con `BackgroundQueue`/`InputAggregator`/`Engine`. Diseño en `docs/engine/architecture/MINI_OS_MESSAGE_LOOP.md`; tests HOST-219…222/236/238/250…257 y demo 208. Pendiente: telemetría (M9), tareas async (M10) y corrutinas (M11) |
 | `docs/guides/roadmap/ROADMAP_GUI.md` | **vigente (G0–G8 entregados)** | **Librería GUI** (`eng::ui`): chrome sobre `Surface`, tema/branding, widgets (Button/Check/Radio/EditBox/Slider), eventos/foco, dirty rects y **ventanas con compositor y backing store** (mover/redimensionar sin invalidar vecinas), con **keymaps nacionales** (US/ES/FR/IT/DE/RU) y **teclas muertas**. Tests HOST-223…230 y HOST-261…266; demo `215_gui_widgets` verificada con `verify-gui-widgets.mjs`. Pendiente de G8: acelerar con Blitter el *copy* del compositor (hoy CPU) y validar las tablas de teclado contra el ROM. Diseño en `docs/engine/architecture/GUI_LIBRARY.md` |
 
+## Objetivo: API por **intenciones** (estado y qué falta)
+
+**Objetivo.** Un engine completo, conceptualmente bien diseñado, que exponga un **API basado en
+intenciones**: el juego **declara qué quiere** (una escena, un efecto, un objeto) y el engine
+**decide cómo** (CPU/Blitter/Copper), con la **memoria etiquetada** (Chip para el hardware DMA) y
+tipos descriptivos que hagan **imposible** el uso equivocado.
+
+**Conseguido (base sólida).**
+- **Tipos fuertes y genéricos** (`Fixed`/`Vec`/`Span`/`Ref`), tablas en compilación (`ct_array`;
+  `InvSqrtTable<R,E,N>` genérica), escalar como parámetro de plantilla.
+- **Memoria etiquetada**: `Tag` de dominio + **banco** (`MemView`/`Block`/`ChipView`), con **tres
+  puentes** (`mem_view_chip`/`as_chip`/`from_storage`) y su regla de uso (`INTERNAL_TYPE_SYSTEM.md`).
+- **Una sola ruta de blit**: `BlitOp` (intención) → `blit_job_from` → `BlitJob` (trabajo) →
+  `blitter_job_from` → `BlitterJob` (registros), compartido por CPU y Copper; el backend ya usa el
+  encoder (camino plano y línea; 086/116 idénticas). `c2p` con **despacho por banco**.
+- **Gates** que sostienen el diseño: `casts` (+ `casts-frontier.txt`), `generic-headers`,
+  `raw-pointer-members`, `api-facade`, `type-tagging`, `doc-coverage`, `duplicate-constants`.
+
+**Qué falta (huecos, priorizados).**
+1. **El vocabulario único de intención (alto nivel).** Hoy las intenciones viven dispersas
+   (`BlitOp`, `CopperIntent`/`SpriteIntent`, los efectos, la declaración de escena). Falta **un**
+   modelo declarativo (la escena/capa/efecto como intención) que el **planner** compile a lo bajo
+   (ver `PUBLIC_API.md` §4). Es el corazón del API de intenciones.
+2. **Un sumidero de ejecución.** `FramePlan` (lote del frame) y `BlitQueue` (cola asíncrona)
+   coexisten; ya hay `SinkBlitExecutor` (la cola vuelca al plan). Falta **decidirlo**: el plan es
+   el sumidero y las vías (CPU-ventana / Copper) son **políticas**.
+3. **Los últimos punteros crudos.** `BlitJob`/`BlitterJob` (`u16*`/`void*`), el backend y
+   `object3d` aún exponen crudo. Deben ir a vista/`Address` hasta **una** frontera (el registro).
+4. **Los descriptores de "dibujable".** `Bob`/`Sprite`/`Visual`/`Actor`/`*Layer` se solapan; hay
+   que fijar la jerarquía (blob crudo → asset cocinado → actor retenido → intención).
+5. **El contrato de memoria en el tipo.** El caso C2P (un *scratch* escondido → `detail≠0`) es el
+   patrón general: **si un API necesita un layout/medio concreto, lo lleva en el tipo**; el
+   fallback CPU↔Blitter lo **decide el tag** (ya hecho en `c2p`).
+6. **Memoria/arena con RAII** (`Block`/`MemBank`) coherente con los tags y con la **vida**.
+7. **Generalidad del escalar** en el 3D (`object3d`/`mesh3d`): el último tramo crudo.
+8. **Docs como contrato**: un doc canónico por capa + `DOC-MAP` al día (en curso).
+
+**Plan para llegar.** (a) Fijar el **planner de intención** (§1): vocabulario + compilación a
+`BlitOp`/`CopperIntent`. (b) **Sumidero único** (§2). (c) **Sin punteros crudos** hasta una frontera
+(§3). (d) **Jerarquía del dibujable** (§4) y el **contrato de memoria en el tipo** (§5).
+(e) Cerrar §6–§8.
+
+**C2P — APARCADO.** La reingeniería del C2P queda **parked** (no gastar turnos): la base
+(`c2p()` con despacho por banco + `C2pRequest` con `Block`) está hecha; quedan el **contrato de
+scratch** (el `detail≈9861` de la 275, ya documentado en su README) y sacarlo de `BlitJobKind`.
+**Criterio**: si la vía se vuelve cargante en C++ se hará en **asm**, no rediseñando el plan.
+
 ## Estado real del engine y las demos (2026-09)
 
 - **Scroll**: corkscrew 8-way X-Limited (`XLimitedPlayfield` + `ScrollEngine` +
