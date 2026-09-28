@@ -158,18 +158,14 @@ void transform_all(obj::Object3D& object) {
 
 /// Port de `DrawLinks`: una linea por cara entre sus dos vertices.
 void draw_links(obj::Object3D& object, eng::PlaneBytes plane, eng::amiga::AmigaBackend& backend) {
-	s16* group = object.faceGroups;
-	do {
-		s16 f;
-		while ((f = *group++)) {
-			obj::Face* face = object.face(f);
-			const eng::Span<obj::FaceIndex> vi = obj::face_indices(face);
-			const s16 v0 = vi[0].vertex;
-			const s16 v1 = vi[0].edge; // formato linea: vertices contiguos (sin campo edge)
-			backend.blitter_line(plane, kBytesPerRow, object.vertex(v0)->x.v, object.vertex(v0)->y.v,
-					     object.vertex(v1)->x.v, object.vertex(v1)->y.v);
-		}
-	} while (*group);
+	for (const eng::Ref<obj::Face>& fr : object.faces()) {
+		obj::Face* face = fr.get();
+		const eng::Span<obj::FaceIndex> vi = obj::face_indices(face);
+		const s16 v0 = vi[0].vertex;
+		const s16 v1 = vi[0].edge; // formato linea: vertices contiguos (sin campo edge)
+		backend.blitter_line(plane, kBytesPerRow, object.vertex(v0)->x.v, object.vertex(v0)->y.v,
+				     object.vertex(v1)->x.v, object.vertex(v1)->y.v);
+	}
 }
 
 /// Las DOS hebras (backbone): conecta nodos consecutivos de cada strand. Strand A =

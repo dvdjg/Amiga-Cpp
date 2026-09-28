@@ -257,21 +257,17 @@ void draw_faces(obj::Object3D& object, eng::PlaneBytes planes, eng::amiga::Amiga
 inline eng::u32 gather_visible_edges(obj::Object3D& object, eng::retro::OutlineEdge* out,
 				     eng::u32 cap) {
 	eng::u32 n = 0u;
-	eng::s16* group = object.edgeGroups;
-	eng::s16 e;
-	do {
-		while ((e = *group++)) {
-			obj::Edge* edge = object.edge(e);
-			const eng::s8 edgeColor = edge->flags;
-			if (edgeColor > 0 && n < cap) {
-				edge->flags = 0;
-				const obj::Point3D* a = object.vertex(edge->point[0]);
-				const obj::Point3D* b = object.vertex(edge->point[1]);
-				out[n++] = eng::retro::OutlineEdge {
-					a->x.v, a->y.v, b->x.v, b->y.v, static_cast<eng::u8>(edgeColor)};
-			}
+	for (const eng::Ref<obj::Edge>& er : object.edges()) {
+		obj::Edge* edge = er.get();
+		const eng::s8 edgeColor = edge->flags;
+		if (edgeColor > 0 && n < cap) {
+			edge->flags = 0;
+			const obj::Point3D* a = object.vertex(edge->point[0]);
+			const obj::Point3D* b = object.vertex(edge->point[1]);
+			out[n++] = eng::retro::OutlineEdge {
+				a->x.v, a->y.v, b->x.v, b->y.v, static_cast<eng::u8>(edgeColor)};
 		}
-	} while (*group);
+	}
 	return n;
 }
 
@@ -297,8 +293,6 @@ void draw_edges(obj::Object3D& object, eng::PlaneBytes planes,
 	eng::u32 n_edges = 0u;
 	eng::u32 n_lines = 0u;
 	eng::u32 px_total = 0u;
-	eng::s16* group = object.edgeGroups;
-	eng::s16 e;
 #if !FLATSHADE_SKIP_EDGES
 	// Setup com??n del modo l??nea EOR (ONEDOT) UNA vez por frame, como el preludio de
 	// `DrawObject` del original (`bltafwm/alwm=-1, bltadat=0x8000, bltbdat=0xffff,
@@ -306,64 +300,60 @@ void draw_edges(obj::Object3D& object, eng::PlaneBytes planes,
 	// registros de cada arista/plano (macro `DRAWLINE`). No espera aqu??: el primer
 	// `continue` sincroniza con el clear.
 	backend.blitter_lines_eor_begin(kBytesPerRow);
-	do {
-		while ((e = *group++)) {
-			obj::Edge* edge = object.edge(e);
-			const eng::s8 edgeColor = edge->flags;
-			if (edgeColor > 0) {
-				++n_edges;
-				edge->flags = 0;
-				const obj::Point3D* a = object.vertex(edge->point[0]);
-				const obj::Point3D* b = object.vertex(edge->point[1]);
-				eng::s16 x0 = a->x.v;
-				eng::s16 y0 = a->y.v;
-				eng::s16 x1 = b->x.v;
-				eng::s16 y1 = b->y.v;
-				if (y0 == y1) {
-					continue;
-				}
-				if (y0 > y1) {
-					eng::s16 t = x0; x0 = x1; x1 = t;
-					t = y0; y0 = y1; y1 = t;
-				}
+	for (const eng::Ref<obj::Edge>& er : object.edges()) {
+		obj::Edge* edge = er.get();
+		const eng::s8 edgeColor = edge->flags;
+		if (edgeColor > 0) {
+			++n_edges;
+			edge->flags = 0;
+			const obj::Point3D* a = object.vertex(edge->point[0]);
+			const obj::Point3D* b = object.vertex(edge->point[1]);
+			eng::s16 x0 = a->x.v;
+			eng::s16 y0 = a->y.v;
+			eng::s16 x1 = b->x.v;
+			eng::s16 y1 = b->y.v;
+			if (y0 == y1) {
+				continue;
+			}
+			if (y0 > y1) {
+				eng::s16 t = x0; x0 = x1; x1 = t;
+				t = y0; y0 = y1; y1 = t;
+			}
 #if FLATSHADE_PROFILE
-				// Solo diagnostico (perfilado): fuera del bucle caliente en la build normal.
-				{
-					const eng::s16 dx = static_cast<eng::s16>(x1 - x0);
-					const eng::s16 dy = static_cast<eng::s16>(y1 - y0);
-					px_total += static_cast<eng::u32>(dx > dy ? dx : dy);
-				}
+			// Solo diagnostico (perfilado): fuera del bucle caliente en la build normal.
+			{
+				const eng::s16 dx = static_cast<eng::s16>(x1 - x0);
+				const eng::s16 dy = static_cast<eng::s16>(y1 - y0);
+				px_total += static_cast<eng::u32>(dx > dy ? dx : dy);
+			}
 #endif
 #if FLATSHADE_LINE_OR
+			for (eng::u8 p = 0; p < kPlanes; ++p) {
+				if ((edgeColor & (1 << p)) != 0) {
+					++n_lines;
+					backend.blitter_line(planes.subspan(
+						static_cast<eng::u32>(p) * kPlaneBytes, kPlaneBytes),
+						kBytesPerRow, x0, y0, x1, y1);
+				}
+			}
+#else
+			// Par??metros Bresenham calculados UNA vez por arista (independientes
+			// del plano) y reutilizados en los N planos del color, como el original
+			// (avanza `bltcpt += plane_bytes` sin recalcular el octante).
+			eng::graphics::LineEor line;
+			if (backend.blitter_line_eor_prepare(line, kBytesPerRow, x0, y0, x1, y1)) {
 				for (eng::u8 p = 0; p < kPlanes; ++p) {
 					if ((edgeColor & (1 << p)) != 0) {
 						++n_lines;
-						backend.blitter_line(planes.subspan(
-							static_cast<eng::u32>(p) * kPlaneBytes, kPlaneBytes),
-							kBytesPerRow, x0, y0, x1, y1);
+						backend.blitter_line_eor_draw(line, planes.data() +
+									       static_cast<eng::u32>(p) * kPlaneBytes,
+									       planes.data());
 					}
 				}
-#else
-				// Par??metros Bresenham calculados UNA vez por arista (independientes
-				// del plano) y reutilizados en los N planos del color, como el original
-				// (avanza `bltcpt += plane_bytes` sin recalcular el octante).
-				eng::graphics::LineEor line;
-				if (backend.blitter_line_eor_prepare(line, kBytesPerRow, x0, y0, x1, y1)) {
-					for (eng::u8 p = 0; p < kPlanes; ++p) {
-						if ((edgeColor & (1 << p)) != 0) {
-							++n_lines;
-							backend.blitter_line_eor_draw(line, planes.data() +
-										       static_cast<eng::u32>(p) * kPlaneBytes,
-										       planes.data());
-						}
-					}
-				}
-#endif
 			}
+#endif
 		}
-	} while (*group);
-#else
-	(void)group; (void)e;
+	}
 #endif
 	const eng::u32 t1 = rcycles();
 	g_eng_prof.v[10] = n_edges;
@@ -472,14 +462,9 @@ struct FlatShadeDemo {
 				     eng::Span<eng::math3d::Vec3>(g_poly_norm, 64), g_poly);
 		g_face_off_n = 0;
 		{
-			const eng::s16* fg = m_object.faceGroups;
-			if (fg != nullptr) {
-				do {
-					eng::s16 off;
-					while ((off = *fg++) != 0) {
-						g_face_off[g_face_off_n++] = off;
-					}
-				} while (*fg != 0);
+			const auto fgr = m_object.faces();
+			for (auto it = fgr.begin(); it != fgr.end(); ++it) {
+				g_face_off[g_face_off_n++] = it.offset();
 			}
 		}
 

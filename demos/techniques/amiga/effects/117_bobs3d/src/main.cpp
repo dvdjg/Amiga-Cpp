@@ -237,20 +237,18 @@ enum {
 void transform_all_vertices(obj::Object3D& object) {
 	using Proj = eng::math::projector<eng::math3d::Affine3<>>;
 	const Proj::cache pc = Proj::make(object.objectToWorld);
-	s16* group = object.vertexGroups;
-	do {
-		s16 i;
-		while ((i = *group++)) {
-			obj::Point3D* p = object.point(i);
-			obj::Point3D* v = object.vertex(i);
-			const eng::math::Projected3 pr = Proj::project(pc, p->x.v, p->y.v, p->z.v);
-			v->x = eng::retro::q0 {static_cast<s16>(
-				eng::math::div_wide(pr.xp, static_cast<s16>(pr.zp)) + kWidth / 2u)};
-			v->y = eng::retro::q0 {static_cast<s16>(
-				eng::math::div_wide(pr.yp, static_cast<s16>(pr.zp)) + kHeight / 2u)};
-			v->z = eng::retro::q0 {static_cast<s16>(pr.zp)};
-		}
-	} while (*group);
+	const auto pts = object.points();
+	for (auto it = pts.begin(); it != pts.end(); ++it) {
+		const s16 i = it.offset();
+		obj::Point3D* p = object.point(i);
+		obj::Point3D* v = object.vertex(i);
+		const eng::math::Projected3 pr = Proj::project(pc, p->x.v, p->y.v, p->z.v);
+		v->x = eng::retro::q0 {static_cast<s16>(
+			eng::math::div_wide(pr.xp, static_cast<s16>(pr.zp)) + kWidth / 2u)};
+		v->y = eng::retro::q0 {static_cast<s16>(
+			eng::math::div_wide(pr.yp, static_cast<s16>(pr.zp)) + kHeight / 2u)};
+		v->z = eng::retro::q0 {static_cast<s16>(pr.zp)};
+	}
 }
 
 struct Bobs3DDemo {
@@ -411,49 +409,43 @@ private:
 	/// Calcula el vertice y lanza su BOB en el MISMO bucle (estructura de `DrawObject`),
 	/// via el lote en streaming del backend: sin array intermedio.
 	void draw_bobs_stream(eng::amiga::AmigaBackend& backend, u8* screen) {
-		s16* group = m_object.vertexGroups;
-
+		const auto pts = m_object.points();
 		eng::amiga::OrBlobBatch batch;
 		batch.begin(backend.custom_registers(), kBobWords, K_117_BLITROWS, 0, kBobDestModulo);
 		u32 drawn = 0;
-		do {
-			s16 v;
-			while ((v = *group++)) {
-				if (drawn >= static_cast<u32>(K_117_MAXBLOBS)) {
-					break;
-				}
-				++drawn;
-				obj::Point3D* data = m_object.vertex(v);
-				s16 x = static_cast<s16>(data->x.v - 16);
-				const s16 y = static_cast<s16>(data->y.v - 16);
-				s16 z = data->z.v;
-
-				z >>= 4;
-				z -= static_cast<s16>(-256);
-				z += 128 - 32;
-				z = static_cast<s16>(z + z + z - 32);
-				z = static_cast<s16>(z & ~31);
-				if (z < 0) {
-					z = 0;
-				} else if (z > bobs_height - kBobH) {
-					z = bobs_height - kBobH;
-				}
-
-				s16 x_start = static_cast<s16>(x & ~15);
-				if (x_start < 0) {
-					x_start = 0;
-				}
-
-				batch.one(
-					m_frame_src[static_cast<u8>(z >> 5)],
-					screen + static_cast<s32>(y) * static_cast<s32>(kBytesPerRow * kPlanes) +
-						(static_cast<s32>(x_start) >> 3),
-					static_cast<u8>(x & 15));
-			}
+		for (auto it = pts.begin(); it != pts.end(); ++it) {
 			if (drawn >= static_cast<u32>(K_117_MAXBLOBS)) {
 				break;
 			}
-		} while (*group);
+			const s16 v = it.offset();
+			++drawn;
+			obj::Point3D* data = m_object.vertex(v);
+			s16 x = static_cast<s16>(data->x.v - 16);
+			const s16 y = static_cast<s16>(data->y.v - 16);
+			s16 z = data->z.v;
+
+			z >>= 4;
+			z -= static_cast<s16>(-256);
+			z += 128 - 32;
+			z = static_cast<s16>(z + z + z - 32);
+			z = static_cast<s16>(z & ~31);
+			if (z < 0) {
+				z = 0;
+			} else if (z > bobs_height - kBobH) {
+				z = bobs_height - kBobH;
+			}
+
+			s16 x_start = static_cast<s16>(x & ~15);
+			if (x_start < 0) {
+				x_start = 0;
+			}
+
+			batch.one(
+				m_frame_src[static_cast<u8>(z >> 5)],
+				screen + static_cast<s32>(y) * static_cast<s32>(kBytesPerRow * kPlanes) +
+					(static_cast<s32>(x_start) >> 3),
+				static_cast<u8>(x & 15));
+		}
 		batch.end();
 	}
 
@@ -465,53 +457,47 @@ private:
 	void project_and_draw_stream(eng::amiga::AmigaBackend& backend, u8* screen) {
 		using Proj = eng::math::projector<eng::math3d::Affine3<>>;
 		const Proj::cache pc = Proj::make(m_object.objectToWorld);
-		s16* group = m_object.vertexGroups;
-
+		const auto pts = m_object.points();
 		eng::amiga::OrBlobBatch batch;
 		batch.begin(backend.custom_registers(), kBobWords, K_117_BLITROWS, 0, kBobDestModulo);
 		u32 drawn = 0;
-		do {
-			s16 i;
-			while ((i = *group++)) {
-				if (drawn >= static_cast<u32>(K_117_MAXBLOBS)) {
-					break;
-				}
-				++drawn;
-				obj::Point3D* p = m_object.point(i);
-				const eng::math::Projected3 pr =
-					Proj::project(pc, p->x.v, p->y.v, p->z.v);
-				const s16 zp = static_cast<s16>(pr.zp);
-				s16 x = static_cast<s16>(eng::math::div_wide(pr.xp, zp) + kWidth / 2u - 16u);
-				const s16 y =
-					static_cast<s16>(eng::math::div_wide(pr.yp, zp) + kHeight / 2u - 16u);
-				s16 z = zp;
-
-				z >>= 4;
-				z -= static_cast<s16>(-256);
-				z += 128 - 32;
-				z = static_cast<s16>(z + z + z - 32);
-				z = static_cast<s16>(z & ~31);
-				if (z < 0) {
-					z = 0;
-				} else if (z > bobs_height - kBobH) {
-					z = bobs_height - kBobH;
-				}
-
-				s16 x_start = static_cast<s16>(x & ~15);
-				if (x_start < 0) {
-					x_start = 0;
-				}
-
-				batch.one(
-					m_frame_src[static_cast<u8>(z >> 5)],
-					screen + static_cast<s32>(y) * static_cast<s32>(kBytesPerRow * kPlanes) +
-						(static_cast<s32>(x_start) >> 3),
-					static_cast<u8>(x & 15));
-			}
+		for (auto it = pts.begin(); it != pts.end(); ++it) {
 			if (drawn >= static_cast<u32>(K_117_MAXBLOBS)) {
 				break;
 			}
-		} while (*group);
+			const s16 i = it.offset();
+			++drawn;
+			obj::Point3D* p = m_object.point(i);
+			const eng::math::Projected3 pr =
+				Proj::project(pc, p->x.v, p->y.v, p->z.v);
+			const s16 zp = static_cast<s16>(pr.zp);
+			s16 x = static_cast<s16>(eng::math::div_wide(pr.xp, zp) + kWidth / 2u - 16u);
+			const s16 y =
+				static_cast<s16>(eng::math::div_wide(pr.yp, zp) + kHeight / 2u - 16u);
+			s16 z = zp;
+
+			z >>= 4;
+			z -= static_cast<s16>(-256);
+			z += 128 - 32;
+			z = static_cast<s16>(z + z + z - 32);
+			z = static_cast<s16>(z & ~31);
+			if (z < 0) {
+				z = 0;
+			} else if (z > bobs_height - kBobH) {
+				z = bobs_height - kBobH;
+			}
+
+			s16 x_start = static_cast<s16>(x & ~15);
+			if (x_start < 0) {
+				x_start = 0;
+			}
+
+			batch.one(
+				m_frame_src[static_cast<u8>(z >> 5)],
+				screen + static_cast<s32>(y) * static_cast<s32>(kBytesPerRow * kPlanes) +
+					(static_cast<s32>(x_start) >> 3),
+				static_cast<u8>(x & 15));
+		}
 		batch.end();
 	}
 
@@ -526,8 +512,7 @@ private:
 	/// Dibuja un BOB OR por vertice, como `DrawObject`: posicion (x-16, y-16), `z`
 	/// selecciona el frame (chispa) del atlas y el blit es intercalado (1 job/objeto).
 	void draw_bobs(u8* screen) {
-		s16* group = m_object.vertexGroups;
-
+		const auto pts = m_object.points();
 		graphics::Bob bob {};
 		bob.sheet = m_bob_block.mem_view_chip();
 		bob.width = kBobW;
@@ -549,31 +534,29 @@ private:
 				kBytesPerRow * kBobPlanes * 256u},
 			kBytesPerRow, 0u, kBobPlanes, graphics::BobLayout::Interleaved);
 
-		do {
-			s16 v;
-			while ((v = *group++)) {
-				obj::Point3D* data = m_object.vertex(v);
-				s16 x = data->x.v;
-				s16 y = data->y.v;
-				s16 z = data->z.v;
+		for (auto it = pts.begin(); it != pts.end(); ++it) {
+			const s16 v = it.offset();
+			obj::Point3D* data = m_object.vertex(v);
+			s16 x = data->x.v;
+			s16 y = data->y.v;
+			s16 z = data->z.v;
 
-				x -= 16;
-				y -= 16;
+			x -= 16;
+			y -= 16;
 
-				z >>= 4;
-				z -= static_cast<s16>(-256);
-				z += 128 - 32;
-				z = static_cast<s16>(z + z + z - 32);
-				z = static_cast<s16>(z & ~31);
-				if (z < 0) {
-					z = 0;
-				} else if (z > bobs_height - kBobH) {
-					z = bobs_height - kBobH;
-				}
-
-				sprite.draw(m_plan, target, static_cast<u8>(z >> 5), x, y);
+			z >>= 4;
+			z -= static_cast<s16>(-256);
+			z += 128 - 32;
+			z = static_cast<s16>(z + z + z - 32);
+			z = static_cast<s16>(z & ~31);
+			if (z < 0) {
+				z = 0;
+			} else if (z > bobs_height - kBobH) {
+				z = bobs_height - kBobH;
 			}
-		} while (*group);
+
+			sprite.draw(m_plan, target, static_cast<u8>(z >> 5), x, y);
+		}
 	}
 
 	/// Copper de una pantalla `active`: setup de display DPF + punteros intercalados +
