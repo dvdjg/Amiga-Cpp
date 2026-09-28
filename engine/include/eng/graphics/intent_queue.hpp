@@ -125,4 +125,39 @@ struct DrawIntent {
 template <eng::u16 N, class Executor, class Done>
 using DrawQueue = IntentQueue<N, DrawIntent, Executor, Done>;
 
+/// **Receta de dibujo precompilada** (setup): una lista FIJA de intenciones que el juego describe
+/// **una vez** (en el setup de la escena) y el bucle **reproduce** por frame con trabajo mínimo.
+/// Es la aplicación de la regla de coste: lo invariante se resuelve fuera del bucle; el frame solo
+/// recorre la receta (sin asignación, sin dispatch). Ver `CODING_STYLE.md` y `INTENT_PLANNER.md` §4.1.
+template <eng::u16 N>
+class DrawRecipe {
+public:
+	constexpr void clear() noexcept { m_count = 0u; }
+	[[nodiscard]] constexpr eng::u16 count() const noexcept { return m_count; }
+	[[nodiscard]] constexpr const DrawIntent& operator[](eng::u16 i) const noexcept {
+		return m_items[i];
+	}
+
+	/// Añade una intención fija (setup). `false` si la receta está llena.
+	constexpr bool add(const DrawIntent& item) noexcept {
+		if (m_count >= N) {
+			return false;
+		}
+		m_items[m_count++] = item;
+		return true;
+	}
+
+	/// **Reproduce** la receta en la cola (una vez por frame): recorrido mínimo, sin bloquear.
+	template <class Queue>
+	void emit(Queue& queue) const noexcept {
+		for (eng::u16 i = 0u; i < m_count; ++i) {
+			queue.enqueue(m_items[i]);
+		}
+	}
+
+private:
+	DrawIntent m_items[N] {};
+	eng::u16 m_count = 0u;
+};
+
 } // namespace eng::graphics

@@ -73,6 +73,25 @@ int main() {
 	q.wait(t3);
 	check(done_last == t3 && ex.ran == 3, "wait(t) espera a que t se ejecute");
 
+	// 4) Receta precompilada (setup): el bucle la reproduce con trabajo minimo (encolar + flush).
+	{
+		eng::graphics::DrawRecipe<4u> recipe;
+		recipe.add(DrawIntent {DrawKind::Rect, 0, 0, 8u, 8u, 0, 0, 1u, 0u});
+		recipe.add(DrawIntent {DrawKind::Line, 0, 0, 0u, 0u, 9, 9, 2u, 0u});
+		check(recipe.count() == 2u, "la receta guarda sus intenciones (setup)");
+
+		FakeExec r2;
+		int dn2 = 0;
+		Ticket dl2 = 0;
+		DrawQueue<4u, FakeExec, FakeDone> q2;
+		q2.bind(r2);
+		q2.bind_done(FakeDone {&dn2, &dl2});
+		recipe.emit(q2);
+		check(!q2.empty() && r2.ran == 0, "emit solo encola (no ejecuta)");
+		q2.flush();
+		check(r2.ran == 2 && dn2 == 2, "la receta se ejecuta en el frame");
+	}
+
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;

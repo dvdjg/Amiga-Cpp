@@ -17,7 +17,9 @@ abstraccion, pero sin perder control sobre memoria, coste y layout.
   ser costoso o lento; lo que no se admite es **sobrecarga por frame**: `virtual`/dispatch runtime, copias,
   reservas, `switch` de modo o consultas que podrían resolverse antes. El dato conocido en compilación se
   resuelve con **C++23** (`consteval`/`constexpr`, plantillas, `if constexpr`, `concept`, parámetros
-  `constexpr`); el dato de runtime se pasa como **parámetro**, no se relee en el bucle. Criterio de diseño:
+  `constexpr`); el dato de runtime se pasa como **parámetro**, no se relee en el bucle. Cuando una
+  **composición de operaciones** deba fusionarse en una sola pasada (sin temporales ni reescrituras),
+  usar las **expression templates** de `eng/core/math/expr.hpp` (`eval<S>(expr)`). Criterio de diseño:
   si una abstracción del API cuesta ciclos por frame, o se elimina en compilación o no entra en la capa A.
 - Recursos con ownership explicito: arena, pool o handle.
 - Datos para DMA siempre marcados por memoria objetivo: Chip, Slow, Fast o Any.

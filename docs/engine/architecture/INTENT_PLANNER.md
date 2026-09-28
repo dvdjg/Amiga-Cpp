@@ -66,6 +66,24 @@ api.wait(t);                      // SOLO si el juego lo pide (equivalente a glF
 - El **único** bloqueo es `wait(ticket)` — y **solo** si el juego lo pide. También `wait_all()` en
   el commit del frame si la app lo necesita (el bucle normal del mini-SO **no** lo necesita).
 
+### 4.1 Coste en el bucle: **compile-time y setup**, no por-frame
+
+La penalización en el bucle principal ha de ser **mínima** (regla del API, `CODING_STYLE.md`):
+el `update`/`render` por frame **no** admite sobrecarga (virtual, reservas, `switch` de modo,
+consultas que se podrían resolver antes). Por eso:
+
+- **Compilación**: lo fijo se resuelve con `consteval`/`constexpr`/`if constexpr`/plantillas y tablas
+  (`ct_array`, `InvSqrtTable<…>`) — minterms, geometrías y descriptores **no** se recomputan por frame.
+- **Setup de la escena**: lo invariante durante la escena se **compila una vez** (la "receta": capas,
+  planes base, direcciones de plano, presupuestos) y el bucle **solo actualiza lo dinámico**
+  (posiciones, frames, colores). Patrón: `DrawRecipe<N>` (lista fija de intenciones descrita en el
+  setup) que el bucle **reproduce** con un recorrido mínimo — **cero asignación por frame**.
+- **Expresión fusionada**: cuando una composición de operaciones deba resolverse en una sola pasada,
+  **expression templates** (`eng/core/math/expr.hpp`), sin temporales.
+
+Criterio: si una abstracción del API **cuesta ciclos por frame**, o se elimina en compilación/setup,
+o no entra en la capa A.
+
 ## 5. La completación: **eventos del mini-SO** (el callback)
 
 Cuando el engine **alcanza el punto** de una intención —aunque queden más peticiones por
