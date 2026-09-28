@@ -350,6 +350,8 @@ Esta sección fija **qué es cada pieza** (framebuffer, vista, descriptor, algor
 | `Camera2D`/`Layer`/`WorldRect` | vista+algo | ventana al mundo (scroll) |
 | `Sprite`/`Bob`/`Visual`/`HwSprite*` | descriptor | contenido dibujable (BOB/hardware/tile/rect) |
 | `BlitJob`/`FramePlan` | emisión | trabajo de Blitter y su cola/presupuesto |
+| `BitmapView<Tag,Bank>`/`BobTarget` | vista | zona rectangular (planos+geometría+layout) con banco y tag en el tipo |
+| `BlitOp`/`blit_regs()` | emisión | intención de blit (zona destino/origen + rect) y su traducción a registros del Blitter (`BLITTER_INTENT_QUEUE.md`) |
 | `CopperIntent`/`copper::Plan`/`Scheduler` | emisión | intención y lista de Copper |
 | `Camera2D`/`TileScrollDriver`/`FineScroll` | algoritmo | scroll |
 | `PaletteTransition`/`Cycle`/`RasterGradient` | algoritmo | color/raster |
