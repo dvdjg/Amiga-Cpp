@@ -17,11 +17,29 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const BASELINE = path.join(ROOT, 'tools/check/casts-baseline.txt');
+const FRONTIER = path.join(ROOT, 'tools/check/casts-frontier.txt');
 const DIRS = ['engine/include', 'engine/src'];
 const ARGS = process.argv.slice(2);
 const asJson = ARGS.includes('--json');
 const check = ARGS.includes('--check');
 const update = ARGS.includes('--update-baseline');
+
+// **Fronteras declaradas** (`tools/check/casts-frontier.txt`): ficheros que *por diseño* traducen
+// dominio→chipset (registros/BLTCON). Sus casts son el mecanismo, no deuda: el gate los EXIME y no
+// entran en el baseline. Formato: `<ruta>  # razón`.
+function loadFrontier() {
+  const set = new Map();
+  if (fs.existsSync(FRONTIER)) {
+    for (const line of fs.readFileSync(FRONTIER, 'utf8').split(/\r?\n/)) {
+      const s = line.trim();
+      if (!s || s.startsWith('#')) continue;
+      const m = s.match(/^(\S+)\s*(?:#\s*(.*))?$/);
+      if (m) set.set(m[1], m[2] || 'frontera declarada');
+    }
+  }
+  return set;
+}
+const frontier = loadFrontier();
 
 // `--list <fichero>`: imprime cada `static_cast<...>(...)` con su linea, para la pasada §233
 // (quitar el cast y compilar: si no hay aviso, era ruido).
@@ -76,6 +94,7 @@ for (const k of [...Object.keys(RE), 'hard']) totals[k] = rows.reduce((a, r) => 
 
 if (update) {
   const lines = rows
+    .filter((r) => !frontier.has(r.file))
     .filter((r) => r.hard > 0 || r.static_cast > 0)
     .sort((a, b) => a.file.localeCompare(b.file))
     .map((r) => `${String(r.hard).padStart(3)} ${String(r.static_cast).padStart(5)}  ${r.file}`);
@@ -102,6 +121,7 @@ if (check) {
   }
   const fails = [];
   for (const r of rows) {
+    if (frontier.has(r.file)) continue; // frontera declarada: exento (CODING_STYLE §232)
     const b = base.get(r.file) ?? { hard: 0, st: 0 };
     if (r.hard > b.hard) fails.push(`  ${r.file}: reinterpret+const ${r.hard} > baseline ${b.hard}`);
     if (r.static_cast > b.st) fails.push(`  ${r.file}: static_cast ${r.static_cast} > baseline ${b.st}`);
@@ -112,7 +132,8 @@ if (check) {
     console.error('  Si el cast es frontera real, documentar y --update-baseline; si no, cambiar el tipo.');
     process.exit(1);
   }
-  console.log(`[casts] OK: ningun fichero supera su baseline (total duros ${totals.hard}).`);
+  console.log(`[casts] OK: ningun fichero supera su baseline (total duros ${totals.hard}; ` +
+    `${frontier.size} de frontera exentos).`);
   process.exit(0);
 }
 
