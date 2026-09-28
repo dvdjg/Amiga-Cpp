@@ -184,6 +184,66 @@ private:
 /// y `FaceIndex` dentro del blob).
 enum class MeshStatus : eng::u8 { Ok, Empty, BadGroup, OutOfRange, Misaligned };
 
+/// **Rango tipado de un grupo** de `obj2c` (offsets de byte terminados por 0): recorre saltando el
+/// **centinela** y devuelve `Ref<T>` (nunca `T*`). `Acc` traduce un offset a la `Ref<T>` de la
+/// pieza. Es la Fase B de `OBJECT3D_MESH_VIEW.md`: `for (VertexRef v : obj.points())` en vez de
+/// `s16* group; while ((i = *group++))`.
+template <class T, class Acc>
+class GroupRange {
+public:
+	/// Iterador de entrada: avanza hasta el centinela 0.
+	class Iter {
+	public:
+		constexpr Iter(const s16* g, Acc acc) noexcept : m_g(g), m_acc(acc) {}
+		[[nodiscard]] eng::Ref<T> operator*() const noexcept { return m_acc(*m_g); }
+		Iter& operator++() noexcept {
+			++m_g;
+			return *this;
+		}
+		[[nodiscard]] bool operator!=(const Iter& o) const noexcept { return m_g != o.m_g; }
+
+	private:
+		const s16* m_g;
+		Acc m_acc;
+	};
+
+	constexpr GroupRange(const s16* g, Acc acc) noexcept : m_g(g), m_acc(acc) {}
+	/// Inicio del rango (primer offset del grupo).
+	[[nodiscard]] Iter begin() const noexcept { return Iter {m_g, m_acc}; }
+	/// Fin del rango (el centinela 0, sin incluirlo).
+	[[nodiscard]] Iter end() const noexcept {
+		const s16* p = m_g;
+		while (p != nullptr && *p != 0) {
+			++p;
+		}
+		return Iter {p, m_acc};
+	}
+
+private:
+	const s16* m_g;
+	Acc m_acc;
+};
+
+/// **Accesores con nombre** del `MeshBlob` para los rangos de grupo (un offset -> la `Ref<T>`).
+struct NodeAcc {
+	MeshBlob b {};
+	[[nodiscard]] eng::Ref<Node3D> operator()(s16 o) const noexcept {
+		return b.node(VertexRef {ObjOffset {o}});
+	}
+};
+struct EdgeAcc {
+	MeshBlob b {};
+	[[nodiscard]] eng::Ref<Edge> operator()(s16 o) const noexcept {
+		return b.edge(EdgeRef {ObjOffset {o}});
+	}
+};
+struct FaceAcc {
+	MeshBlob b {};
+	[[nodiscard]] eng::Ref<Face> operator()(s16 o) const noexcept {
+		return b.face(FaceRef {ObjOffset {o}});
+	}
+};
+
 /// Cabecera de malla (la que genera `obj2c`; los punteros son offsets absolutos).
 struct Mesh3D {
 	s16 vertices = 0;
@@ -239,6 +299,21 @@ struct Object3D {
 	[[nodiscard]] Point3D* vertex(s16 i) { return MeshBlob {object_bytes(*this)}.vertex(i); }
 	[[nodiscard]] Edge* edge(s16 i) { return MeshBlob {object_bytes(*this)}.edge(i); }
 	[[nodiscard]] Face* face(s16 i) { return MeshBlob {object_bytes(*this)}.face(i); }
+
+	/// Vista tipada del blob del objeto (la procedencia del acceso tipado).
+	[[nodiscard]] MeshBlob mesh() const noexcept { return MeshBlob {object_bytes(*this)}; }
+
+	/// **Recorrido tipado de los grupos** (Fase B): saltan el centinela y devuelven `Ref<T>`.
+	/// `for (VertexRef v : obj.points())`, `for (FaceRef f : obj.faces())`, …
+	[[nodiscard]] GroupRange<Node3D, NodeAcc> points() const noexcept {
+		return {vertexGroups, NodeAcc {mesh()}};
+	}
+	[[nodiscard]] GroupRange<Edge, EdgeAcc> edges() const noexcept {
+		return {edgeGroups, EdgeAcc {mesh()}};
+	}
+	[[nodiscard]] GroupRange<Face, FaceAcc> faces() const noexcept {
+		return {faceGroups, FaceAcc {mesh()}};
+	}
 };
 
 // Invariante de layout: los tipos con escala (`q0`/`q12`) describen el `objdat` empaquetado
