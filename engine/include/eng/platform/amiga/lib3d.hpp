@@ -84,37 +84,33 @@ inline void update_face_visibility(Object3D& object) {
 	const s16 cx = object.camera.x.v;
 	const s16 cy = object.camera.y.v;
 	const s16 cz = object.camera.z.v;
-	s16* group = object.faceGroups;
-	s16 f;
-	do {
-		while ((f = *group++)) {
-			object3d::Face* face = object.face(f);
-			s16 px, py, pz;
-			{
-				const s16 i = object3d::face_indices(face)[0].vertex;
-				const Point3D* p = object.point(i);
-				px = static_cast<s16>(cx - p->x.v);
-				py = static_cast<s16>(cy - p->y.v);
-				pz = static_cast<s16>(cz - p->z.v);
-			}
-			// Normal = RATIO (4.12); camara-vertice = LONGITUD (entero). El producto
-			// `q12*q0` da el mismo `muls.w` que `mul_wide`, con el formato explicito, y
-			// aqui NO se normaliza: el original usa la escala cruda para el signo y la
-			// magnitud² de la luz.
-			const eng::retro::q12 nx = face->normal[0], ny = face->normal[1], nz = face->normal[2];
-			const eng::retro::q0 vx {px}, vy {py}, vz {pz};
-			const s32 v = (nx * vx).v + (ny * vy).v + (nz * vz).v;
-			const s32 e1_sq = (vx * vx).v + (vy * vy).v + (vz * vz).v;
-			if (v >= 0 || face->material < 0) {
-				// Luz 0..15. `shade` usa |v| internamente (cubre la cara de espaldas con
-				// material < 0); el rasgo `light_ops` la especializa por CPU (68000:
-				// `mulu.w` + `swap`), sin `sqrt` en runtime.
-				face->flags = static_cast<s8>(eng::math::light_ops<>::shade(v, e1_sq, kInvSqrt));
-			} else {
-				face->flags = -1;
-			}
+	for (const eng::Ref<object3d::Face>& fr : object.faces()) {
+		object3d::Face* face = fr.get();
+		s16 px, py, pz;
+		{
+			const s16 i = object3d::face_indices(face)[0].vertex;
+			const Point3D* p = object.point(i);
+			px = static_cast<s16>(cx - p->x.v);
+			py = static_cast<s16>(cy - p->y.v);
+			pz = static_cast<s16>(cz - p->z.v);
 		}
-	} while (*group);
+		// Normal = RATIO (4.12); camara-vertice = LONGITUD (entero). El producto
+		// `q12*q0` da el mismo `muls.w` que `mul_wide`, con el formato explicito, y
+		// aqui NO se normaliza: el original usa la escala cruda para el signo y la
+		// magnitud² de la luz.
+		const eng::retro::q12 nx = face->normal[0], ny = face->normal[1], nz = face->normal[2];
+		const eng::retro::q0 vx {px}, vy {py}, vz {pz};
+		const s32 v = (nx * vx).v + (ny * vy).v + (nz * vz).v;
+		const s32 e1_sq = (vx * vx).v + (vy * vy).v + (vz * vz).v;
+		if (v >= 0 || face->material < 0) {
+			// Luz 0..15. `shade` usa |v| internamente (cubre la cara de espaldas con
+			// material < 0); el rasgo `light_ops` la especializa por CPU (68000:
+			// `mulu.w` + `swap`), sin `sqrt` en runtime.
+			face->flags = static_cast<s8>(eng::math::light_ops<>::shade(v, e1_sq, kInvSqrt));
+		} else {
+			face->flags = -1;
+		}
+	}
 }
 
 /// Port de `UpdateEdgeVisibilityConvex` (flatshade-convex): por cada cara visible
@@ -126,26 +122,22 @@ inline void update_face_visibility(Object3D& object) {
 /// Coste: recorrido puro de índices (sin multiplicaciones).
 inline void update_edge_visibility_convex(Object3D& object) {
 	const s8 s = 1;
-	s16* group = object.faceGroups;
-	s16 f;
-	do {
-		while ((f = *group++)) {
-			object3d::Face* face = object.face(f);
-			const s8 flags = face->flags;
-			if (flags >= 0) {
-				const eng::Span<object3d::FaceIndex> fi = object3d::face_indices(face);
-				object.node(fi[0].vertex)->flags = s;
-				object.edge(fi[0].edge)->flags = static_cast<s8>(object.edge(fi[0].edge)->flags ^ flags);
-				object.node(fi[1].vertex)->flags = s;
-				object.edge(fi[1].edge)->flags = static_cast<s8>(object.edge(fi[1].edge)->flags ^ flags);
-				for (s16 k = 2; k < face->count; ++k) {
-					object.node(fi[k].vertex)->flags = s;
-					object.edge(fi[k].edge)->flags =
-						static_cast<s8>(object.edge(fi[k].edge)->flags ^ flags);
-				}
+	for (const eng::Ref<object3d::Face>& fr : object.faces()) {
+		object3d::Face* face = fr.get();
+		const s8 flags = face->flags;
+		if (flags >= 0) {
+			const eng::Span<object3d::FaceIndex> fi = object3d::face_indices(face);
+			object.node(fi[0].vertex)->flags = s;
+			object.edge(fi[0].edge)->flags = static_cast<s8>(object.edge(fi[0].edge)->flags ^ flags);
+			object.node(fi[1].vertex)->flags = s;
+			object.edge(fi[1].edge)->flags = static_cast<s8>(object.edge(fi[1].edge)->flags ^ flags);
+			for (s16 k = 2; k < face->count; ++k) {
+				object.node(fi[k].vertex)->flags = s;
+				object.edge(fi[k].edge)->flags =
+					static_cast<s8>(object.edge(fi[k].edge)->flags ^ flags);
 			}
 		}
-	} while (*group);
+	}
 }
 
 // La proyección de cada vértice la resuelve `eng::math::projector` (en `affine.hpp`): el
@@ -166,7 +158,6 @@ inline void update_edge_visibility_convex(Object3D& object) {
 /// registros y un `muls.w`/`divs.w` por operación, sin recargar `objdat`.
 inline void transform_vertices(Object3D& object, s16 half_w, s16 half_h, s16 bbox[4]) {
 	math3d::Affine3<>& M = object.objectToWorld;
-	s16* group = object.vertexGroups;
 
 	// Lo precalculable UNA vez por matriz (términos de traslación plegados) lo guarda
 	// la caché del proyector; el backend 68000 mete ahí lo que necesite.
@@ -174,33 +165,30 @@ inline void transform_vertices(Object3D& object, s16 half_w, s16 half_h, s16 bbo
 	const Proj::cache pc = Proj::make(M);
 
 	bbox[0] = 32767; bbox[1] = -32768; bbox[2] = 32767; bbox[3] = -32768;
-	do {
-		s16 i;
-		while ((i = *group++)) {
-			object3d::Node3D* node = object.node(i);
-			if (node->flags) {
-				s16* pt = reinterpret_cast<s16*>(node); // TODO: Limpiar esto
-				s16 x, y, z;
+	for (const eng::Ref<object3d::Node3D>& nr : object.points()) {
+		object3d::Node3D* node = nr.get();
+		if (node->flags) {
+			s16* pt = reinterpret_cast<s16*>(node); // TODO: Limpiar esto
+			s16 x, y, z;
 
-				*pt++ = 0;
-				x = *pt++;
-				y = *pt++;
-				z = *pt++;
-				const eng::math::Projected3 pr = Proj::project(pc, x, y, z);
+			*pt++ = 0;
+			x = *pt++;
+			y = *pt++;
+			z = *pt++;
+			const eng::math::Projected3 pr = Proj::project(pc, x, y, z);
 
-				const s16 sx = static_cast<s16>(eng::math::div_wide(pr.xp, static_cast<s16>(pr.zp)) + half_w);
-				const s16 sy = static_cast<s16>(eng::math::div_wide(pr.yp, static_cast<s16>(pr.zp)) + half_h);
-				*pt++ = sx;
-				*pt++ = sy;
-				*pt++ = static_cast<s16>(pr.zp);
+			const s16 sx = static_cast<s16>(eng::math::div_wide(pr.xp, static_cast<s16>(pr.zp)) + half_w);
+			const s16 sy = static_cast<s16>(eng::math::div_wide(pr.yp, static_cast<s16>(pr.zp)) + half_h);
+			*pt++ = sx;
+			*pt++ = sy;
+			*pt++ = static_cast<s16>(pr.zp);
 
-				if (sx < bbox[0]) bbox[0] = sx;
-				if (sx > bbox[1]) bbox[1] = sx;
-				if (sy < bbox[2]) bbox[2] = sy;
-				if (sy > bbox[3]) bbox[3] = sy;
-			}
+			if (sx < bbox[0]) bbox[0] = sx;
+			if (sx > bbox[1]) bbox[1] = sx;
+			if (sy < bbox[2]) bbox[2] = sy;
+			if (sy > bbox[3]) bbox[3] = sy;
 		}
-	} while (*group);
+	}
 }
 
 } // namespace eng::lib3d

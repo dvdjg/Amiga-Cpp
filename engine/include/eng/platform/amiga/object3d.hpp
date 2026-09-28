@@ -191,29 +191,41 @@ enum class MeshStatus : eng::u8 { Ok, Empty, BadGroup, OutOfRange, Misaligned };
 template <class T, class Acc>
 class GroupRange {
 public:
-	/// Iterador de entrada: avanza hasta el centinela 0.
+	/// Iterador de entrada: **salta los separadores 0** entre sub-grupos (como el `while (*group++)`).
 	class Iter {
 	public:
-		constexpr Iter(const s16* g, Acc acc) noexcept : m_g(g), m_acc(acc) {}
+		constexpr Iter(const s16* g, const s16* end, Acc acc) noexcept
+			: m_g(g), m_end(end), m_acc(acc) {
+			skip_zero();
+		}
 		[[nodiscard]] eng::Ref<T> operator*() const noexcept { return m_acc(*m_g); }
 		Iter& operator++() noexcept {
 			++m_g;
+			skip_zero();
 			return *this;
 		}
 		[[nodiscard]] bool operator!=(const Iter& o) const noexcept { return m_g != o.m_g; }
 
 	private:
+		/// Salta los separadores (`0`) entre sub-grupos.
+		constexpr void skip_zero() noexcept {
+			while (m_g != m_end && *m_g == 0) {
+				++m_g;
+			}
+		}
 		const s16* m_g;
+		const s16* m_end;
 		Acc m_acc;
 	};
 
 	constexpr GroupRange(eng::Span<s16> g, Acc acc) noexcept : m_g(g), m_acc(acc) {}
-	/// Inicio del rango (primer offset del grupo).
-	[[nodiscard]] Iter begin() const noexcept { return Iter {m_g.data(), m_acc}; }
+	/// Inicio del rango (primer offset, saltando los separadores iniciales).
+	[[nodiscard]] Iter begin() const noexcept { return Iter {m_g.data(), end_ptr(), m_acc}; }
 	/// Fin del rango (tras el último offset del grupo).
-	[[nodiscard]] Iter end() const noexcept { return Iter {m_g.data() + m_g.size(), m_acc}; }
+	[[nodiscard]] Iter end() const noexcept { return Iter {end_ptr(), end_ptr(), m_acc}; }
 
 private:
+	[[nodiscard]] const s16* end_ptr() const noexcept { return m_g.data() + m_g.size(); }
 	eng::Span<s16> m_g;
 	Acc m_acc;
 };
