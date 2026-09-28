@@ -50,8 +50,16 @@ scene::ActorDesc make_bob(eng::s16 x, eng::s16 y, eng::u8 z) {
 	return d;
 }
 
-const graphics::BobTarget g_target {
-	reinterpret_cast<eng::u8*>(g_dest), 8u, 64u, 4u, graphics::BobLayout::Planar};
+// En host no hay Chip RAM: escape documentado del test.
+template <class Tag = eng::BobTag, class T, eng::usize N>
+eng::ChipView<Tag> chip_view(const T (&a)[N]) {
+	return eng::ChipView<Tag> {
+		eng::Address<eng::MemoryKind::Chip>::from_storage(a),
+		static_cast<eng::usize>(N) * sizeof(T)};
+}
+
+const graphics::BobTarget g_target =
+	graphics::make_bob_target(chip_view<eng::PlaneTag>(g_dest), 8u, 8u, 4u, graphics::BobLayout::Planar);
 
 } // namespace
 

@@ -84,11 +84,11 @@ int main() {
 	// --- Limpieza de zona (clear_box) --------------------------------------
 	eng::graphics::FramePlan plan {};
 	plan.clear();
-	eng::graphics::BobTarget t {};
-	t.base = reinterpret_cast<eng::u8*>(copper);
-	t.row_bytes = 4u;
-	t.planes = 2u;
-	t.layout = eng::graphics::BobLayout::Interleaved;
+	eng::graphics::BobTarget t = eng::graphics::make_bob_target(
+		eng::ChipView<eng::PlaneTag> {
+			eng::Address<eng::MemoryKind::Chip>::from_storage(copper),
+			sizeof(copper)},
+		4u, 4u, 2u, eng::graphics::BobLayout::Interleaved);
 	check(eng::scene::clear_box(plan, t, 0, 8, 32u, 4u), "clear_box encola");
 	check(plan.blit_job_count() == 1u, "clear_box: un blit");
 	check(plan.blit_job(0).kind == eng::graphics::BlitJobKind::ClearRect, "clear_box kind");

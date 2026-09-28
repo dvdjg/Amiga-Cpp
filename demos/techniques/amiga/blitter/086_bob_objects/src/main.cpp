@@ -423,11 +423,9 @@ private:
 				return false;
 			}
 		}
-		m_target.base = m_bitmap.view.data();
-		m_target.row_bytes = kBytesPerRow;
-		m_target.plane_bytes = kPlaneBytes;
-		m_target.planes = kPlanes;
-		m_target.layout = graphics::BobLayout::Planar;
+		m_target = graphics::make_bob_target(m_bitmap.mem_view_chip(), kBytesPerRow, kHeight,
+						    kPlanes, graphics::BobLayout::Planar,
+						    kPlaneBytes);
 		return true;
 	}
 

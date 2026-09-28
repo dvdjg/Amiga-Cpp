@@ -29,14 +29,22 @@ void check(bool ok, const char* what) {
 eng::u8 g_sheet[192] {};
 eng::u8 g_mask[96] {};
 
+// En host no hay Chip RAM: escape documentado del test.
+template <class Tag = eng::BobTag, class T, eng::usize N>
+eng::ChipView<Tag> chip_view(const T (&a)[N]) {
+	return eng::ChipView<Tag> {
+		eng::Address<eng::MemoryKind::Chip>::from_storage(a),
+		static_cast<eng::usize>(N) * sizeof(T)};
+}
+
 } // namespace
 
 int main() {
 	std::printf("== HOST-335 sprite_actor ==\n");
 
 	eng::graphics::Bob b {};
-	b.sheet = g_sheet;
-	b.mask = g_mask;
+	b.sheet = chip_view(g_sheet);
+	b.mask = chip_view(g_mask);
 	b.width = 32u;
 	b.height = 16u;
 	b.planes = 2u;

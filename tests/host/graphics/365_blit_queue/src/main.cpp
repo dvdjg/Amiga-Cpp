@@ -24,6 +24,13 @@ static_assert(!ConstructibleFrom<ChipPlane, eng::u8*>);
 static_assert(!ConstructibleFrom<ChipPlane, eng::Span<eng::u8>>);
 static_assert(!ConstructibleFrom<ChipPlane, PlaneByteView>);
 
+// El **tag** de la zona distingue el papel: destino = plano de playfield (`PlaneTag`), origen =
+// asset de BOB (`BobTag`). Intercambiarlos en un `BlitOp` NO compila.
+using DstZone = eng::graphics::BitmapView<eng::PlaneTag, eng::MemoryKind::Chip>;
+using SrcZone = eng::graphics::BitmapView<eng::BobTag, eng::MemoryKind::Chip>;
+static_assert(!ConstructibleFrom<DstZone, SrcZone>);
+static_assert(!ConstructibleFrom<SrcZone, DstZone>);
+
 static int failures = 0;
 static void check(bool ok, const char* msg) {
 	if (!ok) {
@@ -61,9 +68,13 @@ int main() {
 	static eng::u8 dst_buf[8] {};
 	static eng::u8 src_buf[8] {};
 	// En host no hay Chip RAM: para probar la COLA (no el medio) se usa `from_storage`, el escape
-	// documentado del test (§232). En objetivo, el `ChipView` viene de un `Block`/`Bitmap` Chip.
-	const ChipPlane dst {eng::Address<eng::MemoryKind::Chip>::from_storage(dst_buf), 8};
-	const ChipPlane src {eng::Address<eng::MemoryKind::Chip>::from_storage(src_buf), 8};
+	// documentado del test (§232). En objetivo, la zona viene de un `Block`/`Bitmap` Chip.
+	const DstZone dst {
+		ChipPlane {eng::Address<eng::MemoryKind::Chip>::from_storage(dst_buf), 8},
+		16u, 8u, 2u, 1u, eng::graphics::PlaneLayout::Interleaved};
+	const SrcZone src {
+		eng::ChipView<eng::BobTag> {eng::Address<eng::MemoryKind::Chip>::from_storage(src_buf), 8},
+		16u, 8u, 2u, 1u, eng::graphics::PlaneLayout::Interleaved};
 	FakeBlitter blitter;
 	Q q;
 	q.bind(blitter);

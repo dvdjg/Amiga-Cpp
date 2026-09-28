@@ -18,6 +18,7 @@
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/core/types/typed.hpp>
+#include <eng/graphics/bitmap_view.hpp>
 
 namespace eng::graphics {
 
@@ -25,15 +26,16 @@ namespace eng::graphics {
 /// intercalado (DEST|A_TO_D, `BLTADAT=0`); `Stamp` = OR de un asset sobre el destino (A_OR_B con
 /// `ASH` fino). Todos los campos son de **dominio** (puntos/bytes), no del chipset.
 ///
-/// **`src`/`dst` son `ChipView`** (memoria con el banco **Chip** en el tipo): el Blitter es DMA y
-/// solo ve Chip RAM. Pasar un array de pila o un `static` en Fast **no compila** (habría que
-/// inventar la procedencia con `Address<Chip>::from_storage`, prohibido fuera del backend). Ver
+/// **`src`/`dst` son `BitmapView` tipados**: zonas (base + geometría + layout) con el **banco Chip
+/// en el tipo** (el Blitter es DMA y solo ve Chip RAM). Además el **tag** distingue el papel: el
+/// destino es una zona de **plano de playfield** (`PlaneTag`) y el origen un **asset de BOB**
+/// (`BobTag`), de modo que **intercambiarlos no compila**. Ver
 /// `docs/engine/architecture/BLITTER_INTENT_QUEUE.md` §7.
 struct BlitOp {
 	enum class Kind : eng::u8 { Fill, Stamp };
 	Kind kind = Kind::Fill;
-	ChipView<PlaneTag> dst {};  ///< destino (bitmap intercalado en Chip RAM)
-	ChipView<PlaneTag> src {};  ///< `Stamp`: origen (atlas/asset en Chip RAM)
+	BitmapView<PlaneTag, MemoryKind::Chip> dst {}; ///< zona destino (bitmap intercalado en Chip)
+	BitmapView<BobTag, MemoryKind::Chip> src {};   ///< `Stamp`: zona origen (atlas/asset en Chip)
 	eng::s16 dst_mod = 0;       ///< `BLTDMOD` (bytes)
 	eng::s16 src_mod = 0;       ///< `Stamp`: `BLTAMOD` (bytes)
 	eng::u16 words = 0;         ///< palabras por fila (`BLTSIZE` bajo)
@@ -72,13 +74,15 @@ public:
 	}
 
 	/// **Intención**: rellenar un bitmap intercalado (una petición).
-	void fill(ChipView<PlaneTag> dst, eng::u16 words, eng::u16 height, eng::s16 dst_mod = 0) noexcept {
+	void fill(BitmapView<PlaneTag, MemoryKind::Chip> dst, eng::u16 words, eng::u16 height,
+		  eng::s16 dst_mod = 0) noexcept {
 		enqueue(BlitOp {BlitOp::Kind::Fill, dst, {}, dst_mod, 0, words, height, 0});
 	}
 
 	/// **Intención**: OR de un asset (fino con `ashift`), una petición.
-	void stamp(ChipView<PlaneTag> src, ChipView<PlaneTag> dst, eng::u16 words, eng::u16 height,
-		   eng::s16 src_mod, eng::s16 dst_mod, eng::u8 ashift) noexcept {
+	void stamp(BitmapView<BobTag, MemoryKind::Chip> src, BitmapView<PlaneTag, MemoryKind::Chip> dst,
+		   eng::u16 words, eng::u16 height, eng::s16 src_mod, eng::s16 dst_mod,
+		   eng::u8 ashift) noexcept {
 		enqueue(BlitOp {BlitOp::Kind::Stamp, dst, src, dst_mod, src_mod, words, height, ashift});
 	}
 

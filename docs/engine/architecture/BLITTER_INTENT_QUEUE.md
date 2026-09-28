@@ -97,24 +97,30 @@ El engine ya tiene direcciones **etiquetadas**: `Address<MemoryKind::Chip>` / `C
 
 ```cpp
 struct BlitOp {
-    ChipView<PlaneTag> dst {};   // solo valores con procedencia Chip
-    ChipView<PlaneTag> src {};   // idem (el atlas)
+    BitmapView<PlaneTag, Chip> dst {};  // zona destino (playfield): banco + geometría en el tipo
+    BitmapView<BobTag, Chip> src {};    // zona origen (atlas/asset): BobTag ≠ PlaneTag
+    // + words/height/módulos/ashift (rectángulo concreto dentro de la zona)
     ...
 };
 ```
 
 El ejecutor convierte a `u8*` **en el `submit`** (la única frontera). Pasar un array de pila o un
 `static` en Fast **no compila** sin un `Address<K>::from_storage` explícito — prohibido fuera del
-backend (CODING_STYLE §232). **El tag caza el error en compilación.**
+backend (CODING_STYLE §232). **El tag caza el error en compilación**: el destino es una zona
+`PlaneTag` y el origen una `BobTag`, de modo que **intercambiarlos no compila** (probado en
+HOST-365). La geometría de la zona (base + `row_bytes`/`plane_count`/`layout`/`plane_step`) viaja en
+la vista; los registros concretos (`words`/`height`/módulos) aún van explícitos en la op (una pasada
+rect-based, que los derive de la zona + un `Rect`, está en `ROADMAP_TIPOS_Y_CASTS.md` §6).
 
 ### 7.2 Zona rectangular: `BitmapView<Tag, K>` (usar `Bitmap`)
 
 Ya existe `eng::graphics::Bitmap` (memoria + geometría + layout + addressing: `width/height/planes`,
-`PlaneLayout{Interleaved,Separate}`, `row_bytes`, `alignment`). Propuesta: una **vista** no
-propietaria `BitmapView<Tag, K>` — `words`/`height`/módulos/`layout`(¿interleaved?)/dirección
-etiquetada — que **unan** a los consumidores: **sprites hw, BOBs, zonas del framebuffer/pantalla,
-viewports**. El `Bitmap` (o un `Block`) es el **dueño**; la vista es lo que viaja por las APIs (como
-`Span`, pero de **zona gráfica**).
+`PlaneLayout{Interleaved,Separate}`, `row_bytes`, `alignment`). La **vista** no propietaria
+`BitmapView<Tag, K>` (en `eng/graphics/bitmap_view.hpp`) ya **existe** — `width`/`height`/`row_bytes`/
+`plane_count`/`layout`/`plane_step` + la `MemView<Tag, K>` (banco) — y **unifica** a los consumidores:
+**sprites hw, BOBs, zonas del framebuffer/pantalla, viewports**. El `Bitmap` (o un `Block`) es el
+**dueño**; la vista es lo que viaja por las APIs (como `Span`, pero de **zona gráfica**). `BobTarget`
+es hoy un alias: `BitmapView<PlaneTag, MemoryKind::Chip>`.
 
 El **tag** elige el camino: un `BitmapView<ChunkyTag, Fast>` **no** se puede pasar donde se exige
 Chip; para copiar **chunky-Fast → planar-Chip**, el **C2P detecta los tags** (origen no-Chip, destino

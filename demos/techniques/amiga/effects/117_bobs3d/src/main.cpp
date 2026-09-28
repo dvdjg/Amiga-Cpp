@@ -269,7 +269,7 @@ struct Bobs3DDemo {
 		}
 
 		m_screen_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kRing * kScreenBytes, 16);
-		m_bob_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBobSheetBytes, 16);
+		m_bob_block = backend.memory().chip.allocate_block<eng::BobTag>(kBobSheetBytes, 16);
 		m_bob_dense_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBobDenseBytes, 16);
 		m_carrion_block = backend.memory().chip.allocate_block<eng::PlaneTag>(carrion_size, 16);
 		m_copper_block = backend.memory().chip.allocate_block<eng::CopperTag>(kCopperBlockBytes, 16);
@@ -529,7 +529,7 @@ private:
 		s16* group = m_object.vertexGroups;
 
 		graphics::Bob bob {};
-		bob.sheet = m_bob_block.view.data();
+		bob.sheet = m_bob_block.mem_view_chip();
 		bob.width = kBobW;
 		bob.height = kBobH;
 		bob.planes = kBobPlanes;
@@ -543,8 +543,11 @@ private:
 		// Capa de juego: `Sprite` envuelve el `Bob` ya cocinado (misma geometría/política).
 		const graphics::Sprite sprite {bob};
 
-		const graphics::BobTarget target {
-			screen, kBytesPerRow, 0u, kBobPlanes, graphics::BobLayout::Interleaved};
+		const graphics::BobTarget target = graphics::make_bob_target(
+			eng::ChipView<eng::PlaneTag> {
+				eng::Address<eng::MemoryKind::Chip>::from_storage(screen),
+				kBytesPerRow * kBobPlanes * 256u},
+			kBytesPerRow, 0u, kBobPlanes, graphics::BobLayout::Interleaved);
 
 		do {
 			s16 v;
@@ -634,7 +637,7 @@ private:
 	eng::u32 m_frame = 0;
 	u8 m_active = 0;
 	eng::Block<eng::PlaneTag> m_screen_block {};
-	eng::Block<eng::PlaneTag> m_bob_block {};
+	eng::Block<eng::BobTag> m_bob_block {};
 	eng::Block<eng::PlaneTag> m_bob_dense_block {};
 	eng::Block<eng::PlaneTag> m_carrion_block {};
 	eng::Block<eng::CopperTag> m_copper_block {};

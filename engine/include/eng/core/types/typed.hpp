@@ -103,6 +103,8 @@ public:
 	[[nodiscard]] constexpr TaggedSpan subspan(size_type off) const noexcept {
 		return TaggedSpan(m_span.data() + off, m_span.size() - off);
 	}
+	/// Primeros `n` elementos (como `Span::first`).
+	[[nodiscard]] constexpr TaggedSpan first(size_type n) const noexcept { return subspan(0, n); }
 	/// Vista de solo lectura de la misma memoria.
 	[[nodiscard]] constexpr TaggedSpan<const T, Tag> as_const() const noexcept {
 		return {m_span.data(), m_span.size()};
@@ -149,9 +151,11 @@ public:
 	[[nodiscard]] constexpr const eng::u8* data() const noexcept { return m_base.cptr(); }
 	[[nodiscard]] constexpr size_type size() const noexcept { return m_size; }
 	[[nodiscard]] constexpr bool empty() const noexcept { return m_size == 0u; }
-	[[nodiscard]] constexpr MemView subview(eng::s32 off, size_type n) const noexcept {
+	[[nodiscard]] constexpr MemView subview(size_type off, size_type n) const noexcept {
 		return MemView(m_base + off, n);
 	}
+	/// Primeros `n` bytes (como `Span::first`).
+	[[nodiscard]] constexpr MemView first(size_type n) const noexcept { return subview(0, n); }
 	/// Vista de dominio (CPU) sobre la misma memoria.
 	[[nodiscard]] constexpr ByteView<Tag> view() const noexcept {
 		return ByteView<Tag>(m_base.cptr(), m_size);
@@ -169,6 +173,16 @@ private:
 template <class Tag> using ChipView = MemView<Tag, MemoryKind::Chip>;
 template <class Tag> using SlowView = MemView<Tag, MemoryKind::Slow>;
 template <class Tag> using FastView = MemView<Tag, MemoryKind::Fast>;
+
+/// Frontera explícita y **documentada** hacia DMA: certifica que la memoria de una vista de bytes
+/// de un dominio está en **Chip** (lo garantiza el llamador: un asset cargado en Chip, una
+/// superficie del display…). Es el punto único de auditoría de la procedencia: quien lo use debe
+/// poder citar de dónde viene la garantía. `off` en bytes (admite negativo). No cambia el **tag**.
+template <class T, class Tag>
+[[nodiscard]] constexpr ChipView<Tag> as_chip(TaggedSpan<T, Tag> v, eng::s32 off = 0) noexcept {
+	static_assert(sizeof(T) == 1u, "as_chip: solo vistas de bytes (u8/const u8)");
+	return ChipView<Tag> {Address<MemoryKind::Chip>::from_storage(v.data() + off), v.size()};
+}
 
 // --- Bloque tipado (resultado de una reserva) --------------------------------
 

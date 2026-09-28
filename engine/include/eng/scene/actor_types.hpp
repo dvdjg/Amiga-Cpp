@@ -208,8 +208,19 @@ struct Actor {
 /// fijar `bob.sheet_row_bytes` después.
 inline Bob bob_from_visual(const Visual& v, BobLayout layout, TransparencyMode transparency) {
 	Bob b {};
-	b.sheet = reinterpret_cast<const eng::u8*>(v.pixels.data());
-	b.mask = v.mask.empty() ? nullptr : reinterpret_cast<const eng::u8*>(v.mask.data());
+	// Transición sprite -> BOB: los píxeles vienen de un `Visual` (vista agnóstica de la hoja del
+	// sprite, que vive en Chip). Puente explícito a la vista Chip (el Blitter solo lee Chip).
+	const eng::usize sheet_bytes = v.pixels.size() * 2u; // `pixels` es u16
+	b.sheet = eng::ChipView<eng::BobTag> {
+		eng::Address<eng::MemoryKind::Chip>::from_storage(
+			reinterpret_cast<const eng::u8*>(v.pixels.data())),
+		sheet_bytes};
+	b.mask = v.mask.empty()
+			 ? eng::ChipView<eng::BobTag> {}
+			 : eng::ChipView<eng::BobTag> {
+				   eng::Address<eng::MemoryKind::Chip>::from_storage(
+					   reinterpret_cast<const eng::u8*>(v.mask.data())),
+				   v.mask.size() * 2u};
 	b.width = v.w;
 	b.height = v.h;
 	b.planes = v.bitplanes;

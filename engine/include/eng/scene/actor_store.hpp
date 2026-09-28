@@ -27,14 +27,14 @@ inline bool emit_save(FramePlan& plan, const Actor& a, const DirtyRect& r,
 	eng::graphics::BlitJob job {};
 	job.destination = {save.data()};
 	job.source = {reinterpret_cast<const eng::u16*>(
-		target.base + static_cast<eng::u32>(r.top) * target.row_bytes +
+		target.data() + static_cast<eng::u32>(r.top) * target.row_bytes +
 		(static_cast<eng::u32>(r.left & ~15) >> 3u))};
 	job.words_per_row = words;
 	job.height = h;
 	job.bitplane_count = a.bob.planes;
 	job.source_modulo_bytes = static_cast<eng::s16>(target.row_bytes - static_cast<eng::u32>(words) * 2u);
 	job.destination_modulo_bytes = static_cast<eng::s16>(save_row_bytes - static_cast<eng::u32>(words) * 2u);
-	job.source_plane_stride_bytes = target.plane_bytes;
+	job.source_plane_stride_bytes = target.plane_pointer_step();
 	job.destination_plane_stride_bytes = save_row_bytes * a.desc.save_height;
 	return plan.add_copy_rect(job);
 }
@@ -52,7 +52,7 @@ inline bool emit_restore(FramePlan& plan, const Actor& a, const DirtyRect& r,
 	eng::graphics::BlitJob job {};
 	job.source = {save.data()};
 	job.destination = {reinterpret_cast<eng::u16*>(
-		target.base + static_cast<eng::u32>(r.top) * target.row_bytes +
+		target.data() + static_cast<eng::u32>(r.top) * target.row_bytes +
 		(static_cast<eng::u32>(r.left & ~15) >> 3u))};
 	job.words_per_row = words;
 	job.height = h;
@@ -60,7 +60,7 @@ inline bool emit_restore(FramePlan& plan, const Actor& a, const DirtyRect& r,
 	job.source_modulo_bytes = static_cast<eng::s16>(save_row_bytes - static_cast<eng::u32>(words) * 2u);
 	job.destination_modulo_bytes = static_cast<eng::s16>(target.row_bytes - static_cast<eng::u32>(words) * 2u);
 	job.source_plane_stride_bytes = save_row_bytes * a.desc.save_height;
-	job.destination_plane_stride_bytes = target.plane_bytes;
+	job.destination_plane_stride_bytes = target.plane_pointer_step();
 	return plan.add_restore_rect(job);
 }
 
@@ -70,7 +70,9 @@ inline bool emit_bob(FramePlan& plan, const Actor& a, const Frame& f, eng::s16 x
 	using eng::graphics::bob_detail::sheet_row_of;
 	Bob b = a.bob;
 	const eng::u32 row = sheet_row_of(a.bob); // stride de la hoja (antes de cambiar w/h)
-	b.sheet += static_cast<eng::u32>(f.y) * row + (static_cast<eng::u32>(f.x) >> 4u) * 2u;
+	const eng::usize sheet_off =
+		static_cast<eng::u32>(f.y) * row + (static_cast<eng::u32>(f.x) >> 4u) * 2u;
+	b.sheet = b.sheet.subview(sheet_off, b.sheet.size() - sheet_off);
 	b.width = f.w;
 	b.height = f.h;
 	b.frame_count = 1u;

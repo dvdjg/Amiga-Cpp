@@ -70,6 +70,14 @@ alignas(16) eng::u16 g_pixel_pool[256];
 alignas(16) eng::u8 g_chip_plan[32 * 1024];
 alignas(16) eng::u8 g_matrix_sheet[4096];
 
+// En host no hay Chip RAM: escape documentado del test.
+template <class Tag = eng::BobTag, class T, eng::usize N>
+eng::ChipView<Tag> chip_view(const T (&a)[N]) {
+	return eng::ChipView<Tag> {
+		eng::Address<eng::MemoryKind::Chip>::from_storage(a),
+		static_cast<eng::usize>(N) * sizeof(T)};
+}
+
 /// Valores de los MOVEs a `reg`, en orden de aparicion.
 unsigned collect_moves(const eng::u16* words, eng::u16 count, eng::u16 reg, eng::u16* out,
 		       unsigned max) {
@@ -118,13 +126,9 @@ ActorDesc make_desc() {
 }
 
 BobTarget make_target() {
-	BobTarget t {};
-	t.base = g_screen;
-	t.row_bytes = kRowBytes;
-	t.plane_bytes = kPlaneBytes;
-	t.planes = 4u;
-	t.layout = BobLayout::Planar;
-	return t;
+	return make_bob_target(chip_view<eng::PlaneTag>(g_screen), kRowBytes,
+			       static_cast<eng::u16>(kPlaneBytes / kRowBytes), 4u,
+			       BobLayout::Planar);
 }
 
 /// Composiciones de prueba: `g_targets[0]` es el playfield por defecto y `g_targets[1]`
@@ -134,7 +138,8 @@ BobTarget g_targets[2] {};
 void use_targets(ActorEmitContext& ctx) {
 	g_targets[0] = make_target();
 	g_targets[1] = make_target();
-	g_targets[1].base = g_screen + kPlaneBytes; // "otro" playfield
+	g_targets[1].planes =
+		g_targets[0].planes.subview(kPlaneBytes, g_targets[0].planes.size() - kPlaneBytes); // "otro" playfield
 	ctx.targets = g_targets;
 }
 
@@ -217,7 +222,7 @@ void test_geometry() {
 	auto a = store.get(id);
 
 	CHECK(a->bob.draw == eng::graphics::BobDraw::CookieCut, "bob draw segun transparencia");
-	CHECK(a->bob.mask != nullptr, "bob con mascara");
+	CHECK(!a->bob.mask.empty(), "bob con mascara");
 	CHECK(a->bob.width == 16u && a->bob.height == 8u, "bob con tamano del visual");
 
 	const Frame f = eng::scene::actor_current_frame(*a);
@@ -342,12 +347,12 @@ void test_emit_clipped_and_full() {
 	a->prev[0] = DirtyRect {10, 20, 26, 28};
 	ctx.clip = DirtyRect {};
 	ctx.buffer = 0;
-	g_targets[0].base = nullptr;
+	g_targets[0].planes = {};
 	CHECK(eng::scene::actor_emit(plan, *a, ctx) == ActorEmitStatus::Full, "rechazo controlado si un job no vale");
 	CHECK(plan.blit_job_count() == 0u, "sin jobs cuando el destino no vale");
 
 	// Superficie declarada fuera de la composición: rechazo controlado.
-	g_targets[0].base = g_screen;
+	g_targets[0] = make_target();
 	ActorDesc lejos = make_desc();
 	lejos.surface = 5u;
 	ActorStore<2> store2;
@@ -775,7 +780,7 @@ void test_copper_priority_wiring() {
 void test_bob_job_matrix() {
 	const auto mk = [](BobLayout layout, BobDraw draw, eng::u8 planes) {
 		Bob b {};
-		b.sheet = g_matrix_sheet;
+		b.sheet = chip_view(g_matrix_sheet);
 		b.width = 48u;
 		b.height = 32u;
 		b.planes = planes;
@@ -787,13 +792,7 @@ void test_bob_job_matrix() {
 		return b;
 	};
 	const auto tgt = [](BobLayout layout, eng::u8 planes = 4u) {
-		BobTarget t {};
-		t.base = g_screen;
-		t.row_bytes = kRowBytes;
-		t.plane_bytes = kPlaneBytes;
-		t.planes = planes;
-		t.layout = layout;
-		return t;
+		return make_bob_target(chip_view<eng::PlaneTag>(g_screen), kRowBytes, 256u, planes, layout);
 	};
 
 	// OR intercalado (un blit/objeto) en 3..6 planos.
@@ -820,7 +819,7 @@ void test_bob_job_matrix() {
 		FramePlan plan {};
 		plan.clear();
 		Bob b = mk(BobLayout::Planar, BobDraw::CookieCut, 4u);
-		b.mask = g_matrix_sheet;
+		b.mask = chip_view(g_matrix_sheet);
 		CHECK(bob_draw(plan, b, 0u, 32, 10, tgt(BobLayout::Planar)), "cookie-cut planar dibuja");
 		const auto& j = plan.blit_job(0);
 		CHECK(j.minterm == 0x00cau, "minterm cookie-cut $CA");
@@ -893,7 +892,7 @@ void test_bob_job_matrix() {
 		CHECK(bob_erase(plan, b, 10, 10, tgt(BobLayout::Interleaved)) && plan.blit_job_count() == 0u,
 		      "erase None no encola");
 		Bob bad = b;
-		bad.sheet = nullptr;
+		bad.sheet = {};
 		CHECK(!bob_draw(plan, bad, 0u, 0, 0, tgt(BobLayout::Interleaved)), "sin hoja falla");
 		CHECK(!bob_draw(plan, b, 9u, 0, 0, tgt(BobLayout::Interleaved)), "frame fuera de rango falla");
 	}

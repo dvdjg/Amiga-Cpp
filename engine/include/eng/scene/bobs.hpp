@@ -75,7 +75,7 @@ private:
 [[nodiscard]] inline bool clear_box(eng::graphics::FramePlan& plan,
 				    const eng::graphics::BobTarget& t, eng::s16 x, eng::s16 y,
 				    eng::u16 w, eng::u16 h) {
-	if (t.base == nullptr || t.planes == 0u || w == 0u || h == 0u) {
+	if (t.planes.empty() || t.plane_count == 0u || w == 0u || h == 0u) {
 		return true;
 	}
 	const eng::s16 wx = static_cast<eng::s16>(x & ~15);
@@ -88,16 +88,16 @@ private:
 	const eng::u16 words =
 		static_cast<eng::u16>((w + 15u) / 16u + ((x & 15) != 0 ? 1u : 0u));
 	const eng::u32 start_row =
-		inter ? static_cast<eng::u32>(t.row_bytes) * t.planes : t.row_bytes;
+		inter ? static_cast<eng::u32>(t.row_bytes) * t.plane_count : t.row_bytes;
 	eng::graphics::BlitJob job {};
-	job.destination = {reinterpret_cast<eng::u16*>(t.base + static_cast<eng::u32>(y) * start_row +
+	job.destination = {reinterpret_cast<eng::u16*>(t.data() + static_cast<eng::u32>(y) * start_row +
 						       (static_cast<eng::u32>(wx) >> 3u))};
 	job.words_per_row = words;
-	job.height = inter ? static_cast<eng::u16>(h * t.planes) : h;
+	job.height = inter ? static_cast<eng::u16>(h * t.plane_count) : h;
 	job.destination_modulo_bytes =
 		static_cast<eng::s16>(t.row_bytes - static_cast<eng::u32>(words) * 2u);
-	job.bitplane_count = inter ? 1u : t.planes;
-	job.destination_plane_stride_bytes = inter ? 0u : t.plane_bytes;
+	job.bitplane_count = inter ? 1u : t.plane_count;
+	job.destination_plane_stride_bytes = inter ? 0u : t.plane_pointer_step();
 	job.interleaved = inter;
 	job.minterm = 0x00u; // D = 0
 	return plan.add_clear_rect(job);

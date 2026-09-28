@@ -29,6 +29,10 @@ struct BitmapView {
 	eng::u16 row_bytes = 0;            ///< bytes por fila de UN plano (0 = width/8)
 	eng::u8 plane_count = 0;           ///< profundidad (1..6)
 	PlaneLayout layout = PlaneLayout::Interleaved;
+	/// Paso explícito entre planos en bytes (0 = derivarlo de `layout`/`row_bytes`/`height`). Sirve
+	/// a geometrías no estándar (p. ej. dual playfield de un bitmap: planos de PF1 intercalados con
+	/// PF2 cada `2 × row_bytes`, que la fórmula `row × height` no produce).
+	eng::u32 plane_step = 0;
 
 	/// ¿Zona con memoria y geometría? (`planes` no vacío y ancho/alto/planos no nulos.)
 	[[nodiscard]] constexpr bool valid() const noexcept {
@@ -48,7 +52,10 @@ struct BitmapView {
 	/// **Paso entre punteros de plano** (`BPLxPT`): `row_bytes` si interleaved (los planos van
 	/// palabra a palabra por línea) o `row_bytes × height` si separados (plano contiguo).
 	[[nodiscard]] constexpr eng::u32 plane_pointer_step() const noexcept {
-		return interleaved() ? row_bytes : static_cast<eng::u32>(row_bytes) * height;
+		return plane_step != 0u
+			       ? plane_step
+			       : (interleaved() ? row_bytes
+						: static_cast<eng::u32>(row_bytes) * height);
 	}
 	/// ¿Planos interleaved (fila a fila) o contiguos (plano a plano)?
 	[[nodiscard]] constexpr bool interleaved() const noexcept {

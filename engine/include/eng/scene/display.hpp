@@ -147,27 +147,35 @@ struct Band {
 	/// `bytes_per_row × planes` y el stride de plano es `bytes_per_row × 2` (con `planes / 2`
 	/// planos, layout `Planar`), de modo que el Blitter cubre solo los planos de PF1.
 	[[nodiscard]] eng::graphics::BobTarget bob_target() const noexcept {
-		eng::graphics::BobTarget t {};
-		t.base = (bob_base.data() != nullptr) ? bob_base.data() + scroll_off : nullptr;
+		// `bob_base` es la vista agnóstica de la superficie Chip de la banda: puente explícito a
+		// la vista con banco Chip (el Blitter solo escribe Chip). Vacía = banda sin BOBs.
+		eng::ChipView<eng::PlaneTag> mem {};
+		if (!bob_base.empty()) {
+			// `bob_base` es la superficie Chip de la banda (procedencia conocida): puente
+			// documentado a la vista con banco Chip. Compensa el scroll vertical (`scroll_off`).
+			mem = eng::as_chip(bob_base, scroll_off);
+		}
 		if (dual_playfield && !planes_view_b.empty() && (planes % 2u) == 0u) {
 			// DPF de **dos bitmaps** (cada campo interleave propio): PF1 = `planes_view`,
 			// interleave de `planes / 2` planos con módulo interleaved estándar.
-			t.row_bytes = bytes_per_row;
-			t.planes = static_cast<eng::u8>(planes / 2u);
-			t.layout = eng::graphics::BobLayout::Interleaved;
-		} else if (dual_playfield && planes >= 2u) {
-			t.row_bytes = static_cast<eng::u16>(bytes_per_row * static_cast<eng::u16>(planes));
-			t.plane_bytes = static_cast<eng::u32>(bytes_per_row) * 2u;
-			t.planes = static_cast<eng::u8>(planes / 2u);
-			t.layout = eng::graphics::BobLayout::Planar;
-		} else {
-			t.row_bytes = bytes_per_row;
-			t.plane_bytes = plane_bytes;
-			t.planes = planes;
-			t.layout = (plane_bytes == 0u) ? eng::graphics::BobLayout::Interleaved
-						       : eng::graphics::BobLayout::Planar;
+			return eng::graphics::make_bob_target(
+				mem, bytes_per_row, 0u, static_cast<eng::u8>(planes / 2u),
+				eng::graphics::BobLayout::Interleaved);
 		}
-		return t;
+		if (dual_playfield && planes >= 2u) {
+			return eng::graphics::make_bob_target(
+				mem,
+				static_cast<eng::u16>(bytes_per_row *
+						      static_cast<eng::u16>(planes)),
+				0u, static_cast<eng::u8>(planes / 2u),
+				eng::graphics::BobLayout::Planar,
+				static_cast<eng::u32>(bytes_per_row) * 2u);
+		}
+		return eng::graphics::make_bob_target(
+			mem, bytes_per_row, 0u, planes,
+			(plane_bytes == 0u) ? eng::graphics::BobLayout::Interleaved
+					    : eng::graphics::BobLayout::Planar,
+			plane_bytes);
 	}
 
 	/// Refresca la geometría dependiente del **scroll** desde la superficie (base, fine scroll,

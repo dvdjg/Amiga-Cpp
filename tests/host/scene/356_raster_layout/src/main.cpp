@@ -64,8 +64,8 @@ int main() {
 	check(layout[1].bplcon0() == 0x0000u, "banda 1: 0 planos, sin COLOR");
 	check(layout[1].bpl1mod == 0u, "banda 1: sin modulo");
 	const auto t0 = layout[0].bob_target();
-	check(t0.base == planes.view.data() && t0.planes == 3u && t0.row_bytes == 240u &&
-		      t0.plane_bytes == 80u && t0.layout == eng::graphics::BobLayout::Planar,
+	check(t0.data() == planes.view.data() && t0.plane_count == 3u && t0.row_bytes == 240u &&
+		      t0.plane_pointer_step() == 80u && t0.layout == eng::graphics::BobLayout::Planar,
 	      "bob_target PF1 en DPF (3 planos a stride 2)");
 
 	check(layout.materialize(sched), "materializa");
@@ -252,7 +252,7 @@ int main() {
 		view.plane_bytes = 3u * 48u * 256u;
 		view.planeaddy = 480u;
 		const eng::scene::Band band = eng::scene::band_from_view(view, 0u);
-		check(band.bob_target().base == planes.view.data() + 480u,
+		check(band.bob_target().data() == planes.view.data() + 480u,
 		      "bob_target compensa el scroll vertical");
 	}
 

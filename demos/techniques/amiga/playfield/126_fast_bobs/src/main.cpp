@@ -120,7 +120,7 @@ struct FastBobsDemo {
 		// de modo que el padding borra por si solo lo que quede del frame anterior. No hay
 		// mascara: la transparencia la da el propio padding sobre un PF1 vacio.
 		eng::graphics::Bob bob {};
-		bob.sheet = m_sheet_block.view.data();
+		bob.sheet = m_sheet_block.mem_view_chip();
 		bob.width = kBobPadded;
 		bob.height = kBobPadded;
 		bob.planes = kBobPlanes;

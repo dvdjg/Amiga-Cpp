@@ -31,10 +31,18 @@ alignas(2) eng::u8 g_fast_sheet[16384] {};
 alignas(2) eng::u8 g_cookie_sheet[16384] {};
 alignas(2) eng::u8 g_screen[16384] {};
 
+// En host no hay Chip RAM: escape documentado del test.
+template <class Tag = eng::BobTag, class T, eng::usize N>
+eng::ChipView<Tag> chip_view(const T (&a)[N]) {
+	return eng::ChipView<Tag> {
+		eng::Address<eng::MemoryKind::Chip>::from_storage(a),
+		static_cast<eng::usize>(N) * sizeof(T)};
+}
+
 // Padded: 32x16 visible + 8 px de padding por lado -> 48x32 (copia opaca interleaved).
 eng::graphics::Sprite make_fast_sheet() {
 	eng::graphics::Bob b {};
-	b.sheet = g_fast_sheet;
+	b.sheet = chip_view(g_fast_sheet);
 	b.width = 48u;
 	b.height = 32u;
 	b.planes = 4u;
@@ -46,7 +54,7 @@ eng::graphics::Sprite make_fast_sheet() {
 // Cookie-cut interleaved "par" (mascara+imagen) 32x16, para la degradacion.
 eng::graphics::Sprite make_cookie_sheet() {
 	eng::graphics::Bob b {};
-	b.sheet = g_cookie_sheet;
+	b.sheet = chip_view(g_cookie_sheet);
 	b.width = 32u;
 	b.height = 16u;
 	b.planes = 4u;
@@ -57,12 +65,8 @@ eng::graphics::Sprite make_cookie_sheet() {
 }
 
 eng::graphics::BobTarget target() {
-	eng::graphics::BobTarget t {};
-	t.base = g_screen;
-	t.row_bytes = 40u;
-	t.planes = 4u;
-	t.layout = eng::graphics::BobLayout::Interleaved;
-	return t;
+	return eng::graphics::make_bob_target(chip_view<eng::PlaneTag>(g_screen), 40u, 256u, 4u,
+					      eng::graphics::BobLayout::Interleaved);
 }
 
 eng::u16 count_kind(const eng::graphics::FramePlan& plan, BlitJobKind kind) {

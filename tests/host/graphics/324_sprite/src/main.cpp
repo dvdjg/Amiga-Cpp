@@ -31,11 +31,19 @@ eng::u16 g_sheet[256] {};
 eng::u16 g_mask[256] {};
 eng::u16 g_dest[256] {};
 
+// En host no hay Chip RAM: escape documentado del test (procedencia garantizada a mano).
+template <class Tag = eng::BobTag, class T, eng::usize N>
+eng::ChipView<Tag> chip_view(const T (&a)[N]) {
+	return eng::ChipView<Tag> {
+		eng::Address<eng::MemoryKind::Chip>::from_storage(a),
+		static_cast<eng::usize>(N) * sizeof(T)};
+}
+
 eng::graphics::Bob make_bob(eng::graphics::BobLayout layout, eng::graphics::BobDraw draw,
 			    eng::u32 frame_stride) {
 	eng::graphics::Bob b {};
-	b.sheet = reinterpret_cast<const eng::u8*>(g_sheet);
-	b.mask = reinterpret_cast<const eng::u8*>(g_mask);
+	b.sheet = chip_view(g_sheet);
+	b.mask = chip_view(g_mask);
 	b.width = 32u;
 	b.height = 16u;
 	b.planes = 3u;
@@ -47,8 +55,9 @@ eng::graphics::Bob make_bob(eng::graphics::BobLayout layout, eng::graphics::BobD
 	return b;
 }
 
-const eng::graphics::BobTarget kTarget {
-	reinterpret_cast<eng::u8*>(g_dest), 8u, 64u, 4u, eng::graphics::BobLayout::Planar};
+const eng::graphics::BobTarget kTarget =
+	eng::graphics::make_bob_target(chip_view<eng::PlaneTag>(g_dest), 8u, 8u, 4u,
+				       eng::graphics::BobLayout::Planar);
 
 } // namespace
 
@@ -105,8 +114,9 @@ int main() {
 	{
 		const eng::graphics::Sprite s {make_bob(eng::graphics::BobLayout::Interleaved,
 						       eng::graphics::BobDraw::Or, 0u)};
-		const eng::graphics::BobTarget t {reinterpret_cast<eng::u8*>(g_dest), 8u, 0u, 3u,
-						  eng::graphics::BobLayout::Interleaved};
+		const eng::graphics::BobTarget t =
+			eng::graphics::make_bob_target(chip_view<eng::PlaneTag>(g_dest), 8u, 16u, 3u,
+						       eng::graphics::BobLayout::Interleaved);
 		eng::graphics::FramePlan plan;
 		check(s.draw(plan, t, 1u, 0, 0), "draw interleaved OR");
 		const eng::graphics::BlitJob& j = plan.blit_job(0u);
@@ -124,8 +134,9 @@ int main() {
 
 		const eng::graphics::Sprite cc {make_bob(eng::graphics::BobLayout::Interleaved,
 							eng::graphics::BobDraw::CookieCut, 0u)};
-		const eng::graphics::BobTarget t {reinterpret_cast<eng::u8*>(g_dest), 8u, 0u, 3u,
-						  eng::graphics::BobLayout::Interleaved};
+		const eng::graphics::BobTarget t =
+			eng::graphics::make_bob_target(chip_view<eng::PlaneTag>(g_dest), 8u, 16u, 3u,
+						       eng::graphics::BobLayout::Interleaved);
 		eng::graphics::FramePlan plan2;
 		check(!cc.draw(plan2, t, 0u, 0, 0), "cookie-cut interleaved no soportado -> false");
 	}

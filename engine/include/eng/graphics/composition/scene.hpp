@@ -183,15 +183,14 @@ public:
 	/// separación entre planos y layout). La consume `Sprite::draw` a través del
 	/// `DrawTarget`; el juego nunca la construye a mano. Ver `PUBLIC_GAME_API.md` §2.1.1.
 	[[nodiscard]] graphics::BobTarget bob_target() const {
-		graphics::BobTarget t {};
-		t.base = bitplanes().data();
-		t.row_bytes = row_bytes();
-		t.plane_bytes = plane_bytes();
-		t.planes = planes();
-		t.layout = (m_res.layout == SceneLayout::Interleaved)
-				   ? graphics::BobLayout::Interleaved
-				   : graphics::BobLayout::Planar;
-		return t;
+		return graphics::make_bob_target(
+			eng::MemView<eng::PlaneTag, eng::MemoryKind::Chip> {
+				eng::Address<eng::MemoryKind::Chip>::from_storage(bitplanes().data()),
+				bitplanes().size()},
+			row_bytes(), height(), planes(),
+			(m_res.layout == SceneLayout::Interleaved)
+				? graphics::BobLayout::Interleaved
+				: graphics::BobLayout::Planar);
 	}
 	/// Recursos de la escena (geometría, modo, layout, buffers) tal como se configuraron.
 	[[nodiscard]] constexpr const SceneResources& resources() const { return m_res; }

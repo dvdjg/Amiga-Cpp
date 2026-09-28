@@ -54,7 +54,7 @@ public:
 	[[nodiscard]] constexpr u32 mask_bytes() const noexcept { return m_mask_bytes; }
 	/// `true` si tiene hoja y geometría mínima (ancho/alto/planos != 0).
 	[[nodiscard]] constexpr bool valid() const noexcept {
-		return m_bob.sheet != nullptr && m_bob.width != 0u && m_bob.height != 0u &&
+		return !m_bob.sheet.empty() && m_bob.width != 0u && m_bob.height != 0u &&
 		       m_bob.planes != 0u;
 	}
 
@@ -67,10 +67,10 @@ public:
 	[[nodiscard]] Visual visual() const noexcept {
 		Visual v {};
 		v.kind = VisualKind::Bob;
-		v.pixels = eng::Span<const u16> {reinterpret_cast<const u16*>(m_bob.sheet),
+		v.pixels = eng::Span<const u16> {reinterpret_cast<const u16*>(m_bob.sheet.data()),
 						 m_sheet_bytes / 2u};
-		v.mask = (m_bob.mask != nullptr)
-				 ? eng::Span<const u16> {reinterpret_cast<const u16*>(m_bob.mask),
+		v.mask = (!m_bob.mask.empty())
+				 ? eng::Span<const u16> {reinterpret_cast<const u16*>(m_bob.mask.data()),
 							 m_mask_bytes / 2u}
 				 : eng::Span<const u16> {};
 		v.w = m_bob.width;

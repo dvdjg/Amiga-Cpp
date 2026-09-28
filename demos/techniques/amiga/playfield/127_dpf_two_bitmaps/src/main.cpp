@@ -111,7 +111,7 @@ struct DpfTwoBitmapsDemo {
 
 		// BOB con padding (copia = dibuja y limpia en un blit) en PF1.
 		eng::graphics::Bob bob {};
-		bob.sheet = m_sheet.view.data();
+		bob.sheet = m_sheet.mem_view_chip();
 		bob.width = kBobPadded;
 		bob.height = kBobPadded;
 		bob.planes = kBobPlanes;

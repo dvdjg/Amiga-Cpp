@@ -124,7 +124,18 @@ comenta. **Antes de quitarlo, mirar si el tipo debería ser el mismo**: muchos c
 - **Fase A del rediseño del mesh**: tipos fuertes (`ObjOffset`/`VertexRef`/`EdgeRef`/`FaceRef`),
   `MeshStatus` y accesores que devuelven `eng::Ref<T>`. Diseño en
   [`OBJECT3D_MESH_VIEW.md`](../../engine/architecture/OBJECT3D_MESH_VIEW.md).
+- **Vistas tipadas de BOB (`Bob`/`BobTarget`)**: `Bob::sheet`/`mask` → `ChipView<BobTag>` (la hoja es
+  de dominio `BobTag`, no `PlaneTag`) y `BobTarget` = `BitmapView<PlaneTag, MemoryKind::Chip>`
+  (con el helper `make_bob_target`). Migrados todos los consumidores: motor
+  (`sprite_asset`, `api/assets`, `graphics/composition/scene`, `scene/{bobs,actor_types,actor_store,display}`),
+  7 tests host (072/324/329/335/354/355/356) y 5 demos (086/117/126/127/214). Nuevo puente **con
+  nombre** `as_chip(ByteView<Tag>, off)` en `typed.hpp` para la frontera agnóstica→Chip, y campo
+  `BitmapView::plane_step` (paso de plano explícito) para geometrías no estándar (DPF de `display`).
+  Las hojas de sprite cargadas (`SpriteTag`) cruzan a `BobTag` con `from_storage` en la frontera del
+  loader y del paso `Visual`→`Bob` (documentado en cada punto).
 
 **Pendiente:** F2 (`playfield_base` hooks `void*`→`concept`), F3 (§233 en `scroll_engine`,
-`xlimited_playfield`, `amiga_blitter`, `minifloat`), F4 (audio), y las fases B/C del mesh
-(wrappers libres fuera + `MeshAbi` + `Object3D` sin `u8*` público).
+`xlimited_playfield`, `amiga_blitter`, `minifloat`), F4 (audio), las fases B/C del mesh
+(wrappers libres fuera + `MeshAbi` + `Object3D` sin `u8*` público), y una pasada rect-based del
+`BlitOp` (derivar `words`/`height`/módulos de la `BitmapView` + un `Rect` en lugar de llevarlos
+explícitos).

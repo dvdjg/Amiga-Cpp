@@ -100,8 +100,9 @@ struct AppSpriteDemo {
 		build_sheet();
 
 		// El juego describe **su** sprite: geometría + política. No ve planos ni strides.
-		m_bob.sheet = m_sheet.view.data();
-		m_bob.mask = m_sheet.view.data() + kObjData;
+		const eng::ChipView<eng::BobTag> sheet = m_sheet.mem_view_chip();
+		m_bob.sheet = sheet;
+		m_bob.mask = sheet.subview(kObjData, sheet.size() - kObjData);
 		m_bob.width = kObjW;
 		m_bob.height = kObjH;
 		m_bob.planes = kObjPlanes;

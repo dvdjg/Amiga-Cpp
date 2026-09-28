@@ -67,7 +67,10 @@ public:
 						   const eng::graphics::Bob& desc) const noexcept {
 		const ByteView<eng::SpriteTag> v = m_table.template get<eng::SpriteTag>(name);
 		eng::graphics::Bob bob = desc;
-		bob.sheet = v.data();
+		// El asset vive en Chip (procedencia garantizada por el loader): puente explícito a la
+		// vista con banco Chip (el Blitter solo lee Chip).
+		bob.sheet = eng::ChipView<eng::BobTag> {
+			eng::Address<eng::MemoryKind::Chip>::from_storage(v.data()), v.size()};
 		return eng::graphics::Sprite {bob, static_cast<eng::u32>(v.size())};
 	}
 
