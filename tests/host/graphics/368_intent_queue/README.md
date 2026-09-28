@@ -16,6 +16,9 @@ cada petición se **avisa** por la política `Done`. Ver
 - **Declarar no ejecuta** (no bloquea): `enqueue` solo encola y devuelve un `Ticket` creciente.
 - `flush()` ejecuta la cola **sin esperar** y **avisa por ticket** (`Done`).
 - `wait(t)` espera —solo si se pide— a que la petición `t` se haya ejecutado.
+- **`DrawRecipe`** (setup): `emit` solo encola; el bucle la reproduce con trabajo mínimo.
+- **`SceneLayer`** (el caso general): `add(forma, x, y)` en el setup + `move`/`emit` por frame — el
+  frame **solo** toca lo dinámico (la posición); la forma es invariante.
 
 **Nota de diseño**: el `Done` se **copia** en la cola, así que debe ser un **handle** (referencia a
 un posteador/puerto), no un valor con estado propio.

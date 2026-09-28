@@ -92,6 +92,38 @@ int main() {
 		check(r2.ran == 2 && dn2 == 2, "la receta se ejecuta en el frame");
 	}
 
+	// 5) SceneLayer: setup (forma+posicion) + frame (mover) — emit solo toca lo dinamico.
+	{
+		eng::graphics::SceneLayer<4u> layer;
+		layer.add(DrawIntent {DrawKind::Sprite, 0, 0, 0u, 0u, 0, 0, 0u, 1u}, 10, 20);
+		layer.add(DrawIntent {DrawKind::Sprite, 0, 0, 0u, 0u, 0, 0, 0u, 2u}, 30, 40);
+		check(layer.count() == 2u, "la capa guarda sus objetos (setup)");
+
+		layer.move(0u, 11, 21); // solo cambia lo dinamico del objeto 0
+
+		// Una cola que captura las posiciones para comprobar que emit las aplica.
+		struct Cap {
+			eng::s16 x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+			bool ready() { return true; }
+			void run(const DrawIntent& it) {
+				if (it.frame == 1u) {
+					x0 = it.x;
+					y0 = it.y;
+				} else {
+					x1 = it.x;
+					y1 = it.y;
+				}
+			}
+		};
+		Cap cap;
+		eng::graphics::DrawQueue<4u, Cap, eng::graphics::NoDone> lq;
+		lq.bind(cap);
+		layer.emit(lq);
+		lq.wait_all();
+		check(cap.x0 == 11 && cap.y0 == 21 && cap.x1 == 30 && cap.y1 == 40,
+		      "emit aplica el dato dinamico del frame (objeto movido + quieto)");
+	}
+
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;
