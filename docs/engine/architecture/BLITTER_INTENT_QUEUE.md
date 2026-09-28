@@ -76,7 +76,7 @@ void update(...) {
   handler que avanza la cola.
 - `g_blitter_service` (`wait_blitter` drena el fondo) → el **poll** se cuelga de ahí.
 - `OrBlobBatch` (batch sincrono actual) → un caso particular (`stamp` × N + `wait` al final).
-- `FramePlan` → puede **producir** `BlitOp`s en vez de ejecutarlos él mismo.
+- `FramePlan` → **el sumidero**. La `BlitQueue` es un **front-end de intención**: su ejecutor natural **añade** `blit_job_from(op)` al plan del frame, y el **presupuesto/orden/ejecución** siguen en el plan (un solo dueño). Los dos **modos** —CPU en ventana segura y **Copper**— son **políticas del sumidero**, no subsistemas distintos. Puente único: `blit_job_from` (`BlitOp → BlitJob`).
 
 ## 6. Decisiones y límites
 
