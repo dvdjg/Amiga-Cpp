@@ -167,6 +167,29 @@ int main() {
 		      "blitter_job_from deriva el modulo de A (fuente ancha)");
 	}
 
+	// 2e) Copia (`CopyRect`): sin shift -> D = C ($AA); con shift -> D = A ($F0) + BSH/DESC.
+	{
+		static eng::u16 src_words[8] {};
+		eng::graphics::BlitJob cj {};
+		cj.kind = eng::graphics::BlitJobKind::CopyRect;
+		cj.words_per_row = 2u;
+		cj.height = 8u;
+		cj.source = eng::graphics::BlitSource {src_words};
+		const eng::graphics::BlitterJob c0 = blitter_job_from(cj);
+		check(c0.bltcon0 == (eng::graphics::kBlitterUseC | eng::graphics::kBlitterUseD |
+				     eng::graphics::kBlitterMintermCopyC) &&
+			      c0.bltcpt == cj.source.words && c0.bltapt == nullptr,
+		      "blitter_job_from CopyRect (D = C, $AA)");
+		cj.source_shift = 3u;
+		const eng::graphics::BlitterJob c1 = blitter_job_from(cj);
+		check(c1.bltcon0 == static_cast<eng::u16>((3u << 12) | eng::graphics::kBlitterUseA |
+							  eng::graphics::kBlitterUseD |
+							  eng::graphics::kBlitterMintermCopyA) &&
+			      c1.bltcon1 == static_cast<eng::u16>(3u << 12) &&
+			      c1.bltapt == cj.source.words,
+		      "blitter_job_from CopyRect con shift (D = A, $F0)");
+	}
+
 	// 4) wait() vacia la cola (punto de dependencia) y respeta el orden.
 	BlitOp ops[3] {};
 	ops[0].kind = BlitOp::Kind::Stamp;

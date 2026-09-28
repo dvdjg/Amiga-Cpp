@@ -64,11 +64,11 @@ constexpr unsigned short blt_use_a = eng::graphics::kBlitterUseA;
 constexpr unsigned short blt_use_b = eng::graphics::kBlitterUseB;
 constexpr unsigned short blt_use_c = eng::graphics::kBlitterUseC;
 constexpr unsigned short blt_use_d = eng::graphics::kBlitterUseD;
-constexpr unsigned short blt_minterm_cookie_cut = 0x00ca;
-constexpr unsigned short blt_minterm_copy_c = 0x00aa;
+constexpr unsigned short blt_minterm_cookie_cut = eng::graphics::kBlitterMintermCookieCut;
+constexpr unsigned short blt_minterm_copy_c = eng::graphics::kBlitterMintermCopyC;
 constexpr unsigned short blt_minterm_copy_a = eng::graphics::kBlitterMintermCopyA; // D = A
 constexpr unsigned short blt_minterm_a_or_b = eng::graphics::kBlitterMintermAOrB;  // D = A | B
-constexpr unsigned short blt_desc = 0x0002;             // BLTCON1 BLITREVERSE (modo descendente)
+constexpr unsigned short blt_desc = eng::graphics::kBlitterDesc; // BLTCON1 BLITREVERSE
 
 inline void write_custom_pointer(unsigned short word_offset, const void* pointer) {
 	// Una sola escritura de 32 bits, como el original (`custom_regdef.h` declara

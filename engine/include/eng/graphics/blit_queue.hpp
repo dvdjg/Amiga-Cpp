@@ -122,7 +122,30 @@ struct BlitOp {
 			? static_cast<eng::s16>((static_cast<eng::s16>(j.source_words_per_row) -
 						 static_cast<eng::s16>(j.words_per_row)) * 2)
 			: j.source_modulo_bytes;
+	const bool copy = j.kind == BlitJobKind::CopyRect || j.kind == BlitJobKind::RestoreRect ||
+			  j.kind == BlitJobKind::TileBlockCopy;
 	BlitterJob b {};
+	if (copy) {
+		// Copia: sin desplazamiento el barrel shifter no actúa y la fuente va por C (`D = C`,
+		// `$AA`); con desplazamiento va por A (`D = A`, `$F0`) y `BSH`/`DESC` en `BLTCON1`.
+		const bool shifted = shift != 0u;
+		b.bltcon0 = shifted ? static_cast<eng::u16>((shift << kBlitterAshift) | kBlitterUseA |
+							    kBlitterUseD | kBlitterMintermCopyA)
+				    : static_cast<eng::u16>(kBlitterUseC | kBlitterUseD |
+							    kBlitterMintermCopyC);
+		b.bltcon1 = static_cast<eng::u16>((shifted ? (shift << kBlitterAshift) : 0u) |
+						  (j.descending ? kBlitterDesc : 0u));
+		b.bltalwm = shifted ? static_cast<eng::u16>(0xffffu << shift) : 0xffffu;
+		b.bltamod = shifted ? src_mod : 0;
+		b.bltbmod = 0;
+		b.bltcmod = src_mod;
+		b.bltdmod = j.destination_modulo_bytes;
+		b.bltapt = shifted ? j.source.words : nullptr;
+		b.bltcpt = shifted ? nullptr : j.source.words;
+		b.bltdpt = j.destination.words;
+		b.bltsize = static_cast<eng::u16>((j.height << 6u) | j.words_per_row);
+		return b;
+	}
 	b.bltcon0 = static_cast<eng::u16>(
 		(clear ? (kBlitterUseD | j.minterm)
 		       : (shift << kBlitterAshift) |
