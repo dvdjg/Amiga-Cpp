@@ -127,11 +127,13 @@ struct ClipRect {
 }
 
 /// **Conversión chunky→planar** pedida a través del seam: la misma llamada con CPU
-/// (Kalms `c2p_1x1_4`) o Blitter detrás. `chunky` = 1 byte por pixel (nibble bajo =
-/// índice), `planes` = destino planar contiguo, `plane_stride` = bytes entre planos.
+/// (Kalms `c2p_1x1_4`) o Blitter detrás. La procedencia viaja **entera** (`Block<Tag>`): su banco
+/// (`kind`) decide la vía —el Blitter solo si **ambas** memorias son Chip—. `chunky` = 1 byte por
+/// pixel (nibble bajo = índice), `planes` = destino planar contiguo, `plane_stride` = bytes entre
+/// planos.
 struct C2pRequest {
-	eng::ChunkyView chunky {};
-	eng::PlaneBytes planes {};
+	eng::Block<eng::ChunkyTag> chunky {};
+	eng::Block<eng::PlaneTag> planes {};
 	eng::u32 width = 0;
 	eng::u32 height = 0;
 	eng::u32 plane_stride = 0;
@@ -231,16 +233,18 @@ public:
 	/// Chunky→planar por CPU: `c2p_1x1_4` (4 planos) o `c2p_1x1_naive` (1..6).
 	bool c2p(const C2pRequest& req, eng::Ref<graphics::FramePlan> plan = {}) override {
 		(void)plan; // la CPU convierte ya; no encola trabajo
-		if (req.chunky.empty() || req.planes.empty() || req.width == 0u ||
+		if (!req.chunky.valid() || !req.planes.valid() || req.width == 0u ||
 		    req.height == 0u || req.plane_count == 0u) {
 			return false;
 		}
 		if (req.plane_count == 4u) {
-			graphics::c2p_1x1_4(req.width, req.height, req.plane_stride, req.chunky,
-					    req.planes);
+			graphics::c2p_1x1_4(req.width, req.height, req.plane_stride,
+					    req.chunky.view.as_const(),
+					    eng::PlaneBytes {req.planes.data(), req.planes.size()});
 		} else {
 			graphics::c2p_1x1_naive(req.width, req.height, req.plane_count,
-						req.plane_stride, req.chunky, req.planes);
+						req.plane_stride, req.chunky.view.as_const(),
+						eng::PlaneBytes {req.planes.data(), req.planes.size()});
 		}
 		return true;
 	}
@@ -309,24 +313,29 @@ public:
 		return pf.add_world_bitmap_masked(plan, src, mask, x, y, w, h, src_row_bytes,
 						  src_plane_stride, planes, source_shift);
 	}
-	/// C2P por **Blitter** si hay `plan` y 4 planos: encola `BlitJobKind::C2P` (el
-	/// backend ejecuta las 13 fases). Sin plan (o distinto de 4 planos), CPU.
+	/// C2P por **Blitter** si el **banco** lo permite: la función `c2p` decide (ambas memorias
+	/// Chip → `blit_submit` = encolar en el `plan`; si no, CPU). El ejecutor de la vía acelerada es
+	/// aquí `plan->add_c2p` — la decisión es por TIPO/dato, no por «¿hay plan?».
 	bool c2p(const C2pRequest& req, eng::Ref<graphics::FramePlan> plan = {}) override {
-		if (plan.valid() && req.plane_count == 4u && req.chunky.data() != nullptr &&
-		    req.planes.data() != nullptr) {
-			const eng::u32 px = req.width * req.height;
-			if (px >= 2u && px / 2u <= 0xffffu) {
-				graphics::BlitJob job {};
-				job.c2p.chunky = const_cast<eng::u8*>(req.chunky.data());
-				job.c2p.planes = req.planes.data();
-				job.c2p.plane_stride = req.plane_stride;
-				job.c2p.bytes = static_cast<eng::u16>(px / 2u);
-				if (plan->add_c2p(job)) {
-					return true;
+		return graphics::c2p(
+			req.chunky, req.planes, req.width, req.height, req.plane_stride, req.plane_count,
+			[&](const eng::Block<eng::ChunkyTag>& chunky,
+			    const eng::Block<eng::PlaneTag>& planes, eng::u32 w, eng::u32 h,
+			    eng::u32 stride, eng::u8 pc) -> bool {
+				if (!plan.valid()) {
+					return false; // sin plan no hay vía Blitter -> CPU
 				}
-			}
-		}
-		return CpuRaster::c2p(req, plan);
+				const eng::u32 px = w * h;
+				if (px < 2u || px / 2u > 0xffffu) {
+					return false;
+				}
+				graphics::BlitJob job {};
+				job.c2p.chunky = chunky.data();
+				job.c2p.planes = planes.data();
+				job.c2p.plane_stride = stride;
+				job.c2p.bytes = static_cast<eng::u16>(px / 2u);
+				return pc != 0u && plan->add_c2p(job);
+			});
 	}
 };
 

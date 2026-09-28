@@ -78,8 +78,10 @@ int main() {
 		chunky[i] = 8u; // solo el bit 3
 	}
 	const eng::field::C2pRequest req {
-		eng::ChunkyView {chunky, sizeof(chunky)},
-		eng::PlaneBytes {planes, sizeof(planes)},
+		eng::Block<eng::ChunkyTag> {eng::Bytes<eng::ChunkyTag> {chunky, sizeof(chunky)},
+					    eng::MemoryKind::Chip},
+		eng::Block<eng::PlaneTag> {eng::Bytes<eng::PlaneTag> {planes, sizeof(planes)},
+					   eng::MemoryKind::Chip},
 		16u,
 		1u,
 		kPlaneBytes,

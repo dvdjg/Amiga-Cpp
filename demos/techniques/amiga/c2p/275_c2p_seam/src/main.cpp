@@ -111,8 +111,9 @@ struct C2pSeamDemo {
 					 m_ref.view);
 		eng::graphics::FramePlan plan {};
 		const bool queued = m_scene.c2p(eng::field::C2pRequest {
-			.chunky = m_chunky.view.as_const(),
-			.planes = m_scene.buffer(0),
+			.chunky = m_chunky,
+			.planes = eng::Block<eng::PlaneTag> {m_scene.buffer(0),
+							     eng::MemoryKind::Chip},
 			.width = kChunkyW,
 			.height = kChunkyH,
 			.plane_stride = m_scene.plane_bytes(),
@@ -149,8 +150,10 @@ struct C2pSeamDemo {
 
 		eng::graphics::rotozoom_into<64, 64>(texture(), m_rot, m_chunky.view, kChunkyW, kChunkyH);
 		eng::graphics::FramePlan plan {};
-		m_scene.c2p(eng::field::C2pRequest {.chunky = m_chunky.view.as_const(),
-						    .planes = m_scene.back(),
+		m_scene.c2p(eng::field::C2pRequest {.chunky = m_chunky,
+						    .planes = eng::Block<eng::PlaneTag> {
+							      m_scene.back(),
+							      eng::MemoryKind::Chip},
 						    .width = kChunkyW,
 						    .height = kChunkyH,
 						    .plane_stride = m_scene.plane_bytes(),
