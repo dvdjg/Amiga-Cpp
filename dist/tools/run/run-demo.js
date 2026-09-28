@@ -597,29 +597,38 @@ async function resolveRunStatusAddress(client, linkedSymbol, mapSections, runtim
             }
             catch { /* noop */ }
         }
-        // Segundo fallback: escanear MEMORIA dentro de cada seccion (el inicio de un hunk no
-        // siempre coincide con `g_eng_run_status` y el orden de hunks puede no casar con el
-        // `.map`, p. ej. cuando `.rodata` crece con assets). Buscamos el magic (big-endian) en
-        // una ventana por seccion y validamos con `runstatus`.
+        // Segundo fallback: escanear MEMORIA dentro de cada seccion **por trozos**. El inicio de un
+        // hunk no siempre coincide con `g_eng_run_status` y en una seccion grande (p. ej. la 117) el
+        // simbolo puede quedar muy por encima de los primeros 4 KiB. Buscamos el magic (big-endian)
+        // trozo a trozo y validamos con `runstatus`; un falso positivo no corta el barrido.
+        const CHUNK = 4096;
+        const MAX_PER_SECTION = 1024 * 1024; // 1 MiB de tope por seccion
         for (const sec of runtimeSections) {
             const base = parseHexNumber(sec);
             if (!base)
                 continue;
-            try {
-                const mem = await client.command(`mem ${base.toString(16)} 4096`, 2500);
-                const hex = typeof mem?.data === 'string' ? mem.data : null;
-                if (hex === null)
-                    continue;
-                const idx = hex.indexOf('454e4752');
-                if (idx < 0 || (idx & 1) !== 0)
-                    continue;
-                const candidate = base + (idx >> 1);
-                const status = await client.command(`runstatus ${candidate.toString(16)}`, 1500);
-                if (status && status.ok && status.magic === '0x454e4752' && status.version === 1) {
-                    return candidate;
+            for (let off = 0; off < MAX_PER_SECTION; off += CHUNK) {
+                try {
+                    const mem = await client.command(`mem ${(base + off).toString(16)} ${CHUNK}`, 2500);
+                    const hex = typeof mem?.data === 'string' ? mem.data : null;
+                    if (hex === null || hex.length === 0)
+                        break;
+                    let idx = hex.indexOf('454e4752');
+                    while (idx >= 0) {
+                        if ((idx & 1) === 0) {
+                            const candidate = base + off + (idx >> 1);
+                            const status = await client.command(`runstatus ${candidate.toString(16)}`, 1500);
+                            if (status && status.ok && status.magic === '0x454e4752' && status.version === 1) {
+                                return candidate;
+                            }
+                        }
+                        idx = hex.indexOf('454e4752', idx + 2);
+                    }
+                }
+                catch {
+                    break;
                 }
             }
-            catch { /* noop */ }
         }
     }
     // Sin match: devuelve la resolución exacta (aunque su magic no haya validado)
@@ -1581,6 +1590,8 @@ finally {
 if (report.status !== 'ok') {
     process.exit(1);
 }
+// `--keep-running`: no dejar morir el proceso (si no, el emulador hijo se cierra y la demo
+// "desaparece" tras la captura). El usuario sale con Ctrl+C.
 if (!stopEmulator) {
     console.log('[run-demo] --keep-running: la demo sigue en marcha (Ctrl+C para salir).');
     setInterval(() => { }, 1 << 30);
