@@ -12,9 +12,17 @@ using eng::ChipView;
 // Test NEGATIVO de tipos (el compilador caza el error, §232): un `ChipView` NO se puede construir
 // desde un puntero crudo ni desde una vista agnostica -> pasar pila/Fast al Blitter no compila.
 using ChipPlane = eng::ChipView<eng::PlaneTag>;
-// Test NEGATIVO de tipos (inherente, §232): `ChipView` NO tiene constructor desde `u8*` ni desde
-// una vista agnostica/`ByteView` -> pasar pila/Fast al Blitter no compila; solo nace de una fuente
-// Chip (`Block`/`Bitmap`/`ChipStorage`) o del `from_storage` del backend/test.
+using PlaneByteView = eng::ByteView<eng::PlaneTag>;
+
+// Test NEGATIVO de tipos (fijo, §232): un `ChipView` (banco Chip en el tipo) NO se puede construir
+// desde un puntero crudo, una `Span<u8>` agnostica ni una vista de dominio -> pasar pila/Fast al
+// Blitter no compila. Solo nace de una fuente Chip (Block/Bitmap/ChipStorage) o del `from_storage`
+// del backend/test.
+template <class To, class From>
+concept ConstructibleFrom = requires(From f) { To(f); };
+static_assert(!ConstructibleFrom<ChipPlane, eng::u8*>);
+static_assert(!ConstructibleFrom<ChipPlane, eng::Span<eng::u8>>);
+static_assert(!ConstructibleFrom<ChipPlane, PlaneByteView>);
 
 static int failures = 0;
 static void check(bool ok, const char* msg) {
