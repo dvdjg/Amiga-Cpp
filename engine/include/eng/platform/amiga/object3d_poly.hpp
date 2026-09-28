@@ -42,74 +42,65 @@ inline PolyMeshCounts build_poly_mesh(const Object3D& object, eng::Span<eng::mat
 
 	// 1) Vértices: recorrido de los grupos (cada entrada es el offset de byte del punto
 	//    original; `point3d` sigue el esquema del formato).
-	const s16* g = object.vertexGroups;
-	if (g != nullptr) {
-		do {
-			s16 off;
-			while ((off = *g++) != 0) {
-				if (c.vertices >= verts.size() || c.vertices >= offsets.size()) {
-					g = nullptr;
-					break;
-				}
-				const Point3D* p = MeshBlob {bytes}.point(off);
-				verts[c.vertices] = eng::math3d::Vec3t<S> {
-					{T::from_int(p->x.v), T::from_int(p->y.v), T::from_int(p->z.v)}};
-				offsets[c.vertices] = off;
-				++c.vertices;
-			}
-		} while (g != nullptr && *g != 0);
+	const auto vg = object.points();
+	for (auto it = vg.begin(); it != vg.end(); ++it) {
+		if (c.vertices >= verts.size() || c.vertices >= offsets.size()) {
+			break;
+		}
+		const s16 off = it.offset();
+		const Point3D* p = MeshBlob {bytes}.point(off);
+		verts[c.vertices] = eng::math3d::Vec3t<S> {
+			{T::from_int(p->x.v), T::from_int(p->y.v), T::from_int(p->z.v)}};
+		offsets[c.vertices] = off;
+		++c.vertices;
 	}
 
 	// 2) Caras: cada `FaceIndex.vertex` (offset de byte) se mapea al índice de vértice.
 	bool room = true;
-	const s16* fg = object.faceGroups;
-	if (fg != nullptr) {
-		do {
-			s16 foff;
-			while (room && (foff = *fg++) != 0) {
-				Face* f = MeshBlob {bytes}.face(foff);
-				const u32 cnt = static_cast<u32>(f->count);
-				if (f->count < 3) {
-					continue;
-				}
-				const u32 save = c.indices;
-				if (c.faces >= faces.size() || c.indices + cnt > indices.size()) {
-					room = false;
+	const auto fgr = object.faces();
+	for (auto it = fgr.begin(); room && it != fgr.end(); ++it) {
+		const s16 foff = it.offset();
+		Face* f = MeshBlob {bytes}.face(foff);
+		const u32 cnt = static_cast<u32>(f->count);
+		if (f->count < 3) {
+			continue;
+		}
+		const u32 save = c.indices;
+		if (c.faces >= faces.size() || c.indices + cnt > indices.size()) {
+			room = false;
+			break;
+		}
+		const eng::Span<FaceIndex> fi = face_indices(f);
+		for (u32 k = 0; k < cnt; ++k) {
+			u32 vi = 0;
+			bool found = false;
+			for (u32 m = 0; m < c.vertices; ++m) {
+				if (offsets[m] == fi[k].vertex) {
+					vi = m;
+					found = true;
 					break;
 				}
-				const eng::Span<FaceIndex> fi = face_indices(f);
-				for (u32 k = 0; k < cnt; ++k) {
-					u32 vi = 0;
-					bool found = false;
-					for (u32 m = 0; m < c.vertices; ++m) {
-						if (offsets[m] == fi[k].vertex) {
-							vi = m;
-							found = true;
-							break;
-						}
-					}
-					if (!found) {
-						room = false;
-						break;
-					}
-					indices[c.indices++] = static_cast<u16>(vi);
-				}
-				if (!room) {
-					c.indices = save; // no dejar una cara a medias
-					break;
-				}
-				faces[c.faces].first = static_cast<u16>(save);
-				faces[c.faces].count = static_cast<u16>(cnt);
-				if (c.faces < normals.size()) {
-					// La normal del obj2c es un ratio (q12); se guarda cruda como
-					// escalar del vértice (solo importa el signo del culling).
-					normals[c.faces] = eng::math3d::Vec3t<S> {
-						{T::from_int(f->normal[0].v), T::from_int(f->normal[1].v),
-						 T::from_int(f->normal[2].v)}};
-				}
-				++c.faces;
 			}
-		} while (room && *fg != 0);
+			if (!found) {
+				room = false;
+				break;
+			}
+			indices[c.indices++] = static_cast<u16>(vi);
+		}
+		if (!room) {
+			c.indices = save; // no dejar una cara a medias
+			break;
+		}
+		faces[c.faces].first = static_cast<u16>(save);
+		faces[c.faces].count = static_cast<u16>(cnt);
+		if (c.faces < normals.size()) {
+			// La normal del obj2c es un ratio (q12); se guarda cruda como
+			// escalar del vértice (solo importa el signo del culling).
+			normals[c.faces] = eng::math3d::Vec3t<S> {
+				{T::from_int(f->normal[0].v), T::from_int(f->normal[1].v),
+				 T::from_int(f->normal[2].v)}};
+		}
+		++c.faces;
 	}
 
 	out.vertices = eng::Span<const eng::math3d::Vec3t<S>>(verts.data(), c.vertices);

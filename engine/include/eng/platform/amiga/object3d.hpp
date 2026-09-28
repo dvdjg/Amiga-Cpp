@@ -199,6 +199,9 @@ public:
 			skip_zero();
 		}
 		[[nodiscard]] eng::Ref<T> operator*() const noexcept { return m_acc(*m_g); }
+		/// Offset de byte de la entrada actual (para quien indexa por offset, p. ej.
+		/// `object3d_poly` al mapear `FaceIndex.vertex`).
+		[[nodiscard]] constexpr s16 offset() const noexcept { return *m_g; }
 		Iter& operator++() noexcept {
 			++m_g;
 			skip_zero();
