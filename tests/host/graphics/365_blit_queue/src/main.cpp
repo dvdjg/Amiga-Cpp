@@ -190,6 +190,20 @@ int main() {
 		      "blitter_job_from CopyRect con shift (D = A, $F0)");
 	}
 
+	// 2f) Modo LÍNEA: replica de `blitter_line` (octante/error); ADAT/BDAT = pendiente.
+	{
+		eng::graphics::BlitJob lj {};
+		lj.kind = eng::graphics::BlitJobKind::Line;
+		lj.line = {0, 0, 64, 32, 40u, {}};
+		const eng::graphics::BlitterJob l = blitter_job_from(lj);
+		check(l.bltcon0 == eng::graphics::kBlitterLineOr &&
+			      l.bltcon1 == static_cast<eng::u16>(eng::graphics::kBlitterLineMode |
+								 eng::graphics::kBlitterSud) &&
+			      l.bltamod == -64 && l.bltbmod == 64 && l.bltadat == 0x8000u &&
+			      l.bltsize == static_cast<eng::u16>((64u << 6) + 66u),
+		      "blitter_job_from Line (modo LINE)");
+	}
+
 	// 4) wait() vacia la cola (punto de dependencia) y respeta el orden.
 	BlitOp ops[3] {};
 	ops[0].kind = BlitOp::Kind::Stamp;

@@ -146,6 +146,49 @@ struct BlitOp {
 		b.bltsize = static_cast<eng::u16>((j.height << 6u) | j.words_per_row);
 		return b;
 	}
+	if (j.kind == BlitJobKind::Line || j.kind == BlitJobKind::LineEor) {
+		// Modo LÍNEA: A/B aportan pendiente/error (`BLTADAT=0x8000`), C=D=plano. El algoritmo
+		// (octante/`dmax`/`dmin`/error) es el de `blitter_line` (AHRM 6, modo LINE).
+		eng::s16 x0 = j.line.x0, y0 = j.line.y0, x1 = j.line.x1, y1 = j.line.y1;
+		if (y0 > y1) {
+			const eng::s16 tx = x0; x0 = x1; x1 = tx;
+			const eng::s16 ty = y0; y0 = y1; y1 = ty;
+		}
+		eng::s16 dmax = static_cast<eng::s16>(x1 - x0);
+		eng::s16 dmin = static_cast<eng::s16>(y1 - y0);
+		eng::u16 con1 = kBlitterLineMode;
+		if (dmax < 0) dmax = static_cast<eng::s16>(-dmax);
+		if (dmax >= dmin) {
+			con1 = static_cast<eng::u16>(con1 | (x0 >= x1 ? (kBlitterAul | kBlitterSud)
+								      : kBlitterSud));
+		} else {
+			if (x0 >= x1) con1 = static_cast<eng::u16>(con1 | kBlitterSul);
+			const eng::s16 t = dmax; dmax = dmin; dmin = t;
+		}
+		eng::u8* data = reinterpret_cast<eng::u8*>(j.destination.words) +
+				static_cast<eng::u32>(y0) * j.line.row_bytes +
+				(static_cast<eng::u32>(x0) >> 3);
+		data = reinterpret_cast<eng::u8*>(reinterpret_cast<eng::usize>(data) & ~eng::usize{1});
+		dmin = static_cast<eng::s16>(dmin << 1);
+		eng::s16 derr = static_cast<eng::s16>(dmin - dmax);
+		if (derr < 0) con1 = static_cast<eng::u16>(con1 | kBlitterSignFlag);
+		const eng::u16 lo = static_cast<eng::u16>(static_cast<eng::u16>(x0) & 15u);
+		const eng::u16 ror = static_cast<eng::u16>((lo >> 4u) | (lo << 12u));
+		b.bltcon0 = static_cast<eng::u16>(
+			ror | (j.kind == BlitJobKind::LineEor ? kBlitterLineEor : kBlitterLineOr));
+		b.bltcon1 = static_cast<eng::u16>(con1 | ror);
+		b.bltadat = 0x8000u;
+		b.bltbdat = 0xffffu;
+		b.bltamod = static_cast<eng::s16>(derr - dmax);
+		b.bltbmod = dmin;
+		b.bltapt = reinterpret_cast<const void*>(static_cast<eng::s32>(derr)); // error como valor
+		b.bltcpt = data;
+		b.bltdpt = data;
+		b.bltcmod = j.line.row_bytes;
+		b.bltdmod = j.line.row_bytes;
+		b.bltsize = static_cast<eng::u16>((static_cast<eng::u16>(dmax) << 6) + 66u);
+		return b;
+	}
 	b.bltcon0 = static_cast<eng::u16>(
 		(clear ? (kBlitterUseD | j.minterm)
 		       : (shift << kBlitterAshift) |

@@ -105,6 +105,8 @@ struct BlitterJob {
     u16 bltcon1 = 0;
     u16 bltafwm = 0xffff;
     u16 bltalwm = 0xffff;
+    u16 bltadat = 0;    ///< `BLTADAT`: en modo línea, `0x8000` (punto de la pendiente)
+    u16 bltbdat = 0;    ///< `BLTBDAT`: en modo línea, `0xffff`
     s16 bltamod = 0;
     s16 bltbmod = 0;
     s16 bltcmod = 0;

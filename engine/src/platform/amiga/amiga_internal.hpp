@@ -147,17 +147,17 @@ inline bool wait_blitter() {
 //   2) rellenar con area fill inclusivo (BLTCON1 = DESC|FILL_OR), descendente.
 // El relleno funciona bit a bit por plano; para colorear 3 planos con painter se
 // usa un plano-mascara 1 bit y luego un cookie-cut por plano (ver fill_triangles).
-constexpr unsigned short blt_line_or = 0x0bca;    // BC0F_LINE_OR (contorno/línea)
-constexpr unsigned short blt_linemode = 0x0001;
-constexpr unsigned short blt_onedot = 0x0002;
-constexpr unsigned short blt_sud = 0x0010;
-constexpr unsigned short blt_sul = 0x0008;
-constexpr unsigned short blt_aul = 0x0004;
-constexpr unsigned short blt_signflag = 0x0040;
+constexpr unsigned short blt_line_or = eng::graphics::kBlitterLineOr; // BC0F_LINE_OR
+constexpr unsigned short blt_linemode = eng::graphics::kBlitterLineMode;
+constexpr unsigned short blt_onedot = eng::graphics::kBlitterOneDot;
+constexpr unsigned short blt_sud = eng::graphics::kBlitterSud;
+constexpr unsigned short blt_sul = eng::graphics::kBlitterSul;
+constexpr unsigned short blt_aul = eng::graphics::kBlitterAul;
+constexpr unsigned short blt_signflag = eng::graphics::kBlitterSignFlag;
 constexpr unsigned short blt_fill_or = 0x0008;
 constexpr unsigned short blt_fill_xor = 0x0010;           // BLTCON1 FILL_XOR (area fill exclusivo)
 constexpr unsigned short blt_reverse = 0x0002;
-constexpr unsigned short blt_line_eor = 0x0b4a;           // BC0F_LINE_EOR (minterm 0x4a | SRCA|SRCC|DEST)
+constexpr unsigned short blt_line_eor = eng::graphics::kBlitterLineEor; // BC0F_LINE_EOR
 constexpr unsigned short blt_minterm_a_or_c = 0x00fa;       // D = A | C
 constexpr unsigned short blt_minterm_not_a_and_c = 0x000a;  // D = ~A & C
 // C2P 4bpp (portado de fire-rgb): interleave de bytes (A>>8 | B&~0xFF) y su inverso.
