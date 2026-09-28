@@ -126,6 +126,20 @@ Un **solo** sumidero recibe las intenciones de todos los productores y las gobie
 - **`eng::os`** pone el **evento** y el **despacho**; **`eng::audio`** pone su plan/mezclador. El
   planner los **coordina** sin fundirlos.
 
+### 7.1 Decisión: un **sumidero único**, vías como políticas
+
+- **El `FramePlan` es *el* sumidero** de la capa 2: no hay un segundo plan paralelo. La vía
+  (CPU-ventana / Blitter / Copper) es una **política** del ejecutor, nunca un subsistema aparte.
+- **La cola es única y genérica**: `IntentQueue<N, Item, Executor, Done>`
+  (`intent_queue.hpp`). El `BlitQueue` es su instancia con `Item = BlitOp`; un `SoundQueue` es la
+  instancia con `Item = SoundIntent`. **Mismo mecanismo** (ticket + completación) para todos.
+- **El audio es un `plan` análogo** (`AudioPlan`): reparto de voces (Sfx/Music), presupuesto por
+  frame e IRQ (Paula) como feeders — la misma forma que el plan de blit. Hoy `eng::audio` ya tiene
+  mezclador/reproductores; el `AudioPlan` es el **contrato** que los unifica con el planner.
+- **Naming**: alinear los `concept`s de ejecutor (`ready`/`run` del `IntentQueue` frente a
+  `blitter_free`/`submit` del `BlitQueue`) es el paso mecánico para que el `BlitQueue` **sea** un
+  `IntentQueue` (hoy conviven con nombres distintos).
+
 ## 8. Qué **no** es
 
 - **No** es una máquina de estados con hilos: es **cooperativo** sobre el bucle del mini-SO.

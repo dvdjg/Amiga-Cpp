@@ -51,8 +51,11 @@ tipos descriptivos que hagan **imposible** el uso equivocado.
    modelo declarativo (la escena/capa/efecto como intención) que el **planner** compile a lo bajo
    (ver `PUBLIC_API.md` §4). Es el corazón del API de intenciones.
 2. **Un sumidero de ejecución.** `FramePlan` (lote del frame) y `BlitQueue` (cola asíncrona)
-   coexisten; ya hay `SinkBlitExecutor` (la cola vuelca al plan). Falta **decidirlo**: el plan es
-   el sumidero y las vías (CPU-ventana / Copper) son **políticas**.
+   coexisten; ya hay `SinkBlitExecutor` (la cola vuelca al plan). **Decidido** (§7.1 de
+   [`INTENT_PLANNER.md`](../../engine/architecture/INTENT_PLANNER.md)): el **`FramePlan` es *el*
+   sumidero**, la cola es **genérica** (`IntentQueue<N, Item, Executor, Done>`; `BlitQueue` = su
+   instancia con `Item = BlitOp`) y las vías son **políticas**. Falta alinear los `concept`s de
+   ejecutor y escribir el `AudioPlan` análogo.
 3. **Los últimos punteros crudos.** `BlitJob`/`BlitterJob` (`u16*`/`void*`), el backend y
    `object3d` aún exponen crudo. Deben ir a vista/`Address` hasta **una** frontera (el registro).
 4. **Los descriptores de "dibujable".** `Bob`/`Sprite`/`Visual`/`Actor`/`*Layer` se solapan; hay
