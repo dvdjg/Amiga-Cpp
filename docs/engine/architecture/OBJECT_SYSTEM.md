@@ -353,6 +353,21 @@ Esta sección fija **qué es cada pieza** (framebuffer, vista, descriptor, algor
 | `BitmapView<Tag,Bank>`/`BobTarget` | vista | zona rectangular (planos+geometría+layout) con banco y tag en el tipo |
 | `BlitOp`/`blit_regs()` | emisión | intención de blit (zona destino/origen + rect) y su traducción a registros del Blitter (`BLITTER_INTENT_QUEUE.md`) |
 | `CopperIntent`/`copper::Plan`/`Scheduler` | emisión | intención y lista de Copper |
+
+### 15.3 Jerarquía del dibujable (cuatro niveles)
+
+Del más crudo al más alto; **cada nivel ignora el de abajo** (el de arriba no conoce el cómo):
+
+| Nivel | Qué es | Tipos |
+|---|---|---|
+| 1. **Blob crudo** | memoria + forma, **sin** semántica de dibujo | `Block<Tag>`, `BitmapView`, `MeshBlob` |
+| 2. **Asset cocinado** | el objeto listo para pintar (hoja + política) | `Bob` (hoja + `draw`/`erase`), `Sprite` (asset + geometría), `Visual` (descriptor) |
+| 3. **Actor retenido** | estado que persiste entre frames | `Actor`/`ActorStore`, `*Layer` (política de capa), `World` |
+| 4. **Intención** | la petición del juego; el **planner** la compila | `Draw`/`Sound`/`CopperIntent` (ver [`INTENT_PLANNER.md`](INTENT_PLANNER.md)) |
+
+Reglas: el nivel 4 **no** ve `BlitJob`; el 3 **no** ve el plan; el 2 **no** ve el framebuffer; el 1
+**no** sabe dibujar. Un tipo con responsabilidades de **dos** niveles es deuda — p. ej. `BlitJob`
+con `C2P`: una **conversión** no es un blit (debe salir de `BlitJobKind`).
 | `Camera2D`/`TileScrollDriver`/`FineScroll` | algoritmo | scroll |
 | `PaletteTransition`/`Cycle`/`RasterGradient` | algoritmo | color/raster |
 | `SpriteAllocator`/`RepresentationAllocator` | algoritmo | reparto/representación |

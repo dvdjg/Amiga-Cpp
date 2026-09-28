@@ -86,6 +86,10 @@ void update(...) {
   `wait()` es el único bloqueo.
 - **Coherencia con `wait_blitter`**: la cola debe respetar los blits ya en vuelo (un `flush` tras un
   blit suelto).
+- **Declarar no bloquea; la completación es un EVENTO, no un callback crudo.** Al alcanzar el punto
+  de una petición se postea un `Msg` del mini-SO (`IntentDone`/`BlitDone`) con el **`ticket`** de la
+  petición; el juego lo atiende en su tabla de despacho. `wait()` sigue siendo el único bloqueo y
+  **solo** si el juego lo pide. El vocabulario y el planner completo: [`INTENT_PLANNER.md`](INTENT_PLANNER.md).
 
 ## 7. Refinamientos (memoria, zonas, Copper y procedencia)
 
