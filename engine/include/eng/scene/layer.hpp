@@ -13,10 +13,36 @@
 
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/intent_queue.hpp>
+#include <eng/graphics/sprite_asset.hpp>
 
 namespace eng::scene {
 
 using eng::graphics::DrawIntent;
+
+/// **Ejecutor de la intención de dibujo** hacia el plan del frame: compila un `DrawIntent` de tipo
+/// `Sprite` con `Sprite::draw` (el plan decide CPU/Blitter). Es el puente **intención → `FramePlan`**
+/// (el sumidero), apto como `Executor` de una `IntentQueue` (`ready`/`run`).
+class SpritePlanExecutor {
+public:
+	/// Liga el plan (el sumidero) y la geometría de destino de la escena. No propietario.
+	constexpr SpritePlanExecutor(eng::graphics::FramePlan& plan,
+				     const eng::graphics::BobTarget& target) noexcept
+		: m_plan(plan), m_target(target) {}
+
+	[[nodiscard]] constexpr bool ready() const noexcept { return true; }
+
+	/// Compila una intención de dibujo al plan (`Sprite::draw`); `false` si no es un sprite válido.
+	bool run(const DrawIntent& item) noexcept {
+		if (item.kind != eng::graphics::DrawKind::Sprite || !item.sheet.valid()) {
+			return false;
+		}
+		return item.sheet->draw(m_plan, m_target, item.frame, item.x, item.y);
+	}
+
+private:
+	eng::graphics::FramePlan& m_plan;
+	const eng::graphics::BobTarget& m_target;
+};
 
 /// **Capa de dibujo**: objetos descritos **en el setup** (forma invariante) con una posición
 /// **dinámica** por frame. `emit` recorre y encola con el dato del frame — **solo lo dinámico**

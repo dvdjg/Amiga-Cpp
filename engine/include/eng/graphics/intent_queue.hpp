@@ -16,6 +16,9 @@
 
 namespace eng::graphics {
 
+/// Asset de sprite (definido en `sprite_asset.hpp`): la intención lo referencia sin depender de él.
+class Sprite;
+
 /// Identificador de una petición encolada: correlaciona la **completación**. Es un contador
 /// creciente que el `Done` devuelve tal cual; el juego lo resuelve (p. ej. en su tabla de eventos).
 using Ticket = eng::u32;
@@ -140,6 +143,7 @@ struct DrawIntent {
 	eng::s16 y2 = 0;   ///< Line
 	eng::u8 color = 0; ///< Rect/Line
 	eng::u8 frame = 0; ///< Sprite
+	eng::Ref<const Sprite> sheet {}; ///< `Sprite`: el asset (no propietario; solo `Sprite`)
 };
 
 /// La cola de dibujo del juego: `Item = DrawIntent`.

@@ -125,6 +125,48 @@ int main() {
 		      "emit aplica el dato dinamico del frame (objeto movido + quieto)");
 	}
 
+	// 6) Intencion de dibujo (Sprite) -> plan: la ruta del PLANNER produce el mismo trabajo que el
+	//    camino directo (`Sprite::draw`), sin coste anadido del bucle (recorrido + encolar).
+	{
+		using eng::graphics::BlitJobKind;
+		using eng::graphics::Bob;
+		using eng::graphics::BobDraw;
+		using eng::graphics::BobLayout;
+		using eng::graphics::FramePlan;
+		using eng::graphics::Sprite;
+		using eng::scene::DrawLayer;
+		using eng::scene::SpritePlanExecutor;
+		static eng::u16 sheet[64] {};
+		Bob bob {};
+		bob.sheet = eng::ChipView<eng::BobTag> {
+			eng::Address<eng::MemoryKind::Chip>::from_storage(sheet), sizeof(sheet)};
+		bob.width = 32u;
+		bob.height = 16u;
+		bob.planes = 1u;
+		bob.frame_count = 1u;
+		bob.sheet_row_bytes = 6u;
+		bob.layout = BobLayout::Interleaved;
+		bob.draw = BobDraw::Or;
+		const Sprite sprite {bob};
+		const eng::graphics::BobTarget target = eng::graphics::make_bob_target(
+			eng::ChipView<eng::PlaneTag> {
+				eng::Address<eng::MemoryKind::Chip>::from_storage(sheet),
+				sizeof(sheet)},
+			2u, 8u, 1u, eng::graphics::PlaneLayout::Interleaved);
+
+		DrawLayer<4u> layer;
+		layer.add(DrawIntent {DrawKind::Sprite, 0, 0, 0u, 0u, 0, 0, 0u, 0u, &sprite}, 5, 2);
+
+		FramePlan plan;
+		SpritePlanExecutor exec {plan, target};
+		eng::graphics::DrawQueue<4u, SpritePlanExecutor, eng::graphics::NoDone> dq;
+		dq.bind(exec);
+		layer.emit(dq);
+		dq.wait_all();
+		check(plan.blit_job_count() == 1u && plan.blit_job(0u).kind == BlitJobKind::OrBlob,
+		      "la intencion de dibujo -> el mismo job en el plan que el camino directo");
+	}
+
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;
