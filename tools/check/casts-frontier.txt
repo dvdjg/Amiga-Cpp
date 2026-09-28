@@ -4,3 +4,4 @@
 # Formato: <ruta relativa al repo>   # razon
 engine/include/eng/graphics/blit_queue.hpp   # blitter_job_from: unico encoder BLTCON/registros
 engine/include/eng/graphics/blit_job.hpp      # BlitSource/BlitDest: roles que nacen de una vista
+engine/include/eng/platform/amiga/object3d.hpp # frontera obj2c/asm: byte<->struct del mesh (layout fijo)

@@ -38,21 +38,26 @@ int main() {
 	check(obj.scale.x.v == (1 << 12) && obj.scale.y.v == (1 << 12), "scale inicial 1.0 (4.12)");
 
 	// Validacion del descriptor: blob no vacio, grupos dentro de rango y sin trampa.
-	check(mesh_validate(mesh), "mesh_validate: malla valida");
-	check(new_object3d_checked(obj, mesh), "new_object3d_checked: malla valida -> true");
+	check(mesh_validate(mesh) == eng::object3d::MeshStatus::Ok, "mesh_validate: malla valida");
+	check(new_object3d_checked(obj, mesh) == eng::object3d::MeshStatus::Ok,
+	      "new_object3d_checked: malla valida -> Ok");
 	{
 		Mesh3D no_blob = mesh;
 		no_blob.bytes = {};
-		check(!mesh_validate(no_blob), "mesh_validate: sin blob -> false");
-		check(!new_object3d_checked(obj, no_blob), "new_object3d_checked: sin blob -> false");
+		check(mesh_validate(no_blob) == eng::object3d::MeshStatus::Empty,
+		      "mesh_validate: sin blob -> Empty");
+		check(new_object3d_checked(obj, no_blob) == eng::object3d::MeshStatus::Empty,
+		      "new_object3d_checked: sin blob -> Empty");
 		static short bad_group[2] = {1000, 0};
 		Mesh3D out_of_range = mesh;
 		out_of_range.vertexGroups = bad_group;
-		check(!mesh_validate(out_of_range), "mesh_validate: grupo fuera de rango -> false");
+		check(mesh_validate(out_of_range) == eng::object3d::MeshStatus::OutOfRange,
+		      "mesh_validate: grupo fuera de rango -> OutOfRange");
 		static short odd_group[2] = {3, 0};
 		Mesh3D misaligned = mesh;
 		misaligned.vertexGroups = odd_group;
-		check(!mesh_validate(misaligned), "mesh_validate: offset impar -> false");
+		check(mesh_validate(misaligned) == eng::object3d::MeshStatus::Misaligned,
+		      "mesh_validate: offset impar -> Misaligned");
 	}
 
 	// Offsets de las macros (indice = offset de byte; primer vertice = 2).
@@ -94,7 +99,8 @@ int main() {
 		quad_mesh.vertexGroups = {qv, 6};
 		quad_mesh.edgeGroups = {qe, 2};
 		quad_mesh.faceGroups = {qf, 3};
-		check(mesh_validate(quad_mesh), "adaptador: mesh_validate del quad");
+		check(mesh_validate(quad_mesh) == eng::object3d::MeshStatus::Ok,
+		      "adaptador: mesh_validate del quad");
 
 		Object3D qobj {};
 		new_object3d(qobj, quad_mesh);
