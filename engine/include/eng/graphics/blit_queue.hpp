@@ -228,6 +228,22 @@ private:
 	eng::u16 m_top;
 };
 
+/// Ejecutor cuyo destino es un **sumidero de trabajo** (`sink.add(BlitJob)`), no el hardware: la
+/// intención (`BlitOp`) se convierte con `blit_job_from` y se **añade al plan**
+/// (`FramePlan::add`) en vez de programar registros aquí. `blitter_free()` = siempre `true` (no
+/// toca el Blitter); el presupuesto/ejecución los gobierna el plan. Es la forma en que la
+/// `BlitQueue` es un **front-end** del `FramePlan` (un solo dueño de la ejecución).
+template <class Sink>
+class SinkBlitExecutor {
+public:
+	constexpr explicit SinkBlitExecutor(Sink& sink) noexcept : m_sink(sink) {}
+	[[nodiscard]] constexpr bool blitter_free() const noexcept { return true; }
+	bool submit(const BlitOp& op) noexcept { return m_sink.add(blit_job_from(op)); }
+
+private:
+	Sink& m_sink;
+};
+
 /// Contrato del **ejecutor**: sabe si el Blitter está libre (BBUSY) y programa una petición.
 template <class E>
 concept BlitExecutor = requires(E& e, const BlitOp& op) {

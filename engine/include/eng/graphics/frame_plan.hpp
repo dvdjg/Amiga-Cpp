@@ -335,6 +335,22 @@ public:
 		return true;
 	}
 
+	/// **Genérico**: añade un trabajo ya formado, **despachando por `job.kind`**. Es el punto de
+	/// entrada del sumidero de la cola de intención (`BlitQueue` → plan): convierte la
+	/// intención a `BlitJob` (`blit_job_from`) y lo añade aquí sin conocer el tipo concreto.
+	bool add(const BlitJob& job) {
+		switch (job.kind) {
+		case BlitJobKind::C2P:
+			return add_c2p(job);
+		case BlitJobKind::Line:
+			return add_line(job, BlitJobKind::Line);
+		case BlitJobKind::LineEor:
+			return add_line(job, BlitJobKind::LineEor);
+		default:
+			return add_blit_job(job, job.kind);
+		}
+	}
+
 private:
 	static constexpr s16 min_s16(s16 a, s16 b) { return a < b ? a : b; }
 	static constexpr s16 max_s16(s16 a, s16 b) { return a > b ? a : b; }
