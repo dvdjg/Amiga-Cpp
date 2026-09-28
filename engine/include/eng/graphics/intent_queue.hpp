@@ -13,6 +13,7 @@
 
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/graphics/bob.hpp>
 
 namespace eng::graphics {
 
@@ -143,6 +144,10 @@ struct DrawIntent {
 	eng::s16 y2 = 0;   ///< Line
 	eng::u8 color = 0; ///< Rect/Line
 	eng::u8 frame = 0; ///< Sprite
+	/// **Política** de la intención (el juego pide CÓMO, sin nombrar el chipset): transparencia
+	/// (`BobDraw`) y fondo (`BobErase`).
+	BobDraw draw = BobDraw::Or;
+	BobErase erase = BobErase::None;
 	eng::Ref<const Sprite> sheet {}; ///< `Sprite`: el asset (no propietario; solo `Sprite`)
 };
 

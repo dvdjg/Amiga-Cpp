@@ -155,7 +155,9 @@ int main() {
 			2u, 8u, 1u, eng::graphics::PlaneLayout::Interleaved);
 
 		DrawLayer<4u> layer;
-		layer.add(DrawIntent {DrawKind::Sprite, 0, 0, 0u, 0u, 0, 0, 0u, 0u, &sprite}, 5, 2);
+		layer.add(DrawIntent {DrawKind::Sprite, 0, 0, 0u, 0u, 0, 0, 0u, 0u,
+				      eng::graphics::BobDraw::Or, eng::graphics::BobErase::None, &sprite},
+			  5, 2);
 
 		FramePlan plan;
 		SpritePlanExecutor exec {plan, target};

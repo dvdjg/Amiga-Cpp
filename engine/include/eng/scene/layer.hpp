@@ -32,11 +32,21 @@ public:
 	[[nodiscard]] constexpr bool ready() const noexcept { return true; }
 
 	/// Compila una intención de dibujo al plan (`Sprite::draw`); `false` si no es un sprite válido.
+	///
+	/// La **política** viaja en la intención: `erase` (fondo) borra la caja previa y `draw`
+	/// (transparencia) elige el minterm; el asset solo aporta la hoja/geometría.
 	bool run(const DrawIntent& item) noexcept {
 		if (item.kind != eng::graphics::DrawKind::Sprite || !item.sheet.valid()) {
 			return false;
 		}
-		return item.sheet->draw(m_plan, m_target, item.frame, item.x, item.y);
+		eng::graphics::Bob bob = item.sheet->bob();
+		bob.draw = item.draw;
+		bob.erase = item.erase;
+		if (bob.erase == eng::graphics::BobErase::ClearRect &&
+		    !eng::graphics::bob_erase(m_plan, bob, item.x, item.y, m_target)) {
+			return false;
+		}
+		return eng::graphics::bob_draw(m_plan, bob, item.frame, item.x, item.y, m_target);
 	}
 
 private:
