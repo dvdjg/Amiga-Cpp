@@ -22,6 +22,7 @@
 ///   batch.end();
 
 #include <eng/core/types/types.hpp>
+#include <eng/graphics/blitter_state.hpp>
 
 namespace eng::amiga {
 
