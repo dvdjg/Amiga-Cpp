@@ -296,57 +296,31 @@ bool AmigaBackend::blitter_line(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s1
 	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
 
 	wait_blitter();
-	custom_base[custom_bltafwm_offset] = 0xffff;
-	custom_base[custom_bltalwm_offset] = 0xffff;
-	custom_base[custom_bltadat_offset] = 0x8000;
-	custom_base[custom_bltbdat_offset] = 0xffff;
-	custom_base[custom_bltcmod_offset] = row_bytes;
-	custom_base[custom_bltdmod_offset] = row_bytes;
-
-	if (y0 > y1) {
-		s16 t = x0; x0 = x1; x1 = t;
-		t = y0; y0 = y1; y1 = t;
-	}
-
-	s16 dmax = static_cast<s16>(x1 - x0);
-	s16 dmin = static_cast<s16>(y1 - y0);
-	u16 bltcon1 = blt_linemode;
-	if (dmax < 0) {
-		dmax = static_cast<s16>(-dmax);
-	}
-	if (dmax >= dmin) {
-		bltcon1 = static_cast<u16>(bltcon1 | (x0 >= x1 ? (blt_aul | blt_sud) : blt_sud));
-	} else {
-		if (x0 >= x1) {
-			bltcon1 = static_cast<u16>(bltcon1 | blt_sul);
-		}
-		const s16 t = dmax; dmax = dmin; dmin = t;
-	}
-
-	u8* data = plane.data() + row_offset(y0, row_bytes) + (static_cast<u32>(x0) >> 3);
-	data = reinterpret_cast<u8*>(reinterpret_cast<u32>(data) & ~1u);
-
-	dmin = static_cast<s16>(dmin << 1);
-	s16 derr = static_cast<s16>(dmin - dmax);
-	if (derr < 0) {
-		bltcon1 = static_cast<u16>(bltcon1 | blt_signflag);
-	}
-	bltcon1 = static_cast<u16>(bltcon1 | ror16(static_cast<u16>(x0 & 15), 4));
-	const u16 bltcon0 = static_cast<u16>(ror16(static_cast<u16>(x0 & 15), 4) | blt_line_or);
-	const u16 bltamod = static_cast<u16>(derr - dmax);
-	const u16 bltbmod = static_cast<u16>(dmin);
-	const u16 bltsize = static_cast<u16>((static_cast<u16>(dmax) << 6) + 66u);
-
-	wait_blitter();
-	custom_base[custom_bltcon0_offset] = bltcon0;
-	custom_base[custom_bltcon1_offset] = bltcon1;
-	custom_base[custom_bltamod_offset] = bltamod;
-	custom_base[custom_bltbmod_offset] = bltbmod;
-	write_custom_pointer(custom_bltapt_offset,
-			     reinterpret_cast<void*>(static_cast<u32>(static_cast<s32>(derr))));
-	write_custom_pointer(custom_bltcpt_offset, data);
-	write_custom_pointer(custom_bltdpt_offset, data);
-	custom_base[custom_bltsize_offset] = bltsize;
+	// Registros derivados por el ENCODER ÚNICO (`blitter_job_from`, modo LINE): la matemática
+	// de octante/error ya no se duplica aquí.
+	graphics::BlitJob job {};
+	job.kind = graphics::BlitJobKind::Line;
+	job.destination = graphics::BlitDest {reinterpret_cast<u16*>(plane.data())};
+	job.line.x0 = x0;
+	job.line.y0 = y0;
+	job.line.x1 = x1;
+	job.line.y1 = y1;
+	job.line.row_bytes = row_bytes;
+	const graphics::BlitterJob b = graphics::blitter_job_from(job);
+	custom_base[custom_bltcon0_offset] = b.bltcon0;
+	custom_base[custom_bltcon1_offset] = b.bltcon1;
+	custom_base[custom_bltafwm_offset] = b.bltafwm;
+	custom_base[custom_bltalwm_offset] = b.bltalwm;
+	custom_base[custom_bltadat_offset] = b.bltadat;
+	custom_base[custom_bltbdat_offset] = b.bltbdat;
+	custom_base[custom_bltamod_offset] = static_cast<u16>(b.bltamod);
+	custom_base[custom_bltbmod_offset] = static_cast<u16>(b.bltbmod);
+	custom_base[custom_bltcmod_offset] = static_cast<u16>(b.bltcmod);
+	custom_base[custom_bltdmod_offset] = static_cast<u16>(b.bltdmod);
+	write_custom_pointer(custom_bltapt_offset, b.bltapt);
+	write_custom_pointer(custom_bltcpt_offset, b.bltcpt);
+	write_custom_pointer(custom_bltdpt_offset, b.bltdpt);
+	custom_base[custom_bltsize_offset] = b.bltsize;
 	return wait_blitter();
 }
 
