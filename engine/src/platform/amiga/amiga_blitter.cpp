@@ -68,9 +68,9 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 
 	if (line || line_eor) {
 		// Línea por Blitter (LINE) o EOR/ONEDOT sobre el plano del `destination`.
-		eng::PlaneBytes pb {reinterpret_cast<eng::u8*>(job.destination.words), 0u};
-		eng::u8* d_base = job.line.base.words != nullptr
-					  ? reinterpret_cast<eng::u8*>(job.line.base.words)
+		eng::PlaneBytes pb {reinterpret_cast<eng::u8*>(job.destination.words()), 0u};
+		eng::u8* d_base = job.line.base.words() != nullptr
+					  ? reinterpret_cast<eng::u8*>(job.line.base.words())
 					  : nullptr;
 		if (line) {
 			eor_open = false;
@@ -87,7 +87,7 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 			LineEorParams p;
 			if (blitter_line_eor_prepare(p, job.line.row_bytes, job.line.x0,
 						     job.line.y0, job.line.x1, job.line.y1)) {
-				blitter_line_eor_draw(p, reinterpret_cast<eng::u8*>(job.destination.words),
+				blitter_line_eor_draw(p, reinterpret_cast<eng::u8*>(job.destination.words()),
 						      d_base);
 			}
 		}
@@ -120,8 +120,8 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 			return false;
 		}
 
-		const u16* source_plane = job.source.words + static_cast<u32>(plane) * source_plane_stride_words;
-		u16* destination_plane = job.destination.words + static_cast<u32>(plane) * destination_plane_stride_words;
+		const u16* source_plane = job.source.words() + static_cast<u32>(plane) * source_plane_stride_words;
+		u16* destination_plane = job.destination.words() + static_cast<u32>(plane) * destination_plane_stride_words;
 
 		// Registros derivados de la intención por el **encoder único** (`blitter_job_from`):
 		// la codificación (BLTCON/MOD/minterm) NO se duplica aquí. Los PUNTEROS sí se
@@ -139,7 +139,7 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 		if (clear) {
 			write_custom_pointer(custom_bltdpt_offset, destination_plane);
 		} else if (masked) {
-			write_custom_pointer(custom_bltapt_offset, job.mask.words);
+			write_custom_pointer(custom_bltapt_offset, job.mask.words());
 			write_custom_pointer(custom_bltbpt_offset, source_plane);
 			write_custom_pointer(custom_bltcpt_offset, destination_plane);
 			write_custom_pointer(custom_bltdpt_offset, destination_plane);

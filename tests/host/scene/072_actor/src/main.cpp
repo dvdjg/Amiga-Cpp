@@ -288,7 +288,7 @@ void test_emit_clear() {
 	CHECK(clear.height == 8u, "altura de la caja previa");
 	CHECK(clear.destination_modulo_bytes == 36, "modulo destino clear");
 	CHECK(clear.bitplane_count == 1u, "planos del BOB");
-	CHECK(clear.destination.words == reinterpret_cast<const eng::u16*>(g_screen + 20 * kRowBytes + 0),
+	CHECK(clear.destination.words() == reinterpret_cast<const eng::u16*>(g_screen + 20 * kRowBytes + 0),
 	      "destino del borrado en la caja previa");
 
 	const auto& draw = plan.blit_job(1);
@@ -297,9 +297,9 @@ void test_emit_clear() {
 	CHECK(draw.source_shift == 8u, "shift sub-byte de la X");
 	CHECK(draw.words_per_row == 2u, "palabra extra por el shift");
 	CHECK(draw.source_modulo_bytes == 2, "modulo origen de la hoja de 6 B");
-	CHECK(draw.destination.words == reinterpret_cast<const eng::u16*>(g_screen + 33 * kRowBytes + 10),
+	CHECK(draw.destination.words() == reinterpret_cast<const eng::u16*>(g_screen + 33 * kRowBytes + 10),
 	      "destino del dibujo");
-	CHECK(draw.source.words == reinterpret_cast<const eng::u16*>(g_pixels), "origen del frame 0");
+	CHECK(draw.source.words() == reinterpret_cast<const eng::u16*>(g_pixels), "origen del frame 0");
 	CHECK(a->prev[0].left == 88 && a->prev[0].top == 33, "prev actualizado por buffer");
 	CHECK(plan.dirty_rect_count() >= 1u, "dirty rect registrado");
 }
@@ -321,7 +321,7 @@ void test_emit_frame_offset() {
 	CHECK(eng::scene::actor_emit(plan, *a, ctx) == ActorEmitStatus::Ok, "emision frame 1");
 	const auto& draw = plan.blit_job(0);
 	// Frame en x = 16 -> 2 bytes dentro de la misma fila de la hoja.
-	CHECK(draw.source.words == reinterpret_cast<const eng::u16*>(reinterpret_cast<const eng::u8*>(g_pixels) + 2u),
+	CHECK(draw.source.words() == reinterpret_cast<const eng::u16*>(reinterpret_cast<const eng::u8*>(g_pixels) + 2u),
 	      "origen desplazado al frame 1 de la hoja");
 	CHECK(draw.source_modulo_bytes == 2, "modulo origen de la hoja de 2 frames");
 }
@@ -389,7 +389,7 @@ void test_surface_selection_and_sprite_intent() {
 	DirtyRect rect {};
 	CHECK(eng::scene::actor_emit(plan, *a, ctx, &rect) == ActorEmitStatus::Ok, "emision en superficie 1");
 	const auto& draw = plan.blit_job(0);
-	CHECK(draw.destination.words ==
+	CHECK(draw.destination.words() ==
 	      reinterpret_cast<const eng::u16*>(g_screen + kPlaneBytes + 33u * kRowBytes + 10u),
 	      "el BOB va al segundo playfield");
 
@@ -430,11 +430,11 @@ void test_emit_save_under() {
 	CHECK(plan.blit_job_count() == 3u, "restore + save + draw");
 
 	CHECK(plan.blit_job(0).kind == BlitJobKind::RestoreRect, "job 0 restaura");
-	CHECK(plan.blit_job(0).source.words == reinterpret_cast<const eng::u16*>(g_save), "restaura desde el buffer");
-	CHECK(plan.blit_job(0).destination.words ==
+	CHECK(plan.blit_job(0).source.words() == reinterpret_cast<const eng::u16*>(g_save), "restaura desde el buffer");
+	CHECK(plan.blit_job(0).destination.words() ==
 	      reinterpret_cast<const eng::u16*>(g_screen + 20 * kRowBytes + 0), "restaura en la caja previa");
 	CHECK(plan.blit_job(1).kind == BlitJobKind::CopyRect, "job 1 guarda el fondo");
-	CHECK(plan.blit_job(1).destination.words == reinterpret_cast<const eng::u16*>(g_save), "guarda en el buffer");
+	CHECK(plan.blit_job(1).destination.words() == reinterpret_cast<const eng::u16*>(g_save), "guarda en el buffer");
 	CHECK(plan.blit_job(2).kind == BlitJobKind::MaskedBobCookieCut, "job 2 dibuja");
 
 	// Sin buffer de guardado: rechazo controlado.
@@ -516,14 +516,14 @@ void test_emit_order_by_surface_and_z() {
 	const eng::u16 emitted = eng::scene::emit_actors_in_order(plan, store, ctx, order);
 	CHECK(emitted == 4u, "se emiten los cuatro");
 	CHECK(plan.blit_job_count() == 4u, "un job por actor");
-	CHECK(plan.blit_job(0).destination.words ==
+	CHECK(plan.blit_job(0).destination.words() ==
 	      reinterpret_cast<const eng::u16*>(g_screen + 50u * kRowBytes), "job 0: superficie 0, z 50");
-	CHECK(plan.blit_job(1).destination.words ==
+	CHECK(plan.blit_job(1).destination.words() ==
 	      reinterpret_cast<const eng::u16*>(g_screen + 120u * kRowBytes), "job 1: superficie 0, z 200");
-	CHECK(plan.blit_job(2).destination.words ==
+	CHECK(plan.blit_job(2).destination.words() ==
 	      reinterpret_cast<const eng::u16*>(g_screen + kPlaneBytes + 10u * kRowBytes),
 	      "job 2: superficie 1, z 10");
-	CHECK(plan.blit_job(3).destination.words ==
+	CHECK(plan.blit_job(3).destination.words() ==
 	      reinterpret_cast<const eng::u16*>(g_screen + kPlaneBytes + 200u * kRowBytes),
 	      "job 3: superficie 1, z 200");
 
@@ -627,9 +627,9 @@ void test_sprite_allocation_and_bob_fallback() {
 	CHECK(emitted == 2u, "se emiten los dos degradados como BOB");
 	CHECK(plan.blit_job_count() == 2u, "un job por degradado");
 	// Slots 0 (z=10) y 1 (z=20): por `z` primero el 0, aunque en la intencion iba después.
-	CHECK(plan.blit_job(0).source.words ==
+	CHECK(plan.blit_job(0).source.words() ==
 	      reinterpret_cast<const eng::u16*>(g_pixel_pool + 0u), "job 0: menor z (slot 0)");
-	CHECK(plan.blit_job(1).source.words ==
+	CHECK(plan.blit_job(1).source.words() ==
 	      reinterpret_cast<const eng::u16*>(g_pixel_pool + 16u), "job 1: mayor z (slot 1)");
 
 	// Capacidad insuficiente para las intenciones: rechazo controlado.
@@ -847,9 +847,9 @@ void test_bob_job_matrix() {
 		CHECK(j.destination_modulo_bytes == static_cast<eng::s16>(kRowBytes - 6u),
 		      "modulo destino");
 		CHECK(j.interleaved && j.bitplane_count == 1u, "intercalado de 1 columna");
-		CHECK(j.mask.words == reinterpret_cast<const eng::u16*>(g_matrix_sheet),
+		CHECK(j.mask.words() == reinterpret_cast<const eng::u16*>(g_matrix_sheet),
 		      "mascara = inicio de la hoja");
-		CHECK(j.source.words == reinterpret_cast<const eng::u16*>(g_matrix_sheet) + 3u,
+		CHECK(j.source.words() == reinterpret_cast<const eng::u16*>(g_matrix_sheet) + 3u,
 		      "imagen = mascara + palabras");
 	}
 

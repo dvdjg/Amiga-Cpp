@@ -62,9 +62,9 @@ void exec_masked_bob_jobs(const eng::graphics::FramePlan& plan) {
 		const eng::u32 dstride = job.destination_plane_stride_bytes / 2u;
 		const eng::u8 nplanes = (job.bitplane_count != 0u) ? job.bitplane_count : 1u;
 		for (eng::u8 plane = 0u; plane < nplanes; ++plane) {
-			const eng::u16* a = job.mask.words;
-			const eng::u16* b = job.source.words + static_cast<eng::u32>(plane) * sstride;
-			eng::u16* d = job.destination.words + static_cast<eng::u32>(plane) * dstride;
+			const eng::u16* a = job.mask.words();
+			const eng::u16* b = job.source.words() + static_cast<eng::u32>(plane) * sstride;
+			eng::u16* d = job.destination.words() + static_cast<eng::u32>(plane) * dstride;
 			const eng::u16 wpr = job.words_per_row;
 			for (eng::u16 row = 0u; row < job.height; ++row) {
 				for (eng::u16 w = 0u; w < wpr; ++w) {

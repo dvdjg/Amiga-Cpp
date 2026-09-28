@@ -101,7 +101,7 @@ void test_fast_path() {
 	check(count_kind(plan, BlitJobKind::MaskedBobCookieCut) == 0u, "sin cookie-cut");
 	check(plan.blit_job(0).minterm == 0x00f0u, "copia opaca $F0");
 	// El blit cubre el padding: origen en (x - pad) = 56, alineado a word (shift 8).
-	check(plan.blit_job(0).destination.words ==
+	check(plan.blit_job(0).destination.words() ==
 		      reinterpret_cast<eng::u16*>(g_screen + 24u * (40u * 4u) +
 						  ((56u & ~15u) / 8u)),
 	      "destino = (x-pad)");

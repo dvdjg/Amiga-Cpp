@@ -146,9 +146,9 @@ struct BlitOp {
 		b.bltbmod = 0;
 		b.bltcmod = src_mod;
 		b.bltdmod = j.destination_modulo_bytes;
-		b.bltapt = shifted ? j.source.words : nullptr;
-		b.bltcpt = shifted ? nullptr : j.source.words;
-		b.bltdpt = j.destination.words;
+		b.bltapt = shifted ? j.source.words() : nullptr;
+		b.bltcpt = shifted ? nullptr : j.source.words();
+		b.bltdpt = j.destination.words();
 		b.bltsize = static_cast<eng::u16>((j.height << 6u) | j.words_per_row);
 		return b;
 	}
@@ -171,7 +171,7 @@ struct BlitOp {
 			if (x0 >= x1) con1 = static_cast<eng::u16>(con1 | kBlitterSul);
 			const eng::s16 t = dmax; dmax = dmin; dmin = t;
 		}
-		eng::u8* data = reinterpret_cast<eng::u8*>(j.destination.words) +
+		eng::u8* data = reinterpret_cast<eng::u8*>(j.destination.words()) +
 				static_cast<eng::u32>(y0) * j.line.row_bytes +
 				(static_cast<eng::u32>(x0) >> 3);
 		data = reinterpret_cast<eng::u8*>(reinterpret_cast<eng::usize>(data) & ~eng::usize{1});
@@ -207,10 +207,10 @@ struct BlitOp {
 	b.bltbmod = masked ? src_mod : (clear ? 0 : j.destination_modulo_bytes);
 	b.bltcmod = masked ? j.destination_modulo_bytes : src_mod;
 	b.bltdmod = j.destination_modulo_bytes;
-	b.bltapt = masked ? j.mask.words : j.source.words;
-	b.bltbpt = masked ? j.source.words : j.destination.words;
-	b.bltcpt = masked ? j.destination.words : nullptr;
-	b.bltdpt = j.destination.words;
+	b.bltapt = masked ? j.mask.words() : j.source.words();
+	b.bltbpt = masked ? j.source.words() : j.destination.words();
+	b.bltcpt = masked ? j.destination.words() : nullptr;
+	b.bltdpt = j.destination.words();
 	b.bltsize = static_cast<eng::u16>((j.height << 6u) | j.words_per_row);
 	return b;
 }

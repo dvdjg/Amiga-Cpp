@@ -311,7 +311,7 @@ public:
 	/// = plano, `line.x0..line.y1` las coordenadas y `line.row_bytes` el módulo de fila.
 	/// Sin fuentes/máscara. Para `LineEor`, `line.base` es la base del canal D.
 	bool add_line(const BlitJob& job, BlitJobKind kind = BlitJobKind::Line) {
-		if (job.destination.words == nullptr || job.line.row_bytes == 0u ||
+		if (job.destination.words() == nullptr || job.line.row_bytes == 0u ||
 		    job.bitplane_count == 0u) {
 			m_ok = false;
 			return false;
@@ -392,8 +392,8 @@ private:
 				    kind == BlitJobKind::MaskedBlobNoSave;
 		const bool clear = kind == BlitJobKind::ClearRect;
 		if (
-			(!clear && input.source.words == nullptr) ||
-			input.destination.words == nullptr ||
+			(!clear && input.source.words() == nullptr) ||
+			input.destination.words() == nullptr ||
 			input.words_per_row == 0 ||
 			input.height == 0 ||
 			input.bitplane_count == 0 ||
@@ -404,7 +404,7 @@ private:
 			m_ok = false;
 			return false;
 		}
-		if (masked && input.mask.words == nullptr) {
+		if (masked && input.mask.words() == nullptr) {
 			m_ok = false;
 			return false;
 		}

@@ -179,7 +179,7 @@ int main() {
 		const eng::graphics::BlitterJob c0 = blitter_job_from(cj);
 		check(c0.bltcon0 == (eng::graphics::kBlitterUseC | eng::graphics::kBlitterUseD |
 				     eng::graphics::kBlitterMintermCopyC) &&
-			      c0.bltcpt == cj.source.words && c0.bltapt == nullptr,
+			      c0.bltcpt == cj.source.words() && c0.bltapt == nullptr,
 		      "blitter_job_from CopyRect (D = C, $AA)");
 		cj.source_shift = 3u;
 		const eng::graphics::BlitterJob c1 = blitter_job_from(cj);
@@ -187,7 +187,7 @@ int main() {
 							  eng::graphics::kBlitterUseD |
 							  eng::graphics::kBlitterMintermCopyA) &&
 			      c1.bltcon1 == static_cast<eng::u16>(3u << 12) &&
-			      c1.bltapt == cj.source.words,
+			      c1.bltapt == cj.source.words(),
 		      "blitter_job_from CopyRect con shift (D = A, $F0)");
 	}
 
@@ -260,8 +260,8 @@ int main() {
 			      bj.source_modulo_bytes == j.source_modulo_bytes &&
 			      bj.destination_modulo_bytes == j.destination_modulo_bytes &&
 			      bj.source_shift == j.source_shift && bj.minterm == j.minterm &&
-			      bj.source.words == j.source.words &&
-			      bj.destination.words == j.destination.words,
+			      bj.source.words() == j.source.words() &&
+			      bj.destination.words() == j.destination.words(),
 		      "blit_job_from == BlitJob de bob_draw (mismo TIPO y geometria)");
 	}
 

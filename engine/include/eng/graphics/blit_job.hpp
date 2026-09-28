@@ -52,31 +52,40 @@ enum class BlitJobKind : u8 {
 	C2P,
 };
 
-/// Rol de **origen** de un blit (solo lectura). Junto con `BlitDest` evita pasar
-/// un `BlitDest` donde se espera un `BlitSource` (o viceversa) en las firmas
-/// internas. La construcción desde crudo es implícita por ergonomía de los
-/// agregados (`BlitJob{...}`); el rol tipado no se convierte entre sí.
-///
-/// Desde una vista tipada en Chip (`ChipView<Tag>`, p. ej. `BobTag`/`PlaneTag`) se construye
-/// **sin cast en el llamador**: el `reinterpret` (el Blitter direcciona a **word**) vive una sola
-/// vez aquí — es la frontera declarada del tipo, no algo que cada llamador reinvente.
+/// Rol de **origen** de un blit (solo lectura). La dirección es un `Address<MemoryKind::Chip>`: el
+/// rol lleva la **procedencia** (DMA), no un `u16*` suelto. `words()` da la vista de **registro**
+/// (la frontera que cruza el Blitter). Junto con `BlitDest` evita pasar un `BlitDest` donde se
+/// espera un `BlitSource` (o viceversa) en las firmas internas.
 struct BlitSource {
-	const u16* words = nullptr;
+	eng::Address<eng::MemoryKind::Chip> addr {};
 	constexpr BlitSource() noexcept = default;
-	constexpr BlitSource(const u16* w) noexcept : words(w) {}
+	constexpr BlitSource(eng::Address<eng::MemoryKind::Chip> a) noexcept : addr(a) {}
+	/// Desde un puntero crudo: frontera explícita (tests/backend que ya garantizan Chip).
+	constexpr BlitSource(const u16* w) noexcept
+		: addr(eng::Address<eng::MemoryKind::Chip>::from_storage(
+			  reinterpret_cast<const eng::u8*>(w))) {}
+	/// Desde una vista tipada en Chip (`ChipView<Tag>`) con `off` en bytes.
 	template <class Tag>
-	constexpr BlitSource(eng::ChipView<Tag> v, eng::s32 off = 0) noexcept
-		: words(reinterpret_cast<const u16*>(v.data() + off)) {}
+	constexpr BlitSource(eng::ChipView<Tag> v, eng::s32 off = 0) noexcept : addr(v.address(off)) {}
+	/// Vista de **registro** (word): la frontera que consume el Blitter.
+	[[nodiscard]] constexpr const u16* words() const noexcept {
+		return reinterpret_cast<const u16*>(addr.cptr());
+	}
 };
 
 /// Rol de **destino** de un blit (escritura).
 struct BlitDest {
-	u16* words = nullptr;
+	eng::Address<eng::MemoryKind::Chip> addr {};
 	constexpr BlitDest() noexcept = default;
-	constexpr BlitDest(u16* w) noexcept : words(w) {}
+	constexpr BlitDest(eng::Address<eng::MemoryKind::Chip> a) noexcept : addr(a) {}
+	constexpr BlitDest(u16* w) noexcept
+		: addr(eng::Address<eng::MemoryKind::Chip>::from_storage(
+			  reinterpret_cast<const eng::u8*>(w))) {}
 	template <class Tag>
-	constexpr BlitDest(eng::ChipView<Tag> v, eng::s32 off = 0) noexcept
-		: words(reinterpret_cast<u16*>(v.address(off).ptr())) {}
+	constexpr BlitDest(eng::ChipView<Tag> v, eng::s32 off = 0) noexcept : addr(v.address(off)) {}
+	[[nodiscard]] constexpr u16* words() const noexcept {
+		return reinterpret_cast<u16*>(addr.ptr());
+	}
 };
 
 /// Trabajo planar de Blitter.
