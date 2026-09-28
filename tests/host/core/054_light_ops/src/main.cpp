@@ -20,7 +20,7 @@ static void check(bool ok, const char* msg) {
 	}
 }
 
-// Tabla determinista de 512 entradas (la real es kInvSqrt de lib3d; aquí basta para fijar
+// Tabla determinista de 512 entradas (la real es `eng::math::kInvSqrt`; aquí basta para fijar
 // la fórmula). Indexada enmascarando a 511, como el clamp del algoritmo.
 struct Tab {
 	u16 v[512];

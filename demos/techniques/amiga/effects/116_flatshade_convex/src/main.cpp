@@ -419,7 +419,7 @@ void area_fill_planes(eng::PlaneBytes planes, eng::amiga::AmigaBackend& backend,
 inline void prepare_fs_args(eng::PlaneBytes planes, obj::Object3D& object) {
 	g_fs_args.obj = &object;
 	g_fs_args.planes = planes.data();
-	g_fs_args.invsqrt = eng::lib3d::kInvSqrt;
+	g_fs_args.invsqrt = eng::lib3d::kInvSqrt.data();
 	g_fs_args.bbox = g_bbox;
 }
 #endif
