@@ -110,6 +110,11 @@ struct BlitOp {
 /// **registros** (`BlitterJob`) que consumen el Copper (`Scheduler::emit_blitter_job`) y el backend.
 /// Los dos ejecutores (CPU y Copper) comparten esta codificación; referencia de bits:
 /// `hardware/blit.h` (USEx = canales, ASH = bits 12-15, minterm = bits 7-0).
+///
+/// Cubre los tipos planos **y `Line`** (modo LINE, octante/error). **`LineEor`** comparte el
+/// `BLTCON0` de EOR, pero su `FILL_XOR`/base son un **preámbulo de lote** del backend (estado
+/// `eor_open`, una vez por racha), no un registro por trabajo → se queda en el backend. **`C2P`**
+/// **no** es un `BlitterJob` (13 fases encadenadas) → camino aparte.
 [[nodiscard]] inline BlitterJob blitter_job_from(const BlitJob& j) noexcept {
 	const eng::u16 shift = static_cast<eng::u16>(j.source_shift);
 	const bool clear = j.kind == BlitJobKind::ClearRect;
