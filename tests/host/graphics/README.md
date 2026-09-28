@@ -44,3 +44,4 @@ Categoría `graphics` de la batería host (L1). El índice de categorías está 
 | HOST-338 | [tile_planar](338_tile_planar/README.md) | `eng/graphics/tile_planar.hpp`: decode de tiles indexados → planos (`decode_2bpp_planar`): planos secuenciales → contiguos con fila alineada. |
 | HOST-342 | [tile_editor](342_tile_editor/README.md) | `eng/graphics/tilemap/tile_editor.hpp`: editor de tiles de juego (`set_tile`/`dirty_rect`/`flush` sobre `PackedTileCell`) — set_tile/flush (F7.2). |
 | HOST-344 | [attribute_table](344_attribute_table/README.md) | `eng/graphics/tilemap/attribute_table.hpp`: paleta por bloque (`set`/`get`/`fill`) — `set_attribute` de una capa de tiles (F7.2). |
+| HOST-365 | [blit_queue](365_blit_queue/README.md) | `eng/graphics/blit_queue.hpp`: API de Blitter por **intención** (cola FIFO con feeder poll; `src`/`dst` como `ChipView`) — asincronía, FIFO y `all`. |

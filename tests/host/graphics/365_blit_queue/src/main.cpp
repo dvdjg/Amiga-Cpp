@@ -7,6 +7,14 @@
 #include <cstdio>
 
 using eng::graphics::BlitOp;
+using eng::ChipView;
+
+// Test NEGATIVO de tipos (el compilador caza el error, §232): un `ChipView` NO se puede construir
+// desde un puntero crudo ni desde una vista agnostica -> pasar pila/Fast al Blitter no compila.
+using ChipPlane = eng::ChipView<eng::PlaneTag>;
+// Test NEGATIVO de tipos (inherente, §232): `ChipView` NO tiene constructor desde `u8*` ni desde
+// una vista agnostica/`ByteView` -> pasar pila/Fast al Blitter no compila; solo nace de una fuente
+// Chip (`Block`/`Bitmap`/`ChipStorage`) o del `from_storage` del backend/test.
 
 static int failures = 0;
 static void check(bool ok, const char* msg) {
@@ -42,8 +50,12 @@ struct FakeBlitter {
 using Q = eng::graphics::BlitQueue<8, FakeBlitter>;
 
 int main() {
-	static eng::u8 dst[8] {};
-	static eng::u8 src[8] {};
+	static eng::u8 dst_buf[8] {};
+	static eng::u8 src_buf[8] {};
+	// En host no hay Chip RAM: para probar la COLA (no el medio) se usa `from_storage`, el escape
+	// documentado del test (§232). En objetivo, el `ChipView` viene de un `Block`/`Bitmap` Chip.
+	const ChipPlane dst {eng::Address<eng::MemoryKind::Chip>::from_storage(dst_buf), 8};
+	const ChipPlane src {eng::Address<eng::MemoryKind::Chip>::from_storage(src_buf), 8};
 	FakeBlitter blitter;
 	Q q;
 	q.bind(blitter);

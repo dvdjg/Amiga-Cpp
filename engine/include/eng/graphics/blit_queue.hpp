@@ -12,25 +12,33 @@
 /// `concept`, no `void*`+puntero a función — CODING_STYLE): en Amiga lo aporta el backend; en host,
 /// un doble de prueba. Aquí **no se nombran registros**.
 
+#include <eng/core/types/domains.hpp>
+#include <eng/core/types/memory_kind.hpp>
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/core/types/typed.hpp>
 
 namespace eng::graphics {
 
 /// Una petición de blit **por intención** (sin registros). `Fill` = limpiar un rectángulo
 /// intercalado (DEST|A_TO_D, `BLTADAT=0`); `Stamp` = OR de un asset sobre el destino (A_OR_B con
 /// `ASH` fino). Todos los campos son de **dominio** (puntos/bytes), no del chipset.
+///
+/// **`src`/`dst` son `ChipView`** (memoria con el banco **Chip** en el tipo): el Blitter es DMA y
+/// solo ve Chip RAM. Pasar un array de pila o un `static` en Fast **no compila** (habría que
+/// inventar la procedencia con `Address<Chip>::from_storage`, prohibido fuera del backend). Ver
+/// `docs/engine/architecture/BLITTER_INTENT_QUEUE.md` §7.
 struct BlitOp {
 	enum class Kind : eng::u8 { Fill, Stamp };
 	Kind kind = Kind::Fill;
-	eng::u8* dst = nullptr;      ///< destino (base del bitmap intercalado)
-	const eng::u8* src = nullptr; ///< `Stamp`: origen (atlas/asset)
-	eng::s16 dst_mod = 0;        ///< `BLTDMOD` (bytes)
-	eng::s16 src_mod = 0;        ///< `Stamp`: `BLTAMOD` (bytes)
-	eng::u16 words = 0;          ///< palabras por fila (`BLTSIZE` bajo)
-	eng::u16 height = 0;         ///< filas (`BLTSIZE` alto, ya × planos si intercalado)
-	eng::u8 ashift = 0;          ///< `Stamp`: desplazamiento fino 0..15
+	ChipView<PlaneTag> dst {};  ///< destino (bitmap intercalado en Chip RAM)
+	ChipView<PlaneTag> src {};  ///< `Stamp`: origen (atlas/asset en Chip RAM)
+	eng::s16 dst_mod = 0;       ///< `BLTDMOD` (bytes)
+	eng::s16 src_mod = 0;       ///< `Stamp`: `BLTAMOD` (bytes)
+	eng::u16 words = 0;         ///< palabras por fila (`BLTSIZE` bajo)
+	eng::u16 height = 0;        ///< filas (`BLTSIZE` alto, ya × planos si intercalado)
+	eng::u8 ashift = 0;         ///< `Stamp`: desplazamiento fino 0..15
 };
 
 /// Contrato del **ejecutor**: sabe si el Blitter está libre (BBUSY) y programa una petición.
@@ -64,13 +72,13 @@ public:
 	}
 
 	/// **Intención**: rellenar un bitmap intercalado (una petición).
-	void fill(eng::u8* dst, eng::u16 words, eng::u16 height, eng::s16 dst_mod = 0) noexcept {
-		enqueue(BlitOp {BlitOp::Kind::Fill, dst, nullptr, dst_mod, 0, words, height, 0});
+	void fill(ChipView<PlaneTag> dst, eng::u16 words, eng::u16 height, eng::s16 dst_mod = 0) noexcept {
+		enqueue(BlitOp {BlitOp::Kind::Fill, dst, {}, dst_mod, 0, words, height, 0});
 	}
 
-	/// **Intención**: OR de un asset (fino con `_ash`), una petición.
-	void stamp(const eng::u8* src, eng::u8* dst, eng::u16 words, eng::u16 height, eng::s16 src_mod,
-		   eng::s16 dst_mod, eng::u8 ashift) noexcept {
+	/// **Intención**: OR de un asset (fino con `ashift`), una petición.
+	void stamp(ChipView<PlaneTag> src, ChipView<PlaneTag> dst, eng::u16 words, eng::u16 height,
+		   eng::s16 src_mod, eng::s16 dst_mod, eng::u8 ashift) noexcept {
 		enqueue(BlitOp {BlitOp::Kind::Stamp, dst, src, dst_mod, src_mod, words, height, ashift});
 	}
 
@@ -103,7 +111,9 @@ public:
 		}
 	}
 
+	/// ¿Cola vacía (nada pendiente de ejecutar)?
 	[[nodiscard]] bool empty() const noexcept { return m_head == m_tail; }
+	/// ¿Cola llena (una entrada libre menos: el anillo reserva un hueco)?
 	[[nodiscard]] bool full() const noexcept {
 		return ((m_head + 1u) & (N - 1u)) == m_tail;
 	}
