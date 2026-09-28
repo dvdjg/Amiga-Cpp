@@ -20,6 +20,7 @@ Categoría `os` de la batería host (L1). El índice de categorías está en [..
 | HOST-253 | [os_pump](253_os_pump/README.md) | Mini-SO: bucle reactivo `MessagePumpGame` (drena el puerto, `on_frame`/`on_render`). |
 | HOST-256 | [os_keyboard](256_os_keyboard/README.md) | Mini-SO: teclado (`eng/os/input.hpp`) — bit-reverse del scancode de la CIA, down/up y modificadores. |
 | HOST-257 | [os_stream](257_os_stream/README.md) | Mini-SO: `ChunkStream` (`eng/os/stream.hpp`) — doble buffer, underrun y EOF. |
+| HOST-369 | [intent_done](369_intent_done/README.md) | Planner: `IntentDonePoster` — la completación de una `IntentQueue` llega como **evento** `MsgType::IntentDone` (con el `ticket`) al puerto. |
 | HOST-304 | [os_telemetry](304_os_telemetry/README.md) | Mini-SO: telemetría de saturación (`IrqTelemetry`: overflows/missed/marcas de agua). |
 | HOST-305 | [os_tasks](305_os_tasks/README.md) | Mini-SO: tareas de fondo (`TaskSystem`: ciclo de vida, idle, preempt, prioridad). |
 | HOST-306 | [os_file_stream](306_os_file_stream/README.md) | Mini-SO: feeder fichero→`ChunkStream` (lecturas secuenciales, EOF, underrun). |
