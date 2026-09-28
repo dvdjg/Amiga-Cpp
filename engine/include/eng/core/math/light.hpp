@@ -21,7 +21,10 @@ namespace eng::math {
 }
 
 /// Cuerpo portable del sombreado; lo reutiliza una especialización de CPU en `consteval`.
-template <typename Table>
+/// `E` es el **exponente del fixed** de la tabla (bits de fracción): la tabla se genera como
+/// `⌊2^E/√x⌋` (`eng/core/math/inv_sqrt.hpp`) y el producto se normaliza `>> E`. Por defecto 16
+/// (0.16, la instancia histórica de lib3d); para otro fixed, pásalo (p. ej. `Fx::exp`).
+template <int E = 16, typename Table>
 [[nodiscard]] constexpr s16 shade_portable(s32 v, s32 e1_sq, const Table& inv_sqrt) {
 	if (v < 0) {
 		v = -v;
@@ -32,15 +35,15 @@ template <typename Table>
 	}
 	const s16 vv = hi16(v);
 	return static_cast<s16>(
-		arith<s16>::mulu(static_cast<u16>(vv), inv_sqrt[static_cast<u16>(s)]) >> 16);
+		arith<s16>::mulu(static_cast<u16>(vv), inv_sqrt[static_cast<u16>(s)]) >> E);
 }
 
 /// Rasgo del sombreado. La versión por defecto es portable; cada CPU la especializa.
 template <typename R = void>
 struct light_ops {
-	template <typename Table>
+	template <int E = 16, typename Table>
 	[[nodiscard]] static constexpr s16 shade(s32 v, s32 e1_sq, const Table& inv_sqrt) {
-		return shade_portable(v, e1_sq, inv_sqrt);
+		return shade_portable<E>(v, e1_sq, inv_sqrt);
 	}
 };
 

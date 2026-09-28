@@ -327,7 +327,7 @@ no llamen a libgcc (`__mulsi3`/`__divsi3`) ni usen instrucciones de 68020.
 | `scene/route_camera.hpp` | tipada | posición `Vec<2, Coord>` y offsets de la circunferencia generados con `eng::SineTable<4096,64>` (sin tabla a mano) |
 | `graphics/effects/rotozoom.hpp` | cruda (motivo) | 16.16 en `s32`: `mul_repr<s32>` ensancha a 64 bits → `__muldi3` (no enlaza en 68000); el asm comparte el layout `RotozoomSteps` |
 | `platform/amiga/object3d.hpp`, `lib3d.hpp` | cruda (ABI) | el blob `obj2c` es `Span<u8>` y sus campos están tipados (`Point3D` q0, `Face::normal` q12), con `mesh_validate`/`object_bytes`; los **grupos y offsets siguen `s16`** (offsets de byte del `obj2c` y del asm `flatshade_asm.s`). Encima se tipa la aritmética (`Affine3<>`/`P3<>`/`load_rotate`) |
-| `core/light.hpp`, `isqrt.hpp`, `fast_div.hpp`, `arith.hpp` | cruda (diseño) | aritmética de enteros/manipulación de bits; no son escalares |
+| `core/light.hpp`, `isqrt.hpp`, `inv_sqrt.hpp`, `fast_div.hpp`, `arith.hpp` | cruda (diseño) | aritmética de enteros/manipulación de bits; no son escalares. `inv_sqrt.hpp` genera tablas `1/√x` **genéricas en `(R, E, N)`** con `ct_array` (`InvSqrtTable`, instancia 0.16 = `kInvSqrt`); `light_ops::shade<E>` normaliza el producto `>> E`, de modo que la tabla y la luz sirven para cualquier fixed |
 | `retro/fixed_q.hpp`, `retro/minifloat_fixed.hpp` | puente | vocabulario crudo (`fix`/`fix88`) para ports + conversiones tipadas |
 
 ### 3.8 Estado de tipado de `eng/field` y `eng/graphics`

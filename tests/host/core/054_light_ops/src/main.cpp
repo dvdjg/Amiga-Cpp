@@ -1,6 +1,7 @@
 // Test host del sombreado por cara (eng::math::light_ops) y de hi16: la parte del culling
 // de lib3d que convierte `normal·vista` en un color 0..15 sin sqrt en runtime.
 #include <eng/core/math/light.hpp>
+#include <eng/core/math/inv_sqrt.hpp>
 
 #include <cstdio>
 
@@ -60,6 +61,30 @@ int main() {
 
 	// El clamp a 511 mantiene el índice dentro de la tabla.
 	check(light_ops<>::shade(0, 0x7fffffff, kTab) == ref(0, 0x7fffffff), "clamp e1_sq > 511");
+
+	// La tabla `1/sqrt(x)` es genérica en (R, E): dos formatos con el exponente en el tipo.
+	{
+		using T16 = eng::math::InvSqrtTable<u16, 16>;
+		using T12 = eng::math::InvSqrtTable<u16, 12>;
+		check(T16::value[1] == 65535 && T16::value[2] == 46340 && T16::value[4] == 32768,
+		      "InvSqrtTable<u16,16> (0.16)");
+		check(T12::value[1] == 4096 && T12::value[2] == 2896 && T12::value[4] == 2048,
+		      "InvSqrtTable<u16,12>");
+		check(T16::kExponent == 16 && T12::kExponent == 12, "kExponent en el tipo");
+		// Relación tabla·√x ≈ 2^E, con el radical escalado que usa el generador (2^26).
+		bool rel = true;
+		for (u32 x = 1; x < 64; ++x) {
+			const eng::u64 s = eng::math::isqrt_exact(eng::u64{x} << 52u);
+			const eng::u64 p = eng::u64{T12::value[x]} * s;
+			const eng::u64 t = eng::u64{1} << (12 + 26); // 2^(E+26)
+			if (p > t || p + s < t) rel = false;
+		}
+		check(rel, "tabla(12)*sqrt(x)*2^26 ~ 2^38");
+		// La luz normaliza con el exponente que se le pasa (E=12, no 16).
+		check(light_ops<>::shade<12>(0x01000000, 0x00040000, T12::value) ==
+			      shade_portable<12>(0x01000000, 0x00040000, T12::value),
+		      "shade<12>: nativa == portable");
+	}
 
 	if (failures == 0) {
 		std::printf("OK: light_ops (sombreado por cara) e hi16 validados.\n");

@@ -179,7 +179,7 @@ inline void transform_vertices(Object3D& object, s16 half_w, s16 half_h, s16 bbo
 		while ((i = *group++)) {
 			object3d::Node3D* node = object.node(i);
 			if (node->flags) {
-				s16* pt = reinterpret_cast<s16*>(node);
+				s16* pt = reinterpret_cast<s16*>(node); // TODO: Limpiar esto
 				s16 x, y, z;
 
 				*pt++ = 0;
