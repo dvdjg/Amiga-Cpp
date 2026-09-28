@@ -20,6 +20,7 @@
 #include <eng/core/types/typed.hpp>
 #include <eng/graphics/bitmap_view.hpp>
 #include <eng/graphics/blit_job.hpp>
+#include <eng/graphics/blitter_state.hpp>
 #include <eng/graphics/raster_intent.hpp>
 
 namespace eng::graphics {
@@ -55,17 +56,8 @@ struct BlitOp {
 	eng::u8 ashift = 0;                            ///< `Stamp`: desplazamiento fino 0..15
 };
 
-/// Bits de `BLTCON0` (referencia: `hardware/blit.h` del SDK + AHRM, «BLTCON»). `USEx` (bits 8-11)
-/// habilitan los canales A/B/C/D; `ASH` (bits 12-15) es el desplazamiento fino del canal A; el
-/// minterm (bits 7-0) es la operación lógica.
-inline constexpr eng::u16 kBlitUseD = 0x0100u;
-inline constexpr eng::u16 kBlitUseC = 0x0200u;
-inline constexpr eng::u16 kBlitUseB = 0x0400u;
-inline constexpr eng::u16 kBlitUseA = 0x0800u;
-inline constexpr eng::s16 kBlitAshift = 12;
-inline constexpr eng::u16 kBlitMinClear = 0x0000u;    ///< D = 0 (borrado)
-inline constexpr eng::u16 kBlitMinOrAb = 0x00fcu;     ///< D = A | B (estampa OR)
-inline constexpr eng::u16 kBlitMinCookieCut = 0x00cau; ///< D = (A & B) | (~A & C) (cookie-cut)
+/// Los bits de `BLTCON0` (canales, `ASH` y minterms) viven en `blitter_state.hpp`
+/// (`kBlitterUseX`/`kBlitterMinterm*`), referencia única compartida con el backend.
 
 /// **Único sitio** que traduce la **intención** (`BlitOp`: zona + rect) al **trabajo de Blitter**
 /// (`BlitJob`) — el tipo que describe el `FramePlan` y que el backend ya ejecuta. La intención
@@ -121,18 +113,27 @@ inline constexpr eng::u16 kBlitMinCookieCut = 0x00cau; ///< D = (A & B) | (~A & 
 [[nodiscard]] inline BlitterJob blitter_job_from(const BlitJob& j) noexcept {
 	const eng::u16 shift = static_cast<eng::u16>(j.source_shift);
 	const bool clear = j.kind == BlitJobKind::ClearRect;
-	const bool masked = j.kind == BlitJobKind::MaskedBobCookieCut;
+	const bool masked = j.kind == BlitJobKind::MaskedBobCookieCut ||
+			    j.kind == BlitJobKind::MaskedBlobNoSave;
+	// Módulo de A: si el trabajo declara un ancho de fila de origen propio, se deriva; si no, el
+	// clásico (fuente compacta). Es la MISMA regla que usa el backend (fuente «apretada» vs ancha).
+	const eng::s16 src_mod =
+		(j.source_words_per_row != 0u)
+			? static_cast<eng::s16>((static_cast<eng::s16>(j.source_words_per_row) -
+						 static_cast<eng::s16>(j.words_per_row)) * 2)
+			: j.source_modulo_bytes;
 	BlitterJob b {};
 	b.bltcon0 = static_cast<eng::u16>(
-		(clear ? (kBlitUseD | j.minterm)
-		       : (shift << kBlitAshift) |
-				(masked ? (kBlitUseA | kBlitUseB | kBlitUseC | kBlitUseD | j.minterm)
-					: (kBlitUseA | kBlitUseB | kBlitUseD | j.minterm))));
-	b.bltcon1 = masked ? static_cast<eng::u16>(shift << kBlitAshift) : 0u;
+		(clear ? (kBlitterUseD | j.minterm)
+		       : (shift << kBlitterAshift) |
+				(masked ? (kBlitterUseA | kBlitterUseB | kBlitterUseC | kBlitterUseD |
+					   j.minterm)
+					: (kBlitterUseA | kBlitterUseB | kBlitterUseD | j.minterm))));
+	b.bltcon1 = masked ? static_cast<eng::u16>(shift << kBlitterAshift) : 0u;
 	b.bltalwm = (clear || masked) ? 0xffffu : static_cast<eng::u16>(0xffffu << shift);
-	b.bltamod = j.source_modulo_bytes;
-	b.bltbmod = masked ? j.source_modulo_bytes : (clear ? 0 : j.destination_modulo_bytes);
-	b.bltcmod = masked ? j.destination_modulo_bytes : j.source_modulo_bytes;
+	b.bltamod = src_mod;
+	b.bltbmod = masked ? src_mod : (clear ? 0 : j.destination_modulo_bytes);
+	b.bltcmod = masked ? j.destination_modulo_bytes : src_mod;
 	b.bltdmod = j.destination_modulo_bytes;
 	b.bltapt = masked ? j.mask.words : j.source.words;
 	b.bltbpt = masked ? j.source.words : j.destination.words;

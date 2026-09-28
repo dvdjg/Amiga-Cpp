@@ -174,7 +174,7 @@
   0     5  engine/include/eng/graphics/bitmap_view.hpp
   0     6  engine/include/eng/graphics/bitmap.hpp
   2     4  engine/include/eng/graphics/blit_job.hpp
-  0    18  engine/include/eng/graphics/blit_queue.hpp
+  0    21  engine/include/eng/graphics/blit_queue.hpp
   0     2  engine/include/eng/graphics/blitter_state.hpp
   6    33  engine/include/eng/graphics/bob.hpp
   2    13  engine/include/eng/graphics/c2p.hpp

@@ -24,8 +24,12 @@ inline constexpr u16 kBlitterUseA = 0x0800u;          ///< habilita el canal A
 inline constexpr u16 kBlitterUseB = 0x0400u;          ///< habilita el canal B
 inline constexpr u16 kBlitterUseC = 0x0200u;          ///< habilita el canal C
 inline constexpr u16 kBlitterUseD = 0x0100u;          ///< habilita el canal D
+inline constexpr s16 kBlitterAshift = 12;             ///< desplazamiento de `ASH` en `BLTCON0`
+inline constexpr u16 kBlitterMintermZero = 0x0000u;   ///< `D = 0` (borrado)
 inline constexpr u16 kBlitterMintermCopyA = 0x00f0u;  ///< `D = A` (copia desde A)
+inline constexpr u16 kBlitterMintermCopyC = 0x00aau;  ///< `D = C` (copia compacta desde C)
 inline constexpr u16 kBlitterMintermAOrB = 0x00fcu;   ///< `D = A | B` (con `B = D`, OR)
+inline constexpr u16 kBlitterMintermCookieCut = 0x00cau; ///< `D = (A & B) | (~A & C)` (cookie-cut)
 
 /// **Modelo de coste del Blitter**: líneas de raster que ocupa un blit de `words` palabras.
 /// El Blitter mueve ~1 palabra cada `cck_per_word` CCK con el DMA de bitplanes activo

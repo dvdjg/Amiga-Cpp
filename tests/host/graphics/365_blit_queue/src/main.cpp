@@ -147,6 +147,24 @@ int main() {
 		const eng::graphics::BlitterJob mr = blitter_job_from(m);
 		check(mr.bltcon0 == 0x0fcau && mr.bltcpt == mr.bltdpt,
 		      "blitter_job_from cookie-cut ($CA)");
+		// MaskedBlobNoSave comparte codificacion con MaskedBobCookieCut.
+		eng::graphics::BlitJob mns = m;
+		mns.kind = eng::graphics::BlitJobKind::MaskedBlobNoSave;
+		check(blitter_job_from(mns).bltcon0 == 0x0fcau,
+		      "MaskedBlobNoSave usa la misma codificacion ($CA)");
+	}
+
+	// 2d) El encoder refleja el backend: con ancho de fila de origen propio (`source_words_per_row`),
+	//     el modulo de A se DERIVA (fuente ancha), no se usa `source_modulo_bytes`.
+	{
+		eng::graphics::BlitJob wj {};
+		wj.kind = eng::graphics::BlitJobKind::OrBlob;
+		wj.words_per_row = 4u;
+		wj.source_words_per_row = 10u;
+		wj.source_modulo_bytes = -999; // se ignora al declararse el ancho de fila
+		const eng::graphics::BlitterJob e = blitter_job_from(wj);
+		check(e.bltamod == static_cast<eng::s16>((10 - 4) * 2),
+		      "blitter_job_from deriva el modulo de A (fuente ancha)");
 	}
 
 	// 4) wait() vacia la cola (punto de dependencia) y respeta el orden.
