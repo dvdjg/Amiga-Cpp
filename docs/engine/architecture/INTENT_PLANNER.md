@@ -164,7 +164,26 @@ Un **solo** sumidero recibe las intenciones de todos los productores y las gobie
 - **No** obliga a esperar: la ejecución normal **nunca** bloquea; `wait` es la excepción explícita.
 - **No** expone el cómo: ni registros, ni fases, ni minterms en el vocabulario.
 
-## 9. Criterios de aceptación
+## 9. Compilar la escena en el **setup** (el caso general)
+
+El `DrawRecipe` es el caso mínimo; la escena completa se compila igual. La regla de coste (§4.1)
+se aplica al pie de la letra:
+
+- **Direcciones de setup** (se compilan **una vez**): las capas y su orden, los planes base, las
+  direcciones de los planos (`BPLxPT`), los presupuestos por efecto, las copperlists estáticas, las
+  **recetas de dibujo** de cada capa/actor y las tablas (paletas/patrones) — todo lo **invariante**.
+- **Estado por frame** (lo único que se recalcula): posiciones, frames de animación, colores que
+  cambian, scroll, entradas y el **contenido dinámico** que el juego mueve.
+- **Emitir** = recorrer las recetas y **actualizar solo el dato dinámico** (un `DrawIntent`/un
+  `SpriteIntent` con la posición/frame del frame) — **sin** reconstruir la escena ni reservar memoria.
+- **Efectos**: cada efecto declara su intención en el setup (banda + presupuesto) y por frame solo
+  produce su dato (fase/color); el planner lo compila (ver `EFFECT_MODEL.md`).
+
+**Contrato**: por frame se toca **solo lo que cambia**; lo demás se resolvió en compilación/setup.
+Un API del planner que **recorra o reconstruya** la escena cada frame **viola** la regla de coste
+(§4.1) y no entra en la capa A.
+
+## 10. Criterios de aceptación
 
 - Declarar una intención **no** bloquea (medible: el `enqueue` no espera al Blitter/Paula).
 - La completación llega **como evento** al puerto, con el `ticket` correcto.
