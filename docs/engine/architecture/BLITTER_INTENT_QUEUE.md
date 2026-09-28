@@ -99,7 +99,9 @@ El engine ya tiene direcciones **etiquetadas**: `Address<MemoryKind::Chip>` / `C
 struct BlitOp {
     BitmapView<PlaneTag, Chip> dst {};  // zona destino (playfield): banco + geometría en el tipo
     BitmapView<BobTag, Chip> src {};    // zona origen (atlas/asset): BobTag ≠ PlaneTag
-    // + words/height/módulos/ashift (rectángulo concreto dentro de la zona)
+    BlitRect rect {};                   // rectángulo en la zona destino (dominio: píxeles)
+    eng::u8 ashift = 0;                 // desplazamiento fino (Stamp)
+    // Los registros (words/height/módulos/BLTxPT) los DERIVA `blit_regs()` de la zona + el rect.
     ...
 };
 ```

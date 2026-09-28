@@ -22,9 +22,18 @@
 
 namespace eng::graphics {
 
+/// Rectángulo de la intención, en píxeles respecto de la esquina de la zona destino.
+struct BlitRect {
+	eng::s16 x = 0;
+	eng::s16 y = 0;
+	eng::u16 w = 0;
+	eng::u16 h = 0;
+};
+
 /// Una petición de blit **por intención** (sin registros). `Fill` = limpiar un rectángulo
 /// intercalado (DEST|A_TO_D, `BLTADAT=0`); `Stamp` = OR de un asset sobre el destino (A_OR_B con
-/// `ASH` fino). Todos los campos son de **dominio** (puntos/bytes), no del chipset.
+/// `ASH` fino). La intención es **una zona + un rectángulo**, no módulos ni `BLTSIZE`: eso lo deriva
+/// `blit_regs()` de la geometría de la zona.
 ///
 /// **`src`/`dst` son `BitmapView` tipados**: zonas (base + geometría + layout) con el **banco Chip
 /// en el tipo** (el Blitter es DMA y solo ve Chip RAM). Además el **tag** distingue el papel: el
@@ -36,12 +45,65 @@ struct BlitOp {
 	Kind kind = Kind::Fill;
 	BitmapView<PlaneTag, MemoryKind::Chip> dst {}; ///< zona destino (bitmap intercalado en Chip)
 	BitmapView<BobTag, MemoryKind::Chip> src {};   ///< `Stamp`: zona origen (atlas/asset en Chip)
-	eng::s16 dst_mod = 0;       ///< `BLTDMOD` (bytes)
-	eng::s16 src_mod = 0;       ///< `Stamp`: `BLTAMOD` (bytes)
-	eng::u16 words = 0;         ///< palabras por fila (`BLTSIZE` bajo)
-	eng::u16 height = 0;        ///< filas (`BLTSIZE` alto, ya × planos si intercalado)
-	eng::u8 ashift = 0;         ///< `Stamp`: desplazamiento fino 0..15
+	BlitRect rect {};                              ///< rectángulo en la zona destino (píxeles)
+	eng::u8 ashift = 0;                            ///< `Stamp`: desplazamiento fino 0..15
 };
+
+/// Registros del Blitter **derivados** de la intención: `BLTxPT`/`BLTxMOD`/`BLTSIZE` + banderas.
+/// `src`/`dst` son punteros crudos — la **frontera explícita** hacia el chipset, que solo cruza el
+/// ejecutor (en `submit`). El resto del motor no los ve.
+struct BlitRegs {
+	const eng::u16* src = nullptr; ///< `BLTAPT` (word)
+	eng::u16* dst = nullptr;       ///< `BLTDPT` (word)
+	eng::s16 src_mod = 0;          ///< `BLTAMOD` (bytes)
+	eng::s16 dst_mod = 0;          ///< `BLTDMOD` (bytes)
+	eng::u16 words = 0;            ///< `BLTSIZE` bajo (palabras por fila)
+	eng::u16 height = 0;           ///< `BLTSIZE` alto (filas; × planos si intercalado)
+	eng::u8 bitplane_count = 1;    ///< planos lógicos en una pasada
+	eng::u32 src_plane_stride = 0; ///< `Planar`: separación entre planos del origen (bytes)
+	eng::u32 dst_plane_stride = 0; ///< `Planar`: separación entre planos del destino (bytes)
+	eng::u16 minterm = 0;          ///< minterm del canal D
+	eng::u8 ashift = 0;            ///< `BLTCON0` bits 12-15 (desplazamiento fino; `Stamp`)
+	bool interleaved = false;      ///< un solo recorrido intercalado
+};
+
+/// **Único sitio** que traduce la intención (zona + rectángulo) a los campos del chipset. El
+/// `Stamp` lee el origen desde la esquina de su zona; el `Fill` no usa `src`.
+///
+/// Frontera declarada (baseline de casts justificada): los `static_cast` son **estrechamientos
+/// deliberados** a los registros de 16 bits del Blitter (`BLTSIZE`/`BLTxMOD`) y los
+/// `reinterpret_cast` la conversión a los punteros de registro; es el único punto del motor donde
+/// el dominio (píxeles/bytes) se vuelve chipset, y el ejecutor lo consume en `submit`.
+[[nodiscard]] inline BlitRegs blit_regs(const BlitOp& op) noexcept {
+	BlitRegs r {};
+	const bool inter = op.dst.interleaved();
+	const eng::u8 planes = op.dst.plane_count;
+	const eng::u32 row = inter ? static_cast<eng::u32>(op.dst.row_bytes) * planes
+				   : op.dst.row_bytes;
+	const eng::s16 wx = static_cast<eng::s16>(op.rect.x & ~15);
+	const eng::s16 x0 = (wx < 0) ? 0 : wx;
+	r.words = static_cast<eng::u16>((op.rect.w + 15u) / 16u +
+					((op.rect.x & 15) != 0 ? 1u : 0u));
+	r.height = inter ? static_cast<eng::u16>(op.rect.h * planes) : op.rect.h;
+	r.dst = reinterpret_cast<eng::u16*>(op.dst.data() +
+					    static_cast<eng::u32>(op.rect.y) * row +
+					    (static_cast<eng::u32>(x0) >> 3u));
+	r.dst_mod = static_cast<eng::s16>(op.dst.row_bytes - static_cast<eng::u32>(r.words) * 2u);
+	r.dst_plane_stride = inter ? 0u : op.dst.plane_pointer_step();
+	r.bitplane_count = inter ? 1u : planes;
+	r.interleaved = inter;
+	r.ashift = static_cast<eng::u8>(op.rect.x & 15);
+	if (op.kind == BlitOp::Kind::Fill) {
+		r.minterm = 0x00u; // D = 0
+		return r;
+	}
+	// Stamp: el origen avanza una fila de hoja por fila de blit; ASH da el desplazamiento fino.
+	r.src = reinterpret_cast<const eng::u16*>(op.src.data());
+	r.src_mod = static_cast<eng::s16>(op.src.row_bytes - static_cast<eng::u32>(r.words) * 2u);
+	r.src_plane_stride = inter ? 0u : static_cast<eng::u32>(op.rect.h) * op.src.row_bytes;
+	r.minterm = 0x00fcu; // A OR B → D
+	return r;
+}
 
 /// Contrato del **ejecutor**: sabe si el Blitter está libre (BBUSY) y programa una petición.
 template <class E>
@@ -73,17 +135,15 @@ public:
 		m_head = (m_head + 1u) & (N - 1u);
 	}
 
-	/// **Intención**: rellenar un bitmap intercalado (una petición).
-	void fill(BitmapView<PlaneTag, MemoryKind::Chip> dst, eng::u16 words, eng::u16 height,
-		  eng::s16 dst_mod = 0) noexcept {
-		enqueue(BlitOp {BlitOp::Kind::Fill, dst, {}, dst_mod, 0, words, height, 0});
+	/// **Intención**: rellenar (`D = 0`) un rectángulo del destino (una petición).
+	void fill(BitmapView<PlaneTag, MemoryKind::Chip> dst, BlitRect rect) noexcept {
+		enqueue(BlitOp {BlitOp::Kind::Fill, dst, {}, rect, 0});
 	}
 
-	/// **Intención**: OR de un asset (fino con `ashift`), una petición.
+	/// **Intención**: OR de un asset sobre el destino (fino con `ashift`), una petición.
 	void stamp(BitmapView<BobTag, MemoryKind::Chip> src, BitmapView<PlaneTag, MemoryKind::Chip> dst,
-		   eng::u16 words, eng::u16 height, eng::s16 src_mod, eng::s16 dst_mod,
-		   eng::u8 ashift) noexcept {
-		enqueue(BlitOp {BlitOp::Kind::Stamp, dst, src, dst_mod, src_mod, words, height, ashift});
+		   BlitRect rect, eng::u8 ashift = 0) noexcept {
+		enqueue(BlitOp {BlitOp::Kind::Stamp, dst, src, rect, ashift});
 	}
 
 	/// **Intención en array de golpe**: encola muchas de una vez.
