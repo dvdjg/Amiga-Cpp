@@ -278,22 +278,22 @@ int main() {
 		      "copper: wait emite el BlitterJob en su linea");
 	}
 
-	// 7) SinkBlitExecutor: la cola (intencion -> BlitJob) vuelca al FramePlan (un solo dueno).
+	// 7) PlanExecutor: la cola (intencion -> BlitJob) vuelca al FramePlan (un solo dueno).
 	{
 		using eng::graphics::BlitJobKind;
 		using eng::graphics::FramePlan;
-		using eng::graphics::SinkBlitExecutor;
+		using eng::graphics::PlanExecutor;
 		FramePlan plan;
 		plan.clear();
-		SinkBlitExecutor<FramePlan> sink {plan};
-		eng::graphics::BlitQueue<4, SinkBlitExecutor<FramePlan>> pq;
+		PlanExecutor<FramePlan> sink {plan};
+		eng::graphics::BlitQueue<4, PlanExecutor<FramePlan>> pq;
 		pq.bind(sink);
 		pq.stamp(src, dst, {0, 0, 32u, 8u}, 0);
 		pq.fill(dst, {0, 0, 32u, 8u});
 		pq.wait_all();
 		check(plan.blit_job_count() == 2u && plan.blit_job(0u).kind == BlitJobKind::OrBlob &&
 			      plan.blit_job(1u).kind == BlitJobKind::ClearRect,
-		      "SinkBlitExecutor: cola -> FramePlan (OrBlob + ClearRect)");
+		      "PlanExecutor: cola -> FramePlan (OrBlob + ClearRect)");
 	}
 
 	if (failures == 0) {

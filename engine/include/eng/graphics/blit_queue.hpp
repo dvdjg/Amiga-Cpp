@@ -240,9 +240,9 @@ private:
 /// toca el Blitter); el presupuesto/ejecución los gobierna el plan. Es la forma en que la
 /// `BlitQueue` es un **front-end** del `FramePlan` (un solo dueño de la ejecución).
 template <class Sink>
-class SinkBlitExecutor {
+class PlanExecutor {
 public:
-	constexpr explicit SinkBlitExecutor(Sink& sink) noexcept : m_sink(sink) {}
+	constexpr explicit PlanExecutor(Sink& sink) noexcept : m_sink(sink) {}
 	[[nodiscard]] constexpr bool ready() const noexcept { return true; }
 	bool run(const BlitOp& op) noexcept { return m_sink.add(blit_job_from(op)); }
 

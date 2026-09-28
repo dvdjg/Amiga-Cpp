@@ -139,7 +139,7 @@ Un **solo** sumidero recibe las intenciones de todos los productores y las gobie
 
 - **`FramePlan`** es el **plan de blits/copper** del frame (el sumidero de la capa 2). El planner
   escribe en él; el backend lo ejecuta (`execute_frame_plan`).
-- **`BlitQueue<N, Executor>`** es el **front-end asíncrono**; su `SinkBlitExecutor` ya vuelca al
+- **`BlitQueue<N, Executor>`** es el **front-end asíncrono**; su `PlanExecutor` ya vuelca al
   `FramePlan` (una sola ruta). El planner es la capa de **arriba** (vocabulario + completación).
 - **`eng::os`** pone el **evento** y el **despacho**; **`eng::audio`** pone su plan/mezclador. El
   planner los **coordina** sin fundirlos.
