@@ -173,16 +173,76 @@ public:
 		return face_indices(face(v.o.bytes));
 	}
 
+	/// Resultado de **validar** los grupos de un descriptor `obj2c` contra este blob. `Ok` si el
+	/// blob y los grupos son coherentes (offsets dentro de rango y alineados a palabra, caras
+	/// con `count >= 0` y `FaceIndex` dentro del blob).
+	enum class Status : eng::u8 { Ok, Empty, BadGroup, OutOfRange, Misaligned };
+
+	/// **Valida** los grupos del descriptor contra este blob (la única validación; Fase D). Un
+	/// asset corrupto devuelve un `Status` != `Ok` sin recorrer memoria fuera del blob.
+	[[nodiscard]] Status check(eng::Span<s16> vertexGroups, eng::Span<s16> edgeGroups,
+				   eng::Span<s16> faceGroups) const noexcept {
+		if (empty()) {
+			return Status::Empty;
+		}
+		const eng::u8* base = data();
+		const eng::usize n = size();
+		const eng::u8* end = base + n;
+		auto valid_group = [&](eng::Span<s16> g) -> Status {
+			for (s16 off : g) {
+				if (off == 0) {
+					continue;
+				}
+				if (off < 0 || static_cast<eng::usize>(off) >= n) {
+					return Status::OutOfRange;
+				}
+				if ((off & 1) != 0) {
+					return Status::Misaligned;
+				}
+			}
+			return Status::Ok;
+		};
+		const Status sv = valid_group(vertexGroups);
+		if (sv != Status::Ok) {
+			return sv;
+		}
+		const Status se = valid_group(edgeGroups);
+		if (se != Status::Ok) {
+			return se;
+		}
+		const Status sf = valid_group(faceGroups);
+		if (sf != Status::Ok) {
+			return sf;
+		}
+		for (s16 off : faceGroups) {
+			if (off == 0) {
+				continue;
+			}
+			const Face* f = reinterpret_cast<const Face*>(base + off);
+			if (f->count < 0) {
+				return Status::BadGroup;
+			}
+			if (base + off + 10 + static_cast<eng::usize>(f->count) * 4u > end) {
+				return Status::OutOfRange;
+			}
+			const FaceIndex* fi = reinterpret_cast<const FaceIndex*>(base + off + 10);
+			for (s16 k = 0; k < f->count; ++k) {
+				if (fi[k].vertex < 0 || static_cast<eng::usize>(fi[k].vertex) >= n) {
+					return Status::OutOfRange;
+				}
+				if (fi[k].edge < 0 || static_cast<eng::usize>(fi[k].edge) >= n) {
+					return Status::OutOfRange;
+				}
+			}
+		}
+		return Status::Ok;
+	}
+
 private:
 	/// Vista sobre el blob: `Span` (data + tamaño) es el tipo del engine para "buffer + count"
 	/// (CODING_STYLE §"Seguridad de tipos sobre punteros crudos"), en vez de `u8* + u32` sueltos.
 	eng::Span<eng::u8> m_bytes {};
 };
-
-/// Resultado de **validar** un descriptor de malla (el `obj2c` generado). `Ok` si el blob y los
-/// grupos son coherentes (offsets dentro de rango y alineados a palabra, caras con `count >= 0`
-/// y `FaceIndex` dentro del blob).
-enum class MeshStatus : eng::u8 { Ok, Empty, BadGroup, OutOfRange, Misaligned };
 
 /// **Rango tipado de un grupo** de `obj2c` (offsets de byte terminados por 0): recorre saltando el
 /// **centinela** y devuelve `Ref<T>` (nunca `T*`). `Acc` traduce un offset a la `Ref<T>` de la
@@ -275,7 +335,7 @@ struct Mesh3D {
 // Declaraciones para los accesores de `Object3D` (se definen más abajo).
 struct Object3D;
 [[nodiscard]] inline eng::Span<eng::u8> object_bytes(const Object3D& object);
-[[nodiscard]] inline MeshStatus new_object3d_checked(Object3D& object, const Mesh3D& mesh);
+[[nodiscard]] inline MeshBlob::Status new_object3d_checked(Object3D& object, const Mesh3D& mesh);
 
 // (Los accesores libres `node3d`/`point3d`/`vertex3d`/`edge3d`/`face3d` se han eliminado: eran
 // wrappers de una línea sobre `MeshBlob`. Usa los métodos `MeshBlob::node/point/vertex/...`.)
@@ -319,7 +379,7 @@ private:
 
 	// Amigas que sí manejan la ABI cruda (la vista de bytes y el enlace del mesh).
 	friend eng::Span<eng::u8> object_bytes(const Object3D&);
-	friend MeshStatus new_object3d_checked(Object3D&, const Mesh3D&);
+	friend MeshBlob::Status new_object3d_checked(Object3D&, const Mesh3D&);
 	// Amiga que fija los offsets del bloque que lee `flatshade_asm.s` (el `offsetof` de
 	// miembros privados necesita la amistad y un tipo ya completo).
 	friend struct Object3dLayout;
@@ -384,71 +444,11 @@ static_assert(__builtin_offsetof(Mesh3D, materials) == 8, "objdat: cabecera 5x s
 /// Diagnóstico: el descriptor de malla no cuadra con su blob. `illegal` en m68k.
 [[noreturn]] inline void mesh_invalid() { __builtin_trap(); }
 
-/// Valida el descriptor de malla contra su blob: cada offset de grupo dentro de `bytes` y
-/// alineado a palabra (`s16`), y cada cara con `count >= 0` y sus `FaceIndex` dentro del
-/// blob. Un asset corrupto devuelve `false` (no se recorre memoria fuera del blob).
-[[nodiscard]] inline MeshStatus mesh_validate(const Mesh3D& mesh) {
-	if (mesh.bytes.empty()) {
-		return MeshStatus::Empty;
-	}
-	const eng::u8* base = mesh.bytes.data();
-	const eng::usize n = mesh.bytes.size();
-	const eng::u8* end = base + n;
-	auto valid_group = [&](const eng::Span<s16>& g) -> MeshStatus {
-		for (s16 off : g) {
-			if (off == 0) {
-				continue;
-			}
-			if (off < 0 || static_cast<eng::usize>(off) >= n) {
-				return MeshStatus::OutOfRange;
-			}
-			if ((off & 1) != 0) {
-				return MeshStatus::Misaligned;
-			}
-		}
-		return MeshStatus::Ok;
-	};
-	const MeshStatus sv = valid_group(mesh.vertexGroups);
-	if (sv != MeshStatus::Ok) {
-		return sv;
-	}
-	const MeshStatus se = valid_group(mesh.edgeGroups);
-	if (se != MeshStatus::Ok) {
-		return se;
-	}
-	const MeshStatus sf = valid_group(mesh.faceGroups);
-	if (sf != MeshStatus::Ok) {
-		return sf;
-	}
-	for (s16 off : mesh.faceGroups) {
-		if (off == 0) {
-			continue;
-		}
-		const Face* f = reinterpret_cast<const Face*>(base + off);
-		if (f->count < 0) {
-			return MeshStatus::BadGroup;
-		}
-		if (base + off + 10 + static_cast<eng::usize>(f->count) * 4u > end) {
-			return MeshStatus::OutOfRange;
-		}
-		const FaceIndex* fi = reinterpret_cast<const FaceIndex*>(base + off + 10);
-		for (s16 k = 0; k < f->count; ++k) {
-			if (fi[k].vertex < 0 || static_cast<eng::usize>(fi[k].vertex) >= n) {
-				return MeshStatus::OutOfRange;
-			}
-			if (fi[k].edge < 0 || static_cast<eng::usize>(fi[k].edge) >= n) {
-				return MeshStatus::OutOfRange;
-			}
-		}
-	}
-	return MeshStatus::Ok;
-}
-
-/// Enlaza el mesh al objeto validando primero (sin detener la CPU): devuelve `false` si
-/// el descriptor no cuadra. Úsalo cuando quieras gestionar el asset corrupto.
-[[nodiscard]] inline MeshStatus new_object3d_checked(Object3D& object, const Mesh3D& mesh) {
-	const MeshStatus status = mesh_validate(mesh);
-	if (status != MeshStatus::Ok) {
+/// Enlaza el mesh al objeto validando primero (sin detener la CPU): devuelve el `Status` de
+/// `MeshBlob::check` si el descriptor no cuadra. Úsalo cuando quieras gestionar el asset corrupto.
+[[nodiscard]] inline MeshBlob::Status new_object3d_checked(Object3D& object, const Mesh3D& mesh) {
+	const MeshBlob::Status status = mesh.bytes.check(mesh.vertexGroups, mesh.edgeGroups, mesh.faceGroups);
+	if (status != MeshBlob::Status::Ok) {
 		return status;
 	}
 	object.objdat = mesh.bytes.data();
@@ -461,14 +461,14 @@ static_assert(__builtin_offsetof(Mesh3D, materials) == 8, "objdat: cabecera 5x s
 	object.edge_group_count = static_cast<eng::u16>(mesh.edgeGroups.size());
 	object.face_group_count = static_cast<eng::u16>(mesh.faceGroups.size());
 	object.scale = Point3R {eng::retro::q12 {1 << 12}, eng::retro::q12 {1 << 12}, eng::retro::q12 {1 << 12}};
-	return MeshStatus::Ok;
+	return MeshBlob::Status::Ok;
 }
 
 /// Enlaza el mesh al objeto (equivalente a `NewObject3D` sin reservar memoria: el
 /// `Object3D` es del llamador). `scale` queda a 1.0 (4.12). Detiene la CPU si el
 /// descriptor no valida (usa `new_object3d_checked` para gestionarlo sin trampa).
 inline void new_object3d(Object3D& object, const Mesh3D& mesh) {
-	if (new_object3d_checked(object, mesh) != MeshStatus::Ok) {
+	if (new_object3d_checked(object, mesh) != MeshBlob::Status::Ok) {
 		mesh_invalid();
 	}
 }

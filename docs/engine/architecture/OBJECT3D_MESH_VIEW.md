@@ -19,8 +19,8 @@ formato.
 ## 2. Diseño propuesto
 
 ```
-  ┌───────────────────────── MeshView (frontera byte->struct, validada) ─────────────────────────┐
-  │  Span<u8> m_blob;  Span<s16> m_groups[3]                                                    │
+  ┌───────────────────────── MeshBlob (frontera byte->struct, validada) ─────────────────────────┐
+  │  Span<u8> m_blob                                                                            │
   │   node(VertexRef)->Ref<Node3D>   point/vertex(VertexRef)   edge(EdgeRef)   face(FaceRef)      │
   │   indices(FaceRef)->Span<FaceIndex>            points()/edges()/faces() -> rangos tipados    │
   └───────────────────────────────────────────────▲─────────────────────────────────────────────┘
@@ -28,7 +28,7 @@ formato.
   ┌────────────────── Object3D ───────────────────────────────────────────────────────────────┐
   │  MeshAbi m_abi;   // objdat@0, vertexGroups@4, edgeGroups@8, faceGroups@12, objects@16 (asm) │
   │  Angle3 rotate; Point3R scale; Point3C translate; Affine3<> objectToWorld/worldToObject;     │
-  │  Point3C camera;  MeshView m_mesh;                                                           │
+  │  Point3C camera;                                                                             │
   └──────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -37,14 +37,11 @@ formato.
 - **Tipos de pieza** (layout intacto; ya en `Fixed`): `Node3D`/`Edge`/`Face`/`FaceIndex`.
 - **Refs fuertes**: `ObjOffset{ s16 bytes; }` y `VertexRef`/`EdgeRef`/`FaceRef` (cada uno envuelve un
   `ObjOffset`). El compilador impide mezclarlos y un offset deja de ser "un `s16` cualquiera".
-- **`MeshView`**: **única** frontera byte→struct. **Construcción validada** (`check()` → `Status`,
-  `over()` para el camino ya validado): **no existe un `MeshView` inválido**. Acceso **comprobado**
-  (rango + alineación) devolviendo `Ref<T>` (nunca `T*`). Grupos como **rangos** (saltan el centinela
-  0): `for (VertexRef v : obj.points())`.
+- **`MeshBlob`**: **única** frontera byte→struct (`Span<u8>` + `check()`). `check(vertexGroups, edgeGroups, faceGroups)` → `Status` valida el blob y los grupos (offsets en rango y alineados, caras con `count >= 0` y `FaceIndex` dentro del blob) sin recorrer memoria fuera del blob. Acceso **comprobado** devolviendo `Ref<T>` (nunca `T*`). Los **grupos viven en el descriptor** (`Mesh3D`); el `Object3D` los copia a su bloque de ABI. Grupos como **rangos** (saltan el centinela 0): `for (VertexRef v : obj.points())`.
 - **`Object3D` compone** la vista y guarda el estado tipado. La **ABI del asm** (los offsets de
   `flatshade_asm.s`) queda **aislada y documentada** en `MeshAbi` (5 punteros @0/4/8/12/16) — no es la
   superficie pública.
-- **`bind()`** devuelve `Status` (no `void` con `__builtin_trap`).
+- **`new_object3d_checked()`** devuelve `MeshBlob::Status` (no `void` con `__builtin_trap`).
 - **Se borran los wrappers libres**: la API son los métodos de la vista/objeto.
 
 ## 3. Alternativas para el layout `obj2c`
@@ -60,15 +57,15 @@ formato.
 
 ## 4. Migración (por fases, sin big-bang)
 
-- **Fase A**: `ObjOffset`/refs + `MeshView` (`check`/`over`, acceso `Ref`, rangos). Migrar los
+- **Fase A**: `ObjOffset`/refs + `MeshBlob` (`check`, acceso `Ref`, rangos). Migrar los
   accesores a la vista y **borrar los wrappers libres**.
 - **Fase B**: grupos como rangos; migrar `lib3d` + demos (117/116/118/079).
-- **Fase C**: `Object3D` compone `MeshView` + `MeshAbi` (privado); `bind()` con `Status`.
-- **Fase D**: `mesh_validate` se disuelve en `MeshView::check`; HOST-014/047/053 y 013/014 como banco.
+- **Fase C**: `Object3D` compone `MeshBlob` + `MeshAbi` (privado); `new_object3d_checked` devuelve `Status`.
+- **Fase D**: `mesh_validate` se disuelve en `MeshBlob::check`; HOST-014/047/053 y 013/014 como banco.
 
 ## 5. Invariantes
 
 - El **layout** de `Node3D`/`Edge`/`Face`/`FaceIndex` y de `MeshAbi` se fija con `static_assert`
   (el asm y `obj2c` dependen de él).
-- **Ningún byte crudo en la API de juego**: `MeshView::raw()` existe solo para el asm/procedencia.
-- Todo acceso pasa por `Ref`/`Span`; todo cast byte→struct vive en `MeshView`.
+- **Ningún byte crudo en la API de juego**: `MeshBlob::raw()` existe solo para el asm/procedencia.
+- Todo acceso pasa por `Ref`/`Span`; todo cast byte→struct vive en `MeshBlob`.

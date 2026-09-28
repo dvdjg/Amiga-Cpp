@@ -38,25 +38,25 @@ int main() {
 	check(obj.scale.x.v == (1 << 12) && obj.scale.y.v == (1 << 12), "scale inicial 1.0 (4.12)");
 
 	// Validacion del descriptor: blob no vacio, grupos dentro de rango y sin trampa.
-	check(mesh_validate(mesh) == eng::object3d::MeshStatus::Ok, "mesh_validate: malla valida");
-	check(new_object3d_checked(obj, mesh) == eng::object3d::MeshStatus::Ok,
+	check(mesh.bytes.check(mesh.vertexGroups, mesh.edgeGroups, mesh.faceGroups) == eng::object3d::MeshBlob::Status::Ok, "mesh_validate: malla valida");
+	check(new_object3d_checked(obj, mesh) == eng::object3d::MeshBlob::Status::Ok,
 	      "new_object3d_checked: malla valida -> Ok");
 	{
 		Mesh3D no_blob = mesh;
 		no_blob.bytes = {};
-		check(mesh_validate(no_blob) == eng::object3d::MeshStatus::Empty,
+		check(no_blob.bytes.check(no_blob.vertexGroups, no_blob.edgeGroups, no_blob.faceGroups) == eng::object3d::MeshBlob::Status::Empty,
 		      "mesh_validate: sin blob -> Empty");
-		check(new_object3d_checked(obj, no_blob) == eng::object3d::MeshStatus::Empty,
+		check(new_object3d_checked(obj, no_blob) == eng::object3d::MeshBlob::Status::Empty,
 		      "new_object3d_checked: sin blob -> Empty");
 		static short bad_group[2] = {1000, 0};
 		Mesh3D out_of_range = mesh;
 		out_of_range.vertexGroups = bad_group;
-		check(mesh_validate(out_of_range) == eng::object3d::MeshStatus::OutOfRange,
+		check(out_of_range.bytes.check(out_of_range.vertexGroups, out_of_range.edgeGroups, out_of_range.faceGroups) == eng::object3d::MeshBlob::Status::OutOfRange,
 		      "mesh_validate: grupo fuera de rango -> OutOfRange");
 		static short odd_group[2] = {3, 0};
 		Mesh3D misaligned = mesh;
 		misaligned.vertexGroups = odd_group;
-		check(mesh_validate(misaligned) == eng::object3d::MeshStatus::Misaligned,
+		check(misaligned.bytes.check(misaligned.vertexGroups, misaligned.edgeGroups, misaligned.faceGroups) == eng::object3d::MeshBlob::Status::Misaligned,
 		      "mesh_validate: offset impar -> Misaligned");
 	}
 
@@ -99,7 +99,7 @@ int main() {
 		quad_mesh.vertexGroups = {qv, 6};
 		quad_mesh.edgeGroups = {qe, 2};
 		quad_mesh.faceGroups = {qf, 3};
-		check(mesh_validate(quad_mesh) == eng::object3d::MeshStatus::Ok,
+		check(quad_mesh.bytes.check(quad_mesh.vertexGroups, quad_mesh.edgeGroups, quad_mesh.faceGroups) == eng::object3d::MeshBlob::Status::Ok,
 		      "adaptador: mesh_validate del quad");
 
 		Object3D qobj {};

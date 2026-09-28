@@ -292,7 +292,7 @@ Reglas para no repetir el problema:
 | `ChunkCache::Loader { LoadResult (*)(void*, s32, s32, u16*) }` | `Loader` con `Words<TileBankBuffer>` (hecho) |
 | `xlimited_build_blocks_bitmap(..., const u8* indexed, u32 stride)` | `TileIndexed`, `u32 stride` |
 | `Surface::draw_text(s32, s32, const char*, u8)` | `u8 color` |
-| `Mesh3D { void* data }` / `Object3D::objdat void*` | blob `Span<u8>` + campos tipados (`Point3D` q0, `Face::normal` q12), `mesh_validate`/`object_bytes` (hecho; los grupos y offsets siguen `s16` por ABI `obj2c`/asm) |
+| `Mesh3D { void* data }` / `Object3D::objdat void*` | blob `Span<u8>` + campos tipados (`Point3D` q0, `Face::normal` q12), `MeshBlob::check`/`object_bytes` (hecho; los grupos y offsets siguen `s16` por ABI `obj2c`/asm) |
 
 ### 4.6 Audio y tareas de fondo
 
