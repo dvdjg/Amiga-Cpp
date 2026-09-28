@@ -275,6 +275,7 @@ struct Mesh3D {
 // Declaraciones para los accesores de `Object3D` (se definen más abajo).
 struct Object3D;
 [[nodiscard]] inline eng::Span<eng::u8> object_bytes(const Object3D& object);
+[[nodiscard]] inline MeshStatus new_object3d_checked(Object3D& object, const Mesh3D& mesh);
 
 // (Los accesores libres `node3d`/`point3d`/`vertex3d`/`edge3d`/`face3d` se han eliminado: eran
 // wrappers de una línea sobre `MeshBlob`. Usa los métodos `MeshBlob::node/point/vertex/...`.)
@@ -284,12 +285,19 @@ struct Object3D;
 /// **Layout estable**: el asm (`flatshade_asm.s`) lee `objdat`@0, los grupos@4/8/12 y
 /// `objectToWorld`@38..; `objdat_size` va **al final** para no mover esos offsets.
 struct Object3D {
+	// --- ABI de malla (privada) ---
+	// Los punteros del `obj2c` los lee `flatshade_asm.s` en estos offsets (objdat@0,
+	// vertexGroups@4, edgeGroups@8, faceGroups@12). Desde C++ el acceso es por
+	// `mesh()`/`node()`/`points()`/… y por las funciones amigas `object_bytes` y
+	// `new_object3d_checked`. Se mantienen como primeros miembros para no mover los offsets.
+private:
 	eng::u8* objdat = nullptr;
 	s16* vertexGroups = nullptr;
 	s16* edgeGroups = nullptr;
 	s16* faceGroups = nullptr;
 	s16* objects = nullptr;
 
+public:
 	Angle3 rotate {};    // ángulo en radianes (q12)
 	Point3R scale {};    // escala (q12)
 	Point3C translate {}; // posicion (q0)
@@ -299,6 +307,7 @@ struct Object3D {
 
 	Point3C camera {}; // posicion de camara en espacio objeto (q0)
 
+private:
 	eng::usize objdat_size = 0; // tamaño del blob (mismo tipo que `Span::size()`)
 
 	/// Tamaños (nº de `s16`) de cada grupo. **No** los lee el asm: van al final del struct, tras
@@ -308,6 +317,14 @@ struct Object3D {
 	eng::u16 edge_group_count = 0;
 	eng::u16 face_group_count = 0;
 
+	// Amigas que sí manejan la ABI cruda (la vista de bytes y el enlace del mesh).
+	friend eng::Span<eng::u8> object_bytes(const Object3D&);
+	friend MeshStatus new_object3d_checked(Object3D&, const Mesh3D&);
+	// Amiga que fija los offsets del bloque que lee `flatshade_asm.s` (el `offsetof` de
+	// miembros privados necesita la amistad y un tipo ya completo).
+	friend struct Object3dLayout;
+
+public:
 	/// Accesores tipados al blob empaquetado (evitan manejar el `Span` a mano en los
 	/// efectos). Reenvían a `point3d`/`face`… con la vista del propio objeto.
 	[[nodiscard]] Node3D* node(s16 i) { return MeshBlob {object_bytes(*this)}.node(i); }
@@ -332,6 +349,27 @@ struct Object3D {
 	}
 };
 
+/// Verificación del **bloque de malla** que lee `flatshade_asm.s` (solo ABI de 32 bits m68k):
+/// fija que `objdat`@0, los grupos@4/8/12 y `objectToWorld`@38 no se muevan. Es un struct
+/// amigo de `Object3D` porque el `offsetof` de los miembros privados lo exige, y un tipo
+/// ya completo.
+struct Object3dLayout {
+#if defined(__SIZEOF_POINTER__) && __SIZEOF_POINTER__ == 4
+	// `Object3D` no es *standard-layout* (mezcla accesos para encapsular la malla), así que
+	// `offsetof` es "conditionally-supported"; el `static_assert` es justo lo que fija que
+	// g++ conserva el orden. Se silencia el aviso a propósito.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winvalid-offsetof"
+	static_assert(__builtin_offsetof(Object3D, objdat) == 0 &&
+			      __builtin_offsetof(Object3D, vertexGroups) == 4 &&
+			      __builtin_offsetof(Object3D, edgeGroups) == 8 &&
+			      __builtin_offsetof(Object3D, faceGroups) == 12 &&
+			      __builtin_offsetof(Object3D, objectToWorld) == 38,
+		      "Object3D: offsets leidos por flatshade_asm.s");
+#pragma GCC diagnostic pop
+#endif
+};
+
 // Invariante de layout: los tipos con escala (`q0`/`q12`) describen el `objdat` empaquetado
 // de `obj2c` sin cambiar ni el tamano ni los offsets de campo.
 static_assert(sizeof(Point3D) == 6, "objdat: Point3D = 3x s16 (LONGITUD)");
@@ -342,16 +380,6 @@ static_assert(sizeof(Edge) == 6 && sizeof(FaceIndex) == 4, "objdat: Edge 6 B, Fa
 static_assert(sizeof(Face) == 10 && __builtin_offsetof(Face, count) == 8,
 	      "objdat: Face normal(6)+flags+material+count@8");
 static_assert(__builtin_offsetof(Mesh3D, materials) == 8, "objdat: cabecera 5x s16");
-
-// Offsets que lee `flatshade_asm.s` (solo en la ABI de 32 bits del objetivo m68k).
-#if defined(__SIZEOF_POINTER__) && __SIZEOF_POINTER__ == 4
-static_assert(__builtin_offsetof(Object3D, objdat) == 0 &&
-		      __builtin_offsetof(Object3D, vertexGroups) == 4 &&
-		      __builtin_offsetof(Object3D, edgeGroups) == 8 &&
-		      __builtin_offsetof(Object3D, faceGroups) == 12 &&
-		      __builtin_offsetof(Object3D, objectToWorld) == 38,
-	      "Object3D: offsets leidos por flatshade_asm.s");
-#endif
 
 /// Diagnóstico: el descriptor de malla no cuadra con su blob. `illegal` en m68k.
 [[noreturn]] inline void mesh_invalid() { __builtin_trap(); }

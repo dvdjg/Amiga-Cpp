@@ -34,7 +34,7 @@ int main() {
 
 	Object3D obj {};
 	new_object3d(obj, mesh);
-	check(obj.objdat == bytes.data() && obj.objdat_size == bytes.size(), "new_object3d enlaza objdat");
+	check(obj.mesh().data() == bytes.data() && obj.mesh().size() == bytes.size(), "new_object3d enlaza objdat");
 	check(obj.scale.x.v == (1 << 12) && obj.scale.y.v == (1 << 12), "scale inicial 1.0 (4.12)");
 
 	// Validacion del descriptor: blob no vacio, grupos dentro de rango y sin trampa.
@@ -168,14 +168,10 @@ int main() {
 		update_object_transformation(po);
 		eng::lib3d::update_face_visibility(po);
 		eng::u32 lib3d_visible = 0;
-		const s16* fg = po.faceGroups;
-		if (fg != nullptr) {
-			do {
-				s16 off;
-				while ((off = *fg++) != 0) {
-					if (po.face(off)->flags >= 0) ++lib3d_visible;
-				}
-			} while (*fg != 0);
+		for (auto fr : po.faces()) {
+			if (fr.get()->flags >= 0) {
+				++lib3d_visible;
+			}
 		}
 
 		static eng::math3d::Vec3 mv[64];
