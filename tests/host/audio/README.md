@@ -21,3 +21,4 @@ Categoría `audio` de la batería host (L1). El índice de categorías está en 
 | HOST-361 | [media](361_media/README.md) | Interfaz de medios (`eng/audio/media.hpp`): reconoce PCM crudo/AUZX y decodifica por chunk (`decode_chunk`), con el códec de `pcm_codec`. |
 | HOST-362 | [aplib](362_aplib/README.md) | Descompresor aPLib (`eng/audio/aplib.hpp`) contra un flujo real de `apultra`; dispatch `Codec::APLib` y rechazos. |
 | HOST-363 | [pcm_stream_seek](363_pcm_stream_seek/README.md) | `PcmStream<3>` (triple buffer) y `seek(chunk)`: reposiciona el stream en un chunk del índice. |
+| HOST-370 | [audio_plan](370_audio_plan/README.md) | Presupuesto de `AudioPlan` (`eng/audio/audio.hpp`): `AudioBudget`/`Limits`/`Report` (voces DMA + palabras), análogo de `BlitBudget`. |

@@ -265,6 +265,16 @@ Los samples son fuentes 8-bit con signo; para el mixer hay que escalar la
 amplitud a `±120/N` y dejar la longitud en múltiplo de 4 (o del mínimo que
 devuelve `MixerGetSampleMinSize()`).
 
+## Presupuesto de frame (`AudioPlan`)
+
+`AudioPlan` es el análogo de audio del `FramePlan`: además de los 4 canales de Paula
+lleva un **presupuesto** (`AudioBudget`: voces DMA ocupadas y palabras que leerá el DMA)
+con sus límites e informe (`AudioBudgetLimits`/`AudioBudgetReport`, niveles `Ok`/`Warning`/
+`Exceeded`, mismo esquema que `BlitBudget`). `AudioMixer` lo actualiza al repartir voces
+(`begin_frame` reinicia canales y presupuesto; los límites se conservan) y la IRQ de Paula
+es el **feeder** que avanza los canales. El plan es portable: el backend escribe
+`AUDxLCH/LCL/LEN/PER/VOL`. HOST-370 lo fija.
+
 ## Referencias
 
 - Documentación completa del mixer: `AmigaAudioMixer/Documentation/Documentation.md`.
