@@ -32,14 +32,15 @@ int main() {
 	check(v.words_per_row() == 16, "words_per_row = row_bytes/2 = 16");
 	check(v.bitmap_row_bytes() == 96u, "bitmap_row_bytes (interleaved) = 32*3 = 96");
 	check(v.interleaved(), "interleaved");
-	check(!v.plane_stride(), "interleaved -> plane_stride = 0");
+	check(v.plane_pointer_step() == 32u, "interleaved -> plane_pointer_step = row_bytes = 32");
 	check(v.byte_count() == 32u * 256u * 3u, "byte_count = 32*256*3");
+	check(v.data() == buf && v.cdata() == buf, "data (mutable) y cdata (const) = base del plano 0");
 
-	// Separado: los planos van contiguos -> plane_stride = row_bytes*height.
+	// Separado: los planos van contiguos -> plane_pointer_step = row_bytes*height.
 	const BitmapView<eng::PlaneTag, Chip> s {mem, 256, 256, 32, 3, PlaneLayout::Separate};
 	check(!s.interleaved(), "separado no interleaved");
 	check(s.bitmap_row_bytes() == 32u, "separado bitmap_row_bytes = row_bytes = 32");
-	check(s.plane_stride() == 32u * 256u, "separado plane_stride = row_bytes*height");
+	check(s.plane_pointer_step() == 32u * 256u, "separado plane_pointer_step = row_bytes*height");
 
 	// El BANCO va en el tipo: Chip y Fast son TIPOS DISTINTOS (`BitmapView<PlaneTag, Chip>` !=
 	// `BitmapView<PlaneTag, Fast>`) -> no se pueden mezclar (el compilador lo impide).

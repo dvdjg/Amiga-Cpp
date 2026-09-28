@@ -171,7 +171,7 @@
   6    86  engine/include/eng/field/xlimited_playfield.hpp
   0    41  engine/include/eng/field/xlimited_scene.hpp
   0     3  engine/include/eng/graphics/animation.hpp
-  0     4  engine/include/eng/graphics/bitmap_view.hpp
+  0     5  engine/include/eng/graphics/bitmap_view.hpp
   0     6  engine/include/eng/graphics/bitmap.hpp
   0     4  engine/include/eng/graphics/blit_job.hpp
   0     2  engine/include/eng/graphics/blitter_state.hpp

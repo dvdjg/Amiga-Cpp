@@ -45,13 +45,24 @@ struct BitmapView {
 			       ? static_cast<eng::u32>(row_bytes) * plane_count
 			       : row_bytes;
 	}
-	/// Separación en bytes entre planos (`Separate`); 0 en interleaved.
-	[[nodiscard]] constexpr eng::u32 plane_stride() const noexcept {
-		return layout == PlaneLayout::Separate ? static_cast<eng::u32>(row_bytes) * height : 0u;
+	/// **Paso entre punteros de plano** (`BPLxPT`): `row_bytes` si interleaved (los planos van
+	/// palabra a palabra por línea) o `row_bytes × height` si separados (plano contiguo).
+	[[nodiscard]] constexpr eng::u32 plane_pointer_step() const noexcept {
+		return interleaved() ? row_bytes : static_cast<eng::u32>(row_bytes) * height;
 	}
 	/// ¿Planos interleaved (fila a fila) o contiguos (plano a plano)?
 	[[nodiscard]] constexpr bool interleaved() const noexcept {
 		return layout == PlaneLayout::Interleaved;
+	}
+	/// **Base del plano 0 (fila 0) mutable**: es el **destino** natural de un Blit. Sale del
+	/// `Address<Bank>` (`ptr()`), el escape explícito de la frontera. Es un `const`-method como un
+	/// puntero-miembro: la vista no cambia, el almacén sí puede escribirse.
+	[[nodiscard]] constexpr eng::u8* data() const noexcept { return planes.address(0).ptr(); }
+	/// Base **constante** (el caso origen: fuente de un Blit/Copper).
+	[[nodiscard]] constexpr const eng::u8* cdata() const noexcept { return planes.data(); }
+	/// Dirección tipada por el banco del plano `p` (`off` en bytes extra): para `BPLxPT`.
+	[[nodiscard]] constexpr eng::Address<Bank> plane_address(eng::u8 p, eng::s32 off = 0) const noexcept {
+		return planes.address(static_cast<eng::s32>(plane_pointer_step()) * p + off);
 	}
 	/// Nº de bytes que ocupa la zona (para validar la reserva).
 	[[nodiscard]] constexpr eng::u32 byte_count() const noexcept {
@@ -65,5 +76,9 @@ using ChipBitmapView = BitmapView<Tag, eng::MemoryKind::Chip>;
 /// Zona de trabajo en Fast (p. ej. chunky antes de un C2P). No DMA.
 template <class Tag>
 using FastBitmapView = BitmapView<Tag, eng::MemoryKind::Fast>;
+/// Zona en Slow RAM (Agnus no la ve: **no** es DMA-visible, como Fast). Se declara por completitud
+/// del medio; su uso normal es trabajo de CPU con el banco explícito en el tipo.
+template <class Tag>
+using SlowBitmapView = BitmapView<Tag, eng::MemoryKind::Slow>;
 
 } // namespace eng::graphics
