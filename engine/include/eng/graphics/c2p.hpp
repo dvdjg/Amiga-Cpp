@@ -179,4 +179,33 @@ inline void c2p_1x1_naive(
 	}
 }
 
+/// **C2P como función**, sobre memoria **etiquetada con su banco**: el tipo decide la vía.
+///
+/// - Si **ambas** memorias (chunky y planos) son **Chip**, el **Blitter** puede acelerarla; se
+///   intenta por `blit_submit` (que la encola al plan/backend).
+/// - Si **alguna no** está en Chip (Fast/Slow), el Blitter **no ve** esa memoria y se hace por
+///   **CPU** (`c2p_1x1_4` o, para 1..6 planos, `c2p_1x1_naive`). Es la regla «los **tags** eligen
+///   el método»: cambiar el banco de la fuente o del destino cambia la implementación **en
+///   compilación**, sin que el llamador elija nada.
+///
+/// `blit_submit(chunky, planes, width, height, plane_stride, plane_count)` es la vía acelerada
+/// (normalmente `plan.add_c2p(...)`); **no** se llama si los bancos no son ambos Chip.
+template <eng::MemoryKind CK, eng::MemoryKind PK, class BlitSubmit>
+bool c2p(eng::MemView<eng::ChunkyTag, CK> chunky, eng::MemView<eng::PlaneTag, PK> planes,
+	 eng::u32 width, eng::u32 height, eng::u32 plane_stride, eng::u8 plane_count,
+	 BlitSubmit&& blit_submit) {
+	if constexpr (CK == eng::MemoryKind::Chip && PK == eng::MemoryKind::Chip) {
+		return blit_submit(chunky, planes, width, height, plane_stride, plane_count);
+	} else {
+		(void)blit_submit; // el Blitter no aplica: Agnus no ve esa memoria
+		eng::PlaneBytes out {planes.address(0).ptr(), planes.size()};
+		if (plane_count == 4u) {
+			c2p_1x1_4(width, height, plane_stride, chunky.view(), out);
+		} else {
+			c2p_1x1_naive(width, height, plane_count, plane_stride, chunky.view(), out);
+		}
+		return true;
+	}
+}
+
 } // namespace eng::graphics

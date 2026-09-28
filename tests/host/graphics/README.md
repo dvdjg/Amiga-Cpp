@@ -46,3 +46,4 @@ Categoría `graphics` de la batería host (L1). El índice de categorías está 
 | HOST-344 | [attribute_table](344_attribute_table/README.md) | `eng/graphics/tilemap/attribute_table.hpp`: paleta por bloque (`set`/`get`/`fill`) — `set_attribute` de una capa de tiles (F7.2). |
 | HOST-365 | [blit_queue](365_blit_queue/README.md) | `eng/graphics/blit_queue.hpp`: API de Blitter por **intención** (cola FIFO con feeder poll; `src`/`dst` como `ChipView`) — asincronía, FIFO y `all`. |
 | HOST-366 | [bitmap_view](366_bitmap_view/README.md) | `eng/graphics/bitmap_view.hpp`: **zona rectangular** de memoria gráfica (planos + geometría + layout, con tag+banco) — `words_per_row`/`bitmap_row_bytes`/`plane_stride`/`byte_count`. |
+| HOST-367 | [c2p](367_c2p/README.md) | `eng/graphics/c2p.hpp`: la conversión chunky→planar como **función** con **despacho por banco** (Blitter si ambas memorias son Chip, CPU si alguna no) — «los tags eligen el método». |
