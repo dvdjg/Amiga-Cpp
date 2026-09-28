@@ -18,10 +18,19 @@ const { WinUAEConnection } = mcpWinuae as { WinUAEConnection: any };
 
 function argValue(name, fallback = undefined) {
   const index = process.argv.indexOf(name);
-  if (index >= 0 && index + 1 < process.argv.length) {
-    return process.argv[index + 1];
+  if (index < 0 || index + 1 >= process.argv.length) {
+    return fallback;
   }
-  return fallback;
+  const value = process.argv[index + 1];
+  // Guardarrail: si el "valor" es otro flag (`--algo`) es un error de orden (p. ej.
+  // `--screenshot --allow-timeout-fallback`); no lo consumimos como ruta y avisamos.
+  if (value.startsWith('--')) {
+    console.error(
+      `[run-demo] aviso: '${name}' va seguido de '${value}' (revisa el orden de argumentos); se usa el valor por defecto.`,
+    );
+    return fallback;
+  }
+  return value;
 }
 
 function hasArg(name) {
