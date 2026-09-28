@@ -65,6 +65,18 @@ struct FakeBlitter {
 
 using Q = eng::graphics::BlitQueue<8, FakeBlitter>;
 
+// Doble del Scheduler de Copper: registra el `BlitterJob` emitido (sin hardware).
+struct FakeCopper {
+	eng::u16 last_top = 0xffffu;
+	int emitted = 0;
+	eng::graphics::BlitterJob last {};
+	void emit_blitter_job(eng::u16 top, const eng::graphics::BlitterJob& j) {
+		last_top = top;
+		last = j;
+		++emitted;
+	}
+};
+
 int main() {
 	static eng::u8 dst_buf[8] {};
 	static eng::u8 src_buf[8] {};
@@ -99,18 +111,42 @@ int main() {
 	check(blitter.kinds[1] == static_cast<eng::u8>(BlitOp::Kind::Stamp) && blitter.last_ashift == 5,
 	      "Stamp conserva el ashift");
 
-	// 2b) `blit_regs` deriva los registros de la zona + el rect (no se pasan a mano).
-	using eng::graphics::blit_regs;
+	// 2b) `blit_job_from` traduce la intencion al TRABAJO canonico (`BlitJob`); `blitter_job_from`
+	//     codifica ese trabajo a los REGISTROS (`BlitterJob`). Una sola ruta, dos capas.
+	using eng::graphics::blit_job_from;
+	using eng::graphics::blitter_job_from;
 	{
-		const eng::graphics::BlitRegs f = blit_regs(BlitOp {BlitOp::Kind::Fill, dst, {}, {0, 0, 32u, 8u}, 0});
-		check(f.words == 2u && f.height == 8u && f.dst_mod == -2 && f.minterm == 0x00u &&
-			      f.interleaved && f.dst_plane_stride == 0u,
-		      "blit_regs Fill (interleaved)");
-		const eng::graphics::BlitRegs s =
-			blit_regs(BlitOp {BlitOp::Kind::Stamp, dst, src, {5, 0, 32u, 96u}, 5});
-		check(s.words == 3u && s.height == 96u && s.ashift == 5u && s.src_mod == -4 &&
-			      s.dst_mod == -4 && s.minterm == 0x00fcu && s.src_plane_stride == 0u,
-		      "blit_regs Stamp (interleaved, con shift)");
+		const eng::graphics::BlitJob f =
+			blit_job_from(BlitOp {BlitOp::Kind::Fill, dst, {}, {}, {0, 0, 32u, 8u}, 0});
+		check(f.kind == eng::graphics::BlitJobKind::ClearRect && f.words_per_row == 2u &&
+			      f.height == 8u && f.destination_modulo_bytes == -2 && f.minterm == 0u,
+		      "blit_job_from Fill -> ClearRect");
+		const eng::graphics::BlitterJob fr = blitter_job_from(f);
+		check(fr.bltcon0 == 0x0100u && fr.bltsize == static_cast<eng::u16>((8u << 6) | 2u) &&
+			      fr.bltalwm == 0xffffu,
+		      "blitter_job_from ClearRect");
+		const eng::graphics::BlitJob s =
+			blit_job_from(BlitOp {BlitOp::Kind::Stamp, dst, src, {}, {5, 0, 32u, 96u}, 5});
+		check(s.kind == eng::graphics::BlitJobKind::OrBlob && s.words_per_row == 3u &&
+			      s.height == 96u && s.source_modulo_bytes == -4 &&
+			      s.destination_modulo_bytes == -4 && s.source_shift == 5u &&
+			      s.minterm == 0xfcu,
+		      "blit_job_from Stamp -> OrBlob");
+		const eng::graphics::BlitterJob sr = blitter_job_from(s);
+		check(sr.bltcon0 == 0x5dfcu && sr.bltsize == static_cast<eng::u16>((96u << 6) | 3u) &&
+			      sr.bltbpt == sr.bltdpt,
+		      "blitter_job_from OrBlob");
+	}
+
+	// 2c) Estampa con mascara (cookie-cut -> MaskedBobCookieCut; $CA, A = mascara, C = D).
+	{
+		const eng::graphics::BlitJob m = blit_job_from(
+			BlitOp {BlitOp::Kind::MaskedStamp, dst, src, src, {0, 0, 32u, 8u}, 0});
+		check(m.kind == eng::graphics::BlitJobKind::MaskedBobCookieCut && m.minterm == 0xcau,
+		      "blit_job_from MaskedStamp -> MaskedBobCookieCut");
+		const eng::graphics::BlitterJob mr = blitter_job_from(m);
+		check(mr.bltcon0 == 0x0fcau && mr.bltcpt == mr.bltdpt,
+		      "blitter_job_from cookie-cut ($CA)");
 	}
 
 	// 4) wait() vacia la cola (punto de dependencia) y respeta el orden.
@@ -136,7 +172,7 @@ int main() {
 		using eng::graphics::BobDraw;
 		using eng::graphics::BobLayout;
 		using eng::graphics::BitmapView;
-		using eng::graphics::blit_regs;
+		using eng::graphics::blit_job_from;
 		using eng::graphics::bob_draw;
 		using eng::graphics::FramePlan;
 		using eng::graphics::make_bob_target;
@@ -162,13 +198,28 @@ int main() {
 		const BlitJob& j = plan.blit_job(0u);
 		const BitmapView<eng::BobTag, eng::MemoryKind::Chip> sz {
 			bob.sheet, 32u, 16u, 6u, 1u, PlaneLayout::Interleaved};
-		const eng::graphics::BlitRegs r =
-			blit_regs(BlitOp {BlitOp::Kind::Stamp, t, sz, {5, 2, 32u, 16u}, 5});
-		check(r.words == j.words_per_row && r.height == j.height &&
-			      r.src_mod == j.source_modulo_bytes && r.dst_mod == j.destination_modulo_bytes &&
-			      r.ashift == j.source_shift && r.minterm == j.minterm &&
-			      r.src == j.source.words && r.dst == j.destination.words,
-		      "blit_regs == BlitJob de bob_draw (misma geometria)");
+		const eng::graphics::BlitJob bj =
+			blit_job_from(BlitOp {BlitOp::Kind::Stamp, t, sz, {}, {5, 2, 32u, 16u}, 5});
+		check(bj.kind == j.kind && bj.words_per_row == j.words_per_row && bj.height == j.height &&
+			      bj.source_modulo_bytes == j.source_modulo_bytes &&
+			      bj.destination_modulo_bytes == j.destination_modulo_bytes &&
+			      bj.source_shift == j.source_shift && bj.minterm == j.minterm &&
+			      bj.source.words == j.source.words &&
+			      bj.destination.words == j.destination.words,
+		      "blit_job_from == BlitJob de bob_draw (mismo TIPO y geometria)");
+	}
+
+	// 6) Ejecutor por Copper: `submit()` emite el `BlitterJob` por la lista, no programa registros.
+	{
+		FakeCopper cu;
+		eng::graphics::CopperBlitterExecutor<FakeCopper> ex {cu, 300u};
+		eng::graphics::BlitQueue<4, eng::graphics::CopperBlitterExecutor<FakeCopper>> cq;
+		cq.bind(ex);
+		cq.stamp(src, dst, {5, 0, 32u, 96u}, 5);
+		check(ex.blitter_free() && cu.emitted == 0, "copper: encolar no emite");
+		cq.wait();
+		check(cu.emitted == 1 && cu.last_top == 300u && cu.last.bltcon0 == 0x5dfcu,
+		      "copper: wait emite el BlitterJob en su linea");
 	}
 
 	if (failures == 0) {

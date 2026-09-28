@@ -190,6 +190,18 @@ Regla: **solo el eje que afecta a la corrección va al tipo.** El requisito `Chi
 
 Cuando el dato **ya viene tipado** pero sin banco (una `Bytes<Tag>`/`ByteView<Tag>` agnóstica, p. ej. la superficie de una banda del display), el puente con nombre es `eng::as_chip(vista, off)` (`typed.hpp`): eleva a `ChipView<Tag>` **sin cambiar el tag** y deja un **único punto** donde auditar que el almacén está en Chip. El `from_storage` suelto se reserva a las fronteras donde además cambia el tag (loader de assets → `BobTag`, paso `Visual`→`Bob`).
 
+**Los tres puentes (y solo tres).** Cruzar de un medio/tag a otro no debe improvisarse; hay una única ruta por caso, y cada una dice *qué garantiza*:
+
+| Puente | De → a | Garantía | Cuándo |
+|---|---|---|---|
+| `Block<Tag,Bank>::mem_view_chip()` | arena (`Bank=Any`) → `ChipView<Tag>` | **comprueba** `kind==Chip` (si no, `illegal`) | memoria reservada por el juego (arena) que va al Blitter/Copper |
+| `eng::as_chip(ByteView<Tag>, off)` | vista tipada **sin** banco → `ChipView<Tag>` | el **llamador** garantiza Chip; **no** cambia el tag | una superficie ya tipada cuya procedencia Chip es conocida (p. ej. la banda del display) |
+| `Address<Chip>::from_storage(ptr)` | crudo → `Address<Chip>` | frontera **declarada** (se cita de dónde viene) | solo en la frontera: loader de assets, paso `Visual`→`Bob`, y los tests host (no hay Chip RAM) |
+
+Fuera de esos tres, **usar el medio equivocado no compila** (Chunky en el Blitter, Fast en `BPLxPT`, `PlaneTag` donde se espera `BobTag`). Si aparece un cuarto `from_storage` suelto, es señal de que **falta un puente con nombre** o de que el **tag de origen está mal elegido**.
+
+**Taxonomía de tags (`core/types/domains.hpp`).** Cada buffer lleva el tag de su **contenido** (no de su uso): gráfico de planos (`PlaneTag`), hoja de BOB (`BobTag`), máscara de cookie-cut (`MaskTag`), sprite de hardware (`SpriteTag`), paleta (`PaletteTag`), copper (`CopperTag`), tilebank (`TileBankTag`/`IndexedTilesTag`), chunky (`ChunkyTag`), textura (`TextureTag`), audio (`AudioTag`/`MusicTag`/`MixerBufferTag`), pila (`StackTag`). El **banco** (Chip/Fast/Slow) es un eje aparte que viaja en `MemView`/`Address`. Regla: si un dato se usa como dos dominios distintos, es que son **dos tags** con un puente explícito, no un tag «comodín».
+
 **Por qué las vistas (`Bytes`/`Words`) no llevan `MemoryKind`.** Una vista es (puntero, tamaño) sobre bytes de un dominio; el medio no es un eje de corrección *de la vista* —leer/escribir funciona en cualquier RAM—, solo importa al entregar la dirección a **DMA**. Por eso el medio vive en la frontera DMA (`Address<K>` compile-time, `TypedBlock<Tag, K>`, `MemBank<K>`) o como **dato** (`Block<Tag>`, cuando el medio lo decide el setup en runtime). Meterlo en cada vista duplicaría `Bytes`/`Words` por banco, arrastraría el medio a código CPU que no lo necesita y no podría representar el medio runtime (sería una especialización por un dato). Es preferible la vista **agnóstica** y tipar solo la frontera.
 
 **Panel de telemetría.** El **panel de telemetría** (`eng/debug/telemetry.hpp`) compone fps/frame/uso de memoria con `StaticString`/`to_chars_u32` y los dibuja en el **overlay del depurador** (`debug_text`/`debug_filled_rect`, vía cualquier sink con `text(x, y, cstr, rgb)`), sin tocar la escena ni aparecer en las capturas; es el complemento visual de `RunStatus`/`ProfBlock`.

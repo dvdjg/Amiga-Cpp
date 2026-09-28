@@ -101,7 +101,8 @@ struct BlitOp {
     BitmapView<BobTag, Chip> src {};    // zona origen (atlas/asset): BobTag ≠ PlaneTag
     BlitRect rect {};                   // rectángulo en la zona destino (dominio: píxeles)
     eng::u8 ashift = 0;                 // desplazamiento fino (Stamp)
-    // Los registros (words/height/módulos/BLTxPT) los DERIVA `blit_regs()` de la zona + el rect.
+    // `blit_job_from(op)` DERIVA el `BlitterJob` (registros del chipset) de la zona + el rect:
+    // un único tipo de registros, compartido con `Scheduler::emit_blitter_job` (Copper).
     ...
 };
 ```

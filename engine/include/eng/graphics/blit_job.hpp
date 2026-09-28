@@ -13,6 +13,7 @@
 /// todas las operaciones; los grupos `line` y `c2p` solo se leen para sus tipos.
 
 #include <eng/core/types/types.hpp>
+#include <eng/core/types/typed.hpp>
 
 namespace eng::graphics {
 
@@ -55,10 +56,17 @@ enum class BlitJobKind : u8 {
 /// un `BlitDest` donde se espera un `BlitSource` (o viceversa) en las firmas
 /// internas. La construcción desde crudo es implícita por ergonomía de los
 /// agregados (`BlitJob{...}`); el rol tipado no se convierte entre sí.
+///
+/// Desde una vista tipada en Chip (`ChipView<Tag>`, p. ej. `BobTag`/`PlaneTag`) se construye
+/// **sin cast en el llamador**: el `reinterpret` (el Blitter direcciona a **word**) vive una sola
+/// vez aquí — es la frontera declarada del tipo, no algo que cada llamador reinvente.
 struct BlitSource {
 	const u16* words = nullptr;
 	constexpr BlitSource() noexcept = default;
 	constexpr BlitSource(const u16* w) noexcept : words(w) {}
+	template <class Tag>
+	constexpr BlitSource(eng::ChipView<Tag> v, eng::s32 off = 0) noexcept
+		: words(reinterpret_cast<const u16*>(v.data() + off)) {}
 };
 
 /// Rol de **destino** de un blit (escritura).
@@ -66,6 +74,9 @@ struct BlitDest {
 	u16* words = nullptr;
 	constexpr BlitDest() noexcept = default;
 	constexpr BlitDest(u16* w) noexcept : words(w) {}
+	template <class Tag>
+	constexpr BlitDest(eng::ChipView<Tag> v, eng::s32 off = 0) noexcept
+		: words(reinterpret_cast<u16*>(v.address(off).ptr())) {}
 };
 
 /// Trabajo planar de Blitter.
