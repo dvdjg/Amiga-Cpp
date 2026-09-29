@@ -14,3 +14,4 @@ Categoría `audio` de la batería host (L1). El índice de categorías está en 
 | HOST-269 | [audio_mode](269_audio_mode/README.md) | Modos de audio (`audio_mode.hpp`): reparto de los 4 canales de Paula por modo (`channel_quota`, sin solape) y `paula::period_for_hz` acotado. |
 | HOST-270 | [audio_events](270_audio_events/README.md) | Eventos de audio (`audio_events.hpp`): `AudioMsgEdges` emite `MusicEnd`/`AudioUnderrun` una vez por evento (flanco), no por buffer. |
 | HOST-271 | [zx0](271_zx0/README.md) | Descompresor ZX0 (`eng/audio/zx0.hpp`, port de `dzx0.c` v2) verificado contra un vector del compresor de referencia; dispatch `pcm_codec` (`Zx0`/`DeltaRle`/`APLib`). |
+| HOST-272 | [auz2](272_auz2/README.md) | Cabecera y contrato de chunks del contenedor `AUZ2` (`eng/audio/auz2.hpp`). |

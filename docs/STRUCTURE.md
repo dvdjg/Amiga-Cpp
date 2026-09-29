@@ -204,7 +204,7 @@ en `artifacts/` con un commit explícito.
 - **`tools/`**: herramientas host del pipeline de desarrollo (TypeScript
   compilado a `dist/` y wrappers bash). Orquestan build/run/analyze/verify de las
   demos y generan assets. Se organizan por dominio:
-  `tools/build/`, `tools/run/`, `tools/analyze/`, `tools/debug/`, `tools/profile/`,
+  `tools/build/`, `tools/run/`, `tools/analyze/`, `tools/debug/`, `tools/profile/`, `tools/audio-compressor/`,
   `tools/framescope/`, `tools/input/`, `tools/vision-review/`, `tools/amiga-tiles/`,
   `tools/ehb/`, `tools/demo202/`, `tools/lib/` (helpers compartidos: `paths.ts`,
   `cli.ts`, `image.ts`), `tools/test-regression.sh`.

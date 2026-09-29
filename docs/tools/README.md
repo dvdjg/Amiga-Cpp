@@ -29,6 +29,7 @@ Reglas principales (ver también `docs/STRUCTURE.md` §6):
 | FrameScope | `docs/testing/FRAMESCOPE_ROADMAP.md` | `tools/framescope/*` |
 | Entrada (mouse) | `tools/input/*`, `docs/emulation/MOUSE_AUTOMATION.md` | `tools/input/mouse-path.*` |
 | Programas independientes para PC | `host-tools/README.md`, `playground/README.md` | `host-tools/`, `playground/` |
+| Pipelines host que reutilizan el engine | `docs/engine/architecture/AUDIO_COMPRESSION.md` | `tools/audio-compressor/` |
 | Comprobaciones estáticas | esta sección (abajo) | `tools/check/*` |
 
 ## Comprobaciones estáticas (`tools/check/`)
