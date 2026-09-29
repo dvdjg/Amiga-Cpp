@@ -63,7 +63,7 @@ inválido: stack/ Fast/ Slow -> reinterpret_cast -> Address<Chip>
 ```
 
 La conversión desde puntero crudo debe quedar limitada a adaptadores internos del backend o a tests
-que declaren explícitamente que el bloque está en Chip. `BlitSource` y `BlitDest` deben recibir en
+que declaren explícitamente que el bloque está en Chip. `BlitPtr` y `BlitPtr` deben recibir en
 la API normal vistas o direcciones certificadas, no `u16*` arbitrarios.
 
 ## Ownership y destrucción

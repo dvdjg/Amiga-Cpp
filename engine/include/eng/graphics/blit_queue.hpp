@@ -87,7 +87,7 @@ struct BlitOp {
 	j.bitplane_count = inter ? 1u : planes;
 	j.source_shift = static_cast<eng::u8>(op.rect.x & 15);
 	j.interleaved = inter;
-	j.destination = BlitDest {op.dst.planes, dst_off};
+	j.destination = BlitPtr {op.dst.planes, dst_off};
 	j.destination_modulo_bytes =
 		static_cast<eng::s16>(op.dst.row_bytes - static_cast<eng::u32>(words) * 2u);
 	j.destination_plane_stride_bytes = inter ? 0u : op.dst.plane_pointer_step();
@@ -95,14 +95,14 @@ struct BlitOp {
 			    ? 0x00u
 			    : (op.kind == BlitOp::Kind::MaskedStamp ? 0xcau : 0xfcu);
 	if (op.kind != BlitOp::Kind::Fill) {
-		j.source = BlitSource {op.src.planes};
+		j.source = BlitPtr {op.src.planes};
 		j.source_modulo_bytes =
 			static_cast<eng::s16>(op.src.row_bytes - static_cast<eng::u32>(words) * 2u);
 		j.source_plane_stride_bytes =
 			inter ? 0u : static_cast<eng::u32>(op.rect.h) * op.src.row_bytes;
 	}
 	if (op.kind == BlitOp::Kind::MaskedStamp) {
-		j.mask = BlitSource {op.mask.planes};
+		j.mask = BlitPtr {op.mask.planes};
 	}
 	return j;
 }

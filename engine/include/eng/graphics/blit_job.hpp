@@ -2,7 +2,7 @@
 
 /// \file blit_job.hpp
 /// **Trabajo de Blitter**: el tipo de operación (`BlitJobKind`), los roles tipados de
-/// fuente/destino (`BlitSource`/`BlitDest`) y los datos del trabajo (`BlitJob`).
+/// fuente/destino (`BlitPtr`) y los datos del trabajo (`BlitJob`).
 ///
 /// Se separa de `frame_plan.hpp` (que contiene el plan y su presupuesto) para que quien
 /// solo describe un trabajo no arrastre el contenedor, y los campos específicos de cada
@@ -69,43 +69,34 @@ enum class BlitJobKind : u8 {
 
 /// Rol de **origen** de un blit (solo lectura). La dirección es un `Address<MemoryKind::Chip>`: el
 /// rol lleva la **procedencia** (DMA), no un `u16*` suelto. `words()` da la vista de **registro**
-/// (la frontera que cruza el Blitter). Junto con `BlitDest` evita pasar un `BlitDest` donde se
-/// espera un `BlitSource` (o viceversa) en las firmas internas.
-struct BlitSource {
+/// **Puntero de Blitter a Chip RAM** (una dirección DMA a words): origen, destino o máscara de un
+/// `BlitJob`. Un **solo** tipo para los tres roles — el hardware del Blitter es simétrico (los
+/// canales A/B/C/D se intercambian) y **quién es fuente o destino lo decide el programador**, no el
+/// tipo; el rol lo expresa el **campo** del `BlitJob` (`source`/`destination`/`mask`). El
+/// invariante que **sí** vale (memoria DMA en Chip) lo lleva `Address<MemoryKind::Chip>` dentro.
+struct BlitPtr {
 	eng::Address<eng::MemoryKind::Chip> addr {};
-	constexpr BlitSource() noexcept = default;
-	constexpr BlitSource(eng::Address<eng::MemoryKind::Chip> a) noexcept : addr(a) {}
+
+	constexpr BlitPtr() noexcept = default;
+	constexpr BlitPtr(eng::Address<eng::MemoryKind::Chip> a) noexcept : addr(a) {}
 	/// **Frontera explícita** desde un puntero crudo a words: solo para código que ya garantiza
 	/// Chip RAM (backend/test con procedencia certificada). Nombrada para que el acto se lea como
-	/// tal — igual que `Address<Chip>::from_storage`. Ver `MEMORY_OWNERSHIP.md` §"Prohibición de
-	/// memoria no certificada para DMA". Preferir el ctor desde `ChipView<Tag>`.
-	[[nodiscard]] static constexpr BlitSource from_storage(const u16* w) noexcept {
-		return BlitSource {eng::Address<eng::MemoryKind::Chip>::from_storage(
+	/// tal — igual que `Address<Chip>::from_storage`. Ver `MEMORY_OWNERSHIP.md`. Preferir el ctor
+	/// desde `ChipView<Tag>`.
+	[[nodiscard]] static constexpr BlitPtr from_storage(const u16* w) noexcept {
+		return BlitPtr {eng::Address<eng::MemoryKind::Chip>::from_storage(
 			reinterpret_cast<const eng::u8*>(w))};
 	}
 	/// Desde una vista tipada en Chip (`ChipView<Tag>`) con `off` en bytes.
 	template <class Tag>
-	constexpr BlitSource(eng::ChipView<Tag> v, eng::s32 off = 0) noexcept : addr(v.address(off)) {}
-	/// Vista de **registro** (word): la frontera que consume el Blitter.
-	[[nodiscard]] constexpr const u16* words() const noexcept {
-		return reinterpret_cast<const u16*>(addr.cptr());
-	}
-};
-
-/// Rol de **destino** de un blit (escritura).
-struct BlitDest {
-	eng::Address<eng::MemoryKind::Chip> addr {};
-	constexpr BlitDest() noexcept = default;
-	constexpr BlitDest(eng::Address<eng::MemoryKind::Chip> a) noexcept : addr(a) {}
-	/// **Frontera explícita** desde un puntero crudo a words (ver `BlitSource::from_storage`).
-	[[nodiscard]] static constexpr BlitDest from_storage(u16* w) noexcept {
-		return BlitDest {eng::Address<eng::MemoryKind::Chip>::from_storage(
-			reinterpret_cast<const eng::u8*>(w))};
-	}
-	template <class Tag>
-	constexpr BlitDest(eng::ChipView<Tag> v, eng::s32 off = 0) noexcept : addr(v.address(off)) {}
+	constexpr BlitPtr(eng::ChipView<Tag> v, eng::s32 off = 0) noexcept : addr(v.address(off)) {}
+	/// Vista de **registro** (word) mutable: el Blitter lee o escribe según el canal.
 	[[nodiscard]] constexpr u16* words() const noexcept {
 		return reinterpret_cast<u16*>(addr.ptr());
+	}
+	/// Vista de registro **solo lectura** (para código que quiere dejar claro que no escribe).
+	[[nodiscard]] constexpr const u16* cwords() const noexcept {
+		return reinterpret_cast<const u16*>(addr.cptr());
 	}
 };
 
@@ -122,9 +113,9 @@ struct BlitDest {
 /// `source` va en planar contiguo (o intercalado con `interleaved`).
 struct BlitJob {
 	BlitJobKind kind = BlitJobKind::MaskedBobCookieCut;
-	BlitSource mask {};
-	BlitSource source {};
-	BlitDest destination {};
+	BlitPtr mask {};
+	BlitPtr source {};
+	BlitPtr destination {};
 	u16 words_per_row = 0;
 	u16 height = 0;
 	s16 source_modulo_bytes = 0;
@@ -168,7 +159,7 @@ struct BlitJob {
 		u16 row_bytes = 0; ///< bytes por fila del plano destino (módulo de la línea)
 		/// Base del bitmap para el canal D en una **línea EOR**; `nullptr` = usar el
 		/// propio plano. Ver `blitter_line_eor`.
-		BlitDest base {};
+		BlitPtr base {};
 	};
 	Line line {};
 
@@ -202,9 +193,9 @@ inline void make_interleaved_masked_bob(BlitJob& job, const u16* src, u16* dest,
 	const u16 words = static_cast<u16>(w / 16u);
 	job = BlitJob {};
 	job.kind = BlitJobKind::MaskedBobCookieCut;
-	job.mask = BlitSource::from_storage(src);
-	job.source = BlitSource::from_storage(src + words); // 2ª mitad de la fila = imagen
-	job.destination = BlitDest::from_storage(dest);
+	job.mask = BlitPtr::from_storage(src);
+	job.source = BlitPtr::from_storage(src + words); // 2ª mitad de la fila = imagen
+	job.destination = BlitPtr::from_storage(dest);
 	job.words_per_row = words;
 	job.height = static_cast<u16>(h * planes);
 	// Avance por "fila" (una fila de UN plano): el par ocupa `2*words` palabras.

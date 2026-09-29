@@ -393,9 +393,9 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
         // inocuo porque bitplane_count=1 sólo itera una vez.
         return {
             graphics::BlitJobKind::TileBlockCopy,
-            graphics::BlitSource {},
-            graphics::BlitSource::from_storage(reinterpret_cast<const u16*>(src)),
-            graphics::BlitDest::from_storage(dst),
+            graphics::BlitPtr {},
+            graphics::BlitPtr::from_storage(reinterpret_cast<const u16*>(src)),
+            graphics::BlitPtr::from_storage(dst),
             words,
             this->m_block_planes_lines,
             src_mod,
@@ -506,7 +506,7 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
             u16* d = reinterpret_cast<u16*>((this->m_frontbuffer +
                 (planeline_start + static_cast<u32>(p)) * this->m_bytes_per_row + x_byte).ptr());
             graphics::BlitJob job {
-                graphics::BlitJobKind::CopyRect, graphics::BlitSource {}, graphics::BlitSource::from_storage(s), graphics::BlitDest::from_storage(d),
+                graphics::BlitJobKind::CopyRect, graphics::BlitPtr {}, graphics::BlitPtr::from_storage(s), graphics::BlitPtr::from_storage(d),
                 words, seg_rows, src_mod, dst_mod,
                 1, 0, src_plane_stride, static_cast<u32>(this->m_bytes_per_row * planes), false
             };
@@ -576,7 +576,7 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
             u16* d = reinterpret_cast<u16*>((this->m_frontbuffer +
                 (planeline_start + static_cast<u32>(p)) * this->m_bytes_per_row + x_byte).ptr());
             graphics::BlitJob job {
-                graphics::BlitJobKind::MaskedBobCookieCut, graphics::BlitSource::from_storage(mask), graphics::BlitSource::from_storage(s), graphics::BlitDest::from_storage(d),
+                graphics::BlitJobKind::MaskedBobCookieCut, graphics::BlitPtr::from_storage(mask), graphics::BlitPtr::from_storage(s), graphics::BlitPtr::from_storage(d),
                 words, seg_rows, src_mod, dst_mod,
                 1, 0, src_plane_stride, static_cast<u32>(this->m_bytes_per_row * planes), false
             };

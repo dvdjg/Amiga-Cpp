@@ -422,8 +422,8 @@ public:
 	[[nodiscard]] graphics::BlitJob shift_job() const noexcept {
 		graphics::BlitJob j {};
 		j.kind = graphics::BlitJobKind::CopyRect;
-		j.source = graphics::BlitSource::from_storage(m_cfg.plane + 1u);
-		j.destination = graphics::BlitDest::from_storage(m_cfg.plane);
+		j.source = graphics::BlitPtr::from_storage(m_cfg.plane + 1u);
+		j.destination = graphics::BlitPtr::from_storage(m_cfg.plane);
 		j.words_per_row = m_cfg.visible_words;
 		j.height = m_cfg.rows;
 		j.source_modulo_bytes = 2;
@@ -436,8 +436,8 @@ public:
 	[[nodiscard]] graphics::BlitJob column_job(const u16* col) const noexcept {
 		graphics::BlitJob j {};
 		j.kind = graphics::BlitJobKind::CopyRect;
-		j.source = graphics::BlitSource::from_storage(col);
-		j.destination = graphics::BlitDest::from_storage(m_cfg.plane + m_cfg.visible_words);
+		j.source = graphics::BlitPtr::from_storage(col);
+		j.destination = graphics::BlitPtr::from_storage(m_cfg.plane + m_cfg.visible_words);
 		j.words_per_row = 1u;
 		j.height = m_cfg.rows;
 		j.source_modulo_bytes = 0;

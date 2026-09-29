@@ -163,8 +163,9 @@ direcciones sí son tipos de dominio** y los productores los devuelven ya tipado
   ```cpp
   BlitJob copy(eng::Pattern src, PlaneView dst, u8 plane, Rect region);
   ```
-- Se distingue **rol** además de contenido: `BlitSource` (const) y `BlitDest` (mut) evitan
-  intercambiar origen y destino.
+- Se tipa la **procedencia DMA**: `BlitPtr` (dirección `Address<MemoryKind::Chip>` a words) para
+  fuente, destino y máscara de un `BlitJob`; un **solo** tipo para los tres roles (el hardware del
+  Blitter es simétrico y quién es fuente o destino lo decide el campo del `BlitJob`).
 
 ### 3.6 Memoria: medio (dato) vs vida
 
@@ -353,7 +354,7 @@ resultante sigue crudo, generado **dentro** de la capa segura.
 2. **Frontera de memoria**: `Address<MemoryKind::Chip>`/`Address<MemoryKind::Chip>`, `Bitmap`, `Block<Tag>`/`LinearArena`.
 3. **PlaneView + SoftDpfComposition**: primer consumidor real (los punteros `u8*` pasan a
    `Address<MemoryKind::Chip>`/`Address<MemoryKind::Chip>`/`PlaneBytes`).
-4. **Blits/`FramePlan`**: `BlitSource`/`BlitDest` y productores tipados; `BlitJob` crudo.
+4. **Blits/`FramePlan`**: `BlitPtr`/`BlitPtr` y productores tipados; `BlitJob` crudo.
 5. **Contenido/streaming**: `WorldView`, `ChunkLoader`, UAF (`ByteView<UafPayload>`).
 6. **Backend**: blitter/C2P/audio/copper reciben los tipos de dominio en su firma pública
    interna y convierten a crudo en el último punto.
@@ -371,7 +372,7 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
   crudo solo en `hardware_view`). HOST-038/039 actualizados; 112 sin regresión.
   **Productores tipados**: `MemoryBlock::buffer<Tag>()`/`view<Tag>()`, y escenas/bitmaps devuelven
   `PlaneBytes` (`bitplanes()`, `plane(i)`); los consumidores conectan sin cast.
-- **Fase 3 — hecha**: `BlitSource`/`BlitDest` en `BlitJob`; `SoftDpfComposition::make_copy_*` con
+- **Fase 3 — hecha**: `BlitPtr`/`BlitPtr` en `BlitJob`; `SoftDpfComposition::make_copy_*` con
   `Pattern` (con tamaño) + validación; **paleta/copper tipados**: `PalettePatch`/`CopperIntent`
   usan `eng::PaletteWords`, `CopperScheduler::emit_palette`/`emit_palette_zone` también, y los
   campos `palette` de las configs (`XlimitedConfig`/`XlimitedSceneConfig`) son

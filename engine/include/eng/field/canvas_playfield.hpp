@@ -135,7 +135,7 @@ public:
             const u16* s = sbase + eng::math::mulu16(p, static_cast<u16>(src_plane_stride / 2u));
             u16* d = reinterpret_cast<u16*>((m_frontbuffer + eng::math::mulu16(static_cast<u16>(pl + p), m_bytes_per_row) + x_byte).ptr());
             graphics::BlitJob job {
-                graphics::BlitJobKind::CopyRect, graphics::BlitSource {}, graphics::BlitSource::from_storage(s), graphics::BlitDest::from_storage(d),
+                graphics::BlitJobKind::CopyRect, graphics::BlitPtr {}, graphics::BlitPtr::from_storage(s), graphics::BlitPtr::from_storage(d),
                 words, h, src_mod, dst_mod,
                 1, source_shift, src_plane_stride, eng::math::mulu16(m_bytes_per_row, m_planes), descending
             };
@@ -173,7 +173,7 @@ public:
             const u16* s = sbase + eng::math::mulu16(p, static_cast<u16>(src_plane_stride / 2u));
             u16* d = reinterpret_cast<u16*>((m_frontbuffer + eng::math::mulu16(static_cast<u16>(pl + p), m_bytes_per_row) + x_byte).ptr());
             graphics::BlitJob job {
-                graphics::BlitJobKind::MaskedBobCookieCut, graphics::BlitSource::from_storage(mbase), graphics::BlitSource::from_storage(s), graphics::BlitDest::from_storage(d),
+                graphics::BlitJobKind::MaskedBobCookieCut, graphics::BlitPtr::from_storage(mbase), graphics::BlitPtr::from_storage(s), graphics::BlitPtr::from_storage(d),
                 words, h, src_mod, dst_mod,
                 1, source_shift, src_plane_stride, eng::math::mulu16(m_bytes_per_row, m_planes), false
             };

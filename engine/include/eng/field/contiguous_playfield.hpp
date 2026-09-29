@@ -126,7 +126,7 @@ public:
             const u16* s = reinterpret_cast<const u16*>(sp);
             u16* d = reinterpret_cast<u16*>(dp);
             graphics::BlitJob job {
-                graphics::BlitJobKind::CopyRect, graphics::BlitSource {}, graphics::BlitSource::from_storage(s), graphics::BlitDest::from_storage(d),
+                graphics::BlitJobKind::CopyRect, graphics::BlitPtr {}, graphics::BlitPtr::from_storage(s), graphics::BlitPtr::from_storage(d),
                 words, h, src_mod, dst_mod,
                 1, source_shift, src_plane_stride, m_plane_stride, descending
             };
@@ -165,7 +165,7 @@ public:
         const u16* mbase = mask.data();
         u16* dp = reinterpret_cast<u16*>((m_frontbuffer + y0_off + x_byte).ptr());
         graphics::BlitJob job {
-            graphics::BlitJobKind::MaskedBobCookieCut, graphics::BlitSource::from_storage(mbase), graphics::BlitSource::from_storage(sbase), graphics::BlitDest::from_storage(dp),
+            graphics::BlitJobKind::MaskedBobCookieCut, graphics::BlitPtr::from_storage(mbase), graphics::BlitPtr::from_storage(sbase), graphics::BlitPtr::from_storage(dp),
             words, h, src_mod, dst_mod,
             planes, source_shift, src_plane_stride, m_plane_stride, false
         };

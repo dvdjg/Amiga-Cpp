@@ -12,7 +12,7 @@
 ///
 /// ```cpp
 /// // tablero 16x2 en Chip RAM (el Blitter no lee .rodata)
-/// add_rect_pattern(plan, BlitDest {plane0}, row_bytes, x_word, y, words, rows,
+/// add_rect_pattern(plan, BlitPtr {plane0}, row_bytes, x_word, y, words, rows,
 ///                  pattern, pattern_words, pattern_bytes, /*pattern_rows=*/2, plane_bytes);
 /// ```
 
@@ -31,7 +31,7 @@ namespace eng::graphics {
 /// - `pattern_plane_stride` = bytes de un plano del patrón; `planes` = planos.
 ///
 /// Devuelve `false` si el plan se llena o los argumentos no valen.
-[[nodiscard]] inline bool add_rect_pattern(FramePlan& plan, BlitDest dst, u16 dst_row_bytes,
+[[nodiscard]] inline bool add_rect_pattern(FramePlan& plan, BlitPtr dst, u16 dst_row_bytes,
 					   u16 x_word, u16 y, u16 words, u16 rows,
 					   const u16* pattern, u16 pattern_words,
 					   u32 pattern_plane_stride, u8 pattern_rows,
@@ -50,8 +50,8 @@ namespace eng::graphics {
 		}
 		const u16 rows_k = static_cast<u16>((rows - k + pattern_rows - 1u) / pattern_rows);
 		BlitJob job {};
-		job.source = BlitSource::from_storage(pattern + static_cast<u32>(k) * pattern_words);
-		job.destination = BlitDest::from_storage(reinterpret_cast<u16*>(
+		job.source = BlitPtr::from_storage(pattern + static_cast<u32>(k) * pattern_words);
+		job.destination = BlitPtr::from_storage(reinterpret_cast<u16*>(
 			base + static_cast<eng::u32>(y + k) * dst_row_bytes +
 			static_cast<eng::u32>(x_word) * 2u));
 		job.words_per_row = words;

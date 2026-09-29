@@ -72,7 +72,7 @@ no `AmigaBackend::…`. Los campos reflejan lo que el backend precalcula (p. ej.
 
 ### D6 — `BlitJob` por tipo y `frame_plan.hpp` partido (hecho)
 
-`BlitJobKind`/`BlitSource`/`BlitDest`/`BlitJob` viven ahora en `graphics/blit_job.hpp` (separado
+`BlitJobKind`/`BlitPtr`/`BlitPtr`/`BlitJob` viven ahora en `graphics/blit_job.hpp` (separado
 de `frame_plan.hpp`, que queda con el plan, el presupuesto y los dirty rects). Los campos
 específicos de cada operación se agrupan en sub-structs: `job.line` (`x0..y1`, `row_bytes`,
 `base`) para `Line`/`LineEor` y `job.c2p` (`chunky`, `planes`, `plane_stride`, `bytes`) para

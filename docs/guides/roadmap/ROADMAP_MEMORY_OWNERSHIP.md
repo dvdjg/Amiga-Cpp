@@ -21,14 +21,14 @@ Estado real mapeado (2026-09): conviven **dos familias de reserva** que hay que 
 
 **Valor:** evita el error más peligroso (pasar memoria no-Chip a DMA) antes de tocar asignadores.
 
-**Estado (2026-09): hecha.** El ctor crudo implícito de `BlitSource`/`BlitDest` (`const u16*` →
+**Estado (2026-09): hecha.** El ctor crudo implícito de `BlitPtr`/`BlitPtr` (`const u16*` →
 `Address<Chip>`) se ha **retirado**; ahora es la función **nombrada**
-`BlitSource::from_storage`/`BlitDest::from_storage` (como `Address<Chip>::from_storage`), de modo
+`BlitPtr::from_storage`/`BlitPtr::from_storage` (como `Address<Chip>::from_storage`), de modo
 que el acto de certificar Chip se lee como tal. Todos los usos internos migrados. Las fronteras DMA
 declaradas (bitplanes, BOB, patrón, tile, copper, backend) están en `tools/check/casts-frontier.txt`
 con su razón (14 ficheros), y el gate `cast-audit` las exime.
 
-1. Auditoría de `Address<Chip>::from_storage`/`BlitSource`/`BlitDest`: **hecha** (ctor crudo nombrado).
+1. Auditoría de `Address<Chip>::from_storage`/`BlitPtr`/`BlitPtr`: **hecha** (ctor crudo nombrado).
 2. Constructores de puntero crudo fuera del camino `ChipView`: **retirados** (salvo `from_storage`).
 3. Criterio en el gate: `casts-frontier.txt` declara las fronteras DMA con su procedencia.
 

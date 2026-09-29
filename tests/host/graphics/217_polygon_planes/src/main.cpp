@@ -122,9 +122,9 @@ int main() {
 	{
 		eng::graphics::FramePlan plan {};
 		eng::graphics::BlitJob job {};
-		job.source = eng::graphics::BlitSource::from_storage(
+		job.source = eng::graphics::BlitPtr::from_storage(
 			reinterpret_cast<const eng::u16*>(g_dest));
-		job.destination = eng::graphics::BlitDest::from_storage(reinterpret_cast<eng::u16*>(g_dest));
+		job.destination = eng::graphics::BlitPtr::from_storage(reinterpret_cast<eng::u16*>(g_dest));
 		job.words_per_row = 2u;
 		job.height = 8u;
 		job.bitplane_count = 1u;
@@ -145,7 +145,7 @@ int main() {
 		eng::graphics::FramePlan plan {};
 		eng::u16 pat[32] {};
 		const bool ok = eng::graphics::add_rect_pattern(
-			plan, eng::graphics::BlitDest::from_storage(reinterpret_cast<eng::u16*>(g_dest)),
+			plan, eng::graphics::BlitPtr::from_storage(reinterpret_cast<eng::u16*>(g_dest)),
 			kRow, 0u, 0u, 2u, 8u, pat, 2u, 8u, 2u, kPlane, 1u);
 		check(ok, "add_rect_pattern acepta");
 		check(plan.blit_job_count() == 2u, "2 jobs (una por fila del patron)");

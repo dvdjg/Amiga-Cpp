@@ -183,7 +183,7 @@ inline bool bob_erase_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, 
 	const u32 start_row = inter ? static_cast<u32>(t.row_bytes) * t.plane_count
 				    : t.row_bytes; // fila del bitmap en la que empieza la caja
 	BlitJob job {};
-	job.destination = BlitDest::from_storage(reinterpret_cast<u16*>(
+	job.destination = BlitPtr::from_storage(reinterpret_cast<u16*>(
 		t.data() + static_cast<u32>(y) * start_row + (static_cast<u32>(wx) >> 3u)));
 	job.words_per_row = words;
 	job.height = inter ? static_cast<u16>(h * bob.planes) : h;
@@ -211,8 +211,8 @@ inline bool bob_save_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, s
 	}
 	const u32 save_row_bytes = static_cast<u32>(save_words_per_row) * 2u;
 	BlitJob job {};
-	job.destination = BlitDest::from_storage(save.data());
-	job.source = BlitSource::from_storage(reinterpret_cast<const u16*>(
+	job.destination = BlitPtr::from_storage(save.data());
+	job.source = BlitPtr::from_storage(reinterpret_cast<const u16*>(
 		t.data() + static_cast<u32>(y) * t.row_bytes + (static_cast<u32>(x & ~15) >> 3u)));
 	job.words_per_row = words;
 	job.height = h;
@@ -235,8 +235,8 @@ inline bool bob_restore_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x
 	}
 	const u32 save_row_bytes = static_cast<u32>(save_words_per_row) * 2u;
 	BlitJob job {};
-	job.source = BlitSource::from_storage(save.data());
-	job.destination = BlitDest::from_storage(reinterpret_cast<u16*>(
+	job.source = BlitPtr::from_storage(save.data());
+	job.destination = BlitPtr::from_storage(reinterpret_cast<u16*>(
 		t.data() + static_cast<u32>(y) * t.row_bytes + (static_cast<u32>(x & ~15) >> 3u)));
 	job.words_per_row = words;
 	job.height = h;
@@ -279,9 +279,9 @@ inline bool bob_draw_interleaved_pair(FramePlan& plan, const Bob& bob, u8 frame,
 	const u16* src = reinterpret_cast<const u16*>(
 		bob.sheet.address(static_cast<u32>(frame) * bob.frame_stride).cptr());
 	BlitJob job {};
-	job.mask = BlitSource::from_storage(src);                 // 1ª mitad de la fila = máscara
-	job.source = BlitSource::from_storage(src + words);       // 2ª mitad = imagen
-	job.destination = BlitDest::from_storage(reinterpret_cast<u16*>(
+	job.mask = BlitPtr::from_storage(src);                 // 1ª mitad de la fila = máscara
+	job.source = BlitPtr::from_storage(src + words);       // 2ª mitad = imagen
+	job.destination = BlitPtr::from_storage(reinterpret_cast<u16*>(
 		t.data() + static_cast<u32>(y) * start_row + (static_cast<u32>(x_start) >> 3u)));
 	job.words_per_row = words;
 	job.height = static_cast<u16>(bob.height * bob.planes);
@@ -322,9 +322,9 @@ __attribute__((always_inline)) inline bool bob_draw(FramePlan& plan, const Bob& 
 	const u32 start_row = inter ? static_cast<u32>(t.row_bytes) * t.plane_count : t.row_bytes;
 
 	BlitJob job {};
-	job.source = BlitSource::from_storage(reinterpret_cast<const u16*>(
+	job.source = BlitPtr::from_storage(reinterpret_cast<const u16*>(
 		bob.sheet.address(static_cast<u32>(frame) * bob.frame_stride).cptr()));
-	job.destination = BlitDest::from_storage(reinterpret_cast<u16*>(
+	job.destination = BlitPtr::from_storage(reinterpret_cast<u16*>(
 		t.data() + static_cast<u32>(y) * start_row + (static_cast<u32>(x_start) >> 3u)));
 	job.words_per_row = words;
 	job.height = inter ? static_cast<u16>(bob.height * bob.planes) : bob.height;
@@ -342,7 +342,7 @@ __attribute__((always_inline)) inline bool bob_draw(FramePlan& plan, const Bob& 
 		if (bob.mask.empty()) {
 			return false; // cookie-cut sin mascara
 		}
-		job.mask = BlitSource::from_storage(reinterpret_cast<const u16*>(bob.mask.data()));
+		job.mask = BlitPtr::from_storage(reinterpret_cast<const u16*>(bob.mask.data()));
 		return plan.add_masked_bob(job);
 	}
 	return plan.add_or_blob(job);

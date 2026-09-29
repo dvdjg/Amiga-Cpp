@@ -242,7 +242,7 @@ struct PolygonPlanesDemo {
 			constexpr eng::u8 kPatRows = 2u;
 			graphics::FramePlan plan {};
 			if (graphics::add_rect_pattern(
-				    plan, graphics::BlitDest(reinterpret_cast<eng::u16*>(planes.data())),
+				    plan, graphics::BlitPtr(reinterpret_cast<eng::u16*>(planes.data())),
 				    kBytesPerRow, 0u, kFloorY, static_cast<eng::u16>(kBytesPerRow / 2u),
 				    kFloorH,
 				    reinterpret_cast<const eng::u16*>(m_pattern.view.data()),
