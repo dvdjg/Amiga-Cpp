@@ -200,8 +200,8 @@ public:
 			(static_cast<eng::u32>(dest_row) * m_geo.planes + m_geo.parallax_plane) * row +
 			dest_byte_off);
 		return { eng::graphics::BlitJobKind::TileBlockCopy, eng::graphics::BlitSource {},
-		         eng::graphics::BlitSource { reinterpret_cast<const eng::u16*>(src) },
-		         eng::graphics::BlitDest { dst },
+		         eng::graphics::BlitSource::from_storage(reinterpret_cast<const eng::u16*>(src)),
+		         eng::graphics::BlitDest::from_storage(dst),
 		         words, rows,
 		         static_cast<s16>(pat_row - width_bytes),
 		         static_cast<s16>(row * m_geo.planes - width_bytes),

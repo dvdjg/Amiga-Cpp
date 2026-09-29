@@ -21,16 +21,16 @@ Estado real mapeado (2026-09): conviven **dos familias de reserva** que hay que 
 
 **Valor:** evita el error más peligroso (pasar memoria no-Chip a DMA) antes de tocar asignadores.
 
-1. Auditar los usos de `Address<Chip>::from_storage(...)` **fuera** de `typed.hpp`/`ChipStorage` y
-   comprobar que cada uno cita su procedencia (arena Chip, `Bitmap`, `.MEMF_CHIP`). Los que no,
-   migrar a `Block::mem_view_chip()` (que valida el banco) o `ChipStorage`.
-2. Igual con los constructores `BlitSource`/`BlitDest` desde puntero crudo: revisar quién los usa
-   fuera del camino `ChipView<Tag>`.
-3. Añadir criterio al gate `raw-pointer-members`/`casts`: `from_storage` solo permitido en los
-   ficheros-frontera declarados (`casts-frontier.txt`).
+**Estado (2026-09): hecha.** El ctor crudo implícito de `BlitSource`/`BlitDest` (`const u16*` →
+`Address<Chip>`) se ha **retirado**; ahora es la función **nombrada**
+`BlitSource::from_storage`/`BlitDest::from_storage` (como `Address<Chip>::from_storage`), de modo
+que el acto de certificar Chip se lee como tal. Todos los usos internos migrados. Las fronteras DMA
+declaradas (bitplanes, BOB, patrón, tile, copper, backend) están en `tools/check/casts-frontier.txt`
+con su razón (14 ficheros), y el gate `cast-audit` las exime.
 
-**Evidencia:** `node tools/analyze/cast-audit.mjs --check`, grep de `from_storage` acotado, y una
-demo que intente (y no compile) pasar `Fast` a una API Chip (test negativo en host).
+1. Auditoría de `Address<Chip>::from_storage`/`BlitSource`/`BlitDest`: **hecha** (ctor crudo nombrado).
+2. Constructores de puntero crudo fuera del camino `ChipView`: **retirados** (salvo `from_storage`).
+3. Criterio en el gate: `casts-frontier.txt` declara las fronteras DMA con su procedencia.
 
 ## Fase 1 — Unificar la puerta de reserva y de liberación (núcleo de (a))
 

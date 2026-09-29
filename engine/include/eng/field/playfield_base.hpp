@@ -491,9 +491,9 @@ public:
         for (u8 p = 0; p < m_planes; ++p) {
             if ((color & (1u << p)) == 0u) continue;
             graphics::BlitJob job {};
-            job.destination = graphics::BlitDest {
-                reinterpret_cast<u16*>((m_frontbuffer + static_cast<u32>(p) * pstride).ptr())};
-            job.line.base = graphics::BlitDest {reinterpret_cast<u16*>(m_frontbuffer.ptr())};
+            job.destination = graphics::BlitDest::from_storage(
+                reinterpret_cast<u16*>((m_frontbuffer + static_cast<u32>(p) * pstride).ptr()));
+            job.line.base = graphics::BlitDest::from_storage(reinterpret_cast<u16*>(m_frontbuffer.ptr()));
             job.bitplane_count = 1;
             job.line.x0 = x0;
             job.line.y0 = y0;

@@ -562,8 +562,8 @@ public:
 		return {
 			graphics::BlitJobKind::TileBlockCopy,
 			graphics::BlitSource {},
-			graphics::BlitSource { tile_source },
-			graphics::BlitDest { plane_tile_destination(0, surface_tile_x, surface_tile_y) },
+			graphics::BlitSource::from_storage(tile_source),
+			graphics::BlitDest::from_storage(plane_tile_destination(0, surface_tile_x, surface_tile_y)),
 			1,
 			tile_size,
 			0,
@@ -612,8 +612,8 @@ public:
 		out[0] = {
 			graphics::BlitJobKind::TileBlockCopy,
 			graphics::BlitSource {},
-			graphics::BlitSource { tile_planes },
-			graphics::BlitDest { plane_tile_destination(hardware_plane_of(playfield, 0), static_cast<u16>(page_x + surface_tile_x), static_cast<u16>(page_y + surface_tile_y)) },
+			graphics::BlitSource::from_storage(tile_planes),
+			graphics::BlitDest::from_storage(plane_tile_destination(hardware_plane_of(playfield, 0), static_cast<u16>(page_x + surface_tile_x), static_cast<u16>(page_y + surface_tile_y))),
 			1,
 			tile_size,
 			0,

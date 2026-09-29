@@ -5,3 +5,14 @@
 engine/include/eng/graphics/blit_queue.hpp   # blitter_job_from: unico encoder BLTCON/registros
 engine/include/eng/graphics/blit_job.hpp      # BlitSource/BlitDest: roles que nacen de una vista
 engine/include/eng/platform/amiga/object3d.hpp # frontera obj2c/asm: byte<->struct del mesh (layout fijo)
+engine/include/eng/graphics/bob.hpp           # BOB: punteros de registro derivados de BobTarget (Chip certificado por la vista)
+engine/include/eng/graphics/pattern_fill.hpp  # patrones: fila de la fuente ya en Chip (Block/patron certificado)
+engine/include/eng/field/playfield_base.hpp   # bitplanes: BlitDest desde m_frontbuffer (Address<Chip> del playfield)
+engine/include/eng/field/canvas_playfield.hpp # bitplanes interleaved: desplazamiento de la base Chip del Buffer
+engine/include/eng/field/contiguous_playfield.hpp # bitplanes contiguos: base Chip + strides de la vista
+engine/include/eng/field/xlimited_playfield.hpp   # tile blits: RLE/desplazamiento sobre la base Chip del bitmap
+engine/include/eng/field/soft_dpf.hpp         # DPF suave: copia de plano a plano (bases Chip del bitmap)
+engine/include/eng/scene/bobs.hpp             # BOB de escena: BlitDest desde el target Chip
+engine/src/platform/amiga/amiga_blitter.cpp   # backend: plano (PlaneBytes) -> registro del Blitter (frontera DMA)
+engine/include/eng/graphics/copper/scheduler.hpp # emisor Copper: Address<Chip> de los bloques del plan
+engine/include/eng/graphics/copper/copper.hpp    # ListBuilder: palabras de la copperlist (Address<Chip>)

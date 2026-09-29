@@ -50,8 +50,8 @@ namespace eng::graphics {
 		}
 		const u16 rows_k = static_cast<u16>((rows - k + pattern_rows - 1u) / pattern_rows);
 		BlitJob job {};
-		job.source = BlitSource(pattern + static_cast<u32>(k) * pattern_words);
-		job.destination = BlitDest(reinterpret_cast<u16*>(
+		job.source = BlitSource::from_storage(pattern + static_cast<u32>(k) * pattern_words);
+		job.destination = BlitDest::from_storage(reinterpret_cast<u16*>(
 			base + static_cast<eng::u32>(y + k) * dst_row_bytes +
 			static_cast<eng::u32>(x_word) * 2u));
 		job.words_per_row = words;

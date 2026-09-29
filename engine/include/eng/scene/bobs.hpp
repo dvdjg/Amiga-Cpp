@@ -90,8 +90,8 @@ private:
 	const eng::u32 start_row =
 		inter ? static_cast<eng::u32>(t.row_bytes) * t.plane_count : t.row_bytes;
 	eng::graphics::BlitJob job {};
-	job.destination = {reinterpret_cast<eng::u16*>(t.data() + static_cast<eng::u32>(y) * start_row +
-						       (static_cast<eng::u32>(wx) >> 3u))};
+	job.destination = eng::graphics::BlitDest::from_storage(reinterpret_cast<eng::u16*>(
+		t.data() + static_cast<eng::u32>(y) * start_row + (static_cast<eng::u32>(wx) >> 3u)));
 	job.words_per_row = words;
 	job.height = inter ? static_cast<eng::u16>(h * t.plane_count) : h;
 	job.destination_modulo_bytes =

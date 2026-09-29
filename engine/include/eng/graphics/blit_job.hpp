@@ -60,10 +60,14 @@ struct BlitSource {
 	eng::Address<eng::MemoryKind::Chip> addr {};
 	constexpr BlitSource() noexcept = default;
 	constexpr BlitSource(eng::Address<eng::MemoryKind::Chip> a) noexcept : addr(a) {}
-	/// Desde un puntero crudo: frontera explícita (tests/backend que ya garantizan Chip).
-	constexpr BlitSource(const u16* w) noexcept
-		: addr(eng::Address<eng::MemoryKind::Chip>::from_storage(
-			  reinterpret_cast<const eng::u8*>(w))) {}
+	/// **Frontera explícita** desde un puntero crudo a words: solo para código que ya garantiza
+	/// Chip RAM (backend/test con procedencia certificada). Nombrada para que el acto se lea como
+	/// tal — igual que `Address<Chip>::from_storage`. Ver `MEMORY_OWNERSHIP.md` §"Prohibición de
+	/// memoria no certificada para DMA". Preferir el ctor desde `ChipView<Tag>`.
+	[[nodiscard]] static constexpr BlitSource from_storage(const u16* w) noexcept {
+		return BlitSource {eng::Address<eng::MemoryKind::Chip>::from_storage(
+			reinterpret_cast<const eng::u8*>(w))};
+	}
 	/// Desde una vista tipada en Chip (`ChipView<Tag>`) con `off` en bytes.
 	template <class Tag>
 	constexpr BlitSource(eng::ChipView<Tag> v, eng::s32 off = 0) noexcept : addr(v.address(off)) {}
@@ -78,9 +82,11 @@ struct BlitDest {
 	eng::Address<eng::MemoryKind::Chip> addr {};
 	constexpr BlitDest() noexcept = default;
 	constexpr BlitDest(eng::Address<eng::MemoryKind::Chip> a) noexcept : addr(a) {}
-	constexpr BlitDest(u16* w) noexcept
-		: addr(eng::Address<eng::MemoryKind::Chip>::from_storage(
-			  reinterpret_cast<const eng::u8*>(w))) {}
+	/// **Frontera explícita** desde un puntero crudo a words (ver `BlitSource::from_storage`).
+	[[nodiscard]] static constexpr BlitDest from_storage(u16* w) noexcept {
+		return BlitDest {eng::Address<eng::MemoryKind::Chip>::from_storage(
+			reinterpret_cast<const eng::u8*>(w))};
+	}
 	template <class Tag>
 	constexpr BlitDest(eng::ChipView<Tag> v, eng::s32 off = 0) noexcept : addr(v.address(off)) {}
 	[[nodiscard]] constexpr u16* words() const noexcept {
@@ -181,9 +187,9 @@ inline void make_interleaved_masked_bob(BlitJob& job, const u16* src, u16* dest,
 	const u16 words = static_cast<u16>(w / 16u);
 	job = BlitJob {};
 	job.kind = BlitJobKind::MaskedBobCookieCut;
-	job.mask = BlitSource {src};
-	job.source = BlitSource {src + words}; // 2ª mitad de la fila = imagen
-	job.destination = BlitDest {dest};
+	job.mask = BlitSource::from_storage(src);
+	job.source = BlitSource::from_storage(src + words); // 2ª mitad de la fila = imagen
+	job.destination = BlitDest::from_storage(dest);
 	job.words_per_row = words;
 	job.height = static_cast<u16>(h * planes);
 	// Avance por "fila" (una fila de UN plano): el par ocupa `2*words` palabras.

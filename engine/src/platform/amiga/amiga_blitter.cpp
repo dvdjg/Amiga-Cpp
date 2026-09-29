@@ -300,7 +300,7 @@ bool AmigaBackend::blitter_line(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s1
 	// de octante/error ya no se duplica aquí.
 	graphics::BlitJob job {};
 	job.kind = graphics::BlitJobKind::Line;
-	job.destination = graphics::BlitDest {reinterpret_cast<u16*>(plane.data())};
+	job.destination = graphics::BlitDest::from_storage(reinterpret_cast<u16*>(plane.data()));
 	job.line.x0 = x0;
 	job.line.y0 = y0;
 	job.line.x1 = x1;
