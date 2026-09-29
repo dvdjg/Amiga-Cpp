@@ -22,3 +22,4 @@ Categoría `audio` de la batería host (L1). El índice de categorías está en 
 | HOST-362 | [aplib](362_aplib/README.md) | Descompresor aPLib (`eng/audio/aplib.hpp`) contra un flujo real de `apultra`; dispatch `Codec::APLib` y rechazos. |
 | HOST-363 | [pcm_stream_seek](363_pcm_stream_seek/README.md) | `PcmStream<3>` (triple buffer) y `seek(chunk)`: reposiciona el stream en un chunk del índice. |
 | HOST-370 | [audio_plan](370_audio_plan/README.md) | Presupuesto de `AudioPlan` (`eng/audio/audio.hpp`): `AudioBudget`/`Limits`/`Report` (voces DMA + palabras), análogo de `BlitBudget`. |
+| HOST-371 | [sound_queue](371_sound_queue/README.md) | `SoundQueue` (`eng/audio/sound_queue.hpp`): `SoundIntent` sobre el mecanismo `eng::IntentQueue` (`eng/core`) → `AudioPlan`; la misma cola que blit/dibujo. |

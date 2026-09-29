@@ -16,9 +16,10 @@ namespace eng::os {
 
 /// `Done` de una cola de intención: postea el evento `IntentDone` con el `ticket`.
 ///
-/// El `ticket` va como `eng::u32` (el tipo `graphics::Ticket` es un `u32`): así **`os` no depende
-/// de `graphics`**. Si la cola del puerto está llena, el aviso **se pierde** (documentado: la
-/// completación es un aviso, no una garantía de entrega; el `wait()` sigue siendo el bloqueo).
+/// El `ticket` va como `eng::u32` (el tipo `eng::Ticket` es un `u32`): así **`os` no depende** del
+/// vocabulario que lo usa (gráficos, audio). Si la cola del puerto está llena, el aviso **se
+/// pierde** (documentado: la completación es un aviso, no una garantía de entrega; el `wait()`
+/// sigue siendo el bloqueo).
 template <eng::u16 N = 32u>
 struct IntentDonePoster {
 	eng::Ref<MsgPort<N>> port {};

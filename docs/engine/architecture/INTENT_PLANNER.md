@@ -146,16 +146,19 @@ Un **solo** sumidero recibe las intenciones de todos los productores y las gobie
 - **Estado en código** (la ruta ya existe y está probada): `DrawRecipe`/`scene::DrawLayer` (setup) →
   `IntentQueue` (mecanismo, `Item` genérico) → el **sumidero** `FramePlan` (por `PlanExecutor`) **o**
   el **evento** `Msg IntentDone` (por `IntentDonePoster`). HOST-368 (cola + receta + capa) y
-  HOST-369 (intención → evento) lo fijan. La **capa** vive en `eng::scene` (política); la **cola** y
-  el **vocabulario**, en `eng::graphics` (mecanismo).
+  HOST-369 (intención → evento) lo fijan. La **capa** vive en `eng::scene` (política); la **cola**
+  (mecanismo) vive en `eng/core/util` (`intent_queue.hpp`, pura); el **vocabulario** de dibujo, en
+  `eng/graphics`, y el de audio (`SoundIntent`/`SoundQueue`), en `eng/audio/sound_queue.hpp` — así la
+  cola la comparten blit, dibujo y audio **sin** que `eng/audio` dependa de `eng/graphics`.
 
 ### 7.1 Decisión: un **sumidero único**, vías como políticas
 
 - **El `FramePlan` es *el* sumidero** de la capa 2: no hay un segundo plan paralelo. La vía
   (CPU-ventana / Blitter / Copper) es una **política** del ejecutor, nunca un subsistema aparte.
 - **La cola es única y genérica**: `IntentQueue<N, Item, Executor, Done>`
-  (`intent_queue.hpp`). El `BlitQueue` es su instancia con `Item = BlitOp`; un `SoundQueue` es la
-  instancia con `Item = SoundIntent`. **Mismo mecanismo** (ticket + completación) para todos.
+  (`eng/core/util/intent_queue.hpp`). El `BlitQueue` es su instancia con `Item = BlitOp`; el
+  `SoundQueue` (`eng/audio/sound_queue.hpp`) la instancia con `Item = SoundIntent`. **Mismo
+  mecanismo** (ticket + completación) para todos.
 - **El audio es un `plan` análogo** (`AudioPlan`): reparto de voces (Sfx/Music), presupuesto por
   frame e IRQ (Paula) como feeders — la misma forma que el plan de blit. Hoy `eng::audio` ya tiene
   mezclador/reproductores; el `AudioPlan` es el **contrato** que los unifica con el planner.

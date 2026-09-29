@@ -12,7 +12,7 @@
 using eng::graphics::DrawIntent;
 using eng::graphics::DrawKind;
 using eng::graphics::DrawQueue;
-using eng::graphics::Ticket;
+using eng::Ticket;
 using eng::os::IntentDonePoster;
 using eng::os::Msg;
 using eng::os::MsgPort;

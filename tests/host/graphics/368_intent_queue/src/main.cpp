@@ -13,7 +13,7 @@
 using eng::graphics::DrawIntent;
 using eng::graphics::DrawKind;
 using eng::graphics::DrawQueue;
-using eng::graphics::Ticket;
+using eng::Ticket;
 
 namespace {
 int g_fail = 0;
@@ -117,7 +117,7 @@ int main() {
 			}
 		};
 		Cap cap;
-		eng::graphics::DrawQueue<4u, Cap, eng::graphics::NoDone> lq;
+		eng::graphics::DrawQueue<4u, Cap, eng::NoDone> lq;
 		lq.bind(cap);
 		layer.emit(lq);
 		lq.wait_all();
@@ -161,7 +161,7 @@ int main() {
 
 		FramePlan plan;
 		SpritePlanExecutor exec {plan, target};
-		eng::graphics::DrawQueue<4u, SpritePlanExecutor, eng::graphics::NoDone> dq;
+		eng::graphics::DrawQueue<4u, SpritePlanExecutor, eng::NoDone> dq;
 		dq.bind(exec);
 		layer.emit(dq);
 		dq.wait_all();

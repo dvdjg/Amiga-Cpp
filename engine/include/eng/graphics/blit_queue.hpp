@@ -255,8 +255,8 @@ private:
 /// `wait` es el único bloqueo. El ejecutor es **el mismo** contrato que el resto de colas
 /// (`ready()`/`run(item)`): una sola forma de encolar, para blit y no-blit.
 template <eng::u16 N, class Executor>
-	requires QueueExecutor<Executor, BlitOp>
-class BlitQueue : public IntentQueue<N, BlitOp, Executor, NoDone> {
+	requires eng::QueueExecutor<Executor, BlitOp>
+class BlitQueue : public eng::IntentQueue<N, BlitOp, Executor, eng::NoDone> {
 public:
 	/// **Intención**: rellenar (`D = 0`) un rectángulo del destino (una petición).
 	void fill(BitmapView<PlaneTag, MemoryKind::Chip> dst, BlitRect rect) noexcept {
