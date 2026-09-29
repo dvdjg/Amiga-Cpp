@@ -67,6 +67,9 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 	}
 
 	if (line || line_eor) {
+		// Línea por Blitter (LINE) o EOR/ONEDOT: programan `BLTCON*`/`BLTxMOD` por su cuenta (racha
+		// EOR con preámbulo propio), así que invalidan la caché de estado común.
+		m_blt_common_valid = false;
 		// Línea por Blitter (LINE) o EOR/ONEDOT sobre el plano del `destination`.
 		eng::PlaneBytes pb {reinterpret_cast<eng::u8*>(job.destination.words()), 0u};
 		eng::u8* d_base = job.line.base.words() != nullptr
@@ -96,6 +99,7 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 	eor_open = false; // cualquier otro job cierra la racha EOR
 
 	if (c2p) {
+		m_blt_common_valid = false; // C2P reprograma los registros por fases: invalida la caché
 		// Chunky->planar por Blitter: 13 fases encadenadas (cada `step` espera al
 		// Blitter). Es la via Blitter del seam `Rasterizer::c2p`.
 		C2p4State st {};
@@ -115,6 +119,37 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 
 	const u32 source_plane_stride_words = job.source_plane_stride_bytes / sizeof(u16);
 	const u32 destination_plane_stride_words = job.destination_plane_stride_bytes / sizeof(u16);
+	// Registros derivados de la intención por el **encoder único** (`blitter_job_from`): la
+	// codificación (BLTCON/MOD/minterm) NO se duplica aquí. Se calcula **una vez por job** (no por
+	// plano: los comunes no dependen del plano) y los PUNTEROS sí se re-apuntan por canal y plano.
+	const graphics::BlitterJob b = graphics::blitter_job_from(job);
+	// Estado común del Blitter (`BLTCON*`, ventanas de A y módulos) — **idéntico entre planos**.
+	// Se escribe **por racha**: si un job consecutivo comparte estos registros con el anterior, se
+	// omiten las escrituras a custom (el hardware ignora reescribir el mismo valor, pero cada
+	// escritura cuesta bus). La caché se invalida cuando otro camino toca los registros (línea/EOR/
+	// C2P), que programan su propia secuencia.
+	const bool common_same =
+		m_blt_common_valid && m_blt_con0 == b.bltcon0 && m_blt_con1 == b.bltcon1 &&
+		m_blt_afwm == b.bltafwm && m_blt_alwm == b.bltalwm && m_blt_amod == b.bltamod &&
+		m_blt_bmod == b.bltbmod && m_blt_cmod == b.bltcmod && m_blt_dmod == b.bltdmod;
+	if (!common_same) {
+		custom_base[custom_bltcon0_offset] = b.bltcon0;		custom_base[custom_bltcon1_offset] = b.bltcon1;
+		custom_base[custom_bltafwm_offset] = b.bltafwm;
+		custom_base[custom_bltalwm_offset] = b.bltalwm;
+		custom_base[custom_bltamod_offset] = static_cast<u16>(b.bltamod);
+		custom_base[custom_bltbmod_offset] = static_cast<u16>(b.bltbmod);
+		custom_base[custom_bltcmod_offset] = static_cast<u16>(b.bltcmod);
+		custom_base[custom_bltdmod_offset] = static_cast<u16>(b.bltdmod);
+		m_blt_con0 = b.bltcon0;
+		m_blt_con1 = b.bltcon1;
+		m_blt_afwm = b.bltafwm;
+		m_blt_alwm = b.bltalwm;
+		m_blt_amod = b.bltamod;
+		m_blt_bmod = b.bltbmod;
+		m_blt_cmod = b.bltcmod;
+		m_blt_dmod = b.bltdmod;
+		m_blt_common_valid = true;
+	}
 	for (u8 plane = 0; plane < job.bitplane_count; ++plane) {
 		if (!wait_blitter()) {
 			return false;
@@ -123,18 +158,6 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 		const u16* source_plane = job.source.words() + static_cast<u32>(plane) * source_plane_stride_words;
 		u16* destination_plane = job.destination.words() + static_cast<u32>(plane) * destination_plane_stride_words;
 
-		// Registros derivados de la intención por el **encoder único** (`blitter_job_from`):
-		// la codificación (BLTCON/MOD/minterm) NO se duplica aquí. Los PUNTEROS sí se
-		// re-apuntan por canal y por plano (el encoder los da para el plano 0).
-		const graphics::BlitterJob b = graphics::blitter_job_from(job);
-		custom_base[custom_bltcon0_offset] = b.bltcon0;
-		custom_base[custom_bltcon1_offset] = b.bltcon1;
-		custom_base[custom_bltafwm_offset] = b.bltafwm;
-		custom_base[custom_bltalwm_offset] = b.bltalwm;
-		custom_base[custom_bltamod_offset] = static_cast<u16>(b.bltamod);
-		custom_base[custom_bltbmod_offset] = static_cast<u16>(b.bltbmod);
-		custom_base[custom_bltcmod_offset] = static_cast<u16>(b.bltcmod);
-		custom_base[custom_bltdmod_offset] = static_cast<u16>(b.bltdmod);
 		const bool shifted_copy = !masked && !or_blob && !logic && job.source_shift != 0u;
 		if (clear) {
 			write_custom_pointer(custom_bltdpt_offset, destination_plane);

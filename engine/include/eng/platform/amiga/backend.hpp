@@ -640,6 +640,18 @@ private:
 	void* m_fast_alloc = nullptr; ///< bloque base de Fast RAM (CPU) reservado, si hay
 	u32 m_fast_alloc_size = 0; ///< tamaño (KB) del bloque de Fast RAM
 	u32 m_blitter_starts = 0; ///< contador de blits lanzados (diagnóstico)
+	/// **Caché del estado común del Blitter** (registros `BLTCON*`/ventanas/módulos): si un job
+	/// consecutivo los comparte, se omiten sus escrituras a custom. La invalidan los caminos que
+	/// programan los registros por su cuenta (línea/EOR/C2P) — ver `submit_blit_job`.
+	bool m_blt_common_valid = false;
+	u16 m_blt_con0 = 0;
+	u16 m_blt_con1 = 0;
+	u16 m_blt_afwm = 0;
+	u16 m_blt_alwm = 0;
+	s16 m_blt_amod = 0;
+	s16 m_blt_bmod = 0;
+	s16 m_blt_cmod = 0;
+	s16 m_blt_dmod = 0;
 	/// Estado del lote de BOBs no-inline (`blitter_or_bobs_begin/one/end`): delega en
 	/// la misma implementacion `inline` de `blob.hpp` que usa el camino de coste cero.
 	eng::amiga::OrBlobBatch m_or_bob {};

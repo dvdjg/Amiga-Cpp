@@ -211,6 +211,43 @@ puede generar variantes del asset para esos desplazamientos; solo compensa si el
 programación o de DMA supera el coste de memoria. Las máscaras y variantes no deben regenerarse en
 el bucle caliente sin una medición que lo justifique.
 
+## Prioridades de rendimiento (ROI, verificado)
+
+Cruce del estado real (jul 2026) con las propuestas de arriba. Ordenado por **retorno sobre
+esfuerzo**; cada punto exige **test de equivalencia píxel a píxel** + **medición** (escrituras de
+registro evitadas y ciclos) antes de darse por bueno.
+
+1. **Caché de estado común del Blitter** (mayor ROI). Hoy cada `BlitJob` reprograma **todos** los
+   registros en `blitter_job_from`. Para una **racha** con el mismo estado común (`BLTCON` =
+   minterm + uso de canales + `ASH`; máscara; módulos; layout; `bitplane_count`) bastaría fijarlo
+   **una vez** y cambiar solo **punteros + `BLTSIZE`** por job — exactamente lo que ya hace
+   `OrBlobBatch` para blobs, **generalizado** a `CopyRect`/cookie-cut/`LogicBlit`. Clave de racha:
+   `(minterm, source_shift, source_modulo, dest_modulo, mask_present, interleaved)`. **Invalidación
+   obligatoria** si otro camino escribe custom (Copper, C2P, línea) o cambia de dueño. Evita ~N×K
+   escrituras a registro por racha (K = registros comunes).
+2. **Agrupación de blits por clave** (destino/layout/minterm/shift/tamaño): reordenar **solo**
+   operaciones **declaradas compatibles**; conservar el orden si hay `Clear`/`EOR`/distintos destinos
+   o cualquier resultado dependiente de secuencia. Reduce lanzamientos y facilita (1).
+3. **Batch compacto de líneas** (`LineBatch`): hoy cada segmento se expande a un `BlitJob` **por
+   plano** con todos los metadatos duplicados. Un batch conserva la **geometría + máscara de planos**
+   y el backend calcula **una vez** octante/incrementos/error/`BLTSIZE`, aplicándolos a cada plano
+   activo. No convierte varias líneas en un blit (el hardware escribe planos independientes), pero
+   elimina el coste de preparación × planos.
+4. **Cookie-cut intercalado**: un cookie-cut planar cuesta 1 lanzamiento por plano; un asset
+   intercalado con la **máscara replicada** por fila de plano lo hace en **1 lanzamiento** (mismo
+   principio que `OrBlobBatch`). Solo cuando el destino lo permita (planos contiguos).
+5. **Estado precalculado en el sumidero**: `blitter_job_from` recomputa todo por job; el invariante
+   (módulos, `BLTCON`) puede venir del **setup** (regla de coste: lo invariante fuera del bucle).
+   Encaja con (1).
+
+**Ya cubierto / parked:** vistas con banco (`MemView`/`Block`) — hecho; C2P y `LineEor` en lote —
+parked/documentado; `BLTPRI` on/off — falta medición por caso (con `BLTPRI` el Blitter no cede slots
+y el feeder por IRQ no solapa).
+
+**Medir siempre** en cuatro rutas: jobs actuales · batch compacto · batch con geometría compartida ·
+batch con caché de estado. Métricas: construcción de la cola, **escrituras de registro**, arranques
+y esperas del Blitter, tiempo total y memoria de la descripción.
+
 ## Verificación
 
 - **HOST-212**: `RasterOp` (`Xor` dos veces = 0, `Or`/`And`/`Clear`), `BlitterRaster` (fill y
