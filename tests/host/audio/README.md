@@ -26,3 +26,5 @@ Categoría `audio` de la batería host (L1). El índice de categorías está en 
 | HOST-372 | [audio_feeder](372_audio_feeder/README.md) | `AudioFeeder` (`eng/audio/audio_feeder.hpp`): feeder IRQ-apto (nivel 4) con `irq`/`swaps`/`underrun`; alimentado a tiempo `irq == swaps`, 0 underruns. |
 | HOST-373 | [sound_planner](373_sound_planner/README.md) | `SoundPlanner` (`eng/audio/sound_planner.hpp`): une intención (`SoundQueue`) + plan (`AudioPlan`) + aviso (`Msg IntentDone`/`AudioUnderrun`) con una llamada por frame. |
 | HOST-374 | [wav_loader](374_wav_loader/README.md) | Loader host-only de WAV PCM lineal mono/estéreo de 8/16 bits a PCM8 mono con signo. |
+| HOST-375 | [stream_intent](375_stream_intent/README.md) | Intención portable de reproducción continua por recurso, compatible con backend Paula o mixer. |
+| HOST-376 | [stream_window](376_stream_window/README.md) | Evaluación host por ventanas reutilizables con presupuesto de 6 GiB. |

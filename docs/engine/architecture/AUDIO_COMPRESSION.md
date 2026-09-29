@@ -76,7 +76,9 @@ El análisis armónico no se almacena como metadato decorativo: solo se seleccio
 
 El encoder debe conservar la señal normalizada como referencia y verificar el round-trip. Las métricas mínimas son MSE, RMS del error, SNR, pico absoluto y ratio `bytes_AUZX / bytes_PCM`. Para el material musical se añadirá ponderación perceptual por energía y bandas, sin usar una métrica perceptual para ocultar un error de reconstrucción byte a byte en modos lossless.
 
-Los parámetros explorables serán frecuencia, canales de entrada, tasa de salida, tamaño de chunk, predictor, bits de cuantización, escala, dithering, noise shaping, preénfasis, codec y umbrales de tonalidad. Cada ensayo debe guardar la configuración completa y el hash de la entrada bajo `out/playground/audio-compressor/`.
+Los parámetros explorables serán frecuencia, canales de entrada, tasa de salida, tamaño de chunk, predictor, bits de cuantización, escala, dithering, noise shaping, preénfasis, codec y umbrales de tonalidad. El entrenamiento host trabaja por ventanas reutilizadas y tiene un presupuesto declarado de 6 GiB; la duración del audio no determina el consumo de RAM. Cada ensayo debe guardar la configuración completa y el hash de la entrada bajo `out/playground/audio-compressor/`. El evaluador solo puede publicar MSE/SNR si el adaptador ha reconstruido la ventana; el tamaño comprimido por sí solo no es una métrica de calidad.
+
+La reproducción se solicita con una `StreamIntent` (`eng/audio/stream_intent.hpp`): el juego aporta un `AudioStreamId`, volumen, bucle y número de buffers, y el backend decide si materializa una voz DMA de Paula o una voz del mixer. `PcmStream` y `AudioFeeder` siguen siendo la implementación de bajo nivel; la intención es la interfaz cómoda y no bloqueante.
 
 ## Restricciones del decoder Amiga
 

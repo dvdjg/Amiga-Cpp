@@ -25,6 +25,8 @@ Plan del pipeline offline de compresión de audio y del decoder `AUZX` del engin
 - Parámetros declarativos en línea de comandos y perfiles reproducibles en JSON.
 - Barrido de tamaño de chunk 256/512/1024/2048 y elección por coste/calidad.
 - Corpus de SFX, voz, percusión, pads y música; resultados en `out/playground/audio-compressor/`.
+- Evaluación por ventanas reutilizadas con presupuesto host explícito de 6 GiB; no se carga el audio completo por obligación.
+- Adaptadores de codec separados para tamaño y reconstrucción; no se publica una métrica perceptual sin señal decodificada.
 
 ### C3 — Codec con pérdida barato
 
@@ -52,6 +54,12 @@ Plan del pipeline offline de compresión de audio y del decoder `AUZX` del engin
 - C++23 freestanding como implementación de referencia y ASM 68000 para rutas críticas.
 - Vectores byte a byte, prueba de límites y `asm-audit.mjs` para cada rutina optimizada.
 - Demos `277_codec_equiv` y `278_stream_disk` como evidencia de equivalencia y streaming.
+
+### C7 — Intención de reproducción continua
+
+- **Entregado**: `StreamIntent` y `StreamExecutor` en `eng/audio/stream_intent.hpp`, validados por HOST-375.
+- **Contrato**: el juego solicita un recurso y política de reproducción; el backend elige Paula DMA o mixer y conecta `PcmStream`/`AudioFeeder`.
+- **Pendiente**: backend Amiga que resuelva `AudioStreamId` desde `media::Info`, asigne Chip buffers y publique `IntentDone` al completar o `AudioUnderrun` al fallar.
 
 ## Criterios de aceptación
 
