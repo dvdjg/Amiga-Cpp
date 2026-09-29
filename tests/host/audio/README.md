@@ -24,3 +24,4 @@ Categoría `audio` de la batería host (L1). El índice de categorías está en 
 | HOST-370 | [audio_plan](370_audio_plan/README.md) | Presupuesto de `AudioPlan` (`eng/audio/audio.hpp`): `AudioBudget`/`Limits`/`Report` (voces DMA + palabras), análogo de `BlitBudget`. |
 | HOST-371 | [sound_queue](371_sound_queue/README.md) | `SoundQueue` (`eng/audio/sound_queue.hpp`): `SoundIntent` sobre el mecanismo `eng::IntentQueue` (`eng/core`) → `AudioPlan`; la misma cola que blit/dibujo. |
 | HOST-372 | [audio_feeder](372_audio_feeder/README.md) | `AudioFeeder` (`eng/audio/audio_feeder.hpp`): feeder IRQ-apto (nivel 4) con `irq`/`swaps`/`underrun`; alimentado a tiempo `irq == swaps`, 0 underruns. |
+| HOST-373 | [sound_planner](373_sound_planner/README.md) | `SoundPlanner` (`eng/audio/sound_planner.hpp`): une intención (`SoundQueue`) + plan (`AudioPlan`) + aviso (`Msg IntentDone`/`AudioUnderrun`) con una llamada por frame. |

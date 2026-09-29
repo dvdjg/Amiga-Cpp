@@ -160,8 +160,10 @@ Un **solo** sumidero recibe las intenciones de todos los productores y las gobie
   `SoundQueue` (`eng/audio/sound_queue.hpp`) la instancia con `Item = SoundIntent`. **Mismo
   mecanismo** (ticket + completación) para todos.
 - **El audio es un `plan` análogo** (`AudioPlan`): reparto de voces (Sfx/Music), presupuesto por
-  frame e IRQ (Paula) como feeders — la misma forma que el plan de blit. Hoy `eng::audio` ya tiene
-  mezclador/reproductores; el `AudioPlan` es el **contrato** que los unifica con el planner.
+  frame e IRQ (Paula) como feeders — la misma forma que el plan de blit. El contrato es el
+  `AudioPlan`; su materialización en código: **`SoundQueue`** (cola de `SoundIntent`), **`SoundPlanner`**
+  (intención → plan → `Msg IntentDone`/`AudioUnderrun`, una llamada por frame) y **`AudioFeeder`**
+  (avanza el DMA en la IRQ de nivel 4). HOST-371/372/373 los fijan.
 - **Hecho**: el `BlitQueue` **es** una `IntentQueue` con `Item = BlitOp` — el mismo `concept` de
   ejecutor (`ready`/`run`) y el mismo mecanismo (ticket + completación) que el resto de colas.
 
