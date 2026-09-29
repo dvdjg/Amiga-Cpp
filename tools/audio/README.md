@@ -7,6 +7,8 @@ real o sintético en los `.raw` de **8 bits con signo** que el mixer del engine 
 | herramienta | qué hace |
 |---|---|
 | `gen-wave.ts` | genera una onda sintética (`sine`/`square`/…) en `.raw` + `.wav` |
+| `gen-melody.mjs` | sintetiza una melodía de dominio público (Oda a la Alegría) en `.raw` para el streaming (demo 278) |
+| `pack-auzx.mjs` | `.raw` → contenedor **AUZX** con Fibonacci Delta (port Node de `host-tools/pack-pcm`; sin C++/Python) |
 | `prep-sample.ts` | WAV PCM (8/16 bit, mono/estéreo) → `.raw` 8-bit con signo: remuestrea, normaliza al pico y divide por `voices` (para sumar sin desbordar) |
 | `sample-converter.ts` | convierte un `.raw` entre layouts de voces |
 | `raw-to-header.ts` | `.raw` → cabecera C++ con el array de bytes |

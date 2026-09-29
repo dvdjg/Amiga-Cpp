@@ -11,9 +11,7 @@
 // descomprime cada chunk directo a un buffer de Chip) y Paula lo reproduce por DMA; la IRQ de
 // audio solo cambia el puntero. El fichero lo genera el pipeline de PC:
 //
-//   node tools/audio/gen-melody.mjs out/tmp/melody.raw            (melodia de dominio publico)
-//   host-tools/pack-pcm out/tmp/melody.raw out/tmp/melody.auzx fib 8000 1024
-//   node tools/fs/make-volume.mjs --add out/tmp/melody.auzx:data/audio/melody.auzx
+//   node tools/fs/make-volume.mjs --no-adf   (genera data/audio/melody.auzx en el volumen DH1:)
 //
 // La lectura se hace en `init` (sin `takeover_display`, asi que dos.library sigue viva). Informa
 // `mark_ready` con `detail = (irq << 16) | swaps`; `irq == swaps` y sin underruns = OK.

@@ -8,11 +8,17 @@ puntero. La CPU descomprime cada chunk directo a Chip (en ASM en m68k).
 
 ## Pipeline de PC
 
+`make-volume.mjs` genera `data/audio/melody.auzx` (melodía de dominio público) en el volumen
+compartido `out/fs/content`, que el runner monta en `DH1:`. Usa el packer Node `pack-auzx.mjs`
+(port fiel de `host-tools/pack-pcm`: mismo layout AUZX y mismo encoder Fibonacci Delta), así que
+no necesita compilar C++ ni Python:
+
 ```bash
-node tools/audio/gen-melody.mjs out/tmp/melody.raw                 # Oda a la Alegria (8 kHz)
-host-tools/pack-pcm out/tmp/melody.raw out/tmp/melody.auzx fib 8000 1024
-node tools/fs/make-volume.mjs --add out/tmp/melody.auzx:data/audio/melody.auzx
+node tools/fs/make-volume.mjs --no-adf   # deja melody.auzx en data/audio/ del volumen (DH1:)
 ```
+
+Para regenerarlo a mano: `node tools/audio/gen-melody.mjs out/tmp/melody.raw` y
+`node tools/audio/pack-auzx.mjs out/tmp/melody.raw out/tmp/melody.auzx 1024 8000`.
 
 ## Ejecutar
 

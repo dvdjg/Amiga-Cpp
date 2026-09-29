@@ -133,6 +133,34 @@ function buildContent() {
 			files[rel] = fs.readFileSync(abs);
 		}
 	}
+	// Melodia de dominio publico para la demo 278 (streaming AUZX): se genera con el pipeline de
+	// audio (gen-melody + pack-auzx, port Node del packer de `host-tools/pack-pcm`). Si falla, se
+	// omite sin romper el volumen.
+	{
+		const melodyRaw = path.join(ROOT, 'out/tmp/melody.raw');
+		const melodyAuzx = path.join(ROOT, 'out/tmp/melody.auzx');
+		mkdirp(path.dirname(melodyRaw));
+		const gen = spawnSync('node', [path.join(ROOT, 'tools/audio/gen-melody.mjs'), melodyRaw], {
+			stdio: 'ignore',
+		});
+		const pack =
+			gen.status === 0
+				? spawnSync(
+						'node',
+						[
+							path.join(ROOT, 'tools/audio/pack-auzx.mjs'),
+							melodyRaw,
+							melodyAuzx,
+							'1024',
+							'8000',
+						],
+						{ stdio: 'ignore' },
+					)
+				: { status: 1 };
+		if (pack.status === 0 && fs.existsSync(melodyAuzx)) {
+			files['data/audio/melody.auzx'] = fs.readFileSync(melodyAuzx);
+		}
+	}
 	return files;
 }
 
@@ -185,7 +213,9 @@ for (const [rel, buf] of Object.entries(files)) {
 	fs.writeFileSync(dst, buf);
 }
 
-// 3) Imagen de disquete ADF (FFS) con el mismo contenido.
+// 3) Imagen de disquete ADF (FFS) con el mismo contenido. Se omite con `--no-adf` (no necesita
+//    Python/amitools; el runner de demos monta DH1: el arbol de disco).
+const noAdf = process.argv.includes('--no-adf');
 function runXdftool(args) {
 	const r = spawnSync(PYTHON, ['-m', 'amitools.tools.xdftool', adfPath, ...args], { encoding: 'utf8' });
 	if (r.status !== 0) {
@@ -196,6 +226,10 @@ function runXdftool(args) {
 }
 
 mkdirp(path.dirname(adfPath));
+if (noAdf) {
+	console.log(`volumen generado en ${outDir} (sin ADF)`);
+	process.exit(0);
+}
 if (fs.existsSync(adfPath)) {
 	fs.unlinkSync(adfPath);
 }
