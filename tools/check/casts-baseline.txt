@@ -148,7 +148,7 @@
  16     7  engine/include/eng/debug/peripheral.hpp
   1     4  engine/include/eng/debug/prof.hpp
   0     5  engine/include/eng/debug/run_status.hpp
-  0     6  engine/include/eng/debug/telemetry.hpp
+  0     9  engine/include/eng/debug/telemetry.hpp
   0    23  engine/include/eng/field/amiga_display_mapper.hpp
   2    39  engine/include/eng/field/canvas_playfield.hpp
   0     7  engine/include/eng/field/chunk_cache.hpp
@@ -249,7 +249,7 @@
   0     1  engine/include/eng/res/asset_table.hpp
   5     2  engine/include/eng/res/dynloader.hpp
   2     7  engine/include/eng/res/hunk.hpp
-  0     5  engine/include/eng/res/load.hpp
+  0     2  engine/include/eng/res/load.hpp
   0     1  engine/include/eng/res/symbol_hash.hpp
   0    33  engine/include/eng/retro/fixed_mesh.hpp
   0     2  engine/include/eng/retro/fixed_q.hpp

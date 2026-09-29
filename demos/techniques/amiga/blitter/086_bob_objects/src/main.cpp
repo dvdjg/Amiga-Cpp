@@ -224,9 +224,9 @@ struct BobObjectsDemo {
 	void init(auto& app) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		ENG_PROF_INIT(kProfCount);
-		m_bitmap = app.device().memory_manager().chip().reserve<eng::PlaneTag>(kBitplaneBytes, 16);
-		m_sheet = app.device().memory_manager().chip().reserve<eng::BobTag>(kSheetBytes, 16);
-		m_save = app.device().memory_manager().chip().reserve<eng::BobTag>(kSaveWords * 2u, 16);
+		m_bitmap = app.device().memory_manager().chip().template reserve<eng::PlaneTag>(kBitplaneBytes, 16);
+		m_sheet = app.device().memory_manager().chip().template reserve<eng::BobTag>(kSheetBytes, 16);
+		m_save = app.device().memory_manager().chip().template reserve<eng::BobTag>(kSaveWords * 2u, 16);
 		if (!m_bitmap.valid() || !m_sheet.valid() || !m_save.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008602u);
 			return;

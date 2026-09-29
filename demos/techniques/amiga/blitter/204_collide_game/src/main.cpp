@@ -92,15 +92,15 @@ struct CollideGame {
 		app.takeover();
 
 		m_player_mask =
-			app.device().memory_manager().chip().reserve<eng::PlaneTag>(kMaskPlaneBytes + 16u, 16u);
+			app.device().memory_manager().chip().template reserve<eng::PlaneTag>(kMaskPlaneBytes + 16u, 16u);
 		m_hazard_mask =
-			app.device().memory_manager().chip().reserve<eng::PlaneTag>(kMaskPlaneBytes + 16u, 16u);
+			app.device().memory_manager().chip().template reserve<eng::PlaneTag>(kMaskPlaneBytes + 16u, 16u);
 		m_band_a =
-			app.device().memory_manager().chip().reserve<eng::PlaneTag>(kBandPlaneBytes + 16u, 16u);
+			app.device().memory_manager().chip().template reserve<eng::PlaneTag>(kBandPlaneBytes + 16u, 16u);
 		m_band_b =
-			app.device().memory_manager().chip().reserve<eng::PlaneTag>(kBandPlaneBytes + 16u, 16u);
+			app.device().memory_manager().chip().template reserve<eng::PlaneTag>(kBandPlaneBytes + 16u, 16u);
 		m_scan =
-			app.device().memory_manager().chip().reserve<eng::PlaneTag>(kBandPlaneBytes + 16u, 16u);
+			app.device().memory_manager().chip().template reserve<eng::PlaneTag>(kBandPlaneBytes + 16u, 16u);
 		if (!m_player_mask.valid() || !m_hazard_mask.valid() || !m_band_a.valid() ||
 		    !m_band_b.valid() || !m_scan.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020403u);

@@ -26,6 +26,7 @@
 #include <eng/core/types/domains.hpp>
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/span.hpp>
+#include <eng/debug/telemetry.hpp>
 #include <eng/engine.hpp>
 #include <eng/field/draw_target.hpp>
 #include <eng/graphics/blitter_state.hpp>
@@ -200,6 +201,15 @@ public:
 	template <class B = Backend>
 	[[nodiscard]] res::Budget resources() noexcept {
 		return res::Budget {m_backend.memory_manager()};
+	}
+
+	/// **Telemetría de memoria** para el panel de depuración: rellena `Telemetry` desde los
+	/// bancos del backend (reservas reales) + la scratch de frame. El juego aporta `fps_x100`/
+	/// `frames`; lo demás sale de aquí. Ver `debug::draw_telemetry`.
+	[[nodiscard]] eng::debug::Telemetry telemetry() noexcept {
+		eng::debug::Telemetry t {};
+		eng::debug::telemetry_from(m_backend.memory_manager(), m_backend.memory(), t);
+		return t;
 	}
 
 	/// **Configura la memoria del backend** (budget por banco). Normalmente en `init`; el motor

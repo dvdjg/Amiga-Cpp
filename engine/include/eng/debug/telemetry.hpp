@@ -18,6 +18,7 @@
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/static_string.hpp>
 #include <eng/core/util/text.hpp>
+#include <eng/memory/memory_manager.hpp>
 
 namespace eng::debug {
 
@@ -37,7 +38,31 @@ struct Telemetry {
 	eng::u32 slow_capacity = 0u;
 	eng::u32 fast_used = 0u;
 	eng::u32 fast_capacity = 0u;
+	eng::u32 frame_used = 0u;     ///< scratch de frame (arena `frame`)
+	eng::u32 frame_capacity = 0u;
+	/// **Fragmentación** del banco Chip (huecos/segmentos del pool): 0 = un solo hueco libre.
+	/// Si el pool se llena de slots, la próxima reserva que no encaje exacta fallará.
+	eng::u16 chip_slots = 0u;
+	eng::u16 chip_slots_max = 0u;
 };
+
+/// **Rellena la telemetría desde la memoria del backend** (bancos persistentes + scratch de
+/// frame). El juego solo aporta `fps_x100`/`frames`; lo demás sale de aquí. Los bancos salen del
+/// `MemoryManager` (reservas reales); la scratch, del `MemorySystem`. Así el panel refleja lo que
+/// **de verdad** está reservado (no la arena, que ya no es la puerta persistente).
+template <class MemorySystemT>
+void telemetry_from(MemoryManager& mm, MemorySystemT& mem, Telemetry& t) noexcept {
+	t.chip_used = mm.chip().used_bytes();
+	t.chip_capacity = mm.chip().capacity();
+	t.slow_used = mm.slow().used_bytes();
+	t.slow_capacity = mm.slow().capacity();
+	t.fast_used = mm.fast().used_bytes();
+	t.fast_capacity = mm.fast().capacity();
+	t.frame_used = static_cast<eng::u32>(mem.frame.used());
+	t.frame_capacity = mem.frame.capacity();
+	t.chip_slots = mm.chip().block_count();
+	t.chip_slots_max = eng::BlockPool::kMaxBlocks;
+}
 
 namespace detail {
 
@@ -100,6 +125,23 @@ void draw_telemetry(Overlay& overlay, const Telemetry& t, eng::s16 x, eng::s16 y
 		TelemetryLine l {};
 		(void)l.append("FAST ");
 		detail::put_used_cap(l, t.fast_used, t.fast_capacity);
+		overlay.text(x, row, l.c_str(), rgb);
+	}
+	row = static_cast<eng::s16>(row + line);
+	{
+		TelemetryLine l {};
+		(void)l.append("SCRATCH ");
+		detail::put_used_cap(l, t.frame_used, t.frame_capacity);
+		overlay.text(x, row, l.c_str(), rgb);
+	}
+	row = static_cast<eng::s16>(row + line);
+	{
+		TelemetryLine l {};
+		(void)l.append("CHIPHOLES ");
+		(void)eng::util::to_chars_u32(l, t.chip_slots);
+		if (l.append('/')) {
+			(void)eng::util::to_chars_u32(l, t.chip_slots_max);
+		}
 		overlay.text(x, row, l.c_str(), rgb);
 	}
 }

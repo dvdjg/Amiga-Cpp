@@ -98,10 +98,16 @@ m68k de 052/086/100/113/117/209 y del resto de la escena; 113/086 READY.
 
 **Valor:** observabilidad y control de crecimiento.
 
+**Estado (2026-09): panel de memoria hecho.** `debug::Telemetry` + `telemetry_from(MemoryManager,
+MemorySystem, Telemetry)` rellenan el panel desde los **bancos** (reservas reales: `used/capacity`)
++ la **scratch de frame** + la **fragmentación** del pool (`chip_slots`/`chip_slots_max`).
+`App::telemetry()` lo expone; `MemoryReport` ya lee del banco. HOST-384 lo fija.
+
 1. `MemoryReport`/presupuesto por banco (Chip persistente, Chip scratch, Fast, Slow) con picos y
-   bytes retenidos; exponerlo por el canal lateral.
+   bytes retenidos; exponerlo por el canal lateral. **Hecho** (panel + `Budget`; `peak` del pool
+   queda en 0 — pendiente si hace falta).
 2. Diagnóstico de banco/owner/tamaño/alineación/estado/causa de fallo **sin exponer punteros** a la
-   app (doc §"Consistencia").
+   app (doc §"Consistencia"). **Parcial**: banco/usado/fragmentación sí; owner/causa, pendientes.
 3. `Result`/`Expected` en las APIs nuevas de reserva (unificar con `MeshStatus`/`AudioPlan::Status`).
 
 ## Fase 5 — Aridad de anchura (helpers acotados, no `Number<Tag>`)
