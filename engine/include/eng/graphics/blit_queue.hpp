@@ -12,6 +12,7 @@
 /// `concept`, no `void*`+puntero a función — CODING_STYLE): en Amiga lo aporta el backend; en host,
 /// un doble de prueba. Aquí **no se nombran registros**.
 
+#include <eng/core/types/box.hpp>
 #include <eng/core/types/domains.hpp>
 #include <eng/core/types/memory_kind.hpp>
 #include <eng/core/types/ptr.hpp>
@@ -25,14 +26,6 @@
 #include <eng/graphics/raster_intent.hpp>
 
 namespace eng::graphics {
-
-/// Rectángulo de la intención, en píxeles respecto de la esquina de la zona destino.
-struct BlitRect {
-	eng::s16 x = 0;
-	eng::s16 y = 0;
-	eng::u16 w = 0;
-	eng::u16 h = 0;
-};
 
 /// Una petición de blit **por intención** (sin registros). `Fill` = limpiar un rectángulo
 /// (`D = 0`); `Stamp` = OR de un asset sobre el destino (`D = A | D`), con `ASH` fino. La intención
@@ -53,7 +46,7 @@ struct BlitOp {
 	BitmapView<PlaneTag, MemoryKind::Chip> dst {}; ///< zona destino (bitmap intercalado en Chip)
 	BitmapView<BobTag, MemoryKind::Chip> src {};   ///< `Stamp`/`MaskedStamp`: imagen (atlas Chip)
 	BitmapView<BobTag, MemoryKind::Chip> mask {};  ///< `MaskedStamp`: máscara (plano aparte, Chip)
-	BlitRect rect {};                              ///< rectángulo en la zona destino (píxeles)
+	eng::Box rect {};                              ///< rectángulo en la zona destino (píxeles)
 	eng::u8 ashift = 0;                            ///< `Stamp`: desplazamiento fino 0..15
 };
 
@@ -259,13 +252,13 @@ template <eng::u16 N, class Executor>
 class BlitQueue : public eng::IntentQueue<N, BlitOp, Executor, eng::NoDone> {
 public:
 	/// **Intención**: rellenar (`D = 0`) un rectángulo del destino (una petición).
-	void fill(BitmapView<PlaneTag, MemoryKind::Chip> dst, BlitRect rect) noexcept {
+	void fill(BitmapView<PlaneTag, MemoryKind::Chip> dst, eng::Box rect) noexcept {
 		this->enqueue(BlitOp {BlitOp::Kind::Fill, dst, {}, {}, rect, 0});
 	}
 
 	/// **Intención**: OR de un asset sobre el destino (fino con `ashift`), una petición.
 	void stamp(BitmapView<BobTag, MemoryKind::Chip> src, BitmapView<PlaneTag, MemoryKind::Chip> dst,
-		   BlitRect rect, eng::u8 ashift = 0) noexcept {
+		   eng::Box rect, eng::u8 ashift = 0) noexcept {
 		this->enqueue(BlitOp {BlitOp::Kind::Stamp, dst, src, {}, rect, ashift});
 	}
 
@@ -273,7 +266,7 @@ public:
 	/// máscara (`1` = tomar la imagen `src`, `0` = conservar el fondo).
 	void masked_stamp(BitmapView<BobTag, MemoryKind::Chip> src,
 			  BitmapView<BobTag, MemoryKind::Chip> mask,
-			  BitmapView<PlaneTag, MemoryKind::Chip> dst, BlitRect rect,
+			  BitmapView<PlaneTag, MemoryKind::Chip> dst, eng::Box rect,
 			  eng::u8 ashift = 0) noexcept {
 		this->enqueue(BlitOp {BlitOp::Kind::MaskedStamp, dst, src, mask, rect, ashift});
 	}

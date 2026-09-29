@@ -105,45 +105,6 @@ private:
 
 namespace fast_bob_detail {
 
-/// Rectángulo destino (posición + tamaño) para la política de Fast BOBs.
-struct PRect {
-	eng::s16 x = 0;
-	eng::s16 y = 0;
-	eng::u16 w = 0;
-	eng::u16 h = 0;
-	/// `true` si el rectángulo no cubre área (sin pintar).
-	[[nodiscard]] constexpr bool empty() const noexcept { return w == 0u || h == 0u; }
-};
-
-/// `true` si los dos rectángulos se solapan en área (ignora los vacíos).
-[[nodiscard]] constexpr bool overlaps(const PRect& a, const PRect& b) noexcept {
-	if (a.empty() || b.empty()) {
-		return false;
-	}
-	return a.x < static_cast<eng::s16>(b.x + b.w) && b.x < static_cast<eng::s16>(a.x + a.w) &&
-	       a.y < static_cast<eng::s16>(b.y + b.h) && b.y < static_cast<eng::s16>(a.y + a.h);
-}
-
-/// Menor rectángulo que cubre `a` y `b` (ignora los vacíos).
-[[nodiscard]] constexpr PRect unite(const PRect& a, const PRect& b) noexcept {
-	if (a.empty()) {
-		return b;
-	}
-	if (b.empty()) {
-		return a;
-	}
-	const eng::s16 minx = (a.x < b.x) ? a.x : b.x;
-	const eng::s16 miny = (a.y < b.y) ? a.y : b.y;
-	const eng::s16 maxx = (static_cast<eng::s16>(a.x + a.w) > static_cast<eng::s16>(b.x + b.w))
-				      ? static_cast<eng::s16>(a.x + a.w)
-				      : static_cast<eng::s16>(b.x + b.w);
-	const eng::s16 maxy = (static_cast<eng::s16>(a.y + a.h) > static_cast<eng::s16>(b.y + b.h))
-				      ? static_cast<eng::s16>(a.y + a.h)
-				      : static_cast<eng::s16>(b.y + b.h);
-	return PRect {minx, miny, static_cast<eng::u16>(maxx - minx),
-		      static_cast<eng::u16>(maxy - miny)};
-}
-
 } // namespace fast_bob_detail
 
 /// **Capa de BOBs rápidos (“Fast Bobs”)**: PF frontal vacío + BOBs con *padding* de color 0.
@@ -192,16 +153,13 @@ public:
 	[[nodiscard]] eng::u16 emit(eng::graphics::FramePlan& plan,
 				    const eng::graphics::BobTarget& target,
 				    eng::u8 fine_scroll = 0u) {
-		using fast_bob_detail::PRect;
-		using fast_bob_detail::overlaps;
-		using fast_bob_detail::unite;
 		const eng::s16 px = static_cast<eng::s16>(m_pad_x);
 		const eng::s16 py = static_cast<eng::s16>(m_pad_y);
 		const eng::u16 w = m_sheet.width();
 		const eng::u16 h = m_sheet.height();
 
-		PRect fast[kMaxActors] {};
-		PRect span[kMaxActors] {};
+		eng::Box fast[kMaxActors] {};
+		eng::Box span[kMaxActors] {};
 		bool live[kMaxActors] {};
 		bool slow[kMaxActors] {};
 		for (eng::u8 i = 0u; i < m_count; ++i) {
@@ -212,15 +170,15 @@ public:
 			}
 			const eng::s16 fx = a.x - fine_scroll - px;
 			const eng::s16 fy = a.y - py;
-			fast[i] = PRect {fx, fy, w, h};
+			fast[i] = eng::Box {fx, fy, w, h};
 			// Área que el actor toca: lo que pintó antes y lo que pintará ahora.
-			span[i] = unite(fast[i], m_painted[i]);
+			span[i] = eng::merge(fast[i], m_painted[i]);
 		}
 		// Conflicto: dos áreas que se solapan -> ambos degradan (la copia sería destructiva).
 		for (eng::u8 i = 0u; i < m_count; ++i) {
 			if (!live[i]) continue;
 			for (eng::u8 j = static_cast<eng::u8>(i + 1u); j < m_count; ++j) {
-				if (live[j] && overlaps(span[i], span[j])) {
+				if (live[j] && eng::overlaps(span[i], span[j])) {
 					slow[i] = true;
 					slow[j] = true;
 				}
@@ -257,7 +215,7 @@ public:
 			if (slow[i]) {
 				const eng::s16 fx = a.x - fine_scroll;
 				ok = m_cookie.draw(plan, target, a.frame, fx, a.y);
-				m_painted[i] = PRect {fx, a.y, m_cookie.width(), m_cookie.height()};
+				m_painted[i] = eng::Box {fx, a.y, m_cookie.width(), m_cookie.height()};
 			} else {
 				ok = m_sheet.draw(plan, target, a.frame, fast[i].x, fast[i].y);
 				m_painted[i] = fast[i];
@@ -284,7 +242,7 @@ private:
 	eng::graphics::Sprite m_sheet {};
 	eng::graphics::Sprite m_cookie {};
 	BobActor m_actors[kMaxActors] {};
-	fast_bob_detail::PRect m_painted[kMaxActors] {};
+	eng::Box m_painted[kMaxActors] {};
 	eng::s16 m_prev_x[kMaxActors] {};
 	eng::s16 m_prev_y[kMaxActors] {};
 	bool m_has[kMaxActors] {};

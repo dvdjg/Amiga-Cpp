@@ -2,11 +2,13 @@
 
 /// \file box.hpp
 /// **Rectángulo 2D de 16 bits** (`eng::Box`) para UI, recortes, dirty rects y geometría de
-/// pantalla. Es el tipo único del engine para "rectángulo de píxeles": los tipos que ya
-/// existían con semánticas distintas (`field::SurfaceRect` con `s32`, `field::ClipRect` y
-/// `graphics::DirtyRect` en formato `left/top/right/bottom`, `eng::retro::Rect` en fixed)
-/// se convierten a/desde `Box` en su propia capa, sin duplicar la lógica de `contains`,
-/// `inset` o `intersect`.
+/// pantalla. Es el tipo único del engine para "rectángulo de píxeles": los rects que **son lo
+/// mismo** (`{s16 x,y; u16 w,h}`) lo usan directamente — `graphics::BlitOp::rect` y el área de
+/// Fast BOBs eran copias literales, ya retiradas. Los que **no** son lo mismo se conservan por
+/// **formato o anchura**, no por rol: `graphics::DirtyRect` (bordes `left/top/right/bottom`),
+/// `field::ClipRect`/`field::SurfaceRect` (`s32`, clipping de mundo), `util::Aabb` (min/max, `s16`)
+/// y el `Rect<S>` genérico (`core/math`). Se convierten a/desde `Box` en su capa, sin duplicar
+/// `contains`/`inset`/`intersect`.
 ///
 /// Convención: `w`/`h` son tamaños (no bordes) y `contains` es **inclusivo** en `right()` y
 /// `bottom()` (`x + w - 1`, `y + h - 1`), que es como se comportan las primitivas de dibujo
