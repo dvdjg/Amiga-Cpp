@@ -14,7 +14,7 @@
 #include <eng/api/effects.hpp>
 #include <eng/graphics/effects/raster_gradient.hpp>
 #include <eng/graphics/copper/plan.hpp>
-#include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
 
 namespace effects = eng::graphics::effects;
 
@@ -135,8 +135,8 @@ int main() {
 	// La lista se materializa UNA vez; por frame solo se reescriben las palabras de dato.
 	{
 		alignas(16) static eng::u8 chip[8u * 1024u];
-		eng::MemorySystem mem;
-		mem.chip = eng::ChipArena {chip, sizeof(chip), eng::MemoryKind::Chip};
+		eng::MemoryManager mem;
+		mem.configure(chip, sizeof(chip), nullptr, 0u, nullptr, 0u, 16u);
 		eng::copper::Plan plan;
 		check(plan.begin(mem, {4096u}), "slot: Plan::begin");
 

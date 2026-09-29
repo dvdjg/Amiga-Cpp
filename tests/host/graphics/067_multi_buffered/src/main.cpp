@@ -21,12 +21,12 @@
 
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/composition/compose.hpp>
-#include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
 
 namespace {
 
 using eng::MemoryKind;
-using eng::MemorySystem;
+using eng::MemoryManager;
 using eng::LinearArena;
 using eng::u8;
 using eng::graphics::composition::Scene;
@@ -34,9 +34,9 @@ using eng::graphics::composition::SceneResources;
 
 alignas(16) eng::u8 g_chip[512 * 1024];
 
-MemorySystem make_memory() {
-	MemorySystem mem;
-	mem.chip = eng::ChipArena {g_chip, sizeof(g_chip), MemoryKind::Chip};
+MemoryManager make_memory() {
+	MemoryManager mem;
+	mem.configure(g_chip, sizeof(g_chip), nullptr, 0u, nullptr, 0u, 16u);
 	return mem;
 }
 
@@ -53,7 +53,7 @@ void check(bool ok, const char* msg) {
 int main() {
 	// --- 1..2) N=2: dos bitmaps, commit rota y repunta ------------------------
 	{
-		MemorySystem mem = make_memory();
+		MemoryManager mem = make_memory();
 		SceneResources res = eng::graphics::composition::planar(320, 256, 4);
 		res.buffers = 2;
 		Scene sc;
@@ -79,7 +79,7 @@ int main() {
 
 	// --- 3) N=1: un solo buffer, commit no cambia ----------------------------
 	{
-		MemorySystem mem = make_memory();
+		MemoryManager mem = make_memory();
 		Scene sc;
 		check(eng::graphics::composition::compose(
 			      sc, mem, eng::graphics::composition::planar(320, 256, 4),
@@ -96,7 +96,7 @@ int main() {
 
 	// --- 4) reverse_ptrs: los parches de plano siguen registrandose ----------
 	{
-		MemorySystem mem = make_memory();
+		MemoryManager mem = make_memory();
 		SceneResources res = eng::graphics::composition::planar(320, 256, 4);
 		res.rows = 64;
 		res.buffers = 2;

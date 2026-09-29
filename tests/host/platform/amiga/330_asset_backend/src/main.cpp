@@ -13,7 +13,7 @@
 
 #include <cstdio>
 
-#include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
 #include <eng/platform/amiga/asset_backend.hpp>
 
 namespace {
@@ -56,23 +56,20 @@ int main() {
 
 	eng::u8 chip_buf[4096] {};
 	eng::u8 slow_buf[1024] {};
-	eng::MemorySystem ms {
-		eng::ChipArena {chip_buf, sizeof(chip_buf), eng::MemoryKind::Chip},
-		eng::LinearArena {slow_buf, sizeof(slow_buf), eng::MemoryKind::Slow},
-		eng::ChipArena {},
-	};
+	eng::MemoryManager ms {};
+	ms.configure(chip_buf, sizeof(chip_buf), slow_buf, sizeof(slow_buf), nullptr, 0u, 16u);
 	eng::amiga::AssetCacheBackend backend {ms};
 
 	// --- alloc: Chip y Slow (Fast) ------------------------------------------
 	{
 		const auto c = backend.alloc(256u, eng::res::MemBank::Chip);
 		check(!c.empty() && c.size() >= 256u, "alloc Chip devuelve bloque");
-		check(ms.chip.used() >= 256u, "consume la arena Chip");
+		check(ms.chip().used_bytes() >= 256u, "consume la arena Chip");
 		const auto f = backend.alloc(128u, eng::res::MemBank::Fast);
 		check(!f.empty(), "alloc Fast devuelve bloque");
-		check(ms.slow.used() >= 128u, "Fast consume la arena Slow");
+		check(ms.slow().used_bytes() >= 128u, "Fast consume la arena Slow");
 		backend.free(c, eng::res::MemBank::Chip); // no-op, no debe alterar
-		check(ms.chip.used() >= 256u, "free es no-op (bump arena)");
+		check(ms.chip().used_bytes() >= 256u, "free es no-op (bump arena)");
 	}
 
 	// --- load: abre y lanza con el cookie correcto --------------------------

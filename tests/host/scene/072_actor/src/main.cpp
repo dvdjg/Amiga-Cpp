@@ -453,8 +453,8 @@ void test_emit_save_under() {
 /// actor (`actor_add_copper`) y el de intención (`SpritePlanExecutor::bind_copper`). Ancla una
 /// intención de línea RELATIVA a `base_line` y la emite con su prioridad.
 void test_add_anchored() {
-	eng::MemorySystem mem {};
-	mem.chip = eng::ChipArena {g_chip_plan, sizeof(g_chip_plan), eng::MemoryKind::Chip};
+	eng::MemoryManager mem {};
+	mem.configure(g_chip_plan, sizeof(g_chip_plan), nullptr, 0u, nullptr, 0u, 16u);
 	eng::copper::Plan plan {};
 	CHECK(plan.begin(mem, {4096u, 0x00u}), "plan.begin (anchored)");
 
@@ -733,8 +733,8 @@ void test_copper_priority_wiring() {
 	static eng::u16 hi_cols[2] {0u, 0x0ccu};
 	static eng::u16 lo_cols[2] {0u, 0x0aau};
 
-	eng::MemorySystem mem {};
-	mem.chip = eng::ChipArena {g_chip_plan, sizeof(g_chip_plan), eng::MemoryKind::Chip};
+	eng::MemoryManager mem {};
+	mem.configure(g_chip_plan, sizeof(g_chip_plan), nullptr, 0u, nullptr, 0u, 16u);
 	eng::copper::Plan plan {};
 	CHECK(plan.begin(mem, {4096u, 0x00u}), "plan.begin");
 

@@ -24,13 +24,12 @@
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/composition/compose.hpp>
-#include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
 
 namespace {
 
 using eng::MemoryKind;
-using eng::MemorySystem;
-using eng::LinearArena;
+using eng::MemoryManager;
 using eng::u16;
 using eng::u32;
 using eng::graphics::composition::Scene;
@@ -54,9 +53,9 @@ static_assert(eng::graphics::composition::row_repeat_words(256u, 1u, 0x2cu) == 2
 
 alignas(16) eng::u8 g_chip[512 * 1024];
 
-MemorySystem make_memory() {
-	MemorySystem mem;
-	mem.chip = eng::ChipArena { g_chip, sizeof(g_chip), MemoryKind::Chip };
+MemoryManager make_memory() {
+	MemoryManager mem;
+	mem.configure(g_chip, sizeof(g_chip), nullptr, 0u, nullptr, 0u, 16u);
 	return mem;
 }
 
@@ -101,7 +100,7 @@ MoveTally tally(const eng::u16* words, eng::u16 count, eng::u16 row_back) {
 int main() {
 	// --- 1) HAM + cuadruplicado (config de la demo 080) -----------------------
 	{
-		MemorySystem mem = make_memory();
+		MemoryManager mem = make_memory();
 		SceneResources res = eng::graphics::composition::planar(320, 256, 4);
 		res.rows = 64; // cuadruplicado: 64 filas logicas x 4 = 256 lineas
 		res.copper_bytes = 8192u; // row_repeat emite ~3 MOVEs por cada una de las 256 líneas
@@ -162,7 +161,7 @@ int main() {
 
 	// --- 2) Parametrico: sin repeticion, 5 planos, otro BPLCON0 ---------------
 	{
-		MemorySystem mem = make_memory();
+		MemoryManager mem = make_memory();
 		SceneResources res = eng::graphics::composition::planar(320, 128, 5);
 		Scene sc;
 		if (!eng::graphics::composition::compose(
@@ -180,7 +179,7 @@ int main() {
 
 	// --- 3) La huella estatica coincide con la emision real de `row_repeat` -----
 	{
-		MemorySystem mem = make_memory();
+		MemoryManager mem = make_memory();
 		SceneResources res = eng::graphics::composition::planar(320, 256, 4);
 		res.rows = 64;
 		res.copper_bytes = 8192u;

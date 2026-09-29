@@ -23,12 +23,12 @@
 #include <eng/graphics/raster_intent.hpp>
 #include <eng/graphics/sprite_collision.hpp>
 #include <eng/graphics/sprite_manager.hpp>
-#include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
 
 namespace {
 
 using eng::MemoryKind;
-using eng::MemorySystem;
+using eng::MemoryManager;
 using eng::LinearArena;
 using eng::u8;
 using eng::u16;
@@ -37,16 +37,16 @@ using eng::graphics::SpriteHorizontalRearm;
 
 alignas(16) eng::u8 g_chip[16 * 1024];
 
-MemorySystem make_memory() {
-	MemorySystem mem;
-	mem.chip = eng::ChipArena {g_chip, sizeof(g_chip), MemoryKind::Chip};
+MemoryManager make_memory() {
+	MemoryManager mem;
+	mem.configure(g_chip, sizeof(g_chip), nullptr, 0u, nullptr, 0u, 16u);
 	return mem;
 }
 
 /// `Scheduler` ligado a un bloque de Chip RAM del arena.
-eng::copper::Scheduler make_scheduler(MemorySystem& mem, u32 words) {
+eng::copper::Scheduler make_scheduler(MemoryManager& mem, u32 words) {
 	return eng::copper::Scheduler {
-		mem.chip.allocate_block<eng::CopperTag>(words * 2u, 16u)
+		mem.chip().reserve<eng::CopperTag>(words * 2u, 16u)
 	};
 }
 
@@ -86,7 +86,7 @@ bool has_wait_at(const u16* w, u16 count, u8 vpos) {
 }
 
 void test_encoding() {
-	MemorySystem mem = make_memory();
+	MemoryManager mem = make_memory();
 	eng::copper::Scheduler sched = make_scheduler(mem, 256u);
 
 	// Canal 3, VSTART=0x2c, VSTOP=0x31, hpos=0x46 (low-res px), attach.
@@ -146,7 +146,7 @@ void test_encoding() {
 }
 
 void test_list_order() {
-	MemorySystem mem = make_memory();
+	MemoryManager mem = make_memory();
 	eng::copper::Scheduler sched = make_scheduler(mem, 256u);
 
 	SpriteHorizontalRearm list[3] {};
@@ -183,7 +183,7 @@ void test_list_order() {
 
 /// `SpriteManager` emite el bit ATTACH (0) de `SPRxCTL` cuando el sprite va attached.
 void test_attach() {
-	MemorySystem mem = make_memory();
+	MemoryManager mem = make_memory();
 	eng::graphics::SpriteManager sm;
 	CHECK(sm.init(mem, 128u), "SpriteManager init");
 	const eng::Span<u8> data = sm.sprite_data();
@@ -298,7 +298,7 @@ void test_sprite_layer() {
 /// `bind`/`patch`: con la emisión registrada una vez (setup), `patch` reproduce EXACTAMENTE la
 /// lista que re-emitir con el scroll nuevo (equivalencia palabra a palabra).
 void test_bind_patch() {
-	MemorySystem mem = make_memory();
+	MemoryManager mem = make_memory();
 	eng::copper::Scheduler a = make_scheduler(mem, 512u);
 	eng::copper::Scheduler b = make_scheduler(mem, 512u);
 
@@ -340,7 +340,7 @@ void test_bind_patch() {
 /// Integracion con el plan de la escena: `apply_into` (Effect) reserva la banda, anota el
 /// coste y emite; un solape de banda se detecta con `reserve_band`.
 void test_layer_effect() {
-	MemorySystem mem = make_memory();
+	MemoryManager mem = make_memory();
 	eng::copper::Plan plan;
 	eng::copper::PlanConfig pcfg {};
 	pcfg.copper_bytes = 4096u;

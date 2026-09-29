@@ -175,7 +175,7 @@ int main() {
 		cj.kind = eng::graphics::BlitJobKind::CopyRect;
 		cj.words_per_row = 2u;
 		cj.height = 8u;
-		cj.source = eng::graphics::BlitSource {src_words};
+		cj.source = eng::graphics::BlitSource::from_storage(src_words);
 		const eng::graphics::BlitterJob c0 = blitter_job_from(cj);
 		check(c0.bltcon0 == (eng::graphics::kBlitterUseC | eng::graphics::kBlitterUseD |
 				     eng::graphics::kBlitterMintermCopyC) &&

@@ -20,9 +20,9 @@ namespace {
 
 alignas(16) u8 g_chip[512 * 1024];
 
-MemorySystem make_memory() {
-	MemorySystem mem;
-	mem.chip = eng::ChipArena {g_chip, sizeof(g_chip), MemoryKind::Chip};
+MemoryManager make_memory() {
+	MemoryManager mem;
+	mem.configure(g_chip, sizeof(g_chip), nullptr, 0u, nullptr, 0u, 16u);
 	return mem;
 }
 
@@ -84,7 +84,7 @@ u32 bits_in_plane(const u8* base, u32 bytes) {
 } // namespace
 
 int main() {
-	MemorySystem mem = make_memory();
+	MemoryManager mem = make_memory();
 	graphics::composition::Scene scene {};
 	const bool composed = graphics::composition::compose(
 		scene, mem, graphics::composition::planar(320, 256, 4),

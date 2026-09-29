@@ -1,5 +1,10 @@
 // HOST-382: primera vertical de la aplicación única audio-compressor.
 // El test genera un WAV mínimo, ejecuta la aplicación como proceso host y valida AUZX.
+//
+// Es un test **host-only** (no host del engine): depende de un binario externo. Si el binario no
+// existe se **omite** (código 77) en vez de fallar, para no romper la suite en entornos sin él.
+// El comando se adapta a la plataforma (sin `cmd` en POSIX). El binario se elige por
+// `AUDIO_COMPRESSOR_BIN` o por defecto `out/tmp/audio-compressor/audio-compressor[.exe]`.
 
 #include <cstdio>
 #include <cstdlib>
@@ -22,19 +27,60 @@ bool write_wav(const std::string& path) {
 	std::FILE* out = std::fopen(path.c_str(), "wb"); if (!out) { std::perror("WAV fopen"); return false; } const bool ok = std::fwrite(data, 1u, sizeof(data), out) == sizeof(data); std::fclose(out); return ok;
 }
 
-/// Ejecuta el binario construido por el README del test sobre el WAV sintético.
+/// Ruta del binario: `AUDIO_COMPRESSOR_BIN` o el defecto por plataforma.
+std::string binary_path() {
+	const char* env = std::getenv("AUDIO_COMPRESSOR_BIN");
+	if (env != nullptr && env[0] != '\0') {
+		return env;
+	}
+#ifdef _WIN32
+	return "out/tmp/audio-compressor/audio-compressor.exe";
+#else
+	return "out/tmp/audio-compressor/audio-compressor";
+#endif
+}
+
+/// ¿Existe el fichero? (sin `<filesystem>`; `fopen` en lectura basta).
+bool file_exists(const std::string& path) {
+	std::FILE* f = std::fopen(path.c_str(), "rb");
+	if (f == nullptr) {
+		return false;
+	}
+	std::fclose(f);
+	return true;
+}
+
+/// Ejecuta el binario sobre el WAV; adapta el shell a la plataforma (sin `cmd` en POSIX).
+int run_binary(const std::string& bin, const std::string& in, const std::string& out) {
+#ifdef _WIN32
+	const std::string command = "cmd /c call \"" + bin + "\" \"" + in + "\" --mode sample --out \"" + out + "\" --force";
+#else
+	const std::string command = "\"" + bin + "\" \"" + in + "\" --mode sample --out \"" + out + "\" --force";
+#endif
+	return std::system(command.c_str());
+}
+
 int main() {
-	char input_name[L_tmpnam]{}; char output_name[L_tmpnam]{};
-	if (!std::tmpnam(input_name) || !std::tmpnam(output_name)) return 1;
-	const std::string input = input_name; const std::string output = output_name;
+	const std::string binary = binary_path();
+	if (!file_exists(binary)) {
+		// Test host-only dependiente de un binario externo: ausente -> se omite (exit 3, como el
+		// resto de tests condicionados del repo).
+		std::printf("SKIP: audio-compressor no compilado en %s (ver README)\n", binary.c_str());
+		return 3;
+	}
+
+	const std::string dir = "out/tmp/audio-compressor/";
+	const std::string input = dir + "host382_in.wav";
+	const std::string output = dir + "host382_out.auzx";
 	if (!write_wav(input)) { std::fprintf(stderr, "no se pudo crear WAV de prueba\n"); return 1; }
-	const char* binary = std::getenv("AUDIO_COMPRESSOR_BIN");
-	if (binary == nullptr) binary = "out/tmp/audio-compressor/audio-compressor.exe";
-	const std::string command = std::string{"cmd /c call \""} + binary + "\" \"" + input + "\" --mode sample --out \"" + output + "\" --force";
-	const int process = std::system(command.c_str());
-	if (process != 0) { std::fprintf(stderr, "audio-compressor terminó con %d\n", process); return 1; }
-	std::FILE* file = std::fopen(output.c_str(), "rb"); if (!file) { std::fprintf(stderr, "no se pudo abrir AUZX de salida\n"); return 1; } std::fseek(file, 0, SEEK_END); const long size = std::ftell(file); std::fclose(file);
+
+	const int process = run_binary(binary, input, output);
+	if (process != 0) { std::fprintf(stderr, "audio-compressor terminó con %d\n", process); std::remove(input.c_str()); return 1; }
+	std::FILE* file = std::fopen(output.c_str(), "rb");
+	if (file == nullptr) { std::fprintf(stderr, "no se pudo abrir AUZX de salida\n"); std::remove(input.c_str()); return 1; }
+	std::fseek(file, 0, SEEK_END); const long size = std::ftell(file); std::fclose(file);
 	std::remove(input.c_str()); std::remove(output.c_str());
-	if (size < static_cast<long>(eng::audio::auzx::kHeaderSize)) return 1;
-	std::printf("OK: aplicación audio-compressor produce AUZX desde WAV.\n"); return 0;
+	if (size < static_cast<long>(eng::audio::auzx::kHeaderSize)) { std::fprintf(stderr, "AUZX demasiado corto (%ld)\n", size); return 1; }
+	std::printf("OK: aplicación audio-compressor produce AUZX desde WAV.\n");
+	return 0;
 }

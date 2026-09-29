@@ -7,6 +7,7 @@
 // casts, con `valid()` y operadores de acceso; y dominios distintos no se mezclan.
 
 #include <cstdio>
+#include <type_traits>
 
 #include <eng/memory/arena.hpp>
 
@@ -52,8 +53,13 @@ int main() {
 	// Dominios distintos no se convierten.
 	static_assert(!ConstructibleFrom<eng::Block<AudioTag>, eng::Block<PatternTag>>,
 	              "Block de otro dominio no debe convertir");
-	static_assert(ConstructibleFrom<eng::Block<PatternTag>, eng::Block<PatternTag>>,
-	              "mismo dominio debe copiarse");
+	// `Block` es **movible, NO copiable** (handle propietario: copiar = dos dueños). Mismo dominio
+	// se construye por movimiento (ROADMAP_MEMORY_OWNERSHIP.md Fase 2). El acceso múltiple se hace
+	// con vistas (`view`/`mem_view`), no copiando el bloque.
+	static_assert(std::is_move_constructible_v<eng::Block<PatternTag>>,
+	              "Block debe ser movible");
+	static_assert(!std::is_copy_constructible_v<eng::Block<PatternTag>>,
+	              "Block NO debe ser copiable (un solo dueño)");
 	// El bloque lleva la vista y el medio (MemoryKind); es una reserva, no una vista
 	// de coste cero, pero el sobrecoste es minimo (1 enumerado + padding).
 	static_assert(sizeof(eng::Block<PatternTag>) >= sizeof(eng::Bytes<PatternTag>),

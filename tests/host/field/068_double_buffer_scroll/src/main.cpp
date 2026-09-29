@@ -22,28 +22,27 @@
 
 #include <eng/core/types/types.hpp>
 #include <eng/field/double_buffer_playfield.hpp>
-#include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
 
 namespace {
 
 using eng::MemoryKind;
-using eng::MemorySystem;
-using eng::LinearArena;
+using eng::MemoryManager;
 using eng::field::DoubleBufferScrollConfig;
 using eng::field::DoubleBufferScrollPlayfield;
 
 alignas(16) eng::u8 g_chip[512 * 1024];
 
-MemorySystem make_memory() {
-	MemorySystem mem;
-	mem.chip = eng::ChipArena {g_chip, sizeof(g_chip), MemoryKind::Chip};
+MemoryManager make_memory() {
+	MemoryManager mem;
+	mem.configure(g_chip, sizeof(g_chip), nullptr, 0u, nullptr, 0u, 16u);
 	return mem;
 }
 
 } // namespace
 
 int main() {
-	MemorySystem mem = make_memory();
+	MemoryManager mem = make_memory();
 
 	constexpr eng::u16 kWorldW = 512;
 	constexpr eng::u16 kWorldH = 512;

@@ -22,12 +22,12 @@
 #include <eng/graphics/copper/plan.hpp>
 #include <eng/graphics/copper/static_plan.hpp>
 #include <eng/graphics/raster_intent.hpp>
-#include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
 
 namespace {
 
 using eng::MemoryKind;
-using eng::MemorySystem;
+using eng::MemoryManager;
 using eng::LinearArena;
 using eng::u16;
 using eng::u32;
@@ -45,9 +45,9 @@ struct MockBackend {
 
 alignas(16) eng::u8 g_chip[64 * 1024];
 
-MemorySystem make_memory() {
-	MemorySystem mem;
-	mem.chip = eng::ChipArena {g_chip, sizeof(g_chip), MemoryKind::Chip};
+MemoryManager make_memory() {
+	MemoryManager mem;
+	mem.configure(g_chip, sizeof(g_chip), nullptr, 0u, nullptr, 0u, 16u);
 	return mem;
 }
 
@@ -114,7 +114,7 @@ int main() {
 	static const u16 kBase[4] = {0x000, 0x111, 0x222, 0x333};
 	static const u16 kC1 = 0x0f0, kC2 = 0x00f, kC3 = 0xf00;
 
-	MemorySystem mem = make_memory();
+	MemoryManager mem = make_memory();
 	eng::copper::Plan plan;
 	if (!plan.begin(mem, {1024u})) {
 		std::printf("[FAIL] Plan::begin fallo\n");
@@ -434,8 +434,8 @@ int main() {
 
 		// El Plan DINAMICO con la MISMA escena debe emitir la misma lista.
 		static eng::u8 chip_static[32 * 1024];
-		eng::MemorySystem mem2 {};
-		mem2.chip = eng::ChipArena {chip_static, sizeof(chip_static), eng::MemoryKind::Chip};
+		eng::MemoryManager mem2 {};
+		mem2.configure(chip_static, sizeof(chip_static), nullptr, 0u, nullptr, 0u, 16u);
 		eng::copper::Plan dyn;
 		if (!dyn.begin(mem2, {8192u, 0x2cu})) {
 			std::printf("[FAIL] Plan::begin del camino estatico\n");

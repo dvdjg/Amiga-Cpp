@@ -63,7 +63,16 @@ run_test() {
 
 	echo "==> [$name]"
 	"$CXX" $CXXFLAGS "$src" -o "$bin"
-	"$bin"
+	# Convención del repo: exit 3 = **omitido** (test host-only sin su dependencia; p. ej. el
+	# binario externo de audio-compressor). No cuenta como fallo de la suite.
+	ec=0
+	"$bin" || ec=$?
+	if [ "$ec" -eq 3 ]; then
+		echo "SKIP: [$name] (dependencia ausente; ver su README)"
+	elif [ "$ec" -ne 0 ]; then
+		echo "FALLO: [$name] (exit $ec)" >&2
+		exit 1
+	fi
 	echo ""
 }
 

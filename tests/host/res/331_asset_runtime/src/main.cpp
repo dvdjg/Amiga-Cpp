@@ -10,7 +10,7 @@
 
 #include <cstdio>
 
-#include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
 #include <eng/platform/amiga/asset_backend.hpp>
 #include <eng/res/asset_runtime.hpp>
 
@@ -38,11 +38,8 @@ int main() {
 	std::printf("== HOST-331 asset_runtime ==\n");
 
 	eng::u8 chip_buf[4096] {};
-	eng::MemorySystem ms {
-		eng::ChipArena {chip_buf, sizeof(chip_buf), eng::MemoryKind::Chip},
-		eng::ChipArena {},
-		eng::ChipArena {},
-	};
+	eng::MemoryManager ms {};
+	ms.configure(chip_buf, sizeof(chip_buf), nullptr, 0u, nullptr, 0u, 16u);
 	eng::res::AssetRuntime<eng::amiga::AssetCacheBackend, 4u> assets;
 	check(assets.init(eng::amiga::AssetCacheBackend {ms}, eng::res::CacheConfig {4096u, 0u, 4u}),
 	      "init");

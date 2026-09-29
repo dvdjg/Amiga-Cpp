@@ -35,11 +35,11 @@ constexpr bool streq(const char* a, const char* b) noexcept {
 
 // Sink falso que captura las lineas dibujadas (misma firma que `DebugOverlay::text`).
 struct FakeOverlay {
-	char lines[8][40] {};
+	char lines[10][48] {};
 	int count = 0;
 	void text(eng::s16, eng::s16, const char* s, eng::u32) {
 		int i = 0;
-		while (s[i] != '\0' && i < 39) {
+		while (s[i] != '\0' && i < 47) {
 			lines[count][i] = s[i];
 			++i;
 		}
@@ -85,17 +85,25 @@ int main() {
 	t.frames = 1234u;
 	t.chip_used = 20480u;
 	t.chip_capacity = 524288u;
+	t.chip_peak = 40960u;
 	t.slow_used = 1024u;
 	t.slow_capacity = 262144u;
 	t.fast_used = 0u;
 	t.fast_capacity = 0u;
+	t.frame_used = 512u;
+	t.frame_capacity = 4096u;
+	t.chip_slots = 3u;
+	t.chip_slots_max = 64u;
 	eng::debug::draw_telemetry(o, t, 4, 4, 8, 0xffffffu);
-	check(o.count == 5, "panel: 5 lineas");
+	check(o.count == 8, "panel: 8 lineas");
 	check(streq(o.lines[0], "FPS 59.60"), "panel: fps");
 	check(streq(o.lines[1], "FRAME 1234"), "panel: frame");
 	check(streq(o.lines[2], "CHIP 20480/524288"), "panel: chip");
-	check(streq(o.lines[3], "SLOW 1024/262144"), "panel: slow");
-	check(streq(o.lines[4], "FAST 0/0"), "panel: fast");
+	check(streq(o.lines[3], "CHIPPEAK 40960"), "panel: chip peak");
+	check(streq(o.lines[4], "SLOW 1024/262144"), "panel: slow");
+	check(streq(o.lines[5], "FAST 0/0"), "panel: fast");
+	check(streq(o.lines[6], "SCRATCH 512/4096"), "panel: scratch");
+	check(streq(o.lines[7], "CHIPHOLES 3/64"), "panel: chip holes");
 
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);

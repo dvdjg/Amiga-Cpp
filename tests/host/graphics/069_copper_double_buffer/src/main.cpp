@@ -28,12 +28,12 @@
 #include <eng/graphics/copper/double_buffer.hpp>
 #include <eng/graphics/palette32.hpp>
 #include <eng/graphics/drivers/tile_scroll.hpp>
-#include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
 
 namespace {
 
 using eng::MemoryKind;
-using eng::MemorySystem;
+using eng::MemoryManager;
 using eng::LinearArena;
 using eng::u16;
 using eng::u32;
@@ -51,9 +51,9 @@ struct MockBackend {
 
 alignas(16) eng::u8 g_chip[512 * 1024];
 
-MemorySystem make_memory() {
-	MemorySystem mem;
-	mem.chip = eng::ChipArena {g_chip, sizeof(g_chip), MemoryKind::Chip};
+MemoryManager make_memory() {
+	MemoryManager mem;
+	mem.configure(g_chip, sizeof(g_chip), nullptr, 0u, nullptr, 0u, 16u);
 	return mem;
 }
 
@@ -74,7 +74,7 @@ u16 value_of(const u16* words, u16 count, u16 reg) {
 int main() {
 	// --- A) API del DoubleBuffer -------------------------------------------------
 	{
-		MemorySystem mem = make_memory();
+		MemoryManager mem = make_memory();
 		eng::copper::DoubleBuffer db;
 		if (!db.begin(mem, 512u)) {
 			std::printf("[FAIL] DoubleBuffer::begin fallo\n");
@@ -113,7 +113,7 @@ int main() {
 		using namespace eng::graphics::drivers;
 		using Scene = TileScrollScene<TileScrollMode::ehb()>;
 
-		MemorySystem mem = make_memory();
+		MemoryManager mem = make_memory();
 		static const eng::Palette32 pal {};
 		TileScrollConfig cfg {};
 		cfg.base_palette = &pal;
