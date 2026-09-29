@@ -209,6 +209,24 @@ compositores, `tile_scroll.hpp` (103/104) y `TileLayerMap`/`tile_map.hpp`.
   divisiones/modulos por frame (cuidar `fast_div`).
 - **Compatibilidad de demos**: usar adaptadores temporales; no reescribir las 6 demos de golpe.
 
+## Deuda: `XlimitedConfigT` vs `XlimitedSceneConfigT` (Geometría compartida)
+
+`XlimitedSceneConfigT` (`xlimited_scene.hpp`) **redeclara** ~12 campos de geometría/scroll que ya
+viven en `XlimitedConfigT` (`xlimited_base.hpp`: `planes`, `tile_width/height`, `bitmap_width`,
+`fetch_mode`, `viewport_w/h`, `display_height`, `screens_x/y`, `x_mode`, `y_mode`, `parallax_*`,
+`direction`, `max_step`, `linear_display`, `visible_tile_bias_x/y`) y en `begin` reconstruye un
+`XlimitedConfigT fc` rellenándolos. Debe unificarse:
+
+1. Extraer **`XlimitedGeometry`** (todos esos campos) en `xlimited_base.hpp`.
+2. `XlimitedConfigT` = `{ XlimitedGeometry geo; MapT map; const u16* tileset; }`.
+3. `XlimitedSceneConfigT` = `{ XlimitedGeometry geo; MapT map, map2; … hud/dpf/path/palette }`.
+4. Migrar los **~168 accesos** `m_cfg.<campo>` → `m_cfg.geo.<campo>` en `xlimited_{base,playfield,
+   composer,scene}.hpp` y en las demos (107/110/111/112/202 y `XlimitedSceneConfig`), con
+   verificación **por demo** (build + regresión).
+
+Es mecánico pero amplio (geometría sensible a corkscrew/split/DPF): hacerlo en una pasada dedicada
+con build/regresión de las 6 demos xlimited, no a la brava.
+
 ## Estado
 
 - Fase 1: `PlaneView` y `SoftDpfComposition` extraídos (`plane_view.hpp`/`soft_dpf.hpp`,
