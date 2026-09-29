@@ -2,6 +2,8 @@
 
 Plan del pipeline offline de compresión de audio y del decoder `AUZX` del engine. El diseño estable está en [`AUDIO_COMPRESSION.md`](../../engine/architecture/AUDIO_COMPRESSION.md); la arquitectura de streaming está en [`AUDIO_STREAMING.md`](../../engine/architecture/AUDIO_STREAMING.md).
 
+El corpus mixto previsto para ajustar los parámetros está descrito en [`AUDIO_CORPUS_FREEPD.md`](AUDIO_CORPUS_FREEPD.md). Incluye ambiente tonal, ritmo electrónico, piano y material experimental; las copias descargadas son salidas de `out/` y no forman parte del repositorio.
+
 ## Fases
 
 ### C0 — Contenedor y baseline
