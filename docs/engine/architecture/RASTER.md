@@ -248,6 +248,15 @@ y el feeder por IRQ no solapa).
 batch con caché de estado. Métricas: construcción de la cola, **escrituras de registro**, arranques
 y esperas del Blitter, tiempo total y memoria de la descripción.
 
+**Estado (jul 2026):** (1) caché de estado común por racha — **hecha** (`AmigaBackend::submit_blit_job`);
+(2) agrupación por estado — **`FramePlan::sort_by_state()`** hecho (opt-in, HOST-387), pero **sin
+activar** en demos todavía: exige que el llamador **garantice independencia** (destinos disjuntos).
+En 104 el `add_shift` (copia del ring) **depende del orden** respecto a los tiles, así que activarlo
+allí requeriría separar el shift del lote o marcar los grupos independientes. No hay número de HW
+fiable hasta tener una escena de blits **disjuntos** (tiles puros) como bench. El camino `inline`
+(`OrBlobBatch`) sigue siendo el más rápido para lotes homogéneos; (1)/(2) acercan el camino del
+`FramePlan` heterogéneo a él.
+
 ## Verificación
 
 - **HOST-212**: `RasterOp` (`Xor` dos veces = 0, `Or`/`And`/`Clear`), `BlitterRaster` (fill y

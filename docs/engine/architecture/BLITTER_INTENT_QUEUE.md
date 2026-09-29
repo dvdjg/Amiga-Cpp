@@ -96,7 +96,32 @@ En el engine real es un **`Msg` del mini-SO** (`MsgType::IntentDone`) con el **`
 sigue siendo el único bloqueo y **solo** si el juego lo pide (`BlitQueue` usa `NoDone`; el aviso
 real del planner va por la `DrawQueue`). Ver [`INTENT_PLANNER.md`](INTENT_PLANNER.md) §5.
 
-## 6. Decisiones y límites
+## 6. Feeder: liberar la CPU del bucle (estado real)
+
+El objetivo asíncrono es **no bloquear el bucle principal**: la CPU sigue con su pila y contexto, y
+el avance del Blitter ocurre en el **hueco de VBlank** (poll) o en la **IRQ de blit** (nivel 3, bit
+6, `level3_dispatch` → `g_blit_task`, ya cableada). Dos vías:
+
+- **(P) Poll — por defecto.** La cola avanza en el punto donde la CPU **ya** espera (VBlank, `wait_blitter`
+  del commit). El bucle **no se bloquea** salvo por `wait_all()` explícito. **Coste de IRQ cero.**
+  Es el default medido (con `BLTPRI`/blitter-nasty el Blitter no cede slots y el poll va igual o
+  mejor). El `FramePlan` se ejecuta de golpe en el commit; la CPU queda libre **entre** frames.
+- **(I) IRQ de blit — opt-in.** El gancho (`set_blit_service` + `level3_dispatch` bit 6) **existe**;
+  falta conectar un **feeder** que, al terminar un job, programe el siguiente. Aviso: en OCS el
+  Blitter **no encadena solo** — alguien (CPU en la ISR, o **Copper**) debe escribir el próximo
+  `BLTSIZE`. La vía "sin CPU" real es el **Copper** (`CopperBlitterExecutor`, Técnica A): el Copper
+  escribe los registros en su línea. La ISR, si se usa, interrumpe brevemente y **no** altera la
+  labor de fondo (transparente).
+
+**Camino `inline` vs llamada de backend.** `OrBlobBatch` (`platform/amiga/blob.hpp`) es el camino
+**`always_inline`** del mismo estado (`kBlitterMintermAOrB`…, misma verdad en `blitter_state.hpp`):
+evita un `jsr` por objeto (~600 c/BOB medido en 117). `submit_blit_job` es una **llamada de backend**
+con prologue; su caché de estado común (por racha) reduce escrituras, pero **no** iguala el inline.
+No son duplicados: son **dos vías del mismo estado** (una para lotes homogéneos desde la demo, otra
+para el `FramePlan` heterogéneo). Unificarlas = que la cola pueda emitir el lote `inline` cuando los
+jobs son homogéneos (`sort_by_state` es el primer paso).
+
+## 7. Decisiones y límites
 
 - **Orden FIFO** (el Blitter es secuencial); prioridad sería una extensión.
 - **Capacidad fija `N`** (potencia de dos); si se llena, `enqueue` avanza la cola (`flush`/`drain`).
@@ -105,7 +130,7 @@ real del planner va por la `DrawQueue`). Ver [`INTENT_PLANNER.md`](INTENT_PLANNE
   **no cede slots**: el feeder por IRQ **no** garantiza solape con la CPU (medido). Por eso el
   **poll** es el modo por defecto (usa los huecos que ya existen, sin IRQ).
 
-## 7. Procedencia (compilador) vs vida (RAII)
+## 8. Procedencia (compilador) vs vida (RAII)
 
 - **La PROCEDENCIA la caza el tipo.** `Address<Chip>`/`ChipView<Tag>`/`BitmapView<Tag,Chip>` **solo**
   nacen de fuentes Chip (`MemBank<Chip>`, `Block<Tag,Chip>`, `gfx::Bitmap`, `.MEMF_CHIP`,
@@ -118,7 +143,7 @@ real del planner va por la `DrawQueue`). Ver [`INTENT_PLANNER.md`](INTENT_PLANNE
   heap**); las APIs toman **vistas** no propietarias. Para datos Chip **estáticos**: `ChipStorage`.
   Ver `MEMORY_OWNERSHIP.md` (contrato del developer) y `ROADMAP_MEMORY_OWNERSHIP.md`.
 
-## 8. Relación con lo que ya existe
+## 9. Relación con lo que ya existe
 
 - `FramePlan` es **el sumidero** de la capa 2: la `BlitQueue` es el **front-end de intención**; su
   `PlanExecutor` añade `blit_job_from(op)` al plan. **Un solo dueño** del orden/presupuesto/ejecución.
