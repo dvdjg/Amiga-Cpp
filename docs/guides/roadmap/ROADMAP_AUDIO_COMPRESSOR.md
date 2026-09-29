@@ -79,6 +79,12 @@ Plan del pipeline offline de compresión de audio y del decoder `AUZX` del engin
 - **Entregado**: HOST-379 instancia el algoritmo con `float` y `Fixed<s32,16>`.
 - **Pendiente**: seleccionar el formato fixed definitivo por parámetro y comprobar codegen 68000 para el camino de reproducción.
 
+### C11 — Tablas de cuantización
+
+- **Entregado**: `eng::util::lloyd_max` como plantilla scalar-independent, con capacidad y scratch explícitos.
+- **Entregado**: HOST-380 con `float` y `Fixed<s32,16>`.
+- **Pendiente**: conectar la tabla entrenada al encoder IMA/residual y exportarla al formato AUZX.
+
 ## Criterios de aceptación
 
 - Todo archivo generado por la utilidad se puede validar sin depender de una ruta absoluta ni de herramientas no declaradas.

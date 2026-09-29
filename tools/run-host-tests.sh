@@ -98,7 +98,22 @@ if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 	# Codegen 68000: sin libcalls ni instrucciones de 68020 en el vocabulario de
 	# fixed/MiniFloat16. Se omite si no hay toolchain cruzado.
 	CODEGEN="$ROOT/tools/analyze/codegen-report.mjs"
-	CODEGEN_CXX="${AMIGA_BIN_PATH:-$HOME/.vscode/extensions/bartmanabyss.amiga-debug-1.8.1/bin/win32}/opt/bin/m68k-amiga-elf-g++.exe"
+	CODEGEN_CXX=""
+	if [ -n "${AMIGA_BIN_PATH:-}" ]; then
+		for candidate in "$AMIGA_BIN_PATH/opt/bin/m68k-amiga-elf-g++.exe" "$AMIGA_BIN_PATH/m68k-amiga-elf-g++.exe"; do
+			if [ -f "$candidate" ]; then CODEGEN_CXX="$candidate"; break; fi
+		done
+	fi
+	if [ -z "$CODEGEN_CXX" ]; then
+		for root in "$HOME/.cursor/extensions" "$HOME/.vscode/extensions"; do
+			for ext in "$root"/bartmanabyss.amiga-debug-*/bin/win32; do
+				for candidate in "$ext/opt/bin/m68k-amiga-elf-g++.exe" "$ext/m68k-amiga-elf-g++.exe"; do
+					if [ -f "$candidate" ]; then CODEGEN_CXX="$candidate"; break 2; fi
+				done
+			done
+			[ -n "$CODEGEN_CXX" ] && break
+		done
+	fi
 	if [ -f "$CODEGEN" ] && command -v node >/dev/null 2>&1 && [ -f "$CODEGEN_CXX" ]; then
 		echo "== codegen (68000) =="
 		if ! node "$CODEGEN" >/dev/null; then

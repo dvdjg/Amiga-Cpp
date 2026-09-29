@@ -128,6 +128,7 @@ Puntos de reutilización explícitos:
 | `variant.hpp` | `Variant<Ts...>` (unión etiquetada de alternativas triviales, `visit`) | `std::variant` (sin heap) |
 | `scope_guard.hpp` | `ScopeGuard`, `make_scope_guard` | `boost::scope_exit` |
 | `stats.hpp` | `sum`/`mean`/`variance`/`stddev`/`kth_smallest`/`median`/`histogram`/`ema`/`RunningMean` | (sin equivalente; estadística) |
+| `quantizer.hpp` | `QuantizerResult<S>`/`lloyd_max` (Lloyd-Max sin heap, scratch del llamador) | (sin equivalente; entrenamiento offline) |
 | `color.hpp` | `rgb444`/`lerp444`/`scale444`/`hsv_to_rgb444` + `palette_lerp`/`palette_scale` (transición y fundido de una paleta completa) + `gradient444` (degradado multi-parada) | (sin equivalente; color Amiga) |
 | `collision.hpp` | `Aabb`, `aabb_*`, `segments_intersect`, `point_in_triangle`, `circle_overlap` | (sin equivalente; juego 2D) |
 | `text.hpp` | `trim`/`split_next`/`equal_ci`/`parse_u32`/`parse_s32`/`to_chars_*`/`join` | (parte de `boost::string`/`charconv`) |

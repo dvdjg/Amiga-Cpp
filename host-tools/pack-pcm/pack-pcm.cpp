@@ -26,6 +26,8 @@
 #include <eng/audio/auzx.hpp>
 #include <eng/audio/fib_delta.hpp>
 #include <eng/audio/pcm_codec.hpp>
+#include <eng/audio/audio_tuning.hpp>
+#include <eng/core/math/fixed.hpp>
 #include "wav_loader.hpp"
 
 #include <cstdio>
@@ -188,14 +190,33 @@ int main(int argc, char** argv) {
 		got += static_cast<eng::usize>(dn);
 	}
 	std::size_t diff = 0u;
+	eng::u64 squared_error = 0u;
+	eng::u64 signal_energy = 0u;
+	eng::u8 peak_error = 0u;
 	for (eng::usize i = 0u; i < total && i < got; ++i) {
-		if (out[i] != pcm[i]) {
-			++diff;
-		}
+		const eng::s32 original = static_cast<eng::s8>(pcm[i]);
+		const eng::s32 rebuilt = static_cast<eng::s8>(out[i]);
+		const eng::s32 error = original - rebuilt;
+		const eng::u32 absolute = static_cast<eng::u32>(error < 0 ? -error : error);
+		if (error != 0) ++diff;
+		squared_error += static_cast<eng::u64>(error * error);
+		signal_energy += static_cast<eng::u64>(original * original);
+		if (absolute > peak_error) peak_error = static_cast<eng::u8>(absolute);
 	}
+	using MetricScalar = eng::math::Fixed<eng::s32, 16>;
+	const MetricScalar sample_count {static_cast<eng::s32>(total > 32767u ? 32767u : total)};
+	const eng::s64 mse_raw = (squared_error * 65536u) / (total == 0u ? 1u : total);
+	const eng::s64 signal_raw = (signal_energy * 65536u) / (total == 0u ? 1u : total);
+	const MetricScalar mse {static_cast<eng::s32>(mse_raw > 2147483647LL ? 2147483647LL : mse_raw)};
+	const MetricScalar signal {static_cast<eng::s32>(signal_raw > 2147483647LL ? 2147483647LL : signal_raw)};
+	const MetricScalar mse_mean = eng::math::div_norm(mse, sample_count);
+	const MetricScalar signal_mean = eng::math::div_norm(signal, sample_count);
 	std::printf("pack-pcm: %s -> %s | codec=%u rate=%u chunk=%u | %u muestras, %u chunks, %u bytes\n",
 		    in_path, out_path, h.compression, h.sample_rate, h.chunk_samples,
 		    static_cast<unsigned>(total), h.num_chunks, static_cast<unsigned>(file.size()));
+	std::printf("metrics: mse_fixed16=%.6f signal_fixed16=%.6f peak=%u\n",
+		static_cast<double>(mse_mean.v) / 65536.0, static_cast<double>(signal_mean.v) / 65536.0,
+		static_cast<unsigned>(peak_error));
 	// Con codecs con perdida (fib/ima) NO se espera round-trip exacto.
 	const bool lossy = (h.compression == static_cast<eng::u8>(eng::audio::pcm_codec::Codec::FibDelta) ||
 			    h.compression == static_cast<eng::u8>(eng::audio::pcm_codec::Codec::ImaAdpcm));

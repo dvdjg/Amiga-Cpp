@@ -28,8 +28,28 @@ import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-const objdump = process.env.AMIGA_OBJDUMP
-	|| 'C:/Users/dvdjg/.vscode/extensions/bartmanabyss.amiga-debug-1.8.1/bin/win32/opt/bin/m68k-amiga-elf-objdump.exe';
+function resolveObjdump() {
+	if (process.env.AMIGA_OBJDUMP) return process.env.AMIGA_OBJDUMP;
+	const home = process.env.HOME || process.env.USERPROFILE || '';
+	const roots = [process.env.AMIGA_BIN_PATH,
+		path.join(home, '.cursor', 'extensions'), path.join(home, '.vscode', 'extensions')].filter(Boolean);
+	const candidates = [];
+	for (const root of roots) {
+		if (!fs.existsSync(root)) continue;
+		if (root.endsWith('extensions')) {
+			for (const entry of fs.readdirSync(root)) {
+				if (entry.startsWith('bartmanabyss.amiga-debug-')) candidates.push(path.join(root, entry, 'bin', 'win32'));
+			}
+		} else candidates.push(root);
+	}
+	for (const bin of candidates.reverse()) {
+		for (const candidate of [path.join(bin, 'opt', 'bin', 'm68k-amiga-elf-objdump.exe'), path.join(bin, 'm68k-amiga-elf-objdump.exe')]) {
+			if (fs.existsSync(candidate)) return candidate;
+		}
+	}
+	return 'm68k-amiga-elf-objdump';
+}
+const objdump = resolveObjdump();
 
 const args = process.argv.slice(2);
 const flags = new Set(args.filter((a) => a.startsWith('--')));

@@ -9,10 +9,74 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '../..');
-const BIN = process.env.AMIGA_BIN_PATH || 'C:/Users/dvdjg/.vscode/extensions/bartmanabyss.amiga-debug-1.8.1/bin/win32';
-const CXX = `${BIN}/opt/bin/m68k-amiga-elf-g++.exe`;
-const SRC = `${ROOT}/out/tmp/codegen-probe.cpp`;
-const ASM = `${ROOT}/out/tmp/codegen-probe.s`;
+function toolchainVersion(bin) {
+  for (const candidate of [
+    path.join(bin, 'opt', 'bin', 'm68k-amiga-elf-g++.exe'),
+    path.join(bin, 'm68k-amiga-elf-g++.exe'),
+    path.join(bin, 'opt', 'bin', 'm68k-amiga-elf-g++'),
+    path.join(bin, 'm68k-amiga-elf-g++'),
+  ]) {
+    if (!fs.existsSync(candidate)) continue;
+    try {
+      const first = execFileSync(candidate, ['--version'], { encoding: 'utf8' }).split(/\r?\n/, 1)[0];
+      const match = first.match(/\b(\d+\.\d+(?:\.\d+)?)\b/);
+      return { candidate, version: match ? match[1] : '0.0.0' };
+    } catch {
+      // El candidato existe pero no puede arrancar; se prueba el siguiente.
+    }
+  }
+  return null;
+}
+
+function extensionCandidates(root) {
+  if (!fs.existsSync(root)) return [];
+  return fs.readdirSync(root)
+    .filter((entry) => entry.startsWith('bartmanabyss.amiga-debug-'))
+    .map((entry) => path.join(root, entry, 'bin', 'win32'));
+}
+
+function resolveCompiler() {
+  const home = process.env.HOME || process.env.USERPROFILE || '';
+  const candidates = [];
+  if (process.env.AMIGA_BIN_PATH) candidates.push(process.env.AMIGA_BIN_PATH);
+  candidates.push(...extensionCandidates(path.join(home, '.cursor', 'extensions')));
+  candidates.push(...extensionCandidates(path.join(home, '.vscode', 'extensions')));
+  const resolved = candidates.map(toolchainVersion).filter(Boolean).sort((a, b) =>
+    a.version.localeCompare(b.version, undefined, { numeric: true }))[0];
+  if (resolved) return resolved.candidate;
+  for (const name of ['m68k-amiga-elf-g++', 'm68k-amiga-elf-g++.exe']) {
+    try {
+      return execFileSync(process.platform === 'win32' ? 'where' : 'which', [name], { encoding: 'utf8' })
+        .split(/\r?\n/, 1)[0];
+    } catch {
+      // Sigue con el siguiente nombre.
+    }
+  }
+  throw new Error('No se encontró m68k-amiga-elf-g++; define AMIGA_BIN_PATH o instala Bartman Abyss.');
+}
+
+const CXX = resolveCompiler();
+
+/// Ejecuta el compilador cruzado con el shell nativo en Windows. El `cc1plus.exe` distribuido por
+/// Bartman recibe mal las rutas de salida cuando se invoca directamente desde Git Bash; `cmd.exe`
+/// conserva la semántica de rutas que usa la extensión de VS Code. En Unix se ejecuta directamente.
+function runCompiler(args) {
+  if (process.platform !== 'win32') {
+    return execFileSync(CXX, args, { cwd: ROOT, stdio: 'pipe' });
+  }
+  const quote = (value) => `"${String(value).replaceAll('"', '""')}"`;
+  const batch = path.join(TMP, 'codegen-compile.bat');
+  const nativeArgs = args.map((arg) => arg === 'out/tmp/codegen-probe.s' ? path.join(TMP, 'codegen-probe.s') :
+    arg === 'out/tmp/codegen-probe-68020.s' ? path.join(TMP, 'codegen-probe-68020.s') : arg);
+  fs.writeFileSync(batch, `@echo off\r\ncd /d ${quote(ROOT)}\r\n${quote(CXX)} ${nativeArgs.map(quote).join(' ')}\r\n`, 'utf8');
+  return execFileSync(process.env.ComSpec || 'cmd.exe', ['/d', '/c', 'call', batch], {
+    cwd: ROOT,
+    stdio: 'pipe',
+  });
+}
+const TMP = path.join(ROOT, 'out', 'tmp');
+const SRC = path.join(TMP, 'codegen-probe.cpp');
+const ASM = path.join(TMP, 'codegen-probe.s');
 
 const probe = `#include <eng/core/math/fixed.hpp>
 #include <eng/core/math/linalg.hpp>
@@ -1698,11 +1762,14 @@ extern "C" eng::u32 c_cards_deuces(const eng::u8* cards) {
 }
 `;
 
-fs.mkdirSync(`${ROOT}/out/tmp`, { recursive: true });
+fs.mkdirSync(TMP, { recursive: true });
 fs.writeFileSync(SRC, probe);
 try {
-  execFileSync(CXX, ['-std=gnu++23', '-mcpu=68000', '-O2', '-fomit-frame-pointer',
-    `-I${ROOT}/engine/include`, '-S', '-o', ASM, SRC], { stdio: 'pipe' });
+  runCompiler(['-std=gnu++23', '-mcpu=68000', '-O2', '-fomit-frame-pointer',
+    '-Iengine/include', '-S', '-o', 'out/tmp/codegen-probe.s', 'out/tmp/codegen-probe.cpp'], {
+      cwd: ROOT,
+      stdio: 'pipe',
+    });
 } catch (e) {
   console.error('fallo el compilado cruzado:\n' + e.stderr?.toString());
   process.exit(1);
@@ -1808,8 +1875,11 @@ console.log('[codegen] OK: sin libcalls (mul/div de 32 y 64 bits) ni instruccion
 // aplica aqui. Se comprueba solo que no aparezcan libcalls prohibidas.
 const ASM20 = `${ROOT}/out/tmp/codegen-probe-68020.s`;
 try {
-  execFileSync(CXX, ['-std=gnu++23', '-mcpu=68020', '-O2', '-fomit-frame-pointer',
-    `-I${ROOT}/engine/include`, '-S', '-o', ASM20, SRC], { stdio: 'pipe' });
+  runCompiler(['-std=gnu++23', '-mcpu=68020', '-O2', '-fomit-frame-pointer',
+    '-Iengine/include', '-S', '-o', 'out/tmp/codegen-probe-68020.s', 'out/tmp/codegen-probe.cpp'], {
+      cwd: ROOT,
+      stdio: 'pipe',
+    });
 } catch (e) {
   console.error('fallo el compilado 68020:\n' + e.stderr?.toString());
   process.exit(1);

@@ -84,3 +84,4 @@ Categoría `core` de la batería host (L1). El índice de categorías está en [
 | HOST-339 | [copper_builder](339_copper_builder/README.md) | `eng/api/copper.hpp`: fachada de Copper de alto nivel (`wait_line`/`set_color`/`set_palette`/`set_scroll`) — para copper de alto nivel. |
 | HOST-341 | [adapter](341_adapter/README.md) | Prueba de decisión §7.6: un consumidor implementa sus `I*` (externas) con solo `eng/api/api.hpp` + helpers (`BlockPool`/`Copper`), sin tocar `field`/`BobTarget`/registros. |
 | HOST-352 | [telemetry_chip](352_telemetry_chip/README.md) | `eng/debug/telemetry.hpp` (panel sobre el overlay del depurador: fps/frame/memoria, con `StaticString`/`to_chars_u32`) y `eng/memory/chip_storage.hpp` (`ChipStorage`/`ENG_CHIP_RAM`: búfer estático certificado en Chip RAM con `Address<Chip>`). |
+| HOST-380 | [lloyd_max](380_lloyd_max/README.md) | `eng/core/util/quantizer.hpp`: entrenamiento Lloyd-Max sin heap con `float` y `Fixed<s32,16>`. |
