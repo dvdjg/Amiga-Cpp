@@ -113,7 +113,7 @@ struct HarmonyDemo {
 		m_audio.set_music_volume(40);
 		m_audio.set_music_channel_mask(0x0Eu); // silencia AUD0 (mixer), deja AUD1..AUD3
 
-		if (!m_audio.init(backend.memory())) { eng::debug::mark_failed(g_eng_run_status, 0x00006304u); return; }
+		if (!m_audio.init(backend.memory_manager())) { eng::debug::mark_failed(g_eng_run_status, 0x00006304u); return; }
 
 		// NOTA: sin SFX continuo del mixer aquí; el bajo lo da el canal 3 de la
 		// música (AUD3). El mixer (AUD0) queda libre para SFX discretos.

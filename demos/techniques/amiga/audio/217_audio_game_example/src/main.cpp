@@ -100,7 +100,7 @@ struct GameExample {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021704u);
 			return;
 		}
-		if (!m_audio.init(backend.memory())) {
+		if (!m_audio.init(backend.memory_manager())) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021705u);
 			return;
 		}

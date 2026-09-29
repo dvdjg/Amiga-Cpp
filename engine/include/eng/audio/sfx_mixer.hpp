@@ -23,6 +23,7 @@
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
 
 namespace eng::audio {
 
@@ -220,31 +221,29 @@ public:
 	SfxMixer(const SfxMixer&) = delete;
 	SfxMixer& operator=(const SfxMixer&) = delete;
 
-	/// Reserva el buffer Chip requerido, configura el mixer y arranca el handler
-	/// (VBR=0, propio de un 68000). Asume que el sistema ya no usa interrupciones
-	/// de audio (el engine hace takeover del display antes).
+	/// Reserva el buffer **Chip** de salida (obligatorio) y arranca el handler. El mixer
+	/// sintetiza en `mixer_buffer` y Paula lo **reproduce por DMA**: ese buffer **debe** estar en
+	/// Chip (`MixerSetup` doc: «A0 must point to a block of memory in **Chip RAM**»). Los buffers
+	/// de plugins (desactivados en `mixer_config.i`) admiten **cualquier** RAM: van a Fast→Slow,
+	/// nunca a Chip (no son DMA). Sin Chip para la salida, `init` falla (no hay fallback).
 	///
-	/// NOTA: aunque los plugins estén desactivados en `mixer_config.i`, el mixer
-	/// espera punteros NO nulos para el buffer de plugins y el de datos (como en
-	/// el ejemplo `CMixer.c`); pasar `nullptr` deja la mezcla en silencio. Por eso
-	/// se reservan aquí (Chip RAM) y se pasan a `MixerSetup`.
-	bool init(MemorySystem& memory) {
+	/// NOTA: aunque los plugins estén desactivados, `MixerSetup` y el handler esperan punteros NO
+	/// nulos para `plugin_buffer`/`plugin_data` (como en el ejemplo `CMixer.c`); pasar `nullptr`
+	/// deja la mezcla en silencio. Por eso se reservan aquí (cualquier RAM) y se pasan a
+	/// `MixerSetup`. Ver `MEMORY_OWNERSHIP.md` §"Bancos y contratos" y `GAME_AUDIO.md` §4.
+	bool init(MemoryManager& memory) {
 		m_buffer_size = mixer_amiga::get_buffer_size();
-		m_buffer = memory.chip.allocate_block<eng::MixerBufferTag>(m_buffer_size, 4);
+		// Salida del mixer: **Chip obligatorio** (DMA de Paula). Sin fallback: si no cabe, falla.
+		m_buffer = memory.chip().reserve<eng::MixerBufferTag>(m_buffer_size, 4u);
 		if (!m_buffer.valid()) {
 			return false;
 		}
 
-		// Plugins desactivados (MIXER_ENABLE_PLUGINS=0 en mixer_config.i):
-		// MixerGetPluginsBufferSize() es un no-op y deja D0 con basura, así que
-		// no se puede usar. El mixer NO usa estos buffers, pero MixerSetup y el
-		// handler esperan punteros válidos -> reservamos bloques fijos. Pasar
-		// nullptr deja la mezcla en silencio (bug corregido con la demo 068).
+		// Plugins desactivados (MIXER_ENABLE_PLUGINS=0 en mixer_config.i): el mixer NO usa estos
+		// buffers, pero espera punteros válidos. Cualquier RAM sirve (no son DMA) -> Fast→Slow.
 		m_plugin_buffer_size = kPluginBufferBytes;
-		m_plugin_buffer = memory.chip.allocate_block<eng::MixerBufferTag>(m_plugin_buffer_size, 4);
-		if (!m_plugin_buffer.valid()) m_plugin_buffer = memory.slow.allocate_block<eng::MixerBufferTag>(m_plugin_buffer_size, 4);
-		m_plugin_data = memory.chip.allocate_block<eng::MixerBufferTag>(kPluginDataBytes, 4);
-		if (!m_plugin_data.valid()) m_plugin_data = memory.slow.allocate_block<eng::MixerBufferTag>(kPluginDataBytes, 4);
+		m_plugin_buffer = eng::fast_or_slow<eng::MixerBufferTag>(memory, m_plugin_buffer_size, 4u);
+		m_plugin_data = eng::fast_or_slow<eng::MixerBufferTag>(memory, kPluginDataBytes, 4u);
 		if (!m_plugin_buffer.valid() || !m_plugin_data.valid()) {
 			return false;
 		}
@@ -347,7 +346,7 @@ private:
 	bool m_ready = false;
 	u32 m_buffer_size = 0;
 	u32 m_plugin_buffer_size = 0;
-	eng::Block<eng::MixerBufferTag> m_buffer {};
+	eng::Block<eng::MixerBufferTag, eng::MemoryKind::Chip> m_buffer {};
 	eng::Block<eng::MixerBufferTag> m_plugin_buffer {};
 	eng::Block<eng::MixerBufferTag> m_plugin_data {};
 };

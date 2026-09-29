@@ -36,17 +36,21 @@ demo que intente (y no compile) pasar `Fast` a una API Chip (test negativo en ho
 
 **Valor:** una única API de reserva y una única de liberación; prepara el resto.
 
+**Estado (2026-09): base hecha.** `MemBank<K>::reserve<Tag>`/`release` + `Assets`
+(`add`/`create`/`release`/`reset_phase`, libera en orden inverso) son la puerta; `SfxMixer` ya la usa
+(salida Chip obligatoria, plugins Any). Falta migrar los dueños restantes (punto 3).
+
 1. Homogeneizar la API de reserva sobre `MemBank<K>::reserve<Tag>()`:
    - `LinearArena::allocate_block<Tag>()` **delega** en el banco cuando la arena es de respaldo de
      un `MemBank` (ya hay `configure_backing`), o se mantiene solo para *scratch* sin `free`.
    - Retirar progresivamente `MemBank::reserve(void*)`/consumidores que abren `pool()` directo.
 2. Definir el par **reserve/release** tipado: `MemBank<K>::release(const Block<Tag,K>&)` (existe) y
    una fachada `ResourceStore`/`Assets` para el juego (`load<Sprite>`, `create<Bitmap>`, `retain`,
-   `release`, `reset_phase`).
+   `release`, `reset_phase`). **Hecho**: `eng::Assets` (`eng/api/assets.hpp`).
 3. Reservas de fase: `frame`/`setup` con semántica explícita (arena reiniciable) y `reset_frame`.
 
-**Evidencia:** HOST nuevo del par reserve/release (idempotencia, doble free rechazado, banco
-ausente → bloque inválido) + una demo que libera en orden inverso al uso DMA.
+**Evidencia:** HOST-340 ampliado (idempotencia del `free`, puntero ajeno, reserve/release de
+`MemBank`) + build de demos de audio (057/058/061/068…).
 
 ## Fase 2 — Teardown ordenado y comprobación de DMA pendiente
 

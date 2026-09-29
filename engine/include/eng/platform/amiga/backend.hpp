@@ -580,7 +580,7 @@ public:
 	/// buffer del mixer) y después de `takeover_display` (el mixer instala su
 	/// interrupción de audio).
 	bool audio_init() {
-		return m_audio.init(m_memory);
+		return m_audio.init(m_memmanager);
 	}
 
 	/// Acceso al subsistema de audio (SFX + música). Úsalo desde el juego para

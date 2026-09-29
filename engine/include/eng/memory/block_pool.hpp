@@ -39,6 +39,12 @@ public:
 			m_count = 1u;
 		}
 	}
+	/// Construye el pool **delegando en una `LinearArena` existente** (mismo buffer y mismo
+	/// cursor): una arena y un banco que comparten buffer no se solapan. Ver `configure_backing`.
+	constexpr BlockPool(LinearArena& arena, MemoryKind kind) noexcept {
+		configure_backing(arena);
+		m_kind = kind;
+	}
 
 	/// Enlaza el pool a una **`LinearArena` existente** en vez de a un buffer propio: desde aquí
 	/// `allocate` **delega en la arena** (mismo cursor), de modo que una arena y un banco que
@@ -90,13 +96,19 @@ public:
 		return Block<Tag> {mb.buffer<Tag>(), mb.kind};
 	}
 
-	/// Libera un bloque de `allocate` (y fusiona huecos contiguos).
+	/// Libera un bloque de `allocate` (y fusiona huecos contiguos). **Idempotente**: liberar un
+	/// puntero que no pertenece a un bloque **en uso** (doble `free`, puntero ajeno o ya liberado)
+	/// es un no-op; así un `release` repetido no corrompe las listas. Con respaldo de arena
+	/// (bump) es no-op por diseño.
 	void free(void* ptr) noexcept {
 		if (m_backing.valid()) {
 			return; // la arena es *bump*: no recicla
 		}
 		if (ptr == nullptr || m_base == nullptr) {
 			return;
+		}
+		if (ptr < m_base || ptr >= m_base + m_size) {
+			return; // puntero ajeno: no-op (no corrompe el pool)
 		}
 		const u32 off = static_cast<u32>(static_cast<u8*>(ptr) - m_base);
 		for (u8 i = 0u; i < m_count; ++i) {

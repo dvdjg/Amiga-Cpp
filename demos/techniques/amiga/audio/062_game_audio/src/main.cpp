@@ -88,7 +88,7 @@ struct GameAudioDemo {
 		m_audio.set_music_volume(40);
 		m_audio.set_duck_volume(12);
 
-		if (!m_audio.init(backend.memory())) { eng::debug::mark_failed(g_eng_run_status, 0x00006204u); return; }
+		if (!m_audio.init(backend.memory_manager())) { eng::debug::mark_failed(g_eng_run_status, 0x00006204u); return; }
 		// El mixer usa AUD0; la música AUD1 (módulo con la nota en el canal 1).
 		m_audio.set_music_channel_mask(0x01u);
 

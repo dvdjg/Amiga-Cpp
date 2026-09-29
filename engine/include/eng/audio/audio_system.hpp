@@ -70,13 +70,13 @@ public:
 
 	/// Inicia el SFX mixer (reserva el buffer Chip y arranca). La música se
 	/// arranca aparte con `play_music()`.
-	bool init(MemorySystem& memory) {
+	bool init(MemoryManager& memory) {
 		m_memory = memory; // el engine reserva aquí el buffer de descompresión de la música
 		return m_sfx.init(memory);
 	}
 
 	/// Inicia con **modo y config** (A0): arranca el mixer, aplica el reparto de canales del modo.
-	bool init(MemorySystem& memory, const AudioConfig& cfg) {
+	bool init(MemoryManager& memory, const AudioConfig& cfg) {
 		m_cfg = cfg;
 		if (!init(memory)) {
 			return false;
@@ -157,8 +157,8 @@ public:
 				    m_memory.valid()) {
 					const eng::u32 need = eng::audio::p61_sample_buffer_size(module.data);
 					if (need != 0u) {
-						m_music_buf = m_memory.get()->chip.allocate_block<eng::AudioTag>(
-							need, 4u);
+					m_music_buf = m_memory.get()->chip().reserve<eng::AudioTag>(
+						need, 4u);
 						if (m_music_buf.valid()) {
 							buf = eng::Span<eng::u8> {m_music_buf.view.data(), need};
 						}
@@ -265,7 +265,7 @@ public:
 
 private:
 	SfxMixer m_sfx {};
-	eng::Ref<MemorySystem> m_memory {};                              ///< para el buffer de música (Chip)
+	eng::Ref<MemoryManager> m_memory {};                              ///< para el buffer de música (Chip)
 	eng::Block<eng::AudioTag, eng::MemoryKind::Chip> m_music_buf {}; ///< buffer de descompresión P61
 	P61Player m_p61 {};
 	PtPlayer m_pt {};

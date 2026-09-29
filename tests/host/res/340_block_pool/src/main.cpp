@@ -12,6 +12,7 @@
 
 #include <eng/core/types/domains.hpp>
 #include <eng/memory/block_pool.hpp>
+#include <eng/memory/mem_bank.hpp>
 
 namespace {
 
@@ -61,6 +62,33 @@ int main() {
 
 	eng::BlockPool empty {};
 	check(!empty.allocate(16u).valid(), "pool por defecto -> invalido");
+
+	// --- Ciclo reserve/release ORDENADO: idempotencia y no corromper el pool ---
+	eng::BlockPool p2 {buf, sizeof(buf), eng::MemoryKind::Chip, 16u};
+	const eng::MemoryBlock x = p2.allocate(128u);
+	check(x.valid(), "alloc x");
+	const eng::u32 after_x = p2.free_bytes();
+	p2.free(x.data);
+	check(p2.free_bytes() > after_x, "release devuelve al pool");
+	p2.free(x.data); // doble free: no-op (idempotente)
+	check(p2.free_bytes() == p2.capacity(), "doble free es no-op (no corrompe)");
+	eng::u8 ajeno[16] {};
+	p2.free(ajeno); // puntero ajeno: no-op
+	check(p2.free_bytes() == p2.capacity(), "free de puntero ajeno es no-op");
+	const eng::MemoryBlock y = p2.allocate(64u);
+	check(y.valid(), "el pool sigue usable tras no-ops");
+	p2.free(y.data);
+
+	// --- MemBank: par reserve/release tipado por banco (unica puerta) ---
+	eng::MemBank<eng::MemoryKind::Chip> bank {};
+	bank.configure(buf, sizeof(buf), 16u);
+	const auto planes = bank.reserve<eng::PlaneTag>(256u);
+	check(planes.valid() && planes.kind == eng::MemoryKind::Chip, "MemBank reserve<PlaneTag>");
+	check(planes.address().valid(), "el bloque da una Address<Chip> (DMA)");
+	const eng::u32 used = bank.free_bytes();
+	bank.release(planes);
+	check(bank.free_bytes() > used, "MemBank release devuelve al banco");
+	check(bank.block_count() >= 1u, "block_count informa de los slots");
 
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);

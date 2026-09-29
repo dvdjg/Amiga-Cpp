@@ -97,7 +97,7 @@ struct OctaMedProbe {
 		// Modo TitleOctaMED: los 4 canales HW para el playroutine (8 voces SW).
 		eng::audio::AudioConfig cfg {};
 		cfg.mode = eng::audio::AudioMode::TitleOctaMED;
-		if (!m_audio.init(backend.memory(), cfg)) {
+		if (!m_audio.init(backend.memory_manager(), cfg)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00027404u);
 			return;
 		}

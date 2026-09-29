@@ -71,7 +71,7 @@ struct AudioModesDemo {
 		// A0: modo GameSfxOnly (los 4 canales para el mixer) + un SFX.
 		eng::audio::AudioConfig cfg {};
 		cfg.mode = eng::audio::AudioMode::GameSfxOnly;
-		if (!m_audio.init(backend.memory(), cfg)) {
+		if (!m_audio.init(backend.memory_manager(), cfg)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021604u);
 			return;
 		}

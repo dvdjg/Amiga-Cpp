@@ -23,15 +23,18 @@
   0     3  engine/include/eng/audio/asm_codec.hpp
   0     1  engine/include/eng/audio/audio_mode.hpp
   0     1  engine/include/eng/audio/audio_system.hpp
+  0     1  engine/include/eng/audio/audio_tuning.hpp
   0    16  engine/include/eng/audio/auzx.hpp
   0    17  engine/include/eng/audio/fib_delta.hpp
   0     2  engine/include/eng/audio/game_audio.hpp
   0    38  engine/include/eng/audio/ima_adpcm.hpp
+  0     2  engine/include/eng/audio/media_stream_backend.hpp
   0     6  engine/include/eng/audio/media.hpp
   1     8  engine/include/eng/audio/music_player.hpp
   0    22  engine/include/eng/audio/pcm_codec.hpp
   0     1  engine/include/eng/audio/pcm_stream.hpp
   0    14  engine/include/eng/audio/sfx_mixer.hpp
+  0     1  engine/include/eng/audio/stream_intent.hpp
   0    12  engine/include/eng/audio/wave_tables.hpp
   0     4  engine/include/eng/audio/zx0.hpp
   0     2  engine/include/eng/board/core/budget.hpp
@@ -126,6 +129,7 @@
   0     2  engine/include/eng/core/util/lru_cache.hpp
   0    41  engine/include/eng/core/util/pathfinding.hpp
   0     4  engine/include/eng/core/util/pool.hpp
+  0     5  engine/include/eng/core/util/quantizer.hpp
   6     0  engine/include/eng/core/util/small_vector.hpp
   0     1  engine/include/eng/core/util/sparse_set.hpp
   0     1  engine/include/eng/core/util/static_vector.hpp

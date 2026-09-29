@@ -94,6 +94,15 @@ Es un mixer **de configuración fija** (voces, frecuencia, canal se fijan en
 "mixing en interrupción + muestras en FastRAM + buffer pequeño en Chip" ya está
 resuelta en esa configuración.
 
+**Contrato de memoria (tipado).** El buffer de salida que Paula lee por DMA **debe** ser
+Chip: `SfxMixer` lo reserva con `MemBank<Chip>::reserve<MixerBufferTag>` y **falla en `init`
+si no cabe** (sin fallback a otro banco). Los buffers de plugins (desactivados; el mixer espera
+punteros no nulos) **no** son DMA y van a **Fast→Slow** (`fast_or_slow`). Las **muestras fuente**
+pueden estar en cualquier RAM: van como `Span<const u8>` (la CPU las re-muestrea a registros, no
+son DMA). Es el reparto de `MEMORY_OWNERSHIP.md` §"Bancos y contratos": **salida = Chip obligatorio;
+fuentes y scratch de CPU = `Any`**. Recuerda: no se puede "mezclar en Fast y copiar el resultado a
+Chip" con este mixer — el único buffer es el de DMA.
+
 ## 4. Cómo funciona la música (resumen)
 
 - **Protracker (.mod)**: `PtPlayer` (Frank Wille). Se instala una interrupción

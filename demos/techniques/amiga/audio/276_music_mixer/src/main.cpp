@@ -187,7 +187,7 @@ struct MusicMixerDemo {
 		}
 
 		// 2) El mixer (SFX) reserva AUD0; la musica sigue en AUD1..AUD3 (3 voces HW).
-		if (!m_audio.init(backend.memory())) {
+		if (!m_audio.init(backend.memory_manager())) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00027605u);
 			return;
 		}

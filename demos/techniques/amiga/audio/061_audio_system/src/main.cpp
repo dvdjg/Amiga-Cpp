@@ -82,7 +82,7 @@ struct AudioSystemDemo {
 		m_music_ok = m_audio.play_music(mod, eng::audio::MusicFormat::Protracker);
 		m_audio.set_music_channel_mask(0x0Eu); // silencia AUD0 (mixer), deja AUD1..AUD3
 
-		if (!m_audio.init(backend.memory())) { eng::debug::mark_failed(g_eng_run_status, 0x00006104u); return; }
+		if (!m_audio.init(backend.memory_manager())) { eng::debug::mark_failed(g_eng_run_status, 0x00006104u); return; }
 		m_alarm_ch = m_audio.play_sfx_on(eng::audio::MixCh0, alarm_sample(), 1, eng::audio::LoopMode::Loop);
 
 		m_init_ok = true;

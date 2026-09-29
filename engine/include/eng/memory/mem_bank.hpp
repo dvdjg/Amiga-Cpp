@@ -42,6 +42,13 @@ public:
 		m_pool = BlockPool {base, size, K, align};
 	}
 
+	/// Asocia el banco a una **`LinearArena` de respaldo**: el pool **delega** en ella (mismo
+	/// buffer y cursor), de modo que una arena y un banco que comparten buffer no se solapan. Es
+	/// lo que usa `MemoryManager::configure_backing` (`INTERNAL_TYPE_SYSTEM.md` §3.6).
+	constexpr void configure_backing(LinearArena& arena) noexcept {
+		m_pool.configure_backing(arena);
+	}
+
 	/// Reserva `bytes` (alineados) como `Block<Tag, K>`. Inválido si no cabe o el banco
 	/// está vacío.
 	template <class Tag>
@@ -50,7 +57,10 @@ public:
 		return Block<Tag, K> {mb.buffer<Tag>(), K};
 	}
 
-	/// Devuelve un bloque al banco (cualquier dominio `Tag` del mismo banco).
+	/// **Devuelve un bloque al banco** (cualquier dominio `Tag` del mismo banco). El `Block` no
+	/// queda invalidado por sí solo (es un valor): el llamador lo descarta. La **liberación
+	/// ordenada** (antes de reutilizar/liberar un búfer con DMA pendiente) es responsabilidad del
+	/// flujo; ver `MEMORY_OWNERSHIP.md` §"Contrato del developer".
 	template <class Tag>
 	void release(const Block<Tag, K>& block) noexcept {
 		m_pool.free(block.data());
@@ -60,6 +70,8 @@ public:
 	[[nodiscard]] constexpr u32 free_bytes() const noexcept { return m_pool.free_bytes(); }
 	[[nodiscard]] constexpr u32 capacity() const noexcept { return m_pool.capacity(); }
 	[[nodiscard]] constexpr MemoryKind kind() const noexcept { return K; }
+	/// Bloques (slots) que lleva el pool (reservas libres + usadas): diagnóstico.
+	[[nodiscard]] constexpr u8 block_count() const noexcept { return m_pool.block_count(); }
 	/// Acceso sin tipo al pool subyacente (para la política del gestor o para buffers crudos).
 	[[nodiscard]] constexpr BlockPool& pool() noexcept { return m_pool; }
 	[[nodiscard]] constexpr const BlockPool& pool() const noexcept { return m_pool; }
