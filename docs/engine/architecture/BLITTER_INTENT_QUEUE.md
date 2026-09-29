@@ -1,170 +1,117 @@
 # API de Blitter por intención (cola asíncrona)
 
-API **adicional** (no sustituye al `FramePlan`/`OrBlobBatch` actuales) inspirada en OpenGL: el
-desarrollador **declara intenciones** (`stamp`, `fill`, `copy`…) y **no espera** a que se dibujen.
-Las peticiones se **encolan** y se ejecutan **cuando el Blitter está libre**, de una en una o como
-un **array de golpe**, avanzando por la **IRQ de blit** (o por poll en los huecos). Ver
-`docs/reference/amiga/techniques/blitter-cpu-interleaving.md` y `BACKGROUND_TASKS.md`.
+API **por intención**: el desarrollador **declara qué quiere** (`fill`, `stamp`, `masked_stamp`) y
+**no espera** a que se dibuje. Las peticiones se **encolan** y se ejecutan **cuando el Blitter está
+libre**, de una en una (el Blitter tiene un solo juego de registros). Solo `flush()`/`wait()` son
+puntos de bloqueo explícitos (como `glFinish`). Referencias:
+`docs/reference/amiga/techniques/blitter-cpu-interleaving.md`, [`INTENT_PLANNER.md`](INTENT_PLANNER.md).
 
 ## 1. Por qué
 
-Hoy cada blit se programa y **se espera** (`wait_blitter` sondea `BBUSY`): en la 117 eso es **~30 %
-del tiempo de CPU**, y el comentario de `DrawObject` del original ya intenta solaparlo a mano (calcular
-el vértice N+1 mientras corre el blit N). El patrón "cola + IRQ" lo generaliza: **la espera
-desaparece** y el desarrollador solo marca **puntos de dependencia** explícitos.
+Programar un blit y **esperar** (`wait_blitter` sondea `BBUSY`) es coste puro de CPU. El patrón
+"cola + feeder" **elimina la espera activa**: la CPU sigue trabajando y el feeder programa el
+siguiente job en los huecos. El desarrollador solo marca los **puntos de dependencia** donde de
+verdad necesita el resultado.
 
-## 2. Piezas
+## 2. Piezas (estado vigente)
 
 ```
-   intencion (sin hardware)        cola (ring fijo, sin heap)      ejecucion
-   ┌───────────────────────┐      ┌────────────────────────┐      ┌────────────────────┐
-   │ q.stamp(sheet,f,x,y)  │─────►│ [ BlitOp ][ BlitOp ]...│─────►│ feeder: IRQ blit o │
-   │ q.fill(screen,rect,c) │      │  FIFO, capacidad N     │      │ poll en los huecos │
-   │ q.all(span<BlitOp>)   │      └────────────────────────┘      └─────────┬──────────┘
-   └───────────────────────┘                                               │ programa BLTxPT/BLTSIZE
-                                                              q.flush() empezar / q.wait() vaciar
+  intención (sin hardware)          cola (mecanismo genérico)        ejecución (vías)
+  ┌───────────────────────┐        ┌────────────────────────┐      ┌──────────────────────┐
+  │ q.fill(dst, rect)     │──────► │ IntentQueue<N, BlitOp> │────► │ PlanExecutor         │
+  │ q.stamp(src, dst, r)  │        │  FIFO, capacidad N     │      │  → FramePlan         │
+  │ q.masked_stamp(...)   │        │  (eng/core/util)       │      │ CopperBlitterExecutor│
+  │ q.all(span<BlitOp>)   │        └────────────────────────┘      │  → copperlist        │
+  └───────────────────────┘                                       └──────────────────────┘
 ```
 
-1. **`BlitOp`** — una petición (variante ligera, sin punteros a función):
-   `Kind { Stamp, Fill, Copy, Line }` + params del dominio (`BitmapView src/dst`, `Rect`, `rgb444`,
-   `sheet frame`). **No nombra registros.**
-2. **`BlitQueue<N>`** — ring de `BlitOp` (capacidad fija). Métodos de **intención** (`stamp`,
-   `fill`, `copy`, `line`) + `all(eng::Span<const BlitOp>)` para **un array de golpe**. Sin heap.
-3. **El feeder** — quién programa el Blitter cuando queda libre:
-   - **(P) poll**: se llama `pump()` en los puntos donde el CPU ya espera (la espera de VBlank y el
-     hook de espera de Blitter, `g_blitter_service`). **Coste cero de IRQ.**
-   - **(I) IRQ**: se habilita la **IRQ de blit** (`INTENA`/`INTREQ` bit 6, nivel 3, ya cableada en
-     `level3_dispatch`); al terminar un job, el handler programa el siguiente. **Coste ~250 c/job**,
-     pero el CPU queda **libre** entre blits para otra cosa.
-   - **Política configurable** (`Feed::Poll | Feed::Irq`).
-4. **Sincronización explícita** (lo único que bloquea):
-   - `flush()` — garantiza que se está drenando (no vacía).
-   - `wait()` — vacía la cola: el **punto de dependencia** (leer el destino, reusar el buffer,
-     cambiar de pantalla). Es el `glFinish`.
+1. **`BlitOp`** (`graphics/blit_queue.hpp`) — una petición (valor pequeño, copiable):
+   - `Kind { Fill, Stamp, MaskedStamp }` — limpia (`D=0`), OR de imagen (`D=A|B`), cookie-cut
+     (`D=(A&B)|(~A&C)`).
+   - `dst`: `BitmapView<PlaneTag, MemoryKind::Chip>` — zona destino (playfield).
+   - `src`: `BitmapView<BobTag, MemoryKind::Chip>` (imagen); `mask`: ídem (cookie-cut).
+   - `rect`: `eng::Box` (rectángulo en la zona destino); `ashift`: desplazamiento fino (0..15).
+   - **No nombra registros.** El **tag** distingue papel (dst `PlaneTag` ≠ src `BobTag`): pasarlos
+     intercambiados **no compila**. El **banco Chip** en el tipo impide pasar memoria no-DMA.
+2. **`BlitQueue<N, Executor>`** (`graphics/blit_queue.hpp`) — es una `IntentQueue` genérica
+   (`eng/core/util/intent_queue.hpp`) con `Item = BlitOp` y `Done = NoDone`. Métodos de intención
+   (`fill`/`stamp`/`masked_stamp`) + `all(Span<const BlitOp>)`. **Sin heap**, capacidad fija.
+   `enqueue` (no espera) / `flush` (avanza sin esperar) / `wait` (único bloqueo) / `wait_all`.
+3. **La vía de ejecución** (`Executor` con `{ bool ready(); void run(const BlitOp&); }`):
+   - **`PlanExecutor<Sink>`** — vuelca cada `BlitOp` al **`FramePlan`** vía `blit_job_from` (el
+     sumidero único del frame; orden/presupuesto/ejecución siguen en el plan). Es la vía normal.
+   - **`CopperBlitterExecutor<Sched>`** — emite instrucciones de **Copper** que programan el
+     Blitter (Técnica A / `COPCON`+CDANG): `ready()` = siempre; el blit lo arranca el Copper en su
+     línea. **El mismo `BlitOp` se ejecuta por CPU/IRQ o por Copper** — es una estrategia, no otra API.
+4. **El mecanismo de cola** es genérico y compartido: `eng::IntentQueue<N, Item, Executor, Done>`
+   (`eng/core/util`). La usan el blit (`BlitOp`), el dibujo (`DrawIntent`) y el audio
+   (`SampleEvent`). **Mismo ticket + misma completación** para todos.
 
-## 3. Ejecución (restricciones reales)
+## 3. Dos traducciones, una sola verdad
 
-- El Blitter tiene **un solo juego de registros** → la cola se **serializa** (de a uno). El feeder no
-  paraleliza blits; solo elimina la espera **activa**.
-- El bus es compartido con la CPU y el DMA de display. Con `BLTPRI` (blitter-nasty) el Blitter no
-  cede slots: el feeder por IRQ **no** garantiza solape con la CPU (medido: el pase fusionado no
-  ayudó). Con `BLTPRI` off el Blitter es más lento pero la CPU avanza. **Por eso el poll es el
-  defecto** (no añade IRQs y usa huecos que ya existían) y la IRQ es opt-in para "fire-and-forget".
+- **`blit_job_from(const BlitOp&) -> BlitJob`** — el **único** sitio que traduce intención
+  (zona + rect) al **trabajo canónico** (`BlitJob`) que describe el `FramePlan`. `Fill`→`ClearRect`,
+  `Stamp`→`OrBlob`, `MaskedStamp`→`MaskedBobCookieCut`.
+- **`blitter_job_from(const BlitJob&) -> BlitterJob`** — el **único encoder** a registros
+  (`BLTCON*`/`BLTxPT`/`BLTSIZE`). Lo usan el backend (CPU/IRQ) y el `CopperBlitterExecutor`.
+  La intención **no inventa un «juego de registros» paralelo**.
+- `BlitJob`/`BlitterJob` usan **`BlitPtr`** (dirección `Address<Chip>` a words) para fuente,
+  destino y máscara: **un solo tipo** para los tres roles (el hardware es simétrico; quién es
+  fuente o destino lo decide el campo).
 
 ## 4. Uso (sabor)
 
 ```cpp
-eng::gfx::BlitQueue<64> q;                       // se ata al backend una vez
+eng::graphics::BlitQueue<64u, eng::graphics::PlanExecutor<FramePlan>> q;
+q.bind(exec);                                  // executor que vuelca al FramePlan
 
 void update(...) {
-    q.fill(screen, {0, 0, 320, 256}, bg);        // intencion: limpiar
-    for (const Bob& b : bobs)                    // intencion: estampar
-        q.stamp(sheet, b.frame, b.x, b.y);
-    q.all(more_ops);                             // array de golpe
-    q.flush();                                   // empieza a drenar (NO espera)
-    // ... CPU: proyectar el siguiente frame mientras el Blitter trabaja ...
-    q.wait();                                    // unico punto de espera: commit de este frame
-    install_copper(active);                      // el buffer destino ya esta completo
+    q.fill(dst, {0, 0, 320, 256});             // intencion: limpiar
+    for (const Bob& b : bobs)                  // intencion: estampar
+        q.stamp(sheet, dst, {b.x, b.y, 16, 16}, b.shift);
+    q.all(more_ops);                           // array de golpe
+    q.flush();                                 // empieza a drenar (NO espera)
+    // ... CPU: proyectar mientras el Blitter trabaja ...
+    q.wait_all();                               // unico punto de espera: commit del frame
 }
 ```
 
-## 5. Relación con lo que YA existe
+## 5. Completación: evento, no callback
 
-- `submit_blit_job`/`blitter_submit` programan registros → el feeder los usa (no se reescribe el
-  backend).
-- `g_blit_task` + `level3_dispatch` bit 6 → **el punto de entrada de la IRQ ya está**; falta el
-  handler que avanza la cola.
-- `g_blitter_service` (`wait_blitter` drena el fondo) → el **poll** se cuelga de ahí.
-- `OrBlobBatch` (batch sincrono actual) → un caso particular (`stamp` × N + `wait` al final).
-- `FramePlan` → **el sumidero**. La `BlitQueue` es un **front-end de intención**: su ejecutor natural **añade** `blit_job_from(op)` al plan del frame, y el **presupuesto/orden/ejecución** siguen en el plan (un solo dueño). Los dos **modos** —CPU en ventana segura y **Copper**— son **políticas del sumidero**, no subsistemas distintos. Puente único: `blit_job_from` (`BlitOp → BlitJob`).
+Declarar **no bloquea**; cuando una petición llega a su punto se **avisa** por la política `Done`.
+En el engine real es un **`Msg` del mini-SO** (`MsgType::IntentDone`) con el **`ticket`**
+(`IntentDonePoster`, `eng/os/intent_done.hpp`); el juego lo atiende en su tabla de despacho. `wait()`
+sigue siendo el único bloqueo y **solo** si el juego lo pide (`BlitQueue` usa `NoDone`; el aviso
+real del planner va por la `DrawQueue`). Ver [`INTENT_PLANNER.md`](INTENT_PLANNER.md) §5.
 
 ## 6. Decisiones y límites
 
-- **Orden FIFO** (el Blitter es secuencial); prioridad opcional como extensión.
-- **Capacidad fija** `N` (sin heap); si se llena, `flush`+`wait` antes de encolar (política).
-- **Los puntos de dependencia son explícitos**: como en GL, la asincronía **exige** declararlos; el
-  `wait()` es el único bloqueo.
-- **Coherencia con `wait_blitter`**: la cola debe respetar los blits ya en vuelo (un `flush` tras un
-  blit suelto).
-- **Declarar no bloquea; la completación es un EVENTO, no un callback crudo.** Al alcanzar el punto
-  de una petición se postea un `Msg` del mini-SO (`IntentDone`/`BlitDone`) con el **`ticket`** de la
-  petición; el juego lo atiende en su tabla de despacho. `wait()` sigue siendo el único bloqueo y
-  **solo** si el juego lo pide. El vocabulario y el planner completo: [`INTENT_PLANNER.md`](INTENT_PLANNER.md).
+- **Orden FIFO** (el Blitter es secuencial); prioridad sería una extensión.
+- **Capacidad fija `N`** (potencia de dos); si se llena, `enqueue` avanza la cola (`flush`/`drain`).
+- **Los puntos de dependencia son explícitos**: como en GL, la asincronía los **exige**.
+- **El bus es compartido** con la CPU y el DMA de display. Con `BLTPRI` (blitter-nasty) el Blitter
+  **no cede slots**: el feeder por IRQ **no** garantiza solape con la CPU (medido). Por eso el
+  **poll** es el modo por defecto (usa los huecos que ya existen, sin IRQ).
 
-## 7. Refinamientos (memoria, zonas, Copper y procedencia)
+## 7. Procedencia (compilador) vs vida (RAII)
 
-### 7.1 `src`/`dst` con **tag de Chip** (no `u8*`)
+- **La PROCEDENCIA la caza el tipo.** `Address<Chip>`/`ChipView<Tag>`/`BitmapView<Tag,Chip>` **solo**
+  nacen de fuentes Chip (`MemBank<Chip>`, `Block<Tag,Chip>`, `gfx::Bitmap`, `.MEMF_CHIP`,
+  `ChipStorage`/`INCBIN_CHIP`). Un búfer de **pila** o un `static` en **Fast no** compilan
+  (salvo `from_storage`, frontera explícita, **prohibida fuera del backend**; ver
+  `tools/check/casts-frontier.txt`).
+- **La VIDA no la puede cazar el tipo.** "Búfer de pila dentro del ámbito" vs "…que se sale" es
+  *lifetime*, como en `Span`: responsabilidad del desarrollador. La mitigación: el **dueño** es un
+  `Block<Tag, Bank>` (**movible, no copiable**: un solo dueño) del `MemBank` (pool fijo, **sin
+  heap**); las APIs toman **vistas** no propietarias. Para datos Chip **estáticos**: `ChipStorage`.
+  Ver `MEMORY_OWNERSHIP.md` (contrato del developer) y `ROADMAP_MEMORY_OWNERSHIP.md`.
 
-El engine ya tiene direcciones **etiquetadas**: `Address<MemoryKind::Chip>` / `ChipView<Tag>` /
-`Block<Tag, Chip>` (`core/types/typed.hpp`, `core/types/memory_kind.hpp`). El `BlitOp` **no** lleva
-`u8*` crudos sino la **vista etiquetada**:
+## 8. Relación con lo que ya existe
 
-```cpp
-struct BlitOp {
-    BitmapView<PlaneTag, Chip> dst {};  // zona destino (playfield): banco + geometría en el tipo
-    BitmapView<BobTag, Chip> src {};    // zona origen (atlas/asset): BobTag ≠ PlaneTag
-    BlitRect rect {};                   // rectángulo en la zona destino (dominio: píxeles)
-    eng::u8 ashift = 0;                 // desplazamiento fino (Stamp)
-    // `blit_job_from(op)` DERIVA el `BlitterJob` (registros del chipset) de la zona + el rect:
-    // un único tipo de registros, compartido con `Scheduler::emit_blitter_job` (Copper).
-    ...
-};
-```
-
-El ejecutor convierte a `u8*` **en el `submit`** (la única frontera). Pasar un array de pila o un
-`static` en Fast **no compila** sin un `Address<K>::from_storage` explícito — prohibido fuera del
-backend (CODING_STYLE §232). **El tag caza el error en compilación**: el destino es una zona
-`PlaneTag` y el origen una `BobTag`, de modo que **intercambiarlos no compila** (probado en
-HOST-365). La geometría de la zona (base + `row_bytes`/`plane_count`/`layout`/`plane_step`) viaja en
-la vista; los registros concretos (`words`/`height`/módulos) aún van explícitos en la op (una pasada
-rect-based, que los derive de la zona + un `Rect`, está en `ROADMAP_TIPOS_Y_CASTS.md` §6).
-
-### 7.2 Zona rectangular: `BitmapView<Tag, K>` (usar `Bitmap`)
-
-Ya existe `eng::graphics::Bitmap` (memoria + geometría + layout + addressing: `width/height/planes`,
-`PlaneLayout{Interleaved,Separate}`, `row_bytes`, `alignment`). La **vista** no propietaria
-`BitmapView<Tag, K>` (en `eng/graphics/bitmap_view.hpp`) ya **existe** — `width`/`height`/`row_bytes`/
-`plane_count`/`layout`/`plane_step` + la `MemView<Tag, K>` (banco) — y **unifica** a los consumidores:
-**sprites hw, BOBs, zonas del framebuffer/pantalla, viewports**. El `Bitmap` (o un `Block`) es el
-**dueño**; la vista es lo que viaja por las APIs (como `Span`, pero de **zona gráfica**). `BobTarget`
-es hoy un alias: `BitmapView<PlaneTag, MemoryKind::Chip>`.
-
-El **tag** elige el camino: un `BitmapView<ChunkyTag, Fast>` **no** se puede pasar donde se exige
-Chip; para copiar **chunky-Fast → planar-Chip**, el **C2P detecta los tags** (origen no-Chip, destino
-Chip) y usa la **ruta CPU** en vez del Blitter. Los tags **eligen el método**.
-
-### 7.3 Efectos de Copper (offsets/módulos por línea) — capa aparte
-
-La **estructura base** (`BitmapView`) queda **plana** (memoria+geometría). El acoplamiento al Copper
-vive en una **capa superior**: una **intención** ("esta zona se muestra con el puntero de plano X, el
-módulo M y parcheo por línea") que un **materializador** traduce a la **copperlist** en el commit.
-El engine ya tiene las piezas: `copper::Plan`/`Scheduler` + el **parcheo de palabras** (`slot_word`)
-del trabajo de la 213. Diseño: `BitmapView` (base) **+** `CopperIntent` (superior), separados.
-
-### 7.4 Programar el Blitter **por Copper**: ya es una estrategia
-
-El `BlitQueue<N, Executor>` inyecta el ejecutor por `concept`. Un **`CopperBlitterExecutor`**
-implementa `submit(op)` **emitiendo instrucciones de Copper** (con `COPCON`/CDANG — la "Técnica A"
-documentada) en vez de programar registros: `ready()` = siempre `true` (lo hará el Copper en la
-línea) y `wait()` = el punto del raster (el commit). **El mismo `BlitOp` se ejecuta por CPU/IRQ o por
-Copper** — es una estrategia, no un API distinto. **Sí hay compatibilidad futura.**
-
-### 7.5 Procedencia (compilador) vs vida (RAII) — el agujero del heap-less
-
-- **La PROCEDENCIA la caza el tipo.** `Address<Chip>`/`ChipView<Tag>` **solo** nacen de fuentes Chip:
-  un `MemBank<MemoryKind::Chip>`, un `Block<Tag, Chip>`, un `gfx::Bitmap` (siempre Chip), un búfer
-  `.MEMF_CHIP`, o `ChipStorage<Tag, N>` / `INCBIN_CHIP`. Un búfer de **pila** o un `static` en **Fast
-  no** son `Address<Chip>` → **no compila** pasarlos (salvo `from_storage`, prohibido fuera del
-  backend). **El compilador sí lo caza** (esto es §232). Aplica igual a Paula, Blitter y Copper: esos
-  APIs deben tomar **tipos etiquetados**.
-- **Lo que el tipo NO puede: la VIDA.** Distinguir "búfer de pila en Chip **dentro** del ámbito" de
-  "…que se **sale**" es **lifetime**, no memoria. Es el mismo problema de `Span`: no propietario =
-  responsabilidad del desarrollador. C++23 no lo deduce en general.
-- **La solución correcta (RAII) ya existe a medias:** que el API tome **vistas etiquetadas**
-  (`BitmapView<Tag, Chip>`) y que la **dueña** sea un **`Block<Tag, Chip>`** (RAII) que devuelve al
-  **`MemBank<Chip>`** en su destructor. Así: (a) el tipo garantiza Chip, (b) el RAII garantiza la
-  liberación, (c) **sin heap** — el `MemBank` es un **pool fijo**, no `malloc`. "Romper el no-heap" =
-  usar el pool tipado; el "template auxiliar" **es** `Block`/`MemView`.
-- **Estáticos:** para datos Chip **estáticos**, no usar un `static` suelto (su sección es incierta):
-  usar **`ChipStorage<Tag, N>`** (coloca en `.MEMF_CHIP` por tipo) o `INCBIN_CHIP` → sin cast y sin
-  duda de procedencia.
+- `FramePlan` es **el sumidero** de la capa 2: la `BlitQueue` es el **front-end de intención**; su
+  `PlanExecutor` añade `blit_job_from(op)` al plan. **Un solo dueño** del orden/presupuesto/ejecución.
+- El backend (`amiga_blitter.cpp`) ejecuta el plan con `blitter_job_from` (registros) — no se
+  reescribe.
+- El **planner** (capa de arriba) añade vocabulario de juego (`DrawIntent`) y **completación**; ver
+  [`INTENT_PLANNER.md`](INTENT_PLANNER.md). Estado probado: HOST-365 (equivalencia intención↔directo),
+  HOST-368 (cola + receta + capa), HOST-369 (intención → evento).
