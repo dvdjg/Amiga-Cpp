@@ -49,32 +49,85 @@ fi
 
 mkdir -p "$BUILD_DIR"
 
-run_test() {
-	local test_dir="$1"
-	local name
-	name="$(basename -- "$test_dir")"
-	local src="$test_dir/src/main.cpp"
-	local bin="$BUILD_DIR/$name"
+# Nº de trabajos en paralelo (compilar+ejecutar cada test es independiente). Por defecto, todas
+# las CPUs; se puede forzar con `-j N` o `HOST_TEST_JOBS=N`. `-j1` = secuencial.
+HOST_JOBS="${HOST_TEST_JOBS:-}"
+while [ "${#ARGS[@]}" -gt 0 ]; do
+	case "${ARGS[0]}" in
+		-j)  HOST_JOBS="${ARGS[1]:-}"; ARGS=("${ARGS[@]:2}") ;;
+		-j*) HOST_JOBS="${ARGS[0]#-j}"; ARGS=("${ARGS[@]:1}") ;;
+		*)   break ;;
+	esac
+done
+if [ -z "$HOST_JOBS" ]; then
+	HOST_JOBS="$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
+fi
 
-	if [ ! -f "$src" ]; then
-		echo "AVISO: sin src/main.cpp en $test_dir; se omite."
-		return
+# Script hijo que compila y ejecuta UN test. Lee `CXXFLAGS`, `BUILD_DIR` y `LOG_DIR` del entorno.
+# Escribe el código de salida (0 OK, 3 SKIP, otro fallo; 2 si no compila) en `$RESULT_FILE` como
+# `<exit>\t<test_dir>` y deja la salida en `$LOG_DIR/<name>.log` (para imprimir ordenado después).
+RUNNER="$BUILD_DIR/.test-runner.sh"
+cat >"$RUNNER" <<'RUNNER_EOF'
+#!/usr/bin/env bash
+# Compila y ejecuta un test host. NO usa `set -e`: capturamos los códigos a mano.
+test_dir="$1"
+name="$(basename -- "$test_dir")"
+log="$LOG_DIR/$name.log"
+src="$test_dir/src/main.cpp"
+bin="$BUILD_DIR/$name"
+if [ ! -f "$src" ]; then
+	printf 'AVISO: sin src/main.cpp; se omite.\n' >"$log"
+	printf '3\t%s\n' "$test_dir" >>"$RESULT_FILE"
+	exit 0
+fi
+{
+	printf '==> [%s]\n' "$name"
+	if ! "$CXX" $CXXFLAGS "$src" -o "$bin"; then
+		printf 'COMPILA: [%s] fallo de compilacion\n' "$name"
+		printf '2\t%s\n' "$test_dir" >>"$RESULT_FILE"
+		exit 0
 	fi
-
-	echo "==> [$name]"
-	"$CXX" $CXXFLAGS "$src" -o "$bin"
-	# Convención del repo: exit 3 = **omitido** (test host-only sin su dependencia; p. ej. el
-	# binario externo de audio-compressor). No cuenta como fallo de la suite.
 	ec=0
 	"$bin" || ec=$?
 	if [ "$ec" -eq 3 ]; then
-		echo "SKIP: [$name] (dependencia ausente; ver su README)"
+		printf 'SKIP: [%s] (dependencia ausente; ver su README)\n' "$name"
 	elif [ "$ec" -ne 0 ]; then
-		echo "FALLO: [$name] (exit $ec)" >&2
-		exit 1
+		printf 'FALLO: [%s] (exit %s)\n' "$name" "$ec"
 	fi
-	echo ""
+	printf '%s\t%s\n' "$ec" "$test_dir" >>"$RESULT_FILE"
+} >"$log" 2>&1
+exit 0
+RUNNER_EOF
+chmod +x "$RUNNER"
+
+# Ejecuta una lista de directorios de test en paralelo (`xargs -P`). Imprime la salida **en orden**
+# y falla si algún test devuelve un código que no sea 0 (OK) ni 3 (SKIP).
+run_tests_parallel() {
+	local list=("$@")
+	local result_file
+	result_file="$(mktemp)"
+	local log_dir="$BUILD_DIR/logs"
+	mkdir -p "$log_dir"
+	: >"$result_file"
+
+	export CXX CXXFLAGS BUILD_DIR RESULT_FILE="$result_file" LOG_DIR="$log_dir"
+	printf '%s\0' "${list[@]}" | \
+		xargs -0 -P "$HOST_JOBS" -n1 "$RUNNER"
+
+	local failed=0
+	while IFS=$'\t' read -r ec dir; do
+		local name
+		name="$(basename -- "$dir")"
+		cat "$log_dir/$name.log" 2>/dev/null || true
+		if [ "$ec" -ne 0 ] && [ "$ec" -ne 3 ]; then
+			failed=1
+		fi
+	done <"$result_file"
+	rm -f "$result_file"
+	return "$failed"
 }
+
+
 
 # Comprobacion estatica del sistema de tipos (solo en la pasada completa, para no
 # estorbar al iterar un test suelto). Falla si un MemoryBlock crudo se convierte.
@@ -264,24 +317,20 @@ if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 	fi
 fi
 
-# Selección de tests.
+# Selección de tests (en **paralelo** por defecto; `-j1` para secuencial).
 if [ "${#ARGS[@]}" -gt 0 ]; then
-	for arg in "${ARGS[@]}"; do
-		run_test "$arg"
-	done
+	run_tests_parallel "${ARGS[@]}" || exit 1
 elif [ -n "$CATEGORY" ]; then
 	CAT_DIR="$ROOT/tests/host/$CATEGORY"
 	if [ ! -d "$CAT_DIR" ]; then
 		echo "ERROR: no existe la categoría '$CATEGORY' ($CAT_DIR)." >&2
 		exit 1
 	fi
-	while IFS= read -r test_dir; do
-		run_test "$test_dir"
-	done < <(find "$CAT_DIR" -type d -name '[0-9][0-9][0-9]_*' | sort)
+	mapfile -t TESTS < <(find "$CAT_DIR" -type d -name '[0-9][0-9][0-9]_*' | sort)
+	run_tests_parallel "${TESTS[@]}" || exit 1
 else
-	while IFS= read -r test_dir; do
-		run_test "$test_dir"
-	done < <(find "$ROOT/tests/host" -type d -name '[0-9][0-9][0-9]_*' | sort)
+	mapfile -t TESTS < <(find "$ROOT/tests/host" -type d -name '[0-9][0-9][0-9]_*' | sort)
+	run_tests_parallel "${TESTS[@]}" || exit 1
 	# Regresion de nivel de los naipes: barrido determinista de selfplay contra la
 	# linea base congelada. Solo en la pasada completa (necesita g++ y node).
 	CARDS_REGRESSION="$ROOT/tools/cards/regression.sh"
