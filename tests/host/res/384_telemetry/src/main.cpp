@@ -54,6 +54,7 @@ int main() {
 	eng::debug::telemetry_from(mm, ms, t);
 	check(t.chip_used == 2048u, "used_chip = 2048 tras dos reservas");
 	check(t.chip_used == mm.chip().used_bytes(), "used_chip == banco (no la arena)");
+	check(t.chip_peak >= t.chip_used, "chip_peak >= used (pico historico)");
 
 	// Liberar el primero fragmenta -> `chip_slots` sube.
 	const eng::u16 slots_before = t.chip_slots;
@@ -61,6 +62,15 @@ int main() {
 	eng::debug::telemetry_from(mm, ms, t);
 	check(t.chip_slots >= slots_before, "liberar en medio sube los huecos (fragmentacion)");
 	check(t.chip_used < 2048u, "used baja tras release");
+	check(t.chip_peak == 2048u, "peak conserva el maximo (2048)");
+
+	// --- Status del banco: causa de fallo sin punteros ----------------------------
+	check(mm.chip().status() == eng::MemBank<eng::MemoryKind::Chip>::Status::Ok,
+	      "banco con espacio -> Ok");
+	eng::MemBank<eng::MemoryKind::Fast> absent {};
+	check(absent.status() == eng::MemBank<eng::MemoryKind::Fast>::Status::BankAbsent,
+	      "banco sin buffer -> BankAbsent");
+	check(absent.reserve<eng::PlaneTag>(16u).valid() == false, "banco ausente no reserva");
 
 	// Scratch de frame se refleja en `frame_used`.
 	ms.frame.allocate(256u, 16u);

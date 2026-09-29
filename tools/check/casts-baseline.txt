@@ -148,21 +148,17 @@
  16     7  engine/include/eng/debug/peripheral.hpp
   1     4  engine/include/eng/debug/prof.hpp
   0     5  engine/include/eng/debug/run_status.hpp
-  0     9  engine/include/eng/debug/telemetry.hpp
+  0    10  engine/include/eng/debug/telemetry.hpp
   0    23  engine/include/eng/field/amiga_display_mapper.hpp
-  2    39  engine/include/eng/field/canvas_playfield.hpp
   0     7  engine/include/eng/field/chunk_cache.hpp
-  4    38  engine/include/eng/field/contiguous_playfield.hpp
   0    11  engine/include/eng/field/cpu_primitives.hpp
   0     2  engine/include/eng/field/double_buffer_playfield.hpp
   0     2  engine/include/eng/field/flat_playfield.hpp
   0     3  engine/include/eng/field/mirror_playfield.hpp
   0     1  engine/include/eng/field/plane_view.hpp
- 22    76  engine/include/eng/field/playfield_base.hpp
   2    27  engine/include/eng/field/raster.hpp
   0   129  engine/include/eng/field/scroll_engine.hpp
   0     3  engine/include/eng/field/scroll_profile.hpp
-  2    30  engine/include/eng/field/soft_dpf.hpp
   0     7  engine/include/eng/field/streaming_map.hpp
   2    35  engine/include/eng/field/surface.hpp
   0    36  engine/include/eng/field/tile_demo.hpp
@@ -172,22 +168,18 @@
   0     2  engine/include/eng/field/xlimited_base.hpp
   0    28  engine/include/eng/field/xlimited_composer.hpp
   0    11  engine/include/eng/field/xlimited_mapping.hpp
-  6    86  engine/include/eng/field/xlimited_playfield.hpp
   0    41  engine/include/eng/field/xlimited_scene.hpp
   0     3  engine/include/eng/graphics/animation.hpp
   0     5  engine/include/eng/graphics/bitmap_view.hpp
   0     6  engine/include/eng/graphics/bitmap.hpp
   0     2  engine/include/eng/graphics/blitter_state.hpp
-  8    49  engine/include/eng/graphics/bob.hpp
   2    13  engine/include/eng/graphics/c2p.hpp
   1     6  engine/include/eng/graphics/composition/copper_chunky.hpp
   0    16  engine/include/eng/graphics/composition/limits.hpp
   0    16  engine/include/eng/graphics/composition/scene.hpp
   0    42  engine/include/eng/graphics/composition/stages.hpp
-  2    37  engine/include/eng/graphics/copper/copper.hpp
   2     1  engine/include/eng/graphics/copper/double_buffer.hpp
   0    16  engine/include/eng/graphics/copper/plan.hpp
-  0    57  engine/include/eng/graphics/copper/scheduler.hpp
   0    20  engine/include/eng/graphics/copper/static_plan.hpp
   0     1  engine/include/eng/graphics/copper/template.hpp
   0     8  engine/include/eng/graphics/copper/timeline.hpp
@@ -204,7 +196,6 @@
   3    28  engine/include/eng/graphics/glyph_cache.hpp
   0     8  engine/include/eng/graphics/mesh_renderer.hpp
   0     7  engine/include/eng/graphics/palette.hpp
-  2     9  engine/include/eng/graphics/pattern_fill.hpp
   0     2  engine/include/eng/graphics/playfield_scroll.hpp
   0    15  engine/include/eng/graphics/polygon_planes.hpp
   0     2  engine/include/eng/graphics/raster_intent.hpp
@@ -261,7 +252,6 @@
   0     3  engine/include/eng/scene/actor_sprite.hpp
   0    13  engine/include/eng/scene/actor_store.hpp
   2    16  engine/include/eng/scene/actor_types.hpp
-  1    29  engine/include/eng/scene/bobs.hpp
   0    35  engine/include/eng/scene/display.hpp
   0     7  engine/include/eng/scene/layer.hpp
   0     1  engine/include/eng/scene/representation.hpp
@@ -328,7 +318,6 @@
   0     6  engine/include/eng/ui/widget.hpp
   0    33  engine/include/eng/ui/widgets.hpp
   0     2  engine/include/eng/ui/window.hpp
- 11   136  engine/src/platform/amiga/amiga_blitter.cpp
   0    20  engine/src/platform/amiga/amiga_c2p.cpp
   8     8  engine/src/platform/amiga/amiga_file.cpp
   3    13  engine/src/platform/amiga/amiga_floppy.cpp

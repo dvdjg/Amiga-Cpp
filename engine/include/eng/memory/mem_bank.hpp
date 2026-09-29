@@ -69,21 +69,46 @@ public:
 	void release(const void* ptr) noexcept { m_pool.free(const_cast<void*>(ptr)); }
 
 	[[nodiscard]] constexpr u32 free_bytes() const noexcept { return m_pool.free_bytes(); }
-	/// Bytes **en uso** = capacidad − libres (los huecos fragmentados cuentan como libres).
-	[[nodiscard]] constexpr u32 used_bytes() const noexcept {
-		return m_pool.capacity() >= m_pool.free_bytes() ? m_pool.capacity() - m_pool.free_bytes()
-								: 0u;
-	}
+	/// Bytes **en uso** (suma de bloques vivos).
+	[[nodiscard]] constexpr u32 used_bytes() const noexcept { return m_pool.used_bytes(); }
+	/// **Pico** de uso desde el arranque (presupuesto): máximo histórico de Bytes vivos.
+	[[nodiscard]] constexpr u32 peak_bytes() const noexcept { return m_pool.peak_bytes(); }
 	/// Capacidad total de cada banco.
 	[[nodiscard]] constexpr u32 capacity() const noexcept { return m_pool.capacity(); }
-	/// Foto del banco para telemetría (mismo tipo que la de la arena). `used` = capacidad − libres;
-	/// `peak` no se sigue en el pool (queda 0).
+	/// Foto del banco para telemetría (mismo tipo que la de la arena).
 	[[nodiscard]] constexpr ArenaSnapshot snapshot() const noexcept {
-		return ArenaSnapshot {0u, m_pool.capacity(), used_bytes(), 0u, m_pool.free_bytes(), K};
+		return ArenaSnapshot {0u, m_pool.capacity(), m_pool.used_bytes(), m_pool.peak_bytes(),
+				      m_pool.free_bytes(), K};
 	}
 	[[nodiscard]] constexpr MemoryKind kind() const noexcept { return K; }
 	/// Bloques (slots) que lleva el pool (reservas libres + usadas): diagnóstico.
-	[[nodiscard]] constexpr u8 block_count() const noexcept { return m_pool.block_count(); }
+	[[nodiscard]] constexpr u16 block_count() const noexcept { return m_pool.block_count(); }
+
+	/// **Causa de fallo** de una reserva (diagnóstico sin punteros). `Ok` si hay capacidad; si no,
+	/// distingue banco ausente / sin capacidad / fragmentación de slots.
+	enum class Status : eng::u8 { Ok, BankAbsent, NoSpace, Fragmented };
+
+	/// **Estado del banco** para diagnóstico: `BankAbsent` si no tiene buffer; `Fragmented` si el
+	/// pool agotó los slots (sube `kMaxSlots`); `NoSpace` si no queda hueco; `Ok` en otro caso.
+	[[nodiscard]] constexpr Status status() const noexcept {
+		if (m_pool.capacity() == 0u) {
+			return Status::BankAbsent;
+		}
+		if (m_pool.slots_left() == 0u) {
+			return Status::Fragmented;
+		}
+		return m_pool.free_bytes() == 0u ? Status::NoSpace : Status::Ok;
+	}
+	/// Nombre legible de `status()` (para overlays/logs; sin punteros).
+	[[nodiscard]] static constexpr const char* status_name(Status s) noexcept {
+		switch (s) {
+			case Status::Ok: return "ok";
+			case Status::BankAbsent: return "absent";
+			case Status::NoSpace: return "full";
+			case Status::Fragmented: return "fragmented";
+		}
+		return "?";
+	}
 	/// Acceso sin tipo al pool subyacente (para la política del gestor o para buffers crudos).
 	[[nodiscard]] constexpr BlockPool& pool() noexcept { return m_pool; }
 	[[nodiscard]] constexpr const BlockPool& pool() const noexcept { return m_pool; }

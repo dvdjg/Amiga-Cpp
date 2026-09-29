@@ -34,6 +34,7 @@ struct Telemetry {
 	eng::u32 frames = 0u;   ///< frames desde el arranque
 	eng::u32 chip_used = 0u;
 	eng::u32 chip_capacity = 0u;
+	eng::u32 chip_peak = 0u; ///< pico histórico de uso del banco Chip (presupuesto)
 	eng::u32 slow_used = 0u;
 	eng::u32 slow_capacity = 0u;
 	eng::u32 fast_used = 0u;
@@ -54,6 +55,7 @@ template <class MemorySystemT>
 void telemetry_from(MemoryManager& mm, MemorySystemT& mem, Telemetry& t) noexcept {
 	t.chip_used = mm.chip().used_bytes();
 	t.chip_capacity = mm.chip().capacity();
+	t.chip_peak = mm.chip().peak_bytes();
 	t.slow_used = mm.slow().used_bytes();
 	t.slow_capacity = mm.slow().capacity();
 	t.fast_used = mm.fast().used_bytes();
@@ -111,6 +113,13 @@ void draw_telemetry(Overlay& overlay, const Telemetry& t, eng::s16 x, eng::s16 y
 		TelemetryLine l {};
 		(void)l.append("CHIP ");
 		detail::put_used_cap(l, t.chip_used, t.chip_capacity);
+		overlay.text(x, row, l.c_str(), rgb);
+	}
+	row = static_cast<eng::s16>(row + line);
+	{
+		TelemetryLine l {};
+		(void)l.append("CHIPPEAK ");
+		(void)eng::util::to_chars_u32(l, t.chip_peak);
 		overlay.text(x, row, l.c_str(), rgb);
 	}
 	row = static_cast<eng::s16>(row + line);

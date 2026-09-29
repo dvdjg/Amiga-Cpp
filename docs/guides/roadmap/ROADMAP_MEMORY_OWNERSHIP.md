@@ -104,11 +104,14 @@ MemorySystem, Telemetry)` rellenan el panel desde los **bancos** (reservas reale
 `App::telemetry()` lo expone; `MemoryReport` ya lee del banco. HOST-384 lo fija.
 
 1. `MemoryReport`/presupuesto por banco (Chip persistente, Chip scratch, Fast, Slow) con picos y
-   bytes retenidos; exponerlo por el canal lateral. **Hecho** (panel + `Budget`; `peak` del pool
-   queda en 0 — pendiente si hace falta).
+   bytes retenidos; exponerlo por el canal lateral. **Hecho**: panel + `Budget` + **pico**
+   (`BlockPool::peak_bytes` → `Telemetry::chip_peak`).
 2. Diagnóstico de banco/owner/tamaño/alineación/estado/causa de fallo **sin exponer punteros** a la
-   app (doc §"Consistencia"). **Parcial**: banco/usado/fragmentación sí; owner/causa, pendientes.
+   app (doc §"Consistencia"). **Hecho (banco/uso/pico/fragmentación/causa)**: `MemBank::Status`
+   (`Ok`/`BankAbsent`/`NoSpace`/`Fragmented`) + `status_name`; owner nominal (Tag) viaja en el tipo.
 3. `Result`/`Expected` en las APIs nuevas de reserva (unificar con `MeshStatus`/`AudioPlan::Status`).
+   **Parcial**: `MemBank::Status` y `Block::valid()` (reserva sin excepciones); el `Result` genérico
+   para las APIs de recurso queda cuando exista `ResourceStore`.
 
 ## Fase 5 — Aridad de anchura (helpers acotados, no `Number<Tag>`)
 

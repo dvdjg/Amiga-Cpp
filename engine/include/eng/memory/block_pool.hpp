@@ -81,7 +81,7 @@ public:
 		}
 		m_base = reinterpret_cast<u8*>(aligned);
 		m_size = size - drop;
-		m_blocks[0] = Slot {0u, m_size, 0u};
+		m_blocks[0] = Slot {0u, m_size, 0u, 0u};
 		m_count = 1u;
 	}
 
@@ -124,9 +124,15 @@ public:
 			const u32 used = pad + need;
 			// Parte el hueco: [pad libre][reservado][resto libre].
 			if (used < m_blocks[i].size && m_count + (pad != 0u ? 1u : 0u) <= kMaxSlots) {
-				split(i, pad, used);
+				split(i, pad, used, need);
+			} else {
+				m_blocks[i].state = 1u;
+				m_blocks[i].used = need;
 			}
-			m_blocks[i].state = 1u;
+			m_used += need; // sólo los bytes útiles del bloque (sin el padding del hueco)
+			if (m_used > m_peak) {
+				m_peak = m_used;
+			}
 			return MemoryBlock {reinterpret_cast<void*>(aligned), need, m_kind};
 		}
 		return {};
@@ -158,6 +164,8 @@ public:
 		for (u16 i = 0u; i < m_count; ++i) {
 			if (m_blocks[i].offset == off && m_blocks[i].state == 1u) {
 				m_blocks[i].state = 0u;
+				m_used = m_used >= m_blocks[i].used ? m_used - m_blocks[i].used : 0u;
+				m_blocks[i].used = 0u;
 				coalesce();
 				return;
 			}
@@ -180,6 +188,10 @@ public:
 	[[nodiscard]] u32 capacity() const noexcept {
 		return m_backing.valid() ? m_backing.get()->capacity() : m_size;
 	}
+	/// Bytes **útiles** reservados (suma de los bloques vivos; sin padding de huecos).
+	[[nodiscard]] u32 used_bytes() const noexcept { return m_used; }
+	/// **Pico** de `used_bytes` desde el arranque (máximo histórico): para presupuesto.
+	[[nodiscard]] u32 peak_bytes() const noexcept { return m_peak; }
 	[[nodiscard]] MemoryKind kind() const noexcept {
 		return m_backing.valid() ? m_backing.get()->kind() : m_kind;
 	}
@@ -192,6 +204,7 @@ private:
 	struct Slot {
 		u32 offset = 0u;
 		u32 size = 0u;
+		u32 used = 0u; ///< bytes útiles reservados (para el contador `m_used`); 0 si libre
 		u8 state = 0u; ///< 0 = libre, 1 = usado
 	};
 
@@ -202,26 +215,27 @@ private:
 	}
 
 	/// Parte el hueco `i` en `[pad libre][reservado used][resto libre]`, insertando slots según
-	/// haga falta. `used` = pad + tamaño alineado del bloque.
-	void split(u16 i, u32 pad, u32 used) noexcept {
+	/// haga falta. `used` = pad + tamaño alineado del bloque; `need` = bytes útiles (sin padding).
+	void split(u16 i, u32 pad, u32 used, u32 need) noexcept {
 		Slot& h = m_blocks[i];
 		const u32 rest = h.size - used;
 		if (pad != 0u) {
 			// [pad libre][reservado][resto]: inserta dos slots tras el hueco-cola.
-			insert(i + 1u, Slot {h.offset + pad, used - pad, 1u});
+			insert(i + 1u, Slot {h.offset + pad, used - pad, need, 1u});
 			h.size = pad;
 			h.state = 0u;
 			if (rest != 0u) {
-				insert(i + 2u, Slot {h.offset + used, rest, 0u});
+				insert(i + 2u, Slot {h.offset + used, rest, 0u, 0u});
 			}
 		} else {
 			// [reservado][resto]: el propio hueco pasa a reservado y se inserta el resto.
 			const u32 off = h.offset;
 			h.offset = off;
 			h.size = used;
+			h.used = need;
 			h.state = 1u;
 			if (rest != 0u) {
-				insert(i + 1u, Slot {off + used, rest, 0u});
+				insert(i + 1u, Slot {off + used, rest, 0u, 0u});
 			}
 		}
 	}
@@ -263,6 +277,8 @@ private:
 	eng::Ref<LinearArena> m_backing {}; ///< si es válido, `allocate` delega en esta arena (cursor único)
 	Slot m_blocks[kMaxSlots] {};
 	u16 m_count = 0u;
+	u32 m_used = 0u; ///< bytes útiles vivos
+	u32 m_peak = 0u; ///< pico de `m_used`
 };
 
 /// Alias por defecto (64 huecos): el tipo que usan `MemBank` y los consumidores.
