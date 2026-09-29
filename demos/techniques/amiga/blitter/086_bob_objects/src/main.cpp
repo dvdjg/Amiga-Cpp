@@ -250,11 +250,12 @@ struct BobObjectsDemo {
 		m_exec.bind(m_blits, m_target,
 			    eng::Span<eng::u16> {reinterpret_cast<eng::u16*>(m_save.view.data()), kSaveWords},
 			    3u, kObjH);
-		// NOTA: el copper por objeto NO se liga aqui. Con `K_086_STATIC_COPPER=1` la lista se
-		// materializa una vez en `init`; anadir intenciones por frame sin `begin_frame` la
-		// desborda. El copper por objeto (dinamico) sigue en el camino de actores
-		// (`build_frame` con `K_086_STATIC_COPPER=0`); el volcado desde la intencion esta en
-		// `SpritePlanExecutor::bind_copper` (probado en HOST-368).
+#if K_086_STATIC_COPPER == 0
+		// Copper por OBJETO desde la intención: el ejecutor ancla las `DrawIntent::copper` a la Y
+		// de cada BOB directamente en `m_plan` durante el `emit` del frame. Requiere re-emitir la
+		// lista cada frame (`K_086_STATIC_COPPER=0`): por eso solo se liga en ese modo.
+		m_exec.bind_copper(m_plan, kFirstLine);
+#endif
 		m_queue.bind(m_exec);
 		m_queue.bind_done(eng::os::IntentDonePoster<32u> {&m_port});
 #endif
@@ -291,6 +292,11 @@ struct BobObjectsDemo {
 		m_blits.clear();
 		m_blits.set_blit_budget_limits({8192u, 16384u, 32u, 64u});
 		eng::u16 emitted = 0;
+#if K_086_PLANNER && K_086_STATIC_COPPER == 0
+		// Copper **dinámico** con planner: la parte previa (begin_frame + static + cielo) va ANTES
+		// del emit, porque el ejecutor escribe el copper por objeto en `m_plan` durante `emit`.
+		build_frame_pre();
+#endif
 #if K_086_PLANNER
 		// Camino del PLANNER: la forma de cada BOB esta en la capa (setup); el frame solo
 		// mueve posiciones, y `emit` + `flush` compilan al MISMO `FramePlan`. Las
@@ -349,10 +355,19 @@ struct BobObjectsDemo {
 		ENG_PROF_END(kProfBlits);
 		ENG_PROF_BEGIN(kProfCopper);
 #if K_086_STATIC_COPPER == 0
+#if K_086_PLANNER
+		// Solo el `finish` (materialize + end_frame): la parte previa y el copper por objeto ya se
+		// emitieron antes/durante el `emit` del planner.
+		if (!build_frame_finish()) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00008607u);
+			return;
+		}
+#else
 		if (!build_frame()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008607u);
 			return;
 		}
+#endif
 #endif
 		ENG_PROF_END(kProfCopper);
 		// detail = nº de intenciones del plan (16 bits altos) | BOBs emitidos (8 bits
@@ -475,6 +490,9 @@ private:
 			di.draw = m_actors.get(m_ids[i])->bob.draw;
 			di.erase = (policy == 2u) ? graphics::BobErase::RestoreUnder
 						  : graphics::BobErase::ClearRect;
+			// Necesidades de copper del objeto (líneas RELATIVAS a su Y): el ejecutor las ancla en
+			// `m_plan` al emitir (solo con `K_086_STATIC_COPPER=0`, que re-emite la lista cada frame).
+			di.copper = eng::Span<const graphics::CopperIntent> {g_obj_needs[i], kObjCopperSteps};
 			di.sheet = &m_sprites[i];
 			if (!m_layer.add(di, 0, 0)) {
 				return false;
@@ -487,11 +505,10 @@ private:
 		return true;
 	}
 
-	/// Compone el copper del frame. El **cielo** es constante: se construye (y materializa)
-	/// siempre, y en modo `K_086_STATIC_COPPER=1` solo se llama **una vez** (en `init`), de
-	/// modo que el frame no re-emite la lista. Las **necesidades de Copper por objeto**
-	/// (ancladas a su Y, dinámicas) solo entran con `K_086_STATIC_COPPER == 0`.
-	bool build_frame() {
+	/// **Parte previa** del copper del frame (siempre): `begin_frame` + display + paleta + cielo.
+	/// Las intenciones de **objeto** las añade quien corresponda (actores aquí en `finish`; el
+	/// planner en el `emit` del frame, vía `SpritePlanExecutor::bind_copper`), ANTES de `finish`.
+	void build_frame_pre() {
 		ENG_PROF_BEGIN(kProfStatic);
 		m_plan.begin_frame();
 		m_plan.scheduler().emit_planes_display(0x2c81u, 0x2cc1u, 0x0038u, 0x00d0u, kBytesPerRow,
@@ -504,8 +521,13 @@ private:
 		ENG_PROF_BEGIN(kProfSky);
 		m_plan.add(kSkyIntents.v, kSkyBands);
 		ENG_PROF_END(kProfSky);
-#if K_086_STATIC_COPPER == 0
-		// Necesidades de cada objeto, con su (superficie, z).
+	}
+
+	/// **Parte final** del copper del frame: (con `K_086_STATIC_COPPER=0` y camino de actores) las
+	/// necesidades de copper por objeto, luego `materialize` + `end_frame`.
+	bool build_frame_finish() {
+#if K_086_STATIC_COPPER == 0 && !K_086_PLANNER
+		// Camino de actores: necesidades de cada objeto, con su (superficie, z).
 		ENG_PROF_BEGIN(kProfObjCopper);
 		for (eng::u8 i = 0; i < kBobCount; ++i) {
 			const auto a = m_actors.get(m_ids[i]);
@@ -522,6 +544,13 @@ private:
 		m_plan.materialize();
 		ENG_PROF_END(kProfMaterialize);
 		return m_plan.end_frame();
+	}
+
+	/// Compone el copper del frame completo (pre + finish). El **cielo** es constante: se construye
+	/// siempre; con `K_086_STATIC_COPPER=1` se llama **una vez** (en `init`) y el frame no re-emite.
+	bool build_frame() {
+		build_frame_pre();
+		return build_frame_finish();
 	}
 
 	eng::Block<eng::PlaneTag> m_bitmap {};

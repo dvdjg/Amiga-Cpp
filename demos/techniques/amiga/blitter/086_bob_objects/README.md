@@ -99,8 +99,14 @@ borrado/save-under; un ejecutor local por frame deja estelas).
 | planner (`K_086_PLANNER=1`) | 161943 | 43,80 |
 
 El bucle de intención **no añade ciclos** (queda igual o algo por debajo: el camino de actores hace
-además el registro de dirty rects). El copper por objeto (dinámico) sigue en el camino de actores
-(`K_086_STATIC_COPPER=0`); el volcado desde la intención está en `SpritePlanExecutor::bind_copper`.
+además el registro de dirty rects).
+
+**Copper por objeto desde la intención**: con `-DK_086_PLANNER=1 -DK_086_STATIC_COPPER=0` las
+necesidades de copper se emiten desde la propia `DrawIntent` (`di.copper`) y el ejecutor las ancla
+en el `copper::Plan` durante el `emit` (`SpritePlanExecutor::bind_copper`) — mismo resultado visual
+que el camino de actores (validado por captura). El `build_frame` se parte en `pre`
+(begin+static+cielo, antes del emit) y `finish` (materialize+end_frame, después) para intercalar el
+emit de la capa.
 
 ## Build & run
 
