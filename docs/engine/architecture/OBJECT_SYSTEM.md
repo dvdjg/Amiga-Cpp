@@ -39,7 +39,7 @@ La separación de capas es la misma que en `VISUAL_EFFECT_SPRITE_DESIGN.md` §2:
 |---|---|---|
 | Elección de representación (`Representation`, `ActorTemplate`, `RepresentationBudget`, `RepresentationAllocator`, `choose_representation`) | EXISTE | `engine/include/eng/scene/representation.hpp` |
 | Contenido portable (`Visual`, `VisualKind`) y vocabulario de intención (`CopperIntent`, `SpriteIntent`, concept `Effect`) | EXISTE | `engine/include/eng/graphics/raster_intent.hpp` |
-| Contenido animado (`Animation`, `Frame`, `SpriteSheet`) | EXISTE | `engine/include/eng/graphics/animation.hpp` |
+| Contenido animado (`Animation`, `Frame`) | EXISTE | `engine/include/eng/graphics/animation.hpp` |
 | Plan de Blits (`FramePlan`, `BlitJob`, `BlitJobKind`, `DirtyRect`, `BlitBudget`) | EXISTE | `engine/include/eng/graphics/frame_plan.hpp` |
 | BOB de bitmap (`Bob`, `BobTarget`, `bob_draw`, `bob_erase_box`) | EXISTE | `engine/include/eng/graphics/bob.hpp` |
 | Lote de BOBs OR intercalado (mismo tamaño, 1 blit/objeto, sin `jsr` por objeto) (`OrBlobBatch`, `begin/one/end`) | EXISTE | `engine/include/eng/platform/amiga/blob.hpp` (test HOST-176) |

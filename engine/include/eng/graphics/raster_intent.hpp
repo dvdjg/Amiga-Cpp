@@ -43,6 +43,13 @@ enum class VisualKind : u8 {
 ///
 /// `pixels`/`mask` son `Span` a memoria ya cocinada (Chip RAM si el backend es Amiga y
 /// la consume DMA). El `Visual` no posee memoria; el `AssetRuntime` la gestiona.
+///
+/// **Relación con `Bob`/`Sprite` (no son duplicados):** `Visual` es la **intención** portable
+/// (vista agnóstica, `kind`, `palette_base`, `offset_x`); `Bob` (`bob.hpp`) es el **detalle de
+/// ejecución** del Blitter (hoja/máscara **certificadas en Chip** vía `ChipView`, `layout`,
+/// `mask_pack`, `draw`/`erase`); y `Sprite` (`sprite_asset.hpp`) es **azúcar de dominio** sobre un
+/// `Bob` (más el tamaño del *frame* cuando la hoja es un atlas). Cada uno aporta algo que el otro
+/// no tiene: no se unifican.
 struct Visual {
     VisualKind kind = VisualKind::Bob;
     Span<const u16> pixels {};  // data planar cocinada

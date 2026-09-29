@@ -90,7 +90,7 @@ El contenido declara **qué se ve**; la representación (sprite hardware / BOB /
 decide el engine (`SCENE_AND_RESOURCES.md` §2).
 
 ```text
-SpriteSheet    píxeles de las celdas de un sprite + paleta; identidad de contenido.
+Sheet de sprite  píxeles de las celdas de un sprite + paleta; identidad de contenido.
 Frame          una celda del sheet (x, y, w, h) + duración opcional.
 Animation      secuencia de Frame + bucle/one-shot + eventos (disparar sonido, spawn).
 ActorTemplate  Visual (Animation) + tamaño + anclaje + preferencia de representación.
@@ -101,7 +101,7 @@ ActorTemplate  Visual (Animation) + tamaño + anclaje + preferencia de represent
   reasignar (sprite→BOB) al cambiar el presupuesto, sin tocar el contenido.
 - El enemigo grande con scroll propio puede declararse con preferencia `Layer` (playfield de un
   DPF, patrón Jim Power).
-- Implementación: `engine/include/eng/graphics/animation.hpp` (`Frame`/`Animation`/`SpriteSheet`).
+- Implementación: `engine/include/eng/graphics/animation.hpp` (`Frame`/`Animation`); la vista de píxeles del sprite es `graphics::Visual`/`Sprite`.
   Test: `tests/host/graphics/027_animation`.
 
 ## 4. Audio
@@ -124,7 +124,7 @@ Todo el contenido de runtime viaja en el contenedor **UAF-R** (blobs tipados: pa
 tiles, sprites, copper, malla, audio), generado en el host por los pipelines y cargado por offset
 sin heap. Ver `docs/tools/UAF_PACK.md` y `engine/include/eng/assets/uaf.hpp`.
 
-- El `TileSource`/`Tileset`/`SpriteSheet`/`Sound` son **vistas** sobre blobs UAF (`Span`), no
+- El `TileSource`/`Tileset` (hoja de sprite)/`Sound` son **vistas** sobre blobs UAF (`Span`), no
   copias.
 - Los datos generados por pipelines (tiles/EHB, sprites, audio) van a `out/assets/` y el resultado
   canónico de texto a `docs/`/`artifacts/`; los binarios no se versionan.

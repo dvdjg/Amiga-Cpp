@@ -61,13 +61,4 @@ struct Animation {
 	const Frame& current(const State& s) const { return frames.at(s.index); }
 };
 
-/// Sprite sheet: píxeles planares + metadatos; identidad de contenido (vista sobre
-/// un blob UAF, sin copia). `pixels` mide `width * height * planes` en planos
-/// contiguos.
-struct SpriteSheet {
-	eng::Span<const eng::u16> pixels {};
-	eng::u16 width = 0, height = 0;
-	eng::u8 planes = 0;
-};
-
 } // namespace eng::graphics
