@@ -126,8 +126,39 @@ depende de él (mismo cursor); es **coherencia de API**.
 
 **Evidencia:** HOST del helper (rango, truncado documentado) y `cast-audit` a la baja.
 
+## Fase 6 — Asignador persistente con `free` real (rediseño del pool)
+
+**Motivo.** `LinearArena` es *bump* (LIFO): reservar gráficos, luego sonido y liberar gráficos **no
+se puede** sin `clear()` total. La memoria del engine se reparte en **dos vidas útiles** distintas:
+
+| Vida | Herramienta | Semántica |
+|---|---|---|
+| Persistente (assets, escena, buffers de larga vida) | `BlockPool` | reserve + **free** en cualquier orden |
+| Scratch de frame/fase | `LinearArena` | bump + `mark/release` (LIFO) |
+
+**Estado (2026-09): `BlockPool` con free real — hecho.**
+
+- `allocate` es *first-fit* sobre huecos, `free` marca y **fusiona**; ya **no** delega `free` en la
+  arena cuando hay buffer propio. `configure_backing` queda **solo para scratch** (free = no-op
+  documentado).
+- La **base se alinea una vez** al crear el pool: elimina el padding acumulativo (el «peyote» de
+  `LinearArena::allocate`, bug demo 201).
+- Tabla de huecos **configurable** (`BlockPoolT<kMaxSlots>`, alias `BlockPool` = 64); `slots_left()`
+  expone la fragmentación.
+- HOST-340 ampliado: reservar gráficos+sonido, **liberar gráficos con sonido vivo**, reutilizar el
+  hueco; base desalineada; alineación a 64; coalescencia.
+
+**Pendiente de esta fase:**
+
+1. **`ScratchArena`** (bump + `mark()`/`release(mark)`): separar `MemorySystem` en persistente (pool)
+   y scratch de frame; `reset_frame()` solo limpia la scratch.
+2. **Migrar `MemBank`/`Assets`** a pool propio (hoy `MemBank` ya usa `BlockPool`; confirmar que el
+   backend no lo enlaza con `configure_backing` para los bancos persistentes).
+3. Quitar el `+16 headroom` de `res::load` (ya no hace falta con base alineada).
+
 ## Orden recomendado
 
 Fase 0 → 1 → 2 son el núcleo de (a) y van juntas. La 3 es la migración amplia. La 4 (diagnóstico) y
 la 5 (anchuras) son mejoras incrementales. La 5 no debe empezarse antes de la 3, para no tocar dos
-veces los mismos ficheros.
+veces los mismos ficheros. La **Fase 6** (asignador con `free` real) es la base que hace utilizables
+a las demás para recursos persistentes; su primer paso (`BlockPool`) está hecho.
