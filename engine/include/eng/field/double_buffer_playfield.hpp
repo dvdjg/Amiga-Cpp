@@ -16,20 +16,16 @@
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/field/amiga_display_mapper.hpp>
+#include <eng/field/flat_playfield.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/field/scroll_engine.hpp>
 #include <eng/graphics/bitmap.hpp>
 
 namespace eng::field {
 
-struct DoubleBufferScrollConfig {
-    u16 world_w = 0;
-    u16 world_h = 0;
-    u16 view_w = 320;
-    u16 view_h = 256;
-    u8 planes = 4;
-    u16 fetch_bytes = 42;
-};
+/// Config de scroll con doble buffer: **el mismo tipo** que el scroll de buffer grande
+/// (`ScrollConfig`, en `flat_playfield.hpp`). El alias se conserva por el nombre histórico.
+using DoubleBufferScrollConfig = ScrollConfig;
 
 class DoubleBufferScrollPlayfield {
 public:

@@ -20,9 +20,11 @@
 
 namespace eng::field {
 
-/// Configuración del virtual playfield: tamaño del mundo, ventana visible y
-/// profundidad. `fetch_bytes` es el fetch del DDF programado (42 con $30).
-struct FlatScrollConfig {
+/// Configuración del virtual playfield: tamaño del mundo, ventana visible y profundidad.
+/// `fetch_bytes` es el fetch del DDF programado (42 con $30). **Un solo tipo** para scroll con
+/// buffer grande y con doble buffer (ambos piden lo mismo); `FlatScrollConfig`/
+/// `DoubleBufferScrollConfig` son alias históricos.
+struct ScrollConfig {
     u16 world_w = 0;
     u16 world_h = 0;
     u16 view_w = 320;
@@ -30,6 +32,8 @@ struct FlatScrollConfig {
     u8 planes = 4;
     u16 fetch_bytes = 42;
 };
+
+using FlatScrollConfig = ScrollConfig;
 
 class FlatScrollPlayfield : public CanvasPlayfield {
 public:
