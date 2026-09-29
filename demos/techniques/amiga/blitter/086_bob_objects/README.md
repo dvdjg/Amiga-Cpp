@@ -80,9 +80,34 @@ dejando residuo».
 
 El camino de actores usa `eng::util::BitSet` (`ActorStore`: slots vivos del parque generacional) y `eng::util::StaticVector` (`emit_bob_fallbacks`: degradados a BOB), y el gradiente del cielo usa `eng::util::lerp444` (RGB444), así que esta demo es su verificación por demo (ver `docs/engine/architecture/TEMPLATE_LIBRARY.md`). El analizador propio `analyze-screenshot.sh` exige verde y amarillo (el arcoíris de los objetos) y valida el `run-report` en Ready, en lugar del overlay de depuración genérico.
 
+## Camino del planner (`K_086_PLANNER`)
+
+Con `-DK_086_PLANNER=1` el bucle dibuja los BOB por el **planner de intención** en vez de por el
+camino de actores: la forma de cada objeto se describe en el **setup** (`scene::DrawLayer` con un
+`DrawIntent` por BOB, reusando el `Bob` del actor y su política de transparencia/fondo), y el frame
+solo **mueve** posiciones y hace `emit` + `flush` sobre una `DrawQueue` cuyo ejecutor es el
+`scene::SpritePlanExecutor` (mismo `FramePlan` que el camino de actores) con completaciones
+`Msg IntentDone`. El ejecutor es **persistente** (recuerda el rectángulo previo por objeto para
+borrado/save-under; un ejecutor local por frame deja estelas).
+
+**Medición** (mismo `detail = 0x1000303`, es decir el MISMO plan de 256 intenciones de copper +
+3 BOBs en ambos caminos):
+
+| camino | ciclos/frame | fps emulado |
+|---|---|---|
+| actores (por defecto) | 165146 | 42,95 |
+| planner (`K_086_PLANNER=1`) | 161943 | 43,80 |
+
+El bucle de intención **no añade ciclos** (queda igual o algo por debajo: el camino de actores hace
+además el registro de dirty rects). El copper por objeto (dinámico) sigue en el camino de actores
+(`K_086_STATIC_COPPER=0`); el volcado desde la intención está en `SpritePlanExecutor::bind_copper`.
+
 ## Build & run
 
 ```bash
 tools/build/build-demo.sh demos/techniques/amiga/blitter/086_bob_objects --clean
 tools/run/run-demo.sh       demos/techniques/amiga/blitter/086_bob_objects
+# Camino del planner:
+EXTRA_DEFINES="-DK_086_PLANNER=1" tools/build/build-demo.sh demos/techniques/amiga/blitter/086_bob_objects --debug
+tools/run/run-demo.sh demos/techniques/amiga/blitter/086_bob_objects --config A500_k_086_planner1_debug
 ```

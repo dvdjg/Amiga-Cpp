@@ -41,7 +41,11 @@
 #include <eng/core/util/color.hpp>
 #include <eng/debug/prof.hpp>
 #include <eng/graphics/copper/plan.hpp>
+#include <eng/graphics/intent_queue.hpp>
+#include <eng/os/intent_done.hpp>
+#include <eng/os/port.hpp>
 #include <eng/platform/amiga/backend.hpp>
+#include <eng/scene/layer.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -74,6 +78,13 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 // materialize) para aislar su coste. Solo diagnostico.
 #ifndef K_086_STATIC_COPPER
 #define K_086_STATIC_COPPER 1
+#endif
+// 1 = camino del **PLANNER** para los BOB: `scene::DrawLayer` + `DrawQueue` +
+// `SpritePlanExecutor` (mismo `FramePlan` que el camino de actores) + completaciones
+// `Msg IntentDone`. 0 = camino de actores (por defecto). Mismo trabajo de Blitter; sirve
+// para medir que el bucle de intencion no anade ciclos.
+#ifndef K_086_PLANNER
+#define K_086_PLANNER 0
 #endif
 
 namespace {
@@ -110,6 +121,7 @@ constexpr eng::u16 kFirstLine = 0x2cu;
 
 // Rejilla de BOBs: 4 columnas x 2 filas; el objeto se mueve solo dentro de su celda.
 constexpr eng::u8  kBobCount = K_086_BOBS;
+constexpr eng::u16 kPlanCount = kBobCount > 0u ? kBobCount : 1u;
 constexpr eng::u16 kSkyBands = K_086_SKY_BANDS;
 constexpr eng::u8  kCols = 4u;
 constexpr eng::u16 kCellW = 80u;
@@ -231,6 +243,21 @@ struct BobObjectsDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008604u);
 			return;
 		}
+#if K_086_PLANNER
+		// El ejecutor y la cola son PERSISTENTES (recuerdan el rectángulo previo por objeto: sin
+		// esto no se borra la posición anterior y quedan estelas). Se ligan una vez, ya reservada
+		// la memoria (el buffer de save-under).
+		m_exec.bind(m_blits, m_target,
+			    eng::Span<eng::u16> {reinterpret_cast<eng::u16*>(m_save.view.data()), kSaveWords},
+			    3u, kObjH);
+		// NOTA: el copper por objeto NO se liga aqui. Con `K_086_STATIC_COPPER=1` la lista se
+		// materializa una vez en `init`; anadir intenciones por frame sin `begin_frame` la
+		// desborda. El copper por objeto (dinamico) sigue en el camino de actores
+		// (`build_frame` con `K_086_STATIC_COPPER=0`); el volcado desde la intencion esta en
+		// `SpritePlanExecutor::bind_copper` (probado en HOST-368).
+		m_queue.bind(m_exec);
+		m_queue.bind_done(eng::os::IntentDonePoster<32u> {&m_port});
+#endif
 		if (!build_frame()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008605u);
 			return;
@@ -261,8 +288,29 @@ struct BobObjectsDemo {
 		ENG_PROF_BEGIN(kProfActors);
 		const eng::u16 t = static_cast<eng::u16>(app.frame());
 
-		// Cada objeto se mueve dentro de su celda (los borrados por caja/save-under no
-		// deben invadir la caja de otro).
+		m_blits.clear();
+		m_blits.set_blit_budget_limits({8192u, 16384u, 32u, 64u});
+		eng::u16 emitted = 0;
+#if K_086_PLANNER
+		// Camino del PLANNER: la forma de cada BOB esta en la capa (setup); el frame solo
+		// mueve posiciones, y `emit` + `flush` compilan al MISMO `FramePlan`. Las
+		// completaciones llegan como `Msg IntentDone` al puerto.
+		for (eng::u8 i = 0; i < kBobCount; ++i) {
+			const eng::u16 col = static_cast<eng::u16>(i % kCols);
+			const eng::u16 row = static_cast<eng::u16>(i / kCols);
+			const eng::s16 cx = static_cast<eng::s16>(col * kCellW + kCellW / 2u);
+			const eng::s16 cy = static_cast<eng::s16>(row * kCellH + kCellH / 2u);
+			const eng::u8 ph = static_cast<eng::u8>((i * 7u + t) & 63u);
+			m_layer.move(i, static_cast<eng::s16>(cx + kSin[ph] * 18 / 64),
+				     static_cast<eng::s16>(
+					     cy +
+					     kSin[static_cast<eng::u8>((ph + 21u) & 63u)] * 12 / 64));
+		}
+		m_layer.emit(m_queue);
+		m_queue.flush();
+		emitted = m_layer.count();
+#else
+		// Camino de ACTORES (por defecto).
 		for (eng::u8 i = 0; i < kBobCount; ++i) {
 			auto a = m_actors.get(m_ids[i]);
 			if (!a.valid()) {
@@ -277,15 +325,11 @@ struct BobObjectsDemo {
 			a->desc.y = static_cast<eng::s16>(cy + kSin[static_cast<eng::u8>((ph + 21u) & 63u)] * 12 / 64);
 		}
 
-		m_blits.clear();
-		m_blits.set_blit_budget_limits({8192u, 16384u, 32u, 64u});
 		scene::ActorEmitContext ctx {};
 		ctx.targets = {&m_target, 1u};
 		ctx.clip = graphics::DirtyRect {0, 0, static_cast<eng::s16>(kWidth),
 						static_cast<eng::s16>(kHeight)};
 		ctx.buffer = 0u;
-
-		eng::u16 emitted = 0;
 		for (eng::u8 i = 0; i < kBobCount; ++i) {
 			auto a = m_actors.get(m_ids[i]);
 			if (!a.valid()) {
@@ -295,6 +339,7 @@ struct BobObjectsDemo {
 				++emitted;
 			}
 		}
+#endif
 		ENG_PROF_END(kProfActors);
 		ENG_PROF_BEGIN(kProfBlits);
 		if (!app.device().execute_frame_plan(m_blits)) {
@@ -422,6 +467,19 @@ private:
 			if (!m_ids[i].valid()) {
 				return false;
 			}
+#if K_086_PLANNER
+			// Forma del objeto para la CAPA (setup): reusa el BOB del actor y su politica.
+			m_sprites[i] = graphics::Sprite {m_actors.get(m_ids[i])->bob};
+			graphics::DrawIntent di {};
+			di.kind = graphics::DrawKind::Sprite;
+			di.draw = m_actors.get(m_ids[i])->bob.draw;
+			di.erase = (policy == 2u) ? graphics::BobErase::RestoreUnder
+						  : graphics::BobErase::ClearRect;
+			di.sheet = &m_sprites[i];
+			if (!m_layer.add(di, 0, 0)) {
+				return false;
+			}
+#endif
 		}
 		m_target = graphics::make_bob_target(m_bitmap.mem_view_chip(), kBytesPerRow, kHeight,
 						    kPlanes, graphics::BobLayout::Planar,
@@ -475,6 +533,13 @@ private:
 	scene::ActorStore<16> m_actors {};
 	scene::RepresentationAllocator m_allocator {};
 	scene::ActorId m_ids[kBobCount > 0u ? kBobCount : 1u] {};
+#if K_086_PLANNER
+	graphics::Sprite m_sprites[kPlanCount] {};
+	scene::DrawLayer<kPlanCount> m_layer {};
+	eng::os::MsgPort<32u> m_port {};
+	scene::SpritePlanExecutor m_exec {};
+	graphics::DrawQueue<16u, scene::SpritePlanExecutor, eng::os::IntentDonePoster<32u>> m_queue {};
+#endif
 };
 
 } // namespace
