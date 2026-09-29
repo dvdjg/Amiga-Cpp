@@ -133,7 +133,7 @@ extraer firmas y deduplicar unidades
 para cada unidad:
     probar codecs y parámetros por round-trip
     clasificar destino Paula/mixer
-crear TrackHeader, TrackEvent y AudioCue
+    crear TrackHeader, TrackEvent, envolventes y AudioCue
 escribir tablas + diccionario + tracks como ACP1
 escribir informe con ahorro frente a AUZX lineal
 ```
@@ -209,11 +209,32 @@ El índice permite `seek(chunk)` y evita leer chunks anteriores. `PcmStream` usa
 
 El layout binario definitivo debe escribirse con `ByteReader`/`ByteWriter` little-endian y offsets validados; no se usará `#pragma pack` como API de parseo ni `reinterpret_cast` en el decoder. El parser comprobará magic, versión, offsets, límites de unidades, destino de pista y referencias de `unit_id` antes de reproducir.
 
-El header ACP1 v1 contiene flags, frecuencia, número de unidades, tres pistas Paula, cuatro voces mixer, canal Paula reservado y offsets a tablas, unidades, tracks y final. Cada unidad contiene id, offset/tamaño, longitud reconstruida, modo, flags tonal/percusivo, parámetros armónicos y alpha. Cada evento contiene unidad, inicio, duración, volumen, pitch fino y fade-in/fade-out. Una tabla opcional de `AudioCue` contiene posición en muestras, código, valor y flags para eventos musicales.
+El header ACP1 v1 contiene flags, frecuencia, número de unidades, tres pistas Paula, cuatro voces mixer, canal Paula reservado y offsets a tablas, unidades, tracks y final. Cada unidad contiene id, offset/tamaño, longitud reconstruida, modo, flags tonal/percusivo, parámetros armónicos, alpha, ganancia de referencia y estado de fase. Cada evento contiene unidad, inicio, duración, ganancia de evento, pitch fino, fade-in/fade-out y referencia opcional a una envolvente. Una tabla opcional de `AudioCue` contiene posición en muestras, código, valor y flags para eventos musicales.
 
-El análisis estructural usa HPSS por STFT, división opcional en sub/low-mid/mid/high y firmas espectrales, chroma, MFCC o forma de onda normalizada para detectar unidades exactas o similares. Los armónicos, bajos y pads se proponen para Paula; percusión, ruido, residuales densos y ambientes para el mixer. La decisión se almacena como metadato y no permite reasignación silenciosa en el runtime.
+El análisis estructural usa HPSS por STFT, división opcional en sub/low-mid/mid/high y firmas espectrales, chroma, MFCC o forma de onda normalizada para detectar unidades exactas o similares. La firma incluye también envolvente de amplitud y fase fundamental; dos unidades solo se deduplican si la forma normalizada, la continuidad de fase y el contrato de pitch son compatibles. La unidad se almacena normalizada a una ganancia de referencia; cada aparición conserva su ganancia original como parámetro de evento. Los armónicos, bajos y pads se proponen para Paula; percusión, ruido, residuales densos y ambientes para el mixer. La decisión se almacena como metadato y no permite reasignación silenciosa en el runtime.
 
-Las uniones aplican fade lineal o equal-power de 10 a 50 ms. En Paula se usan rampas de volumen, doble voz temporal o un buffer pequeño; en el mixer se usa el buffer de mezcla. El crossfade no se ejecuta completo dentro de la IRQ.
+Las uniones aplican fade lineal o equal-power de 10 a 50 ms. En Paula se usan rampas de volumen, doble voz temporal o un buffer pequeño; en el mixer se usa el buffer de mezcla. El crossfade no se ejecuta completo dentro de la IRQ. La fase fundamental se conserva en la unidad y en el evento: una repetición concatenada puede reanudar el acumulador de fase o forzar un punto de fase compatible; si no puede garantizarse continuidad, el encoder no reutiliza la unidad o añade un crossfade explícito.
+
+### Ganancia y envolventes
+
+ACP1 separa la señal almacenada de los controles de reproducción:
+
+```text
+sample_final[n] = saturate(
+    sample_unit_normalized[n]
+    × unit_gain × event_gain × track_gain(t)
+    × music_gain(t) × master_gain(t))
+```
+
+Todos los factores usan una escala fija común, preferentemente `Q0.8` o el tipo fixed seleccionado por la configuración. El producto se acumula en una representación más ancha y se normaliza una sola vez antes de escribir al buffer Paula/mixer. La envolvente puede ser una rampa lineal, equal-power o una tabla de puntos; la tabla global se comparte entre eventos.
+
+- `unit_gain`: normaliza el prototipo almacenado.
+- `event_gain`: recupera el volumen de cada aparición.
+- `track_gain(t)`: automatización de una pista o stem.
+- `music_gain(t)`: fade-in/fade-out y volumen de la obra.
+- `master_gain(t)`: volumen global, mute y fades globales.
+
+El volumen final se satura al rango del destino. En Paula se convierte a `AUDxVOL` y en el mixer se aplica antes de sumar voces.
 
 ## Pseudocódigo del análisis estructural
 
@@ -227,7 +248,9 @@ para cada capa de entrada:
     reconstruir harmónico, percusivo y residual
     dividir opcionalmente cada capa en sub, low-mid, mid y high
     detectar onsets/beats o usar ventanas de 0,5..4 s
-    firmar cada unidad con energía, espectro, chroma y duración
+    normalizar ganancia y conservar unit_gain
+    estimar fase fundamental y continuidad de borde
+    firmar cada unidad con energía, espectro, chroma, envolvente, fase y duración
     buscar unidades idénticas o suficientemente similares
     conservar una copia del prototipo y emitir referencias para las repeticiones
     clasificar cada unidad como Paula o mixer
@@ -342,7 +365,8 @@ AudioService():
     para cada track cuyo start_sample <= reloj:
         resolver UnitHeader
         decodificar unidad fuera de la IRQ
-        aplicar fade y preparar destino Paula/mixer
+        combinar unit_gain × event_gain × track_gain × music_gain × master_gain
+        aplicar envolvente/fade y preparar destino Paula/mixer
     mezclar hasta cuatro voces software en el buffer Chip del canal reservado
     publicar IntentDone o AudioUnderrun en el puerto
 

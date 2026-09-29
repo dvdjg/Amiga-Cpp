@@ -103,6 +103,9 @@ El corpus mixto previsto para ajustar los parámetros está descrito en [`AUDIO_
 - Elegir HPSS, tamaño de unidad y umbral de similitud con coste conjunto de error, RAM, voces y CPU.
 - Generar informes reproducibles con hash de entrada, configuración, versión del encoder y destino de cada pista.
 - Preservar los pseudocódigos de HPSS, mediana deslizante, barrera de tareas y player como contratos de implementación en `AUDIO_COMPRESSION.md`.
+- Normalizar unidades a una ganancia de referencia y conservar `unit_gain` por evento.
+- Comparar envolvente y fase fundamental antes de deduplicar unidades; rechazar concatenaciones con continuidad incompatible.
+- Componer `unit_gain × event_gain × track_gain × music_gain × master_gain` con saturación en el destino.
 
 ### C14 — API unificada de reproducción y cues
 
@@ -110,6 +113,7 @@ El corpus mixto previsto para ajustar los parámetros está descrito en [`AUDIO_
 - Controlar pausa, reanudación, parada y volumen por handle sin exponer canales ni voces.
 - Añadir `AudioCue` en ACP1 y `MsgType::AudioCue` en el mini-SO con handle, código, valor y posición.
 - Adaptar `AudioSystem`/`GameAudio` para devolver handles reales y conectar la tabla de sesiones con Paula, mixer, `PcmStream` y caché ACP1.
+- Aplicar el mismo control de volumen y fade a samples, streams y música; no mantener una ruta especial solo para ACP1.
 
 ### C15 — Utility única de línea de órdenes
 
