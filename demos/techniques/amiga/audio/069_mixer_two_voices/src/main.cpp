@@ -84,7 +84,7 @@ struct TwoVoicesDemo {
 		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00006903u); return; }
 		backend.takeover_display(m_copper_ptr);
 
-		if (!m_sfx.init(backend.memory())) {
+		if (!m_sfx.init(backend.memory_manager())) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00006904u);
 			return;
 		}

@@ -93,7 +93,7 @@ struct PlasmaDemo {
 		cfg.rows = kRows;
 		// Efecto copper-chunky de alto nivel: compone la escena (sin bitplanes) y emite la
 		// estructura de la lista. El doble buffer lo da el `copper::Plan` (flip + present).
-		if (!m_fx.init(m_scene, backend.memory(), scene::ocs_a500, cfg)) {
+		if (!m_fx.init(m_scene, backend.memory_manager(), scene::ocs_a500, cfg)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008202u);
 			return;
 		}

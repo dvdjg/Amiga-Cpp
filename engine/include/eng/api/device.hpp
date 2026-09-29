@@ -35,6 +35,11 @@ public:
 	[[nodiscard]] decltype(auto) memory() {
 		return m_backend.memory();
 	}
+	/// **Bancos tipados** del backend (la puerta de reserva persistente del engine).
+	template <class B = Backend>
+	[[nodiscard]] decltype(auto) memory_manager() {
+		return m_backend.memory_manager();
+	}
 
 	// --- Blitter ----------------------------------------------------------------------
 	template <class B = Backend>

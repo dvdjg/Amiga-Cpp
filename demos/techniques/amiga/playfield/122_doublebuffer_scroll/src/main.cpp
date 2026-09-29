@@ -87,7 +87,7 @@ struct DemoGame {
 		bc.height = kWorldH;
 		bc.planes = kPlanes;
 		bc.layout = eng::gfx::PlaneLayout::Interleaved;
-		if (!m_b0.init(backend.memory(), bc) || !m_b1.init(backend.memory(), bc) ||
+		if (!m_b0.init(backend.memory_manager(), bc) || !m_b1.init(backend.memory_manager(), bc) ||
 		    !m_pf.bind({kWorldW, kWorldH, kViewW, kViewH, kPlanes, 42u}, m_b0, m_b1)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012202u);
 			return;
@@ -103,7 +103,7 @@ struct DemoGame {
 		cfg.planes = kPlanes;
 		cfg.ddfstrt = 0x0030u;
 		cfg.ddfstop = 0x00D0u;
-		if (!m_comp.init(backend.memory(), cfg) || !m_comp.compose(m_pf.hardware_view())) {
+		if (!m_comp.init(backend.memory_manager(), cfg) || !m_comp.compose(m_pf.hardware_view())) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012203u);
 			return;
 		}

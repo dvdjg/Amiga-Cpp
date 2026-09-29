@@ -81,7 +81,7 @@ struct FbmDemo {
 		cfg.cols = kCols;
 		cfg.rows = kRows;
 		// Efecto copper-chunky de alto nivel (compone la escena sin bitplanes + estructura).
-		if (!m_fx.init(m_scene, backend.memory(), scene::ocs_a500, cfg)) {
+		if (!m_fx.init(m_scene, backend.memory_manager(), scene::ocs_a500, cfg)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008302u);
 			return;
 		}

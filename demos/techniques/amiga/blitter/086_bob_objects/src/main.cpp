@@ -239,7 +239,7 @@ struct BobObjectsDemo {
 		}
 		// El plan reserva su doble buffer de copperlist; `first_line` es el arranque del
 		// display, para ordenar las intenciones relativas a él (cruce de 256 líneas).
-		if (!m_plan.begin(app.device().memory(), {4096u, kFirstLine})) {
+		if (!m_plan.begin(app.device().memory_manager(), {4096u, kFirstLine})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008604u);
 			return;
 		}

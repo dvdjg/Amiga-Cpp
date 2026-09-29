@@ -29,8 +29,9 @@
 
 namespace eng::res {
 
-/// Margen extra por reserva: absorbe el padding de alineación del `LinearArena` cuando su
-/// base no está alineada (ver «PEYOTE DE ALINEACIÓN» en `memory/arena.hpp`).
+/// Margen extra por reserva. **Ya no se usa** en los `load` con banco (`MemBank`): el `BlockPool`
+/// alinea la base **una vez**, así que el padding no se acumula. Se conserva por si algún
+/// consumidor de la arena *bump* (que sí acumula padding) lo necesita.
 inline constexpr u32 kLoadHeadroom = 16u;
 
 /// **Medio y alineación por defecto de un dominio de asset.** Los datos que consume DMA
@@ -62,48 +63,10 @@ template <> struct DomainAsset<AudioTag> {
 	static constexpr u32 align = 4u;
 };
 
-/// Arena del `MemorySystem` que corresponde a `kind`. `Fast` se sirve de la arena `slow`
-/// (el engine no mantiene una arena Fast propia).
-[[nodiscard]] inline LinearArena& arena_for(MemorySystem& mem, MemoryKind kind) noexcept {
-	switch (kind) {
-		case MemoryKind::Slow:
-		case MemoryKind::Fast:
-			return mem.slow;
-		default:
-			return mem.chip;
-	}
-}
-
-/// **Carga `src` en un `Block<Tag>`** de la arena y alineación indicadas. Copia **una vez**
-/// (típicamente en `init`; no es camino caliente). Devuelve un bloque inválido si `src`
-/// está vacío o no cabe (la reserva real decide, sin excepciones).
-template <class Tag>
-[[nodiscard]] inline Block<Tag> load(MemorySystem& mem, Span<const u8> src, MemoryKind kind,
-				     u32 align) {
-	const u32 need = static_cast<u32>(src.size());
-	if (need == 0u) {
-		return {};
-	}
-	Block<Tag> block =
-		arena_for(mem, kind).allocate_block<Tag>(static_cast<u32>(need + kLoadHeadroom), align);
-	if (!block.valid()) {
-		return {};
-	}
-	eng::util::ByteReader reader {src};
-	(void)reader.read_into(eng::Span<u8> {block.view.data(), need});
-	return block;
-}
-
-/// Como arriba, con el medio y la alineación del dominio (`DomainAsset<Tag>`). Es la puerta
-/// normal: `res::load<eng::PlaneTag>(memory, bytes)`.
-template <class Tag>
-[[nodiscard]] inline Block<Tag> load(MemorySystem& mem, Span<const u8> src) {
-	return load<Tag>(mem, src, DomainAsset<Tag>::kind, DomainAsset<Tag>::align);
-}
-
-/// Carga tipada con los **bancos** (`MemoryManager`): DMA (`DomainAsset<Tag>::kind == Chip`) ->
-/// `MemBank<Chip>` (tipado, compile-time); datos de CPU -> **Fast si la hay, si no Slow**
-/// (`fast_or_slow`). Es la puerta para datos que la CPU procesa intensivamente.
+/// **Carga tipada con los bancos** (`MemoryManager`): la puerta única. DMA
+/// (`DomainAsset<Tag>::kind == Chip`) -> `MemBank<Chip>`; datos de CPU -> **Fast si la hay, si no
+/// Slow** (`fast_or_slow`). Copia **una vez** (típicamente en `init`; no es camino caliente).
+/// Devuelve un bloque inválido si `src` está vacío o no cabe (sin excepciones).
 template <class Tag>
 [[nodiscard]] inline Block<Tag> load(MemoryManager& mm, Span<const u8> src) {
 	const u32 need = static_cast<u32>(src.size());
@@ -111,9 +74,8 @@ template <class Tag>
 		return {};
 	}
 	Block<Tag> block = (DomainAsset<Tag>::kind == MemoryKind::Chip)
-				   ? Block<Tag> {mm.chip().reserve<Tag>(need + kLoadHeadroom,
-									DomainAsset<Tag>::align)}
-				   : fast_or_slow<Tag>(mm, need + kLoadHeadroom, DomainAsset<Tag>::align);
+				   ? Block<Tag> {mm.chip().reserve<Tag>(need, DomainAsset<Tag>::align)}
+				   : fast_or_slow<Tag>(mm, need, DomainAsset<Tag>::align);
 	if (!block.valid()) {
 		return {};
 	}
@@ -122,22 +84,21 @@ template <class Tag>
 	return block;
 }
 
-/// **Carga un asset desde fichero** por la E/S **síncrona** del mini-SO (`os::file_*`):
-/// abre, mide, reserva en la arena del dominio y lee. Escribe el tamaño útil en
-/// `out_bytes` (el bloque lleva margen de alineación, así que su `view().size()` es mayor).
-/// Devuelve un bloque **inválido** si no se puede abrir/leer o no cabe. Debe llamarse
-/// **antes** del `takeover_display` (`dos.library` necesita interrupciones).
+/// **Carga un asset desde fichero** por la E/S **síncrona** del mini-SO (`os::file_*`): abre,
+/// mide, reserva en el banco del dominio y lee. Escribe el tamaño útil en `out_bytes`. Devuelve
+/// un bloque **inválido** si no se puede abrir/leer o no cabe. Debe llamarse **antes** del
+/// `takeover_display` (`dos.library` necesita interrupciones).
 template <class Tag>
-[[nodiscard]] inline Block<Tag> load_file(MemorySystem& mem, const char* path, u32& out_bytes,
-					  MemoryKind kind, u32 align) {
+[[nodiscard]] inline Block<Tag> load_file(MemoryManager& mm, const char* path, u32& out_bytes) {
 	out_bytes = 0u;
 	const eng::os::FileHandle h = eng::os::file_open(path, eng::os::FileMode::Read);
 	if (h == 0u) {
 		return {};
 	}
 	const u32 bytes = eng::os::file_size(h);
-	Block<Tag> block =
-		arena_for(mem, kind).allocate_block<Tag>(static_cast<u32>(bytes + kLoadHeadroom), align);
+	Block<Tag> block = (DomainAsset<Tag>::kind == MemoryKind::Chip)
+				   ? Block<Tag> {mm.chip().reserve<Tag>(bytes, DomainAsset<Tag>::align)}
+				   : fast_or_slow<Tag>(mm, bytes, DomainAsset<Tag>::align);
 	if (!block.valid()) {
 		eng::os::file_close(h);
 		return {};
@@ -152,18 +113,11 @@ template <class Tag>
 	return block;
 }
 
-/// Como arriba, con el medio y la alineación del dominio (`DomainAsset<Tag>`), pero
-/// devolviendo además el tamaño útil en `out_bytes`.
+/// Como arriba, sin pedir el tamaño útil.
 template <class Tag>
-[[nodiscard]] inline Block<Tag> load_file(MemorySystem& mem, const char* path, u32& out_bytes) {
-	return load_file<Tag>(mem, path, out_bytes, DomainAsset<Tag>::kind, DomainAsset<Tag>::align);
-}
-
-/// Como arriba, con el medio y la alineación del dominio (`DomainAsset<Tag>`).
-template <class Tag>
-[[nodiscard]] inline Block<Tag> load_file(MemorySystem& mem, const char* path) {
+[[nodiscard]] inline Block<Tag> load_file(MemoryManager& mm, const char* path) {
 	u32 ignore = 0u;
-	return load_file<Tag>(mem, path, ignore, DomainAsset<Tag>::kind, DomainAsset<Tag>::align);
+	return load_file<Tag>(mm, path, ignore);
 }
 
 } // namespace eng::res

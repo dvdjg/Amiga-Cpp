@@ -95,7 +95,7 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012001u);
 			return;
 		}
-		if (!m_pf.begin(backend.memory(), {kWorldW, kWorldH, kViewW, kViewH, kPlanes, 42u})) {
+		if (!m_pf.begin(backend.memory_manager(), {kWorldW, kWorldH, kViewW, kViewH, kPlanes, 42u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012002u);
 			return;
 		}
@@ -108,7 +108,7 @@ struct DemoGame {
 		cfg.planes = kPlanes;
 		cfg.ddfstrt = 0x0030u; // fetch ancho: 42 B/fila (coincide con BPLMOD)
 		cfg.ddfstop = 0x00D0u;
-		if (!m_comp.init(backend.memory(), cfg) || !m_comp.compose(m_pf.hardware_view())) {
+		if (!m_comp.init(backend.memory_manager(), cfg) || !m_comp.compose(m_pf.hardware_view())) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012003u);
 			return;
 		}

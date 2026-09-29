@@ -18,27 +18,31 @@
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
 #include <eng/os/file.hpp>
 #include <eng/res/asset_cache.hpp>
 
 namespace eng::amiga {
 
-/// Backend de `AssetCache` sobre `MemorySystem` + E/S del mini-SO.
+/// Backend de `AssetCache` sobre los **bancos tipados** (`MemoryManager`) + E/S del mini-SO.
 class AssetCacheBackend {
 public:
 	constexpr AssetCacheBackend() = default;
-	explicit constexpr AssetCacheBackend(eng::MemorySystem& memory) noexcept : m_memory(memory) {}
+	explicit constexpr AssetCacheBackend(eng::MemoryManager& memory) noexcept : m_memory(memory) {}
 
-	/// Reserva `bytes` en la arena del banco (Chip, o Slow para `Fast`). El cache usa el
-	/// tamaño real del destino; aquí se añade margen de alineación interno de la arena.
+	/// Reserva `bytes` en el banco (Chip, o Slow para `Fast`). El cache usa el tamaño real del
+	/// destino; el pool alinea la base, así que no hace falta margen.
 	[[nodiscard]] eng::Span<eng::u8> alloc(eng::u32 bytes, eng::res::MemBank bank) noexcept {
-		eng::LinearArena& arena =
-			(bank == eng::res::MemBank::Fast) ? m_memory->slow : m_memory->chip;
-		const auto block = arena.template allocate_block<eng::PlaneTag>(bytes, 4u);
-		return block.valid() ? block.view.raw() : eng::Span<eng::u8> {};
+		if (bank == eng::res::MemBank::Chip) {
+			eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> b =
+				m_memory->chip().reserve<eng::PlaneTag>(bytes, 4u);
+			return b.valid() ? b.view.raw() : eng::Span<eng::u8> {};
+		}
+		eng::Block<eng::PlaneTag> b = eng::fast_or_slow<eng::PlaneTag>(*m_memory, bytes, 4u);
+		return b.valid() ? b.view.raw() : eng::Span<eng::u8> {};
 	}
 
-	/// No-op: las arenas son *bump* (sin liberación por bloque). El cache reutiliza el slot.
+	/// No-op: el cache reutiliza el slot (el `Block` lo posee el pool hasta el `reset_phase`).
 	void free(eng::Span<eng::u8>, eng::res::MemBank) noexcept {}
 
 	/// Abre el fichero y lanza la lectura asíncrona a `dst` (0..`dst.size()`). El resultado
@@ -54,7 +58,7 @@ public:
 	}
 
 private:
-	eng::Ref<eng::MemorySystem> m_memory {};
+	eng::Ref<eng::MemoryManager> m_memory {};
 };
 
 } // namespace eng::amiga

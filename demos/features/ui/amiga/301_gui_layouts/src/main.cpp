@@ -162,7 +162,7 @@ struct DemoGame {
 		// Buffers de trabajo del texto por Blitter (`TextBlitScratch`): en **Chip RAM** (el
 		// Blitter solo lee Chip por DMA) y con los tamaños correctos (sólido compartido +
 		// una máscara por par). El helper encapsula el contrato de `draw_text_blit`.
-		if (!m_text_scratch.allocate(backend.memory().chip)) {
+		if (!m_text_scratch.allocate(backend.memory_manager().chip())) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000320u);
 			return;
 		}

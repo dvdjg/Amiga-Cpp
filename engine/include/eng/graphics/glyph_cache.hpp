@@ -26,6 +26,7 @@
 #include <eng/graphics/font8.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/memory/arena.hpp>
+#include <eng/memory/mem_bank.hpp>
 
 namespace eng::graphics {
 
@@ -130,8 +131,20 @@ public:
 		if (!src.valid() || !mask.valid()) {
 			return false;
 		}
-		m_src = eng::Span<eng::u16>(reinterpret_cast<eng::u16*>(src.view.data()), kSrcWords);
-		m_mask = eng::Span<eng::u16>(reinterpret_cast<eng::u16*>(mask.view.data()), kMaskWords);
+		set(src.view.data(), mask.view.data());
+		return true;
+	}
+
+	/// Reserva ambos buffers en el **banco Chip** (`MemBank<Chip>`, la puerta única). Se usa en
+	/// la fachada moderna; la arena queda para *scratch* puro. Sin `headroom`: el pool alinea la
+	/// base una vez.
+	[[nodiscard]] bool allocate(eng::MemBank<eng::MemoryKind::Chip>& chip) noexcept {
+		auto src = chip.reserve<eng::PlaneTag>(kSrcBytes, 16u);
+		auto mask = chip.reserve<eng::MaskTag>(kMaskBytes, 16u);
+		if (!src.valid() || !mask.valid()) {
+			return false;
+		}
+		set(src.view.data(), mask.view.data());
 		return true;
 	}
 
@@ -142,6 +155,12 @@ public:
 	[[nodiscard]] bool valid() const noexcept { return !m_src.empty() && !m_mask.empty(); }
 
 private:
+	/// Fija las vistas de trabajo desde las bases reservadas.
+	void set(eng::u8* src, eng::u8* mask) noexcept {
+		m_src = eng::Span<eng::u16>(reinterpret_cast<eng::u16*>(src), kSrcWords);
+		m_mask = eng::Span<eng::u16>(reinterpret_cast<eng::u16*>(mask), kMaskWords);
+	}
+
 	eng::Span<eng::u16> m_src {};
 	eng::Span<eng::u16> m_mask {};
 };

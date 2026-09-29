@@ -421,7 +421,7 @@ struct DemoGame {
 		}
 
 		const drivers::TileScrollConfig config {&dual_palette, palette_zones, 0, 1536};
-		if (!m_scene.init(backend.memory(), config)) {
+		if (!m_scene.init(backend.memory_manager(), config)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000411u);
 			return;
 		}

@@ -242,7 +242,7 @@ struct DemoGame {
 		}
 		scene_cfg.palette = g_dpfPalette;
 
-		if (!scene.begin(backend.memory(), scene_cfg)) {
+		if (!scene.begin(backend.memory_manager(), scene_cfg)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020202u);
 			return;
 		}

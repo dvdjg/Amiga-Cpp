@@ -1,22 +1,22 @@
 // ============================================================================
-// Test HOST-364: asignador unico por medio (bancos enlazados a las arenas).
+// Test HOST-364: banco con POOL PROPIO (free real) y presupuesto por banco.
 // ============================================================================
 //
-// Respalda `BlockPool::configure_backing` y `MemoryManager::configure_backing`: los bancos de
-// Chip/Slow **delegan en las arenas del `MemorySystem`** (mismo buffer y **mismo cursor**), de modo
-// que reservar desde la arena y desde el banco **no se solapa**. Era el bug del backend Amiga:
-// `configure_memory` entregaba el mismo buffer a dos asignadores independientes y `res::load`
-// pisaba el bitmap/copperlist de `compose`.
+// Modelo vigente (Fase 3/6 de ROADMAP_MEMORY_OWNERSHIP.md): los **bancos** (`MemBank`) son la
+// puerta de reserva **persistente**; tienen **pool propio** con `free` real en cualquier orden.
+// La antigua `configure_backing` (bancos enlazados al cursor de la arena) ya no se usa en el
+// backend: la escena reserva del banco, no de la arena.
 //
-// La variante `configure(base, ...)` (buffers propios) sigue viva para tests host que no comparten.
+// Cubre: pool propio (free real entre reservas), `restore` tras liberar, `used_bytes`/`free_bytes`
+// coherentes, y `res::Budget` leyendo del banco.
 //
 //   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/res/364_allocator_sharing
 
 #include <cstdio>
 
 #include <eng/core/types/domains.hpp>
-#include <eng/memory/arena.hpp>
 #include <eng/memory/memory_manager.hpp>
+#include <eng/res/budget.hpp>
 
 namespace {
 
@@ -37,36 +37,48 @@ alignas(16) eng::u8 g_slow[16u * 1024u];
 int main() {
 	std::printf("== HOST-364 allocator sharing ==\n");
 
-	// --- 1) Bancos enlazados a las arenas: un unico cursor, sin solape --------------
-	eng::ChipArena chip {g_chip, sizeof(g_chip), eng::MemoryKind::Chip};
-	eng::LinearArena slow {g_slow, sizeof(g_slow), eng::MemoryKind::Slow};
 	eng::MemoryManager mm {};
-	check(mm.configure_backing(chip, slow, nullptr, 0u), "configure_backing ok");
+	check(mm.configure(g_chip, sizeof(g_chip), g_slow, sizeof(g_slow), nullptr, 0u, 16u),
+	      "configure ok");
 
-	const auto arena_blk = chip.allocate_block<eng::PlaneTag>(1024u, 16u);
-	const auto bank_blk = mm.chip().reserve<eng::PlaneTag>(1024u, 16u);
-	check(arena_blk.valid() && bank_blk.valid(), "reservas validas");
-	check(arena_blk.data() != bank_blk.data(), "arena y banco NO comparten direccion (sin solape)");
-	check(chip.used() == 2048u, "el cursor de la arena avanzo con la reserva del banco");
-	check(mm.chip().capacity() == chip.capacity(), "capacity del banco = arena");
-	check(mm.chip().free_bytes() == chip.remaining(), "free_bytes del banco = remaining de la arena");
+	// --- Pool propio del banco: reservar graficos+sonido, liberar graficos (no LIFO) ---
+	const auto gfx = mm.chip().reserve<eng::PlaneTag>(4096u, 16u);
+	const auto snd = mm.chip().reserve<eng::AudioTag>(1024u, 16u);
+	check(gfx.valid() && snd.valid(), "dos reservas en el banco Chip");
+	check(static_cast<const void*>(gfx.view.data()) != static_cast<const void*>(snd.view.data()),
+	      "bloques distintos");
+
+	const eng::u32 used_before = mm.chip().used_bytes();
+	mm.chip().release(gfx); // libera el PRIMERO con el segundo vivo: imposible en bump
+	check(mm.chip().used_bytes() < used_before, "release devuelve memoria (free real)");
+	check(mm.chip().free_bytes() > 0u, "hay hueco libre tras el release");
+
+	// Re-reservar reutiliza el hueco (misma direccion).
+	const auto gfx2 = mm.chip().reserve<eng::PlaneTag>(4096u, 16u);
+	check(gfx2.valid() && gfx2.view.data() == gfx.view.data(), "reutiliza el hueco liberado");
+
+	// --- `release` invalida el bloque (diagnostico): usar su direccion tras release trapa ---
+	// (solo en builds con ENG_ASSERT; en host con ENG_DEBUG no se fuerza aqui para no abortar).
+
+	// --- Telemetria por banco: capacity/used/free coherentes -------------------------
+	check(mm.chip().capacity() == sizeof(g_chip), "capacity del banco Chip = buffer");
+	check(mm.chip().used_bytes() + mm.chip().free_bytes() == mm.chip().capacity(),
+	      "usado + libre = capacidad");
 	check(mm.chip().kind() == eng::MemoryKind::Chip, "kind del banco = Chip");
 
-	// El banco ya no recicla (la arena es *bump*): `release` no devuelve memoria al cursor.
-	const eng::u32 used_before = chip.used();
-	mm.chip().release(bank_blk);
-	check(chip.used() == used_before, "release del banco no rebobina el cursor de la arena");
+	// --- `res::Budget` lee del BANCO -----------------------------------------------
+	eng::res::Budget budget {mm};
+	check(budget.valid(), "budget valido");
+	check(budget.capacity_chip() == sizeof(g_chip), "capacity_chip = banco");
+	check(budget.used_chip() == mm.chip().used_bytes(), "used_chip = banco");
+	check(budget.can_fit_chip(1024u), "can_fit_chip dentro de capacidad");
+	check(!budget.can_fit_chip(static_cast<eng::u32>(sizeof(g_chip) + 1u)),
+	      "can_fit_chip rechaza si no cabe");
 
-	// --- 2) `configure(base, ...)` con buffers propios sigue funcionando -------------
-	alignas(16) static eng::u8 own_buf[4096];
-	eng::MemoryManager mm2 {};
-	check(mm2.configure(own_buf, sizeof(own_buf), nullptr, 0u, nullptr, 0u, 16u),
-	      "configure(base) ok");
-	const auto own = mm2.chip().reserve<eng::PlaneTag>(256u);
-	check(own.valid(), "configure(base) reserva");
-	check(mm2.chip().capacity() == sizeof(own_buf), "capacity del banco propio");
-
-	std::printf(g_fail != 0 ? "[FAIL] %d\n" : "OK: asignador unico por medio (sin solape)\n",
-		    g_fail);
-	return g_fail != 0 ? 1 : 0;
+	if (g_fail != 0) {
+		std::printf("%d fallo(s)\n", g_fail);
+		return 1;
+	}
+	std::printf("OK: banco con pool propio (free real) + Budget por banco validados.\n");
+	return 0;
 }

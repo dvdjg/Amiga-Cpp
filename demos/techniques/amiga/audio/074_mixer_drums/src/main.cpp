@@ -85,7 +85,7 @@ struct DrumsDemo {
 		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00007403u); return; }
 		backend.takeover_display(m_copper_ptr);
 
-		if (!m_sfx.init(backend.memory())) {
+		if (!m_sfx.init(backend.memory_manager())) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00007404u);
 			return;
 		}

@@ -590,7 +590,7 @@ struct DemoGame {
 		//  pertenece a la fila física del anillo, no al índice lógico del mapa.
 		//  dice qué tiles/tiles deberían verse y recorta la referencia).
 		// ---------------------------------------------------------------------
-		if (!scene.begin(backend.memory(), scene_cfg)) {
+		if (!scene.begin(backend.memory_manager(), scene_cfg)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020102u);
 			return;
 		}

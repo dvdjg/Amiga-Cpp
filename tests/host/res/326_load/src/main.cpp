@@ -3,16 +3,16 @@
 // ============================================================================
 //
 // Respalda `eng/res/load.hpp`: el medio/alineación por dominio (`DomainAsset`) y la carga
-// de bytes a un `Block<Tag>` (copia + reserva), sustituyendo `allocate_block` + `memcpy`.
-// Comprueba la copia, la alineación a 16 de los planos, el rechazo de fuente vacía y de
-// overflow (bloque inválido, sin excepciones) y que `MemoryKind::Fast` se sirve de la arena
-// `slow`.
+// de bytes a un `Block<Tag>` (copia + reserva) sobre los **bancos tipados** (`MemoryManager`),
+// sustituyendo `allocate_block` + `memcpy`. Comprueba la copia, la alineación a 16 de los planos,
+// el rechazo de fuente vacía y de overflow (bloque inválido, sin excepciones) y que
+// `MemoryKind::Fast` cae a Slow cuando no hay Fast.
 //
 //   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/res/326_load
 
 #include <cstdio>
 
-#include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
 #include <eng/res/load.hpp>
 
 // El medio/alineación por dominio es lo que blinda la carga (una sola verdad).
@@ -43,11 +43,8 @@ int main() {
 
 	eng::u8 chip_buf[1024] {};
 	eng::u8 slow_buf[256] {};
-	eng::MemorySystem ms {
-		eng::ChipArena {chip_buf, sizeof(chip_buf), eng::MemoryKind::Chip},
-		eng::LinearArena {slow_buf, sizeof(slow_buf), eng::MemoryKind::Slow},
-		eng::ChipArena {},
-	};
+	eng::MemoryManager ms {};
+	ms.configure(chip_buf, sizeof(chip_buf), slow_buf, sizeof(slow_buf), nullptr, 0u, 16u);
 
 	// --- Carga a Chip con la alineación del dominio -------------------------
 	{
@@ -64,7 +61,7 @@ int main() {
 		}
 		check(same, "datos copiados byte a byte");
 		check(b.view.size() >= sizeof(src), "reserva con margen");
-		check(ms.chip.used() >= sizeof(src), "consume la arena Chip");
+		check(ms.chip().free_bytes() < ms.chip().capacity(), "consume el banco Chip");
 	}
 
 	// --- Fuente vacía -> inválido -------------------------------------------
@@ -76,23 +73,18 @@ int main() {
 	// --- Overflow -> inválido (sin excepciones) -----------------------------
 	{
 		eng::u8 tiny[8] {};
-		eng::MemorySystem ms2 {
-			eng::ChipArena {tiny, sizeof(tiny), eng::MemoryKind::Chip},
-			eng::ChipArena {},
-			eng::ChipArena {},
-		};
+		eng::MemoryManager ms2 {};
+		ms2.configure(tiny, sizeof(tiny), nullptr, 0u, nullptr, 0u, 16u);
 		const auto o =
 			eng::res::load<eng::PlaneTag>(ms2, eng::Span<const eng::u8> {src, sizeof(src)});
 		check(!o.valid(), "no cabe -> bloque invalido");
-		check(ms2.chip.overflow_detected(), "la arena registra el overflow");
 	}
 
-	// --- Fast se sirve de la arena Slow -------------------------------------
+	// --- `fast_or_slow` (helper de banco): sin Fast cae a Slow --------------
 	{
-		const auto f = eng::res::load<eng::MusicTag>(ms, eng::Span<const eng::u8> {src, 64u},
-							     eng::MemoryKind::Fast, 4u);
-		check(f.valid(), "Fast -> bloque valido");
-		check(ms.slow.used() >= 64u, "Fast consume la arena Slow");
+		const auto f = eng::fast_or_slow<eng::MapCellsTag>(ms, 64u);
+		check(f.valid(), "fast_or_slow sin Fast -> bloque valido");
+		check(ms.slow().free_bytes() < ms.slow().capacity(), "cae a Slow cuando no hay Fast");
 	}
 
 	if (g_fail != 0) {

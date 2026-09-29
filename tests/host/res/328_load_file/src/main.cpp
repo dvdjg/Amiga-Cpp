@@ -13,6 +13,7 @@
 #include <cstring>
 
 #include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
 #include <eng/res/load.hpp>
 
 namespace {
@@ -69,11 +70,8 @@ int main() {
 	g_file_bytes = sizeof(file_data);
 
 	eng::u8 chip_buf[1024] {};
-	eng::MemorySystem ms {
-		eng::ChipArena {chip_buf, sizeof(chip_buf), eng::MemoryKind::Chip},
-		eng::ChipArena {},
-		eng::ChipArena {},
-	};
+	eng::MemoryManager ms {};
+	ms.configure(chip_buf, sizeof(chip_buf), nullptr, 0u, nullptr, 0u, 16u);
 
 	// --- Fichero existente: se carga y el tamaño útil es el real ------------
 	{
@@ -111,11 +109,8 @@ int main() {
 	// --- No cabe en la arena -> invalido ------------------------------------
 	{
 		eng::u8 tiny[8] {};
-		eng::MemorySystem ms2 {
-			eng::ChipArena {tiny, sizeof(tiny), eng::MemoryKind::Chip},
-			eng::ChipArena {},
-			eng::ChipArena {},
-		};
+		eng::MemoryManager ms2 {};
+		ms2.configure(tiny, sizeof(tiny), nullptr, 0u, nullptr, 0u, 16u);
 		eng::u32 bytes = 0u;
 		const auto b = eng::res::load_file<eng::PlaneTag>(ms2, "mem://ok", bytes);
 		check(!b.valid(), "no cabe -> bloque invalido");

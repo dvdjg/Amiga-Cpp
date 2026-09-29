@@ -131,7 +131,7 @@ struct DemoGame {
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({384u * 1024u, 8u * 1024u, 8u * 1024u}) ||
-			!scene.init(backend.memory(), {&kPalette, kZones, 0, 1536}) ||
+			!scene.init(backend.memory_manager(), {&kPalette, kZones, 0, 1536}) ||
 			!tiles[0].init(backend, kBackground) || !tiles[1].init(backend, kForeground)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00010501u); return;
 		}

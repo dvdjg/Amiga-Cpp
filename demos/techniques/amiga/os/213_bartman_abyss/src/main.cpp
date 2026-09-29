@@ -72,7 +72,7 @@ struct AbyssDemo {
 		const eng::u16* pal = reinterpret_cast<const eng::u16*>(abyss_pal);
 
 		// El motor elige perfil y `BPLCON0` (sin `ocs_a500`/`0x5200` en el código de juego).
-		if (!comp::compose(m_scene, app.device().memory(), res, eng::PaletteWords {pal, 32u})) {
+		if (!comp::compose(m_scene, app.device().memory_manager(), res, eng::PaletteWords {pal, 32u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021302u);
 			return;
 		}

@@ -96,17 +96,19 @@ bool AmigaBackend::configure_memory(const MemoryConfig& config) {
 	m_memory.slow.reset(m_slow_alloc, m_slow_alloc_size, mem_kind_of(m_slow_alloc, false, false));
 	m_memory.frame.reset(m_frame_alloc, m_frame_alloc_size, mem_kind_of(m_frame_alloc, true, false));
 
-	// Bancos tipados por uso: **delegan en las arenas** (mismo buffer y cursor; sin solape).
-	(void)m_memmanager.configure_backing(m_memory.chip, m_memory.slow, m_fast_alloc,
-					     m_fast_alloc_size);
+	// Bancos tipados por uso: **pool propio** sobre el mismo buffer (mismo rango que las arenas,
+	// pero con `free` real por bloque). Ya no se usa `configure_backing`: los consumidores
+	// reservan del **banco**, no de la arena (la arena `frame` sigue siendo scratch).
+	(void)m_memmanager.configure(m_chip_alloc, m_chip_alloc_size, m_slow_alloc, m_slow_alloc_size,
+				     m_fast_alloc, m_fast_alloc_size);
 
 	// Caché de assets con el presupuesto de las arenas. El backend es estable, así que la
 	// `Ref` que guarda la caché es válida; el runtime posee su propio backend-copia.
-	(void)m_assets.init(AssetCacheBackend {m_memory},
+	(void)m_assets.init(AssetCacheBackend {m_memmanager},
 			    res::CacheConfig {m_chip_alloc_size, m_slow_alloc_size, 8u});
 
-	m_memory_report.chip = m_memory.chip.snapshot();
-	m_memory_report.slow = m_memory.slow.snapshot();
+	m_memory_report.chip = m_memmanager.chip().snapshot();
+	m_memory_report.slow = m_memmanager.slow().snapshot();
 	m_memory_report.frame = m_memory.frame.snapshot();
 	m_memory_report.chip_ok = config.chip_bytes == 0 || m_chip_alloc != nullptr;
 	m_memory_report.slow_ok = config.slow_bytes == 0 || m_slow_alloc != nullptr;

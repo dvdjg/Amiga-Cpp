@@ -69,7 +69,18 @@ public:
 	void release(const void* ptr) noexcept { m_pool.free(const_cast<void*>(ptr)); }
 
 	[[nodiscard]] constexpr u32 free_bytes() const noexcept { return m_pool.free_bytes(); }
+	/// Bytes **en uso** = capacidad − libres (los huecos fragmentados cuentan como libres).
+	[[nodiscard]] constexpr u32 used_bytes() const noexcept {
+		return m_pool.capacity() >= m_pool.free_bytes() ? m_pool.capacity() - m_pool.free_bytes()
+								: 0u;
+	}
+	/// Capacidad total de cada banco.
 	[[nodiscard]] constexpr u32 capacity() const noexcept { return m_pool.capacity(); }
+	/// Foto del banco para telemetría (mismo tipo que la de la arena). `used` = capacidad − libres;
+	/// `peak` no se sigue en el pool (queda 0).
+	[[nodiscard]] constexpr ArenaSnapshot snapshot() const noexcept {
+		return ArenaSnapshot {0u, m_pool.capacity(), used_bytes(), 0u, m_pool.free_bytes(), K};
+	}
 	[[nodiscard]] constexpr MemoryKind kind() const noexcept { return K; }
 	/// Bloques (slots) que lleva el pool (reservas libres + usadas): diagnóstico.
 	[[nodiscard]] constexpr u8 block_count() const noexcept { return m_pool.block_count(); }

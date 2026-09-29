@@ -193,7 +193,7 @@ struct DemoGame {
 		scene_cfg.dpf.fg_canvas = true;
 		scene_cfg.dpf.foreground_is_pf2 = true;
 
-		if (!scene.begin(backend.memory(), scene_cfg)) {
+		if (!scene.begin(backend.memory_manager(), scene_cfg)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011102u);
 			return;
 		}

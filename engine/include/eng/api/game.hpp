@@ -199,7 +199,7 @@ public:
 	/// caché de assets + `load<T>` se construye encima (ver `PUBLIC_GAME_API.md` §2.1.4).
 	template <class B = Backend>
 	[[nodiscard]] res::Budget resources() noexcept {
-		return res::Budget {m_backend.memory()};
+		return res::Budget {m_backend.memory_manager()};
 	}
 
 	/// **Configura la memoria del backend** (budget por banco). Normalmente en `init`; el motor

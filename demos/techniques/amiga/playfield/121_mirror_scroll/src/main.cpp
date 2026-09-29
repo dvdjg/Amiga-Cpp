@@ -80,7 +80,7 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012101u);
 			return;
 		}
-		if (!m_pf.begin(backend.memory(), {kWorldW, kViewW, kViewH, kDisplayH, kPlanes, 42u})) {
+		if (!m_pf.begin(backend.memory_manager(), {kWorldW, kViewW, kViewH, kDisplayH, kPlanes, 42u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012102u);
 			return;
 		}
@@ -93,7 +93,7 @@ struct DemoGame {
 		cfg.planes = kPlanes;
 		cfg.ddfstrt = 0x0030u;
 		cfg.ddfstop = 0x00D0u;
-		if (!m_comp.init(backend.memory(), cfg) || !m_comp.compose(m_pf.hardware_view())) {
+		if (!m_comp.init(backend.memory_manager(), cfg) || !m_comp.compose(m_pf.hardware_view())) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012103u);
 			return;
 		}

@@ -75,7 +75,7 @@ struct AppSpriteDemo {
 	void init(auto& app) {
 		eng::debug::mark_init_started(g_eng_run_status);
 
-		if (!scene::compose(m_scene, app.device().memory(), kRes, scene::ocs_a500,
+		if (!scene::compose(m_scene, app.device().memory_manager(), kRes, scene::ocs_a500,
 				    scene::display(scene::kPal320x256, scene::kBplcon0_4Planes),
 				    scene::palette(kPalette.words()))) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021401u);

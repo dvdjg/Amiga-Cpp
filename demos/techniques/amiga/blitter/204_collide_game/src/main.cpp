@@ -81,7 +81,7 @@ struct CollideGame {
 
 		scene::SceneResources res = scene::planar(kWidth, kHeight, kPlanes);
 		res.buffers = kBuffers;
-		if (!scene::compose(m_scene, app.device().memory(), res, scene::ocs_a500,
+		if (!scene::compose(m_scene, app.device().memory_manager(), res, scene::ocs_a500,
 				    scene::display(kDiwstrt, kDiwstop, kDdfstrt, kDdfstop, kBplcon0),
 				    scene::palette(kPalette, 0u, 16u))) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020402u);

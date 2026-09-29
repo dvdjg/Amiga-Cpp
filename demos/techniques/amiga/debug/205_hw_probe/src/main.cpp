@@ -108,7 +108,7 @@ struct DemoGame {
 		// 3) Compone un display planar 320x256x5: al inicializar, la escena programa
 		//    el modo y actualiza `m_hw.display` (width/height/depth/colores).
 		const bool composed = composition::compose(
-			m_scene, backend.memory(), composition::planar(kWidth, kHeight, kPlanes),
+			m_scene, backend.memory_manager(), composition::planar(kWidth, kHeight, kPlanes),
 			composition::ocs_a500,
 			composition::display(composition::kPal320x256, kBplcon0_5Planes),
 			composition::palette(eng::PaletteWords { kPalette, 32u }));
