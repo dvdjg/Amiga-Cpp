@@ -28,7 +28,7 @@ cmake --install "$LOCALAPPDATA/Temp/opencode/sdl3-build"
 SDL3_ROOT="$LOCALAPPDATA/Temp/opencode/sdl3" bash host-tools/audio-compressor/build.sh --sdl3
 ```
 
-El ejecutable resultante enlaza SDL3 de forma estática. La comprobación de Windows debe mostrar solo APIs del sistema (`KERNEL32`, `USER32`, `WINMM`, etc.) y nunca `SDL3.dll`, `libstdc++-6.dll` o `libgcc_s_seh-1.dll`. El runtime `libwinpthread-1.dll` puede aparecer si el toolchain no proporciona su archivo estático; no pertenece a SDL3 y debe resolverse instalando el paquete de runtime estático de MinGW o compilando con un toolchain que lo incluya.
+El ejecutable resultante enlaza SDL3 de forma estática. La comprobación de Windows debe mostrar solo APIs del sistema (`KERNEL32`, `USER32`, `WINMM`, etc.) y nunca `SDL3.dll`, `libstdc++-6.dll` o `libgcc_s_seh-1.dll`. En este entorno UCRT64 `libwinpthread.a` está instalado, pero el PE sigue declarando `libwinpthread-1.dll`; es una limitación del runtime/toolchain y no una dependencia de SDL3. Eliminarla requiere un toolchain MinGW completamente estático o una configuración SDL3 sin subsistemas que la necesiten.
 
 ## Uso rápido
 

@@ -38,4 +38,13 @@ if [ "$SDL3" -eq 1 ]; then
 		else printf '%s\n' "SDL3 estático no encontrado bajo $SDL_ROOT/lib." >&2; exit 1; fi
 	fi
 fi
+if [ "$SDL3" -eq 1 ]; then
+	# Debe aparecer después de SDL3: el linker de MinGW procesa archivos estáticos en una pasada.
+	WINPTHREAD_STATIC="$("$CXX" -print-file-name=libwinpthread.a 2>/dev/null || true)"
+	if [ -f "$WINPTHREAD_STATIC" ]; then
+		LIBS+=(-Wl,-Bstatic "$WINPTHREAD_STATIC" -Wl,-Bdynamic)
+	else
+		LIBS+=(-Wl,-Bstatic -lwinpthread -Wl,-Bdynamic)
+	fi
+fi
 "$CXX" "${FLAGS[@]}" "$ROOT/host-tools/audio-compressor/src/main.cpp" "${LIBS[@]}" -o "$OUT/audio-compressor"

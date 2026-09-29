@@ -157,6 +157,7 @@ El corpus mixto previsto para ajustar los parámetros está descrito en [`AUDIO_
 - Implementar reproducción de una mezcla ACP1 con los mismos eventos, ganancias y fades que el player Amiga.
 - Mantener SDL3 opcional y detectar la dependencia mediante `SDL3_DIR`, `SDL3_ROOT` o `pkg-config`.
 - Preferir `pkg-config --static` o `libSDL3.a`/`libSDL3-static.a`; verificar que Windows no liste `SDL3.dll` como dependencia.
+- **Evidencia parcial**: SDL3 estático compila y `--play` arranca con dispositivos Windows reales; no aparece `SDL3.dll`, pero el toolchain UCRT64 conserva `libwinpthread-1.dll` pese a `libwinpthread.a`.
 
 ## Criterios de aceptación
 
