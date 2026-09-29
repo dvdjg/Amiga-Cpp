@@ -53,7 +53,7 @@ Chunk 0 (comprimido) · Chunk 1 · …
 La definición **exacta** de la cabecera (32 bytes) y del índice de chunks (entradas
 `{offset,size}` de 8 bytes) está en `engine/include/eng/audio/auzx.hpp`, que además valida el
 fichero (`auzx::parse`/`auzx::chunk`); el test **HOST-360** la cubre. En PC, la herramienta
-`host-tools/pack-pcm` genera el AUZX con los **mismos codificadores del engine** (sin deriva de
+  `host-tools/audio-compressor` genera el AUZX con los **mismos codificadores del engine** (sin deriva de
 formato).
 
 Preparación del audio: **mono 8-bit con signo**, delta antes de comprimir, chunks de **4–8 KB**
@@ -246,7 +246,7 @@ Ejemplos extremo a extremo:
 
 - **Streaming desde disco**: `demos/techniques/amiga/audio/278_stream_disk` lee un AUZX de `DH1:`
   (melodía de dominio público generada con `tools/audio/gen-melody.mjs` y comprimida con
-  `host-tools/pack-pcm`), lo reconoce con `media` y lo streamea con `PcmStream`; verificado
+  `host-tools/audio-compressor`), lo reconoce con `media` y lo streamea con `PcmStream`; verificado
   `detail=0x260026` (0 underruns).
 - **Rendimiento**: `demos/techniques/amiga/audio/279_codec_bench` mide muestras/s de los
   descompresores ASM frente a C++ (`detail=0x00027900` = idénticos).

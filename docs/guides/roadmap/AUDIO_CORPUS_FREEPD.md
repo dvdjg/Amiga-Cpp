@@ -17,7 +17,7 @@ FreePD cerró su sitio original en 2025. La colección archivada `freepd` de Int
 - Metadatos reproducibles: <https://archive.org/metadata/freepd>.
 - Listado de archivos: <https://archive.org/download/freepd/freepd_files.xml>.
 - La colección FreePD se presenta como música de dominio público; el manifiesto conserva autor y hash para que una revisión legal pueda comprobar cada archivo individual.
-- Los MP3 deben convertirse a WAV PCM lineal mediante `ffmpeg` antes de `host-tools/pack-pcm`; la conversión y los WAV resultantes permanecen en `out/`.
+- Los MP3 deben convertirse a WAV PCM lineal mediante `ffmpeg` antes de `host-tools/audio-compressor`; la conversión y los WAV resultantes permanecen en `out/`.
 
 ## Comprobación
 

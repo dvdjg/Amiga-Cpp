@@ -85,7 +85,7 @@ Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
 
   Entregados además: **IMA ADPCM 4-bit** (`Codec::ImaAdpcm`, HOST-359), la **cabecera
   contenedora `AUZX`** (`eng/audio/auzx.hpp`, HOST-360) con **interfaz de medios**
-  (`eng/audio/media.hpp`, HOST-361), el packer de PC (`host-tools/pack-pcm`) y `tar`
+  (`eng/audio/media.hpp`, HOST-361), la aplicación única de PC (`host-tools/audio-compressor`) y `tar`
   (`tools/fs/tar-extract.mjs` + `make-volume --tar/--add`). En 68000, los descompresores corren
   en **ASM** (`support/codec_asm.s` + `support/dzx0_68000.s`) con equivalencia verificada en
   hardware (demo 277, `detail=0`). **Pendiente**: solo aPLib. Los formatos exactos y la receta de

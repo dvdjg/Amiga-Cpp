@@ -1,6 +1,6 @@
 # Diseño de audio comprimido para Amiga
 
-El pipeline de audio convierte fuentes de PC en PCM mono de 8 bits con signo y las empaqueta en `AUZX`, el contenedor que consume el engine Amiga. El formato, los codecs y el decoder se comparten entre `host-tools/pack-pcm` y `engine/include/eng/audio/`; así el fichero producido en PC tiene el mismo contrato que el reproductor de Amiga. `pack-pcm` acepta RAW PCM8 firmado y WAV PCM lineal mono o estéreo de 8/16 bits.
+El pipeline de audio convierte fuentes de PC en PCM mono de 8 bits con signo y las empaqueta en `AUZX`, el contenedor que consume el engine Amiga. La única aplicación pública es `host-tools/audio-compressor/audio-compressor`; sus módulos internos reutilizan los codecs y parsers de `engine/include/eng/audio/`. Las herramientas históricas `pack-pcm` y `tools/audio/pack-auzx.mjs` quedan como implementaciones de transición y no forman parte del flujo de usuario final.
 
 El pipeline tiene dos niveles de formato. `AUZX` representa una señal PCM lineal dividida en chunks; `ACP1` representa una obra estructurada como diccionario de unidades reutilizables y pistas de eventos. Una unidad `ACP1` puede contener un payload AUZX, ADPCM o residual, y una pista decide si se reproduce por Paula directa o por una voz del mixer.
 
@@ -32,7 +32,7 @@ PCM normalizado ── análisis ── búsqueda de parámetros
                                       PCM8 en Chip RAM → Paula
 ```
 
-El empaquetador C++ vive en `host-tools/pack-pcm/` y reutiliza los headers del engine. El pipeline Node `tools/audio/pack-auzx.mjs` cubre la generación Fibonacci Delta sin compilar C++. El contenedor portable está definido por `eng/audio/auzx.hpp`; `eng/audio/media.hpp` ofrece el punto único de reconocimiento y decodificación por chunk. Las rutinas críticas tienen referencia C++ y variantes ASM 68000 bajo el mismo contrato.
+La aplicación única se organiza internamente en ingestión, análisis, codecs, serialización AUZX/ACP1, búsqueda de candidatas e informes. El contenedor portable está definido por `eng/audio/auzx.hpp`; `eng/audio/media.hpp` ofrece el punto único de reconocimiento y decodificación por chunk. Las rutinas críticas tienen referencia C++ y variantes ASM 68000 bajo el mismo contrato.
 
 La utilidad orquestadora será `host-tools/audio-compressor/audio-compressor`. `pack-pcm` se conserva como herramienta de bajo nivel y `audio-compressor` compone ingestión, clasificación, análisis, selección, generación AUZX/ACP1 e informe.
 
@@ -73,7 +73,24 @@ audio-compressor <entrada> [opciones]
 --help                         mostrar ayuda y defaults
 ```
 
-El archivo de configuración contiene las mismas claves que la CLI. La precedencia es `defaults < config < CLI`; el modo de arrastre usa solo defaults. Una configuración resuelta se copia al informe para que una ejecución pueda reproducirse sin depender del entorno del usuario.
+El archivo de configuración contiene las mismas claves que la CLI. La precedencia es `defaults < config < CLI`; el modo de arrastre usa solo defaults. Una configuración resuelta se copia al informe para que una ejecución pueda reproducirse sin depender del entorno del usuario. No existen dos programas que el usuario deba encadenar: la aplicación única llama internamente a sus módulos de ingestión, codec y escritura.
+
+### Entrada multipista
+
+La aplicación conserva los canales de una fuente multipista cuando el formato lo permite. En WAV multicanal, cada canal se ingiere como stem lógico antes del downmix opcional; en módulos tracker se importan patrones, instrumentos y canales como pistas lógicas; en contenedores multipista se preservan sus nombres y tasa común. El usuario puede seleccionar `--stems all`, una lista de stems o `--downmix mono`.
+
+```text
+fuente multipista
+      │
+      ├── stem 0: bajo/armónico ──┐
+      ├── stem 1: percusión       ├─► firmas + repetición por stem
+      ├── stem 2: armonía         │
+      └── stem 3: residual ───────┘
+                         │
+              candidatas lineal / ACP1 / híbrida
+```
+
+Los stems ayudan a encontrar secuencias repetitivas que quedarían ocultas al mezclar primero. El encoder compara también una candidata de mezcla completa porque la separación puede introducir sangrado o aumentar el coste de eventos.
 
 ### Clasificación automática
 
@@ -122,6 +139,30 @@ escribir informe con ahorro frente a AUZX lineal
 ```
 
 El pipeline de música puede caer a AUZX si el diccionario y los eventos ocupan más que la codificación lineal o si la calidad de concatenación no cumple el umbral. La elección queda registrada en el informe, no se oculta en el archivo.
+
+### Candidatas comparables
+
+La aplicación puede generar varias salidas de prueba en una sola ejecución. Cada candidata tiene un id y una configuración completa:
+
+```text
+candidate linear-rle:
+    AUZX + DeltaRLE, chunk 4096
+candidate linear-ima:
+    AUZX + IMA, chunk 2048, cuantización configurada
+candidate structured:
+    ACP1, HPSS, unidades 1024, Paula/mixer automático
+candidate structured-wide:
+    ACP1, bandas 4, unidades 2048, crossfade equal-power
+
+para cada candidata:
+    codificar por ventanas/stems
+    reconstruir la señal o la mezcla final
+    medir bytes totales, MSE, RMS, SNR, pico, RAM, unidades, eventos y coste de reproducción
+seleccionar la mejor según la función de coste configurada
+guardar todas las candidatas si se usa --keep-candidates
+```
+
+El tamaño ganador incluye cabecera, tablas, diccionario, eventos, fades y cualquier buffer requerido; no se permite comparar solo payloads comprimidos.
 
 ## Contenedor AUZX
 

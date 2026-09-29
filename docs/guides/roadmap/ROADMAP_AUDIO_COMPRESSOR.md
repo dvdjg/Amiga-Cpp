@@ -111,15 +111,15 @@ El corpus mixto previsto para ajustar los parámetros está descrito en [`AUDIO_
 - Añadir `AudioCue` en ACP1 y `MsgType::AudioCue` en el mini-SO con handle, código, valor y posición.
 - Adaptar `AudioSystem`/`GameAudio` para devolver handles reales y conectar la tabla de sesiones con Paula, mixer, `PcmStream` y caché ACP1.
 
-### C15 — Utility orquestadora de línea de órdenes
+### C15 — Utility única de línea de órdenes
 
-- Crear `host-tools/audio-compressor/audio-compressor` en C++23 como punto de entrada único; `pack-pcm` queda como backend de bajo nivel.
+- Crear `host-tools/audio-compressor/audio-compressor` en C++23 como única aplicación pública; integrar dentro sus módulos de ingestión, codecs, AUZX y ACP1. No habrá dos ejecutables que el usuario deba combinar.
 - Implementar arrastrar/soltar: un único archivo sin opciones usa defaults, genera `.auzx` para samples y `.acp1` para música, sin sobrescribir entradas.
 - Implementar CLI explícita con `--mode`, `--config`, `--out`, `--codec`, `--sample-rate`, `--chunk`, `--ram-budget`, `--window`, `--hpss`, `--bands`, `--threads`, `--report` y `--force`.
 - Implementar configuración con precedencia `defaults < config < CLI` y volcado de configuración resuelta.
 - Implementar clasificación `auto` por duración, energía, onsets, repetición y coste; permitir `sample`/`music` forzado.
 - Implementar pipeline sample: ingestión, candidatos, round-trip, métricas, AUZX e informe.
-- Implementar pipeline música: HPSS, bandas, deduplicación, unidades, destinos Paula/mixer, eventos ACP1 e informe comparativo AUZX/ACP1.
+- Implementar pipeline música: lectura multipista/stems, HPSS, bandas, deduplicación, unidades, destinos Paula/mixer, eventos ACP1 e informe comparativo AUZX/ACP1.
 - Test de aceptación: arrastrar WAV corto, arrastrar WAV largo, forzar ambos modos, config externa, salida existente y error de formato.
 
 ### C16 — Operación y corpus
@@ -128,6 +128,21 @@ El corpus mixto previsto para ajustar los parámetros está descrito en [`AUDIO_
 - Añadir `--list-codecs`, `--dump-config` y `--dry-run` para inspeccionar decisiones sin escribir binarios.
 - Generar informes JSON y resumen legible con hash de entrada, configuración, clasificación, unidades, tracks, destino y métricas.
 - Verificar que cualquier ejecución completa produce solo salidas bajo `out/` salvo el archivo destino solicitado explícitamente.
+
+### C17 — Candidatas y selección automática
+
+- Generar en una ejecución candidatas lineales, ADPCM, cuantizadas, ACP1 estructurales y ACP1 híbridas.
+- Comparar cada candidata sobre la mezcla final y, cuando exista, sobre cada stem.
+- Incluir en la función de coste tamaño total, MSE/RMS/SNR/pico, RAM Chip/Fast, número de unidades/eventos, voces requeridas y coste de CPU estimado.
+- Seleccionar una salida principal y conservar opcionalmente todas las candidatas bajo `out/playground/audio-compressor/<run>/candidates/`.
+- Añadir `--keep-candidates`, `--candidate-set` y `--stems all|mono|lista`.
+
+### C18 — Importación multipista
+
+- Leer WAV multicanal preservando stems antes del downmix.
+- Importar módulos/tracker y conservar canales, instrumentos y patrones como pistas lógicas cuando el formato lo permita.
+- Probar repetición por stem y por mezcla completa; rechazar una separación si empeora tamaño/calidad.
+- Validar que ACP1 reproduce la misma duración y sincronía entre tracks.
 
 ## Criterios de aceptación
 
