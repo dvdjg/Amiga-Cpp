@@ -73,6 +73,12 @@ Plan del pipeline offline de compresión de audio y del decoder `AUZX` del engin
 - **Entregado**: búsqueda determinista del candidato con menor tamaño y desempate por error.
 - **Pendiente**: adaptar los encoders reales AUZX y generar informes de corpus con configuración y hash de entrada.
 
+### C10 — Parámetros de coma fija
+
+- **Entregado**: `AudioTuning<S>` y `AudioErrorMetrics<S>` en `eng/audio/audio_tuning.hpp`.
+- **Entregado**: HOST-379 instancia el algoritmo con `float` y `Fixed<s32,16>`.
+- **Pendiente**: seleccionar el formato fixed definitivo por parámetro y comprobar codegen 68000 para el camino de reproducción.
+
 ## Criterios de aceptación
 
 - Todo archivo generado por la utilidad se puede validar sin depender de una ruta absoluta ni de herramientas no declaradas.
