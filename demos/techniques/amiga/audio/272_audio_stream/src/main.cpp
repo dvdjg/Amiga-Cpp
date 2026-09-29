@@ -32,6 +32,7 @@
 // ============================================================================
 
 #include <eng/api/api.hpp>
+#include <eng/audio/audio_feeder.hpp>
 #include <eng/audio/audio_mode.hpp>
 #include <eng/audio/pcm_codec.hpp>
 #include <eng/audio/pcm_stream.hpp>
@@ -168,16 +169,15 @@ struct AudioStreamDemo {
 		refill();
 		draw_bar();
 		if (context.frame.frame_index == kFrameReport) {
-			if (m_irq > 0u && m_swap > 0u && m_underrun == 0u) {
-				eng::debug::mark_ready(
-					g_eng_run_status,
-					(static_cast<eng::u32>(m_irq) << 16u) | (m_swap & 0xffffu));
+			if (m_feeder.irq_count() > 0u && m_feeder.swap_count() > 0u &&
+			    m_feeder.underrun_count() == 0u) {
+				eng::debug::mark_ready(g_eng_run_status, m_feeder.detail());
 			} else {
 				eng::debug::mark_failed(
 					g_eng_run_status,
-					((static_cast<eng::u32>(m_irq)) << 16u) |
-						((static_cast<eng::u32>(m_swap)) << 8u) |
-						static_cast<eng::u32>(m_underrun));
+					((static_cast<eng::u32>(m_feeder.irq_count())) << 16u) |
+						((static_cast<eng::u32>(m_feeder.swap_count())) << 8u) |
+						static_cast<eng::u32>(m_feeder.underrun_count()));
 			}
 		}
 	}
@@ -190,15 +190,11 @@ private:
 	/// Trampolín `Service<AudioStreamDemo>`: el backend lo invoca desde la IRQ con el contexto.
 	static void audio_service(AudioStreamDemo& c, eng::u16 v) { c.on_audio_irq(v); }
 
-	/// **IRQ de audio (nivel 4)**: avanza el buffer de reproduccion y reprograma el puntero de
-	/// la voz. No descomprime (eso se hace en el bucle principal).
+	/// **IRQ de audio (nivel 4)**: avanza el buffer de reproduccion (el feeder) y, si repuso,
+	/// reprograma el puntero de la voz. No descomprime (eso se hace en el bucle principal).
 	void on_audio_irq(eng::u16) {
-		m_irq = static_cast<eng::u8>(m_irq + 1u);
-		if (m_stream.advance()) {
+		if (m_feeder.on_irq()) {
 			m_paula.set_buffer(kChannel, m_stream.play_pcm(), kChunkSamples / 2u);
-			m_swap = static_cast<eng::u8>(m_swap + 1u);
-		} else {
-			m_underrun = static_cast<eng::u8>(m_underrun + 1u);
 		}
 	}
 
@@ -289,11 +285,10 @@ private:
 	}
 
 	bool m_init_ok = false;
-	// Contadores de 8 bits `volatile` compartidos con la IRQ: el 68000 lee/escribe un byte de
-	// forma atomica (un `u32` se parte en dos accesos al bus y la lectura se desgarra).
-	volatile eng::u8 m_irq = 0;
-	volatile eng::u8 m_swap = 0;
-	volatile eng::u8 m_underrun = 0;
+	// Feeder IRQ-apto: avanza el stream y cuenta `irq`/`swaps`/`underrun` (HOST-372). Compartido
+	// con la ISR; el contador de 16 bits se lee de un acceso (no se desgarra en el 68000).
+	eng::audio::PcmStream<kNumBuffers> m_stream {};
+	eng::audio::AudioFeeder<eng::audio::PcmStream<kNumBuffers>> m_feeder {m_stream};
 	const eng::u16* m_copper_ptr = nullptr;
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bitplane_block {};
 	eng::Block<eng::CopperTag, eng::MemoryKind::Chip> m_copper_block {};
@@ -304,7 +299,6 @@ private:
 	eng::u32 m_enc_len[kMelodyChunks] {}; ///< tamano codificado de cada chunk de la melodia
 	eng::Block<eng::AudioTag> m_file {}; ///< PCM de disco precargado (M8)
 	eng::u8 m_file_chunks = 0u;          ///< chunks PCM validos en `m_file` (0 = sintetizar)
-	eng::audio::PcmStream<kNumBuffers> m_stream {};
 	eng::amiga::PaulaAudio m_paula {};
 };
 

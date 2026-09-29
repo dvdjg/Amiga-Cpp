@@ -23,6 +23,7 @@
 //   bash tools/run/run-demo.sh demos/techniques/amiga/audio/278_stream_disk --warp
 
 #include <eng/api/api.hpp>
+#include <eng/audio/audio_feeder.hpp>
 #include <eng/audio/media.hpp>
 #include <eng/audio/pcm_stream.hpp>
 #include <eng/os/file.hpp>
@@ -126,17 +127,18 @@ struct StreamDiskDemo {
 			return;
 		}
 		refill();
-		if (context.frame.frame_index == kFrameReport) {
-			if (m_irq > 0u && m_swap > 0u && m_underrun == 0u) {
-				eng::debug::mark_ready(g_eng_run_status,
-						       (static_cast<eng::u32>(m_irq) << 16u) | m_swap);
-			} else {
-				eng::debug::mark_failed(
-				    g_eng_run_status,
-				    (static_cast<eng::u32>(m_irq) << 16u) |
-					(static_cast<eng::u32>(m_swap) << 8u) | m_underrun);
-			}
+	if (context.frame.frame_index == kFrameReport) {
+		if (m_feeder.irq_count() > 0u && m_feeder.swap_count() > 0u &&
+		    m_feeder.underrun_count() == 0u && m_refill_fail == 0u) {
+			eng::debug::mark_ready(g_eng_run_status, m_feeder.detail());
+		} else {
+			eng::debug::mark_failed(
+			    g_eng_run_status,
+			    (static_cast<eng::u32>(m_feeder.irq_count()) << 16u) |
+				(static_cast<eng::u32>(m_feeder.swap_count()) << 8u) |
+				static_cast<eng::u32>(m_feeder.underrun_count() + m_refill_fail));
 		}
+	}
 	}
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
@@ -150,14 +152,10 @@ struct StreamDiskDemo {
 private:
 	static void audio_service(StreamDiskDemo& c, eng::u16 v) { c.on_audio_irq(v); }
 
-	/// **IRQ de audio (nivel 4)**: avanza el buffer y reprograma el puntero. No descomprime.
+	/// **IRQ de audio (nivel 4)**: avanza el buffer (el feeder) y, si repuso, reprograma el puntero.
 	void on_audio_irq(eng::u16) {
-		++m_irq;
-		if (m_stream.advance()) {
+		if (m_feeder.on_irq()) {
 			m_paula.set_buffer(kChannel, m_stream.play_pcm(), m_info.chunk_samples / 2u);
-			++m_swap;
-		} else if (!m_stream.finished()) {
-			++m_underrun; // `false` al final del stream es fin normal, no underrun
 		}
 	}
 
@@ -173,7 +171,7 @@ private:
 			const eng::Span<const eng::u8> body =
 			    eng::audio::media::chunk_data(m_blob, m_info, c, sz);
 			if (sz == 0u || !m_stream.provide(idx, body)) {
-				++m_underrun;
+				++m_refill_fail;
 				break;
 			}
 		}
@@ -182,13 +180,12 @@ private:
 	eng::audio::media::Info m_info {};
 	eng::Span<const eng::u8> m_blob {};
 	eng::audio::PcmStream<kNumBuffers> m_stream {};
+	eng::audio::AudioFeeder<eng::audio::PcmStream<kNumBuffers>> m_feeder {m_stream};
 	eng::amiga::PaulaAudio m_paula {};
 	// Buffers DMA de Paula: el banco (Chip) va en el tipo, así no pueden acabar en Slow/Fast.
 	eng::Block<eng::AudioTag, eng::MemoryKind::Chip> m_pcm0 {}, m_pcm1 {}, m_pcm2 {}, m_file {};
-	// Contadores de 8 bits `volatile` compartidos con la IRQ (una lectura de `u32` se desgarra).
-	volatile eng::u8 m_irq = 0u;
-	volatile eng::u8 m_swap = 0u;
-	volatile eng::u8 m_underrun = 0u;
+	/// Fallos de reposición en el bucle (chunk inválido): distinto del underrun de la IRQ (feeder).
+	eng::u8 m_refill_fail = 0u;
 	bool m_init_ok = false;
 };
 

@@ -89,6 +89,15 @@ como **tarea cooperativa** de `eng::task::BackgroundQueue`, drenada en los hueco
   bucle/tarea de fondo ───────┘ ──► lee chunk + descomprime en el buffer libre
 ```
 
+### 4.1 Feeder en el engine (`AudioFeeder`)
+
+El lado IRQ-apto está en el engine (`eng/audio/audio_feeder.hpp`): `AudioFeeder<Stream>` se llama
+desde la ISR de nivel 4, avanza el stream (`advance()`) y cuenta `irq`/`swaps`/`underrun` con estado
+trivial (sin heap ni locks). Alimentado a tiempo se cumple `irq == swaps` y 0 underruns; postear un
+`Msg` de completación es cosa del **drenaje** (bucle), no de la ISR. HOST-372 fija la invariante;
+las demos 272/278 usan este feeder. La lección completa (el feeder era CPU-bound, no la IRQ):
+[`../../debugging/investigaciones/audio-stream-irq-rate.md`](../../debugging/investigaciones/audio-stream-irq-rate.md).
+
 ## 5. Esqueleto
 
 ```cpp
