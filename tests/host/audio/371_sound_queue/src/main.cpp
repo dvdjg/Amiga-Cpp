@@ -1,10 +1,10 @@
 // ============================================================================
-// Test HOST-371: SoundQueue — vocabulario de sonido sobre el mecanismo de intención.
+// Test HOST-371: SoundQueue — cola de SampleEvent sobre el mecanismo de intención.
 // ============================================================================
 //
-// Valida `eng/audio/sound_queue.hpp`: `SoundIntent` sobre la cola genérica `eng::IntentQueue`
-// (mecanismo en `eng/core/util/intent_queue.hpp`), el `MixerExecutor` (intención -> `AudioPlan` vía
-// `AudioMixer::play`) y la completación (`Done`). Es el audio como «plan análogo» del planner
+// Valida `eng/audio/sound_queue.hpp`: `SampleEvent` sobre la cola genérica `eng::IntentQueue`
+// (mecanismo en `eng/core/util/intent_queue.hpp`), el `MixerExecutor` (SampleEvent -> `AudioPlan`
+// vía `AudioMixer::play`) y la completación (`Done`). Es el audio como «plan análogo» del planner
 // (INTENT_PLANNER.md §6): declarar no bloquea; `flush()` vuelca al plan.
 //
 //   CXX=<g++> bash tools/run-host-tests.sh tests/host/audio/371_sound_queue
@@ -17,9 +17,8 @@
 using eng::Ticket;
 using eng::audio::AudioMixer;
 using eng::audio::MixerExecutor;
-using eng::audio::SoundIntent;
+using eng::audio::SampleEvent;
 using eng::audio::SoundQueue;
-using eng::audio::sample_event_of;
 
 namespace {
 
@@ -39,21 +38,14 @@ struct LastDone {
 
 eng::u8 g_sample[32] {};
 
-SoundIntent make_intent(eng::u8 voice = 0xff) {
-	SoundIntent i {};
-	i.sample = eng::AudioSample{g_sample};
-	i.length_words = 8;
-	i.period = 428;
-	i.volume = 64;
-	i.voice = voice;
-	return i;
-}
-
-void test_conversion() {
-	const SoundIntent i = make_intent(2);
-	const eng::audio::SampleEvent ev = sample_event_of(i);
-	check(ev.length_words == 8 && ev.period == 428 && ev.volume == 64 && ev.channel_hint == 2,
-	      "sample_event_of mapea todos los campos");
+SampleEvent make_event(eng::u8 voice = 0xff) {
+	SampleEvent ev {};
+	ev.sample = eng::AudioSample{g_sample};
+	ev.length_words = 8;
+	ev.period = 428;
+	ev.volume = 64;
+	ev.channel_hint = voice;
+	return ev;
 }
 
 void test_lazy_and_flush() {
@@ -66,8 +58,8 @@ void test_lazy_and_flush() {
 	q.bind(exec);
 	q.bind_done(done);
 
-	const Ticket t1 = q.enqueue(make_intent());
-	const Ticket t2 = q.enqueue(make_intent());
+	const Ticket t1 = q.enqueue(make_event());
+	const Ticket t2 = q.enqueue(make_event());
 	check(t1 == 1u && t2 == 2u, "tickets secuenciales");
 	check(mixer.active_count() == 0u, "declarar no ejecuta (no bloquea)");
 
@@ -82,7 +74,7 @@ void test_voice_hint() {
 	MixerExecutor exec {mixer};
 	SoundQueue<4u, MixerExecutor, eng::NoDone> q {};
 	q.bind(exec);
-	q.enqueue(make_intent(2));
+	q.enqueue(make_event(2));
 	q.wait_all();
 	check(mixer.plan().channels[2].active, "la voz pedida se respeta en el plan");
 	check(!mixer.plan().channels[0].active, "las otras voces quedan libres");
@@ -91,11 +83,10 @@ void test_voice_hint() {
 } // namespace
 
 int main() {
-	test_conversion();
 	test_lazy_and_flush();
 	test_voice_hint();
 	if (g_fail == 0) {
-		std::printf("OK: SoundQueue (intencion -> AudioPlan) validada.\n");
+		std::printf("OK: SoundQueue (SampleEvent -> AudioPlan) validada.\n");
 		return 0;
 	}
 	std::printf("FAIL: %d comprobaciones\n", g_fail);

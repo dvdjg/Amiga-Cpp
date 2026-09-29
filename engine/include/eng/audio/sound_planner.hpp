@@ -46,7 +46,7 @@ public:
 	void begin_frame() noexcept { m_mixer.begin_frame(); }
 
 	/// **Declara** un sonido (no bloquea). Devuelve el ticket de la petición.
-	[[nodiscard]] Ticket declare(const SoundIntent& item) noexcept { return m_queue.enqueue(item); }
+	[[nodiscard]] Ticket declare(const SampleEvent& item) noexcept { return m_queue.enqueue(item); }
 
 	/// Drena la cola al `AudioPlan` (postea `IntentDone` por petición ejecutada) y reporta el flanco
 	/// de `AudioUnderrun`. Llamar una vez por frame desde el **bucle** (no la ISR).

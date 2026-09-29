@@ -15,7 +15,7 @@
 
 using eng::Ticket;
 using eng::audio::AudioMixer;
-using eng::audio::SoundIntent;
+using eng::audio::SampleEvent;
 using eng::audio::SoundPlanner;
 using eng::os::Msg;
 using eng::os::MsgPort;
@@ -33,8 +33,8 @@ void check(bool ok, const char* m) {
 
 eng::u8 g_sample[32] {};
 
-SoundIntent make_intent() {
-	SoundIntent i {};
+SampleEvent make_event() {
+	SampleEvent i {};
 	i.sample = eng::AudioSample{g_sample};
 	i.length_words = 4;
 	i.period = 428;
@@ -60,8 +60,8 @@ void test_declare_flush_completion() {
 	SoundPlanner<8u, 8u> planner {mixer, port};
 
 	planner.begin_frame();
-	const Ticket t1 = planner.declare(make_intent());
-	const Ticket t2 = planner.declare(make_intent());
+	const Ticket t1 = planner.declare(make_event());
+	const Ticket t2 = planner.declare(make_event());
 	check(t1 == 1u && t2 == 2u, "tickets secuenciales");
 	check(!planner.empty(), "la cola tiene peticiones pendientes");
 	check(port.empty(), "declarar no postea nada (aun)");

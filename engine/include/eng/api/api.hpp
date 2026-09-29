@@ -19,7 +19,7 @@
 #include <eng/api/game.hpp>
 #include <eng/core/types/box.hpp>
 #include <eng/core/types/domains.hpp>
-#include <eng/core/types/result.hpp>
+#include <eng/core/util/expected.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>

@@ -22,7 +22,7 @@ Categoría `audio` de la batería host (L1). El índice de categorías está en 
 | HOST-362 | [aplib](362_aplib/README.md) | Descompresor aPLib (`eng/audio/aplib.hpp`) contra un flujo real de `apultra`; dispatch `Codec::APLib` y rechazos. |
 | HOST-363 | [pcm_stream_seek](363_pcm_stream_seek/README.md) | `PcmStream<3>` (triple buffer) y `seek(chunk)`: reposiciona el stream en un chunk del índice. |
 | HOST-370 | [audio_plan](370_audio_plan/README.md) | Presupuesto de `AudioPlan` (`eng/audio/audio.hpp`): `AudioBudget`/`Limits`/`Report` (voces DMA + palabras), análogo de `BlitBudget`. |
-| HOST-371 | [sound_queue](371_sound_queue/README.md) | `SoundQueue` (`eng/audio/sound_queue.hpp`): `SoundIntent` sobre el mecanismo `eng::IntentQueue` (`eng/core`) → `AudioPlan`; la misma cola que blit/dibujo. |
+| HOST-371 | [sound_queue](371_sound_queue/README.md) | `SoundQueue` (`eng/audio/sound_queue.hpp`): `SampleEvent` sobre el mecanismo `eng::IntentQueue` (`eng/core`) → `AudioPlan`; la misma cola que blit/dibujo. |
 | HOST-372 | [audio_feeder](372_audio_feeder/README.md) | `AudioFeeder` (`eng/audio/audio_feeder.hpp`): feeder IRQ-apto (nivel 4) con `irq`/`swaps`/`underrun`; alimentado a tiempo `irq == swaps`, 0 underruns. |
 | HOST-373 | [sound_planner](373_sound_planner/README.md) | `SoundPlanner` (`eng/audio/sound_planner.hpp`): une intención (`SoundQueue`) + plan (`AudioPlan`) + aviso (`Msg IntentDone`/`AudioUnderrun`) con una llamada por frame. |
 | HOST-374 | [wav_loader](374_wav_loader/README.md) | Loader host-only de WAV PCM lineal mono/estéreo de 8/16 bits a PCM8 mono con signo. |

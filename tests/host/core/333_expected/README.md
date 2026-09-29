@@ -1,6 +1,6 @@
-# HOST-333 — idioma de error (`eng::Expected<T>`)
+# HOST-333 — idioma de error (`eng::util::Expected<T, Result>`)
 
-Respalda `engine/include/eng/core/types/result.hpp`: el análogo de `std::expected<T, E>` del
+Respalda `engine/include/eng/core/util/expected.hpp`: el análogo de `std::expected<T, E>` del
 engine (sin excepciones ni heap), el **idioma único de error** de las APIs nuevas. Cubre:
 
 - construcción desde **valor** (`ok()`, `status() == Ok`, `value()`/`operator*`);

@@ -5,7 +5,7 @@ Test host de `eng/core/types/ptr.hpp` y `eng/core/types/span.hpp`: punteros y vi
 
 - `Ref<T>`: observador **no propietario** y anulable (sustituye al `T*` crudo en APIs).
 - `NonNull<T>`: como `Ref` pero con contrato "no nulo".
-- `Opt<T>`: **opcional en sitio** (sin `std::optional`/heap).
+- `util::Optional<T>`: **opcional en sitio** (sin `std::optional`/heap).
 - `Span<T>`: vista contigua; se cubre aquí la **construcción** que evita ruido en las llamadas.
 
 ## Build / run

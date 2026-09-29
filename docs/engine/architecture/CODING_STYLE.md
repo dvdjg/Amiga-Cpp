@@ -148,7 +148,7 @@ aporta sus propias piezas de seguridad de C++23 sin depender de `std::span`:
     `Ref` se construye **implícitamente** desde `T&`, `T*` o `nullptr`, de modo que la llamada
     no expone el tipo: `f(t, table, range)` o `f(t, nullptr)`, nunca `f(t, eng::Ref<const Tabla>(table))`.
     Los artefactos de C++ quedan ocultos; el llamador pasa el objeto (o su puntero) y ya está.
-  - opcional en sitio (sin `std::optional`) → **`eng::Opt<T>`**;
+  - opcional en sitio (sin `std::optional`) → **`eng::util::Optional<T>`**;
   - buffer/vista contigua → **`eng::Span<T>`** (ver arriba), no "puntero + count";
   - **callback** → **política de plantilla** (`template <class Source>` o `template <auto Fn>`), con
     la llamada directa y verificada por el compilador; **no** `void*`+puntero a función ni

@@ -148,7 +148,7 @@ Un **solo** sumidero recibe las intenciones de todos los productores y las gobie
   el **evento** `Msg IntentDone` (por `IntentDonePoster`). HOST-368 (cola + receta + capa) y
   HOST-369 (intención → evento) lo fijan. La **capa** vive en `eng::scene` (política); la **cola**
   (mecanismo) vive en `eng/core/util` (`intent_queue.hpp`, pura); el **vocabulario** de dibujo, en
-  `eng/graphics`, y el de audio (`SoundIntent`/`SoundQueue`), en `eng/audio/sound_queue.hpp` — así la
+  `eng/graphics`, y el de audio (`SampleEvent`/`SoundQueue`), en `eng/audio/sound_queue.hpp` — así la
   cola la comparten blit, dibujo y audio **sin** que `eng/audio` dependa de `eng/graphics`.
 
 ### 7.1 Decisión: un **sumidero único**, vías como políticas
@@ -157,11 +157,11 @@ Un **solo** sumidero recibe las intenciones de todos los productores y las gobie
   (CPU-ventana / Blitter / Copper) es una **política** del ejecutor, nunca un subsistema aparte.
 - **La cola es única y genérica**: `IntentQueue<N, Item, Executor, Done>`
   (`eng/core/util/intent_queue.hpp`). El `BlitQueue` es su instancia con `Item = BlitOp`; el
-  `SoundQueue` (`eng/audio/sound_queue.hpp`) la instancia con `Item = SoundIntent`. **Mismo
+  `SoundQueue` (`eng/audio/sound_queue.hpp`) la instancia con `Item = SampleEvent`. **Mismo
   mecanismo** (ticket + completación) para todos.
 - **El audio es un `plan` análogo** (`AudioPlan`): reparto de voces (Sfx/Music), presupuesto por
   frame e IRQ (Paula) como feeders — la misma forma que el plan de blit. El contrato es el
-  `AudioPlan`; su materialización en código: **`SoundQueue`** (cola de `SoundIntent`), **`SoundPlanner`**
+  `AudioPlan`; su materialización en código: **`SoundQueue`** (cola de `SampleEvent`), **`SoundPlanner`**
   (intención → plan → `Msg IntentDone`/`AudioUnderrun`, una llamada por frame) y **`AudioFeeder`**
   (avanza el DMA en la IRQ de nivel 4). HOST-371/372/373 los fijan.
 - **Hecho**: el `BlitQueue` **es** una `IntentQueue` con `Item = BlitOp` — el mismo `concept` de

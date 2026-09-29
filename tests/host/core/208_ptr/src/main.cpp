@@ -1,7 +1,7 @@
 // Test HOST-208: punteros "inteligentes" sin heap (eng/core/types/ptr.hpp).
 //
 // Valida `Ref<T>` (observador no propietario y anulable), `NonNull<T>` (no nulo por
-// contrato) y `Opt<T>` (opcional en sitio). Sustituyen al `T*` crudo y a `std::optional`
+// contrato). Sustituyen al `T*` crudo (el opcional en sitio es `util::Optional<T>`).
 // en un engine freestanding (sin heap, sin STL).
 //
 //   CXX=<g++> bash tools/run-host-tests.sh tests/host/core/208_ptr
@@ -9,6 +9,7 @@
 
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/span.hpp>
+#include <eng/core/util/optional.hpp>
 
 namespace {
 
@@ -59,15 +60,15 @@ int main() {
 	eng::NonNull<Obj> nn {a};
 	check(nn->get() == 42 && nn.get() == &a, "NonNull observa el objeto");
 
-	// Opt: en sitio, sin heap.
-	eng::Opt<int> o;
-	check(!o.has_value(), "Opt por defecto vacio");
-	o.set(7);
-	check(o.has_value() && o.value() == 7 && *o == 7, "Opt::set y acceso");
+	// Optional (en sitio, sin heap): vive en core/util.
+	eng::util::Optional<int> o;
+	check(!o.has_value(), "Optional por defecto vacio");
+	o = 7;
+	check(o.has_value() && o.value() == 7 && *o == 7, "Optional asignacion y acceso");
 	o.reset();
-	check(!o.has_value(), "Opt::reset");
-	eng::Opt<int> o2 {9};
-	check(o2.has_value() && o2.value() == 9, "Opt desde valor");
+	check(!o.has_value(), "Optional::reset");
+	eng::util::Optional<int> o2 {9};
+	check(o2.has_value() && o2.value() == 9, "Optional desde valor");
 
 	// Ref<const T>: observador de solo lectura.
 	const Obj& ca = a;
@@ -93,7 +94,7 @@ int main() {
 	check(eng::Span<const int> {p, 2u}.size() == 2u, "inicializador {ptr, n} en Span<const T>");
 
 	if (g_fail == 0) {
-		std::printf("OK: ptr (Ref/NonNull/Opt, sin heap) validado.\n");
+		std::printf("OK: ptr (Ref/NonNull sin heap) validado.\n");
 		return 0;
 	}
 	std::printf("FAIL: %d comprobacion(es) fallaron\n", g_fail);
