@@ -145,6 +145,7 @@ public:
 
 		for (u32 i = 0; i < frame_count; ++i) {
 			context.frame.frame_index = i;
+			reset_frame_scratch();
 			if (m_vblank_hook != nullptr) {
 				m_vblank_hook(m_vblank_user);
 			}
@@ -217,6 +218,7 @@ public:
 					}
 					seen = hb.frames;
 					context.frame.frame_index = done;
+					reset_frame_scratch();
 					m_game.update(m_backend, context);
 					m_game.render(m_backend, context);
 					++done;
@@ -228,6 +230,16 @@ public:
 	}
 
 private:
+	/// **Reinicia la scratch de frame** al empezar cada frame (`MemorySystem::reset_frame`): los
+	/// recursos temporales que el juego/efectos reservaron con `backend.memory().frame` dejan de
+	/// ser válidos (LIFO total). No toca los bancos persistentes. Si el backend no expone un
+	/// `MemorySystem` (host/otro), es no-op.
+	void reset_frame_scratch() noexcept {
+		if constexpr (requires { m_backend.memory().reset_frame(); }) {
+			m_backend.memory().reset_frame();
+		}
+	}
+
 	Backend& m_backend;
 	Game& m_game;
 	task::BackgroundQueue m_background {};

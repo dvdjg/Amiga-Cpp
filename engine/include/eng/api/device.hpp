@@ -31,11 +31,10 @@ public:
 		: m_backend(backend), m_scene(scene) {}
 
 	// --- Memoria ----------------------------------------------------------------------
-	template <class B = Backend>
-	[[nodiscard]] decltype(auto) memory() {
-		return m_backend.memory();
-	}
-	/// **Bancos tipados** del backend (la puerta de reserva persistente del engine).
+	/// **Bancos tipados** del backend: la puerta de reserva **persistente** del engine
+	/// (`memory_manager().chip().reserve<Tag>(...)`). El juego no toca las arenas: los recursos
+	/// persistentes van por banco (`WorksTag`/`PlaneTag`/…) y la scratch de frame la gestiona el
+	/// engine (`reset_frame`). Ver `MEMORY_OWNERSHIP.md`.
 	template <class B = Backend>
 	[[nodiscard]] decltype(auto) memory_manager() {
 		return m_backend.memory_manager();
