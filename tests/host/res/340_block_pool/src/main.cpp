@@ -90,6 +90,59 @@ int main() {
 	check(bank.free_bytes() > used, "MemBank release devuelve al banco");
 	check(bank.block_count() >= 1u, "block_count informa de los slots");
 
+	// --- FREE REAL (no LIFO): reservar graficos, sonido; liberar graficos; re-reservar ---
+	// El corazon del pool: a diferencia de la arena *bump*, se libera en cualquier orden.
+	{
+		eng::u8 g[4096] {};
+		eng::BlockPool gp {g, sizeof(g), eng::MemoryKind::Chip, 16u};
+		const eng::MemoryBlock gfx = gp.allocate(1024u, 16u);
+		const eng::MemoryBlock snd = gp.allocate(1024u, 16u);
+		check(gfx.valid() && snd.valid(), "gfx + snd reservados");
+		check(snd.data != gfx.data, "bloques distintos");
+		const eng::u32 free_before = gp.free_bytes();
+		gp.free(gfx.data); // libera el PRIMERO, con 'snd' vivo: imposible en bump
+		check(gp.free_bytes() > free_before, "liberar gfx con snd vivo (no LIFO)");
+		const eng::MemoryBlock gfx2 = gp.allocate(1024u, 16u); // reutiliza el hueco de gfx
+		check(gfx2.valid() && gfx2.data == gfx.data, "re-reserva reutiliza el hueco liberado");
+		check(snd.data != gfx2.data, "snd no se pisó");
+	}
+
+	// --- Base DESALINEADA: el pool alinea una vez y no acumula padding (peyote) ---
+	{
+		alignas(16) eng::u8 raw[2048] {};
+		eng::u8* misaligned = raw + 8; // base no alineada a 16 (como AllocMem 1.3)
+		eng::BlockPool mp {misaligned, 1024u, eng::MemoryKind::Chip, 16u};
+		// Dos reservas grandes: con padding acumulativo la 2ª fallaba (bug demo 201).
+		const eng::MemoryBlock r1 = mp.allocate(480u, 16u);
+		const eng::MemoryBlock r2 = mp.allocate(480u, 16u);
+		check(r1.valid() && r2.valid(), "base desalineada: dos reservas caben (sin peyote)");
+		check(reinterpret_cast<eng::uintptr>(r1.data) % 16u == 0u, "r1 alineada a 16");
+		check(reinterpret_cast<eng::uintptr>(r2.data) % 16u == 0u, "r2 alineada a 16");
+	}
+
+	// --- Alineación de una reserva MAYOR que la del pool ---
+	{
+		eng::u8 g[1024] {};
+		eng::BlockPool ap {g, sizeof(g), eng::MemoryKind::Fast, 16u};
+		const eng::MemoryBlock r = ap.allocate(64u, 64u);
+		check(r.valid() && reinterpret_cast<eng::uintptr>(r.data) % 64u == 0u, "reserva alineada a 64");
+		check(ap.free_bytes() < ap.capacity(), "el padding de 64 no consume todo el pool");
+	}
+
+	// --- slots_left() informa de la fragmentación ---
+	{
+		eng::u8 g[4096] {};
+		eng::BlockPool fp {g, sizeof(g), eng::MemoryKind::Chip, 16u};
+		const eng::MemoryBlock a = fp.allocate(256u, 16u);
+		const eng::MemoryBlock b = fp.allocate(256u, 16u);
+		const eng::MemoryBlock c = fp.allocate(256u, 16u);
+		fp.free(b.data); // fragmenta: hueco en medio
+		check(fp.slots_left() < eng::BlockPool::kMaxBlocks, "la fragmentacion consume slots");
+		fp.free(a.data);
+		fp.free(c.data);
+		check(fp.block_count() == 1u, "coalesce total devuelve 1 hueco");
+	}
+
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;
