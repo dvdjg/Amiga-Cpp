@@ -133,6 +133,19 @@ public:
 		add_prioritized(intents, count, 0u, 0u);
 	}
 
+	/// Ancla `count` intenciones (líneas **relativas**) a `base_line` absoluto y las añade con
+	/// su prioridad `(surface, z)`. Única verdad del anclaje: lo usan el camino de actor
+	/// (`scene::actor_add_copper`) y el de intención (`scene::SpritePlanExecutor`).
+	void add_anchored(const graphics::CopperIntent* intents, eng::usize count, s32 base_line,
+			  u8 surface, u8 z) {
+		for (eng::usize i = 0u; i < count; ++i) {
+			graphics::CopperIntent abs = intents[i];
+			abs.top = static_cast<u16>(base_line + static_cast<s32>(intents[i].top));
+			abs.bottom = static_cast<u16>(base_line + static_cast<s32>(intents[i].bottom));
+			add_prioritized(&abs, 1u, surface, z);
+		}
+	}
+
 	/// Reserva el tramo de raster `[first, last]` para los registros de `register_mask`
 	/// (0 = cualquiera). Devuelve `false` si **solapa** con otra reserva (misma línea y
 	/// registros) o si no caben más; así el conflicto entre efectos se detecta en vez de

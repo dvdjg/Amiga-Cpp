@@ -12,6 +12,7 @@
 /// Ver `docs/engine/architecture/INTENT_PLANNER.md` §9.
 
 #include <eng/core/types/types.hpp>
+#include <eng/graphics/copper/plan.hpp>
 #include <eng/graphics/intent_queue.hpp>
 #include <eng/graphics/sprite_asset.hpp>
 
@@ -22,36 +23,107 @@ using eng::graphics::DrawIntent;
 /// **Ejecutor de la intención de dibujo** hacia el plan del frame: compila un `DrawIntent` de tipo
 /// `Sprite` con `Sprite::draw` (el plan decide CPU/Blitter). Es el puente **intención → `FramePlan`**
 /// (el sumidero), apto como `Executor` de una `IntentQueue` (`ready`/`run`).
+///
+/// Recuerda el **rectángulo previo por objeto** (`DrawIntent::id`) para el borrado por caja y el
+/// **save-under** (`BobErase::RestoreUnder`): restaura la caja previa, guarda la nueva y dibuja.
+/// El buffer de guardado (opcional) se liga en el constructor; sin él, `RestoreUnder` se rechaza.
 class SpritePlanExecutor {
 public:
-	/// Liga el plan (el sumidero) y la geometría de destino de la escena. No propietario.
-	constexpr SpritePlanExecutor(eng::graphics::FramePlan& plan,
-				     const eng::graphics::BobTarget& target) noexcept
-		: m_plan(plan), m_target(target) {}
+	/// Máximo de objetos con estado previo (slot de `DrawIntent::id`).
+	static constexpr eng::u8 kMaxObjects = 16u;
 
-	[[nodiscard]] constexpr bool ready() const noexcept { return true; }
+	constexpr SpritePlanExecutor() noexcept = default;
+
+	/// Liga el plan (el sumidero), la geometría de destino y, opcionalmente, el buffer del
+	/// save-under (`save_words_per_row`/`save_height` = su capacidad; vacío = sin save-under).
+	/// No propietario; los buffers deben vivir más que el ejecutor.
+	constexpr SpritePlanExecutor(eng::graphics::FramePlan& plan,
+				     const eng::graphics::BobTarget& target,
+				     eng::Span<eng::u16> save = {},
+				     eng::u16 save_words_per_row = 0u,
+				     eng::u16 save_height = 0u) noexcept {
+		bind(plan, target, save, save_words_per_row, save_height);
+	}
+
+	/// Liga/religa el plan, el destino y el buffer de guardado (p. ej. tras reservar memoria).
+	constexpr void bind(eng::graphics::FramePlan& plan, const eng::graphics::BobTarget& target,
+			    eng::Span<eng::u16> save = {}, eng::u16 save_words_per_row = 0u,
+			    eng::u16 save_height = 0u) noexcept {
+		m_plan = plan;
+		m_target = target;
+		m_save = save;
+		m_save_words_per_row = save_words_per_row;
+		m_save_height = save_height;
+	}
+
+	/// Liga el `copper::Plan` (opcional) para volcar las **necesidades de copper** de cada
+	/// intención, ancladas a la Y del objeto. `display_top` es la primera línea del display.
+	constexpr void bind_copper(eng::copper::Plan& plan, eng::s16 display_top) noexcept {
+		m_copper = plan;
+		m_display_top = display_top;
+	}
+
+	[[nodiscard]] constexpr bool ready() const noexcept { return m_plan.valid(); }
 
 	/// Compila una intención de dibujo al plan (`Sprite::draw`); `false` si no es un sprite válido.
 	///
-	/// La **política** viaja en la intención: `erase` (fondo) borra la caja previa y `draw`
+	/// La **política** viaja en la intención: `erase` (fondo) restaura/borra la caja previa y `draw`
 	/// (transparencia) elige el minterm; el asset solo aporta la hoja/geometría.
 	bool run(const DrawIntent& item) noexcept {
+		if (!m_plan.valid() || !m_target.valid()) {
+			return false;
+		}
 		if (item.kind != eng::graphics::DrawKind::Sprite || !item.sheet.valid()) {
 			return false;
 		}
 		eng::graphics::Bob bob = item.sheet->bob();
 		bob.draw = item.draw;
 		bob.erase = item.erase;
-		if (bob.erase == eng::graphics::BobErase::ClearRect &&
-		    !eng::graphics::bob_erase(m_plan, bob, item.x, item.y, m_target)) {
-			return false;
+		const bool track = item.id < kMaxObjects;
+		const eng::graphics::DirtyRect cur {
+			item.x, item.y, static_cast<eng::s16>(item.x + static_cast<eng::s16>(bob.width)),
+			static_cast<eng::s16>(item.y + static_cast<eng::s16>(bob.height))};
+		if (track && item.erase == eng::graphics::BobErase::RestoreUnder) {
+			const eng::graphics::DirtyRect prev = m_prev[item.id];
+			if (prev.valid() &&
+			    !eng::graphics::bob_restore_box(*m_plan, bob, prev.width(), prev.height(),
+							    prev.left, prev.top, *m_target, m_save,
+							    m_save_words_per_row, m_save_height)) {
+				return false;
+			}
+			if (!eng::graphics::bob_save_box(*m_plan, bob, cur.width(), cur.height(), cur.left,
+							 cur.top, *m_target, m_save, m_save_words_per_row,
+							 m_save_height)) {
+				return false;
+			}
+			m_prev[item.id] = cur;
+		} else if (track && item.erase == eng::graphics::BobErase::ClearRect) {
+			const eng::graphics::DirtyRect prev = m_prev[item.id];
+			if (prev.valid() &&
+			    !eng::graphics::bob_erase_box(*m_plan, bob, prev.width(), prev.height(), prev.left,
+							  prev.top, *m_target)) {
+				return false;
+			}
+			m_prev[item.id] = cur;
 		}
-		return eng::graphics::bob_draw(m_plan, bob, item.frame, item.x, item.y, m_target);
+		// Necesidades de copper del objeto, ancladas a su Y (si hay plan de copper ligado).
+		if (m_copper.valid() && !item.copper.empty()) {
+			m_copper->add_anchored(item.copper.data(), item.copper.size(),
+					       static_cast<eng::s32>(m_display_top) + item.y, 0u,
+					       static_cast<eng::u8>(item.id));
+		}
+		return eng::graphics::bob_draw(*m_plan, bob, item.frame, item.x, item.y, *m_target);
 	}
 
 private:
-	eng::graphics::FramePlan& m_plan;
-	const eng::graphics::BobTarget& m_target;
+	eng::Ref<eng::graphics::FramePlan> m_plan {};
+	eng::Ref<const eng::graphics::BobTarget> m_target {};
+	eng::Span<eng::u16> m_save {};
+	eng::u16 m_save_words_per_row = 0u;
+	eng::u16 m_save_height = 0u;
+	eng::Ref<eng::copper::Plan> m_copper {};
+	eng::s16 m_display_top = 0;
+	eng::graphics::DirtyRect m_prev[kMaxObjects] {};
 };
 
 /// **Capa de dibujo**: objetos descritos **en el setup** (forma invariante) con una posición
@@ -88,6 +160,7 @@ public:
 			DrawIntent d = m_shape[i];
 			d.x = m_x[i];
 			d.y = m_y[i];
+			d.id = static_cast<eng::u8>(i); // slot para el estado previo del ejecutor
 			queue.enqueue(d);
 		}
 	}

@@ -449,6 +449,28 @@ void test_emit_save_under() {
 	CHECK(eng::scene::actor_emit(plan2, *a2, ctx) == ActorEmitStatus::Full, "sin buffer -> rechazo");
 }
 
+/// **Anclaje del copper** (`Plan::add_anchored`): la verdad única que comparten el camino de
+/// actor (`actor_add_copper`) y el de intención (`SpritePlanExecutor::bind_copper`). Ancla una
+/// intención de línea RELATIVA a `base_line` y la emite con su prioridad.
+void test_add_anchored() {
+	eng::MemorySystem mem {};
+	mem.chip = eng::ChipArena {g_chip_plan, sizeof(g_chip_plan), eng::MemoryKind::Chip};
+	eng::copper::Plan plan {};
+	CHECK(plan.begin(mem, {4096u, 0x00u}), "plan.begin (anchored)");
+
+	const CopperIntent need {CopperIntentKind::PaletteLine, 0u, 4u, 0u,
+				 eng::PaletteWords {g_copper_colors, 2u}, 1u, 1u, 0, {}, 0u, nullptr};
+	plan.begin_frame();
+	plan.add_anchored(&need, 1u, 0x2cu + 33, 0u, 0u);
+	plan.materialize();
+	CHECK(plan.end_frame(), "end_frame (anchored)");
+
+	const eng::u16 reg01 = static_cast<eng::u16>(eng::copper::Register::COLOR00) + 2u;
+	eng::u16 vals[2] {0};
+	const unsigned n = collect_moves(plan.active_words(), plan.words(), reg01, vals, 2);
+	CHECK(n == 1u, "la necesidad anclada se emitio (1 MOVE de color)");
+}
+
 void test_copper_anchoring() {
 	const CopperIntent needs[2] = {
 		CopperIntent {CopperIntentKind::PaletteLine, 0u, 4u, 0u,
@@ -774,6 +796,57 @@ void test_copper_priority_wiring() {
 	CHECK(cplan.intent_count() == 1u, "el Plan la recibio con su prioridad");
 }
 
+/// `bob_save_box`/`bob_restore_box` son la **única verdad** del save-under: el camino de actor
+/// (`actor_emit` con `SaveUnder`) delega en ellas y el camino de intención (`BobErase::RestoreUnder`)
+/// las usa directamente. Aquí se fija su geometría, su relación inversa y los rechazos.
+void test_bob_save_under_helpers() {
+	Bob b {};
+	b.sheet = chip_view(g_matrix_sheet);
+	b.width = 16u;
+	b.height = 8u;
+	b.planes = 1u;
+	b.layout = BobLayout::Planar;
+	BobTarget t = make_target();
+	eng::Span<eng::u16> save {g_save, 64u};
+
+	// Guardar la caja (10..26, 20..28): con shift (x=10) cubre 1 palabra extra -> 2 palabras.
+	FramePlan plan {};
+	plan.clear();
+	CHECK(bob_save_box(plan, b, 16u, 8u, 10, 20, t, save, 2u, 8u), "save_box encola");
+	CHECK(plan.blit_job_count() == 1u && plan.blit_job(0).kind == BlitJobKind::CopyRect,
+	      "save = CopyRect");
+	const auto& s = plan.blit_job(0);
+	CHECK(s.destination.words() == reinterpret_cast<const eng::u16*>(g_save), "save -> buffer");
+	CHECK(s.source.words() == reinterpret_cast<const eng::u16*>(g_screen + 20u * kRowBytes + 0u),
+	      "save <- pantalla");
+	CHECK(s.words_per_row == 2u && s.height == 8u && s.bitplane_count == 1u, "geometria del save");
+	CHECK(s.destination_modulo_bytes == 0, "modulo del buffer (fila completa)");
+	CHECK(s.source_modulo_bytes == static_cast<eng::s16>(kRowBytes - 4u), "modulo de pantalla");
+	CHECK(s.source_plane_stride_bytes == kPlaneBytes, "stride de plano de pantalla (planar)");
+	CHECK(s.destination_plane_stride_bytes == 32u, "stride de plano del buffer (2w x 8h x 2)");
+
+	// Restaurar: inverso exacto (source<->destination), misma geometria.
+	FramePlan plan2 {};
+	plan2.clear();
+	CHECK(bob_restore_box(plan2, b, 16u, 8u, 10, 20, t, save, 2u, 8u), "restore_box encola");
+	CHECK(plan2.blit_job_count() == 1u && plan2.blit_job(0).kind == BlitJobKind::RestoreRect,
+	      "restore = RestoreRect");
+	const auto& r = plan2.blit_job(0);
+	CHECK(r.source.words() == s.destination.words() && r.destination.words() == s.source.words(),
+	      "restore invierte source/destination del save");
+	CHECK(r.source_modulo_bytes == s.destination_modulo_bytes &&
+		      r.destination_modulo_bytes == s.source_modulo_bytes,
+	      "restore invierte los modulos");
+
+	// Rechazos controlados: sin buffer o capacidad insuficiente (palabras/altura).
+	FramePlan plan3 {};
+	plan3.clear();
+	CHECK(!bob_save_box(plan3, b, 16u, 8u, 10, 20, t, {}, 2u, 8u), "sin buffer -> rechazo");
+	CHECK(!bob_save_box(plan3, b, 16u, 8u, 10, 20, t, save, 1u, 8u), "1 palabra de rejilla -> rechazo");
+	CHECK(!bob_restore_box(plan3, b, 16u, 8u, 10, 20, t, save, 2u, 4u), "altura insuficiente -> rechazo");
+	CHECK(plan3.blit_job_count() == 0u, "rechazos sin jobs");
+}
+
 /// Matriz de geometría del BOB a nivel de job: dibujo x layout x borrado y profundidad
 /// 3..6, más los rechazos documentados. Fija el contrato de `bob_draw`/`bob_erase` (el
 /// camino del actor se prueba en los demás casos).
@@ -914,7 +987,9 @@ int main() {
 	test_sprite_allocation_and_bob_fallback();
 	test_compose_sprites();
 	test_copper_priority_wiring();
+	test_add_anchored();
 	test_emit_save_under();
+	test_bob_save_under_helpers();
 	test_copper_anchoring();
 	test_bob_job_matrix();
 

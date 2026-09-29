@@ -10,6 +10,7 @@
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/intent_queue.hpp>
 #include <eng/graphics/bob.hpp>
+#include <eng/graphics/raster_intent.hpp>
 
 namespace eng::graphics {
 
@@ -39,6 +40,12 @@ struct DrawIntent {
 	BobDraw draw = BobDraw::Or;
 	BobErase erase = BobErase::None;
 	eng::Ref<const Sprite> sheet {}; ///< `Sprite`: el asset (no propietario; solo `Sprite`)
+	/// **Slot de objeto** (0..N-1): el ejecutor lo usa para recordar el rectángulo previo por
+	/// objeto (borrado `ClearRect` / save-under `RestoreUnder`). `DrawLayer::emit` lo rellena.
+	eng::u8 id = 0;
+	/// **Necesidades de Copper** del objeto (líneas RELATIVAS a su Y): el ejecutor las ancla a la
+	/// línea del objeto en el `copper::Plan`. Vacío = sin copper propio.
+	eng::Span<const CopperIntent> copper {};
 };
 
 /// La cola de dibujo del juego: `Item = DrawIntent` (mecanismo genérico de `eng/core/util`).

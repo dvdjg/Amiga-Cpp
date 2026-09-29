@@ -196,6 +196,58 @@ inline bool bob_erase_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, 
 	return plan.add_clear_rect(job);
 }
 
+/// **Save-under (guardar)**: copia la caja de `w x h` en `(x,y)` del destino (Chip) al buffer
+/// `save`; `false` si el buffer no da (rechazo controlado). El cálculo de palabras cubre la
+/// palabra extra del barrel shifter (desplazamiento fino), como el borrado. Único sitio del
+/// algoritmo: lo usan el camino de actor (`BackgroundPolicy::SaveUnder`, vía
+/// `scene::actor_detail::emit_save`) y el de intención (`BobErase::RestoreUnder`). El destino
+/// debe ser **planar** (planos contiguos).
+inline bool bob_save_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, s16 y,
+			 const BobTarget& t, eng::Span<eng::u16> save, u16 save_words_per_row,
+			 u16 save_height) {
+	const u16 words = static_cast<u16>((w + 15u) / 16u + ((x & 15) != 0 ? 1u : 0u));
+	if (save.empty() || words > save_words_per_row || h > save_height) {
+		return false; // sin buffer o buffer insuficiente
+	}
+	const u32 save_row_bytes = static_cast<u32>(save_words_per_row) * 2u;
+	BlitJob job {};
+	job.destination = {save.data()};
+	job.source = {reinterpret_cast<const u16*>(
+		t.data() + static_cast<u32>(y) * t.row_bytes + (static_cast<u32>(x & ~15) >> 3u))};
+	job.words_per_row = words;
+	job.height = h;
+	job.bitplane_count = bob.planes;
+	job.source_modulo_bytes = static_cast<s16>(t.row_bytes - static_cast<u32>(words) * 2u);
+	job.destination_modulo_bytes = static_cast<s16>(save_row_bytes - static_cast<u32>(words) * 2u);
+	job.source_plane_stride_bytes = t.plane_pointer_step();
+	job.destination_plane_stride_bytes = save_row_bytes * save_height;
+	return plan.add_copy_rect(job);
+}
+
+/// **Save-under (restaurar)**: devuelve el buffer `save` a la caja de `w x h` en `(x,y)` del
+/// destino. Inverso de `bob_save_box`; mismo cálculo de palabras y misma guarda de capacidad.
+inline bool bob_restore_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, s16 y,
+			    const BobTarget& t, eng::Span<eng::u16> save, u16 save_words_per_row,
+			    u16 save_height) {
+	const u16 words = static_cast<u16>((w + 15u) / 16u + ((x & 15) != 0 ? 1u : 0u));
+	if (save.empty() || words > save_words_per_row || h > save_height) {
+		return false;
+	}
+	const u32 save_row_bytes = static_cast<u32>(save_words_per_row) * 2u;
+	BlitJob job {};
+	job.source = {save.data()};
+	job.destination = {reinterpret_cast<u16*>(
+		t.data() + static_cast<u32>(y) * t.row_bytes + (static_cast<u32>(x & ~15) >> 3u))};
+	job.words_per_row = words;
+	job.height = h;
+	job.bitplane_count = bob.planes;
+	job.source_modulo_bytes = static_cast<s16>(save_row_bytes - static_cast<u32>(words) * 2u);
+	job.destination_modulo_bytes = static_cast<s16>(t.row_bytes - static_cast<u32>(words) * 2u);
+	job.source_plane_stride_bytes = save_row_bytes * save_height;
+	job.destination_plane_stride_bytes = t.plane_pointer_step();
+	return plan.add_restore_rect(job);
+}
+
 /// Borra la caja del objeto en `(x,y)` (`BobErase::ClearRect`; con otro algoritmo no
 /// hace nada).
 inline bool bob_erase(FramePlan& plan, const Bob& bob, s16 x, s16 y, const BobTarget& t) {

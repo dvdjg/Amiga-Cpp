@@ -174,7 +174,7 @@
   0     5  engine/include/eng/graphics/bitmap_view.hpp
   0     6  engine/include/eng/graphics/bitmap.hpp
   0     2  engine/include/eng/graphics/blitter_state.hpp
-  6    33  engine/include/eng/graphics/bob.hpp
+  8    49  engine/include/eng/graphics/bob.hpp
   2    13  engine/include/eng/graphics/c2p.hpp
   1     6  engine/include/eng/graphics/composition/copper_chunky.hpp
   0    16  engine/include/eng/graphics/composition/limits.hpp
@@ -182,7 +182,7 @@
   0    42  engine/include/eng/graphics/composition/stages.hpp
   2    37  engine/include/eng/graphics/copper/copper.hpp
   2     1  engine/include/eng/graphics/copper/double_buffer.hpp
-  0    12  engine/include/eng/graphics/copper/plan.hpp
+  0    16  engine/include/eng/graphics/copper/plan.hpp
   0    57  engine/include/eng/graphics/copper/scheduler.hpp
   0    20  engine/include/eng/graphics/copper/static_plan.hpp
   0     1  engine/include/eng/graphics/copper/template.hpp
@@ -255,10 +255,11 @@
   0    26  engine/include/eng/retro/minifloat_fixed.hpp
   0     2  engine/include/eng/retro/sintab.hpp
   0     3  engine/include/eng/scene/actor_sprite.hpp
-  2    30  engine/include/eng/scene/actor_store.hpp
+  0    13  engine/include/eng/scene/actor_store.hpp
   2    16  engine/include/eng/scene/actor_types.hpp
   1    29  engine/include/eng/scene/bobs.hpp
   0    35  engine/include/eng/scene/display.hpp
+  0     7  engine/include/eng/scene/layer.hpp
   0     1  engine/include/eng/scene/representation.hpp
   0    32  engine/include/eng/scene/route_camera.hpp
   0    18  engine/include/eng/scene/scroll_plan.hpp

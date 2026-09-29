@@ -169,6 +169,66 @@ int main() {
 		      "la intencion de dibujo -> el mismo job en el plan que el camino directo");
 	}
 
+	// 7) Save-under por INTENCION: el ejecutor recuerda el rectangulo previo (por `id`) y emite
+	//    restore(prev) + save(nuevo) + draw; el primer frame (sin prev) solo save + draw. Es la
+	//    misma secuencia que el camino de actor (`BackgroundPolicy::SaveUnder`, HOST-072).
+	{
+		using eng::graphics::BlitJobKind;
+		using eng::graphics::Bob;
+		using eng::graphics::BobDraw;
+		using eng::graphics::BobErase;
+		using eng::graphics::BobLayout;
+		using eng::graphics::FramePlan;
+		using eng::graphics::Sprite;
+		using eng::scene::DrawLayer;
+		using eng::scene::SpritePlanExecutor;
+		static eng::u16 sheet2[64] {};
+		static eng::u16 save2[64] {};
+		static eng::u8 screen2[4096] {};
+		Bob bob {};
+		bob.sheet = eng::ChipView<eng::BobTag> {
+			eng::Address<eng::MemoryKind::Chip>::from_storage(sheet2), sizeof(sheet2)};
+		bob.width = 32u;
+		bob.height = 16u;
+		bob.planes = 1u;
+		bob.frame_count = 1u;
+		bob.sheet_row_bytes = 6u;
+		bob.layout = BobLayout::Planar;
+		const Sprite sprite {bob};
+		const eng::graphics::BobTarget target = eng::graphics::make_bob_target(
+			eng::ChipView<eng::PlaneTag> {
+				eng::Address<eng::MemoryKind::Chip>::from_storage(screen2),
+				sizeof(screen2)},
+			40u, 64u, 1u, BobLayout::Planar);
+
+		DrawLayer<4u> layer;
+		layer.add(DrawIntent {DrawKind::Sprite, 0, 0, 0u, 0u, 0, 0, 0u, 0u,
+				      eng::graphics::BobDraw::Opaque, eng::graphics::BobErase::RestoreUnder,
+				      &sprite},
+			  5, 2);
+
+		FramePlan plan;
+		SpritePlanExecutor exec {plan, target, eng::Span<eng::u16> {save2, 64u}, 3u, 16u};
+		eng::graphics::DrawQueue<4u, SpritePlanExecutor, eng::NoDone> dq;
+		dq.bind(exec);
+
+		plan.clear();
+		layer.emit(dq);
+		dq.wait_all();
+		check(plan.blit_job_count() == 2u && plan.blit_job(0u).kind == BlitJobKind::CopyRect &&
+			      plan.blit_job(1u).kind == BlitJobKind::OrBlob,
+		      "save-under frame 1: guarda + dibuja");
+
+		layer.move(0u, 7, 2);
+		plan.clear();
+		layer.emit(dq);
+		dq.wait_all();
+		check(plan.blit_job_count() == 3u && plan.blit_job(0u).kind == BlitJobKind::RestoreRect &&
+			      plan.blit_job(1u).kind == BlitJobKind::CopyRect &&
+			      plan.blit_job(2u).kind == BlitJobKind::OrBlob,
+		      "save-under frame 2: restaura prev + guarda nuevo + dibuja");
+	}
+
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;

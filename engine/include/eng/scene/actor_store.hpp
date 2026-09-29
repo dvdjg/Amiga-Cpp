@@ -14,54 +14,18 @@ namespace actor_detail {
 
 inline bool emit_save(FramePlan& plan, const Actor& a, const DirtyRect& r,
 		      const ActorEmitContext& ctx, const BobTarget& target) {
-	const eng::Span<eng::u16> save = a.desc.save[ctx.buffer];
-	// Igual que el borrado: con desplazamiento fino hay que cubrir la palabra extra del
-	// barrel shifter, o la restauración deja el borde derecho sin devolver.
-	const eng::u16 words = static_cast<eng::u16>((r.width() + 15u) / 16u +
-						     ((r.left & 15) != 0 ? 1u : 0u));
-	const eng::u16 h = r.height();
-	if (save.empty() || words > a.desc.save_words_per_row || h > a.desc.save_height) {
-		return false; // sin buffer o buffer insuficiente: rechazo controlado
-	}
-	const eng::u32 save_row_bytes = static_cast<eng::u32>(a.desc.save_words_per_row) * 2u;
-	eng::graphics::BlitJob job {};
-	job.destination = {save.data()};
-	job.source = {reinterpret_cast<const eng::u16*>(
-		target.data() + static_cast<eng::u32>(r.top) * target.row_bytes +
-		(static_cast<eng::u32>(r.left & ~15) >> 3u))};
-	job.words_per_row = words;
-	job.height = h;
-	job.bitplane_count = a.bob.planes;
-	job.source_modulo_bytes = static_cast<eng::s16>(target.row_bytes - static_cast<eng::u32>(words) * 2u);
-	job.destination_modulo_bytes = static_cast<eng::s16>(save_row_bytes - static_cast<eng::u32>(words) * 2u);
-	job.source_plane_stride_bytes = target.plane_pointer_step();
-	job.destination_plane_stride_bytes = save_row_bytes * a.desc.save_height;
-	return plan.add_copy_rect(job);
+	// El algoritmo vive en `graphics::bob_save_box` (única verdad, compartida con el camino de
+	// intención `BobErase::RestoreUnder`).
+	return eng::graphics::bob_save_box(plan, a.bob, r.width(), r.height(), r.left, r.top, target,
+					   a.desc.save[ctx.buffer], a.desc.save_words_per_row,
+					   a.desc.save_height);
 }
 
 inline bool emit_restore(FramePlan& plan, const Actor& a, const DirtyRect& r,
 			 const ActorEmitContext& ctx, const BobTarget& target) {
-	const eng::Span<eng::u16> save = a.desc.save[ctx.buffer];
-	const eng::u16 words = static_cast<eng::u16>((r.width() + 15u) / 16u +
-						     ((r.left & 15) != 0 ? 1u : 0u));
-	const eng::u16 h = r.height();
-	if (save.empty() || words > a.desc.save_words_per_row || h > a.desc.save_height) {
-		return false;
-	}
-	const eng::u32 save_row_bytes = static_cast<eng::u32>(a.desc.save_words_per_row) * 2u;
-	eng::graphics::BlitJob job {};
-	job.source = {save.data()};
-	job.destination = {reinterpret_cast<eng::u16*>(
-		target.data() + static_cast<eng::u32>(r.top) * target.row_bytes +
-		(static_cast<eng::u32>(r.left & ~15) >> 3u))};
-	job.words_per_row = words;
-	job.height = h;
-	job.bitplane_count = a.bob.planes;
-	job.source_modulo_bytes = static_cast<eng::s16>(save_row_bytes - static_cast<eng::u32>(words) * 2u);
-	job.destination_modulo_bytes = static_cast<eng::s16>(target.row_bytes - static_cast<eng::u32>(words) * 2u);
-	job.source_plane_stride_bytes = save_row_bytes * a.desc.save_height;
-	job.destination_plane_stride_bytes = target.plane_pointer_step();
-	return plan.add_restore_rect(job);
+	return eng::graphics::bob_restore_box(plan, a.bob, r.width(), r.height(), r.left, r.top,
+					      target, a.desc.save[ctx.buffer],
+					      a.desc.save_words_per_row, a.desc.save_height);
 }
 
 /// Dibuja el frame `f` del actor como BOB, con el origen del frame dentro de la hoja.
@@ -176,16 +140,11 @@ inline eng::u8 actor_emit_copper(const Actor& a, eng::s16 screen_y, eng::u16 dis
 /// mismo registro en la misma línea) gana la de mayor `(superficie, z)`, porque el Plan
 /// la emite la última. Devuelve cuántas añadió.
 inline eng::u8 actor_add_copper(Plan& plan, const Actor& a, eng::s16 screen_y, eng::u16 display_top) {
-	const eng::s32 base = static_cast<eng::s32>(display_top) + screen_y;
-	eng::u8 n = 0;
-	for (const CopperIntent& need : a.desc.copper) {
-		CopperIntent abs = need;
-		abs.top = static_cast<eng::u16>(base + need.top);
-		abs.bottom = static_cast<eng::u16>(base + need.bottom);
-		plan.add_prioritized(&abs, 1u, a.desc.surface, a.desc.z);
-		++n;
-	}
-	return n;
+	// El anclaje vive en `Plan::add_anchored` (única verdad, compartida con el camino de
+	// intención `SpritePlanExecutor`).
+	plan.add_anchored(a.desc.copper.data(), a.desc.copper.size(),
+			  static_cast<eng::s32>(display_top) + screen_y, a.desc.surface, a.desc.z);
+	return static_cast<eng::u8>(a.desc.copper.size());
 }
 
 /// Almacén de actores de capacidad fija con handles generacionales. Sin heap.
