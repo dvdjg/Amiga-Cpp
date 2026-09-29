@@ -44,7 +44,7 @@ void test_healthy() {
 	FakeStream s {};
 	AudioFeeder<FakeStream> f {s};
 	for (int i = 0; i < 100; ++i) {
-		f.on_irq();
+		(void)f.on_irq();
 	}
 	check(f.irq_count() == 100u, "100 IRQ contadas");
 	check(f.swap_count() == 100u, "100 swaps (alimentado a tiempo)");
@@ -58,7 +58,7 @@ void test_underrun() {
 	s.ready = false; // la IRQ pide buffer y no hay (ni fin de stream)
 	AudioFeeder<FakeStream> f {s};
 	for (int i = 0; i < 10; ++i) {
-		f.on_irq();
+		(void)f.on_irq();
 	}
 	check(f.irq_count() == 10u && f.swap_count() == 0u, "IRQ sin swaps");
 	check(f.underrun_count() == 10u, "cada IRQ sin buffer cuenta underrun");
@@ -71,7 +71,7 @@ void test_end_is_not_underrun() {
 	s.end = true; // fin de stream: el false es normal
 	AudioFeeder<FakeStream> f {s};
 	for (int i = 0; i < 5; ++i) {
-		f.on_irq();
+		(void)f.on_irq();
 	}
 	check(f.underrun_count() == 0u, "el fin de stream no cuenta underrun");
 	check(f.irq_count() == 5u && f.swap_count() == 0u, "IRQ sin swaps al final");

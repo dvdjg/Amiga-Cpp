@@ -61,6 +61,18 @@ Plan del pipeline offline de compresión de audio y del decoder `AUZX` del engin
 - **Contrato**: el juego solicita un recurso y política de reproducción; el backend elige Paula DMA o mixer y conecta `PcmStream`/`AudioFeeder`.
 - **Pendiente**: backend Amiga que resuelva `AudioStreamId` desde `media::Info`, asigne Chip buffers y publique `IntentDone` al completar o `AudioUnderrun` al fallar.
 
+### C8 — Backend y planner de streams
+
+- **Entregado**: `MediaStreamBackend` valida `media::Info` antes de delegar la reserva del stream.
+- **Entregado**: `StreamingAudioPlanner` reutiliza `IntentQueue` y `IntentDone` sin mezclar la política de voces cortas de `SoundPlanner`.
+- **Pendiente**: resolver recursos reales, asignar Chip RAM y conectar el feeder IRQ al backend Paula/mixer.
+
+### C9 — Métricas y búsqueda automática
+
+- **Entregado**: evaluación round-trip por ventanas con tamaño, error cuadrático, MSE escalado, SNR aproximada y pico de error.
+- **Entregado**: búsqueda determinista del candidato con menor tamaño y desempate por error.
+- **Pendiente**: adaptar los encoders reales AUZX y generar informes de corpus con configuración y hash de entrada.
+
 ## Criterios de aceptación
 
 - Todo archivo generado por la utilidad se puede validar sin depender de una ruta absoluta ni de herramientas no declaradas.
