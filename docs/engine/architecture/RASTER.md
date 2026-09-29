@@ -153,6 +153,64 @@ registros, arranques y esperas del Blitter, tiempo total y memoria de la descrip
 corrección debe comparar el bitmap resultante con la ruta de referencia para líneas sólidas,
 `EOR`/`ONEDOT`, patrones de línea, rellenos planos y patrones de una y varias filas.
 
+## Mejoras de copias y operaciones lógicas
+
+Las operaciones `CopyRect`, cookie-cut, `OrBlob` y `LogicBlit` tienen una oportunidad de mejora
+común: el coste dominante puede ser el número de lanzamientos y la reprogramación de registros,
+no el minterm que ejecuta el Blitter. Estas mejoras son propuestas de evolución del engine y deben
+validarse con perfiles y equivalencia de bitmap.
+
+### Layout intercalado
+
+Un BOB cookie-cut sobre planos separados necesita normalmente un lanzamiento por plano. Un asset
+intercalado puede recorrer las planelíneas de todos los planos con un solo lanzamiento, al precio de
+preparar la imagen y la máscara en ese layout. El mismo principio ya está materializado para
+`OrBlobBatch` y debe reutilizarse para cookie-cut cuando el destino lo permita. La máscara debe
+estar replicada según el contrato intercalado del asset; no se debe asumir que una máscara de un
+solo plano sirve directamente para todas las filas intercaladas.
+
+### Estado común y operaciones por lote
+
+La ejecución debe separar el estado común (`BLTCON`, máscaras, módulos, desplazamiento y minterm)
+del estado variable (punteros y `BLTSIZE`). Para una secuencia compatible, el engine puede fijar el
+estado común una vez y cambiar solo punteros y tamaño, como hace `OrBlobBatch`. El patrón debe
+generalizarse a cookie-cut, copias desplazadas y `LogicBlit` OR/AND/XOR, siempre con un único dueño
+de los registros y una invalidación explícita cuando otro camino pueda escribir el Blitter.
+
+La agrupación puede usar destino, layout, minterm, desplazamiento, tamaño, módulos y máscara como
+claves. El orden original se conserva por defecto: no se deben mezclar automáticamente clear,
+restore, OR, cookie-cut y operaciones lógicas si el resultado puede depender de la secuencia.
+
+### Selección de operación
+
+El asset debe declarar la operación mínima que necesita. Un objeto opaco puede usar copia directa;
+un efecto aditivo puede usar `D = A | D` (`$FC`); un objeto transparente necesita cookie-cut (`$CA`);
+y un borrado puede usar D-only (`$00`). No se debe pagar cookie-cut cuando no hay transparencia ni
+introducir una máscara para un blob aditivo.
+
+### Copias desplazadas
+
+Las copias alineadas deben usar la ruta C→D y las desplazadas la ruta A→D con el barrel shifter.
+Conviene agrupar copias por `source_shift`, reutilizar módulos y máscaras, precalcular los módulos
+de fuente y destino, y limitar correctamente la primera y la última palabra. El desplazamiento
+impide reutilizar todo `BLTCON0`, pero no impide compartir el resto del estado compatible.
+
+### Save/restore y dirty rectangles
+
+En BOBs, `save-under` y `restore` pueden costar más que el dibujo. El engine debe poder fusionar
+rectángulos sucios próximos, omitir save/restore cuando el framebuffer doble reconstruye el fondo y
+usar `MaskedBlobNoSave` o `OrBlob` cuando la política visual lo permita. También debe descartar
+restauraciones de objetos invisibles o que no hayan cambiado de posición. Esta política pertenece a
+la escena o al gestor de objetos, no al encoder de registros.
+
+### Máscaras y variantes de assets
+
+Las máscaras de cookie-cut deben poder estar alineadas a palabra, cacheadas entre frames y
+preparadas en formato intercalado. Si los desplazamientos frecuentes son conocidos, el pipeline
+puede generar variantes del asset para esos desplazamientos; solo compensa si el ahorro de
+programación o de DMA supera el coste de memoria. Las máscaras y variantes no deben regenerarse en
+el bucle caliente sin una medición que lo justifique.
+
 ## Verificación
 
 - **HOST-212**: `RasterOp` (`Xor` dos veces = 0, `Or`/`And`/`Clear`), `BlitterRaster` (fill y

@@ -111,6 +111,34 @@ La API pública debe presentar segmentos, estilos y patrones reutilizables; el b
 responsabilidad de convertirlos a registros y de aplicar las restricciones de orden, Chip RAM y
 serialización del único Blitter.
 
+## Línea de trabajo: copias, cookie-cut y fast blobs
+
+Las optimizaciones de BOB deben priorizar la reducción de lanzamientos y de escrituras de registros
+antes que las microoptimizaciones del minterm. El plan recomendado es:
+
+1. **Medición por operación**: separar ciclos de preparación, escrituras de registros, esperas,
+   lanzamientos y tráfico estimado para `CopyRect`, cookie-cut, `OrBlob` y `LogicBlit`.
+2. **Fast path por formato**: usar un solo blit para BOBs intercalados cuando el asset, la máscara
+   y el destino cumplen el contrato; comparar contra el camino planar por bitplane.
+3. **Ejecutor lógico parametrizado**: generalizar el patrón de `OrBlobBatch` para cookie-cut y
+   operaciones `OR`/`AND`/`XOR`, fijando el estado común una vez y cambiando solo punteros y tamaño.
+4. **Caché de registros**: omitir escrituras de estado común sin cambios, con invalidación al
+   cambiar de propietario o al entrar desde una ruta que programe registros directamente.
+5. **Copias desplazadas**: separar rutas alineada y desplazada, y agrupar por `source_shift`,
+   módulos y máscaras compatibles.
+6. **Política de minterm**: seleccionar copia, OR blob, cookie-cut o clear según el contrato del
+   asset, evitando pagar canales y máscaras que no se usan.
+7. **Save/restore**: medir `save-under`/`restore` frente a framebuffer doble, fusionar dirty
+   rectangles compatibles y omitir trabajo de objetos estáticos o invisibles.
+8. **Assets preparados**: cachear máscaras alineadas y layouts intercalados; generar variantes de
+   desplazamiento solo cuando el perfil demuestre que el coste de memoria se recupera.
+9. **Equivalencia**: comparar cada fast path con la ruta de referencia píxel a píxel, incluyendo
+   bordes no alineados, desplazamientos, transparencia, solapamientos y varios bitplanes.
+
+El contrato público debe describir intención (`opaque`, `masked`, `additive`, `logic`, `restore`),
+formato y política de composición. La traducción a canales A/B/C/D, módulos, minterms y layout
+intercalado sigue siendo responsabilidad del backend Amiga.
+
 ## Cuándo **no** compensa
 
 - Un blit trivial por frame: la CPU lo programa en VBlank.

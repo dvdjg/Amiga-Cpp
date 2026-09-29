@@ -18,6 +18,7 @@ en C del repo hermano (`Cursor-Amiga-C`) está en [../c-engine/](../c-engine/REA
 | [MINIFLOAT16.md](MINIFLOAT16.md) | Escalar de coma flotante de 16 bits `MiniFloat16` para 68000: formato 1\|5\|10, rango/precisión, rangos seguros de uso y coste. |
 | [GRAPHICS_DRIVERS.md](GRAPHICS_DRIVERS.md) | Modelo de drivers gráficos (estrategia de composición), `EhbScene` implementado y drivers planificados. |
 | [MEMORY_MODEL.md](MEMORY_MODEL.md) | Modelo de memoria del perfil `A500_1MB_Slow`: arenas Chip/Slow/Frame. |
+| [MEMORY_OWNERSHIP.md](MEMORY_OWNERSHIP.md) | Política propuesta de ownership, reservas DMA, destrucción y unificación de asignadores. |
 | [HARDWARE_AND_ROM_KERNEL_POLICY.md](HARDWARE_AND_ROM_KERNEL_POLICY.md) | Política close-to-metal: cuándo usar hardware directo y cuándo el ROM kernel. |
 | [RETRO_ENGINE_API_BENCHMARK.md](RETRO_ENGINE_API_BENCHMARK.md) | Benchmark de APIs retro (ACE, Scorpion, UAF) para orientar la API objetivo del engine. |
 | [XYLIMITED_ALGORITMO_GENERICO.md](XYLIMITED_ALGORITMO_GENERICO.md) | Algoritmo XYLimited/corkscrew en términos de plataforma (independiente de Amiga), invariantes del anillo y crítica del diseño del API (scroll vs Scene vs HUD). |

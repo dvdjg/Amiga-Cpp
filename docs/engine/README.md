@@ -30,6 +30,7 @@ mapa «tarea → documentación», en [DOC-MAP-PRINCIPAL.md](../ai-dev-environme
 
 - [INTERNAL_TYPE_SYSTEM.md](architecture/INTERNAL_TYPE_SYSTEM.md) — tipos de dominio internos (vistas con `Tag`, unidades fuertes, frontera `raw()`, `Block<Tag>`, `MemoryKind`).
 - [MEMORY_MODEL.md](architecture/MEMORY_MODEL.md) — modelo de memoria (`MemorySystem`/arenas Chip/Slow/Frame, presupuesto).
+- [MEMORY_OWNERSHIP.md](architecture/MEMORY_OWNERSHIP.md) — propiedad y ciclo de vida de recursos, contratos DMA y política única de reserva.
 
 ### Matemáticas y geometría
 
