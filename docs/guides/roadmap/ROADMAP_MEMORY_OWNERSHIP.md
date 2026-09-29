@@ -76,18 +76,13 @@ doble buffer que no libera el buffer aún visible.
 `MemoryManager&` con `chip().reserve` (mismo cursor que la arena vía `configure_backing`, **sin
 solape**). `res::load(MemoryManager)` es la puerta normal.
 
-**Desbloqueo del pool propio de `MemBank` (free real): pendiente de un último tramo.** Mientras
-estos tres sigan reservando de la **arena** `chip` (no del banco) sobre el mismo buffer, darle pool
-propio al banco **solaparía** dos asignadores:
+**Desbloqueo del pool propio de `MemBank` (free real): HECHO.** `res::load`/`load_file` (única
+puerta), `TextBlitScratch`, `AssetCacheBackend` y todas las reservas de escena usan el **banco**;
+`AmigaBackend::configure_memory` pasa a `MemoryManager::configure` (pool propio, `free` real) y
+`Budget`/`MemoryReport` leen del banco. `Device::memory_manager()` expone la puerta. Sin `headroom`
+en `res::load` (el pool alinea la base una vez).
 
-- `graphics/glyph_cache.hpp` (`allocate(LinearArena&)` — cache de glifos, se recicla por slot).
-- `platform/amiga/asset_backend.hpp` (`AssetCacheBackend`, scratch del cache).
-- `res::load(MemorySystem&)` (sobrecarga antigua; migrar sus llamadores a `res::load(MemoryManager&)`).
-
-Cuando esos tres usen `MemBank`, se puede quitar `configure_backing` de los bancos persistentes en
-`AmigaBackend::configure_memory` y `MemBank::free` pasa a **real**.
-
-Diagnóstico de la migración (histórico): `graphics/bitmap.hpp` (`Bitmap::init`),
+Diagnóstico de la migración: `graphics/bitmap.hpp` (`Bitmap::init`),
 `graphics/sprite_manager.hpp`, `copper/double_buffer.hpp`, `graphics/composition/scene.hpp`,
 `copper/plan.hpp`, `drivers/tile_scroll.hpp`, `field/{xlimited_scene,xlimited_composer,plane_view,
 flat_playfield,mirror_playfield,canvas_playfield,soft_dpf}.hpp` — **hecho**.
