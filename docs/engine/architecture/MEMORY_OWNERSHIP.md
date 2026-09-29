@@ -166,6 +166,37 @@ como formas soportadas de hacer la misma reserva.
    produce un diagnóstico.
 6. Solo existe una ruta pública de reserva de recursos y una semántica documentada de ownership.
 
+## Contrato del developer (lo que el tipo no puede garantizar)
+
+Estas reglas **no** se pueden imponer en compilación (dependen del flujo de ejecución) y por eso son
+responsabilidad explícita del desarrollador. Aplican a todo consumidor de memoria DMA (Blitter,
+Copper, sprites, audio/Paula).
+
+1. **Nada de memoria no certificada para DMA.** No reservar para DMA en pila ni en `static`/global
+   normal. Un array local, aunque sea `alignas`, **no** es Chip RAM, y una variable estática normal
+   puede acabar en `.data`/`.bss`. Para DMA usar una reserva de la **arena del banco Chip**
+   (`MemBank<Chip>::reserve<Tag>` / `Block<Tag, Chip>`) o un búfer estático certificado con
+   `ENG_CHIP_RAM` (`ChipStorage<Tag, N>`).
+2. **El búfer debe vivir al menos lo que la operación DMA.** El dueño es **persistente** (miembro de
+   la escena/objeto/`ResourceStore`), nunca una variable local de `update`/`render`. Publicar una
+   dirección al `FramePlan`/Copper y destruir el búfer antes de `execute` es *use-after-free*.
+3. **No liberar ni reutilizar un búfer con DMA pendiente.** No se devuelve un bloque al banco, ni se
+   recicla para otra cosa, mientras el Blitter/Copper/Paula puedan leerlo. La regla de doble buffer
+   ordena esto: no se libera un buffer hasta que deja de ser el visible y el Copper no puede releerlo.
+4. **`Ref`/vistas sobreviven al dueño, no al revés.** Todo `Ref<T>`/vista no propietaria debe apuntar
+   a un objeto cuyo dueño viva **más** que el consumidor. No guardar vistas a *scratch de frame*
+   dentro de actores/planes/copperlists persistentes (`reset_frame` las invalida).
+5. **`Address<Chip>` solo con procedencia certificada.** No fabricar una dirección DMA desde un
+   puntero arbitrario. Usar `Block::mem_view_chip()` (que comprueba el banco) o `ChipStorage`. La
+   frontera `Address<Chip>::from_storage(...)` es de auditoría: quien la use debe poder **citar** de
+   dónde viene la garantía (sección `.MEMF_CHIP`, una reserva de `MemBank<Chip>`, un `Bitmap`).
+6. **Una sola puerta de reserva y liberación ordenada.** Las reservas van por las abstracciones del
+   engine (`ResourceStore`/`MemBank`/`BlockPool`/`LinearArena`), no por `AllocMem`/`reserve` sueltos
+   desde consumidores; y se liberan en orden inverso al uso DMA (teardown de escenas → parar
+   display/DMA → bloques raíz del backend). Ver §"Unificación de las políticas actuales".
+7. **Órdenes triviales en la ISR.** Lo que cruza a una interrupción (intenciones, manejadores de
+   feeder) debe ser **trivialmente copiable** y sin `Ref`/vistas que puedan quedar colgando.
+
 ## Referencias
 
 - [`MEMORY_MODEL.md`](MEMORY_MODEL.md)
@@ -173,3 +204,4 @@ como formas soportadas de hacer la misma reserva.
 - [`ROADMAP_API_COHERENCE.md`](ROADMAP_API_COHERENCE.md)
 - [`INTERNAL_TYPE_SYSTEM.md`](INTERNAL_TYPE_SYSTEM.md)
 - [`RASTER.md`](RASTER.md)
+- Plan de correcciones por orden de importancia: [`../../guides/roadmap/ROADMAP_MEMORY_OWNERSHIP.md`](../../guides/roadmap/ROADMAP_MEMORY_OWNERSHIP.md).
