@@ -71,16 +71,37 @@ doble buffer que no libera el buffer aún visible.
 
 **Valor:** cierra el modelo; ya no hay dos formas de reservar.
 
-1. Migrar consumidores del engine: `audio_system` (`m_music_buf`), `sfx_mixer` (buffers de mixer,
-   con el fallback Chip→Slow **revisado**: un fallback de banco silencioso contradice el modelo),
-   `glyph_cache`, `asset_cache`, `copper::Plan` (copperlist), y las escenas.
-2. Migrar demos/`api::assets` a `ResourceStore`/`Assets` (el juego no elige allocator ni banco de
-   DMA; ver `ROADMAP_API_COHERENCE.md`).
-3. Retirar las rutas legadas (`LinearArena::allocate_block` para persistentes, `MemBank::reserve`
-   cruda desde consumidores).
+**Estado (2026-09): pendiente (refactor transversal).** `MemorySystem.chip` y `MemBank<Chip>` ya
+comparten cursor (`configure_backing`), así que **no hay solape** y la corrección no está en juego;
+lo que falta es **unificar la superficie** de las APIs que hoy reciben `MemorySystem&`.
 
-**Evidencia:** build de todas las demos + suite host + regresión visual de las demos que usan BOBs,
-copper y audio.
+Diagnóstico de los sitios con `allocate_block` (arena) que unificarán su firma a `MemBank`/
+`MemoryManager`:
+
+| Sitio | Cambio |
+|---|---|
+| `graphics/bitmap.hpp` (`Bitmap::init`) | `MemorySystem&` → `MemoryManager&`; `chip.allocate_block` → `chip().reserve` |
+| `graphics/sprite_manager.hpp` (`SpriteManager::init`), `copper/double_buffer.hpp` (`DoubleBuffer::begin`) | idem |
+| `graphics/composition/scene.hpp`, `graphics/copper/plan.hpp`, `drivers/tile_scroll.hpp`, `field/{xlimited_scene,xlimited_composer,plane_view,xlimited_playfield}.hpp` | cadena que pasa `MemorySystem&`; migrar en bloque |
+| `glyph_cache.hpp`, `platform/amiga/asset_backend.hpp` | no propietarios (guardan `Span`): solo cambia el origen del bloque |
+| demos (`backend.memory().chip.allocate_block`) | `backend.memory_manager().chip().reserve` |
+| `audio_system.hpp` (`m_music_buf`) | **hecho** (`chip().reserve`) |
+
+Es un **cambio de firma en cascada** (`MemorySystem&` → `MemoryManager&`) que conviene hacer en una
+pasada propia, con build+regresión de las demos de playfield/copper. La corrección de memoria **no**
+depende de él (mismo cursor); es **coherencia de API**.
+
+1. Homogeneizar la API de reserva sobre `MemBank<K>::reserve<Tag>()`:
+   - `LinearArena::allocate_block<Tag>()` **delega** en el banco cuando la arena es de respaldo de
+     un `MemBank` (ya hay `configure_backing`), o se mantiene solo para *scratch* sin `free`.
+   - Retirar progresivamente `MemBank::reserve(void*)`/consumidores que abren `pool()` directo.
+2. Definir el par **reserve/release** tipado: `MemBank<K>::release(const Block<Tag,K>&)` (existe) y
+   una fachada `ResourceStore`/`Assets` para el juego (`load<Sprite>`, `create<Bitmap>`, `retain`,
+   `release`, `reset_phase`). **Hecho**: `eng::Assets` (`eng/api/assets.hpp`).
+3. Reservas de fase: `frame`/`setup` con semántica explícita (arena reiniciable) y `reset_frame`.
+
+**Evidencia:** HOST-340 ampliado (idempotencia del `free`, puntero ajeno, reserve/release de
+`MemBank`) + build de demos de audio (057/058/061/068…).
 
 ## Fase 4 — Diagnóstico y presupuesto
 
