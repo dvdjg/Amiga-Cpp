@@ -104,6 +104,31 @@ El corpus mixto previsto para ajustar los parámetros está descrito en [`AUDIO_
 - Generar informes reproducibles con hash de entrada, configuración, versión del encoder y destino de cada pista.
 - Preservar los pseudocódigos de HPSS, mediana deslizante, barrera de tareas y player como contratos de implementación en `AUDIO_COMPRESSION.md`.
 
+### C14 — API unificada de reproducción y cues
+
+- Diseñar `PlaybackHandle` generacional común para sample, stream y música ACP1.
+- Controlar pausa, reanudación, parada y volumen por handle sin exponer canales ni voces.
+- Añadir `AudioCue` en ACP1 y `MsgType::AudioCue` en el mini-SO con handle, código, valor y posición.
+- Adaptar `AudioSystem`/`GameAudio` para devolver handles reales y conectar la tabla de sesiones con Paula, mixer, `PcmStream` y caché ACP1.
+
+### C15 — Utility orquestadora de línea de órdenes
+
+- Crear `host-tools/audio-compressor/audio-compressor` en C++23 como punto de entrada único; `pack-pcm` queda como backend de bajo nivel.
+- Implementar arrastrar/soltar: un único archivo sin opciones usa defaults, genera `.auzx` para samples y `.acp1` para música, sin sobrescribir entradas.
+- Implementar CLI explícita con `--mode`, `--config`, `--out`, `--codec`, `--sample-rate`, `--chunk`, `--ram-budget`, `--window`, `--hpss`, `--bands`, `--threads`, `--report` y `--force`.
+- Implementar configuración con precedencia `defaults < config < CLI` y volcado de configuración resuelta.
+- Implementar clasificación `auto` por duración, energía, onsets, repetición y coste; permitir `sample`/`music` forzado.
+- Implementar pipeline sample: ingestión, candidatos, round-trip, métricas, AUZX e informe.
+- Implementar pipeline música: HPSS, bandas, deduplicación, unidades, destinos Paula/mixer, eventos ACP1 e informe comparativo AUZX/ACP1.
+- Test de aceptación: arrastrar WAV corto, arrastrar WAV largo, forzar ambos modos, config externa, salida existente y error de formato.
+
+### C16 — Operación y corpus
+
+- Registrar el corpus FreePD archivado y otros corpus disponibles sin incluir media en Git.
+- Añadir `--list-codecs`, `--dump-config` y `--dry-run` para inspeccionar decisiones sin escribir binarios.
+- Generar informes JSON y resumen legible con hash de entrada, configuración, clasificación, unidades, tracks, destino y métricas.
+- Verificar que cualquier ejecución completa produce solo salidas bajo `out/` salvo el archivo destino solicitado explícitamente.
+
 ## Criterios de aceptación
 
 - Todo archivo generado por la utilidad se puede validar sin depender de una ruta absoluta ni de herramientas no declaradas.

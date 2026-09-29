@@ -11,6 +11,8 @@ El pipeline tiene dos niveles de formato. `AUZX` representa una señal PCM linea
 - Mantener el decoder Amiga freestanding, sin STL, excepciones ni heap en el camino de reproducción.
 - Permitir que la utilidad lea WAV y RAW inicialmente, y delegar la extracción de audio de vídeo descargado a `ffmpeg`/`yt-dlp` sin incorporar sus binarios al repositorio.
 - Comparar el resultado decodificado con la señal normalizada y registrar tamaño, ratio y métricas de error.
+- Ofrecer una utilidad única de PC que funcione tanto por CLI como arrastrando un archivo sobre el ejecutable.
+- Seleccionar automáticamente entre pipeline de sample y pipeline musical, permitiendo forzar cualquiera de los dos.
 
 ## Capas
 
@@ -31,6 +33,95 @@ PCM normalizado ── análisis ── búsqueda de parámetros
 ```
 
 El empaquetador C++ vive en `host-tools/pack-pcm/` y reutiliza los headers del engine. El pipeline Node `tools/audio/pack-auzx.mjs` cubre la generación Fibonacci Delta sin compilar C++. El contenedor portable está definido por `eng/audio/auzx.hpp`; `eng/audio/media.hpp` ofrece el punto único de reconocimiento y decodificación por chunk. Las rutinas críticas tienen referencia C++ y variantes ASM 68000 bajo el mismo contrato.
+
+La utilidad orquestadora será `host-tools/audio-compressor/audio-compressor`. `pack-pcm` se conserva como herramienta de bajo nivel y `audio-compressor` compone ingestión, clasificación, análisis, selección, generación AUZX/ACP1 e informe.
+
+## Interfaz de la utilidad
+
+### Arrastrar y soltar
+
+Si el ejecutable recibe exactamente un archivo de entrada y no recibe opciones, aplica defaults seguros y genera un archivo junto al original:
+
+```text
+audio-compressor tema.wav
+  -> tema.acp1       si la clasificación es música
+
+audio-compressor disparo.wav
+  -> disparo.auzx    si la clasificación es sample
+```
+
+El nombre se obtiene sustituyendo la extensión; nunca se sobrescribe el original. Si el destino existe, se crea `name.1.acp1`, `name.2.acp1`, etc., salvo que se use `--force`.
+
+### CLI explícita
+
+```text
+audio-compressor <entrada> [opciones]
+
+--mode auto|sample|music       clasificación automática o forzada
+--config <fichero>             JSON de configuración reproducible
+--out <fichero|directorio>     destino AUZX/ACP1 o carpeta de trabajo
+--codec auto|none|rle|fib|ima|zx0|delta-zx0|aplib
+--sample-rate <Hz>             frecuencia objetivo; 0 conserva la fuente
+--chunk <muestras>             chunk AUZX y unidad inicial ACP1
+--ram-budget <bytes>           presupuesto host, por defecto 6442450944
+--window <muestras>            ventana de análisis reutilizada
+--hpss / --no-hpss             activar/desactivar separación estructural
+--bands <lista>                bandas, por ejemplo 20:150,150:500,500:2000,2000:8000
+--threads <N>                  paralelismo del encoder host
+--report <fichero>             informe JSON con hash, decisiones y métricas
+--force                        sobrescribir la salida explícitamente
+--help                         mostrar ayuda y defaults
+```
+
+El archivo de configuración contiene las mismas claves que la CLI. La precedencia es `defaults < config < CLI`; el modo de arrastre usa solo defaults. Una configuración resuelta se copia al informe para que una ejecución pueda reproducirse sin depender del entorno del usuario.
+
+### Clasificación automática
+
+`--mode auto` no decide solo por tamaño de archivo. La decisión usa duración, tasa, número de muestras, energía, onsets, repetición, estabilidad espectral y coste estimado:
+
+```text
+si --mode está forzado:
+    usar el modo solicitado
+si duración <= sample_max_duration y no hay estructura repetida:
+    SAMPLE
+si hay onsets/tempo, repetición de unidades o duración > music_min_duration:
+    MUSIC
+en otro caso:
+    probar ambos pipelines sobre ventanas representativas
+    elegir el menor coste con calidad admisible
+```
+
+Los umbrales (`sample_max_duration`, `music_min_duration`, repetición mínima y coste) forman parte de la configuración. El tamaño bruto nunca es el único criterio: un fichero corto puede ser música y uno largo puede ser un único sample de ambiente.
+
+### Pipeline SAMPLE
+
+```text
+ingest WAV/RAW/ffmpeg
+normalizar mono PCM8 y sample rate
+probar candidatos de codec/chunk/quantización por ventanas
+codificar y reconstruir cada chunk elegido
+calcular MSE/RMS/SNR/pico/ratio
+escribir AUZX
+escribir informe y hash de entrada
+```
+
+### Pipeline MUSIC
+
+```text
+ingest y normalizar a la tasa objetivo
+HPSS -> harmónico/percusivo/residual
+dividir opcionalmente por bandas
+detectar onsets, beats y ventanas candidatas
+extraer firmas y deduplicar unidades
+para cada unidad:
+    probar codecs y parámetros por round-trip
+    clasificar destino Paula/mixer
+crear TrackHeader, TrackEvent y AudioCue
+escribir tablas + diccionario + tracks como ACP1
+escribir informe con ahorro frente a AUZX lineal
+```
+
+El pipeline de música puede caer a AUZX si el diccionario y los eventos ocupan más que la codificación lineal o si la calidad de concatenación no cumple el umbral. La elección queda registrada en el informe, no se oculta en el archivo.
 
 ## Contenedor AUZX
 
@@ -77,7 +168,7 @@ El índice permite `seek(chunk)` y evita leer chunks anteriores. `PcmStream` usa
 
 El layout binario definitivo debe escribirse con `ByteReader`/`ByteWriter` little-endian y offsets validados; no se usará `#pragma pack` como API de parseo ni `reinterpret_cast` en el decoder. El parser comprobará magic, versión, offsets, límites de unidades, destino de pista y referencias de `unit_id` antes de reproducir.
 
-El header ACP1 v1 contiene flags, frecuencia, número de unidades, tres pistas Paula, cuatro voces mixer, canal Paula reservado y offsets a tablas, unidades, tracks y final. Cada unidad contiene id, offset/tamaño, longitud reconstruida, modo, flags tonal/percusivo, parámetros armónicos y alpha. Cada evento contiene unidad, inicio, duración, volumen, pitch fino y fade-in/fade-out.
+El header ACP1 v1 contiene flags, frecuencia, número de unidades, tres pistas Paula, cuatro voces mixer, canal Paula reservado y offsets a tablas, unidades, tracks y final. Cada unidad contiene id, offset/tamaño, longitud reconstruida, modo, flags tonal/percusivo, parámetros armónicos y alpha. Cada evento contiene unidad, inicio, duración, volumen, pitch fino y fade-in/fade-out. Una tabla opcional de `AudioCue` contiene posición en muestras, código, valor y flags para eventos musicales.
 
 El análisis estructural usa HPSS por STFT, división opcional en sub/low-mid/mid/high y firmas espectrales, chroma, MFCC o forma de onda normalizada para detectar unidades exactas o similares. Los armónicos, bajos y pads se proponen para Paula; percusión, ruido, residuales densos y ambientes para el mixer. La decisión se almacena como metadato y no permite reasignación silenciosa en el runtime.
 
@@ -257,7 +348,9 @@ Los parámetros explorables serán frecuencia, canales de entrada, tasa de salid
 
 Los parámetros normalizados viven en `eng/audio/audio_tuning.hpp` como `AudioTuning<S>`. La misma plantilla se instancia con `float` durante la exploración o con `Fixed<s32,16>` cuando se necesita reproducibilidad y una representación apta para el runtime. Las cabeceras genéricas no arrastran `fixed.hpp`: el consumidor elige el escalar y aporta sus extensiones matemáticas. `eng/core/util/quantizer.hpp` aporta `lloyd_max` para entrenar tablas de reconstrucción con el scratch del llamador, sin heap.
 
-La reproducción se solicita con una `StreamIntent` (`eng/audio/stream_intent.hpp`): el juego aporta un `AudioStreamId`, volumen, bucle y número de buffers, y el backend decide si materializa una voz DMA de Paula o una voz del mixer. `MediaStreamBackend` valida el medio reconocido por `media::Info`; `StreamingAudioPlanner` reutiliza la cola genérica y los eventos `IntentDone`. `PcmStream` y `AudioFeeder` siguen siendo la implementación de bajo nivel; la intención es la interfaz cómoda y no bloqueante.
+La reproducción se solicita con una `PlayIntent` (`eng/audio/playback.hpp`) y devuelve un `PlaybackHandle`. El juego puede llamar a `pause(handle)`, `resume(handle)`, `stop(handle)` y `set_volume(handle, volume)` sin conocer si la sesión es un sample, un stream AUZX o una composición ACP1. El backend resuelve caché de unidades, secuencias, decodificación, buffers, mixer y canales Paula. `MediaStreamBackend` valida el medio reconocido por `media::Info`; `PcmStream` y `AudioFeeder` siguen siendo implementación interna.
+
+Cuando el secuenciador alcanza un `AudioCue`, publica `MsgType::AudioCue` en el puerto del mini-SO desde el drenaje del bucle. El mensaje usa `payload.user.a` para el handle, `payload.user.b` para el código y `payload.user.code` para el valor; la IRQ solo registra que el punto fue alcanzado y nunca ejecuta lógica del juego.
 
 ## Restricciones del decoder Amiga
 

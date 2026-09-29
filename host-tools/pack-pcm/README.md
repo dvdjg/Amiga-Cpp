@@ -1,5 +1,7 @@
 # `pack-pcm` — empaquetador de PCM a AUZX (PC)
 
+`pack-pcm` es el empaquetador de bajo nivel. Para arrastrar un WAV, clasificar automáticamente samples/música y generar AUZX/ACP1 se usará la utilidad orquestadora `host-tools/audio-compressor/audio-compressor`, descrita en [`docs/engine/architecture/AUDIO_COMPRESSION.md`](../../docs/engine/architecture/AUDIO_COMPRESSION.md).
+
 Herramienta de PC que empaqueta PCM mono 8-bit con signo en un contenedor **AUZX**
 (`engine/include/eng/audio/auzx.hpp`) usando los **mismos codificadores del engine**
 (`eng::audio::pcm_codec::encode`), de modo que el fichero es compatible con lo que consume el

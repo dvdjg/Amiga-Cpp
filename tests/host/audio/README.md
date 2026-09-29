@@ -31,3 +31,4 @@ Categoría `audio` de la batería host (L1). El índice de categorías está en 
 | HOST-377 | [media_stream_backend](377_media_stream_backend/README.md) | Adaptador de `StreamIntent` a recursos `media::Info`, independiente de Paula/mixer. |
 | HOST-378 | [codec_search](378_codec_search/README.md) | Evaluación con reconstrucción y búsqueda del mejor candidato por ventanas. |
 | HOST-379 | [audio_tuning](379_audio_tuning/README.md) | Parámetros y métricas de audio genéricos, probados con `float` y `Fixed<s32,16>`. |
+| HOST-381 | [playback_api](381_playback_api/README.md) | API común de reproducción y control por `PlaybackHandle`. |

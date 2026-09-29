@@ -30,6 +30,7 @@ Reglas principales (ver también `docs/STRUCTURE.md` §6):
 | Entrada (mouse) | `tools/input/*`, `docs/emulation/MOUSE_AUTOMATION.md` | `tools/input/mouse-path.*` |
 | Programas independientes para PC | `host-tools/README.md`, `playground/README.md` | `host-tools/`, `playground/` |
 | Empaquetado offline de audio | `docs/engine/architecture/AUDIO_COMPRESSION.md` | `host-tools/pack-pcm/`, `tools/audio/pack-auzx.mjs` |
+| Orquestación de compresión audio/sample/música | `docs/engine/architecture/AUDIO_COMPRESSION.md`, `docs/guides/roadmap/ROADMAP_AUDIO_COMPRESSOR.md` | futuro `host-tools/audio-compressor/` |
 | Comprobaciones estáticas | esta sección (abajo) | `tools/check/*` |
 
 ## Comprobaciones estáticas (`tools/check/`)
