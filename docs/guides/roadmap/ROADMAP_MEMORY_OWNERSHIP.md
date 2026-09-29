@@ -151,10 +151,15 @@ se puede** sin `clear()` total. La memoria del engine se reparte en **dos vidas 
 **Pendiente de esta fase:**
 
 1. **`ScratchArena`** (bump + `mark()`/`release(mark)`): separar `MemorySystem` en persistente (pool)
-   y scratch de frame; `reset_frame()` solo limpia la scratch.
+   y scratch de frame; `reset_frame()` solo limpia la scratch. **Hecho** (`arena.hpp`:
+   `ScratchArena`, `ArenaMark`; `MemorySystem::frame` es `ScratchArena`; `reset_frame()`; HOST-383).
 2. **Migrar `MemBank`/`Assets`** a pool propio (hoy `MemBank` ya usa `BlockPool`; confirmar que el
-   backend no lo enlaza con `configure_backing` para los bancos persistentes).
-3. Quitar el `+16 headroom` de `res::load` (ya no hace falta con base alineada).
+   backend no lo enlaza con `configure_backing` para los bancos persistentes). **Bloqueado por diseño**:
+   mientras la cadena de escena use `MemorySystem.chip.allocate_block` (arena), el banco **debe**
+   compartir cursor (`configure_backing`) para no solapar; el pool propio llega **después** de migrar
+   la escena a `MemBank` (Fase 3).
+3. Quitar el `+16 headroom` de `res::load` (ya no hace falta con base alineada del pool; la arena
+   *bump* sigue necesitándolo hasta migrar).
 
 ## Orden recomendado
 

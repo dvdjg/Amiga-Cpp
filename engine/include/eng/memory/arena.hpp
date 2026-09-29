@@ -77,6 +77,13 @@ struct ArenaSnapshot {
 	MemoryKind kind = MemoryKind::Any;
 };
 
+/// **Marcador de la arena de scratch** (para `mark`/`release`): el cursor antes de un tramo.
+/// Copia trivial; guardarlo es gratis (se puede anidar).
+struct ArenaMark {
+	u32 used = 0u;
+	u32 peak = 0u;
+};
+
 /// Arena lineal de bump allocation.
 ///
 /// Tutorial mental:
@@ -185,6 +192,18 @@ public:
 	/// Util para diagnosticar bug de alineacion sin examinar cada puntero.
 	constexpr bool overflow_detected() const { return m_overflow; }
 
+protected:
+	/// Cursor actual (bytes usados). Para subclases que necesitan `mark`/`release` (scratch).
+	[[nodiscard]] constexpr u32 used_cursor() const noexcept { return m_used; }
+	/// Retrocede el cursor a `m` sin tocar el `peak` (usado por `ScratchArena::release`).
+	constexpr void rewind_to(u32 used) noexcept {
+		if (used <= m_used) {
+			m_used = used;
+			m_overflow = false;
+		}
+	}
+
+public:
 	constexpr ArenaSnapshot snapshot() const {
 		return {
 			static_cast<u32>(reinterpret_cast<uintptr>(m_base)),
@@ -222,12 +241,52 @@ struct ChipArena : LinearArena {
 	}
 };
 
-/// Tres arenas base que todo backend debe intentar ofrecer. `chip`/`frame` son Chip (`ChipArena`,
-/// medio en el tipo); `slow` es medio-agnóstica.
+/// **Arena de scratch (LIFO)**: arena *bump* con **marcadores** (`mark`/`release(mark)`) para
+/// liberar un tramo completo en orden inverso al de reserva. Es el patrón correcto para la
+/// memoria **temporal** de una fase/frame (listas de trabajo, staging, buffers que se reinician
+/// enteros), **no** para recursos persistentes: `mark/release` es **LIFO**, no libera huecos.
+///
+/// Dos vidas útiles de la memoria del engine (ver `MEMORY_OWNERSHIP.md`):
+/// - **Persistente** (assets, escena): `BlockPool` (free en cualquier orden).
+/// - **Scratch de fase/frame**: `ScratchArena` (bump + `mark/release`).
+///
+/// ```cpp
+/// eng::ScratchArena scratch {base, bytes, eng::MemoryKind::Fast};
+/// const eng::ArenaMark m = scratch.mark();       // antes del frame
+/// auto tmp = scratch.allocate(512u, 4u);         // temporales del frame
+/// scratch.release(m);                            // al terminar el frame (LIFO)
+/// ```
+struct ScratchArena : LinearArena {
+	constexpr ScratchArena() = default;
+	using LinearArena::LinearArena;
+	using LinearArena::reset;
+	using LinearArena::allocate;
+	using LinearArena::allocate_block;
+
+	/// Construye la scratch sobre un buffer (como `LinearArena`).
+	constexpr ScratchArena(void* base, u32 size, MemoryKind kind) : LinearArena(base, size, kind) {}
+
+	/// Toma un **marcador** del cursor actual. Anidable: guarda uno por cada nivel.
+	[[nodiscard]] constexpr ArenaMark mark() const noexcept {
+		return ArenaMark {used_cursor(), 0u};
+	}
+
+	/// Libera **todo** lo reservado desde `m` (LIFO). El `peak` se conserva (telemetría de uso).
+	constexpr void release(ArenaMark m) noexcept { rewind_to(m.used); }
+};
+
+/// Tres arenas base que todo backend debe intentar ofrecer. `chip`/`slow` son **persistentes**
+/// (`ChipArena`/`LinearArena`); `frame` es **scratch** de fase/frame (`ScratchArena`, LIFO). El
+/// backend puede respaldar `chip`/`slow` con `BlockPool` (persistente) y usar `frame` para
+/// temporales que se reinician con `reset_frame()`.
 struct MemorySystem {
 	ChipArena chip;
 	LinearArena slow;
-	ChipArena frame;
+	ScratchArena frame;
+
+	/// **Reinicia la scratch de frame**: invalida lo reservado en `frame` (LIFO total). Llamar al
+	/// empezar/terminar cada frame; **no** toca los recursos persistentes (`chip`/`slow`).
+	void reset_frame() { frame.clear(); }
 };
 
 /// Peticion de memoria para inicializar un backend o una demo.
