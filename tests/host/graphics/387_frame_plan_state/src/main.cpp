@@ -33,17 +33,22 @@ void check(bool ok, const char* m) {
 /// Buffer estatico para dar punteros validos (add_blit_job los exige).
 alignas(16) eng::u16 g_buf[512] {};
 
-/// Job minimo con un estado comun distinguible y un id (modulo) para trazar.
+/// Job minimo con un estado comun distinguible y un id de traza.
+///
+/// El id va en `height`, que **no** forma parte de la clave de estado de `state_less` (ni del
+/// presupuesto): asi los jobs de un mismo grupo comparten de verdad el estado comun y el sort
+/// puede reordenarlos. Codificarlo en `destination_modulo_bytes` (parte de la clave) haria que
+/// todos los jobs tuvieran estado distinto y el sort no agruparia nada.
 BlitJob make_job(BlitJobKind kind, eng::u8 shift, eng::u8 minterm, eng::s16 id) {
 	BlitJob j {};
 	j.kind = kind;
 	j.source_shift = shift;
 	j.minterm = minterm;
 	j.words_per_row = 4u;
-	j.height = 8u;
+	j.height = static_cast<eng::u16>(1 + id); // id de traza, fuera de la clave de estado
 	j.bitplane_count = 1u;
 	j.source_modulo_bytes = 0;
-	j.destination_modulo_bytes = static_cast<eng::s16>(40 - 8 + id); // id hace el estado unico
+	j.destination_modulo_bytes = 40 - 8; // constante: no distingue estados
 	j.source = eng::graphics::BlitPtr::from_storage(g_buf);
 	j.destination = eng::graphics::BlitPtr::from_storage(g_buf);
 	j.interleaved = true; // permite strides 0 (la validacion de add_blit_job lo exige)
@@ -53,9 +58,13 @@ BlitJob make_job(BlitJobKind kind, eng::u8 shift, eng::u8 minterm, eng::s16 id) 
 	return j;
 }
 
+/// Equivalencia de **estado comun** (los campos de la clave de `state_less`, sin `height`).
 bool same_state(const BlitJob& a, const BlitJob& b) {
 	return a.kind == b.kind && a.minterm == b.minterm && a.source_shift == b.source_shift &&
-	       a.destination_modulo_bytes == b.destination_modulo_bytes && a.interleaved == b.interleaved;
+	       a.descending == b.descending && a.bitplane_count == b.bitplane_count &&
+	       a.words_per_row == b.words_per_row && a.source_modulo_bytes == b.source_modulo_bytes &&
+	       a.destination_modulo_bytes == b.destination_modulo_bytes &&
+	       a.interleaved == b.interleaved;
 }
 
 } // namespace
@@ -78,11 +87,11 @@ int main() {
 	const eng::u8 n = plan.blit_job_count();
 	check(n == 6u, "6 jobs en el plan");
 
-	// Suma de los `destination_modulo_bytes` (id) = permutacion invariante: 0+1+2+3+4+5 = 15.
+	// Suma de los ids (height-1) = permutacion invariante: 0+1+2+3+4+5 = 15.
 	auto id_sum = [&] {
 		int s = 0;
 		for (eng::u8 i = 0; i < plan.blit_job_count(); ++i) {
-			s += plan.blit_job(i).destination_modulo_bytes - (40 - 8);
+			s += plan.blit_job(i).height - 1;
 		}
 		return s;
 	};
@@ -115,11 +124,41 @@ int main() {
 	eng::u8 na = 0u;
 	for (eng::u8 i = 0; i < plan.blit_job_count(); ++i) {
 		if (plan.blit_job(i).kind == BlitJobKind::OrBlob && na < 3u) {
-			a_ids[na++] = static_cast<eng::s16>(plan.blit_job(i).destination_modulo_bytes - (40 - 8));
+			a_ids[na++] = static_cast<eng::s16>(plan.blit_job(i).height - 1);
 		}
 	}
 	check(na == 3u && a_ids[0] == 0 && a_ids[1] == 2 && a_ids[2] == 5,
 	      "orden estable dentro del grupo (0,2,5)");
+
+	// --- Cuantificacion: nº de RACHAS (transiciones de estado) antes vs despues ---------------
+	// La cache del backend acierta en cada job cuya clave de estado coincide con la anterior: el
+	// numero de reprogramaciones es (nº de rachas) - 1 (todas menos la primera). `sort_by_state`
+	// minimiza ese numero. Con la secuencia A B A C B A: antes = 5 transiciones (6 rachas); tras
+	// agrupar = 2 transiciones (A(3) B(2) C(1) -> 3 rachas).
+	auto changes = [](const FramePlan& p) {
+		int t = 0;
+		for (eng::u8 i = 1u; i < p.blit_job_count(); ++i) {
+			if (!same_state(p.blit_job(i - 1u), p.blit_job(i))) {
+				++t;
+			}
+		}
+		return t;
+	};
+	// Reconstruye el plan en el orden original para medir "antes".
+	FramePlan orig {};
+	orig.clear();
+	orig.add_or_blob(a0);
+	orig.add_masked_bob(b0);
+	orig.add_or_blob(a1);
+	orig.add_clear_rect(c0);
+	orig.add_masked_bob(b1);
+	orig.add_or_blob(a2);
+	const int t_before = changes(orig);
+	const int t_after = changes(plan);
+	check(t_before == 5, "antes: 5 transiciones de estado (A B A C B A)");
+	check(t_after < t_before, "sort_by_state reduce las rachas (menos reprogramaciones)");
+	check(t_after <= 2, "despues: a lo sumo 2 transiciones (3 grupos)");
+	std::printf("  rachas: antes=%d despues=%d\n", t_before, t_after);
 
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
