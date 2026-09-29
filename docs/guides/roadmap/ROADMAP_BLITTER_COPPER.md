@@ -76,6 +76,41 @@ El fin de blit genera IRQ (nivel 3); el handler marca una bandera / encola en
 2. **A** — la técnica más útil para juegos/demos (blits sincronizados al haz).
 3. **B** — solo si el perfil muestra **muchos** moves/frame (si no, no compensa).
 
+## Línea de trabajo: primitivas por lotes
+
+Para escenas 3D con muchas líneas, la optimización prioritaria debe atacar primero la preparación
+en CPU y después la programación de registros. Una lista compacta de segmentos reduce el tamaño de
+la descripción y evita duplicar la misma geometría para cada bitplane, pero no elimina el lanzamiento
+hardware: el Blitter sigue dibujando cada línea como una operación secuencial. La ganancia debe
+demostrarse con perfil, no suponerse por el mero cambio de contenedor.
+
+1. **Medición base**: registrar ciclos de construcción del `FramePlan`, trabajos por frame,
+   arranques del Blitter, escrituras de registros, esperas y tiempo total para wireframes de varias
+   densidades y máscaras de planos.
+2. **Batch compacto**: añadir una descripción de segmentos con destino, máscara de planos,
+   operación y estilo; traducirla inicialmente al camino existente para validar la API sin cambiar
+   el resultado.
+3. **Ejecución directa**: calcular una vez por segmento el octante, error, módulos y tamaño, y
+   reutilizar esos datos al recorrer los planos activos. Mantener el orden original como política
+   predeterminada.
+4. **Caché de estado**: centralizar las escrituras de registros y omitir solo los valores comunes
+   que no hayan cambiado. Invalidar la caché cuando otro camino pueda tocar el Blitter o cuando se
+   cambie de propietario.
+5. **Agrupación segura**: agrupar por destino, operación, módulo y estilo solo cuando el contrato
+   declare que la reordenación es válida. `Clear`, `OR`, `EOR`, máscaras y rellenos conservan su
+   orden salvo prueba explícita de equivalencia.
+6. **Patrones de línea**: sustituir el `BLTBDAT = $FFFF` fijo por un estilo que transporte textura,
+   fase y `ONEDOT`, y agrupar segmentos con el mismo estilo.
+7. **Patrones de polígonos**: extender el seam para patrones de una y varias filas, manteniendo
+   separadas la cobertura del área y la operación lógica. Validar contorno, paridad y relleno con
+   `FILL_XOR`/`FILL_OR`.
+8. **Comparación final**: contrastar jobs actuales, batch compacto, batch con geometría compartida
+   y batch con caché mediante bitmap equivalente, conteo de registros, ciclos y memoria.
+
+La API pública debe presentar segmentos, estilos y patrones reutilizables; el backend conserva la
+responsabilidad de convertirlos a registros y de aplicar las restricciones de orden, Chip RAM y
+serialización del único Blitter.
+
 ## Cuándo **no** compensa
 
 - Un blit trivial por frame: la CPU lo programa en VBlank.

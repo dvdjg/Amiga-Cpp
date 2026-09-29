@@ -125,6 +125,8 @@ El corpus mixto previsto para ajustar los parámetros está descrito en [`AUDIO_
 - Implementar pipeline sample: ingestión, candidatos, round-trip, métricas, AUZX e informe.
 - Implementar pipeline música: lectura multipista/stems, HPSS, bandas, deduplicación, unidades, destinos Paula/mixer, eventos ACP1 e informe comparativo AUZX/ACP1.
 - Test de aceptación: arrastrar WAV corto, arrastrar WAV largo, forzar ambos modos, config externa, salida existente y error de formato.
+- **Primer vertical implementado**: `host-tools/audio-compressor/src/main.cpp`, CLI sample, defaults de salida, config básica y generación AUZX; HOST-382 cubre WAV estéreo.
+- Añadir reproducción host opcional con SDL3 para escuchar fuentes normalizadas sin alterar el pipeline Amiga.
 
 ### C16 — Operación y corpus
 
@@ -147,6 +149,14 @@ El corpus mixto previsto para ajustar los parámetros está descrito en [`AUDIO_
 - Importar módulos/tracker y conservar canales, instrumentos y patrones como pistas lógicas cuando el formato lo permita.
 - Probar repetición por stem y por mezcla completa; rechazar una separación si empeora tamaño/calidad.
 - Validar que ACP1 reproduce la misma duración y sincronía entre tracks.
+
+### C19 — Reproducción host
+
+- Implementar `--play` con SDL3 para fuentes normalizadas.
+- Implementar `--play-output` para leer AUZX y verificar auditivamente la reconstrucción.
+- Implementar reproducción de una mezcla ACP1 con los mismos eventos, ganancias y fades que el player Amiga.
+- Mantener SDL3 opcional y detectar la dependencia mediante `SDL3_DIR`, `SDL3_ROOT` o `pkg-config`.
+- Preferir `pkg-config --static` o `libSDL3.a`/`libSDL3-static.a`; verificar que Windows no liste `SDL3.dll` como dependencia.
 
 ## Criterios de aceptación
 

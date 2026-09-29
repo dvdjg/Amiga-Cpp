@@ -12,6 +12,7 @@ La especificación completa de organización está en `docs/STRUCTURE.md` (§7).
 ```
 host-tools/
 ├── README.md                  → este fichero
+└── audio-compressor/          → aplicación única de transformación/compresión de audio
 └── <programa>/                → cada programa en su propio subdirectorio
     ├── go.mod / CMakeLists.txt / Makefile / …
     ├── src/ o raíz del código

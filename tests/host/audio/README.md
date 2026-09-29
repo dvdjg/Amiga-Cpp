@@ -32,3 +32,4 @@ Categoría `audio` de la batería host (L1). El índice de categorías está en 
 | HOST-378 | [codec_search](378_codec_search/README.md) | Evaluación con reconstrucción y búsqueda del mejor candidato por ventanas. |
 | HOST-379 | [audio_tuning](379_audio_tuning/README.md) | Parámetros y métricas de audio genéricos, probados con `float` y `Fixed<s32,16>`. |
 | HOST-381 | [playback_api](381_playback_api/README.md) | API común de reproducción y control por `PlaybackHandle`. |
+| HOST-382 | [audio_compressor_cli](382_audio_compressor_cli/README.md) | Aplicación única host: WAV estéreo a AUZX mediante CLI sample. |

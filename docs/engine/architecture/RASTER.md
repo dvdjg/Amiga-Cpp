@@ -88,6 +88,71 @@ backend host (sin Blitter) declara `RasterCaps{ .blitter = false }` y se usa `kC
     ejercita). La demo 116 **no** se migra: su ruta por defecto ya es una utilidad del engine
     (`retro::flat_shade_xor`, HOST-213) y las rutas `draw_edges`/asm son opt-in de diagnóstico.
 
+## Dirección para primitivas por lotes
+
+La ruta actual es correcta como seam inicial, pero una aplicación con muchas primitivas dinámicas
+puede pagar demasiado trabajo de CPU al convertir cada segmento en un `BlitJob` completo. La
+dirección recomendada es añadir batches compactos de dominio, sin exponer registros del Blitter a
+la aplicación:
+
+```text
+Surface / Wireframe
+        │ segmentos, color, operación, estilo
+        ▼
+PrimitiveBatch compacto
+        │ agrupación segura por destino y estado
+        ▼
+Encoder / ejecutor del backend
+        │ reutiliza estado común; cambia solo estado dependiente de la primitiva
+        ▼
+Blitter
+```
+
+El batch de líneas debe conservar la geometría y una máscara de planos, en vez de duplicar todos
+los metadatos por plano. El backend calcula una vez por segmento el octante, los incrementos, el
+error y el tamaño, y aplica esa geometría a cada plano activo. La expansión a planos sigue siendo
+necesaria porque el hardware escribe bits independientes; el batch no convierte varias líneas en
+un único blit.
+
+La agrupación solo puede reordenar operaciones declaradas compatibles. Debe conservar el orden al
+mezclar `Clear`, `OR`, `EOR`, rellenos, máscaras, destinos distintos o cualquier operación cuyo
+resultado dependa de la secuencia. El camino conservador mantiene el orden original y usa el batch
+solo para reducir representación y trabajo de preparación.
+
+El ejecutor puede mantener una caché de estado común del Blitter. Debe distinguir estado común
+(`BLTCON` estable, máscaras, módulos y estilo) de estado por primitiva (punteros, acumulador y
+`BLTSIZE`). La caché se invalida si otro camino puede escribir registros custom, al cambiar de
+backend o al perderse la propiedad del ejecutor. La optimización es válida únicamente con una
+prueba de equivalencia píxel a píxel y una medición de escrituras de registros evitadas.
+
+## Estilos y patrones
+
+El estilo de línea debe formar parte de la intención de dominio, no del destino. Debe poder
+describir una línea sólida o texturada, su desplazamiento inicial del patrón, `ONEDOT` y la
+operación lógica (`OR`/`EOR`). El backend traducirá el patrón a `BLTBDAT` y su estado asociado;
+los segmentos consecutivos con el mismo estilo podrán agruparse. El valor sólido actual es
+`$FFFF`, pero no debe ser una limitación del API final.
+
+El relleno de polígonos necesita dos capacidades separadas: patrón de cobertura del área y
+operación de combinación con el destino. Para un patrón de una fila, el Blitter puede repetir la
+fuente mediante su módulo; para un patrón de varias filas, el API debe aceptar una vista con
+`row_bytes` y altura, y el backend decidir si reprograma la fuente por fila o emite varios blits.
+La fase de contorno y la fase de relleno deben compartir destino, clip y convención de planos para
+preservar la paridad del `FILL_XOR`/`FILL_OR`.
+
+La API de alto nivel debe ofrecer estilos y patrones como objetos reutilizables, por ejemplo
+`LineStyle` y `FillPattern`, mientras que la representación de ejecución puede internar patrones,
+agrupar referencias y evitar copiar sus datos. El color sigue siendo un índice planar o una
+operación lógica; la paleta visible continúa siendo responsabilidad de la composición de display.
+
+## Criterio de validación
+
+La evolución debe compararse en cuatro rutas: jobs actuales, batch compacto, batch con geometría
+compartida y batch con caché de estado. Hay que medir construcción de la cola, escrituras de
+registros, arranques y esperas del Blitter, tiempo total y memoria de la descripción. La prueba de
+corrección debe comparar el bitmap resultante con la ruta de referencia para líneas sólidas,
+`EOR`/`ONEDOT`, patrones de línea, rellenos planos y patrones de una y varias filas.
+
 ## Verificación
 
 - **HOST-212**: `RasterOp` (`Xor` dos veces = 0, `Or`/`And`/`Clear`), `BlitterRaster` (fill y

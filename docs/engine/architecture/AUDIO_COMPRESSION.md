@@ -32,7 +32,9 @@ PCM normalizado ── análisis ── búsqueda de parámetros
                                       PCM8 en Chip RAM → Paula
 ```
 
-La aplicación única se organiza internamente en ingestión, análisis, codecs, serialización AUZX/ACP1, búsqueda de candidatas e informes. El contenedor portable está definido por `eng/audio/auzx.hpp`; `eng/audio/media.hpp` ofrece el punto único de reconocimiento y decodificación por chunk. Las rutinas críticas tienen referencia C++ y variantes ASM 68000 bajo el mismo contrato.
+La aplicación única se organiza internamente en ingestión, análisis, codecs, serialización AUZX/ACP1, búsqueda de candidatas e informes. La primera vertical vive en `host-tools/audio-compressor/src/main.cpp` y puede generar AUZX; el resto de módulos se integrará dentro de la misma aplicación, no como ejecutables adicionales. El contenedor portable está definido por `eng/audio/auzx.hpp`; `eng/audio/media.hpp` ofrece el punto único de reconocimiento y decodificación por chunk. Las rutinas críticas tienen referencia C++ y variantes ASM 68000 bajo el mismo contrato.
+
+La utilidad incluye un reproductor host opcional basado en SDL3. `--play` permite escuchar la fuente normalizada mientras se ajustan codecs; SDL3 no es una dependencia del engine ni del formato generado y la conversión batch funciona aunque no esté instalada. El build preferido enlaza SDL3 estáticamente mediante `pkg-config --static` o `SDL3_ROOT`/`SDL3_DIR`; la salida no debe depender de `SDL3.dll`, aunque el sistema operativo puede cargar sus propios drivers de audio.
 
 La utilidad orquestadora será `host-tools/audio-compressor/audio-compressor`. `pack-pcm` se conserva como herramienta de bajo nivel y `audio-compressor` compone ingestión, clasificación, análisis, selección, generación AUZX/ACP1 e informe.
 
