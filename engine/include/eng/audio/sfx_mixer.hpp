@@ -240,10 +240,11 @@ public:
 		}
 
 		// Plugins desactivados (MIXER_ENABLE_PLUGINS=0 en mixer_config.i): el mixer NO usa estos
-		// buffers, pero espera punteros válidos. Cualquier RAM sirve (no son DMA) -> Fast→Slow.
+		// buffers, pero espera punteros válidos. Aceptan **cualquier RAM** (no son DMA) ->
+		// `any_bank` (Fast -> Slow -> Chip).
 		m_plugin_buffer_size = kPluginBufferBytes;
-		m_plugin_buffer = eng::fast_or_slow<eng::MixerBufferTag>(memory, m_plugin_buffer_size, 4u);
-		m_plugin_data = eng::fast_or_slow<eng::MixerBufferTag>(memory, kPluginDataBytes, 4u);
+		m_plugin_buffer = eng::any_bank<eng::MixerBufferTag>(memory, m_plugin_buffer_size, 4u);
+		m_plugin_data = eng::any_bank<eng::MixerBufferTag>(memory, kPluginDataBytes, 4u);
 		if (!m_plugin_buffer.valid() || !m_plugin_data.valid()) {
 			return false;
 		}

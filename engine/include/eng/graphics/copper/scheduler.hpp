@@ -102,13 +102,13 @@ public:
 	/// La `Timeline` se posee **por valor** pero **no borra** sus arrays al construirse
 	/// (inicialización perezosa por líneas tocadas): así construir el `Scheduler` en el
 	/// hot path no cuesta ~25k ciclos de limpieza en Chip RAM.
-	explicit SchedulerT(eng::Block<eng::CopperTag> block)
+	explicit SchedulerT(const eng::Block<eng::CopperTag>& block)
 		: m_builder(block) {}
 
 	/// Re-apunta el emisor a otro bloque **sin reconstruir ni copiar** la `Timeline`
 	/// (que es grande). Sustituye a `sched = Scheduler{block}`, que copiaba 512+ B por
 	/// frame. Limpia el bitset de la timeline (32 B) y el informe.
-	void retarget(eng::Block<eng::CopperTag> block) {
+	void retarget(const eng::Block<eng::CopperTag>& block) {
 		m_builder = ListBuilder {block};
 		m_timeline.reset();
 		m_report = {};

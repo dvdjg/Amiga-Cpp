@@ -61,8 +61,11 @@ public:
 	constexpr bool ok() const { return m_ok; }
 	constexpr u8 active_index() const { return m_active; }
 
-	constexpr eng::Block<eng::CopperTag> active_block() const { return m_blocks[m_active]; }
-	constexpr eng::Block<eng::CopperTag> inactive_block() const { return m_blocks[m_active ^ 1u]; }
+	/// Vista del bloque activo/inactivo (no propietaria; el dueño es el doble buffer).
+	constexpr const eng::Block<eng::CopperTag>& active_block() const { return m_blocks[m_active]; }
+	constexpr const eng::Block<eng::CopperTag>& inactive_block() const {
+		return m_blocks[m_active ^ 1u];
+	}
 
 	/// Words del bloque que el Copper está ejecutando (solo lectura en la práctica).
 	constexpr u16* active_words() const {

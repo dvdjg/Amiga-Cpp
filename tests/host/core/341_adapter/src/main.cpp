@@ -51,7 +51,7 @@ struct ChipMemAdapter final : IChipMem {
 struct CopperAdapter final : ICopper {
 	eng::copper::Scheduler sched;
 	eng::Copper copper;
-	explicit CopperAdapter(eng::Block<eng::CopperTag> blk) : sched(blk), copper(sched) {}
+	explicit CopperAdapter(const eng::Block<eng::CopperTag>& blk) : sched(blk), copper(sched) {}
 	void set_color(eng::u8 index, eng::u16 color) override { copper.set_color(index, color); }
 	eng::u16 words_used() const override { return copper.words_used(); }
 };

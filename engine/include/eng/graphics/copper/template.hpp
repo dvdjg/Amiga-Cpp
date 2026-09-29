@@ -35,7 +35,7 @@ class Template {
 public:
 	constexpr Template() = default;
 	explicit Template(MemoryBlock block) : m_b(block) {}
-	explicit Template(eng::Block<eng::CopperTag> block) : m_b(block) {}
+	explicit Template(const eng::Block<eng::CopperTag>& block) : m_b(block) {}
 
 	/// Añade un MOVE y devuelve el slot de su **palabra de dato**.
 	u16 move_slot(u16 custom_register_offset, u16 value) {

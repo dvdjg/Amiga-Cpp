@@ -84,4 +84,29 @@ template <class Tag>
 			     : Block<Tag> {mm.slow().reserve<Tag>(bytes, alignment)};
 }
 
+/// Reserva **en cualquier banco** (**Chip, Fast o Slow**): para buffers que NO son DMA pero
+/// aceptan cualquier RAM (p. ej. los búferes de plugins del mixer: «any RAM type»). Prioriza
+/// **Fast → Slow → Chip** (los bancos de CPU primero; Chip es el último recurso porque es el más
+/// escaso y el que necesita el DMA). Devuelve `Block<Tag>` (el medio va como dato).
+template <class Tag>
+[[nodiscard]] inline Block<Tag> any_bank(MemoryManager& mm, u32 bytes,
+					 u32 alignment = 0u) noexcept {
+	if (mm.has_fast()) {
+		const Block<Tag> b = mm.fast().reserve<Tag>(bytes, alignment);
+		if (b.valid()) {
+			return b;
+		}
+	}
+	if (mm.has_slow()) {
+		const Block<Tag> b = mm.slow().reserve<Tag>(bytes, alignment);
+		if (b.valid()) {
+			return b;
+		}
+	}
+	if (mm.chip().capacity() != 0u) {
+		return Block<Tag> {mm.chip().reserve<Tag>(bytes, alignment)};
+	}
+	return {};
+}
+
 } // namespace eng

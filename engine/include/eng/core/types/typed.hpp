@@ -192,22 +192,55 @@ template <class T, class Tag>
 /// `Address<Chip>` (DMA), mientras que `Block<Tag>` (`Bank = Any`) lleva el medio **como dato**
 /// (`kind`, el que decide el setup/arena). Un solo tipo cubre los dos casos: no hace falta un
 /// `TypedBlock` aparte (es su alias). `valid()` = reserva con datos.
+///
+/// **Movible, no copiable** (`ROADMAP_MEMORY_OWNERSHIP.md` Fase 2): es un **handle propietario**;
+/// copiarlo crearía dos dueños del mismo bloque (doble liberación). Se mueve (`Block b = make();`).
+/// Si necesitas **dos vistas** del mismo buffer, no copies el bloque: comparte una vista no
+/// propietaria (`view`/`mem_view`) o usa un `Ref` al dueño.
 template <class Tag, MemoryKind Bank = MemoryKind::Any>
 struct Block {
 	Bytes<Tag> view {};
 	MemoryKind kind = Bank;
+#if defined(ENG_AMIGA) || defined(ENG_DEBUG)
+	/// **Token de generación** (diagnóstico): 1 = vivo, 0 = liberado. `release`/`invalidate` lo
+	/// bajan a 0 y los accesores **trapan** sobre un bloque liberado (use-after-release), pero solo
+	/// en builds de diagnóstico; en release el campo no existe (coste cero).
+	mutable eng::u8 live = 1u;
+#endif
 
 	constexpr Block() noexcept = default;
 	constexpr Block(Bytes<Tag> v, MemoryKind k = Bank) noexcept : view(v), kind(k) {}
+	Block(const Block&) = delete;
+	constexpr Block& operator=(const Block&) = delete;
+	constexpr Block(Block&&) noexcept = default;
+	constexpr Block& operator=(Block&&) noexcept = default;
+
+	/// Marca el bloque como **liberado**: sus vistas no deben usarse. Lo llama el flujo de release
+	/// (p. ej. `MemBank::release`). En release no hace nada.
+	constexpr void invalidate() const noexcept {
+#if defined(ENG_AMIGA) || defined(ENG_DEBUG)
+		live = 0u;
+#endif
+	}
+	/// ¿Sigue vivo el bloque? Siempre `true` en release.
+	[[nodiscard]] constexpr bool alive() const noexcept {
+#if defined(ENG_AMIGA) || defined(ENG_DEBUG)
+		return live != 0u;
+#else
+		return true;
+#endif
+	}
 	[[nodiscard]] constexpr bool valid() const noexcept { return !view.empty(); }
 	/// Dirección tipada por el banco (`off` en bytes). `Bank == Any` = dirección sin banco (no DMA);
 	/// un banco concreto la vuelve DMA-safe y no compila en APIs de otro banco.
 	[[nodiscard]] constexpr Address<Bank> address(eng::s32 off = 0) const noexcept {
+		ENG_ASSERT(alive());
 		return Address<Bank>::from_storage(view.data() + off);
 	}
 	/// Vista con el **banco** en el tipo (`MemView<Tag, Bank>`): `Bank=Chip` para DMA (Copper/
 	/// `BPLxPT`), `Fast`/`Slow` para CPU. `Bank=Any` da una dirección sin banco (no DMA).
 	[[nodiscard]] constexpr MemView<Tag, Bank> mem_view() const noexcept {
+		ENG_ASSERT(alive());
 		return MemView<Tag, Bank> {Address<Bank>::from_storage(view.data()),
 					   static_cast<eng::usize>(view.size())};
 	}

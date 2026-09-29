@@ -40,7 +40,7 @@ public:
     /// el mismo mapeo que `begin`. Separa la propiedad de la memoria de la emisión, de
     /// modo que el llamador puede repartir N buffers (con `scene::compose` y `buffers > 1`).
     /// `bitplanes.view.size()` debe cubrir `(width/8 & ~1) * planes * height`.
-    bool bind(eng::Block<eng::PlaneTag> bitplanes, const Config& cfg) {
+    bool bind(const eng::Block<eng::PlaneTag>& bitplanes, const Config& cfg) {
         if (!bitplanes.valid() || cfg.width == 0u || cfg.height == 0u || cfg.planes == 0u ||
             cfg.planes > 6u) {
             return false;
@@ -48,7 +48,7 @@ public:
         const u16 row = static_cast<u16>((cfg.width / 8u) & ~1u);
         const u32 need = static_cast<u32>(row) * cfg.planes * cfg.height;
         if (static_cast<u32>(bitplanes.view.size()) < need) return false;
-        m_bound = bitplanes;
+        m_bound = bitplanes.view;
         m_width = cfg.width;
         m_height = cfg.height;
         m_planes = cfg.planes;

@@ -22,14 +22,14 @@ public:
     /// Construye el lienzo sobre bitplanes YA reservados. `bitplanes.view.size()` debe
     /// cubrir `plane_stride * planes`. `plane_stride` es el tamaño de un plano completo
     /// (`row_bytes * filas_lógicas`); 0 = derivarlo de `height`.
-    bool bind(eng::Block<eng::PlaneTag> bitplanes, u16 width, u16 height, u8 planes,
+    bool bind(const eng::Block<eng::PlaneTag>& bitplanes, u16 width, u16 height, u8 planes,
               u32 plane_stride = 0u) {
         if (!bitplanes.valid()) return false;
         if (!bind_raw(bitplanes.view.data(), static_cast<u32>(bitplanes.view.size()),
                       width, height, planes, plane_stride)) {
             return false;
         }
-        m_bound = bitplanes;
+        m_bound = bitplanes.view;
         return true;
     }
 

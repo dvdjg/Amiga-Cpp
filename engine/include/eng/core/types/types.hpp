@@ -10,6 +10,17 @@
 
 namespace eng {
 
+/// **Aserción de invariante sin coste en release.** En Amiga (`ENG_AMIGA`, lo define el build de
+/// demos) o en host con `ENG_DEBUG` definido, un fallo **detiene la CPU** (`__builtin_trap`, como
+/// `Span::at`) para localizar el bug; en release (m68k de producción) `c` **no se evalúa** y no
+/// cuesta nada. Úsala para invariantes que el tipo no puede imponer (lifetime, rangos de ancho):
+/// ver `MEMORY_OWNERSHIP.md` §"Contrato del developer".
+#if defined(ENG_AMIGA) || defined(ENG_DEBUG)
+#define ENG_ASSERT(c) ((c) ? (void)0 : __builtin_trap())
+#else
+#define ENG_ASSERT(c) ((void)0)
+#endif
+
 /// Enteros con ancho exacto, portables entre m68k y host LP64.
 ///
 /// Se usan los builtins `__UINT*_TYPE__`/`__INT*_TYPE__` en vez de los tipos del
