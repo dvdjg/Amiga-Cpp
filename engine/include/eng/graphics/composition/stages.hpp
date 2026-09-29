@@ -226,9 +226,6 @@ struct PatchZone {
 	};
 }
 
-/// Binding de una zona de **paleta** (caso particular de `PatchZone`).
-using ZoneBinding = PatchZone;
-
 /// Etapa de **zonas de paleta** (cambios por línea/banda). Si `out` no está vacío, escribe
 /// el `PatchZone` de cada zona para parchear sus colores por frame; si está vacío, solo las
 /// emite (conserva el informe de zona pesada del `Scheduler`). Unifica la versión estática y

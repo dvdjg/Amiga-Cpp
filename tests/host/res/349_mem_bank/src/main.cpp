@@ -2,7 +2,7 @@
 // Test HOST-349: banco de memoria tipado (eng::MemBank) + proteccion compile-time.
 // ============================================================================
 //
-// Respalda `eng/memory/mem_bank.hpp`: `MemBank<Bank>` entrega `TypedBlock<Tag, Bank>` con
+// Respalda `eng/memory/mem_bank.hpp`: `MemBank<Bank>` entrega `Block<Tag, Bank>` con
 // `Address<Bank>`. Una API que exige Chip RAM (DMA) acepta `Address<Chip>` y NO compila si le
 // pasas `Address<Fast>` (los `static_assert` lo fijan). El banco se conoce en runtime (tamaños en
 // el setup); un banco sin bytes (A500) devuelve bloques invalidos.

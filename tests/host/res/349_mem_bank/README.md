@@ -2,7 +2,7 @@
 
 Respalda `engine/include/eng/memory/mem_bank.hpp` y el acceso tipado de `MemoryManager`: un
 `MemBank<Bank>` (especialización por `MemoryKind`) entrega **reservas ya tipadas por el banco** —
-`TypedBlock<Tag, Bank>` con `Address<Bank>`.
+`Block<Tag, Bank>` con `Address<Bank>`.
 
 - El **medio va en el tipo** (etiqueta vacía, coste cero): `Address<Chip>` y `Address<Fast>` son
   tipos distintos.

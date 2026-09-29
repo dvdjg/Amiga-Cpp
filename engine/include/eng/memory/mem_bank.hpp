@@ -3,7 +3,7 @@
 /// \file mem_bank.hpp
 /// **Banco de memoria tipado** (`eng::MemBank<Bank>`): una especialización por banco
 /// (`MemoryKind::Chip`/`Slow`/`Fast`) que entrega reservas **ya tipadas por el banco** — un
-/// `TypedBlock<Tag, Bank>` con una `Address<Bank>` que **no convive** con las de otros bancos.
+/// `Block<Tag, Bank>` con una `Address<Bank>` que **no convive** con las de otros bancos.
 ///
 /// Así una API que exige Chip RAM (DMA de Agnus: bitplanes, copper, audio, sprites) acepta
 /// `Address<Chip>` y **no compila** si le pasas `Address<Fast>`. El banco viaja en el **tipo**
@@ -12,7 +12,7 @@
 /// ```cpp
 /// eng::MemBank<eng::MemoryKind::Chip> chip;
 /// chip.configure(chip_base, chip_bytes);
-/// eng::TypedBlock<eng::PlaneTag, eng::MemoryKind::Chip> planes = chip.reserve<eng::PlaneTag>(n);
+/// eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> planes = chip.reserve<eng::PlaneTag>(n);
 /// eng::Address<eng::MemoryKind::Chip> dma = planes.address();   // solo esto es DMA
 /// ```
 ///
@@ -29,7 +29,7 @@
 namespace eng {
 
 /// **Banco de memoria** de un `MemoryKind` concreto. Posee un `BlockPool` de su banco y entrega
-/// `Block<Tag, K>` (`TypedBlock<Tag, K>`, el mismo tipo). Sin bytes asignados (banco ausente)
+/// `Block<Tag, K>` (`Block<Tag, K>`, el mismo tipo). Sin bytes asignados (banco ausente)
 /// los bloques salen inválidos.
 template <MemoryKind K>
 class MemBank {

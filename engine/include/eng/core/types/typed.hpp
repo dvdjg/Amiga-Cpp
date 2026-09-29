@@ -271,8 +271,4 @@ struct Block {
 	}
 };
 
-/// Bloque de un banco **concreto** (compile-time): alias de `Block<Tag, K>`.
-template <class Tag, MemoryKind K>
-using TypedBlock = Block<Tag, K>;
-
 } // namespace eng

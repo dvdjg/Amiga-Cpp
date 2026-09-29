@@ -133,7 +133,7 @@ int main() {
 
 	// Zonas de paleta PARCHEABLES: se emiten y devuelven su binding para reescribir colores.
 	graphics::composition::Scene s6;
-	graphics::composition::ZoneBinding bindings[2] {};
+	graphics::composition::PatchZone bindings[2] {};
 	const graphics::composition::PaletteZone zones2[2] = {
 		graphics::composition::PaletteZone {16, eng::PaletteWords {pal, 4}, 0, 4},
 		graphics::composition::PaletteZone {32, eng::PaletteWords {pal, 4}, 0, 4},
@@ -143,7 +143,7 @@ int main() {
 		graphics::composition::display(graphics::composition::kPal320x256, graphics::composition::kBplcon0_4Planes),
 		graphics::composition::palette_zones(
 			eng::Span<const graphics::composition::PaletteZone> {zones2, 2},
-			eng::Span<graphics::composition::ZoneBinding> {bindings, 2}));
+			eng::Span<graphics::composition::PatchZone> {bindings, 2}));
 	check(ok6 && s6.ok(), "escena con zonas de paleta parcheables compone");
 	check(bindings[1].line == 32u && bindings[1].count == 4u, "los bindings de zona son correctos");
 	const copper::PatchHandle zone_h = graphics::composition::zone_color(s6.scheduler(), bindings[1], 2);
