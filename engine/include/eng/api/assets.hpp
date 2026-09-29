@@ -22,6 +22,7 @@
 #include <eng/core/types/domains.hpp>
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/typed.hpp>
+#include <eng/core/util/expected.hpp>
 #include <eng/graphics/sprite_asset.hpp>
 #include <eng/memory/memory_manager.hpp>
 #include <eng/res/asset_table.hpp>
@@ -49,20 +50,35 @@ public:
 
 	/// Registra `name` **copiando el blob a Chip**. El `Tag` fija el dominio (alineación y vista):
 	/// `PlaneTag` (bitmap), `MusicTag` (módulo), `SpriteTag` (hoja), `PaletteTag` (paleta). `false`
-	/// si no cabe en la arena.
+	/// si no cabe o no hay gestor. Atajo de `add_checked` (sin la causa).
 	template <class Tag>
 	bool add(const char* name, const eng::u8* data, eng::usize size) noexcept {
-		if (!m_mem.valid()) {
-			return false;
+		return add_checked<Tag>(name, data, size).has_value();
+	}
+
+	/// Como `add`, devolviendo la **causa del fallo** (`Result`): `InvalidArgument` (sin gestor,
+	/// nombre/datos nulos), `OutOfMemory` (no cabe) o `HardwareLimit` (tabla llena).
+	template <class Tag>
+	[[nodiscard]] eng::util::Expected<void, eng::Result>
+	add_checked(const char* name, const eng::u8* data, eng::usize size) noexcept {
+		if (!m_mem.valid() || name == nullptr || data == nullptr) {
+			return eng::util::unexpected(eng::Result::InvalidArgument);
 		}
 		const auto block = eng::res::load<Tag>(*m_mem.get(), eng::Span<const eng::u8> {data, size});
 		if (!block.valid()) {
-			return false;
+			return eng::util::unexpected(eng::Result::OutOfMemory);
 		}
-		if (!track(block)) { // dueño: se libera en `reset_phase`
-			return false;
+		// Rastrea primero (dueño) y registra después: si la tabla se llena, deshace el track y
+		// libera el bloque, de modo que **no queda** ni memoria viva ni asset sin dueño.
+		if (!track(block)) {
+			release_to_bank(block.view.data(), res::DomainAsset<Tag>::kind);
+			return eng::util::unexpected(eng::Result::HardwareLimit);
 		}
-		return m_table.template add<Tag>(name, block.view.as_const().data(), size);
+		if (!m_table.template add<Tag>(name, block.view.as_const().data(), size)) {
+			release_tracked(block.view.data());
+			return eng::util::unexpected(eng::Result::HardwareLimit);
+		}
+		return {};
 	}
 
 	/// **Reserva** `bytes` para un recurso del dominio `Tag` (sin copia). El banco lo elige el
@@ -77,6 +93,20 @@ public:
 					   ? Block<Tag> {m_mem.get()->chip().reserve<Tag>(
 								 bytes, res::DomainAsset<Tag>::align)}
 					   : eng::fast_or_slow<Tag>(*m_mem.get(), bytes, res::DomainAsset<Tag>::align);
+		return block;
+	}
+
+	/// Como `create`, devolviendo el bloque **o la causa** (`InvalidArgument` sin gestor,
+	/// `OutOfMemory` si no cabe).
+	template <class Tag>
+	[[nodiscard]] eng::util::Expected<Block<Tag>, eng::Result> create_checked(u32 bytes) noexcept {
+		if (!m_mem.valid()) {
+			return eng::util::unexpected(eng::Result::InvalidArgument);
+		}
+		Block<Tag> block = create<Tag>(bytes);
+		if (!block.valid()) {
+			return eng::util::unexpected(eng::Result::OutOfMemory);
+		}
 		return block;
 	}
 
@@ -97,9 +127,11 @@ public:
 		if (!m_mem.valid()) {
 			return;
 		}
+		// Orden inverso al de reserva (LIFO de fases). Libera por el puntero+banco guardados y
+		// vacía el registro entero: no usar `release_tracked` (que reordena y decrementa).
 		while (m_tracked_count > 0u) {
 			--m_tracked_count;
-			release_tracked(m_tracked[m_tracked_count].ptr);
+			release_to_bank(m_tracked[m_tracked_count].ptr, m_tracked[m_tracked_count].kind);
 		}
 	}
 	void clear() noexcept {
@@ -108,6 +140,8 @@ public:
 	}
 
 	[[nodiscard]] eng::u8 tracked_count() const noexcept { return m_tracked_count; }
+	/// Nº de assets registrados en la tabla (por nombre).
+	[[nodiscard]] eng::u8 count() const noexcept { return m_table.count(); }
 
 	/// **Módulo de música** por nombre. El formato y el buffer de descompresión los resuelve el
 	/// engine al reproducirlo (`app.audio().play_music(assets.music("n"))`).
@@ -144,27 +178,32 @@ public:
 	[[nodiscard]] bool has(const char* name) const noexcept { return m_table.has(name); }
 
 private:
-	/// Rastrea el bloque (por su puntero y el banco de origen) para poder liberarlo después.
+	/// Rastrea el bloque (por su puntero y el **banco del dominio**) para liberarlo después. El
+	/// banco lo fija `DomainAsset<Tag>` (no `block.kind`, que es `Any` en un `Block<Tag>` genérico).
 	template <class Tag>
 	bool track(const Block<Tag>& block) noexcept {
 		if (m_tracked_count >= kMaxBlocks) {
 			return false;
 		}
-		m_tracked[m_tracked_count++] = Tracked {block.view.data(), block.kind};
+		m_tracked[m_tracked_count++] = Tracked {block.view.data(), res::DomainAsset<Tag>::kind};
 		return true;
+	}
+	/// Devuelve un bloque al banco que le corresponde según `kind` (por puntero).
+	void release_to_bank(const eng::u8* ptr, MemoryKind kind) noexcept {
+		if (kind == MemoryKind::Chip) {
+			m_mem.get()->chip().release(ptr);
+		} else if (kind == MemoryKind::Fast) {
+			m_mem.get()->fast().release(ptr);
+		} else {
+			m_mem.get()->slow().release(ptr);
+		}
 	}
 	/// Libera un bloque rastreado por su puntero, eligiendo el banco según el `kind` guardado.
 	void release_tracked(const eng::u8* ptr) noexcept {
 		for (eng::u8 i = 0u; i < m_tracked_count; ++i) {
 			if (m_tracked[i].ptr == ptr) {
 				const MemoryKind k = m_tracked[i].kind;
-				if (k == MemoryKind::Chip) {
-					m_mem.get()->chip().release(ptr);
-				} else if (k == MemoryKind::Fast) {
-					m_mem.get()->fast().release(ptr);
-				} else {
-					m_mem.get()->slow().release(ptr);
-				}
+				release_to_bank(ptr, k);
 				for (eng::u8 j = i; j + 1u < m_tracked_count; ++j) {
 					m_tracked[j] = m_tracked[j + 1u];
 				}
