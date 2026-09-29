@@ -221,19 +221,16 @@ struct FireDemo {
 		// `docs/demos/effects/FIRE_RGB_PORT_PLAN.md`). Si no hay Slow, cae a Chip.
 		{
 			const eng::u32 fire_bytes = static_cast<eng::u32>(kWidth) * kHeight * 2u;
-			eng::MemoryBlock fire_mb = backend.memory().slow.allocate(fire_bytes, 16);
-			if (!fire_mb.valid()) {
-				fire_mb = backend.memory().chip.allocate(fire_bytes, 16);
-			}
-			if (!fire_mb.valid()) { eng::debug::mark_failed(g_eng_run_status, 0x00008005u); return; }
-			m_fire = reinterpret_cast<short*>(fire_mb.data);
+			m_fire_block = eng::any_bank<eng::WorkTag>(backend.memory_manager(), fire_bytes, 16u);
+			if (!m_fire_block.valid()) { eng::debug::mark_failed(g_eng_run_status, 0x00008005u); return; }
+			m_fire = reinterpret_cast<short*>(m_fire_block.view.data());
 
-			// La tabla (1 KB) también a Slow si se puede: el bucle la lee 2x por celda
+			// La tabla (1 KB) también a RAM de CPU si se puede: el bucle la lee 2x por celda
 			// (~5k lecturas/frame) y `.rodata` se carga en Chip (ver el `.map`).
-			eng::MemoryBlock dt_mb =
-				backend.memory().slow.allocate(sizeof(fire_rgb::DualTab), 16);
-			if (dt_mb.valid()) {
-				eng::u8* dst = reinterpret_cast<eng::u8*>(dt_mb.data);
+			m_dualtab_block = eng::any_bank<eng::WorkTag>(
+				backend.memory_manager(), sizeof(fire_rgb::DualTab), 16u);
+			if (m_dualtab_block.valid()) {
+				eng::u8* dst = m_dualtab_block.view.data();
 				const eng::u8* src =
 					reinterpret_cast<const eng::u8*>(fire_rgb::kDualTab.v);
 				for (eng::u32 i = 0; i < static_cast<eng::u32>(sizeof(fire_rgb::DualTab)); ++i) {
@@ -425,6 +422,8 @@ private:
 	eng::Block<eng::ChunkyTag> m_block {};
 	eng::u8* m_chunky[2] = {nullptr, nullptr};
 	short* m_fire = nullptr;
+	eng::Block<eng::WorkTag> m_fire_block {};
+	eng::Block<eng::WorkTag> m_dualtab_block {};
 	// Escena: display HAM + cuadruplicado con N buffers (doble buffer por BPLxPT).
 	scene::Scene m_scene {};
 	amiga::AmigaBackend* m_backend = nullptr;

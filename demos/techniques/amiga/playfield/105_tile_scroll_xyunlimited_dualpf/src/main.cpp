@@ -106,13 +106,15 @@ constexpr eng::u16 tile_row(eng::u8 tile, eng::u8 row, eng::u8 plane, bool foreg
 }
 
 struct TileSet {
-	eng::MemoryBlock memory {};
+	eng::Block<eng::TileBankTag, eng::MemoryKind::Chip> memory {};
 	eng::u8 planes = 0;
 	bool init(eng::amiga::AmigaBackend& backend, eng::u8 playfield) {
 		planes = Scene::playfield_planes(playfield);
-		memory = backend.memory().chip.allocate(Scene::playfield_tile_bytes(playfield) * 16u, 16);
+		memory = backend.memory_manager().chip().reserve<eng::TileBankTag>(
+			Scene::playfield_tile_bytes(playfield) * 16u, 16u);
 		if (!memory.valid()) return false;
-		eng::Span<eng::u16> words = eng::Span<eng::u16>::from_raw(static_cast<eng::u16*>(memory.data), memory.size / sizeof(eng::u16));
+		eng::Span<eng::u16> words = eng::Span<eng::u16>::from_raw(
+			reinterpret_cast<eng::u16*>(memory.view.data()), memory.view.size() / sizeof(eng::u16));
 		for (eng::u8 tile = 0; tile < 16; ++tile) for (eng::u8 plane = 0; plane < planes; ++plane)
 			for (eng::u8 row = 0; row < kTileSize; ++row)
 				words.at((static_cast<eng::u32>(tile) * planes + plane) * kTileSize + row) = tile_row(tile, row, plane, playfield == kForeground);
@@ -141,7 +143,7 @@ struct DemoGame {
 				eng::graphics::TileFieldSource::TileMap,
 				{maps[pf].cells, kMapWidth, kMapHeight},
 				{},
-				static_cast<const eng::u16*>(tiles[pf].memory.data), 16, tiles[pf].planes, pf, 4, true,
+				reinterpret_cast<const eng::u16*>(tiles[pf].memory.view.data()), 16, tiles[pf].planes, pf, 4, true,
 			};
 			fields[pf].configure(config);
 			if (!fields[pf].begin(scene)) { eng::debug::mark_failed(g_eng_run_status, 0x00010501u); return; }

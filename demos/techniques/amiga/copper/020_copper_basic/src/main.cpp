@@ -43,8 +43,9 @@ struct DemoGame {
 			2u * 1024u,  // Frame scratch.
 		});
 
-		const eng::MemoryBlock copper_memory = backend.memory().chip.allocate(512, 16);
-		eng::copper::ListBuilder copper { copper_memory };
+		const eng::Block<eng::CopperTag> copper_block =
+			backend.memory_manager().chip().reserve<eng::CopperTag>(512u, 16u);
+		eng::copper::ListBuilder copper { copper_block };
 
 		// Esta demo no usa bitplanes. Limpiamos BPL DMA desde la propia copperlist
 		// para que el display de AmigaDOS no pueda seguir componiendo encima.

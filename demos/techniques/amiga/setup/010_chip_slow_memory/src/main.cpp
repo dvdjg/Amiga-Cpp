@@ -66,12 +66,15 @@ struct DemoGame {
 			8u * 1024u,
 		});
 
-		m_copper_template = backend.memory().chip.allocate(1024, 16);
-		m_bitplane_budget = backend.memory().chip.allocate(12 * 1024, 64);
-		m_entity_pool = backend.memory().slow.allocate(4096, 16);
-		m_script_blob = backend.memory().slow.allocate(8192, 16);
+		// Persistente (setup): por **banco** (`MemBank`), con `free` real. El dominio va en el Tag.
+		m_copper_template = backend.memory_manager().chip().reserve<eng::CopperTag>(1024u, 16u);
+		m_bitplane_budget = backend.memory_manager().chip().reserve<eng::PlaneTag>(12u * 1024u, 64u);
+		m_entity_pool = backend.memory_manager().slow().reserve<eng::WorkTag>(4096u, 16u);
+		m_script_blob = backend.memory_manager().slow().reserve<eng::WorkTag>(8192u, 16u);
+		// Scratch de frame: por arena LIFO (`ScratchArena`), se reinicia con `reset_frame()`.
 		m_frame_jobs = backend.memory().frame.allocate(2048, 16);
-		m_expected_fail = backend.memory().chip.allocate(64 * 1024, 16);
+		// No cabe en el banco Chip (32 KB): reserva inválida (sin excepciones).
+		m_expected_fail = backend.memory_manager().chip().reserve<eng::PlaneTag>(64u * 1024u, 16u);
 
 		m_memory_ok = m_memory_ok
 			&& m_copper_template.valid()
@@ -98,6 +101,7 @@ struct DemoGame {
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		auto& debug = backend.debug();
 		const auto& memory = backend.memory();
+		const auto& banks = backend.memory_manager();
 
 		debug.clear();
 		debug.filled_rect(48, 70, 700, 286, m_memory_ok ? 0x00082030 : 0x00502020);
@@ -106,20 +110,20 @@ struct DemoGame {
 		debug.text(76, 128, "Profile: A500_1MB_Slow (Slow is capacity, not true Fast)", 0x0000ff80);
 		debug.text(76, 160, m_memory_ok ? "Arena checks: OK" : "Arena checks: FAIL", 0x00ffff00);
 
-		draw_bar(debug, 76, 194, 460, 22, memory.chip.used(), memory.chip.capacity(), 0x000080ff);
+		draw_bar(debug, 76, 194, 460, 22, banks.chip().used_bytes(), banks.chip().capacity(), 0x000080ff);
 		debug.text(552, 198, "Chip DMA", 0x00ffffff);
 
-		draw_bar(debug, 76, 226, 460, 22, memory.slow.used(), memory.slow.capacity(), 0x0000ff80);
+		draw_bar(debug, 76, 226, 460, 22, banks.slow().used_bytes(), banks.slow().capacity(), 0x0000ff80);
 		debug.text(552, 230, "Slow metadata", 0x00ffffff);
 
 		draw_bar(debug, 76, 258, 460, 22, memory.frame.used(), memory.frame.capacity(), 0x00ffff00);
 		debug.text(552, 262, "Frame scratch", 0x00ffffff);
 
-		const HexBuffer chip_base = hex32(static_cast<eng::u32>(memory.chip.base().value));
-		const HexBuffer slow_base = hex32(static_cast<eng::u32>(memory.slow.base().value));
-		debug.text(76, 314, "Chip base:", 0x00ffffff);
+		const HexBuffer chip_base = hex32(static_cast<eng::u32>(banks.chip().capacity()));
+		const HexBuffer slow_base = hex32(static_cast<eng::u32>(banks.slow().capacity()));
+		debug.text(76, 314, "Chip cap:", 0x00ffffff);
 		debug.text(196, 314, chip_base.text, 0x000080ff);
-		debug.text(76, 342, "Slow base:", 0x00ffffff);
+		debug.text(76, 342, "Slow cap:", 0x00ffffff);
 		debug.text(196, 342, slow_base.text, 0x0000ff80);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
@@ -127,25 +131,23 @@ struct DemoGame {
 	void log_memory(eng::amiga::AmigaBackend& backend) {
 		const auto& memory = backend.memory();
 		KPrintF(
-			"AMG010 chip base=%lx used=%ld cap=%ld slow base=%lx used=%ld cap=%ld frame used=%ld cap=%ld ok=%ld\n",
-			static_cast<eng::u32>(memory.chip.base().value),
-			memory.chip.used(),
-			memory.chip.capacity(),
-			static_cast<eng::u32>(memory.slow.base().value),
-			memory.slow.used(),
-			memory.slow.capacity(),
+			"AMG010 chip used=%ld cap=%ld slow used=%ld cap=%ld frame used=%ld cap=%ld ok=%ld\n",
+			backend.memory_manager().chip().used_bytes(),
+			backend.memory_manager().chip().capacity(),
+			backend.memory_manager().slow().used_bytes(),
+			backend.memory_manager().slow().capacity(),
 			memory.frame.used(),
 			memory.frame.capacity(),
 			m_memory_ok ? 1L : 0L
 		);
 	}
 
-	eng::MemoryBlock m_copper_template {};
-	eng::MemoryBlock m_bitplane_budget {};
-	eng::MemoryBlock m_entity_pool {};
-	eng::MemoryBlock m_script_blob {};
+	eng::Block<eng::CopperTag, eng::MemoryKind::Chip> m_copper_template {};
+	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bitplane_budget {};
+	eng::Block<eng::WorkTag> m_entity_pool {};
+	eng::Block<eng::WorkTag> m_script_blob {};
 	eng::MemoryBlock m_frame_jobs {};
-	eng::MemoryBlock m_expected_fail {};
+	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_expected_fail {};
 	bool m_memory_ok = false;
 };
 

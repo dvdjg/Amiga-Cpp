@@ -21,6 +21,9 @@ struct SpriteTag {};
 struct CopperTag {};
 struct TileBankTag {};
 struct ChunkyTag {};
+/// Buffer de trabajo de una demo/efecto (scratch de CPU con dominio propio; p. ej. el campo de
+/// fuego de la 080). No es DMA: va a RAM de CPU (Fast→Slow→Chip).
+struct WorkTag {};
 struct TextureTag {};      // textura indexada 1 B/texel (muestreo de efectos)
 struct MaskTag {};
 struct AudioTag {};

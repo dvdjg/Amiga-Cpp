@@ -75,13 +75,13 @@ struct DemoGame {
 			return;
 		}
 		stage(0x214002u);
-		const eng::MemoryBlock mb = backend.memory().chip.allocate(kTrackBytes, 2u);
-		if (!mb.valid()) {
+		m_track_block = backend.memory_manager().chip().reserve<eng::WorkTag>(kTrackBytes, 2u);
+		if (!m_track_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021402u);
 			return;
 		}
 		stage(0x214003u);
-		m_track = static_cast<eng::u16*>(mb.data);
+		m_track = reinterpret_cast<eng::u16*>(m_track_block.view.data());
 		for (eng::u16 i = 0u; i < kTrackWords; ++i) {
 			m_track[i] = 0u;
 		}
@@ -204,6 +204,7 @@ struct DemoGame {
 
 private:
 	eng::u16* m_track = nullptr;
+	eng::Block<eng::WorkTag, eng::MemoryKind::Chip> m_track_block {};
 	eng::u16 m_words = 0u;
 	eng::u16 m_max_words = 0u; ///< mejor `words` visto (diagnostico)
 	eng::u8 m_boot[1024] {}; // bootblock completo (2 sectores)

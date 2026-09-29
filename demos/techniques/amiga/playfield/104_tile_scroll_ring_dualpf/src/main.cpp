@@ -201,7 +201,7 @@ constexpr eng::u16 world_tile(eng::u32 col, eng::u32 row, eng::u32 layer_seed) {
 }
 
 struct TileCache {
-	eng::MemoryBlock block {};
+	eng::Block<eng::TileBankTag, eng::MemoryKind::Chip> block {};
 	eng::u16 pattern_count = 0;
 	eng::u8 planes = 0;
 	eng::u32 layer_seed = 0;
@@ -210,7 +210,7 @@ struct TileCache {
 		pattern_count = count;
 		planes = Scene::playfield_planes(playfield);
 		layer_seed = seed ^ (fg ? 0xf0f0f0f0u : 0x0f0f0f0fu);
-		block = backend.memory().chip.allocate(
+		block = backend.memory_manager().chip().reserve<eng::TileBankTag>(
 			Scene::playfield_tile_bytes(playfield) * count,
 			16
 		);
@@ -219,8 +219,8 @@ struct TileCache {
 		}
 		const eng::u32 words_per_tile = (Scene::tile_plane_bytes() / sizeof(eng::u16)) * planes;
 		eng::Span<eng::u16> words = eng::Span<eng::u16>::from_raw(
-			static_cast<eng::u16*>(block.data),
-			block.size / sizeof(eng::u16)
+			static_cast<eng::u16*>(static_cast<void*>(block.view.data())),
+			block.view.size() / sizeof(eng::u16)
 		);
 		for (eng::u16 tile = 0; tile < count; ++tile) {
 			const eng::u8 glyph = static_cast<eng::u8>(tile & 15u);
@@ -237,7 +237,7 @@ struct TileCache {
 
 	const eng::u16* tile_data(eng::u16 tile_index) const {
 		const eng::u32 words_per_tile = (Scene::tile_plane_bytes() / sizeof(eng::u16)) * planes;
-		return reinterpret_cast<const eng::u16*>(static_cast<const eng::u8*>(block.data)) +
+		return reinterpret_cast<const eng::u16*>(block.view.data()) +
 			static_cast<eng::u32>(tile_index & (pattern_count - 1u)) * words_per_tile;
 	}
 };

@@ -76,7 +76,7 @@ struct DemoGame {
 
 		m_plane_block = backend.memory_manager().chip().reserve<eng::PlaneTag>(
 			plane_bytes * (field_planes + 4u + 3u + 2u), 16);
-		m_copper_block = backend.memory().chip.allocate(4096u, 16);
+		m_copper_block = backend.memory_manager().chip().reserve<eng::CopperTag>(4096u, 16u);
 		if (!m_plane_block.valid() || !m_copper_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000114u);
 			return;
@@ -162,7 +162,7 @@ private:
 	eng::u16 m_copper_words = 0;
 	const eng::u16* m_copper_ptr = nullptr;
 	eng::Block<eng::PlaneTag> m_plane_block {};
-	eng::MemoryBlock m_copper_block {};
+	eng::Block<eng::CopperTag> m_copper_block {};
 };
 
 } // namespace
