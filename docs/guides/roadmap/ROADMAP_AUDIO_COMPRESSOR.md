@@ -13,7 +13,8 @@ Plan del pipeline offline de compresión de audio y del decoder `AUZX` del engin
 ### C1 — Ingestión de PC
 
 - RAW PCM8 firmado: implementado en `pack-pcm` y `tools/audio/pack-auzx.mjs`.
-- Conversión WAV PCM mono de 8/16 bits: pendiente en la capa de ingestión del pipeline.
+- Conversión WAV PCM mono/estéreo de 8/16 bits: implementada en `pack-pcm`, con downmix estéreo y
+  frecuencia heredada del fichero salvo override explícito.
 - WAV estéreo, AIFF, FLAC y Ogg mediante una capa de ingestión documentada.
 - Extracción de audio de vídeo descargado usando `yt-dlp` + `ffmpeg` como comandos externos optativos.
 - Normalización explícita de frecuencia, canal, signo y amplitud, con informe de cada conversión.

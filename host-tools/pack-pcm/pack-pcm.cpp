@@ -1,5 +1,5 @@
 // ============================================================================
-// pack-pcm: empaqueta PCM mono 8-bit con signo en un contenedor AUZX.
+// pack-pcm: convierte WAV/RAW a PCM8 y lo empaqueta en un contenedor AUZX.
 // ============================================================================
 //
 // Herramienta de PC que produce ficheros **compatibles con el engine**: usa los mismos
@@ -7,13 +7,14 @@
 // (`eng::audio::auzx`) que consume el Amiga, de modo que no hay deriva de formato.
 //
 // Uso:
-//   pack-pcm <in.raw> <out.auzx> [codec] [sample_rate] [chunk_samples]
+//   pack-pcm <in.raw|in.wav> <out.auzx> [codec] [sample_rate] [chunk_samples]
 //     codec: none | rle | fib | ima      (por defecto rle)
 //     sample_rate: 8000/11025/16000/22050 (por defecto 8000)
 //     chunk_samples: potencia de 2 (por defecto 4096)
 //
-// Fuente: `tools/audio/prep-sample.ts` (WAV -> PCM mono 8-bit con signo) o cualquier `.raw`
-// de 1 byte/muestra. Para Delta+ZX0/ZX0, comprimir aparte con la herramienta de referencia
+// La entrada RAW es PCM mono 8-bit con signo. La entrada WAV debe ser PCM lineal mono o estéreo,
+// de 8 o 16 bits; el loader hace el downmix estéreo y normaliza a PCM8 con signo. Para
+// Delta+ZX0/ZX0, comprimir aparte con la herramienta de referencia
 // `zx0 -f` tras el paso delta (ver AUDIO_STREAMING.md §7.1).
 //
 // Compilar (host):
@@ -25,6 +26,7 @@
 #include <eng/audio/auzx.hpp>
 #include <eng/audio/fib_delta.hpp>
 #include <eng/audio/pcm_codec.hpp>
+#include "wav_loader.hpp"
 
 #include <cstdio>
 #include <cstdlib>
@@ -33,6 +35,7 @@
 
 namespace {
 
+/// Traduce el nombre textual del codec al identificador común del engine.
 eng::u8 codec_id(const char* name) {
 	using eng::audio::pcm_codec::Codec;
 	if (std::strcmp(name, "none") == 0) {
@@ -55,7 +58,7 @@ eng::u8 codec_id(const char* name) {
 int main(int argc, char** argv) {
 	if (argc < 3) {
 		std::fprintf(stderr,
-			     "uso: pack-pcm <in.raw> <out.auzx> [none|rle|fib|ima] [rate] [chunk]\n");
+			     "uso: pack-pcm <in.raw|in.wav> <out.auzx> [none|rle|fib|ima] [rate] [chunk]\n");
 		return 2;
 	}
 	const char* in_path = argv[1];
@@ -65,31 +68,16 @@ int main(int argc, char** argv) {
 		std::fprintf(stderr, "codec desconocido: %s\n", argv[3]);
 		return 2;
 	}
-	const eng::u16 rate = static_cast<eng::u16>((argc > 4) ? std::atoi(argv[4]) : 8000);
+	const eng::u16 rate_override = static_cast<eng::u16>((argc > 4) ? std::atoi(argv[4]) : 0);
 	const eng::u16 chunk = static_cast<eng::u16>((argc > 5) ? std::atoi(argv[5]) : 4096);
 	const eng::u8 comp = (argc > 3) ? codec : static_cast<eng::u8>(eng::audio::pcm_codec::Codec::DeltaRle);
 
-	// Lee el PCM de entrada.
-	std::FILE* fin = std::fopen(in_path, "rb");
-	if (fin == nullptr) {
-		std::fprintf(stderr, "no puedo abrir %s\n", in_path);
+	std::vector<eng::u8> pcm;
+	eng::u16 rate = 0u;
+	if (!pack_pcm::load(in_path, pcm, rate, rate_override)) {
+		std::fprintf(stderr, "entrada RAW/WAV inválida o no soportada\n");
 		return 1;
 	}
-	std::fseek(fin, 0, SEEK_END);
-	const long len = std::ftell(fin);
-	std::fseek(fin, 0, SEEK_SET);
-	if (len <= 0) {
-		std::fprintf(stderr, "entrada vacia\n");
-		std::fclose(fin);
-		return 1;
-	}
-	std::vector<eng::u8> pcm(static_cast<size_t>(len));
-	if (std::fread(pcm.data(), 1u, pcm.size(), fin) != pcm.size()) {
-		std::fprintf(stderr, "lectura incompleta\n");
-		std::fclose(fin);
-		return 1;
-	}
-	std::fclose(fin);
 
 	// Rellena el ultimo chunk para que TODOS descompriman a `chunk` muestras: es el contrato de
 	// `PcmStream` (`provide` exige exactamente `chunk_samples`). El relleno va al final (muestra

@@ -8,14 +8,16 @@ Amiga sin deriva de formato.
 ## Uso
 
 ```
-pack-pcm <in.raw> <out.auzx> [none|rle|fib|ima] [sample_rate] [chunk_samples]
+pack-pcm <in.raw|in.wav> <out.auzx> [none|rle|fib|ima] [sample_rate] [chunk_samples]
 ```
 
-- `in.raw`: PCM mono 8-bit con signo (1 byte/muestra). Se genera con
-  `tools/audio/prep-sample.ts` (WAV → PCM) o cualquier conversor.
+- `in.raw`: PCM mono 8-bit con signo (1 byte/muestra). La frecuencia por defecto es 8000 Hz.
+- `in.wav`: WAV PCM lineal mono o estéreo, de 8 o 16 bits. El programa hace downmix estéreo y
+  normaliza a PCM8 con signo. La frecuencia del WAV se conserva salvo que se indique `[sample_rate]`.
 - `codec`: `none` (crudo), `rle` (Delta+RLE, por defecto), `fib` (Fibonacci Delta / 8SVX),
   `ima` (IMA ADPCM).
-- `sample_rate`: 8000 / 11025 / 16000 / 22050 (por defecto 8000).
+- `sample_rate`: frecuencia explícita opcional; si se omite en WAV se usa la frecuencia del WAV y en
+  RAW se usa 8000 Hz.
 - `chunk_samples`: potencia de 2 (por defecto 4096). El PCM se **rellena** al final hasta un
   múltiplo de `chunk_samples`, para que todos los chunks descompriman a `chunk_samples` (contrato
   de `PcmStream`); `total_samples` incluye ese relleno.

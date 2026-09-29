@@ -1,6 +1,6 @@
 # Diseño de audio comprimido para Amiga
 
-El pipeline de audio convierte fuentes de PC en PCM mono de 8 bits con signo y las empaqueta en `AUZX`, el contenedor que consume el engine Amiga. El formato, los codecs y el decoder se comparten entre `host-tools/pack-pcm` y `engine/include/eng/audio/`; así el fichero producido en PC tiene el mismo contrato que el reproductor de Amiga.
+El pipeline de audio convierte fuentes de PC en PCM mono de 8 bits con signo y las empaqueta en `AUZX`, el contenedor que consume el engine Amiga. El formato, los codecs y el decoder se comparten entre `host-tools/pack-pcm` y `engine/include/eng/audio/`; así el fichero producido en PC tiene el mismo contrato que el reproductor de Amiga. `pack-pcm` acepta RAW PCM8 firmado y WAV PCM lineal mono o estéreo de 8/16 bits.
 
 ## Objetivos
 
