@@ -40,8 +40,8 @@ namespace eng::graphics {
 	    rows == 0u || planes == 0u) {
 		return false;
 	}
-	const s16 a_mod = static_cast<s16>(-static_cast<s32>(words) * 2);
-	const s16 d_mod = static_cast<s16>(static_cast<s32>(pattern_rows) * dst_row_bytes -
+	const s16 a_mod = eng::graphics::mod16(-static_cast<s32>(words) * 2);
+	const s16 d_mod = eng::graphics::mod16(static_cast<s32>(pattern_rows) * dst_row_bytes -
 					   static_cast<s32>(words) * 2);
 	eng::u8* base = reinterpret_cast<eng::u8*>(dst.words());
 	for (u8 k = 0u; k < pattern_rows; ++k) {

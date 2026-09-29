@@ -188,7 +188,7 @@ inline bool bob_erase_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, 
 	job.words_per_row = words;
 	job.height = inter ? static_cast<u16>(h * bob.planes) : h;
 	// El puntero avanza una fila de plano por fila de blit: modulo = fila − procesado.
-	job.destination_modulo_bytes = static_cast<s16>(t.row_bytes - static_cast<u32>(words) * 2u);
+	job.destination_modulo_bytes = mod16(static_cast<s32>(t.row_bytes) - static_cast<s32>(words) * 2);
 	job.bitplane_count = inter ? 1u : bob.planes;
 	job.destination_plane_stride_bytes = inter ? 0u : t.plane_pointer_step();
 	job.interleaved = inter;
@@ -217,8 +217,8 @@ inline bool bob_save_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, s
 	job.words_per_row = words;
 	job.height = h;
 	job.bitplane_count = bob.planes;
-	job.source_modulo_bytes = static_cast<s16>(t.row_bytes - static_cast<u32>(words) * 2u);
-	job.destination_modulo_bytes = static_cast<s16>(save_row_bytes - static_cast<u32>(words) * 2u);
+	job.source_modulo_bytes = mod16(static_cast<s32>(t.row_bytes) - static_cast<s32>(words) * 2);
+	job.destination_modulo_bytes = mod16(static_cast<s32>(save_row_bytes) - static_cast<s32>(words) * 2);
 	job.source_plane_stride_bytes = t.plane_pointer_step();
 	job.destination_plane_stride_bytes = save_row_bytes * save_height;
 	return plan.add_copy_rect(job);
@@ -241,8 +241,8 @@ inline bool bob_restore_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x
 	job.words_per_row = words;
 	job.height = h;
 	job.bitplane_count = bob.planes;
-	job.source_modulo_bytes = static_cast<s16>(save_row_bytes - static_cast<u32>(words) * 2u);
-	job.destination_modulo_bytes = static_cast<s16>(t.row_bytes - static_cast<u32>(words) * 2u);
+	job.source_modulo_bytes = mod16(static_cast<s32>(save_row_bytes) - static_cast<s32>(words) * 2);
+	job.destination_modulo_bytes = mod16(static_cast<s32>(t.row_bytes) - static_cast<s32>(words) * 2);
 	job.source_plane_stride_bytes = save_row_bytes * save_height;
 	job.destination_plane_stride_bytes = t.plane_pointer_step();
 	return plan.add_restore_rect(job);
@@ -285,8 +285,8 @@ inline bool bob_draw_interleaved_pair(FramePlan& plan, const Bob& bob, u8 frame,
 		t.data() + static_cast<u32>(y) * start_row + (static_cast<u32>(x_start) >> 3u)));
 	job.words_per_row = words;
 	job.height = static_cast<u16>(bob.height * bob.planes);
-	job.source_modulo_bytes = static_cast<s16>(words * 2u);
-	job.destination_modulo_bytes = static_cast<s16>(t.row_bytes - static_cast<u32>(words) * 2u);
+	job.source_modulo_bytes = mod16u(words * 2u);
+	job.destination_modulo_bytes = mod16(static_cast<s32>(t.row_bytes) - static_cast<s32>(words) * 2);
 	job.bitplane_count = 1u;
 	job.source_shift = shift;
 	job.minterm = 0x00cau;
@@ -330,8 +330,8 @@ __attribute__((always_inline)) inline bool bob_draw(FramePlan& plan, const Bob& 
 	job.height = inter ? static_cast<u16>(bob.height * bob.planes) : bob.height;
 	job.source_shift = shift;
 	job.bitplane_count = inter ? 1u : bob.planes;
-	job.source_modulo_bytes = static_cast<s16>(sheet_row_of(bob) - static_cast<u32>(words) * 2u);
-	job.destination_modulo_bytes = static_cast<s16>(t.row_bytes - static_cast<u32>(words) * 2u);
+	job.source_modulo_bytes = mod16(static_cast<s32>(sheet_row_of(bob)) - static_cast<s32>(words) * 2);
+	job.destination_modulo_bytes = mod16(static_cast<s32>(t.row_bytes) - static_cast<s32>(words) * 2);
 	job.source_plane_stride_bytes = inter ? 0u : bob.height * sheet_row_of(bob);
 	job.destination_plane_stride_bytes = inter ? 0u : t.plane_pointer_step();
 	job.interleaved = inter;

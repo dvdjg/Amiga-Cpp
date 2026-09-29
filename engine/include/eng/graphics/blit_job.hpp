@@ -17,6 +17,21 @@
 
 namespace eng::graphics {
 
+/// **Módulo de Blitter/Copper** (`BLTxMOD`, registro de 16 bits): convierte un valor calculado en
+/// `s32`/`u32` a `s16` **comprobando el rango**. Es el único sitio de la regla: los módulos son
+/// `row_bytes·planes − words·2`, que rara vez son potencia de 2 (`40·4 − 42 = 118`), así que no se
+/// restringe a potencias de 2; lo que se evita es el **truncado silencioso** de un
+/// `static_cast<s16>` a ciegas. En release no cuesta nada (la aserción desaparece).
+[[nodiscard]] constexpr s16 mod16(s32 v) noexcept {
+	ENG_ASSERT(v >= -32768 && v <= 32767);
+	return static_cast<s16>(v);
+}
+/// Igual, para un valor sin signo conocido (p. ej. `words·2`): debe caber en `s16` no negativo.
+[[nodiscard]] constexpr s16 mod16u(u32 v) noexcept {
+	ENG_ASSERT(v <= 32767u);
+	return static_cast<s16>(v);
+}
+
 /// Tipos de trabajo de Blitter soportados por el plan.
 enum class BlitJobKind : u8 {
 	CopyRect,
@@ -193,8 +208,8 @@ inline void make_interleaved_masked_bob(BlitJob& job, const u16* src, u16* dest,
 	job.words_per_row = words;
 	job.height = static_cast<u16>(h * planes);
 	// Avance por "fila" (una fila de UN plano): el par ocupa `2*words` palabras.
-	job.source_modulo_bytes = static_cast<s16>(words * 2u);
-	job.destination_modulo_bytes = static_cast<s16>(dest_row_bytes - words * 2u);
+	job.source_modulo_bytes = mod16u(words * 2u);
+	job.destination_modulo_bytes = mod16(static_cast<s32>(dest_row_bytes) - static_cast<s32>(words) * 2);
 	job.bitplane_count = 1u;
 	job.source_shift = shift;
 	job.minterm = 0xCAu;

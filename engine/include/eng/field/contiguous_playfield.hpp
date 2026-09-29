@@ -113,8 +113,8 @@ public:
         if (src.size() < need_src) return false;
         const bool logic = op != RasterOp::Copy;
         const u16 x_byte = static_cast<u16>(wx / 8u);
-        const s16 src_mod = static_cast<s16>(src_row_bytes - words * 2);
-        const s16 dst_mod = static_cast<s16>(m_bytes_per_row - words * 2);
+        const s16 src_mod = eng::graphics::mod16(static_cast<s32>(src_row_bytes) - static_cast<s32>(words) * 2);
+        const s16 dst_mod = eng::graphics::mod16(static_cast<s32>(m_bytes_per_row) - static_cast<s32>(words) * 2);
         const u16* sbase = src.data();
         const u32 y0_off = eng::math::mulu16(static_cast<u16>(wy), static_cast<u16>(m_row_stride));
         const u8* sp = reinterpret_cast<const u8*>(sbase);
@@ -158,8 +158,8 @@ public:
                             + static_cast<u32>(words);
         if (src.size() < need_src || mask.size() < need_mask) return false;
         const u16 x_byte = static_cast<u16>(wx / 8u);
-        const s16 src_mod = static_cast<s16>(src_row_bytes - words * 2);
-        const s16 dst_mod = static_cast<s16>(m_bytes_per_row - words * 2);
+        const s16 src_mod = eng::graphics::mod16(static_cast<s32>(src_row_bytes) - static_cast<s32>(words) * 2);
+        const s16 dst_mod = eng::graphics::mod16(static_cast<s32>(m_bytes_per_row) - static_cast<s32>(words) * 2);
         const u32 y0_off = eng::math::mulu16(static_cast<u16>(wy), static_cast<u16>(m_row_stride));
         const u16* sbase = src.data();
         const u16* mbase = mask.data();

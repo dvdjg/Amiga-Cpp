@@ -117,14 +117,24 @@ MemorySystem, Telemetry)` rellenan el panel desde los **bancos** (reservas reale
 
 **Valor:** quitar los `static_cast` de módulos/strides sin ocultar desbordamientos.
 
-1. Helpers de dominio **acotados** para el borde hardware: p. ej. `Offset16`/`mod16(a,b)` para
-   módulos de Blitter/Copper (`row_bytes - words*2 → s16`), con **aserción de rango en debug**.
-2. Sustituir los `static_cast<s16>` de `bob_save_box`/`bob_restore_box`/`bob_erase_box` y afines por
-   el helper (un solo sitio con la regla y el rango).
-3. **No** introducir un `Number<Tag>` genérico: el repo tipa buffers/direcciones/roles, y deja las
-   anchuras como enteros (doc `typed.hpp`, `INTERNAL_TYPE_SYSTEM.md` §3.3).
+**Estado (2026-09): hecha.** `eng::graphics::mod16(s32)`/`mod16u(u32)` (en `blit_job.hpp`) convierten
+un módulo a `s16` (registro `BLTxMOD`) **comprobando el rango** (`ENG_ASSERT`, sin coste en release).
+Sustituidos los `static_cast<s16>(row_bytes·planes − words·2)` de `bob.hpp` (5 funciones),
+`blit_job.hpp`, `pattern_fill.hpp` y `field/{canvas,contiguous,xlimited}_playfield`. HOST-385.
 
-**Evidencia:** HOST del helper (rango, truncado documentado) y `cast-audit` a la baja.
+**Criterio (descartado explícitamente):** **no** se restringe la anchura a potencias de 2. Los
+módulos reales no lo son (`40·4 − 42 = 118`; `words` = 20/40/21/41) y **no hay división** que
+ahorrar en el hot path (los módulos son resta + `mulu16`). Limitar a potencias de 2 rompería el
+display estándar sin ganancia. Lo que sí se formaliza: `mod16` como único punto de la regla (con
+detección de truncado en debug) y los módulos **invariantes** (`row_bytes`/`planes`/`words` de la
+demo) calculados una vez en setup.
+
+1. `mod16`/`mod16u` con **aserción de rango en debug**. **Hecho**.
+2. Sustituir los `static_cast<s16>` de `bob_*`/`pattern_fill`/`field/*`. **Hecho**.
+3. **No** un `Number<Tag>` genérico (el repo tipa buffers/direcciones/roles; las anchuras son
+   enteros) y **no** restringir a potencias de 2 (justificado arriba).
+
+**Evidencia:** HOST-385 y `cast-audit` a la baja (los `static_cast<s16>` de módulos ya no cuentan).
 
 ## Fase 6 — Asignador persistente con `free` real (rediseño del pool)
 

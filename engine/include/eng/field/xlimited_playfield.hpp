@@ -384,8 +384,8 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
         // bltsize = BLOCKPLANELINES*64 + words
         const u16 words = words_per_block;
         // Módulos del Blitter (ver §6)
-        const s16 src_mod = static_cast<s16>(src_bytes_per_row - words * 2);
-        const s16 dst_mod = static_cast<s16>(this->m_bytes_per_row - words * 2);
+        const s16 src_mod = eng::graphics::mod16(static_cast<s32>(src_bytes_per_row) - static_cast<s32>(words) * 2);
+        const s16 dst_mod = eng::graphics::mod16(static_cast<s32>(this->m_bytes_per_row) - static_cast<s32>(words) * 2);
 
         // Para que FramePlan::add_tile_block_copy valide, los strides deben
         // ser no nulos. En modo interleaved el stride real es el módulo, pero
@@ -499,8 +499,8 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
     bool emit_world_rect(graphics::FramePlan& plan, const u16* src, u16 x_byte,
                           u32 planeline_start, u16 words, u16 seg_rows,
                           u16 src_row_bytes, u32 src_plane_stride, u8 planes) {
-        const s16 src_mod = static_cast<s16>(src_row_bytes - words * 2);
-        const s16 dst_mod = static_cast<s16>(this->m_bytes_per_row * planes - words * 2);
+        const s16 src_mod = eng::graphics::mod16(static_cast<s32>(src_row_bytes) - static_cast<s32>(words) * 2);
+        const s16 dst_mod = eng::graphics::mod16(static_cast<s32>(this->m_bytes_per_row) * static_cast<s32>(planes) - static_cast<s32>(words) * 2);
         for (u8 p = 0; p < planes; ++p) {
             const u16* s = src + static_cast<u32>(p) * (src_plane_stride / 2u);
             u16* d = reinterpret_cast<u16*>((this->m_frontbuffer +
@@ -569,8 +569,8 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
     bool emit_world_rect_masked(graphics::FramePlan& plan, const u16* src, const u16* mask,
                                 u16 x_byte, u32 planeline_start, u16 words, u16 seg_rows,
                                 u16 src_row_bytes, u32 src_plane_stride, u8 planes) {
-        const s16 src_mod = static_cast<s16>(src_row_bytes - words * 2);
-        const s16 dst_mod = static_cast<s16>(this->m_bytes_per_row * planes - words * 2);
+        const s16 src_mod = eng::graphics::mod16(static_cast<s32>(src_row_bytes) - static_cast<s32>(words) * 2);
+        const s16 dst_mod = eng::graphics::mod16(static_cast<s32>(this->m_bytes_per_row) * static_cast<s32>(planes) - static_cast<s32>(words) * 2);
         for (u8 p = 0; p < planes; ++p) {
             const u16* s = src + static_cast<u32>(p) * (src_plane_stride / 2u);
             u16* d = reinterpret_cast<u16*>((this->m_frontbuffer +
