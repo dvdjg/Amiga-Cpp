@@ -95,6 +95,6 @@ El Blitter es un **único recurso**: solo hay **una** operación en curso. Escri
   Con él se implementan el **borde de scroll** (`CopyRect 20×256`, `mods = 2`, desplaza la
   pantalla una columna) y el **parcheo de copperlist** (`CopyRect 1×N`, `dst_mod = 2`, escribe
   los data words de MOVEs consecutivos). Así no hacen falta firmas propias ni punteros crudos:
-  todo se describe con `BlitJob`. Ver `demos/amiga/210_copper_blitter`.
+  todo se describe con `BlitJob`. Ver `demos/techniques/amiga/blitter/210_copper_blitter`.
 - El chip expone `BBUSY` (`DMACONR` bit 14) → `backend.blitter_busy()`; el Copper **no** lo
   consulta, así que la coordinación es responsabilidad del software.

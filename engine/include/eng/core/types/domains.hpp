@@ -30,12 +30,14 @@ struct UafTag {};
 struct MapCellsTag {};     // celdas de un mapa (indices de tile, u16)
 struct BobTag {};          // BOB planar: planos de color + mascara de cookie-cut
 struct MixerBufferTag {};  // buffer de trabajo del mezclador (consumido por asm)
+struct StackTag {};        // pila de CPU (hilo principal o tarea)
 
 // Aliases de dominio.
 using Pattern = ByteView<PatternTag>;           // patrón de fondo (bytes)
 using PatternWords = WordView<PatternTag>;      // patrón de fondo (words)
 using PlaneBytes = Bytes<PlaneTag>;             // buffer de un plano (mutable)
 using PlaneViewBytes = ByteView<PlaneTag>;      // vista de plano (solo lectura)
+using ChipPlaneView = ChipView<PlaneTag>;       // plano **certificado en Chip** (DMA: BPLxPT)
 using PaletteWords = WordView<PaletteTag>;      // paleta RGB444
 using SpriteWords = WordView<SpriteTag>;        // palabras de sprite hardware
 using SpriteBuffer = Words<SpriteTag>;          // buffer de sprite (escritura)
@@ -49,7 +51,7 @@ using IndexedTexture = ByteView<TextureTag>;    // textura indexada 1 B/texel
 using MaskBytes = ByteView<MaskTag>;            // máscara 1-bit de cookie-cut
 using MaskBuffer = Bytes<MaskTag>;
 using AudioSample = ByteView<AudioTag>;         // muestra 8-bit con signo
-using MusicModule = ByteView<MusicTag>;         // módulo de tracker
+using MusicBytes = ByteView<MusicTag>;          // módulo de tracker (bytes; sin confundir con `eng::audio::MusicModule`)
 using IndexedTiles = ByteView<IndexedTilesTag>; // tilebank indexado del pipeline
 using UafPayload = ByteView<UafTag>;            // payload UAF-R
 using MapCells = Words<MapCellsTag>;            // celdas de mapa (escritura)

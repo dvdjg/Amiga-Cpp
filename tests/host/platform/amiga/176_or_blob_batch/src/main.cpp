@@ -36,8 +36,21 @@ static eng::u32 rd32(Reg* r, eng::u16 word) {
 	return *reinterpret_cast<volatile eng::u32*>(&r[word]);
 }
 
+static Reg regs[0x100] {};
+
+// Servicio de espera de prueba: cuenta las vueltas y, a la 3.a, simula que el Blitter acaba
+// bajando BBUSY. Verifica que `wait()` drena el fondo en vez de perder ciclos en el sondeo.
+static int g_drained = 0;
+static eng::u16 g_last_vpos = 0xffffu;
+static void drain_stub(void*, eng::u16 vpos) {
+	++g_drained;
+	g_last_vpos = vpos;
+	if (g_drained >= 3) {
+		regs[kDmaconr] = static_cast<eng::u16>(regs[kDmaconr] & 0xBfffu);
+	}
+}
+
 int main() {
-	static Reg regs[0x100] {};
 	OrBlobBatch batch;
 
 	// begin: fija las constantes del lote una sola vez.
@@ -71,6 +84,15 @@ int main() {
 	check(regs[kBltamod] == 0 && regs[kBltbmod] == 26, "constantes intactas entre BOBs");
 
 	check(batch.end(), "end() devuelve true");
+
+	// Espera con servicio de fondo: con BBUSY puesto, el lote llama al servicio en cada vuelta
+	// hasta que el Blitter (simulado) lo baja. El servicio se registra en `begin`.
+	regs[kDmaconr] = 0x4000u; // Blitter "ocupado"
+	g_drained = 0;
+	batch.begin(regs, 3, 96, /*amod=*/0, /*dmod=*/26, drain_stub, nullptr);
+	batch.end();
+	check(g_drained == 3, "wait() drena el servicio de fondo hasta que BBUSY baja");
+	check((regs[kDmaconr] & 0x4000u) == 0u, "BBUSY queda bajo (el Blitter 'acabo')");
 
 	if (failures == 0) {
 		std::printf("OK: OrBlobBatch (secuencia de registros del lote) validado.\n");

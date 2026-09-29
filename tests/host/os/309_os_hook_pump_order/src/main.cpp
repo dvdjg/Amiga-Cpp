@@ -5,7 +5,10 @@
 // El bucle de polling del `Engine` llama al hook de VBlank (`os::vblank_hook`) **antes** de
 // `Game::update`, y `MessagePumpGame::update` drena el puerto. Este test fija ese contrato:
 // un mensaje posteado por el hook (p.ej. un `Timer` de `TimerService::poll_and_post`) se
-// entrega en el MISMO `update`, tanto con periodo 1 como con periodo 2. El periodo > 1 es el
+// entrega en el MISMO `update`, tanto con periodo 1 como con periodo 2. Además valida la
+// **tarea de frame** del pump (`bind_frame_task`): se ejecuta una vez por `update`, después de
+// drenar (ve los mensajes de ese frame) y antes de `App::on_frame` — el punto donde la demo
+// integra la música (`AudioSystem::tick_frame`/`P61Player::update`). El periodo > 1 es el
 // caso que en hardware no llega (bug abierto, ver `docs/guides/roadmap/ROADMAP_MINI_OS.md`);
 // aquí se valida el contrato puro, sin backend.
 //
@@ -38,6 +41,8 @@ struct FakeCtx {
 struct App {
 	int msgs = 0;
 	int timers = 0;
+	int frame_tasks = 0;
+	int msgs_at_frame_task = -1;
 	void on_start(FakeCtx&) {}
 	void on_msg(const Msg& m) {
 		++msgs;
@@ -48,6 +53,17 @@ struct App {
 	void on_frame(u32) {}
 	void on_render(auto&) {}
 };
+
+/// Tarea de frame del pump: cuenta llamadas.
+void count_frame_task(void* user, eng::u16) {
+	++static_cast<App*>(user)->frame_tasks;
+}
+
+/// Tarea de frame que observa cuántos mensajes había al ejecutarse (debe ver los del pump).
+void observe_frame_task(void* user, eng::u16) {
+	App* a = static_cast<App*>(user);
+	a->msgs_at_frame_task = a->msgs;
+}
 
 /// Simula el bucle del `Engine`: hook (postea) -> update (drena) durante `frames` frames.
 template <eng::u16 N>
@@ -116,6 +132,37 @@ void test_user_post_next_update() {
 	check(game.app.timers == 1, "post previo al update: entregado en ese update");
 }
 
+/// Tarea de frame: `bind_frame_task` la ejecuta UNA vez por `update`, en el ciclo del pump.
+void test_frame_task_each_update() {
+	MsgPort<8> port;
+	MessagePumpGame<App, 8> game;
+	game.bind_port(port);
+	game.bind_frame_task(&count_frame_task, &game.app);
+	TimerService timers;
+	(void)timers.start(1u, 1u, TimerUnit::Frames, true, 0u, 0u);
+
+	run_loop(game, port, timers, 10u);
+	check(game.app.frame_tasks == 10, "frame task: una llamada por update (10/10)");
+}
+
+/// La tarea de frame corre **después** de drenar: ve los mensajes entregados en ese frame.
+void test_frame_task_after_drain() {
+	MsgPort<8> port;
+	MessagePumpGame<App, 8> game;
+	game.bind_port(port);
+	game.bind_frame_task(&observe_frame_task, &game.app);
+	int backend = 0;
+	FakeCtx ctx {};
+
+	Msg m {};
+	m.type = MsgType::Timer;
+	(void)port.post(m);
+	(void)port.post(m);
+	game.update(backend, ctx);
+	check(game.app.msgs == 2, "dos mensajes entregados antes de la tarea de frame");
+	check(game.app.msgs_at_frame_task == 2, "la tarea de frame observa los mensajes ya drenados");
+}
+
 } // namespace
 
 int main() {
@@ -123,9 +170,11 @@ int main() {
 	test_period_two_same_frame();
 	test_two_timers();
 	test_user_post_next_update();
+	test_frame_task_each_update();
+	test_frame_task_after_drain();
 
 	if (failures == 0) {
-		std::printf("OK: el hook postea y el pump entrega en el mismo update (periodo 1 y 2).\n");
+		std::printf("OK: hook->pump y tarea de frame (misma pasada) validados.\n");
 		return 0;
 	}
 	std::printf("FAIL: %d comprobaciones\n", failures);

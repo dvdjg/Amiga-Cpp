@@ -46,6 +46,17 @@ if [ ! -d "$DEMO_PATH" ]; then
 fi
 DEMO_NAME="$(basename "$DEMO_PATH")"
 
+# --- Id de build (por ruta para features) -----------------------------------
+# El id de build/out aísla los artefactos. `techniques/` usa el leaf (nombres únicos
+# por construcción); `features/<feature>/<plataforma>/NNN_<tema>` usa la **ruta** relativa
+# a `demos/features/` (mismo nombre de demo en varias plataformas → no se machacan).
+# La variante de build (A500/A1200/ST/STE) ya va en el CONFIG_ID.
+DEMO_REL="${DEMO//\\//}"
+case "$DEMO_REL" in
+	demos/features/*) DEMO_ID="$(printf '%s' "${DEMO_REL#demos/features/}" | tr '/' '_')" ;;
+	*) DEMO_ID="$DEMO_NAME" ;;
+esac
+
 # --- Resolucion del toolchain ----------------------------------------------
 # Normaliza separadores de Windows (C:\\ruta) a posix (/c/ruta o C:/ruta) para
 # que el script funcione igual en bash de Windows, Linux y macOS.
@@ -176,8 +187,8 @@ if [ -n "$GEN_FLAGS" ]; then CONFIG_ID="${CONFIG_ID}_${GEN_FLAGS}"; fi
 CONFIG_ID="${CONFIG_ID}_${GEN_MODE}"
 
 # --- Directorios de salida --------------------------------------------------
-OBJ_DIR="$ROOT/obj/demos/$DEMO_NAME/$CONFIG_ID"
-OUT_DIR="$ROOT/out/demos/$DEMO_NAME/$CONFIG_ID"
+OBJ_DIR="$ROOT/obj/demos/$DEMO_ID/$CONFIG_ID"
+OUT_DIR="$ROOT/out/demos/$DEMO_ID/$CONFIG_ID"
 
 if [ "$CLEAN" -eq 1 ]; then
 	rm -rf "$OBJ_DIR" "$OUT_DIR"
@@ -191,7 +202,7 @@ mkdir -p "$OBJ_DIR" "$OUT_DIR"
 # que hace reproducible el flujo exportador -> incbin -> runtime (como la 078).
 if [ -f "$DEMO_PATH/src/prebuild.sh" ]; then
 	echo "[build-demo] prebuild $DEMO_NAME"
-	( cd "$ROOT" && bash "$DEMO_PATH/src/prebuild.sh" )
+	( cd "$ROOT" && MACHINE_ID="$MACHINE_ID" TARGET_MACHINE="$MACHINE_ID" bash "$DEMO_PATH/src/prebuild.sh" )
 fi
 
 # --- Flags ------------------------------------------------------------------
@@ -227,6 +238,7 @@ COMMON=(
 	"-Wno-unused-function" "-Wno-volatile-register-var"
 	"-fomit-frame-pointer" "-fno-exceptions"
 	"-ffunction-sections" "-fdata-sections"
+	"-DENG_AMIGA=1"
 	"-I$ROOT" "-I$ROOT/engine/include" "-I$SDKDIR"
 )
 # Macros extra reproducibles (p. ej. EXTRA_DEFINES="-DK_TILE_WIDTH=32 -DK_DUAL=0").
@@ -234,6 +246,31 @@ COMMON=(
 EXTRA_DEFINES="${EXTRA_DEFINES:-}"
 if [ -n "$EXTRA_DEFINES" ]; then
 	COMMON+=($EXTRA_DEFINES)
+fi
+
+# Overrides por demo (`build.args` en el dir de la demo): una asignacion `CLAVE=valor` por
+# linea (comentarios con `#`). Claves admitidas: ENGINE_OPT / DEMO_OPT / C_OPT. Mismo espiritu
+# que `run.args` (opciones de ejecucion), pero para el build. No cambia el CONFIG_ID. Caso de
+# uso: la 212 fija `DEMO_OPT=-O2` por el bug de codegen de gcc 15 m68k a `-O1`.
+if [ -f "$DEMO_PATH/build.args" ]; then
+	while IFS='=' read -r _k _v || [ -n "$_k" ]; do
+		_k="${_k%%[[:space:]]*}"
+		case "$_k" in
+			""|\#*) continue ;;
+			ENGINE_OPT) ENGINE_OPT="$_v" ;;
+			DEMO_OPT) DEMO_OPT="$_v" ;;
+			C_OPT) C_OPT="$_v" ;;
+			FAST_STACK) FAST_STACK="$_v" ;;
+		esac
+	done <"$DEMO_PATH/build.args"
+fi
+
+# **Pila en Fast RAM** (opcional, por app): `FAST_STACK=1` en el `build.args` de la demo mueve la
+# pila del hilo principal (y el SSP/IRQs en modo supervisor) a Fast RAM si existe (`_start` en
+# `support/gcc8_c_support.c`, ver `INTERNAL_TYPE_SYSTEM.md` §3.8). Se expone como parámetro de
+# compilacion para que **cada app elija**.
+if [ "${FAST_STACK:-0}" = "1" ]; then
+	COMMON+=("-DENG_FAST_STACK=1")
 fi
 
 # --- Flags por origen (override para bisecar un cuelgue de optimizacion) -----
@@ -321,10 +358,10 @@ for VASM_SRC in $(find "$ROOT/support/audio_mixer" -maxdepth 1 -name 'mixer.asm'
 done
 
 # --- Enlazado y hunk --------------------------------------------------------
-ELF="$OUT_DIR/$DEMO_NAME.$CONFIG_ID.elf"
-EXE="$OUT_DIR/$DEMO_NAME.$CONFIG_ID.exe"
-MAP="$OUT_DIR/$DEMO_NAME.$CONFIG_ID.map"
-LISTING="$OUT_DIR/$DEMO_NAME.$CONFIG_ID.s"
+ELF="$OUT_DIR/$DEMO_ID.$CONFIG_ID.elf"
+EXE="$OUT_DIR/$DEMO_ID.$CONFIG_ID.exe"
+MAP="$OUT_DIR/$DEMO_ID.$CONFIG_ID.map"
+LISTING="$OUT_DIR/$DEMO_ID.$CONFIG_ID.s"
 
 echo "  LINK  $ELF"
 "$GXX" "${COMMON[@]}" "-Wl,--emit-relocs,--gc-sections,-Ttext=0x400,-Map=$MAP" "${OBJECTS[@]}" -o "$ELF"

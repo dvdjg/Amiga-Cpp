@@ -1,4 +1,4 @@
-# Diseño de object/effects/copper: Visual, CopperIntent, SpriteTemplate y Effect
+# Diseño de object/effects/copper: Visual, CopperIntent, HwSpriteTemplate y Effect
 
 Este documento concreta la libreta de diseño del roadmap (`ROADMAP_ENGINE_CPP_AMIGA500.md` §20,
 "Abstracciones que no debemos olvidar") en una estructura de clases y plantillas reutilizables.
@@ -165,25 +165,25 @@ El `CopperScheduler` recibe estos `CopperIntent` y decide, con la `Timeline`, si
 H-BLANK de cada línea y cómo se mezclan con el resto de la escena. **Ningún `CopperIntent`
 escribe registros por su cuenta**: el scheduler es el único que expande a `MOVE/WAIT`.
 
-## 5. `SpriteTemplate`: plantillas para modelar todas las posibilidades del sprite
+## 5. `HwSpriteTemplate`: plantillas para modelar todas las posibilidades del sprite
 
 La petición de un "sistema de plantillas" para sprites hardware se concreta sobre la base
 `SpriteManager` ya existente. El `SpriteManager` queda como **emitter final** (escribe
-`SPRxPT/POS/CTL` y emite en el Copper); la `SpriteTemplate` es la **descripción portable** que
+`SPRxPT/POS/CTL` y emite en el Copper); la `HwSpriteTemplate` es la **descripción portable** que
 el `SpriteAllocator` procesa y con la que decide reuso/multiplexado.
 
 ```cpp
 namespace eng::graphics {
 
 /// Franja reutilizable de una imagen de sprite fuente.
-struct SpriteSegment {
+struct HwSpriteSegment {
     u16 data_offset;    // words desde el inicio del bitmap fuente
     u16 height;         // líneas de esta franja dentro del sprite
     u16 y_in_bitmap;    // línea inicial dentro de la imagen fuente
 };
 
 /// Cambio de paleta asociado a una franja (color multiplexing por scanline).
-struct SpritePaletteSwitch {
+struct HwSpritePaletteSwitch {
     u16 segment;        // segmento al que afecta
     u16 line;           // línea raster de disparo
     const u16* colors; u8 first, count;   // COLORxx.. a programar
@@ -192,10 +192,10 @@ struct SpritePaletteSwitch {
 /// Plantilla de un sprite hardware: describe cómo UNA imagen fuente se traduce a segmentos
 /// reutilizables y a cambios de paleta por franja. Es portable: no escribe registros.
 template <u8 MaxSegments, u8 MaxPaletteSwitches>
-struct SpriteTemplate {
+struct HwSpriteTemplate {
     Span<const u16> bitmap {};                  // imagen fuente (DAT/DATB), Chip RAM
-    SpriteSegment segments[MaxSegments] {};     // troceado para reuso vertical
-    SpritePaletteSwitch switches[MaxPaletteSwitches] {};
+    HwSpriteSegment segments[MaxSegments] {};     // troceado para reuso vertical
+    HwSpritePaletteSwitch switches[MaxPaletteSwitches] {};
     u8 segment_count = 0;
     u8 switch_count = 0;
     u8 width_words = 1;        // 16 px o 32 px (SPRxCTL doble ancho)
@@ -208,20 +208,20 @@ struct SpriteTemplate {
 Cubre los casos que se piden:
 
 - **Reutilizar el mismo sprite para dibujar cosas distintas** (pintado arriba/abajo): varios
-  `SpriteSegment` sobre una única `bitmap`, con `data_offset`/`height` — el allocator reapunta el
+  `HwSpriteSegment` sobre una única `bitmap`, con `data_offset`/`height` — el allocator reapunta el
   canal en cada franja (técnica "chasing the raster" de amiga-bootcamp).
-- **Cambios de paleta en ciertas líneas**: las `SpritePaletteSwitch` se convierten en
+- **Cambios de paleta en ciertas líneas**: las `HwSpritePaletteSwitch` se convierten en
   `CopperIntent::PaletteLine` sobre la franja correspondiente, cayendo por el mismo scheduler.
 - **Fondos estilo Risky Woods / sprite strips**: `MaxSegments` alto + multiplexado vertical; el
   `SpriteAllocator` reusa canales al cruzar el H-BLANK. El caso extremo es "sprite-as-playfield"
-  (Jim Power), que es una `SpriteTemplate` con strips horizontales sobre los 8 canales.
+  (Jim Power), que es una `HwSpriteTemplate` con strips horizontales sobre los 8 canales.
 
 Invariantes que la implementación debe heredar de la auditoría (antipatterns de amiga-bootcamp):
 
 - **Reload cada frame**: los `SPRxPT` hay que reescribirlos al principio de cada VBL (el Copper
   lo hace; "The Phantom Sprite" es leer basura si el puntero no se recarga).
 - **Colores compartidos por par**: los sprites N y N+1 comparten sus 3 `COLORxx`; cualquier
-  `SpritePaletteSwitch` debe respetar el par ("The Color Bleed").
+  `HwSpritePaletteSwitch` debe respetar el par ("The Color Bleed").
 - **Chip RAM obligatoria**: `bitmap` de la plantilla es `Span<const u16>` a Chip RAM.
 - **Sprite 0 = ratón**: reservar el 0 para el cursor del sistema salvo takeover total.
 
@@ -273,7 +273,7 @@ mueve por línea, un fondo que ondea y un playfield con split de HUD.
 
 La "capa capaz de cargar formatos avanzados" (Universal-Asset-Format) es la **capa 0 de datos**:
 un formato *cocinado* (chunks binarios, sin parsing pesado en Amiga) que el `AssetRuntime` mapea
-directamente a `Visual`, `CopperIntent`, `SpriteTemplate` y `TileMap` vía offsets validados en el
+directamente a `Visual`, `CopperIntent`, `HwSpriteTemplate` y `TileMap` vía offsets validados en el
 exportador host. Especificado en el roadmap §10 (chunks: header, palettes, bitplanes, copper
 templates, patch tables, sprites, BOBs, tile metadata, collision, strings).
 
@@ -284,7 +284,7 @@ esos chunks ya cocinados**, nunca algo que se depare en runtime.
 ## 9. Encaje con las fuentes externas
 
 - **demoscene-repo-orig**: se portan **librerías** por oleadas (ver `LIBRARIES-CPP23-IMPORT-ROADMAP.md`).
-  Con este diseño, `libgfx`/`libblit` se mapean a `Visual`/`CopperIntent`/`BlitJob`/`SpriteTemplate`
+  Con este diseño, `libgfx`/`libblit` se mapean a `Visual`/`CopperIntent`/`BlitJob`/`HwSpriteTemplate`
   en vez de importarse como objetos fugaces; el `.asm` (c2p, p61...) se conserva en `support/`.
 - **amiga-bootcamp**: es fuente de técnicas e invariantes (auditada en `sprites.md`,
   `copper_programming.md`): multiplexado, color multiplexing, "chasing the raster",
@@ -306,7 +306,7 @@ Orden recomendado:
    intercalados), conservando `Timeline` para presupuesto.
 3. **`Visual` + `CopperIntent` sobre un actor** en una demo (evolución de un BOB con cambio de
    paleta/shift por línea), validada por `build -> run -> analyze`.
-4. **`SpriteTemplate` sobre `SpriteManager`** y la decisión hardware/BOB (`VirtualSprite`,
+4. **`HwSpriteTemplate` sobre `SpriteManager`** y la decisión hardware/BOB (`VirtualSprite`,
    roadmap Fase 5), cubriendo multiplexado y color multiplexing.
 5. **Playfields emitiendo `CopperIntent`** (simetría actor/playfield).
 6. **UAF-R loader** y exportador host por chunks.

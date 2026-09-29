@@ -20,7 +20,7 @@
 //
 // Uso:
 //   node tools/analyze/asm-audit.mjs <elf> [--strict] [--ext] [--json] [--top N]
-//   node tools/analyze/asm-audit.mjs --demo demos/amiga/082_plasma
+//   node tools/analyze/asm-audit.mjs --demo demos/techniques/amiga/effects/082_plasma
 //   node tools/analyze/asm-audit.mjs --all [--root out/demos] [--engine] [--top N]
 // Env: AMIGA_OBJDUMP (ruta al objdump m68k); si no, usa la del toolchain.
 // ---------------------------------------------------------------------------

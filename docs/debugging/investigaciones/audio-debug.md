@@ -42,7 +42,7 @@ node dist/tools/audio/raw-to-header.js out/sine440.raw demo.h sine440
 
 ## 3. Prueba 1 (hecha): seno por UN canal
 
-`demos/amiga/064_audio_debug`: genera un ciclo de seno de 64 muestras (tabla de
+`demos/techniques/amiga/audio/064_audio_debug`: genera un ciclo de seno de 64 muestras (tabla de
 cuarto de onda, **entero, sin float** — el engine es freestanding y no enlaza
 libgcc soft-float) y lo reproduce en bucle en AUD0 con período 127 (~440 Hz).
 

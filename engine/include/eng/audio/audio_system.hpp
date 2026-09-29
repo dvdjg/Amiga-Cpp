@@ -23,6 +23,8 @@
 #include <eng/audio/audio_mode.hpp>
 #include <eng/audio/music_player.hpp>
 #include <eng/audio/sfx_mixer.hpp>
+#include <eng/core/types/ptr.hpp>
+#include <eng/core/types/typed.hpp>
 #include <eng/os/message.hpp>
 
 namespace eng::audio {
@@ -35,6 +37,30 @@ enum class MusicFormat : u8 {
 	OctaMED = 3,    // módulo MED incrustado (OctaMedPlayer, A1)
 };
 
+/// **Detecta el formato** de un módulo por su cabecera, para `play_music(module)` sin formato
+/// explícito: P61 (signo `P61A`) / Protracker (magic en el offset 1080: `M.K.`/`M!K!`/`4CHN`/`6CHN`)
+/// / OctaMED (`MMDx`). `None` si no se reconoce.
+[[nodiscard]] inline MusicFormat detect_music_format(eng::Span<const eng::u8> m) noexcept {
+	const auto eq = [&](eng::usize i, const char* s) {
+		for (eng::usize k = 0u; s[k] != '\0'; ++k) {
+			if (i + k >= m.size() || m[i + k] != static_cast<eng::u8>(s[k])) {
+				return false;
+			}
+		}
+		return true;
+	};
+	if (eq(0u, "MMD0") || eq(0u, "MMD1") || eq(0u, "MMD2") || eq(0u, "MMD3")) {
+		return MusicFormat::OctaMED;
+	}
+	if (eq(0u, "P61A")) {
+		return MusicFormat::P61;
+	}
+	if (eq(1080u, "M.K.") || eq(1080u, "M!K!") || eq(1080u, "4CHN") || eq(1080u, "6CHN")) {
+		return MusicFormat::Protracker;
+	}
+	return MusicFormat::None;
+}
+
 /// Sistema de audio del engine (SFX + música).
 class AudioSystem {
 public:
@@ -45,6 +71,7 @@ public:
 	/// Inicia el SFX mixer (reserva el buffer Chip y arranca). La música se
 	/// arranca aparte con `play_music()`.
 	bool init(MemorySystem& memory) {
+		m_memory = memory; // el engine reserva aquí el buffer de descompresión de la música
 		return m_sfx.init(memory);
 	}
 
@@ -107,6 +134,11 @@ public:
 
 	// ---- Música -----------------------------------------------------------
 
+	/// Reproduce un módulo **detectando el formato** por su cabecera (P61/Protracker/OctaMED).
+	bool play_music(const MusicModule& module) {
+		return play_music(module, detect_music_format(module.data));
+	}
+
 	/// Reproduce un módulo en el formato dado (detiene la música previa).
 	bool play_music(const MusicModule& module, MusicFormat format) {
 		return play_music(module, format, {});
@@ -117,9 +149,24 @@ public:
 	bool play_music(const MusicModule& module, MusicFormat format, eng::Span<eng::u8> buffer) {
 		stop_music();
 		switch (format) {
-			case MusicFormat::P61:
-				if (m_p61.play(module, buffer)) { m_format = MusicFormat::P61; }
+			case MusicFormat::P61: {
+				// El **engine resuelve el buffer de descompresión** si el módulo lo pide y no lo
+				// dan (`ROADMAP_GAME_API.md` §2): el juego no ve `p61_needs_sample_buffer`.
+				eng::Span<eng::u8> buf = buffer;
+				if (buf.empty() && eng::audio::p61_needs_sample_buffer(module.data) &&
+				    m_memory.valid()) {
+					const eng::u32 need = eng::audio::p61_sample_buffer_size(module.data);
+					if (need != 0u) {
+						m_music_buf = m_memory.get()->chip.allocate_block<eng::AudioTag>(
+							need, 4u);
+						if (m_music_buf.valid()) {
+							buf = eng::Span<eng::u8> {m_music_buf.view.data(), need};
+						}
+					}
+				}
+				if (m_p61.play(module, buf)) { m_format = MusicFormat::P61; }
 				break;
+			}
 			case MusicFormat::Protracker:
 				if (m_pt.play(module)) { m_format = MusicFormat::Protracker; }
 				break;
@@ -218,6 +265,8 @@ public:
 
 private:
 	SfxMixer m_sfx {};
+	eng::Ref<MemorySystem> m_memory {};                              ///< para el buffer de música (Chip)
+	eng::Block<eng::AudioTag, eng::MemoryKind::Chip> m_music_buf {}; ///< buffer de descompresión P61
 	P61Player m_p61 {};
 	PtPlayer m_pt {};
 #if defined(ENG_AUDIO_OCTAMED)

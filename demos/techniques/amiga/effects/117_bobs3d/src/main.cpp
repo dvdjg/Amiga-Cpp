@@ -1,0 +1,658 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/117_bobs3d --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/117_bobs3d --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/117_bobs3d --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/117_bobs3d --keep-running
+
+// Demo 117 - bobs3d (PORTE 1:1 de demoscene-repo-orig/effects/bobs3d/bobs3d.c)
+//
+// Recrea el efecto original "bobs3d": el objeto `pilka` (malla obj2c de `lib3d`) rota en
+// 3D y cada uno de sus 60 vertices proyectados se dibuja como un BOB OR intercalado
+// (chispa de 48x32, un solo blit por objeto: altura = alto*planos) sobre un playfield
+// de 3 planos. El fondo es un segundo playfield (2 planos, "carrion-metro") con la
+// paleta reescrita POR LINEA por el Copper (color0 + colores 9/10/11), en doble
+// playfield.
+//
+// Displays/registros del original (`SetupMode(MODE_DUALPF, 3+2)`, `SetupBitplaneFetch` y
+// `SetupDisplayWindow` para MODE_LORES, X(32), Y(0), 256x256):
+//   BPLCON0 = 0x5600 (5 planos + DBLPF + COLOR)      BPL1MOD = 64, BPL2MOD = 32
+//   DIWSTRT/DIWSTOP = 0x2CA1                         DDFSTRT/DDFSTOP = 0x48/0xC0
+//   punteros DPF intercalados: BPL1/3/5PT = screen 0/1/2; BPL2/4PT = carrion 0/1.
+//
+// Fidelidad y capa de engine: la matematica 4.12 del `TransformVertices` original se
+// resuelve con `eng::math::projector` (mismo `MULVERTEX` empaquetado, backend 68000) y el
+// BOB OR intercalado con `eng::graphics::bob` + `FramePlan` (que ya implementa el camino
+// de `DrawObject`). Los assets (`data/*.c`) son los del repo original, copiados tal cual.
+//
+// Build/run:
+//   bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/117_bobs3d --debug
+//   bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/117_bobs3d
+#include <eng/core/math/fixed_affine.hpp>
+#include <eng/api/api.hpp>
+#include <eng/debug/prof.hpp>
+#include <eng/graphics/bob.hpp>
+#include <eng/graphics/copper/scheduler.hpp>
+#include <eng/platform/amiga/object3d.hpp>
+#include <eng/platform/amiga/backend.hpp>
+#include <eng/os/message_pump.hpp>
+#include <eng/os/os.hpp>
+
+#include <exec/execbase.h>
+#include <proto/exec.h>
+
+#include "support/gcc8_c_support.h"
+
+struct ExecBase* SysBase = nullptr;
+
+extern "C" {
+__attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
+	eng::debug::run_status_magic,
+	eng::debug::run_status_version,
+	static_cast<eng::u16>(eng::debug::RunState::Cold),
+	0,
+	0,
+};
+}
+
+// --- Assets verbatim del demoscene ------------------------------------------
+// Los `.c` del original asumen macros de seccion y tipos de su libc. Se aportan shims
+// minimos para incluirlos sin reescribir sus datos.
+using u_short = eng::u16;
+#define __data
+#define __rodata
+#define __data_chip
+#define bobs_bpl_section
+#define carrion_bpl_section
+#define carrion_cols_pixels_section
+
+enum { BM_STATIC = 0x40, BM_INTERLEAVED = 0x04 };
+enum { PM_RGB12 = 9 };
+
+struct BitmapT {
+	eng::u16 width;
+	eng::u16 height;
+	eng::u16 depth;
+	eng::u16 bytesPerRow;
+	eng::u16 bplSize;
+	eng::u8 flags;
+	void* planes[8];
+};
+
+struct PixmapT {
+	int type;
+	eng::s16 width;
+	eng::s16 height;
+	void* pixels;
+};
+
+// Interruptores de diagnostico visual por capa (validacion incremental con vision):
+//   K_117_BG=0   -> fondo (carrion + degradado por linea) en negro.
+//   K_117_BOBS=0 -> solo fondo, sin BOBs (el playfield del objeto se limpia a 0).
+#ifndef K_117_BG
+#define K_117_BG 1
+#endif
+#ifndef K_117_BOBS
+#define K_117_BOBS 1
+#endif
+// 1 = lote de BOBs del backend (constantes del blit fijadas una vez, atlas denso y 3
+// palabras fieles). 0 = camino generico `graphics::bob` + `FramePlan` (comparativa).
+#ifndef K_117_BATCH
+#define K_117_BATCH 1
+#endif
+// 1 = pase **fusionado** project+stamp: proyecta un vertice y lanza su BOB en el MISMO bucle,
+// de forma que la CPU proyecta el vertice N+1 mientras el Blitter estampa el N (solapa el
+// transform, que corria con el Blitter parado, con el tramo activo del Blitter). 0 = dos
+// pases (transform completo y luego el lote), como el `DrawObject` del original.
+#ifndef K_117_FUSE
+#define K_117_FUSE 0
+#endif
+// Diagnostico de coste: 0 desactiva la fase (para medirla aislada).
+#ifndef K_117_CLEAR
+#define K_117_CLEAR 1
+#endif
+#ifndef K_117_WORK
+#define K_117_WORK 1
+#endif
+// Diagnostico: filas por BOB del lote (96 = real; 1 = aisla el coste FIJO por BOB,
+// es decir setup de registros + espera, con el trabajo de Blitter minimo).
+#ifndef K_117_BLITROWS
+#define K_117_BLITROWS kBobHeight
+#endif
+// 1 = bucle IRQ-mínima (`Engine::run_frames`); 0 = polling de VBlank (`run_frames_polling`),
+// que arranca `update` alineado al VBlank. Medido (`profile.mjs`): el modo IRQ-mínima suma
+// ~+103k a `Blits` (espera por BOB) sin que sea la IRQ (enmascarar VERTB no lo cambia), el
+// clear (~13k) ni el profiler (~2k); por eso el defecto es **polling**, que también es mini-SO.
+// Ver README §"Modo de bucle" y BOBS3D_PORT_PLAN.md §6.
+#ifndef K_117_IRQ
+#define K_117_IRQ 0
+#endif
+// Numero maximo de BOBs dibujados por frame (diagnostico de coste vs objetivo).
+// >= 64 dibuja todos los vertices.
+#ifndef K_117_MAXBLOBS
+#define K_117_MAXBLOBS 52
+#endif
+// Instrumentacion por secciones. Off por defecto: los ciclos que mide el profiler
+// cuentan en el presupuesto del frame (puede costar ~2-3k y hacer perder el 2.o campo).
+#ifndef K_117_PROF
+#define K_117_PROF 1
+#endif
+#if K_117_PROF
+#define P_INIT(n) ENG_PROF_INIT(n)
+#define P_FRAME() ENG_PROF_FRAME()
+#define P_BEGIN(s) ENG_PROF_BEGIN(s)
+#define P_END(s) ENG_PROF_END(s)
+#else
+#define P_INIT(n) do { (void)sizeof(n); } while (0)
+#define P_FRAME() do {} while (0)
+#define P_BEGIN(s) do { (void)sizeof(s); } while (0)
+#define P_END(s) do { (void)sizeof(s); } while (0)
+#endif
+
+using eng::object3d::Mesh3D;
+#include "data/pilka.c"
+#include "data/flares32.c"
+#include "data/carrion-metro-data.c"
+#include "data/carrion-metro-pal.c"
+
+namespace {
+
+namespace obj = eng::object3d;
+namespace copper = eng::copper;
+namespace graphics = eng::graphics;
+
+using eng::s16;
+using eng::s32;
+using eng::s8;
+using eng::u8;
+using eng::u16;
+using eng::u32;
+
+// Geometria del original.
+constexpr u16 kWidth = 256;
+constexpr u16 kHeight = 256;
+constexpr u8 kPlanes = 3;              // playfield del objeto (BOBs)
+constexpr u8 kCarrionPlanes = 2;       // playfield del fondo
+constexpr u16 kBytesPerRow = kWidth / 8u;      // 32
+constexpr u32 kScreenPlaneBytes = static_cast<u32>(kBytesPerRow) * kHeight; // 8192
+constexpr u32 kScreenBytes = kScreenPlaneBytes * kPlanes;                    // 24576
+// Doble buffer como el original: con el render alineado al VBlank (modo polling) y el
+// clear solapado con el transform, el `update` cabe en ~2 campos y el swap cae en el
+// VBlank => sin tearing y sin triple buffer.
+constexpr u8 kRing = 2;
+
+// BOB: chispa 48x32x3; el atlas original es denso (bytesPerRow 6) con 16 frames de 32
+// filas. Se reempaqueta a filas con palabra de guarda para el contrato de `bob.hpp`.
+constexpr u16 kBobW = 48;
+constexpr u16 kBobH = 32;
+constexpr u8 kBobPlanes = 3;
+constexpr u8 kBobFrames = 16;
+constexpr u32 kBobSrcRow = 6;                                  // atlas original
+constexpr u32 kBobSrcFrame = static_cast<u32>(kBobH) * kBobPlanes * kBobSrcRow; // 576
+constexpr u32 kBobSheetRow = 8;                                // fila con guarda
+constexpr u32 kBobSheetFrame = static_cast<u32>(kBobH) * kBobPlanes * kBobSheetRow; // 768
+constexpr u32 kBobSheetBytes = kBobFrames * kBobSheetFrame;    // 12288
+
+// Ruta fiel (lote): atlas DENSO del original (6 B/fila, sin guarda), 3 palabras por fila.
+constexpr u32 kBobDenseFrame = kBobSrcFrame;                   // 576
+constexpr u32 kBobDenseBytes = kBobFrames * kBobDenseFrame;    // 9216
+constexpr u16 kBobWords = kBobW / 16u;                         // 3
+constexpr u16 kBobHeight = kBobH * kBobPlanes;                 // 96
+constexpr s16 kBobDestModulo = static_cast<s16>(kBytesPerRow - kBobWords * 2u); // 26
+constexpr u32 kBobMaxEntries = 64;
+
+// Display del original.
+constexpr u16 kFirstLine = 0x2cu;
+constexpr u16 kDiwstrt = 0x2ca1;
+constexpr u16 kDiwstop = 0x2ca1;
+constexpr u16 kDdfstrt = 0x0048;
+constexpr u16 kDdfstop = 0x00c0;
+constexpr u16 kBplcon0 = 0x5600; // BPU=5 + DBLPF + COLOR
+constexpr u16 kBplcon1 = 0x0000;
+constexpr u16 kBplcon2 = 0x0024; // PF1P/PF2P al fondo (SetupMode)
+constexpr u16 kBpl1mod = 64;     // WIDTH/8 * (DEPTH-1)
+constexpr u16 kBpl2mod = 32;     // WIDTH/8 * (carrion_depth-1)
+
+constexpr u32 kCopperListBytes = 8192;
+constexpr u32 kCopperBlockBytes = kCopperListBytes * kRing;
+
+// `X(x)` del demoscene = HP(x + DIWHP=0x81); el Copper compara con `hp>>1` y mascara
+// 0xfffe, que es el formato de `Scheduler::wait_position_safe`.
+constexpr u8 x_hpos(u16 x) {
+	return static_cast<u8>((x + 0x81u) >> 1u);
+}
+
+// Secciones de profiling (tools/debug/profile.mjs). Diagnostico del reparto del frame.
+enum {
+	kProfClear = 0,
+	kProfTransform = 1,
+	kProfDraw = 2,
+	kProfBlits = 3,
+	kProfInstall = 4,
+	kProfUpdate = 5,
+	kProfForward = 6,
+	kProfCount = 7,
+};
+
+/// Recorrido del original: transforma los 60 vertices (sin culling) y guarda la
+/// proyeccion en `vertex`. Usa el `projector` del engine, que reproduce el
+/// empaquetado `(c0+y)(c1+x)+c2*z-xy` del `MULVERTEX` original.
+void transform_all_vertices(obj::Object3D& object) {
+	using Proj = eng::math::projector<eng::math3d::Affine3<>>;
+	const Proj::cache pc = Proj::make(object.objectToWorld);
+	const auto pts = object.points();
+	for (auto it = pts.begin(); it != pts.end(); ++it) {
+		const s16 i = it.offset();
+		obj::Point3D* p = object.point(i);
+		obj::Point3D* v = object.vertex(i);
+		const eng::math::Projected3 pr = Proj::project(pc, p->x.v, p->y.v, p->z.v);
+		v->x = eng::retro::q0 {static_cast<s16>(
+			eng::math::div_wide(pr.xp, static_cast<s16>(pr.zp)) + kWidth / 2u)};
+		v->y = eng::retro::q0 {static_cast<s16>(
+			eng::math::div_wide(pr.yp, static_cast<s16>(pr.zp)) + kHeight / 2u)};
+		v->z = eng::retro::q0 {static_cast<s16>(pr.zp)};
+	}
+}
+
+struct Bobs3DDemo {
+	/// Lazo con el backend para el arranque y el frame. El mini-SO (`MessagePumpGame`) entrega el
+	/// backend solo en `on_render`; `on_start`/`on_frame` (que preparan memoria, Blitter y Copper)
+	/// lo reciben por esta referencia no propietaria, ligada en `main()` antes de crear el `Engine`.
+	void bind_backend(eng::amiga::AmigaBackend& backend) { m_backend = &backend; }
+
+	void on_start(eng::GameContext&) {
+		eng::amiga::AmigaBackend& backend = *m_backend;
+		eng::debug::mark_init_started(g_eng_run_status);
+		P_INIT(kProfCount);
+		if (!backend.configure_memory({192u * 1024u, 4u * 1024u, 4u * 1024u})) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00011701u);
+			return;
+		}
+
+		m_screen_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kRing * kScreenBytes, 16);
+		m_bob_block = backend.memory().chip.allocate_block<eng::BobTag>(kBobSheetBytes, 16);
+		m_bob_dense_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBobDenseBytes, 16);
+		m_carrion_block = backend.memory().chip.allocate_block<eng::PlaneTag>(carrion_size, 16);
+		m_copper_block = backend.memory().chip.allocate_block<eng::CopperTag>(kCopperBlockBytes, 16);
+		if (!m_screen_block.valid() || !m_bob_block.valid() || !m_bob_dense_block.valid() ||
+		    !m_carrion_block.valid() || !m_copper_block.valid()) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00011702u);
+			return;
+		}
+
+		build_bob_sheet();
+		copy_bob_dense();
+		for (u8 f = 0; f < kBobFrames; ++f) {
+			m_frame_src[f] = m_bob_dense_block.view.data() +
+					 static_cast<u32>(f) * kBobDenseFrame;
+		}
+#if K_117_BG
+		copy_carrion();
+#endif
+
+		for (u8 a = 0; a < kRing; ++a) {
+			if (!build_copper(a)) {
+				eng::debug::mark_failed(g_eng_run_status, 0x00011703u);
+				return;
+			}
+		}
+		backend.takeover_display(m_copper_ptrs[0]);
+
+		obj::new_object3d(m_object, pilka);
+		// fx4i(-256): (-256) << 4 en 4.12 = -4096.
+		m_object.translate.z = eng::retro::q0 {-4096}; // fx4i(-256)
+
+		eng::debug::mark_ready(g_eng_run_status, static_cast<u32>(pilka.vertices));
+	}
+
+	void on_frame(eng::u32 frame) {
+		m_frame = frame;
+		eng::amiga::AmigaBackend& backend = *m_backend;
+		eng::debug::mark_frame(g_eng_run_status, frame);
+		if (m_screen_block.view.data() == nullptr) {
+			return;
+		}
+
+		P_FRAME();
+		P_BEGIN(kProfUpdate);
+		const u8 active = m_active;
+		eng::PlaneBytes screen = m_screen_block.view.subspan(
+			static_cast<u32>(active) * kScreenBytes, kScreenBytes);
+
+		// El original limpia el bitmap intercalado con un solo blit (altura = alto*planos).
+		P_BEGIN(kProfClear);
+#if K_117_CLEAR
+		// Arranca el clear SIN esperar: solapa con el transform (CPU), como el original
+		// (`BitmapClearI` + `TransformVertices` + `WaitBlitter`). El `begin` del lote
+		// espera al Blitter antes de fijar las constantes.
+		backend.blitter_clear(screen, 1, kBytesPerRow, static_cast<u32>(kBytesPerRow),
+				      kWidth, static_cast<u16>(kHeight * kPlanes), /*wait=*/false);
+#endif
+		P_END(kProfClear);
+
+#if K_117_WORK
+		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z =
+			eng::retro::turns(static_cast<eng::u16>(frame * 12u));
+
+		P_BEGIN(kProfTransform);
+		// bobs3d no usa la inversa ni la camara: solo la matriz directa para proyectar.
+		P_BEGIN(kProfForward);
+		obj::update_object_transformation_forward(m_object);
+		P_END(kProfForward);
+#if !(K_117_BOBS && K_117_BATCH && K_117_FUSE)
+		transform_all_vertices(m_object);
+#endif
+		P_END(kProfTransform);
+
+#if K_117_BOBS && K_117_BATCH && K_117_FUSE
+		// Pase fusionado: proyecta y estampa en el mismo bucle (solapa transform <-> Blitter).
+		P_BEGIN(kProfBlits);
+		project_and_draw_stream(backend, screen.data());
+		P_END(kProfBlits);
+#elif K_117_BOBS && K_117_BATCH
+		// Fusor: calculo del vertice + programacion del blit en el mismo bucle.
+		P_BEGIN(kProfBlits);
+		draw_bobs_stream(backend, screen.data());
+		P_END(kProfBlits);
+#else
+		P_BEGIN(kProfDraw);
+		m_plan.clear();
+#if K_117_BOBS
+		draw_bobs(screen.data());
+#endif
+		P_END(kProfDraw);
+		P_BEGIN(kProfBlits);
+		backend.execute_frame_plan(m_plan);
+		P_END(kProfBlits);
+#endif
+#endif // K_117_WORK
+
+		P_BEGIN(kProfInstall);
+		backend.install_copper_list(m_copper_ptrs[active]);
+		P_END(kProfInstall);
+		m_active = static_cast<u8>((active + 1u) % kRing);
+		P_END(kProfUpdate);
+	}
+
+	void on_render(eng::amiga::AmigaBackend& backend) {
+		(void)backend;
+		eng::debug::probe_when_ready(g_eng_run_status, m_frame);
+	}
+
+	void on_msg(const eng::os::Msg&) {}
+
+private:
+	/// Reempaqueta el atlas denso `_bobs_bpl` (6 B/fila) a filas con palabra de guarda
+	/// (8 B/fila), que es el contrato de `eng::graphics::bob` para el desplazamiento fino.
+	void build_bob_sheet() {
+		u8* dst = m_bob_block.view.data();
+		const u8* src = reinterpret_cast<const u8*>(_bobs_bpl);
+		for (u32 f = 0; f < kBobFrames; ++f) {
+			for (u32 r = 0; r < static_cast<u32>(kBobH) * kBobPlanes; ++r) {
+				u8* d = dst + f * kBobSheetFrame + r * kBobSheetRow;
+				const u8* s = src + f * kBobSrcFrame + r * kBobSrcRow;
+				for (u32 b = 0; b < kBobSrcRow; ++b) {
+					d[b] = s[b];
+				}
+				d[6] = 0;
+				d[7] = 0;
+			}
+		}
+	}
+
+	/// Copia el atlas DENSO original (6 B/fila) a Chip RAM para el lote fiel.
+	void copy_bob_dense() {
+		u8* dst = m_bob_dense_block.view.data();
+		const u8* src = reinterpret_cast<const u8*>(_bobs_bpl);
+		for (u32 i = 0; i < kBobDenseBytes; ++i) {
+			dst[i] = src[i];
+		}
+	}
+
+	/// Calcula el vertice y lanza su BOB en el MISMO bucle (estructura de `DrawObject`),
+	/// via el lote en streaming del backend: sin array intermedio.
+	void draw_bobs_stream(eng::amiga::AmigaBackend& backend, u8* screen) {
+		const auto pts = m_object.points();
+		eng::amiga::OrBlobBatch batch;
+		batch.begin(backend.custom_registers(), kBobWords, K_117_BLITROWS, 0, kBobDestModulo);
+		u32 drawn = 0;
+		for (auto it = pts.begin(); it != pts.end(); ++it) {
+			if (drawn >= static_cast<u32>(K_117_MAXBLOBS)) {
+				break;
+			}
+			const s16 v = it.offset();
+			++drawn;
+			obj::Point3D* data = m_object.vertex(v);
+			s16 x = static_cast<s16>(data->x.v - 16);
+			const s16 y = static_cast<s16>(data->y.v - 16);
+			s16 z = data->z.v;
+
+			z >>= 4;
+			z -= static_cast<s16>(-256);
+			z += 128 - 32;
+			z = static_cast<s16>(z + z + z - 32);
+			z = static_cast<s16>(z & ~31);
+			if (z < 0) {
+				z = 0;
+			} else if (z > bobs_height - kBobH) {
+				z = bobs_height - kBobH;
+			}
+
+			s16 x_start = static_cast<s16>(x & ~15);
+			if (x_start < 0) {
+				x_start = 0;
+			}
+
+			batch.one(
+				m_frame_src[static_cast<u8>(z >> 5)],
+				screen + static_cast<s32>(y) * static_cast<s32>(kBytesPerRow * kPlanes) +
+					(static_cast<s32>(x_start) >> 3),
+				static_cast<u8>(x & 15));
+		}
+		batch.end();
+	}
+
+	/// Pase **fusionado** (project+stamp): por cada vertice proyecta (CPU) y lanza su BOB
+	/// (Blitter) en el MISMO bucle. Asi la CPU proyecta el vertice N+1 mientras el Blitter
+	/// estampa el N: se solapa el transform (que corria con el Blitter parado) con el tramo
+	/// activo del Blitter. Misma salida que `transform_all_vertices` + `draw_bobs_stream` (no
+	/// hace falta escribir el array `vertex`).
+	void project_and_draw_stream(eng::amiga::AmigaBackend& backend, u8* screen) {
+		using Proj = eng::math::projector<eng::math3d::Affine3<>>;
+		const Proj::cache pc = Proj::make(m_object.objectToWorld);
+		const auto pts = m_object.points();
+		eng::amiga::OrBlobBatch batch;
+		batch.begin(backend.custom_registers(), kBobWords, K_117_BLITROWS, 0, kBobDestModulo);
+		u32 drawn = 0;
+		for (auto it = pts.begin(); it != pts.end(); ++it) {
+			if (drawn >= static_cast<u32>(K_117_MAXBLOBS)) {
+				break;
+			}
+			const s16 i = it.offset();
+			++drawn;
+			obj::Point3D* p = m_object.point(i);
+			const eng::math::Projected3 pr =
+				Proj::project(pc, p->x.v, p->y.v, p->z.v);
+			const s16 zp = static_cast<s16>(pr.zp);
+			s16 x = static_cast<s16>(eng::math::div_wide(pr.xp, zp) + kWidth / 2u - 16u);
+			const s16 y =
+				static_cast<s16>(eng::math::div_wide(pr.yp, zp) + kHeight / 2u - 16u);
+			s16 z = zp;
+
+			z >>= 4;
+			z -= static_cast<s16>(-256);
+			z += 128 - 32;
+			z = static_cast<s16>(z + z + z - 32);
+			z = static_cast<s16>(z & ~31);
+			if (z < 0) {
+				z = 0;
+			} else if (z > bobs_height - kBobH) {
+				z = bobs_height - kBobH;
+			}
+
+			s16 x_start = static_cast<s16>(x & ~15);
+			if (x_start < 0) {
+				x_start = 0;
+			}
+
+			batch.one(
+				m_frame_src[static_cast<u8>(z >> 5)],
+				screen + static_cast<s32>(y) * static_cast<s32>(kBytesPerRow * kPlanes) +
+					(static_cast<s32>(x_start) >> 3),
+				static_cast<u8>(x & 15));
+		}
+		batch.end();
+	}
+
+	void copy_carrion() {
+		u16* dst = reinterpret_cast<u16*>(m_carrion_block.view.data());
+		const u16* src = reinterpret_cast<const u16*>(_carrion_bpl);
+		for (u32 i = 0; i < carrion_size / 2u; ++i) {
+			dst[i] = src[i];
+		}
+	}
+
+	/// Dibuja un BOB OR por vertice, como `DrawObject`: posicion (x-16, y-16), `z`
+	/// selecciona el frame (chispa) del atlas y el blit es intercalado (1 job/objeto).
+	void draw_bobs(u8* screen) {
+		const auto pts = m_object.points();
+		graphics::Bob bob {};
+		bob.sheet = m_bob_block.mem_view_chip();
+		bob.width = kBobW;
+		bob.height = kBobH;
+		bob.planes = kBobPlanes;
+		bob.frame_count = kBobFrames;
+		bob.frame_stride = kBobSheetFrame;
+		bob.sheet_row_bytes = kBobSheetRow;
+		bob.layout = graphics::BobLayout::Interleaved;
+		bob.draw = graphics::BobDraw::Or;
+		bob.erase = graphics::BobErase::None;
+
+		// Capa de juego: `Sprite` envuelve el `Bob` ya cocinado (misma geometría/política).
+		const graphics::Sprite sprite {bob};
+
+		const graphics::BobTarget target = graphics::make_bob_target(
+			eng::ChipView<eng::PlaneTag> {
+				eng::Address<eng::MemoryKind::Chip>::from_storage(screen),
+				kBytesPerRow * kBobPlanes * 256u},
+			kBytesPerRow, 0u, kBobPlanes, graphics::BobLayout::Interleaved);
+
+		for (auto it = pts.begin(); it != pts.end(); ++it) {
+			const s16 v = it.offset();
+			obj::Point3D* data = m_object.vertex(v);
+			s16 x = data->x.v;
+			s16 y = data->y.v;
+			s16 z = data->z.v;
+
+			x -= 16;
+			y -= 16;
+
+			z >>= 4;
+			z -= static_cast<s16>(-256);
+			z += 128 - 32;
+			z = static_cast<s16>(z + z + z - 32);
+			z = static_cast<s16>(z & ~31);
+			if (z < 0) {
+				z = 0;
+			} else if (z > bobs_height - kBobH) {
+				z = bobs_height - kBobH;
+			}
+
+			sprite.draw(m_plan, target, static_cast<u8>(z >> 5), x, y);
+		}
+	}
+
+	/// Copper de una pantalla `active`: setup de display DPF + punteros intercalados +
+	/// paleta base y, por cada una de las 256 lineas, el bloque del original
+	/// (`CopWaitSafe(Y(i-1),X(288))` -> color0=0; `CopWaitSafe(Y(i),X(0))` ->
+	/// colores 9/10/11 y color0=bgcol).
+	bool build_copper(u8 active) {
+		const eng::Bytes<eng::CopperTag> slice = m_copper_block.view.subspan(
+			static_cast<u32>(active) * kCopperListBytes, kCopperListBytes);
+		copper::Scheduler sched { eng::Block<eng::CopperTag> { slice, m_copper_block.kind } };
+
+		// BLTPRI (BLITHOG) como el original: el Blitter NO cede slots a la CPU. Sin esto,
+		// el CPU (en `_WaitBlitter`) compite por el bus con el Blitter y el lote de BOBs
+		// se ralentiza. Ver `EnableDMA(DMAF_RASTER|DMAF_BLITTER|DMAF_BLITHOG)` en bobs3d.c.
+		sched.move(copper::Register::DMACON,
+			   static_cast<u16>(copper::DmaSetClear | copper::DmaMaster | copper::DmaCopper |
+					    copper::DmaBitplane | copper::DmaBlitter |
+					    copper::DmaBlitterPriority));
+		sched.move(copper::Register::BPLCON0, kBplcon0);
+		sched.move(copper::Register::BPLCON1, kBplcon1);
+		sched.move(copper::Register::BPLCON2, kBplcon2);
+		sched.move(copper::Register::DIWSTRT, kDiwstrt);
+		sched.move(copper::Register::DIWSTOP, kDiwstop);
+		sched.move(copper::Register::DDFSTRT, kDdfstrt);
+		sched.move(copper::Register::DDFSTOP, kDdfstop);
+		sched.move(copper::Register::BPL1MOD, kBpl1mod);
+		sched.move(copper::Register::BPL2MOD, kBpl2mod);
+
+		const u32 screen_off = static_cast<u32>(active) * kScreenBytes;
+		sched.move_bitplane_pointer(0, m_screen_block.mem_view_chip().address(static_cast<s32>(screen_off)));
+		sched.move_bitplane_pointer(1, m_carrion_block.mem_view_chip().address(0));
+		sched.move_bitplane_pointer(2, m_screen_block.mem_view_chip().address(static_cast<s32>(screen_off + 32u)));
+		sched.move_bitplane_pointer(3, m_carrion_block.mem_view_chip().address(32));
+		sched.move_bitplane_pointer(4, m_screen_block.mem_view_chip().address(static_cast<s32>(screen_off + 64u)));
+
+		sched.emit_palette(bobs_colors, 0, 8);
+#if K_117_BG
+		sched.move(copper::color_register(0), carrion_cols_pixels[0]);
+
+		const u8 hp_left = x_hpos(0);
+		const u8 hp_right = x_hpos(320 - 32);
+		for (u16 i = 0; i < kHeight; ++i) {
+			const u32 idx = static_cast<u32>(i) * 4u;
+			const u16 bgcol = carrion_cols_pixels[idx];
+			sched.wait_position_safe(static_cast<u16>(kFirstLine + i - 1u), hp_right);
+			sched.move(copper::color_register(0), 0);
+			sched.wait_position_safe(static_cast<u16>(kFirstLine + i), hp_left);
+			sched.move(copper::color_register(9), carrion_cols_pixels[idx + 1u]);
+			sched.move(copper::color_register(10), carrion_cols_pixels[idx + 2u]);
+			sched.move(copper::color_register(11), carrion_cols_pixels[idx + 3u]);
+			sched.move(copper::color_register(0), bgcol);
+		}
+#endif
+		sched.end();
+
+		m_copper_ptrs[active] = sched.data();
+		return sched.ok();
+	}
+
+	eng::amiga::AmigaBackend* m_backend = nullptr;
+	eng::u32 m_frame = 0;
+	u8 m_active = 0;
+	eng::Block<eng::PlaneTag> m_screen_block {};
+	eng::Block<eng::BobTag> m_bob_block {};
+	eng::Block<eng::PlaneTag> m_bob_dense_block {};
+	eng::Block<eng::PlaneTag> m_carrion_block {};
+	eng::Block<eng::CopperTag> m_copper_block {};
+	const u16* m_copper_ptrs[kRing] = {nullptr, nullptr};
+	graphics::FramePlan m_plan {};
+	const u8* m_frame_src[kBobFrames] {};
+	obj::Object3D m_object {};
+};
+
+} // namespace
+
+int main() {
+	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
+	eng::debug::reset(g_eng_run_status);
+
+	eng::amiga::AmigaBackend backend {};
+	// Bucle reactivo del mini-SO: drena el puerto (VBlank + entrada) y entrega cada mensaje al App
+	// antes de `on_frame`. El latido del mini-SO se engancha al VBlank del `Engine` con `os::init`.
+	eng::os::MessagePumpGame<Bobs3DDemo> game {};
+	game.app.bind_backend(backend);
+	game.bind_port(eng::os::system_port());
+
+	eng::Engine engine {backend, game};
+	// La 117 no consume entrada: arranca el mini-SO **sin** dispositivos (el bucle y el latido del
+	// VBlank siguen activos). Habilitar `InputAll` solo anadiria sondeo de teclado/raton/joystick
+	// por VBlank sin usarse.
+	(void)eng::os::init(engine, 0u);
+#if K_117_IRQ
+	engine.run_frames(0xffff);
+#else
+	engine.run_frames_polling(0xffff);
+#endif
+
+	return 0;
+}

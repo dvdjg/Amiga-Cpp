@@ -42,8 +42,21 @@ struct MessagePumpGame {
 	eng::Ref<IrqTelemetry> telemetry {}; ///< telemetría opcional (no propietaria)
 	eng::Ref<TaskSystem> tasks {}; ///< tareas de fondo opcionales (M10)
 	eng::u32 idle_slice_us = 200u; ///< presupuesto del slice de fondo por frame sin mensajes
+	/// **Tarea de frame** opcional (p. ej. avanzar la música), en el ciclo del mini-SO:
+	/// se ejecuta `frame_task(user, frame)` **después** de drenar el puerto y **antes** de
+	/// `app.on_frame`, una vez por `update`. Mismo contrato que `os::set_frame_task`, pero
+	/// atado al pump (así corre en el contexto del `update`: IRQ si el bucle es
+	/// interrupt-driven). Permite al App delegar el trabajo frame-driven en el ciclo de
+	/// mensajes sin un callback suelto.
+	void (*frame_task)(void*, eng::u16) = nullptr;
+	void* frame_task_user = nullptr;
 
 	void bind_port(MsgPort<N>& p) noexcept { port = p; }
+	/// Liga la **tarea de frame** (música, lógica por frame…): `cb(user, frame)`.
+	void bind_frame_task(void (*cb)(void*, eng::u16), void* user) noexcept {
+		frame_task = cb;
+		frame_task_user = user;
+	}
 	/// Liga la telemetría: se muestrea el puerto cada frame (descartes + marcas de agua).
 	void bind_telemetry(IrqTelemetry& t) noexcept { telemetry = t; }
 	/// Liga el `TaskSystem` de fondo: sin mensajes, el bucle le da un slice de **idle** por frame.
@@ -77,6 +90,9 @@ struct MessagePumpGame {
 					(void)tasks->run_idle(idle_slice_us);
 				}
 			}
+		}
+		if (frame_task != nullptr) {
+			frame_task(frame_task_user, static_cast<eng::u16>(ctx.frame.frame_index));
 		}
 		app.on_frame(ctx.frame.frame_index);
 	}

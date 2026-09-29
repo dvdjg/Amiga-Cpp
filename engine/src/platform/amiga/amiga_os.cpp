@@ -21,9 +21,10 @@ JoyProducer g_joy {};
 MouseProducer g_mouse {};
 KeyProducer g_keys {};
 PadProducer g_pad {};
-bool g_cd32_enabled = false;
 eng::u8 g_input_mask = InputAll; ///< dispositivos habilitados (`input_enable`); por defecto, todos
 TimerService g_timers {};        ///< timers de usuario (`add_timer`)
+void (*g_frame_task)(void*, eng::u16) = nullptr; ///< tarea de frame del mini-SO (`set_frame_task`)
+void* g_frame_task_user = nullptr;
 
 /// Lee el registro de desplazamiento del **pad CD32** del puerto 2. Devuelve 9 bits: `bit i` = nivel
 /// en el i-ésimo pulso de reloj (1 = alto). Reloj = CIA-A PRA bit 7 como **salida** (el pin de fire
@@ -150,8 +151,13 @@ void tick_body() {
 		}
 	}
 
-	if ((g_input_mask & InputCd32Pad) != 0u) {
-		// Pad CD32: el puerto 2 usa el protocolo serie (reloj/POTGO), no `decode_joystick`.
+	// **Puerto 2**: pad CD32 (protocolo serie por reloj/POTGO) o joystick digital
+	// (`JOY1DAT`). Si el pad CD32 está habilitado, se lee el stream y, si su firma
+	// corresponde a un pad, se emite `Gamepad`; si **no** hay pad, se cae al joystick
+	// (así el mismo binario sirve para ambas verificaciones sin recompilar).
+	const bool try_cd32 = (g_input_mask & InputCd32Pad) != 0u;
+	bool cd32_handled = false;
+	if (try_cd32) {
 		const eng::u16 shift = read_cd32_shift_port2();
 		if (cd32_present(shift)) {
 			const eng::u16 btn =
@@ -159,8 +165,10 @@ void tick_body() {
 			if (g_pad.update(btn, g_frame, m)) {
 				(void)g_port.post(m);
 			}
+			cd32_handled = true;
 		}
-	} else if ((g_input_mask & InputJoystick) != 0u) {
+	}
+	if (!cd32_handled && (g_input_mask & InputJoystick) != 0u) {
 		const eng::u16 joy1 = custom_base[0x00c / 2];
 		const eng::u8 pra = *ciaa_reg(0x00u);
 		const eng::u8 dirs = eng::amiga::decode_joystick(joy1);
@@ -171,9 +179,22 @@ void tick_body() {
 	}
 
 	(void)g_timers.poll_and_post(g_port, g_frame, 0u);
+
+	// Tarea de frame (p. ej. música): en el mismo contexto que el tick (IRQ si va por IRQ).
+	if (g_frame_task != nullptr) {
+		using eng::amiga::detail::vpos_long;
+		g_frame_task(g_frame_task_user,
+			     static_cast<eng::u16>((*vpos_long & 0x1ff00u) >> 8));
+	}
 }
 
 void tick() { tick_body(); }
+
+/// Tarea de frame opcional (ver `os.hpp`): se ejecuta en cada tick, tras entrada/timers.
+void set_frame_task(void (*cb)(void*, eng::u16), void* user) {
+	g_frame_task = cb;
+	g_frame_task_user = user;
+}
 
 /// Habilita los dispositivos de `mask` (los demás no se pollean). El teclado instala su IRQ de
 /// CIA-A; el pad CD32 cambia el puerto 2 a protocolo serie.
@@ -181,9 +202,6 @@ void input_enable(eng::u8 mask) {
 	g_input_mask = mask;
 	if ((mask & InputKeyboard) != 0u) {
 		enable_keyboard();
-	}
-	if ((mask & InputCd32Pad) != 0u) {
-		g_cd32_enabled = true;
 	}
 }
 
@@ -200,9 +218,13 @@ void add_timer(eng::u16 id, eng::u16 frames) {
 /// Hook de VBlank del mini-SO (lo registra `os::init` en el `Engine`): ejecuta el latido.
 void vblank_hook(void*) { tick_body(); }
 
-/// Activa la lectura del **pad CD32** en el puerto 2 (en lugar del joystick). Ver `MINI_OS_INPUT.md`
-/// §6 y `docs/reference/emulators/winuae/keyboard-injection.md` (no cubre el pad; pendiente).
-void enable_cd32_pad() { g_cd32_enabled = true; }
+/// Activa la lectura del **pad CD32** en el puerto 2. Añade `InputCd32Pad` al mask de entrada
+/// **sin** quitar `InputJoystick`: el `tick` prefiere el pad si su firma está presente y, si no,
+/// cae al joystick (auto-detección). Ver `MINI_OS_INPUT.md` §6; la inyección del pad en WinUAE se
+/// cubre con `run-demo.sh --cd32`.
+void enable_cd32_pad() {
+	g_input_mask = static_cast<eng::u8>(g_input_mask | InputCd32Pad);
+}
 
 eng::u32 wait(eng::u32 mask) {
 	// Host del **engine**: se coopera con `tick()` (ritmo de VBlank) hasta que alguna señal de

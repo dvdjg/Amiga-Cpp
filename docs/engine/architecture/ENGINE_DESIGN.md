@@ -92,7 +92,7 @@ Ya existe y se irá ampliando desde demoscene `libmisc`/`libc`.
 ### 2.4 Objetos/escena (`eng::field`, `eng::scene`)
 - `Visual` (contenido portable: BOB/sprite/tile).
 - `CopperIntent` (efecto raster por franja: paleta, shift, split, sprite rearm).
-- `SpriteTemplate<MaxSegments,MaxSwitches>` (plantillas de sprites con reuso vertical y
+- `HwSpriteTemplate<MaxSegments,MaxSwitches>` (plantillas de sprites con reuso vertical y
   paleta por franja).
 - `scene/`: `VirtualScene`, `Camera2D`, `TileLayer`, `RouteCamera` (ya parcial).
 
@@ -128,7 +128,7 @@ PlatformBackend (Amiga: potgo/ciaa/ciab + joyport + teclado)
   dueño único como el `CopperScheduler`.
 
 ### 2.7 Assets y carga (`eng::assets`) — la capa UAF-R
-- `AssetRuntime`: `handle` → `Visual`/`SpriteTemplate`/`TileMap`/`Palette`/`Sample`/`Music`
+- `AssetRuntime`: `handle` → `Visual`/`HwSpriteTemplate`/`TileMap`/`Palette`/`Sample`/`Music`
   por **offsets validados** (sin parsing pesado en Amiga). Formato: chunks UAF-R
   (header, palettes, bitplanes, copper templates, patch tables, sprites, BOBs, tiles,
   collision, strings, samples, modules).
@@ -192,7 +192,7 @@ Regla: **nada por encima de `backend` depende de registros/DMA**. `core`/`input`
 | Fuente | Idea a adoptar | Dónde encaja |
 |---|---|---|
 | demoscene-repo-orig | Librerías `lib2d/lib3d/libblit/libgfx` + asm (c2p/p61) | `retro/lib2d` y `platform/amiga/gfx3d`, `graphics::blit`, `support/` |
-| amiga-bootcamp | Multiplexado, color multiplexing, "chasing the raster", sprite-as-playfield; presupuesto DMA/copper; antipatterns como invariantes | `SpriteTemplate`, `CopperIntent`, `DmaBudget` |
+| amiga-bootcamp | Multiplexado, color multiplexing, "chasing the raster", sprite-as-playfield; presupuesto DMA/copper; antipatterns como invariantes | `HwSpriteTemplate`, `CopperIntent`, `DmaBudget` |
 | ACE | HAL fino (audio/blitter/copper/teclado/ratón), view/viewport estilo OS, debug vs release, OS se deshabilita/re-habilita, scroll tilemap eficiente | `PlatformBackend`, `MemoryPolicy`, `TileScrollDriver` |
 | Sevgi_Engine | Editor que genera cocinados (bobsheet/spritebank/tilemap/palette), plantillas por género, controladores CD32, ptplayer, double buffering | `eng::assets` (UAF-R), `input` (CD32), `audio` |
 | Universal-Asset-Format | Formato de autoría que el exportador cocina a UAF-R | capa `eng::assets` + tools export |
@@ -217,7 +217,7 @@ Orden de conversión (cada paso valida con `build -> run -> analyze` y, si es pu
    reutilizando `Timeline` como presupuesto. Migrar `emit_palette_zone` a este vocabulario.
 3. **Retained scene + actor con `CopperIntent`**: una demo con un BOB que cambia paleta/
    shift por línea (primer "objeto versátil" real), validado por pixel-assert.
-4. **`SpriteTemplate` + `VirtualSprite`** (decisión hardware/BOB): multiplexado y color
+4. **`HwSpriteTemplate` + `VirtualSprite`** (decisión hardware/BOB): multiplexado y color
    multiplexing sobre `SpriteManager`; sprite→BOB transparente.
 5. **`Playfields emitiendo `CopperIntent`** (simetría): migrar el `rebuild_copper` de los
    drivers de scroll a intenciones en vez de MOVEs directos.

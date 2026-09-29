@@ -311,7 +311,7 @@ public:
 	/// = plano, `line.x0..line.y1` las coordenadas y `line.row_bytes` el módulo de fila.
 	/// Sin fuentes/máscara. Para `LineEor`, `line.base` es la base del canal D.
 	bool add_line(const BlitJob& job, BlitJobKind kind = BlitJobKind::Line) {
-		if (job.destination.words == nullptr || job.line.row_bytes == 0u ||
+		if (job.destination.words() == nullptr || job.line.row_bytes == 0u ||
 		    job.bitplane_count == 0u) {
 			m_ok = false;
 			return false;
@@ -333,6 +333,22 @@ public:
 		++m_blit_budget.copy_jobs;
 		rebuild_blit_budget_report();
 		return true;
+	}
+
+	/// **Genérico**: añade un trabajo ya formado, **despachando por `job.kind`**. Es el punto de
+	/// entrada del sumidero de la cola de intención (`BlitQueue` → plan): convierte la
+	/// intención a `BlitJob` (`blit_job_from`) y lo añade aquí sin conocer el tipo concreto.
+	bool add(const BlitJob& job) {
+		switch (job.kind) {
+		case BlitJobKind::C2P:
+			return add_c2p(job);
+		case BlitJobKind::Line:
+			return add_line(job, BlitJobKind::Line);
+		case BlitJobKind::LineEor:
+			return add_line(job, BlitJobKind::LineEor);
+		default:
+			return add_blit_job(job, job.kind);
+		}
 	}
 
 private:
@@ -371,26 +387,24 @@ private:
 	/// Camino caliente (1 vez por BOB): `always_inline` para no pagar un `jsr` por objeto
 	/// ni recargar `m_blit_job_count`/`m_blit_budget` desde memoria en cada anadido.
 	__attribute__((always_inline)) inline bool add_blit_job(const BlitJob& input, BlitJobKind kind) {
-		BlitJob job = input;
-		job.kind = kind;
-		const bool masked =
-			job.kind == BlitJobKind::MaskedBobCookieCut ||
-			job.kind == BlitJobKind::MaskedBlobNoSave;
-		const bool clear = job.kind == BlitJobKind::ClearRect;
+		// Validacion ANTES de copiar: evita copiar un job que se va a rechazar.
+		const bool masked = kind == BlitJobKind::MaskedBobCookieCut ||
+				    kind == BlitJobKind::MaskedBlobNoSave;
+		const bool clear = kind == BlitJobKind::ClearRect;
 		if (
-			(!clear && job.source.words == nullptr) ||
-			job.destination.words == nullptr ||
-			job.words_per_row == 0 ||
-			job.height == 0 ||
-			job.bitplane_count == 0 ||
-			job.source_shift >= 16u ||
-			(!clear && job.source_plane_stride_bytes == 0 && !job.interleaved) ||
-			(job.destination_plane_stride_bytes == 0 && !job.interleaved)
+			(!clear && input.source.words() == nullptr) ||
+			input.destination.words() == nullptr ||
+			input.words_per_row == 0 ||
+			input.height == 0 ||
+			input.bitplane_count == 0 ||
+			input.source_shift >= 16u ||
+			(!clear && input.source_plane_stride_bytes == 0 && !input.interleaved) ||
+			(input.destination_plane_stride_bytes == 0 && !input.interleaved)
 		) {
 			m_ok = false;
 			return false;
 		}
-		if (masked && job.mask.words == nullptr) {
+		if (masked && input.mask.words() == nullptr) {
 			m_ok = false;
 			return false;
 		}
@@ -399,7 +413,11 @@ private:
 			return false;
 		}
 
-		m_blit_jobs[m_blit_job_count++] = job;
+		// Copia UNICA: se escribe directamente en la ranura del array (sin local intermedio).
+		BlitJob& job = m_blit_jobs[m_blit_job_count];
+		job = input;
+		job.kind = kind;
+		++m_blit_job_count;
 		m_blit_budget.jobs = m_blit_job_count;
 		m_blit_budget.words += eng::math::mulu32x16(
 			eng::math::mulu16(job.words_per_row, job.height),

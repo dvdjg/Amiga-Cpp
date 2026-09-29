@@ -13,6 +13,7 @@
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/memory/arena.hpp>
+#include <eng/memory/mem_bank.hpp>
 
 namespace {
 
@@ -31,6 +32,7 @@ void check(bool ok, const char* what) {
 
 u16 g_words[128];
 eng::u8 g_planes[200];
+eng::MemBank<eng::MemoryKind::Chip> g_planes_bank {};
 u16 g_pal[4] = {0x0f00u, 0x00f0u, 0x0000u, 0x0000u};
 
 MemoryBlock words_block() {
@@ -44,6 +46,9 @@ constexpr u16 hi(eng::uintptr a) { return static_cast<u16>((a >> 16) & 0xffffu);
 
 int main() {
 	// --- Zona base: 2 planos, BPLCON4, DDF y paleta de 2 colores ---------------
+	g_planes_bank.configure(g_planes, sizeof(g_planes), 2u);
+	const eng::ChipPlaneView planes =
+		g_planes_bank.reserve<eng::PlaneTag>(sizeof(g_planes), 2u).mem_view();
 	Scheduler sched { words_block() };
 	ModeSwitchZone zone {};
 	zone.top = 0x50u;
@@ -56,7 +61,7 @@ int main() {
 	zone.bpl2mod = 0x0000u;
 	zone.planes = 2u;
 	zone.plane_bytes = 40u;
-	zone.bitplanes = eng::PlaneViewBytes { g_planes, sizeof(g_planes) };
+	zone.bitplanes = planes;
 	zone.set_bplcon1 = true;
 	zone.bplcon1 = 0x0000u;
 	zone.palette = eng::PaletteWords { g_pal, 2u };
@@ -83,7 +88,7 @@ int main() {
 	check(w[i] == static_cast<u16>(Register::BPL2MOD) && w[i + 1u] == 0x0000u, "BPL2MOD");
 	i = static_cast<u16>(i + 2u);
 	// Punteros: plano 0 en la base, plano 1 a +plane_bytes.
-	const eng::uintptr base = reinterpret_cast<eng::uintptr>(g_planes);
+	const eng::uintptr base = planes.address().value;
 	check(w[i] == static_cast<u16>(Register::BPL1PTH) && w[i + 1u] == hi(base), "BPL1PTH");
 	i = static_cast<u16>(i + 2u);
 	check(w[i] == static_cast<u16>(Register::BPL1PTL) && w[i + 1u] == lo(base), "BPL1PTL");

@@ -1,0 +1,10 @@
+{
+  "#": "Puntos de verificación visual de 084 (rotación con MiniFloat16). Escena oscura.",
+  "points": [
+    {
+      "name": "escena de rotacion MF",
+      "last": true,
+      "expect": "Escena oscura con una figura/objeto 3D (rotacion con MiniFloat16) sobre fondo azul oscuro; la figura es reconocible y no hay parpadeo ni bandas negras."
+    }
+  ]
+}

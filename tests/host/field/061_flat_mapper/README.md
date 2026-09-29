@@ -23,5 +23,5 @@ bash tools/run-host-tests.sh tests/host/field/061_flat_mapper
 
 - Estrategia de cámara: `BigBufferScroll` (HOST-044).
 - Consumidor: `eng::field::FlatScrollPlayfield` (`flat_playfield.hpp`), verificado por la demo
-  `demos/amiga/120_virtual_playfield`.
+  `demos/techniques/amiga/playfield/120_virtual_playfield`.
 - Fórmula de referencia: `engine/include/eng/graphics/drivers/tile_scroll.hpp`.

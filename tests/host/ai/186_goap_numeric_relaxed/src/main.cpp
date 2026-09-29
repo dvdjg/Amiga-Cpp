@@ -53,7 +53,7 @@ void test_relaxed_plan_is_valid() {
 	State start {};
 	Goal goal {};
 	goal.var_ge[1u] = 2u;
-	goal.want_true.set(kHasMap);
+	goal.want_true.facts.set(kHasMap);
 
 	eng::u16 plan[16] {};
 	const eng::usize n =

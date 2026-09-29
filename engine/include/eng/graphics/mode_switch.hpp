@@ -58,7 +58,7 @@ struct ModeSwitchZone {
 	u16 bpl2mod = 0;
 	u8  planes = 0;               // cuántos BPLxPT reapuntar (0..6)
 	u32 plane_bytes = 0;          // stride entre planos del tramo (bytes)
-	eng::PlaneViewBytes bitplanes {}; // base del plano 0 del tramo (solo lectura)
+	eng::ChipPlaneView bitplanes {}; // base del plano 0 del tramo (Chip, solo lectura)
 	/// Paleta opcional del tramo (HUD con sus propios colores). `palette_colors`
 	/// marca cuántos COLORxx emitir; 0 = no emitir ninguno.
 	eng::PaletteWords palette {};

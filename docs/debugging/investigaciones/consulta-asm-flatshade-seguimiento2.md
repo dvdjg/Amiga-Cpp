@@ -94,5 +94,5 @@ Confirmado antes: la salida de `fs_transform_vertices` (ASM) es idéntica a C++ 
    descarté volcando con `m_angle` **constante** (mismo estado cada frame). ¿Qué más mirarías
    — escrituras a `60(a3)` (M.z) o al bbox, o el orden `render` del engine?
 
-**Repro:** `-DK_FLATSHADE_ASM=1` sobre `demos/amiga/116_flatshade_convex` (build/run de
+**Repro:** `-DK_FLATSHADE_ASM=1` sobre `demos/techniques/amiga/effects/116_flatshade_convex` (build/run de
 `tools/`).

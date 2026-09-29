@@ -2,7 +2,7 @@
 
 Documento de trabajo para la Oleada 1 de `LIBRARIES-CPP23-IMPORT-ROADMAP.md` sobre la
 **nueva estructura del engine** (`ENGINE_DESIGN.md` + `VISUAL_EFFECT_SPRITE_DESIGN.md`):
-`CopperIntent`, `Visual`, `SpriteTemplate`, `Effect`, `CopperScheduler`.
+`CopperIntent`, `Visual`, `HwSpriteTemplate`, `Effect`, `CopperScheduler`.
 
 ## 1. Objetivo
 
@@ -25,7 +25,7 @@ Fuentes inventariadas:
 | `CopSetColor` / `CopLoadColor` / `CopLoadColorArray` | Programar COLORxx | **MAPEAR** | `Scheduler::emit_palette` (ya cubre `first/count`) |
 | `CopSetupMode` / `CopSetupDisplayWindow` / `CopSetupBitplaneFetch` | DIW/DDF/BPLCON0 | **MAPEAR** | `Scheduler::emit_planes_display` |
 | `CopSetupBitplanes` / `CopUpdateBitplanes` | BPLxPT por bitmap | **MAPEAR** | `Scheduler::emit_planes_display` (punteros) |
-| `CopSetupSprites` / `MakeSprite` / `EndSprite` | SPRxPT/POS/CTL | **MAPEAR** | `SpriteManager` + `SpriteTemplate` (nueva) |
+| `CopSetupSprites` / `MakeSprite` / `EndSprite` | SPRxPT/POS/CTL | **MAPEAR** | `SpriteManager` + `HwSpriteTemplate` (nueva) |
 | `CopWaitSafe` | Overflow de V>255 en PAL (lineas 256..311) | **PORTAR**: el engine aun no lo modela y es un bug real | `Scheduler::wait_line` (anadir el doble-WAIT) |
 | `NewBitmap` / `DeleteBitmap` / `BitmapMakeDisplayable` | Bitmap planar generico reutilizable | **MAPEAR** (ya existe `eng::gfx::Bitmap`) | `eng/graphics/bitmap.hpp` |
 | `BitmapSetPointers` / `InitSharedBitmap` | Layout interleave / compartir planos | **MAPEAR/absorber** en el bitmap portable | `eng/graphics/bitmap.hpp` |

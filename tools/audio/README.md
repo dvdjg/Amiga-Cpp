@@ -7,6 +7,8 @@ real o sintético en los `.raw` de **8 bits con signo** que el mixer del engine 
 | herramienta | qué hace |
 |---|---|
 | `gen-wave.ts` | genera una onda sintética (`sine`/`square`/…) en `.raw` + `.wav` |
+| `gen-melody.mjs` | sintetiza una melodía de dominio público (Oda a la Alegría) en `.raw` para el streaming (demo 278) |
+| `pack-auzx.mjs` | `.raw` → contenedor **AUZX** con Fibonacci Delta (port Node de `host-tools/pack-pcm`; sin C++/Python) |
 | `prep-sample.ts` | WAV PCM (8/16 bit, mono/estéreo) → `.raw` 8-bit con signo: remuestrea, normaliza al pico y divide por `voices` (para sumar sin desbordar) |
 | `sample-converter.ts` | convierte un `.raw` entre layouts de voces |
 | `raw-to-header.ts` | `.raw` → cabecera C++ con el array de bytes |
@@ -53,6 +55,13 @@ el repo no guarda el comando exacto con que se generó cada `.raw`.
 ## Los WAV de entrada NO están en el repositorio
 
 Los ficheros fuente (p. ej. `alien.wav` y las muestras de percusión) **no** están versionados:
-la media no entra en git. Consecuencia: en un checkout limpio, las demos **072, 073, 074 y 076**
-no compilan hasta aportar WAVs equivalentes y ejecutar `prep-sample` para producir los `.raw`.
-Para ondas sintéticas (tonos) no hace falta fuente externa: `gen-wave` las genera.
+la media no entra en git. Para que un checkout limpio pueda compilar y ejercitar el mixer sin
+ellos, hay un generador **reproducible de assets sintéticos**:
+
+```bash
+tools/audio/gen-demo-assets.sh     # genera los 6 .raw de out/assets/audio/ con gen-wave
+```
+
+Basta para compilar y probar el mixer (el sonido exacto no se versiona). Si faltan los `.raw`,
+`tools/build/build-all-demos.sh` clasifica esas demos como `ASSET` (no `FAIL`). Con WAVs reales
+equivalentes, usar `prep-sample` (ejemplo de percusión arriba).

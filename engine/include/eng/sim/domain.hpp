@@ -21,6 +21,7 @@
 /// Verificación: HOST-155 (y HOST-153 para la integración con el mundo).
 
 #include <eng/ai/planning/goap.hpp>
+#include <eng/ai/planning/htn.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/array.hpp>
 #include <eng/sim/planner.hpp>
@@ -141,5 +142,31 @@ struct ConstructionDomain {
 		return g;
 	}
 };
+
+/// Red de tareas HTN del dominio de construcción (consumidor de `eng::ai::Htn`, G7.7). La
+/// tarea compuesta 0 es **«conseguir refugio»**: con herramienta y materiales basta
+/// construir; si no, se recoge, se fabrica, se recoge otra vez y se construye — el mismo
+/// plan que obtiene el GOAP (HOST-318).
+using SimHtn = eng::ai::Htn<32u, 5u, 1u, 4u, 8u>;
+
+/// Construye la red de tareas de «conseguir refugio» (ver HOST-318).
+[[nodiscard]] constexpr SimHtn build_shelter_htn() noexcept {
+	SimHtn htn {};
+	// Subtareas del método de respaldo: Gather, CraftTool, Gather, Build.
+	htn.add_subtask(static_cast<eng::u16>(SimActionKind::Gather));
+	htn.add_subtask(static_cast<eng::u16>(SimActionKind::CraftTool));
+	htn.add_subtask(static_cast<eng::u16>(SimActionKind::Gather));
+	htn.add_subtask(static_cast<eng::u16>(SimActionKind::Build));
+
+	const SimHtn::Facts none {};
+	SimHtn::Facts ready {};
+	ready.set(static_cast<eng::ai::Fact>(SimFact::HasTool));
+	ready.set(static_cast<eng::ai::Fact>(SimFact::HasMaterials));
+	htn.add_method(ready, none, 3u, 1u); // método 0: ya hay herramientas -> solo construir
+	htn.add_method(none, none, 0u, 4u);  // método 1 (respaldo): la cadena completa
+
+	htn.add_compound(0u, 2u); // compuesta 0 = «conseguir refugio» con ambos métodos
+	return htn;
+}
 
 } // namespace eng::sim

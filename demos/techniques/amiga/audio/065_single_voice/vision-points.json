@@ -1,0 +1,10 @@
+{
+  "#": "Puntos de verificación visual de 065 (una voz ptplayer). Demo de AUDIO: puede no dibujar nada.",
+  "points": [
+    {
+      "name": "pantalla de demo de audio",
+      "last": true,
+      "expect": "Demo de AUDIO: es correcto que la pantalla este en negro o casi vacia (lo relevante es el sonido). No se espera overlay ni color."
+    }
+  ]
+}

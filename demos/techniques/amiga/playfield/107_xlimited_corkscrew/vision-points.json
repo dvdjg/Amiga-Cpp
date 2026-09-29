@@ -1,0 +1,16 @@
+{
+  "#": "Puntos de verificación visual de 107 (X-Limited corkscrew). Los índices son frames 0-based de la secuencia que captura analyze-sequence.sh (línea base single 100 frames, ~2 px/frame).",
+  "model": "qwen3-vl:8b-instruct-q8_0",
+  "points": [
+    {
+      "name": "cruce de tile (columna entrante)",
+      "index": 16,
+      "expect": "Escena de scroll de tiles a color, llena (varios tiles). No hay una banda vertical NEGRA en el borde derecho (seria un hueco de 2 bytes por saveword). El contenido no es la misma imagen repetida."
+    },
+    {
+      "name": "scroll avanzado (varios cruces)",
+      "index": 72,
+      "expect": "La escena sigue llena y variada tras varios cruces de tile; sin bandas negras ni zonas congeladas/repetidas."
+    }
+  ]
+}

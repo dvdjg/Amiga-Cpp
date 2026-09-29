@@ -10,20 +10,42 @@
 
 namespace eng {
 
-/// Enteros con tamano esperado en 68000/Bartman GCC.
+/// Enteros con ancho exacto, portables entre m68k y host LP64.
 ///
-/// En m68k-amiga-elf `short` es de 16 bits y `long` de 32 bits. Usamos tipos del
-/// lenguaje en vez de cabeceras estandar para mantener el runtime freestanding.
-using u8 = unsigned char;
-using u16 = unsigned short;
-using u32 = unsigned long;
-using u64 = unsigned long long;
-using s8 = signed char;
-using s16 = signed short;
-using s32 = signed long;
-using s64 = long long;
+/// Se usan los builtins `__UINT*_TYPE__`/`__INT*_TYPE__` en vez de los tipos del
+/// lenguaje porque el ancho de `int`/`long` cambia entre plataformas: en
+/// m68k-amiga-elf `int` es de 16 bits y `long` de 32, pero en un host Linux LP64
+/// `long` es de 64. Los builtins garantizan 8/16/32/64 bits en ambos y siguen sin
+/// depender de cabeceras de la libreria estandar (runtime freestanding).
+using u8 = __UINT8_TYPE__;
+using u16 = __UINT16_TYPE__;
+using u32 = __UINT32_TYPE__;
+using u64 = __UINT64_TYPE__;
+using s8 = __INT8_TYPE__;
+using s16 = __INT16_TYPE__;
+using s32 = __INT32_TYPE__;
+using s64 = __INT64_TYPE__;
 using usize = __SIZE_TYPE__;
 using uintptr = __UINTPTR_TYPE__;
+
+/// **Coordenada/índice de píxel de pantalla** dependiente de la plataforma.
+///
+/// En **68000** conviene `s16`: las coordenadas de pantalla caben de sobra (320×256, 640×512) y la
+/// aritmética de 16 bits es mucho más barata que la de 32 (no arrastra `mulu32`/`divs32` ni
+/// registros completos). En **host** (64 bits) se usa `s32` para no desbordar en tests y algoritmos
+/// grandes. No es «el `int` de C» (dependiente de ABI): es explícito por plataforma.
+///
+/// No confundir con `eng::coord` (coordenada de simulación, `Fixed`) ni con `eng::intw` (entero de
+/// palabra natural): `pix` es el tipo de dominio de las primitivas de rasterizado.
+///
+/// Regla de uso: el **tipo de dominio** de coordenadas de píxel es `eng::pix`; los **intermedios que
+/// pueden desbordar** (`dx*dy`, divisiones de línea, áreas, `x + w`) se calculan en `s32`/`s64`
+/// **local y explícito**, con comentario. Ver `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` §12.
+#if defined(__m68k__)
+using pix = s16;
+#else
+using pix = s32;
+#endif
 
 namespace detail {
 /// `is_same` minimo (sin STL): lo usan `Ref`/`Span` para restringir sus conversiones.

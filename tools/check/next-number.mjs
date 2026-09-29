@@ -1,99 +1,42 @@
-#!/usr/bin/env node
-/**
- * `next-number.mjs` — Siguiente número libre dentro del bloque reservado a la rama.
- *
- * La asignación de bloques vive en `docs/ai-dev-environment/NUMBERING.md` (fuente única). Este
- * script lee esa tabla, detecta (o recibe) la rama/workstream y, mirando los directorios
- * `tests/host/NNN_*` y `demos/<plataforma>/NNN_*`, imprime el **menor número libre** de cada
- * bloque de la rama. Sirve para no volver a colisionar números entre `master` y `feature/optimize`.
- *
- * Uso:
- *   node tools/check/next-number.mjs            # usa la rama git actual
- *   node tools/check/next-number.mjs master     # o forzar una rama/workstream
- */
-import * as fs from 'node:fs';
-import * as path from 'node:path';
+// Siguiente numero libre dentro de un AMBITO (demos o tests host).
+//
+// El numero de una demo/test es unico **dentro de su ambito** (el directorio que contiene
+// las demos: `demos/techniques/<familia>/<categoria>`, `demos/features/<feature>/<plataforma>`,
+// o `tests/host/<categoria>`); ver `docs/ai-dev-environment/NUMBERING.md`.
+//
+// Uso:
+//   node tools/check/next-number.mjs demos/techniques/amiga/copper
+//   node tools/check/next-number.mjs tests/host/graphics
+//
+// Imprime el siguiente numero libre = (maximo usado en el ambito) + 1.
+import fs from 'node:fs';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execFileSync } from 'node:child_process';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const scope = process.argv[2];
 
-function currentBranch() {
-	try {
-		return execFileSync('git', ['branch', '--show-current'], { cwd: root, encoding: 'utf8' }).trim();
-	} catch {
-		return '';
-	}
+if (!scope) {
+	console.error('Uso: node tools/check/next-number.mjs <ambito>');
+	console.error('  p. ej. demos/techniques/amiga/copper | demos/features/ui/amiga | tests/host/core');
+	process.exit(2);
 }
 
-function parseBlocks() {
-	const docPath = path.join(root, 'docs/ai-dev-environment/NUMBERING.md');
-	const text = fs.readFileSync(docPath, 'utf8');
-	const rows = [];
-	for (const line of text.split('\n')) {
-		const m = line.match(/^\|\s*([A-Z])\s*\|\s*(\d+)-(\d+)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*$/);
-		if (!m) continue;
-		rows.push({
-			block: m[1],
-			lo: parseInt(m[2], 10),
-			hi: parseInt(m[3], 10),
-			owner: m[4].replace(/`/g, '').trim(),
-			state: m[5].trim(),
-		});
-	}
-	return rows;
+const dir = path.join(ROOT, scope);
+if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
+	console.error(`No existe el ambito: ${scope}`);
+	process.exit(2);
 }
 
-function usedNumbers() {
-	const used = new Set();
-	// Recursivo: los tests host viven en `tests/host/<categoría>/NNN_*` y los demos en
-	// `demos/<plataforma>/NNN_*`. No se entra en un directorio que ya es de test/demo.
-	const collect = (dir) => {
-		if (!fs.existsSync(dir)) return;
-		for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-			const m = entry.name.match(/^(\d+)_/);
-			if (m) {
-				used.add(parseInt(m[1], 10));
-				continue;
-			}
-			if (entry.isDirectory()) collect(path.join(dir, entry.name));
-		}
-	};
-	collect(path.join(root, 'tests/host'));
-	collect(path.join(root, 'tests/amiga'));
-	collect(path.join(root, 'demos'));
-	return used;
+let max = -1;
+for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+	if (!e.isDirectory()) continue;
+	const m = /^(\d{3})_/.exec(e.name);
+	if (m) max = Math.max(max, Number(m[1]));
 }
-
-function main() {
-	const branch = process.argv[2] || currentBranch();
-	if (!branch) {
-		console.error('No se pudo detectar la rama (pasa el nombre como argumento).');
-		process.exit(2);
-	}
-	const blocks = parseBlocks().filter((b) => !/cerrado/i.test(b.state));
-	const mine = blocks.filter((b) => b.owner.toLowerCase().includes(branch.toLowerCase()));
-	if (mine.length === 0) {
-		console.error(`La rama '${branch}' no tiene bloque reservado en NUMBERING.md.`);
-		console.error('Reserva uno (edita §Bloques) antes de crear demos/tests numerados.');
-		process.exit(1);
-	}
-	const used = usedNumbers();
-	let any = false;
-	for (const b of mine) {
-		// Regla del repo: el siguiente número es (máximo usado dentro del bloque) + 1; los
-		// huecos no se reutilizan.
-		let highest = b.lo - 1;
-		for (const u of used) {
-			if (u >= b.lo && u <= b.hi && u > highest) highest = u;
-		}
-		const next = highest + 1;
-		const agotado = next > b.hi;
-		const label = agotado ? 'AGOTADO' : String(next).padStart(3, '0');
-		console.log(`[next-number] rama '${branch}' bloque ${b.block} (${b.lo}-${b.hi}): siguiente libre = ${label}`);
-		if (!agotado) any = true;
-	}
-	process.exit(any ? 0 : 1);
+const next = max + 1;
+if (next > 999) {
+	console.error(`[next-number] ${scope}: ambito agotado (999)`);
+	process.exit(1);
 }
-
-main();
+console.log(`[next-number] ${scope}: siguiente libre = ${String(next).padStart(3, '0')}`);

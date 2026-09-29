@@ -13,6 +13,7 @@
 /// todas las operaciones; los grupos `line` y `c2p` solo se leen para sus tipos.
 
 #include <eng/core/types/types.hpp>
+#include <eng/core/types/typed.hpp>
 
 namespace eng::graphics {
 
@@ -51,21 +52,40 @@ enum class BlitJobKind : u8 {
 	C2P,
 };
 
-/// Rol de **origen** de un blit (solo lectura). Junto con `BlitDest` evita pasar
-/// un `BlitDest` donde se espera un `BlitSource` (o viceversa) en las firmas
-/// internas. La construcción desde crudo es implícita por ergonomía de los
-/// agregados (`BlitJob{...}`); el rol tipado no se convierte entre sí.
+/// Rol de **origen** de un blit (solo lectura). La dirección es un `Address<MemoryKind::Chip>`: el
+/// rol lleva la **procedencia** (DMA), no un `u16*` suelto. `words()` da la vista de **registro**
+/// (la frontera que cruza el Blitter). Junto con `BlitDest` evita pasar un `BlitDest` donde se
+/// espera un `BlitSource` (o viceversa) en las firmas internas.
 struct BlitSource {
-	const u16* words = nullptr;
+	eng::Address<eng::MemoryKind::Chip> addr {};
 	constexpr BlitSource() noexcept = default;
-	constexpr BlitSource(const u16* w) noexcept : words(w) {}
+	constexpr BlitSource(eng::Address<eng::MemoryKind::Chip> a) noexcept : addr(a) {}
+	/// Desde un puntero crudo: frontera explícita (tests/backend que ya garantizan Chip).
+	constexpr BlitSource(const u16* w) noexcept
+		: addr(eng::Address<eng::MemoryKind::Chip>::from_storage(
+			  reinterpret_cast<const eng::u8*>(w))) {}
+	/// Desde una vista tipada en Chip (`ChipView<Tag>`) con `off` en bytes.
+	template <class Tag>
+	constexpr BlitSource(eng::ChipView<Tag> v, eng::s32 off = 0) noexcept : addr(v.address(off)) {}
+	/// Vista de **registro** (word): la frontera que consume el Blitter.
+	[[nodiscard]] constexpr const u16* words() const noexcept {
+		return reinterpret_cast<const u16*>(addr.cptr());
+	}
 };
 
 /// Rol de **destino** de un blit (escritura).
 struct BlitDest {
-	u16* words = nullptr;
+	eng::Address<eng::MemoryKind::Chip> addr {};
 	constexpr BlitDest() noexcept = default;
-	constexpr BlitDest(u16* w) noexcept : words(w) {}
+	constexpr BlitDest(eng::Address<eng::MemoryKind::Chip> a) noexcept : addr(a) {}
+	constexpr BlitDest(u16* w) noexcept
+		: addr(eng::Address<eng::MemoryKind::Chip>::from_storage(
+			  reinterpret_cast<const eng::u8*>(w))) {}
+	template <class Tag>
+	constexpr BlitDest(eng::ChipView<Tag> v, eng::s32 off = 0) noexcept : addr(v.address(off)) {}
+	[[nodiscard]] constexpr u16* words() const noexcept {
+		return reinterpret_cast<u16*>(addr.ptr());
+	}
 };
 
 /// Trabajo planar de Blitter.
@@ -109,6 +129,15 @@ struct BlitJob {
 	/// *Use Case 4: interleaved bitplane BOBs*). Exime de dar strides de plano.
 	bool interleaved = false;
 
+	/// Palabras de **fuente por scanline**. Sólo se usa si `source_words_per_row != 0`: la
+	/// fuente es un bitmap con su propio ancho de fila (A) distinto del bloque a copiar
+	/// (`words_per_row`); el módulo de A se deriva como
+	/// `(source_words_per_row - words_per_row) * 2` y el avance por plano es
+	/// `source_plane_stride_bytes` (fuente en un playfield aparte). Si es `0`, la fuente se
+	/// lee compacta como `words_per_row` palabras por fila (fuente «apretada»). Campo al
+	/// final para no romper los *aggregate initializers* posicionales existentes.
+	u16 source_words_per_row = 0;
+
 	/// Campos de **línea** (`BlitJobKind::Line`/`LineEor`): coordenadas y módulo de fila.
 	struct Line {
 		s16 x0 = 0;        ///< x del punto inicial
@@ -136,5 +165,34 @@ struct BlitJob {
 	};
 	C2p c2p {};
 };
+
+/// Configura `job` como **BOB interleaved enmascarado en UNA pasada** (cookie-cut `$CA` con
+/// **máscara expandida**: una copia de la máscara por plano). `src` apunta al par
+/// `[máscara `w/16` palabras][imagen `w/16` palabras]` de la primera fila del BOB (layout que
+/// produce `kingcon ... -Interleaved -Format=N -Mask`); `dest` al bitmap interleaved en
+/// `x & ~15`; `w`/`h` = tamaño en píxeles (`w` múltiplo de 16); `planes` = planos del bitmap;
+/// `dest_row_bytes` = bytes de **una fila de un plano**; `shift` = `x & 15`.
+///
+/// Un solo blit recorre `h*planes` filas: `A` = máscara, `B` = imagen, `DMOD` = fila de plano.
+/// Ver `docs/reference/amiga/techniques/interleaved-bob-single-blit.md`. El job queda listo
+/// para `FramePlan::add_masked_bob` o `AmigaBackend::blitter_submit`.
+inline void make_interleaved_masked_bob(BlitJob& job, const u16* src, u16* dest, u16 w, u16 h,
+					u8 planes, u16 dest_row_bytes, u8 shift) noexcept {
+	const u16 words = static_cast<u16>(w / 16u);
+	job = BlitJob {};
+	job.kind = BlitJobKind::MaskedBobCookieCut;
+	job.mask = BlitSource {src};
+	job.source = BlitSource {src + words}; // 2ª mitad de la fila = imagen
+	job.destination = BlitDest {dest};
+	job.words_per_row = words;
+	job.height = static_cast<u16>(h * planes);
+	// Avance por "fila" (una fila de UN plano): el par ocupa `2*words` palabras.
+	job.source_modulo_bytes = static_cast<s16>(words * 2u);
+	job.destination_modulo_bytes = static_cast<s16>(dest_row_bytes - words * 2u);
+	job.bitplane_count = 1u;
+	job.source_shift = shift;
+	job.minterm = 0xCAu;
+	job.interleaved = true;
+}
 
 } // namespace eng::graphics

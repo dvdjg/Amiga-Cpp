@@ -62,6 +62,7 @@ public:
 			range.first = 1u;
 		}
 		m_range = range;
+		rebuild();
 	}
 
 	/// Copia la lista de colores clave (se recorta a `max_keys`).
@@ -71,9 +72,15 @@ public:
 			m_keys[i] = keys[i];
 		}
 		m_key_count = n;
+		rebuild();
 	}
 
-	void set_cyclic(bool cyclic) { m_cyclic = cyclic; }
+	/// Elige **ciclico** (la lista de claves se recorre en bucle) o **lineal** (extremos fijos);
+	/// recalcula la tabla (setup).
+	void set_cyclic(bool cyclic) {
+		m_cyclic = cyclic;
+		rebuild();
+	}
 
 	/// Desplaza el muestreo en unidades de clave (animacion del degradado).
 	void set_phase(u16 phase) { m_phase = phase; }
@@ -91,9 +98,10 @@ public:
 		}
 		const u16 bands = m_range.bands;
 		const u16 stride = static_cast<u16>(m_range.first) + 1u; // 1 o 2
+		const u16* const row = m_table[phase_index()];           // fila precalculada (sin divisiones)
 		u16 n = 0;
 		for (u16 b = 0; b < bands && n < cap; ++b) {
-			const u16 color = sample(b);
+			const u16 color = row[b];
 			const u16 slot = static_cast<u16>(b * 2u);
 			m_colors[static_cast<u16>(slot + m_range.first)] = color;
 			graphics::CopperIntent& it = out[n];
@@ -118,10 +126,70 @@ public:
 		plan.add(m_intents, n);
 	}
 
+	/// Tras **materializar** sus intenciones una vez (setup), casa cada banda con la palabra de
+	/// DATO que el `Plan` registró (por registro+fila). Habilita la animación barata: a partir
+	/// de aquí `patch_into` solo reescribe esas palabras, sin re-emitir la copperlist. Si el
+	/// `Plan` no expone slots (`slot_count`), la animación por parcheo queda desactivada.
+	template <typename Plan>
+	void bind_slots(const Plan& plan) {
+		for (u16 b = 0; b < m_range.bands; ++b) {
+			m_slot[b] = no_slot;
+			const u16 line = static_cast<u16>(m_range.first_line +
+							 static_cast<u32>(b) * m_range.band_height);
+			for (u16 j = 0; j < plan.slot_count(); ++j) {
+				if (plan.slot_reg(j) == m_range.first && plan.slot_line(j) == line) {
+					m_slot[b] = plan.slot_word(j);
+					break;
+				}
+			}
+		}
+	}
+
+	/// Actualiza los colores del degradado en la lista ya materializada (por frame): recalcula
+	/// la fila de la fase (sin divisiones) y escribe **solo las palabras de dato** (coste ~0).
+	/// Requiere `bind_slots` tras el `materialize` del setup.
+	template <typename Plan>
+	void patch_into(Plan& plan) const {
+		if (m_key_count == 0u) {
+			return;
+		}
+		const u16* const row = m_table[phase_index()];
+		u16* const words = plan.active_words();
+		for (u16 b = 0; b < m_range.bands; ++b) {
+			if (m_slot[b] != no_slot) {
+				words[m_slot[b]] = row[b];
+			}
+		}
+	}
+
 private:
-	/// Color de la banda `b`: interpola las claves en la posicion `b + phase` (en unidades
-	/// de clave), con o sin vuelta.
-	u16 sample(u16 b) const {
+	/// Indice de fase para la tabla (`phase % k`): **mascara** si `k` es potencia de dos, si no `%`
+	/// (una sola vez por `fill_intents`, no por banda -> cumple la regla de coste).
+	[[nodiscard]] u16 phase_index() const noexcept {
+		if (m_pow2) {
+			return static_cast<u16>(m_phase & m_pmask);
+		}
+		return (m_key_count != 0u) ? static_cast<u16>(m_phase % m_key_count) : 0u;
+	}
+
+	/// **Precalcula la tabla** `[fase][banda]` (una vez, en setup): `calc` para cada fase del ciclo
+	/// (`0..k-1`) y banda. Aqui si hay divisiones, pero es **setup**, no bucle.
+	void rebuild() {
+		const u16 k = m_key_count;
+		m_pow2 = (k != 0u) && ((k & static_cast<u16>(k - 1u)) == 0u);
+		m_pmask = m_pow2 ? static_cast<u16>(k - 1u) : 0u;
+		const u16 bands = m_range.bands;
+		for (u16 p = 0u; p < k; ++p) {
+			for (u16 b = 0u; b < bands; ++b) {
+				m_table[p][b] = calc(p, b);
+			}
+		}
+	}
+
+	/// Color de la banda `b` en la fase `phase` (0..`k-1`). Es la **matematica original** de muestreo
+	/// (interpola claves; lineal o ciclico); ahora solo la usa `rebuild` en **setup** para llenar
+	/// `m_table`. El bucle (`fill_intents`) **no la llama** -> cero divisiones por frame.
+	u16 calc(u16 phase, u16 b) const {
 		const s32 k = m_key_count;
 		const s32 bands = m_range.bands;
 		s32 span = m_cyclic ? k : (k - 1);
@@ -129,7 +197,7 @@ private:
 			span = 1;
 		}
 		const s32 den = m_cyclic ? bands : (bands > 1 ? bands - 1 : 1);
-		const s32 unum = static_cast<s32>(b) * span + static_cast<s32>(m_phase) * den;
+		const s32 unum = static_cast<s32>(b) * span + static_cast<s32>(phase) * den;
 		const s16 seg_raw = eng::math::div_wide(unum, static_cast<s16>(den));
 		const u16 local = static_cast<u16>(unum - static_cast<s32>(seg_raw) * den);
 		s32 seg = seg_raw % k;
@@ -155,6 +223,18 @@ private:
 	graphics::CopperIntent m_intents[max_bands] {};
 	/// Dos slots por banda para que la vista `colors[first]` sea valida con `first` = 0 o 1.
 	eng::util::Array<u16, max_bands * 2u> m_colors {};
+	/// **Tabla precalculada** `[fase % k][banda]`: color de cada banda para cada fase del ciclo. La
+	/// rellena `rebuild` (setup) y el bucle solo **copia** la fila de la fase — sin divisiones.
+	/// Coste en RAM: `max_keys * max_bands * 2` bytes (2 KB con los maximos; menos si son menores).
+	u16 m_table[max_keys][max_bands] {};
+	/// `true` si `m_key_count` es **potencia de dos** -> el indice de fase es una **mascara** (`&`), no `%`.
+	bool m_pow2 = false;
+	/// Mascara `m_key_count - 1` cuando `m_pow2` (si no, 0).
+	u16 m_pmask = 0;
+	/// Palabra de DATO por banda en la copperlist ya materializada (`no_slot` si no casó). La
+	/// fija `bind_slots` en setup; la usa `patch_into` para animar sin re-emitir.
+	static constexpr u16 no_slot = 0xffffu;
+	eng::util::Array<u16, max_bands> m_slot {};
 };
 
 } // namespace eng::graphics::effects

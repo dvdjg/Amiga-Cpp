@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { PNG } = require('pngjs');
 
-/// Verifica el microtest MI09 (`demos/amiga/113_mode_switch`).
+/// Verifica el microtest MI09 (`demos/techniques/amiga/playfield/113_mode_switch`).
 ///
 /// La demo parte la pantalla en un campo de 5 planos (arriba) y un HUD de 2 planos
 /// (abajo) con `ModeSwitchZone`. El chequeo es determinista sobre la captura:

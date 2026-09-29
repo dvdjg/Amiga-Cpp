@@ -47,12 +47,13 @@ DEMO_OPT=-O2 bash tools/build/build-demo.sh <demo> --debug
 ```
 
 Compila el TU del demo a `-O2` dentro del perfil debug y **el bug desaparece** (`msgs`=16,
-`timers`=16). Decisión: mantener las demos a **periodo 1** (estado verde); si una demo necesita un
-timer de periodo > 1, compilar su TU a `-O2` o fijar/reportar el bug de gcc.
+`timers`=16). Para que no dependa de una variable de entorno, la demo 212 lo fija en un fichero
+por demo `build.args` (`DEMO_OPT=-O2`) que `build-demo.sh` lee sin cambiar el `CONFIG_ID`. La 212
+usa `add_timer(1u, 2u)` y recibe los `Timer` (`t: 25` en el overlay; `detail=0x2123TTTT`).
 
 ## Repro
 
-La demo 212 con `eng::os::add_timer(1u, 2u)` es el repro reproducible (`demos/amiga/212_message_loop`).
+La demo 212 con `eng::os::add_timer(1u, 2u)` es el repro reproducible (`demos/techniques/amiga/os/212_message_loop`).
 Minimizado, el patrón es: un `MessagePumpGame<App>` con **un contador miembro** que se incrementa en
 `on_msg` cuando llega un `MsgType::Timer`, un `add_timer(id, 2)` y lectura del contador en `on_frame`.
 

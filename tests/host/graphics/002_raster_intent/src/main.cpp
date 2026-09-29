@@ -26,6 +26,7 @@
 #include <eng/graphics/raster_intent.hpp>
 #include <eng/graphics/sprite.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
+#include <eng/memory/mem_bank.hpp>
 
 namespace {
 
@@ -33,7 +34,7 @@ using eng::graphics::CopperIntent;
 using eng::graphics::CopperIntentKind;
 using eng::graphics::Effect;
 using eng::graphics::SpriteIntent;
-using eng::graphics::SpriteTemplate;
+using eng::graphics::HwSpriteTemplate;
 using eng::graphics::Visual;
 using eng::graphics::VisualKind;
 using eng::MemoryBlock;
@@ -43,7 +44,7 @@ using eng::MemoryKind;
 static_assert(std::is_trivially_copyable_v<Visual>);
 static_assert(std::is_trivially_copyable_v<CopperIntent>);
 static_assert(std::is_trivially_copyable_v<SpriteIntent>);
-static_assert(std::is_trivially_copyable_v<SpriteTemplate<4, 4>>);
+static_assert(std::is_trivially_copyable_v<HwSpriteTemplate<4, 4>>);
 
 // Un "plan" mínimo para el concept `Effect`: en el engine real es `FramePlan`.
 struct MockPlan {
@@ -103,18 +104,18 @@ int main() {
         return 1;
     }
 
-    // Runtime: una SpriteTemplate trocea la imagen y respeta su límite fijo sin heap.
-    SpriteTemplate<4, 4> tpl {};
+    // Runtime: una HwSpriteTemplate trocea la imagen y respeta su límite fijo sin heap.
+    HwSpriteTemplate<4, 4> tpl {};
     tpl.width_words = 1;
     tpl.add_segment({0, 8, 0});
     tpl.add_segment({16, 8, 8});
     if (tpl.segment_count != 2 || tpl.segments[1].height != 8) {
-        std::printf("[FAIL] SpriteTemplate no trocea la imagen\n");
+        std::printf("[FAIL] HwSpriteTemplate no trocea la imagen\n");
         return 1;
     }
     for (int i = 0; i < 10; ++i) tpl.add_segment({0, 1, 0});
     if (tpl.segment_count != 4) {
-        std::printf("[FAIL] SpriteTemplate no respeta MaxSegments (segment_count=%d)\n", (int)tpl.segment_count);
+        std::printf("[FAIL] HwSpriteTemplate no respeta MaxSegments (segment_count=%d)\n", (int)tpl.segment_count);
         return 1;
     }
 
@@ -163,8 +164,17 @@ int main() {
         MemoryBlock copper_block { copper_words, sizeof(copper_words), MemoryKind::Chip };
         eng::copper::Scheduler sched { copper_block };
 
-        eng::u8 base[6 * 10240] {};
-        eng::u8 split[6 * 10240] {};
+        // Planos en una fuente **certificada** (`MemBank<Chip>`): no se fabrica una dirección
+        // Chip con un cast (eso sería el agujero que el sistema de tipos cierra).
+        static eng::u8 base_buf[6 * 10240] {};
+        static eng::u8 split_buf[6 * 10240] {};
+        eng::MemBank<eng::MemoryKind::Chip> base_bank {}, split_bank {};
+        base_bank.configure(base_buf, sizeof(base_buf), 2u);
+        split_bank.configure(split_buf, sizeof(split_buf), 2u);
+        const eng::ChipPlaneView base =
+            base_bank.reserve<eng::PlaneTag>(sizeof(base_buf), 2u).mem_view();
+        const eng::ChipPlaneView split =
+            split_bank.reserve<eng::PlaneTag>(sizeof(split_buf), 2u).mem_view();
         CopperIntent intents[2] {
             { CopperIntentKind::BitplaneSplit, 100, 100, 0, {}, 0, 0, 0, split, 0, nullptr },
             { CopperIntentKind::ShiftLines,    150, 150, 0, {}, 0, 0, 4, {}, 0, nullptr },
@@ -217,6 +227,6 @@ int main() {
         }
     }
 
-    std::printf("OK: vocabulario de intenciones validado (Visual/CopperIntent/SpriteIntent/SpriteTemplate/Effect/scheduler).\n");
+    std::printf("OK: vocabulario de intenciones validado (Visual/CopperIntent/SpriteIntent/HwSpriteTemplate/Effect/scheduler).\n");
     return 0;
 }

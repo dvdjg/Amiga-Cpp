@@ -88,5 +88,18 @@ Notas de deuda de diseño detectadas al trabajar en el modelo de escena, para un
   `compose_unchecked` y `Scene::init_unchecked` pasó a `init_raw` **privado**. La única vía
   pública de construcción es `init`/`compose` con `DisplayLimits`.
 
+## 8. `text_blit` (texto por Blitter) verificado en hardware
+
+- **Estado**: **verificado en hardware** (demos 301, WinUAE-DBG A500). `eng::graphics::draw_text_blit` (`glyph_cache.hpp`) tiene equivalencia CPU píxel a píxel validada por HOST-313 (incluido `x` no alineado, texto de varios pares y la geometría del job) y la demo 301 pinta una línea real por cookie-cut y la **compara contra `Font8` píxel a píxel en el propio 68000** (self-test), con `x` alineado y no alineado. Evidencia: `out/run/ui_amiga_301_gui_layouts/A500_debug/run-report.json` (`state: 3` = Ready) tras ejecutar los dos `text_blit`.
+- **Causas reales corregidas** (todas en `glyph_cache.hpp` y el cableado escena↔plan):
+  1. **Lifetime**: la máscara era un array **local** de `draw_text_blit`; el `FramePlan` guarda punteros y se ejecuta después de retornar → el Blitter leía pila liberada. Ahora los buffers son del **llamador** y persisten hasta ejecutar el plan.
+  2. **Chip RAM**: el Blitter solo accede a Chip por DMA. Los scratch deben reservarse en Chip (`memory.chip`), no en pila. Sin esto no se pintaba **nada**.
+  3. **Máscara por par**: reutilizar una sola máscara para todos los pares perdía todos menos el último (el plan se ejecuta al final). Ahora cada par tiene su máscara en `mask_scratch` (`pares * 2 * Font8::kRows` palabras).
+  4. **Contrato de buffers encapsulado**: `TextBlitScratch<Planes, MaxPairs>` (`glyph_cache.hpp`) reserva sólido y máscara en el `LinearArena` de Chip con los tamaños correctos, para que no vuelvan a aparecer errores de tamaño/arena al llamar a `draw_text_blit`.
+- **Verificación de registros**: el canal lateral de WinUAE-DBG (`mem dff040 <len>`) y GDB leen los registros del Blitter aunque el programa no (son de escritura). En el submit del cookie-cut (`$CA`, `x=20` no alineado) se observó `BLTCON0=0x0FCA`, `BLTCON1=0x0000`, `BLTAFWM/ALWM=0xFFFF`, `BLTAMOD=BLTBMOD=0x0000`, `BLTCMOD=BLTDMOD=0x0024` (36 = `row_bytes(40) − 2 palabras`), `BLTSIZE=0x0202` (8 filas × 2 palabras): coherentes con lo esperado. No había defecto de programación de registros; el fallo residual era de **buffers** (puntos 1–3), no del backend.
+- **Nota**: la demo reserva el scratch **una vez** y lo **reutiliza** entre dos `text_blit` ejecutando el plan entre ambos; como cada llamada reescribe la máscara desde el índice 0, encadenar dos `text_blit` en el **mismo** `FramePlan` sin buffers separados pisaría las máscaras de la primera.
+
+
+
 
 

@@ -15,6 +15,7 @@
 
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/memory/stack.hpp>
 #include <eng/os/port.hpp>
 
 namespace eng::os {
@@ -98,8 +99,22 @@ public:
 		t.name = d.name;
 		t.priority = d.priority;
 		t.own_port = d.own_port;
+		// Pila propia (M11): Fast si hay, si no Slow. El cambio de SP lo hace el runner.
+		if (d.stack_words != 0u && m_mm.valid()) {
+			t.stack = fast_or_slow_stack(*m_mm, static_cast<eng::u32>(d.stack_words) * 2u, 8u);
+		}
 		t.state = TaskState::Created;
 		return static_cast<TaskId>(i + 1u); // id = índice + 1
+	}
+
+	/// Asocia el `MemoryManager` (bancos) para reservar pilas de tarea (M11).
+	void attach_memory(MemoryManager& mm) noexcept { m_mm = eng::Ref<MemoryManager>(mm); }
+
+	/// Pila de la tarea (`Ref` no válida si no tiene pila propia o el id es inválido).
+	[[nodiscard]] eng::Ref<const Stack> task_stack(TaskId id) const noexcept {
+		const auto t = get(id);
+		return (t.valid() && t->stack.valid()) ? eng::Ref<const Stack>(t->stack)
+						       : eng::Ref<const Stack>();
 	}
 
 	/// Arranca una tarea `Created` → `Ready`. `false` si no lo estaba.
@@ -250,6 +265,7 @@ private:
 		const char* name = nullptr;
 		eng::u8 priority = 0u;
 		bool own_port = false;
+		Stack stack {}; ///< pila propia (M11); inválida si `stack_words == 0`
 		TaskState state = TaskState::Invalid;
 	};
 
@@ -289,6 +305,7 @@ private:
 	eng::u8 m_max = 0u;
 	eng::u8 m_count = 0u; ///< tareas creadas (los ids son estables)
 	bool m_preempt = false;
+	eng::Ref<MemoryManager> m_mm {}; ///< bancos para pilas de tarea (M11); no propietario
 
 	/// Hook estático para `yield_if_preempt()` (una instancia activa a la vez).
 	static inline bool (*s_preempt_hook)() = nullptr;

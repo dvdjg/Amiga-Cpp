@@ -8,7 +8,7 @@
 /// antes de buscar. En una máquina de un solo núcleo como el Amiga es suficiente; en
 /// host hay que usarlo de forma secuencial.
 ///
-/// Lo comparten la demo `demos/amiga/123_chess_match` y la simulación host
+/// Lo comparten la demo `demos/features/board/chess/amiga/123_chess_match` y la simulación host
 /// `tools/board/selfplay.cpp`, de modo que ambas usan **exactamente la misma**
 /// evaluación por estilo.
 ///

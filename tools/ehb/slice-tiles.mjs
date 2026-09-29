@@ -50,7 +50,7 @@ if (hasAlphaSrc) paletteI.push([0, 0, 0]); // índice 0 = transparente (si hace 
 // 32..63 half). Por eso, aquí dentro, al EXPORTAR (.h/.bin/tiles.json/PNG) se
 // reindexa a bases-primero con el mapa `expIndex` del paso 6, de modo que el Amiga
 // NUNCA transforma píxeles en CPU. Ver la regla 7 de
-// docs/guides/roadmap/REGLAS_PIPELINE_TILES.md y el uso en demos/amiga/201_ehb_map/src/main.cpp.
+// docs/guides/roadmap/REGLAS_PIPELINE_TILES.md y el uso en demos/techniques/amiga/playfield/201_ehb_map/src/main.cpp.
 for (const b of bases) { paletteI.push([b[0] & 255, b[1] & 255, b[2] & 255]); if (planes >= 6) paletteI.push([b[0] >> 1, b[1] >> 1, b[2] >> 1]); }
 const palSize = paletteI.length;
 console.log(`[slice] paleta ${palSize} colores (${palSize <= 16 ? '4 bits/px' : palSize <= 32 ? '5 bits/px' : 'EHB 64'}${hasAlphaSrc ? ', índice 0 transparente' : ' sin transparencia'})`);

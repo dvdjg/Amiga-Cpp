@@ -117,10 +117,10 @@ BOBs, redraw parcial o CPU.
   tilemap 16x16 con dirty flags por buffer y scroll descompuesto.
 - `engine/include/eng/scene/virtual_scene.hpp` introduce camara 2D, capas de
   tiles, estrategia de scroll y plan retenido de escena.
-- `demos/amiga/052_tile_staging_blits` ya atraviesa `VirtualScene` antes de compilar
+- `demos/techniques/amiga/blitter/052_tile_staging_blits` ya atraviesa `VirtualScene` antes de compilar
   los blits manuales de la demo. Es una comprobacion minima, pero importante:
   la demo de bajo nivel empieza a depender de la abstraccion que usara el engine.
-- `demos/amiga/100_virtual_tile_scene_scroll` valida el primer resultado humano: mapa
+- `demos/techniques/amiga/playfield/100_virtual_tile_scene_scroll` valida el primer resultado humano: mapa
   virtual mayor que pantalla, camara retenida con fine scroll, paletas EHB por
   zonas y analisis automatico de captura. Aun usa un raster didactico; el driver
   optimizado queda como siguiente paso.

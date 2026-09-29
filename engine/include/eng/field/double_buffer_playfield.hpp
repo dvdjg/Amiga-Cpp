@@ -11,7 +11,7 @@
 /// **No posee memoria**: `bind` la liga a **dos bitmaps del display** que reserva el llamador
 /// (la escena/el display poseen los buffers; la superficie solo escribe y conmuta). El scroll por
 /// punteros lo aporta el mapper flat (`map_flat_scroll`). Verificada por la demo
-/// `demos/amiga/122_doublebuffer_scroll`.
+/// `demos/techniques/amiga/playfield/122_doublebuffer_scroll`.
 
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/types.hpp>
@@ -67,12 +67,11 @@ public:
 
     PlayfieldHardwareView hardware_view() const {
         const gfx::Bitmap& b = *m_buf[m_front].get();
-        const u8* const base = b.bytes().data();
         const FlatDisplayMapping m =
             map_flat_scroll(m_cam_x.position, m_cam_y.position, b.row_bytes(), b.planes(), m_cfg.fetch_bytes);
         PlayfieldHardwareView v {};
-        v.bitplanes = base;
-        v.real_base = base;
+        v.bitplanes = b.front();
+        v.real_base = b.front();
         v.bitmap_bytes_per_row = b.row_bytes();
         v.plane_bytes = b.total_bytes();
         v.planes = b.planes();

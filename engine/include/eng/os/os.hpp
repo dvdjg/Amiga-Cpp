@@ -42,18 +42,20 @@ void request_quit();
 void enable_keyboard();
 
 /// **Habilita el pad CD32** en el puerto 2 (protocolo serie por `POTGO`/`POTINP`): a partir de aquí
-/// el puerto 2 se lee como `Gamepad` (en lugar de `Joystick`) y sus botones llegan como
-/// `MsgType::Gamepad` por el puerto del sistema. Lo implementa el backend Amiga. Ver
+/// el puerto 2 se prueba como `Gamepad` y sus botones llegan como `MsgType::Gamepad`; si no hay
+/// pad, el `tick` **cae al joystick** (misma puerto). Lo implementa el backend Amiga. Ver
 /// `MINI_OS_INPUT.md` §6.
 void enable_cd32_pad();
 
-/// Dispositivos de entrada que `os::input_enable` puede activar (bitmask).
+/// Dispositivos de entrada que `os::input_enable` puede activar (bitmask). `InputJoystick` y
+/// `InputCd32Pad` comparten el **puerto 2**; `InputAll` activa los que conviven (ratón + teclado +
+/// joystick) y el pad CD32 se añade explícitamente con `enable_cd32_pad()` (auto-detección).
 enum InputMask : eng::u8 {
 	InputMouse = 1u << 0,
 	InputKeyboard = 1u << 1,
 	InputJoystick = 1u << 2,
 	InputCd32Pad = 1u << 3,
-	InputAll = 0x0fu,
+	InputAll = 0x07u,
 };
 
 /// Habilita los dispositivos de `mask`: los demás **no** se pollean. El teclado instala su IRQ de
@@ -70,6 +72,30 @@ void add_timer(eng::u16 id, eng::u16 frames);
 /// (polling); `os::init` lo registra como `vblank_hook` del `Engine`, que es quien posee la IRQ de
 /// VBlank, de modo que el latido corre **dentro de la IRQ** (sin sondeo en el bucle).
 void vblank_hook(void* user);
+
+/// **Tarea de frame** opcional del mini-SO: se ejecuta **al final de cada tick** (tras avanzar
+/// el frame, señalizar el VBlank y pollear entrada/timers). Pensada para trabajo frame-driven
+/// atado al ciclo de mensajes — p. ej. avanzar la música P61 y postear `MusicEnd`— que así corre
+/// en el **mismo contexto que el tick** (IRQ de VBlank si el latido va por IRQ). `cb(user, vpos)`;
+/// `nullptr` la apaga. Reutilizable por cualquier demo/juego.
+void set_frame_task(void (*cb)(void*, eng::u16), void* user);
+
+/// **Arranca el mini-SO por IRQ de VBlank** directamente sobre el `backend` (sin `Engine`):
+/// habilita `inputs`, registra el latido como servicio de VBlank (`backend.set_vblank_service`)
+/// y así el input, los timers y la **tarea de frame** (`set_frame_task`, p. ej. la música) corren
+/// **dentro de la IRQ**. El bucle principal queda para el render (sincronizando con
+/// `backend.wait_vblank()`) y para drenar el puerto. Es el modelo clásico: juego en el bucle,
+/// tiempo/entrada/música en el VBlank. Requiere que el backend exponga `set_vblank_service`.
+template <class BackendT>
+[[nodiscard]] bool start_vblank_irq(BackendT& backend, eng::u8 inputs = InputAll) noexcept {
+	input_enable(inputs);
+	// Contexto trivial para el ABI de servicio `void(C&, u16)`: el latido no necesita estado.
+	struct VBlankCtx {
+	};
+	static VBlankCtx ctx {};
+	return backend.set_vblank_service(
+		+[](VBlankCtx&, eng::u16) noexcept { tick(); }, ctx);
+}
 
 /// **Arranca el mini-SO**: habilita los dispositivos de `inputs` y registra el latido del mini-SO
 /// en el VBlank del `engine` (`engine.set_vblank_hook`). A partir de aquí el frame avanza y la

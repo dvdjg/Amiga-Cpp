@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { PNG } = require('pngjs');
 
-/// Verifica el microtest MI09 ampliado (`demos/amiga/114_mode_switch_bands`):
+/// Verifica el microtest MI09 ampliado (`demos/techniques/amiga/playfield/114_mode_switch_bands`):
 /// campo de 5 planos + franjas apiladas de 4, 3 y 2 planos con `ModeSwitchZone`.
 /// Cada franja pinta barras que recorren todos los indices de su profundidad, de
 /// modo que su region solo puede mostrar <= 2^planos colores distintos. Si una

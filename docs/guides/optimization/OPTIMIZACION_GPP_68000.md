@@ -57,6 +57,7 @@ La comprobación rápida de cualquier patrón caliente: `m68k-amiga-elf-g++ -m68
 - Evitar `char` con signo en aritmética (extensiones de signo frecuentes). Usar `eng::u8`/`uint8_t` y tipos sin signo donde no haga falta signo.
 - Punteros y direcciones: siempre 32 bits; cada puntero ocupa un registro de dirección (a0-a6, más escasos que los de datos).
 - `[✓]` Bitfields: en el caso sondeado (campos `u16 a:4,b:4,c:4,d:4` en 68000 big-endian), GCC generó código **más corto y sin spill** con bitfield (`lsr.b #4; and.w #255; ...`) que con máscara+shift (`lsr.w %d2` con el contador en un registro spilleado a pila). No usar la regla como universal: en este fork mejoraron, pero **verificar cada patrón con `-S`** (el ICE de `-O0` del §1 salió de un `mask_shift`, o sea que los shifts con registro son justo el punto débil).
+- **Coordenadas de píxel: `eng::pix`.** Las firmas de las primitivas de rasterizado (`Playfield::draw_span`/`write_pixel`/`planeline_for`/`byte_for`, `cpu_fill_rect`/`cpu_line`, `Span` del polígono) usan `eng::pix`, definido en `eng/core/types/types.hpp` como **`s16` en 68000 y `s32` en host**. Así el bucle por fila del rasterizado opera en word sin arrastrar `__mulsi3`/`__divsi3`, pero los tests y algoritmos de host no desbordan. **No** confundir con `eng::coord` (coordenada de simulación, `Fixed`) ni con `eng::intw` (entero de palabra natural). Los **intermedios que pueden desbordar** (`dx*dy`, `x + w`, `xb-xa)*(y-ya)`, áreas, divisiones de línea) se calculan en `s32`/`s64` **local y explícito**, con comentario. El clip lógico y las coordenadas de mundo de `Surface` siguen en `s32` a propósito: no son el bucle interior.
 
 ---
 
@@ -319,7 +320,7 @@ desensambla un ELF (o un `.o`) y reporta, **por función**, cuántas llamadas a 
 emite:
 
 ```
-node tools/analyze/asm-audit.mjs --demo demos/amiga/107_xlimited_corkscrew [--ext] [--top N] [--json] [--strict]
+node tools/analyze/asm-audit.mjs --demo demos/techniques/amiga/playfield/107_xlimited_corkscrew [--ext] [--top N] [--json] [--strict]
 node tools/analyze/asm-audit.mjs out/demos/<demo>/<cfg>/<demo>.<cfg>.elf
 ```
 
@@ -507,6 +508,12 @@ van a 48-50 fps, *vblank-gated*); reducirlo es **margen** para hardware real, no
 - Toda **dimensión de geometría** que se pueda elegir libremente → **potencia de dos** (y como
   NTTP si es posible). Evita el libcall y el truco mágico imposible en 68000.
 - Todo **divisor conocido a priori** → NTTP + `fast_div<N>` (no `u16` runtime).
+- **Restringir el divisor por el tipo (C++23)**: cuando una división sea necesaria, que el divisor sea **potencia de
+  dos** y que el **lenguaje impida** otros valores — NTTP/`consteval` + `static_assert`/`concept` (p. ej.
+  `pow2_divisor<N>` o extender `fast_div<N>`) — de modo que `/` y `%` salgan como **desplazamiento de bits**. **`256`
+  no se divide**: se **lee con otro offset** (se descarta un byte entero, o se accede por byte/mitad). Si la potencia
+  de dos no encaja, **cambiar el algoritmo** (incremental, compás, tabla precalculada) antes de aceptar una división
+  runtime en el bucle.
 - Todo **`%`/`/` por un valor runtime** dentro de un bucle → reducir a incrementos/compases.
 - Antes de tocar: `asm-audit.mjs` para localizar, y **medir** el camino ejecutado (el conteo
   estático incluye ramas no tomadas).
@@ -568,6 +575,21 @@ Ambos se han reducido con la forma amiga del raster (el relleno es de **polígon
 Efecto esperado en el número de `write_planes` (trabajo, no ciclos): para un relleno de `W` píxeles de ancho y `H` de alto baja de `W·H` a `⌈W/16⌉·H` por plano (~**16×** menos RMW del bitmap cuando el ancho cubre palabras enteras).
 
 > Medición en objetivo pendiente: requiere el emulador (perfil por secciones). **Banco correcto**: la demo 078 **no** usa `Playfield::fill_polygon` (tiene su propio `Canvas`); la ruta cambiada la consume `Surface` (HOST-046 o un demo de GUI). Medir ahí, no en la 078. El contador determinista de `write_planes` y la equivalencia de píxeles los fijan HOST-045 y HOST-046.
+
+## 14. BLTPRI (blitter-nasty) y Fast RAM
+
+`BLTPRI` (DMACON bit 10, `DmaBlitterPriority`, el "blitter nasty" de OCS) hace que el **Blitter no ceda sus slots del bus de chip a la CPU**: el DMA de blit avanza a plena velocidad y la CPU —o sus esperas activas a `BBUSY`— quedan detenidas mientras el Blitter tiene el bus. El engine lo controla con `AmigaBackend::set_blitter_priority(bool)` (DMACON `0x8400`); el DMACON del Copper de la demo también puede fijarlo (la 117 lo activa, como el original).
+
+**Por qué `BLTPRI` merece la pena en general:** en un A500 de serie **todo** está en **Chip RAM**, así que la CPU comparte el bus de chip con el Blitter **hasta para sus fetches de instrucción y accesos a datos**; ahí `BLTPRI` la estrangula. Pero si el **código y los datos de trabajo están en Fast RAM**, la CPU **no usa el bus de chip** para ejecutar (sus fetches van por su propio bus). Entonces:
+
+- el **Blitter va a plena velocidad** (prioridad en el bus de chip, sin ceder slots), y
+- la **CPU no pierde ciclos** por ese bus: su espera (p. ej. sondeando `BBUSY`) **no le roba ancho de banda al Blitter**.
+
+Es decir, **`BLTPRI` + Fast RAM es la combinación buena**; `BLTPRI` con todo en chip es la mala (esta es la lección: el efecto de `BLTPRI` depende de dónde viva el código). El engine detecta la Fast RAM con `eng::hw::has_fast_ram(hw)` / `HwInfo::fast_ram_bytes` (`eng/hw/info.hpp`); una demo intensiva puede usarla para los **datos de trabajo** (p. ej. el búfer de transformación) — el `BlockPool`/`MemoryManager` ya distinguen Fast/Chip.
+
+**Mover el código a Fast RAM:** AmigaDOS suele cargar el ejecutable en la primera RAM libre (con Fast RAM, a menudo ya es Fast), pero garantizarlo exige un loader/relocador propio (copiar `.text` a un `Block<Fast>` y saltar a él); el engine no lo hace hoy — mecanismo pendiente. Lo inmediato es poner los **datos de trabajo** en Fast RAM.
+
+**Relación con la espera de Blitter:** `AmigaBackend::wait_blitter()` **drena el servicio de fondo** (`set_blitter_service`) durante el sondeo; y ahora `OrBlobBatch` puede hacer lo mismo pasándole el servicio (`AmigaBackend::blitter_wait_service()`), de modo que esa espera deja de ser tiempo muerto cuando hay tareas de fondo.
 
 
 

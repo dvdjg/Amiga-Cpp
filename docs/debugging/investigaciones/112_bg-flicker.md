@@ -122,5 +122,5 @@ sobre un solo bitmap de 5 planos. El soft DPF se extraerá a dos playfields
 ## 8. Referencias
 
 - Técnica y límites: `docs/reference/amiga/techniques/robocod-layered-scroll.md` §3.
-- Invariante del anillo/altura: `demos/amiga/201_ehb_map/src/README.md` §7.
+- Invariante del anillo/altura: `demos/techniques/amiga/playfield/201_ehb_map/src/README.md` §7.
 - Comportamiento del runner/emulador y capturas: `docs/build/BUILD_AND_RUN.md`.

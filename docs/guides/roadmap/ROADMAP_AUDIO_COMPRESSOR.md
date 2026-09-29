@@ -1,18 +1,19 @@
-# Roadmap de `audio-compressor`
+# Roadmap del pipeline AUZX
 
-Plan de la utilidad offline de compresión de audio y del decoder `AUZ2` del engine. El diseño estable está en [`AUDIO_COMPRESSION.md`](../../engine/architecture/AUDIO_COMPRESSION.md); la arquitectura de streaming existente está en [`AUDIO_STREAMING.md`](../../engine/architecture/AUDIO_STREAMING.md).
+Plan del pipeline offline de compresión de audio y del decoder `AUZX` del engine. El diseño estable está en [`AUDIO_COMPRESSION.md`](../../engine/architecture/AUDIO_COMPRESSION.md); la arquitectura de streaming está en [`AUDIO_STREAMING.md`](../../engine/architecture/AUDIO_STREAMING.md).
 
 ## Fases
 
 ### C0 — Contenedor y baseline
 
-- **Entregado**: `AUZ2` v1, mono PCM8, chunks, PCM crudo y Delta+RLE, verificación round-trip en la utilidad host.
-- **Entregado**: parser portable `eng/audio/auz2.hpp` y reutilización de `eng/audio/pcm_codec.hpp`.
-- **Pendiente**: test HOST completo con varios chunks y vectores truncados/desbordados.
+- **Entregado**: `AUZX` v1, mono PCM8, índice de chunks, checksum opcional y parseo validado por HOST-360.
+- **Entregado**: `host-tools/pack-pcm` reutiliza los codecs del engine y verifica el round-trip.
+- **Entregado**: `eng/audio/media.hpp` centraliza PCM/AUZX y `PcmStream::seek` usa el índice.
 
 ### C1 — Ingestión de PC
 
-- WAV PCM mono de 8/16 bits y RAW PCM8: baseline implementado.
+- RAW PCM8 firmado: implementado en `pack-pcm` y `tools/audio/pack-auzx.mjs`.
+- Conversión WAV PCM mono de 8/16 bits: pendiente en la capa de ingestión del pipeline.
 - WAV estéreo, AIFF, FLAC y Ogg mediante una capa de ingestión documentada.
 - Extracción de audio de vídeo descargado usando `yt-dlp` + `ffmpeg` como comandos externos optativos.
 - Normalización explícita de frecuencia, canal, signo y amplitud, con informe de cada conversión.
@@ -26,10 +27,9 @@ Plan de la utilidad offline de compresión de audio y del decoder `AUZ2` del eng
 
 ### C3 — Codec con pérdida barato
 
-- IMA ADPCM 4-bit como codec portable y decoder host de referencia.
-- Modos por chunk: silencio, ADPCM, PCM8 y Delta+RLE.
-- Escala inicial, predictor y cabecera de estado por chunk.
-- Test de equivalencia entre decoder host y decoder Amiga.
+- Fibonacci Delta e IMA ADPCM 4-bit: implementados y cubiertos por HOST-357 y HOST-359.
+- ASM 68000 y referencia C++: equivalencia cubierta por la demo `277_codec_equiv`.
+- Modos por archivo/chunk: PCM, Delta+RLE, Delta+ZX0, Fibonacci, IMA, ZX0 y aPLib.
 
 ### C4 — Cuantización entrenable
 
@@ -47,11 +47,10 @@ Plan de la utilidad offline de compresión de audio y del decoder `AUZ2` del eng
 
 ### C6 — Decoder Amiga y rendimiento
 
-- Integración con `PcmStream` y doble/triple buffer de `AUDIO_STREAMING.md`.
-- C++23 freestanding como implementación de referencia.
-- ASM 68000 para bitstream ADPCM, integración predictiva y síntesis armónica después de medir.
+- Integración con `PcmStream`, `AudioFeeder` y doble/triple buffer.
+- C++23 freestanding como implementación de referencia y ASM 68000 para rutas críticas.
 - Vectores byte a byte, prueba de límites y `asm-audit.mjs` para cada rutina optimizada.
-- Demo Amiga de reproducción desde RAM y posteriormente desde `trackdisk`.
+- Demos `277_codec_equiv` y `278_stream_disk` como evidencia de equivalencia y streaming.
 
 ## Criterios de aceptación
 

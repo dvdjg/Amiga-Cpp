@@ -31,11 +31,22 @@ match() {
 	return 1
 }
 
-for d in demos/amiga/*/; do
+# Demos bajo la estructura actual (`demos/techniques/<familia>/<categoria>/<demo>/` y
+# `demos/features/<feature>/<plataforma>/<demo>/`): localiza los `src/main.cpp`.
+while IFS= read -r d; do
 	name="$(basename "$d")"
-	[ -f "$d/src/main.cpp" ] || continue
 	match "$name" "$@" || continue
-	out="$(bash ./tools/run/run-demo.sh "$d" --warp --side-channel-timeout-ms "$TO" 2>&1)"
+	# Args por demo (`run.args`): mismas reglas que `test-regression.sh`.
+	args=(--warp --side-channel-timeout-ms "$TO" --reset-emulator)
+	if [ -f "$d/run.args" ]; then
+		while IFS= read -r _a; do
+			[ -z "$_a" ] && continue
+			case "$_a" in \#*) continue ;; esac
+			read -r -a _w <<< "$_a"
+			args+=("${_w[@]}")
+		done < "$d/run.args"
+	fi
+	out="$(bash ./tools/run/run-demo.sh "$d" "${args[@]}" 2>&1)"
 	st="TIMEOUT"
 	if echo "$out" | grep -q "\[run-demo\] ok"; then
 		st="OK"
@@ -45,7 +56,7 @@ for d in demos/amiga/*/; do
 		st="NOEXE"
 	fi
 	printf '%-26s %s\n' "$st" "$name" | tee -a "$LOG"
-done
+done < <(find demos -path '*/src/main.cpp' | sed 's|/src/main.cpp$||' | sort)
 
 echo "--- resumen (timeout ${TO} ms) ---"
 for k in OK FAILED TIMEOUT NOEXE; do printf '%s=%s\n' "$k" "$(grep -c "^$k" "$LOG")"; done

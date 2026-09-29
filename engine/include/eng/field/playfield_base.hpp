@@ -41,6 +41,7 @@
 #include <eng/core/math/arith.hpp>
 #include <eng/core/math/arith.hpp>
 #include <eng/core/data/polygon.hpp>
+#include <eng/core/types/memory_kind.hpp>
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
@@ -109,8 +110,8 @@ class Rasterizer; ///< seam de rasterizado (definido en `raster.hpp`)
 /// fino/coarse, modulos y, en los playfields con wrap vertical (corkscrew), el
 /// split (`display_offset`, `split_line`, `split_active`).
 struct PlayfieldHardwareView {
-    const u8* bitplanes = nullptr; // frontbuffer (Planes[0] + bitmapoffset)
-    const u8* real_base = nullptr; // base real del AllocBitMap (para BPLxPT)
+    Address<MemoryKind::Chip> bitplanes {}; // frontbuffer (Planes[0] + bitmapoffset), Chip RAM
+    Address<MemoryKind::Chip> real_base {}; // base real del AllocBitMap (para BPLxPT), Chip RAM
     u32 planeaddx = 0;             // coarse X en bytes
     u32 planeaddy = 0;             // offset Y interleaved = display_offset*planes*bytes
     u16 bplcon1 = 0;               // scroll fino duplicado en ambos nibbles
@@ -132,13 +133,32 @@ struct PlayfieldHardwareView {
     // contenido (p. ej. un patrón de fondo) scrollea a otra velocidad.
     u8 parallax_plane = 0xffu;     // plano con parallax propio (0xff = ninguno)
     u32 parallax_planeaddx = 0;    // coarse X propio del plano de parallax (bytes)
-    const u8* bg_plane_base = nullptr; // base del plano de fondo si es doble-buffer
-                                        // (soft DPF): ESE plano se lee de aquí, no de real_base
+    Address<MemoryKind::Chip> bg_plane_base {}; // base del plano de fondo si es doble-buffer
+                                                 // (soft DPF): ESE plano se lee de aquí, no de real_base
     s32 videoposx = 0;
     s32 mapposx = 0;
     s32 videoposy = 0;
     s32 mapposy = 0;
 };
+
+/// Emite los `BPLxPT` de una superficie: un plano por paso `bitmap_bytes_per_row`, con la base
+/// desplazada por el scroll actual (`planeaddx`/`planeaddy`) y, si el plano de parallax (soft DPF)
+/// está configurado, su base propia. `extra_off` añade un desplazamiento (p. ej. el wrap del
+/// split). Es la **fuente única** de los punteros de una superficie: la usan el driver de scroll
+/// (`XlimitedDisplayComposer`) y la composición por bandas (`scene::RasterLayout`).
+template <class Sched>
+inline void emit_view_pointers(Sched& sched, const PlayfieldHardwareView& view,
+			       eng::s32 extra_off = 0) {
+    for (u8 p = 0u; p < view.planes; ++p) {
+        const Address<MemoryKind::Chip> base =
+            (view.bg_plane_base.valid() && p == view.parallax_plane) ? view.bg_plane_base
+                                                                     : view.real_base;
+        sched.move_bitplane_pointer(
+            p, base + static_cast<eng::s32>(view.planeaddx) +
+                   static_cast<eng::s32>(view.planeaddy) + extra_off +
+                   static_cast<eng::s32>(p) * static_cast<eng::s32>(view.bitmap_bytes_per_row));
+    }
+}
 
 /// Seam opcional para delegar el **relleno de polígonos al hardware** (Blitter).
 ///
@@ -210,18 +230,18 @@ public:
     constexpr bool initialized() const { return m_initialized; }
 
     // --- Hooks de mapeo lógico->físico (implementa cada tipo) -------------
-    virtual u32 planeline_for(s32 wy) const = 0;
-    virtual u32 byte_for(s32 wx) const = 0;
+    virtual u32 planeline_for(eng::pix wy) const = 0;
+    virtual u32 byte_for(eng::pix wx) const = 0;
     virtual u32 mirror_planelines() const { return 0; }
     virtual bool supports_walk() const { return false; }
-    virtual bool in_bounds(s32 wx, s32 wy) const { return wx >= 0 && wy >= 0; }
+    virtual bool in_bounds(eng::pix wx, eng::pix wy) const { return wx >= 0 && wy >= 0; }
     virtual u32 total_bytes() const { return m_total_bytes; }
 
     // --- Escritura atómica vía el mapeo (lo usa `Surface`) ----------------
     /// Escribe un píxel de mundo (lo atómico del mapeo lógico→físico). Devuelve
     /// false si está fuera de rango. En playfields con espejo (linear_display)
     /// duplica al espejo. `Surface` añade el recorte (clip) por encima de esto.
-    bool write_pixel(s32 wx, s32 wy, u8 color) {
+    bool write_pixel(eng::pix wx, eng::pix wy, u8 color) {
         if (!m_initialized || !in_bounds(wx, wy)) return false;
         const u32 byte = byte_for(wx);
         if (!supports_walk() && byte >= m_bytes_per_row) return false;
@@ -237,7 +257,7 @@ public:
     /// (16 píxeles) se resuelve con una sola escritura por plano; los extremos parciales van
     /// con máscara. Es la versión rápida del bucle de `write_pixel` para el relleno de
     /// polígonos (`fill_polygon`).
-    bool draw_span(s32 x0, s32 x1, s32 wy, u8 color) {
+    bool draw_span(eng::pix x0, eng::pix x1, eng::pix wy, u8 color) {
         if (!m_initialized || !in_bounds(x0, wy) || x1 < x0) return false;
         const u32 pl = planeline_for(wy);
         const u32 mir = mirror_planelines();
@@ -269,7 +289,7 @@ public:
 
     /// `draw_span` con **operación lógica**. `Copy`/`Clear` reutilizan la ruta rápida
     /// (`draw_span`); `Or`/`And`/`Xor` van por `write_planes_op` (palabra a palabra).
-    bool draw_span_op(s32 x0, s32 x1, s32 wy, u8 color, RasterOp op) {
+    bool draw_span_op(eng::pix x0, eng::pix x1, eng::pix wy, u8 color, RasterOp op) {
         if (op == RasterOp::Copy) return draw_span(x0, x1, wy, color);
         if (op == RasterOp::Clear) return draw_span(x0, x1, wy, 0u);
         if (!m_initialized || !in_bounds(x0, wy) || x1 < x0) return false;
@@ -295,7 +315,8 @@ public:
     /// bytes, copia de 32 en 32 (ruta 68020+: `move.l`; *CPU blit assist*, ver
     /// `docs/guides/optimization/OPTIMIZACION_GPP_68000.md`). No encola nada.
     bool copy_rect_cpu(Span<const u16> src, s32 wx, s32 wy, u16 w, u16 h,
-                       u16 src_row_bytes, u32 src_plane_stride, u8 planes) {
+                       u16 src_row_bytes, u32 src_plane_stride, u8 planes,
+                       u8 source_shift = 0u) {
         if (!m_initialized || src.empty() || planes == 0u) return false;
         if (wx < 0 || (wx & 15) != 0 ||
             static_cast<u32>(wx / 8) + (w / 8u) > m_bytes_per_row) {
@@ -306,31 +327,43 @@ public:
         const u32 need_src =
             (planes > 1u ? eng::math::mulu16(static_cast<u16>(planes - 1u), static_cast<u16>(src_plane_stride / 2u)) : 0u) +
             (h > 1u ? eng::math::mulu16(static_cast<u16>(h - 1u), static_cast<u16>(src_row_bytes / 2u)) : 0u) +
-            static_cast<u32>(words);
+            static_cast<u32>(words) + ((source_shift != 0u) ? 1u : 0u);
         if (src.size() < need_src) return false;
         const u16 x_byte = static_cast<u16>(wx / 8u);
         // Sin multiplicaciones de 32 bits en el bucle: `wy*m_row_stride` con `mulu16`
         // y avance por suma de punteros (evita `__mulsi3` en 68000).
         const u32 y0_off = eng::math::mulu16(static_cast<u16>(wy), static_cast<u16>(m_row_stride));
         const u8* srow0 = reinterpret_cast<const u8*>(src.data());
-        u8* drow0 = m_frontbuffer + y0_off + x_byte;
+        u8* drow0 = (m_frontbuffer + y0_off + x_byte).ptr();
         for (u8 p = 0; p < planes; ++p) {
             const u8* srow = srow0;
             u8* drow = drow0;
             for (u16 row = 0; row < h; ++row) {
-                const u16* s = reinterpret_cast<const u16*>(srow);
-                u16* d = reinterpret_cast<u16*>(drow);
-                const bool wide = m_raster_policy.cpu_fast && words >= 2u &&
-                                  (reinterpret_cast<eng::uintptr>(s) & 3u) == 0u &&
-                                  (reinterpret_cast<eng::uintptr>(d) & 3u) == 0u;
-                u16 i = 0;
-                if (wide) {
-                    for (; i + 1u < words; i += 2u) {
-                        *reinterpret_cast<u32*>(d + i) = *reinterpret_cast<const u32*>(s + i);
+                if (source_shift == 0u) {
+                    const u16* s = reinterpret_cast<const u16*>(srow);
+                    u16* d = reinterpret_cast<u16*>(drow);
+                    const bool wide = m_raster_policy.cpu_fast && words >= 2u &&
+                                      (reinterpret_cast<eng::uintptr>(s) & 3u) == 0u &&
+                                      (reinterpret_cast<eng::uintptr>(d) & 3u) == 0u;
+                    u16 i = 0;
+                    if (wide) {
+                        for (; i + 1u < words; i += 2u) {
+                            *reinterpret_cast<u32*>(d + i) = *reinterpret_cast<const u32*>(s + i);
+                        }
                     }
-                }
-                for (; i < words; ++i) {
-                    d[i] = s[i];
+                    for (; i < words; ++i) {
+                        d[i] = s[i];
+                    }
+                } else {
+                    const u16* s = reinterpret_cast<const u16*>(srow);
+                    u16* d = reinterpret_cast<u16*>(drow);
+                    u16 carry = static_cast<u16>(
+                        reinterpret_cast<const u16*>(s - 1)[0] >> (16u - source_shift));
+                    for (u16 i = 0; i < words; ++i) {
+                        const u16 cur = static_cast<u16>(s[i] << source_shift);
+                        d[i] = static_cast<u16>(cur | carry);
+                        carry = static_cast<u16>(s[i] >> (16u - source_shift));
+                    }
                 }
                 srow += src_row_bytes;
                 drow += m_row_stride;
@@ -345,7 +378,8 @@ public:
     /// palabra a palabra, con la máscara de 1 bit (misma geometría que
     /// `add_world_bitmap_masked`). No encola nada.
     bool copy_masked_cpu(Span<const u16> src, Span<const u16> mask, s32 wx, s32 wy,
-                         u16 w, u16 h, u16 src_row_bytes, u32 src_plane_stride, u8 planes) {
+                         u16 w, u16 h, u16 src_row_bytes, u32 src_plane_stride, u8 planes,
+                         u8 source_shift = 0u) {
         if (!m_initialized || src.empty() || mask.empty() || planes == 0u) return false;
         if (wx < 0 || (wx & 15) != 0 ||
             static_cast<u32>(wx / 8) + (w / 8u) > m_bytes_per_row) {
@@ -353,19 +387,21 @@ public:
         }
         if (wy < 0 || static_cast<u32>(wy) + h > m_height) return false;
         const u16 words = static_cast<u16>(w / 16u);
+        // Con `source_shift != 0` se lee una palabra extra por fila (shift del barrel).
+        const u32 extra = (source_shift != 0u) ? 1u : 0u;
         const u32 need_src =
             (planes > 1u ? eng::math::mulu16(static_cast<u16>(planes - 1u), static_cast<u16>(src_plane_stride / 2u)) : 0u) +
             (h > 1u ? eng::math::mulu16(static_cast<u16>(h - 1u), static_cast<u16>(src_row_bytes / 2u)) : 0u) +
-            static_cast<u32>(words);
+            static_cast<u32>(words) + extra;
         const u32 need_mask =
             (h > 1u ? eng::math::mulu16(static_cast<u16>(h - 1u), static_cast<u16>(src_row_bytes / 2u)) : 0u) +
-            static_cast<u32>(words);
+            static_cast<u32>(words) + extra;
         if (src.size() < need_src || mask.size() < need_mask) return false;
         const u16 x_byte = static_cast<u16>(wx / 8u);
         const u32 y0_off = eng::math::mulu16(static_cast<u16>(wy), static_cast<u16>(m_row_stride));
         const u8* srow0 = reinterpret_cast<const u8*>(src.data());
         const u8* mrow0 = reinterpret_cast<const u8*>(mask.data());
-        u8* drow0 = m_frontbuffer + y0_off + x_byte;
+        u8* drow0 = (m_frontbuffer + y0_off + x_byte).ptr();
         for (u8 p = 0; p < planes; ++p) {
             const u8* srow = srow0;
             const u8* mrow = mrow0;
@@ -374,9 +410,22 @@ public:
                 const u16* s = reinterpret_cast<const u16*>(srow);
                 const u16* mrow16 = reinterpret_cast<const u16*>(mrow);
                 u16* d = reinterpret_cast<u16*>(drow);
-                for (u16 i = 0; i < words; ++i) {
-                    const u16 m = mrow16[i];
-                    d[i] = static_cast<u16>((d[i] & static_cast<u16>(~m)) | (s[i] & m));
+                if (source_shift == 0u) {
+                    for (u16 i = 0; i < words; ++i) {
+                        const u16 m = mrow16[i];
+                        d[i] = static_cast<u16>((d[i] & static_cast<u16>(~m)) | (s[i] & m));
+                    }
+                } else {
+                    // Barrel shift de máscara y fuente: `cur = (x[i]<<sh) | (x[i-1]>>(16-sh))`.
+                    const u16 inv = static_cast<u16>(16u - source_shift);
+                    u16 pm = 0u, ps = 0u; // palabras previas (0 al inicio de fila)
+                    for (u16 i = 0; i < words; ++i) {
+                        const u16 cm = static_cast<u16>((mrow16[i] << source_shift) | (pm >> inv));
+                        const u16 cs = static_cast<u16>((s[i] << source_shift) | (ps >> inv));
+                        d[i] = static_cast<u16>((d[i] & static_cast<u16>(~cm)) | (cs & cm));
+                        pm = mrow16[i];
+                        ps = s[i];
+                    }
                 }
                 srow += src_row_bytes;
                 mrow += src_row_bytes;
@@ -414,7 +463,7 @@ public:
     bool fill_rect_hw(s32 x, s32 y, u16 w, u16 h, u8 color) {
         if (!m_initialized || w == 0u || h == 0u) return false;
         if (m_rect_sink.ready()) {
-            return m_rect_sink.fn(m_rect_sink.ctx, m_frontbuffer, m_planes, plane_stride(),
+            return m_rect_sink.fn(m_rect_sink.ctx, m_frontbuffer.ptr(), m_planes, plane_stride(),
                                   row_stride(), m_bytes_per_row, m_width, m_height, x, y, w, h,
                                   color);
         }
@@ -443,8 +492,8 @@ public:
             if ((color & (1u << p)) == 0u) continue;
             graphics::BlitJob job {};
             job.destination = graphics::BlitDest {
-                reinterpret_cast<u16*>(m_frontbuffer + static_cast<u32>(p) * pstride)};
-            job.line.base = graphics::BlitDest {reinterpret_cast<u16*>(m_frontbuffer)};
+                reinterpret_cast<u16*>((m_frontbuffer + static_cast<u32>(p) * pstride).ptr())};
+            job.line.base = graphics::BlitDest {reinterpret_cast<u16*>(m_frontbuffer.ptr())};
             job.bitplane_count = 1;
             job.line.x0 = x0;
             job.line.y0 = y0;
@@ -472,11 +521,13 @@ public:
     /// Si hay un `PolygonFillSink` instalado (p. ej. el Blitter del backend Amiga),
     /// delega en él; en caso contrario usa el relleno CPU. El llamador dibuja a
     /// través de `Surface` y no distingue la ruta.
-    virtual bool fill_polygon(const s16* xs, const s16* ys, u8 n, u8 color) {
-        if (xs == nullptr || ys == nullptr || n < 3u) return false;
+    virtual bool fill_polygon(eng::Span<const s16> xs, eng::Span<const s16> ys, u8 color) {
+        const u8 n = static_cast<u8>(xs.size());
+        if (ys.size() != xs.size() || n < 3u) return false;
         if (m_fill_sink.ready()) {
-            return m_fill_sink.fn(m_fill_sink.ctx, m_frontbuffer, m_planes, plane_stride(),
-                                  row_stride(), m_bytes_per_row, m_width, m_height, xs, ys, n, color);
+            return m_fill_sink.fn(m_fill_sink.ctx, m_frontbuffer.ptr(), m_planes, plane_stride(),
+                                  row_stride(), m_bytes_per_row, m_width, m_height, xs.data(),
+                                  ys.data(), n, color);
         }
         // Relleno CPU por DOS CADENAS (poligono convexo): O(altura) frente a O(lados*altura)
         // del barrido que recalcula min/max por scanline. El polígono ya llega convexo.
@@ -487,11 +538,17 @@ public:
         for (u8 i = 0u; i < n; ++i) {
             x32[i] = xs[i];
             y32[i] = ys[i];
-        }
-        eng::math3d::convex_spans(
+        }        eng::math3d::convex_spans(
             eng::Span<const s32>(x32, n), eng::Span<const s32>(y32, n),
             [&](s32 y, s32 xl, s32 xr) { draw_span(xl, xr, y, color); });
         return true;
+    }
+
+    /// Atajo para arrays de tamaño fijo: `pf.fill_polygon(xs, ys, color)` sin escribir `Span`.
+    /// El nº de vértices se deduce del array (deben tener la misma longitud).
+    template <eng::usize N>
+    bool fill_polygon(const s16 (&xs)[N], const s16 (&ys)[N], u8 color) {
+        return fill_polygon(Span<const s16>(xs, N), Span<const s16>(ys, N), color);
     }
 
     // --- Blits (virtuales; la costura/espejo dependen del layout) ---------    /// Fuente y máscara viajan como `Span<const u16>`: el tamaño que el caller
@@ -535,8 +592,8 @@ protected:
         // acumula (suma) para no meter un producto de 32 bits en el camino por píxel.
         const u32 pstride = (m_plane_stride != 0u) ? m_plane_stride : m_bytes_per_row;
         const u32 rstride = (m_row_stride != 0u) ? m_row_stride : m_bytes_per_row;
-        u8* base = m_frontbuffer +
-                   eng::math::mulu16(static_cast<u16>(planeline), static_cast<u16>(rstride));
+        u8* base = (m_frontbuffer +
+                    eng::math::mulu16(static_cast<u16>(planeline), static_cast<u16>(rstride))).ptr();
         u32 off = word_byte;
         for (u8 p = 0; p < m_planes; ++p) {
             if (off >= m_total_bytes) return; // fuera del bitmap
@@ -554,8 +611,8 @@ protected:
     void write_planes32(u32 planeline, u32 word_byte, u32 mask32, u8 color) {
         const u32 pstride = (m_plane_stride != 0u) ? m_plane_stride : m_bytes_per_row;
         const u32 rstride = (m_row_stride != 0u) ? m_row_stride : m_bytes_per_row;
-        u8* base = m_frontbuffer +
-                   eng::math::mulu16(static_cast<u16>(planeline), static_cast<u16>(rstride));
+        u8* base = (m_frontbuffer +
+                    eng::math::mulu16(static_cast<u16>(planeline), static_cast<u16>(rstride))).ptr();
         u32 off = word_byte;
         for (u8 p = 0; p < m_planes; ++p) {
             if (off + 3u >= m_total_bytes) return; // fuera del bitmap
@@ -580,8 +637,8 @@ protected:
     void write_planes_op(u32 planeline, u32 word_byte, u16 mask, u8 color, RasterOp op) {
         const u32 pstride = (m_plane_stride != 0u) ? m_plane_stride : m_bytes_per_row;
         const u32 rstride = (m_row_stride != 0u) ? m_row_stride : m_bytes_per_row;
-        u8* base = m_frontbuffer +
-                   eng::math::mulu16(static_cast<u16>(planeline), static_cast<u16>(rstride));
+        u8* base = (m_frontbuffer +
+                    eng::math::mulu16(static_cast<u16>(planeline), static_cast<u16>(rstride))).ptr();
         u32 off = word_byte;
         for (u8 p = 0; p < m_planes; ++p) {
             if (off >= m_total_bytes) return;
@@ -597,7 +654,7 @@ protected:
         }
     }
 
-    u8* m_frontbuffer = nullptr; ///< base de los bitplanes (Chip RAM) del playfield
+    Address<MemoryKind::Chip> m_frontbuffer {}; ///< base de los bitplanes (Chip RAM) del playfield
     u16 m_width = 0;             ///< ancho visible en píxeles
     u16 m_height = 0;            ///< alto en filas
     u16 m_bytes_per_row = 0;     ///< bytes por fila de un plano

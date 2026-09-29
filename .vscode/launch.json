@@ -4,8 +4,8 @@
     {
       "type": "amiga",
       "request": "launch",
-      "name": "Amiga-Optimizations: depurar archivo actual",
-      "preLaunchTask": "Amiga-Optimizations: compilar archivo actual",
+      "name": "Amiga 500: depurar archivo actual (debug)",
+      "preLaunchTask": "Amiga: compilar archivo actual",
       "config": "A500",
       "program": "${workspaceFolder}/out/debug-current/current",
       "stopOnEntry": false,
@@ -20,8 +20,8 @@
     {
       "type": "amiga",
       "request": "launch",
-      "name": "Amiga-Optimizations: ejecutar archivo actual (optimizado)",
-      "preLaunchTask": "Amiga-Optimizations: compilar archivo actual (optimizado)",
+      "name": "Amiga 500: ejecutar archivo actual (optimizado)",
+      "preLaunchTask": "Amiga: compilar archivo actual (optimizado)",
       "config": "A500",
       "program": "${workspaceFolder}/out/debug-current/current_opt",
       "stopOnEntry": false,

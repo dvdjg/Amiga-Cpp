@@ -85,11 +85,13 @@ struct BigBufferScroll {
 /// se conocen a priori (potencias de dos casi siempre), el engine usa `fast_div`
 /// y evita las divisiones por frame.
 struct ScrollConsts {
-    u32 tile_width = 0;        // 0 = sn.tile_width()
-    u32 tile_height = 0;       // 0 = sn.tile_height()
-    u32 display_height = 0;    // 0 = sn.display_height()
-    u32 display_planelines = 0;// 0 = sn.display_planelines()
-    u32 planes = 0;            // 0 = sn.planes()
+	// Tipos del DOMINIO (no `u32`): un tile no pasa de 256 px (u16), la altura de display y sus
+	// planelines (alto×planos) caben en u16, y `planes` es 1..8 (u8). El tipo ancho forzaba casts.
+	u16 tile_width = 0;        // 0 = sn.tile_width()
+	u16 tile_height = 0;       // 0 = sn.tile_height()
+	u16 display_height = 0;    // 0 = sn.display_height()
+	u16 display_planelines = 0;// 0 = sn.display_planelines() (alto*planos)
+	u8 planes = 0;             // 0 = sn.planes() (1..8)
 };
 
 /// Geometría del anillo/layout que una estrategia de scroll consulta (SIN dibujar):
@@ -151,19 +153,19 @@ public:
 
     // --- Geometría: constante NTTP si se conoce, runtime del sink si no. -----
     inline u16 tw(const Sink& sn) const {
-        return C.tile_width ? static_cast<u16>(C.tile_width) : sn.tile_width();
+        return C.tile_width ? C.tile_width : sn.tile_width();
     }
     inline u16 th(const Sink& sn) const {
-        return C.tile_height ? static_cast<u16>(C.tile_height) : sn.tile_height();
+        return C.tile_height ? C.tile_height : sn.tile_height();
     }
-    inline u32 dh(const Sink& sn) const {
+    inline u16 dh(const Sink& sn) const {
         return C.display_height ? C.display_height : sn.display_height();
     }
-    inline u32 dph(const Sink& sn) const {
+    inline u16 dph(const Sink& sn) const {
         return C.display_planelines ? C.display_planelines : sn.display_planelines();
     }
     inline u8 planes(const Sink& sn) const {
-        return C.planes ? static_cast<u8>(C.planes) : sn.planes();
+        return C.planes ? C.planes : sn.planes();
     }
     /// ¿El eje X es lineal acotado (sin anillo)? Opcional en el sink (false por
     /// defecto = XLimited de anillo, comportamiento histórico).
@@ -172,19 +174,19 @@ public:
         else return false;
     }
     // Cociente/resto por tile_width: shift/mask si C.tile_width es potencia de 2.
-    inline u32 q_tw(const Sink& sn, s32 v) const {
+    inline u16 q_tw(const Sink& sn, s32 v) const {
         if constexpr (C.tile_width != 0u) return fast_div<C.tile_width>::q(static_cast<u32>(v));
         return static_cast<u32>(v) / sn.tile_width();
     }
-    inline u32 r_tw(const Sink& sn, s32 v) const {
+    inline u16 r_tw(const Sink& sn, s32 v) const {
         if constexpr (C.tile_width != 0u) return fast_div<C.tile_width>::r(static_cast<u32>(v));
         return static_cast<u32>(v) % sn.tile_width();
     }
-    inline u32 q_th(const Sink& sn, s32 v) const {
+    inline u16 q_th(const Sink& sn, s32 v) const {
         if constexpr (C.tile_height != 0u) return fast_div<C.tile_height>::q(static_cast<u32>(v));
         return static_cast<u32>(v) / sn.tile_height();
     }
-    inline u32 r_th(const Sink& sn, s32 v) const {
+    inline u16 r_th(const Sink& sn, s32 v) const {
         if constexpr (C.tile_height != 0u) return fast_div<C.tile_height>::r(static_cast<u32>(v));
         return static_cast<u32>(v) % sn.tile_height();
     }
@@ -230,10 +232,10 @@ public:
                           sn.viewport_w() - tw(sn);
         if (sn.map_wrap_x() == 0 && m_state.mapposx >= limit) return false;
 
-        const u16 mapblockx = static_cast<u16>(q_tw(sn, m_state.mapposx));
-        const u16 mapblocky = static_cast<u16>(q_th(sn, m_state.mapposy));
-        const u16 stepx = static_cast<u16>(r_tw(sn, m_state.mapposx));
-        const u16 stepy = static_cast<u16>(r_th(sn, m_state.mapposy));
+        const u16 mapblockx = q_tw(sn, m_state.mapposx);
+        const u16 mapblocky = q_th(sn, m_state.mapposy);
+        const u16 stepx = r_tw(sn, m_state.mapposx);
+        const u16 stepy = r_th(sn, m_state.mapposy);
         const u32 bvpos = block_videoposy(sn);
         const u16 x0 = static_cast<u16>(m_state.videoposx & ~(tw(sn) - 1));
         const u16 mapx = static_cast<u16>(mapblockx + sn.bitmap_blocks_per_row());
@@ -271,7 +273,7 @@ public:
 
         ++m_state.mapposx;
         m_state.videoposx = m_state.mapposx;
-        const u16 new_stepx = static_cast<u16>(r_tw(sn, m_state.mapposx));
+        const u16 new_stepx = r_tw(sn, m_state.mapposx);
 
         if (new_stepx == 0) {
             // Columna completada: ajustar la fila de fillup (valores POST-incremento).
@@ -326,9 +328,9 @@ public:
                 const s32 limit = static_cast<s32>(sn.map_width_blocks()) * twv - sn.viewport_w() - twv;
                 if (m_state.mapposx > limit) return false;
             }
-            const u16 mapblockx = static_cast<u16>(q_tw(sn, m_state.mapposx));
-            const u16 mapblocky = static_cast<u16>(q_th(sn, m_state.mapposy));
-            const u16 stepy = static_cast<u16>(r_th(sn, m_state.mapposy));
+            const u16 mapblockx = q_tw(sn, m_state.mapposx);
+            const u16 mapblocky = q_th(sn, m_state.mapposy);
+            const u16 stepy = r_th(sn, m_state.mapposy);
             const u32 bvpos = block_videoposy(sn);
             const u16 x0 = static_cast<u16>(m_state.videoposx & ~(twv - 1));
             const u16 mapx = static_cast<u16>(mapblockx + bpr);
@@ -395,10 +397,10 @@ public:
         --m_state.mapposx;
         m_state.videoposx = m_state.mapposx;
 
-        const u16 mapblockx = static_cast<u16>(q_tw(sn, m_state.mapposx));
-        const u16 mapblocky = static_cast<u16>(q_th(sn, m_state.mapposy));
-        const u16 stepx = static_cast<u16>(r_tw(sn, m_state.mapposx));
-        const u16 stepy = static_cast<u16>(r_th(sn, m_state.mapposy));
+        const u16 mapblockx = q_tw(sn, m_state.mapposx);
+        const u16 mapblocky = q_th(sn, m_state.mapposy);
+        const u16 stepx = r_tw(sn, m_state.mapposx);
+        const u16 stepy = r_th(sn, m_state.mapposy);
         const u32 bvpos = block_videoposy(sn);
         const u16 x0 = static_cast<u16>(m_state.videoposx & ~(tw(sn) - 1));
 
@@ -475,10 +477,10 @@ public:
                            sn.viewport_h() - th(sn);
         if (sn.map_wrap_y() == 0 && m_state.mapposy >= limitY) return false;
 
-        const u16 mapblockx = static_cast<u16>(q_tw(sn, m_state.mapposx));
-        const u16 mapblocky = static_cast<u16>(q_th(sn, m_state.mapposy));
-        const u16 stepx = static_cast<u16>(r_tw(sn, m_state.mapposx));
-        const u16 stepy = static_cast<u16>(r_th(sn, m_state.mapposy));
+        const u16 mapblockx = q_tw(sn, m_state.mapposx);
+        const u16 mapblocky = q_th(sn, m_state.mapposy);
+        const u16 stepx = r_tw(sn, m_state.mapposx);
+        const u16 stepy = r_th(sn, m_state.mapposy);
         const u32 bvpos = block_videoposy(sn);
         const u16 x0 = static_cast<u16>(m_state.videoposx & ~(tw(sn) - 1));
         const u32 y_pl = bvpos * planes(sn);
@@ -533,13 +535,13 @@ public:
     bool scroll_up(graphics::FramePlan& plan, Sink& sn) {
         if (finite_x(sn)) {
             if (m_state.mapposy < 1) return false;
-            const u16 row_before = static_cast<u16>(q_th(sn, m_state.mapposy));
+            const u16 row_before = q_th(sn, m_state.mapposy);
             --m_state.mapposy;
             m_state.videoposy = static_cast<s32>(r_dh(sn, static_cast<u32>(m_state.mapposy)));
             // Pintar la fila entrante UNA vez al cruzar de fila de mapa.
-            if (static_cast<u16>(q_th(sn, m_state.mapposy)) != row_before) {
+            if (q_th(sn, m_state.mapposy) != row_before) {
                 const u32 y_pl = block_videoposy(sn) * planes(sn);
-                const u16 mapy = static_cast<u16>(q_th(sn, m_state.mapposy));
+                const u16 mapy = q_th(sn, m_state.mapposy);
                 const u16 cols = sn.bitmap_blocks_per_row();
                 for (u16 c = 0; c < cols; ++c) {
                     if (!sn.add_draw(plan, static_cast<u16>(c * tw(sn)), static_cast<u16>(y_pl), c, mapy)) return false;
@@ -551,10 +553,10 @@ public:
         --m_state.mapposy;
         m_state.videoposy = static_cast<s32>(r_dh(sn, static_cast<u32>(m_state.mapposy)));
 
-        const u16 mapblockx = static_cast<u16>(q_tw(sn, m_state.mapposx));
-        const u16 mapblocky = static_cast<u16>(q_th(sn, m_state.mapposy));
-        const u16 stepx = static_cast<u16>(r_tw(sn, m_state.mapposx));
-        const u16 stepy = static_cast<u16>(r_th(sn, m_state.mapposy));
+        const u16 mapblockx = q_tw(sn, m_state.mapposx);
+        const u16 mapblocky = q_th(sn, m_state.mapposy);
+        const u16 stepx = r_tw(sn, m_state.mapposx);
+        const u16 stepy = r_th(sn, m_state.mapposy);
         const u32 bvpos = block_videoposy(sn);
         const u16 x0 = static_cast<u16>(m_state.videoposx & ~(tw(sn) - 1));
         const u32 y_pl = bvpos * planes(sn);

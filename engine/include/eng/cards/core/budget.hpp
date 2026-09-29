@@ -22,7 +22,7 @@
 /// | `N256` | ~256 kB | 32              | 6 rivales     | 256 acciones| rica |
 /// | `N512` | ~512 kB | 64              | 8 rivales     | 512 acciones| completa |
 ///
-/// Las muestras están calibradas con `demos/amiga/124_cards_bench` en un A500
+/// Las muestras están calibradas con `demos/features/cards/amiga/124_cards_bench` en un A500
 /// (68000): `N20` ≈ 30 manos/s y `N64` con 32 muestras tardaba ~6,5 s/mano, inviable
 /// en tiempo real. Con estos valores `N20`/`N64` son jugables en un A500 base; `N128`
 /// y superiores apuntan a máquinas ampliadas (A1200/030).

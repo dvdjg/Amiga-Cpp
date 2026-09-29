@@ -27,6 +27,60 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
 | `docs/guides/roadmap/ROADMAP_MINI_OS.md` | **vigente (M0–M6 entregados; M2/M7 casi, M8 parcial; M9–M11 pendientes)** | **Mini-SO de mensajes** (`eng::os`) y capa de UI reactiva (`eng::ui`): puerto IRQ-safe, señales, productores de VBlank/input/disco/timers y bucle de aplicación sin espera activa, componiendo con `BackgroundQueue`/`InputAggregator`/`Engine`. Diseño en `docs/engine/architecture/MINI_OS_MESSAGE_LOOP.md`; tests HOST-219…222/236/238/250…257 y demo 208. Pendiente: telemetría (M9), tareas async (M10) y corrutinas (M11) |
 | `docs/guides/roadmap/ROADMAP_GUI.md` | **vigente (G0–G8 entregados)** | **Librería GUI** (`eng::ui`): chrome sobre `Surface`, tema/branding, widgets (Button/Check/Radio/EditBox/Slider), eventos/foco, dirty rects y **ventanas con compositor y backing store** (mover/redimensionar sin invalidar vecinas), con **keymaps nacionales** (US/ES/FR/IT/DE/RU) y **teclas muertas**. Tests HOST-223…230 y HOST-261…266; demo `215_gui_widgets` verificada con `verify-gui-widgets.mjs`. Pendiente de G8: acelerar con Blitter el *copy* del compositor (hoy CPU) y validar las tablas de teclado contra el ROM. Diseño en `docs/engine/architecture/GUI_LIBRARY.md` |
 
+## Objetivo: API por **intenciones** (estado y qué falta)
+
+**Objetivo.** Un engine completo, conceptualmente bien diseñado, que exponga un **API basado en
+intenciones**: el juego **declara qué quiere** (una escena, un efecto, un objeto) y el engine
+**decide cómo** (CPU/Blitter/Copper), con la **memoria etiquetada** (Chip para el hardware DMA) y
+tipos descriptivos que hagan **imposible** el uso equivocado.
+
+**Conseguido (base sólida).**
+- **Tipos fuertes y genéricos** (`Fixed`/`Vec`/`Span`/`Ref`), tablas en compilación (`ct_array`;
+  `InvSqrtTable<R,E,N>` genérica), escalar como parámetro de plantilla.
+- **Memoria etiquetada**: `Tag` de dominio + **banco** (`MemView`/`Block`/`ChipView`), con **tres
+  puentes** (`mem_view_chip`/`as_chip`/`from_storage`) y su regla de uso (`INTERNAL_TYPE_SYSTEM.md`).
+- **Una sola ruta de blit**: `BlitOp` (intención) → `blit_job_from` → `BlitJob` (trabajo) →
+  `blitter_job_from` → `BlitterJob` (registros), compartido por CPU y Copper; el backend ya usa el
+  encoder (camino plano y línea; 086/116 idénticas). `c2p` con **despacho por banco**.
+- **Gates** que sostienen el diseño: `casts` (+ `casts-frontier.txt`), `generic-headers`,
+  `raw-pointer-members`, `api-facade`, `type-tagging`, `doc-coverage`, `duplicate-constants`.
+
+**Qué falta (huecos, priorizados).**
+1. **El vocabulario único de intención (alto nivel).** Hoy las intenciones viven dispersas
+   (`BlitOp`, `CopperIntent`/`SpriteIntent`, los efectos, la declaración de escena). Falta **un**
+   modelo declarativo (la escena/capa/efecto como intención) que el **planner** compile a lo bajo
+   (ver `PUBLIC_API.md` §4). Es el corazón del API de intenciones. **En marcha**: el mecanismo
+   (`IntentQueue` + `DrawRecipe`/`scene::DrawLayer` + `IntentDone` por evento) y su contrato
+   ([`INTENT_PLANNER.md`](../../engine/architecture/INTENT_PLANNER.md)) ya existen y están probados
+   (HOST-368/369); falta **el vocabulario completo** (Sprite/efectos/audio) y el planner que lo
+   compile.
+2. **Un sumidero de ejecución.** `FramePlan` (lote del frame) y `BlitQueue` (cola asíncrona)
+   coexisten; ya hay `PlanExecutor` (la cola vuelca al plan). **Decidido** (§7.1 de
+   [`INTENT_PLANNER.md`](../../engine/architecture/INTENT_PLANNER.md)): el **`FramePlan` es *el*
+   sumidero**, la cola es **genérica** (`IntentQueue<N, Item, Executor, Done>`; `BlitQueue` = su
+   instancia con `Item = BlitOp`) y las vías son **políticas**. Falta alinear los `concept`s de
+   ejecutor y escribir el `AudioPlan` análogo.
+3. **Los últimos punteros crudos.** `BlitJob`/`BlitterJob` (`u16*`/`void*`), el backend y
+   `object3d` aún exponen crudo. Deben ir a vista/`Address` hasta **una** frontera (el registro).
+4. **Los descriptores de "dibujable".** `Bob`/`Sprite`/`Visual`/`Actor`/`*Layer` se solapan; hay
+   que fijar la jerarquía (blob crudo → asset cocinado → actor retenido → intención).
+5. **El contrato de memoria en el tipo.** El caso C2P (un *scratch* escondido → `detail≠0`) es el
+   patrón general: **si un API necesita un layout/medio concreto, lo lleva en el tipo**; el
+   fallback CPU↔Blitter lo **decide el tag** (ya hecho en `c2p`).
+6. **Memoria/arena con RAII** (`Block`/`MemBank`) coherente con los tags y con la **vida**.
+7. **Generalidad del escalar** en el 3D (`object3d`/`mesh3d`): el último tramo crudo.
+8. **Docs como contrato**: un doc canónico por capa + `DOC-MAP` al día (en curso).
+
+**Plan para llegar.** (a) Fijar el **planner de intención** (§1): vocabulario + compilación a
+`BlitOp`/`CopperIntent`. (b) **Sumidero único** (§2). (c) **Sin punteros crudos** hasta una frontera
+(§3). (d) **Jerarquía del dibujable** (§4) y el **contrato de memoria en el tipo** (§5).
+(e) Cerrar §6–§8.
+
+**C2P — APARCADO.** La reingeniería del C2P queda **parked** (no gastar turnos): la base
+(`c2p()` con despacho por banco + `C2pRequest` con `Block`) está hecha; quedan el **contrato de
+scratch** (el `detail≈9861` de la 275, ya documentado en su README) y sacarlo de `BlitJobKind`.
+**Criterio**: si la vía se vuelve cargante en C++ se hará en **asm**, no rediseñando el plan.
+
 ## Estado real del engine y las demos (2026-09)
 
 - **Scroll**: corkscrew 8-way X-Limited (`XLimitedPlayfield` + `ScrollEngine` +
@@ -93,13 +147,20 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
   gradual y reparto por frames), **aforo dinámico** (estación/clima) y **entrada humana**
   (HOST-174/175), y **planificación GOAP integrada** con dominio de construcción
   (HOST-155), con gate de codegen 68000. Reutiliza `eng::ai` (utility, percepción,
-  navegación, steering, GOAP). Falta **consumidor real en `games/`** (demo Amiga con
-  render) y las líneas de crecimiento (percepción imperfecta, tácticas de manada).
-  Detalle: `docs/engine/architecture/SIM_ECOSYSTEM.md`.
+  navegación, steering, GOAP). La planificación cubre además **anytime** (`set_budget`/
+  `partial`), **caché selectiva** (`invalidate_selective` + LRU), **HTN** (`planning/htn.hpp`,
+  descomposición de coste mínimo) y **selección GOAP/HTN** (`PlanKind`/`plan_for`); HOST-322/316/317/318.
+  Hay **benchmark Amiga** (`demos/features/sim/amiga/001_sim_bench`): A500 con 12 criaturas, la
+  planificación realista cuesta **~1.1x** el tick (el peor caso sin caché era ~18x), cerrado
+  usando la **caché de planes** en el driver, el **intervalo de replan** y el **LOD** de quién
+  planifica. Destapó y corrigió el libcall `__popcountsi2` (ahora SWAR freestanding). Falta el
+  **consumidor real en `games/`** y las líneas de
+  crecimiento (percepción imperfecta, tácticas de manada). Detalle:
+  `docs/engine/architecture/SIM_ECOSYSTEM.md`.
 
 ## Sprites hardware — estado (2026-09)
 
-- **Hecho**: `SpriteTemplate` + `SpriteManager::emit_template_into` (multiplexado
+- **Hecho**: `HwSpriteTemplate` + `SpriteManager::emit_template_into` (multiplexado
   vertical "chasing the raster" + color multiplexing) validados por la demo 053.
   Se corrigió la codificación de `SPRxPOS`/`SPRxCTL` (VSTART byte alto, HSTART÷2 en
   byte bajo; ver `amiga-bootcamp/08_graphics/sprites.md`) y los offsets de registro
@@ -370,7 +431,7 @@ desarrolla en varios turnos; el orden es 1→2→3.
   `display_height = 256+32`, cámara inicial a media altura (`set_camera`).
 - **DPF**: BG = tilemap XYLimited; FG = capa de objetos (planos pares) para
   naves/disparos.
-- Demo prevista: `demos/amiga/110_ylimited_shooter`.
+- Demo prevista: `demos/techniques/amiga/playfield/110_ylimited_shooter`.
 
 ### Parte 2 — Side-scroller horizontal (después)
 - Mundo **4096 px de ancho × 320 px de alto**; tiles 16×16 → **256×20** celdas.
@@ -378,7 +439,7 @@ desarrolla en varios turnos; el orden es 1→2→3.
   `Off`** (alto corto). **DPF** con FG de objetos.
 - Requiere simetría de ejes: `y_mode` (`Finite`/`Off`) y X `Ring` largo (hoy X
   `Ring` ya existe; falta el `y_mode`).
-- Demo prevista: `demos/amiga/111_xlimited_sidescroller`.
+- Demo prevista: `demos/techniques/amiga/playfield/111_xlimited_sidescroller`.
 
 ### Parte 3 — XYLimited 5 planos con fondo estilo RoboCod
 - Escena **XYLimited de 5 bitplanes**; el **fondo** usa el truco **RoboCod**
@@ -503,7 +564,7 @@ prioridad:
    devolvía `true` sin encolar el C2P del Blitter (la conversión CPU sí se hacía, pero sobre el
    buffer de la escena mientras el display esperaba el commit). `DrawTarget::c2p` enruta ahora a
    `kBlitterRaster` cuando hay `plan`. **Pendiente**: demo que consuma el seam con resultado
-   verificado (`demos/amiga/275_c2p_seam` es **WIP**: `detail != 0`, el contrato del buffer
+   verificado (`demos/techniques/amiga/c2p/275_c2p_seam` es **WIP**: `detail != 0`, el contrato del buffer
    `chunky` del `BlitterRaster` exige que su **2ª mitad** sea el *scratch* planar de las 13 fases
    — `eng/graphics/blitter_state.hpp` `C2p4::chunky`; hay que darle ese layout y comparar con la
    referencia CPU).

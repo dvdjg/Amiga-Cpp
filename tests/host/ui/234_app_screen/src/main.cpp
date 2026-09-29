@@ -22,7 +22,7 @@ alignas(16) u8 g_chip[512 * 1024];
 
 MemorySystem make_memory() {
 	MemorySystem mem;
-	mem.chip = LinearArena {g_chip, sizeof(g_chip), MemoryKind::Chip};
+	mem.chip = eng::ChipArena {g_chip, sizeof(g_chip), MemoryKind::Chip};
 	return mem;
 }
 

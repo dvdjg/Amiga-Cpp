@@ -14,10 +14,10 @@ namespace eng::math {
 
 template <>
 struct light_ops<void> {
-	template <typename Table>
+	template <int E = 16, typename Table>
 	[[nodiscard]] static constexpr s16 shade(s32 v, s32 e1_sq, const Table& inv_sqrt) {
 		if consteval {
-			return shade_portable(v, e1_sq, inv_sqrt);
+			return shade_portable<E>(v, e1_sq, inv_sqrt);
 		} else {
 			if (v < 0) {
 				v = -v;
@@ -28,7 +28,11 @@ struct light_ops<void> {
 			}
 			const s16 vv = hi16(v);
 			u32 r = arith<s16>::mulu(static_cast<u16>(vv), inv_sqrt[static_cast<u16>(s)]);
-			asm("swap %0" : "+d"(r)); // el word alto pasa a la mitad baja: `>> 16` en 1 instr.
+			if constexpr (E == 16) {
+				asm("swap %0" : "+d"(r)); // >>16 en 1 instruccion (formato 0.16)
+			} else {
+				r >>= E;
+			}
 			return static_cast<s16>(r);
 		}
 	}

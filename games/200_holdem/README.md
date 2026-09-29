@@ -22,7 +22,7 @@ CPU (asientos 1 y 2) con el joystick.
   mano fuerte/débil y los rivales aprenden a leer al pardillo. La psique evoluciona por
   mano (ganar/perder → confianza, tilt, racha).
 - Perfil de memoria **N20** (heurística + fuerza, sin Monte Carlo): cabe en un A500 (ver
-  `demos/amiga/124_cards_bench`).
+  `demos/features/cards/amiga/124_cards_bench`).
 - Display: escena EHB `scene::compose` (320×256) rasterizada a los bitplanes por CPU (patrón de la
   demo 060).
 

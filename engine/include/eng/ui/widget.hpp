@@ -21,6 +21,7 @@ enum class WidgetType : eng::u8 {
 	Radio,
 	Edit,
 	Slider,
+	ScrollBar,
 	List,
 	Window,
 };

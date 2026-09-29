@@ -31,8 +31,7 @@ public:
         bc.layout = gfx::PlaneLayout::Interleaved;
         if (!m_bitmap.init(memory, bc)) return false;
         sync_from_bitmap();
-        u8* d = m_frontbuffer;
-        for (u32 i = 0; i < m_total_bytes; ++i) d[i] = 0;
+        __builtin_memset(m_frontbuffer.ptr(), 0, m_total_bytes);
         m_initialized = true;
         return true;
     }
@@ -55,7 +54,7 @@ public:
         m_planes = cfg.planes;
         m_bytes_per_row = row;
         m_total_bytes = need;
-        m_frontbuffer = bitplanes.view.data(); // vía cruda interna (núcleo)
+        m_frontbuffer = bitplanes.mem_view_chip().address(); // vía cruda interna (núcleo)
         m_initialized = true;
         return true;
     }
@@ -65,17 +64,17 @@ public:
     [[nodiscard]] constexpr eng::PlaneBytes bitplanes() const { return m_bound.view; }
 
     // --- Hooks (layout plano) ---------------------------------------------
-    u32 planeline_for(s32 wy) const override {
+    u32 planeline_for(eng::pix wy) const override {
         // `wy * planes` con `mulu.w` (16x16 -> 32), no `__mulsi3`: es el camino por fila de
         // las primitivas de `Surface` (write_pixel/draw_span) y del relleno de polígono.
         return eng::math::mulu16(static_cast<u16>(wy), m_planes);
     }
-    u32 byte_for(s32 wx) const override {
+    u32 byte_for(eng::pix wx) const override {
         return static_cast<u32>(wx / 8) & ~1u;
     }
     u32 mirror_planelines() const override { return 0; }
     bool supports_walk() const override { return false; }
-    bool in_bounds(s32 wx, s32 wy) const override {
+    bool in_bounds(eng::pix wx, eng::pix wy) const override {
         return wx >= 0 && wy >= 0 && static_cast<u32>(wx) < m_width && static_cast<u32>(wy) < m_height;
     }
 
@@ -134,7 +133,7 @@ public:
         const u16* sbase = src.data();
         for (u8 p = 0; p < planes; ++p) {
             const u16* s = sbase + eng::math::mulu16(p, static_cast<u16>(src_plane_stride / 2u));
-            u16* d = reinterpret_cast<u16*>(m_frontbuffer + eng::math::mulu16(static_cast<u16>(pl + p), m_bytes_per_row) + x_byte);
+            u16* d = reinterpret_cast<u16*>((m_frontbuffer + eng::math::mulu16(static_cast<u16>(pl + p), m_bytes_per_row) + x_byte).ptr());
             graphics::BlitJob job {
                 graphics::BlitJobKind::CopyRect, graphics::BlitSource {}, graphics::BlitSource {s}, graphics::BlitDest {d},
                 words, h, src_mod, dst_mod,
@@ -172,7 +171,7 @@ public:
         const u16* mbase = mask.data();
         for (u8 p = 0; p < planes; ++p) {
             const u16* s = sbase + eng::math::mulu16(p, static_cast<u16>(src_plane_stride / 2u));
-            u16* d = reinterpret_cast<u16*>(m_frontbuffer + eng::math::mulu16(static_cast<u16>(pl + p), m_bytes_per_row) + x_byte);
+            u16* d = reinterpret_cast<u16*>((m_frontbuffer + eng::math::mulu16(static_cast<u16>(pl + p), m_bytes_per_row) + x_byte).ptr());
             graphics::BlitJob job {
                 graphics::BlitJobKind::MaskedBobCookieCut, graphics::BlitSource {mbase}, graphics::BlitSource {s}, graphics::BlitDest {d},
                 words, h, src_mod, dst_mod,
@@ -191,7 +190,7 @@ private:
         m_planes = m_bitmap.planes();
         m_bytes_per_row = m_bitmap.row_bytes();
         m_total_bytes = m_bitmap.total_bytes();
-        m_frontbuffer = m_bitmap.bytes().data(); // vía cruda interna (núcleo)
+        m_frontbuffer = m_bitmap.front(); // vía cruda interna (núcleo)
     }
     gfx::Bitmap m_bitmap {};
     /// Bitplanes externos cuando el lienzo se construyó con `bind` (vacio con `begin`).

@@ -44,6 +44,7 @@ public:
 			}
 			TimerSlot& s = m_slots[i];
 			s.active = true;
+			++m_active;
 			s.periodic = periodic;
 			s.unit = unit;
 			s.id = (id != 0u) ? id : static_cast<eng::u16>(i + 1u);
@@ -60,6 +61,7 @@ public:
 		for (TimerSlot& s : m_slots) {
 			if (s.active && s.id == id) {
 				s.active = false;
+				--m_active;
 			}
 		}
 	}
@@ -70,6 +72,10 @@ public:
 	eng::u16 poll_and_post(MsgPort<N>& port, eng::u32 frame_now,
 			       eng::u32 ticks_now) noexcept {
 		eng::u16 posted = 0u;
+		// Early-out: se llama cada tick (50/s) y sin timers no debe recorrer los 16 slots.
+		if (m_active == 0u) {
+			return posted;
+		}
 		for (eng::u8 i = 0u; i < kMaxTimers; ++i) {
 			TimerSlot& s = m_slots[i];
 			if (!s.active) {
@@ -92,24 +98,18 @@ public:
 						     : ticks_now + us_to_ticks(s.period);
 			} else {
 				s.active = false;
+				--m_active;
 			}
 		}
 		return posted;
 	}
 
-	/// Nº de timers activos.
-	[[nodiscard]] eng::u8 active_count() const noexcept {
-		eng::u8 n = 0u;
-		for (const TimerSlot& s : m_slots) {
-			if (s.active) {
-				++n;
-			}
-		}
-		return n;
-	}
+	/// Nº de timers activos (O(1), mantenido por `start`/`stop`/`poll_and_post`).
+	[[nodiscard]] eng::u8 active_count() const noexcept { return m_active; }
 
 private:
 	TimerSlot m_slots[kMaxTimers] {};
+	eng::u8 m_active = 0u; ///< nº de slots activos (para el early-out de `poll_and_post`)
 };
 
 } // namespace eng::os

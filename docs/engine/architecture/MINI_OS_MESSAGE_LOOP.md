@@ -40,7 +40,7 @@ El engine ya tiene piezas que deben **componerse** con esta capa, no reemplazars
 
 | Pieza existente | Qué aporta hoy | Papel con `eng::os` |
 |---|---|---|
-| `eng::Engine` (`engine/include/eng/engine.hpp`) | Bucle de frames; modo **interrupt-driven** con `set_vblank_service` (el juego late en la IRQ) y modo polling | El bucle de mensajes **no** crea un segundo bucle: se integra como un `Game` (§7). El VBlank que ya dispara `update`/`render` es el mismo que emite `MsgType::VBlank`. |
+| `eng::Engine` (`engine/include/eng/engine.hpp`) | Bucle de frames. **Por defecto: modo IRQ mínima** (`VBlankHeartbeat`) — la IRQ de VBlank solo lleva el **latido** (`vblank_hook`/`os::tick` + contador) y `update`/`render` corren en el **bucle principal**; `run_frames_irq` (el render dentro de la IRQ) y `run_frames_polling` (todo en el bucle, sin IRQ) quedan como modos explícitos | El bucle de mensajes **no** crea un segundo bucle: se integra como un `Game` (§7). El latido de VBlank que emite `MsgType::VBlank` es el **mismo** que incrementa el contador que consume el bucle principal. |
 | `eng::task::BackgroundQueue` (`eng/task/background.hpp`) | Tareas **cooperativas** drenadas en el hueco de VBlank (decodificar, precargar, simular) | El trabajo pesado de una E/S de disco se hace como tarea de fondo; el mensaje `FileDone` solo **avisa** de que hay datos, no los decodifica en la ISR. |
 | `eng::input::InputAggregator` (`eng/input/input.hpp`) | Estado de entrada **por frame** (nivel) | Se mantiene como **instantánea de nivel** (teclas/botones mantenidos); los mensajes cubren los **flancos**. Ver §6.1. |
 | `eng::util::Event<...>` (`eng/core/util/event.hpp`) | Emisor de eventos en el **mismo hilo** (observador) | Para eventos internos del juego dentro del frame; los mensajes son la vía **cruzada IRQ↔hilo principal** (el `Event` no es IRQ-safe). |
@@ -460,18 +460,23 @@ del `Engine`**: el `Engine` es el dueño de la IRQ de VBlank, así que `eng::os`
 segundo servicio, solo registra un hook (`Engine::set_vblank_hook`).
 
 ```cpp
-// Arranque: habilita la entrada pedida y registra el latido como hook de VBlank del Engine.
-// Devuelve false si el Engine no acepta el hook.
+// Arranque con Engine: habilita la entrada pedida y registra el latido como hook de
+// VBlank del Engine (que es el dueño de la IRQ).
 const bool ok = eng::os::init(engine, eng::os::InputAll);
+// Alternativa SIN Engine: instala el latido directamente como servicio de VBlank del
+// backend (corre dentro de la IRQ); el bucle principal solo drena y renderiza.
+const bool ok2 = eng::os::start_vblank_irq(backend, eng::os::InputAll);
 
 eng::os::input_enable(eng::os::InputKeyboard); // (re)habilita dispositivos por máscara
 eng::os::add_timer(1u, 25u);                   // -> MsgType::Timer cada 25 frames (periódico)
 eng::os::system_port();                        // MsgPort de la aplicación
 eng::os::frame_count();                        // contador de VBlank
+// Tarea de frame (p. ej. música): corre en el tick, tras el sondeo de entrada/timers.
+eng::os::set_frame_task(&music_tick, &game);
 ```
 
 ```text
-InputMask:  InputMouse | InputKeyboard | InputJoystick | InputCd32Pad | InputAll (= 0x0f)
+InputMask:  InputMouse | InputKeyboard | InputJoystick | InputCd32Pad | InputAll (= 0x07)
 ```
 
 `init<EngineT>(engine, inputs)` equivale a `input_enable(inputs)` más
@@ -480,9 +485,25 @@ InputMask:  InputMouse | InputKeyboard | InputJoystick | InputCd32Pad | InputAll
 La app **no** llama a `os::tick` desde su bucle: el latido lo dispara el `Engine` antes de
 `update`. El productor de cada dispositivo solo se sondea si su bit está en la máscara.
 
-**Pendiente de arreglo** (`add_timer` con periodo > 1): postea los `Timer` pero el bucle no los
-entrega; en hardware solo está verificado el periodo 1. Detalle y reproducción en
-[`docs/guides/roadmap/ROADMAP_MINI_OS.md`](../../guides/roadmap/ROADMAP_MINI_OS.md).
+`InputAll` activa los dispositivos que **conviven** (ratón + teclado + joystick); el pad CD32 se
+añade explícitamente con `enable_cd32_pad()` (comparte el puerto 2 con el joystick, con
+auto-detección).
+
+`start_vblank_irq<BackendT>(backend, inputs)` es la vía **sin `Engine`**: instala el latido como
+**servicio de VBlank del backend** (`backend.set_vblank_service`), de modo que input/timers/tarea de
+frame corren **dentro de la IRQ** y el bucle principal queda para el render (sincronizando con
+`backend.wait_vblank()`). Es el modelo clásico (juego en el bucle, tiempo/entrada/música en el
+VBlank); la demo 213 lo usa y recupera 50 fps al solapar la música con la espera del Blitter.
+
+`set_frame_task(cb, user)` registra una **tarea de frame** que se ejecuta al final de cada tick (en
+el mismo contexto que el latido: IRQ de VBlank si va por IRQ). Es el punto reutilizable para trabajo
+frame-driven atado al ciclo de mensajes (p. ej. `P61Player::update()` y postear `MusicEnd`; la
+`AudioSystem` lo hace con `tick_frame(port)`).
+
+En el lado del **pump**, `MessagePumpGame::bind_frame_task(cb, user)` ejecuta la misma tarea una vez
+por `update`, **después** de drenar el puerto y **antes** de `App::on_frame`. Es el contrato que
+valida HOST-309, y el sitio donde la lógica de juego delega el trabajo por frame sin un callback
+suelto.
 
 **Previstos** (diseño, aún sin implementar):
 

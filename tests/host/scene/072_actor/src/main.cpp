@@ -29,6 +29,7 @@ using eng::graphics::Bob;
 using eng::graphics::BobDraw;
 using eng::graphics::BobErase;
 using eng::graphics::BobLayout;
+using eng::graphics::BobMaskPack;
 using eng::graphics::BobTarget;
 using eng::graphics::CopperIntent;
 using eng::graphics::CopperIntentKind;
@@ -38,12 +39,12 @@ using eng::graphics::FramePlan;
 using eng::graphics::SpriteAllocator;
 using eng::graphics::SpriteIntent;
 using eng::graphics::SpriteIntentSet;
-using eng::graphics::SpritePaletteSwitch;
-using eng::graphics::SpritePlacement;
+using eng::graphics::HwSpritePaletteSwitch;
+using eng::graphics::HwSpritePlacement;
 using eng::graphics::SpriteManager;
-using eng::graphics::SpriteSegment;
+using eng::graphics::HwSpriteSegment;
 using eng::graphics::SpriteSlot;
-using eng::graphics::SpriteTemplate;
+using eng::graphics::HwSpriteTemplate;
 using eng::graphics::Visual;
 using eng::graphics::VisualKind;
 using eng::scene::Actor;
@@ -68,6 +69,14 @@ alignas(16) eng::u16 g_save[64];
 alignas(16) eng::u16 g_pixel_pool[256];
 alignas(16) eng::u8 g_chip_plan[32 * 1024];
 alignas(16) eng::u8 g_matrix_sheet[4096];
+
+// En host no hay Chip RAM: escape documentado del test.
+template <class Tag = eng::BobTag, class T, eng::usize N>
+eng::ChipView<Tag> chip_view(const T (&a)[N]) {
+	return eng::ChipView<Tag> {
+		eng::Address<eng::MemoryKind::Chip>::from_storage(a),
+		static_cast<eng::usize>(N) * sizeof(T)};
+}
 
 /// Valores de los MOVEs a `reg`, en orden de aparicion.
 unsigned collect_moves(const eng::u16* words, eng::u16 count, eng::u16 reg, eng::u16* out,
@@ -117,13 +126,9 @@ ActorDesc make_desc() {
 }
 
 BobTarget make_target() {
-	BobTarget t {};
-	t.base = g_screen;
-	t.row_bytes = kRowBytes;
-	t.plane_bytes = kPlaneBytes;
-	t.planes = 4u;
-	t.layout = BobLayout::Planar;
-	return t;
+	return make_bob_target(chip_view<eng::PlaneTag>(g_screen), kRowBytes,
+			       static_cast<eng::u16>(kPlaneBytes / kRowBytes), 4u,
+			       BobLayout::Planar);
 }
 
 /// Composiciones de prueba: `g_targets[0]` es el playfield por defecto y `g_targets[1]`
@@ -133,7 +138,8 @@ BobTarget g_targets[2] {};
 void use_targets(ActorEmitContext& ctx) {
 	g_targets[0] = make_target();
 	g_targets[1] = make_target();
-	g_targets[1].base = g_screen + kPlaneBytes; // "otro" playfield
+	g_targets[1].planes =
+		g_targets[0].planes.subview(kPlaneBytes, g_targets[0].planes.size() - kPlaneBytes); // "otro" playfield
 	ctx.targets = g_targets;
 }
 
@@ -216,7 +222,7 @@ void test_geometry() {
 	auto a = store.get(id);
 
 	CHECK(a->bob.draw == eng::graphics::BobDraw::CookieCut, "bob draw segun transparencia");
-	CHECK(a->bob.mask != nullptr, "bob con mascara");
+	CHECK(!a->bob.mask.empty(), "bob con mascara");
 	CHECK(a->bob.width == 16u && a->bob.height == 8u, "bob con tamano del visual");
 
 	const Frame f = eng::scene::actor_current_frame(*a);
@@ -282,7 +288,7 @@ void test_emit_clear() {
 	CHECK(clear.height == 8u, "altura de la caja previa");
 	CHECK(clear.destination_modulo_bytes == 36, "modulo destino clear");
 	CHECK(clear.bitplane_count == 1u, "planos del BOB");
-	CHECK(clear.destination.words == reinterpret_cast<const eng::u16*>(g_screen + 20 * kRowBytes + 0),
+	CHECK(clear.destination.words() == reinterpret_cast<const eng::u16*>(g_screen + 20 * kRowBytes + 0),
 	      "destino del borrado en la caja previa");
 
 	const auto& draw = plan.blit_job(1);
@@ -291,9 +297,9 @@ void test_emit_clear() {
 	CHECK(draw.source_shift == 8u, "shift sub-byte de la X");
 	CHECK(draw.words_per_row == 2u, "palabra extra por el shift");
 	CHECK(draw.source_modulo_bytes == 2, "modulo origen de la hoja de 6 B");
-	CHECK(draw.destination.words == reinterpret_cast<const eng::u16*>(g_screen + 33 * kRowBytes + 10),
+	CHECK(draw.destination.words() == reinterpret_cast<const eng::u16*>(g_screen + 33 * kRowBytes + 10),
 	      "destino del dibujo");
-	CHECK(draw.source.words == reinterpret_cast<const eng::u16*>(g_pixels), "origen del frame 0");
+	CHECK(draw.source.words() == reinterpret_cast<const eng::u16*>(g_pixels), "origen del frame 0");
 	CHECK(a->prev[0].left == 88 && a->prev[0].top == 33, "prev actualizado por buffer");
 	CHECK(plan.dirty_rect_count() >= 1u, "dirty rect registrado");
 }
@@ -315,7 +321,7 @@ void test_emit_frame_offset() {
 	CHECK(eng::scene::actor_emit(plan, *a, ctx) == ActorEmitStatus::Ok, "emision frame 1");
 	const auto& draw = plan.blit_job(0);
 	// Frame en x = 16 -> 2 bytes dentro de la misma fila de la hoja.
-	CHECK(draw.source.words == reinterpret_cast<const eng::u16*>(reinterpret_cast<const eng::u8*>(g_pixels) + 2u),
+	CHECK(draw.source.words() == reinterpret_cast<const eng::u16*>(reinterpret_cast<const eng::u8*>(g_pixels) + 2u),
 	      "origen desplazado al frame 1 de la hoja");
 	CHECK(draw.source_modulo_bytes == 2, "modulo origen de la hoja de 2 frames");
 }
@@ -341,12 +347,12 @@ void test_emit_clipped_and_full() {
 	a->prev[0] = DirtyRect {10, 20, 26, 28};
 	ctx.clip = DirtyRect {};
 	ctx.buffer = 0;
-	g_targets[0].base = nullptr;
+	g_targets[0].planes = {};
 	CHECK(eng::scene::actor_emit(plan, *a, ctx) == ActorEmitStatus::Full, "rechazo controlado si un job no vale");
 	CHECK(plan.blit_job_count() == 0u, "sin jobs cuando el destino no vale");
 
 	// Superficie declarada fuera de la composición: rechazo controlado.
-	g_targets[0].base = g_screen;
+	g_targets[0] = make_target();
 	ActorDesc lejos = make_desc();
 	lejos.surface = 5u;
 	ActorStore<2> store2;
@@ -383,7 +389,7 @@ void test_surface_selection_and_sprite_intent() {
 	DirtyRect rect {};
 	CHECK(eng::scene::actor_emit(plan, *a, ctx, &rect) == ActorEmitStatus::Ok, "emision en superficie 1");
 	const auto& draw = plan.blit_job(0);
-	CHECK(draw.destination.words ==
+	CHECK(draw.destination.words() ==
 	      reinterpret_cast<const eng::u16*>(g_screen + kPlaneBytes + 33u * kRowBytes + 10u),
 	      "el BOB va al segundo playfield");
 
@@ -424,11 +430,11 @@ void test_emit_save_under() {
 	CHECK(plan.blit_job_count() == 3u, "restore + save + draw");
 
 	CHECK(plan.blit_job(0).kind == BlitJobKind::RestoreRect, "job 0 restaura");
-	CHECK(plan.blit_job(0).source.words == reinterpret_cast<const eng::u16*>(g_save), "restaura desde el buffer");
-	CHECK(plan.blit_job(0).destination.words ==
+	CHECK(plan.blit_job(0).source.words() == reinterpret_cast<const eng::u16*>(g_save), "restaura desde el buffer");
+	CHECK(plan.blit_job(0).destination.words() ==
 	      reinterpret_cast<const eng::u16*>(g_screen + 20 * kRowBytes + 0), "restaura en la caja previa");
 	CHECK(plan.blit_job(1).kind == BlitJobKind::CopyRect, "job 1 guarda el fondo");
-	CHECK(plan.blit_job(1).destination.words == reinterpret_cast<const eng::u16*>(g_save), "guarda en el buffer");
+	CHECK(plan.blit_job(1).destination.words() == reinterpret_cast<const eng::u16*>(g_save), "guarda en el buffer");
 	CHECK(plan.blit_job(2).kind == BlitJobKind::MaskedBobCookieCut, "job 2 dibuja");
 
 	// Sin buffer de guardado: rechazo controlado.
@@ -441,6 +447,28 @@ void test_emit_save_under() {
 	FramePlan plan2 {};
 	plan2.clear();
 	CHECK(eng::scene::actor_emit(plan2, *a2, ctx) == ActorEmitStatus::Full, "sin buffer -> rechazo");
+}
+
+/// **Anclaje del copper** (`Plan::add_anchored`): la verdad única que comparten el camino de
+/// actor (`actor_add_copper`) y el de intención (`SpritePlanExecutor::bind_copper`). Ancla una
+/// intención de línea RELATIVA a `base_line` y la emite con su prioridad.
+void test_add_anchored() {
+	eng::MemorySystem mem {};
+	mem.chip = eng::ChipArena {g_chip_plan, sizeof(g_chip_plan), eng::MemoryKind::Chip};
+	eng::copper::Plan plan {};
+	CHECK(plan.begin(mem, {4096u, 0x00u}), "plan.begin (anchored)");
+
+	const CopperIntent need {CopperIntentKind::PaletteLine, 0u, 4u, 0u,
+				 eng::PaletteWords {g_copper_colors, 2u}, 1u, 1u, 0, {}, 0u, nullptr};
+	plan.begin_frame();
+	plan.add_anchored(&need, 1u, 0x2cu + 33, 0u, 0u);
+	plan.materialize();
+	CHECK(plan.end_frame(), "end_frame (anchored)");
+
+	const eng::u16 reg01 = static_cast<eng::u16>(eng::copper::Register::COLOR00) + 2u;
+	eng::u16 vals[2] {0};
+	const unsigned n = collect_moves(plan.active_words(), plan.words(), reg01, vals, 2);
+	CHECK(n == 1u, "la necesidad anclada se emitio (1 MOVE de color)");
 }
 
 void test_copper_anchoring() {
@@ -510,14 +538,14 @@ void test_emit_order_by_surface_and_z() {
 	const eng::u16 emitted = eng::scene::emit_actors_in_order(plan, store, ctx, order);
 	CHECK(emitted == 4u, "se emiten los cuatro");
 	CHECK(plan.blit_job_count() == 4u, "un job por actor");
-	CHECK(plan.blit_job(0).destination.words ==
+	CHECK(plan.blit_job(0).destination.words() ==
 	      reinterpret_cast<const eng::u16*>(g_screen + 50u * kRowBytes), "job 0: superficie 0, z 50");
-	CHECK(plan.blit_job(1).destination.words ==
+	CHECK(plan.blit_job(1).destination.words() ==
 	      reinterpret_cast<const eng::u16*>(g_screen + 120u * kRowBytes), "job 1: superficie 0, z 200");
-	CHECK(plan.blit_job(2).destination.words ==
+	CHECK(plan.blit_job(2).destination.words() ==
 	      reinterpret_cast<const eng::u16*>(g_screen + kPlaneBytes + 10u * kRowBytes),
 	      "job 2: superficie 1, z 10");
-	CHECK(plan.blit_job(3).destination.words ==
+	CHECK(plan.blit_job(3).destination.words() ==
 	      reinterpret_cast<const eng::u16*>(g_screen + kPlaneBytes + 200u * kRowBytes),
 	      "job 3: superficie 1, z 200");
 
@@ -528,13 +556,13 @@ void test_emit_order_by_surface_and_z() {
 void test_sprite_template_projection() {
 	static eng::u16 tpl_bitmap[64] {};
 	static const eng::u16 sw_colors[2] {0x0f0u, 0x00fu};
-	SpriteTemplate<3, 2> tpl {};
+	HwSpriteTemplate<3, 2> tpl {};
 	tpl.bitmap = eng::Span<const eng::u16> {tpl_bitmap, 64u};
 	tpl.width_words = 2u;
 	tpl.attach = true;
-	tpl.add_segment(SpriteSegment {0u, 8u, 0u});
-	tpl.add_segment(SpriteSegment {16u, 8u, 8u});
-	tpl.add_switch(SpritePaletteSwitch {104u, sw_colors, 16u, 2u});
+	tpl.add_segment(HwSpriteSegment {0u, 8u, 0u});
+	tpl.add_segment(HwSpriteSegment {16u, 8u, 8u});
+	tpl.add_switch(HwSpritePaletteSwitch {104u, sw_colors, 16u, 2u});
 
 	SpriteIntent intents[4] {};
 	CopperIntent copper[4] {};
@@ -621,9 +649,9 @@ void test_sprite_allocation_and_bob_fallback() {
 	CHECK(emitted == 2u, "se emiten los dos degradados como BOB");
 	CHECK(plan.blit_job_count() == 2u, "un job por degradado");
 	// Slots 0 (z=10) y 1 (z=20): por `z` primero el 0, aunque en la intencion iba después.
-	CHECK(plan.blit_job(0).source.words ==
+	CHECK(plan.blit_job(0).source.words() ==
 	      reinterpret_cast<const eng::u16*>(g_pixel_pool + 0u), "job 0: menor z (slot 0)");
-	CHECK(plan.blit_job(1).source.words ==
+	CHECK(plan.blit_job(1).source.words() ==
 	      reinterpret_cast<const eng::u16*>(g_pixel_pool + 16u), "job 1: mayor z (slot 1)");
 
 	// Capacidad insuficiente para las intenciones: rechazo controlado.
@@ -666,7 +694,7 @@ void test_compose_sprites() {
 	SpriteIntent intents[12] {};
 	eng::u16 intent_actor[12] {};
 	SpriteSlot slots[12] {};
-	SpritePlacement placements[12] {};
+	HwSpritePlacement placements[12] {};
 	CopperIntent copper[16] {};
 	eng::scene::SpriteComposeScratch sc {};
 	sc.order = order;
@@ -706,7 +734,7 @@ void test_copper_priority_wiring() {
 	static eng::u16 lo_cols[2] {0u, 0x0aau};
 
 	eng::MemorySystem mem {};
-	mem.chip = eng::LinearArena {g_chip_plan, sizeof(g_chip_plan), eng::MemoryKind::Chip};
+	mem.chip = eng::ChipArena {g_chip_plan, sizeof(g_chip_plan), eng::MemoryKind::Chip};
 	eng::copper::Plan plan {};
 	CHECK(plan.begin(mem, {4096u, 0x00u}), "plan.begin");
 
@@ -753,7 +781,7 @@ void test_copper_priority_wiring() {
 	SpriteIntent intents[4] {};
 	eng::u16 intent_actor[4] {};
 	SpriteSlot slots[4] {};
-	SpritePlacement placements[4] {};
+	HwSpritePlacement placements[4] {};
 	eng::scene::SpriteComposeScratch sc {};
 	sc.order = order;
 	sc.intents = intents;
@@ -768,13 +796,64 @@ void test_copper_priority_wiring() {
 	CHECK(cplan.intent_count() == 1u, "el Plan la recibio con su prioridad");
 }
 
+/// `bob_save_box`/`bob_restore_box` son la **única verdad** del save-under: el camino de actor
+/// (`actor_emit` con `SaveUnder`) delega en ellas y el camino de intención (`BobErase::RestoreUnder`)
+/// las usa directamente. Aquí se fija su geometría, su relación inversa y los rechazos.
+void test_bob_save_under_helpers() {
+	Bob b {};
+	b.sheet = chip_view(g_matrix_sheet);
+	b.width = 16u;
+	b.height = 8u;
+	b.planes = 1u;
+	b.layout = BobLayout::Planar;
+	BobTarget t = make_target();
+	eng::Span<eng::u16> save {g_save, 64u};
+
+	// Guardar la caja (10..26, 20..28): con shift (x=10) cubre 1 palabra extra -> 2 palabras.
+	FramePlan plan {};
+	plan.clear();
+	CHECK(bob_save_box(plan, b, 16u, 8u, 10, 20, t, save, 2u, 8u), "save_box encola");
+	CHECK(plan.blit_job_count() == 1u && plan.blit_job(0).kind == BlitJobKind::CopyRect,
+	      "save = CopyRect");
+	const auto& s = plan.blit_job(0);
+	CHECK(s.destination.words() == reinterpret_cast<const eng::u16*>(g_save), "save -> buffer");
+	CHECK(s.source.words() == reinterpret_cast<const eng::u16*>(g_screen + 20u * kRowBytes + 0u),
+	      "save <- pantalla");
+	CHECK(s.words_per_row == 2u && s.height == 8u && s.bitplane_count == 1u, "geometria del save");
+	CHECK(s.destination_modulo_bytes == 0, "modulo del buffer (fila completa)");
+	CHECK(s.source_modulo_bytes == static_cast<eng::s16>(kRowBytes - 4u), "modulo de pantalla");
+	CHECK(s.source_plane_stride_bytes == kPlaneBytes, "stride de plano de pantalla (planar)");
+	CHECK(s.destination_plane_stride_bytes == 32u, "stride de plano del buffer (2w x 8h x 2)");
+
+	// Restaurar: inverso exacto (source<->destination), misma geometria.
+	FramePlan plan2 {};
+	plan2.clear();
+	CHECK(bob_restore_box(plan2, b, 16u, 8u, 10, 20, t, save, 2u, 8u), "restore_box encola");
+	CHECK(plan2.blit_job_count() == 1u && plan2.blit_job(0).kind == BlitJobKind::RestoreRect,
+	      "restore = RestoreRect");
+	const auto& r = plan2.blit_job(0);
+	CHECK(r.source.words() == s.destination.words() && r.destination.words() == s.source.words(),
+	      "restore invierte source/destination del save");
+	CHECK(r.source_modulo_bytes == s.destination_modulo_bytes &&
+		      r.destination_modulo_bytes == s.source_modulo_bytes,
+	      "restore invierte los modulos");
+
+	// Rechazos controlados: sin buffer o capacidad insuficiente (palabras/altura).
+	FramePlan plan3 {};
+	plan3.clear();
+	CHECK(!bob_save_box(plan3, b, 16u, 8u, 10, 20, t, {}, 2u, 8u), "sin buffer -> rechazo");
+	CHECK(!bob_save_box(plan3, b, 16u, 8u, 10, 20, t, save, 1u, 8u), "1 palabra de rejilla -> rechazo");
+	CHECK(!bob_restore_box(plan3, b, 16u, 8u, 10, 20, t, save, 2u, 4u), "altura insuficiente -> rechazo");
+	CHECK(plan3.blit_job_count() == 0u, "rechazos sin jobs");
+}
+
 /// Matriz de geometría del BOB a nivel de job: dibujo x layout x borrado y profundidad
 /// 3..6, más los rechazos documentados. Fija el contrato de `bob_draw`/`bob_erase` (el
 /// camino del actor se prueba en los demás casos).
 void test_bob_job_matrix() {
 	const auto mk = [](BobLayout layout, BobDraw draw, eng::u8 planes) {
 		Bob b {};
-		b.sheet = g_matrix_sheet;
+		b.sheet = chip_view(g_matrix_sheet);
 		b.width = 48u;
 		b.height = 32u;
 		b.planes = planes;
@@ -786,13 +865,7 @@ void test_bob_job_matrix() {
 		return b;
 	};
 	const auto tgt = [](BobLayout layout, eng::u8 planes = 4u) {
-		BobTarget t {};
-		t.base = g_screen;
-		t.row_bytes = kRowBytes;
-		t.plane_bytes = kPlaneBytes;
-		t.planes = planes;
-		t.layout = layout;
-		return t;
+		return make_bob_target(chip_view<eng::PlaneTag>(g_screen), kRowBytes, 256u, planes, layout);
 	};
 
 	// OR intercalado (un blit/objeto) en 3..6 planos.
@@ -819,7 +892,7 @@ void test_bob_job_matrix() {
 		FramePlan plan {};
 		plan.clear();
 		Bob b = mk(BobLayout::Planar, BobDraw::CookieCut, 4u);
-		b.mask = g_matrix_sheet;
+		b.mask = chip_view(g_matrix_sheet);
 		CHECK(bob_draw(plan, b, 0u, 32, 10, tgt(BobLayout::Planar)), "cookie-cut planar dibuja");
 		const auto& j = plan.blit_job(0);
 		CHECK(j.minterm == 0x00cau, "minterm cookie-cut $CA");
@@ -828,6 +901,29 @@ void test_bob_job_matrix() {
 		CHECK(j.source_plane_stride_bytes == 32u * 8u, "stride de plano origen");
 		CHECK(j.source_modulo_bytes == 2, "modulo origen con shift 0 (guarda)");
 		CHECK(!j.interleaved, "planar sin flag interleaved");
+	}
+
+	// Cookie-cut interleaved "par" ([máscara][imagen] por fila de plano): 1 blit $CA.
+	{
+		FramePlan plan {};
+		plan.clear();
+		Bob b = mk(BobLayout::Interleaved, BobDraw::CookieCut, 4u);
+		b.mask_pack = BobMaskPack::InterleavedPair;
+		CHECK(bob_draw(plan, b, 0u, 3, 10, tgt(BobLayout::Interleaved)), "cookie-cut par dibuja");
+		CHECK(plan.blit_job_count() == 1u, "cookie-cut par: 1 blit");
+		const auto& j = plan.blit_job(0);
+		CHECK(j.kind == BlitJobKind::MaskedBobCookieCut, "kind cookie-cut");
+		CHECK(j.minterm == 0x00cau, "minterm $CA");
+		CHECK(j.words_per_row == 3u, "3 palabras (48/16)");
+		CHECK(j.height == 32u * 4u, "altura = alto x planos");
+		CHECK(j.source_modulo_bytes == 6, "modulo origen = palabras*2");
+		CHECK(j.destination_modulo_bytes == static_cast<eng::s16>(kRowBytes - 6u),
+		      "modulo destino");
+		CHECK(j.interleaved && j.bitplane_count == 1u, "intercalado de 1 columna");
+		CHECK(j.mask.words() == reinterpret_cast<const eng::u16*>(g_matrix_sheet),
+		      "mascara = inicio de la hoja");
+		CHECK(j.source.words() == reinterpret_cast<const eng::u16*>(g_matrix_sheet) + 3u,
+		      "imagen = mascara + palabras");
 	}
 
 	// Cookie-cut con destino intercalado: rechazado (documentado).
@@ -869,7 +965,7 @@ void test_bob_job_matrix() {
 		CHECK(bob_erase(plan, b, 10, 10, tgt(BobLayout::Interleaved)) && plan.blit_job_count() == 0u,
 		      "erase None no encola");
 		Bob bad = b;
-		bad.sheet = nullptr;
+		bad.sheet = {};
 		CHECK(!bob_draw(plan, bad, 0u, 0, 0, tgt(BobLayout::Interleaved)), "sin hoja falla");
 		CHECK(!bob_draw(plan, b, 9u, 0, 0, tgt(BobLayout::Interleaved)), "frame fuera de rango falla");
 	}
@@ -891,7 +987,9 @@ int main() {
 	test_sprite_allocation_and_bob_fallback();
 	test_compose_sprites();
 	test_copper_priority_wiring();
+	test_add_anchored();
 	test_emit_save_under();
+	test_bob_save_under_helpers();
 	test_copper_anchoring();
 	test_bob_job_matrix();
 

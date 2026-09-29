@@ -12,7 +12,7 @@ En su momento quedó pendiente el doble buffer de la copperlist. Validación: `a
 
 El driver de scroll por tiles vive en `engine/include/eng/graphics/drivers/tile_scroll.hpp` como `TileScrollScene<Mode>` (template sobre el modo), con scroll por playfield (`TileScrollInput`) y override coarse por bitplane (`plane[i]`, preparado para RoboCod). `ehb_tile_scroll.hpp` es un shim de compatibilidad (`EhbTileScrollScene` = single 6).
 
-Las demos 103/104 (`demos/amiga/103_tile_scroll_ring`, `104_tile_scroll_ring_dualpf`) demuestran el scroll por tiles single y dual. El test de descomposición de scroll para 4/5/6 single y 2+3/3+3 dual es `node tools/analyze/verify-tile-scroll-modes.mjs`.
+Las demos 103/104 (`demos/techniques/amiga/playfield/103_tile_scroll_ring`, `104_tile_scroll_ring_dualpf`) demuestran el scroll por tiles single y dual. El test de descomposición de scroll para 4/5/6 single y 2+3/3+3 dual es `node tools/analyze/verify-tile-scroll-modes.mjs`.
 
 ## 3. Rendimiento del scroll por tiles (lecciones aprendidas)
 
@@ -24,6 +24,8 @@ Las demos 103/104 (`demos/amiga/103_tile_scroll_ring`, `104_tile_scroll_ring_dua
 
 La cifra histórica (101=~48, 102=~50, 103=~50, 104=~47,6) no era reproducible: no se anotó commit/config/fecha, la demo 102 ya no existe en el árbol de fuentes y las medidas posteriores daban otra cosa para 103/104. La tabla trazable vigente es:
 
+> **Corrección de métrica (2026-09-27).** En `run_frames` (bucle IRQ-mínima) `g_eng_run_status.frame` seguía el **latido de VBlank** (`VBlankHeartbeat`), no los updates completados, así que `measure-fps` reportaba la tasa de campo (~50 ft): cualquier demo que no diera un frame por campo aparecía como "1,0 frame". Corregido en `Engine::run_frames` (`frame_index` = **frames completados**, igual que en `run_frames_polling`). Verificado: `measure-fps` y `profile.mjs` ya coinciden por update. Las filas marcadas con `†` se midieron con el contador roto y están reevaluadas; el resto son anteriores o no se ven afectadas.
+
 | Demo | `CONFIG_ID` | fps emulado | ciclos/frame | `detail` | fecha | commit |
 |---|---|---|---|---|---|---|
 | `101_ehb_tile_scroll_driver` | `A500_debug` | 49,92 | 142 102 | 0x11595823 | 2026-09-17 | `53af1d4` |
@@ -33,6 +35,8 @@ La cifra histórica (101=~48, 102=~50, 103=~50, 104=~47,6) no era reproducible: 
 | `056_input_aggregator` | `A500_debug` | 16,58 | 427 727 | 0xb4 | 2026-09-18 | `46d4a82` |
 | `057_audio_mixer` | `A500_debug` | 12,60 | 562 799 | 0x381 | 2026-09-18 | `83f1bba` |
 | `058_sfx_mixer` | `A500_debug` | 12,44 | 570 303 | 0x3810004 | 2026-09-18 | `83f1bba` |
+| `213_bartman_abyss` | `A500_debug` | 24,96† | 284 204 | 0x21300 | 2026-09-27 | `e2d99690` |
+| `117_bobs3d` | `A500_debug` | 22,06† | 321 599 | 0x3c | 2026-09-27 | `e2d99690` |
 
 Contexto de medida: `CONFIG_ID` **`A500_debug`** (build `--debug`, `-O1`), emulador **WinUAE-DBG x86**, herramienta `tools/debug/measure-fps.mjs` (contador de ciclos del periférico `0xB7E928`, 7,09379 MHz). El fps depende de la **fase** del recorrido (`detail`): comparar siempre con el mismo `detail`. En hardware real las demos de scroll van a 50 fps.
 

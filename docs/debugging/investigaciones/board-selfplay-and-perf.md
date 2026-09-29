@@ -56,7 +56,7 @@ depuración, independiente del ancho de banda del host; CPU = 7.09379 MHz).
 Línea base (demo ligera, `games/101_go`): **49.75 fps**, 142 576 ciclos/frame
 (1 línea/frame) → el emulador y la herramienta son correctos.
 
-`demos/amiga/123_chess_match` con una rebanada de búsqueda de 20 nodos/frame:
+`demos/features/board/chess/amiga/123_chess_match` con una rebanada de búsqueda de 20 nodos/frame:
 
 | Config | fps emulado | ciclos/frame | ciclos/nodo (aprox.) |
 |---|---:|---:|---:|
@@ -78,7 +78,7 @@ Conclusiones:
 Para observarlo en la demo, ampliar el asentamiento:
 
 ```bash
-bash tools/run/run-demo.sh demos/amiga/123_chess_match --warp --settle-ms 30000
+bash tools/run/run-demo.sh demos/features/board/chess/amiga/123_chess_match --warp --settle-ms 30000
 ```
 
 ## 4. Próximos pasos de optimización

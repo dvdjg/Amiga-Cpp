@@ -147,6 +147,25 @@ int main() {
 	check(!eng::os::TaskSystem::yield_if_preempt(), "yield sin preempt -> false");
 	eng::os::TaskSystem::unbind_preempt_hook();
 
+	// M11: pila propia por tarea desde los bancos (Fast si hay, si no Slow).
+	{
+		eng::u8 fast_buf[2048] {};
+		eng::MemoryManager mm {};
+		(void)mm.configure(nullptr, 0u, nullptr, 0u, fast_buf, sizeof(fast_buf), 16u);
+		eng::os::TaskSystem ts2;
+		(void)ts2.init(4u);
+		ts2.attach_memory(mm);
+		Ctx c {};
+		eng::os::TaskDesc d {};
+		d.fn = counting_task;
+		d.user = &c;
+		d.stack_words = 256u; // 512 B
+		const eng::os::TaskId sid = ts2.create(d);
+		check(sid != 0u, "create con pila");
+		const auto st = ts2.task_stack(sid);
+		check(st.valid() && st->block.kind == eng::MemoryKind::Fast, "pila de tarea en Fast");
+	}
+
 	if (g_fail == 0) {
 		std::printf("OK: tareas de fondo del mini-SO (ciclo de vida + idle + preempt) validadas.\n");
 		return 0;

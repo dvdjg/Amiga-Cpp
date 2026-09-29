@@ -17,26 +17,12 @@
 
 namespace eng {
 
-/// Telemetria del tick del juego cuando corre en la IRQ de VBlank (modo por defecto).
-///
-/// El engine la rellena en cada tick; el juego la consulta para vigilar su presupuesto.
-/// Se mide en **lineas de raster** (no ciclos): es lo que hay en hardware real y encaja
-/// con la nocion clasica de "el efecto tarda N lineas".
-struct IrqTelemetry {
-	u32 ticks = 0;          // ticks ejecutados
-	u16 last_lines = 0;     // lineas de raster que duro el ultimo tick (update+render)
-	u16 max_lines = 0;
-	u16 overruns = 0;       // ticks que superaron el presupuesto
-	u16 budget_lines = 313; // objetivo por tick (1 frame PAL)
-};
-
 /// Contexto mutable de juego por frame.
 ///
 /// No debe contener ownership pesado. Es el paquete de estado que el engine pasa a
 /// `init`, `update` y `render`.
 struct GameContext {
 	FrameStats frame {};
-	IrqTelemetry irq {};
 	/// Cola de tareas de fondo. El engine la drena en los huecos (VBlank) con
 	/// prioridad al bucle principal; el juego registra rutinas y consulta su
 	/// progreso/rendimiento aqui. Dentro del bucle del engine nunca es null.
@@ -62,10 +48,10 @@ concept GameIdle = requires(Game game, Backend& backend, GameContext& context) {
 	game.idle(backend, context);
 };
 
-/// **Hook de VBlank**: aviso de que ha llegado un latido de frame. No sustituye al
-/// servicio de VBlank (que sigue siendo el que corre `update`/`render`): viaja **con** él
-/// y lo usa el mini-SO (`eng::os`) para publicar el mensaje `VBlank` en el puerto. Se llama
-/// una vez por tick, **antes** de `update`/`render`. No captura: recibe el `user` del Engine.
+/// **Hook de VBlank**: el **latido** del frame. Es lo único que corre la IRQ de VBlank (modo
+/// IRQ mínima): el mini-SO (`eng::os`) lo usa para publicar `MsgType::VBlank` y avanzar su tick.
+/// `update`/`render` **no** van aquí (los corre el bucle principal). Se llama una vez por tick.
+/// No captura: recibe el `user` del Engine.
 using VBlankHook = void (*)(void* user);
 
 /// Bombea el trabajo de fondo durante el hueco de VBlank.
@@ -101,54 +87,24 @@ struct BackgroundBlitterService {
 	}
 };
 
-/// Tick del juego por IRQ de VBlank (modo interrupt-driven).
-///
-/// La IRQ lleva el **latido del juego**: `update` + `render` con deadline de un frame.
-/// El bucle principal queda libre para el trabajo de fondo cooperativo, que la IRQ
-/// preempta. `frames` lo lee/escribe el bucle principal y lo incrementa la IRQ.
+/// **Latido de VBlank mínimo** (el bucle por defecto `Engine::run_frames`): la IRQ **solo
+/// anuncia** el frame — `vblank_hook` (p. ej. el mini-SO: input, timers, cola) + contador — y
+/// `update`/`render` los corre el **bucle principal**, sobre su propia pila, al ver el contador
+/// avanzar. Es el modelo de un SO real: la interrupción avisa, el trabajo se hace fuera de ella,
+/// así que un `render` pesado **no** invade VBlanks (1 latido = 1 frame).
 template <typename Backend, typename Game>
-struct InterruptTick {
-	Game* game = nullptr;
-	Backend* backend = nullptr;
+struct VBlankHeartbeat {
 	GameContext* context = nullptr;
 	volatile u32 frames = 0u;
-	u32 frame_count = 0u;
-	VBlankHook vblank_hook = nullptr; ///< aviso de VBlank (p. ej. publicar `MsgType::VBlank`)
+	VBlankHook vblank_hook = nullptr; ///< latido (p. ej. `os::tick`) — debe ser corto
 	void* vblank_user = nullptr;
 
-	static u16 raster_line(InterruptTick& tick, u16 fallback) {
-		if constexpr (requires { tick.backend->current_raster_line(); }) {
-			return tick.backend->current_raster_line();
-		} else {
-			return fallback;
+	static void run(VBlankHeartbeat& hb, u16) {
+		hb.context->frame.frame_index = hb.frames;
+		if (hb.vblank_hook != nullptr) {
+			hb.vblank_hook(hb.vblank_user);
 		}
-	}
-
-	static void run(InterruptTick& tick, u16 vpos) {
-		if (tick.frames >= tick.frame_count) {
-			return;
-		}
-		tick.context->frame.frame_index = tick.frames;
-		// El latido de VBlank se anuncia ANTES de `update`: el juego puede drenarlo del
-		// puerto en la misma pasada (el `App::pump` posterior recoge lo no consumido).
-		if (tick.vblank_hook != nullptr) {
-			tick.vblank_hook(tick.vblank_user);
-		}
-
-		// Presupuesto: cuanto raster consume el tick (update+render). Si se pasa del
-		// objetivo, `overruns` avisa de que el juego invade el frame/el fondo.
-		const u16 start = raster_line(tick, vpos);
-		tick.game->update(*tick.backend, *tick.context);
-		tick.game->render(*tick.backend, *tick.context);
-		const u16 end = raster_line(tick, vpos);
-
-		IrqTelemetry& tel = tick.context->irq;
-		tel.last_lines = static_cast<u16>((end - start) & 0x1ffu);
-		if (tel.last_lines > tel.max_lines) tel.max_lines = tel.last_lines;
-		if (tel.last_lines > tel.budget_lines) ++tel.overruns;
-		++tel.ticks;
-
-		++tick.frames;
+		++hb.frames;
 	}
 };
 
@@ -164,10 +120,10 @@ public:
 	constexpr Engine(Backend& backend, Game& game)
 		: m_backend(backend), m_game(game) {}
 
-	/// Modo **polling** (alternativo): `update -> wait_vblank -> render` en el bucle
-	/// principal, con el fondo drenado en el hueco de VBlank y en las esperas de Blitter.
-	/// Es el modelo de las demos que hacen trabajo pesado en `update`. Para trabajo nuevo
-	/// se prefiere `run_frames` (interrupt-driven, sin polling de VBlank).
+	/// Modo **polling** (fallback, **sin** IRQ de VBlank): `update -> wait_vblank -> render`
+	/// en el bucle principal, con el fondo drenado en el hueco de VBlank y en las esperas de
+	/// Blitter. Se usa cuando el backend no ofrece `set_vblank_service`. Para trabajo normal,
+	/// el bucle por defecto es `run_frames` (IRQ mínima).
 	///
 	/// Las demos acaban tras `frame_count` para que el runner pueda capturar y cerrar
 	/// WinUAE de forma determinista; `0xffffffff` equivale a duracion indefinida.
@@ -222,14 +178,11 @@ public:
 		m_vblank_user = user;
 	}
 
-	/// Ejecuta `frame_count` frames en el modo **por defecto: interrupt-driven**.
-	///
-	/// La IRQ de VBlank corre `update`/`render` (el latido del juego, deadline de 1
-	/// frame) y el bucle principal ejecuta el trabajo de fondo cooperativo, que la IRQ
-	/// preempta. Es el modelo mas natural en Amiga y el que **no quema ciclos en
-	/// polling** de VBlank: la CPU no espera, solo trabaja (juego en la IRQ, fondo en el
-	/// bucle). Requiere un backend con `set_vblank_service`; si no lo tiene, cae a
-	/// `run_frames_polling`.
+	/// Ejecuta `frame_count` frames en el **bucle por defecto**: modo **IRQ mínima**
+	/// (§`VBlankHeartbeat`). La IRQ de VBlank solo lleva el **latido** (el `vblank_hook`,
+	/// p. ej. `os::tick` + cola del mini-SO) y el contador de frames; `update`/`render` corren
+	/// en el **bucle principal** (su propia pila), notificados por el contador. Es el modelo de
+	/// un SO real. Si el backend no tiene servicio de VBlank, cae a `run_frames_polling`.
 	void run_frames(u32 frame_count) {
 		GameContext context {};
 		context.background = &m_background;
@@ -237,33 +190,40 @@ public:
 		m_backend.boot();
 		m_game.init(m_backend, context);
 
-		InterruptTick<Backend, Game> tick {&m_game, &m_backend, &context, 0u, frame_count,
-						    m_vblank_hook, m_vblank_user};
-		if constexpr (requires { m_backend.set_vblank_service(&InterruptTick<Backend, Game>::run, tick); }) {
-			if (m_backend.set_vblank_service(&InterruptTick<Backend, Game>::run, tick)) {
-				// Al salir (por donde sea) hay que devolver el hardware al estado base:
-				// si no, la IRQ de VBlank seguiria apuntando a `tick` (que vive en esta
-				// pila) al volver. El `ScopeGuard` lo garantiza en toda salida.
+		VBlankHeartbeat<Backend, Game> hb {&context, 0u, m_vblank_hook, m_vblank_user};
+		if constexpr (requires { m_backend.set_vblank_service(&VBlankHeartbeat<Backend, Game>::run, hb); }) {
+			if (m_backend.set_vblank_service(&VBlankHeartbeat<Backend, Game>::run, hb)) {
 				[[maybe_unused]] auto services_off = eng::util::make_scope_guard([&] {
 					if constexpr (requires { m_backend.clear_blit_service(); }) {
 						m_backend.clear_blit_service();
 					}
 					m_backend.clear_vblank_service();
 				});
-				// El servicio de blit (nivel 3, mismo vector que el VBlank) drena el
-				// fondo mientras el juego espera a un blit.
 				BackgroundBlitterService blitter_service {&m_background, &context};
 				if constexpr (requires { m_backend.set_blit_service(&BackgroundBlitterService::run, blitter_service); }) {
 					m_backend.set_blit_service(&BackgroundBlitterService::run, blitter_service);
 				}
-				// Bucle principal = fondo cooperativo continuo (la IRQ lo preempta).
-				while (tick.frames < frame_count) {
-					m_background.run_slice(tick.frames, 0u);
+				// El bucle consume el latido: mientras no avance el contador, adelanta el
+				// fondo (equivale al hueco de VBlank); cuando avanza, corre el frame fuera
+				// de la IRQ. `frame_index` cuenta **frames completados** (como en
+				// `run_frames_polling`), no latidos: asi el run-status/gate miden la tasa
+				// real de update y las animaciones avanzan por frame dibujado.
+				u32 seen = 0u;
+				u32 done = 0u;
+				while (done < frame_count) {
+					if (hb.frames == seen) {
+						m_background.run_slice(done, 0u);
+						continue;
+					}
+					seen = hb.frames;
+					context.frame.frame_index = done;
+					m_game.update(m_backend, context);
+					m_game.render(m_backend, context);
+					++done;
 				}
 				return;
 			}
 		}
-		// Backend sin IRQ de VBlank: modo polling.
 		run_frames_polling(frame_count, /*already_booted=*/true);
 	}
 

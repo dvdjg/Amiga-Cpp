@@ -13,10 +13,17 @@ const mcpWinuae = await import(pathToFileURL(path.join(path.dirname(root), 'mcp-
 const { WinUAEConnection } = mcpWinuae;
 function argValue(name, fallback = undefined) {
     const index = process.argv.indexOf(name);
-    if (index >= 0 && index + 1 < process.argv.length) {
-        return process.argv[index + 1];
+    if (index < 0 || index + 1 >= process.argv.length) {
+        return fallback;
     }
-    return fallback;
+    const value = process.argv[index + 1];
+    // Guardarrail: si el "valor" es otro flag (`--algo`) es un error de orden (p. ej.
+    // `--screenshot --allow-timeout-fallback`); no lo consumimos como ruta y avisamos.
+    if (value.startsWith('--')) {
+        console.error(`[run-demo] aviso: '${name}' va seguido de '${value}' (revisa el orden de argumentos); se usa el valor por defecto.`);
+        return fallback;
+    }
+    return value;
 }
 function hasArg(name) {
     return process.argv.includes(name);
@@ -169,7 +176,7 @@ function findWinuaeDir(extensionRoot) {
     }
     return path.join(extensionRoot, 'bin/win32');
 }
-function patchConfig(configText, extensionRoot, stagedOutDir, warpEnabled, immediateBlits, diskAdf = '') {
+function patchConfig(configText, extensionRoot, stagedOutDir, warpEnabled, immediateBlits, diskAdf = '', cd32Pad = false) {
     const dh0 = path.join(extensionRoot, 'bin/dh0');
     const normalizedDh0 = dh0.replace(/\//g, '\\');
     const normalizedOut = stagedOutDir.replace(/\//g, '\\');
@@ -211,6 +218,14 @@ function patchConfig(configText, extensionRoot, stagedOutDir, warpEnabled, immed
     // el overhead de emular cada blit. Útil para el gate de fps del harness.
     if (immediateBlits) {
         out = setConfigValue(out, 'immediate_blits', 'true');
+    }
+    // Pad CD32 en el puerto 2: `joyport1mode=cd32joy`. LIMITACION CONOCIDA: WinUAE solo activa
+    // `cd32_pad_enabled[1]` si el `eventid[]` de un dispositivo **joystick/raton** incluye un
+    // evento `JOY2_CD32_*` (los mapeos de teclado no valen). Sin hardware joystick real en el host
+    // no se ha encontrado todavia la forma de inyectar ese evento por config, asi que `--cd32`
+    // deja el puerto en modo CD32 pero el pad puede no detectarse (ver ROADMAP_MINI_OS M2).
+    if (cd32Pad) {
+        out = setConfigValue(out, 'joyport1mode', 'cd32joy');
     }
     return out;
 }
@@ -589,6 +604,39 @@ async function resolveRunStatusAddress(client, linkedSymbol, mapSections, runtim
             }
             catch { /* noop */ }
         }
+        // Segundo fallback: escanear MEMORIA dentro de cada seccion **por trozos**. El inicio de un
+        // hunk no siempre coincide con `g_eng_run_status` y en una seccion grande (p. ej. la 117) el
+        // simbolo puede quedar muy por encima de los primeros 4 KiB. Buscamos el magic (big-endian)
+        // trozo a trozo y validamos con `runstatus`; un falso positivo no corta el barrido.
+        const CHUNK = 4096;
+        const MAX_PER_SECTION = 1024 * 1024; // 1 MiB de tope por seccion
+        for (const sec of runtimeSections) {
+            const base = parseHexNumber(sec);
+            if (!base)
+                continue;
+            for (let off = 0; off < MAX_PER_SECTION; off += CHUNK) {
+                try {
+                    const mem = await client.command(`mem ${(base + off).toString(16)} ${CHUNK}`, 2500);
+                    const hex = typeof mem?.data === 'string' ? mem.data : null;
+                    if (hex === null || hex.length === 0)
+                        break;
+                    let idx = hex.indexOf('454e4752');
+                    while (idx >= 0) {
+                        if ((idx & 1) === 0) {
+                            const candidate = base + off + (idx >> 1);
+                            const status = await client.command(`runstatus ${candidate.toString(16)}`, 1500);
+                            if (status && status.ok && status.magic === '0x454e4752' && status.version === 1) {
+                                return candidate;
+                            }
+                        }
+                        idx = hex.indexOf('454e4752', idx + 2);
+                    }
+                }
+                catch {
+                    break;
+                }
+            }
+        }
     }
     // Sin match: devuelve la resolución exacta (aunque su magic no haya validado)
     // para no romper el resto del flujo.
@@ -810,17 +858,24 @@ async function readSideChannelRunStatusOnce(port, runtimeAddress, timeoutMs) {
 }
 const demoArg = process.argv[2];
 if (!demoArg || demoArg.startsWith('--')) {
-    console.error('Uso: node tools/run/run-demo.mjs demos/amiga/000_toolchain_cpp23 [--wait-ms 12000] [--screenshot file.png]');
+    console.error('Uso: node tools/run/run-demo.mjs demos/techniques/amiga/setup/000_toolchain_cpp23 [--wait-ms 12000] [--screenshot file.png]');
     process.exit(2);
 }
 const demoPath = path.resolve(root, demoArg);
 const demoName = path.basename(demoPath);
+// Id de build/out (misma regla que build-demo.sh): `features/<feature>/<plataforma>/NNN`
+// usa la ruta relativa a `demos/features/` (evita que el mismo nombre de demo en varias
+// plataformas se machaque); el resto usa el leaf.
+const demoRel = demoArg.replace(/\\/g, '/').replace(/^demos\//, '');
+const demoId = demoRel.startsWith('features/')
+    ? demoRel.slice('features/'.length).replace(/\//g, '_')
+    : demoName;
 // El build nombra el ejecutable con un CONFIG_ID (MACHINE_flags_modo) y aísla
 // los artefactos por configuración: out/demos/<demo>/<CONFIG_ID>/<demo>.<CONFIG_ID>.exe.
 // Aquí seleccionamos la configuración más reciente (por mtime) de las presentes.
-const demosRoot = path.join(root, 'out/demos', demoName);
-let builtExe = path.join(demosRoot, `${demoName}.exe`);
-let builtMap = path.join(demosRoot, `${demoName}.map`);
+const demosRoot = path.join(root, 'out/demos', demoId);
+let builtExe = path.join(demosRoot, `${demoId}.exe`);
+let builtMap = path.join(demosRoot, `${demoId}.map`);
 let configId = '';
 // Prioridad de selección (de mejor a peor):
 //   0  A500_debug            (default canónico: máquina + modo _debug, sin flags)
@@ -848,13 +903,13 @@ if (fs.existsSync(demosRoot)) {
         const st = fs.statSync(cfgDir);
         if (!st.isDirectory())
             continue;
-        const exe = path.join(cfgDir, `${demoName}.${entry}.exe`);
+        const exe = path.join(cfgDir, `${demoId}.${entry}.exe`);
         if (!fs.existsSync(exe))
             continue;
         const rank = configRank(entry);
         const mt = fs.statSync(exe).mtimeMs;
         if (rank < best.rank || (rank === best.rank && mt > best.mtime)) {
-            best = { rank, mtime: mt, exe, map: path.join(cfgDir, `${demoName}.${entry}.map`), cfg: entry };
+            best = { rank, mtime: mt, exe, map: path.join(cfgDir, `${demoId}.${entry}.map`), cfg: entry };
         }
     }
     if (best.exe) {
@@ -868,12 +923,12 @@ if (fs.existsSync(demosRoot)) {
 const forcedConfig = argValue('--config', '');
 if (forcedConfig) {
     const forcedDir = path.join(demosRoot, forcedConfig);
-    const forcedExe = path.join(forcedDir, `${demoName}.${forcedConfig}.exe`);
+    const forcedExe = path.join(forcedDir, `${demoId}.${forcedConfig}.exe`);
     if (!fs.existsSync(forcedExe)) {
         throw new Error(`--config "${forcedConfig}": no existe ${forcedExe}. Compila esa config antes.`);
     }
     builtExe = forcedExe;
-    builtMap = path.join(forcedDir, `${demoName}.${forcedConfig}.map`);
+    builtMap = path.join(forcedDir, `${demoId}.${forcedConfig}.map`);
     configId = forcedConfig;
 }
 const builtMapSections = findMapAllocSections(builtMap);
@@ -910,6 +965,9 @@ const telemetrySamples = Math.max(0, parseInt(argValue('--telemetry-samples', '0
 const telemetryIntervalMs = Math.max(10, parseInt(argValue('--telemetry-interval-ms', '120'), 10));
 const warpEnabled = hasArg('--warp');
 const immediateBlits = hasArg('--immediate-blits');
+// --cd32: WinUAE presenta un **pad CD32** en el puerto 2 (en vez de joystick), para verificar
+// `os::enable_cd32_pad()`. Los botones se inyectan con `--joy 1:<dir|fire>` (`fire` = rojo).
+const cd32Pad = hasArg('--cd32');
 const diskArg = argValue('--disk', '');
 const diskAdf = diskArg !== '' ? path.resolve(diskArg) : '';
 const mousePath = buildMousePathFromArgs();
@@ -918,8 +976,8 @@ const mouseButton = Math.max(0, parseInt(argValue('--mouse-button', '0'), 10));
 const stopEmulator = !hasArg('--keep-running');
 const protectSpecs = parseProtectSpecs();
 const outputDir = configId
-    ? path.join(root, 'out/run', demoName, configId)
-    : path.join(root, 'out/run', demoName);
+    ? path.join(root, 'out/run', demoId, configId)
+    : path.join(root, 'out/run', demoId);
 const stagedDir = path.join(outputDir, 'dh1');
 fs.mkdirSync(stagedDir, { recursive: true });
 fs.copyFileSync(builtExe, path.join(stagedDir, 'a.exe'));
@@ -949,7 +1007,7 @@ fs.writeFileSync(startupPath, 'stack 131072\ncd dh1:\n:a.exe\n', 'utf8');
 const baseConfigPath = path.join(root, 'config/mcp-amiga-c-debug.uae');
 const runnerConfigPath = path.join(outputDir, 'runner.uae');
 const configText = fs.readFileSync(baseConfigPath, 'utf8');
-fs.writeFileSync(runnerConfigPath, patchConfig(configText, extensionRoot, stagedDir, warpEnabled, immediateBlits, diskAdf), 'utf8');
+fs.writeFileSync(runnerConfigPath, patchConfig(configText, extensionRoot, stagedDir, warpEnabled, immediateBlits, diskAdf, cd32Pad), 'utf8');
 const gdbPort = parseInt(process.env.WINUAE_GDB_PORT || '2345', 10);
 /// PIDs que están ESCUCHANDO en alguno de `ports` (Windows, vía `netstat -ano`).
 /// Se usa `netstat` y no una conexión TCP porque el GDB server de WinUAE-DBG acepta
@@ -1538,4 +1596,10 @@ finally {
 }
 if (report.status !== 'ok') {
     process.exit(1);
+}
+// `--keep-running`: no dejar morir el proceso (si no, el emulador hijo se cierra y la demo
+// "desaparece" tras la captura). El usuario sale con Ctrl+C.
+if (!stopEmulator) {
+    console.log('[run-demo] --keep-running: la demo sigue en marcha (Ctrl+C para salir).');
+    setInterval(() => { }, 1 << 30);
 }

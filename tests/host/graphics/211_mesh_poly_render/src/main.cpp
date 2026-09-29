@@ -9,6 +9,7 @@
 #include <vector>
 
 #include <eng/graphics/mesh_renderer.hpp>
+#include <eng/memory/mem_bank.hpp>
 
 using namespace eng;
 using namespace eng::field;
@@ -25,11 +26,13 @@ struct MockPlayfield : Playfield {
 		m_bytes_per_row = static_cast<u16>((w / 8) & ~1u);
 		m_total_bytes = static_cast<u32>(m_bytes_per_row) * m_planes * m_height;
 		mem.assign(m_total_bytes, 0);
-		m_frontbuffer = mem.data();
+		eng::MemBank<eng::MemoryKind::Chip> bank {};
+		bank.configure(mem.data(), static_cast<eng::u32>(mem.size()), 2u);
+		m_frontbuffer = bank.reserve<eng::PlaneTag>(m_total_bytes, 2u).address();
 		m_initialized = true;
 	}
-	u32 planeline_for(s32 wy) const override { return static_cast<u32>(wy) * m_planes; }
-	u32 byte_for(s32 wx) const override { return (static_cast<u32>(wx) / 8u) & ~1u; }
+	u32 planeline_for(s32 wy) const override { return wy * m_planes; }
+	u32 byte_for(s32 wx) const override { return wx / 8 & ~1; }
 	bool in_bounds(s32 wx, s32 wy) const override {
 		return wx >= 0 && wy >= 0 && static_cast<u32>(wx) < m_width && static_cast<u32>(wy) < m_height;
 	}

@@ -1,0 +1,7 @@
+# Bug de codegen de gcc 15 m68k a -O1: el camino inlineado
+# run_frames_polling -> update -> pump_messages -> on_frame pasa un `this` erroneo a
+# `on_frame` con un timer de periodo > 1, y los contadores miembro del App no suben.
+# A -O2 no reproduce. Compilar SOLO el TU de esta demo a -O2 (el resto del perfil sigue
+# a -O1) evita el bug sin cambiar el CONFIG_ID.
+# Detalle: docs/debugging/investigaciones/pump-timer-o1-codegen.md
+DEMO_OPT=-O2

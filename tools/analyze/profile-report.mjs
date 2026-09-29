@@ -8,6 +8,12 @@
 //
 // Uso:
 //   node tools/analyze/profile-report.mjs <perfil.amigaprofile> [--top 20] [--json]
+//   node tools/analyze/profile-report.mjs <perfil.amigaprofile> --ai [--model M] [--vision]
+//
+// `--ai`: envia el reparto a Ollama LOCAL y pide hotspots + ideas de optimizacion + anomalias.
+// `--vision` (implica IA): ademas manda capturas consecutivas (las `screenshots` incrustadas) a
+// un modelo de VISION para buscar defectos de pantalla (flicker/tearing/filas desplazadas/corrupcion).
+// Variables: OLLAMA_BASE, OLLAMA_TEXT_MODEL, OLLAMA_VL_MODEL; y `--frames i,j,...` elige capturas.
 //
 // Nota: el parser del MCP (`parseProfile`) trabaja sobre el binario, no sobre este JSON;
 // este informe lee el JSON del plugin directamente. Para nombre+archivo+linea exactos se
@@ -26,6 +32,17 @@ const topN = (() => {
   return i >= 0 ? parseInt(args[i + 1] || '20', 10) : 20;
 })();
 const asJson = args.includes('--json');
+// --- Modo IA (Ollama local) ---
+const aiMode = args.includes('--ai') || args.includes('--vision');
+const withVision = args.includes('--vision');
+const opt = (name, def) => {
+  const i = args.indexOf(name);
+  return i >= 0 ? args[i + 1] : def;
+};
+const OLLAMA_BASE = process.env.OLLAMA_BASE || 'http://127.0.0.1:11434';
+const AI_MODEL = opt('--model', process.env.OLLAMA_TEXT_MODEL || 'gemma3:12b');
+const VL_MODEL = opt('--vl-model', process.env.OLLAMA_VL_MODEL || 'qwen3-vl:8b-instruct-q8_0');
+const frameIdx = (opt('--frames', '') || '').split(',').filter((s) => s !== '').map(Number);
 
 const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
 // El plugin agrega todo en `firstFrame`; se aceptan tambien `frames[]`/raiz plana.
@@ -133,5 +150,76 @@ if (asJson) {
   console.log('  --- top por archivo ---');
   for (const [k, v] of top(selfByFile, 12)) {
     console.log(`  ${pct(v).padStart(5)}%  ${fmtUs(v).padEnd(26)}  ${k}`);
+  }
+}
+
+// --- Analisis con Ollama local ---
+if (aiMode) {
+  const reportText = [
+    `perfil=${file.split(/[\\/]/).pop()} perfiles=${profiles.length} muestras=${totalSamples}`,
+    `total=${fmtUs(totalUs)} (~${(totalUs * 7.09379 / 141876).toFixed(2)} campos PAL)`,
+    'top por rutina (tiempo propio):',
+    ...top(selfByRoutine, topN).map(([k, v]) => `  ${pct(v)}%  ${fmtUs(v)}  ${k}`),
+    'top por archivo:',
+    ...top(selfByFile, 10).map(([k, v]) => `  ${pct(v)}%  ${fmtUs(v)}  ${k}`),
+  ].join('\n');
+
+  let prompt = `Eres un ingeniero senior de rendimiento en 68000 / Amiga OCS (A500, 7.09 MHz). Te doy el
+reparto de TIEMPO PROPIO de un profile de MUESTREO de una demo del engine: cada linea es
+"<rutina> @ <fichero>:<linea>" con su % de muestras. Responde en espanhol, conciso y ESPECIFICO (nada
+de generalidades).
+
+CONTEXTO (tenlo en cuenta, no lo repitas):
+- El codigo ya usa muls.w/divs.w nativos; arith<short>::mul/div SON esas instrucciones.
+- Un jsr + push/pop cuesta caro: el engine confia en always_inline (por eso veras "(inlined)").
+- El Blitter comparte el bus con la CPU; BLTPRI (blitter nasty) agrava la espera de la CPU.
+- La espera de Blitter es un spin a BBUSY (hardware, no codigo).
+
+Da EXACTAMENTE estas secciones:
+1) HOTSPOTS: los 3-5 reales, con su % y a que parte del frame pertenecen (transform / espera de
+   Blitter / IRQ-tick del mini-SO / otro).
+2) REPARTO POR CATEGORIA (porcentaje, sumando los que cuadren): TRANSFORM (project+arith mul/div+
+   pack3_ops+transform_all_vertices+row), ESPERA DE BLITTER (OrBlobBatch::one/wait), TICK mini-SO
+   (tick_body/timers), RESTO.
+3) OPTIMIZACION: 3-5 ideas CONCRETAS y REALISTAS en 68000, ordenadas por impacto. PROHIBIDO:
+   tablas de multiplicacion, float, o "usa muls.w/divs.w" (ya se usan). Cita la rutina/linea.
+4) ANOMALIAS: spin-waits, bucles, trabajo NO pedido (p. ej. poll de timers sin timers), codigo muerto.
+No inventes rutinas que no aparezcan en el listado.
+
+REPARTO:
+${reportText}`;
+
+  const messages = [{ role: 'user', content: prompt }];
+  let model = AI_MODEL;
+  if (withVision && Array.isArray(doc.screenshots) && doc.screenshots.length) {
+    const idx = frameIdx.length ? frameIdx : [0, 1, 2, 3];
+    const images = idx
+      .filter((i) => i >= 0 && i < doc.screenshots.length)
+      .map((i) => String(doc.screenshots[i]).replace(/^data:image\/[^;]+;base64,/, ''));
+    model = VL_MODEL;
+    messages[0].content = `${prompt}
+
+Ademas te doy capturas CONSECUTIVAS de la demo (frames ${idx.join(', ')}). Busca DEFECTOS VISUALES:
+parpadeo (frames par/impar distintos), tearing (desgarro), filas desplazadas/corruptas o columnas
+mal. Indica el primer frame afectado y el tipo. Termina con una linea "VEREDICTO: OK" o
+"VEREDICTO: <defecto>".`;
+    messages[0].images = images;
+  }
+
+  try {
+    const r = await fetch(`${OLLAMA_BASE}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, stream: false, messages }),
+      signal: AbortSignal.timeout(300000),
+    });
+    if (!r.ok) throw new Error(`Ollama HTTP ${r.status}`);
+    const j = await r.json();
+    console.log(`\n  --- analisis IA (${model}${withVision ? ', vision' : ''}) ---`);
+    console.log(j.message?.content ?? JSON.stringify(j));
+  } catch (e) {
+    console.error(`[prof] IA no disponible: ${e.message}`);
+    console.error(`[prof] Levanta Ollama (ollama serve) en ${OLLAMA_BASE} y prueba '${withVision ? VL_MODEL : AI_MODEL}'.`);
+    process.exitCode = 1;
   }
 }

@@ -107,7 +107,7 @@ void test_jobs() {
 	eng::effects::FineScroll s = make_scroll();
 	const eng::graphics::BlitJob sh = s.shift_job();
 	CHECK(sh.kind == eng::graphics::BlitJobKind::CopyRect, "shift: CopyRect");
-	CHECK(sh.source.words == g_plane + 1u && sh.destination.words == g_plane,
+	CHECK(sh.source.words() == g_plane + 1u && sh.destination.words() == g_plane,
 	      "shift: src = plane+1, dst = plane");
 	CHECK(sh.words_per_row == 20u && sh.height == 8u, "shift: 20 x 8");
 	CHECK(sh.source_modulo_bytes == 2 && sh.destination_modulo_bytes == 2,
@@ -115,7 +115,7 @@ void test_jobs() {
 	CHECK(sh.bitplane_count == 1u, "shift: 1 plano");
 
 	const eng::graphics::BlitJob col = s.column_job(g_col);
-	CHECK(col.source.words == g_col && col.destination.words == g_plane + 20u,
+	CHECK(col.source.words() == g_col && col.destination.words() == g_plane + 20u,
 	      "col: src = col, dst = plane + visible_words");
 	CHECK(col.words_per_row == 1u && col.height == 8u, "col: 1 x 8");
 	CHECK(col.source_modulo_bytes == 0, "col: modulo de A = 0");

@@ -25,10 +25,24 @@ rutas de la extensión Bartman; si no lo encuentra, `make-volume.mjs` falla con 
 
 La imagen ADF se construye con **`xdftool`** (paquete `amitools`, `python -m amitools.tools.xdftool`).
 
+## Contenido desde un `tar`
+
+El contenido de un volumen puede venir de un archivo `.tar` (creado con la orden `tar` estándar),
+de modo que el "archivo original" contenga un **sistema de archivos** completo:
+
+```bash
+tar -cf assets.tar -C out/assets/volume .
+node tools/fs/tar-extract.mjs assets.tar out/tmp/volume
+```
+
+`tar-extract.mjs` soporta ficheros regulares, directorios, `LongName`/`LongLink` de GNU y
+cabeceras extendidas de pax (ignora sus atributos), y comprueba que ninguna ruta escape del
+destino. El directorio extraído se monta luego con `make-volume.mjs` o se usa como `DH1:`.
+
 ## Montar la imagen en el runner
 
 ```bash
-bash ./tools/run/run-demo.sh demos/amiga/211_fs_test --disk out/fs/211_fs_test.adf
+bash ./tools/run/run-demo.sh demos/techniques/amiga/io/211_fs_test --disk out/fs/211_fs_test.adf
 ```
 
 `--disk <adf>` añade `floppy0=<adf>` al `runner.uae` (disquete en `DF0:`, lectura/escritura).

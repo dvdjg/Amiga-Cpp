@@ -60,7 +60,7 @@ Esta conversión es una permutación **biyectiva** (1:1) de 0..63: se hace en el
 `tools/ehb/ehb-export-map.mjs`) y deja el banco, la paleta del `.h`, `tiles.json` y los PNG
 exportados en convención bases-primero. La demo lee el byte del banco **directo** como índice
 EHB (`e = v`) y carga en `COLOR00..31` solo las 32 bases (`palette[i] = kEhbPalette[i]`,
-índices 0..31). Ver el uso real en `demos/amiga/201_ehb_map/src/main.cpp` (`fill_planes` + carga de
+índices 0..31). Ver el uso real en `demos/techniques/amiga/playfield/201_ehb_map/src/main.cpp` (`fill_planes` + carga de
 paleta) y la implementación del reindexado de export en `tools/ehb/slice-tiles.mjs` (paso 6:
 `expPalette`/`expIndex`, probado por `tools/ehb/test-expindex.mjs`).
 
@@ -86,8 +86,8 @@ node tools/ehb/test-expindex.mjs                                    # test host 
 node tools/ehb/quantize-ehb.mjs "$SOURCE" --out out/assets/ehb          # -> palette.json
 node tools/ehb/slice-tiles.mjs "$SOURCE" --palette out/assets/ehb/palette.json --out out/assets/ehb
 node tools/ehb/emit-const-201.mjs                                 # -> const_game_201.h
-bash ./tools/build/build-demo.sh demos/amiga/201_ehb_map --debug --clean
-bash ./tools/run/run-demo.sh demos/amiga/201_ehb_map
+bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/201_ehb_map --debug --clean
+bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/201_ehb_map
 ```
 <hr/>
 **Nota (2026-09-02)**: los datos actuales de la demo 201 ya están en bases-primero

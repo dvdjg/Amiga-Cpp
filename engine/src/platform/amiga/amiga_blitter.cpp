@@ -2,6 +2,8 @@
 /// Servicio de **Blitter** del backend Amiga: ejecucion del `FramePlan` y operaciones
 /// (copias, cookie-cut, OR de BOBs, lineas, area fill, colision, relleno por plano).
 
+#include <eng/graphics/blit_queue.hpp>
+
 #include "amiga_internal.hpp"
 
 using namespace eng::amiga::detail;
@@ -14,6 +16,12 @@ bool AmigaBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 	}
 
 	m_blitter_starts = 0;
+	// Habilita el DMA del Blitter **solo si no lo está** (el Copper ya lo activa en el display):
+	// un MOVE a DMACON es caro con `cpu_cycle_exact` y escribirlo por job dominaba el bucle
+	// (16 BOBs/frame). La lectura de DMACONR cuesta una fracción de la escritura.
+	if ((custom_base[custom_dmaconr_offset] & dma_blitter) == 0u) {
+		custom_base[custom_dmacon_offset] = dma_setclr | dma_master | dma_blitter;
+	}
 	bool eor_open = false; // racha de líneas EOR con los registros comunes ya fijados
 	for (u8 job_index = 0; job_index < plan.blit_job_count(); ++job_index) {
 		if (!submit_blit_job(plan.blit_job(job_index), eor_open)) {
@@ -26,6 +34,9 @@ bool AmigaBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 
 bool AmigaBackend::blitter_submit(const graphics::BlitJob& job, bool wait) {
 	m_blitter_starts = 0;
+	if ((custom_base[custom_dmaconr_offset] & dma_blitter) == 0u) {
+		custom_base[custom_dmacon_offset] = dma_setclr | dma_master | dma_blitter;
+	}
 	bool eor_open = false;
 	if (!submit_blit_job(job, eor_open)) {
 		return false;
@@ -57,9 +68,9 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 
 	if (line || line_eor) {
 		// Línea por Blitter (LINE) o EOR/ONEDOT sobre el plano del `destination`.
-		eng::PlaneBytes pb {reinterpret_cast<eng::u8*>(job.destination.words), 0u};
-		eng::u8* d_base = job.line.base.words != nullptr
-					  ? reinterpret_cast<eng::u8*>(job.line.base.words)
+		eng::PlaneBytes pb {reinterpret_cast<eng::u8*>(job.destination.words()), 0u};
+		eng::u8* d_base = job.line.base.words() != nullptr
+					  ? reinterpret_cast<eng::u8*>(job.line.base.words())
 					  : nullptr;
 		if (line) {
 			eor_open = false;
@@ -76,7 +87,7 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 			LineEorParams p;
 			if (blitter_line_eor_prepare(p, job.line.row_bytes, job.line.x0,
 						     job.line.y0, job.line.x1, job.line.y1)) {
-				blitter_line_eor_draw(p, reinterpret_cast<eng::u8*>(job.destination.words),
+				blitter_line_eor_draw(p, reinterpret_cast<eng::u8*>(job.destination.words()),
 						      d_base);
 			}
 		}
@@ -102,8 +113,6 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 		return true;
 	}
 
-	custom_base[custom_dmacon_offset] = dma_setclr | dma_master | dma_blitter;
-
 	const u32 source_plane_stride_words = job.source_plane_stride_bytes / sizeof(u16);
 	const u32 destination_plane_stride_words = job.destination_plane_stride_bytes / sizeof(u16);
 	for (u8 plane = 0; plane < job.bitplane_count; ++plane) {
@@ -111,110 +120,42 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 			return false;
 		}
 
-		const u16* source_plane = job.source.words + static_cast<u32>(plane) * source_plane_stride_words;
-		u16* destination_plane = job.destination.words + static_cast<u32>(plane) * destination_plane_stride_words;
+		const u16* source_plane = job.source.words() + static_cast<u32>(plane) * source_plane_stride_words;
+		u16* destination_plane = job.destination.words() + static_cast<u32>(plane) * destination_plane_stride_words;
 
-		if (clear) {
-			// Solo D con el minterm del job (por defecto `$00` = D=0): un blit
-			// borra la caja del objeto, y con bitmaps intercalados cubre los
-			// planos en ese mismo blit.
-			custom_base[custom_bltcon0_offset] = static_cast<u16>(blt_use_d | job.minterm);
-			custom_base[custom_bltcon1_offset] = 0;
-			custom_base[custom_bltafwm_offset] = 0xffff;
-			custom_base[custom_bltalwm_offset] = 0xffff;
-			custom_base[custom_bltamod_offset] = 0;
-			custom_base[custom_bltbmod_offset] = 0;
-			custom_base[custom_bltcmod_offset] = 0;
-			custom_base[custom_bltdmod_offset] = static_cast<u16>(job.destination_modulo_bytes);
-			write_custom_pointer(custom_bltdpt_offset, destination_plane);
-			custom_base[custom_bltsize_offset] = static_cast<u16>(
-				(static_cast<u16>(job.height) << 6) | job.words_per_row
-			);
-			++m_blitter_starts;
-			continue;
-		}
-		if (masked) {
-			custom_base[custom_bltcon0_offset] = static_cast<u16>(
-				(static_cast<u16>(job.source_shift) << 12u) |
-				blt_use_a | blt_use_b | blt_use_c | blt_use_d | job.minterm
-			);
-			custom_base[custom_bltcon1_offset] = static_cast<u16>(
-				static_cast<u16>(job.source_shift) << 12u
-			);
-		} else if (or_blob || logic) {
-			// BOB OR (bobs3d) o blit lógico: A = objeto (con barrel shift ASH),
-			// B = D = destino, minterm del job (`$FC` D=A|D, `$80` A&D, `$60` A^D).
-			// El canal C no interviene.
-			//
-			// OJO: BLTCON1 bits 15-12 son **BSH** (shift del canal B), NO un duplicado
-			// de ASH. B aqui es el DESTINO (B=D), asi que poner BSH!=0 desplaza la
-			// lectura del fondo y emborrona el BOB (cola horizontal). El original
-			// (`bobs3d.c`) deja `bltcon1=0`; solo desplaza A via BLTCON0. Ver AHRM 3. a
-			// (BLTCON1) y `amiga-bootcamp/08_graphics/blitter_programming.md` ("Shift
-			// and Alignment").
-			custom_base[custom_bltcon0_offset] = static_cast<u16>(
-				(static_cast<u16>(job.source_shift) << 12u) |
-				blt_use_a | blt_use_b | blt_use_d | job.minterm
-			);
-			custom_base[custom_bltcon1_offset] = 0u;
-		} else if (job.source_shift != 0u) {
-			// Copia con desplazamiento fino. El barrel shifter del Blitter solo
-			// actua sobre los canales A y B (AHRM 6, "Shifting"), asi que la
-			// fuente va por A y el minterm es D=A ($F0). El llamador apunta A a la
-			// word `q = src_x + S` y fija `source_shift` = S (0..15): en modo
-			// ascendente (DESC=0) el Blitter desplaza a la derecha y
-			// `destino[d] = patron[q + d - S]`, de modo que `destino[0]` lee el
-			// pixel `src_x` = q - S.
-			custom_base[custom_bltcon0_offset] = static_cast<u16>(
-				(static_cast<u16>(job.source_shift) << 12u) |
-				blt_use_a | blt_use_d | blt_minterm_copy_a
-			);
-			custom_base[custom_bltcon1_offset] = static_cast<u16>(
-				(static_cast<u16>(job.source_shift) << 12u) |
-				(job.descending ? blt_desc : 0x0000)
-			);
-		} else {
-			custom_base[custom_bltcon0_offset] = static_cast<u16>(
-				blt_use_c | blt_use_d | blt_minterm_copy_c
-			);
-			custom_base[custom_bltcon1_offset] = static_cast<u16>(
-				job.descending ? blt_desc : 0x0000
-			);
-		}
+		// Registros derivados de la intención por el **encoder único** (`blitter_job_from`):
+		// la codificación (BLTCON/MOD/minterm) NO se duplica aquí. Los PUNTEROS sí se
+		// re-apuntan por canal y por plano (el encoder los da para el plano 0).
+		const graphics::BlitterJob b = graphics::blitter_job_from(job);
+		custom_base[custom_bltcon0_offset] = b.bltcon0;
+		custom_base[custom_bltcon1_offset] = b.bltcon1;
+		custom_base[custom_bltafwm_offset] = b.bltafwm;
+		custom_base[custom_bltalwm_offset] = b.bltalwm;
+		custom_base[custom_bltamod_offset] = static_cast<u16>(b.bltamod);
+		custom_base[custom_bltbmod_offset] = static_cast<u16>(b.bltbmod);
+		custom_base[custom_bltcmod_offset] = static_cast<u16>(b.bltcmod);
+		custom_base[custom_bltdmod_offset] = static_cast<u16>(b.bltdmod);
 		const bool shifted_copy = !masked && !or_blob && !logic && job.source_shift != 0u;
-		const bool source_by_a = masked || or_blob || logic || shifted_copy;
-		// En copias/OR con shift, la ultima word de cada fila se enmascara para que
-		// los bits desplazados hacia fuera (que el Blitter reinyecta al principio
-		// de la fila siguiente) sean cero: deja una guarda de `shift` px al
-		// principio del bitmap, nunca datos erroneos de la fila anterior.
-		custom_base[custom_bltafwm_offset] = 0xffff;
-		custom_base[custom_bltalwm_offset] = (shifted_copy || or_blob || logic)
-			? static_cast<u16>(0xffffu << job.source_shift)
-			: 0xffff;
-		custom_base[custom_bltamod_offset] = static_cast<u16>(source_by_a ? job.source_modulo_bytes : 0);
-		custom_base[custom_bltbmod_offset] = static_cast<u16>(
-			masked ? job.source_modulo_bytes : ((or_blob || logic) ? job.destination_modulo_bytes : 0));
-		custom_base[custom_bltcmod_offset] = static_cast<u16>(masked ? job.destination_modulo_bytes : job.source_modulo_bytes);
-		custom_base[custom_bltdmod_offset] = static_cast<u16>(job.destination_modulo_bytes);
-
-		if (masked) {
-			write_custom_pointer(custom_bltapt_offset, job.mask.words);
+		if (clear) {
+			write_custom_pointer(custom_bltdpt_offset, destination_plane);
+		} else if (masked) {
+			write_custom_pointer(custom_bltapt_offset, job.mask.words());
 			write_custom_pointer(custom_bltbpt_offset, source_plane);
 			write_custom_pointer(custom_bltcpt_offset, destination_plane);
+			write_custom_pointer(custom_bltdpt_offset, destination_plane);
 		} else if (or_blob || logic) {
 			// B = D = destino (el mismo puntero): aplica el minterm del job.
 			write_custom_pointer(custom_bltapt_offset, source_plane);
 			write_custom_pointer(custom_bltbpt_offset, destination_plane);
+			write_custom_pointer(custom_bltdpt_offset, destination_plane);
 		} else if (shifted_copy) {
 			write_custom_pointer(custom_bltapt_offset, source_plane);
+			write_custom_pointer(custom_bltdpt_offset, destination_plane);
 		} else {
 			write_custom_pointer(custom_bltcpt_offset, source_plane);
+			write_custom_pointer(custom_bltdpt_offset, destination_plane);
 		}
-		write_custom_pointer(custom_bltdpt_offset, destination_plane);
-
-		custom_base[custom_bltsize_offset] = static_cast<u16>(
-			(static_cast<u16>(job.height) << 6) | job.words_per_row
-		);
+		custom_base[custom_bltsize_offset] = b.bltsize;
 		++m_blitter_starts;
 	}
 	return true;
@@ -355,57 +296,31 @@ bool AmigaBackend::blitter_line(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s1
 	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
 
 	wait_blitter();
-	custom_base[custom_bltafwm_offset] = 0xffff;
-	custom_base[custom_bltalwm_offset] = 0xffff;
-	custom_base[custom_bltadat_offset] = 0x8000;
-	custom_base[custom_bltbdat_offset] = 0xffff;
-	custom_base[custom_bltcmod_offset] = row_bytes;
-	custom_base[custom_bltdmod_offset] = row_bytes;
-
-	if (y0 > y1) {
-		s16 t = x0; x0 = x1; x1 = t;
-		t = y0; y0 = y1; y1 = t;
-	}
-
-	s16 dmax = static_cast<s16>(x1 - x0);
-	s16 dmin = static_cast<s16>(y1 - y0);
-	u16 bltcon1 = blt_linemode;
-	if (dmax < 0) {
-		dmax = static_cast<s16>(-dmax);
-	}
-	if (dmax >= dmin) {
-		bltcon1 = static_cast<u16>(bltcon1 | (x0 >= x1 ? (blt_aul | blt_sud) : blt_sud));
-	} else {
-		if (x0 >= x1) {
-			bltcon1 = static_cast<u16>(bltcon1 | blt_sul);
-		}
-		const s16 t = dmax; dmax = dmin; dmin = t;
-	}
-
-	u8* data = plane.data() + row_offset(y0, row_bytes) + (static_cast<u32>(x0) >> 3);
-	data = reinterpret_cast<u8*>(reinterpret_cast<u32>(data) & ~1u);
-
-	dmin = static_cast<s16>(dmin << 1);
-	s16 derr = static_cast<s16>(dmin - dmax);
-	if (derr < 0) {
-		bltcon1 = static_cast<u16>(bltcon1 | blt_signflag);
-	}
-	bltcon1 = static_cast<u16>(bltcon1 | ror16(static_cast<u16>(x0 & 15), 4));
-	const u16 bltcon0 = static_cast<u16>(ror16(static_cast<u16>(x0 & 15), 4) | blt_line_or);
-	const u16 bltamod = static_cast<u16>(derr - dmax);
-	const u16 bltbmod = static_cast<u16>(dmin);
-	const u16 bltsize = static_cast<u16>((static_cast<u16>(dmax) << 6) + 66u);
-
-	wait_blitter();
-	custom_base[custom_bltcon0_offset] = bltcon0;
-	custom_base[custom_bltcon1_offset] = bltcon1;
-	custom_base[custom_bltamod_offset] = bltamod;
-	custom_base[custom_bltbmod_offset] = bltbmod;
-	write_custom_pointer(custom_bltapt_offset,
-			     reinterpret_cast<void*>(static_cast<u32>(static_cast<s32>(derr))));
-	write_custom_pointer(custom_bltcpt_offset, data);
-	write_custom_pointer(custom_bltdpt_offset, data);
-	custom_base[custom_bltsize_offset] = bltsize;
+	// Registros derivados por el ENCODER ÚNICO (`blitter_job_from`, modo LINE): la matemática
+	// de octante/error ya no se duplica aquí.
+	graphics::BlitJob job {};
+	job.kind = graphics::BlitJobKind::Line;
+	job.destination = graphics::BlitDest {reinterpret_cast<u16*>(plane.data())};
+	job.line.x0 = x0;
+	job.line.y0 = y0;
+	job.line.x1 = x1;
+	job.line.y1 = y1;
+	job.line.row_bytes = row_bytes;
+	const graphics::BlitterJob b = graphics::blitter_job_from(job);
+	custom_base[custom_bltcon0_offset] = b.bltcon0;
+	custom_base[custom_bltcon1_offset] = b.bltcon1;
+	custom_base[custom_bltafwm_offset] = b.bltafwm;
+	custom_base[custom_bltalwm_offset] = b.bltalwm;
+	custom_base[custom_bltadat_offset] = b.bltadat;
+	custom_base[custom_bltbdat_offset] = b.bltbdat;
+	custom_base[custom_bltamod_offset] = static_cast<u16>(b.bltamod);
+	custom_base[custom_bltbmod_offset] = static_cast<u16>(b.bltbmod);
+	custom_base[custom_bltcmod_offset] = static_cast<u16>(b.bltcmod);
+	custom_base[custom_bltdmod_offset] = static_cast<u16>(b.bltdmod);
+	write_custom_pointer(custom_bltapt_offset, b.bltapt);
+	write_custom_pointer(custom_bltcpt_offset, b.bltcpt);
+	write_custom_pointer(custom_bltdpt_offset, b.bltdpt);
+	custom_base[custom_bltsize_offset] = b.bltsize;
 	return wait_blitter();
 }
 

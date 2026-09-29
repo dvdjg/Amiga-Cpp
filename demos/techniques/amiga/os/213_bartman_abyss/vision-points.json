@@ -1,0 +1,15 @@
+{
+  "#": "Puntos de verificacion visual de 213 (Bartman abyss con el mini-SO).",
+  "points": [
+    {
+      "name": "imagen abyss + BOBs",
+      "last": true,
+      "expect": "La imagen 'abyss' (logo rosa y gorro) es visible sobre fondo claro; en la banda inferior hay una fila de bobs (glyph japones 'a') de varios colores. Sin zonas negras grandes ni glitches."
+    },
+    {
+      "name": "movimiento de los BOBs",
+      "max_diff": true,
+      "expect": "Entre frames los bobs se desplazan horizontal y verticalmente por senos de forma coherente; la imagen de fondo no se rompe ni parpadea."
+    }
+  ]
+}

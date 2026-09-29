@@ -1,0 +1,662 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver --debug   && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver --keep-running
+
+#include <eng/api/api.hpp>
+#include <eng/debug/peripheral.hpp>
+#include <eng/graphics/drivers/ehb_tile_scroll.hpp>
+#include <eng/graphics/tilemap/tile_scroll.hpp>
+#include <eng/platform/amiga/backend.hpp>
+#include <eng/scene/route_camera.hpp>
+#include <eng/scene/virtual_scene.hpp>
+#include <eng/core/types/span.hpp>
+
+#include <proto/exec.h>
+#include <exec/execbase.h>
+
+#include "support/gcc8_c_support.h"
+
+struct ExecBase* SysBase = nullptr;
+
+extern "C" {
+__attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
+	eng::debug::run_status_magic,
+	eng::debug::run_status_version,
+	static_cast<eng::u16>(eng::debug::RunState::Cold),
+	0,
+	0,
+};
+}
+
+namespace {
+
+namespace drivers = eng::graphics::drivers;
+namespace scene = eng::scene;
+namespace tilemap = eng::graphics::tilemap;
+
+/// Numero de tiles graficos distintos que compone esta demo.
+///
+/// Aunque el mapa logico sigue siendo una rejilla sencilla, usar 64 patrones evita
+/// que una herramienta de analisis confunda scroll real con repeticion visual.
+/// En un juego normal estos patrones vendrian del exportador UAF; aqui se generan
+/// a mano para que el ejemplo sea autocontenido y facil de depurar.
+constexpr eng::u16 tile_pattern_count = 64;
+constexpr eng::u16 map_tiles_x = 64;
+constexpr eng::u16 map_tiles_y = 32;
+constexpr eng::u16 surface_tiles_x = drivers::EhbTileScrollScene::surface_width / drivers::EhbTileScrollScene::tile_size;
+constexpr eng::u16 surface_tiles_y = drivers::EhbTileScrollScene::surface_height / drivers::EhbTileScrollScene::tile_size;
+constexpr eng::u16 tile_size = drivers::EhbTileScrollScene::tile_size;
+constexpr eng::u8 tile_update_budget = 2;
+
+void configure_tile_blit_budget(eng::graphics::FramePlan& plan) {
+	// Esta demo sube como mucho dos tiles de 16x16 por frame. Cada tile ocupa
+	// 1 word x 16 filas x 6 planos = 96 words de trabajo de Blitter.
+	// El contrato queda fijado en 2 jobs / 192 words para detectar regresiones
+	// si alguien aumenta el presupuesto sin ajustar pruebas y documentacion.
+	plan.set_blit_budget_limits({
+		128,
+		192,
+		1,
+		2,
+	});
+}
+
+constexpr eng::Palette32 sky_palette {{
+	0x000, 0x222, 0x08f, 0x0cf, 0xf0c, 0xff0, 0x0f4, 0xf80,
+	0x84f, 0x0a6, 0xf44, 0x6df, 0xf8f, 0xfff, 0x888, 0x444,
+	0x000, 0x111, 0x048, 0x068, 0x806, 0x880, 0x082, 0x840,
+	0x426, 0x053, 0x822, 0x368, 0x846, 0x888, 0x444, 0x222,
+}};
+
+constexpr eng::Palette32 jungle_palette {{
+	0x000, 0x021, 0x063, 0x0a5, 0x2d7, 0xdfa, 0xce7, 0xff0,
+	0x451, 0x783, 0x0f4, 0x4f8, 0x9fc, 0xfd7, 0xf6a, 0x222,
+	0x010, 0x031, 0x052, 0x073, 0x094, 0x0b5, 0x3d7, 0x7f9,
+	0x320, 0x541, 0x762, 0x983, 0xba4, 0xdc5, 0xfe6, 0x333,
+}};
+
+constexpr eng::Palette32 under_palette {{
+	0x000, 0x112, 0x246, 0x48a, 0x7bd, 0xfff, 0xfc8, 0xf90,
+	0x421, 0x742, 0x085, 0x0aa, 0x4dd, 0xf6c, 0xf3a, 0x221,
+	0x100, 0x211, 0x322, 0x533, 0x744, 0x955, 0xb76, 0xd98,
+	0x012, 0x124, 0x236, 0x348, 0x45a, 0x66c, 0x88e, 0x333,
+}};
+
+constexpr eng::Palette32Zone palette_zones[] {};
+
+/// Construye el mapa virtual retenido que recorrera la camara.
+///
+/// En el engine final esta funcion desaparecera de la demo: el mapa vendra de UAF
+/// con capas, metadatos y posiblemente reglas de streaming. Mantenerla aqui tiene
+/// valor pedagogico porque separa con claridad "mundo logico" de "superficie
+/// fisica": el mapa mide 64x32 tiles, mientras que el driver solo muestra y
+/// recicla una superficie 640x512.
+void build_virtual_map(tilemap::PackedTileCell* cells) {
+	for (eng::u16 y = 0; y < map_tiles_y; ++y) {
+		for (eng::u16 x = 0; x < map_tiles_x; ++x) {
+			// La demo ya no usa ruido decorativo como patron principal. Cada tile
+			// conserva una identidad legible: un glifo hexadecimal 0..F y un marcador
+			// de variante. Esto ayuda a la IA de Vision Review a explicar errores con
+			// palabras humanas ("aparece el tile 7", "se duplica el bloque A") en vez
+			// de depender solo de textura abstracta. La mezcla x/y evita una repeticion
+			// trivial y mantiene buenas marcas para FrameScope.
+			const eng::u16 symbol = static_cast<eng::u16>((x + y * 3u + ((x >> 1u) ^ y)) & 0x0fu);
+			const eng::u16 variant = static_cast<eng::u16>(((x / 4u) + (y / 3u) * 2u + ((x ^ (y * 5u)) & 1u)) & 0x03u);
+			const eng::u16 tile = static_cast<eng::u16>(symbol | (variant << 4u));
+			cells[static_cast<eng::u32>(y) * map_tiles_x + x].set_tile(tile);
+		}
+	}
+}
+
+/// Fila de un glifo hexadecimal 5x7.
+///
+/// La funcion devuelve los cinco bits visibles de la fila solicitada. Se usa para
+/// generar tiles de prueba con letras/numeros faciles de reconocer por humanos y
+/// por modelos de vision. No pretende ser una fuente general del engine; es un
+/// recurso didactico para validacion visual.
+constexpr eng::u8 hex_glyph_row(eng::u8 glyph, eng::u8 row) {
+	constexpr eng::u8 rows[] {
+		0x0eu, 0x11u, 0x13u, 0x15u, 0x19u, 0x11u, 0x0eu, // 0
+		0x04u, 0x0cu, 0x04u, 0x04u, 0x04u, 0x04u, 0x0eu, // 1
+		0x0eu, 0x11u, 0x01u, 0x02u, 0x04u, 0x08u, 0x1fu, // 2
+		0x1eu, 0x01u, 0x01u, 0x0eu, 0x01u, 0x01u, 0x1eu, // 3
+		0x02u, 0x06u, 0x0au, 0x12u, 0x1fu, 0x02u, 0x02u, // 4
+		0x1fu, 0x10u, 0x10u, 0x1eu, 0x01u, 0x01u, 0x1eu, // 5
+		0x0eu, 0x10u, 0x10u, 0x1eu, 0x11u, 0x11u, 0x0eu, // 6
+		0x1fu, 0x01u, 0x02u, 0x04u, 0x08u, 0x08u, 0x08u, // 7
+		0x0eu, 0x11u, 0x11u, 0x0eu, 0x11u, 0x11u, 0x0eu, // 8
+		0x0eu, 0x11u, 0x11u, 0x0fu, 0x01u, 0x01u, 0x0eu, // 9
+		0x0eu, 0x11u, 0x11u, 0x1fu, 0x11u, 0x11u, 0x11u, // A
+		0x1eu, 0x11u, 0x11u, 0x1eu, 0x11u, 0x11u, 0x1eu, // B
+		0x0eu, 0x11u, 0x10u, 0x10u, 0x10u, 0x11u, 0x0eu, // C
+		0x1eu, 0x11u, 0x11u, 0x11u, 0x11u, 0x11u, 0x1eu, // D
+		0x1fu, 0x10u, 0x10u, 0x1eu, 0x10u, 0x10u, 0x1fu, // E
+		0x1fu, 0x10u, 0x10u, 0x1eu, 0x10u, 0x10u, 0x10u, // F
+	};
+	return rows[static_cast<eng::u16>(glyph & 0x0fu) * 7u + (row % 7u)];
+}
+
+/// Mascara de bits consecutivos dentro de una fila 16px.
+///
+/// El bit mas alto del word representa el pixel izquierdo del tile. Esta utilidad
+/// mantiene legible la construccion de glifos sin pagar una rutina de dibujo pixel
+/// a pixel para cada plano.
+constexpr eng::u16 row_mask_range(eng::u8 left, eng::u8 width) {
+	eng::u16 mask = 0;
+	for (eng::u8 i = 0; i < width; ++i) {
+		mask |= static_cast<eng::u16>(0x8000u >> (left + i));
+	}
+	return mask;
+}
+
+/// Mascara del glifo hexadecimal escalado a 10x14 pixels.
+constexpr eng::u16 glyph_row_mask(eng::u8 glyph, eng::u8 y) {
+	if (y < 1u || y >= 15u) {
+		return 0;
+	}
+	const eng::u8 glyph_y = static_cast<eng::u8>((y - 1u) / 2u);
+	const eng::u8 bits = hex_glyph_row(glyph, glyph_y);
+	eng::u16 mask = 0;
+	for (eng::u8 glyph_x = 0; glyph_x < 5u; ++glyph_x) {
+		if ((bits & (1u << (4u - glyph_x))) != 0u) {
+			mask |= row_mask_range(static_cast<eng::u8>(3u + glyph_x * 2u), 2);
+		}
+	}
+	return mask;
+}
+
+/// Mascara de los marcadores de variante.
+constexpr eng::u16 variant_marker_mask(eng::u8 variant, eng::u8 y) {
+	const eng::u8 marker_size = static_cast<eng::u8>(2u + (variant & 1u));
+	eng::u16 mask = 0;
+	if (y < marker_size) {
+		mask |= row_mask_range(1, marker_size);
+	}
+	if (variant >= 2u && y >= static_cast<eng::u8>(15u - marker_size)) {
+		mask |= row_mask_range(static_cast<eng::u8>(15u - marker_size), marker_size);
+	}
+	return mask;
+}
+
+/// Mascara de textura half-brite suave para que el fondo no sea plano.
+/// Compone una fila planar de un tile simbolico.
+///
+/// Los tiles de test combinan cuatro ideas:
+///
+/// - fondo de color por variante, para que las bandas sigan siendo atractivas;
+/// - borde de alto contraste, para detectar saltos y cortes de tile;
+/// - glifo hexadecimal grande, para que la IA pueda referirse a unidades concretas;
+/// - marcador de esquina, para distinguir variantes del mismo glifo.
+///
+/// Esta claridad visual es intencionada: las pruebas automatizadas deben ser
+/// faciles de explicar. Los juegos reales podran usar arte mas sutil, pero las
+/// demos de infraestructura necesitan señales inequívocas.
+constexpr eng::u16 symbolic_tile_plane_row(eng::u8 glyph, eng::u8 variant, eng::u8 y, eng::u8 plane) {
+	constexpr eng::u8 backgrounds[] {3, 8, 10, 12};
+	constexpr eng::u8 glyph_colors[] {5, 7, 13, 14};
+	constexpr eng::u8 border_colors[] {15, 6, 9, 11};
+	const eng::u8 bg = backgrounds[variant & 3u];
+	const eng::u8 ink = glyph_colors[variant & 3u];
+	const eng::u8 border = border_colors[variant & 3u];
+
+	const eng::u16 border_mask = (y == 0u || y == 15u) ? 0xffffu : 0x8001u;
+	const eng::u16 marker_mask = static_cast<eng::u16>(variant_marker_mask(variant, y) & ~border_mask);
+	const eng::u16 glyph_mask = static_cast<eng::u16>(glyph_row_mask(glyph, y) & ~(border_mask | marker_mask));
+	const eng::u16 bg_mask = static_cast<eng::u16>(~(border_mask | marker_mask | glyph_mask));
+
+	eng::u16 row = 0;
+	if ((bg & (1u << plane)) != 0u) {
+		row |= bg_mask;
+	}
+	if ((border & (1u << plane)) != 0u) {
+		row |= border_mask;
+	}
+	if ((ink & (1u << plane)) != 0u) {
+		row |= static_cast<eng::u16>(marker_mask | glyph_mask);
+	}
+	return row;
+}
+
+/// Convierte tiles procedurales a formato planar 6bpp listo para Blitter.
+///
+/// Cada tile ocupa 6 planos consecutivos. Dentro de cada plano hay 16 words, una
+/// por fila de 16 pixels. Esa disposicion permite que `TileBlockCopy` copie una
+/// columna/fila offscreen sin transformar datos en runtime. Para assets reales, el
+/// exportador UAF deberia generar exactamente este tipo de cache o una variante
+/// compatible con el driver elegido.
+void build_tile_word_cache(eng::Span<eng::u16> tile_words) {
+	constexpr eng::u32 words_per_tile = drivers::EhbTileScrollScene::tile_bytes() / sizeof(eng::u16);
+	for (eng::u16 tile = 0; tile < tile_pattern_count; ++tile) {
+		const eng::u8 glyph = static_cast<eng::u8>(tile & 15u);
+		const eng::u8 variant = static_cast<eng::u8>((tile >> 4u) & 3u);
+		for (eng::u8 y = 0; y < tile_size; ++y) {
+			for (eng::u8 plane = 0; plane < drivers::EhbTileScrollScene::plane_count; ++plane) {
+				tile_words.at(
+					static_cast<eng::u32>(tile) * words_per_tile +
+					static_cast<eng::u32>(plane) * tile_size +
+					y
+				) = symbolic_tile_plane_row(glyph, variant, y, plane);
+			}
+		}
+	}
+}
+
+/// Devuelve el inicio planar de un tile dentro de la cache Chip RAM.
+///
+/// El indice se enmascara contra `tile_pattern_count - 1` porque esta demo usa una
+/// biblioteca de patrones potencia de dos. En un engine de produccion lo normal
+/// sera validar el indice al cargar la escena y no pagar comprobaciones extra en
+/// cada upload de Blitter.
+eng::Span<const eng::u16> tile_source(const eng::Block<eng::TileBankTag>& block, eng::u16 tile_index) {
+	constexpr eng::u32 words_per_tile = drivers::EhbTileScrollScene::tile_bytes() / sizeof(eng::u16);
+	const eng::u32 word_offset = static_cast<eng::u32>(tile_index & (tile_pattern_count - 1u)) * words_per_tile;
+	return {
+		block.view.as_words().data() + word_offset,
+		words_per_tile,
+	};
+}
+
+/// Estampa un tile por CPU durante la inicializacion.
+///
+/// Esta ruta no es la que queremos para streaming en juego; se usa solo para
+/// poblar la superficie inicial antes de arrancar la animacion. Los cambios
+/// incrementales posteriores pasan por `FramePlan` y Blitter, que es el contrato
+/// relevante para el engine.
+void stamp_tile_cpu(
+	drivers::EhbTileScrollScene& scene,
+	eng::Span<const eng::u16> tile,
+	eng::u16 surface_tile_x,
+	eng::u16 surface_tile_y
+) {
+	for (eng::u8 plane = 0; plane < drivers::EhbTileScrollScene::plane_count; ++plane) {
+		for (eng::u16 y = 0; y < tile_size; ++y) {
+			const eng::u32 row_offset =
+				static_cast<eng::u32>(surface_tile_y * tile_size + y) *
+				(drivers::EhbTileScrollScene::surface_bytes_per_row / sizeof(eng::u16)) +
+				surface_tile_x;
+			scene.plane_words(plane).at(row_offset) = tile.at(static_cast<eng::u32>(plane) * tile_size + y);
+		}
+	}
+}
+
+struct DemoGame {
+	/// Reserva memoria, genera assets procedurales y deja instalada la primera lista Copper.
+	///
+	/// La secuencia de inicializacion refleja el orden que necesitara una room real:
+	/// configurar arenas, reservar bitplanes/copperlist en Chip RAM, cargar tiles,
+	/// preparar la superficie fisica y publicar un primer estado lateral para que
+	/// las pruebas sepan que la demo esta viva.
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
+		eng::debug::mark_init_started(g_eng_run_status);
+		if (!backend.configure_memory({280u * 1024u, 16u * 1024u, 8u * 1024u})) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00000110u);
+			return;
+		}
+
+		const drivers::EhbTileScrollConfig config {
+			&sky_palette,
+			palette_zones,
+			0,
+			1536,
+		};
+		if (!m_scene.init(backend.memory(), config)) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00000111u);
+			return;
+		}
+
+		m_tiles = backend.memory().chip.allocate_block<eng::TileBankTag>(drivers::EhbTileScrollScene::tile_bytes() * tile_pattern_count, 16);
+		if (!m_tiles.valid()) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00000112u);
+			return;
+		}
+
+		// Limpiar la superficie sin parejas puntero/contador que puedan desincronizarse:
+		// la vista lleva el tamaño consigo.
+		m_scene.bitplane_span().clear();
+		build_virtual_map(m_cells);
+		build_tile_word_cache(eng::Span<eng::u16>::from_raw(
+			m_tiles.view.as_words().data(),
+			m_tiles.view.as_words().size()
+		));
+		m_map.reset(m_cells, map_tiles_x, map_tiles_y);
+
+		for (eng::u16 y = 0; y < surface_tiles_y; ++y) {
+			for (eng::u16 x = 0; x < surface_tiles_x; ++x) {
+				const eng::u16 tile = m_cells[static_cast<eng::u32>(y) * map_tiles_x + x].tile_index();
+				stamp_tile_cpu(m_scene, tile_source(m_tiles, tile), x, y);
+			}
+		}
+
+		// La superficie lineal arranca completamente poblada. El objeto `m_ring`
+		// sigue llevando la contabilidad de que columnas/filas de mundo estan listas
+		// en cada slot fisico porque ese contrato sera el mismo cuando pasemos a una
+		// superficie circular real. En este MVP todavia limitamos la ruta al margen
+		// seguro de 480x416 para poder razonar el Copper y el Blitter por separado.
+		m_scheduler.reset();
+		m_ring.reset(0, 0);
+
+		// La camara arranca en la posicion inicial de la primera fase de la ruta.
+		m_camera.set(1, m_camera.center_y);
+		const eng::u16 initial_x = m_camera.x();
+		const eng::u16 initial_y = m_camera.y();
+		m_active_camera_tile_x = camera_tile(initial_x);
+		m_active_camera_tile_y = camera_tile(initial_y);
+		m_previous_logical_column = m_active_camera_tile_x;
+		m_previous_logical_row = m_active_camera_tile_y;
+
+		if (!m_scene.rebuild_copper(initial_x, initial_y)) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00000114u);
+			return;
+		}
+
+		m_scene.takeover(backend);
+		publish_status(initial_x, initial_y, 0);
+		// Telemetría del periférico ampliado (e9k): descripciones por slot de
+		// checkpoint y un contador acumulado de tiles subidos. El host los lee
+		// con `debugperiph checkpoints` / `debugperiph counters`.
+		eng::debug::DebugPeripheral::checkpoint_description(0, reinterpret_cast<eng::u32>("frame_start"));
+		eng::debug::DebugPeripheral::checkpoint_description(10, reinterpret_cast<eng::u32>("pre_upload"));
+		eng::debug::DebugPeripheral::checkpoint_description(11, reinterpret_cast<eng::u32>("post_upload"));
+		eng::debug::DebugPeripheral::counter_name(0, reinterpret_cast<eng::u32>("tiles_uploaded"));
+		m_ready = true;
+	}
+
+	/// Avanza la camara retenida, prepara tiles offscreen y recompila el display.
+	///
+	/// El juego solo decide una posicion de camara. El resto se reparte en capas:
+	/// el scheduler decide que tiles faltan, `FramePlan` convierte esos tiles en
+	/// trabajos de Blitter y `EhbTileScrollScene` traduce la camara a punteros de
+	/// bitplane + `BPLCON1`. Esta separacion es la base para soportar otros drivers
+	/// y, mas adelante, otras maquinas.
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
+		if (m_ready) {
+			// Checkpoint 0: inicio de frame (el host mide el delta a otros slots).
+			eng::debug::DebugPeripheral::checkpoint(0);
+
+			m_camera.advance(context.frame.frame_index);
+			const eng::u16 camera_x = m_camera.x();
+			const eng::u16 camera_y = m_camera.y();
+			m_active_camera_tile_x = camera_tile(camera_x);
+			m_active_camera_tile_y = camera_tile(camera_y);
+			// Telemetría del periférico: cuando la cámara cruza un borde de tile
+			// (cambio de "conjunto" de tiles visibles), lo reportamos a la consola
+			// del host y abrimos un checkpoint para medir el coste del upload.
+			if (m_active_camera_tile_x != m_previous_logical_column ||
+				m_active_camera_tile_y != m_previous_logical_row) {
+				eng::debug::DebugPeripheral::console_line("TILE_CHANGE");
+				eng::debug::DebugPeripheral::checkpoint(10);
+			}
+			schedule_next_visible_margin(m_active_camera_tile_x, m_active_camera_tile_y);
+			const eng::u8 tile_jobs = upload_prefetch_tiles(backend);
+			m_total_tiles_uploaded += tile_jobs;
+			eng::debug::DebugPeripheral::counter_value(0, m_total_tiles_uploaded);
+			eng::debug::DebugPeripheral::checkpoint(11); // fin del upload (delta slot10->11)
+			if (!m_scene.rebuild_copper(camera_x, camera_y)) {
+				eng::debug::mark_failed(g_eng_run_status, 0x00000115u);
+				return;
+			}
+			publish_status(camera_x, camera_y, tile_jobs);
+		}
+	}
+
+	/// Reinstala la copperlist vigente y mantiene vivo el probe lateral.
+	///
+	/// En esta demo la lista se recompila en `update`, pero se instala aqui, despues
+	/// de que `Engine::run_frames` haya esperado VBlank. Esto evita disparar
+	/// `COPJMP1` en mitad de la zona visible, que partiria la imagen y haria que la
+	/// mitad inferior leyese punteros de bitplane reiniciados.
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
+		if (m_ready) {
+			m_scene.install(backend);
+		}
+		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
+	}
+
+	bool m_ready = false;
+	drivers::EhbTileScrollScene m_scene {};
+	tilemap::PackedTileCell m_cells[map_tiles_x * map_tiles_y] {};
+	tilemap::TileMap16 m_map {};
+	tilemap::ProgressiveTileScheduler m_scheduler {};
+	drivers::EhbBidirectionalRingPrefetch m_ring {};
+	eng::graphics::FramePlan m_frame_plan {};
+	eng::Block<eng::TileBankTag> m_tiles {};
+	scene::RouteCamera m_camera {};
+	eng::u16 m_previous_logical_column = 0;
+	eng::u16 m_previous_logical_row = 0;
+	eng::u16 m_active_camera_tile_x = 0;
+	eng::u16 m_active_camera_tile_y = 0;
+	eng::u32 m_total_tiles_uploaded = 0;
+	eng::u8 m_recycled_columns = 0;
+	eng::u8 m_recycled_rows = 0;
+
+	/// Franja de prefetch en curso (una columna o una fila).
+	///
+	/// El array reemplaza el modelo antiguo de "una franja pendiente por eje": con
+	/// presupuesto pequeno de Blitter una franja tarda varios frames en subirse, y
+	/// si la camara cruza mas tiles mientras tanto hay que poder encolar varias
+	/// franjas del mismo eje sin perder ningun cruce.
+	struct PendingStrip {
+		eng::u16 world_index = drivers::EhbBidirectionalRingPrefetch::unknown_index;
+		eng::u16 slot = 0;
+		eng::u8 remaining = 0;
+		bool is_column = false;
+
+		constexpr bool active() const {
+			return remaining != 0;
+		}
+	};
+	static constexpr eng::u8 max_pending_strips = 4;
+	PendingStrip m_pending_strips[max_pending_strips] {};
+
+	static constexpr eng::u16 camera_tile(eng::u16 pixels) {
+		return static_cast<eng::u16>(pixels / tile_size);
+	}
+
+	static constexpr eng::u16 visible_safe_right_column(eng::u16 camera_tile_x) {
+		return static_cast<eng::u16>(camera_tile_x + drivers::EhbBidirectionalRingPrefetch::visible_columns + 1u);
+	}
+
+	static constexpr eng::u16 visible_safe_bottom_row(eng::u16 camera_tile_y) {
+		return static_cast<eng::u16>(camera_tile_y + drivers::EhbBidirectionalRingPrefetch::visible_rows + 1u);
+	}
+
+	/// Encola las franjas de prefetch que la camara ha dejado de cubrir.
+	///
+	/// La version inicial solo encolaba trabajo si no habia nada pendiente y
+	/// actualizaba `m_previous_logical_*` al final, de modo que si la camara cruzaba
+	/// varios tiles mientras un upload estaba en curso se perdian cruces intermedios
+	/// y quedaban columnas con datos obsoletos. Esta version:
+	///
+	/// - sincroniza la referencia *siempre* (cada frame), asi el sentido del
+	///   movimiento nunca queda desfasado;
+	/// - encola las columnas/filas de margen de todos los cruces (no solo el
+	///   ultimo), de forma que un salto de varios tiles no deja huecos;
+	/// - delega en `enqueue_margin_strip` la deduplicacion contra franjas
+	///   pendientes, por lo que puede encolar una columna y una fila a la vez
+	///   (movimiento diagonal) sin bloquearse.
+	void schedule_next_visible_margin(eng::u16 camera_world_column, eng::u16 camera_world_row) {
+		const eng::u16 previous_column = m_previous_logical_column;
+		const eng::u16 previous_row = m_previous_logical_row;
+		m_previous_logical_column = camera_world_column;
+		m_previous_logical_row = camera_world_row;
+		if (previous_column == camera_world_column && previous_row == camera_world_row) {
+			return;
+		}
+
+		if (camera_world_column > previous_column) {
+			// Cada cruce en T encola la columna T+21 (dos tiles de margen por la
+			// derecha). Para un salto de varios tiles se encolan todas las que
+			// habria encolado cada cruce individual.
+			for (eng::u16 column = static_cast<eng::u16>(previous_column + visible_safe_right_column(0) + 1u);
+				 column <= visible_safe_right_column(camera_world_column);
+				 ++column) {
+				enqueue_margin_strip(
+					{column, camera_world_row, 1, drivers::EhbBidirectionalRingPrefetch::visible_rows},
+					tilemap::TileUpdateEdge::Right
+				);
+			}
+		} else if (camera_world_column < previous_column && camera_world_column != 0) {
+			enqueue_margin_strip(
+				{static_cast<eng::u16>(camera_world_column - 1u), camera_world_row, 1, drivers::EhbBidirectionalRingPrefetch::visible_rows},
+				tilemap::TileUpdateEdge::Left
+			);
+		}
+
+		if (camera_world_row > previous_row) {
+			// Simetrico al caso horizontal: cada cruce en T encola la fila T+17.
+			for (eng::u16 row = static_cast<eng::u16>(previous_row + visible_safe_bottom_row(0) + 1u);
+				 row <= visible_safe_bottom_row(camera_world_row);
+				 ++row) {
+				enqueue_margin_strip(
+					{camera_world_column, row, drivers::EhbBidirectionalRingPrefetch::visible_columns, 1},
+					tilemap::TileUpdateEdge::Bottom
+				);
+			}
+		} else if (camera_world_row < previous_row && camera_world_row != 0) {
+			enqueue_margin_strip(
+				{camera_world_column, static_cast<eng::u16>(camera_world_row - 1u), drivers::EhbBidirectionalRingPrefetch::visible_columns, 1},
+				tilemap::TileUpdateEdge::Top
+			);
+		}
+	}
+
+	/// Traduce una franja de mundo a jobs elementales de tile.
+	///
+	/// `ProgressiveTileScheduler` descompone una columna o fila en unidades 16x16.
+	/// Antes de encolar se deduplica contra las franjas pendientes del mismo eje y
+	/// mundo, y solo se admite si queda hueco de trackeo. Cuando la franja se sube
+	/// entera, `upload_prefetch_tiles` marca el slot como reciclado en el anillo 2D.
+	void enqueue_margin_strip(tilemap::TileRect rect, tilemap::TileUpdateEdge edge) {
+		if (rect.left >= surface_tiles_x || rect.top >= surface_tiles_y) {
+			return;
+		}
+
+		const bool is_column = edge == tilemap::TileUpdateEdge::Left || edge == tilemap::TileUpdateEdge::Right;
+		const eng::u16 world_index = is_column ? rect.left : rect.top;
+
+		PendingStrip* free_slot = nullptr;
+		for (PendingStrip& pending : m_pending_strips) {
+			if (pending.active()) {
+				if (pending.is_column == is_column && pending.world_index == world_index) {
+					return; // esa columna/fila ya esta en cola
+				}
+			} else if (free_slot == nullptr) {
+				free_slot = &pending;
+			}
+		}
+		if (free_slot == nullptr) {
+			return; // sin presupuesto de trackeo: no encolar mas franjas
+		}
+
+		const eng::u8 enqueued = m_scheduler.enqueue_strip(m_map, rect, edge, 0, 12, 1);
+		if (enqueued == 0) {
+			return;
+		}
+		*free_slot = PendingStrip {
+			world_index,
+			is_column ? m_ring.slot_for_world_column(world_index) : m_ring.slot_for_world_row(world_index),
+			enqueued,
+			is_column,
+		};
+	}
+
+	/// Consume un presupuesto pequeno de tiles y lo ejecuta por Blitter.
+	///
+	/// Esta funcion es el embrion del futuro `TileScrollDriver::compile_frame`: la
+	/// escena retenida dice que tiles urgen, el driver decide presupuesto, y el
+	/// backend ejecuta trabajos concretos de Blitter sin que la logica de juego vea
+	/// registros custom.
+	eng::u8 upload_prefetch_tiles(eng::amiga::AmigaBackend& backend) {
+		const tilemap::ProgressiveTileUpdatePlan plan = m_scheduler.take_budget(tile_update_budget);
+		m_frame_plan.clear();
+		configure_tile_blit_budget(m_frame_plan);
+		for (eng::u8 i = 0; i < plan.count; ++i) {
+			const tilemap::TileUpdateJob& job = plan.jobs[i];
+			const eng::u16 surface_col = static_cast<eng::u16>(job.x % drivers::EhbBidirectionalRingPrefetch::surface_columns);
+			const eng::u16 surface_row = static_cast<eng::u16>(job.y % drivers::EhbBidirectionalRingPrefetch::surface_rows);
+			if (!m_frame_plan.add_tile_block_copy(m_scene.make_tile_upload_job(
+				tile_source(m_tiles, job.tile_index).data(),
+				surface_col,
+				surface_row
+			))) {
+				eng::debug::mark_failed(g_eng_run_status, 0x00000113u);
+				return 0;
+			}
+		}
+
+		if (plan.count != 0) {
+			if (m_frame_plan.blit_budget_report().status == eng::graphics::BlitBudgetStatus::Exceeded) {
+				eng::debug::mark_failed(g_eng_run_status, 0x00000117u);
+				return 0;
+			}
+			if (!backend.execute_frame_plan(m_frame_plan)) {
+				eng::debug::mark_failed(g_eng_run_status, 0x00000116u);
+				return 0;
+			}
+		}
+		for (eng::u8 i = 0; i < plan.count; ++i) {
+			const tilemap::TileUpdateJob& job = plan.jobs[i];
+			const bool is_column = job.edge == tilemap::TileUpdateEdge::Left || job.edge == tilemap::TileUpdateEdge::Right;
+			const eng::u16 world_index = is_column ? job.x : job.y;
+			for (PendingStrip& pending : m_pending_strips) {
+				if (!pending.active() || pending.is_column != is_column || pending.world_index != world_index) {
+					continue;
+				}
+				--pending.remaining;
+				if (pending.remaining == 0) {
+					if (pending.is_column) {
+						m_ring.mark_column_ready(pending.slot, pending.world_index);
+						++m_recycled_columns;
+					} else {
+						m_ring.mark_row_ready(pending.slot, pending.world_index);
+						++m_recycled_rows;
+					}
+					pending.world_index = drivers::EhbBidirectionalRingPrefetch::unknown_index;
+					pending.remaining = 0;
+				}
+				break;
+			}
+		}
+		return plan.count;
+	}
+
+	/// Publica un estado compacto para herramientas externas.
+	///
+	/// `runStatus.detail` es nuestro canal barato de observabilidad: no sustituye a
+	/// GDB ni al canal lateral avanzado, pero permite que scripts y FrameScope sepan
+	/// en que frame/camara/prefetch estaba la demo cuando se tomo cada captura.
+	void publish_status(eng::u16 camera_x, eng::u16 camera_y, eng::u8 tile_jobs) {
+		const eng::u8 prefetch_flags = static_cast<eng::u8>(
+			(m_recycled_columns != 0 ? 0x1u : 0u) |
+			(m_recycled_rows != 0 ? 0x2u : 0u)
+		);
+		eng::debug::mark_ready(
+			g_eng_run_status,
+			0x11000000u |
+				(static_cast<eng::u32>(camera_x & 0xffu) << 16u) |
+				(static_cast<eng::u32>(camera_y & 0xffu) << 8u) |
+				(static_cast<eng::u32>(tile_jobs & 0x0fu) << 4u) |
+				static_cast<eng::u32>(prefetch_flags)
+		);
+	}
+};
+
+DemoGame g_game {};
+
+} // namespace
+
+// Evidencia del contrato de compositor de display (driver.hpp): el driver y el
+// backend concretos deben exponer takeover (una sola vez) + install (swap).
+static_assert(eng::DisplayDriver<drivers::EhbTileScrollScene, eng::amiga::AmigaBackend>);
+
+int main() {
+	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
+	eng::debug::reset(g_eng_run_status);
+
+	eng::amiga::AmigaBackend backend {};
+	eng::Engine engine { backend, g_game };
+	engine.run_frames_polling(0xffffffffu);
+
+	return 0;
+}

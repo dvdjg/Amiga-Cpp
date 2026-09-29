@@ -1,6 +1,6 @@
 # Diseño de audio comprimido para Amiga
 
-`audio-compressor` es la utilidad offline que convierte fuentes de audio de PC en un contenedor `AUZ2` reproducible por el engine en Amiga. La utilidad corre en PC y puede usar librerías del sistema para leer formatos de entrada en fases futuras, pero el formato de salida, el análisis de calidad y los codecs compartidos pertenecen al proyecto.
+El pipeline de audio convierte fuentes de PC en PCM mono de 8 bits con signo y las empaqueta en `AUZX`, el contenedor que consume el engine Amiga. El formato, los codecs y el decoder se comparten entre `host-tools/pack-pcm` y `engine/include/eng/audio/`; así el fichero producido en PC tiene el mismo contrato que el reproductor de Amiga.
 
 ## Objetivos
 
@@ -18,7 +18,7 @@ fuente WAV/RAW/video descargado
           ▼
 PCM normalizado ── análisis ── búsqueda de parámetros
           │                         │
-          └──────────────► encoder AUZ2 ──► archivo para Amiga
+          └──────────────► encoder AUZX ──► archivo para Amiga
                                              │
                          índice/chunk ──────┤
                                              ▼
@@ -28,35 +28,33 @@ PCM normalizado ── análisis ── búsqueda de parámetros
                                       PCM8 en Chip RAM → Paula
 ```
 
-El binario host vive en `tools/audio-compressor/` porque reutiliza headers del engine. El vocabulario portable vive en `engine/include/eng/audio/`: `auz2.hpp` define el contenedor y reutiliza `pcm_codec.hpp` para Delta+RLE y ZX0. Las rutinas críticas de reproducción se podrán sustituir por ASM 68000 sin cambiar el formato ni la API de dominio.
+El empaquetador C++ vive en `host-tools/pack-pcm/` y reutiliza los headers del engine. El pipeline Node `tools/audio/pack-auzx.mjs` cubre la generación Fibonacci Delta sin compilar C++. El contenedor portable está definido por `eng/audio/auzx.hpp`; `eng/audio/media.hpp` ofrece el punto único de reconocimiento y decodificación por chunk. Las rutinas críticas tienen referencia C++ y variantes ASM 68000 bajo el mismo contrato.
 
-## Contenedor AUZ2
+## Contenedor AUZX
 
 Todos los enteros se escriben little-endian para que el parser sea explícito y estable entre PC y 68000.
 
 ```text
-Cabecera fija, 28 bytes
-  0..3    magic "AUZ2"
-  4..5    versión = 1
-  6..7    tamaño de cabecera = 24
-  8..11   frecuencia de muestreo
-  12      canales = 1
-  13      bits = 8
-  14..15  reservado
-  16..19  muestras PCM totales
-  20..21  muestras por chunk
-  22..23  número de chunks
-  24..27  reservado/checksum futuro
+Cabecera fija, 32 bytes
+  0..3    magic "AUZX"
+  4       versión = 1
+  5       codec global
+  6..7    frecuencia de muestreo
+  8..9    canales = 1
+  10      bits = 8
+  12..15  muestras PCM totales
+  16..17  muestras por chunk
+  18..19  número de chunks
+  20..23  offset del índice
+  24..27  offset del primer payload
+  28..31  checksum opcional
 
-Por chunk, 8 bytes + payload
-  0..1    muestras reconstruidas
-  2..3    bytes comprimidos
-  4       codec: 0 ZX0, 2 Delta+RLE, 3 PCM crudo
-  5..7    reservado
-  8..     payload del codec
+Índice por chunk, 8 bytes
+  0..3    offset absoluto del payload
+  4..7    tamaño comprimido
 ```
 
-El descriptor contiene el tamaño comprimido, por lo que el decoder puede saltar al siguiente chunk sin conocer el algoritmo. El tamaño reconstruido limita el destino y evita escribir fuera del buffer de Chip RAM. `AUZ2` usa mono PCM8 en la primera versión; estéreo y profundidades adicionales requieren una versión de formato explícita.
+El índice permite `seek(chunk)` y evita leer chunks anteriores. `PcmStream` usa el tamaño descomprimido configurado en la cabecera para llenar buffers de Chip RAM. El formato v1 usa mono PCM8; cualquier cambio de layout requiere una nueva versión.
 
 ## Modos de compresión
 
@@ -65,18 +63,18 @@ La selección se hace por chunk, comparando tamaño y calidad:
 | Modo | Estado | Uso previsto |
 |---|---|---|
 | PCM crudo | implementado | fallback y referencia de calidad |
-| Delta+RLE | implementado | codec portable rápido, reutiliza `pcm_codec` |
-| ZX0 | decoder engine existente | ratio alto cuando el encoder host se integre |
-| IMA ADPCM 4-bit | planificado | modo principal con pérdida controlada |
-| Delta/ADPCM cuantizado 3–6 bit | planificado | bitrate ajustable por chunk |
-| Residual armónico | planificado | tonos estables: fundamental + hasta dos armónicos |
-| Silence/hold/RLE largo | planificado | tramos sin energía o repetidos |
+| Delta+RLE | implementado | codec portable rápido |
+| ZX0 | implementado | PCM directo y residual Delta+ZX0 |
+| aPLib | implementado | codec LZ alternativo |
+| Fibonacci Delta | implementado | 4 bits por delta, con pérdida |
+| IMA ADPCM 4-bit | implementado | compresión con pérdida y decoder ASM previsto |
+| Residual armónico | roadmap | tonos estables y síntesis por tabla |
 
 El análisis armónico no se almacena como metadato decorativo: solo se selecciona si sintetizar el tono, codificar el residual y guardar sus parámetros produce un coste total menor o una mejora de calidad justificada. El decoder leerá siempre el modo desde la cabecera del chunk.
 
 ## Análisis y error
 
-El encoder debe conservar la señal normalizada como referencia y verificar el round-trip. Las métricas mínimas son MSE, RMS del error, SNR, pico absoluto y ratio `bytes_AUZ2 / bytes_PCM`. Para el material musical se añadirá ponderación perceptual por energía y bandas, sin usar una métrica perceptual para ocultar un error de reconstrucción byte a byte en modos lossless.
+El encoder debe conservar la señal normalizada como referencia y verificar el round-trip. Las métricas mínimas son MSE, RMS del error, SNR, pico absoluto y ratio `bytes_AUZX / bytes_PCM`. Para el material musical se añadirá ponderación perceptual por energía y bandas, sin usar una métrica perceptual para ocultar un error de reconstrucción byte a byte en modos lossless.
 
 Los parámetros explorables serán frecuencia, canales de entrada, tasa de salida, tamaño de chunk, predictor, bits de cuantización, escala, dithering, noise shaping, preénfasis, codec y umbrales de tonalidad. Cada ensayo debe guardar la configuración completa y el hash de la entrada bajo `out/playground/audio-compressor/`.
 
@@ -89,4 +87,4 @@ Los parámetros explorables serán frecuencia, canales de entrada, tasa de salid
 
 ## Fuentes externas y licencias
 
-ZX0 se integra mediante el decoder ya portado en `eng/audio/zx0.hpp`, atribuido a Einar Saukas. Para IMA ADPCM se estudiará `Kalmalyzer/adpcm-68k` como referencia de implementación 68000, verificando licencia y comportamiento antes de incorporar código. `ffmpeg` y `yt-dlp` serán dependencias opcionales del entorno del usuario, no binarios versionados.
+ZX0 se integra mediante el decoder del engine, atribuido a Einar Saukas. Los depackers ASM ZX0 y aPLib incorporados desde Emmanuel Marty conservan licencia zlib. IMA ADPCM sigue el estándar IMA/DVI. `ffmpeg` y `yt-dlp` son dependencias opcionales del entorno del usuario, no binarios versionados.

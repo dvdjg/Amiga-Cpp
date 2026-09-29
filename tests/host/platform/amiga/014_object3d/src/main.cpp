@@ -9,7 +9,7 @@
 using namespace eng::object3d;
 
 // La `pilka` real (icosaedro truncado, asset de la demo 116) para el adaptador n-gon.
-#include "../../../../../../demos/amiga/116_flatshade_convex/src/data/pilka.c"
+#include "../../../../../../demos/techniques/amiga/effects/116_flatshade_convex/src/data/pilka.c"
 
 static int failures = 0;
 static void check(bool ok, const char* msg) {
@@ -34,33 +34,38 @@ int main() {
 
 	Object3D obj {};
 	new_object3d(obj, mesh);
-	check(obj.objdat == bytes.data() && obj.objdat_size == bytes.size(), "new_object3d enlaza objdat");
+	check(obj.mesh().data() == bytes.data() && obj.mesh().size() == bytes.size(), "new_object3d enlaza objdat");
 	check(obj.scale.x.v == (1 << 12) && obj.scale.y.v == (1 << 12), "scale inicial 1.0 (4.12)");
 
 	// Validacion del descriptor: blob no vacio, grupos dentro de rango y sin trampa.
-	check(mesh_validate(mesh), "mesh_validate: malla valida");
-	check(new_object3d_checked(obj, mesh), "new_object3d_checked: malla valida -> true");
+	check(mesh.bytes.check(mesh.vertexGroups, mesh.edgeGroups, mesh.faceGroups) == eng::object3d::MeshBlob::Status::Ok, "mesh_validate: malla valida");
+	check(new_object3d_checked(obj, mesh) == eng::object3d::MeshBlob::Status::Ok,
+	      "new_object3d_checked: malla valida -> Ok");
 	{
 		Mesh3D no_blob = mesh;
 		no_blob.bytes = {};
-		check(!mesh_validate(no_blob), "mesh_validate: sin blob -> false");
-		check(!new_object3d_checked(obj, no_blob), "new_object3d_checked: sin blob -> false");
+		check(no_blob.bytes.check(no_blob.vertexGroups, no_blob.edgeGroups, no_blob.faceGroups) == eng::object3d::MeshBlob::Status::Empty,
+		      "mesh_validate: sin blob -> Empty");
+		check(new_object3d_checked(obj, no_blob) == eng::object3d::MeshBlob::Status::Empty,
+		      "new_object3d_checked: sin blob -> Empty");
 		static short bad_group[2] = {1000, 0};
 		Mesh3D out_of_range = mesh;
 		out_of_range.vertexGroups = bad_group;
-		check(!mesh_validate(out_of_range), "mesh_validate: grupo fuera de rango -> false");
+		check(out_of_range.bytes.check(out_of_range.vertexGroups, out_of_range.edgeGroups, out_of_range.faceGroups) == eng::object3d::MeshBlob::Status::OutOfRange,
+		      "mesh_validate: grupo fuera de rango -> OutOfRange");
 		static short odd_group[2] = {3, 0};
 		Mesh3D misaligned = mesh;
 		misaligned.vertexGroups = odd_group;
-		check(!mesh_validate(misaligned), "mesh_validate: offset impar -> false");
+		check(misaligned.bytes.check(misaligned.vertexGroups, misaligned.edgeGroups, misaligned.faceGroups) == eng::object3d::MeshBlob::Status::Misaligned,
+		      "mesh_validate: offset impar -> Misaligned");
 	}
 
 	// Offsets de las macros (indice = offset de byte; primer vertice = 2).
-	const Point3D* p = point3d(bytes, 2);
-	check(p->x.v == 111 && p->y.v == 222 && p->z.v == 333, "point3d(i) -> point del nodo");
-	const Point3D* v = vertex3d(bytes, 2);
-	check(v->x.v == 0 && v->y.v == 0 && v->z.v == 0, "vertex3d(i) -> vertex del nodo");
-	check(reinterpret_cast<short*>(node3d(bytes, 2)) == data, "node3d(i) = objdat + i - 2");
+	const Point3D* p = MeshBlob {bytes}.point(2);
+	check(p->x.v == 111 && p->y.v == 222 && p->z.v == 333, "MeshBlob::point(2) -> point del nodo");
+	const Point3D* v = MeshBlob {bytes}.vertex(2);
+	check(v->x.v == 0 && v->y.v == 0 && v->z.v == 0, "MeshBlob::vertex(2) -> vertex del nodo");
+	check(reinterpret_cast<short*>(MeshBlob {bytes}.node(2)) == data, "MeshBlob::node(2) = objdat + i - 2");
 
 	// Transformacion: identidad + traslacion.
 	obj.rotate = {};
@@ -94,7 +99,8 @@ int main() {
 		quad_mesh.vertexGroups = {qv, 6};
 		quad_mesh.edgeGroups = {qe, 2};
 		quad_mesh.faceGroups = {qf, 3};
-		check(mesh_validate(quad_mesh), "adaptador: mesh_validate del quad");
+		check(quad_mesh.bytes.check(quad_mesh.vertexGroups, quad_mesh.edgeGroups, quad_mesh.faceGroups) == eng::object3d::MeshBlob::Status::Ok,
+		      "adaptador: mesh_validate del quad");
 
 		Object3D qobj {};
 		new_object3d(qobj, quad_mesh);
@@ -162,14 +168,10 @@ int main() {
 		update_object_transformation(po);
 		eng::lib3d::update_face_visibility(po);
 		eng::u32 lib3d_visible = 0;
-		const s16* fg = po.faceGroups;
-		if (fg != nullptr) {
-			do {
-				s16 off;
-				while ((off = *fg++) != 0) {
-					if (po.face(off)->flags >= 0) ++lib3d_visible;
-				}
-			} while (*fg != 0);
+		for (auto fr : po.faces()) {
+			if (fr.get()->flags >= 0) {
+				++lib3d_visible;
+			}
 		}
 
 		static eng::math3d::Vec3 mv[64];

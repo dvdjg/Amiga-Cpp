@@ -76,17 +76,30 @@ Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
   archivo (`AUZX`) con `compression` (0=ZX0, 1=aPLib, 2=delta+RLE).
 - **Verificación**: **HOST-243** — vectores ZX0/aPLib generados en el host (compresor de
   referencia) se decodifican a la misma PCM; comparación byte a byte.
-- **Estado**: **parcial**. **ZX0 entregado y verificado**: decoder `eng/audio/zx0.hpp` (port de
-  `dzx0.c` v2, MIT) + `Codec::Zx0` en `pcm_codec::decode`, con **HOST-271** contra un vector del
-  **compresor de referencia `zx0`** (literales + match de nuevo offset + EOF; la clave del formato
-  es el Elias gamma *interlazado* y el `write_byte` que no toca el estado de bits). **Pendiente**:
-  aPLib y la cabecera contenedora `AUZX` (que consume `compression`).
+- **Estado**: **parcial**. Entregados y verificados en `pcm_codec`:
+  - **ZX0** (`Codec::Zx0`, `eng/audio/zx0.hpp`, port de `dzx0.c` v2) — **HOST-271** con vector del
+    compresor de referencia.
+  - **Delta + ZX0** (`Codec::DeltaZx0`, sin pérdida) — preprocesado delta + ZX0; **HOST-358**.
+  - **Fibonacci Delta** (`Codec::FibDelta`, IFF 8SVX, con pérdida 2:1, `eng/audio/fib_delta.hpp`) —
+    **HOST-357**, contra el Apéndice C del estándar.
+
+  Entregados además: **IMA ADPCM 4-bit** (`Codec::ImaAdpcm`, HOST-359), la **cabecera
+  contenedora `AUZX`** (`eng/audio/auzx.hpp`, HOST-360) con **interfaz de medios**
+  (`eng/audio/media.hpp`, HOST-361), el packer de PC (`host-tools/pack-pcm`) y `tar`
+  (`tools/fs/tar-extract.mjs` + `make-volume --tar/--add`). En 68000, los descompresores corren
+  en **ASM** (`support/codec_asm.s` + `support/dzx0_68000.s`) con equivalencia verificada en
+  hardware (demo 277, `detail=0`). **Pendiente**: solo aPLib. Los formatos exactos y la receta de
+  compresión en PC están en `docs/engine/architecture/AUDIO_STREAMING.md` §7.1/§7.2/§7.3.
 
 ### A5 — Streaming digital desde disquete
 
 - **Entregable**: `PcmStream` (doble/triple buffer) con la IRQ de audio cambiando de buffer y la
   descompresión en tarea de fondo; `file_read_async` para los chunks.
 - **Detalle**: [`AUDIO_STREAMING.md`](../../engine/architecture/AUDIO_STREAMING.md).
+- **Demo de streaming desde disco**: **`278_stream_disk`** lee un **AUZX** de `DH1:` (melodía de
+  dominio público, `tools/audio/gen-melody.mjs` + `pack-pcm`) y lo streamea con `media` +
+  `PcmStream`; verificado `detail=0x260026` (0 underruns). **`279_codec_bench`** mide muestras/s de
+  los descompresores ASM frente a C++ (`detail=0x00027900`).
 - **Verificación**: **HOST-239** (con E/S simulada: llena N buffers, detecta *underrun*, termina en
   EOF) y **demo 209_audio_stream** (grabación continua desde disquete en hardware).
 - **Estado**: **parcial**. Entregado: la **máquina de estados** de buffers `eng/os/stream.hpp`
@@ -118,6 +131,8 @@ Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
 | HOST-270 | test | `MusicEnd`/`AudioUnderrun` (semántica, sin mensaje por buffer; planificado como HOST-241). |
 | HOST-242 | test | Codec Delta + RLE (round-trip byte a byte). |
 | HOST-271 | test | Descompresor ZX0 con vector del compresor de referencia (planificado como HOST-243); aPLib pendiente. |
+| HOST-357 | test | Fibonacci Delta (IFF 8SVX): decoder contra el estándar + vector dorado; encoder `decode(encode(x))==x`. |
+| HOST-358 | test | Delta + ZX0 sin pérdida: `differentiate`/`integrate_deltas` y `Codec::DeltaZx0` sobre vector ZX0 real. |
 | HOST-239 | test | Streaming (`PcmStream<NumBuffers>`: doble buffer, underrun, EOF, chunk inválido) con E/S simulada. **Entregado**. |
 | (por numerar) | demo | Grabación continua desde disquete con `PcmStream` (elegir nº libre del bloque D; `209` lo ocupa `209_reactive_loop`). |
 

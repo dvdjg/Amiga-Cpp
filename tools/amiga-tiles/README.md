@@ -238,7 +238,7 @@ extern const unsigned char g_tilebank_bin[];   // incbin de tilebank.bin (o Copy
 ```
 Cada start-up en el Amiga carga `kPalette` en los registros de color (0..colors-1;
 en EHB solo las 32 bases porque los half los genera el hardware) y el banco en Chip
-RAM con `incbin` en una sección `.MEMF_CHIP` (receta en `demos/amiga/201_ehb_map/src/main.cpp`).
+RAM con `incbin` en una sección `.MEMF_CHIP` (receta en `demos/techniques/amiga/playfield/201_ehb_map/src/main.cpp`).
 
 ## Redimensionado de calidad y recortes
 

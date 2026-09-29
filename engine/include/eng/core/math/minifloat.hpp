@@ -46,7 +46,7 @@
 /// utilidad de tablas `eng/core/data/ct_array.hpp`.
 ///
 /// **Estado de verificación: verificada por demo** — la demo
-/// `demos/amiga/083_fbm_noise` construye un mapa de altura con `fbm2<MiniFloat16>` en
+/// `demos/techniques/amiga/effects/083_fbm_noise` construye un mapa de altura con `fbm2<MiniFloat16>` en
 /// hardware (build/run/analyze OK) y ejercita la aritmética, `from_int` y las
 /// comparaciones. Ampliada por los tests host `tests/host/core/056_minifloat16` (aritmética
 /// y matrices), `057` (matemáticas), `058` (puente con fixed) y `060` (ruido). Las

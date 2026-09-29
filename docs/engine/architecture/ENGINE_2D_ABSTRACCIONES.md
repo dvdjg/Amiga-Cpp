@@ -37,7 +37,7 @@
 
 | Capa | Qué es | Responde a |
 |---|---|---|
-| `Bitmap` | memoria Chip/Fast + layout (interleaved/separate) + planos | ¿dónde vive la memoria? |
+| `Bitmap` | framebuffer en **Chip** + layout (interleaved/separate) + planos | ¿dónde vive la memoria? |
 | `Playfield` | un `Bitmap` + mapeo lógico→físico + config de display + `hardware_view()` | ¿cómo se muestra / a qué dirección física va un píxel lógico? |
 | `Surface` | subregión rectangular (origen + tamaño + clip) sobre un playfield, con las primitivas de dibujo | ¿dónde dibujo y qué recorto? |
 | `ScrollEngine` | algoritmo de scroll por tiles (mapa + tileset + modo) que mueve la cámara y emite blits | ¿cómo scrollea este playfield? |
@@ -67,23 +67,23 @@ Defectos:
 
 ---
 
-## 4. `Bitmap` y dominios de memoria (Chip / Fast)
+## 4. `Bitmap` (siempre Chip) y buffers de trabajo
 
-El Blitter solo alcanza Chip RAM; la CPU alcanza ambas. `BitmapConfig` declara `MemoryDomain { Chip, Fast, Any }` y `Bitmap` expone `blitter_accessible()`.
+El Blitter y el bitplane DMA solo alcanzan Chip RAM. `gfx::Bitmap` es un **framebuffer siempre en Chip** (sus direcciones son `Address<MemoryKind::Chip>`; `blitter_accessible()` es constante): un framebuffer Fast no es mostrable. La distinción Chip/Fast/Any de los **buffers de trabajo** (fuentes de `software_copy`, staging, audio) vive en la capa de memoria —`Block<Tag>`/`Span` con su `MemoryKind` como dato—, no en `Bitmap`.
 
 ```
    ┌─────────────── Chip RAM ───────────────┐   ┌─────────── Fast RAM ───────────┐
-   │  Bitmap A (display)    │  Blitter ✓    │   │  Bitmap V (virtual) │ Blitter ✗ │
-   │  interleaved 4 planos │  CPU ✓        │   │  separate 4 planos  │ CPU ✓    │
-   │  BPLxPT -> copper     │               │   │  (solo CPU/software)│          │
-   └───────────────────────┴───────────────┘   └──────────────────────┴──────────┘
+   │  Bitmap (display)      │  Blitter ✓    │   │  buffer trabajo (Fast) │ Blit ✗ │
+   │  interleaved 4 planos |  CPU ✓        │   │  separate 4 planos     │ CPU ✓  │
+   │  BPLxPT -> copper     │               │   │  (solo CPU/software)   │        │
+   └───────────────────────┴───────────────┘   └────────────────────────┴────────┘
                           ▲                                        │
                           │   composite(dirty_rect)                │
                           └─────────────── Blitter │ CPU ◄─────────┘
                              (src Chip -> Blitter; src Fast -> software_copy)
 ```
 
-- Un playfield **virtual** vive en Fast RAM: se dibuja por CPU (o con blits si el destino fuese Chip) y **no se puede mostrar directamente** (`hardware_view()` inválida).
+- Un búfer **virtual** (no un `gfx::Bitmap`) vive en Fast RAM: se dibuja por CPU (o con blits si el destino fuese Chip) y **no se muestra directamente**.
 - La `Scene` ofrece `composite(src, dst, region, plan)`: copia una subregión (dirty rect) del virtual al playfield mostrado. El backend ejecuta `blit_copy` si el origen es Chip, o un comando `software_copy` (CPU) si cruza dominios.
 - La misma regla sirve para buffers de audio y de trabajo en general: los datos que consume el DMA (bitplanes, muestras de audio, datos de sprite) viven en Chip; lo que solo toca la CPU puede vivir en Fast.
 

@@ -24,6 +24,7 @@
 /// el ángulo en radianes). La crudeza vive solo en el almacenamiento, no en la aritmética.
 
 #include <eng/core/math/arith.hpp>
+#include <eng/core/types/ptr.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
@@ -99,6 +100,219 @@ struct Face {
 	s16 count = 0;
 };
 
+/// **Offset de byte** dentro del blob `obj2c`. Tipo fuerte: un offset no es "un `s16` cualquiera".
+struct ObjOffset {
+	s16 bytes;
+};
+/// **Referencias fuertes** a las piezas del blob: el compilador impide mezclar un `VertexRef` con
+/// un `EdgeRef`/`FaceRef`, y un offset no se confunde con un dato.
+struct VertexRef {
+	ObjOffset o;
+};
+struct EdgeRef {
+	ObjOffset o;
+};
+struct FaceRef {
+	ObjOffset o;
+};
+
+/// **Vista tipada del `objdat` empaquetado** (formato de `obj2c`). Es el **único** sitio donde se
+/// convierte el blob de bytes a los structs del formato: aquí viven el `reinterpret_cast`
+/// byte->struct y la aritmética de offsets, con el tamaño del blob a la vista. El layout es fijo
+/// (lo lee `flatshade_asm.s` y el original lo indexa por offset de byte), así que el blob **sigue
+/// siendo bytes** — lo que pasa a estar tipado es el **acceso**, no el almacenamiento. El resto del
+/// engine y los efectos usan `MeshBlob::point/vertex/face/...`, nunca bytes crudos.
+class MeshBlob {
+public:
+	constexpr MeshBlob() noexcept = default;
+	constexpr MeshBlob(eng::u8* data, eng::u32 size) noexcept
+		: m_bytes(eng::Span<eng::u8> {data, size}) {}
+	/// Implícita desde una vista de bytes: los descriptores de mesh (`Mesh3D`) la usan tal cual.
+	MeshBlob(eng::Span<eng::u8> bytes) noexcept : m_bytes(bytes) {}
+
+	/// ¿Blob vacío (sin base o tamaño 0)?
+	[[nodiscard]] constexpr bool empty() const noexcept { return m_bytes.empty(); }
+	/// Base del blob (para validación/procedencia).
+	[[nodiscard]] constexpr eng::u8* data() const noexcept { return m_bytes.data(); }
+	/// Tamaño del blob en bytes (mismo tipo que `Span::size()`, `usize` — sin cast).
+	[[nodiscard]] constexpr eng::usize size() const noexcept { return m_bytes.size(); }
+
+	/// Acceso tipado por offset de byte (como las macros del original). La conversión vive AQUÍ.
+	[[nodiscard]] Node3D* node(s16 off) const noexcept {
+		return reinterpret_cast<Node3D*>(m_bytes.data() + (off - 2));
+	}
+	[[nodiscard]] Point3D* point(s16 off) const noexcept {
+		return reinterpret_cast<Point3D*>(m_bytes.data() + off);
+	}
+	[[nodiscard]] Point3D* vertex(s16 off) const noexcept {
+		return reinterpret_cast<Point3D*>(m_bytes.data() + (off + 6));
+	}
+	[[nodiscard]] Edge* edge(s16 off) const noexcept {
+		return reinterpret_cast<Edge*>(m_bytes.data() + off);
+	}
+	[[nodiscard]] Face* face(s16 off) const noexcept {
+		return reinterpret_cast<Face*>(m_bytes.data() + off);
+	}
+	/// Índices (vértice, arista) de una cara: van tras el cuerpo fijo (`offset 10` de `Face`).
+	/// Devuelve una **vista** (`Span<FaceIndex>`, `count` entradas) — los llamadores indexan
+	/// `fi[k].vertex`/`fi[k].edge`, sin `reinterpret_cast<s16*>` intercalado.
+	[[nodiscard]] static eng::Span<FaceIndex> face_indices(Face* f) noexcept {
+		return eng::Span<FaceIndex> {
+			reinterpret_cast<FaceIndex*>(reinterpret_cast<eng::u8*>(f) + 10),
+			static_cast<eng::usize>(f->count)};
+	}
+
+	// --- Acceso por REFERENCIAS FUERTES (camino nuevo): devuelven `Ref<T>`, no `T*` ---
+	[[nodiscard]] eng::Ref<Node3D> node(VertexRef v) const noexcept { return node(v.o.bytes); }
+	[[nodiscard]] eng::Ref<Point3D> point(VertexRef v) const noexcept { return point(v.o.bytes); }
+	[[nodiscard]] eng::Ref<Point3D> vertex(VertexRef v) const noexcept { return vertex(v.o.bytes); }
+	[[nodiscard]] eng::Ref<Edge> edge(EdgeRef v) const noexcept { return edge(v.o.bytes); }
+	[[nodiscard]] eng::Ref<Face> face(FaceRef v) const noexcept { return face(v.o.bytes); }
+	/// Índices de una cara por referencia fuerte (mismo `Span` que `face_indices`).
+	[[nodiscard]] eng::Span<FaceIndex> indices(FaceRef v) const noexcept {
+		return face_indices(face(v.o.bytes));
+	}
+
+	/// Resultado de **validar** los grupos de un descriptor `obj2c` contra este blob. `Ok` si el
+	/// blob y los grupos son coherentes (offsets dentro de rango y alineados a palabra, caras
+	/// con `count >= 0` y `FaceIndex` dentro del blob).
+	enum class Status : eng::u8 { Ok, Empty, BadGroup, OutOfRange, Misaligned };
+
+	/// **Valida** los grupos del descriptor contra este blob (la única validación; Fase D). Un
+	/// asset corrupto devuelve un `Status` != `Ok` sin recorrer memoria fuera del blob.
+	[[nodiscard]] Status check(eng::Span<s16> vertexGroups, eng::Span<s16> edgeGroups,
+				   eng::Span<s16> faceGroups) const noexcept {
+		if (empty()) {
+			return Status::Empty;
+		}
+		const eng::u8* base = data();
+		const eng::usize n = size();
+		const eng::u8* end = base + n;
+		auto valid_group = [&](eng::Span<s16> g) -> Status {
+			for (s16 off : g) {
+				if (off == 0) {
+					continue;
+				}
+				if (off < 0 || static_cast<eng::usize>(off) >= n) {
+					return Status::OutOfRange;
+				}
+				if ((off & 1) != 0) {
+					return Status::Misaligned;
+				}
+			}
+			return Status::Ok;
+		};
+		const Status sv = valid_group(vertexGroups);
+		if (sv != Status::Ok) {
+			return sv;
+		}
+		const Status se = valid_group(edgeGroups);
+		if (se != Status::Ok) {
+			return se;
+		}
+		const Status sf = valid_group(faceGroups);
+		if (sf != Status::Ok) {
+			return sf;
+		}
+		for (s16 off : faceGroups) {
+			if (off == 0) {
+				continue;
+			}
+			const Face* f = reinterpret_cast<const Face*>(base + off);
+			if (f->count < 0) {
+				return Status::BadGroup;
+			}
+			if (base + off + 10 + static_cast<eng::usize>(f->count) * 4u > end) {
+				return Status::OutOfRange;
+			}
+			const FaceIndex* fi = reinterpret_cast<const FaceIndex*>(base + off + 10);
+			for (s16 k = 0; k < f->count; ++k) {
+				if (fi[k].vertex < 0 || static_cast<eng::usize>(fi[k].vertex) >= n) {
+					return Status::OutOfRange;
+				}
+				if (fi[k].edge < 0 || static_cast<eng::usize>(fi[k].edge) >= n) {
+					return Status::OutOfRange;
+				}
+			}
+		}
+		return Status::Ok;
+	}
+
+private:
+	/// Vista sobre el blob: `Span` (data + tamaño) es el tipo del engine para "buffer + count"
+	/// (CODING_STYLE §"Seguridad de tipos sobre punteros crudos"), en vez de `u8* + u32` sueltos.
+	eng::Span<eng::u8> m_bytes {};
+};
+
+/// **Rango tipado de un grupo** de `obj2c` (offsets de byte terminados por 0): recorre saltando el
+/// **centinela** y devuelve `Ref<T>` (nunca `T*`). `Acc` traduce un offset a la `Ref<T>` de la
+/// pieza. Es la Fase B de `OBJECT3D_MESH_VIEW.md`: `for (VertexRef v : obj.points())` en vez de
+/// `s16* group; while ((i = *group++))`.
+template <class T, class Acc>
+class GroupRange {
+public:
+	/// Iterador de entrada: **salta los separadores 0** entre sub-grupos (como el `while (*group++)`).
+	class Iter {
+	public:
+		constexpr Iter(const s16* g, const s16* end, Acc acc) noexcept
+			: m_g(g), m_end(end), m_acc(acc) {
+			skip_zero();
+		}
+		[[nodiscard]] eng::Ref<T> operator*() const noexcept { return m_acc(*m_g); }
+		/// Offset de byte de la entrada actual (para quien indexa por offset, p. ej.
+		/// `object3d_poly` al mapear `FaceIndex.vertex`).
+		[[nodiscard]] constexpr s16 offset() const noexcept { return *m_g; }
+		Iter& operator++() noexcept {
+			++m_g;
+			skip_zero();
+			return *this;
+		}
+		[[nodiscard]] bool operator!=(const Iter& o) const noexcept { return m_g != o.m_g; }
+
+	private:
+		/// Salta los separadores (`0`) entre sub-grupos.
+		constexpr void skip_zero() noexcept {
+			while (m_g != m_end && *m_g == 0) {
+				++m_g;
+			}
+		}
+		const s16* m_g;
+		const s16* m_end;
+		Acc m_acc;
+	};
+
+	constexpr GroupRange(eng::Span<s16> g, Acc acc) noexcept : m_g(g), m_acc(acc) {}
+	/// Inicio del rango (primer offset, saltando los separadores iniciales).
+	[[nodiscard]] Iter begin() const noexcept { return Iter {m_g.data(), end_ptr(), m_acc}; }
+	/// Fin del rango (tras el último offset del grupo).
+	[[nodiscard]] Iter end() const noexcept { return Iter {end_ptr(), end_ptr(), m_acc}; }
+
+private:
+	[[nodiscard]] const s16* end_ptr() const noexcept { return m_g.data() + m_g.size(); }
+	eng::Span<s16> m_g;
+	Acc m_acc;
+};
+
+/// **Accesores con nombre** del `MeshBlob` para los rangos de grupo (un offset -> la `Ref<T>`).
+struct NodeAcc {
+	MeshBlob b {};
+	[[nodiscard]] eng::Ref<Node3D> operator()(s16 o) const noexcept {
+		return b.node(VertexRef {ObjOffset {o}});
+	}
+};
+struct EdgeAcc {
+	MeshBlob b {};
+	[[nodiscard]] eng::Ref<Edge> operator()(s16 o) const noexcept {
+		return b.edge(EdgeRef {ObjOffset {o}});
+	}
+};
+struct FaceAcc {
+	MeshBlob b {};
+	[[nodiscard]] eng::Ref<Face> operator()(s16 o) const noexcept {
+		return b.face(FaceRef {ObjOffset {o}});
+	}
+};
+
 /// Cabecera de malla (la que genera `obj2c`; los punteros son offsets absolutos).
 struct Mesh3D {
 	s16 vertices = 0;
@@ -106,10 +320,9 @@ struct Mesh3D {
 	s16 edges = 0;
 	s16 faces = 0;
 	s16 materials = 0;
-	/// Blob empaquetado de `obj2c` como **bytes tipados** (los grupos lo indexan por
-	/// offset de byte). Sustituye al `void*` crudo: el formato por campo lo describen los
-	/// structs `Point3D`/`Node3D`/`Edge`/`Face` de más abajo.
-	eng::Span<eng::u8> bytes {};
+	/// Blob empaquetado de `obj2c` como vista **tipada** (`MeshBlob`): los grupos lo indexan
+	/// por offset de byte y el acceso tipado encapsula la conversión. Sustituye al `Span<u8>`.
+	MeshBlob bytes {};
 	/// Grupos de índices (offsets de byte) terminados por 0, dentro de `bytes`.
 	eng::Span<s16> vertexGroups {};
 	eng::Span<s16> edgeGroups {};
@@ -122,23 +335,29 @@ struct Mesh3D {
 // Declaraciones para los accesores de `Object3D` (se definen más abajo).
 struct Object3D;
 [[nodiscard]] inline eng::Span<eng::u8> object_bytes(const Object3D& object);
-inline Node3D* node3d(eng::Span<eng::u8> bytes, s16 i);
-inline Point3D* point3d(eng::Span<eng::u8> bytes, s16 i);
-inline Point3D* vertex3d(eng::Span<eng::u8> bytes, s16 i);
-inline Edge* edge3d(eng::Span<eng::u8> bytes, s16 i);
-inline Face* face3d(eng::Span<eng::u8> bytes, s16 i);
+[[nodiscard]] inline MeshBlob::Status new_object3d_checked(Object3D& object, const Mesh3D& mesh);
+
+// (Los accesores libres `node3d`/`point3d`/`vertex3d`/`edge3d`/`face3d` se han eliminado: eran
+// wrappers de una línea sobre `MeshBlob`. Usa los métodos `MeshBlob::node/point/vertex/...`.)
 
 /// Objeto 3D: mesh enlazado + estado de transformación + cámara en espacio objeto.
 ///
 /// **Layout estable**: el asm (`flatshade_asm.s`) lee `objdat`@0, los grupos@4/8/12 y
 /// `objectToWorld`@38..; `objdat_size` va **al final** para no mover esos offsets.
 struct Object3D {
+	// --- ABI de malla (privada) ---
+	// Los punteros del `obj2c` los lee `flatshade_asm.s` en estos offsets (objdat@0,
+	// vertexGroups@4, edgeGroups@8, faceGroups@12). Desde C++ el acceso es por
+	// `mesh()`/`node()`/`points()`/… y por las funciones amigas `object_bytes` y
+	// `new_object3d_checked`. Se mantienen como primeros miembros para no mover los offsets.
+private:
 	eng::u8* objdat = nullptr;
 	s16* vertexGroups = nullptr;
 	s16* edgeGroups = nullptr;
 	s16* faceGroups = nullptr;
 	s16* objects = nullptr;
 
+public:
 	Angle3 rotate {};    // ángulo en radianes (q12)
 	Point3R scale {};    // escala (q12)
 	Point3C translate {}; // posicion (q0)
@@ -148,15 +367,67 @@ struct Object3D {
 
 	Point3C camera {}; // posicion de camara en espacio objeto (q0)
 
-	eng::u32 objdat_size = 0; // tamaño del blob (para la vista `Span<u8>`)
+private:
+	eng::usize objdat_size = 0; // tamaño del blob (mismo tipo que `Span::size()`)
 
+	/// Tamaños (nº de `s16`) de cada grupo. **No** los lee el asm: van al final del struct, tras
+	/// los campos que sí usa (`Object3D::objdat`@0, grupos@4/8/12, `objectToWorld`@38). Permiten
+	/// que los **rangos tipados** (`points()`/`edges()`/`faces()`) conozcan el fin del grupo.
+	eng::u16 vertex_group_count = 0;
+	eng::u16 edge_group_count = 0;
+	eng::u16 face_group_count = 0;
+
+	// Amigas que sí manejan la ABI cruda (la vista de bytes y el enlace del mesh).
+	friend eng::Span<eng::u8> object_bytes(const Object3D&);
+	friend MeshBlob::Status new_object3d_checked(Object3D&, const Mesh3D&);
+	// Amiga que fija los offsets del bloque que lee `flatshade_asm.s` (el `offsetof` de
+	// miembros privados necesita la amistad y un tipo ya completo).
+	friend struct Object3dLayout;
+
+public:
 	/// Accesores tipados al blob empaquetado (evitan manejar el `Span` a mano en los
 	/// efectos). Reenvían a `point3d`/`face`… con la vista del propio objeto.
-	[[nodiscard]] Node3D* node(s16 i) { return node3d(object_bytes(*this), i); }
-	[[nodiscard]] Point3D* point(s16 i) { return point3d(object_bytes(*this), i); }
-	[[nodiscard]] Point3D* vertex(s16 i) { return vertex3d(object_bytes(*this), i); }
-	[[nodiscard]] Edge* edge(s16 i) { return edge3d(object_bytes(*this), i); }
-	[[nodiscard]] Face* face(s16 i) { return face3d(object_bytes(*this), i); }
+	[[nodiscard]] Node3D* node(s16 i) { return MeshBlob {object_bytes(*this)}.node(i); }
+	[[nodiscard]] Point3D* point(s16 i) { return MeshBlob {object_bytes(*this)}.point(i); }
+	[[nodiscard]] Point3D* vertex(s16 i) { return MeshBlob {object_bytes(*this)}.vertex(i); }
+	[[nodiscard]] Edge* edge(s16 i) { return MeshBlob {object_bytes(*this)}.edge(i); }
+	[[nodiscard]] Face* face(s16 i) { return MeshBlob {object_bytes(*this)}.face(i); }
+
+	/// Vista tipada del blob del objeto (la procedencia del acceso tipado).
+	[[nodiscard]] MeshBlob mesh() const noexcept { return MeshBlob {object_bytes(*this)}; }
+
+	/// **Recorrido tipado de los grupos** (Fase B): saltan el centinela y devuelven `Ref<T>`.
+	/// `for (VertexRef v : obj.points())`, `for (FaceRef f : obj.faces())`, …
+	[[nodiscard]] GroupRange<Node3D, NodeAcc> points() const noexcept {
+		return {eng::Span<s16> {vertexGroups, vertex_group_count}, NodeAcc {mesh()}};
+	}
+	[[nodiscard]] GroupRange<Edge, EdgeAcc> edges() const noexcept {
+		return {eng::Span<s16> {edgeGroups, edge_group_count}, EdgeAcc {mesh()}};
+	}
+	[[nodiscard]] GroupRange<Face, FaceAcc> faces() const noexcept {
+		return {eng::Span<s16> {faceGroups, face_group_count}, FaceAcc {mesh()}};
+	}
+};
+
+/// Verificación del **bloque de malla** que lee `flatshade_asm.s` (solo ABI de 32 bits m68k):
+/// fija que `objdat`@0, los grupos@4/8/12 y `objectToWorld`@38 no se muevan. Es un struct
+/// amigo de `Object3D` porque el `offsetof` de los miembros privados lo exige, y un tipo
+/// ya completo.
+struct Object3dLayout {
+#if defined(__SIZEOF_POINTER__) && __SIZEOF_POINTER__ == 4
+	// `Object3D` no es *standard-layout* (mezcla accesos para encapsular la malla), así que
+	// `offsetof` es "conditionally-supported"; el `static_assert` es justo lo que fija que
+	// g++ conserva el orden. Se silencia el aviso a propósito.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winvalid-offsetof"
+	static_assert(__builtin_offsetof(Object3D, objdat) == 0 &&
+			      __builtin_offsetof(Object3D, vertexGroups) == 4 &&
+			      __builtin_offsetof(Object3D, edgeGroups) == 8 &&
+			      __builtin_offsetof(Object3D, faceGroups) == 12 &&
+			      __builtin_offsetof(Object3D, objectToWorld) == 38,
+		      "Object3D: offsets leidos por flatshade_asm.s");
+#pragma GCC diagnostic pop
+#endif
 };
 
 // Invariante de layout: los tipos con escala (`q0`/`q12`) describen el `objdat` empaquetado
@@ -170,120 +441,46 @@ static_assert(sizeof(Face) == 10 && __builtin_offsetof(Face, count) == 8,
 	      "objdat: Face normal(6)+flags+material+count@8");
 static_assert(__builtin_offsetof(Mesh3D, materials) == 8, "objdat: cabecera 5x s16");
 
-// Offsets que lee `flatshade_asm.s` (solo en la ABI de 32 bits del objetivo m68k).
-#if defined(__SIZEOF_POINTER__) && __SIZEOF_POINTER__ == 4
-static_assert(__builtin_offsetof(Object3D, objdat) == 0 &&
-		      __builtin_offsetof(Object3D, vertexGroups) == 4 &&
-		      __builtin_offsetof(Object3D, edgeGroups) == 8 &&
-		      __builtin_offsetof(Object3D, faceGroups) == 12 &&
-		      __builtin_offsetof(Object3D, objectToWorld) == 38,
-	      "Object3D: offsets leidos por flatshade_asm.s");
-#endif
-
 /// Diagnóstico: el descriptor de malla no cuadra con su blob. `illegal` en m68k.
 [[noreturn]] inline void mesh_invalid() { __builtin_trap(); }
 
-/// Valida el descriptor de malla contra su blob: cada offset de grupo dentro de `bytes` y
-/// alineado a palabra (`s16`), y cada cara con `count >= 0` y sus `FaceIndex` dentro del
-/// blob. Un asset corrupto devuelve `false` (no se recorre memoria fuera del blob).
-[[nodiscard]] inline bool mesh_validate(const Mesh3D& mesh) {
-	if (mesh.bytes.empty()) {
-		return false;
-	}
-	const eng::u8* base = mesh.bytes.data();
-	const eng::u32 n = static_cast<eng::u32>(mesh.bytes.size());
-	const eng::u8* end = base + n;
-	auto valid_group = [&](const eng::Span<s16>& g) {
-		for (s16 off : g) {
-			if (off == 0) {
-				continue;
-			}
-			if (off < 0 || static_cast<eng::u32>(off) >= n || (off & 1) != 0) {
-				return false;
-			}
-		}
-		return true;
-	};
-	if (!valid_group(mesh.vertexGroups) || !valid_group(mesh.edgeGroups) ||
-	    !valid_group(mesh.faceGroups)) {
-		return false;
-	}
-	for (s16 off : mesh.faceGroups) {
-		if (off == 0) {
-			continue;
-		}
-		const Face* f = reinterpret_cast<const Face*>(base + off);
-		if (f->count < 0) {
-			return false;
-		}
-		if (base + off + 10 + static_cast<eng::u32>(f->count) * 4u > end) {
-			return false;
-		}
-		const FaceIndex* fi = reinterpret_cast<const FaceIndex*>(base + off + 10);
-		for (s16 k = 0; k < f->count; ++k) {
-			if (fi[k].vertex < 0 || static_cast<eng::u32>(fi[k].vertex) >= n) {
-				return false;
-			}
-			if (fi[k].edge < 0 || static_cast<eng::u32>(fi[k].edge) >= n) {
-				return false;
-			}
-		}
-	}
-	return true;
-}
-
-/// Enlaza el mesh al objeto validando primero (sin detener la CPU): devuelve `false` si
-/// el descriptor no cuadra. Úsalo cuando quieras gestionar el asset corrupto.
-[[nodiscard]] inline bool new_object3d_checked(Object3D& object, const Mesh3D& mesh) {
-	if (!mesh_validate(mesh)) {
-		return false;
+/// Enlaza el mesh al objeto validando primero (sin detener la CPU): devuelve el `Status` de
+/// `MeshBlob::check` si el descriptor no cuadra. Úsalo cuando quieras gestionar el asset corrupto.
+[[nodiscard]] inline MeshBlob::Status new_object3d_checked(Object3D& object, const Mesh3D& mesh) {
+	const MeshBlob::Status status = mesh.bytes.check(mesh.vertexGroups, mesh.edgeGroups, mesh.faceGroups);
+	if (status != MeshBlob::Status::Ok) {
+		return status;
 	}
 	object.objdat = mesh.bytes.data();
-	object.objdat_size = static_cast<eng::u32>(mesh.bytes.size());
+	object.objdat_size = mesh.bytes.size();
 	object.vertexGroups = mesh.vertexGroups.data();
 	object.edgeGroups = mesh.edgeGroups.data();
 	object.faceGroups = mesh.faceGroups.data();
 	object.objects = mesh.objects;
+	object.vertex_group_count = static_cast<eng::u16>(mesh.vertexGroups.size());
+	object.edge_group_count = static_cast<eng::u16>(mesh.edgeGroups.size());
+	object.face_group_count = static_cast<eng::u16>(mesh.faceGroups.size());
 	object.scale = Point3R {eng::retro::q12 {1 << 12}, eng::retro::q12 {1 << 12}, eng::retro::q12 {1 << 12}};
-	return true;
+	return MeshBlob::Status::Ok;
 }
 
 /// Enlaza el mesh al objeto (equivalente a `NewObject3D` sin reservar memoria: el
 /// `Object3D` es del llamador). `scale` queda a 1.0 (4.12). Detiene la CPU si el
 /// descriptor no valida (usa `new_object3d_checked` para gestionarlo sin trampa).
 inline void new_object3d(Object3D& object, const Mesh3D& mesh) {
-	if (!new_object3d_checked(object, mesh)) {
+	if (new_object3d_checked(object, mesh) != MeshBlob::Status::Ok) {
 		mesh_invalid();
 	}
 }
 
-/// Vista de bytes del blob de un `Object3D` (mutable): lo que consumen los accesores.
+/// Vista de bytes del blob de un `Object3D` (mutable): la consume `MeshBlob`.
 [[nodiscard]] inline eng::Span<eng::u8> object_bytes(const Object3D& object) {
 	return eng::Span<eng::u8> {object.objdat, object.objdat_size};
 }
 
-// --- Acceso al `objdat` empaquetado (macros del original) --------------------
-// Reciben la vista `Span<u8>` del blob; devuelven punteros a los structs de formato.
-inline eng::u8* objdat_byte(eng::Span<eng::u8> bytes, s16 i) {
-	return bytes.data() + static_cast<s32>(i);
-}
-inline Node3D* node3d(eng::Span<eng::u8> bytes, s16 i) {
-	return reinterpret_cast<Node3D*>(objdat_byte(bytes, static_cast<s16>(i - 2)));
-}
-inline Point3D* point3d(eng::Span<eng::u8> bytes, s16 i) {
-	return reinterpret_cast<Point3D*>(objdat_byte(bytes, i));
-}
-inline Point3D* vertex3d(eng::Span<eng::u8> bytes, s16 i) {
-	return reinterpret_cast<Point3D*>(objdat_byte(bytes, static_cast<s16>(i + 6)));
-}
-inline Edge* edge3d(eng::Span<eng::u8> bytes, s16 i) {
-	return reinterpret_cast<Edge*>(objdat_byte(bytes, i));
-}
-inline Face* face3d(eng::Span<eng::u8> bytes, s16 i) {
-	return reinterpret_cast<Face*>(objdat_byte(bytes, i));
-}
-inline FaceIndex* face_indices(Face* face) {
-	return reinterpret_cast<FaceIndex*>(reinterpret_cast<eng::u8*>(face) + 10);
+/// Índices (vértice, arista) de una cara — acceso tipado del `MeshBlob` (sin bytes crudos).
+[[nodiscard]] inline eng::Span<FaceIndex> face_indices(Face* face) {
+	return MeshBlob::face_indices(face);
 }
 
 /// Actualiza `objectToWorld`/`worldToObject` y la cámara en espacio objeto.
@@ -334,12 +531,11 @@ inline void update_object_transformation(Object3D& object) {
 	{
 		const math3d::Affine3<>& M = object.worldToObject;
 		const math3d::P3<> t = M.t;
-		object.camera.x = eng::retro::q0 {
-			static_cast<s16>(eng::math::dot_fixed_row<3>(M.m.row(0), t).v)};
-		object.camera.y = eng::retro::q0 {
-			static_cast<s16>(eng::math::dot_fixed_row<3>(M.m.row(1), t).v)};
-		object.camera.z = eng::retro::q0 {
-			static_cast<s16>(eng::math::dot_fixed_row<3>(M.m.row(2), t).v)};
+		// `dot_fixed_row` devuelve ya un `q0` (rescale<0>().cast<s16>()): asignacion directa, sin
+		// `q0{...}` ni `static_cast<s16>` (eran ruido, CODING_STYLE §233).
+		object.camera.x = eng::math::dot_fixed_row<3>(M.m.row(0), t);
+		object.camera.y = eng::math::dot_fixed_row<3>(M.m.row(1), t);
+		object.camera.z = eng::math::dot_fixed_row<3>(M.m.row(2), t);
 	}
 }
 

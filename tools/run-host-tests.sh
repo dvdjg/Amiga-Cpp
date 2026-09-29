@@ -85,6 +85,11 @@ if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 		echo "== links =="
 		node "$LINKS_CHECK"
 	fi
+	CAST_CHECK="$ROOT/tools/analyze/cast-audit.mjs"
+	if [ -f "$CAST_CHECK" ] && command -v node >/dev/null 2>&1; then
+		echo "== casts =="
+		node "$CAST_CHECK" --check
+	fi
 	MATH_DIAG="$ROOT/tools/check/math-diagnostics.sh"
 	if [ -f "$MATH_DIAG" ]; then
 		echo "== math-diagnostics =="
@@ -149,6 +154,15 @@ if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 			exit 1
 		fi
 	fi
+	# Features: demos portables sin hardware directo (registros ni vocabulario de chipset).
+	DEMO_PLATFORM_BOUNDARIES="$ROOT/tools/check/demo-platform-boundaries.mjs"
+	if [ -f "$DEMO_PLATFORM_BOUNDARIES" ] && command -v node >/dev/null 2>&1; then
+		echo "== demo-platform-boundaries =="
+		if ! node "$DEMO_PLATFORM_BOUNDARIES"; then
+			echo "demo-platform-boundaries fallo: una feature usa hardware directo." >&2
+			exit 1
+		fi
+	fi
 	# Estructura tematica del engine (eng/ y core/ por tema; familias de backend).
 	ENGINE_TREE="$ROOT/tools/check/engine-tree.mjs"
 	if [ -f "$ENGINE_TREE" ] && command -v node >/dev/null 2>&1; then
@@ -200,6 +214,27 @@ if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 		echo "== architecture-diagrams =="
 		if ! node "$DIAGRAMS" --strict; then
 			echo "architecture-diagrams fallo: cabecera fundamental sin diagrama ASCII." >&2
+			exit 1
+		fi
+	fi
+	# Detector temporal de parpadeo: auto-test con secuencias sintéticas (se omite si no hay
+	# OpenCV/Python; exit 3 = omitido, no falla).
+	ST_TEMPORAL="$ROOT/tools/vision-review/selftest-temporal.mjs"
+	if [ -f "$ST_TEMPORAL" ] && command -v node >/dev/null 2>&1; then
+		echo "== selftest-temporal =="
+		ec=0; node "$ST_TEMPORAL" || ec=$?
+		if [ "$ec" -ne 0 ] && [ "$ec" -ne 3 ]; then
+			echo "selftest-temporal fallo: el detector de parpadeo no distingue glitch de movimiento." >&2
+			exit 1
+		fi
+	fi
+	# Diff de buffers gráficos (canal lateral): auto-test con servidor fake (sin emulador).
+	ST_SCREENDUMP="$ROOT/tools/vision-review/selftest-screendump.mjs"
+	if [ -f "$ST_SCREENDUMP" ] && command -v node >/dev/null 2>&1; then
+		echo "== selftest-screendump =="
+		ec=0; node "$ST_SCREENDUMP" || ec=$?
+		if [ "$ec" -ne 0 ]; then
+			echo "selftest-screendump fallo: el diff de buffer grafico no detecta el cambio esperado." >&2
 			exit 1
 		fi
 	fi

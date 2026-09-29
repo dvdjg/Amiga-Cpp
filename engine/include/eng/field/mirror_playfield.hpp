@@ -10,7 +10,7 @@
 ///
 /// El mapeo horizontal es el del scroll flat (`map_flat_scroll`); lo propio del
 /// espejo es la superficie (duplicado del bucle) y la cámara Y envolvente.
-/// Verificada por la demo `demos/amiga/121_mirror_scroll`.
+/// Verificada por la demo `demos/techniques/amiga/playfield/121_mirror_scroll`.
 
 #include <eng/core/types/types.hpp>
 #include <eng/field/amiga_display_mapper.hpp>

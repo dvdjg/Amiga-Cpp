@@ -1,0 +1,11 @@
+# Demos "A ADAPTAR": no rompen el build (se saltan) y se rehacen con el mini-OS
+# + la API certificada del engine.
+#
+# Actualmente VACÍA: la deuda histórica (API antigua del Copper —`Block.view`
+# bytes vs `MemView<Tag, Chip>`—) está resuelta. Las demos del mixer que
+# dependían de WAV no versionados ahora se abastecen con assets sintéticos
+# reproducibles vía `tools/audio/gen-demo-assets.sh` (si faltan, `build-all`
+# las marca `ASSET`, no `FAIL`).
+#
+# Formato: una ruta repo-relativa por línea (comentarios con `#`).
+#

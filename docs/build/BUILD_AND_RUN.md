@@ -24,7 +24,7 @@ a dia de hoy las versiones instaladas (1.8.1/1.8.2 y el fork local) son **15.1.0
 ## Compilar una demo
 
 ```powershell
-.\tools\build\build-demo.ps1 demos\amiga\000_toolchain_cpp23 -Clean
+.\tools\build\build-demo.ps1 demos\techniques\amiga\setup\000_toolchain_cpp23 -Clean
 ```
 
 La salida queda en:
@@ -35,6 +35,15 @@ out\demos\<demo>\<demo>.exe
 out\demos\<demo>\<demo>.map
 out\demos\<demo>\<demo>.s
 ```
+
+### Overrides por demo (`build.args`)
+
+Si una demo necesita un nivel de optimizacion distinto para su **TU** sin cambiar el `CONFIG_ID`
+(el resto del perfil sigue igual), puede incluir un fichero `build.args` en su carpeta con una
+asignacion `CLAVE=valor` por linea (comentarios con `#`). Claves admitidas: `ENGINE_OPT`, `DEMO_OPT`
+y `C_OPT`. Es el analogo de `run.args` para el build. Caso de uso: la demo 212 fija `DEMO_OPT=-O2`
+por un bug de codegen de gcc 15 m68k a `-O1` (ver
+`docs/debugging/investigaciones/pump-timer-o1-codegen.md`).
 
 ## Compilar todas las demos (barrido)
 
@@ -52,7 +61,7 @@ La regresion puede incluir el barrido estricto con `--build-all`:
 
 ```bash
 bash ./tools/test-regression.sh --build-all                 # barrido --strict y luego la regresion
-bash ./tools/test-regression.sh --build-all --demo demos/amiga/101_ehb_tile_scroll_driver
+bash ./tools/test-regression.sh --build-all --demo demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver
 ```
 
 Las demos 201 y 202 se autogeneran los assets en `src/prebuild.sh` (como la 078), asi que el
@@ -64,7 +73,7 @@ dependiendo de WAVs no versionados (ver `tools/audio/README.md`) y salen `ASSET`
 Si la demo incluye `src/prebuild.sh`, `tools/build/build-demo.sh` lo ejecuta **antes de compilar** (con cwd = raíz del repo). Es el gancho para regenerar assets derivados de forma reproducible, por ejemplo un blob UAF-R que luego se incbina:
 
 ```text
-demos/amiga/078_math3d_solid/src/prebuild.sh
+demos/techniques/amiga/3d/078_math3d_solid/src/prebuild.sh
   -> node dist/tools/assets/uaf-pack.js out/assets/uaf/cube.uafr --mesh
 ```
 
@@ -73,7 +82,7 @@ Así el flujo `exportador -> incbin -> runtime` se reconstruye en cada build sin
 ## Analizar una demo
 
 ```powershell
-.\tools\analyze\analyze-demo.ps1 demos\amiga\000_toolchain_cpp23
+.\tools\analyze\analyze-demo.ps1 demos\techniques\amiga\setup\000_toolchain_cpp23
 ```
 
 Esta primera version comprueba que existen los artefactos y que el mapa contiene
@@ -83,7 +92,7 @@ ejecuta un analisis visual automatico de la imagen.
 ## Ejecutar una demo
 
 ```powershell
-.\tools\run\run-demo.ps1 demos\amiga\000_toolchain_cpp23
+.\tools\run\run-demo.ps1 demos\techniques\amiga\setup\000_toolchain_cpp23
 ```
 
 El runner:
@@ -98,7 +107,10 @@ El runner:
 - resuelve el emulador en este orden: `WINUAE_GDB_DIR` → **nuestro** `../WinUAE-DBG/bin` (el fork
   con canal lateral y parches GDB) → la extension `bartmanabyss.amiga-debug-*` (su WinUAE stock).
   Asi **actualizar la extension no nos cambia el emulador** por el stock de Bartman (la extension
-  sigue usandose para `bin/dh0` y la config);
+  sigue usandose para `bin/dh0` y la config). **El emulador se lanza con `cwd` = su propio `bin/`**:
+  en `-portable` lee de ahi su `winuae.ini`, y cambiar ese `cwd` (p. ej. con `WINUAE_CWD` a un dir de
+  scratch) le da otra configuracion y **rompe las demos** (medido). Efecto colateral: el conector
+  escribe su `default.uae` en ese `bin/` (inocuo: el runner pasa `-f <config>`);
 - lanza `winuae-gdb.exe`;
 - conecta al servidor GDB de WinUAE-DBG;
 - continua la ejecucion tras el `debugging_trigger`;
@@ -134,7 +146,7 @@ de pedir la imagen.
 Opciones utiles:
 
 ```powershell
-.\tools\run\run-demo.ps1 demos\amiga\030_ehb_palette_zones `
+.\tools\run\run-demo.ps1 demos\techniques\amiga\copper\030_ehb_palette_zones `
   -SideChannelTimeoutMs 10000 `
   -SideChannelPort 2346
 ```
@@ -143,7 +155,7 @@ Para observar una demo manualmente sin que el runner cierre WinUAE al terminar l
 captura:
 
 ```powershell
-.\tools\run\run-demo.ps1 demos\amiga\101_ehb_tile_scroll_driver -KeepRunning
+.\tools\run\run-demo.ps1 demos\techniques\amiga\playfield\101_ehb_tile_scroll_driver -KeepRunning
 ```
 
 Tambien hay un lanzador con menu para uso humano:
@@ -211,7 +223,7 @@ Para consultar una instancia viva manualmente:
 Para mover el raton del Amiga sin usar ni capturar el raton fisico de Windows:
 
 ```powershell
-.\tools\run\run-demo.ps1 demos\amiga\000_toolchain_cpp23 `
+.\tools\run\run-demo.ps1 demos\techniques\amiga\setup\000_toolchain_cpp23 `
   -WaitMs 3000 `
   -MouseFrom 32,40 `
   -MouseTo 280,170 `
@@ -231,7 +243,7 @@ El runner aplica reglas `monitor protect` (bloquear escrituras o forzar valor)
 tras alcanzar READY, antes de las capturas. Sintaxis (repetible):
 
 ```bash
-./tools/run/run-demo.sh demos/amiga/101_ehb_tile_scroll_driver \
+./tools/run/run-demo.sh demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver \
   --protect g_eng_run_status,set:0x5,8 \
   --protect 0x40000,block,16
 ```
@@ -293,7 +305,7 @@ Ese documento define contratos por ROI/frame y checks como
 Uso rapido sobre la demo 101:
 
 ```powershell
-.\tools\test-regression.ps1 -Demo demos\amiga\101_ehb_tile_scroll_driver -PixelAssert -RequirePixelAssertOk
+.\tools\test-regression.ps1 -Demo demos\techniques\amiga\playfield\101_ehb_tile_scroll_driver -PixelAssert -RequirePixelAssertOk
 ```
 
 El informe de regresion incluye columna `PixelAssert`.
@@ -303,7 +315,7 @@ la regresion de demos:
 
 ```powershell
 .\tools\test-regression.ps1 `
-  -Demo demos\amiga\101_ehb_tile_scroll_driver `
+  -Demo demos\techniques\amiga\playfield\101_ehb_tile_scroll_driver `
   -PixelAssert -RequirePixelAssertOk `
   -PixelAssertSelftest
 ```
@@ -312,7 +324,7 @@ Para ejecutar tambien el selftest sintetico (casos positivos/negativos) antes de
 la regresion:
 
 ```powershell
-.\tools\test-regression.ps1 -Demo demos\amiga\101_ehb_tile_scroll_driver -PixelAssert -RequirePixelAssertOk -PixelAssertSelftest
+.\tools\test-regression.ps1 -Demo demos\techniques\amiga\playfield\101_ehb_tile_scroll_driver -PixelAssert -RequirePixelAssertOk -PixelAssertSelftest
 ```
 
 El informe queda en:
@@ -326,7 +338,7 @@ Opciones utiles:
 
 ```powershell
 .\tools\test-regression.ps1 -SkipRun
-.\tools\test-regression.ps1 -Demo demos\amiga\000_toolchain_cpp23
+.\tools\test-regression.ps1 -Demo demos\techniques\amiga\setup\000_toolchain_cpp23
 .\tools\test-regression.ps1 -ReleaseBuild
 .\tools\test-regression.ps1 -KeepGoing
 .\tools\test-regression.ps1 -Warp
@@ -341,6 +353,7 @@ suavidad o depurar visualmente, usa el menu o `run-demo.ps1` sin `-Warp`.
 - **NO usar WSL** para este proyecto: el entorno operativo es **Windows nativo**. Todo comando que invoque `node`, `g++`/el toolchain Amiga, WinUAE o el runner debe ejecutarse con los binarios de Windows (p. ej. `C:\Program Files\nodejs\node.exe`, el `.exe` de la extensión Bartman), no con el `bash` de WSL (que mangla rutas y rompe `cc1plus`/lanzamiento de WinUAE). Si un script necesita bash en Windows, usar Git Bash, nunca WSL. Usar rutas Windows (`C:\...`, `out\run\...`) o montajes `/mnt/c` solo para lectura.
 - El toolchain Amiga se elige por **versión de gcc más moderna** entre `AMIGA_BIN_PATH` y las extensiones de Cursor/VS Code `bartmanabyss.amiga-debug-*` (a día de hoy todas son gcc 15.1.0; el toolchain de Windows de la extensión va por detrás del README, que anuncia 15.2).
 - `tools/run/run-demo.ts` importa dinámicamente `../mcp-winuae-emu/dist/winuae-connection.js` desde el repositorio hermano; si falta, el runner falla antes de abrir WinUAE.
+- **Python + OpenCV (opcional)** para la capa determinista de análisis visual de parpadeo (`tools/vision-review/temporal-detect.py`): `pip install opencv-python numpy`. Si no está, `flicker-check.mjs` avisa y usa el fallback de rejilla de luminancia; el resto del pipeline no depende de Python. La `tools/vision-review/PROMPTS.md` detalla el flujo híbrido (determinista → visión).
 
 ## Reglas del runner/emulador
 

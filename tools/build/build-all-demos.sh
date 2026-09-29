@@ -12,6 +12,8 @@
 #   ASSET -> falla porque falta un asset GENERADO en out/ (un `.raw` de audio,
 #            un header del pipeline de tiles, …). No es un fallo de codigo.
 #   FAIL  -> error de compilacion/enlace: rotura de codigo.
+#   SKIP  -> demo marcada "a adaptar" en tools/build/skip-demos.txt (no cuenta
+#            como fallo; se rehace con el mini-OS + la API certificada).
 #
 # Codigo de salida: 1 si hay algun FAIL; 0 si solo hay ASSET. Con --strict
 # tambien devuelve 1 si hay ASSET (para exigir el arbol de assets completo).
@@ -21,8 +23,9 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+. "$ROOT/tools/lib/demos.sh"
 
-PLATFORM="amiga"
+PLATFORM=""
 PATTERN=""
 BUILD_FLAG="--debug"
 CLEAN="--clean"
@@ -41,12 +44,6 @@ while [ $# -gt 0 ]; do
 	esac
 done
 
-DEMOS_DIR="$ROOT/demos/$PLATFORM"
-if [ ! -d "$DEMOS_DIR" ]; then
-	echo "No existe demos/$PLATFORM" >&2
-	exit 2
-fi
-
 # Un asset GENERADO ausente lo delatan el ensamblador (`.incbin`) o el include
 # del preprocesador; ambos nombran una ruta bajo `out/assets/`.
 ASSET_RE='file not found: out/assets/|out/assets/[A-Za-z0-9_./-]+: No such file or directory'
@@ -59,15 +56,23 @@ ONE="$ROOT/out/tmp/build-all-one.log"
 ok=0
 asset=0
 fail=0
+skip=0
+SKIP_LIST="$ROOT/tools/build/skip-demos.txt"
 
-for d in "$DEMOS_DIR"/*/; do
-	[ -d "$d" ] || continue
-	name="$(basename "$d")"
+for rel in $(list_demos_rel "$ROOT"); do
+	name="$(basename "$rel")"
 	if [ -n "$PATTERN" ]; then
 		case "$name" in *"$PATTERN"*) ;; *) continue ;; esac
 	fi
+	if [ -n "$PLATFORM" ]; then
+		case "$rel" in *"$PLATFORM"*) ;; *) continue ;; esac
+	fi
+	if [ -f "$SKIP_LIST" ] && grep -qxF "$rel" "$SKIP_LIST"; then
+		skip=$((skip + 1))
+		printf 'SKIP  %s\n' "$name"
+		continue
+	fi
 
-	rel="demos/$PLATFORM/$name"
 	if bash "$ROOT/tools/build/build-demo.sh" "$rel" "$BUILD_FLAG" $CLEAN >"$ONE" 2>&1; then
 		ok=$((ok + 1))
 		printf 'OK    %s\n' "$name"
@@ -89,7 +94,7 @@ for d in "$DEMOS_DIR"/*/; do
 done
 
 echo ""
-echo "TOTAL ok=$ok asset=$asset fail=$fail  (detalle: out/tmp/build-all.log)"
+echo "TOTAL ok=$ok asset=$asset fail=$fail skip=$skip  (detalle: out/tmp/build-all.log)"
 
 if [ "$fail" -gt 0 ]; then
 	exit 1

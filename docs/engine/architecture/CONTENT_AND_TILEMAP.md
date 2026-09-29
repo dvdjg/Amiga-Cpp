@@ -56,7 +56,7 @@ WorldMap (disperso)
   El scroll consume un `TileMapView<Src>` (`tile_source.hpp`): un `TileSource` (disperso o streaming)
   más los límites/wrap del mundo, de modo que el playfield no depende del almacén. Tests:
   `tests/host/field/025_tile_source`, `tests/host/field/026_chunk_cache`, `tests/host/field/029_streaming_map`,
-  `tests/host/field/030_tile_map_view`. Demo de hardware: `demos/amiga/111_xlimited_sidescroller`
+  `tests/host/field/030_tile_map_view`. Demo de hardware: `demos/techniques/amiga/playfield/111_xlimited_sidescroller`
   (`StreamingWorldMap` + `prefetch` de la banda por frame).
 - **Formato**: el mundo se empaqueta como chunk `WorldMap` sobre UAF-R (directorio de chunks
   ordenado + celdas de índice de banco, con `gid` ya resuelto en el host) con la tool

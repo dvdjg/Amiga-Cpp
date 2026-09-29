@@ -33,6 +33,7 @@ enum class MsgType : eng::u8 {
 	// Sistema / E-S
 	FileDone, FileError, DiskChange,
 	BlitDone, ///< fin de blit (IRQ BLIT)
+	IntentDone, ///< una **intención** llegó a su punto (el `ticket` va en `payload.user.a`)
 	MusicEnd, ///< el módulo de música terminó (sin loop); uno por evento, no por buffer
 	AudioUnderrun, ///< el mixer o un stream se quedó sin datos; uno por evento
 

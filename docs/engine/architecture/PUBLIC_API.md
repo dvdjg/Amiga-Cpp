@@ -114,6 +114,23 @@ Las demos consultan directamente la superficie y el display (`hardware_view()`, 
 - el acceso a la vista hardware queda **solo** para la composición/debug (`eng::debug::`), no para
   la lógica.
 
+### 8.1 Huecos detectados al portar la demo 213 (`abyss`)
+
+El port de `BartmanBasic/main.c` al mini-SO dejó la lógica a ~50 fps, pero cada mecanismo tuvo que bajarse a mano al nivel de blit/copper/puntero. Estos son los huecos de «API de juego» que el port descubrió, de mayor a menor impacto:
+
+| Hoy en la app | Abstracción que falta (game-API) | Nota |
+|---|---|---|
+| `make_interleaved_masked_bob(job, src, dest, w, h, planes, row_bytes, shift)` con `u16*`/`u8*` y cuenta de planos | `ctx.blit_bob(sprite, x, y)` / `ctx.draw(actor)` | El helper ya evita conocer módulos y minterm, pero sigue viendo punteros y el layout interleaved. Debería ser el **contexto de dispositivo** de §12. |
+| `m_scroll = m_sched.patchable(copper::Register::BPLCON1, 0)` + `m_scroll.set(...)` | `layer.scroll_x = ...` (cámara, §8) | Un `PatchHandle` tipado es buena señal, pero la app aún nombra `Register::BPLCON1`; la cámara debe ser el vocabulario. |
+| `for k: m_sched.wait_line(...); m_sched.move(color_register(i), pal[i])` (degradado) | `palette.color(i, c)` / `background.fade(line, c)` | Efectos de raster expresados como copper crudo, no como intención. |
+| `takeover_display(m_copper_words)` + mantener vivo `m_sched` | `display.present(scene)` | La app no debería poseer la copperlist ni su almacenamiento. |
+| `Block<MusicTag>`/`Block<AudioTag>` copiados a Chip a mano | `res::load<Music>("testmod.p61")` | Caché de assets de `RESOURCE_SYSTEM.md`; el `Block<Tag>` y la copia Chip son internalizables. |
+| `set_frame_task(&Demo::fn, this)` (puntero a función + `void*`) | `music.play(port)` como recurso + concepto/`Game` | Los callbacks con `void*` son estilo C; el patrón del engine es `Game`/concept, no un puntero suelto. |
+| `m_quit = true` en `on_msg` | `ctx.request_quit()` | Intención de ciclo de vida sin campo propio. |
+| `debug::set_status(state, detail)` manual (bit 17 = música ok) | telemetría del engine | El estado de la app puede inferirse de `world.inspect()`/presupuesto. |
+
+Ninguno bloquea; son el **siguiente escalón** hacia que la lógica de juego no vea `u16*`, `Register::` ni punteros de copper. El helper `make_interleaved_masked_bob` y el `PatchHandle` del scheduler son el primer paso (subir el descriptor al engine sin cambiar el modelo).
+
 ## 9. Herramientas C++23 que se aprovechan
 
 - **concepts** para policies (`ScrollStrategy`, `Effect`, `Sink`) y para el `Game`.

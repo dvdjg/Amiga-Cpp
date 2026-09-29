@@ -1,14 +1,23 @@
 #!/usr/bin/env bash
-# Compila la demo o test que contiene el archivo fuente indicado con -O1 (la
-# optimizacion estandar de las demos) y publica una copia estable para el
-# depurador integrado de Bartman bajo el nombre current_opt.
+# Compila la demo o test que contiene el archivo fuente indicado con -O2
+# (`--release`, el perfil rapido) y publica una copia estable para el depurador
+# integrado de Bartman bajo el nombre current_opt.
 #
-# Diferencia con build-current-demo.sh: este NO pasa --o0, asi que el codigo
-# generado es ~2x mas rapido y las demos alcanzan 50fps en el emulador. A
-# cambio, las variables locales pueden estar optimizadas (dificil de depurar).
+# Diferencia con build-current-demo.sh: ese usa -O1 (`--debug`, perfil de
+# depuracion fiable); este usa -O2 y es el que corre mas rapido en el emulador.
+# A cambio, las variables locales pueden estar optimizadas (dificil de depurar).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+# Invalida SIEMPRE el binario optimizado publicado al EMPEZAR (mismo motivo que
+# build-current-demo.sh): si algo falla, no debe quedar un `current_opt` viejo que el
+# depurador arranque como si fuera la demo activa. Solo se republica al final, en exito.
+CURRENT_OUT="$ROOT/out/debug-current"
+mkdir -p "$CURRENT_OUT"
+rm -f "$CURRENT_OUT/current_opt" "$CURRENT_OUT/current_opt.exe" "$CURRENT_OUT/current_opt.elf" \
+      "$CURRENT_OUT/current_opt.map" "$CURRENT_OUT/current_opt.s"
+
 SOURCE_INPUT="${1:-}"
 if [ -z "$SOURCE_INPUT" ]; then
 	echo "Uso: tools/debug/build-current-demo-opt.sh <archivo-fuente>" >&2
@@ -33,7 +42,7 @@ case "$RELATIVE" in
 		echo "El archivo no pertenece a demos/<nombre>/src o tests/<nombre>/src: $RELATIVE" >&2
 		echo "F5 compila la demo que contiene el archivo ACTIVO. Para ejecutar la demo" >&2
 		echo "107_xlimited_corkscrew abre y enfoca su src/main.cpp antes de pulsar F5:" >&2
-		echo "  demos/amiga/107_xlimited_corkscrew/src/main.cpp" >&2
+		echo "  demos/techniques/amiga/playfield/107_xlimited_corkscrew/src/main.cpp" >&2
 		CURRENT_OUT="$ROOT/out/debug-current"
 		mkdir -p "$CURRENT_OUT"
 		cat > "$CURRENT_OUT/session_opt.json" <<EOF
@@ -54,15 +63,21 @@ if [ ! -d "$ROOT/$TARGET" ]; then
 fi
 
 BUILD_SCRIPT="$ROOT/tools/build/build-demo.sh"
-# --debug sin --o0 => -O1 (la optimizacion estandar de las demos).
-"$BUILD_SCRIPT" "$TARGET" --debug --clean
+# --release => -O2 (perfil rapido; el de depuracion es build-current-demo.sh).
+"$BUILD_SCRIPT" "$TARGET" --release --clean
 
 TARGET_NAME="$(basename "$TARGET")"
-SOURCE_OUT="$ROOT/out/demos/$TARGET_NAME"
+# Id de build (features por ruta, resto por leaf), igual que build-demo.sh.
+TARGET_REL="${TARGET#demos/}"; TARGET_REL="${TARGET_REL#tests/}"
+case "$TARGET_REL" in
+	features/*) DEMO_ID="$(printf '%s' "${TARGET_REL#features/}" | tr '/' '_')" ;;
+	*) DEMO_ID="$TARGET_NAME" ;;
+esac
+SOURCE_OUT="$ROOT/out/demos/$DEMO_ID"
 CURRENT_OUT="$ROOT/out/debug-current"
 mkdir -p "$CURRENT_OUT"
-# Build por configuraciones: --debug = -O1 se publica en .../A500_debug/.
-CONFIG_DIRS="$(ls -dt "$SOURCE_OUT"/A500_debug 2>/dev/null)"
+# Build por configuraciones: --release = -O2 se publica en .../A500_release/.
+CONFIG_DIRS="$(ls -dt "$SOURCE_OUT"/A500_release 2>/dev/null)"
 CONFIG_EXE="$(ls -t "$CONFIG_DIRS"/*.exe 2>/dev/null | head -n1)"
 if [ -z "$CONFIG_EXE" ]; then
 	CONFIG_EXE="$(ls -t "$SOURCE_OUT"/*/*.exe 2>/dev/null | head -n1)"

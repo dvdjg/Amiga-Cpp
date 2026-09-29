@@ -50,6 +50,8 @@ struct Visual {
     u16 w = 0;
     u16 h = 0;
     u8  bitplanes = 0;
+    u8  frame_count = 1;        // frames en la hoja (1 = imagen suelta)
+    u32 frame_stride = 0;       // bytes entre frames (0 = denso/una sola imagen)
     u16 offset_x = 0;           // shift de blit (X no alineada a 16 px)
     u16 palette_base = 16;      // COLORxx base (sprites usan COLOR16+)
 };
@@ -103,6 +105,8 @@ struct BlitterJob {
     u16 bltcon1 = 0;
     u16 bltafwm = 0xffff;
     u16 bltalwm = 0xffff;
+    u16 bltadat = 0;    ///< `BLTADAT`: en modo línea, `0x8000` (punto de la pendiente)
+    u16 bltbdat = 0;    ///< `BLTBDAT`: en modo línea, `0xffff`
     s16 bltamod = 0;
     s16 bltbmod = 0;
     s16 bltcmod = 0;
@@ -186,7 +190,7 @@ struct CopperIntent {
     u8  first = 0;
     u8  count = 0;
     s16 shift_x = 0;              // ShiftLines
-    eng::PlaneBytes bitplanes {};  // BitplaneSplit (base del primer plano)
+    eng::ChipPlaneView bitplanes {};  // BitplaneSplit (base del primer plano, Chip)
     u8  sprite_channel = 0;       // SpriteRearm
     const u16* sprite_ptr = nullptr; // SpriteRearm (nueva DATA del canal)
     const BlitterJob* blitter_job = nullptr; // BlitterJob (registros a programar)

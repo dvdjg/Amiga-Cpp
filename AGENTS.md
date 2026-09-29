@@ -58,6 +58,7 @@ contexto irrelevante a quien trabaja en otra cosa.
 ### 1.6 Buscar antes de implementar
 
 - **Nunca implementar una utilidad o API del engine sin comprobar antes que no existe ya.** Antes de escribir `draw_text`, una fuente, un blit, un driver o cualquier ayuda reusable, buscar en `engine/include/`, `demos/` y `tools/` (grep por nombre y por concepto: «text», «font», «blit», «surface», «scene», «palette»…) y en los índices de `docs/` (`DOC-MAP-PRINCIPAL.md`, READMEs, roadmaps).
+- Para **constantes, máscaras y valores mágicos**: `node tools/analyze/duplicate-constants.mjs` lista los valores ya declarados bajo **otro nombre** en otro fichero (evita duplicar; p. ej. cazó `kBlitterMintermCopyC`/`blt_minterm_copy_c` y `kMintermAOrB` en `blob.hpp`). Si ya existe, se **reutiliza o se aliasa**; no se redeclara.
 - Si ya existe (incluso en una demo): **reutilizar, generalizar o subir al engine**, nunca duplicar. Una implementación local en una demo que sirve a otras debe promoverse a `engine/` como utilidad reutilizable.
 - Antes de añadir un archivo nuevo en `engine/`, listar los helpers existentes del dominio y decidir explícitamente: ¿esto ya lo cubre `X`? ¿Puedo extender `X` en vez de crear `Y`?
 - Aplica también a **fuentes, tablas y glifos**: buscar si el carácter/glifo ya está antes de redibujarlo.
@@ -106,6 +107,13 @@ El objetivo es que el usuario pueda **revisar** el trabajo antes de que se conso
 - Documentar el hallazgo en `docs/reference/emulators/<emulador>/<tema>.md` (índice en `docs/reference/emulators/README.md`), citando **fichero y línea**. Ficha de referencia por **tema**: mecanismo observado (tabla `registro/handler/fuente`), contraste con el AHRM, implicación para el engine y enlaces al código que la usa. Ejemplo: [`winuae/audio-irq.md`](docs/reference/emulators/winuae/audio-irq.md) (IRQ de audio: `setirq`/`event_audxdat_func`, `AUDxLEN`/`AUDxLCH`, contraste AHRM `:4378`, y por qué el servicio de nivel 4 es el sitio del *swap*).
 - **Completar la referencia**: si el emulador aclara o corrige la doc del manual, añadir la aclaración a la copia local (`docs/reference/ahrm/ERRATA_Y_NOTAS.md` o la ficha de técnica), indicando **de dónde se obtuvo** (emulador + `fichero:línea`).
 
+### 1.12 Las demos son tutoriales
+
+- **Toda demo debe poder leerse como un tutorial de cómo se programa el engine**: enseña el camino correcto (la fachada estable) resolviendo un caso concreto, no solo «funciona». El código es material didáctico de primera clase.
+- **Comentarios al nivel de la intención**: cada bloque explica **qué** se hace con el vocabulario del engine (`App`/`Screen`/`Scene`/`BobLayer`/`RasterLayout`/`CopperIntent`…), **por qué** es así y **qué haría mal un lector** si bajara a bajo nivel; las decisiones no obvias (alineación, orden de registros, `MEMF_*`, límites de hardware) citan la referencia canónica.
+- **Sin bajo nivel gratuito**: la lógica de la demo usa la fachada (`eng/api/api.hpp` + tipos de dominio); no nombra registros del chipset, punteros crudos, `BlitJob`, bancos de memoria ni tipos del backend. Si algo obliga a bajar, es una abstracción que falta (§1.9) y se resuelve en el engine — no se deja crudo en la demo.
+- **El comentario enseña la regla, no el paso a paso de la máquina**: nada de narrar cronología ni intentos descartados (eso va a `docs/debugging/`); el `README.md` de la demo presenta el efecto, la técnica (con su ficha en `docs/reference/`) y el contrato que ilustra.
+
 ---
 
 ## 2. El repositorio
@@ -120,7 +128,7 @@ La organización de directorios es canónica y está especificada en **`docs/STR
 | Área | Contenido |
 |---|---|
 | `engine/` | Código del engine: `include/eng/` (API, algoritmos, librerías, capas de abstracción) + `src/platform/` (implementaciones backend por máquina). |
-| `demos/` | Demos por plataforma: `demos/<plataforma>/<NNN>_<tema>/`. Hoy todas en `demos/amiga/`. Los assets que usa una demo no viven en ella: fuente en `assets/`, generados en `out/assets/<pipeline>/`, incrustados por `incbin`/include. |
+| `demos/` | Demos en dos raíces: `techniques/<familia>/<categoría>/NNN_<tema>/` (técnicas de hardware) y `features/<feature>/<plataforma>/NNN_<tema>/` (features portables con lógica en el engine). Variante de build (`A500`/`A1200`/`ST`/`STE`) por `TARGET_MACHINE`, no por directorio. Los assets no viven en la demo: fuente en `assets/`, generados en `out/assets/<pipeline>/`. Ver `docs/guides/roadmap/PLAN_ORGANIZACION_DEMOS.md`. |
 | `assets/` | Assets fuente (raw, con licencia): `assets/<plataforma>/<dominio>/` (tiles-reference/, sprites/, audio/, maps/). Solo lectura por pipelines. |
 | `tools/` | Herramientas host del pipeline (TypeScript/bash, compiladas a `dist/`); `scripts/` = scripts de entorno; `support/` = ASM/C de apoyo al linkado. |
 | `host-tools/` | Programas de apoyo independientes del engine (Go/C++ para PC). |
@@ -150,11 +158,11 @@ Windows nativo + Git Bash + Node.js. **No usar WSL** para invocar binarios `.exe
 
 ### 3.2 Comandos canónicos
 
-- Compilar una demo: `bash ./tools/build/build-demo.sh demos/amiga/000_toolchain_cpp23 --debug --clean`
-- Ejecutar una demo y capturar: `bash ./tools/run/run-demo.sh demos/amiga/000_toolchain_cpp23`
-- Analizar una demo: `bash ./tools/analyze/analyze-demo.sh demos/amiga/000_toolchain_cpp23`
+- Compilar una demo: `bash ./tools/build/build-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23 --debug --clean`
+- Ejecutar una demo y capturar: `bash ./tools/run/run-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23`
+- Analizar una demo: `bash ./tools/analyze/analyze-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23`
 - Regresión completa: `bash ./tools/test-regression.sh`
-- Bucle de regresión de una demo: `bash ./tools/test-regression.sh --demo demos/amiga/101_ehb_tile_scroll_driver --warp`
+- Bucle de regresión de una demo: `bash ./tools/test-regression.sh --demo demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver --warp`
 
 ### 3.3 Orden de verificación (no saltar)
 
@@ -164,12 +172,12 @@ Windows nativo + Git Bash + Node.js. **No usar WSL** para invocar binarios `.exe
 
 ### 3.4 WinUAE concurrente: puertos y convivencia entre hilos
 
-- En este build, **el puerto GDB de WinUAE-DBG es fijo (2345)**: `WINUAE_GDB_PORT` solo cambia a dónde conecta el cliente, no el puerto del emulador; ponerlo a otro valor rompe el enlace. El **canal lateral** sí es configurable con `WINUAE_SIDE_CHANNEL_PORT` (verificado). Consecuencia: **solo una instancia de WinUAE-DBG puede usar GDB a la vez**.
-- Antes de lanzar, el runner comprueba con `netstat` si 2345 o el canal lateral están ocupados. Si lo están, **falla con un mensaje claro** en vez de conectarse a una instancia ajena (evita capturas cruzadas). Para serializar el GDB entre hilos: `--wait-port <segundos>` espera a que se libere; `--reset-emulator` libera **solo** los PIDs que escuchan esos puertos.
-- **Nunca matar** procesos `winuae-gdb`/`winuae64` ajenos: solo cerrar los propios (por PID) al terminar. Nunca `taskkill /IM winuae-gdb.exe`, que mata a todas las instancias.
-- Cada hilo puede usar un **canal lateral propio** (`WINUAE_SIDE_CHANNEL_PORT`) para reducir colisiones, pero al compartir el GDB 2345 debe coordinarse con otros hilos. Detalle: `docs/debugging/system/debug-winuae-v2-guide.md` §1.3–1.4.
+- **Los dos puertos son configurables** por entorno: el servidor GDB del fork lee **`WINUAE_GDB_PORT`** (por defecto 2345) y el canal lateral lee **`WINUAE_SIDE_CHANNEL_PORT`** (por defecto 2346). El runner pasa el puerto al proceso del emulador (el `spawn` lo hereda), así que **cliente y servidor coinciden**: cada hilo/agente puede depurar en paralelo con su **par de puertos propio** (p. ej. GDB 2355 + canal 2421) sin colisión. `WINUAE_GDB_PERSIST_LISTENER` mantiene el GDB escuchando tras desconectar. Requiere la build del fork con «GDB port configurable» (commit `6783d952`).
+- **Regla de convivencia**: **cada hilo/agente elige al empezar su par de puertos** y lo usa siempre; **si un puerto está ocupado, no forzar: usar otro par** (no conectarse a una instancia ajena). Antes de lanzar, el runner comprueba con `netstat` si los puertos están ocupados y **falla con un mensaje claro**; `--wait-port <segundos>` espera a que se liberen y `--reset-emulator` libera **solo** los PIDs que los escuchan.
+- **Nunca matar** procesos `winuae-gdb`/`winuae64` ajenos: solo cerrar los propios (por PID) al terminar. Nunca `taskkill /IM winuae-gdb.exe`, que mata a todas las instancias. Registrar los PIDs lanzados y limpiarlos al terminar (no dejar instancias huérfanas ocupando puertos).
+- Detalle completo y bases de puertos: `docs/debugging/system/debug-winuae-v2-guide.md` §1.3–1.4.
 
-Ejemplo: `WINUAE_SIDE_CHANNEL_PORT=2418 bash ./tools/run/run-demo.sh demos/amiga/000_toolchain_cpp23`.
+Ejemplo: `WINUAE_GDB_PORT=2355 WINUAE_SIDE_CHANNEL_PORT=2421 bash ./tools/run/run-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23`.
 
 ---
 
@@ -180,10 +188,12 @@ Estas reglas son obligatorias, pero solo son relevantes cuando se toca su domini
 | Regla / dominio | Documento obligatorio |
 |---|---|
 | **Tests y verificación por demo** (toda API con test; NO VERIFICADA si no hay demo) | `docs/testing/README.md` |
+| **Construcción por etapas de efectos gráficos/hardware** (CPU primero, luego Blitter/Copper; equivalencia CPU como referencia; parar tras 3–4 intentos) | `docs/guides/methodology/PROTOCOLO_ETAPAS_GRAFICOS.md` |
 | **Demos atractivas, validación visual (Ollama) y gate de optimizaciones de render** | `docs/guides/methodology/DEMO_VISUAL_DEBUG.md` |
 | **API del engine** (sin hardware, sin punteros, versátil, prueba de diseño) | `docs/engine/architecture/PUBLIC_API.md` |
 | **Estilo y restricciones de diseño** (gnu++23, sin excepciones/RTTI/heap, APIs paramétricas, agnosticismo del backend, comentarios didácticos) | `docs/engine/architecture/CODING_STYLE.md` |
 | **Rendimiento, comentario de optimizaciones y port de rutinas calientes a asm** | §12 de `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` |
+| **Análisis de rendimiento de una demo** (medir SIEMPRE con el perfil `.amigaprofile` + IA local; hotspots por rutina y defectos de pantalla con visión) | `docs/tools/PROFILING_FROM_AGENT.md` |
 | **Copper y buffers de display** (`copper::Plan`, `MultiBuffered`, doble buffer de copperlist) | §6 de `docs/engine/architecture/DISPLAY_COMPOSITION.md` |
 | **Objetos: BOB ≠ polígono, transparencia, fondo, copper por objeto** | `docs/engine/architecture/OBJECT_SYSTEM.md` |
 | **Blitter / minterms / líneas y polígonos** | `docs/reference/amiga/techniques/README.md` y `blitter-line-subpixel-fill.md` |

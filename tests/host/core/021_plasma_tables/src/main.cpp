@@ -9,8 +9,8 @@
 
 #include <cstdio>
 
-#include "../../../../../demos/amiga/082_plasma/src/data/plasma_colors.hpp"
-#include "../../../../../demos/amiga/082_plasma/src/data/plasma_tables.hpp"
+#include "../../../../../demos/techniques/amiga/effects/082_plasma/src/data/plasma_colors.hpp"
+#include "../../../../../demos/techniques/amiga/effects/082_plasma/src/data/plasma_tables.hpp"
 
 int main() {
 	const auto& t = plasma_data::kTables;

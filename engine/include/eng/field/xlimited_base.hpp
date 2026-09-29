@@ -278,7 +278,7 @@
 ///
 ///   - **Host:** `tools/analyze/verify-xlimited.mjs` — comprueba que
 ///     `draw_block_job` usa `map_tile_y == mapy` y que `steps` es 1.
-///   - **Runtime:** `demos/amiga/107_xlimited_corkscrew/analyze-sequence.sh --warp`
+///   - **Runtime:** `demos/techniques/amiga/playfield/107_xlimited_corkscrew/analyze-sequence.sh --warp`
 ///     analiza `out/run/107_xlimited_corkscrew/sequence/frame_*.png` con
 ///     `tools/analyze/analyze-frame-sequence.sh`: `DuplicatePairs` debe ser 0,
 ///     `ChangedPairs` 99/100, `MeanDiffAvg` estable (~68) y sin picos de
@@ -302,7 +302,7 @@
 ///      `K_FETCH_MODE` a 0 o reducir `K_TILE_WIDTH` a 16.
 ///   4. Tras cualquier cambio en `XlimitedConfig`, ejecutar
 ///      `node tools/analyze/verify-xlimited.mjs` (host) y
-///      `bash demos/amiga/107_xlimited_corkscrew/analyze-sequence.sh --warp` (runtime)
+///      `bash demos/techniques/amiga/playfield/107_xlimited_corkscrew/analyze-sequence.sh --warp` (runtime)
 ///      y exigir `OK telemetría`, `OK columna`, `DuplicatePairs==0` y
 ///      `green>0` en `analyze-demo.sh`.
 ///
@@ -446,8 +446,8 @@ enum class AxisPolicy : u8 { Ring = 0, Finite = 1, Off = 2 };
 /// ```bash
 /// # viewport 320×256 normal (caso base, sin Copper segmentado) — single 4 planos
 /// EXTRA_DEFINES="-DK_TILE_WIDTH=16" AMIGA_BIN_PATH=".../bin/win32" \
-///   bash ./tools/build/build-demo.sh demos/amiga/107_xlimited_corkscrew --debug --clean
-/// bash demos/amiga/107_xlimited_corkscrew/analyze-sequence.sh --warp
+///   bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/107_xlimited_corkscrew --debug --clean
+/// bash demos/techniques/amiga/playfield/107_xlimited_corkscrew/analyze-sequence.sh --warp
 ///
 /// # viewport 288×224 (18×14 tiles) con 16×16 pantallas → mapa 288×224 tiles
 /// EXTRA_DEFINES="-DK_VIEWPORT_W=288 -DK_VIEWPORT_H=224 -DK_SCREENS_X=16 -DK_SCREENS_Y=16" ...
@@ -465,11 +465,11 @@ enum class AxisPolicy : u8 { Ring = 0, Finite = 1, Off = 2 };
 /// ### Variantes de ejecución / verificación
 ///
 /// ```bash
-/// bash demos/amiga/107_xlimited_corkscrew/analyze-sequence.sh --warp
+/// bash demos/techniques/amiga/playfield/107_xlimited_corkscrew/analyze-sequence.sh --warp
 /// # sin --warp para evaluar suavidad a 50 fps (warp=false por defecto en run-demo)
-/// bash ./tools/test-regression.sh --demo demos/amiga/107_xlimited_corkscrew --warp
+/// bash ./tools/test-regression.sh --demo demos/techniques/amiga/playfield/107_xlimited_corkscrew --warp
 /// # Barrido de parámetros (cuando DPF esté implementado):
-/// bash ./tools/test-regression.sh --demo demos/amiga/107_xlimited_corkscrew --warp --keep-going
+/// bash ./tools/test-regression.sh --demo demos/techniques/amiga/playfield/107_xlimited_corkscrew --warp --keep-going
 /// ```
 ///
 /// Si `analyze-sequence.sh --warp` informa `FAILED detail=0x10704` (67332),

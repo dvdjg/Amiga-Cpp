@@ -44,9 +44,20 @@ int main() {
 	eng::u8 a[kPlaneBytes] {};
 	eng::u8 b[kPlaneBytes] {};
 
+	// La procedencia viaja entera (`Block`): en host no hay Chip RAM, pero el MEDIO se declara
+	// (nominal) para que la vía Blitter sea alcanzable.
+	const auto cblk = [](eng::u8* p, eng::usize n) {
+		return eng::Block<eng::ChunkyTag> {eng::Bytes<eng::ChunkyTag> {p, n},
+						   eng::MemoryKind::Chip};
+	};
+	const auto pblk = [](eng::u8* p, eng::usize n) {
+		return eng::Block<eng::PlaneTag> {eng::Bytes<eng::PlaneTag> {p, n},
+						  eng::MemoryKind::Chip};
+	};
+
 	const eng::field::C2pRequest req {
-		eng::ChunkyView {chunky, sizeof(chunky)},
-		eng::PlaneBytes {a, sizeof(a)},
+		cblk(chunky, sizeof(chunky)),
+		pblk(a, sizeof(a)),
 		kW,
 		kH,
 		kPlaneStride,
@@ -75,8 +86,8 @@ int main() {
 	// 6 planos -> cae a la via naive sin fallar.
 	eng::u8 c6[kPlaneStride * 6u] {};
 	const bool ok6 = eng::field::kCpuRaster.c2p(eng::field::C2pRequest {
-		eng::ChunkyView {chunky, sizeof(chunky)},
-		eng::PlaneBytes {c6, sizeof(c6)},
+		cblk(chunky, sizeof(chunky)),
+		pblk(c6, sizeof(c6)),
 		kW,
 		kH,
 		kPlaneStride,
@@ -89,8 +100,8 @@ int main() {
 		eng::graphics::FramePlan plan {};
 		eng::u8 dst[kPlaneBytes] {};
 		const bool queued = eng::field::kBlitterRaster.c2p(eng::field::C2pRequest {
-			eng::ChunkyView {chunky, sizeof(chunky)},
-			eng::PlaneBytes {dst, sizeof(dst)},
+			cblk(chunky, sizeof(chunky)),
+			pblk(dst, sizeof(dst)),
 			kW,
 			kH,
 			kPlaneStride,
@@ -109,8 +120,8 @@ int main() {
 	{
 		eng::u8 dst[kPlaneBytes] {};
 		check(eng::field::kBlitterRaster.c2p(eng::field::C2pRequest {
-			      eng::ChunkyView {chunky, sizeof(chunky)},
-			      eng::PlaneBytes {dst, sizeof(dst)}, kW, kH, kPlaneStride, 4u}),
+			      cblk(chunky, sizeof(chunky)),
+			      pblk(dst, sizeof(dst)), kW, kH, kPlaneStride, 4u}),
 		      "BlitterRaster::c2p sin plan cae a CPU");
 	}
 

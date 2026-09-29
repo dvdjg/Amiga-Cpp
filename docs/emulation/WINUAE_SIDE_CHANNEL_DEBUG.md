@@ -134,6 +134,12 @@ lock. En la verificacion del 2026-05-30 genero:
 - `out\run\030_ehb_palette_zones\side-channel-shot.png`
 - `out\run\030_ehb_palette_zones\side-channel-profile.bin`
 
+Ademas, tras liberar el lock cierra su cliente del canal lateral (el socket admite un
+cliente) y ejecuta `tools/vision-review/screendump-diff.mjs --from-copper`, que deduce
+base/geometria de la copperlist activa (`COP1LC` → `BPL1PT`/`BPL1MOD`) y compara el
+framebuffer por planos en dos momentos. El reporte incluye `copper.cop1lc` y
+`screendumpDiff` (pixeles por plano, bbox y bloques calientes).
+
 Durante esta prueba se encontro y corrigio un bug importante: el tokenizer del
 servidor consumia las barras `\` dentro de rutas Windows entrecomilladas. Ahora
 solo interpreta `\"` y `\\` como escapes; el resto de barras se conservan como

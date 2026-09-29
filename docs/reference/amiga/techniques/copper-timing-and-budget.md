@@ -134,7 +134,7 @@ El Blitter es **único**: un blit lanzado por Copper debe **serializarse** con l
 `Scheduler::set_blitter_window` declara la **ventana segura** (rango de líneas fuera del área
 visible y de los blits de CPU, p. ej. el borde inferior) y `emit_blitter_job` solo materializa el
 trabajo dentro de ella; fuera, cuenta como no manejado. Demos/tests:
-`demos/amiga/210_copper_blitter`, `tests/host/graphics/260_copper_blitter`.
+`demos/techniques/amiga/blitter/210_copper_blitter`, `tests/host/graphics/260_copper_blitter`.
 
 ## 7. Antipatrones
 
@@ -174,4 +174,4 @@ rompe `constexpr`, complica tests y `const`; su lugar son las rutinas asm ya por
 - [../../emulators/winuae/copper.md](../../emulators/winuae/copper.md) — `CDANG` (fuente del emulador)
 - AHRM 3.ª, cap. 6 (Copper); `docs/reference/ahrm/`
 - `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` §13 (relleno CPU)
-- `demos/amiga/125_layers_dualpf/` (caso medido)
+- `demos/techniques/amiga/playfield/125_layers_dualpf/` (caso medido)

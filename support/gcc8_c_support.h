@@ -32,6 +32,11 @@ void eng_debug_write_status_file(const char* text);
 
 void *GetVBR(void);
 
+// Reserva `bytes` de Fast RAM y devuelve el **tope** alineado (valor para cargar en `SP`), o NULL.
+// Pensada para el arranque: mover la pila (y, en modo supervisor/takeover, el SSP de las IRQs) a
+// Fast RAM antes de habilitar interrupciones. Ver `INTERNAL_TYPE_SYSTEM.md` §3.8.
+void* eng_fast_stack_alloc(unsigned long bytes);
+
 // WinUAE debug overlay, coordinates are PAL-based (0,0)-(768,576)
 void debug_clear();
 void debug_rect(short left, short top, short right, short bottom, unsigned int color);

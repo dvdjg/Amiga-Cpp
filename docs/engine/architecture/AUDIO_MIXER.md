@@ -22,7 +22,7 @@ de audio, con un coste de ~3,7% de CPU en un 68000 a 7 MHz (4 voces a 11 kHz).
 | `mixer_config.i` | `support/audio_mixer/` | Configuración en tiempo de ensamblado |
 | `plugins.asm` / `plugins.i` | `support/audio_mixer/` | Plugins (efectos en tiempo real; opcionales) |
 | `eng/audio/sfx_mixer.hpp` | `engine/include/eng/audio/` | Abstracción C++23 de juego (`SfxMixer`) |
-| `demos/amiga/058_sfx_mixer` | demo | Ejemplo funcional |
+| `demos/techniques/amiga/audio/058_sfx_mixer` | demo | Ejemplo funcional |
 
 El ensamblado lo hace `tools/build/build-demo.sh` con
 `vasmm68k_mot -Felf -m68000 -allmp -DBUILD_MIXER ...`, produciendo un objeto ELF
@@ -80,7 +80,7 @@ del mixer.
 > mezcla en **silencio** (salida ≈ 0). Además, `MixerGetPluginsBufferSize()` es
 > un **no-op** en ese caso (no escribe D0 y devuelve basura), así que hay que
 > reservar un bloque fijo (p. ej. 896 B). `SfxMixer::init` ya lo hace; si se
-> integra el mixer a mano, replicar el patrón de `demos/amiga/068_mixer_ref`.
+> integra el mixer a mano, replicar el patrón de `demos/techniques/amiga/audio/068_mixer_ref`.
 
 ## API de juego (`eng::audio::SfxMixer`)
 
@@ -114,7 +114,7 @@ El proyecto original incluye un conversor (`SampleConverter`, en
 `AmigaAudioMixer/Tools/`) que escala y rellena muestras 8-bit con signo. Para el
 engine, lo más cómodo es generarlas ya conformes (amplitud ±32 para 4 voces,
 múltiplo de 4) o convertir en el host antes de incrustarlas. Ejemplo en
-`demos/amiga/058_sfx_mixer/src/main.cpp` (`gen_square`).
+`demos/techniques/amiga/audio/058_sfx_mixer/src/main.cpp` (`gen_square`).
 
 **Pipeline host listo**: `tools/audio/prep-sample.ts` (con test en
 `test-prep-sample.ts`) hace el camino completo de una muestra real a un `.raw`
@@ -130,7 +130,7 @@ node dist/tools/audio/prep-sample.js <in.wav> <out.raw> [rate=11025] [voices=4] 
 - Rellena a múltiplo de 4.
 
 Luego el `.raw` se incrusta con `incbin` en una sección `.MEMF_CHIP` (ver
-`demos/amiga/072_sample_channel` y `073_sample_mixer`).
+`demos/techniques/amiga/audio/072_sample_channel` y `073_sample_mixer`).
 
 ## Melodías y polifonía con muestras pre-renderizadas
 
@@ -162,7 +162,7 @@ Reglas del patrón:
 - **Síntesis por acumulador de fase**: la tabla `sine_byte` tiene 64 entradas, así
   que una vuelta de tabla = `64 << 16 = 2^22` unidades de fase y
   `inc = (f << 22) / sample_rate` por muestra (con `f << 16` cada nota sonaría
-  ~64× más grave, casi DC). Ver `demos/amiga/067_mixer_melody/src/main.cpp`.
+  ~64× más grave, casi DC). Ver `demos/techniques/amiga/audio/067_mixer_melody/src/main.cpp`.
 
   > **AÚN MÁS IMPORTANTE**: NO usar `(f << 22) / rate` como acumulador. Para
   > `f > 1024` el desplazamiento **desborda `u32`** (2400·2²² ≈ 10¹⁰ > 2³²) y el
@@ -264,6 +264,16 @@ Muestras 8-bit libres (compatibles con Paula) y utilidades:
 Los samples son fuentes 8-bit con signo; para el mixer hay que escalar la
 amplitud a `±120/N` y dejar la longitud en múltiplo de 4 (o del mínimo que
 devuelve `MixerGetSampleMinSize()`).
+
+## Presupuesto de frame (`AudioPlan`)
+
+`AudioPlan` es el análogo de audio del `FramePlan`: además de los 4 canales de Paula
+lleva un **presupuesto** (`AudioBudget`: voces DMA ocupadas y palabras que leerá el DMA)
+con sus límites e informe (`AudioBudgetLimits`/`AudioBudgetReport`, niveles `Ok`/`Warning`/
+`Exceeded`, mismo esquema que `BlitBudget`). `AudioMixer` lo actualiza al repartir voces
+(`begin_frame` reinicia canales y presupuesto; los límites se conservan) y la IRQ de Paula
+es el **feeder** que avanza los canales. El plan es portable: el backend escribe
+`AUDxLCH/LCL/LEN/PER/VOL`. HOST-370 lo fija.
 
 ## Referencias
 

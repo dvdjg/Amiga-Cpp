@@ -4,7 +4,7 @@
 // Contenido: texto, imagen, sonido y codigo relocatable en DOS formatos (`.englib` propio y
 // **HUNK** nativo de AmigaOS) para la carga dinamica.
 //
-//   node tools/fs/make-volume.mjs [--out <dir>] [--adf <path>]
+//   node tools/fs/make-volume.mjs [--out <dir>] [--adf <path>] [--add <f>[:<rel>]]... [--tar <t.tar>]
 //
 // Defectos: out/run/211_fs_test/A500_debug/dh1  y  out/fs/211_fs_test.adf
 import fs from 'node:fs';
@@ -12,6 +12,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { assemble68k } from './assemble.mjs';
+import { extractTar } from './tar-extract.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../..');
@@ -132,10 +133,70 @@ function buildContent() {
 			files[rel] = fs.readFileSync(abs);
 		}
 	}
+	// Melodia de dominio publico para la demo 278 (streaming AUZX): se genera con el pipeline de
+	// audio (gen-melody + pack-auzx, port Node del packer de `host-tools/pack-pcm`). Si falla, se
+	// omite sin romper el volumen.
+	{
+		const melodyRaw = path.join(ROOT, 'out/tmp/melody.raw');
+		const melodyAuzx = path.join(ROOT, 'out/tmp/melody.auzx');
+		mkdirp(path.dirname(melodyRaw));
+		const gen = spawnSync('node', [path.join(ROOT, 'tools/audio/gen-melody.mjs'), melodyRaw], {
+			stdio: 'ignore',
+		});
+		const pack =
+			gen.status === 0
+				? spawnSync(
+						'node',
+						[
+							path.join(ROOT, 'tools/audio/pack-auzx.mjs'),
+							melodyRaw,
+							melodyAuzx,
+							'1024',
+							'8000',
+						],
+						{ stdio: 'ignore' },
+					)
+				: { status: 1 };
+		if (pack.status === 0 && fs.existsSync(melodyAuzx)) {
+			files['data/audio/melody.auzx'] = fs.readFileSync(melodyAuzx);
+		}
+	}
 	return files;
 }
 
 const files = buildContent();
+
+// Contenido extra: `--add <fichero>[:<ruta-en-el-volumen>]` (repetible) y `--tar <archivo.tar>`
+// (se extrae y se vuelca al volumen; el "archivo original" puede contener un sistema de archivos
+// completo, preparado con la orden `tar` estandar).
+const extras = {};
+for (let i = 0; i < process.argv.length; ++i) {
+	if (process.argv[i] === '--add' && i + 1 < process.argv.length) {
+		const spec = process.argv[i + 1];
+		const sep = spec.indexOf(':');
+		const src = sep >= 0 ? spec.slice(0, sep) : spec;
+		const rel = sep >= 0 ? spec.slice(sep + 1) : path.basename(spec);
+		extras[rel] = fs.readFileSync(path.resolve(src));
+	}
+}
+const tarArg = argValue('--tar', '');
+if (tarArg !== '') {
+	const tmp = path.join(ROOT, 'out/tmp/make-volume-tar');
+	fs.rmSync(tmp, { recursive: true, force: true });
+	extractTar(path.resolve(tarArg), tmp);
+	const walk = (dir) => {
+		for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+			const abs = path.join(dir, e.name);
+			if (e.isDirectory()) {
+				walk(abs);
+			} else {
+				extras[path.relative(tmp, abs).split(path.sep).join('/')] = fs.readFileSync(abs);
+			}
+		}
+	};
+	walk(tmp);
+}
+Object.assign(files, extras);
 
 // 1) Volumen en disco (DH1:).
 for (const [rel, buf] of Object.entries(files)) {
@@ -152,7 +213,9 @@ for (const [rel, buf] of Object.entries(files)) {
 	fs.writeFileSync(dst, buf);
 }
 
-// 3) Imagen de disquete ADF (FFS) con el mismo contenido.
+// 3) Imagen de disquete ADF (FFS) con el mismo contenido. Se omite con `--no-adf` (no necesita
+//    Python/amitools; el runner de demos monta DH1: el arbol de disco).
+const noAdf = process.argv.includes('--no-adf');
 function runXdftool(args) {
 	const r = spawnSync(PYTHON, ['-m', 'amitools.tools.xdftool', adfPath, ...args], { encoding: 'utf8' });
 	if (r.status !== 0) {
@@ -163,6 +226,10 @@ function runXdftool(args) {
 }
 
 mkdirp(path.dirname(adfPath));
+if (noAdf) {
+	console.log(`volumen generado en ${outDir} (sin ADF)`);
+	process.exit(0);
+}
 if (fs.existsSync(adfPath)) {
 	fs.unlinkSync(adfPath);
 }

@@ -1,0 +1,15 @@
+{
+  "#": "Puntos de verificación visual de 030 (EHB por zonas). Usa selectores para no depender de un indice fijo de la secuencia.",
+  "points": [
+    {
+      "name": "reticula EHB por zonas",
+      "last": true,
+      "expect": "Retícula/bandas de color por zonas a lo ancho de la pantalla (paleta EHB de 6 planos), sin zonas en negro y sin parpadeo."
+    },
+    {
+      "name": "transicion interna mas fuerte",
+      "max_diff": true,
+      "expect": "En el frame de mayor cambio no aparece una banda negra ni un salto de geometria; el cambio es parte de la animacion esperada."
+    }
+  ]
+}

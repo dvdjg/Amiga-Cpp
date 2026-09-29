@@ -95,18 +95,20 @@ public:
 	/// agnóstico (sin `FramePlan`).
 	void present() noexcept { compose(nullptr); }
 
-	/// Igual, pero **acelerada**: el fondo entra por `fill_rect` (rasterizador: Blitter si el
-	/// `Surface` lo tiene instalado) y cada intersección **alineada a palabra** (destino `x`, ancho
-	/// y origen `sx` múltiplos de 16) se copia con `Surface::blit` (`CopyRect` por Blitter). El
-	/// `plan` lo ejecuta el backend; las intersecciones no alineadas caen al bucle de píxeles.
-	void present_blit(eng::graphics::FramePlan& plan) noexcept { compose(plan); }
+/// Igual, pero **acelerada**: el fondo entra por `fill_rect` (rasterizador: Blitter si el
+/// `Surface` lo tiene instalado) y cada intersección con destino **alineado a palabra** se copia
+/// con `Surface::blit` (`CopyRect` por Blitter). El `plan` lo ejecuta el backend. El origen puede
+/// tener *shift* fino (`sx % 16`): el blit planar usa `source_shift` (receta A/B del Blitter).
+/// Solo caen al bucle de píxeles las intersecciones con destino `I.x`/ancho `I.w` no alineados.
+void present_blit(eng::graphics::FramePlan& plan) noexcept { compose(plan); }
 
 	[[nodiscard]] eng::u8 damage_count() const noexcept { return m_damage.count; }
 	[[nodiscard]] eng::u8 window_count() const noexcept { return m_count; }
 
 private:
 	/// Compone con o sin plan (`Ref` no válida = solo CPU). El fondo va por `fill_rect`; cada
-	/// intersección intenta el blit planar y, si no procede, cae al bucle de píxeles.
+	/// intersección intenta el blit planar (con *shift* de origen) y, si no procede, cae al bucle
+	/// de píxeles.
 	void compose(eng::Ref<eng::graphics::FramePlan> plan) noexcept {
 		if (!m_screen.valid()) {
 			return;
@@ -140,18 +142,20 @@ private:
 		m_damage.clear();
 	}
 
-	/// Copia la intersección `I` del backing de `w` a la pantalla con `Surface::blit`
-	/// (`CopyRect` por Blitter). Solo cuando destino `I.x`, ancho `I.w` y origen `sx` son
-	/// **múltiplos de 16** (el blit planar no desplaza bits); si no, `false` → CPU.
+	/// Copia la intersección `I` del backing de `w` a la pantalla con el blit planar del
+	/// playfield destino (`copy_rect_from`: `CopyRect` por Blitter, con `source_shift` si el
+	/// origen no está alineado). Requiere destino `I.x` y ancho `I.w` **múltiplos de 16** (el
+	/// blit planar no desplaza el destino); el origen `sx` sí puede tener *shift* fino (0..15).
+	/// Si no procede (playfield no contiguo o rect inválido), `false` → bucle de píxeles.
 	[[nodiscard]] static bool blit_backing(eng::graphics::FramePlan& plan,
 					       eng::field::Surface& scr, const CompWindow& w,
 					       const Rect& I) noexcept {
-		if ((I.x & 15) != 0 || (I.w & 15) != 0) {
+		if ((I.x & 15) != 0 || (I.w & 15) != 0 || (I.w == 0u)) {
 			return false;
 		}
 		const eng::s16 sx = static_cast<eng::s16>(I.x - w.frame.x);
 		const eng::s16 sy = static_cast<eng::s16>(I.y - w.frame.y);
-		if (sx < 0 || sy < 0 || (sx & 15) != 0) {
+		if (sx < 0 || sy < 0) {
 			return false;
 		}
 		const eng::u16 rb = w.backing.playfield.bytes_per_row();
@@ -160,15 +164,16 @@ private:
 		if (rb == 0u || ps == 0u || np == 0u) {
 			return false;
 		}
+		const eng::u8 shift = static_cast<eng::u8>(sx & 15);
 		const eng::u16* base =
 			reinterpret_cast<const eng::u16*>(w.backing.playfield.bitplanes().data());
 		const eng::u16* src = base + static_cast<eng::u32>(sy) * (rb / 2u) +
 				      static_cast<eng::u32>(sx / 16);
 		const eng::u32 need = static_cast<eng::u32>(np - 1u) * (ps / 2u) +
 				      static_cast<eng::u32>(I.h - 1u) * (rb / 2u) +
-				      static_cast<eng::u32>(I.w / 16u);
+				      static_cast<eng::u32>((sx & 15) != 0 ? (I.w / 16u) + 1u : I.w / 16u);
 		return scr.blit(plan, eng::Span<const eng::u16>(src, need), I.x, I.y, I.w, I.h,
-				rb, ps, np);
+				rb, ps, np, shift);
 	}
 
 	eng::Ref<eng::field::Surface> m_screen {};

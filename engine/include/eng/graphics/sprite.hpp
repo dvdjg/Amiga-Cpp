@@ -34,7 +34,7 @@ namespace eng::graphics {
 /// Un sprite hardware de 16/32 px puede recortarse en franjas verticales que el
 /// `SpriteAllocator` serve en líneas distintas del mismo canal: `data_offset` es el
 /// desplazamiento en words desde el inicio del bitmap fuente, y `height` la longitud.
-struct SpriteSegment {
+struct HwSpriteSegment {
     u16 data_offset = 0;  // words desde el inicio del bitmap fuente (incluye DAT/DATB)
     u16 height = 0;       // lineas de esta franja
     u16 y_in_bitmap = 0;  // linea inicial dentro de la imagen fuente (referencia visual)
@@ -44,7 +44,7 @@ struct SpriteSegment {
 ///
 /// En `line` el Copper programa `COLORxx` (`first/count` de `colors`) para la franja.
 /// Es el equivalente portable del "sprite absorbe el color de fondo" de la demoscene.
-struct SpritePaletteSwitch {
+struct HwSpritePaletteSwitch {
     u16 line = 0;                  // linea raster de disparo
     const u16* colors = nullptr;   // los valores COLORxx a programar
     u8  first = 0;                 // primer registro COLORxx
@@ -57,24 +57,24 @@ struct SpritePaletteSwitch {
 /// array fijo sin heap (regla del engine). `bitmap` es la imagen fuente cocinada
 /// (DAT/DATB intercalados), una sola por canon; los segmentos trocean esa imagen.
 template <u8 MaxSegments, u8 MaxPaletteSwitches>
-struct SpriteTemplate {
+struct HwSpriteTemplate {
     Span<const u16> bitmap {};                     // imagen fuente (Chip RAM)
-    eng::util::Array<SpriteSegment, MaxSegments> segments {};
-    eng::util::Array<SpritePaletteSwitch, MaxPaletteSwitches> switches {};
+    eng::util::Array<HwSpriteSegment, MaxSegments> segments {};
+    eng::util::Array<HwSpritePaletteSwitch, MaxPaletteSwitches> switches {};
     u8 segment_count = 0;
     u8 switch_count = 0;
     u8 width_words = 1;    // 1 = 16 px, 2 = 32 px (SPRxCTL doble ancho)
     bool attach = false;   // true = attached al canal anterior (15 colores)
 
     /// Añade un segmento al final si cabe.
-    bool add_segment(SpriteSegment seg) {
+    bool add_segment(HwSpriteSegment seg) {
         if (segment_count >= MaxSegments) return false;
         segments[segment_count++] = seg;
         return true;
     }
 
     /// Añade un cambio de paleta al final si cabe.
-    bool add_switch(SpritePaletteSwitch sw) {
+    bool add_switch(HwSpritePaletteSwitch sw) {
         if (switch_count >= MaxPaletteSwitches) return false;
         switches[switch_count++] = sw;
         return true;
@@ -89,7 +89,7 @@ struct SpriteTemplate {
 /// DAT/DATB intercalados por línea). La prioridad frente a los playfields no es por
 /// sprite (es un registro global, `BPLCON2`): viaja aquí para que el emisor la aplique
 /// una vez por frame.
-struct SpritePlacement {
+struct HwSpritePlacement {
     u8 channel = 0;        ///< canal hardware 0..7
     u8 priority = 0;       ///< prioridad frente a los playfields (0..3, `BPLCON2`)
     u16 hpos = 0;          ///< X en píxeles
@@ -100,7 +100,7 @@ struct SpritePlacement {
     const u16* data = nullptr; ///< DATA del sprite (Chip RAM)
 };
 
-/// Salida de proyectar una `SpriteTemplate` al vocabulario de intenciones.
+/// Salida de proyectar una `HwSpriteTemplate` al vocabulario de intenciones.
 struct SpriteIntentSet {
     SpriteIntent* intents = nullptr;
     u8 intent_capacity = 0;
@@ -118,20 +118,20 @@ struct SpriteIntentSet {
 ///     1 línea que exige el DMA (así el `SpriteAllocator` multiplexa el canal);
 ///   - una `CopperIntent::SpriteRearm` por cada franja a partir de la segunda, para
 ///     reapuntar el canal a la DATA de esa franja en su primera línea;
-///   - una `CopperIntent::PaletteLine` por cada `SpritePaletteSwitch` que caiga dentro
+///   - una `CopperIntent::PaletteLine` por cada `HwSpritePaletteSwitch` que caiga dentro
 ///     del tramo ocupado por el sprite.
 ///
-/// `base_y` y `SpritePaletteSwitch::line` van en la MISMA escala de línea raster que usa
+/// `base_y` y `HwSpritePaletteSwitch::line` van en la MISMA escala de línea raster que usa
 /// `SpriteManager::emit_template_into` (es una proyección, no un cambio de escala). El
 /// `first` de los switches es el registro COLOR: los sprites usan `COLOR16..31`. El
 /// compositor (`copper::Plan`) ordena después las intenciones por línea.
 template <u8 MaxSegments, u8 MaxPaletteSwitches>
-inline void sprite_template_to_intents(const SpriteTemplate<MaxSegments, MaxPaletteSwitches>& tpl,
+inline void sprite_template_to_intents(const HwSpriteTemplate<MaxSegments, MaxPaletteSwitches>& tpl,
 				       u8 channel, u16 base_y, u16 hpos, u8 priority,
 				       SpriteIntentSet& out) {
     u16 line = base_y;
     for (u8 i = 0; i < tpl.segment_count; ++i) {
-        const SpriteSegment& seg = tpl.segments[i];
+        const HwSpriteSegment& seg = tpl.segments[i];
         if (out.intents != nullptr && out.intent_count < out.intent_capacity) {
             SpriteIntent it {};
             it.channel = channel;
@@ -164,7 +164,7 @@ inline void sprite_template_to_intents(const SpriteTemplate<MaxSegments, MaxPale
     }
     const u16 end_line = line;
     for (u8 s = 0; s < tpl.switch_count; ++s) {
-        const SpritePaletteSwitch& sw = tpl.switches[s];
+        const HwSpritePaletteSwitch& sw = tpl.switches[s];
         if (sw.line < base_y || sw.line >= end_line) {
             continue; // fuera del tramo del sprite: no se proyecta
         }

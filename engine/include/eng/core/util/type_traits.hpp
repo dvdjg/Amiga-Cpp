@@ -249,8 +249,18 @@ struct is_unsigned : detail::unsigned_impl<T> {};
 template <class T>
 inline constexpr bool is_unsigned_v = is_unsigned<T>::value;
 
+/// `is_pointer` sin depender de `__is_pointer` (GCC < 16 no lo expone). Coincide
+/// con `T*`, incluidos los `const`/`volatile` de nivel superior del propio puntero.
 template <class T>
-struct is_pointer : bool_constant<__is_pointer(T)> {};
+struct is_pointer : false_type {};
+template <class T>
+struct is_pointer<T*> : true_type {};
+template <class T>
+struct is_pointer<T* const> : true_type {};
+template <class T>
+struct is_pointer<T* volatile> : true_type {};
+template <class T>
+struct is_pointer<T* const volatile> : true_type {};
 template <class T>
 inline constexpr bool is_pointer_v = is_pointer<T>::value;
 
@@ -264,8 +274,22 @@ struct is_class : bool_constant<__is_class(T)> {};
 template <class T>
 inline constexpr bool is_class_v = is_class<T>::value;
 
+namespace detail {
+/// `const T` de un tipo funcion no queda cualificado (el `const` se ignora sobre
+/// tipos funcion), de modo que el patron no coincide: es la base de `is_function`.
 template <class T>
-struct is_function : bool_constant<__is_function(T)> {};
+struct is_const_qualified : false_type {};
+template <class T>
+struct is_const_qualified<const T> : true_type {};
+} // namespace detail
+
+/// `is_function` sin `__is_function` (GCC < 16). Una funcion no es referencia y
+/// al aplicarle `const` sigue sin quedar cualificada; `void` queda excluido porque
+/// `const void` si es const.
+template <class T>
+struct is_function
+    : bool_constant<!is_lvalue_reference_v<T> && !is_rvalue_reference_v<T> &&
+                    !detail::is_const_qualified<const T>::value> {};
 template <class T>
 inline constexpr bool is_function_v = is_function<T>::value;
 
@@ -307,6 +331,11 @@ struct uint_of<2> {
 template <>
 struct uint_of<4> {
 	using type = __UINT32_TYPE__;
+};
+/// Necesario en host LP64 (`usize`/`u64` son de 8 bytes); en m68k no se usa.
+template <>
+struct uint_of<8> {
+	using type = __UINT64_TYPE__;
 };
 
 } // namespace detail

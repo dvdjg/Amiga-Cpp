@@ -133,13 +133,16 @@ async function resolveRunStatusAddress(port, sideChannelCommand, linkedSymbol, m
 /** Prepara el directorio dh1 y la config; devuelve rutas y simbolos. */
 export function prepareDemo(demo) {
   const demoName = path.basename(path.resolve(demo));
-  let builtExe = path.join(ROOT, 'out/demos', demoName, `${demoName}.exe`);
-  let builtMap = path.join(ROOT, 'out/demos', demoName, `${demoName}.map`);
+  // Id de build/out (misma regla que build-demo.sh): features por ruta, resto por leaf.
+  const demoRel = String(demo).replace(/\\/g, '/').replace(/^demos\//, '');
+  const demoId = demoRel.startsWith('features/') ? demoRel.slice('features/'.length).replace(/\//g, '_') : demoName;
+  let builtExe = path.join(ROOT, 'out/demos', demoId, `${demoName}.exe`);
+  let builtMap = path.join(ROOT, 'out/demos', demoId, `${demoName}.map`);
   // CONFIG_ID-aware: el build nombra los artefactos por config
   // (out/demos/<demo>/<CONFIG_ID>/<demo>.<CONFIG_ID>.exe). Se elige la config
   // "por defecto" igual que run-demo (A500_debug=0, A500_o0=1, debug*flags=2,
   // o0*flags=3, A500_release=4, release*flags=5; desempate por mtime).
-  const demosRoot = path.join(ROOT, 'out/demos', demoName);
+  const demosRoot = path.join(ROOT, 'out/demos', demoId);
   if (fs.existsSync(demosRoot)) {
     const configRank = (cfg) => {
       const noFlags = cfg.split('_').length <= 2;
@@ -153,12 +156,12 @@ export function prepareDemo(demo) {
       const cfgDir = path.join(demosRoot, entry);
       const st = fs.statSync(cfgDir);
       if (!st.isDirectory()) continue;
-      const exe = path.join(cfgDir, `${demoName}.${entry}.exe`);
+      const exe = path.join(cfgDir, `${demoId}.${entry}.exe`);
       if (!fs.existsSync(exe)) continue;
       const rank = configRank(entry);
       const mt = fs.statSync(exe).mtimeMs;
       if (rank < best.rank || (rank === best.rank && mt > best.mtime)) {
-        best = { rank, mtime: mt, exe, map: path.join(cfgDir, `${demoName}.${entry}.map`) };
+        best = { rank, mtime: mt, exe, map: path.join(cfgDir, `${demoId}.${entry}.map`) };
       }
     }
     if (best.exe && fs.existsSync(best.map)) { builtExe = best.exe; builtMap = best.map; }
@@ -172,7 +175,7 @@ export function prepareDemo(demo) {
     throw new Error(`La demo ${demoName} no exporta 'g_eng_run_status' en su .map.`);
   }
 
-  const outputDir = path.join(ROOT, 'out/run', demoName);
+  const outputDir = path.join(ROOT, 'out/run', demoId);
   const stagedDir = path.join(outputDir, 'dh1');
   fs.mkdirSync(stagedDir, { recursive: true });
   fs.copyFileSync(builtExe, path.join(stagedDir, 'a.exe'));

@@ -9,6 +9,7 @@
 #include <cstdio>
 
 #include <eng/field/plane_view.hpp>
+#include <eng/memory/mem_bank.hpp>
 
 namespace {
 int g_fail = 0;
@@ -19,33 +20,36 @@ using eng::field::PlaneView;
 } // namespace
 
 int main() {
-	eng::u8 main_real[8] {}, main_front[8] {}, extra_real[8] {}, extra_front[8] {};
-	const eng::BitmapBase mr {main_real}, er {extra_real};
-	const eng::FrontBase mf {main_front}, ef {extra_front};
-	const eng::BitmapBase no_b {};
-	const eng::FrontBase no_f {};
+	using Chip = eng::Address<eng::MemoryKind::Chip>;
+	static eng::u8 buf[32] {};
+	eng::MemBank<eng::MemoryKind::Chip> bank {};
+	bank.configure(buf, sizeof(buf), 2u);
+	const Chip mr = bank.reserve<eng::PlaneTag>(8u, 2u).address();
+	const Chip mf = bank.reserve<eng::PlaneTag>(8u, 2u).address();
+	const Chip er = bank.reserve<eng::PlaneTag>(8u, 2u).address();
+	const Chip ef = bank.reserve<eng::PlaneTag>(8u, 2u).address();
+	const Chip no_b {};
+	const Chip no_f {};
 
 	// Sin doble buffer: display y escritura apuntan al mismo bloque.
 	PlaneView pv {};
 	pv.bind_single(mr, mf);
 	check(!pv.double_buffered(), "single: sin doble buffer");
-	check(pv.display_base().value == main_real && pv.write_base().value == main_front, "single: bases");
+	check(pv.display_base() == mr && pv.write_base() == mf, "single: bases");
 	pv.flip();
-	check(pv.display_base().value == main_real && pv.write_base().value == main_front, "single: flip no cambia");
+	check(pv.display_base() == mr && pv.write_base() == mf, "single: flip no cambia");
 
 	// Con doble buffer: front = principal, back = extra (active=0).
 	pv.bind_raw(mr, mf, er, ef);
 	check(pv.double_buffered(), "db: activo");
-	check(pv.display_base().value == main_real && pv.write_base().value == extra_front,
-	      "db active=0: front=main, back=extra");
+	check(pv.display_base() == mr && pv.write_base() == ef, "db active=0: front=main, back=extra");
 
 	// flip: front = extra, back = principal.
 	pv.flip();
-	check(pv.display_base().value == extra_real && pv.write_base().value == main_front,
-	      "db active=1: front=extra, back=main");
+	check(pv.display_base() == er && pv.write_base() == mf, "db active=1: front=extra, back=main");
 	// flip vuelve al estado inicial (toggle).
 	pv.flip();
-	check(pv.display_base().value == main_real && pv.write_base().value == extra_front, "db: toggle de vuelta");
+	check(pv.display_base() == mr && pv.write_base() == ef, "db: toggle de vuelta");
 
 	// bind_raw con extra nulo = sin doble buffer.
 	PlaneView ps {};

@@ -27,11 +27,28 @@ transparente esa elección.
 ## Implementaciones
 
 - **`CpuRaster`**: relleno por scanline (`Playfield::draw_span_op`, con `RasterOp`), **línea**
-  (Bresenham recortada al `ClipRect`) y copias por CPU (`Playfield::copy_rect_cpu` /
-  `copy_masked_cpu`). La copia usa stores de **32 bits** cuando `RasterPolicy::cpu_fast` está
-  activo y origen/destino quedan alineados a 4 (ruta `move.l`; *CPU blit assist* del 68020, ver
-  `../guides/optimization/OPTIMIZACION_GPP_68000.md`). Sin multiplicaciones de 32 bits en el
-  bucle (`mulu16` + avance de punteros).
+  (`cpu_line`: Bresenham **agrupado en spans por fila**, recortada al `ClipRect`) y copias por CPU
+  (`Playfield::copy_rect_cpu` / `copy_masked_cpu`). La copia usa stores de **32 bits** cuando
+  `RasterPolicy::cpu_fast` está activo y origen/destino quedan alineados a 4 (ruta `move.l`; *CPU
+  blit assist* del 68020, ver `../guides/optimization/OPTIMIZACION_GPP_68000.md`). Sin
+  multiplicaciones de 32 bits en el bucle (`mulu16` + avance de punteros).
+
+### Primitivas CPU optimizadas (`field/cpu_primitives.hpp`)
+
+El dibujo CPU **no** va píxel a píxel: las primitivas pintan por **tramos horizontales**
+(`Playfield::draw_span`, que agrupa 16/32 px por escritura). Son **portables** (operan sobre
+`Playfield`, sin chipset) y son el *fallback* CPU canónico y la base para plataformas sin Blitter
+(p. ej. el futuro port a **Atari ST**).
+
+| Rutina | Qué hace |
+|---|---|
+| `cpu_fill_rect` | Rellena el rect por spans (una fila = un tramo). |
+| `cpu_line` | Línea con Bresenham **agrupado por fila**: misma cobertura que Bresenham, `draw_span` por fila en vez de píxel a píxel (de `\|dx\|` a `\|dy\|+1` escrituras en líneas horizontales). |
+| `cpu_fill_polygon` | Polígono convexo por **even-odd** con `draw_span` por fila (edge table). |
+
+Equivalencia verificada en **HOST-267** (la línea cubre el Bresenham de referencia; el polígono
+rellena sin agujeros).
+
 - **`BlitterRaster`**: relleno por `Playfield::fill_polygon` (usa el `PolygonFillSink`/Blitter si
   está instalado; si no, CPU); copias por el `FramePlan` (`CopyRect`/`MaskedBobCookieCut`, con
   `source_shift` y `descending`); **línea** por Blitter si se pasa un `FramePlan` y la línea cae

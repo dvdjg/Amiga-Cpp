@@ -14,3 +14,4 @@ Categoría `platform/amiga` de la batería host (L1). El índice de categorías 
 | HOST-235 | [hw_info](235_hw_info/README.md) | Inventario de hardware `eng::hw` (`eng/hw/info.hpp`): consultas de capacidad, display, nombres y heurísticas (modelo, RAM, RTC). |
 | HOST-259 | [floppy_mfm](259_floppy_mfm/README.md) | Disquete: decodificación **MFM** (`eng/os/floppy.hpp`) — `mfm_decode_long` inverso y `floppy_find_sector` sobre una pista AmigaDOS sintética (encoder = el del emulador). |
 | HOST-308 | [os_cd32_pad](308_os_cd32_pad/README.md) | Mini-SO: decodificador del pad CD32 (`cd32_mask_from_shift`: stream serie → bitmask `Cd32Btn`). |
+| HOST-330 | [asset_backend](330_asset_backend/README.md) | Recursos/plataforma: `AssetCacheBackend` (`eng/platform/amiga/asset_backend.hpp`) — `alloc` Chip/Slow, `free` no-op y `load` (`file_read_async` + cookie `IoUser{'A',id}`); integración con `res::AssetCache`. |

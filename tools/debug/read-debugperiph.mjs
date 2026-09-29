@@ -19,7 +19,7 @@
  *   node tools/debug/read-debugperiph.mjs <demo> [--sub <sub>] [--wait-ms N]
  *
  * Ejemplo (checkpoints de la demo 101):
- *   node tools/debug/read-debugperiph.mjs demos/amiga/101_ehb_tile_scroll_driver --sub checkpoints --wait-ms 12000
+ *   node tools/debug/read-debugperiph.mjs demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver --sub checkpoints --wait-ms 12000
  */
 import * as path from 'path';
 import fs from 'fs';

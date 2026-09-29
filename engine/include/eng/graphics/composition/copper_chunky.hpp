@@ -109,7 +109,7 @@ private:
 		for (eng::u16 y = 0; y < m_cfg.rows; ++y) {
 			const eng::u16 row_line = static_cast<eng::u16>(
 				static_cast<eng::u16>(y) * m_cfg.block_h + m_cfg.first_line);
-			const eng::u16 cop2lc = s.move32(copper::Register::COP2LCH, eng::ChipAddress {});
+			const eng::u16 cop2lc = s.move32(copper::Register::COP2LCH, eng::Address<eng::MemoryKind::Chip> {});
 			const eng::u16 label = s.wait_masked(
 				static_cast<eng::u16>(row_line & 128u), m_cfg.label_hpos, 0u, 255u);
 			s.patch_move32(cop2lc, s.instruction_address(label));

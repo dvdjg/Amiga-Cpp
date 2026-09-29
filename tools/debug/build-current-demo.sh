@@ -10,6 +10,16 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+# Invalida SIEMPRE el binario publicado al EMPEZAR. Si la resolucion del target o el build
+# fallan (p. ej. `set -e` sale en `build-demo.sh`), NO debe quedar un `current` viejo que el
+# depurador arranque como si fuera la demo activa ("ejecuta lo que le de la gana"). Solo se
+# republica al final, en exito.
+CURRENT_OUT="$ROOT/out/debug-current"
+mkdir -p "$CURRENT_OUT"
+rm -f "$CURRENT_OUT/current" "$CURRENT_OUT/current.exe" "$CURRENT_OUT/current.elf" \
+      "$CURRENT_OUT/current.map" "$CURRENT_OUT/current.s"
+
 SOURCE_INPUT="${1:-}"
 if [ -z "$SOURCE_INPUT" ]; then
 	echo "Uso: tools/debug/build-current-demo.sh <archivo-fuente>" >&2
@@ -35,7 +45,7 @@ case "$RELATIVE" in
 		echo "El archivo no pertenece a demos/<nombre>/src o tests/<nombre>/src: $RELATIVE" >&2
 		echo "F5 compila la demo que contiene el archivo ACTIVO. Para ejecutar la demo" >&2
 		echo "107_xlimited_corkscrew abre y enfoca su src/main.cpp antes de pulsar F5:" >&2
-		echo "  demos/amiga/107_xlimited_corkscrew/src/main.cpp" >&2
+		echo "  demos/techniques/amiga/playfield/107_xlimited_corkscrew/src/main.cpp" >&2
 		echo "(los headers del engine y de otras demos compilan OTRA demo o nada)." >&2
 		# Marcar la sesión como no válida para que ninguna herramienta asuma que
 		# out/debug-current/current es el demo esperado (evita 'churro' por stale).
@@ -74,7 +84,13 @@ BUILD_SCRIPT="$ROOT/tools/build/build-demo.sh"
 "$BUILD_SCRIPT" "$TARGET" --debug --clean
 
 TARGET_NAME="$(basename "$TARGET")"
-SOURCE_OUT="$ROOT/out/demos/$TARGET_NAME"
+# Id de build (features por ruta, resto por leaf), igual que build-demo.sh.
+TARGET_REL="${TARGET#demos/}"; TARGET_REL="${TARGET_REL#tests/}"
+case "$TARGET_REL" in
+	features/*) DEMO_ID="$(printf '%s' "${TARGET_REL#features/}" | tr '/' '_')" ;;
+	*) DEMO_ID="$TARGET_NAME" ;;
+esac
+SOURCE_OUT="$ROOT/out/demos/$DEMO_ID"
 CURRENT_OUT="$ROOT/out/debug-current"
 mkdir -p "$CURRENT_OUT"
 

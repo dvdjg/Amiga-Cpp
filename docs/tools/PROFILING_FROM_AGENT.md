@@ -46,12 +46,32 @@ Sin errores, el log imprime `[wprof] unwind: … (.text N bytes)`. Si aun con la
 
 `parseProfile` del MCP lee del binario **ciclos y DMA pero descarta las muestras** (avanzaba `profileCount*4` sin leer el array). Ya está corregido en el MCP: `ProfileFrame.profileArray` conserva los PCs y `profile-ollama` los resume por sección/PC caliente. Para nombres de función hace falta además el `.map` (o el ELF), que el MCP no conoce: por eso `tools/analyze/profile-samples.mjs` resuelve los PCs con el `.map` del build y da la tabla por rutina que se le puede pasar a Ollama en modo texto.
 
-## Alternativa: perfiles de VSCode
+## Perfiles de VSCode (`.amigaprofile`) — análisis por rutina e IA
 
-Si el perfil se tomó con el depurador del plugin y existe como `.amigaprofile` (JSON con árbol de llamadas y `hitCount`, una entrada por frame), analizarlo con:
+Es un **CPU profile de Chrome DevTools** (JSON con árbol de llamadas + `samples`/`timeDeltas`, y
+`screenshots` incrustados). Se analiza sin abrir VSCode:
 
 ```bash
-node tools/analyze/profile-report.mjs <perfil.amigaprofile> [--top N] [--json]
+# Top por rutina (tiempo propio), lectura rápida:
+node tools/analyze/profile-report.mjs <perfil.amigaprofile> [--top N]
+
+# Tabla compacta (para encadenar a un modelo local):
+node tools/analyze/profile-report.mjs <perfil.amigaprofile> --json
+
+# Análisis con IA LOCAL (Ollama): hotspots + reparto por categoría + ideas + anomalías:
+node tools/analyze/profile-report.mjs <perfil.amigaprofile> --ai [--model gemma3:12b]
+
+# Defectos de PANTALLA con visión (flicker/tearing/filas corridas/corrupción) sobre las capturas:
+node tools/analyze/profile-report.mjs <perfil.amigaprofile> --vision [--frames 0,1,2,3]
 ```
 
-Ojo: los perfiles tomados con el depurador incluyen sus IRQs y no reflejan un run limpio; para medidas de rendimiento, usar el camino de línea de comandos.
+Modelos por defecto: `gemma3:12b` (texto) y `qwen3-vl:8b-instruct-q8_0` (visión); ajustables con
+`--model`/`--vl-model` o `OLLAMA_TEXT_MODEL`/`OLLAMA_VL_MODEL` (Ollama en `OLLAMA_BASE`).
+
+**Regla.** Para diagnosticar el rendimiento de una demo, **medir siempre** (no adivinar) y cruzar las
+**dos vistas complementarias**: el **muestreo** de este `.amigaprofile` (dónde está la CPU, con los
+`inlined` atribuidos por separado) y el **instrumentado** de `tools/debug/profile.mjs` (secciones
+`ENG_PROF` del engine, que **incluyen la espera del Blitter dentro de `blits`**). Empezar por `--ai`
+(anomalías: spin-waits, trabajo no pedido) y `--vision` (defectos visuales). `speedscope.app` abre el
+`.amigaprofile` directo para inspección manual. Los perfiles del depurador incluyen sus IRQs; para
+medidas finas de rendimiento, complementar con el camino de línea de comandos de arriba.

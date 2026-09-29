@@ -16,7 +16,7 @@ import * as fs from 'fs';
 import * as net from 'net';
 import * as path from 'path';
 import { spawn } from 'child_process';
-import { repoRoot } from '../../../tools/lib/paths.js';
+import { repoRoot } from '../../../../tools/lib/paths.js';
 
 const root = repoRoot(import.meta.url);
 

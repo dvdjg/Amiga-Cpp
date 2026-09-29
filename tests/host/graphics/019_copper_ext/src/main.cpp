@@ -48,7 +48,7 @@ int main() {
 
 	// --- MOVE32: reg+2 (low) y luego reg (high) ---
 	const u32 addr = 0x00c09abcu;
-	const u16 m32 = b.move32(Register::COP2LCH, eng::ChipAddress { addr });
+	const u16 m32 = b.move32(Register::COP2LCH, eng::Address<eng::MemoryKind::Chip> { addr });
 	if (g_words[m32] != 0x0086u || g_words[m32 + 1u] != 0x9abcu ||
 	    g_words[m32 + 2u] != 0x0084u || g_words[m32 + 3u] != 0x00c0u) {
 		std::printf("[FAIL] move32: %04x %04x %04x %04x (esperado 0086 9abc 0084 00c0)\n",

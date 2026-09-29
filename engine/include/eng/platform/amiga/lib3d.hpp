@@ -37,7 +37,7 @@
 ///   aritmética, no aquí.
 ///
 /// Ver `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` (§9) para la bitácora
-/// de estos hallazgos y `demos/amiga/116_flatshade_convex/README.md` para el port.
+/// de estos hallazgos y `demos/techniques/amiga/effects/116_flatshade_convex/README.md` para el port.
 ///
 /// **Por qué aquí no hay escalares nuevos.** El modelo (`object3d`) es layout crudo
 /// empaquetado y sus punteros se recorren por offset; la matemática que se le aplica es
@@ -50,6 +50,7 @@
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/platform/amiga/object3d.hpp>
 #include <eng/core/math/light.hpp>
+#include <eng/core/math/inv_sqrt.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/retro/fixed_q.hpp>
 
@@ -67,61 +68,10 @@ using object3d::Point3D;
 /// núcleo de luz (`eng::math::hi16`), junto al punto de personalización `light_ops`.
 using eng::math::hi16;
 
-/// Tabla `InvSqrt` de lib3d (`invsqrt` en el original): `65535 / sqrt(x)` para
-/// `x = 0..511`, en `u16` con formato **0.16** (`1.0 == 1 << 16`, truncado a
-/// `65535`). Normaliza la iluminación: el producto escalar
-/// normal·vista se eleva al cuadrado en la parte alta y se indexa aquí para
-/// obtener el color de luz 0..15 **sin calcular `sqrt` en runtime** (es el
-/// `65535/sqrt(x)` precalculado; ver `README.md` de la demo 116).
-inline constexpr u16 kInvSqrt[512] = {
-	0,     65535, 46340, 37837, 32768, 29308, 26755, 24770, 23170, 21845, 20724,
-	19760, 18918, 18176, 17515, 16921, 16384, 15895, 15447, 15035, 14654, 14301,
-	13972, 13665, 13377, 13107, 12852, 12612, 12385, 12170, 11965, 11770, 11585,
-	11408, 11239, 11077, 10922, 10774, 10631, 10494, 10362, 10235, 10112, 9994,
-	9880,  9769,  9663,  9559,  9459,  9362,  9268,  9177,  9088,  9002,  8918,
-	8837,  8757,  8680,  8605,  8532,  8461,  8391,  8323,  8257,  8192,  8129,
-	8067,  8006,  7947,  7889,  7833,  7778,  7723,  7670,  7618,  7567,  7517,
-	7468,  7420,  7373,  7327,  7282,  7237,  7193,  7150,  7108,  7067,  7026,
-	6986,  6947,  6908,  6870,  6832,  6796,  6759,  6724,  6689,  6654,  6620,
-	6587,  6554,  6521,  6489,  6457,  6426,  6396,  6365,  6336,  6306,  6277,
-	6249,  6220,  6192,  6165,  6138,  6111,  6085,  6059,  6033,  6008,  5982,
-	5958,  5933,  5909,  5885,  5862,  5838,  5815,  5793,  5770,  5748,  5726,
-	5704,  5683,  5661,  5640,  5620,  5599,  5579,  5559,  5539,  5519,  5500,
-	5480,  5461,  5442,  5424,  5405,  5387,  5369,  5351,  5333,  5316,  5298,
-	5281,  5264,  5247,  5230,  5214,  5197,  5181,  5165,  5149,  5133,  5117,
-	5102,  5087,  5071,  5056,  5041,  5026,  5012,  4997,  4983,  4968,  4954,
-	4940,  4926,  4912,  4898,  4885,  4871,  4858,  4844,  4831,  4818,  4805,
-	4792,  4780,  4767,  4754,  4742,  4730,  4717,  4705,  4693,  4681,  4669,
-	4657,  4646,  4634,  4622,  4611,  4600,  4588,  4577,  4566,  4555,  4544,
-	4533,  4522,  4512,  4501,  4490,  4480,  4469,  4459,  4449,  4439,  4428,
-	4418,  4408,  4398,  4389,  4379,  4369,  4359,  4350,  4340,  4331,  4321,
-	4312,  4303,  4293,  4284,  4275,  4266,  4257,  4248,  4239,  4230,  4221,
-	4213,  4204,  4195,  4187,  4178,  4170,  4161,  4153,  4145,  4137,  4128,
-	4120,  4112,  4104,  4096,  4088,  4080,  4072,  4064,  4057,  4049,  4041,
-	4033,  4026,  4018,  4011,  4003,  3996,  3988,  3981,  3974,  3966,  3959,
-	3952,  3945,  3938,  3931,  3923,  3916,  3909,  3903,  3896,  3889,  3882,
-	3875,  3868,  3862,  3855,  3848,  3842,  3835,  3829,  3822,  3816,  3809,
-	3803,  3796,  3790,  3784,  3777,  3771,  3765,  3759,  3753,  3746,  3740,
-	3734,  3728,  3722,  3716,  3710,  3704,  3698,  3692,  3687,  3681,  3675,
-	3669,  3664,  3658,  3652,  3646,  3641,  3635,  3630,  3624,  3619,  3613,
-	3608,  3602,  3597,  3591,  3586,  3581,  3575,  3570,  3565,  3559,  3554,
-	3549,  3544,  3539,  3533,  3528,  3523,  3518,  3513,  3508,  3503,  3498,
-	3493,  3488,  3483,  3478,  3473,  3468,  3464,  3459,  3454,  3449,  3444,
-	3440,  3435,  3430,  3426,  3421,  3416,  3412,  3407,  3402,  3398,  3393,
-	3389,  3384,  3380,  3375,  3371,  3366,  3362,  3357,  3353,  3349,  3344,
-	3340,  3336,  3331,  3327,  3323,  3318,  3314,  3310,  3306,  3302,  3297,
-	3293,  3289,  3285,  3281,  3277,  3273,  3269,  3265,  3260,  3256,  3252,
-	3248,  3244,  3240,  3237,  3233,  3229,  3225,  3221,  3217,  3213,  3209,
-	3205,  3202,  3198,  3194,  3190,  3186,  3183,  3179,  3175,  3171,  3168,
-	3164,  3160,  3157,  3153,  3149,  3146,  3142,  3139,  3135,  3131,  3128,
-	3124,  3121,  3117,  3114,  3110,  3107,  3103,  3100,  3096,  3093,  3089,
-	3086,  3083,  3079,  3076,  3072,  3069,  3066,  3062,  3059,  3056,  3052,
-	3049,  3046,  3042,  3039,  3036,  3033,  3029,  3026,  3023,  3020,  3016,
-	3013,  3010,  3007,  3004,  3001,  2998,  2994,  2991,  2988,  2985,  2982,
-	2979,  2976,  2973,  2970,  2967,  2964,  2961,  2958,  2955,  2952,  2949,
-	2946,  2943,  2940,  2937,  2934,  2931,  2928,  2925,  2922,  2919,  2916,
-	2913,  2911,  2908,  2905,  2902,  2899,
-};
+/// Tabla `InvSqrt` (`invsqrt` en el original): el **núcleo matemático** la define y la genera en
+/// compilación (`eng/core/math/inv_sqrt.hpp`, 0.16, `1/√x`, 512 entradas) — es matemática pura, no
+/// de plataforma. Aquí se re-exporta para el uso histórico de lib3d (`shade` y la demo 116).
+using eng::math::kInvSqrt;
 
 /// Port de `UpdateFaceVisibility`: back-face culling + color de luz por cara
 /// (0..15). `object.camera` debe estar ya en espacio objeto (lo calcula
@@ -134,37 +84,33 @@ inline void update_face_visibility(Object3D& object) {
 	const s16 cx = object.camera.x.v;
 	const s16 cy = object.camera.y.v;
 	const s16 cz = object.camera.z.v;
-	s16* group = object.faceGroups;
-	s16 f;
-	do {
-		while ((f = *group++)) {
-			object3d::Face* face = object.face(f);
-			s16 px, py, pz;
-			{
-				const s16 i = object3d::face_indices(face)[0].vertex;
-				const Point3D* p = object.point(i);
-				px = static_cast<s16>(cx - p->x.v);
-				py = static_cast<s16>(cy - p->y.v);
-				pz = static_cast<s16>(cz - p->z.v);
-			}
-			// Normal = RATIO (4.12); camara-vertice = LONGITUD (entero). El producto
-			// `q12*q0` da el mismo `muls.w` que `mul_wide`, con el formato explicito, y
-			// aqui NO se normaliza: el original usa la escala cruda para el signo y la
-			// magnitud² de la luz.
-			const eng::retro::q12 nx = face->normal[0], ny = face->normal[1], nz = face->normal[2];
-			const eng::retro::q0 vx {px}, vy {py}, vz {pz};
-			const s32 v = (nx * vx).v + (ny * vy).v + (nz * vz).v;
-			const s32 e1_sq = (vx * vx).v + (vy * vy).v + (vz * vz).v;
-			if (v >= 0 || face->material < 0) {
-				// Luz 0..15. `shade` usa |v| internamente (cubre la cara de espaldas con
-				// material < 0); el rasgo `light_ops` la especializa por CPU (68000:
-				// `mulu.w` + `swap`), sin `sqrt` en runtime.
-				face->flags = static_cast<s8>(eng::math::light_ops<>::shade(v, e1_sq, kInvSqrt));
-			} else {
-				face->flags = -1;
-			}
+	for (const eng::Ref<object3d::Face>& fr : object.faces()) {
+		object3d::Face* face = fr.get();
+		s16 px, py, pz;
+		{
+			const s16 i = object3d::face_indices(face)[0].vertex;
+			const Point3D* p = object.point(i);
+			px = static_cast<s16>(cx - p->x.v);
+			py = static_cast<s16>(cy - p->y.v);
+			pz = static_cast<s16>(cz - p->z.v);
 		}
-	} while (*group);
+		// Normal = RATIO (4.12); camara-vertice = LONGITUD (entero). El producto
+		// `q12*q0` da el mismo `muls.w` que `mul_wide`, con el formato explicito, y
+		// aqui NO se normaliza: el original usa la escala cruda para el signo y la
+		// magnitud² de la luz.
+		const eng::retro::q12 nx = face->normal[0], ny = face->normal[1], nz = face->normal[2];
+		const eng::retro::q0 vx {px}, vy {py}, vz {pz};
+		const s32 v = (nx * vx).v + (ny * vy).v + (nz * vz).v;
+		const s32 e1_sq = (vx * vx).v + (vy * vy).v + (vz * vz).v;
+		if (v >= 0 || face->material < 0) {
+			// Luz 0..15. `shade` usa |v| internamente (cubre la cara de espaldas con
+			// material < 0); el rasgo `light_ops` la especializa por CPU (68000:
+			// `mulu.w` + `swap`), sin `sqrt` en runtime.
+			face->flags = static_cast<s8>(eng::math::light_ops<>::shade(v, e1_sq, kInvSqrt));
+		} else {
+			face->flags = -1;
+		}
+	}
 }
 
 /// Port de `UpdateEdgeVisibilityConvex` (flatshade-convex): por cada cara visible
@@ -176,27 +122,22 @@ inline void update_face_visibility(Object3D& object) {
 /// Coste: recorrido puro de índices (sin multiplicaciones).
 inline void update_edge_visibility_convex(Object3D& object) {
 	const s8 s = 1;
-	s16* group = object.faceGroups;
-	s16 f;
-	do {
-		while ((f = *group++)) {
-			object3d::Face* face = object.face(f);
-			const s8 flags = face->flags;
-			if (flags >= 0) {
-				s16* index = reinterpret_cast<s16*>(object3d::face_indices(face));
-				s16 vertices = static_cast<s16>(face->count - 3);
-				s16 i;
-				i = *index++; object.node(i)->flags = s;
-				i = *index++; object.edge(i)->flags = static_cast<s8>(object.edge(i)->flags ^ flags);
-				i = *index++; object.node(i)->flags = s;
-				i = *index++; object.edge(i)->flags = static_cast<s8>(object.edge(i)->flags ^ flags);
-				do {
-					i = *index++; object.node(i)->flags = s;
-					i = *index++; object.edge(i)->flags = static_cast<s8>(object.edge(i)->flags ^ flags);
-				} while (--vertices != -1);
+	for (const eng::Ref<object3d::Face>& fr : object.faces()) {
+		object3d::Face* face = fr.get();
+		const s8 flags = face->flags;
+		if (flags >= 0) {
+			const eng::Span<object3d::FaceIndex> fi = object3d::face_indices(face);
+			object.node(fi[0].vertex)->flags = s;
+			object.edge(fi[0].edge)->flags = static_cast<s8>(object.edge(fi[0].edge)->flags ^ flags);
+			object.node(fi[1].vertex)->flags = s;
+			object.edge(fi[1].edge)->flags = static_cast<s8>(object.edge(fi[1].edge)->flags ^ flags);
+			for (s16 k = 2; k < face->count; ++k) {
+				object.node(fi[k].vertex)->flags = s;
+				object.edge(fi[k].edge)->flags =
+					static_cast<s8>(object.edge(fi[k].edge)->flags ^ flags);
 			}
 		}
-	} while (*group);
+	}
 }
 
 // La proyección de cada vértice la resuelve `eng::math::projector` (en `affine.hpp`): el
@@ -217,7 +158,6 @@ inline void update_edge_visibility_convex(Object3D& object) {
 /// registros y un `muls.w`/`divs.w` por operación, sin recargar `objdat`.
 inline void transform_vertices(Object3D& object, s16 half_w, s16 half_h, s16 bbox[4]) {
 	math3d::Affine3<>& M = object.objectToWorld;
-	s16* group = object.vertexGroups;
 
 	// Lo precalculable UNA vez por matriz (términos de traslación plegados) lo guarda
 	// la caché del proyector; el backend 68000 mete ahí lo que necesite.
@@ -225,33 +165,30 @@ inline void transform_vertices(Object3D& object, s16 half_w, s16 half_h, s16 bbo
 	const Proj::cache pc = Proj::make(M);
 
 	bbox[0] = 32767; bbox[1] = -32768; bbox[2] = 32767; bbox[3] = -32768;
-	do {
-		s16 i;
-		while ((i = *group++)) {
-			object3d::Node3D* node = object.node(i);
-			if (node->flags) {
-				s16* pt = reinterpret_cast<s16*>(node);
-				s16 x, y, z;
+	for (const eng::Ref<object3d::Node3D>& nr : object.points()) {
+		object3d::Node3D* node = nr.get();
+		if (node->flags) {
+			s16* pt = reinterpret_cast<s16*>(node); // TODO: Limpiar esto
+			s16 x, y, z;
 
-				*pt++ = 0;
-				x = *pt++;
-				y = *pt++;
-				z = *pt++;
-				const eng::math::Projected3 pr = Proj::project(pc, x, y, z);
+			*pt++ = 0;
+			x = *pt++;
+			y = *pt++;
+			z = *pt++;
+			const eng::math::Projected3 pr = Proj::project(pc, x, y, z);
 
-				const s16 sx = static_cast<s16>(eng::math::div_wide(pr.xp, static_cast<s16>(pr.zp)) + half_w);
-				const s16 sy = static_cast<s16>(eng::math::div_wide(pr.yp, static_cast<s16>(pr.zp)) + half_h);
-				*pt++ = sx;
-				*pt++ = sy;
-				*pt++ = static_cast<s16>(pr.zp);
+			const s16 sx = static_cast<s16>(eng::math::div_wide(pr.xp, static_cast<s16>(pr.zp)) + half_w);
+			const s16 sy = static_cast<s16>(eng::math::div_wide(pr.yp, static_cast<s16>(pr.zp)) + half_h);
+			*pt++ = sx;
+			*pt++ = sy;
+			*pt++ = static_cast<s16>(pr.zp);
 
-				if (sx < bbox[0]) bbox[0] = sx;
-				if (sx > bbox[1]) bbox[1] = sx;
-				if (sy < bbox[2]) bbox[2] = sy;
-				if (sy > bbox[3]) bbox[3] = sy;
-			}
+			if (sx < bbox[0]) bbox[0] = sx;
+			if (sx > bbox[1]) bbox[1] = sx;
+			if (sy < bbox[2]) bbox[2] = sy;
+			if (sy > bbox[3]) bbox[3] = sy;
 		}
-	} while (*group);
+	}
 }
 
 } // namespace eng::lib3d

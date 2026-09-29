@@ -26,8 +26,8 @@ loop:
       cpu_wait_for_interrupt()         ← sleep real si no hay tareas
 ```
 
-Las tareas son **funciones `poll()`** que avanzan un poco y vuelven (o, opcionalmente,
-**corrutinas** que ceden con `co_await`, §8).
+Las tareas son **funciones `poll()`** que avanzan un poco y vuelven. Las corrutinas (`co_await`, §8)
+no se implementan (toolchain + decisión).
 
 ## 2. API
 
@@ -248,36 +248,20 @@ pueden postear `MsgType::TaskFinished`/`TaskAborted` (con el `TaskId` en el payl
 
 ## 8. Corrutinas y C++23
 
-El scheduler coopera con **cualquier** modelo de tarea; las **corrutinas de C++20** (`co_await`/
-`co_yield`) encajan como **front-end** sobre el mismo `TaskSystem`: una corrutina es una tarea cuyo
-`poll()` reanuda el `coroutine_handle`.
+Las **corrutinas de C++20** (`co_await`/`co_yield`) encajarían como *front-end* sobre el mismo
+`TaskSystem`: una corrutina es una tarea cuyo `poll()` reanuda el `coroutine_handle`. **No se
+implementan**:
 
-- **Aplicabilidad en 68000**: **bloqueada por el toolchain actual**. `gnu++23` habilita corrutinas
-  en GCC, pero el toolchain `m68k-amiga-elf` no aporta las cabeceras que las backean: `#include
-  <coroutine>` falla con `'__void_t' was not declared` y `#include <type_traits>` con
-  `#error "libstdc++ bug: ... is_corresponding_member ... FTM is not set"`. Sin ellas no hay
-  `std::coroutine_handle`/`coroutine_traits`. (El host `g++` sí las compila; el problema es el
-  entorno freestanding.) Cuando exista soporte, el *frame* se colocaría en un **buffer fijo** con un
-  `operator new` en el `promise_type` (sin heap). Por ahora se usan las tareas `poll()` de §5.
-- **Suspensión = ceder al idle**: un `co_await idle_yield{}` marca la tarea `Ready` y devuelve el
-  control al scheduler; `co_await wait_for_signal{SigFile}` la marca `Blocked` hasta que llegue la
-  señal. El scheduler no cambia: solo distingue `Ready`/`Blocked`.
-- **Coste/riesgo**: la calidad del codegen de corrutinas en m68k hay que **medirla** con
-  `tools/analyze/codegen-report.mjs` (como cualquier pieza de camino caliente). Si no compensa, las
-  tareas `poll()` de §5 son igual de válidas y más predecibles.
-- **Recomendación**: empezar por tareas `poll()` (simples y medibles) y añadir las corrutinas como
-  **capa opcional** cuando haya consumidor; ambas comparten `TaskSystem`, `TaskMsgPort` y el
-  `preempt`.
-
-```cpp
-// Esbozo de tarea-corrutina (frame en buffer fijo del llamador).
-Task<void> unpack(const eng::u8* src, eng::u8* dst, eng::u32 n) {
-	for (eng::u32 i = 0; i < n; ++i) {
-		dst[i] = decode_byte(src, i);
-		co_await idle_yield {};   // cede al scheduler de idle
-	}
-}
-```
+- **Toolchain**: `gnu++23` habilita corrutinas en GCC, pero el toolchain `m68k-amiga-elf` no aporta
+  las cabeceras que las backean: `#include <coroutine>` falla con `'__void_t' was not declared` y
+  `#include <type_traits>` con `#error "libstdc++ bug: ... FTM is not set"`. Sin ellas no hay
+  `std::coroutine_handle`/`coroutine_traits`.
+- **Decisión**: el caso cooperativo (ceder y reanudar conservando estado) lo cubren las tareas
+  `poll()` de §5, con la misma API de scheduler (`Ready`/`Blocked`, `preempt`). Si algún día hiciera
+  falta, la única alternativa considerada sería un fallback **basado en plantillas** al estilo de las
+  *coroutine libraries* de Boost, que tampoco se aborda por ahora.
+- **Coste/riesgo**: la calidad del codegen de corrutinas en m68k habría que **medirla** con
+  `tools/analyze/codegen-report.mjs`; las tareas `poll()` son más simples y predecibles.
 
 ## 9. Relación con `BackgroundQueue`
 

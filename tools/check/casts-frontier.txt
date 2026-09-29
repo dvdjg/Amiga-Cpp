@@ -1,0 +1,7 @@
+# Fronteras declaradas de casts: ficheros que *por diseño* traducen dominio -> chipset.
+# Sus casts son el MECANISMO (registros/BLTCON), no deuda: el gate de casts los EXIME y no
+# entran en casts-baseline.txt (ver CODING_STYLE.md §232, "fronteras declaradas").
+# Formato: <ruta relativa al repo>   # razon
+engine/include/eng/graphics/blit_queue.hpp   # blitter_job_from: unico encoder BLTCON/registros
+engine/include/eng/graphics/blit_job.hpp      # BlitSource/BlitDest: roles que nacen de una vista
+engine/include/eng/platform/amiga/object3d.hpp # frontera obj2c/asm: byte<->struct del mesh (layout fijo)

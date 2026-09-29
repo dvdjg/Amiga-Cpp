@@ -68,5 +68,5 @@ AHRM Table 7-3 + `sprcoltable` (`drawing.cpp:3400-3429`, sprite↔sprite) y `spr
 - La utilidad `graphics/sprite_collision.hpp` es correcta. El error estaba en la **demo 206** al
   comprobar `odd || even` (el bit 5 es siempre 1 con `ENBP` impar). Corregido: **solo el bit del
   grupo habilitado**.
-- **Validado** en `demos/amiga/206_sprite_collision`: sprite sobre el plano → bit 1 (colisión,
+- **Validado** en `demos/techniques/amiga/sprites/206_sprite_collision`: sprite sobre el plano → bit 1 (colisión,
   `COLOR00` rojo); fuera → 0 (`COLOR00` navy).

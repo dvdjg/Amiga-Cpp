@@ -8,9 +8,9 @@ del frame 30, y **no** está en la ruta de interrupción del playroutine.
 
 ```bash
 export EXTRA_DEFINES='-DENG_AUDIO_OCTAMED -DMED_MODULE_NUM=1 -DOCTAMED_READY_FRAME=0'  # mammagamma
-bash tools/build/build-demo.sh demos/amiga/274_octamed_probe --debug
+bash tools/build/build-demo.sh demos/techniques/amiga/audio/274_octamed_probe --debug
 CFG=$(ls -dt out/demos/274_octamed_probe/A500_eng_audio_octamed* | head -1 | xargs basename)
-WINUAE_SIDE_CHANNEL_PORT=2421 bash tools/run/run-demo.sh demos/amiga/274_octamed_probe --config "$CFG" --warp --wait-port 300
+WINUAE_SIDE_CHANNEL_PORT=2421 bash tools/run/run-demo.sh demos/techniques/amiga/audio/274_octamed_probe --config "$CFG" --warp --wait-port 300
 ```
 
 > **Trampa del runner**: prioriza `A500_debug` (build **default**) sobre la de flags; hay que forzar
@@ -98,5 +98,5 @@ módulo), en el **bucle de frames** del engine / el `update`/`render` de la demo
    `../octamed_playroutines_amiga/`) para ver qué condición de entorno espera.
 
 Referencias: `docs/engine/architecture/MUSIC_PLAYER.md` (fila OctaMED),
-`docs/guides/roadmap/ROADMAP_AUDIO.md` (A1), demo `demos/amiga/274_octamed_probe/`,
+`docs/guides/roadmap/ROADMAP_AUDIO.md` (A1), demo `demos/techniques/amiga/audio/274_octamed_probe/`,
 `../octamed_playroutines_amiga/`.

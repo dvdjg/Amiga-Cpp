@@ -39,8 +39,11 @@
 /// con desplazamiento fino). El residuo de borde que apareció al montarla —borrar `base`
 /// palabras en vez de `base + shift`— está corregido y cubierto por `072_actor`.
 
+#include <eng/core/types/domains.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/graphics/bitmap_view.hpp>
 #include <eng/graphics/frame_plan.hpp>
+#include <eng/graphics/plane_layout.hpp>
 
 namespace eng::graphics {
 
@@ -70,17 +73,26 @@ enum class BobErase : u8 {
 	RestoreUnder,
 };
 
-/// Layout de los planos (hoja del objeto y bitmap destino).
-enum class BobLayout : u8 {
-	Planar,      ///< N planos contiguos: N blits por objeto.
-	Interleaved, ///< filas de planos alternadas: 1 blit por objeto.
+/// Layout de los planos (alias del enum único `PlaneLayout`); `BobLayout::Planar` = contiguo.
+using BobLayout = PlaneLayout;
+
+/// Empaquetado de la **máscara** del cookie-cut dentro de la hoja.
+enum class BobMaskPack : u8 {
+	/// La máscara es un plano de 1 bit **aparte** (`Bob::mask`, misma rejilla). Es la forma
+	/// del cookie-cut planar.
+	SeparatePlane,
+	/// La hoja intercala `[máscara][imagen]` por cada fila de cada plano (`width/16` palabras
+	/// de máscara seguidas de `width/16` de imagen, sin guarda): cookie-cut con planos
+	/// intercalados en **un solo** blit (minterm `$CA`). `Bob::mask` se ignora (la máscara
+	/// va en la propia hoja). Contrato de `make_interleaved_masked_bob` (`blit_job.hpp`).
+	InterleavedPair,
 };
 
 /// Descripción de un objeto de bitmap. No posee memoria (apunta a bloques del
 /// llamador, en Chip RAM: el Blitter solo lee Chip).
 struct Bob {
-	const u8* sheet = nullptr; ///< frames del objeto (ver contrato de la hoja)
-	const u8* mask = nullptr;  ///< cookie-cut: un plano de 1 bit (misma rejilla)
+	ChipView<BobTag> sheet {}; ///< frames del objeto (Chip: el Blitter solo lee Chip)
+	ChipView<BobTag> mask {};  ///< cookie-cut: un plano de 1 bit (misma rejilla)
 	u16 width = 0;             ///< ancho en píxeles
 	u16 height = 0;            ///< alto en píxeles
 	u8 planes = 0;             ///< profundidad (3..6)
@@ -93,16 +105,30 @@ struct Bob {
 	BobLayout layout = BobLayout::Interleaved;
 	BobDraw draw = BobDraw::Or;
 	BobErase erase = BobErase::None;
+	BobMaskPack mask_pack = BobMaskPack::SeparatePlane;
 };
 
-/// Geometría del bitmap destino (los planos del playfield).
-struct BobTarget {
-	u8* base = nullptr;    ///< inicio del plano 0 (fila 0)
-	u16 row_bytes = 0;     ///< bytes por fila de UN plano
-	u32 plane_bytes = 0;   ///< separación entre planos (solo `Planar`)
-	u8 planes = 0;         ///< planos del destino
-	BobLayout layout = BobLayout::Interleaved;
-};
+/// Geometría del bitmap destino (los planos del playfield): una **`BitmapView`** con el **banco
+/// Chip en el tipo** (el Blitter solo escribe Chip).
+using BobTarget = BitmapView<PlaneTag, eng::MemoryKind::Chip>;
+
+/// Construye la geometría de destino a partir de la memoria **Chip** de la zona y su geometría.
+/// `plane_bytes` (separación entre planos) se **deriva** de `layout`/`row_bytes`/`height` en la
+/// propia vista (`plane_pointer_step`), así que no se pasa.
+[[nodiscard]] inline BobTarget make_bob_target(eng::MemView<PlaneTag, eng::MemoryKind::Chip> planes,
+					       eng::u16 row_bytes, eng::u16 height,
+					       eng::u8 plane_count,
+					       BobLayout layout = BobLayout::Interleaved,
+					       eng::u32 plane_step = 0u) noexcept {
+	BobTarget t {};
+	t.planes = planes;
+	t.row_bytes = row_bytes;
+	t.height = height;
+	t.plane_count = plane_count;
+	t.layout = layout;
+	t.plane_step = plane_step;
+	return t;
+}
 
 namespace bob_detail {
 
@@ -130,8 +156,8 @@ constexpr u32 sheet_row_of(const Bob& bob) {
 }
 
 constexpr bool valid(const Bob& bob, const BobTarget& t) {
-	return bob.sheet != nullptr && t.base != nullptr && bob.width != 0u && bob.height != 0u &&
-	       bob.planes != 0u && bob.planes <= 6u && bob.planes <= t.planes && t.row_bytes != 0u;
+	return !bob.sheet.empty() && !t.planes.empty() && bob.width != 0u && bob.height != 0u &&
+	       bob.planes != 0u && bob.planes <= 6u && bob.planes <= t.plane_count && t.row_bytes != 0u;
 }
 
 } // namespace bob_detail
@@ -154,20 +180,72 @@ inline bool bob_erase_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, 
 	// procesa una palabra de más (`base + shift`), así que borrar `base` dejaría el borde
 	// derecho del objeto sin limpiar (residuo de hasta 15 px por fila).
 	const u16 words = static_cast<u16>((w + 15u) / 16u + ((x & 15) != 0 ? 1u : 0u));
-	const u32 start_row = inter ? static_cast<u32>(t.row_bytes) * t.planes
+	const u32 start_row = inter ? static_cast<u32>(t.row_bytes) * t.plane_count
 				    : t.row_bytes; // fila del bitmap en la que empieza la caja
 	BlitJob job {};
-	job.destination = {reinterpret_cast<u16*>(t.base + static_cast<u32>(y) * start_row +
+	job.destination = {reinterpret_cast<u16*>(t.data() + static_cast<u32>(y) * start_row +
 						  (static_cast<u32>(wx) >> 3u))};
 	job.words_per_row = words;
 	job.height = inter ? static_cast<u16>(h * bob.planes) : h;
 	// El puntero avanza una fila de plano por fila de blit: modulo = fila − procesado.
 	job.destination_modulo_bytes = static_cast<s16>(t.row_bytes - static_cast<u32>(words) * 2u);
 	job.bitplane_count = inter ? 1u : bob.planes;
-	job.destination_plane_stride_bytes = inter ? 0u : t.plane_bytes;
+	job.destination_plane_stride_bytes = inter ? 0u : t.plane_pointer_step();
 	job.interleaved = inter;
 	job.minterm = 0x00u; // D = 0
 	return plan.add_clear_rect(job);
+}
+
+/// **Save-under (guardar)**: copia la caja de `w x h` en `(x,y)` del destino (Chip) al buffer
+/// `save`; `false` si el buffer no da (rechazo controlado). El cálculo de palabras cubre la
+/// palabra extra del barrel shifter (desplazamiento fino), como el borrado. Único sitio del
+/// algoritmo: lo usan el camino de actor (`BackgroundPolicy::SaveUnder`, vía
+/// `scene::actor_detail::emit_save`) y el de intención (`BobErase::RestoreUnder`). El destino
+/// debe ser **planar** (planos contiguos).
+inline bool bob_save_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, s16 y,
+			 const BobTarget& t, eng::Span<eng::u16> save, u16 save_words_per_row,
+			 u16 save_height) {
+	const u16 words = static_cast<u16>((w + 15u) / 16u + ((x & 15) != 0 ? 1u : 0u));
+	if (save.empty() || words > save_words_per_row || h > save_height) {
+		return false; // sin buffer o buffer insuficiente
+	}
+	const u32 save_row_bytes = static_cast<u32>(save_words_per_row) * 2u;
+	BlitJob job {};
+	job.destination = {save.data()};
+	job.source = {reinterpret_cast<const u16*>(
+		t.data() + static_cast<u32>(y) * t.row_bytes + (static_cast<u32>(x & ~15) >> 3u))};
+	job.words_per_row = words;
+	job.height = h;
+	job.bitplane_count = bob.planes;
+	job.source_modulo_bytes = static_cast<s16>(t.row_bytes - static_cast<u32>(words) * 2u);
+	job.destination_modulo_bytes = static_cast<s16>(save_row_bytes - static_cast<u32>(words) * 2u);
+	job.source_plane_stride_bytes = t.plane_pointer_step();
+	job.destination_plane_stride_bytes = save_row_bytes * save_height;
+	return plan.add_copy_rect(job);
+}
+
+/// **Save-under (restaurar)**: devuelve el buffer `save` a la caja de `w x h` en `(x,y)` del
+/// destino. Inverso de `bob_save_box`; mismo cálculo de palabras y misma guarda de capacidad.
+inline bool bob_restore_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, s16 y,
+			    const BobTarget& t, eng::Span<eng::u16> save, u16 save_words_per_row,
+			    u16 save_height) {
+	const u16 words = static_cast<u16>((w + 15u) / 16u + ((x & 15) != 0 ? 1u : 0u));
+	if (save.empty() || words > save_words_per_row || h > save_height) {
+		return false;
+	}
+	const u32 save_row_bytes = static_cast<u32>(save_words_per_row) * 2u;
+	BlitJob job {};
+	job.source = {save.data()};
+	job.destination = {reinterpret_cast<u16*>(
+		t.data() + static_cast<u32>(y) * t.row_bytes + (static_cast<u32>(x & ~15) >> 3u))};
+	job.words_per_row = words;
+	job.height = h;
+	job.bitplane_count = bob.planes;
+	job.source_modulo_bytes = static_cast<s16>(save_row_bytes - static_cast<u32>(words) * 2u);
+	job.destination_modulo_bytes = static_cast<s16>(t.row_bytes - static_cast<u32>(words) * 2u);
+	job.source_plane_stride_bytes = save_row_bytes * save_height;
+	job.destination_plane_stride_bytes = t.plane_pointer_step();
+	return plan.add_restore_rect(job);
 }
 
 /// Borra la caja del objeto en `(x,y)` (`BobErase::ClearRect`; con otro algoritmo no
@@ -177,6 +255,44 @@ inline bool bob_erase(FramePlan& plan, const Bob& bob, s16 x, s16 y, const BobTa
 		return true;
 	}
 	return bob_erase_box(plan, bob, bob.width, bob.height, x, y, t);
+}
+
+/// Dibuja un objeto cookie-cut con hoja **par** (`BobMaskPack::InterleavedPair`): un único
+/// blit `$CA` con la máscara en el canal A y la imagen en el B. La hoja intercala, por cada
+/// fila de cada plano, `width/16` palabras de máscara seguidas de `width/16` de imagen (sin
+/// palabra de guarda). Es la geometría de `make_interleaved_masked_bob` (`blit_job.hpp`); el
+/// bit de máscara de cada plano se materializa en el propio blit, sin copia expandida.
+inline bool bob_draw_interleaved_pair(FramePlan& plan, const Bob& bob, u8 frame, s16 x, s16 y,
+				      const BobTarget& t) {
+	using namespace bob_detail;
+	if (!valid(bob, t) || frame >= bob.frame_count) {
+		return false;
+	}
+	const u16 words = static_cast<u16>(bob.width / 16u);
+	if (words == 0u) {
+		return false;
+	}
+	const u8 shift = static_cast<u8>(x & 15);
+	const s16 wx = static_cast<s16>(x & ~15);
+	const s16 x_start = (wx < 0) ? 0 : wx;
+	const u32 start_row = static_cast<u32>(t.row_bytes) * t.plane_count;
+	const u16* src = reinterpret_cast<const u16*>(
+		bob.sheet.address(static_cast<u32>(frame) * bob.frame_stride).cptr());
+	BlitJob job {};
+	job.mask = BlitSource {src};                 // 1ª mitad de la fila = máscara
+	job.source = BlitSource {src + words};       // 2ª mitad = imagen
+	job.destination = BlitDest {reinterpret_cast<u16*>(t.data() +
+							   static_cast<u32>(y) * start_row +
+							   (static_cast<u32>(x_start) >> 3u))};
+	job.words_per_row = words;
+	job.height = static_cast<u16>(bob.height * bob.planes);
+	job.source_modulo_bytes = static_cast<s16>(words * 2u);
+	job.destination_modulo_bytes = static_cast<s16>(t.row_bytes - static_cast<u32>(words) * 2u);
+	job.bitplane_count = 1u;
+	job.source_shift = shift;
+	job.minterm = 0x00cau;
+	job.interleaved = true;
+	return plan.add_masked_bob(job);
 }
 
 /// Dibuja el `frame` del objeto en `(x,y)`.
@@ -190,8 +306,13 @@ __attribute__((always_inline)) inline bool bob_draw(FramePlan& plan, const Bob& 
 		return false;
 	}
 	if (bob.draw == BobDraw::CookieCut && bob.layout == BobLayout::Interleaved) {
-		// Cookie-cut con planos intercalados exige máscara "expandida" (una copia por
-		// plano) y modulos A/B distintos: no lo cubre el ejecutor actual (documentado).
+		if (bob.mask_pack == BobMaskPack::InterleavedPair) {
+			return bob_draw_interleaved_pair(plan, bob, frame, x, y, t);
+		}
+		// Con máscara en un plano suelto, el cookie-cut intercalado exigiría una máscara
+		// "expandida" (una copia por plano) y modulos A/B distintos: no lo cubre el
+		// ejecutor actual (documentado). Usar `BobMaskPack::InterleavedPair` para el
+		// camino de un solo blit.
 		return false;
 	}
 	const u8 shift = static_cast<u8>(x & 15);
@@ -199,33 +320,30 @@ __attribute__((always_inline)) inline bool bob_draw(FramePlan& plan, const Bob& 
 	const u16 words = blit_words(bob, shift);
 	const s16 wx = static_cast<s16>(x & ~15);
 	const s16 x_start = (wx < 0) ? 0 : wx;
-	const u32 start_row = inter ? static_cast<u32>(t.row_bytes) * t.planes : t.row_bytes;
+	const u32 start_row = inter ? static_cast<u32>(t.row_bytes) * t.plane_count : t.row_bytes;
 
 	BlitJob job {};
-	job.source = {reinterpret_cast<const u16*>(bob.sheet +
-						   static_cast<u32>(frame) * bob.frame_stride)};
-	job.destination = {reinterpret_cast<u16*>(t.base + static_cast<u32>(y) * start_row +
+	job.source = {reinterpret_cast<const u16*>(
+		bob.sheet.address(static_cast<u32>(frame) * bob.frame_stride).cptr())};
+	job.destination = {reinterpret_cast<u16*>(t.data() + static_cast<u32>(y) * start_row +
 						  (static_cast<u32>(x_start) >> 3u))};
 	job.words_per_row = words;
 	job.height = inter ? static_cast<u16>(bob.height * bob.planes) : bob.height;
 	job.source_shift = shift;
 	job.bitplane_count = inter ? 1u : bob.planes;
-	// La hoja lleva guarda por fila (`sheet_row_bytes`): el blit consume `words` y la
-	// fila avanza `sheet_row_bytes`, asi que el modulo es la diferencia (2 B si no hay
-	// desplazamiento; 0 si el barrel shifter lee la guarda).
 	job.source_modulo_bytes = static_cast<s16>(sheet_row_of(bob) - static_cast<u32>(words) * 2u);
 	job.destination_modulo_bytes = static_cast<s16>(t.row_bytes - static_cast<u32>(words) * 2u);
 	job.source_plane_stride_bytes = inter ? 0u : bob.height * sheet_row_of(bob);
-	job.destination_plane_stride_bytes = inter ? 0u : t.plane_bytes;
+	job.destination_plane_stride_bytes = inter ? 0u : t.plane_pointer_step();
 	job.interleaved = inter;
 	job.minterm = (bob.draw == BobDraw::Or) ? 0x00fcu
 		    : (bob.draw == BobDraw::Opaque ? 0x00f0u
 		    : (bob.draw == BobDraw::And ? 0x00c0u : 0x00cau));
 	if (bob.draw == BobDraw::CookieCut) {
-		if (bob.mask == nullptr) {
+		if (bob.mask.empty()) {
 			return false; // cookie-cut sin mascara
 		}
-		job.mask = {reinterpret_cast<const u16*>(bob.mask)};
+		job.mask = {reinterpret_cast<const u16*>(bob.mask.data())};
 		return plan.add_masked_bob(job);
 	}
 	return plan.add_or_blob(job);

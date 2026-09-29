@@ -72,6 +72,13 @@ extern "C" struct P61ControlBlock {
 	s32 ChannelOffset[4];
 } _P61_ControlBlock;
 
+/// Bits de DMA de audio pendientes (`P61_dma` del playroutine, **incluye `$8200`**). En el
+/// playroutine los aplica `P61_dmason` desde la IRQ de CIA-B (nivel 6); `apply_pending_dma` hace lo
+/// mismo desde el frame task cuando esa IRQ no está atendida.
+extern "C" {
+extern u16 _P61_dma;
+}
+
 /// Envolturas de bajo nivel (convención de registros Amiga, vía `jsr _P61Xxx`).
 
 inline s32 init(const void* module, const void* samples, const void* buffer) {
@@ -79,21 +86,31 @@ inline s32 init(const void* module, const void* samples, const void* buffer) {
 	register volatile const void* s __asm("a1") = samples;
 	register volatile const void* b __asm("a2") = buffer;
 	register volatile u32 result __asm("d0");
-	__asm__ volatile("jsr _P61_Init" : "=r"(result) : "r"(m), "r"(s), "r"(b) : "cc", "memory");
+	__asm__ volatile("jsr _P61_Init" : "=r"(result) : "r"(m), "r"(s), "r"(b) : "d1", "cc", "memory");
 	return static_cast<s32>(result);
 }
 
 inline void music() {
-	__asm__ volatile("jsr _P61_Music" : : : "cc", "memory");
+	__asm__ volatile("jsr _P61_Music" : : : "d0", "d1", "cc", "memory");
 }
 
 inline void end() {
-	__asm__ volatile("jsr _P61_End" : : : "cc", "memory");
+	__asm__ volatile("jsr _P61_End" : : : "d0", "d1", "cc", "memory");
 }
+
+/// **Re-arma el DMA de audio** como `P61_dmason`: escribe los bits pendientes (`_P61_dma`) en
+/// `DMACON`. El P61 en modo VBlank **difiere** el encendido del DMA a la IRQ de CIA-B (nivel 6), que
+/// el `App` no atiende; el frame task (dentro de `os::tick`) lo aplica aquí tras `P61_Music`, con el
+/// mismo efecto (encender los canales que el playroutine ha marcado). Ver `MUSIC_PLAYER.md`.
+#if defined(ENG_AMIGA)
+inline void apply_pending_dma() {
+	*reinterpret_cast<volatile u16*>(0xdff096u) = _P61_dma;
+}
+#endif
 
 inline void set_position(u8 position) {
 	register volatile u8 p __asm("d0") = position;
-	__asm__ volatile("jsr _P61_SetPosition" : : "r"(p) : "cc", "memory");
+	__asm__ volatile("jsr _P61_SetPosition" : : "r"(p) : "d1", "cc", "memory");
 }
 
 } // namespace p61_amiga
@@ -141,6 +158,10 @@ public:
 	void update() {
 		if (m_playing) {
 			p61_amiga::music();
+#if defined(ENG_AMIGA)
+			// El P61 difiere el encendido del DMA a la IRQ de CIA-B (nivel 6); la aplicamos aquí.
+			p61_amiga::apply_pending_dma();
+#endif
 		}
 	}
 
@@ -181,6 +202,15 @@ private:
 
 namespace pt_amiga {
 
+// Las `_Pt*` (`support/music/pt.asm`) salvan `d2-d7/a2-a6` -> solo clobberan `d0/d1/a0/a1`. Se
+// declaran esos (menos los que el wrapper fija como entrada/salida). Mismo motivo que en
+// `sfx_mixer.hpp` (ver `p61-audio-dma.md`). Aqui NO se sobre-declara con los registros que la
+// rutina salva: un clobber enorme dispara un ICE de gcc m68k (`print_operand_address`).
+#define PT_CB_ALL "d0", "d1", "a0", "a1"
+#define PT_CB_NO_D0 "d1", "a0", "a1"
+#define PT_CB_NO_D0D1 "a0", "a1"
+#define PT_CB_INIT "d1"
+
 /// Flag de reproducción `_mt_Enable` (byte, 0 = pausa, no-0 = reproducir).
 extern "C" volatile u8 _mt_Enable;
 
@@ -188,29 +218,29 @@ inline void init(const void* module, const void* samples, u8 pos) {
 	register volatile const void* m __asm("a0") = module;
 	register volatile const void* s __asm("a1") = samples;
 	register volatile u8 p __asm("d0") = pos;
-	__asm__ volatile("jsr _PtInit" : : "r"(m), "r"(s), "r"(p) : "cc", "memory");
+	__asm__ volatile("jsr _PtInit" : : "r"(m), "r"(s), "r"(p) : PT_CB_INIT, "cc", "memory");
 }
 
 inline void install_cia() {
-	__asm__ volatile("jsr _PtInstallCIA" : : : "cc", "memory");
+	__asm__ volatile("jsr _PtInstallCIA" : : : PT_CB_ALL, "cc", "memory");
 }
 
 inline void remove_cia() {
-	__asm__ volatile("jsr _PtRemoveCIA" : : : "cc", "memory");
+	__asm__ volatile("jsr _PtRemoveCIA" : : : PT_CB_ALL, "cc", "memory");
 }
 
 inline void end() {
-	__asm__ volatile("jsr _PtEnd" : : : "cc", "memory");
+	__asm__ volatile("jsr _PtEnd" : : : PT_CB_ALL, "cc", "memory");
 }
 
 inline void master_volume(u8 volume) {
 	register volatile u8 v __asm("d0") = volume;
-	__asm__ volatile("jsr _mt_mastervol" : : "r"(v) : "cc", "memory");
+	__asm__ volatile("jsr _mt_mastervol" : : "r"(v) : PT_CB_NO_D0, "cc", "memory");
 }
 
 inline void channel_mask(u8 mask) {
 	register volatile u8 m __asm("d0") = mask;
-	__asm__ volatile("jsr _mt_channelmask" : : "r"(m) : "cc", "memory");
+	__asm__ volatile("jsr _mt_channelmask" : : "r"(m) : PT_CB_NO_D0, "cc", "memory");
 }
 
 /// Posición actual del reproductor: D0=fila, D1=patrón. Devuelve
@@ -218,14 +248,14 @@ inline void channel_mask(u8 mask) {
 inline u32 get_pos() {
 	register volatile u32 row __asm("d0");
 	register volatile u32 song __asm("d1");
-	__asm__ volatile("jsr _PtGetPos" : "=d"(row), "=d"(song) : : "cc", "memory");
+	__asm__ volatile("jsr _PtGetPos" : "=d"(row), "=d"(song) : : PT_CB_NO_D0D1, "cc", "memory");
 	return (row & 0xffffu) | ((song & 0xffu) << 16u);
 }
 
 /// Período actual del canal 1 (melodía), para diagnosticar si el tono cambia.
 inline u16 get_period() {
 	register volatile u32 p __asm("d0");
-	__asm__ volatile("jsr _PtGetPeriod" : "=d"(p) : : "cc", "memory");
+	__asm__ volatile("jsr _PtGetPeriod" : "=d"(p) : : PT_CB_NO_D0, "cc", "memory");
 	return static_cast<u16>(p & 0xffffu);
 }
 
@@ -233,9 +263,14 @@ inline u16 get_period() {
 /// cada voz de una pieza polifónica por separado.
 inline u16 get_channel_period(u8 channel) {
 	register volatile u32 p __asm("d0") = channel;
-	__asm__ volatile("jsr _PtGetPeriodCh" : "+d"(p) : : "cc", "memory");
+	__asm__ volatile("jsr _PtGetPeriodCh" : "+d"(p) : : PT_CB_NO_D0, "cc", "memory");
 	return static_cast<u16>(p & 0xffffu);
 }
+
+#undef PT_CB_ALL
+#undef PT_CB_NO_D0
+#undef PT_CB_NO_D0D1
+#undef PT_CB_INIT
 
 } // namespace pt_amiga
 
@@ -324,7 +359,7 @@ public:
 		return false; // build sin playroutine MED (o sin módulo): no hay `_startmusic`
 #else
 		(void)module; // el módulo va incrustado en el ASM (MED_MODULE)
-		__asm__ volatile("jsr _startmusic" : : : "cc", "memory");
+		__asm__ volatile("jsr _startmusic" : : : "d0", "d1", "a0", "a1", "cc", "memory");
 		m_playing = true;
 		return true;
 #endif
@@ -335,7 +370,7 @@ public:
 	void stop() {
 #if defined(ENG_AUDIO_OCTAMED) && defined(MED_MODULE_NUM)
 		if (m_playing) {
-			__asm__ volatile("jsr _endmusic" : : : "cc", "memory");
+			__asm__ volatile("jsr _endmusic" : : : "d0", "d1", "a0", "a1", "cc", "memory");
 			m_playing = false;
 		}
 #endif

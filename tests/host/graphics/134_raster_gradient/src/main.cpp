@@ -13,6 +13,8 @@
 
 #include <eng/api/effects.hpp>
 #include <eng/graphics/effects/raster_gradient.hpp>
+#include <eng/graphics/copper/plan.hpp>
+#include <eng/memory/arena.hpp>
 
 namespace effects = eng::graphics::effects;
 
@@ -127,6 +129,42 @@ int main() {
 		eng::effects::Gradient empty;
 		check(!empty.attach({0x2cu, 8u, 4u, 0u}, eng::Span<const eng::u16> {}),
 		      "Gradient: sin claves -> false");
+	}
+
+	// --- Animación por parcheo sobre un `copper::Plan` real (bind_slots/patch_into) ------
+	// La lista se materializa UNA vez; por frame solo se reescriben las palabras de dato.
+	{
+		alignas(16) static eng::u8 chip[8u * 1024u];
+		eng::MemorySystem mem;
+		mem.chip = eng::ChipArena {chip, sizeof(chip), eng::MemoryKind::Chip};
+		eng::copper::Plan plan;
+		check(plan.begin(mem, {4096u}), "slot: Plan::begin");
+
+		effects::RasterGradientEffect e;
+		e.configure({0x2cu, 1u, 3u, 0u});
+		e.set_cyclic(true);
+		const eng::u16 keys[3] = {0x00fu, 0x0f0u, 0xf00u};
+		e.set_keys(keys);
+
+		plan.begin_frame();
+		e.apply_into(plan);
+		plan.materialize();
+		e.bind_slots(plan);
+		check(plan.end_frame(), "slot: end_frame");
+
+		const eng::u16* w = plan.active_words();
+		e.set_phase(0u);
+		e.patch_into(plan);
+		check(w[plan.slot_word(0)] == 0x00fu && w[plan.slot_word(1)] == 0x0f0u &&
+			      w[plan.slot_word(2)] == 0xf00u,
+		      "slot: phase 0 colores = claves");
+
+		// Al rotar la fase cambian SOLO las palabras de dato (no la estructura).
+		e.set_phase(1u);
+		e.patch_into(plan);
+		check(w[plan.slot_word(0)] == 0x0f0u && w[plan.slot_word(1)] == 0xf00u &&
+			      w[plan.slot_word(2)] == 0x00fu,
+		      "slot: phase 1 rota los colores en su sitio");
 	}
 
 	if (g_fail != 0) {

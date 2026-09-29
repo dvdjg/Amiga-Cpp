@@ -32,6 +32,7 @@
 
 #include <eng/core/types/box.hpp>
 #include <eng/core/types/ptr.hpp>
+#include <eng/field/cpu_primitives.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/graphics/c2p.hpp>
 #include <eng/graphics/frame_plan.hpp>
@@ -126,11 +127,13 @@ struct ClipRect {
 }
 
 /// **Conversión chunky→planar** pedida a través del seam: la misma llamada con CPU
-/// (Kalms `c2p_1x1_4`) o Blitter detrás. `chunky` = 1 byte por pixel (nibble bajo =
-/// índice), `planes` = destino planar contiguo, `plane_stride` = bytes entre planos.
+/// (Kalms `c2p_1x1_4`) o Blitter detrás. La procedencia viaja **entera** (`Block<Tag>`): su banco
+/// (`kind`) decide la vía —el Blitter solo si **ambas** memorias son Chip—. `chunky` = 1 byte por
+/// pixel (nibble bajo = índice), `planes` = destino planar contiguo, `plane_stride` = bytes entre
+/// planos.
 struct C2pRequest {
-	eng::ChunkyView chunky {};
-	eng::PlaneBytes planes {};
+	eng::Block<eng::ChunkyTag> chunky {};
+	eng::Block<eng::PlaneTag> planes {};
 	eng::u32 width = 0;
 	eng::u32 height = 0;
 	eng::u32 plane_stride = 0;
@@ -185,54 +188,38 @@ public:
 		}
 		return true;
 	}
-	/// Línea por CPU (Bresenham), recortada al `clip` (un tramo horizontal usa `draw_span`).
+	/// Línea por CPU en **spans por fila** (`cpu_line`, run-slice) para no ir píxel a píxel.
+	/// Recortada al `clip` (Cohen-Sutherland). Un tramo puramente horizontal usa un solo `draw_span`.
 	bool draw_line(Playfield& pf, const ClipRect& clip, eng::s32 x0, eng::s32 y0,
 		       eng::s32 x1, eng::s32 y1, eng::u8 color,
 		       eng::Ref<graphics::FramePlan> plan = {},
 		       RasterOp op = RasterOp::Copy) override {
 		(void)plan;
 		(void)op; // el camino CPU dibuja con Copy (el EOR es del Blitter)
-		if (y0 == y1) {
-			if (y0 < clip.y0 || y0 > clip.y1) return false;
-			eng::s32 a = x0 < x1 ? x0 : x1;
-			eng::s32 b = x0 < x1 ? x1 : x0;
-			const bool inside = a >= clip.x0 && b <= clip.x1;
-			if (a < clip.x0) a = clip.x0;
-			if (b > clip.x1) b = clip.x1;
-			if (b < a) return false;
-			return pf.draw_span(a, b, y0, color) && inside;
+		eng::s32 cx0 = x0, cy0 = y0, cx1 = x1, cy1 = y1;
+		if (!clip_segment(clip, cx0, cy0, cx1, cy1)) {
+			return false;
 		}
-		const eng::s32 dx = x1 > x0 ? x1 - x0 : x0 - x1;
-		const eng::s32 dy = y1 > y0 ? y1 - y0 : y0 - y1;
-		const eng::s32 sx = x0 < x1 ? 1 : -1;
-		const eng::s32 sy = y0 < y1 ? 1 : -1;
-		eng::s32 err = dx - dy;
-		bool ok = true;
-		for (;;) {
-			if (x0 >= clip.x0 && x0 <= clip.x1 && y0 >= clip.y0 && y0 <= clip.y1) {
-				pf.write_pixel(x0, y0, color);
-			} else {
-				ok = false;
-			}
-			if (x0 == x1 && y0 == y1) break;
-			const eng::s32 e2 = 2 * err;
-			if (e2 > -dy) { err -= dy; x0 += sx; }
-			if (e2 < dx) { err += dx; y0 += sy; }
+		if (cy0 == cy1) {
+			const eng::s32 a = cx0 < cx1 ? cx0 : cx1;
+			const eng::s32 b = cx0 < cx1 ? cx1 : cx0;
+			return pf.draw_span(a, b, cy0, color);
 		}
-		return ok;
+		return eng::field::cpu_line(pf, cx0, cy0, cx1, cy1, color) != 0u;
 	}
 	/// Copia rectangular por **CPU** (`Playfield::copy_rect_cpu`, con ruta de 32 bits en
-	/// 68020+); no encola trabajo. `source_shift`/`descending` no aplican al camino CPU.
+	/// 68020+); no encola trabajo. `source_shift` sí aplica (barrel shift por palabras);
+	/// `descending`/`op` no.
 	bool copy_rect(Playfield& pf, graphics::FramePlan& plan, eng::Span<const eng::u16> src,
 		       eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h,
 		       eng::u16 src_row_bytes, eng::u32 src_plane_stride, eng::u8 planes,
 		       eng::u8 source_shift = 0u, bool descending = false,
 		       RasterOp op = RasterOp::Copy) override {
 		(void)plan;
-		(void)source_shift;
 		(void)descending;
 		(void)op;
-		return pf.copy_rect_cpu(src, x, y, w, h, src_row_bytes, src_plane_stride, planes);
+		return pf.copy_rect_cpu(src, x, y, w, h, src_row_bytes, src_plane_stride, planes,
+					source_shift);
 	}
 	/// BOB enmascarado por **CPU** (`Playfield::copy_masked_cpu`); no encola trabajo.
 	bool copy_masked(Playfield& pf, graphics::FramePlan& plan, eng::Span<const eng::u16> src,
@@ -240,22 +227,24 @@ public:
 			 eng::u16 src_row_bytes, eng::u32 src_plane_stride, eng::u8 planes,
 			 eng::u8 source_shift = 0u) override {
 		(void)plan;
-		(void)source_shift;
-		return pf.copy_masked_cpu(src, mask, x, y, w, h, src_row_bytes, src_plane_stride, planes);
+		return pf.copy_masked_cpu(src, mask, x, y, w, h, src_row_bytes, src_plane_stride, planes,
+					  source_shift);
 	}
 	/// Chunky→planar por CPU: `c2p_1x1_4` (4 planos) o `c2p_1x1_naive` (1..6).
 	bool c2p(const C2pRequest& req, eng::Ref<graphics::FramePlan> plan = {}) override {
 		(void)plan; // la CPU convierte ya; no encola trabajo
-		if (req.chunky.empty() || req.planes.empty() || req.width == 0u ||
+		if (!req.chunky.valid() || !req.planes.valid() || req.width == 0u ||
 		    req.height == 0u || req.plane_count == 0u) {
 			return false;
 		}
 		if (req.plane_count == 4u) {
-			graphics::c2p_1x1_4(req.width, req.height, req.plane_stride, req.chunky,
-					    req.planes);
+			graphics::c2p_1x1_4(req.width, req.height, req.plane_stride,
+					    req.chunky.view.as_const(),
+					    eng::PlaneBytes {req.planes.data(), req.planes.size()});
 		} else {
 			graphics::c2p_1x1_naive(req.width, req.height, req.plane_count,
-						req.plane_stride, req.chunky, req.planes);
+						req.plane_stride, req.chunky.view.as_const(),
+						eng::PlaneBytes {req.planes.data(), req.planes.size()});
 		}
 		return true;
 	}
@@ -288,7 +277,7 @@ public:
 					static_cast<eng::s16>(x + w - 1), static_cast<eng::s16>(x)};
 		const eng::s16 ys[4] = {static_cast<eng::s16>(y), static_cast<eng::s16>(y),
 					static_cast<eng::s16>(y + h - 1), static_cast<eng::s16>(y + h - 1)};
-		return pf.fill_polygon(xs, ys, 4u, color);
+		return pf.fill_polygon(xs, ys, color);
 	}
 	/// Línea por **Blitter** si hay `plan`: recorta el segmento al clip (Cohen-Sutherland)
 	/// y encola una `BlitJobKind::Line` por plano. Si no hay plan (o no cabe), CPU.
@@ -324,24 +313,29 @@ public:
 		return pf.add_world_bitmap_masked(plan, src, mask, x, y, w, h, src_row_bytes,
 						  src_plane_stride, planes, source_shift);
 	}
-	/// C2P por **Blitter** si hay `plan` y 4 planos: encola `BlitJobKind::C2P` (el
-	/// backend ejecuta las 13 fases). Sin plan (o distinto de 4 planos), CPU.
+	/// C2P por **Blitter** si el **banco** lo permite: la función `c2p` decide (ambas memorias
+	/// Chip → `blit_submit` = encolar en el `plan`; si no, CPU). El ejecutor de la vía acelerada es
+	/// aquí `plan->add_c2p` — la decisión es por TIPO/dato, no por «¿hay plan?».
 	bool c2p(const C2pRequest& req, eng::Ref<graphics::FramePlan> plan = {}) override {
-		if (plan.valid() && req.plane_count == 4u && req.chunky.data() != nullptr &&
-		    req.planes.data() != nullptr) {
-			const eng::u32 px = req.width * req.height;
-			if (px >= 2u && px / 2u <= 0xffffu) {
-				graphics::BlitJob job {};
-				job.c2p.chunky = const_cast<eng::u8*>(req.chunky.data());
-				job.c2p.planes = req.planes.data();
-				job.c2p.plane_stride = req.plane_stride;
-				job.c2p.bytes = static_cast<eng::u16>(px / 2u);
-				if (plan->add_c2p(job)) {
-					return true;
+		return graphics::c2p(
+			req.chunky, req.planes, req.width, req.height, req.plane_stride, req.plane_count,
+			[&](const eng::Block<eng::ChunkyTag>& chunky,
+			    const eng::Block<eng::PlaneTag>& planes, eng::u32 w, eng::u32 h,
+			    eng::u32 stride, eng::u8 pc) -> bool {
+				if (!plan.valid()) {
+					return false; // sin plan no hay vía Blitter -> CPU
 				}
-			}
-		}
-		return CpuRaster::c2p(req, plan);
+				const eng::u32 px = w * h;
+				if (px < 2u || px / 2u > 0xffffu) {
+					return false;
+				}
+				graphics::BlitJob job {};
+				job.c2p.chunky = chunky.data();
+				job.c2p.planes = planes.data();
+				job.c2p.plane_stride = stride;
+				job.c2p.bytes = static_cast<eng::u16>(px / 2u);
+				return pc != 0u && plan->add_c2p(job);
+			});
 	}
 };
 

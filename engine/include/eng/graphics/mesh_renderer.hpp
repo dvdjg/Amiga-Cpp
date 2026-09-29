@@ -71,7 +71,7 @@ inline u32 mesh_render_filled(const math3d::MeshView& mesh, const Model& model,
 		const math3d::Face& f = mesh.faces[order[k].index];
 		const s16 xs[3] = {sx[f.a], sx[f.b], sx[f.c]};
 		const s16 ys[3] = {sy[f.a], sy[f.b], sy[f.c]};
-		if (surface.fill_polygon(xs, ys, 3, static_cast<u8>(color_of(order[k].index)))) {
+		if (surface.fill_polygon(xs, ys, static_cast<u8>(color_of(order[k].index)))) {
 			++drawn;
 		}
 	}

@@ -93,3 +93,8 @@ _P61_End
 	XDEF	_P61_ControlBlock, _P61_temp
 _P61_ControlBlock	EQU	P61_motuuli
 _P61_temp		EQU	P61_temp0
+
+; `_P61_dma` = bits de DMA de audio pendientes + `$8200` (lo que escribe `P61_dmason` en `DMACON`).
+; El engine lo aplica tras `P61_Music` (el playroutine lo difiere a la IRQ de CIA-B/nivel 6).
+	XDEF	_P61_dma
+_P61_dma		EQU	P61_dma

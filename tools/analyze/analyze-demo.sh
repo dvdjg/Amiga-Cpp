@@ -18,8 +18,14 @@ fi
 
 DEMO_PATH="$ROOT/$DEMO"
 DEMO_NAME="$(basename "$DEMO_PATH")"
-OUT_DIR="$ROOT/out/demos/$DEMO_NAME"
-SCREENSHOT="$ROOT/out/run/$DEMO_NAME/screenshot.png"
+# Id de build/out (igual regla que build-demo.sh): features por ruta, resto por leaf.
+DEMO_REL="${DEMO//\\//}"
+case "$DEMO_REL" in
+	demos/features/*) DEMO_ID="$(printf '%s' "${DEMO_REL#demos/features/}" | tr '/' '_')" ;;
+	*) DEMO_ID="$DEMO_NAME" ;;
+esac
+OUT_DIR="$ROOT/out/demos/$DEMO_ID"
+SCREENSHOT="$ROOT/out/run/$DEMO_ID/screenshot.png"
 
 # El build nombra el exe con CONFIG_ID (MACHINE_flags_modo): out/demos/<demo>/<CONFIG_ID>/<demo>.<CONFIG_ID>.exe.
 # Localizamos la config: prioridad 0=A500_debug (default), 1=A500_o0, 2=debug con
@@ -29,7 +35,7 @@ pick_config() {
 	for cfg in "$OUT_DIR"/*/; do
 		[ -d "$cfg" ] || continue
 		local name; name="$(basename "$cfg")"
-		[ -f "$cfg/$DEMO_NAME.$name.exe" ] || continue
+		[ -f "$cfg/$DEMO_ID.$name.exe" ] || continue
 		local noflags; noflags=0
 		[ "$(echo "$name" | awk -F_ '{print NF}')" -le 2 ] && noflags=1
 		local rank=6
@@ -38,7 +44,7 @@ pick_config() {
 			*_o0)      rank=$(( noflags ? 1 : 3 )) ;;
 			*_release) rank=$(( noflags ? 4 : 5 )) ;;
 		esac
-		local mt; mt="$(stat -c %Y "$cfg/$DEMO_NAME.$name.exe" 2>/dev/null || echo 0)"
+		local mt; mt="$(stat -c %Y "$cfg/$DEMO_ID.$name.exe" 2>/dev/null || echo 0)"
 		if [ "$rank" -lt "$best_rank" ] || { [ "$rank" -eq "$best_rank" ] && [ "$mt" -gt "$best_mt" ]; }; then
 			best_rank=$rank; best_mt=$mt; best="$name"
 		fi
@@ -48,14 +54,14 @@ pick_config() {
 
 CONFIG_ID="$(pick_config)"
 if [ -n "$CONFIG_ID" ]; then
-	EXE="$OUT_DIR/$CONFIG_ID/$DEMO_NAME.$CONFIG_ID.exe"
-	ELF="$OUT_DIR/$CONFIG_ID/$DEMO_NAME.$CONFIG_ID.elf"
-	MAP="$OUT_DIR/$CONFIG_ID/$DEMO_NAME.$CONFIG_ID.map"
+	EXE="$OUT_DIR/$CONFIG_ID/$DEMO_ID.$CONFIG_ID.exe"
+	ELF="$OUT_DIR/$CONFIG_ID/$DEMO_ID.$CONFIG_ID.elf"
+	MAP="$OUT_DIR/$CONFIG_ID/$DEMO_ID.$CONFIG_ID.map"
 	SCREENSHOT="$ROOT/out/run/$DEMO_NAME/$CONFIG_ID/screenshot.png"
 else
-	EXE="$OUT_DIR/$DEMO_NAME.exe"
-ELF="$OUT_DIR/$DEMO_NAME.elf"
-MAP="$OUT_DIR/$DEMO_NAME.map"
+	EXE="$OUT_DIR/$DEMO_ID.exe"
+ELF="$OUT_DIR/$DEMO_ID.elf"
+MAP="$OUT_DIR/$DEMO_ID.map"
 fi
 
 [ -f "$EXE" ] || { echo "No existe $EXE. Ejecuta primero tools/build/build-demo.sh." >&2; exit 1; }
@@ -82,13 +88,26 @@ Status     : OK
 EOF
 
 if [ -f "$SCREENSHOT" ]; then
-	ANALYZER="$DEMO_PATH/analyze-screenshot.sh"
-	if [ ! -f "$ANALYZER" ]; then
-		ANALYZER="$ROOT/tools/analyze/analyze-screenshot.sh"
-	fi
-	if ! "$ANALYZER" "$SCREENSHOT"; then
-		echo "La captura existe, pero no supera el analisis visual automatico." >&2
-		exit 1
+	# Analizador PROPIO de la demo (determinista): es un gate DURO.
+	OWN_ANALYZER="$DEMO_PATH/analyze-screenshot.sh"
+	if [ -f "$OWN_ANALYZER" ]; then
+		if ! "$OWN_ANALYZER" "$SCREENSHOT"; then
+			echo "La captura existe, pero no supera el analisis visual propio de la demo." >&2
+			exit 1
+		fi
+	else
+		# Sin analizador propio: el veredicto visual lo da la EXPECTATIVA declarada por la
+		# demo (`vision-points.json`) comparada con el modelo de vision (Ollama). El chequeo
+		# generico del overlay (verde/amarillo/blanco) es solo INFORMATIVO: muchas demos no
+		# dibujan overlay (audio, escenas oscuras) y no debe ser un fallo.
+		GEN_ANALYZER="$ROOT/tools/analyze/analyze-screenshot.sh"
+		if ! "$GEN_ANALYZER" "$SCREENSHOT"; then
+			if [ -f "$DEMO_PATH/vision-points.json" ]; then
+				echo "aviso: el overlay generico no aplica; el veredicto lo da vision-points.json (Ollama)."
+			else
+				echo "aviso: demo sin analizador propio ni vision-points.json; overlay generico no aplica." >&2
+			fi
+		fi
 	fi
 fi
 

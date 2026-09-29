@@ -25,7 +25,7 @@ pantalla quedaba con el último color escrito y el blit no ocurría).
 
 ## Validación
 
-- `demos/amiga/210_copper_blitter`: `BlitterJob` en el borde inferior copia 256 words; la copia
+- `demos/techniques/amiga/blitter/210_copper_blitter`: `BlitterJob` en el borde inferior copia 256 words; la copia
   se verifica (`RunStatus.detail = 0x21F00`) y el overlay muestra `copper blit: OK`.
 - `tests/host/graphics/260_copper_blitter`: emisión (`BLTSIZE` al final) + ventana segura.
 

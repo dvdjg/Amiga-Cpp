@@ -68,13 +68,14 @@ struct ActivePlan {
 };
 
 /// Contenedor del planificador compartido; vacío si `Traits::planning` es falso, de modo
-/// que no ocupa RAM cuando la planificación está desactivada.
-template <bool Enable, eng::u16 Nodes, eng::u8 Steps>
+/// que no ocupa RAM cuando la planificación está desactivada. `DomainT` elige el dominio
+/// GOAP (booleano por defecto; numérico para magnitudes).
+template <bool Enable, class DomainT, eng::u16 Nodes, eng::u8 Steps>
 struct PlannerHolder {};
 
-template <eng::u16 Nodes, eng::u8 Steps>
-struct PlannerHolder<true, Nodes, Steps> {
-	PlannerDriver<Nodes, Steps> driver {};
+template <class DomainT, eng::u16 Nodes, eng::u8 Steps>
+struct PlannerHolder<true, DomainT, Nodes, Steps> {
+	PlannerDriver<Nodes, Steps, DomainT> driver {};
 };
 
 } // namespace detail
@@ -83,11 +84,12 @@ struct PlannerHolder<true, Nodes, Steps> {
 /// ticks). La capacidad y los rasgos son los mismos que en `SimWorld`.
 template <class Traits = SimTraits, eng::u16 MaxCreatures = 64u,
 	  eng::u8 MaxTrackers = kDefaultMaxTrackers, eng::u8 MaxRelations = kDefaultMaxRelations,
-	  eng::u8 MaxRooms = 64u, eng::u8 MaxPlans = 8u, eng::u16 PlannerNodes = 64u>
+	  eng::u8 MaxRooms = 64u, eng::u8 MaxPlans = 8u, eng::u16 PlannerNodes = 64u,
+	  class AiT = SimGoap>
 class SimWorldCore {
 public:
 	using Creature = AbstractCreature<MaxTrackers, MaxRelations>;
-	using Ai = SimGoap;
+	using Ai = AiT;
 	using Plan = detail::ActivePlan<kMaxPlanSteps>;
 
 	static constexpr eng::u8 max_plan_steps = kMaxPlanSteps;
@@ -854,7 +856,7 @@ protected:
 	SignalParams m_signal_params {};
 	CultureParams m_culture_params {};
 	PackParams m_pack_params {};
-	[[no_unique_address]] detail::PlannerHolder<Traits::planning, PlannerNodes,
+	[[no_unique_address]] detail::PlannerHolder<Traits::planning, AiT, PlannerNodes,
 						     kMaxPlanSteps> m_planner {};
 
 private:
