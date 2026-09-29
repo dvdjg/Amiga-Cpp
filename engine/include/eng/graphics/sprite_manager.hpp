@@ -33,6 +33,7 @@
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/sprite.hpp>
 #include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
 
 namespace eng::graphics {
 
@@ -62,8 +63,8 @@ public:
 
     /// Reserva el bloque de DATA de sprites en Chip RAM (la app escribe los
     /// bitmaps con `sprite_data()`). No reserva copper (lo hace el compositor).
-    bool init(MemorySystem& memory, u32 data_bytes) {
-	m_data = memory.chip.allocate_block<eng::SpriteTag>(data_bytes, 16);
+    bool init(MemoryManager& memory, u32 data_bytes) {
+	m_data = eng::Block<eng::SpriteTag> {memory.chip().reserve<eng::SpriteTag>(data_bytes, 16)};
 	return m_data.valid();
     }
 

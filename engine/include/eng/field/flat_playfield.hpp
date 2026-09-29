@@ -16,6 +16,7 @@
 #include <eng/field/playfield.hpp>
 #include <eng/field/scroll_engine.hpp>
 #include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
 
 namespace eng::field {
 
@@ -34,7 +35,7 @@ class FlatScrollPlayfield : public CanvasPlayfield {
 public:
     /// Reserva el bitmap del mundo en Chip RAM y fija los límites de cámara
     /// (X `[1, world_w-view_w]`, Y `[0, world_h-view_h]`, saturados).
-    bool begin(MemorySystem& memory, const FlatScrollConfig& cfg) {
+    bool begin(MemoryManager& memory, const FlatScrollConfig& cfg) {
         if (cfg.world_w == 0 || cfg.world_h == 0 || cfg.view_w == 0 || cfg.view_h == 0) return false;
         if (cfg.world_w < cfg.view_w || cfg.world_h < cfg.view_h) return false;
         if (!CanvasPlayfield::begin(memory, {cfg.world_w, cfg.world_h, cfg.planes})) return false;

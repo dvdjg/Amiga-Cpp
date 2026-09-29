@@ -111,7 +111,7 @@ struct CopperPlanDemo {
 			return;
 		}
 		for (eng::u8 b = 0; b < 2u; ++b) {
-			m_bitmaps[b] = backend.memory().chip.allocate_block<eng::PlaneTag>(kPlaneBytes * kPlanes, 16);
+			m_bitmaps[b] = backend.memory_manager().chip().reserve<eng::PlaneTag>(kPlaneBytes * kPlanes, 16);
 			if (!m_bitmaps[b].valid()) {
 				eng::debug::mark_failed(g_eng_run_status, 0x00008502u);
 				return;

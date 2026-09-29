@@ -266,11 +266,11 @@ struct Bobs3DDemo {
 			return;
 		}
 
-		m_screen_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kRing * kScreenBytes, 16);
-		m_bob_block = backend.memory().chip.allocate_block<eng::BobTag>(kBobSheetBytes, 16);
-		m_bob_dense_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBobDenseBytes, 16);
-		m_carrion_block = backend.memory().chip.allocate_block<eng::PlaneTag>(carrion_size, 16);
-		m_copper_block = backend.memory().chip.allocate_block<eng::CopperTag>(kCopperBlockBytes, 16);
+		m_screen_block = backend.memory_manager().chip().reserve<eng::PlaneTag>(kRing * kScreenBytes, 16);
+		m_bob_block = backend.memory_manager().chip().reserve<eng::BobTag>(kBobSheetBytes, 16);
+		m_bob_dense_block = backend.memory_manager().chip().reserve<eng::PlaneTag>(kBobDenseBytes, 16);
+		m_carrion_block = backend.memory_manager().chip().reserve<eng::PlaneTag>(carrion_size, 16);
+		m_copper_block = backend.memory_manager().chip().reserve<eng::CopperTag>(kCopperBlockBytes, 16);
 		if (!m_screen_block.valid() || !m_bob_block.valid() || !m_bob_dense_block.valid() ||
 		    !m_carrion_block.valid() || !m_copper_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011702u);

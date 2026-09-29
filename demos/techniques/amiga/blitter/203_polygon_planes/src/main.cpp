@@ -148,7 +148,7 @@ struct PolygonPlanesDemo {
 
 		scene::SceneResources res = scene::planar(kWidth, kHeight, kPlanes);
 		res.buffers = kBuffers;
-		if (!scene::compose(m_scene, backend.memory(), res, scene::ocs_a500,
+		if (!scene::compose(m_scene, backend.memory_manager(), res, scene::ocs_a500,
 				    scene::display(kDiwstrt, kDiwstop, kDdfstrt, kDdfstop, kBplcon0),
 				    scene::palette(kPalette, 0u, 16u))) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020302u);
@@ -160,7 +160,7 @@ struct PolygonPlanesDemo {
 		// desplazado). El relleno multifila (`add_rect_pattern`) emite un blit por fila
 		// del patron. Debe vivir en Chip RAM (el Blitter no lee .rodata).
 		constexpr eng::u8 kPatRows = 2u;
-		m_pattern = backend.memory().chip.allocate_block<eng::PlaneTag>(
+		m_pattern = backend.memory_manager().chip().reserve<eng::PlaneTag>(
 			static_cast<eng::u32>(kBytesPerRow) * kPatRows + 16u, 16);
 		if (!m_pattern.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020303u);

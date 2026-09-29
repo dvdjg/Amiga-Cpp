@@ -419,7 +419,7 @@ using ZoneBinding = PatchZone;
 /// rechazo queda en `scene.config_error()`. Para configs conocidas en compilación, además,
 /// usar `static_assert(valid_scene(res, limits))`.
 template <class... Stages>
-bool compose(Scene& scene, MemorySystem& memory, const SceneResources& res,
+bool compose(Scene& scene, MemoryManager& memory, const SceneResources& res,
 	     const DisplayLimits& limits, Stages... stages) {
 	if (!scene.init(memory, res, limits)) {
 		return false;
@@ -432,7 +432,7 @@ bool compose(Scene& scene, MemorySystem& memory, const SceneResources& res,
 /// **Composición de juego sin config explícita**: perfil OCS/A500 y display derivado de `res`
 /// (modo/planos/geometría) + paleta. Es la vía del juego (`ROADMAP_GAME_API.md` §1): el motor elige
 /// el perfil y el `BPLCON0`; el `compose` con `DisplayLimits` + etapas queda como escape.
-inline bool compose(Scene& scene, MemorySystem& memory, const SceneResources& res,
+inline bool compose(Scene& scene, MemoryManager& memory, const SceneResources& res,
 		    eng::PaletteWords colors, u8 first = 0u, u8 count = 32u) {
 	return compose(scene, memory, res, ocs_a500, display(res), palette(colors, first, count));
 }

@@ -51,6 +51,7 @@
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/sprite_manager.hpp>
 #include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
 
 namespace eng::field {
 
@@ -64,7 +65,7 @@ using BlocksRowFn = eng::u16 (*)(eng::u8 glyph, eng::u8 variant, eng::u8 row, en
 /// `tile_width`×`tile_height` dispuestos en `(tile % (320/tile_width), tile/...)`.
 /// Devuelve un `MemoryBlock` en Chip RAM (inválido si no hay memoria).
 inline eng::Block<eng::TileBankTag> xlimited_build_blocks_bitmap(
-    MemorySystem& memory,
+    MemoryManager& memory,
     eng::u8 planes,
     eng::u16 tile_width,
     eng::u16 tile_height,
@@ -83,7 +84,7 @@ inline eng::Block<eng::TileBankTag> xlimited_build_blocks_bitmap(
     const eng::u32 height =
         block_rows * (static_cast<eng::u32>(tile_height) * planes); // planelineas totales
     const eng::u32 bytes = src_bytes_per_row * height;
-    eng::Block<eng::TileBankTag> block = memory.chip.allocate_block<eng::TileBankTag>(bytes, 16);
+    eng::Block<eng::TileBankTag> block = memory.chip().reserve<eng::TileBankTag>(bytes, 16);
     if (!block.valid() || row_fn == nullptr) return block;
     eng::u8* data = block.view.data();
     __builtin_memset(data, 0, bytes);
@@ -126,7 +127,7 @@ inline eng::Block<eng::TileBankTag> xlimited_build_blocks_bitmap(
 /// del índice es el bit del plano p (bit 5 = half). No hay ningún base-offset
 /// extra que incrustar (a diferencia de pf_plane_row de 107).
 inline eng::Block<eng::TileBankTag> xlimited_build_blocks_bitmap_from_indexed(
-    MemorySystem& memory,
+    MemoryManager& memory,
     eng::u8 planes,
     eng::u16 tile_width,
     eng::u16 tile_height,
@@ -139,7 +140,7 @@ inline eng::Block<eng::TileBankTag> xlimited_build_blocks_bitmap_from_indexed(
     const eng::u32 height =
         block_rows * (static_cast<eng::u32>(tile_height) * planes); // planelineas totales
     const eng::u32 bytes = src_bytes_per_row * height;
-    eng::Block<eng::TileBankTag> block = memory.chip.allocate_block<eng::TileBankTag>(bytes, 16);
+    eng::Block<eng::TileBankTag> block = memory.chip().reserve<eng::TileBankTag>(bytes, 16);
     if (!block.valid() || indexed.empty()) return block;
     eng::u8* data = block.view.data();
     __builtin_memset(data, 0, bytes);
@@ -380,7 +381,7 @@ public:
     /// `begin()` (bool) es un wrapper de este metodo. Los consumidores que necesiten
     /// diagnostico (o que ya lleven `Result`) usan esta version; el motivo distingue
     /// argumento invalido de memoria agotada o limite de hardware.
-    eng::util::Expected<void, eng::Result> begin_checked(MemorySystem& memory, const XlimitedSceneConfigT<MapT>& cfg) {
+    eng::util::Expected<void, eng::Result> begin_checked(MemoryManager& memory, const XlimitedSceneConfigT<MapT>& cfg) {
         m_cfg = cfg;
         if (cfg.planes == 0 || cfg.planes > 6) return eng::util::unexpected(eng::Result::InvalidArgument);
         if (cfg.blocks_prebuilt == nullptr && cfg.blocks_prebuilt2 == nullptr &&
@@ -513,7 +514,7 @@ public:
     }
 
     /// Wrapper booleano de `begin_checked` (compatibilidad de la API existente).
-    bool begin(MemorySystem& memory, const XlimitedSceneConfigT<MapT>& cfg) {
+    bool begin(MemoryManager& memory, const XlimitedSceneConfigT<MapT>& cfg) {
         return begin_checked(memory, cfg).has_value();
     }
 

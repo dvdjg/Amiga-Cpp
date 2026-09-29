@@ -112,7 +112,7 @@ struct DemoGame {
 
 		// Cursor por sprite de hardware (`eng::ui::HardwareCursor`): estructura DMA en Chip RAM,
 		// emitida en la copperlist como etapa de `compose` (SPR0PT + DMACON con SPREN).
-		m_sprite_block = backend.memory().chip.allocate_block<eng::SpriteTag>(ui::HardwareCursor::kBytes, 16);
+		m_sprite_block = backend.memory_manager().chip().reserve<eng::SpriteTag>(ui::HardwareCursor::kBytes, 16);
 		if (!m_sprite_block.valid() ||
 		    !m_cursor.bind(m_sprite_block.view.data(), ui::HardwareCursor::kBytes)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021503u);
@@ -127,7 +127,7 @@ struct DemoGame {
 		const auto cursor_stage = [this](scene::Scene& sc) { m_cursor.emit_into(sc.scheduler()); };
 
 		m_scene_ok = m_memory_ok &&
-			     scene::compose(m_scene, backend.memory(), kRes, scene::ocs_a500,
+			     scene::compose(m_scene, backend.memory_manager(), kRes, scene::ocs_a500,
 					    scene::display(scene::kPal320x256, scene::kBplcon0_Ehb),
 					    scene::palette(kPalette, 0u, 32u), cursor_stage);
 
@@ -312,7 +312,7 @@ private:
 		constexpr eng::u16 fh = 16;
 		constexpr eng::u16 frow = fw / 8u; // 8 bytes/fila
 		constexpr eng::u32 fplane = static_cast<eng::u32>(frow) * fh;
-		auto blk = backend.memory().chip.allocate_block<eng::PlaneTag>(fplane + 16u, 16);
+		auto blk = backend.memory_manager().chip().reserve<eng::PlaneTag>(fplane + 16u, 16);
 		if (!blk.valid()) {
 			return false;
 		}

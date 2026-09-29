@@ -80,8 +80,13 @@ private:
 template <class Tag>
 [[nodiscard]] inline Block<Tag> fast_or_slow(MemoryManager& mm, u32 bytes,
 					     u32 alignment = 0u) noexcept {
-	return mm.has_fast() ? Block<Tag> {mm.fast().reserve<Tag>(bytes, alignment)}
-			     : Block<Tag> {mm.slow().reserve<Tag>(bytes, alignment)};
+	if (mm.has_fast()) {
+		Block<Tag> b = mm.fast().reserve<Tag>(bytes, alignment);
+		if (b.valid()) {
+			return b;
+		}
+	}
+	return Block<Tag> {mm.slow().reserve<Tag>(bytes, alignment)};
 }
 
 /// Reserva **en cualquier banco** (**Chip, Fast o Slow**): para buffers que NO son DMA pero
@@ -92,13 +97,13 @@ template <class Tag>
 [[nodiscard]] inline Block<Tag> any_bank(MemoryManager& mm, u32 bytes,
 					 u32 alignment = 0u) noexcept {
 	if (mm.has_fast()) {
-		const Block<Tag> b = mm.fast().reserve<Tag>(bytes, alignment);
+		Block<Tag> b = mm.fast().reserve<Tag>(bytes, alignment);
 		if (b.valid()) {
 			return b;
 		}
 	}
 	if (mm.has_slow()) {
-		const Block<Tag> b = mm.slow().reserve<Tag>(bytes, alignment);
+		Block<Tag> b = mm.slow().reserve<Tag>(bytes, alignment);
 		if (b.valid()) {
 			return b;
 		}

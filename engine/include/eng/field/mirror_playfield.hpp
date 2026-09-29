@@ -17,6 +17,7 @@
 #include <eng/field/playfield.hpp>
 #include <eng/field/scroll_engine.hpp>
 #include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
 
 namespace eng::field {
 
@@ -33,7 +34,7 @@ class MirrorScrollPlayfield : public CanvasPlayfield {
 public:
     /// Reserva el bitmap `world_w x (2*display_h)` y fija la cámara X (saturada)
     /// y la cámara Y (envolvente dentro del bucle).
-    bool begin(MemorySystem& memory, const MirrorScrollConfig& cfg) {
+    bool begin(MemoryManager& memory, const MirrorScrollConfig& cfg) {
         if (cfg.world_w == 0 || cfg.display_h == 0 || cfg.view_w == 0 || cfg.view_h == 0) return false;
         if (cfg.world_w < cfg.view_w || cfg.display_h < cfg.view_h) return false;
         const u16 bitmap_h = static_cast<u16>(cfg.display_h * 2u);

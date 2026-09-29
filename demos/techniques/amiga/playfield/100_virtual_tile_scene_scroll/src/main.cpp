@@ -287,7 +287,7 @@ struct DemoGame {
 		}
 		gfx::SceneResources res = gfx::planar(320u, 256u, 6);
 		res.mode = gfx::SceneMode::Ehb;
-		if (!gfx::compose(m_scene, backend.memory(), res,
+		if (!gfx::compose(m_scene, backend.memory_manager(), res,
 				    gfx::ocs_a500,
 				gfx::display(res),
 				gfx::palette(eng::PaletteWords {sky_palette.color, 32u}, 0u, 32u),

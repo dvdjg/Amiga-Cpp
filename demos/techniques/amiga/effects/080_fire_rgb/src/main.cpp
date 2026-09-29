@@ -209,7 +209,7 @@ struct FireDemo {
 		if (!m_memory_ok) { eng::debug::mark_failed(g_eng_run_status, 0x00008001u); return; }
 
 		// chunky (x2) en **Chip**: lo lee el Blitter en el C2P (DMA).
-		m_block = backend.memory().chip.allocate_block<eng::ChunkyTag>(kChunkyBuffer * 2u, 16);
+		m_block = backend.memory_manager().chip().reserve<eng::ChunkyTag>(kChunkyBuffer * 2u, 16);
 		if (!m_block.valid()) { eng::debug::mark_failed(g_eng_run_status, 0x00008002u); return; }
 
 		eng::u8* p = m_block.view.data();
@@ -257,7 +257,7 @@ struct FireDemo {
 		res.buffers = static_cast<eng::u8>(K_080_BUFFERS);
 		// display + palette + row_repeat(64*4 lineas): 4096 B no bastan.
 		res.copper_bytes = 8192u;
-		if (!scene::compose(m_scene, backend.memory(), res,
+		if (!scene::compose(m_scene, backend.memory_manager(), res,
 				    scene::ocs_a500,
 				    scene::display(res, scene::kBplcon0_Ham6),
 				    scene::palette(eng::PaletteWords {kZeroPalette, 16}, 0u, 16u),

@@ -71,37 +71,33 @@ doble buffer que no libera el buffer aún visible.
 
 **Valor:** cierra el modelo; ya no hay dos formas de reservar.
 
-**Estado (2026-09): pendiente (refactor transversal).** `MemorySystem.chip` y `MemBank<Chip>` ya
-comparten cursor (`configure_backing`), así que **no hay solape** y la corrección no está en juego;
-lo que falta es **unificar la superficie** de las APIs que hoy reciben `MemorySystem&`.
+**Estado (2026-09): fachada y escena migradas.** La cadena `compose`→`Scene`→`Bitmap`/`copper::Plan`/
+`DoubleBuffer`/`SpriteManager`/`xlimited_*`/`tile_scroll`/`effects` y las demos pasan a
+`MemoryManager&` con `chip().reserve` (mismo cursor que la arena vía `configure_backing`, **sin
+solape**). `res::load(MemoryManager)` es la puerta normal.
 
-Diagnóstico de los sitios con `allocate_block` (arena) que unificarán su firma a `MemBank`/
-`MemoryManager`:
+**Desbloqueo del pool propio de `MemBank` (free real): pendiente de un último tramo.** Mientras
+estos tres sigan reservando de la **arena** `chip` (no del banco) sobre el mismo buffer, darle pool
+propio al banco **solaparía** dos asignadores:
 
-| Sitio | Cambio |
-|---|---|
-| `graphics/bitmap.hpp` (`Bitmap::init`) | `MemorySystem&` → `MemoryManager&`; `chip.allocate_block` → `chip().reserve` |
-| `graphics/sprite_manager.hpp` (`SpriteManager::init`), `copper/double_buffer.hpp` (`DoubleBuffer::begin`) | idem |
-| `graphics/composition/scene.hpp`, `graphics/copper/plan.hpp`, `drivers/tile_scroll.hpp`, `field/{xlimited_scene,xlimited_composer,plane_view,xlimited_playfield}.hpp` | cadena que pasa `MemorySystem&`; migrar en bloque |
-| `glyph_cache.hpp`, `platform/amiga/asset_backend.hpp` | no propietarios (guardan `Span`): solo cambia el origen del bloque |
-| demos (`backend.memory().chip.allocate_block`) | `backend.memory_manager().chip().reserve` |
-| `audio_system.hpp` (`m_music_buf`) | **hecho** (`chip().reserve`) |
+- `graphics/glyph_cache.hpp` (`allocate(LinearArena&)` — cache de glifos, se recicla por slot).
+- `platform/amiga/asset_backend.hpp` (`AssetCacheBackend`, scratch del cache).
+- `res::load(MemorySystem&)` (sobrecarga antigua; migrar sus llamadores a `res::load(MemoryManager&)`).
 
-Es un **cambio de firma en cascada** (`MemorySystem&` → `MemoryManager&`) que conviene hacer en una
-pasada propia, con build+regresión de las demos de playfield/copper. La corrección de memoria **no**
-depende de él (mismo cursor); es **coherencia de API**.
+Cuando esos tres usen `MemBank`, se puede quitar `configure_backing` de los bancos persistentes en
+`AmigaBackend::configure_memory` y `MemBank::free` pasa a **real**.
 
-1. Homogeneizar la API de reserva sobre `MemBank<K>::reserve<Tag>()`:
-   - `LinearArena::allocate_block<Tag>()` **delega** en el banco cuando la arena es de respaldo de
-     un `MemBank` (ya hay `configure_backing`), o se mantiene solo para *scratch* sin `free`.
-   - Retirar progresivamente `MemBank::reserve(void*)`/consumidores que abren `pool()` directo.
-2. Definir el par **reserve/release** tipado: `MemBank<K>::release(const Block<Tag,K>&)` (existe) y
-   una fachada `ResourceStore`/`Assets` para el juego (`load<Sprite>`, `create<Bitmap>`, `retain`,
-   `release`, `reset_phase`). **Hecho**: `eng::Assets` (`eng/api/assets.hpp`).
-3. Reservas de fase: `frame`/`setup` con semántica explícita (arena reiniciable) y `reset_frame`.
+Diagnóstico de la migración (histórico): `graphics/bitmap.hpp` (`Bitmap::init`),
+`graphics/sprite_manager.hpp`, `copper/double_buffer.hpp`, `graphics/composition/scene.hpp`,
+`copper/plan.hpp`, `drivers/tile_scroll.hpp`, `field/{xlimited_scene,xlimited_composer,plane_view,
+flat_playfield,mirror_playfield,canvas_playfield,soft_dpf}.hpp` — **hecho**.
 
-**Evidencia:** HOST-340 ampliado (idempotencia del `free`, puntero ajeno, reserve/release de
-`MemBank`) + build de demos de audio (057/058/061/068…).
+1. Homogeneizar la API de reserva sobre `MemBank<K>::reserve<Tag>()` (hecho en fachada/escena).
+2. `Assets` como par reserve/release del juego (`create`/`release`/`reset_phase`) — **hecho**.
+3. Reservas de fase: `ScratchArena` + `reset_frame` — **hecho** (Fase 6).
+
+**Evidencia:** suite host verde (salvo el fallo pre-existente de `382_audio_compressor_cli`); builds
+m68k de 052/086/100/113/117/209 y del resto de la escena; 113/086 READY.
 
 ## Fase 4 — Diagnóstico y presupuesto
 

@@ -98,7 +98,7 @@ struct CompositorDemo {
 		});
 
 		m_scene_ok = m_memory_ok &&
-			     scene::compose(m_scene, backend.memory(), kRes, scene::ocs_a500,
+			     scene::compose(m_scene, backend.memory_manager(), kRes, scene::ocs_a500,
 					    scene::display(scene::kPal320x256, scene::kBplcon0_Ehb),
 					    scene::palette(kPalette, 0u, 32u));
 
@@ -159,7 +159,7 @@ private:
 		static const char* const kTitles[kWinCount] = {"Ventana A", "Ventana B", "Ventana C"};
 
 		for (eng::u8 i = 0u; i < kWinCount; ++i) {
-			m_mem[i] = backend.memory().chip.allocate_block<eng::PlaneTag>(kBackingBytes + 16u, 16);
+			m_mem[i] = backend.memory_manager().chip().reserve<eng::PlaneTag>(kBackingBytes + 16u, 16);
 			ui::CompWindow* w = m_comp.add();
 			if (w == nullptr || !m_mem[i].valid() ||
 			    !w->backing.bind(m_mem[i].view.data(), kBackingBytes, kWinW, kWinH, kPlanes)) {

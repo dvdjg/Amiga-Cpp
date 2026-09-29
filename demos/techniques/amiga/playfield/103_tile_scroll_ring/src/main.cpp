@@ -350,12 +350,12 @@ struct DemoGame {
 			return;
 		}
 
-		m_tiles = backend.memory().chip.allocate_block<eng::TileBankTag>(Scene::tile_bytes() * tile_pattern_count, 16);
+		m_tiles = backend.memory_manager().chip().reserve<eng::TileBankTag>(Scene::tile_bytes() * tile_pattern_count, 16);
 		if (!m_tiles.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000312u);
 			return;
 		}
-		m_scratch = backend.memory().chip.allocate_block<eng::PlaneTag>(
+		m_scratch = backend.memory_manager().chip().reserve<eng::PlaneTag>(
 			static_cast<eng::u32>(surface_bytes_per_row - (tile_size / 8u)) * Scene::surface_height,
 			16
 		);

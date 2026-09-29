@@ -22,7 +22,7 @@ public:
     };
 
     /// Reserva el framebuffer en Chip RAM (interleaved, `width/8*height*planes`).
-    bool begin(MemorySystem& memory, const Config& cfg) {
+    bool begin(MemoryManager& memory, const Config& cfg) {
         if (cfg.width == 0 || cfg.height == 0 || cfg.planes == 0 || cfg.planes > 6) return false;
         gfx::BitmapConfig bc;
         bc.width = cfg.width;

@@ -91,13 +91,13 @@ struct AudioStreamDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00027201u);
 			return;
 		}
-		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kPlaneBytes, 16);
-		m_copper_block = backend.memory().chip.allocate_block<eng::CopperTag>(1024, 16);
-		m_pcm0 = backend.memory().chip.allocate_block<eng::AudioTag>(kChunkSamples, 4);
-		m_pcm1 = backend.memory().chip.allocate_block<eng::AudioTag>(kChunkSamples, 4);
-		m_comp = backend.memory().chip.allocate_block<eng::AudioTag>(kMaxComp, 4);
-		m_enc = backend.memory().chip.allocate_block<eng::AudioTag>(kMelodyChunks * kMaxComp, 4);
-		m_file = backend.memory().chip.allocate_block<eng::AudioTag>(
+		m_bitplane_block = backend.memory_manager().chip().reserve<eng::PlaneTag>(kPlaneBytes, 16);
+		m_copper_block = backend.memory_manager().chip().reserve<eng::CopperTag>(1024, 16);
+		m_pcm0 = backend.memory_manager().chip().reserve<eng::AudioTag>(kChunkSamples, 4);
+		m_pcm1 = backend.memory_manager().chip().reserve<eng::AudioTag>(kChunkSamples, 4);
+		m_comp = backend.memory_manager().chip().reserve<eng::AudioTag>(kMaxComp, 4);
+		m_enc = backend.memory_manager().chip().reserve<eng::AudioTag>(kMelodyChunks * kMaxComp, 4);
+		m_file = backend.memory_manager().chip().reserve<eng::AudioTag>(
 			static_cast<eng::u32>(kPreloadChunks) * kChunkSamples, 4);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid() || !m_pcm0.valid() ||
 		    !m_pcm1.valid() || !m_comp.valid() || !m_enc.valid() || !m_file.valid()) {

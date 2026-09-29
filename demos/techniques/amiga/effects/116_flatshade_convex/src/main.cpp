@@ -423,7 +423,7 @@ struct FlatShadeDemo {
 			return;
 		}
 
-		m_mask_block = backend.memory().chip.allocate_block<eng::MaskTag>(kPlaneBytes, 16);
+		m_mask_block = backend.memory_manager().chip().reserve<eng::MaskTag>(kPlaneBytes, 16);
 		if (!m_mask_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011602u);
 			return;
@@ -436,7 +436,7 @@ struct FlatShadeDemo {
 		// Geometria propia del original (256x256): DIW/DDF y BPLCON0 crudos.
 		scene::SceneResources res = scene::planar(kWidth, kHeight, kPlanes);
 		res.buffers = static_cast<eng::u8>(kBuffers);
-		if (!scene::compose(m_scene, backend.memory(), res,
+		if (!scene::compose(m_scene, backend.memory_manager(), res,
 				    scene::ocs_a500,
 				    scene::display(kDiwstrt, kDiwstop, kDdfstrt, kDdfstop, kBplcon0),
 				    scene::palette(eng::PaletteWords {flatshade_colors, 16u}, 0u, 16u))) {

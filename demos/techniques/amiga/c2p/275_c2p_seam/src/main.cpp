@@ -86,7 +86,7 @@ struct C2pSeamDemo {
 		res.rows = kChunkyH;
 		res.buffers = 2u;
 		res.copper_bytes = 8192u;
-		if (!scene::compose(m_scene, backend.memory(), res, scene::ocs_a500,
+		if (!scene::compose(m_scene, backend.memory_manager(), res, scene::ocs_a500,
 				    scene::display(res),
 				    scene::palette(eng::PaletteWords {kColors, 16u}, 0u, 16u),
 				    scene::row_repeat(kRepeat, 0x2cu, 0u))) {
@@ -94,8 +94,8 @@ struct C2pSeamDemo {
 			return false;
 		}
 
-		m_chunky = backend.memory().chip.allocate_block<eng::ChunkyTag>(kChunkyW * kChunkyH, 4);
-		m_ref = backend.memory().chip.allocate_block<eng::PlaneTag>(kPlaneBytes * kPlanes, 4);
+		m_chunky = backend.memory_manager().chip().reserve<eng::ChunkyTag>(kChunkyW * kChunkyH, 4);
+		m_ref = backend.memory_manager().chip().reserve<eng::PlaneTag>(kPlaneBytes * kPlanes, 4);
 		if (!m_chunky.valid() || !m_ref.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00027503u);
 			return false;

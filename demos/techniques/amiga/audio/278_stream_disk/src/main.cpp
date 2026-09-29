@@ -62,10 +62,10 @@ struct StreamDiskDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00027801u);
 			return;
 		}
-		m_pcm0 = backend.memory().chip.allocate_block<eng::AudioTag>(kMaxChunk, 4);
-		m_pcm1 = backend.memory().chip.allocate_block<eng::AudioTag>(kMaxChunk, 4);
-		m_pcm2 = backend.memory().chip.allocate_block<eng::AudioTag>(kMaxChunk, 4);
-		m_file = backend.memory().chip.allocate_block<eng::AudioTag>(kMaxFile, 4);
+		m_pcm0 = backend.memory_manager().chip().reserve<eng::AudioTag>(kMaxChunk, 4);
+		m_pcm1 = backend.memory_manager().chip().reserve<eng::AudioTag>(kMaxChunk, 4);
+		m_pcm2 = backend.memory_manager().chip().reserve<eng::AudioTag>(kMaxChunk, 4);
+		m_file = backend.memory_manager().chip().reserve<eng::AudioTag>(kMaxFile, 4);
 		if (!m_pcm0.valid() || !m_pcm1.valid() || !m_pcm2.valid() || !m_file.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00027802u);
 			return;

@@ -304,7 +304,7 @@ struct DemoGame {
 			return;
 		}
 
-		m_tiles = backend.memory().chip.allocate_block<eng::TileBankTag>(drivers::EhbTileScrollScene::tile_bytes() * tile_pattern_count, 16);
+		m_tiles = backend.memory_manager().chip().reserve<eng::TileBankTag>(drivers::EhbTileScrollScene::tile_bytes() * tile_pattern_count, 16);
 		if (!m_tiles.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000112u);
 			return;

@@ -135,8 +135,8 @@ struct LayersDemo {
 		}
 		// Los bitplanes DMA DEBEN vivir en CHIP (leccion de imports).
 		m_planes_block =
-			backend.memory().chip.allocate_block<eng::PlaneTag>(kBmpBytes * 2u, 16);
-		m_copper_block = backend.memory().chip.allocate_block<eng::CopperTag>(
+			backend.memory_manager().chip().reserve<eng::PlaneTag>(kBmpBytes * 2u, 16);
+		m_copper_block = backend.memory_manager().chip().reserve<eng::CopperTag>(
 			kLists * kCopperWords, 16);
 		if (!m_planes_block.valid() || !m_copper_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012502u);

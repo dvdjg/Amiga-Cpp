@@ -438,7 +438,7 @@ struct DemoGame {
 		// El shift se hace en dos blits (superficie->scratch, scratch->superficie)
 		// porque el CopyRect solapado no mueve el buffer en WinUAE-DBG; el scratch
 		// se reutiliza plano a plano.
-		m_scratch = backend.memory().chip.allocate_block<eng::PlaneTag>(
+		m_scratch = backend.memory_manager().chip().reserve<eng::PlaneTag>(
 			static_cast<eng::u32>(surface_bytes_per_row - (tile_size / 8u)) * Scene::surface_height,
 			16
 		);

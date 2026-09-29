@@ -64,9 +64,9 @@ struct MixerRefDemo {
 		m_memory_ok = backend.configure_memory({ 96u * 1024u, 8u * 1024u, 4u * 1024u });
 		if (!m_memory_ok) { eng::debug::mark_failed(g_eng_run_status, 0x00006801u); return; }
 
-		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitplaneBytes, 16);
-		m_copper_block = backend.memory().chip.allocate_block<eng::CopperTag>(2048, 16);
-		m_sample_block = backend.memory().chip.allocate_block<eng::AudioTag>(kSampleLen, 4);
+		m_bitplane_block = backend.memory_manager().chip().reserve<eng::PlaneTag>(kBitplaneBytes, 16);
+		m_copper_block = backend.memory_manager().chip().reserve<eng::CopperTag>(2048, 16);
+		m_sample_block = backend.memory_manager().chip().reserve<eng::AudioTag>(kSampleLen, 4);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid() || !m_sample_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00006802u);
 			return;
@@ -81,9 +81,9 @@ struct MixerRefDemo {
 		// NOTA: MixerGetPluginsBufferSize() es un no-op con MIXER_ENABLE_PLUGINS=0
 		// (devuelve basura), así que usamos un tamaño fijo conocido.
 		const eng::u32 plugin_buffer_size = eng::audio::kPluginBufferBytes;
-		m_buffer_block = backend.memory().chip.allocate_block<eng::MixerBufferTag>(buffer_size, 4);
-		m_plugin_buffer_block = backend.memory().slow.allocate_block<eng::MixerBufferTag>(plugin_buffer_size, 4);
-		m_plugin_data_block = backend.memory().slow.allocate_block<eng::MixerBufferTag>(kPluginDataLen, 4);
+		m_buffer_block = backend.memory_manager().chip().reserve<eng::MixerBufferTag>(buffer_size, 4);
+		m_plugin_buffer_block = backend.memory_manager().slow().reserve<eng::MixerBufferTag>(plugin_buffer_size, 4);
+		m_plugin_data_block = backend.memory_manager().slow().reserve<eng::MixerBufferTag>(kPluginDataLen, 4);
 		if (!m_buffer_block.valid() || !m_plugin_buffer_block.valid() || !m_plugin_data_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00006804u);
 			return;

@@ -128,7 +128,7 @@ struct BackgroundDemo {
 			return;
 		}
 
-		if (!scene::compose(m_scene, backend.memory(),
+		if (!scene::compose(m_scene, backend.memory_manager(),
 				    kSceneResources, scene::ocs_a500,
 				    scene::display(scene::kPal320x256, scene::kBplcon0_4Planes),
 				    scene::palette(eng::PaletteWords {kPalette, 16}, 1u, 15u))) {

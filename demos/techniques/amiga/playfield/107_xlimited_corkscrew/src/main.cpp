@@ -742,7 +742,7 @@ struct DemoGame {
             }
             if (kDual) {
                 const eng::u32 map_bytes = n * 2u;
-                m_fg_map = backend.memory().chip.allocate_block<eng::MapCellsTag>(map_bytes, 2);
+                m_fg_map = backend.memory_manager().chip().reserve<eng::MapCellsTag>(map_bytes, 2);
                 if (!m_fg_map.valid()) { eng::debug::mark_failed(g_eng_run_status, 0x00010702u); return; }
                 build_fg_checkerboard_map(
                     eng::Span<eng::u16>::from_raw(m_fg_map.view.as_words().data(), n),
@@ -907,7 +907,7 @@ scene_cfg.max_step = kStepMax;
         // máscara de 1 bit con un agujero central 4x4 (px 6..9). El cookie-cut
         // escribe blanco donde la máscara es 1 y conserva el mapa donde es 0:
         // bloque blanco 16x16 con un hueco que deja ver el fondo.
-        m_bob = backend.memory().chip.allocate_block<eng::BobTag>(160, 16); // 4*32 + 32 (máscara)
+        m_bob = backend.memory_manager().chip().reserve<eng::BobTag>(160, 16); // 4*32 + 32 (máscara)
         if (m_bob.valid()) {
             eng::u8* bob = m_bob.view.data();
             for (eng::u32 i = 0; i < 128; ++i) bob[i] = 0xff;   // 4 planos = blanco

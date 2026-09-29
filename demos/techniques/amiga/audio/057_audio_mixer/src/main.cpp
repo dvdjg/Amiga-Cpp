@@ -85,9 +85,9 @@ struct AudioMixerDemo {
 			return;
 		}
 
-		m_sample_block = backend.memory().chip.allocate_block<eng::AudioTag>(kSampleBytes, 4);
-		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitplaneBytes, 16);
-		m_copper_block = backend.memory().chip.allocate_block<eng::CopperTag>(2048, 16);
+		m_sample_block = backend.memory_manager().chip().reserve<eng::AudioTag>(kSampleBytes, 4);
+		m_bitplane_block = backend.memory_manager().chip().reserve<eng::PlaneTag>(kBitplaneBytes, 16);
+		m_copper_block = backend.memory_manager().chip().reserve<eng::CopperTag>(2048, 16);
 		if (!m_sample_block.valid() || !m_bitplane_block.valid() || !m_copper_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00005702u);
 			return;

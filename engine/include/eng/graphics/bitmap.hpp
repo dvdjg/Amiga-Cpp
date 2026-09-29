@@ -30,6 +30,7 @@
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/plane_layout.hpp>
 #include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
 
 namespace eng::gfx {
 
@@ -61,13 +62,13 @@ public:
     /// `total_bytes + guard_bytes`; `bytes()`/frontbuffer apuntan a `base + frontbase_offset`
     /// (el offset de fetch ancho del corkscrew: normal=0, BPL32=16, 4x=48). La guardia protege
     /// las lecturas DMA/blits que rebasan el final lógico del framebuffer.
-    bool init(MemorySystem& memory, const BitmapConfig& cfg) {
+    bool init(MemoryManager& memory, const BitmapConfig& cfg) {
         if (cfg.width == 0 || cfg.height == 0 || cfg.planes == 0 || cfg.planes > 6) return false;
         m_cfg = cfg;
         m_row_bytes = cfg.row_bytes ? cfg.row_bytes : static_cast<u16>(cfg.width / 8u);
         m_total = static_cast<u32>(m_row_bytes) * cfg.height * cfg.planes;
         const u32 alloc = m_total + cfg.guard_bytes;
-        m_block = memory.chip.allocate_block<eng::PlaneTag>(alloc, cfg.alignment);
+        m_block = memory.chip().reserve<eng::PlaneTag>(alloc, cfg.alignment);
         if (!m_block.valid()) return false;
         m_real_base = m_block.address();
         m_frontbuffer = m_real_base + cfg.frontbase_offset;

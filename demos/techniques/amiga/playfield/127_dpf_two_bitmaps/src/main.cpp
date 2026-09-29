@@ -93,10 +93,10 @@ struct DpfTwoBitmapsDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012701u);
 			return;
 		}
-		m_pf1 = backend.memory().chip.allocate_block<eng::PlaneTag>(kFieldBytes, 16u);
-		m_pf2 = backend.memory().chip.allocate_block<eng::PlaneTag>(kFieldBytes, 16u);
-		m_sheet = backend.memory().chip.allocate_block<eng::BobTag>(kBobSheetBytes, 16u);
-		m_copper = backend.memory().chip.allocate_block<eng::CopperTag>(kLists * kCopperWords, 16u);
+		m_pf1 = backend.memory_manager().chip().reserve<eng::PlaneTag>(kFieldBytes, 16u);
+		m_pf2 = backend.memory_manager().chip().reserve<eng::PlaneTag>(kFieldBytes, 16u);
+		m_sheet = backend.memory_manager().chip().reserve<eng::BobTag>(kBobSheetBytes, 16u);
+		m_copper = backend.memory_manager().chip().reserve<eng::CopperTag>(kLists * kCopperWords, 16u);
 		if (!m_pf1.valid() || !m_pf2.valid() || !m_sheet.valid() || !m_copper.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012702u);
 			return;

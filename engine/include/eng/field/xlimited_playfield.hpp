@@ -110,7 +110,7 @@ public:
     /// RAM con alineación 16 (como `AllocBitMap(..., BMF_INTERLEAVED|BMF_CLEAR)`).
     /// `frontbuffer` apunta a `base + bitmapoffset` para los modos de fetch
     /// ancho (16 bytes para BPL32, 48 para 4x). En modo normal offset=0.
-    bool begin(MemorySystem& memory, const XlimitedConfigT<MapT>& cfg) {
+    bool begin(MemoryManager& memory, const XlimitedConfigT<MapT>& cfg) {
         // Verifica en compile-time que este playfield cumple el contrato del
         // algoritmo (`ScrollEngine`); hace el scroll portátil y explícito.
         static_assert(eng::field::ScrollSink<XLimitedPlayfield<SC, MapT, Profile>>,

@@ -23,6 +23,7 @@
 #include <eng/graphics/composition/limits.hpp>
 #include <eng/hw/info.hpp>
 #include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
 
 namespace eng::graphics::composition {
 
@@ -84,7 +85,7 @@ public:
 	/// El motivo del rechazo queda en `config_error()`. Devuelve `false` si no es válida o no
 	/// hay memoria. El perfil es **obligatorio**: no existe una vía que acepte configuraciones
 	/// que el hardware no permite.
-	bool init(MemorySystem& memory, const SceneResources& res, const DisplayLimits& limits) {
+	bool init(MemoryManager& memory, const SceneResources& res, const DisplayLimits& limits) {
 		const ConfigError e = validate(res, limits);
 		if (!e.ok()) {
 			m_config_error = e;
@@ -400,7 +401,7 @@ private:
 
 	/// Reserva bitplanes y copperlist según `res`. Interno: solo lo llama `init(...)` tras
 	/// validar `res` contra el perfil. Devuelve `false` si la geometría o la memoria fallan.
-	bool init_raw(MemorySystem& memory, const SceneResources& res) {
+	bool init_raw(MemoryManager& memory, const SceneResources& res) {
 		m_res = res;
 		const u16 row = row_bytes();
 		const u16 logical_rows = res.rows != 0u ? res.rows : res.height;
@@ -428,7 +429,7 @@ private:
 			m_back = 0u;
 		} else {
 			for (u8 b = 0u; b < buffers; ++b) {
-				m_buffers[b] = memory.chip.allocate_block<eng::PlaneTag>(
+				m_buffers[b] = memory.chip().reserve<eng::PlaneTag>(
 					eng::math::mulu32x16(m_plane_bytes, static_cast<u16>(res.planes)) + 16u, 16);
 				if (!m_buffers[b].valid()) {
 					return false;

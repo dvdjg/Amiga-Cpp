@@ -43,6 +43,7 @@
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/copper/template.hpp>
 #include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
 
 namespace eng::copper {
 
@@ -50,9 +51,9 @@ class DoubleBuffer {
 public:
 	/// Reserva los dos bloques (mismo tamaño y alineación) en Chip RAM.
 	/// `active` arranca en 1 para que el primer bloque que se escribe sea el 0.
-	bool begin(eng::MemorySystem& memory, u32 bytes_per_block, u8 alignment = 16) {
-		m_blocks[0] = memory.chip.allocate_block<eng::CopperTag>(bytes_per_block, alignment);
-		m_blocks[1] = memory.chip.allocate_block<eng::CopperTag>(bytes_per_block, alignment);
+	bool begin(eng::MemoryManager& memory, u32 bytes_per_block, u8 alignment = 16) {
+		m_blocks[0] = eng::Block<eng::CopperTag> {memory.chip().reserve<eng::CopperTag>(bytes_per_block, alignment)};
+		m_blocks[1] = eng::Block<eng::CopperTag> {memory.chip().reserve<eng::CopperTag>(bytes_per_block, alignment)};
 		m_active = 1;
 		m_ok = m_blocks[0].valid() && m_blocks[1].valid() && bytes_per_block >= 4u;
 		return m_ok;

@@ -128,13 +128,13 @@ struct DemoGame {
 		});
 
 		m_scene_ok = m_memory_ok &&
-			     scene::compose(m_scene, backend.memory(), kRes, scene::ocs_a500,
+			     scene::compose(m_scene, backend.memory_manager(), kRes, scene::ocs_a500,
 					    scene::display(scene::kPal320x256, scene::kBplcon0_Ehb),
 					    scene::palette(kPalette, 0u, 32u));
 
 		// Buffer en blanco (Chip RAM: el Blitter solo direcciona Chip) para el
 		// CopyRect que borra la zona del solido cada frame.
-		m_blank_block = backend.memory().chip.allocate_block<eng::PatternTag>(kBlankBytes, 16);
+		m_blank_block = backend.memory_manager().chip().reserve<eng::PatternTag>(kBlankBytes, 16);
 		if (m_blank_block.valid()) {
 			eng::u8* b = m_blank_block.view.data();
 			for (eng::u32 i = 0; i < kBlankBytes; ++i) b[i] = 0u;
@@ -142,7 +142,7 @@ struct DemoGame {
 		}
 #if K_FILL_BLITTER
 		// Plano-mascara 1 bit (Chip RAM) para el relleno por Blitter.
-		m_mask_block = backend.memory().chip.allocate_block<eng::MaskTag>(kPlaneBytes, 16);
+		m_mask_block = backend.memory_manager().chip().reserve<eng::MaskTag>(kPlaneBytes, 16);
 		if (m_mask_block.valid()) {
 			(void)m_mask_pf.bind_raw(m_mask_block.view.data(),
 						 static_cast<eng::u32>(m_mask_block.view.size()),

@@ -74,7 +74,7 @@ struct DemoGame {
 		eng::debug::mark_init_started(g_eng_run_status);
 		m_memory_ok = backend.configure_memory({192u * 1024u, 8u * 1024u, 4u * 1024u});
 
-		m_plane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(
+		m_plane_block = backend.memory_manager().chip().reserve<eng::PlaneTag>(
 			plane_bytes * (field_planes + 4u + 3u + 2u), 16);
 		m_copper_block = backend.memory().chip.allocate(4096u, 16);
 		if (!m_plane_block.valid() || !m_copper_block.valid()) {

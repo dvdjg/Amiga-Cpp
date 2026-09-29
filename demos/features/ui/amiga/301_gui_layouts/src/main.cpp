@@ -147,7 +147,7 @@ struct DemoGame {
 		});
 
 		m_scene_ok = m_memory_ok &&
-			     scene::compose(m_scene, backend.memory(), kRes, scene::ocs_a500,
+			     scene::compose(m_scene, backend.memory_manager(), kRes, scene::ocs_a500,
 					    scene::display(scene::kPal320x256, scene::kBplcon0_Ehb),
 					    scene::palette(kPalette, 0u, 32u));
 		if (!m_scene_ok) {

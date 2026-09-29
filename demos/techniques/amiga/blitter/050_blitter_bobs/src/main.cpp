@@ -210,7 +210,7 @@ struct DemoGame {
 		scene::SceneResources res = scene::planar(320u, 256u, 6);
 		res.mode = scene::SceneMode::Ehb;
 
-		m_scene_ok = scene::compose(m_scene, backend.memory(), res,
+		m_scene_ok = scene::compose(m_scene, backend.memory_manager(), res,
 				    scene::ocs_a500,
 				    scene::display(res),
 				    scene::palette(eng::PaletteWords {palette.color, 32u}, 0u, 32u));
@@ -221,10 +221,10 @@ struct DemoGame {
 
 		add_reference_bars(m_scene.bitplanes().data());
 
-		m_mask_block = backend.memory().chip.allocate_block<eng::MaskTag>(bob_plane_bytes, 16);
-		m_source_block = backend.memory().chip.allocate_block<eng::PlaneTag>(bob_plane_bytes * plane_count, 16);
-		m_blob_source_block = backend.memory().chip.allocate_block<eng::PlaneTag>(bob_plane_bytes * plane_count, 16);
-		m_saved_background_block = backend.memory().chip.allocate_block<eng::PlaneTag>(bob_plane_bytes * plane_count, 16);
+		m_mask_block = backend.memory_manager().chip().reserve<eng::MaskTag>(bob_plane_bytes, 16);
+		m_source_block = backend.memory_manager().chip().reserve<eng::PlaneTag>(bob_plane_bytes * plane_count, 16);
+		m_blob_source_block = backend.memory_manager().chip().reserve<eng::PlaneTag>(bob_plane_bytes * plane_count, 16);
+		m_saved_background_block = backend.memory_manager().chip().reserve<eng::PlaneTag>(bob_plane_bytes * plane_count, 16);
 		if (
 			!m_mask_block.valid() ||
 			!m_source_block.valid() ||

@@ -48,6 +48,7 @@
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/raster_intent.hpp>
 #include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
 
 namespace eng::copper {
 
@@ -91,7 +92,7 @@ public:
 	/// Capacidad de reservas de banda por frame (fijo, sin heap).
 	static constexpr u8 max_bands = 16;
 
-	bool begin(eng::MemorySystem& memory, const PlanConfig& cfg = {}) {
+	bool begin(eng::MemoryManager& memory, const PlanConfig& cfg = {}) {
 		m_cfg = cfg;
 		m_count = 0;
 		m_overflow = false;

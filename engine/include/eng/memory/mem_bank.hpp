@@ -64,6 +64,7 @@ public:
 	template <class Tag>
 	void release(const Block<Tag, K>& block) noexcept {
 		m_pool.free(block.data());
+		block.invalidate(); // diagnóstico: usar sus vistas después trapa
 	}
 	void release(const void* ptr) noexcept { m_pool.free(const_cast<void*>(ptr)); }
 

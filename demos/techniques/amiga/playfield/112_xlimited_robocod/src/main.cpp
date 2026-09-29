@@ -158,7 +158,7 @@ struct DemoGame {
 		// diagonales + puntos (motivo de tiles). Dos periodos de 512 px (1024 px =
 		// 128 bytes) para que la ventana copiada nunca invada la fila siguiente al
 		// desplazarse horizontalmente.
-		m_bg_pattern = backend.memory().chip.allocate_block<eng::PatternTag>(
+		m_bg_pattern = backend.memory_manager().chip().reserve<eng::PatternTag>(
 			static_cast<eng::u32>(kPatRowBytes) * kPatRows, 16);
 		if (m_bg_pattern.valid()) {
 			auto* p = m_bg_pattern.view.data();

@@ -116,8 +116,8 @@ struct MusicMixerDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00027601u);
 			return;
 		}
-		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kPlaneBytes * kPlanes, 16);
-		m_copper_block = backend.memory().chip.allocate_block<eng::CopperTag>(1024, 16);
+		m_bitplane_block = backend.memory_manager().chip().reserve<eng::PlaneTag>(kPlaneBytes * kPlanes, 16);
+		m_copper_block = backend.memory_manager().chip().reserve<eng::CopperTag>(1024, 16);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00027602u);
 			return;
@@ -138,7 +138,7 @@ struct MusicMixerDemo {
 			return;
 		}
 		const eng::u32 bytes = eng::os::file_size(h);
-		m_disk_mod = backend.memory().chip.allocate_block<eng::AudioTag>(bytes, 4);
+		m_disk_mod = backend.memory_manager().chip().reserve<eng::AudioTag>(bytes, 4);
 		if (!m_disk_mod.valid() ||
 		    eng::os::file_read_sync(h, eng::Span<eng::u8>(m_disk_mod.view.data(), bytes), 0u) < 0) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00027608u);
@@ -147,7 +147,7 @@ struct MusicMixerDemo {
 		eng::os::file_close(h);
 #else
 		const eng::u32 bytes = static_cast<eng::u32>(g_mod_end - g_mod);
-		m_disk_mod = backend.memory().chip.allocate_block<eng::AudioTag>(bytes, 4);
+		m_disk_mod = backend.memory_manager().chip().reserve<eng::AudioTag>(bytes, 4);
 		for (eng::u32 i = 0; i < bytes; ++i) {
 			m_disk_mod.view.data()[i] = g_mod[i];
 		}
@@ -172,7 +172,7 @@ struct MusicMixerDemo {
 		eng::Span<eng::u8> mod_buf {};
 		if (eng::audio::p61_needs_sample_buffer(mod.data)) {
 			const eng::u32 need = eng::audio::p61_sample_buffer_size(mod.data);
-			m_mod_buf = backend.memory().chip.allocate_block<eng::AudioTag>(need, 4);
+			m_mod_buf = backend.memory_manager().chip().reserve<eng::AudioTag>(need, 4);
 			if (!m_mod_buf.valid()) {
 				eng::debug::mark_failed(g_eng_run_status, 0x00027606u);
 				return;

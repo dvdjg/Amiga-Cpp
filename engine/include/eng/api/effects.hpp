@@ -31,7 +31,7 @@ class CopperChunky {
 public:
 	/// Compone la escena copper-chunky en `scene` (con `memory`/`limits`) y emite la estructura
 	/// de la lista en los dos bloques del `Plan`. `false` si no cabe (geometría o memoria).
-	[[nodiscard]] bool init(graphics::composition::Scene& scene, eng::MemorySystem& memory,
+	[[nodiscard]] bool init(graphics::composition::Scene& scene, eng::MemoryManager& memory,
 				const graphics::composition::DisplayLimits& limits,
 				graphics::composition::CopperChunkyConfig cfg,
 				eng::u16 width = 288u, eng::u16 height = 256u,

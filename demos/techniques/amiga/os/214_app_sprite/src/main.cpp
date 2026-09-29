@@ -92,7 +92,7 @@ struct AppSpriteDemo {
 		fondo->camera().reset(eng::scene::WorldRect {0u, 0u, 2048u, 256u},
 				      eng::Size2u {kWidth, kHeight});
 
-		m_sheet = app.device().memory().chip.template allocate_block<eng::BobTag>(kSheetBytes, 16u);
+		m_sheet = app.device().memory_manager().chip().reserve<eng::BobTag>(kSheetBytes, 16u);
 		if (!m_sheet.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021402u);
 			return;

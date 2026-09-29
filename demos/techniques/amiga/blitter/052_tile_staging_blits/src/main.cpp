@@ -172,7 +172,7 @@ struct DemoGame {
 
 		gfx::SceneResources res = gfx::planar(320u, 256u, 6);
 		res.mode = gfx::SceneMode::Ehb;
-		if (!gfx::compose(m_scene, backend.memory(), res,
+		if (!gfx::compose(m_scene, backend.memory_manager(), res,
 				    gfx::ocs_a500,
 				    gfx::display(res),
 				    gfx::palette(eng::PaletteWords {palette.color, 32u}, 0u, 32u))) {
@@ -181,8 +181,8 @@ struct DemoGame {
 		}
 
 		add_reference_bars(m_scene.bitplanes().data());
-		m_tiles_block = backend.memory().chip.allocate_block<eng::TileBankTag>(tile_bytes * tile_count, 16);
-		m_staging_block = backend.memory().chip.allocate_block<eng::PlaneTag>(staging_plane_bytes * plane_count, 16);
+		m_tiles_block = backend.memory_manager().chip().reserve<eng::TileBankTag>(tile_bytes * tile_count, 16);
+		m_staging_block = backend.memory_manager().chip().reserve<eng::PlaneTag>(staging_plane_bytes * plane_count, 16);
 		if (!m_tiles_block.valid() || !m_staging_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000054u);
 			return;

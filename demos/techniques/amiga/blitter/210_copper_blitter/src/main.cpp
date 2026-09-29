@@ -65,13 +65,13 @@ struct ScrollEdgeDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021001u);
 			return;
 		}
-		m_copper = backend.memory().chip.allocate_block<eng::CopperTag>(4096u, 16);
-		m_bitmap = backend.memory().chip.allocate_block<eng::PlaneTag>(kPlaneBytes, 16);
-		m_src = backend.memory().chip.allocate_block<eng::SpriteTag>(512u, 16);
-		m_dst = backend.memory().chip.allocate_block<eng::SpriteTag>(512u, 16);
-		m_patch_cl = backend.memory().chip.allocate_block<eng::CopperTag>(64u, 16);
-		m_patch_vals = backend.memory().chip.allocate_block<eng::SpriteTag>(32u, 16);
-		m_col_vals = backend.memory().chip.allocate_block<eng::SpriteTag>(kRows * 2u, 16);
+		m_copper = backend.memory_manager().chip().reserve<eng::CopperTag>(4096u, 16);
+		m_bitmap = backend.memory_manager().chip().reserve<eng::PlaneTag>(kPlaneBytes, 16);
+		m_src = backend.memory_manager().chip().reserve<eng::SpriteTag>(512u, 16);
+		m_dst = backend.memory_manager().chip().reserve<eng::SpriteTag>(512u, 16);
+		m_patch_cl = backend.memory_manager().chip().reserve<eng::CopperTag>(64u, 16);
+		m_patch_vals = backend.memory_manager().chip().reserve<eng::SpriteTag>(32u, 16);
+		m_col_vals = backend.memory_manager().chip().reserve<eng::SpriteTag>(kRows * 2u, 16);
 		if (!m_copper.valid() || !m_bitmap.valid() || !m_src.valid() || !m_dst.valid() ||
 		    !m_patch_cl.valid() || !m_patch_vals.valid() || !m_col_vals.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021002u);

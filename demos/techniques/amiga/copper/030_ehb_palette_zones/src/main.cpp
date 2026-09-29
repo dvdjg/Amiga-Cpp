@@ -129,7 +129,7 @@ struct DemoGame {
 		m_fade_in.configure({0, 32, kFadeFrames, false});
 		m_fade_in.bind(eng::kBlackPalette, top_palette);
 
-		if (!scene::compose(m_scene, backend.memory(),
+		if (!scene::compose(m_scene, backend.memory_manager(),
 				    kRes, scene::ocs_a500,
 				    scene::display(scene::kPal320x256, scene::kBplcon0_Ehb),
 				    scene::palette_patchable(

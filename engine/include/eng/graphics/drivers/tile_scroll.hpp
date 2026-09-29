@@ -44,6 +44,7 @@
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/tilemap/tile_scroll.hpp>
 #include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
 
 namespace eng::graphics::drivers {
 
@@ -470,8 +471,8 @@ public:
 		return tile_plane_bytes() * playfield_planes(playfield);
 	}
 
-	bool init(MemorySystem& memory, const TileScrollConfig& config) {
-		m_bitplane_block = memory.chip.allocate_block<eng::PlaneTag>(bitplane_bytes, 16);
+	bool init(MemoryManager& memory, const TileScrollConfig& config) {
+		m_bitplane_block = memory.chip().reserve<eng::PlaneTag>(bitplane_bytes, 16);
 		if (!m_bitplane_block.valid() || !m_copper.begin(memory, config.copper_bytes) ||
 			config.base_palette == nullptr) {
 			m_ok = false;

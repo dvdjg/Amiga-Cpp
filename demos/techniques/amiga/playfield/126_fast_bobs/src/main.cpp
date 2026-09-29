@@ -104,9 +104,9 @@ struct FastBobsDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012601u);
 			return;
 		}
-		m_planes = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitmapBytes, 16u);
-		m_sheet_block = backend.memory().chip.allocate_block<eng::BobTag>(kBobSheetBytes, 16u);
-		m_copper = backend.memory().chip.allocate_block<eng::CopperTag>(kCopperWords, 16u);
+		m_planes = backend.memory_manager().chip().reserve<eng::PlaneTag>(kBitmapBytes, 16u);
+		m_sheet_block = backend.memory_manager().chip().reserve<eng::BobTag>(kBobSheetBytes, 16u);
+		m_copper = backend.memory_manager().chip().reserve<eng::CopperTag>(kCopperWords, 16u);
 		if (!m_planes.valid() || !m_sheet_block.valid() || !m_copper.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012602u);
 			return;

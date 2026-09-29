@@ -16,6 +16,7 @@
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/bitmap.hpp>
 #include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
 
 namespace eng::field {
 
@@ -43,7 +44,7 @@ public:
 	}
 
 	/// Reserva el bloque extra con el MISMO layout que el principal (doble buffer).
-	bool enable_double_buffer(eng::MemorySystem& memory, const eng::gfx::BitmapConfig& bc) {
+	bool enable_double_buffer(eng::MemoryManager& memory, const eng::gfx::BitmapConfig& bc) {
 		if (!m_extra.init(memory, bc)) return false;
 		m_extra_real = m_extra.allocation_start();
 		m_extra_front = m_extra.front();

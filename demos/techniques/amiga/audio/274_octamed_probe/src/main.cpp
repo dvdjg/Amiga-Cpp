@@ -66,8 +66,8 @@ struct OctaMedProbe {
 			eng::debug::mark_failed(g_eng_run_status, 0x00027401u);
 			return;
 		}
-		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kPlaneBytes, 16);
-		m_copper_block = backend.memory().chip.allocate_block<eng::CopperTag>(1024, 16);
+		m_bitplane_block = backend.memory_manager().chip().reserve<eng::PlaneTag>(kPlaneBytes, 16);
+		m_copper_block = backend.memory_manager().chip().reserve<eng::CopperTag>(1024, 16);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00027402u);
 			return;

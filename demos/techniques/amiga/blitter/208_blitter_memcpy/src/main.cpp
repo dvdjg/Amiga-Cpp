@@ -58,9 +58,9 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020801u);
 			return;
 		}
-		m_src = backend.memory().chip.allocate_block<eng::PlaneTag>(kBytes, 16);
-		m_dst = backend.memory().chip.allocate_block<eng::PlaneTag>(kBytes, 16);
-		m_dst2 = backend.memory().chip.allocate_block<eng::PlaneTag>(kBytes, 16);
+		m_src = backend.memory_manager().chip().reserve<eng::PlaneTag>(kBytes, 16);
+		m_dst = backend.memory_manager().chip().reserve<eng::PlaneTag>(kBytes, 16);
+		m_dst2 = backend.memory_manager().chip().reserve<eng::PlaneTag>(kBytes, 16);
 		if (!m_src.valid() || !m_dst.valid() || !m_dst2.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020802u);
 			return;

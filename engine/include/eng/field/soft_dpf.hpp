@@ -21,6 +21,7 @@
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/playfield_scroll.hpp>
 #include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
 
 namespace eng::field {
 
@@ -171,7 +172,7 @@ public:
 
 	/// Enlaza el bitmap principal y (si la composición está activa) reserva el
 	/// bloque extra con el mismo layout.
-	bool init(eng::MemorySystem& memory, const eng::gfx::BitmapConfig& bc,
+	bool init(eng::MemoryManager& memory, const eng::gfx::BitmapConfig& bc,
 	          eng::gfx::Bitmap& main) {
 		m_view.bind_single(main.base(), main.front());
 		if (active() && !m_view.enable_double_buffer(memory, bc)) return false;

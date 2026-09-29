@@ -81,10 +81,10 @@ struct DemoGame {
 		});
 
 		// Un unico bloque de planos: [campo 0..4][hud 0..1][veneno 0..2].
-		m_plane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(
+		m_plane_block = backend.memory_manager().chip().reserve<eng::PlaneTag>(
 			static_cast<eng::u32>(bytes_per_row) * height *
 				(field_planes_count + hud_planes_count + poison_planes_count), 16);
-		m_copper_block = backend.memory().chip.allocate_block<eng::CopperTag>(2048u, 16);
+		m_copper_block = backend.memory_manager().chip().reserve<eng::CopperTag>(2048u, 16);
 
 		if (!m_plane_block.valid() || !m_copper_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000050u);

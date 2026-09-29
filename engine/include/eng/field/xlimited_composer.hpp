@@ -63,7 +63,7 @@ public:
         eng::Span<const ColorZone> color_zones {};
     };
 
-    bool init(MemorySystem& memory, const Config& cfg) {
+    bool init(MemoryManager& memory, const Config& cfg) {
         m_cfg = cfg;
         if (!m_copper.begin(memory, cfg.copper_bytes) || cfg.palette.empty()) return false;
         m_initialized = true;
@@ -326,7 +326,7 @@ public:
         eng::Span<const ColorZone> color_zones {};
     };
 
-    bool init(MemorySystem& memory, const Config& cfg) {
+    bool init(MemoryManager& memory, const Config& cfg) {
         m_cfg = cfg;
         if (!m_copper.begin(memory, cfg.copper_bytes) || cfg.palette.empty()) return false;
         m_initialized = true;

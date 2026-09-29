@@ -306,7 +306,7 @@ struct ChessMatch {
 		};
 		scene::SceneResources res = scene::planar(320, 256, 6);
 		res.mode = scene::SceneMode::Ehb;
-		m_scene_ok = scene::compose(m_scene, backend.memory(), res,
+		m_scene_ok = scene::compose(m_scene, backend.memory_manager(), res,
 				    scene::ocs_a500,
 					scene::display(res),
 					scene::palette(eng::PaletteWords {palette.color, 32u}, 0u, 32u));

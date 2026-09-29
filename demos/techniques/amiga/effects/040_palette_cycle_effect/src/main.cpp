@@ -137,7 +137,7 @@ struct DemoGame {
 		}
 		scene::SceneResources res = scene::planar(320u, 256u, 6);
 		res.mode = scene::SceneMode::Ehb;
-		m_scene_ok = scene::compose(m_scene, backend.memory(), res,
+		m_scene_ok = scene::compose(m_scene, backend.memory_manager(), res,
 				    scene::ocs_a500,
 				    scene::display(res),
 				    scene::palette_patchable(eng::PaletteWords {source_palette.color, 32u}, 0u, 32u, &m_base_zone),

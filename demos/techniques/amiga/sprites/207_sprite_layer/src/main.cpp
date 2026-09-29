@@ -70,9 +70,9 @@ struct SpriteLayerDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020701u);
 			return;
 		}
-		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitplaneBytes, 16);
-		m_copper_block = backend.memory().chip.allocate_block<eng::CopperTag>(16384u, 16);
-		m_sprite_block = backend.memory().chip.allocate_block<eng::SpriteTag>(
+		m_bitplane_block = backend.memory_manager().chip().reserve<eng::PlaneTag>(kBitplaneBytes, 16);
+		m_copper_block = backend.memory_manager().chip().reserve<eng::CopperTag>(16384u, 16);
+		m_sprite_block = backend.memory_manager().chip().reserve<eng::SpriteTag>(
 			static_cast<eng::u32>(kChannels * kDmaStride) * 2u, 16);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid() || !m_sprite_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020702u);

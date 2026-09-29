@@ -173,7 +173,7 @@ struct RotozoomDemo {
 		res.buffers = static_cast<eng::u8>(K_061_BUFFERS);
 		// display + palette + row_repeat(64*4 lineas): 2048 B no bastan.
 		res.copper_bytes = 8192u;
-		if (!scene::compose(m_scene, backend.memory(), res,
+		if (!scene::compose(m_scene, backend.memory_manager(), res,
 				    scene::ocs_a500,
 				    scene::display(res),
 				    scene::palette(eng::PaletteWords {kColors, 16u}, 0u, 16u),
@@ -183,13 +183,13 @@ struct RotozoomDemo {
 		}
 
 		for (eng::u8 b = 0; b < 2u; ++b) {
-			m_chunky[b] = backend.memory().chip.allocate_block<eng::ChunkyTag>(kChunkyW * kChunkyH, 4);
+			m_chunky[b] = backend.memory_manager().chip().reserve<eng::ChunkyTag>(kChunkyW * kChunkyH, 4);
 			if (!m_chunky[b].valid()) {
 				eng::debug::mark_failed(g_eng_run_status, 0x00006103u);
 				return false;
 			}
 		}
-		m_ref = backend.memory().chip.allocate_block<eng::PlaneTag>(kPlaneBytes * kPlanes, 4);
+		m_ref = backend.memory_manager().chip().reserve<eng::PlaneTag>(kPlaneBytes * kPlanes, 4);
 		if (!m_ref.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00006104u);
 			return false;

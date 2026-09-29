@@ -159,7 +159,7 @@ struct DemoGame {
 		});
 
 		m_scene_ok = m_memory_ok &&
-			     scene::compose(m_scene, backend.memory(), kRes, scene::ocs_a500,
+			     scene::compose(m_scene, backend.memory_manager(), kRes, scene::ocs_a500,
 					    scene::display(scene::kPal320x256, scene::kBplcon0_Ehb),
 					    scene::palette(kPalette, 0u, 32u));
 
@@ -193,9 +193,9 @@ struct DemoGame {
 				constexpr eng::u16 kCw = 16, kCh = 8;
 				constexpr eng::u16 kCRow = kCw / 8u;      // 2 bytes/fila
 				constexpr eng::u32 kCPlane = kCRow * kCh; // 16 bytes/plano
-				auto ca = backend.memory().chip.allocate_block<eng::PlaneTag>(kCPlane + 16u, 16);
-				auto cb = backend.memory().chip.allocate_block<eng::PlaneTag>(kCPlane + 16u, 16);
-				auto cs = backend.memory().chip.allocate_block<eng::PlaneTag>(kCPlane + 16u, 16);
+				auto ca = backend.memory_manager().chip().reserve<eng::PlaneTag>(kCPlane + 16u, 16);
+				auto cb = backend.memory_manager().chip().reserve<eng::PlaneTag>(kCPlane + 16u, 16);
+				auto cs = backend.memory_manager().chip().reserve<eng::PlaneTag>(kCPlane + 16u, 16);
 				if (!ca.valid() || !cb.valid() || !cs.valid()) {
 					eng::debug::mark_failed(g_eng_run_status, 0x00007703u);
 					return;
@@ -225,7 +225,7 @@ struct DemoGame {
 				constexpr eng::u16 kPw = 32, kPh = 16, kPlanes = 2;
 				constexpr eng::u16 kPRow = kPw / 8u;      // 4 bytes/fila
 				constexpr eng::u32 kPPlane = kPRow * kPh; // 64 bytes/plano
-				auto pm = backend.memory().chip.allocate_block<eng::PlaneTag>(
+				auto pm = backend.memory_manager().chip().reserve<eng::PlaneTag>(
 					kPPlane * kPlanes + 16u, 16);
 				if (!pm.valid()) {
 					eng::debug::mark_failed(g_eng_run_status, 0x00007706u);
