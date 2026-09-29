@@ -2,6 +2,8 @@
 
 El pipeline de audio convierte fuentes de PC en PCM mono de 8 bits con signo y las empaqueta en `AUZX`, el contenedor que consume el engine Amiga. El formato, los codecs y el decoder se comparten entre `host-tools/pack-pcm` y `engine/include/eng/audio/`; así el fichero producido en PC tiene el mismo contrato que el reproductor de Amiga. `pack-pcm` acepta RAW PCM8 firmado y WAV PCM lineal mono o estéreo de 8/16 bits.
 
+El pipeline tiene dos niveles de formato. `AUZX` representa una señal PCM lineal dividida en chunks; `ACP1` representa una obra estructurada como diccionario de unidades reutilizables y pistas de eventos. Una unidad `ACP1` puede contener un payload AUZX, ADPCM o residual, y una pista decide si se reproduce por Paula directa o por una voz del mixer.
+
 ## Objetivos
 
 - Producir audio mono PCM8 firmado, compatible con Paula y con el streaming por chunks del engine.
@@ -55,6 +57,181 @@ Cabecera fija, 32 bytes
 ```
 
 El índice permite `seek(chunk)` y evita leer chunks anteriores. `PcmStream` usa el tamaño descomprimido configurado en la cabecera para llenar buffers de Chip RAM. El formato v1 usa mono PCM8; cualquier cambio de layout requiere una nueva versión.
+
+## Contenedor estructural ACP1
+
+`ACP1` se usa cuando el audio completo tiene redundancia temporal o espectral que no conviene representar como una única onda lineal. El encoder analiza el material offline, extrae capas y unidades, y escribe una secuencia de referencias. El Amiga no vuelve a analizar el audio: resuelve eventos, decodifica la unidad solicitada y aplica el destino y la transición indicados.
+
+```text
+┌──────────────────────────────────────────────────────────────┐
+│ ACP1 header: tasa, flags, límites y offsets                  │
+├──────────────────────────────────────────────────────────────┤
+│ tablas globales: cuantización, alpha, ondas y parámetros     │
+├──────────────────────────────────────────────────────────────┤
+│ diccionario: UnitHeader + payload AUZX/ADPCM/residual        │
+├──────────────────────────────────────────────────────────────┤
+│ tracks: Paula 0..2 o mixer 0..3                              │
+│         TrackEvent {unit, inicio, duración, volumen, fade}  │
+└──────────────────────────────────────────────────────────────┘
+```
+
+El layout binario definitivo debe escribirse con `ByteReader`/`ByteWriter` little-endian y offsets validados; no se usará `#pragma pack` como API de parseo ni `reinterpret_cast` en el decoder. El parser comprobará magic, versión, offsets, límites de unidades, destino de pista y referencias de `unit_id` antes de reproducir.
+
+El header ACP1 v1 contiene flags, frecuencia, número de unidades, tres pistas Paula, cuatro voces mixer, canal Paula reservado y offsets a tablas, unidades, tracks y final. Cada unidad contiene id, offset/tamaño, longitud reconstruida, modo, flags tonal/percusivo, parámetros armónicos y alpha. Cada evento contiene unidad, inicio, duración, volumen, pitch fino y fade-in/fade-out.
+
+El análisis estructural usa HPSS por STFT, división opcional en sub/low-mid/mid/high y firmas espectrales, chroma, MFCC o forma de onda normalizada para detectar unidades exactas o similares. Los armónicos, bajos y pads se proponen para Paula; percusión, ruido, residuales densos y ambientes para el mixer. La decisión se almacena como metadato y no permite reasignación silenciosa en el runtime.
+
+Las uniones aplican fade lineal o equal-power de 10 a 50 ms. En Paula se usan rampas de volumen, doble voz temporal o un buffer pequeño; en el mixer se usa el buffer de mezcla. El crossfade no se ejecuta completo dentro de la IRQ.
+
+## Pseudocódigo del análisis estructural
+
+El análisis completo se ejecuta en PC. La duración del fichero no obliga a retener toda la señal: la ingestión entrega ventanas y el entrenador reutiliza scratch de hasta el presupuesto configurado.
+
+```text
+para cada capa de entrada:
+    leer ventana PCM normalizada
+    calcular STFT con ventana Hann
+    separar máscara armónica/percusiva mediante medianas espectrales
+    reconstruir harmónico, percusivo y residual
+    dividir opcionalmente cada capa en sub, low-mid, mid y high
+    detectar onsets/beats o usar ventanas de 0,5..4 s
+    firmar cada unidad con energía, espectro, chroma y duración
+    buscar unidades idénticas o suficientemente similares
+    conservar una copia del prototipo y emitir referencias para las repeticiones
+    clasificar cada unidad como Paula o mixer
+    probar candidatos de codec y conservar tamaño + error reconstruido
+generar ACP1 con tablas, unidades, tracks y eventos
+```
+
+La máscara HPSS usa dos medianas: una horizontal sobre el tiempo favorece componentes armónicas sostenidas y otra vertical sobre frecuencia favorece ataques percusivos. La separación se reconstruye aplicando las máscaras a la magnitud STFT y reutilizando la fase original.
+
+```cpp
+// Esqueleto C++23 host; las matrices reales se procesan por ventanas.
+auto stft = analyze_stft(window, config.n_fft, config.hop);
+auto magnitude = abs(stft);
+auto harmonic_med = median_filter_time(magnitude, config.kernel_size);
+auto percussive_med = median_filter_frequency(magnitude, config.kernel_size);
+for (Bin b : bins(stft)) {
+    const auto h = harmonic_med[b] * config.margin;
+    const auto p = percussive_med[b] * config.margin;
+    const auto denominator = h + p + config.epsilon;
+    harmonic_mask[b] = h / denominator;
+    percussive_mask[b] = p / denominator;
+}
+harmonic = istft(apply_mask(stft, harmonic_mask));
+percussive = istft(apply_mask(stft, percussive_mask));
+residual = window - harmonic - percussive;
+```
+
+El algoritmo host puede usar bibliotecas FFT, audio y concurrencia del sistema. La interfaz que cruza al engine debe convertir el resultado a PCM8/AUZX o ACP1; el player Amiga no depende de FFT ni de las librerías host.
+
+## Mediana deslizante
+
+La mediana 2D ingenua ordena una ventana para cada posición. Para el entrenador se debe usar una política host reutilizable: dos particiones ordenadas o dos heaps con borrado diferido. En el core freestanding no se introduce `std::multiset`; si una demo Amiga necesita la operación, se implementará como contenedor de capacidad fija sobre `Span` y `eng::quick_sort`/búsqueda binaria.
+
+```text
+SlidingMedian<K>:
+    low  = mitad inferior, máximo en la cima
+    high = mitad superior, mínimo en la cima
+
+add(value):
+    insertar en low si value <= max(low), si no en high
+    rebalancear hasta |size(low)-size(high)| <= 1
+
+remove(value):
+    marcar/eliminar una ocurrencia en la partición que la contiene
+    limpiar eliminaciones diferidas en las cimas
+    rebalancear
+
+median():
+    si tamaños iguales: (max(low)+min(high))/2
+    si no: max(low)
+```
+
+El encoder debe preferir una mediana deslizante de histograma cuando cuantice la magnitud espectral a un rango fijo; así el coste puede ser O(1) por posición. La versión de dos heaps queda como referencia y para rangos no cuantizados.
+
+## Encoder ACP1 en C++23
+
+El encoder host puede paralelizar unidades independientes. La barrera no puede ser un `sleep`: el número de tareas pendientes se incrementa antes de encolar, cada trabajo lo decrementa al terminar y el hilo coordinador espera hasta cero. El mapa de correspondencia `(layer, block) -> unit_id` se construye antes de generar los eventos.
+
+```cpp
+struct BlockKey {
+    usize layer;
+    usize block;
+    friend constexpr bool operator<(BlockKey a, BlockKey b) noexcept {
+        return a.layer < b.layer || (a.layer == b.layer && a.block < b.block);
+    }
+};
+
+for (LayerIndex layer : layers) {
+    for (BlockIndex block : blocks(layer)) {
+        pending_tasks.fetch_add(1, std::memory_order_relaxed);
+        pool.enqueue([&, layer, block] {
+            Unit unit = encode_unit(layer, block, tuning);
+            {
+                std::lock_guard lock(units_mutex);
+                units.push_back(std::move(unit));
+            }
+            {
+                std::lock_guard lock(map_mutex);
+                unit_ids.insert({layer, block}, unit.id);
+            }
+            if (pending_tasks.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+                barrier.notify_one();
+            }
+        });
+    }
+}
+barrier.wait(lock, [&] { return pending_tasks.load() == 0; });
+
+for (LayerIndex layer : layers) {
+    Track track = make_track(destination_for(layer));
+    for (BlockIndex block : blocks(layer)) {
+        track.events.push({unit_ids.at({layer, block}), start(block), fade_in, fade_out});
+    }
+}
+write_acp1(output, tables, units, tracks);
+```
+
+La implementación host puede usar `std::thread`, `std::mutex` y contenedores dinámicos porque el encoder no se ejecuta en Amiga. El formato y los valores que escribe deben pasar por serializadores little-endian explícitos; el player nunca depende del layout ABI del compilador host.
+
+## Contrato del player Amiga
+
+El player C++23 freestanding mantiene tablas de capacidad fija para unidades, estado de pistas y voces. La IRQ no analiza eventos ni descomprime: el servicio cooperativo prepara el siguiente buffer y la IRQ solo cambia el buffer listo.
+
+```text
+ACP1_Init(blob):
+    parsear cabecera y validar offsets
+    indexar UnitHeader en tabla fija
+    validar TrackHeader y cada referencia unit_id
+    reservar/recibir buffers Chip para Paula y buffer mixer
+
+AudioService():
+    para cada track cuyo start_sample <= reloj:
+        resolver UnitHeader
+        decodificar unidad fuera de la IRQ
+        aplicar fade y preparar destino Paula/mixer
+    mezclar hasta cuatro voces software en el buffer Chip del canal reservado
+    publicar IntentDone o AudioUnderrun en el puerto
+
+AudioIRQ():
+    avanzar AudioFeeder
+    cambiar puntero/longitud del buffer Paula
+    marcar buffer libre
+```
+
+El estado de cada pista debe contener como mínimo evento actual, posición de muestra, muestras restantes, volumen, periodo, destino y estado activo. Los offsets del archivo se expresan como `u32`; los índices y límites se validan antes de convertirlos a índices de capacidad fija. Paula solo recibe buffers Chip; los payloads comprimidos y las tablas pueden permanecer en Fast RAM.
+
+## Relación con las pistas
+
+| Capa ACP1 | Destino | Política |
+|---|---|---|
+| Armónica, bajo, pad, lead | Paula 0..2 | Cambiar periodo para pitch; crossfade con volumen o doble voz |
+| Percusión y transitorios | Mixer 0..3 o Paula fija | Evitar resampling software innecesario |
+| Residual denso y ambiente | Mixer 0..3 | Buffer de mezcla y fades controlados |
+| Mezcla final | Paula 3 | Buffer Chip doble/triple alimentado por `AudioFeeder` |
+
+El número máximo de pistas no se confunde con el número de canales físicos: ACP1 describe hasta tres voces Paula directas y cuatro voces virtuales, pero el planner puede rechazar una configuración que exceda memoria, tiempo de decodificación o presupuesto de mezcla.
 
 ## Modos de compresión
 

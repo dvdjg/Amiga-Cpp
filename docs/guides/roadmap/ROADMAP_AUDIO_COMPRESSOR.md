@@ -87,6 +87,23 @@ El corpus mixto previsto para ajustar los parámetros está descrito en [`AUDIO_
 - **Entregado**: HOST-380 con `float` y `Fixed<s32,16>`.
 - **Pendiente**: conectar la tabla entrenada al encoder IMA/residual y exportarla al formato AUZX.
 
+### C12 — ACP1: diccionario y reproducción estructural
+
+- Diseñar `ACP1` como contenedor superior a AUZX para diccionario de unidades, pistas y eventos.
+- Implementar encoder C++23 con HPSS, división multibanda, firmas espectrales y detección de unidades repetidas o similares.
+- Deduplicar unidades y permitir payload AUZX, Delta+ZX0, Fibonacci, IMA, ADPCM cuantizado o residual armónico.
+- Asignar pistas a Paula 0..2 o mixer 0..3, conservando destino, pitch y transiciones en eventos validados.
+- Implementar parser Amiga C++23 con `ByteReader`/`Span`, offsets validados, capacidad fija y sin STL/heap durante reproducción.
+- Medir y portar a ASM 68000 solo los núcleos de decode, crossfade y síntesis con equivalencia byte a byte.
+- Tests previstos: HOST-381 parser, HOST-382 deduplicación, HOST-383 secuenciador, HOST-384 selección Paula/mixer y demo híbrida.
+
+### C13 — Corpus y ajuste estructural
+
+- Comparar AUZX lineal frente a ACP1 incluyendo diccionario, eventos, tablas y fades.
+- Elegir HPSS, tamaño de unidad y umbral de similitud con coste conjunto de error, RAM, voces y CPU.
+- Generar informes reproducibles con hash de entrada, configuración, versión del encoder y destino de cada pista.
+- Preservar los pseudocódigos de HPSS, mediana deslizante, barrera de tareas y player como contratos de implementación en `AUDIO_COMPRESSION.md`.
+
 ## Criterios de aceptación
 
 - Todo archivo generado por la utilidad se puede validar sin depender de una ruta absoluta ni de herramientas no declaradas.
