@@ -76,6 +76,18 @@ void update(...) {
 }
 ```
 
+**Agrupar por estado (opt-in).** Antes de ejecutar el `FramePlan`, el llamador puede agrupar los
+blits para que los de **mismo estado común del Blitter** queden adyacentes y el backend omita sus
+reprogramaciones (`submit_blit_job` cachea el estado común por racha):
+
+```cpp
+plan.sort_by_state();          // reordena ESTABLE por (kind/minterm/shift/modulos/layout)
+execute_frame_plan(plan);      // encadena rachas -> menos escrituras a registro custom
+```
+
+Solo es lícito si el **orden no importa** (jobs con destinos **disjuntos**: tiles, columnas). NO
+con `Clear`/`EOR` sobre regiones solapadas. Ver `RASTER.md` §"Prioridades de rendimiento".
+
 ## 5. Completación: evento, no callback
 
 Declarar **no bloquea**; cuando una petición llega a su punto se **avisa** por la política `Done`.

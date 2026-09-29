@@ -183,6 +183,32 @@ public:
 
 	constexpr bool ok() const { return m_ok; }
 	constexpr u8 palette_patch_count() const { return m_palette_patch_count; }
+
+	/// **Agrupa los blits por estado común** (opcional, opt-in). Reordena los `BlitJob` de forma
+	/// **estable** para que los que comparten el **mismo estado del Blitter** —`kind`, `minterm`,
+	/// `source_shift`, `descending`, `bitplane_count`, `words_per_row`, módulos e `interleaved`—
+	/// queden **adyacentes**: así el backend encadena rachas y la caché de estado común de
+	/// `submit_blit_job` omite las reprogramaciones. Conserva el orden relativo dentro de cada grupo
+	/// (sort estable).
+	///
+	/// **Solo es lícito si el orden de ejecución no importa**: el llamador debe garantizar que los
+	/// jobs reordenados **no se solapan** en el destino (p. ej. blits a zonas disjuntas: tiles,
+	/// columnas). NO usarlo con `Clear`/`EOR` sobre regiones solapadas ni cuando el resultado dependa
+	/// de la secuencia. Ver `RASTER.md` §"Prioridades" (agrupación) y
+	/// `docs/engine/architecture/BLITTER_INTENT_QUEUE.md`.
+	void sort_by_state() {
+		// Sort por inserción estable (N pequeño, sin heap). `key_less` compara el estado común.
+		for (u8 i = 1u; i < m_blit_job_count; ++i) {
+			const BlitJob key = m_blit_jobs[i];
+			u8 j = i;
+			while (j > 0u && state_less(key, m_blit_jobs[j - 1u])) {
+				m_blit_jobs[j] = m_blit_jobs[j - 1u];
+				--j;
+			}
+			m_blit_jobs[j] = key;
+		}
+	}
+
 	constexpr u8 blit_job_count() const { return m_blit_job_count; }
 	constexpr u8 dirty_rect_count() const { return m_dirty_rect_count; }
 	constexpr const BlitBudget& blit_budget() const { return m_blit_budget; }
@@ -353,6 +379,24 @@ public:
 
 private:
 	static constexpr s16 min_s16(s16 a, s16 b) { return a < b ? a : b; }
+
+	/// Orden **estable por estado común del Blitter** (agrupa rachas sin mirar punteros/tamaño).
+	/// Clave: `kind`, `minterm`, `source_shift`, `descending`, `bitplane_count`, `words_per_row`,
+	/// módulos de origen/destino e `interleaved`. Empate → `false` (el sort estable conserva orden).
+	[[nodiscard]] static constexpr bool state_less(const BlitJob& a, const BlitJob& b) {
+		if (a.kind != b.kind) return a.kind < b.kind;
+		if (a.minterm != b.minterm) return a.minterm < b.minterm;
+		if (a.source_shift != b.source_shift) return a.source_shift < b.source_shift;
+		if (a.descending != b.descending) return a.descending < b.descending;
+		if (a.bitplane_count != b.bitplane_count) return a.bitplane_count < b.bitplane_count;
+		if (a.words_per_row != b.words_per_row) return a.words_per_row < b.words_per_row;
+		if (a.source_modulo_bytes != b.source_modulo_bytes)
+			return a.source_modulo_bytes < b.source_modulo_bytes;
+		if (a.destination_modulo_bytes != b.destination_modulo_bytes)
+			return a.destination_modulo_bytes < b.destination_modulo_bytes;
+		if (a.interleaved != b.interleaved) return a.interleaved < b.interleaved;
+		return false;
+	}
 	static constexpr s16 max_s16(s16 a, s16 b) { return a > b ? a : b; }
 
 	static constexpr bool rects_touch_or_overlap(const DirtyRect& a, const DirtyRect& b) {
