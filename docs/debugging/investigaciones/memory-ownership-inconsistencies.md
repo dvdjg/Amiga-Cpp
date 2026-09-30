@@ -6,14 +6,14 @@ Abierto. La migración de consumidores hacia `MemoryManager` y los tipos de banc
 
 ## Alcance
 
-Este hallazgo cubre la relación entre `MemorySystem`, `MemoryManager`, `MemBank`, `BlockPool`, `LinearArena`, `Assets`, `AssetCache` y los recursos DMA. No describe una solución implementada; sirve para evitar que la documentación presente como cerrado un comportamiento que aún no lo está.
+Este hallazgo cubre la relación entre `MemorySystem`, `MemoryManager`, `MemBank`, `BlockPool`, `LinearArena`, `Assets`, `AssetCache` y los recursos DMA. Registra qué criterios siguen abiertos después de las correcciones parciales de ownership y lifecycle, para evitar que la documentación presente como cerrado un comportamiento que aún no lo está.
 
 ## Hallazgos
 
 | ID | Severidad | Inconsistencia | Evidencia | Impacto |
 |---|---|---|---|---|
 | MEM-001 | Crítica | El backend Amiga configura pools propios para `MemoryManager`, pero mantiene arenas raíz separadas para `MemorySystem`/scratch; los consumidores que pierdan el `Block` siguen sin poder liberar su reserva. | `engine/src/platform/amiga/amiga.cpp:94-108`; `engine/include/eng/memory/block_pool.hpp:88-105,152-155` | La integración de owners y el teardown ordenado siguen sin recuperar recursos individualmente de forma segura. |
-| MEM-002 | Crítica | `AssetCacheBackend::free()` no libera el bloque recibido. | `engine/include/eng/platform/amiga/asset_backend.hpp:45-46` | El desalojo LRU solo cambia el estado del slot; la memoria permanece ocupada. |
+| MEM-002 | Cerrado parcialmente | `AssetCacheBackend::free()` localiza la reserva física mediante una tabla fija por puntero y libera el banco efectivo; la API de la caché sigue entregando vistas no propietarias. | `engine/include/eng/platform/amiga/asset_backend.hpp:30-99`; `engine/include/eng/res/asset_cache.hpp:215-249` | El desalojo Amiga devuelve la reserva física, pero todavía falta expresar el owner tipado en `AssetCache`. |
 | MEM-003 | Alta | `AssetCache::AssetSlot` conserva `Span<u8>`, no un handle o bloque propietario. | `engine/include/eng/res/asset_cache.hpp:27-38` | El backend no puede aplicar una liberación tipada ni conservar el tamaño físico reservado. |
 | MEM-004 | Alta | `Assets::create()` entrega un `Block`, pero no lo registra en `m_tracked`; el llamador debe liberar manualmente y no hay destructor de `Assets` que haga teardown. | `engine/include/eng/api/assets.hpp:84-121` | La propiedad automática prometida no existe para recursos creados directamente. |
 | MEM-005 | Alta | `Assets::reset_phase()` libera bloques pero mantiene en `AssetTable` vistas a memoria liberada. | `engine/include/eng/api/assets.hpp:123-140` | Un acceso posterior puede usar memoria liberada; falta invalidación por generación o vaciado coordinado. |
@@ -22,7 +22,7 @@ Este hallazgo cubre la relación entre `MemorySystem`, `MemoryManager`, `MemBank
 | MEM-008 | Media | La caché contabiliza `s.size`, mientras el pool reserva el tamaño alineado de `MemoryBlock`. | `engine/include/eng/res/asset_cache.hpp:225-230`; `engine/include/eng/memory/block_pool.hpp:109-136` | El presupuesto puede no reflejar el consumo físico real. |
 | MEM-009 | Media | No existe una comprobación centralizada de DMA pendiente antes de desalojar un asset o liberar un bloque. | `engine/include/eng/res/asset_cache.hpp:215-232`; contrato en `MEMORY_OWNERSHIP.md` | Posible use-after-free del Blitter, Copper o Paula. |
 | MEM-010 | Media | `from_storage()` se usa en varias capas de dominio, aunque la arquitectura lo reserva a fronteras certificadas. | `engine/include/eng/graphics/bob.hpp`, `engine/include/eng/field/*.hpp`, `engine/include/eng/scene/*.hpp` | La procedencia Chip se audita por convención y no por una API con owner verificable. |
-| MEM-011 | Media | El gate completo de host llega al análisis de codegen y falla porque no existe `out/tmp`, no por un diagnóstico de C++ identificado. | `tools/run-host-tests.sh`; salida de regresión del pull | La verificación global no es reproducible hasta preparar el directorio temporal. |
+| MEM-011 | Cerrado | El gate de codegen crea o usa `out/tmp` y pasa sin libcalls de multiplicación/división ni instrucciones 68020. | `tools/analyze/codegen-report.mjs`; salida de regresión actual | La verificación de portabilidad del código generado es reproducible. |
 
 ## Documentación desfasada
 

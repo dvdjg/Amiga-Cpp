@@ -8,7 +8,8 @@ Estado real mapeado: conviven **dos familias de reserva** que hay que unificar. 
 configura actualmente pools propios de `MemoryManager` sobre los bloques raíz, mientras conserva
 `MemorySystem` para arenas y scratch; esa separación evita el solapamiento de los consumidores
 migrados, pero no convierte automáticamente todos los owners en liberables. `AssetCache` todavía
-descarta el `Block` y deja `free()` en no-op. El detalle está en
+expone vistas no propietarias y delega la liberación física en `AssetCacheBackend`, que mantiene una
+tabla fija de reservas por puntero. El detalle está en
 [`memory-ownership-inconsistencies.md`](../../debugging/investigaciones/memory-ownership-inconsistencies.md).
 
 ```text
@@ -78,15 +79,16 @@ doble buffer que no libera el buffer aún visible.
 
 **Estado: fachada y escena parcialmente migradas.** La cadena `compose`→`Scene`→`Bitmap`/`copper::Plan`/
 `DoubleBuffer`/`SpriteManager`/`xlimited_*`/`tile_scroll`/`effects` y las demos pasan a
-`MemoryManager&` con `chip().reserve` (mismo cursor que la arena vía `configure_backing`, **sin
-solape**). `res::load(MemoryManager)` es la puerta normal, pero la integración productiva aún no
-garantiza `free` real para todas las reservas.
+`MemoryManager&` con `chip().reserve`; `res::load(MemoryManager)` es la puerta normal. La
+integración productiva ya tiene liberación física para los owners gráficos, audio y caché Amiga,
+pero `AssetCache` aún no conserva un `Block` tipado ni un handle de generación.
 
 **Pool propio de `MemBank` (free real): parcial.** `BlockPool` y sus métricas ya soportan `free`
-real, y numerosos consumidores usan `MemoryManager`; sin embargo, `AmigaBackend::configure_memory`
-todavía enlaza Chip/Slow mediante `configure_backing`, `AssetCacheBackend::free()` es no-op y la
-caché no conserva handles propietarios. `Budget`/`MemoryReport` leen del banco, pero eso no implica
-que toda reserva productiva sea liberable. Ver MEM-001..MEM-007.
+real, y numerosos consumidores usan `MemoryManager`; `AmigaBackend::configure_memory` configura
+pools persistentes separados de las arenas de scratch y `AssetCacheBackend::free()` devuelve la
+reserva física mediante su tabla fija. La caché sigue sin conservar handles propietarios tipados y
+la frontera de generación de vistas sigue pendiente. `Budget`/`MemoryReport` leen del banco, pero
+eso no implica que toda reserva productiva sea liberable. Ver MEM-001..MEM-007.
 
 Diagnóstico de la migración: `graphics/bitmap.hpp` (`Bitmap::init`),
 `graphics/sprite_manager.hpp`, `copper/double_buffer.hpp`, `graphics/composition/scene.hpp`,
@@ -97,7 +99,7 @@ flat_playfield,mirror_playfield,canvas_playfield,soft_dpf}.hpp` — **hecho**.
 2. `Assets` como par reserve/release del juego (`create`/`release`/`reset_phase`) — **hecho**.
 3. Reservas de fase: `ScratchArena` + `reset_frame` — **hecho** (Fase 6).
 
-**Evidencia:** suite host verde (salvo el fallo pre-existente de `382_audio_compressor_cli`); builds
+**Evidencia:** `HOST-330` valida reserva, carga, cookie, caché y liberación; el gate host completo queda pendiente por el baseline de casts de `audio/acp1*.hpp` y `audio/media.hpp` (no causado por este cambio); builds
 m68k de 052/086/100/113/117/209 y del resto de la escena; 113/086 READY.
 
 ## Fase 4 — Diagnóstico y presupuesto
