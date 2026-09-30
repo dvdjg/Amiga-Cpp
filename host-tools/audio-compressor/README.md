@@ -43,9 +43,19 @@ Sin opciones, la aplicación genera una salida junto al archivo de entrada, no s
 
 La configuración usa JSON plano con claves `mode`, `codec`, `sample_rate`, `chunk_samples`, `ram_budget_bytes`, `window_samples` y `force`. La precedencia es `defaults < config < CLI`.
 
+## Directorios de trabajo y conversiones
+
+- `out/tmp/audio-compressor/`: ejecutables, temporales y conversiones intermedias.
+- `out/assets/audio-compressor/converted/`: conversiones finales AUZX/ACP1 generadas por el pipeline.
+- `out/assets/audio-compressor/candidates/`: candidatas conservadas con `--keep-candidates`.
+- `out/reports/audio-compressor/`: informes JSON de cada conversión.
+- `out/playground/audio-compressor/`: corpus, barridos y comparativas de entrenamiento.
+
+Cada conversión puede usar `--report out/reports/audio-compressor/nombre.json`. El informe registra entrada, modo, codec, tasa, chunks, muestras, duración, tamaño comprimido de la fuente, tamaño PCM normalizado, tamaño de salida, ratios PCM→salida y fuente→salida, MSE PCM8, SNR, pico de error y estado del round-trip.
+
 ## Reproducción host con SDL3
 
-La reproducción es opcional. Sin SDL3, la utilidad sigue funcionando para conversión y devuelve un error claro si se usa `--play`. El build preferido usa enlace estático:
+La reproducción es opcional. Sin SDL3, la utilidad sigue funcionando para conversión y devuelve un error claro si se usa `--play`. Cuando SDL3 está habilitado, la E/S host y el audio usan abstracciones SDL3; no se usa Win32 en la lógica de la aplicación. El build preferido usa enlace estático:
 
 ```bash
 SDL3_ROOT=/ruta/al/SDL3 bash host-tools/audio-compressor/build.sh --sdl3
