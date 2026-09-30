@@ -34,6 +34,7 @@ Estructura y numeración: [../../../../docs/STRUCTURE.md](../../../../docs/STRUC
 | [274_octamed_probe](274_octamed_probe/README.md) |
 | [276_music_mixer](276_music_mixer/README.md) |
 | [280_acp1_stream](280_acp1_stream/README.md) |
+| [281_asset_sfx_lease](281_asset_sfx_lease/README.md) |
 
 ## Build / run / analyze
 

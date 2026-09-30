@@ -103,6 +103,12 @@ function buildContent() {
 	for (let i = 0; i < 256; ++i) {
 		snd[i] = Math.round(127 * Math.sin((i / 256) * 2 * Math.PI)) & 0xff;
 	}
+	// SFX de ~1.5 s para demostrar el pin CPU de una voz y un bloque para presionar la caché.
+	const leaseSfx = Buffer.alloc(16 * 1024);
+	for (let i = 0; i < leaseSfx.length; ++i) {
+		leaseSfx[i] = Math.round(24 * Math.sin((i / 11025) * 2 * Math.PI * 440)) & 0xff;
+	}
+	const leasePressure = Buffer.alloc(20 * 1024, 0x5a);
 	// Archivo GRANDE para probar el streaming desde disquete: PCM 8-bit mono sin signo,
 	// 512 KB (>= 500 kB), ~64 s de un tono de 440 Hz a 8 kHz. Se lee por rebanadas
 	// (`file_read_async` + `ChunkStream`), no de una vez.
@@ -117,6 +123,8 @@ function buildContent() {
 		'data/text/hello.txt': Buffer.from('Hola desde el sistema de archivos del Amiga.\nLinea 2 con tilde: accion.\n', 'utf8'),
 		'data/images/logo.raw': img,
 		'data/audio/beep.raw': snd,
+		'data/audio/lease_sfx.raw': leaseSfx,
+		'data/audio/lease_pressure.raw': leasePressure,
 		'data/audio/tone_8k_512k.raw': big,
 		'data/code/answer.englib': buildEngLib(),
 		'data/code/answer.hunk': buildHunk(),

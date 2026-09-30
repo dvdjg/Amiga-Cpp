@@ -54,14 +54,21 @@ public:
 	/// Abre el fichero y lanza la lectura asíncrona a `dst` (0..`dst.size()`). El resultado
 	/// llega por `FileDone`/`FileError` con el cookie `IoUser{'A', id}`. `false` si no abre.
 	bool load(eng::res::AssetId id, const char* path, eng::Span<eng::u8> dst) noexcept {
-		const eng::os::FileHandle h = eng::os::file_open(path, eng::os::FileMode::Read);
+		eng::os::FileHandle h = eng::os::file_open(path, eng::os::FileMode::Read);
 		if (h == 0u) {
 			return false;
 		}
 		eng::os::IoNotify n {};
 		n.cookie = eng::os::IoUser {static_cast<eng::u8>('A'), id}.encode();
-		return eng::os::file_read_async(h, dst, 0u, n);
+		if (!eng::os::file_read_async(h, dst, 0u, n)) {
+			eng::os::file_close(h);
+			return false;
+		}
+		return true;
 	}
+
+	/// Cierra el handle asociado a `FileDone`/`FileError`; cada carga usa un handle hasta completarse.
+	void finish(eng::os::FileHandle handle) noexcept { eng::os::file_close(handle); }
 
 private:
 	/// Devuelve el rango al pool que lo reservó; `kind` es el banco efectivo del bloque.

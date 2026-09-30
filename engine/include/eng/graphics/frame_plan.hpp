@@ -31,6 +31,7 @@
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/array.hpp>
 #include <eng/graphics/blit_job.hpp>
+#include <eng/res/asset_cache.hpp>
 
 namespace eng::graphics {
 
@@ -162,6 +163,7 @@ public:
 	// frame plan before the backend could run it.
 	static constexpr u8 max_blit_jobs = 128;
 	static constexpr u8 max_dirty_rects = 8;
+	static constexpr u8 max_dma_assets = 8; ///< owners Chip retenibles por nivel, sin coste en el ciclo del frame
 
 	void clear() {
 		m_palette_patch_count = 0;
@@ -172,6 +174,19 @@ public:
 		m_dirty_report = {};
 		m_ok = true;
 	}
+
+	/// Retiene un asset DMA Chip durante la vida de la escena; se adquiere en setup y no por frame.
+	[[nodiscard]] bool retain_dma_asset(eng::res::AssetDmaLease&& lease) noexcept {
+		if (!m_ok || !lease.valid() || m_dma_asset_count >= max_dma_assets) return false;
+		m_dma_assets[m_dma_asset_count++] = static_cast<eng::res::AssetDmaLease&&>(lease);
+		return true;
+	}
+	/// Suelta las leases al desmontar la escena, tras retirar sus consumidores DMA.
+	void release_dma_assets() noexcept {
+		for (u8 i = 0u; i < m_dma_asset_count; ++i) m_dma_assets[i].reset();
+		m_dma_asset_count = 0u;
+	}
+	[[nodiscard]] constexpr u8 dma_asset_count() const noexcept { return m_dma_asset_count; }
 
 	bool add_base_palette_patch(eng::PaletteWords colors, u8 first = 0, u8 count = 32) {
 		return add_palette_patch({PalettePatchTarget::Base, 0, first, count, colors});
@@ -524,9 +539,11 @@ private:
 	BlitBudgetLimits m_blit_budget_limits {};
 	BlitBudgetReport m_blit_budget_report {};
 	DirtyReport m_dirty_report {};
+	eng::res::AssetDmaLease m_dma_assets[max_dma_assets] {}; ///< owners DMA retenidos durante la vida del nivel
 	u8 m_palette_patch_count = 0;
 	u8 m_blit_job_count = 0;
 	u8 m_dirty_rect_count = 0;
+	u8 m_dma_asset_count = 0; ///< leases válidas en `m_dma_assets`, 0..max_dma_assets
 	bool m_ok = true;
 };
 

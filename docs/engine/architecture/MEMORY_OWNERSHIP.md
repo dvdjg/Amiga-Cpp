@@ -95,7 +95,10 @@ destrucción o release final
 Antes de liberar un recurso, el store debe garantizar que no existe una operación DMA pendiente que
 lo use y que ningún `FramePlan`, Copperlist, actor o `AssetView` lo conserva como referencia activa.
 El `FramePlan` debe contener referencias de ejecución válidas hasta `execute` y el propietario debe
-vivir hasta que termine esa ejecución.
+vivir hasta que termine esa ejecución. Para assets Chip cuya referencia se conserva entre frames,
+`FramePlan::retain_dma_asset()` mantiene una lease de escena hasta `release_dma_assets()`; una
+`copper::Plan` ofrece `retain_dma_asset()` hasta su teardown porque la lista publicada puede releer
+la memoria. Ambas rutas adquieren ownership en setup, no en el bucle de render.
 
 El destructor global del backend libera los bloques raíz entregados por Exec. Esa operación es el
 último nivel de seguridad y no sustituye la liberación individual de recursos persistentes.

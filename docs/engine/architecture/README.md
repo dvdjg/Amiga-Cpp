@@ -20,7 +20,7 @@ en C del repo hermano (`Cursor-Amiga-C`) está en [../c-engine/](../c-engine/REA
 | [MINIFLOAT16.md](MINIFLOAT16.md) | Escalar de coma flotante de 16 bits `MiniFloat16` para 68000: formato 1\|5\|10, rango/precisión, rangos seguros de uso y coste. |
 | [GRAPHICS_DRIVERS.md](GRAPHICS_DRIVERS.md) | Modelo de drivers gráficos (estrategia de composición), `EhbScene` implementado y drivers planificados. |
 | [MEMORY_MODEL.md](MEMORY_MODEL.md) | Modelo de memoria del perfil `A500_1MB_Slow`: bancos persistentes, scratch y transición desde arenas. |
-| [MEMORY_OWNERSHIP.md](MEMORY_OWNERSHIP.md) | Política objetivo de ownership, reservas DMA, destrucción y unificación de asignadores; estado pendiente en MEM-001..MEM-010. |
+| [MEMORY_OWNERSHIP.md](MEMORY_OWNERSHIP.md) | Política de ownership, reservas DMA, destrucción y unificación de asignadores; leases retenidas por `FramePlan`/`copper::Plan` (HOST-392), con integración productiva pendiente en MEM-001..MEM-010. |
 | [FAST_RAM_POLICY.md](FAST_RAM_POLICY.md) | Uso preferente de Fast para CPU, pila de arranque, estáticos/HUNK y segmentos de librerías dinámicas. |
 | [HARDWARE_AND_ROM_KERNEL_POLICY.md](HARDWARE_AND_ROM_KERNEL_POLICY.md) | Política close-to-metal: cuándo usar hardware directo y cuándo el ROM kernel. |
 | [RETRO_ENGINE_API_BENCHMARK.md](RETRO_ENGINE_API_BENCHMARK.md) | Benchmark de APIs retro (ACE, Scorpion, UAF) para orientar la API objetivo del engine. |

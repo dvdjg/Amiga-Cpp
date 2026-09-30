@@ -60,7 +60,13 @@ public:
 
 	/// Enruta un mensaje de E/S (`FileDone`/`FileError`) a la caché. Devuelve `true` si lo
 	/// consumió (tag `'A'`); así el bucle reenvía sin clasificar.
-	bool on_msg(const eng::os::Msg& m) noexcept { return route_io(m, m_cache, m_libs); }
+	bool on_msg(const eng::os::Msg& m) noexcept {
+		if (m.type == eng::os::MsgType::FileDone || m.type == eng::os::MsgType::FileError) {
+			const eng::os::IoUser user = eng::os::IoUser::decode(m.payload.file.cookie);
+			if (user.tag == kTagAsset) finish_file(m.payload.file.handle);
+		}
+		return route_io(m, m_cache, m_libs);
+	}
 
 	[[nodiscard]] Cache& cache() noexcept { return m_cache; }
 	[[nodiscard]] const Cache& cache() const noexcept { return m_cache; }
@@ -85,6 +91,15 @@ public:
 	[[nodiscard]] eng::u32 used_slow() const noexcept { return m_cache.used_slow(); }
 
 private:
+	/// Cierra el handle de E/S cuando el backend Amiga lo conserva hasta el mensaje; host fakes no requieren cierre.
+	void finish_file(eng::os::FileHandle handle) noexcept {
+		if constexpr (requires(CacheBackend& backend, eng::os::FileHandle h) { backend.finish(h); }) {
+			m_backend.finish(handle);
+		} else {
+			(void)handle;
+		}
+	}
+
 	/// `route_io` exige un objeto con `on_file_done`; el runtime de assets solo usa el tag
 	/// `'A'` (el loader de código se enganchará aquí cuando se integre `DynLoader`).
 	struct LibsStub {

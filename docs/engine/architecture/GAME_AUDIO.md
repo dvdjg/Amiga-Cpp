@@ -91,6 +91,10 @@ mezcla hasta 4 muestras en **un solo canal de Paula** (hasta 16 con `MIXER_MULTI
 - Si una muestra fuente viene de `AssetCache`, el juego conserva una `AssetLease` mientras el SFX
   puede seguir leyéndola: el mixer accede a la fuente desde CPU, por lo que no requiere Chip ni una
   lease DMA; `AudioSystem::play_sfx_asset` mantiene el owner hasta que la voz termina.
+- `play_sfx_asset` acepta solo voces finitas (`LoopMode::Once`): `tick_frame` observa la actividad
+  una vez por VBlank y libera la lease al terminar. Una voz en bucle necesita un `stop_sfx` explícito
+  antes de permitir el reemplazo/desalojo del asset. La demo 281 cubre teardown rechazado mientras
+  la voz está activa y liberación tras su fin natural.
 
 Es un mixer **de configuración fija** (voces, frecuencia, canal se fijan en
 `support/audio_mixer/mixer_config.i`), no un algoritmo adaptativo. La estrategia

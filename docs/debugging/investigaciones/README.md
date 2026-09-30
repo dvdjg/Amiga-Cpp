@@ -14,7 +14,7 @@ Hallazgos concretos de depuración: **bloqueos abiertos**, **post-mortems/leccio
 | [diagnostico-adf-negro.md](diagnostico-adf-negro.md) | El ADF se queda en negro (diagnóstico). |
 | [diagnostico-depurador-f5.md](diagnostico-depurador-f5.md) | El depurador no se lanza con F5 (diagnóstico). |
 | [pending-verification.md](pending-verification.md) | Repaso pendiente de generalidad de interfaces y modelado del engine. |
-| [memory-ownership-inconsistencies.md](memory-ownership-inconsistencies.md) | **MEM-001..MEM-011**: divergencias abiertas entre `MemoryManager`/arenas, pools persistentes, caché de assets, ownership y documentación. |
+| [memory-ownership-inconsistencies.md](memory-ownership-inconsistencies.md) | **MEM-001..MEM-011**: divergencias abiertas entre `MemoryManager`/arenas, pools persistentes, caché de assets, ownership y documentación; MEM-009 añade las leases por nivel de `FramePlan`/Copper y la demo SFX 281 pendiente de ejecución Amiga. |
 | [vblank-timer-inconsistencies.md](vblank-timer-inconsistencies.md) | **TIME-001..TIME-010**: duplicación del VBlank entre latch y FIFO, modos de sincronización ausentes e integración incompleta/deriva de timers. |
 | [300_compositor-una-sola-ventana.md](300_compositor-una-sola-ventana.md) | Demo 300 (compositor GUI): la captura de **un solo frame** mostraba solo la ventana B. Con **secuencia larga** se ven las tres: no había defecto de composición. El "parpadeo" percibido era del **movimiento** (saltos de 16 px + frames congelados), corregido a 1 px/frame. Lección: capturar secuencia + **frame-diff determinista**, no fiarse del modelo de visión. |
 

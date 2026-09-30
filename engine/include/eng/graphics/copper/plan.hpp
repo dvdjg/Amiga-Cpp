@@ -49,6 +49,7 @@
 #include <eng/graphics/raster_intent.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/memory/memory_manager.hpp>
+#include <eng/res/asset_cache.hpp>
 
 namespace eng::copper {
 
@@ -96,6 +97,7 @@ public:
 	static constexpr u16 max_intents = 320;
 	/// Capacidad de reservas de banda por frame (fijo, sin heap).
 	static constexpr u8 max_bands = 16;
+	static constexpr u8 max_dma_assets = 8; ///< owners Chip retenibles durante la vida de la copperlist
 
 	bool begin(eng::MemoryManager& memory, const PlanConfig& cfg = {}) {
 		release();
@@ -125,6 +127,14 @@ public:
 		m_ok = true;
 	}
 
+	/// Retiene assets DMA leídos por la lista durante la vida del plan; adquisición de setup, no por frame.
+	[[nodiscard]] bool retain_dma_asset(eng::res::AssetDmaLease&& lease) noexcept {
+		if (!m_ok || !lease.valid() || m_dma_asset_count >= max_dma_assets) return false;
+		m_dma_assets[m_dma_asset_count++] = static_cast<eng::res::AssetDmaLease&&>(lease);
+		return true;
+	}
+	[[nodiscard]] constexpr u8 dma_asset_count() const noexcept { return m_dma_asset_count; }
+
 	/// Libera únicamente el `DoubleBuffer` propio. Un buffer enlazado con `attach()` pertenece
 	/// al llamador y no se toca. Debe ejecutarse cuando el Copper ya no pueda leer la lista.
 	void release() noexcept {
@@ -152,6 +162,13 @@ public:
 		m_line_start = {};
 		m_count_by_line = {};
 		m_line_cursor = {};
+		release_dma_assets();
+	}
+
+	/// Libera los assets tras retirar/publicar una lista que ya no pueda consumirlos; llamarlo antes del teardown del cache.
+	void release_dma_assets() noexcept {
+		for (u8 i = 0u; i < m_dma_asset_count; ++i) m_dma_assets[i].reset();
+		m_dma_asset_count = 0u;
 	}
 
 	/// Abre el frame: limpia las intenciones y sitúa el emisor en el bloque **trasero**.
@@ -416,6 +433,8 @@ private:
 	/// reconstruya el marco ni recalcule punteros a la pila en cada acceso.
 	eng::util::Array<u16, 256u> m_count_by_line {};    ///< nº de intenciones por línea
 	eng::util::Array<u16, 256u> m_line_cursor {};      ///< cursor de relleno por línea (counting)
+	eng::res::AssetDmaLease m_dma_assets[max_dma_assets] {}; ///< owners Chip retenidos hasta desmontar el plan
+	u8 m_dma_asset_count = 0u; ///< leases activas, 0..max_dma_assets
 	u16 m_count = 0;       ///< nº de intenciones registradas
 	eng::util::Array<BandScope, max_bands> m_bands {}; ///< reservas de banda del frame
 	u8 m_band_count = 0;   ///< nº de reservas de banda

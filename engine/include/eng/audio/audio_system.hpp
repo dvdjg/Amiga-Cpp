@@ -97,6 +97,7 @@ public:
 						    [&]() { shutdown(); })) {
 			return false;
 		}
+		m_cfg = cfg;
 		set_sfx_volume(cfg.master_sfx_vol);
 		set_music_volume(cfg.master_music_vol);
 		return true;
@@ -149,20 +150,17 @@ public:
 	/// Reproduce una muestra de un asset CPU-residente en una voz concreta; conserva su owner hasta terminar.
 	SfxChannel play_sfx_asset(u16 mixer_channel, eng::res::AssetLease lease, s16 priority,
 				  LoopMode mode, u32 loop_offset = 0u) {
-		if (!lease.valid()) return -1;
+		if (!lease.valid() || mode == LoopMode::Loop || mode == LoopMode::LoopOffset) return -1;
 		const SfxSample sample {lease.view().data};
-		const SfxChannel channel = m_sfx.play_on(mixer_channel, sample, priority, mode, loop_offset);
-		const u8 index = mixer_index(channel);
 		const u8 requested_index = mixer_index(mixer_channel);
-		if (index >= 4u || requested_index >= 4u) {
+		if (requested_index >= 4u || m_sfx.channel_active(requested_index)) return -1;
+		m_sfx_cpu_leases[requested_index].reset();
+		const SfxChannel channel = m_sfx.play_on(mixer_channel, sample, priority, mode, loop_offset);
+		if (channel < 0 || mixer_index(channel) != requested_index || !m_sfx.is_playing(channel)) {
 			if (channel >= 0) m_sfx.stop(channel);
 			return -1;
 		}
-		if (index != requested_index || !m_sfx.is_playing(channel)) {
-			m_sfx.stop(channel);
-			return -1;
-		}
-		m_sfx_cpu_leases[index] = static_cast<eng::res::AssetLease&&>(lease);
+		m_sfx_cpu_leases[requested_index] = static_cast<eng::res::AssetLease&&>(lease);
 		return channel;
 	}
 
@@ -286,12 +284,12 @@ public:
 		const bool ended = (m_format == MusicFormat::P61) && m_p61.ended();
 		const AudioMsgOut out = m_edges.on_tick(ended, m_underrun_now);
 		m_underrun_now = false;
-		if (out.music_end) {
+		if (out.music_end && m_cfg.post_music_end_msg) {
 			eng::os::Msg m {};
 			m.type = eng::os::MsgType::MusicEnd;
 			port.post(m);
 		}
-		if (out.underrun) {
+		if (out.underrun && m_cfg.post_underrun_msg) {
 			eng::os::Msg m {};
 			m.type = eng::os::MsgType::AudioUnderrun;
 			port.post(m);
@@ -315,6 +313,7 @@ public:
 			m_pt.set_channel_mask(mask);
 		}
 	}
+
 
 	bool music_playing() const { return m_format != MusicFormat::None; }
 	MusicFormat music_format() const { return m_format; }
