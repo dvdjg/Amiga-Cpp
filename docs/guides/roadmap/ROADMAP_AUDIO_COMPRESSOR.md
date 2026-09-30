@@ -89,19 +89,23 @@ El corpus mixto previsto para ajustar los parámetros está descrito en [`AUDIO_
 
 ### C12 — ACP1: diccionario y reproducción estructural
 
-- **Entregado (base de formato)**: layout ACP1 v1 de 40 bytes documentado en `AUDIO_COMPRESSION.md`; parser y encoder host validados por HOST-387; la CLI conserva hasta siete stems WAV como unidades AUZX y genera tracks/eventos sincronizados, sin deduplicación.
+- **Entregado (base de formato)**: layout ACP1 v1 de 40 bytes documentado en `AUDIO_COMPRESSION.md`; parser/encoder host validados por HOST-387; la CLI conserva hasta siete stems como tracks sincronizados y comparte unidades con payload AUZX idéntico.
 - Diseñar la extensión ACP1 para diccionario de unidades reutilizables, pistas y eventos estructurales.
-- Implementar encoder C++23 con HPSS, división multibanda, firmas espectrales y detección de unidades repetidas o similares.
-- Deduplicar unidades y permitir payload AUZX, Delta+ZX0, Fibonacci, IMA, ADPCM cuantizado o residual armónico.
+- **Entregado (baseline HPSS)**: separación STFT radix-2 host armónica/percusiva, activada con `--hpss`; HOST-387 verifica señal tonal e impulsiva y HOST-382 comprueba generación ACP1 desde WAV estéreo.
+- Implementar bandas y firmas espectrales/temporales para similitud aproximada; requiere extensión ACP1 con múltiples eventos por pista.
+- **Entregado**: deduplicación exacta de payloads AUZX entre tracks; ampliar para unidades aproximadas cuando la pista admita una secuencia de eventos.
+- Permitir payload Delta+ZX0, Fibonacci, IMA, ADPCM cuantizado o residual armónico.
 - Asignar pistas a Paula 0..2 o mixer 0..3, conservando destino, pitch y transiciones en eventos validados.
 - **Entregado (base de formato)**: parser C++23 host-testable con `Span`, offsets validados y vistas sin heap; limitado al layout ACP1 v1 documentado. El parser valida cada payload AUZX antes de exponer sus vistas.
 - Extender el parser para las tablas de deduplicación, modos de unidad y metadatos estructurales.
 - Medir y portar a ASM 68000 solo los núcleos de decode, crossfade y síntesis con equivalencia byte a byte.
-- Tests previstos: HOST-387 parser/encoder ACP1 v1, HOST-388 deduplicación, HOST-389 secuenciador, HOST-390 selección Paula/mixer y demo híbrida.
+- **Entregado**: HOST-387 cubre parser/encoder, deduplicación exacta y HPSS; HOST-382 cubre CLI, round-trip por track y fuente FLAC multicanal mediante FFmpeg.
+- Tests previstos: HOST-388 deduplicación aproximada, HOST-389 secuenciador, HOST-390 selección Paula/mixer y demo híbrida.
 
 ### C13 — Corpus y ajuste estructural
 
-- Comparar AUZX lineal frente a ACP1 incluyendo diccionario, eventos, tablas y fades.
+- **Entregado (métrica base)**: la CLI reconstruye la mezcla ACP1 y compara MSE/pico y bytes totales frente al AUZX lineal; las métricas de HPSS no se presentan como calidad si la mezcla no puede reconstruirse.
+- Ampliar comparación para incluir fades, tablas y costes de reproducción.
 - Elegir HPSS, tamaño de unidad y umbral de similitud con coste conjunto de error, RAM, voces y CPU.
 - Generar informes reproducibles con hash de entrada, configuración, versión del encoder y destino de cada pista.
 - Preservar los pseudocódigos de HPSS, mediana deslizante, barrera de tareas y player como contratos de implementación en `AUDIO_COMPRESSION.md`.
@@ -148,7 +152,7 @@ El corpus mixto previsto para ajustar los parámetros está descrito en [`AUDIO_
 
 ### C18 — Importación multipista
 
-- Leer WAV multicanal preservando stems antes del downmix.
+- **Entregado**: WAV de hasta ocho canales preserva stems antes del downmix; FFmpeg mantiene todos los canales de la fuente al normalizar a WAV PCM16.
 - Importar módulos/tracker y conservar canales, instrumentos y patrones como pistas lógicas cuando el formato lo permita.
 - Probar repetición por stem y por mezcla completa; rechazar una separación si empeora tamaño/calidad.
 - Validar que ACP1 reproduce la misma duración y sincronía entre tracks.

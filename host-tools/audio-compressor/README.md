@@ -39,7 +39,7 @@ audio-compressor tema.wav --mode music --dry-run --report out/playground/audio-c
 audio-compressor disparo.wav --play
 ```
 
-Sin opciones, la aplicación genera una salida junto al archivo de entrada, no sobrescribe archivos existentes y aplica defaults seguros. El modo `music` genera ACP1 v1 para WAV PCM mono/multicanal de hasta siete canales: conserva cada canal como una pista AUZX y programa un evento por pista desde la muestra cero con duración común. Esta base estructural todavía no aplica HPSS, división por bandas, deduplicación, fades ni reproducción ACP1 en el engine.
+Sin opciones, la aplicación genera una salida junto al archivo de entrada, no sobrescribe archivos existentes y aplica defaults seguros. El modo `music` genera ACP1 v1 para WAV PCM mono/multicanal de hasta siete canales: conserva cada canal como una pista AUZX y programa un evento por pista desde la muestra cero con duración común. `--hpss` separa cada canal en componentes armónica/percusiva si el resultado cabe en siete pistas. Los payloads AUZX idénticos se comparten en el diccionario; ACP1 v1 no representa todavía secuencias temporales de varios eventos por pista.
 
 La configuración usa JSON plano con claves `mode`, `codec`, `sample_rate`, `chunk_samples`, `ram_budget_bytes`, `window_samples` y `force`. La precedencia es `defaults < config < CLI`.
 
@@ -53,7 +53,7 @@ La configuración usa JSON plano con claves `mode`, `codec`, `sample_rate`, `chu
 
 Cada conversión puede usar `--report out/reports/audio-compressor/nombre.json`. El informe registra entrada, modo, codec, tasa, chunks, muestras, duración, tamaño comprimido de la fuente, tamaño PCM normalizado, tamaño de salida, ratios PCM→salida y fuente→salida, MSE PCM8, SNR, pico de error y estado del round-trip.
 
-ACP1 v1 serializa offsets y tablas explícitos, e incrusta un AUZX independiente por canal WAV. Para comparar el resultado lineal con la composición estructural, conservar candidatas con `--keep-candidates`; la salida `.linear.auzx` se elimina por defecto después de generar ACP1.
+ACP1 v1 serializa offsets y tablas explícitos, e incrusta un AUZX por unidad única. El informe compara bytes lineales/estructurales y reconstruye la mezcla para medir MSE y pico. Para conservar ambas salidas, usar `--keep-candidates`; la salida `.linear.auzx` se elimina por defecto después de generar ACP1.
 
 ## Reproducción host con SDL3
 

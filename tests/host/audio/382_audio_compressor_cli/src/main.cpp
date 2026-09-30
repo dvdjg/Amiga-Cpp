@@ -57,11 +57,11 @@ bool file_exists(const std::string& path) {
 }
 
 /// Ejecuta el binario sobre el WAV; adapta el shell a la plataforma (sin `cmd` en POSIX).
-int run_binary(const std::string& bin, const std::string& in, const std::string& out, const char* mode) {
+int run_binary(const std::string& bin, const std::string& in, const std::string& out, const char* mode, bool hpss = false) {
 #ifdef _WIN32
-	const std::string command = "cmd /c call \"" + bin + "\" \"" + in + "\" --mode " + mode + " --out \"" + out + "\" --force";
+	const std::string command = "cmd /c call \"" + bin + "\" \"" + in + "\" --mode " + mode + " --out \"" + out + "\" --force" + (hpss ? " --hpss" : "");
 #else
-	const std::string command = "\"" + bin + "\" \"" + in + "\" --mode " + mode + " --out \"" + out + "\" --force";
+	const std::string command = "\"" + bin + "\" \"" + in + "\" --mode " + mode + " --out \"" + out + "\" --force" + (hpss ? " --hpss" : "");
 #endif
 	return std::system(command.c_str());
 }
@@ -91,6 +91,7 @@ int main() {
 	const std::string input = dir + "host382_in.wav";
 	const std::string sample_output = dir + "host382_out.auzx";
 	const std::string music_output = dir + "host382_music.acp1";
+	const std::string hpss_output = dir + "host382_hpss.acp1";
 	if (!write_wav(input)) { std::fprintf(stderr, "no se pudo crear WAV de prueba\n"); return 1; }
 
 	const int process = run_binary(binary, input, sample_output, "sample");
@@ -131,8 +132,43 @@ int main() {
 			std::fprintf(stderr, "round-trip ACP1 alteró muestras del stem %u\n", track_index); return 1;
 		}
 	}
+	const int hpss_process = run_binary(binary, input, hpss_output, "music", true);
+	if (hpss_process != 0) { std::fprintf(stderr, "audio-compressor music --hpss terminó con %d\n", hpss_process); return 1; }
+	file = std::fopen(hpss_output.c_str(), "rb");
+	if (file == nullptr) { std::fprintf(stderr, "no se pudo abrir salida ACP1 HPSS\n"); return 1; }
+	std::fseek(file, 0, SEEK_END); const long hpss_size = std::ftell(file); std::rewind(file);
+	std::vector<eng::u8> hpss_bytes(static_cast<std::size_t>(hpss_size));
+	const bool hpss_read = std::fread(hpss_bytes.data(), 1u, hpss_bytes.size(), file) == hpss_bytes.size(); std::fclose(file);
+	eng::audio::acp1::Info hpss_info{};
+	if (!hpss_read || !eng::audio::acp1::parse({hpss_bytes.data(), hpss_bytes.size()}, hpss_info) || hpss_info.track_count != 4u) {
+		std::fprintf(stderr, "HPSS no genera dos capas sincronizadas por canal\n"); return 1;
+	}
+	const std::string flac_input = dir + "host382_in.flac";
+	const std::string flac_output = dir + "host382_ffmpeg.acp1";
+#ifdef _WIN32
+	const std::string ffmpeg_encode = "cmd /c ffmpeg -y -v error -i \"" + input + "\" -af apad=pad_len=1024 -c:a flac \"" + flac_input + "\"";
+#else
+	const std::string ffmpeg_encode = "ffmpeg -y -v error -i \"" + input + "\" -af apad=pad_len=1024 -c:a flac \"" + flac_input + "\"";
+#endif
+	const bool ffmpeg_available = std::system(ffmpeg_encode.c_str()) == 0;
+	if (ffmpeg_available) {
+		const int ffmpeg_process = run_binary(binary, flac_input, flac_output, "music");
+		if (ffmpeg_process != 0) { std::fprintf(stderr, "audio-compressor no preservó WAV multicanal decodificado por FFmpeg\n"); return 1; }
+		file = std::fopen(flac_output.c_str(), "rb");
+		if (file == nullptr) { std::fprintf(stderr, "no se pudo abrir ACP1 de FFmpeg\n"); return 1; }
+		std::fseek(file, 0, SEEK_END); const long ffmpeg_size = std::ftell(file); std::rewind(file);
+		std::vector<eng::u8> ffmpeg_bytes(static_cast<std::size_t>(ffmpeg_size));
+		const bool ffmpeg_read = std::fread(ffmpeg_bytes.data(), 1u, ffmpeg_bytes.size(), file) == ffmpeg_bytes.size(); std::fclose(file);
+		eng::audio::acp1::Info ffmpeg_info{};
+		if (!ffmpeg_read || !eng::audio::acp1::parse({ffmpeg_bytes.data(), ffmpeg_bytes.size()}, ffmpeg_info) || ffmpeg_info.track_count != 2u) {
+			std::fprintf(stderr, "FFmpeg downmixó o perdió canales al normalizar FLAC\n"); return 1;
+		}
+	}
 	std::remove(input.c_str()); std::remove(sample_output.c_str()); std::remove(music_output.c_str());
+	std::remove(hpss_output.c_str());
+	std::remove(flac_input.c_str()); std::remove(flac_output.c_str());
 	std::remove((music_output + ".linear.auzx").c_str());
-	std::printf("OK: CLI produce AUZX sample y ACP1 sincronizado de dos stems WAV.\n");
+	std::remove((hpss_output + ".linear.auzx").c_str());
+	std::printf("OK: CLI produce AUZX sample, ACP1 sincronizado y ACP1 con HPSS%s.\n", ffmpeg_available ? "; FFmpeg conserva canales FLAC" : "");
 	return 0;
 }

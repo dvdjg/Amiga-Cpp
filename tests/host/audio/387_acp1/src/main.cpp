@@ -21,18 +21,27 @@ void check(bool ok, const char* message) {
 
 /// Construye un AUZX PCM8 mono de un chunk, válido para incrustar como unidad.
 std::vector<eng::u8> make_auzx(const eng::u8* samples, eng::u16 count, eng::u16 rate) {
-	const eng::usize size = eng::audio::auzx::kHeaderSize + eng::audio::auzx::kChunkEntrySize + count;
+	const eng::u16 chunk_samples = 2u;
+	const eng::u16 chunks = static_cast<eng::u16>((count + chunk_samples - 1u) / chunk_samples);
+	const eng::usize index_size = static_cast<eng::usize>(chunks) * eng::audio::auzx::kChunkEntrySize;
+	const eng::usize data_offset = eng::audio::auzx::kHeaderSize + index_size;
+	const eng::usize size = data_offset + count;
 	std::vector<eng::u8> bytes(size, 0u);
 	eng::Span<eng::u8> out {bytes.data(), bytes.size()};
 	bytes[0] = 'A'; bytes[1] = 'U'; bytes[2] = 'Z'; bytes[3] = 'X'; bytes[4] = 1u;
 	bytes[5] = static_cast<eng::u8>(eng::audio::pcm_codec::Codec::None);
 	eng::audio::auzx::wr16(out, 6u, rate); eng::audio::auzx::wr16(out, 8u, 1u); bytes[10] = 8u;
-	eng::audio::auzx::wr32(out, 12u, count); eng::audio::auzx::wr16(out, 16u, count);
-	eng::audio::auzx::wr16(out, 18u, 1u); eng::audio::auzx::wr32(out, 20u, eng::audio::auzx::kHeaderSize);
-	eng::audio::auzx::wr32(out, 24u, static_cast<eng::u32>(eng::audio::auzx::kHeaderSize + eng::audio::auzx::kChunkEntrySize));
-	eng::audio::auzx::wr32(out, eng::audio::auzx::kHeaderSize, static_cast<eng::u32>(eng::audio::auzx::kHeaderSize + eng::audio::auzx::kChunkEntrySize));
-	eng::audio::auzx::wr32(out, eng::audio::auzx::kHeaderSize + 4u, count);
-	for (eng::usize i = 0u; i < count; ++i) bytes[eng::audio::auzx::kHeaderSize + eng::audio::auzx::kChunkEntrySize + i] = samples[i];
+	eng::audio::auzx::wr32(out, 12u, count); eng::audio::auzx::wr16(out, 16u, chunk_samples);
+	eng::audio::auzx::wr16(out, 18u, chunks); eng::audio::auzx::wr32(out, 20u, eng::audio::auzx::kHeaderSize);
+	eng::audio::auzx::wr32(out, 24u, static_cast<eng::u32>(data_offset));
+	for (eng::u16 i = 0u; i < chunks; ++i) {
+		const eng::usize at = eng::audio::auzx::kHeaderSize + static_cast<eng::usize>(i) * eng::audio::auzx::kChunkEntrySize;
+		const eng::usize start = static_cast<eng::usize>(i) * chunk_samples;
+		const eng::usize length = count - start < chunk_samples ? count - start : chunk_samples;
+		eng::audio::auzx::wr32(out, at, static_cast<eng::u32>(data_offset + start));
+		eng::audio::auzx::wr32(out, at + 4u, static_cast<eng::u32>(length));
+	}
+	for (eng::usize i = 0u; i < count; ++i) bytes[data_offset + i] = samples[i];
 	return bytes;
 }
 
@@ -138,6 +147,17 @@ void test_hpss() {
 		percussive_energy += static_cast<eng::u64>(p * p);
 	}
 	check(harmonic_energy > percussive_energy, "HPSS ubica tono sostenido predominantemente en la capa armónica");
+	std::vector<eng::u8> transients(512u, 0u);
+	for (eng::usize i = 0u; i < transients.size(); i += 64u) transients[i] = 0x7fu;
+	check(audio_compressor::hpss(transients, 128u, layers), "HPSS procesa transitorios repetidos");
+	harmonic_energy = 0u; percussive_energy = 0u;
+	for (eng::usize i = 0u; i < transients.size(); ++i) {
+		const eng::s32 h = static_cast<eng::s8>(layers.harmonic[i]);
+		const eng::s32 p = static_cast<eng::s8>(layers.percussive[i]);
+		harmonic_energy += static_cast<eng::u64>(h * h);
+		percussive_energy += static_cast<eng::u64>(p * p);
+	}
+	check(percussive_energy > harmonic_energy, "HPSS ubica tren de impulsos predominantemente en la capa percusiva");
 	check(!audio_compressor::hpss(tone, 100u, layers), "HPSS rechaza tamaño FFT no potencia de dos");
 }
 

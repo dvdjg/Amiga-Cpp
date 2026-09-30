@@ -265,7 +265,7 @@ template <class T>
 	const eng::usize chunk = config.chunk_samples;
 	if (chunk == 0u || pcm.empty()) return false;
 	const eng::usize chunk_count = (pcm.size() + chunk - 1u) / chunk;
-	if (chunk_count > 65535u) return false;
+	if (chunk_count > 65535u || pcm.size() > 0xffffffffu) return false;
 	const eng::u16 chunks = static_cast<eng::u16>(chunk_count);
 	const auto codec = codec_id(config.codec);
 	std::vector<std::vector<eng::u8>> bodies(chunks);
@@ -315,13 +315,16 @@ template <class T>
 	std::vector<eng::u8> stored;
 	if (read_binary(output_path.string().c_str(), stored) && eng::audio::media::open({stored.data(), stored.size()}, info)) {
 		eng::usize cursor = 0u;
+		bool exact = true;
 		for (eng::u16 i = 0u; i < info.num_chunks; ++i) {
-		const eng::u32 count = eng::audio::media::chunk_samples(info, i);
-			const eng::s32 got = eng::audio::media::decode_chunk({stored.data(), stored.size()}, info, i, {rebuilt.data() + cursor, count});
-			if (got < 0) return false;
+			const eng::u32 count = eng::audio::media::chunk_samples(info, i);
+			const eng::s32 got = eng::audio::media::decode_chunk({stored.data(), stored.size()}, info, i,
+				{rebuilt.data() + cursor, count});
+			if (got != static_cast<eng::s32>(count)) { exact = false; break; }
 			cursor += static_cast<eng::usize>(got);
 		}
-		stats.round_trip_ok = cursor == rebuilt.size();
+		stats.round_trip_ok = exact && cursor == rebuilt.size();
+		if (!stats.round_trip_ok) return false;
 		for (eng::usize i = 0u; i < pcm.size() && i < rebuilt.size(); ++i) {
 			const eng::s32 error = static_cast<eng::s8>(pcm[i]) - static_cast<eng::s8>(rebuilt[i]);
 			const eng::u32 absolute = static_cast<eng::u32>(error < 0 ? -error : error);
@@ -330,7 +333,7 @@ template <class T>
 			stats.signal_energy += static_cast<eng::u64>(sample * sample);
 			if (absolute > stats.peak_error) stats.peak_error = static_cast<eng::u8>(absolute);
 		}
-	}
+	} else return false;
 	return true;
 }
 
@@ -472,8 +475,10 @@ int main(int argc, char** argv) {
 		}
 		structural_stats.round_trip_ok = true;
 		const char* hpss_label = config.hpss ? "hpss=on" : "hpss=off";
-		const double mse = pcm.empty() ? 0.0 : static_cast<double>(structural_stats.squared_error) / static_cast<double>(pcm.size());
-		std::printf("candidata lineal AUZX=%llu bytes; ACP1=%llu bytes; pistas=%lu; %s; MSE mezcla=%.4f; pico=%u; ventanas repetidas=%u\n", static_cast<unsigned long long>(linear_stats.output_bytes), static_cast<unsigned long long>(structural_bytes), static_cast<unsigned long>(acp1_info.acp1_info.track_count), hpss_label, mse, structural_stats.peak_error, linear_stats.repeated_windows);
+		const double denominator = pcm.empty() ? 1.0 : static_cast<double>(pcm.size());
+		const double linear_mse = static_cast<double>(linear_stats.squared_error) / denominator;
+		const double structural_mse = static_cast<double>(structural_stats.squared_error) / denominator;
+		std::printf("AUZX=%llu bytes MSE=%.4f pico=%u; ACP1=%llu bytes MSE=%.4f pico=%u; pistas=%lu; %s; ventanas repetidas=%u\n", static_cast<unsigned long long>(linear_stats.output_bytes), linear_mse, linear_stats.peak_error, static_cast<unsigned long long>(structural_bytes), structural_mse, structural_stats.peak_error, static_cast<unsigned long>(acp1_info.acp1_info.track_count), hpss_label, linear_stats.repeated_windows);
 		if (!report.empty()) write_report(report, input, mode, config, structural_stats, structural_bytes);
 		if (!config.keep_candidates) std::remove(linear.c_str());
 		return 0;

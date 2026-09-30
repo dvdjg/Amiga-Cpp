@@ -2,12 +2,13 @@
 
 /// \file media.hpp
 /// **Interfaz de medios de audio**: punto único para reconocer un medio y despachar su lectura,
-/// independientemente del **contenedor** (PCM crudo o AUZX) y del **códec**
+/// independientemente del **contenedor** (PCM crudo, AUZX o composición ACP1) y del **códec**
 /// (`pcm_codec::Codec`). Sobre ella se apoyan el streaming (`pcm_stream.hpp`) y el juego.
 ///
 /// Un "medio" es un blob en memoria (leído de ROM, de un AUI/asset o de disquete). `open()`
 /// detecta el contenedor por su magic (o lo asume PCM si no lo hay) y rellena `Info`; a partir
-/// de ahí se accede por **chunks** con `chunk_size(i)`/`decode_chunk(i, dst)`.
+/// de ahí se accede por **chunks** con `chunk_samples(i)`/`decode_chunk(i, dst)` o, para ACP1,
+/// por track mediante `decode_track_window`/`mix_window`.
 ///
 /// ```text
 ///   blob ──open──► Info {container, codec, rate, channels, bits, total_samples, num_chunks}
@@ -15,7 +16,7 @@
 ///        chunk_size(i) ──┴──► decode_chunk(i, dst) ──► PCM 8-bit (s8)
 /// ```
 ///
-/// Contenedores: `Pcm` (PCM crudo mono 8-bit, sin cabecera) y `Auzx` (`auzx.hpp`). El códec es
+/// Contenedores: `Pcm` (PCM crudo mono 8-bit), `Auzx` (`auzx.hpp`) y `Acp1` (`acp1.hpp`). El códec es
 /// el de `pcm_codec` (None/DeltaRle/FibDelta/ImaAdpcm/ZX0/DeltaZx0), ya sea el de la cabecera
 /// AUZX o `None` para PCM crudo.
 
@@ -48,8 +49,8 @@ struct Info {
 	acp1::Info acp1_info {}; ///< válido solo si `container == Acp1`
 };
 
-/// Reconoce el medio `blob` y rellena `out`. PCM crudo si no hay magic AUZX (y el tamaño es
-/// múltiplo de la muestra); `false` si es un AUZX corrupto o un blob vacío.
+/// Reconoce el medio `blob` y rellena `out`. PCM crudo si no hay magic AUZX/ACP1; `false` si un
+/// contenedor reconocido es corrupto o si el blob está vacío.
 [[nodiscard]] inline bool open(eng::Span<const eng::u8> blob, Info& out) noexcept {
 	if (blob.size() == 0u) {
 		return false;
