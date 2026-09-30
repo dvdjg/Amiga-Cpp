@@ -8,6 +8,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <cmath>
 #include <cstring>
 #include <filesystem>
 #if defined(_WIN32)
@@ -24,6 +25,7 @@
 
 #include "../../../host-tools/pack-pcm/wav_loader.hpp"
 #include "sdl_player.hpp"
+#include "sdl_host_io.hpp"
 
 namespace {
 
@@ -77,6 +79,19 @@ struct Config {
 	bool dry_run = false;
 	/// Reproduce la entrada normalizada o la salida generada mediante SDL3.
 	bool play = false;
+};
+
+/// Estadísticas de una conversión, usadas por el informe JSON y por la comparación del corpus.
+struct ConversionStats {
+	eng::u64 input_bytes = 0u;
+	eng::u64 pcm_bytes = 0u;
+	eng::u64 output_bytes = 0u;
+	eng::u64 samples = 0u;
+	eng::u16 sample_rate = 0u;
+	eng::u64 squared_error = 0u;
+	eng::u64 signal_energy = 0u;
+	eng::u8 peak_error = 0u;
+	bool round_trip_ok = false;
 };
 
 /// Resuelve ffmpeg desde variables de entorno o PATH para leer MP3/OGG/FLAC sin enlazarlo.
@@ -165,12 +180,7 @@ template <class T>
 
 /// Lee un archivo binario completo para reproducir un contenedor AUZX ya generado.
 [[nodiscard]] bool read_binary(const char* path, std::vector<eng::u8>& bytes) {
-	std::FILE* file = std::fopen(path, "rb");
-	if (!file) return false;
-	std::fseek(file, 0, SEEK_END); const long size = std::ftell(file); std::fseek(file, 0, SEEK_SET);
-	if (size <= 0) { std::fclose(file); return false; }
-	bytes.resize(static_cast<std::size_t>(size));
-	const bool ok = std::fread(bytes.data(), 1u, bytes.size(), file) == bytes.size(); std::fclose(file); return ok;
+	return audio_compressor::load_file(path, bytes);
 }
 
 /// Carga una fuente PCM o decodifica AUZX a PCM8 mono para el reproductor SDL3.
@@ -230,7 +240,7 @@ template <class T>
 
 /// Escribe un AUZX mono PCM8 con el codec seleccionado y verifica la reconstrucción.
 [[nodiscard]] bool write_auzx(const std::vector<eng::u8>& pcm, eng::u16 rate, const Config& config,
-	const std::string& output) {
+	const std::string& output, ConversionStats& stats) {
 	const eng::usize chunk = config.chunk_samples;
 	if (chunk == 0u || pcm.empty()) return false;
 	std::vector<eng::u8> padded = pcm;
@@ -273,13 +283,41 @@ template <class T>
 #endif
 		return false;
 	}
+	stats.output_bytes = static_cast<eng::u64>(file.size());
+	stats.samples = pcm.size();
+	stats.sample_rate = rate;
+	std::vector<eng::u8> rebuilt(padded.size());
+	eng::audio::media::Info info {};
+	std::vector<eng::u8> stored;
+	if (read_binary(output_path.string().c_str(), stored) && eng::audio::media::open({stored.data(), stored.size()}, info)) {
+		eng::usize cursor = 0u;
+		for (eng::u16 i = 0u; i < info.num_chunks; ++i) {
+			const eng::u32 count = eng::audio::media::chunk_samples(info, i);
+			const eng::s32 got = eng::audio::media::decode_chunk({stored.data(), stored.size()}, info, i, {rebuilt.data() + cursor, count});
+			if (got < 0) return false;
+			cursor += static_cast<eng::usize>(got);
+		}
+		stats.round_trip_ok = cursor == rebuilt.size();
+		for (eng::usize i = 0u; i < pcm.size() && i < rebuilt.size(); ++i) {
+			const eng::s32 error = static_cast<eng::s8>(pcm[i]) - static_cast<eng::s8>(rebuilt[i]);
+			const eng::u32 absolute = static_cast<eng::u32>(error < 0 ? -error : error);
+			stats.squared_error += static_cast<eng::u64>(error * error);
+			const eng::s32 sample = static_cast<eng::s8>(pcm[i]);
+			stats.signal_energy += static_cast<eng::u64>(sample * sample);
+			if (absolute > stats.peak_error) stats.peak_error = static_cast<eng::u8>(absolute);
+		}
+	}
 	return true;
 }
 
 /// Escribe un informe de texto mínimo para la primera vertical de la aplicación única.
-void write_report(const std::string& path, const std::string& input, const std::string& mode, const Config& config, eng::usize samples) {
+void write_report(const std::string& path, const std::string& input, const std::string& mode, const Config& config, const ConversionStats& stats) {
 	std::FILE* out = std::fopen(path.c_str(), "wb"); if (!out) return;
-	std::fprintf(out, "{\n  \"input\": \"%s\",\n  \"mode\": \"%s\",\n  \"codec\": \"%s\",\n  \"sample_rate\": %u,\n  \"chunk_samples\": %u,\n  \"samples\": %lu\n}\n", input.c_str(), mode.c_str(), config.codec.c_str(), config.sample_rate, config.chunk_samples, static_cast<unsigned long>(samples));
+	const double pcm_ratio = stats.pcm_bytes == 0u ? 0.0 : static_cast<double>(stats.output_bytes) / static_cast<double>(stats.pcm_bytes);
+	const double source_ratio = stats.input_bytes == 0u ? 0.0 : static_cast<double>(stats.output_bytes) / static_cast<double>(stats.input_bytes);
+	const double mse = stats.samples == 0u ? 0.0 : static_cast<double>(stats.squared_error) / static_cast<double>(stats.samples);
+	const double snr_db = stats.squared_error == 0u ? 999.0 : 10.0 * std::log10(static_cast<double>(stats.signal_energy) / static_cast<double>(stats.squared_error));
+	std::fprintf(out, "{\n  \"input\": \"%s\",\n  \"mode\": \"%s\",\n  \"codec\": \"%s\",\n  \"sample_rate\": %u,\n  \"chunk_samples\": %u,\n  \"samples\": %llu,\n  \"duration_seconds\": %.6f,\n  \"input_bytes\": %llu,\n  \"pcm_bytes\": %llu,\n  \"output_bytes\": %llu,\n  \"ratio_pcm_to_output\": %.6f,\n  \"ratio_source_to_output\": %.6f,\n  \"mse_pcm8\": %.6f,\n  \"snr_db\": %.3f,\n  \"peak_error\": %u,\n  \"round_trip_ok\": %s\n}\n", input.c_str(), mode.c_str(), config.codec.c_str(), config.sample_rate, config.chunk_samples, static_cast<unsigned long long>(stats.samples), stats.sample_rate == 0u ? 0.0 : static_cast<double>(stats.samples) / stats.sample_rate, static_cast<unsigned long long>(stats.input_bytes), static_cast<unsigned long long>(stats.pcm_bytes), static_cast<unsigned long long>(stats.output_bytes), pcm_ratio, source_ratio, mse, snr_db, stats.peak_error, stats.round_trip_ok ? "true" : "false");
 	std::fclose(out);
 }
 
@@ -301,6 +339,7 @@ int main(int argc, char** argv) {
 		if (std::strcmp(argv[i], "--mode") == 0) config.mode = argv[++i];
 		else if (std::strcmp(argv[i], "--config") == 0) config_path = argv[++i];
 		else if (std::strcmp(argv[i], "--out") == 0) output = argv[++i];
+		else if (std::strcmp(argv[i], "--report") == 0) report = argv[++i];
 		else if (std::strcmp(argv[i], "--codec") == 0) config.codec = argv[++i];
 		else if (std::strcmp(argv[i], "--sample-rate") == 0) config.sample_rate = static_cast<eng::u16>(std::atoi(argv[++i]));
 		else if (std::strcmp(argv[i], "--chunk") == 0) config.chunk_samples = static_cast<eng::u16>(std::atoi(argv[++i]));
@@ -330,8 +369,12 @@ int main(int argc, char** argv) {
 	std::FILE* existing = std::fopen(output.c_str(), "rb");
 	if (!config.force && existing != nullptr) { std::fclose(existing); std::fprintf(stderr, "salida existente; use --force\n"); return 1; }
 	if (existing != nullptr) std::fclose(existing);
-	if (!write_auzx(pcm, config.sample_rate, config, output)) return 1;
-	if (!report.empty()) write_report(report, input, mode, config, pcm.size());
+	ConversionStats stats {};
+	std::error_code input_error {};
+	stats.input_bytes = std::filesystem::file_size(std::filesystem::path {input}, input_error);
+	stats.pcm_bytes = static_cast<eng::u64>(pcm.size());
+	if (!write_auzx(pcm, config.sample_rate, config, output, stats)) return 1;
+	if (!report.empty()) write_report(report, input, mode, config, stats);
 	if (!decoded_input.empty()) std::remove(decoded_input.c_str());
 	return 0;
 }
