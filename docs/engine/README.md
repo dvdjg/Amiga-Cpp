@@ -66,7 +66,7 @@ mapa «tarea → documentación», en [DOC-MAP-PRINCIPAL.md](../ai-dev-environme
 
 ### Mini-SO (`eng::os`)
 
-- [MINI_OS_MESSAGE_LOOP.md](architecture/MINI_OS_MESSAGE_LOOP.md) · [MINI_OS_INPUT.md](architecture/MINI_OS_INPUT.md) · [MINI_OS_TIME.md](architecture/MINI_OS_TIME.md) · [MINI_OS_IO.md](architecture/MINI_OS_IO.md) · [MINI_OS_TASKS.md](architecture/MINI_OS_TASKS.md).
+- [MINI_OS_MESSAGE_LOOP.md](architecture/MINI_OS_MESSAGE_LOOP.md) · [MINI_OS_INPUT.md](architecture/MINI_OS_INPUT.md) · [MINI_OS_TIME.md](architecture/MINI_OS_TIME.md) · [MINI_OS_IO.md](architecture/MINI_OS_IO.md) · [MINI_OS_TASKS.md](architecture/MINI_OS_TASKS.md). Contratos abiertos de VBlank/timers: [TIME-001..TIME-010](../debugging/investigaciones/vblank-timer-inconsistencies.md).
 
 ### IA y simulación
 

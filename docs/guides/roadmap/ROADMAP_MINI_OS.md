@@ -54,10 +54,11 @@ UI (`eng::ui`).
 - **Verificación**: **HOST-236** (junto con M5) — la secuencia avanza aunque no se consuma, solo
   hay un VBlank pendiente y `missed` cuenta los pisados. Demo: contar frames por mensaje y
   compararlos con `context.frame.frame_index` (sin sondear `VPOSR`).
-- **Estado**: **entregado** (`VBlankLatch`/`take_vblank` en `port.hpp`; HOST-236). El **productor**
-  del backend es `eng::os::tick` (`amiga_os.cpp`): latcha el VBlank y pollea la entrada; lo
-  llama el bucle por frame (demo 208). La variante **por IRQ** (`set_vblank_service`) queda como
-  mejora cuando el bucle sea interrupt-driven.
+- **Estado**: **latch implementado; integración de publicación pendiente de unificación**.
+  `VBlankLatch`/`take_vblank` tienen HOST-236 y `eng::os::tick` actualiza el latch. Sin embargo,
+  `App::on_vblank` publica además cada IRQ como mensaje FIFO en un puerto independiente, que puede
+  desbordarse si el juego no lo drena. Unificar la secuencia y ofrecer modos explícitos
+  `VBlankLatch`/`ActiveWait`/`External`/`Disabled` queda pendiente (TIME-001/TIME-002/TIME-010).
 
 ### M2 — Entrada por registros → mensajes
 
@@ -135,8 +136,11 @@ UI (`eng::ui`).
 - **Detalle**: [`MINI_OS_TIME.md`](../../engine/architecture/MINI_OS_TIME.md).
 - **Verificación**: **HOST-222** (timers de frames, periódicos y one-shot con ticks sintéticos) y
   **HOST-238** (TickClock: coherencia de lectura y conversión µs↔ticks).
-- **Estado**: **entregado** (`time.hpp` + `timer.hpp`; HOST-222/238). La lectura del CIA
-  (`TickClock`) la aporta el backend como `TickSource`.
+- **Estado**: `TimerService` y `TickClock` tienen implementación y tests host, pero la integración
+  de tiempo real está incompleta. El backend llama `poll_and_post(..., g_frame, 0u)` desde VBlank,
+  así que los timers µs no reciben el contador CIA y su precisión queda limitada por polling de
+  frame. Los periódicos se reprograman desde el instante de sondeo, con deriva y pérdida de
+  expiraciones múltiples. Cerrar TIME-003..TIME-008 antes de considerar M6 completo.
 
 ### M7 — E/S asíncrona
 
@@ -228,6 +232,19 @@ UI (`eng::ui`).
 > misma API de scheduler. La única alternativa considerada sería un fallback **basado en
 > plantillas** al estilo de las *coroutine libraries* de Boost, que tampoco se aborda por ahora.
 > Se retomará solo si aparece un consumidor que lo justifique y el toolchain da soporte.
+
+### M12 — Sincronización de frame y timers robustos
+
+- **Entregable**: una sola secuencia VBlank compartida por Engine/App/mini-SO; política configurable
+  `VBlankLatch`/`ActiveWait`/`External`/`Disabled`; cero mensajes FIFO duplicados de VBlank; payload
+  consumible `{sequence, missed}` y decisión explícita de catch-up.
+- **Timers**: separar timer de frame y deadline monotónico; conectar `TickClock::now()` o un one-shot
+  CIA para µs; deadlines seguros ante wrap; periodicidad anclada a la fase; política de expiraciones
+  acumuladas; ids o handles con generación.
+- **Verificación**: tests host para interrupciones acumuladas, carreras de `take_vblank`, wrap,
+  catch-up, IDs duplicados, periodos perdidos y modos de sync; demo hardware comparando secuencia IRQ
+  con contador leído fuera del latch.
+- **Estado**: pendiente. Diagnóstico actual: [`vblank-timer-inconsistencies.md`](../../debugging/investigaciones/vblank-timer-inconsistencies.md), TIME-001..TIME-010.
 
 ## Tests y demos previstos
 

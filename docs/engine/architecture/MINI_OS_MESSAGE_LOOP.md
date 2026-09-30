@@ -23,12 +23,13 @@ VBlank y todo lo demás (input, disco, timers) suele mezclarse con sondeo dentro
 produce dos problemas de arquitectura: (1) lógica de juego acoplada a registros de hardware, y
 (2) esperas activas (`while (!listo) {}`) que queman CPU.
 
-`eng::os` resuelve ambos con un único patrón: **productores que encolan mensajes** y un
-**consumidor que espera señales**. Ámbito:
+`eng::os` resuelve ambos con un patrón de **productores de eventos** y un **consumidor que espera
+señales**. Los eventos discretos van a la cola; hechos periódicos/coalescibles como VBlank deben
+tener secuencia y estado latched, no una entrada FIFO por interrupción. Ámbito:
 
 - Entrada (teclado, ratón, joystick) como **eventos de flanco** (down/up/move), no como sondeo.
-- VBlank como **tick de sistema** (un mensaje por frame), base del ritmo de juego y de los
-  timers.
+- VBlank como **tick de sistema** (secuencia monotónica con una notificación pendiente), base del
+  ritmo de juego y de los timers por frame.
 - E/S de disco **asíncrona**: la petición vuelve al momento y el resultado llega por mensaje.
 - Timers de usuario y mensajes de aplicación (`User`) para desacoplar subsistemas.
 - **No** es un planificador de procesos, ni gestiona memoria, ni sustituye al engine gráfico:
@@ -586,7 +587,11 @@ fijos (`for i in missed: fixed_step()`) o hacer un solo update y anotar *lag*. L
 **nunca se detiene** (la lleva la ISR), pero la cola **nunca acumula VBlanks**.
 
 La misma política aplica a otros mensajes de **estado** (joystick/gamepad: solo importa el estado
-actual) con un `StateLatch<T>`; **no** se aplica a `KeyDown` ni `FileDone`, que son eventos.
+actual) con un `StateLatch<T>`; **no** se aplica a `KeyDown` ni `FileDone`, que son eventos. El
+`VBlankLatch` ya implementa secuencia y `missed`, pero `App::on_vblank` publica además un `VBlank`
+por IRQ en su `MsgPort` FIFO. Hasta unificar esos caminos, el latch del mini-SO no evita que el
+puerto independiente de `App` se llene si el juego no lo drena (TIME-001/TIME-002). La arquitectura
+objetivo usa una única secuencia y una única notificación latched por servicio de frame.
 
 ## 11. ¿Busy-wait eliminado?
 

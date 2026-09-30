@@ -194,7 +194,7 @@ El índice permite `seek(chunk)` y evita leer chunks anteriores. `PcmStream` usa
 
 ## Contenedor estructural ACP1
 
-`ACP1` se usa cuando el audio completo tiene redundancia temporal o espectral que no conviene representar como una única onda lineal. El encoder analiza el material offline, extrae capas y unidades, y escribe una secuencia de referencias. El Amiga no vuelve a analizar el audio: resuelve eventos, decodifica la unidad solicitada y aplica el destino y la transición indicados.
+`ACP1` representa audio como unidades y eventos estructurados, incluidos stems que deben compartir una línea temporal. El encoder puede analizar el material offline, extraer capas y unidades, y escribir una secuencia de referencias. El Amiga no vuelve a analizar el audio: resuelve eventos, decodifica la unidad solicitada y aplica el destino y la transición indicados.
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
@@ -209,11 +209,41 @@ El índice permite `seek(chunk)` y evita leer chunks anteriores. `PcmStream` usa
 └──────────────────────────────────────────────────────────────┘
 ```
 
-El layout binario definitivo debe escribirse con `ByteReader`/`ByteWriter` little-endian y offsets validados; no se usará `#pragma pack` como API de parseo ni `reinterpret_cast` en el decoder. El parser comprobará magic, versión, offsets, límites de unidades, destino de pista y referencias de `unit_id` antes de reproducir.
+El layout binario se escribe con `ByteReader`/`ByteWriter` little-endian y offsets validados; no se usa `#pragma pack` como API de parseo ni `reinterpret_cast` en el decoder. El parser comprueba magic, versión, offsets, límites de unidades, destino de pista y referencias de `unit_id` antes de reproducir.
+
+### Layout ACP1 v1
+
+La versión inicial define un subconjunto estructural reproducible: hasta siete pistas con una unidad AUZX completa por pista y un evento sincronizado desde la muestra cero. El layout reserva las extensiones descritas en esta sección; HPSS, deduplicación, fades, envolventes, cues, ruteo de reproducción Paula/mixer y reproducción ACP1 no forman parte de este subconjunto. El byte de destino identifica un slot reservado del formato y no es una asignación ejecutable de hardware en v1.
+
+Todos los enteros son little-endian y los offsets son absolutos desde el inicio del archivo. Las tablas tienen orden fijo: cabecera, unidades, payloads de unidades, tracks y eventos. El tamaño total debe coincidir exactamente con el archivo.
+
+| Offset | Tamaño | Campo | Regla v1 |
+|---:|---:|---|---|
+| 0 | 4 | magic | ASCII `ACP1` |
+| 4 | 2 | version | `1` |
+| 6 | 2 | flags | `0` |
+| 8 | 4 | sample_rate | 1..65535 Hz |
+| 12 | 2 | unit_count | Igual a `track_count`, 1..7 |
+| 14 | 1 | track_count | 1..7 |
+| 15 | 1 | reserved | `0` |
+| 16 | 4 | total_samples | Muestras por pista; mayor que cero |
+| 20 | 4 | tables_offset | `0` en esta versión |
+| 24 | 4 | units_offset | Debe ser `40` |
+| 28 | 4 | tracks_offset | Inicio de tabla tras payloads |
+| 32 | 4 | events_offset | Inicio de tabla de eventos |
+| 36 | 4 | file_size | Igual al tamaño del archivo |
+
+La cabecera mide 40 bytes. Cada `UnitHeader` mide 24 bytes: `id:u32`, `payload_offset:u32`, `payload_size:u32`, `decoded_samples:u32`, `codec:u8`, `flags:u8`, `gain:u8`, `reserved:u8`, `phase:u16`, `reserved2:u16`. En v1 los IDs son consecutivos desde cero, `codec=1` identifica un AUZX completo, `decoded_samples=total_samples`, los flags y reservas son cero, y `gain=255`.
+
+Cada `TrackHeader` mide 8 bytes: `destination:u8`, `flags:u8`, `event_count:u16`, `events_offset:u32`. Los destinos 0..2 reservan Paula 0..2 y 3..6 reservan voces mixer 0..3; v1 exige destinos únicos, `flags=0`, un evento por pista y un offset al evento correspondiente.
+
+Cada `TrackEvent` mide 20 bytes: `unit_id:u32`, `start_sample:u32`, `duration:u32`, `gain:u8`, `pitch:s8`, `fade_in:u16`, `fade_out:u16`, `flags:u16`. V1 exige `unit_id` válido, inicio cero, duración igual a `total_samples`, `gain=255`, `pitch=0`, fades y flags cero. La pista N referencia la unidad N y el evento N, por lo que todos los stems tienen duración y sincronía idénticas.
+
+El parser rechaza rangos que desbordan el archivo, offsets de tabla incoherentes, payloads AUZX inválidos, IDs no consecutivos, destinos repetidos o fuera de rango y eventos incompatibles con las reglas v1. El payload AUZX se valida con `eng::audio::auzx::parse`; el parser ACP1 solo devuelve vistas y no reserva memoria.
 
 El header ACP1 v1 contiene flags, frecuencia, número de unidades, tres pistas Paula, cuatro voces mixer, canal Paula reservado y offsets a tablas, unidades, tracks y final. Cada unidad contiene id, offset/tamaño, longitud reconstruida, modo, flags tonal/percusivo, parámetros armónicos, alpha, ganancia de referencia y estado de fase. Cada evento contiene unidad, inicio, duración, ganancia de evento, pitch fino, fade-in/fade-out y referencia opcional a una envolvente. Una tabla opcional de `AudioCue` contiene posición en muestras, código, valor y flags para eventos musicales.
 
-El análisis estructural usa HPSS por STFT, división opcional en sub/low-mid/mid/high y firmas espectrales, chroma, MFCC o forma de onda normalizada para detectar unidades exactas o similares. La firma incluye también envolvente de amplitud y fase fundamental; dos unidades solo se deduplican si la forma normalizada, la continuidad de fase y el contrato de pitch son compatibles. La unidad se almacena normalizada a una ganancia de referencia; cada aparición conserva su ganancia original como parámetro de evento. Los armónicos, bajos y pads se proponen para Paula; percusión, ruido, residuales densos y ambientes para el mixer. La decisión se almacena como metadato y no permite reasignación silenciosa en el runtime.
+El análisis estructural objetivo usa HPSS por STFT, división opcional en sub/low-mid/mid/high y firmas espectrales, chroma, MFCC o forma de onda normalizada para detectar unidades exactas o similares. La firma incluye también envolvente de amplitud y fase fundamental; dos unidades solo se deduplican si la forma normalizada, la continuidad de fase y el contrato de pitch son compatibles. La unidad se almacena normalizada a una ganancia de referencia; cada aparición conserva su ganancia original como parámetro de evento. Los armónicos, bajos y pads se proponen para Paula; percusión, ruido, residuales densos y ambientes para el mixer. La decisión se almacena como metadato y no permite reasignación silenciosa en el runtime. El subconjunto ACP1 v1 definido arriba conserva canales WAV como pistas sincronizadas sin realizar todavía este análisis ni esa asignación.
 
 Las uniones aplican fade lineal o equal-power de 10 a 50 ms. En Paula se usan rampas de volumen, doble voz temporal o un buffer pequeño; en el mixer se usa el buffer de mezcla. El crossfade no se ejecuta completo dentro de la IRQ. La fase fundamental se conserva en la unidad y en el evento: una repetición concatenada puede reanudar el acumulador de fase o forzar un punto de fase compatible; si no puede garantizarse continuidad, el encoder no reutiliza la unidad o añade un crossfade explícito.
 

@@ -88,8 +88,20 @@ Blitter y del Copper).
 ## 5. Timers de usuario — `TimerService`
 
 Timers de software sobre el VBlank (unidad *frames*) o sobre los ticks CIA (unidad *µs*),
-one-shot o periódicos. Se pollean **una vez por VBlank** y postean `MsgType::Timer` con el `id` del
-usuario; nunca se ejecuta lógica del juego en la ISR.
+one-shot o periódicos. El `TimerService` puro compara `frame_now`/`ticks_now` y postea
+`MsgType::Timer`; nunca ejecuta lógica de juego en la ISR. La precisión efectiva depende del
+productor que llama `poll_and_post`: si se llama una vez por VBlank, **ambas unidades** se observan
+con resolución de frame y los timers en µs no son temporizadores precisos. En el backend Amiga
+actual `amiga_os.cpp` pasa `ticks_now = 0`, por lo que la ruta µs no está operativa como reloj real
+(TIME-003/TIME-004). Para deadlines sub-frame debe usarse `TickClock`/CIA one-shot y publicar el
+vencimiento desde el pump seguro, no declarar precisión que el polling no ofrece.
+
+Los timers periódicos actuales vuelven a fijar `deadline = now + period`; si el pump llega tarde,
+acumulan deriva y condensan los periodos que ya vencieron en un único mensaje. El contrato objetivo
+debe avanzar desde el deadline anterior y declarar la política de atraso (`CatchUpAll`, coalescer con
+contador de expiraciones o saltar a la siguiente fase). La comparación de deadlines debe ser segura
+ante el wrap de `u32`, y los ids deben ser únicos o llevar generación al reutilizar slots (TIME-005..
+TIME-008; detalle en `docs/debugging/investigaciones/vblank-timer-inconsistencies.md`).
 
 ```cpp
 enum class TimerUnit : eng::u8 { Frames, Microseconds };
@@ -150,11 +162,28 @@ contador de reboses o se usa un timer de frames.
 
 - **Frames**: el `VBlank` latched (§10 del núcleo) ya da el ritmo; `TimerService` (unidad frames)
   es una capa fina encima y no añade productores.
-- **µs**: `TickClock` + timers de CIA-B; la IRQ del timer solo cuenta reboses y postea vencimientos.
+- **µs**: `TickClock` + timers de CIA-B; el servicio actual aún debe conectar el valor monotónico
+  real al `TimerService` o programar el one-shot de hardware.
 - **Profiling**: `ScopedTimer` y `beam_now()` no postean nada; son lectura directa para el HUD y la
   telemetría (no pasan por la cola, para no ensuciarla en el camino caliente).
 
-## 8. Referencias
+## 8. Política de sincronización de frame
+
+El contador real de VBlank debe existir independientemente de que el juego consuma mensajes. La
+notificación, la espera del bucle y el trabajo de frame son decisiones separadas. La configuración
+debe permitir `VBlankLatch` (IRQ, secuencia y evento coalescido), `ActiveWait` (el juego espera
+VBlank sin recibir un mensaje por interrupción), `External` (reloj del host/backend) y `Disabled`
+(sin hook automático). `ActiveWait` desactiva la notificación, no la capacidad del backend para
+medir o esperar el raster.
+
+Una única secuencia monotónica y un único latch deben alimentar `Engine`, `App` y `eng::os`. No se
+debe duplicar un contador en `App` y otro en el mini-SO ni publicar además un VBlank FIFO al puerto.
+El consumidor obtiene `{sequence, missed}` y decide si hace catch-up de simulación, actualiza usando
+tiempo transcurrido o salta renders intermedios. La integración actual de `App::on_vblank` aún
+publica un mensaje FIFO por IRQ en un puerto separado; su unificación está registrada en TIME-001,
+TIME-002 y TIME-010.
+
+## 9. Referencias
 
 - `../amiga-bootcamp/01_hardware/common/cia_chips.md` (CIA-A/B, timer A/B, ICR, CRA/CRB, TOD).
 - `../amiga-bootcamp/01_hardware/common/video_timing.md` (VPOSR/VHPOSR, líneas PAL/NTSC).
