@@ -213,7 +213,7 @@ El layout binario se escribe con lectores/escritores little-endian con límites;
 
 ### Layout ACP1 v1/v2 actualmente implementado
 
-El layout binario de 40 bytes descrito inmediatamente abajo es el formato real de ACP1 v1/v2 que el parser implementa. V1 tiene un evento por track; v2 admite secuencias no solapadas. Este layout solo embebe unidades AUZX mono PCM8: no representa los catálogos multi-codec, las envolventes ni los cues de la propuesta v3 posterior. Esta distinción es normativa: una implementación v1/v2 debe rechazar v3 por versión desconocida.
+El layout binario de 40 bytes descrito inmediatamente abajo es el formato real de ACP1 v1/v2 que el parser implementa. V1 tiene un evento por track; v2 admite secuencias no solapadas. Este layout solo embebe unidades AUZX mono PCM8: no representa los catálogos multi-codec, las envolventes ni los cues de la propuesta v3 posterior. Esta distinción es normativa: una implementación v1/v2 debe rechazar v3 por versión desconocida. La propuesta v3 no está implementada; sus tablas son el contrato objetivo, no una descripción del ejecutable actual.
 
 Los bloques de audio de una pista pueden reutilizarse si coinciden byte a byte. La deduplicación aproximada requiere firmas perceptuales, comprobación de fase y evaluación de calidad y permanece desactivada. En `Rondo_alla_turca.ogg`, el resultado medido fue mayor que AUZX lineal tanto en tamaño como en MSE; HPSS aumentó esos dos costes todavía más, por lo que ninguna de esas opciones se selecciona automáticamente.
 
@@ -251,7 +251,7 @@ Este diseño es la propuesta normativa para contener la combinatoria de códecs,
 
 ### Modelo y unidades de tiempo
 
-ACP1 v3 separa cinco conceptos: representación de una unidad, compresión de cada segmento, referencia temporal de un evento, automatización de controles y salida física elegida por el planificador. La única unidad de reloj persistida es la muestra de la timeline maestra. `start_sample`, `duration`, puntos de envolvente y cues se expresan en muestras a `sample_rate`; el renderer traduce ese reloj a chunks PCM y el backend a periodos Paula. Los índices de tabla y tamaños de payload no son tiempo.
+ACP1 v3 separa representación de unidad, compresión independiente de segmentos, eventos de timeline, automatización y ruta de salida. La única unidad de reloj persistida es la muestra de la timeline maestra. `start_sample`, `duration`, puntos de envolvente y cues se expresan en muestras a `sample_rate`; los índices y bytes de payload no son tiempo. El archivo no contiene registros Paula, punteros DMA ni índices de voces runtime.
 
 ```text
 obra (timeline en muestras)
@@ -262,13 +262,13 @@ obra (timeline en muestras)
 └── cues globales                                                ┘
 ```
 
-La secuencia de un track es ordenada por `start_sample`. Los eventos no se solapan dentro del mismo track en v3; tracks distintos sí pueden solaparse. Un hueco es silencio. Los loops se expresan como intervalo de eventos del track y repiten la secuencia sin alterar los tiempos originales del archivo. Los cues son marcadores puntuales independientes de los eventos audibles y se despachan una sola vez por cruce temporal, salvo repetición explícita de la región de loop.
+La secuencia de un track se ordena por `start_sample`. Los eventos no se solapan dentro del mismo track; tracks distintos sí pueden solaparse. Un hueco es silencio. Un loop repite el rango semiabierto `[loop_first_event, loop_end_event)` al terminarlo; cues en el loop solo se repiten si su flag `RepeatOnLoop` está activo. La timeline declarada corresponde al primer recorrido.
 
 ### Cabecera y directorio de secciones
 
 Todos los enteros son little-endian. El archivo empieza con una cabecera fija de 64 bytes; a continuación hay un directorio de secciones con entradas de 16 bytes. Cada offset es absoluto desde el primer byte del archivo. Las tablas ocupan `entry_count * entry_size`; las regiones de bytes usan `entry_size=1` y `entry_count` como longitud. Las secciones se ordenan por `section_id`, están alineadas a 4 bytes, no se solapan y deben terminar antes de `file_size`.
 
-| Offset | Tamaño | Campo | Regla ACP1 v3 |
+| Offset | Tamaño | Campo | Regla ACP1 v3.0 |
 |---:|---:|---|---|
 | 0 | 4 | magic | ASCII `ACP1` |
 | 4 | 2 | major_version | `3` |
@@ -277,21 +277,20 @@ Todos los enteros son little-endian. El archivo empieza con una cabecera fija de
 | 10 | 2 | flags | `0` en v3.0; cualquier bit no definido implica rechazo |
 | 12 | 4 | sample_rate | Frecuencia maestra, 1..65535 Hz |
 | 16 | 8 | timeline_samples | Extensión temporal de la obra, mayor que cero |
-| 24 | 2 | section_count | Exactamente 17 en v3.0 |
+| 24 | 2 | section_count | Exactamente 17 |
 | 26 | 1 | track_limit | Concurrencia lógica declarada, 1..7 |
 | 27 | 1 | required_paula_voices | Voces Paula directas mínimas, 0..3 |
 | 28 | 1 | required_mixer_voices | Voces software Mixer mínimas, 0..4 |
 | 29 | 1 | default_route | `0=Auto`, `1=PreferPaula`, `2=PreferMixer` |
-| 30 | 2 | reserved | Cero |
+| 30 | 2 | master_gain_q8_8 | Ganancia maestra; `256` = unidad |
 | 32 | 4 | section_directory_offset | Debe ser `64` |
 | 36 | 4 | file_size | Tamaño total exacto, 1..`0xffffffff` bytes |
 | 40 | 2 | checksum_algorithm | `0` sin checksum; `1` CRC-32 con el campo `checksum` a cero |
 | 42 | 2 | reserved | Cero |
 | 44 | 4 | checksum | Cero si el algoritmo es `0` |
-| 48 | 2 | master_gain_q8_8 | Ganancia maestra inicial; `256` = unidad |
-| 50 | 14 | reserved | Cero en v3.0 |
+| 48 | 16 | reserved | Cero en v3.0 |
 
-Cada entrada `SectionEntry` mide 16 bytes: `section_id:u16`, `flags:u16`, `entry_size:u32`, `entry_count:u32`, `offset:u32`. `flags bit 0 = REQUIRED`; los demás bits deben ser cero en v3.0. Cada ID aparece una vez; v3.0 requiere secciones 1..5 y permite 6..17. Secciones desconocidas solo se pueden saltar si son opcionales y su rango cabe íntegramente en el archivo; una sección desconocida requerida produce `UnsupportedSection`.
+Cada entrada `SectionEntry` mide 16 bytes: `section_id:u16`, `flags:u16`, `entry_size:u32`, `entry_count:u32`, `offset:u32`. `flags bit 0 = REQUIRED`; los demás bits son cero en v3.0. Debe existir una sola entrada para cada ID 1..17; 1..5 son requeridas y 6..17 opcionales, siempre presentes (una opcional vacía tiene `entry_count=0` y `offset=0`). Se rechazan IDs desconocidos, duplicados o ausentes. El extent es `entry_count * entry_size`, calculado en 64 bits y acotado a `file_size`. Las tablas fijas usan el tamaño de la matriz inferior; regiones byte usan `entry_size=1`. Las secciones están ordenadas por ID, alineadas a 4 bytes y no se solapan; el padding es cero.
 
 | ID | Sección | Tamaño de entrada | Requerida | Contenido |
 |---:|---|---:|---|---|
@@ -313,11 +312,11 @@ Cada entrada `SectionEntry` mide 16 bytes: `section_id:u16`, `flags:u16`, `entry
 | 16 | `WaveBytes` | 1 | No | Datos PCM8 firmados de wavetables |
 | 17 | `CuePayloadBytes` | 1 | No | Payload opaco limitado para cues |
 
-Las tablas fijas usan el `entry_size` de la matriz; las regiones `PayloadBytes`, `Strings`, `CodebookValues`, `WaveBytes` y `CuePayloadBytes` usan `entry_size=1`. Las 17 secciones conocidas aparecen una vez; las opcionales vacías conservan su entrada con `entry_count=0`. Las regiones se alinean a 4 bytes, no se solapan y el padding es cero. Segmentos referencian `PayloadBytes` por offset absoluto; nombres, codebooks, wavetables y datos de cue usan offsets relativos a su sección. Los eventos de cada pista se almacenan contiguos y ordenados; cues del mismo instante preservan el orden de tabla.
+Los offsets de payload de segmento son absolutos y deben quedar dentro de `PayloadBytes`; strings, codebooks, wavetables y datos de cue usan offsets relativos a su sección. `Tracks.first_event/event_count`, `Units.first_segment/segment_count` y `Events.cue_first/cue_count` son rangos de índices, validados mediante `first <= total` y `count <= total-first`. Todos los eventos de un rango deben declarar el `track_id` propietario. Cues con igual tiempo preservan el orden de tabla.
 
 ### Unidades, segmentos y códecs
 
-Un `Unit` es una fuente lógica PCM mono reconstruible y reutilizable. `representation:u8` toma `0=PCM`, `1=Additive`, `2=Hybrid`; flags restantes son cero en v3.0. Layout `Unit` de 24 bytes:
+Un `Unit` es una fuente lógica PCM mono reconstruible y reutilizable. `representation:u8` toma `0=PCM`, `1=Additive`, `2=Hybrid`; flags son cero. Layout `Unit` de 24 bytes:
 
 | Campo | Tipo | Semántica |
 |---|---|---|
@@ -327,7 +326,7 @@ Un `Unit` es una fuente lógica PCM mono reconstruible y reutilizable. `represen
 | `decoded_samples` | u32 | Longitud PCM reconstruida de la unidad |
 | `first_segment` | u32 | Primer segmento contiguo de su payload |
 | `segment_count` | u16 | Número de segmentos/componentes de datos |
-| `synthesis_index` | u16 | Índice en `SynthesisParams` o `0xffff` si no aplica |
+| `synthesis_index` | u16 | Índice en `SynthesisParams`; `0xffff` si no aplica |
 | `reference_gain_q8_8` | u16 | Ganancia de referencia, `256` = unidad sin escalar |
 | `reserved` | u16 | Cero |
 | `reserved2` | u16 | Cero; completa el tamaño fijo de 24 bytes |
@@ -356,7 +355,7 @@ No se considera AUZX como códec de segmento: AUZX es un contenedor lineal compl
 
 ### Tracks y eventos
 
-Layout `Track` de 40 bytes: `id:u16`, `route:u8`, `flags:u8`, `first_event:u32`, `event_count:u32`, `gain_envelope:u16`, `pitch_envelope:u16`, `gain_q8_8:u16`, `pan_s8:u8`, `priority:u8`, `loop_first_event:u32`, `loop_end_event:u32`, `name_offset:u32`, `name_length:u16`, `reserved:u16`, `reserved2:u16`.
+Layout `Track` de 40 bytes: `id:u16`, `route:u8`, `flags:u8`, `first_event:u32`, `event_count:u32`, `gain_envelope:u16`, `pitch_envelope:u16`, `gain_q8_8:u16`, `pan_s8:s8`, `priority:u8`, `loop_first_event:u32`, `loop_end_event:u32`, `name_offset:u32`, `name_length:u16`, `reserved:u32`. La suma de campos es exactamente 40 bytes; no hay padding ABI.
 
 `route` toma `0=Auto`, `1=PreferPaula`, `2=PreferMixer`, `3=PaulaRequired`, `4=MixerRequired`. `flags bit 0=loop enabled`; loop interval es `[loop_first_event, loop_end_event)` y debe quedar dentro de la tabla del track. `gain_q8_8` usa `256` como unidad y `pan_s8` va de -127 (izquierda) a +127 (derecha); el mixer/amiga puede aproximar paneo por ruteo de canales y el planner lo declara en su resultado.
 
