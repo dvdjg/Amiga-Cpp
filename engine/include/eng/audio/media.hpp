@@ -142,35 +142,51 @@ struct Info {
 	return pcm_codec::decode(body, dst, static_cast<eng::u8>(info.codec));
 }
 
-/// Decodifica una ventana de un track ACP1 v1 en PCM8 firmado.
+/// Decodifica una ventana de los eventos secuenciales de un track ACP1 v1/v2 a PCM8 firmado.
 /// `scratch` debe caber el chunk AUZX descomprimido más grande. Devuelve muestras escritas.
 [[nodiscard]] inline eng::s32 decode_track_window(eng::Span<const eng::u8> blob, const Info& info,
 	eng::u8 track_index, eng::u32 first_sample, eng::Span<eng::u8> dst,
 	eng::Span<eng::u8> scratch) noexcept {
 	if (info.container != Container::Acp1 || track_index >= info.acp1_info.track_count || dst.empty()) return -1;
-	acp1::Track track {};
-	if (!acp1::track(blob, info.acp1_info, track_index, track) || first_sample >= track.duration) return -1;
-	acp1::Unit unit {};
-	if (!acp1::unit(blob, info.acp1_info, static_cast<eng::u16>(track.unit_id), unit)) return -1;
-	Info unit_info {};
-	if (!open(unit.payload, unit_info) || unit_info.container != Container::Auzx || scratch.size() < unit_info.chunk_samples) return -1;
-	const eng::u32 requested = static_cast<eng::u32>(dst.size() < track.duration - first_sample
-		? dst.size() : track.duration - first_sample);
-	const eng::u32 end_sample = first_sample + requested;
-	eng::u32 written = 0u;
-	for (eng::u16 chunk_index = 0u; chunk_index < unit_info.num_chunks; ++chunk_index) {
-		const eng::u32 chunk_start = static_cast<eng::u32>(chunk_index) * unit_info.chunk_samples;
-		const eng::u32 count = chunk_samples(unit_info, chunk_index);
-		const eng::u32 chunk_end = chunk_start + count;
-		if (chunk_start >= end_sample || chunk_end <= first_sample) continue;
-		if (count > scratch.size()) return -1;
-		const eng::s32 decoded = decode_chunk(unit.payload, unit_info, chunk_index, {scratch.data(), count});
-		if (decoded != static_cast<eng::s32>(count)) return -1;
-		const eng::u32 copy_start = chunk_start > first_sample ? chunk_start : first_sample;
-		const eng::u32 copy_end = chunk_end < end_sample ? chunk_end : end_sample;
-		for (eng::u32 sample = copy_start; sample < copy_end; ++sample) dst[written++] = scratch[sample - chunk_start];
+	if (first_sample >= info.total_samples) return -1;
+	const eng::u32 requested = static_cast<eng::u32>(dst.size() < info.total_samples - first_sample
+		? dst.size() : info.total_samples - first_sample);
+	for (eng::u32 i = 0u; i < requested; ++i) dst[i] = 0u;
+	const eng::u32 window_end = first_sample + requested;
+	acp1::Track selected_track {};
+	if (!acp1::track(blob, info.acp1_info, track_index, selected_track)) return -1;
+	for (eng::u16 event_index = 0u; event_index < selected_track.event_count; ++event_index) {
+		acp1::Event selected_event {};
+		if (!acp1::event(blob, info.acp1_info, track_index, event_index, selected_event)) return -1;
+		const eng::u32 event_end = selected_event.start_sample + selected_event.duration;
+		if (selected_event.start_sample >= window_end || event_end <= first_sample) continue;
+		acp1::Unit unit {};
+		if (!acp1::unit(blob, info.acp1_info, static_cast<eng::u16>(selected_event.unit_id), unit)) return -1;
+		Info unit_info {};
+		if (!open(unit.payload, unit_info) || unit_info.container != Container::Auzx || scratch.size() < unit_info.chunk_samples) return -1;
+		const eng::u32 copy_start = selected_event.start_sample > first_sample ? selected_event.start_sample : first_sample;
+		const eng::u32 copy_end = event_end < window_end ? event_end : window_end;
+		for (eng::u16 chunk_index = 0u; chunk_index < unit_info.num_chunks; ++chunk_index) {
+			const eng::u32 chunk_start = static_cast<eng::u32>(chunk_index) * unit_info.chunk_samples;
+			const eng::u32 count = chunk_samples(unit_info, chunk_index);
+			const eng::u32 chunk_end = chunk_start + count;
+			const eng::u32 event_local_start = copy_start - selected_event.start_sample;
+			const eng::u32 event_local_end = copy_end - selected_event.start_sample;
+			if (chunk_start >= event_local_end || chunk_end <= event_local_start) continue;
+			if (count > scratch.size()) return -1;
+			const eng::s32 decoded = decode_chunk(unit.payload, unit_info, chunk_index, {scratch.data(), count});
+			if (decoded != static_cast<eng::s32>(count)) return -1;
+			const eng::u32 local_start = chunk_start > event_local_start ? chunk_start : event_local_start;
+			const eng::u32 local_end = chunk_end < event_local_end ? chunk_end : event_local_end;
+			for (eng::u32 local = local_start; local < local_end; ++local) {
+				const eng::u32 target = selected_event.start_sample + local - first_sample;
+				const eng::s32 sample = static_cast<eng::s8>(scratch[local - chunk_start]);
+				const eng::s32 scaled = sample * selected_event.gain / 255;
+				dst[target] = static_cast<eng::u8>(static_cast<eng::s8>(scaled));
+			}
+		}
 	}
-	return written == requested ? static_cast<eng::s32>(written) : -1;
+	return static_cast<eng::s32>(requested);
 }
 
 /// Mezcla todas las pistas ACP1 en una ventana y satura al rango PCM8 firmado.

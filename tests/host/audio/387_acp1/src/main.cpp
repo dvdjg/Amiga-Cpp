@@ -1,10 +1,11 @@
-// HOST-387: parser ACP1 v1 y serializador host de stems AUZX sincronizados.
+// HOST-387: parser ACP1 v1/v2, serializador de eventos, decoder, HPSS y deduplicación exacta.
 
 #include <cstdio>
 #include <cmath>
 #include <vector>
 
 #include <eng/audio/acp1.hpp>
+#include <eng/audio/acp1_stream.hpp>
 #include <eng/audio/media.hpp>
 #include <eng/audio/pcm_codec.hpp>
 #include "../../../../../host-tools/audio-compressor/src/acp1_writer.hpp"
@@ -14,7 +15,7 @@ namespace {
 
 int failures = 0;
 
-/// Registra el resultado de una condición del contrato ACP1 v1.
+/// Registra el resultado de una condición del contrato ACP1.
 void check(bool ok, const char* message) {
 	if (!ok) { std::printf("FAIL: %s\n", message); ++failures; }
 }
@@ -65,8 +66,10 @@ void test_round_trip() {
 		eng::audio::acp1::Unit unit {};
 		check(eng::audio::acp1::track({file.data(), file.size()}, info, i, track), "vista de track disponible");
 		check(eng::audio::acp1::unit({file.data(), file.size()}, info, i, unit), "vista de unidad disponible");
-		check(track.destination == i && track.unit_id == i && track.start_sample == 0u &&
-			track.duration == info.total_samples && track.gain == 255u, "tracks con destinos y eventos sincronizados");
+		eng::audio::acp1::Event event{};
+		check(eng::audio::acp1::event({file.data(), file.size()}, info, i, 0u, event), "evento de pista disponible");
+		check(track.destination == i && track.event_count == 1u && event.unit_id == i && event.start_sample == 0u &&
+			event.duration == info.total_samples && event.gain == 255u, "tracks con destinos y eventos sincronizados");
 		eng::audio::auzx::Header nested {};
 		check(unit.id == i && unit.decoded_samples == info.total_samples && unit.gain == 255u &&
 			eng::audio::auzx::parse(unit.payload, nested) && nested.sample_rate == info.sample_rate,
@@ -86,6 +89,7 @@ void test_round_trip() {
 		const eng::u8 expected = static_cast<eng::u8>(static_cast<eng::s8>(static_cast<eng::s8>(left_pcm[sample]) + static_cast<eng::s8>(right_pcm[sample])));
 		check(mixed[sample] == expected, "mezcla ACP1 suma stems sin pérdida ni saturación prematura");
 	}
+	check(info.version == 2u, "encoder emite ACP1 v2 para secuencias de eventos");
 }
 
 /// El parser rechaza truncados, offsets, referencias, destinos y tiempos incoherentes.
@@ -161,12 +165,62 @@ void test_hpss() {
 	check(!audio_compressor::hpss(tone, 100u, layers), "HPSS rechaza tamaño FFT no potencia de dos");
 }
 
+/// ACP1 v2 recorre varios eventos no solapados de una pista en una línea temporal común.
+void test_event_sequence() {
+	const eng::u8 first[] {0x80u, 0x81u, 0x82u, 0x83u};
+	const eng::u8 second[] {0x10u, 0x11u, 0x12u, 0x13u};
+	std::vector<std::vector<eng::u8>> units {make_auzx(first, 4u, 8000u), make_auzx(second, 4u, 8000u),
+		make_auzx(first, 4u, 8000u)};
+	using Event = eng::audio::acp1::Event;
+	std::vector<std::vector<Event>> events {{{0u, 0u, 4u, 255u}, {1u, 4u, 4u, 255u}, {2u, 8u, 4u, 255u}}};
+	std::vector<eng::u8> file;
+	check(audio_compressor::build_acp1(units, 8000u, 12u, file, events), "encoder acepta tres eventos secuenciales");
+	eng::audio::acp1::Info acp1_info{};
+	eng::audio::media::Info media_info{};
+	check(eng::audio::acp1::parse({file.data(), file.size()}, acp1_info) && acp1_info.version == 2u &&
+		acp1_info.event_count == 3u, "parser valida secuencia ACP1 v2");
+	check(eng::audio::media::open({file.data(), file.size()}, media_info), "media abre secuencia ACP1 v2");
+	eng::u8 output[12]{}, scratch[4]{};
+	check(eng::audio::media::decode_track_window({file.data(), file.size()}, media_info, 0u, 0u,
+		{output, 12u}, {scratch, 4u}) == 12, "decoder cubre timeline completa de eventos");
+	for (eng::usize i = 0u; i < 4u; ++i) {
+		check(output[i] == first[i] && output[i + 4u] == second[i], "decoder conmuta unidad en la frontera temporal");
+	}
+	eng::u8 gap[10]{};
+	std::vector<std::vector<Event>> with_gap {{{0u, 0u, 4u, 255u}, {1u, 6u, 4u, 128u}}};
+	check(audio_compressor::build_acp1(units, 8000u, 10u, file, with_gap), "encoder acepta silencio entre eventos");
+	check(eng::audio::media::open({file.data(), file.size()}, media_info) &&
+		eng::audio::media::decode_track_window({file.data(), file.size()}, media_info, 0u, 0u, {gap, 10u}, {scratch, 4u}) == 10,
+		"decoder produce timeline con hueco silencioso");
+	check(gap[4] == 0u && gap[5] == 0u, "hueco entre eventos queda en silencio");
+	check(static_cast<eng::s8>(gap[6]) == static_cast<eng::s8>(second[0]) / 2, "ganancia del evento se aplica a la unidad");
+	eng::u8 pcm0[4]{}, pcm1[4]{}, pcm2[4]{}, scratch_stream[4]{};
+	eng::s16 accumulator_stream[4]{};
+	eng::Span<eng::u8> buffers[3] {{pcm0, 4u}, {pcm1, 4u}, {pcm2, 4u}};
+	eng::audio::Acp1Stream<3> stream{};
+	const std::vector<std::vector<Event>> stream_events {{{0u, 0u, 4u, 255u}, {1u, 4u, 4u, 255u}, {2u, 8u, 4u, 255u}}};
+	std::vector<eng::u8> stream_file;
+	check(audio_compressor::build_acp1(units, 8000u, 12u, stream_file, stream_events), "fixture ACP1 para triple buffer");
+	eng::audio::media::Info stream_media{};
+	check(eng::audio::media::open({stream_file.data(), stream_file.size()}, stream_media), "media abre timeline de stream");
+	check(stream.begin({stream_file.data(), stream_file.size()}, stream_media, buffers, {scratch_stream, 4u},
+		{accumulator_stream, 4u}, 4u), "stream ACP1 inicia con triple buffer");
+	check(stream.refill() == 3u && stream.eof() && !stream.failed(), "productor prepara tres buffers antes de EOF");
+	check(static_cast<eng::s8>(stream.play_pcm()[0]) == static_cast<eng::s8>(first[0]), "primer buffer ACP1 contiene la primera región");
+	const bool first_swap = stream.advance();
+	const bool second_swap = stream.advance();
+	const bool end_of_stream = !stream.advance() && stream.at_end();
+	check(first_swap && second_swap && end_of_stream && stream.finished() && !stream.failed(),
+		"IRQ consume buffers preparados y distingue EOF de underrun");
+}
+
 } // namespace
 
 int main() {
 	test_round_trip();
 	test_rejections();
 	test_hpss();
-	if (failures == 0) { std::printf("OK: ACP1 v1, unidades AUZX y eventos sincronizados validados.\n"); return 0; }
+	test_event_sequence();
+	if (failures == 0) { std::printf("OK: ACP1 v1/v2, secuencias, mezcla, HPSS y deduplicación validados.\n"); return 0; }
 	return 1;
 }

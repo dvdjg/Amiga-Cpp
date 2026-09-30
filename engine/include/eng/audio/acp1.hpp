@@ -1,7 +1,7 @@
 #pragma once
 
 /// \file acp1.hpp
-/// Parser sin heap para el subconjunto sincronizado ACP1 v1 descrito en
+/// Parser sin heap para los layouts sincronizados ACP1 v1/v2 descritos en
 /// `docs/engine/architecture/AUDIO_COMPRESSION.md`.
 
 #include <eng/audio/auzx.hpp>
@@ -23,10 +23,12 @@ inline constexpr eng::u8 kMaxTracks = 7u;
 
 /// Metadatos de un ACP1 v1 validado.
 struct Info {
+	eng::u16 version = 0u; ///< Versión del layout ACP1 validado (1 o 2).
 	eng::u32 sample_rate = 0u; ///< Frecuencia común de reproducción, en Hz.
 	eng::u32 total_samples = 0u; ///< Duración sincronizada de cada pista, en muestras.
 	eng::u16 unit_count = 0u; ///< Número de unidades AUZX validadas.
 	eng::u8 track_count = 0u; ///< Número de tracks y eventos sincronizados.
+	eng::u32 event_count = 0u; ///< Total de eventos serializados en todas las pistas.
 	eng::u32 units_offset = 0u; ///< Offset absoluto de la tabla UnitHeader.
 	eng::u32 tracks_offset = 0u; ///< Offset absoluto de la tabla TrackHeader.
 	eng::u32 events_offset = 0u; ///< Offset absoluto de la tabla TrackEvent.
@@ -44,9 +46,15 @@ struct Unit {
 /// Vista validada de una pista y su único evento v1.
 struct Track {
 	eng::u8 destination = 0u; ///< Destino 0..2 Paula o 3..6 mixer.
-	eng::u32 unit_id = 0u; ///< Unidad reproducida por el evento único v1.
+	eng::u16 event_count = 0u; ///< Eventos secuenciales en esta pista.
+	eng::u32 events_offset = 0u; ///< Offset absoluto del primer evento de la pista.
+};
+
+/// Evento secuencial validado de ACP1 v1/v2.
+struct Event {
+	eng::u32 unit_id = 0u; ///< Unidad referenciada por este evento.
 	eng::u32 start_sample = 0u; ///< Inicio del evento en la línea temporal ACP1.
-	eng::u32 duration = 0u; ///< Duración sincronizada en muestras.
+	eng::u32 duration = 0u; ///< Duración en muestras, acotada a la unidad.
 	eng::u8 gain = 0u; ///< Ganancia del evento en escala 0..255.
 };
 
@@ -79,8 +87,10 @@ inline void wr32(eng::Span<eng::u8> file, eng::usize offset, eng::u32 value) noe
 /// Valida la estructura completa, sus tablas y cada AUZX embebido; no reserva memoria.
 [[nodiscard]] inline bool parse(eng::Span<const eng::u8> file, Info& out) noexcept {
 	if (file.size() < kHeaderSize || file[0] != 'A' || file[1] != 'C' || file[2] != 'P' || file[3] != '1') return false;
-	if (rd16(file, 4u) != 1u || rd16(file, 6u) != 0u || file[15] != 0u || rd32(file, 20u) != 0u) return false;
+	const eng::u16 version = rd16(file, 4u);
+	if ((version != 1u && version != 2u) || rd16(file, 6u) != 0u || file[15] != 0u || rd32(file, 20u) != 0u) return false;
 	Info parsed {};
+	parsed.version = version;
 	parsed.sample_rate = rd32(file, 8u);
 	parsed.unit_count = rd16(file, 12u);
 	parsed.track_count = file[14];
@@ -91,15 +101,13 @@ inline void wr32(eng::Span<eng::u8> file, eng::usize offset, eng::u32 value) noe
 	parsed.file_size = rd32(file, 36u);
 	if (parsed.sample_rate == 0u || parsed.sample_rate > 65535u || parsed.total_samples == 0u ||
 		parsed.track_count == 0u || parsed.track_count > kMaxTracks || parsed.unit_count == 0u ||
-		parsed.unit_count > parsed.track_count ||
+		(version == 1u && (parsed.unit_count > kMaxTracks || parsed.unit_count > parsed.track_count)) ||
 		parsed.units_offset != kHeaderSize || parsed.file_size != file.size()) return false;
 	const eng::usize units_end = parsed.units_offset + static_cast<eng::usize>(parsed.unit_count) * kUnitSize;
 	if (units_end > parsed.file_size || parsed.tracks_offset < units_end || parsed.tracks_offset > parsed.file_size ||
 		parsed.events_offset < parsed.tracks_offset || parsed.events_offset > parsed.file_size) return false;
 	const eng::usize track_bytes = static_cast<eng::usize>(parsed.track_count) * kTrackSize;
-	const eng::usize event_bytes = static_cast<eng::usize>(parsed.track_count) * kEventSize;
-	if (track_bytes != parsed.events_offset - parsed.tracks_offset ||
-		event_bytes != parsed.file_size - parsed.events_offset) return false;
+	if (track_bytes != parsed.events_offset - parsed.tracks_offset) return false;
 	eng::usize payload_cursor = units_end;
 	for (eng::u16 i = 0u; i < parsed.unit_count; ++i) {
 		const eng::usize at = parsed.units_offset + static_cast<eng::usize>(i) * kUnitSize;
@@ -107,7 +115,7 @@ inline void wr32(eng::Span<eng::u8> file, eng::usize offset, eng::u32 value) noe
 		const eng::u32 offset = rd32(file, at + 4u);
 		const eng::u32 size = rd32(file, at + 8u);
 		const eng::u32 samples = rd32(file, at + 12u);
-		if (id != i || offset != payload_cursor || size == 0u || samples != parsed.total_samples ||
+		if (id != i || offset != payload_cursor || size == 0u || samples == 0u || samples > parsed.total_samples ||
 			file[at + 16u] != 1u || file[at + 17u] != 0u || file[at + 18u] != 255u || file[at + 19u] != 0u ||
 		rd16(file, at + 20u) != 0u || rd16(file, at + 22u) != 0u || offset > parsed.tracks_offset ||
 		size > parsed.tracks_offset - offset) return false;
@@ -127,19 +135,38 @@ inline void wr32(eng::Span<eng::u8> file, eng::usize offset, eng::u32 value) noe
 	}
 	if (payload_cursor != parsed.tracks_offset) return false;
 	eng::u8 destinations = 0u;
+	eng::usize event_cursor = parsed.events_offset;
 	for (eng::u8 i = 0u; i < parsed.track_count; ++i) {
 		const eng::usize track_at = parsed.tracks_offset + static_cast<eng::usize>(i) * kTrackSize;
 		const eng::u8 destination = file[track_at];
 		if (destination >= kMaxTracks || (destinations & static_cast<eng::u8>(1u << destination)) != 0u ||
-			file[track_at + 1u] != 0u || rd16(file, track_at + 2u) != 1u ||
-			rd32(file, track_at + 4u) != parsed.events_offset + static_cast<eng::u32>(i) * kEventSize) return false;
+			file[track_at + 1u] != 0u) return false;
+		const eng::u16 track_events = rd16(file, track_at + 2u);
+		const eng::u32 track_events_offset = rd32(file, track_at + 4u);
+		if (track_events == 0u || (version == 1u && track_events != 1u) ||
+			track_events_offset != event_cursor ||
+			static_cast<eng::usize>(track_events) > (parsed.file_size - event_cursor) / kEventSize) return false;
 		destinations = static_cast<eng::u8>(destinations | static_cast<eng::u8>(1u << destination));
-		const eng::usize event_at = parsed.events_offset + static_cast<eng::usize>(i) * kEventSize;
-		if (rd32(file, event_at) >= parsed.unit_count || rd32(file, event_at + 4u) != 0u ||
-			rd32(file, event_at + 8u) != parsed.total_samples || file[event_at + 12u] != 255u ||
-			file[event_at + 13u] != 0u || rd16(file, event_at + 14u) != 0u ||
-		rd16(file, event_at + 16u) != 0u || rd16(file, event_at + 18u) != 0u) return false;
+		eng::u32 previous_end = 0u;
+		for (eng::u16 event_index = 0u; event_index < track_events; ++event_index) {
+			const eng::usize event_at = event_cursor + static_cast<eng::usize>(event_index) * kEventSize;
+			const eng::u32 unit_id = rd32(file, event_at);
+			const eng::u32 start = rd32(file, event_at + 4u);
+			const eng::u32 duration = rd32(file, event_at + 8u);
+			if (unit_id >= parsed.unit_count || duration == 0u || start < previous_end ||
+				start > parsed.total_samples || duration > parsed.total_samples - start ||
+				file[event_at + 13u] != 0u ||
+				rd16(file, event_at + 14u) != 0u || rd16(file, event_at + 16u) != 0u ||
+				rd16(file, event_at + 18u) != 0u) return false;
+			const eng::usize unit_at = parsed.units_offset + static_cast<eng::usize>(unit_id) * kUnitSize;
+			const eng::u32 unit_samples = rd32(file, unit_at + 12u);
+			if (duration > unit_samples || (version == 1u && (start != 0u || duration != parsed.total_samples))) return false;
+			previous_end = start + duration;
+		}
+		event_cursor += static_cast<eng::usize>(track_events) * kEventSize;
+		parsed.event_count += track_events;
 	}
+	if (event_cursor != parsed.file_size) return false;
 	out = parsed;
 	return true;
 }
@@ -157,16 +184,26 @@ inline void wr32(eng::Span<eng::u8> file, eng::usize offset, eng::u32 value) noe
 	return true;
 }
 
-/// Devuelve la pista y su evento sincronizado `index` después de parsear el archivo.
+/// Devuelve la vista de tabla de la pista `index` después de parsear el archivo.
 [[nodiscard]] inline bool track(eng::Span<const eng::u8> file, const Info& info, eng::u8 index, Track& out) noexcept {
 	if (index >= info.track_count) return false;
 	const eng::usize track_at = info.tracks_offset + static_cast<eng::usize>(index) * kTrackSize;
-	const eng::usize event_at = info.events_offset + static_cast<eng::usize>(index) * kEventSize;
 	out.destination = file[track_at];
-	out.unit_id = rd32(file, event_at);
-	out.start_sample = rd32(file, event_at + 4u);
-	out.duration = rd32(file, event_at + 8u);
-	out.gain = file[event_at + 12u];
+	out.event_count = rd16(file, track_at + 2u);
+	out.events_offset = rd32(file, track_at + 4u);
+	return true;
+}
+
+/// Devuelve un evento secuencial de la pista `track_index` validada.
+[[nodiscard]] inline bool event(eng::Span<const eng::u8> file, const Info& info,
+	eng::u8 track_index, eng::u16 event_index, Event& out) noexcept {
+	Track selected {};
+	if (!track(file, info, track_index, selected) || event_index >= selected.event_count) return false;
+	const eng::usize at = selected.events_offset + static_cast<eng::usize>(event_index) * kEventSize;
+	out.unit_id = rd32(file, at);
+	out.start_sample = rd32(file, at + 4u);
+	out.duration = rd32(file, at + 8u);
+	out.gain = file[at + 12u];
 	return true;
 }
 
