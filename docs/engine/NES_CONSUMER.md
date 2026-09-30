@@ -124,3 +124,141 @@ max_speed_px}`; el engine responde `Ok` (cabe), `Degradado` (otro algoritmo) o `
 - **F7.7** `SpriteEngine` de alto nivel (NES 8/línea + overflow sobre `ActorStore`).
 - **Attribute table** (paleta por bloques 16×16) como tabla paralela al `TileEditor`.
 - **Adaptador de referencia** (fuera del core) con las `I*` reales + emulador como gate.
+
+## 8. Requisitos de gráficos (PPU NES → engine)
+
+Lo que el consumidor NES **necesita** para dibujar el frame, expresado como **peticiones de nivel A**
+(vocabulario de juego, sin planos/Copper/Blitter/registros) y lo que el engine **decide**. El
+consumidor **describe**; el engine **materializa**; si una capacidad no está, hay **degradación**
+explícita (nunca fallo silencioso). Ver [GAME_API_TWO_LEVELS.md](architecture/GAME_API_TWO_LEVELS.md)
+y [ENGINE_2D_ABSTRACCIONES.md](architecture/ENGINE_2D_ABSTRACCIONES.md).
+
+### 8.1 Contrato de frame (VBlank) — **el más crítico**
+
+- **Necesidad NES**: la lógica de frame corre en el **VBlank** (el "NMI"); todo el dibujo del frame
+  se hace dentro de ese evento y **antes** de que el frame se muestre; el CPU puede hacer trabajo
+  fuera del VBlank sin romper la imagen.
+- **Petición (nivel A)**: un **bucle de juego del engine** con un callback por frame que se invoca
+  **sincronizado con VBlank** (`app.run(frame_cb)` / `screen.on_vblank(cb)`), y que el engine
+  garantice el **swap tras VBlank** (presentación). Debe poder pedirse **también** el caso
+  "produzco yo el frame y solo quiero que se muestre" (`present_*`).
+- **Decisión del engine**: doble buffer de display + swap `COP1LC` (ya en
+  [DISPLAY_COMPOSITION.md](architecture/DISPLAY_COMPOSITION.md)); VBlank por Copper/IRQ del mini-SO.
+- **Degradación**: si no hay bucle VBlank del engine, el consumidor usa un `present_indices`
+  (c2p) con su propia sincronía (el `Host` actual).
+
+### 8.2 Fondo (nametable + atributos + scroll)
+
+- **Necesidad NES**: `2×(32×30)` nametable con **scroll libre 8-way** (x `0..255`, y `0..239`, wrap)
+  y **escritura de tiles y atributos en runtime** al entrar columnas/filas por los bordes;
+  **atributo por bloque `16×16`** (subpaleta del BG). Dos planos lógicos (nametable 0/1) que el
+  juegos usa según scroll.
+- **Petición (nivel A)**: una **`Layer`** de tiles con `tileset`, `palette`, y operaciones de
+  intención:
+  - `scroll_to(x, y)` (o `Camera` ligada a la capa) — posición por frame.
+  - `set_tile(cx, cy, TileId)` y `set_palette_index(cx, cy, sub)` (o `set_attr`) — actualización de
+    celdas por intención; el engine difiere/materializa (dirty) sin nombrar VRAM.
+  - Declaración de **presupuesto/forma**: `{ max_scroll_x, max_scroll_y, max_speed_px, planes }` y
+    `ScrollKind` **preferido** (`CopperSplit`/`CopperRing`/`Fine`).
+  - Respuesta del engine: **`Ok`** (cabe), **`Degradado`** (otro algoritmo) o **`Rechazado`**
+    (`ConfigError`) — el engine mantiene el control de recursos (ya acordado en §6).
+- **Decisión del engine**: `XYUnlimited`/`CopperSplit` ↔ `XYLimited`/`CopperRing` ↔ `Fine`, según
+  `region_cost`/Chip; ventana+guardas dimensionadas con los parámetros declarados.
+- **Degradación**: si no hay driver de scroll, **redibujar** el BG por software (c2p) o `Fine`
+  (blits por cambio). El juego sigue mostrándose "lento pero correcto".
+
+### 8.3 Sprites (OAM)
+
+- **Necesidad NES**: hasta **64 sprites** (`8×8` o `8×16`), **flip H/V**, **prioridad**
+  (detrás/delante del BG) y **paleta por sprite**; **8 por línea** + **overflow** (el juego puede
+  aprovecharlo o sufrir el *flicker*); y **OAM DMA** (`$4014`): subir 256 B cada frame.
+- **Petición (nivel A)**: **`Sprite`** con `(id, x, y, tile/frame, flip_h, flip_v, priority,
+  palette)` y colocación por intención; un **`SpriteEngine`** que resuelva **HW sprites + BOBs**
+  (los que no caben en los 8/línea se dibujan con Blitter) respetando **prioridad BG/sprite**; y
+  `sprites.upload(span<OamEntry>)` para reflejar el DMA de la NES.
+- **Decisión del engine**: reparto HW/BOB, `ActorStore`+`SpriteAllocator`+`compose_sprites`.
+- **Degradación**: sin HW sprites libres, **BOB cookie-cut** (más Blitter); sin Blitter, software.
+
+### 8.4 Paleta y énfasis
+
+- **Necesidad NES**: **32 bytes** de paleta (4 sub-paletas de BG + 4 de sprites) sobre 64 colores,
+  con **cambios a mitad de frame** (splits) y bits de **énfasis** (que el consumidor puede
+  **ignorar** si el juego no los usa).
+- **Petición (nivel A)**: `palette.set(index, Color)` y, para cambios por zona, un **efecto/banda de
+  nivel A** (`palette_shift`/`Band`) que emita en las scanlines dadas; el engine decide Copper.
+- **Decisión del engine**: `Palette` + `FramePlan` (parches) / `eng::Copper`.
+- **Degradación**: paleta global única por frame (sin splits); el énfasis se ignora.
+
+### 8.5 Split de "status bar" (cambio de scroll a mitad de frame)
+
+- **Necesidad NES**: el HUD/marcador arriba **fijo** y el juego scrolleando debajo: la NES
+  reprograma el scroll en una scanline concreta.
+- **Petición (nivel A)**: `viewport`/`Band` (bandas de la capa con su propio scroll/altura) — el
+  engine lo materializa con Copper (split).
+- **Degradación**: sin split, HUD como **sprites/BOBs** encima del BG (más coste) o HUD integrado.
+
+### 8.6 Recursos y presentación
+
+- **Chip RAM**: el consumidor declara la forma del BG (ventana+guardas) y el engine responde
+  cabida vía **`res::Budget`** (`remaining_chip`) — `Ok`/`Degradado`/`Rechazado`.
+- **Doble buffer**: lo posee la escena (`SceneResources.buffers`); el consumidor **no** reserva
+  bitmaps.
+
+## 9. Requisitos de sonido (APU NES → engine)
+
+La APU de la NES **sintetiza** (dos pulsos, triángulo, ruido, DMC). Compromiso: **convertir en
+offline** (pipeline de assets) los sonidos a **muestras** y la música a **módulo/stream**, y que el
+engine **reproduzca** por su capa de audio ([GAME_AUDIO.md](architecture/GAME_AUDIO.md),
+[AUDIO_MIXER.md](architecture/AUDIO_MIXER.md), [MUSIC_PLAYER.md](architecture/MUSIC_PLAYER.md)).
+
+### 9.1 Efectos (SFX)
+
+- **Petición (nivel A, ya existente)**: `audio.bank().add(id, {sample, prio, max_inst, cooldown,
+  duck})` + `audio.play(id)`; hasta **~4 simultáneos** con pitch/volumen.
+- **Decisión del engine**: `SfxMixer` (4 voces software en `AUD0`) + reparto por `AudioMode`.
+- **Degradación**: menos voces / mono.
+
+### 9.2 Música
+
+- **Necesidad NES**: melodía por canales con **periodo/volumen/retrigger**.
+- **Petición (nivel A)** — dos vías a acordar:
+  - **(a) módulo**: `audio.play_music(module)` (PtPlayer/P61) tras **convertir** la música NES a
+    módulo en el pipeline. Es el camino "engine-native".
+  - **(b) replayer de tonos**: un **`ITonePlayer`** de bajo nivel (o de nivel A) que acepte eventos
+    por canal `(canal, period, volume, retrigger)` para portar el **APU replayer** de la NES con
+    exactitud (pitch/timbre NES). Requiere reservar canales de Paula y exponer pitch/volumen.
+- **Decisión del engine**: qué canales se reservan para música vs SFX (`AudioMode`).
+
+### 9.3 Reparto de voces y presupuesto
+
+- **Petición**: conocer/declarar el **número de voces** (SFX + música) y recibir **`Result`** si no
+  cabe (nunca "sonó raro" en silencio).
+- **Decisión del engine**: `AudioMode` + `set_group_budget`.
+
+## 10. Compromiso (pide el consumidor / decide el engine) — resumen para acordar
+
+| Necesidad NES | Petición nivel A (vocabulario de juego) | Decisión del engine | Degradación |
+|---|---|---|---|
+| NMI/VBlank | `run(frame_cb)` / `on_vblank`; `present` | doble buffer + swap VBlank | `present_indices` (c2p) |
+| BG nametable + scroll 8-way | `Layer.scroll_to/set_tile/set_attr` + `{max_scroll,max_speed,planes}` + `ScrollKind` | XYUnlimited/XYLimited/Fine | blits por cambio / software |
+| Atributo 16×16 | `set_palette_index`/`set_attr` por celda | tabla paralela al tilemap | subpaleta única |
+| 64 sprites, 8/línea, flip, prio | `Sprite{...}` + `SpriteEngine` + `upload(oam)` | HW sprites + BOBs | BOB / software |
+| Paleta + splits + énfasis | `palette.set` + banda/efecto | Copper/FramePlan | paleta global; énfasis ignorado |
+| HUD fijo + scroll | `Band`/`viewport` | Copper split | HUD como sprites |
+| Chip RAM del BG | declarar ventana+guardas | `res::Budget` → Ok/Degradado/Rechazado | ventana menor |
+| SFX (pulso/ruido/DMC) | `bank.add` + `play(id)` (muestra offline) | SfxMixer + AudioMode | menos voces |
+| Música | `play_music(module)` **o** `ITonePlayer` por canal | PtPlayer/P61 / canales reservados | solo SFX |
+
+## 11. Qué pido cerrar (para el acuerdo)
+
+1. **Contrato de frame/VBlank de nivel A** (§8.1): es lo que sostiene todo el port (el port ya corre
+   su lógica en el evento VBlank). Sin una forma canónica de "callback por VBlank + present", hay
+   que bajar a B.
+2. **`Layer` con `set_tile`/`set_attr`/`scroll_to` + respuesta Ok/Degradado/Rechazado** (§8.2–8.4):
+   el BG NES es scroll+escritura de celdas; necesito expresarlo sin nombrar VRAM.
+3. **`SpriteEngine` con OAM upload y prioridad BG/sprite** (§8.3).
+4. **Banda/split de nivel A** para HUD fijo + juego scrolleando (§8.5).
+5. **Sonido**: confirmar el camino **muestra-offline + SfxMixer** para SFX y elegir entre
+   **módulo** (a) o **`ITonePlayer` por canal** (b) para música (§9.2). La opción (b) da fidelidad
+   APU; la (a) es más "engine-native".
+6. **Fallos explícitos** (`Ok`/`Degradado`/`Rechazado`) en cada petición de recursos (§8.6).
