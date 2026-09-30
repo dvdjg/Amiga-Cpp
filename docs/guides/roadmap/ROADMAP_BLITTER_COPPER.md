@@ -139,6 +139,39 @@ El contrato público debe describir intención (`opaque`, `masked`, `additive`, 
 formato y política de composición. La traducción a canales A/B/C/D, módulos, minterms y layout
 intercalado sigue siendo responsabilidad del backend Amiga.
 
+## Línea de trabajo: Copper en el hotpath
+
+`copper::Plan` ya ordena las intenciones por posición raster relativa mediante un índice (`m_perm`)
+y resuelve la prioridad dentro de cada línea. El orden existente facilita la fusión, pero no la
+realiza completamente: `materialize()` sigue llamando al emisor con una intención cada vez. El
+objetivo es agrupar las rachas compatibles después de ordenar, sin cambiar la semántica de prioridad.
+
+1. **Medir por fases**: separar `sort_by_top`, `sort_priority_within_lines`, `emit`, cielo y parcheo;
+   contar intenciones, grupos, WAITs, MOVEs, palabras y ciclos.
+2. **Preconstruir estructura estable**: mover cielo, raster bars, gradientes y listas fijas a
+   `StaticPlan`/plantillas de doble buffer; por frame parchear solo palabras de datos.
+3. **Separar cambios**: distinguir `structure_dirty` de `values_dirty`; si solo cambian colores o
+   punteros, no ordenar ni materializar de nuevo.
+4. **Fusionar por línea y tipo**: formar grupos contiguos tras el orden raster/prioridad. Un grupo
+   `PaletteLine` emite un WAIT y varios MOVEs compatibles.
+5. **Batch especializado de paleta**: añadir una ruta compacta para cambios `{línea, registro,
+   valor}` que evite el despacho general y el bucle de un único elemento.
+6. **Eliminar redundancias**: eliminar WAITs repetidos y MOVEs consecutivos redundantes solo después
+   de resolver prioridades y sin mezclar operaciones con semántica diferente.
+7. **Saltar trabajo innecesario**: omitir la ordenación de prioridad si no hay conflictos, limpiar
+   solo líneas tocadas en listas dispersas y guardar `raster_key` al añadir la intención.
+8. **Reducir indirección**: conservar `m_perm` para evitar copiar estructuras, pero emitir desde
+   grupos `{line, first, count, kind}`.
+9. **Separar debug y producción**: usar `SchedulerT<false>` sin contadores/Timeline en release y
+   `SchedulerT<true>` en debug/profiling, verificando que las rutas rápidas cumplen el contrato.
+10. **Validar equivalencia**: comparar bitmap/copperlist, prioridad de última escritura, ventanas de
+    Blitter, `PaletteSpan`, registros distintos, WAITs, MOVEs y ciclos antes de activar cada ruta.
+
+La fusión es segura cuando conserva el orden de prioridad dentro de la misma línea y agrupa solo
+operaciones compatibles. `PaletteLine` puede fusionarse con otros `PaletteLine` de la misma línea;
+no debe fusionarse automáticamente con `PaletteSpan`, `ShiftLines`, `BitplaneSplit`, `Priority` o
+`BlitterJob`.
+
 ## Cuándo **no** compensa
 
 - Un blit trivial por frame: la CPU lo programa en VBlank.

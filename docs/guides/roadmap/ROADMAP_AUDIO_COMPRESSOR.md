@@ -133,6 +133,7 @@ El corpus mixto previsto para ajustar los parámetros está descrito en [`AUDIO_
 - Registrar el corpus FreePD archivado y otros corpus disponibles sin incluir media en Git.
 - Añadir `--list-codecs`, `--dump-config` y `--dry-run` para inspeccionar decisiones sin escribir binarios.
 - Generar informes JSON y resumen legible con hash de entrada, configuración, clasificación, unidades, tracks, destino y métricas.
+- El informe por conversión registra entrada, algoritmo, tasa, chunks, duración, tamaños, ratio, MSE, pico, round-trip y destino de salida.
 - Verificar que cualquier ejecución completa produce solo salidas bajo `out/` salvo el archivo destino solicitado explícitamente.
 
 ### C17 — Candidatas y selección automática
