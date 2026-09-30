@@ -186,12 +186,11 @@ se puede** sin `clear()` total. La memoria del engine se reparte en **dos vidas 
 ## Plan de cierre — DMA y lifecycle
 
 **Estimación restante: 2–4 unidades de trabajo enfocadas**, agrupadas en dos bloques: (1) coordinar
-leases con las vistas/planes que cruzan frames o fases, especialmente recursos Blitter/Copper;
-(2) validar la vida natural de voces SFX con assets y el teardown con usuarios activos, más una demo
-que use la API de lease. `AssetCache`, `NoChip`, `AssetTable`, `Scene`, `Bitmap`, `Plan` y
-`DoubleBuffer` tienen owner, invalidación y rollback cubiertos por tests dirigidos. Audio tiene
-configuración y arranque transaccional host-testables; el layout ASM de Photon solo puede verificarse
-en el target Amiga.
+leases con vistas/planes que cruzan frames o fases, especialmente recursos Blitter/Copper; (2) cerrar
+la vida de una voz SFX basada en AssetCache desde inicio hasta final natural, y comprobar teardown con
+usuarios activos. `AssetCache`, `NoChip`, `AssetTable`, `Scene`, `Bitmap`, `Plan` y `DoubleBuffer`
+tienen owner, invalidación y rollback cubiertos por tests dirigidos. Configuración/rollback genérico
+de audio pasa HOST-269 y builds 057/061; el wrapper ASM Photon requiere validación en Amiga.
 
 El roadmap se cierra cuando los dos bloques restantes estén implementados y validados, y MEM-001,
 MEM-004, MEM-006, MEM-008..MEM-010 tengan resolución explícita. HOST-382/ACP1 está aplazado a su
@@ -206,8 +205,9 @@ propio roadmap y no bloquea este cierre.
    HOST-016, HOST-069 y HOST-070 (fallo, recuperación, liberación repetida y reinicialización).
 3. **Owners de audio explícitos**: `AudioSystem` libera el buffer P61 y `SfxMixer` hace rollback de
    reservas parciales y devuelve sus bloques después de parar la IRQ/mixer. `valid_audio_config`,
-   `apply_audio_config` e `init_mixer_transaction` tienen cobertura HOST-269. Falta validar en target
-   el mixer Photon ante fallo/reinit y reproducir un asset con lease hasta el fin natural de voz.
+   `apply_audio_config` e `init_mixer_transaction` tienen cobertura HOST-269; builds 057/061 pasan.
+   Falta una validación Amiga de fallo/reinit del wrapper Photon y la reproducción de asset con lease
+   CPU retenida hasta el fin natural de la voz.
 4. **Caché física**: `AssetCache` conserva el bloque/banco efectivo; `AssetTable` se invalida en
    `reset_phase`; HOST-386 cubre esa invalidación. Leases move-only impiden evict mientras un
    consumidor retenga una vista.
@@ -217,8 +217,8 @@ propio roadmap y no bloquea este cierre.
 6. **Pruebas de lifecycle**: rollback, reinicialización, evict/reload, doble liberación, vista
    invalidada y liberación con Blitter/Copper/Paula activos. HOST-254/330/353/386/269 y HOST-016/069/070
    cubren caché, bancos, leases, invalidación, rollback gráfico y configuración/rollback de audio.
-   Faltan pruebas de voz SFX hasta fin natural y assets retenidos por Blitter/Copper; el mixer real
-   requiere validación Amiga por su ABI ASM.
+    Faltan pruebas de voz SFX hasta fin natural y de assets retenidos en planes Blitter/Copper; la voz
+    SFX y el mixer real requieren validación Amiga por su ABI ASM.
 
 El cierre requiere evidencia de código y tests; reservar en Chip y liberar el bloque raíz al final
 del proceso no cuenta como lifecycle completo.

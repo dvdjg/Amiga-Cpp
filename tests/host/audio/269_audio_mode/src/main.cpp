@@ -112,6 +112,11 @@ void test_audio_config_and_mixer_rollback() {
 	check(!eng::audio::valid_audio_config(bad), "reject overlapping audio masks");
 	eng::audio::AudioConfig good {};
 	check(eng::audio::valid_audio_config(good), "accept default Game audio profile");
+	bool live = true;
+	eng::audio::AudioConfig invalid = bad;
+	check(!eng::audio::apply_audio_config(invalid, [](AudioMode) { return true; },
+			[&]() { live = false; }), "invalid config rolls back after mixer init");
+	check(!live, "config rollback leaves dependent resources stopped");
 
 	eng::u8 chip[1024] {};
 	eng::u8 slow[128] {};

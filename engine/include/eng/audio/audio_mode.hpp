@@ -85,11 +85,22 @@ struct AudioConfig {
 	return false;
 }
 
+/// Aplica la parte configurable de AudioSystem tras iniciar el mixer. Si la config o el modo
+/// fallan, ejecuta `rollback` para que init termine en estado detenido y reintentable.
+template <class SetMode, class Rollback>
+[[nodiscard]] bool apply_audio_config(const AudioConfig& cfg, SetMode&& set_mode,
+					      Rollback&& rollback) {
+	if (!valid_audio_config(cfg) || !set_mode(cfg.mode)) {
+		rollback();
+		return false;
+	}
+	return true;
+}
+
 /// Inicializa transaccionalmente un mixer que reserva recursos durante `init`: ante fallo se
 /// invoca `shutdown()` para que cualquier reserva parcial quede devuelta antes de reintentar.
 template <class Mixer>
 bool init_mixer_transaction(Mixer& mixer, eng::MemoryManager& memory) {
-	mixer.shutdown();
 	if (mixer.init(memory)) return true;
 	mixer.shutdown();
 	return false;

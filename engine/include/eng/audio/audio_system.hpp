@@ -93,12 +93,10 @@ public:
 	/// Inicia con configuración; un modo rechazado deshace el mixer y cualquier reserva de setup.
 	bool init(MemoryManager& memory, const AudioConfig& cfg) {
 		if (!init(memory)) return false;
-		if (!eng::audio::valid_audio_config(cfg) ||
-		    !set_mode(cfg.mode)) {
-			shutdown();
+		if (!eng::audio::apply_audio_config(cfg, [&](AudioMode mode) { return set_mode(mode); },
+						    [&]() { shutdown(); })) {
 			return false;
 		}
-		m_cfg = cfg;
 		set_sfx_volume(cfg.master_sfx_vol);
 		set_music_volume(cfg.master_music_vol);
 		return true;
