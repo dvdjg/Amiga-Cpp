@@ -94,10 +94,14 @@ mantiene retrocompatibilidad: si se llama sin haber tomado el control, delega en
 
 ## Estado actual de memoria
 
-La gestion actual no administra toda la memoria fisica del Amiga. Funciona asi:
+La gestión actual no administra toda la memoria física del Amiga. Funciona así, con integración
+híbrida durante la migración de ownership:
 
 1. El backend pide bloques a Exec con `AllocMem`.
-2. El engine administra esos bloques mediante `LinearArena`.
+2. El engine administra reservas persistentes mediante `MemoryManager`/`MemBank` y `BlockPool`, y
+   reservas de scratch mediante `LinearArena`/`ScratchArena`. El backend Amiga todavía conserva
+   `configure_backing` en parte de la configuración, por lo que no todas las reservas persistentes
+   tienen `free` real; ver MEM-001.
 3. Las demos no hacen asignaciones sueltas durante el frame.
 
 Esto es intencionado. Nos permite validar arquitectura, C++23, capturas y regresion
@@ -112,4 +116,3 @@ capaz de construir arenas sobre rangos fisicos cuando el backend este en modo ta
   esta usando.
 - Si una funcion usa ROM kernel, debe indicar por que es aceptable en esa fase.
 - Ninguna abstraccion debe ocultar asignaciones, copias grandes o esperas de hardware.
-

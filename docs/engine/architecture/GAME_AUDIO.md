@@ -254,7 +254,7 @@ struct AudioConfig {
 };
 
 // La fachada existente `AudioSystem` (eng/audio/audio_system.hpp) gana el modo y su config:
-bool init(MemorySystem& memory, const AudioConfig& cfg);
+bool init(MemoryManager& memory, const AudioConfig& cfg);
 void shutdown();
 bool set_mode(AudioMode mode);   ///< para y reasigna canales (política: corta música/SFX)
 AudioMode mode();

@@ -200,7 +200,7 @@ enmascarada por CPU con rutas por target.
 
 | Plano | Pieza existente | Falta |
 |---|---|---|
-| Recursos | `Block<Tag>`, `MemorySystem`, `MultiBuffered` | un `SceneResources` POD que agrupe geometría/layout/buffers |
+| Recursos | `Block<Tag>`, `MemoryManager`, `ScratchArena`, `MultiBuffered` | un `SceneResources` POD que agrupe geometría/layout/buffers y explicite la vida útil |
 | Programa | `copper::Scheduler`, `copper::Plan`, `CopperIntent`, `ModeSwitchZone` | un `HardwareProgram` que agrupe la lista + recursos + presupuesto |
 | Comportamiento | `FramePlan` (blits), `function_ref`, IRQ/VBlank | tareas de ciclo de vida homogéneas y handles de parcheo tipados |
 | Composición | — | `compose(...)` + etapas + presets |
@@ -316,7 +316,6 @@ las 3D `077_math3d_cube`, `078_math3d_solid` y `084_mf_rotation`, sin `install` 
    `present`). El doble buffer planar sigue siendo `scene::compose` con `buffers > 1`.
 5. **Medición**: el `runner.uae` lo genera `run-demo.ts`; en entornos sin Git Bash se
    construye a mano para `measure-fps` (como se hizo con 081).
-
 
 
 

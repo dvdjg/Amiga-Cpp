@@ -25,7 +25,8 @@ Medido tras el fix: `is_playing=1`, `DMACON audio_bits != 0` (sin necesidad de o
 
 Se revisaron las rutinas de memoria recientes y **no** eran la causa:
 
-- `AssetCacheBackend` guarda `eng::Ref<MemorySystem>` (referencia, no copia): sin cursor congelado.
+- `AssetCacheBackend` guarda una referencia al gestor de memoria (la implementación vigente usa
+  `eng::Ref<MemoryManager>`, no una copia): no congela ningún cursor.
 - El fix del asignador (`configure_backing`: los bancos delegan en las arenas) comparte buffer **y cursor** → sin solape (cubierto por HOST-364).
 - El `Block`s/`MemBank` devuelven bloques del tamaño pedido; la arena *bump* no retrocede.
 

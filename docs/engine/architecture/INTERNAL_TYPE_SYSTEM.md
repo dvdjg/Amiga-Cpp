@@ -184,7 +184,13 @@ Regla: **solo el eje que afecta a la corrección va al tipo.** El requisito `Chi
                                └ CPU (Slow/Fast/Any) -> Address<Bank> / dato
 ```
 
-`Block<Tag>` (reserva de arena *bump*) sigue llevando `MemoryKind` **como dato**; el uso **DMA nuevo** pasa por `Address<Chip>`/`TypedBlock<Tag, Chip>` (`MemBank<Chip>`), que **impide en compilación** usar Fast/Slow. En `platform/amiga`, el backend **enlaza** los bancos a las **mismas arenas** (`MemoryManager::configure_backing`): `MemorySystem` y `MemoryManager` comparten **buffer y cursor**, de modo que hay **un único asignador por medio** y las reservas de uno no pisan las del otro (la variante `configure(base, …)` con buffers propios queda solo para tests host, que no comparten). Peligro real: si arenas y bancos parten del **mismo** puntero base con cursores **independientes**, dos reservas distintas se solapan en silencio (así se corrompía el bitmap/copperlist de una escena al hacer `res::load` de un asset).
+`Block<Tag>` puede proceder de una reserva de arena o de un `MemBank`; lleva `MemoryKind` **como
+dato** cuando el banco se decide en runtime y el banco concreto en el tipo cuando la API necesita
+garantizar DMA. La ruta objetivo usa `MemBank<Chip>`/`BlockPool` para persistentes y `ScratchArena`
+para temporales. El backend Amiga todavía usa `MemoryManager::configure_backing` en parte de su
+configuración, por lo que las reservas que pasan por ese respaldo conservan semántica bump y `free`
+no-op. Esta integración híbrida está registrada en MEM-001; no debe describirse como pool liberable
+completo hasta que la migración termine.
 
 **Procedencia de un `Address<Chip>`.** No hay constructor implícito desde `void*`: el único puente desde una dirección de almacenamiento es `Address<K>::from_storage(ptr)`, que nombra el acto como frontera explícita y solo es lícito cuando el búfer ya garantiza el medio `K` (banco/arena tipado, `gfx::Bitmap` —siempre Chip— o una tabla estática certificada). Una tabla constante de DMA se coloca con `eng::ChipStorage<Tag, N>` + `ENG_CHIP_RAM` (`eng/memory/chip_storage.hpp`), que la pone en `.MEMF_CHIP` y entrega la `Address<Chip>` y la vista de dominio **sin cast**; para assets, `INCBIN_CHIP` (`support/gcc8_c_support.h`). Preferible a reservarla dinámicamente. Regla del cast: `CODING_STYLE.md` («ante un `cast`, revisar el tipo de origen»).
 
@@ -410,7 +416,9 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
   copperlist es `Block<CopperTag>` (el builder valida Chip) y el medio queda separado del dato
   (permite construir/copiar la lista con el Blitter). También nacen tipados `Bitmap`
   (`Block<PlaneTag>`), `SpriteManager` (`Block<SpriteTag>`), el banco propio/aliaseado de la escena
-  (`XlimitedTileBank`) y los bloques de la 107 (`BobTag`/`MapCellsTag`). Únicos crudos que quedan
+  (`XlimitedTileBank`) y los bloques de la 107 (`BobTag`/`MapCellsTag`). La API tipada está hecha,
+  pero la migración de ownership persistente y el uso exclusivo de pools liberables no están cerrados;
+  ver MEM-001..MEM-010. Únicos crudos que quedan
   (ver §1): buffers de asm del mezclador y scratch genérico. Comprobación automática:
   `node tools/check/type-tagging.mjs` (integrada en `tools/test-regression.sh`).
 

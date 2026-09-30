@@ -157,6 +157,9 @@ como formas soportadas de hacer la misma reserva.
 
 ## Criterios de aceptación
 
+Estos criterios describen el estado objetivo. Mientras permanezcan abiertos MEM-001..MEM-010, no
+deben interpretarse como capacidades ya garantizadas por todas las rutas productivas.
+
 1. Un BOB cargado por la API pública obtiene hoja y máscara en Chip sin que el consumidor elija el
    allocator.
 2. Una API DMA no acepta un puntero de stack ni una vista Fast/Slow.

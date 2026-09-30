@@ -73,7 +73,8 @@ Ya existe y se irá ampliando desde demoscene `libmisc`/`libc`.
   testeable en host (`tests/host/`).
 
 ### 2.2 Memoria (`eng::memory`)
-- `MemorySystem` (Chip/Slow/Fast), `LinearArena`, `MemoryBlock`, `MemoryReport`.
+- `MemoryManager`/`MemBank` (Chip/Slow/Fast), `BlockPool` para persistentes, `MemorySystem` y
+  `ScratchArena` para scratch, `LinearArena`, `MemoryBlock`, `MemoryReport`.
 - Política de backend (`MemoryPolicy`) ya descrita: OS-friendly / mixed / takeover.
 - Dependencia: `memory.hpp` no depende de nada más que `core`.
 

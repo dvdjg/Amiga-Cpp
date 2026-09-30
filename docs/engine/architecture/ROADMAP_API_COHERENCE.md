@@ -38,9 +38,10 @@ Ordenadas por impacto sobre el diseño interno y la usabilidad de la API.
    hardware (`sprite.hpp`, `HwSpriteTemplate`/`HwSpritePlacement`) — **resuelto** con el prefijo
    `Hw*`; `SceneLayout`/`BobLayout` — **resuelto**: unificados como alias de
    `eng::graphics::PlaneLayout` (y `eng::gfx::PlaneLayout` ya aliasa al mismo; `Separate = Contiguous`).
-6. **Tipo y sistema de memoria no cuadran.** `MemoryKind {Chip,Slow,Fast,Any}` pero
-   `MemorySystem {chip,slow,frame}`: **no hay arena Fast** (se mapea `Fast → slow`) y **no hay
-   `MemoryKind::Frame`**. Tipo y almacenamiento se contradicen.
+6. **Tipo y sistema de memoria requieren una separación de vidas útiles.** `MemoryKind
+    {Chip,Slow,Fast,Any}` describe el banco; `MemoryManager`/`MemBank` describe las reservas de
+    bancos y `MemorySystem::frame` describe scratch. La migración de ownership persistente no está
+    cerrada: el backend Amiga aún usa `configure_backing` en parte de la configuración (MEM-001).
 7. **Error *ad-hoc*.** `eng::Result` existe pero apenas se usa: las APIs fallan con `bool`, `0`,
    bloque inválido o `Ref` nulo. Falta un idioma único de error.
 8. **Verbos sobrecargados.** `takeover`/`commit`/`present`/`flip_copper` en `Scene`,
@@ -133,7 +134,7 @@ app.run();
 | `eng::MusicModule` + `eng::audio::MusicModule` | un `MusicBytes`/`Music` |
 | `Sprite` (objeto) + sprite hardware | `Sprite` (objeto) y `HwSprite` (representación) |
 | `SceneLayout` + `BobLayout` | un `PlaneLayout` |
-| `MemoryKind{Fast}` sin arena / `frame` sin kind | `MemoryKind` y `MemorySystem` alineados |
+| `MemoryKind` mezclado con vida útil (`frame`) y banco efectivo | `MemoryKind` para banco, `MemoryManager` para reservas y `ScratchArena` para vida temporal; migración persistente abierta en MEM-001 |
 | `bool`/`0`/bloque inválido | `Expected<T>` (valor o `eng::Result`) + `[[nodiscard]]` |
 | `takeover`/`commit`/`present` | `install`/`publish` (vocabulario único) |
 

@@ -175,7 +175,9 @@ equivalencia**. La ruta **acelerada** vive en `eng/graphics/glyph_cache.hpp`:
   `blit_masked` cubre todos los planos (varios blits de 1 plano escribirían siempre el plano 0).
   `src_scratch` y `mask_scratch` son buffers del **llamador** que deben persistir hasta ejecutar el
   `FramePlan` (el encolado solo guarda punteros).
-- `TextBlitScratch<Planes, MaxPairs>`: reserva esos dos buffers en el `LinearArena` de **Chip RAM**
+- `TextBlitScratch<Planes, MaxPairs>`: reserva esos dos buffers en el scratch de **Chip RAM** del
+  contexto de preparación; no es un asset persistente y sus vistas dejan de ser válidas al reiniciar
+  la fase/frame.
   con los tamaños correctos (sólido compartido y **una máscara por par**), encapsulando el contrato
   para no volver a equivocar arena/tamaño. Una llamada de `text_blit` reescribe la máscara desde el
   índice 0, así que dos `text_blit` al **mismo** `FramePlan` necesitan buffers separados o ejecutar

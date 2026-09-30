@@ -4,7 +4,10 @@ Plan de correcciones para llevar el engine al modelo de [`MEMORY_OWNERSHIP.md`](
 **una sola puerta de reserva**, banco en el **tipo**, vistas no propietarias seguras y **liberación
 ordenada**. Cada paso es verificable por sí mismo; el orden es por dependencia y valor.
 
-Estado real mapeado (2026-09): conviven **dos familias de reserva** que hay que unificar.
+Estado real mapeado: conviven **dos familias de reserva** que hay que unificar. La migración de
+consumidores a `MemoryManager` está avanzada, pero el backend Amiga todavía enlaza los bancos a
+arenas mediante `configure_backing`; la liberación física de recursos persistentes no está cerrada.
+El detalle está en [`memory-ownership-inconsistencies.md`](../../debugging/investigaciones/memory-ownership-inconsistencies.md).
 
 ```text
   familia A (tipada, por banco, nuevo)         familia B (arena suelta, legado)
@@ -36,7 +39,7 @@ con su razón (14 ficheros), y el gate `cast-audit` las exime.
 
 **Valor:** una única API de reserva y una única de liberación; prepara el resto.
 
-**Estado (2026-09): base hecha.** `MemBank<K>::reserve<Tag>`/`release` + `Assets`
+**Estado: base parcial.** `MemBank<K>::reserve<Tag>`/`release` + `Assets`
 (`add`/`create`/`release`/`reset_phase`, libera en orden inverso) son la puerta; `SfxMixer` ya la usa
 (salida Chip obligatoria, plugins Any). Falta migrar los dueños restantes (punto 3).
 
@@ -71,16 +74,17 @@ doble buffer que no libera el buffer aún visible.
 
 **Valor:** cierra el modelo; ya no hay dos formas de reservar.
 
-**Estado (2026-09): fachada y escena migradas.** La cadena `compose`→`Scene`→`Bitmap`/`copper::Plan`/
+**Estado: fachada y escena parcialmente migradas.** La cadena `compose`→`Scene`→`Bitmap`/`copper::Plan`/
 `DoubleBuffer`/`SpriteManager`/`xlimited_*`/`tile_scroll`/`effects` y las demos pasan a
 `MemoryManager&` con `chip().reserve` (mismo cursor que la arena vía `configure_backing`, **sin
-solape**). `res::load(MemoryManager)` es la puerta normal.
+solape**). `res::load(MemoryManager)` es la puerta normal, pero la integración productiva aún no
+garantiza `free` real para todas las reservas.
 
-**Desbloqueo del pool propio de `MemBank` (free real): HECHO.** `res::load`/`load_file` (única
-puerta), `TextBlitScratch`, `AssetCacheBackend` y todas las reservas de escena usan el **banco**;
-`AmigaBackend::configure_memory` pasa a `MemoryManager::configure` (pool propio, `free` real) y
-`Budget`/`MemoryReport` leen del banco. `Device::memory_manager()` expone la puerta. Sin `headroom`
-en `res::load` (el pool alinea la base una vez).
+**Pool propio de `MemBank` (free real): parcial.** `BlockPool` y sus métricas ya soportan `free`
+real, y numerosos consumidores usan `MemoryManager`; sin embargo, `AmigaBackend::configure_memory`
+todavía enlaza Chip/Slow mediante `configure_backing`, `AssetCacheBackend::free()` es no-op y la
+caché no conserva handles propietarios. `Budget`/`MemoryReport` leen del banco, pero eso no implica
+que toda reserva productiva sea liberable. Ver MEM-001..MEM-007.
 
 Diagnóstico de la migración: `graphics/bitmap.hpp` (`Bitmap::init`),
 `graphics/sprite_manager.hpp`, `copper/double_buffer.hpp`, `graphics/composition/scene.hpp`,
