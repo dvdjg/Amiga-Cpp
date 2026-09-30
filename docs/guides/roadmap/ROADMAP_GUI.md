@@ -210,6 +210,39 @@ del keymap** validadas contra la AHRM 3.ª (HOST-302: Space 0x40, cursores 0x4C/
 Pendiente: volcar la asignación de carácter de cada **distribución nacional** y los **Alt+tecla**
 de las teclas muertas desde `DEVS:Keymaps` del ROM (no disponibles en el repo; hoy *best-effort*).
 
+## G9 — Contrato de eventos y edición de aplicación
+
+La base G0–G8 cubre widgets, foco básico, modales, compositor y rutas de rasterizado, pero no
+constituye todavía un sistema completo de interacción. El contrato detallado está en
+[`GUI_COMPLETENESS.md`](../../engine/architecture/GUI_COMPLETENESS.md).
+
+- Unificar la documentación y el código de `UiEventKind`: añadir `TextInput`, `PointerCancel`,
+  `FocusIn`, `FocusOut` y `Action`, o documentar explícitamente qué eventos no forman parte del
+  núcleo.
+- Añadir captura de puntero, hover, `MouseMove`/drag y propagación `capture → target → bubble`.
+- Separar rawkeys de acciones semánticas (`Accept`, `Cancel`, navegación, edición, clipboard) y
+  centralizar repetición de teclas.
+- Separar `layout_dirty`, `content_dirty` e `interaction_dirty`, con transformaciones de coordenadas
+  comunes para hit-test y pintura.
+- Evolucionar `EditBox` a un `TextModel` con selección, clipboard, undo/redo, validación y eventos
+  `submit`/`cancel`.
+- Añadir `FocusScope`, menús, `ComboBox`, `TabView`, `ProgressBar` y resultado tipado de diálogos.
+- **Gate**: HOST de propagación/captura y edición completa, además de una demo de formulario con
+  teclado, ratón, modal, lista y validación.
+
+## G10 — Política de materialización gráfica
+
+- Mantener CPU como referencia y ruta por defecto para texto corto, caret, selección, glifos pequeños
+  y cambios no alineados.
+- Seleccionar Blitter por umbral para fondos, copias de backing, rellenos grandes y texto largo o
+  repetido con `GlyphCache`; no lanzar un blit por carácter.
+- Mantener Copper fuera de los widgets: solo publica paleta, punteros, splits y doble buffer.
+- Integrar la ejecución de `FramePlan` y la publicación de Copper con una barrera de frame para que
+  no se mezclen stores CPU con blits asíncronos sobre la misma región.
+- Medir texto corto/largo, backing alineado/no alineado y UI estática/dinámica en A500 antes de fijar
+  umbrales.
+- **Gate**: equivalencia CPU/Blitter, perfil por widget y demo con UI estática y dinámica.
+
 ## Portabilidad a Workbench (backend de UI)
 
 El diseño de widgets/eventos ya es **neutral** (widgets sin `virtual`, entrada solo por `UiEvent`),

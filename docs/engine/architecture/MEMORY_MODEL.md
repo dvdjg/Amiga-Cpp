@@ -32,14 +32,26 @@ La Slow RAM puede usarse para:
 - metadatos de escena;
 - estructuras de entidades no usadas por DMA.
 
-## Arenas iniciales
+## Asignadores y vidas útiles
 
-El engine arranca con estas ideas:
+El modelo vigente separa dos vidas útiles:
 
-- `ChipArena`: recursos DMA persistentes o temporales de frame.
-- `SlowArena`: datos no DMA, staging y metadatos.
-- `FrameScratch`: memoria temporal reiniciada cada frame.
+- `MemBank<Chip>`/`BlockPool`: destino de recursos persistentes liberables. La integración
+  productiva del backend Amiga todavía está en migración y puede usar `configure_backing`.
+- `MemBank<Fast>`/`MemBank<Slow>`: datos de CPU, con selección efectiva `Fast` si existe y `Slow`
+  como fallback.
+- `ScratchArena`: memoria temporal de setup/fase/frame, reiniciable y sin liberación individual.
+- `MemoryManager`: fachada interna que coordina los bancos; `MemorySystem` conserva el scratch y
+  las compatibilidades de composición que aún están en migración.
+
+Los recursos DMA persistentes no deben reservarse directamente mediante `LinearArena`. Mientras la
+migración no esté cerrada, esta regla es una condición de arquitectura pendiente, no una garantía
+automática de todas las rutas existentes.
+
+Si se detecta Fast RAM, las reservas CPU-only nuevas deben preferirla mediante la política del
+`MemoryManager`; el engine debe resolver el fallback y exponer el banco efectivo. La capacidad
+detectada no equivale a una cuota disponible: el setup debe reservar primero el stack elegido y
+descontar las necesidades del sistema antes de dimensionar pools persistentes y scratch.
 
 Ninguna demo debe hacer asignaciones dinamicas durante el bucle principal salvo que
 la fase lo declare explicitamente como una prueba de fallo.
-

@@ -126,7 +126,7 @@ class Plan {
 public:
     static constexpr u8 max_intents = 64;
 
-    bool begin(eng::MemorySystem& memory, const PlanConfig& cfg); // reserva el DoubleBuffer
+    bool begin(eng::MemoryManager& memory, const PlanConfig& cfg); // reserva el DoubleBuffer
 
     /// Parte estática (display, módulos, paleta base): se emite UNA vez por frame en el
     /// bloque trasero. `emit` recibe un `Scheduler` ya situado en el trasero, de modo que

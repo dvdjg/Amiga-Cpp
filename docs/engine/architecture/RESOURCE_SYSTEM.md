@@ -22,8 +22,11 @@ que no se usan y no son prioritarios **salen solos**. Es lo que permite moverse 
 ```
 
 En A500 la caché **no** es "todo el disco en RAM": es un **presupuesto en bytes** (Chip/Fast) con
-desalojo de lo no fijado (`pin`) y no referenciado (`refcount == 0`). El motor de memoria es el del
-engine (`MemorySystem`/arenas); la caché solo pide y libera bloques.
+desalojo de lo no fijado (`pin`) y no referenciado (`refcount == 0`). La ruta objetivo usa
+`MemoryManager`/`MemBank` y un pool liberable; la integración Amiga todavía conserva rutas con arena
+de respaldo y el backend de `AssetCache` aún no devuelve individualmente sus bloques. Por tanto,
+`evict` describe la política de caché, pero la recuperación física de memoria sigue siendo una
+deuda abierta (MEM-001..MEM-003).
 
 ## 1. AssetCache
 
@@ -195,6 +198,14 @@ El loader acepta **dos formatos** y los distingue por el primer longword:
   segmentos (`HUNK_CODE`/`HUNK_DATA`/`HUNK_BSS`) se reservan en una `eng::LinearArena` del llamador
   y se copian; la imagen puede liberarse tras cargar. Soporta `HUNK_RELOC32`, `HUNK_RELOC32SHORT`,
   `HUNK_DREL32`, `HUNK_RELOC16/8`, `HUNK_ABSRELOC16` y `HUNK_RELRELOC32`, más `HUNK_SYMBOL`.
+
+El `DynLoader` implementado es todavía un parser/cargador sobre memoria suministrada por el
+llamador: `.englib` se relocaliza in situ y HUNK usa una sola arena. Aunque `HunkSegment` conserva
+`HunkMem`, la reserva no elige Chip/Fast/Slow por segmento; `unload()` limpia el descriptor, pero
+no libera los segmentos ni la imagen. Tampoco carga desde path, descomprime ZX0 ni valida una ABI de
+módulo. Por tanto, carga/descarga propietaria, política Fast y pipeline `.engz` son trabajo
+pendiente documentado en [`FAST_RAM_POLICY.md`](FAST_RAM_POLICY.md) y
+[`FILE_SYSTEM_AND_DYNAMIC_LIBRARIES.md`](FILE_SYSTEM_AND_DYNAMIC_LIBRARIES.md).
 
 ```text
 .englib  Header: magic "ENGL", version, code_size, data_size, bss_size,

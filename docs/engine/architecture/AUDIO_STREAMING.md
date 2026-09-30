@@ -98,6 +98,8 @@ trivial (sin heap ni locks). Alimentado a tiempo se cumple `irq == swaps` y 0 un
 las demos 272/278 usan este feeder. La lección completa (el feeder era CPU-bound, no la IRQ):
 [`../../debugging/investigaciones/audio-stream-irq-rate.md`](../../debugging/investigaciones/audio-stream-irq-rate.md).
 
+Para composiciones ACP1 v1/v2, `eng::audio::Acp1Stream` reusa el feeder con mezcla cooperativa por chunks. El nivel 4 solo avanza el estado y programa el siguiente buffer Chip; no parsea eventos, no decodifica unidades ni mezcla voces. La ruta actual es exclusiva mientras Photon posea directamente el mismo vector de nivel 4; la convivencia y planificación automática de voces quedan pendientes.
+
 ## 5. Esqueleto
 
 ```cpp

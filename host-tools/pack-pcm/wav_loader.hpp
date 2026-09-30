@@ -15,6 +15,14 @@
 
 namespace pack_pcm {
 
+/// Conjunto host-only de stems PCM8 firmados y frecuencia común de origen.
+struct WavStems {
+	/// Canales independientes en orden de intercalado de la fuente.
+	std::vector<std::vector<eng::u8>> channels;
+	/// Tasa detectada en el WAV o impuesta por el override.
+	eng::u16 sample_rate = 0u;
+};
+
 /// Lee un entero little-endian de 16 bits desde un fichero WAV ya cargado.
 [[nodiscard]] inline eng::u16 read_u16(const std::vector<eng::u8>& bytes,
 	eng::usize offset) noexcept {
@@ -45,10 +53,9 @@ namespace pack_pcm {
 	return ok;
 }
 
-/// Normaliza WAV PCM lineal mono/estéreo de 8/16 bits a PCM8 mono con signo.
+/// Separa WAV PCM lineal de uno a ocho canales y 8/16 bits en stems PCM8 con signo.
 /// `rate_override == 0` conserva la frecuencia WAV; el resultado devuelve la tasa efectiva.
-[[nodiscard]] inline bool load(const char* path, std::vector<eng::u8>& pcm, eng::u16& rate,
-	eng::u16 rate_override = 0u) {
+[[nodiscard]] inline bool load_stems(const char* path, WavStems& stems, eng::u16 rate_override = 0u) {
 	std::vector<eng::u8> input;
 	if (!read_file(path, input) || input.size() < 12u ||
 		std::memcmp(input.data(), "RIFF", 4u) != 0 ||
@@ -69,21 +76,43 @@ namespace pack_pcm {
 	const eng::u32 wav_rate = read_u32(input, fmt + 4u);
 	const eng::u16 align = read_u16(input, fmt + 12u);
 	const eng::u16 bits = read_u16(input, fmt + 14u);
-	if ((channels != 1u && channels != 2u) || (bits != 8u && bits != 16u) || wav_rate == 0u ||
+	if (channels == 0u || channels > 8u || (bits != 8u && bits != 16u) || wav_rate == 0u ||
 		wav_rate > 65535u || align != static_cast<eng::u16>(channels * (bits / 8u)) ||
 		data_size % align != 0u) return false;
 	const eng::usize frames = data_size / align;
+	stems.channels.assign(channels, std::vector<eng::u8>(frames));
+	for (eng::usize frame = 0u; frame < frames; ++frame) {
+		for (eng::u16 channel = 0u; channel < channels; ++channel) {
+			const eng::usize sample = data + frame * align + channel * (bits / 8u);
+			const eng::s32 signed_sample = bits == 8u ? static_cast<eng::s32>(input[sample]) - 128 :
+				static_cast<eng::s32>(static_cast<eng::s16>(read_u16(input, sample))) >> 8u;
+			stems.channels[channel][frame] = static_cast<eng::u8>(signed_sample);
+		}
+	}
+	stems.sample_rate = rate_override == 0u ? static_cast<eng::u16>(wav_rate) : rate_override;
+	return true;
+}
+
+/// Mezcla los canales preservados a mono PCM8 con signo.
+[[nodiscard]] inline bool downmix(const WavStems& stems, std::vector<eng::u8>& pcm) {
+	if (stems.channels.empty()) return false;
+	const eng::usize frames = stems.channels[0].size();
+	for (const auto& channel : stems.channels) if (channel.size() != frames) return false;
 	pcm.resize(frames);
 	for (eng::usize frame = 0u; frame < frames; ++frame) {
 		eng::s32 sum = 0;
-		for (eng::u16 channel = 0u; channel < channels; ++channel) {
-			const eng::usize sample = data + frame * align + channel * (bits / 8u);
-			sum += bits == 8u ? static_cast<eng::s32>(input[sample]) - 128 :
-				static_cast<eng::s32>(static_cast<eng::s16>(read_u16(input, sample))) >> 8u;
-		}
-		pcm[frame] = static_cast<eng::u8>(sum / static_cast<eng::s32>(channels));
+		for (const auto& channel : stems.channels) sum += static_cast<eng::s8>(channel[frame]);
+		pcm[frame] = static_cast<eng::u8>(sum / static_cast<eng::s32>(stems.channels.size()));
 	}
-	rate = rate_override == 0u ? static_cast<eng::u16>(wav_rate) : rate_override;
+	return true;
+}
+
+/// Carga WAV como un único stem mono, promediando los canales preservados por `load_stems`.
+[[nodiscard]] inline bool load(const char* path, std::vector<eng::u8>& pcm, eng::u16& rate,
+	eng::u16 rate_override = 0u) {
+	WavStems stems {};
+	if (!load_stems(path, stems, rate_override) || !downmix(stems, pcm)) return false;
+	rate = stems.sample_rate;
 	return true;
 }
 

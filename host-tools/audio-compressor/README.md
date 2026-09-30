@@ -39,16 +39,28 @@ audio-compressor tema.wav --mode music --dry-run --report out/playground/audio-c
 audio-compressor disparo.wav --play
 ```
 
-Sin opciones, la aplicación genera una salida junto al archivo de entrada, no sobrescribe archivos existentes y aplica defaults seguros. El modo `music` informa que ACP1 aún requiere el módulo estructural C12; no genera un contenedor incompleto.
+Sin opciones, la aplicación genera una salida junto al archivo de entrada, no sobrescribe archivos existentes y aplica defaults seguros. El modo `music` genera ACP1 v2 para WAV PCM mono/multicanal de hasta siete pistas: conserva cada canal como eventos con línea temporal común, unidades AUZX compartidas por igualdad exacta y silencios entre eventos. `--hpss` separa cada canal en componentes armónica/percusiva si el resultado cabe en siete pistas. HPSS permanece optativo porque puede aumentar el tamaño y el error.
 
 La configuración usa JSON plano con claves `mode`, `codec`, `sample_rate`, `chunk_samples`, `ram_budget_bytes`, `window_samples` y `force`. La precedencia es `defaults < config < CLI`.
 
+## Directorios de trabajo y conversiones
+
+- `out/tmp/audio-compressor/`: ejecutables, temporales y conversiones intermedias.
+- `out/assets/audio-compressor/converted/`: conversiones finales AUZX/ACP1 generadas por el pipeline.
+- `out/assets/audio-compressor/candidates/`: candidatas conservadas con `--keep-candidates`.
+- `out/reports/audio-compressor/`: informes JSON de cada conversión.
+- `out/playground/audio-compressor/`: corpus, barridos y comparativas de entrenamiento.
+
+Cada conversión puede usar `--report out/reports/audio-compressor/nombre.json`. El informe registra entrada, modo, codec, tasa, chunks, muestras, duración, tamaño comprimido de la fuente, tamaño PCM normalizado, tamaño de salida, ratios PCM→salida y fuente→salida, MSE PCM8, SNR, pico de error y estado del round-trip.
+
+ACP1 v2 serializa offsets y tablas explícitos, divide cada stem en unidades de `--chunk` muestras y emite eventos secuenciales. Bloques AUZX idénticos de la misma longitud se comparten en el diccionario. El informe compara bytes lineales/estructurales y reconstruye la mezcla para medir MSE y pico. Para conservar ambas salidas, usar `--keep-candidates`; la salida `.linear.auzx` se elimina por defecto después de generar ACP1.
+
 ## Reproducción host con SDL3
 
-La reproducción es opcional. Sin SDL3, la utilidad sigue funcionando para conversión y devuelve un error claro si se usa `--play`. El build preferido usa enlace estático:
+La reproducción es opcional. Sin SDL3, la utilidad sigue funcionando para conversión y devuelve un error claro si se usa `--play`. Cuando SDL3 está habilitado, la E/S host y el audio usan abstracciones SDL3; no se usa Win32 en la lógica de la aplicación. El build preferido usa enlace estático:
 
 ```bash
 SDL3_ROOT=/ruta/al/SDL3 bash host-tools/audio-compressor/build.sh --sdl3
 ```
 
-`--play` reproduce la señal normalizada de entrada. Si la entrada ya es AUZX, la aplicación la decodifica y reproduce su PCM reconstruido. ACP1 se añadirá cuando esté implementado el player estructural.
+`--play` reproduce la señal normalizada de entrada. Si la entrada ya es AUZX, la aplicación la decodifica y reproduce su PCM reconstruido. La lectura y mezcla host de ACP1 queda pendiente.

@@ -185,7 +185,13 @@ Regla: **solo el eje que afecta a la corrección va al tipo.** El requisito `Chi
                                └ CPU (Slow/Fast/Any) -> Address<Bank> / dato
 ```
 
-`Block<Tag>` (reserva de arena *bump*) sigue llevando `MemoryKind` **como dato**; el uso **DMA nuevo** pasa por `Address<Chip>`/`Block<Tag, Chip>` (`MemBank<Chip>`), que **impide en compilación** usar Fast/Slow. En `platform/amiga`, el backend da a cada banco un **pool propio** sobre el mismo buffer (`MemoryManager::configure`): los recursos persistentes se reservan del **banco** (con `free` real, `BlockPool`) y la **arena** queda solo para *scratch* de frame (`ScratchArena`, LIFO). No se mezclan las dos rutas sobre el mismo buffer (si un consumidor reservara de la arena donde otro reserva del banco, se solaparían). Ver `MEMORY_OWNERSHIP.md`.
+`Block<Tag>` puede proceder de una reserva de arena o de un `MemBank`; lleva `MemoryKind` **como
+dato** cuando el banco se decide en runtime y el banco concreto en el tipo cuando la API necesita
+garantizar DMA. La ruta objetivo usa `MemBank<Chip>`/`BlockPool` para persistentes y `ScratchArena`
+para temporales. El backend Amiga todavía usa `MemoryManager::configure_backing` en parte de su
+configuración, por lo que las reservas que pasan por ese respaldo conservan semántica bump y `free`
+no-op. Esta integración híbrida está registrada en MEM-001; no debe describirse como pool liberable
+completo hasta que la migración termine.
 
 **Procedencia de un `Address<Chip>`.** No hay constructor implícito desde `void*`: el único puente desde una dirección de almacenamiento es `Address<K>::from_storage(ptr)`, que nombra el acto como frontera explícita y solo es lícito cuando el búfer ya garantiza el medio `K` (banco/arena tipado, `gfx::Bitmap` —siempre Chip— o una tabla estática certificada). Una tabla constante de DMA se coloca con `eng::ChipStorage<Tag, N>` + `ENG_CHIP_RAM` (`eng/memory/chip_storage.hpp`), que la pone en `.MEMF_CHIP` y entrega la `Address<Chip>` y la vista de dominio **sin cast**; para assets, `INCBIN_CHIP` (`support/gcc8_c_support.h`). Preferible a reservarla dinámicamente. Regla del cast: `CODING_STYLE.md` («ante un `cast`, revisar el tipo de origen»).
 
@@ -239,6 +245,12 @@ Reglas para no repetir el problema:
 1. `eng_fast_stack_alloc(bytes)` (`support/`) reserva Fast y devuelve el **tope** alineado.
 2. En la **entrada** (`_start`), y **antes de habilitar IRQs**, cargar ese tope en `SP` (`move.l #top,%sp`). Si el programa corre en **modo supervisor** (takeover), `SP == SSP` y también las IRQs van a Fast; si corre en **modo usuario** (proceso de Exec), solo se mueve la pila del hilo principal y el SSP sigue siendo de Exec (no manipulable en 68000 sin un trap).
 3. El cambio debe hacerse en un `_start` **naked** (no tras el prólogo de una función C): una vez cambiado `SP` no se puede `rts` desde la pila antigua.
+
+`FAST_STACK=1` ya implementa esta selección como opción de build mediante el startup compartido; no
+significa que `HwInfo::probe()` relocalice la pila al detectar Fast en runtime. El soporte debe
+conservar base+tamaño para liberar el bloque al retornar; y en modo usuario solo cambia USP, no el
+SSP propiedad de Exec. Para la política general de Fast (datos estáticos, código y DLL), ver
+[`FAST_RAM_POLICY.md`](FAST_RAM_POLICY.md).
 
 **Tareas.** Una tarea con pila propia la reserva con `Stack`/`stack_from<Bank>`/`fast_or_slow_stack` (Fast por defecto; Chip/Slow opt-in); `Stack::top` es el valor para `SP` del *context switch*.
 
@@ -411,7 +423,9 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
   copperlist es `Block<CopperTag>` (el builder valida Chip) y el medio queda separado del dato
   (permite construir/copiar la lista con el Blitter). También nacen tipados `Bitmap`
   (`Block<PlaneTag>`), `SpriteManager` (`Block<SpriteTag>`), el banco propio/aliaseado de la escena
-  (`XlimitedTileBank`) y los bloques de la 107 (`BobTag`/`MapCellsTag`). Únicos crudos que quedan
+  (`XlimitedTileBank`) y los bloques de la 107 (`BobTag`/`MapCellsTag`). La API tipada está hecha,
+  pero la migración de ownership persistente y el uso exclusivo de pools liberables no están cerrados;
+  ver MEM-001..MEM-010. Únicos crudos que quedan
   (ver §1): buffers de asm del mezclador y scratch genérico. Comprobación automática:
   `node tools/check/type-tagging.mjs` (integrada en `tools/test-regression.sh`).
 

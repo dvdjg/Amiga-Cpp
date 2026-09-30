@@ -331,7 +331,7 @@ Esta sección fija **qué es cada pieza** (framebuffer, vista, descriptor, algor
                           Layer/Camera2D (ventana)                               copper::Timeline (presupuesto)
 ```
 
-- **Framebuffer (dueños de memoria)**: `MemorySystem`/`Block`, `eng::gfx::Bitmap`, `field::Playfield` (+ derivados), `composition::Scene`.
+- **Framebuffer (dueños de memoria)**: `MemoryManager`/bancos, `eng::gfx::Bitmap`, `field::Playfield` (+ derivados), `composition::Scene`. `MemorySystem` conserva el scratch y compatibilidades en migración.
 - **Vistas/sectores (no poseen)**: `field::Surface`, `field::DrawTarget`, `Screen`, `BobTarget`, `scene::ActorEmitContext`, `scene::Layer`/`Camera2D`, `copper::BandScope`.
 - **Descriptores de contenido**: `graphics::Visual`, `graphics::Sprite` (BOB cocinado), `graphics::Bob` (crudo), `HwSpriteTemplate`/`HwSpritePlacement`, `SpriteIntent`, `BlitJob`, `CopperIntent`.
 - **Algoritmos**: `Camera2D`, `TileScrollDriver`/`FineScroll`, `PaletteTransition`/`PaletteCycle`/`RasterGradient`/`Rotozoom`, `SpriteAllocator`, `RepresentationAllocator`, `copper::Timeline`/`Plan`, `FramePlan`, `Animation`.
@@ -382,7 +382,7 @@ con `C2P`: una **conversión** no es un blit (debe salir de `BlitJobKind`).
 
 ### 15.5 GUI acelerada por Blitter
 
-`eng::ui` (`Context`/`Painter`/`Compositor`/`backing`/`double_buffer`/`HardwareCursor`) dibuja sobre `Surface`; los rellenos de widgets van por `RectFillSink` (Blit D-only) y las formas por `PolygonFillSink`, el texto por `GlyphCache`+blits. Todo **encola en el mismo `FramePlan`** que sprites/BOBs → **un solo Blitter serializado**. Las **paletas** son compartidas (`Palette`/`Palette32` + parches de `FramePlan`); los **recursos** salen de `MemorySystem`/`res::load` (backing como `Bitmap`). El reparto ordenado lo garantizan el `FramePlan` (presupuesto) y el `copper::Timeline` (bandas de efectos).
+`eng::ui` (`Context`/`Painter`/`Compositor`/`backing`/`double_buffer`/`HardwareCursor`) dibuja sobre `Surface`; los rellenos de widgets van por `RectFillSink` (Blit D-only) y las formas por `PolygonFillSink`, el texto por `GlyphCache`+blits. Todo **encola en el mismo `FramePlan`** que sprites/BOBs → **un solo Blitter serializado**. Las **paletas** son compartidas (`Palette`/`Palette32` + parches de `FramePlan`); los **recursos** salen de `MemoryManager`/`res::load` (backing como `Bitmap`). El reparto ordenado lo garantizan el `FramePlan` (presupuesto) y el `copper::Timeline` (bandas de efectos).
 
 ### 15.6 Huecos detectados y resolución
 

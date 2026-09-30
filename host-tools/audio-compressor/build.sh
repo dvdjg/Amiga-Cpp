@@ -13,13 +13,13 @@ for arg in "$@"; do
 	esac
 done
 mkdir -p "$OUT"
-FLAGS=(-std=gnu++23 -O2 -Wall -Wextra -Werror=narrowing -I"$ROOT/engine/include" -I"$ROOT/host-tools/pack-pcm")
+FLAGS=(-std=gnu++23 -O2 -Wall -Wextra -Werror=narrowing -I"$ROOT/engine/include" -I"$ROOT/host-tools/pack-pcm" -static-libgcc -static-libstdc++)
 LIBS=()
 if [ "$SDL3" -eq 1 ]; then
 	FLAGS+=(-DAUDIO_COMPRESSOR_SDL3=1)
 	# El ejecutable no debe depender de SDL3.dll ni de los runtimes MinGW. Las únicas DLL esperadas
 	# después son APIs/servicios del sistema Windows y el driver de audio elegido por SDL.
-	FLAGS+=(-static-libgcc -static-libstdc++)
+	# SDL añade sus librerías de sistema; el runtime C++/GCC ya está estático en la configuración común.
 	if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists sdl3; then
 		read -r -a SDL_CFLAGS <<<"$(pkg-config --cflags sdl3)"
 		read -r -a SDL_LIBS <<<"$(pkg-config --static --libs sdl3)"

@@ -28,6 +28,7 @@
 #include <eng/platform/amiga/asset_backend.hpp>
 #include <eng/res/asset_runtime.hpp>
 #include <eng/platform/amiga/blob.hpp>
+#include <eng/platform/amiga/paula.hpp>
 
 namespace eng::amiga {
 
@@ -224,6 +225,7 @@ public:
 	template <class C>
 	bool set_audio_service(Service<C> task, C& user) {
 		if (task == nullptr) return false;
+		if (m_audio.sfx().ready()) return false;
 		fill_slot(m_audio_slot, task, user);
 		return install_audio_service(m_audio_slot);
 	}
@@ -580,6 +582,7 @@ public:
 	/// buffer del mixer) y después de `takeover_display` (el mixer instala su
 	/// interrupción de audio).
 	bool audio_init() {
+		if (m_composition_playing) return false;
 		return m_audio.init(m_memmanager);
 	}
 
@@ -587,6 +590,54 @@ public:
 	/// `play_sfx`/`play_music` sin instanciar un `AudioSystem` por demo.
 	eng::audio::AudioSystem& audio() { return m_audio; }
 	const eng::audio::AudioSystem& audio() const { return m_audio; }
+
+	/// Inicia/reanuda Paula DMA para un buffer PCM8 Chip ya preparado. El playback ACP1 es exclusivo.
+	void start_audio_buffer(u8 channel, const u8* sample, u16 words, u16 period, u8 volume) {
+		if (!m_composition_playing || m_audio.sfx().ready()) return;
+		m_paula.set_period(channel, period);
+		m_paula.set_volume(channel, volume);
+		m_paula.set_buffer(channel, sample, words);
+		m_paula.start_channel(channel);
+	}
+
+	/// Cambia el buffer PCM del canal en la IRQ de audio; no asigna ni decodifica.
+	void swap_audio_buffer(u8 channel, const u8* sample, u16 words) {
+		if (m_composition_playing) m_paula.set_buffer(channel, sample, words);
+	}
+
+	/// Detiene una voz de Paula sin cambiar la propiedad del vector nivel 4; apto para EOF en IRQ.
+	void stop_audio_channel(u8 channel) { m_paula.stop_channel(channel); }
+
+	/// Inicia la propiedad exclusiva ACP1 del nivel 4; falla si Photon ya está activo.
+	bool composition_playback_begin() noexcept {
+		if (m_audio.sfx().ready() || m_audio.music_playing() || m_composition_playing) return false;
+		m_paula.silence();
+		custom_registers()[0x09cu / 2u] = 0x0780u;
+		m_composition_playing = true;
+		return true;
+	}
+
+	/// Libera la propiedad ACP1 del nivel 4 al detener la composición.
+	void composition_playback_end() noexcept { m_composition_playing = false; }
+
+	/// Indica si una composición digital ocupa la IRQ de Paula.
+	[[nodiscard]] bool composition_playing() const noexcept { return m_composition_playing; }
+
+	/// Silencia y detiene la voz ACP1 antes de liberar sus buffers DMA.
+	void stop_composition_audio(u8 channel) {
+		m_paula.set_volume(channel, 0u);
+		m_paula.stop_channel(channel);
+		m_composition_playing = false;
+	}
+
+	/// Instala el servicio exclusivo de Paula; falla si Photon ya posee el vector nivel 4.
+	template <class C>
+	bool set_composition_audio_service(Service<C> task, C& user) {
+		return set_audio_service(task, user);
+	}
+
+	/// Retira el servicio de Paula sin alterar el vector si lo posee otro subsistema.
+	void clear_composition_audio_service() { clear_audio_service(); }
 
 	/// Activa/desactiva warp mode del emulador mediante la ayuda de WinUAE-DBG.
 	void set_warpmode(bool enabled);
@@ -632,6 +683,8 @@ private:
 	res::AssetRuntime<AssetCacheBackend, 8u> m_assets {}; ///< caché de assets + E/S
 	DebugOverlay m_debug {}; ///< overlay de debug (host/WinUAE)
 	eng::audio::AudioSystem m_audio {}; ///< sistema de audio
+	eng::amiga::PaulaAudio m_paula {}; ///< escritura tipada de registros del backend Paula.
+	volatile bool m_composition_playing = false; ///< Estado compartido entre el backend y el callback nivel 4.
 	ServiceSlot m_blitter_slot {}; ///< servicio de espera de Blitter
 	ServiceSlot m_vblank_slot {}; ///< servicio de VBlank
 	ServiceSlot m_blit_slot {}; ///< servicio de fin de blit (IRQ de blit)

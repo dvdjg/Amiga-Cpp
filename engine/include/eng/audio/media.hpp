@@ -2,12 +2,13 @@
 
 /// \file media.hpp
 /// **Interfaz de medios de audio**: punto único para reconocer un medio y despachar su lectura,
-/// independientemente del **contenedor** (PCM crudo o AUZX) y del **códec**
+/// independientemente del **contenedor** (PCM crudo, AUZX o composición ACP1) y del **códec**
 /// (`pcm_codec::Codec`). Sobre ella se apoyan el streaming (`pcm_stream.hpp`) y el juego.
 ///
 /// Un "medio" es un blob en memoria (leído de ROM, de un AUI/asset o de disquete). `open()`
 /// detecta el contenedor por su magic (o lo asume PCM si no lo hay) y rellena `Info`; a partir
-/// de ahí se accede por **chunks** con `chunk_size(i)`/`decode_chunk(i, dst)`.
+/// de ahí se accede por **chunks** con `chunk_samples(i)`/`decode_chunk(i, dst)` o, para ACP1,
+/// por track mediante `decode_track_window`/`mix_window`.
 ///
 /// ```text
 ///   blob ──open──► Info {container, codec, rate, channels, bits, total_samples, num_chunks}
@@ -15,11 +16,12 @@
 ///        chunk_size(i) ──┴──► decode_chunk(i, dst) ──► PCM 8-bit (s8)
 /// ```
 ///
-/// Contenedores: `Pcm` (PCM crudo mono 8-bit, sin cabecera) y `Auzx` (`auzx.hpp`). El códec es
+/// Contenedores: `Pcm` (PCM crudo mono 8-bit), `Auzx` (`auzx.hpp`) y `Acp1` (`acp1.hpp`). El códec es
 /// el de `pcm_codec` (None/DeltaRle/FibDelta/ImaAdpcm/ZX0/DeltaZx0), ya sea el de la cabecera
 /// AUZX o `None` para PCM crudo.
 
 #include <eng/audio/auzx.hpp>
+#include <eng/audio/acp1.hpp>
 #include <eng/audio/pcm_codec.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
@@ -30,6 +32,7 @@ namespace eng::audio::media {
 enum class Container : eng::u8 {
 	Pcm = 0u,  ///< PCM crudo mono 8-bit (sin cabecera): todo el blob es audio
 	Auzx = 1u, ///< contenedor AUZX (cabecera + índice de chunks)
+	Acp1 = 2u, ///< composición ACP1; se decodifica por track con `decode_track_window`
 };
 
 /// Descripción de un medio ya reconocido.
@@ -43,16 +46,34 @@ struct Info {
 	eng::u16 chunk_samples = 0u;
 	eng::u16 num_chunks = 0u;
 	auzx::Header auzx_header {}; ///< válido solo si `container == Auzx`
+	acp1::Info acp1_info {}; ///< válido solo si `container == Acp1`
 };
 
-/// Reconoce el medio `blob` y rellena `out`. PCM crudo si no hay magic AUZX (y el tamaño es
-/// múltiplo de la muestra); `false` si es un AUZX corrupto o un blob vacío.
+/// Reconoce el medio `blob` y rellena `out`. PCM crudo si no hay magic AUZX/ACP1; `false` si un
+/// contenedor reconocido es corrupto o si el blob está vacío.
 [[nodiscard]] inline bool open(eng::Span<const eng::u8> blob, Info& out) noexcept {
 	if (blob.size() == 0u) {
 		return false;
 	}
 	const bool auzx_magic = blob.size() >= 4u && blob[0] == 'A' && blob[1] == 'U' &&
 				blob[2] == 'Z' && blob[3] == 'X';
+	const bool acp1_magic = blob.size() >= 4u && blob[0] == 'A' && blob[1] == 'C' &&
+				blob[2] == 'P' && blob[3] == '1';
+	if (acp1_magic) {
+		acp1::Info composition {};
+		if (!acp1::parse(blob, composition)) return false;
+		out.container = Container::Acp1;
+		out.codec = pcm_codec::Codec::None;
+		out.sample_rate = static_cast<eng::u16>(composition.sample_rate);
+		out.channels = composition.track_count;
+		out.bits = 8u;
+		out.total_samples = composition.total_samples;
+		out.chunk_samples = 0u;
+		out.num_chunks = 0u;
+		out.auzx_header = {};
+		out.acp1_info = composition;
+		return true;
+	}
 	if (auzx_magic) {
 		auzx::Header h {};
 		if (!auzx::parse(blob, h)) {
@@ -67,6 +88,7 @@ struct Info {
 		out.chunk_samples = h.chunk_samples;
 		out.num_chunks = h.num_chunks;
 		out.auzx_header = h;
+		out.acp1_info = {};
 		return true;
 	}
 	// PCM crudo: el blob entero es audio (mono 8-bit).
@@ -79,6 +101,7 @@ struct Info {
 	out.chunk_samples = static_cast<eng::u16>(blob.size() > 0xffffu ? 0xffffu : blob.size());
 	out.num_chunks = 1u;
 	out.auzx_header = {};
+	out.acp1_info = {};
 	return true;
 }
 
@@ -87,6 +110,7 @@ struct Info {
 	if (info.container == Container::Pcm) {
 		return info.total_samples;
 	}
+	if (info.container == Container::Acp1) return 0u;
 	if (index + 1u < info.num_chunks) {
 		return info.chunk_samples;
 	}
@@ -102,6 +126,7 @@ struct Info {
 		size_out = static_cast<eng::u32>(blob.size());
 		return blob;
 	}
+	if (info.container == Container::Acp1) { size_out = 0u; return {}; }
 	return auzx::chunk(blob, info.auzx_header, index, size_out);
 }
 
@@ -109,11 +134,86 @@ struct Info {
 [[nodiscard]] inline eng::s32 decode_chunk(eng::Span<const eng::u8> blob, const Info& info,
 					   eng::u16 index, eng::Span<eng::u8> dst) noexcept {
 	eng::u32 sz = 0u;
+	if (info.container == Container::Acp1) return -1;
 	const eng::Span<const eng::u8> body = chunk_data(blob, info, index, sz);
 	if (sz == 0u) {
 		return -1;
 	}
 	return pcm_codec::decode(body, dst, static_cast<eng::u8>(info.codec));
+}
+
+/// Decodifica una ventana de los eventos secuenciales de un track ACP1 v1/v2 a PCM8 firmado.
+/// `scratch` debe caber el chunk AUZX descomprimido más grande. Devuelve muestras escritas.
+[[nodiscard]] inline eng::s32 decode_track_window(eng::Span<const eng::u8> blob, const Info& info,
+	eng::u8 track_index, eng::u32 first_sample, eng::Span<eng::u8> dst,
+	eng::Span<eng::u8> scratch) noexcept {
+	if (info.container != Container::Acp1 || track_index >= info.acp1_info.track_count || dst.empty()) return -1;
+	if (first_sample >= info.total_samples) return -1;
+	const eng::u32 requested = static_cast<eng::u32>(dst.size() < info.total_samples - first_sample
+		? dst.size() : info.total_samples - first_sample);
+	for (eng::u32 i = 0u; i < requested; ++i) dst[i] = 0u;
+	const eng::u32 window_end = first_sample + requested;
+	acp1::Track selected_track {};
+	if (!acp1::track(blob, info.acp1_info, track_index, selected_track)) return -1;
+	for (eng::u16 event_index = 0u; event_index < selected_track.event_count; ++event_index) {
+		acp1::Event selected_event {};
+		if (!acp1::event(blob, info.acp1_info, track_index, event_index, selected_event)) return -1;
+		const eng::u32 event_end = selected_event.start_sample + selected_event.duration;
+		if (selected_event.start_sample >= window_end || event_end <= first_sample) continue;
+		acp1::Unit unit {};
+		if (!acp1::unit(blob, info.acp1_info, static_cast<eng::u16>(selected_event.unit_id), unit)) return -1;
+		Info unit_info {};
+		if (!open(unit.payload, unit_info) || unit_info.container != Container::Auzx || scratch.size() < unit_info.chunk_samples) return -1;
+		const eng::u32 copy_start = selected_event.start_sample > first_sample ? selected_event.start_sample : first_sample;
+		const eng::u32 copy_end = event_end < window_end ? event_end : window_end;
+		for (eng::u16 chunk_index = 0u; chunk_index < unit_info.num_chunks; ++chunk_index) {
+			const eng::u32 chunk_start = static_cast<eng::u32>(chunk_index) * unit_info.chunk_samples;
+			const eng::u32 count = chunk_samples(unit_info, chunk_index);
+			const eng::u32 chunk_end = chunk_start + count;
+			const eng::u32 event_local_start = copy_start - selected_event.start_sample;
+			const eng::u32 event_local_end = copy_end - selected_event.start_sample;
+			if (chunk_start >= event_local_end || chunk_end <= event_local_start) continue;
+			if (count > scratch.size()) return -1;
+			const eng::s32 decoded = decode_chunk(unit.payload, unit_info, chunk_index, {scratch.data(), count});
+			if (decoded != static_cast<eng::s32>(count)) return -1;
+			const eng::u32 local_start = chunk_start > event_local_start ? chunk_start : event_local_start;
+			const eng::u32 local_end = chunk_end < event_local_end ? chunk_end : event_local_end;
+			for (eng::u32 local = local_start; local < local_end; ++local) {
+				const eng::u32 target = selected_event.start_sample + local - first_sample;
+				const eng::s32 sample = static_cast<eng::s8>(scratch[local - chunk_start]);
+				const eng::s32 scaled = sample * selected_event.gain / 255;
+				dst[target] = static_cast<eng::u8>(static_cast<eng::s8>(scaled));
+			}
+		}
+	}
+	return static_cast<eng::s32>(requested);
+}
+
+/// Mezcla todas las pistas ACP1 en una ventana y satura al rango PCM8 firmado.
+/// `scratch` cubre el chunk AUZX máximo y `accumulator` cubre las muestras de salida solicitadas.
+[[nodiscard]] inline eng::s32 mix_window(eng::Span<const eng::u8> blob, const Info& info,
+	eng::u32 first_sample, eng::Span<eng::u8> dst, eng::Span<eng::u8> scratch,
+	eng::Span<eng::s16> accumulator) noexcept {
+	if (info.container != Container::Acp1 || dst.empty() || accumulator.size() < dst.size() ||
+		first_sample >= info.total_samples) return -1;
+	const eng::u32 count = static_cast<eng::u32>(dst.size() < info.total_samples - first_sample
+		? dst.size() : info.total_samples - first_sample);
+	for (eng::u32 i = 0u; i < count; ++i) accumulator[i] = 0;
+	for (eng::u8 track_index = 0u; track_index < info.acp1_info.track_count; ++track_index) {
+		const eng::s32 decoded = decode_track_window(blob, info, track_index, first_sample,
+			{dst.data(), count}, scratch);
+		if (decoded != static_cast<eng::s32>(count)) return -1;
+		for (eng::u32 i = 0u; i < count; ++i) {
+			accumulator[i] = static_cast<eng::s16>(accumulator[i] + static_cast<eng::s8>(dst[i]));
+		}
+	}
+	for (eng::u32 i = 0u; i < count; ++i) {
+		eng::s16 sample = accumulator[i];
+		if (sample > 127) sample = 127;
+		if (sample < -128) sample = -128;
+		dst[i] = static_cast<eng::u8>(static_cast<eng::s8>(sample));
+	}
+	return static_cast<eng::s32>(count);
 }
 
 } // namespace eng::audio::media

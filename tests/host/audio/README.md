@@ -25,11 +25,12 @@ Categoría `audio` de la batería host (L1). El índice de categorías está en 
 | HOST-371 | [sound_queue](371_sound_queue/README.md) | `SoundQueue` (`eng/audio/sound_queue.hpp`): `SampleEvent` sobre el mecanismo `eng::IntentQueue` (`eng/core`) → `AudioPlan`; la misma cola que blit/dibujo. |
 | HOST-372 | [audio_feeder](372_audio_feeder/README.md) | `AudioFeeder` (`eng/audio/audio_feeder.hpp`): feeder IRQ-apto (nivel 4) con `irq`/`swaps`/`underrun`; alimentado a tiempo `irq == swaps`, 0 underruns. |
 | HOST-373 | [sound_planner](373_sound_planner/README.md) | `SoundPlanner` (`eng/audio/sound_planner.hpp`): une intención (`SoundQueue`) + plan (`AudioPlan`) + aviso (`Msg IntentDone`/`AudioUnderrun`) con una llamada por frame. |
-| HOST-374 | [wav_loader](374_wav_loader/README.md) | Loader host-only de WAV PCM lineal mono/estéreo de 8/16 bits a PCM8 mono con signo. |
+| HOST-374 | [wav_loader](374_wav_loader/README.md) | Loader host-only de WAV PCM lineal mono/estéreo de 8/16 bits a PCM8 mono con signo y preservación ordenada de canales multicanal como stems. |
 | HOST-375 | [stream_intent](375_stream_intent/README.md) | Intención portable de reproducción continua por recurso, compatible con backend Paula o mixer. |
 | HOST-376 | [stream_window](376_stream_window/README.md) | Evaluación host por ventanas reutilizables con presupuesto de 6 GiB. |
 | HOST-377 | [media_stream_backend](377_media_stream_backend/README.md) | Adaptador de `StreamIntent` a recursos `media::Info`, independiente de Paula/mixer. |
 | HOST-378 | [codec_search](378_codec_search/README.md) | Evaluación con reconstrucción y búsqueda del mejor candidato por ventanas. |
 | HOST-379 | [audio_tuning](379_audio_tuning/README.md) | Parámetros y métricas de audio genéricos, probados con `float` y `Fixed<s32,16>`. |
 | HOST-381 | [playback_api](381_playback_api/README.md) | API común de reproducción y control por `PlaybackHandle`. |
-| HOST-382 | [audio_compressor_cli](382_audio_compressor_cli/README.md) | Aplicación única host: WAV estéreo a AUZX mediante CLI sample. |
+| HOST-382 | [audio_compressor_cli](382_audio_compressor_cli/README.md) | Aplicación única host: WAV multicanal a AUZX sample y ACP1 v2, eventos por bloques, round-trip, HPSS y canales FLAC vía FFmpeg. |
+| HOST-387 | [acp1](387_acp1/README.md) | Parser freestanding/encoder ACP1 v1/v2, decoder y mixer por ventanas, feeder triple-buffer, deduplicación exacta y HPSS. |

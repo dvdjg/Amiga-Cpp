@@ -31,6 +31,7 @@ mapa «tarea → documentación», en [DOC-MAP-PRINCIPAL.md](../ai-dev-environme
 - [INTERNAL_TYPE_SYSTEM.md](architecture/INTERNAL_TYPE_SYSTEM.md) — tipos de dominio internos (vistas con `Tag`, unidades fuertes, frontera `raw()`, `Block<Tag>`, `MemoryKind`).
 - [MEMORY_MODEL.md](architecture/MEMORY_MODEL.md) — modelo de memoria (`MemorySystem`/arenas Chip/Slow/Frame, presupuesto).
 - [MEMORY_OWNERSHIP.md](architecture/MEMORY_OWNERSHIP.md) — propiedad y ciclo de vida de recursos, contratos DMA y política única de reserva.
+- [FAST_RAM_POLICY.md](architecture/FAST_RAM_POLICY.md) — política de Fast RAM para trabajo CPU, stack, estáticos y librerías cargables.
 
 ### Matemáticas y geometría
 
@@ -39,6 +40,8 @@ mapa «tarea → documentación», en [DOC-MAP-PRINCIPAL.md](../ai-dev-environme
 - [MINIFLOAT16.md](architecture/MINIFLOAT16.md) — `MiniFloat16` (formato numérico).
 - [EXPRESSION_TEMPLATES.md](architecture/EXPRESSION_TEMPLATES.md) / [TEMPLATE_LIBRARY.md](architecture/TEMPLATE_LIBRARY.md) — plantillas y expresiones.
 - [3D_RENDER_VS_PHYSICS.md](architecture/3D_RENDER_VS_PHYSICS.md) / [3D_PHYSICS.md](architecture/3D_PHYSICS.md) — 3D (modelo/render) y física.
+- [3D_GAME_ARCHITECTURE.md](architecture/3D_GAME_ARCHITECTURE.md) — piezas faltantes y arquitectura objetivo para juegos 3D en el raster planar del Amiga.
+- [MODEL3D_ASSET_FORMAT.md](architecture/MODEL3D_ASSET_FORMAT.md) — formato de autoría JSON y chunks UAF-R cocinados para modelos 3D Amiga.
 
 ### Gráficos, composición y objetos
 
@@ -52,6 +55,7 @@ mapa «tarea → documentación», en [DOC-MAP-PRINCIPAL.md](../ai-dev-environme
 ### GUI
 
 - [GUI_LIBRARY.md](architecture/GUI_LIBRARY.md) — diseño de `eng::ui` (widgets, compositor, backing, cursor hardware).
+- [GUI_COMPLETENESS.md](architecture/GUI_COMPLETENESS.md) — carencias y arquitectura objetivo de eventos, edición de texto y rutas CPU/Blitter/Copper.
 - [RASTER.md](architecture/RASTER.md) — primitivas CPU/Blitter que usa la GUI.
 
 ### Audio
@@ -61,10 +65,13 @@ mapa «tarea → documentación», en [DOC-MAP-PRINCIPAL.md](../ai-dev-environme
 ### Recursos y carga
 
 - [RESOURCE_SYSTEM.md](architecture/RESOURCE_SYSTEM.md) · [STREAMING_LOADER.md](architecture/STREAMING_LOADER.md) · [WORLD_FORMAT.md](architecture/WORLD_FORMAT.md).
+- [FILE_SYSTEM_AND_DYNAMIC_LIBRARIES.md](architecture/FILE_SYSTEM_AND_DYNAMIC_LIBRARIES.md) — VFS normalizado, librerías dinámicas, ZX0, HUNK y memoria por política.
+- [PIXEL_ART_2D_ISOMETRIC.md](architecture/PIXEL_ART_2D_ISOMETRIC.md) — arquitectura de juegos pixel art con colisiones y física opcional, incluida la separación entre espacio isométrico lógico y proyección.
+- [ROADMAP_TILED_WORLD_SUPPORT.md](../guides/roadmap/ROADMAP_TILED_WORLD_SUPPORT.md) — plan para dar soporte completo a proyectos Tiled, tilesets y mapas sparse/streaming.
 
 ### Mini-SO (`eng::os`)
 
-- [MINI_OS_MESSAGE_LOOP.md](architecture/MINI_OS_MESSAGE_LOOP.md) · [MINI_OS_INPUT.md](architecture/MINI_OS_INPUT.md) · [MINI_OS_TIME.md](architecture/MINI_OS_TIME.md) · [MINI_OS_IO.md](architecture/MINI_OS_IO.md) · [MINI_OS_TASKS.md](architecture/MINI_OS_TASKS.md).
+- [MINI_OS_MESSAGE_LOOP.md](architecture/MINI_OS_MESSAGE_LOOP.md) · [MINI_OS_INPUT.md](architecture/MINI_OS_INPUT.md) · [MINI_OS_TIME.md](architecture/MINI_OS_TIME.md) · [MINI_OS_IO.md](architecture/MINI_OS_IO.md) · [MINI_OS_TASKS.md](architecture/MINI_OS_TASKS.md). Contratos abiertos de VBlank/timers: [TIME-001..TIME-010](../debugging/investigaciones/vblank-timer-inconsistencies.md).
 
 ### IA y simulación
 

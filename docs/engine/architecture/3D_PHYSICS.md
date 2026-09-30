@@ -3,8 +3,9 @@
 Este documento estudia cómo abordar **simulación física 3D** en un Amiga A500 (68000 a ~7 MHz,
 sin FPU, sin heap durante gameplay) y fija la **opción preferida** dadas las restricciones. No
 describe el soporte de render 3D, que vive en [3D_RENDER_VS_PHYSICS.md](3D_RENDER_VS_PHYSICS.md);
-aquí se asume que el render ya existe (`PolyMeshView`, n-gon, flat-shade, culling) y se decide
-qué hacer con la **simulación** que lo mueve.
+reutiliza las piezas existentes (`PolyMeshView`, n-gon, flat-shade, culling), pero no presupone que
+ya exista un pipeline completo de cámara, clipping near ni colisión 3D. La arquitectura de juego
+integrada está en [3D_GAME_ARCHITECTURE.md](3D_GAME_ARCHITECTURE.md).
 
 El principio que gobierna todo el documento es que, en este hardware, el coste de la física no
 está en la detección sino en el **solver** (resolver cada contacto iterando). Por eso la vía

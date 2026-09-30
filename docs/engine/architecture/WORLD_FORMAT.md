@@ -32,6 +32,13 @@ El `WorldMap` referencia el banco y la paleta por **índice de chunk** del propi
 puntero. Los bancos de tiles se generan con el pipeline actual
 (`docs/demos/tile-pipeline/PIPELINE_TILES_EHB.md`, `tools/ehb/emit-xlimited-bank.mjs`).
 
+La versión implementada del payload representa una capa de tiles asociada a un banco/paleta y
+metadatos simples. El packer actual toma una capa y un tileset/banco seleccionado; todavía no es un
+formato general de proyecto Tiled multicapa ni un catálogo de varios tilesets. Tampoco implementa
+streaming de páginas de tileset residentes en Chip: `ChunkCache` cachea celdas lógicas, no las
+imágenes DMA de los tiles. Las extensiones y el cache separado de páginas están planificados en
+[`ROADMAP_TILED_WORLD_SUPPORT.md`](../../guides/roadmap/ROADMAP_TILED_WORLD_SUPPORT.md).
+
 ## 3. Payload del chunk `WorldMap`
 
 ```text

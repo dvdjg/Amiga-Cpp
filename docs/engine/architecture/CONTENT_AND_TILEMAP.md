@@ -68,21 +68,26 @@ WorldMap (disperso)
 
 ### 2.1 Compatibilidad con Tiled (.tmx/.tsx)
 
-El mundo disperso se define de forma compatible con el formato del editor **Tiled**:
+Hay una ruta preliminar de importación Tiled; no implica que el engine consuma todo el formato. El
+roadmap de soporte completo está en `docs/guides/roadmap/ROADMAP_TILED_WORLD_SUPPORT.md`. El modelo
+runtime del mundo sigue siendo independiente del editor:
 - **Tilesets** (`firstgid`): `gid - firstgid` da el índice en el `Tileset`; los bits de flip de Tiled
-  (29–31: horizontal/vertical/diagonal) se limpian antes de indexar.
+  (29–31: horizontal/vertical/diagonal) deben separarse del id local. El extractor actual los limpia
+  sin conservarlos como flags; su soporte visual queda pendiente del roadmap.
 - **Mapas infinitos por chunks**: los `<chunk x y width height>` de Tiled, con el mismo tamaño de
   chunk que `WorldMap`, se cargan tal cual; los chunks ausentes son `empty_tile`.
 - **Capas** (`<layer>` Ground/Road/Water): cada capa es un `TileSource` de la escena; separan
   material.
 - **Object layers** (`<objectgroup>`): spawns, triggers y colisiones van a los **metadatos del
   chunk** (`Meta`), no son tiles.
-- El importador es `tools/ehb/parse-tmx.mjs`: acepta las codificaciones de Tiled (CSV, XML
+- El extractor preliminar es `tools/ehb/parse-tmx.mjs`: acepta las codificaciones de Tiled (CSV, XML
   `<tile>` y base64 con gzip/zlib), mapas **finitos** (matriz `gids`) e **infinitos**
-  (`<chunk x y width height>`, con coordenadas posibles negativas), limpia los bits de flip y
-  resuelve `.tsx` externos con `--resolve-tsx`. La conversión de `gid` a índice de banco la hace
+  (`<chunk x y width height>`, con coordenadas posibles negativas), quita los bits de flip del GID
+  pero aún no materializa sus transformaciones, y resuelve `.tsx` externos con `--resolve-tsx`. La
+  conversión de `gid` a índice de banco la hace
   `tools/ehb/gid-to-bank.mjs`.
-- Referencia del formato: `docs/guides/roadmap/TILED.md`.
+- Referencia del subconjunto actual: `docs/guides/roadmap/TILED.md`; soporte/cooker completo,
+  orientación isométrica y streaming de páginas: `docs/guides/roadmap/ROADMAP_TILED_WORLD_SUPPORT.md`.
 
 ## 3. Sprites y animaciones
 

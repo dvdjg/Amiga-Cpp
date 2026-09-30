@@ -131,7 +131,66 @@ Anomalía abierta: la misma demo con `--release` mide **2,4× más lento** que e
 
 Reparto fiable de referencia (`ENG_PROF_*`, contador Amiga): `copper` 68,6 %, dentro `emit` 33,5 % + `sky` 14,4 % + `sort_lines` 9,1 % + `sort_prio` 3,8 %; `actors` 11,3 %; `blits` 9,4 %.
 
-1. **`emit` (33,5 %, 387.674 ciclos)** — traducción de intención a WAIT/MOVE. Ya aplicado: `always_inline` en `write_pair`/`move`/`wait_line`/`wait_position`/`emit_single_intent`/`emit_palette` (el asm a `-O1` recargaba `m_ok`/`m_used_words`/`m_capacity_words` y recomputaba el puntero base en cada palabra). Efecto medido: 1.188.131 → 1.156.019 ciclos (−2,7 %); `emit` bajó de ~460k a 387k (−16 %). Siguiente paso: emitir en lote (WAIT+MOVEs de una línea de una pasada) en lugar de 1 intención por iteración con `m_perm` indirecto.
+1. **`emit` (33,5 %, 387.674 ciclos)** — traducción de intención a WAIT/MOVE. Ya aplicado: `always_inline` en `write_pair`/`move`/`wait_line`/`wait_position`/`emit_palette` (el asm a `-O1` recargaba `m_ok`/`m_used_words`/`m_capacity_words` y recomputaba el puntero base en cada palabra). `emit_single_intent` se mantiene compartido, no inlineado: absorber su `switch` dentro del bucle expandía el binario unos 2,5 KB. Efecto medido: 1.188.131 → 1.156.019 ciclos (−2,7 %); `emit` bajó de ~460k a 387k (−16 %). Siguiente paso: emitir en lote (WAIT+MOVEs de una línea de una pasada) en lugar de una intención por iteración con `m_perm` indirecto.
+
+### Estado del orden y oportunidades de fusión
+
+`copper::Plan` ya ordena las intenciones por posición raster relativa mediante `sort_by_top()` y
+`m_perm`; no mueve los objetos originales, porque la ordenación indirecta evita copiar estructuras
+grandes. Después aplica la prioridad estable dentro de cada línea con
+`sort_priority_within_lines()`. Por tanto, el orden necesario para fusionar operaciones ya existe.
+
+La fusión **no está completa**: `Plan::materialize()` recorre `m_perm`, pero llama a
+`emit_copper_intents_fast(..., 1)` para cada intención. El emisor rápido recibe un contador y puede
+procesar lotes, pero el plan actual no le entrega rachas de intenciones compatibles. En la práctica,
+varias operaciones de una misma línea pueden volver a emitir WAIT y pagar despacho por separado.
+
+La optimización debe construir grupos contiguos después de resolver el orden:
+
+```text
+intenciones ordenadas por raster y prioridad
+        │
+        ├── grupo línea 100: PaletteLine COLOR00, COLOR01, COLOR02
+        ├── grupo línea 120: PaletteSpan
+        └── grupo línea 140: ShiftLines
+```
+
+Cada grupo debe conservar el orden de prioridad y solo puede fusionar intenciones con semántica
+compatible. Un grupo de `PaletteLine` puede emitir un único WAIT y varios MOVEs; no se deben mezclar
+en él `PaletteSpan`, cambios de puntero, prioridad o trabajos de Blitter.
+
+### Optimizaciones de Copper priorizadas
+
+1. **Preconstruir listas estables**: usar `StaticPlan` o una plantilla de `Plan` para el cielo,
+   raster bars, gradientes y cualquier estructura cuyo número, línea, registro y tipo no cambien.
+   Copiar la plantilla una vez a los dos buffers y parchear por frame solo las palabras de datos con
+   `PatchHandle` o slots. Esto elimina `add`, ordenación y materialización del hotpath.
+2. **Separar estructura y valores**: marcar por separado `structure_dirty` y `values_dirty`. Si solo
+   cambian colores o punteros, parchear las palabras existentes sin reconstruir la lista.
+3. **Fusionar por línea**: generar grupos contiguos de la misma línea y tipo después de ordenar.
+   Emitir un WAIT y todos los MOVEs compatibles de la línea en una sola pasada.
+4. **Batch de `PaletteLine`**: añadir una ruta especializada para `{line, color_register, value}`
+   que evite el `switch` general y el bucle de un solo elemento de `emit_palette`.
+5. **Eliminar redundancias**: después de resolver prioridades, eliminar WAITs repetidos y MOVEs
+   consecutivos al mismo registro con el mismo valor, sin eliminar escrituras cuyo orden sea
+   necesario para la composición.
+6. **Evitar prioridad si no hay conflicto**: no ejecutar `sort_priority_within_lines()` cuando cada
+   línea tiene una sola intención, todas las prioridades son iguales o el productor declara que no
+   hay conflictos.
+7. **Limpiar solo líneas tocadas**: sustituir el borrado de las 256 posiciones de los contadores por
+   una lista de líneas modificadas cuando la lista es dispersa. En gradientes densos no aporta.
+8. **Guardar la clave raster**: calcular `raster_key(top)` al añadir la intención y reutilizarla al
+   contar y rellenar `m_perm`, evitando recalcularla dos veces.
+9. **Agrupar índices**: conservar `m_perm` para no copiar intenciones, pero generar grupos `{line,
+   first, count, kind}` para reducir la indirección y el despacho por elemento.
+10. **Scheduler de producción**: usar `SchedulerT<false>` cuando no se necesiten `Timeline` ni
+    contadores de informe; reservar `SchedulerT<true>` para debug y profiling. Verificar que todas
+    las rutas rápidas respetan realmente la política `Report=false`.
+
+La equivalencia debe comprobar que la fusión conserva la última escritura ganadora por prioridad,
+las ventanas de Blitter, las restricciones de `PaletteSpan` y el orden de operaciones sobre
+registros distintos. Medir por separado `sort_lines`, `sort_prio`, `emit`, bytes de copperlist,
+WAITs, MOVEs y ciclos totales.
 2. **`sky` (14,4 %, 166.475 ciclos)** — la demo construye las 256 intenciones del cielo cada frame aunque el degradado es idéntico. Reutilizarlas (o construirlas una sola vez fuera del bucle) ataca ese 14,4 % de raíz.
 3. **`sort_lines` + `sort_prio` (12,9 %)** — counting sort sobre 256 líneas cada frame. Ya aplicado: arrays del sort como miembros (no 1 KB en pila). Mejora menor medida; si el cielo se precomputa (2), este coste cae con él porque hay menos intenciones que ordenar.
 4. **`actors` (11,3 %) + `blits` (9,4 %)** — 8 BOBs cuestan ~21 % combinados. Aplanar la ruta de actor y agrupar arranques de Blitter.

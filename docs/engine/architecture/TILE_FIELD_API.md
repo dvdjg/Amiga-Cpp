@@ -25,7 +25,9 @@
 > y `docs/engine/architecture/AMIGA_8WAY_SCROLLING.md §11`.
 
 `TileFieldController` es un scheduler portable para campos planares. No conoce
-DPF ni escribe registros del Amiga. Reserva memoria mediante `MemorySystem`,
+DPF ni escribe registros del Amiga. Reserva memoria mediante `MemoryManager` y recibe el scratch
+de frame por el contexto de composición; las rutas antiguas basadas directamente en `MemorySystem`
+permanecen solo como compatibilidad interna durante la migración de ownership.
 
 ## Geometría
 

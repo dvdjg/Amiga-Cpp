@@ -89,17 +89,24 @@ El corpus mixto previsto para ajustar los parámetros está descrito en [`AUDIO_
 
 ### C12 — ACP1: diccionario y reproducción estructural
 
-- Diseñar `ACP1` como contenedor superior a AUZX para diccionario de unidades, pistas y eventos.
-- Implementar encoder C++23 con HPSS, división multibanda, firmas espectrales y detección de unidades repetidas o similares.
-- Deduplicar unidades y permitir payload AUZX, Delta+ZX0, Fibonacci, IMA, ADPCM cuantizado o residual armónico.
+- **Entregado**: layouts ACP1 v1/v2 de 40 bytes, eventos secuenciales por pista, unidades AUZX compartidas exactamente y parser sin heap; HOST-387 valida secuencias, silencios, ganancia, límites, offsets, decoder, mixer y feeder triple-buffer.
+- Diseñar la extensión ACP1 para diccionario de unidades reutilizables, pistas y eventos estructurales.
+- **Entregado (baseline HPSS)**: separación STFT radix-2 host armónica/percusiva con `--hpss`; HOST-387 verifica señal tonal e impulsiva y HOST-382 comprueba generación ACP1 desde WAV estéreo.
+- Implementar bandas y firmas espectrales/temporales para similitud aproximada; requiere extensión ACP1 con múltiples eventos por pista.
+- **Entregado**: deduplicación exacta de payloads AUZX entre tracks; ampliar para unidades aproximadas cuando la pista admita una secuencia de eventos.
+- Permitir payload Delta+ZX0, Fibonacci, IMA, ADPCM cuantizado o residual armónico.
 - Asignar pistas a Paula 0..2 o mixer 0..3, conservando destino, pitch y transiciones en eventos validados.
-- Implementar parser Amiga C++23 con `ByteReader`/`Span`, offsets validados, capacidad fija y sin STL/heap durante reproducción.
+- **Entregado (base de reproducción)**: `media` reconoce ACP1 v1/v2, decodifica secuencias por track y mezcla ventanas; `Acp1Stream` prepara PCM cooperativamente y la IRQ queda reducida a advance/swap.
+- **Pendiente de validación on-target**: demo 280 usa el servicio nivel 4 exclusivo y falla si el mixer Photon o una pista tracker ya posee audio; la compilación directa C++ cruzada pasa, pero `build-demo.sh` falla antes de compilar por no poder abrir su archivo `.d` en Windows.
+- Extender el parser para las tablas de deduplicación, modos de unidad y metadatos estructurales.
 - Medir y portar a ASM 68000 solo los núcleos de decode, crossfade y síntesis con equivalencia byte a byte.
-- Tests previstos: HOST-381 parser, HOST-382 deduplicación, HOST-383 secuenciador, HOST-384 selección Paula/mixer y demo híbrida.
+- **Entregado**: HOST-387 cubre parser/encoder v1/v2, deduplicación exacta, eventos y HPSS; HOST-382 cubre CLI, round-trip por track y fuente FLAC multicanal mediante FFmpeg.
+- Tests previstos: HOST-388 deduplicación aproximada, HOST-389 planificación de voces, HOST-390 reproducción Paula/mixer y demo híbrida.
 
 ### C13 — Corpus y ajuste estructural
 
-- Comparar AUZX lineal frente a ACP1 incluyendo diccionario, eventos, tablas y fades.
+- **Entregado (métrica base)**: la CLI reconstruye la mezcla ACP1 y compara MSE/pico y bytes totales frente al AUZX lineal. En `Rondo_alla_turca.ogg` (4.004.352 muestras, 22.050 Hz, IMA, chunks 2.048), con eventos de bloque y deduplicación exacta, ACP1 sin HPSS fue 4.302.800 B, MSE 0,5583 y pico 19 frente a AUZX 2.025.680 B, MSE 0,4990 y pico 29; con HPSS ACP1 fue 8.555.448 B, MSE 17,2824 y pico 43. Hubo 42 bloques repetidos exactos antes de comparar longitudes; solo se comparten payloads de misma longitud. HPSS no se selecciona por defecto: esta entrada real aumenta tamaño y error.
+- Ampliar comparación para incluir fades, tablas y costes de reproducción.
 - Elegir HPSS, tamaño de unidad y umbral de similitud con coste conjunto de error, RAM, voces y CPU.
 - Generar informes reproducibles con hash de entrada, configuración, versión del encoder y destino de cada pista.
 - Preservar los pseudocódigos de HPSS, mediana deslizante, barrera de tareas y player como contratos de implementación en `AUDIO_COMPRESSION.md`.
@@ -133,6 +140,7 @@ El corpus mixto previsto para ajustar los parámetros está descrito en [`AUDIO_
 - Registrar el corpus FreePD archivado y otros corpus disponibles sin incluir media en Git.
 - Añadir `--list-codecs`, `--dump-config` y `--dry-run` para inspeccionar decisiones sin escribir binarios.
 - Generar informes JSON y resumen legible con hash de entrada, configuración, clasificación, unidades, tracks, destino y métricas.
+- El informe por conversión registra entrada, algoritmo, tasa, chunks, duración, tamaños, ratio, MSE, pico, round-trip y destino de salida.
 - Verificar que cualquier ejecución completa produce solo salidas bajo `out/` salvo el archivo destino solicitado explícitamente.
 
 ### C17 — Candidatas y selección automática
@@ -145,7 +153,7 @@ El corpus mixto previsto para ajustar los parámetros está descrito en [`AUDIO_
 
 ### C18 — Importación multipista
 
-- Leer WAV multicanal preservando stems antes del downmix.
+- **Entregado**: WAV de hasta ocho canales preserva stems antes del downmix; FFmpeg mantiene todos los canales de la fuente al normalizar a WAV PCM16.
 - Importar módulos/tracker y conservar canales, instrumentos y patrones como pistas lógicas cuando el formato lo permita.
 - Probar repetición por stem y por mezcla completa; rechazar una separación si empeora tamaño/calidad.
 - Validar que ACP1 reproduce la misma duración y sincronía entre tracks.

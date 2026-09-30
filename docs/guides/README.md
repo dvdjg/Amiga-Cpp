@@ -13,6 +13,7 @@ docs/guides/
 │   ├── ROADMAP_NPC_PSYCHOLOGY.md     → perfil psicológico de NPC: arquetipos, expresión, lectura de tells y evolución
 │   ├── REFACTOR_PLAYFIELD_SCROLL.md  → plan por fases del refactor playfield/scroll
 │   ├── REGLAS_PIPELINE_TILES.md      → reglas de oro del pipeline de tiles
+│   ├── ROADMAP_TILED_WORLD_SUPPORT.md → Tiled: parser/cooker, tilesets, capas, orientación y streaming
 │   ├── PROBLEMA_LAUNCHER_DEMOS_NUEVAS.md → enunciado de un problema conocido
 │   └── …
 ├── optimization/        → guías de optimización 68000/C++ y rendimiento
@@ -28,4 +29,5 @@ docs/guides/
 - Guías de estilo de código: `docs/engine/architecture/CODING_STYLE.md`.
 - Guías de optimización: `docs/guides/optimization/`.
 - Roadmaps y planes: `docs/guides/roadmap/`.
+- Soporte Tiled y pipeline de mundo/tilesets: `docs/guides/roadmap/ROADMAP_TILED_WORLD_SUPPORT.md`.
 - Runbooks de agentes y metodología: `docs/guides/methodology/`.
