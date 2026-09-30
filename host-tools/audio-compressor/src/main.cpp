@@ -9,6 +9,11 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
+#if defined(_WIN32)
+#include <cwchar>
+#include <windows.h>
+#endif
 #include <string>
 #include <vector>
 
@@ -21,6 +26,36 @@
 #include "sdl_player.hpp"
 
 namespace {
+
+/// Escribe un archivo completo usando la API nativa Windows para evitar el fallo de `_wfopen`
+/// de MinGW cuando el proceso recibe rutas provenientes de Git Bash/Explorer.
+[[nodiscard]] bool write_binary(const std::filesystem::path& path, const std::vector<eng::u8>& bytes) {
+#if defined(_WIN32)
+	const std::string narrow = path.string();
+	const int wide_length = MultiByteToWideChar(CP_UTF8, 0, narrow.c_str(), -1, nullptr, 0);
+	if (wide_length <= 0) return false;
+	std::wstring wide(static_cast<std::size_t>(wide_length), L'\0');
+	if (MultiByteToWideChar(CP_UTF8, 0, narrow.c_str(), -1, wide.data(), wide_length) <= 0) return false;
+	wchar_t temp_directory[MAX_PATH]{};
+	if (GetTempPathW(MAX_PATH, temp_directory) == 0u) return false;
+	wchar_t temp_file[MAX_PATH]{};
+	if (GetTempFileNameW(temp_directory, L"acp", 0u, temp_file) == 0u) return false;
+	HANDLE handle = CreateFileW(temp_file, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+	if (handle == INVALID_HANDLE_VALUE) return false;
+	DWORD written = 0u;
+	const bool ok = WriteFile(handle, bytes.data(), static_cast<DWORD>(bytes.size()), &written, nullptr) != 0 && written == bytes.size();
+	CloseHandle(handle);
+	const bool copied = ok && CopyFileW(temp_file, wide.c_str(), FALSE) != 0;
+	DeleteFileW(temp_file);
+	return copied;
+#else
+	std::FILE* file = std::fopen(path.string().c_str(), "wb");
+	if (!file) return false;
+	const bool ok = std::fwrite(bytes.data(), 1u, bytes.size(), file) == bytes.size();
+	std::fclose(file);
+	return ok;
+#endif
+}
 
 /// Configuración resuelta después de aplicar defaults y las fuentes de configuración.
 struct Config {
@@ -43,6 +78,40 @@ struct Config {
 	/// Reproduce la entrada normalizada o la salida generada mediante SDL3.
 	bool play = false;
 };
+
+/// Resuelve ffmpeg desde variables de entorno o PATH para leer MP3/OGG/FLAC sin enlazarlo.
+[[nodiscard]] std::string find_ffmpeg() {
+	if (const char* value = std::getenv("FFMPEG"); value && *value) return value;
+	if (const char* value = std::getenv("FFMPEG_BIN"); value && *value) return value;
+	return "ffmpeg";
+}
+
+/// Detecta formatos comprimidos que requieren la conversión host de ffmpeg.
+[[nodiscard]] bool needs_ffmpeg(const std::string& path) {
+	const std::string ext = std::filesystem::path(path).extension().string();
+	return ext == ".mp3" || ext == ".MP3" || ext == ".ogg" || ext == ".OGG" || ext == ".flac" || ext == ".FLAC";
+}
+
+/// Decodifica una fuente comprimida a WAV PCM16 temporal, manteniendo el archivo fuera del repo.
+[[nodiscard]] bool decode_external_source(const std::string& input, std::string& wav) {
+	wav = (std::filesystem::temp_directory_path() / "amiga-audio-compressor-input.wav").string();
+	const std::string executable = find_ffmpeg();
+	const std::filesystem::path batch = std::filesystem::temp_directory_path() / "amiga-audio-compressor-ffmpeg.bat";
+#if defined(_WIN32)
+	std::FILE* script = std::fopen(batch.string().c_str(), "wb");
+	if (!script) return false;
+	std::fprintf(script, "@echo off\r\n\"%s\" -y -v error -i \"%s\" -vn -acodec pcm_s16le -ar 22050 -ac 2 \"%s\"\r\n",
+		executable.c_str(), input.c_str(), wav.c_str());
+	std::fclose(script);
+	const std::string command = "cmd /c call \"" + batch.string() + "\"";
+	const bool ok = std::system(command.c_str()) == 0;
+	std::remove(batch.string().c_str());
+	return ok;
+#else
+	const std::string command = "\"" + executable + "\" -y -v error -i \"" + input + "\" -vn -acodec pcm_s16le -ar 22050 -ac 2 \"" + wav + "\"";
+	return std::system(command.c_str()) == 0;
+#endif
+}
 
 /// Devuelve true si `text` contiene la clave JSON simple solicitada.
 [[nodiscard]] bool json_string(const std::string& text, const char* key, std::string& value) {
@@ -150,6 +219,15 @@ template <class T>
 	return path;
 }
 
+/// Convierte una ruta relativa en absoluta y usa separadores `/`, que acepta el runtime MinGW
+/// aunque el proceso se haya lanzado desde Git Bash, Explorer o un acceso directo de Windows.
+[[nodiscard]] std::string native_safe_path(const std::string& path) {
+	const std::filesystem::path candidate {path};
+	const std::filesystem::path absolute = candidate.has_root_name() || candidate.is_absolute()
+		? candidate : std::filesystem::absolute(candidate);
+	return absolute.string();
+}
+
 /// Escribe un AUZX mono PCM8 con el codec seleccionado y verifica la reconstrucción.
 [[nodiscard]] bool write_auzx(const std::vector<eng::u8>& pcm, eng::u16 rate, const Config& config,
 	const std::string& output) {
@@ -174,7 +252,7 @@ template <class T>
 		} else {
 			size = eng::audio::pcm_codec::encode({padded.data() + start, chunk}, {encoded.data(), encoded.size()}, static_cast<eng::u8>(codec));
 		}
-		if (size <= 0) return false;
+		if (size <= 0) { std::fprintf(stderr, "codec no pudo codificar chunk %u (codec=%u, muestras=%lu)\n", i, static_cast<unsigned>(codec), static_cast<unsigned long>(chunk)); return false; }
 		bodies[i].assign(encoded.begin(), encoded.begin() + size);
 		offsets[i] = cursor; sizes[i] = static_cast<eng::u32>(size); cursor += sizes[i];
 	}
@@ -185,13 +263,23 @@ template <class T>
 	eng::audio::auzx::wr16(view, 18u, chunks); eng::audio::auzx::wr32(view, 20u, eng::audio::auzx::kHeaderSize);
 	eng::audio::auzx::wr32(view, 24u, offsets[0]);
 	for (eng::u16 i = 0u; i < chunks; ++i) { const eng::usize at = eng::audio::auzx::kHeaderSize + i * eng::audio::auzx::kChunkEntrySize; eng::audio::auzx::wr32(view, at, offsets[i]); eng::audio::auzx::wr32(view, at + 4u, sizes[i]); std::memcpy(file.data() + offsets[i], bodies[i].data(), bodies[i].size()); }
-	std::FILE* out = std::fopen(output.c_str(), "wb"); if (!out) return false; const bool ok = std::fwrite(file.data(), 1u, file.size(), out) == file.size(); std::fclose(out); return ok;
+	const std::filesystem::path output_path {native_safe_path(output)};
+	if (output_path.has_parent_path()) std::filesystem::create_directories(output_path.parent_path());
+	if (!write_binary(output_path, file)) {
+#if defined(_WIN32)
+		std::fprintf(stderr, "AUZX escritura falló para %s (Win32=%lu)\n", output_path.string().c_str(), static_cast<unsigned long>(GetLastError()));
+#else
+		std::fprintf(stderr, "AUZX escritura falló para %s\n", output_path.string().c_str());
+#endif
+		return false;
+	}
+	return true;
 }
 
 /// Escribe un informe de texto mínimo para la primera vertical de la aplicación única.
-void write_report(const std::string& path, const char* input, const std::string& mode, const Config& config, eng::usize samples) {
+void write_report(const std::string& path, const std::string& input, const std::string& mode, const Config& config, eng::usize samples) {
 	std::FILE* out = std::fopen(path.c_str(), "wb"); if (!out) return;
-	std::fprintf(out, "{\n  \"input\": \"%s\",\n  \"mode\": \"%s\",\n  \"codec\": \"%s\",\n  \"sample_rate\": %u,\n  \"chunk_samples\": %u,\n  \"samples\": %lu\n}\n", input, mode.c_str(), config.codec.c_str(), config.sample_rate, config.chunk_samples, static_cast<unsigned long>(samples));
+	std::fprintf(out, "{\n  \"input\": \"%s\",\n  \"mode\": \"%s\",\n  \"codec\": \"%s\",\n  \"sample_rate\": %u,\n  \"chunk_samples\": %u,\n  \"samples\": %lu\n}\n", input.c_str(), mode.c_str(), config.codec.c_str(), config.sample_rate, config.chunk_samples, static_cast<unsigned long>(samples));
 	std::fclose(out);
 }
 
@@ -203,7 +291,7 @@ void print_help(const char* exe) { std::printf("Uso: %s <audio|auzx> [--mode aut
 /// Punto de entrada: resuelve configuración, clasifica y ejecuta el pipeline disponible.
 int main(int argc, char** argv) {
 	if (argc < 2 || (argc == 2 && std::strcmp(argv[1], "--help") == 0)) { print_help(argv[0]); return argc < 2 ? 2 : 0; }
-	Config config{}; const char* input = argv[1]; const char* config_path = nullptr; std::string output; std::string report;
+	Config config{}; const std::string input = native_safe_path(argv[1]); const char* config_path = nullptr; std::string output; std::string report;
 	for (int i = 2; i < argc; ++i) {
 		if (std::strcmp(argv[i], "--help") == 0) { print_help(argv[0]); return 0; }
 		if (std::strcmp(argv[i], "--dry-run") == 0) { config.dry_run = true; continue; }
@@ -219,24 +307,31 @@ int main(int argc, char** argv) {
 		else return 2;
 	}
 	if (config_path && !load_config(config_path, config)) { std::fprintf(stderr, "configuración inválida\n"); return 1; }
-	std::vector<eng::u8> pcm; eng::u16 rate = 0u;
+	std::vector<eng::u8> pcm; eng::u16 rate = 0u; std::string decoded_input;
+	const std::string source = needs_ffmpeg(input) ? (decode_external_source(input, decoded_input) ? decoded_input : std::string{}) : input;
+	if (source.empty()) { std::fprintf(stderr, "no se pudo decodificar la fuente externa; configure FFMPEG/FFMPEG_BIN\n"); return 1; }
 	if (config.play) {
-		if (!load_playback_pcm(input, pcm, rate)) { std::fprintf(stderr, "entrada inválida o no soportada para reproducción\n"); return 1; }
-	} else if (!pack_pcm::load(input, pcm, rate, config.sample_rate)) { std::fprintf(stderr, "entrada inválida o no soportada\n"); return 1; }
+		if (!load_playback_pcm(source.c_str(), pcm, rate)) { std::fprintf(stderr, "entrada inválida o no soportada para reproducción\n"); return 1; }
+	} else if (!pack_pcm::load(source.c_str(), pcm, rate, config.sample_rate)) { std::fprintf(stderr, "entrada inválida o no soportada\n"); return 1; }
 	if (config.sample_rate == 0u) config.sample_rate = rate;
 	const std::string mode = classify(config, pcm.size(), rate);
-	if (output.empty()) output = default_output(input, mode);
+	if (output.empty()) output = default_output(input.c_str(), mode);
+	output = native_safe_path(output);
 	std::printf("clasificación=%s muestras=%lu salida=%s\n", mode.c_str(), static_cast<unsigned long>(pcm.size()), output.c_str());
+	if (config.play) {
+		if (!audio_compressor::play_pcm({pcm.data(), pcm.size()}, config.sample_rate)) {
+			std::fprintf(stderr, "reproducción no disponible: compile con SDL3 y AUDIO_COMPRESSOR_SDL3=1\n");
+			return 4;
+		}
+		return 0;
+	}
 	if (config.dry_run) return 0;
 	if (mode == "music") { std::fprintf(stderr, "ACP1 multipista aún no está habilitado en esta vertical\n"); return 3; }
-	if (config.play && !audio_compressor::play_pcm({pcm.data(), pcm.size()}, config.sample_rate)) {
-		std::fprintf(stderr, "reproducción no disponible: compile con SDL3 y AUDIO_COMPRESSOR_SDL3=1\n");
-		return 4;
-	}
 	std::FILE* existing = std::fopen(output.c_str(), "rb");
 	if (!config.force && existing != nullptr) { std::fclose(existing); std::fprintf(stderr, "salida existente; use --force\n"); return 1; }
 	if (existing != nullptr) std::fclose(existing);
 	if (!write_auzx(pcm, config.sample_rate, config, output)) return 1;
 	if (!report.empty()) write_report(report, input, mode, config, pcm.size());
+	if (!decoded_input.empty()) std::remove(decoded_input.c_str());
 	return 0;
 }
