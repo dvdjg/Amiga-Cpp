@@ -117,6 +117,7 @@ public:
 		if (!copper.ok()) return;
 		m_copper = copper;
 		m_count = 0u;
+		m_slot_count = 0u;
 		m_band_count = 0u;
 		m_cost_words = 0u;
 		m_cost_count = 0u;
@@ -180,7 +181,6 @@ public:
 		m_over_effect = no_effect;
 		m_overflow = false;
 		m_slot_count = 0;
-		m_priority_conflicts = false;
 		m_sched.retarget(m_copper->inactive_block()); // sin copiar la Timeline (512+ B)
 	}
 
@@ -287,21 +287,41 @@ public:
 	void materialize() {
 		sort_by_top();
 		sort_priority_within_lines();
-		// Se emite por `m_perm`, pero **agrupando rachas contiguas del mismo tipo** para no
-		// entrar/salir de `emit_copper_intents` una vez por intención (v1 llamaba 1 vez por
-		// intención: ~355 instrucciones/intención medidas en la 086). Las intenciones no
-		// contiguas en `m_intents` no se pueden emitir como lote sin copiarlas, así que se
-		// emite de una en una pero con el emisor inline (sin coste de llamada por elemento).
+		// Emite por el orden indirecto; PaletteLine compatibles de una línea se procesan en
+		// un lote para compartir WAIT y evitar el dispatch por intención. Otras intenciones
+		// conservan el camino rápido/general, sin copiar estructuras de 40 B.
 		ENG_PROF_BEGIN(eng::debug::prof_emit);
-		for (u16 i = 0; i < m_count; ++i) {
+		for (u16 i = 0u; i < m_count;) {
 			const u16 idx = m_perm[i];
-			m_sched.emit_copper_intents_fast(&m_intents[idx], 1u);
-			// Registra la última palabra emitida (la de DATO de una `PaletteLine` de 1 color)
-			// y la identidad de la intención, para que un efecto pre-construido pueda
-			// **parchear por frame** sin re-emitir la lista (ver `slot_*`).
+			const graphics::CopperIntent& first = m_intents[idx];
+			u16 end = static_cast<u16>(i + 1u);
+			if (first.kind == graphics::CopperIntentKind::PaletteLine && first.count == 1u) {
+				while (end < m_count) {
+					const graphics::CopperIntent& next = m_intents[m_perm[end]];
+					if (next.kind != graphics::CopperIntentKind::PaletteLine || next.count != 1u ||
+					    next.top != first.top) break;
+					++end;
+				}
+			}
+			const u16 group_count = static_cast<u16>(end - i);
+			if (group_count > 1u && m_sched.emit_palette_line_batch(
+					m_intents.span(), m_perm.span().subspan(i, static_cast<u16>(end - i)),
+					m_slot_word.span(), i)) {
+				for (u16 slot = i; slot < end; ++slot) {
+					const graphics::CopperIntent& it = m_intents[m_perm[slot]];
+					m_slot_reg[slot] = it.first;
+					m_slot_line[slot] = it.top;
+				}
+				i = end;
+				continue;
+			}
+			m_sched.emit_copper_intents_fast(m_intents.span().subspan(idx, 1u));
+			// El slot del dato depende del tipo y del número de words emitidos por una intención;
+			// para la emisión individual sigue siendo el último word, igual que en la ruta previa.
 			m_slot_word[i] = static_cast<u16>(m_sched.words_used() - 1u);
-			m_slot_reg[i] = m_intents[idx].first;
-			m_slot_line[i] = m_intents[idx].top;
+			m_slot_reg[i] = first.first;
+			m_slot_line[i] = first.top;
+			++i;
 		}
 		m_slot_count = m_count;
 		ENG_PROF_END(eng::debug::prof_emit);
@@ -346,7 +366,6 @@ public:
 
 	constexpr u16 intent_count() const { return m_count; }
 	/// ¿Hay más de una intención en alguna scanline de este frame?
-	constexpr bool priority_conflicts() const { return m_priority_conflicts; }
 	constexpr bool overflow() const { return m_overflow; }
 	constexpr bool ok() const { return m_ok; }
 	constexpr u16 words() const { return m_words; }
@@ -368,18 +387,13 @@ private:
 	/// los recargaba con `lea`/`-1024(sp)` en cada acceso (medido en la 086).
 	__attribute__((always_inline)) inline void sort_by_top() {
 		ENG_PROF_BEGIN(eng::debug::prof_sort_lines);
-		m_priority_conflicts = false;
 		if (m_count < 2u) {
 			for (u16 i = 0; i < m_count; ++i) m_perm[i] = i;
 			ENG_PROF_END(eng::debug::prof_sort_lines);
 			return;
 		}
 		m_count_by_line.fill(u16(0u));
-		for (u16 i = 0; i < m_count; ++i) {
-			u16& line_count = m_count_by_line[raster_key(m_intents[i].top)];
-			if (line_count != 0u) m_priority_conflicts = true;
-			++line_count;
-		}
+		for (u16 i = 0; i < m_count; ++i) ++m_count_by_line[raster_key(m_intents[i].top)];
 		u16 acc = 0;
 		for (u16 l = 0; l < 256u; ++l) {
 			m_line_start[l] = acc; // inicio del grupo de la línea l (para prioridades)
@@ -401,13 +415,6 @@ private:
 	/// con k = intenciones de esa línea (pequeño en la práctica: k=1 en un cielo por línea).
 	void sort_priority_within_lines() {
 		ENG_PROF_BEGIN(eng::debug::prof_sort_prio);
-		// La mayoría de escenas tiene como máximo una intención por línea. El recuento de
-		// `sort_by_top` detecta colisiones sin una pasada extra; evitar recorrer las 256 líneas
-		// cuando no hay prioridad que resolver reduce el coste del CopperPlan en cada frame.
-		if (!m_priority_conflicts) {
-			ENG_PROF_END(eng::debug::prof_sort_prio);
-			return;
-		}
 		for (u16 l = 0; l < 256u; ++l) {
 			const u16 lo = m_line_start[l];
 			const u16 hi = m_line_start[static_cast<u16>(l + 1u)];
@@ -460,7 +467,6 @@ private:
 	u16 m_words = 0;       ///< palabras de Copper de la última lista materializada
 	ScheduleReport m_report {}; ///< informe del scheduler de la última materialización
 	bool m_overflow = false;    ///< se superó `max_intents`
-	bool m_priority_conflicts = false; ///< alguna scanline tiene >1 intent y requiere ordenar por prioridad
 	bool m_ok = false;          ///< el plan posee o tiene enlazado un buffer válido
 };
 

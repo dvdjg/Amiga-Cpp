@@ -16,6 +16,7 @@
 //   bash tools/run-host-tests.sh tests/host/graphics/070_copper_plan
 
 #include <cstdio>
+#include <cstring>
 
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/copper/copper.hpp>
@@ -97,6 +98,35 @@ unsigned move_values(const u16* words, u16 count, u16 reg, u16* out, unsigned ma
 	return n;
 }
 
+/// Equivalencia semántica con referencia individual; el batch puede quitar WAITs repetidos de la misma línea.
+bool same_after_duplicate_wait_collapse(const u16* reference, u16 reference_words,
+					       const u16* batched, u16 batched_words) {
+	u16 r = 0u;
+	u16 b = 0u;
+	bool have_previous_wait = false;
+	u16 previous_wait = 0u;
+	while (r + 1u < reference_words) {
+		const u16 op = reference[r];
+		const u16 data = reference[static_cast<u16>(r + 1u)];
+		if (op == 0xffffu) break;
+		const bool wait = (op & 1u) != 0u;
+		if (wait && have_previous_wait && op == previous_wait) {
+			r = static_cast<u16>(r + 2u);
+			continue;
+		}
+		if (b + 1u >= batched_words || batched[b] != op || batched[static_cast<u16>(b + 1u)] != data) {
+			return false;
+		}
+		if (wait) {
+			have_previous_wait = true;
+			previous_wait = op;
+		}
+		r = static_cast<u16>(r + 2u);
+		b = static_cast<u16>(b + 2u);
+	}
+	return b + 1u < batched_words && batched[b] == 0xffffu;
+}
+
 eng::graphics::CopperIntent palette_intent(u16 line, const u16* color) {
 	eng::graphics::CopperIntent it {};
 	it.kind = eng::graphics::CopperIntentKind::PaletteLine;
@@ -166,10 +196,6 @@ int main() {
 				    (unsigned)lines[0], (unsigned)lines[1], (unsigned)lines[2]);
 			return 1;
 		}
-	}
-	if (plan.priority_conflicts()) {
-		std::printf("[FAIL] prioridad detectada cuando cada scanline tiene un intent\n");
-		return 1;
 	}
 	// MOVEs a COLOR00: 1 de la paleta base + 1 por cada intencion (3).
 	if (count_moves(plan.active_words(), plan.words(), color_reg) != 4u) {
@@ -286,10 +312,6 @@ int main() {
 				    (unsigned)lines[0], (unsigned)lines[1]);
 			return 1;
 		}
-		if (wrap.priority_conflicts()) {
-			std::printf("[FAIL] conflicto reportado sin intents en una misma línea\n");
-			return 1;
-		}
 	}
 
 	// --- conflictos en la MISMA linea: gana la de mayor (superficie, z) -----------
@@ -326,10 +348,6 @@ int main() {
 		prio.add_prioritized(&high, 1u, 0u, 20u);
 		prio.add_prioritized(&low, 1u, 0u, 10u);
 		prio.materialize();
-		if (!prio.priority_conflicts()) {
-			std::printf("[FAIL] no detectó prioridades coincidentes\n");
-			return 1;
-		}
 		if (!prio.end_frame()) {
 			std::printf("[FAIL] end_frame de prioridades\n");
 			return 1;
@@ -340,6 +358,63 @@ int main() {
 			std::printf("[FAIL] prioridad por z: n=%u [0x%x,0x%x] (esperado 0x%x,0x%x)\n", n,
 				    (unsigned)vals[0], (unsigned)vals[1], (unsigned)kLowP[1],
 				    (unsigned)kHighP[1]);
+			return 1;
+		}
+		u16 emitted_lines[4] = {};
+		const unsigned wait_count = wait_lines(prio.active_words(), prio.words(), emitted_lines, 4u);
+		if (wait_count != 1u ||
+		    prio.slot_count() != 2u || prio.slot_reg(0u) != 1u || prio.slot_reg(1u) != 1u ||
+		    prio.active_words()[prio.slot_word(0u)] != kLowP[1] ||
+		    prio.active_words()[prio.slot_word(1u)] != kHighP[1]) {
+			std::printf("[FAIL] batch PaletteLine debe compartir WAIT y conservar slots parcheables\n");
+			return 1;
+		}
+		// Referencia independiente: una llamada de emisión por intent, como la ruta previa.
+		eng::copper::DoubleBuffer reference;
+		if (!reference.begin(mem, 1024u)) return 1;
+		eng::copper::Scheduler reference_scheduler {reference.inactive_block()};
+		reference_scheduler.emit_palette(eng::PaletteWords {kBaseP, 1u});
+		eng::graphics::CopperIntent reference_intents[2] {low, high};
+		reference_scheduler.emit_copper_intents_fast(
+			eng::Span<const eng::graphics::CopperIntent> {reference_intents, 1u});
+		reference_scheduler.emit_copper_intents_fast(
+			eng::Span<const eng::graphics::CopperIntent> {reference_intents + 1u, 1u});
+		reference_scheduler.end();
+		u16 reference_values[4] = {};
+		const unsigned reference_color01 = move_values(reference_scheduler.data(),
+							      reference_scheduler.words_used(), reg01,
+							      reference_values, 4u);
+		if (!reference_scheduler.ok() || reference_color01 != 2u ||
+		    reference_values[0] != vals[0] || reference_values[1] != vals[1]) {
+			std::printf("[FAIL] MOVE values del batch difieren de la referencia independiente ref=%x,%x batch=%x,%x n=%u\n",
+				    reference_values[0], reference_values[1], vals[0], vals[1], reference_color01);
+			return 1;
+		}
+		const bool collapsed_equal = same_after_duplicate_wait_collapse(
+			reference_scheduler.data(), reference_scheduler.words_used(), prio.active_words(), prio.words());
+		const unsigned reference_wait_count = wait_lines(
+			reference_scheduler.data(), reference_scheduler.words_used(), emitted_lines, 4u);
+		if (!collapsed_equal || reference_wait_count != 2u || wait_count != 1u) {
+			std::printf("[FAIL] referencia individual vs batch difiere tras colapsar WAIT repetido\n");
+			return 1;
+		}
+		// Reemitir otro frame y parchear los slots comprueba que cada handle apunta a SU MOVE.
+		static const u16 kPatchLow = 0x055u, kPatchHigh = 0x0aau;
+		prio.begin_frame();
+		prio.scheduler().emit_palette(eng::PaletteWords {kBaseP, 1u});
+		eng::graphics::CopperIntent patched_low = low;
+		eng::graphics::CopperIntent patched_high = high;
+		static u16 patch_low_words[2] = {0u, kPatchLow};
+		static u16 patch_high_words[2] = {0u, kPatchHigh};
+		patched_low.colors = eng::PaletteWords {patch_low_words, 2u};
+		patched_high.colors = eng::PaletteWords {patch_high_words, 2u};
+		prio.add_prioritized(&patched_high, 1u, 0u, 20u);
+		prio.add_prioritized(&patched_low, 1u, 0u, 10u);
+		prio.materialize();
+		if (!prio.end_frame() || prio.slot_count() != 2u ||
+		    prio.active_words()[prio.slot_word(0u)] != kPatchLow ||
+		    prio.active_words()[prio.slot_word(1u)] != kPatchHigh) {
+			std::printf("[FAIL] slots del batch no siguen los MOVE al reemitir frame\n");
 			return 1;
 		}
 

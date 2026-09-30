@@ -559,11 +559,13 @@ public:
 	/// por el despacho + `emit_palette`. Con el cielo a 64 bandas (4 colores por franja)
 	/// esta ruta NO aplica y se usa la general.
 	void emit_copper_intents_fast(const graphics::CopperIntent* intents, u16 count) {
-		if (intents == nullptr) {
-			return;
-		}
-		for (u16 i = 0; i < count; ++i) {
-			const graphics::CopperIntent& it = intents[i];
+		emit_copper_intents_fast(eng::Span<const graphics::CopperIntent> {intents, count});
+	}
+
+	/// Ruta rápida tipada sobre una vista acotada de intenciones `PaletteLine`; cada línea puede
+	/// emitir un WAIT+MOVE directo. Es el overload preferido por planes y consumidores nuevos.
+	void emit_copper_intents_fast(eng::Span<const graphics::CopperIntent> intents) {
+		for (const graphics::CopperIntent& it : intents) {
 			if (it.kind == graphics::CopperIntentKind::PaletteLine && it.count == 1u && !it.colors.empty()) {
 				m_builder.wait_line_pal(it.top);
 				if (it.top <= 255u) {
@@ -579,6 +581,41 @@ public:
 				emit_single_intent(it, {}, 0, 0);
 			}
 		}
+	}
+
+	/// Emite un grupo ya ordenado de `PaletteLine` de una scanline: un WAIT y un MOVE por intención.
+	/// `order` contiene índices de una scanline; `slot_start` indica la base de los handles en `data_words`.
+	/// cada MOVE para conservar los handles del `copper::Plan`. Devuelve false sin escribir si
+	/// el grupo no es homogéneo; el caller entonces usa `emit_copper_intents_fast`.
+	[[nodiscard]] bool emit_palette_line_batch(eng::Span<const graphics::CopperIntent> intents,
+						  eng::Span<const u16> order, eng::Span<u16> data_words,
+						  u16 slot_start) {
+		if (order.empty() || static_cast<eng::usize>(slot_start) + order.size() > data_words.size()) return false;
+		const u16 count = static_cast<u16>(order.size());
+		const u16 first_index = order[0u];
+		if (first_index >= intents.size()) return false;
+		const graphics::CopperIntent& first = intents[first_index];
+		if (first.kind != graphics::CopperIntentKind::PaletteLine || first.count != 1u ||
+		    first.first >= 32u || first.colors.empty() || first.first >= first.colors.size()) return false;
+		for (u16 i = 1u; i < count; ++i) {
+			const u16 index = order[i];
+			if (index >= intents.size()) return false;
+			const graphics::CopperIntent& it = intents[index];
+			if (it.kind != graphics::CopperIntentKind::PaletteLine || it.top != first.top ||
+			    it.count != 1u || it.first >= 32u || it.colors.empty() || it.first >= it.colors.size()) return false;
+		}
+
+		wait_line_safe(first.top);
+		for (u16 i = 0u; i < count; ++i) {
+			const graphics::CopperIntent& it = intents[order[i]];
+			m_builder.move(color_register(it.first), it.colors[it.first]);
+			data_words[slot_start + i] = static_cast<u16>(m_builder.words_used() - 1u);
+			if constexpr (Report) {
+				if (it.top <= 255u) m_timeline.reserve_moves(static_cast<u8>(it.top), 1u);
+			}
+			++m_report.palette_moves;
+		}
+		return true;
 	}
 
 	/// Igual que `emit_copper_intents`, pero con el layout del display para

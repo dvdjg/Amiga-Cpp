@@ -140,12 +140,16 @@ Reparto fiable de referencia (`ENG_PROF_*`, contador Amiga): `copper` 68,6 %, de
 grandes. Después aplica la prioridad estable dentro de cada línea con
 `sort_priority_within_lines()`. Por tanto, el orden necesario para fusionar operaciones ya existe.
 
-La fusión **no está completa**: `Plan::materialize()` recorre `m_perm`, pero llama a
-`emit_copper_intents_fast(..., 1)` para cada intención. El emisor rápido recibe un contador y puede
-procesar lotes, pero el plan actual no le entrega rachas de intenciones compatibles. En la práctica,
-varias operaciones de una misma línea pueden volver a emitir WAIT y pagar despacho por separado.
+La línea base perfilada recorría `m_perm` y llamaba a `emit_copper_intents_fast(..., 1)` por cada
+intención. La implementación en curso agrupa `PaletteLine` de una scanline en un lote: comparte el
+WAIT, conserva los MOVEs y los slots parcheables. Aún falta validar el stream completo y repetir el
+perfil A/B.
 
-La optimización debe construir grupos contiguos después de resolver el orden:
+El cambio en trabajo agrupa `PaletteLine` compatibles de una scanline en un lote con WAIT
+compartido. La medida de arriba es el baseline previo; el batch aún requiere equivalencia funcional
+y captura A/B. No se anotan todavía ciclos ahorrados.
+
+Los grupos se forman tras resolver orden y prioridad:
 
 ```text
 intenciones ordenadas por raster y prioridad
@@ -169,8 +173,9 @@ en él `PaletteSpan`, cambios de puntero, prioridad o trabajos de Blitter.
    cambian colores o punteros, parchear las palabras existentes sin reconstruir la lista.
 3. **Fusionar por línea**: generar grupos contiguos de la misma línea y tipo después de ordenar.
    Emitir un WAIT y todos los MOVEs compatibles de la línea en una sola pasada.
-4. **Batch de `PaletteLine`**: añadir una ruta especializada para `{line, color_register, value}`
-   que evite el `switch` general y el bucle de un solo elemento de `emit_palette`.
+4. **Batch de `PaletteLine`**: implementación en curso. HOST-070 comprueba el stream frente a la
+   emisión individual normalizando WAITs idénticos consecutivos, prioridades y slots tras reemisión.
+   Perfil A/B pendiente de toolchain m68k y servidor WinUAE/GDB.
 5. **Eliminar redundancias**: después de resolver prioridades, eliminar WAITs repetidos y MOVEs
    consecutivos al mismo registro con el mismo valor, sin eliminar escrituras cuyo orden sea
    necesario para la composición.
@@ -189,15 +194,16 @@ en él `PaletteSpan`, cambios de puntero, prioridad o trabajos de Blitter.
 
 La equivalencia debe comprobar que la fusión conserva la última escritura ganadora por prioridad,
 las ventanas de Blitter, las restricciones de `PaletteSpan` y el orden de operaciones sobre
-registros distintos. Medir por separado `sort_lines`, `sort_prio`, `emit`, bytes de copperlist,
-WAITs, MOVEs y ciclos totales.
+registros distintos. HOST-070 compara el stream de emisión individual con el batch normalizando
+WAITs idénticos consecutivos, y comprueba los slots de cada MOVE. Medir por separado `sort_lines`,
+`sort_prio`, `emit`, bytes de copperlist, WAITs, MOVEs y ciclos totales en A/B de 086.
 2. **`sky` (14,4 %, 166.475 ciclos)** — la demo construye las 256 intenciones del cielo cada frame aunque el degradado es idéntico. Reutilizarlas (o construirlas una sola vez fuera del bucle) ataca ese 14,4 % de raíz.
-3. **`sort_lines` + `sort_prio` (12,9 %)** — counting sort sobre 256 líneas cada frame. Ya aplicado: arrays del sort como miembros (no 1 KB en pila). Mejora menor medida; si el cielo se precomputa (2), este coste cae con él porque hay menos intenciones que ordenar.
+3. **`sort_lines` + `sort_prio` (12,9 %)** — counting sort sobre 256 líneas cada frame. Ya aplicado: arrays del sort como miembros (no 1 KB en pila). El siguiente cambio no prioriza más atajos del sort: 3,8 % de referencia queda por debajo de `emit` (33,5 %), así que optimizar la emisión de paleta primero.
 4. **`actors` (11,3 %) + `blits` (9,4 %)** — 8 BOBs cuestan ~21 % combinados. Aplanar la ruta de actor y agrupar arranques de Blitter.
 5. **`calib` (1,6 %)** — quitarla cuando no se esté midiendo la velocidad del CPU.
 6. **Resolver el 2,4× de release** antes de fiarse de cualquier optimización en release.
 
-No es prioridad con la evidencia actual: `materialize` como fase (ya cubierto por sus partes), `static` (3,6 %) y `objcopper` (2,4 %).
+No es prioridad con la evidencia actual: `materialize` como fase (ya cubierto por sus partes), `static` (3,6 %) y `objcopper` (2,4 %). Evitar atajos del sort salvo que una nueva captura cambie el orden de los hotspots.
 
 ## 7. Referencias
 

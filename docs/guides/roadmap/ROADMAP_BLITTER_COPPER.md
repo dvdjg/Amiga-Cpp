@@ -14,8 +14,9 @@ llevarlas al engine, partiendo de lo que ya hay.
   **servicio de fondo** (`set_blitter_service`, drenado durante la espera).
 - `SpriteLayer`, C2P, `pattern_fill`, `area_fill` (blits).
 
-Conclusión: tenemos las **piezas** (cola de blits por CPU, CL por CPU + doble buffer, espera de
-Blitter). Faltan los **puentes** Copper↔Blitter.
+Conclusión: los puentes Copper↔Blitter ya tienen prototipos funcionales: Técnica A lanza trabajos
+en una ventana segura; Técnica B parchea palabras de datos de la lista; Técnica C ofrece IRQ de fin.
+El trabajo activo optimiza paths existentes donde el perfil muestra coste; no recrea los puentes.
 
 ## Técnica A — Copper lanza blits (Copper → Blitter)
 
@@ -28,7 +29,7 @@ cola de blits).
 - **Beneficio**: momento **exacto** del haz sin CPU (menos jitter); la CPU solo prepara la lista.
 - **Riesgo**: el Blitter es **único** → serializar con los blits de CPU (huecos seguros:
   post-`DIWSTOP`, bordes, fuera del fetch); ver `blitter-memcpy.md` §Concurrencia.
-- **Fases**: (1) intent + emisión; (2) política de «ventana segura»; (3) demo (borde de scroll).
+- **Fases entregadas**: intención + emisión, política de ventana segura y demo 210 (borde de scroll).
 - **Estado**: hecho. `CopperIntentKind::BlitterJob` + `BlitterJob` (`raster_intent.hpp`) +
   `Scheduler::emit_blitter_job`/`set_blitter_window` (ventana segura). `takeover_display`
   activa **`COPCON`/`CDANG`**: sin él el Copper **no puede** escribir los registros del Blitter
@@ -48,8 +49,8 @@ El Blitter trata la copperlist como **destino**: genera o parchea en bloque wait
   **Blitter** rellene un tramo de la lista (p. ej. N `COLORxx` por línea) en vez de la CPU.
 - **Beneficio**: offload de CPU cuando hay **muchos** moves por frame.
 - **Riesgo**: presupuesto de Chip y de tiempo de blit; solo compensa con muchos moves.
-- **Fases**: (1) medir (moves/frame reales); (2) prototipo de parcheo por Blitter de un tramo de
-  la CL; (3) evaluar.
+- **Fases**: (1) medir moves/frame y ciclos para un consumidor útil; (2) prototipo 210 de parcheo
+  de words de datos; (3) decidir si el resultado compensa sin expandirlo preventivamente.
 - **Estado**: prototipo hecho (fase 2). Un `graphics::BlitJob` (`CopyRect`, 1 word de ancho,
   `destination_modulo_bytes = 2`) enviado con `AmigaBackend::blitter_submit` escribe los **data
   words** de `count` MOVEs consecutivos (stride 4 B) sin tocar los registros. Validado en
@@ -65,16 +66,16 @@ El fin de blit genera IRQ (nivel 3); el handler marca una bandera / encola en
 - **Estado**: la **IRQ de Blitter ya existe** — `level3_dispatch` (atiende el bit `BLIT`) llama a
   la tarea de `install_blit_service`/`set_blit_service`. Esa tarea **es** la notificación de fin
   (opcionalmente programable).
-- **Falta**: (1) el **puerto de mensajes del mini-SO** (`eng::os`, documentado, sin implementar)
-  para que el aviso sea un `Msg` de la cola; (2) una API cómoda de «fin de copia» sobre
-  `blitter_memcpy(wait=false)`.
+- **Estado actualizado**: el servicio (`set_blit_service`/`install_blit_service`) y
+  `App::blitter_memcpy_async` notifican la completación cuando un consumidor necesita trabajo entre
+  frames. `FramePlan` continúa ejecutándose sincrónicamente en commit.
 - **Beneficio**: uso asíncrono **seguro** sin polling.
 
-## Prioridad
+## Prioridad de técnicas hardware
 
-1. **C** — pequeño y desbloquea el asíncrono seguro (base para A/B).
-2. **A** — la técnica más útil para juegos/demos (blits sincronizados al haz).
-3. **B** — solo si el perfil muestra **muchos** moves/frame (si no, no compensa).
+1. **C** — reutilizar servicio y `blitter_memcpy_async` donde exista solapamiento real con CPU.
+2. **A** — ventana segura y demo 210 entregadas; ampliar solo con otro consumidor raster concreto.
+3. **B** — prototipo 210 entregado; generalizar solo si el perfil confirma ahorro de moves/ciclos.
 
 ## Línea de trabajo: primitivas por lotes
 
@@ -139,44 +140,58 @@ El contrato público debe describir intención (`opaque`, `masked`, `additive`, 
 formato y política de composición. La traducción a canales A/B/C/D, módulos, minterms y layout
 intercalado sigue siendo responsabilidad del backend Amiga.
 
+**Siguiente candidato Blitter tras el batch Copper:** usar el perfil 086 (`actors` 11,3 % + `blits`
+9,4 %) junto a la evidencia de `OrBlobBatch` en BOBS3D (`blits` 231,7k → 202,5k) para medir la ruta
+cookie-cut/clear de la demo 086. Primero separar arranques, escrituras de estado y espera; solo
+después decidir si se agrupan operaciones del mismo BOB o se parametriza el lote lógico. La prueba
+debe comparar píxeles y cantidad de arranques; no generalizar `OrBlobBatch` a minterms distintos sin
+esa medición.
+
 ## Línea de trabajo: Copper en el hotpath
 
-`copper::Plan` ya ordena las intenciones por posición raster relativa mediante un índice (`m_perm`)
-y resuelve la prioridad dentro de cada línea. El orden existente facilita la fusión, pero no la
-realiza completamente: `materialize()` sigue llamando al emisor con una intención cada vez. El
-objetivo es agrupar las rachas compatibles después de ordenar, sin cambiar la semántica de prioridad.
+`copper::Plan` ya ordena las intenciones por posición raster relativa mediante `m_perm` y resuelve
+la prioridad dentro de cada línea. El perfil fiable de demo 086 da prioridad a la emisión: `emit`
+ocupa 33,5 % de los ciclos; `sort_prio`, 3,8 %. El cielo constante ya se preconstruye con
+`K_086_STATIC_COPPER=1`.
 
-### Paso activo: saltar resolución de prioridad sin colisiones
+### Paso activo: fusionar `PaletteLine` por scanline
 
-`sort_by_top()` cuenta las intenciones por línea. Si el máximo por línea es uno, `sort_priority_within_lines()` no recorre las 256 líneas: no hay prioridades que arbitrar y el orden raster ya es el resultado. La ruta con varias intenciones conserva el insertion sort estable previo, incluidos sus desempates FIFO. El indicador se calcula en la pasada de conteo existente, sin otra pasada ni almacenamiento por intención.
+El cambio activo agrupa `PaletteLine` de una misma scanline: un WAIT seguido de MOVEs que conservan el orden de prioridad existente. Las demás intenciones mantienen su emisión actual.
 
-Verificación funcional: HOST-070 compara listas, orden raster, prioridad, cruce PAL, overflow y doble buffer. Medición pendiente: comparar ciclos de `sort_priority_within_lines()` con `tools/debug/profile.mjs` en CopperPlanScene y en una escena con varias intenciones por línea; no asignar ganancia numérica antes de esa captura. Después, decidir con el perfil si medir emisión por grupos compatibles.
+HOST-070 compara el stream de emisión individual con el batch normalizando WAITs consecutivos idénticos; comprueba también valores, orden de prioridad y slots tras un segundo frame. La captura A/B de ciclos con `tools/debug/profile.mjs` sigue bloqueada en este entorno: no se encontró toolchain `m68k-amiga-elf-*` y el intento de perfil no alcanzó el servidor GDB. No se reporta ganancia numérica.
 
-1. **Medir por fases**: separar `sort_by_top`, `sort_priority_within_lines`, `emit`, cielo y parcheo;
-   contar intenciones, grupos, WAITs, MOVEs, palabras y ciclos.
-2. **Preconstruir estructura estable**: mover cielo, raster bars, gradientes y listas fijas a
-   `StaticPlan`/plantillas de doble buffer; por frame parchear solo palabras de datos.
-3. **Separar cambios**: distinguir `structure_dirty` de `values_dirty`; si solo cambian colores o
+1. **Equivalencia del lote**: comparar stream de instrucciones y slots parcheables para `PaletteLine`,
+   incluidos varios colores/prioridades en una scanline.
+2. **Medir el lote**: capturar 086 con `K_086_STATIC_COPPER=0`, mismos BOBs/intenciones, comparar
+   `emit`, WAITs, MOVEs y ciclos/frame. Mantener 086 estática como control de 1 campo/frame.
+3. **Preconstrucción**: conservar el camino ya existente de cielo/listas fijas preconstruidas; extender
+   `StaticPlan`/plantillas solo a estructuras invariantes que lo necesiten.
+4. **Separar cambios**: distinguir `structure_dirty` de `values_dirty`; si solo cambian colores o
    punteros, no ordenar ni materializar de nuevo.
-4. **Fusionar por línea y tipo**: formar grupos contiguos tras el orden raster/prioridad. Un grupo
-   `PaletteLine` emite un WAIT y varios MOVEs compatibles.
-5. **Batch especializado de paleta**: añadir una ruta compacta para cambios `{línea, registro,
-   valor}` que evite el despacho general y el bucle de un único elemento.
+5. **Extender batching por evidencia**: evaluar otros grupos compatibles solo después de medir el lote
+   `PaletteLine`; mantener `PaletteSpan`, splits, prioridad y `BlitterJob` como barreras.
 6. **Eliminar redundancias**: eliminar WAITs repetidos y MOVEs consecutivos redundantes solo después
    de resolver prioridades y sin mezclar operaciones con semántica diferente.
-7. **Saltar trabajo innecesario**: omitir la ordenación de prioridad si no hay conflictos, limpiar
-   solo líneas tocadas en listas dispersas y guardar `raster_key` al añadir la intención.
+7. **Saltar trabajo innecesario**: limpiar solo líneas tocadas en listas dispersas o reutilizar
+   `raster_key` únicamente cuando el perfil muestre que el sort es un hotspot.
 8. **Reducir indirección**: conservar `m_perm` para evitar copiar estructuras, pero emitir desde
-   grupos `{line, first, count, kind}`.
-9. **Separar debug y producción**: usar `SchedulerT<false>` sin contadores/Timeline en release y
-   `SchedulerT<true>` en debug/profiling, verificando que las rutas rápidas cumplen el contrato.
-10. **Validar equivalencia**: comparar bitmap/copperlist, prioridad de última escritura, ventanas de
-    Blitter, `PaletteSpan`, registros distintos, WAITs, MOVEs y ciclos antes de activar cada ruta.
+   grupos `{line, first, count, kind}` si el batch demuestra beneficio.
+9. **Separar debug y producción**: usar `SchedulerT<false>` cuando no se necesiten informes; validar
+   equivalencia y código generado antes de cambiar consumidores.
+10. **Validar equivalencia**: comparar stream Copper, prioridad final, ventanas Blitter, `PaletteSpan`,
+    WAITs, MOVEs y ciclos antes de activar cada ruta.
 
 La fusión es segura cuando conserva el orden de prioridad dentro de la misma línea y agrupa solo
 operaciones compatibles. `PaletteLine` puede fusionarse con otros `PaletteLine` de la misma línea;
 no debe fusionarse automáticamente con `PaletteSpan`, `ShiftLines`, `BitplaneSplit`, `Priority` o
 `BlitterJob`.
+
+## Siguiente orden de trabajo
+
+1. Equivalencia HOST-070 completada: stream individual frente al batch, con solo WAITs consecutivos idénticos colapsados; valores/prioridad y slots parcheables en segundo frame.
+2. Build/run/profile de 086 con `K_086_STATIC_COPPER=0`, misma escena antes/después, comparando `emit`, WAITs, MOVEs, words y ciclos/frame. Bloqueado aquí por falta de toolchain y servidor GDB.
+3. Cuando exista captura A/B, actualizar el baseline; retirar solo el fast path si no mejora sin regresiones.
+4. Después perfilar cookie-cut/clear BOB de 086 frente a `OrBlobBatch` de BOBS3D; no generalizar minterms sin evidencia de ciclos y equivalencia de píxeles.
 
 ## Cuándo **no** compensa
 

@@ -4,11 +4,9 @@ Contrato de arquitectura para dos cosas que hoy están repartidas por el engine 
 tener **un único dueño a nivel de escena**: los **buffers de display** (simple/doble/triple)
 y el **copper** (quién emite, en qué orden, qué se parchea y cuándo se publica).
 
-## 1. El problema
+## 1. Responsabilidad del Copper en escena
 
-El copper no es «un efecto visual»: en cuanto una escena lo usa de forma dinámica, pasa a
-formar parte del **estado de render** por frame (`docs/engine/c-engine/engine-dynamic-copper-scene-notes.md`).
-Hoy lo usan, cada uno por su cuenta:
+El Copper forma parte del **estado de render** por frame cuando una escena lo usa de forma dinámica (`docs/engine/c-engine/engine-dynamic-copper-scene-notes.md`). Sus intenciones pueden proceder de:
 
 - algoritmos de scroll (punteros `BPLxPT`, `BPLCON1`, módulos),
 - bitmaps y objetos (paletas por zona para bobs/sprites/playfields),
@@ -16,12 +14,7 @@ Hoy lo usan, cada uno por su cuenta:
 - splits (`copper splits`, bandas y cambios de viewport),
 - distorsión por scanline (offset de fetch/punteros línea a línea).
 
-Y se emite desde cuatro sitios distintos que **reimplementan lo mismo** (doble buffer de
-copperlist, parcheo por frame, alternancia de la lista activa): `TileScrollScene`,
-`XlimitedDisplayComposer`, `XlimitedDualComposer` y arrays manuales en demos (`079`, `116`,
-`082`, `083`). No hay un lugar único que decida **orden**, **prioridad**, **presupuesto** ni
-**política de actualización**; y no existe la clase `DisplayComposition` que los documentos
-objetivo dan por supuesta (`PLAYFIELD_SCROLL_ARCHITECTURE.md`).
+`copper::Plan` ordena intenciones por scanline/prioridad, mide presupuesto y publica una copperlist con doble buffer. Algunos drivers/demos aún mantienen emisores propios; sus migraciones pendientes se listan en §7. `DisplayComposition` sigue siendo el modelo objetivo descrito en `PLAYFIELD_SCROLL_ARCHITECTURE.md`.
 
 ## 2. Las tres granularidades (no confundirlas)
 
@@ -35,7 +28,7 @@ objetivo dan por supuesta (`PLAYFIELD_SCROLL_ARCHITECTURE.md`).
   emisión de lista   | Scheduler / ListBuilder        |
                      +-------------------------------+
                                    ^  recibe intenciones ordenadas
-                     +-------------------------------+   CopperPlan  (FALTA)
+                      +-------------------------------+   `copper::Plan`
   orquestación       | tracks: sky, splits, paleta,  |
                      | scroll, HUD, sprites...        |
                      +-------------------------------+
@@ -92,15 +85,15 @@ parcheo** (`move_at`, `move32`/`patch_move32`, `patch_data`, `instruction_addres
 Estas dos son **herramientas**, no dueños: no deciden qué cambia por frame ni cuándo se
 publica la lista.
 
-## 5. Capa 3 — orquestación: `CopperPlan` (lo que falta)
+## 5. Capa 3 — orquestación: `copper::Plan`
 
 El vocabulario portable **ya existe** (`graphics/raster_intent.hpp`: `VisualKind`,
 `CopperIntent`, `CopperIntentKind`, `SpriteIntent`, y el patrón «un efecto aporta con
-`apply_into(plan)`»), y `FramePlan` recoge trabajos por frame. Lo que falta es el
-**supervisor por escena**:
+`apply_into(plan)`»), y `FramePlan` recoge trabajos por frame. `copper::Plan` es el supervisor
+de la copperlist de escena:
 
 ```
-  capas/efectos           CopperPlan (por buffer de display)         salida
+  capas/efectos           `copper::Plan` (por buffer de display)     salida
   ---------------         ----------------------------------         ------
   sky      --\
   splits    --\  intents  1. recolecta y ORDENA por scanline         ListBuilder
@@ -110,8 +103,7 @@ El vocabulario portable **ya existe** (`graphics/raster_intent.hpp`: `VisualKind
   HUD      --/            5. commit: publica con el swap de COP1LC   ->  install()
 ```
 
-Contrato propuesto (API concreta; primer consumidor previsto: `055_copper_rainbow`, que
-hoy emite la lista entera cada frame en un único bloque):
+Contrato implementado (API de `engine/include/eng/graphics/copper/plan.hpp`; consumidor representativo: `085_copper_plan_scene`). Para varias `PaletteLine` de una scanline, `materialize()` comparte el WAIT y emite los MOVEs en el orden de prioridad; cada MOVE conserva su slot de parcheo. HOST-070 compara el stream del lote con una emisión independiente de WAIT+MOVE y verifica slots/prioridad; la medición A/B sigue pendiente.
 
 ```cpp
 namespace eng::copper {
@@ -124,43 +116,29 @@ namespace eng::copper {
 /// `graphics::CopperIntent` (vocabulario portable de `raster_intent.hpp`).
 class Plan {
 public:
-    static constexpr u8 max_intents = 64;
-
-    bool begin(eng::MemoryManager& memory, const PlanConfig& cfg); // reserva el DoubleBuffer
-
-    /// Parte estática (display, módulos, paleta base): se emite UNA vez por frame en el
-    /// bloque trasero. `emit` recibe un `Scheduler` ya situado en el trasero, de modo que
-    /// el llamador no elige bloque ni toca COP1LC.
-    template <class EmitFn> void emit_static(EmitFn emit);
-
-    void add(const graphics::CopperIntent& it);          // intención suelta
-    void add(const graphics::CopperIntent* its, u8 n);   // lote de una capa/efecto
-
-    /// Materializa: ordena por `top`, emite las intenciones sobre lo estático, voltea el
-    /// DoubleBuffer y (opcionalmente) publica. Devuelve false si no cupo o hubo overflow.
-    bool commit();
-
-    template <class Backend> void takeover(Backend&) const; // una vez
-    template <class Backend> void install(Backend&) const;  // swap de COP1LC
-
-    constexpr u16 words() const;                          // tamaño de la lista emitida
-    constexpr const ScheduleReport& report() const;       // presupuesto por línea
+    static constexpr u16 max_intents = 320;
+    bool begin(eng::MemoryManager&, const PlanConfig& = {});
+    void begin_frame();
+    Scheduler& scheduler();
+    void add(const graphics::CopperIntent&);
+    void add(const graphics::CopperIntent*, u16 count);
+    void materialize();
+    bool end_frame();
+    template <class Backend> void takeover(Backend&) const;
+    template <class Backend> void commit(Backend&) const;
+    constexpr u16 words() const;
+    constexpr const ScheduleReport& report() const;
 };
 
 } // namespace eng::copper
 ```
 
-Qué añade sobre lo que ya hay: **el orden por scanline deja de ser una obligación del
-llamador** (`emit_copper_intents` exige intenciones en orden ascendente de línea: hoy es un
-invariante implícito en cada demo), la emisión vive en el bloque trasero (con COP1LC swap,
-sin tocar la lista activa) y el presupuesto (`ScheduleReport`, `timeline_over_budget_lines`)
-se consulta antes de publicar. La política `Patch` vs `Reemit` se declara por track: los
-registros con handle (`Scheduler::move_at`) se parchean; la estructura se reemite.
+El orden por scanline queda a cargo del plan, que materializa en el bloque trasero, publica con swap `COP1LC` y expone `ScheduleReport` antes de publicar. La estructura se reemite; los valores con handle de `Scheduler::move_at` se parchean.
 
 ## 6. Reglas para desarrollos nuevos
 
 1. Una escena = **1 composición de display** (`scene::compose` con `buffers=N`) + **1 supervisor de
-   copper** (`CopperPlan`); no se emite copper desde la lógica de juego ni desde un efecto.
+   copper** (`copper::Plan`); no se emite copper desde la lógica de juego ni desde un efecto.
 2. Las superficies/capas **no poseen memoria de display** ni hacen flip: escriben en el
    buffer que les da el display.
 3. Si un efecto necesita copper, implementa un **track** que aporta intenciones; declara
@@ -181,11 +159,11 @@ Ejemplo vivo: **demo 085 `copper_plan_scene`** (cielo por bandas de la escena + 
 
 | Duplicidad | Sitios | Fase |
 |---|---|---|
-| Doble buffer de copperlist | `tile_scroll.hpp:791`, `xlimited.hpp:1739/1928`, demos `079`/`116` | F1 |
+| Doble buffer de copperlist | `tile_scroll.hpp:791`, `xlimited.hpp:1739/1928`, demos `079`/`116` | F1, legacy pendiente de migración |
 | Doble buffer de display a mano | `079` (5), `116` (3) | F2 |
 | Superficie de scroll con memoria propia | `double_buffer_playfield.hpp:100`, `flat_playfield.hpp`, `mirror_playfield.hpp` | F3 |
 | Mapper de scroll duplicado | `amiga_display_mapper.hpp:52` vs `tile_scroll.hpp:670` | F5 |
 | Política sin implementación | `virtual_scene.hpp:168/186` (`DoubleBufferedHiddenMargins`) | F0 |
 | Doc↔código | `xlimited.hpp:1488-1491` (promete 13 words, reemite la lista) | F0 |
-| Supervisión de copper por escena | **no existe** (`CopperPlan`) | F4 |
+| Supervisión de copper por escena | `copper::Plan` y emisión `PaletteLine` por lote existen; integración por slot/topología sigue parcial | F4 |
 | **Eje Driver ↔ Field/Surface** (resuelto): los drivers legacy exponían `bitplanes()` crudos sin `Surface`, y los `Playfield` no encajaban con un doble buffer de display. Normalización **hecha**: `scene::compose` con `buffers > 1` da el doble/triple buffer sobre `CanvasPlayfield`/`ContiguousPlayfield` (HOST-212); los drivers `CanvasScene`/`CopperChunkyScene` y `MultiBuffered` están **retirados** (el display sin bitplanes es `SceneMode::CopperChunky`). `XLimitedPlayfield` (scroll, memoria propia) no ofrece `bind()`; no hay doble buffer de scroll sobre él. | F2 |
