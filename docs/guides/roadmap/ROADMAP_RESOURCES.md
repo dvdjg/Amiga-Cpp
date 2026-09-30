@@ -93,6 +93,27 @@ presupuesto/prioridad/LRU y **loader de código relocatable**, sobre la E/S así
 
 ## Riesgos y decisiones abiertas
 
+## R6 — VFS, compresión y ownership de módulos
+
+R0–R5 describen la base de E/S, caché y parsing, pero no cierran un VFS normalizado ni la carga de
+librerías comprimidas con memoria elegida por segmento. El contrato completo está en
+[`FILE_SYSTEM_AND_DYNAMIC_LIBRARIES.md`](../../engine/architecture/FILE_SYSTEM_AND_DYNAMIC_LIBRARIES.md).
+
+- **R6.1 VFS**: normalizar paths, mounts, directorios, errores, cancelación y generaciones de
+  requests; HOST de backend simulado.
+- **R6.2 Requests robustos**: separar `RequestId` del `IoUser`, conservar path y buffer hasta el
+  fin, rechazar respuestas tardías y cerrar requests en vuelo.
+- **R6.3 Política de memoria**: reservar código, datos y BSS por segmento con `MemoryManager`,
+  respetar `HUNKF_CHIP`/`HUNKF_FAST`, fallback explícito y pools persistentes liberables.
+- **R6.4 Contenedor comprimido**: crear `.engz` con codec, tamaño comprimido/descomprimido, alineación,
+  política, CRC y payload HUNK/ENGL.
+- **R6.5 Decode ZX0 genérico**: reutilizar el depacker existente fuera de `eng::audio` como etapa
+  de recursos y validar truncado, límites y CRC.
+- **R6.6 DynLoader propietario**: integrar lectura asíncrona, estados, imports/ABI, init/fini,
+  refcount/pin, rollback y descarga segura.
+- **R6.7 Integración**: demo de transición de zona que cargue `.engz`, ejecute un export y descargue
+  la librería sin bloquear el frame.
+
 - **Presupuesto por banco.** Chip y Fast tienen costes distintos (Agnus no ve Fast): la caché debe
   respetar `MemBank` y no meter buffers de Paula en Fast.
 - **Código en RAM.** En 68000 no hay NX; preferir Fast para `.englib` y validar que el rango es
@@ -106,5 +127,8 @@ presupuesto/prioridad/LRU y **loader de código relocatable**, sobre la E/S así
 
 ## Estado
 
-Todas las fases están **pendientes**. El diseño está fijado y depende de M7 (E/S asíncrona) del
-roadmap del mini-SO.
+R0 está casi entregada; R1/R2 están entregadas; R3 es parcial; R4 está entregada como parser y
+loader síncrono sobre una imagen ya disponible; R5 sigue pendiente. R6 queda abierta para cerrar el
+VFS normalizado, el pipeline `.engz`/ZX0, la selección de banco por segmento y el ownership real de
+las librerías. El diseño depende de la E/S asíncrona del mini-SO y de la política de memoria
+persistente descrita en `MEMORY_OWNERSHIP.md`.

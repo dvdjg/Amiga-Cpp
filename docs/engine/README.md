@@ -62,6 +62,7 @@ mapa «tarea → documentación», en [DOC-MAP-PRINCIPAL.md](../ai-dev-environme
 ### Recursos y carga
 
 - [RESOURCE_SYSTEM.md](architecture/RESOURCE_SYSTEM.md) · [STREAMING_LOADER.md](architecture/STREAMING_LOADER.md) · [WORLD_FORMAT.md](architecture/WORLD_FORMAT.md).
+- [FILE_SYSTEM_AND_DYNAMIC_LIBRARIES.md](architecture/FILE_SYSTEM_AND_DYNAMIC_LIBRARIES.md) — VFS normalizado, librerías dinámicas, ZX0, HUNK y memoria por política.
 
 ### Mini-SO (`eng::os`)
 
