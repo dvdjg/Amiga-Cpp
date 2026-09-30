@@ -96,7 +96,7 @@ El corpus mixto previsto para ajustar los parámetros está descrito en [`AUDIO_
 - **Entregado**: deduplicación exacta de payloads AUZX entre tracks; ampliar para unidades aproximadas cuando la pista admita una secuencia de eventos.
 - Permitir payload Delta+ZX0, Fibonacci, IMA, ADPCM cuantizado o residual armónico.
 - Asignar pistas a Paula 0..2 o mixer 0..3, conservando destino, pitch y transiciones en eventos validados.
-- **Entregado (base de reproducción)**: `media` reconoce ACP1 v1/v2, decodifica ventanas por track y mezcla mediante scratch/accumulator del llamador; `Acp1Stream` prepara PCM cooperativamente y la IRQ queda reducida a advance/swap.
+- **Entregado (base de reproducción)**: `media` reconoce ACP1 v1/v2, decodifica secuencias por track y mezcla ventanas; `Acp1Stream` prepara PCM cooperativamente y la IRQ queda reducida a advance/swap.
 - **Pendiente de validación on-target**: demo 280 usa el servicio nivel 4 exclusivo y falla si el mixer Photon o una pista tracker ya posee audio; la compilación directa C++ cruzada pasa, pero `build-demo.sh` falla antes de compilar por no poder abrir su archivo `.d` en Windows.
 - Extender el parser para las tablas de deduplicación, modos de unidad y metadatos estructurales.
 - Medir y portar a ASM 68000 solo los núcleos de decode, crossfade y síntesis con equivalencia byte a byte.
@@ -105,7 +105,7 @@ El corpus mixto previsto para ajustar los parámetros está descrito en [`AUDIO_
 
 ### C13 — Corpus y ajuste estructural
 
-- **Entregado (métrica base)**: la CLI reconstruye la mezcla ACP1 y compara MSE/pico y bytes totales frente al AUZX lineal. En `Rondo_alla_turca.ogg` (4.004.352 muestras, 22.050 Hz, IMA, chunks 2.048), sin HPSS ACP1 v2 fue 4.302.800 B, MSE 0,5583 y pico 19 frente a AUZX 2.025.680 B, MSE 0,4990 y pico 29; con HPSS ACP1 v2 fue 8.555.448 B, MSE 17,2824 y pico 43. HPSS no se selecciona por defecto: esta entrada real aumenta tamaño y error.
+- **Entregado (métrica base)**: la CLI reconstruye la mezcla ACP1 y compara MSE/pico y bytes totales frente al AUZX lineal. En `Rondo_alla_turca.ogg` (4.004.352 muestras, 22.050 Hz, IMA, chunks 2.048), con eventos de bloque y deduplicación exacta, ACP1 sin HPSS fue 4.302.800 B, MSE 0,5583 y pico 19 frente a AUZX 2.025.680 B, MSE 0,4990 y pico 29; con HPSS ACP1 fue 8.555.448 B, MSE 17,2824 y pico 43. Hubo 42 bloques repetidos exactos antes de comparar longitudes; solo se comparten payloads de misma longitud. HPSS no se selecciona por defecto: esta entrada real aumenta tamaño y error.
 - Ampliar comparación para incluir fades, tablas y costes de reproducción.
 - Elegir HPSS, tamaño de unidad y umbral de similitud con coste conjunto de error, RAM, voces y CPU.
 - Generar informes reproducibles con hash de entrada, configuración, versión del encoder y destino de cada pista.

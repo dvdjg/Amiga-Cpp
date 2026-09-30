@@ -53,7 +53,7 @@ La configuración usa JSON plano con claves `mode`, `codec`, `sample_rate`, `chu
 
 Cada conversión puede usar `--report out/reports/audio-compressor/nombre.json`. El informe registra entrada, modo, codec, tasa, chunks, muestras, duración, tamaño comprimido de la fuente, tamaño PCM normalizado, tamaño de salida, ratios PCM→salida y fuente→salida, MSE PCM8, SNR, pico de error y estado del round-trip.
 
-ACP1 v2 serializa offsets y tablas explícitos, e incrusta un AUZX por unidad única. El informe compara bytes lineales/estructurales y reconstruye la mezcla para medir MSE y pico. Para conservar ambas salidas, usar `--keep-candidates`; la salida `.linear.auzx` se elimina por defecto después de generar ACP1.
+ACP1 v2 serializa offsets y tablas explícitos, divide cada stem en unidades de `--chunk` muestras y emite eventos secuenciales. Bloques AUZX idénticos de la misma longitud se comparten en el diccionario. El informe compara bytes lineales/estructurales y reconstruye la mezcla para medir MSE y pico. Para conservar ambas salidas, usar `--keep-candidates`; la salida `.linear.auzx` se elimina por defecto después de generar ACP1.
 
 ## Reproducción host con SDL3
 
