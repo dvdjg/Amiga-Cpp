@@ -5,11 +5,11 @@ caché de assets (`eng/res/asset_cache.hpp`) funciona en hardware (memoria de lo
 E/S del mini-SO). Como la E/S la aporta `eng::os`, el test implementa un backend de ficheros
 **falso** y valida:
 
-- `alloc` en **Chip** y en **Slow** (para `MemBank::Fast`), y que `free` devuelve la reserva
-  física al pool efectivo;
+- `alloc` en **Chip** y en **Slow** (fallback cuando se solicita `MemBank::Fast` sin Fast RAM), con
+  `MemoryBlock.kind` conservando el banco efectivo y `free` devolviendo la reserva al pool;
 - `load`: abre y lanza `file_read_async` con el cookie `IoUser{'A', id}` correcto;
-- integración con `res::AssetCache`: `declare` → `get` (lanza la carga, estado `Loading`) →
-  `on_load_done` (estado `Ready`, datos y presupuesto) → `shutdown` (liberación física).
+- integración con `res::AssetCache`: `declare` → carga → vista con generación → lease DMA que bloquea
+  `shutdown` → cierre de lease e invalidación de la vista al liberar físicamente.
 
 La finalización real llega como `FileDone`/`FileError` y se enruta con `res::route_io`
 (HOST-255, pendiente de engarzar en el bucle del `App`).

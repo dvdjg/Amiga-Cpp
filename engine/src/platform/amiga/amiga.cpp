@@ -58,6 +58,9 @@ void AmigaBackend::boot() {
 
 bool AmigaBackend::configure_memory(const MemoryConfig& config) {
 	release_memory();
+	// `release_memory` conserva las raíces si una carga async/lease DMA sigue activa; no
+	// sobreescribir esos punteros ni crear pools nuevos sobre una vida de recursos aún abierta.
+	if (m_chip_alloc || m_slow_alloc || m_fast_alloc || m_frame_alloc) return false;
 
 	// NOTA: AllocMem de AmigaOS 1.3 solo garantiza alineacion a 8 bytes, no 16.
 	// Si el llamador reserva memoria alineada a 16 dentro de una arena (como los
@@ -104,8 +107,12 @@ bool AmigaBackend::configure_memory(const MemoryConfig& config) {
 
 	// Caché de assets con el presupuesto de las arenas. El backend es estable, así que la
 	// `Ref` que guarda la caché es válida; el runtime posee su propio backend-copia.
-	(void)m_assets.init(AssetCacheBackend {m_memmanager},
-			    res::CacheConfig {m_chip_alloc_size, m_slow_alloc_size, 8u});
+	res::CacheConfig asset_cfg {};
+	asset_cfg.chip_budget = m_chip_alloc_size;
+	asset_cfg.fast_budget = m_fast_alloc_size;
+	asset_cfg.max_assets = 8u;
+	asset_cfg.slow_budget = m_slow_alloc_size;
+	(void)m_assets.init(AssetCacheBackend {m_memmanager}, asset_cfg);
 
 	m_memory_report.chip = m_memmanager.chip().snapshot();
 	m_memory_report.slow = m_memmanager.slow().snapshot();
@@ -129,7 +136,7 @@ void AmigaBackend::release_memory() {
 	m_audio.shutdown();
 	m_paula.silence();
 	wait_blitter();
-	m_assets.shutdown();
+	if (!m_assets.shutdown()) return;
 
 	if (m_fast_alloc) {
 		FreeMem(m_fast_alloc, m_fast_alloc_size);

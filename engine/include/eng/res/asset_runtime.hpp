@@ -39,13 +39,13 @@ public:
 	/// Inicializa la caché con su backend y presupuesto. El runtime **posee** el backend
 	/// (la caché solo guarda una referencia), así que debe sobrevivir a la caché.
 	bool init(CacheBackend backend, const CacheConfig& cfg) noexcept {
-		shutdown();
+		if (!shutdown()) return false;
 		m_backend = backend;
 		return m_cache.init(m_backend, cfg);
 	}
 
 	/// Detiene la caché y devuelve sus reservas al backend. Debe preceder al teardown del banco.
-	void shutdown() noexcept { m_cache.shutdown(); }
+	[[nodiscard]] bool shutdown() noexcept { return m_cache.shutdown(); }
 
 	/// Declara el asset y **lanza** su carga (asíncrona). `id` = 0 si no cabe (consulta el
 	/// presupuesto antes con `eng::res::Budget`). El tamaño debe conocerse de antemano.
@@ -66,6 +66,10 @@ public:
 	[[nodiscard]] const Cache& cache() const noexcept { return m_cache; }
 	[[nodiscard]] AssetState state(AssetId id) const noexcept { return m_cache.state(id); }
 	[[nodiscard]] eng::Span<eng::u8> get(AssetId id) noexcept { return m_cache.get(id); }
+	[[nodiscard]] AssetView view(AssetId id) const noexcept { return m_cache.view(id); }
+	[[nodiscard]] bool valid(AssetView v) const noexcept { return m_cache.valid(v); }
+	[[nodiscard]] bool acquire_dma(AssetHandle h) noexcept { return m_cache.acquire_dma(h); }
+	[[nodiscard]] bool release_dma(AssetHandle h) noexcept { return m_cache.release_dma(h); }
 
 	/// **Vista tipada** de un asset ya cargado (`Tag` de dominio). Vacía mientras no esté
 	/// `Ready`. La "decodificación" es la reinterpretación al dominio (los bytes se cargan
@@ -78,6 +82,7 @@ public:
 
 	[[nodiscard]] eng::u32 used_chip() const noexcept { return m_cache.used_chip(); }
 	[[nodiscard]] eng::u32 used_fast() const noexcept { return m_cache.used_fast(); }
+	[[nodiscard]] eng::u32 used_slow() const noexcept { return m_cache.used_slow(); }
 
 private:
 	/// `route_io` exige un objeto con `on_file_done`; el runtime de assets solo usa el tag

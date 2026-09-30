@@ -29,23 +29,26 @@ void check(bool ok, const char* msg) {
 struct FakeBackend {
 	u8 chip[1024] {};
 	u8 fast[1024] {};
+	u8 slow[1024] {};
 	u32 chip_at = 0;
 	u32 fast_at = 0;
+	u32 slow_at = 0;
 	u16 loads = 0;
+	u16 frees = 0;
 
-	Span<u8> alloc(u32 bytes, MemBank bank) {
-		u8* base = (bank == MemBank::Chip) ? chip : fast;
-		u32& at = (bank == MemBank::Chip) ? chip_at : fast_at;
+	MemoryBlock alloc(u32 bytes, MemBank bank) {
+		u8* base = bank == MemBank::Chip ? chip : (bank == MemBank::Slow ? slow : fast);
+		u32& at = bank == MemBank::Chip ? chip_at : (bank == MemBank::Slow ? slow_at : fast_at);
 		if (at + bytes > 1024u) {
 			return {};
 		}
-		Span<u8> s {base + at, bytes};
+		MemoryBlock s {base + at, bytes, bank};
 		at += bytes;
 		return s;
 	}
-	void free(Span<u8> block, MemBank bank) {
+	void free(const MemoryBlock& block) {
 		(void)block;
-		(void)bank;
+		++frees;
 	}
 	bool load(AssetId id, const char* path, Span<u8> dst) {
 		(void)id;
@@ -72,6 +75,8 @@ void test_lifecycle() {
 	check(d.empty(), "get lanza la carga y devuelve vacio (placeholder)");
 	check(cache.state(a) == AssetState::Loading, "Loading");
 	check(b.loads == 1u, "el backend arranco la lectura");
+	check(!cache.shutdown(), "shutdown no libera un buffer con lectura async activa");
+	check(cache.used_fast() == 100u, "la carga activa conserva su reserva");
 
 	cache.on_load_done(a, 100);
 	check(cache.state(a) == AssetState::Ready, "Ready tras FileDone");
@@ -151,6 +156,64 @@ void test_pin_and_ref() {
 	check(cache.state(c) == AssetState::Error, "con refcount tampoco se desaloja");
 }
 
+void test_generation_and_dma_lease() {
+	FakeBackend b;
+	AssetCache<FakeBackend, 8> cache;
+	CacheConfig cfg {};
+	cfg.chip_budget = 100u;
+	cfg.max_assets = 8u;
+	check(cache.init(b, cfg), "init para generation y DMA");
+
+	const AssetId a = cache.declare("a", 100u, MemBank::Chip, 128u);
+	check(cache.prefetch(a), "carga inicial arranca");
+	cache.on_load_done(a, 100);
+	AssetView old = cache.view(a);
+	check(cache.valid(old), "la vista inicial es valida");
+	check(old.kind == MemoryKind::Chip, "la vista expone el banco efectivo como MemoryKind");
+	check(cache.acquire_dma(old.handle), "adquiere lease DMA");
+
+	const AssetId next = cache.declare("next", 100u, MemBank::Chip, 128u);
+	check(!cache.prefetch(next), "lease DMA impide evict");
+	check(!cache.shutdown(), "shutdown no libera con DMA activo");
+	check(cache.state(a) == AssetState::Ready && cache.valid(old), "owner sigue vivo mientras DMA usa la vista");
+	check(cache.release_dma(old.handle), "libera lease al terminar DMA");
+	check(cache.prefetch(next), "tras cerrar DMA se puede desalojar");
+	check(!cache.valid(old), "evict invalida la vista antigua");
+	cache.on_load_done(next, 100);
+	check(cache.prefetch(a), "se puede recargar el mismo slot desalojado");
+	cache.on_load_done(a, 100);
+	const AssetView fresh = cache.view(a);
+	check(cache.valid(fresh) && fresh.handle.generation != old.handle.generation,
+	      "la recarga publica nueva generacion");
+	check(!cache.release_dma(old.handle), "handle obsoleto no puede cerrar una lease nueva");
+	check(cache.shutdown(), "shutdown sin DMA activo");
+	check(!cache.valid(fresh), "shutdown invalida todas las vistas");
+	check(b.frees >= 2u, "evict y shutdown liberan owners");
+}
+
+void test_slow_fallback_accounting() {
+	FakeBackend b;
+	AssetCache<FakeBackend, 4> cache;
+	CacheConfig cfg {};
+	cfg.fast_budget = 100u;
+	cfg.slow_budget = 100u;
+	cfg.max_assets = 4u;
+	check(cache.init(b, cfg), "init con Fast y Slow");
+	const AssetId fast = cache.declare("fast", 100u, MemBank::Fast, 200u);
+	check(cache.prefetch(fast), "ocupa Fast");
+	cache.on_load_done(fast, 100);
+	cache.pin(fast, true);
+	const AssetId any = cache.declare("any", 100u, MemBank::Any, 10u);
+	check(cache.prefetch(any), "Any usa Slow cuando Fast esta lleno");
+	cache.on_load_done(any, 100);
+	check(cache.used_fast() == 100u && cache.used_slow() == 100u,
+	      "contabilidad separada segun MemoryKind efectivo");
+	const AssetView slow = cache.view(any);
+	check(slow.kind == MemoryKind::Slow && cache.valid(slow), "la vista indica banco Slow efectivo");
+	check(cache.shutdown(), "shutdown libera Fast y Slow");
+	check(cache.used_fast() == 0u && cache.used_slow() == 0u, "contabilidad vacia al cerrar");
+}
+
 } // namespace
 
 int main() {
@@ -158,9 +221,11 @@ int main() {
 	test_eviction_priority();
 	test_lru();
 	test_pin_and_ref();
+	test_generation_and_dma_lease();
+	test_slow_fallback_accounting();
 
 	if (failures == 0) {
-		std::printf("OK: cache de assets (ciclo, prioridad, LRU, pin/refcount) validada.\n");
+		std::printf("OK: cache de assets (owner, generation, DMA, ciclo, prioridad y LRU) validada.\n");
 		return 0;
 	}
 	std::printf("FAIL: %d comprobaciones\n", failures);

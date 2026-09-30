@@ -1,7 +1,8 @@
 # HOST-254: caché de assets (`eng::res::AssetCache`)
 
-Test host de la caché de assets (`engine/include/eng/res/asset_cache.hpp`): presupuesto por banco,
-prioridad, `refcount`, `pin` y desalojo LRU.
+Test host de la caché de assets (`engine/include/eng/res/asset_cache.hpp`): bloque propietario,
+presupuesto por banco efectivo, generación de vistas, leases DMA, prioridad, `refcount`, `pin` y
+desalojo LRU.
 
 ## Qué comprueba
 
@@ -12,11 +13,15 @@ prioridad, `refcount`, `pin` y desalojo LRU.
 3. **LRU**: a igualdad de prioridad, sale el **más viejo** (`last_use`).
 4. **`pin`/`refcount`**: un asset fijado o referenciado **no** se desaloja; sin víctima, la carga
    falla con `Error`.
+5. **Owner y generación**: `AssetSlot` conserva el `MemoryBlock` (`data`, `size`, `MemoryKind`); evict,
+   reload y shutdown invalidan las vistas anteriores y el backend recibe el banco efectivo para liberar.
+6. **DMA/lectura activa**: una lease DMA impide evict y shutdown; shutdown también se niega a
+   liberar el destino de una lectura asíncrona aún pendiente.
 
 ## Salida de referencia
 
 ```
-OK: cache de assets (ciclo, prioridad, LRU, pin/refcount) validada.
+OK: cache de assets (owner, generation, DMA, ciclo, prioridad y LRU) validada.
 ```
 
 ## Ejecutar

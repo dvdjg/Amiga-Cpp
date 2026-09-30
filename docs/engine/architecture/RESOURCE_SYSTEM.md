@@ -21,12 +21,13 @@ que no se usan y no son prioritarios **salen solos**. Es lo que permite moverse 
       MsgPort (FileDone, AssetReady, AssetEvicted, LibLoaded…)
 ```
 
-En A500 la caché **no** es "todo el disco en RAM": es un **presupuesto en bytes** (Chip/Fast) con
-desalojo de lo no fijado (`pin`) y no referenciado (`refcount == 0`). La ruta objetivo usa
-`MemoryManager`/`MemBank` y un pool liberable; la integración Amiga todavía conserva rutas con arena
-de respaldo y el backend de `AssetCache` aún no devuelve individualmente sus bloques. Por tanto,
-`evict` describe la política de caché, pero la recuperación física de memoria sigue siendo una
-deuda abierta (MEM-001..MEM-003).
+En A500 la caché **no** es "todo el disco en RAM": es un **presupuesto en bytes** (Chip/Fast/Slow)
+con desalojo de lo no fijado (`pin`), no referenciado (`refcount == 0`) y no retenido por una lease
+DMA. Cada slot conserva un `MemoryBlock` con sus bytes y `MemoryKind` efectivo; el backend libera
+según ese banco, incluso si Fast pidió fallback a Slow. Las vistas llevan `{AssetId, generation}` y pueden
+validarse antes de usarse; evict y shutdown las invalidan. El cierre falla mientras una lectura
+asíncrona o una lease DMA permanezca activa. El uso de vistas crudas por consumidores sin validación
+sigue siendo una frontera que debe migrarse (MEM-003..MEM-010).
 
 ## 1. AssetCache
 
@@ -42,26 +43,29 @@ namespace eng::res {
 
 using AssetId = eng::u16;
 enum class AssetState : eng::u8 { Empty, Loading, Ready, Error };
-enum class MemBank : eng::u8 { Any, Chip, Fast };
+using MemBank = eng::MemoryKind; ///< Chip, Fast, Slow o Any; sin segundo enum de bancos
 
 struct AssetSlot {
-	const char* path = nullptr;   ///< o hash u32 en builds finales
-	AssetState state = AssetState::Empty;
-	MemBank bank = MemBank::Any;
-	eng::u8 priority = 128;       ///< 255 = casi nunca se desaloja
-	bool pinned = false;
-	eng::u16 refcount = 0;
-	eng::u32 last_use = 0;        ///< frame stamp
-	eng::u32 size = 0;
-	eng::Span<eng::u8> data {};   ///< bloque en Chip/Fast (vista tipada, no puntero crudo)
-	os::FileHandle fh = 0;
+  const char* path = nullptr;   ///< o hash u32 en builds finales
+  AssetState state = AssetState::Empty;
+  MemBank bank = MemBank::Any;
+  eng::u8 priority = 128;       ///< 255 = casi nunca se desaloja
+  bool pinned = false;
+  eng::u16 refcount = 0;
+  eng::u32 last_use = 0;        ///< frame stamp
+  eng::u32 size = 0;
+  eng::MemoryBlock block {};    ///< data, tamaño reservado y MemoryKind efectivo
+  eng::u32 reserved_size = 0;
+  eng::u16 generation = 0;
+  eng::u16 dma_users = 0;
+  os::FileHandle fh = 0;
 };
 
 struct CacheConfig {
-	eng::u32 chip_budget = 0, fast_budget = 0; ///< bytes por banco
-	eng::u16 max_assets = 64;
-	bool post_ready_msg = true;
-	bool post_evict_msg = false;
+  eng::u32 chip_budget = 0, fast_budget = 0, slow_budget = 0;
+  eng::u16 max_assets = 64;
+  bool post_ready_msg = true;
+  bool post_evict_msg = false;
 };
 
 } // namespace eng::res
@@ -73,7 +77,11 @@ struct CacheConfig {
 class AssetCache {
 public:
 	bool init(const CacheConfig& cfg);
-	void shutdown();
+	bool shutdown();                            ///< false mientras carga async o DMA sigan activos
+	AssetView view(AssetId);                  ///< vista no propietaria con handle generacional
+	bool valid(AssetView) const;              ///< false tras evict/reload/shutdown
+	bool acquire_dma(AssetHandle);            ///< solo Chip; retiene el bloque mientras DMA lo lee
+	bool release_dma(AssetHandle);            ///< tras confirmar que DMA terminó
 
 	AssetId declare(const char* path, MemBank bank = MemBank::Any, eng::u8 prio = 128);
 
@@ -91,7 +99,7 @@ public:
 	void on_file_done(os::FileHandle h, eng::s32 result, const os::IoUser& user);
 	void set_frame(eng::u32 frame);              ///< llamar 1× por VBlank
 
-	eng::u32 used_chip() const, used_fast() const;
+	eng::u32 used_chip() const, used_fast() const, used_slow() const;
 };
 ```
 
@@ -108,16 +116,15 @@ bool AssetCache::start_load(AssetId id) {
 
 	const eng::u32 sz = os::file_size(s.fh);
 	if (!ensure_space(sz, s.bank, id)) { os::file_close(s.fh); s.fh = 0; return false; }
-	void* mem = alloc_bytes(sz, s.bank);
-	if (mem == nullptr) { os::file_close(s.fh); return false; }
-
-	s.data = eng::Span<eng::u8> {static_cast<eng::u8*>(mem), sz};
+	s.block = backend.alloc(sz, s.bank);
+	if (!s.block.valid()) { os::file_close(s.fh); s.fh = 0; return false; }
 	s.size = sz;
 	s.state = AssetState::Loading;
 	os::IoNotify n {};
 	n.prio = os::MsgPrio::Low;
 	n.user = os::IoUser { 'A', id };
-	return os::file_read_async(s.fh, s.data, 0, n);
+	return os::file_read_async(s.fh,
+		eng::Span<eng::u8> {static_cast<eng::u8*>(s.block.data), s.size}, 0, n);
 }
 
 void AssetCache::on_file_done(os::FileHandle h, eng::s32 result, const os::IoUser& user) {

@@ -19,6 +19,8 @@
   1    41  engine/include/eng/api/effects.hpp
   0     1  engine/include/eng/api/game.hpp
   4    35  engine/include/eng/assets/uaf.hpp
+  0     7  engine/include/eng/audio/acp1_stream.hpp
+  0    29  engine/include/eng/audio/acp1.hpp
   0    12  engine/include/eng/audio/aplib.hpp
   0     3  engine/include/eng/audio/asm_codec.hpp
   0     1  engine/include/eng/audio/audio_mode.hpp
@@ -29,7 +31,7 @@
   0     2  engine/include/eng/audio/game_audio.hpp
   0    38  engine/include/eng/audio/ima_adpcm.hpp
   0     2  engine/include/eng/audio/media_stream_backend.hpp
-  0     6  engine/include/eng/audio/media.hpp
+  0    22  engine/include/eng/audio/media.hpp
   1     8  engine/include/eng/audio/music_player.hpp
   0    22  engine/include/eng/audio/pcm_codec.hpp
   0     1  engine/include/eng/audio/pcm_stream.hpp
@@ -236,7 +238,7 @@
   0     4  engine/include/eng/platform/amiga/object3d_poly.hpp
   4     9  engine/include/eng/platform/amiga/paula.hpp
   0     1  engine/include/eng/platform/amiga/polygon_fill.hpp
-  0     3  engine/include/eng/res/asset_cache.hpp
+  0     6  engine/include/eng/res/asset_cache.hpp
   0     1  engine/include/eng/res/asset_table.hpp
   5     2  engine/include/eng/res/dynloader.hpp
   2     7  engine/include/eng/res/hunk.hpp

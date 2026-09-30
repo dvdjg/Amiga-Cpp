@@ -62,15 +62,19 @@ int main() {
 
 	// --- alloc: Chip y Slow (Fast) ------------------------------------------
 	{
-		const auto c = backend.alloc(256u, eng::res::MemBank::Chip);
-		check(!c.empty() && c.size() >= 256u, "alloc Chip devuelve bloque");
+		auto c = backend.alloc(256u, eng::res::MemBank::Chip);
+		check(c.valid() && c.size >= 256u, "alloc Chip devuelve bloque");
 		check(ms.chip().used_bytes() >= 256u, "consume la arena Chip");
-		const auto f = backend.alloc(128u, eng::res::MemBank::Fast);
-		check(!f.empty(), "alloc Fast devuelve bloque");
+		check(c.kind == eng::MemoryKind::Chip, "el owner conserva el banco Chip efectivo");
+		auto f = backend.alloc(128u, eng::res::MemBank::Fast);
+		check(f.valid(), "alloc Fast devuelve bloque");
 		check(ms.slow().used_bytes() >= 128u, "Fast consume la arena Slow");
-		backend.free(c, eng::res::MemBank::Chip);
+		check(f.kind == eng::MemoryKind::Slow, "el owner conserva el fallback Slow efectivo");
+		backend.free(c);
 		check(ms.chip().used_bytes() == 0u, "free devuelve la reserva Chip al pool");
-		backend.free(f, eng::res::MemBank::Fast);
+		backend.free(c);
+		check(ms.chip().used_bytes() == 0u, "doble free es idempotente");
+		backend.free(f);
 		check(ms.slow().used_bytes() == 0u, "free devuelve el fallback Slow al pool");
 	}
 
@@ -102,8 +106,30 @@ int main() {
 		check(cache.state(id) == eng::res::AssetState::Ready, "estado Ready");
 		check(cache.get(id).size() == 300u, "datos tras la carga");
 		check(cache.used_chip() >= 300u, "presupuesto Chip del cache");
-		cache.shutdown();
+		const eng::res::AssetView stale = cache.view(id);
+		check(cache.valid(stale), "vista con generacion valida");
+		check(cache.acquire_dma(stale.handle), "adquiere lease DMA");
+		check(!cache.shutdown(), "shutdown bloqueado por DMA activo");
+		check(cache.valid(stale), "owner retenido mientras DMA esta activo");
+		check(cache.release_dma(stale.handle), "lease DMA liberada");
+		check(cache.shutdown(), "shutdown sin DMA activo");
+		check(!cache.valid(stale), "shutdown invalida la vista");
 		check(ms.chip().used_bytes() == 0u, "shutdown del cache libera sus reservas físicas");
+	}
+	// Any/Fast puede caer en Slow; el cache contabiliza el banco del Block, no la preferencia.
+	{
+		eng::res::CacheConfig cfg {};
+		cfg.slow_budget = 256u;
+		cfg.max_assets = 2u;
+		eng::res::AssetCache<eng::amiga::AssetCacheBackend, 2u> cache;
+		check(cache.init(backend, cfg), "init cache con presupuesto Slow");
+		const eng::res::AssetId id = cache.declare("mem://slow", 128u, eng::res::MemBank::Any);
+		check(cache.prefetch(id), "Any cae al pool Slow disponible");
+		cache.on_load_done(id, 128);
+		check(cache.used_slow() == 128u && cache.used_fast() == 0u,
+		      "contabilidad refleja el banco efectivo Slow");
+		check(cache.shutdown(), "shutdown devuelve bloque Slow");
+		check(ms.slow().used_bytes() == 0u, "liberacion Slow fisica");
 	}
 
 	if (g_fail != 0) {

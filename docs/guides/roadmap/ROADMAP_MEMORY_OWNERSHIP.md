@@ -7,9 +7,9 @@ ordenada**. Cada paso es verificable por sí mismo; el orden es por dependencia 
 Estado real mapeado: conviven **dos familias de reserva** que hay que unificar. El backend Amiga
 configura actualmente pools propios de `MemoryManager` sobre los bloques raíz, mientras conserva
 `MemorySystem` para arenas y scratch; esa separación evita el solapamiento de los consumidores
-migrados, pero no convierte automáticamente todos los owners en liberables. `AssetCache` todavía
-expone vistas no propietarias y delega la liberación física en `AssetCacheBackend`, que mantiene una
-tabla fija de reservas por puntero. El detalle está en
+migrados, pero no convierte automáticamente todos los owners en liberables. `AssetCache` conserva
+un `MemoryBlock` con su `MemoryKind` efectivo; una generación invalida las vistas tras evict/reload y
+las leases DMA bloquean la liberación. El detalle está en
 [`memory-ownership-inconsistencies.md`](../../debugging/investigaciones/memory-ownership-inconsistencies.md).
 
 ```text
@@ -65,29 +65,31 @@ con su razón (14 ficheros), y el gate `cast-audit` las exime.
 1. Orden de teardown canónico (doc §"Setup, runtime y frame" paso 4) como **helper** único:
    escenas/caches → desactivar display/DMA → bloques raíz del backend.
 2. `Block` **move-only** (borrar copia): copiar un `Block` = dos dueños del mismo bloque. Es gratis
-   y elimina una clase de bug.
-3. Comprobación de **DMA pendiente** antes de liberar: consultar `FramePlan`/`BlitQueue`/copper activo
-   y rechazar el `release` (o `wait`) hasta que no haya trabajo vivo. En build de diagnóstico, el
-   `Block`/vista lleva un **token de generación** del store y la liberación invalida las vistas.
+   y elimina una clase de bug. **Hecho** para `eng::Block`.
+3. Comprobación de **DMA pendiente** antes de liberar. **Parcial**: `AssetCache` exige una lease Chip
+   y rechaza `evict`/`shutdown` mientras siga activa; el owner debe adquirirla durante el uso DMA.
+   Las vistas de caché llevan generación y quedan invalidadas en evict/reload/shutdown.
+   Falta el helper global que consulte `FramePlan`/`BlitQueue`/Copper activo.
 
-**Evidencia:** HOST del token de generación (vista a bloque liberado → trapa en debug) + demo de
-doble buffer que no libera el buffer aún visible.
+**Evidencia:** HOST-254/330 cubre lease DMA, rechazo de liberación, generación invalidada y recarga;
+los dobles buffers gráficos verifican por separado que no se libera el buffer visible.
 
 ## Fase 3 — Migrar dueños y consumidores a la única puerta
 
 **Valor:** cierra el modelo; ya no hay dos formas de reservar.
 
-**Estado: fachada y escena parcialmente migradas.** La cadena `compose`→`Scene`→`Bitmap`/`copper::Plan`/
+**Estado: fachada, escena y caché parcialmente migradas.** La cadena `compose`→`Scene`→`Bitmap`/`copper::Plan`/
 `DoubleBuffer`/`SpriteManager`/`xlimited_*`/`tile_scroll`/`effects` y las demos pasan a
 `MemoryManager&` con `chip().reserve`; `res::load(MemoryManager)` es la puerta normal. La
-integración productiva ya tiene liberación física para los owners gráficos, audio y caché Amiga,
-pero `AssetCache` aún no conserva un `Block` tipado ni un handle de generación.
+integración productiva ya tiene liberación física para los owners gráficos, audio y caché Amiga.
+`AssetCache` conserva ahora `MemoryBlock` y banco efectivo, valida vistas por generación y retiene los
+owners durante lecturas asíncronas y leases DMA.
 
 **Pool propio de `MemBank` (free real): parcial.** `BlockPool` y sus métricas ya soportan `free`
 real, y numerosos consumidores usan `MemoryManager`; `AmigaBackend::configure_memory` configura
 pools persistentes separados de las arenas de scratch y `AssetCacheBackend::free()` devuelve la
-reserva física mediante su tabla fija. La caché sigue sin conservar handles propietarios tipados y
-la frontera de generación de vistas sigue pendiente. `Budget`/`MemoryReport` leen del banco, pero
+reserva física usando el `MemoryKind` del `MemoryBlock`. La caché mantiene contabilidad por banco
+efectivo y vistas con generación. `Budget`/`MemoryReport` leen del banco, pero
 eso no implica que toda reserva productiva sea liberable. Ver MEM-001..MEM-007.
 
 Diagnóstico de la migración: `graphics/bitmap.hpp` (`Bitmap::init`),
@@ -99,7 +101,9 @@ flat_playfield,mirror_playfield,canvas_playfield,soft_dpf}.hpp` — **hecho**.
 2. `Assets` como par reserve/release del juego (`create`/`release`/`reset_phase`) — **hecho**.
 3. Reservas de fase: `ScratchArena` + `reset_frame` — **hecho** (Fase 6).
 
-**Evidencia:** `HOST-330` valida reserva, carga, cookie, caché y liberación; el gate host completo queda pendiente por el baseline de casts de `audio/acp1*.hpp` y `audio/media.hpp` (no causado por este cambio); builds
+**Evidencia:** HOST-254 y HOST-330/331/332 validan lifecycle, vista con generación, lease DMA,
+lectura async pendiente y liberación física; el gate host completo queda pendiente por el id
+duplicado HOST-387 (`audio/387_acp1` y `graphics/387_frame_plan_state`); builds
 m68k de 052/086/100/113/117/209 y del resto de la escena; 113/086 READY.
 
 ## Fase 4 — Diagnóstico y presupuesto
@@ -154,7 +158,7 @@ se puede** sin `clear()` total. La memoria del engine se reparte en **dos vidas 
 | Persistente (assets, escena, buffers de larga vida) | `BlockPool` | reserve + **free** en cualquier orden |
 | Scratch de frame/fase | `LinearArena` | bump + `mark/release` (LIFO) |
 
-**Estado (2026-09): `BlockPool` con free real; integración de owners — pendiente.**
+**Estado (2026-09): `BlockPool` con free real; integración de owners — parcial.**
 
 - `allocate` es *first-fit* sobre huecos, `free` marca y **fusiona**; ya **no** delega `free` en la
   arena cuando hay buffer propio. `configure_backing` queda **solo para scratch** (free = no-op
@@ -173,9 +177,9 @@ se puede** sin `clear()` total. La memoria del engine se reparte en **dos vidas 
    y scratch de frame; `reset_frame()` solo limpia la scratch. **Hecho** (`arena.hpp`:
    `ScratchArena`, `ArenaMark`; `MemorySystem::frame` es `ScratchArena`; `reset_frame()`; HOST-383).
 2. **Completar `MemBank`/`Assets`**: `MemBank` ya usa `BlockPool` y el backend configura el pool
-   persistente por separado; falta que `AssetCache` conserve el `Block`/handle y devuelva el bloque
-   correcto en `free()`. Las arenas quedan reservadas para scratch y fases completas, no para
-   recursos desalojables.
+   persistente por separado; `AssetCache` conserva y libera `MemoryBlock` según el banco efectivo.
+   Falta extender la validación generacional a todos los consumidores de vistas. Las arenas quedan
+   reservadas para scratch y fases completas, no para recursos desalojables.
 3. Quitar el `+16 headroom` de `res::load` (ya no hace falta con base alineada del pool; la arena
     *bump* sigue necesitándolo hasta migrar).
 
@@ -186,19 +190,22 @@ propietarios duplicados:
 
 1. **Teardown ordenado del backend**: detener Paula/mixer, desinstalar servicios de audio, Blitter
    y VBlank, desactivar display/DMA y esperar operaciones pendientes antes de liberar los bloques
-   raíz de Exec. `configure_memory()` debe usar el mismo cierre.
+   raíz de Exec. `configure_memory()` debe usar el mismo cierre. La liberación de raíces se bloquea
+   mientras `AssetRuntime` tenga lecturas o leases DMA activas; falta generalizarlo a todos los owners.
 2. **Owners gráficos explícitos**: `copper::DoubleBuffer`, `copper::Plan` y `composition::Scene`
    deben liberar sus bloques Chip, distinguir buffers propios de buffers adjuntos y hacer rollback
    si una reserva posterior falla o una inicialización se repite.
 3. **Owners de audio explícitos**: `AudioSystem` debe liberar el buffer P61 y `SfxMixer` debe
    hacer rollback de reservas parciales y devolver sus bloques después de parar la IRQ/mixer.
-4. **Caché física**: `AssetCache` debe conservar el bloque propietario, contabilizar el tamaño
-   alineado y liberar el banco efectivo en un desalojo; las vistas de `AssetTable` deben invalidarse
-   junto con el slot.
-5. **Frontera DMA de Paula**: sustituir `const u8*` por una vista/bloque Chip certificado y
-   rechazar una liberación mientras el canal pueda seguir reproduciendo.
+4. **Caché física**: conservar el bloque y banco efectivo, contabilizar el tamaño físico, invalidar
+   las vistas al evict/reload y rechazar la liberación mientras haya DMA. **Hecho en `AssetCache`**;
+   falta coordinar vistas retenidas en `AssetTable` y otros consumidores.
+5. **Frontera DMA de Paula**: usar una vista/bloque Chip certificado y mantener una lease mientras el
+   canal pueda seguir reproduciendo. `AssetCache::acquire_dma`/`release_dma` proporciona el contrato;
+   integrar esas leases en consumidores Paula/Blitter sigue pendiente.
 6. **Pruebas de lifecycle**: rollback, reinicialización, evict/reload, doble liberación, vista
-   invalidada y liberación con Blitter/Copper/Paula activos.
+   invalidada y liberación con Blitter/Copper/Paula activos. HOST-254/330 cubren caché; ampliar pruebas
+   de consumidores hardware queda pendiente.
 
 El cierre requiere evidencia de código y tests; reservar en Chip y liberar el bloque raíz al final
 del proceso no cuenta como lifecycle completo.
