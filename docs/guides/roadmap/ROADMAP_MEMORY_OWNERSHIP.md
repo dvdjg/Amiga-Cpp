@@ -185,8 +185,16 @@ se puede** sin `clear()` total. La memoria del engine se reparte en **dos vidas 
 
 ## Plan de cierre — DMA y lifecycle
 
-Este es el orden de trabajo para cerrar los hallazgos MEM-001..MEM-010 sin introducir heap ni
-propietarios duplicados:
+**Estimación restante: 4–6 unidades de trabajo enfocadas**, agrupadas en tres bloques: (1) contrato
+común de shutdown/reinit para los owners restantes; (2) integración de leases en todos los puntos de
+retención Copper/Blitter/Paula, incluidas tablas/vistas que cruzan fases; (3) pruebas de rollback,
+doble liberación y teardown de cada consumidor con actividad pendiente. La memoria de `AssetCache`,
+la invalidación de `AssetTable`, `NoChip`, la lease CPU de SFX y la espera de Paula en el cierre del
+backend ya están implementadas y verificadas; no se cuentan de nuevo como trabajo pendiente.
+
+El roadmap se cierra cuando los tres bloques restantes estén implementados y validados, y MEM-001,
+MEM-004, MEM-006, MEM-008..MEM-010 tengan resolución explícita. HOST-382/ACP1 está aplazado a su
+propio roadmap y no bloquea este cierre.
 
 1. **Teardown ordenado del backend**: detener servicios, silenciar y esperar Paula, esperar el Blitter,
    rechazar el cierre mientras `AssetRuntime` tenga lecturas/leases abiertas y después liberar raíces.
@@ -194,8 +202,9 @@ propietarios duplicados:
 2. **Owners gráficos explícitos**: `copper::DoubleBuffer`, `copper::Plan` y `composition::Scene`
    liberan bloques Chip, distinguen buffers propios de adjuntos y hacen rollback en inicialización
    parcial/repetida; queda pendiente la coordinación de todas las vistas retenidas por consumers.
-3. **Owners de audio explícitos**: `AudioSystem` debe liberar el buffer P61 y `SfxMixer` debe
-   hacer rollback de reservas parciales y devolver sus bloques después de parar la IRQ/mixer.
+3. **Owners de audio explícitos**: `AudioSystem` libera el buffer P61 y `SfxMixer` hace rollback de
+   reservas parciales y devuelve sus bloques después de parar la IRQ/mixer. Falta test específico de
+   rollback/reinit del mixer y reproducción de asset con lease hasta fin natural de voz.
 4. **Caché física**: `AssetCache` conserva el bloque/banco efectivo; `AssetTable` se invalida en
    `reset_phase`; HOST-386 cubre esa invalidación. Leases move-only impiden evict mientras un
    consumidor retenga una vista.
@@ -203,8 +212,9 @@ propietarios duplicados:
    owner hasta `stop_music`, y el backend espera DMA idle en teardown. SFX retiene una lease CPU, ya
    que el mixer lee la muestra por CPU. Los BlitQueue assets Chip exigen lease mientras se procesa el plan.
 6. **Pruebas de lifecycle**: rollback, reinicialización, evict/reload, doble liberación, vista
-   invalidada y liberación con Blitter/Copper/Paula activos. HOST-254/330 cubren caché; ampliar pruebas
-   de consumidores hardware queda pendiente.
+   invalidada y liberación con Blitter/Copper/Paula activos. HOST-254/330/353/386 cubren cache, banco,
+   lease e invalidación de fase; faltan escenarios hardware integrados con Copper/Blitter y tests de
+   rollback/reinit de Scene, Plan, DoubleBuffer, AudioSystem y SfxMixer.
 
 El cierre requiere evidencia de código y tests; reservar en Chip y liberar el bloque raíz al final
 del proceso no cuenta como lifecycle completo.
