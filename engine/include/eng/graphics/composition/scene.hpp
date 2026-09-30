@@ -74,11 +74,37 @@ struct Patch32 {
 /// No reserva al sistema más que a través de la `MemorySystem` del backend.
 class Scene {
 public:
+	Scene() = default;
+	~Scene() { release(); }
+	Scene(const Scene&) = delete;
+	Scene& operator=(const Scene&) = delete;
+
 	/// **Efecto de escena**: callable que recibe la escena y aporta intenciones/trabajos al
 	/// plan del frame. Ver `docs/engine/architecture/EFFECT_MODEL.md`.
 	using EffectFn = eng::util::FunctionRef<void(Scene&)>;
 	/// Máximo de efectos registrados por escena (capacidad fija, sin heap).
 	static constexpr u8 kMaxEffects = 8;
+
+	/// Libera los bitplanes propios y la copperlist propia. El llamador debe haber detenido
+	/// display/DMA antes: las vistas de `Scene` son no propietarias y el hardware puede retenerlas.
+	void release() noexcept {
+		m_plan.release();
+		if (m_memory != nullptr) {
+			for (u8 i = 0u; i < kMaxSceneBuffers; ++i) {
+				if (m_buffers[i].valid()) {
+					m_memory->chip().release(m_buffers[i]);
+				}
+				m_buffers[i] = {};
+			}
+		}
+		m_memory = nullptr;
+		m_res = {};
+		m_plane_bytes = 0u;
+		m_buffer_count = 1u;
+		m_back = 0u;
+		m_effect_count = 0u;
+		m_config_error = {};
+	}
 
 	/// Crea la escena reservando los bitplanes (según `res`) y la copperlist en Chip RAM,
 	/// **validando antes** `res` contra las capacidades de `limits` (perfil de la máquina).
@@ -402,6 +428,8 @@ private:
 	/// Reserva bitplanes y copperlist según `res`. Interno: solo lo llama `init(...)` tras
 	/// validar `res` contra el perfil. Devuelve `false` si la geometría o la memoria fallan.
 	bool init_raw(MemoryManager& memory, const SceneResources& res) {
+		release();
+		m_memory = &memory;
 		m_res = res;
 		const u16 row = row_bytes();
 		const u16 logical_rows = res.rows != 0u ? res.rows : res.height;
@@ -432,17 +460,20 @@ private:
 				m_buffers[b] = memory.chip().reserve<eng::PlaneTag>(
 					eng::math::mulu32x16(m_plane_bytes, static_cast<u16>(res.planes)) + 16u, 16);
 				if (!m_buffers[b].valid()) {
+					release();
 					return false;
 				}
 			}
 			m_back = (buffers > 1u) ? 1u : 0u;
 			if (res.layout == SceneLayout::Interleaved) {
 				if (!m_playfield.bind(m_buffers[0],
-						     field::CanvasPlayfield::Config {res.width, res.height, res.planes})) {
+							 field::CanvasPlayfield::Config {res.width, res.height, res.planes})) {
+					release();
 					return false;
 				}
 			} else if (!m_contiguous.bind(m_buffers[m_back], res.width, res.height, res.planes,
-						      m_plane_bytes)) {
+							      m_plane_bytes)) {
+					release();
 				return false;
 			}
 		}
@@ -450,6 +481,7 @@ private:
 		pcfg.copper_bytes = res.copper_bytes;
 		pcfg.first_line = res.first_line;
 		if (!m_plan.begin(memory, pcfg)) {
+			release();
 			return false;
 		}
 		publish_display(); // declara el modo vigente en el HwInfo ligado (si lo hay)
@@ -474,6 +506,7 @@ private:
 	}
 
 	SceneResources m_res {}; ///< geometría/recursos de la escena (copiados en `init`)
+	eng::MemoryManager* m_memory = nullptr; ///< owner no propietario para liberar los bloques Chip
 	eng::util::Array<eng::Block<eng::PlaneTag, eng::MemoryKind::Chip>, kMaxSceneBuffers> m_buffers {}; ///< buffers de bitplanes (Chip)
 	field::CanvasPlayfield m_playfield {}; ///< playfield del layout interleaved (base de `surface()`)
 	field::ContiguousPlayfield m_contiguous {}; ///< playfield del layout contiguo (base de `surface()`)

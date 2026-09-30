@@ -5,7 +5,7 @@
 // Respalda el backend con el que la caché de assets funciona en hardware. Como la E/S la
 // aporta `eng::os`, el test **implementa un backend de ficheros falso** (registra la
 // petición y completa a mano) y valida:
-//   - `alloc` en Chip y en Slow (para `MemBank::Fast`);
+//   - `alloc` en Chip y en Slow (para `MemBank::Fast`) y `free` físico por banco efectivo;
 //   - `load`: abre y lanza `file_read_async` con el cookie `IoUser{'A', id}`;
 //   - integración con `res::AssetCache`: `declare` -> `get` (lanza carga) -> `on_load_done`.
 //
@@ -68,8 +68,10 @@ int main() {
 		const auto f = backend.alloc(128u, eng::res::MemBank::Fast);
 		check(!f.empty(), "alloc Fast devuelve bloque");
 		check(ms.slow().used_bytes() >= 128u, "Fast consume la arena Slow");
-		backend.free(c, eng::res::MemBank::Chip); // no-op, no debe alterar
-		check(ms.chip().used_bytes() >= 256u, "free es no-op (bump arena)");
+		backend.free(c, eng::res::MemBank::Chip);
+		check(ms.chip().used_bytes() == 0u, "free devuelve la reserva Chip al pool");
+		backend.free(f, eng::res::MemBank::Fast);
+		check(ms.slow().used_bytes() == 0u, "free devuelve el fallback Slow al pool");
 	}
 
 	// --- load: abre y lanza con el cookie correcto --------------------------
@@ -100,6 +102,8 @@ int main() {
 		check(cache.state(id) == eng::res::AssetState::Ready, "estado Ready");
 		check(cache.get(id).size() == 300u, "datos tras la carga");
 		check(cache.used_chip() >= 300u, "presupuesto Chip del cache");
+		cache.shutdown();
+		check(ms.chip().used_bytes() == 0u, "shutdown del cache libera sus reservas físicas");
 	}
 
 	if (g_fail != 0) {

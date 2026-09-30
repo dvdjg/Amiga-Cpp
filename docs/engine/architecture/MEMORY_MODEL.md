@@ -36,8 +36,10 @@ La Slow RAM puede usarse para:
 
 El modelo vigente separa dos vidas útiles:
 
-- `MemBank<Chip>`/`BlockPool`: destino de recursos persistentes liberables. La integración
-  productiva del backend Amiga todavía está en migración y puede usar `configure_backing`.
+- `MemBank<Chip>`/`BlockPool`: destino de recursos persistentes liberables. El backend Amiga
+  configura actualmente estos pools sobre los bloques raíz; `MemorySystem` conserva arenas para
+  scratch y compatibilidades de composición. Los owners que descartan el `Block` y el teardown de
+  DMA siguen pendientes de cierre.
 - `MemBank<Fast>`/`MemBank<Slow>`: datos de CPU, con selección efectiva `Fast` si existe y `Slow`
   como fallback.
 - `ScratchArena`: memoria temporal de setup/fase/frame, reiniciable y sin liberación individual.

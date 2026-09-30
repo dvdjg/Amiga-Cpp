@@ -217,6 +217,7 @@ using SfxChannel = s32;
 ///   sfx.shutdown();                  // detiene y desinstala el handler
 class SfxMixer {
 public:
+	~SfxMixer() { shutdown(); }
 	SfxMixer() = default;
 	SfxMixer(const SfxMixer&) = delete;
 	SfxMixer& operator=(const SfxMixer&) = delete;
@@ -232,6 +233,8 @@ public:
 	/// deja la mezcla en silencio. Por eso se reservan aquí (cualquier RAM) y se pasan a
 	/// `MixerSetup`. Ver `MEMORY_OWNERSHIP.md` §"Bancos y contratos" y `GAME_AUDIO.md` §4.
 	bool init(MemoryManager& memory) {
+		shutdown();
+		m_memory = &memory;
 		m_buffer_size = mixer_amiga::get_buffer_size();
 		// Salida del mixer: **Chip obligatorio** (DMA de Paula). Sin fallback: si no cabe, falla.
 		m_buffer = memory.chip().reserve<eng::MixerBufferTag>(m_buffer_size, 4u);
@@ -246,6 +249,7 @@ public:
 		m_plugin_buffer = eng::any_bank<eng::MixerBufferTag>(memory, m_plugin_buffer_size, 4u);
 		m_plugin_data = eng::any_bank<eng::MixerBufferTag>(memory, kPluginDataBytes, 4u);
 		if (!m_plugin_buffer.valid() || !m_plugin_data.valid()) {
+			release_buffers();
 			return false;
 		}
 
@@ -257,15 +261,15 @@ public:
 		return true;
 	}
 
-	/// Detiene el mixer y desinstala el handler. No libera el bloque (lo hace la
-	/// arena al cerrar la demo).
+	/// Detiene el mixer, desinstala el handler y devuelve sus bloques a los bancos. El llamador
+	/// debe garantizar que Paula ya no puede leer el buffer Chip antes de invocarlo.
 	void shutdown() {
-		if (!m_ready) {
-			return;
+		if (m_ready) {
+			mixer_amiga::stop();
+			mixer_amiga::remove_handler();
+			m_ready = false;
 		}
-		mixer_amiga::stop();
-		mixer_amiga::remove_handler();
-		m_ready = false;
+		release_buffers();
 	}
 
 	/// Volumen maestro del mixer (0..64).
@@ -344,7 +348,36 @@ public:
 	u16 counter() const { return m_ready ? mixer_amiga::get_counter() : 0u; }
 
 private:
+	void release_buffers() noexcept {
+		if (m_memory == nullptr) {
+			return;
+		}
+		if (m_buffer.valid()) {
+			m_memory->chip().release(m_buffer);
+			m_buffer = {};
+		}
+		release_any(m_plugin_buffer);
+		release_any(m_plugin_data);
+	}
+
+	void release_any(eng::Block<eng::MixerBufferTag>& block) noexcept {
+		if (!block.valid()) {
+			block = {};
+			return;
+		}
+		if (block.kind == eng::MemoryKind::Fast) {
+			m_memory->fast().release(block.view.data());
+		} else if (block.kind == eng::MemoryKind::Slow) {
+			m_memory->slow().release(block.view.data());
+		} else if (block.kind == eng::MemoryKind::Chip) {
+			m_memory->chip().release(block.view.data());
+		}
+		block.invalidate();
+		block = {};
+	}
+
 	bool m_ready = false;
+	MemoryManager* m_memory = nullptr;
 	u32 m_buffer_size = 0;
 	u32 m_plugin_buffer_size = 0;
 	eng::Block<eng::MixerBufferTag, eng::MemoryKind::Chip> m_buffer {};

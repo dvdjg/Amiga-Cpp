@@ -39,9 +39,13 @@ public:
 	/// Inicializa la caché con su backend y presupuesto. El runtime **posee** el backend
 	/// (la caché solo guarda una referencia), así que debe sobrevivir a la caché.
 	bool init(CacheBackend backend, const CacheConfig& cfg) noexcept {
+		shutdown();
 		m_backend = backend;
 		return m_cache.init(m_backend, cfg);
 	}
+
+	/// Detiene la caché y devuelve sus reservas al backend. Debe preceder al teardown del banco.
+	void shutdown() noexcept { m_cache.shutdown(); }
 
 	/// Declara el asset y **lanza** su carga (asíncrona). `id` = 0 si no cabe (consulta el
 	/// presupuesto antes con `eng::res::Budget`). El tamaño debe conocerse de antemano.

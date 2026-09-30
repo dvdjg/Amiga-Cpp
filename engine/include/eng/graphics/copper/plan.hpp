@@ -85,6 +85,11 @@ inline constexpr u8 no_effect = 0xffu;
 
 class Plan {
 public:
+	Plan() = default;
+	~Plan() { release(); }
+	Plan(const Plan&) = delete;
+	Plan& operator=(const Plan&) = delete;
+
 	/// Capacidad de intenciones por frame (fijo, sin heap). `add` marca overflow si se
 	/// supera; `end_frame` devuelve false en ese caso (no se publica una lista parcial).
 	/// Con 320 caben los gradientes **por línea** de una escena (256 líneas + objetos).
@@ -93,6 +98,7 @@ public:
 	static constexpr u8 max_bands = 16;
 
 	bool begin(eng::MemoryManager& memory, const PlanConfig& cfg = {}) {
+		release();
 		m_cfg = cfg;
 		m_count = 0;
 		m_overflow = false;
@@ -106,10 +112,22 @@ public:
 	/// ser dueño de la buffering de copperlist; solo la orquesta (orden + presupuesto +
 	/// publicación).
 	void attach(DoubleBuffer& copper) {
+		release();
 		m_copper = copper;
 		m_count = 0;
 		m_overflow = false;
 		m_ok = copper.ok();
+	}
+
+	/// Libera únicamente el `DoubleBuffer` propio. Un buffer enlazado con `attach()` pertenece
+	/// al llamador y no se toca. Debe ejecutarse cuando el Copper ya no pueda leer la lista.
+	void release() noexcept {
+		m_copper.reset();
+		m_owned.release();
+		m_sched = {};
+		m_ok = false;
+		m_words = 0u;
+		m_count = 0u;
 	}
 
 	/// Abre el frame: limpia las intenciones y sitúa el emisor en el bloque **trasero**.

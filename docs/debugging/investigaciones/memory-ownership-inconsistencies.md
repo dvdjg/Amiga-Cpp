@@ -12,7 +12,7 @@ Este hallazgo cubre la relación entre `MemorySystem`, `MemoryManager`, `MemBank
 
 | ID | Severidad | Inconsistencia | Evidencia | Impacto |
 |---|---|---|---|---|
-| MEM-001 | Crítica | El backend Amiga enlaza los bancos Chip/Slow a las arenas mediante `configure_backing`, por lo que `free` es no-op para esas reservas. | `engine/src/platform/amiga/amiga.cpp:94-101`; `engine/include/eng/memory/block_pool.hpp:88-105,152-155` | Los assets persistentes y las reservas de escena no recuperan memoria individualmente. |
+| MEM-001 | Crítica | El backend Amiga configura pools propios para `MemoryManager`, pero mantiene arenas raíz separadas para `MemorySystem`/scratch; los consumidores que pierdan el `Block` siguen sin poder liberar su reserva. | `engine/src/platform/amiga/amiga.cpp:94-108`; `engine/include/eng/memory/block_pool.hpp:88-105,152-155` | La integración de owners y el teardown ordenado siguen sin recuperar recursos individualmente de forma segura. |
 | MEM-002 | Crítica | `AssetCacheBackend::free()` no libera el bloque recibido. | `engine/include/eng/platform/amiga/asset_backend.hpp:45-46` | El desalojo LRU solo cambia el estado del slot; la memoria permanece ocupada. |
 | MEM-003 | Alta | `AssetCache::AssetSlot` conserva `Span<u8>`, no un handle o bloque propietario. | `engine/include/eng/res/asset_cache.hpp:27-38` | El backend no puede aplicar una liberación tipada ni conservar el tamaño físico reservado. |
 | MEM-004 | Alta | `Assets::create()` entrega un `Block`, pero no lo registra en `m_tracked`; el llamador debe liberar manualmente y no hay destructor de `Assets` que haga teardown. | `engine/include/eng/api/assets.hpp:84-121` | La propiedad automática prometida no existe para recursos creados directamente. |
@@ -28,7 +28,7 @@ Este hallazgo cubre la relación entre `MemorySystem`, `MemoryManager`, `MemBank
 
 | Documento | Afirmación que debe corregirse |
 |---|---|
-| `docs/guides/roadmap/ROADMAP_MEMORY_OWNERSHIP.md` | Declara hecho el pool propio de `AmigaBackend` y la liberación real de `AssetCacheBackend`, pero el código aún usa `configure_backing` y `free` no-op. |
+| `docs/guides/roadmap/ROADMAP_MEMORY_OWNERSHIP.md` | Debe distinguir el pool propio actual de `MemoryManager` del ownership incompleto de `AssetCache`, y mantener abiertos rollback, teardown y DMA pendiente. |
 | `docs/engine/architecture/INTERNAL_TYPE_SYSTEM.md` | Presenta `MemoryManager` y `MemBank` como único asignador productivo, aunque la cadena Amiga comparte cursor con `MemorySystem`. También presenta la frontera `from_storage` como más restringida de lo que refleja el código. |
 | `docs/engine/architecture/RESOURCE_SYSTEM.md` | Describe una caché que pide y libera bloques, pero el backend real no libera y no conserva bloques propietarios. |
 | `docs/engine/architecture/PUBLIC_GAME_API.md` | Presenta `load<T>`/handles como objetivo y mezcla `HwInfo`/`LinearArena` en el presupuesto; el código vigente expone `MemoryManager`/`Budget` y todavía no implementa `app.load<T>`. |

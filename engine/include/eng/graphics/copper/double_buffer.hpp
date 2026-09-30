@@ -49,22 +49,50 @@ namespace eng::copper {
 
 class DoubleBuffer {
 public:
+	DoubleBuffer() = default;
+	~DoubleBuffer() { release(); }
+	DoubleBuffer(const DoubleBuffer&) = delete;
+	DoubleBuffer& operator=(const DoubleBuffer&) = delete;
+
 	/// Reserva los dos bloques (mismo tamaño y alineación) en Chip RAM.
 	/// `active` arranca en 1 para que el primer bloque que se escribe sea el 0.
 	bool begin(eng::MemoryManager& memory, u32 bytes_per_block, u8 alignment = 16) {
-		m_blocks[0] = eng::Block<eng::CopperTag> {memory.chip().reserve<eng::CopperTag>(bytes_per_block, alignment)};
-		m_blocks[1] = eng::Block<eng::CopperTag> {memory.chip().reserve<eng::CopperTag>(bytes_per_block, alignment)};
+		release();
+		m_memory = &memory;
+		m_blocks[0] = memory.chip().reserve<eng::CopperTag>(bytes_per_block, alignment);
+		m_blocks[1] = memory.chip().reserve<eng::CopperTag>(bytes_per_block, alignment);
 		m_active = 1;
 		m_ok = m_blocks[0].valid() && m_blocks[1].valid() && bytes_per_block >= 4u;
+		if (!m_ok) {
+			release();
+		}
 		return m_ok;
+	}
+
+	/// Libera ambos bloques. Debe llamarse cuando el Copper ya no puede leerlos.
+	/// El destructor aplica la misma operación; `MemoryManager` debe seguir vivo.
+	void release() noexcept {
+		if (m_memory != nullptr) {
+			for (u8 i = 0u; i < 2u; ++i) {
+				if (m_blocks[i].valid()) {
+					m_memory->chip().release(m_blocks[i]);
+				}
+				m_blocks[i] = {};
+			}
+		}
+		m_memory = nullptr;
+		m_active = 1;
+		m_ok = false;
 	}
 
 	constexpr bool ok() const { return m_ok; }
 	constexpr u8 active_index() const { return m_active; }
 
 	/// Vista del bloque activo/inactivo (no propietaria; el dueño es el doble buffer).
-	constexpr const eng::Block<eng::CopperTag>& active_block() const { return m_blocks[m_active]; }
-	constexpr const eng::Block<eng::CopperTag>& inactive_block() const {
+	constexpr const eng::Block<eng::CopperTag, eng::MemoryKind::Chip>& active_block() const {
+		return m_blocks[m_active];
+	}
+	constexpr const eng::Block<eng::CopperTag, eng::MemoryKind::Chip>& inactive_block() const {
 		return m_blocks[m_active ^ 1u];
 	}
 
@@ -104,7 +132,8 @@ public:
 	}
 
 private:
-	eng::Block<eng::CopperTag> m_blocks[2] {};
+	eng::Block<eng::CopperTag, eng::MemoryKind::Chip> m_blocks[2] {};
+	eng::MemoryManager* m_memory = nullptr;
 	u8 m_active = 1;
 	bool m_ok = false;
 };

@@ -154,6 +154,11 @@ public:
 		  m_capacity_words(static_cast<u16>(block.view.size() / sizeof(u16))),
 		  m_ok(block.valid() && block.kind == MemoryKind::Chip) {}
 
+	explicit ListBuilder(const eng::Block<eng::CopperTag, eng::MemoryKind::Chip>& block)
+		: m_words(reinterpret_cast<u16*>(block.view.data())),
+		  m_capacity_words(static_cast<u16>(block.view.size() / sizeof(u16))),
+		  m_ok(block.valid()) {}
+
 	/// Escribe un MOVE Copper: registro custom -> valor.
 	void move(Register reg, u16 value) {
 		move(static_cast<u16>(reg), value);

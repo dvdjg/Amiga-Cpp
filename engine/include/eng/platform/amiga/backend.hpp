@@ -190,6 +190,10 @@ public:
 		install_blitter_service(m_blitter_slot);
 	}
 
+	/// Desarma la tarea cooperativa que `wait_blitter()` ejecuta mientras espera. Debe llamarse
+	/// antes de destruir el contexto del llamador (el slot no posee ese contexto).
+	void clear_blitter_service();
+
 	/// Instala la IRQ de **VBlank** (nivel 3) y hace que el backend ejecute
 	/// `task(user, vpos)` en cada VBlank. Es el **latido del juego**: `Engine` la usa en
 	/// modo interrupt-driven para correr `update`/`render` con deadline de un frame,

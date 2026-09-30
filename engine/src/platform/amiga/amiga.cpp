@@ -119,6 +119,18 @@ bool AmigaBackend::configure_memory(const MemoryConfig& config) {
 }
 
 void AmigaBackend::release_memory() {
+	// Primero se cortan IRQs y callbacks: sus contextos suelen vivir en la escena/juego, no en
+	// el backend. Después se detiene Paula y se espera al blit actual sin volver a programar jobs.
+	clear_audio_service();
+	clear_blit_service();
+	clear_vblank_service();
+	clear_blitter_service();
+	background_timer_stop();
+	m_audio.shutdown();
+	m_paula.silence();
+	wait_blitter();
+	m_assets.shutdown();
+
 	if (m_fast_alloc) {
 		FreeMem(m_fast_alloc, m_fast_alloc_size);
 		m_fast_alloc = nullptr;
@@ -166,6 +178,11 @@ void AmigaBackend::wait_vblank_run(void (*thunk)(void*, u16), void* user) {
 void AmigaBackend::install_blitter_service(ServiceSlot& slot) {
 	g_blitter_service = slot.thunk;
 	g_blitter_service_user = &slot;
+}
+
+void AmigaBackend::clear_blitter_service() {
+	g_blitter_service = nullptr;
+	g_blitter_service_user = nullptr;
 }
 
 AmigaBackend::BlitWaitService AmigaBackend::blitter_wait_service() const noexcept {

@@ -37,6 +37,8 @@ public:
 	explicit Template(MemoryBlock block) : m_b(block) {}
 	explicit Template(const eng::Block<eng::CopperTag>& block) : m_b(block) {}
 
+	explicit Template(const eng::Block<eng::CopperTag, eng::MemoryKind::Chip>& block) : m_b(block) {}
+
 	/// Añade un MOVE y devuelve el slot de su **palabra de dato**.
 	u16 move_slot(u16 custom_register_offset, u16 value) {
 		return m_b.move_at(custom_register_offset, value);

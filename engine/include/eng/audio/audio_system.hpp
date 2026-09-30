@@ -65,12 +65,14 @@ enum class MusicFormat : u8 {
 class AudioSystem {
 public:
 	AudioSystem() = default;
+	~AudioSystem() { shutdown(); }
 	AudioSystem(const AudioSystem&) = delete;
 	AudioSystem& operator=(const AudioSystem&) = delete;
 
 	/// Inicia el SFX mixer (reserva el buffer Chip y arranca). La música se
 	/// arranca aparte con `play_music()`.
 	bool init(MemoryManager& memory) {
+		shutdown();
 		m_memory = memory; // el engine reserva aquí el buffer de descompresión de la música
 		return m_sfx.init(memory);
 	}
@@ -178,6 +180,9 @@ public:
 			default:
 				break;
 		}
+		if (m_format == MusicFormat::None) {
+			release_music_buffer();
+		}
 		return m_format != MusicFormat::None;
 	}
 
@@ -188,6 +193,7 @@ public:
 		m_med.stop();
 #endif
 		m_format = MusicFormat::None;
+		release_music_buffer();
 	}
 
 	/// Avanza la música una vez por frame. P61 y OctaMED son frame-driven; Protracker usa la
@@ -264,6 +270,13 @@ public:
 	PtPlayer& protracker() { return m_pt; }
 
 private:
+	void release_music_buffer() noexcept {
+		if (m_music_buf.valid() && m_memory.valid()) {
+			m_memory.get()->chip().release(m_music_buf);
+			m_music_buf = {};
+		}
+	}
+
 	SfxMixer m_sfx {};
 	eng::Ref<MemoryManager> m_memory {};                              ///< para el buffer de música (Chip)
 	eng::Block<eng::AudioTag, eng::MemoryKind::Chip> m_music_buf {}; ///< buffer de descompresión P61

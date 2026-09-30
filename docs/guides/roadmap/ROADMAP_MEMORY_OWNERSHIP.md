@@ -4,10 +4,12 @@ Plan de correcciones para llevar el engine al modelo de [`MEMORY_OWNERSHIP.md`](
 **una sola puerta de reserva**, banco en el **tipo**, vistas no propietarias seguras y **liberación
 ordenada**. Cada paso es verificable por sí mismo; el orden es por dependencia y valor.
 
-Estado real mapeado: conviven **dos familias de reserva** que hay que unificar. La migración de
-consumidores a `MemoryManager` está avanzada, pero el backend Amiga todavía enlaza los bancos a
-arenas mediante `configure_backing`; la liberación física de recursos persistentes no está cerrada.
-El detalle está en [`memory-ownership-inconsistencies.md`](../../debugging/investigaciones/memory-ownership-inconsistencies.md).
+Estado real mapeado: conviven **dos familias de reserva** que hay que unificar. El backend Amiga
+configura actualmente pools propios de `MemoryManager` sobre los bloques raíz, mientras conserva
+`MemorySystem` para arenas y scratch; esa separación evita el solapamiento de los consumidores
+migrados, pero no convierte automáticamente todos los owners en liberables. `AssetCache` todavía
+descarta el `Block` y deja `free()` en no-op. El detalle está en
+[`memory-ownership-inconsistencies.md`](../../debugging/investigaciones/memory-ownership-inconsistencies.md).
 
 ```text
   familia A (tipada, por banco, nuevo)         familia B (arena suelta, legado)
@@ -150,11 +152,12 @@ se puede** sin `clear()` total. La memoria del engine se reparte en **dos vidas 
 | Persistente (assets, escena, buffers de larga vida) | `BlockPool` | reserve + **free** en cualquier orden |
 | Scratch de frame/fase | `LinearArena` | bump + `mark/release` (LIFO) |
 
-**Estado (2026-09): `BlockPool` con free real — hecho.**
+**Estado (2026-09): `BlockPool` con free real; integración de owners — pendiente.**
 
 - `allocate` es *first-fit* sobre huecos, `free` marca y **fusiona**; ya **no** delega `free` en la
   arena cuando hay buffer propio. `configure_backing` queda **solo para scratch** (free = no-op
-  documentado).
+  documentado). El backend actual usa `configure()` para los pools persistentes de
+  `MemoryManager` y conserva arenas separadas para `MemorySystem`/scratch.
 - La **base se alinea una vez** al crear el pool: elimina el padding acumulativo (el «peyote» de
   `LinearArena::allocate`, bug demo 201).
 - Tabla de huecos **configurable** (`BlockPoolT<kMaxSlots>`, alias `BlockPool` = 64); `slots_left()`
@@ -167,13 +170,36 @@ se puede** sin `clear()` total. La memoria del engine se reparte en **dos vidas 
 1. **`ScratchArena`** (bump + `mark()`/`release(mark)`): separar `MemorySystem` en persistente (pool)
    y scratch de frame; `reset_frame()` solo limpia la scratch. **Hecho** (`arena.hpp`:
    `ScratchArena`, `ArenaMark`; `MemorySystem::frame` es `ScratchArena`; `reset_frame()`; HOST-383).
-2. **Migrar `MemBank`/`Assets`** a pool propio (hoy `MemBank` ya usa `BlockPool`; confirmar que el
-   backend no lo enlaza con `configure_backing` para los bancos persistentes). **Bloqueado por diseño**:
-   mientras la cadena de escena use `MemorySystem.chip.allocate_block` (arena), el banco **debe**
-   compartir cursor (`configure_backing`) para no solapar; el pool propio llega **después** de migrar
-   la escena a `MemBank` (Fase 3).
+2. **Completar `MemBank`/`Assets`**: `MemBank` ya usa `BlockPool` y el backend configura el pool
+   persistente por separado; falta que `AssetCache` conserve el `Block`/handle y devuelva el bloque
+   correcto en `free()`. Las arenas quedan reservadas para scratch y fases completas, no para
+   recursos desalojables.
 3. Quitar el `+16 headroom` de `res::load` (ya no hace falta con base alineada del pool; la arena
     *bump* sigue necesitándolo hasta migrar).
+
+## Plan de cierre — DMA y lifecycle
+
+Este es el orden de trabajo para cerrar los hallazgos MEM-001..MEM-010 sin introducir heap ni
+propietarios duplicados:
+
+1. **Teardown ordenado del backend**: detener Paula/mixer, desinstalar servicios de audio, Blitter
+   y VBlank, desactivar display/DMA y esperar operaciones pendientes antes de liberar los bloques
+   raíz de Exec. `configure_memory()` debe usar el mismo cierre.
+2. **Owners gráficos explícitos**: `copper::DoubleBuffer`, `copper::Plan` y `composition::Scene`
+   deben liberar sus bloques Chip, distinguir buffers propios de buffers adjuntos y hacer rollback
+   si una reserva posterior falla o una inicialización se repite.
+3. **Owners de audio explícitos**: `AudioSystem` debe liberar el buffer P61 y `SfxMixer` debe
+   hacer rollback de reservas parciales y devolver sus bloques después de parar la IRQ/mixer.
+4. **Caché física**: `AssetCache` debe conservar el bloque propietario, contabilizar el tamaño
+   alineado y liberar el banco efectivo en un desalojo; las vistas de `AssetTable` deben invalidarse
+   junto con el slot.
+5. **Frontera DMA de Paula**: sustituir `const u8*` por una vista/bloque Chip certificado y
+   rechazar una liberación mientras el canal pueda seguir reproduciendo.
+6. **Pruebas de lifecycle**: rollback, reinicialización, evict/reload, doble liberación, vista
+   invalidada y liberación con Blitter/Copper/Paula activos.
+
+El cierre requiere evidencia de código y tests; reservar en Chip y liberar el bloque raíz al final
+del proceso no cuenta como lifecycle completo.
 
 ## Fase 7 — FastPreferred y memoria ejecutable
 

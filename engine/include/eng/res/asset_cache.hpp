@@ -52,6 +52,7 @@ template <class Backend, eng::u16 MaxAssets = 16u>
 class AssetCache {
 public:
 	bool init(Backend& backend, const CacheConfig& cfg) noexcept {
+		shutdown();
 		m_backend = backend;
 		m_cfg = cfg;
 		m_count = 0u;
@@ -62,6 +63,18 @@ public:
 			s = AssetSlot {};
 		}
 		return true;
+	}
+
+	/// Libera todos los slots y reinicia la contabilidad. El llamador debe detener antes cualquier
+	/// DMA que use las vistas devueltas por `get()`; el cache no puede inferir qué consumidor las retiene.
+	void shutdown() noexcept {
+		for (eng::u16 i = 0u; i < MaxAssets; ++i) {
+			free_slot(m_slots[i]);
+			m_slots[i] = {};
+		}
+		m_count = 0u;
+		m_used_chip = 0u;
+		m_used_fast = 0u;
 	}
 
 	/// Registra un asset (path + tamaño). Devuelve su id (1..N) o 0 si no cabe.
