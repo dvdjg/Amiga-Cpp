@@ -88,6 +88,12 @@ execute_frame_plan(plan);      // encadena rachas -> menos escrituras a registro
 Solo es lícito si el **orden no importa** (jobs con destinos **disjuntos**: tiles, columnas). NO
 con `Clear`/`EOR` sobre regiones solapadas. Ver `RASTER.md` §"Prioridades de rendimiento".
 
+**Medición (demo `211_blit_state_bench`):** rejilla de 112 tiles disjuntos con dos estados
+intercalados. Agrupar no cambia los lanzamientos (`blitter_starts = 448`) ni el bitmap (capturas
+byte-idénticas) y sube los aciertos de la caché de racha (`blitter_common_hits`) de **6 a 110**;
+el control homogéneo ya está saturado (112/112), así que el orden agrupado solo aporta en escenas
+**heterogéneas**.
+
 ## 5. Completación: evento, no callback
 
 Declarar **no bloquea**; cuando una petición llega a su punto se **avisa** por la política `Done`.

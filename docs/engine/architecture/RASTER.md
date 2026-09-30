@@ -248,14 +248,18 @@ y el feeder por IRQ no solapa).
 batch con caché de estado. Métricas: construcción de la cola, **escrituras de registro**, arranques
 y esperas del Blitter, tiempo total y memoria de la descripción.
 
-**Estado (jul 2026):** (1) caché de estado común por racha — **hecha** (`AmigaBackend::submit_blit_job`);
-(2) agrupación por estado — **`FramePlan::sort_by_state()`** hecho (opt-in, HOST-387), pero **sin
-activar** en demos todavía: exige que el llamador **garantice independencia** (destinos disjuntos).
-En 104 el `add_shift` (copia del ring) **depende del orden** respecto a los tiles, así que activarlo
-allí requeriría separar el shift del lote o marcar los grupos independientes. No hay número de HW
-fiable hasta tener una escena de blits **disjuntos** (tiles puros) como bench. El camino `inline`
-(`OrBlobBatch`) sigue siendo el más rápido para lotes homogéneos; (1)/(2) acercan el camino del
-`FramePlan` heterogéneo a él.
+**Estado (jul 2026):** (1) caché de estado común por racha — **hecha** (`AmigaBackend::submit_blit_job`),
+con contador de aciertos `AmigaBackend::blitter_common_hits()` (reprogramaciones evitadas, diagnóstico);
+(2) agrupación por estado — **`FramePlan::sort_by_state()`** hecho (opt-in, HOST-387) y **medido** en
+hardware con la demo **211_blit_state_bench** (rejilla de 112 tiles disjuntos de dos estados
+intercalados): agrupar no cambia los lanzamientos (`448 = 112 × 4 planos`) ni el bitmap (capturas
+byte-idénticas) y sube los aciertos de caché de **6 a 110** (≈832 escrituras a custom evitadas por
+frame). El control homogéneo ya está saturado (**112/112**), así que `sort_by_state` es **neutro** cuando
+todos los blits comparten estado: conviene activarlo solo en escenas **heterogéneas con destinos
+disjuntos**. Sigue siendo responsabilidad del llamador garantizar esa independencia: en 104 el `add_shift`
+(copia del ring) **depende del orden** respecto a los tiles, así que activarlo allí requeriría separar el
+shift del lote o marcar los grupos independientes. El camino `inline` (`OrBlobBatch`) sigue siendo el más
+rápido para lotes homogéneos; (1)/(2) acercan el camino del `FramePlan` heterogéneo a él.
 
 ## Verificación
 

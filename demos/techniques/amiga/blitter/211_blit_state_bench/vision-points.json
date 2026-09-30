@@ -1,0 +1,10 @@
+{
+  "#": "Puntos de verificación visual de 211 (bench de agrupación por estado del Blitter). Escena estática.",
+  "points": [
+    {
+      "name": "rejilla de tiles disjuntos (dos estados)",
+      "last": true,
+      "expect": "Tablero de tiles de 16x16 verde/blanco sobre fondo negro en la esquina superior izquierda; celdas contiguas sin solapes ni huecos."
+    }
+  ]
+}

@@ -604,6 +604,12 @@ public:
 	constexpr const res::AssetRuntime<AssetCacheBackend, 8u>& assets() const { return m_assets; }
 	/// Arranques reales de BLTSIZE durante la última ejecución del plan.
 	constexpr u32 blitter_starts() const { return m_blitter_starts; }
+	/// **Reprogramaciones de estado común evitadas** en la última ejecución del plan: jobs cuya
+	/// racha comparte `BLTCON*`/ventanas/módulos con el job anterior, de modo que el backend omite
+	/// sus ~8 escrituras a custom (ver `submit_blit_job`). Es la métrica que mide el efecto de
+	/// `FramePlan::sort_by_state()` (una escena de blits disjuntos con estados intercalados pasa de
+	/// ~0 a ~(N - nº de estados) aciertos al agrupar).
+	constexpr u32 blitter_common_hits() const { return m_blt_common_hits; }
 	constexpr DebugOverlay& debug() { return m_debug; }
 
 private:
@@ -640,6 +646,7 @@ private:
 	void* m_fast_alloc = nullptr; ///< bloque base de Fast RAM (CPU) reservado, si hay
 	u32 m_fast_alloc_size = 0; ///< tamaño (KB) del bloque de Fast RAM
 	u32 m_blitter_starts = 0; ///< contador de blits lanzados (diagnóstico)
+	u32 m_blt_common_hits = 0; ///< reprogramaciones de estado común evitadas en el último plan
 	/// **Caché del estado común del Blitter** (registros `BLTCON*`/ventanas/módulos): si un job
 	/// consecutivo los comparte, se omiten sus escrituras a custom. La invalidan los caminos que
 	/// programan los registros por su cuenta (línea/EOR/C2P) — ver `submit_blit_job`.

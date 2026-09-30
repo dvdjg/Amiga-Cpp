@@ -16,6 +16,7 @@ bool AmigaBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 	}
 
 	m_blitter_starts = 0;
+	m_blt_common_hits = 0;
 	// Habilita el DMA del Blitter **solo si no lo está** (el Copper ya lo activa en el display):
 	// un MOVE a DMACON es caro con `cpu_cycle_exact` y escribirlo por job dominaba el bucle
 	// (16 BOBs/frame). La lectura de DMACONR cuesta una fracción de la escritura.
@@ -34,6 +35,7 @@ bool AmigaBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 
 bool AmigaBackend::blitter_submit(const graphics::BlitJob& job, bool wait) {
 	m_blitter_starts = 0;
+	m_blt_common_hits = 0;
 	if ((custom_base[custom_dmaconr_offset] & dma_blitter) == 0u) {
 		custom_base[custom_dmacon_offset] = dma_setclr | dma_master | dma_blitter;
 	}
@@ -132,7 +134,11 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 		m_blt_common_valid && m_blt_con0 == b.bltcon0 && m_blt_con1 == b.bltcon1 &&
 		m_blt_afwm == b.bltafwm && m_blt_alwm == b.bltalwm && m_blt_amod == b.bltamod &&
 		m_blt_bmod == b.bltbmod && m_blt_cmod == b.bltcmod && m_blt_dmod == b.bltdmod;
-	if (!common_same) {
+	if (common_same) {
+		// Racha de estado común: el job comparte `BLTCON*`/ventanas/módulos con el anterior, así
+		// que se omiten sus ~8 escrituras a custom (solo se re-apuntan los punteros y `BLTSIZE`).
+		++m_blt_common_hits;
+	} else {
 		custom_base[custom_bltcon0_offset] = b.bltcon0;		custom_base[custom_bltcon1_offset] = b.bltcon1;
 		custom_base[custom_bltafwm_offset] = b.bltafwm;
 		custom_base[custom_bltalwm_offset] = b.bltalwm;
