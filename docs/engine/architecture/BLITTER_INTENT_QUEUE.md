@@ -112,8 +112,9 @@ el avance del Blitter ocurre en el **hueco de VBlank** (poll) o en la **IRQ de b
   del commit). El bucle **no se bloquea** salvo por `wait_all()` explícito. **Coste de IRQ cero.**
   Es el default medido (con `BLTPRI`/blitter-nasty el Blitter no cede slots y el poll va igual o
   mejor). El `FramePlan` se ejecuta de golpe en el commit; la CPU queda libre **entre** frames.
-- **(I) IRQ de blit — opt-in.** El gancho (`set_blit_service` + `level3_dispatch` bit 6) **existe**;
-  falta conectar un **feeder** que, al terminar un job, programe el siguiente. Aviso: en OCS el
+- **(I) IRQ de blit — opt-in.** El gancho (`set_blit_service` + `level3_dispatch` bit 6) permite
+  conectar un **feeder** que, al terminar un job, programe el siguiente; la receta ejecutable está
+  en `demos/techniques/amiga/blitter/212_blitter_feeder`. Aviso: en OCS el
   Blitter **no encadena solo** — alguien (CPU en la ISR, o **Copper**) debe escribir el próximo
   `BLTSIZE`. La vía "sin CPU" real es el **Copper** (`CopperBlitterExecutor`, Técnica A): el Copper
   escribe los registros en su línea. La ISR, si se usa, interrumpe brevemente y **no** altera la

@@ -1,0 +1,10 @@
+{
+  "#": "Puntos de verificación visual de 212 (cadena de copias interleaved por polling o IRQ). Escena estática.",
+  "points": [
+    {
+      "name": "bandas verticales interleaved",
+      "last": true,
+      "expect": "Bitmap de 320x256 con 20 bandas verticales contiguas de 16 píxeles, colores planos sobre fondo negro y sin parpadeo ni desalineación entre bandas. Las capturas de poll e IRQ deben ser visualmente idénticas."
+    }
+  ]
+}

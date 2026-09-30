@@ -1563,12 +1563,12 @@ static eng::s16 g_l3d_vgroups[2] = {2, 0};
 static eng::s16 g_l3d_fgroups[2] = {14, 0};
 static eng::object3d::Object3D& l3d_object() {
 	static eng::object3d::Object3D o {};
-	o.objdat = g_l3d_blob;
-	o.objdat_size = sizeof(g_l3d_blob);
-	o.vertexGroups = g_l3d_vgroups;
-	o.edgeGroups = g_l3d_vgroups;
-	o.faceGroups = g_l3d_fgroups;
-	o.scale = {q12 {1 << 12}, q12 {1 << 12}, q12 {1 << 12}};
+	static eng::object3d::Mesh3D mesh {};
+	mesh.bytes = eng::Span<eng::u8> {g_l3d_blob, sizeof(g_l3d_blob)};
+	mesh.vertexGroups = eng::Span<eng::s16> {g_l3d_vgroups, 2u};
+	mesh.edgeGroups = eng::Span<eng::s16> {g_l3d_vgroups, 2u};
+	mesh.faceGroups = eng::Span<eng::s16> {g_l3d_fgroups, 2u};
+	eng::object3d::new_object3d(o, mesh);
 	return o;
 }
 extern "C" s16 c_lib3d_facevis(s16 a) {
