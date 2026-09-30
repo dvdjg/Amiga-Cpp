@@ -55,7 +55,14 @@ contexto irrelevante a quien trabaja en otra cosa.
 - Si faltan herramientas para observar el comportamiento real (por ejemplo, registros Copper efectivos, punteros BPL por frame o ciclos del Blitter), declararlo explícitamente y no presentar una hipótesis como resultado.
 - Probar primero el caso límite relevante y solo después documentar o afirmar que el cambio está resuelto.
 
-### 1.6 Buscar antes de implementar
+### 1.6 Próximos pasos al final de cada turno
+
+- Al cerrar cada turno, incluir una sección **«Próximos pasos recomendados»** con entre 3 y 5 propuestas concretas, ordenadas por prioridad y orientadas al objetivo activo.
+- Si el trabajo pertenece a un roadmap, indicar el siguiente paso verificable de ese roadmap y su valor; no proponer tareas genéricas ni repetir pasos ya completados.
+- Si el roadmap queda cerrado, decirlo explícitamente y proponer el roadmap o frente de trabajo siguiente para que el usuario pueda elegir.
+- Si hay un bloqueo que impide completar el objetivo, nombrarlo y proponer la acción mínima para resolverlo.
+
+### 1.7 Buscar antes de implementar
 
 - **Nunca implementar una utilidad o API del engine sin comprobar antes que no existe ya.** Antes de escribir `draw_text`, una fuente, un blit, un driver o cualquier ayuda reusable, buscar en `engine/include/`, `demos/` y `tools/` (grep por nombre y por concepto: «text», «font», «blit», «surface», «scene», «palette»…) y en los índices de `docs/` (`DOC-MAP-PRINCIPAL.md`, READMEs, roadmaps).
 - Para **constantes, máscaras y valores mágicos**: `node tools/analyze/duplicate-constants.mjs` lista los valores ya declarados bajo **otro nombre** en otro fichero (evita duplicar; p. ej. cazó `kBlitterMintermCopyC`/`blt_minterm_copy_c` y `kMintermAOrB` en `blob.hpp`). Si ya existe, se **reutiliza o se aliasa**; no se redeclara.
@@ -64,7 +71,7 @@ contexto irrelevante a quien trabaja en otra cosa.
 - Aplica también a **fuentes, tablas y glifos**: buscar si el carácter/glifo ya está antes de redibujarlo.
 - Un commit que añade algo que ya existía como duplicado se considera un error de proceso.
 
-### 1.7 Contexto técnico
+### 1.8 Contexto técnico
 
 - **Antes de implementar cualquier mecanismo técnico** (registro o comportamiento de hardware, protocolo, formato, peculiaridad del toolchain o del chipset), **localizar y leer la documentación de referencia relevante**. No inventar ni descubrir por prueba y error.
 - Fuentes preferentes: `docs/reference/ahrm/` (AHRM 3.ª), el repo hermano `../amiga-bootcamp/` (p. ej. `01_hardware/common/cia_chips.md`, `video_timing.md`, `dma_architecture.md`), los headers del SDK (`…/opt/m68k-amiga-elf/sys-include/hardware/*.h`) y los datasheets.
@@ -72,7 +79,7 @@ contexto irrelevante a quien trabaja en otra cosa.
 - **Citar la referencia** (ruta del doc, datasheet, sección) en el comentario del código y en el commit.
 - Ejemplo (2026-09): el timer de CIA no recargaba por poner `CRA bit3 RUNMODE=1` (one-shot); leer `cia_chips.md` lo documenta como «0 = continuo» y fue la corrección directa.
 
-### 1.8 Commits por turno
+### 1.9 Commits por turno
 
 El objetivo es que el usuario pueda **revisar** el trabajo antes de que se consolide en git.
 
@@ -80,7 +87,7 @@ El objetivo es que el usuario pueda **revisar** el trabajo antes de que se conso
 - El trabajo producido en el **turno en curso** no se commitea en ese mismo turno, aunque complete una tarea pendiente o un arreglo: se deja sin commitear para que el usuario lo repase, y se commitea al inicio del turno siguiente salvo que el usuario pida lo contrario.
 - No incluir en ese commit cambios ajenos al hilo actual.
 
-### 1.9 API pública y backends
+### 1.10 API pública y backends
 
 - La lógica de demo/juego incluye la **fachada** `eng/api/api.hpp` (un solo include con la API estable) y, si es una demo Amiga, su backend. No acumular includes sueltos de `eng/core`, `eng/engine.hpp`, `eng/graphics/composition`… salvo lo que no cubra la fachada (3D, efectos, utilidades concretas).
 - La lógica de demo **no nombra tipos del backend** (`AmigaBackend::C2p4State`, `…::OrBobEntry`, `…::LineEorParams`): usa el **tipo de dominio** (`eng::graphics::C2p4`/`OrBob`/`LineEor`) o la API del seam (`FramePlan`, `Rasterizer`, `DrawTarget`). El backend se instancia en `main()` y se pasa al `Engine`.
@@ -88,7 +95,7 @@ El objetivo es que el usuario pueda **revisar** el trabajo antes de que se conso
 - **API público final**: debe ser **lo más intuitivo y simple posible** y **no restringir funcionalidad** (ver §1.1 de `docs/engine/architecture/PUBLIC_API.md`). Las interfaces **intermedias** del engine pueden ser técnicas; lo que consume el juego, no. Mientras falten módulos, se escribe el API de lo que ya existe y se adapta después. Al tocar un módulo, preguntar «¿cómo lo pediría un juego?».
 - **Fast RAM**: los juegos detectan en **runtime** si hay Fast RAM (Agnus no la ve, CPU a plena velocidad) y la usan para tareas intensivas de CPU. **No** usar Slow RAM para eso (comparte el bus DMA pero Agnus no la ve: lo peor de ambos).
 
-### 1.10 Genericidad de las cabeceras
+### 1.11 Genericidad de las cabeceras
 
 - Una cabecera del engine debe ser **genérica sobre lo que varía** (escalar, dimensión, capacidad, política) siempre que el algoritmo no dependa de un tipo concreto. **No** fijar `s16`/`float`/`u32` en la firma si el algoritmo vale para cualquier tipo con las operaciones requeridas.
 - Usar el **patrón del repo**: `template <class S>` con `eng::math` (`Vec<2,S>`, `scalar_traits`, `scalar_sqrt`, `div_norm`/`mul_norm`) para el escalar; parámetros `constexpr` de plantilla para capacidades; `Span`/vistas para buffers. Ejemplos de referencia: `eng/ai/steering/steering.hpp`, `eng/core/math/linalg.hpp`, `eng/core/math/geometry.hpp`.
@@ -99,7 +106,7 @@ El objetivo es que el usuario pueda **revisar** el trabajo antes de que se conso
 - **Test negativo obligatorio**: instanciar la cabecera con **dos escalares distintos** (p. ej. `float` y `Fixed<s16,12>`) demuestra que no impone uno. El gate `tools/check/generic-headers.mjs` cierra el caso estático (tipo concreto o include de escalar en cabecera genérica → falla).
 - **Las optimizaciones propias no deben OCULTAR defectos.** Sustituir una *libcall* (`__mulsi3`, `__divsf3`…) por una rutina propia quita la señal barata que delataba coste/incorrección. Regla: **nunca** hacerlo sin (a) un **test de equivalencia contra una referencia independiente** (operación nativa o algoritmo clásico; idealmente byte a byte) y (b) comprobar que el binario **sigue en 68000** con `node tools/analyze/asm-audit.mjs <elf>` (falla si hay **68020+/FPU**: `muls.l`, `fmove`, `extb.l`, `bf*`, `cas.l`…). El silencio de las libcalls no es prueba de corrección. Ver `docs/reference/toolchain/m68k-gcc.md` §3.
 
-### 1.11 Si el hardware no funciona: fuente del emulador
+### 1.12 Si el hardware no funciona: fuente del emulador
 
 - Cuando un mecanismo del chipset **no se comporta como se espera** y la documentación de referencia (`docs/reference/ahrm/`, `../amiga-bootcamp/`, datasheets) no lo explica, la **implementación del emulador es la referencia de facto**: leer su **código fuente**.
 - **Fuente local**: `../WinUAE-DBG/`. Ficheros clave: `custom.cpp` (registros custom: handlers de escritura/lectura, p. ej. `CLXCON`/`CLXDAT`), `drawing.cpp` (render por píxel/línea: colisión, sprites, playfield), `include/custom.h` (mapa de registros), `cfgfile.cpp` (preferencias como `collision_level`).
@@ -107,7 +114,7 @@ El objetivo es que el usuario pueda **revisar** el trabajo antes de que se conso
 - Documentar el hallazgo en `docs/reference/emulators/<emulador>/<tema>.md` (índice en `docs/reference/emulators/README.md`), citando **fichero y línea**. Ficha de referencia por **tema**: mecanismo observado (tabla `registro/handler/fuente`), contraste con el AHRM, implicación para el engine y enlaces al código que la usa. Ejemplo: [`winuae/audio-irq.md`](docs/reference/emulators/winuae/audio-irq.md) (IRQ de audio: `setirq`/`event_audxdat_func`, `AUDxLEN`/`AUDxLCH`, contraste AHRM `:4378`, y por qué el servicio de nivel 4 es el sitio del *swap*).
 - **Completar la referencia**: si el emulador aclara o corrige la doc del manual, añadir la aclaración a la copia local (`docs/reference/ahrm/ERRATA_Y_NOTAS.md` o la ficha de técnica), indicando **de dónde se obtuvo** (emulador + `fichero:línea`).
 
-### 1.12 Las demos son tutoriales
+### 1.13 Las demos son tutoriales
 
 - **Toda demo debe poder leerse como un tutorial de cómo se programa el engine**: enseña el camino correcto (la fachada estable) resolviendo un caso concreto, no solo «funciona». El código es material didáctico de primera clase.
 - **Comentarios al nivel de la intención**: cada bloque explica **qué** se hace con el vocabulario del engine (`App`/`Screen`/`Scene`/`BobLayer`/`RasterLayout`/`CopperIntent`…), **por qué** es así y **qué haría mal un lector** si bajara a bajo nivel; las decisiones no obvias (alineación, orden de registros, `MEMF_*`, límites de hardware) citan la referencia canónica.
