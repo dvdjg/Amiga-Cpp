@@ -245,6 +245,12 @@ Reglas para no repetir el problema:
 2. En la **entrada** (`_start`), y **antes de habilitar IRQs**, cargar ese tope en `SP` (`move.l #top,%sp`). Si el programa corre en **modo supervisor** (takeover), `SP == SSP` y también las IRQs van a Fast; si corre en **modo usuario** (proceso de Exec), solo se mueve la pila del hilo principal y el SSP sigue siendo de Exec (no manipulable en 68000 sin un trap).
 3. El cambio debe hacerse en un `_start` **naked** (no tras el prólogo de una función C): una vez cambiado `SP` no se puede `rts` desde la pila antigua.
 
+`FAST_STACK=1` ya implementa esta selección como opción de build mediante el startup compartido; no
+significa que `HwInfo::probe()` relocalice la pila al detectar Fast en runtime. El soporte debe
+conservar base+tamaño para liberar el bloque al retornar; y en modo usuario solo cambia USP, no el
+SSP propiedad de Exec. Para la política general de Fast (datos estáticos, código y DLL), ver
+[`FAST_RAM_POLICY.md`](FAST_RAM_POLICY.md).
+
 **Tareas.** Una tarea con pila propia la reserva con `Stack`/`stack_from<Bank>`/`fast_or_slow_stack` (Fast por defecto; Chip/Slow opt-in); `Stack::top` es el valor para `SP` del *context switch*.
 
 ## 4. Auditoría por subsistema

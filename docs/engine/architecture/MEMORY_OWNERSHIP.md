@@ -6,6 +6,8 @@ Este documento fija la política coherente para reservar, usar y liberar memoria
 
 - Un recurso que el Blitter o el Copper consumen vive siempre en Chip RAM.
 - Una reserva de Chip no puede proceder accidentalmente del stack, Fast RAM o Slow RAM.
+- Si hay Fast RAM, las reservas de trabajo exclusivamente CPU deben preferir Fast para reducir la
+  contención con Agnus; Chip sigue siendo obligatorio para DMA.
 - El recurso propietario libera su bloque al destruirse o al desalojarse.
 - Existe una única fachada de reserva; los consumidores no conocen `LinearArena`, `BlockPool`, `AllocMem` ni `FreeMem`.
 - Las reservas temporales de frame y de setup tienen una semántica distinta y explícita.
@@ -49,6 +51,11 @@ asignadores a los consumidores es la duplicación que debe eliminarse.
 `Fast` y `Slow` no son alternativas válidas para un recurso DMA. Slow RAM puede tener el mismo
 aspecto de memoria del sistema, pero Agnus no la alcanza; Fast RAM es privada de la CPU. La decisión
 de banco debe derivarse del dominio del recurso, no de una preferencia del llamador.
+
+Si el hardware ofrece Fast RAM, los recursos nuevos de CPU deben usarla por defecto mediante una
+política `FastPreferred` del engine. El consumidor no tiene que sondear el hardware ni seleccionar
+`fast()` en cada reserva. El allocator resuelve fallback explícito a Slow y el handle informa del
+banco efectivo. Las peticiones Chip para DMA no admiten ese fallback.
 
 ## Prohibición de memoria no certificada para DMA
 

@@ -95,7 +95,11 @@ del consumidor puede restringir más, pero no relajar un requisito del módulo. 
 no existe, `allow_fallback` decide si se usa Slow o se devuelve `MemoryUnavailable`. La memoria Chip
 debe ser obligatoria para código/datos que Paula, Copper o Blitter vayan a leer.
 
-La reserva debe devolver un módulo propietario con segmentos individuales:
+La reserva debe devolver un módulo propietario con segmentos individuales. Para segmentos CPU-only,
+si el sondeo encontró Fast RAM, la política normal es `FastPreferred` sin obligar a la app a pasar
+`MemoryManager::fast()` directamente. Los flags HUNK obligatorios (en especial Chip para DMA)
+prevalecen sobre esa preferencia; el fallback Fast→Slow debe estar permitido explícitamente y
+registrarse como banco efectivo.
 
 ```text
 DynamicModule

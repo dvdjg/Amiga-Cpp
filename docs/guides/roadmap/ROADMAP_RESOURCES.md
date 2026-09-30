@@ -67,9 +67,11 @@ presupuesto/prioridad/LRU y **loader de código relocatable**, sobre la E/S así
 - **Verificación**: **HOST-248** (`.englib`: relocaciones + símbolos) y **HOST-258** (HUNK:
   segmentos en `LinearArena`, `HUNK_RELOC32`/`RELOC32SHORT`, `HUNK_SYMBOL`); **demo 211_fs_test**
   carga y ejecuta los **dos** formatos en la Amiga (`answer()` → 42).
-- **Estado**: **entregado** (`DynLoader` con **detección de formato** `.englib`/HUNK, relocaciones y
-  símbolos por hash FNV-1a; **HOST-248** y **HOST-258**; demo 211 con ambos). Pendiente: el
-  **generador host** que emite `.englib` desde código real del engine.
+- **Estado**: **parser/relocator entregado; ownership de módulos pendiente** (`DynLoader` con
+  **detección de formato** `.englib`/HUNK, relocaciones y símbolos por hash FNV-1a; **HOST-248** y
+  **HOST-258**; demo 211 con ambos). `load()` recibe memoria del llamador, HUNK usa una arena única y
+  `unload()` no devuelve segmentos; falta el **generador host**, loader por segmento/banco, ownership,
+  carga por path y pipeline comprimido. Ver R6 y `FILE_SYSTEM_AND_DYNAMIC_LIBRARIES.md`.
 
 ### R5 — Fachada y ejemplo por zonas
 
@@ -104,7 +106,9 @@ librerías comprimidas con memoria elegida por segmento. El contrato completo es
 - **R6.2 Requests robustos**: separar `RequestId` del `IoUser`, conservar path y buffer hasta el
   fin, rechazar respuestas tardías y cerrar requests en vuelo.
 - **R6.3 Política de memoria**: reservar código, datos y BSS por segmento con `MemoryManager`,
-  respetar `HUNKF_CHIP`/`HUNKF_FAST`, fallback explícito y pools persistentes liberables.
+  respetar `HUNKF_CHIP`/`HUNKF_FAST`, fallback explícito y pools persistentes liberables. Usar
+  `FastPreferred` automáticamente para segmentos CPU-only cuando haya Fast; Chip requerido nunca
+  degrada a Fast. Ver `FAST_RAM_POLICY.md`.
 - **R6.4 Contenedor comprimido**: crear `.engz` con codec, tamaño comprimido/descomprimido, alineación,
   política, CRC y payload HUNK/ENGL.
 - **R6.5 Decode ZX0 genérico**: reutilizar el depacker existente fuera de `eng::audio` como etapa

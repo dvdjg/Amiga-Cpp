@@ -48,5 +48,10 @@ Los recursos DMA persistentes no deben reservarse directamente mediante `LinearA
 migración no esté cerrada, esta regla es una condición de arquitectura pendiente, no una garantía
 automática de todas las rutas existentes.
 
+Si se detecta Fast RAM, las reservas CPU-only nuevas deben preferirla mediante la política del
+`MemoryManager`; el engine debe resolver el fallback y exponer el banco efectivo. La capacidad
+detectada no equivale a una cuota disponible: el setup debe reservar primero el stack elegido y
+descontar las necesidades del sistema antes de dimensionar pools persistentes y scratch.
+
 Ninguna demo debe hacer asignaciones dinamicas durante el bucle principal salvo que
 la fase lo declare explicitamente como una prueba de fallo.

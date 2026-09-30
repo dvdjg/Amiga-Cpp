@@ -199,6 +199,14 @@ El loader acepta **dos formatos** y los distingue por el primer longword:
   y se copian; la imagen puede liberarse tras cargar. Soporta `HUNK_RELOC32`, `HUNK_RELOC32SHORT`,
   `HUNK_DREL32`, `HUNK_RELOC16/8`, `HUNK_ABSRELOC16` y `HUNK_RELRELOC32`, más `HUNK_SYMBOL`.
 
+El `DynLoader` implementado es todavía un parser/cargador sobre memoria suministrada por el
+llamador: `.englib` se relocaliza in situ y HUNK usa una sola arena. Aunque `HunkSegment` conserva
+`HunkMem`, la reserva no elige Chip/Fast/Slow por segmento; `unload()` limpia el descriptor, pero
+no libera los segmentos ni la imagen. Tampoco carga desde path, descomprime ZX0 ni valida una ABI de
+módulo. Por tanto, carga/descarga propietaria, política Fast y pipeline `.engz` son trabajo
+pendiente documentado en [`FAST_RAM_POLICY.md`](FAST_RAM_POLICY.md) y
+[`FILE_SYSTEM_AND_DYNAMIC_LIBRARIES.md`](FILE_SYSTEM_AND_DYNAMIC_LIBRARIES.md).
+
 ```text
 .englib  Header: magic "ENGL", version, code_size, data_size, bss_size,
                  entry_offset, reloc_count, export_count

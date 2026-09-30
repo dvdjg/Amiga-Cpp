@@ -173,7 +173,31 @@ se puede** sin `clear()` total. La memoria del engine se reparte en **dos vidas 
    compartir cursor (`configure_backing`) para no solapar; el pool propio llega **después** de migrar
    la escena a `MemBank` (Fase 3).
 3. Quitar el `+16 headroom` de `res::load` (ya no hace falta con base alineada del pool; la arena
-   *bump* sigue necesitándolo hasta migrar).
+    *bump* sigue necesitándolo hasta migrar).
+
+## Fase 7 — FastPreferred y memoria ejecutable
+
+**Objetivo.** Cuando el arranque detecta Fast RAM, el engine la ofrece automáticamente a trabajo de
+CPU para reducir contención con Agnus, sin trasladar allí buffers Chip/DMA ni obligar a cada
+consumidor a elegir banco.
+
+1. **Selección por política**: añadir `FastPreferred`/`FastRequired` con fallback explícito y banco
+   efectivo en el handle. Aplicarlo a datos CPU-only y scratch; DMA conserva `ChipRequired`.
+2. **Presupuesto de arranque**: detectar capacidad, reservar primero el stack configurado y
+   dimensionar después los pools Fast persistente/scratch dejando margen a Exec y servicios.
+3. **Pila principal**: evolucionar `FAST_STACK=1` fijo a `StackPolicy` (banco, tamaño, fallback),
+   conservando base+tamaño para restaurar SP y liberar la reserva al salir. No cambiar SSP en un
+   proceso AmigaDOS en modo usuario.
+4. **Estáticos y código principal**: auditar ELF/HUNK/linker. La ubicación Fast debe decidirse antes
+   de ctors/`main` por los flags de segmento que respete el loader; copiar globals ya inicializados
+   no es relocalización válida.
+5. **DynLoader por segmento**: reservar code/data/BSS individualmente, respetar `HUNKF_CHIP`, aplicar
+   Fast como preferencia a segmentos CPU-only y relocalizar tras conocer todas las bases.
+6. **Evidencia**: A/B con y sin Fast; verificar rangos reales, fallback, stacks, relocaciones,
+   coste CPU/DMA y liberación de módulos.
+
+El contrato técnico y las limitaciones actuales están en
+[`FAST_RAM_POLICY.md`](../../engine/architecture/FAST_RAM_POLICY.md).
 
 ## Orden recomendado
 
