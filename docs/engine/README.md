@@ -52,6 +52,7 @@ mapa «tarea → documentación», en [DOC-MAP-PRINCIPAL.md](../ai-dev-environme
 ### GUI
 
 - [GUI_LIBRARY.md](architecture/GUI_LIBRARY.md) — diseño de `eng::ui` (widgets, compositor, backing, cursor hardware).
+- [GUI_COMPLETENESS.md](architecture/GUI_COMPLETENESS.md) — carencias y arquitectura objetivo de eventos, edición de texto y rutas CPU/Blitter/Copper.
 - [RASTER.md](architecture/RASTER.md) — primitivas CPU/Blitter que usa la GUI.
 
 ### Audio
