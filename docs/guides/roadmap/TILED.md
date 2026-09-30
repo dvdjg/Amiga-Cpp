@@ -1,7 +1,8 @@
-# Tiled (.tmx/.tsx) — conocimiento preservado
+# Tiled (.tmx/.tsx) — estado actual y límites
 
-Para no perder nada del formato de mapas de Tiled (se usará cuando haya metadatos; el
-extractor de tiles de bitmap en crudo no los necesita).
+Este documento conserva el subconjunto Tiled que hoy entiende el extractor y evita confundirlo con
+soporte completo del editor. El plan de soporte nativo, incluidos tilesets, mapas multicapa, formatos
+isométricos y streaming de páginas, está en [`ROADMAP_TILED_WORLD_SUPPORT.md`](ROADMAP_TILED_WORLD_SUPPORT.md).
 
 ## Qué es Tiled y qué genera
 Tiled es un editor de mapas. Emite `.tmx` (XML del mapa) y `.tsx` (definición de tileset
@@ -25,10 +26,11 @@ particularidades por tile. El orden de los tiles del sheet (row-major) es el ord
 gids dentro de su `firstgid`.
 
 ## Herramientas del repo
-- `tools/ehb/parse-tmx.mjs <mapa.tmx>`: extrae mapa/tilesets/capas soportando las
+- `tools/ehb/parse-tmx.mjs <mapa.tmx>`: extrae un subconjunto de mapa/tilesets/capas soportando las
   codificaciones de Tiled (CSV, XML `<tile>` y base64 con gzip/zlib), mapas finitos e
   infinitos por `<chunk>` (coordenadas negativas incluidas) y limpia los flips;
   con `--resolve-tsx` lee los `.tsx` para resolver la imagen de cada tileset.
+  Los bits de flip se limpian para obtener el id, pero las transformaciones aún no se preservan.
   Esto habilita: gid → (imagen, índice) → índice en el banco EHB (si se corta el sheet con
   `slice-tiles.mjs`).
 - `gid-to-bank.mjs` → `pack-world.mjs` (**implementado**): empaqueta el mapa en el **formato de
@@ -36,7 +38,20 @@ gids dentro de su `firstgid`.
   Formato y mapeo runtime: `docs/engine/architecture/WORLD_FORMAT.md`.
 - El extractor "bitmap en crudo" (`quantize-ehb.mjs` + `slice-tiles.mjs`) NO necesita Tiled.
 
-## Futuro conversor completo
+## Límites actuales y soporte completo
+
+`parse-tmx.mjs` es un extractor preliminar basado en expresiones regulares, no un parser XML
+estructural. Conserva orientación como campo pero el packer actual materializa una capa seleccionada
+y un tileset/banco indicado, limpiando flags GID en lugar de preservarlos como transformaciones. No
+cocina por sí solo TSX/image collections, propiedades por tile, animaciones, capas de objetos ni
+metadata de colisión a runtime. `WorldMap` sirve de base sparse, pero su descriptor actual referencia
+un solo banco/paleta y no resuelve residency de tileset en Chip RAM.
+
+El extractor "bitmap en crudo" (`quantize-ehb.mjs` + `slice-tiles.mjs`) no necesita Tiled; el
+pipeline completo debe combinarlo con el parser/cooker y emitir assets Amiga listos para el driver.
+Las fases, gates y contratos están en `ROADMAP_TILED_WORLD_SUPPORT.md`.
+
+### Conversor externo
 `https://github.com/tinic/png2amiga` tiene muchas rutinas de conversión (interleaved,
 paletas, etc.) que de momento no necesitamos; se evaluará más adelante (clonar en
 `programa/AI/Amiga/png2amiga`). El conocimiento de Tiled y las rutinas crudo del repo se
