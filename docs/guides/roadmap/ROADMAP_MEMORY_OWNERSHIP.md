@@ -101,9 +101,9 @@ flat_playfield,mirror_playfield,canvas_playfield,soft_dpf}.hpp` — **hecho**.
 2. `Assets` como par reserve/release del juego (`create`/`release`/`reset_phase`) — **hecho**.
 3. Reservas de fase: `ScratchArena` + `reset_frame` — **hecho** (Fase 6).
 
-**Evidencia:** HOST-254 y HOST-330/331/332 validan lifecycle, vista con generación, lease DMA,
-lectura async pendiente y liberación física; el gate host completo queda pendiente por el id
-duplicado HOST-387 (`audio/387_acp1` y `graphics/387_frame_plan_state`); builds
+**Evidencia:** HOST-254, HOST-330/331/332/353/386/388 validan owners, políticas de banco, leases,
+invalidación de vistas y la tabla no propietaria; la suite completa queda con una revisión diferida,
+HOST-382/ACP1 (nunca ha funcionado; fuera del alcance actual). Los tests relevantes de audio y gráficos pasan; builds
 m68k de 052/086/100/113/117/209 y del resto de la escena; 113/086 READY.
 
 ## Fase 4 — Diagnóstico y presupuesto
@@ -188,21 +188,20 @@ se puede** sin `clear()` total. La memoria del engine se reparte en **dos vidas 
 Este es el orden de trabajo para cerrar los hallazgos MEM-001..MEM-010 sin introducir heap ni
 propietarios duplicados:
 
-1. **Teardown ordenado del backend**: detener Paula/mixer, desinstalar servicios de audio, Blitter
-   y VBlank, desactivar display/DMA y esperar operaciones pendientes antes de liberar los bloques
-   raíz de Exec. `configure_memory()` debe usar el mismo cierre. La liberación de raíces se bloquea
-   mientras `AssetRuntime` tenga lecturas o leases DMA activas; falta generalizarlo a todos los owners.
+1. **Teardown ordenado del backend**: detener servicios, silenciar y esperar Paula, esperar el Blitter,
+   rechazar el cierre mientras `AssetRuntime` tenga lecturas/leases abiertas y después liberar raíces.
+   `configure_memory()` usa el mismo cierre; validado con builds y demos 057/061.
 2. **Owners gráficos explícitos**: `copper::DoubleBuffer`, `copper::Plan` y `composition::Scene`
-   deben liberar sus bloques Chip, distinguir buffers propios de buffers adjuntos y hacer rollback
-   si una reserva posterior falla o una inicialización se repite.
+   liberan bloques Chip, distinguen buffers propios de adjuntos y hacen rollback en inicialización
+   parcial/repetida; queda pendiente la coordinación de todas las vistas retenidas por consumers.
 3. **Owners de audio explícitos**: `AudioSystem` debe liberar el buffer P61 y `SfxMixer` debe
    hacer rollback de reservas parciales y devolver sus bloques después de parar la IRQ/mixer.
-4. **Caché física**: conservar el bloque y banco efectivo, contabilizar el tamaño físico, invalidar
-   las vistas al evict/reload y rechazar la liberación mientras haya DMA. **Hecho en `AssetCache`**;
-   falta coordinar vistas retenidas en `AssetTable` y otros consumidores.
-5. **Frontera DMA de Paula**: usar una vista/bloque Chip certificado y mantener una lease mientras el
-   canal pueda seguir reproduciendo. `AssetCache::acquire_dma`/`release_dma` proporciona el contrato;
-   integrar esas leases en consumidores Paula/Blitter sigue pendiente.
+4. **Caché física**: `AssetCache` conserva el bloque/banco efectivo; `AssetTable` se invalida en
+   `reset_phase`; HOST-386 cubre esa invalidación. Leases move-only impiden evict mientras un
+   consumidor retenga una vista.
+5. **Frontera DMA de Paula**: `lease_dma` solo admite Chip; `AudioSystem::play_music_asset` retiene el
+   owner hasta `stop_music`, y el backend espera DMA idle en teardown. SFX retiene una lease CPU, ya
+   que el mixer lee la muestra por CPU. Los BlitQueue assets Chip exigen lease mientras se procesa el plan.
 6. **Pruebas de lifecycle**: rollback, reinicialización, evict/reload, doble liberación, vista
    invalidada y liberación con Blitter/Copper/Paula activos. HOST-254/330 cubren caché; ampliar pruebas
    de consumidores hardware queda pendiente.
