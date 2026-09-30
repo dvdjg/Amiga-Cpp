@@ -96,7 +96,20 @@ struct ConversionStats {
 	eng::u64 signal_energy = 0u;
 	eng::u8 peak_error = 0u;
 	bool round_trip_ok = false;
+	eng::u32 repeated_windows = 0u;
 };
+
+/// Cuenta repeticiones exactas de ventanas PCM8; sirve como baseline antes de la firma espectral.
+[[nodiscard]] eng::u32 count_repeated_windows(const std::vector<eng::u8>& pcm, eng::usize window) {
+	if (window == 0u || pcm.size() < window * 2u) return 0u;
+	eng::u32 repeated = 0u;
+	for (eng::usize current = window; current + window <= pcm.size(); current += window) {
+		for (eng::usize previous = 0u; previous < current; previous += window) {
+			if (std::memcmp(pcm.data() + previous, pcm.data() + current, window) == 0) { ++repeated; break; }
+		}
+	}
+	return repeated;
+}
 
 /// Resuelve ffmpeg desde variables de entorno o PATH para leer MP3/OGG/FLAC sin enlazarlo.
 [[nodiscard]] std::string find_ffmpeg() {
@@ -353,13 +366,13 @@ template <class T>
 }
 
 /// Escribe un informe de texto mínimo para la primera vertical de la aplicación única.
-void write_report(const std::string& path, const std::string& input, const std::string& mode, const Config& config, const ConversionStats& stats) {
+void write_report(const std::string& path, const std::string& input, const std::string& mode, const Config& config, const ConversionStats& stats, eng::u64 structural_bytes = 0u) {
 	std::FILE* out = std::fopen(path.c_str(), "wb"); if (!out) return;
 	const double pcm_ratio = stats.pcm_bytes == 0u ? 0.0 : static_cast<double>(stats.output_bytes) / static_cast<double>(stats.pcm_bytes);
 	const double source_ratio = stats.input_bytes == 0u ? 0.0 : static_cast<double>(stats.output_bytes) / static_cast<double>(stats.input_bytes);
 	const double mse = stats.samples == 0u ? 0.0 : static_cast<double>(stats.squared_error) / static_cast<double>(stats.samples);
 	const double snr_db = stats.squared_error == 0u ? 999.0 : 10.0 * std::log10(static_cast<double>(stats.signal_energy) / static_cast<double>(stats.squared_error));
-	std::fprintf(out, "{\n  \"input\": \"%s\",\n  \"mode\": \"%s\",\n  \"codec\": \"%s\",\n  \"sample_rate\": %u,\n  \"chunk_samples\": %u,\n  \"samples\": %llu,\n  \"duration_seconds\": %.6f,\n  \"input_bytes\": %llu,\n  \"pcm_bytes\": %llu,\n  \"output_bytes\": %llu,\n  \"ratio_pcm_to_output\": %.6f,\n  \"ratio_source_to_output\": %.6f,\n  \"mse_pcm8\": %.6f,\n  \"snr_db\": %.3f,\n  \"peak_error\": %u,\n  \"round_trip_ok\": %s\n}\n", input.c_str(), mode.c_str(), config.codec.c_str(), config.sample_rate, config.chunk_samples, static_cast<unsigned long long>(stats.samples), stats.sample_rate == 0u ? 0.0 : static_cast<double>(stats.samples) / stats.sample_rate, static_cast<unsigned long long>(stats.input_bytes), static_cast<unsigned long long>(stats.pcm_bytes), static_cast<unsigned long long>(stats.output_bytes), pcm_ratio, source_ratio, mse, snr_db, stats.peak_error, stats.round_trip_ok ? "true" : "false");
+	std::fprintf(out, "{\n  \"input\": \"%s\",\n  \"mode\": \"%s\",\n  \"codec\": \"%s\",\n  \"sample_rate\": %u,\n  \"chunk_samples\": %u,\n  \"samples\": %llu,\n  \"duration_seconds\": %.6f,\n  \"input_bytes\": %llu,\n  \"pcm_bytes\": %llu,\n  \"output_bytes\": %llu,\n  \"structural_bytes\": %llu,\n  \"ratio_pcm_to_output\": %.6f,\n  \"ratio_source_to_output\": %.6f,\n  \"mse_pcm8\": %.6f,\n  \"snr_db\": %.3f,\n  \"peak_error\": %u,\n  \"repeated_windows\": %u,\n  \"round_trip_ok\": %s\n}\n", input.c_str(), mode.c_str(), config.codec.c_str(), config.sample_rate, config.chunk_samples, static_cast<unsigned long long>(stats.samples), stats.sample_rate == 0u ? 0.0 : static_cast<double>(stats.samples) / stats.sample_rate, static_cast<unsigned long long>(stats.input_bytes), static_cast<unsigned long long>(stats.pcm_bytes), static_cast<unsigned long long>(stats.output_bytes), static_cast<unsigned long long>(structural_bytes), pcm_ratio, source_ratio, mse, snr_db, stats.peak_error, stats.repeated_windows, stats.round_trip_ok ? "true" : "false");
 	std::fclose(out);
 }
 
@@ -411,10 +424,17 @@ int main(int argc, char** argv) {
 	if (config.dry_run) return 0;
 	if (mode == "music") {
 		const std::string linear = output + ".linear.auzx";
-		ConversionStats linear_stats{}; if (!write_auzx(pcm, config.sample_rate, config, linear, linear_stats)) return 1;
+		ConversionStats linear_stats{};
+		std::error_code input_error{};
+		linear_stats.input_bytes = std::filesystem::file_size(std::filesystem::path{input}, input_error);
+		linear_stats.pcm_bytes = static_cast<eng::u64>(pcm.size());
+		linear_stats.repeated_windows = count_repeated_windows(pcm, config.chunk_samples);
+		if (!write_auzx(pcm, config.sample_rate, config, linear, linear_stats)) return 1;
 		const std::string structural = output.empty() ? default_output(input.c_str(), "music") : output;
 		if (!write_acp1_wrapper([&] { std::vector<eng::u8> bytes; return read_binary(linear.c_str(), bytes) ? bytes : std::vector<eng::u8>{}; }(), config.sample_rate, structural)) return 1;
-		std::printf("candidata linear AUZX=%llu bytes; candidata estructural ACP1=%s\n", static_cast<unsigned long long>(linear_stats.output_bytes), structural.c_str());
+		const eng::u64 structural_bytes = std::filesystem::file_size(std::filesystem::path{structural});
+		std::printf("candidata linear AUZX=%llu bytes; candidata ACP1 mínima=%llu bytes; repeticiones exactas=%u\n", static_cast<unsigned long long>(linear_stats.output_bytes), static_cast<unsigned long long>(structural_bytes), linear_stats.repeated_windows);
+		if (!report.empty()) write_report(report, input, mode, config, linear_stats, structural_bytes);
 		if (!config.keep_candidates) std::remove(linear.c_str());
 		return 0;
 	}
@@ -425,6 +445,7 @@ int main(int argc, char** argv) {
 	std::error_code input_error {};
 	stats.input_bytes = std::filesystem::file_size(std::filesystem::path {input}, input_error);
 	stats.pcm_bytes = static_cast<eng::u64>(pcm.size());
+	stats.repeated_windows = count_repeated_windows(pcm, config.chunk_samples);
 	if (!write_auzx(pcm, config.sample_rate, config, output, stats)) return 1;
 	if (!report.empty()) write_report(report, input, mode, config, stats);
 	if (!decoded_input.empty()) std::remove(decoded_input.c_str());
