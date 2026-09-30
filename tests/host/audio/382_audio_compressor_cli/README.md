@@ -1,6 +1,6 @@
 # HOST-382: CLI única audio-compressor
 
-Valida la primera vertical de la aplicación única: crea un WAV estéreo sintético, ejecuta el binario host con `--mode sample` y comprueba que produce un contenedor AUZX.
+Valida la CLI de la aplicación única: crea un WAV estéreo sintético, comprueba `--mode sample`→AUZX y `--mode music`→ACP1, y parsea el ACP1 para verificar dos pistas sincronizadas.
 
 El binario se compila aparte (nombre por plataforma; en POSIX sin `.exe`):
 

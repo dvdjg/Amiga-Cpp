@@ -24,6 +24,7 @@
 #include <eng/audio/pcm_codec.hpp>
 
 #include "../../../host-tools/pack-pcm/wav_loader.hpp"
+#include "acp1_writer.hpp"
 #include "sdl_player.hpp"
 #include "sdl_host_io.hpp"
 
@@ -327,42 +328,14 @@ template <class T>
 	return true;
 }
 
-/// Envuelve un AUZX completo como una unidad y un track ACP1 mínimo.
-///
-/// Este formato estructural inicial no deduplica todavía: demuestra que el pipeline puede separar
-/// recurso, track y evento sin cambiar el payload AUZX. C12 sustituirá la unidad única por el
-/// diccionario HPSS/multipista sin cambiar la idea de los offsets validados.
-[[nodiscard]] bool write_acp1_wrapper(const std::vector<eng::u8>& auzx, eng::u16 rate,
-	const std::string& output) {
-	constexpr eng::usize header_size = 32u;
-	constexpr eng::usize unit_size = 24u;
-	constexpr eng::usize track_size = 8u;
-	constexpr eng::usize event_size = 20u;
-	const eng::u32 units_offset = header_size;
-	const eng::u32 data_offset = units_offset + unit_size;
-	const eng::u32 tracks_offset = data_offset + static_cast<eng::u32>(auzx.size());
-	const eng::u32 events_offset = tracks_offset + track_size;
-	const eng::u32 end_offset = events_offset + event_size;
-	std::vector<eng::u8> file(end_offset, 0u);
-	eng::Span<eng::u8> out{file.data(), file.size()};
-	file[0] = 'A'; file[1] = 'C'; file[2] = 'P'; file[3] = '1';
-	eng::audio::auzx::wr16(out, 4u, 1u); eng::audio::auzx::wr16(out, 6u, 0x0004u);
-	eng::audio::auzx::wr32(out, 8u, rate); eng::audio::auzx::wr16(out, 12u, 1u);
-	file[14] = 1u; file[15] = 0u; file[16] = 3u;
-	eng::audio::auzx::wr32(out, 20u, 0u); eng::audio::auzx::wr32(out, 24u, units_offset);
-	eng::audio::auzx::wr32(out, 28u, end_offset);
-	// UnitHeader: id, payload offset/size, reconstrucción, modo AUZX, flags, gain, phase.
-	eng::audio::auzx::wr32(out, units_offset, 0u); eng::audio::auzx::wr32(out, units_offset + 4u, data_offset);
-	eng::audio::auzx::wr32(out, units_offset + 8u, static_cast<eng::u32>(auzx.size()));
-	eng::audio::auzx::wr16(out, units_offset + 12u, 0u); file[units_offset + 14u] = 0u; file[units_offset + 15u] = 0u;
-	file[units_offset + 16u] = 255u; eng::audio::auzx::wr16(out, units_offset + 17u, 0u);
-	std::memcpy(file.data() + data_offset, auzx.data(), auzx.size());
-	// TrackHeader: destino Paula 0, flags pitch, un evento y offset de eventos.
-	file[tracks_offset] = 0u; file[tracks_offset + 1u] = 1u; eng::audio::auzx::wr16(out, tracks_offset + 2u, 1u); eng::audio::auzx::wr32(out, tracks_offset + 4u, events_offset);
-	// TrackEvent: unit id, start, duration, gain, pitch, fades, reserved.
-	eng::audio::auzx::wr32(out, events_offset, 0u); eng::audio::auzx::wr32(out, events_offset + 4u, 0u); eng::audio::auzx::wr16(out, events_offset + 8u, 0u); file[events_offset + 10u] = 255u; file[events_offset + 11u] = 0u; file[events_offset + 12u] = 0u; file[events_offset + 13u] = 0u;
-	std::error_code error; std::filesystem::create_directories(std::filesystem::path{output}.parent_path(), error);
-	return write_binary(std::filesystem::path{output}, file);
+/// Escribe un archivo ACP1 v1 con una pista sincronizada por cada stem AUZX.
+[[nodiscard]] bool write_acp1(const std::vector<std::vector<eng::u8>>& stems, eng::u16 rate,
+	eng::u32 samples, const std::string& output) {
+	std::vector<eng::u8> file;
+	if (!audio_compressor::build_acp1(stems, rate, samples, file)) return false;
+	const std::filesystem::path output_path {native_safe_path(output)};
+	if (output_path.has_parent_path()) std::filesystem::create_directories(output_path.parent_path());
+	return write_binary(output_path, file);
 }
 
 /// Escribe un informe de texto mínimo para la primera vertical de la aplicación única.
@@ -404,11 +377,14 @@ int main(int argc, char** argv) {
 	}
 	if (config_path && !load_config(config_path, config)) { std::fprintf(stderr, "configuración inválida\n"); return 1; }
 	std::vector<eng::u8> pcm; eng::u16 rate = 0u; std::string decoded_input;
+	pack_pcm::WavStems input_stems {};
 	const std::string source = needs_ffmpeg(input) ? (decode_external_source(input, decoded_input) ? decoded_input : std::string{}) : input;
 	if (source.empty()) { std::fprintf(stderr, "no se pudo decodificar la fuente externa; configure FFMPEG/FFMPEG_BIN\n"); return 1; }
 	if (config.play) {
 		if (!load_playback_pcm(source.c_str(), pcm, rate)) { std::fprintf(stderr, "entrada inválida o no soportada para reproducción\n"); return 1; }
-	} else if (!pack_pcm::load(source.c_str(), pcm, rate, config.sample_rate)) { std::fprintf(stderr, "entrada inválida o no soportada\n"); return 1; }
+	} else if (!pack_pcm::load_stems(source.c_str(), input_stems, config.sample_rate) ||
+		!pack_pcm::downmix(input_stems, pcm)) { std::fprintf(stderr, "entrada inválida o no soportada\n"); return 1; }
+	if (input_stems.sample_rate != 0u) rate = input_stems.sample_rate;
 	if (config.sample_rate == 0u) config.sample_rate = rate;
 	const std::string mode = classify(config, pcm.size(), rate);
 	if (output.empty()) output = default_output(input.c_str(), mode);
@@ -423,6 +399,12 @@ int main(int argc, char** argv) {
 	}
 	if (config.dry_run) return 0;
 	if (mode == "music") {
+		if (input_stems.channels.empty() || input_stems.channels.size() > eng::audio::acp1::kMaxTracks) {
+			std::fprintf(stderr, "ACP1 v1 admite de 1 a 7 stems WAV\n"); return 1;
+		}
+		std::FILE* existing = std::fopen(output.c_str(), "rb");
+		if (!config.force && existing != nullptr) { std::fclose(existing); std::fprintf(stderr, "salida existente; use --force\n"); return 1; }
+		if (existing != nullptr) std::fclose(existing);
 		const std::string linear = output + ".linear.auzx";
 		ConversionStats linear_stats{};
 		std::error_code input_error{};
@@ -431,9 +413,22 @@ int main(int argc, char** argv) {
 		linear_stats.repeated_windows = count_repeated_windows(pcm, config.chunk_samples);
 		if (!write_auzx(pcm, config.sample_rate, config, linear, linear_stats)) return 1;
 		const std::string structural = output.empty() ? default_output(input.c_str(), "music") : output;
-		if (!write_acp1_wrapper([&] { std::vector<eng::u8> bytes; return read_binary(linear.c_str(), bytes) ? bytes : std::vector<eng::u8>{}; }(), config.sample_rate, structural)) return 1;
+		std::vector<std::vector<eng::u8>> encoded_stems;
+		encoded_stems.reserve(input_stems.channels.size());
+		for (eng::usize i = 0u; i < input_stems.channels.size(); ++i) {
+			const std::string stem_path = linear + ".stem-" + std::to_string(i) + ".auzx";
+			ConversionStats stem_stats{};
+			stem_stats.pcm_bytes = static_cast<eng::u64>(input_stems.channels[i].size());
+			if (!write_auzx(input_stems.channels[i], config.sample_rate, config, stem_path, stem_stats)) return 1;
+			std::vector<eng::u8> bytes;
+			const std::string safe_stem_path = native_safe_path(stem_path);
+			if (!read_binary(safe_stem_path.c_str(), bytes)) return 1;
+			encoded_stems.push_back(std::move(bytes));
+			std::remove(safe_stem_path.c_str());
+		}
+		if (!write_acp1(encoded_stems, config.sample_rate, static_cast<eng::u32>(pcm.size()), structural)) return 1;
 		const eng::u64 structural_bytes = std::filesystem::file_size(std::filesystem::path{structural});
-		std::printf("candidata linear AUZX=%llu bytes; candidata ACP1 mínima=%llu bytes; repeticiones exactas=%u\n", static_cast<unsigned long long>(linear_stats.output_bytes), static_cast<unsigned long long>(structural_bytes), linear_stats.repeated_windows);
+		std::printf("candidata lineal AUZX=%llu bytes; ACP1=%llu bytes; stems=%lu; repeticiones exactas=%u\n", static_cast<unsigned long long>(linear_stats.output_bytes), static_cast<unsigned long long>(structural_bytes), static_cast<unsigned long>(encoded_stems.size()), linear_stats.repeated_windows);
 		if (!report.empty()) write_report(report, input, mode, config, linear_stats, structural_bytes);
 		if (!config.keep_candidates) std::remove(linear.c_str());
 		return 0;

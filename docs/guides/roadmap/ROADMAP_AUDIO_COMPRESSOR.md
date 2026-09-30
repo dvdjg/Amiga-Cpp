@@ -89,13 +89,15 @@ El corpus mixto previsto para ajustar los parámetros está descrito en [`AUDIO_
 
 ### C12 — ACP1: diccionario y reproducción estructural
 
-- Diseñar `ACP1` como contenedor superior a AUZX para diccionario de unidades, pistas y eventos.
+- **Entregado (base de formato)**: layout ACP1 v1 de 40 bytes documentado en `AUDIO_COMPRESSION.md`; parser y encoder host validados por HOST-387; la CLI conserva hasta siete stems WAV como unidades AUZX y genera tracks/eventos sincronizados, sin deduplicación.
+- Diseñar la extensión ACP1 para diccionario de unidades reutilizables, pistas y eventos estructurales.
 - Implementar encoder C++23 con HPSS, división multibanda, firmas espectrales y detección de unidades repetidas o similares.
 - Deduplicar unidades y permitir payload AUZX, Delta+ZX0, Fibonacci, IMA, ADPCM cuantizado o residual armónico.
 - Asignar pistas a Paula 0..2 o mixer 0..3, conservando destino, pitch y transiciones en eventos validados.
-- Implementar parser Amiga C++23 con `ByteReader`/`Span`, offsets validados, capacidad fija y sin STL/heap durante reproducción.
+- **Entregado (base de formato)**: parser C++23 host-testable con `Span`, offsets validados y vistas sin heap; limitado al layout ACP1 v1 documentado. El parser valida cada payload AUZX antes de exponer sus vistas.
+- Extender el parser para las tablas de deduplicación, modos de unidad y metadatos estructurales.
 - Medir y portar a ASM 68000 solo los núcleos de decode, crossfade y síntesis con equivalencia byte a byte.
-- Tests previstos: HOST-381 parser, HOST-382 deduplicación, HOST-383 secuenciador, HOST-384 selección Paula/mixer y demo híbrida.
+- Tests previstos: HOST-387 parser/encoder ACP1 v1, HOST-388 deduplicación, HOST-389 secuenciador, HOST-390 selección Paula/mixer y demo híbrida.
 
 ### C13 — Corpus y ajuste estructural
 

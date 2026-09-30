@@ -1,5 +1,10 @@
 #include <cstdio>
+#include <cerrno>
+#include <cstring>
 #include <vector>
+#if defined(_WIN32)
+#include <windows.h>
+#endif
 
 #include "../../../../../host-tools/pack-pcm/wav_loader.hpp"
 
@@ -23,6 +28,18 @@ std::vector<eng::u8> wav8_stereo() {
 	return out;
 }
 
+/// Construye dos frames WAV PCM8 de tres canales con muestras distinguibles.
+std::vector<eng::u8> wav8_three_channel() {
+	std::vector<eng::u8> out(44u + 6u, 0u);
+	std::memcpy(out.data(), "RIFF", 4u); put32(out, 4u, static_cast<eng::u32>(out.size() - 8u));
+	std::memcpy(out.data() + 8u, "WAVEfmt ", 8u); put32(out, 16u, 16u); put16(out, 20u, 1u);
+	put16(out, 22u, 3u); put32(out, 24u, 32000u); put32(out, 28u, 96000u); put16(out, 32u, 3u); put16(out, 34u, 8u);
+	std::memcpy(out.data() + 36u, "data", 4u); put32(out, 40u, 6u);
+	out[44] = 0u; out[45] = 127u; out[46] = 255u;
+	out[47] = 128u; out[48] = 64u; out[49] = 192u;
+	return out;
+}
+
 std::vector<eng::u8> wav16_mono() {
 	std::vector<eng::u8> out(48u, 0u);
 	std::memcpy(out.data(), "RIFF", 4u); put32(out, 4u, 40u); std::memcpy(out.data() + 8u, "WAVEfmt ", 8u);
@@ -38,17 +55,37 @@ void check(bool ok, const char* message) { if (!ok) { std::printf("FAIL: %s\n", 
 
 int main() {
 	// El loader opera sobre rutas; estos tests usan ficheros temporales deterministas del host.
-	const char* stereo_path = "out/tmp/wav-loader-stereo.wav";
-	const char* mono_path = "out/tmp/wav-loader-mono.wav";
-	std::vector<eng::u8> stereo = wav8_stereo(), mono = wav16_mono();
-	std::FILE* file = std::fopen(stereo_path, "wb"); if (!file) return 1; std::fwrite(stereo.data(), 1u, stereo.size(), file); std::fclose(file);
-	file = std::fopen(mono_path, "wb"); if (!file) return 1; std::fwrite(mono.data(), 1u, mono.size(), file); std::fclose(file);
+	char temp_dir[512]{};
+#if defined(_WIN32)
+	if (GetTempPathA(static_cast<DWORD>(sizeof(temp_dir)), temp_dir) == 0u) return 1;
+#else
+	std::strcpy(temp_dir, "/tmp/");
+#endif
+	char stereo_path[512]{}, multichannel_path[512]{}, mono_path[512]{};
+	std::snprintf(stereo_path, sizeof(stereo_path), "%swav-loader-stereo.tmp", temp_dir);
+	std::snprintf(multichannel_path, sizeof(multichannel_path), "%swav-loader-multichannel.tmp", temp_dir);
+	std::snprintf(mono_path, sizeof(mono_path), "%swav-loader-mono.tmp", temp_dir);
+	std::vector<eng::u8> stereo = wav8_stereo(), multichannel = wav8_three_channel(), mono = wav16_mono();
+	std::FILE* file = std::fopen(stereo_path, "wb"); if (!file) { std::fprintf(stderr, "WAV fixture open failed: %s (%s)\n", stereo_path, std::strerror(errno)); return 1; } std::fwrite(stereo.data(), 1u, stereo.size(), file); std::fclose(file);
+	file = std::fopen(multichannel_path, "wb"); if (!file) { std::fprintf(stderr, "WAV fixture open failed: %s (%s)\n", multichannel_path, std::strerror(errno)); return 1; } std::fwrite(multichannel.data(), 1u, multichannel.size(), file); std::fclose(file);
+	file = std::fopen(mono_path, "wb"); if (!file) { std::fprintf(stderr, "WAV fixture open failed: %s (%s)\n", mono_path, std::strerror(errno)); return 1; } std::fwrite(mono.data(), 1u, mono.size(), file); std::fclose(file);
 	std::vector<eng::u8> pcm; eng::u16 rate = 0u;
 	check(pack_pcm::load(stereo_path, pcm, rate), "WAV8 estéreo acepta");
 	check(rate == 11025u && pcm.size() == 4u && pcm[0] == 0x00u && pcm[1] == 0x00u && pcm[2] == 0x00u && pcm[3] == 0x00u, "downmix WAV8 y signo");
+	pack_pcm::WavStems stems {};
+	check(pack_pcm::load_stems(stereo_path, stems), "WAV8 estéreo conserva sus canales");
+	check(stems.sample_rate == 11025u && stems.channels.size() == 2u && stems.channels[0].size() == 4u &&
+		stems.channels[0][0] == 0x80u && stems.channels[0][1] == 0xc0u &&
+		stems.channels[1][0] == 0x7fu && stems.channels[1][1] == 0x40u, "stems estéreo mantienen canal, orden y signo");
+	check(pack_pcm::load_stems(multichannel_path, stems, 22050u), "WAV8 de tres canales acepta override");
+	check(stems.sample_rate == 22050u && stems.channels.size() == 3u && stems.channels[0].size() == 2u &&
+		stems.channels[0][0] == 0x80u && stems.channels[0][1] == 0x00u &&
+		stems.channels[1][0] == 0xffu && stems.channels[1][1] == 0xc0u &&
+		stems.channels[2][0] == 0x7fu && stems.channels[2][1] == 0x40u,
+		"WAV multicanal conserva stems intercalados y convierte PCM8 sin mezclar");
 	check(pack_pcm::load(mono_path, pcm, rate, 22050u), "WAV16 mono acepta");
 	check(rate == 22050u && pcm.size() == 2u && pcm[0] == 0x80u && pcm[1] == 0x7fu, "WAV16 y override de tasa");
-	std::remove(stereo_path); std::remove(mono_path);
-	if (failures == 0) { std::printf("OK: ingestión WAV PCM8/PCM16 mono/estéreo validada.\n"); return 0; }
+	std::remove(stereo_path); std::remove(multichannel_path); std::remove(mono_path);
+	if (failures == 0) { std::printf("OK: ingestión WAV PCM8/PCM16 mono/estéreo y stems multicanal validada.\n"); return 0; }
 	return 1;
 }

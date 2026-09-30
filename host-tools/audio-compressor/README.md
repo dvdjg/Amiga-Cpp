@@ -39,7 +39,7 @@ audio-compressor tema.wav --mode music --dry-run --report out/playground/audio-c
 audio-compressor disparo.wav --play
 ```
 
-Sin opciones, la aplicación genera una salida junto al archivo de entrada, no sobrescribe archivos existentes y aplica defaults seguros. El modo `music` informa que ACP1 aún requiere el módulo estructural C12; no genera un contenedor incompleto.
+Sin opciones, la aplicación genera una salida junto al archivo de entrada, no sobrescribe archivos existentes y aplica defaults seguros. El modo `music` genera ACP1 v1 para WAV PCM mono/multicanal de hasta siete canales: conserva cada canal como una pista AUZX y programa un evento por pista desde la muestra cero con duración común. Esta base estructural todavía no aplica HPSS, división por bandas, deduplicación, fades ni reproducción ACP1 en el engine.
 
 La configuración usa JSON plano con claves `mode`, `codec`, `sample_rate`, `chunk_samples`, `ram_budget_bytes`, `window_samples` y `force`. La precedencia es `defaults < config < CLI`.
 
@@ -53,7 +53,7 @@ La configuración usa JSON plano con claves `mode`, `codec`, `sample_rate`, `chu
 
 Cada conversión puede usar `--report out/reports/audio-compressor/nombre.json`. El informe registra entrada, modo, codec, tasa, chunks, muestras, duración, tamaño comprimido de la fuente, tamaño PCM normalizado, tamaño de salida, ratios PCM→salida y fuente→salida, MSE PCM8, SNR, pico de error y estado del round-trip.
 
-Para evaluar música larga con el codec lineal mientras ACP1 está en desarrollo, usar `--mode sample`. El modo `auto`/`music` clasifica la obra como música y no genera ACP1 incompleto.
+ACP1 v1 serializa offsets y tablas explícitos, e incrusta un AUZX independiente por canal WAV. Para comparar el resultado lineal con la composición estructural, conservar candidatas con `--keep-candidates`; la salida `.linear.auzx` se elimina por defecto después de generar ACP1.
 
 ## Reproducción host con SDL3
 
@@ -63,4 +63,4 @@ La reproducción es opcional. Sin SDL3, la utilidad sigue funcionando para conve
 SDL3_ROOT=/ruta/al/SDL3 bash host-tools/audio-compressor/build.sh --sdl3
 ```
 
-`--play` reproduce la señal normalizada de entrada. Si la entrada ya es AUZX, la aplicación la decodifica y reproduce su PCM reconstruido. ACP1 se añadirá cuando esté implementado el player estructural.
+`--play` reproduce la señal normalizada de entrada. Si la entrada ya es AUZX, la aplicación la decodifica y reproduce su PCM reconstruido. La lectura y mezcla host de ACP1 queda pendiente.
