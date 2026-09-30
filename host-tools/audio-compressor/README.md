@@ -53,6 +53,8 @@ La configuración usa JSON plano con claves `mode`, `codec`, `sample_rate`, `chu
 
 Cada conversión puede usar `--report out/reports/audio-compressor/nombre.json`. El informe registra entrada, modo, codec, tasa, chunks, muestras, duración, tamaño comprimido de la fuente, tamaño PCM normalizado, tamaño de salida, ratios PCM→salida y fuente→salida, MSE PCM8, SNR, pico de error y estado del round-trip.
 
+Para evaluar música larga con el codec lineal mientras ACP1 está en desarrollo, usar `--mode sample`. El modo `auto`/`music` clasifica la obra como música y no genera ACP1 incompleto.
+
 ## Reproducción host con SDL3
 
 La reproducción es opcional. Sin SDL3, la utilidad sigue funcionando para conversión y devuelve un error claro si se usa `--play`. Cuando SDL3 está habilitado, la E/S host y el audio usan abstracciones SDL3; no se usa Win32 en la lógica de la aplicación. El build preferido usa enlace estático:

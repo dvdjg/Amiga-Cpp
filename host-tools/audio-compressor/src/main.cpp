@@ -79,6 +79,10 @@ struct Config {
 	bool dry_run = false;
 	/// Reproduce la entrada normalizada o la salida generada mediante SDL3.
 	bool play = false;
+	/// Conserva las candidatas alternativas generadas durante la comparación.
+	bool keep_candidates = false;
+	/// Genera y compara AUZX lineal frente a la envoltura ACP1 mínima.
+	bool compare_candidates = false;
 };
 
 /// Estadísticas de una conversión, usadas por el informe JSON y por la comparación del corpus.
@@ -310,6 +314,44 @@ template <class T>
 	return true;
 }
 
+/// Envuelve un AUZX completo como una unidad y un track ACP1 mínimo.
+///
+/// Este formato estructural inicial no deduplica todavía: demuestra que el pipeline puede separar
+/// recurso, track y evento sin cambiar el payload AUZX. C12 sustituirá la unidad única por el
+/// diccionario HPSS/multipista sin cambiar la idea de los offsets validados.
+[[nodiscard]] bool write_acp1_wrapper(const std::vector<eng::u8>& auzx, eng::u16 rate,
+	const std::string& output) {
+	constexpr eng::usize header_size = 32u;
+	constexpr eng::usize unit_size = 24u;
+	constexpr eng::usize track_size = 8u;
+	constexpr eng::usize event_size = 20u;
+	const eng::u32 units_offset = header_size;
+	const eng::u32 data_offset = units_offset + unit_size;
+	const eng::u32 tracks_offset = data_offset + static_cast<eng::u32>(auzx.size());
+	const eng::u32 events_offset = tracks_offset + track_size;
+	const eng::u32 end_offset = events_offset + event_size;
+	std::vector<eng::u8> file(end_offset, 0u);
+	eng::Span<eng::u8> out{file.data(), file.size()};
+	file[0] = 'A'; file[1] = 'C'; file[2] = 'P'; file[3] = '1';
+	eng::audio::auzx::wr16(out, 4u, 1u); eng::audio::auzx::wr16(out, 6u, 0x0004u);
+	eng::audio::auzx::wr32(out, 8u, rate); eng::audio::auzx::wr16(out, 12u, 1u);
+	file[14] = 1u; file[15] = 0u; file[16] = 3u;
+	eng::audio::auzx::wr32(out, 20u, 0u); eng::audio::auzx::wr32(out, 24u, units_offset);
+	eng::audio::auzx::wr32(out, 28u, end_offset);
+	// UnitHeader: id, payload offset/size, reconstrucción, modo AUZX, flags, gain, phase.
+	eng::audio::auzx::wr32(out, units_offset, 0u); eng::audio::auzx::wr32(out, units_offset + 4u, data_offset);
+	eng::audio::auzx::wr32(out, units_offset + 8u, static_cast<eng::u32>(auzx.size()));
+	eng::audio::auzx::wr16(out, units_offset + 12u, 0u); file[units_offset + 14u] = 0u; file[units_offset + 15u] = 0u;
+	file[units_offset + 16u] = 255u; eng::audio::auzx::wr16(out, units_offset + 17u, 0u);
+	std::memcpy(file.data() + data_offset, auzx.data(), auzx.size());
+	// TrackHeader: destino Paula 0, flags pitch, un evento y offset de eventos.
+	file[tracks_offset] = 0u; file[tracks_offset + 1u] = 1u; eng::audio::auzx::wr16(out, tracks_offset + 2u, 1u); eng::audio::auzx::wr32(out, tracks_offset + 4u, events_offset);
+	// TrackEvent: unit id, start, duration, gain, pitch, fades, reserved.
+	eng::audio::auzx::wr32(out, events_offset, 0u); eng::audio::auzx::wr32(out, events_offset + 4u, 0u); eng::audio::auzx::wr16(out, events_offset + 8u, 0u); file[events_offset + 10u] = 255u; file[events_offset + 11u] = 0u; file[events_offset + 12u] = 0u; file[events_offset + 13u] = 0u;
+	std::error_code error; std::filesystem::create_directories(std::filesystem::path{output}.parent_path(), error);
+	return write_binary(std::filesystem::path{output}, file);
+}
+
 /// Escribe un informe de texto mínimo para la primera vertical de la aplicación única.
 void write_report(const std::string& path, const std::string& input, const std::string& mode, const Config& config, const ConversionStats& stats) {
 	std::FILE* out = std::fopen(path.c_str(), "wb"); if (!out) return;
@@ -322,7 +364,7 @@ void write_report(const std::string& path, const std::string& input, const std::
 }
 
 /// Muestra la interfaz de la aplicación única, incluyendo el caso de arrastrar un archivo.
-void print_help(const char* exe) { std::printf("Uso: %s <audio|auzx> [--mode auto|sample|music] [--config f] [--out f] [--codec rle|fib|ima|none] [--report f] [--play] [--dry-run]\n", exe); }
+void print_help(const char* exe) { std::printf("Uso: %s <audio|auzx> [--mode auto|sample|music] [--config f] [--out f] [--codec rle|fib|ima|none] [--report f] [--keep-candidates] [--compare] [--play] [--dry-run]\n", exe); }
 
 } // namespace
 
@@ -335,6 +377,8 @@ int main(int argc, char** argv) {
 		if (std::strcmp(argv[i], "--dry-run") == 0) { config.dry_run = true; continue; }
 		if (std::strcmp(argv[i], "--play") == 0) { config.play = true; continue; }
 		if (std::strcmp(argv[i], "--force") == 0) { config.force = true; continue; }
+		if (std::strcmp(argv[i], "--keep-candidates") == 0) { config.keep_candidates = true; continue; }
+		if (std::strcmp(argv[i], "--compare") == 0) { config.compare_candidates = true; continue; }
 		if (i + 1 >= argc) return 2;
 		if (std::strcmp(argv[i], "--mode") == 0) config.mode = argv[++i];
 		else if (std::strcmp(argv[i], "--config") == 0) config_path = argv[++i];
@@ -365,7 +409,15 @@ int main(int argc, char** argv) {
 		return 0;
 	}
 	if (config.dry_run) return 0;
-	if (mode == "music") { std::fprintf(stderr, "ACP1 multipista aún no está habilitado en esta vertical\n"); return 3; }
+	if (mode == "music") {
+		const std::string linear = output + ".linear.auzx";
+		ConversionStats linear_stats{}; if (!write_auzx(pcm, config.sample_rate, config, linear, linear_stats)) return 1;
+		const std::string structural = output.empty() ? default_output(input.c_str(), "music") : output;
+		if (!write_acp1_wrapper([&] { std::vector<eng::u8> bytes; return read_binary(linear.c_str(), bytes) ? bytes : std::vector<eng::u8>{}; }(), config.sample_rate, structural)) return 1;
+		std::printf("candidata linear AUZX=%llu bytes; candidata estructural ACP1=%s\n", static_cast<unsigned long long>(linear_stats.output_bytes), structural.c_str());
+		if (!config.keep_candidates) std::remove(linear.c_str());
+		return 0;
+	}
 	std::FILE* existing = std::fopen(output.c_str(), "rb");
 	if (!config.force && existing != nullptr) { std::fclose(existing); std::fprintf(stderr, "salida existente; use --force\n"); return 1; }
 	if (existing != nullptr) std::fclose(existing);
