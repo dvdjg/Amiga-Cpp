@@ -146,6 +146,12 @@ y resuelve la prioridad dentro de cada línea. El orden existente facilita la fu
 realiza completamente: `materialize()` sigue llamando al emisor con una intención cada vez. El
 objetivo es agrupar las rachas compatibles después de ordenar, sin cambiar la semántica de prioridad.
 
+### Paso activo: saltar resolución de prioridad sin colisiones
+
+`sort_by_top()` cuenta las intenciones por línea. Si el máximo por línea es uno, `sort_priority_within_lines()` no recorre las 256 líneas: no hay prioridades que arbitrar y el orden raster ya es el resultado. La ruta con varias intenciones conserva el insertion sort estable previo, incluidos sus desempates FIFO. El indicador se calcula en la pasada de conteo existente, sin otra pasada ni almacenamiento por intención.
+
+Verificación funcional: HOST-070 compara listas, orden raster, prioridad, cruce PAL, overflow y doble buffer. Medición pendiente: comparar ciclos de `sort_priority_within_lines()` con `tools/debug/profile.mjs` en CopperPlanScene y en una escena con varias intenciones por línea; no asignar ganancia numérica antes de esa captura. Después, decidir con el perfil si medir emisión por grupos compatibles.
+
 1. **Medir por fases**: separar `sort_by_top`, `sort_priority_within_lines`, `emit`, cielo y parcheo;
    contar intenciones, grupos, WAITs, MOVEs, palabras y ciclos.
 2. **Preconstruir estructura estable**: mover cielo, raster bars, gradientes y listas fijas a

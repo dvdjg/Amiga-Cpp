@@ -183,33 +183,13 @@ se puede** sin `clear()` total. La memoria del engine se reparte en **dos vidas 
 3. Quitar el `+16 headroom` de `res::load` (ya no hace falta con base alineada del pool; la arena
     *bump* sigue necesitándolo hasta migrar).
 
-## Plan de cierre — DMA y lifecycle
+## Estado: frente pausado
 
-**Estimación restante: 1–3 unidades de trabajo**, principalmente validación en hardware/WinUAE y resolución explícita de hallazgos MEM abiertos. `FramePlan` retiene leases DMA Chip a nivel de escena y `copper::Plan` las retiene hasta `release()`; HOST-392 prueba que la rotación de frames no altera el pinning. Demo 281 ejercita el owner CPU de SFX hasta el fin natural y el rechazo/éxito del teardown. `AssetCache`, `NoChip`, `AssetTable`, `Scene`, `Bitmap`, `Plan` y `DoubleBuffer` tienen owner, invalidación y rollback cubiertos por pruebas dirigidas.
+Este frente queda **pausado y fuera del trabajo activo**. Se conservan los contratos ya existentes (`Block`, `AssetLease`, `AssetDmaLease`, rollback y teardown), sin añadir una segunda capa de leases dentro de los planes. Las dudas restantes se reabren solo con un consumidor concreto y un fallo reproducible; primero se comprobará si el handle movible existente, mantenido en el scope propietario, cubre su vida útil.
 
-El roadmap se cierra cuando los leases Blitter/Copper estén conectados a los consumidores productivos que cruzan frames, la demo SFX pase build/run/analyze en Amiga/WinUAE y MEM-001, MEM-004, MEM-006, MEM-008..MEM-010 tengan resolución explícita. HOST-382/ACP1 está aplazado a su propio roadmap y no bloquea este cierre.
+Estado respaldado por evidencia anterior: rollback/reinit gráficos (HOST-016/069/070), caché y leases (HOST-254/330/353/386), configuración/rollback genérico de audio (HOST-269) y builds Amiga previas 057/061. No se añadieron retenciones automáticas al `FramePlan`/CopperPlan ni una demo SFX nueva. La ruta explícita `play_sfx_asset` ya existente no se certifica aquí en hardware.
 
-1. **Teardown ordenado del backend**: detener servicios, silenciar y esperar Paula, esperar el Blitter,
-   rechazar el cierre mientras `AssetRuntime` tenga lecturas/leases abiertas y después liberar raíces.
-   `configure_memory()` usa el mismo cierre; validado con builds y demos 057/061.
-2. **Owners gráficos explícitos**: `copper::DoubleBuffer`, `copper::Plan`, `gfx::Bitmap` y
-   `composition::Scene` liberan bloques Chip, distinguen buffers propios de adjuntos y hacen rollback
-   en inicialización parcial/repetida; playfields quedan desvinculados. **Hecho**, cubierto por
-   HOST-016, HOST-069 y HOST-070 (fallo, recuperación, liberación repetida y reinicialización).
-3. **Owners de audio explícitos**: `AudioSystem` libera el buffer P61 y `SfxMixer` hace rollback de
-   reservas parciales y devuelve sus bloques después de parar la IRQ/mixer. `valid_audio_config`,
-   `apply_audio_config` e `init_mixer_transaction` tienen cobertura HOST-269; builds previos 057/061 pasan. Demo 281 implementa reproducción desde `AssetCache`, pinning durante la voz y liberación tras fin natural; está pendiente la build/run/analyze en hardware por falta de toolchain en este entorno. El wrapper ASM Photon también requiere esa validación.
-4. **Caché física**: `AssetCache` conserva el bloque/banco efectivo; `AssetTable` se invalida en
-   `reset_phase`; HOST-386 cubre esa invalidación. Leases move-only impiden evict mientras un
-   consumidor retenga una vista.
-5. **Frontera DMA de Paula**: `lease_dma` solo admite Chip; `AudioSystem::play_music_asset` retiene el
-   owner hasta `stop_music`, y el backend espera DMA idle en teardown. SFX retiene una lease CPU, ya
-   que el mixer lee la muestra por CPU. `FramePlan` y `copper::Plan` ofrecen retención explícita de leases Chip a nivel de owner, probada en HOST-392; falta pasar el lease desde las capas/actores productivos que construyen jobs y listas.
-6. **Pruebas de lifecycle**: rollback, reinicialización, evict/reload, doble liberación, vista
-   invalidada y liberación con Blitter/Copper/Paula activos. HOST-254/330/353/386/269/392 y HOST-016/069/070 cubren caché, bancos, leases, invalidación, rollback y persistencia entre frames. La demo 281 es la prueba de integración para voz SFX y sigue pendiente de ejecución Amiga por el ABI ASM de Photon y falta de toolchain local.
-
-El cierre requiere evidencia de código y tests; reservar en Chip y liberar el bloque raíz al final
-del proceso no cuenta como lifecycle completo.
+Deuda conocida preservada para cuando vuelva a ser necesaria: MEM-001, MEM-004, MEM-006 y MEM-008..MEM-010 según [`memory-ownership-inconsistencies.md`](../../debugging/investigaciones/memory-ownership-inconsistencies.md). HOST-382/ACP1 sigue fuera de este frente, como se acordó. No se añadirá una API genérica nueva para cerrar esa lista por sí sola.
 
 ## Fase 7 — FastPreferred y memoria ejecutable
 

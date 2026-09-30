@@ -167,6 +167,10 @@ int main() {
 			return 1;
 		}
 	}
+	if (plan.priority_conflicts()) {
+		std::printf("[FAIL] prioridad detectada cuando cada scanline tiene un intent\n");
+		return 1;
+	}
 	// MOVEs a COLOR00: 1 de la paleta base + 1 por cada intencion (3).
 	if (count_moves(plan.active_words(), plan.words(), color_reg) != 4u) {
 		std::printf("[FAIL] COLOR00: %u (esperado 4 = base + 3 intenciones) words=%u\n",
@@ -282,6 +286,10 @@ int main() {
 				    (unsigned)lines[0], (unsigned)lines[1]);
 			return 1;
 		}
+		if (wrap.priority_conflicts()) {
+			std::printf("[FAIL] conflicto reportado sin intents en una misma línea\n");
+			return 1;
+		}
 	}
 
 	// --- conflictos en la MISMA linea: gana la de mayor (superficie, z) -----------
@@ -318,6 +326,10 @@ int main() {
 		prio.add_prioritized(&high, 1u, 0u, 20u);
 		prio.add_prioritized(&low, 1u, 0u, 10u);
 		prio.materialize();
+		if (!prio.priority_conflicts()) {
+			std::printf("[FAIL] no detectó prioridades coincidentes\n");
+			return 1;
+		}
 		if (!prio.end_frame()) {
 			std::printf("[FAIL] end_frame de prioridades\n");
 			return 1;

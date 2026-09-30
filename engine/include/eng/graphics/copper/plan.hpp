@@ -180,6 +180,7 @@ public:
 		m_over_effect = no_effect;
 		m_overflow = false;
 		m_slot_count = 0;
+		m_priority_conflicts = false;
 		m_sched.retarget(m_copper->inactive_block()); // sin copiar la Timeline (512+ B)
 	}
 
@@ -344,6 +345,8 @@ public:
 	}
 
 	constexpr u16 intent_count() const { return m_count; }
+	/// ¿Hay más de una intención en alguna scanline de este frame?
+	constexpr bool priority_conflicts() const { return m_priority_conflicts; }
 	constexpr bool overflow() const { return m_overflow; }
 	constexpr bool ok() const { return m_ok; }
 	constexpr u16 words() const { return m_words; }
@@ -365,13 +368,18 @@ private:
 	/// los recargaba con `lea`/`-1024(sp)` en cada acceso (medido en la 086).
 	__attribute__((always_inline)) inline void sort_by_top() {
 		ENG_PROF_BEGIN(eng::debug::prof_sort_lines);
+		m_priority_conflicts = false;
 		if (m_count < 2u) {
 			for (u16 i = 0; i < m_count; ++i) m_perm[i] = i;
 			ENG_PROF_END(eng::debug::prof_sort_lines);
 			return;
 		}
 		m_count_by_line.fill(u16(0u));
-		for (u16 i = 0; i < m_count; ++i) ++m_count_by_line[raster_key(m_intents[i].top)];
+		for (u16 i = 0; i < m_count; ++i) {
+			u16& line_count = m_count_by_line[raster_key(m_intents[i].top)];
+			if (line_count != 0u) m_priority_conflicts = true;
+			++line_count;
+		}
 		u16 acc = 0;
 		for (u16 l = 0; l < 256u; ++l) {
 			m_line_start[l] = acc; // inicio del grupo de la línea l (para prioridades)
@@ -393,6 +401,13 @@ private:
 	/// con k = intenciones de esa línea (pequeño en la práctica: k=1 en un cielo por línea).
 	void sort_priority_within_lines() {
 		ENG_PROF_BEGIN(eng::debug::prof_sort_prio);
+		// La mayoría de escenas tiene como máximo una intención por línea. El recuento de
+		// `sort_by_top` detecta colisiones sin una pasada extra; evitar recorrer las 256 líneas
+		// cuando no hay prioridad que resolver reduce el coste del CopperPlan en cada frame.
+		if (!m_priority_conflicts) {
+			ENG_PROF_END(eng::debug::prof_sort_prio);
+			return;
+		}
 		for (u16 l = 0; l < 256u; ++l) {
 			const u16 lo = m_line_start[l];
 			const u16 hi = m_line_start[static_cast<u16>(l + 1u)];
@@ -445,6 +460,7 @@ private:
 	u16 m_words = 0;       ///< palabras de Copper de la última lista materializada
 	ScheduleReport m_report {}; ///< informe del scheduler de la última materialización
 	bool m_overflow = false;    ///< se superó `max_intents`
+	bool m_priority_conflicts = false; ///< alguna scanline tiene >1 intent y requiere ordenar por prioridad
 	bool m_ok = false;          ///< el plan posee o tiene enlazado un buffer válido
 };
 
