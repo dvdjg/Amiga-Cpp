@@ -17,11 +17,20 @@ namespace audio_compressor {
 	using namespace eng::audio::acp1;
 	const eng::usize track_count = track_events.empty() ? payloads.size() : track_events.size();
 	if (payloads.empty() || payloads.size() > 65535u || track_count == 0u || track_count > kMaxTracks ||
-		sample_rate == 0u || sample_rate > 65535u || total_samples == 0u) return false;
+		sample_rate == 0u || sample_rate > 65535u) return false;
 	std::vector<std::vector<eng::audio::acp1::Event>> resolved_events(track_count);
+	const eng::u32 timeline_samples = track_events.empty() ? total_samples : [&] {
+		eng::u32 extent = 0u;
+		for (const auto& track : track_events) for (const auto& event : track) {
+			if (event.start_sample <= 0xffffffffu - event.duration && event.start_sample + event.duration > extent)
+				extent = event.start_sample + event.duration;
+		}
+		return extent;
+	}();
+	if (timeline_samples == 0u || (track_events.empty() && timeline_samples != total_samples)) return false;
 	for (eng::usize track = 0u; track < track_count; ++track) {
 		if (track_events.empty()) {
-			resolved_events[track].push_back({static_cast<eng::u32>(track), 0u, total_samples, 255u});
+			resolved_events[track].push_back({static_cast<eng::u32>(track), 0u, timeline_samples, 255u});
 		} else {
 			resolved_events[track] = track_events[track];
 		}
@@ -29,7 +38,7 @@ namespace audio_compressor {
 		eng::u32 previous_end = 0u;
 		for (const auto& event : resolved_events[track]) {
 			if (event.unit_id >= payloads.size() || event.duration == 0u || event.start_sample < previous_end ||
-				event.start_sample > total_samples || event.duration > total_samples - event.start_sample) return false;
+				event.start_sample > timeline_samples || event.duration > timeline_samples - event.start_sample) return false;
 			previous_end = event.start_sample + event.duration;
 		}
 	}
@@ -46,7 +55,7 @@ namespace audio_compressor {
 		eng::usize unit = 0u;
 		for (; unit < unique_tracks.size(); ++unit) {
 			const auto& candidate = payloads[unique_tracks[unit]];
-			if (candidate.size() == payloads[i].size() &&
+			if (decoded_samples[unit] == auzx_header.total_samples && candidate.size() == payloads[i].size() &&
 				std::memcmp(candidate.data(), payloads[i].data(), candidate.size()) == 0) break;
 		}
 		if (unit == unique_tracks.size()) {
@@ -76,7 +85,7 @@ namespace audio_compressor {
 	wr16(file, 4u, 2u); wr32(file, 8u, sample_rate);
 	wr16(file, 12u, static_cast<eng::u16>(unique_tracks.size()));
 	file[14] = static_cast<eng::u8>(track_count);
-	wr32(file, 16u, total_samples); wr32(file, 24u, static_cast<eng::u32>(kHeaderSize));
+	wr32(file, 16u, timeline_samples); wr32(file, 24u, static_cast<eng::u32>(kHeaderSize));
 	wr32(file, 28u, static_cast<eng::u32>(tracks_offset));
 	wr32(file, 32u, static_cast<eng::u32>(events_offset));
 	wr32(file, 36u, static_cast<eng::u32>(file_size));

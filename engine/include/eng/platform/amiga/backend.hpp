@@ -591,7 +591,7 @@ public:
 	eng::audio::AudioSystem& audio() { return m_audio; }
 	const eng::audio::AudioSystem& audio() const { return m_audio; }
 
-	/// Inicia/reanuda Paula DMA para un buffer PCM8 Chip ya preparado.
+	/// Inicia/reanuda Paula DMA para un buffer PCM8 Chip ya preparado. El playback ACP1 es exclusivo.
 	void start_audio_buffer(u8 channel, const u8* sample, u16 words, u16 period, u8 volume) {
 		if (!m_composition_playing || m_audio.sfx().ready()) return;
 		m_paula.set_period(channel, period);
@@ -605,12 +605,14 @@ public:
 		if (m_composition_playing) m_paula.set_buffer(channel, sample, words);
 	}
 
-	/// Detiene una voz de Paula asignada al stream ACP1.
+	/// Detiene una voz de Paula sin cambiar la propiedad del vector nivel 4; apto para EOF en IRQ.
 	void stop_audio_channel(u8 channel) { m_paula.stop_channel(channel); }
 
 	/// Inicia la propiedad exclusiva ACP1 del nivel 4; falla si Photon ya está activo.
 	bool composition_playback_begin() noexcept {
-		if (m_audio.sfx().ready() || m_composition_playing) return false;
+		if (m_audio.sfx().ready() || m_audio.music_playing() || m_composition_playing) return false;
+		m_paula.silence();
+		custom_registers()[0x09cu / 2u] = 0x0780u;
 		m_composition_playing = true;
 		return true;
 	}
@@ -676,7 +678,7 @@ private:
 	DebugOverlay m_debug {}; ///< overlay de debug (host/WinUAE)
 	eng::audio::AudioSystem m_audio {}; ///< sistema de audio
 	eng::amiga::PaulaAudio m_paula {}; ///< escritura tipada de registros del backend Paula.
-	bool m_composition_playing = false; ///< Composición ACP1 exclusiva con el servicio de nivel 4 instalado.
+	volatile bool m_composition_playing = false; ///< Estado compartido entre el backend y el callback nivel 4.
 	ServiceSlot m_blitter_slot {}; ///< servicio de espera de Blitter
 	ServiceSlot m_vblank_slot {}; ///< servicio de VBlank
 	ServiceSlot m_blit_slot {}; ///< servicio de fin de blit (IRQ de blit)

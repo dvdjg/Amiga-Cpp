@@ -213,7 +213,9 @@ El layout binario se escribe con `ByteReader`/`ByteWriter` little-endian y offse
 
 ### Layout ACP1 v1
 
-ACP1 v1 representa hasta siete pistas y un evento sincronizado por pista; ACP1 v2 conserva la cabecera y las unidades, pero permite varios eventos secuenciales por pista. Ambos formatos permiten que distintos eventos referencien la misma unidad AUZX; el diccionario elimina payloads exactamente repetidos sin aproximar audio. Fades, envolventes, cues y asignación automática Paula/mixer siguen reservados. El byte de destino identifica un slot de salida; no configura hardware por sí mismo.
+ACP1 v1 conserva hasta siete pistas con un evento sincronizado por pista; ACP1 v2 mantiene la cabecera y las unidades y permite varios eventos secuenciales. Las pistas referencian unidades AUZX compartidas por igualdad exacta; `decoded_samples` describe la unidad y puede ser menor que la timeline total cuando se repite una unidad breve. La tarea cooperativa decodifica eventos activos y mezcla una ventana PCM; la IRQ de Paula solo swapea buffers. Fades, envolventes, cues y asignación automática Paula/mixer siguen reservados. El byte de destino identifica un slot de salida; no configura hardware por sí mismo.
+
+Los bloques de audio de una pista pueden reutilizarse si coinciden byte a byte. La deduplicación aproximada requiere firmas perceptuales, comprobación de fase y evaluación de calidad y permanece desactivada. En `Rondo_alla_turca.ogg`, el resultado medido fue mayor que AUZX lineal tanto en tamaño como en MSE; HPSS aumentó esos dos costes todavía más, por lo que ninguna de esas opciones se selecciona automáticamente.
 
 Todos los enteros son little-endian y los offsets son absolutos desde el inicio del archivo. Las tablas tienen orden fijo: cabecera, unidades, payloads de unidades, tracks y eventos. El tamaño total debe coincidir exactamente con el archivo.
 
@@ -223,7 +225,7 @@ Todos los enteros son little-endian y los offsets son absolutos desde el inicio 
 | 4 | 2 | version | `1` o `2` |
 | 6 | 2 | flags | `0` |
 | 8 | 4 | sample_rate | 1..65535 Hz |
-| 12 | 2 | unit_count | 1..7; no mayor que `track_count` |
+| 12 | 2 | unit_count | 1..65535; en v1 no mayor que `track_count` |
 | 14 | 1 | track_count | 1..7 |
 | 15 | 1 | reserved | `0` |
 | 16 | 4 | total_samples | Muestras por pista; mayor que cero |
@@ -233,17 +235,17 @@ Todos los enteros son little-endian y los offsets son absolutos desde el inicio 
 | 32 | 4 | events_offset | Inicio de tabla de eventos |
 | 36 | 4 | file_size | Igual al tamaño del archivo |
 
-La cabecera mide 40 bytes. Cada `UnitHeader` mide 24 bytes: `id:u32`, `payload_offset:u32`, `payload_size:u32`, `decoded_samples:u32`, `codec:u8`, `flags:u8`, `gain:u8`, `reserved:u8`, `phase:u16`, `reserved2:u16`. En v1 los IDs son consecutivos desde cero, `codec=1` identifica un AUZX completo, `decoded_samples=total_samples`, los flags y reservas son cero, y `gain=255`.
+La cabecera mide 40 bytes. Cada `UnitHeader` mide 24 bytes: `id:u32`, `payload_offset:u32`, `payload_size:u32`, `decoded_samples:u32`, `codec:u8`, `flags:u8`, `gain:u8`, `reserved:u8`, `phase:u16`, `reserved2:u16`. Los IDs son consecutivos desde cero, `codec=1` identifica un AUZX completo, los flags y reservas son cero, y `gain=255`. `decoded_samples` es la duración reconstruida del payload y puede ser menor que la timeline total cuando la unidad se reutiliza en ACP1 v2.
 
 Cada `TrackHeader` mide 8 bytes: `destination:u8`, `flags:u8`, `event_count:u16`, `events_offset:u32`. Los destinos 0..2 reservan Paula 0..2 y 3..6 reservan voces mixer 0..3; ambas versiones exigen destinos únicos, `flags=0` y un offset contiguo a la secuencia de eventos de la pista. V1 exige exactamente un evento por pista; v2 permite uno o más.
 
 Cada `TrackEvent` mide 20 bytes: `unit_id:u32`, `start_sample:u32`, `duration:u32`, `gain:u8`, `pitch:s8`, `fade_in:u16`, `fade_out:u16`, `flags:u16`. V1 exige `unit_id` válido, inicio cero, duración igual a `total_samples`, `gain=255`, `pitch=0`, fades y flags cero. V2 permite ganancia de evento 0..255 y exige inicio no anterior al fin del evento previo, duración no nula y rango dentro de `total_samples` y `decoded_samples` de la unidad; pitch, fades y flags deben ser cero. Los huecos entre eventos son silencio. Varias pistas/eventos pueden referirse a una misma unidad deduplicada.
 
-El parser rechaza rangos que desbordan el archivo, offsets de tabla incoherentes, payloads AUZX inválidos, IDs no consecutivos, destinos repetidos o fuera de rango y eventos incompatibles con la versión declarada. El payload AUZX y cada rango del índice se validan con `eng::audio::auzx`; el parser ACP1 solo devuelve vistas y no reserva memoria. El decoder de `media` recorre los eventos activos en una ventana cooperativa; el backend decide cuándo preparar el buffer de salida Chip y qué voz usar.
+El parser rechaza rangos que desbordan el archivo, offsets de tabla incoherentes, payloads AUZX inválidos, IDs no consecutivos, destinos repetidos o fuera de rango y eventos incompatibles con la versión declarada. El payload AUZX y cada rango del índice se validan con `eng::audio::auzx`; el parser ACP1 solo devuelve vistas y no reserva memoria. `media` decodifica ventanas por evento; `Acp1Stream` mezcla cooperativamente a buffers PCM y la IRQ solo avanza o cambia el buffer.
 
-El header ACP1 v1 contiene flags, frecuencia, número de unidades, tres pistas Paula, cuatro voces mixer, canal Paula reservado y offsets a tablas, unidades, tracks y final. Cada unidad contiene id, offset/tamaño, longitud reconstruida, modo, flags tonal/percusivo, parámetros armónicos, alpha, ganancia de referencia y estado de fase. Cada evento contiene unidad, inicio, duración, ganancia de evento, pitch fino, fade-in/fade-out y referencia opcional a una envolvente. Una tabla opcional de `AudioCue` contiene posición en muestras, código, valor y flags para eventos musicales.
+La cabecera común contiene flags, frecuencia, número de unidades y pistas, timeline total y offsets a unidades, tracks, eventos y fin. Cada unidad conserva id, offset/tamaño AUZX, longitud reconstruida, modo, flags, ganancia y fase. Cada evento contiene unidad, inicio, duración y controles reservados de ganancia/pitch/fade. La futura extensión de cues añadirá una tabla de posición, código, valor y flags.
 
-El análisis estructural host usa HPSS por STFT radix-2, ventana Hann y máscaras complementarias a partir de medianas temporales/frecuenciales. `--hpss` separa cada canal WAV en componentes armónica y percusiva; la comparación siempre reconstruye la mezcla ACP1 y reporta MSE y pico respecto de la mezcla normalizada. El encoder deduplica payloads AUZX idénticos byte a byte entre pistas. La deduplicación aproximada y la reutilización temporal dentro de una pista requieren varias referencias de evento por track y no se simulan en ACP1 v1. Las firmas espectrales, continuidad de fase, normalización de ganancia y ruteo automático quedan para la extensión estructural.
+El análisis estructural host usa HPSS por STFT radix-2, ventana Hann y máscaras complementarias a partir de medianas temporales/frecuenciales. `--hpss` separa cada canal WAV en componentes armónica y percusiva; la comparación siempre reconstruye la mezcla ACP1 y reporta MSE y pico respecto de la mezcla normalizada. El encoder divide cada stem en unidades AUZX y emite eventos secuenciales; unidades idénticas de misma longitud se comparten byte a byte. La deduplicación aproximada requiere firmas perceptuales, comprobación de fase y evaluación de calidad y sigue desactivada. El ruteo automático queda para la planificación de voces.
 
 Las uniones aplican fade lineal o equal-power de 10 a 50 ms. En Paula se usan rampas de volumen, doble voz temporal o un buffer pequeño; en el mixer se usa el buffer de mezcla. El crossfade no se ejecuta completo dentro de la IRQ. La fase fundamental se conserva en la unidad y en el evento: una repetición concatenada puede reanudar el acumulador de fase o forzar un punto de fase compatible; si no puede garantizarse continuidad, el encoder no reutiliza la unidad o añade un crossfade explícito.
 

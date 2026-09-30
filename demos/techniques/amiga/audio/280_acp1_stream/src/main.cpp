@@ -109,7 +109,11 @@ private:
 
 	/// Avanza el feeder y cambia solo el puntero/longitud PCM; la mezcla queda fuera de la ISR.
 	void on_audio_irq() {
-		if (m_feeder.on_irq()) m_backend->swap_audio_buffer(kChannel, m_stream.play_pcm().data(), kChunkSamples / 2u);
+		if (m_feeder.on_irq()) {
+			m_backend->swap_audio_buffer(kChannel, m_stream.play_pcm().data(), kChunkSamples / 2u);
+		} else if (m_stream.at_end()) {
+			m_backend->stop_audio_channel(kChannel);
+		}
 	}
 
 	/// Mezcla únicamente buffers ya liberados por Paula; la última región se completa con silencio.

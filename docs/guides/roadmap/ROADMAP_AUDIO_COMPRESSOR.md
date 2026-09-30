@@ -89,22 +89,23 @@ El corpus mixto previsto para ajustar los parámetros está descrito en [`AUDIO_
 
 ### C12 — ACP1: diccionario y reproducción estructural
 
-- **Entregado (base de formato)**: layout ACP1 v1 de 40 bytes documentado en `AUDIO_COMPRESSION.md`; parser/encoder host validados por HOST-387; la CLI conserva hasta siete stems como tracks sincronizados y comparte unidades con payload AUZX idéntico.
+- **Entregado**: layouts ACP1 v1/v2 de 40 bytes, eventos secuenciales por pista, unidades AUZX compartidas exactamente y parser sin heap; HOST-387 valida secuencias, silencios, ganancia, límites, offsets, decoder, mixer y feeder triple-buffer.
 - Diseñar la extensión ACP1 para diccionario de unidades reutilizables, pistas y eventos estructurales.
-- **Entregado (baseline HPSS)**: separación STFT radix-2 host armónica/percusiva, activada con `--hpss`; HOST-387 verifica señal tonal e impulsiva y HOST-382 comprueba generación ACP1 desde WAV estéreo.
+- **Entregado (baseline HPSS)**: separación STFT radix-2 host armónica/percusiva con `--hpss`; HOST-387 verifica señal tonal e impulsiva y HOST-382 comprueba generación ACP1 desde WAV estéreo.
 - Implementar bandas y firmas espectrales/temporales para similitud aproximada; requiere extensión ACP1 con múltiples eventos por pista.
 - **Entregado**: deduplicación exacta de payloads AUZX entre tracks; ampliar para unidades aproximadas cuando la pista admita una secuencia de eventos.
 - Permitir payload Delta+ZX0, Fibonacci, IMA, ADPCM cuantizado o residual armónico.
 - Asignar pistas a Paula 0..2 o mixer 0..3, conservando destino, pitch y transiciones en eventos validados.
-- **Entregado (base de formato)**: parser C++23 host-testable con `Span`, offsets validados y vistas sin heap; limitado al layout ACP1 v1 documentado. El parser valida cada payload AUZX antes de exponer sus vistas.
+- **Entregado (base de reproducción)**: `media` reconoce ACP1 v1/v2, decodifica ventanas por track y mezcla mediante scratch/accumulator del llamador; `Acp1Stream` prepara PCM cooperativamente y la IRQ queda reducida a advance/swap.
+- **Pendiente de validación on-target**: demo 280 usa el servicio nivel 4 exclusivo y falla si el mixer Photon o una pista tracker ya posee audio; la compilación directa C++ cruzada pasa, pero `build-demo.sh` falla antes de compilar por no poder abrir su archivo `.d` en Windows.
 - Extender el parser para las tablas de deduplicación, modos de unidad y metadatos estructurales.
 - Medir y portar a ASM 68000 solo los núcleos de decode, crossfade y síntesis con equivalencia byte a byte.
-- **Entregado**: HOST-387 cubre parser/encoder, deduplicación exacta y HPSS; HOST-382 cubre CLI, round-trip por track y fuente FLAC multicanal mediante FFmpeg.
-- Tests previstos: HOST-388 deduplicación aproximada, HOST-389 secuenciador, HOST-390 selección Paula/mixer y demo híbrida.
+- **Entregado**: HOST-387 cubre parser/encoder v1/v2, deduplicación exacta, eventos y HPSS; HOST-382 cubre CLI, round-trip por track y fuente FLAC multicanal mediante FFmpeg.
+- Tests previstos: HOST-388 deduplicación aproximada, HOST-389 planificación de voces, HOST-390 reproducción Paula/mixer y demo híbrida.
 
 ### C13 — Corpus y ajuste estructural
 
-- **Entregado (métrica base)**: la CLI reconstruye la mezcla ACP1 y compara MSE/pico y bytes totales frente al AUZX lineal; las métricas de HPSS no se presentan como calidad si la mezcla no puede reconstruirse.
+- **Entregado (métrica base)**: la CLI reconstruye la mezcla ACP1 y compara MSE/pico y bytes totales frente al AUZX lineal. En `Rondo_alla_turca.ogg` (4.004.352 muestras, 22.050 Hz, IMA, chunks 2.048), sin HPSS ACP1 v2 fue 4.302.800 B, MSE 0,5583 y pico 19 frente a AUZX 2.025.680 B, MSE 0,4990 y pico 29; con HPSS ACP1 v2 fue 8.555.448 B, MSE 17,2824 y pico 43. HPSS no se selecciona por defecto: esta entrada real aumenta tamaño y error.
 - Ampliar comparación para incluir fades, tablas y costes de reproducción.
 - Elegir HPSS, tamaño de unidad y umbral de similitud con coste conjunto de error, RAM, voces y CPU.
 - Generar informes reproducibles con hash de entrada, configuración, versión del encoder y destino de cada pista.

@@ -52,10 +52,13 @@ void test_round_trip() {
 	const eng::u8 right_pcm[] {0x00u, 0x40u, 0xc0u, 0xffu};
 	std::vector<std::vector<eng::u8>> units {make_auzx(left_pcm, 4u, 22050u), make_auzx(right_pcm, 4u, 22050u)};
 	std::vector<eng::u8> file;
-	check(audio_compressor::build_acp1(units, 22050u, 4u, file), "encoder escribe ACP1 v1 multipista");
+	using Event = eng::audio::acp1::Event;
+	const std::vector<std::vector<Event>> synchronized_events {{{0u, 0u, 4u, 128u}, {0u, 4u, 4u, 128u}}, {{1u, 0u, 4u, 128u}, {1u, 4u, 4u, 128u}}};
+	const bool encoded = audio_compressor::build_acp1(units, 22050u, 8u, file, synchronized_events);
+	check(encoded, "encoder escribe ACP1 v2 multipista con eventos");
 	eng::audio::acp1::Info info {};
 	check(eng::audio::acp1::parse({file.data(), file.size()}, info), "parser acepta ACP1 producido por encoder");
-	check(info.sample_rate == 22050u && info.total_samples == 4u && info.unit_count == 2u && info.track_count == 2u,
+	check(info.sample_rate == 22050u && info.total_samples == 8u && info.unit_count == 2u && info.track_count == 2u,
 		"cabecera conserva tasa, duración y número de stems");
 	eng::audio::media::Info media_info{};
 	check(eng::audio::media::open({file.data(), file.size()}, media_info) &&
@@ -68,26 +71,33 @@ void test_round_trip() {
 		check(eng::audio::acp1::unit({file.data(), file.size()}, info, i, unit), "vista de unidad disponible");
 		eng::audio::acp1::Event event{};
 		check(eng::audio::acp1::event({file.data(), file.size()}, info, i, 0u, event), "evento de pista disponible");
-		check(track.destination == i && track.event_count == 1u && event.unit_id == i && event.start_sample == 0u &&
-			event.duration == info.total_samples && event.gain == 255u, "tracks con destinos y eventos sincronizados");
+		check(track.destination == i && track.event_count == 2u && event.unit_id == i &&
+			event.start_sample == 0u && event.gain == 128u, "tracks con secuencias de eventos sincronizadas");
 		eng::audio::auzx::Header nested {};
-		check(unit.id == i && unit.decoded_samples == info.total_samples && unit.gain == 255u &&
+		check(unit.id == i && unit.decoded_samples == 4u && unit.gain == 255u &&
 			eng::audio::auzx::parse(unit.payload, nested) && nested.sample_rate == info.sample_rate,
 			"unidad referencia payload AUZX válido a la misma tasa");
-		eng::u8 decoded[4]{}, scratch[4]{};
+		eng::u8 decoded[8]{}, scratch[4]{};
 		check(eng::audio::media::decode_track_window({file.data(), file.size()}, media_info, i, 0u,
-			{decoded, 4u}, {scratch, 4u}) == 4, "media decodifica track ACP1 a PCM");
+			{decoded, 8u}, {scratch, 4u}) == 8, "media decodifica track ACP1 a PCM");
 		const eng::u8* expected = i == 0u ? left_pcm : right_pcm;
-		for (eng::usize sample = 0u; sample < 4u; ++sample)
-			check(decoded[sample] == expected[sample], "track ACP1 conserva muestras round-trip");
+		for (eng::usize sample = 0u; sample < 4u; ++sample) {
+			const eng::u8 gained = static_cast<eng::u8>(static_cast<eng::s8>(expected[sample]) / 2);
+			check(decoded[sample] == gained && decoded[sample + 4u] == gained,
+				"secuencia ACP1 coloca eventos en su región y deja el resto de la pista en silencio");
+		}
 	}
-	eng::u8 mixed[4]{}, scratch[4]{}; eng::s16 accumulator[4]{};
+	eng::u8 mixed[8]{}, scratch[4]{}; eng::s16 accumulator[8]{};
 	check(eng::audio::media::mix_window({file.data(), file.size()}, media_info, 0u,
-		{mixed, 4u}, {scratch, 4u}, {accumulator, 4u}) == 4,
+		{mixed, 8u}, {scratch, 4u}, {accumulator, 8u}) == 8,
 		"media mezcla tracks ACP1 en ventana sincronizada");
 	for (eng::usize sample = 0u; sample < 4u; ++sample) {
-		const eng::u8 expected = static_cast<eng::u8>(static_cast<eng::s8>(static_cast<eng::s8>(left_pcm[sample]) + static_cast<eng::s8>(right_pcm[sample])));
-		check(mixed[sample] == expected, "mezcla ACP1 suma stems sin pérdida ni saturación prematura");
+		const eng::s32 expected = static_cast<eng::s8>(left_pcm[sample]) / 2 + static_cast<eng::s8>(right_pcm[sample]) / 2;
+		check(static_cast<eng::s8>(mixed[sample]) == expected, "mezcla ACP1 aplica ganancia por evento a cada stem");
+	}
+	for (eng::usize sample = 4u; sample < 8u; ++sample) {
+		const eng::s32 expected = static_cast<eng::s8>(left_pcm[sample - 4u]) / 2 + static_cast<eng::s8>(right_pcm[sample - 4u]) / 2;
+		check(static_cast<eng::s8>(mixed[sample]) == expected, "eventos repetidos contribuyen en la segunda mitad de la timeline");
 	}
 	check(info.version == 2u, "encoder emite ACP1 v2 para secuencias de eventos");
 }
@@ -200,7 +210,8 @@ void test_event_sequence() {
 	eng::audio::Acp1Stream<3> stream{};
 	const std::vector<std::vector<Event>> stream_events {{{0u, 0u, 4u, 255u}, {1u, 4u, 4u, 255u}, {2u, 8u, 4u, 255u}}};
 	std::vector<eng::u8> stream_file;
-	check(audio_compressor::build_acp1(units, 8000u, 12u, stream_file, stream_events), "fixture ACP1 para triple buffer");
+	const std::vector<std::vector<eng::u8>> stream_units {make_auzx(first, 4u, 8000u), make_auzx(second, 4u, 8000u), make_auzx(first, 4u, 8000u)};
+	check(audio_compressor::build_acp1(stream_units, 8000u, 12u, stream_file, stream_events), "fixture ACP1 para triple buffer");
 	eng::audio::media::Info stream_media{};
 	check(eng::audio::media::open({stream_file.data(), stream_file.size()}, stream_media), "media abre timeline de stream");
 	check(stream.begin({stream_file.data(), stream_file.size()}, stream_media, buffers, {scratch_stream, 4u},

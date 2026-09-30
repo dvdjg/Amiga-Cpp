@@ -91,7 +91,7 @@ public:
 		if (mixed != static_cast<eng::s32>(count)) { m_failed = true; return false; }
 		for (eng::usize i = count; i < m_chunk_samples; ++i) output[i] = 0u;
 		++m_next_chunk;
-		if (m_next_chunk >= m_num_chunks) { m_exhausted = true; m_state.set_eof(); }
+		if (m_next_chunk >= m_num_chunks) m_exhausted = true;
 		return true;
 	}
 	/// Publica como listo el buffer rellenado por `render_next`; no se llama desde la IRQ.
@@ -128,7 +128,7 @@ private:
 	eng::u16 m_chunk_samples = 0u; ///< Tamaño fijo de cada buffer PCM.
 	eng::u16 m_num_chunks = 0u; ///< Chunks que cubren la duración ACP1.
 	eng::u16 m_next_chunk = 0u; ///< Cursor de timeline, propiedad de la tarea cooperativa.
-	bool m_failed = false; ///< Error de decode/mix reportable fuera de la IRQ.
+	volatile bool m_failed = false; ///< Error de decode/mix compartido entre productor y lector de estado.
 	bool m_exhausted = false; ///< El productor ya preparó todos los chunks del ACP1.
 	bool m_started = false; ///< begin completado.
 };

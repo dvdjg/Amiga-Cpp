@@ -122,7 +122,7 @@ inline void wr32(eng::Span<eng::u8> file, eng::usize offset, eng::u32 value) noe
 		eng::audio::auzx::Header auzx_header {};
 		const eng::Span<const eng::u8> payload {file.data() + offset, size};
 		if (!eng::audio::auzx::parse(payload, auzx_header) || auzx_header.sample_rate != parsed.sample_rate ||
-			auzx_header.total_samples != samples || auzx_header.chunk_samples == 0u || auzx_header.num_chunks == 0u ||
+		auzx_header.total_samples != samples || auzx_header.chunk_samples == 0u || auzx_header.num_chunks == 0u ||
 			(static_cast<eng::u64>(auzx_header.total_samples) + auzx_header.chunk_samples - 1u) /
 				auzx_header.chunk_samples != auzx_header.num_chunks) return false;
 		for (eng::u16 chunk_index = 0u; chunk_index < auzx_header.num_chunks; ++chunk_index) {

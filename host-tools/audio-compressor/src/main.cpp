@@ -339,9 +339,10 @@ template <class T>
 
 /// Escribe un archivo ACP1 v1 con una pista sincronizada por cada stem AUZX.
 [[nodiscard]] bool write_acp1(const std::vector<std::vector<eng::u8>>& stems, eng::u16 rate,
-	eng::u32 samples, const std::string& output) {
+	eng::u32 samples, const std::string& output,
+	const std::vector<std::vector<eng::audio::acp1::Event>>& events) {
 	std::vector<eng::u8> file;
-	if (!audio_compressor::build_acp1(stems, rate, samples, file)) return false;
+	if (!audio_compressor::build_acp1(stems, rate, samples, file, events)) return false;
 	const std::filesystem::path output_path {native_safe_path(output)};
 	if (output_path.has_parent_path()) std::filesystem::create_directories(output_path.parent_path());
 	return write_binary(output_path, file);
@@ -411,7 +412,7 @@ int main(int argc, char** argv) {
 	if (config.dry_run) return 0;
 	if (mode == "music") {
 		if (input_stems.channels.empty() || input_stems.channels.size() > eng::audio::acp1::kMaxTracks) {
-			std::fprintf(stderr, "ACP1 v1 admite de 1 a 7 stems WAV\n"); return 1;
+			std::fprintf(stderr, "ACP1 admite de 1 a 7 stems WAV\n"); return 1;
 		}
 		std::FILE* existing = std::fopen(output.c_str(), "rb");
 		if (!config.force && existing != nullptr) { std::fclose(existing); std::fprintf(stderr, "salida existente; use --force\n"); return 1; }
@@ -436,22 +437,40 @@ int main(int argc, char** argv) {
 			source_stems = input_stems.channels;
 		}
 		if (source_stems.size() > eng::audio::acp1::kMaxTracks) {
-			std::fprintf(stderr, "HPSS produce más de siete pistas ACP1 v1; desactive --hpss o reduzca canales\n"); return 1;
+			std::fprintf(stderr, "HPSS produce más de siete pistas ACP1; desactive --hpss o reduzca canales\n"); return 1;
 		}
 		std::vector<std::vector<eng::u8>> encoded_stems;
-		encoded_stems.reserve(source_stems.size());
-		for (eng::usize i = 0u; i < source_stems.size(); ++i) {
-			const std::string stem_path = linear + ".stem-" + std::to_string(i) + ".auzx";
-			ConversionStats stem_stats{};
-			stem_stats.pcm_bytes = static_cast<eng::u64>(source_stems[i].size());
-			if (!write_auzx(source_stems[i], config.sample_rate, config, stem_path, stem_stats)) return 1;
-			std::vector<eng::u8> bytes;
-			const std::string safe_stem_path = native_safe_path(stem_path);
-			if (!read_binary(safe_stem_path.c_str(), bytes)) return 1;
-			encoded_stems.push_back(std::move(bytes));
-			std::remove(safe_stem_path.c_str());
+		std::vector<std::vector<eng::audio::acp1::Event>> events(source_stems.size());
+		const eng::u8 track_gain = config.hpss || input_stems.channels.size() > 1u ? 128u : 255u;
+		std::vector<std::vector<eng::u8>> unique_pcm_units;
+		for (eng::usize track = 0u; track < source_stems.size(); ++track) {
+			for (eng::usize start = 0u; start < source_stems[track].size(); start += config.chunk_samples) {
+				const eng::usize count = source_stems[track].size() - start < config.chunk_samples
+					? source_stems[track].size() - start : config.chunk_samples;
+				eng::usize unit_id = 0u;
+				for (; unit_id < unique_pcm_units.size(); ++unit_id) {
+					if (unique_pcm_units[unit_id].size() == count &&
+						std::memcmp(unique_pcm_units[unit_id].data(), source_stems[track].data() + start, count) == 0) break;
+				}
+				if (unit_id == unique_pcm_units.size()) {
+					if (unit_id >= 65535u) { std::fprintf(stderr, "demasiadas unidades ACP1\n"); return 1; }
+					unique_pcm_units.emplace_back(source_stems[track].begin() + start,
+						source_stems[track].begin() + start + count);
+					const std::string unit_path = linear + ".unit-" + std::to_string(unit_id) + ".auzx";
+					ConversionStats unit_stats{};
+					unit_stats.pcm_bytes = count;
+					if (!write_auzx(unique_pcm_units.back(), config.sample_rate, config, unit_path, unit_stats)) return 1;
+					std::vector<eng::u8> bytes;
+					const std::string safe_unit_path = native_safe_path(unit_path);
+					if (!read_binary(safe_unit_path.c_str(), bytes)) return 1;
+					encoded_stems.push_back(std::move(bytes));
+					std::remove(safe_unit_path.c_str());
+				}
+				events[track].push_back({static_cast<eng::u32>(unit_id), static_cast<eng::u32>(start),
+					static_cast<eng::u32>(count), track_gain});
+			}
 		}
-		if (!write_acp1(encoded_stems, config.sample_rate, static_cast<eng::u32>(pcm.size()), structural)) return 1;
+	if (!write_acp1(encoded_stems, config.sample_rate, 0u, structural, events)) return 1;
 		const eng::u64 structural_bytes = std::filesystem::file_size(std::filesystem::path{structural});
 		std::vector<eng::u8> acp1_bytes;
 		if (!read_binary(native_safe_path(structural).c_str(), acp1_bytes)) return 1;
