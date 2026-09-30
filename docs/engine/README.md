@@ -65,6 +65,7 @@ mapa «tarea → documentación», en [DOC-MAP-PRINCIPAL.md](../ai-dev-environme
 
 - [RESOURCE_SYSTEM.md](architecture/RESOURCE_SYSTEM.md) · [STREAMING_LOADER.md](architecture/STREAMING_LOADER.md) · [WORLD_FORMAT.md](architecture/WORLD_FORMAT.md).
 - [FILE_SYSTEM_AND_DYNAMIC_LIBRARIES.md](architecture/FILE_SYSTEM_AND_DYNAMIC_LIBRARIES.md) — VFS normalizado, librerías dinámicas, ZX0, HUNK y memoria por política.
+- [PIXEL_ART_2D_ISOMETRIC.md](architecture/PIXEL_ART_2D_ISOMETRIC.md) — arquitectura de juegos pixel art con colisiones y física opcional, incluida la separación entre espacio isométrico lógico y proyección.
 
 ### Mini-SO (`eng::os`)
 

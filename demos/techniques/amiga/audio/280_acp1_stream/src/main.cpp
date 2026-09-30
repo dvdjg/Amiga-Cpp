@@ -65,16 +65,15 @@ struct Acp1Demo {
 			fail(0x00028006u); return;
 		}
 		if (!backend.composition_playback_begin()) { fail(0x00028007u); return; }
-		if (!backend.set_composition_audio_service(&Acp1Demo::audio_irq, *this)) {
-			backend.composition_playback_end(); fail(0x00028008u); return;
-		}
-		if (m_stream.refill() == 0u || m_stream.failed()) {
-			backend.clear_composition_audio_service();
+		refill_free_buffers();
+		if (m_stream.next_chunk() == 0u || m_stream.failed()) {
 			backend.composition_playback_end();
 			fail(0x00028009u); return;
 		}
-		m_stream.finish_input();
 		m_backend = &backend;
+		if (!backend.set_composition_audio_service(&Acp1Demo::audio_irq, *this)) {
+			backend.composition_playback_end(); fail(0x00028008u); return;
+		}
 		backend.start_audio_buffer(kChannel, m_stream.play_pcm().data(), kChunkSamples / 2u,
 			eng::audio::paula::period_for_hz(kSampleRate), kVolume);
 		m_active = true;
@@ -116,9 +115,9 @@ private:
 		}
 	}
 
-	/// Mezcla únicamente buffers ya liberados por Paula; la última región se completa con silencio.
+	/// Mezcla chunks para los buffers libres; la IRQ no decodifica ni mezcla.
 	void refill_free_buffers() {
-		while (m_stream.needs_data()) {
+		while (m_stream.needs_data() && m_stream.next_chunk() < m_stream.num_chunks()) {
 			const eng::u8 index = m_stream.first_free_buffer();
 			if (index >= 3u) return;
 			if (!m_stream.render_next({m_pcm[index].data(), kChunkSamples}) || !m_stream.mark_ready(index)) return;
@@ -132,8 +131,8 @@ private:
 	/// Detiene DMA y retira el servicio antes de cualquier liberación o nueva reproducción.
 	void stop(eng::amiga::AmigaBackend& backend) {
 		if (!m_active) return;
-		backend.stop_composition_audio(kChannel);
 		backend.clear_composition_audio_service();
+		backend.stop_composition_audio(kChannel);
 		backend.composition_playback_end();
 		m_active = false;
 	}
