@@ -1,8 +1,10 @@
 # 3D en el engine: modelo y render frente a física
 
 Este documento fija qué soporte 3D existe, para qué sirve y qué **no** hay, de modo que no
-se confunda la canalización de **render** con una capa de **colisión/física** (que no existe).
-El objetivo es un A500 (68000, sin FPU, poca RAM), así que todo es entero/fixed y sin heap.
+se confunda la canalización parcial de **render** con una capa implementada de **colisión/física**.
+El objetivo es un A500 (68000, sin FPU, poca RAM), así que el camino caliente usa enteros/fixed y
+buffers del llamador. La arquitectura de juego 3D completa está en
+[`3D_GAME_ARCHITECTURE.md`](3D_GAME_ARCHITECTURE.md).
 
 ## 1. Lo que sí hay (modelo y render)
 
@@ -19,13 +21,27 @@ El objetivo es un A500 (68000, sin FPU, poca RAM), así que todo es entero/fixed
 |---|---|---|
 | Aritmética linear genérica | `eng/core/math/linalg.hpp` | `Vec<N,S>`, `Mat<N,S>`, `Affine<N,SR,SL>`; `transform`, `compose`, `dot`, `cross`, `inverse_rigid` |
 | 3D fijo retro (`math3d`) | `eng/platform/amiga/gfx3d.hpp` | `Mat3 = Mat<3,q12>`, `Affine3 = Affine<3,q12,q0>`, `P3 = Vec<3,q0>`, `load_rotate`/`load_reverse_rotate`, `scale` |
-| Malla (render) | `eng/core/data/mesh3d.hpp` | `MeshView` (vértices + caras triangulares), `Vec3`, `mesh_transform`, culling y orden de caras (`MeshFaceOrder<Kind>`: convexo o cóncavo) |
+| Malla (render) | `eng/core/data/mesh3d.hpp` | `MeshView` triangular y `PolyMeshView` n-gon convexo, `Vec3`, `mesh_transform`, culling y orden de caras (`MeshFaceOrder<Kind>`) |
 | Objeto empaquetado (lib3d) | `eng/platform/amiga/object3d.hpp`, `lib3d.hpp` | `Object3D`, `objectToWorld`/`worldToObject`, transform+proyección+visibilidad de un mesh tipo `obj2c` |
 | Sombreado / relleno | `eng/core/math/light.hpp`, `eng/platform/amiga/polygon_fill.hpp` | Sombreado por cara; relleno de polígonos por CPU o Blitter |
 | Escalares | `eng/core/math/fixed.hpp`, `fixed_math.hpp` | `Fixed`, `q12` (4.12), `q24`; sin `float`, con `muls.w`/`divs.w` |
 
 Evidencia: demos `077_math3d_cube` (alambre), `078_math3d_solid`, `079`, `116_flatshade_convex`
 y tests HOST-011/013/014/047/050/051/053/055.
+
+### 1.3 Frontera del pipeline de cámara
+
+`mesh_renderer` transforma, ordena/culla, proyecta y delega los polígonos a `Surface`. `Surface`
+recorta en 2D contra su clip después de la proyección. No existe todavía un paso de clipping en
+espacio de cámara contra el near plane antes de la división por `z`; por tanto, el renderer actual es
+adecuado solo para mallas/cámaras cuyos vértices visibles ya respeten ese rango. Sustituir `z=0` por
+`1` en `project_perspective` no resuelve geometría detrás de cámara ni caras que cruzan el near plane.
+
+El raster Amiga no ofrece rasterización de triángulos por hardware: la salida eficaz es convex n-gon
+o spans por scanline, y una cara cóncava debe particionarse en convexos fuera del hot path. El orden
+de pintor actual es una alternativa al Z-buffer, no una garantía de ocultación para toda geometría
+intersectante. Ver [`3D_GAME_ARCHITECTURE.md`](3D_GAME_ARCHITECTURE.md) para el pipeline objetivo y
+los fast paths condicionados a invariantes demostradas.
 
 ### 1.1 Orden de caras según la topología (elegido en compilación)
 

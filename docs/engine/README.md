@@ -40,6 +40,7 @@ mapa «tarea → documentación», en [DOC-MAP-PRINCIPAL.md](../ai-dev-environme
 - [MINIFLOAT16.md](architecture/MINIFLOAT16.md) — `MiniFloat16` (formato numérico).
 - [EXPRESSION_TEMPLATES.md](architecture/EXPRESSION_TEMPLATES.md) / [TEMPLATE_LIBRARY.md](architecture/TEMPLATE_LIBRARY.md) — plantillas y expresiones.
 - [3D_RENDER_VS_PHYSICS.md](architecture/3D_RENDER_VS_PHYSICS.md) / [3D_PHYSICS.md](architecture/3D_PHYSICS.md) — 3D (modelo/render) y física.
+- [3D_GAME_ARCHITECTURE.md](architecture/3D_GAME_ARCHITECTURE.md) — piezas faltantes y arquitectura objetivo para juegos 3D en el raster planar del Amiga.
 
 ### Gráficos, composición y objetos
 
