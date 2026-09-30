@@ -42,6 +42,9 @@ public:
 		m_pool = BlockPool {base, size, K, align};
 	}
 
+	/// Reinicia la configuración del banco si posee un pool propio; no libera el buffer raíz.
+	constexpr void reset() noexcept { m_pool.reset(); }
+
 	/// Asocia el banco a una **`LinearArena` de respaldo**: el pool **delega** en ella (mismo
 	/// buffer y cursor), de modo que una arena y un banco que comparten buffer no se solapan. Es
 	/// lo que usa `MemoryManager::configure_backing` (`INTERNAL_TYPE_SYSTEM.md` §3.6).

@@ -441,6 +441,17 @@ int main() {
 			std::printf("[FAIL] Plan::begin del camino estatico\n");
 			return 1;
 		}
+		const u32 plan_bytes = mem2.chip().used_bytes();
+		eng::copper::PlanConfig impossible {};
+		impossible.copper_bytes = 2u;
+		if (dyn.begin(mem2, impossible) || dyn.ok() || mem2.chip().used_bytes() != 0u || plan_bytes == 0u) {
+			std::printf("[FAIL] Plan::begin fallida no hizo rollback de la lista anterior\n");
+			return 1;
+		}
+		if (!dyn.begin(mem2, {8192u, 0x2cu}) || !dyn.ok()) {
+			std::printf("[FAIL] Plan no se recupera tras rollback\n");
+			return 1;
+		}
 		dyn.begin_frame();
 		for (eng::u16 i = 0; i < 38u; ++i) {
 			dyn.add(kScene.v[i]);

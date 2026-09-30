@@ -58,11 +58,16 @@ public:
 	/// `active` arranca en 1 para que el primer bloque que se escribe sea el 0.
 	bool begin(eng::MemoryManager& memory, u32 bytes_per_block, u8 alignment = 16) {
 		release();
+		if (bytes_per_block < 4u) return false;
 		m_memory = memory;
 		m_blocks[0] = memory.chip().reserve<eng::CopperTag>(bytes_per_block, alignment);
+		if (!m_blocks[0].valid()) {
+			m_memory.reset();
+			return false;
+		}
 		m_blocks[1] = memory.chip().reserve<eng::CopperTag>(bytes_per_block, alignment);
 		m_active = 1;
-		m_ok = m_blocks[0].valid() && m_blocks[1].valid() && bytes_per_block >= 4u;
+		m_ok = m_blocks[1].valid();
 		if (!m_ok) {
 			release();
 		}

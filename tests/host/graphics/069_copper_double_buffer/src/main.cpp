@@ -106,6 +106,24 @@ int main() {
 			std::printf("[FAIL] begin acepto un bloque de 2 bytes\n");
 			return 1;
 		}
+		if (mem.chip().used_bytes() != 1024u) {
+			std::printf("[FAIL] buffer invalido altero allocations ajenas o filtro mal el rango\n");
+			return 1;
+		}
+		// Reinit fallida del mismo owner debe liberar sus dos bloques antiguos y no dejar estado listo.
+		if (db.begin(mem, 2u) || db.ok() || mem.chip().used_bytes() != 0u) {
+			std::printf("[FAIL] reinit fallida no libero DoubleBuffer anterior\n");
+			return 1;
+		}
+		if (!db.begin(mem, 512u) || !db.ok() || mem.chip().used_bytes() != 1024u) {
+			std::printf("[FAIL] DoubleBuffer no se recupera tras rollback\n");
+			return 1;
+		}
+		db.release();
+		if (mem.chip().used_bytes() != 0u) {
+			std::printf("[FAIL] release repetido/de reinit deja bloques\n");
+			return 1;
+		}
 	}
 
 	// --- B) Integracion con TileScrollScene --------------------------------------

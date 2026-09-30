@@ -231,13 +231,18 @@ public:
 	/// nulos para `plugin_buffer`/`plugin_data` (como en el ejemplo `CMixer.c`); pasar `nullptr`
 	/// deja la mezcla en silencio. Por eso se reservan aquí (cualquier RAM) y se pasan a
 	/// `MixerSetup`. Ver `MEMORY_OWNERSHIP.md` §"Bancos y contratos" y `GAME_AUDIO.md` §4.
+	/// Inicializa transaccionalmente: reinicia el estado y, ante cualquier fallo, no deja bloques vivos.
 	bool init(MemoryManager& memory) {
 		shutdown();
 		m_memory = memory;
+		m_buffer_size = 0u;
+		m_plugin_buffer_size = 0u;
 		m_buffer_size = mixer_amiga::get_buffer_size();
 		// Salida del mixer: **Chip obligatorio** (DMA de Paula). Sin fallback: si no cabe, falla.
 		m_buffer = memory.chip().reserve<eng::MixerBufferTag>(m_buffer_size, 4u);
 		if (!m_buffer.valid()) {
+			m_memory.reset();
+			m_buffer_size = 0u;
 			return false;
 		}
 
@@ -249,6 +254,9 @@ public:
 		m_plugin_data = eng::fast_or_slow<eng::MixerBufferTag>(memory, kPluginDataBytes, 4u);
 		if (!m_plugin_buffer.valid() || !m_plugin_data.valid()) {
 			release_buffers();
+			m_memory.reset();
+			m_buffer_size = 0u;
+			m_plugin_buffer_size = 0u;
 			return false;
 		}
 
@@ -269,6 +277,9 @@ public:
 			m_ready = false;
 		}
 		release_buffers();
+		m_memory.reset();
+		m_buffer_size = 0u;
+		m_plugin_buffer_size = 0u;
 	}
 
 	/// Volumen maestro del mixer (0..64).

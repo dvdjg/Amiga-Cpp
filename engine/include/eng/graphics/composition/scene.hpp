@@ -89,21 +89,28 @@ public:
 	/// display/DMA antes: las vistas de `Scene` son no propietarias y el hardware puede retenerlas.
 	void release() noexcept {
 		m_plan.release();
-		if (m_memory.valid()) {
-			for (u8 i = 0u; i < kMaxSceneBuffers; ++i) {
-				if (m_buffers[i].valid()) {
-					m_memory->chip().release(m_buffers[i]);
-				}
-				m_buffers[i] = {};
-			}
+		m_playfield.detach();
+		m_contiguous.detach();
+		for (u8 i = 0u; i < kMaxSceneBuffers; ++i) {
+			if (m_buffers[i].valid() && m_memory.valid()) m_memory->chip().release(m_buffers[i]);
+			m_buffers[i] = {};
 		}
 		m_memory.reset();
 		m_res = {};
-		m_plane_bytes = 0u;
 		m_buffer_count = 1u;
 		m_back = 0u;
+		m_plane_bytes = 0u;
 		m_effect_count = 0u;
 		m_config_error = {};
+		for (u8 i = 0u; i < kMaxScenePlanes; ++i) {
+			m_plane_patch[i] = {};
+			m_plane_source[i] = 0u;
+		}
+		m_setup = {};
+		m_frame = {};
+		m_teardown = {};
+		m_effects = {};
+		m_hw_info.reset();
 	}
 
 	/// Crea la escena reservando los bitplanes (según `res`) y la copperlist en Chip RAM,
@@ -112,6 +119,7 @@ public:
 	/// hay memoria. El perfil es **obligatorio**: no existe una vía que acepte configuraciones
 	/// que el hardware no permite.
 	bool init(MemoryManager& memory, const SceneResources& res, const DisplayLimits& limits) {
+		release();
 		const ConfigError e = validate(res, limits);
 		if (!e.ok()) {
 			m_config_error = e;

@@ -229,6 +229,23 @@ public:
     constexpr u16 bytes_per_row() const { return m_bytes_per_row; }
     constexpr bool initialized() const { return m_initialized; }
 
+    /// Desvincula la vista del bitmap; no libera memoria porque el playfield no es su propietario.
+    void detach() noexcept {
+        m_frontbuffer = {};
+        m_width = 0u;
+        m_height = 0u;
+        m_bytes_per_row = 0u;
+        m_planes = 0u;
+        m_total_bytes = 0u;
+        m_plane_stride = 0u;
+        m_row_stride = 0u;
+        m_initialized = false;
+        m_fill_sink = {};
+        m_rect_sink = {};
+        m_rasterizer.reset();
+        m_raster_policy = {};
+    }
+
     // --- Hooks de mapeo lógico->físico (implementa cada tipo) -------------
     virtual u32 planeline_for(eng::pix wy) const = 0;
     virtual u32 byte_for(eng::pix wx) const = 0;

@@ -53,23 +53,43 @@ struct BitmapConfig {
 /// Framebuffer hardware: memoria + layout + addressing. SIN dibujo.
 class Bitmap {
 public:
-    Bitmap() = default;
-    Bitmap(const Bitmap&) = delete;
-    Bitmap& operator=(const Bitmap&) = delete;
+	Bitmap() = default;
+	~Bitmap() { release(); }
+	Bitmap(const Bitmap&) = delete;
+	Bitmap& operator=(const Bitmap&) = delete;
+
+	/// Devuelve al banco el bloque Chip si la instancia conserva una reserva válida.
+	void release() noexcept {
+		if (m_block.valid() && m_memory.valid()) m_memory->chip().release(m_block);
+		m_block = {};
+		m_memory.reset();
+		m_cfg = {};
+		m_real_base = {};
+		m_frontbuffer = {};
+		m_row_bytes = 0u;
+		m_total = 0u;
+	}
 
     /// Reserva el bloque **siempre en Chip RAM** (el Blitter y el bitplane DMA solo alcanzan
     /// Chip; un framebuffer Fast no es mostrable). El bloque reservado mide
     /// `total_bytes + guard_bytes`; `bytes()`/frontbuffer apuntan a `base + frontbase_offset`
     /// (el offset de fetch ancho del corkscrew: normal=0, BPL32=16, 4x=48). La guardia protege
     /// las lecturas DMA/blits que rebasan el final lógico del framebuffer.
-    bool init(MemoryManager& memory, const BitmapConfig& cfg) {
-        if (cfg.width == 0 || cfg.height == 0 || cfg.planes == 0 || cfg.planes > 6) return false;
-        m_cfg = cfg;
+	bool init(MemoryManager& memory, const BitmapConfig& cfg) {
+		release();
+		if (cfg.width == 0 || cfg.height == 0 || cfg.planes == 0 || cfg.planes > 6) return false;
+		m_cfg = cfg;
         m_row_bytes = cfg.row_bytes ? cfg.row_bytes : static_cast<u16>(cfg.width / 8u);
         m_total = static_cast<u32>(m_row_bytes) * cfg.height * cfg.planes;
-        const u32 alloc = m_total + cfg.guard_bytes;
-        m_block = memory.chip().reserve<eng::PlaneTag>(alloc, cfg.alignment);
-        if (!m_block.valid()) return false;
+		const u32 alloc = m_total + cfg.guard_bytes;
+		m_block = memory.chip().reserve<eng::PlaneTag>(alloc, cfg.alignment);
+		if (!m_block.valid()) {
+			m_cfg = {};
+			m_row_bytes = 0u;
+			m_total = 0u;
+			return false;
+		}
+		m_memory = memory;
         m_real_base = m_block.address();
         m_frontbuffer = m_real_base + cfg.frontbase_offset;
         return true;
@@ -118,7 +138,8 @@ public:
     }
 
 private:
-    eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_block {};
+	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_block {};
+	eng::Ref<MemoryManager> m_memory {};
     BitmapConfig m_cfg {};
     Address<MemoryKind::Chip> m_real_base {};
     Address<MemoryKind::Chip> m_frontbuffer {};

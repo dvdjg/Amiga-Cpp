@@ -27,6 +27,7 @@
 #include <eng/core/types/typed.hpp>
 #include <eng/os/message.hpp>
 #include <eng/res/asset_cache.hpp>
+#include <eng/memory/memory_manager.hpp>
 
 namespace eng::audio {
 
@@ -72,21 +73,35 @@ public:
 
 	/// Inicia el SFX mixer (reserva el buffer Chip y arranca). La música se
 	/// arranca aparte con `play_music()`.
+	/// Inicia el mixer y sus owners; si falla su reserva, deja el sistema en estado detenido.
 	bool init(MemoryManager& memory) {
 		shutdown();
 		m_memory = memory; // el engine reserva aquí el buffer de descompresión de la música
-		return m_sfx.init(memory);
+		m_cfg = {};
+		m_mode = AudioMode::Game;
+		m_edges = {};
+		m_underrun_now = false;
+		m_format = MusicFormat::None;
+		if (!eng::audio::init_mixer_transaction(m_sfx, memory)) {
+			m_memory.reset();
+			return false;
+		}
+		return true;
 	}
 
 	/// Inicia con **modo y config** (A0): arranca el mixer, aplica el reparto de canales del modo.
+	/// Inicia con configuración; un modo rechazado deshace el mixer y cualquier reserva de setup.
 	bool init(MemoryManager& memory, const AudioConfig& cfg) {
-		m_cfg = cfg;
-		if (!init(memory)) {
+		if (!init(memory)) return false;
+		if (!eng::audio::valid_audio_config(cfg) ||
+		    !set_mode(cfg.mode)) {
+			shutdown();
 			return false;
 		}
+		m_cfg = cfg;
 		set_sfx_volume(cfg.master_sfx_vol);
 		set_music_volume(cfg.master_music_vol);
-		return set_mode(cfg.mode);
+		return true;
 	}
 
 	/// Modo de audio vigente.
@@ -118,6 +133,12 @@ public:
 		m_sfx.shutdown();
 		for (eng::res::AssetLease& lease : m_sfx_cpu_leases) lease.reset();
 		for (eng::res::AssetDmaLease& lease : m_music_asset_leases) lease.reset();
+		m_memory.reset();
+		m_format = MusicFormat::None;
+		m_mode = AudioMode::Game;
+		m_cfg = {};
+		m_edges = {};
+		m_underrun_now = false;
 	}
 
 	// ---- SFX --------------------------------------------------------------

@@ -100,11 +100,10 @@ public:
 	bool begin(eng::MemoryManager& memory, const PlanConfig& cfg = {}) {
 		release();
 		m_cfg = cfg;
-		m_count = 0;
-		m_overflow = false;
 		m_ok = m_owned.begin(memory, cfg.copper_bytes);
+		if (!m_ok) return false;
 		m_copper = m_owned;
-		return m_ok;
+		return true;
 	}
 
 	/// Enlaza el plan a un `DoubleBuffer` **externo** (el llamador decide dónde vive la
@@ -113,10 +112,17 @@ public:
 	/// publicación).
 	void attach(DoubleBuffer& copper) {
 		release();
+		if (!copper.ok()) return;
 		m_copper = copper;
-		m_count = 0;
+		m_count = 0u;
+		m_band_count = 0u;
+		m_cost_words = 0u;
+		m_cost_count = 0u;
+		m_over_effect = no_effect;
 		m_overflow = false;
-		m_ok = copper.ok();
+		m_words = 0u;
+		m_report = {};
+		m_ok = true;
 	}
 
 	/// Libera únicamente el `DoubleBuffer` propio. Un buffer enlazado con `attach()` pertenece
@@ -128,6 +134,24 @@ public:
 		m_ok = false;
 		m_words = 0u;
 		m_count = 0u;
+		m_slot_count = 0u;
+		m_band_count = 0u;
+		m_cost_words = 0u;
+		m_cost_count = 0u;
+		m_over_effect = no_effect;
+		m_overflow = false;
+		m_report = {};
+		m_bands = {};
+		m_costs = {};
+		m_intents = {};
+		m_prio = {};
+		m_perm = {};
+		m_slot_word = {};
+		m_slot_reg = {};
+		m_slot_line = {};
+		m_line_start = {};
+		m_count_by_line = {};
+		m_line_cursor = {};
 	}
 
 	/// Abre el frame: limpia las intenciones y sitúa el emisor en el bloque **trasero**.
@@ -402,7 +426,7 @@ private:
 	u16 m_words = 0;       ///< palabras de Copper de la última lista materializada
 	ScheduleReport m_report {}; ///< informe del scheduler de la última materialización
 	bool m_overflow = false;    ///< se superó `max_intents`
-	bool m_ok = false;          ///< la última lista cupo y quedó publicada
+	bool m_ok = false;          ///< el plan posee o tiene enlazado un buffer válido
 };
 
 } // namespace eng::copper

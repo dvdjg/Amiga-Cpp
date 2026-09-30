@@ -24,6 +24,7 @@
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/composition/compose.hpp>
+#include <eng/graphics/bitmap.hpp>
 #include <eng/memory/memory_manager.hpp>
 
 namespace {
@@ -98,6 +99,64 @@ MoveTally tally(const eng::u16* words, eng::u16 count, eng::u16 row_back) {
 } // namespace
 
 int main() {
+	// Bitmap reinit/fallo libera la reserva previa y deja el owner vacío.
+	{
+		MemoryManager mem = make_memory();
+		eng::gfx::Bitmap bitmap;
+		eng::gfx::BitmapConfig cfg {};
+		cfg.width = 64u;
+		cfg.height = 32u;
+		cfg.planes = 4u;
+		if (!bitmap.init(mem, cfg)) return 1;
+		const u32 first_bytes = mem.chip().used_bytes();
+		eng::gfx::BitmapConfig invalid = cfg;
+		invalid.width = 0u;
+		if (bitmap.init(mem, invalid) || bitmap.valid() || mem.chip().used_bytes() != 0u || first_bytes == 0u) {
+			std::printf("[FAIL] Bitmap init fallida no libero su owner anterior\n");
+			return 1;
+		}
+		if (!bitmap.init(mem, cfg) || !bitmap.valid()) {
+			std::printf("[FAIL] Bitmap no se recupera tras rollback\n");
+			return 1;
+		}
+		bitmap.release();
+		bitmap.release();
+		if (mem.chip().used_bytes() != 0u) {
+			std::printf("[FAIL] Bitmap release repetido no es idempotente\n");
+			return 1;
+		}
+	}
+
+	// Reinit invalida el owner anterior incluso si la nueva configuración se rechaza.
+	{
+		MemoryManager mem = make_memory();
+		Scene scene;
+		const SceneResources valid = eng::graphics::composition::planar(320u, 256u, 4u);
+		if (!scene.init(mem, valid, eng::graphics::composition::ocs_a500)) return 1;
+		const u32 used_before = mem.chip().used_bytes();
+		SceneResources invalid = valid;
+		invalid.width = 0u;
+		if (scene.init(mem, invalid, eng::graphics::composition::ocs_a500)) {
+			std::printf("[FAIL] reinit invalida aceptada\n");
+			return 1;
+		}
+		if (scene.ok() || !scene.buffer(0u).empty() || mem.chip().used_bytes() != 0u || used_before == 0u) {
+			std::printf("[FAIL] reinit fallida dejo estado/owner anterior\n");
+			return 1;
+		}
+		if (!scene.init(mem, valid, eng::graphics::composition::ocs_a500) || !scene.ok() ||
+		    mem.chip().used_bytes() == 0u) {
+			std::printf("[FAIL] Scene no se recupera después de rollback\n");
+			return 1;
+		}
+		scene.release();
+		scene.release();
+		if (mem.chip().used_bytes() != 0u) {
+			std::printf("[FAIL] release repetido de Scene no es idempotente\n");
+			return 1;
+		}
+	}
+
 	// --- 1) HAM + cuadruplicado (config de la demo 080) -----------------------
 	{
 		MemoryManager mem = make_memory();

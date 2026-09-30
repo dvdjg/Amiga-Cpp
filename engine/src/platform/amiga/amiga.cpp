@@ -137,7 +137,10 @@ void AmigaBackend::release_memory() {
 	m_paula.wait_idle();
 	m_audio.shutdown();
 	wait_blitter();
-	if (!m_assets.shutdown()) return;
+	if (!m_assets.shutdown()) {
+		// Un caller conserva leases: mantener pools, manager y raíces válidas para que pueda cerrar.
+		return;
+	}
 
 	if (m_fast_alloc) {
 		FreeMem(m_fast_alloc, m_fast_alloc_size);

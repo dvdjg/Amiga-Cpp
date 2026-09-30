@@ -10,8 +10,13 @@
 /// escrituras de registro (DMACON, `AUDn*`) las hace el backend Amiga, no este header.
 
 #include <eng/core/types/types.hpp>
+#include <eng/memory/memory_manager.hpp>
 
 namespace eng::audio {
+
+namespace paula {
+[[nodiscard]] constexpr bool valid_channel_mask(eng::u8 mask) noexcept;
+}
 
 /// Perfil de audio. `TitleOctaMED` ocupa los 4 canales (mezcla SW de 8 voces).
 enum class AudioMode : eng::u8 {
@@ -61,6 +66,34 @@ struct AudioConfig {
 	bool post_music_end_msg = true;  ///< postear `MsgType::MusicEnd` (A2)
 	bool post_underrun_msg = false;  ///< postear `MsgType::AudioUnderrun` (A2)
 };
+
+/// Valida que una configuración respeta máscaras, modo y separación mixer/música.
+[[nodiscard]] constexpr bool valid_audio_config(const AudioConfig& cfg) noexcept {
+	if (!paula::valid_channel_mask(cfg.mixer_hw_mask) ||
+	    !paula::valid_channel_mask(cfg.music_hw_mask) ||
+	    (cfg.mixer_hw_mask & cfg.music_hw_mask) != 0u) return false;
+	switch (cfg.mode) {
+		case AudioMode::Silent:
+			return cfg.mixer_hw_mask == 0u && cfg.music_hw_mask == 0u;
+		case AudioMode::Game:
+			return (cfg.mixer_hw_mask & 0x01u) != 0u;
+		case AudioMode::GameSfxOnly:
+			return cfg.mixer_hw_mask == 0x0fu && cfg.music_hw_mask == 0u;
+		case AudioMode::TitleOctaMED:
+			return cfg.mixer_hw_mask == 0u && cfg.music_hw_mask == 0x0fu;
+	}
+	return false;
+}
+
+/// Inicializa transaccionalmente un mixer que reserva recursos durante `init`: ante fallo se
+/// invoca `shutdown()` para que cualquier reserva parcial quede devuelta antes de reintentar.
+template <class Mixer>
+bool init_mixer_transaction(Mixer& mixer, eng::MemoryManager& memory) {
+	mixer.shutdown();
+	if (mixer.init(memory)) return true;
+	mixer.shutdown();
+	return false;
+}
 
 /// **Helpers de bajo nivel de Paula** (registros y cuentas que el juego no debe repetir).
 namespace paula {

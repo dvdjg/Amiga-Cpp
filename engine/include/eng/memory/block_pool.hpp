@@ -172,6 +172,20 @@ public:
 		}
 	}
 
+	/// Reinicia un pool con almacenamiento propio (no respaldado por arena) para hacer rollback de
+	/// una inicialización fallida. No libera el bloque raíz que entregó el backend.
+	void reset() noexcept {
+		if (m_backing.valid()) return;
+		m_base = nullptr;
+		m_size = 0u;
+		m_size_raw = 0u;
+		m_kind = MemoryKind::Any;
+		m_align = 2u;
+		m_used = 0u;
+		m_peak = 0u;
+		m_count = 0u;
+	}
+
 	/// Bytes libres (suma de huecos libres).
 	[[nodiscard]] u32 free_bytes() const noexcept {
 		if (m_backing.valid()) {
@@ -285,4 +299,3 @@ private:
 using BlockPool = BlockPoolT<64u>;
 
 } // namespace eng
-

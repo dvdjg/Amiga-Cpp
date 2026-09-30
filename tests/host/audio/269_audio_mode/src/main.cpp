@@ -71,11 +71,79 @@ void test_period() {
 	check(period_for_hz(16000u) == 221u, "hz=16000 -> 221");
 }
 
+struct FakeMixer {
+	eng::Ref<eng::MemoryManager> memory {};
+	eng::MemoryBlock chip {};
+	eng::MemoryBlock slow {};
+	bool fail_second = false;
+	bool active = false;
+	eng::u32 starts = 0u;
+	eng::u32 stops = 0u;
+
+	bool init(eng::MemoryManager& memory) {
+		this->memory = memory;
+		chip = memory.chip().pool().allocate(128u, 4u);
+		if (!chip.valid()) return false;
+		slow = memory.slow().pool().allocate(64u, 4u);
+		if (fail_second) return false; // simula fallo de setup tras dos reservas válidas
+		if (!slow.valid()) return false;
+		active = true;
+		++starts;
+		return true;
+	}
+	void shutdown() {
+		if (memory.valid()) {
+			if (chip.valid()) memory->chip().pool().free(chip.data);
+			if (slow.valid()) memory->slow().pool().free(slow.data);
+		}
+		chip = {};
+		slow = {};
+		memory.reset();
+		active = false;
+		++stops;
+	}
+	void set_master_volume(eng::u8) {}
+};
+
+void test_audio_config_and_mixer_rollback() {
+	eng::audio::AudioConfig bad {};
+	bad.mixer_hw_mask = 1u;
+	bad.music_hw_mask = 1u;
+	check(!eng::audio::valid_audio_config(bad), "reject overlapping audio masks");
+	eng::audio::AudioConfig good {};
+	check(eng::audio::valid_audio_config(good), "accept default Game audio profile");
+
+	eng::u8 chip[1024] {};
+	eng::u8 slow[128] {};
+	eng::MemoryManager memory {};
+	memory.configure(chip, sizeof(chip), slow, sizeof(slow), nullptr, 0u, 4u);
+	FakeMixer mixer;
+	const eng::u32 chip_free = memory.chip().free_bytes();
+	const eng::u32 slow_free = memory.slow().free_bytes();
+	mixer.fail_second = true;
+	check(!eng::audio::init_mixer_transaction(mixer, memory), "failed partial init runs shutdown rollback");
+	check(!mixer.active && mixer.stops >= 1u, "failed init leaves mixer stopped");
+	check(memory.chip().free_bytes() == chip_free && memory.slow().free_bytes() == slow_free,
+	      "partial init rollback restores both bank free lists");
+	mixer.fail_second = false;
+	check(eng::audio::init_mixer_transaction(mixer, memory), "retry init can succeed");
+	check(mixer.active && mixer.starts == 1u, "successful retry has one active instance");
+	const eng::u32 chip_used = memory.chip().used_bytes();
+	const eng::u32 slow_used = memory.slow().used_bytes();
+	check(chip_used == 128u && slow_used == 64u, "successful init owns precisely its two reservations");
+	mixer.shutdown();
+	check(!mixer.active, "shutdown returns fake mixer to idle");
+	check(memory.chip().used_bytes() == 0u && memory.slow().used_bytes() == 0u,
+	      "partial init rollback y shutdown devuelven todos los bloques");
+	check(mixer.stops >= 2u, "shutdown repeated by transaction and caller is safe");
+}
+
 } // namespace
 
 int main() {
 	test_quota();
 	test_period();
+	test_audio_config_and_mixer_rollback();
 	if (failures == 0) {
 		std::printf("OK: modos de audio (reparto de canales + period_for_hz) validados.\n");
 		return 0;
