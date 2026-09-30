@@ -11,7 +11,7 @@ host-tools/audio-compressor/audio-compressor tema.wav --mode music --force --out
 node tools/fs/make-volume.mjs --no-adf --add out/assets/audio-compressor/tema.acp1:data/audio/theme.acp1
 ```
 
-La demo lee `data/audio/theme.acp1` con DOS antes de tomar el control del display; no necesita imagen ADF.
+La demo lee `data/audio/theme.acp1` con DOS antes de tomar el control del display; no necesita imagen ADF. Con la prueba `Rondo_alla_turca.ogg`, la salida ACP1 v2 conserva secuencias, pero todavía es mayor que el AUZX lineal; consulta el informe de corpus del roadmap antes de elegir esta ruta por compresión.
 
 ## Build y ejecución
 

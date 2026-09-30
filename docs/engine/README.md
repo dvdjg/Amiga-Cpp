@@ -41,6 +41,7 @@ mapa «tarea → documentación», en [DOC-MAP-PRINCIPAL.md](../ai-dev-environme
 - [EXPRESSION_TEMPLATES.md](architecture/EXPRESSION_TEMPLATES.md) / [TEMPLATE_LIBRARY.md](architecture/TEMPLATE_LIBRARY.md) — plantillas y expresiones.
 - [3D_RENDER_VS_PHYSICS.md](architecture/3D_RENDER_VS_PHYSICS.md) / [3D_PHYSICS.md](architecture/3D_PHYSICS.md) — 3D (modelo/render) y física.
 - [3D_GAME_ARCHITECTURE.md](architecture/3D_GAME_ARCHITECTURE.md) — piezas faltantes y arquitectura objetivo para juegos 3D en el raster planar del Amiga.
+- [MODEL3D_ASSET_FORMAT.md](architecture/MODEL3D_ASSET_FORMAT.md) — formato de autoría JSON y chunks UAF-R cocinados para modelos 3D Amiga.
 
 ### Gráficos, composición y objetos
 

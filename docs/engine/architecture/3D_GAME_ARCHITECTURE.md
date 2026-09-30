@@ -96,7 +96,8 @@ La carga de geometría debe separar formato fuente de representación de runtime
 
 `MeshBlob`, `MeshViewT`, `PolyMeshViewT`, `obj2c` y el chunk `MeshPoly` ya aportan puntos de partida,
 pero falta un contrato único de `MeshAsset` que conecte loader, material, jerarquía, bounds, receta
-de clipping, LOD y proxy físico.
+de clipping, LOD y proxy físico. El formato de fuente y runtime previsto se especifica en
+[`MODEL3D_ASSET_FORMAT.md`](MODEL3D_ASSET_FORMAT.md).
 
 ## Rigging y animación
 
@@ -129,6 +130,12 @@ Body state → broadphase → narrow phase → contact/event → response → tr
   coordenada.
 - **Narrow phase**: esfera/esfera, esfera/plano, cápsula/segmento, AABB/OBB por SAT; mallas visuales
   contra proxies simples. GJK/EPA solo con consumidor y perfil que lo justifiquen.
+- **Colección de esferas**: un collider compuesto puede aproximar cabeza/torso/extremidades con pocos
+  pares esfera-esfera; todas comparten transform/body, y cada esfera puede colgar de un nodo rígido.
+  Broadphase usa el AABB envolvente; narrow phase compara distancia al cuadrado y radios combinados,
+  sin raíz cuadrada. Limitar cantidad por perfil (típicamente 4–8 en A500), collision masks y parar
+  al primer hit cuando no se soliciten contactos completos. El formato y el contrato están en
+  [`MODEL3D_ASSET_FORMAT.md`](MODEL3D_ASSET_FORMAT.md).
 - **Jugador**: body cinemático con sweep y resolución contra planos/OBB; permite movimiento FPS sin
   solver general.
 - **Dinámicos**: para *Superhot Lite*, usar cuerpos arcade y pocos objetos empujables; integrar con
