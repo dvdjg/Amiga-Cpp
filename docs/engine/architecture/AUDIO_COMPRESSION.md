@@ -247,11 +247,11 @@ El parser rechaza rangos que desbordan el archivo, offsets de tabla incoherentes
 
 ## Propuesta de formato completo ACP1 v3 (no implementada)
 
-Este diseño es la propuesta normativa para contener la combinatoria de códecs, representaciones, automatización y eventos de una obra. No está implementado ni debe confundirse con el subconjunto v1/v2 anterior: el parser actual acepta v1/v2 y rechaza v3. La compatibilidad se conserva manteniendo magic `ACP1` y versionando el layout; un lector que no soporte v3 debe fallar con `UnsupportedVersion` antes de reservar o tocar Paula. Los tamaños y referencias de esta propuesta deben implementarse y probarse antes de publicar un encoder v3.
+Este diseño es la propuesta normativa para contener la combinatoria de códecs, representaciones, automatización y eventos de una obra. No está implementado ni debe confundirse con el subconjunto v1/v2 anterior: el parser actual acepta v1/v2 y rechaza v3. La compatibilidad se conserva manteniendo magic `ACP1` y versionando el layout; un lector que no soporte v3 debe fallar con `UnsupportedVersion` antes de reservar o tocar Paula. Las definiciones de v3 son el contrato objetivo y requieren implementación y tests independientes antes de que un encoder las publique.
 
 ### Modelo y unidades de tiempo
 
-ACP1 v3 separa representación de unidad, compresión independiente de segmentos, eventos de timeline, automatización y ruta de salida. La única unidad de reloj persistida es la muestra de la timeline maestra. `start_sample`, `duration`, puntos de envolvente y cues se expresan en muestras a `sample_rate`; los índices y bytes de payload no son tiempo. El archivo no contiene registros Paula, punteros DMA ni índices de voces runtime.
+ACP1 v3 separa representación de unidad, compresión independiente de segmentos, eventos de timeline, automatización y ruta de salida. La única unidad de reloj persistida es la muestra de la timeline maestra. `start_sample`, `duration`, puntos de envolvente y cues se expresan en muestras a `sample_rate`; los índices y bytes de payload no son tiempo. El archivo no contiene registros Paula, direcciones DMA ni slots runtime de voz.
 
 ```text
 obra (timeline en muestras)
@@ -262,47 +262,47 @@ obra (timeline en muestras)
 └── cues globales                                                ┘
 ```
 
-La secuencia de un track se ordena por `start_sample`. Los eventos no se solapan dentro del mismo track; tracks distintos sí pueden solaparse. Un hueco es silencio. Un loop repite el rango semiabierto `[loop_first_event, loop_end_event)` al terminarlo; cues en el loop solo se repiten si su flag `RepeatOnLoop` está activo. La timeline declarada corresponde al primer recorrido.
+La secuencia de un track se ordena por `(start_sample, orden_de_tabla)`. Los eventos audibles del mismo track no se solapan en v3.0; tracks distintos sí pueden hacerlo. Un hueco es silencio. Si el loop está activo, `[loop_first_event,loop_end_event)` debe ser un sufijo del track (`loop_end_event == first_event+event_count`); al llegar al final se vuelve al primer evento hasta `Stop`. Solo se repiten cues marcados `RepeatOnLoop`. `timeline_samples` describe el primer recorrido. `track_limit` es un límite superior reproducible de voces simultáneas que incluye loops: para el cálculo, cada track con loop habilitado se considera activo durante toda la obra, y se añade el máximo de tracks sin loop que tengan un evento audible activo en un mismo instante del primer recorrido. Los intervalos son semiabiertos `[start_sample,start_sample+duration)`; el escritor serializa el resultado y el parser lo recalcula y rechaza valores inferiores o distintos. Esta cota puede reservar más voces de las que una secuencia concreta usa, pero nunca subestima los loops. Eventos cue-only no consumen voz.
 
 ### Cabecera y directorio de secciones
 
-Todos los enteros son little-endian. El archivo empieza con una cabecera fija de 64 bytes; a continuación hay un directorio de secciones con entradas de 16 bytes. Cada offset es absoluto desde el primer byte del archivo. Las tablas ocupan `entry_count * entry_size`; las regiones de bytes usan `entry_size=1` y `entry_count` como longitud. Las secciones se ordenan por `section_id`, están alineadas a 4 bytes, no se solapan y deben terminar antes de `file_size`.
+Todos los enteros son little-endian. El archivo empieza con una cabecera fija de 64 bytes; el directorio de 17 entradas de 16 bytes ocupa `[64,336)`. Los contenidos de sección empiezan en offset 336 o posterior. Cada offset del directorio es absoluto desde el primer byte del archivo. Las tablas ocupan `entry_count * entry_size`; las regiones de bytes usan `entry_size=1` y `entry_count` como longitud. Las entradas del directorio se ordenan por `section_id`; los datos pueden aparecer en cualquier orden físico, pero cada sección no vacía está alineada a 4 bytes y no se solapa con otra sección ni con la cabecera/directorio.
 
 | Offset | Tamaño | Campo | Regla ACP1 v3.0 |
 |---:|---:|---|---|
 | 0 | 4 | magic | ASCII `ACP1` |
 | 4 | 2 | major_version | `3` |
-| 6 | 2 | minor_version | `0` para esta propuesta |
+| 6 | 2 | minor_version | `0` |
 | 8 | 2 | header_size | `64` |
-| 10 | 2 | flags | `0` en v3.0; cualquier bit no definido implica rechazo |
+| 10 | 2 | flags | Cero en v3.0 |
 | 12 | 4 | sample_rate | Frecuencia maestra, 1..65535 Hz |
-| 16 | 8 | timeline_samples | Extensión temporal de la obra, mayor que cero |
-| 24 | 2 | section_count | Exactamente 17 |
-| 26 | 1 | track_limit | Concurrencia lógica declarada, 1..7 |
-| 27 | 1 | required_paula_voices | Voces Paula directas mínimas, 0..3 |
-| 28 | 1 | required_mixer_voices | Voces software Mixer mínimas, 0..4 |
+| 16 | 8 | timeline_samples | Extensión del primer recorrido, mayor que cero |
+| 24 | 2 | section_count | Exactamente `17` en v3.0 |
+| 26 | 1 | track_limit | Cota superior de voces simultáneas incluyendo loops, 1..7 |
+| 27 | 1 | required_paula_voices | Cota simultánea de tracks `PaulaRequired`, 0..3 |
+| 28 | 1 | required_mixer_voices | Cota simultánea de tracks `MixerRequired`, 0..4 |
 | 29 | 1 | default_route | `0=Auto`, `1=PreferPaula`, `2=PreferMixer` |
 | 30 | 2 | master_gain_q8_8 | Ganancia maestra; `256` = unidad |
-| 32 | 4 | section_directory_offset | Debe ser `64` |
-| 36 | 4 | file_size | Tamaño total exacto, 1..`0xffffffff` bytes |
-| 40 | 2 | checksum_algorithm | `0` sin checksum; `1` CRC-32 con el campo `checksum` a cero |
+| 32 | 4 | section_directory_offset | `64`; directorio `[64,336)` |
+| 36 | 4 | file_size | Tamaño exacto, 336..`0xffffffff` bytes |
+| 40 | 2 | checksum_algorithm | `0` none; `1` CRC-32/ISO-HDLC (reflected poly `0xedb88320`, init/xorout `0xffffffff`) |
 | 42 | 2 | reserved | Cero |
-| 44 | 4 | checksum | Cero si el algoritmo es `0` |
+| 44 | 4 | checksum | `0` si no hay checksum; si `1`, CRC del archivo con estos 4 bytes a cero |
 | 48 | 16 | reserved | Cero en v3.0 |
 
-Cada entrada `SectionEntry` mide 16 bytes: `section_id:u16`, `flags:u16`, `entry_size:u32`, `entry_count:u32`, `offset:u32`. `flags bit 0 = REQUIRED`; los demás bits son cero en v3.0. Debe existir una sola entrada para cada ID 1..17; 1..5 son requeridas y 6..17 opcionales, siempre presentes (una opcional vacía tiene `entry_count=0` y `offset=0`). Se rechazan IDs desconocidos, duplicados o ausentes. El extent es `entry_count * entry_size`, calculado en 64 bits y acotado a `file_size`. Las tablas fijas usan el tamaño de la matriz inferior; regiones byte usan `entry_size=1`. Las secciones están ordenadas por ID, alineadas a 4 bytes y no se solapan; el padding es cero.
+Cada entrada `SectionEntry` mide 16 bytes: `section_id:u16`, `flags:u16`, `entry_size:u32`, `entry_count:u32`, `offset:u32`. `flags bit 0 = REQUIRED`; los demás bits son cero en v3.0. Hay una entrada para cada ID 1..17. El bit `REQUIRED` se activa en `Units`, `Tracks` y `Events`, y también en `Segments`, `PayloadBytes` o `SynthesisParams` cuando la representación de alguna unidad los necesita; se limpia en las demás secciones. `Segments`/`PayloadBytes` tienen datos cuando alguna unidad PCM/Hybrid los usa; `SynthesisParams` tiene datos cuando hay unidad Additive/Hybrid. Una sección vacía usa `entry_count=0`, `offset=0` y su `entry_size` canónico. El lector ACP1 v3.0 acepta `minor_version=0`; cualquier minor superior no soportado se rechaza como `UnsupportedVersion` antes de interpretar secciones. IDs 1..17 ausentes/duplicados y IDs desconocidos se rechazan. El extent `entry_count*entry_size` se calcula en 64 bits y se comprueba contra `file_size`. Al ordenar las secciones no vacías por offset, cada una comienza en offset >=336, sus huecos de alineación y padding contienen cero, y el final de la última sección coincide con `file_size`; no se permite padding final. El CRC, si está habilitado, cubre también ese padding con sus cuatro bytes de campo puestos a cero.
 
 | ID | Sección | Tamaño de entrada | Requerida | Contenido |
 |---:|---|---:|---|---|
 | 1 | `Units` | 24 | Sí | Representación, duración y rango de segmentos |
-| 2 | `Segments` | 28 | Sí | Codec y límites de cada bloque de salida |
-| 3 | `PayloadBytes` | 1 | Sí | Bytes comprimidos referenciados por `payload_offset` absoluto |
+| 2 | `Segments` | 28 | Condicional | Codec y límites de cada bloque de salida |
+| 3 | `PayloadBytes` | 1 | Condicional | Bytes comprimidos referenciados por `payload_offset` absoluto |
 | 4 | `Tracks` | 40 | Sí | Ruta, eventos, ganancia, paneo y loop |
-| 5 | `Events` | 40 | Sí | Unidad, tiempo, pitch, gain, envolventes y cues |
+| 5 | `Events` | 44 | Sí | Unidad, tiempo, pitch, gain, envolventes y cues |
 | 6 | `Envelopes` | 16 | No | Automatización reutilizable |
 | 7 | `EnvelopePoints` | 12 | No | Puntos temporales y valores fixed-point |
-| 8 | `Cues` | 32 | No | Sucesos puntuales de gameplay/sincronización |
-| 9 | `SynthesisParams` | 28 | No | Parámetros de unidad aditiva/híbrida |
+| 8 | `Cues` | 34 | No | Sucesos puntuales de gameplay/sincronización |
+| 9 | `SynthesisParams` | 28 | Condicional | Parámetros de unidad aditiva/híbrida |
 | 10 | `Partials` | 8 | No | Parciales armónicos de síntesis |
 | 11 | `CodecParams` | 16 | No | Parámetros versionados por segmento |
 | 12 | `Strings` | 1 | No | Nombres UTF-8 de obra y pistas |
@@ -312,7 +312,7 @@ Cada entrada `SectionEntry` mide 16 bytes: `section_id:u16`, `flags:u16`, `entry
 | 16 | `WaveBytes` | 1 | No | Datos PCM8 firmados de wavetables |
 | 17 | `CuePayloadBytes` | 1 | No | Payload opaco limitado para cues |
 
-Los offsets de payload de segmento son absolutos y deben quedar dentro de `PayloadBytes`; strings, codebooks, wavetables y datos de cue usan offsets relativos a su sección. `Tracks.first_event/event_count`, `Units.first_segment/segment_count` y `Events.cue_first/cue_count` son rangos de índices, validados mediante `first <= total` y `count <= total-first`. Todos los eventos de un rango deben declarar el `track_id` propietario. Cues con igual tiempo preservan el orden de tabla.
+Las 17 entradas de sección aparecen una vez. `Segments` y `PayloadBytes` están vacías en una obra puramente aditiva; unidades PCM/Hybrid requieren segmentos y payload; unidades Additive/Hybrid requieren parámetros de síntesis. Codebooks y WaveTables se requieren si se referencian. Offsets de payload son absolutos; strings, codebooks, wavetables y payload cue usan offsets relativos a su sección. Todos los campos `first/count` son rangos de índices validados mediante resta antes de recorrerlos; cada evento declara el `track_id` propietario.
 
 ### Unidades, segmentos y códecs
 
@@ -324,14 +324,13 @@ Un `Unit` es una fuente lógica PCM mono reconstruible y reutilizable. `represen
 | `representation` | u8 | PCM, modelo aditivo o modelo+residual |
 | `flags` | u8 | `0` en v3.0 |
 | `decoded_samples` | u32 | Longitud PCM reconstruida de la unidad |
-| `first_segment` | u32 | Primer segmento contiguo de su payload |
-| `segment_count` | u16 | Número de segmentos/componentes de datos |
+| `first_segment` | u32 | Primer índice en `Segments`; `0xffffffff` si no hay segmentos |
+| `segment_count` | u16 | Número de segmentos/componentes de datos, 0..65535 |
 | `synthesis_index` | u16 | Índice en `SynthesisParams`; `0xffff` si no aplica |
 | `reference_gain_q8_8` | u16 | Ganancia de referencia, `256` = unidad sin escalar |
-| `reserved` | u16 | Cero |
-| `reserved2` | u16 | Cero; completa el tamaño fijo de 24 bytes |
+| `reserved` | u32 | Cero; completa el tamaño fijo de 24 bytes |
 
-Layout `Segment` de 28 bytes: `unit_id:u32`, `sample_start:u32`, `decoded_samples:u32`, `payload_offset:u32`, `payload_size:u32`, `codec:u16`, `role:u8`, `flags:u8`, `codec_params_index:u16`, `reserved:u16`. El payload es exactamente `PayloadBytes[payload_offset..payload_offset+payload_size]`, sin cabecera implícita ni padding dentro de `payload_size`. Los segmentos PCM principales particionan `[0, Unit.decoded_samples)` sin huecos ni solapamientos; segmentos residuales pueden solaparse temporalmente con PCM u otros roles y se suman antes de saturar PCM8. `role`: `0=PCM principal`, `1=residual armónico`, `2=residual percusivo`, `3=ruido/ambiente`. Cada segmento declara su códec, incluso dentro de una misma unidad.
+Layout `Segment` de 28 bytes: `unit_id:u32`, `sample_start:u32`, `decoded_samples:u32`, `payload_offset:u32`, `payload_size:u32`, `codec:u16`, `role:u8`, `flags:u8`, `codec_params_index:u16`, `reserved:u16`. `decoded_samples>0`; `sample_start+decoded_samples` se comprueba sin overflow y dentro de la unidad. `payload_offset` es absoluto desde el primer byte del archivo y el rango `[payload_offset,payload_offset+payload_size)` debe quedar íntegramente dentro de la sección `PayloadBytes`; el tamaño y la suma se validan sin overflow. El payload no tiene cabecera implícita fuera del formato autocontenido del códec. En `PCM`, role 0 particiona `[0, Unit.decoded_samples)` sin huecos ni solapamientos y otros roles se rechazan. En `Additive`, `segment_count=0` y `first_segment=0xffffffff`. En `Hybrid`, se requiere síntesis y al menos un residual role 1..3. Los residuales pueden solaparse, se acumulan en s32 y se saturan una sola vez a s8. Cada segmento declara su códec.
 
 Los IDs de códec son estables dentro de major version:
 
@@ -347,27 +346,44 @@ Los IDs de códec son estables dentro de major version:
 | 7 | QuantizedPCM | Cuantizador codebook | Lossy; índice obligatorio de tabla en `CodecParams` |
 | 8.. | Extensión | Registrado por minor/major futuro | Desconocido requerido implica rechazo |
 
+Estos IDs de 16 bits pertenecen al espacio ACP1 y no son los valores `compression` de 8 bits de AUZX. El empaquetador traduce por nombre de códec; no copia el byte AUZX al campo `Segment.codec`:
+
+| Códec | ACP1 v3 `Segment.codec` | AUZX `compression` |
+|---|---:|---:|
+| PCM8 | 0 | 3 (`None`) |
+| DeltaRLE | 1 | 2 |
+| ZX0 | 2 | 0 |
+| DeltaZX0 | 3 | 5 |
+| aPLib | 4 | 1 |
+| FibonacciDelta | 5 | 4 |
+| IMA ADPCM | 6 | 6 |
+| QuantizedPCM | 7 | Sin ID AUZX |
+
 No se considera AUZX como códec de segmento: AUZX es un contenedor lineal completo. ACP1 v3 almacena la compresión directamente en cada `Segment`, evitando contenedor anidado y permitiendo elegir códec distinto incluso dentro de una unidad. Un importador puede aceptar AUZX como fuente, pero al empaquetar extrae sus bloques y vuelve a serializarlos como segmentos ACP1.
 
-`CodecParams` mide 16 bytes: `codec:u16`, `params_version:u16`, `block_samples:u16`, `predictor:u8`, `quantizer:u8`, `param0:u32`, `param1:u32`. `block_samples=0` no impone granularidad adicional; en otro caso el segmento respeta esa granularidad salvo el último bloque de la unidad. Cada códec define sus unidades/rangos y valores admitidos; el codec del registro coincide con el del segmento. Parámetros requeridos desconocidos implican rechazo.
+`CodecParams` mide 16 bytes: `codec:u16`, `params_version:u16`, `block_samples:u16`, `predictor:u8`, `quantizer:u8`, `param0:u32`, `param1:u32`. `codec_params_index=0xffff` significa sin registro externo; si existe, `codec` debe coincidir y v3.0 requiere `params_version=1`. `block_samples=0` no impone granularidad; si no es cero, la longitud del segmento debe cumplirla salvo el bloque final de unidad. PCM8, DeltaRLE, ZX0, DeltaZX0, aPLib, FibonacciDelta e IMA ADPCM usan `predictor=quantizer=param0=param1=0`; sus semillas, si aplican, van en el payload autocontenido. QuantizedPCM requiere quantizer de 1..8 bits/índice, `param0=codebook_id` existente y `param1=0`. Otros parámetros se rechazan.
 
-`Codebook` mide 16 bytes: `id:u16`, `bits_per_index:u8`, `flags:u8`, `first_value:u32`, `value_count:u16`, `reserved:u16`, `reserved2:u32`. Los valores PCM8 firmados están en `CodebookValues`; `value_count` está entre 1 y `2^bits_per_index`, y los valores deben ser estrictamente crecientes. `WaveTable` mide 16 bytes: `id:u16`, `sample_count:u16`, `first_byte:u32`, `byte_count:u32`, `reserved:u32`; `sample_count` es potencia de dos entre 16 y 1024 y `byte_count` es igual a `sample_count`.
+Los payloads de FibonacciDelta e IMA ADPCM se empaquetan con el nibble alto primero. El tamaño codificado contiene `ceil(decoded_samples/2)` bytes de códigos; el decoder emite solo `decoded_samples` y no aplica el nibble de relleno final. FibonacciDelta antepone `pad=0` y la semilla PCM8 con signo; si `decoded_samples` es impar, el nibble bajo final es el código neutro `8`. IMA ADPCM antepone `step_index:u8` (0..88), `reserved:u8=0` y `predictor:s16` little-endian; si `decoded_samples` es impar, el nibble bajo final es `0` y se ignora. Un step index fuera de rango o un byte reservado no nulo hace inválido el segmento; no se corrige ni se satura silenciosamente. El tamaño de payload debe ser exactamente `2+ceil(decoded_samples/2)` para FibonacciDelta y `4+ceil(decoded_samples/2)` para IMA ADPCM. Estas reglas permiten longitud impar sin decodificar una muestra ficticia ni alterar el estado que se conserva entre bloques.
+
+La decodificación ACP1 adapta estos payloads a `decoded_samples` explícito: no debe inferir la longitud de salida usando la regla par de los decoders IFF 8SVX o IMA de AUZX. Para la última muestra de un segmento impar, el nibble de relleno no actualiza predictor/índice ni estado de fase. Un segmento con semilla explícita puede decodificarse independientemente; la continuidad entre segmentos solo se garantiza si el codificador escribe la semilla reconstruida anterior como estado inicial del siguiente.
+
+`Codebook` mide 16 bytes: `id:u16`, `bits_per_index:u8`, `flags:u8`, `first_value:u32`, `value_count:u16`, `reserved:u16`, `reserved2:u32`; los campos reserved son cero. `first_value` es índice de byte relativo a `CodebookValues`; `value_count` está entre 1 y `2^bits_per_index`, y los valores PCM8 son estrictamente crecientes. `WaveTable` mide 16 bytes: `id:u16`, `sample_count:u16`, `first_byte:u32`, `byte_count:u32`, `reserved:u32`; `first_byte` es relativo a `WaveBytes`, `sample_count` es potencia de dos entre 16 y 1024 y `byte_count==sample_count`.
 
 ### Tracks y eventos
 
-Layout `Track` de 40 bytes: `id:u16`, `route:u8`, `flags:u8`, `first_event:u32`, `event_count:u32`, `gain_envelope:u16`, `pitch_envelope:u16`, `gain_q8_8:u16`, `pan_s8:s8`, `priority:u8`, `loop_first_event:u32`, `loop_end_event:u32`, `name_offset:u32`, `name_length:u16`, `reserved:u32`. La suma de campos es exactamente 40 bytes; no hay padding ABI.
+Layout `Track` de 40 bytes: `id:u16`, `route:u8`, `flags:u8`, `first_event:u32`, `event_count:u32`, `gain_envelope:u16`, `pitch_envelope:u16`, `gain_q8_8:u16`, `pan_s8:s8`, `priority:u8`, `loop_first_event:u32`, `loop_end_event:u32`, `name_offset:u32`, `name_length:u32`, `reserved:u32`. La suma es exactamente 40 bytes, sin padding ABI. Nombre vacío requiere offset y longitud cero; si existe, el rango es relativo a `Strings`.
 
-`route` toma `0=Auto`, `1=PreferPaula`, `2=PreferMixer`, `3=PaulaRequired`, `4=MixerRequired`. `flags bit 0=loop enabled`; loop interval es `[loop_first_event, loop_end_event)` y debe quedar dentro de la tabla del track. `gain_q8_8` usa `256` como unidad y `pan_s8` va de -127 (izquierda) a +127 (derecha); el mixer/amiga puede aproximar paneo por ruteo de canales y el planner lo declara en su resultado.
+`route` toma `0=Auto`, `1=PreferPaula`, `2=PreferMixer`, `3=PaulaRequired`, `4=MixerRequired`. Cada track audible simultáneo consume una voz de la ruta que el planner le asigne; un track no se divide entre rutas. Los campos de cabecera `required_paula_voices` y `required_mixer_voices` son cotas superiores de tracks simultáneos cuya ruta es, respectivamente, `PaulaRequired` y `MixerRequired`. Se calculan con la misma regla conservadora: contar todos los tracks requeridos de esa ruta que tengan loop habilitado, más el máximo número de tracks requeridos sin loop con evento audible activo a la vez durante el primer recorrido. El parser recalcula y rechaza valores distintos. Los tracks `Prefer*` y `Auto` no contribuyen a esos campos. `flags bit 0=loop enabled`; loop interval es `[loop_first_event, loop_end_event)` y debe quedar dentro del rango de eventos; con loop desactivado ambos índices son cero. `gain_q8_8` usa `256` como unidad y `pan_s8` va de -127 (izquierda) a +127 (derecha); el planner declara cómo representa paneo. `first_event+event_count` se valida sin overflow.
 
-Layout `Event` de 40 bytes: `track_id:u16`, `flags:u16`, `start_sample:u64`, `duration:u32`, `unit_id:u32`, `unit_offset:u32`, `gain_q8_8:u16`, `pitch_semitones_q8_8:s16`, `gain_envelope:u16`, `pitch_envelope:u16`, `cue_first:u32`, `cue_count:u16`, `reserved:u16`. `unit_offset` selecciona una subregión de la unidad; `duration` no puede exceder sus muestras desde ese offset. Los eventos del mismo track no se solapan. `flags bit 0=one-shot cue boundary`; los demás bits son cero en v3.0. `gain_envelope` y `pitch_envelope` admiten `0xffff` para “sin envolvente”. `cue_first/cue_count` forman un rango dentro de `Cues`; sus cues deben estar dentro de `[start_sample, start_sample+duration)` o ser marcadores terminales con `flags bit 0`.
+Layout `Event` de 44 bytes: `track_id:u16`, `flags:u16`, `start_sample:u64`, `duration:u32`, `unit_id:u32`, `unit_offset:u32`, `gain_q8_8:u16`, `pitch_semitones_q8_8:s16`, `gain_envelope:u16`, `pitch_envelope:u16`, `cue_first:u32`, `cue_count:u16`, `reserved:u16`, `reserved2:u32`. La suma es exactamente 44 bytes. `track_id` coincide con el propietario. Evento audible: `duration>0`, unidad válida y `unit_offset+duration<=decoded_samples`, comprobado sin overflow. Evento cue-only: `flags bit 0`, `duration=0`, `unit_id=0xffffffff`, `unit_offset=0`, `cue_count>0`. Los eventos audibles de un track no se solapan en v3.0. Envolvente `0xffff` significa ausente. `cue_first/cue_count` es un rango de índices. El `entry_size` de `Events` es exactamente 44.
 
-`pitch_semitones_q8_8` admite desde -128 hasta casi +128 semitonos, con `0` como tono original. `flags bit 0` indica una frontera de cue one-shot; bits 1..2 seleccionan `0=backend default`, `1=preserve timeline by resampling`, `2=Paula period shift changes duration`, `3=invalid`; bits superiores son cero. En Paula directa se cambia `AUDxPER` en límites de evento/segmento. El periodo cambia el tiempo de salida; para preservar pitch y timeline se requiere remuestreo cooperativo, y la opción 2 declara duración audible variable. El Mixer Photon actual no tiene pitch por voz: el backend remuestrea el bloque cooperativamente o rechaza el evento si excede scratch/tiempo. No se escribe `AUDxPER` desde la IRQ del Mixer.
+Para eventos audibles, `pitch_semitones_q8_8` es s16 en semitonos: `0` conserva pitch; el rango es -128..+127,996. V3.0 asigna `flags bit 0=CueOnly`, bits 1..2 a `0=backend default`, `1=preserve timeline by resampling`, `2=period shift changes duration`, `3=invalid`; bits 3..15 son cero. En Paula directa se programa `AUDxPER` en los límites de evento/segmento; el periodo cambia duración salvo remuestreo. El Mixer Photon actual no tiene pitch por voz: requiere remuestreo cooperativo o el planificador rechaza el evento. Nunca se cambia `AUDxPER` desde la IRQ del Mixer.
 
 ### Envolventes
 
-Una envolvente se comparte entre tracks y eventos. Layout `Envelope` de 16 bytes: `target:u8`, `interpolation:u8`, `flags:u16`, `first_point:u32`, `point_count:u16`, `loop_start_point:u16`, `loop_end_point:u16`, `reserved:u16`.
+Una envolvente se comparte entre tracks y eventos. Layout `Envelope` de 16 bytes: `target:u8`, `interpolation:u8`, `flags:u16`, `first_point:u32`, `point_count:u16`, `loop_start_point:u16`, `loop_end_point:u16`, `reserved:u16`. `first_point/point_count` es un rango de índices; los offsets de loop son relativos a ese rango y ambos cero significa sin loop.
 
-`target`: `0=track gain`, `1=event gain`, `2=pitch semitones`, `3=pan`; otros targets se rechazan en v3.0. `interpolation`: `0=step`, `1=linear`, `2=equal-power` solo para gain/pan, evaluado por una tabla fija del reproductor. `EnvelopePoint` mide 12 bytes: `time_from_event:u32`, `value_q16_16:s32`, `reserved:u32` (cero en v3.0). Gain usa Q8.8 dentro de Q16.16; pitch usa semitonos Q8.8 sign-extended; pan usa Q1.15. Los tiempos son estrictamente crecientes y menores que la duración del evento. La curva equal-power y su precisión forman parte del reproductor, no del archivo, y quedan fijadas por la major version.
+`target`: `0=track gain`, `1=event gain`, `2=pitch semitones`, `3=pan`; otros targets se rechazan en v3.0. `interpolation`: `0=step`, `1=linear`, `2=equal-power` solo para gain/pan y definida por una curva canónica Q1.15 del reproductor. `EnvelopePoint` mide 12 bytes: `time_from_event:u32`, `value_q16_16:s32`, `reserved:u32` cero. Gain usa Q8.8 en los bits bajos; pitch usa semitonos Q8.8 sign-extended; pan usa Q1.15 sign-extended. Tiempos estrictamente crecientes, relativos al inicio del evento y menores que su duración. La curva equal-power es constante de la major version, no datos del archivo.
 
 La ganancia efectiva se evalúa en este orden y con producto ancho, redondeo al final y saturación:
 
@@ -381,11 +397,11 @@ El Mixer Photon mezcla cuatro voces software en una salida, pero su `MixerEffect
 
 ### Cues y sucesos puntuales
 
-Layout `Cue` de 32 bytes: `time_sample:u64`, `code:u16`, `value:s32`, `flags:u16`, `track_id:u16`, `event_index:u32`, `payload_offset:u32`, `payload_length:u32`, `reserved:u16`. `track_id=0xffff` indica cue global; `event_index=0xffffffff` indica que no pertenece a un evento. Payload vacío requiere offset y longitud cero; payload no vacío referencia un rango dentro de `CuePayloadBytes`. Cues en la misma muestra se despachan en orden de tabla. El juego recibe mensajes desde el drenaje cooperativo, nunca desde la IRQ. El fin del evento es exclusivo; en la misma muestra se procesan finales, inicios y luego cues.
+Layout `Cue` de 34 bytes: `time_sample:u64`, `code:u16`, `value:s32`, `flags:u16`, `track_id:u16`, `event_index:u32`, `payload_offset:u32`, `payload_length:u32`, `reserved:u32`. La suma es exactamente 34 bytes, sin padding ABI, y el `entry_size` de `Cues` es exactamente 34. `track_id=0xffff` indica cue global; en otro caso debe identificar un track existente. `event_index=0xffffffff` indica cue no asociado; en otro caso es índice de Events perteneciente al track y su tiempo cae dentro del evento o es terminal marcado. Flags v3.0: `bit 0=RepeatOnLoop`, `bit 1=TerminalCue`; demás bits cero. Payload vacío requiere offset y longitud cero; payload no vacío referencia un rango relativo a `CuePayloadBytes` validado por resta antes de sumar. Cues con el mismo tiempo conservan orden de tabla. El juego los recibe desde el drenaje cooperativo, nunca desde IRQ. En una frontera se procesan finales, inicios y luego cues.
 
 ### Síntesis y capas residuales
 
-`SynthesisParams` mide 28 bytes: `unit_id:u32`, `fundamental_hz_q16_16:u32`, `phase_q0_32:u32`, `first_partial:u32`, `partial_count:u16`, `waveform:u8`, `flags:u8`, `level_q8_8:u16`, `wave_table_id:u16`, `reserved:u32`. `waveform`: `0=seno`, `1=tabla custom` (requiere `WaveTables`), `2=triangular`, `3=cuadrada`; el resto se rechaza en v3.0. Las tablas estándar son de 256 muestras; una custom usa entre 16 y 1024 muestras y longitud potencia de dos. Cada `Partial` mide 8 bytes: `ratio_q8_8:u16`, `amplitude_q1_15:s16`, `phase_q0_32:u32`. `representation=Additive` genera PCM desde el oscilador; `Hybrid` suma ese PCM con segmentos residuales `role=1..3`; `PCM` usa `role=0`. El residuo se satura solo al combinar componentes. `phase` es fase inicial; la continuidad entre eventos no se infiere.
+`SynthesisParams` mide 28 bytes: `unit_id:u32`, `fundamental_hz_q16_16:u32`, `phase_q0_32:u32`, `first_partial:u32`, `partial_count:u16`, `waveform:u8`, `flags:u8`, `level_q8_8:u16`, `wave_table_id:u16`, `reserved:u32`. `unit_id` debe ser Additive o Hybrid y aparecer una vez. `waveform`: `0=seno`, `1=tabla custom` (requiere `WaveTables`), `2=triangular`, `3=cuadrada`; otros valores se rechazan. Una tabla estándar tiene 256 muestras; custom 16..1024 muestras, potencia de dos, con `wave_table_id=0xffff` para formas estándar. `Partial` mide 8 bytes: `ratio_q8_8:u16`, `amplitude_q1_15:s16`, `phase_q0_32:u32`; `first_partial/partial_count` es un rango validado. Additive genera PCM; Hybrid suma base y residuales role 1..3; PCM usa role 0. La suma se hace en s32 y se satura una vez a s8. `phase` es inicial; la continuidad no se presume.
 
 ### Catálogo de variantes y validación
 
