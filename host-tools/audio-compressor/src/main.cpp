@@ -25,6 +25,7 @@
 
 #include "../../../host-tools/pack-pcm/wav_loader.hpp"
 #include "acp1_writer.hpp"
+#include "hpss.hpp"
 #include "sdl_player.hpp"
 #include "sdl_host_io.hpp"
 
@@ -84,6 +85,8 @@ struct Config {
 	bool keep_candidates = false;
 	/// Genera y compara AUZX lineal frente a la envoltura ACP1 mínima.
 	bool compare_candidates = false;
+	/// Separa cada stem WAV en componentes armónica y percusiva para MUSIC.
+	bool hpss = false;
 };
 
 /// Estadísticas de una conversión, usadas por el informe JSON y por la comparación del corpus.
@@ -133,7 +136,7 @@ struct ConversionStats {
 #if defined(_WIN32)
 	std::FILE* script = std::fopen(batch.string().c_str(), "wb");
 	if (!script) return false;
-	std::fprintf(script, "@echo off\r\n\"%s\" -y -v error -i \"%s\" -vn -acodec pcm_s16le -ar 22050 -ac 2 \"%s\"\r\n",
+	std::fprintf(script, "@echo off\r\n\"%s\" -y -v error -i \"%s\" -vn -acodec pcm_s16le -ar 22050 \"%s\"\r\n",
 		executable.c_str(), input.c_str(), wav.c_str());
 	std::fclose(script);
 	const std::string command = "cmd /c call \"" + batch.string() + "\"";
@@ -141,7 +144,7 @@ struct ConversionStats {
 	std::remove(batch.string().c_str());
 	return ok;
 #else
-	const std::string command = "\"" + executable + "\" -y -v error -i \"" + input + "\" -vn -acodec pcm_s16le -ar 22050 -ac 2 \"" + wav + "\"";
+	const std::string command = "\"" + executable + "\" -y -v error -i \"" + input + "\" -vn -acodec pcm_s16le -ar 22050 \"" + wav + "\"";
 	return std::system(command.c_str()) == 0;
 #endif
 }
@@ -261,9 +264,9 @@ template <class T>
 	const std::string& output, ConversionStats& stats) {
 	const eng::usize chunk = config.chunk_samples;
 	if (chunk == 0u || pcm.empty()) return false;
-	std::vector<eng::u8> padded = pcm;
-	while (padded.size() % chunk != 0u) padded.push_back(0u);
-	const eng::u16 chunks = static_cast<eng::u16>(padded.size() / chunk);
+	const eng::usize chunk_count = (pcm.size() + chunk - 1u) / chunk;
+	if (chunk_count > 65535u) return false;
+	const eng::u16 chunks = static_cast<eng::u16>(chunk_count);
 	const auto codec = codec_id(config.codec);
 	std::vector<std::vector<eng::u8>> bodies(chunks);
 	std::vector<eng::u32> offsets(chunks), sizes(chunks);
@@ -271,14 +274,17 @@ template <class T>
 	eng::u8 fib_seed = 0u;
 	for (eng::u16 i = 0u; i < chunks; ++i) {
 		const eng::usize start = static_cast<eng::usize>(i) * chunk;
-		std::vector<eng::u8> encoded(chunk + chunk / 128u + 32u);
+		const eng::usize count = pcm.size() - start < chunk ? pcm.size() - start : chunk;
+		std::vector<eng::u8> encoded(count + count / 128u + 32u);
 		eng::s32 size = -1;
 		if (codec == eng::audio::pcm_codec::Codec::None) {
-			std::memcpy(encoded.data(), padded.data() + start, chunk); size = static_cast<eng::s32>(chunk);
+			std::memcpy(encoded.data(), pcm.data() + start, count); size = static_cast<eng::s32>(count);
 		} else if (codec == eng::audio::pcm_codec::Codec::FibDelta) {
-			size = eng::audio::fib_delta::encode({padded.data() + start, chunk}, {encoded.data(), encoded.size()}, fib_seed);
+			size = eng::audio::fib_delta::encode({pcm.data() + start, count}, {encoded.data(), encoded.size()}, fib_seed);
+		} else if (codec == eng::audio::pcm_codec::Codec::ImaAdpcm) {
+			size = eng::audio::ima_adpcm::encode({pcm.data() + start, count}, {encoded.data(), encoded.size()});
 		} else {
-			size = eng::audio::pcm_codec::encode({padded.data() + start, chunk}, {encoded.data(), encoded.size()}, static_cast<eng::u8>(codec));
+			size = eng::audio::pcm_codec::encode({pcm.data() + start, count}, {encoded.data(), encoded.size()}, static_cast<eng::u8>(codec));
 		}
 		if (size <= 0) { std::fprintf(stderr, "codec no pudo codificar chunk %u (codec=%u, muestras=%lu)\n", i, static_cast<unsigned>(codec), static_cast<unsigned long>(chunk)); return false; }
 		bodies[i].assign(encoded.begin(), encoded.begin() + size);
@@ -287,7 +293,7 @@ template <class T>
 	std::vector<eng::u8> file(cursor, 0u); eng::Span<eng::u8> view{file.data(), file.size()};
 	file[0] = 'A'; file[1] = 'U'; file[2] = 'Z'; file[3] = 'X'; file[4] = 1u; file[5] = static_cast<eng::u8>(codec);
 	eng::audio::auzx::wr16(view, 6u, rate); eng::audio::auzx::wr16(view, 8u, 1u); file[10] = 8u;
-	eng::audio::auzx::wr32(view, 12u, static_cast<eng::u32>(padded.size())); eng::audio::auzx::wr16(view, 16u, config.chunk_samples);
+	eng::audio::auzx::wr32(view, 12u, static_cast<eng::u32>(pcm.size())); eng::audio::auzx::wr16(view, 16u, config.chunk_samples);
 	eng::audio::auzx::wr16(view, 18u, chunks); eng::audio::auzx::wr32(view, 20u, eng::audio::auzx::kHeaderSize);
 	eng::audio::auzx::wr32(view, 24u, offsets[0]);
 	for (eng::u16 i = 0u; i < chunks; ++i) { const eng::usize at = eng::audio::auzx::kHeaderSize + i * eng::audio::auzx::kChunkEntrySize; eng::audio::auzx::wr32(view, at, offsets[i]); eng::audio::auzx::wr32(view, at + 4u, sizes[i]); std::memcpy(file.data() + offsets[i], bodies[i].data(), bodies[i].size()); }
@@ -304,13 +310,13 @@ template <class T>
 	stats.output_bytes = static_cast<eng::u64>(file.size());
 	stats.samples = pcm.size();
 	stats.sample_rate = rate;
-	std::vector<eng::u8> rebuilt(padded.size());
+	std::vector<eng::u8> rebuilt(pcm.size());
 	eng::audio::media::Info info {};
 	std::vector<eng::u8> stored;
 	if (read_binary(output_path.string().c_str(), stored) && eng::audio::media::open({stored.data(), stored.size()}, info)) {
 		eng::usize cursor = 0u;
 		for (eng::u16 i = 0u; i < info.num_chunks; ++i) {
-			const eng::u32 count = eng::audio::media::chunk_samples(info, i);
+		const eng::u32 count = eng::audio::media::chunk_samples(info, i);
 			const eng::s32 got = eng::audio::media::decode_chunk({stored.data(), stored.size()}, info, i, {rebuilt.data() + cursor, count});
 			if (got < 0) return false;
 			cursor += static_cast<eng::usize>(got);
@@ -365,6 +371,8 @@ int main(int argc, char** argv) {
 		if (std::strcmp(argv[i], "--force") == 0) { config.force = true; continue; }
 		if (std::strcmp(argv[i], "--keep-candidates") == 0) { config.keep_candidates = true; continue; }
 		if (std::strcmp(argv[i], "--compare") == 0) { config.compare_candidates = true; continue; }
+		if (std::strcmp(argv[i], "--hpss") == 0) { config.hpss = true; continue; }
+		if (std::strcmp(argv[i], "--no-hpss") == 0) { config.hpss = false; continue; }
 		if (i + 1 >= argc) return 2;
 		if (std::strcmp(argv[i], "--mode") == 0) config.mode = argv[++i];
 		else if (std::strcmp(argv[i], "--config") == 0) config_path = argv[++i];
@@ -413,13 +421,27 @@ int main(int argc, char** argv) {
 		linear_stats.repeated_windows = count_repeated_windows(pcm, config.chunk_samples);
 		if (!write_auzx(pcm, config.sample_rate, config, linear, linear_stats)) return 1;
 		const std::string structural = output.empty() ? default_output(input.c_str(), "music") : output;
+		std::vector<std::vector<eng::u8>> source_stems;
+		if (config.hpss) {
+			for (const auto& stem : input_stems.channels) {
+				audio_compressor::HpssResult layers {};
+				if (!audio_compressor::hpss(stem, 256u, layers)) { std::fprintf(stderr, "HPSS no pudo procesar el stem\n"); return 1; }
+				source_stems.push_back(std::move(layers.harmonic));
+				source_stems.push_back(std::move(layers.percussive));
+			}
+		} else {
+			source_stems = input_stems.channels;
+		}
+		if (source_stems.size() > eng::audio::acp1::kMaxTracks) {
+			std::fprintf(stderr, "HPSS produce más de siete pistas ACP1 v1; desactive --hpss o reduzca canales\n"); return 1;
+		}
 		std::vector<std::vector<eng::u8>> encoded_stems;
-		encoded_stems.reserve(input_stems.channels.size());
-		for (eng::usize i = 0u; i < input_stems.channels.size(); ++i) {
+		encoded_stems.reserve(source_stems.size());
+		for (eng::usize i = 0u; i < source_stems.size(); ++i) {
 			const std::string stem_path = linear + ".stem-" + std::to_string(i) + ".auzx";
 			ConversionStats stem_stats{};
-			stem_stats.pcm_bytes = static_cast<eng::u64>(input_stems.channels[i].size());
-			if (!write_auzx(input_stems.channels[i], config.sample_rate, config, stem_path, stem_stats)) return 1;
+			stem_stats.pcm_bytes = static_cast<eng::u64>(source_stems[i].size());
+			if (!write_auzx(source_stems[i], config.sample_rate, config, stem_path, stem_stats)) return 1;
 			std::vector<eng::u8> bytes;
 			const std::string safe_stem_path = native_safe_path(stem_path);
 			if (!read_binary(safe_stem_path.c_str(), bytes)) return 1;
@@ -428,8 +450,31 @@ int main(int argc, char** argv) {
 		}
 		if (!write_acp1(encoded_stems, config.sample_rate, static_cast<eng::u32>(pcm.size()), structural)) return 1;
 		const eng::u64 structural_bytes = std::filesystem::file_size(std::filesystem::path{structural});
-		std::printf("candidata lineal AUZX=%llu bytes; ACP1=%llu bytes; stems=%lu; repeticiones exactas=%u\n", static_cast<unsigned long long>(linear_stats.output_bytes), static_cast<unsigned long long>(structural_bytes), static_cast<unsigned long>(encoded_stems.size()), linear_stats.repeated_windows);
-		if (!report.empty()) write_report(report, input, mode, config, linear_stats, structural_bytes);
+		std::vector<eng::u8> acp1_bytes;
+		if (!read_binary(native_safe_path(structural).c_str(), acp1_bytes)) return 1;
+		eng::audio::media::Info acp1_info{};
+		if (!eng::audio::media::open({acp1_bytes.data(), acp1_bytes.size()}, acp1_info)) return 1;
+		std::vector<eng::u8> rebuilt(pcm.size());
+		std::vector<eng::u8> scratch(config.chunk_samples);
+		std::vector<eng::s16> accumulator(pcm.size());
+		const eng::s32 rebuilt_count = eng::audio::media::mix_window({acp1_bytes.data(), acp1_bytes.size()}, acp1_info,
+			0u, {rebuilt.data(), rebuilt.size()}, {scratch.data(), scratch.size()}, {accumulator.data(), accumulator.size()});
+		if (rebuilt_count != static_cast<eng::s32>(pcm.size())) { std::fprintf(stderr, "no se pudo reconstruir la mezcla ACP1\n"); return 1; }
+		ConversionStats structural_stats = linear_stats;
+		structural_stats.output_bytes = structural_bytes;
+		structural_stats.squared_error = 0u; structural_stats.signal_energy = 0u; structural_stats.peak_error = 0u;
+		for (eng::usize i = 0u; i < pcm.size(); ++i) {
+			const eng::s32 error = static_cast<eng::s8>(pcm[i]) - static_cast<eng::s8>(rebuilt[i]);
+			const eng::u32 absolute = static_cast<eng::u32>(error < 0 ? -error : error);
+			structural_stats.squared_error += static_cast<eng::u64>(error * error);
+			const eng::s32 sample = static_cast<eng::s8>(pcm[i]); structural_stats.signal_energy += static_cast<eng::u64>(sample * sample);
+			if (absolute > structural_stats.peak_error) structural_stats.peak_error = static_cast<eng::u8>(absolute);
+		}
+		structural_stats.round_trip_ok = true;
+		const char* hpss_label = config.hpss ? "hpss=on" : "hpss=off";
+		const double mse = pcm.empty() ? 0.0 : static_cast<double>(structural_stats.squared_error) / static_cast<double>(pcm.size());
+		std::printf("candidata lineal AUZX=%llu bytes; ACP1=%llu bytes; pistas=%lu; %s; MSE mezcla=%.4f; pico=%u; ventanas repetidas=%u\n", static_cast<unsigned long long>(linear_stats.output_bytes), static_cast<unsigned long long>(structural_bytes), static_cast<unsigned long>(acp1_info.acp1_info.track_count), hpss_label, mse, structural_stats.peak_error, linear_stats.repeated_windows);
+		if (!report.empty()) write_report(report, input, mode, config, structural_stats, structural_bytes);
 		if (!config.keep_candidates) std::remove(linear.c_str());
 		return 0;
 	}

@@ -17,6 +17,7 @@
 
 #include <eng/audio/acp1.hpp>
 #include <eng/audio/auzx.hpp>
+#include <eng/audio/media.hpp>
 #include <eng/core/types/span.hpp>
 
 /// Escribe una palabra little-endian en el WAV sintético.
@@ -108,11 +109,30 @@ int main() {
 	std::fclose(file);
 	eng::audio::acp1::Info acp1_info{};
 	const bool valid_acp1 = read_ok && eng::audio::acp1::parse({acp1_bytes.data(), acp1_bytes.size()}, acp1_info);
-	std::remove(input.c_str()); std::remove(sample_output.c_str()); std::remove(music_output.c_str());
-	std::remove((music_output + ".linear.auzx").c_str());
 	if (!valid_acp1 || acp1_info.track_count != 2u || acp1_info.total_samples != 4u) {
 		std::fprintf(stderr, "ACP1 no conserva las dos pistas WAV sincronizadas\n"); return 1;
 	}
+	const eng::u8 expected[2][4] {{0x80u, 0xc0u, 0x00u, 0x80u}, {0x7fu, 0x40u, 0x00u, 0x7fu}};
+	for (eng::u16 track_index = 0u; track_index < 2u; ++track_index) {
+		eng::audio::acp1::Unit unit{};
+		if (!eng::audio::acp1::unit({acp1_bytes.data(), acp1_bytes.size()}, acp1_info, track_index, unit)) return 1;
+		eng::audio::media::Info media_info{};
+		if (!eng::audio::media::open(unit.payload, media_info)) return 1;
+		eng::u8 rebuilt[4]{};
+		eng::usize cursor = 0u;
+		for (eng::u16 chunk = 0u; chunk < media_info.num_chunks; ++chunk) {
+			const eng::u32 count = eng::audio::media::chunk_samples(media_info, chunk);
+			const eng::s32 decoded = eng::audio::media::decode_chunk(unit.payload, media_info, chunk,
+				{rebuilt + cursor, count});
+			if (decoded < 0) return 1;
+			cursor += static_cast<eng::usize>(decoded);
+		}
+		if (cursor < 4u || std::memcmp(rebuilt, expected[track_index], 4u) != 0) {
+			std::fprintf(stderr, "round-trip ACP1 alteró muestras del stem %u\n", track_index); return 1;
+		}
+	}
+	std::remove(input.c_str()); std::remove(sample_output.c_str()); std::remove(music_output.c_str());
+	std::remove((music_output + ".linear.auzx").c_str());
 	std::printf("OK: CLI produce AUZX sample y ACP1 sincronizado de dos stems WAV.\n");
 	return 0;
 }

@@ -1,0 +1,141 @@
+#pragma once
+
+/// \file hpss.hpp
+/// Separación host-only armónica/percusiva por STFT con máscaras complementarias.
+
+#include <algorithm>
+#include <cmath>
+#include <complex>
+#include <vector>
+
+#include <eng/core/types/types.hpp>
+
+namespace audio_compressor {
+
+/// Resultado PCM8 firmado de las capas armónica y percusiva.
+struct HpssResult {
+	std::vector<eng::u8> harmonic; ///< Componente sostenida reconstruida a PCM8 firmado.
+	std::vector<eng::u8> percussive; ///< Componente transitoria reconstruida a PCM8 firmado.
+};
+
+/// FFT radix-2 in-place; `inverse` aplica la normalización 1/N en la salida.
+inline void fft(std::vector<std::complex<float>>& values, bool inverse) {
+	const eng::usize count = values.size();
+	for (eng::usize i = 1u, j = 0u; i < count; ++i) {
+		eng::usize bit = count >> 1u;
+		for (; (j & bit) != 0u; bit >>= 1u) j ^= bit;
+		j ^= bit;
+		if (i < j) std::swap(values[i], values[j]);
+	}
+	constexpr float pi = 3.14159265358979323846f;
+	for (eng::usize length = 2u; length <= count; length <<= 1u) {
+		const float angle = (inverse ? 2.0f : -2.0f) * pi / static_cast<float>(length);
+		const std::complex<float> step {std::cos(angle), std::sin(angle)};
+		for (eng::usize first = 0u; first < count; first += length) {
+			std::complex<float> phase {1.0f, 0.0f};
+			for (eng::usize offset = 0u; offset < length / 2u; ++offset) {
+				const auto even = values[first + offset];
+				const auto odd = values[first + offset + length / 2u] * phase;
+				values[first + offset] = even + odd;
+				values[first + offset + length / 2u] = even - odd;
+				phase *= step;
+			}
+		}
+	}
+	if (inverse) for (auto& value : values) value /= static_cast<float>(count);
+}
+
+/// Separates PCM8 into harmonic/percussive layers; unsupported sizes return `false` unchanged.
+/// `fft_size` must be a power of two >= 32; hop is fixed at one quarter window.
+[[nodiscard]] inline bool hpss(const std::vector<eng::u8>& pcm, eng::u16 fft_size, HpssResult& out) {
+	if (pcm.empty() || fft_size < 32u || (fft_size & (fft_size - 1u)) != 0u) return false;
+	const eng::usize n = fft_size;
+	const eng::usize bins = n / 2u + 1u;
+	const eng::usize hop = n / 4u;
+	const eng::usize frames = (pcm.size() + hop - 1u) / hop + 1u;
+	std::vector<float> window(n);
+	constexpr float pi = 3.14159265358979323846f;
+	for (eng::usize i = 0u; i < n; ++i) window[i] = 0.5f - 0.5f * std::cos(2.0f * pi * static_cast<float>(i) / static_cast<float>(n - 1u));
+	std::vector<std::complex<float>> spectrum(frames * bins);
+	std::vector<std::complex<float>> frame(n);
+	for (eng::usize t = 0u; t < frames; ++t) {
+		const eng::s32 center = static_cast<eng::s32>(t * hop);
+		for (eng::usize i = 0u; i < n; ++i) {
+			const eng::s32 source = center + static_cast<eng::s32>(i) - static_cast<eng::s32>(n / 2u);
+			const float sample = source < 0 || static_cast<eng::usize>(source) >= pcm.size()
+				? 0.0f : static_cast<float>(static_cast<eng::s8>(pcm[static_cast<eng::usize>(source)]));
+			frame[i] = {sample * window[i], 0.0f};
+		}
+		fft(frame, false);
+		for (eng::usize b = 0u; b < bins; ++b) spectrum[t * bins + b] = frame[b];
+	}
+	std::vector<float> magnitude(frames * bins), harmonic_median(frames * bins), percussive_median(frames * bins);
+	for (eng::usize i = 0u; i < magnitude.size(); ++i) magnitude[i] = std::abs(spectrum[i]);
+	float window_values[5] {};
+	for (eng::usize t = 0u; t < frames; ++t) for (eng::usize b = 0u; b < bins; ++b) {
+		for (eng::s32 k = -2; k <= 2; ++k) {
+			const eng::usize ti = static_cast<eng::usize>(std::clamp<eng::s32>(static_cast<eng::s32>(t) + k, 0, static_cast<eng::s32>(frames - 1u)));
+			window_values[k + 2] = magnitude[ti * bins + b];
+		}
+		std::sort(window_values, window_values + 5);
+		harmonic_median[t * bins + b] = window_values[2];
+		for (eng::s32 k = -2; k <= 2; ++k) {
+			const eng::usize bi = static_cast<eng::usize>(std::clamp<eng::s32>(static_cast<eng::s32>(b) + k, 0, static_cast<eng::s32>(bins - 1u)));
+			window_values[k + 2] = magnitude[t * bins + bi];
+		}
+		std::sort(window_values, window_values + 5);
+		percussive_median[t * bins + b] = window_values[2];
+	}
+	std::vector<float> harmonic_weight(frames * bins);
+	for (eng::usize i = 0u; i < harmonic_weight.size(); ++i) {
+		const float h = harmonic_median[i] * harmonic_median[i];
+		const float p = percussive_median[i] * percussive_median[i];
+		harmonic_weight[i] = h / (h + p + 1.0e-12f);
+	}
+	std::vector<float> harmonic(pcm.size(), 0.0f), percussive(pcm.size(), 0.0f), normalization(pcm.size(), 0.0f);
+	std::vector<std::complex<float>> inverse(n);
+	for (eng::usize t = 0u; t < frames; ++t) {
+		for (eng::usize i = 0u; i < n; ++i) {
+			const eng::usize b = i <= n / 2u ? i : n - i;
+			const float weight = harmonic_weight[t * bins + b];
+			const auto value = spectrum[t * bins + b];
+			inverse[i] = value * weight;
+		}
+		fft(inverse, true);
+		const eng::s32 center = static_cast<eng::s32>(t * hop);
+		for (eng::usize i = 0u; i < n; ++i) {
+			const eng::s32 destination = center + static_cast<eng::s32>(i) - static_cast<eng::s32>(n / 2u);
+			if (destination < 0 || static_cast<eng::usize>(destination) >= pcm.size()) continue;
+			const eng::usize d = static_cast<eng::usize>(destination);
+			const float scale = window[i];
+			harmonic[d] += inverse[i].real() * scale;
+			normalization[d] += scale * scale;
+		}
+		for (eng::usize i = 0u; i < n; ++i) {
+			const eng::usize b = i <= n / 2u ? i : n - i;
+			const float weight = 1.0f - harmonic_weight[t * bins + b];
+			inverse[i] = spectrum[t * bins + b] * weight;
+		}
+		fft(inverse, true);
+		for (eng::usize i = 0u; i < n; ++i) {
+			const eng::s32 destination = center + static_cast<eng::s32>(i) - static_cast<eng::s32>(n / 2u);
+			if (destination < 0 || static_cast<eng::usize>(destination) >= pcm.size()) continue;
+			percussive[static_cast<eng::usize>(destination)] += inverse[i].real() * window[i];
+		}
+	}
+	out.harmonic.resize(pcm.size()); out.percussive.resize(pcm.size());
+	for (eng::usize i = 0u; i < pcm.size(); ++i) {
+		const float divisor = normalization[i] > 1.0e-12f ? normalization[i] : 1.0f;
+		const float h = harmonic[i] / divisor;
+		const float p = percussive[i] / divisor;
+		const auto quantize = [](float value) {
+			const int rounded = static_cast<int>(std::lround(value));
+			return static_cast<eng::u8>(static_cast<eng::s8>(std::clamp(rounded, -128, 127)));
+		};
+		out.harmonic[i] = quantize(h);
+		out.percussive[i] = quantize(p);
+	}
+	return true;
+}
+
+} // namespace audio_compressor

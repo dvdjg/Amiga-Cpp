@@ -1,11 +1,14 @@
 // HOST-387: parser ACP1 v1 y serializador host de stems AUZX sincronizados.
 
 #include <cstdio>
+#include <cmath>
 #include <vector>
 
 #include <eng/audio/acp1.hpp>
+#include <eng/audio/media.hpp>
 #include <eng/audio/pcm_codec.hpp>
 #include "../../../../../host-tools/audio-compressor/src/acp1_writer.hpp"
+#include "../../../../../host-tools/audio-compressor/src/hpss.hpp"
 
 namespace {
 
@@ -44,6 +47,10 @@ void test_round_trip() {
 	check(eng::audio::acp1::parse({file.data(), file.size()}, info), "parser acepta ACP1 producido por encoder");
 	check(info.sample_rate == 22050u && info.total_samples == 4u && info.unit_count == 2u && info.track_count == 2u,
 		"cabecera conserva tasa, duración y número de stems");
+	eng::audio::media::Info media_info{};
+	check(eng::audio::media::open({file.data(), file.size()}, media_info) &&
+		media_info.container == eng::audio::media::Container::Acp1 && media_info.channels == 2u,
+		"media reconoce ACP1 y expone número de pistas");
 	for (eng::u8 i = 0u; i < 2u; ++i) {
 		eng::audio::acp1::Track track {};
 		eng::audio::acp1::Unit unit {};
@@ -55,6 +62,20 @@ void test_round_trip() {
 		check(unit.id == i && unit.decoded_samples == info.total_samples && unit.gain == 255u &&
 			eng::audio::auzx::parse(unit.payload, nested) && nested.sample_rate == info.sample_rate,
 			"unidad referencia payload AUZX válido a la misma tasa");
+		eng::u8 decoded[4]{}, scratch[4]{};
+		check(eng::audio::media::decode_track_window({file.data(), file.size()}, media_info, i, 0u,
+			{decoded, 4u}, {scratch, 4u}) == 4, "media decodifica track ACP1 a PCM");
+		const eng::u8* expected = i == 0u ? left_pcm : right_pcm;
+		for (eng::usize sample = 0u; sample < 4u; ++sample)
+			check(decoded[sample] == expected[sample], "track ACP1 conserva muestras round-trip");
+	}
+	eng::u8 mixed[4]{}, scratch[4]{}; eng::s16 accumulator[4]{};
+	check(eng::audio::media::mix_window({file.data(), file.size()}, media_info, 0u,
+		{mixed, 4u}, {scratch, 4u}, {accumulator, 4u}) == 4,
+		"media mezcla tracks ACP1 en ventana sincronizada");
+	for (eng::usize sample = 0u; sample < 4u; ++sample) {
+		const eng::u8 expected = static_cast<eng::u8>(static_cast<eng::s8>(static_cast<eng::s8>(left_pcm[sample]) + static_cast<eng::s8>(right_pcm[sample])));
+		check(mixed[sample] == expected, "mezcla ACP1 suma stems sin pérdida ni saturación prematura");
 	}
 }
 
@@ -89,6 +110,35 @@ void test_rejections() {
 	auto mismatched_rate = make_auzx(pcm, 4u, 11025u);
 	units[1] = mismatched_rate;
 	check(!audio_compressor::build_acp1(units, 8000u, 4u, valid), "encoder rechaza tasa distinta entre stems");
+	units[0] = make_auzx(pcm, 4u, 8000u);
+	units[1] = make_auzx(pcm, 4u, 8000u);
+	check(audio_compressor::build_acp1(units, 8000u, 4u, valid), "encoder admite payloads repetidos");
+	check(eng::audio::acp1::rd16({valid.data(), valid.size()}, 12u) == 1u,
+		"deduplicación exacta comparte la unidad AUZX del diccionario");
+	eng::audio::acp1::Info dedup_info{};
+	check(eng::audio::acp1::parse({valid.data(), valid.size()}, dedup_info) && dedup_info.track_count == 2u,
+		"tracks distintos referencian una única unidad compartida");
+}
+
+/// Comprueba que HPSS conserva energía por capas y rechaza tamaños FFT inválidos.
+void test_hpss() {
+	std::vector<eng::u8> tone(512u);
+	for (eng::usize i = 0u; i < tone.size(); ++i) {
+		const int value = static_cast<int>(60.0 * std::sin(2.0 * 3.141592653589793 * 16.0 * static_cast<double>(i) / 128.0));
+		tone[i] = static_cast<eng::u8>(static_cast<eng::s8>(value));
+	}
+	audio_compressor::HpssResult layers {};
+	check(audio_compressor::hpss(tone, 128u, layers), "HPSS procesa una señal periódica");
+	check(layers.harmonic.size() == tone.size() && layers.percussive.size() == tone.size(), "HPSS conserva longitud");
+	eng::u64 harmonic_energy = 0u, percussive_energy = 0u;
+	for (eng::usize i = 0u; i < tone.size(); ++i) {
+		const eng::s32 h = static_cast<eng::s8>(layers.harmonic[i]);
+		const eng::s32 p = static_cast<eng::s8>(layers.percussive[i]);
+		harmonic_energy += static_cast<eng::u64>(h * h);
+		percussive_energy += static_cast<eng::u64>(p * p);
+	}
+	check(harmonic_energy > percussive_energy, "HPSS ubica tono sostenido predominantemente en la capa armónica");
+	check(!audio_compressor::hpss(tone, 100u, layers), "HPSS rechaza tamaño FFT no potencia de dos");
 }
 
 } // namespace
@@ -96,6 +146,7 @@ void test_rejections() {
 int main() {
 	test_round_trip();
 	test_rejections();
+	test_hpss();
 	if (failures == 0) { std::printf("OK: ACP1 v1, unidades AUZX y eventos sincronizados validados.\n"); return 0; }
 	return 1;
 }

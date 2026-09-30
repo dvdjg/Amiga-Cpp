@@ -4,6 +4,7 @@
 /// Serializador host-only de stems AUZX al subconjunto estructural ACP1 v1.
 
 #include <vector>
+#include <cstring>
 
 #include <eng/audio/acp1.hpp>
 
@@ -14,15 +15,34 @@ namespace audio_compressor {
 	eng::u32 sample_rate, eng::u32 total_samples, std::vector<eng::u8>& output) {
 	using namespace eng::audio::acp1;
 	if (payloads.empty() || payloads.size() > kMaxTracks || sample_rate == 0u || sample_rate > 65535u || total_samples == 0u) return false;
-	eng::usize tracks_offset = kHeaderSize + payloads.size() * kUnitSize;
-	std::vector<eng::u32> payload_offsets(payloads.size());
+	std::vector<eng::u16> track_units(payloads.size());
+	std::vector<eng::usize> unique_tracks;
+	std::vector<eng::u32> payload_offsets;
+	std::vector<eng::u32> payload_sizes;
 	for (eng::usize i = 0u; i < payloads.size(); ++i) {
 		eng::audio::auzx::Header auzx_header {};
 		if (!eng::audio::auzx::parse({payloads[i].data(), payloads[i].size()}, auzx_header) ||
-			auzx_header.sample_rate != sample_rate || auzx_header.total_samples < total_samples ||
-			payloads[i].size() > 0xffffffffu || tracks_offset > 0xffffffffu - payloads[i].size()) return false;
-		payload_offsets[i] = static_cast<eng::u32>(tracks_offset);
-		tracks_offset += payloads[i].size();
+			auzx_header.sample_rate != sample_rate || auzx_header.total_samples != total_samples ||
+			payloads[i].size() > 0xffffffffu) return false;
+		eng::usize unit = 0u;
+		for (; unit < unique_tracks.size(); ++unit) {
+			const auto& candidate = payloads[unique_tracks[unit]];
+			if (candidate.size() == payloads[i].size() &&
+				std::memcmp(candidate.data(), payloads[i].data(), candidate.size()) == 0) break;
+		}
+		if (unit == unique_tracks.size()) {
+			if (unit >= kMaxTracks) return false;
+			unique_tracks.push_back(i);
+			payload_offsets.push_back(0u);
+			payload_sizes.push_back(static_cast<eng::u32>(payloads[i].size()));
+		}
+		track_units[i] = static_cast<eng::u16>(unit);
+	}
+	eng::usize tracks_offset = kHeaderSize + unique_tracks.size() * kUnitSize;
+	for (eng::usize unit = 0u; unit < unique_tracks.size(); ++unit) {
+		if (tracks_offset > 0xffffffffu - payload_sizes[unit]) return false;
+		payload_offsets[unit] = static_cast<eng::u32>(tracks_offset);
+		tracks_offset += payload_sizes[unit];
 	}
 	const eng::usize events_offset = tracks_offset + payloads.size() * kTrackSize;
 	const eng::usize file_size = events_offset + payloads.size() * kEventSize;
@@ -31,25 +51,28 @@ namespace audio_compressor {
 	eng::Span<eng::u8> file {output.data(), output.size()};
 	file[0] = 'A'; file[1] = 'C'; file[2] = 'P'; file[3] = '1';
 	wr16(file, 4u, 1u); wr32(file, 8u, sample_rate);
-	wr16(file, 12u, static_cast<eng::u16>(payloads.size()));
+	wr16(file, 12u, static_cast<eng::u16>(unique_tracks.size()));
 	file[14] = static_cast<eng::u8>(payloads.size());
 	wr32(file, 16u, total_samples); wr32(file, 24u, static_cast<eng::u32>(kHeaderSize));
 	wr32(file, 28u, static_cast<eng::u32>(tracks_offset));
 	wr32(file, 32u, static_cast<eng::u32>(events_offset));
 	wr32(file, 36u, static_cast<eng::u32>(file_size));
-	for (eng::usize i = 0u; i < payloads.size(); ++i) {
+	for (eng::usize i = 0u; i < unique_tracks.size(); ++i) {
 		const eng::usize unit_at = kHeaderSize + i * kUnitSize;
 	wr32(file, unit_at, static_cast<eng::u32>(i));
 		wr32(file, unit_at + 4u, payload_offsets[i]);
-		wr32(file, unit_at + 8u, static_cast<eng::u32>(payloads[i].size()));
+		wr32(file, unit_at + 8u, payload_sizes[i]);
 		wr32(file, unit_at + 12u, total_samples);
 		file[unit_at + 16u] = 1u; file[unit_at + 18u] = 255u;
-		for (eng::usize b = 0u; b < payloads[i].size(); ++b) file[static_cast<eng::usize>(payload_offsets[i]) + b] = payloads[i][b];
+		const auto& payload = payloads[unique_tracks[i]];
+		for (eng::usize b = 0u; b < payload.size(); ++b) file[static_cast<eng::usize>(payload_offsets[i]) + b] = payload[b];
+	}
+	for (eng::usize i = 0u; i < payloads.size(); ++i) {
 		const eng::usize track_at = tracks_offset + i * kTrackSize;
 		file[track_at] = static_cast<eng::u8>(i); wr16(file, track_at + 2u, 1u);
 		wr32(file, track_at + 4u, static_cast<eng::u32>(events_offset + i * kEventSize));
 		const eng::usize event_at = events_offset + i * kEventSize;
-		wr32(file, event_at, static_cast<eng::u32>(i));
+		wr32(file, event_at, track_units[i]);
 		wr32(file, event_at + 8u, total_samples); file[event_at + 12u] = 255u;
 	}
 	Info parsed {};

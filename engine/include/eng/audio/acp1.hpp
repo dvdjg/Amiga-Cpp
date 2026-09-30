@@ -90,7 +90,8 @@ inline void wr32(eng::Span<eng::u8> file, eng::usize offset, eng::u32 value) noe
 	parsed.events_offset = rd32(file, 32u);
 	parsed.file_size = rd32(file, 36u);
 	if (parsed.sample_rate == 0u || parsed.sample_rate > 65535u || parsed.total_samples == 0u ||
-		parsed.track_count == 0u || parsed.track_count > kMaxTracks || parsed.unit_count != parsed.track_count ||
+		parsed.track_count == 0u || parsed.track_count > kMaxTracks || parsed.unit_count == 0u ||
+		parsed.unit_count > parsed.track_count ||
 		parsed.units_offset != kHeaderSize || parsed.file_size != file.size()) return false;
 	const eng::usize units_end = parsed.units_offset + static_cast<eng::usize>(parsed.unit_count) * kUnitSize;
 	if (units_end > parsed.file_size || parsed.tracks_offset < units_end || parsed.tracks_offset > parsed.file_size ||
@@ -113,7 +114,7 @@ inline void wr32(eng::Span<eng::u8> file, eng::usize offset, eng::u32 value) noe
 		eng::audio::auzx::Header auzx_header {};
 		const eng::Span<const eng::u8> payload {file.data() + offset, size};
 		if (!eng::audio::auzx::parse(payload, auzx_header) || auzx_header.sample_rate != parsed.sample_rate ||
-			auzx_header.total_samples < samples) return false;
+			auzx_header.total_samples != samples) return false;
 		for (eng::u16 chunk_index = 0u; chunk_index < auzx_header.num_chunks; ++chunk_index) {
 			eng::u32 chunk_offset = 0u, chunk_size = 0u;
 			if (!eng::audio::auzx::chunk_extent(auzx_header, payload, chunk_index, chunk_offset, chunk_size) ||
@@ -131,7 +132,7 @@ inline void wr32(eng::Span<eng::u8> file, eng::usize offset, eng::u32 value) noe
 			rd32(file, track_at + 4u) != parsed.events_offset + static_cast<eng::u32>(i) * kEventSize) return false;
 		destinations = static_cast<eng::u8>(destinations | static_cast<eng::u8>(1u << destination));
 		const eng::usize event_at = parsed.events_offset + static_cast<eng::usize>(i) * kEventSize;
-		if (rd32(file, event_at) != i || rd32(file, event_at + 4u) != 0u ||
+		if (rd32(file, event_at) >= parsed.unit_count || rd32(file, event_at + 4u) != 0u ||
 			rd32(file, event_at + 8u) != parsed.total_samples || file[event_at + 12u] != 255u ||
 			file[event_at + 13u] != 0u || rd16(file, event_at + 14u) != 0u ||
 		rd16(file, event_at + 16u) != 0u || rd16(file, event_at + 18u) != 0u) return false;
