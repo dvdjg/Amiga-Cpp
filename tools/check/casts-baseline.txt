@@ -24,7 +24,7 @@
   0    12  engine/include/eng/audio/aplib.hpp
   0     3  engine/include/eng/audio/asm_codec.hpp
   0     1  engine/include/eng/audio/audio_mode.hpp
-  0     1  engine/include/eng/audio/audio_system.hpp
+  0     6  engine/include/eng/audio/audio_system.hpp
   0     1  engine/include/eng/audio/audio_tuning.hpp
   0    16  engine/include/eng/audio/auzx.hpp
   0    17  engine/include/eng/audio/fib_delta.hpp
@@ -35,7 +35,7 @@
   1     8  engine/include/eng/audio/music_player.hpp
   0    22  engine/include/eng/audio/pcm_codec.hpp
   0     1  engine/include/eng/audio/pcm_stream.hpp
-  0    14  engine/include/eng/audio/sfx_mixer.hpp
+  1    15  engine/include/eng/audio/sfx_mixer.hpp
   0     1  engine/include/eng/audio/stream_intent.hpp
   0    12  engine/include/eng/audio/wave_tables.hpp
   0     4  engine/include/eng/audio/zx0.hpp
@@ -236,10 +236,9 @@
  10    10  engine/include/eng/platform/amiga/input_poll.hpp
   1    12  engine/include/eng/platform/amiga/lib3d.hpp
   0     4  engine/include/eng/platform/amiga/object3d_poly.hpp
-  4     9  engine/include/eng/platform/amiga/paula.hpp
+  5     9  engine/include/eng/platform/amiga/paula.hpp
   0     1  engine/include/eng/platform/amiga/polygon_fill.hpp
-  0     6  engine/include/eng/res/asset_cache.hpp
-  0     1  engine/include/eng/res/asset_table.hpp
+  0     5  engine/include/eng/res/asset_cache.hpp
   5     2  engine/include/eng/res/dynloader.hpp
   2     7  engine/include/eng/res/hunk.hpp
   0     2  engine/include/eng/res/load.hpp

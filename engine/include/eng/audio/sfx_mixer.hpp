@@ -197,9 +197,8 @@ inline u16 get_counter() {
 
 } // namespace mixer_amiga
 
-/// Una muestra preprocesada lista para el mixer. Expone la memoria como
-/// `Span<const u8>` (tamaño viaja con la vista): el programador de juego nunca
-/// ve un puntero crudo. El puntero solo aparece en `MixerEffect` (capa interna).
+	/// Una muestra preprocesada lista para el mixer. Expone la memoria como
+	/// `Span<const u8>` (tamaño viaja con la vista); ownership/leases se administran en `AudioSystem`.
 struct SfxSample {
 	Span<const u8> data {}; // vista a la muestra (cualquier RAM, múltiplo del mínimo)
 };
@@ -234,7 +233,7 @@ public:
 	/// `MixerSetup`. Ver `MEMORY_OWNERSHIP.md` §"Bancos y contratos" y `GAME_AUDIO.md` §4.
 	bool init(MemoryManager& memory) {
 		shutdown();
-		m_memory = &memory;
+		m_memory = memory;
 		m_buffer_size = mixer_amiga::get_buffer_size();
 		// Salida del mixer: **Chip obligatorio** (DMA de Paula). Sin fallback: si no cabe, falla.
 		m_buffer = memory.chip().reserve<eng::MixerBufferTag>(m_buffer_size, 4u);
@@ -244,10 +243,10 @@ public:
 
 		// Plugins desactivados (MIXER_ENABLE_PLUGINS=0 en mixer_config.i): el mixer NO usa estos
 		// buffers, pero espera punteros válidos. Aceptan **cualquier RAM** (no son DMA) ->
-		// `any_bank` (Fast -> Slow -> Chip).
+		// `NoChip` (Fast -> Slow, sin consumir RAM DMA).
 		m_plugin_buffer_size = kPluginBufferBytes;
-		m_plugin_buffer = eng::any_bank<eng::MixerBufferTag>(memory, m_plugin_buffer_size, 4u);
-		m_plugin_data = eng::any_bank<eng::MixerBufferTag>(memory, kPluginDataBytes, 4u);
+		m_plugin_buffer = eng::fast_or_slow<eng::MixerBufferTag>(memory, m_plugin_buffer_size, 4u);
+		m_plugin_data = eng::fast_or_slow<eng::MixerBufferTag>(memory, kPluginDataBytes, 4u);
 		if (!m_plugin_buffer.valid() || !m_plugin_data.valid()) {
 			release_buffers();
 			return false;
@@ -325,6 +324,12 @@ public:
 		return mixer_amiga::channel_status(static_cast<u16>(channel)) == MixChBusy;
 	}
 
+	/// Estado de una voz software concreta (0..3), para release de leases al terminar naturalmente.
+	[[nodiscard]] bool channel_active(u16 voice) const {
+		return m_ready && voice < 4u &&
+			mixer_amiga::channel_status(static_cast<u16>(MixCh0 << voice)) == MixChBusy;
+	}
+
 	/// Número total de canales software disponibles.
 	u32 total_channels() const {
 		return m_ready ? mixer_amiga::total_channel_count() : 0u;
@@ -348,8 +353,9 @@ public:
 	u16 counter() const { return m_ready ? mixer_amiga::get_counter() : 0u; }
 
 private:
+	/// Devuelve mixer-buffer a Chip y buffers opcionales al banco CPU efectivo que los asignó.
 	void release_buffers() noexcept {
-		if (m_memory == nullptr) {
+		if (!m_memory.valid()) {
 			return;
 		}
 		if (m_buffer.valid()) {
@@ -360,6 +366,7 @@ private:
 		release_any(m_plugin_data);
 	}
 
+	/// Libera un buffer no-DMA según el MemoryKind efectivo conservado en el Block.
 	void release_any(eng::Block<eng::MixerBufferTag>& block) noexcept {
 		if (!block.valid()) {
 			block = {};
@@ -377,7 +384,7 @@ private:
 	}
 
 	bool m_ready = false;
-	MemoryManager* m_memory = nullptr;
+	eng::Ref<MemoryManager> m_memory {};
 	u32 m_buffer_size = 0;
 	u32 m_plugin_buffer_size = 0;
 	eng::Block<eng::MixerBufferTag, eng::MemoryKind::Chip> m_buffer {};

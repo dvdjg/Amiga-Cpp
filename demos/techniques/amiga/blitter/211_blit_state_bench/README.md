@@ -49,7 +49,7 @@ comparten estado: conviene activarlo solo donde ayuda (escenas heterogéneas con
 disjuntos).
 
 Referencias: `docs/engine/architecture/RASTER.md` §"Prioridades de rendimiento (ROI)",
-`docs/engine/architecture/BLITTER_INTENT_QUEUE.md` §4, `tests/host/graphics/387_frame_plan_state`.
+`docs/engine/architecture/BLITTER_INTENT_QUEUE.md` §4, `tests/host/graphics/388_frame_plan_state`.
 
 ## Comandos
 

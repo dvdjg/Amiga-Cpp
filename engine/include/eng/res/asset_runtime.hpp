@@ -12,7 +12,7 @@
 /// eng::res::AssetRuntime<eng::amiga::AssetCacheBackend, 8> assets;
 /// assets.init(backend, {.chip_budget = 64u * 1024u, .fast_budget = 64u * 1024u});
 /// // al pedir:
-/// auto id = assets.load("data/music.mod", mod_bytes, eng::res::MemBank::Chip);
+/// auto id = assets.load("data/music.mod", mod_bytes, eng::res::MemoryRequest::Chip);
 /// // en el bucle, por cada mensaje de E-S:
 /// if (assets.on_msg(m)) { /* la caché ya sabe lo que se cargó */ }
 /// // cuando `state(id) == Ready`:
@@ -49,9 +49,9 @@ public:
 
 	/// Declara el asset y **lanza** su carga (asíncrona). `id` = 0 si no cabe (consulta el
 	/// presupuesto antes con `eng::res::Budget`). El tamaño debe conocerse de antemano.
-	AssetId load(const char* path, eng::u32 size, MemBank bank = MemBank::Any,
+	AssetId load(const char* path, eng::u32 size, MemoryRequest request = MemoryRequest::Any,
 		     eng::u8 prio = 128u) noexcept {
-		const AssetId id = m_cache.declare(path, size, bank, prio);
+		const AssetId id = m_cache.declare(path, size, request, prio);
 		if (id != 0u) {
 			(void)m_cache.prefetch(id);
 		}
@@ -68,8 +68,8 @@ public:
 	[[nodiscard]] eng::Span<eng::u8> get(AssetId id) noexcept { return m_cache.get(id); }
 	[[nodiscard]] AssetView view(AssetId id) const noexcept { return m_cache.view(id); }
 	[[nodiscard]] bool valid(AssetView v) const noexcept { return m_cache.valid(v); }
-	[[nodiscard]] bool acquire_dma(AssetHandle h) noexcept { return m_cache.acquire_dma(h); }
-	[[nodiscard]] bool release_dma(AssetHandle h) noexcept { return m_cache.release_dma(h); }
+	[[nodiscard]] AssetLease lease(AssetId id) noexcept { return m_cache.lease(id); }
+	[[nodiscard]] AssetDmaLease lease_dma(AssetHandle h) noexcept { return m_cache.lease_dma(h); }
 
 	/// **Vista tipada** de un asset ya cargado (`Tag` de dominio). Vacía mientras no esté
 	/// `Ready`. La "decodificación" es la reinterpretación al dominio (los bytes se cargan

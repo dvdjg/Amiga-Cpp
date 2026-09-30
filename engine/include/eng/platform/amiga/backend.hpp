@@ -654,7 +654,7 @@ public:
 	/// `configure_memory`. Ver `INTERNAL_TYPE_SYSTEM.md` §3.6.
 	constexpr MemoryManager& memory_manager() { return m_memmanager; }
 	constexpr const MemoryManager& memory_manager() const { return m_memmanager; }
-	/// **Runtime de assets** (caché + E/S asíncrona): `backend.assets().load(path, size, bank)`.
+	/// **Runtime de assets** (caché + E/S asíncrona): `backend.assets().load(path, size, policy)`.
 	constexpr res::AssetRuntime<AssetCacheBackend, 8u>& assets() { return m_assets; }
 	constexpr const res::AssetRuntime<AssetCacheBackend, 8u>& assets() const { return m_assets; }
 	/// Arranques reales de BLTSIZE durante la última ejecución del plan.

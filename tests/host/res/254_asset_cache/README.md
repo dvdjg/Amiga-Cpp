@@ -15,7 +15,10 @@ desalojo LRU.
    falla con `Error`.
 5. **Owner y generación**: `AssetSlot` conserva el `MemoryBlock` (`data`, `size`, `MemoryKind`); evict,
    reload y shutdown invalidan las vistas anteriores y el backend recibe el banco efectivo para liberar.
-6. **DMA/lectura activa**: una lease DMA impide evict y shutdown; shutdown también se niega a
+6. **Política `NoChip`**: al agotarse Fast selecciona Slow sin consumir Chip; el banco efectivo
+   sigue identificado por `MemoryKind` en el `MemoryBlock`.
+7. **DMA/lectura activa**: leases CPU/DMA impiden evict y shutdown; solo `lease_dma` valida Chip.
+   Shutdown también se niega a
    liberar el destino de una lectura asíncrona aún pendiente.
 
 ## Salida de referencia

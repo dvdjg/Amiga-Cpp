@@ -1,5 +1,5 @@
 // ============================================================================
-// Test HOST-387: FramePlan::sort_by_state — agrupacion de blits por estado (opt-in).
+// Test HOST-388: FramePlan::sort_by_state — agrupacion de blits por estado (opt-in).
 // ============================================================================
 //
 // Respalda `FramePlan::sort_by_state` (`eng/graphics/frame_plan.hpp`): reordena los `BlitJob` de
@@ -10,7 +10,7 @@
 //   (3) el orden relativo dentro de un grupo se conserva (sort estable);
 //   (4) con todos distinto estado, un solo pase no los mezcla de forma incorrecta.
 //
-//   CXX=<g++> bash tools/run-host-tests.sh tests/host/graphics/387_frame_plan_state
+//   CXX=<g++> bash tools/run-host-tests.sh tests/host/graphics/388_frame_plan_state
 
 #include <cstdio>
 
@@ -70,7 +70,7 @@ bool same_state(const BlitJob& a, const BlitJob& b) {
 } // namespace
 
 int main() {
-	std::printf("== HOST-387 frame_plan state ==\n");
+	std::printf("== HOST-388 frame_plan state ==\n");
 
 	// Construye un plan con estados intercalados: A B A C B A.
 	FramePlan plan {};

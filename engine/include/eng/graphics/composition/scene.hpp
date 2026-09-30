@@ -89,7 +89,7 @@ public:
 	/// display/DMA antes: las vistas de `Scene` son no propietarias y el hardware puede retenerlas.
 	void release() noexcept {
 		m_plan.release();
-		if (m_memory != nullptr) {
+		if (m_memory.valid()) {
 			for (u8 i = 0u; i < kMaxSceneBuffers; ++i) {
 				if (m_buffers[i].valid()) {
 					m_memory->chip().release(m_buffers[i]);
@@ -97,7 +97,7 @@ public:
 				m_buffers[i] = {};
 			}
 		}
-		m_memory = nullptr;
+		m_memory.reset();
 		m_res = {};
 		m_plane_bytes = 0u;
 		m_buffer_count = 1u;
@@ -429,7 +429,7 @@ private:
 	/// validar `res` contra el perfil. Devuelve `false` si la geometría o la memoria fallan.
 	bool init_raw(MemoryManager& memory, const SceneResources& res) {
 		release();
-		m_memory = &memory;
+		m_memory = memory;
 		m_res = res;
 		const u16 row = row_bytes();
 		const u16 logical_rows = res.rows != 0u ? res.rows : res.height;
@@ -506,7 +506,7 @@ private:
 	}
 
 	SceneResources m_res {}; ///< geometría/recursos de la escena (copiados en `init`)
-	eng::MemoryManager* m_memory = nullptr; ///< owner no propietario para liberar los bloques Chip
+	eng::Ref<eng::MemoryManager> m_memory {}; ///< owner no propietario para liberar los bloques Chip
 	eng::util::Array<eng::Block<eng::PlaneTag, eng::MemoryKind::Chip>, kMaxSceneBuffers> m_buffers {}; ///< buffers de bitplanes (Chip)
 	field::CanvasPlayfield m_playfield {}; ///< playfield del layout interleaved (base de `surface()`)
 	field::ContiguousPlayfield m_contiguous {}; ///< playfield del layout contiguo (base de `surface()`)

@@ -88,6 +88,9 @@ mezcla hasta 4 muestras en **un solo canal de Paula** (hasta 16 con `MIXER_MULTI
 - Las muestras **fuente pueden vivir en cualquier RAM** (FastRAM incluida); solo
   el buffer de salida (~0,5-8 KB) va en Chip RAM. El paralelismo es el inherente
   al Amiga: la CPU mezcla mientras el Blitter/Copper hacen su trabajo por DMA.
+- Si una muestra fuente viene de `AssetCache`, el juego conserva una `AssetLease` mientras el SFX
+  puede seguir leyéndola: el mixer accede a la fuente desde CPU, por lo que no requiere Chip ni una
+  lease DMA; `AudioSystem::play_sfx_asset` mantiene el owner hasta que la voz termina.
 
 Es un mixer **de configuración fija** (voces, frecuencia, canal se fijan en
 `support/audio_mixer/mixer_config.i`), no un algoritmo adaptativo. La estrategia

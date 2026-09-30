@@ -43,7 +43,7 @@ int main() {
 	eng::res::AssetRuntime<eng::amiga::AssetCacheBackend, 4u> assets;
 	(void)assets.init(eng::amiga::AssetCacheBackend {ms}, eng::res::CacheConfig {2048u, 0u, 4u});
 
-	const eng::res::AssetId id = assets.load("mem://mod", 512u, eng::res::MemBank::Chip);
+	const eng::res::AssetId id = assets.load("mem://mod", 512u, eng::res::MemoryRequest::Chip);
 	check(id != 0u, "load");
 
 	// Antes de completar: la vista tipada esta vacia.

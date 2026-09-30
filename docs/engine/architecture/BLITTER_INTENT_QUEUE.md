@@ -149,6 +149,9 @@ jobs son homogéneos (`sort_by_state` es el primer paso).
   `Block<Tag, Bank>` (**movible, no copiable**: un solo dueño) del `MemBank` (pool fijo, **sin
   heap**); las APIs toman **vistas** no propietarias. Para datos Chip **estáticos**: `ChipStorage`.
   Ver `MEMORY_OWNERSHIP.md` (contrato del developer) y `ROADMAP_MEMORY_OWNERSHIP.md`.
+- Para origen de `AssetCache`, obtener una `AssetDmaLease` (solo admite `MemoryKind::Chip`) antes de
+  construir el `BitmapView`, conservarla hasta que el `FramePlan`/cola haya terminado el último job y
+  liberarla entonces. La lease pertenece al llamador y cubre todos los jobs que comparten el asset.
 
 ## 9. Relación con lo que ya existe
 

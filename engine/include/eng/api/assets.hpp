@@ -74,7 +74,8 @@ public:
 			release_to_bank(block.view.data(), res::DomainAsset<Tag>::kind);
 			return eng::util::unexpected(eng::Result::HardwareLimit);
 		}
-		if (!m_table.template add<Tag>(name, block.view.as_const().data(), size)) {
+		if (!m_table.template add<Tag>(eng::util::StringView {name},
+						       eng::Span<const eng::u8> {block.view.as_const().data(), size})) {
 			release_tracked(block.view.data());
 			return eng::util::unexpected(eng::Result::HardwareLimit);
 		}
@@ -121,8 +122,7 @@ public:
 	}
 
 	/// **Libera todos** los bloques rastreados (los de `add` y `create`) en orden inverso al de
-	/// reserva. `reset_phase` no toca el `AssetTable` (los nombres quedan, las vistas apuntan a
-	/// memoria liberada): llamar al terminar la fase, no durante el render.
+	/// reserva e invalida la tabla declarativa; registrar de nuevo los assets para la siguiente fase.
 	void reset_phase() noexcept {
 		if (!m_mem.valid()) {
 			return;
@@ -133,6 +133,7 @@ public:
 			--m_tracked_count;
 			release_to_bank(m_tracked[m_tracked_count].ptr, m_tracked[m_tracked_count].kind);
 		}
+		m_table = eng::res::AssetTable {};
 	}
 	void clear() noexcept {
 		reset_phase();
@@ -142,16 +143,20 @@ public:
 	[[nodiscard]] eng::u8 tracked_count() const noexcept { return m_tracked_count; }
 	/// Nº de assets registrados en la tabla (por nombre).
 	[[nodiscard]] eng::u8 count() const noexcept { return m_table.count(); }
+	[[nodiscard]] bool valid_view(eng::util::StringView name,
+				       eng::Span<const eng::u8> data) const noexcept {
+		return m_table.valid_view(name, data);
+	}
 
 	/// **Módulo de música** por nombre. El formato y el buffer de descompresión los resuelve el
 	/// engine al reproducirlo (`app.audio().play_music(assets.music("n"))`).
-	[[nodiscard]] eng::audio::MusicModule music(const char* name) const noexcept {
+	[[nodiscard]] eng::audio::MusicModule music(eng::util::StringView name) const noexcept {
 		return eng::audio::MusicModule {m_table.template get<eng::MusicTag>(name).raw()};
 	}
 
 	/// **Hoja de sprites** por nombre + su geometría (`Bob` sin hoja) → `Sprite` para
 	/// `screen.sprite(...)`.
-	[[nodiscard]] eng::graphics::Sprite sprite(const char* name,
+	[[nodiscard]] eng::graphics::Sprite sprite(eng::util::StringView name,
 						   const eng::graphics::Bob& desc) const noexcept {
 		const ByteView<eng::SpriteTag> v = m_table.template get<eng::SpriteTag>(name);
 		eng::graphics::Bob bob = desc;
@@ -163,19 +168,19 @@ public:
 	}
 
 	/// **Bytes** de un asset (p. ej. el bitmap de fondo) por nombre.
-	[[nodiscard]] eng::Span<const eng::u8> bytes(const char* name) const noexcept {
+	[[nodiscard]] eng::Span<const eng::u8> bytes(eng::util::StringView name) const noexcept {
 		return m_table.template get<eng::PlaneTag>(name).raw();
 	}
 
 	/// **Paleta** (palabras COLOR) por nombre. Los blobs se registran como bytes; aquí se releen
 	/// como palabras (frontera bytes→`u16`, como el `PaletteWords` de la escena).
-	[[nodiscard]] eng::Span<const eng::u16> palette(const char* name) const noexcept {
+	[[nodiscard]] eng::Span<const eng::u16> palette(eng::util::StringView name) const noexcept {
 		const ByteView<eng::PaletteTag> v = m_table.template get<eng::PaletteTag>(name);
 		return eng::Span<const eng::u16> {
 			reinterpret_cast<const eng::u16*>(v.data()), v.size() / 2u};
 	}
 
-	[[nodiscard]] bool has(const char* name) const noexcept { return m_table.has(name); }
+	[[nodiscard]] bool has(eng::util::StringView name) const noexcept { return m_table.has(name); }
 
 private:
 	/// Rastrea el bloque (por su puntero y el **banco del dominio**) para liberarlo después. El

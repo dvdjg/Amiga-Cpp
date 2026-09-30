@@ -117,6 +117,7 @@ public:
 		m_report = {};
 	}
 
+	/// Retarget de la copperlist Chip; actualiza la vista de escritura sin cambiar ownership.
 	void retarget(const eng::Block<eng::CopperTag, eng::MemoryKind::Chip>& block) {
 		m_builder = ListBuilder {block};
 		m_timeline.reset();

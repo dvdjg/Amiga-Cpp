@@ -32,12 +32,16 @@ int main() {
 	std::printf("== HOST-353 asset_table ==\n");
 
 	eng::res::AssetTable t {};
-	check(t.add<eng::PlaneTag>("abyss", g_img, sizeof(g_img)), "add imagen");
-	check(t.add<eng::MusicTag>("tune", g_mod, sizeof(g_mod)), "add modulo");
+	check(t.add<eng::PlaneTag>(eng::util::StringView {"abyss"}, eng::Span<const eng::u8> {g_img}), "add imagen");
+	check(t.add<eng::MusicTag>(eng::util::StringView {"tune"}, eng::Span<const eng::u8> {g_mod}), "add modulo");
 	check(t.count() == 2u && t.has("abyss") && t.has("tune"), "registrados por nombre");
 
 	const eng::ByteView<eng::PlaneTag> img = t.get<eng::PlaneTag>("abyss");
 	check(img.size() == 8u && img.data() == g_img && img[7] == 8u, "vista de dominio");
+	check(t.valid_view(eng::util::StringView {"abyss"}, eng::Span<const eng::u8> {g_img}),
+	      "tabla reconoce su rango externo no propietario");
+	const char dynamic_name[] = {'t', 'u', 'n', 'e', '\0'};
+	check(t.has(eng::util::StringView {dynamic_name, 4u}), "nombre se consulta con StringView acotado");
 
 	check(t.get<eng::PlaneTag>("nope").empty(), "inexistente -> vista vacia");
 	check(!t.has("nope"), "has(inexistente)");

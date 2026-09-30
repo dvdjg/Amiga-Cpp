@@ -62,14 +62,14 @@ int main() {
 
 	// --- alloc: Chip y Slow (Fast) ------------------------------------------
 	{
-		auto c = backend.alloc(256u, eng::res::MemBank::Chip);
+		auto c = backend.alloc(256u, eng::MemoryKind::Chip);
 		check(c.valid() && c.size >= 256u, "alloc Chip devuelve bloque");
 		check(ms.chip().used_bytes() >= 256u, "consume la arena Chip");
 		check(c.kind == eng::MemoryKind::Chip, "el owner conserva el banco Chip efectivo");
-		auto f = backend.alloc(128u, eng::res::MemBank::Fast);
+		auto f = backend.alloc(128u, eng::MemoryKind::Slow);
 		check(f.valid(), "alloc Fast devuelve bloque");
-		check(ms.slow().used_bytes() >= 128u, "Fast consume la arena Slow");
-		check(f.kind == eng::MemoryKind::Slow, "el owner conserva el fallback Slow efectivo");
+		check(ms.slow().used_bytes() >= 128u, "alloc Slow consume la arena Slow");
+		check(f.kind == eng::MemoryKind::Slow, "el owner conserva el banco Slow efectivo");
 		backend.free(c);
 		check(ms.chip().used_bytes() == 0u, "free devuelve la reserva Chip al pool");
 		backend.free(c);
@@ -94,7 +94,7 @@ int main() {
 		eng::res::AssetCache<eng::amiga::AssetCacheBackend, 4u> cache;
 		check(cache.init(backend, eng::res::CacheConfig {4096u, 4096u, 4u}), "init cache");
 		const eng::res::AssetId id =
-			cache.declare("mem://spr", 300u, eng::res::MemBank::Chip, 200u);
+			cache.declare("mem://spr", 300u, eng::res::MemoryRequest::Chip, 200u);
 		check(id != 0u, "declare devuelve id");
 
 		// `get` lanza la carga y devuelve vacio (placeholder).
@@ -108,10 +108,11 @@ int main() {
 		check(cache.used_chip() >= 300u, "presupuesto Chip del cache");
 		const eng::res::AssetView stale = cache.view(id);
 		check(cache.valid(stale), "vista con generacion valida");
-		check(cache.acquire_dma(stale.handle), "adquiere lease DMA");
+		auto dma_lease = cache.lease_dma(stale.handle);
+		check(dma_lease.valid(), "adquiere lease DMA RAII");
 		check(!cache.shutdown(), "shutdown bloqueado por DMA activo");
 		check(cache.valid(stale), "owner retenido mientras DMA esta activo");
-		check(cache.release_dma(stale.handle), "lease DMA liberada");
+		dma_lease.reset();
 		check(cache.shutdown(), "shutdown sin DMA activo");
 		check(!cache.valid(stale), "shutdown invalida la vista");
 		check(ms.chip().used_bytes() == 0u, "shutdown del cache libera sus reservas físicas");
@@ -123,7 +124,7 @@ int main() {
 		cfg.max_assets = 2u;
 		eng::res::AssetCache<eng::amiga::AssetCacheBackend, 2u> cache;
 		check(cache.init(backend, cfg), "init cache con presupuesto Slow");
-		const eng::res::AssetId id = cache.declare("mem://slow", 128u, eng::res::MemBank::Any);
+		const eng::res::AssetId id = cache.declare("mem://slow", 128u, eng::res::MemoryRequest::Any);
 		check(cache.prefetch(id), "Any cae al pool Slow disponible");
 		cache.on_load_done(id, 128);
 		check(cache.used_slow() == 128u && cache.used_fast() == 0u,

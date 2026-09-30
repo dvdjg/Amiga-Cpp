@@ -32,15 +32,14 @@ public:
 
 	/// Reserva `bytes` en el banco solicitado (con Fast→Slow como fallback). El cache usa el tamaño real del
 	/// destino; el pool alinea la base, así que no hace falta margen.
-	[[nodiscard]] eng::MemoryBlock alloc(eng::u32 bytes, eng::res::MemBank bank) noexcept {
+	[[nodiscard]] eng::MemoryBlock alloc(eng::u32 bytes, eng::MemoryKind bank) noexcept {
 		eng::MemoryBlock block {};
-		if (bank == eng::res::MemBank::Chip) {
+		if (bank == eng::MemoryKind::Chip) {
 			block = m_memory->chip().pool().allocate(bytes, 4u);
-		} else if (bank == eng::res::MemBank::Slow) {
+		} else if (bank == eng::MemoryKind::Slow) {
 			block = m_memory->slow().pool().allocate(bytes, 4u);
-		} else {
+		} else if (bank == eng::MemoryKind::Fast) {
 			block = m_memory->fast().pool().allocate(bytes, 4u);
-			if (!block.valid()) block = m_memory->slow().pool().allocate(bytes, 4u);
 		}
 		return block;
 	}
@@ -65,6 +64,7 @@ public:
 	}
 
 private:
+	/// Devuelve el rango al pool que lo reservó; `kind` es el banco efectivo del bloque.
 	void release(const eng::MemoryBlock& block) noexcept {
 		if (block.kind == eng::MemoryKind::Chip) {
 			m_memory->chip().pool().free(block.data);

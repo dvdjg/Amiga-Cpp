@@ -250,7 +250,7 @@ y esperas del Blitter, tiempo total y memoria de la descripción.
 
 **Estado (jul 2026):** (1) caché de estado común por racha — **hecha** (`AmigaBackend::submit_blit_job`),
 con contador de aciertos `AmigaBackend::blitter_common_hits()` (reprogramaciones evitadas, diagnóstico);
-(2) agrupación por estado — **`FramePlan::sort_by_state()`** hecho (opt-in, HOST-387) y **medido** en
+(2) agrupación por estado — **`FramePlan::sort_by_state()`** hecho (opt-in, HOST-388) y **medido** en
 hardware con la demo **211_blit_state_bench** (rejilla de 112 tiles disjuntos de dos estados
 intercalados): agrupar no cambia los lanzamientos (`448 = 112 × 4 planos`) ni el bitmap (capturas
 byte-idénticas) y sube los aciertos de caché de **6 a 110** (≈832 escrituras a custom evitadas por

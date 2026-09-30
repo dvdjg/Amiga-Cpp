@@ -58,7 +58,7 @@ public:
 	/// `active` arranca en 1 para que el primer bloque que se escribe sea el 0.
 	bool begin(eng::MemoryManager& memory, u32 bytes_per_block, u8 alignment = 16) {
 		release();
-		m_memory = &memory;
+		m_memory = memory;
 		m_blocks[0] = memory.chip().reserve<eng::CopperTag>(bytes_per_block, alignment);
 		m_blocks[1] = memory.chip().reserve<eng::CopperTag>(bytes_per_block, alignment);
 		m_active = 1;
@@ -72,7 +72,7 @@ public:
 	/// Libera ambos bloques. Debe llamarse cuando el Copper ya no puede leerlos.
 	/// El destructor aplica la misma operación; `MemoryManager` debe seguir vivo.
 	void release() noexcept {
-		if (m_memory != nullptr) {
+		if (m_memory.valid()) {
 			for (u8 i = 0u; i < 2u; ++i) {
 				if (m_blocks[i].valid()) {
 					m_memory->chip().release(m_blocks[i]);
@@ -80,7 +80,7 @@ public:
 				m_blocks[i] = {};
 			}
 		}
-		m_memory = nullptr;
+		m_memory.reset();
 		m_active = 1;
 		m_ok = false;
 	}
@@ -133,7 +133,7 @@ public:
 
 private:
 	eng::Block<eng::CopperTag, eng::MemoryKind::Chip> m_blocks[2] {};
-	eng::MemoryManager* m_memory = nullptr;
+	eng::Ref<eng::MemoryManager> m_memory {};
 	u8 m_active = 1;
 	bool m_ok = false;
 };

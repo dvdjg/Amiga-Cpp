@@ -26,6 +26,7 @@
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/typed.hpp>
 #include <eng/os/message.hpp>
+#include <eng/res/asset_cache.hpp>
 
 namespace eng::audio {
 
@@ -115,6 +116,8 @@ public:
 	void shutdown() {
 		stop_music();
 		m_sfx.shutdown();
+		for (eng::res::AssetLease& lease : m_sfx_cpu_leases) lease.reset();
+		for (eng::res::AssetDmaLease& lease : m_music_asset_leases) lease.reset();
 	}
 
 	// ---- SFX --------------------------------------------------------------
@@ -124,12 +127,37 @@ public:
 		return m_sfx.play(sample, priority, mode, loop_offset);
 	}
 
+	/// Reproduce una muestra de un asset CPU-residente en una voz concreta; conserva su owner hasta terminar.
+	SfxChannel play_sfx_asset(u16 mixer_channel, eng::res::AssetLease lease, s16 priority,
+				  LoopMode mode, u32 loop_offset = 0u) {
+		if (!lease.valid()) return -1;
+		const SfxSample sample {lease.view().data};
+		const SfxChannel channel = m_sfx.play_on(mixer_channel, sample, priority, mode, loop_offset);
+		const u8 index = mixer_index(channel);
+		const u8 requested_index = mixer_index(mixer_channel);
+		if (index >= 4u || requested_index >= 4u) {
+			if (channel >= 0) m_sfx.stop(channel);
+			return -1;
+		}
+		if (index != requested_index || !m_sfx.is_playing(channel)) {
+			m_sfx.stop(channel);
+			return -1;
+		}
+		m_sfx_cpu_leases[index] = static_cast<eng::res::AssetLease&&>(lease);
+		return channel;
+	}
+
 	/// Reproduce un efecto en una voz concreta (MixCh0..MixCh3).
 	SfxChannel play_sfx_on(u16 channel, const SfxSample& sample, s16 priority, LoopMode mode, u32 loop_offset = 0) {
 		return m_sfx.play_on(channel, sample, priority, mode, loop_offset);
 	}
 
-	void stop_sfx(SfxChannel channel) { m_sfx.stop(channel); }
+	/// Detiene la voz y libera su lease CPU si pertenecía a una muestra de AssetCache.
+	void stop_sfx(SfxChannel channel) {
+		m_sfx.stop(channel);
+		const u8 index = mixer_index(channel);
+		if (index < 4u) m_sfx_cpu_leases[index].reset();
+	}
 	bool sfx_playing(SfxChannel channel) const { return m_sfx.is_playing(channel); }
 	void set_sfx_volume(u8 volume) { m_sfx.set_master_volume(volume); }
 	u32 total_sfx_channels() const { return m_sfx.total_channels(); }
@@ -186,6 +214,16 @@ public:
 		return m_format != MusicFormat::None;
 	}
 
+	/// Reproduce un módulo en Chip y retiene su lease mientras el player/Paula pueda volver a leerlo.
+	/// Retiene el módulo mientras el player/Paula pueda seguir leyéndolo desde Chip.
+	bool play_music_asset(const MusicModule& module, MusicFormat format, eng::res::AssetDmaLease lease,
+			      eng::Span<eng::u8> buffer = {}) {
+		if (!lease.valid() || lease.view().kind != eng::MemoryKind::Chip) return false;
+		if (!play_music(module, format, buffer)) return false;
+		m_music_asset_leases[0] = static_cast<eng::res::AssetDmaLease&&>(lease);
+		return true;
+	}
+
 	void stop_music() {
 		m_p61.stop();
 		m_pt.stop();
@@ -194,6 +232,7 @@ public:
 #endif
 		m_format = MusicFormat::None;
 		release_music_buffer();
+		for (eng::res::AssetDmaLease& lease : m_music_asset_leases) lease.reset();
 	}
 
 	/// Avanza la música una vez por frame. P61 y OctaMED son frame-driven; Protracker usa la
@@ -219,6 +258,12 @@ public:
 	template <class Port>
 	void tick_frame(Port& port) {
 		update_music();
+		for (u8 i = 0u; i < 4u; ++i) {
+			if (m_sfx_cpu_leases[i].valid() &&
+			    !m_sfx.channel_active(static_cast<u16>(MixCh0 << i))) {
+				m_sfx_cpu_leases[i].reset();
+			}
+		}
 		const bool ended = (m_format == MusicFormat::P61) && m_p61.ended();
 		const AudioMsgOut out = m_edges.on_tick(ended, m_underrun_now);
 		m_underrun_now = false;
@@ -270,6 +315,15 @@ public:
 	PtPlayer& protracker() { return m_pt; }
 
 private:
+	/// Traduce la máscara de voz devuelta por Photon al índice estable 0..3 del mixer.
+	[[nodiscard]] static u8 mixer_index(SfxChannel channel) noexcept {
+		for (u8 i = 0u; i < 4u; ++i) {
+		if ((channel & static_cast<SfxChannel>(MixCh0 << i)) != 0) return i;
+		}
+		return 0xffu;
+	}
+
+	/// Devuelve al banco el staging Chip que P61 usa para descomprimir samples empaquetados.
 	void release_music_buffer() noexcept {
 		if (m_music_buf.valid() && m_memory.valid()) {
 			m_memory.get()->chip().release(m_music_buf);
@@ -278,6 +332,8 @@ private:
 	}
 
 	SfxMixer m_sfx {};
+	eng::res::AssetLease m_sfx_cpu_leases[4] {};
+	eng::res::AssetDmaLease m_music_asset_leases[4] {};
 	eng::Ref<MemoryManager> m_memory {};                              ///< para el buffer de música (Chip)
 	eng::Block<eng::AudioTag, eng::MemoryKind::Chip> m_music_buf {}; ///< buffer de descompresión P61
 	P61Player m_p61 {};

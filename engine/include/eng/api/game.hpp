@@ -226,27 +226,27 @@ public:
 		return m_backend.memory_manager();
 	}
 
-	/// **Runtime de assets** del backend si lo expone: `app.assets().load(path, size, bank)`.
+	/// **Runtime de assets** del backend si lo expone: `app.assets().load(path, size, policy)`.
 	template <class B = Backend>
 	[[nodiscard]] decltype(auto) assets() {
 		return m_backend.assets();
 	}
 
 	/// **Carga un asset** por id (declara + lanza la E/S asíncrona): atajo de
-	/// `app.assets().load(path, size, bank)`. `0` si no cabe; la carga se completa al drenar
+	/// `app.assets().load(path, size, policy)`. `0` si no cabe; la carga se completa al drenar
 	/// el puerto (`pump()`/`route_resource_io`) con los `FileDone`. En backends sin runtime de
 	/// assets devuelve `0`. La decodificación tipada (`load<T>`) llegará con los decoders.
 	template <class B = Backend>
 	eng::u16 load_asset(const char* path, eng::u32 size,
-			    res::MemBank bank = res::MemBank::Chip, eng::u8 prio = 128u) {
-		if constexpr (requires(B& b, const char* p, eng::u32 s, res::MemBank mb, eng::u8 pr) {
-				      b.assets().load(p, s, mb, pr);
+			    res::MemoryRequest request = res::MemoryRequest::Chip, eng::u8 prio = 128u) {
+		if constexpr (requires(B& b, const char* p, eng::u32 s, res::MemoryRequest req, eng::u8 pr) {
+				      b.assets().load(p, s, req, pr);
 			      }) {
-			return m_backend.assets().load(path, size, bank, prio);
+			return m_backend.assets().load(path, size, request, prio);
 		} else {
 			(void)path;
 			(void)size;
-			(void)bank;
+			(void)request;
 			(void)prio;
 			return 0u;
 		}
@@ -275,6 +275,39 @@ public:
 		}
 	}
 
+	/// Vista no propietaria para consultar el banco/generación del asset antes de usarlo.
+	template <class B = Backend>
+	[[nodiscard]] res::AssetView asset_view(eng::u16 id) const {
+		if constexpr (requires(const B& b, eng::u16 i) { b.assets().view(i); }) {
+			return m_backend.assets().view(id);
+		} else {
+			(void)id;
+			return {};
+		}
+	}
+
+	/// Retiene un asset hasta que el objeto move-only se destruya o se reinicie explícitamente.
+	template <class B = Backend>
+	[[nodiscard]] res::AssetLease asset_lease(eng::u16 id) {
+		if constexpr (requires(B& b, eng::u16 i) { b.assets().lease(i); }) {
+			return m_backend.assets().lease(id);
+		} else {
+			(void)id;
+			return {};
+		}
+	}
+
+	/// Retención para recursos Chip mientras un consumidor de DMA (música/Blitter) siga activo.
+	template <class B = Backend>
+	[[nodiscard]] res::AssetDmaLease asset_dma_lease(eng::u16 id) {
+		if constexpr (requires(B& b, eng::u16 i) { b.assets().lease_dma(i); }) {
+			return m_backend.assets().lease_dma(id);
+		} else {
+			(void)id;
+			return {};
+		}
+	}
+
 	/// **Vista tipada** del asset `id` (`Tag` de dominio): vacía si aún no está `Ready`. La
 	/// "decodificación" es la reinterpretación al dominio (los bytes se cargan tal cual).
 	template <class Tag, class B = Backend>
@@ -291,9 +324,9 @@ public:
 	/// id. Cuando `asset_ready(id)`, `asset<Tag>(id)` da la vista de dominio. `0` si no cabe o
 	/// el backend no tiene runtime de assets. (`PUBLIC_GAME_API.md` §2.1.4.)
 	template <class Tag, class B = Backend>
-	eng::u16 load(const char* path, eng::u32 size, res::MemBank bank = res::MemBank::Chip,
+	eng::u16 load(const char* path, eng::u32 size, res::MemoryRequest request = res::MemoryRequest::Chip,
 		      eng::u8 prio = 128u) {
-		return load_asset<B>(path, size, bank, prio);
+		return load_asset<B>(path, size, request, prio);
 	}
 
 	/// El juego registra su escena (en `init`); `screen()`/`present()` la usan.

@@ -42,6 +42,12 @@ public:
 		*adkcon_w() = kAudioModMask;
 	}
 
+	/// Espera al fin del word activo y confirma que Paula dejó el bus antes de liberar Chip.
+	void wait_idle() const {
+		volatile const u16* dmaconr = reinterpret_cast<volatile const u16*>(0xdff002u);
+		while ((*dmaconr & kAudioMask) != 0u) {}
+	}
+
 	/// Materializa el plan en Paula y arranca el DMA de los canales activos.
 	void apply(const eng::audio::AudioPlan& plan) {
 		u16 enable = 0u;

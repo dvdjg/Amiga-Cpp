@@ -24,6 +24,7 @@
 #include <eng/graphics/blitter_state.hpp>
 #include <eng/graphics/intent_queue.hpp>
 #include <eng/graphics/raster_intent.hpp>
+#include <eng/res/asset_cache.hpp>
 
 namespace eng::graphics {
 
@@ -260,6 +261,15 @@ public:
 	void stamp(BitmapView<BobTag, MemoryKind::Chip> src, BitmapView<PlaneTag, MemoryKind::Chip> dst,
 		   eng::Box rect, eng::u8 ashift = 0) noexcept {
 		this->enqueue(BlitOp {BlitOp::Kind::Stamp, dst, src, {}, rect, ashift});
+	}
+
+	/// Encola una vista usando una lease Chip mantenida por el llamador hasta completar el plan.
+	void stamp(BitmapView<BobTag, MemoryKind::Chip> src, BitmapView<PlaneTag, MemoryKind::Chip> dst,
+		   eng::Box rect, const eng::res::AssetDmaLease& lease, eng::u8 ashift = 0) noexcept {
+		if (lease.valid() && lease.view().kind == MemoryKind::Chip &&
+		    lease.view().data.data() == src.planes.data()) {
+			this->enqueue(BlitOp {BlitOp::Kind::Stamp, dst, src, {}, rect, ashift});
+		}
 	}
 
 	/// **Intención**: cookie-cut (`D = (A & B) | (~A & C)`), una petición. `mask` es el plano de

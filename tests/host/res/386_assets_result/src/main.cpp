@@ -55,6 +55,14 @@ int main() {
 	check(ok.has_value(), "add valido -> Ok");
 	check(a.has("map"), "el asset queda registrado");
 	check(a.bytes("map").size() == sizeof(blob), "bytes() devuelve el tamano");
+	const eng::Span<const eng::u8> old_view = a.bytes("map");
+	a.reset_phase();
+	check(!a.has("map") && !a.valid_view(eng::util::StringView {"map"}, old_view),
+	      "reset_phase invalida las vistas retenidas en AssetTable");
+	check(mm.chip().used_bytes() == 0u, "reset_phase libera owner con tabla invalidada");
+	a.clear();
+	ok = a.add_checked<eng::PlaneTag>("map", blob, sizeof(blob));
+	check(ok.has_value() && a.has("map"), "AssetTable acepta el registro tras invalidar fase");
 
 	// Sin datos -> InvalidArgument.
 	auto bad = a.add_checked<eng::PlaneTag>("n", nullptr, 0u);

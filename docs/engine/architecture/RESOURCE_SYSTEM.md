@@ -23,7 +23,8 @@ que no se usan y no son prioritarios **salen solos**. Es lo que permite moverse 
 
 En A500 la caché **no** es "todo el disco en RAM": es un **presupuesto en bytes** (Chip/Fast/Slow)
 con desalojo de lo no fijado (`pin`), no referenciado (`refcount == 0`) y no retenido por una lease
-DMA. Cada slot conserva un `MemoryBlock` con sus bytes y `MemoryKind` efectivo; el backend libera
+DMA. La petición usa `MemoryRequest` (`Any`, `NoChip`, `Chip`, `Fast`, `Slow`), mientras cada slot
+conserva un `MemoryBlock` con sus bytes y `MemoryKind` efectivo; el backend libera
 según ese banco, incluso si Fast pidió fallback a Slow. Las vistas llevan `{AssetId, generation}` y pueden
 validarse antes de usarse; evict y shutdown las invalidan. El cierre falla mientras una lectura
 asíncrona o una lease DMA permanezca activa. El uso de vistas crudas por consumidores sin validación
@@ -43,12 +44,12 @@ namespace eng::res {
 
 using AssetId = eng::u16;
 enum class AssetState : eng::u8 { Empty, Loading, Ready, Error };
-using MemBank = eng::MemoryKind; ///< Chip, Fast, Slow o Any; sin segundo enum de bancos
+using MemoryRequest = eng::res::MemoryRequest; ///< Any, NoChip o banco concreto solicitado
 
 struct AssetSlot {
   const char* path = nullptr;   ///< o hash u32 en builds finales
   AssetState state = AssetState::Empty;
-  MemBank bank = MemBank::Any;
+  MemoryRequest request = MemoryRequest::Any;
   eng::u8 priority = 128;       ///< 255 = casi nunca se desaloja
   bool pinned = false;
   eng::u16 refcount = 0;
@@ -83,7 +84,7 @@ public:
 	bool acquire_dma(AssetHandle);            ///< solo Chip; retiene el bloque mientras DMA lo lee
 	bool release_dma(AssetHandle);            ///< tras confirmar que DMA terminó
 
-	AssetId declare(const char* path, MemBank bank = MemBank::Any, eng::u8 prio = 128);
+	AssetId declare(const char* path, MemoryRequest request = MemoryRequest::Any, eng::u8 prio = 128);
 
 	void* get(AssetId id);                       ///< Ready → data; si no, lanza carga y nullptr
 	void* try_get(AssetId id, AssetState* st = nullptr);
@@ -158,8 +159,9 @@ AssetId AssetCache::pick_victim(MemBank bank) const {
 }
 ```
 
-`ensure_space(bytes, bank, except)` desaloja víctimas hasta que quepan; con `MemBank::Any` intenta
-Fast y, si no, Chip. Si no hay víctima válida, la carga falla con `AssetError` (el juego decide
+`MemoryRequest::Any` prueba Fast, Slow y Chip; `MemoryRequest::NoChip` prueba solo Fast y Slow; las
+peticiones concretas se limitan a ese banco. `MemoryBlock::kind` registra el resultado efectivo y
+se usa para liberar y contabilizar. Si no hay víctima válida, la carga falla con `AssetError` (el juego decide
 subir el presupuesto, bajar la prioridad o usar *placeholders*).
 
 ### Uso por zonas

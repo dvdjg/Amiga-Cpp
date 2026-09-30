@@ -133,8 +133,9 @@ void AmigaBackend::release_memory() {
 	clear_vblank_service();
 	clear_blitter_service();
 	background_timer_stop();
-	m_audio.shutdown();
 	m_paula.silence();
+	m_paula.wait_idle();
+	m_audio.shutdown();
 	wait_blitter();
 	if (!m_assets.shutdown()) return;
 

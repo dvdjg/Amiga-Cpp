@@ -18,6 +18,9 @@ asm del demoscene-repo como backends de la intención `eng::audio::MusicEvent`
 - **P61** (`p61.h`): `P61_Init(module,samples,buffer)` / `P61_Music` (por frame) /
   `P61_End` / `P61_SetPosition`; `P61_ControlBlock` (volumen `Master`, flag `Play`,
   posición `Pos`). Es frame-driven (llamar `P61_Music` una vez por frame).
+- Para módulos servidos desde `AssetRuntime`, conservar la lease mientras el reproductor pueda volver a
+  leer el módulo; `AudioSystem::play_music_asset` mantiene el owner hasta `stop_music`. Usa una lease
+  DMA para recursos Chip que el player publica a Paula.
 - **PTPlayer** (`ptplayer.h`): `mt_init`/`mt_music`/`mt_end` (frame-driven) y
   `mt_install`/`mt_remove` (opcional, por CIA). Para coexistir con el mixer usa
   `mt_EnableChannelMask` (Frank Wille, dominio público). El wrapper `pt.asm` del

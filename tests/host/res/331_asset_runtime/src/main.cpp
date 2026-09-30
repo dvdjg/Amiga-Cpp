@@ -45,7 +45,7 @@ int main() {
 	      "init");
 
 	// --- load (declara + lanza) ---------------------------------------------
-	const eng::res::AssetId id = assets.load("mem://mod", 200u, eng::res::MemBank::Chip, 200u);
+	const eng::res::AssetId id = assets.load("mem://mod", 200u, eng::res::MemoryRequest::Chip, 200u);
 	check(id != 0u, "load devuelve id");
 	check(assets.state(id) == eng::res::AssetState::Loading, "estado Loading tras load");
 
