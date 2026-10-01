@@ -173,9 +173,10 @@ en él `PaletteSpan`, cambios de puntero, prioridad o trabajos de Blitter.
    cambian colores o punteros, parchear las palabras existentes sin reconstruir la lista.
 3. **Fusionar por línea**: generar grupos contiguos de la misma línea y tipo después de ordenar.
    Emitir un WAIT y todos los MOVEs compatibles de la línea en una sola pasada.
-4. **Batch de `PaletteLine`**: implementación en curso. HOST-070 comprueba el stream frente a la
+4. **Batch de `PaletteLine`**: implementación presente, trabajo pausado hasta disponer de perfil A/B.
+   HOST-070 comprueba el stream frente a la
    emisión individual normalizando WAITs idénticos consecutivos, prioridades y slots tras reemisión.
-   Perfil A/B pendiente de toolchain m68k y servidor WinUAE/GDB.
+   Perfil A/B pendiente mientras este frente está pausado; el toolchain y WinUAE/GDB están instalados.
 5. **Eliminar redundancias**: después de resolver prioridades, eliminar WAITs repetidos y MOVEs
    consecutivos al mismo registro con el mismo valor, sin eliminar escrituras cuyo orden sea
    necesario para la composición.

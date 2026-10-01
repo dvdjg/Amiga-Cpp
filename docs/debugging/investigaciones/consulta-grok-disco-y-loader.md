@@ -164,7 +164,7 @@ como unidad de datos sin que Kickstart intente arrancar?
 ## Anexo — deuda preexistente (no relacionada con lo anterior)
 
 - **F0.8**: la demo 107 muere antes de `XlimitedScene::begin` (necesita sesión GDB).
-- **F4.6**: baseline fiable en `docs/guides/optimization/METODOLOGIA_PROFILING.md` §4: `build_frame` 793.439 ciclos; `emit` 387.674 (33,5 %), `sky` 166.475 (14,4 %), `sort_lines` 105.637 (9,1 %), `sort_prio` 43.857 (3,8 %). El batch de `PaletteLine` con WAIT compartido está en curso; requiere equivalencia del stream completo y perfil A/B.
+- **F4.6**: baseline fiable en `docs/guides/optimization/METODOLOGIA_PROFILING.md` §4: `build_frame` 793.439 ciclos; `emit` 387.674 (33,5 %), `sky` 166.475 (14,4 %), `sort_lines` 105.637 (9,1 %), `sort_prio` 43.857 (3,8 %). Hay un batch de `PaletteLine` con WAIT compartido y HOST-070; el perfil A/B de target queda pendiente mientras el frente está pausado. El toolchain y WinUAE/GDB están instalados; hay que invocar build y runner desde Git Bash para que Windows encuentre las herramientas.
 - **HOST-013** (`math3d_mesh`): falla `convex_spans: pentagono == referencia`.
 - **4 demos de audio** sin assets `.raw` (quedan en `ASSET`, no en `ok`).
 

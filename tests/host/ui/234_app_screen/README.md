@@ -1,13 +1,13 @@
 # HOST-234: fachada de juego `eng::App` + `eng::Screen`
 
-Test host del **borrador del API público de juego** (`eng/api/game.hpp`): `App` junta el bucle, la
+Test host del **borrador del API público de juego** (`eng/api/api.hpp`): `App` junta el bucle, la
 pantalla y las tareas; el juego se escribe con `init/update/render(App&)` (con `auto&`, sin nombrar
 el tipo) **sin ver** el backend, `GameContext`, `FramePlan` ni planos. `Screen` es el contexto de
 dibujo de alto nivel (análogo al `RastPort`).
 
 ## Qué comprueba
 
-1. `compose()` construye una escena planar y el juego la registra con `app.bind_scene()`.
+1. El consumer incluye solo `eng/api/api.hpp`; `compose()` construye una escena planar y el juego la registra con `app.bind_scene()`.
 2. `app.run(1)` llama a `init`, `update` y `render` del juego.
 3. `app.frame()` = 0 en el primer frame.
 4. `app.screen()` + `s.fill(Box, color)` dibujan; `app.present()` publica.

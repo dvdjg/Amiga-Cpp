@@ -1,5 +1,10 @@
 # Roadmap — Blitter ↔ Copper
 
+Estado: **pausado** por decisión del usuario. El batch `PaletteLine` está implementado y HOST-070
+compara su stream/slots con la emisión individual normalizando WAITs consecutivos idénticos. La
+captura A/B de 086 sigue pendiente; las herramientas están instaladas y se ejecutan desde Git Bash,
+no desde el `bash` de WSL. No iniciar más cambios en este frente hasta reactivarlo.
+
 Evaluación de las técnicas «Copper lanza blits» y «Blitter escribe la copperlist» para
 llevarlas al engine, partiendo de lo que ya hay.
 

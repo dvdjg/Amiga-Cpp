@@ -24,8 +24,11 @@ a dia de hoy las versiones instaladas (1.8.1/1.8.2 y el fork local) son **15.1.0
 ## Compilar una demo
 
 ```powershell
-.\tools\build\build-demo.ps1 demos\techniques\amiga\setup\000_toolchain_cpp23 -Clean
+$env:AMIGA_BIN_PATH = 'C:/Users/<usuario>/.vscode/extensions/bartmanabyss.amiga-debug-<version>/bin/win32'
+& 'C:\Program Files\Git\bin\bash.exe' ./tools/build/build-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23 --debug --clean
 ```
+
+En Windows, invoca Git Bash directamente para estos scripts. `C:\Windows\System32\bash.exe` puede resolver a WSL, cuyo `$HOME` y sistema de archivos no incluyen las extensiones de VS Code/Cursor ni sus ejecutables `.exe`; por eso la detección automática del toolchain puede fallar aunque esté instalado. `AMIGA_BIN_PATH` debe apuntar a `bin/win32` de la extensión que contiene `opt/bin/m68k-amiga-elf-g++.exe`. Si la variable de entorno apunta a otra carpeta, esta ruta explícita permite seleccionar el toolchain correcto.
 
 La salida queda en:
 

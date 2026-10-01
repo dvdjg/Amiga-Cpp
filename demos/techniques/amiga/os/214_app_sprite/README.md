@@ -11,12 +11,17 @@ con **`app.screen().sprite(spr, x, y)`**; la geometría del destino la prepara l
 - Un **BOB 32×32 de 2 planos** (disco rojo con centro amarillo) dibujado por cookie-cut, con
   la hoja generada en Chip al arrancar.
 - El sprite recorre la pantalla en horizontal y rebota en vertical.
-- Todo por la fachada `eng::App`/`Screen`: `init(app)`/`update(app)`/`render(app)`.
+- El consumer incluye `<eng/api/api.hpp>` como única puerta del engine; el backend Amiga se incluye
+  aparte en el composition root.
+- Todo el ciclo de juego pasa por `eng::App`/`Screen`: `init(app)`/`update(app)`/`render(app)`.
 
 ## Criterio de aceptación
 
 - `state=3` (Ready).
+- `frame >= 5` al capturar: READY espera varios ciclos de doble buffer para que la primera captura
+  contenga el render publicado.
 - Captura: disco rojo con centro amarillo sobre fondo azul oscuro.
+- `analyze-screenshot.sh` exige píxeles amarillos; el fondo sin sprites no pasa el gate.
 
 ## Compilar / ejecutar
 

@@ -1,17 +1,18 @@
 // ============================================================================
-// Test HOST-234: fachada de juego `eng::App` + `eng::Screen` (eng/api/game.hpp).
+// Test HOST-234: fachada de juego `eng::App` + `eng::Screen` (eng/api/api.hpp).
 // ============================================================================
 //
 // Valida el borrador del API publico de juego sobre lo que ya existe: `App` junta el bucle,
 // la pantalla y las tareas, y el juego se escribe con `init/update/render(App&)` sin ver el
-// backend ni `GameContext`/`FramePlan`. `Screen` es el contexto de dibujo de alto nivel.
+// backend ni `GameContext`/`FramePlan`, importando por la puerta unica `api.hpp`.
+// `Screen` es el contexto de dibujo de alto nivel.
 //
 // Ejecucion:
 //   bash tools/run-host-tests.sh tests/host/ui/234_app_screen
 
 #include <cstdio>
 
-#include <eng/api/game.hpp>
+#include <eng/api/api.hpp>
 #include <eng/hw/info.hpp>
 
 using namespace eng;

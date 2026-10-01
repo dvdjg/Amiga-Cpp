@@ -1,6 +1,8 @@
 # Roadmap de coherencia de la API del engine
 
-Estado: **propuesta** (diagnóstico + plan). Es la referencia para **no fijar dos verdades** al
+Estado: **roadmap activo para limpiar la fachada de juego**. El diagnóstico se contrasta con
+`eng/api/game.hpp`, `device.hpp`, `assets.hpp` y los consumidores reales; no asumir que el boceto
+de este documento ya es el API implementado. Es la referencia para **no fijar dos verdades** al
 construir lo que falta (planner de capas, decoders de assets, `World` completo). Complementa
 los principios de [PUBLIC_API.md](PUBLIC_API.md) y el objetivo de
 [PUBLIC_GAME_API.md](PUBLIC_GAME_API.md).
@@ -8,17 +10,18 @@ los principios de [PUBLIC_API.md](PUBLIC_API.md) y el objetivo de
 ## 1. Propósito
 
 El engine ha crecido por capas (core → field/graphics → scene → api) y la fachada de juego se
-ha ido añadiendo sobre piezas internas. Este documento recoge **las incongruencias** que han
-aparecido al usarla (port de las demos 204/086/213/214), propone **una arquitectura objetivo
-elegante** y ordena el trabajo en **fases** con gates verificables.
+ha ido añadiendo sobre piezas internas. Este documento recoge **las incongruencias** verificadas
+al usarla (ports de las demos 204/086/213/214), indica qué ya existe y ordena la limpieza pendiente
+por fases con gates verificables. La arquitectura elegente de §§3.1–3.4 es objetivo, no descripción
+del API que el juego consume hoy.
 
 ## 2. Diagnóstico (incongruencias)
 
 Ordenadas por impacto sobre el diseño interno y la usabilidad de la API.
 
-1. **Dos puertas de entrada.** `eng/api/api.hpp` (fachada de tipos) **no** incluye
-   `eng/api/game.hpp` (`App`/`Screen`), así que el include "oficial" no da el bucle de juego, y
-   quien quiere `App` incluye otra cabecera. Debe haber **una sola** puerta.
+1. **Puertas e imports.** `eng/api/api.hpp` ya incluye `eng/api/game.hpp`; la puerta existe, pero
+   reexporta varias cabeceras de bajo nivel y demos Amiga agregan backend/utilidades porque la fachada
+   no cubre todos los casos.
 2. **`App` es un *service locator*.** Expone a la vez alto nivel (`world`, `screen`, `input`,
    `audio`, `tasks`, `assets`) y hardware de bajo nivel (`memory()`, `scene()`, `copper()`,
    `copper_scheduler()`, `blitter_*`, `takeover_copper/commit_copper`). Es justo lo que
@@ -27,7 +30,7 @@ Ordenadas por impacto sobre el diseño interno y la usabilidad de la API.
    `DrawTarget` (fill/line/text/blit/c2p) → `Surface` (las mismas primitivas + `blit`) →
    `Rasterizer` (seam). No está claro cuál es *la* API de dibujo; el "contexto de dispositivo"
    de `PUBLIC_API.md` §12 está partido entre las cuatro.
-4. **Dos modelos de propiedad para el mismo par.** `AssetCache` guarda `Ref<Backend>`
+4. **Dos modelos de propiedad en el subsistema de recursos.** `AssetCache` guarda `Ref<Backend>`
    (**observa**, `asset_cache.hpp`), mientras `AssetRuntime` **posee** su `CacheBackend`
    (`asset_runtime.hpp`). Además `res::load<Tag>` devuelve `Block<Tag>` (dueño) y
    `AssetRuntime::bytes<Tag>` devuelve `ByteView<Tag>` (vista): dos "handles" con semántica
@@ -52,6 +55,21 @@ Ordenadas por impacto sobre el diseño interno y la usabilidad de la API.
     mini-SO (`Joystick`/`Gamepad`/`MouseButton`). Transitorio, pero hoy hay dos verdades.
 11. **`api.hpp` mezcla niveles.** Reexporta tipos crudos de `core`, `field`, `graphics`,
     `scene`, `ui`, `task`… sin separar "lo que usa un juego" de "lo que usa el engine".
+
+### 2.1 Estado contrastado con el API que compila
+
+El API **no está todavía lo suficientemente limpio para ser la única interfaz de un developer**. Hay una fachada de juego útil para el camino habitual (`App`, `Screen`, `World`, `input`, `audio`, `assets`), pero se mezcla con un escape de máquina y varios módulos de objetivo aún no implementados. Estas son las fugas verificables que impiden marcarlo como API de nivel A terminado:
+
+| Superficie actual | Problema observable | Consecuencia |
+|---|---|---|
+| `App::configure_memory(MemoryConfig)` y `App::device().memory_manager()` | El juego elige presupuestos por banco y puede reservar `Block<Tag>` manualmente. Lo usan, entre otras, las demos 011, 204, 213 y 086. | Arrancar un juego requiere conocer asignación y ciclo de memoria; el acceso bajo nivel no es un caso marginal. |
+| `Device::blitter_clear`, `blitter_or_bobs`, `blitter_collide`, `execute_frame_plan`, `takeover_copper`, `commit_copper` | El consumidor pasa planos/dimensiones/strides/máscaras o planes de engine. | Es un escape útil para demos técnicas, pero no constituye una API de intención de juego simple. |
+| `Screen::target()` | Devuelve `field::DrawTarget&`; `Screen::blit` pide dimensiones, stride, planos, shift y operación. | `Screen` aún permite saltar directamente al modelo de raster/plan; la frontera de nivel A no está cerrada. |
+| `App::load(path, size, MemoryRequest, priority)` | Carga bytes por tamaño conocido y devuelve un `AssetId`; `asset_view()` devuelve la vista no propietaria. No existe el decoder tipado `load<Sprite>(path)` descrito en el objetivo. | El juego conoce detalles de almacenamiento y tiene que resolver formato/tipo/vida útil. |
+| `World::emit` / `App::draw_world()` | Requieren `BobTarget`, `DirtyRect` y `FramePlan`; las capas de tilemap/fondo todavía no se materializan desde `World`. | El modelo retenido no es aún el camino de render completo; la demo 086 conserva planificación de máquina explícita. |
+| Resultados de operaciones | Coexisten `bool`, id cero, vista vacía y bloques inválidos. | La llamada requiere convenciones locales para distinguir fallo de recurso pendiente o API ausente. |
+
+Conclusión: la API es **parcialmente limpia**, no final. Su superficie actual es razonable para prototipos y demos que aceptan el nivel `Device`; aún no permite a un developer hacer un juego 2D completo sin configurar memoria, reservar buffers o entender handles crudos. El diseño de `GAME_API_TWO_LEVELS.md` es objetivo, no prueba de que esa capa A ya exista.
 
 ## 3. Solución elegante (arquitectura objetivo)
 
@@ -130,13 +148,13 @@ app.run();
 |---|---|
 | `api.hpp` y `game.hpp` separados | `api.hpp` reexporta `App`/`Screen`/`World` |
 | `App::memory()/copper()/scene()/blitter_*` | `App::device()` agrupa servicios; `App` queda corto |
-| `Screen`/`DrawTarget`/`Surface`/`Rasterizer` | **`Screen`** = contexto de dispositivo; el resto, interno |
+| `Screen`/`DrawTarget`/`Surface`/`Rasterizer` | **Objetivo**: `Screen` = contexto normal; actual `Screen::target()` aún devuelve `DrawTarget&` |
 | `eng::MusicModule` + `eng::audio::MusicModule` | un `MusicBytes`/`Music` |
 | `Sprite` (objeto) + sprite hardware | `Sprite` (objeto) y `HwSprite` (representación) |
 | `SceneLayout` + `BobLayout` | un `PlaneLayout` |
 | `MemoryKind` mezclado con vida útil (`frame`) y banco efectivo | `MemoryKind` para banco, `MemoryManager` para reservas y `ScratchArena` para vida temporal; migración persistente abierta en MEM-001 |
 | `bool`/`0`/bloque inválido | `Expected<T>` (valor o `eng::Result`) + `[[nodiscard]]` |
-| `takeover`/`commit`/`present` | `install`/`publish` (vocabulario único) |
+| `takeover`/`commit`/`present` | nombres actuales quedan por módulo; unificar solo al migrar consumidores reales |
 
 ## 4. Roadmap por fases
 
@@ -144,55 +162,92 @@ Cada fase es **autocontenida, verificable y revertible**. Las demos y los tests 
 gate; ninguna fase rompe una demo verde sin migrarla en la misma pasada.
 
 ### F0 — Guardas y acuerdo
-- Documentar este roadmap y enlazarlo (`README` de arquitectura, `DOC-MAP`).
-- **Congelar** superficie nueva de juego hasta F1–F2 (evitar más `App::*` de bajo nivel).
-- Añadir un check ligero: `App` no puede exponer `memory()`/`copper()`/`scene()` tras F2
-  (lista blanca en un `.mjs`).
-- *Gate*: `node tools/check/*` verde.
+- Roadmap enlazado; `api-facade.mjs` prohíbe acceso directo al backend desde demos/juegos.
+- No hay check que limite los miembros públicos de `App`/`Device`; conviven servicios de juego y
+  rutas de bajo nivel.
+- Estado: parcial. Antes de sumar métodos públicos, decidir si es API de juego o escape técnico.
 
 ### F1 — Puerta única y dominio (bajo riesgo)
-- `api.hpp` incluye `game.hpp` y deja de reexportar cabeceras internas que el juego no usa.
+- `api.hpp` ya incluye `game.hpp`; todavía reexporta cabeceras internas de `field`, `graphics`,
+  `scene` y otros módulos.
 - Unificar nombres: `Music` (un tipo) vs `HwSprite*` (**hecho**), `PlaneLayout` (**hecho** como alias único).
-- Introducir `Result<T>`/`Status` y usarlo en las APIs **nuevas**.
-- *Gate*: todas las demos compilan/run igual; HOST en verde.
+- `Result<T>` existe y se usa en APIs nuevas, pero `bool`, id cero, vistas vacías y bloques inválidos
+  siguen formando parte del flujo público. Estado: parcial.
 
 ### F2 — Separar `App` en composition root + `Device`
 - `App` se queda con: bucle, `screen`, `world`, `input`, `audio`, `tasks`, `assets`, `port`.
 - `Device` agrupa `memory`/`blitter_*`/`copper`/`raster`/`presupuesto`; se accede por
   `app.device()` y es **ignorable** por juegos simples.
-- **Hecho**: `app.device()` + demos 204/086/209/214 migradas; el check `api-facade.mjs`
+- **Parcial**: existe `app.device()` + demos 204/086/209/214 migradas; el check `api-facade.mjs`
   prohíbe en demos/juegos el hardware directo de `App` (`app.memory/blitter_*/copper/scene/…`).
-- Retirar los métodos directos de `App` (delegados a `Device`) es limpieza mecánica (F2b).
+- `App` todavía expone `configure_memory`, `memory_manager`, `load_asset`, ids/vistas/leases crudas,
+  `draw_world`, `takeover` y `present`; `Screen::target()` filtra `DrawTarget`. No marcar F2 como
+  limpieza concluida mientras esos accesos sean la forma requerida por consumidores representativos.
+- Eliminar duplicados de `App` solo después de migrar los consumidores; reservar `Device` para el
+  escape deliberado de demos técnicas, con operaciones basadas en intención donde exista reemplazo.
+- Estado: parcial. Es útil como separación de servicios para las demos migradas, pero no cumple aún
+  la frontera de API de juego descrita en `PUBLIC_API.md`.
 - *Gate*: check de F0 pasa; demos migradas verdes.
 
-### F3 — Unificar el dibujo en `Screen`
-- `Screen` es **la** API de dibujo (primitivas + `sprite` + `present` del plan).
-- `Surface`/`DrawTarget`/`Rasterizer` pasan a internos (no reexportados).
-- *Gate*: HOST-234 (App/Screen) + demos de dibujo verdes.
+### F3 — Unificar y estrechar el contexto de dibujo (`Screen`) — pendiente
+- `Screen` debe ser la superficie de uso común: `clear`, primitivas, texto, sprite y blit de imagen
+  cocinada. Actualmente `Screen::blit` pide `src_row_bytes`, `src_plane_stride`, `planes`,
+  `source_shift`, dirección descendente y `RasterOp`, mientras `Screen::target()` devuelve
+  `field::DrawTarget&`. Eso es válido como escape de transición, no como fachada terminada.
+- Mantener un escape interno/local para técnicas que realmente necesiten `DrawTarget`/`FramePlan`; no
+  fingir que `Screen` ya los oculta al 100 % ni crear una segunda capa de wrappers redundantes.
+- Gate: adaptar un consumidor de juego representativo al `Screen` normal, dejar el escape técnico
+  acotado a demos de técnica y probar equivalencia del render.
 
 ### F4 — `World` de alto nivel + planner
-- `Layer` con **contenido** (bitmap planar; `TileLayer` aparte) y cámara.
-- `World::present(Screen&)` emite capas + actores (sin `BobTarget`/`FramePlan` en la firma).
-- Migrar `086` a `world.add_actor` + `World::present`.
-- *Gate*: demo de scroll por capas + 086.
+- Parcial: `World`/`Layer`/cámara y `draw_world()` para actores existen, pero el juego todavía liga una
+  `Scene` manual y `App::draw_world()` construye `BobTarget`/`DirtyRect`/`FramePlan` internamente.
+- Falta materializar capas de bitmap/tilemap y dar a la app un `World::present(Screen&)` que no exponga
+  plumbing de actor/plan. La demo 086 sigue creando su propio `copper::Plan`/FramePlan mediante
+  `app.device()` por ser una demo técnica; no se exige migrarla al nivel A hasta que el planner cubra
+  su caso.
+- Gate: juego sencillo con fondo/capa + actor que solo use `App`, `World` y `Screen`, sin `bind_scene`
+  ni `BobTarget`/`FramePlan`.
 
 ### F5 — Assets tipados y error único
-- `Assets::load<T>(path)` con `Result<Asset<T>>`; decoders con receta
-  (`SpriteRecipe`/`PlaneSpec`/`MusicCodec`).
-- `AssetCache` y `AssetRuntime` con **un** modo de propiedad (la caché no guarda `Ref` al
-  backend; el runtime es el dueño).
-- *Gate*: demo de carga asíncrona con assets de disco + HOST.
+- Parcial: `Assets::add<Tag>` copia blobs preconocidos; `AssetRuntime` carga por path y tamaño y
+  devuelve IDs/vistas; `App::load<T>` no es el decoder tipado del ejemplo. `Assets::create<Tag>`
+  devuelve un `Block<Tag>` y el registro/fase tiene reglas de liberación separadas.
+- Objetivo: un handle tipado por asset y un flujo de error único. La carga async debe ser explícita si
+  el juego la necesita, sin filtrar bancos, tamaños físicos ni punteros. No cerrar ownership completo
+  como prerrequisito de la limpieza general de la fachada.
+- Gate: demo que carga un sprite tipado, recibe ready/error y lo usa por `Screen::sprite`; HOST cubre
+  formato, generación e invalidación del handle.
 
 ### F6 — Limpieza
-- Eliminar lo deprecado (`api.hpp` viejo, dobles nombres), migrar demos restantes.
-- Cerrar el rojo ajeno (`header-impl` de `goap.hpp`) y dejar `tools/run-host-tests.sh` verde.
-- *Gate*: regresión completa.
+- Retirar o acotar accesos duplicados solo después de migrar los consumidores reales; no esconder
+  `Device` de las demos técnicas ni cambiar la fachada por estética.
+- Actualizar el índice y la matriz de demos; gate `api-facade`, docs y pruebas del consumidor nuevo.
+
+**Lectura del estado actual:** F1–F6 no están cerradas como bloque. F2 existe como separación de
+servicios; F3–F5 tienen piezas aisladas, pero falta el camino de capas y assets del ejemplo de juego.
+No marcar la fachada como «API limpio final» hasta que un juego representativo complete
+init/update/render con vocabulario de dominio y los escapes de `Device` queden acotados a demos
+técnicas.
+
+### Orden de salida para la próxima implementación de API
+
+1. **Hecho (gate inicial)**: HOST-234 incluye solo `<eng/api/api.hpp>` y valida `App`/`Screen`; la
+   demo 214 compila y ejecuta el consumer con esa misma puerta única. Esto fija el contrato mínimo,
+   aunque el arranque de escena y el planner de capas sigan siendo explícitos.
+2. Resolver arranque/liga de escena con presets de juego, dejando `configure_memory`, `Scene` y
+   `scene::compose` dentro del composition root/backend.
+3. Retirar `Screen::target()` de la superficie normal; no reemplazarlo por wrappers uno-a-uno.
+4. Materializar un fondo/capa real en `World` y presentar un `Sprite` por asset de dominio.
+5. Mantener `Device`/API tipada interna para demos técnicas; no filtrarla a la firma del juego.
 
 ## 5. Criterios de aceptación
 
 - **Una puerta**: un juego compila solo con `<eng/api/api.hpp>`.
-- **Sin hardware en juego**: `grep` sobre `demos/games` no encuentra `copper::`, `BPLCON`,
-  `DMACON`, `BobTarget`, `FramePlan`, `Blitter`.
+- **Sin plumbing de hardware en un consumer nivel A**: un ejemplo de juego escrito con
+  `App`/`World`/`Screen` no necesita `copper::`, `BPLCON`, `DMACON`, `BobTarget`, `FramePlan` ni
+  configuración manual de `Device`. Las demos bajo `techniques/` quedan excluidas porque su objetivo
+  es enseñar la técnica.
 - **Un nombre por concepto**: sin `MusicModule` duplicado ni `Sprite` ambiguo.
 - **Fallo explícito**: las APIs nuevas devuelven `Expected<T>`/`Result` con `[[nodiscard]]`.
 - **Memoria coherente**: `MemoryKind` ⇔ `MemorySystem` (sin mapeos implícitos).

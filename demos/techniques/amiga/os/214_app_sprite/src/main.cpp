@@ -23,7 +23,6 @@
 // ============================================================================
 
 #include <eng/api/api.hpp>
-#include <eng/api/game.hpp>
 #include <eng/platform/amiga/backend.hpp>
 
 #include <proto/exec.h>
@@ -52,7 +51,13 @@ constexpr eng::u16 kWidth = 320u;
 constexpr eng::u16 kHeight = 256u;
 constexpr eng::u8 kPlanes = 4u;
 constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kWidth / 8u) * kHeight;
-constexpr scene::SceneResources kRes = scene::planar(kWidth, kHeight, kPlanes);
+/// Dos buffers mantienen visible el último frame completo mientras la CPU/Blitter dibuja el siguiente.
+constexpr scene::SceneResources make_scene_resources() {
+	scene::SceneResources res = scene::planar(kWidth, kHeight, kPlanes);
+	res.buffers = 2u;
+	return res;
+}
+constexpr scene::SceneResources kRes = make_scene_resources();
 
 constexpr eng::Palette32 kPalette {{
 	0x013, 0xf00, 0x0f0, 0xff0, 0x333, 0x333, 0x333, 0x333,
@@ -121,11 +126,12 @@ struct AppSpriteDemo {
 		}
 
 		app.takeover(); // instala la copperlist del camino planar
-		// READY se marca en el primer `render` (con el frame ya dibujado/commitido), para que
-		// la captura del runner no caiga en un frame sin publicar.
+		// READY se retrasa hasta que el display haya completado varios ciclos de doble buffer:
+		// el primer render puede ocurrir antes de que la primera captura vea el buffer publicado.
 	}
 
 	void update(auto& app) {
+		eng::debug::mark_frame(g_eng_run_status, app.frame());
 		// La cámara de la capa de fondo avanza; el sprite se dibuja según su scroll.
 		if (auto l = app.world().layer(0u)) {
 			l->camera().set_scroll_x(static_cast<eng::u16>(app.frame() * 2u));
@@ -147,8 +153,8 @@ struct AppSpriteDemo {
 		}
 		app.draw_world();
 		app.present();
-		// READY en el primer frame ya publicado (el runner captura tras el primer render).
-		if (app.frame() < 2u) {
+		// READY tras varios frames completos para que el runner capture un buffer ya visible.
+		if (app.frame() == 4u) {
 			eng::debug::mark_ready(g_eng_run_status, 0x00021400u);
 		}
 		eng::debug::probe_when_ready(g_eng_run_status, app.frame());

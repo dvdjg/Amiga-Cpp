@@ -1,7 +1,8 @@
-# El API de juego ideal: dos niveles (alto nivel por defecto, escape close-to-the-metal)
+# Objetivo del API de juego: dos niveles (alto nivel por defecto, escape close-to-the-metal)
 
-Este documento fija la **intención** del API que consume quien hace un juego para Amiga 500 (y, por
-extensión, cualquier plataforma del engine). Los **principios** generales están en
+Este documento fija el **objetivo no alcanzado** del API que consume quien hace un juego para Amiga 500 (y, por
+extensión, cualquier plataforma del engine). La fachada existente es parcial; su diagnóstico está en
+`ROADMAP_API_COHERENCE.md`. Los **principios** generales están en
 [PUBLIC_API.md](PUBLIC_API.md) §1.1 y la **guía de módulo a módulo** (qué existe y qué falta) en
 [PUBLIC_GAME_API.md](PUBLIC_GAME_API.md); aquí se describe la **forma** que debe tener todo el API:
 un desarrollador sin conocimiento del chipset expresa **casi cualquier cosa** con vocabulario de
@@ -27,7 +28,9 @@ algo el desarrollador tiene que aprender un registro o un stride, el API ha fall
 
 ## 2. Los dos niveles (revelación progresiva)
 
-El API tiene **dos niveles**, y cada capacidad vive en el suyo:
+El API objetivo tiene **dos niveles**, y cada capacidad vive en el suyo. En el estado actual el
+escape `Device` también sirve para construir una escena completa, así que la separación todavía no
+queda limitada a usos expertos:
 
 - **Nivel A — alto nivel (por defecto, el 90 % del juego).** Vocabulario de juego, sin hardware:
   `Screen`, `Sprite`, `Layer`, `Camera`, `Effect`, `Assets`, `Input`, `Audio`. La llamada habitual
@@ -39,7 +42,9 @@ El API tiene **dos niveles**, y cada capacidad vive en el suyo:
 
 Principio rector: **nada se esconde para siempre; todo está disponible, pero cada cosa tiene su
 nivel.** El nivel A no es una caja negra opaca: es una fachada **completa** (no recorta) y **fina**
-(deja bajar) sobre el nivel B.
+(deja bajar) sobre el nivel B. Estas propiedades son **criterios del objetivo**, no una descripción
+de la implementación actual; la fachada existente aún necesita setup de bajo nivel y materialización
+de capas para un juego completo.
 
 ```
    ┌───────────────────────────────────────────────────────────┐

@@ -8,20 +8,26 @@ Es evolutivo: se escribe para lo disponible y se adapta cuando lleguen los módu
 > Este documento fija el **objetivo** y el **mapeo** desde el API interno actual; es la referencia
 > para «¿cómo lo pediría un juego?» al tocar cada módulo.
 
-## 1. Estado: qué hay y qué falta
+## 1. Estado contrastado: fachada útil, objetivo de juego pendiente
+
+La tabla distingue piezas **disponibles en la fachada** de la experiencia final del API de juego.
+No implica que el developer ya pueda crear un juego completo solo con vocabulario de dominio:
+para fondos, memoria de escena y varios flujos de asset todavía se baja a `Device`/`Scene` o se
+construye materialización en la app. El diagnóstico actualizado está en
+[`ROADMAP_API_COHERENCE.md`](ROADMAP_API_COHERENCE.md) §2.1.
 
 | Área | Existe hoy (interno) | Falta (objetivo) |
 |---|---|---|
-| Bucle | `eng::Engine` + `GameModule` (`init/update/render`), `run_frames` (IRQ) / `run_frames_polling` | Fachada `App` que oculte `backend`/`GameContext` |
-| Display/escena | `scene::compose` + `Scene` + `SceneResources` (modos Standard/HAM/EHB/DPF/CopperChunky) | `World`/capas + planner (elige modo) |
-| Dibujo | `field::Surface`, `field::DrawTarget`, `graphics::FramePlan`, `field::Rasterizer` | Contexto de dibujo de alto nivel (`Screen`/pincel) |
+| Bucle | `eng::App` oculta `backend`/`GameContext` en `init/update/render` | Un ejemplo 2D completo de nivel A, sin configuración manual de memoria/escena |
+| Display/escena | `Scene`/`scene::compose` y `App::bind_scene` existen | `World`/capas con materializador para fondo y tilemap; hoy el planner completo de capas falta |
+| Dibujo | `Screen` ofrece primitivas y `sprite` | Retirar `Screen::target()` de la ruta normal; `Screen::blit` aún expone stride/planos/shift/operación |
 | Entrada | `input::InputAggregator` (estado por frame) | Fachada de acciones + (mini-SO de mensajes, documentado) |
 | Tareas de fondo | `task::BackgroundQueue` | Fachada `tasks()` |
 | Blitter/efectos | `FramePlan` (jobs), `graphics::blitter_state` (`OrBob`/`LineEor`/`C2p4`) | Efectos como concepto (`world.add_effect`) |
 | Copper chunky | `composition::CopperChunkyLayer` (`attach`/`begin_frame`/`row`/`end_frame`) | Efecto de alto nivel |
 | Paleta | `eng::Palette32` | — |
 | Actores/sprites | `eng::scene::ActorStore`/`Actor` | Representación elegida por el engine |
-| Audio | `eng::audio::AudioSystem`, mixer/música | Fachada `audio()` |
+| Audio | `App::audio()` y `AudioSystem` | Fachada actual expone el `AudioSystem` de backend; simplificar selección/recursos en otro bloque |
 | UI | Documentada (`GUI_LIBRARY.md`), sin implementar | `eng::ui` |
 
 ## 2. El API propuesto (para lo que existe)
@@ -66,8 +72,10 @@ for (y...) { u16* p = fx.row(y); /* colores */ }
 fx.end_frame(scene, backend);                                    // flip + install
 ```
 
-`Screen` (contexto de dibujo de alto nivel, análogo al `RastPort`): **la app nunca ve planos,
-`FramePlan` ni `Rasterizer`**.
+`Screen` es la envoltura de dibujo disponible, pero aún no es el contexto de dominio final:
+`Screen::target()` devuelve `field::DrawTarget&`, y `Screen::blit` recibe layout/strides/planos.
+Un juego debe preferir las primitivas de `Screen`; el acceso al target se considera fuga conocida y
+la operación de blit debe migrar a un asset/surface con geometría autocontenida.
 
 ```cpp
 eng::Screen& s = app.screen();
@@ -86,7 +94,7 @@ Estas cuatro familias son las que el port de la demo 213 midió como **huecos** 
 
 Reglas comunes a todas (previenen errores por construcción):
 
-- **Sin punteros ni offsets en la firma**: el juego nunca ve `u16*`, `u8*`, strides, número de planos ni módulos. Eso viaja dentro del *asset cocinado* y del *contexto de dispositivo*.
+- **Objetivo: sin punteros ni offsets en la firma del juego**: el nivel A no ve `u16*`, `u8*`, strides, número de planos ni módulos. El estado actual no lo satisface aún: `Screen::target()`, `Screen::blit` y `Device` exponen rutas de transición/de bajo nivel. Eso se clasifica en `ROADMAP_API_COHERENCE.md` §2.1.
 - **Identidad fuerte**: `SpriteId`, `ColorIndex`, `LayerId`, `AssetHandle<T>` son tipos distintos, no `u8`/`u16` sueltos: no se puede pasar el índice de color donde va un canal ni un handle de música donde va uno de sprite.
 - **Error sin excepciones**: `[[nodiscard]] bool` para lo que puede fallar por presupuesto; los *setters* de valor (color, scroll) no fallan si ya hay sitio, o devuelven `bool` si el recurso está lleno.
 - **Una llamada por intención**, configuración por *designated initializers* con defectos.
@@ -133,7 +141,9 @@ Reutiliza `scene::Camera2D` (`virtual_scene.hpp`) y `TileScrollDriver`/`FineScro
 
 ### 2.1.4 Recursos — `app.load<T>(...)` y presupuesto
 
-`load<T>` declara, carga y **cachea** un asset tipado, eligiendo Chip/Fast según el tipo (los datos que consume DMA —bitmaps, música P61, samples— van a Chip). El tipo `T` fija la decodificación (`Sprite`, `Music`, `Sample`, `Planes`), coherente con el `AssetCache` bytes-only + capa de decodificación separada (`RESOURCE_SYSTEM.md` §7).
+El `load<T>` de este contrato es **objetivo, no API implementada**: declara, carga y cachea un asset
+tipado, pero hoy `App::load` recibe path+tamaño+`MemoryRequest` y devuelve `AssetId`; no decodifica
+`Sprite`/`Music` ni devuelve `AssetHandle<T>`.
 
 ```cpp
 auto mod  = app.load<eng::Music>("assets/testmod.p61");   // -> AssetHandle<Music> / Result
@@ -142,7 +152,12 @@ sprite->draw(s, x, y);
 app.resources().used_chip();                      // presupuesto consultable antes de pedir
 ```
 
-`load<T>` es el sustituto del boilerplate actual (símbolo `incbin` + `allocate_block<Tag>` + `memcpy` + miembro por tag) y se apoya en `AssetCache` (`asset_cache.hpp`), el `Backend` de IO (`os::file_*`) y `Budget` sobre `MemoryManager`. Devuelve handle/`Result`, no `Span<u8>` ni `Block<Tag>`. **Estado:** existen `Budget`, `res::load<Tag>`, `res::load_file<Tag>`, `AssetCacheBackend` y `AssetRuntime`; falta la decodificación tipada pública `app.load<T>("path")`, el ownership automático de handles y una demo de carga asíncrona con assets tipados. La liberación física individual de la caché sigue abierta (MEM-001..MEM-007).
+La base disponible es `AssetCache`/`AssetRuntime` bytes-only, `res::load<Tag>`, `res::load_file<Tag>` y
+`Budget`. La fachada también da acceso a `assets()`, `load_asset(path,size,request,prio)`, `asset(id)` /
+`asset_view(id)` y leases sin un tipo de dominio resuelto. `Assets::add<Tag>(name, data, size)` copia
+blobs registrados en setup; `Assets::create<Tag>(size)` devuelve un `Block<Tag>` para reservas
+manuales. La decodificación tipada y el camino asíncrono completo con asset de juego siguen
+pendientes; no tratar el boceto `app.load<Music>(path)` como llamada real.
 
 ## 3. Mapeo interno → público (guía al tocar cada módulo)
 
@@ -192,12 +207,14 @@ app.resources().used_chip();                      // presupuesto consultable ant
 7. **`Palette` (`set`/`mix`/`fade`)** (§2.1.2): envolver `Palette32` + `util::palette_*` + `add_base_palette_patch`; gate host de la aritmética de color.
 8. **`Camera`/`Layer` con `scroll_x`** (§2.1.3): unificar `Camera2D` + `TileScrollDriver`/`FineScroll` tras una capa con cámara.
 9. **`app.resources()` + `res::load<T>`** (§2.1.4): **presupuesto** (HOST-325), **carga síncrona tipada** `res::load<Tag>` (HOST-326, gate en la demo 213), **carga desde fichero** `res::load_file<Tag>` (HOST-328), **backend Amiga de `AssetCache`** (HOST-330) y **runtime** `res::AssetRuntime` + enganche en `AmigaBackend::assets()`/`app.load_asset`/`app.route_resource_io` (HOST-331) **hechos**; falta la **decodificación tipada** `app.load<T>("path")` y una demo de carga asíncrona con assets de disco.
-10. **Migrar una demo** al API completo: **hecho** — `204_collide_game` (`app.screen()` + `app.blitter_*`) y `086_bob_objects` (`app.memory()`/`app.blitter_clear`/`app.execute_frame_plan` + su propio `copper::Plan` vía `app.takeover_copper`/`app.commit_copper`).
+10. **Consumidores migrados**: `204_collide_game` usa `app.screen()` y `app.device().blitter_*`; `086_bob_objects` usa la fachada `App` pero llama a `device().memory_manager()`, crea su propio `copper::Plan` y ejecuta `FramePlan`. Son demos técnicas del nivel B, no demostración de que el API de juego de nivel A esté terminado.
 11. **`World`/`Layer` + planner** (§2.1.3): el contenedor **hecho** (`eng/scene/world.hpp`: capas + `ActorStore` + `emit`; `app.world()`, HOST-327/329) y la **entrada del planner de actores** `app.draw_world()` (emite el mundo al plan del frame; gate `214_app_sprite`, que dibuja un sprite por `screen.sprite` y un actor por `draw_world`); falta la **materialización de capas** (playfield/tilemap/efecto) y el reparto de recursos (`SCENE_AND_RESOURCES.md`).
 12. **Servicios de hardware en `App`**: **hecho** — `app.wait_blitter()`, `app.install_raster(scene)`, `app.blitter_clear/or_bobs/collide(...)`, `app.execute_frame_plan(plan)`, `app.takeover_copper(plan)`/`app.commit_copper(plan)`, `app.scene()`/`app.copper()`/`app.copper_scheduler()` (reenvían al backend si lo soporta); gates en `204_collide_game` y `086_bob_objects`. Faltan más servicios (sprites/copper por objeto de alto nivel) según los pidan las demos.
 
-Mientras tanto, el API de `eng/api/api.hpp` (fachada de tipos) sigue siendo la puerta de lo
-existente; `App`/`Screen` lo envuelven para el caso de juego.
+**Criterio actual de limpieza:** parcial. `api.hpp` incluye `App`/`Screen`, hay operaciones de dibujo
+por dominio y un escape agrupado en `Device`; pero un juego aún configura memoria, liga una `Scene`,
+puede obtener `DrawTarget` vía `Screen::target()`, y el `World` no materializa capas de fondo/tilemap.
+Por tanto es una base útil y evolutiva, no todavía la fachada simple prometida para un juego completo.
 
 ## 6. Referencias
 
