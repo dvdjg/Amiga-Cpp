@@ -331,6 +331,10 @@ public:
 	/// antiguos que solo conocian `install_copper_list`).
 	void install_copper_list(const u16* copper_words);
 
+	/// Detiene los canales DMA del display antes de liberar la escena/copperlist que consumen.
+	/// No devuelve el control al sistema operativo: `takeover_display` ya congeló sus IRQ.
+	void stop_display();
+
 	/// Ejecuta los trabajos hardware descritos por un `FramePlan`.
 	///
 	/// Por ahora solo materializa BOBs enmascarados mediante Blitter. Los parches de

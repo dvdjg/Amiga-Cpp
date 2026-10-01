@@ -80,14 +80,6 @@ struct AppSpriteDemo {
 	void init(auto& app) {
 		eng::debug::mark_init_started(g_eng_run_status);
 
-		if (!scene::compose(m_scene, app.device().memory_manager(), kRes, scene::ocs_a500,
-				    scene::display(scene::kPal320x256, scene::kBplcon0_4Planes),
-				    scene::palette(kPalette.words()))) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00021401u);
-			return;
-		}
-		app.bind_scene(m_scene);
-
 		// Mundo retenido: una capa de fondo con su cámara; el sprite sigue su scroll.
 		auto fondo = app.world().add_layer("fondo", 0u);
 		if (!fondo) {
@@ -125,7 +117,6 @@ struct AppSpriteDemo {
 			return;
 		}
 
-		app.takeover(); // instala la copperlist del camino planar
 		// READY se retrasa hasta que el display haya completado varios ciclos de doble buffer:
 		// el primer render puede ocurrir antes de que la primera captura vea el buffer publicado.
 	}
@@ -187,7 +178,6 @@ private:
 		}
 	}
 
-	scene::Scene m_scene {};
 	eng::scene::ActorId m_actor {};
 	eng::Block<eng::BobTag> m_sheet {};
 	graphics::Bob m_bob {};
@@ -201,12 +191,24 @@ int main() {
 	eng::debug::reset(g_eng_run_status);
 
 	eng::amiga::AmigaBackend backend {};
-	if (!backend.configure_memory({96u * 1024u, 8u * 1024u, 4u * 1024u})) {
+	const auto memory = eng::amiga::game_memory_custom(
+		eng::MemoryConfig {96u * 1024u, 8u * 1024u, 4u * 1024u, 0u}, "Demo 214");
+	if (!backend.configure_game_memory(memory)) {
 		eng::debug::mark_failed(g_eng_run_status, 0x00021403u);
 		return 0;
 	}
 	AppSpriteDemo game {};
-	eng::App app {backend, game};
+	eng::App app {backend, game, backend.memory_manager()};
+	eng::GameDisplay display {};
+	display.width = kWidth;
+	display.height = kHeight;
+	display.color_depth = kPlanes;
+	display.buffers = kRes.buffers;
+	display.palette = kPalette;
+	if (!app.set_display(display) || !app.start()) {
+		eng::debug::mark_failed(g_eng_run_status, 0x00021401u);
+		return 0;
+	}
 	app.run(0xffffu);
 
 	return 0;

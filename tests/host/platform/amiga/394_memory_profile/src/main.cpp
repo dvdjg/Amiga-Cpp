@@ -1,5 +1,5 @@
 // ============================================================================
-// Test HOST-331: política declarativa de RAM de aplicación Amiga.
+// Test HOST-394: política declarativa de RAM de aplicación Amiga.
 // ============================================================================
 //
 // Comprueba los pools A500/A1200 recomendados, que el override permite asignar Fast RAM cuando

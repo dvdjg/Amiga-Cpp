@@ -499,6 +499,15 @@ void AmigaBackend::install_copper_list(const u16* copper_words) {
 	*cop1lc = reinterpret_cast<u32>(copper_words);
 }
 
+void AmigaBackend::stop_display() {
+	if (!m_display_taken) return;
+	wait_blitter();
+	// El Copper puede volver a cargar COP1LC al VBlank siguiente; desactivar el DMA completo
+	// antes de destruir la escena evita que Exec lea copperlists/bitplanes ya liberados.
+	custom_base[custom_dmacon_offset] = dma_clear_all;
+	m_display_taken = false;
+}
+
 void AmigaBackend::set_bitplane_dat(u8 plane, u16 value) {
 	if (plane < 8u) {
 		custom_base[custom_bpldat_offset + plane] = value;

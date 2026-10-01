@@ -26,6 +26,7 @@
 #include <eng/core/types/domains.hpp>
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/span.hpp>
+#include <eng/core/util/expected.hpp>
 #include <eng/debug/telemetry.hpp>
 #include <eng/engine.hpp>
 #include <eng/field/draw_target.hpp>
@@ -34,6 +35,7 @@
 #include <eng/graphics/copper/plan.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/frame_plan.hpp>
+#include <eng/graphics/palette32.hpp>
 #include <eng/graphics/sprite_asset.hpp>
 #include <eng/input/input.hpp>
 #include <eng/os/port.hpp>
@@ -46,11 +48,30 @@
 
 namespace eng {
 
+/// Descripción declarativa del display que `App::start()` compone y posee.
+struct GameDisplay {
+	u16 width = 320u;
+	u16 height = 256u;
+	u8 color_depth = 4u;
+	u8 buffers = 1u;
+	Palette32 palette = kBlackPalette;
+};
+
+/// Motivo por el que no pudo prepararse el display propio de `App`.
+enum class StartError : u8 {
+	AlreadyStarted,
+	MemoryUnavailable,
+	InvalidDisplay,
+	OutOfMemory,
+	CompositionFailed,
+};
+
 /// **Contexto de dibujo de alto nivel** (análogo al `RastPort`): la app dibuja sin ver planos,
 /// `FramePlan` ni `Rasterizer`. Envuelve un `field::DrawTarget` (Surface + rasterizador + plan +
 /// clip) y ofrece primitivas del dominio.
 class Screen {
 public:
+	Screen() = default;
 	explicit constexpr Screen(field::DrawTarget target) noexcept : m_target(target) {}
 
 	[[nodiscard]] bool valid() const noexcept { return m_target.valid(); }
@@ -128,6 +149,17 @@ public:
 		: m_backend(backend), m_game(game), m_engine(backend, m_adapter) {
 		m_adapter.self = this;
 	}
+	constexpr App(Backend& backend, Game& game, MemoryManager& memory) noexcept
+		: m_backend(backend), m_game(game), m_engine(backend, m_adapter), m_memory(memory) {
+		m_adapter.self = this;
+	}
+	~App() {
+		if (m_started) {
+			if constexpr (requires(Backend& backend) { backend.stop_display(); }) {
+				m_backend.stop_display();
+			}
+		}
+	}
 	App(const App&) = delete;
 	App& operator=(const App&) = delete;
 
@@ -138,6 +170,48 @@ public:
 	void run(u32 frames = 0xffffffffu) {
 		m_engine.set_vblank_hook(&App::on_vblank, this);
 		m_engine.run_frames(frames);
+	}
+
+	/// Compone una escena propia desde el gestor de memoria preconfigurado por el composition root.
+	/// El perfil de display es OCS/A500. Una composición que no cabe no deja recursos parciales y
+	/// puede corregirse antes de reintentar. NO VERIFICADA en hardware; HOST-234 prueba ownership y errores.
+	[[nodiscard]] util::Expected<void, StartError> start() {
+		if (m_started) return util::unexpected(StartError::AlreadyStarted);
+		if (!m_memory.valid() || !m_memory->configured())
+			return util::unexpected(StartError::MemoryUnavailable);
+		const auto resources = scene_resources();
+		if (!graphics::composition::validate(resources, graphics::composition::ocs_a500).ok())
+			return util::unexpected(StartError::InvalidDisplay);
+		if (graphics::composition::chip_bytes_for(resources) > m_memory->chip().free_bytes())
+			return util::unexpected(StartError::OutOfMemory);
+		const bool composed = graphics::composition::compose(
+			m_owned_scene, *m_memory.get(), resources, graphics::composition::ocs_a500,
+			graphics::composition::display(resources),
+			graphics::composition::palette(m_display.palette.words()));
+		if (!composed) {
+			m_owned_scene.release();
+			return util::unexpected(StartError::CompositionFailed);
+		}
+		m_scene = m_owned_scene;
+		m_started = true;
+		if constexpr (requires(Backend& backend, graphics::composition::Scene& scene) { scene.takeover(backend); }) {
+			m_owned_scene.takeover(m_backend);
+		}
+		if constexpr (requires(Backend& backend, graphics::composition::Scene& scene) { backend.install_raster(scene); }) {
+			m_backend.install_raster(m_owned_scene);
+		}
+		return {};
+	}
+
+	/// Declara recursos del display antes de `start()`; no altera una escena ya compuesta.
+	[[nodiscard]] bool set_display(const GameDisplay& display) noexcept {
+		if (m_started) return false;
+		m_display = display;
+		return true;
+	}
+	[[nodiscard]] const GameDisplay& display() const noexcept { return m_display; }
+	[[nodiscard]] u32 remaining_chip() const noexcept {
+		return m_memory.valid() ? m_memory->chip().free_bytes() : 0u;
 	}
 
 	[[nodiscard]] u32 frame() const noexcept { return m_frame; }
@@ -330,7 +404,9 @@ public:
 	}
 
 	/// El juego registra su escena (en `init`); `screen()`/`present()` la usan.
-	void bind_scene(graphics::composition::Scene& scene) noexcept { m_scene = scene; }
+	void bind_scene(graphics::composition::Scene& scene) noexcept {
+		if (!m_started) m_scene = scene;
+	}
 
 	/// **Mundo retenido** del juego (`app.world().add_layer("fondo", 0)`): capas con su
 	/// cámara. Contenedor aditivo; el planner que lo materializa llega después
@@ -368,7 +444,9 @@ public:
 	}
 
 	/// **Contexto de dibujo del frame** (buffer activo + plan del frame). Válido hasta `present`.
-	[[nodiscard]] Screen screen() noexcept { return Screen {m_scene.get()->draw_target(&m_plan)}; }
+	[[nodiscard]] Screen screen() noexcept {
+		return m_scene.valid() ? Screen {m_scene.get()->draw_target(&m_plan)} : Screen {};
+	}
 
 	/// **Publica el frame**: ejecuta el plan de Blitter (si el backend lo soporta) y commitea la
 	/// escena (swap de `BPLxPT`). Para el modo copper-chunky el juego usa su `CopperChunkyLayer`.
@@ -387,6 +465,13 @@ public:
 	}
 
 private:
+	[[nodiscard]] graphics::composition::SceneResources scene_resources() const noexcept {
+		auto resources = graphics::composition::planar(m_display.width, m_display.height,
+								 m_display.color_depth);
+		resources.buffers = m_display.buffers;
+		return resources;
+	}
+
 	/// Adapta el contrato del engine (`init/update/render(backend, context)`) al del juego
 	/// (`init/update/render(App&)`), reenviando el frame y el contexto de fondo.
 	struct Adapter {
@@ -443,6 +528,10 @@ private:
 	Game& m_game;
 	Adapter m_adapter {};
 	Engine<Backend, Adapter> m_engine;
+	eng::Ref<MemoryManager> m_memory {};                 ///< composition root owns configured pools
+	graphics::composition::Scene m_owned_scene {};       ///< scene composed and owned by this App
+	GameDisplay m_display {};
+	bool m_started = false;
 	eng::Ref<GameContext> m_context {};                 ///< contexto del engine (no propietario)
 	eng::os::MsgPort<16> m_port {};                     ///< puerto de mensajes del sistema
 	volatile u32 m_vblank_count = 0;                    ///< VBlanks publicados (IRQ)

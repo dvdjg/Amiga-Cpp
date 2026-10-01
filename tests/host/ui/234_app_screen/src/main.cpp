@@ -20,6 +20,8 @@ using namespace eng;
 namespace {
 
 alignas(16) u8 g_chip[512 * 1024];
+alignas(16) u8 g_app_chip[128 * 1024];
+alignas(16) u8 g_small_chip[16 * 1024];
 
 MemoryManager make_memory() {
 	MemoryManager mem;
@@ -38,10 +40,23 @@ void check(bool ok, const char* msg) {
 /// Backend minimo: solo el ciclo que el bucle necesita (`boot` + `wait_vblank`). Sin
 /// `execute_frame_plan`: `App::present` lo omite.
 struct MockBackend {
+	MemoryManager* memory = nullptr;
+	bool stopped_while_allocated = false;
+	const u16* installed_copper = nullptr;
 	void boot() {}
 	void wait_vblank() {}
+	void takeover_display(const u16* words) { installed_copper = words; }
+	void stop_display() {
+		stopped_while_allocated = memory != nullptr && memory->chip().free_bytes() < memory->chip().capacity();
+	}
 	template <class F, class P>
 	void wait_vblank(F, P) {} // variante con bombeo de fondo (no usada aqui)
+};
+
+struct StartGame {
+	void init(auto&) {}
+	void update(auto&) {}
+	void render(auto&) {}
 };
 
 /// Juego de prueba con el contrato del API publico (`auto&` = no nombra el tipo del App).
@@ -85,6 +100,89 @@ u32 bits_in_plane(const u8* base, u32 bytes) {
 } // namespace
 
 int main() {
+	{
+		MockBackend missing_memory_backend {};
+		StartGame start_game {};
+		App missing_memory_app {missing_memory_backend, start_game};
+		const auto missing = missing_memory_app.start();
+		check(!missing && missing.error() == StartError::MemoryUnavailable,
+		      "start sin MemoryManager preconfigurado devuelve error tipado");
+		check(!missing_memory_app.screen().valid(), "sin memoria no se expone una pantalla válida");
+	}
+	{
+		MemoryManager invalid_mem;
+		(void)invalid_mem.configure(g_chip, sizeof(g_chip), nullptr, 0u, nullptr, 0u, 16u);
+		MockBackend invalid_backend {};
+		StartGame start_game {};
+		App invalid_app {invalid_backend, start_game, invalid_mem};
+		GameDisplay invalid_display {};
+		invalid_display.color_depth = 7u;
+		check(invalid_app.set_display(invalid_display), "display no válido aún puede editarse");
+		const auto invalid = invalid_app.start();
+		check(!invalid && invalid.error() == StartError::InvalidDisplay,
+		      "start distingue una configuración de display no válida");
+		invalid_display.color_depth = 2u;
+		invalid_display.width = 64u;
+		invalid_display.height = 64u;
+		check(invalid_app.set_display(invalid_display), "display puede corregirse tras fallo de validación");
+		check(invalid_app.start().has_value(), "App::start puede reintentarse después de corregir el display");
+	}
+
+	// App puede poseer y componer su display desde un pool preconfigurado. Al salir del scope
+	// libera los bloques de escena; el MemoryManager sigue perteneciendo al composition root.
+	{
+		MemoryManager app_mem;
+		check(app_mem.configure(g_app_chip, sizeof(g_app_chip), nullptr, 0u, nullptr, 0u, 16u),
+		      "composition root configura el pool de la App");
+		MockBackend app_backend {};
+		app_backend.memory = &app_mem;
+		StartGame start_game {};
+		const u32 free_before = app_mem.chip().free_bytes();
+		{
+			App start_app {app_backend, start_game, app_mem};
+			GameDisplay display {};
+			display.width = 64u;
+			display.height = 64u;
+			display.color_depth = 2u;
+			Palette32 palette {};
+			palette.color[1] = 0x0f00u;
+			display.palette = palette;
+			check(start_app.set_display(display), "display se declara antes de start");
+			const auto started = start_app.start();
+			check(started.has_value(), "App::start compone la escena propia");
+			check(app_backend.installed_copper != nullptr,
+			      "App::start instala la lista de display cuando el backend admite takeover");
+			check(start_app.screen().valid(), "App::start deja Screen ligada a la escena");
+			check(start_app.screen().fill(Box {0, 0, 8u, 8u}, 1u),
+			      "Screen de la escena propia acepta primitivas de dibujo");
+			check(start_app.remaining_chip() < free_before, "la escena propia ocupa el pool Chip");
+			check(!start_app.set_display(display), "display queda fijo tras start");
+			const auto again = start_app.start();
+			check(!again && again.error() == StartError::AlreadyStarted,
+			      "start repetido se rechaza de forma explícita");
+		}
+		check(app_mem.chip().free_bytes() == free_before,
+		      "la destrucción de App libera el display propio sin destruir el pool externo");
+		check(app_backend.stopped_while_allocated,
+		      "App detiene el display antes de liberar los buffers DMA de su escena");
+	}
+	{
+		MemoryManager small_mem;
+		(void)small_mem.configure(g_small_chip, sizeof(g_small_chip), nullptr, 0u, nullptr, 0u, 16u);
+		MockBackend small_backend {};
+		StartGame start_game {};
+		App small_app {small_backend, start_game, small_mem};
+		GameDisplay oversized {};
+		oversized.width = 320u;
+		oversized.height = 256u;
+		oversized.color_depth = 4u;
+		check(small_app.set_display(oversized), "display grande puede describirse durante setup");
+		const auto failed = small_app.start();
+		check(!failed && failed.error() == StartError::OutOfMemory,
+		      "display que supera el presupuesto Chip falla antes de reservar parcialmente");
+		check(!small_app.screen().valid(), "fallo de start deja Screen sin escena ligada");
+	}
+
 	MemoryManager mem = make_memory();
 	graphics::composition::Scene scene {};
 	const bool composed = graphics::composition::compose(

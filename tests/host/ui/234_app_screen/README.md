@@ -13,6 +13,9 @@ dibujo de alto nivel (análogo al `RastPort`).
 4. `app.screen()` + `s.fill(Box, color)` dibujan; `app.present()` publica.
 5. El `fill` de 4×4 color 1 deja 16 bits en el plano 0 y nada en el plano 1.
 6. `scene.bind_hw_info(hw)` publica el display de la escena en el `HwInfo` (320×256×4, 16 colores).
+7. `App::start()` compone una escena propia sobre un `MemoryManager` preconfigurado por el composition root, y la pantalla dibuja sobre ella.
+8. Errores explícitos por gestor ausente, display inválido, presupuesto Chip insuficiente y doble arranque; permite corregir y reintentar.
+9. `App` libera los buffers de escena al destruirse, sin liberar el pool que pertenece al composition root.
 
 El backend de prueba es mínimo (`boot` + `wait_vblank`), sin `execute_frame_plan`: `App::present`
 lo omite con `if constexpr` (el juego normal no lo ve).

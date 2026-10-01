@@ -33,6 +33,7 @@ namespace eng::field {
 /// del bitmap para los BOBs (`BobTarget`).
 class DrawTarget {
 public:
+	DrawTarget() = default;
 	DrawTarget(Surface surface, eng::Ref<Rasterizer> rasterizer,
 		   eng::Ref<graphics::FramePlan> plan,
 		   graphics::BobTarget bob_target = {}) noexcept
