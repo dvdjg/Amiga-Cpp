@@ -11,10 +11,6 @@
 #include <cstring>
 #include <algorithm>
 #include <filesystem>
-#if defined(_WIN32)
-#include <cwchar>
-#include <windows.h>
-#endif
 #include <string>
 #include <vector>
 
@@ -27,40 +23,14 @@
 #include "acp1_writer.hpp"
 #include "acp1_v3_writer.hpp"
 #include "hpss.hpp"
+#include <audio_compressor/codecs/registry.hpp>
+#include <audio_compressor/formats/auzx_sink.hpp>
+#include <audio_compressor/io/file_io.hpp>
+#include <audio_compressor/io/raw_source.hpp>
+#include <audio_compressor/io/wav_source.hpp>
 #include "sdl_player.hpp"
-#include "sdl_host_io.hpp"
 
 namespace {
-
-/// Escribe un archivo completo usando la API nativa Windows para evitar el fallo de `_wfopen`
-/// de MinGW cuando el proceso recibe rutas provenientes de Git Bash/Explorer.
-[[nodiscard]] bool write_binary(const std::filesystem::path& path, const std::vector<eng::u8>& bytes) {
-#if defined(_WIN32)
-	const std::string narrow = path.string();
-	const int wide_length = MultiByteToWideChar(CP_UTF8, 0, narrow.c_str(), -1, nullptr, 0);
-	if (wide_length <= 0) return false;
-	std::wstring wide(static_cast<std::size_t>(wide_length), L'\0');
-	if (MultiByteToWideChar(CP_UTF8, 0, narrow.c_str(), -1, wide.data(), wide_length) <= 0) return false;
-	wchar_t temp_directory[MAX_PATH]{};
-	if (GetTempPathW(MAX_PATH, temp_directory) == 0u) return false;
-	wchar_t temp_file[MAX_PATH]{};
-	if (GetTempFileNameW(temp_directory, L"acp", 0u, temp_file) == 0u) return false;
-	HANDLE handle = CreateFileW(temp_file, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-	if (handle == INVALID_HANDLE_VALUE) return false;
-	DWORD written = 0u;
-	const bool ok = WriteFile(handle, bytes.data(), static_cast<DWORD>(bytes.size()), &written, nullptr) != 0 && written == bytes.size();
-	CloseHandle(handle);
-	const bool copied = ok && CopyFileW(temp_file, wide.c_str(), FALSE) != 0;
-	DeleteFileW(temp_file);
-	return copied;
-#else
-	std::FILE* file = std::fopen(path.string().c_str(), "wb");
-	if (!file) return false;
-	const bool ok = std::fwrite(bytes.data(), 1u, bytes.size(), file) == bytes.size();
-	std::fclose(file);
-	return ok;
-#endif
-}
 
 /// Configuración resuelta después de aplicar defaults y las fuentes de configuración.
 struct Config {
@@ -206,7 +176,7 @@ template <class T>
 
 /// Lee un archivo binario completo para reproducir un contenedor AUZX ya generado.
 [[nodiscard]] bool read_binary(const char* path, std::vector<eng::u8>& bytes) {
-	return audio_compressor::load_file(path, bytes);
+	return audio_compressor::io::read_file(std::filesystem::path {path}, bytes);
 }
 
 /// Carga una fuente PCM o decodifica AUZX a PCM8 mono para el reproductor SDL3.
@@ -230,15 +200,12 @@ template <class T>
 
 /// Traduce el codec textual al identificador que comparte AUZX con el engine.
 [[nodiscard]] eng::audio::pcm_codec::Codec codec_id(const std::string& name) {
-	using Codec = eng::audio::pcm_codec::Codec;
-	if (name == "none") return Codec::None;
-	if (name == "fib") return Codec::FibDelta;
-	if (name == "ima") return Codec::ImaAdpcm;
-	return Codec::DeltaRle;
+	const auto* descriptor = audio_compressor::codecs::find(name);
+	return descriptor == nullptr ? eng::audio::pcm_codec::Codec::DeltaRle : descriptor->id;
 }
 
 [[nodiscard]] bool supported_codec_name(const std::string& name) {
-	return name == "none" || name == "rle" || name == "fib" || name == "ima" || name == "auto";
+	return name == "auto" || audio_compressor::codecs::find(name) != nullptr;
 }
 
 [[nodiscard]] bool encode_chunk(const std::vector<eng::u8>& pcm, eng::usize start, eng::usize count,
@@ -441,12 +408,8 @@ void print_codec_candidates(const std::vector<eng::u8>& pcm, const Config& confi
 	for (eng::u16 i = 0u; i < chunks; ++i) { const eng::usize at = eng::audio::auzx::kHeaderSize + i * eng::audio::auzx::kChunkEntrySize; eng::audio::auzx::wr32(view, at, offsets[i]); eng::audio::auzx::wr32(view, at + 4u, sizes[i]); std::memcpy(file.data() + offsets[i], bodies[i].data(), bodies[i].size()); }
 	const std::filesystem::path output_path {native_safe_path(output)};
 	if (output_path.has_parent_path()) std::filesystem::create_directories(output_path.parent_path());
-	if (!write_binary(output_path, file)) {
-#if defined(_WIN32)
-		std::fprintf(stderr, "AUZX escritura falló para %s (Win32=%lu)\n", output_path.string().c_str(), static_cast<unsigned long>(GetLastError()));
-#else
+	if (!audio_compressor::io::write_file(output_path, file)) {
 		std::fprintf(stderr, "AUZX escritura falló para %s\n", output_path.string().c_str());
-#endif
 		return false;
 	}
 	stats.output_bytes = static_cast<eng::u64>(file.size());
@@ -479,6 +442,48 @@ void print_codec_candidates(const std::vector<eng::u8>& pcm, const Config& confi
 	return true;
 }
 
+/// Codifica un WAV por ventanas para SAMPLE sin retener el PCM completo. La salida comprimida se
+/// conserva hasta ensamblar el índice AUZX; el scratch PCM queda limitado a `chunk_samples`.
+template <class Source>
+[[nodiscard]] bool write_auzx_windowed(Source& source, eng::u16 rate,
+	const Config& config, const std::string& output, ConversionStats& stats) {
+	if (source.frames() == 0u || source.frames() > 0xffffffffu || config.chunk_samples == 0u) return false;
+	const auto codec = codec_id(config.codec);
+	const eng::usize chunk = config.chunk_samples;
+	const eng::usize chunk_count = (static_cast<eng::usize>(source.frames()) + chunk - 1u) / chunk;
+	if (chunk_count > 65535u || ((codec == eng::audio::pcm_codec::Codec::FibDelta || codec == eng::audio::pcm_codec::Codec::ImaAdpcm) &&
+		((chunk & 1u) != 0u || ((source.frames() % chunk) != 0u && ((source.frames() % chunk) & 1u) != 0u)))) return false;
+	std::vector<eng::u8> window(chunk), encoded, rebuilt(chunk);
+	eng::u8 fib_seed = 0u;
+	audio_compressor::formats::AuzxSink sink;
+	if (!sink.open(std::filesystem::path {native_safe_path(output)}, rate, static_cast<eng::u32>(source.frames()),
+		config.chunk_samples, static_cast<eng::u16>(chunk_count), static_cast<eng::u8>(codec))) return false;
+	for (eng::usize index = 0u; index < chunk_count; ++index) {
+		const eng::usize start = index * chunk;
+		const eng::usize count = static_cast<eng::usize>(std::min<eng::u64>(chunk, source.frames() - start));
+		if (source.read(start, {window.data(), count}) != count || !encode_chunk(window, 0u, count, codec, encoded, fib_seed)) return false;
+		if (!sink.append({encoded.data(), encoded.size()})) return false;
+		const eng::s32 decoded = codec == eng::audio::pcm_codec::Codec::None
+			? (std::memcpy(rebuilt.data(), encoded.data(), count), static_cast<eng::s32>(count))
+			: eng::audio::pcm_codec::decode({encoded.data(), encoded.size()}, {rebuilt.data(), count}, static_cast<eng::u8>(codec));
+		if (decoded != static_cast<eng::s32>(count)) return false;
+		for (eng::usize i = 0u; i < count; ++i) {
+			const eng::s32 error = static_cast<eng::s8>(window[i]) - static_cast<eng::s8>(rebuilt[i]);
+			const eng::u32 absolute = static_cast<eng::u32>(error < 0 ? -error : error);
+			stats.squared_error += static_cast<eng::u64>(error * error);
+			const eng::s32 sample = static_cast<eng::s8>(window[i]);
+			stats.signal_energy += static_cast<eng::u64>(sample * sample);
+			if (absolute > stats.peak_error) stats.peak_error = static_cast<eng::u8>(absolute);
+		}
+	}
+	if (!sink.finalize()) return false;
+	std::error_code output_error{};
+	stats.output_bytes = std::filesystem::file_size(std::filesystem::path {native_safe_path(output)}, output_error);
+	if (output_error) return false;
+	stats.samples = source.frames(); stats.sample_rate = rate; stats.round_trip_ok = true;
+	return true;
+}
+
 /// Escribe un archivo ACP1 v1 con una pista sincronizada por cada stem AUZX.
 [[nodiscard]] bool write_acp1(const std::vector<std::vector<eng::u8>>& stems, eng::u16 rate,
 	eng::u32 samples, const std::string& output,
@@ -487,7 +492,7 @@ void print_codec_candidates(const std::vector<eng::u8>& pcm, const Config& confi
 	if (!audio_compressor::build_acp1(stems, rate, samples, file, events)) return false;
 	const std::filesystem::path output_path {native_safe_path(output)};
 	if (output_path.has_parent_path()) std::filesystem::create_directories(output_path.parent_path());
-	return write_binary(output_path, file);
+	return audio_compressor::io::write_file(output_path, file);
 }
 
 /// Escribe un informe de texto mínimo para la primera vertical de la aplicación única.
@@ -554,6 +559,54 @@ int main(int argc, char** argv) {
 	if (config.acp1_version != 2u && config.acp1_version != 3u) {
 		std::fprintf(stderr, "versión ACP1 no soportada: %u (use 2 o 3)\n", config.acp1_version);
 		return 2;
+	}
+	if (config.mode == "sample" && !needs_ffmpeg(input) && !config.hpss && config.codec != "auto") {
+		audio_compressor::io::WavSource windowed_source;
+		if (windowed_source.open(input) && (config.sample_rate == 0u || config.sample_rate == windowed_source.sample_rate())) {
+			config.sample_rate = static_cast<eng::u16>(windowed_source.sample_rate());
+			if (output.empty()) output = default_output(input.c_str(), "sample");
+			output = native_safe_path(output);
+			if (!config.force && std::filesystem::exists(std::filesystem::path {output})) {
+				std::fprintf(stderr, "salida existente; use --force\n"); return 1;
+			}
+			ConversionStats windowed_stats{};
+			std::error_code input_error{};
+			windowed_stats.input_bytes = std::filesystem::file_size(std::filesystem::path {input}, input_error);
+			windowed_stats.pcm_bytes = windowed_source.frames();
+			if (!write_auzx_windowed(windowed_source, config.sample_rate, config, output, windowed_stats)) {
+				std::fprintf(stderr, "no se pudo codificar la fuente WAV por ventanas\n"); return 1;
+			}
+			if (!report.empty()) write_report(report, input, "sample", config, windowed_stats);
+			std::printf("sample windowed=%llu bytes codec=%s samples=%llu\n",
+				static_cast<unsigned long long>(windowed_stats.output_bytes), config.codec.c_str(),
+				static_cast<unsigned long long>(windowed_stats.samples));
+			return 0;
+		}
+	}
+	if (config.mode == "sample" && !config.hpss && config.codec != "auto" &&
+		(std::filesystem::path {input}.extension() == ".raw" || std::filesystem::path {input}.extension() == ".RAW")) {
+		audio_compressor::io::RawSource raw_source;
+		const eng::u16 raw_rate = config.sample_rate == 0u ? 8000u : config.sample_rate;
+		if (!raw_source.open(input, raw_rate)) {
+			std::fprintf(stderr, "RAW inválido o frecuencia no válida\n"); return 1;
+		}
+		if (output.empty()) output = default_output(input.c_str(), "sample");
+		output = native_safe_path(output);
+		if (!config.force && std::filesystem::exists(std::filesystem::path {output})) {
+			std::fprintf(stderr, "salida existente; use --force\n"); return 1;
+		}
+		ConversionStats raw_stats{};
+		std::error_code input_error{};
+		raw_stats.input_bytes = std::filesystem::file_size(std::filesystem::path {input}, input_error);
+		raw_stats.pcm_bytes = raw_source.frames();
+		if (!write_auzx_windowed(raw_source, raw_rate, config, output, raw_stats)) {
+			std::fprintf(stderr, "no se pudo codificar la fuente RAW por ventanas\n"); return 1;
+		}
+		if (!report.empty()) write_report(report, input, "sample", config, raw_stats);
+		std::printf("sample windowed=%llu bytes codec=%s samples=%llu\n",
+			static_cast<unsigned long long>(raw_stats.output_bytes), config.codec.c_str(),
+			static_cast<unsigned long long>(raw_stats.samples));
+		return 0;
 	}
 	std::vector<eng::u8> pcm; eng::u16 rate = 0u; std::string decoded_input;
 	pack_pcm::WavStems input_stems {};
@@ -623,7 +676,7 @@ int main(int argc, char** argv) {
 			}
 			const std::filesystem::path v3_path {native_safe_path(structural)};
 			if (v3_path.has_parent_path()) std::filesystem::create_directories(v3_path.parent_path());
-			if (!write_binary(v3_path, v3_file)) return 1;
+			if (!audio_compressor::io::write_file(v3_path, v3_file)) return 1;
 			eng::audio::acp1_v3::Info v3_info{};
 			if (!eng::audio::acp1_v3::parse({v3_file.data(), v3_file.size()}, v3_info)) {
 				std::fprintf(stderr, "ACP1 v3 MVP no supera su parser\n"); return 1;

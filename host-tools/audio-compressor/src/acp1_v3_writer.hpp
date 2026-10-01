@@ -7,24 +7,20 @@
 #include <vector>
 
 #include <eng/audio/acp1_v3.hpp>
+#include "../include/audio_compressor/formats/binary.hpp"
 
 namespace audio_compressor {
 
 inline void v3_wr16(std::vector<eng::u8>& file, eng::usize at, eng::u16 value) {
-	file[at] = static_cast<eng::u8>(value);
-	file[at + 1u] = static_cast<eng::u8>(value >> 8u);
+	(void)formats::BinaryWriter {file}.u16(at, value);
 }
 
 inline void v3_wr32(std::vector<eng::u8>& file, eng::usize at, eng::u32 value) {
-	file[at] = static_cast<eng::u8>(value);
-	file[at + 1u] = static_cast<eng::u8>(value >> 8u);
-	file[at + 2u] = static_cast<eng::u8>(value >> 16u);
-	file[at + 3u] = static_cast<eng::u8>(value >> 24u);
+	(void)formats::BinaryWriter {file}.u32(at, value);
 }
 
 inline void v3_wr64(std::vector<eng::u8>& file, eng::usize at, eng::u64 value) {
-	v3_wr32(file, at, static_cast<eng::u32>(value));
-	v3_wr32(file, at + 4u, static_cast<eng::u32>(value >> 32u));
+	(void)formats::BinaryWriter {file}.u64(at, value);
 }
 
 [[nodiscard]] inline eng::usize v3_align4(eng::usize value) noexcept { return (value + 3u) & ~eng::usize {3u}; }

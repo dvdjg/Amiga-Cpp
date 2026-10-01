@@ -29,7 +29,7 @@ Reglas principales (ver también `docs/STRUCTURE.md` §6):
 | FrameScope | `docs/testing/FRAMESCOPE_ROADMAP.md` | `tools/framescope/*` |
 | Entrada (mouse) | `tools/input/*`, `docs/emulation/MOUSE_AUTOMATION.md` | `tools/input/mouse-path.*` |
 | Programas independientes para PC | `host-tools/README.md`, `playground/README.md` | `host-tools/`, `playground/` |
-| Transformación y compresión completa de audio | `docs/engine/architecture/AUDIO_COMPRESSION.md`, `docs/guides/roadmap/ROADMAP_AUDIO_COMPRESSOR.md` | `host-tools/audio-compressor/` (única aplicación pública) |
+| Transformación y compresión completa de audio | `docs/engine/architecture/AUDIO_COMPRESSION.md`, `docs/guides/roadmap/ROADMAP_AUDIO_COMPRESSOR.md`, `docs/guides/roadmap/ROADMAP_AUDIO_COMPRESSOR_REFACTOR.md` | `host-tools/audio-compressor/` (única aplicación pública) |
 | Comprobaciones estáticas | esta sección (abajo) | `tools/check/*` |
 
 ## Comprobaciones estáticas (`tools/check/`)

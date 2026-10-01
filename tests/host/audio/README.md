@@ -35,3 +35,4 @@ Categoría `audio` de la batería host (L1). El índice de categorías está en 
 | HOST-382 | [audio_compressor_cli](382_audio_compressor_cli/README.md) | Aplicación única host: WAV multicanal a AUZX sample y ACP1 v2, eventos por bloques, round-trip, HPSS y canales FLAC vía FFmpeg. |
 | HOST-387 | [acp1](387_acp1/README.md) | Parser freestanding/encoder ACP1 v1/v2, decoder y mixer por ventanas, feeder triple-buffer, deduplicación exacta y HPSS. |
 | HOST-389 | [acp1_v3](389_acp1_v3/README.md) | MVP ACP1 v3: directorio de secciones, unidades PCM, segmentos, payloads, tracks, eventos y rechazos estructurales. |
+| HOST-394 | [wav_window_source](394_wav_window_source/README.md) | `WavSource`: lectura WAV PCM8 multicanal por ventanas y downmix incremental. |

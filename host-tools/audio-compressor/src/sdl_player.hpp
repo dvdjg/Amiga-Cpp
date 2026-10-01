@@ -9,9 +9,16 @@
 
 #if defined(AUDIO_COMPRESSOR_SDL3)
 #include <SDL3/SDL.h>
+#include <memory>
 #include <eng/core/types/span.hpp>
 
 namespace audio_compressor {
+
+struct SdlAudioStreamDeleter {
+	void operator()(SDL_AudioStream* stream) const noexcept {
+		if (stream != nullptr) SDL_DestroyAudioStream(stream);
+	}
+};
 
 /// Reproduce una ventana PCM8 a la frecuencia indicada y espera hasta que termine.
 [[nodiscard]] inline bool play_pcm(eng::Span<const eng::u8> pcm, eng::u16 sample_rate) {
@@ -20,12 +27,12 @@ namespace audio_compressor {
 	spec.format = SDL_AUDIO_S8;
 	spec.channels = 1u;
 	spec.freq = sample_rate;
-	SDL_AudioStream* stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr);
+	std::unique_ptr<SDL_AudioStream, SdlAudioStreamDeleter> stream {
+		SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr)};
 	if (!stream) { SDL_Quit(); return false; }
-	const bool queued = SDL_PutAudioStreamData(stream, pcm.data(), static_cast<int>(pcm.size()));
-	SDL_ResumeAudioStreamDevice(stream);
-	while (queued && SDL_GetAudioStreamQueued(stream) > 0) SDL_Delay(10u);
-	SDL_DestroyAudioStream(stream);
+	const bool queued = SDL_PutAudioStreamData(stream.get(), pcm.data(), static_cast<int>(pcm.size()));
+	SDL_ResumeAudioStreamDevice(stream.get());
+	while (queued && SDL_GetAudioStreamQueued(stream.get()) > 0) SDL_Delay(10u);
 	SDL_Quit();
 	return queued;
 }
