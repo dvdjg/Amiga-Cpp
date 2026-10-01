@@ -5,6 +5,7 @@
 #include <vector>
 #include <cstring>
 #include <algorithm>
+#include <unordered_map>
 
 #include <eng/audio/acp1.hpp>
 #include <eng/core/types/types.hpp>
@@ -41,6 +42,7 @@ struct MusicPipeline {
 		if (source.channels() == 0u || source.channels() > eng::audio::acp1::kMaxTracks || chunk_samples == 0u ||
 			(paula_only && source.channels() > kPaulaDirectVoices)) return false;
 		plan.tracks.assign(source.channels(), {}); unique_pcm_units.clear();
+		std::unordered_map<eng::u64, std::vector<eng::usize>> candidates_by_hash;
 		std::vector<eng::u8> window(chunk_samples);
 		for (eng::u16 track = 0u; track < source.channels(); ++track) {
 			for (eng::u64 start = 0u; start < source.frames(); start += chunk_samples) {
@@ -50,9 +52,16 @@ struct MusicPipeline {
 				if (!paula_only && track >= kPaulaDirectVoices) {
 					for (eng::u8& sample : candidate) sample = static_cast<eng::u8>(static_cast<eng::s8>(std::clamp(static_cast<eng::s32>(static_cast<eng::s8>(sample)), -32, 31)));
 				}
-				eng::usize unit_id = 0u;
-				for (; unit_id < unique_pcm_units.size(); ++unit_id) if (unique_pcm_units[unit_id] == candidate) break;
-				if (unit_id == unique_pcm_units.size()) unique_pcm_units.push_back(std::move(candidate));
+				eng::u64 hash = 1469598103934665603ull;
+				for (const eng::u8 sample : candidate) { hash ^= sample; hash *= 1099511628211ull; }
+				eng::usize unit_id = unique_pcm_units.size();
+				const auto bucket = candidates_by_hash.find(hash);
+				if (bucket != candidates_by_hash.end()) {
+					for (const eng::usize candidate_id : bucket->second) if (unique_pcm_units[candidate_id] == candidate) { unit_id = candidate_id; break; }
+				}
+				if (unit_id == unique_pcm_units.size()) {
+					unique_pcm_units.push_back(std::move(candidate)); candidates_by_hash[hash].push_back(unit_id);
+				}
 				plan.tracks[track].push_back({static_cast<eng::u32>(unit_id), static_cast<eng::u32>(start), static_cast<eng::u32>(count), gain});
 			}
 		}
