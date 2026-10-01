@@ -133,6 +133,7 @@ El corpus mixto previsto para ajustar los parámetros está descrito en [`AUDIO_
 - Implementar pipeline música: lectura multipista/stems, HPSS, bandas, deduplicación, unidades, destinos Paula/mixer, eventos ACP1 e informe comparativo AUZX/ACP1.
 - Test de aceptación: arrastrar WAV corto, arrastrar WAV largo, forzar ambos modos, config externa, salida existente y error de formato.
 - **Implementado**: `host-tools/audio-compressor/src/main.cpp`, CLI sample, defaults de salida, configuración con precedencia `defaults < config < CLI`, validación de codecs, remuestreo lineal para WAV, selección `auto` entre codecs disponibles, comparación de tamaño/MSE/pico y generación AUZX; HOST-382 cubre WAV estéreo.
+- **Implementado**: entrada MOD mediante renderizado host de FFmpeg y salida opcional ACP1 v3 MVP (`--acp1-version 3`) con parser/writer host y HOST-389; el MVP contiene PCM8, unidades, segmentos, payloads, tracks y eventos, sin síntesis ni reproducción Amiga v3.
 - Añadir reproducción host opcional con SDL3 para escuchar fuentes normalizadas sin alterar el pipeline Amiga.
 
 ### C16 — Operación y corpus

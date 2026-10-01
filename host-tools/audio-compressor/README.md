@@ -1,6 +1,6 @@
 # `audio-compressor`
 
-Aplicación única de PC para transformar y comprimir audio para Amiga. El ejecutable acepta una fuente WAV o un contenedor MP3/OGG/FLAC mediante FFmpeg y una CLI explícita. No se encadenan herramientas de usuario: la ingestión, clasificación, codecs, métricas e informe pertenecen a esta aplicación. RAW y módulos tracker no forman parte todavía de la entrada soportada.
+Aplicación única de PC para transformar y comprimir audio para Amiga. El ejecutable acepta una fuente WAV, MP3/OGG/FLAC o ProTracker MOD mediante FFmpeg y una CLI explícita. No se encadenan herramientas de usuario: la ingestión, clasificación, codecs, métricas e informe pertenecen a esta aplicación. RAW y P61/MED/AHX no forman parte todavía de la entrada soportada.
 
 ## Compilar
 
@@ -36,10 +36,11 @@ El ejecutable resultante enlaza SDL3 de forma estática. La comprobación de Win
 audio-compressor tema.wav
 audio-compressor disparo.wav --mode sample --codec ima --out out/assets/audio/disparo.auzx
 audio-compressor tema.wav --mode music --codec auto --compare --report out/playground/audio-compressor/tema.json
+audio-compressor tema.wav --mode music --acp1-version 3 --codec none --out out/assets/audio-compressor/tema-v3.acp1
 audio-compressor disparo.wav --play
 ```
 
-Sin opciones, la aplicación genera una salida junto al archivo de entrada, no sobrescribe archivos existentes y aplica defaults seguros. El modo `music` genera ACP1 v2 para WAV PCM mono/multicanal de hasta siete pistas: conserva cada canal como eventos con línea temporal común, unidades AUZX compartidas por igualdad exacta y silencios entre eventos. `--hpss` separa cada canal en componentes armónica/percusiva si el resultado cabe en siete pistas. HPSS permanece optativo porque puede aumentar el tamaño y el error. ACP1 v2 es un contenedor multipista por bloques; no importa patrones o instrumentos de módulos tracker y no genera ACP1 v3.
+Sin opciones, la aplicación genera una salida junto al archivo de entrada, no sobrescribe archivos existentes y aplica defaults seguros. El modo `music` genera ACP1 v2 para WAV PCM mono/multicanal de hasta siete pistas: conserva cada canal como eventos con línea temporal común, unidades AUZX compartidas por igualdad exacta y silencios entre eventos. Un MOD se renderiza a una mezcla PCM mediante FFmpeg antes de entrar en la misma ruta, por lo que no conserva patrones, instrumentos ni los cuatro canales como stems. `--hpss` separa cada canal WAV en componentes armónica/percusiva si el resultado cabe en siete pistas. HPSS permanece optativo porque puede aumentar el tamaño y el error. ACP1 v2 es un contenedor multipista por bloques y no genera ACP1 v3.
 
 La configuración usa JSON plano con claves `mode`, `codec`, `sample_rate`, `chunk_samples`, `ram_budget_bytes`, `window_samples` y `force`. La precedencia es `defaults < config < CLI`.
 
@@ -54,6 +55,8 @@ La configuración usa JSON plano con claves `mode`, `codec`, `sample_rate`, `chu
 Cada conversión puede usar `--report out/reports/audio-compressor/nombre.json`. El informe registra entrada, modo, codec, tasa, chunks, muestras, duración, tamaño comprimido de la fuente, tamaño PCM normalizado, tamaño de salida, ratios PCM→salida y fuente→salida, MSE PCM8, SNR, pico de error y estado del round-trip.
 
 ACP1 v2 serializa offsets y tablas explícitos, divide cada stem en unidades de `--chunk` muestras y emite eventos secuenciales. Bloques AUZX idénticos de la misma longitud se comparten en el diccionario. El informe compara bytes lineales/estructurales y reconstruye la mezcla para medir MSE y pico. `--codec auto` y `--compare` prueban `none`, Delta+RLE, Fibonacci e IMA ADPCM sobre la señal normalizada y muestran tamaño, MSE y pico; la selección automática elige el menor tamaño sin ocultar esas métricas. Para conservar ambas salidas, usar `--keep-candidates`; la salida `.linear.auzx` se elimina por defecto después de generar ACP1.
+
+`--acp1-version 3` activa el MVP binario de ACP1 v3: escribe unidades PCM8, un segmento por unidad, payloads absolutos, tracks y eventos, y valida el archivo recién escrito con el parser v3. No incluye todavía síntesis, envolventes, cues, codebooks, wavetables ni reproducción Amiga v3. El MVP se usa para cerrar el contrato binario antes de conectar los codecs por segmento y el planner.
 
 ## Reproducción host con SDL3
 

@@ -25,6 +25,7 @@
 
 #include "../../../host-tools/pack-pcm/wav_loader.hpp"
 #include "acp1_writer.hpp"
+#include "acp1_v3_writer.hpp"
 #include "hpss.hpp"
 #include "sdl_player.hpp"
 #include "sdl_host_io.hpp"
@@ -87,6 +88,8 @@ struct Config {
 	bool compare_candidates = false;
 	/// Separa cada stem WAV en componentes armónica y percusiva para MUSIC.
 	bool hpss = false;
+	/// Versión ACP1 de salida para MUSIC: v2 estable o v3 MVP binario.
+	eng::u8 acp1_version = 2u;
 };
 
 /// Estadísticas de una conversión, usadas por el informe JSON y por la comparación del corpus.
@@ -115,17 +118,18 @@ struct ConversionStats {
 	return repeated;
 }
 
-/// Resuelve ffmpeg desde variables de entorno o PATH para leer MP3/OGG/FLAC sin enlazarlo.
+/// Resuelve ffmpeg desde variables de entorno o PATH para leer formatos host sin enlazarlo.
 [[nodiscard]] std::string find_ffmpeg() {
 	if (const char* value = std::getenv("FFMPEG"); value && *value) return value;
 	if (const char* value = std::getenv("FFMPEG_BIN"); value && *value) return value;
 	return "ffmpeg";
 }
 
-/// Detecta formatos comprimidos que requieren la conversión host de ffmpeg.
+/// Detecta formatos comprimidos o tracker que requieren la conversión host de ffmpeg.
 [[nodiscard]] bool needs_ffmpeg(const std::string& path) {
 	const std::string ext = std::filesystem::path(path).extension().string();
-	return ext == ".mp3" || ext == ".MP3" || ext == ".ogg" || ext == ".OGG" || ext == ".flac" || ext == ".FLAC";
+	return ext == ".mp3" || ext == ".MP3" || ext == ".ogg" || ext == ".OGG" || ext == ".flac" || ext == ".FLAC" ||
+		ext == ".mod" || ext == ".MOD";
 }
 
 /// Decodifica una fuente comprimida a WAV PCM16 temporal, manteniendo el archivo fuera del repo.
@@ -498,7 +502,7 @@ void write_report(const std::string& path, const std::string& input, const std::
 }
 
 /// Muestra la interfaz de la aplicación única, incluyendo el caso de arrastrar un archivo.
-void print_help(const char* exe) { std::printf("Uso: %s <audio|auzx> [--mode auto|sample|music] [--config f] [--out f] [--codec auto|rle|fib|ima|none] [--sample-rate Hz] [--chunk muestras] [--report f] [--keep-candidates] [--compare] [--play] [--dry-run]\n", exe); }
+void print_help(const char* exe) { std::printf("Uso: %s <audio|auzx> [--mode auto|sample|music] [--acp1-version 2|3] [--config f] [--out f] [--codec auto|rle|fib|ima|none] [--sample-rate Hz] [--chunk muestras] [--report f] [--keep-candidates] [--compare] [--play] [--dry-run]\n", exe); }
 
 } // namespace
 
@@ -517,6 +521,7 @@ int main(int argc, char** argv) {
 		if (std::strcmp(argv[i], "--no-hpss") == 0) { config.hpss = false; continue; }
 		if (i + 1 >= argc) return 2;
 		if (std::strcmp(argv[i], "--mode") == 0) config.mode = argv[++i];
+		else if (std::strcmp(argv[i], "--acp1-version") == 0) config.acp1_version = static_cast<eng::u8>(std::atoi(argv[++i]));
 		else if (std::strcmp(argv[i], "--config") == 0) config_path = argv[++i];
 		else if (std::strcmp(argv[i], "--out") == 0) output = argv[++i];
 		else if (std::strcmp(argv[i], "--report") == 0) report = argv[++i];
@@ -530,6 +535,7 @@ int main(int argc, char** argv) {
 	// pass reapplies option values after loading JSON so precedence is defaults < config < CLI.
 	for (int i = 2; i < argc; ++i) {
 		if (std::strcmp(argv[i], "--mode") == 0) config.mode = argv[++i];
+		else if (std::strcmp(argv[i], "--acp1-version") == 0) config.acp1_version = static_cast<eng::u8>(std::atoi(argv[++i]));
 		else if (std::strcmp(argv[i], "--codec") == 0) config.codec = argv[++i];
 		else if (std::strcmp(argv[i], "--sample-rate") == 0) config.sample_rate = static_cast<eng::u16>(std::atoi(argv[++i]));
 		else if (std::strcmp(argv[i], "--chunk") == 0) config.chunk_samples = static_cast<eng::u16>(std::atoi(argv[++i]));
@@ -543,6 +549,10 @@ int main(int argc, char** argv) {
 	}
 	if (config.chunk_samples == 0u || config.ram_budget_bytes == 0u) {
 		std::fprintf(stderr, "chunk y ram-budget deben ser mayores que cero\n");
+		return 2;
+	}
+	if (config.acp1_version != 2u && config.acp1_version != 3u) {
+		std::fprintf(stderr, "versión ACP1 no soportada: %u (use 2 o 3)\n", config.acp1_version);
 		return 2;
 	}
 	std::vector<eng::u8> pcm; eng::u16 rate = 0u; std::string decoded_input;
@@ -590,7 +600,7 @@ int main(int argc, char** argv) {
 		linear_stats.input_bytes = std::filesystem::file_size(std::filesystem::path{input}, input_error);
 		linear_stats.pcm_bytes = static_cast<eng::u64>(pcm.size());
 		linear_stats.repeated_windows = count_repeated_windows(pcm, config.chunk_samples);
-		if (!write_auzx(pcm, config.sample_rate, config, linear, linear_stats)) return 1;
+		if (config.acp1_version == 2u && !write_auzx(pcm, config.sample_rate, config, linear, linear_stats)) return 1;
 		const std::string structural = output.empty() ? default_output(input.c_str(), "music") : output;
 		std::vector<std::vector<eng::u8>> source_stems;
 		if (config.hpss) {
@@ -605,6 +615,25 @@ int main(int argc, char** argv) {
 		}
 		if (source_stems.size() > eng::audio::acp1::kMaxTracks) {
 			std::fprintf(stderr, "HPSS produce más de siete pistas ACP1; desactive --hpss o reduzca canales\n"); return 1;
+		}
+		if (config.acp1_version == 3u) {
+			std::vector<eng::u8> v3_file;
+			if (!audio_compressor::build_acp1_v3(source_stems, config.sample_rate, config.chunk_samples, v3_file)) {
+				std::fprintf(stderr, "no se pudo generar ACP1 v3 MVP\n"); return 1;
+			}
+			const std::filesystem::path v3_path {native_safe_path(structural)};
+			if (v3_path.has_parent_path()) std::filesystem::create_directories(v3_path.parent_path());
+			if (!write_binary(v3_path, v3_file)) return 1;
+			eng::audio::acp1_v3::Info v3_info{};
+			if (!eng::audio::acp1_v3::parse({v3_file.data(), v3_file.size()}, v3_info)) {
+				std::fprintf(stderr, "ACP1 v3 MVP no supera su parser\n"); return 1;
+			}
+			std::printf("ACP1 v3 MVP=%llu bytes; pistas=%lu; unidades=%lu; segmentos PCM=%lu\n",
+				static_cast<unsigned long long>(v3_file.size()), static_cast<unsigned long>(v3_info.track_count),
+				static_cast<unsigned long>(v3_info.unit_count), static_cast<unsigned long>(v3_info.segment_count));
+			if (!report.empty()) write_report(report, input, mode, config, linear_stats, v3_file.size());
+			if (config.acp1_version == 2u && !config.keep_candidates) std::remove(linear.c_str());
+			return 0;
 		}
 		std::vector<std::vector<eng::u8>> encoded_stems;
 		std::vector<std::vector<eng::audio::acp1::Event>> events(source_stems.size());
