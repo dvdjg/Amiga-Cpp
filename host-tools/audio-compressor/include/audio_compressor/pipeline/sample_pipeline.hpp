@@ -21,7 +21,7 @@ struct SamplePipeline {
 	template <domain::WindowSource Source, class Encode, class Decode, class Stats>
 	[[nodiscard]] static bool run(Source& source, eng::u16 source_rate, eng::u16 target_rate,
 		eng::u16 chunk_samples, eng::usize window_samples, eng::u8 codec,
-		const std::filesystem::path& output, Encode&& encode, Decode&& decode, Stats& stats) {
+		bool mixer_safe, const std::filesystem::path& output, Encode&& encode, Decode&& decode, Stats& stats) {
 		if (source.frames() == 0u || source.frames() > 0xffffffffu || source_rate == 0u || target_rate == 0u || chunk_samples == 0u) return false;
 		const eng::usize output_samples = static_cast<eng::usize>((static_cast<eng::u64>(source.frames()) * target_rate + source_rate - 1u) / source_rate);
 		const eng::usize chunk = chunk_samples;
@@ -39,6 +39,12 @@ struct SamplePipeline {
 		if (!sink.open(output, target_rate, static_cast<eng::u32>(output_samples), chunk_samples,
 			static_cast<eng::u16>(chunk_count), codec)) return false;
 		auto flush_pending = [&](eng::usize count) {
+			if (mixer_safe) {
+				for (eng::usize i = 0u; i < count; ++i) {
+					const eng::s32 sample = static_cast<eng::s8>(pending[i]);
+					pending[i] = static_cast<eng::u8>(static_cast<eng::s8>(std::clamp(sample, -32, 31)));
+				}
+			}
 			if (!encode({pending.data(), count}, encoded, fib_seed)) return false;
 			rebuilt.assign(count, 0u);
 			if (decode({encoded.data(), encoded.size()}, {rebuilt.data(), rebuilt.size()}, codec) != static_cast<eng::s32>(count)) return false;

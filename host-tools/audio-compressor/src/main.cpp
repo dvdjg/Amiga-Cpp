@@ -411,7 +411,7 @@ template <class Source>
 	const auto codec = codec_id(config.codec);
 	return audio_compressor::pipeline::SamplePipeline::run(source, source_rate, target_rate,
 		config.chunk_samples, config.window_samples, static_cast<eng::u8>(codec),
-		std::filesystem::path {native_safe_path(output)},
+		config.mode == "sample", std::filesystem::path {native_safe_path(output)},
 		[codec](eng::Span<const eng::u8> pcm, std::vector<eng::u8>& encoded, eng::u8& fib_seed) {
 			return encode_chunk(pcm, codec, encoded, fib_seed);
 		},
@@ -581,7 +581,10 @@ int main(int argc, char** argv) {
 		if (config.hpss) {
 			for (const auto& stem : input_stems.channels) {
 				audio_compressor::HpssResult layers {};
-				if (!audio_compressor::hpss(stem, 256u, layers)) { std::fprintf(stderr, "HPSS no pudo procesar el stem\n"); return 1; }
+				const eng::usize overlap = std::min<eng::usize>(128u, config.window_samples / 2u);
+				if (!audio_compressor::hpss_windowed_pcm(stem, config.window_samples, overlap, 256u, layers)) {
+					std::fprintf(stderr, "HPSS windowed no pudo procesar el stem\n"); return 1;
+				}
 				source_stems.push_back(std::move(layers.harmonic));
 				source_stems.push_back(std::move(layers.percussive));
 			}
@@ -610,11 +613,13 @@ int main(int argc, char** argv) {
 			if (config.acp1_version == 2u && !config.keep_candidates) std::remove(linear.c_str());
 			return 0;
 		}
-		const eng::u8 track_gain = config.hpss || input_stems.channels.size() > 1u ? 128u : 255u;
+		const bool paula_only = true; // MUSIC con pitch/volumen variable usa exclusivamente AUD1..AUD3.
+		const eng::u8 track_gain = paula_only ? 255u : (config.hpss || input_stems.channels.size() > 1u ? 128u : 255u);
 		std::vector<std::vector<eng::u8>> unique_pcm_units;
 		audio_compressor::pipeline::MusicPlan music_plan {};
-		if (!audio_compressor::pipeline::MusicPipeline::build_plan(source_stems, config.chunk_samples, track_gain, music_plan, unique_pcm_units)) {
-			std::fprintf(stderr, "no se pudo construir la timeline ACP1\n"); return 1;
+		if (!audio_compressor::pipeline::MusicPipeline::build_plan(source_stems, config.chunk_samples, track_gain,
+			paula_only, music_plan, unique_pcm_units)) {
+			std::fprintf(stderr, "la música requiere como máximo tres stems Paula directos\n"); return 1;
 		}
 		music_plan.sample_rate = config.sample_rate;
 		for (eng::usize unit_id = 0u; unit_id < unique_pcm_units.size(); ++unit_id) {

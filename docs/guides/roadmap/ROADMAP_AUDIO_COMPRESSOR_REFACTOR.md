@@ -249,7 +249,10 @@ No se debe introducir un `AudioAsset` universal que mezcle fuente, PCM, unidades
 - Completado: `Acp1HostPlayer` consume ACP1 v1/v2 por ventanas mediante `media::mix_window`; HOST-394 valida una composición mono reconstruida por el player. La reproducción SDL3 de ACP1 sigue pendiente.
 - Completado: `file_io.hpp` usa la E/S estándar de batch y `sdl_file_io.hpp` contiene el adaptador SDL3 opcional; la lógica de conversión ya no selecciona SDL3 mediante una macro transitiva.
 - Completado: `AuzxSink` escribe en un archivo temporal y solo reemplaza la salida pública tras `finalize`; el destructor elimina temporales abandonados.
-- Parcial: `hpss_windowed` aporta lectura por ventanas y solapamiento explícito, pero la unión de bordes y su conexión con la ingestión MUSIC siguen pendientes.
+- Parcial: `hpss_windowed_pcm` conecta HPSS con la ruta MUSIC, reutiliza el buffer de entrada y une los solapes mediante pesos lineales normalizados. La fuente PACK-PCM todavía entrega cada stem completo y `hpss()` reserva sus buffers FFT internos por ventana; ambas acumulaciones quedan pendientes de una workspace/source plenamente streaming.
+- Contrato Paula/mixer aplicado: el plan reserva tres destinos directos (`AUD1..AUD3`) y cuatro destinos virtuales en la salida del mixer (`AUD0`); los chunks de tracks mixer se limitan a `-32..31` para que la suma de cuatro voces no desborde el mixer Photon. El planificador de concurrencia y la convivencia de IRQ siguen siendo responsabilidades del runtime Amiga.
+- Política de salida: SAMPLE corto y sencillo se prepara para el mixer con amplitud por voz segura (`-32..31`); MUSIC con pitch o volumen variable se restringe a tres tracks Paula directos y falla antes de publicar ACP1 si necesita más.
+- `tools/bench-audio-compressor.mjs` permite comparar tiempo de preparación por codec/chunk/ruta; la memoria RSS no se declara como evidencia portable y debe medirse con la herramienta nativa del entorno.
 
 ## Criterios de cierre
 

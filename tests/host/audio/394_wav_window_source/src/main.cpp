@@ -2,6 +2,9 @@
 
 #include <cstdio>
 #include <cstring>
+#include <algorithm>
+#include <chrono>
+#include <filesystem>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -12,6 +15,9 @@
 #include "../../../../../host-tools/audio-compressor/include/audio_compressor/io/raw_source.hpp"
 #include "../../../../../host-tools/audio-compressor/include/audio_compressor/dsp/resampler.hpp"
 #include "../../../../../host-tools/audio-compressor/include/audio_compressor/playback/acp1_host_player.hpp"
+#include "../../../../../host-tools/audio-compressor/include/audio_compressor/formats/auzx_sink.hpp"
+#include "../../../../../host-tools/audio-compressor/include/audio_compressor/pipeline/music_pipeline.hpp"
+#include "../../../../../host-tools/audio-compressor/src/hpss.hpp"
 
 static void put16(eng::u8* bytes, eng::usize at, eng::u16 value) {
 	bytes[at] = static_cast<eng::u8>(value); bytes[at + 1u] = static_cast<eng::u8>(value >> 8u);
@@ -80,7 +86,30 @@ int main() {
 	if (!player.open({acp1.data(), acp1.size()}) || player.sample_rate() != 8000u || player.total_samples() != 8u) return 1;
 	eng::u8 mixed[8]{}; eng::u8 scratch[8]{}; eng::s16 accumulator[8]{};
 	if (player.read_window(0u, {mixed, 8u}, {scratch, 8u}, {accumulator, 8u}) != 8 || std::memcmp(mixed, pcm, 8u) != 0) return 1;
+	std::vector<eng::u8> long_pcm(512u);
+	for (eng::usize i = 0u; i < long_pcm.size(); ++i) long_pcm[i] = static_cast<eng::u8>(static_cast<eng::s8>((i * 13u) & 0x7fu));
+	audio_compressor::HpssResult windowed_layers {};
+	const auto hpss_begin = std::chrono::steady_clock::now();
+	if (!audio_compressor::hpss_windowed_pcm(long_pcm, 256u, 64u, 32u, windowed_layers) ||
+		windowed_layers.harmonic.size() != long_pcm.size() || windowed_layers.percussive.size() != long_pcm.size()) return 1;
+	const auto hpss_end = std::chrono::steady_clock::now();
+	const auto failed_output = std::filesystem::path {"host394-failed.auzx"};
+	std::filesystem::remove(failed_output);
+	{
+		audio_compressor::formats::AuzxSink sink;
+		const eng::u8 payload[4] {0u, 1u, 2u, 3u};
+		if (!sink.open(failed_output, 8000u, 8u, 4u, 2u, 3u) || !sink.append({payload, 4u})) return 1;
+	}
+	if (std::filesystem::exists(failed_output) || std::filesystem::exists("host394-failed.auzx.tmp")) return 1;
+	std::vector<std::vector<eng::u8>> four_stems(4u, std::vector<eng::u8>(8u));
+	for (eng::usize track = 0u; track < four_stems.size(); ++track) std::fill(four_stems[track].begin(), four_stems[track].end(), static_cast<eng::u8>(static_cast<eng::s8>(127 - track * 20u)));
+	audio_compressor::pipeline::MusicPlan route_plan {};
+	std::vector<std::vector<eng::u8>> route_units;
+	if (audio_compressor::pipeline::MusicPipeline::build_plan(four_stems, 8u, 255u, true, route_plan, route_units) ||
+		!audio_compressor::pipeline::MusicPipeline::build_plan(four_stems, 8u, 128u, false, route_plan, route_units) ||
+		route_units.size() != 4u || static_cast<eng::s8>(route_units[3][0]) > 31) return 1;
+	const auto hpss_ms = std::chrono::duration_cast<std::chrono::microseconds>(hpss_end - hpss_begin).count();
 	std::remove(path.c_str());
-	std::printf("OK: WavSource lee ventanas y mezcla PCM8 sin cargar el fichero completo.\n");
+	std::printf("OK: fuentes, codecs, ACP1, HPSS windowed y sink transaccional; HPSS=%lld us.\n", static_cast<long long>(hpss_ms));
 	return 0;
 }

@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <complex>
+#include <cstring>
 #include <vector>
 
 #include <eng/core/types/types.hpp>
@@ -154,6 +155,48 @@ template <audio_compressor::domain::WindowSource Source, class Consumer>
 		HpssResult layers {};
 		if (!hpss(input, fft_size, layers) || !consumer(start, layers)) return false;
 		input.resize(window_samples + overlap_samples);
+	}
+	return true;
+}
+
+/// Procesa un PCM completo por ventanas y une las capas solapadas con pesos lineales.
+/// Se usa mientras la ingestión PACK-PCM siga entregando cada stem completo; limita el scratch de
+/// FFT a una ventana y evita discontinuidades audibles entre llamadas independientes a HPSS.
+[[nodiscard]] inline bool hpss_windowed_pcm(const std::vector<eng::u8>& pcm, eng::usize window_samples,
+	eng::usize overlap_samples, eng::u16 fft_size, HpssResult& out) {
+	if (pcm.empty() || window_samples == 0u || overlap_samples >= window_samples || overlap_samples == 0u) return false;
+	std::vector<float> harmonic(pcm.size(), 0.0f), percussive(pcm.size(), 0.0f), weights(pcm.size(), 0.0f);
+	std::vector<eng::u8> window(window_samples + overlap_samples);
+	for (eng::usize start = 0u; start < pcm.size(); start += window_samples) {
+		const eng::usize count = std::min<eng::usize>(window_samples + overlap_samples, pcm.size() - start);
+		std::memcpy(window.data(), pcm.data() + start, count);
+		window.resize(count);
+		HpssResult layers {};
+		if (!hpss(window, fft_size, layers)) return false;
+		const bool first = start == 0u;
+		const bool last = start + count == pcm.size();
+		for (eng::usize i = 0u; i < count; ++i) {
+			float weight = 1.0f;
+			if (!first && i < overlap_samples) weight = static_cast<float>(i) / static_cast<float>(overlap_samples);
+			if (!last && count - i <= overlap_samples) {
+				const float right = static_cast<float>(count - i - 1u) / static_cast<float>(overlap_samples);
+				weight = std::min(weight, right);
+			}
+			const eng::usize destination = start + i;
+			harmonic[destination] += static_cast<float>(static_cast<eng::s8>(layers.harmonic[i])) * weight;
+			percussive[destination] += static_cast<float>(static_cast<eng::s8>(layers.percussive[i])) * weight;
+			weights[destination] += weight;
+		}
+		window.resize(window_samples + overlap_samples);
+	}
+	out.harmonic.resize(pcm.size()); out.percussive.resize(pcm.size());
+	for (eng::usize i = 0u; i < pcm.size(); ++i) {
+		const float divisor = weights[i] > 1.0e-6f ? weights[i] : 1.0f;
+		const auto quantize = [](float value) {
+			return static_cast<eng::u8>(static_cast<eng::s8>(std::clamp(static_cast<int>(std::lround(value)), -128, 127)));
+		};
+		out.harmonic[i] = quantize(harmonic[i] / divisor);
+		out.percussive[i] = quantize(percussive[i] / divisor);
 	}
 	return true;
 }
