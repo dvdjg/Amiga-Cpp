@@ -413,16 +413,34 @@ public:
 		if (!m_started) m_scene = scene;
 	}
 
-	/// **Mundo retenido** del juego (`app.world().add_layer("fondo", 0)`): capas con su
-	/// cámara. Contenedor aditivo; el planner que lo materializa llega después
-	/// (`PUBLIC_GAME_API.md` §2.1.3).
+	/// Añade una región opaca de fondo en coordenadas de mundo. `depth` ordena la composición;
+	/// los fondos con profundidad mayor se aplican encima de los de menor profundidad.
+	[[nodiscard]] Ref<scene::Layer> add_background(const char* id, u8 depth, Box bounds, u8 color) noexcept {
+		if (id == nullptr || bounds.empty() || bounds.x < 0 || bounds.y < 0 ||
+		    m_display.color_depth == 0u || m_display.color_depth > 8u ||
+		    color >= (static_cast<u16>(1u) << m_display.color_depth) ||
+		    static_cast<u32>(bounds.x) + bounds.w > 0x7fffu ||
+		    static_cast<u32>(bounds.y) + bounds.h > 0x7fffu) return {};
+		return m_world.add_fill_layer(id, depth, bounds, color);
+	}
+	[[nodiscard]] bool world_materialization_ok() const noexcept { return m_world_materialization_ok; }
+	/// Materializa las capas Fill desde sus coordenadas de mundo, aplicando cámara y viewport.
+	/// `App` lo ejecuta antes de `Game::render`; se puede repetir tras cambiar el contenido del mundo.
+	[[nodiscard]] bool draw_world_backgrounds() {
+		if (!m_scene.valid()) return false;
+		materialize_world_layers();
+		return m_world_materialization_ok;
+	}
+
+	/// **Mundo retenido** del juego: sus capas Fill se materializan con la cámara antes de render.
+	/// Capas de actores/tilemaps se conservan para sus caminos específicos.
 	[[nodiscard]] scene::World<8u>& world() noexcept { return m_world; }
 	[[nodiscard]] const scene::World<8u>& world() const noexcept { return m_world; }
 
 	/// **Planner (actores)**: emite los actores del `world()` al plan del frame con el clip y
 	/// el destino del contexto de dibujo de la escena ligada. Devuelve cuántos se dibujaron.
-	/// Llámalo antes de `present()`. (La materialización de **capas** —playfield/tilemap— llega
-	/// cuando exista el modelo de contenido de capa; ver `SCENE_AND_RESOURCES.md`.)
+	/// Llámalo antes de `present()`. Los actores se dibujan sobre el fondo Fill; las capas de
+	/// playfield/tilemap todavía esperan su driver de materialización.
 	eng::u16 draw_world() {
 		if (!m_scene.valid()) {
 			return 0u;
@@ -493,9 +511,22 @@ private:
 		}
 		void render(Backend&, GameContext& ctx) {
 			self->m_context = ctx;
+			self->m_world_materialization_ok = true;
+			if (self->m_scene.valid()) self->materialize_world_layers();
 			self->m_game.render(*self);
 		}
 	};
+
+	void materialize_world_layers() {
+		Screen background = screen();
+		m_world_materialization_ok = m_world.materialize_fill_layers(
+			[&](const Box& bounds, u8 color) {
+				const bool cleared = background.fill(bounds, 0u);
+				const bool colored = background.fill(bounds, color);
+				return cleared && colored;
+			},
+			m_display.width, m_display.height);
+	}
 
 	/// Productor del hook de VBlank: sube el contador y publica en el puerto (IRQ-safe).
 	static void on_vblank(void* user) noexcept {
@@ -539,6 +570,7 @@ private:
 	GameDisplay m_display {};
 	bool m_started = false;
 	bool m_shutdown = false;
+	bool m_world_materialization_ok = true;
 	eng::Ref<GameContext> m_context {};                 ///< contexto del engine (no propietario)
 	eng::os::MsgPort<16> m_port {};                     ///< puerto de mensajes del sistema
 	volatile u32 m_vblank_count = 0;                    ///< VBlanks publicados (IRQ)

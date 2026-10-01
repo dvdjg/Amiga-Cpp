@@ -17,6 +17,7 @@ dibujo de alto nivel (análogo al `RastPort`).
 8. Errores explícitos por gestor ausente, display inválido, presupuesto Chip insuficiente y doble arranque; permite corregir y reintentar.
 9. `App` libera los buffers de escena al destruirse, sin liberar el pool que pertenece al composition root.
 10. `run(n)` finito detiene el display al terminar, antes del teardown de la escena.
+11. `App::add_background()` conserva capas Fill; el materializador de `App` verifica scroll de cámara, recorte y orden de profundidad antes de `Game::render`.
 
 El backend de prueba es mínimo (`boot` + `wait_vblank`), sin `execute_frame_plan`: `App::present`
 lo omite con `if constexpr` (el juego normal no lo ve).

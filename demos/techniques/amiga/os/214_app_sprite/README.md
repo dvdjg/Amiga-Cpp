@@ -7,7 +7,8 @@ con **`app.screen().sprite(spr, x, y)`**; la geometría del destino la prepara l
 
 ## Qué muestra
 
-- Escena planar estándar 320×256×4 con paleta base.
+- Escena planar estándar 320×256×4 con fondo opaco Fill de 640×256 en coordenadas de mundo,
+  desplazado por la cámara de la capa `World`.
 - Un **BOB 32×32 de 2 planos** (disco rojo con centro amarillo) dibujado por cookie-cut, con
   la hoja generada en Chip al arrancar.
 - El sprite recorre la pantalla en horizontal y rebota en vertical.

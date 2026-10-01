@@ -32,6 +32,7 @@ namespace eng::scene {
 enum class WorldLayerKind : u8 {
 	Actors,  ///< capa de actores (BOBs/sprites) hermanada por `ActorStore`
 	Tilemap, ///< capa de tiles (contenido en `TileLayer`)
+	Fill,    ///< región de color opaco materializada antes del render del juego
 };
 
 /// **Técnica de scroll** de una región/capa (desplazamiento, independiente del modo de display).
@@ -99,6 +100,15 @@ public:
 	constexpr void configure(const char* id, u8 depth) noexcept {
 		m_id = id;
 		m_depth = depth;
+		m_kind = WorldLayerKind::Actors;
+		m_fill_bounds = {};
+		m_fill_color = 0u;
+	}
+	constexpr void configure_fill(const char* id, u8 depth, const Box& bounds, u8 color) noexcept {
+		configure(id, depth);
+		m_kind = WorldLayerKind::Fill;
+		m_fill_bounds = bounds;
+		m_fill_color = color;
 	}
 	[[nodiscard]] constexpr const char* id() const noexcept { return m_id; }
 	[[nodiscard]] constexpr u8 depth() const noexcept { return m_depth; }
@@ -109,6 +119,9 @@ public:
 	/// **Contenido**: actores (por defecto) o tilemap.
 	[[nodiscard]] constexpr WorldLayerKind kind() const noexcept { return m_kind; }
 	[[nodiscard]] constexpr bool is_tilemap() const noexcept { return m_kind == WorldLayerKind::Tilemap; }
+	[[nodiscard]] constexpr bool is_fill() const noexcept { return m_kind == WorldLayerKind::Fill; }
+	[[nodiscard]] constexpr const Box& fill_bounds() const noexcept { return m_fill_bounds; }
+	[[nodiscard]] constexpr u8 fill_color() const noexcept { return m_fill_color; }
 	/// Liga el contenido de tilemap (reusa `TileLayer`); pasa la capa a `Tilemap`.
 	constexpr void bind_tilemap(const TileLayer& t) noexcept {
 		m_tile = t;
@@ -131,6 +144,8 @@ private:
 	LayerPlayfield m_prefer = LayerPlayfield::Any;
 	TileLayer m_tile {};
 	Camera2D m_camera {};
+	Box m_fill_bounds {};
+	u8 m_fill_color = 0u;
 };
 
 /// **Mundo**: conjunto fijo de capas (sin heap) y de actores. El orden de dibujo lo fija la
@@ -139,14 +154,24 @@ private:
 template <u8 MaxLayers = 8u, u8 MaxActors = 16u, u8 MaxRegions = 8u>
 class World {
 public:
-	/// Añade una capa. Devuelve `Ref<Layer>` inválido si el mundo está lleno (no hay fallo
-	/// silencioso: comprueba `if (fondo)`).
+	/// Añade una capa de actores. Devuelve `Ref<Layer>` inválido si el mundo está lleno.
 	[[nodiscard]] Ref<Layer> add_layer(const char* id, u8 depth) noexcept {
 		if (m_count >= MaxLayers) {
 			return {};
 		}
 		Layer& l = m_layers[m_count];
 		l.configure(id, depth);
+		++m_count;
+		return l;
+	}
+
+	/// Añade una región de color opaco. Las capas Fill se pintan por profundidad ascendente antes
+	/// de `Game::render`; el juego puede dibujar encima en el mismo frame. `false` si la región está vacía.
+	[[nodiscard]] Ref<Layer> add_fill_layer(const char* id, u8 depth, const eng::Box& bounds,
+						 u8 color) noexcept {
+		if (m_count >= MaxLayers || bounds.empty()) return {};
+		Layer& l = m_layers[m_count];
+		l.configure_fill(id, depth, bounds, color);
 		++m_count;
 		return l;
 	}
@@ -168,6 +193,45 @@ public:
 	[[nodiscard]] constexpr u8 count() const noexcept { return m_count; }
 	[[nodiscard]] constexpr u8 capacity() const noexcept { return MaxLayers; }
 	[[nodiscard]] constexpr bool full() const noexcept { return m_count >= MaxLayers; }
+
+	/// Materializa solo las capas Fill, con orden estable por profundidad (menor = fondo),
+	/// trasladando coordenadas de mundo con la cámara de cada capa y recortando al viewport.
+	/// Cada región es un rectángulo opaco: primero se limpia a color 0 y luego se aplica su color.
+	template <class Sink>
+	[[nodiscard]] bool materialize_fill_layers(Sink&& sink, u16 viewport_width,
+						   u16 viewport_height) const {
+		u8 order[MaxLayers] {};
+		u8 count = 0u;
+		for (u8 i = 0u; i < m_count; ++i) {
+			if (!m_layers[i].is_fill()) continue;
+			u8 at = count;
+			while (at > 0u && m_layers[order[at - 1u]].depth() > m_layers[i].depth()) {
+				order[at] = order[at - 1u];
+				--at;
+			}
+			order[at] = i;
+			++count;
+		}
+		for (u8 i = 0u; i < count; ++i) {
+			const Layer& layer = m_layers[order[i]];
+			const Box& world_bounds = layer.fill_bounds();
+			const s32 left = static_cast<s32>(world_bounds.x) - layer.camera().scroll_x();
+			const s32 top = static_cast<s32>(world_bounds.y) - layer.camera().scroll_y();
+			const s32 right = left + world_bounds.w;
+			const s32 bottom = top + world_bounds.h;
+			const s32 clip_left = left > 0 ? left : 0;
+			const s32 clip_top = top > 0 ? top : 0;
+			const s32 clip_right = right < viewport_width ? right : viewport_width;
+			const s32 clip_bottom = bottom < viewport_height ? bottom : viewport_height;
+			if (clip_right <= clip_left || clip_bottom <= clip_top) continue;
+			const Box screen_bounds {
+				static_cast<s16>(clip_left), static_cast<s16>(clip_top),
+				static_cast<u16>(clip_right - clip_left),
+				static_cast<u16>(clip_bottom - clip_top)};
+			if (!sink(screen_bounds, 0u) || !sink(screen_bounds, layer.fill_color())) return false;
+		}
+		return true;
+	}
 
 	/// Capa por índice (`Ref` inválido si fuera de rango).
 	[[nodiscard]] Ref<Layer> layer(u8 i) noexcept {

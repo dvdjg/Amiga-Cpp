@@ -80,14 +80,14 @@ struct AppSpriteDemo {
 	void init(auto& app) {
 		eng::debug::mark_init_started(g_eng_run_status);
 
-		// Mundo retenido: una capa de fondo con su cámara; el sprite sigue su scroll.
-		auto fondo = app.world().add_layer("fondo", 0u);
+		// El World conserva una región opaca por cámara; App la presenta antes de los objetos.
+		auto fondo = app.add_background("fondo", 0u, eng::Box {0, 0, 640u, kHeight}, 4u);
 		if (!fondo) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021404u);
 			return;
 		}
-		fondo->camera().reset(eng::scene::WorldRect {0u, 0u, 2048u, 256u},
-				      eng::Size2u {kWidth, kHeight});
+		fondo->camera().reset(eng::scene::WorldRect {0u, 0u, 640u, kHeight},
+					      eng::Size2u {kWidth, kHeight});
 
 		m_sheet = app.device().memory_manager().chip().template reserve<eng::BobTag>(kSheetBytes, 16u);
 		if (!m_sheet.valid()) {
@@ -105,7 +105,7 @@ struct AppSpriteDemo {
 		m_bob.planes = kObjPlanes;
 		m_bob.layout = graphics::BobLayout::Planar;
 		m_bob.draw = graphics::BobDraw::CookieCut;
-		m_bob.erase = graphics::BobErase::None; // se repinta el fondo entero cada frame
+		m_bob.erase = graphics::BobErase::None; // App materializa el fondo antes de los BOBs
 		m_sprite = graphics::Sprite {m_bob, kObjData, kObjMask};
 
 		// Segundo objeto por el **mundo retenido**: el engine elige la representación (aquí
@@ -131,7 +131,10 @@ struct AppSpriteDemo {
 
 	void render(auto& app) {
 		auto s = app.screen();
-		s.clear(0u);
+		if (!app.world_materialization_ok()) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00021406u);
+			return;
+		}
 		const auto fondo = app.world().layer(0u);
 		const eng::u16 scroll = fondo.valid() ? fondo->camera().scroll_x() : 0u;
 		const eng::s16 x = static_cast<eng::s16>(16u + scroll % (kWidth - kObjW));

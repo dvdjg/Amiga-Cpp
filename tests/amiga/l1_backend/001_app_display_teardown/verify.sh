@@ -15,10 +15,10 @@ node - "$REPORT" <<'NODE'
 const fs = require('node:fs');
 const report = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 const status = report.finalSideChannel;
-if (report.status !== 'ok' || status?.state !== 3 || status?.detail !== 7) {
-  console.error('[L1-001] FAIL: expected READY/detail=7 (display stopped, Chip pool reclaimed, App started).');
+if (report.status !== 'ok' || status?.state !== 3 || status?.detail !== 31) {
+  console.error('[L1-001] FAIL: expected READY/detail=31 (background/camera, display stopped, Chip reclaimed, App started).');
   console.error(JSON.stringify({status: report.status, finalSideChannel: status}, null, 2));
   process.exit(1);
 }
-console.log('[L1-001] OK: App started, DMA is idle, scene Chip allocations are reclaimed.');
+console.log('[L1-001] OK: World Fill/camera rendered, DMA stopped, scene Chip allocations reclaimed.');
 NODE

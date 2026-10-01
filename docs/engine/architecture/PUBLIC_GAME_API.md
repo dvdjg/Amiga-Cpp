@@ -19,7 +19,7 @@ construye materialización en la app. El diagnóstico actualizado está en
 | Área | Existe hoy (interno) | Falta (objetivo) |
 |---|---|---|
 | Bucle | `eng::App` oculta `backend`/`GameContext` en `init/update/render` | Un ejemplo 2D completo de nivel A, sin configuración manual de memoria/escena |
-| Display/escena | `Scene`/`scene::compose` y `App::bind_scene` existen | `World`/capas con materializador para fondo y tilemap; hoy el planner completo de capas falta |
+| Display/escena | `App::start()` compone/posee el display y materializa fondos Fill desde `World`, aplicando cámara | Materializador de bitmap/tilemap y planner de composición de múltiples capas |
 | Dibujo | `Screen` ofrece primitivas y `sprite` | Retirar `Screen::target()` de la ruta normal; `Screen::blit` aún expone stride/planos/shift/operación |
 | Entrada | `input::InputAggregator` (estado por frame) | Fachada de acciones + (mini-SO de mensajes, documentado) |
 | Tareas de fondo | `task::BackgroundQueue` | Fachada `tasks()` |
@@ -60,6 +60,7 @@ struct MyGame {
 | `app.audio()` | audio del backend (SFX + música) | `backend.audio()` |
 | `app.tasks()` | tareas de fondo | `context.background` |
 | `app.start()` | compone, posee e instala el display antes de `run()` | `scene::compose` + `Scene::takeover` |
+| `app.add_background(id, depth, bounds, color)` | declara una región Fill opaca en coordenadas de mundo; `App` la traslada con cámara y presenta antes de `Game::render` | `scene::World` + `Screen::fill` |
 | `app.shutdown()` | detiene DMA/presentación antes de liberar la escena | ciclo de vida interno de `Scene` + backend |
 | `app.present()` | publica el frame (copper/swap) | `scene.commit()`/`present()` |
 

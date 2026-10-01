@@ -59,6 +59,17 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
   exige `DMACONR=0` más recuperación del pool Chip tras destruir `App`. HOST-394 valida selección
   automática y preflight puro. AGA/A1200 tiene cobertura host; el runner no ofrece un perfil AGA.
 
+## 1.1 Materializador inicial de capas `World`
+
+- **Alcance implementado**: `App::add_background(id, depth, bounds, color)` añade una capa opaca
+  `WorldLayerKind::Fill`; `App` materializa esas regiones antes de `Game::render`, trasladándolas con
+  la cámara y recortándolas al viewport. Profundidad ascendente con orden estable: el fondo se compone
+  primero y los objetos del juego después.
+- **Gate**: HOST-234 verifica cámara, recorte, profundidad y píxeles. Demo 214 usa `World` para limpiar
+  el fondo móvil detrás de ambos BOBs y pasa el gate visual de WinUAE.
+- **Límites de este hito**: no materializa tilemaps ni bitmap assets y no deduce DPF/planos de varias
+  capas. Es un materializador CPU de regiones opacas, no el planner general de escenas.
+
 ## 2. Audio auto-conducido (el eslabón con más dolor)
 
 - **Problema**: la música **no se conduce sola**. La 213 hace `app.memory_manager().chip().reserve<AudioTag>(need, 4)`,
