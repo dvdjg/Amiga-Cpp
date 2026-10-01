@@ -85,3 +85,4 @@ Categoría `core` de la batería host (L1). El índice de categorías está en [
 | HOST-341 | [adapter](341_adapter/README.md) | Prueba de decisión §7.6: un consumidor implementa sus `I*` (externas) con solo `eng/api/api.hpp` + helpers (`BlockPool`/`Copper`), sin tocar `field`/`BobTarget`/registros. |
 | HOST-352 | [telemetry_chip](352_telemetry_chip/README.md) | `eng/debug/telemetry.hpp` (panel sobre el overlay del depurador: fps/frame/memoria, con `StaticString`/`to_chars_u32`) y `eng/memory/chip_storage.hpp` (`ChipStorage`/`ENG_CHIP_RAM`: búfer estático certificado en Chip RAM con `Address<Chip>`). |
 | HOST-380 | [lloyd_max](380_lloyd_max/README.md) | `eng/core/util/quantizer.hpp`: entrenamiento Lloyd-Max sin heap con `float` y `Fixed<s32,16>`. |
+| HOST-393 | [dynamic_string](393_dynamic_string/README.md) | `eng/core/util/dynamic_string.hpp`: crecimiento con asignador explícito, auto-append seguro ante realocación y fallo de reserva. |

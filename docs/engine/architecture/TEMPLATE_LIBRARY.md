@@ -121,6 +121,7 @@ Puntos de reutilización explícitos:
 | `expected.hpp` | `Expected<T, E>`, `unexpected(e)` | `std::expected` |
 | `string_view.hpp` | `StringView` | `std::string_view` |
 | `static_string.hpp` | `StaticString<N>` | (sin equivalente; `llvm::SmallString`) |
+| `dynamic_string.hpp` | `DynamicString<A>` (crece con un asignador; `view()` no incluye NUL) | `std::string` (usa heap) |
 | `string_interner.hpp` | `StringInterner<MaxStrings, A>` (dedup por contenido sobre arena) | `boost::flyweight` |
 | `lru_cache.hpp` | `LruCache<K, V, N>` (LRU `O(1)`, sin heap) | (sin equivalente) |
 | `task.hpp` | `TaskStatus`, `TaskSequence<N>`, `Delay` (tareas *stackless*) | (coroutine ligera) |
@@ -272,6 +273,7 @@ canónica de validar algoritmos puros (sin hardware):
 | HOST-122 | `core/util/dynamic_bitset.hpp` (bitset de tamaño en `init`, en arena) |
 | HOST-123 | consumidor de `bitstream`/`dynamic_bitset` (nivel empaquetado y tiles sucios) |
 | HOST-124 | `core/util/string_interner.hpp` (internado de cadenas) |
+| HOST-393 | `core/util/dynamic_string.hpp` (asignador explícito, auto-append seguro ante realocación y agotamiento) |
 | HOST-125 | `core/util/collision.hpp` (SAT 2D de polígonos convexos y punto en convexo) |
 | HOST-126 | `core/util/graph.hpp` (adyacencia, BFS, A*, orden topológico) |
 | HOST-127 | `core/util/lru_cache.hpp` (LRU `O(1)`) |
@@ -279,7 +281,7 @@ canónica de validar algoritmos puros (sin hardware):
 | HOST-129 | `core/util/interval.hpp` (rangos `[lo,hi)` fusionados) |
 | HOST-130 | `core/util/variant.hpp` (unión etiquetada sin heap) |
 
-> **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id), `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`), `Pool` por `086_bob_objects` (parque de actores), `HashMap` por `111_xlimited_sidescroller` (índice de chunks de `ChunkCache`), `color` también por `086_bob_objects` (gradiente del cielo con `eng::util::lerp444`), y `broadphase` y `pathfinding` por `110_ylimited_shooter` (self-test en `init`: `SpatialHash` + `bfs`/`reconstruct_path` en el 68000; si falla, la demo no llega a READY). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashSet`, `DynamicHashMap`, `PriorityQueue`, `Stack`/`Queue`/`Deque`, `EnumSet`, `ScopeGuard`, `StaticString`, `stats`, `collision`, `text`, `grid`, `dsp`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..102 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
+> **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id), `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`), `Pool` por `086_bob_objects` (parque de actores), `HashMap` por `111_xlimited_sidescroller` (índice de chunks de `ChunkCache`), `color` también por `086_bob_objects` (gradiente del cielo con `eng::util::lerp444`), y `broadphase` y `pathfinding` por `110_ylimited_shooter` (self-test en `init`: `SpatialHash` + `bfs`/`reconstruct_path` en el 68000; si falla, la demo no llega a READY). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashSet`, `DynamicHashMap`, `PriorityQueue`, `Stack`/`Queue`/`Deque`, `EnumSet`, `ScopeGuard`, `StaticString`, `DynamicString`, `stats`, `collision`, `text`, `grid`, `dsp`, `allocator`/`arena_alloc`/`hash`) están respaldados por tests host y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
 
 Los tests se ejecutan con el `g++` del entorno (Windows/MinGW, donde `unsigned long`
 mide 4 bytes y coincide con m68k) mediante `tools/run-host-tests.sh`.
@@ -338,6 +340,7 @@ Qué usar según la necesidad, con el criterio del A500 (sin heap; coste visible
 | Ordenar estable / top-k / por conteo | `stable_sort`, `nth_element`, `partial_sort`, `radix_sort_u16` |
 | Valor opcional / resultado con error | `Optional<T>` / `Expected<T, E>` |
 | Vista de texto / construir texto sin heap | `StringView` / `StaticString<N>` |
+| Construir texto de tamaño runtime sobre una arena | `DynamicString<A>`; `view()` lleva longitud y no incluye NUL |
 | Restaurar estado al salir del ámbito | `ScopeGuard` |
 | Estadística / telemetría (fps, carga) | `stats.hpp` (`mean`/`variance`/`ema`/`RunningMean`) |
 | Color RGB444 (paleta/fundido) | `color.hpp` |

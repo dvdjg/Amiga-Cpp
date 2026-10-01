@@ -3,9 +3,13 @@
 /// \file dynamic_string.hpp
 /// `eng::util::DynamicString<A>`: cadena de texto **que crece** sobre un
 /// `eng::util::Vector<char, A>`, con `StringView` para leerla. Es la pareja
-/// dinamica de `StaticString<N>`: se usa en **herramientas host** que construyen
-/// salida larga (generadores de codigo, ensambladores, volcados de diagnostico)
-/// sin STL y sin `std::string`.
+/// dinámica de `StaticString<N>`: se usa donde el tamaño se conoce en runtime y
+/// el llamador elige explícitamente el asignador (host o arena del engine), sin
+/// STL ni `std::string`.
+///
+/// El almacenamiento **no** añade un terminador NUL: `data()` y `view()` describen
+/// exactamente `size()` bytes y no se pueden pasar como cadena C. Para construir
+/// texto terminado en NUL con capacidad fija, usar `StaticString<N>`.
 ///
 /// El formateo de enteros evita la division (tabla de potencias y restas) para
 /// que, si algun dia se compila en 68000, no arrastre `__udivsi3`; el hex se
@@ -13,19 +17,18 @@
 /// asignador no puede crecer.
 ///
 /// Uso:
-///   eng::util::DynamicString<eng::util::HeapAlloc> out;
+///   eng::util::DynamicString<eng::util::HeapAlloc> out; // incluir heap_alloc.hpp (solo host)
 ///   out.append("LDA #$");
 ///   out.append_hex(0x2Au, 2u);      // -> "LDA #$2a"
 
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/allocator.hpp>
-#include <eng/core/util/heap_alloc.hpp>
 #include <eng/core/util/string_view.hpp>
 #include <eng/core/util/vector.hpp>
 
 namespace eng::util {
 
-template <class A = HeapAlloc>
+template <class A>
 class DynamicString {
 public:
 	constexpr DynamicString() noexcept = default;
@@ -56,8 +59,25 @@ public:
 		if (text.empty()) {
 			return true;
 		}
-		if (!m_buf.reserve(m_buf.size() + text.size())) {
+		const usize old_size = m_buf.size();
+		if (text.size() > static_cast<usize>(-1) - old_size) {
 			return false;
+		}
+		usize source_offset = 0u;
+		bool aliases_buffer = false;
+		if (m_buf.data() != nullptr && text.data() != nullptr) {
+			const uintptr begin = reinterpret_cast<uintptr>(m_buf.data());
+			const uintptr source = reinterpret_cast<uintptr>(text.data());
+			if (source >= begin && source - begin < old_size) {
+				source_offset = static_cast<usize>(source - begin);
+				aliases_buffer = true;
+			}
+		}
+		if (!m_buf.reserve(old_size + text.size())) {
+			return false;
+		}
+		if (aliases_buffer) {
+			text = StringView {m_buf.data() + source_offset, text.size()};
 		}
 		for (usize i = 0; i < text.size(); ++i) {
 			if (!m_buf.push_back(text[i])) {
@@ -66,11 +86,11 @@ public:
 		}
 		return true;
 	}
-	bool append(const char* cstr) noexcept { return append(StringView(cstr)); }
 
 	/// Repite `c` `count` veces.
 	bool append_repeat(char c, usize count) noexcept {
-		if (!m_buf.reserve(m_buf.size() + count)) {
+		if (count > static_cast<usize>(-1) - m_buf.size() ||
+		    !m_buf.reserve(m_buf.size() + count)) {
 			return false;
 		}
 		for (usize i = 0; i < count; ++i) {
