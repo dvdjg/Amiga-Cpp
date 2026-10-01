@@ -23,16 +23,18 @@
 #include <eng/graphics/bob.hpp>
 #include <eng/graphics/composition/limits.hpp>
 #include <eng/graphics/frame_plan.hpp>
+#include <eng/graphics/bitmap_view.hpp>
 #include <eng/scene/actor.hpp>
 #include <eng/scene/virtual_scene.hpp>
 
 namespace eng::scene {
 
-/// **Contenido de una capa del mundo**: actores (por defecto) o un tilemap (reusa `TileLayer`).
+	/// **Contenido de una capa del mundo**: actores, tilemap o región Fill.
 enum class WorldLayerKind : u8 {
 	Actors,  ///< capa de actores (BOBs/sprites) hermanada por `ActorStore`
 	Tilemap, ///< capa de tiles (contenido en `TileLayer`)
 	Fill,    ///< región de color opaco materializada antes del render del juego
+	Bitmap,  ///< bitmap indexado opaco de un plano
 };
 
 /// **Técnica de scroll** de una región/capa (desplazamiento, independiente del modo de display).
@@ -110,6 +112,12 @@ public:
 		m_fill_bounds = bounds;
 		m_fill_color = color;
 	}
+	constexpr void configure_bitmap(const char* id, u8 depth,
+					const graphics::BitmapView<eng::TextureTag>& bitmap) noexcept {
+		configure(id, depth);
+		m_kind = WorldLayerKind::Bitmap;
+		m_bitmap = bitmap;
+	}
 	[[nodiscard]] constexpr const char* id() const noexcept { return m_id; }
 	[[nodiscard]] constexpr u8 depth() const noexcept { return m_depth; }
 	/// Cámara de la capa: su `scroll_x`/`scroll_y` es la ventana al mundo (`PUBLIC_GAME_API.md` §2.1.3).
@@ -122,6 +130,8 @@ public:
 	[[nodiscard]] constexpr bool is_fill() const noexcept { return m_kind == WorldLayerKind::Fill; }
 	[[nodiscard]] constexpr const Box& fill_bounds() const noexcept { return m_fill_bounds; }
 	[[nodiscard]] constexpr u8 fill_color() const noexcept { return m_fill_color; }
+	[[nodiscard]] constexpr bool is_bitmap() const noexcept { return m_kind == WorldLayerKind::Bitmap; }
+	[[nodiscard]] constexpr const graphics::BitmapView<eng::TextureTag>& bitmap() const noexcept { return m_bitmap; }
 	/// Liga el contenido de tilemap (reusa `TileLayer`); pasa la capa a `Tilemap`.
 	constexpr void bind_tilemap(const TileLayer& t) noexcept {
 		m_tile = t;
@@ -146,6 +156,7 @@ private:
 	Camera2D m_camera {};
 	Box m_fill_bounds {};
 	u8 m_fill_color = 0u;
+	graphics::BitmapView<eng::TextureTag> m_bitmap {};
 };
 
 /// **Mundo**: conjunto fijo de capas (sin heap) y de actores. El orden de dibujo lo fija la
@@ -172,6 +183,19 @@ public:
 		if (m_count >= MaxLayers || bounds.empty()) return {};
 		Layer& l = m_layers[m_count];
 		l.configure_fill(id, depth, bounds, color);
+		++m_count;
+		return l;
+	}
+
+	/// Añade una vista bitmap no propietaria. El owner debe vivir mientras viva la capa; `App`
+	/// conserva la reserva Chip del helper `add_bitmap_background`.
+	[[nodiscard]] Ref<Layer> add_bitmap_layer(const char* id, u8 depth,
+						 const graphics::BitmapView<eng::TextureTag>& bitmap) noexcept {
+		if (m_count >= MaxLayers || id == nullptr || !bitmap.valid() ||
+		    bitmap.layout != graphics::PlaneLayout::Contiguous || bitmap.plane_count != 1u ||
+		    bitmap.row_bytes < bitmap.width) return {};
+		Layer& l = m_layers[m_count];
+		l.configure_bitmap(id, depth, bitmap);
 		++m_count;
 		return l;
 	}
@@ -229,6 +253,41 @@ public:
 				static_cast<u16>(clip_right - clip_left),
 				static_cast<u16>(clip_bottom - clip_top)};
 			if (!sink(screen_bounds, 0u) || !sink(screen_bounds, layer.fill_color())) return false;
+		}
+		return true;
+	}
+
+	/// Emite filas visibles de bitmaps indexados, trasladadas por la cámara y recortadas al viewport.
+	/// El sink recibe (x, y, row) sin que World tome ownership del bitmap.
+	template <class Sink>
+	[[nodiscard]] bool materialize_bitmap_layers(Sink&& sink, u16 viewport_width,
+						     u16 viewport_height) const {
+		u8 order[MaxLayers] {};
+		u8 count = 0u;
+		for (u8 i = 0u; i < m_count; ++i) {
+			if (!m_layers[i].is_bitmap()) continue;
+			u8 at = count;
+			while (at > 0u && m_layers[order[at - 1u]].depth() > m_layers[i].depth()) {
+				order[at] = order[at - 1u];
+				--at;
+			}
+			order[at] = i;
+			++count;
+		}
+		for (u8 i = 0u; i < count; ++i) {
+			const Layer& layer = m_layers[order[i]];
+			const auto& bitmap = layer.bitmap();
+			const s32 src_x = layer.camera().scroll_x();
+			const s32 src_y = layer.camera().scroll_y();
+			if (src_x >= bitmap.width || src_y >= bitmap.height) continue;
+			const u16 copy_w = static_cast<u16>(bitmap.width - src_x < viewport_width
+							    ? bitmap.width - src_x : viewport_width);
+			const u16 copy_h = static_cast<u16>(bitmap.height - src_y < viewport_height
+							    ? bitmap.height - src_y : viewport_height);
+			for (u16 y = 0u; y < copy_h; ++y) {
+				const eng::usize offset = static_cast<eng::usize>(src_y + y) * bitmap.row_bytes + src_x;
+				if (!sink(0u, y, bitmap.planes.view().subspan(offset, copy_w))) return false;
+			}
 		}
 		return true;
 	}

@@ -35,6 +35,7 @@
 #include <eng/graphics/copper/plan.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/frame_plan.hpp>
+#include <eng/graphics/bitmap_view.hpp>
 #include <eng/graphics/palette32.hpp>
 #include <eng/graphics/sprite_asset.hpp>
 #include <eng/input/input.hpp>
@@ -153,7 +154,12 @@ public:
 		: m_backend(backend), m_game(game), m_engine(backend, m_adapter), m_memory(memory) {
 		m_adapter.self = this;
 	}
-	~App() { shutdown(); }
+	~App() {
+		shutdown();
+		for (u8 i = 0u; i < m_bitmap_owner_count; ++i) {
+			if (m_memory.valid() && m_bitmap_owners[i].valid()) m_memory->chip().release(m_bitmap_owners[i]);
+		}
+	}
 	App(const App&) = delete;
 	App& operator=(const App&) = delete;
 
@@ -423,6 +429,40 @@ public:
 		    static_cast<u32>(bounds.y) + bounds.h > 0x7fffu) return {};
 		return m_world.add_fill_layer(id, depth, bounds, color);
 	}
+
+	/// Copia un bitmap indexado a Chip y lo conserva mientras la capa pertenezca a World. La vista
+	/// del juego no posee el bloque y `App::~App()` lo libera después de detener DMA/presentación.
+	[[nodiscard]] Ref<scene::Layer> add_bitmap_background(const char* id, u8 depth,
+						      Span<const u8> pixels, u16 width,
+						      u16 height, u16 row_bytes = 0u) {
+		if (!m_memory.valid() || m_shutdown || id == nullptr || pixels.empty() ||
+		    m_bitmap_owner_count >= kMaxBitmapOwners || width == 0u || height == 0u || width > 0x7fffu) return {};
+		const u16 stride = row_bytes == 0u ? width : row_bytes;
+		const usize bytes = static_cast<usize>(stride) * height;
+		if (stride < width || pixels.size() < bytes || bytes > 0xffffffffu) return {};
+		auto owner = m_memory->chip().template reserve<TextureTag>(static_cast<u32>(bytes), 16u);
+		if (!owner.valid()) return {};
+		for (usize i = 0u; i < bytes; ++i) owner.view[i] = pixels[i];
+		graphics::BitmapView<eng::TextureTag> bitmap {};
+		bitmap.planes = owner.mem_view();
+		bitmap.width = width;
+		bitmap.height = height;
+		bitmap.row_bytes = stride;
+		bitmap.plane_count = 1u;
+		bitmap.layout = graphics::PlaneLayout::Contiguous;
+		const auto layer = m_world.add_bitmap_layer(id, depth, bitmap);
+		if (!layer.valid()) {
+			m_memory->chip().release(owner);
+			return {};
+		}
+		m_bitmap_owners[m_bitmap_owner_count++] = static_cast<decltype(owner)&&>(owner);
+		return layer;
+	}
+	[[nodiscard]] Ref<scene::Layer> add_bitmap_background(const char* id, u8 depth,
+						      ByteView<TextureTag> pixels, u16 width,
+						      u16 height, u16 row_bytes = 0u) {
+		return add_bitmap_background(id, depth, pixels.raw(), width, height, row_bytes);
+	}
 	[[nodiscard]] bool world_materialization_ok() const noexcept { return m_world_materialization_ok; }
 	/// Materializa las capas Fill desde sus coordenadas de mundo, aplicando cámara y viewport.
 	/// `App` lo ejecuta antes de `Game::render`; se puede repetir tras cambiar el contenido del mundo.
@@ -489,6 +529,8 @@ public:
 	[[nodiscard]] bool shutdown_complete() const noexcept { return m_shutdown; }
 
 private:
+	static constexpr u8 kMaxBitmapOwners = 8u;
+
 	[[nodiscard]] graphics::composition::SceneResources scene_resources() const noexcept {
 		auto resources = graphics::composition::planar(m_display.width, m_display.height,
 								 m_display.color_depth);
@@ -524,6 +566,40 @@ private:
 				const bool cleared = background.fill(bounds, 0u);
 				const bool colored = background.fill(bounds, color);
 				return cleared && colored;
+			},
+			m_display.width, m_display.height);
+		if (m_world_materialization_ok) materialize_bitmap_layers();
+	}
+
+	void materialize_bitmap_layers() {
+		Screen background = screen();
+		m_world_materialization_ok = m_world.materialize_bitmap_layers(
+			[&](u16 x, u16 y, ByteView<TextureTag> row) {
+				usize i = 0u;
+				while (i < row.size()) {
+					const u8 color = row[i];
+					usize end = i + 1u;
+					while (end < row.size() && row[end] == color) ++end;
+					if (!background.fill(Box {static_cast<s16>(x + i), static_cast<s16>(y),
+								  static_cast<u16>(end - i), 1u}, color)) return false;
+					i = end;
+				}
+				return true;
+			},
+			m_display.width, m_display.height);
+		if (!m_world_materialization_ok) return;
+		m_world_materialization_ok = m_world.materialize_bitmap_layers(
+			[&](u16 x, u16 y, ByteView<TextureTag> row) {
+				usize i = 0u;
+				while (i < row.size()) {
+					const u8 color = row[i];
+					usize end = i + 1u;
+					while (end < row.size() && row[end] == color) ++end;
+					if (!background.fill(Box {static_cast<s16>(x + i), static_cast<s16>(y),
+								  static_cast<u16>(end - i), 1u}, color)) return false;
+					i = end;
+				}
+				return true;
 			},
 			m_display.width, m_display.height);
 	}
@@ -571,6 +647,8 @@ private:
 	bool m_started = false;
 	bool m_shutdown = false;
 	bool m_world_materialization_ok = true;
+	eng::Block<TextureTag, MemoryKind::Chip> m_bitmap_owners[kMaxBitmapOwners] {};
+	u8 m_bitmap_owner_count = 0u;
 	eng::Ref<GameContext> m_context {};                 ///< contexto del engine (no propietario)
 	eng::os::MsgPort<16> m_port {};                     ///< puerto de mensajes del sistema
 	volatile u32 m_vblank_count = 0;                    ///< VBlanks publicados (IRQ)

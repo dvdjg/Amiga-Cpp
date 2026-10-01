@@ -22,6 +22,7 @@ namespace {
 alignas(16) u8 g_chip[512 * 1024];
 alignas(16) u8 g_app_chip[128 * 1024];
 alignas(16) u8 g_small_chip[16 * 1024];
+u8 g_bitmap_background[96u * 64u];
 
 bool pixel_bit(const u8* base, u32 plane_bytes, u16 row_bytes, u8 plane, u16 x, u16 y);
 
@@ -49,6 +50,7 @@ struct MockBackend {
 	u32 scene_plane_bytes = 0u;
 	bool camera_pixel = false;
 	bool clipped_pixel = false;
+	bool bitmap_pixel = false;
 	void boot() {}
 	void wait_vblank() {}
 	void takeover_display(const u16* words) { installed_copper = words; }
@@ -59,9 +61,11 @@ struct MockBackend {
 	bool execute_frame_plan(const graphics::FramePlan&) {
 		if (scene_buffer != nullptr) {
 			camera_pixel = !pixel_bit(scene_buffer, scene_plane_bytes, 8u, 0u, 8u, 8u) &&
-				       pixel_bit(scene_buffer, scene_plane_bytes, 8u, 1u, 8u, 8u);
+					pixel_bit(scene_buffer, scene_plane_bytes, 8u, 1u, 8u, 8u);
 			clipped_pixel = pixel_bit(scene_buffer, scene_plane_bytes, 8u, 0u, 32u, 8u) &&
 					!pixel_bit(scene_buffer, scene_plane_bytes, 8u, 1u, 32u, 8u);
+			bitmap_pixel = pixel_bit(scene_buffer, scene_plane_bytes, 8u, 1u, 8u, 8u) &&
+				       !pixel_bit(scene_buffer, scene_plane_bytes, 8u, 0u, 8u, 8u);
 		}
 		return true;
 	}
@@ -106,6 +110,26 @@ struct BackgroundGame {
 		materialization_ok = app.world_materialization_ok();
 		(void)app.screen().fill(Box {0, 0, 4u, 4u}, 0u);
 		(void)app.screen().fill(Box {0, 0, 4u, 4u}, 3u);
+		app.present();
+	}
+};
+
+struct BitmapBackgroundGame {
+	bool bitmap_added = false;
+	bool materialization_ok = false;
+	void init(auto& app) {
+		const auto layer = app.add_bitmap_background(
+			"bitmap", 0u, Span<const u8> {g_bitmap_background, sizeof(g_bitmap_background)},
+			96u, 64u);
+		bitmap_added = layer.valid();
+		if (layer) {
+			layer->camera().reset(scene::WorldRect {0u, 0u, 96u, 64u}, Size2u {64u, 64u});
+			layer->camera().set_scroll_x(16u);
+		}
+	}
+	void update(auto&) {}
+	void render(auto& app) {
+		materialization_ok = app.world_materialization_ok();
 		app.present();
 	}
 };
@@ -156,6 +180,36 @@ bool pixel_bit(const u8* base, u32 plane_bytes, u16 row_bytes, u8 plane, u16 x, 
 } // namespace
 
 int main() {
+	for (usize i = 0u; i < sizeof(g_bitmap_background); ++i) g_bitmap_background[i] = 2u;
+	{
+		MemoryManager bitmap_mem;
+		(void)bitmap_mem.configure(g_app_chip, sizeof(g_app_chip), nullptr, 0u, nullptr, 0u, 16u);
+		MockBackend bitmap_backend {};
+		bitmap_backend.memory = &bitmap_mem;
+		BitmapBackgroundGame bitmap_game {};
+		const u32 free_before = bitmap_mem.chip().free_bytes();
+		{
+			App bitmap_app {bitmap_backend, bitmap_game, bitmap_mem};
+			GameDisplay display {};
+			display.width = 64u;
+			display.height = 64u;
+			display.color_depth = 2u;
+			display.buffers = 1u;
+			(void)bitmap_app.set_display(display);
+			check(bitmap_app.start().has_value(), "App compone display para la capa bitmap");
+			bitmap_app.run(1u);
+		check(bitmap_game.bitmap_added, "World registra y App copia el asset bitmap");
+		check(bitmap_game.materialization_ok, "World materializa el bitmap después del scroll");
+			check(bitmap_mem.chip().free_bytes() < free_before,
+			      "App conserva ownership Chip del asset bitmap durante su vida");
+			check(bitmap_backend.scene_buffer != nullptr &&
+			      bitmap_backend.bitmap_pixel,
+			      "pixel de bitmap del mundo aparece en el viewport tras aplicar cámara");
+		}
+		check(bitmap_mem.chip().free_bytes() == free_before,
+		      "destruir App libera la reserva propietaria del bitmap");
+	}
+
 	{
 		MemoryManager layer_mem;
 		(void)layer_mem.configure(g_app_chip, sizeof(g_app_chip), nullptr, 0u, nullptr, 0u, 16u);
