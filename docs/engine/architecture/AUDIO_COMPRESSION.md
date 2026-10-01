@@ -14,6 +14,32 @@ El pipeline tiene dos niveles de formato. `AUZX` representa una señal PCM linea
 - Ofrecer una utilidad única de PC que funcione tanto por CLI como arrastrando un archivo sobre el ejecutable.
 - Seleccionar automáticamente entre pipeline de sample y pipeline musical, permitiendo forzar cualquiera de los dos.
 
+## Objetivo de máximos: separación instrumental y síntesis durante la reproducción
+
+El objetivo de máximos para MUSIC es aproximar auditivamente una mezcla mediante pistas instrumentales que se sintetizan durante la reproducción, en lugar de almacenar una grabación PCM completa de cada pista. La separación no tiene que reconstruir la onda original muestra a muestra; debe conservar la identidad tímbrica, la sucesión de notas, sus armónicos, ataques, envolventes, volumen y frecuencia con una recomposición perceptualmente próxima.
+
+El modelo de cada instrumento combina una frecuencia fundamental `F0(t)`, amplitudes de parciales armónicos, envolvente temporal, transitorio de ataque y un componente residual para ruido, percusión, reverberación o detalles que no puedan atribuirse con seguridad. Los parciales deben conservar su relación de amplitud, fase e inarmonicidad durante cada nota; guardar solo la fundamental produciría pistas reconocibles como tonos sintéticos, no como instrumentos.
+
+La función de coste no puede minimizar únicamente el error de reconstrucción de la mezcla. Una solución que asignase toda la mezcla a una sola pista podría obtener un error bajo y no separar ningún instrumento. La evaluación combina error de recomposición, fuga entre pistas, estabilidad de `F0`, plausibilidad de los armónicos, complejidad del modelo, continuidad entre ventanas y coste de reproducción. El residual se conserva explícitamente para no contaminar todas las pistas con sonidos que el separador no puede atribuir.
+
+El análisis host debe probar varias hipótesis de número de instrumentos, frecuencia fundamental, plantilla armónica, ataques, finales de nota, asignación de parciales, envolventes y zonas tímbricas. Una búsqueda beam o una optimización iterativa conserva las mejores hipótesis por ventana y selecciona después la solución global con menor coste. La validación requiere recomponer la mezcla, medir error y fuga, comprobar la detección de notas y escuchar las pistas aisladas; el error de recomposición por sí solo no demuestra separación instrumental.
+
+La representación debe usar varias zonas tímbricas por instrumento cuando el desplazamiento de frecuencia sea grande: registro grave, medio y agudo, además de residual/transitorios. La reproducción elige la zona más cercana y aplica un cambio de frecuencia limitado. Así se conservan mejor los armónicos que con una única muestra base transpuesta varias octavas.
+
+La síntesis ocurre durante la reproducción. ACP1 v3 almacena unidades aditivas o híbridas, parciales, eventos de nota, frecuencia o pitch, ganancia, envolventes y residual; el reproductor genera ventanas PCM8 y no reconstruye la obra completa en Chip RAM. La IRQ solo cambia buffers, periodos, punteros y estados; la síntesis, el remuestreo, la mezcla y la decodificación se ejecutan fuera de la IRQ.
+
+El planificador intenta primero las tres voces Paula directas (`AUD1..AUD3`), donde puede controlar periodo y volumen por evento. Después intenta las cuatro voces software del mixer en `AUD0`; en esta ruta el pitch y las envolventes que Photon no expone se remuestrean o se hornean por bloques fuera de la IRQ. Si la concurrencia real supera las siete voces disponibles, el planificador solicita el modo OctaMED de ocho voces software, que ocupa los cuatro canales hardware. Si una pista está marcada como requerida y no cabe en su ruta, la obra se rechaza de forma explícita en lugar de robar una voz silenciosamente.
+
+Las cinco fases de implementación son:
+
+1. Completar las vistas y validaciones ACP1 v3 para `SynthesisParams`, `Partials`, `Tracks`, `Events`, pitch, ganancia y envolventes; el writer no debe conocer Paula, Mixer ni IRQ.
+2. Implementar el renderer entero por ventanas con parciales, acumulador de fase, cambios de frecuencia y ganancia, con equivalencia host y límites de memoria verificables.
+3. Implementar el planner de reproducción: preparar buffers Chip para `AUD1..AUD3`, cambiar periodo y volumen en fronteras de evento, y remuestrear fuera de la IRQ las voces destinadas a `AUD0`.
+4. Añadir el pipeline de separación instrumental: onsets, `F0`, seguimiento de parciales, hipótesis alternativas, zonas tímbricas, residual y selección por recomposición perceptual.
+5. Implementar el fallback OctaMED y validar la coexistencia o el cambio de modo entre tres voces Paula, cuatro voces mixer y ocho voces software OctaMED con pruebas host y una demo on-target.
+
+La primera implementación debe limitarse a instrumentos afinados y piezas con notas relativamente estables. Piano, líneas melódicas y música barroca son objetivos iniciales adecuados; mezclas densas, coros, reverberación fuerte y percusión compleja deben conservar un residual hasta que exista evidencia de separación fiable.
+
 ## Capas
 
 ```text

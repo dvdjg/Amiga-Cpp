@@ -36,3 +36,7 @@ Categoría `audio` de la batería host (L1). El índice de categorías está en 
 | HOST-387 | [acp1](387_acp1/README.md) | Parser freestanding/encoder ACP1 v1/v2, decoder y mixer por ventanas, feeder triple-buffer, deduplicación exacta y HPSS. |
 | HOST-389 | [acp1_v3](389_acp1_v3/README.md) | MVP ACP1 v3: directorio de secciones, unidades PCM, segmentos, payloads, tracks, eventos y rechazos estructurales. |
 | HOST-394 | [wav_window_source](394_wav_window_source/README.md) | `WavSource`: lectura WAV PCM8 multicanal por ventanas y downmix incremental. |
+| HOST-395 | [synth_renderer](395_synth_renderer/README.md) | Renderer entero PCM8 de voces aditivas: parciales armónicos, formas estándar y fase continua entre ventanas. |
+| HOST-396 | [synth_voice_plan](396_synth_voice_plan/README.md) | Planificador de rutas de síntesis: tres voces Paula, cuatro mixer y fallback explícito OctaMED. |
+| HOST-397 | [synth_playback_plan](397_synth_playback_plan/README.md) | Preparación de ventanas PCM8 y metadatos de periodo/volumen para Paula o mixer. |
+| HOST-398 | [acp1_v3_additive](398_acp1_v3_additive/README.md) | Writer y vistas ACP1 v3 aditivo: unidad instrumental, parciales, notas, pitch y ganancia. |
