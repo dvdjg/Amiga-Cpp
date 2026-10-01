@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT="$ROOT/out/tmp/audio-compressor"
 CXX="${CXX:-g++}"
+TOOLCHAIN_BIN="$(dirname "$(command -v "$CXX")")"
 SDL3=0
 for arg in "$@"; do
 	case "$arg" in
@@ -13,7 +14,7 @@ for arg in "$@"; do
 	esac
 done
 mkdir -p "$OUT"
-FLAGS=(-std=gnu++23 -O2 -Wall -Wextra -Werror=narrowing -I"$ROOT/engine/include" -I"$ROOT/host-tools/pack-pcm" -I"$ROOT/host-tools/audio-compressor/include" -static-libgcc -static-libstdc++)
+FLAGS=(-B"$TOOLCHAIN_BIN" -std=gnu++23 -O2 -Wall -Wextra -Werror=narrowing -I"$ROOT/engine/include" -I"$ROOT/host-tools/pack-pcm" -I"$ROOT/host-tools/audio-compressor/include" -static-libgcc -static-libstdc++)
 LIBS=()
 if [ "$SDL3" -eq 1 ]; then
 	FLAGS+=(-DAUDIO_COMPRESSOR_SDL3=1)

@@ -24,7 +24,7 @@ BUILD_DIR="$ROOT/out/host-tests"
 STD="gnu++23"
 # `-Werror=narrowing`: un estrechamiento en un braced-init (p. ej. `scalar{R(v)}` de un
 # fixed) suele indicar una perdida de precision no intencionada; debe romper el build.
-CXXFLAGS="-std=$STD -I$ROOT/engine/include -Wall -Wextra -Werror=narrowing -fno-rtti -O2"
+CXXFLAGS="-std=$STD -I$ROOT/engine/include -Wall -Wextra -Werror=narrowing -fno-rtti -O2 -static-libgcc -static-libstdc++"
 
 CXX="${CXX:-g++}"
 
@@ -46,6 +46,11 @@ if ! command -v "$CXX" >/dev/null 2>&1; then
 	echo "Los tests host necesitan el g++ del entorno de desarrollo." >&2
 	exit 1
 fi
+
+# En MSYS2 puede aparecer `/usr/bin/ld.exe` antes del linker del runtime UCRT.
+# Forzar la carpeta del compilador evita mezclar toolchains durante el enlace.
+TOOLCHAIN_BIN="$(dirname "$(command -v "$CXX")")"
+CXXFLAGS+=" -B$TOOLCHAIN_BIN"
 
 mkdir -p "$BUILD_DIR"
 

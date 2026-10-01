@@ -18,6 +18,7 @@ public:
 	/// Convierte una ventana y conserva la última muestra y la fase para la siguiente llamada.
 	[[nodiscard]] eng::usize process(eng::Span<const eng::u8> input, eng::Span<eng::u8> output, bool final) noexcept {
 		if (input.empty() || output.empty()) return 0u;
+		const bool had_previous = m_have_previous;
 		const eng::usize virtual_size = input.size() + (m_have_previous ? 1u : 0u);
 		eng::usize written = 0u;
 		while (written < output.size() && (m_phase + 1.0 < static_cast<double>(virtual_size) ||
@@ -30,7 +31,10 @@ public:
 			output[written++] = static_cast<eng::u8>(std::clamp(value, -128, 127));
 			m_phase += m_step;
 		}
-		m_phase -= static_cast<double>(input.size());
+		// The first window has no synthetic previous sample; subsequent windows do.
+		// Keep the phase relative to the carried last sample so upsampling does not
+		// restart or index before the beginning of the next window.
+		m_phase -= static_cast<double>(had_previous ? input.size() : input.size() - 1u);
 		m_previous = input[input.size() - 1u];
 		m_have_previous = true;
 		return written;

@@ -14,6 +14,7 @@ class BinaryWriter {
 public:
 	explicit BinaryWriter(std::vector<eng::u8>& output) noexcept : m_output(output) {}
 
+	bool u8(eng::usize at, eng::u8 value) noexcept { return put(at, value, 1u); }
 	bool u16(eng::usize at, eng::u16 value) noexcept { return put(at, value, 2u); }
 	bool u32(eng::usize at, eng::u32 value) noexcept { return put(at, value, 4u); }
 	bool u64(eng::usize at, eng::u64 value) noexcept { return put(at, value, 8u); }
@@ -32,6 +33,7 @@ class BinaryReader {
 public:
 	explicit BinaryReader(eng::Span<const eng::u8> input) noexcept : m_input(input) {}
 
+	[[nodiscard]] bool u8(eng::usize at, eng::u8& value) const noexcept { return get(at, 1u, value); }
 	[[nodiscard]] bool u16(eng::usize at, eng::u16& value) const noexcept { return get(at, 2u, value); }
 	[[nodiscard]] bool u32(eng::usize at, eng::u32& value) const noexcept { return get(at, 4u, value); }
 	[[nodiscard]] bool u64(eng::usize at, eng::u64& value) const noexcept { return get(at, 8u, value); }

@@ -18,7 +18,7 @@ namespace audio_compressor::io {
 class WavSource {
 public:
 	[[nodiscard]] bool open(const std::string& path) {
-		m_file.open(path, std::ios::binary);
+		m_file.open(path.c_str(), std::ios::in | std::ios::binary);
 		if (!m_file) return false;
 		std::array<eng::u8, 12> riff {};
 		if (!read_bytes(riff.data(), riff.size()) || std::memcmp(riff.data(), "RIFF", 4u) != 0 ||

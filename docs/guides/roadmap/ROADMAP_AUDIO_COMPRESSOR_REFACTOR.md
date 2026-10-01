@@ -203,6 +203,11 @@ La variante estricta sin dependencias externas debe compilar WAV/RAW, AUZX, ACP1
 - Eliminar includes de Win32 y `SDL3` fuera de sus módulos autorizados.
 - Publicar matriz de plataformas, dependencias, tamaño de ejecutable, memoria máxima y tiempos de cada pipeline.
 
+## Evidencia actual
+
+- HOST-394 valida lectura WAV por ventanas, downmix PCM8 y remuestreo stateful entre ventanas. El runner host usa el linker del runtime seleccionado y enlaza estáticamente `libgcc` y `libstdc++` para evitar mezclar runtimes MSYS2/UCRT en Windows.
+- La ruta SAMPLE windowed se ha probado con un WAV PCM8 de 11025 Hz, ventanas de 5 muestras, salida a 22050 Hz y codec `none`. El informe resultante valida 64 muestras, `round_trip_ok: true`, `mse_pcm8: 0` y `peak_error: 0`.
+
 ## Criterios de cierre
 
 - El núcleo batch compila sin SDL3, Win32 ni FFmpeg; la aplicación completa añade únicamente SDL3 y los importadores seleccionados explícitamente.
