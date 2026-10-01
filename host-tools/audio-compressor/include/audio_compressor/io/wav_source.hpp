@@ -12,6 +12,7 @@
 
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
+#include "../domain/audio_types.hpp"
 
 namespace audio_compressor::io {
 
@@ -58,6 +59,8 @@ public:
 	[[nodiscard]] eng::u32 sample_rate() const noexcept { return m_rate; }
 	[[nodiscard]] eng::u16 channels() const noexcept { return m_channels; }
 	[[nodiscard]] eng::u64 frames() const noexcept { return m_frames; }
+	/// Devuelve el formato PCM original que esta fuente normaliza a PCM8 firmado.
+	[[nodiscard]] domain::AudioFormat format() const noexcept { return {m_rate, m_channels, m_bits, m_bits == 8u}; }
 
 	/// Lee hasta `window.size()` frames desde `offset` y hace downmix saturado a PCM8 firmado.
 	[[nodiscard]] eng::usize read(eng::u64 offset, eng::Span<eng::u8> window) {

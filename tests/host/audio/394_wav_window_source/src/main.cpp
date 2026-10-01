@@ -4,11 +4,14 @@
 #include <cstring>
 #include <fstream>
 #include <string>
+#include <vector>
 
 #include "../../../../../engine/include/eng/audio/pcm_codec.hpp"
+#include "../../../../../host-tools/audio-compressor/src/acp1_writer.hpp"
 #include "../../../../../host-tools/audio-compressor/include/audio_compressor/io/wav_source.hpp"
 #include "../../../../../host-tools/audio-compressor/include/audio_compressor/io/raw_source.hpp"
 #include "../../../../../host-tools/audio-compressor/include/audio_compressor/dsp/resampler.hpp"
+#include "../../../../../host-tools/audio-compressor/include/audio_compressor/playback/acp1_host_player.hpp"
 
 static void put16(eng::u8* bytes, eng::usize at, eng::u16 value) {
 	bytes[at] = static_cast<eng::u8>(value); bytes[at + 1u] = static_cast<eng::u8>(value >> 8u);
@@ -61,6 +64,22 @@ int main() {
 	const eng::s32 ima_size = eng::audio::ima_adpcm::encode({pcm, 8u}, {encoded.data(), encoded.size()});
 	if (ima_size <= 0 || eng::audio::pcm_codec::decode({encoded.data(), static_cast<eng::usize>(ima_size)}, {decoded.data(), decoded.size()},
 		static_cast<eng::u8>(eng::audio::pcm_codec::Codec::ImaAdpcm)) != 8) return 1;
+	std::vector<eng::u8> auzx(48u, 0u);
+	eng::Span<eng::u8> auzx_view {auzx.data(), auzx.size()};
+	std::memcpy(auzx.data(), "AUZX", 4u); auzx[4] = 1u; auzx[5] = static_cast<eng::u8>(eng::audio::pcm_codec::Codec::None);
+	eng::audio::auzx::wr16(auzx_view, 6u, 8000u); eng::audio::auzx::wr16(auzx_view, 8u, 1u); auzx[10] = 8u;
+	eng::audio::auzx::wr32(auzx_view, 12u, 8u); eng::audio::auzx::wr16(auzx_view, 16u, 8u); eng::audio::auzx::wr16(auzx_view, 18u, 1u);
+	eng::audio::auzx::wr32(auzx_view, 20u, 32u); eng::audio::auzx::wr32(auzx_view, 24u, 40u);
+	eng::audio::auzx::wr32(auzx_view, 32u, 40u); eng::audio::auzx::wr32(auzx_view, 36u, 8u);
+	std::memcpy(auzx.data() + 40u, pcm, 8u);
+	std::vector<std::vector<eng::u8>> payloads {auzx};
+	std::vector<std::vector<eng::audio::acp1::Event>> tracks {{{0u, 0u, 8u, 255u}}};
+	std::vector<eng::u8> acp1;
+	if (!audio_compressor::build_acp1(payloads, 8000u, 8u, acp1, tracks)) return 1;
+	audio_compressor::playback::Acp1HostPlayer player;
+	if (!player.open({acp1.data(), acp1.size()}) || player.sample_rate() != 8000u || player.total_samples() != 8u) return 1;
+	eng::u8 mixed[8]{}; eng::u8 scratch[8]{}; eng::s16 accumulator[8]{};
+	if (player.read_window(0u, {mixed, 8u}, {scratch, 8u}, {accumulator, 8u}) != 8 || std::memcmp(mixed, pcm, 8u) != 0) return 1;
 	std::remove(path.c_str());
 	std::printf("OK: WavSource lee ventanas y mezcla PCM8 sin cargar el fichero completo.\n");
 	return 0;

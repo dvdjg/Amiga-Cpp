@@ -8,6 +8,7 @@
 
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
+#include "../domain/audio_types.hpp"
 
 namespace audio_compressor::io {
 
@@ -26,6 +27,8 @@ public:
 
 	[[nodiscard]] eng::u32 sample_rate() const noexcept { return m_rate; }
 	[[nodiscard]] eng::u64 frames() const noexcept { return m_frames; }
+	/// Devuelve el formato PCM8 mono firmado representado por el fichero RAW.
+	[[nodiscard]] domain::AudioFormat format() const noexcept { return {m_rate, 1u, 8u, true}; }
 
 	[[nodiscard]] eng::usize read(eng::u64 offset, eng::Span<eng::u8> window) {
 		if (!m_file || offset >= m_frames || window.empty()) return 0u;

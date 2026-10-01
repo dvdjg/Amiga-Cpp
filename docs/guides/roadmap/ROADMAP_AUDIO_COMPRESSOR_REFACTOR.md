@@ -241,6 +241,14 @@ No se debe introducir un `AudioAsset` universal que mezcle fuente, PCM, unidades
 4. Implementar `Acp1HostPlayer` y validar la equivalencia de timeline con el player Amiga.
 5. Separar el backend SDL3 de `io/file_io.hpp` y hacer transaccionales los sinks e informes.
 
+### Estado de la implementación
+
+- Completado: `domain/audio_types.hpp` define `AudioFormat`, `WindowSource`, `ApplicationOptions` y `ConversionReport`; WAV y RAW exponen el mismo contrato estático y `SamplePipeline` lo consume sin dispatch virtual.
+- Completado: `Descriptor` declara pérdida, round-trip exacto y paridad de chunk; `CandidateSearch` centraliza la elección por tamaño y el test host cubre Delta+RLE, Fibonacci e IMA.
+- Parcial: `MusicPlan` y `MusicPipeline` separan la deduplicación de unidades, la timeline y el writer ACP1 de la llamada CLI; HPSS y la ingestión windowed de stems todavía se encuentran en `main.cpp` y requieren la extracción completa de R4.
+- Completado: `Acp1HostPlayer` consume ACP1 v1/v2 por ventanas mediante `media::mix_window`; HOST-394 valida una composición mono reconstruida por el player. La reproducción SDL3 de ACP1 sigue pendiente.
+- Pendiente: convertir la selección de backend de `file_io.hpp` en una frontera explícita, añadir abort/commit a los sinks y hacer que MUSIC procese stems por ventanas con presupuesto medible.
+
 ## Criterios de cierre
 
 - El núcleo batch compila sin SDL3, Win32 ni FFmpeg; la aplicación completa añade únicamente SDL3 y los importadores seleccionados explícitamente.

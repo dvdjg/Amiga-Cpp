@@ -24,60 +24,22 @@
 #include "acp1_v3_writer.hpp"
 #include "hpss.hpp"
 #include <audio_compressor/codecs/registry.hpp>
+#include <audio_compressor/domain/audio_types.hpp>
 #include <audio_compressor/dsp/resampler.hpp>
 #include <audio_compressor/formats/auzx_sink.hpp>
 #include <audio_compressor/io/file_io.hpp>
 #include <audio_compressor/io/raw_source.hpp>
 #include <audio_compressor/io/wav_source.hpp>
 #include <audio_compressor/pipeline/sample_pipeline.hpp>
+#include <audio_compressor/pipeline/candidate_search.hpp>
+#include <audio_compressor/pipeline/music_pipeline.hpp>
 #include <audio_compressor/report/report_writer.hpp>
 #include "sdl_player.hpp"
 
 namespace {
 
-/// Configuración resuelta después de aplicar defaults y las fuentes de configuración.
-struct Config {
-	/// Modo solicitado: auto, sample o music.
-	std::string mode = "auto";
-	/// Codec AUZX textual: rle, fib, ima o none.
-	std::string codec = "rle";
-	/// Tasa objetivo; cero conserva la tasa de entrada.
-	eng::u16 sample_rate = 0u;
-	/// Muestras descomprimidas por chunk.
-	eng::u16 chunk_samples = 4096u;
-	/// Presupuesto de RAM host declarado para futuras pasadas estructurales.
-	eng::u64 ram_budget_bytes = 6ull * 1024ull * 1024ull * 1024ull;
-	/// Tamaño de ventana de análisis reutilizada.
-	eng::usize window_samples = 64u * 1024u;
-	/// Permite reemplazar una salida existente.
-	bool force = false;
-	/// Solo clasifica y escribe el informe, sin crear AUZX.
-	bool dry_run = false;
-	/// Reproduce la entrada normalizada o la salida generada mediante SDL3.
-	bool play = false;
-	/// Conserva las candidatas alternativas generadas durante la comparación.
-	bool keep_candidates = false;
-	/// Genera y compara AUZX lineal frente a la envoltura ACP1 mínima.
-	bool compare_candidates = false;
-	/// Separa cada stem WAV en componentes armónica y percusiva para MUSIC.
-	bool hpss = false;
-	/// Versión ACP1 de salida para MUSIC: v2 estable o v3 MVP binario.
-	eng::u8 acp1_version = 2u;
-};
-
-/// Estadísticas de una conversión, usadas por el informe JSON y por la comparación del corpus.
-struct ConversionStats {
-	eng::u64 input_bytes = 0u;
-	eng::u64 pcm_bytes = 0u;
-	eng::u64 output_bytes = 0u;
-	eng::u64 samples = 0u;
-	eng::u16 sample_rate = 0u;
-	eng::u64 squared_error = 0u;
-	eng::u64 signal_energy = 0u;
-	eng::u8 peak_error = 0u;
-	bool round_trip_ok = false;
-	eng::u32 repeated_windows = 0u;
-};
+using Config = audio_compressor::domain::ApplicationOptions;
+using ConversionStats = audio_compressor::domain::ConversionReport;
 
 /// Cuenta repeticiones exactas de ventanas PCM8; sirve como baseline antes de la firma espectral.
 [[nodiscard]] eng::u32 count_repeated_windows(const std::vector<eng::u8>& pcm, eng::usize window) {
@@ -293,24 +255,13 @@ struct CodecCandidate {
 
 [[nodiscard]] bool select_codec(const std::vector<eng::u8>& pcm, Config& config) {
 	if (config.codec != "auto") return supported_codec_name(config.codec);
-	struct Candidate { const char* name; eng::audio::pcm_codec::Codec codec; };
-	constexpr Candidate candidates[] = {
-		{"none", eng::audio::pcm_codec::Codec::None},
-		{"rle", eng::audio::pcm_codec::Codec::DeltaRle},
-		{"fib", eng::audio::pcm_codec::Codec::FibDelta},
-		{"ima", eng::audio::pcm_codec::Codec::ImaAdpcm},
-	};
-	const Candidate* best = nullptr;
-	eng::u64 best_size = ~eng::u64 {0};
-	for (const Candidate& candidate : candidates) {
-		eng::u64 size = 0u;
-		if (estimate_codec_size(pcm, config.chunk_samples, candidate.codec, size) && size < best_size) {
-			best = &candidate;
-			best_size = size;
-		}
-	}
+	const auto* best = audio_compressor::pipeline::CandidateSearch::smallest(
+		[&](const audio_compressor::codecs::Descriptor& descriptor, eng::u64& size) {
+			return audio_compressor::codecs::accepts_chunk(descriptor, config.chunk_samples) &&
+				estimate_codec_size(pcm, config.chunk_samples, descriptor.id, size);
+		});
 	if (best == nullptr) return false;
-	config.codec = best->name;
+	config.codec = std::string(best->name);
 	return true;
 }
 
@@ -472,17 +423,6 @@ template <class Source>
 			}
 			return eng::audio::pcm_codec::decode(encoded, decoded, static_cast<eng::u8>(codec));
 		}, stats);
-}
-
-/// Escribe un archivo ACP1 v1 con una pista sincronizada por cada stem AUZX.
-[[nodiscard]] bool write_acp1(const std::vector<std::vector<eng::u8>>& stems, eng::u16 rate,
-	eng::u32 samples, const std::string& output,
-	const std::vector<std::vector<eng::audio::acp1::Event>>& events) {
-	std::vector<eng::u8> file;
-	if (!audio_compressor::build_acp1(stems, rate, samples, file, events)) return false;
-	const std::filesystem::path output_path {native_safe_path(output)};
-	if (output_path.has_parent_path()) std::filesystem::create_directories(output_path.parent_path());
-	return audio_compressor::io::write_file(output_path, file);
 }
 
 /// Muestra la interfaz de la aplicación única, incluyendo el caso de arrastrar un archivo.
@@ -670,38 +610,28 @@ int main(int argc, char** argv) {
 			if (config.acp1_version == 2u && !config.keep_candidates) std::remove(linear.c_str());
 			return 0;
 		}
-		std::vector<std::vector<eng::u8>> encoded_stems;
-		std::vector<std::vector<eng::audio::acp1::Event>> events(source_stems.size());
 		const eng::u8 track_gain = config.hpss || input_stems.channels.size() > 1u ? 128u : 255u;
 		std::vector<std::vector<eng::u8>> unique_pcm_units;
-		for (eng::usize track = 0u; track < source_stems.size(); ++track) {
-			for (eng::usize start = 0u; start < source_stems[track].size(); start += config.chunk_samples) {
-				const eng::usize count = source_stems[track].size() - start < config.chunk_samples
-					? source_stems[track].size() - start : config.chunk_samples;
-				eng::usize unit_id = 0u;
-				for (; unit_id < unique_pcm_units.size(); ++unit_id) {
-					if (unique_pcm_units[unit_id].size() == count &&
-						std::memcmp(unique_pcm_units[unit_id].data(), source_stems[track].data() + start, count) == 0) break;
-				}
-				if (unit_id == unique_pcm_units.size()) {
-					if (unit_id >= 65535u) { std::fprintf(stderr, "demasiadas unidades ACP1\n"); return 1; }
-					unique_pcm_units.emplace_back(source_stems[track].begin() + start,
-						source_stems[track].begin() + start + count);
-					const std::string unit_path = linear + ".unit-" + std::to_string(unit_id) + ".auzx";
-					ConversionStats unit_stats{};
-					unit_stats.pcm_bytes = count;
-					if (!write_auzx(unique_pcm_units.back(), config.sample_rate, config, unit_path, unit_stats)) return 1;
-					std::vector<eng::u8> bytes;
-					const std::string safe_unit_path = native_safe_path(unit_path);
-					if (!read_binary(safe_unit_path.c_str(), bytes)) return 1;
-					encoded_stems.push_back(std::move(bytes));
-					std::remove(safe_unit_path.c_str());
-				}
-				events[track].push_back({static_cast<eng::u32>(unit_id), static_cast<eng::u32>(start),
-					static_cast<eng::u32>(count), track_gain});
-			}
+		audio_compressor::pipeline::MusicPlan music_plan {};
+		if (!audio_compressor::pipeline::MusicPipeline::build_plan(source_stems, config.chunk_samples, track_gain, music_plan, unique_pcm_units)) {
+			std::fprintf(stderr, "no se pudo construir la timeline ACP1\n"); return 1;
 		}
-	if (!write_acp1(encoded_stems, config.sample_rate, 0u, structural, events)) return 1;
+		music_plan.sample_rate = config.sample_rate;
+		for (eng::usize unit_id = 0u; unit_id < unique_pcm_units.size(); ++unit_id) {
+			const eng::usize count = unique_pcm_units[unit_id].size();
+			const std::string unit_path = linear + ".unit-" + std::to_string(unit_id) + ".auzx";
+			ConversionStats unit_stats{};
+			unit_stats.pcm_bytes = count;
+			if (!write_auzx(unique_pcm_units[unit_id], config.sample_rate, config, unit_path, unit_stats)) return 1;
+			std::vector<eng::u8> bytes;
+			const std::string safe_unit_path = native_safe_path(unit_path);
+			if (!read_binary(safe_unit_path.c_str(), bytes)) return 1;
+			music_plan.payloads[unit_id] = std::move(bytes);
+			std::remove(safe_unit_path.c_str());
+		}
+		std::vector<eng::u8> acp1_file;
+		if (!audio_compressor::pipeline::MusicPipeline::write_acp1_v2(music_plan, acp1_file)) return 1;
+		if (!audio_compressor::io::write_file(std::filesystem::path {native_safe_path(structural)}, acp1_file)) return 1;
 		const eng::u64 structural_bytes = std::filesystem::file_size(std::filesystem::path{structural});
 		std::vector<eng::u8> acp1_bytes;
 		if (!read_binary(native_safe_path(structural).c_str(), acp1_bytes)) return 1;

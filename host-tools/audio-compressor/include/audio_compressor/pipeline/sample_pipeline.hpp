@@ -11,13 +11,14 @@
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 
+#include <audio_compressor/domain/audio_types.hpp>
 #include <audio_compressor/dsp/resampler.hpp>
 #include <audio_compressor/formats/auzx_sink.hpp>
 
 namespace audio_compressor::pipeline {
 
 struct SamplePipeline {
-	template <class Source, class Encode, class Decode, class Stats>
+	template <domain::WindowSource Source, class Encode, class Decode, class Stats>
 	[[nodiscard]] static bool run(Source& source, eng::u16 source_rate, eng::u16 target_rate,
 		eng::u16 chunk_samples, eng::usize window_samples, eng::u8 codec,
 		const std::filesystem::path& output, Encode&& encode, Decode&& decode, Stats& stats) {
