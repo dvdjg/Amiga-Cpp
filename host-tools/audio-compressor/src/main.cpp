@@ -11,6 +11,7 @@
 #include <cstring>
 #include <algorithm>
 #include <filesystem>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -26,6 +27,7 @@
 #include <audio_compressor/codecs/registry.hpp>
 #include <audio_compressor/domain/audio_types.hpp>
 #include <audio_compressor/dsp/resampler.hpp>
+#include <audio_compressor/dsp/harmonic_separation.hpp>
 #include <audio_compressor/formats/auzx_sink.hpp>
 #include <audio_compressor/io/file_io.hpp>
 #include <audio_compressor/io/raw_source.hpp>
@@ -34,6 +36,7 @@
 #include <audio_compressor/pipeline/sample_pipeline.hpp>
 #include <audio_compressor/pipeline/candidate_search.hpp>
 #include <audio_compressor/pipeline/music_pipeline.hpp>
+#include <audio_compressor/playback/acp1_host_player.hpp>
 #include <audio_compressor/report/report_writer.hpp>
 #include "sdl_player.hpp"
 
@@ -70,9 +73,10 @@ using ConversionStats = audio_compressor::domain::ConversionReport;
 
 /// Decodifica una fuente comprimida a WAV PCM16 temporal, manteniendo el archivo fuera del repo.
 [[nodiscard]] bool decode_external_source(const std::string& input, std::string& wav, eng::u16 target_rate) {
-	wav = (std::filesystem::temp_directory_path() / "amiga-audio-compressor-input.wav").string();
+	const std::string token = std::to_string(std::hash<std::string> {}(input));
+	wav = (std::filesystem::temp_directory_path() / ("amiga-audio-compressor-input-" + token + ".wav")).string();
 	const std::string executable = find_ffmpeg();
-	const std::filesystem::path batch = std::filesystem::temp_directory_path() / "amiga-audio-compressor-ffmpeg.bat";
+	const std::filesystem::path batch = std::filesystem::temp_directory_path() / ("amiga-audio-compressor-ffmpeg-" + token + ".bat");
 #if defined(_WIN32)
 	std::FILE* script = std::fopen(batch.string().c_str(), "wb");
 	if (!script) return false;
@@ -454,14 +458,14 @@ template <class Source>
 }
 
 /// Muestra la interfaz de la aplicación única, incluyendo el caso de arrastrar un archivo.
-void print_help(const char* exe) { std::printf("Uso: %s <audio|auzx> [--mode auto|sample|music] [--acp1-version 2|3] [--config f] [--out f] [--codec auto|rle|fib|ima|none] [--sample-rate Hz] [--chunk muestras] [--report f] [--keep-candidates] [--compare] [--play] [--dry-run]\n", exe); }
+void print_help(const char* exe) { std::printf("Uso: %s <audio|auzx> [--mode auto|sample|music] [--synth-separate] [--acp1-version 2|3] [--config f] [--out f] [--codec auto|rle|fib|ima|none] [--sample-rate Hz] [--chunk muestras] [--report f] [--keep-candidates] [--compare] [--play] [--dry-run]\n", exe); }
 
 } // namespace
 
 /// Punto de entrada: resuelve configuración, clasifica y ejecuta el pipeline disponible.
 int main(int argc, char** argv) {
 	if (argc < 2 || (argc == 2 && std::strcmp(argv[1], "--help") == 0)) { print_help(argv[0]); return argc < 2 ? 2 : 0; }
-	Config config{}; const std::string input = native_safe_path(argv[1]); const char* config_path = nullptr; std::string output; std::string report;
+	Config config{}; const std::string input = native_safe_path(argv[1]); const char* config_path = nullptr; std::string output; std::string report; bool synth_separate = false;
 	for (int i = 2; i < argc; ++i) {
 		if (std::strcmp(argv[i], "--help") == 0) { print_help(argv[0]); return 0; }
 		if (std::strcmp(argv[i], "--dry-run") == 0) { config.dry_run = true; continue; }
@@ -469,6 +473,7 @@ int main(int argc, char** argv) {
 		if (std::strcmp(argv[i], "--force") == 0) { config.force = true; continue; }
 		if (std::strcmp(argv[i], "--keep-candidates") == 0) { config.keep_candidates = true; continue; }
 		if (std::strcmp(argv[i], "--compare") == 0) { config.compare_candidates = true; continue; }
+		if (std::strcmp(argv[i], "--synth-separate") == 0) { synth_separate = true; continue; }
 		if (std::strcmp(argv[i], "--hpss") == 0) { config.hpss = true; continue; }
 		if (std::strcmp(argv[i], "--no-hpss") == 0) { config.hpss = false; continue; }
 		if (i + 1 >= argc) return 2;
@@ -507,7 +512,7 @@ int main(int argc, char** argv) {
 		std::fprintf(stderr, "versión ACP1 no soportada: %u (use 2 o 3)\n", config.acp1_version);
 		return 2;
 	}
-	if (!config.play && !config.hpss && !needs_ffmpeg(input) &&
+	if (!synth_separate && !config.play && !config.hpss && !needs_ffmpeg(input) &&
 		config.acp1_version == 2u &&
 		(std::filesystem::path {input}.extension() == ".wav" || std::filesystem::path {input}.extension() == ".WAV")) {
 		audio_compressor::io::WavStemSource windowed_music_source;
@@ -589,6 +594,40 @@ int main(int argc, char** argv) {
 	if (rate == 0u || !fits_memory_budget(input_stems, pcm, config)) {
 		std::fprintf(stderr, "la entrada excede --ram-budget con el pipeline actual; reduzca la entrada o aumente --ram-budget\n");
 		return 2;
+	}
+	if (synth_separate) {
+		audio_compressor::dsp::HarmonicSeparationOptions options {};
+		options.window_samples = config.window_samples > 65535u ? 65535u : static_cast<eng::u16>(config.window_samples);
+		std::vector<audio_compressor::dsp::HarmonicTrackModel> models;
+		if (!audio_compressor::dsp::separate_harmonic_windowed(pcm, rate, options, models) || models.size() > 7u) {
+			std::fprintf(stderr, "la separación armónica no produjo pistas utilizables\n"); return 2;
+		}
+		std::vector<audio_compressor::AdditiveTrack> tracks;
+		for (const auto& model : models) {
+			audio_compressor::AdditiveTrack track {};
+			track.fundamental_hz_q16_16 = model.fundamental_hz_q16_16; track.partials = model.partials;
+			for (const auto& note : model.notes) track.notes.push_back({note.start_sample, note.duration, note.pitch_semitones_q8_8, note.gain_q8_8});
+			if (!track.notes.empty()) tracks.push_back(std::move(track));
+		}
+		std::vector<eng::u8> synth_file;
+		if (!audio_compressor::build_acp1_v3_additive(tracks, rate, synth_file)) { std::fprintf(stderr, "no se pudo serializar la separación armónica\n"); return 2; }
+		if (output.empty()) output = default_output(input.c_str(), "music");
+		output = native_safe_path(output);
+		if (!config.force && std::filesystem::exists(std::filesystem::path {output})) { std::fprintf(stderr, "salida existente; use --force\n"); return 1; }
+		if (!audio_compressor::io::write_file(std::filesystem::path {output}, synth_file)) return 1;
+		audio_compressor::playback::Acp1HostPlayer player;
+		std::vector<eng::u8> rebuilt(pcm.size()), scratch(config.window_samples), window(config.window_samples);
+		std::vector<eng::s16> accumulator(config.window_samples);
+		eng::u64 squared_error = 0u;
+		for (eng::usize start = 0u; start < pcm.size(); start += config.window_samples) {
+			const eng::usize count = std::min<eng::usize>(config.window_samples, pcm.size() - start);
+			if (!player.open({synth_file.data(), synth_file.size()}) || player.read_window(static_cast<eng::u32>(start), {window.data(), count}, {scratch.data(), scratch.size()}, {accumulator.data(), accumulator.size()}) != static_cast<eng::s32>(count)) return 2;
+			for (eng::usize i = 0u; i < count; ++i) { rebuilt[start + i] = window[i]; const eng::s32 error = static_cast<eng::s8>(pcm[start + i]) - static_cast<eng::s8>(window[i]); squared_error += static_cast<eng::u64>(error * error); }
+		}
+		const double mse = pcm.empty() ? 0.0 : static_cast<double>(squared_error) / pcm.size();
+		std::printf("synth-separation=ok modelos=%lu bytes=%lu MSE=%.4f salida=%s\n", static_cast<unsigned long>(tracks.size()), static_cast<unsigned long>(synth_file.size()), mse, output.c_str());
+		if (!decoded_input.empty()) std::remove(decoded_input.c_str());
+		return 0;
 	}
 	if (config.compare_candidates || config.codec == "auto") print_codec_candidates(pcm, config);
 	if (!select_codec(pcm, config)) {

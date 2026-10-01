@@ -37,6 +37,7 @@ audio-compressor tema.wav
 audio-compressor disparo.wav --mode sample --codec ima --out out/assets/audio/disparo.auzx
 audio-compressor tema.wav --mode music --codec auto --compare --report out/playground/audio-compressor/tema.json
 audio-compressor tema.wav --mode music --acp1-version 3 --codec none --out out/assets/audio-compressor/tema-v3.acp1
+audio-compressor mezcla.ogg --synth-separate --out out/playground/audio-compressor/mezcla-synth.acp1
 audio-compressor disparo.wav --play
 ```
 
@@ -57,6 +58,8 @@ Cada conversión puede usar `--report out/reports/audio-compressor/nombre.json`.
 ACP1 v2 serializa offsets y tablas explícitos, divide cada stem en unidades de `--chunk` muestras y emite eventos secuenciales. Bloques AUZX idénticos de la misma longitud se comparten en el diccionario. El informe compara bytes lineales/estructurales y reconstruye la mezcla para medir MSE y pico. `--codec auto` y `--compare` prueban `none`, Delta+RLE, Fibonacci e IMA ADPCM sobre la señal normalizada y muestran tamaño, MSE y pico; la selección automática elige el menor tamaño sin ocultar esas métricas. Para conservar ambas salidas, usar `--keep-candidates`; la salida `.linear.auzx` se elimina por defecto después de generar ACP1.
 
 `--acp1-version 3` activa el MVP binario de ACP1 v3: escribe unidades PCM8, un segmento por unidad, payloads absolutos, tracks y eventos, y valida el archivo recién escrito con el parser v3. No incluye todavía síntesis, envolventes, cues, codebooks, wavetables ni reproducción Amiga v3. El MVP se usa para cerrar el contrato binario antes de conectar los codecs por segmento y el planner.
+
+`--synth-separate` activa la vertical experimental de síntesis durante la reproducción: decodifica la fuente, estima candidatos de frecuencia fundamental y parciales por ventanas, genera ACP1 v3 aditivo y recompone las ventanas con `Acp1HostPlayer` para medir MSE. Es un separador inicial para señales armónicas; no demuestra todavía separación instrumental fiable en mezclas densas. Para repetir un corpus: `node tools/bench-synth-separation.mjs pieza1.ogg pieza2.ogg`.
 
 ## Reproducción host con SDL3
 

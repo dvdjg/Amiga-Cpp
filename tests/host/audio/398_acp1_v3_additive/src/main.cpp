@@ -4,6 +4,7 @@
 
 #include <eng/audio/acp1_v3.hpp>
 #include <eng/audio/synth_renderer.hpp>
+#include "../../../../../host-tools/audio-compressor/include/audio_compressor/playback/acp1_host_player.hpp"
 #include "../../../../../host-tools/audio-compressor/src/acp1_v3_writer.hpp"
 
 int main() {
@@ -28,6 +29,16 @@ int main() {
 		!eng::audio::acp1_v3::event(view, info, 1u, event) || event.pitch_semitones_q8_8 != 3072 || event.gain_q8_8 != 192u) {
 		std::fprintf(stderr, "vistas ACP1 v3 no conservaron síntesis y eventos\n"); return 1;
 	}
+	audio_compressor::playback::Acp1HostPlayer player;
+	eng::u8 output[256] {}, scratch[256] {};
+	eng::s16 accumulator[256] {};
+	if (!player.open(view) || player.sample_rate() != 11025u || player.total_samples() != 256u ||
+		player.read_window(0u, output, scratch, accumulator) != 256) {
+		std::fprintf(stderr, "Acp1HostPlayer no renderizó la composición aditiva\n"); return 1;
+	}
+	bool audible = false;
+	for (const eng::u8 sample : output) audible = audible || sample != 0x80u;
+	if (!audible) { std::fprintf(stderr, "Acp1HostPlayer produjo silencio\n"); return 1; }
 	std::printf("OK: ACP1 v3 aditivo, parciales y eventos de pitch/ganancia.\n");
 	return 0;
 }

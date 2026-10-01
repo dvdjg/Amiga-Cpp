@@ -40,3 +40,4 @@ Categoría `audio` de la batería host (L1). El índice de categorías está en 
 | HOST-396 | [synth_voice_plan](396_synth_voice_plan/README.md) | Planificador de rutas de síntesis: tres voces Paula, cuatro mixer y fallback explícito OctaMED. |
 | HOST-397 | [synth_playback_plan](397_synth_playback_plan/README.md) | Preparación de ventanas PCM8 y metadatos de periodo/volumen para Paula o mixer. |
 | HOST-398 | [acp1_v3_additive](398_acp1_v3_additive/README.md) | Writer y vistas ACP1 v3 aditivo: unidad instrumental, parciales, notas, pitch y ganancia. |
+| HOST-399 | [harmonic_separation](399_harmonic_separation/README.md) | Separador host experimental: candidatos F0, energía de parciales y modelos instrumentales aditivos. |

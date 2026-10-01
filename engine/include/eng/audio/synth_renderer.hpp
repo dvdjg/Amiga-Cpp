@@ -59,6 +59,13 @@ inline void apply_synth_event(SynthVoice& voice, eng::u32 base_hz_q16_16, SynthE
 	voice.level_q8_8 = controls.gain_q8_8;
 }
 
+/// Avanza la fase de una voz sin escribir audio, para entrar en una nota a mitad de ventana.
+inline void advance_synth_voice(SynthVoice& voice, eng::u32 sample_rate, eng::u32 samples) noexcept {
+	if (sample_rate == 0u || voice.fundamental_hz_q16_16 == 0u) return;
+	const eng::u32 phase_step = (eng::u64 {voice.fundamental_hz_q16_16} << 16u) / sample_rate;
+	voice.state.phase_q0_32 += phase_step * samples;
+}
+
 /// Lee una tabla estándar y devuelve una muestra signed de amplitud aproximada ±127.
 [[nodiscard]] constexpr eng::s16 synth_wave_sample(SynthWaveform waveform, eng::u32 phase) noexcept {
 	const eng::u32 index = phase >> 26u;

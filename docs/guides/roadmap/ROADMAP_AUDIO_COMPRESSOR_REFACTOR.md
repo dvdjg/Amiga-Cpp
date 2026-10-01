@@ -191,7 +191,7 @@ La variante estricta sin dependencias externas debe compilar WAV/RAW, AUZX, ACP1
 
 ### R6 — ACP1 v3 y reproducción
 
-- Completar el MVP actual con codecs por segmento, luego cues, envolventes, codebooks, wavetables y síntesis.
+- Completar el MVP actual con codecs por segmento, luego cues, envolventes, codebooks y wavetables; la primera vertical host de síntesis aditiva ya genera y reproduce ACP1 v3 por ventanas.
 - Implementar un `Acp1HostPlayer` que consuma ventanas ACP1 con el mismo timeline que el player Amiga.
 - Separar el planner de voces del formato; el writer no debe conocer Paula, Mixer ni IRQ.
 - Validar la demo 280 en WinUAE después de resolver el wrapper de build, y añadir pruebas positivas/negativas de coexistencia con mixer/tracker.
