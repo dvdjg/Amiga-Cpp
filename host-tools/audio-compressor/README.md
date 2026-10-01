@@ -1,6 +1,6 @@
 # `audio-compressor`
 
-Aplicación única de PC para transformar y comprimir audio para Amiga. El ejecutable acepta una fuente WAV, MP3/OGG/FLAC o ProTracker MOD mediante FFmpeg y una CLI explícita. No se encadenan herramientas de usuario: la ingestión, clasificación, codecs, métricas e informe pertenecen a esta aplicación. RAW y P61/MED/AHX no forman parte todavía de la entrada soportada.
+Aplicación única de PC para transformar y comprimir audio para Amiga. El ejecutable acepta una fuente WAV, RAW PCM8, MP3/OGG/FLAC o ProTracker MOD mediante FFmpeg y una CLI explícita. No se encadenan herramientas de usuario: la ingestión, clasificación, codecs, métricas e informe pertenecen a esta aplicación. P61/MED/AHX no forman parte todavía de la entrada soportada.
 
 ## Compilar
 
@@ -42,7 +42,7 @@ audio-compressor disparo.wav --play
 
 Sin opciones, la aplicación genera una salida junto al archivo de entrada, no sobrescribe archivos existentes y aplica defaults seguros. El modo `music` genera ACP1 v2 para WAV PCM mono/multicanal de hasta siete pistas: conserva cada canal como eventos con línea temporal común, unidades AUZX compartidas por igualdad exacta y silencios entre eventos. Un MOD se renderiza a una mezcla PCM mediante FFmpeg antes de entrar en la misma ruta, por lo que no conserva patrones, instrumentos ni los cuatro canales como stems. `--hpss` separa cada canal WAV en componentes armónica/percusiva si el resultado cabe en siete pistas. HPSS permanece optativo porque puede aumentar el tamaño y el error. ACP1 v2 es un contenedor multipista por bloques y no genera ACP1 v3.
 
-La configuración usa JSON plano con claves `mode`, `codec`, `sample_rate`, `chunk_samples`, `ram_budget_bytes`, `window_samples` y `force`. La precedencia es `defaults < config < CLI`.
+La configuración usa JSON plano con claves `mode`, `codec`, `sample_rate`, `chunk_samples`, `ram_budget_bytes`, `window_samples` y `force`. La precedencia es `defaults < config < CLI`. SAMPLE WAV y RAW se procesan por ventanas; `sample_rate` puede remuestrear la fuente manteniendo la fase entre ventanas.
 
 ## Directorios de trabajo y conversiones
 
@@ -66,4 +66,4 @@ La reproducción es opcional. Sin SDL3, la utilidad sigue funcionando para conve
 SDL3_ROOT=/ruta/al/SDL3 bash host-tools/audio-compressor/build.sh --sdl3
 ```
 
-`--play` reproduce la señal normalizada de entrada. Si la entrada ya es AUZX, la aplicación la decodifica y reproduce su PCM reconstruido. La lectura y mezcla host de ACP1 queda pendiente. El pipeline actual conserva todos los buffers normalizados en memoria; `--ram-budget` actúa como límite de seguridad y rechaza entradas que excederían la estimación del pipeline, mientras que `--window` queda reservado para la futura ingestión por ventanas.
+`--play` reproduce la señal normalizada de entrada. Si la entrada ya es AUZX, la aplicación la decodifica y reproduce su PCM reconstruido. La lectura y mezcla host de ACP1 queda pendiente. El pipeline windowed limita el scratch de ingestión a `window_samples`; `--ram-budget` sigue actuando como límite de seguridad para las rutas estructurales que todavía normalizan la entrada completa.

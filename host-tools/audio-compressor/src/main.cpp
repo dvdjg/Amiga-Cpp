@@ -29,6 +29,8 @@
 #include <audio_compressor/io/file_io.hpp>
 #include <audio_compressor/io/raw_source.hpp>
 #include <audio_compressor/io/wav_source.hpp>
+#include <audio_compressor/pipeline/sample_pipeline.hpp>
+#include <audio_compressor/report/report_writer.hpp>
 #include "sdl_player.hpp"
 
 namespace {
@@ -209,25 +211,30 @@ template <class T>
 	return name == "auto" || audio_compressor::codecs::find(name) != nullptr;
 }
 
-[[nodiscard]] bool encode_chunk(const std::vector<eng::u8>& pcm, eng::usize start, eng::usize count,
-	eng::audio::pcm_codec::Codec codec, std::vector<eng::u8>& encoded, eng::u8& fib_seed) {
-	encoded.assign(count + count / 128u + 32u, 0u);
+[[nodiscard]] bool encode_chunk(eng::Span<const eng::u8> pcm, eng::audio::pcm_codec::Codec codec,
+	std::vector<eng::u8>& encoded, eng::u8& fib_seed) {
+	encoded.assign(pcm.size() + pcm.size() / 128u + 32u, 0u);
 	eng::s32 size = -1;
 	if (codec == eng::audio::pcm_codec::Codec::None) {
-		if (encoded.size() < count) return false;
-		std::memcpy(encoded.data(), pcm.data() + start, count);
-		size = static_cast<eng::s32>(count);
+		if (encoded.size() < pcm.size()) return false;
+		std::memcpy(encoded.data(), pcm.data(), pcm.size());
+		size = static_cast<eng::s32>(pcm.size());
 	} else if (codec == eng::audio::pcm_codec::Codec::FibDelta) {
-		size = eng::audio::fib_delta::encode({pcm.data() + start, count}, {encoded.data(), encoded.size()}, fib_seed);
+		size = eng::audio::fib_delta::encode(pcm, {encoded.data(), encoded.size()}, fib_seed);
 	} else if (codec == eng::audio::pcm_codec::Codec::ImaAdpcm) {
-		size = eng::audio::ima_adpcm::encode({pcm.data() + start, count}, {encoded.data(), encoded.size()});
+		size = eng::audio::ima_adpcm::encode(pcm, {encoded.data(), encoded.size()});
 	} else {
-		size = eng::audio::pcm_codec::encode({pcm.data() + start, count}, {encoded.data(), encoded.size()},
+		size = eng::audio::pcm_codec::encode(pcm, {encoded.data(), encoded.size()},
 			static_cast<eng::u8>(codec));
 	}
 	if (size <= 0) return false;
 	encoded.resize(static_cast<eng::usize>(size));
 	return true;
+}
+
+[[nodiscard]] bool encode_chunk(const std::vector<eng::u8>& pcm, eng::usize start, eng::usize count,
+	eng::audio::pcm_codec::Codec codec, std::vector<eng::u8>& encoded, eng::u8& fib_seed) {
+	return encode_chunk({pcm.data() + start, count}, codec, encoded, fib_seed);
 }
 
 [[nodiscard]] bool estimate_codec_size(const std::vector<eng::u8>& pcm, eng::u16 chunk,
@@ -450,57 +457,21 @@ void print_codec_candidates(const std::vector<eng::u8>& pcm, const Config& confi
 template <class Source>
 [[nodiscard]] bool write_auzx_windowed(Source& source, eng::u16 source_rate, eng::u16 target_rate,
 	const Config& config, const std::string& output, ConversionStats& stats) {
-	if (source.frames() == 0u || source.frames() > 0xffffffffu || source_rate == 0u || target_rate == 0u || config.chunk_samples == 0u) return false;
 	const auto codec = codec_id(config.codec);
-	const eng::usize output_samples = static_cast<eng::usize>((static_cast<eng::u64>(source.frames()) * target_rate + source_rate - 1u) / source_rate);
-	const eng::usize chunk = config.chunk_samples;
-	const eng::usize chunk_count = (output_samples + chunk - 1u) / chunk;
-	if (output_samples == 0u || output_samples > 0xffffffffu || chunk_count > 65535u ||
-		((codec == eng::audio::pcm_codec::Codec::FibDelta || codec == eng::audio::pcm_codec::Codec::ImaAdpcm) && (chunk & 1u) != 0u)) return false;
-	const eng::usize input_window_size = std::max<eng::usize>(1u, config.window_samples);
-	std::vector<eng::u8> input_window(input_window_size), resampled(input_window_size * target_rate / source_rate + 3u), pending(chunk), encoded, rebuilt(chunk);
-	eng::usize pending_size = 0u;
-	eng::u8 fib_seed = 0u;
-	audio_compressor::dsp::LinearResampler resampler {source_rate, target_rate};
-	audio_compressor::formats::AuzxSink sink;
-	if (!sink.open(std::filesystem::path {native_safe_path(output)}, target_rate, static_cast<eng::u32>(output_samples),
-		config.chunk_samples, static_cast<eng::u16>(chunk_count), static_cast<eng::u8>(codec))) return false;
-	auto flush_pending = [&](eng::usize count) {
-		if (!encode_chunk(pending, 0u, count, codec, encoded, fib_seed)) return false;
-		rebuilt.assign(count, 0u);
-		const eng::s32 decoded = codec == eng::audio::pcm_codec::Codec::None
-			? (std::memcpy(rebuilt.data(), encoded.data(), count), static_cast<eng::s32>(count))
-			: eng::audio::pcm_codec::decode({encoded.data(), encoded.size()}, {rebuilt.data(), rebuilt.size()}, static_cast<eng::u8>(codec));
-		if (decoded != static_cast<eng::s32>(count)) return false;
-		for (eng::usize i = 0u; i < count; ++i) {
-			const eng::s32 error = static_cast<eng::s8>(pending[i]) - static_cast<eng::s8>(rebuilt[i]);
-			const eng::u32 absolute = static_cast<eng::u32>(error < 0 ? -error : error);
-			stats.squared_error += static_cast<eng::u64>(error * error);
-			const eng::s32 sample = static_cast<eng::s8>(pending[i]);
-			stats.signal_energy += static_cast<eng::u64>(sample * sample);
-			if (absolute > stats.peak_error) stats.peak_error = static_cast<eng::u8>(absolute);
-		}
-		return sink.append({encoded.data(), encoded.size()});
-	};
-	for (eng::u64 start = 0u; start < source.frames(); start += input_window_size) {
-		const eng::usize count = static_cast<eng::usize>(std::min<eng::u64>(input_window_size, source.frames() - start));
-		if (source.read(start, {input_window.data(), count}) != count) return false;
-		const eng::usize produced = resampler.process({input_window.data(), count}, {resampled.data(), resampled.size()}, start + count == source.frames());
-		for (eng::usize i = 0u; i < produced; ++i) {
-			pending[pending_size++] = resampled[i];
-			if (pending_size == chunk) {
-				if (!flush_pending(pending_size)) return false;
-				pending_size = 0u;
+	return audio_compressor::pipeline::SamplePipeline::run(source, source_rate, target_rate,
+		config.chunk_samples, config.window_samples, static_cast<eng::u8>(codec),
+		std::filesystem::path {native_safe_path(output)},
+		[codec](eng::Span<const eng::u8> pcm, std::vector<eng::u8>& encoded, eng::u8& fib_seed) {
+			return encode_chunk(pcm, codec, encoded, fib_seed);
+		},
+		[codec](eng::Span<const eng::u8> encoded, eng::Span<eng::u8> decoded, eng::u8) {
+			if (codec == eng::audio::pcm_codec::Codec::None) {
+				if (encoded.size() != decoded.size()) return static_cast<eng::s32>(-1);
+				std::memcpy(decoded.data(), encoded.data(), encoded.size());
+				return static_cast<eng::s32>(encoded.size());
 			}
-		}
-	}
-	if (pending_size != 0u && !flush_pending(pending_size)) return false;
-	if (!sink.finalize()) return false;
-	std::error_code output_error{};
-	stats.output_bytes = std::filesystem::file_size(std::filesystem::path {native_safe_path(output)}, output_error);
-	if (output_error) return false;
-	stats.samples = output_samples; stats.sample_rate = target_rate; stats.round_trip_ok = true;
-	return true;
+			return eng::audio::pcm_codec::decode(encoded, decoded, static_cast<eng::u8>(codec));
+		}, stats);
 }
 
 /// Escribe un archivo ACP1 v1 con una pista sincronizada por cada stem AUZX.
@@ -512,17 +483,6 @@ template <class Source>
 	const std::filesystem::path output_path {native_safe_path(output)};
 	if (output_path.has_parent_path()) std::filesystem::create_directories(output_path.parent_path());
 	return audio_compressor::io::write_file(output_path, file);
-}
-
-/// Escribe un informe de texto mínimo para la primera vertical de la aplicación única.
-void write_report(const std::string& path, const std::string& input, const std::string& mode, const Config& config, const ConversionStats& stats, eng::u64 structural_bytes = 0u) {
-	std::FILE* out = std::fopen(path.c_str(), "wb"); if (!out) return;
-	const double pcm_ratio = stats.pcm_bytes == 0u ? 0.0 : static_cast<double>(stats.output_bytes) / static_cast<double>(stats.pcm_bytes);
-	const double source_ratio = stats.input_bytes == 0u ? 0.0 : static_cast<double>(stats.output_bytes) / static_cast<double>(stats.input_bytes);
-	const double mse = stats.samples == 0u ? 0.0 : static_cast<double>(stats.squared_error) / static_cast<double>(stats.samples);
-	const double snr_db = stats.squared_error == 0u ? 999.0 : 10.0 * std::log10(static_cast<double>(stats.signal_energy) / static_cast<double>(stats.squared_error));
-	std::fprintf(out, "{\n  \"input\": \"%s\",\n  \"mode\": \"%s\",\n  \"codec\": \"%s\",\n  \"sample_rate\": %u,\n  \"chunk_samples\": %u,\n  \"samples\": %llu,\n  \"duration_seconds\": %.6f,\n  \"input_bytes\": %llu,\n  \"pcm_bytes\": %llu,\n  \"output_bytes\": %llu,\n  \"structural_bytes\": %llu,\n  \"ratio_pcm_to_output\": %.6f,\n  \"ratio_source_to_output\": %.6f,\n  \"mse_pcm8\": %.6f,\n  \"snr_db\": %.3f,\n  \"peak_error\": %u,\n  \"repeated_windows\": %u,\n  \"round_trip_ok\": %s\n}\n", input.c_str(), mode.c_str(), config.codec.c_str(), config.sample_rate, config.chunk_samples, static_cast<unsigned long long>(stats.samples), stats.sample_rate == 0u ? 0.0 : static_cast<double>(stats.samples) / stats.sample_rate, static_cast<unsigned long long>(stats.input_bytes), static_cast<unsigned long long>(stats.pcm_bytes), static_cast<unsigned long long>(stats.output_bytes), static_cast<unsigned long long>(structural_bytes), pcm_ratio, source_ratio, mse, snr_db, stats.peak_error, stats.repeated_windows, stats.round_trip_ok ? "true" : "false");
-	std::fclose(out);
 }
 
 /// Muestra la interfaz de la aplicación única, incluyendo el caso de arrastrar un archivo.
@@ -596,7 +556,7 @@ int main(int argc, char** argv) {
 			if (!write_auzx_windowed(windowed_source, source_rate, config.sample_rate, config, output, windowed_stats)) {
 				std::fprintf(stderr, "no se pudo codificar la fuente WAV por ventanas\n"); return 1;
 			}
-			if (!report.empty()) write_report(report, input, "sample", config, windowed_stats);
+			if (!report.empty()) audio_compressor::report::write(report, input, "sample", config, windowed_stats);
 			std::printf("sample windowed=%llu bytes codec=%s samples=%llu\n",
 				static_cast<unsigned long long>(windowed_stats.output_bytes), config.codec.c_str(),
 				static_cast<unsigned long long>(windowed_stats.samples));
@@ -624,7 +584,7 @@ int main(int argc, char** argv) {
 		if (!write_auzx_windowed(raw_source, raw_rate, target_rate, config, output, raw_stats)) {
 			std::fprintf(stderr, "no se pudo codificar la fuente RAW por ventanas\n"); return 1;
 		}
-		if (!report.empty()) write_report(report, input, "sample", config, raw_stats);
+		if (!report.empty()) audio_compressor::report::write(report, input, "sample", config, raw_stats);
 		std::printf("sample windowed=%llu bytes codec=%s samples=%llu\n",
 			static_cast<unsigned long long>(raw_stats.output_bytes), config.codec.c_str(),
 			static_cast<unsigned long long>(raw_stats.samples));
@@ -706,7 +666,7 @@ int main(int argc, char** argv) {
 			std::printf("ACP1 v3 MVP=%llu bytes; pistas=%lu; unidades=%lu; segmentos PCM=%lu\n",
 				static_cast<unsigned long long>(v3_file.size()), static_cast<unsigned long>(v3_info.track_count),
 				static_cast<unsigned long>(v3_info.unit_count), static_cast<unsigned long>(v3_info.segment_count));
-			if (!report.empty()) write_report(report, input, mode, config, linear_stats, v3_file.size());
+			if (!report.empty()) audio_compressor::report::write(report, input, mode, config, linear_stats, v3_file.size());
 			if (config.acp1_version == 2u && !config.keep_candidates) std::remove(linear.c_str());
 			return 0;
 		}
@@ -769,7 +729,7 @@ int main(int argc, char** argv) {
 		const double linear_mse = static_cast<double>(linear_stats.squared_error) / denominator;
 		const double structural_mse = static_cast<double>(structural_stats.squared_error) / denominator;
 		std::printf("AUZX=%llu bytes MSE=%.4f pico=%u; ACP1=%llu bytes MSE=%.4f pico=%u; pistas=%lu; %s; ventanas repetidas=%u\n", static_cast<unsigned long long>(linear_stats.output_bytes), linear_mse, linear_stats.peak_error, static_cast<unsigned long long>(structural_bytes), structural_mse, structural_stats.peak_error, static_cast<unsigned long>(acp1_info.acp1_info.track_count), hpss_label, linear_stats.repeated_windows);
-		if (!report.empty()) write_report(report, input, mode, config, structural_stats, structural_bytes);
+		if (!report.empty()) audio_compressor::report::write(report, input, mode, config, structural_stats, structural_bytes);
 		if (!config.keep_candidates) std::remove(linear.c_str());
 		return 0;
 	}
@@ -782,7 +742,7 @@ int main(int argc, char** argv) {
 	stats.pcm_bytes = static_cast<eng::u64>(pcm.size());
 	stats.repeated_windows = count_repeated_windows(pcm, config.chunk_samples);
 	if (!write_auzx(pcm, config.sample_rate, config, output, stats)) return 1;
-	if (!report.empty()) write_report(report, input, mode, config, stats);
+	if (!report.empty()) audio_compressor::report::write(report, input, mode, config, stats);
 	if (!decoded_input.empty()) std::remove(decoded_input.c_str());
 	return 0;
 }

@@ -5,6 +5,7 @@
 #include <fstream>
 #include <string>
 
+#include "../../../../../engine/include/eng/audio/pcm_codec.hpp"
 #include "../../../../../host-tools/audio-compressor/include/audio_compressor/io/wav_source.hpp"
 #include "../../../../../host-tools/audio-compressor/include/audio_compressor/io/raw_source.hpp"
 #include "../../../../../host-tools/audio-compressor/include/audio_compressor/dsp/resampler.hpp"
@@ -36,6 +37,30 @@ int main() {
 	const eng::usize first = resampler.process({input, 1u}, {output, 8u}, false);
 	const eng::usize second = resampler.process({input + 1u, 1u}, {output, 8u}, true);
 	if (first != 0u || second != 4u) return 1;
+	const std::string raw_path = "host394.raw";
+	const eng::u8 raw_bytes[6] {0x80u, 0x81u, 0x7fu, 0x00u, 0xffu, 0x40u};
+	{
+		std::ofstream raw_file(raw_path, std::ios::binary);
+		raw_file.write(reinterpret_cast<const char*>(raw_bytes), sizeof(raw_bytes));
+		raw_file.close();
+		audio_compressor::io::RawSource raw;
+		if (!raw.open(raw_path, 8000u) || raw.frames() != 6u) return 1;
+		eng::u8 raw_window[3]{};
+		if (raw.read(2u, {raw_window, 3u}) != 3u || std::memcmp(raw_window, raw_bytes + 2u, 3u) != 0) return 1;
+	}
+	std::remove(raw_path.c_str());
+	const eng::u8 pcm[8] {0x80u, 0x80u, 0x81u, 0x90u, 0x7fu, 0x70u, 0x70u, 0x71u};
+	std::vector<eng::u8> encoded(64u), decoded(8u);
+	const eng::s32 rle_size = eng::audio::pcm_codec::encode({pcm, 8u}, {encoded.data(), encoded.size()});
+	if (rle_size <= 0 || eng::audio::pcm_codec::decode({encoded.data(), static_cast<eng::usize>(rle_size)}, {decoded.data(), decoded.size()},
+		static_cast<eng::u8>(eng::audio::pcm_codec::Codec::DeltaRle)) != 8 || std::memcmp(pcm, decoded.data(), 8u) != 0) return 1;
+	eng::u8 fib_seed = 0u;
+	const eng::s32 fib_size = eng::audio::fib_delta::encode({pcm, 8u}, {encoded.data(), encoded.size()}, fib_seed);
+	if (fib_size <= 0 || eng::audio::pcm_codec::decode({encoded.data(), static_cast<eng::usize>(fib_size)}, {decoded.data(), decoded.size()},
+		static_cast<eng::u8>(eng::audio::pcm_codec::Codec::FibDelta)) != 8) return 1;
+	const eng::s32 ima_size = eng::audio::ima_adpcm::encode({pcm, 8u}, {encoded.data(), encoded.size()});
+	if (ima_size <= 0 || eng::audio::pcm_codec::decode({encoded.data(), static_cast<eng::usize>(ima_size)}, {decoded.data(), decoded.size()},
+		static_cast<eng::u8>(eng::audio::pcm_codec::Codec::ImaAdpcm)) != 8) return 1;
 	std::remove(path.c_str());
 	std::printf("OK: WavSource lee ventanas y mezcla PCM8 sin cargar el fichero completo.\n");
 	return 0;
