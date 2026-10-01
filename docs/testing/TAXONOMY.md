@@ -36,7 +36,7 @@ tests/
 ├── amiga/                    → L0/L2/L3 on-target (WinUAE)
 │   ├── README.md
 │   ├── l0_bare_metal/        → registros, bitplanes, copper a mano, DMA, Blitter
-│   ├── l1_backend/           → APIs del backend Amiga
+│   ├── l1_backend/           → APIs del backend Amiga y ownership/lifecycle de display
 │   └── l2_copper_frameplan/  → CopperScheduler, FramePlan, presupuestos
 └── atarist/                  → (futuro)
 ```

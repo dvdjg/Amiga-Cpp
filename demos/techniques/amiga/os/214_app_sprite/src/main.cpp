@@ -191,10 +191,14 @@ int main() {
 	eng::debug::reset(g_eng_run_status);
 
 	eng::amiga::AmigaBackend backend {};
-	const auto memory = eng::amiga::game_memory_custom(
-		eng::MemoryConfig {96u * 1024u, 8u * 1024u, 4u * 1024u, 0u}, "Demo 214");
-	if (!backend.configure_game_memory(memory)) {
-		eng::debug::mark_failed(g_eng_run_status, 0x00021403u);
+	if (!backend.configure_game_memory()) {
+		const auto& selected_memory = backend.game_memory_profile();
+		const auto& report = backend.memory_report();
+		const eng::u32 detail = ((selected_memory.pools.chip_bytes / 1024u) << 14u) |
+			((selected_memory.pools.slow_bytes / 1024u) << 4u) |
+			(report.chip_ok ? 1u : 0u) | (report.slow_ok ? 2u : 0u) |
+			(report.frame_ok ? 4u : 0u) | (report.fast_ok ? 8u : 0u);
+		eng::debug::mark_failed(g_eng_run_status, detail);
 		return 0;
 	}
 	AppSpriteDemo game {};

@@ -153,13 +153,7 @@ public:
 		: m_backend(backend), m_game(game), m_engine(backend, m_adapter), m_memory(memory) {
 		m_adapter.self = this;
 	}
-	~App() {
-		if (m_started) {
-			if constexpr (requires(Backend& backend) { backend.stop_display(); }) {
-				m_backend.stop_display();
-			}
-		}
-	}
+	~App() { shutdown(); }
 	App(const App&) = delete;
 	App& operator=(const App&) = delete;
 
@@ -170,6 +164,17 @@ public:
 	void run(u32 frames = 0xffffffffu) {
 		m_engine.set_vblank_hook(&App::on_vblank, this);
 		m_engine.run_frames(frames);
+		if (frames != 0xffffffffu) shutdown();
+	}
+
+	/// Detiene el backend antes de liberar la escena propia. Idempotente; `run()` también lo llama
+	/// al acabar un número finito de frames, para hacer comprobable el ciclo de vida en integración.
+	void shutdown() noexcept {
+		if (!m_started || m_shutdown) return;
+		if constexpr (requires(Backend& backend) { backend.stop_display(); }) {
+			m_backend.stop_display();
+		}
+		m_shutdown = true;
 	}
 
 	/// Compone una escena propia desde el gestor de memoria preconfigurado por el composition root.
@@ -463,6 +468,7 @@ public:
 		}
 		m_plan.clear();
 	}
+	[[nodiscard]] bool shutdown_complete() const noexcept { return m_shutdown; }
 
 private:
 	[[nodiscard]] graphics::composition::SceneResources scene_resources() const noexcept {
@@ -532,6 +538,7 @@ private:
 	graphics::composition::Scene m_owned_scene {};       ///< scene composed and owned by this App
 	GameDisplay m_display {};
 	bool m_started = false;
+	bool m_shutdown = false;
 	eng::Ref<GameContext> m_context {};                 ///< contexto del engine (no propietario)
 	eng::os::MsgPort<16> m_port {};                     ///< puerto de mensajes del sistema
 	volatile u32 m_vblank_count = 0;                    ///< VBlanks publicados (IRQ)

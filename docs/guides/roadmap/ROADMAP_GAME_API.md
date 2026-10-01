@@ -50,12 +50,14 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
 - **Política de RAM acordada**: asignar pools de juego desde presupuestos populares conocidos (A500:
   512 KiB Chip + 512 KiB Slow; A1200: 2 MiB Chip), dejando headroom explícito a Exec. Fast RAM no se
   presupone: un integrador que la detecte puede añadirla mediante el perfil personalizado. `AvailMem`
-  solo comprueba el mayor bloque contiguo antes de `AllocMem`; no reserva memoria ni garantiza que el
-  bloque siga libre. `configure_game_memory` tiene consumer en Demo 214 y pasa el gate `build -> run ->
-  analyze` en WinUAE. `App::start()` y `GameDisplay` componen y poseen la escena sobre un
-  `MemoryManager` preconfigurado por el composition root; HOST-234 cubre éxito, errores tipados,
-  reintento y liberación de la escena. La creación dinámica del pool mediante detección/perfil en la
-  macro de arranque sigue pendiente. HOST-394 valida los perfiles y la lógica pura del preflight.
+  solo consulta el mayor bloque contiguo antes de `AllocMem`; no reserva memoria ni garantiza que el
+  bloque siga libre. `configure_game_memory()` selecciona perfil desde `HwInfo` y limita la reserva
+  automática al bloque libre preservando headroom. Demo 214 ejercita selección automática y pasa
+  `build -> run -> analyze` en WinUAE/A500. `App::start()` y `GameDisplay` componen y poseen la escena
+  sobre un `MemoryManager` preconfigurado por el composition root; HOST-234 cubre éxito, errores tipados,
+  reintento, `run(n)` finito y liberación de la escena. L1-001 ejecuta el ciclo completo en WinUAE y
+  exige `DMACONR=0` más recuperación del pool Chip tras destruir `App`. HOST-394 valida selección
+  automática y preflight puro. AGA/A1200 tiene cobertura host; el runner no ofrece un perfil AGA.
 
 ## 2. Audio auto-conducido (el eslabón con más dolor)
 

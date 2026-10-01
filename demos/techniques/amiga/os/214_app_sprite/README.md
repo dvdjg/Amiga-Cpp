@@ -13,9 +13,9 @@ con **`app.screen().sprite(spr, x, y)`**; la geometría del destino la prepara l
 - El sprite recorre la pantalla en horizontal y rebota en vertical.
 - El consumer incluye `<eng/api/api.hpp>` como única puerta del engine; el backend Amiga se incluye
   aparte en el composition root.
-- El composition root declara un perfil custom de 96 KiB Chip, 8 KiB Slow y 4 KiB de scratch Chip;
-  `configure_game_memory` comprueba los bloques contiguos con Exec antes de pedirlos. Fast queda en cero
-  porque esta demo no necesita un pool CPU dedicado.
+- El composition root deja que `configure_game_memory()` seleccione el presupuesto inicial desde
+  `HwInfo`, lo ajuste al mayor bloque disponible conservando headroom y lo preflight con Exec antes
+  de reservarlo. Fast queda en cero porque esta demo no necesita un pool CPU dedicado.
 - Todo el ciclo de juego pasa por `eng::App`/`Screen`: `init(app)`/`update(app)`/`render(app)`.
 - El composition root configura el perfil de memoria y entrega el `MemoryManager` a `App`; `App::start()` compone, posee e instala su escena, y el juego no crea ni enlaza manualmente un `Scene`.
 

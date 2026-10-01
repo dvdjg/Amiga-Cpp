@@ -35,8 +35,7 @@ construye materialización en la app. El diagnóstico actualizado está en
 ```cpp
 // main.cpp de un juego
 eng::amiga::AmigaBackend backend {};
-if (!backend.configure_game_memory(eng::amiga::game_memory_custom(
-        {.chip_bytes = 128u * 1024u, .slow_bytes = 8u * 1024u, .frame_bytes = 4u * 1024u}))) return;
+if (!backend.configure_game_memory()) return; // perfil editable seleccionado desde HwInfo
 MyGame game {};
 eng::App app {backend, game, backend.memory_manager()};
 if (!app.start()) return;       // compone y posee el display declarado por GameDisplay
@@ -60,7 +59,8 @@ struct MyGame {
 | `app.input()` | estado de entrada del frame | `input::InputAggregator` (vía `poll_input`) |
 | `app.audio()` | audio del backend (SFX + música) | `backend.audio()` |
 | `app.tasks()` | tareas de fondo | `context.background` |
-| `app.start()` | compone y toma ownership del display antes de `run()` | `scene::compose` + `App::bind_scene` |
+| `app.start()` | compone, posee e instala el display antes de `run()` | `scene::compose` + `Scene::takeover` |
+| `app.shutdown()` | detiene DMA/presentación antes de liberar la escena | ciclo de vida interno de `Scene` + backend |
 | `app.present()` | publica el frame (copper/swap) | `scene.commit()`/`present()` |
 
 **Efectos** (borrador, `eng/api/effects.hpp`): el juego pide el efecto, no la secuencia de

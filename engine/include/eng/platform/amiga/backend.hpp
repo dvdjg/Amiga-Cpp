@@ -113,13 +113,32 @@ public:
 	/// Preflight y reserva los pools configurados por el composition root. `AvailMem` es una
 	/// instantánea del mayor bloque contiguo requerido; `AllocMem` sigue siendo el árbitro final.
 	[[nodiscard]] bool configure_game_memory(const GameMemoryProfile& profile) {
+		return configure_game_memory(profile, false);
+	}
+
+	/// Reserva un perfil elegido para una instantánea automática concreta, sin consultar AvailMem dos veces.
+	[[nodiscard]] bool configure_game_memory(const GameMemoryProfile& profile, bool preflighted) {
 		m_game_memory = profile;
 		const auto& pools = profile.pools;
+		if (preflighted) return configure_memory(pools);
 		const u32 chip = static_cast<u32>(AvailMem(MEMF_CHIP | MEMF_LARGEST));
 		const u32 any = static_cast<u32>(AvailMem(MEMF_ANY | MEMF_LARGEST));
 		const u32 fast = static_cast<u32>(AvailMem(MEMF_FAST | MEMF_LARGEST));
 		if (!game_memory_fits(pools, chip, any, fast)) return false;
 		return configure_memory(pools);
+	}
+
+	/// Sondea la máquina y elige un presupuesto inicial editable según Chipset/RAM; en hardware
+	/// desconocido usa A500. El composition root puede preferir el overload explícito/custom.
+	[[nodiscard]] bool configure_game_memory() {
+		hw::HwInfo hardware {};
+		(void)hw::probe(hardware);
+		const u32 largest_chip = static_cast<u32>(AvailMem(MEMF_CHIP | MEMF_LARGEST));
+		const u32 largest_any = static_cast<u32>(AvailMem(MEMF_ANY | MEMF_LARGEST));
+		const u32 largest_fast = static_cast<u32>(AvailMem(MEMF_FAST | MEMF_LARGEST));
+		const auto preferred = game_memory_for_hardware(hardware);
+		m_game_memory = game_memory_fit_available(preferred, largest_chip, largest_any, largest_fast);
+		return configure_game_memory(m_game_memory, true);
 	}
 
 	/// Libera los bloques reservados con Exec.

@@ -160,6 +160,9 @@ int main() {
 			const auto again = start_app.start();
 			check(!again && again.error() == StartError::AlreadyStarted,
 			      "start repetido se rechaza de forma explícita");
+			start_app.run(1u);
+			check(start_app.shutdown_complete() && app_backend.stopped_while_allocated,
+			      "run finito apaga display mientras la escena DMA todavía conserva sus buffers");
 		}
 		check(app_mem.chip().free_bytes() == free_before,
 		      "la destrucción de App libera el display propio sin destruir el pool externo");

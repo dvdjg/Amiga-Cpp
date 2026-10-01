@@ -16,6 +16,7 @@ dibujo de alto nivel (análogo al `RastPort`).
 7. `App::start()` compone una escena propia sobre un `MemoryManager` preconfigurado por el composition root, y la pantalla dibuja sobre ella.
 8. Errores explícitos por gestor ausente, display inválido, presupuesto Chip insuficiente y doble arranque; permite corregir y reintentar.
 9. `App` libera los buffers de escena al destruirse, sin liberar el pool que pertenece al composition root.
+10. `run(n)` finito detiene el display al terminar, antes del teardown de la escena.
 
 El backend de prueba es mínimo (`boot` + `wait_vblank`), sin `execute_frame_plan`: `App::present`
 lo omite con `if constexpr` (el juego normal no lo ve).

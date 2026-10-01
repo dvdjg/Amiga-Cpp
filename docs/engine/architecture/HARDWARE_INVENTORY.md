@@ -12,7 +12,7 @@ HwProbe::probe(HwInfo&)  →  HwInfo (POD estable)
        ├─ CPU / FPU / MMU          (ExecBase->AttnFlags)
        ├─ Chipset + capacidades    (DENISEID; Akiko→C2P)
        ├─ Kickstart / Exec         (LibNode version/revision)
-       ├─ RAM por tipo             (ExecBase->MemList)
+        ├─ RAM por tipo             (ExecBase->MemList; guía el perfil inicial de App)
        ├─ Display vigente          (lo declara la app: set_display)
        └─ Puertos de entrada       (asumidos; CD32 por POTGO)
 ```
@@ -30,6 +30,13 @@ if (eng::hw::is_aga(hw))            { scene.set_max_depth(eng::hw::max_planes(hw
 if (eng::hw::is_cd32(hw) && hw.caps.c2p_hw) { renderer.enable_akiko_c2p(true); }
 if (eng::hw::cpu_at_least(hw, eng::hw::CpuKind::M68020)) { audio_cfg.sw_voices = 4; }
 ```
+
+El composition root Amiga puede llamar `AmigaBackend::configure_game_memory()` para sondear este
+inventario y escoger el perfil editable inicial: A500 OCS con Chip+Slow populares o A1200 AGA con 2 MiB
+Chip. Las demás combinaciones usan la RAM detectada menos headroom; Fast se detecta pero no se reserva
+por defecto. `game_memory_custom(...)` permite asignar Fast explícitamente. `AvailMem(MEMF_* |
+MEMF_LARGEST)` limita el pool automático al mayor bloque observado y conserva headroom; sigue siendo un
+preflight no atómico antes de `AllocMem`.
 
 Tipos: `CpuKind`, `FpuKind`, `Chipset`, `MachineModel`, `MemRegionKind`, `PortDevice`,
 `MemRegion`, `InputPortInfo`, `DisplayInfo`, `Caps`, `HwInfo`.
