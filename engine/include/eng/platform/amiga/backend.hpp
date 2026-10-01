@@ -29,6 +29,10 @@
 #include <eng/res/asset_runtime.hpp>
 #include <eng/platform/amiga/blob.hpp>
 #include <eng/platform/amiga/paula.hpp>
+#include <eng/platform/amiga/memory_profile.hpp>
+
+#include <exec/memory.h>
+#include <proto/exec.h>
 
 namespace eng::amiga {
 
@@ -89,6 +93,8 @@ public:
 
 	constexpr explicit AmigaBackend(Profile profile = a500_1mb_slow)
 		: m_profile(profile) {}
+	constexpr AmigaBackend(Profile profile, GameMemoryProfile game_memory)
+		: m_profile(profile), m_game_memory(game_memory) {}
 	~AmigaBackend();
 
 	AmigaBackend(const AmigaBackend&) = delete;
@@ -103,6 +109,18 @@ public:
 	/// bloques solicitados. En modo takeover futuro, esta misma API podra poblarse
 	/// con rangos fisicos conocidos sin pasar por Exec.
 	bool configure_memory(const MemoryConfig& config);
+
+	/// Preflight y reserva los pools configurados por el composition root. `AvailMem` es una
+	/// instantánea del mayor bloque contiguo requerido; `AllocMem` sigue siendo el árbitro final.
+	[[nodiscard]] bool configure_game_memory(const GameMemoryProfile& profile) {
+		m_game_memory = profile;
+		const auto& pools = profile.pools;
+		const u32 chip = static_cast<u32>(AvailMem(MEMF_CHIP | MEMF_LARGEST));
+		const u32 any = static_cast<u32>(AvailMem(MEMF_ANY | MEMF_LARGEST));
+		const u32 fast = static_cast<u32>(AvailMem(MEMF_FAST | MEMF_LARGEST));
+		if (!game_memory_fits(pools, chip, any, fast)) return false;
+		return configure_memory(pools);
+	}
 
 	/// Libera los bloques reservados con Exec.
 	void release_memory();
@@ -647,6 +665,7 @@ public:
 	void set_warpmode(bool enabled);
 
 	constexpr const Profile& profile() const { return m_profile; }
+	constexpr const GameMemoryProfile& game_memory_profile() const noexcept { return m_game_memory; }
 	constexpr MemorySystem& memory() { return m_memory; }
 	constexpr const MemorySystem& memory() const { return m_memory; }
 	constexpr const MemoryReport& memory_report() const { return m_memory_report; }
@@ -681,6 +700,7 @@ private:
 	bool submit_blit_job(const graphics::BlitJob& job, bool& eor_open);
 
 	Profile m_profile; ///< perfil de máquina configurado
+	GameMemoryProfile m_game_memory = game_memory_a500; ///< presupuesto editable de la aplicación
 	MemorySystem m_memory {}; ///< arenas (Chip/Slow/Frame) entregadas al engine
 	MemoryReport m_memory_report {}; ///< informe de la reserva de memoria
 	MemoryManager m_memmanager {}; ///< bancos tipados por uso (mismos buffers que las arenas)

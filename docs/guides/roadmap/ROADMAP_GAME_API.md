@@ -44,12 +44,15 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
 
 - **Problema**: el juego llama `app.configure_memory({96k, 8k, 4k, 0})` y `comp::compose(...)` con `ocs_a500`,
   `SceneResources` y un `BPLCON0` crudo (`comp::display(res, 0x5200)` en 213).
-- **Salida**: `ENG_GAME_MAIN(Game)` bootea hardware (detección en `eng::hw`), elige memoria y un display por defecto
-  (320x256, planos según el fondo que pida el juego), y llama `init/update/render`. El juego **no** nombra
-  `MemoryConfig`, `SceneResources`, `ocs_a500` ni registros.
-- **Decisión (`configure_memory`)**: el default del engine será «todo lo posible menos headroom» (sin **restringir**,
-  regla §1.1 del API), detectado con `hw`/`AvailMem`; el juego podrá **ajustar** (dejará de ser obligatorio
-  configurar). Pendiente de implementar.
+- **Salida**: `App::start()` compone un display declarativo dentro del pool de memoria asignado por el
+  composition root. El juego no nombra `SceneResources`, `ocs_a500` ni registros. Perfiles de producto
+  A500/A1200 son valores por defecto; el composition root puede suministrar un `MemoryConfig` propio.
+- **Política de RAM acordada**: asignar pools de juego desde presupuestos populares conocidos (A500:
+  512 KiB Chip + 512 KiB Slow; A1200: 2 MiB Chip), dejando headroom explícito a Exec. Fast RAM no se
+  presupone: un integrador que la detecte puede añadirla mediante el perfil personalizado. `AvailMem`
+  solo comprueba el mayor bloque contiguo antes de `AllocMem`; no reserva memoria ni garantiza que el
+  bloque siga libre. Backend/profile testable en `memory_profile.hpp` y HOST-331; `App::start` y la
+  propiedad del display siguen pendientes.
 
 ## 2. Audio auto-conducido (el eslabón con más dolor)
 
