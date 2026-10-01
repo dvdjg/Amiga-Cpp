@@ -165,8 +165,10 @@ Al arrancar se descomprimen los `kNumBuffers` primeros chunks, se programa Paula
 El engine despacha por el campo `compression` con un contrato único
 `pcm_codec::decode(comprimido, destino, compression)`, freestanding y sin heap: decodifica directo
 al buffer Chip. Implementados: **ZX0** (`eng/audio/zx0.hpp`, port de `dzx0.c`), **Delta + RLE**
-propio, **Fibonacci Delta** (`eng/audio/fib_delta.hpp`, IFF 8SVX) y **Delta + ZX0**. Cada uno tiene
-test host (HOST-271, 242, 323, 324). Pendiente: **aPLib** (`Codec::APLib`) e **IMA ADPCM 4-bit**.
+propio, **Fibonacci Delta** (`eng/audio/fib_delta.hpp`), **IMA ADPCM 4-bit** y **Delta + ZX0**.
+Cada uno tiene referencia C++ y cobertura host/on-target donde se indica en la demo 277. **aPLib**
+dispone de depacker en el engine, pero la aplicación `audio-compressor` aún no tiene encoder host
+para producirlo.
 
 ### 7.1 Formatos exactos (compatibilidad PC → Amiga)
 
@@ -209,7 +211,9 @@ alrededor de cero y mejora el ratio del LZ.
 
 **ZX0 — `0`**: ZX0 v2 (Einar Saukas) sobre PCM directo, sin delta.
 
-**IMA ADPCM — `6`** (planificado; con pérdida, 4 bits/muestra, tablas del estándar IMA/DVI).
+**IMA ADPCM — `6`** (con pérdida, 4 bits/muestra, tablas del estándar IMA/DVI).
+
+La ruta AUZX actual requiere que cada chunk codificado con Fibonacci o IMA tenga un número par de muestras: los decoders C++ y ASM comparten el contrato de dos muestras por byte de nibbles y el encoder rechaza un último chunk impar. El formato ACP1 v3 propuesto define una longitud explícita para admitir relleno impar, pero esa extensión no forma parte de AUZX v1 ni de la aplicación actual.
 
 Para producir estos ficheros desde un PC: `tools/audio/prep-sample.ts` (WAV → PCM mono 8-bit con
 signo) y, según el códec, el paso delta y/o la herramienta ZX0 de referencia (`zx0 -f`). Ver el

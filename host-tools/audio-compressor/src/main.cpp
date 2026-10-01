@@ -2,14 +2,14 @@
 // audio-compressor: aplicación única de transformación de audio para Amiga.
 // ==========================================================================
 //
-// Esta primera vertical implementa el pipeline SAMPLE completo: ingestión WAV/RAW, configuración,
-// clasificación, codec AUZX, round-trip y salida de informe. El pipeline MUSIC se reconoce y valida
-// como modo, pero no inventa un ACP1 parcial: su encoder estructural llega en una fase posterior.
+// El pipeline host mantiene separadas las rutas SAMPLE y MUSIC: AUZX mono para samples y ACP1 v2
+// multipista para stems WAV. ACP1 v3 no forma parte de la salida de esta aplicación.
 
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
 #include <cstring>
+#include <algorithm>
 #include <filesystem>
 #if defined(_WIN32)
 #include <cwchar>
@@ -129,22 +129,23 @@ struct ConversionStats {
 }
 
 /// Decodifica una fuente comprimida a WAV PCM16 temporal, manteniendo el archivo fuera del repo.
-[[nodiscard]] bool decode_external_source(const std::string& input, std::string& wav) {
+[[nodiscard]] bool decode_external_source(const std::string& input, std::string& wav, eng::u16 target_rate) {
 	wav = (std::filesystem::temp_directory_path() / "amiga-audio-compressor-input.wav").string();
 	const std::string executable = find_ffmpeg();
 	const std::filesystem::path batch = std::filesystem::temp_directory_path() / "amiga-audio-compressor-ffmpeg.bat";
 #if defined(_WIN32)
 	std::FILE* script = std::fopen(batch.string().c_str(), "wb");
 	if (!script) return false;
-	std::fprintf(script, "@echo off\r\n\"%s\" -y -v error -i \"%s\" -vn -acodec pcm_s16le -ar 22050 \"%s\"\r\n",
-		executable.c_str(), input.c_str(), wav.c_str());
+	std::fprintf(script, "@echo off\r\n\"%s\" -y -v error -i \"%s\" -vn -acodec pcm_s16le -ar %u \"%s\"\r\n",
+		executable.c_str(), input.c_str(), target_rate == 0u ? 22050u : target_rate, wav.c_str());
 	std::fclose(script);
 	const std::string command = "cmd /c call \"" + batch.string() + "\"";
 	const bool ok = std::system(command.c_str()) == 0;
 	std::remove(batch.string().c_str());
 	return ok;
 #else
-	const std::string command = "\"" + executable + "\" -y -v error -i \"" + input + "\" -vn -acodec pcm_s16le -ar 22050 \"" + wav + "\"";
+	const std::string command = "\"" + executable + "\" -y -v error -i \"" + input + "\" -vn -acodec pcm_s16le -ar " +
+		std::to_string(target_rate == 0u ? 22050u : target_rate) + " \"" + wav + "\"";
 	return std::system(command.c_str()) == 0;
 #endif
 }
@@ -232,6 +233,142 @@ template <class T>
 	return Codec::DeltaRle;
 }
 
+[[nodiscard]] bool supported_codec_name(const std::string& name) {
+	return name == "none" || name == "rle" || name == "fib" || name == "ima" || name == "auto";
+}
+
+[[nodiscard]] bool encode_chunk(const std::vector<eng::u8>& pcm, eng::usize start, eng::usize count,
+	eng::audio::pcm_codec::Codec codec, std::vector<eng::u8>& encoded, eng::u8& fib_seed) {
+	encoded.assign(count + count / 128u + 32u, 0u);
+	eng::s32 size = -1;
+	if (codec == eng::audio::pcm_codec::Codec::None) {
+		if (encoded.size() < count) return false;
+		std::memcpy(encoded.data(), pcm.data() + start, count);
+		size = static_cast<eng::s32>(count);
+	} else if (codec == eng::audio::pcm_codec::Codec::FibDelta) {
+		size = eng::audio::fib_delta::encode({pcm.data() + start, count}, {encoded.data(), encoded.size()}, fib_seed);
+	} else if (codec == eng::audio::pcm_codec::Codec::ImaAdpcm) {
+		size = eng::audio::ima_adpcm::encode({pcm.data() + start, count}, {encoded.data(), encoded.size()});
+	} else {
+		size = eng::audio::pcm_codec::encode({pcm.data() + start, count}, {encoded.data(), encoded.size()},
+			static_cast<eng::u8>(codec));
+	}
+	if (size <= 0) return false;
+	encoded.resize(static_cast<eng::usize>(size));
+	return true;
+}
+
+[[nodiscard]] bool estimate_codec_size(const std::vector<eng::u8>& pcm, eng::u16 chunk,
+	eng::audio::pcm_codec::Codec codec, eng::u64& total) {
+	if (chunk == 0u || pcm.empty()) return false;
+	if ((codec == eng::audio::pcm_codec::Codec::FibDelta || codec == eng::audio::pcm_codec::Codec::ImaAdpcm) &&
+		(((chunk & 1u) != 0u) || ((pcm.size() % chunk) != 0u && ((pcm.size() % chunk) & 1u) != 0u))) return false;
+	total = eng::audio::auzx::kHeaderSize +
+		((pcm.size() + chunk - 1u) / chunk) * eng::audio::auzx::kChunkEntrySize;
+	eng::u8 fib_seed = 0u;
+	std::vector<eng::u8> encoded;
+	for (eng::usize start = 0u; start < pcm.size(); start += chunk) {
+		const eng::usize count = std::min<eng::usize>(chunk, pcm.size() - start);
+		if (!encode_chunk(pcm, start, count, codec, encoded, fib_seed)) return false;
+		total += encoded.size();
+	}
+	return true;
+}
+
+struct CodecCandidate {
+	const char* name = "";
+	eng::u64 bytes = 0u;
+	eng::u64 squared_error = 0u;
+	eng::u8 peak_error = 0u;
+};
+
+[[nodiscard]] bool evaluate_codec(const std::vector<eng::u8>& pcm, eng::u16 chunk,
+	eng::audio::pcm_codec::Codec codec, CodecCandidate& result) {
+	if (chunk == 0u || pcm.empty()) return false;
+	if ((codec == eng::audio::pcm_codec::Codec::FibDelta || codec == eng::audio::pcm_codec::Codec::ImaAdpcm) &&
+		(((chunk & 1u) != 0u) || ((pcm.size() % chunk) != 0u && ((pcm.size() % chunk) & 1u) != 0u))) return false;
+	result.bytes = eng::audio::auzx::kHeaderSize +
+		((pcm.size() + chunk - 1u) / chunk) * eng::audio::auzx::kChunkEntrySize;
+	eng::u8 fib_seed = 0u;
+	std::vector<eng::u8> encoded;
+	std::vector<eng::u8> decoded;
+	for (eng::usize start = 0u; start < pcm.size(); start += chunk) {
+		const eng::usize count = std::min<eng::usize>(chunk, pcm.size() - start);
+		if (!encode_chunk(pcm, start, count, codec, encoded, fib_seed)) return false;
+		decoded.assign(count, 0u);
+		const eng::s32 written = codec == eng::audio::pcm_codec::Codec::None
+			? (std::memcpy(decoded.data(), encoded.data(), count), static_cast<eng::s32>(count))
+			: eng::audio::pcm_codec::decode({encoded.data(), encoded.size()}, {decoded.data(), decoded.size()},
+				static_cast<eng::u8>(codec));
+		if (written != static_cast<eng::s32>(count)) return false;
+		result.bytes += encoded.size();
+		for (eng::usize i = 0u; i < count; ++i) {
+			const eng::s32 error = static_cast<eng::s8>(pcm[start + i]) - static_cast<eng::s8>(decoded[i]);
+			const eng::u32 absolute = static_cast<eng::u32>(error < 0 ? -error : error);
+			result.squared_error += static_cast<eng::u64>(error * error);
+			if (absolute > result.peak_error) result.peak_error = static_cast<eng::u8>(absolute);
+		}
+	}
+	return true;
+}
+
+[[nodiscard]] bool select_codec(const std::vector<eng::u8>& pcm, Config& config) {
+	if (config.codec != "auto") return supported_codec_name(config.codec);
+	struct Candidate { const char* name; eng::audio::pcm_codec::Codec codec; };
+	constexpr Candidate candidates[] = {
+		{"none", eng::audio::pcm_codec::Codec::None},
+		{"rle", eng::audio::pcm_codec::Codec::DeltaRle},
+		{"fib", eng::audio::pcm_codec::Codec::FibDelta},
+		{"ima", eng::audio::pcm_codec::Codec::ImaAdpcm},
+	};
+	const Candidate* best = nullptr;
+	eng::u64 best_size = ~eng::u64 {0};
+	for (const Candidate& candidate : candidates) {
+		eng::u64 size = 0u;
+		if (estimate_codec_size(pcm, config.chunk_samples, candidate.codec, size) && size < best_size) {
+			best = &candidate;
+			best_size = size;
+		}
+	}
+	if (best == nullptr) return false;
+	config.codec = best->name;
+	return true;
+}
+
+void print_codec_candidates(const std::vector<eng::u8>& pcm, const Config& config) {
+	struct Candidate { const char* name; eng::audio::pcm_codec::Codec codec; };
+	constexpr Candidate candidates[] = {
+		{"none", eng::audio::pcm_codec::Codec::None},
+		{"rle", eng::audio::pcm_codec::Codec::DeltaRle},
+		{"fib", eng::audio::pcm_codec::Codec::FibDelta},
+		{"ima", eng::audio::pcm_codec::Codec::ImaAdpcm},
+	};
+	std::printf("candidatas codec (chunk=%u):\n", config.chunk_samples);
+	for (const Candidate& candidate : candidates) {
+		CodecCandidate metrics{};
+		metrics.name = candidate.name;
+		if (!evaluate_codec(pcm, config.chunk_samples, candidate.codec, metrics)) {
+			std::printf("  %s: no disponible\n", candidate.name);
+			continue;
+		}
+		const double mse = pcm.empty() ? 0.0 : static_cast<double>(metrics.squared_error) / pcm.size();
+		std::printf("  %s: %llu bytes, MSE=%.4f, pico=%u\n", candidate.name,
+			static_cast<unsigned long long>(metrics.bytes), mse, metrics.peak_error);
+	}
+}
+
+[[nodiscard]] bool fits_memory_budget(const pack_pcm::WavStems& stems, const std::vector<eng::u8>& pcm,
+	const Config& config) {
+	eng::u64 bytes = static_cast<eng::u64>(pcm.size());
+	for (const auto& channel : stems.channels) bytes += static_cast<eng::u64>(channel.size());
+	// The current host pipeline retains the normalized stems and at least one working copy. HPSS
+	// needs two additional layer buffers per stem; reject early rather than silently exceeding the
+	// declared budget. A future streaming loader can lower this bound without changing the format.
+	const eng::u64 multiplier = config.hpss ? 4u : 2u;
+	if (bytes > (~eng::u64 {0}) / multiplier) return false;
+	return bytes * multiplier <= config.ram_budget_bytes;
+}
+
 /// Clasifica de forma conservadora: la heurística inicial usa duración y permite override explícito.
 [[nodiscard]] std::string classify(const Config& config, eng::usize samples, eng::u16 rate) {
 	if (config.mode == "sample" || config.mode == "music") return config.mode;
@@ -268,6 +405,11 @@ template <class T>
 	if (chunk_count > 65535u || pcm.size() > 0xffffffffu) return false;
 	const eng::u16 chunks = static_cast<eng::u16>(chunk_count);
 	const auto codec = codec_id(config.codec);
+	if ((codec == eng::audio::pcm_codec::Codec::FibDelta || codec == eng::audio::pcm_codec::Codec::ImaAdpcm) &&
+		((chunk & 1u) != 0u || ((pcm.size() % chunk) != 0u && ((pcm.size() % chunk) & 1u) != 0u))) {
+		std::fprintf(stderr, "FibDelta e IMA requieren chunks con un número par de muestras en el runtime Amiga\n");
+		return false;
+	}
 	std::vector<std::vector<eng::u8>> bodies(chunks);
 	std::vector<eng::u32> offsets(chunks), sizes(chunks);
 	eng::u32 cursor = static_cast<eng::u32>(eng::audio::auzx::kHeaderSize + chunks * eng::audio::auzx::kChunkEntrySize);
@@ -275,20 +417,16 @@ template <class T>
 	for (eng::u16 i = 0u; i < chunks; ++i) {
 		const eng::usize start = static_cast<eng::usize>(i) * chunk;
 		const eng::usize count = pcm.size() - start < chunk ? pcm.size() - start : chunk;
-		std::vector<eng::u8> encoded(count + count / 128u + 32u);
-		eng::s32 size = -1;
-		if (codec == eng::audio::pcm_codec::Codec::None) {
-			std::memcpy(encoded.data(), pcm.data() + start, count); size = static_cast<eng::s32>(count);
-		} else if (codec == eng::audio::pcm_codec::Codec::FibDelta) {
-			size = eng::audio::fib_delta::encode({pcm.data() + start, count}, {encoded.data(), encoded.size()}, fib_seed);
-		} else if (codec == eng::audio::pcm_codec::Codec::ImaAdpcm) {
-			size = eng::audio::ima_adpcm::encode({pcm.data() + start, count}, {encoded.data(), encoded.size()});
-		} else {
-			size = eng::audio::pcm_codec::encode({pcm.data() + start, count}, {encoded.data(), encoded.size()}, static_cast<eng::u8>(codec));
+		std::vector<eng::u8> encoded;
+		if (!encode_chunk(pcm, start, count, codec, encoded, fib_seed)) {
+			std::fprintf(stderr, "codec no pudo codificar chunk %u (codec=%u, muestras=%lu)\n", i,
+				static_cast<unsigned>(codec), static_cast<unsigned long>(count));
+			return false;
 		}
-		if (size <= 0) { std::fprintf(stderr, "codec no pudo codificar chunk %u (codec=%u, muestras=%lu)\n", i, static_cast<unsigned>(codec), static_cast<unsigned long>(chunk)); return false; }
-		bodies[i].assign(encoded.begin(), encoded.begin() + size);
-		offsets[i] = cursor; sizes[i] = static_cast<eng::u32>(size); cursor += sizes[i];
+		bodies[i] = std::move(encoded);
+		offsets[i] = cursor; sizes[i] = static_cast<eng::u32>(bodies[i].size());
+		if (cursor > 0xffffffffu - sizes[i]) return false;
+		cursor += sizes[i];
 	}
 	std::vector<eng::u8> file(cursor, 0u); eng::Span<eng::u8> view{file.data(), file.size()};
 	file[0] = 'A'; file[1] = 'U'; file[2] = 'Z'; file[3] = 'X'; file[4] = 1u; file[5] = static_cast<eng::u8>(codec);
@@ -360,7 +498,7 @@ void write_report(const std::string& path, const std::string& input, const std::
 }
 
 /// Muestra la interfaz de la aplicación única, incluyendo el caso de arrastrar un archivo.
-void print_help(const char* exe) { std::printf("Uso: %s <audio|auzx> [--mode auto|sample|music] [--config f] [--out f] [--codec rle|fib|ima|none] [--report f] [--keep-candidates] [--compare] [--play] [--dry-run]\n", exe); }
+void print_help(const char* exe) { std::printf("Uso: %s <audio|auzx> [--mode auto|sample|music] [--config f] [--out f] [--codec auto|rle|fib|ima|none] [--sample-rate Hz] [--chunk muestras] [--report f] [--keep-candidates] [--compare] [--play] [--dry-run]\n", exe); }
 
 } // namespace
 
@@ -388,9 +526,29 @@ int main(int argc, char** argv) {
 		else return 2;
 	}
 	if (config_path && !load_config(config_path, config)) { std::fprintf(stderr, "configuración inválida\n"); return 1; }
+	// CLI overrides the config file. The first pass records the config path and output paths; this
+	// pass reapplies option values after loading JSON so precedence is defaults < config < CLI.
+	for (int i = 2; i < argc; ++i) {
+		if (std::strcmp(argv[i], "--mode") == 0) config.mode = argv[++i];
+		else if (std::strcmp(argv[i], "--codec") == 0) config.codec = argv[++i];
+		else if (std::strcmp(argv[i], "--sample-rate") == 0) config.sample_rate = static_cast<eng::u16>(std::atoi(argv[++i]));
+		else if (std::strcmp(argv[i], "--chunk") == 0) config.chunk_samples = static_cast<eng::u16>(std::atoi(argv[++i]));
+		else if (std::strcmp(argv[i], "--force") == 0) config.force = true;
+		else if (std::strcmp(argv[i], "--hpss") == 0) config.hpss = true;
+		else if (std::strcmp(argv[i], "--no-hpss") == 0) config.hpss = false;
+	}
+	if (!supported_codec_name(config.codec)) {
+		std::fprintf(stderr, "codec no soportado por el encoder actual: %s (use auto|none|rle|fib|ima)\n", config.codec.c_str());
+		return 2;
+	}
+	if (config.chunk_samples == 0u || config.ram_budget_bytes == 0u) {
+		std::fprintf(stderr, "chunk y ram-budget deben ser mayores que cero\n");
+		return 2;
+	}
 	std::vector<eng::u8> pcm; eng::u16 rate = 0u; std::string decoded_input;
 	pack_pcm::WavStems input_stems {};
-	const std::string source = needs_ffmpeg(input) ? (decode_external_source(input, decoded_input) ? decoded_input : std::string{}) : input;
+	const std::string source = needs_ffmpeg(input) ?
+		(decode_external_source(input, decoded_input, config.sample_rate) ? decoded_input : std::string{}) : input;
 	if (source.empty()) { std::fprintf(stderr, "no se pudo decodificar la fuente externa; configure FFMPEG/FFMPEG_BIN\n"); return 1; }
 	if (config.play) {
 		if (!load_playback_pcm(source.c_str(), pcm, rate)) { std::fprintf(stderr, "entrada inválida o no soportada para reproducción\n"); return 1; }
@@ -398,6 +556,15 @@ int main(int argc, char** argv) {
 		!pack_pcm::downmix(input_stems, pcm)) { std::fprintf(stderr, "entrada inválida o no soportada\n"); return 1; }
 	if (input_stems.sample_rate != 0u) rate = input_stems.sample_rate;
 	if (config.sample_rate == 0u) config.sample_rate = rate;
+	if (rate == 0u || !fits_memory_budget(input_stems, pcm, config)) {
+		std::fprintf(stderr, "la entrada excede --ram-budget con el pipeline actual; reduzca la entrada o aumente --ram-budget\n");
+		return 2;
+	}
+	if (config.compare_candidates || config.codec == "auto") print_codec_candidates(pcm, config);
+	if (!select_codec(pcm, config)) {
+		std::fprintf(stderr, "no se pudo seleccionar un codec válido para la entrada\n");
+		return 2;
+	}
 	const std::string mode = classify(config, pcm.size(), rate);
 	if (output.empty()) output = default_output(input.c_str(), mode);
 	output = native_safe_path(output);

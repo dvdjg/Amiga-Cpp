@@ -132,20 +132,20 @@ El corpus mixto previsto para ajustar los parámetros está descrito en [`AUDIO_
 - Implementar pipeline sample: ingestión, candidatos, round-trip, métricas, AUZX e informe.
 - Implementar pipeline música: lectura multipista/stems, HPSS, bandas, deduplicación, unidades, destinos Paula/mixer, eventos ACP1 e informe comparativo AUZX/ACP1.
 - Test de aceptación: arrastrar WAV corto, arrastrar WAV largo, forzar ambos modos, config externa, salida existente y error de formato.
-- **Primer vertical implementado**: `host-tools/audio-compressor/src/main.cpp`, CLI sample, defaults de salida, config básica y generación AUZX; HOST-382 cubre WAV estéreo.
+- **Implementado**: `host-tools/audio-compressor/src/main.cpp`, CLI sample, defaults de salida, configuración con precedencia `defaults < config < CLI`, validación de codecs, remuestreo lineal para WAV, selección `auto` entre codecs disponibles, comparación de tamaño/MSE/pico y generación AUZX; HOST-382 cubre WAV estéreo.
 - Añadir reproducción host opcional con SDL3 para escuchar fuentes normalizadas sin alterar el pipeline Amiga.
 
 ### C16 — Operación y corpus
 
 - Registrar el corpus FreePD archivado y otros corpus disponibles sin incluir media en Git.
-- Añadir `--list-codecs`, `--dump-config` y `--dry-run` para inspeccionar decisiones sin escribir binarios.
+- Añadir `--list-codecs` y `--dump-config`; `--dry-run` ya permite inspeccionar la clasificación sin escribir binarios.
 - Generar informes JSON y resumen legible con hash de entrada, configuración, clasificación, unidades, tracks, destino y métricas.
 - El informe por conversión registra entrada, algoritmo, tasa, chunks, duración, tamaños, ratio, MSE, pico, round-trip y destino de salida.
 - Verificar que cualquier ejecución completa produce solo salidas bajo `out/` salvo el archivo destino solicitado explícitamente.
 
 ### C17 — Candidatas y selección automática
 
-- Generar en una ejecución candidatas lineales, ADPCM, cuantizadas, ACP1 estructurales y ACP1 híbridas.
+- **Baseline implementado**: `--codec auto` y `--compare` comparan PCM, Delta+RLE, Fibonacci e IMA sobre la señal normalizada y publican tamaño, MSE y pico; la selección elige la candidata de menor tamaño. La selección conjunta de calidad, RAM, voces y coste CPU sigue pendiente.
 - Comparar cada candidata sobre la mezcla final y, cuando exista, sobre cada stem.
 - Incluir en la función de coste tamaño total, MSE/RMS/SNR/pico, RAM Chip/Fast, número de unidades/eventos, voces requeridas y coste de CPU estimado.
 - Seleccionar una salida principal y conservar opcionalmente todas las candidatas bajo `out/playground/audio-compressor/<run>/candidates/`.

@@ -57,11 +57,12 @@ bool file_exists(const std::string& path) {
 }
 
 /// Ejecuta el binario sobre el WAV; adapta el shell a la plataforma (sin `cmd` en POSIX).
-int run_binary(const std::string& bin, const std::string& in, const std::string& out, const char* mode, bool hpss = false) {
+int run_binary(const std::string& bin, const std::string& in, const std::string& out, const char* mode,
+	bool hpss = false, const char* extra = "") {
 #ifdef _WIN32
-	const std::string command = "cmd /c call \"" + bin + "\" \"" + in + "\" --mode " + mode + " --out \"" + out + "\" --force" + (hpss ? " --hpss" : "");
+	const std::string command = "cmd /c call \"" + bin + "\" \"" + in + "\" --mode " + mode + " --out \"" + out + "\" --force" + (hpss ? " --hpss" : "") + extra;
 #else
-	const std::string command = "\"" + bin + "\" \"" + in + "\" --mode " + mode + " --out \"" + out + "\" --force" + (hpss ? " --hpss" : "");
+	const std::string command = "\"" + bin + "\" \"" + in + "\" --mode " + mode + " --out \"" + out + "\" --force" + (hpss ? " --hpss" : "") + extra;
 #endif
 	return std::system(command.c_str());
 }
@@ -92,6 +93,8 @@ int main() {
 	const std::string sample_output = dir + "host382_out.auzx";
 	const std::string music_output = dir + "host382_music.acp1";
 	const std::string hpss_output = dir + "host382_hpss.acp1";
+	const std::string resampled_output = dir + "host382_resampled.auzx";
+	const std::string invalid_output = dir + "host382_invalid.auzx";
 	if (!write_wav(input)) { std::fprintf(stderr, "no se pudo crear WAV de prueba\n"); return 1; }
 
 	const int process = run_binary(binary, input, sample_output, "sample");
@@ -100,6 +103,22 @@ int main() {
 	if (file == nullptr) { std::fprintf(stderr, "no se pudo abrir AUZX de salida\n"); std::remove(input.c_str()); return 1; }
 	std::fseek(file, 0, SEEK_END); const long size = std::ftell(file); std::fclose(file);
 	if (size < static_cast<long>(eng::audio::auzx::kHeaderSize)) { std::fprintf(stderr, "AUZX demasiado corto (%ld)\n", size); std::remove(input.c_str()); std::remove(sample_output.c_str()); return 1; }
+	if (run_binary(binary, input, resampled_output, "sample", false, " --sample-rate 22050") != 0) {
+		std::fprintf(stderr, "remuestreo solicitado terminó con error\n"); return 1;
+	}
+	file = std::fopen(resampled_output.c_str(), "rb");
+	if (file == nullptr) return 1;
+	std::fseek(file, 0, SEEK_END); const long resampled_size = std::ftell(file); std::rewind(file);
+	std::vector<eng::u8> resampled_bytes(static_cast<std::size_t>(resampled_size));
+	const bool resampled_read = std::fread(resampled_bytes.data(), 1u, resampled_bytes.size(), file) == resampled_bytes.size(); std::fclose(file);
+	eng::audio::auzx::Header resampled_header{};
+	if (!resampled_read || !eng::audio::auzx::parse({resampled_bytes.data(), resampled_bytes.size()}, resampled_header) ||
+		resampled_header.sample_rate != 22050u || resampled_header.total_samples != 8u) {
+		std::fprintf(stderr, "--sample-rate no remuestrea la señal\n"); return 1;
+	}
+	if (run_binary(binary, input, invalid_output, "sample", false, " --codec typo") == 0) {
+		std::fprintf(stderr, "codec inválido fue aceptado\n"); return 1;
+	}
 	const int music_process = run_binary(binary, input, music_output, "music");
 	if (music_process != 0) { std::fprintf(stderr, "audio-compressor music terminó con %d\n", music_process); std::remove(input.c_str()); std::remove(sample_output.c_str()); return 1; }
 	file = std::fopen(music_output.c_str(), "rb");
@@ -164,7 +183,8 @@ int main() {
 			std::fprintf(stderr, "FFmpeg downmixó o perdió canales al normalizar FLAC\n"); return 1;
 		}
 	}
-	std::remove(input.c_str()); std::remove(sample_output.c_str()); std::remove(music_output.c_str());
+	std::remove(input.c_str()); std::remove(sample_output.c_str()); std::remove(resampled_output.c_str());
+	std::remove(invalid_output.c_str()); std::remove(music_output.c_str());
 	std::remove(hpss_output.c_str());
 	std::remove(flac_input.c_str()); std::remove(flac_output.c_str());
 	std::remove((music_output + ".linear.auzx").c_str());

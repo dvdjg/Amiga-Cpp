@@ -21,7 +21,36 @@ struct WavStems {
 	std::vector<std::vector<eng::u8>> channels;
 	/// Tasa detectada en el WAV o impuesta por el override.
 	eng::u16 sample_rate = 0u;
+	/// Frecuencia original del WAV, antes de cualquier remuestreo solicitado.
+	eng::u16 source_sample_rate = 0u;
 };
+
+/// Remuestrea linealmente todos los stems a una frecuencia común. La salida conserva la
+/// duración temporal y evita que `--sample-rate` solo cambie la etiqueta del AUZX.
+[[nodiscard]] inline bool resample_stems(WavStems& stems, eng::u16 target_rate) {
+	if (target_rate == 0u || stems.sample_rate == 0u || target_rate == stems.sample_rate) return true;
+	for (auto& channel : stems.channels) {
+		if (channel.empty()) return false;
+		const eng::u64 output_frames = (static_cast<eng::u64>(channel.size()) * target_rate +
+			stems.sample_rate / 2u) / stems.sample_rate;
+		if (output_frames == 0u || output_frames > static_cast<eng::u64>(static_cast<eng::usize>(-1))) return false;
+		std::vector<eng::u8> resampled(static_cast<eng::usize>(output_frames));
+		for (eng::usize i = 0u; i < resampled.size(); ++i) {
+			const eng::u64 source_position = static_cast<eng::u64>(i) * stems.sample_rate;
+			const eng::usize left = static_cast<eng::usize>(source_position / target_rate);
+			const eng::u32 fraction = static_cast<eng::u32>(source_position % target_rate);
+			const eng::usize right = left + 1u < channel.size() ? left + 1u : left;
+			const eng::s32 a = static_cast<eng::s8>(channel[left]);
+			const eng::s32 b = static_cast<eng::s8>(channel[right]);
+			const eng::s32 value = a + ((b - a) * static_cast<eng::s32>(fraction) + target_rate / 2u) /
+				static_cast<eng::s32>(target_rate);
+			resampled[i] = static_cast<eng::u8>(value < -128 ? -128 : value > 127 ? 127 : value);
+		}
+		channel = std::move(resampled);
+	}
+	stems.sample_rate = target_rate;
+	return true;
+}
 
 /// Lee un entero little-endian de 16 bits desde un fichero WAV ya cargado.
 [[nodiscard]] inline eng::u16 read_u16(const std::vector<eng::u8>& bytes,
@@ -89,8 +118,9 @@ struct WavStems {
 			stems.channels[channel][frame] = static_cast<eng::u8>(signed_sample);
 		}
 	}
-	stems.sample_rate = rate_override == 0u ? static_cast<eng::u16>(wav_rate) : rate_override;
-	return true;
+	stems.source_sample_rate = static_cast<eng::u16>(wav_rate);
+	stems.sample_rate = static_cast<eng::u16>(wav_rate);
+	return resample_stems(stems, rate_override);
 }
 
 /// Mezcla los canales preservados a mono PCM8 con signo.

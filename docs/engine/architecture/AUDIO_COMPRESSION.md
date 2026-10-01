@@ -62,7 +62,7 @@ audio-compressor <entrada> [opciones]
 --mode auto|sample|music       clasificación automática o forzada
 --config <fichero>             JSON de configuración reproducible
 --out <fichero|directorio>     destino AUZX/ACP1 o carpeta de trabajo
---codec auto|none|rle|fib|ima|zx0|delta-zx0|aplib
+--codec auto|none|rle|fib|ima
 --sample-rate <Hz>             frecuencia objetivo; 0 conserva la fuente
 --chunk <muestras>             chunk AUZX y unidad inicial ACP1
 --ram-budget <bytes>           presupuesto host, por defecto 6442450944
@@ -79,7 +79,7 @@ El archivo de configuración contiene las mismas claves que la CLI. La precedenc
 
 ### Entrada multipista
 
-La aplicación conserva los canales de una fuente multipista cuando el formato lo permite. En WAV multicanal, cada canal se ingiere como stem lógico antes del downmix opcional; en módulos tracker se importan patrones, instrumentos y canales como pistas lógicas; en contenedores multipista se preservan sus nombres y tasa común. El usuario puede seleccionar `--stems all`, una lista de stems o `--downmix mono`.
+La aplicación conserva los canales de una fuente multipista cuando el formato lo permite. En WAV multicanal, cada canal se ingiere como stem lógico antes del downmix opcional. La importación de patrones, instrumentos y canales de módulos tracker, la selección `--stems` y el downmix explícito forman parte del diseño objetivo y aún no son opciones de la CLI actual.
 
 ```text
 fuente multipista
