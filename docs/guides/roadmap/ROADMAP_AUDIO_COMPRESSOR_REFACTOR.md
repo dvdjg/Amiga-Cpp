@@ -253,6 +253,8 @@ No se debe introducir un `AudioAsset` universal que mezcle fuente, PCM, unidades
 - Contrato Paula/mixer aplicado: el plan reserva tres destinos directos (`AUD1..AUD3`) y cuatro destinos virtuales en la salida del mixer (`AUD0`); los chunks de tracks mixer se limitan a `-32..31` para que la suma de cuatro voces no desborde el mixer Photon. El planificador de concurrencia y la convivencia de IRQ siguen siendo responsabilidades del runtime Amiga.
 - Política de salida: SAMPLE corto y sencillo se prepara para el mixer con amplitud por voz segura (`-32..31`); MUSIC con pitch o volumen variable se restringe a tres tracks Paula directos y falla antes de publicar ACP1 si necesita más.
 - `tools/bench-audio-compressor.mjs` permite comparar tiempo de preparación por codec/chunk/ruta; la memoria RSS no se declara como evidencia portable y debe medirse con la herramienta nativa del entorno.
+- `WavStemSource` ya permite leer un canal intercalado por ventanas; la integración completa de MUSIC debe sustituir el `WavStems` completo por este proveedor antes de considerar cerrado el presupuesto de memoria.
+- `MusicPipeline::preflight` valida la política de tres voces Paula y estima buffers Chip/Fast antes de serializar; sus presupuestos deben pasar a configuración explícita cuando el backend de memoria los publique.
 
 ## Criterios de cierre
 

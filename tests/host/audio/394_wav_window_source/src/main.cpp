@@ -13,6 +13,7 @@
 #include "../../../../../host-tools/audio-compressor/src/acp1_writer.hpp"
 #include "../../../../../host-tools/audio-compressor/include/audio_compressor/io/wav_source.hpp"
 #include "../../../../../host-tools/audio-compressor/include/audio_compressor/io/raw_source.hpp"
+#include "../../../../../host-tools/audio-compressor/include/audio_compressor/io/wav_stem_source.hpp"
 #include "../../../../../host-tools/audio-compressor/include/audio_compressor/dsp/resampler.hpp"
 #include "../../../../../host-tools/audio-compressor/include/audio_compressor/playback/acp1_host_player.hpp"
 #include "../../../../../host-tools/audio-compressor/include/audio_compressor/formats/auzx_sink.hpp"
@@ -40,6 +41,25 @@ int main() {
 		if (!source.open(path) || source.sample_rate() != 11025u || source.frames() != 4u) return 1;
 		eng::u8 window[2]{};
 		if (source.read(1u, {window, 2u}) != 2u || static_cast<eng::s8>(window[0]) != 0 || static_cast<eng::s8>(window[1]) != 0) return 1;
+	}
+	{
+		audio_compressor::io::WavStemSource source;
+		if (!source.open(path) || source.channels() != 2u || source.frames() != 4u) return 1;
+		eng::u8 channel_window[2]{};
+		if (source.read_channel(1u, 1u, {channel_window, 2u}) != 2u || static_cast<eng::s8>(channel_window[0]) != 64 || static_cast<eng::s8>(channel_window[1]) != 0) return 1;
+		audio_compressor::pipeline::MusicPlan window_plan {};
+		std::vector<std::vector<eng::u8>> window_units;
+		const auto encode_window = [](const std::vector<eng::u8>& pcm, std::vector<eng::u8>& payload) {
+			payload.assign(40u + pcm.size(), 0u); std::memcpy(payload.data(), "AUZX", 4u); payload[4] = 1u;
+			eng::Span<eng::u8> view {payload.data(), payload.size()}; eng::audio::auzx::wr16(view, 6u, 11025u);
+			eng::audio::auzx::wr16(view, 8u, 1u); payload[10] = 8u; eng::audio::auzx::wr32(view, 12u, static_cast<eng::u32>(pcm.size()));
+			eng::audio::auzx::wr16(view, 16u, static_cast<eng::u16>(pcm.size())); eng::audio::auzx::wr16(view, 18u, 1u);
+			eng::audio::auzx::wr32(view, 20u, 32u); eng::audio::auzx::wr32(view, 24u, 40u);
+			eng::audio::auzx::wr32(view, 32u, 40u); eng::audio::auzx::wr32(view, 36u, static_cast<eng::u32>(pcm.size()));
+			std::memcpy(payload.data() + 40u, pcm.data(), pcm.size()); return true;
+		};
+		if (!audio_compressor::pipeline::MusicPipeline::build_windowed(source, 2u, true, 255u, encode_window, window_plan, window_units) ||
+			window_plan.tracks.size() != 2u || window_plan.tracks[0].size() != 2u || window_plan.tracks[1].size() != 2u || window_units.empty()) return 1;
 	}
 	eng::u8 input[2] {0x80u, 0xffu}; eng::u8 output[8]{};
 	audio_compressor::dsp::LinearResampler resampler {11025u, 22050u};

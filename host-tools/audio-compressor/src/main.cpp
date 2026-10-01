@@ -30,6 +30,7 @@
 #include <audio_compressor/io/file_io.hpp>
 #include <audio_compressor/io/raw_source.hpp>
 #include <audio_compressor/io/wav_source.hpp>
+#include <audio_compressor/io/wav_stem_source.hpp>
 #include <audio_compressor/pipeline/sample_pipeline.hpp>
 #include <audio_compressor/pipeline/candidate_search.hpp>
 #include <audio_compressor/pipeline/music_pipeline.hpp>
@@ -425,6 +426,33 @@ template <class Source>
 		}, stats);
 }
 
+/// Genera MUSIC ACP1 v2 desde un WAV intercalado por chunks, sin materializar todos los stems.
+[[nodiscard]] bool write_music_windowed(audio_compressor::io::WavStemSource& source, const Config& config,
+	const std::string& output) {
+	const eng::u16 rate = static_cast<eng::u16>(source.format().sample_rate);
+	if (rate == 0u || source.frames() > 0xffffffffu) return false;
+	audio_compressor::pipeline::MusicPlan plan {};
+	std::vector<std::vector<eng::u8>> unique_pcm_units;
+	eng::usize unit_id = 0u;
+	const auto encode = [&](const std::vector<eng::u8>& pcm, std::vector<eng::u8>& payload) {
+		const std::string unit_path = output + ".window-unit-" + std::to_string(unit_id++);
+		ConversionStats stats{};
+		stats.pcm_bytes = pcm.size();
+		const bool ok = write_auzx(pcm, rate, config, unit_path, stats);
+		const std::string safe_unit_path = native_safe_path(unit_path);
+		if (!ok) { std::remove(safe_unit_path.c_str()); return false; }
+		const bool read_ok = read_binary(safe_unit_path.c_str(), payload);
+		std::remove(safe_unit_path.c_str());
+		return read_ok;
+	};
+	if (!audio_compressor::pipeline::MusicPipeline::build_windowed(source, config.chunk_samples, true, 255u,
+		encode, plan, unique_pcm_units)) return false;
+	plan.sample_rate = rate; plan.total_samples = static_cast<eng::u32>(source.frames());
+	std::vector<eng::u8> file;
+	if (!audio_compressor::pipeline::MusicPipeline::write_acp1_v2(plan, file)) return false;
+	return audio_compressor::io::write_file(std::filesystem::path {native_safe_path(output)}, file);
+}
+
 /// Muestra la interfaz de la aplicación única, incluyendo el caso de arrastrar un archivo.
 void print_help(const char* exe) { std::printf("Uso: %s <audio|auzx> [--mode auto|sample|music] [--acp1-version 2|3] [--config f] [--out f] [--codec auto|rle|fib|ima|none] [--sample-rate Hz] [--chunk muestras] [--report f] [--keep-candidates] [--compare] [--play] [--dry-run]\n", exe); }
 
@@ -478,6 +506,23 @@ int main(int argc, char** argv) {
 	if (config.acp1_version != 2u && config.acp1_version != 3u) {
 		std::fprintf(stderr, "versión ACP1 no soportada: %u (use 2 o 3)\n", config.acp1_version);
 		return 2;
+	}
+	if (!config.play && !config.hpss && !needs_ffmpeg(input) &&
+		config.acp1_version == 2u &&
+		(std::filesystem::path {input}.extension() == ".wav" || std::filesystem::path {input}.extension() == ".WAV")) {
+		audio_compressor::io::WavStemSource windowed_music_source;
+		if (windowed_music_source.open(input) && windowed_music_source.format().sample_rate <= 65535u) {
+			const eng::u16 source_rate = static_cast<eng::u16>(windowed_music_source.format().sample_rate);
+			const std::string candidate_mode = classify(config, static_cast<eng::usize>(windowed_music_source.frames()), source_rate);
+			if (candidate_mode == "music" && (config.sample_rate == 0u || config.sample_rate == source_rate)) {
+				if (output.empty()) output = default_output(input.c_str(), "music");
+				output = native_safe_path(output);
+				if (!config.force && std::filesystem::exists(std::filesystem::path {output})) { std::fprintf(stderr, "salida existente; use --force\n"); return 1; }
+				if (!write_music_windowed(windowed_music_source, config, output)) { std::fprintf(stderr, "no se pudo generar MUSIC windowed\n"); return 1; }
+				std::printf("music windowed=ok stems=%u samples=%llu ruta=Paula3\n", windowed_music_source.channels(), static_cast<unsigned long long>(windowed_music_source.frames()));
+				return 0;
+			}
+		}
 	}
 	if (config.mode == "sample" && !needs_ffmpeg(input) && !config.hpss && config.codec != "auto") {
 		audio_compressor::io::WavSource windowed_source;
@@ -615,6 +660,11 @@ int main(int argc, char** argv) {
 		}
 		const bool paula_only = true; // MUSIC con pitch/volumen variable usa exclusivamente AUD1..AUD3.
 		const eng::u8 track_gain = paula_only ? 255u : (config.hpss || input_stems.channels.size() > 1u ? 128u : 255u);
+		audio_compressor::pipeline::MusicPipeline::Preflight preflight {};
+		if (!audio_compressor::pipeline::MusicPipeline::preflight(source_stems, config.chunk_samples, paula_only,
+			512u * 1024u, config.ram_budget_bytes, preflight)) {
+			std::fprintf(stderr, "la ruta de audio excede las cuotas Paula/Chip/Fast o necesita más de tres voces Paula\n"); return 2;
+		}
 		std::vector<std::vector<eng::u8>> unique_pcm_units;
 		audio_compressor::pipeline::MusicPlan music_plan {};
 		if (!audio_compressor::pipeline::MusicPipeline::build_plan(source_stems, config.chunk_samples, track_gain,
