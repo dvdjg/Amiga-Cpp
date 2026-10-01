@@ -15,11 +15,20 @@ namespace audio_compressor::formats {
 
 class AuzxSink {
 public:
+	/// Cierra el sink y elimina una salida temporal que no llegó a commit.
+	~AuzxSink() { abort(); }
+
 	[[nodiscard]] bool open(const std::filesystem::path& path, eng::u16 rate, eng::u32 samples,
 		eng::u16 chunk_samples, eng::u16 chunks, eng::u8 codec) {
 		if (rate == 0u || samples == 0u || chunk_samples == 0u || chunks == 0u) return false;
 		if (path.has_parent_path()) std::filesystem::create_directories(path.parent_path());
-		m_file.open(path, std::ios::binary | std::ios::in | std::ios::out | std::ios::trunc);
+		abort();
+		m_final_path = path;
+		m_temp_path = path;
+		m_temp_path += ".tmp";
+		std::error_code remove_error{};
+		std::filesystem::remove(m_temp_path, remove_error);
+		m_file.open(m_temp_path, std::ios::binary | std::ios::in | std::ios::out | std::ios::trunc);
 		if (!m_file) return false;
 		m_offsets.assign(chunks, 0u); m_sizes.assign(chunks, 0u); m_next = 0u;
 		std::vector<eng::u8> zero(eng::audio::auzx::kHeaderSize + chunks * eng::audio::auzx::kChunkEntrySize, 0u);
@@ -56,12 +65,30 @@ public:
 			(void)entry_writer.u32(0u, m_offsets[i]); (void)entry_writer.u32(4u, m_sizes[i]);
 			m_file.write(reinterpret_cast<const char*>(entry.data()), static_cast<std::streamsize>(entry.size()));
 		}
-		m_file.flush(); m_file.close();
-		return static_cast<bool>(m_file) || !m_file.fail();
+		m_file.flush();
+		if (!m_file) { abort(); return false; }
+		m_file.close();
+		std::error_code rename_error{};
+		std::filesystem::rename(m_temp_path, m_final_path, rename_error);
+		if (rename_error) { abort(); return false; }
+		m_committed = true;
+		return true;
+	}
+
+	/// Cancela la escritura y elimina el archivo temporal, dejando intacta la salida final.
+	void abort() noexcept {
+		if (m_file.is_open()) m_file.close();
+		if (!m_temp_path.empty()) {
+			std::error_code error{};
+			std::filesystem::remove(m_temp_path, error);
+		}
+		m_committed = false;
 	}
 
 	private:
 	std::fstream m_file;
+	std::filesystem::path m_final_path; ///< Ruta pública que recibe el archivo al hacer commit.
+	std::filesystem::path m_temp_path; ///< Ruta temporal que protege la salida ante fallos parciales.
 	std::vector<eng::u32> m_offsets;
 	std::vector<eng::u32> m_sizes;
 	eng::usize m_cursor = 0u;
@@ -70,6 +97,7 @@ public:
 	eng::u16 m_chunk_samples = 0u;
 	eng::u8 m_codec = 0u;
 	eng::usize m_next = 0u;
+	bool m_committed = false; ///< Indica que la última finalización reemplazó la salida pública.
 };
 
 } // namespace audio_compressor::formats

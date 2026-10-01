@@ -247,7 +247,9 @@ No se debe introducir un `AudioAsset` universal que mezcle fuente, PCM, unidades
 - Completado: `Descriptor` declara pérdida, round-trip exacto y paridad de chunk; `CandidateSearch` centraliza la elección por tamaño y el test host cubre Delta+RLE, Fibonacci e IMA.
 - Parcial: `MusicPlan` y `MusicPipeline` separan la deduplicación de unidades, la timeline y el writer ACP1 de la llamada CLI; HPSS y la ingestión windowed de stems todavía se encuentran en `main.cpp` y requieren la extracción completa de R4.
 - Completado: `Acp1HostPlayer` consume ACP1 v1/v2 por ventanas mediante `media::mix_window`; HOST-394 valida una composición mono reconstruida por el player. La reproducción SDL3 de ACP1 sigue pendiente.
-- Pendiente: convertir la selección de backend de `file_io.hpp` en una frontera explícita, añadir abort/commit a los sinks y hacer que MUSIC procese stems por ventanas con presupuesto medible.
+- Completado: `file_io.hpp` usa la E/S estándar de batch y `sdl_file_io.hpp` contiene el adaptador SDL3 opcional; la lógica de conversión ya no selecciona SDL3 mediante una macro transitiva.
+- Completado: `AuzxSink` escribe en un archivo temporal y solo reemplaza la salida pública tras `finalize`; el destructor elimina temporales abandonados.
+- Parcial: `hpss_windowed` aporta lectura por ventanas y solapamiento explícito, pero la unión de bordes y su conexión con la ingestión MUSIC siguen pendientes.
 
 ## Criterios de cierre
 

@@ -9,6 +9,7 @@
 #include <vector>
 
 #include <eng/core/types/types.hpp>
+#include "../include/audio_compressor/domain/audio_types.hpp"
 
 namespace audio_compressor {
 
@@ -134,6 +135,25 @@ inline void fft(std::vector<std::complex<float>>& values, bool inverse) {
 		};
 		out.harmonic[i] = quantize(h);
 		out.percussive[i] = quantize(p);
+	}
+	return true;
+}
+
+/// Procesa una fuente por ventanas con solapamiento explícito y entrega cada par de capas al consumidor.
+/// La política de unión de bordes pertenece al callback; la función limita el scratch al tamaño pedido.
+template <audio_compressor::domain::WindowSource Source, class Consumer>
+[[nodiscard]] bool hpss_windowed(Source& source, eng::usize window_samples, eng::usize overlap_samples,
+	eng::u16 fft_size, Consumer&& consumer) {
+	if (window_samples == 0u || overlap_samples >= window_samples || source.frames() == 0u) return false;
+	const eng::usize step = window_samples - overlap_samples;
+	std::vector<eng::u8> input(window_samples + overlap_samples);
+	for (eng::u64 start = 0u; start < source.frames(); start += step) {
+		const eng::usize count = static_cast<eng::usize>(std::min<eng::u64>(input.size(), source.frames() - start));
+		if (source.read(start, {input.data(), count}) != count) return false;
+		input.resize(count);
+		HpssResult layers {};
+		if (!hpss(input, fft_size, layers) || !consumer(start, layers)) return false;
+		input.resize(window_samples + overlap_samples);
 	}
 	return true;
 }
