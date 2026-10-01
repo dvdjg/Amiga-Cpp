@@ -208,6 +208,39 @@ La variante estricta sin dependencias externas debe compilar WAV/RAW, AUZX, ACP1
 - HOST-394 valida lectura WAV por ventanas, downmix PCM8 y remuestreo stateful entre ventanas. El runner host usa el linker del runtime seleccionado y enlaza estáticamente `libgcc` y `libstdc++` para evitar mezclar runtimes MSYS2/UCRT en Windows.
 - La ruta SAMPLE windowed se ha probado con un WAV PCM8 de 11025 Hz, ventanas de 5 muestras, salida a 22050 Hz y codec `none`. El informe resultante valida 64 muestras, `round_trip_ok: true`, `mse_pcm8: 0` y `peak_error: 0`.
 
+## Conclusiones de auditoría del modelo
+
+### Abstracciones que representan bien el dominio actual
+
+- `WavSource` y `RawSource` representan correctamente la lectura incremental mínima de SAMPLE (`sample_rate`, `frames`, `read`) y `SamplePipeline` compone esa operación con remuestreo, codec, round-trip y `AuzxSink` sin retener el PCM completo (`host-tools/audio-compressor/include/audio_compressor/io/`, `pipeline/sample_pipeline.hpp`).
+- `AuzxSink` representa la propiedad del archivo AUZX en construcción, incluida la reserva de índice y su parcheo final; `BinaryWriter` evita repetir la codificación little-endian en las rutas host de AUZX y ACP1.
+- `Descriptor` expresa la selección compile-time de codecs AUZX y distingue codecs con pérdida, mientras que `ReportWriter` separa la serialización de métricas del pipeline (`codecs/registry.hpp`, `report/report_writer.hpp`).
+
+### Brechas del modelo
+
+| Área | Estado observado | Abstracción necesaria |
+|---|---|---|
+| Fuentes | WAV y RAW comparten un contrato implícito, sin tipo de dominio común ni metadatos de formato/canales | `AudioSource` o `WindowSource` con `AudioFormat`, `sample_rate`, `frames` y `read` |
+| Codecs | El registry solo contiene nombre, id y `lossy`; la codificación, decodificación y restricciones de chunk siguen repartidas entre `main.cpp` y headers del engine | `CodecDescriptor` con encode/decode, capacidad de round-trip, paridad, semilla/estado y coste estimado |
+| MUSIC | La construcción de unidades, eventos, deduplicación, HPSS y reconstrucción ACP1 permanece en `main.cpp` | `MusicPipeline`, `Timeline`, `UnitDictionary` y `Acp1Writer` host separados |
+| Reproducción | Se reproduce PCM/AUZX, pero ACP1 no tiene reader/player host equivalente | `Acp1HostPlayer` basado en ventanas y timeline compartido con el writer |
+| E/S | `file_io.hpp` decide SDL3 o streams estándar dentro del mismo módulo; SDL3 no está completamente aislado como backend | `FileReader`/`FileWriter` host y adaptador SDL3 separado de la lógica de formatos |
+| Configuración y métricas | `Config` y `ConversionStats` viven en el ámbito anónimo de `main.cpp`; `ReportWriter` depende de sus campos por plantilla estructural | Tipos host de dominio estables (`SampleOptions`, `MusicOptions`, `ConversionReport`) |
+| Errores y commit de salida | `AuzxSink` deja un archivo parcial si una fase posterior falla y `ReportWriter` ignora errores de apertura/escritura | Resultado de error explícito y sink transaccional con abort/commit |
+| Memoria MUSIC | `HpssResult`, stems, unidades y buffers de mezcla son vectores completos; `--ram-budget` solo estima el límite | Pipeline MUSIC por ventanas con scratch declarado y presupuesto comprobable |
+
+### Decisión de diseño
+
+No se debe introducir un `AudioAsset` universal que mezcle fuente, PCM, unidades comprimidas, timeline y reproducción. El modelo correcto son capas separadas: `AudioSource` produce ventanas normalizadas, `CodecDescriptor` transforma chunks, `AuzxSink` o `Acp1Writer` materializa formatos, y los players consumen readers de esos formatos. La representación común entre SAMPLE y MUSIC debe ser el contrato de ventanas y metadatos, no la propiedad de todos los buffers.
+
+### Orden de trabajo derivado
+
+1. Extraer `AudioSource`, `AudioFormat`, `SampleOptions` y `ConversionReport` del ámbito de `main.cpp`.
+2. Completar `CodecDescriptor` con operaciones y restricciones; mover la selección de candidatos a `CandidateSearch`.
+3. Extraer `MusicPipeline`, timeline, diccionario de unidades y `Acp1Writer` host antes de intentar optimizar HPSS.
+4. Implementar `Acp1HostPlayer` y validar la equivalencia de timeline con el player Amiga.
+5. Separar el backend SDL3 de `io/file_io.hpp` y hacer transaccionales los sinks e informes.
+
 ## Criterios de cierre
 
 - El núcleo batch compila sin SDL3, Win32 ni FFmpeg; la aplicación completa añade únicamente SDL3 y los importadores seleccionados explícitamente.
