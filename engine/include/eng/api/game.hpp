@@ -66,6 +66,10 @@ struct GameDisplay {
 	u8 buffers = kDefaultBufferCount;
 	graphics::PlaneLayout layout = graphics::PlaneLayout::Contiguous;
 	Palette32 palette = kBlackPalette;
+	/// **Efectos de Copper por línea** (opcional): gradientes, zonas de paleta, etc. El juego los
+	/// declara como intenciones de dominio; `App::start()` los compone sin que el juego vea
+	/// registros ni la copperlist. Ver `composition::intents`.
+	eng::Span<const graphics::CopperIntent> intents {};
 };
 
 /// Motivo por el que no pudo prepararse el display propio de `App`.
@@ -423,10 +427,19 @@ public:
 			return util::unexpected(StartError::InvalidDisplay);
 		if (graphics::composition::chip_bytes_for(resources) > m_memory->chip().free_bytes())
 			return util::unexpected(StartError::OutOfMemory);
-		const bool composed = graphics::composition::compose(
-			m_owned_scene, *m_memory.get(), resources, graphics::composition::ocs_a500,
-			graphics::composition::display(resources),
-			graphics::composition::palette(m_display.palette.words(), kPaletteFirstColor, kPaletteEntries));
+		const auto display_stage = graphics::composition::display(resources);
+		const auto palette_stage = graphics::composition::palette(m_display.palette.words(),
+									  kPaletteFirstColor, kPaletteEntries);
+		// El gradiente/efectos de copper por línea son opcionales: se añaden como etapa solo si
+		// el juego los declaró (`GameDisplay::intents`).
+		const bool composed = m_display.intents.empty()
+			? graphics::composition::compose(m_owned_scene, *m_memory.get(), resources,
+							 graphics::composition::ocs_a500, display_stage,
+							 palette_stage)
+			: graphics::composition::compose(m_owned_scene, *m_memory.get(), resources,
+							 graphics::composition::ocs_a500, display_stage,
+							 palette_stage,
+							 graphics::composition::intents(m_display.intents));
 		if (!composed) {
 			m_owned_scene.release();
 			return util::unexpected(StartError::CompositionFailed);

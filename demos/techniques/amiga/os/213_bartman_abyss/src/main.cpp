@@ -110,8 +110,6 @@ INCBIN(abyss_pal, "assets/amiga/sprites/abyss/abyss.pal");
 
 namespace {
 
-namespace comp = eng::graphics::composition;
-
 /// Códigos que el runner interpreta para localizar fallos de init y el estado Ready.
 constexpr eng::u32 kRunDetailBase = 0x00021300u;
 constexpr eng::u32 kRunDetailReady = kRunDetailBase;
@@ -140,9 +138,6 @@ constexpr eng::u16 kWidth = 320u;
 constexpr eng::u16 kHeight = 256u;
 constexpr eng::u8 kPlanes = 5u;
 constexpr eng::u32 kBytesPerWord = sizeof(eng::u16);
-constexpr eng::MemoryConfig kMemoryBudget {
-	160u * eng::amiga::kBytesPerKiB, 8u * eng::amiga::kBytesPerKiB,
-	4u * eng::amiga::kBytesPerKiB, 0u};
 constexpr eng::u16 kPaletteColorCount = eng::kPaletteEntries;
 constexpr eng::u8 kSpriteFrameCount = 6u;
 constexpr eng::u16 kBobCount = 16u;
@@ -225,33 +220,9 @@ struct AbyssDemo {
 		eng::debug::mark_init_started(g_eng_run_status);
 		ENG_PROF_INIT(kProfCount);
 
-		if (!app.configure_memory(kMemoryBudget)) {
-			eng::debug::mark_failed(g_eng_run_status, kRunDetailMemorySetupFailed);
-			return;
-		}
-
-		// --- Display de alto nivel: escena planar de 5 planos (interleaved) + paleta --------
-		// ORIGINAL: la copperlist a mano (`screenScanDefault` + `BPLCON0`/`BPL1MOD`/`BPL2MOD`/
-		// `copSetPlanes`/`copSetColor`) y su instalación con `COP1LC`/`COPJMP1`.
-		// AQUÍ: el motor compone el display y la copperlist; el juego solo declara la geometría
-		// (320×256×5, interleaved) y la paleta. `BPLxPT = image + p*40` lo calcula `compose`.
-		comp::SceneResources res = comp::planar(kWidth, kHeight, kPlanes);
-		res.layout = comp::SceneLayout::Interleaved; // el bitmap abyss es interleaved
-		const eng::u16* pal = reinterpret_cast<const eng::u16*>(abyss_pal);
-
-		// El motor elige perfil y `BPLCON0` (sin `ocs_a500`/`0x5200` en el código de juego).
-		// ORIGINAL: tras la paleta base salta a `copper2` (`COPJMP2`), una segunda lista que
-		// pinta COLOR00 con un gradiente en las líneas $41..$4F (`0x0111..0x0fff`). AQUÍ: las
-		// etapas del `compose` exprime lo mismo: `display` + paleta base + **`palette_zones`**
-		// (una zona de COLOR00 por línea), que el plan emite con `WAIT(line) + MOVE COLORxx`.
-		if (!comp::compose(m_scene, app.device().memory_manager(), res, comp::ocs_a500,
-				   comp::display(res), comp::palette(eng::PaletteWords {pal, kPaletteColorCount}),
-				   comp::intents(eng::Span<const eng::graphics::CopperIntent>{
-					   kColorGradientIntents.v, kGradientLineCount}))) {
-			eng::debug::mark_failed(g_eng_run_status, kRunDetailSceneSetupFailed);
-			return;
-		}
-		app.bind_scene(m_scene);
+		// La **escena y el display** los compone `App::start()` (lo llama `main`) desde el
+		// `GameDisplay` declarativo: el juego no nombra `SceneResources`, `ocs_a500`, `compose`
+		// ni `BPLCON0`. Aquí solo se comprueba que el contexto de dibujo quedó listo.
 		if (!app.screen().valid()) {
 			eng::debug::mark_failed(g_eng_run_status, kRunDetailSceneSetupFailed);
 			return;
@@ -323,9 +294,8 @@ struct AbyssDemo {
 		(void)app.audio().play_music(m_assets.music("mod"));
 
 		// ORIGINAL: `TakeSystem()` apaga DMA/IRQ y toma el display; `FreeSystem()` lo restaura.
-		// AQUÍ: `takeover()` instala la copperlist del camino planar; el engine gestiona el
-		// ciclo de vida del sistema (SYSTEM_TAKEOVER) y el runner cierra la instancia.
-		app.takeover();
+		// AQUÍ: `App::start()` (en `main`) ya instaló la copperlist del camino planar y tomó el
+		// display (SYSTEM_TAKEOVER); el engine gestiona el ciclo de vida y el runner cierra.
 		// --- Recursos del depurador gráfico de WinUAE --------------------------------------
 		// Registra el bitmap abyss, la hoja del BOB, la paleta y la copperlist como recursos
 		// nombrados (la original lo hace con `debug_register_*`): así el gfx debugger los
@@ -481,7 +451,6 @@ struct AbyssDemo {
 		ENG_PROF_FRAME();
 	}
 
-	eng::graphics::composition::Scene m_scene {};
 	eng::graphics::Sprite m_sprite {};
 	eng::Assets m_assets {};
 	eng::u32 m_vblank_msgs = 0u; ///< mensajes `VBlank` drenados del puerto del mini-SO
@@ -491,4 +460,52 @@ struct AbyssDemo {
 
 } // namespace
 
-ENG_APP_MAIN(AbyssDemo);
+// **Composition root**: la app no usa `ENG_APP_MAIN` porque elige el perfil de memoria y declara
+// el display; el juego (`AbyssDemo`) solo ve la fachada.
+struct ExecBase* SysBase = nullptr;
+
+extern "C" {
+__attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
+	eng::debug::run_status_magic, eng::debug::run_status_version,
+	static_cast<eng::u16>(eng::debug::RunState::Cold), 0, 0,
+};
+}
+
+int main() {
+	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
+	eng::debug::reset(g_eng_run_status);
+
+	eng::amiga::AmigaBackend backend {};
+	// **Memoria automática**: el engine elige el perfil (A500/A1200) desde el inventario de
+	// hardware; el juego no llama `configure_memory` ni elige tamaños.
+	if (!backend.configure_game_memory()) {
+		eng::debug::mark_failed(g_eng_run_status, kRunDetailMemorySetupFailed);
+		return 0;
+	}
+
+	// **Display declarativo**: geometría (320×256×5, interleaved), paleta y efectos de copper por
+	// línea (el gradiente de COLOR00). `App::start()` compone escena + copperlist sin que el juego
+	// nombre `SceneResources`/`ocs_a500`/`BPLCON0`.
+	eng::GameDisplay display {};
+	display.width = kWidth;
+	display.height = kHeight;
+	display.color_depth = kPlanes;
+	display.layout = eng::graphics::PlaneLayout::Interleaved;
+	{
+		const eng::u16* w = reinterpret_cast<const eng::u16*>(abyss_pal);
+		for (eng::u8 i = 0u; i < eng::kPaletteEntries; ++i) {
+			display.palette.color[i] = w[i];
+		}
+	}
+	display.intents = eng::Span<const eng::graphics::CopperIntent> {kColorGradientIntents.v,
+									kGradientLineCount};
+
+	AbyssDemo game {};
+	eng::App app {backend, game, backend.memory_manager()};
+	if (!app.set_display(display) || !app.start()) {
+		eng::debug::mark_failed(g_eng_run_status, kRunDetailSceneSetupFailed);
+		return 0;
+	}
+	app.run(0xffffu);
+	return 0;
+}

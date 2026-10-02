@@ -1,6 +1,12 @@
 # Roadmap de la fachada de juego (API de juego limpio)
 
-Estado: **propuesta abierta**. Origen: revisión honesta de lo que la demo 213 necesita realmente escribir (ver
+Estado: **en curso**. §1 (arranque cero-config) y §3 (ocultar composición/escena) **hechos para la
+213** vía `App::start()` + `GameDisplay` declarativo (la 213 ya no escribe `configure_memory`,
+`compose`, `SceneResources`, `ocs_a500`, `BPLCON0`, `takeover`; 49,9 fps). §5 con `Anim` + colisión
+de caja. **Pendientes**: §2 (audio resuelve formato/buffer), §4 (quitar `INCBIN`), §6 (estados de
+escena), §7 (cámara/tilemap de juego), §8 (vocabulario), §9 (plantilla + 213 sin una línea técnica;
+base en `games/000_template`). El contrato de §0 («juego de 30 líneas») **aún no compila** del todo.
+Origen: revisión honesta de lo que la demo 213 necesita escribir (ver
 [`GAME_API_TWO_LEVELS.md`](../../engine/architecture/GAME_API_TWO_LEVELS.md)). El objetivo de este roadmap es que una
 persona pueda **cerrar un juego 2D sin bajar al metal**: la "capa A" debe bastar.
 
@@ -89,11 +95,13 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
   `SceneResources`/`ocs_a500`/`BPLCON0` (`comp::display(res, 0x5200)`) en código de juego.
 - **Salida**: el juego dibuja solo con `Screen`; el display se pide a alto nivel ("fondo 320x256, N planos, esta
   imagen/paleta") y `Scene`/`Band`/`BPLCON0`/copperlist quedan tras el motor y el escape.
-- **Progreso**: ✅ `comp::compose(scene, memory, res, paleta)` compone **sin** `DisplayLimits`/`BPLCON0`; la 213 ya
-  no nombra `ocs_a500` ni `0x5200`. ✅ `Assets::add_bitmap`/`bitmap` + `Screen::bitmap` sustituyen el acceso
-  manual al framebuffer; HOST-234 verifica la copia del bitmap interleaved 320×256×5 byte a byte, y la demo 213
-  pasa `build -> run -> analyze` en WinUAE/A500 con la imagen de fondo visible. ⏳ sigue pendiente ocultar la
-  composición/escena y la configuración de memoria de la lógica de juego.
+- **Progreso**: ✅ `App::start()` compone la escena desde un `GameDisplay` **declarativo**
+  (geometría + paleta + `intents` de copper por línea) y hace el `takeover`; la **213 ya no
+  nombra** `SceneResources`, `planar`, `compose`, `ocs_a500`, `BPLCON0`, `bind_scene` ni
+  `takeover`. Medido: 213 a **49,9 fps** (1 campo) tras la migración. El gradiente de la 213 se
+  declara como `GameDisplay::intents` (etapa `composition::intents`), sin que el juego vea la
+  copperlist. ⏳ el `GameDisplay` cubre un display planar base; multi-capa (DPF), tilemaps y el
+  reparto de recursos siguen en el planner pendiente (§7).
 
 ## 4. Assets tipados con formato resuelto
 
@@ -120,6 +128,11 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
   no hay animación ni colisión de juego (aunque exista `SpriteCollisionConfig`/`BobLayer`).
 - **Salida**: `Sprite`+`Anim` (frames, duración, `update()`), un `BobLayer`/`Actor` con orden/prioridad, y consultas de
   colisión simples (caja/píxel). El juego escribe `sprite(anim,i,x,y)`.
+- **Progreso**: ✅ **colisión de caja** ya existe (`eng::Box::overlaps`/`intersection`). ✅ **`eng::graphics::Anim`**
+  (`anim.hpp`): secuencia de frames con duración por frame, bucle/`play_once`, `update()`/`frame()`/`reset()` (la
+  demo escribe `screen().sprite(sheet, anim.frame(), x, y)`); sin reservas ni copias (vistas no propietarias).
+  ⏳ falta la animación **ligada** a un sprite/actor (que el actor lleve su `Anim` y `draw_world` la aplique) y
+  un `BobLayer` con orden/prioridad en la fachada.
 
 ## 6. Escenas/estados de juego
 
