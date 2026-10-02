@@ -3,12 +3,55 @@
 /// (copias, cookie-cut, OR de BOBs, lineas, area fill, colision, relleno por plano).
 
 #include <eng/graphics/blit_queue.hpp>
+#include <eng/platform/amiga/blob_batch.hpp>
 
 #include "amiga_internal.hpp"
 
 using namespace eng::amiga::detail;
 
 namespace eng::amiga {
+
+namespace {
+/// Job de cookie-cut interleaved con el contrato del par `[imagen][mascara]`: un solo blit
+/// (`bitplane_count == 1`) y el minterm `$CA`. Es el caso que puede ejecutarse como lote de
+/// **estado fijo** (`BlobBatch`).
+///
+/// Referencia del lote y su motivación: `docs/engine/architecture/BLITTER_INTENT_QUEUE.md` y
+/// `docs/guides/roadmap/ROADMAP_BLITTER_COPPER.md` (§"copias, cookie-cut y fast blobs").
+/// La medición A/B (2026-10, demo 213) y el detalle del API quedan ahí para la doc del API.
+bool batchable_masked(const eng::graphics::BlitJob& j) {
+	return j.kind == eng::graphics::BlitJobKind::MaskedBobCookieCut && j.interleaved &&
+	       j.bitplane_count == 1u && j.source_words_per_row == 0u && !j.descending &&
+	       j.minterm == eng::graphics::kBlitterMintermCookieCut;
+}
+
+/// Dos jobs de cookie-cut comparten el estado **fijo** del lote si coinciden en todo menos
+/// los punteros y el desplazamiento fino (`source_shift`).
+bool same_masked_state(const eng::graphics::BlitJob& a, const eng::graphics::BlitJob& b) {
+	return a.words_per_row == b.words_per_row && a.height == b.height &&
+	       a.source_modulo_bytes == b.source_modulo_bytes &&
+	       a.destination_modulo_bytes == b.destination_modulo_bytes &&
+	       a.minterm == b.minterm;
+}
+
+/// Ejecuta una racha `[from, to)` de cookie-cut interleaved con el estado común fijado UNA vez
+/// (`BlobBatch`): sin re-codificar por job y con **una sola espera** por objeto. Es el camino
+/// del `main.c` de referencia, aplicado a una racha homogénea del `FramePlan`.
+bool execute_masked_run(const eng::graphics::FramePlan& plan, u8 from, u8 to) {
+	const eng::graphics::BlitJob& f = plan.blit_job(from);
+	BlobBatch batch;
+	batch.begin(custom_base, BlobOp::CookieCut, f.words_per_row, f.height,
+		    f.source_modulo_bytes, f.source_modulo_bytes,
+		    f.destination_modulo_bytes, f.destination_modulo_bytes,
+		    g_blitter_service, g_blitter_service_user);
+	for (u8 i = from; i < to; ++i) {
+		const eng::graphics::BlitJob& j = plan.blit_job(i);
+		batch.one(j.mask.words(), j.source.words(), j.destination.words(),
+			  static_cast<eng::u8>(j.source_shift));
+	}
+	return batch.end();
+}
+} // namespace
 
 bool AmigaBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 	if (!plan.ok()) {
@@ -24,10 +67,33 @@ bool AmigaBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 		custom_base[custom_dmacon_offset] = dma_setclr | dma_master | dma_blitter;
 	}
 	bool eor_open = false; // racha de líneas EOR con los registros comunes ya fijados
-	for (u8 job_index = 0; job_index < plan.blit_job_count(); ++job_index) {
+	const u8 job_count = plan.blit_job_count();
+	u8 job_index = 0u;
+	while (job_index < job_count) {
+		// Racha homogénea de cookie-cut interleaved: se ejecuta con estado fijo (`BlobBatch`),
+		// sin re-codificar registros por job ni pagar la espera extra del bucle por plano.
+		if (batchable_masked(plan.blit_job(job_index))) {
+			u8 end = static_cast<u8>(job_index + 1u);
+			while (end < job_count &&
+			       same_masked_state(plan.blit_job(job_index), plan.blit_job(end))) {
+				++end;
+			}
+			if (static_cast<u8>(end - job_index) >= 2u) {
+				if (!execute_masked_run(plan, job_index, end)) {
+					return false;
+				}
+				// El lote escribió registros directamente: la caché de estado común ya no
+				// refleja el hardware.
+				m_blt_common_valid = false;
+				m_blitter_starts += static_cast<u16>(end - job_index);
+				job_index = end;
+				continue;
+			}
+		}
 		if (!submit_blit_job(plan.blit_job(job_index), eor_open)) {
 			return false;
 		}
+		++job_index;
 	}
 
 	return wait_blitter();
@@ -167,7 +233,10 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 		? job.destination_plane_stride_bytes / sizeof(u16)
 		: destination_plane_stride_words;
 	for (u8 plane = 0; plane < job.bitplane_count; ++plane) {
-		if (!wait_blitter()) {
+		// Solo hay que esperar entre planos: el plano 0 ya viene de la espera común de arriba
+		// (antes de reprogramar los registros compartidos). Para `bitplane_count == 1`
+		// (interleaved) el bucle no vuelve a esperar.
+		if (plane > 0u && !wait_blitter()) {
 			return false;
 		}
 
@@ -727,39 +796,15 @@ bool AmigaBackend::blitter_fill_rect(eng::u8* plane_base, u8 planes, u32 plane_s
 	const u16 dma_cur = static_cast<u16>(custom_base[custom_dmaconr_offset] & 0x03ffu);
 	custom_base[custom_dmacon_offset] =
 		static_cast<u16>(dma_setclr | (dma_cur | dma_master | dma_blitter));
+	// Un blit por plano con canal A constante (`BLTADAT`) y mascaras de borde `AFWM`/`ALWM`: el
+	// hardware recorta la primera y ultima palabra, asi que NO hace falta guardar/restaurar los
+	// bordes por CPU (la version anterior usaba dos arrays de 256 words y 2 esperas/plano).
 	for (u8 p = 0u; p < planes; ++p) {
 		eng::u8* plane = plane_base + static_cast<u32>(p) * plane_stride;
 		const bool on = (color & (1u << p)) != 0u;
 		const u16 fill = on ? 0xffffu : 0x0000u;
-		// El Blitter rellena palabras COMPLETAS; los bits fuera del rect en la primera y ultima
-		// palabra se preservan guardando su valor y restaurando la parte externa tras el fill
-		// (la mascara por AFWM/ALWM solo aplica al canal A, no a un fill D-only sin fuente).
-		eng::u16 saved_first[kMaxRows];
-		eng::u16 saved_last[kMaxRows];
-		wait_blitter();
-		for (u16 r = 0u; r < h; ++r) {
-			const eng::u16* row = reinterpret_cast<const eng::u16*>(
-				plane + row_offset(static_cast<eng::s16>(y + r), rstride) + (wx0 >> 3));
-			saved_first[r] = row[0];
-			saved_last[r] = row[words - 1u];
-		}
-		if (on) {
-			blit_set_region(plane, rstride, wx0, static_cast<eng::s16>(y), words, h);
-		} else {
-			blit_clear_region(plane, rstride, wx0, static_cast<eng::s16>(y), words, h);
-		}
-		wait_blitter();
-		for (u16 r = 0u; r < h; ++r) {
-			eng::u16* row = reinterpret_cast<eng::u16*>(
-				plane + row_offset(static_cast<eng::s16>(y + r), rstride) + (wx0 >> 3));
-			if (words == 1u) {
-				const u16 m = static_cast<u16>(afwm & alwm);
-				row[0] = static_cast<eng::u16>((saved_first[r] & static_cast<eng::u16>(~m)) | (fill & m));
-			} else {
-				row[0] = static_cast<eng::u16>((saved_first[r] & static_cast<eng::u16>(~afwm)) | (fill & afwm));
-				row[words - 1u] = static_cast<eng::u16>((saved_last[r] & static_cast<eng::u16>(~alwm)) | (fill & alwm));
-			}
-		}
+		blit_fill_region(plane, rstride, wx0, static_cast<eng::s16>(y), words, h, fill,
+				 afwm, alwm);
 	}
 	return wait ? wait_blitter() : true;
 }

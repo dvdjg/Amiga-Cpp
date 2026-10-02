@@ -105,6 +105,19 @@ struct BlitBudgetReport {
 	bool jobs_exceeded = false;
 };
 
+/// **Política de ordenación de los trabajos del frame** (explícita, opt-in).
+///
+/// Por defecto el plan respeta el **orden de emisión**: dos trabajos que escriben la misma
+/// región se ejecutan en el orden en que el juego los pidió (la última escritura manda).
+/// Reordenar por estado del Blitter mejora la caché de registros, pero **solo es correcto
+/// si los trabajos no se solapan** (no comparten píxeles de destino). Por eso la
+/// reordenación es **explícita**: el juego declara `GroupByState` cuando puede garantizar
+/// esa independencia. Ver `docs/engine/architecture/INTENT_PLANNER.md`.
+enum class ReorderPolicy : u8 {
+	PreserveOrder, ///< respeta el orden de emisión (seguro; por defecto)
+	GroupByState,  ///< agrupa por estado común del Blitter; **requiere trabajos sin solape**
+};
+
 /// Rectangulo de pantalla en pixels.
 ///
 /// Usamos coordenadas enteras pequenas y bordes exclusivos (`right/bottom`). Es el
@@ -204,19 +217,22 @@ public:
 	constexpr bool ok() const { return m_ok; }
 	constexpr u8 palette_patch_count() const { return m_palette_patch_count; }
 
-	/// **Agrupa los blits por estado común** (opcional, opt-in). Reordena los `BlitJob` de forma
-	/// **estable** para que los que comparten el **mismo estado del Blitter** —`kind`, `minterm`,
-	/// `source_shift`, `descending`, `bitplane_count`, `words_per_row`, módulos e `interleaved`—
-	/// queden **adyacentes**: así el backend encadena rachas y la caché de estado común de
-	/// `submit_blit_job` omite las reprogramaciones. Conserva el orden relativo dentro de cada grupo
-	/// (sort estable).
+	/// **Agrupa los blits por estado común** (opt-in **explícito**). Reordena los `BlitJob` de
+	/// forma **estable** para que los que comparten el **mismo estado del Blitter** —`kind`,
+	/// `minterm`, `source_shift`, `descending`, `bitplane_count`, `words_per_row`, módulos e
+	/// `interleaved`— queden **adyacentes**: así el backend encadena rachas y la caché de estado
+	/// común de `submit_blit_job` omite las reprogramaciones. Conserva el orden relativo dentro de
+	/// cada grupo (sort estable).
 	///
-	/// **Solo es lícito si el orden de ejecución no importa**: el llamador debe garantizar que los
-	/// jobs reordenados **no se solapan** en el destino (p. ej. blits a zonas disjuntas: tiles,
-	/// columnas). NO usarlo con `Clear`/`EOR` sobre regiones solapadas ni cuando el resultado dependa
-	/// de la secuencia. Ver `RASTER.md` §"Prioridades" (agrupación) y
-	/// `docs/engine/architecture/BLITTER_INTENT_QUEUE.md`.
+	/// **Solo actúa si la política es `GroupByState`** (`set_reorder_policy`): con el defecto
+	/// `PreserveOrder` no hace nada, porque reordenar cambiaría el resultado de trabajos que se
+	/// solapan. El llamador declara la política —y con ella— que sus trabajos **no se solapan** en
+	/// el destino (p. ej. blits a zonas disjuntas: tiles, columnas). Ver `RASTER.md`
+	/// §"Prioridades" (agrupación) y `docs/engine/architecture/BLITTER_INTENT_QUEUE.md`.
 	void sort_by_state() {
+		if (m_reorder != ReorderPolicy::GroupByState) {
+			return;
+		}
 		// Sort por inserción estable (N pequeño, sin heap). `key_less` compara el estado común.
 		for (u8 i = 1u; i < m_blit_job_count; ++i) {
 			const BlitJob key = m_blit_jobs[i];
@@ -228,6 +244,11 @@ public:
 			m_blit_jobs[j] = key;
 		}
 	}
+
+	/// **Política de ordenación** de los trabajos (explícita). `GroupByState` habilita
+	/// `sort_by_state()`; el llamador garantiza con ella que sus trabajos no se solapan.
+	constexpr void set_reorder_policy(ReorderPolicy p) noexcept { m_reorder = p; }
+	[[nodiscard]] constexpr ReorderPolicy reorder_policy() const noexcept { return m_reorder; }
 
 	constexpr u8 blit_job_count() const { return m_blit_job_count; }
 	constexpr u8 dirty_rect_count() const { return m_dirty_rect_count; }
@@ -573,6 +594,7 @@ private:
 	u8 m_blit_job_count = 0;
 	u8 m_dirty_rect_count = 0;
 	u8 m_dma_asset_count = 0; ///< leases válidas en `m_dma_assets`, 0..max_dma_assets
+	ReorderPolicy m_reorder = ReorderPolicy::PreserveOrder; ///< política de orden (explícita)
 	bool m_ok = true;
 };
 
