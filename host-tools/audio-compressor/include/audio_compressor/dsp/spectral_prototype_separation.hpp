@@ -12,6 +12,11 @@
 
 namespace audio_compressor::dsp {
 
+struct SpectralCalibrationWindow {
+	eng::u64 first_sample = 0u;
+	eng::u64 last_sample = 0u;
+};
+
 struct SpectralPrototypeOptions {
 	eng::u16 fft_size = 256u;
 	eng::u16 hop_samples = 64u;
@@ -21,6 +26,7 @@ struct SpectralPrototypeOptions {
 	eng::u64 max_dictionary_bytes = 0u;
 	double min_activation_ratio = 0.02;
 	double stop_residual_ratio = 0.0; ///< Cero conserva exactamente max_prototypes; positivo permite parar por coste/residual.
+	std::vector<SpectralCalibrationWindow> calibration_windows;
 };
 
 struct SpectralPrototype {
@@ -128,9 +134,16 @@ inline double energy(const std::vector<double>& frame) {
 	output = {};
 	output.fft_size = options.fft_size; output.hop_samples = options.hop_samples; output.sample_rate = sample_rate;
 	for (eng::u8 selection = 0u; selection < options.max_prototypes; ++selection) {
-		std::vector<eng::usize> seeds(frame_count);
-		for (eng::usize frame = 0u; frame < frame_count; ++frame) seeds[frame] = frame;
-		const eng::usize seed_count = std::min<eng::usize>(options.seed_candidates, frame_count);
+		const auto calibrated = [&](eng::usize frame) {
+			const eng::u64 first = static_cast<eng::u64>(frame) * options.hop_samples;
+			const eng::u64 last = first + options.fft_size;
+			for (const auto& window_range : options.calibration_windows) if (first < window_range.last_sample && last > window_range.first_sample) return true;
+			return false;
+		};
+		std::vector<eng::usize> seeds;
+		for (eng::usize frame = 0u; frame < frame_count; ++frame) if (options.calibration_windows.empty() || calibrated(frame)) seeds.push_back(frame);
+		if (seeds.empty()) for (eng::usize frame = 0u; frame < frame_count; ++frame) seeds.push_back(frame);
+		const eng::usize seed_count = std::min<eng::usize>(options.seed_candidates, seeds.size());
 		std::partial_sort(seeds.begin(), seeds.begin() + seed_count, seeds.end(), [&](eng::usize left, eng::usize right) { return energy(residual[left]) > energy(residual[right]); });
 		SpectralPrototype best_prototype {};
 		double best_score = 0.0;
@@ -154,6 +167,22 @@ inline double energy(const std::vector<double>& frame) {
 				candidate.activation[frame] = best; candidate.shift_bins[frame] = best_shift;
 				if (best > norm * options.min_activation_ratio) ++active_frames;
 				explained += best * best;
+			}
+			if (!options.calibration_windows.empty()) {
+				std::vector<double> average(bins, 0.0), phase_real(bins, 0.0), phase_imag(bins, 0.0);
+				double weight = 0.0;
+				for (eng::usize frame = 0u; frame < frame_count; ++frame) if (calibrated(frame) && candidate.activation[frame] > 0.0) {
+					const double frame_weight = candidate.activation[frame]; const eng::s16 shift = candidate.shift_bins[frame];
+					for (eng::usize bin = 0u; bin < bins; ++bin) {
+						const eng::s32 source = static_cast<eng::s32>(bin) + shift;
+						if (source >= 0 && source < static_cast<eng::s32>(bins)) { average[bin] += residual[frame][static_cast<eng::usize>(source)] * frame_weight; phase_real[bin] += std::cos(phases[frame][static_cast<eng::usize>(source)]) * frame_weight; phase_imag[bin] += std::sin(phases[frame][static_cast<eng::usize>(source)]) * frame_weight; }
+					}
+					weight += frame_weight;
+				}
+				if (weight > 1.0e-9) {
+					for (eng::usize bin = 0u; bin < bins; ++bin) { candidate.magnitude[bin] = average[bin] / weight; candidate.phase[bin] = std::atan2(phase_imag[bin], phase_real[bin]); }
+					const double refined_norm = std::sqrt(std::max(1.0e-12, energy(candidate.magnitude))); for (double& value : candidate.magnitude) value /= refined_norm;
+				}
 			}
 			const double cost = static_cast<double>(options.fft_size) + active_frames * 8.0 + 32.0;
 			candidate.selection_score = cost > 0.0 ? explained / cost : 0.0;

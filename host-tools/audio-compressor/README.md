@@ -69,6 +69,8 @@ La búsqueda se puede acotar sin recompilar: `--spectral-fft N`, `--spectral-hop
 
 Para comparar ambas rutas sobre el mismo corpus: `node tools/bench-separation-comparison.mjs pieza1.ogg pieza2.ogg`. Las columnas del separador armónico son métricas PCM; las de la ruta espectral son métricas de magnitud STFT y no deben compararse como si fueran la misma función de coste.
 
+Para generar un corpus con stems conocidos, solos de calibración y eventos musicales reproducibles: `node tools/generate-synthetic-audio-corpus.mjs`. Para ejecutar la separación guiada y comparar las pistas recuperadas con esos stems: `node tools/evaluate-synthetic-audio-corpus.mjs`. El manifiesto se pasa mediante `--spectral-calibration`; sus ventanas solistas se usan como semillas supervisadas y el resto de la mezcla se analiza con esas plantillas. El informe compara correlación y MSE por pista, pero no sustituye una escucha ni demuestra que una muestra híbrida corresponda a un instrumento único.
+
 ## Reproducción host con SDL3
 
 La reproducción es opcional. Sin SDL3, la utilidad sigue funcionando para conversión y devuelve un error claro si se usa `--play`. Cuando SDL3 está habilitado, la E/S host y el audio usan abstracciones SDL3; no se usa Win32 en la lógica de la aplicación. El build preferido usa enlace estático:

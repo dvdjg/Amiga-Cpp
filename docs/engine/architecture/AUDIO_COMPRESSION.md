@@ -50,6 +50,10 @@ Las cinco fases de implementación son:
 
 La primera implementación debe limitarse a instrumentos afinados y piezas con notas relativamente estables. Piano, líneas melódicas y música barroca son objetivos iniciales adecuados; mezclas densas, coros, reverberación fuerte y percusión compleja deben conservar un residual hasta que exista evidencia de separación fiable.
 
+El banco sintético de `tools/generate-synthetic-audio-corpus.mjs` proporciona una validación controlada: genera instrumentos con armónicos y envolventes conocidas, secciones solistas de calibración, una mezcla rítmica/melódica y stems de referencia. `tools/evaluate-synthetic-audio-corpus.mjs` ejecuta la ruta calibrada y calcula la mejor correlación y MSE de cada pista recuperada frente a los stems. La calibración supervisa la inicialización, no fuerza una separación pura: una pista híbrida es válida si conserva una firma espectral estable, reduce el coste y mantiene una recomposición aceptable.
+
+La evidencia actual del corpus sintético es parcial: con tres prototipos se han observado correlaciones aproximadas de `0.94` para el bajo, `0.67` para el lead y `0.57` para la campana en una ejecución. La variante de ocho prototipos todavía puede fragmentar un instrumento en varios candidatos, por lo que falta una penalización global por fragmentación y una asociación temporal más fuerte antes de considerarla una separación completa.
+
 ## Capas
 
 ```text

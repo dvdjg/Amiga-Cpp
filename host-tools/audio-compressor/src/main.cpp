@@ -152,6 +152,24 @@ template <class T>
 	return audio_compressor::io::read_file(std::filesystem::path {path}, bytes);
 }
 
+[[nodiscard]] bool read_spectral_calibration(const std::string& path, eng::u32 rate, std::vector<audio_compressor::dsp::SpectralCalibrationWindow>& windows) {
+	std::vector<eng::u8> bytes;
+	if (!read_binary(path.c_str(), bytes)) return false;
+	const std::string text(bytes.begin(), bytes.end()); const std::size_t begin = text.find("\"calibration\""); const std::size_t end = text.find("\"events\"", begin);
+	if (begin == std::string::npos || end == std::string::npos) return false;
+	std::size_t cursor = begin;
+	while (cursor < end) {
+		const std::size_t start_key = text.find("\"start\"", cursor); const std::size_t end_key = text.find("\"end\"", cursor);
+		if (start_key == std::string::npos || end_key == std::string::npos || start_key > end) break;
+		const std::size_t start_colon = text.find(':', start_key); const std::size_t end_colon = text.find(':', end_key);
+		if (start_colon == std::string::npos || end_colon == std::string::npos) return false;
+		const double first_second = std::stod(text.substr(start_colon + 1u)); const double last_second = std::stod(text.substr(end_colon + 1u));
+		windows.push_back({static_cast<eng::u64>(std::max(0.0, first_second) * rate), static_cast<eng::u64>(std::max(first_second, last_second) * rate)});
+		cursor = end_colon + 1u;
+	}
+	return !windows.empty();
+}
+
 /// Escribe una pista PCM8 firmada como WAV mono unsigned de 8 bits para escucha host/evaluación.
 [[nodiscard]] bool write_pcm8_wav(const std::filesystem::path& path, const std::vector<eng::u8>& pcm, eng::u16 rate) {
 	if (rate == 0u || pcm.size() > 0xffffffffu - 44u) return false;
@@ -475,14 +493,14 @@ template <class Source>
 }
 
 /// Muestra la interfaz de la aplicación única, incluyendo el caso de arrastrar un archivo.
-void print_help(const char* exe) { std::printf("Uso: %s <audio|auzx> [--mode auto|sample|music] [--synth-separate] [--synth-max-tracks N] [--synth-listen N] [--synth-export-dir dir] [--spectral-separate] [--spectral-both] [--spectral-max-prototypes N] [--spectral-target-residual R] [--spectral-listen N] [--spectral-export-dir dir] [--spectral-fft N] [--spectral-hop N] [--spectral-max-shift-bins N] [--spectral-seed-candidates N] [--spectral-min-activation R] [--spectral-max-dictionary-bytes N] [--spectral-codec auto|none|rle|fib|ima] [--spectral-max-codec-error N] [--acp1-version 2|3] [--config f] [--out f] [--codec auto|rle|fib|ima|none] [--sample-rate Hz] [--chunk muestras] [--report f] [--keep-candidates] [--compare] [--play] [--dry-run]\n", exe); }
+void print_help(const char* exe) { std::printf("Uso: %s <audio|auzx> [--mode auto|sample|music] [--synth-separate] [--synth-max-tracks N] [--synth-listen N] [--synth-export-dir dir] [--spectral-separate] [--spectral-both] [--spectral-max-prototypes N] [--spectral-target-residual R] [--spectral-listen N] [--spectral-calibration file] [--spectral-export-dir dir] [--spectral-fft N] [--spectral-hop N] [--spectral-max-shift-bins N] [--spectral-seed-candidates N] [--spectral-min-activation R] [--spectral-max-dictionary-bytes N] [--spectral-codec auto|none|rle|fib|ima] [--spectral-max-codec-error N] [--acp1-version 2|3] [--config f] [--out f] [--codec auto|rle|fib|ima|none] [--sample-rate Hz] [--chunk muestras] [--report f] [--keep-candidates] [--compare] [--play] [--dry-run]\n", exe); }
 
 } // namespace
 
 /// Punto de entrada: resuelve configuración, clasifica y ejecuta el pipeline disponible.
 int main(int argc, char** argv) {
 	if (argc < 2 || (argc == 2 && std::strcmp(argv[1], "--help") == 0)) { print_help(argv[0]); return argc < 2 ? 2 : 0; }
-	Config config{}; const std::string input = native_safe_path(argv[1]); const char* config_path = nullptr; std::string output; std::string report; std::string synth_export_dir; std::string spectral_export_dir; std::string spectral_codec = "auto"; bool synth_separate = false; bool spectral_separate = false; bool spectral_both = false; eng::u8 synth_max_tracks = 3u; eng::u8 spectral_max_prototypes = 3u; eng::u16 spectral_fft = 256u; eng::u16 spectral_hop = 64u; eng::s16 spectral_max_shift_bins = 12; eng::u8 spectral_seed_candidates = 8u; eng::u8 spectral_max_codec_error = 8u; eng::u64 spectral_max_dictionary_bytes = 0u; double spectral_target_residual = 0.0; double spectral_min_activation = 0.02; int synth_listen = -1; int spectral_listen = -1;
+	Config config{}; const std::string input = native_safe_path(argv[1]); const char* config_path = nullptr; std::string output; std::string report; std::string synth_export_dir; std::string spectral_export_dir; std::string spectral_calibration_path; std::string spectral_codec = "auto"; bool synth_separate = false; bool spectral_separate = false; bool spectral_both = false; eng::u8 synth_max_tracks = 3u; eng::u8 spectral_max_prototypes = 3u; eng::u16 spectral_fft = 256u; eng::u16 spectral_hop = 64u; eng::s16 spectral_max_shift_bins = 12; eng::u8 spectral_seed_candidates = 8u; eng::u8 spectral_max_codec_error = 8u; eng::u64 spectral_max_dictionary_bytes = 0u; double spectral_target_residual = 0.0; double spectral_min_activation = 0.02; int synth_listen = -1; int spectral_listen = -1;
 	for (int i = 2; i < argc; ++i) {
 		if (std::strcmp(argv[i], "--help") == 0) { print_help(argv[0]); return 0; }
 		if (std::strcmp(argv[i], "--dry-run") == 0) { config.dry_run = true; continue; }
@@ -499,6 +517,7 @@ int main(int argc, char** argv) {
 		if (std::strcmp(argv[i], "--spectral-max-prototypes") == 0) { if (++i >= argc) return 2; spectral_max_prototypes = static_cast<eng::u8>(std::atoi(argv[i])); spectral_separate = true; continue; }
 		if (std::strcmp(argv[i], "--spectral-target-residual") == 0) { if (++i >= argc) return 2; spectral_target_residual = std::atof(argv[i]); spectral_separate = true; continue; }
 		if (std::strcmp(argv[i], "--spectral-listen") == 0) { if (++i >= argc) return 2; spectral_listen = std::atoi(argv[i]); spectral_separate = true; continue; }
+		if (std::strcmp(argv[i], "--spectral-calibration") == 0) { if (++i >= argc) return 2; spectral_calibration_path = argv[i]; spectral_separate = true; continue; }
 		if (std::strcmp(argv[i], "--spectral-export-dir") == 0) { if (++i >= argc) return 2; spectral_export_dir = argv[i]; spectral_separate = true; continue; }
 		if (std::strcmp(argv[i], "--spectral-fft") == 0) { if (++i >= argc) return 2; spectral_fft = static_cast<eng::u16>(std::atoi(argv[i])); spectral_separate = true; continue; }
 		if (std::strcmp(argv[i], "--spectral-hop") == 0) { if (++i >= argc) return 2; spectral_hop = static_cast<eng::u16>(std::atoi(argv[i])); spectral_separate = true; continue; }
@@ -525,6 +544,7 @@ int main(int argc, char** argv) {
 		else if (std::strcmp(argv[i], "--spectral-max-prototypes") == 0) ++i;
 		else if (std::strcmp(argv[i], "--spectral-target-residual") == 0) ++i;
 		else if (std::strcmp(argv[i], "--spectral-listen") == 0) ++i;
+		else if (std::strcmp(argv[i], "--spectral-calibration") == 0) ++i;
 		else if (std::strcmp(argv[i], "--spectral-export-dir") == 0) ++i;
 		else if (std::strcmp(argv[i], "--spectral-fft") == 0) ++i;
 		else if (std::strcmp(argv[i], "--spectral-hop") == 0) ++i;
@@ -644,12 +664,15 @@ int main(int argc, char** argv) {
 		std::fprintf(stderr, "la entrada excede --ram-budget con el pipeline actual; rate=%u pcm=%lu budget=%llu\n", rate, static_cast<unsigned long>(pcm.size()), static_cast<unsigned long long>(config.ram_budget_bytes));
 		return 2;
 	}
+	std::vector<audio_compressor::dsp::SpectralCalibrationWindow> spectral_calibration;
+	if (!spectral_calibration_path.empty() && !read_spectral_calibration(spectral_calibration_path, rate, spectral_calibration)) { std::fprintf(stderr, "manifiesto de calibración espectral inválido: %s\n", spectral_calibration_path.c_str()); return 2; }
 	if (spectral_separate) {
 		auto run_spectral = [&](eng::u8 prototype_count) {
 		audio_compressor::dsp::SpectralPrototypeOptions options {};
 		options.max_prototypes = prototype_count;
 		options.fft_size = spectral_fft; options.hop_samples = spectral_hop; options.max_shift_bins = spectral_max_shift_bins;
 		options.seed_candidates = spectral_seed_candidates; options.max_dictionary_bytes = spectral_max_dictionary_bytes; options.min_activation_ratio = spectral_min_activation;
+		options.calibration_windows = spectral_calibration;
 			options.stop_residual_ratio = spectral_target_residual;
 			audio_compressor::dsp::SpectralSeparationResult result {};
 			if (!audio_compressor::dsp::separate_spectral_prototypes(pcm, rate, options, result)) return false;
