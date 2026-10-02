@@ -597,12 +597,14 @@ public:
 		}
 	}
 
-	/// **Fine-scroll horizontal del playfield** en píxeles 0..15 (`BPLCON1`): desplaza TODO
-	/// el fondo de la escena (la imagen), no los objetos ya dibujados en el framebuffer. Un
-	/// juego que quiera mover el fondo por seno lo llama por frame. El valor se **aplica en
-	/// el VBlank siguiente** (en `on_vblank`), de modo que el cambio de `BPLCON1` entra con
-	/// el haz arriba y no parte ninguna scanline a media pantalla. `false` si la escena no
-	/// expone el slot (p. ej. composición sin etapa `display`).
+	/// **Fine-scroll horizontal del playfield**: valor de **retardo de `BPLCON1`** (0..15
+	/// color-clocks) escrito tal cual en ambos nibbles (PF1/PF2), como el `main.c` de
+	/// referencia. Desplaza TODO el fondo de la escena (la imagen), no los objetos ya
+	/// dibujados en el framebuffer. Un juego que quiera mover el fondo por seno lo llama por
+	/// frame. El valor se **aplica en el VBlank siguiente** (en `on_vblank`), de modo que el
+	/// cambio de `BPLCON1` entra con el haz arriba y no parte ninguna scanline a media
+	/// pantalla. `false` si la escena no expone el slot (p. ej. composición sin etapa
+	/// `display`).
 	[[nodiscard]] bool set_fine_scroll(u8 pixels) {
 		if (!m_scene.valid() || !m_scene.get()->fine_scroll_patch_valid()) {
 			return false;

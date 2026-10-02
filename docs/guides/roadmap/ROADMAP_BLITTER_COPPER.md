@@ -145,6 +145,44 @@ El contrato público debe describir intención (`opaque`, `masked`, `additive`, 
 formato y política de composición. La traducción a canales A/B/C/D, módulos, minterms y layout
 intercalado sigue siendo responsabilidad del backend Amiga.
 
+**Estado — `BlobBatch` (punto 3) y reordenación explícita.** El patrón de `OrBlobBatch` está
+generalizado en `engine/include/eng/platform/amiga/blob_batch.hpp` (`BlobBatch`), con las
+operaciones `Or` (`$FC`), `CookieCut` (`$CA`) y `Opaque` (`$F0`): fija el estado común una vez y,
+por objeto, escribe `BLTCON0`/`BLTCON1` (con `ASH`/`BSH`), los punteros A/B/C/D y `BLTSIZE`, con
+**una sola espera** por objeto. La secuencia de registros está cubierta por el test host HOST-177
+(`tests/host/platform/amiga/177_blob_batch`). El ejecutor (`AmigaBackend::execute_frame_plan`) ya
+usa el lote para **rachas homogéneas** de cookie-cut interleaved: detecta jobs consecutivos con el
+mismo estado fijo (módulos, alto, ancho y minterm) y los ejecuta con `BlobBatch`, sin re-codificar
+por job; invalida la caché de estado común al terminar (escribió registros directamente). Además se
+eliminó la espera redundante por plano en `bitplane_count == 1`.
+
+La **reordenación** de los trabajos del frame es ahora **explícita** (`graphics::ReorderPolicy` en
+`frame_plan.hpp`): por defecto `PreserveOrder` respeta el orden de emisión; `GroupByState` —que el
+juego declara con `set_reorder_policy`— habilita `sort_by_state()` y **obliga al llamador a
+garantizar que sus trabajos no se solapan** (mismo contrato que describe `INTENT_PLANNER.md`). El
+modelo de intención (`DrawIntent`) ya admite mezclar `Rect`/`Line`/`Sprite` con `draw`/`erase`/
+`copper` propios; la reordenación agrupa por estado sin cambiar la semántica cuando se declara
+independencia.
+
+**Medición de referencia (2026-10, A500).** El `main.c` original (16 BOBs cookie-cut + clear de la
+banda, 5 planos) hace avanzar su contador de VBlank a **50,8/s**. La demo 213 en el engine, con los
+**mismos blits**, corre a ~25 fps (2,0 campos/frame). El trabajo del frame del engine queda **justo
+por encima** de un campo (141 876 ciclos), de modo que la cuantización de VBlank lo redondea a 2
+campos. Los siguientes pasos son reducir ese coste y usar el `BlobBatch` para más lotes homogéneos.
+
+**Correcciones aplicadas al engine (2026-10).**
+
+- **Fine-scroll**: `Scene::set_fine_scroll` escribe ahora el valor **crudo** de `BPLCON1`
+  (`v | (v<<4)`), como el `main.c`; antes usaba `fine_delay(v) = 16−v`, que invertía la dirección
+  del seno. La convención `fine_delay`+`DDFSTRT=$30`+coarse queda para
+  `graphics::effects::FineScroll` (scroll continuo con guarda), que es otro contrato.
+- **`blitter_fill_rect`**: reescrito con canal A **constante** (`BLTADAT`) y máscaras de borde
+  `AFWM`/`ALWM` (`blit_fill_region`, `amiga_internal.hpp`): **un blit por plano sin
+  guardar/restaurar bordes por CPU** (antes usaba dos arrays de 256 words y dos esperas por plano).
+- **`BlobBatch`**: lote de estado fijo generalizado (OR/cookie-cut/opaco/clear), usado por el
+  ejecutor para rachas homogéneas de cookie-cut interleaved; se eliminó la espera redundante por
+  plano en `bitplane_count == 1`.
+
 **Siguiente candidato Blitter tras el batch Copper:** usar el perfil 086 (`actors` 11,3 % + `blits`
 9,4 %) junto a la evidencia de `OrBlobBatch` en BOBS3D (`blits` 231,7k → 202,5k) para medir la ruta
 cookie-cut/clear de la demo 086. Primero separar arranques, escrituras de estado y espera; solo

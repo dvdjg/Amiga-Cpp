@@ -134,18 +134,30 @@ public:
 	/// Cierra el programa (orden + presupuesto) y voltea el buffer. `false` si no cupo.
 	[[nodiscard]] bool end_build() { return m_plan.end_frame(); }
 
-	/// **Fine-scroll horizontal del playfield** en píxeles (`BPLCON1`, nibble bajo de PF1).
-	/// El campo desplaza todo el playfield (incluido lo que escribe el Blitter), así que un
-	/// BOB que deba quedarse fijo en pantalla se dibuja a `x - fine_scroll()`. Un juego que
-	/// **quiera** mover todo el fondo (scroll senoidal del original Bartman) solo cambia este
-	/// valor por frame. **Debe aplicarse en VBlank** (`scene.commit()` lo hace), no a media
-	/// pantalla, o el cambio de `BPLCON1` parte la scanline donde caiga el haz.
+	/// **Fine-scroll horizontal del playfield**: valor de **retardo de `BPLCON1`** (0..15,
+	/// color-clocks), escrito tal cual en los dos nibbles (PF1 y PF2) — el mismo valor que
+	/// programa el `main.c` de referencia (`*scroll = sin | (sin << 4)`). El campo desplaza
+	/// todo el playfield (incluido lo que escribe el Blitter), así que un BOB que deba quedarse
+	/// fijo en pantalla se dibuja a `x - fine_scroll()`. Un juego que **quiera** mover todo el
+	/// fondo (scroll senoidal del original Bartman) solo cambia este valor por frame. **Debe
+	/// aplicarse en VBlank** (`scene.commit()` lo hace), no a media pantalla, o el cambio de
+	/// `BPLCON1` parte la scanline donde caiga el haz.
+	///
+	/// NOTA: se escribe el valor **crudo** (no `fine_delay`) para reproducir exactamente la
+	/// convención del `main.c`; la convención `fine_delay` + `DDFSTRT=$30` + coarse pertenece
+	/// a `graphics::effects::FineScroll` (scroll continuo con columna de guarda), que es otro
+	/// contrato y no pasa por aquí.
+	///
+	/// Hallazgo (2026-10, demo 213): escribir `fine_delay(v)=16−v` **invierte el signo** del
+	/// desplazamiento respecto al `main.c` (`*scroll = sin`), así que un scroll senoidal se movía
+	/// en dirección contraria al original. El valor de `BPLCON1` es un *retardo* (nibble PF1 y PF2
+	/// iguales); el original lo escribe sin compensación.
 	[[nodiscard]] bool set_fine_scroll(u8 fine) noexcept {
 		if (!m_fine_scroll_patch.valid()) {
 			return false;
 		}
 		m_fine_scroll = static_cast<u8>(fine & 0x0fu);
-		m_fine_scroll_patch.set(fine_delay(m_fine_scroll));
+		m_fine_scroll_patch.set(static_cast<u16>(m_fine_scroll | (static_cast<u16>(m_fine_scroll) << 4u)));
 		return true;
 	}
 	[[nodiscard]] constexpr u8 fine_scroll() const noexcept { return m_fine_scroll; }
