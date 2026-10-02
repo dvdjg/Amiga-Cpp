@@ -1,41 +1,44 @@
-# Demo 213 — Bartman "abyss" en el mini-SO (`eng::os`)
+# Demo 213 — Bartman "abyss" en la fachada de juego (`eng::App`/`Screen`)
 
 Port al engine de la demo clásica de **Bartman/vscode-amiga-debug** (`BartmanBasic/main.c`):
-escena 320×256 de **5 planos interleaved** con la imagen *abyss*, **16 BOBs enmascarados** que se
-desplazan por senos sobre la banda inferior y **fine-scroll** de `BPLCON1` movido por seno, con
-**música P61** (ThePlayer) y salida al pulsar el **botón izquierdo del ratón**.
+escena de **320×256 con 5 planos interleaved** que muestra la imagen *abyss*, **16 BOBs
+enmascarados** (cookie-cut `$CA`) recorriendo la banda inferior por senos y **música P61**
+(ThePlayer) conducida por el engine.
 
-La diferencia de fondo con el original es que aquí **el juego no sondea hardware**: el latido del
-**mini-SO** (`eng::os::tick`) latcha el VBlank y pollea la entrada, que llega como mensajes
-(`MouseButton`/`KeyDown`); el bucle los drena y sale con `quit`. La música avanza una vez por frame.
+El juego describe **qué** quiere con el vocabulario del engine y no sondea hardware: `eng::App`
+gestiona el bucle, el display, el latido de VBlank y la cola de mensajes; `Screen` expone
+`sprite()`/`clear_box()` y `app.audio().play_music()` arranca la música. Ver
+`docs/engine/architecture/GAME_API_TWO_LEVELS.md`.
 
 ## Qué muestra
 
-- La imagen *abyss* (5 planos) tal cual, sobre fondo claro.
-- Los 16 BOBs (cada `あ` de un color) recorriendo la banda inferior en seno, con **cookie-cut `$CA`**
-  a nivel de píxel (no `copy`): el fondo se conserva fuera de la máscara.
-- **Fine-scroll** horizontal del playfield por `BPLCON1` (`sin | sin<<4`), sin tocar los punteros.
-- La música P61 sonando (ThePlayer, VBlank) mientras todo lo anterior se dibuja.
-- El **mini-SO** como única vía de entrada/tiempo: no hay `while(!MouseLeft())` crudo.
+- La imagen *abyss* (5 planos interleaved, 32 colores) tal cual.
+- 16 BOBs (glifo `あ`) repartidos por la banda inferior (filas 200..255): **desfase horizontal**
+  en módulo 51 y **seno vertical** (tablas exactas de `BartmanBasic/main.c`), con el frame de la
+  hoja ciclando 0..5. El `clear_box` de la banda usa **un** blit D-only interleaved.
+- **Cookie-cut `$CA` en un solo blit por BOB**: la hoja `[imagen][máscara]` se reproduce con
+  `A=máscara`, `B=imagen`, `ASH=BSH=x&15`, `height=16*5`, `AMOD=BMOD=4`, `DMOD=36`.
+- La música P61 sonando; el motor la avanza en su propio latido de VBlank.
+- El **puerto de mensajes** del mini-SO: el latido de VBlank publica `MsgType::VBlank` en
+  `app.port()` y el juego lo drena en `update`.
 
 ## Invariantes / detalles que importan
 
-- **Layout interleaved**: fila de 5 planos × 40 B = 200 B; `BPL1MOD=BPL2MOD=160`, `BPLxPT = base + p*40`.
-  El bitmap se dibuja **in place** (el original no usa doble buffer; no hay `commit`).
-- **BOB interleaved de una pasada**: el `bob.bpl` original guarda, por fila de plano, `[imagen]
-  [máscara]` (8 B). Se reproduce con **un** `BlitJob` masked por BOB: `A=máscara`, `B=imagen`,
-  `words_per_row=2`, `height=16*5=80`, `AMOD=BMOD=4`, `DMOD=36` (`40-4`), minterm `$CA`. No requiere
-  reempaquetar el asset.
-- **Borrado**: un solo `ClearRect` D-only sobre las filas 200..255 de los 5 planos (`DMOD=0`).
-- **Assets en Chip**: se copian desde `.rodata` a un bloque de Chip en `init` (el Blitter y P61 solo
-  ven Chip; así funciona también con Fast RAM).
-- **Salida**: `MouseButton` con `buttons & 1` (bit 0 = izquierdo, como `MouseLeft()`); `ESC` también.
-  No hay `FreeSystem()` fiel (el engine congela el sistema al hacer takeover); el runner cierra la
-  instancia.
+- **Layout interleaved**: fila de 5 planos × 40 B = 200 B; `BPLxPT = base + p*40`. El bitmap se
+  dibuja *in place* (sin doble buffer).
+- **BOB de una pasada** (`bob_draw_interleaved_pair`): por cada fila de cada plano la hoja lleva
+  `[imagen `w/16` palabras][máscara `w/16` palabras]` (8 B). El encoder
+  (`blitter_job_from`) conecta `A=máscara` (segunda mitad) y `B=imagen` (primera mitad) con
+  `ASH`/`BSH` iguales; el bit de máscara de cada plano va en la propia hoja. Ficha:
+  `docs/reference/amiga/techniques/interleaved-bob-single-blit.md`.
+- **Assets en Chip**: el engine copia los blobs desde `.rodata` a bloques Chip (`eng::Assets`)
+  porque el Blitter y Paula solo ven Chip RAM.
+- **Latido**: `App::run()` registra el hook de VBlank que llama a `eng::os::tick()` y publica
+  `VBlank`; `update`/`render` corren en el bucle principal.
 
 ## Criterio de aceptación
 
-- `state=3` (Ready) con `detail=0x22130` (bit 17 = música P61 iniciada).
+- `state=3` (Ready) con `detail=0x21300`.
 - En la captura: la imagen *abyss* y los `あ` de colores repartidos por la banda inferior.
 
 ## Compilar / ejecutar / analizar
@@ -47,34 +50,24 @@ bash ./tools/run/run-demo.sh demos/techniques/amiga/os/213_bartman_abyss --warp 
 bash ./tools/analyze/analyze-demo.sh demos/techniques/amiga/os/213_bartman_abyss
 ```
 
-## Evidencia de referencia (A500)
+## Evidencia de referencia (A500_debug)
 
-- `run-report.json`: `state=3`, `detail=0x22130`.
-- Captura: imagen + bobs (ver `out/tmp/213.png`).
-- **Audio**: `detail` bit 17 = 1 confirma que `P61_Init` tuvo éxito, pero el runner **no captura
-  PCM** (no hay grabación de audio en el harness), así que la salida de Paula no se verifica aquí;
-  el reproductor P61 ya está validado por las demos 060 (`music_pt`) y 272 (`audio_stream`).
+- `detail=0x21300` (`state=3`); captura `out/tmp/213.png` con la imagen y los BOBs.
+- Medición `tools/debug/measure-fps.mjs 213_bartman_abyss A500_debug`: **23,3 fps**,
+  **304287 ciclos/frame** (≈2,14 campos/frame). El cuello es la **ejecución del Blitter**
+  (17 blits/frame: 1 clear + 16 cookie-cut). No alcanza el objetivo de 1 frame por VBlank:
+  queda **abierta** a optimización (ver «Próximos pasos»).
+- **Audio**: el runner no captura PCM, así que la salida de Paula no se verifica aquí; el
+  reproductor P61 ya está validado por demos 060 (`music_pt`) y 272 (`audio_stream`).
 
-## Rendimiento
+## Límites / piezas pendientes
 
-Medido en `A500_debug` con `tools/debug/measure-fps.mjs` (el contador del periférico de depuración
-marca ≈2× los ciclos de CPU; `142102` = **1 frame PAL**):
-
-| Variante | fps | ciclos/iteración |
-|---|---|---|
-| Demo actual (`clear_box` + 16 BOBs + música) | **28,0** | 253093 |
-| Sin `clear_box` (la banda de juego) | 34,7 | 204654 |
-| Sin música (`play_music`) | 28,4 | 250133 |
-| **Sin los 16 BOBs** (`Screen::sprite`) | **49,9** | 142102 |
-| **Sin ejecutar el Blitter** (CPU sí; ver texto) | **48,8** | 145485 |
-
-**Lectura**: sin los BOBs la demo cabe **exacta** en un frame PAL (49,9 fps) y, saltando **solo la
-ejecución del Blitter** (manteniendo el CPU que encola los jobs), también (**48,8 fps**) → el cuello
-es la **ejecución del Blitter** (los 17 blits ≈ 55k ciclos ≈ 0,8 frame), **no** el CPU que los
-prepara. El `clear_box` cuesta ~24k (≈0,34 frame); la música (en la IRQ de VBlank) es
-**despreciable**. El DMA de Blitter propio es **+43%** que el del original (22265 vs 15569) con los
-mismos 17 blits y la misma geometría → margen en la ejecución (`amiga_blitter.cpp`: ~10-13
-escrituras de registro por job, sin caché del estado de registros entre jobs).
+- **No hay fine-scroll de `BPLCON1`**: el original mueve el playfield por seno; aquí el efecto
+  pendiente es solo de los BOBs. El `Scene` planar publica punteros por `commit`, no parchea
+  `BPLCON1` por frame; haría falta un `PatchHandle` en el plan (materia de
+  `docs/guides/roadmap/ROADMAP_BLITTER_COPPER.md`).
+- **No hay salida por botón de ratón**: `App` no expone `quit()` y la entrada del mini-SO llega
+  a `eng::os::system_port()`, no a `app.port()`; el runner cierra la instancia.
 
 ## Assets
 
@@ -86,13 +79,14 @@ En `assets/amiga/sprites/abyss/` (origen `BartmanBasic`, uso interno de prueba):
 | `abyss.pal` | 32 colores Amiga `$0RGB` (64 B). |
 | `bob.bpl` | 6 frames de 32×16; por fila de plano `[imagen 2 palabras][máscara 2 palabras]` (3840 B). |
 
-Módulo: `assets/amiga/audio/testmod.p61` (mismo que usa la demo 276).
+Módulo: `assets/amiga/audio/testmod.p61`.
 
 ## Referencias
 
 - Original: `BartmanBasic/main.c` del fork Bartman/vscode-amiga-debug.
 - Técnica del BOB: `docs/reference/amiga/techniques/interleaved-bob-single-blit.md`.
-- Mini-SO: `docs/engine/architecture/MINI_OS_MESSAGE_LOOP.md`, `ROADMAP_MINI_OS.md`.
+- Fachada de juego: `docs/engine/architecture/GAME_API_TWO_LEVELS.md`.
+- Mini-SO: `docs/engine/architecture/MINI_OS_MESSAGE_LOOP.md`.
 - Música: `docs/engine/architecture/MUSIC_PLAYER.md`.
 
-Tests: HOST-219 (núcleo del mini-SO), HOST-239/271 (P61/streaming), HOST-238 (tiempo).
+Tests: HOST-072 (geometría de BOB), HOST-365 (encoder del Blitter), HOST-219 (mini-SO).

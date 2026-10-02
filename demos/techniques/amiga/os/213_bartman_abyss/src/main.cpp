@@ -52,18 +52,15 @@ constexpr eng::MemoryConfig kMemoryBudget {
 	160u * eng::amiga::kBytesPerKiB, 8u * eng::amiga::kBytesPerKiB,
 	4u * eng::amiga::kBytesPerKiB, 0u};
 constexpr eng::u16 kPaletteColorCount = eng::kPaletteEntries;
-constexpr eng::u16 kPaletteBytes = kPaletteColorCount * sizeof(eng::u16);
 constexpr eng::u8 kSpriteFrameCount = 6u;
-constexpr eng::u16 kBobCount = 8u;
-constexpr eng::u16 kBobSpacing = 32u;
+constexpr eng::u16 kBobCount = 16u;
+constexpr eng::u16 kBobSpacing = 16u;
 constexpr eng::u16 kGameBandTop = 200u;
 constexpr eng::u16 kGameBandHeight = kHeight - kGameBandTop;
 constexpr eng::u16 kHorizontalWaveModulo = 51u;
 constexpr eng::u8 kVerticalWaveMask = 63u;
-constexpr eng::u8 kHorizontalWaveMax = 32u;
-constexpr eng::u8 kVerticalWaveMax = 40u;
 constexpr eng::u8 kWaveFrequency = 2u;
-constexpr eng::u8 kWaveAmplitudeScale = 1u;
+constexpr eng::u8 kWaveAmplitudeScale = 2u;
 constexpr eng::u8 kWaveVerticalScale = 2u;
 
 constexpr eng::u16 kBobW = 32u;
@@ -71,21 +68,17 @@ constexpr eng::u16 kBobH = 16u;
 constexpr eng::u32 kBobFrameStride = kBobH * kPlanes * kBytesPerWord *
 					    (kBobW / (kBytesPerWord * 8u)) * kBytesPerWord; // 640 B
 
-// Ondas generadas en compilación (`eng::ct_array`), aproximación entera de seno (Bhaskara I).
-template <eng::u16 N, eng::u8 Max>
-[[nodiscard]] constexpr eng::ct_array<eng::u8, N> make_wave() noexcept {
-	return eng::ct_array<eng::u8, N> {[](eng::usize i) -> eng::u8 {
-		const eng::s32 deg = static_cast<eng::s32>((360u * i) / N) % 360;
-		const bool neg = deg > 180;
-		const eng::s32 x = neg ? deg - 180 : deg;
-		const eng::s32 p = x * (180 - x);
-		const eng::s32 s = (4 * p * 256) / (40500 - p);
-		const eng::s32 v = neg ? -s : s;
-		return static_cast<eng::u8>(((v + 256) * Max) / 512);
-	}};
-}
-constexpr auto kWaveY = make_wave<kVerticalWaveMask + 1u, kVerticalWaveMax>();
-constexpr auto kWaveX = make_wave<kHorizontalWaveModulo, kHorizontalWaveMax>();
+// Tablas exactas de BartmanBasic/main.c: se conservan muestras y fases para comparar el render
+// con la referencia sin introducir error de aproximación en el movimiento.
+constexpr eng::u8 kWaveY[kVerticalWaveMask + 1u] {
+	20,22,24,26,28,30,31,33,34,36,37,38,39,39,40,40,
+	40,40,39,39,38,37,36,35,34,32,30,29,27,25,23,21,
+	19,17,15,13,11,10,8,6,5,4,3,2,1,1,0,0,
+	0,0,1,1,2,3,4,6,7,9,10,12,14,16,18,20};
+constexpr eng::u8 kWaveX[kHorizontalWaveModulo] {
+	16,18,20,22,24,25,27,28,30,30,31,32,32,32,32,31,
+	30,30,28,27,25,24,22,20,18,16,14,12,10,8,7,5,
+	4,2,2,1,0,0,0,0,1,2,2,4,5,7,8,10,12,14,16};
 
 struct AbyssDemo {
 	void init(auto& app) {
@@ -128,6 +121,10 @@ struct AbyssDemo {
 			return;
 		}
 		app.present();
+		// El `bob.bpl` original ya trae el layout que consume el motor: por cada fila de cada
+		// plano, `[imagen `w/16` palabras][máscara `w/16` palabras]` (ver
+		// `docs/reference/amiga/techniques/interleaved-bob-single-blit.md`). No se reempaqueta:
+		// el engine lo dibuja con **un** blit cookie-cut `$CA` por BOB.
 		const bool sprite_added = m_assets.add<eng::SpriteTag>("bob",
 						  reinterpret_cast<const eng::u8*>(abyss_bob), INCBIN_SIZE(abyss_bob));
 		const bool music_added = m_assets.add<eng::MusicTag>("mod",
@@ -159,36 +156,46 @@ struct AbyssDemo {
 	}
 
 	void update(auto& app) {
+		// **Cola de mensajes del mini-SO** (`ENG_APP_MAIN` la deja lista): el latido de VBlank
+		// del `App` publica `MsgType::VBlank` en `app.port()` y el juego lo drena aquí. Sin
+		// drenar, el puerto se llena y descarta; un juego real consume además la entrada.
+		eng::os::Msg m;
+		while (app.port().pop(m)) {
+			if (m.type == eng::os::MsgType::VBlank) {
+				++m_vblank_msgs;
+			}
+		}
 		eng::debug::mark_frame(g_eng_run_status, app.frame());
 	}
 
 	void render(auto& app) {
 		auto s = app.screen();
-		// Limpia la banda anterior y reparte ocho BOB de 32 px sin solaparlos.
+		const eng::u32 frame = app.frame();
+		// La banda inferior (filas 200..255 de los 5 planos) se limpia con un solo blit
+		// D-only interleaved antes de repintar los BOB.
 		s.clear_box(eng::Box {0, kGameBandTop, kWidth, kGameBandHeight});
-		// Desfase de onda **sin división por frame** (regla de coste ~cero en el bucle): se mantiene
-		// el módulo 51 con un contador que envuelve, en vez de `app.frame() % 51u`.
+		// Desfase horizontal en módulo 51 con un contador que envuelve (sin `%` por frame).
 		eng::u32 phase = m_phase51;
 		if (++m_phase51 >= kHorizontalWaveModulo) {
 			m_phase51 = 0u;
 		}
 		eng::u8 fi = 0u;
 		for (eng::u16 i = 0u; i < kBobCount; ++i) {
+			// Tablas exactas de `BartmanBasic/main.c`: reparto horizontal + seno vertical.
 			const eng::s16 x = static_cast<eng::s16>(
 				static_cast<eng::u32>(i) * kBobSpacing +
 				static_cast<eng::u32>(kWaveX[phase]) * kWaveAmplitudeScale);
 			const eng::s16 y = static_cast<eng::s16>(
 				kGameBandTop + static_cast<eng::u32>(
-					kWaveY[((app.frame() + i) * kWaveFrequency) & kVerticalWaveMask]) /
+					kWaveY[((frame + i) * kWaveFrequency) & kVerticalWaveMask]) /
 					kWaveVerticalScale);
-			const eng::u8 frame = fi;
+			s.sprite(m_sprite, x, y, fi);
 			if (++phase >= kHorizontalWaveModulo) {
 				phase = 0u;
 			}
 			if (++fi >= kSpriteFrameCount) {
 				fi = 0u;
 			}
-			s.sprite(m_sprite, x, y, frame);
 		}
 		app.present();
 		if (m_ready) {
@@ -200,7 +207,8 @@ struct AbyssDemo {
 	eng::graphics::composition::Scene m_scene {};
 	eng::graphics::Sprite m_sprite {};
 	eng::Assets m_assets {};
-	eng::u32 m_phase51 = 0u; ///< desfase de onda (módulo 51) sin división por frame
+	eng::u32 m_phase51 = 0u; ///< desfase de onda horizontal (módulo 51) sin división por frame
+	eng::u32 m_vblank_msgs = 0u; ///< mensajes `VBlank` drenados del puerto del mini-SO
 	bool m_ready = false;
 };
 
