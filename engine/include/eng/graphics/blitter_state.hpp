@@ -53,6 +53,7 @@ enum class BlobOp : eng::u8 {
 	Or,        ///< `D = A | B` (aditivo; canales A y B = destino).
 	CookieCut, ///< `D = (A & B) | (~A & C)`: A = máscara, B = imagen, C = D = fondo.
 	Opaque,    ///< `D = A` (copia opaca, sin máscara).
+	Copy,      ///< `D = C` (copia recta; C = origen, D = destino). Para desplazar/copiar rects.
 	Clear,     ///< `D = 0` (borrado de cajas homogéneas).
 };
 

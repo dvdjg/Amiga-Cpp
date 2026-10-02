@@ -131,6 +131,19 @@ conviene agrupar), si se quiere **diferir/encadenar** la ejecución (async, avis
 cabe y hay que repartirlo. No se mezclan en el mismo frame (el plan se ejecuta en `present`; el
 streaming emite ya).
 
+**Decisión: sin auto-selección.** El dev **elige explícitamente** (`screen().sprite(...)` vs
+`screen().stamp(...)`) porque los caminos **no son intercambiables**: el streaming emite en orden y
+no admite reordenar ni diferir, y el plan se ejecuta en `present`. Un «auto» ocultaría qué
+semántica corre (orden, latencia, encadenado) y obligaría a un análisis que el dev ya sabe. La
+fachada deja ambas y documenta la regla; el motor no adivina.
+
+**Decisión: capas/mundo de momento sobre el plan.** Promover el streaming a `BobLayer`/`world`
+exigiría darle acceso al backend (las capas son **agnósticas del backend** por diseño) y elegir el
+camino por capa; el caso «escena homogénea» ya lo cubre la fachada con `stamp`. Se deja para cuando
+haya un consumidor concreto (una capa que quiera streaming sin que el juego lo pida).
+
+## Referencias
+
 ## Referencias
 
 - `docs/engine/architecture/CODING_STYLE.md` (§Reglas obligatorias de diseño).

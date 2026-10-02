@@ -36,7 +36,10 @@ static void check(bool ok, const char* msg) {
 }
 
 static eng::u32 rd32(Reg* r, eng::u16 word) {
-	return *reinterpret_cast<volatile eng::u32*>(&r[word]);
+	// El mock modela registros del Amiga (**big-endian**): la palabra alta va en la dirección
+	// menor (`PTH`), la baja en `word+1` (`PTL`). El motor escribe los punteros con dos stores de
+	// 16 bits (alto primero); leer como `u32` nativo en el host (little-endian) los invertiría.
+	return static_cast<eng::u32>((static_cast<eng::u32>(r[word]) << 16u) | r[static_cast<eng::u16>(word + 1u)]);
 }
 
 static Reg regs[0x100] {};
@@ -101,6 +104,17 @@ int main() {
 	      "Clear: BLTCON0 = D | minterm 0 ($00)");
 	check(rd32(regs, kBltdpt) == 0x00c00000u, "Clear: BLTDPT = destino");
 	check(regs[kBltsize] == static_cast<eng::u16>((56u << 6u) | 20u), "Clear: BLTSIZE = (56<<6)|20");
+
+	// --- Copy (D = C, copia recta; C = origen).
+	const void* copy_src = reinterpret_cast<const void*>(static_cast<eng::uintptr>(0x20000040u));
+	batch.begin(regs, BlobOp::Copy, /*words=*/10, /*height=*/20, /*amod=*/0, /*bmod=*/0,
+		    /*cmod=*/38, /*dmod=*/38);
+	batch.one(copy_src, nullptr, dest, /*shift=*/0u);
+	check(regs[kBltcon0] == static_cast<eng::u16>(0x0200u | 0x0100u | 0x00aau),
+	      "Copy: BLTCON0 = C|D | $AA");
+	check(rd32(regs, kBltcpt) == 0x20000040u, "Copy: BLTCPT = origen");
+	check(rd32(regs, kBltdpt) == 0x00c00000u, "Copy: BLTDPT = destino");
+	check(regs[kBltsize] == static_cast<eng::u16>((20u << 6u) | 10u), "Copy: BLTSIZE = (20<<6)|10");
 
 	check(batch.end(), "end() devuelve true");
 

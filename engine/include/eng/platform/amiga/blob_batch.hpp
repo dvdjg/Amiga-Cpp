@@ -64,6 +64,7 @@ public:
 			case BlobOp::Or:        use = kUseA | kUseB | kUseD; minterm = kMintermAOrB; break;
 			case BlobOp::CookieCut: use = kUseA | kUseB | kUseC | kUseD; minterm = kMintermCookieCut; break;
 			case BlobOp::Opaque:    use = kUseA | kUseD; minterm = kMintermCopyA; break;
+			case BlobOp::Copy:      use = kUseC | kUseD; minterm = kMintermCopyC; break;
 			case BlobOp::Clear:     use = kUseD; minterm = kMintermZero; break;
 		}
 		base_con0 = static_cast<eng::u16>(use | minterm);
@@ -88,6 +89,13 @@ public:
 		wait();
 		if (op_ == BlobOp::Clear) {
 			// Solo D: sin fuente ni desplazamiento.
+			write_ptr(kBltdpt, d);
+			c[kBltsize] = size;
+			return;
+		}
+		if (op_ == BlobOp::Copy) {
+			// `D = C`: origen en C, destino en D, sin barrel shifter.
+			write_ptr(kBltcpt, a);
 			write_ptr(kBltdpt, d);
 			c[kBltsize] = size;
 			return;
@@ -159,6 +167,7 @@ private:
 	static constexpr eng::u16 kUseD = eng::graphics::kBlitterUseD;
 	static constexpr eng::u16 kMintermAOrB = eng::graphics::kBlitterMintermAOrB;
 	static constexpr eng::u16 kMintermCopyA = eng::graphics::kBlitterMintermCopyA;
+	static constexpr eng::u16 kMintermCopyC = eng::graphics::kBlitterMintermCopyC;
 	static constexpr eng::u16 kMintermCookieCut = eng::graphics::kBlitterMintermCookieCut;
 	static constexpr eng::u16 kMintermZero = eng::graphics::kBlitterMintermZero;
 

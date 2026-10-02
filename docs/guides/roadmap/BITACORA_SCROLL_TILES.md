@@ -35,7 +35,7 @@ La cifra histórica (101=~48, 102=~50, 103=~50, 104=~47,6) no era reproducible: 
 | `056_input_aggregator` | `A500_debug` | 16,58 | 427 727 | 0xb4 | 2026-09-18 | `46d4a82` | — | — |
 | `057_audio_mixer` | `A500_debug` | 12,60 | 562 799 | 0x381 | 2026-09-18 | `83f1bba` | — | — |
 | `058_sfx_mixer` | `A500_debug` | 12,44 | 570 303 | 0x3810004 | 2026-09-18 | `83f1bba` | — | — |
-| `213_bartman_abyss` | `A500_debug` | 24,96† | 284 204 | 0x21300 | 2026-09-27 | `e2d99690` | — | — |
+| `213_bartman_abyss` | `A500_release` | 49,92 | 142 102 | 0x21300 | 2026-10-02 | — | 921 | 130 875 942 |
 | `117_bobs3d` | `A500_debug` | 22,06† | 321 599 | 0x3c | 2026-09-27 | `e2d99690` | — | — |
 | `203_world_tilemap_xlimited` (medida inicial) | `A500_debug` | 24,96 | 284 204 | 0x2030000c | 2026-10-01 | `d4bfb56e` | — | — |
 | `203_world_tilemap_xlimited` (filas precalculadas) | `A500_debug` | 49,92 | 142 102 | 0x20fe0004 | 2026-10-01 | `d4bfb56e` | — | — |

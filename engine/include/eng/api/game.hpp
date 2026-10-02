@@ -351,6 +351,19 @@ public:
 		return m_stream.end(m_stream.ctx);
 	}
 
+	/// **Copia un rect ahora** (streaming, `D = C`): `words`×`height` palabras de `src` a `dst` con
+	/// módulos `cmod`/`dmod` (bytes). Para desplazar/copiar una banda fuera del plan (scroll).
+	bool copy_now(const void* src, void* dst, u16 words, u16 height, s16 cmod, s16 dmod) {
+		if (!m_stream.valid() || src == nullptr || dst == nullptr || words == 0u || height == 0u) {
+			return false;
+		}
+		if (!m_stream.begin(m_stream.ctx, graphics::BlobOp::Copy, words, height, 0, 0, cmod, dmod)) {
+			return false;
+		}
+		m_stream.one(m_stream.ctx, src, nullptr, dst, 0u);
+		return m_stream.end(m_stream.ctx);
+	}
+
 private:
 	field::DrawTarget m_target;
 	BlitStream m_stream {};
