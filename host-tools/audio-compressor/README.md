@@ -71,6 +71,10 @@ Para comparar ambas rutas sobre el mismo corpus: `node tools/bench-separation-co
 
 Para generar un corpus con stems conocidos, solos de calibración y eventos musicales reproducibles: `node tools/generate-synthetic-audio-corpus.mjs`. Para ejecutar la separación guiada y comparar las pistas recuperadas con esos stems: `node tools/evaluate-synthetic-audio-corpus.mjs`. El manifiesto se pasa mediante `--spectral-calibration`; sus ventanas solistas se usan como semillas supervisadas y el resto de la mezcla se analiza con esas plantillas. El informe compara correlación y MSE por pista, pero no sustituye una escucha ni demuestra que una muestra híbrida corresponda a un instrumento único.
 
+El objetivo de selección es un tracker: se calcula `coste_tracker = bytes_de_muestras_comprimidas + 44 * eventos + bytes_de_tablas + peso * residual`. `--spectral-both` muestra la variante de tres pistas y la de ocho, y emite `tracker-selection` con la candidata de menor coste combinado. Las muestras se almacenan comprimidas en los segmentos AUZX/ACP1 y se expanden al preparar los buffers de reproducción; el coste de carga y memoria de esa expansión forma parte de la evaluación posterior.
+
+El layout compacto sigue el modelo de los trackers clásicos: una unidad de muestra reutilizable por instrumento, una secuencia de eventos por pista y pitch/ganancia por evento. Los segmentos ACP1 ya pueden contener PCM8, DeltaRLE, FibonacciDelta o IMA ADPCM directamente; el player host los expande antes de aplicar interpolación de pitch, fades y mezcla. Los loops de patrón solo deben activarse cuando el ahorro de eventos y tablas supere su coste de control; la versión actual informa la periodicidad, pero no fuerza un loop si no existe una ganancia de tamaño demostrada.
+
 ## Reproducción host con SDL3
 
 La reproducción es opcional. Sin SDL3, la utilidad sigue funcionando para conversión y devuelve un error claro si se usa `--play`. Cuando SDL3 está habilitado, la E/S host y el audio usan abstracciones SDL3; no se usa Win32 en la lógica de la aplicación. El build preferido usa enlace estático:

@@ -41,6 +41,8 @@ struct SpectralPcmEvent {
 struct SpectralPcmTrack {
 	eng::u8 route = 0u;
 	std::vector<eng::u8> pcm;
+	std::vector<eng::u8> payload;
+	eng::u16 codec = 0u;
 	std::vector<SpectralPcmEvent> events;
 };
 
@@ -65,11 +67,13 @@ inline void v3_wr64(std::vector<eng::u8>& file, eng::usize at, eng::u64 value) {
 	if (tracks.empty() || tracks.size() > 7u || sample_rate == 0u || timeline_samples == 0u || timeline_samples > 0xffffffffu) return false;
 	eng::usize event_count = 0u; eng::usize payload_bytes = 0u; eng::u8 paula = 0u; eng::u8 mixer = 0u;
 	for (const auto& track : tracks) {
-		if (track.pcm.empty() || track.pcm.size() > 0xffffffffu || track.events.empty() || track.route > 4u) return false;
+		if (track.pcm.empty() || track.pcm.size() > 0xffffffffu || track.events.empty() || track.route > 4u || track.codec > 7u) return false;
+		const auto& payload = track.payload.empty() ? track.pcm : track.payload;
+		if (payload.empty() || payload.size() > 0xffffffffu) return false;
 		if (track.route == 3u) ++paula;
 		if (track.route == 4u) ++mixer;
-		if (payload_bytes > 0xffffffffu - track.pcm.size()) return false;
-		payload_bytes += track.pcm.size(); event_count += track.events.size();
+		if (payload_bytes > 0xffffffffu - payload.size()) return false;
+		payload_bytes += payload.size(); event_count += track.events.size();
 		for (const auto& event : track.events) if (event.duration == 0u || event.duration > track.pcm.size() || event.start_sample > timeline_samples - event.duration) return false;
 	}
 	if (event_count == 0u || event_count > 0xffffffffu) return false;
@@ -92,7 +96,8 @@ inline void v3_wr64(std::vector<eng::u8>& file, eng::usize at, eng::u64 value) {
 	for (eng::usize track_id = 0u; track_id < tracks.size(); ++track_id) {
 		const auto& track = tracks[track_id]; const eng::usize unit_at = units_offset + track_id * kUnitSize; const eng::usize segment_at = segments_offset + track_id * kSegmentSize; const eng::usize track_at = tracks_offset + track_id * kTrackSize;
 		v3_wr32(output, unit_at, static_cast<eng::u32>(track_id)); output[unit_at + 4u] = 0u; v3_wr32(output, unit_at + 6u, static_cast<eng::u32>(track.pcm.size())); v3_wr32(output, unit_at + 10u, static_cast<eng::u32>(track_id)); v3_wr16(output, unit_at + 14u, 1u); v3_wr16(output, unit_at + 16u, 0xffffu); v3_wr16(output, unit_at + 18u, 256u);
-		v3_wr32(output, segment_at, static_cast<eng::u32>(track_id)); v3_wr32(output, segment_at + 4u, 0u); v3_wr32(output, segment_at + 8u, static_cast<eng::u32>(track.pcm.size())); v3_wr32(output, segment_at + 12u, static_cast<eng::u32>(payload_offset + payload_cursor)); v3_wr32(output, segment_at + 16u, static_cast<eng::u32>(track.pcm.size())); v3_wr16(output, segment_at + 20u, 0u); std::memcpy(output.data() + payload_cursor + payload_offset, track.pcm.data(), track.pcm.size()); payload_cursor += track.pcm.size();
+		const auto& payload = track.payload.empty() ? track.pcm : track.payload;
+		v3_wr32(output, segment_at, static_cast<eng::u32>(track_id)); v3_wr32(output, segment_at + 4u, 0u); v3_wr32(output, segment_at + 8u, static_cast<eng::u32>(track.pcm.size())); v3_wr32(output, segment_at + 12u, static_cast<eng::u32>(payload_offset + payload_cursor)); v3_wr32(output, segment_at + 16u, static_cast<eng::u32>(payload.size())); v3_wr16(output, segment_at + 20u, track.codec); std::memcpy(output.data() + payload_cursor + payload_offset, payload.data(), payload.size()); payload_cursor += payload.size();
 		v3_wr16(output, track_at, static_cast<eng::u16>(track_id)); output[track_at + 2u] = track.route; v3_wr32(output, track_at + 4u, static_cast<eng::u32>(event_cursor)); v3_wr32(output, track_at + 8u, static_cast<eng::u32>(track.events.size())); v3_wr16(output, track_at + 12u, 0xffffu); v3_wr16(output, track_at + 14u, 0xffffu); v3_wr16(output, track_at + 16u, 256u);
 		for (const auto& event : track.events) { const eng::usize event_at = events_offset + event_cursor++ * kEventSize; v3_wr16(output, event_at, static_cast<eng::u16>(track_id)); v3_wr64(output, event_at + 4u, event.start_sample); v3_wr32(output, event_at + 12u, event.duration); v3_wr32(output, event_at + 16u, static_cast<eng::u32>(track_id)); v3_wr32(output, event_at + 20u, 0u); v3_wr16(output, event_at + 24u, event.gain_q8_8); v3_wr16(output, event_at + 28u, static_cast<eng::u16>(event.pitch_semitones_q8_8)); v3_wr16(output, event_at + 30u, 0xffffu); v3_wr16(output, event_at + 32u, 0xffffu); }
 	}

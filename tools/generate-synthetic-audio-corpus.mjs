@@ -16,23 +16,27 @@ const instruments = {
   bass: { base: 110, harmonics: [1, 0.55, 0.22, 0.1], attack: 0.02, release: 0.28 },
   lead: { base: 440, harmonics: [1, 0.45, 0.25, 0.12, 0.06], attack: 0.04, release: 0.18 },
   bell: { base: 660, harmonics: [1, 0.7, 0.42, 0.3], ratios: [1, 2.01, 3.97, 6.1], attack: 0.002, release: 1.1 },
+  perc: { base: 180, harmonics: [1, 0.65, 0.35], attack: 0.001, release: 0.12, percussive: true },
 };
 
 const events = {
   bass: [],
   lead: [],
   bell: [],
+  perc: [],
 };
 for (let i = 0; i < 8; i += 1) {
   events.bass.push({ start: 4.5 + i * 0.75, duration: 0.62, semitones: [0, 0, -5, -7][i % 4], gain: 0.62 });
-  events.lead.push({ start: 4.5 + i * 0.375, duration: 0.28, semitones: [0, 4, 7, 4, 9, 7, 4, 0][i], gain: 0.46 });
+  events.lead.push({ start: 4.5 + i * 0.375, duration: 0.28, semitones: [0, 4, 7, 4, 9, 7, 4, 0][i], gain: 0.46, brightness: i < 4 ? 1.0 : 0.62 });
   events.bell.push({ start: 4.875 + i * 1.5, duration: 0.9, semitones: [12, 7, 9, 14][i % 4], gain: 0.34 });
+  events.perc.push({ start: 4.5 + i * 0.25, duration: 0.16, semitones: (i % 2) * 7, gain: 0.28 });
 }
 
 const calibration = [
-  { instrument: 'bass', start: 0, end: 1.5, event: { start: 0.25, duration: 0.9, semitones: 0, gain: 0.7 } },
-  { instrument: 'lead', start: 1.5, end: 3, event: { start: 1.75, duration: 0.9, semitones: 0, gain: 0.55 } },
-  { instrument: 'bell', start: 3, end: 4.5, event: { start: 3.15, duration: 1.0, semitones: 0, gain: 0.4 } },
+  { instrument: 'bass', start: 0, end: 1.125, event: { start: 0.2, duration: 0.75, semitones: 0, gain: 0.7 } },
+  { instrument: 'lead', start: 1.125, end: 2.25, event: { start: 1.35, duration: 0.75, semitones: 0, gain: 0.55, brightness: 1.0 } },
+  { instrument: 'bell', start: 2.25, end: 3.375, event: { start: 2.4, duration: 0.8, semitones: 0, gain: 0.4 } },
+  { instrument: 'perc', start: 3.375, end: 4.5, event: { start: 3.5, duration: 0.35, semitones: 0, gain: 0.35 } },
 ];
 for (const item of calibration) events[item.instrument].unshift(item.event);
 
@@ -50,8 +54,9 @@ function note(instrument, event, t) {
   const e = envelope(t - event.start, event.duration, spec.attack, spec.release) * event.gain;
   if (e === 0) return 0;
   const ratios = spec.ratios ?? spec.harmonics.map((_, index) => index + 1);
+  if (spec.percussive) return (Math.sin(pi2 * frequency * (t - event.start)) + 0.35 * Math.sin(pi2 * frequency * 3.7 * (t - event.start))) * e * Math.exp(-18 * (t - event.start));
   let value = 0;
-  for (let i = 0; i < spec.harmonics.length; i += 1) value += spec.harmonics[i] * Math.sin(pi2 * frequency * ratios[i] * (t - event.start));
+  for (let i = 0; i < spec.harmonics.length; i += 1) value += spec.harmonics[i] * (event.brightness ?? 1) ** i * Math.sin(pi2 * frequency * ratios[i] * (t - event.start));
   return value * e;
 }
 

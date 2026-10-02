@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <functional>
+#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
@@ -667,6 +668,8 @@ int main(int argc, char** argv) {
 	std::vector<audio_compressor::dsp::SpectralCalibrationWindow> spectral_calibration;
 	if (!spectral_calibration_path.empty() && !read_spectral_calibration(spectral_calibration_path, rate, spectral_calibration)) { std::fprintf(stderr, "manifiesto de calibración espectral inválido: %s\n", spectral_calibration_path.c_str()); return 2; }
 	if (spectral_separate) {
+		struct SpectralVariantSummary { eng::u8 maximum = 0u; eng::u64 tracker_bytes = 0u; double residual = 1.0; };
+		std::vector<SpectralVariantSummary> variant_summaries;
 		auto run_spectral = [&](eng::u8 prototype_count) {
 		audio_compressor::dsp::SpectralPrototypeOptions options {};
 		options.max_prototypes = prototype_count;
@@ -700,6 +703,16 @@ int main(int argc, char** argv) {
 				if (!choose_spectral_codec(prototype.pcm, selected_name, selected_metrics)) return false;
 				prototype_codecs.push_back(selected_name); compressed_prototype_bytes += selected_metrics.bytes;
 			}
+			eng::u64 event_count = 0u;
+			for (const auto& prototype : result.prototypes) {
+				eng::u64 previous_slot = std::numeric_limits<eng::u64>::max();
+				for (eng::usize frame = 0u; frame < prototype.activation.size(); ++frame) if (prototype.activation[frame] > 0.0) {
+					const eng::u64 slot = result.fft_size == 0u ? frame : (static_cast<eng::u64>(frame) * result.hop_samples) / result.fft_size;
+					if (slot != previous_slot) { ++event_count; previous_slot = slot; }
+				}
+			}
+			const eng::u64 tracker_bytes = 336u + static_cast<eng::u64>(result.prototypes.size()) * 24u + event_count * 44u + compressed_prototype_bytes;
+			variant_summaries.push_back({prototype_count, tracker_bytes, result.metrics.residual_ratio});
 			if (!spectral_export_dir.empty()) {
 				const std::filesystem::path directory = std::filesystem::path {spectral_export_dir} / ("spectral-" + std::to_string(prototype_count));
 				std::filesystem::create_directories(directory);
@@ -724,8 +737,13 @@ int main(int argc, char** argv) {
 				}
 				if (result.prototypes.size() <= 7u) {
 					std::vector<audio_compressor::SpectralPcmTrack> compact_tracks;
-					for (const auto& prototype : result.prototypes) {
+					for (eng::usize prototype_index = 0u; prototype_index < result.prototypes.size(); ++prototype_index) {
+						const auto& prototype = result.prototypes[prototype_index];
 						audio_compressor::SpectralPcmTrack track {}; track.route = 0u; track.pcm = prototype.pcm;
+						const auto encoded_codec = codec_id(prototype_codecs[prototype_index]);
+						eng::u8 fib_seed = 0u;
+						if (!encode_chunk({prototype.pcm.data(), prototype.pcm.size()}, encoded_codec, track.payload, fib_seed)) return false;
+						track.codec = encoded_codec == eng::audio::pcm_codec::Codec::None ? 0u : encoded_codec == eng::audio::pcm_codec::Codec::DeltaRle ? 1u : encoded_codec == eng::audio::pcm_codec::Codec::FibDelta ? 5u : encoded_codec == eng::audio::pcm_codec::Codec::ImaAdpcm ? 6u : 0u;
 						const double centre = [&] { double weighted = 0.0, total = 0.0; for (eng::usize bin = 0u; bin < prototype.magnitude.size(); ++bin) { weighted += bin * prototype.magnitude[bin]; total += prototype.magnitude[bin]; } return total > 1.0e-9 ? weighted / total : 1.0; }();
 						for (eng::usize frame = 0u; frame < prototype.activation.size(); ++frame) if (prototype.activation[frame] > 0.0) {
 							const eng::u64 frame_start = static_cast<eng::u64>(frame) * result.hop_samples;
@@ -747,12 +765,12 @@ int main(int argc, char** argv) {
 					if (!audio_compressor::build_acp1_v3_spectral(compact_tracks, rate, pcm.size(), acp1) ||
 						!audio_compressor::io::write_file(directory / "spectral.acp1", acp1)) return false;
 					audio_compressor::playback::Acp1HostPlayer compact_player;
-					if (!compact_player.open({acp1.data(), acp1.size()})) return false;
+					if (!compact_player.open({acp1.data(), acp1.size()})) { std::fprintf(stderr, "ACP1 compacto no abre tras compresión\n"); return false; }
 					std::vector<eng::u8> compact_rebuilt(pcm.size(), 128u), compact_window(config.window_samples), compact_scratch(config.window_samples);
 					std::vector<eng::s16> compact_accumulator(config.window_samples);
 					for (eng::usize start = 0u; start < pcm.size(); start += config.window_samples) {
 						const eng::usize count = std::min<eng::usize>(config.window_samples, pcm.size() - start);
-						if (compact_player.read_window(static_cast<eng::u32>(start), {compact_window.data(), count}, {compact_scratch.data(), compact_scratch.size()}, {compact_accumulator.data(), compact_accumulator.size()}) != static_cast<eng::s32>(count)) return false;
+						if (compact_player.read_window(static_cast<eng::u32>(start), {compact_window.data(), count}, {compact_scratch.data(), compact_scratch.size()}, {compact_accumulator.data(), compact_accumulator.size()}) != static_cast<eng::s32>(count)) { std::fprintf(stderr, "ACP1 compacto no reconstruye ventana %lu tras compresión\n", static_cast<unsigned long>(start)); return false; }
 						std::copy(compact_window.begin(), compact_window.begin() + count, compact_rebuilt.begin() + start);
 					}
 					const auto compact_metrics = audio_compressor::dsp::reconstruction_metrics(pcm, compact_rebuilt);
@@ -763,11 +781,15 @@ int main(int argc, char** argv) {
 					if (!audio_compressor::io::write_file(directory / "octamed-route.txt", bytes)) return false;
 				}
 			}
-			std::printf("spectral-separation=ok max=%u prototipos=%lu MSE_mag=%.6f SNR_mag=%.2f residual=%.4f bytes_estimados=%llu bytes_codec=%llu voces=%u periodo_frames=%u periodicidad=%.3f ruta=%s codecs=%s\n", prototype_count, static_cast<unsigned long>(result.prototypes.size()), result.metrics.magnitude_mse, result.metrics.magnitude_snr_db, result.metrics.residual_ratio, static_cast<unsigned long long>(result.estimated_bytes), static_cast<unsigned long long>(compressed_prototype_bytes), result.peak_concurrent_prototypes, result.dominant_period_frames, result.periodicity_score, route.c_str(), [&] { std::string value; for (eng::usize i = 0u; i < prototype_codecs.size(); ++i) { if (i != 0u) value += ","; value += prototype_codecs[i]; } return value; }().c_str());
+			std::printf("spectral-separation=ok max=%u prototipos=%lu MSE_mag=%.6f SNR_mag=%.2f residual=%.4f bytes_tracker=%llu eventos=%llu bytes_estimados=%llu bytes_codec=%llu voces=%u periodo_frames=%u periodicidad=%.3f ruta=%s codecs=%s\n", prototype_count, static_cast<unsigned long>(result.prototypes.size()), result.metrics.magnitude_mse, result.metrics.magnitude_snr_db, result.metrics.residual_ratio, static_cast<unsigned long long>(tracker_bytes), static_cast<unsigned long long>(event_count), static_cast<unsigned long long>(result.estimated_bytes), static_cast<unsigned long long>(compressed_prototype_bytes), result.peak_concurrent_prototypes, result.dominant_period_frames, result.periodicity_score, route.c_str(), [&] { std::string value; for (eng::usize i = 0u; i < prototype_codecs.size(); ++i) { if (i != 0u) value += ","; value += prototype_codecs[i]; } return value; }().c_str());
 			return true;
 		};
 		if (spectral_both) { if (!run_spectral(3u) || !run_spectral(8u)) { std::fprintf(stderr, "la separación espectral no produjo una representación válida\n"); return 2; } }
 		else if (!run_spectral(spectral_max_prototypes)) { std::fprintf(stderr, "la separación espectral no produjo una representación válida\n"); return 2; }
+		if (!variant_summaries.empty()) {
+			const auto best = std::min_element(variant_summaries.begin(), variant_summaries.end(), [](const auto& left, const auto& right) { return left.tracker_bytes + left.residual * 1000000.0 < right.tracker_bytes + right.residual * 1000000.0; });
+			std::printf("tracker-selection=ok max=%u bytes=%llu residual=%.4f\n", best->maximum, static_cast<unsigned long long>(best->tracker_bytes), best->residual);
+		}
 		if (!decoded_input.empty()) std::remove(decoded_input.c_str());
 		return 0;
 	}
