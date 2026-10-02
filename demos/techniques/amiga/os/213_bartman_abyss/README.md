@@ -73,9 +73,12 @@ bash ./tools/analyze/analyze-demo.sh demos/techniques/amiga/os/213_bartman_abyss
   `eng::effects::FineScroll`.
 - **No hay salida por botón de ratón**: `App` no expone `quit()` y la entrada del mini-SO llega
   a `eng::os::system_port()`, no a `app.port()`; el runner cierra la instancia.
-- **Overlay de debug**: se usa `app.debug()` (overlay del engine); falta exponerlo también como
-  recursos WinUAE (`debug_register_bitmap`/`copperlist`/`palette`) si se quiere la vista de
-  recursos del depurador.
+
+## Overlay y recursos de depuración
+
+- La demo usa `app.debug()` para el overlay (texto/rects + `draw_telemetry`) **y** registra sus
+  recursos gráficos en el debugger de WinUAE (`register_bitmap`/`register_palette`/
+  `register_copperlist`, equivalentes a los `debug_register_*` de la original).
 
 ## Assets
 
