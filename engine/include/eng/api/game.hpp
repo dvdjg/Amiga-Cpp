@@ -597,6 +597,22 @@ public:
 		}
 	}
 
+	/// **Fine-scroll horizontal del playfield** en píxeles 0..15 (`BPLCON1`): desplaza TODO
+	/// el fondo de la escena (la imagen), no los objetos ya dibujados en el framebuffer. Un
+	/// juego que quiera mover el fondo por seno lo llama por frame. El valor se **aplica en
+	/// el VBlank siguiente** (en `on_vblank`), de modo que el cambio de `BPLCON1` entra con
+	/// el haz arriba y no parte ninguna scanline a media pantalla. `false` si la escena no
+	/// expone el slot (p. ej. composición sin etapa `display`).
+	[[nodiscard]] bool set_fine_scroll(u8 pixels) {
+		if (!m_scene.valid() || !m_scene.get()->fine_scroll_patch_valid()) {
+			return false;
+		}
+		m_fine_scroll_request = static_cast<u8>(pixels & 0x0fu);
+		m_fine_scroll_pending = true;
+		return true;
+	}
+	[[nodiscard]] u8 fine_scroll() const noexcept { return m_fine_scroll_request; }
+
 	/// **Contexto de dibujo del frame** (buffer activo + plan del frame). Válido hasta `present`.
 	[[nodiscard]] Screen screen() noexcept {
 		return m_scene.valid() ? Screen {m_scene.get()->draw_target(&m_plan)} : Screen {};
@@ -718,6 +734,13 @@ private:
 		if constexpr (requires { self.m_backend.audio().update_music(); }) {
 			self.m_backend.audio().update_music();
 		}
+		// **Fine-scroll del playfield**: se aplica aquí, con el haz en VBlank, para que el
+		// cambio de `BPLCON1` (que desplaza todo el fondo) entre con la pantalla en blanco y
+		// no parta una scanline a media imagen. El juego lo pide con `set_fine_scroll`.
+		if (self.m_fine_scroll_pending && self.m_scene.valid()) {
+			(void)self.m_scene.get()->set_fine_scroll(self.m_fine_scroll_request);
+			self.m_fine_scroll_pending = false;
+		}
 		const u32 seq = self.m_vblank_count + 1u;
 		self.m_vblank_count = seq;
 		eng::os::Msg msg {};
@@ -757,6 +780,8 @@ private:
 	graphics::FramePlan m_plan {};
 	u32 m_frame = 0;
 	bool m_display_bound_from_scene = false;
+	u8 m_fine_scroll_request = 0u;  ///< fine-scroll pedido por el juego (aplica en VBlank)
+	bool m_fine_scroll_pending = false;
 };
 
 } // namespace eng

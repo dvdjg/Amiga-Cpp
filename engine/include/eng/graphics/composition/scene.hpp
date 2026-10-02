@@ -21,6 +21,7 @@
 #include <eng/graphics/copper/plan.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/composition/limits.hpp>
+#include <eng/graphics/playfield_scroll.hpp>
 #include <eng/hw/info.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/memory/memory_manager.hpp>
@@ -132,6 +133,25 @@ public:
 	void begin_build() { m_plan.begin_frame(); }
 	/// Cierra el programa (orden + presupuesto) y voltea el buffer. `false` si no cupo.
 	[[nodiscard]] bool end_build() { return m_plan.end_frame(); }
+
+	/// **Fine-scroll horizontal del playfield** en píxeles (`BPLCON1`, nibble bajo de PF1).
+	/// El campo desplaza todo el playfield (incluido lo que escribe el Blitter), así que un
+	/// BOB que deba quedarse fijo en pantalla se dibuja a `x - fine_scroll()`. Un juego que
+	/// **quiera** mover todo el fondo (scroll senoidal del original Bartman) solo cambia este
+	/// valor por frame. **Debe aplicarse en VBlank** (`scene.commit()` lo hace), no a media
+	/// pantalla, o el cambio de `BPLCON1` parte la scanline donde caiga el haz.
+	[[nodiscard]] bool set_fine_scroll(u8 fine) noexcept {
+		if (!m_fine_scroll_patch.valid()) {
+			return false;
+		}
+		m_fine_scroll = static_cast<u8>(fine & 0x0fu);
+		m_fine_scroll_patch.set(fine_delay(m_fine_scroll));
+		return true;
+	}
+	[[nodiscard]] constexpr u8 fine_scroll() const noexcept { return m_fine_scroll; }
+	[[nodiscard]] bool fine_scroll_patch_valid() const noexcept {
+		return m_fine_scroll_patch.valid();
+	}
 
 	/// Emisor de Copper de esta escena (las etapas emiten por aquí).
 	[[nodiscard]] copper::Scheduler& scheduler() { return m_plan.scheduler(); }
@@ -381,6 +401,10 @@ public:
 		}
 	}
 
+	/// Registra el slot parcheable de `BPLCON1` (fine-scroll del playfield); lo llama la
+	/// etapa `display`. A partir de ahí `set_fine_scroll` lo reescribe por frame.
+	void set_fine_scroll_patch(copper::PatchHandle handle) { m_fine_scroll_patch = handle; }
+
 	// --- Ciclo de vida (plano de comportamiento) ------------------------------------
 	/// Liga la tarea de **setup** (una vez, tras `init`).
 	Scene& on_setup(Task t) { m_setup = t; return *this; }
@@ -524,6 +548,8 @@ private:
 	u8 m_back = 0; ///< índice del buffer trasero (el que se dibuja/publica)
 	Patch32 m_plane_patch[kMaxScenePlanes] {}; ///< parcheo `BPLxPT` por registro (doble/triple buffer)
 	u8 m_plane_source[kMaxScenePlanes] {}; ///< qué plano de bitmap muestra cada registro `BPLxPT`
+	copper::PatchHandle m_fine_scroll_patch {}; ///< MOVE parcheable de `BPLCON1` (fine-scroll)
+	u8 m_fine_scroll = 0u; ///< fine-scroll pedido este frame (0..15 px)
 	Task m_setup {}; ///< tarea de setup (una vez)
 	Task m_frame {}; ///< tarea de frame (por `tick`)
 	Task m_teardown {}; ///< tarea de teardown
