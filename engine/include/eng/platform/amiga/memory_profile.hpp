@@ -9,6 +9,8 @@
 
 namespace eng::amiga {
 
+constexpr eng::u32 kBytesPerKiB = 1024u;
+
 /// Pools que el engine reservará para el juego. Fast es optativa: permanece en cero salvo que
 /// el integrador detecte/declare expansión y decida asignarla al trabajo de CPU.
 struct GameMemoryProfile {
@@ -19,11 +21,11 @@ struct GameMemoryProfile {
 /// Pool A500 habitual: 384 KiB Chip para el juego + 448 KiB Slow; conserva 128 KiB Chip y 64 KiB
 /// Slow para Exec/Workbench. No presupone Fast RAM.
 inline constexpr GameMemoryProfile game_memory_a500 {
-	eng::MemoryConfig {384u * 1024u, 448u * 1024u, 0u, 0u}, "A500 512K Chip + 512K Slow"};
+	eng::MemoryConfig {384u * kBytesPerKiB, 448u * kBytesPerKiB, 0u, 0u}, "A500 512K Chip + 512K Slow"};
 
 /// Pool A1200 base: 1792 KiB de sus 2 MiB Chip; conserva 256 KiB para el sistema. Fast no asumida.
 inline constexpr GameMemoryProfile game_memory_a1200 {
-	eng::MemoryConfig {1792u * 1024u, 0u, 0u, 0u}, "A1200 2M Chip"};
+	eng::MemoryConfig {1792u * kBytesPerKiB, 0u, 0u, 0u}, "A1200 2M Chip"};
 
 /// Construye un presupuesto personalizado para una ampliación o distribución de pools distinta.
 [[nodiscard]] constexpr GameMemoryProfile game_memory_custom(eng::MemoryConfig pools,
@@ -37,16 +39,16 @@ inline constexpr GameMemoryProfile game_memory_a1200 {
 /// Sin inventario sondeado, el fallback conservador es A500. No reemplaza el preflight de AvailMem.
 [[nodiscard]] constexpr GameMemoryProfile game_memory_for_hardware(const hw::HwInfo& hardware) noexcept {
 	if (!hardware.probed) return game_memory_a500;
-	constexpr u32 kKiB = 1024u;
-	constexpr u32 kA500PoolBytes = 512u * kKiB;
-	constexpr u32 kA1200PoolBytes = 2u * 1024u * kKiB;
+	constexpr u32 kA500PoolBytes = 512u * kBytesPerKiB;
+	constexpr u32 kA1200PoolBytes = 2u * 1024u * kBytesPerKiB;
 	if (hw::is_aga(hardware) && hardware.chip_ram_bytes >= kA1200PoolBytes)
 		return game_memory_a1200;
 	if (hardware.chipset == hw::Chipset::OCS && hardware.chip_ram_bytes >= kA500PoolBytes &&
 	    hardware.slow_ram_bytes >= kA500PoolBytes)
 		return game_memory_a500;
-	const u32 chip_headroom = hardware.chip_ram_bytes >= kA1200PoolBytes ? 256u * kKiB : 128u * kKiB;
-	const u32 slow_headroom = 64u * kKiB;
+	const u32 chip_headroom = hardware.chip_ram_bytes >= kA1200PoolBytes
+				  ? 256u * kBytesPerKiB : 128u * kBytesPerKiB;
+	const u32 slow_headroom = 64u * kBytesPerKiB;
 	const u32 chip = hardware.chip_ram_bytes > chip_headroom
 			 ? hardware.chip_ram_bytes - chip_headroom
 			 : 0u;
@@ -75,7 +77,7 @@ inline constexpr GameMemoryProfile game_memory_a1200 {
 /// la reserva Chip/Frame; evita contar dos veces un mismo bloque en el preflight. Solo debe usarse para
 /// la elección automática; los perfiles custom explícitos se validan y se respetan tal cual.
 [[nodiscard]] constexpr GameMemoryProfile game_memory_fit_available(
-	const GameMemoryProfile& preferred, eng::u32 largest_chip, eng::u32 largest_any,
+const GameMemoryProfile& preferred, eng::u32 largest_chip, eng::u32 largest_any,
 	eng::u32 largest_fast, eng::u32 chip_headroom = 128u * 1024u,
 	eng::u32 slow_headroom = 64u * 1024u) noexcept {
 	if (game_memory_fits(preferred.pools, largest_chip, largest_any, largest_fast)) return preferred;

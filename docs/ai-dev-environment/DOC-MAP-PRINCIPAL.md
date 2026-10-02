@@ -52,7 +52,7 @@ Cuando termine la lectura contextual, puede abrir solo los enlaces que necesite.
 | **Cómo se hacen las cosas** (patrones de escalares/mallas/raster + metodología) | [PATRONES_Y_PROCESO.md](../engine/architecture/PATRONES_Y_PROCESO.md) |
 | Contrato de bajo nivel Amiga (contrato técnico) | [amiga-lowlevel-agent-prompt.md](../guides/methodology/amiga-lowlevel-agent-prompt.md) y [amiga-lowlevel-technique-contract-template.md](../guides/methodology/amiga-lowlevel-technique-contract-template.md) |
 | Bucles de entrada/backend | [engine.hpp](../../engine/include/eng/engine.hpp), `amiga.cpp`, [MINI_OS_MESSAGE_LOOP.md](../engine/architecture/MINI_OS_MESSAGE_LOOP.md) (capa de mensajes) |
-| Build/run/analyze | [BUILD_AND_RUN.md](../build/BUILD_AND_RUN.md) |
+| Build/run/analyze y resolución del toolchain Amiga en Windows (Git Bash, no WSL; `AMIGA_BIN_PATH`) | [BUILD_AND_RUN.md](../build/BUILD_AND_RUN.md) |
 | Depuración WinUAE/MCP | [debug-winuae-v2-guide.md](../debugging/system/debug-winuae-v2-guide.md) |
 | Sistema de depuración (índice) | [debugging/system/README.md](../debugging/system/README.md) |
 | **¿Ya se investigó?** Bloqueos y rarezas conocidas | [debugging/investigaciones/README.md](../debugging/investigaciones/README.md) + [reference/emulators/README.md](../reference/emulators/README.md) (fuente del emulador, `fichero:línea`) |

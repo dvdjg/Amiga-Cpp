@@ -9,26 +9,45 @@ con el ejemplo C historico del workspace.
 - Toolchain `m68k-amiga-elf` incluido en el plugin.
 - Kickstart A500 configurada en el workspace para ejecucion manual desde el debugger.
 
-El script recoge **todos** los candidatos y elige el de **gcc mas moderno** (comparando la version
+En este workspace, el toolchain que se usa habitualmente está en el repositorio hermano
+`../vscode-amiga-debug/bin/win32` (relativo a `Amiga-Cpp`), con el compilador en
+`opt/bin/m68k-amiga-elf-g++.exe`. También hay copias dentro de
+`%USERPROFILE%\.vscode\extensions\bartmanabyss.amiga-debug-*\bin\win32` y
+`%USERPROFILE%\.cursor\extensions\bartmanabyss.amiga-debug-*\bin\win32`. No hay que instalar otro
+toolchain si ya está disponible en cualquiera de esas ubicaciones.
+
+El script recoge **todos** los candidatos y elige el de **GCC más moderno** (comparando la versión
 con `sort -V`), no el primero que aparezca:
 
-1. Variable de entorno `AMIGA_BIN_PATH`.
-2. Extension de Cursor `bartmanabyss.amiga-debug-*`.
-3. Extension de VS Code `bartmanabyss.amiga-debug-*`.
+1. `AMIGA_BIN_PATH`, si apunta a un candidato válido.
+2. Extensiones de Cursor `bartmanabyss.amiga-debug-*`.
+3. Extensiones de VS Code `bartmanabyss.amiga-debug-*`.
+4. Si no encuentra ninguno, los ejecutables `m68k-amiga-elf-*` del `PATH`.
 
-Asi, actualizar una extension a un gcc mas nuevo (p. ej. 15.2) gana automaticamente sin tocar el
-entorno. El build imprime el toolchain elegido y su version (`[build] toolchain: ... (gcc X.Y.Z)`).
+El resolver compara las versiones GCC de todos los candidatos encontrados y elige la más nueva;
+`AMIGA_BIN_PATH` permite añadir explícitamente una ubicación, pero una copia con GCC más reciente
+puede ganar. El build imprime la ruta y versión elegidas (`[build] toolchain: ... (gcc X.Y.Z)`).
 Ojo: el toolchain de **Windows** de la extension va por detras del README (que anuncia gcc 15.2);
 a dia de hoy las versiones instaladas (1.8.1/1.8.2 y el fork local) son **15.1.0**.
 
 ## Compilar una demo
 
+En Windows, ejecútalos desde PowerShell invocando **Git Bash por su ruta absoluta** y configura
+`AMIGA_BIN_PATH` para que el proceso Bash reciba la misma ruta Windows. No uses el comando ambiguo
+`bash`: en algunas terminales resuelve a WSL (`C:\Windows\System32\bash.exe`), que no puede ejecutar
+los `.exe` del toolchain Bartman y cuyo `$HOME` no contiene las extensiones de Windows.
+
 ```powershell
-$env:AMIGA_BIN_PATH = 'C:/Users/<usuario>/.vscode/extensions/bartmanabyss.amiga-debug-<version>/bin/win32'
+$env:AMIGA_BIN_PATH = "$env:USERPROFILE/Documents/programa/AI/Amiga/vscode-amiga-debug/bin/win32"
+Test-Path "$env:AMIGA_BIN_PATH/opt/bin/m68k-amiga-elf-g++.exe" # debe devolver True
 & 'C:\Program Files\Git\bin\bash.exe' ./tools/build/build-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23 --debug --clean
 ```
 
-En Windows, invoca Git Bash directamente para estos scripts. `C:\Windows\System32\bash.exe` puede resolver a WSL, cuyo `$HOME` y sistema de archivos no incluyen las extensiones de VS Code/Cursor ni sus ejecutables `.exe`; por eso la detección automática del toolchain puede fallar aunque esté instalado. `AMIGA_BIN_PATH` debe apuntar a `bin/win32` de la extensión que contiene `opt/bin/m68k-amiga-elf-g++.exe`. Si la variable de entorno apunta a otra carpeta, esta ruta explícita permite seleccionar el toolchain correcto.
+Si el toolchain solo está en una extensión, asigna en `AMIGA_BIN_PATH` su carpeta `bin/win32`, por
+ejemplo `$env:USERPROFILE/.vscode/extensions/bartmanabyss.amiga-debug-1.8.2/bin/win32`. Conserva esa
+variable en la sesión al ejecutar `tools/test-regression.sh`; la regresión compila las demos mediante
+los mismos scripts. Comprueba en el log la línea `[build] toolchain: ...`; debe señalar la carpeta
+esperada y mostrar la versión GCC detectada.
 
 La salida queda en:
 

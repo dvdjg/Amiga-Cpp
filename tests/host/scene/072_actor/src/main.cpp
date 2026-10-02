@@ -944,7 +944,9 @@ void test_bob_job_matrix() {
 		CHECK(plan.blit_job_count() == 1u, "borrado intercalado: 1 blit");
 		const auto& j = plan.blit_job(0);
 		CHECK(j.minterm == 0x00u, "minterm clear $00");
-		CHECK(j.height == 32u * 4u, "altura clear = alto x planos");
+		CHECK(j.height == 32u, "altura clear lógica por plano");
+		CHECK(j.bitplane_count == 4u && j.destination_plane_stride_bytes == 40u,
+		      "clear interleaved conserva stride entre planos");
 		CHECK(j.words_per_row == 4u, "palabras clear (base + shift)");
 	}
 	{

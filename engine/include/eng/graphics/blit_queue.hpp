@@ -60,7 +60,7 @@ struct BlitOp {
 /// lo hace `blitter_job_from`. `Fill` → `ClearRect`; `Stamp` → `OrBlob`; `MaskedStamp` →
 /// `MaskedBobCookieCut`. `Stamp`/`MaskedStamp` leen desde la esquina de su zona y desplazan con `ASH`.
 [[nodiscard]] inline BlitJob blit_job_from(const BlitOp& op) noexcept {
-	const bool inter = op.dst.interleaved();
+  const bool inter = op.dst.interleaved();
 	const eng::u8 planes = op.dst.plane_count;
 	const eng::u32 row = inter ? static_cast<eng::u32>(op.dst.row_bytes) * planes
 				   : op.dst.row_bytes;
@@ -142,6 +142,19 @@ struct BlitOp {
 		b.bltdmod = j.destination_modulo_bytes;
 		b.bltapt = shifted ? j.source.words() : nullptr;
 		b.bltcpt = shifted ? nullptr : j.source.words();
+		b.bltdpt = j.destination.words();
+		// BLTSIZE codifica las 1024 filas como height=0; el job conserva la altura lógica.
+		const eng::u16 encoded_height = j.interleaved && j.height == 1024u ? 0u : j.height;
+		b.bltsize = static_cast<eng::u16>((encoded_height << 6u) | j.words_per_row);
+		return b;
+	}
+	if (clear && j.interleaved && j.bitplane_count > 1u) {
+		// Clear job with explicit per-plane stride (e.g. Screen::clear_box).
+		b.bltcon0 = static_cast<eng::u16>(kBlitterUseD | j.minterm);
+		b.bltcon1 = 0u;
+		b.bltafwm = 0xffffu;
+		b.bltalwm = 0xffffu;
+		b.bltdmod = j.destination_modulo_bytes;
 		b.bltdpt = j.destination.words();
 		b.bltsize = static_cast<eng::u16>((j.height << 6u) | j.words_per_row);
 		return b;

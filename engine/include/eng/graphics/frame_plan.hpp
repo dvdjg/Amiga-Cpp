@@ -68,6 +68,7 @@ struct BlitBudget {
 	u16 copy_jobs = 0;
 	u16 no_save_jobs = 0;
 	u16 tile_jobs = 0;
+	u16 clear_jobs = 0;
 };
 
 /// Severidad del presupuesto de Blitter para un frame.
@@ -157,13 +158,17 @@ struct DirtyReport {
 /// descubrir corrupcion visual varios sistemas mas tarde.
 class FramePlan {
 public:
-	static constexpr u8 max_palette_patches = 8;
+	static constexpr u8 kMaxPalettePatches = 8u;
+	static constexpr u8 kMaxDirtyRects = 8u;
+	static constexpr u8 kMaxDmaAssets = 8u;
+	static constexpr u8 kMaxBlitJobs = 128u;
+	static constexpr u8 max_palette_patches = kMaxPalettePatches;
 	// A dual-playfield ring crossing both axes needs 12 shift copies plus 80
 	// tile uploads (two playfields), so the former limit of 64 rejected a valid
 	// frame plan before the backend could run it.
-	static constexpr u8 max_blit_jobs = 128;
-	static constexpr u8 max_dirty_rects = 8;
-	static constexpr u8 max_dma_assets = 8; ///< owners Chip retenibles por nivel, sin coste en el ciclo del frame
+	static constexpr u8 max_blit_jobs = kMaxBlitJobs;
+	static constexpr u8 max_dirty_rects = kMaxDirtyRects;
+	static constexpr u8 max_dma_assets = kMaxDmaAssets; ///< owners Chip retenibles por nivel, sin coste en el ciclo del frame
 
 	void clear() {
 		m_palette_patch_count = 0;
@@ -300,10 +305,33 @@ public:
 		return add_blit_job(job, BlitJobKind::TileBlockCopy);
 	}
 
-	/// Borrado de un rectangulo (solo D, minterm `$00`). Con `interleaved` borra la
-	/// caja de un objeto en UN blit.
+	/// Borrado de un rectángulo (solo D, minterm `$00`).
 	bool add_clear_rect(const BlitJob& job) {
 		return add_blit_job(job, BlitJobKind::ClearRect);
+	}
+
+	/// Clear con stride arbitrario dentro de cada scanline física (p. ej. interleaved).
+	bool add_interleaved_clear_rect(const BlitJob& job) {
+		if (!job.interleaved || job.height == 0u ||
+		    job.bitplane_count <= 1u || job.destination.words() == nullptr || job.words_per_row == 0u ||
+		    job.destination_plane_stride_bytes == 0u) {
+			m_ok = false;
+			return false;
+		}
+		if (m_blit_job_count >= max_blit_jobs) {
+			m_ok = false;
+			return false;
+		}
+		BlitJob clear_job = job;
+		clear_job.kind = BlitJobKind::ClearRect;
+		m_blit_jobs[m_blit_job_count++] = clear_job;
+		m_blit_budget.jobs = m_blit_job_count;
+		m_blit_budget.words += eng::math::mulu32x16(
+			eng::math::mulu16(job.words_per_row, job.height), job.bitplane_count);
+		++m_blit_budget.clear_jobs;
+		++m_blit_budget.copy_jobs;
+		rebuild_blit_budget_report();
+		return true;
 	}
 
 	/// BOB OR (aditivo) por desplazamiento: `A`=objeto, `B=D`=destino, minterm `$FC`.
@@ -486,6 +514,7 @@ private:
 		} else {
 			++m_blit_budget.copy_jobs;
 		}
+		if (job.kind == BlitJobKind::ClearRect) ++m_blit_budget.clear_jobs;
 		if (job.kind == BlitJobKind::MaskedBlobNoSave) {
 			++m_blit_budget.no_save_jobs;
 		}

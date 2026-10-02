@@ -105,6 +105,8 @@ public:
 		m_kind = WorldLayerKind::Actors;
 		m_fill_bounds = {};
 		m_fill_color = 0u;
+		m_bitmap = {};
+		m_tile = {};
 	}
 	constexpr void configure_fill(const char* id, u8 depth, const Box& bounds, u8 color) noexcept {
 		configure(id, depth);
@@ -162,7 +164,12 @@ private:
 /// **Mundo**: conjunto fijo de capas (sin heap) y de actores. El orden de dibujo lo fija la
 /// profundidad de capa (menor = al fondo) y, dentro del plan, el `z` del actor; el planner
 /// lo usará al componer.
-template <u8 MaxLayers = 8u, u8 MaxActors = 16u, u8 MaxRegions = 8u>
+inline constexpr eng::u8 kDefaultWorldLayerCapacity = graphics::FramePlan::kMaxDirtyRects;
+inline constexpr eng::u8 kDefaultWorldActorCapacity = graphics::FramePlan::kMaxDmaAssets * 2u;
+inline constexpr eng::u8 kDefaultWorldRegionCapacity = graphics::FramePlan::kMaxDirtyRects;
+template <u8 MaxLayers = kDefaultWorldLayerCapacity,
+	  u8 MaxActors = kDefaultWorldActorCapacity,
+	  u8 MaxRegions = kDefaultWorldRegionCapacity>
 class World {
 public:
 	/// Añade una capa de actores. Devuelve `Ref<Layer>` inválido si el mundo está lleno.

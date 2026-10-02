@@ -23,6 +23,7 @@
 
 #include <eng/api/device.hpp>
 #include <eng/core/types/box.hpp>
+#include <eng/core/types/typed.hpp>
 #include <eng/core/types/domains.hpp>
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/span.hpp>
@@ -34,6 +35,7 @@
 #include <eng/graphics/composition/compose.hpp>
 #include <eng/graphics/copper/plan.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
+#include <eng/graphics/blit_job.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/bitmap_view.hpp>
 #include <eng/graphics/palette32.hpp>
@@ -51,10 +53,18 @@ namespace eng {
 
 /// Descripción declarativa del display que `App::start()` compone y posee.
 struct GameDisplay {
-	u16 width = 320u;
-	u16 height = 256u;
-	u8 color_depth = 4u;
-	u8 buffers = 1u;
+	static constexpr u8 kMaxColorDepth = 8u;
+	static constexpr u8 kWorldLayerCapacity = scene::kDefaultWorldLayerCapacity;
+	static constexpr u16 kPaletteEntries = eng::kPaletteEntries;
+	static constexpr u8 kDefaultColorDepth = 4u;
+	static constexpr u8 kDefaultBufferCount = 1u;
+	static constexpr u16 kDefaultWidth = 320u;
+	static constexpr u16 kDefaultHeight = 256u;
+	u16 width = kDefaultWidth;
+	u16 height = kDefaultHeight;
+	u8 color_depth = kDefaultColorDepth;
+	u8 buffers = kDefaultBufferCount;
+	graphics::PlaneLayout layout = graphics::PlaneLayout::Contiguous;
 	Palette32 palette = kBlackPalette;
 };
 
@@ -77,7 +87,6 @@ public:
 
 	[[nodiscard]] bool valid() const noexcept { return m_target.valid(); }
 	[[nodiscard]] Box bounds() const noexcept { return m_target.box(); }
-
 	/// Borra todo el área de dibujo con `color`.
 	void clear(u8 color) {
 		const Box b = bounds();
@@ -109,6 +118,10 @@ public:
 		if (!m_target.plan().valid()) {
 			return false;
 		}
+		const Box clip = m_target.box();
+		if (x < clip.x || y < clip.y || static_cast<s32>(x) + spr.width() >
+			static_cast<s32>(clip.x) + clip.w || static_cast<s32>(y) + spr.height() >
+			static_cast<s32>(clip.y) + clip.h) return false;
 		return spr.draw(*m_target.plan(), m_target.bob_target(), frame, x, y);
 	}
 	/// **Borra la caja de un sprite** en `(x, y)` (si su política es `ClearRect`).
@@ -129,6 +142,75 @@ public:
 		}
 		return m_target.blit(*m_target.plan(), src, x, y, w, h, src_row_bytes, src_plane_stride,
 				    planes, source_shift, descending, op);
+	}
+	/// Copia un asset planar completo (procedencia Chip + geometría + layout) a la pantalla en el
+	/// plan del frame. El juego no pasa punteros,
+	/// strides, plano ni cantidad de planos: los trae el asset tipado y el contexto Screen.
+	[[nodiscard]] bool bitmap(graphics::ChipBitmapView<PlaneTag> source, Box destination) {
+		const Box screen_bounds = bounds();
+		const auto& target = m_target.bob_target();
+		if (!m_target.plan().valid() || !source.valid() || destination.empty() ||
+		    source.plane_count > graphics::kBlitterMaxPlanes ||
+		    source.layout != (target.interleaved() ? graphics::PlaneLayout::Interleaved
+						    : graphics::PlaneLayout::Contiguous) ||
+		    source.row_bytes < source.width / graphics::kPixelsPerByte ||
+		    (source.row_bytes & (graphics::kBytesPerBlitterWord - 1u)) != 0u ||
+		    source.planes.size() < source.byte_count() ||
+		    destination.x < screen_bounds.x || destination.y < screen_bounds.y ||
+		    static_cast<u32>(destination.w) > source.width || static_cast<u32>(destination.h) > source.height ||
+		    static_cast<s32>(destination.x) + destination.w > static_cast<s32>(screen_bounds.x) + screen_bounds.w ||
+		    static_cast<s32>(destination.y) + destination.h > static_cast<s32>(screen_bounds.y) + screen_bounds.h ||
+		    (destination.x & (graphics::kPixelsPerBlitterWord - 1u)) != 0 ||
+		    (destination.w & (graphics::kPixelsPerBlitterWord - 1u)) != 0u ||
+		    source.width / graphics::kPixelsPerBlitterWord > graphics::kBlitterMaxWordsPerRow ||
+		    source.height > graphics::kBlitterMaxRows ||
+		    destination.w != source.width || destination.h != source.height) return false;
+		const u16 words = static_cast<u16>(source.width / graphics::kPixelsPerBlitterWord);
+		const u32 copied_row_bytes = static_cast<u32>(words) * graphics::kBytesPerBlitterWord;
+		const u32 source_row_stride = source.interleaved()
+				       ? static_cast<u32>(source.row_bytes) * source.plane_count
+				       : source.row_bytes;
+		const bool source_interleaved = source.interleaved();
+		const bool destination_interleaved = target.interleaved();
+		if (source.plane_count != target.plane_count || source_interleaved != destination_interleaved)
+			return false;
+		const u32 destination_row_stride = target.interleaved()
+					   ? static_cast<u32>(target.row_bytes) * target.plane_count
+					   : target.row_bytes;
+		if (source.interleaved()) {
+			// Each physical plane row is `row_bytes` apart; the modulo skips the remaining
+			// planes to reach the same plane on the next logical scanline.
+			graphics::BlitJob job {};
+			job.kind = graphics::BlitJobKind::CopyRect;
+			job.source = graphics::BlitPtr {source.planes};
+			job.destination = graphics::BlitPtr {target.planes,
+				static_cast<s32>(static_cast<u32>(destination.y) * destination_row_stride +
+						 destination.x / graphics::kPixelsPerByte)};
+			job.words_per_row = words;
+			job.height = source.height;
+			job.source_modulo_bytes = static_cast<s16>(source_row_stride - copied_row_bytes);
+			job.destination_modulo_bytes = static_cast<s16>(destination_row_stride - copied_row_bytes);
+			job.bitplane_count = source.plane_count;
+			job.interleaved = true;
+			job.source_plane_stride_bytes = source.plane_pointer_step();
+			job.destination_plane_stride_bytes = target.plane_pointer_step();
+			return m_target.plan()->add_copy_rect(job);
+		}
+		graphics::BlitJob job {};
+		job.kind = graphics::BlitJobKind::CopyRect;
+		job.source = graphics::BlitPtr {source.planes};
+		job.destination = graphics::BlitPtr {target.planes,
+			static_cast<s32>(static_cast<u32>(destination.y) * destination_row_stride +
+					 destination.x / graphics::kPixelsPerByte)};
+		job.words_per_row = words;
+		job.height = source.height;
+		job.source_modulo_bytes = 0;
+		job.destination_modulo_bytes = 0;
+		job.bitplane_count = source.plane_count;
+		job.interleaved = false;
+		job.source_plane_stride_bytes = source.plane_pointer_step();
+		job.destination_plane_stride_bytes = target.plane_pointer_step();
+		return m_target.plan()->add_copy_rect(job);
 	}
 
 	/// **Chunky→planar** por el seam (Blitter si hay plan, si no CPU del playfield).
@@ -167,10 +249,10 @@ public:
 	/// **latido** (el hook que alimenta el puerto de mensajes / el mini-SO) y `update`/`render`
 	/// corren en el **bucle principal**. Registra el **hook de VBlank** que publica
 	/// `MsgType::VBlank` en el puerto.
-	void run(u32 frames = 0xffffffffu) {
+	void run(u32 frames = kRunIndefinitely) {
 		m_engine.set_vblank_hook(&App::on_vblank, this);
 		m_engine.run_frames(frames);
-		if (frames != 0xffffffffu) shutdown();
+		if (frames != kRunIndefinitely) shutdown();
 	}
 
 	/// Detiene el backend antes de liberar la escena propia. Idempotente; `run()` también lo llama
@@ -198,7 +280,7 @@ public:
 		const bool composed = graphics::composition::compose(
 			m_owned_scene, *m_memory.get(), resources, graphics::composition::ocs_a500,
 			graphics::composition::display(resources),
-			graphics::composition::palette(m_display.palette.words()));
+			graphics::composition::palette(m_display.palette.words(), kPaletteFirstColor, kPaletteEntries));
 		if (!composed) {
 			m_owned_scene.release();
 			return util::unexpected(StartError::CompositionFailed);
@@ -216,7 +298,7 @@ public:
 
 	/// Declara recursos del display antes de `start()`; no altera una escena ya compuesta.
 	[[nodiscard]] bool set_display(const GameDisplay& display) noexcept {
-		if (m_started) return false;
+		if (m_started || m_display_bound_from_scene) return false;
 		m_display = display;
 		return true;
 	}
@@ -416,17 +498,25 @@ public:
 
 	/// El juego registra su escena (en `init`); `screen()`/`present()` la usan.
 	void bind_scene(graphics::composition::Scene& scene) noexcept {
-		if (!m_started) m_scene = scene;
+		if (!m_started) {
+			m_scene = scene;
+			m_display.width = scene.width();
+			m_display.height = scene.height();
+			m_display.color_depth = scene.planes();
+			m_display.layout = scene.layout() == graphics::composition::SceneLayout::Interleaved
+					   ? graphics::PlaneLayout::Interleaved : graphics::PlaneLayout::Contiguous;
+			m_display_bound_from_scene = true;
+		}
 	}
 
 	/// Añade una región opaca de fondo en coordenadas de mundo. `depth` ordena la composición;
 	/// los fondos con profundidad mayor se aplican encima de los de menor profundidad.
 	[[nodiscard]] Ref<scene::Layer> add_background(const char* id, u8 depth, Box bounds, u8 color) noexcept {
 		if (id == nullptr || bounds.empty() || bounds.x < 0 || bounds.y < 0 ||
-		    m_display.color_depth == 0u || m_display.color_depth > 8u ||
-		    color >= (static_cast<u16>(1u) << m_display.color_depth) ||
-		    static_cast<u32>(bounds.x) + bounds.w > 0x7fffu ||
-		    static_cast<u32>(bounds.y) + bounds.h > 0x7fffu) return {};
+		    m_display.color_depth == 0u || m_display.color_depth > GameDisplay::kMaxColorDepth ||
+		    color >= (static_cast<u16>(kPaletteBaseColorCount << m_display.color_depth)) ||
+		    static_cast<u32>(bounds.x) + bounds.w > kWorldCoordinateLimit ||
+		    static_cast<u32>(bounds.y) + bounds.h > kWorldCoordinateLimit) return {};
 		return m_world.add_fill_layer(id, depth, bounds, color);
 	}
 
@@ -436,11 +526,12 @@ public:
 						      Span<const u8> pixels, u16 width,
 						      u16 height, u16 row_bytes = 0u) {
 		if (!m_memory.valid() || m_shutdown || id == nullptr || pixels.empty() ||
-		    m_bitmap_owner_count >= kMaxBitmapOwners || width == 0u || height == 0u || width > 0x7fffu) return {};
+		    m_bitmap_owner_count >= kMaxBitmapOwners || width == 0u || height == 0u ||
+		    width > kWorldCoordinateLimit) return {};
 		const u16 stride = row_bytes == 0u ? width : row_bytes;
 		const usize bytes = static_cast<usize>(stride) * height;
-		if (stride < width || pixels.size() < bytes || bytes > 0xffffffffu) return {};
-		auto owner = m_memory->chip().template reserve<TextureTag>(static_cast<u32>(bytes), 16u);
+		if (stride < width || pixels.size() < bytes || bytes > kSizeLimit) return {};
+		auto owner = m_memory->chip().template reserve<TextureTag>(static_cast<u32>(bytes), kBitmapAlignmentBytes);
 		if (!owner.valid()) return {};
 		for (usize i = 0u; i < bytes; ++i) owner.view[i] = pixels[i];
 		graphics::BitmapView<eng::TextureTag> bitmap {};
@@ -474,8 +565,8 @@ public:
 
 	/// **Mundo retenido** del juego: sus capas Fill se materializan con la cámara antes de render.
 	/// Capas de actores/tilemaps se conservan para sus caminos específicos.
-	[[nodiscard]] scene::World<8u>& world() noexcept { return m_world; }
-	[[nodiscard]] const scene::World<8u>& world() const noexcept { return m_world; }
+	[[nodiscard]] scene::World<GameDisplay::kWorldLayerCapacity>& world() noexcept { return m_world; }
+	[[nodiscard]] const scene::World<GameDisplay::kWorldLayerCapacity>& world() const noexcept { return m_world; }
 
 	/// **Planner (actores)**: emite los actores del `world()` al plan del frame con el clip y
 	/// el destino del contexto de dibujo de la escena ligada. Devuelve cuántos se dibujaron.
@@ -529,12 +620,19 @@ public:
 	[[nodiscard]] bool shutdown_complete() const noexcept { return m_shutdown; }
 
 private:
-	static constexpr u8 kMaxBitmapOwners = 8u;
+	static constexpr u16 kPaletteBaseColorCount = 1u;
+	static constexpr u8 kPaletteFirstColor = 0u;
+	static constexpr u32 kRunIndefinitely = 0xffffffffu;
+	static constexpr u8 kMaxBitmapOwners = graphics::FramePlan::kMaxDmaAssets;
+	static constexpr u32 kSizeLimit = 0xffffffffu;
+	static constexpr u16 kBitmapAlignmentBytes = 16u;
+	static constexpr u16 kWorldCoordinateLimit = 0x7fffu;
 
 	[[nodiscard]] graphics::composition::SceneResources scene_resources() const noexcept {
 		auto resources = graphics::composition::planar(m_display.width, m_display.height,
 								 m_display.color_depth);
 		resources.buffers = m_display.buffers;
+		resources.layout = m_display.layout;
 		return resources;
 	}
 
@@ -654,10 +752,11 @@ private:
 	volatile u32 m_vblank_count = 0;                    ///< VBlanks publicados (IRQ)
 	volatile u32 m_blitdone_count = 0;                  ///< fines de blit publicados (IRQ)
 	eng::Ref<graphics::composition::Scene> m_scene {};  ///< escena del juego (no propietaria)
-	scene::World<8u> m_world {};                         ///< mundo retenido (capas + cámaras)
+	scene::World<GameDisplay::kWorldLayerCapacity> m_world {}; ///< mundo retenido (capas + cámaras)
 	input::InputAggregator m_input {};                  ///< entrada del frame (la lee/rellena el juego)
 	graphics::FramePlan m_plan {};
 	u32 m_frame = 0;
+	bool m_display_bound_from_scene = false;
 };
 
 } // namespace eng

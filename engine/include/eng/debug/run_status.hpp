@@ -60,7 +60,7 @@ inline void mark_init_started(volatile RunStatus& status) {
 	status.state = static_cast<u16>(RunState::InitStarted);
 }
 
-inline void mark_ready(volatile RunStatus& status, u32 detail = 0) {
+inline void mark_ready(volatile RunStatus& status, u32 detail = 0u) {
 	status.state = static_cast<u16>(RunState::Ready);
 	status.detail = detail;
 }

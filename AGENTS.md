@@ -159,17 +159,30 @@ Reglas críticas:
 
 ## 3. Operación (build / run / analyze)
 
+### Objetivos de rendimiento y estabilidad visual de demos Amiga
+
+- Objetivo de cierre: **un frame de juego completado por cada VBlank PAL** (frecuencia nominal Amiga de 50 Hz; WinUAE suele reportar aproximadamente 49,9–50,0 fps) y **cero flicker/tearing**. Una demo cuyo efecto principal sea relleno de polígonos debe alcanzar al menos **25 fps**. Al medir, registrar fps/ciclos por frame y comparar implementaciones A/B equivalentes para cuantificar el coste de la abstracción; una diferencia menor que la resolución/ruido del medidor se informa como «no medible», no como coste cero absoluto.
+- Medir, no inferir: usar `node tools/debug/measure-fps.mjs <demoId> A500_debug --json`; para diagnóstico, perfilar con `node tools/debug/profile.mjs <demoId> A500_debug` o `node tools/debug/winuae-profile.mjs <demoId> A500_debug <frames>`. Registrar medidas en `docs/guides/roadmap/BITACORA_SCROLL_TILES.md` con `tools/debug/record-fps.mjs`.
+- Para flicker, ejecutar `tools/test-regression.sh --flicker --require-flicker-ok --demo <ruta>` y declarar `flicker-baseline.json` con `max_candidates: 0` y `max_blocks_low: 0` cuando la secuencia esté limpia. Pasar flicker no sustituye el contrato de movimiento de la demo.
+- Si no cumple FPS/flicker, la demo queda **abierta/no verificada**; no relajar el umbral ni alterar telemetría/cadencia para simular cumplimiento. Perfilar el hotspot y optimizar el trabajo real del frame.
+
+### Literales numéricos semánticos
+
+- Los literales con significado deben quedar explicados en el mismo uso o en un comentario inmediatamente anterior; si la explicación necesita contexto, enlazar/citar su fuente canónica. Se pueden dejar como literales cuando la constante nombrada añadiría ruido.
+- Usar `constexpr` cuando el valor tenga un nombre de dominio claro, se reutilice o haga más legible la configuración. Mantener el conjunto pequeño y coherente; no crear una constante por cada número. Antes de declarar límites derivados del hardware, buscar y reutilizar los existentes.
+- Ejemplo: `mark_failed(status, 0x00021303u)` debe documentar qué etapa de init representa o usar un identificador semántico si esos códigos se consultan en más de un sitio. En cambio, dimensiones y factores usados una sola vez pueden seguir literales si el comentario cercano explica su papel.
+
 ### 3.1 Herramientas locales
 
-Windows nativo + Git Bash + Node.js. **No usar WSL** para invocar binarios `.exe` del toolchain. El toolchain Amiga se resuelve por `AMIGA_BIN_PATH` y luego por las extensiones Bartman. Detalle completo: `docs/build/BUILD_AND_RUN.md` §Herramientas locales requeridas.
+Windows nativo + Git Bash + Node.js. **No usar WSL** ni un `bash` sin ruta absoluta para invocar binarios `.exe` del toolchain: puede resolver a WSL y no ejecutar el GCC de Windows. En este workspace, el toolchain está en `../vscode-amiga-debug/bin/win32`; exporta esa carpeta como `AMIGA_BIN_PATH`, comprueba `opt/bin/m68k-amiga-elf-g++.exe` y lanza build/run/analyze/regression desde PowerShell con `& 'C:\Program Files\Git\bin\bash.exe' <script> ...`. Los scripts también detectan las extensiones Bartman en `%USERPROFILE%\.cursor\extensions` y `%USERPROFILE%\.vscode\extensions`, y el build elige el GCC más reciente entre candidatos válidos. Receta y comandos completos: `docs/build/BUILD_AND_RUN.md` §Requisitos y §Compilar una demo.
 
 ### 3.2 Comandos canónicos
 
-- Compilar una demo: `bash ./tools/build/build-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23 --debug --clean`
-- Ejecutar una demo y capturar: `bash ./tools/run/run-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23`
-- Analizar una demo: `bash ./tools/analyze/analyze-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23`
-- Regresión completa: `bash ./tools/test-regression.sh`
-- Bucle de regresión de una demo: `bash ./tools/test-regression.sh --demo demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver --warp`
+- Compilar una demo desde PowerShell: `& 'C:\Program Files\Git\bin\bash.exe' ./tools/build/build-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23 --debug --clean`
+- Ejecutar una demo y capturar: `& 'C:\Program Files\Git\bin\bash.exe' ./tools/run/run-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23`
+- Analizar una demo: `& 'C:\Program Files\Git\bin\bash.exe' ./tools/analyze/analyze-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23`
+- Regresión completa: `& 'C:\Program Files\Git\bin\bash.exe' ./tools/test-regression.sh`
+- Bucle de regresión de una demo: `& 'C:\Program Files\Git\bin\bash.exe' ./tools/test-regression.sh --demo demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver --warp`
 
 ### 3.3 Orden de verificación (no saltar)
 

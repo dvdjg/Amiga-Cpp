@@ -24,6 +24,8 @@
 #include <eng/core/types/typed.hpp>
 #include <eng/core/util/expected.hpp>
 #include <eng/graphics/sprite_asset.hpp>
+#include <eng/graphics/bitmap_view.hpp>
+#include <eng/graphics/plane_layout.hpp>
 #include <eng/memory/memory_manager.hpp>
 #include <eng/res/asset_table.hpp>
 #include <eng/res/load.hpp>
@@ -48,11 +50,58 @@ public:
 	/// Liga el gestor de memoria donde se copian los blobs. Llamar antes de `add`/`create`.
 	void bind(MemoryManager& memory) noexcept { m_mem = memory; }
 
+	/// Registra un bitmap planar con nombre y geometría de origen junto a su almacenamiento Chip.
+	/// La metainformación se conserva en la tabla fija de Assets y no se vuelve a pasar al dibujar.
+	[[nodiscard]] bool add_bitmap(eng::util::StringView name, const eng::u8* data, eng::usize size,
+				      eng::u16 width, eng::u16 height, eng::u8 planes,
+				      eng::graphics::PlaneLayout layout) noexcept {
+		if (name.empty() || data == nullptr || width == 0u || height == 0u || planes == 0u ||
+		    planes > graphics::kBlitterMaxPlanes ||
+		    width / graphics::kPixelsPerBlitterWord > graphics::kBlitterMaxWordsPerRow ||
+		    height > graphics::kBlitterMaxRows ||
+		    (width & (graphics::kPixelsPerBlitterWord - 1u)) != 0u ||
+		    m_bitmap_count >= kMaxBlocks || m_table.has(name)) {
+			return false;
+		}
+		const eng::u32 row_bytes = static_cast<eng::u32>(width / graphics::kPixelsPerByte);
+		const eng::u32 expected = row_bytes * height * planes;
+		if (size != expected || !add<eng::PlaneTag>(name, data, size)) return false;
+		m_bitmaps[m_bitmap_count++] = BitmapAsset {name, width, height, planes, layout};
+		return true;
+	}
+
+	/// Bitmap por nombre con geometría registrada en `add_bitmap`; vacío si no existe.
+	[[nodiscard]] eng::graphics::ChipBitmapView<eng::PlaneTag> bitmap(
+		eng::util::StringView name) const noexcept {
+		for (eng::u8 i = 0u; i < m_bitmap_count; ++i) {
+			const BitmapAsset& asset = m_bitmaps[i];
+			if (asset.name.size() != name.size()) continue;
+			eng::usize j = 0u;
+			for (; j < name.size() && asset.name[j] == name[j]; ++j) {}
+			if (j != name.size()) continue;
+			const auto bytes = m_table.template get<eng::PlaneTag>(name);
+			eng::graphics::ChipBitmapView<eng::PlaneTag> view {};
+			if (bytes.empty()) return view;
+			view.planes = eng::as_chip(bytes);
+			view.width = asset.width;
+			view.height = asset.height;
+			view.row_bytes = static_cast<eng::u16>(asset.width / graphics::kPixelsPerByte);
+			view.plane_count = asset.planes;
+			view.layout = asset.layout;
+			return view;
+		}
+		return {};
+	}
+
 	/// Registra `name` **copiando el blob a Chip**. El `Tag` fija el dominio (alineación y vista):
 	/// `PlaneTag` (bitmap), `MusicTag` (módulo), `SpriteTag` (hoja), `PaletteTag` (paleta). `false`
 	/// si no cabe o no hay gestor. Atajo de `add_checked` (sin la causa).
 	template <class Tag>
 	bool add(const char* name, const eng::u8* data, eng::usize size) noexcept {
+		return name != nullptr && add<Tag>(eng::util::StringView {name}, data, size);
+	}
+	template <class Tag>
+	bool add(eng::util::StringView name, const eng::u8* data, eng::usize size) noexcept {
 		return add_checked<Tag>(name, data, size).has_value();
 	}
 
@@ -61,7 +110,13 @@ public:
 	template <class Tag>
 	[[nodiscard]] eng::util::Expected<void, eng::Result>
 	add_checked(const char* name, const eng::u8* data, eng::usize size) noexcept {
-		if (!m_mem.valid() || name == nullptr || data == nullptr) {
+		if (name == nullptr) return eng::util::unexpected(eng::Result::InvalidArgument);
+		return add_checked<Tag>(eng::util::StringView {name}, data, size);
+	}
+	template <class Tag>
+	[[nodiscard]] eng::util::Expected<void, eng::Result>
+	add_checked(eng::util::StringView name, const eng::u8* data, eng::usize size) noexcept {
+		if (!m_mem.valid() || name.empty() || data == nullptr) {
 			return eng::util::unexpected(eng::Result::InvalidArgument);
 		}
 		const auto block = eng::res::load<Tag>(*m_mem.get(), eng::Span<const eng::u8> {data, size});
@@ -74,7 +129,7 @@ public:
 			release_to_bank(block.view.data(), res::DomainAsset<Tag>::kind);
 			return eng::util::unexpected(eng::Result::HardwareLimit);
 		}
-		if (!m_table.template add<Tag>(eng::util::StringView {name},
+		if (!m_table.template add<Tag>(name,
 						       eng::Span<const eng::u8> {block.view.as_const().data(), size})) {
 			release_tracked(block.view.data());
 			return eng::util::unexpected(eng::Result::HardwareLimit);
@@ -134,10 +189,12 @@ public:
 			release_to_bank(m_tracked[m_tracked_count].ptr, m_tracked[m_tracked_count].kind);
 		}
 		m_table = eng::res::AssetTable {};
+		m_bitmap_count = 0u;
 	}
 	void clear() noexcept {
 		reset_phase();
 		m_table = eng::res::AssetTable {};
+		m_bitmap_count = 0u;
 	}
 
 	[[nodiscard]] eng::u8 tracked_count() const noexcept { return m_tracked_count; }
@@ -222,11 +279,20 @@ private:
 		const eng::u8* ptr = nullptr;
 		MemoryKind kind = MemoryKind::Chip;
 	};
+	struct BitmapAsset {
+		eng::util::StringView name {};
+		eng::u16 width = 0u;
+		eng::u16 height = 0u;
+		eng::u8 planes = 0u;
+		eng::graphics::PlaneLayout layout = eng::graphics::PlaneLayout::Interleaved;
+	};
 
 	eng::Ref<MemoryManager> m_mem {};
 	res::AssetTable m_table {};
 	Tracked m_tracked[kMaxBlocks] {};
 	eng::u8 m_tracked_count = 0u;
+	BitmapAsset m_bitmaps[kMaxBlocks] {};
+	eng::u8 m_bitmap_count = 0u;
 };
 
 } // namespace eng

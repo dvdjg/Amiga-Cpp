@@ -90,7 +90,10 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
 - **Salida**: el juego dibuja solo con `Screen`; el display se pide a alto nivel ("fondo 320x256, N planos, esta
   imagen/paleta") y `Scene`/`Band`/`BPLCON0`/copperlist quedan tras el motor y el escape.
 - **Progreso**: ✅ `comp::compose(scene, memory, res, paleta)` compone **sin** `DisplayLimits`/`BPLCON0`; la 213 ya
-  no nombra `ocs_a500` ni `0x5200`. ⏳ falta: la **imagen de fondo** por la fachada (hoy `bitplanes().raw()` + memcpy).
+  no nombra `ocs_a500` ni `0x5200`. ✅ `Assets::add_bitmap`/`bitmap` + `Screen::bitmap` sustituyen el acceso
+  manual al framebuffer; HOST-234 verifica la copia del bitmap interleaved 320×256×5 byte a byte, y la demo 213
+  pasa `build -> run -> analyze` en WinUAE/A500 con la imagen de fondo visible. ⏳ sigue pendiente ocultar la
+  composición/escena y la configuración de memoria de la lógica de juego.
 
 ## 4. Assets tipados con formato resuelto
 
@@ -103,8 +106,10 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
   `INCBIN`, sin `Block<Tag>`, sin memcpy, sin `reserve<AudioTag>`.
 - **Progreso**: ✅ `eng::Assets` (`eng/api/assets.hpp`): `add<Tag>` (copia a Chip) + `music/sprite/bytes/palette`
   **por nombre**; la 213 ya **no** usa `res::load` ni `Block<BobTag>/<MusicTag>` (sprite y música por nombre). ✅ el
-  audio resuelve **formato** (detección por cabecera) y **buffer** (§2). ⏳ falta: el **bitmap de fondo** por nombre
-  (`bytes()` existe, pero la 213 copia a mano) y quitar el `INCBIN` del código de juego.
+  audio resuelve **formato** (detección por cabecera) y **buffer** (§2). ✅ bitmap planar por nombre conserva
+  geometría/layout y se dibuja con `Screen::bitmap`; HOST-234 verifica datos y segmentación de jobs para
+  interleaved 320×256×5, y WinUAE muestra el bitmap en la 213. ⏳ falta eliminar `INCBIN` del código de juego con
+  un manifiesto/pipeline de assets integrado.
 - **Decisión (geometría del sprite)**: el `desc` (ancho/alto/planos/frames/stride) se queda como **dato del juego**
   hasta que exista un **pipeline/tabla** que lo incruste con el blob (cabecera por asset). No se inventa un formato
   ahora: incrustar geometría es decisión del pipeline, no del API.

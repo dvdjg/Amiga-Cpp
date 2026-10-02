@@ -117,6 +117,7 @@ struct BlitJob {
 	BlitPtr source {};
 	BlitPtr destination {};
 	u16 words_per_row = 0;
+	/// Filas físicas del job; en OCS/ECS el valor 1024 se codifica como BLTSIZE height=0.
 	u16 height = 0;
 	s16 source_modulo_bytes = 0;
 	s16 destination_modulo_bytes = 0;

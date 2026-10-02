@@ -14,7 +14,9 @@
 
 #include <eng/api/api.hpp>
 #include <eng/api/assets.hpp>
+#include <eng/debug/run_status.hpp>
 #include <eng/platform/amiga/entry.hpp>
+#include <eng/platform/amiga/memory_profile.hpp>
 
 #include "support/gcc8_c_support.h"
 
@@ -33,14 +35,42 @@ namespace {
 
 namespace comp = eng::graphics::composition;
 
+/// Códigos que el runner interpreta para localizar fallos de init y el estado Ready.
+constexpr eng::u32 kRunDetailBase = 0x00021300u;
+constexpr eng::u32 kRunDetailReady = kRunDetailBase;
+constexpr eng::u32 kRunDetailMemorySetupFailed = kRunDetailBase + 1u;
+constexpr eng::u32 kRunDetailSceneSetupFailed = kRunDetailBase + 2u;
+constexpr eng::u32 kRunDetailBitmapAssetFailed = kRunDetailBase + 3u;
+constexpr eng::u32 kRunDetailBitmapCopyFailed = kRunDetailBase + 4u;
+constexpr eng::u32 kRunDetailSpriteOrMusicAssetFailed = kRunDetailBase + 5u;
+
 constexpr eng::u16 kWidth = 320u;
 constexpr eng::u16 kHeight = 256u;
 constexpr eng::u8 kPlanes = 5u;
-constexpr eng::u32 kImageBytes = static_cast<eng::u32>(kWidth / 8u) * kPlanes * kHeight;
+constexpr eng::u32 kBytesPerWord = sizeof(eng::u16);
+constexpr eng::MemoryConfig kMemoryBudget {
+	160u * eng::amiga::kBytesPerKiB, 8u * eng::amiga::kBytesPerKiB,
+	4u * eng::amiga::kBytesPerKiB, 0u};
+constexpr eng::u16 kPaletteColorCount = eng::kPaletteEntries;
+constexpr eng::u16 kPaletteBytes = kPaletteColorCount * sizeof(eng::u16);
+constexpr eng::u8 kSpriteFrameCount = 6u;
+constexpr eng::u16 kBobCount = 8u;
+constexpr eng::u16 kBobSpacing = 32u;
+constexpr eng::u16 kGameBandTop = 200u;
+constexpr eng::u16 kGameBandHeight = kHeight - kGameBandTop;
+constexpr eng::u16 kHorizontalWaveModulo = 51u;
+constexpr eng::u8 kVerticalWaveMask = 63u;
+constexpr eng::u8 kHorizontalWaveMax = 32u;
+constexpr eng::u8 kVerticalWaveMax = 40u;
+constexpr eng::u8 kWaveFrequency = 2u;
+constexpr eng::u8 kWaveAmplitudeScale = 2u;
+constexpr eng::u8 kWaveVerticalScale = 2u;
 
 constexpr eng::u16 kBobW = 32u;
 constexpr eng::u16 kBobH = 16u;
-constexpr eng::u32 kBobFrameStride = kBobH * kPlanes * 2u * (kBobW / 16u) * 2u; // 640 B
+constexpr eng::u16 kBobRightLimit = kWidth - kBobW - 16u;
+constexpr eng::u32 kBobFrameStride = kBobH * kPlanes * kBytesPerWord *
+					    (kBobW / (kBytesPerWord * 8u)) * kBytesPerWord; // 640 B
 
 // Ondas generadas en compilación (`eng::ct_array`), aproximación entera de seno (Bhaskara I).
 template <eng::u16 N, eng::u8 Max>
@@ -55,14 +85,14 @@ template <eng::u16 N, eng::u8 Max>
 		return static_cast<eng::u8>(((v + 256) * Max) / 512);
 	}};
 }
-constexpr auto kWaveY = make_wave<64u, 40u>();
-constexpr auto kWaveX = make_wave<51u, 32u>();
+constexpr auto kWaveY = make_wave<kVerticalWaveMask + 1u, kVerticalWaveMax>();
+constexpr auto kWaveX = make_wave<kHorizontalWaveModulo, kHorizontalWaveMax>();
 
 struct AbyssDemo {
 	void init(auto& app) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		if (!app.configure_memory({96u * 1024u, 8u * 1024u, 4u * 1024u, 0u})) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00021301u);
+		if (!app.configure_memory(kMemoryBudget)) {
+			eng::debug::mark_failed(g_eng_run_status, kRunDetailMemorySetupFailed);
 			return;
 		}
 
@@ -72,26 +102,39 @@ struct AbyssDemo {
 		const eng::u16* pal = reinterpret_cast<const eng::u16*>(abyss_pal);
 
 		// El motor elige perfil y `BPLCON0` (sin `ocs_a500`/`0x5200` en el código de juego).
-		if (!comp::compose(m_scene, app.device().memory_manager(), res, eng::PaletteWords {pal, 32u})) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00021302u);
+		if (!comp::compose(m_scene, app.device().memory_manager(), res,
+				   eng::PaletteWords {pal, kPaletteColorCount})) {
+			eng::debug::mark_failed(g_eng_run_status, kRunDetailSceneSetupFailed);
 			return;
 		}
-		// Vuelca la imagen (una vez) al bitmap de la escena; a partir de aquí el juego dibuja
-		// con primitivas de `Screen`, no tocando memoria.
-		eng::Span<eng::u8> dst = m_scene.bitplanes().raw();
-		const eng::u8* src = reinterpret_cast<const eng::u8*>(abyss_img);
-		for (eng::u32 i = 0u; i < kImageBytes && i < dst.size(); ++i) {
-			dst[i] = src[i];
-		}
 		app.bind_scene(m_scene);
+		if (!app.screen().valid()) {
+			eng::debug::mark_failed(g_eng_run_status, kRunDetailSceneSetupFailed);
+			return;
+		}
 
 		// --- Assets de juego por nombre (el engine copia a Chip y resuelve el dominio) ------
-		m_assets.bind(app.memory_manager());
-		if (!m_assets.add<eng::SpriteTag>("bob", reinterpret_cast<const eng::u8*>(abyss_bob),
-						  INCBIN_SIZE(abyss_bob)) ||
-		    !m_assets.add<eng::MusicTag>("mod", reinterpret_cast<const eng::u8*>(abyss_mod),
-						 INCBIN_SIZE(abyss_mod))) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00021303u);
+		m_assets.bind(app.device().memory_manager());
+		const bool bitmap_added = m_assets.add_bitmap("abyss", reinterpret_cast<const eng::u8*>(abyss_img),
+					       INCBIN_SIZE(abyss_img), kWidth, kHeight, kPlanes,
+					       eng::graphics::PlaneLayout::Interleaved);
+		if (!bitmap_added) {
+			eng::debug::mark_failed(g_eng_run_status, kRunDetailBitmapAssetFailed);
+			return;
+		}
+		const auto background = m_assets.bitmap("abyss");
+		const bool background_queued = app.screen().bitmap(background, eng::Box {0, 0, kWidth, kHeight});
+		if (!background_queued) {
+			eng::debug::mark_failed(g_eng_run_status, kRunDetailBitmapCopyFailed);
+			return;
+		}
+		app.present();
+		const bool sprite_added = m_assets.add<eng::SpriteTag>("bob",
+						  reinterpret_cast<const eng::u8*>(abyss_bob), INCBIN_SIZE(abyss_bob));
+		const bool music_added = m_assets.add<eng::MusicTag>("mod",
+						 reinterpret_cast<const eng::u8*>(abyss_mod), INCBIN_SIZE(abyss_mod));
+		if (!sprite_added || !music_added) {
+			eng::debug::mark_failed(g_eng_run_status, kRunDetailSpriteOrMusicAssetFailed);
 			return;
 		}
 
@@ -100,7 +143,7 @@ struct AbyssDemo {
 		desc.width = kBobW;
 		desc.height = kBobH;
 		desc.planes = kPlanes;
-		desc.frame_count = 6u;
+		desc.frame_count = kSpriteFrameCount;
 		desc.frame_stride = kBobFrameStride;
 		desc.layout = eng::graphics::BobLayout::Interleaved;
 		desc.draw = eng::graphics::BobDraw::CookieCut;
@@ -122,33 +165,37 @@ struct AbyssDemo {
 
 	void render(auto& app) {
 		auto s = app.screen();
-		// Limpia la banda de juego (blit `D=0` encolado en el plan, en orden con los sprites) y
-		// dibuja los 16 BOB; el juego solo pinta y limpia con primitivas de `Screen`.
-		s.clear_box(eng::Box {0, 200, kWidth, 56u});
+		// Limpia la banda anterior y reparte ocho BOB de 32 px sin solaparlos.
+		s.clear_box(eng::Box {0, kGameBandTop, kWidth, kGameBandHeight});
 		// Desfase de onda **sin división por frame** (regla de coste ~cero en el bucle): se mantiene
 		// el módulo 51 con un contador que envuelve, en vez de `app.frame() % 51u`.
 		eng::u32 phase = m_phase51;
-		if (++m_phase51 >= 51u) {
+		if (++m_phase51 >= kHorizontalWaveModulo) {
 			m_phase51 = 0u;
 		}
 		eng::u8 fi = 0u;
-		for (eng::u16 i = 0u; i < 16u; ++i) {
-			const eng::s16 x = static_cast<eng::s16>(
-				static_cast<eng::u32>(i) * 16u + static_cast<eng::u32>(kWaveX[phase]) * 2u);
+		for (eng::u16 i = 0u; i < kBobCount; ++i) {
+			eng::u16 bob_x = static_cast<eng::u16>(i * kBobSpacing +
+				static_cast<eng::u16>(kWaveX[phase]) * kWaveAmplitudeScale);
+			// El desplazamiento del Blitter lee y escribe una palabra adicional al final.
+			if (bob_x > kBobRightLimit) bob_x = kBobRightLimit;
+			const eng::s16 x = static_cast<eng::s16>(bob_x);
 			const eng::s16 y = static_cast<eng::s16>(
-				200u + static_cast<eng::u32>(kWaveY[((app.frame() + i) * 2u) & 63u]) / 2u);
+				kGameBandTop + static_cast<eng::u32>(
+					kWaveY[((app.frame() + i) * kWaveFrequency) & kVerticalWaveMask]) /
+					kWaveVerticalScale);
 			const eng::u8 frame = fi;
-			if (++phase >= 51u) {
+			if (++phase >= kHorizontalWaveModulo) {
 				phase = 0u;
 			}
-			if (++fi >= 6u) {
+			if (++fi >= kSpriteFrameCount) {
 				fi = 0u;
 			}
 			s.sprite(m_sprite, x, y, frame);
 		}
 		app.present();
-		if (m_ready && app.frame() < 2u) {
-			eng::debug::mark_ready(g_eng_run_status, 0x00021300u);
+		if (m_ready) {
+			eng::debug::mark_ready(g_eng_run_status, kRunDetailReady);
 		}
 		eng::debug::probe_when_ready(g_eng_run_status, app.frame());
 	}

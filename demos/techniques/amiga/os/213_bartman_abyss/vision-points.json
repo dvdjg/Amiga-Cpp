@@ -8,8 +8,11 @@
     },
     {
       "name": "movimiento de los BOBs",
-      "max_diff": true,
-      "expect": "Entre frames los bobs se desplazan horizontal y verticalmente por senos de forma coherente; la imagen de fondo no se rompe ni parpadea."
+      "start": 0,
+      "end": 5,
+      "require_visual_motion": true,
+      "min_mean_diff": 0.5,
+      "expect": "Compara la secuencia de seis imágenes en orden. Los bobs avanzan por la banda siguiendo una onda horizontal/vertical; en cada frame la fila de glifos es nítida, sin duplicados ni huellas residuales en posiciones anteriores."
     }
   ]
 }

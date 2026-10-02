@@ -187,13 +187,20 @@ inline bool bob_erase_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, 
 		t.data() + static_cast<u32>(y) * start_row + (static_cast<u32>(wx) >> 3u)));
 	job.words_per_row = words;
 	job.height = inter ? static_cast<u16>(h * bob.planes) : h;
-	// El puntero avanza una fila de plano por fila de blit: modulo = fila − procesado.
-	job.destination_modulo_bytes = mod16(static_cast<s32>(t.row_bytes) - static_cast<s32>(words) * 2);
-	job.bitplane_count = inter ? 1u : bob.planes;
-	job.destination_plane_stride_bytes = inter ? 0u : t.plane_pointer_step();
+	if (inter) {
+		job.height = h;
+		job.destination_modulo_bytes = mod16(
+			static_cast<s32>(t.row_bytes) * t.plane_count - static_cast<s32>(words) * 2);
+		job.bitplane_count = t.plane_count;
+		job.destination_plane_stride_bytes = t.plane_pointer_step();
+	} else {
+		job.destination_modulo_bytes = mod16(static_cast<s32>(t.row_bytes) - static_cast<s32>(words) * 2);
+		job.bitplane_count = bob.planes;
+		job.destination_plane_stride_bytes = t.plane_pointer_step();
+	}
 	job.interleaved = inter;
 	job.minterm = 0x00u; // D = 0
-	return plan.add_clear_rect(job);
+	return inter ? plan.add_interleaved_clear_rect(job) : plan.add_clear_rect(job);
 }
 
 /// **Save-under (guardar)**: copia la caja de `w x h` en `(x,y)` del destino (Chip) al buffer

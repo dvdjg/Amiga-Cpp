@@ -19,8 +19,8 @@ construye materialización en la app. El diagnóstico actualizado está en
 | Área | Existe hoy (interno) | Falta (objetivo) |
 |---|---|---|
 | Bucle | `eng::App` oculta `backend`/`GameContext` en `init/update/render` | Un ejemplo 2D completo de nivel A, sin configuración manual de memoria/escena |
-| Display/escena | `App::start()` compone/posee el display y materializa fondos Fill desde `World`, aplicando cámara | Materializador de bitmap/tilemap y planner de composición de múltiples capas |
-| Dibujo | `Screen` ofrece primitivas y `sprite` | Retirar `Screen::target()` de la ruta normal; `Screen::blit` aún expone stride/planos/shift/operación |
+| Display/escena | `App::start()` compone/posee el display y materializa fondos Fill desde `World`, aplicando cámara; `Screen::bitmap` dibuja un bitmap planar de asset | Materializador de tilemap y planner de composición de múltiples capas |
+| Dibujo | `Screen` ofrece primitivas, `sprite` y copia de bitmap planar por asset | Retirar `Screen::target()` de la ruta normal; `Screen::blit` aún expone stride/planos/shift/operación |
 | Entrada | `input::InputAggregator` (estado por frame) | Fachada de acciones + (mini-SO de mensajes, documentado) |
 | Tareas de fondo | `task::BackgroundQueue` | Fachada `tasks()` |
 | Blitter/efectos | `FramePlan` (jobs), `graphics::blitter_state` (`OrBob`/`LineEor`/`C2p4`) | Efectos como concepto (`world.add_effect`) |
@@ -78,8 +78,9 @@ fx.end_frame(scene, backend);                                    // flip + insta
 
 `Screen` es la envoltura de dibujo disponible, pero aún no es el contexto de dominio final:
 `Screen::target()` devuelve `field::DrawTarget&`, y `Screen::blit` recibe layout/strides/planos.
-Un juego debe preferir las primitivas de `Screen`; el acceso al target se considera fuga conocida y
-la operación de blit debe migrar a un asset/surface con geometría autocontenida.
+Para imágenes planares registradas con `Assets::add_bitmap`, `Screen::bitmap(assets.bitmap(name), box)`
+usa la geometría y el layout asociados al asset; el acceso al target y el blit genérico se consideran
+fugas conocidas.
 
 ```cpp
 eng::Screen& s = app.screen();

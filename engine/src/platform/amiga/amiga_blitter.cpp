@@ -156,13 +156,17 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 		m_blt_dmod = b.bltdmod;
 		m_blt_common_valid = true;
 	}
+	const bool explicit_interleaved_clear = clear && job.interleaved && job.bitplane_count > 1u;
+	const u32 destination_stride_words = explicit_interleaved_clear
+		? job.destination_plane_stride_bytes / sizeof(u16)
+		: destination_plane_stride_words;
 	for (u8 plane = 0; plane < job.bitplane_count; ++plane) {
 		if (!wait_blitter()) {
 			return false;
 		}
 
 		const u16* source_plane = job.source.words() + static_cast<u32>(plane) * source_plane_stride_words;
-		u16* destination_plane = job.destination.words() + static_cast<u32>(plane) * destination_plane_stride_words;
+		u16* destination_plane = job.destination.words() + static_cast<u32>(plane) * destination_stride_words;
 
 		const bool shifted_copy = !masked && !or_blob && !logic && job.source_shift != 0u;
 		if (clear) {

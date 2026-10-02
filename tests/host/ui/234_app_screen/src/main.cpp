@@ -13,6 +13,7 @@
 #include <cstdio>
 
 #include <eng/api/api.hpp>
+#include <eng/api/assets.hpp>
 #include <eng/hw/info.hpp>
 
 using namespace eng;
@@ -23,6 +24,8 @@ alignas(16) u8 g_chip[512 * 1024];
 alignas(16) u8 g_app_chip[128 * 1024];
 alignas(16) u8 g_small_chip[16 * 1024];
 u8 g_bitmap_background[96u * 64u];
+alignas(16) u8 g_interleaved_bitmap_src[40u * 5u * 256u];
+eng::Assets g_test_assets {};
 
 bool pixel_bit(const u8* base, u32 plane_bytes, u16 row_bytes, u8 plane, u16 x, u16 y);
 
@@ -44,6 +47,7 @@ void check(bool ok, const char* msg) {
 /// `execute_frame_plan`: `App::present` lo omite.
 struct MockBackend {
 	MemoryManager* memory = nullptr;
+	MemoryManager& memory_manager() { return *memory; }
 	bool stopped_while_allocated = false;
 	const u16* installed_copper = nullptr;
 	const u8* scene_buffer = nullptr;
@@ -51,6 +55,15 @@ struct MockBackend {
 	bool camera_pixel = false;
 	bool clipped_pixel = false;
 	bool bitmap_pixel = false;
+	bool bitmap_plan_valid = false;
+	bool bitmap_copy_matches = false;
+	bool bitmap_first_segment = false;
+	u8 bitmap_jobs_checked = 0u;
+	bool clear_plan_valid = false;
+	bool clear_matches = false;
+	u32 bitmap_first_diff = 0xffffffffu;
+	u8 bitmap_actual = 0u;
+	u8 bitmap_expected = 0u;
 	void boot() {}
 	void wait_vblank() {}
 	void takeover_display(const u16* words) { installed_copper = words; }
@@ -58,7 +71,79 @@ struct MockBackend {
 		scene_buffer = scene.buffer(0u).data();
 		scene_plane_bytes = scene.plane_bytes();
 	}
-	bool execute_frame_plan(const graphics::FramePlan&) {
+	bool execute_frame_plan(const graphics::FramePlan& plan) {
+		for (u8 i = 0u; i < plan.blit_job_count(); ++i) {
+			const auto& job = plan.blit_job(i);
+			if (job.kind == graphics::BlitJobKind::CopyRect && job.words_per_row == 20u && job.interleaved &&
+			    job.source_plane_stride_bytes != 0u && job.bitplane_count == 5u) {
+				const bool valid = job.bitplane_count == 5u && job.height == 256u &&
+				job.source_modulo_bytes == 160 && job.destination_modulo_bytes == 160 &&
+					job.source_plane_stride_bytes == 40u && job.destination_plane_stride_bytes == 40u;
+				bitmap_plan_valid = bitmap_plan_valid || valid;
+				bitmap_jobs_checked = static_cast<u8>(bitmap_jobs_checked + (valid ? 1u : 0u));
+				const u32 row_bytes = static_cast<u32>(job.words_per_row) * sizeof(u16);
+				for (u8 plane = 0u; plane < job.bitplane_count; ++plane) {
+					const u8* src = reinterpret_cast<const u8*>(job.source.words()) +
+						static_cast<u32>(plane) * job.source_plane_stride_bytes;
+					u8* dst = reinterpret_cast<u8*>(job.destination.words()) +
+						static_cast<u32>(plane) * job.destination_plane_stride_bytes;
+					for (u16 row = 0u; row < job.height; ++row) {
+						for (u32 byte = 0u; byte < row_bytes; ++byte) dst[byte] = src[byte];
+						src += row_bytes + job.source_modulo_bytes;
+						dst += row_bytes + job.destination_modulo_bytes;
+					}
+				}
+				bitmap_first_segment = valid;
+			}
+			if (job.kind == graphics::BlitJobKind::ClearRect && job.words_per_row == 20u &&
+			    job.bitplane_count == 5u && job.destination_plane_stride_bytes == 40u &&
+			    job.destination_modulo_bytes == 160) {
+				const bool valid = job.bitplane_count == 5u && job.height == 56u &&
+					job.destination_modulo_bytes == 160 && job.destination_plane_stride_bytes == 40u &&
+					job.interleaved;
+				clear_plan_valid = clear_plan_valid || valid;
+				const u32 row_bytes = static_cast<u32>(job.words_per_row) * sizeof(u16);
+				for (u8 plane = 0u; plane < job.bitplane_count; ++plane) {
+					u8* dst = reinterpret_cast<u8*>(job.destination.words()) +
+						static_cast<u32>(plane) * job.destination_plane_stride_bytes;
+					for (u16 row = 0u; row < job.height; ++row) {
+						for (u32 byte = 0u; byte < row_bytes; ++byte) dst[byte] = 0u;
+						dst += row_bytes + job.destination_modulo_bytes;
+					}
+				}
+				clear_matches = valid;
+			} else if (job.kind == graphics::BlitJobKind::ClearRect && job.words_per_row == 20u &&
+				   job.bitplane_count == 5u && job.interleaved) {
+				const bool valid = job.height == 56u && job.destination_modulo_bytes == 160 &&
+					job.destination_plane_stride_bytes == 40u;
+				clear_plan_valid = clear_plan_valid || valid;
+				const u32 row_bytes = static_cast<u32>(job.words_per_row) * sizeof(u16);
+				for (u8 plane = 0u; plane < job.bitplane_count; ++plane) {
+					u8* dst = reinterpret_cast<u8*>(job.destination.words()) +
+						static_cast<u32>(plane) * job.destination_plane_stride_bytes;
+					for (u16 row = 0u; row < job.height; ++row) {
+						for (u32 byte = 0u; byte < row_bytes; ++byte) dst[byte] = 0u;
+						dst += row_bytes + job.destination_modulo_bytes;
+					}
+				}
+				clear_matches = valid;
+			}
+		}
+		if (bitmap_plan_valid && bitmap_jobs_checked == 1u && bitmap_first_segment && clear_plan_valid) {
+			bitmap_copy_matches = true;
+			for (u32 byte = 0u; byte < sizeof(g_interleaved_bitmap_src); ++byte) {
+				const u32 y = byte / 200u;
+				const u8 expected = y >= 200u ? 0u : g_interleaved_bitmap_src[byte];
+				if (scene_buffer[byte] != expected) {
+					bitmap_copy_matches = false;
+					bitmap_first_diff = byte;
+					bitmap_actual = scene_buffer[byte];
+					bitmap_expected = expected;
+					break;
+				}
+			}
+			clear_matches = clear_matches && bitmap_copy_matches;
+		}
 		if (scene_buffer != nullptr) {
 			camera_pixel = !pixel_bit(scene_buffer, scene_plane_bytes, 8u, 0u, 8u, 8u) &&
 					pixel_bit(scene_buffer, scene_plane_bytes, 8u, 1u, 8u, 8u);
@@ -69,6 +154,7 @@ struct MockBackend {
 		}
 		return true;
 	}
+	eng::Assets& assets() { return g_test_assets; }
 	void stop_display() {
 		stopped_while_allocated = memory != nullptr && memory->chip().free_bytes() < memory->chip().capacity();
 	}
@@ -134,6 +220,23 @@ struct BitmapBackgroundGame {
 	}
 };
 
+struct InterleavedBitmapGame {
+	bool copied = false;
+	bool clear_queued = false;
+	void init(auto& app) {
+		app.assets().bind(app.memory_manager());
+		copied = app.assets().add_bitmap("screen", g_interleaved_bitmap_src,
+						 sizeof(g_interleaved_bitmap_src), 320u, 256u, 5u,
+						 graphics::PlaneLayout::Interleaved);
+		copied = copied && app.screen().bitmap(app.assets().bitmap("screen"), Box {0, 0, 320u, 256u});
+	}
+	void update(auto&) {}
+	void render(auto& app) {
+		clear_queued = app.screen().clear_box(Box {0, 200, 320u, 56u});
+		app.present();
+	}
+};
+
 /// Juego de prueba con el contrato del API publico (`auto&` = no nombra el tipo del App).
 struct TestGame {
 	graphics::composition::Scene* scene = nullptr;
@@ -181,6 +284,8 @@ bool pixel_bit(const u8* base, u32 plane_bytes, u16 row_bytes, u8 plane, u16 x, 
 
 int main() {
 	for (usize i = 0u; i < sizeof(g_bitmap_background); ++i) g_bitmap_background[i] = 2u;
+	for (usize i = 0u; i < sizeof(g_interleaved_bitmap_src); ++i)
+		g_interleaved_bitmap_src[i] = static_cast<u8>(i / 40u);
 	{
 		MemoryManager bitmap_mem;
 		(void)bitmap_mem.configure(g_app_chip, sizeof(g_app_chip), nullptr, 0u, nullptr, 0u, 16u);
@@ -208,6 +313,30 @@ int main() {
 		}
 		check(bitmap_mem.chip().free_bytes() == free_before,
 		      "destruir App libera la reserva propietaria del bitmap");
+	}
+
+	{
+		MemoryManager bitmap_mem = make_memory();
+		MockBackend bitmap_backend {};
+		bitmap_backend.memory = &bitmap_mem;
+		InterleavedBitmapGame bitmap_game {};
+		App bitmap_app {bitmap_backend, bitmap_game, bitmap_mem};
+		GameDisplay display {};
+		display.width = 320u;
+		display.height = 256u;
+		display.color_depth = 5u;
+		display.buffers = 1u;
+		display.layout = graphics::PlaneLayout::Interleaved;
+		(void)bitmap_app.set_display(display);
+		check(bitmap_app.start().has_value(), "App inicia Scene interleaved para Screen::bitmap");
+		bitmap_app.run(1u);
+		check(bitmap_game.copied && bitmap_backend.bitmap_plan_valid && bitmap_backend.bitmap_jobs_checked == 1u &&
+		      bitmap_backend.bitmap_first_segment,
+		      "Screen::bitmap genera un job interleaved multiancho con BLTSIZE válido");
+		check(bitmap_backend.bitmap_copy_matches,
+		      "ejecutar el plan copia todos los bytes del bitmap al framebuffer interleaved");
+		check(bitmap_game.clear_queued && bitmap_backend.clear_plan_valid && bitmap_backend.clear_matches,
+		      "clear_box interleaved borra cada fila lógica en los cinco planos");
 	}
 
 	{
