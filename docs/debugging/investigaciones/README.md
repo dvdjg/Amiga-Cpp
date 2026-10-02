@@ -31,7 +31,7 @@ Hallazgos concretos de depuración: **bloqueos abiertos**, **post-mortems/leccio
 | [106_sesion-tilefield.md](106_sesion-tilefield.md) | Sesión de desarrollo: API `TileField` + demo 106 (anillo de tres tramos). |
 | [112_bg-flicker.md](112_bg-flicker.md) | Demo 112: flicker de 1 px del fondo RoboCod (bitmap único); análisis y decisión. |
 | [board-selfplay-and-perf.md](board-selfplay-and-perf.md) | Board games: coherencia en host y rendimiento en Amiga. |
-| [213_release-o2-miscompile.md](213_release-o2-miscompile.md) | **213, abierto**: el render de los 16 BOBs se rompe en `--release` (`-O2`) y no en `-O1` (debug), de forma no determinista; preexistente a la optimización a coste cero (verificado con `git stash`). Medición por píxeles, aislamiento por nivel de optimización y líneas de ataque (UB en el camino de BOB / bug de gcc 15 m68k). |
+| [213_release-strict-aliasing.md](213_release-strict-aliasing.md) | **213, resuelto**: el render de los 16 BOBs se rompía en `--release` (`-O2`) por **strict aliasing** (type-punning) del engine; fix `-fno-strict-aliasing`. El «50 fps» de release era falso (el miscompile saltaba BOBs); con imagen correcta son 38 fps. Incluye la comparación de DMA/perfil con el original. |
 | [npc-table-scenarios.md](npc-table-scenarios.md) | Laboratorio de escenarios de mesa (`eng::sim` + `eng::cards`). |
 | [sim-ecosystem-scenarios.md](sim-ecosystem-scenarios.md) | Laboratorio de escenarios del ecosistema (`eng::sim`). |
 

@@ -236,7 +236,12 @@ fi
 COMMON=(
 	"-g" "-MP" "-MMD" "-m68000" "$OPT" "-nostdlib" "-Wextra"
 	"-Wno-unused-function" "-Wno-volatile-register-var"
-	"-fomit-frame-pointer" "-fno-exceptions"
+	# `-fno-strict-aliasing`: el engine hace *type-punning* por diseño (registros custom
+	# `volatile u16*` accedidos como `u32`, `Block`/bancos que reinterpretan buffers tipados,
+	# `Address`/vistas desde almacenamiento). Con aliasing estricto el optimizador reordena/
+	# asume no-alias y el render se corrompe a `-O2` (demo 213). Es la opción recomendada de
+	# GCC para código de bajo nivel que reinterpreta memoria.
+	"-fomit-frame-pointer" "-fno-exceptions" "-fno-strict-aliasing"
 	"-ffunction-sections" "-fdata-sections"
 	"-DENG_AMIGA=1"
 	"-I$ROOT" "-I$ROOT/engine/include" "-I$SDKDIR"
