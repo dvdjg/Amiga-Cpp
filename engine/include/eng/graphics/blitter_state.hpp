@@ -45,6 +45,17 @@ inline constexpr u16 kBlitterSignFlag = 0x0040u; ///< `SIGN` (signo del error)
 inline constexpr u16 kBlitterLineOr = 0x0bcau;   ///< `BLTCON0` de línea (`BC0F_LINE_OR`)
 inline constexpr u16 kBlitterLineEor = 0x0b4au;  ///< `BLTCON0` de línea EOR (`BC0F_LINE_EOR`)
 
+/// **Operación de una racha de blits** (lote homogéneo de objetos sobre un bitmap). Es el
+/// vocabulario de dominio de `AmigaBackend::blitter_blob_run_*` (streaming, coste cero): el
+/// llamador describe objetos con la operación y el backend emite los registros. Evita que la
+/// fachada (`eng/api`) nombre tipos del backend.
+enum class BlobOp : eng::u8 {
+	Or,        ///< `D = A | B` (aditivo; canales A y B = destino).
+	CookieCut, ///< `D = (A & B) | (~A & C)`: A = máscara, B = imagen, C = D = fondo.
+	Opaque,    ///< `D = A` (copia opaca, sin máscara).
+	Clear,     ///< `D = 0` (borrado de cajas homogéneas).
+};
+
 /// **Modelo de coste del Blitter**: líneas de raster que ocupa un blit de `words` palabras.
 /// El Blitter mueve ~1 palabra cada `cck_per_word` CCK con el DMA de bitplanes activo
 /// (medido ~140 líneas para ~5 100 palabras en la demo 210; ~`cck_per_line` CCK por línea

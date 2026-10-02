@@ -92,6 +92,37 @@ El sistema se organiza en dos piezas que **se construyen una vez** y por frame s
 - **Composición de operaciones** (varias transformaciones/consultas encadenadas): usar
   *expression templates* (`EXPRESSION_TEMPLATES.md`) para no materializar temporales intermedios.
 
+### Modo streaming: dibujar = emitir (sin plan)
+
+El camino a coste cero **de verdad** es **emitir los blits en el momento de la llamada**, como el
+`main.c` de referencia, en vez de **construir un plan y ejecutarlo después**. El engine expone una
+**racha de estampado** en la fachada (el juego no ve planos ni registros):
+
+```cpp
+auto s = app.screen();
+app.clear_now(band);                 // borrado inmediato (D = 0, bloque contiguo)
+auto run = app.stamp(sheet);         // fija el estado comun UNA vez
+for (/* cada objeto */) run.at(x, y, frame);  // escribe solo los registros que cambian y lanza
+run.done();                          // espera al ultimo
+app.present();                       // commit (doble buffer)
+```
+
+`stamp` toma la geometría del `Sprite` (interleaved, planos, máscara) y el destino de la escena;
+`at` emite un blit `$CA` por objeto. Detrás está `AmigaBackend::blitter_blob_run_begin/one/end`
+(racha genérica en streaming, `BlobOp` de dominio), el mismo bucle que
+`blitter_or_bobs_*`/`main.c`. **No hay `FramePlan`, ni array de jobs, ni pasada de ejecución, ni
+copia por objeto.**
+
+Medición (demo 213, A500, imagen verificada):
+
+| modo | debug | release |
+|---|---|---|
+| plan (construir + ejecutar) | 32,9 fps | 38,0 fps |
+| **streaming (dibujar = emitir)** | **49,87 fps** | **49,87 fps** |
+
+El plan sigue existiendo para lo que aporta (reordenar, lote, async con avisos, ejecución diferida
+al blanking); el **streaming es el camino por defecto cuando el frame cabe y se quiere coste cero**.
+
 ## Referencias
 
 - `docs/engine/architecture/CODING_STYLE.md` (§Reglas obligatorias de diseño).

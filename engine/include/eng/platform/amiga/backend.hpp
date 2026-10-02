@@ -28,6 +28,7 @@
 #include <eng/platform/amiga/asset_backend.hpp>
 #include <eng/res/asset_runtime.hpp>
 #include <eng/platform/amiga/blob.hpp>
+#include <eng/platform/amiga/blob_batch.hpp>
 #include <eng/platform/amiga/paula.hpp>
 #include <eng/platform/amiga/memory_profile.hpp>
 
@@ -613,6 +614,17 @@ public:
 	/// Espera al ultimo BOB. `false` si el Blitter no responde.
 	bool blitter_or_bobs_end();
 
+	/// **Racha de blits** genérica en streaming (coste cero, sin `FramePlan`): fija el estado
+	/// común con `blitter_blob_run_begin(op, ...)`, por objeto llama `blitter_blob_run_one`
+	/// (espera al anterior, escribe solo los registros que cambian) y cierra con
+	/// `blitter_blob_run_end`. Es el bucle del `main.c` de referencia envuelto como API: el
+	/// llamador describe objetos y el backend emite registro a registro, **sin plan intermedio
+	/// ni copia**. `op` = `eng::amiga::BlobOp::{Or,CookieCut,Opaque,Clear}`.
+	void blitter_blob_run_begin(eng::amiga::BlobOp op, u16 words, u16 height, s16 amod, s16 bmod,
+				    s16 cmod, s16 dmod);
+	void blitter_blob_run_one(const void* a, const void* b, void* d, u8 shift);
+	bool blitter_blob_run_end();
+
 	/// Area fill `XOR` del mismo rectangulo de UN plano (semilla = ultima palabra
 	/// del rectangulo, recorrido descendente). Port de `BitmapFillFast` acotado a
 	/// una caja, para no barrer el bitmap completo cada frame.
@@ -799,6 +811,7 @@ private:
 	/// Estado del lote de BOBs no-inline (`blitter_or_bobs_begin/one/end`): delega en
 	/// la misma implementacion `inline` de `blob.hpp` que usa el camino de coste cero.
 	eng::amiga::OrBlobBatch m_or_bob {};
+	eng::amiga::BlobBatch m_blob_run {}; ///< racha de blits en streaming (`blitter_blob_run_*`)
 	/// true una vez que la primera copperlist ha tomado el control completo del
 	/// display (INTENA/INTREQ/DMACON apagados e interrupciones del sistema
 	/// congeladas). Las instalaciones posteriores son solo swaps de puntero.

@@ -396,7 +396,18 @@ struct AbyssDemo {
 		// Limpia la banda de juego. ORIGINAL: blit D-only (`BLTCON0=A_TO_D|DEST`, `BLTDPT=image+
 		// 40*200*5`, `BLTDMOD=0`, `BLTSIZE=(56*5)<<6|20`). AQUÍ: `clear_box` encola el mismo
 		// blit D-only interleaved (filas 200..255 de los 5 planos) en el plan del frame.
+#ifndef K_STREAM_BOBS
+#define K_STREAM_BOBS 1
+#endif
+#if K_STREAM_BOBS
+		// **Streaming (coste cero)**: se emiten los blits en el momento, sin `FramePlan`. El juego
+		// describe objetos y el motor escribe el Blitter registro a registro (el bucle del original).
+		(void)s;
+		(void)app.clear_now(eng::Box {0, kGameBandTop, kWidth, kGameBandHeight});
+		auto run = app.stamp(m_sprite);
+#else
 		s.clear_box(eng::Box {0, kGameBandTop, kWidth, kGameBandHeight});
+#endif
 		// --- 16 BOBs, EXACTAMENTE como el original -----------------------------------------
 		// Original: `for (i = 0; i < 16; i++) { x = i*16 + sinus32[(frameCounter + i) % 51]*2;
 		//   y = sinus40[((frameCounter + i)*2) & 63] / 2; src = bob + stride*(i % 6); ... }`
@@ -418,8 +429,12 @@ struct AbyssDemo {
 					kWaveY[((frame + i) * kWaveFrequency) & kVerticalWaveMask]) /
 					kWaveVerticalScale);
 			// El original coloca el BOB en la fila `200 + y` (`image + 40*5*(200+y)`).
-			s.sprite(m_sprite, x, static_cast<eng::s16>(y + static_cast<eng::s16>(kGameBandTop)),
-				 fi);
+			const eng::s16 by = static_cast<eng::s16>(y + static_cast<eng::s16>(kGameBandTop));
+#if K_STREAM_BOBS
+			(void)run.at(x, by, fi);
+#else
+			s.sprite(m_sprite, x, by, fi);
+#endif
 			if (++hphase >= kHorizontalWaveModulo) {
 				hphase = 0u;
 			}
@@ -427,6 +442,9 @@ struct AbyssDemo {
 				fi = 0u;
 			}
 		}
+#if K_STREAM_BOBS
+		(void)run.done();
+#endif
 		ENG_PROF_END(kProfRender);
 		ENG_PROF_BEGIN(kProfPresent);
 		// **Aviso de fin de ristra** (solo async): pide que la IRQ publique `IntentDone` con

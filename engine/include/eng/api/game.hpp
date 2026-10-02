@@ -632,6 +632,129 @@ public:
 		return m_scene.valid() ? Screen {m_scene.get()->draw_target(&m_plan)} : Screen {};
 	}
 
+	/// **Racha de estampado (streaming, coste cero)**: emite copias de `sheet` al Blitter **en el
+	/// momento** de cada `at()` (espera al blit anterior y escribe solo los registros que cambian),
+	/// **sin `FramePlan` ni pasada de ejecución posterior**. Es el bucle del `main.c` de referencia
+	/// envuelto como API: el juego describe objetos y el motor emite registro a registro. El
+	/// destino es el buffer de dibujo de la escena y la geometría la aporta el `Sprite` (el juego
+	/// no ve planos, módulos ni minterms). Requiere dibujar en orden con `clear_now` (no mezclar
+	/// con el `FramePlan`, que se ejecuta en `present`).
+	struct StampRun {
+		Backend* backend = nullptr;
+		const graphics::Sprite* sheet = nullptr;
+		graphics::BobTarget target {};
+		u16 words = 0u;
+		s32 start_row = 0;
+		bool active = false;
+
+		/// Emite una copia del `frame` del sprite en `(x, y)`. `false` si el frame/racha no vale.
+		bool at(s16 x, s16 y, u8 frame) {
+			if (!active || sheet == nullptr || frame >= sheet->bob().frame_count) {
+				return false;
+			}
+			const graphics::Bob& bob = sheet->bob();
+			const s16 wx = static_cast<s16>(x & ~15);
+			const u16* base = reinterpret_cast<const u16*>(
+				bob.sheet.address(static_cast<u32>(frame) * bob.frame_stride).cptr());
+			const u16* image = base;
+			const u16* mask = base + words;
+			u8* dst = target.data() + static_cast<u32>(start_row) * static_cast<u32>(y) +
+				  (static_cast<u32>(wx < 0 ? 0 : wx) >> 3u);
+			if constexpr (requires(Backend& b, eng::graphics::BlobOp o, const void* p, void* q) {
+					      b.blitter_blob_run_one(p, p, q, u8{});
+				      }) {
+				backend->blitter_blob_run_one(mask, image, dst, static_cast<u8>(x & 15));
+				return true;
+			}
+			return false;
+		}
+		/// Espera al último blit de la racha.
+		bool done() {
+			if (!active) {
+				return false;
+			}
+			active = false;
+			if constexpr (requires(Backend& b) { b.blitter_blob_run_end(); }) {
+				return backend->blitter_blob_run_end();
+			}
+			return false;
+		}
+	};
+
+	/// Abre una **racha de estampado** con el estado común del `sheet` fijado una vez. Ver
+	/// `StampRun`.
+	[[nodiscard]] StampRun stamp(const graphics::Sprite& sheet) {
+		StampRun run {};
+		if (!m_scene.valid() || !sheet.valid()) {
+			return run;
+		}
+		field::DrawTarget t = m_scene.get()->draw_target(&m_plan);
+		const graphics::BobTarget bt = t.bob_target();
+		const graphics::Bob& bob = sheet.bob();
+		if (bob.sheet.empty() || bt.planes.empty()) {
+			return run;
+		}
+		const u16 words = static_cast<u16>(bob.width / 16u);
+		if (words == 0u) {
+			return run;
+		}
+		const s16 amod = static_cast<s16>(words * 2u);
+		const s16 dmod = static_cast<s16>(static_cast<s32>(bt.row_bytes) - static_cast<s32>(words) * 2);
+		const u16 height = static_cast<u16>(bob.height * bob.planes);
+		if constexpr (requires(Backend& b, eng::graphics::BlobOp o) {
+				      b.blitter_blob_run_begin(o, u16{}, u16{}, s16{}, s16{}, s16{}, s16{});
+			      }) {
+			m_backend.blitter_blob_run_begin(eng::graphics::BlobOp::CookieCut, words, height,
+							 amod, amod, dmod, dmod);
+			run.backend = &m_backend;
+			run.sheet = &sheet;
+			run.target = bt;
+			run.words = words;
+			run.start_row = static_cast<s32>(bt.row_bytes) * bt.plane_count;
+			run.active = true;
+		}
+		return run;
+	}
+
+	/// **Borra ahora** (streaming, `D = 0`) la banda completa de `box` (filas completas de todos
+	/// los planos, interleaved). Complementa a `stamp`: ambas emiten en orden, sin `FramePlan`.
+	bool clear_now(Box box, s16 extra_words = 0) {
+		if (!m_scene.valid() || box.empty()) {
+			return false;
+		}
+		field::DrawTarget t = m_scene.get()->draw_target(&m_plan);
+		const graphics::BobTarget bt = t.bob_target();
+		if (bt.planes.empty()) {
+			return false;
+		}
+		const u16 words = static_cast<u16>((box.w + 15u) / 16u + extra_words);
+		if (words == 0u) {
+			return false;
+		}
+		const u16 height = static_cast<u16>(box.h * bt.plane_count);
+		// Si la caja cubre la fila completa de un plano, las filas interleaved de todos los planos
+		// son contiguas: un solo blit D-only recorre la banda con `dmod = 0` (como el original).
+		const bool full_row = (static_cast<u32>(words) * 2u == bt.row_bytes);
+		const s16 dmod = full_row ? 0
+					  : static_cast<s16>(static_cast<s32>(bt.row_bytes) *
+									     bt.plane_count -
+								     static_cast<s32>(words) * 2);
+		u8* dst = bt.data() + static_cast<u32>(box.y) *
+					      static_cast<u32>(bt.row_bytes) *
+					      static_cast<u32>(bt.plane_count);
+		if constexpr (requires(Backend& b, eng::graphics::BlobOp o) {
+				      b.blitter_blob_run_begin(o, u16{}, u16{}, s16{}, s16{}, s16{}, s16{});
+				      b.blitter_blob_run_one(nullptr, nullptr, nullptr, u8{});
+				      b.blitter_blob_run_end();
+			      }) {
+			m_backend.blitter_blob_run_begin(eng::graphics::BlobOp::Clear, words, height, 0, 0, 0,
+							 dmod);
+			m_backend.blitter_blob_run_one(nullptr, nullptr, dst, 0u);
+			return m_backend.blitter_blob_run_end();
+		}
+		return false;
+	}
+
 	/// **Publica el frame**: ejecuta el plan de Blitter (si el backend lo soporta) y commitea la
 	/// escena (swap de `BPLxPT`). Para el modo copper-chunky el juego usa su `CopperChunkyLayer`.
 	///

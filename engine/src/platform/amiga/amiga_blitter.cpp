@@ -828,6 +828,21 @@ bool AmigaBackend::blitter_or_bobs_end() {
 	return m_or_bob.end();
 }
 
+void AmigaBackend::blitter_blob_run_begin(eng::amiga::BlobOp op, u16 words, u16 height, s16 amod,
+					  s16 bmod, s16 cmod, s16 dmod) {
+	m_blob_run.begin(custom_base, op, words, height, amod, bmod, cmod, dmod, g_blitter_service,
+			 g_blitter_service_user);
+	m_blt_common_valid = false; // el lote programó los registros comunes directamente
+}
+
+void AmigaBackend::blitter_blob_run_one(const void* a, const void* b, void* d, u8 shift) {
+	m_blob_run.one(a, b, d, shift);
+}
+
+bool AmigaBackend::blitter_blob_run_end() {
+	return m_blob_run.end();
+}
+
 bool AmigaBackend::blitter_or_bobs(const OrBobEntry* entries, u32 count, u16 words, u16 height,
 				     s16 source_modulo, s16 dest_modulo) {
 	if (entries == nullptr || count == 0u || words == 0u || height == 0u) {

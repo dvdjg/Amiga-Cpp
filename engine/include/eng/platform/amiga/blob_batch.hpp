@@ -29,17 +29,10 @@
 
 namespace eng::amiga {
 
-/// Operación del lote: fija el minterm y **qué canales** conecta cada `one`.
-///   - `Or`:         `D = A | D`, B = D = destino (aditivo; `bobs3d`).
-///   - `CookieCut`:  `D = (A & B) | (~A & C)`, A = máscara, B = imagen, C = D = fondo.
-///   - `Opaque`:     `D = A`, B = D = destino (sin máscara).
-///   - `Clear`:      `D = 0`, solo canal D (borrado de cajas homogéneas).
-enum class BlobOp : eng::u8 {
-	Or,
-	CookieCut,
-	Opaque,
-	Clear,
-};
+/// Operación del lote: fija el minterm y **qué canales** conecta cada `one`. El vocabulario es de
+/// **dominio** (`eng::graphics::BlobOp`, en `blitter_state.hpp`) para que la fachada pueda pedir
+/// una racha sin nombrar tipos del backend.
+using BlobOp = eng::graphics::BlobOp;
 
 /// Programa un lote de blobs con estado fijo. Todos los métodos son `always_inline`: el
 /// cálculo por objeto del llamador y la programación del blit quedan en el **mismo bucle**,
