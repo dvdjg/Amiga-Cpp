@@ -122,10 +122,14 @@ public:
 	}
 
 private:
-	/// Escribe el par PTH/PTL como un store de 32 bits (Amiga: `uintptr` es 32 bits).
+	/// Escribe el par PTH/PTL como **dos stores de 16 bits** (registro alto primero, big-endian),
+	/// igual que hace el compilador al asignar un `u32` a un registro de 16 bits en el original.
+	/// Se evita el `reinterpret_cast<volatile u32*>` sobre registros `volatile u16*` (aliasing que
+	/// a `-O2` puede reordenarse/miscompilarse); el par se escribe con el Blitter parado.
 	__attribute__((always_inline)) inline void write_ptr(eng::u16 word_index, const void* p) {
-		*reinterpret_cast<volatile eng::u32*>(&c[word_index]) =
-			static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(p));
+		const eng::u32 v = static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(p));
+		c[word_index] = static_cast<eng::u16>(v >> 16u);
+		c[static_cast<eng::u16>(word_index + 1u)] = static_cast<eng::u16>(v);
 	}
 
 	/// BBUSY (DMACONR bit 14). Con `wait_fn`, drena fondo en cada vuelta.
