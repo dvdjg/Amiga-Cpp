@@ -7,16 +7,89 @@
 // `main`, `SysBase`, punteros crudos, registros ni `BlitJob`: el juego describe QUÉ quiere y el
 // engine decide CÓMO. Ver `docs/engine/architecture/GAME_API_TWO_LEVELS.md`.
 //
+// ---------------------------------------------------------------------------------------------
+// QUÉ HACE LA ORIGINAL (`BartmanBasic/main.c`), PASO A PASO
+// ---------------------------------------------------------------------------------------------
+// La original es un programa **sin SO** (toma el sistema con `TakeSystem`) que programa el chipset
+// a mano. Su flujo, con el registro de hardware entre paréntesis:
+//
+//  1) Arranque y toma del sistema. `main()` abre `graphics.library`/`dos.library` solo para poder
+//     **restaurar** el display del SO al salir. `TakeSystem()` hace `Forbid`/`Disable`, guarda
+//     `INTENA`/`DMACON`/`ADKCON` y el `View` activo, `LoadView(0)`, `OwnBlitter()`, apaga TODAS las
+//     IRQ (`INTENA=$7fff`) y el DMA (`DMACON=$7fff`), pone los 32 colores a negro y localiza el
+//     **VBR** (vector base, 68010+) para poder instalar su propia IRQ de nivel 3/4.
+//  2) Precálculo en `warpmode(1)`: `p61Init(module)` inicializa el replayer P61 (ThePlayer 6.1a).
+//  3) **Copperlist** en Chip RAM (`copper1`, `AllocMem(MEMF_CHIP)`): se compone a mano palabra a
+//     palabra. `screenScanDefault` escribe `DDFSTRT/DDFSTOP` (ventana de fetch, $38..) y
+//     `DIWSTRT/DIWSTOP` (ventana visible). Luego: `BPLCON0` (5 planos + COLOR), un MOVE parcheable
+//     de `BPLCON1` (fine-scroll), `BPLCON2` con `1<<6` (sprites detrás del playfield), `BPL1MOD`/
+//     `BPL2MOD` = 4*40 (salto entre filas de un plano en layout **interleaved**: 5 planos × 40 B =
+//     200 B/fila; el módulo que ve Agnus es `fila_física − fila_fetch = 200 − 40 = 160`), los 5
+//     `BPLxPT` (`copSetPlanes`: `image + p*40`), la paleta completa (`copSetColor` ×32) y un
+//     `COPJMP2` a `copper2`. La segunda copperlist `copper2` es un pequeño gradiente de COLOR00 en
+//     las líneas $41..$4F.
+//  4) **DMA del display**: `COP1LC=copper1`, `COP2LC=copper2`, arranque con `COPJMP1=$7fff` y
+//     `DMACON = SETCLR|MASTER|RASTER|COPPER|BLITTER` (activa Copper + bitplanes + Blitter). El
+//     truco de apagar el Blitter antes de `COPJMP1` evita un bug de `COPJMP`.
+//  5) **IRQ de VBlank** (`interruptHandler`, nivel 3): rearma `INTREQ` (dos veces, bug A4000),
+//     **reescribe el MOVE de `BPLCON1`** con `sinus15[frame]` en AMBOS nibbles (`sin|sin<<4`) →
+//     "menea" todo el playfield (±15 px), y llama `p61Music()` (avanza la música una vez por
+//     frame); `frameCounter++`.
+//  6) **Bucle principal** (`while(!MouseLeft())`), sincronizado a la línea raster 0x10:
+//      - **Clear**: blit `D-only` (`BLTCON0 = A_TO_D|DEST`) que borra la banda de juego: `BLTDPT =
+//        image + 40·200·5` (fila 200 del plano 0 en interleaved), `BLTDMOD=0` y `BLTSIZE = (56·5)<<6
+//        | 20` (320 px × 280 filas físicas = 56 filas × 5 planos).
+//      - **Blit de BOB**: por cada BOB (el `main.c` literal usa `for(i=0;i<1;i++)`: **un** BOB; la
+//        demo del repo original dibuja un enjambre de 16), blit cookie-cut `$CA`
+//        (`BLTCON0 = $CA|SRCA|SRCB|SRCC|DEST|(x&15)<<12`, `BLTCON1 = (x&15)<<12`) con
+//        `BLTAPT=src` (imagen), `BLTBPT=src+40*1`...) — nótese que el layout real del par es
+//        `[imagen][máscara]` y la corrección de x se aplica a AMBOS canales —, `BLTxMOD = 4`,
+//        `BLTDMOD = (320−32)/8`, `BLTSIZE=(16·5)<<6 | 2` (16 filas × 5 planos, 1 blit por BOB en
+//        interleaved). El frame del BOB cicla `i%6`.
+//      - `debug_clear()` (vacía el overlay del depurador de WinUAE).
+//  7) Salida: `p61End()`, `FreeSystem()` (restaura copperlist del SO, IRQ y DMA) y cierra
+//     librerías.
+//
+// ---------------------------------------------------------------------------------------------
+// CÓMO LO EXPRESA ESTA DEMO (misma máquina, API de intenciones del engine)
+// ---------------------------------------------------------------------------------------------
+// Internamente hace **casi lo mismo** que la original, pero el juego no nombra registros ni
+// punteros: describe *qué* quiere y el engine lo traduce al chipset. Correspondencia:
+//
+//   original                                    | 213 (fachada del engine)
+//   --------------------------------------------|-------------------------------------------------
+//   TakeSystem/FreeSystem (apagar DMA/IRQ…)     | `App::run` + `takeover()` (SYSTEM_TAKEOVER del engine)
+//   copperlist a mano (BPLCON0/MOD/DIW/DDF/PT)  | `composition::compose(scene, …, planar(320,256,5))`
+//   `copSetPlanes` (BPLxPT = image + p*40)      | `Screen::bitmap(bg, Box{0,0,320,256})`
+//   paleta por `copSetColor` ×32                | argumento `PaletteWords` de `compose` (etapa paleta)
+//   `copper2` (gradiente COLOR00, $41..$4F)     | etapa `intents` con `CopperIntent::PaletteLine`
+//   MOVE parcheable de BPLCON1 + IRQ que lo      | `App::set_fine_scroll(px)` (patch del slot de
+//     reescribe con `sinus15`                      BPLCON1, aplicado en el VBlank del engine)
+//   IRQ VBlank que llama `p61Music()`            | `app.audio().play_music()` + `App::on_vblank`
+//   clear D-only (`BLTDPT/BLTDMOD/BLTSIZE`)     | `Screen::clear_box(Box)`
+//   blit cookie-cut `$CA` por BOB               | `Screen::sprite(Sprite, x, y, frame)`
+//   `debug_register_bitmap/palette/copperlist`  | `app.debug().register_bitmap/palette/…`
+//   `debug_clear`                               | `app.debug().clear()` (mismo overlay)
+//   `while(!MouseLeft())` (sondeo de hardware)  | bucle `App` + `app.port()` (mini-SO, mensajes)
+//
+// La única diferencia de fondo: en la 213 la **colocación** de registros (`BPLxPT`, módulos,
+// minterm, `ASH`/`BSH`, tamaño del blit) la calcula el motor, no el juego. Por eso aquí no
+// aparecen `custom->…`, `AllocMem`, `WaitBlit` ni `BlitJob`.
+//
+// Nota sobre el nº de BOBs: el `main.c` literal (`for(i=0;i<1;i++)`) dibuja **un** BOB; la demo
+// de referencia del repo dibuja un **enjambre de 16** movidos por senos. Esta port reproduce el
+// enjambre (el efecto visual de la demo), que es lo que se observa al ejecutarla.
+//
 // Reproduce la demo original:
 //   - Escena 320x256 de 5 planos con la imagen "abyss" sobre fondo claro.
 //   - 16 BOB enmascarados (cookie-cut) movidos por senos; el juego solo pinta sprites.
 //   - **Fine-scroll** del playfield (`BPLCON1`, tabla `sinus15`) que "menea" el logo.
 //   - Música P61 por `app.audio()`.
+//   - Overlay/registro de recursos del depurador de WinUAE (`app.debug()`).
 
 #include <eng/api/api.hpp>
 #include <eng/api/assets.hpp>
 #include <eng/debug/run_status.hpp>
-#include <eng/debug/telemetry.hpp>
 #include <eng/platform/amiga/entry.hpp>
 #include <eng/platform/amiga/memory_profile.hpp>
 
@@ -96,6 +169,37 @@ constexpr eng::u8 kFineScroll[64] {
 	0,0,0,0,1,1,1,2,
 	2,3,3,4,5,5,6,7};
 
+// Gradiente de la **copper2** del original: COLOR00 = `0x0NNN` en las líneas $41..$4F (N =
+// línea − $40). La original lo emitía con una segunda copperlist (`copper2`) + `COPJMP2`; aquí
+// el plan del `compose` lo expresa con una intencion `PaletteLine` por línea (WAIT + MOVE
+// COLOR00), el mismo vocabulario que usan las demos 085/086; la etapa `intents` las aporta.
+constexpr eng::u8 kGradientLine0 = 0x41u; ///< primera línea (`copper2` del original)
+constexpr eng::u8 kGradientLineCount = 15u; ///< 15 líneas: $41..$4F
+constexpr eng::u16 kGradientWords[16] {
+	0x0000, 0x0111, 0x0222, 0x0333, 0x0444, 0x0555, 0x0666, 0x0777,
+	0x0888, 0x0999, 0x0aaa, 0x0bbb, 0x0ccc, 0x0ddd, 0x0eee, 0x0fff};
+
+/// Tabla de intenciones `PaletteLine` de la copper2 (patrón `SkyIntents` de la 086):
+/// una intención por línea, COLOR00 con el color de la tabla. Como la original acaba en
+/// `0x0fff` (= el COLOR00 de la paleta base) y **no restaura** COLOR00, tras la línea $4F
+/// el fondo queda blanco: el gradiente solo es visible en las líneas $41..$4F.
+struct GradientIntents {
+	eng::graphics::CopperIntent v[kGradientLineCount] {};
+	constexpr GradientIntents() {
+		for (eng::u8 i = 0u; i < kGradientLineCount; ++i) {
+			eng::graphics::CopperIntent it {};
+			it.kind = eng::graphics::CopperIntentKind::PaletteLine;
+			it.top = static_cast<eng::u16>(kGradientLine0 + i);
+			it.bottom = it.top;
+			it.first = 0u; // COLOR00
+			it.count = 1u;
+			it.colors = eng::PaletteWords {&kGradientWords[i + 1u], 1u};
+			v[i] = it;
+		}
+	}
+};
+constexpr GradientIntents kColorGradientIntents {};
+
 struct AbyssDemo {
 	void init(auto& app) {
 		eng::debug::mark_init_started(g_eng_run_status);
@@ -105,13 +209,23 @@ struct AbyssDemo {
 		}
 
 		// --- Display de alto nivel: escena planar de 5 planos (interleaved) + paleta --------
+		// ORIGINAL: la copperlist a mano (`screenScanDefault` + `BPLCON0`/`BPL1MOD`/`BPL2MOD`/
+		// `copSetPlanes`/`copSetColor`) y su instalación con `COP1LC`/`COPJMP1`.
+		// AQUÍ: el motor compone el display y la copperlist; el juego solo declara la geometría
+		// (320×256×5, interleaved) y la paleta. `BPLxPT = image + p*40` lo calcula `compose`.
 		comp::SceneResources res = comp::planar(kWidth, kHeight, kPlanes);
 		res.layout = comp::SceneLayout::Interleaved; // el bitmap abyss es interleaved
 		const eng::u16* pal = reinterpret_cast<const eng::u16*>(abyss_pal);
 
 		// El motor elige perfil y `BPLCON0` (sin `ocs_a500`/`0x5200` en el código de juego).
-		if (!comp::compose(m_scene, app.device().memory_manager(), res,
-				   eng::PaletteWords {pal, kPaletteColorCount})) {
+		// ORIGINAL: tras la paleta base salta a `copper2` (`COPJMP2`), una segunda lista que
+		// pinta COLOR00 con un gradiente en las líneas $41..$4F (`0x0111..0x0fff`). AQUÍ: las
+		// etapas del `compose` exprime lo mismo: `display` + paleta base + **`palette_zones`**
+		// (una zona de COLOR00 por línea), que el plan emite con `WAIT(line) + MOVE COLORxx`.
+		if (!comp::compose(m_scene, app.device().memory_manager(), res, comp::ocs_a500,
+				   comp::display(res), comp::palette(eng::PaletteWords {pal, kPaletteColorCount}),
+				   comp::intents(eng::Span<const eng::graphics::CopperIntent>{
+					   kColorGradientIntents.v, kGradientLineCount}))) {
 			eng::debug::mark_failed(g_eng_run_status, kRunDetailSceneSetupFailed);
 			return;
 		}
@@ -122,6 +236,8 @@ struct AbyssDemo {
 		}
 
 		// --- Assets de juego por nombre (el engine copia a Chip y resuelve el dominio) ------
+		// ORIGINAL: `image`/`bob`/`module` viven en `.MEMF_CHIP` (`#embed`), porque el Blitter y
+		// Paula solo ven Chip RAM. AQUÍ: el motor copia los blobs de `.rodata` a bloques Chip.
 		m_assets.bind(app.device().memory_manager());
 		const bool bitmap_added = m_assets.add_bitmap("abyss", reinterpret_cast<const eng::u8*>(abyss_img),
 					       INCBIN_SIZE(abyss_img), kWidth, kHeight, kPlanes,
@@ -131,6 +247,8 @@ struct AbyssDemo {
 			return;
 		}
 		const auto background = m_assets.bitmap("abyss");
+		// ORIGINAL: `image` es ya el bitmap de la escena (no hay copia). AQUÍ: se copia el asset
+		// al framebuffer una vez, con un blit interleaved de los 5 planos.
 		const bool background_queued = app.screen().bitmap(background, eng::Box {0, 0, kWidth, kHeight});
 		if (!background_queued) {
 			eng::debug::mark_failed(g_eng_run_status, kRunDetailBitmapCopyFailed);
@@ -140,7 +258,8 @@ struct AbyssDemo {
 		// El `bob.bpl` original ya trae el layout que consume el motor: por cada fila de cada
 		// plano, `[imagen `w/16` palabras][máscara `w/16` palabras]` (ver
 		// `docs/reference/amiga/techniques/interleaved-bob-single-blit.md`). No se reempaqueta:
-		// el engine lo dibuja con **un** blit cookie-cut `$CA` por BOB.
+		// el engine lo dibuja con **un** blit cookie-cut `$CA` por BOB. Es el mismo `bob.bpl` de
+		// la original: `BLTAPT`/`BLTBPT` y `AMOD`/`BMOD`/`DMOD` los deriva el encoder del motor.
 		const bool sprite_added = m_assets.add<eng::SpriteTag>("bob",
 						  reinterpret_cast<const eng::u8*>(abyss_bob), INCBIN_SIZE(abyss_bob));
 		const bool music_added = m_assets.add<eng::MusicTag>("mod",
@@ -151,6 +270,9 @@ struct AbyssDemo {
 		}
 
 		// --- El objeto como asset de juego (geometría declarada; el sheet lo pone `Assets`) --
+		// ORIGINAL: la geometría del blit estaba implícita en los registros (`BLTAMOD=4`,
+		// `BLTxMOD`, `BLTSIZE=(16*5)<<6|2`). AQUÍ: se declara una vez (32×16, 5 planos,
+		// interleaved, cookie-cut `$CA` con la máscara intercalada por pares). El motor traduce.
 		eng::graphics::Bob desc {};
 		desc.width = kBobW;
 		desc.height = kBobH;
@@ -163,10 +285,14 @@ struct AbyssDemo {
 		m_sprite = m_assets.sprite("bob", desc);
 
 		// --- Música por la fachada de audio ------------------------------------------------
-		// El engine resuelve **formato** y **buffer** (§4/§2) y **conduce** la música en su VBlank:
-		// el juego solo la arranca por nombre.
+		// ORIGINAL: el replayer P61 se inicializa (`p61Init`) y avanza en la IRQ de VBlank
+		// (`p61Music`), ambas por llamadas `jsr` a `player`. AQUÍ: el engine resuelve formato y
+		// buffer y **conduce** la música en su VBlank; el juego solo la arranca por nombre.
 		(void)app.audio().play_music(m_assets.music("mod"));
 
+		// ORIGINAL: `TakeSystem()` apaga DMA/IRQ y toma el display; `FreeSystem()` lo restaura.
+		// AQUÍ: `takeover()` instala la copperlist del camino planar; el engine gestiona el
+		// ciclo de vida del sistema (SYSTEM_TAKEOVER) y el runner cierra la instancia.
 		app.takeover();
 		// --- Recursos del depurador gráfico de WinUAE --------------------------------------
 		// Registra el bitmap abyss, la hoja del BOB, la paleta y la copperlist como recursos
@@ -186,9 +312,6 @@ struct AbyssDemo {
 			}
 			d.register_palette(reinterpret_cast<const void*>(abyss_pal), "abyss.pal",
 					   kPaletteColorCount);
-			if (app.device().copper().active_words() != nullptr) {
-				d.register_copperlist(app.device().copper().active_words(), "copper1", 0u);
-			}
 		}
 		m_ready = true;
 	}
@@ -212,46 +335,51 @@ struct AbyssDemo {
 		// **Fine-scroll** del playfield (tabla `sinus15`): desplaza TODO el fondo —imagen
 		// "abyss" incluida— con `BPLCON1`, sin tocar los BOBs del plan del frame. Se aplica en
 		// el VBlank (lo hace el engine) para no partir scanlines.
+		// ORIGINAL: el handler de la IRQ de VBlank escribía el MOVE parcheable de `BPLCON1`
+		// (`*scroll = sin | (sin<<4)`). AQUÍ: `set_fine_scroll` pide el valor y el engine lo
+		// aplica en su propio latido de VBlank.
 		app.set_fine_scroll(kFineScroll[frame & 63u]);
-		// Limpia la banda de juego (blit `D=0` encolado en el plan, en orden con los sprites).
+		// Limpia la banda de juego. ORIGINAL: blit D-only (`BLTCON0=A_TO_D|DEST`, `BLTDPT=image+
+		// 40*200*5`, `BLTDMOD=0`, `BLTSIZE=(56*5)<<6|20`). AQUÍ: `clear_box` encola el mismo
+		// blit D-only interleaved (filas 200..255 de los 5 planos) en el plan del frame.
 		s.clear_box(eng::Box {0, kGameBandTop, kWidth, kGameBandHeight});
-		// Enjambre de 16 BOBs: reparto horizontal + seno vertical, con el frame de la hoja
-		// ciclando 0..5 (cada frame colorea el glifo con un plano/planos distintos). Desfase
-		// horizontal en módulo 51 con un contador que envuelve (sin `%` por frame).
-		eng::u32 phase = m_phase51;
-		if (++m_phase51 >= kHorizontalWaveModulo) {
-			m_phase51 = 0u;
-		}
-		eng::u8 fi = 0u;
+		// --- 16 BOBs, EXACTAMENTE como el original -----------------------------------------
+		// Original: `for (i = 0; i < 16; i++) { x = i*16 + sinus32[(frameCounter + i) % 51]*2;
+		//   y = sinus40[((frameCounter + i)*2) & 63] / 2; src = bob + stride*(i % 6); ... }`
+		// Reparto horizontal `i*16`, seno horizontal `sinus32` y vertical `sinus40`, y frame de
+		// la hoja `i % 6`. Fase horizontal en módulo 51 que empieza en `frame % 51` y avanza por
+		// BOB con resta condicional (sin `%` en el bucle, regla de coste ~cero).
+		eng::u32 hphase = frame % kHorizontalWaveModulo;
 		for (eng::u16 i = 0u; i < kBobCount; ++i) {
 			const eng::s16 x = static_cast<eng::s16>(
 				static_cast<eng::u32>(i) * kBobSpacing +
-				static_cast<eng::u32>(kWaveX[phase]) * kWaveAmplitudeScale);
+				static_cast<eng::u32>(kWaveX[hphase]) * kWaveAmplitudeScale);
 			const eng::s16 y = static_cast<eng::s16>(
-				kGameBandTop + static_cast<eng::u32>(
+				static_cast<eng::u32>(
 					kWaveY[((frame + i) * kWaveFrequency) & kVerticalWaveMask]) /
 					kWaveVerticalScale);
-			s.sprite(m_sprite, x, y, fi);
-			if (++phase >= kHorizontalWaveModulo) {
-				phase = 0u;
-			}
-			if (++fi >= kSpriteFrameCount) {
-				fi = 0u;
+			// El original coloca el BOB en la fila `200 + y` (`image + 40*5*(200+y)`).
+			s.sprite(m_sprite, x, static_cast<eng::s16>(y + static_cast<eng::s16>(kGameBandTop)),
+				 static_cast<eng::u8>(i % kSpriteFrameCount));
+			if (++hphase >= kHorizontalWaveModulo) {
+				hphase = 0u;
 			}
 		}
 		app.present();
-		// --- Overlay de depuración de WinUAE (no aparece en las capturas de gameplay) -----
-		// La original pinta estado por `debug_rect`/`debug_text`; aquí se usa el overlay del
-		// engine (`app.debug()`), con el panel de telemetría estándar. Ver
-		// `docs/tools/PROFILING_FROM_AGENT.md` y `eng/debug/telemetry.hpp`.
+		// --- Overlay de depuración de WinUAE -----------------------------------------------
+		// Igual que el original: un rectángulo relleno, un rectángulo de borde y un texto, todos
+		// desplazándose con `f = frameCounter & 255` (coordenadas PAL ×2). El motor lo expone con
+		// `app.debug()` (mismo overlay que `debug_rect`/`debug_filled_rect`/`debug_text`).
 		if constexpr (requires { app.debug(); }) {
 			auto& d = app.debug();
 			d.clear();
-			d.text(4, 4, "213 bartman abyss - fine-scroll + 16 bobs", 0x00ffffffu);
-			eng::debug::Telemetry t = app.telemetry();
-			t.frames = app.frame();
-			t.fps_x100 = m_fps_x100;
-			eng::debug::draw_telemetry(d, t, 4, 16, 8, 0x0000ff80u);
+			const eng::s16 f = static_cast<eng::s16>(frame & 255u);
+			d.filled_rect(static_cast<eng::s16>(f + 100), 400,
+				      static_cast<eng::s16>(f + 400), 440, 0x0000ff00u);
+			d.rect(static_cast<eng::s16>(f + 90), 380,
+			       static_cast<eng::s16>(f + 400), 440, 0x000000ffu);
+			d.text(static_cast<eng::s16>(f + 130), 418, "This is a WinUAE debug overlay",
+			       0x00ff00ffu);
 		}
 		if (m_ready) {
 			eng::debug::mark_ready(g_eng_run_status, kRunDetailReady);
@@ -262,9 +390,7 @@ struct AbyssDemo {
 	eng::graphics::composition::Scene m_scene {};
 	eng::graphics::Sprite m_sprite {};
 	eng::Assets m_assets {};
-	eng::u32 m_phase51 = 0u; ///< desfase de onda horizontal (módulo 51) sin división por frame
 	eng::u32 m_vblank_msgs = 0u; ///< mensajes `VBlank` drenados del puerto del mini-SO
-	eng::u32 m_fps_x100 = 0u; ///< fps*100 para el panel de telemetría (lo fija el runner/probe)
 	bool m_ready = false;
 };
 

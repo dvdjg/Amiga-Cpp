@@ -20,14 +20,18 @@ arranca la música. Ver `docs/engine/architecture/GAME_API_TWO_LEVELS.md`.
   D-only interleaved.
 - **Fine-scroll del playfield** (`BPLCON1`, tabla `sinus15`): `app.set_fine_scroll(px)` mueve
   todo el fondo (logo, gorro) ±15 px por seno; se aplica en el VBlank para no partir scanlines.
+- **Gradiente de la copper2** (líneas `$41..$4F`): la original salta a una segunda copperlist
+  (`COPJMP2`) que pinta `COLOR00` con `0x0111..0x0fff` línea a línea; aquí el `compose` expresa
+  lo mismo con una etapa `intents` de 15 `CopperIntent::PaletteLine`. Como la original acaba en
+  `0x0fff` (= el `COLOR00` de la paleta base) y no lo restaura, tras `$4F` el fondo sigue blanco.
 - **Cookie-cut `$CA` en un solo blit por BOB**: la hoja `[imagen][máscara]` se reproduce con
   `A=máscara`, `B=imagen`, `ASH=BSH=x&15`, `height=16*5`, `AMOD=BMOD=4`, `DMOD=36`.
 - La música P61 sonando; el motor la avanza en su propio latido de VBlank.
 - El **puerto de mensajes** del mini-SO: el latido de VBlank publica `MsgType::VBlank` en
   `app.port()` y el juego lo drena en `update`.
-- **Overlay de depuración** (`app.debug()`): la original pinta estado por `debug_rect`/
-  `debug_text`; aquí se usa el overlay del engine + el panel de telemetría
-  (`eng::debug::draw_telemetry`, memoria/frames). No aparece en las capturas de gameplay.
+- **Overlay de depuración** (`app.debug()`): igual que la original, un rectángulo relleno, un
+  rectángulo de borde y un texto desplazándose con `f = frameCounter & 255` (coordenadas PAL ×2).
+  No aparece en las capturas de gameplay.
 
 ## Invariantes / detalles que importan
 
@@ -76,9 +80,10 @@ bash ./tools/analyze/analyze-demo.sh demos/techniques/amiga/os/213_bartman_abyss
 
 ## Overlay y recursos de depuración
 
-- La demo usa `app.debug()` para el overlay (texto/rects + `draw_telemetry`) **y** registra sus
-  recursos gráficos en el debugger de WinUAE (`register_bitmap`/`register_palette`/
-  `register_copperlist`, equivalentes a los `debug_register_*` de la original).
+- La demo pinta su overlay con `app.debug()` (rects/texto, igual que la original) **y** registra
+  el bitmap `abyss` y la hoja `bob` y la paleta en el debugger de WinUAE (`register_bitmap`/
+  `register_palette`, equivalentes a los `debug_register_bitmap/palette` de la original). La
+  copperlist no se registra: el motor la compone y la demo no la posee.
 
 ## Assets
 
