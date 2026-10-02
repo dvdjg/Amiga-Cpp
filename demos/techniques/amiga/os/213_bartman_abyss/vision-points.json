@@ -1,18 +1,18 @@
 {
-  "#": "Puntos de verificacion visual de 213 (Bartman abyss con el mini-SO).",
+  "#": "Puntos de verificacion visual de 213 (Bartman abyss: BOB cabecera de bitmap + fine-scroll del playfield).",
   "points": [
     {
-      "name": "imagen abyss + BOBs",
+      "name": "imagen abyss + BOB",
       "last": true,
-      "expect": "La imagen 'abyss' (logo rosa y gorro) es visible sobre fondo claro; en la banda inferior hay una fila de bobs (glyph japones 'a') de varios colores. Sin zonas negras grandes ni glitches."
+      "expect": "La imagen 'abyss' (logo rosa y gorro) es visible sobre fondo claro; en la banda inferior hay UN bob (glyph japones 'a'). Sin zonas negras grandes ni glitches."
     },
     {
-      "name": "movimiento de los BOBs",
+      "name": "fine-scroll del playfield",
       "start": 0,
       "end": 5,
       "require_visual_motion": true,
       "min_mean_diff": 0.5,
-      "expect": "Compara la secuencia de seis imágenes en orden. Los bobs avanzan por la banda siguiendo una onda horizontal/vertical; en cada frame la fila de glifos es nítida, sin duplicados ni huellas residuales en posiciones anteriores."
+      "expect": "Compara la secuencia de seis imagenes en orden. Todo el fondo (logo, gorro y texto) se desplaza horizontalmente por el fine-scroll de BPLCON1; el BOB se mueve con el. En cada frame la imagen es nitida, sin duplicados ni huellas residuales."
     }
   ]
 }

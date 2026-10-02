@@ -1,8 +1,9 @@
 # Demo 213 — Bartman "abyss" en la fachada de juego (`eng::App`/`Screen`)
 
 Port al engine de la demo clásica de **Bartman/vscode-amiga-debug** (`BartmanBasic/main.c`):
-escena de **320×256 con 5 planos interleaved** que muestra la imagen *abyss*, **16 BOBs
-enmascarados** (cookie-cut `$CA`) recorriendo la banda inferior por senos y **música P61**
+escena de **320×256 con 5 planos interleaved** que muestra la imagen *abyss*, **un BOB
+enmascarado** (cookie-cut `$CA`) en la banda inferior, y el **fine-scroll** del playfield
+(`BPLCON1`, tabla `sinus15`) que "menea" toda la escena —logo incluido—, con **música P61**
 (ThePlayer) conducida por el engine.
 
 El juego describe **qué** quiere con el vocabulario del engine y no sondea hardware: `eng::App`
@@ -13,9 +14,11 @@ gestiona el bucle, el display, el latido de VBlank y la cola de mensajes; `Scree
 ## Qué muestra
 
 - La imagen *abyss* (5 planos interleaved, 32 colores) tal cual.
-- 16 BOBs (glifo `あ`) repartidos por la banda inferior (filas 200..255): **desfase horizontal**
-  en módulo 51 y **seno vertical** (tablas exactas de `BartmanBasic/main.c`), con el frame de la
-  hoja ciclando 0..5. El `clear_box` de la banda usa **un** blit D-only interleaved.
+- **Un BOB** (glifo `あ`) en `(100, 200)`, frame 0, como el original (`for (i = 0; i < 1;
+  i++)`). Su caja se limpia con un blit D-only antes de repintarlo.
+- **Fine-scroll del playfield** (`BPLCON1`, tabla `sinus15`): `app.set_fine_scroll(px)` mueve
+  todo el fondo (logo, gorro y BOB, que comparten bitmap); se aplica en el VBlank para no
+  partir scanlines. Es el movimiento que se ve en la demo.
 - **Cookie-cut `$CA` en un solo blit por BOB**: la hoja `[imagen][máscara]` se reproduce con
   `A=máscara`, `B=imagen`, `ASH=BSH=x&15`, `height=16*5`, `AMOD=BMOD=4`, `DMOD=36`.
 - La música P61 sonando; el motor la avanza en su propio latido de VBlank.
@@ -39,7 +42,7 @@ gestiona el bucle, el display, el latido de VBlank y la cola de mensajes; `Scree
 ## Criterio de aceptación
 
 - `state=3` (Ready) con `detail=0x21300`.
-- En la captura: la imagen *abyss* y los `あ` de colores repartidos por la banda inferior.
+- En la captura: la imagen *abyss* y el `あ` en la banda inferior.
 
 ## Compilar / ejecutar / analizar
 
@@ -52,20 +55,23 @@ bash ./tools/analyze/analyze-demo.sh demos/techniques/amiga/os/213_bartman_abyss
 
 ## Evidencia de referencia (A500_debug)
 
-- `detail=0x21300` (`state=3`); captura `out/tmp/213.png` con la imagen y los BOBs.
-- Medición `tools/debug/measure-fps.mjs 213_bartman_abyss A500_debug`: **23,3 fps**,
-  **304287 ciclos/frame** (≈2,14 campos/frame). El cuello es la **ejecución del Blitter**
-  (17 blits/frame: 1 clear + 16 cookie-cut). No alcanza el objetivo de 1 frame por VBlank:
-  queda **abierta** a optimización (ver «Próximos pasos»).
+- `detail=0x21300` (`state=3`); captura con la imagen y el BOB.
+- **Fine-scroll**: aplicado por `BPLCON1` en el VBlank; el logo se desplaza ±15 px por seno.
+- **BOBs sin flicker**: la banda inferior es nítida en cada frame (verificado con la capa
+  determinista de `tools/vision-review/flicker-check.mjs`: los candidatos caen en la región
+  de la imagen por el desplazamiento global, no en la banda del BOB).
+- Medición `tools/debug/measure-fps.mjs 213_bartman_abyss A500_debug`: **49,9 fps**
+  (**142102 ciclos/frame** = 1,00 campos/frame, un frame por VBlank).
 - **Audio**: el runner no captura PCM, así que la salida de Paula no se verifica aquí; el
   reproductor P61 ya está validado por demos 060 (`music_pt`) y 272 (`audio_stream`).
 
 ## Límites / piezas pendientes
 
-- **No hay fine-scroll de `BPLCON1`**: el original mueve el playfield por seno; aquí el efecto
-  pendiente es solo de los BOBs. El `Scene` planar publica punteros por `commit`, no parchea
-  `BPLCON1` por frame; haría falta un `PatchHandle` en el plan (materia de
-  `docs/guides/roadmap/ROADMAP_BLITTER_COPPER.md`).
+- **Fine-scroll sin columna de guarda**: el `Scene` usa `DDFSTRT=$38` (fetch estándar), así que
+  al desplazar, el borde izquierdo envuelve la palabra derecha de la fila. En *abyss* el borde
+  es fondo blanco y no se ve; para contenido a sangre haría falta un modo *guard-aware*
+  (`DDFSTRT=$30` + palabra de guarda por fila de plano), que es la convención de
+  `eng::effects::FineScroll` (`docs/reference/amiga/techniques/`). Pendiente en el engine.
 - **No hay salida por botón de ratón**: `App` no expone `quit()` y la entrada del mini-SO llega
   a `eng::os::system_port()`, no a `app.port()`; el runner cierra la instancia.
 
