@@ -132,8 +132,7 @@ constexpr eng::u16 kBobCount = 16u;
 constexpr eng::u16 kBobSpacing = 16u;
 constexpr eng::u16 kGameBandTop = 200u;
 constexpr eng::u16 kGameBandHeight = kHeight - kGameBandTop;
-constexpr eng::u16 kHorizontalWaveModulo = 51u;
-constexpr eng::u8 kVerticalWaveMask = 63u;
+constexpr eng::u16 kHorizontalWaveModulo = 51u;constexpr eng::u8 kVerticalWaveMask = 63u;
 constexpr eng::u8 kWaveFrequency = 2u;
 constexpr eng::u8 kWaveAmplitudeScale = 2u;
 constexpr eng::u8 kWaveVerticalScale = 2u;
@@ -203,6 +202,7 @@ constexpr GradientIntents kColorGradientIntents {};
 struct AbyssDemo {
 	void init(auto& app) {
 		eng::debug::mark_init_started(g_eng_run_status);
+
 		if (!app.configure_memory(kMemoryBudget)) {
 			eng::debug::mark_failed(g_eng_run_status, kRunDetailMemorySetupFailed);
 			return;
@@ -317,6 +317,7 @@ struct AbyssDemo {
 	}
 
 	void update(auto& app) {
+
 		// **Cola de mensajes del mini-SO** (`ENG_APP_MAIN` la deja lista): el latido de VBlank
 		// del `App` publica `MsgType::VBlank` en `app.port()` y el juego lo drena aquí. Sin
 		// drenar, el puerto se llena y descarta; un juego real consume además la entrada.
@@ -327,6 +328,7 @@ struct AbyssDemo {
 			}
 		}
 		eng::debug::mark_frame(g_eng_run_status, app.frame());
+
 	}
 
 	void render(auto& app) {
@@ -350,6 +352,11 @@ struct AbyssDemo {
 		// la hoja `i % 6`. Fase horizontal en módulo 51 que empieza en `frame % 51` y avanza por
 		// BOB con resta condicional (sin `%` en el bucle, regla de coste ~cero).
 		eng::u32 hphase = frame % kHorizontalWaveModulo;
+		// Frame de la hoja con **contador que envuelve**, no `i % 6`: el `%` sobre `u16` compila
+		// a `__modsi3` (división por software) y se ejecutaba una vez por BOB en el bucle
+		// caliente (16 divisiones/frame). El original avanza el frame de la hoja con un índice
+		// propio; aquí un `if (++fi == 6) fi = 0` es `addq`/`beq`, sin libcall.
+		eng::u8 fi = 0u;
 		for (eng::u16 i = 0u; i < kBobCount; ++i) {
 			const eng::s16 x = static_cast<eng::s16>(
 				static_cast<eng::u32>(i) * kBobSpacing +
@@ -360,9 +367,12 @@ struct AbyssDemo {
 					kWaveVerticalScale);
 			// El original coloca el BOB en la fila `200 + y` (`image + 40*5*(200+y)`).
 			s.sprite(m_sprite, x, static_cast<eng::s16>(y + static_cast<eng::s16>(kGameBandTop)),
-				 static_cast<eng::u8>(i % kSpriteFrameCount));
+				 fi);
 			if (++hphase >= kHorizontalWaveModulo) {
 				hphase = 0u;
+			}
+			if (++fi >= kSpriteFrameCount) {
+				fi = 0u;
 			}
 		}
 		app.present();
@@ -370,6 +380,7 @@ struct AbyssDemo {
 		// Igual que el original: un rectángulo relleno, un rectángulo de borde y un texto, todos
 		// desplazándose con `f = frameCounter & 255` (coordenadas PAL ×2). El motor lo expone con
 		// `app.debug()` (mismo overlay que `debug_rect`/`debug_filled_rect`/`debug_text`).
+
 		if constexpr (requires { app.debug(); }) {
 			auto& d = app.debug();
 			d.clear();
@@ -381,6 +392,7 @@ struct AbyssDemo {
 			d.text(static_cast<eng::s16>(f + 130), 418, "This is a WinUAE debug overlay",
 			       0x00ff00ffu);
 		}
+
 		if (m_ready) {
 			eng::debug::mark_ready(g_eng_run_status, kRunDetailReady);
 		}
