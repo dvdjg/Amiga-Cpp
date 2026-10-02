@@ -30,9 +30,9 @@ for (const input of inputs) {
     console.error(`${path.basename(input)}: fallo\n${result.stdout ?? ''}${result.stderr ?? ''}`);
     process.exit(result.status || 1);
   }
-  const match = `${result.stdout ?? ''}${result.stderr ?? ''}`.match(/modelos=(\d+) bytes=(\d+) MSE=([0-9.]+)/);
-  rows.push({ name: path.basename(input), inputBytes: fs.statSync(absolute).size, outputBytes: fs.statSync(output).size, models: match?.[1] ?? '?', mse: match?.[3] ?? '?' });
+  const match = `${result.stdout ?? ''}${result.stderr ?? ''}`.match(/modelos=(\d+) bytes=(\d+) MSE=([0-9.]+) SNR=([-0-9.]+) pico=(\d+) fuga_dB=([-0-9.]+)/);
+  rows.push({ name: path.basename(input), inputBytes: fs.statSync(absolute).size, outputBytes: fs.statSync(output).size, models: match?.[1] ?? '?', mse: match?.[3] ?? '?', snr: match?.[4] ?? '?', leakage: match?.[6] ?? '?' });
 }
-console.log('pieza | entrada bytes | ACP1 v3 bytes | modelos | MSE PCM8');
-console.log('--- | ---: | ---: | ---: | ---:');
-for (const row of rows) console.log(`${row.name} | ${row.inputBytes} | ${row.outputBytes} | ${row.models} | ${row.mse}`);
+console.log('pieza | entrada bytes | ACP1 v3 bytes | modelos | MSE PCM8 | SNR dB | fuga dB');
+console.log('--- | ---: | ---: | ---: | ---: | ---: | ---:');
+for (const row of rows) console.log(`${row.name} | ${row.inputBytes} | ${row.outputBytes} | ${row.models} | ${row.mse} | ${row.snr} | ${row.leakage}`);

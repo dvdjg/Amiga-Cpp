@@ -3,6 +3,7 @@
 /// Player host de ACP1 v1/v2 y ACP1 v3 aditivo sobre ventanas, sin ownership del blob ni buffers.
 
 #include <algorithm>
+#include <cmath>
 
 #include <eng/audio/acp1_v3.hpp>
 #include <eng/audio/media.hpp>
@@ -36,13 +37,20 @@ public:
 	[[nodiscard]] eng::s32 read_window(eng::u32 first_sample, eng::Span<eng::u8> output,
 		eng::Span<eng::u8> scratch, eng::Span<eng::s16> accumulator) const noexcept {
 		if (!m_is_v3) return eng::audio::media::mix_window(m_blob, m_info, first_sample, output, scratch, accumulator);
-		return read_v3_window(first_sample, output, scratch, accumulator);
+		return read_v3_window(first_sample, output, scratch, accumulator, -1);
+	}
+
+	/// Renderiza solo una pista aditiva ACP1 v3 para escucharla o medir su fuga respecto a otras.
+	[[nodiscard]] eng::s32 read_track_window(eng::u32 track_id, eng::u32 first_sample, eng::Span<eng::u8> output,
+		eng::Span<eng::u8> scratch, eng::Span<eng::s16> accumulator) const noexcept {
+		if (!m_is_v3 || track_id >= m_v3_info.track_count) return -1;
+		return read_v3_window(first_sample, output, scratch, accumulator, static_cast<eng::s16>(track_id));
 	}
 
 private:
 	/// Renderiza eventos aditivos ACP1 v3 en un acumulador host; el mismo algoritmo se reutiliza como referencia del player Amiga.
 	[[nodiscard]] eng::s32 read_v3_window(eng::u32 first_sample, eng::Span<eng::u8> output,
-		eng::Span<eng::u8> scratch, eng::Span<eng::s16> accumulator) const noexcept {
+		eng::Span<eng::u8> scratch, eng::Span<eng::s16> accumulator, eng::s16 track_filter) const noexcept {
 		if (output.empty() || scratch.size() < output.size() || accumulator.size() < output.size() ||
 			static_cast<eng::u64>(first_sample) >= m_v3_info.timeline_samples) return -1;
 		const eng::usize count = std::min<eng::u64>(output.size(), m_v3_info.timeline_samples - first_sample);
@@ -50,15 +58,41 @@ private:
 		for (eng::u32 event_index = 0u; event_index < m_v3_info.event_count; ++event_index) {
 			eng::audio::acp1_v3::Event event {};
 			if (!eng::audio::acp1_v3::event(m_blob, m_v3_info, event_index, event)) return -1;
+			if (track_filter >= 0 && event.track_id != static_cast<eng::u16>(track_filter)) continue;
 			const eng::u64 event_end = event.start_sample + event.duration;
 			const eng::u64 window_end = static_cast<eng::u64>(first_sample) + count;
 			if (event_end <= first_sample || event.start_sample >= window_end) continue;
-			eng::audio::acp1_v3::Unit unit {};
-			eng::audio::acp1_v3::SynthesisParams params {};
 			eng::audio::acp1_v3::Track track {};
-			if (!eng::audio::acp1_v3::unit(m_blob, m_v3_info, event.unit_id, unit) || unit.synthesis_index == 0xffffu ||
-				!eng::audio::acp1_v3::synthesis(m_blob, m_v3_info, unit.synthesis_index, params) ||
-				!eng::audio::acp1_v3::track(m_blob, m_v3_info, event.track_id, track)) return -1;
+			eng::audio::acp1_v3::Unit unit {};
+			if (!eng::audio::acp1_v3::unit(m_blob, m_v3_info, event.unit_id, unit) || !eng::audio::acp1_v3::track(m_blob, m_v3_info, event.track_id, track)) return -1;
+			if (unit.representation == 0u) {
+				if (unit.segment_count == 0u || unit.first_segment >= m_v3_info.segment_count) return -1;
+				const auto& section = m_v3_info.sections[eng::audio::acp1_v3::kSegments - 1u];
+				const eng::usize segment_at = section.offset + static_cast<eng::usize>(unit.first_segment) * section.entry_size;
+				if (section.entry_size != eng::audio::acp1_v3::kSegmentSize || eng::audio::acp1_v3::rd32(m_blob, segment_at) != unit.id || eng::audio::acp1_v3::rd16(m_blob, segment_at + 20u) != 0u) return -1;
+				const eng::u32 payload_offset = eng::audio::acp1_v3::rd32(m_blob, segment_at + 12u);
+				const eng::u32 payload_size = eng::audio::acp1_v3::rd32(m_blob, segment_at + 16u);
+				const eng::u64 payload_end = static_cast<eng::u64>(payload_offset) + payload_size;
+				if (payload_end > m_blob.size() || payload_size < unit.decoded_samples) return -1;
+				const eng::u64 overlap_start = std::max<eng::u64>(event.start_sample, first_sample);
+				const eng::u64 overlap_end = std::min(event_end, window_end);
+				const eng::usize fade = std::min<eng::usize>(16u, event.duration / 2u);
+				const double pitch_ratio = std::pow(2.0, static_cast<double>(event.pitch_semitones_q8_8) / (12.0 * 256.0));
+				for (eng::u64 sample = overlap_start; sample < overlap_end; ++sample) {
+					const eng::usize event_offset = static_cast<eng::usize>(sample - event.start_sample);
+					const eng::usize source = std::min<eng::usize>(unit.decoded_samples - 1u, event.unit_offset + static_cast<eng::usize>(event_offset * pitch_ratio));
+					const double fade_in = fade == 0u ? 1.0 : std::min(1.0, static_cast<double>(event_offset + 1u) / fade);
+					const eng::usize from_end = static_cast<eng::usize>(event_end - sample);
+					const double fade_out = fade == 0u ? 1.0 : std::min(1.0, static_cast<double>(from_end) / fade);
+					const double envelope = std::min(fade_in, fade_out);
+					const eng::s32 pcm_value = static_cast<eng::s8>(m_blob[payload_offset + source]);
+					const eng::s32 scaled = static_cast<eng::s32>(std::lround(pcm_value * envelope * event.gain_q8_8 * track.gain_q8_8 / 65536.0));
+					accumulator[static_cast<eng::usize>(sample - first_sample)] += static_cast<eng::s16>(scaled);
+				}
+				continue;
+			}
+			eng::audio::acp1_v3::SynthesisParams params {};
+			if (unit.synthesis_index == 0xffffu || !eng::audio::acp1_v3::synthesis(m_blob, m_v3_info, unit.synthesis_index, params)) return -1;
 			const eng::u16 partial_count = std::min<eng::u16>(params.partial_count, kMaxPartials);
 			eng::audio::SynthPartial partials[kMaxPartials] {};
 			for (eng::u16 i = 0u; i < partial_count; ++i) {

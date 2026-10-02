@@ -3,7 +3,7 @@
 // ==========================================================================
 //
 // El pipeline host mantiene separadas las rutas SAMPLE y MUSIC: AUZX mono para samples y ACP1 v2
-// multipista para stems WAV. ACP1 v3 no forma parte de la salida de esta aplicación.
+// multipista para stems WAV. La ruta espectral puede emitir una candidata ACP1 v3 expandida.
 
 #include <cstdio>
 #include <cstdlib>
@@ -13,6 +13,7 @@
 #include <filesystem>
 #include <functional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <eng/audio/auzx.hpp>
@@ -28,6 +29,8 @@
 #include <audio_compressor/domain/audio_types.hpp>
 #include <audio_compressor/dsp/resampler.hpp>
 #include <audio_compressor/dsp/harmonic_separation.hpp>
+#include <audio_compressor/dsp/spectral_prototype_separation.hpp>
+#include <audio_compressor/dsp/separation_metrics.hpp>
 #include <audio_compressor/formats/auzx_sink.hpp>
 #include <audio_compressor/io/file_io.hpp>
 #include <audio_compressor/io/raw_source.hpp>
@@ -147,6 +150,20 @@ template <class T>
 /// Lee un archivo binario completo para reproducir un contenedor AUZX ya generado.
 [[nodiscard]] bool read_binary(const char* path, std::vector<eng::u8>& bytes) {
 	return audio_compressor::io::read_file(std::filesystem::path {path}, bytes);
+}
+
+/// Escribe una pista PCM8 firmada como WAV mono unsigned de 8 bits para escucha host/evaluación.
+[[nodiscard]] bool write_pcm8_wav(const std::filesystem::path& path, const std::vector<eng::u8>& pcm, eng::u16 rate) {
+	if (rate == 0u || pcm.size() > 0xffffffffu - 44u) return false;
+	std::vector<eng::u8> file(44u + pcm.size(), 0u);
+	const auto wr16 = [&](eng::usize at, eng::u16 value) { file[at] = value; file[at + 1u] = value >> 8u; };
+	const auto wr32 = [&](eng::usize at, eng::u32 value) { wr16(at, value); wr16(at + 2u, value >> 16u); };
+	std::memcpy(file.data(), "RIFF", 4u); wr32(4u, static_cast<eng::u32>(file.size() - 8u)); std::memcpy(file.data() + 8u, "WAVEfmt ", 8u);
+	wr32(16u, 16u); wr16(20u, 1u); wr16(22u, 1u); wr32(24u, rate); wr32(28u, rate); wr16(32u, 1u); wr16(34u, 8u);
+	std::memcpy(file.data() + 36u, "data", 4u); wr32(40u, static_cast<eng::u32>(pcm.size()));
+	for (eng::usize i = 0u; i < pcm.size(); ++i) file[44u + i] = static_cast<eng::u8>(static_cast<eng::s8>(pcm[i]) + 128);
+	if (path.has_parent_path()) std::filesystem::create_directories(path.parent_path());
+	return audio_compressor::io::write_file(path, file);
 }
 
 /// Carga una fuente PCM o decodifica AUZX a PCM8 mono para el reproductor SDL3.
@@ -458,14 +475,14 @@ template <class Source>
 }
 
 /// Muestra la interfaz de la aplicación única, incluyendo el caso de arrastrar un archivo.
-void print_help(const char* exe) { std::printf("Uso: %s <audio|auzx> [--mode auto|sample|music] [--synth-separate] [--acp1-version 2|3] [--config f] [--out f] [--codec auto|rle|fib|ima|none] [--sample-rate Hz] [--chunk muestras] [--report f] [--keep-candidates] [--compare] [--play] [--dry-run]\n", exe); }
+void print_help(const char* exe) { std::printf("Uso: %s <audio|auzx> [--mode auto|sample|music] [--synth-separate] [--synth-max-tracks N] [--synth-listen N] [--synth-export-dir dir] [--spectral-separate] [--spectral-both] [--spectral-max-prototypes N] [--spectral-target-residual R] [--spectral-listen N] [--spectral-export-dir dir] [--spectral-fft N] [--spectral-hop N] [--spectral-max-shift-bins N] [--spectral-seed-candidates N] [--spectral-min-activation R] [--spectral-max-dictionary-bytes N] [--spectral-codec auto|none|rle|fib|ima] [--spectral-max-codec-error N] [--acp1-version 2|3] [--config f] [--out f] [--codec auto|rle|fib|ima|none] [--sample-rate Hz] [--chunk muestras] [--report f] [--keep-candidates] [--compare] [--play] [--dry-run]\n", exe); }
 
 } // namespace
 
 /// Punto de entrada: resuelve configuración, clasifica y ejecuta el pipeline disponible.
 int main(int argc, char** argv) {
 	if (argc < 2 || (argc == 2 && std::strcmp(argv[1], "--help") == 0)) { print_help(argv[0]); return argc < 2 ? 2 : 0; }
-	Config config{}; const std::string input = native_safe_path(argv[1]); const char* config_path = nullptr; std::string output; std::string report; bool synth_separate = false;
+	Config config{}; const std::string input = native_safe_path(argv[1]); const char* config_path = nullptr; std::string output; std::string report; std::string synth_export_dir; std::string spectral_export_dir; std::string spectral_codec = "auto"; bool synth_separate = false; bool spectral_separate = false; bool spectral_both = false; eng::u8 synth_max_tracks = 3u; eng::u8 spectral_max_prototypes = 3u; eng::u16 spectral_fft = 256u; eng::u16 spectral_hop = 64u; eng::s16 spectral_max_shift_bins = 12; eng::u8 spectral_seed_candidates = 8u; eng::u8 spectral_max_codec_error = 8u; eng::u64 spectral_max_dictionary_bytes = 0u; double spectral_target_residual = 0.0; double spectral_min_activation = 0.02; int synth_listen = -1; int spectral_listen = -1;
 	for (int i = 2; i < argc; ++i) {
 		if (std::strcmp(argv[i], "--help") == 0) { print_help(argv[0]); return 0; }
 		if (std::strcmp(argv[i], "--dry-run") == 0) { config.dry_run = true; continue; }
@@ -474,6 +491,23 @@ int main(int argc, char** argv) {
 		if (std::strcmp(argv[i], "--keep-candidates") == 0) { config.keep_candidates = true; continue; }
 		if (std::strcmp(argv[i], "--compare") == 0) { config.compare_candidates = true; continue; }
 		if (std::strcmp(argv[i], "--synth-separate") == 0) { synth_separate = true; continue; }
+		if (std::strcmp(argv[i], "--synth-max-tracks") == 0) { if (++i >= argc) return 2; synth_max_tracks = static_cast<eng::u8>(std::atoi(argv[i])); continue; }
+		if (std::strcmp(argv[i], "--synth-listen") == 0) { if (++i >= argc) return 2; synth_listen = std::atoi(argv[i]); synth_separate = true; continue; }
+		if (std::strcmp(argv[i], "--synth-export-dir") == 0) { if (++i >= argc) return 2; synth_export_dir = argv[i]; synth_separate = true; continue; }
+		if (std::strcmp(argv[i], "--spectral-separate") == 0) { spectral_separate = true; continue; }
+		if (std::strcmp(argv[i], "--spectral-both") == 0) { spectral_separate = true; spectral_both = true; continue; }
+		if (std::strcmp(argv[i], "--spectral-max-prototypes") == 0) { if (++i >= argc) return 2; spectral_max_prototypes = static_cast<eng::u8>(std::atoi(argv[i])); spectral_separate = true; continue; }
+		if (std::strcmp(argv[i], "--spectral-target-residual") == 0) { if (++i >= argc) return 2; spectral_target_residual = std::atof(argv[i]); spectral_separate = true; continue; }
+		if (std::strcmp(argv[i], "--spectral-listen") == 0) { if (++i >= argc) return 2; spectral_listen = std::atoi(argv[i]); spectral_separate = true; continue; }
+		if (std::strcmp(argv[i], "--spectral-export-dir") == 0) { if (++i >= argc) return 2; spectral_export_dir = argv[i]; spectral_separate = true; continue; }
+		if (std::strcmp(argv[i], "--spectral-fft") == 0) { if (++i >= argc) return 2; spectral_fft = static_cast<eng::u16>(std::atoi(argv[i])); spectral_separate = true; continue; }
+		if (std::strcmp(argv[i], "--spectral-hop") == 0) { if (++i >= argc) return 2; spectral_hop = static_cast<eng::u16>(std::atoi(argv[i])); spectral_separate = true; continue; }
+		if (std::strcmp(argv[i], "--spectral-max-shift-bins") == 0) { if (++i >= argc) return 2; spectral_max_shift_bins = static_cast<eng::s16>(std::atoi(argv[i])); spectral_separate = true; continue; }
+		if (std::strcmp(argv[i], "--spectral-seed-candidates") == 0) { if (++i >= argc) return 2; spectral_seed_candidates = static_cast<eng::u8>(std::atoi(argv[i])); spectral_separate = true; continue; }
+		if (std::strcmp(argv[i], "--spectral-min-activation") == 0) { if (++i >= argc) return 2; spectral_min_activation = std::atof(argv[i]); spectral_separate = true; continue; }
+		if (std::strcmp(argv[i], "--spectral-max-dictionary-bytes") == 0) { if (++i >= argc) return 2; spectral_max_dictionary_bytes = static_cast<eng::u64>(std::strtoull(argv[i], nullptr, 10)); spectral_separate = true; continue; }
+		if (std::strcmp(argv[i], "--spectral-codec") == 0) { if (++i >= argc) return 2; spectral_codec = argv[i]; spectral_separate = true; continue; }
+		if (std::strcmp(argv[i], "--spectral-max-codec-error") == 0) { if (++i >= argc) return 2; spectral_max_codec_error = static_cast<eng::u8>(std::atoi(argv[i])); spectral_separate = true; continue; }
 		if (std::strcmp(argv[i], "--hpss") == 0) { config.hpss = true; continue; }
 		if (std::strcmp(argv[i], "--no-hpss") == 0) { config.hpss = false; continue; }
 		if (i + 1 >= argc) return 2;
@@ -485,6 +519,21 @@ int main(int argc, char** argv) {
 		else if (std::strcmp(argv[i], "--codec") == 0) config.codec = argv[++i];
 		else if (std::strcmp(argv[i], "--sample-rate") == 0) config.sample_rate = static_cast<eng::u16>(std::atoi(argv[++i]));
 		else if (std::strcmp(argv[i], "--chunk") == 0) config.chunk_samples = static_cast<eng::u16>(std::atoi(argv[++i]));
+		else if (std::strcmp(argv[i], "--synth-max-tracks") == 0) ++i;
+		else if (std::strcmp(argv[i], "--synth-listen") == 0) ++i;
+		else if (std::strcmp(argv[i], "--synth-export-dir") == 0) ++i;
+		else if (std::strcmp(argv[i], "--spectral-max-prototypes") == 0) ++i;
+		else if (std::strcmp(argv[i], "--spectral-target-residual") == 0) ++i;
+		else if (std::strcmp(argv[i], "--spectral-listen") == 0) ++i;
+		else if (std::strcmp(argv[i], "--spectral-export-dir") == 0) ++i;
+		else if (std::strcmp(argv[i], "--spectral-fft") == 0) ++i;
+		else if (std::strcmp(argv[i], "--spectral-hop") == 0) ++i;
+		else if (std::strcmp(argv[i], "--spectral-max-shift-bins") == 0) ++i;
+		else if (std::strcmp(argv[i], "--spectral-seed-candidates") == 0) ++i;
+		else if (std::strcmp(argv[i], "--spectral-min-activation") == 0) ++i;
+		else if (std::strcmp(argv[i], "--spectral-max-dictionary-bytes") == 0) ++i;
+		else if (std::strcmp(argv[i], "--spectral-codec") == 0) ++i;
+		else if (std::strcmp(argv[i], "--spectral-max-codec-error") == 0) ++i;
 		else return 2;
 	}
 	if (config_path && !load_config(config_path, config)) { std::fprintf(stderr, "configuración inválida\n"); return 1; }
@@ -512,7 +561,7 @@ int main(int argc, char** argv) {
 		std::fprintf(stderr, "versión ACP1 no soportada: %u (use 2 o 3)\n", config.acp1_version);
 		return 2;
 	}
-	if (!synth_separate && !config.play && !config.hpss && !needs_ffmpeg(input) &&
+	if (!synth_separate && !spectral_separate && !config.play && !config.hpss && !needs_ffmpeg(input) &&
 		config.acp1_version == 2u &&
 		(std::filesystem::path {input}.extension() == ".wav" || std::filesystem::path {input}.extension() == ".WAV")) {
 		audio_compressor::io::WavStemSource windowed_music_source;
@@ -585,28 +634,140 @@ int main(int argc, char** argv) {
 	const std::string source = needs_ffmpeg(input) ?
 		(decode_external_source(input, decoded_input, config.sample_rate) ? decoded_input : std::string{}) : input;
 	if (source.empty()) { std::fprintf(stderr, "no se pudo decodificar la fuente externa; configure FFMPEG/FFMPEG_BIN\n"); return 1; }
-	if (config.play) {
+	if (config.play && !synth_separate) {
 		if (!load_playback_pcm(source.c_str(), pcm, rate)) { std::fprintf(stderr, "entrada inválida o no soportada para reproducción\n"); return 1; }
 	} else if (!pack_pcm::load_stems(source.c_str(), input_stems, config.sample_rate) ||
 		!pack_pcm::downmix(input_stems, pcm)) { std::fprintf(stderr, "entrada inválida o no soportada\n"); return 1; }
 	if (input_stems.sample_rate != 0u) rate = input_stems.sample_rate;
 	if (config.sample_rate == 0u) config.sample_rate = rate;
 	if (rate == 0u || !fits_memory_budget(input_stems, pcm, config)) {
-		std::fprintf(stderr, "la entrada excede --ram-budget con el pipeline actual; reduzca la entrada o aumente --ram-budget\n");
+		std::fprintf(stderr, "la entrada excede --ram-budget con el pipeline actual; rate=%u pcm=%lu budget=%llu\n", rate, static_cast<unsigned long>(pcm.size()), static_cast<unsigned long long>(config.ram_budget_bytes));
 		return 2;
+	}
+	if (spectral_separate) {
+		auto run_spectral = [&](eng::u8 prototype_count) {
+		audio_compressor::dsp::SpectralPrototypeOptions options {};
+		options.max_prototypes = prototype_count;
+		options.fft_size = spectral_fft; options.hop_samples = spectral_hop; options.max_shift_bins = spectral_max_shift_bins;
+		options.seed_candidates = spectral_seed_candidates; options.max_dictionary_bytes = spectral_max_dictionary_bytes; options.min_activation_ratio = spectral_min_activation;
+			options.stop_residual_ratio = spectral_target_residual;
+			audio_compressor::dsp::SpectralSeparationResult result {};
+			if (!audio_compressor::dsp::separate_spectral_prototypes(pcm, rate, options, result)) return false;
+			if (spectral_listen >= 0) {
+				if (static_cast<eng::usize>(spectral_listen) >= result.reconstructed_tracks.size() || !audio_compressor::play_pcm({result.reconstructed_tracks[spectral_listen].data(), result.reconstructed_tracks[spectral_listen].size()}, rate)) return false;
+			}
+			const std::string route = result.requires_octamed ? "octamed" : (result.prototypes.size() <= 3u ? "paula3" : "mixer4");
+			std::vector<std::string> prototype_codecs;
+			eng::u64 compressed_prototype_bytes = 0u;
+			auto choose_spectral_codec = [&](const std::vector<eng::u8>& samples, std::string& name, CodecCandidate& metrics) {
+				const audio_compressor::codecs::Descriptor* selected = nullptr;
+				for (const auto& descriptor : audio_compressor::codecs::kAuzxEncoders) {
+					if (spectral_codec != "auto" && descriptor.name != spectral_codec) continue;
+					if (!audio_compressor::codecs::accepts_chunk(descriptor, config.chunk_samples)) continue;
+					CodecCandidate candidate {};
+					if (!evaluate_codec(samples, config.chunk_samples, descriptor.id, candidate) || candidate.peak_error > spectral_max_codec_error) continue;
+					if (selected == nullptr || candidate.bytes < metrics.bytes) { selected = &descriptor; metrics = candidate; }
+				}
+				if (selected == nullptr) return false;
+				name = std::string(selected->name); return true;
+			};
+			for (const auto& prototype : result.prototypes) {
+				CodecCandidate selected_metrics {};
+				std::string selected_name;
+				if (!choose_spectral_codec(prototype.pcm, selected_name, selected_metrics)) return false;
+				prototype_codecs.push_back(selected_name); compressed_prototype_bytes += selected_metrics.bytes;
+			}
+			if (!spectral_export_dir.empty()) {
+				const std::filesystem::path directory = std::filesystem::path {spectral_export_dir} / ("spectral-" + std::to_string(prototype_count));
+				std::filesystem::create_directories(directory);
+				for (eng::usize i = 0u; i < result.prototypes.size(); ++i) {
+					if (!write_pcm8_wav(directory / ("prototype-" + std::to_string(i) + ".wav"), result.prototypes[i].pcm, rate) ||
+						!write_pcm8_wav(directory / ("track-" + std::to_string(i) + ".wav"), result.reconstructed_tracks[i], rate)) return false;
+					Config prototype_config = config; prototype_config.codec = prototype_codecs[i];
+					ConversionStats prototype_stats {};
+					if (!write_auzx(result.prototypes[i].pcm, rate, prototype_config,
+						(directory / ("prototype-" + std::to_string(i) + ".auzx")).string(), prototype_stats)) return false;
+					const std::pair<eng::usize, eng::usize> regions[] = {{0u, result.prototypes[i].pcm.size() / 5u / 2u * 2u}, {result.prototypes[i].pcm.size() / 5u / 2u * 2u, result.prototypes[i].pcm.size() - result.prototypes[i].pcm.size() / 5u / 2u * 4u}, {result.prototypes[i].pcm.size() - result.prototypes[i].pcm.size() / 5u / 2u * 2u, result.prototypes[i].pcm.size()}};
+					const char* region_names[] = {"attack", "sustain", "release"};
+					for (eng::usize region = 0u; region < 3u; ++region) {
+						const auto [begin, end] = regions[region];
+						if (end <= begin) continue;
+						std::vector<eng::u8> region_pcm(result.prototypes[i].pcm.begin() + begin, result.prototypes[i].pcm.begin() + end);
+						std::string region_codec; CodecCandidate region_metrics {};
+						if (!choose_spectral_codec(region_pcm, region_codec, region_metrics)) return false;
+						Config region_config = config; region_config.codec = region_codec; ConversionStats region_stats {};
+						if (!write_auzx(region_pcm, rate, region_config, (directory / ("prototype-" + std::to_string(i) + "-" + region_names[region] + ".auzx")).string(), region_stats)) return false;
+					}
+				}
+				if (result.prototypes.size() <= 7u) {
+					std::vector<audio_compressor::SpectralPcmTrack> compact_tracks;
+					for (const auto& prototype : result.prototypes) {
+						audio_compressor::SpectralPcmTrack track {}; track.route = 0u; track.pcm = prototype.pcm;
+						const double centre = [&] { double weighted = 0.0, total = 0.0; for (eng::usize bin = 0u; bin < prototype.magnitude.size(); ++bin) { weighted += bin * prototype.magnitude[bin]; total += prototype.magnitude[bin]; } return total > 1.0e-9 ? weighted / total : 1.0; }();
+						for (eng::usize frame = 0u; frame < prototype.activation.size(); ++frame) if (prototype.activation[frame] > 0.0) {
+							const eng::u64 frame_start = static_cast<eng::u64>(frame) * result.hop_samples;
+							const eng::u64 slot = result.fft_size == 0u ? 0u : frame_start / result.fft_size;
+							const eng::u64 start = slot * result.fft_size;
+							const eng::u32 duration = static_cast<eng::u32>(std::min<eng::u64>(result.fft_size, pcm.size() - std::min<eng::u64>(start, pcm.size())));
+							if (duration == 0u) continue;
+							const double shifted = std::max(1.0, centre + prototype.shift_bins[frame]);
+							const eng::s16 pitch = static_cast<eng::s16>(std::clamp(static_cast<double>(std::lround(12.0 * std::log2(shifted / std::max(1.0, centre)) * 256.0)), -32768.0, 32767.0));
+							const double gain = std::clamp(prototype.activation[frame] / std::max(1.0e-9, *std::max_element(prototype.activation.begin(), prototype.activation.end())), 0.0, 1.0);
+							const eng::u16 gain_q8_8 = static_cast<eng::u16>(std::lround(gain * 256.0));
+							if (!track.events.empty() && track.events.back().start_sample == start) {
+								if (gain_q8_8 > track.events.back().gain_q8_8) { track.events.back().gain_q8_8 = gain_q8_8; track.events.back().pitch_semitones_q8_8 = pitch; }
+							} else track.events.push_back({start, duration, gain_q8_8, pitch});
+						}
+						if (!track.events.empty()) compact_tracks.push_back(std::move(track));
+					}
+					std::vector<eng::u8> acp1;
+					if (!audio_compressor::build_acp1_v3_spectral(compact_tracks, rate, pcm.size(), acp1) ||
+						!audio_compressor::io::write_file(directory / "spectral.acp1", acp1)) return false;
+					audio_compressor::playback::Acp1HostPlayer compact_player;
+					if (!compact_player.open({acp1.data(), acp1.size()})) return false;
+					std::vector<eng::u8> compact_rebuilt(pcm.size(), 128u), compact_window(config.window_samples), compact_scratch(config.window_samples);
+					std::vector<eng::s16> compact_accumulator(config.window_samples);
+					for (eng::usize start = 0u; start < pcm.size(); start += config.window_samples) {
+						const eng::usize count = std::min<eng::usize>(config.window_samples, pcm.size() - start);
+						if (compact_player.read_window(static_cast<eng::u32>(start), {compact_window.data(), count}, {compact_scratch.data(), compact_scratch.size()}, {compact_accumulator.data(), compact_accumulator.size()}) != static_cast<eng::s32>(count)) return false;
+						std::copy(compact_window.begin(), compact_window.begin() + count, compact_rebuilt.begin() + start);
+					}
+					const auto compact_metrics = audio_compressor::dsp::reconstruction_metrics(pcm, compact_rebuilt);
+					std::printf("spectral-acp1=validated bytes=%lu MSE_PCM=%.4f SNR_PCM=%.2f\n", static_cast<unsigned long>(acp1.size()), compact_metrics.mse, compact_metrics.snr_db);
+				} else {
+					const std::string manifest = "route=octamed\nprototypes=" + std::to_string(result.prototypes.size()) + "\n";
+					const std::vector<eng::u8> bytes(manifest.begin(), manifest.end());
+					if (!audio_compressor::io::write_file(directory / "octamed-route.txt", bytes)) return false;
+				}
+			}
+			std::printf("spectral-separation=ok max=%u prototipos=%lu MSE_mag=%.6f SNR_mag=%.2f residual=%.4f bytes_estimados=%llu bytes_codec=%llu voces=%u periodo_frames=%u periodicidad=%.3f ruta=%s codecs=%s\n", prototype_count, static_cast<unsigned long>(result.prototypes.size()), result.metrics.magnitude_mse, result.metrics.magnitude_snr_db, result.metrics.residual_ratio, static_cast<unsigned long long>(result.estimated_bytes), static_cast<unsigned long long>(compressed_prototype_bytes), result.peak_concurrent_prototypes, result.dominant_period_frames, result.periodicity_score, route.c_str(), [&] { std::string value; for (eng::usize i = 0u; i < prototype_codecs.size(); ++i) { if (i != 0u) value += ","; value += prototype_codecs[i]; } return value; }().c_str());
+			return true;
+		};
+		if (spectral_both) { if (!run_spectral(3u) || !run_spectral(8u)) { std::fprintf(stderr, "la separación espectral no produjo una representación válida\n"); return 2; } }
+		else if (!run_spectral(spectral_max_prototypes)) { std::fprintf(stderr, "la separación espectral no produjo una representación válida\n"); return 2; }
+		if (!decoded_input.empty()) std::remove(decoded_input.c_str());
+		return 0;
 	}
 	if (synth_separate) {
 		audio_compressor::dsp::HarmonicSeparationOptions options {};
 		options.window_samples = config.window_samples > 65535u ? 65535u : static_cast<eng::u16>(config.window_samples);
+		options.max_tracks = synth_max_tracks;
 		std::vector<audio_compressor::dsp::HarmonicTrackModel> models;
-		if (!audio_compressor::dsp::separate_harmonic_windowed(pcm, rate, options, models) || models.size() > 7u) {
+		if (!audio_compressor::dsp::separate_harmonic_windowed(pcm, rate, options, models)) {
 			std::fprintf(stderr, "la separación armónica no produjo pistas utilizables\n"); return 2;
 		}
+		if (models.size() > 7u) { std::printf("synth-separation=fallback=octamed modelos=%lu\n", static_cast<unsigned long>(models.size())); return 0; }
 		std::vector<audio_compressor::AdditiveTrack> tracks;
 		for (const auto& model : models) {
 			audio_compressor::AdditiveTrack track {};
 			track.fundamental_hz_q16_16 = model.fundamental_hz_q16_16; track.partials = model.partials;
 			for (const auto& note : model.notes) track.notes.push_back({note.start_sample, note.duration, note.pitch_semitones_q8_8, note.gain_q8_8});
+			if (!track.notes.empty()) {
+				auto& last = track.notes.back();
+				const eng::u64 pcm_end = static_cast<eng::u64>(pcm.size());
+				const eng::u64 note_end = last.start_sample + last.duration;
+				if (note_end < pcm_end && pcm_end - last.start_sample <= 0xffffffffull) last.duration = static_cast<eng::u32>(pcm_end - last.start_sample);
+			}
 			if (!track.notes.empty()) tracks.push_back(std::move(track));
 		}
 		std::vector<eng::u8> synth_file;
@@ -617,15 +778,27 @@ int main(int argc, char** argv) {
 		if (!audio_compressor::io::write_file(std::filesystem::path {output}, synth_file)) return 1;
 		audio_compressor::playback::Acp1HostPlayer player;
 		std::vector<eng::u8> rebuilt(pcm.size()), scratch(config.window_samples), window(config.window_samples);
+		std::vector<std::vector<eng::u8>> track_pcm(tracks.size(), std::vector<eng::u8>(pcm.size(), 0x80u));
 		std::vector<eng::s16> accumulator(config.window_samples);
-		eng::u64 squared_error = 0u;
 		for (eng::usize start = 0u; start < pcm.size(); start += config.window_samples) {
 			const eng::usize count = std::min<eng::usize>(config.window_samples, pcm.size() - start);
-			if (!player.open({synth_file.data(), synth_file.size()}) || player.read_window(static_cast<eng::u32>(start), {window.data(), count}, {scratch.data(), scratch.size()}, {accumulator.data(), accumulator.size()}) != static_cast<eng::s32>(count)) return 2;
-			for (eng::usize i = 0u; i < count; ++i) { rebuilt[start + i] = window[i]; const eng::s32 error = static_cast<eng::s8>(pcm[start + i]) - static_cast<eng::s8>(window[i]); squared_error += static_cast<eng::u64>(error * error); }
+			if (!player.open({synth_file.data(), synth_file.size()})) { std::fprintf(stderr, "no se pudo abrir el ACP1 sintetizado en la ventana %lu\n", static_cast<unsigned long>(start)); return 2; }
+			if (player.read_window(static_cast<eng::u32>(start), {window.data(), count}, {scratch.data(), scratch.size()}, {accumulator.data(), accumulator.size()}) != static_cast<eng::s32>(count)) { std::fprintf(stderr, "no se pudo reconstruir la ventana %lu del ACP1 sintetizado\n", static_cast<unsigned long>(start)); return 2; }
+			for (eng::usize i = 0u; i < count; ++i) rebuilt[start + i] = window[i];
+			for (eng::usize track = 0u; track < tracks.size(); ++track) if (player.read_track_window(static_cast<eng::u32>(track), static_cast<eng::u32>(start), {track_pcm[track].data() + start, count}, {scratch.data(), scratch.size()}, {accumulator.data(), accumulator.size()}) != static_cast<eng::s32>(count)) { std::fprintf(stderr, "no se pudo reconstruir la pista %lu en la ventana %lu\n", static_cast<unsigned long>(track), static_cast<unsigned long>(start)); return 2; }
 		}
-		const double mse = pcm.empty() ? 0.0 : static_cast<double>(squared_error) / pcm.size();
-		std::printf("synth-separation=ok modelos=%lu bytes=%lu MSE=%.4f salida=%s\n", static_cast<unsigned long>(tracks.size()), static_cast<unsigned long>(synth_file.size()), mse, output.c_str());
+		const auto metrics = audio_compressor::dsp::reconstruction_metrics(pcm, rebuilt);
+		const double leakage = audio_compressor::dsp::cross_track_leakage_db(track_pcm);
+		if (!synth_export_dir.empty()) {
+			if (!write_pcm8_wav(std::filesystem::path {synth_export_dir} / "mix.wav", rebuilt, rate)) return 1;
+			for (eng::usize track = 0u; track < track_pcm.size(); ++track) if (!write_pcm8_wav(std::filesystem::path {synth_export_dir} / ("track-" + std::to_string(track) + ".wav"), track_pcm[track], rate)) return 1;
+		}
+		std::printf("synth-separation=ok modelos=%lu bytes=%lu MSE=%.4f SNR=%.2f pico=%u fuga_dB=%.2f salida=%s\n", static_cast<unsigned long>(tracks.size()), static_cast<unsigned long>(synth_file.size()), metrics.mse, metrics.snr_db, metrics.peak_error, leakage, output.c_str());
+		if (synth_listen >= 0) {
+			if (static_cast<eng::usize>(synth_listen) >= track_pcm.size() || !audio_compressor::play_pcm({track_pcm[synth_listen].data(), track_pcm[synth_listen].size()}, rate)) {
+				std::fprintf(stderr, "pista no disponible o reproducción SDL3 no compilada\n"); return 4;
+			}
+		}
 		if (!decoded_input.empty()) std::remove(decoded_input.c_str());
 		return 0;
 	}

@@ -197,6 +197,7 @@ La variante estricta sin dependencias externas debe compilar WAV/RAW, AUZX, ACP1
 - Validar la demo 280 en WinUAE después de resolver el wrapper de build, y añadir pruebas positivas/negativas de coexistencia con mixer/tracker.
 - Objetivo de máximos: separar instrumentos mediante `F0`, parciales, envolventes, ataques y residual, probar hipótesis alternativas y sintetizar las unidades durante la reproducción en vez de almacenar toda la señal PCM. El contrato y las cinco fases están en [`AUDIO_COMPRESSION.md`](../../engine/architecture/AUDIO_COMPRESSION.md#objetivo-de-máximos-separación-instrumental-y-síntesis-durante-la-reproducción).
 - El planner debe asignar primero `AUD1..AUD3`, después las cuatro voces software de `AUD0`, y solicitar OctaMED para concurrencia superior a siete; las pistas requeridas que no quepan se rechazan de forma explícita.
+- La evaluación host expone MSE, SNR, pico, correlación entre pistas, exportación WAV por pista y escucha SDL3; el fallback actual declara `fallback=octamed` y queda pendiente conectar una playroutine MED dinámica.
 
 ### R7 — Integración y eliminación de deuda
 

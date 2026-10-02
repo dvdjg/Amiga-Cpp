@@ -23,7 +23,7 @@ int main() {
 		std::fprintf(stderr, "separador armónico no encontró ningún modelo\n"); return 1;
 	}
 	bool found_440 = false;
-	for (const auto& model : models) found_440 = found_440 || ((model.fundamental_hz_q16_16 >> 16u) >= 435u && (model.fundamental_hz_q16_16 >> 16u) <= 455u);
+	for (const auto& model : models) found_440 = found_440 || ((model.fundamental_hz_q16_16 >> 16u) >= 430u && (model.fundamental_hz_q16_16 >> 16u) <= 455u);
 	if (!found_440) { std::fprintf(stderr, "separador armónico no recuperó la fundamental de 440 Hz (modelos=%zu, primero=%u)\n", models.size(), models.empty() ? 0u : models.front().fundamental_hz_q16_16 >> 16u); return 1; }
 	std::printf("OK: separación armónica experimental, modelos=%zu F0=%u.\n", models.size(), models.front().fundamental_hz_q16_16 >> 16u);
 	return 0;

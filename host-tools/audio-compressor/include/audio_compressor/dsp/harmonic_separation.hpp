@@ -41,49 +41,58 @@ struct HarmonicSeparationOptions {
 	const HarmonicSeparationOptions& options, std::vector<HarmonicTrackModel>& output) {
 	if (pcm.empty() || sample_rate == 0u || options.window_samples < 64u || options.max_tracks == 0u ||
 		options.partials == 0u || options.frequency_step_hz == 0u || options.min_hz >= options.max_hz) return false;
-	struct Candidate { double frequency = 0.0; double energy = 0.0; std::vector<double> amplitudes; };
 	const eng::usize count = std::min<eng::usize>(options.window_samples, pcm.size());
-	const auto sample = [&](eng::usize index) { return static_cast<double>(static_cast<eng::s8>(pcm[index])); };
-	std::vector<Candidate> candidates;
-	for (eng::u32 frequency = options.min_hz; frequency <= options.max_hz; frequency += options.frequency_step_hz) {
-		Candidate candidate {}; candidate.frequency = frequency;
-		const eng::usize lag = std::max<eng::usize>(1u, std::lround(static_cast<double>(sample_rate) / frequency));
-		double correlation = 0.0, energy = 0.0;
-		for (eng::usize i = 0u; i + lag < count; ++i) { correlation += sample(i) * sample(i + lag); energy += sample(i) * sample(i); }
-		candidate.energy = energy > 1.0 ? (correlation * correlation) / energy : 0.0;
-		candidates.push_back(std::move(candidate));
-	}
-	std::sort(candidates.begin(), candidates.end(), [](const Candidate& left, const Candidate& right) { return left.energy > right.energy; });
+	std::vector<double> residual(count, 0.0);
+	for (eng::usize i = 0u; i < count; ++i) residual[i] = static_cast<eng::s8>(pcm[i]);
 	output.clear();
-	for (Candidate& candidate : candidates) {
-		bool separated = true;
-		for (const HarmonicTrackModel& selected : output) {
-			const double selected_hz = selected.fundamental_hz_q16_16 / 65536.0;
-			if (std::abs(candidate.frequency - selected_hz) < 40.0) { separated = false; break; }
+	for (eng::u8 selection = 0u; selection < options.max_tracks; ++selection) {
+		double best_energy = 0.0, best_frequency = 0.0;
+		for (eng::u32 frequency = options.min_hz; frequency <= options.max_hz; frequency += options.frequency_step_hz) {
+			bool separated = true;
+			for (const HarmonicTrackModel& selected : output) {
+				const double selected_hz = selected.fundamental_hz_q16_16 / 65536.0;
+				const double ratio = frequency / selected_hz;
+				const double nearest_harmonic = std::round(ratio);
+				if (std::abs(frequency - selected_hz) < 40.0 || (nearest_harmonic >= 2.0 && std::abs(ratio - nearest_harmonic) < 0.04)) { separated = false; break; }
+			}
+			if (!separated) continue;
+			const eng::usize lag = std::max<eng::usize>(1u, std::lround(static_cast<double>(sample_rate) / frequency));
+			double correlation = 0.0, energy = 0.0;
+			for (eng::usize i = 0u; i + lag < count; ++i) { correlation += residual[i] * residual[i + lag]; energy += residual[i] * residual[i]; }
+			const double score = energy > 1.0 ? (correlation * correlation) / energy : 0.0;
+			if (score > best_energy) { best_energy = score; best_frequency = frequency; }
 		}
-		if (!separated) continue;
-		candidate.amplitudes.assign(options.partials, 0.0);
+		if (best_frequency == 0.0 || best_energy == 0.0) break;
+		std::vector<double> amplitudes(options.partials, 0.0), phases(options.partials, 0.0);
 		for (eng::u8 partial = 1u; partial <= options.partials; ++partial) {
-			const double frequency_hz = candidate.frequency * partial;
+			const double frequency_hz = best_frequency * partial;
 			if (frequency_hz >= sample_rate * 0.5) break;
 			double real = 0.0, imaginary = 0.0;
 			for (eng::usize i = 0u; i < count; ++i) {
 				const double angle = 6.28318530717958647692 * frequency_hz * i / sample_rate;
-				real += sample(i) * std::cos(angle); imaginary -= sample(i) * std::sin(angle);
+				real += residual[i] * std::cos(angle); imaginary -= residual[i] * std::sin(angle);
 			}
-			candidate.amplitudes[partial - 1u] = 2.0 * std::sqrt(real * real + imaginary * imaginary) / count;
+			amplitudes[partial - 1u] = 2.0 * std::sqrt(real * real + imaginary * imaginary) / count;
+			phases[partial - 1u] = std::atan2(-imaginary, real) / 6.28318530717958647692 + 0.25;
 		}
 		HarmonicTrackModel model {};
-		model.fundamental_hz_q16_16 = static_cast<eng::u32>(candidate.frequency * 65536.0);
-		const double peak = std::max(1.0, candidate.amplitudes.front());
-		for (eng::usize i = 0u; i < candidate.amplitudes.size(); ++i) {
-			const eng::s32 amplitude = static_cast<eng::s32>(std::lround(std::clamp(candidate.amplitudes[i] / peak, -1.0, 1.0) * 32767.0));
-			model.partials.push_back({static_cast<eng::u16>((i + 1u) * 256u), static_cast<eng::s16>(amplitude), 0u});
+		model.fundamental_hz_q16_16 = static_cast<eng::u32>(best_frequency * 65536.0);
+		const double peak = std::max(1.0, amplitudes.front());
+		for (eng::usize i = 0u; i < amplitudes.size(); ++i) {
+			const eng::s32 amplitude = static_cast<eng::s32>(std::lround(std::clamp(amplitudes[i] / peak, -1.0, 1.0) * 32767.0));
+			const eng::u32 phase = static_cast<eng::u32>(std::fmod(std::max(0.0, phases[i]), 1.0) * 4294967296.0);
+			model.partials.push_back({static_cast<eng::u16>((i + 1u) * 256u), static_cast<eng::s16>(amplitude), phase});
 		}
 		const double gain = std::clamp(peak / 127.0, 0.0, 1.0);
 		model.notes.push_back({0u, static_cast<eng::u32>(count), 0, static_cast<eng::u16>(std::lround(gain * 256.0))});
 		output.push_back(std::move(model));
-		if (output.size() >= options.max_tracks) break;
+		for (eng::usize i = 0u; i < count; ++i) {
+			for (eng::usize partial = 0u; partial < amplitudes.size(); ++partial) {
+				if (amplitudes[partial] == 0.0) continue;
+				const double angle = 6.28318530717958647692 * best_frequency * (partial + 1u) * i / sample_rate + 6.28318530717958647692 * phases[partial];
+				residual[i] -= amplitudes[partial] * std::sin(angle);
+			}
+		}
 	}
 	return !output.empty();
 }
@@ -116,7 +125,13 @@ struct HarmonicSeparationOptions {
 					(output[best].fundamental_hz_q16_16 / 65536.0);
 				note.start_sample += start;
 				note.pitch_semitones_q8_8 = static_cast<eng::s16>(std::lround(std::log2(std::max(1.0, ratio)) * 12.0 * 256.0));
-				output[best].notes.push_back(note);
+				auto& notes = output[best].notes;
+				if (!notes.empty() && notes.back().start_sample + notes.back().duration == note.start_sample &&
+					std::abs(static_cast<eng::s32>(notes.back().pitch_semitones_q8_8) - note.pitch_semitones_q8_8) <= 256 &&
+					std::abs(static_cast<eng::s32>(notes.back().gain_q8_8) - note.gain_q8_8) <= 64) {
+					notes.back().duration += note.duration;
+					notes.back().gain_q8_8 = static_cast<eng::u16>((static_cast<eng::u32>(notes.back().gain_q8_8) + note.gain_q8_8) / 2u);
+				} else notes.push_back(note);
 			}
 		}
 	}
