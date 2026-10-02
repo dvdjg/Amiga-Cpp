@@ -40,6 +40,7 @@ struct SpectralPcmEvent {
 
 struct SpectralPcmTrack {
 	eng::u8 route = 0u;
+	bool sample_loop = false;
 	std::vector<eng::u8> pcm;
 	std::vector<eng::u8> payload;
 	eng::u16 codec = 0u;
@@ -74,7 +75,7 @@ inline void v3_wr64(std::vector<eng::u8>& file, eng::usize at, eng::u64 value) {
 		if (track.route == 4u) ++mixer;
 		if (payload_bytes > 0xffffffffu - payload.size()) return false;
 		payload_bytes += payload.size(); event_count += track.events.size();
-		for (const auto& event : track.events) if (event.duration == 0u || event.duration > track.pcm.size() || event.start_sample > timeline_samples - event.duration) return false;
+		for (const auto& event : track.events) if (event.duration == 0u || (!track.sample_loop && event.duration > track.pcm.size()) || event.start_sample > timeline_samples - event.duration) return false;
 	}
 	if (event_count == 0u || event_count > 0xffffffffu) return false;
 	const eng::usize units_offset = kHeaderSize + kDirectorySize;
@@ -95,7 +96,7 @@ inline void v3_wr64(std::vector<eng::u8>& file, eng::usize at, eng::u64 value) {
 	eng::usize payload_cursor = 0u, event_cursor = 0u;
 	for (eng::usize track_id = 0u; track_id < tracks.size(); ++track_id) {
 		const auto& track = tracks[track_id]; const eng::usize unit_at = units_offset + track_id * kUnitSize; const eng::usize segment_at = segments_offset + track_id * kSegmentSize; const eng::usize track_at = tracks_offset + track_id * kTrackSize;
-		v3_wr32(output, unit_at, static_cast<eng::u32>(track_id)); output[unit_at + 4u] = 0u; v3_wr32(output, unit_at + 6u, static_cast<eng::u32>(track.pcm.size())); v3_wr32(output, unit_at + 10u, static_cast<eng::u32>(track_id)); v3_wr16(output, unit_at + 14u, 1u); v3_wr16(output, unit_at + 16u, 0xffffu); v3_wr16(output, unit_at + 18u, 256u);
+		v3_wr32(output, unit_at, static_cast<eng::u32>(track_id)); output[unit_at + 4u] = 0u; output[unit_at + 5u] = track.sample_loop ? 1u : 0u; v3_wr32(output, unit_at + 6u, static_cast<eng::u32>(track.pcm.size())); v3_wr32(output, unit_at + 10u, static_cast<eng::u32>(track_id)); v3_wr16(output, unit_at + 14u, 1u); v3_wr16(output, unit_at + 16u, 0xffffu); v3_wr16(output, unit_at + 18u, 256u);
 		const auto& payload = track.payload.empty() ? track.pcm : track.payload;
 		v3_wr32(output, segment_at, static_cast<eng::u32>(track_id)); v3_wr32(output, segment_at + 4u, 0u); v3_wr32(output, segment_at + 8u, static_cast<eng::u32>(track.pcm.size())); v3_wr32(output, segment_at + 12u, static_cast<eng::u32>(payload_offset + payload_cursor)); v3_wr32(output, segment_at + 16u, static_cast<eng::u32>(payload.size())); v3_wr16(output, segment_at + 20u, track.codec); std::memcpy(output.data() + payload_cursor + payload_offset, payload.data(), payload.size()); payload_cursor += payload.size();
 		v3_wr16(output, track_at, static_cast<eng::u16>(track_id)); output[track_at + 2u] = track.route; v3_wr32(output, track_at + 4u, static_cast<eng::u32>(event_cursor)); v3_wr32(output, track_at + 8u, static_cast<eng::u32>(track.events.size())); v3_wr16(output, track_at + 12u, 0xffffu); v3_wr16(output, track_at + 14u, 0xffffu); v3_wr16(output, track_at + 16u, 256u);

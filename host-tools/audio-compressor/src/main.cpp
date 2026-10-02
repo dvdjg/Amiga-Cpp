@@ -494,14 +494,14 @@ template <class Source>
 }
 
 /// Muestra la interfaz de la aplicación única, incluyendo el caso de arrastrar un archivo.
-void print_help(const char* exe) { std::printf("Uso: %s <audio|auzx> [--mode auto|sample|music] [--synth-separate] [--synth-max-tracks N] [--synth-listen N] [--synth-export-dir dir] [--spectral-separate] [--spectral-both] [--spectral-max-prototypes N] [--spectral-target-residual R] [--spectral-listen N] [--spectral-calibration file] [--spectral-export-dir dir] [--spectral-fft N] [--spectral-hop N] [--spectral-max-shift-bins N] [--spectral-seed-candidates N] [--spectral-min-activation R] [--spectral-max-dictionary-bytes N] [--spectral-codec auto|none|rle|fib|ima] [--spectral-max-codec-error N] [--acp1-version 2|3] [--config f] [--out f] [--codec auto|rle|fib|ima|none] [--sample-rate Hz] [--chunk muestras] [--report f] [--keep-candidates] [--compare] [--play] [--dry-run]\n", exe); }
+void print_help(const char* exe) { std::printf("Uso: %s <audio|auzx> [--mode auto|sample|music] [--synth-separate] [--synth-max-tracks N] [--synth-listen N] [--synth-export-dir dir] [--spectral-separate] [--spectral-both] [--spectral-max-prototypes N] [--spectral-target-residual R] [--spectral-listen N] [--spectral-calibration file] [--tracker-row-samples N] [--spectral-export-dir dir] [--spectral-fft N] [--spectral-hop N] [--spectral-max-shift-bins N] [--spectral-seed-candidates N] [--spectral-min-activation R] [--spectral-max-dictionary-bytes N] [--spectral-codec auto|none|rle|fib|ima] [--spectral-max-codec-error N] [--acp1-version 2|3] [--config f] [--out f] [--codec auto|rle|fib|ima|none] [--sample-rate Hz] [--chunk muestras] [--report f] [--keep-candidates] [--compare] [--play] [--dry-run]\n", exe); }
 
 } // namespace
 
 /// Punto de entrada: resuelve configuración, clasifica y ejecuta el pipeline disponible.
 int main(int argc, char** argv) {
 	if (argc < 2 || (argc == 2 && std::strcmp(argv[1], "--help") == 0)) { print_help(argv[0]); return argc < 2 ? 2 : 0; }
-	Config config{}; const std::string input = native_safe_path(argv[1]); const char* config_path = nullptr; std::string output; std::string report; std::string synth_export_dir; std::string spectral_export_dir; std::string spectral_calibration_path; std::string spectral_codec = "auto"; bool synth_separate = false; bool spectral_separate = false; bool spectral_both = false; eng::u8 synth_max_tracks = 3u; eng::u8 spectral_max_prototypes = 3u; eng::u16 spectral_fft = 256u; eng::u16 spectral_hop = 64u; eng::s16 spectral_max_shift_bins = 12; eng::u8 spectral_seed_candidates = 8u; eng::u8 spectral_max_codec_error = 8u; eng::u64 spectral_max_dictionary_bytes = 0u; double spectral_target_residual = 0.0; double spectral_min_activation = 0.02; int synth_listen = -1; int spectral_listen = -1;
+	Config config{}; const std::string input = native_safe_path(argv[1]); const char* config_path = nullptr; std::string output; std::string report; std::string synth_export_dir; std::string spectral_export_dir; std::string spectral_calibration_path; std::string spectral_codec = "auto"; bool synth_separate = false; bool spectral_separate = false; bool spectral_both = false; eng::u8 synth_max_tracks = 3u; eng::u8 spectral_max_prototypes = 3u; eng::u16 spectral_fft = 256u; eng::u16 spectral_hop = 64u; eng::s16 spectral_max_shift_bins = 12; eng::u8 spectral_seed_candidates = 8u; eng::u8 spectral_max_codec_error = 8u; eng::u64 spectral_max_dictionary_bytes = 0u; eng::u32 tracker_row_samples = 0u; double spectral_target_residual = 0.0; double spectral_min_activation = 0.02; int synth_listen = -1; int spectral_listen = -1;
 	for (int i = 2; i < argc; ++i) {
 		if (std::strcmp(argv[i], "--help") == 0) { print_help(argv[0]); return 0; }
 		if (std::strcmp(argv[i], "--dry-run") == 0) { config.dry_run = true; continue; }
@@ -519,6 +519,7 @@ int main(int argc, char** argv) {
 		if (std::strcmp(argv[i], "--spectral-target-residual") == 0) { if (++i >= argc) return 2; spectral_target_residual = std::atof(argv[i]); spectral_separate = true; continue; }
 		if (std::strcmp(argv[i], "--spectral-listen") == 0) { if (++i >= argc) return 2; spectral_listen = std::atoi(argv[i]); spectral_separate = true; continue; }
 		if (std::strcmp(argv[i], "--spectral-calibration") == 0) { if (++i >= argc) return 2; spectral_calibration_path = argv[i]; spectral_separate = true; continue; }
+		if (std::strcmp(argv[i], "--tracker-row-samples") == 0) { if (++i >= argc) return 2; tracker_row_samples = static_cast<eng::u32>(std::strtoul(argv[i], nullptr, 10)); spectral_separate = true; continue; }
 		if (std::strcmp(argv[i], "--spectral-export-dir") == 0) { if (++i >= argc) return 2; spectral_export_dir = argv[i]; spectral_separate = true; continue; }
 		if (std::strcmp(argv[i], "--spectral-fft") == 0) { if (++i >= argc) return 2; spectral_fft = static_cast<eng::u16>(std::atoi(argv[i])); spectral_separate = true; continue; }
 		if (std::strcmp(argv[i], "--spectral-hop") == 0) { if (++i >= argc) return 2; spectral_hop = static_cast<eng::u16>(std::atoi(argv[i])); spectral_separate = true; continue; }
@@ -546,6 +547,7 @@ int main(int argc, char** argv) {
 		else if (std::strcmp(argv[i], "--spectral-target-residual") == 0) ++i;
 		else if (std::strcmp(argv[i], "--spectral-listen") == 0) ++i;
 		else if (std::strcmp(argv[i], "--spectral-calibration") == 0) ++i;
+		else if (std::strcmp(argv[i], "--tracker-row-samples") == 0) ++i;
 		else if (std::strcmp(argv[i], "--spectral-export-dir") == 0) ++i;
 		else if (std::strcmp(argv[i], "--spectral-fft") == 0) ++i;
 		else if (std::strcmp(argv[i], "--spectral-hop") == 0) ++i;
@@ -704,10 +706,11 @@ int main(int argc, char** argv) {
 				prototype_codecs.push_back(selected_name); compressed_prototype_bytes += selected_metrics.bytes;
 			}
 			eng::u64 event_count = 0u;
+			const eng::u32 cost_row_samples = tracker_row_samples == 0u ? std::max<eng::u32>(result.fft_size, static_cast<eng::u32>(rate * 6u / 50u)) : std::max<eng::u32>(result.fft_size, tracker_row_samples);
 			for (const auto& prototype : result.prototypes) {
 				eng::u64 previous_slot = std::numeric_limits<eng::u64>::max();
 				for (eng::usize frame = 0u; frame < prototype.activation.size(); ++frame) if (prototype.activation[frame] > 0.0) {
-					const eng::u64 slot = result.fft_size == 0u ? frame : (static_cast<eng::u64>(frame) * result.hop_samples) / result.fft_size;
+					const eng::u64 slot = cost_row_samples == 0u ? frame : (static_cast<eng::u64>(frame) * result.hop_samples) / cost_row_samples;
 					if (slot != previous_slot) { ++event_count; previous_slot = slot; }
 				}
 			}
@@ -739,7 +742,7 @@ int main(int argc, char** argv) {
 					std::vector<audio_compressor::SpectralPcmTrack> compact_tracks;
 					for (eng::usize prototype_index = 0u; prototype_index < result.prototypes.size(); ++prototype_index) {
 						const auto& prototype = result.prototypes[prototype_index];
-						audio_compressor::SpectralPcmTrack track {}; track.route = 0u; track.pcm = prototype.pcm;
+						audio_compressor::SpectralPcmTrack track {}; track.route = 0u; track.sample_loop = true; track.pcm = prototype.pcm;
 						const auto encoded_codec = codec_id(prototype_codecs[prototype_index]);
 						eng::u8 fib_seed = 0u;
 						if (!encode_chunk({prototype.pcm.data(), prototype.pcm.size()}, encoded_codec, track.payload, fib_seed)) return false;
@@ -747,9 +750,10 @@ int main(int argc, char** argv) {
 						const double centre = [&] { double weighted = 0.0, total = 0.0; for (eng::usize bin = 0u; bin < prototype.magnitude.size(); ++bin) { weighted += bin * prototype.magnitude[bin]; total += prototype.magnitude[bin]; } return total > 1.0e-9 ? weighted / total : 1.0; }();
 						for (eng::usize frame = 0u; frame < prototype.activation.size(); ++frame) if (prototype.activation[frame] > 0.0) {
 							const eng::u64 frame_start = static_cast<eng::u64>(frame) * result.hop_samples;
-							const eng::u64 slot = result.fft_size == 0u ? 0u : frame_start / result.fft_size;
-							const eng::u64 start = slot * result.fft_size;
-							const eng::u32 duration = static_cast<eng::u32>(std::min<eng::u64>(result.fft_size, pcm.size() - std::min<eng::u64>(start, pcm.size())));
+							const eng::u32 row_samples = tracker_row_samples == 0u ? std::max<eng::u32>(result.fft_size, static_cast<eng::u32>(rate * 6u / 50u)) : std::max<eng::u32>(result.fft_size, tracker_row_samples);
+							const eng::u64 slot = row_samples == 0u ? 0u : frame_start / row_samples;
+							const eng::u64 start = slot * row_samples;
+							const eng::u32 duration = static_cast<eng::u32>(std::min<eng::u64>(row_samples, pcm.size() - std::min<eng::u64>(start, pcm.size())));
 							if (duration == 0u) continue;
 							const double shifted = std::max(1.0, centre + prototype.shift_bins[frame]);
 							const eng::s16 pitch = static_cast<eng::s16>(std::clamp(static_cast<double>(std::lround(12.0 * std::log2(shifted / std::max(1.0, centre)) * 256.0)), -32768.0, 32767.0));

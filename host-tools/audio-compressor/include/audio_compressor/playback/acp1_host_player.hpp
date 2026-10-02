@@ -87,7 +87,8 @@ private:
 				const double pitch_ratio = std::pow(2.0, static_cast<double>(event.pitch_semitones_q8_8) / (12.0 * 256.0));
 				for (eng::u64 sample = overlap_start; sample < overlap_end; ++sample) {
 					const eng::usize event_offset = static_cast<eng::usize>(sample - event.start_sample);
-					const double source_position = static_cast<double>(event.unit_offset) + event_offset * pitch_ratio;
+					double source_position = static_cast<double>(event.unit_offset) + event_offset * pitch_ratio;
+					if ((unit.flags & 1u) != 0u) source_position = std::fmod(source_position, static_cast<double>(unit.decoded_samples));
 					const eng::usize source = std::min<eng::usize>(unit.decoded_samples - 1u, static_cast<eng::usize>(source_position));
 					const eng::usize next_source = std::min<eng::usize>(unit.decoded_samples - 1u, source + 1u);
 					const double fraction = source_position - static_cast<double>(source);

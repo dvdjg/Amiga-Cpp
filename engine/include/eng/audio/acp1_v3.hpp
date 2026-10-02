@@ -58,6 +58,7 @@ struct Info {
 struct Unit {
 	eng::u32 id = 0u; ///< Índice consecutivo de la unidad.
 	eng::u8 representation = 0u; ///< 0 PCM, 1 Additive o 2 Hybrid.
+	eng::u8 flags = 0u; ///< bit 0: la unidad PCM puede repetirse durante un evento largo.
 	eng::u32 decoded_samples = 0u; ///< Duración reconstruida en muestras.
 	eng::u32 first_segment = 0xffffffffu; ///< Primer segmento o sentinel si es aditiva.
 	eng::u16 segment_count = 0u; ///< Número de segmentos residuales.
@@ -195,7 +196,7 @@ struct Event {
 		const eng::u8 representation = file[at + 4u];
 		const eng::u16 synthesis_index = rd16(file, at + 16u);
 		const eng::u16 segment_count = rd16(file, at + 14u);
-		if (rd32(file, at) != i || representation > 2u || file[at + 5u] != 0u || rd32(file, at + 20u) != 0u ||
+		if (rd32(file, at) != i || representation > 2u || (file[at + 5u] & ~1u) != 0u || rd32(file, at + 20u) != 0u ||
 			(representation == 0u && synthesis_index != 0xffffu) ||
 			(representation != 0u && (synthesis_index >= synthesis.entry_count || segment_count != 0u || rd32(file, at + 10u) != 0xffffffffu))) return false;
 		const eng::u32 decoded = rd32(file, at + 6u);
@@ -234,7 +235,8 @@ struct Event {
 		const eng::usize unit_at = units.offset + unit * kUnitSize;
 		const eng::u32 unit_samples = rd32(file, unit_at + 6u);
 		const eng::u32 unit_offset = rd32(file, at + 20u);
-		if (unit_offset > unit_samples || duration > unit_samples - unit_offset) return false;
+		const bool loopable_pcm = file[unit_at + 4u] == 0u && (file[unit_at + 5u] & 1u) != 0u;
+		if (unit_offset > unit_samples || (!loopable_pcm && duration > unit_samples - unit_offset)) return false;
 	}
 	out = parsed;
 	return true;
@@ -246,6 +248,7 @@ struct Event {
 	if (index >= section.entry_count || section.entry_size != kUnitSize) return false;
 	const eng::usize at = section.offset + index * kUnitSize;
 	out.id = rd32(file, at); out.representation = file[at + 4u]; out.decoded_samples = rd32(file, at + 6u);
+	out.flags = file[at + 5u];
 	out.first_segment = rd32(file, at + 10u); out.segment_count = rd16(file, at + 14u);
 	out.synthesis_index = rd16(file, at + 16u); out.reference_gain_q8_8 = rd16(file, at + 18u);
 	return out.id == index;

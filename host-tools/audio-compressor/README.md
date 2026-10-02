@@ -75,6 +75,8 @@ El objetivo de selección es un tracker: se calcula `coste_tracker = bytes_de_mu
 
 El layout compacto sigue el modelo de los trackers clásicos: una unidad de muestra reutilizable por instrumento, una secuencia de eventos por pista y pitch/ganancia por evento. Los segmentos ACP1 ya pueden contener PCM8, DeltaRLE, FibonacciDelta o IMA ADPCM directamente; el player host los expande antes de aplicar interpolación de pitch, fades y mezcla. Los loops de patrón solo deben activarse cuando el ahorro de eventos y tablas supere su coste de control; la versión actual informa la periodicidad, pero no fuerza un loop si no existe una ganancia de tamaño demostrada.
 
+`--tracker-row-samples N` cuantiza los eventos a filas de tracker; si se omite, se usa aproximadamente una fila de seis ticks a 50 Hz. Las unidades PCM resultantes se marcan como loopables y el renderer repite la muestra durante la duración de la fila/evento. Esto reduce el número de eventos, pero puede aumentar el error temporal; por eso el coste y la reconstrucción se imprimen siempre.
+
 ## Reproducción host con SDL3
 
 La reproducción es opcional. Sin SDL3, la utilidad sigue funcionando para conversión y devuelve un error claro si se usa `--play`. Cuando SDL3 está habilitado, la E/S host y el audio usan abstracciones SDL3; no se usa Win32 en la lógica de la aplicación. El build preferido usa enlace estático:
