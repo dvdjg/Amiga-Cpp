@@ -22,8 +22,8 @@ La diferencia de fondo con el original es que aquí **el juego no sondea hardwar
 
 - **Layout interleaved**: fila de 5 planos × 40 B = 200 B; `BPL1MOD=BPL2MOD=160`, `BPLxPT = base + p*40`.
   El bitmap se dibuja **in place** (el original no usa doble buffer; no hay `commit`).
-- **BOB interleaved de una pasada**: el `bob.bpl` original guarda, por fila de plano, `[máscara]
-  [imagen]` (8 B). Se reproduce con **un** `BlitJob` masked por BOB: `A=máscara`, `B=imagen`,
+- **BOB interleaved de una pasada**: el `bob.bpl` original guarda, por fila de plano, `[imagen]
+  [máscara]` (8 B). Se reproduce con **un** `BlitJob` masked por BOB: `A=máscara`, `B=imagen`,
   `words_per_row=2`, `height=16*5=80`, `AMOD=BMOD=4`, `DMOD=36` (`40-4`), minterm `$CA`. No requiere
   reempaquetar el asset.
 - **Borrado**: un solo `ClearRect` D-only sobre las filas 200..255 de los 5 planos (`DMOD=0`).
@@ -84,7 +84,7 @@ En `assets/amiga/sprites/abyss/` (origen `BartmanBasic`, uso interno de prueba):
 |---|---|
 | `abyss.bpl` | Interleaved 320×256×5, 40 B por fila/plano (51200 B), sin cabecera. |
 | `abyss.pal` | 32 colores Amiga `$0RGB` (64 B). |
-| `bob.bpl` | 6 frames de 32×16; por fila de plano `[máscara 2 palabras][imagen 2 palabras]` (3840 B). |
+| `bob.bpl` | 6 frames de 32×16; por fila de plano `[imagen 2 palabras][máscara 2 palabras]` (3840 B). |
 
 Módulo: `assets/amiga/audio/testmod.p61` (mismo que usa la demo 276).
 

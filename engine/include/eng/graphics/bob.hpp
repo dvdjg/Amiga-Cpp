@@ -286,8 +286,8 @@ inline bool bob_draw_interleaved_pair(FramePlan& plan, const Bob& bob, u8 frame,
 	const u16* src = reinterpret_cast<const u16*>(
 		bob.sheet.address(static_cast<u32>(frame) * bob.frame_stride).cptr());
 	BlitJob job {};
-	job.mask = BlitPtr::from_storage(src);                 // 1ª mitad de la fila = máscara
-	job.source = BlitPtr::from_storage(src + words);       // 2ª mitad = imagen
+	job.source = BlitPtr::from_storage(src);               // 1ª mitad de la fila = imagen
+	job.mask = BlitPtr::from_storage(src + words);         // 2ª mitad = máscara
 	job.destination = BlitPtr::from_storage(reinterpret_cast<u16*>(
 		t.data() + static_cast<u32>(y) * start_row + (static_cast<u32>(x_start) >> 3u)));
 	job.words_per_row = words;

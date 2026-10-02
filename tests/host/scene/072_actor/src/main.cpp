@@ -920,10 +920,10 @@ void test_bob_job_matrix() {
 		CHECK(j.destination_modulo_bytes == static_cast<eng::s16>(kRowBytes - 6u),
 		      "modulo destino");
 		CHECK(j.interleaved && j.bitplane_count == 1u, "intercalado de 1 columna");
-		CHECK(j.mask.words() == reinterpret_cast<const eng::u16*>(g_matrix_sheet),
-		      "mascara = inicio de la hoja");
-		CHECK(j.source.words() == reinterpret_cast<const eng::u16*>(g_matrix_sheet) + 3u,
-		      "imagen = mascara + palabras");
+		CHECK(j.source.words() == reinterpret_cast<const eng::u16*>(g_matrix_sheet),
+		      "imagen = inicio de la hoja");
+		CHECK(j.mask.words() == reinterpret_cast<const eng::u16*>(g_matrix_sheet) + 3u,
+		      "mascara = imagen + palabras");
 	}
 
 	// Cookie-cut con destino intercalado: rechazado (documentado).

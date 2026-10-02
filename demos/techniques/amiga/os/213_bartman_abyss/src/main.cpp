@@ -63,12 +63,11 @@ constexpr eng::u8 kVerticalWaveMask = 63u;
 constexpr eng::u8 kHorizontalWaveMax = 32u;
 constexpr eng::u8 kVerticalWaveMax = 40u;
 constexpr eng::u8 kWaveFrequency = 2u;
-constexpr eng::u8 kWaveAmplitudeScale = 2u;
+constexpr eng::u8 kWaveAmplitudeScale = 1u;
 constexpr eng::u8 kWaveVerticalScale = 2u;
 
 constexpr eng::u16 kBobW = 32u;
 constexpr eng::u16 kBobH = 16u;
-constexpr eng::u16 kBobRightLimit = kWidth - kBobW - 16u;
 constexpr eng::u32 kBobFrameStride = kBobH * kPlanes * kBytesPerWord *
 					    (kBobW / (kBytesPerWord * 8u)) * kBytesPerWord; // 640 B
 
@@ -175,11 +174,9 @@ struct AbyssDemo {
 		}
 		eng::u8 fi = 0u;
 		for (eng::u16 i = 0u; i < kBobCount; ++i) {
-			eng::u16 bob_x = static_cast<eng::u16>(i * kBobSpacing +
-				static_cast<eng::u16>(kWaveX[phase]) * kWaveAmplitudeScale);
-			// El desplazamiento del Blitter lee y escribe una palabra adicional al final.
-			if (bob_x > kBobRightLimit) bob_x = kBobRightLimit;
-			const eng::s16 x = static_cast<eng::s16>(bob_x);
+			const eng::s16 x = static_cast<eng::s16>(
+				static_cast<eng::u32>(i) * kBobSpacing +
+				static_cast<eng::u32>(kWaveX[phase]) * kWaveAmplitudeScale);
 			const eng::s16 y = static_cast<eng::s16>(
 				kGameBandTop + static_cast<eng::u32>(
 					kWaveY[((app.frame() + i) * kWaveFrequency) & kVerticalWaveMask]) /

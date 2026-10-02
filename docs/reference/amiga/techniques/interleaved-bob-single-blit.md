@@ -11,12 +11,12 @@ planos` recorre, con `DMOD` = bytes de una fila de plano, todas las filas de tod
 mismo par A=máscara / B=imagen vale para cada uno.
 
 **Layout del BOB** (32×16, 5 planos, con máscara). Por cada `(plano p, fila r)` hay un par
-`[máscara 2 palabras][imagen 2 palabras]` (8 B); el blit avanza una "fila" cada 8 B:
+`[imagen 2 palabras][máscara 2 palabras]` (8 B); el blit avanza una "fila" cada 8 B:
 
 ```
 offset = ((r * planos) + p) * 8
-   +0..3 : máscara (2 palabras de 32 px)
-   +4..7 : imagen  (2 palabras de 32 px)
+   +0..3 : imagen  (2 palabras de 32 px)
+   +4..7 : máscara (2 palabras de 32 px)
 ```
 
 **Registros** (blit de `32/16 = 2` palabras × `16*5 = 80` filas, con desplazamiento fino `sh`):
@@ -25,8 +25,8 @@ offset = ((r * planos) + p) * 8
 |---|---|
 | `BLTCON0` | `$CA \| USEA\|USEB\|USEC\|USED \| (sh << 12)` |
 | `BLTCON1` | `sh << 12` (BSH; el barrel shifter actúa sobre A y B) |
-| `BLTAPT` | base del BOB + `0` (máscara) |
-| `BLTBPT` | base del BOB + `4` (imagen) |
+| `BLTAPT` | base del BOB + `4` (máscara) |
+| `BLTBPT` | base del BOB + `0` (imagen) |
 | `BLTAMOD` / `BLTBMOD` | `8 - words*2 = 4` |
 | `BLTCPT` / `BLTDPT` | `bitmap + fila_destino*row_stride + (x>>3)` |
 | `BLTCMOD` / `BLTDMOD` | `row_plano - words*2` (p. ej. `40 - 4 = 36`) |

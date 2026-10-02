@@ -181,7 +181,7 @@ struct BlitJob {
 
 /// Configura `job` como **BOB interleaved enmascarado en UNA pasada** (cookie-cut `$CA` con
 /// **máscara expandida**: una copia de la máscara por plano). `src` apunta al par
-/// `[máscara `w/16` palabras][imagen `w/16` palabras]` de la primera fila del BOB (layout que
+/// `[imagen `w/16` palabras][máscara `w/16` palabras]` de la primera fila del BOB (layout que
 /// produce `kingcon ... -Interleaved -Format=N -Mask`); `dest` al bitmap interleaved en
 /// `x & ~15`; `w`/`h` = tamaño en píxeles (`w` múltiplo de 16); `planes` = planos del bitmap;
 /// `dest_row_bytes` = bytes de **una fila de un plano**; `shift` = `x & 15`.
@@ -194,8 +194,8 @@ inline void make_interleaved_masked_bob(BlitJob& job, const u16* src, u16* dest,
 	const u16 words = static_cast<u16>(w / 16u);
 	job = BlitJob {};
 	job.kind = BlitJobKind::MaskedBobCookieCut;
-	job.mask = BlitPtr::from_storage(src);
-	job.source = BlitPtr::from_storage(src + words); // 2ª mitad de la fila = imagen
+	job.source = BlitPtr::from_storage(src);
+	job.mask = BlitPtr::from_storage(src + words); // 2ª mitad de la fila = máscara
 	job.destination = BlitPtr::from_storage(dest);
 	job.words_per_row = words;
 	job.height = static_cast<u16>(h * planes);
