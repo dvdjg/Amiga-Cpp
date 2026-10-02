@@ -75,18 +75,35 @@ constexpr eng::u32 kObjPlane = kObjH * kObjRow;         // 192
 constexpr eng::u32 kObjData = kObjPlane * kObjPlanes;   // 384
 constexpr eng::u32 kObjMask = kObjPlane;                // 192
 constexpr eng::u32 kSheetBytes = kObjData + kObjMask;   // 576
+constexpr eng::u16 kBackdropWidth = 640u;
+constexpr eng::u16 kBackdropHeight = kHeight;
+eng::u8 g_backdrop[kBackdropWidth * kBackdropHeight] {};
+
+void build_backdrop() {
+	for (eng::u16 y = 0u; y < kBackdropHeight; ++y) {
+		for (eng::u16 x = 0u; x < kBackdropWidth; ++x) {
+			const bool ridge = y > 196u + ((x >> 5u) & 7u);
+			const bool marker = (((x >> 4u) ^ (y >> 3u)) & 7u) == 0u;
+			g_backdrop[static_cast<eng::u32>(y) * kBackdropWidth + x] =
+				ridge ? static_cast<eng::u8>(1u + (marker ? 2u : 0u)) : 0u;
+		}
+	}
+}
 
 struct AppSpriteDemo {
 	void init(auto& app) {
 		eng::debug::mark_init_started(g_eng_run_status);
 
-		// El World conserva una región opaca por cámara; App la presenta antes de los objetos.
-		auto fondo = app.add_background("fondo", 0u, eng::Box {0, 0, 640u, kHeight}, 4u);
+		// World conserva un bitmap indexado; App posee la copia Chip y lo presenta tras la cámara.
+		build_backdrop();
+		auto fondo = app.add_bitmap_background(
+			"fondo", 0u, eng::Span<const eng::u8> {g_backdrop, sizeof(g_backdrop)},
+			kBackdropWidth, kBackdropHeight);
 		if (!fondo) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021404u);
 			return;
 		}
-		fondo->camera().reset(eng::scene::WorldRect {0u, 0u, 640u, kHeight},
+		fondo->camera().reset(eng::scene::WorldRect {0u, 0u, kBackdropWidth, kBackdropHeight},
 					      eng::Size2u {kWidth, kHeight});
 
 		m_sheet = app.device().memory_manager().chip().template reserve<eng::BobTag>(kSheetBytes, 16u);
@@ -105,7 +122,7 @@ struct AppSpriteDemo {
 		m_bob.planes = kObjPlanes;
 		m_bob.layout = graphics::BobLayout::Planar;
 		m_bob.draw = graphics::BobDraw::CookieCut;
-		m_bob.erase = graphics::BobErase::None; // App materializa el fondo antes de los BOBs
+		m_bob.erase = graphics::BobErase::None; // App materializa el bitmap antes de los BOBs
 		m_sprite = graphics::Sprite {m_bob, kObjData, kObjMask};
 
 		// Segundo objeto por el **mundo retenido**: el engine elige la representación (aquí
