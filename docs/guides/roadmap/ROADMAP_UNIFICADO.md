@@ -475,6 +475,18 @@ desarrolla en varios turnos; el orden es 1→2→3.
   objetos: nave con barrido vertical + balas), `analyze` OK y telemetría de cámara.
   Pendiente fino: `y_mode` `Finite` para un Y corto *con* scroll (hoy Y fijo), si un
   juego lo necesita.
+- ✅ Consumer vertical-slice `203_world_tilemap_xlimited`: `World::TileLayer` →
+  `WorldTileMapView` → `XlimitedScene`, compilado y llega a READY en WinUAE/A500.
+  **Contrato, estabilidad y overhead verificados:** regresión con READY, 8 frames distintos,
+  pixel contract PASS, `--flicker --require-flicker-ok` PASS (cero candidatos y bloques
+  tras compensación de paneo; prueba sintética conserva sensibilidad a flicker/corrupción)
+  y análisis de visión sin anomalías. Las filas de tiles se precalculan conservando el
+  patrón. **A/B de abstracción:** el mismo driver/mapa con `WorldTileMapView` y con
+  `TileLayerMap` directo midieron ambos 142 102 ciclos/frame y 49,92 fps en ventanas de 60 s;
+  overhead medible del adaptador en el bucle: 0 ciclos/frame dentro de la resolución del contador.
+  Aceptación PAL: un update por VBlank nominal (~49,9–50 Hz); la cifra cumple. HOST-336
+  pasa al compilar y ejecutar directamente con MinGW nativo; el wrapper bash de host no puede
+  ejecutar ese PE en Git Bash por formato.
 - ✅ Parte 3: demo **`112_xlimited_robocod`** — XYLimited de **5 planos** con el
   plano 4 de **fondo geométrico con parallax RoboCod** (`parallax_plane=4`,
   `parallax_div=2`: su `BPLxPT` avanza a la mitad), paleta de 32 índices mapeada a
