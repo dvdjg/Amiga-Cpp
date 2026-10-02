@@ -121,6 +121,12 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 
 	const u32 source_plane_stride_words = job.source_plane_stride_bytes / sizeof(u16);
 	const u32 destination_plane_stride_words = job.destination_plane_stride_bytes / sizeof(u16);
+	// Todos los registros compartidos del Blitter deben fijarse solo cuando el job anterior
+	// terminó: el blit en curso lee BLTCON/MOD durante su ejecución. Bartman hace WaitBlit antes
+	// de programarlos; esperar únicamente antes de cambiar los punteros deja una carrera real.
+	if (!wait_blitter()) {
+		return false;
+	}
 	// Registros derivados de la intención por el **encoder único** (`blitter_job_from`): la
 	// codificación (BLTCON/MOD/minterm) NO se duplica aquí. Se calcula **una vez por job** (no por
 	// plano: los comunes no dependen del plano) y los PUNTEROS sí se re-apuntan por canal y plano.
@@ -172,6 +178,10 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 		if (clear) {
 			write_custom_pointer(custom_bltdpt_offset, destination_plane);
 		} else if (masked) {
+			// Cookie-cut `$CA`: A = máscara, B = imagen, C = D = destino. La máscara va en
+			// `job.mask` y la imagen en `job.source` (o en `source_plane` si el layout es
+			// planar con un stride por plano). Con plano intercalado hay un solo job
+			// (`bitplane_count == 1`) y ambas mitades del par avanzan con `BLTxMOD`.
 			write_custom_pointer(custom_bltapt_offset, job.mask.words());
 			write_custom_pointer(custom_bltbpt_offset, source_plane);
 			write_custom_pointer(custom_bltcpt_offset, destination_plane);

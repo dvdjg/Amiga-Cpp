@@ -146,8 +146,32 @@ int main() {
 		check(m.kind == eng::graphics::BlitJobKind::MaskedBobCookieCut && m.minterm == 0xcau,
 		      "blit_job_from MaskedStamp -> MaskedBobCookieCut");
 		const eng::graphics::BlitterJob mr = blitter_job_from(m);
-		check(mr.bltcon0 == 0x0fcau && mr.bltcpt == mr.bltdpt,
-		      "blitter_job_from cookie-cut ($CA)");
+		check(mr.bltcon0 == 0x0fcau && mr.bltcon1 == 0u && mr.bltcpt == mr.bltdpt &&
+			      mr.bltapt == m.mask.words() && mr.bltbpt == m.source.words(),
+		      "blitter_job_from cookie-cut ($CA: A mascara, B imagen)");
+		eng::graphics::BlitJob interleaved_masked = m;
+		interleaved_masked.interleaved = true;
+		const auto interleaved_regs = blitter_job_from(interleaved_masked);
+		check(interleaved_regs.bltapt == m.mask.words() && interleaved_regs.bltbpt == m.source.words(),
+		      "cookie-cut interleaved conecta A=máscara y B=imagen según $CA");
+		check(interleaved_regs.bltcon0 == 0x0fcau && interleaved_regs.bltcon1 == 0u,
+		      "cookie-cut interleaved shift cero conserva canales alineados");
+		eng::graphics::BlitJob shifted_masked = m;
+		shifted_masked.source_shift = 5u;
+		const auto shifted_regs = blitter_job_from(shifted_masked);
+		check(shifted_regs.bltcon0 == 0x5fcau && shifted_regs.bltcon1 == 0x5000u,
+		      "cookie-cut planar desplaza A en CON0 y B en CON1");
+		interleaved_masked.source_shift = 5u;
+		const auto shifted_interleaved_regs = blitter_job_from(interleaved_masked);
+		check(shifted_interleaved_regs.bltcon0 == 0x5fcau &&
+			      shifted_interleaved_regs.bltcon1 == 0x5000u,
+		      "cookie-cut interleaved desplaza A y B por igual (ASH y BSH)");
+		eng::graphics::BlitJob shifted_or =
+			blit_job_from(BlitOp {BlitOp::Kind::Stamp, dst, src, {}, {5, 0, 32u, 96u}, 5});
+		shifted_or.interleaved = true;
+		const auto shifted_or_regs = blitter_job_from(shifted_or);
+		check(shifted_or_regs.bltcon0 == 0x5dfcu && shifted_or_regs.bltcon1 == 0u,
+		      "OR blob conserva el encoder compartido; BSH reservado a cookie-cut");
 		// MaskedBlobNoSave comparte codificacion con MaskedBobCookieCut.
 		eng::graphics::BlitJob mns = m;
 		mns.kind = eng::graphics::BlitJobKind::MaskedBlobNoSave;

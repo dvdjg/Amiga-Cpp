@@ -186,16 +186,17 @@ struct BlitJob {
 /// `x & ~15`; `w`/`h` = tamaño en píxeles (`w` múltiplo de 16); `planes` = planos del bitmap;
 /// `dest_row_bytes` = bytes de **una fila de un plano**; `shift` = `x & 15`.
 ///
-/// Un solo blit recorre `h*planes` filas: `A` = máscara, `B` = imagen, `DMOD` = fila de plano.
-/// Ver `docs/reference/amiga/techniques/interleaved-bob-single-blit.md`. El job queda listo
-/// para `FramePlan::add_masked_bob` o `AmigaBackend::blitter_submit`.
+/// Un solo blit recorre `h*planes` filas: `A` = máscara (segunda mitad), `B` = imagen (primera
+/// mitad), `C = D` = destino; `ASH`/`BSH` desplazan ambos canales con el mismo `shift`. Ver
+/// `docs/reference/amiga/techniques/interleaved-bob-single-blit.md`. El job queda listo para
+/// `FramePlan::add_masked_bob` o `AmigaBackend::blitter_submit`.
 inline void make_interleaved_masked_bob(BlitJob& job, const u16* src, u16* dest, u16 w, u16 h,
 					u8 planes, u16 dest_row_bytes, u8 shift) noexcept {
 	const u16 words = static_cast<u16>(w / 16u);
 	job = BlitJob {};
 	job.kind = BlitJobKind::MaskedBobCookieCut;
-	job.source = BlitPtr::from_storage(src);
-	job.mask = BlitPtr::from_storage(src + words); // 2ª mitad de la fila = máscara
+	job.source = BlitPtr::from_storage(src);         // primera mitad de la fila = imagen
+	job.mask = BlitPtr::from_storage(src + words);   // segunda mitad de la fila = máscara
 	job.destination = BlitPtr::from_storage(dest);
 	job.words_per_row = words;
 	job.height = static_cast<u16>(h * planes);

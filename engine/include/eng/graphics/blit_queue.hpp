@@ -143,7 +143,7 @@ struct BlitOp {
 		b.bltapt = shifted ? j.source.words() : nullptr;
 		b.bltcpt = shifted ? nullptr : j.source.words();
 		b.bltdpt = j.destination.words();
-		// BLTSIZE codifica las 1024 filas como height=0; el job conserva la altura lógica.
+		// BLTSIZE codifica 1024 filas como height=0; el job conserva la altura lógica.
 		const eng::u16 encoded_height = j.interleaved && j.height == 1024u ? 0u : j.height;
 		b.bltsize = static_cast<eng::u16>((encoded_height << 6u) | j.words_per_row);
 		return b;
@@ -202,13 +202,17 @@ struct BlitOp {
 		b.bltsize = static_cast<eng::u16>((static_cast<eng::u16>(dmax) << 6) + 66u);
 		return b;
 	}
-	b.bltcon0 = static_cast<eng::u16>(
-		(clear ? (kBlitterUseD | j.minterm)
-		       : (shift << kBlitterAshift) |
-				(masked ? (kBlitterUseA | kBlitterUseB | kBlitterUseC | kBlitterUseD |
-					   j.minterm)
-					: (kBlitterUseA | kBlitterUseB | kBlitterUseD | j.minterm))));
-	b.bltcon1 = masked ? static_cast<eng::u16>(shift << kBlitterAshift) : 0u;
+	const eng::u16 ash = static_cast<eng::u16>(shift << kBlitterAshift);
+	const eng::u16 bsh = static_cast<eng::u16>(shift << kBlitterBshift);
+	const eng::u16 shift_bits = masked ? static_cast<eng::u16>(ash | bsh) : ash;
+	eng::u16 control = clear ? static_cast<eng::u16>(kBlitterUseD | j.minterm)
+				 : static_cast<eng::u16>(kBlitterUseA | kBlitterUseB | kBlitterUseD |
+							  j.minterm | shift_bits);
+	if (masked) {
+		control = static_cast<eng::u16>(control | kBlitterUseC);
+	}
+	b.bltcon0 = control;
+	b.bltcon1 = masked ? bsh : 0u;
 	b.bltalwm = (clear || masked) ? 0xffffu : static_cast<eng::u16>(0xffffu << shift);
 	b.bltamod = src_mod;
 	b.bltbmod = masked ? src_mod : (clear ? 0 : j.destination_modulo_bytes);

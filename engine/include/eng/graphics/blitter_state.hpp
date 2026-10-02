@@ -25,6 +25,7 @@ inline constexpr u16 kBlitterUseB = 0x0400u;          ///< habilita el canal B
 inline constexpr u16 kBlitterUseC = 0x0200u;          ///< habilita el canal C
 inline constexpr u16 kBlitterUseD = 0x0100u;          ///< habilita el canal D
 inline constexpr s16 kBlitterAshift = 12;             ///< desplazamiento de `ASH` en `BLTCON0`
+inline constexpr s16 kBlitterBshift = 12;             ///< desplazamiento de `BSH` en `BLTCON1`
 inline constexpr u16 kBlitterSizeMaxHeight = 1023u;   ///< Campo height de 10 bits; cero codifica 1024 filas (AHRM §6).
 inline constexpr u16 kBlitterDesc = 0x0002u;          ///< `BLTCON1` BLITREVERSE (blit descendente)
 inline constexpr u16 kBlitterMintermZero = 0x0000u;   ///< `D = 0` (borrado)
