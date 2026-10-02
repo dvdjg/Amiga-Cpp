@@ -142,6 +142,87 @@ bool AmigaBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 	return wait_blitter();
 }
 
+/// Diagnóstico del feeder async de `FramePlan` (leíble por el canal lateral del emulador con
+/// `tools/debug/probe_*`): lanzamientos del primer job, pasos de la ISR de encadenado (uno por
+/// fin de blit), cierres de cadena y submits con éxito dentro de la ISR.
+volatile eng::u32 g_blit_async_launches = 0u;
+volatile eng::u32 g_blit_async_irqs = 0u;
+volatile eng::u32 g_blit_async_ends = 0u;
+volatile eng::u32 g_blit_async_submits = 0u;
+
+bool AmigaBackend::execute_frame_plan_async(const graphics::FramePlan& plan) {
+	if (!plan.ok() || plan.blit_job_count() == 0u) {
+		return false;
+	}
+	// Instala el servicio de IRQ de blit (una vez). No se desinstala al acabar la cadena: se
+	// reutiliza en el siguiente frame (la ISR es no-op si `m_async_busy` esta bajo).
+	if (!m_async_service_installed) {
+		if (!set_blit_service(&AmigaBackend::frame_plan_async_step, *this)) {
+			return false;
+		}
+		m_async_service_installed = true;
+	}
+	// Si la cadena del frame anterior sigue viva, se espera (no se puede pisar el plan anterior).
+	while (m_async_busy) {
+		wait_blitter();
+	}
+	m_async_plan = &plan;
+	m_async_next = 1u;
+	m_async_notify_next = 0u;
+	m_async_busy = true;
+	g_blit_async_launches = g_blit_async_launches + 1u;
+	// Avisos con `after_jobs == 0` (declarados antes de encolar trabajo): se disparan ya.
+	fire_due_notifies();
+	if (!blitter_submit(plan.blit_job(0u), /*wait=*/false)) {
+		m_async_busy = false;
+		return false;
+	}
+	return true;
+}
+
+/// Dispara los avisos cuyo punto ya alcanzó la cadena (los trabajos `[0, m_async_next)` están
+/// hechos). Se llama desde la ISR y desde el lanzamiento inicial; el callback debe ser IRQ-safe.
+void AmigaBackend::fire_due_notifies() noexcept {
+	const graphics::FramePlan* plan = m_async_plan;
+	if (plan == nullptr) {
+		return;
+	}
+	while (m_async_notify_next < plan->notify_count()) {
+		const graphics::FramePlan::NotifyMark& mark = plan->notify(m_async_notify_next);
+		if (mark.after_jobs > m_async_next) {
+			break;
+		}
+		if (m_chain_notify != nullptr) {
+			m_chain_notify(m_chain_notify_ctx, mark.ticket);
+		}
+		++m_async_notify_next;
+	}
+}
+
+void AmigaBackend::frame_plan_async_step(AmigaBackend& self, eng::u16) {
+	g_blit_async_irqs = g_blit_async_irqs + 1u;
+	const graphics::FramePlan* plan = self.m_async_plan;
+	if (plan == nullptr) {
+		self.m_async_busy = false;
+		return;
+	}
+	// Al entrar aquí ha terminado el trabajo `m_async_next - 1`: dispara los avisos que toquen.
+	self.fire_due_notifies();
+	const u16 next = self.m_async_next;
+	if (next >= plan->blit_job_count() ||
+	    !self.blitter_submit(plan->blit_job(next), /*wait=*/false)) {
+		self.m_async_busy = false;
+		g_blit_async_ends = g_blit_async_ends + 1u;
+		return;
+	}
+	g_blit_async_submits = g_blit_async_submits + 1u;
+	self.m_async_next = static_cast<u16>(next + 1u);
+}
+
+bool AmigaBackend::frame_plan_async_busy() const noexcept {
+	return m_async_busy;
+}
+
 bool AmigaBackend::blitter_submit(const graphics::BlitJob& job, bool wait) {
 	m_blitter_starts = 0;
 	m_blt_common_hits = 0;

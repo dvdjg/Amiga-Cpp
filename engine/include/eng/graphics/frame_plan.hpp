@@ -187,6 +187,7 @@ public:
 		m_palette_patch_count = 0;
 		m_blit_job_count = 0;
 		m_dirty_rect_count = 0;
+		m_notify_count = 0;
 		m_blit_budget = {};
 		m_blit_budget_report = {};
 		m_dirty_report = {};
@@ -233,6 +234,12 @@ public:
 		if (m_reorder != ReorderPolicy::GroupByState) {
 			return;
 		}
+		// Con avisos encolados, reordenar invalidaría sus puntos (`after_jobs` cuenta trabajos en
+		// orden de declaración). Se respeta el orden: la agrupación es una optimización, los
+		// avisos son un contrato. Ver `BLITTER_INTENT_QUEUE.md` §6.
+		if (m_notify_count != 0u) {
+			return;
+		}
 		// Sort por inserción estable (N pequeño, sin heap). `key_less` compara el estado común.
 		for (u8 i = 1u; i < m_blit_job_count; ++i) {
 			const BlitJob key = m_blit_jobs[i];
@@ -256,6 +263,31 @@ public:
 	constexpr const BlitBudgetLimits& blit_budget_limits() const { return m_blit_budget_limits; }
 	constexpr const BlitBudgetReport& blit_budget_report() const { return m_blit_budget_report; }
 	constexpr const DirtyReport& dirty_report() const { return m_dirty_report; }
+
+	/// **Marca de aviso** de la cadena: un `ticket` que la IRQ de fin de blit postea al cruzar el
+	/// punto `after_jobs` (cuando ya han terminado ese número de trabajos). Un aviso al final de
+	/// una ristra se declara **después** de encolar todos sus trabajos (`after_jobs` = total).
+	struct NotifyMark {
+		u8 after_jobs; ///< nº de trabajos que deben completarse antes de disparar
+		u16 ticket;    ///< Id que viaja en el `MsgType::IntentDone`
+	};
+	static constexpr u8 kMaxNotifies = 16u;
+
+	/// Encola un aviso con `ticket`, que se disparará cuando hayan terminado los trabajos
+	/// encolados **hasta ahora**. Para avisar al final de la ristra, llamar tras el último
+	/// `sprite`/`clear_box`/… Es una **intención más** del plan (no un trabajo): no ocupa Blitter.
+	bool add_notify(u16 ticket) noexcept {
+		if (m_notify_count >= kMaxNotifies) {
+			m_ok = false;
+			return false;
+		}
+		m_notifies[m_notify_count++] = NotifyMark {m_blit_job_count, ticket};
+		return true;
+	}
+	[[nodiscard]] constexpr u8 notify_count() const noexcept { return m_notify_count; }
+	[[nodiscard]] constexpr const NotifyMark& notify(u8 index) const noexcept {
+		return m_notifies[index];
+	}
 
 	void set_blit_budget_limits(BlitBudgetLimits limits) {
 		m_blit_budget_limits = limits;
@@ -585,6 +617,7 @@ private:
 	eng::util::Array<PalettePatch, max_palette_patches> m_palette_patches {};
 	eng::util::Array<BlitJob, max_blit_jobs> m_blit_jobs {};
 	eng::util::Array<DirtyRect, max_dirty_rects> m_dirty_rects {};
+	eng::util::Array<NotifyMark, kMaxNotifies> m_notifies {}; ///< avisos de la cadena async
 	BlitBudget m_blit_budget {};
 	BlitBudgetLimits m_blit_budget_limits {};
 	BlitBudgetReport m_blit_budget_report {};
@@ -593,6 +626,7 @@ private:
 	u8 m_palette_patch_count = 0;
 	u8 m_blit_job_count = 0;
 	u8 m_dirty_rect_count = 0;
+	u8 m_notify_count = 0; ///< avisos registrados en `m_notifies`
 	u8 m_dma_asset_count = 0; ///< leases válidas en `m_dma_assets`, 0..max_dma_assets
 	ReorderPolicy m_reorder = ReorderPolicy::PreserveOrder; ///< política de orden (explícita)
 	bool m_ok = true;

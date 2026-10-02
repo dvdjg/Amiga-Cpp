@@ -89,6 +89,8 @@
 
 #include <eng/api/api.hpp>
 #include <eng/api/assets.hpp>
+#include <eng/debug/mem_probe.hpp>
+#include <eng/debug/prof.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/platform/amiga/entry.hpp>
 #include <eng/platform/amiga/memory_profile.hpp>
@@ -118,6 +120,21 @@ constexpr eng::u32 kRunDetailSceneSetupFailed = kRunDetailBase + 2u;
 constexpr eng::u32 kRunDetailBitmapAssetFailed = kRunDetailBase + 3u;
 constexpr eng::u32 kRunDetailBitmapCopyFailed = kRunDetailBase + 4u;
 constexpr eng::u32 kRunDetailSpriteOrMusicAssetFailed = kRunDetailBase + 5u;
+
+/// Secciones medidas con `eng::debug::g_eng_prof` (ver `tools/debug/profile.mjs` y §1.5 de
+/// `AGENTS.md`: medir, no inferir). El `present` distingue sync/async: con `K_ASYNC_PRESENT=1`
+/// solo debe contener el lanzado del primer job (~decenas de ciclos), no las esperas.
+constexpr eng::u8 kProfLoop = 0u;
+constexpr eng::u8 kProfRender = 1u;
+constexpr eng::u8 kProfPresent = 2u;
+constexpr eng::u8 kProfOverlay = 3u;
+constexpr eng::u8 kProfCount = 4u;
+
+/// Id del aviso de fin de ristra (modo async): `Screen::notify(kChainTicket)` tras los 16 BOBs
+/// y el clear. La IRQ de fin de blit lo publica como `MsgType::IntentDone`; el `update` lo
+/// cuenta. Diagnóstico del encadenado transparente (`BLITTER_INTENT_QUEUE.md` §6).
+constexpr eng::u16 kChainTicket = 0x00b1u;
+volatile eng::u32 g_chain_done_count = 0u;
 
 constexpr eng::u16 kWidth = 320u;
 constexpr eng::u16 kHeight = 256u;
@@ -202,6 +219,7 @@ constexpr GradientIntents kColorGradientIntents {};
 struct AbyssDemo {
 	void init(auto& app) {
 		eng::debug::mark_init_started(g_eng_run_status);
+		ENG_PROF_INIT(kProfCount);
 
 		if (!app.configure_memory(kMemoryBudget)) {
 			eng::debug::mark_failed(g_eng_run_status, kRunDetailMemorySetupFailed);
@@ -255,6 +273,10 @@ struct AbyssDemo {
 			return;
 		}
 		app.present();
+		// Refresca la **sonda de memoria** (`g_mem_probe`) con el estado de los bancos antes de
+		// cargar sprite/música: si un `add` falla, el host lee causa, tamaño pedido y huecos sin
+		// recompilar (`tools/debug/mem-probe.mjs`). Es diagnóstico permanente, no un parche.
+		eng::debug::probe_memory_banks(app.device().memory_manager());
 		// El `bob.bpl` original ya trae el layout que consume el motor: por cada fila de cada
 		// plano, `[imagen `w/16` palabras][máscara `w/16` palabras]` (ver
 		// `docs/reference/amiga/techniques/interleaved-bob-single-blit.md`). No se reempaqueta:
@@ -265,7 +287,13 @@ struct AbyssDemo {
 		const bool music_added = m_assets.add<eng::MusicTag>("mod",
 						 reinterpret_cast<const eng::u8*>(abyss_mod), INCBIN_SIZE(abyss_mod));
 		if (!sprite_added || !music_added) {
-			eng::debug::mark_failed(g_eng_run_status, kRunDetailSpriteOrMusicAssetFailed);
+			// El fallo de reserva queda en `g_mem_probe` (lo registra `res::load`); el `detail`
+			// resume qué banco y por qué, para el `runstatus` del canal lateral.
+			const auto& bank = app.device().memory_manager().chip();
+			const auto snap = bank.snapshot();
+			eng::debug::mark_mem_failed(g_eng_run_status, kRunDetailBase + 5u,
+						    static_cast<eng::u32>(bank.status()), snap.remaining,
+						    snap.used);
 			return;
 		}
 
@@ -313,6 +341,18 @@ struct AbyssDemo {
 			d.register_palette(reinterpret_cast<const void*>(abyss_pal), "abyss.pal",
 					   kPaletteColorCount);
 		}
+		// --- Vía async del `present()` (IRQ de blit, `BLITTER_INTENT_QUEUE.md` §6.1) ---------
+		// A/B de rendimiento: con `K_ASYNC_PRESENT=1` el `present()` lanza la cadena de blits
+		// (16 BOBs + clear + copia de fondo) y la IRQ de fin de blit encadena el resto, con la
+		// CPU libre; con 0, el `present()` síncrono clásico (esperas activas). Misma imagen.
+#ifndef K_ASYNC_PRESENT
+#define K_ASYNC_PRESENT 0
+#endif
+		if constexpr (K_ASYNC_PRESENT != 0) {
+			if constexpr (requires { app.set_async_present(true); }) {
+				app.set_async_present(true);
+			}
+		}
 		m_ready = true;
 	}
 
@@ -325,6 +365,13 @@ struct AbyssDemo {
 		while (app.port().pop(m)) {
 			if (m.type == eng::os::MsgType::VBlank) {
 				++m_vblank_msgs;
+			} else if (m.type == eng::os::MsgType::IntentDone) {
+				// Aviso de la cadena async (`Screen::notify`): el `ticket` identifica qué punto
+				// de la ristra ha terminado. Aquí solo se cuenta para verificar el mecanismo.
+				if (m.payload.user.a == kChainTicket) {
+					++m_chain_done;
+					g_chain_done_count = g_chain_done_count + 1u;
+				}
 			}
 		}
 		eng::debug::mark_frame(g_eng_run_status, app.frame());
@@ -334,6 +381,7 @@ struct AbyssDemo {
 	void render(auto& app) {
 		auto s = app.screen();
 		const eng::u32 frame = app.frame();
+		ENG_PROF_BEGIN(kProfRender);
 		// **Fine-scroll** del playfield (tabla `sinus15`): desplaza TODO el fondo —imagen
 		// "abyss" incluida— con `BPLCON1`, sin tocar los BOBs del plan del frame. Se aplica en
 		// el VBlank (lo hace el engine) para no partir scanlines.
@@ -375,13 +423,24 @@ struct AbyssDemo {
 				fi = 0u;
 			}
 		}
+		ENG_PROF_END(kProfRender);
+		ENG_PROF_BEGIN(kProfPresent);
+		// **Aviso de fin de ristra** (solo async): pide que la IRQ publique `IntentDone` con
+		// `kChainTicket` cuando terminen TODOS los trabajos encolados (clear + 16 BOBs). Es la
+		// petición de aviso intermedia que describe `BLITTER_INTENT_QUEUE.md` §6: un Id por
+		// barrera, sin sondeo. En modo síncrono `notify` no tiene efecto (nadie lo lee).
+		if constexpr (K_ASYNC_PRESENT != 0) {
+			(void)app.screen().notify(kChainTicket);
+		}
 		app.present();
+		ENG_PROF_END(kProfPresent);
 		// --- Overlay de depuración de WinUAE -----------------------------------------------
 		// Igual que el original: un rectángulo relleno, un rectángulo de borde y un texto, todos
 		// desplazándose con `f = frameCounter & 255` (coordenadas PAL ×2). El motor lo expone con
 		// `app.debug()` (mismo overlay que `debug_rect`/`debug_filled_rect`/`debug_text`).
 
 		if constexpr (requires { app.debug(); }) {
+			ENG_PROF_BEGIN(kProfOverlay);
 			auto& d = app.debug();
 			d.clear();
 			const eng::s16 f = static_cast<eng::s16>(frame & 255u);
@@ -391,18 +450,21 @@ struct AbyssDemo {
 			       static_cast<eng::s16>(f + 400), 440, 0x000000ffu);
 			d.text(static_cast<eng::s16>(f + 130), 418, "This is a WinUAE debug overlay",
 			       0x00ff00ffu);
+			ENG_PROF_END(kProfOverlay);
 		}
 
 		if (m_ready) {
 			eng::debug::mark_ready(g_eng_run_status, kRunDetailReady);
 		}
 		eng::debug::probe_when_ready(g_eng_run_status, app.frame());
+		ENG_PROF_FRAME();
 	}
 
 	eng::graphics::composition::Scene m_scene {};
 	eng::graphics::Sprite m_sprite {};
 	eng::Assets m_assets {};
 	eng::u32 m_vblank_msgs = 0u; ///< mensajes `VBlank` drenados del puerto del mini-SO
+	eng::u32 m_chain_done = 0u;  ///< avisos `IntentDone` de la cadena async (kChainTicket)
 	bool m_ready = false;
 };
 

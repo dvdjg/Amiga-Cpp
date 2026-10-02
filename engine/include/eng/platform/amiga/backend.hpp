@@ -370,6 +370,33 @@ public:
 	/// paleta pertenecen a la escena (offsets internos de su copperlist).
 	bool execute_frame_plan(const graphics::FramePlan& plan);
 
+	/// **Ejecuta el `FramePlan` de forma asíncrona** (vía IRQ de blit, `BLITTER_INTENT_QUEUE.md`
+	/// §6 vía I): lanza el primer trabajo (`wait=false`) y **vuelve de inmediato**; la IRQ de fin
+	/// de blit (nivel 3, bit BLIT) programa el siguiente trabajo, y así hasta agotar el plan. La
+	/// CPU queda libre durante la cadena (medido: ~98 % menos ciclos que el poll en la 212).
+	///
+	/// El `plan` debe **sobrevivir** hasta que la cadena termine (`frame_plan_async_busy()`
+	/// devuelva false); normalmente es el `FramePlan` de la escena, que no se limpia hasta el
+	/// `present()` siguiente. Devuelve `false` si el plan está vacío o no se pudo instalar el
+	/// servicio de IRQ (en ese caso, usar `execute_frame_plan`).
+	bool execute_frame_plan_async(const graphics::FramePlan& plan);
+
+	/// `true` mientras la cadena asíncrona (o un blit suelto) sigue viva. Un juego que reutilice
+	/// o libere el `FramePlan` debe esperar a que baje (p. ej. al final del frame).
+	[[nodiscard]] bool frame_plan_async_busy() const noexcept;
+
+	/// Espera a que la cadena asíncrona termine (bloqueo explícito, como `glFinish`).
+	void frame_plan_async_wait() noexcept { while (frame_plan_async_busy()) { } }
+
+	/// **Avisos de la cadena** (`FramePlan::add_notify`): `fn(ctx, ticket)` se ejecuta **en la ISR**
+	/// de fin de blit al cruzar cada marca. Debe ser corto y **IRQ-safe** (típico: `port.post`).
+	/// Sin callback instalado, los avisos se consumen igual (no se disparan efectos).
+	using ChainNotifyFn = void (*)(void* ctx, eng::u32 ticket);
+	void set_blit_chain_notify(ChainNotifyFn fn, void* ctx) noexcept {
+		m_chain_notify = fn;
+		m_chain_notify_ctx = ctx;
+	}
+
 	/// **Capacidades de rasterizado** del backend: OCS/AGA tienen Blitter (bus de 16 bits;
 	/// AGA admite FMODE 32/64) con fill/line/shift/minterms. Un backend host declararía
 	/// `blitter = false`. Ver `field::RasterCaps`.
@@ -776,6 +803,23 @@ private:
 	/// display (INTENA/INTREQ/DMACON apagados e interrupciones del sistema
 	/// congeladas). Las instalaciones posteriores son solo swaps de puntero.
 	bool m_display_taken = false;
+
+	/// Estado del **feeder asíncrono** de `FramePlan` (`execute_frame_plan_async`): plan vivo
+	/// (no propietario), índice del próximo job y bandera de cadena activa. `m_async_busy` es
+	/// `volatile`: la ISR de blit la baja al agotar la cadena.
+	const graphics::FramePlan* m_async_plan = nullptr;
+	volatile u16 m_async_next = 0u;
+	volatile bool m_async_busy = false;
+	bool m_async_service_installed = false;
+	/// Índice del próximo aviso de `m_async_plan` por disparar; callback de aviso (IRQ-safe).
+	u8 m_async_notify_next = 0u;
+	ChainNotifyFn m_chain_notify = nullptr;
+	void* m_chain_notify_ctx = nullptr;
+	/// Dispara los avisos cuyo punto (`after_jobs`) ya alcanzó la cadena. Solo desde la ISR.
+	void fire_due_notifies() noexcept;
+	/// Programa el próximo job de la cadena async (llamado desde la ISR de blit). `true` si
+	/// quedan jobs; `false` cuando la cadena termina.
+	static void frame_plan_async_step(AmigaBackend& self, eng::u16 vpos);
 };
 
 } // namespace eng::amiga

@@ -134,19 +134,69 @@ El async **ahorra porque elimina la espera activa del 68000**, no porque haga lo
 el Blitter sigue teniendo un solo juego de registros y los blits de una racha se serializan entre sí.
 Lo que desaparece del hilo principal es el sondeo de `BBUSY`.
 
-Medición (2026-10, A500, demo 213 = 16 BOBs cookie-cut + clear de banda, 5 planos):
+Medición (2026-10, A500, demo 213 = 16 BOBs cookie-cut + clear de banda + copia de fondo, 5 planos):
 
 - El frame del `render` consume ~392 000 ciclos (~2,8 campos de 141 876 ciclos); la sección
   `present` (las 17 esperas de blit + programación) es ~154 000 ciclos, ≈ **40 % del render y ~1,1
   campos** de espera activa pura.
 - Con el ejecutor por lotes (`BlobBatch`) la 213 subió de 22,7 a 25 fps: se recuperó el coste de
   re-programar registros por job, pero **no** las esperas (que siguen, una por objeto).
+- **Vía IRQ cableada en la 213** (`App::set_async_present(true)`, `execute_frame_plan_async`): la
+  cadena completa (17 jobs heterogéneos: copia + clear + BOBs) se lanza en el `present()` y la **IRQ
+  de fin de blit** programa el resto. Instrumentado con contadores en la ISR
+  (`g_blit_async_launches/steps/ends`): ~25 lanzamientos y ~16 submits por frame, cierres de cadena
+  coherentes; sin la espera del `wait_blitter` en el hilo principal.
 
-Implicación para el modo asíncrono: si las esperas (~1,1 campos) se trasladan al **Copper**
-(`CopperBlitterExecutor`, Técnica A), el 68000 queda libre durante ese tiempo. Como el trabajo del
-frame está justo por encima del campo, liberar ~1 campo es **suficiente para volver a 1 campo**
-(50 fps). El camino no está cableado en la 213 (ejecuta el `FramePlan` síncrono en `present`); la
-verificación A/B pendiente es mover los 16 BOBs a la vía Copper y medir.
+Resultados del A/B (A500, demo 213 completa, contador de ciclos del emulador; `measure-fps`):
+
+| Config | fps | campos/frame |
+|---|---|---|
+| debug síncrono | 24,96 | 2,00 |
+| debug asíncrono | 22,51 | 2,22 |
+| release síncrono | 28,55 | 1,75 |
+| release asíncrono | 25,21 | 1,98 |
+
+Claves del A/B:
+
+- **El async elimina la espera del hilo principal** (sección `present` de ~130 k a ~4 k ciclos) y
+  encadena cadenas **heterogéneas** sin código extra: el feeder usa `blitter_submit` por job, y la
+  caché de estado común del backend omite las reprogramaciones dentro de cada racha.
+- **El async no acelera el frame si el trabajo de CPU es gordo**: al solapar CPU y Blitter, el **bus
+  compartido** hace que el 68000 pierda slots y el `render` se infle (~153 k → ~700 k ciclos en
+  `-O0`). El resultado neto empeora (24,96 → 22,51 fps en debug; 28,55 → 25,21 en release). El solape
+  solo gana cuando el trabajo de CPU **cabe en el hueco** del DMA. En esta demo (CPU y Blitter
+  comparables, A500 sin Fast RAM) el síncrono gana; el async queda como **opt-in** para escenas con
+  mucha CPU-pesada entre frames o cuando el siguiente job lo dispara el **Copper** (sin competir).
+- **Corrección de ciclo de vida**: la cadena retiene el `FramePlan`; el motor espera su fin y hace el
+  `commit` al **inicio del frame siguiente** (`App::begin_async_frame`), de modo que el frame mostrado
+  está completo (sin tearing) y el plan no se reutiliza con la cadena viva.
+- **El slot de la IRQ de blit es exclusivo**: el bucle por defecto instala el servicio de fondo
+  (`BackgroundBlitterService`, `engine.hpp`) y, si no se libera, el modo async **falla en silencio**
+  y cae al camino síncrono. `App::set_async_present(true)` desactiva ese servicio del engine
+  (`Engine::set_blit_service_enabled(false)`).
+
+**Avisos de la cadena (tickets).** El plan admite **marcas de aviso** (`FramePlan::add_notify`,
+expuestas por `Screen::notify`): cada una lleva un `ticket` y dispara cuando han terminado los
+trabajos encolados **hasta su declaración**. La IRQ de fin de blit las publica como
+`MsgType::IntentDone` con el `ticket` en `payload.user.a`, y el juego los drena en su `update`. Un
+aviso al final de la ristra se declara tras el último `sprite`/`clear_box`:
+
+```cpp
+auto s = app.screen();
+s.clear_box(band);
+for (const Bob& b : bobs) s.sprite(sheet, b.x, b.y, b.frame);
+s.notify(kFrameDone);          // aviso con Id: "terminó toda la ristra"
+app.present();                 // async: la IRQ encadena y publica IntentDone al llegar
+```
+
+Verificado de punta a punta en la 213 (`A500_k_async_present1_*`): un aviso por frame, contado en
+`update` (`IntentDone` con `kChainTicket`), ≈ frames mostrados. Con `ReorderPolicy::GroupByState` los
+avisos inmovilizan el orden (la agrupación no debe mover sus puntos).
+
+Implicación para el modo asíncrono: es el **método opt-in de la fachada** con un contrato claro
+(cadena transparente + avisos por Id). El síncrono sigue siendo el defecto de baja latencia cuando el
+frame ya cabe; el async se elige por **presupuesto de CPU** o para cadenas largas con CPU-pesada
+detrás.
 
 
 ## 7. Decisiones y límites

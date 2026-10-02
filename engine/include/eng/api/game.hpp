@@ -132,6 +132,18 @@ public:
 		return spr.erase(*m_target.plan(), m_target.bob_target(), x, y);
 	}
 
+	/// **Encola un aviso** (`ticket`) en el plan del frame: en modo asíncrono
+	/// (`App::set_async_present(true)`) la IRQ de fin de blit lo publica como
+	/// `MsgType::IntentDone` (con el `ticket` en `payload.user.a`) cuando hayan terminado los
+	/// trabajos encolados **hasta ahora**. Para avisar al final de la ristra, llamar tras el
+	/// último `sprite`/`clear_box`/… No consume Blitter: es una marca en la cadena.
+	bool notify(u16 ticket) {
+		if (!m_target.plan().valid()) {
+			return false;
+		}
+		return m_target.plan()->add_notify(ticket);
+	}
+
 	/// **Blit planar** al plan del frame (copia desde una hoja planar). Para primitivas que
 	/// `Screen` no cubre (chunky→planar usa `c2p`). El plan lo pone el contexto.
 	bool blit(eng::Span<const u16> src, s32 x, s32 y, u16 w, u16 h, u16 src_row_bytes,
@@ -622,10 +634,35 @@ public:
 
 	/// **Publica el frame**: ejecuta el plan de Blitter (si el backend lo soporta) y commitea la
 	/// escena (swap de `BPLxPT`). Para el modo copper-chunky el juego usa su `CopperChunkyLayer`.
+	///
+	/// Si `set_async_present(true)` y el backend soporta la vía IRQ
+	/// (`execute_frame_plan_async`, `BLITTER_INTENT_QUEUE.md` §6 vía I), los trabajos se lanzan y
+	/// la **IRQ de fin de blit encadena el resto**, dejando la CPU libre. El `commit` (swap de
+	/// `BPLxPT`) y el vaciado del `FramePlan` se hacen **al inicio del frame siguiente**, cuando
+	/// la cadena ya terminó (`begin_async_frame`): así el frame mostrado está completo (sin
+	/// tearing) y el plan no se reutiliza con la cadena viva.
 	void present() {
-		if constexpr (requires(Backend& b, const graphics::FramePlan& p) {
-				      b.execute_frame_plan(p);
-			      }) {
+		if (m_async_present) {
+			if constexpr (requires(Backend& b, const graphics::FramePlan& p) {
+					      b.execute_frame_plan_async(p);
+				      }) {
+				if (m_plan.ok()) {
+					m_async_launched = m_backend.execute_frame_plan_async(m_plan);
+				}
+			}
+			if (!m_async_launched) {
+				// Sin vía async (plan vacío o backend sin soporte): cae al camino síncrono.
+				present_sync();
+			}
+			return;
+		}
+		present_sync();
+	}
+
+	/// Camino **síncrono**: ejecuta el plan y commitea en el mismo punto (esperas activas). Es el
+	/// defecto de baja latencia.
+	void present_sync() {
+		if constexpr (requires(Backend& b, const graphics::FramePlan& p) { b.execute_frame_plan(p); }) {
 			if (m_plan.ok()) {
 				(void)m_backend.execute_frame_plan(m_plan);
 			}
@@ -635,9 +672,62 @@ public:
 		}
 		m_plan.clear();
 	}
+
+	/// **Inicio del frame en modo async**: espera a que la cadena del frame anterior termine,
+	/// publica el frame ya dibujado (`commit`) y vacía el `FramePlan` para el frame nuevo. Lo
+	/// llama el motor **antes de `game.render`** (`Adapter::render`); en modo síncrono no hace
+	/// nada (el `present_sync` ya commitea y limpia).
+	void begin_async_frame() {
+		if (!m_async_present) {
+			return;
+		}
+		if constexpr (requires(Backend& b) { b.frame_plan_async_wait(); }) {
+			if (m_async_launched) {
+				m_backend.frame_plan_async_wait();
+				if (m_scene.valid()) {
+					m_scene.get()->commit();
+				}
+				m_async_launched = false;
+			}
+		}
+		m_plan.clear();
+	}
+
+	/// **Modo asíncrono** de publicación (vía IRQ de blit). `true` = el `present()` lanza los
+	/// trabajos y la IRQ los encadena (CPU libre); `false` (defecto) = ejecución síncrona.
+	/// El motor espera la cadena y commitea al inicio del frame siguiente (`begin_async_frame`),
+	/// así que el juego puede escribir el plan normalmente cada frame.
+	///
+	/// Toma el **slot exclusivo** de la IRQ de blit para el feeder: desactiva el servicio de
+	/// fondo del bucle por defecto (`BackgroundBlitterService`, `engine.hpp`), que si no
+	/// ocuparía el slot y el modo async fallaría al instalarse (silencioso, vía sync).
+	void set_async_present(bool on) noexcept {
+		m_async_present = on;
+		if (on) {
+			m_engine.set_blit_service_enabled(false);
+			// Los avisos de la cadena (`Screen::notify`) se publican como `MsgType::IntentDone`
+			// en el puerto del juego; el callback corre en la ISR (solo hace `port.post`).
+			if constexpr (requires(Backend& b) {
+					      b.set_blit_chain_notify(nullptr, nullptr);
+				      }) {
+				m_backend.set_blit_chain_notify(&App::on_chain_notify, this);
+			}
+		}
+	}
+	[[nodiscard]] bool async_present() const noexcept { return m_async_present; }
 	[[nodiscard]] bool shutdown_complete() const noexcept { return m_shutdown; }
 
 private:
+	/// Callback de aviso de cadena (**ISR**): publica `IntentDone` con el `ticket`. Solo hace un
+	/// `post` al puerto (IRQ-safe); el juego lo drena en su `update`.
+	static void on_chain_notify(void* ctx, eng::u32 ticket) noexcept {
+		auto* self = static_cast<App*>(ctx);
+		eng::os::Msg m {};
+		m.type = eng::os::MsgType::IntentDone;
+		m.payload.user.a = ticket;
+		(void)self->m_port.post(m);
+	}
+
 	static constexpr u16 kPaletteBaseColorCount = 1u;
 	static constexpr u8 kPaletteFirstColor = 0u;
 	static constexpr u32 kRunIndefinitely = 0xffffffffu;
@@ -669,6 +759,7 @@ private:
 		}
 		void render(Backend&, GameContext& ctx) {
 			self->m_context = ctx;
+			self->begin_async_frame();
 			self->m_world_materialization_ok = true;
 			if (self->m_scene.valid()) self->materialize_world_layers();
 			self->m_game.render(*self);
@@ -769,6 +860,8 @@ private:
 	GameDisplay m_display {};
 	bool m_started = false;
 	bool m_shutdown = false;
+	bool m_async_present = false;   ///< modo async del `present()` (vía IRQ de blit)
+	bool m_async_launched = false;  ///< hay una cadena async en vuelo pendiente de `begin_async_frame`
 	bool m_world_materialization_ok = true;
 	eng::Block<TextureTag, MemoryKind::Chip> m_bitmap_owners[kMaxBitmapOwners] {};
 	u8 m_bitmap_owner_count = 0u;

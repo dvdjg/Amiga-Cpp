@@ -73,8 +73,21 @@ El fin de blit genera IRQ (nivel 3); el handler marca una bandera / encola en
   (opcionalmente programable).
 - **Estado actualizado**: el servicio (`set_blit_service`/`install_blit_service`) y
   `App::blitter_memcpy_async` notifican la completación cuando un consumidor necesita trabajo entre
-  frames. `FramePlan` continúa ejecutándose sincrónicamente en commit.
-- **Beneficio**: uso asíncrono **seguro** sin polling.
+  frames. Además, el `FramePlan` tiene **modo asíncrono completo**: `execute_frame_plan_async`
+  (backend) lanza el primer job y la **ISR encadena el resto**, incluidas cadenas **heterogéneas**
+  (copia + clear + BOBs, con la caché de estado común evitando reprogramaciones en cada racha).
+  La fachada lo expone con `App::set_async_present(true)` (desactiva el servicio de fondo del
+  bucle por defecto, que comparte el slot exclusivo de la IRQ); el motor espera la cadena y hace el
+  `commit` al inicio del frame siguiente (`begin_async_frame`, sin tearing).
+- **Avisos por Id**: `Screen::notify(ticket)` / `FramePlan::add_notify` encolan **marcas** en la
+  cadena; la IRQ publica `MsgType::IntentDone` con el `ticket` cuando han terminado los trabajos
+  encolados hasta la marca (un aviso al final de la ristra = una sola petición). Verificado en la
+  213 (un `IntentDone` por frame).
+- **Medición** (`BLITTER_INTENT_QUEUE.md` §6.1, demo 213): en A500, con CPU y Blitter comparables,
+  el **síncrono gana** (release 28,55 fps vs 25,21 asíncrono) porque el bus compartido encarece el
+  solape; el async queda como opt-in para escenas CPU-pesadas o cadenas disparadas por el Copper.
+- **Beneficio**: uso asíncrono **seguro** sin polling, con **presupuesto de CPU libre** durante la
+  cadena y **avisos con Id** para saber cuándo termina (o cualquier punto intermedio).
 
 ## Prioridad de técnicas hardware
 
