@@ -81,8 +81,8 @@ enum class BobMaskPack : u8 {
 	/// La máscara es un plano de 1 bit **aparte** (`Bob::mask`, misma rejilla). Es la forma
 	/// del cookie-cut planar.
 	SeparatePlane,
-	/// La hoja intercala `[máscara][imagen]` por cada fila de cada plano (`width/16` palabras
-	/// de máscara seguidas de `width/16` de imagen, sin guarda): cookie-cut con planos
+	/// La hoja intercala `[imagen][máscara]` por cada fila de cada plano (`width/16` palabras
+	/// de imagen seguidas de `width/16` de máscara, sin guarda): cookie-cut con planos
 	/// intercalados en **un solo** blit (minterm `$CA`). `Bob::mask` se ignora (la máscara
 	/// va en la propia hoja). Contrato de `make_interleaved_masked_bob` (`blit_job.hpp`).
 	InterleavedPair,
@@ -186,14 +186,25 @@ inline bool bob_erase_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, 
 	job.destination = BlitPtr::from_storage(reinterpret_cast<u16*>(
 		t.data() + static_cast<u32>(y) * start_row + (static_cast<u32>(wx) >> 3u)));
 	job.words_per_row = words;
-	job.height = inter ? static_cast<u16>(h * bob.planes) : h;
-	if (inter) {
+	if (inter && bob.planes == t.plane_count) {
+		// Si el BOB cubre todos los planos del destino, sus filas físicas son contiguas.
+		job.height = static_cast<u16>(h * bob.planes);
+		job.destination_modulo_bytes = mod16(static_cast<s32>(t.row_bytes) - static_cast<s32>(words) * 2);
+		job.bitplane_count = 1u;
+		job.destination_plane_stride_bytes = 0u;
+		job.interleaved = true;
+		job.minterm = 0x00u; // D = 0
+		return plan.add_clear_rect(job);
+	} else if (inter) {
+		// Si el BOB ocupa menos planos que el destino, conservar la rejilla interleaved
+		// mediante un blit por plano lógico; no recorrer filas físicas consecutivas.
 		job.height = h;
 		job.destination_modulo_bytes = mod16(
 			static_cast<s32>(t.row_bytes) * t.plane_count - static_cast<s32>(words) * 2);
-		job.bitplane_count = t.plane_count;
+		job.bitplane_count = bob.planes;
 		job.destination_plane_stride_bytes = t.plane_pointer_step();
 	} else {
+		job.height = h;
 		job.destination_modulo_bytes = mod16(static_cast<s32>(t.row_bytes) - static_cast<s32>(words) * 2);
 		job.bitplane_count = bob.planes;
 		job.destination_plane_stride_bytes = t.plane_pointer_step();
@@ -265,10 +276,12 @@ inline bool bob_erase(FramePlan& plan, const Bob& bob, s16 x, s16 y, const BobTa
 }
 
 /// Dibuja un objeto cookie-cut con hoja **par** (`BobMaskPack::InterleavedPair`): un único
-/// blit `$CA` con la máscara en el canal A y la imagen en el B. La hoja intercala, por cada
-/// fila de cada plano, `width/16` palabras de máscara seguidas de `width/16` de imagen (sin
+/// blit `$CA` con el cableado explícito de la hoja interleaved. La hoja intercala,
+/// por cada fila de cada plano, `width/16` palabras de imagen seguidas de `width/16` de máscara (sin
 /// palabra de guarda). Es la geometría de `make_interleaved_masked_bob` (`blit_job.hpp`); el
 /// bit de máscara de cada plano se materializa en el propio blit, sin copia expandida.
+/// El encoder conecta `A` = máscara (segunda mitad) y `B` = imagen (primera mitad) con
+/// `ASH = BSH = x & 15`, como el original de Bartman.
 inline bool bob_draw_interleaved_pair(FramePlan& plan, const Bob& bob, u8 frame, s16 x, s16 y,
 				      const BobTarget& t) {
 	using namespace bob_detail;
@@ -283,11 +296,11 @@ inline bool bob_draw_interleaved_pair(FramePlan& plan, const Bob& bob, u8 frame,
 	const s16 wx = static_cast<s16>(x & ~15);
 	const s16 x_start = (wx < 0) ? 0 : wx;
 	const u32 start_row = static_cast<u32>(t.row_bytes) * t.plane_count;
-	const u16* src = reinterpret_cast<const u16*>(
-		bob.sheet.address(static_cast<u32>(frame) * bob.frame_stride).cptr());
+	const u32 frame_offset = static_cast<u32>(frame) * bob.frame_stride;
+	const u16* src = reinterpret_cast<const u16*>(bob.sheet.address(frame_offset).cptr());
 	BlitJob job {};
-	job.source = BlitPtr::from_storage(src);               // 1ª mitad de la fila = imagen
-	job.mask = BlitPtr::from_storage(src + words);         // 2ª mitad = máscara
+	job.source = BlitPtr::from_storage(src);               // primera mitad: imagen
+	job.mask = BlitPtr::from_storage(src + words);         // segunda mitad: máscara expandida
 	job.destination = BlitPtr::from_storage(reinterpret_cast<u16*>(
 		t.data() + static_cast<u32>(y) * start_row + (static_cast<u32>(x_start) >> 3u)));
 	job.words_per_row = words;
@@ -295,6 +308,7 @@ inline bool bob_draw_interleaved_pair(FramePlan& plan, const Bob& bob, u8 frame,
 	job.source_modulo_bytes = mod16u(words * 2u);
 	job.destination_modulo_bytes = mod16(static_cast<s32>(t.row_bytes) - static_cast<s32>(words) * 2);
 	job.bitplane_count = 1u;
+	// La máscara expandida y la imagen comparten shift; el engine traduce el layout empaquetado.
 	job.source_shift = shift;
 	job.minterm = 0x00cau;
 	job.interleaved = true;

@@ -312,8 +312,8 @@ public:
 
 	/// Clear con stride arbitrario dentro de cada scanline física (p. ej. interleaved).
 	bool add_interleaved_clear_rect(const BlitJob& job) {
-		if (!job.interleaved || job.height == 0u ||
-		    job.bitplane_count <= 1u || job.destination.words() == nullptr || job.words_per_row == 0u ||
+		if (!job.interleaved || job.height == 0u || job.bitplane_count <= 1u ||
+		    job.destination.words() == nullptr || job.words_per_row == 0u ||
 		    job.destination_plane_stride_bytes == 0u) {
 			m_ok = false;
 			return false;

@@ -92,6 +92,31 @@ private:
 	job.destination = eng::graphics::BlitPtr::from_storage(reinterpret_cast<eng::u16*>(
 		t.data() + static_cast<eng::u32>(y) * start_row + (static_cast<eng::u32>(wx) >> 3u)));
 	job.words_per_row = words;
+	const bool full_interleaved_rows = inter && wx == 0 &&
+		static_cast<eng::u32>(words) * sizeof(eng::u16) == t.row_bytes;
+	if (full_interleaved_rows) {
+		// Con toda la fila física cubierta, los planos intercalados son un bloque continuo:
+		// un único blit D-only recorre las filas de todos los planos.
+		job.height = static_cast<eng::u16>(h * t.plane_count);
+		job.destination_modulo_bytes = 0;
+		job.bitplane_count = 1u;
+		job.destination_plane_stride_bytes = 0u;
+		job.interleaved = true;
+		job.minterm = 0x00u; // D = 0
+		return plan.add_clear_rect(job);
+	}
+	if (inter) {
+		// Una caja parcial requiere saltar las filas físicas de los otros planos.
+		job.height = h;
+		job.destination_modulo_bytes = static_cast<eng::s16>(
+			static_cast<eng::u32>(t.row_bytes) * t.plane_count -
+			static_cast<eng::u32>(words) * sizeof(eng::u16));
+		job.bitplane_count = t.plane_count;
+		job.destination_plane_stride_bytes = t.plane_pointer_step();
+		job.interleaved = true;
+		job.minterm = 0x00u; // D = 0
+		return plan.add_interleaved_clear_rect(job);
+	}
 	job.height = h;
 	const eng::u32 bitmap_row_bytes = inter ? static_cast<eng::u32>(t.row_bytes) * t.plane_count : t.row_bytes;
 	job.destination_modulo_bytes = static_cast<eng::s16>(

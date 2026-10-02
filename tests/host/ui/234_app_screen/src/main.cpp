@@ -95,36 +95,15 @@ struct MockBackend {
 				}
 				bitmap_first_segment = valid;
 			}
-			if (job.kind == graphics::BlitJobKind::ClearRect && job.words_per_row == 20u &&
-			    job.bitplane_count == 5u && job.destination_plane_stride_bytes == 40u &&
-			    job.destination_modulo_bytes == 160) {
-				const bool valid = job.bitplane_count == 5u && job.height == 56u &&
-					job.destination_modulo_bytes == 160 && job.destination_plane_stride_bytes == 40u &&
-					job.interleaved;
+			if (job.kind == graphics::BlitJobKind::ClearRect && job.words_per_row == 20u && job.interleaved) {
+				const bool valid = job.height == 280u && job.bitplane_count == 1u &&
+					job.destination_modulo_bytes == 0 && job.destination_plane_stride_bytes == 0u;
 				clear_plan_valid = clear_plan_valid || valid;
 				const u32 row_bytes = static_cast<u32>(job.words_per_row) * sizeof(u16);
-				for (u8 plane = 0u; plane < job.bitplane_count; ++plane) {
-					u8* dst = reinterpret_cast<u8*>(job.destination.words()) +
-						static_cast<u32>(plane) * job.destination_plane_stride_bytes;
-					for (u16 row = 0u; row < job.height; ++row) {
-						for (u32 byte = 0u; byte < row_bytes; ++byte) dst[byte] = 0u;
-						dst += row_bytes + job.destination_modulo_bytes;
-					}
-				}
-				clear_matches = valid;
-			} else if (job.kind == graphics::BlitJobKind::ClearRect && job.words_per_row == 20u &&
-				   job.bitplane_count == 5u && job.interleaved) {
-				const bool valid = job.height == 56u && job.destination_modulo_bytes == 160 &&
-					job.destination_plane_stride_bytes == 40u;
-				clear_plan_valid = clear_plan_valid || valid;
-				const u32 row_bytes = static_cast<u32>(job.words_per_row) * sizeof(u16);
-				for (u8 plane = 0u; plane < job.bitplane_count; ++plane) {
-					u8* dst = reinterpret_cast<u8*>(job.destination.words()) +
-						static_cast<u32>(plane) * job.destination_plane_stride_bytes;
-					for (u16 row = 0u; row < job.height; ++row) {
-						for (u32 byte = 0u; byte < row_bytes; ++byte) dst[byte] = 0u;
-						dst += row_bytes + job.destination_modulo_bytes;
-					}
+				u8* dst = reinterpret_cast<u8*>(job.destination.words());
+				for (u16 row = 0u; row < job.height; ++row) {
+					for (u32 byte = 0u; byte < row_bytes; ++byte) dst[byte] = 0u;
+					dst += row_bytes + job.destination_modulo_bytes;
 				}
 				clear_matches = valid;
 			}
