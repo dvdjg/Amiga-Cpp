@@ -146,6 +146,10 @@ constexpr eng::MemoryConfig kMemoryBudget {
 constexpr eng::u16 kPaletteColorCount = eng::kPaletteEntries;
 constexpr eng::u8 kSpriteFrameCount = 6u;
 constexpr eng::u16 kBobCount = 16u;
+/// A/B de diagnóstico del camino por BOB (`-DK_BOB_COUNT=n`): por defecto, todos los BOBs.
+#ifndef K_BOB_COUNT
+#define K_BOB_COUNT kBobCount
+#endif
 constexpr eng::u16 kBobSpacing = 16u;
 constexpr eng::u16 kGameBandTop = 200u;
 constexpr eng::u16 kGameBandHeight = kHeight - kGameBandTop;
@@ -405,7 +409,7 @@ struct AbyssDemo {
 		// caliente (16 divisiones/frame). El original avanza el frame de la hoja con un índice
 		// propio; aquí un `if (++fi == 6) fi = 0` es `addq`/`beq`, sin libcall.
 		eng::u8 fi = 0u;
-		for (eng::u16 i = 0u; i < kBobCount; ++i) {
+		for (eng::u16 i = 0u; i < K_BOB_COUNT; ++i) {
 			const eng::s16 x = static_cast<eng::s16>(
 				static_cast<eng::u32>(i) * kBobSpacing +
 				static_cast<eng::u32>(kWaveX[hphase]) * kWaveAmplitudeScale);

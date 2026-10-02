@@ -147,14 +147,20 @@ Medición (2026-10, A500, demo 213 = 16 BOBs cookie-cut + clear de banda + copia
   (`g_blit_async_launches/steps/ends`): ~25 lanzamientos y ~16 submits por frame, cierres de cadena
   coherentes; sin la espera del `wait_blitter` en el hilo principal.
 
-Resultados del A/B (A500, demo 213 completa, contador de ciclos del emulador; `measure-fps`):
+Resultados del A/B (A500, demo 213 completa, contador de ciclos del emulador; `measure-fps`). Los
+valores son **tras** aplicar el camino de frame a coste cero (`ZERO_COST_FRAME_PATH.md`), que bajó el
+CPU del frame y llevó al síncrono a 1 campo:
 
 | Config | fps | campos/frame |
 |---|---|---|
-| debug síncrono | 24,96 | 2,00 |
-| debug asíncrono | 22,51 | 2,22 |
-| release síncrono | 28,55 | 1,75 |
-| release asíncrono | 25,21 | 1,98 |
+| debug síncrono | 32,62 | 1,53 |
+| debug asíncrono | 28,07 | 1,78 |
+| release síncrono | **49,92** | **1,00** |
+| release asíncrono | 33,53 | 1,49 |
+
+Antes de esas optimizaciones (solo el ejecutor por lotes): debug 24,96 / 22,51 y release 28,55 /
+25,21. La diferencia entre modo síncrono y asíncrono se explica por el **uso del bus**, no por el
+CPU: ver las claves.
 
 Claves del A/B:
 

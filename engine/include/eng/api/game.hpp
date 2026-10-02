@@ -642,6 +642,9 @@ public:
 	/// la cadena ya terminó (`begin_async_frame`): así el frame mostrado está completo (sin
 	/// tearing) y el plan no se reutiliza con la cadena viva.
 	void present() {
+		// Reconstruye el informe de presupuesto **una vez** por plan (el encolado no lo hace por
+		// job: sería O(N²)). Ver `ZERO_COST_FRAME_PATH.md`.
+		m_plan.finalize();
 		if (m_async_present) {
 			if constexpr (requires(Backend& b, const graphics::FramePlan& p) {
 					      b.execute_frame_plan_async(p);

@@ -88,12 +88,18 @@ private:
 	const eng::u16 words =
 		static_cast<eng::u16>((w + 15u) / 16u + ((x & 15) != 0 ? 1u : 0u));
 	const eng::u32 start_row = inter ? static_cast<eng::u32>(t.row_bytes) * t.plane_count : t.row_bytes;
-	eng::graphics::BlitJob job {};
+	const bool full_interleaved_rows = inter && wx == 0 &&
+		static_cast<eng::u32>(words) * sizeof(eng::u16) == t.row_bytes;
+	// **Construcción IN SITU** (coste cero): la ranura del plan, sin `BlitJob` local ni copia.
+	eng::graphics::BlitJob& job = plan.begin_blit_job(eng::graphics::BlitJobKind::ClearRect);
 	job.destination = eng::graphics::BlitPtr::from_storage(reinterpret_cast<eng::u16*>(
 		t.data() + static_cast<eng::u32>(y) * start_row + (static_cast<eng::u32>(wx) >> 3u)));
 	job.words_per_row = words;
-	const bool full_interleaved_rows = inter && wx == 0 &&
-		static_cast<eng::u32>(words) * sizeof(eng::u16) == t.row_bytes;
+	// La ranura es estable (se reutiliza cada frame): fijar todo campo que el encoder lea.
+	job.source_words_per_row = 0u;
+	job.source_modulo_bytes = 0;
+	job.descending = false;
+	job.source_shift = 0u;
 	if (full_interleaved_rows) {
 		// Con toda la fila física cubierta, los planos intercalados son un bloque continuo:
 		// un único blit D-only recorre las filas de todos los planos.
@@ -103,7 +109,7 @@ private:
 		job.destination_plane_stride_bytes = 0u;
 		job.interleaved = true;
 		job.minterm = 0x00u; // D = 0
-		return plan.add_clear_rect(job);
+		return plan.commit_blit_job();
 	}
 	if (inter) {
 		// Una caja parcial requiere saltar las filas físicas de los otros planos.
@@ -115,17 +121,17 @@ private:
 		job.destination_plane_stride_bytes = t.plane_pointer_step();
 		job.interleaved = true;
 		job.minterm = 0x00u; // D = 0
-		return plan.add_interleaved_clear_rect(job);
+		return plan.commit_blit_job();
 	}
 	job.height = h;
-	const eng::u32 bitmap_row_bytes = inter ? static_cast<eng::u32>(t.row_bytes) * t.plane_count : t.row_bytes;
+	const eng::u32 bitmap_row_bytes = t.row_bytes;
 	job.destination_modulo_bytes = static_cast<eng::s16>(
 		bitmap_row_bytes - static_cast<eng::u32>(words) * sizeof(eng::u16));
 	job.bitplane_count = t.plane_count;
 	job.destination_plane_stride_bytes = t.plane_pointer_step();
-	job.interleaved = inter;
+	job.interleaved = false;
 	job.minterm = 0x00u; // D = 0
-	return inter ? plan.add_interleaved_clear_rect(job) : plan.add_clear_rect(job);
+	return plan.commit_blit_job();
 }
 
 namespace fast_bob_detail {

@@ -191,6 +191,7 @@ public:
 		m_blit_budget = {};
 		m_blit_budget_report = {};
 		m_dirty_report = {};
+		m_budget_dirty = false;
 		m_ok = true;
 	}
 
@@ -261,7 +262,15 @@ public:
 	constexpr u8 dirty_rect_count() const { return m_dirty_rect_count; }
 	constexpr const BlitBudget& blit_budget() const { return m_blit_budget; }
 	constexpr const BlitBudgetLimits& blit_budget_limits() const { return m_blit_budget_limits; }
-	constexpr const BlitBudgetReport& blit_budget_report() const { return m_blit_budget_report; }
+	/// Informe de presupuesto. Se reconstruye **de forma perezosa** si quedó sucio tras el último
+	/// `add`/`commit` (así el camino de encolado no es O(N²)); `finalize()` también lo refresca.
+	const BlitBudgetReport& blit_budget_report() const {
+		if (m_budget_dirty) {
+			const_cast<FramePlan*>(this)->rebuild_blit_budget_report();
+			m_budget_dirty = false;
+		}
+		return m_blit_budget_report;
+	}
 	constexpr const DirtyReport& dirty_report() const { return m_dirty_report; }
 
 	/// **Marca de aviso** de la cadena: un `ticket` que la IRQ de fin de blit postea al cruzar el
@@ -473,6 +482,37 @@ public:
 		}
 	}
 
+	/// **Construcción IN SITU** de un trabajo (camino caliente, coste cero): devuelve la ranura
+	/// del array para que el llamador **rellene los campos directamente**, sin construir un
+	/// `BlitJob` local (que en `-O0` es un `memset` + `memcpy` por objeto) ni copiarlo. Cierra con
+	/// `commit_blit_job()`. El llamador debe fijar **todos los campos que el encoder lea** para ese
+	/// `kind`; los grupos no usados (`line`/`c2p`) conservan valores previos (no se leen).
+	/// Ver `docs/engine/architecture/ZERO_COST_FRAME_PATH.md`.
+	[[nodiscard]] BlitJob& begin_blit_job(BlitJobKind kind) noexcept {
+		BlitJob& slot = m_blit_jobs[m_blit_job_count];
+		slot.kind = kind;
+		return slot;
+	}
+
+	/// Valida y contabiliza la ranura abierta por `begin_blit_job`. `false` (y `ok()==false`) si
+	/// el trabajo es inválido o no cabe; en ese caso la ranura **no** se consume.
+	bool commit_blit_job() noexcept {
+		if (m_blit_job_count >= max_blit_jobs) {
+			m_ok = false;
+			return false;
+		}
+		return finish_blit_job();
+	}
+
+	/// Reconstruye el informe de presupuesto si quedó sucio. Lo llama `App::present` al cerrar el
+	/// plan; también de forma perezosa al leer `blit_budget_report()`.
+	void finalize() noexcept {
+		if (m_budget_dirty) {
+			rebuild_blit_budget_report();
+			m_budget_dirty = false;
+		}
+	}
+
 private:
 	static constexpr s16 min_s16(s16 a, s16 b) { return a < b ? a : b; }
 
@@ -527,58 +567,63 @@ private:
 	/// Camino caliente (1 vez por BOB): `always_inline` para no pagar un `jsr` por objeto
 	/// ni recargar `m_blit_job_count`/`m_blit_budget` desde memoria en cada anadido.
 	__attribute__((always_inline)) inline bool add_blit_job(const BlitJob& input, BlitJobKind kind) {
-		// Validacion ANTES de copiar: evita copiar un job que se va a rechazar.
-		const bool masked = kind == BlitJobKind::MaskedBobCookieCut ||
-				    kind == BlitJobKind::MaskedBlobNoSave;
-		const bool clear = kind == BlitJobKind::ClearRect;
-		if (
-			(!clear && input.source.words() == nullptr) ||
-			input.destination.words() == nullptr ||
-			input.words_per_row == 0 ||
-			input.height == 0 ||
-			input.bitplane_count == 0 ||
-			input.source_shift >= 16u ||
-			(!clear && input.source_plane_stride_bytes == 0 && !input.interleaved) ||
-			(input.destination_plane_stride_bytes == 0 && !input.interleaved)
-		) {
-			m_ok = false;
-			return false;
-		}
-		if (masked && input.mask.words() == nullptr) {
-			m_ok = false;
-			return false;
-		}
 		if (m_blit_job_count >= max_blit_jobs) {
 			m_ok = false;
 			return false;
 		}
-
 		// Copia UNICA: se escribe directamente en la ranura del array (sin local intermedio).
 		BlitJob& job = m_blit_jobs[m_blit_job_count];
 		job = input;
 		job.kind = kind;
+		return finish_blit_job();
+	}
+
+	/// Valida la última ranura, la consume y suma el presupuesto. **No** reconstruye el informe
+	/// (diferido: `finalize`/acceso al informe); así añadir N trabajos no es O(N²).
+	__attribute__((always_inline)) inline bool finish_blit_job() noexcept {
+		BlitJob& job = m_blit_jobs[m_blit_job_count];
+		const BlitJobKind kind = job.kind;
+		const bool masked = kind == BlitJobKind::MaskedBobCookieCut ||
+				    kind == BlitJobKind::MaskedBlobNoSave;
+		const bool clear = kind == BlitJobKind::ClearRect;
+		if ((!clear && job.source.words() == nullptr) || job.destination.words() == nullptr ||
+		    job.words_per_row == 0 || job.height == 0 || job.bitplane_count == 0 ||
+		    job.source_shift >= 16u ||
+		    (!clear && job.source_plane_stride_bytes == 0 && !job.interleaved) ||
+		    (job.destination_plane_stride_bytes == 0 && !job.interleaved) ||
+		    (masked && job.mask.words() == nullptr)) {
+			m_ok = false;
+			return false;
+		}
 		++m_blit_job_count;
-		m_blit_budget.jobs = m_blit_job_count;
-		m_blit_budget.words += eng::math::mulu32x16(
-			eng::math::mulu16(job.words_per_row, job.height),
-			static_cast<u16>(job.bitplane_count));
-		if (masked) {
-			++m_blit_budget.masked_jobs;
-		} else {
-			++m_blit_budget.copy_jobs;
-		}
-		if (job.kind == BlitJobKind::ClearRect) ++m_blit_budget.clear_jobs;
-		if (job.kind == BlitJobKind::MaskedBlobNoSave) {
-			++m_blit_budget.no_save_jobs;
-		}
-		if (job.kind == BlitJobKind::TileBlockCopy) {
-			++m_blit_budget.tile_jobs;
-		}
-		rebuild_blit_budget_report();
+		// El presupuesto se acumula **una vez** en `finalize()` (recorrido O(N)): así encolar N
+		// trabajos no paga por-job ni es O(N²). Ver `ZERO_COST_FRAME_PATH.md`.
+		m_budget_dirty = true;
 		return true;
 	}
 
 	void rebuild_blit_budget_report() {
+		// Recomputa el presupuesto desde cero en un único recorrido (coste O(N) por frame).
+		m_blit_budget = {};
+		for (u8 i = 0u; i < m_blit_job_count; ++i) {
+			const BlitJob& job = m_blit_jobs[i];
+			m_blit_budget.words += eng::math::mulu32x16(
+				eng::math::mulu16(job.words_per_row, job.height),
+				static_cast<u16>(job.bitplane_count));
+			switch (job.kind) {
+				case BlitJobKind::MaskedBobCookieCut:
+				case BlitJobKind::MaskedBlobNoSave:
+					++m_blit_budget.masked_jobs;
+					break;
+				default:
+					++m_blit_budget.copy_jobs;
+					break;
+			}
+			if (job.kind == BlitJobKind::ClearRect) ++m_blit_budget.clear_jobs;
+			if (job.kind == BlitJobKind::MaskedBlobNoSave) ++m_blit_budget.no_save_jobs;
+			if (job.kind == BlitJobKind::TileBlockCopy) ++m_blit_budget.tile_jobs;
+		}
+		m_blit_budget.jobs = m_blit_job_count;
 		m_blit_budget_report = {};
 		m_blit_budget_report.words_warning = m_blit_budget.words > m_blit_budget_limits.warning_words;
 		m_blit_budget_report.words_exceeded = m_blit_budget.words > m_blit_budget_limits.max_words;
@@ -629,6 +674,7 @@ private:
 	u8 m_notify_count = 0; ///< avisos registrados en `m_notifies`
 	u8 m_dma_asset_count = 0; ///< leases válidas en `m_dma_assets`, 0..max_dma_assets
 	ReorderPolicy m_reorder = ReorderPolicy::PreserveOrder; ///< política de orden (explícita)
+	mutable bool m_budget_dirty = false; ///< el informe de presupuesto está pendiente de reconstruir
 	bool m_ok = true;
 };
 

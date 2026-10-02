@@ -222,6 +222,15 @@ if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 			exit 1
 		fi
 	fi
+	# Coste cero en el camino de frame: sin construir/copiar `BlitJob` local (memset/memcpy).
+	FRAME_HOT_PATH="$ROOT/tools/check/frame-hot-path.mjs"
+	if [ -f "$FRAME_HOT_PATH" ] && command -v node >/dev/null 2>&1; then
+		echo "== frame-hot-path =="
+		if ! node "$FRAME_HOT_PATH"; then
+			echo "frame-hot-path fallo: construccion/copia local en el camino de frame." >&2
+			exit 1
+		fi
+	fi
 	# Frontera dominio <-> plataforma (anillo 0 no toca vocabulario de chipset).
 	PLATFORM_BOUNDARIES="$ROOT/tools/check/platform-boundaries.mjs"
 	if [ -f "$PLATFORM_BOUNDARIES" ] && command -v node >/dev/null 2>&1; then
