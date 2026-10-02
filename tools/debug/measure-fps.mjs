@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-// Mide fps y ciclos por frame en tiempo EMULADO (contador de ciclos del periférico
-// de depuración 0xB7E928, 7.09379 MHz en A500), independiente del ancho de banda host.
+// Mide fps y ciclos por frame en tiempo EMULADO con el contador de ciclos del periférico
+// de depuración 0xB7E928 (cpucycleunit=256 según WinUAE), independiente del ancho de banda host.
+// Los primeros 10 s de WinUAE se omiten antes de empezar la ventana cronometrada.
 //
 // Uso:
-//   node tools/debug/measure-fps.mjs <demo_dir_name> [CONFIG_NAME] [--json]
+//   node tools/debug/measure-fps.mjs <demo_dir_name> [CONFIG_NAME] [--json] [--duration-ms N]
 //
 // --json imprime, como última línea, un objeto JSON con el resultado (demo, config,
 // fecha, commit, fps emulado/host, ciclos/frame y detail) para consumo por tooling
@@ -26,6 +27,10 @@ const ROOT = path.resolve(__dirname, '../..');
 
 const ARGV = process.argv.slice(2);
 const JSON_OUT = ARGV.includes('--json');
+const durationArg = ARGV.indexOf('--duration-ms');
+const DURATION_MS = durationArg >= 0
+  ? Math.max(1000, parseInt(ARGV[durationArg + 1] || '20000', 10))
+  : 20000;
 const POSITIONAL = ARGV.filter((a) => !a.startsWith('-'));
 const DEMO = POSITIONAL[0];
 if (!DEMO) { console.error('Uso: node tools/debug/measure-fps.mjs <demo_dir_name> [CONFIG_NAME] [--json]'); process.exit(1); }
@@ -197,16 +202,19 @@ const state = async () => {
 
 await state();
 const a = await state(); const t0 = Date.now();
-await sleep(6000);
+await sleep(DURATION_MS);
 const b = await state(); const t1 = Date.now();
 let dCycles = b.cycles - a.cycles;
 if (dCycles < 0) dCycles += 4294967296;
 const dFrame = b.frame - a.frame;
 const emuFps = dFrame / (dCycles / CPU_HZ);
+const hostFps = dFrame / ((t1 - t0) / 1000);
+const cyclesPerFrame = dCycles / Math.max(1, dFrame);
+const nominalFieldsPerFrame = cyclesPerFrame / (CPU_HZ / 50);
 console.log('[fps] ' + DEMO + '/' + CONFIG_NAME +
   ' | emulado=' + emuFps.toFixed(2) + ' fps' +
-  ' | host=' + ((dFrame) / ((t1 - t0) / 1000)).toFixed(2) + ' fps' +
-  ' | ' + (dCycles / Math.max(1, dFrame)).toFixed(0) + ' ciclos/frame (' + (dCycles / Math.max(1, dFrame) / (CPU_HZ / 50)).toFixed(1) + ' lineas/frame)' +
+  ' | host=' + hostFps.toFixed(2) + ' fps' +
+  ' | ' + cyclesPerFrame.toFixed(0) + ' ciclos/frame (' + nominalFieldsPerFrame.toFixed(3) + ' campos/frame)' +
   ' | detail=0x' + (b.detail >>> 0).toString(16));
 
 if (JSON_OUT) {
@@ -218,9 +226,12 @@ if (JSON_OUT) {
     date: new Date().toISOString().slice(0, 10),
     commit,
     emulatedFps: Number(emuFps.toFixed(2)),
-    hostFps: Number(((dFrame) / ((t1 - t0) / 1000)).toFixed(2)),
-    cyclesPerFrame: Math.round(dCycles / Math.max(1, dFrame)),
-    linesPerFrame: Number((dCycles / Math.max(1, dFrame) / (CPU_HZ / 50)).toFixed(1)),
+    hostFps: Number(hostFps.toFixed(2)),
+    cyclesPerFrame: Math.round(cyclesPerFrame),
+    fieldsPerFrame: Number(nominalFieldsPerFrame.toFixed(5)),
+    frames: dFrame,
+    cycles: dCycles,
+    measurementMs: t1 - t0,
     detail: '0x' + (b.detail >>> 0).toString(16),
   };
   console.log(JSON.stringify(result));

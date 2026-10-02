@@ -31,14 +31,29 @@ const arg = (n, fb) => { const i = process.argv.indexOf(n); return i >= 0 && i +
 const has = (n) => process.argv.includes(n);
 
 const seqDir = arg('--sequence', '');
-if (!seqDir) { console.error('Uso: node tools/vision-review/frame-diff.mjs --sequence <dir> [--thresh 40] [--json]'); process.exit(2); }
+const filesArg = process.argv.indexOf('--files');
+const explicitFiles = [];
+if (filesArg >= 0) {
+  for (let i = filesArg + 1; i < process.argv.length && !process.argv[i].startsWith('--'); ++i) {
+    explicitFiles.push(process.argv[i]);
+  }
+}
+if (!seqDir && explicitFiles.length === 0) { console.error('Uso: node tools/vision-review/frame-diff.mjs --sequence <dir> o --files <png...> [--thresh 40] [--json]'); process.exit(2); }
+if (has('--compensate-global-motion')) {
+  console.error('[frame-diff] --compensate-global-motion requiere el backend Python/OpenCV; no se puede evaluar en el fallback Node.');
+  process.exit(2);
+}
 const thresh = parseInt(arg('--thresh', '40'), 10);
+const stdoutJson = has('--stdout-json');
+const compensateGlobalMotion = false;
 
 let PNG;
 try { ({ PNG } = require('pngjs')); } catch { console.error('[frame-diff] pngjs no disponible.'); process.exit(2); }
-const files = fs.readdirSync(seqDir).filter((f) => /^frame_\d{3,}\.png$/.test(f)).sort();
-if (files.length < 2) { console.log(`[frame-diff] ${seqDir}: <2 frames (se omite).`); process.exit(3); }
-const imgs = files.map((f) => PNG.sync.read(fs.readFileSync(path.join(seqDir, f))));
+const files = explicitFiles.length
+  ? explicitFiles
+  : fs.readdirSync(seqDir).filter((f) => /^frame_\d{3,}(?:_f\d+)?\.png$/.test(f)).sort().map((f) => path.join(seqDir, f));
+if (files.length < 2) { console.log(`[frame-diff] ${seqDir || files.join(',')}: <2 frames (se omite).`); process.exit(3); }
+const imgs = files.map((f) => PNG.sync.read(fs.readFileSync(f)));
 const W = imgs[0].width, H = imgs[0].height;
 
 const pairs = [];
@@ -57,10 +72,13 @@ for (let f = 1; f < imgs.length; f++) {
   pairs.push({ from: f - 1, to: f, changed: n, bbox: n ? [minx, miny, maxx, maxy] : null });
 }
 
-if (has('--json')) {
-  console.log(JSON.stringify({ sequence: seqDir.replace(/\\/g, '/'), size: [W, H], thresh, pairs }, null, 2));
+if (has('--json') || stdoutJson) {
+  const report = { sequence: (seqDir || path.dirname(files[0])).replace(/\\/g, '/'), size: [W, H], thresh, pairs,
+    motion_alignment: compensateGlobalMotion ? { requested: true, fallback: 'Python backend unavailable' } : { applied: false, reason: 'disabled' } };
+  if (stdoutJson) console.log(JSON.stringify(report));
+  else console.log(JSON.stringify(report, null, 2));
 } else {
-  console.log(`[frame-diff] ${seqDir.replace(/\\/g, '/')} · ${imgs.length} frames · ${W}×${H} · umbral ${thresh}`);
+  console.log(`[frame-diff] ${(seqDir || path.dirname(files[0])).replace(/\\/g, '/')} · ${imgs.length} frames · ${W}×${H} · umbral ${thresh}`);
   for (const p of pairs) {
     const bbox = p.bbox ? `[${p.bbox[0]},${p.bbox[1]}]-[${p.bbox[2]},${p.bbox[3]}]` : '(sin cambio)';
     console.log(`  f${String(p.from).padStart(2, '0')}->f${String(p.to).padStart(2, '0')}: px=${String(p.changed).padStart(6)} ${bbox}`);

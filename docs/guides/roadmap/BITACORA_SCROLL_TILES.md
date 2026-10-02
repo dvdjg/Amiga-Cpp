@@ -26,19 +26,25 @@ La cifra histórica (101=~48, 102=~50, 103=~50, 104=~47,6) no era reproducible: 
 
 > **Corrección de métrica (2026-09-27).** En `run_frames` (bucle IRQ-mínima) `g_eng_run_status.frame` seguía el **latido de VBlank** (`VBlankHeartbeat`), no los updates completados, así que `measure-fps` reportaba la tasa de campo (~50 ft): cualquier demo que no diera un frame por campo aparecía como "1,0 frame". Corregido en `Engine::run_frames` (`frame_index` = **frames completados**, igual que en `run_frames_polling`). Verificado: `measure-fps` y `profile.mjs` ya coinciden por update. Las filas marcadas con `†` se midieron con el contador roto y están reevaluadas; el resto son anteriores o no se ven afectadas.
 
-| Demo | `CONFIG_ID` | fps emulado | ciclos/frame | `detail` | fecha | commit |
-|---|---|---|---|---|---|---|
-| `101_ehb_tile_scroll_driver` | `A500_debug` | 49,92 | 142 102 | 0x11595823 | 2026-09-17 | `53af1d4` |
-| `103_tile_scroll_ring` | `A500_debug` | 32,95 | 215 306 | 0x13100200 | 2026-09-17 | `1490dfc` |
-| `104_tile_scroll_ring_dualpf` | `A500_debug` | 30,02 | 236 313 | 0x14020600 | 2026-09-17 | `1490dfc` |
-| `086_bob_objects` | `A500_debug` | 49,92 | 142 102 | 0x1000303 | 2026-09-18 | `11014f8` |
-| `056_input_aggregator` | `A500_debug` | 16,58 | 427 727 | 0xb4 | 2026-09-18 | `46d4a82` |
-| `057_audio_mixer` | `A500_debug` | 12,60 | 562 799 | 0x381 | 2026-09-18 | `83f1bba` |
-| `058_sfx_mixer` | `A500_debug` | 12,44 | 570 303 | 0x3810004 | 2026-09-18 | `83f1bba` |
-| `213_bartman_abyss` | `A500_debug` | 24,96† | 284 204 | 0x21300 | 2026-09-27 | `e2d99690` |
-| `117_bobs3d` | `A500_debug` | 22,06† | 321 599 | 0x3c | 2026-09-27 | `e2d99690` |
+| Demo | `CONFIG_ID` | fps emulado | ciclos/frame | `detail` | fecha | commit | frames | ciclos muestra |
+|---|---|---|---|---|---|---|---|---|
+| `101_ehb_tile_scroll_driver` | `A500_debug` | 49,92 | 142 102 | 0x11595823 | 2026-09-17 | `53af1d4` | — | — |
+| `103_tile_scroll_ring` | `A500_debug` | 32,95 | 215 306 | 0x13100200 | 2026-09-17 | `1490dfc` | — | — |
+| `104_tile_scroll_ring_dualpf` | `A500_debug` | 30,02 | 236 313 | 0x14020600 | 2026-09-17 | `1490dfc` | — | — |
+| `086_bob_objects` | `A500_debug` | 49,92 | 142 102 | 0x1000303 | 2026-09-18 | `11014f8` | — | — |
+| `056_input_aggregator` | `A500_debug` | 16,58 | 427 727 | 0xb4 | 2026-09-18 | `46d4a82` | — | — |
+| `057_audio_mixer` | `A500_debug` | 12,60 | 562 799 | 0x381 | 2026-09-18 | `83f1bba` | — | — |
+| `058_sfx_mixer` | `A500_debug` | 12,44 | 570 303 | 0x3810004 | 2026-09-18 | `83f1bba` | — | — |
+| `213_bartman_abyss` | `A500_debug` | 24,96† | 284 204 | 0x21300 | 2026-09-27 | `e2d99690` | — | — |
+| `117_bobs3d` | `A500_debug` | 22,06† | 321 599 | 0x3c | 2026-09-27 | `e2d99690` | — | — |
+| `203_world_tilemap_xlimited` (medida inicial) | `A500_debug` | 24,96 | 284 204 | 0x2030000c | 2026-10-01 | `d4bfb56e` | — | — |
+| `203_world_tilemap_xlimited` (filas precalculadas) | `A500_debug` | 49,92 | 142 102 | 0x20fe0004 | 2026-10-01 | `d4bfb56e` | — | — |
+| `203_world_tilemap_xlimited` (wrap Y alineado y 2 px/frame) | `A500_debug` | 49,92 | 142 102 | 0x20f80004 | 2026-10-01 | `d4bfb56e` | — | — |
+| `203_world_tilemap_xlimited` (medida larga final, 1 px/frame) | `A500_debug` | 49,90 | 142 149 | 0x20fa000c | 2026-10-01 | `d4bfb56e` + árbol local | 2 996 | 425 879 694 |
 
 Contexto de medida: `CONFIG_ID` **`A500_debug`** (build `--debug`, `-O1`), emulador **WinUAE-DBG x86**, herramienta `tools/debug/measure-fps.mjs` (contador de ciclos del periférico `0xB7E928`, 7,09379 MHz). El fps depende de la **fase** del recorrido (`detail`): comparar siempre con el mismo `detail`. En hardware real las demos de scroll van a 50 fps.
+
+**Objetivos vigentes de demos Amiga (2026-10-01):** 50 fps emulados y flicker/tearing cero; las demos centradas en relleno de polígonos deben sostener al menos 25 fps. La demo 203 pasa contrato de movimiento y estabilidad visual; el análisis compensado reporta cero candidatos y cero bloques residuales, y las pruebas sintéticas detectan flicker/corrupción. La medida larga final de 1 px/frame da 49,90 fps/142 149 ciclos por frame, todavía por debajo del umbral literal de 50 fps. Otras ventanas breves han oscilado entre 49,90 y 50,09; el control estático `000_toolchain_cpp23` también midió 49,92 fps en ventana corta. No se relaja el umbral ni se cierra rendimiento con una muestra que apenas supera 50.
 
 **Protocolo para reproducir y añadir filas:**
 

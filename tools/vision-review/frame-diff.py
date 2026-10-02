@@ -20,6 +20,7 @@ Salida: por pantalla y `out/vision-review/<demoId>/frame-diff.{json,md}`. Códig
 Requiere `opencv-python` y `numpy` (dependencia opcional; ver docs/build/BUILD_AND_RUN.md).
 """
 import argparse
+import importlib.util
 import json
 import os
 import sys
@@ -85,22 +86,69 @@ def ssim_score(gray_a, gray_b, block):
     return {"ssim": round(mean, 5), "blocks_low": low}
 
 
+def temporal_low_blocks(gray_a, gray_b, block, threshold=8.0, ignore_rois=()):
+    """Cuenta bloques con cambio residual tras compensar paneo, descontando ROIs explícitas."""
+    delta = cv2.absdiff(gray_a, gray_b)
+    h, w = delta.shape
+    low = 0
+    for by in range(0, max(1, h - block + 1), block):
+        for bx in range(0, max(1, w - block + 1), block):
+            x_abs, y_abs = bx, by
+            ignored = any(x_abs >= x and x_abs + block <= x + iw and
+                          y_abs >= y and y_abs + block <= y + ih
+                          for x, y, iw, ih in ignore_rois)
+            if not ignored and float(delta[by:by + block, bx:bx + block].mean()) > threshold:
+                low += 1
+    return low
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--sequence", required=True)
+    ap.add_argument("--sequence", default=None)
+    ap.add_argument("--files", nargs="+", default=None,
+                    help="lista exacta de frames en orden")
     ap.add_argument("--out", default=None)
     ap.add_argument("--thresh", type=int, default=40)
     ap.add_argument("--metric", choices=["diff", "ssim", "both"], default="both")
     ap.add_argument("--block", type=int, default=16)
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--stdout-json", action="store_true",
+                    help="escribe el informe JSON a stdout sin guardar el reporte")
+    ap.add_argument("--compensate-global-motion", action="store_true",
+                    help="compensa traslación global coherente antes de contar cambios estructurales")
+    ap.add_argument("--ignore-roi", action="append", default=[], metavar="X,Y,W,H",
+                    help="excluye una región explícita del recuento SSIM (se repite por región)")
     ap.add_argument("--heatmap", action="store_true",
                     help="escribe un PNG de mapa de calor de las diferencias (para el VLM)")
     args = ap.parse_args()
+    parsed_ignore_rois = []
+    for region in args.ignore_roi:
+        try:
+            parsed_ignore_rois.append(tuple(int(v) for v in region.split(",")))
+        except (TypeError, ValueError):
+            ap.error(f"--ignore-roi debe ser X,Y,W,H: {region}")
 
-    files, frames = load_frames(args.sequence)
+    if not args.sequence and not args.files:
+        ap.error("se requiere --sequence o --files")
+    if args.files:
+        files = [Path(p) for p in args.files]
+        frames = [cv2.imread(str(f)) for f in files]
+        pairs = [(f, img) for f, img in zip(files, frames) if img is not None]
+        files, frames = [x[0] for x in pairs], [x[1] for x in pairs]
+    else:
+        files, frames = load_frames(args.sequence)
     if len(frames) < 2:
         print(f"[frame-diff] {args.sequence}: <2 frames (se omite).", file=sys.stderr)
         return 3
+    gray_frames = [cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32)
+                   for frame in frames]
+    motion_alignment = {"applied": False, "reason": "disabled"}
+    if args.compensate_global_motion:
+        detector_path = Path(__file__).with_name("temporal-detect.py")
+        spec = importlib.util.spec_from_file_location("temporal_detect", detector_path)
+        detector = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(detector)
+        _, motion_alignment = detector.align_global_motion(frames)
     h, w = frames[0].shape[:2]
 
     pairs = []
@@ -111,24 +159,66 @@ def main():
         if args.metric in ("ssim", "both"):
             ga = cv2.cvtColor(frames[f - 1], cv2.COLOR_BGR2GRAY)
             gb = cv2.cvtColor(frames[f], cv2.COLOR_BGR2GRAY)
-            entry.update(ssim_score(ga, gb, args.block))
+            score = ssim_score(ga, gb, args.block)
+            if args.compensate_global_motion:
+                # Con paneo de ±4 px/frame, un cambio grande residual apunta a un evento local
+                # (p. ej. wrap de tilemap o tearing), no al movimiento general ya compensado.
+                (dx, dy), response = cv2.phaseCorrelate(
+                    gray_frames[f - 1], gray_frames[f])
+                margin = max(16, int(np.ceil(max(abs(dx), abs(dy)))) + 2)
+                if response >= 0.15 and abs(dx) <= w / 4 and abs(dy) <= h / 4 and \
+                   h > 2 * margin and w > 2 * margin:
+                    # Recorta el perímetro de tiles: el wrap del mapa puede cambiar la columna
+                    # visible de manera legítima; las zonas internas siguen bajo el gate.
+                    # Alinea con el desplazamiento entero visible al muestrear bitplanes:
+                    # la correlación de fase aporta la estimación de traslación global.
+                    integer_dx, integer_dy = int(round(dx)), int(round(dy))
+                    aligned_integer = cv2.warpAffine(
+                        frames[f],
+                        np.float32([[1.0, 0.0, -integer_dx], [0.0, 1.0, -integer_dy]]),
+                        (w, h), flags=cv2.INTER_NEAREST,
+                        borderMode=cv2.BORDER_REPLICATE)
+                    integer_gray = cv2.cvtColor(aligned_integer, cv2.COLOR_BGR2GRAY)
+                    roi_a = ga[margin:h - margin, margin:w - margin]
+                    roi_b = integer_gray[margin:h - margin, margin:w - margin]
+                    # Elimina bloques enteros comprendidos en ROIs justificadas por la demo.
+                    # Se amplían 16 px para absorber el borde del matcher tras una traslación.
+                    exclusion_pad = 16
+                    low = temporal_low_blocks(
+                        roi_a, roi_b, args.block, ignore_rois=[
+                            (x - margin - exclusion_pad, y - margin - exclusion_pad,
+                             iw + exclusion_pad * 2, ih + exclusion_pad * 2)
+                            for x, y, iw, ih in parsed_ignore_rois])
+                    score.update({
+                        "ssim": ssim_score(roi_a, roi_b, args.block)["ssim"],
+                        "blocks_low": low,
+                    })
+                    score["global_dx"] = round(float(dx), 3)
+                    score["global_dy"] = round(float(dy), 3)
+                    score["global_response"] = round(float(response), 4)
+                    score["compensated_margin"] = margin
+            entry.update(score)
         pairs.append(entry)
 
-    seq_path = Path(args.sequence).resolve()
+    seq_path = Path(args.sequence).resolve() if args.sequence else files[0].resolve().parent
     demo_id = seq_path.parts[-3] if len(seq_path.parts) >= 3 else seq_path.parent.name
     out_dir = args.out or os.path.join("out", "vision-review", demo_id)
     os.makedirs(out_dir, exist_ok=True)
 
     report = {
-        "sequence": args.sequence.replace("\\", "/"),
+        "sequence": (args.sequence or str(seq_path)).replace("\\", "/"),
         "demo": demo_id,
         "frames": len(frames),
         "size": [w, h],
         "metric": args.metric,
         "thresh": args.thresh,
         "block": args.block,
+        "motion_alignment": motion_alignment,
         "pairs": pairs,
     }
+    if args.stdout_json:
+        print(json.dumps(report, ensure_ascii=False))
+        return 0
     with open(os.path.join(out_dir, "frame-diff.json"), "w", encoding="utf-8") as fp:
         json.dump(report, fp, indent=2, ensure_ascii=False)
 

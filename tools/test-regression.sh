@@ -394,8 +394,9 @@ for demo_path in "${DEMO_DIRS[@]}"; do
 	# explícitamente su estabilidad (p. ej. ambos a 0).
 	if [ "$FLICKER" -eq 1 ] && [ "$SKIP_RUN" -eq 0 ] && command -v node >/dev/null 2>&1; then
 		echo "== ${demo_name}: flicker =="
-		node "$FLICKER_TOOL" --demo "$relative_demo" >/dev/null 2>&1
 		flicker_json="$ROOT/out/vision-review/${demo_id}/flicker-report.json"
+		rm -f "$flicker_json"
+		node "$FLICKER_TOOL" --demo "$relative_demo" >/dev/null 2>&1
 		if [ -f "$flicker_json" ]; then
 			ncand="$(node -e "const j=require('$flicker_json');const d=j.detector;process.stdout.write(String(d&&d.candidates?d.candidates.length:0))" 2>/dev/null || echo 0)"
 			nblocks="$(node -e "const j=require('$flicker_json');const p=(j.frameDiff||[]).map(x=>x.blocks_low||0);process.stdout.write(String(p.length?Math.max(...p):0))" 2>/dev/null || echo 0)"
@@ -403,6 +404,12 @@ for demo_path in "${DEMO_DIRS[@]}"; do
 			[ -f "$demo_path/flicker-baseline.json" ] && base_c="$(node -e "try{process.stdout.write(String(require('$demo_path/flicker-baseline.json').max_candidates))}catch{}" 2>/dev/null)"
 			[ -f "$demo_path/flicker-baseline.json" ] && base_b="$(node -e "try{const v=require('$demo_path/flicker-baseline.json').max_blocks_low;if(v!==undefined)process.stdout.write(String(v))}catch{}" 2>/dev/null)"
 			over="no"
+			# Una demo con baseline exige el detector temporal y el análisis compensado. Si OpenCV
+			# no está disponible, no convertir la falta de datos en cero candidatos/bloques.
+			if { [ -n "$base_c" ] || [ -n "$base_b" ]; } && ! node -e "const j=require('$flicker_json');const p=j.frameDiff||[];if(!j.detector||!Array.isArray(j.detector.candidates)||j.detector.candidates.some(c=>c.type&&c.type.includes('analysis-unavailable'))||!j.motionAlignment?.applied||!p.length||p.some(x=>!Number.isFinite(x.blocks_low)))process.exit(1)" >/dev/null 2>&1; then
+				over="yes"
+				flicker="fail"; notes="${notes:+$notes,}flicker-analysis-unavailable"
+			fi
 			[ -n "$base_c" ] && [ "${ncand:-0}" -gt "$base_c" ] && over="yes"
 			[ -n "$base_b" ] && [ "${nblocks:-0}" -gt "$base_b" ] && over="yes"
 			if [ "$over" = "yes" ]; then
@@ -416,7 +423,11 @@ for demo_path in "${DEMO_DIRS[@]}"; do
 				notes="${notes:+$notes,}flicker"
 			fi
 		else
-			flicker="skip"
+			if [ -f "$demo_path/flicker-baseline.json" ]; then
+				flicker="fail"; notes="${notes:+$notes,}flicker-report-missing"
+			else
+				flicker="skip"
+			fi
 		fi
 	fi
 
