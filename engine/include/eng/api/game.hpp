@@ -77,13 +77,26 @@ enum class StartError : u8 {
 	CompositionFailed,
 };
 
+/// **Racha de blits en streaming**, inyectada por el `App` en el `Screen` de forma *type-erased*
+/// (punteros a función + contexto): el `Screen` puede emitir blits inmediatos **sin conocer el
+/// backend**. Ver `Screen::stamp`/`clear_now` y `ZERO_COST_FRAME_PATH.md` §Streaming.
+struct BlitStream {
+	void* ctx = nullptr;
+	bool (*begin)(void*, graphics::BlobOp, u16, u16, s16, s16, s16, s16) = nullptr;
+	void (*one)(void*, const void*, const void*, void*, u8) = nullptr;
+	bool (*end)(void*) = nullptr;
+	[[nodiscard]] bool valid() const noexcept { return begin != nullptr; }
+};
+
 /// **Contexto de dibujo de alto nivel** (análogo al `RastPort`): la app dibuja sin ver planos,
 /// `FramePlan` ni `Rasterizer`. Envuelve un `field::DrawTarget` (Surface + rasterizador + plan +
 /// clip) y ofrece primitivas del dominio.
 class Screen {
 public:
 	Screen() = default;
-	explicit constexpr Screen(field::DrawTarget target) noexcept : m_target(target) {}
+	explicit constexpr Screen(field::DrawTarget target, BlitStream stream = {}) noexcept
+		: m_target(target), m_stream(stream) {}
+
 
 	[[nodiscard]] bool valid() const noexcept { return m_target.valid(); }
 	[[nodiscard]] Box bounds() const noexcept { return m_target.box(); }
@@ -231,8 +244,116 @@ public:
 	/// El objetivo de dibujo subyacente (para efectos avanzados; el juego normal no lo necesita).
 	[[nodiscard]] field::DrawTarget& target() noexcept { return m_target; }
 
+	/// **Racha de estampado (streaming)**: emite copias de `sheet` al Blitter **en el momento** de
+	/// cada `at()` (espera al blit anterior y escribe solo los registros que cambian), **sin
+	/// `FramePlan` ni pasada de ejecución**. El juego describe objetos; el motor emite. Ver
+	/// `ZERO_COST_FRAME_PATH.md` §Streaming. Requiere dibujar en orden con `clear_now` (no mezclar
+	/// con el plan, que se ejecuta en `present`).
+	struct StampRun {
+		BlitStream stream {};
+		const graphics::Sprite* sheet = nullptr;
+		graphics::BobTarget target {};
+		graphics::BlobOp op = graphics::BlobOp::CookieCut;
+		u16 words = 0u;
+		s32 start_row = 0;
+		bool active = false;
+
+		/// Emite una copia del `frame` del sprite en `(x, y)`.
+		bool at(s16 x, s16 y, u8 frame) {
+			if (!active || sheet == nullptr || frame >= sheet->bob().frame_count) {
+				return false;
+			}
+			const graphics::Bob& bob = sheet->bob();
+			const s16 wx = static_cast<s16>(x & ~15);
+			const u16* base = reinterpret_cast<const u16*>(
+				bob.sheet.address(static_cast<u32>(frame) * bob.frame_stride).cptr());
+			u8* dst = target.data() + static_cast<u32>(start_row) * static_cast<u32>(y) +
+				  (static_cast<u32>(wx < 0 ? 0 : wx) >> 3u);
+			if (op == graphics::BlobOp::CookieCut) {
+				stream.one(stream.ctx, base + words, base, dst, static_cast<u8>(x & 15));
+			} else {
+				stream.one(stream.ctx, base, base, dst, static_cast<u8>(x & 15));
+			}
+			return true;
+		}
+		/// Espera al último blit de la racha.
+		bool done() {
+			if (!active) {
+				return false;
+			}
+			active = false;
+			return stream.end(stream.ctx);
+		}
+	};
+
+	/// Abre una racha de estampado; el `BlobOp` sale de la política del sprite (`Or`, `Opaque` o
+	/// `CookieCut`). `false`/inactivo si el backend no la soporta o el sprite no vale.
+	[[nodiscard]] StampRun stamp(const graphics::Sprite& sheet) {
+		StampRun run {};
+		if (!m_stream.valid() || !sheet.valid()) {
+			return run;
+		}
+		const graphics::BobTarget bt = m_target.bob_target();
+		const graphics::Bob& bob = sheet.bob();
+		if (bob.sheet.empty() || bt.planes.empty() || bob.width < 16u) {
+			return run;
+		}
+		const u16 words = static_cast<u16>(bob.width / 16u);
+		const s16 amod = static_cast<s16>(words * 2u);
+		const s16 dmod = static_cast<s16>(static_cast<s32>(bt.row_bytes) - static_cast<s32>(words) * 2);
+		const u16 height = static_cast<u16>(bob.height * bob.planes);
+		graphics::BlobOp op = graphics::BlobOp::CookieCut;
+		if (bob.draw == graphics::BobDraw::Or) {
+			op = graphics::BlobOp::Or;
+		} else if (bob.draw == graphics::BobDraw::Opaque) {
+			op = graphics::BlobOp::Opaque;
+		}
+		if (!m_stream.begin(m_stream.ctx, op, words, height, amod, amod, dmod, dmod)) {
+			return run;
+		}
+		run.stream = m_stream;
+		run.sheet = &sheet;
+		run.target = bt;
+		run.op = op;
+		run.words = words;
+		run.start_row = static_cast<s32>(bt.row_bytes) * bt.plane_count;
+		run.active = true;
+		return run;
+	}
+
+	/// **Borra ahora** (streaming, `D = 0`) la banda completa de `box` (filas completas de todos los
+	/// planos, interleaved). Complementa a `stamp`; ambas emiten **en orden**, sin `FramePlan`.
+	bool clear_now(Box box) {
+		if (!m_stream.valid() || box.empty()) {
+			return false;
+		}
+		const graphics::BobTarget bt = m_target.bob_target();
+		if (bt.planes.empty()) {
+			return false;
+		}
+		const u16 words = static_cast<u16>((box.w + 15u) / 16u);
+		if (words == 0u) {
+			return false;
+		}
+		const u16 height = static_cast<u16>(box.h * bt.plane_count);
+		// Fila completa de un plano → filas interleaved contiguas: un solo blit D-only, `dmod = 0`.
+		const bool full_row = (static_cast<u32>(words) * 2u == bt.row_bytes);
+		const s16 dmod = full_row ? 0
+					  : static_cast<s16>(static_cast<s32>(bt.row_bytes) *
+									     bt.plane_count -
+								     static_cast<s32>(words) * 2);
+		u8* dst = bt.data() + static_cast<u32>(box.y) * static_cast<u32>(bt.row_bytes) *
+					      static_cast<u32>(bt.plane_count);
+		if (!m_stream.begin(m_stream.ctx, graphics::BlobOp::Clear, words, height, 0, 0, 0, dmod)) {
+			return false;
+		}
+		m_stream.one(m_stream.ctx, nullptr, nullptr, dst, 0u);
+		return m_stream.end(m_stream.ctx);
+	}
+
 private:
 	field::DrawTarget m_target;
+	BlitStream m_stream {};
 };
 /// **Aplicación de juego**: bucle + pantalla + tareas, sin exponer el backend ni `GameContext`.
 /// El juego implementa `init(App&)`, `update(App&)` y `render(App&)` (con `auto&` para no nombrar
@@ -627,132 +748,22 @@ public:
 	}
 	[[nodiscard]] u8 fine_scroll() const noexcept { return m_fine_scroll_request; }
 
-	/// **Contexto de dibujo del frame** (buffer activo + plan del frame). Válido hasta `present`.
+	/// **Contexto de dibujo del frame** (buffer activo + plan del frame + racha de blits en
+	/// streaming, `Screen::stamp`/`clear_now`). Válido hasta `present`.
 	[[nodiscard]] Screen screen() noexcept {
-		return m_scene.valid() ? Screen {m_scene.get()->draw_target(&m_plan)} : Screen {};
-	}
-
-	/// **Racha de estampado (streaming, coste cero)**: emite copias de `sheet` al Blitter **en el
-	/// momento** de cada `at()` (espera al blit anterior y escribe solo los registros que cambian),
-	/// **sin `FramePlan` ni pasada de ejecución posterior**. Es el bucle del `main.c` de referencia
-	/// envuelto como API: el juego describe objetos y el motor emite registro a registro. El
-	/// destino es el buffer de dibujo de la escena y la geometría la aporta el `Sprite` (el juego
-	/// no ve planos, módulos ni minterms). Requiere dibujar en orden con `clear_now` (no mezclar
-	/// con el `FramePlan`, que se ejecuta en `present`).
-	struct StampRun {
-		Backend* backend = nullptr;
-		const graphics::Sprite* sheet = nullptr;
-		graphics::BobTarget target {};
-		u16 words = 0u;
-		s32 start_row = 0;
-		bool active = false;
-
-		/// Emite una copia del `frame` del sprite en `(x, y)`. `false` si el frame/racha no vale.
-		bool at(s16 x, s16 y, u8 frame) {
-			if (!active || sheet == nullptr || frame >= sheet->bob().frame_count) {
-				return false;
-			}
-			const graphics::Bob& bob = sheet->bob();
-			const s16 wx = static_cast<s16>(x & ~15);
-			const u16* base = reinterpret_cast<const u16*>(
-				bob.sheet.address(static_cast<u32>(frame) * bob.frame_stride).cptr());
-			const u16* image = base;
-			const u16* mask = base + words;
-			u8* dst = target.data() + static_cast<u32>(start_row) * static_cast<u32>(y) +
-				  (static_cast<u32>(wx < 0 ? 0 : wx) >> 3u);
-			if constexpr (requires(Backend& b, eng::graphics::BlobOp o, const void* p, void* q) {
-					      b.blitter_blob_run_one(p, p, q, u8{});
-				      }) {
-				backend->blitter_blob_run_one(mask, image, dst, static_cast<u8>(x & 15));
-				return true;
-			}
-			return false;
+		if (!m_scene.valid()) {
+			return Screen {};
 		}
-		/// Espera al último blit de la racha.
-		bool done() {
-			if (!active) {
-				return false;
-			}
-			active = false;
-			if constexpr (requires(Backend& b) { b.blitter_blob_run_end(); }) {
-				return backend->blitter_blob_run_end();
-			}
-			return false;
-		}
-	};
-
-	/// Abre una **racha de estampado** con el estado común del `sheet` fijado una vez. Ver
-	/// `StampRun`.
-	[[nodiscard]] StampRun stamp(const graphics::Sprite& sheet) {
-		StampRun run {};
-		if (!m_scene.valid() || !sheet.valid()) {
-			return run;
-		}
-		field::DrawTarget t = m_scene.get()->draw_target(&m_plan);
-		const graphics::BobTarget bt = t.bob_target();
-		const graphics::Bob& bob = sheet.bob();
-		if (bob.sheet.empty() || bt.planes.empty()) {
-			return run;
-		}
-		const u16 words = static_cast<u16>(bob.width / 16u);
-		if (words == 0u) {
-			return run;
-		}
-		const s16 amod = static_cast<s16>(words * 2u);
-		const s16 dmod = static_cast<s16>(static_cast<s32>(bt.row_bytes) - static_cast<s32>(words) * 2);
-		const u16 height = static_cast<u16>(bob.height * bob.planes);
-		if constexpr (requires(Backend& b, eng::graphics::BlobOp o) {
+		BlitStream stream {};
+		if constexpr (requires(Backend& b, graphics::BlobOp o) {
 				      b.blitter_blob_run_begin(o, u16{}, u16{}, s16{}, s16{}, s16{}, s16{});
 			      }) {
-			m_backend.blitter_blob_run_begin(eng::graphics::BlobOp::CookieCut, words, height,
-							 amod, amod, dmod, dmod);
-			run.backend = &m_backend;
-			run.sheet = &sheet;
-			run.target = bt;
-			run.words = words;
-			run.start_row = static_cast<s32>(bt.row_bytes) * bt.plane_count;
-			run.active = true;
+			stream.ctx = this;
+			stream.begin = &App::stream_begin;
+			stream.one = &App::stream_one;
+			stream.end = &App::stream_end;
 		}
-		return run;
-	}
-
-	/// **Borra ahora** (streaming, `D = 0`) la banda completa de `box` (filas completas de todos
-	/// los planos, interleaved). Complementa a `stamp`: ambas emiten en orden, sin `FramePlan`.
-	bool clear_now(Box box, s16 extra_words = 0) {
-		if (!m_scene.valid() || box.empty()) {
-			return false;
-		}
-		field::DrawTarget t = m_scene.get()->draw_target(&m_plan);
-		const graphics::BobTarget bt = t.bob_target();
-		if (bt.planes.empty()) {
-			return false;
-		}
-		const u16 words = static_cast<u16>((box.w + 15u) / 16u + extra_words);
-		if (words == 0u) {
-			return false;
-		}
-		const u16 height = static_cast<u16>(box.h * bt.plane_count);
-		// Si la caja cubre la fila completa de un plano, las filas interleaved de todos los planos
-		// son contiguas: un solo blit D-only recorre la banda con `dmod = 0` (como el original).
-		const bool full_row = (static_cast<u32>(words) * 2u == bt.row_bytes);
-		const s16 dmod = full_row ? 0
-					  : static_cast<s16>(static_cast<s32>(bt.row_bytes) *
-									     bt.plane_count -
-								     static_cast<s32>(words) * 2);
-		u8* dst = bt.data() + static_cast<u32>(box.y) *
-					      static_cast<u32>(bt.row_bytes) *
-					      static_cast<u32>(bt.plane_count);
-		if constexpr (requires(Backend& b, eng::graphics::BlobOp o) {
-				      b.blitter_blob_run_begin(o, u16{}, u16{}, s16{}, s16{}, s16{}, s16{});
-				      b.blitter_blob_run_one(nullptr, nullptr, nullptr, u8{});
-				      b.blitter_blob_run_end();
-			      }) {
-			m_backend.blitter_blob_run_begin(eng::graphics::BlobOp::Clear, words, height, 0, 0, 0,
-							 dmod);
-			m_backend.blitter_blob_run_one(nullptr, nullptr, dst, 0u);
-			return m_backend.blitter_blob_run_end();
-		}
-		return false;
+		return Screen {m_scene.get()->draw_target(&m_plan), stream};
 	}
 
 	/// **Publica el frame**: ejecuta el plan de Blitter (si el backend lo soporta) y commitea la
@@ -852,6 +863,35 @@ private:
 		m.type = eng::os::MsgType::IntentDone;
 		m.payload.user.a = ticket;
 		(void)self->m_port.post(m);
+	}
+
+	/// Thunks de la racha de blits en streaming (`BlitStream`): conectan el `Screen` (que no
+	/// conoce el backend) con `AmigaBackend::blitter_blob_run_*`. `ctx` = `this`.
+	static bool stream_begin(void* ctx, graphics::BlobOp op, u16 words, u16 height, s16 amod,
+				 s16 bmod, s16 cmod, s16 dmod) {
+		auto* self = static_cast<App*>(ctx);
+		if constexpr (requires(Backend& b, graphics::BlobOp o) {
+				      b.blitter_blob_run_begin(o, u16{}, u16{}, s16{}, s16{}, s16{}, s16{});
+			      }) {
+			self->m_backend.blitter_blob_run_begin(op, words, height, amod, bmod, cmod, dmod);
+			return true;
+		}
+		return false;
+	}
+	static void stream_one(void* ctx, const void* a, const void* b, void* d, u8 shift) {
+		auto* self = static_cast<App*>(ctx);
+		if constexpr (requires(Backend& bb, const void* p, void* q) {
+				      bb.blitter_blob_run_one(p, p, q, u8{});
+			      }) {
+			self->m_backend.blitter_blob_run_one(a, b, d, shift);
+		}
+	}
+	static bool stream_end(void* ctx) {
+		auto* self = static_cast<App*>(ctx);
+		if constexpr (requires(Backend& bb) { bb.blitter_blob_run_end(); }) {
+			return self->m_backend.blitter_blob_run_end();
+		}
+		return false;
 	}
 
 	static constexpr u16 kPaletteBaseColorCount = 1u;

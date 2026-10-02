@@ -402,9 +402,8 @@ struct AbyssDemo {
 #if K_STREAM_BOBS
 		// **Streaming (coste cero)**: se emiten los blits en el momento, sin `FramePlan`. El juego
 		// describe objetos y el motor escribe el Blitter registro a registro (el bucle del original).
-		(void)s;
-		(void)app.clear_now(eng::Box {0, kGameBandTop, kWidth, kGameBandHeight});
-		auto run = app.stamp(m_sprite);
+		(void)s.clear_now(eng::Box {0, kGameBandTop, kWidth, kGameBandHeight});
+		auto run = s.stamp(m_sprite);
 #else
 		s.clear_box(eng::Box {0, kGameBandTop, kWidth, kGameBandHeight});
 #endif

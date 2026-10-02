@@ -100,18 +100,20 @@ El camino a coste cero **de verdad** es **emitir los blits en el momento de la l
 
 ```cpp
 auto s = app.screen();
-app.clear_now(band);                 // borrado inmediato (D = 0, bloque contiguo)
-auto run = app.stamp(sheet);         // fija el estado comun UNA vez
+s.clear_now(band);                   // borrado inmediato (D = 0, bloque contiguo)
+auto run = s.stamp(sheet);           // fija el estado comun UNA vez (op = politica del sprite)
 for (/* cada objeto */) run.at(x, y, frame);  // escribe solo los registros que cambian y lanza
 run.done();                          // espera al ultimo
 app.present();                       // commit (doble buffer)
 ```
 
-`stamp` toma la geometría del `Sprite` (interleaved, planos, máscara) y el destino de la escena;
-`at` emite un blit `$CA` por objeto. Detrás está `AmigaBackend::blitter_blob_run_begin/one/end`
-(racha genérica en streaming, `BlobOp` de dominio), el mismo bucle que
-`blitter_or_bobs_*`/`main.c`. **No hay `FramePlan`, ni array de jobs, ni pasada de ejecución, ni
-copia por objeto.**
+`stamp` toma la geometría del `Sprite` (interleaved, planos, máscara) y el destino de la escena, y
+elige el `BlobOp` de la política del sprite (`Or`/`Opaque`/`CookieCut`); `at` emite un blit por
+objeto. Detrás está `AmigaBackend::blitter_blob_run_begin/one/end` (racha genérica en streaming,
+`BlobOp` de dominio), el mismo bucle que `blitter_or_bobs_*`/`main.c`. **No hay `FramePlan`, ni
+array de jobs, ni pasada de ejecución, ni copia por objeto.** El `Screen` recibe la racha por una
+factoría *type-erased* (`BlitStream`) que el `App` conecta a su backend, así que la fachada no
+nombra tipos del backend.
 
 Medición (demo 213, A500, imagen verificada):
 
@@ -122,6 +124,12 @@ Medición (demo 213, A500, imagen verificada):
 
 El plan sigue existiendo para lo que aporta (reordenar, lote, async con avisos, ejecución diferida
 al blanking); el **streaming es el camino por defecto cuando el frame cabe y se quiere coste cero**.
+
+**Cuándo cada uno.** Streaming si el frame es una **secuencia homogénea** de objetos que cabe en un
+campo y no necesita reordenarse ni encadenarse. Plan si hay **estados del Blitter mezclados** (que
+conviene agrupar), si se quiere **diferir/encadenar** la ejecución (async, avisos) o si el frame no
+cabe y hay que repartirlo. No se mezclan en el mismo frame (el plan se ejecuta en `present`; el
+streaming emite ya).
 
 ## Referencias
 
