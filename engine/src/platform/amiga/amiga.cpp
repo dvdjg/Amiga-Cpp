@@ -48,6 +48,31 @@ void DebugOverlay::filled_rect(s16 left, s16 top, s16 right, s16 bottom, u32 rgb
 	debug_filled_rect(left, top, right, bottom, rgb);
 }
 
+void DebugOverlay::register_bitmap(const void* addr, const char* name, u16 width, u16 height,
+				   u16 num_planes, bool interleaved, bool masked) noexcept {
+	unsigned short flags = 0u;
+	if (interleaved) {
+		flags = static_cast<unsigned short>(flags | debug_resource_bitmap_interleaved);
+	}
+	if (masked) {
+		flags = static_cast<unsigned short>(flags | debug_resource_bitmap_masked);
+	}
+	debug_register_bitmap(addr, name, static_cast<short>(width), static_cast<short>(height),
+			      static_cast<short>(num_planes), flags);
+}
+
+void DebugOverlay::register_palette(const void* addr, const char* name, u16 num_entries) noexcept {
+	debug_register_palette(addr, name, static_cast<short>(num_entries), 0u);
+}
+
+void DebugOverlay::register_copperlist(const void* addr, const char* name, u32 size) noexcept {
+	debug_register_copperlist(addr, name, static_cast<unsigned int>(size), 0u);
+}
+
+void DebugOverlay::unregister(const void* addr) noexcept {
+	debug_unregister(addr);
+}
+
 AmigaBackend::~AmigaBackend() {
 	release_memory();
 }

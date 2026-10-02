@@ -168,6 +168,28 @@ struct AbyssDemo {
 		(void)app.audio().play_music(m_assets.music("mod"));
 
 		app.takeover();
+		// --- Recursos del depurador gráfico de WinUAE --------------------------------------
+		// Registra el bitmap abyss, la hoja del BOB, la paleta y la copperlist como recursos
+		// nombrados (la original lo hace con `debug_register_*`): así el gfx debugger los
+		// muestra. Accedemos a los datos por la escena/asset de dominio, sin punteros crudos.
+		if constexpr (requires { app.debug(); }) {
+			auto& d = app.debug();
+			const auto bg = m_assets.bitmap("abyss");
+			if (bg.valid()) {
+				d.register_bitmap(bg.planes.data(), "abyss.bpl", kWidth, kHeight, kPlanes,
+						  /*interleaved=*/true, /*masked=*/false);
+			}
+			const auto sheet = m_assets.bytes("bob");
+			if (!sheet.empty()) {
+				d.register_bitmap(sheet.data(), "bob.bpl", kBobW, kBobH * kSpriteFrameCount,
+						  kPlanes, /*interleaved=*/true, /*masked=*/true);
+			}
+			d.register_palette(reinterpret_cast<const void*>(abyss_pal), "abyss.pal",
+					   kPaletteColorCount);
+			if (app.device().copper().active_words() != nullptr) {
+				d.register_copperlist(app.device().copper().active_words(), "copper1", 0u);
+			}
+		}
 		m_ready = true;
 	}
 

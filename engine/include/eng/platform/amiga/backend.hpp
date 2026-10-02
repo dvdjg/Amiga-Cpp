@@ -66,6 +66,16 @@ struct DebugOverlay {
 	void text(s16 x, s16 y, const char* value, u32 rgb);
 	void rect(s16 left, s16 top, s16 right, s16 bottom, u32 rgb);
 	void filled_rect(s16 left, s16 top, s16 right, s16 bottom, u32 rgb);
+
+	/// **Vista de recursos** del depurador gráfico de WinUAE: registra un bitmap, una paleta o
+	/// una copperlist para que el gfx debugger los muestre como recursos nombrados (equivalente
+	/// a `debug_register_*` de la demo original). `addr` debe permanecer válido mientras el
+	/// recurso esté registrado; `debug_unregister(addr)` lo retira.
+	void register_bitmap(const void* addr, const char* name, u16 width, u16 height,
+			     u16 num_planes, bool interleaved, bool masked) noexcept;
+	void register_palette(const void* addr, const char* name, u16 num_entries) noexcept;
+	void register_copperlist(const void* addr, const char* name, u32 size) noexcept;
+	void unregister(const void* addr) noexcept;
 };
 
 /// Triangulo plano (coordenadas de pantalla) para el relleno por Blitter.
