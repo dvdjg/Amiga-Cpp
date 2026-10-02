@@ -34,6 +34,33 @@ bool same_masked_state(const eng::graphics::BlitJob& a, const eng::graphics::Bli
 	       a.minterm == b.minterm;
 }
 
+/// Job de clear interleaved en **bloque continuo** (una fila física por plano, `D=0`): el
+/// contrato del `clear_box` de banda completa (`bitplane_count == 1`, sin saltos entre planos).
+bool batchable_clear(const eng::graphics::BlitJob& j) {
+	return j.kind == eng::graphics::BlitJobKind::ClearRect && j.interleaved &&
+	       j.bitplane_count == 1u && j.destination_plane_stride_bytes == 0u && !j.descending &&
+	       j.minterm == 0x00u;
+}
+
+/// Dos clears comparten estado fijo si coinciden en ancho, módulo de destino y minterm.
+bool same_clear_state(const eng::graphics::BlitJob& a, const eng::graphics::BlitJob& b) {
+	return a.words_per_row == b.words_per_row &&
+	       a.destination_modulo_bytes == b.destination_modulo_bytes && a.minterm == b.minterm;
+}
+
+/// Ejecuta una racha `[from, to)` de clears interleaved con estado fijo (`BlobBatch`).
+bool execute_clear_run(const eng::graphics::FramePlan& plan, u8 from, u8 to) {
+	const eng::graphics::BlitJob& f = plan.blit_job(from);
+	BlobBatch batch;
+	batch.begin(custom_base, BlobOp::Clear, f.words_per_row, f.height, 0, 0, 0,
+		    f.destination_modulo_bytes, g_blitter_service, g_blitter_service_user);
+	for (u8 i = from; i < to; ++i) {
+		const eng::graphics::BlitJob& j = plan.blit_job(i);
+		batch.one(nullptr, nullptr, j.destination.words(), 0u);
+	}
+	return batch.end();
+}
+
 /// Ejecuta una racha `[from, to)` de cookie-cut interleaved con el estado común fijado UNA vez
 /// (`BlobBatch`): sin re-codificar por job y con **una sola espera** por objeto. Es el camino
 /// del `main.c` de referencia, aplicado a una racha homogénea del `FramePlan`.
@@ -84,6 +111,22 @@ bool AmigaBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 				}
 				// El lote escribió registros directamente: la caché de estado común ya no
 				// refleja el hardware.
+				m_blt_common_valid = false;
+				m_blitter_starts += static_cast<u16>(end - job_index);
+				job_index = end;
+				continue;
+			}
+		}
+		if (batchable_clear(plan.blit_job(job_index))) {
+			u8 end = static_cast<u8>(job_index + 1u);
+			while (end < job_count &&
+			       same_clear_state(plan.blit_job(job_index), plan.blit_job(end))) {
+				++end;
+			}
+			if (static_cast<u8>(end - job_index) >= 2u) {
+				if (!execute_clear_run(plan, job_index, end)) {
+					return false;
+				}
 				m_blt_common_valid = false;
 				m_blitter_starts += static_cast<u16>(end - job_index);
 				job_index = end;

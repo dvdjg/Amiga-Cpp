@@ -8,7 +8,9 @@
 //   (1) es una PERMUTACION (mismos jobs, mismo multiconjunto);
 //   (2) los del mismo estado quedan contiguos;
 //   (3) el orden relativo dentro de un grupo se conserva (sort estable);
-//   (4) con todos distinto estado, un solo pase no los mezcla de forma incorrecta.
+//   (4) con todos distinto estado, un solo pase no los mezcla de forma incorrecta;
+//   (5) la reordenacion es EXPLICITA: `ReorderPolicy::PreserveOrder` (defecto) no reordena;
+//       `GroupByState` (declarada por el llamador) la habilita.
 //
 //   CXX=<g++> bash tools/run-host-tests.sh tests/host/graphics/388_frame_plan_state
 
@@ -98,6 +100,36 @@ int main() {
 	const int sum_before = id_sum();
 	check(sum_before == 15, "suma de ids = 15 antes");
 
+	// Orden original de los jobs (id = height-1), capturado antes de reordenar.
+	eng::s16 orig_order[6] {};
+	for (eng::u8 i = 0; i < n; ++i) {
+		orig_order[i] = static_cast<eng::s16>(plan.blit_job(i).height - 1);
+	}
+
+	// La reordenacion es **explicita**: con el defecto `PreserveOrder` no cambia nada.
+	{
+		FramePlan keep {};
+		keep.clear();
+		keep.add_or_blob(a0);
+		keep.add_masked_bob(b0);
+		keep.add_or_blob(a1);
+		keep.add_clear_rect(c0);
+		keep.add_masked_bob(b1);
+		keep.add_or_blob(a2);
+		const bool default_pol =
+			(keep.reorder_policy() == eng::graphics::ReorderPolicy::PreserveOrder);
+		keep.sort_by_state();
+		bool same_order = true;
+		for (eng::u8 i = 0; i < keep.blit_job_count(); ++i) {
+			if (static_cast<eng::s16>(keep.blit_job(i).height - 1) != orig_order[i]) {
+				same_order = false;
+			}
+		}
+		check(default_pol, "politica por defecto = PreserveOrder");
+		check(same_order, "PreserveOrder: sort_by_state NO reordena");
+	}
+
+	plan.set_reorder_policy(eng::graphics::ReorderPolicy::GroupByState);
 	plan.sort_by_state();
 	check(plan.blit_job_count() == n, "el conteo no cambia");
 	check(id_sum() == sum_before, "es una PERMUTACION (mismos jobs)");

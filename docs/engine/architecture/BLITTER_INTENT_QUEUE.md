@@ -126,7 +126,28 @@ evita un `jsr` por objeto (~600 c/BOB medido en 117). `submit_blit_job` es una *
 con prologue; su caché de estado común (por racha) reduce escrituras, pero **no** iguala el inline.
 No son duplicados: son **dos vías del mismo estado** (una para lotes homogéneos desde la demo, otra
 para el `FramePlan` heterogéneo). Unificarlas = que la cola pueda emitir el lote `inline` cuando los
-jobs son homogéneos (`sort_by_state` es el primer paso).
+  jobs son homogéneos (`sort_by_state` es el primer paso).
+
+### 6.1 Cuánto ahorra el modo asíncrono (medido, demo 213)
+
+El async **ahorra porque elimina la espera activa del 68000**, no porque haga los blits más rápidos:
+el Blitter sigue teniendo un solo juego de registros y los blits de una racha se serializan entre sí.
+Lo que desaparece del hilo principal es el sondeo de `BBUSY`.
+
+Medición (2026-10, A500, demo 213 = 16 BOBs cookie-cut + clear de banda, 5 planos):
+
+- El frame del `render` consume ~392 000 ciclos (~2,8 campos de 141 876 ciclos); la sección
+  `present` (las 17 esperas de blit + programación) es ~154 000 ciclos, ≈ **40 % del render y ~1,1
+  campos** de espera activa pura.
+- Con el ejecutor por lotes (`BlobBatch`) la 213 subió de 22,7 a 25 fps: se recuperó el coste de
+  re-programar registros por job, pero **no** las esperas (que siguen, una por objeto).
+
+Implicación para el modo asíncrono: si las esperas (~1,1 campos) se trasladan al **Copper**
+(`CopperBlitterExecutor`, Técnica A), el 68000 queda libre durante ese tiempo. Como el trabajo del
+frame está justo por encima del campo, liberar ~1 campo es **suficiente para volver a 1 campo**
+(50 fps). El camino no está cableado en la 213 (ejecuta el `FramePlan` síncrono en `present`); la
+verificación A/B pendiente es mover los 16 BOBs a la vía Copper y medir.
+
 
 ## 7. Decisiones y límites
 

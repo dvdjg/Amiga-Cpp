@@ -183,6 +183,12 @@ campos. Los siguientes pasos son reducir ese coste y usar el `BlobBatch` para m�
   ejecutor para rachas homogéneas de cookie-cut interleaved; se eliminó la espera redundante por
   plano en `bitplane_count == 1`.
 
+**Rendimiento y vía asíncrona (2026-10).** El frame de la 213 consume ~392 000 ciclos; la sección
+`present` (17 esperas de blit) es ~154 000 (~40 % del render). El async de `BlitQueue`
+(`BLITTER_INTENT_QUEUE.md`) y, sobre todo, la vía **Copper** (`CopperBlitterExecutor`) trasladan esas
+esperas activas fuera del 68000; como el frame está justo por encima del campo, liberar esa espera
+debería devolver la demo a 1 campo. Verificación A/B pendiente: mover los 16 BOBs a la vía Copper.
+
 **Siguiente candidato Blitter tras el batch Copper:** usar el perfil 086 (`actors` 11,3 % + `blits`
 9,4 %) junto a la evidencia de `OrBlobBatch` en BOBS3D (`blits` 231,7k → 202,5k) para medir la ruta
 cookie-cut/clear de la demo 086. Primero separar arranques, escrituras de estado y espera; solo
