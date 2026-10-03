@@ -534,6 +534,25 @@ public:
 		return r.has_value() ? *r : 0u;
 	}
 
+	/// **Emite los BOBs por banda del `App`** (`BobLayer::emit_banded`/`FastBobLayer::emit_banded`):
+	/// usa los tramos del plan de escena (o el **display completo** si no hay plan de bandas) y los
+	/// `targets`/`fine` por banda que aporta la composición. Añade los blits al plan del frame
+	/// (se ejecutan en el `present()`); devuelve cuántos actores se dibujaron.
+	template <class Bobs>
+	[[nodiscard]] eng::u16 emit_bobs_banded(Bobs& layer,
+						eng::Span<const eng::graphics::BobTarget> targets,
+						eng::Span<const eng::u8> fine = {}) {
+		eng::scene::BandSpan bands[8] {};
+		eng::u16 n = scene_bands(eng::Span<eng::scene::BandSpan> {bands, 8u});
+		if (n == 0u) { // sin plan de bandas: una banda a pantalla completa
+			bands[0] = eng::scene::BandSpan {0u, static_cast<eng::u16>(m_display.height),
+							 eng::scene::LayerRole::Foreground};
+			n = 1u;
+		}
+		return layer.emit_banded(m_plan, eng::Span<const eng::scene::BandSpan> {bands, n},
+					 targets, fine);
+	}
+
 	/// **Planner (actores)**: emite los actores del `world()` al plan del frame con el clip y
 	/// el destino del contexto de dibujo de la escena ligada. Devuelve cuántos se dibujaron.
 	/// Llámalo antes de `present()`. Los actores se dibujan sobre el fondo Fill; las capas de

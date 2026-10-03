@@ -48,6 +48,14 @@ struct MockScroll : eng::playfield::ScrollLayer<MockBackend> {
 	void frame(MockBackend&) noexcept override { ++frames; }
 };
 
+/// Capa de BOBs mock: solo devuelve cuántas bandas recibió (para probar `App::emit_bobs_banded`).
+struct MockBobs {
+	eng::u16 emit_banded(eng::graphics::FramePlan&, eng::Span<const eng::scene::BandSpan> bands,
+			     eng::Span<const eng::graphics::BobTarget>, eng::Span<const eng::u8>) {
+		return static_cast<eng::u16>(bands.size());
+	}
+};
+
 /// El `Game` es el *composition root*: solo empuja escenas; sin escena activa conduce el frame.
 struct SceneGame {
 	int inits = 0;
@@ -181,6 +189,11 @@ int main() {
 		      "scene_bands → 2 tramos");
 		check(bs[1].top == 128u, "tramo 1 en top=128");
 		check(app2.scene_strategy() == eng::scene::SceneStrategy::Bands, "estrategia Bands");
+
+		// `emit_bobs_banded`: usa los tramos del plan (2) o el display completo (1) si no hay plan.
+		MockBobs mb {};
+		check(app2.emit_bobs_banded(mb, {}) == 2u, "emit_bobs_banded usa el plan (2 bandas)");
+		check(app.emit_bobs_banded(mb, {}) == 1u, "sin plan de bandas → 1 banda (pantalla)");
 	}
 
 	if (failures == 0) {
