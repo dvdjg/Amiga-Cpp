@@ -1,9 +1,10 @@
-// Demo 128: scroller por tiras (Copper ring + incoming strip) — camino rápido a 50 fps.
+// Demo 128: scroller por tiras (Copper ring + incoming strip) — camino rápido a 50 fps,
+// con el **atlas "Beginning Fields"** (8 colores) del pueblecito.
 //
-// Usa el camino de `eng/field/strip_scroller.hpp` + `strip_composer.hpp`: cada frame planifica la
-// tira entrante (`plan_strip_frame`), la compone desde el banco de tiles (`compose_column`, tiles
-// SEPARADOS) solo al cruzar frontera de tile, la ejecuta por Blitter (`blitter_strip_column`) y
-// parchea la copperlist (`strip_copper_values` + `StripComposer::patch`).
+// Usa `eng/field/strip_scroller.hpp` + `strip_composer.hpp`: cada frame planifica la tira entrante
+// (`plan_strip_frame`), la compone desde el banco de tiles (`compose_column`, tiles SEPARADOS) solo
+// al cruzar frontera de tile, la ejecuta por Blitter (`blitter_strip_column`) y parchea la
+// copperlist (`strip_copper_values` + `StripComposer::patch`).
 //
 //   bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/128_strip_scroller --release
 //   bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/128_strip_scroller
@@ -26,34 +27,36 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 };
 }
 
+// Atlas "Beginning Fields" a 8 colores (paleta 8 RGB + mapa 40x40 de ids de tile).
+#include "../../../../../../out/assets/beginning-fields/8c/tilebank_8c_t16_mediancut_none_640x640.h"
+
+// Banco X-Limited interleaved (3 planos, 320 px) producido por amiga-tiles; se copia por CPU al
+// banco PACKED del scroller en `init` (tiles contiguos de 16x16x3) y no se vuelve a usar.
+__asm__(".section tiles.MEMF_CHIP, \"aw\"\n"
+	".globl g_tilebank_xlimited\ng_tilebank_xlimited:\n"
+	".align 2\n"
+	".incbin \"out/assets/beginning-fields/8c/tilebank_xlimited_8c_t16_mediancut_none.bin\"\n"
+	".globl g_tilebank_xlimited_size\ng_tilebank_xlimited_size:\n"
+	".long . - g_tilebank_xlimited");
+extern "C" const unsigned char g_tilebank_xlimited[];
+extern "C" const unsigned int g_tilebank_xlimited_size;
+
 namespace {
 
-// Anillo de 2 pantallas (640 px) + guarda/fetch; viewport 256 px.
-// `K_TILE32=1` cambia a tiles de 32x32 (guarda 64 px = 4 words).
-#ifndef K_TILE32
-#define K_TILE32 0
-#endif
-#if K_TILE32
-using Geom = eng::field::StripScrollGeometry<320u, 256u, 5u, 32u, 32u, 4u, 1u, false, 43u>;
-constexpr eng::u16 kObjCols = 1u; // objeto = 1 tile de 32x32
-constexpr eng::u16 kObjRows = 1u;
-#else
-using Geom = eng::field::StripScrollGeometry<320u, 256u, 5u, 16u, 16u, 2u, 1u, false, 43u>;
-constexpr eng::u16 kObjCols = 2u; // objeto = 2x2 tiles = 32x32
-constexpr eng::u16 kObjRows = 2u;
-#endif
+using Geom = eng::field::StripScrollGeometry<320u, 256u, 3u, 16u, 16u, 2u, 1u, false, 43u>;
 
-constexpr eng::u16 kTilesetTiles = 16u;
-constexpr eng::u16 kTileWords = Geom::tile_h * Geom::planes;          // 80
-constexpr eng::u16 kColumnWords = Geom::column_planelines;            // 1040
+constexpr eng::u16 kTileWords = Geom::tile_h * Geom::planes; // 48 (16x16 x 3 planos)
+constexpr eng::u16 kBlocksPerRow = 20u;                     // tiles por fila del banco X-Limited
+constexpr eng::u16 kBankRowBytes = 40u;                     // 320 px / 8
+constexpr eng::u16 kMapSide = 40u;
+constexpr eng::u32 kBankBytes = 1180u * kTileWords * 2u;   // banco packed (tiles contiguos)
+constexpr eng::u32 kColumnWords = Geom::column_planelines;
+constexpr eng::u32 kColumnBytes = kColumnWords * 2u;
 constexpr eng::u32 kRingBytes = static_cast<eng::u32>(Geom::ring_w_bytes) * Geom::planes *
-				Geom::viewport_h;                          // 86*5*208
-constexpr eng::u32 kBankBytes = static_cast<eng::u32>(kTilesetTiles) * kTileWords * 2u;
-constexpr eng::u32 kColumnBytes = static_cast<eng::u32>(kColumnWords) * 2u;
-constexpr eng::u16 kMapCols = 32u;                                     // mapa que se repite
-constexpr eng::s32 kStepX = 2;                                         // px/frame
+				Geom::viewport_h;
+constexpr eng::s32 kStepX = 2; // px/frame
 
-	struct StripGame {
+struct StripGame {
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_ring {};
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bank {};
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_column {};
@@ -65,36 +68,34 @@ constexpr eng::s32 kStepX = 2;                                         // px/fra
 	eng::s32 m_scroll = 0;
 	bool m_ready = false;
 
+	/// Id del tile del atlas para la celda (col,row), repetido toroidalmente.
 	[[nodiscard]] eng::u16 map_tile(eng::u16 col, eng::u16 row) const {
-		// **Objetos singulares**: bloques de 2x2 (32x32) cada 6 columnas, cada uno de un color
-		// DISTINTO, sobre un fondo tenue. Uno de ellos es **blanco** (marcador unico para medir
-		// el paso exacto del scroll en `motion-check.py`).
-		if ((col % 6u) < kObjCols && (row % 8u) >= 2u && (row % 8u) < 2u + kObjRows) {
-			const eng::u16 idx = static_cast<eng::u16>((col / 6u) % 14u);
-			return (idx == 4u) ? 7u /* tile 7 = color 8 = blanco */ : static_cast<eng::u16>(1u + idx);
-		}
-		return 0u; // fondo
+		return static_cast<eng::u16>(kTileIndexedMap[row % kMapSide][col % kMapSide]);
 	}
 
-	void fill_bank() {
-		// tile 0 = fondo (color 1, tenue); tiles 1..15 = objetos (colores 2..16, brillantes).
-		for (eng::u16 t = 0u; t < kTilesetTiles; ++t) {
-			const eng::u16 color = (t == 0u) ? 1u : static_cast<eng::u16>(t + 1u);
-			for (eng::u16 line = 0u; line < Geom::tile_h; ++line) {
-				for (eng::u16 plane = 0u; plane < Geom::planes; ++plane) {
-					m_bank_words[t * kTileWords + line * Geom::planes + plane] =
-						static_cast<eng::u16>(((color >> plane) & 1u) ? 0xffffu : 0x0000u);
+	/// Reempaqueta el banco X-Limited (interleaved 320 px) a tiles **contiguos** de 16x16x3.
+	void build_packed_bank() {
+		const eng::u8* const xlim = g_tilebank_xlimited;
+		const eng::u32 tile_count = g_tilebank_xlimited_size / (16u * Geom::planes * kBankRowBytes);
+		for (eng::u32 t = 0u; t < tile_count; ++t) {
+			const eng::u32 tx = t % kBlocksPerRow;
+			const eng::u32 ty = t / kBlocksPerRow;
+			for (eng::u32 r = 0u; r < Geom::tile_h; ++r) {
+				for (eng::u32 p = 0u; p < Geom::planes; ++p) {
+					const eng::u32 src =
+						(ty * 16u * Geom::planes + r * Geom::planes + p) *
+							kBankRowBytes + tx * 2u;
+					m_bank_words[t * kTileWords + r * Geom::planes + p] =
+						static_cast<eng::u16>((xlim[src] << 8) | xlim[src + 1u]);
 				}
 			}
 		}
 	}
 
-	/// Compone la columna `map_col` (tiles del mapa) y la blitea en el word `ring_word` del anillo.
+	/// Compone la columna `map_col` (tiles del atlas) y la blitea en el word `ring_word`.
 	void paint_column(eng::u16 ring_word, eng::u16 map_col) {
 		eng::u16 ids[Geom::column_tiles];
-		for (eng::u16 r = 0u; r < Geom::column_tiles; ++r) {
-			ids[r] = map_tile(map_col, r);
-		}
+		for (eng::u16 r = 0u; r < Geom::column_tiles; ++r) ids[r] = map_tile(map_col, r);
 		(void)eng::field::compose_column<Geom>(m_column_words, m_bank_words, ids, kTileWords);
 		(void)m_backend->blitter_strip_column(m_column_words, m_ring_words + ring_word,
 						      Geom::strip_words, Geom::bltdmod_col,
@@ -104,7 +105,7 @@ constexpr eng::s32 kStepX = 2;                                         // px/fra
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		m_backend = &backend;
-		if (!backend.configure_memory({256u * 1024u, 16u * 1024u, 8u * 1024u})) {
+		if (!backend.configure_memory({224u * 1024u, 16u * 1024u, 8u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012801u);
 			return;
 		}
@@ -119,26 +120,16 @@ constexpr eng::s32 kStepX = 2;                                         // px/fra
 		m_ring_words = reinterpret_cast<eng::u16*>(m_ring.data());
 		m_bank_words = reinterpret_cast<eng::u16*>(m_bank.data());
 		m_column_words = reinterpret_cast<eng::u16*>(m_column.data());
-		fill_bank();
+		build_packed_bank();
 
+		// Paleta del atlas (8 colores RGB -> palabras Amiga).
 		eng::Palette32 pal {};
-		pal.color[0] = 0x000u; // negro (borde)
-		pal.color[1] = 0x113u; // fondo azul oscuro
-		pal.color[2] = 0xf00u;
-		pal.color[3] = 0x0f0u;
-		pal.color[4] = 0x00fu;
-		pal.color[5] = 0xff0u;
-		pal.color[6] = 0xf0fu;
-		pal.color[7] = 0x0ffu;
-		pal.color[8] = 0xfffu;
-		pal.color[9] = 0xf80u;
-		pal.color[10] = 0x8f0u;
-		pal.color[11] = 0x0f8u;
-		pal.color[12] = 0x08fu;
-		pal.color[13] = 0x80fu;
-		pal.color[14] = 0xf08u;
-		pal.color[15] = 0x880u;
-		pal.color[16] = 0xaaau;
+		for (eng::u32 i = 0u; i < 8u; ++i) {
+			const eng::u8 r = static_cast<eng::u8>(::kPalette[i * 3u]);
+			const eng::u8 g = static_cast<eng::u8>(::kPalette[i * 3u + 1u]);
+			const eng::u8 b = static_cast<eng::u8>(::kPalette[i * 3u + 2u]);
+			pal.color[i] = static_cast<eng::u16>(((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4));
+		}
 		if (!m_composer.init(mm, pal.words(), 1536u)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012803u);
 			return;
@@ -149,7 +140,6 @@ constexpr eng::s32 kStepX = 2;                                         // px/fra
 			return;
 		}
 		m_composer.takeover(backend);
-		// Relleno inicial: las columnas de la ventana visible.
 		for (eng::u16 w = 0u; w < Geom::visible_words; ++w) paint_column(w, w);
 		m_ready = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x12800000u);
@@ -162,18 +152,14 @@ constexpr eng::s32 kStepX = 2;                                         // px/fra
 		m_scroll += kStepX;
 		const auto fr = eng::field::plan_strip_frame<Geom>(m_scroll, 0, prev, 0);
 		if (fr.column_crossed) {
-			// El slot `col_dest_word` del anillo contiene el contenido de la palabra del MUNDO
-			// `col_dest_word + offset`, con `offset` = cuantas `span` palabras ha envuelto el anillo
-			// (`coarse/16` menos la palabra de ventana). Usar solo `col_dest_word` desajustaba el
-			// contenido en el borde entrante (la zona derecha saltaba).
+			// El slot `col_dest_word` contiene la palabra del MUNDO `col_dest_word + offset`, con
+			// `offset` = cuantas `span` palabras ha envuelto el anillo.
 			const eng::u32 coarse_w = eng::graphics::fine_scroll_coarse(
-							  static_cast<eng::u16>(m_scroll)) /
-						  16u;
+							  static_cast<eng::u16>(m_scroll)) / 16u;
 			const eng::u32 span = static_cast<eng::u32>(Geom::ring_w_words - Geom::visible_words);
 			const eng::u32 offset = coarse_w - (coarse_w % span);
-			const eng::u16 map_col =
-				static_cast<eng::u16>((fr.col_dest_word + offset) % kMapCols);
-			paint_column(fr.col_dest_word, map_col);
+			paint_column(fr.col_dest_word,
+				     static_cast<eng::u16>((fr.col_dest_word + offset) % kMapSide));
 		}
 		const auto sc = eng::field::strip_copper_values<Geom>(fr);
 		(void)m_composer.patch(sc);
