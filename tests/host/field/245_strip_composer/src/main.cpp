@@ -42,16 +42,16 @@ int main() {
 	comp.set_ring(reinterpret_cast<const eng::u16*>(g_ring));
 	check(comp.build(), "build (emite en ambos bloques)");
 
-	// Parchea el frame: el puntero recorre [0, ring_w-visible] (=3 para anillo 23) -> 20/16 = 1, fine 4.
+	// Parchea el frame: coarse(20) = (20-1)&~15 = 16 -> ventana 16/16 = 1; fine_delay(20) = 12.
 	auto fr = eng::field::plan_strip_frame<Geom>(20, 0, 20, 0);
 	auto sc = eng::field::strip_copper_values<Geom>(fr);
-	check(sc.bplcon1 == 4u && fr.window_word == 1u, "fine 4, ventana 1");
+	check(sc.bplcon1 == 12u && fr.window_word == 1u, "fine 12, ventana 1");
 	check(comp.patch(sc), "patch");
 
 	const eng::u16* w = comp.debug_active_words();
 	check(w != nullptr, "copperlist activa disponible");
 	if (w != nullptr) {
-		check(w[comp.bplcon1_handle() + 1u] == 4u, "BPLCON1 parcheado = fine");
+		check(w[comp.bplcon1_handle() + 1u] == 12u, "BPLCON1 parcheado = fine");
 		const eng::uintptr base = reinterpret_cast<eng::uintptr>(g_ring);
 		for (eng::u8 p = 0u; p < Geom::planes; ++p) {
 			const eng::u32 addr = static_cast<eng::u32>(base) +

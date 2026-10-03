@@ -76,7 +76,9 @@ bool simulate(std::uint32_t seed) {
 			static_cast<eng::s32>(ns), 0, static_cast<eng::s32>(scroll), 0);
 		check(fr.blits <= 2u, "<= 2 blits/frame");
 		const eng::u16 span = static_cast<eng::u16>(Geom::ring_w_words - Geom::visible_words);
-		const eng::u16 old_window = static_cast<eng::u16>((static_cast<eng::u32>(scroll) / 16u) % span);
+		const long scl = scroll < 1 ? 1 : scroll;
+		const eng::u16 old_window = static_cast<eng::u16>(
+			(eng::graphics::fine_scroll_coarse(static_cast<eng::u16>(scl)) / 16u) % span);
 		if (fr.column_crossed) {
 			// La columna destino debe caer FUERA de la ventana visible ACTUAL (invisible).
 			if (!eng::field::strip_dest_is_guard(fr.col_dest_word, old_window,
@@ -165,11 +167,11 @@ int main() {
 
 	// Valores de Copper: BPLCON1 = fine; BPLxPT por plano = p*ring_w_bytes + window_word*2.
 	{
-		const auto fr = eng::field::plan_strip_frame<Geom>(5, 0, 0, 0);
+		const auto fr = eng::field::plan_strip_frame<Geom>(20, 0, 0, 0);
 		const auto c = eng::field::strip_copper_values<Geom>(fr);
-		check(c.bplcon1 == 5u, "BPLCON1 = fine scroll");
-		check(c.pt_byte[0] == 0u && c.pt_byte[1] == 46u && c.pt_byte[4] == 184u,
-		      "BPLxPT por plano = p*ring_w_bytes + window*2");
+		check(c.bplcon1 == 12u, "BPLCON1 = fine_delay(scroll)");
+		check(c.pt_byte[0] == 2u && c.pt_byte[1] == 48u && c.pt_byte[4] == 186u,
+		      "BPLxPT por plano = p*ring_w_bytes + window_word*2");
 	}
 	// Split con two-WAIT: 0x2c + 256 = 300 > 255 -> hay que cruzar la 255 con dos WAITs.
 	using Geom256 = eng::field::StripScrollGeometry<320u, 256u, 5u, 16u, 16u, 2u, 1u, true>;

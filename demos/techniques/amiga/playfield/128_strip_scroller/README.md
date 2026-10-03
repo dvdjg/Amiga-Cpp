@@ -23,6 +23,9 @@ bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/128_strip_scroller
 - **`BPL1MOD` depende del ancho FETCHEADO** por el display (~21 words), no del ancho del anillo:
   `BPL1MOD = planes*ring_w_bytes − fetch_words*2`. Con la fórmula "completa" el display lee mal el
   interleave (aparecen rayas en vez de tiles). Ver `StripScrollGeometry::bpl_mod`.
+- **`BPLCON1` (fine) usa la convención canónica** `fine_delay(x) = (16 − (x&15)) & 15` y el coarse
+  `(x−1) & ~15` (`playfield_scroll.hpp`). Con el fine "directo" (`x & 15`) el fondo **salta 16 px** al
+  cruzar palabra (trompicones); con la canónica `visible_left = x` (movimiento suave).
 - Los tiles del mapa **no se asumen contiguos**: `compose_column` los copia tile a tile.
 - `BLTSIZE` tiene H de 10 bits (máx 1024): la columna se parte en `column_blits` (256×5 = 1280 → 2).
 
