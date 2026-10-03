@@ -56,6 +56,14 @@ constexpr eng::Palette32 kPalette {{
 
 constexpr u16 kCopperWords = 1024u;
 
+// BOB (objeto) por banda: hoja 16×16 a 3 planos con padding (copia opaca limpia sin estela).
+constexpr u16 kBobPadded = 32u;
+constexpr u16 kBobVisible = 16u;
+constexpr u8 kBobPad = 8u;
+constexpr u32 kBobWordsPerPlaneRow = (kBobPadded / 16u) + 1u; // 3
+constexpr u32 kBobRowBytes = kBobWordsPerPlaneRow * 2u * kPlanes; // 18
+constexpr u32 kBobSheetBytes = kBobRowBytes * kBobPadded; // 576
+
 struct SplitScreenDemo {
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
@@ -66,7 +74,8 @@ struct SplitScreenDemo {
 		m_top = backend.memory_manager().chip().reserve<eng::PlaneTag>(kFieldBytes, 16u);
 		m_bottom = backend.memory_manager().chip().reserve<eng::PlaneTag>(kFieldBytes, 16u);
 		m_copper = backend.memory_manager().chip().reserve<eng::CopperTag>(kCopperWords, 16u);
-		if (!m_top.valid() || !m_bottom.valid() || !m_copper.valid()) {
+		m_sheet = backend.memory_manager().chip().reserve<eng::BobTag>(kBobSheetBytes, 16u);
+		if (!m_top.valid() || !m_bottom.valid() || !m_copper.valid() || !m_sheet.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012902u);
 			return;
 		}
@@ -78,11 +87,16 @@ struct SplitScreenDemo {
 		configure_view(m_v_bottom, m_bottom.view.data());
 
 		// Una banda por vista: la 0 = display completo; la 1 conmuta en `kSplitLine`.
+		m_band_top = eng::scene::band_from_view(m_v_top, 0u);
+		m_band_bottom = eng::scene::band_from_view(m_v_bottom, kSplitLine);
 		eng::scene::RasterLayout layout {};
-		(void)layout.add(eng::scene::band_from_view(m_v_top, 0u));
-		(void)layout.add(eng::scene::band_from_view(m_v_bottom, kSplitLine));
+		(void)layout.add(m_band_top);
+		(void)layout.add(m_band_bottom);
 		layout[0].palette = kPalette.words();
 		layout[0].palette_colors = 16u;
+
+		// BOB (objeto) que **cruza el corte**: `emit_banded` lo dibuja en la banda que lo contiene.
+		build_bob();
 
 		const eng::Bytes<eng::CopperTag> slice = m_copper.view;
 		copper::SchedulerT<false> sched {eng::Block<eng::CopperTag> {slice, m_copper.kind}};
@@ -100,7 +114,7 @@ struct SplitScreenDemo {
 		eng::debug::mark_ready(g_eng_run_status, 0x12900000u);
 	}
 
-	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!ready) {
 			return;
@@ -122,6 +136,24 @@ struct SplitScreenDemo {
 			draw_bar(x + i, 2u, 5u);
 		}
 		m_last_x = x;
+
+		// **BOBs por banda** (`emit_banded`): un marcador por banda, dibujado en el `BobTarget` de
+		// SU banda (coordenadas de pantalla; la capa resta el `top`). El marcador de arriba (y<128)
+		// va a la banda 0 (bitmap A); el de abajo (y≥128) a la 1 (bitmap B).
+		m_bobs[0] = {96, 48, 0u, true};  // banda 0 (arriba): y=48 < 128
+		m_bobs[1] = {192, 192, 0u, true}; // banda 1 (abajo): y=192 ≥ 128
+		const eng::graphics::BobTarget targets[2] = {m_band_top.bob_target(),
+							     m_band_bottom.bob_target()};
+		const eng::scene::BandSpan bands[2] = {
+			{0u, kSplitLine, eng::scene::LayerRole::Foreground},
+			{kSplitLine, static_cast<eng::u16>(kHeight - kSplitLine),
+			 eng::scene::LayerRole::Foreground}};
+		m_plan.clear();
+		m_plan.set_blit_budget_limits({8192, 16384, 4, 32});
+		(void)m_bobs.emit_banded(m_plan, eng::Span<const eng::scene::BandSpan> {bands, 2u},
+					 eng::Span<const eng::graphics::BobTarget> {targets, 2u});
+		(void)backend.execute_frame_plan(m_plan);
+
 		g_eng_run_status.detail = 0x12900000u | (x & 0xffffu);
 	}
 
@@ -199,11 +231,49 @@ private:
 			});
 	}
 
+	/// Hoja del BOB (cuadrado 16×16 opaco con padding) + capa + plan de blits.
+	void build_bob() {
+		eng::u8* s = m_sheet.view.data();
+		for (u32 i = 0u; i < kBobSheetBytes; ++i) {
+			s[i] = 0u;
+		}
+		// Marcador **sólido** (toda la hoja de color 5): un cuadro opaco que se redibuja en su sitio
+		// (fijo → sin estela). 32×32 a 3 planos.
+		for (u16 y = 0u; y < kBobPadded; ++y) {
+			for (u8 p = 0u; p < kPlanes; ++p) {
+				if ((5u & (1u << p)) == 0u) { // color 5 = planos 0 y 2
+					continue;
+				}
+				eng::u8* row = s + (static_cast<u32>(y) * kPlanes + p) * (kBobWordsPerPlaneRow * 2u);
+				row[0] = 0xffu;
+				row[1] = 0xffu;
+				row[2] = 0xffu;
+				row[3] = 0xffu;
+			}
+		}
+		eng::graphics::Bob bob {};
+		bob.sheet = m_sheet.mem_view_chip();
+		bob.width = kBobPadded;
+		bob.height = kBobPadded;
+		bob.planes = kPlanes;
+		bob.layout = eng::graphics::BobLayout::Interleaved;
+		bob.draw = eng::graphics::BobDraw::Opaque;
+		m_sprite = eng::graphics::Sprite {bob};
+		m_bobs.set_sheet(m_sprite);
+		m_bobs.resize(2u); // un marcador por banda (rutado con `emit_banded`)
+	}
+
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_top {};
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bottom {};
 	eng::Block<eng::CopperTag> m_copper {};
+	eng::Block<eng::BobTag> m_sheet {};
+	eng::graphics::Sprite m_sprite {};
+	eng::scene::BobLayer m_bobs {};
+	eng::graphics::FramePlan m_plan {};
 	eng::playfield::PlayfieldHardwareView m_v_top {};
 	eng::playfield::PlayfieldHardwareView m_v_bottom {};
+	eng::scene::Band m_band_top {};
+	eng::scene::Band m_band_bottom {};
 	u16 m_last_x = 0u;
 	bool ready = false;
 };

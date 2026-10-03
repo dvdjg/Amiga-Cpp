@@ -9,6 +9,8 @@ planner, `ROADMAP_GAME_API.md` §7).
 - Banda 0 (arriba, rojo): bitmap A. Banda 1 (abajo, azul): bitmap B; `ModeSwitchZone` en la línea 128.
 - El fondo de cada banda es sólido (colores de referencia); la barra blanca las cruza y sale
   **continua** aunque cada mitad vive en un bitmap distinto.
+- Dos **BOBs** (marcadores blancos) rutados a **su banda** con `BobLayer::emit_banded` (uno en la
+  banda roja, otro en la azul): el reparto por banda también es automático para los objetos.
 
 ## Qué ilustra
 

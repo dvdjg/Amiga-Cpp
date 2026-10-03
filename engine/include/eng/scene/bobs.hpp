@@ -17,6 +17,7 @@
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/raster_intent.hpp>
 #include <eng/graphics/sprite_asset.hpp>
+#include <eng/scene/band_plan.hpp>
 
 namespace eng::scene {
 
@@ -97,6 +98,47 @@ public:
 			const eng::u8 frame = a.anim.valid() ? a.anim.frame() : a.frame;
 			const eng::graphics::Sprite& sh = sheet(a.sheet_index);
 			if (a.visible && sh.draw(plan, target, frame, dx, a.y)) {
+				++drawn;
+			}
+		}
+		return drawn;
+	}
+
+	/// **Emite cada actor a la banda que contiene su `y`** (`ROADMAP_GAME_API.md` §7, split-screen):
+	/// `targets[i]`/`fine[i]` son el `BobTarget` y el fine scroll de la banda `bands[i]`. El actor va
+	/// en **coordenadas de pantalla**; la capa resta el `top` de su banda (el target no lo compensa).
+	/// Un actor cuya `y` cae fuera de toda banda (hueco) no se dibuja. Sin allocaciones.
+	[[nodiscard]] eng::u16 emit_banded(eng::graphics::FramePlan& plan,
+					   const eng::Span<const BandSpan> bands,
+					   const eng::Span<const eng::graphics::BobTarget> targets,
+					   const eng::Span<const eng::u8> fine = {}) const {
+		eng::u8 order[kMaxActors];
+		eng::u8 n = 0u;
+		for (eng::u8 i = 0u; i < m_count; ++i) {
+			eng::u8 at = n;
+			while (at > 0u && m_actors[order[at - 1u]].z > m_actors[i].z) {
+				order[at] = order[at - 1u];
+				--at;
+			}
+			order[at] = i;
+			++n;
+		}
+		eng::u16 drawn = 0u;
+		for (eng::u8 j = 0u; j < n; ++j) {
+			const BobActor& a = m_actors[order[j]];
+			if (!a.visible) {
+				continue;
+			}
+			const eng::u16 bi = band_containing(bands, static_cast<eng::u16>(a.y));
+			if (bi >= targets.size()) {
+				continue;
+			}
+			const eng::u8 fs = bi < fine.size() ? fine[bi] : 0u;
+			const eng::u8 frame = a.anim.valid() ? a.anim.frame() : a.frame;
+			const eng::graphics::Sprite& sh = sheet(a.sheet_index);
+			// Y relativa a la banda (el `bob_target` no compensa el `top`).
+			const eng::s16 ty = static_cast<eng::s16>(a.y - static_cast<eng::s16>(bands[bi].top));
+			if (sh.draw(plan, targets[bi], frame, static_cast<eng::s16>(a.x - fs), ty)) {
 				++drawn;
 			}
 		}
