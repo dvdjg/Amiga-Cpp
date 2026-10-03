@@ -97,16 +97,10 @@
 
 #include "support/gcc8_c_support.h"
 
-// --- Assets incrustados (ámbito global para que casen los símbolos `incbin_*`) ----------------
-// `INCBIN` deja el blob en `.rodata` (sección estándar; sin hunks extra que descuadren la
-// reubicación del runner); el engine lo copia a **Chip** con `res::load` (DMA: Blitter/música).
-INCBIN(abyss_img, "assets/amiga/sprites/abyss/abyss.bpl");
-INCBIN(abyss_bob, "assets/amiga/sprites/abyss/bob.bpl");
-INCBIN(abyss_mod, "assets/amiga/audio/testmod.p61");
-INCBIN(abyss_pal, "assets/amiga/sprites/abyss/abyss.pal");
-
-#define INCBIN_SIZE(name) \
-	static_cast<eng::u32>(reinterpret_cast<const char*>(&incbin_##name##_end) - incbin_##name##_start)
+// --- Assets incrustados: manifiesto (fuente única de blobs/rutas; el juego no usa `INCBIN`) ---
+// El manifiesto declara los blobs y expone accesores (`abyss::img_data()`/`img_size()`…); el
+// código de juego no contiene rutas de assets ni el helper `INCBIN`.
+#include "assets.manifest.hpp"
 
 namespace {
 
@@ -232,8 +226,8 @@ struct AbyssDemo {
 		// ORIGINAL: `image`/`bob`/`module` viven en `.MEMF_CHIP` (`#embed`), porque el Blitter y
 		// Paula solo ven Chip RAM. AQUÍ: el motor copia los blobs de `.rodata` a bloques Chip.
 		m_assets.bind(app.device().memory_manager());
-		const bool bitmap_added = m_assets.add_bitmap("abyss", reinterpret_cast<const eng::u8*>(abyss_img),
-					       INCBIN_SIZE(abyss_img), kWidth, kHeight, kPlanes,
+		const bool bitmap_added = m_assets.add_bitmap("abyss", abyss::img_data(),
+					       abyss::img_size(), kWidth, kHeight, kPlanes,
 					       eng::graphics::PlaneLayout::Interleaved);
 		if (!bitmap_added) {
 			eng::debug::mark_failed(g_eng_run_status, kRunDetailBitmapAssetFailed);
@@ -257,10 +251,10 @@ struct AbyssDemo {
 		// `docs/reference/amiga/techniques/interleaved-bob-single-blit.md`). No se reempaqueta:
 		// el engine lo dibuja con **un** blit cookie-cut `$CA` por BOB. Es el mismo `bob.bpl` de
 		// la original: `BLTAPT`/`BLTBPT` y `AMOD`/`BMOD`/`DMOD` los deriva el encoder del motor.
-		const bool sprite_added = m_assets.add<eng::SpriteTag>("bob",
-						  reinterpret_cast<const eng::u8*>(abyss_bob), INCBIN_SIZE(abyss_bob));
-		const bool music_added = m_assets.add<eng::MusicTag>("mod",
-						 reinterpret_cast<const eng::u8*>(abyss_mod), INCBIN_SIZE(abyss_mod));
+		const bool sprite_added = m_assets.add<eng::SpriteTag>("bob", abyss::bob_data(),
+						  abyss::bob_size());
+		const bool music_added = m_assets.add<eng::MusicTag>("mod", abyss::mod_data(),
+						 abyss::mod_size());
 		if (!sprite_added || !music_added) {
 			// El fallo de reserva queda en `g_mem_probe` (lo registra `res::load`); el `detail`
 			// resume qué banco y por qué, para el `runstatus` del canal lateral.
@@ -312,7 +306,7 @@ struct AbyssDemo {
 				d.register_bitmap(sheet.data(), "bob.bpl", kBobW, kBobH * kSpriteFrameCount,
 						  kPlanes, /*interleaved=*/true, /*masked=*/true);
 			}
-			d.register_palette(reinterpret_cast<const void*>(abyss_pal), "abyss.pal",
+			d.register_palette(abyss::pal_words(), "abyss.pal",
 					   kPaletteColorCount);
 		}
 		// --- Vía async del `present()` (IRQ de blit, `BLITTER_INTENT_QUEUE.md` §6.1) ---------
@@ -492,7 +486,7 @@ int main() {
 	display.color_depth = kPlanes;
 	display.layout = eng::graphics::PlaneLayout::Interleaved;
 	{
-		const eng::u16* w = reinterpret_cast<const eng::u16*>(abyss_pal);
+		const eng::u16* w = abyss::pal_words();
 		for (eng::u8 i = 0u; i < eng::kPaletteEntries; ++i) {
 			display.palette.color[i] = w[i];
 		}
