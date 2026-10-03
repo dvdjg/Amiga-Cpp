@@ -82,11 +82,15 @@ constexpr field::ScrollConsts kScrollConsts {
 // Selección ESTÁTICA del perfil de scroll (ver engine/include/eng/field/scroll_profile.hpp
 // y docs/engine/architecture/FAST_SCROLL.md). El desarrollador cambia el comportamiento
 // editando esta única línea: `ScrollProgressive` (2 px/frame, clásico), `ScrollFast1`
-// (16 px/frame), `ScrollFast2` (32 px/frame), `ScrollFast4` (64 px/frame).
+// (16 px/frame), `ScrollFast2` (32 px/frame), `ScrollFast4` (64 px/frame),
+// `ScrollSubTile8/16` (paso sub-tile en px, para tiles grandes tipo 32×32).
 using ScrollProfile_t = field::ScrollProgressive;
-// Paso de cámara por frame: el perfil rápido lo fija a N tiles; el progresivo conserva 2 px.
-constexpr eng::s32 kStepX = ScrollProfile_t::fill_tiles
-	? static_cast<eng::s32>(ScrollProfile_t::fill_tiles) * kTileW : 2;
+// Paso de cámara por frame: sub-tile lo fija en px; el rápido, en N tiles; el progresivo, 2 px.
+constexpr eng::s32 kStepX = ScrollProfile_t::sub_px
+	? static_cast<eng::s32>(ScrollProfile_t::sub_px)
+	: (ScrollProfile_t::fill_tiles
+		   ? static_cast<eng::s32>(ScrollProfile_t::fill_tiles) * kTileW
+		   : 2);
 
 eng::u16 side_row(eng::u8 glyph, eng::u8 variant, eng::u8 row, eng::u8 plane) {
 	return field::demo::pf_plane_row(glyph, static_cast<eng::u8>(variant & 3u), row, plane, 0, false);
