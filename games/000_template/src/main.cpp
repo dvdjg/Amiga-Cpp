@@ -57,10 +57,12 @@ struct TemplateGame {
 
 	void render(auto& app) {
 		auto s = app.screen();
-		// Borrado de banda por **Blitter** (D-only): no el rasterizador CPU de `clear`.
+		// Todo por el **plan del frame** (Blitter), en orden: fondo y el objeto (marco que se mueve
+		// con el pad). No se mezcla con primitivas inmediatas (`fill`/`clear` usan el rasterizador
+		// y pisarían lo diferido). El texto usa la ruta por CPU (`text`) de momento.
 		s.clear_box(eng::Box {0, 0, kWidth, kHeight});
-		// Objeto: un cuadrado que se mueve con el pad.
-		s.fill(eng::Box {m_x, m_y, kBoxPx, kBoxPx}, 3u);
+		s.frame(eng::Box {m_x, m_y, kBoxPx, kBoxPx}, 3u);
+		app.present();
 		eng::debug::mark_ready(g_eng_run_status, 0u);
 		eng::debug::probe_when_ready(g_eng_run_status, app.frame());
 	}
