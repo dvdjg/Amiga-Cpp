@@ -20,7 +20,7 @@ namespace eng::field {
 /// Geometría del anillo de tiras. Todos los parámetros son compile-time (NTTP).
 template <eng::u16 ViewportW = 320u, eng::u16 ViewportH = 208u, eng::u8 Planes = 5u,
 	  eng::u16 TileW = 16u, eng::u16 TileH = 16u, eng::u16 GuardWords = 2u,
-	  eng::u16 FetchExtraWords = 1u, bool SplitVertical = false>
+	  eng::u16 FetchExtraWords = 1u, bool SplitVertical = false, eng::u16 RingWords = 0u>
 struct StripScrollGeometry {
 	static_assert(TileW == 16u || TileW == 32u, "tile 16 o 32");
 	static_assert(TileH == 16u || TileH == 32u, "tile 16 o 32");
@@ -43,9 +43,14 @@ struct StripScrollGeometry {
 	/// Linea del split (`0x2c + viewport_h`); si `> 255` hace falta la secuencia two-WAIT.
 	static constexpr eng::u16 split_line = static_cast<eng::u16>(0x2cu + ViewportH);
 	static constexpr bool split_crosses_255 = split_line > 255u;
-
-	static constexpr eng::u16 visible_words = static_cast<eng::u16>(ViewportW / 16u);	static constexpr eng::u16 ring_w_words =
-		static_cast<eng::u16>(visible_words + GuardWords + FetchExtraWords);
+	static constexpr eng::u16 visible_words = static_cast<eng::u16>(ViewportW / 16u);
+	/// Ancho del anillo en words. `RingWords == 0` = **pantalla + guarda + fetch** (fondo que se
+	/// repite); para un mapa largo el anillo es el ancho del bitmap del mapa.
+	static constexpr eng::u16 ring_w_words =
+		(RingWords != 0u) ? RingWords
+				  : static_cast<eng::u16>(visible_words + GuardWords + FetchExtraWords);
+	static_assert(ring_w_words >= visible_words + GuardWords + FetchExtraWords,
+		      "el anillo debe caber al menos pantalla + guarda + fetch");
 	static constexpr eng::u16 ring_w_bytes = static_cast<eng::u16>(ring_w_words * 2u);
 	/// Salto de fila del display interleaved: (PLANES-1) planos por delante.
 	static constexpr eng::u16 bpl_mod = static_cast<eng::u16>((Planes - 1u) * ring_w_bytes);

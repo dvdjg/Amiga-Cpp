@@ -28,6 +28,10 @@ using Geom = eng::field::StripScrollGeometry<320u, 208u, 5u, 16u, 16u, 2u, 1u, f
 using GeomXY = eng::field::StripScrollGeometry<320u, 208u, 5u, 16u, 16u, 2u, 1u, true>;
 // Tile 32: guarda 64 px = 4 palabras; viewport 192 (multiplo de 32).
 using Geom32 = eng::field::StripScrollGeometry<320u, 192u, 5u, 32u, 32u, 4u, 1u, false>;
+// Mapa largo: el anillo es el ancho del bitmap del mapa (160 words), no pantalla+guarda.
+using GeomLong = eng::field::StripScrollGeometry<320u, 208u, 5u, 16u, 16u, 2u, 1u, false, 160u>;
+static_assert(GeomLong::ring_w_words == 160u && GeomLong::ring_w_bytes == 320u,
+	      "anillo de mapa largo (160 words)");
 
 static_assert(Geom::visible_words == 20u, "320 px = 20 words");
 static_assert(Geom::ring_w_words == 23u, "anillo = 20 + 2 guarda + 1 fetch");
