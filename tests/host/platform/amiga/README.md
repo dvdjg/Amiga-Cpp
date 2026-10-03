@@ -16,4 +16,5 @@ Categoría `platform/amiga` de la batería host (L1). El índice de categorías 
 | HOST-259 | [floppy_mfm](259_floppy_mfm/README.md) | Disquete: decodificación **MFM** (`eng/os/floppy.hpp`) — `mfm_decode_long` inverso y `floppy_find_sector` sobre una pista AmigaDOS sintética (encoder = el del emulador). |
 | HOST-308 | [os_cd32_pad](308_os_cd32_pad/README.md) | Mini-SO: decodificador del pad CD32 (`cd32_mask_from_shift`: stream serie → bitmask `Cd32Btn`). |
 | HOST-330 | [asset_backend](330_asset_backend/README.md) | Recursos/plataforma: `AssetCacheBackend` (`eng/platform/amiga/asset_backend.hpp`) — `alloc` Chip/Slow, `free` no-op y `load` (`file_read_async` + cookie `IoUser{'A',id}`); integración con `res::AssetCache`. |
+| HOST-350 | [bus_budget](350_bus_budget/README.md) | Presupuesto de bus DMA del A500 (`eng/hw/bus_budget.hpp`): acumula display/Copper/Blitter/CPU, devuelve margen, cuello de botella y pistas (6 planos, hires, FPS, Fast RAM, multi-franja). |
 | HOST-394 | [memory_profile](394_memory_profile/README.md) | Perfiles de memoria A500/A1200 editables, Fast RAM opcional y preflight de bloques contiguos. |
