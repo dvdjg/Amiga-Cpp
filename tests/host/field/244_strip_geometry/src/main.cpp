@@ -176,9 +176,9 @@ int main() {
 		eng::u16 out[Geom::row_tiles * Geom::row_planelines];
 		const eng::u16 n = eng::field::compose_row<Geom>(out, bank, ids, 80u);
 		check(n == static_cast<eng::u16>(Geom::row_tiles * Geom::row_planelines),
-		      "compose_row: 20 x 80 = 1600 palabras");
-		check(Geom::strip_row_words == Geom::visible_words && Geom::row_planelines == 80u,
-		      "fila: 20 words de ancho, 80 planelines de alto");
+		      "compose_row: anillo x 80 palabras");
+		check(Geom::strip_row_words == Geom::ring_w_words && Geom::row_planelines == 80u,
+		      "fila: ancho del anillo, 80 planelines de alto");
 		bool okr = true;
 		for (eng::u16 c = 0u; c < Geom::row_tiles && okr; ++c) {
 			for (eng::u16 i = 0u; i < Geom::row_planelines; ++i) {

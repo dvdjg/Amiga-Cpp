@@ -21,7 +21,8 @@ namespace eng::field {
 /// Geometría del anillo de tiras. Todos los parámetros son compile-time (NTTP).
 template <eng::u16 ViewportW = 320u, eng::u16 ViewportH = 208u, eng::u8 Planes = 5u,
 	  eng::u16 TileW = 16u, eng::u16 TileH = 16u, eng::u16 GuardWords = 2u,
-	  eng::u16 FetchExtraWords = 1u, bool SplitVertical = false, eng::u16 RingWords = 0u>
+	  eng::u16 FetchExtraWords = 1u, bool SplitVertical = false, eng::u16 RingWords = 0u,
+	  eng::u16 RingLines = 0u>
 struct StripScrollGeometry {
 	static_assert(TileW == 16u || TileW == 32u, "tile 16 o 32");
 	static_assert(TileH == 16u || TileH == 32u, "tile 16 o 32");
@@ -59,29 +60,29 @@ struct StripScrollGeometry {
 	/// (`planes*ring_w_bytes`) menos lo ya avanzado por el fetch (`fetch_words*2`).
 	static constexpr eng::u16 bpl_mod =
 		static_cast<eng::u16>(static_cast<eng::u32>(Planes) * ring_w_bytes - fetch_words * 2u);
-	/// Ancho de la tira en palabras (tile 16 -> 1, tile 32 -> 2).
-	static constexpr eng::u16 strip_words = static_cast<eng::u16>(TileW / 16u);
-	/// `BLTDMOD` de la tira en el anillo interleaved.
-	static constexpr eng::u16 bltdmod_col =
-		static_cast<eng::u16>(ring_w_bytes - strip_words * 2u);
-	/// Planelíneas de una columna completa (viewport entero x planos).
-	static constexpr eng::u16 column_planelines = static_cast<eng::u16>(ViewportH * Planes);
+	/// Anillo vertical: alto del bitmap (2 pantallas para el scroll Y, o viewport + guarda si split).
+	static constexpr eng::u16 ring_h =
+		(RingLines != 0u) ? RingLines
+				  : static_cast<eng::u16>(ViewportH + (SplitVertical ? 2u * TileH : 0u));
+	/// Tiles de una columna completa (alto del anillo) y de una fila completa (ancho del anillo).
+	static constexpr eng::u16 column_tiles = static_cast<eng::u16>(ring_h / TileH);
+	static constexpr eng::u16 row_tiles = ring_w_words;
+	/// Planelíneas de una columna completa (alto del anillo x planos).
+	static constexpr eng::u16 column_planelines = static_cast<eng::u16>(ring_h * Planes);
 	/// `BLTSIZE` tiene H de 10 bits (max 1024 planelíneas) -> la columna se parte en varios blits.
 	static constexpr eng::u16 max_blt_h = 1024u;
 	static constexpr eng::u8 column_blits =
 		static_cast<eng::u8>((column_planelines + max_blt_h - 1u) / max_blt_h);
 	static_assert(column_blits >= 1u, "columna necesita al menos 1 blit");
-	/// Tiles que forman una columna/fila completa.
-	static constexpr eng::u16 column_tiles = static_cast<eng::u16>(ViewportH / TileH);
-	static constexpr eng::u16 row_tiles = static_cast<eng::u16>(ViewportW / TileW);
-	/// Tira HORIZONTAL (fila) para el scroll Y: ancho = viewport, alto = tile_h x planos. El blit
+	/// Tira HORIZONTAL (fila) para el scroll Y: ancho = anillo, alto = tile_h x planos. El blit
 	/// reutiliza el de columna con estos parametros (`{strip_row_words, row_planelines, bltdmod_row}`).
-	static constexpr eng::u16 strip_row_words = static_cast<eng::u16>(visible_words);
+	static constexpr eng::u16 strip_row_words = ring_w_words;
 	static constexpr eng::u16 row_planelines = static_cast<eng::u16>(TileH * Planes);
 	static constexpr eng::u16 bltdmod_row =
-		static_cast<eng::u16>(ring_w_bytes - visible_words * 2u);
-	/// Anillo vertical (solo si hay split): alto del bitmap.
-	static constexpr eng::u16 ring_h = static_cast<eng::u16>(ViewportH + (SplitVertical ? 2u * TileH : 0u));
+		static_cast<eng::u16>(ring_w_bytes - ring_w_words * 2u);
+	/// Ancho de la tira de COLUMNA en palabras (tile 16 -> 1, tile 32 -> 2) y su BLTDMOD.
+	static constexpr eng::u16 strip_words = static_cast<eng::u16>(TileW / 16u);
+	static constexpr eng::u16 bltdmod_col = static_cast<eng::u16>(ring_w_bytes - strip_words * 2u);
 };
 
 /// Decisión de un frame del scroller de tiras (lo que el backend debe ejecutar/parchear).
