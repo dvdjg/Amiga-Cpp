@@ -85,12 +85,28 @@ fugas conocidas.
 ```cpp
 eng::Screen& s = app.screen();
 s.clear(0);
-s.fill({10, 10, 40, 12}, color);
+s.fill({10, 10, 40, 12}, color);            // inmediato (rasterizador)
+s.fill_box({10, 24, 40, 12}, color);        // diferido (Blitter, D=A sin fetch de D)
 s.frame({8, 8, 100, 40}, color);
 s.line(0, 0, 319, 0, color);
 s.text(4, 4, "hola", color);
 s.sprite(...);            // cuando exista el sistema de objetos
 app.present();            // ejecuta el plan del frame y publica
+```
+
+### 2.0 Estados de escena — `App::push_scene`/`pop_scene`/`set_scene`
+
+Un juego con estados (title→game→gameover) apila **escenas** sobre el `Game`. Mientras haya una escena
+en la pila, su `update`/`render` **sustituyen** a los del `Game`; `enter`/`exit` se llaman en las
+transiciones (y son opcionales). Sin heap ni vtable: capacidad fija `kMaxScenes` y despacho por thunks.
+Ver `tests/host/ui/240_app_scenes`.
+
+```cpp
+struct Title {
+    void enter(eng::App& app) { app.play_music("title"); }   // música por escena (§2+§6)
+    void update(eng::App& app) { if (app.input().pad0.fire) app.set_scene(m_menu); }
+    void render(eng::App& app) { app.screen().text(8, 8, "PULSA FUEGO"); }
+};
 ```
 
 ## 2.1 Contrato de las abstracciones de juego (dibujo, color, scroll, recursos)

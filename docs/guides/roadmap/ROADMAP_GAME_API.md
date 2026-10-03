@@ -3,9 +3,12 @@
 Estado: **en curso**. §1 (arranque cero-config) y §3 (ocultar composición/escena) **hechos para la
 213** vía `App::start()` + `GameDisplay` declarativo (la 213 ya no escribe `configure_memory`,
 `compose`, `SceneResources`, `ocs_a500`, `BPLCON0`, `takeover`; 49,9 fps). §5 con `Anim` + colisión
-de caja. **Pendientes**: §2 (audio resuelve formato/buffer), §4 (quitar `INCBIN`), §6 (estados de
-escena), §7 (cámara/tilemap de juego), §8 (vocabulario), §9 (plantilla + 213 sin una línea técnica;
-base en `games/000_template`). El contrato de §0 («juego de 30 líneas») **aún no compila** del todo.
+de caja. §2 (audio auto-conducido: formato + buffer P61 + `App::play_music`) y §4 (el `INCBIN` sale
+del juego a un manifiesto) con su base hecha. §6 (estados de escena) **base hecha**: pila de escenas
+en la fachada (`push_scene`/`pop_scene`/`set_scene`, HOST-240). **Pendientes**: §4 (generador del
+manifiesto), §7 (cámara/tilemap de juego), §8 (vocabulario), §9 (plantilla + 213 sin una línea
+técnica; base en `games/000_template`). El contrato de §0 («juego de 30 líneas») **aún no compila**
+del todo.
 Origen: revisión honesta de lo que la demo 213 necesita escribir (ver
 [`GAME_API_TWO_LEVELS.md`](../../engine/architecture/GAME_API_TWO_LEVELS.md)). El objetivo de este roadmap es que una
 persona pueda **cerrar un juego 2D sin bajar al metal**: la "capa A" debe bastar.
@@ -85,7 +88,7 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
   el buffer de descompresión, registra la tarea de frame y arma el DMA; `stop_music()` deshace. El juego nunca ve
   `os::*`, `_P61_dma`, `MusicFormat` ni `reserve<AudioTag>`.
 - **Nota**: unificar el vocabulario (ver §8): `play_sfx`/`play_music` en `AudioSystem`; `sfx()` deja de exponerse a juego.
-- **Progreso**: ✅ el `App` **avanza la música en su latido** (`on_vblank` → `audio().update_music()`); la 213 ya **no** llama `os::set_frame_task` ni tiene `music_tick`/`m_audio`. ⏳ falta: que `play_music` **resuelva el formato y el buffer de descompresión** (que el juego no vea `p61_needs_sample_buffer`/`reserve<AudioTag>`).
+- **Progreso**: ✅ el `App` **avanza la música en su latido** (`on_vblank` → `audio().update_music()`); la 213 ya **no** llama `os::set_frame_task` ni tiene `music_tick`/`m_audio`. ✅ `play_music` **resuelve el formato** (detección por cabecera) y el **buffer de descompresión P61** (el engine reserva en Chip si el módulo lo pide, `audio_system.hpp`): el juego no ve `p61_needs_sample_buffer` ni `reserve<AudioTag>`. ✅ `App::play_music(name)`/`stop_music()` atan `assets().music(name)` + `audio().play_music(...)`; la música **por escena** se hace en el `enter` (la siguiente `play_music` detiene la anterior, §6).
 
 ## 3. `Screen` de juego y ocultar el display
 
@@ -116,8 +119,11 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
   **por nombre**; la 213 ya **no** usa `res::load` ni `Block<BobTag>/<MusicTag>` (sprite y música por nombre). ✅ el
   audio resuelve **formato** (detección por cabecera) y **buffer** (§2). ✅ bitmap planar por nombre conserva
   geometría/layout y se dibuja con `Screen::bitmap`; HOST-234 verifica datos y segmentación de jobs para
-  interleaved 320×256×5, y WinUAE muestra el bitmap en la 213. ⏳ falta eliminar `INCBIN` del código de juego con
-  un manifiesto/pipeline de assets integrado.
+  interleaved 320×256×5, y WinUAE muestra el bitmap en la 213. ✅ el `INCBIN` **sale del código de juego** a un
+  **manifiesto** (`demos/.../213/src/assets.manifest.hpp`) que expone los blobs por accesores
+  (`abyss::img_data()`/`img_size()`…); el código de juego ya no tiene rutas de assets ni `INCBIN` (medido:
+  49,9 fps y misma imagen). ⏳ falta el **generador** que emita ese header desde un manifiesto de datos (y la
+  geometría del sprite incrustada por asset).
 - **Decisión (geometría del sprite)**: el `desc` (ancho/alto/planos/frames/stride) se queda como **dato del juego**
   hasta que exista un **pipeline/tabla** que lo incruste con el blob (cabecera por asset). No se inventa un formato
   ahora: incrustar geometría es decisión del pipeline, no del API.
@@ -138,6 +144,13 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
 
 - **Problema**: no hay un gestor de estados (title→game→gameover) en la fachada.
 - **Salida**: `app.set_scene(...)`/`push`/`pop` con `enter/exit/update/render`; la música por escena se apoya en §2.
+- **Progreso**: ✅ `App::push_scene`/`pop_scene`/`set_scene`/`scene_depth` (`game.hpp`): pila de escenas
+  **sin heap ni vtable** (thunks de puntero a función, capacidad fija `kMaxScenes`). La escena superior
+  **sustituye** a `update`/`render` del `Game` (el `Game` sigue siendo el *composition root*); `enter`/`exit`
+  en las transiciones; hooks opcionales detectados con `requires`. HOST-240 (dispatch, `enter`/`exit`,
+  `set_scene`, hooks opcionales y capacidad). ✅ **música por escena**: `App::play_music(name)`/`stop_music()`
+  (§2) permiten que el `enter` de cada escena arranque su tema y una escena sin música la silencie; la
+  siguiente `play_music` detiene la anterior. ⏳ falta que la 213/plantilla usen una escena de título real.
 
 ## 7. Cámara y tilemap de juego
 

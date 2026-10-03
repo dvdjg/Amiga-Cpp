@@ -13,7 +13,8 @@ bash ./tools/run/run-demo.sh games/000_template
 
 `main()` es el **composition root** (una vez): elige el perfil de memoria (`configure_game_memory`),
 declara el `GameDisplay` (geometría + paleta + efectos) y arranca (`set_display` + `start`). El
-**juego** solo implementa `init`/`update`/`render` sobre la fachada.
+**juego** es el *composition root* de la lógica: empuja escenas (`push_scene`) cuyos
+`update`/`render` conducen el bucle (aquí, título → juego).
 
 | Concepto | API |
 |---|---|
@@ -22,8 +23,9 @@ declara el `GameDisplay` (geometría + paleta + efectos) y arranca (`set_display
 | Dibujo | `app.screen()`: `clear_box`, `fill_box`, `fill`, `frame`, `line`, `sprite`, `bitmap`, `c2p` |
 | Objetos / animación | `eng::graphics::Sprite`, `eng::graphics::Anim` |
 | Colisión | `eng::Box::overlaps` / `intersection` |
+| Escenas / estados | `app.push_scene` / `set_scene` / `pop_scene` (`enter`/`exit`/`update`/`render`) |
 | Entrada | `app.input()` (`pad0/pad1/mouse/keys`) |
-| Audio | `app.audio().play_music(name)` / `play_sfx(name)` |
+| Audio | `app.play_music(name)` / `stop_music()`; `app.audio().play_sfx(name)` |
 | Mensajes (mini-SO) | `app.port()` |
 
 ## Coste y límites
@@ -41,7 +43,8 @@ declara el `GameDisplay` (geometría + paleta + efectos) y arranca (`set_display
 - **Gaps de la fachada** (roadmap §4–§9):
   - **`screen().text`** usa el rasterizador de fuente por **CPU** (~24 k ciclos/glifo → ~2 campos
     por línea); la ruta por Blitter existe (`draw_text_blit`) pero no está cableada a la fachada.
-  - La geometría de assets (el `desc` del `Sprite`) sigue siendo dato del juego y los blobs se
-    registran con `INCBIN` (falta el pipeline/manifiesto).
-  - Sin escenas/estados (§6), cámara/tilemap de juego (§7) ni unificación de vocabulario (§8).
+  - La geometría de assets (el `desc` del `Sprite`) sigue siendo dato del juego; la 213 ya saca los
+    blobs a un manifiesto (`assets.manifest.hpp`), pero falta el **generador** que emita el header
+    desde un manifiesto de datos (§4).
+  - Cámara/tilemap de juego (§7) y unificación de vocabulario (§8) pendientes.
 

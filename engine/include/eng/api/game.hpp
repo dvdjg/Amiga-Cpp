@@ -533,6 +533,58 @@ public:
 		return m_memory.valid() ? m_memory->chip().free_bytes() : 0u;
 	}
 
+	/// **Pila de escenas** (title→game→gameover) para juegos con estados. Una escena es un objeto
+	/// con `enter/exit/update/render(App&)` (los que falten se detectan con `requires`). Mientras
+	/// haya una escena en la pila, su `update`/`render` **sustituyen** a los del `Game`; el `Game`
+	/// sigue siendo el *composition root* que empuja la primera escena. El llamador conserva la
+	/// vida de la escena (igual que con el `Game&`). Sin heap ni vtable: capacidad fija
+	/// `kMaxScenes` y despacho por thunks de puntero a función.
+	template <class Scene>
+	[[nodiscard]] bool push_scene(Scene& scene) {
+		if (m_scene_depth >= kMaxScenes) return false;
+		SceneSlot& slot = m_scenes[m_scene_depth];
+		slot = SceneSlot {
+			&scene,
+			[](void* o, App& a) {
+				if constexpr (requires(Scene& s, App& app) { s.enter(app); })
+					static_cast<Scene*>(o)->enter(a);
+			},
+			[](void* o, App& a) {
+				if constexpr (requires(Scene& s, App& app) { s.exit(app); })
+					static_cast<Scene*>(o)->exit(a);
+			},
+			[](void* o, App& a) {
+				if constexpr (requires(Scene& s, App& app) { s.update(app); })
+					static_cast<Scene*>(o)->update(a);
+			},
+			[](void* o, App& a) {
+				if constexpr (requires(Scene& s, App& app) { s.render(app); })
+					static_cast<Scene*>(o)->render(a);
+			},
+		};
+		++m_scene_depth;
+		slot.enter(slot.obj, *this);
+		return true;
+	}
+
+	/// Saca la escena superior (llama a su `exit`). `false` si la pila ya está vacía.
+	bool pop_scene() {
+		if (m_scene_depth == 0u) return false;
+		--m_scene_depth;
+		SceneSlot& slot = m_scenes[m_scene_depth];
+		slot.exit(slot.obj, *this);
+		return true;
+	}
+
+	/// Vacía la pila (con `exit` de cada escena) y empuja `scene`. `false` si no cabe.
+	template <class Scene>
+	[[nodiscard]] bool set_scene(Scene& scene) {
+		while (pop_scene()) {}
+		return push_scene(scene);
+	}
+
+	[[nodiscard]] u16 scene_depth() const noexcept { return m_scene_depth; }
+
 	[[nodiscard]] u32 frame() const noexcept { return m_frame; }
 	[[nodiscard]] task::BackgroundQueue& tasks() noexcept { return *m_context.get()->background; }
 
@@ -578,6 +630,30 @@ public:
 	template <class B = Backend>
 	[[nodiscard]] decltype(auto) audio() {
 		return m_backend.audio();
+	}
+
+	/// **Música por nombre de asset**: une `assets().music(name)` + `audio().play_music(...)`, de
+	/// modo que el juego no nombra `MusicModule` ni elige formato; el engine detecta formato y
+	/// buffer de descompresión (§2). Es la llamada de la música **de una escena**: en el `enter` de
+	/// la escena. La siguiente `play_music` detiene la anterior, y `stop_music()` la para (una
+	/// escena sin música la silencia en su `enter`). Templates para no exigir `assets()`/`audio()`.
+	template <class B = Backend>
+	bool play_music(eng::util::StringView name) {
+		if constexpr (requires(B& b, eng::util::StringView n) {
+				      b.audio().play_music(b.assets().music(n));
+			      }) {
+			return m_backend.audio().play_music(m_backend.assets().music(name));
+		} else {
+			return false;
+		}
+	}
+
+	/// Detiene la música actual (ver `play_music`). No falla si el backend no tiene audio.
+	template <class B = Backend>
+	void stop_music() {
+		if constexpr (requires(B& b) { b.audio().stop_music(); }) {
+			m_backend.audio().stop_music();
+		}
 	}
 
 	/// **Overlay de depuración del backend** (texto/rectángulos sobre el frame), si lo expone.
@@ -991,6 +1067,7 @@ private:
 	static constexpr u8 kPaletteFirstColor = 0u;
 	static constexpr u32 kRunIndefinitely = 0xffffffffu;
 	static constexpr u8 kMaxBitmapOwners = graphics::FramePlan::kMaxDmaAssets;
+	static constexpr u16 kMaxScenes = 8u;
 	static constexpr u32 kSizeLimit = 0xffffffffu;
 	static constexpr u16 kBitmapAlignmentBytes = 16u;
 	static constexpr u16 kWorldCoordinateLimit = 0x7fffu;
@@ -1014,14 +1091,25 @@ private:
 		void update(Backend&, GameContext& ctx) {
 			self->m_context = ctx;
 			self->m_frame = ctx.frame.frame_index;
-			self->m_game.update(*self); // el juego consume `port()` aquí
+			// Con escenas en la pila, la superior conduce el frame; sin escenas, el `Game`.
+			if (self->m_scene_depth > 0u) {
+				SceneSlot& slot = self->m_scenes[self->m_scene_depth - 1u];
+				slot.update(slot.obj, *self); // la escena consume `port()` aquí
+			} else {
+				self->m_game.update(*self); // el juego consume `port()` aquí
+			}
 		}
 		void render(Backend&, GameContext& ctx) {
 			self->m_context = ctx;
 			self->begin_async_frame();
 			self->m_world_materialization_ok = true;
 			if (self->m_scene.valid()) self->materialize_world_layers();
-			self->m_game.render(*self);
+			if (self->m_scene_depth > 0u) {
+				SceneSlot& slot = self->m_scenes[self->m_scene_depth - 1u];
+				slot.render(slot.obj, *self);
+			} else {
+				self->m_game.render(*self);
+			}
 		}
 	};
 
@@ -1136,6 +1224,17 @@ private:
 	bool m_display_bound_from_scene = false;
 	u8 m_fine_scroll_request = 0u;  ///< fine-scroll pedido por el juego (aplica en VBlank)
 	bool m_fine_scroll_pending = false;
+
+	/// Ranura de la pila de escenas: puntero al objeto + thunks (sin vtable ni heap).
+	struct SceneSlot {
+		void* obj = nullptr;
+		void (*enter)(void*, App&) = nullptr;
+		void (*exit)(void*, App&) = nullptr;
+		void (*update)(void*, App&) = nullptr;
+		void (*render)(void*, App&) = nullptr;
+	};
+	SceneSlot m_scenes[kMaxScenes] {};
+	u16 m_scene_depth = 0u;
 };
 
 } // namespace eng

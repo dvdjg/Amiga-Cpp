@@ -15,6 +15,7 @@ Categoría `ui` de la batería host (L1). El índice de categorías está en [..
 | HOST-229 | [ui_windows](229_ui_windows/README.md) | GUI G6: ventanas (`Window`/`Popup`/`Toast`/`Dialog`), Z/`raise`, modalidad, `Esc`, TTL y popup que cierra al pulsar fuera. |
 | HOST-230 | [ui_compositor](230_ui_compositor/README.md) | GUI G7: compositor con `WindowBacking` (componer de atrás hacia delante, mover/redimensionar sin repintar vecinas, pool con cota). |
 | HOST-234 | [app_screen](234_app_screen/README.md) | Fachada de juego `eng::App` + `eng::Screen` (`eng/api/game.hpp`): bucle + contexto de dibujo sin exponer backend/`FramePlan`. |
+| HOST-240 | [app_scenes](240_app_scenes/README.md) | Pila de escenas de la fachada (`App::push_scene/pop_scene/set_scene`): dispatch `update`/`render`, `enter`/`exit`, hooks opcionales (`requires`) y capacidad fija sin heap. |
 | HOST-261 | [ui_msg_input](261_ui_msg_input/README.md) | GUI: entrada por **mensajes** (`os::Msg` → `ui_bridge` → `UiContext`) con `keymap` rawkey Amiga → tecla lógica. |
 | HOST-262 | [ui_slider](262_ui_slider/README.md) | GUI: `Slider` (click/arrastre → valor, flechas con foco, pista + pomo). |
 | HOST-263 | [ui_keymap_layouts](263_ui_keymap_layouts/README.md) | GUI: keymaps nacionales (ES/FR/IT/DE/RU) — `rawkey_to_key(raw, shift, layout)`. |

@@ -28,9 +28,11 @@ namespace {
 constexpr eng::u16 kWidth = 320u;
 constexpr eng::u16 kHeight = 256u;
 constexpr eng::u16 kBoxPx = 32u;
+/// La escena de título cede el control tras este nº de frames (3 s a 50 fps) o al pulsar fuego.
+constexpr eng::u32 kTitleFrames = 150u;
 
-/// **El juego**: describe *qué* quiere (dibujar, mover, animar); el engine decide *cómo*.
-struct TemplateGame {
+/// **Escena de juego**: describe *qué* quiere (dibujar, mover, animar); el engine decide *cómo*.
+struct PlayScene {
 	eng::s16 m_x = 144;
 	eng::s16 m_y = 112;
 	// Animación de juego (sin assets): 4 frames a 6 frames de juego cada uno.
@@ -39,13 +41,8 @@ struct TemplateGame {
 	eng::graphics::Anim m_anim {eng::Span<const eng::u8> {kFrames, 4u},
 				    eng::Span<const eng::u8> {kDurations, 4u}};
 
-	void init(auto& app) {
-		eng::debug::mark_init_started(g_eng_run_status);
-		(void)app;
-	}
-
 	void update(auto& app) {
-		// Entrada: el juego lee el estado del pad; no sondea hardware. Paso 16 = alineado a palabra
+		// Entrada: la escena lee el estado del pad; no sondea hardware. Paso 16 = alineado a palabra
 		// (el relleno `fill_box` es exacto y sin recorte de borde con x/w múltiplos de 16).
 		auto& in = app.input();
 		if (in.pad0.left) m_x -= 16;
@@ -60,16 +57,52 @@ struct TemplateGame {
 		auto s = app.screen();
 		// Todo por el **plan del frame** (Blitter), en orden. `fill_box` es el relleno de color
 		// **diferido** (D = A con A constante; sin tocar el rasterizador inmediato).
-		s.fill_box(eng::Box {0, 0, kWidth, kHeight}, 1u);      // fondo azul
+		s.fill_box(eng::Box {0, 0, kWidth, kHeight}, 1u);    // fondo azul
 		s.fill_box(eng::Box {m_x, m_y, kBoxPx, kBoxPx}, 3u); // objeto rojo que se mueve con el pad
 		app.present();
 		eng::debug::mark_ready(g_eng_run_status, 0u);
 		eng::debug::probe_when_ready(g_eng_run_status, app.frame());
 	}
 };
+constexpr eng::u8 PlayScene::kFrames[];
+constexpr eng::u8 PlayScene::kDurations[];
 
-constexpr eng::u8 TemplateGame::kFrames[];
-constexpr eng::u8 TemplateGame::kDurations[];
+/// **Escena de título**: espera fuego (o un tiempo) y cede a la de juego con `set_scene` (§6).
+struct TitleScene {
+	PlayScene* play = nullptr;
+	eng::u32 m_frames = 0u;
+
+	void update(auto& app) {
+		if (++m_frames >= kTitleFrames || app.input().pad0.fire) {
+			app.set_scene(*play); // vacía la pila (exit) y empuja la escena de juego (enter)
+		}
+		eng::debug::mark_frame(g_eng_run_status, app.frame());
+	}
+
+	void render(auto& app) {
+		auto s = app.screen();
+		s.fill_box(eng::Box {0, 0, kWidth, kHeight}, 1u); // fondo azul
+		s.fill_box(eng::Box {48, 112, 224u, 32u}, 4u);    // "logo" verde (sin fuente en esta ruta)
+		app.present();
+		eng::debug::mark_ready(g_eng_run_status, 0u);
+		eng::debug::probe_when_ready(g_eng_run_status, app.frame());
+	}
+};
+
+/// **El juego**: *composition root*. Empuja la escena de título; las escenas conducen el bucle.
+struct TemplateGame {
+	PlayScene m_play {};
+	TitleScene m_title {};
+
+	void init(auto& app) {
+		eng::debug::mark_init_started(g_eng_run_status);
+		m_title.play = &m_play;
+		app.push_scene(m_title);
+	}
+
+	void update(auto&) {} // no se llama mientras haya escena activa
+	void render(auto&) {}
+};
 
 } // namespace
 
