@@ -38,5 +38,13 @@ bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/128_strip_scroller
 
 Medido: **49,92 fps** (1,002 campos/frame) en release. Validado con el modelo de visión local
 (`node tools/analyze/ollama-desc.mjs ... `, sobre una **secuencia**, no una captura): movimiento
-horizontal **suave, uniforme y continuo, sin saltos de 16 px ni huecos**. El `frame-diff`
-(`tools/vision-review/frame-diff.mjs`) confirma cambio entre frames.
+horizontal **suave, uniforme y continuo, sin saltos de 16 px ni huecos**.
+
+Chequeo automático de movimiento (determinista):
+
+```bash
+bash tools/vision-review/check-motion.sh demos/techniques/amiga/playfield/128_strip_scroller
+```
+
+Captura una secuencia y `motion-check.py` comprueba: no congelado, dirección correcta y sin saltos
+enormes (así se caza el fallo de `BPLCON1` invertido).
