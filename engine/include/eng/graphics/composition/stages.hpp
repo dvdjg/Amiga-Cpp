@@ -32,6 +32,9 @@ namespace eng::graphics::composition {
 /// SceneResources db = planar(320, 256, 4);
 /// db.buffers = 2;                    // o 3
 /// ```
+/// \param width,height  geometría visible (px).
+/// \param planes        profundidad (`0` = copper chunky, sin bitplanes).
+/// \return los `SceneResources` base (buffers/layout/copper a ajustar por el llamador).
 [[nodiscard]] constexpr SceneResources planar(u16 width = 320, u16 height = 256,
 					      u8 planes = 4) {
 	SceneResources r {};
@@ -162,6 +165,10 @@ inline constexpr u16 kBplcon0_Ham6 = 0x7a00;         ///< HAM6 (6 planos, COLOR,
 }
 
 /// Etapa de **paleta**: carga `count` colores desde `first`.
+/// \param colors  palabras COLOR.
+/// \param first   primer índice (def. 0).
+/// \param count   nº de colores (def. 32).
+/// \return una etapa `compose` que emite la paleta.
 [[nodiscard]] inline auto palette(eng::PaletteWords colors, u8 first = 0, u8 count = 32) {
 	return [=](Scene& sc) { sc.scheduler().emit_palette(colors, first, count); };
 }
@@ -396,6 +403,10 @@ struct PatchZone {
 /// líneas; en las `repeat-1` primeras `BPL1MOD/BPL2MOD = -row_bytes` (misma fila) y en la
 /// última `0` (avanza). `bplcon1_shift` alterna `BPLCON1` en líneas impares (dither).
 /// Huella en palabras: `row_repeat_words(rows, repeat, first_line)`.
+/// \param repeat         veces que se repite cada fila lógica (≥1).
+/// \param first_line     primera línea raster del efecto.
+/// \param bplcon1_shift  (opcional) `BPLCON1` a fijar por fila.
+/// \return una etapa `compose` que repite filas por Copper (ahorra fill por frame).
 [[nodiscard]] inline auto row_repeat(u8 repeat, u16 first_line, u16 bplcon1_shift = 0u) {
 	return [=](Scene& sc) {
 		const u16 r = repeat == 0u ? 1u : repeat;

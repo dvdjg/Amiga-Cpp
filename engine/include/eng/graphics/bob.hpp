@@ -115,6 +115,13 @@ using BobTarget = BitmapView<PlaneTag, eng::MemoryKind::Chip>;
 /// Construye la geometría de destino a partir de la memoria **Chip** de la zona y su geometría.
 /// `plane_bytes` (separación entre planos) se **deriva** de `layout`/`row_bytes`/`height` en la
 /// propia vista (`plane_pointer_step`), así que no se pasa.
+/// \param planes       memoria Chip del plano 0 (base).
+/// \param row_bytes    bytes por fila de un plano.
+/// \param height       alto en filas.
+/// \param plane_count  nº de planos.
+/// \param layout       `Interleaved` o `Planar` (contiguo).
+/// \param plane_step   separación entre planos (`0` = derivada del layout).
+/// \return la geometría de destino (`BobTarget`) lista para `bob_draw`/`Sprite::draw`.
 [[nodiscard]] inline BobTarget make_bob_target(eng::MemView<PlaneTag, eng::MemoryKind::Chip> planes,
 					       eng::u16 row_bytes, eng::u16 height,
 					       eng::u8 plane_count,
@@ -282,6 +289,11 @@ inline bool bob_restore_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x
 
 /// Borra la caja del objeto en `(x,y)` (`BobErase::ClearRect`; con otro algoritmo no
 /// hace nada).
+/// \param plan  plan del frame (recibe el blit de borrado).
+/// \param bob   objeto (usa `width`/`height`).
+/// \param x,y   posición del ancla (píxeles).
+/// \param t     geometría de destino.
+/// \return `false` si el blit no cupo; `true` si no había nada que borrar.
 inline bool bob_erase(FramePlan& plan, const Bob& bob, s16 x, s16 y, const BobTarget& t) {
 	if (bob.erase != BobErase::ClearRect) {
 		return true;
@@ -342,6 +354,13 @@ inline bool bob_draw_interleaved_pair(FramePlan& plan, const Bob& bob, u8 frame,
 /// Camino caliente (un BOB por objeto y frame): `always_inline` para que el contrato
 /// de la hoja y la aritmetica de modulos queden dentro del bucle del llamador, sin
 /// `jsr` por objeto. Medido en la 117 (bobs3d): `draw` ~2.660 ciclos/BOB sin inline.
+/// \param plan   plan del frame (recibe el/los blit(s)).
+/// \param bob    objeto (hoja, máscara, layout, modo de dibujo).
+/// \param frame  índice de frame dentro de la hoja.
+/// \param x,y    posición del ancla (píxeles; el `offset` del `Bob` se aplica).
+/// \param t      geometría de destino (planos Chip, `row_bytes`, planos, layout).
+/// \return `false` si el `bob`/`t` no son válidos, el frame está fuera de rango o el
+///         cookie-cut interleaved no lo cubre el ejecutor.
 __attribute__((always_inline)) inline bool bob_draw(FramePlan& plan, const Bob& bob, u8 frame, s16 x, s16 y, const BobTarget& t) {
 	using namespace bob_detail;
 	if (!valid(bob, t) || frame >= bob.frame_count) {

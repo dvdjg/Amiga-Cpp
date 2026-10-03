@@ -119,6 +119,10 @@ public:
 	/// El motivo del rechazo queda en `config_error()`. Devuelve `false` si no es válida o no
 	/// hay memoria. El perfil es **obligatorio**: no existe una vía que acepte configuraciones
 	/// que el hardware no permite.
+	/// \param memory  gestor de memoria (Chip para bitplanes + copperlist).
+	/// \param res     recursos de escena (geometría, planos, buffers, layout).
+	/// \param limits  perfil de display (`ocs_a500`/`ecs`/`aga_a1200`).
+	/// \return `false` si `res` no es válida o no cabe; el motivo queda en `config_error()`.
 	bool init(MemoryManager& memory, const SceneResources& res, const DisplayLimits& limits) {
 		release();
 		const ConfigError e = validate(res, limits);
@@ -152,6 +156,8 @@ public:
 	/// desplazamiento respecto al `main.c` (`*scroll = sin`), así que un scroll senoidal se movía
 	/// en dirección contraria al original. El valor de `BPLCON1` es un *retardo* (nibble PF1 y PF2
 	/// iguales); el original lo escribe sin compensación.
+	/// \param fine  delay de `BPLCON1` (0..15), escrito en los dos nibbles (PF1 y PF2).
+	/// \return `false` si la escena no tiene el `BPLCON1` parcheable.
 	[[nodiscard]] bool set_fine_scroll(u8 fine) noexcept {
 		if (!m_fine_scroll_patch.valid()) {
 			return false;
