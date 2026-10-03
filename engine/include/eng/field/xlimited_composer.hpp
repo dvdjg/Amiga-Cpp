@@ -345,7 +345,41 @@ public:
             m_copper_initialized = true;
             return true;
         }
+        // Camino caliente: parchear SOLO los punteros (sin re-emitir la lista). Si el
+        // conjunto de punteros cambió (split por campo), re-emitir una vez. Ver `patch`.
+        if (patch(pf1, pf2)) return true;
         if (!emit_full(pf1, pf2)) return false;
+        m_copper.flip();
+        return true;
+    }
+
+    /// **Camino caliente**: parchea SOLO los punteros BPLxPT en el bloque inactivo y lo publica,
+    /// sin re-emitir la lista (re-emitir costaba ~63K ciclos/frame; parchear ~2-3K). Devuelve
+    /// `false` si el conjunto de punteros cambió (split por campo distinto al emitido), en cuyo
+    /// caso el llamador debe re-emitir. Los handles los dio `move_at` al emitir, así que no
+    /// dependen de offsets cableados.
+    bool patch(const PlayfieldHardwareView& pf1, const PlayfieldHardwareView& pf2) {
+        if (!m_ok) return false;
+        if (pf1.split_active != m_split_a || pf2.split_active != m_split_b) return false;
+        u16* const w = m_copper.inactive_words();
+        for (u8 i = 0; i < m_cfg.planes_per_field; ++i) {
+            const uintptr a1 = field_plane_address(pf1, i, pf1.planeaddy).value;
+            const uintptr a2 = field_plane_address(pf2, i, pf2.planeaddy).value;
+            w[m_patch_pf1[i][0] + 1u] = static_cast<u16>(a1 >> 16);
+            w[m_patch_pf1[i][1] + 1u] = static_cast<u16>(a1 & 0xffffu);
+            w[m_patch_pf2[i][0] + 1u] = static_cast<u16>(a2 >> 16);
+            w[m_patch_pf2[i][1] + 1u] = static_cast<u16>(a2 & 0xffffu);
+            if (pf1.split_active) {
+                const uintptr s1 = field_plane_address(pf1, i, pf1.split_planeaddy).value;
+                w[m_patch_split_pf1[i][0] + 1u] = static_cast<u16>(s1 >> 16);
+                w[m_patch_split_pf1[i][1] + 1u] = static_cast<u16>(s1 & 0xffffu);
+            }
+            if (pf2.split_active) {
+                const uintptr s2 = field_plane_address(pf2, i, pf2.split_planeaddy).value;
+                w[m_patch_split_pf2[i][0] + 1u] = static_cast<u16>(s2 >> 16);
+                w[m_patch_split_pf2[i][1] + 1u] = static_cast<u16>(s2 & 0xffffu);
+            }
+        }
         m_copper.flip();
         return true;
     }
@@ -437,9 +471,15 @@ private:
         for (u8 i = 0; i < m_cfg.planes_per_field; ++i) {
             const u8 hw1 = hardware_plane(i, true);
             const u8 hw2 = hardware_plane(i, false);
-            sched.move_bitplane_pointer(hw1, field_plane_address(pf1, i, pf1.planeaddy));
-            sched.move_bitplane_pointer(hw2, field_plane_address(pf2, i, pf2.planeaddy));
+            const uintptr a1 = field_plane_address(pf1, i, pf1.planeaddy).value;
+            const uintptr a2 = field_plane_address(pf2, i, pf2.planeaddy).value;
+            m_patch_pf1[i][0] = sched.move_at(copper::bitplane_pointer_high_register(hw1), static_cast<u16>(a1 >> 16));
+            m_patch_pf1[i][1] = sched.move_at(copper::bitplane_pointer_low_register(hw1), static_cast<u16>(a1 & 0xffffu));
+            m_patch_pf2[i][0] = sched.move_at(copper::bitplane_pointer_high_register(hw2), static_cast<u16>(a2 >> 16));
+            m_patch_pf2[i][1] = sched.move_at(copper::bitplane_pointer_low_register(hw2), static_cast<u16>(a2 & 0xffffu));
         }
+        m_split_a = pf1.split_active;
+        m_split_b = pf2.split_active;
         u16 raster = 0;
         // Raster colors: WAIT en cada linea + MOVE del color (orden ascendente).
         // Se emiten tras los punteros; requieren que el campo NO use split de
@@ -461,12 +501,16 @@ private:
             sched.wait_line(wait);
             for (u8 i = 0; i < m_cfg.planes_per_field; ++i) {
                 if (aS) {
-                    sched.move_bitplane_pointer(hardware_plane(i, true),
-                        field_plane_address(pf1, i, pf1.split_planeaddy));
+                    const uintptr s = field_plane_address(pf1, i, pf1.split_planeaddy).value;
+                    const u8 hw1 = hardware_plane(i, true);
+                    m_patch_split_pf1[i][0] = sched.move_at(copper::bitplane_pointer_high_register(hw1), static_cast<u16>(s >> 16));
+                    m_patch_split_pf1[i][1] = sched.move_at(copper::bitplane_pointer_low_register(hw1), static_cast<u16>(s & 0xffffu));
                 }
                 if (bS) {
-                    sched.move_bitplane_pointer(hardware_plane(i, false),
-                        field_plane_address(pf2, i, pf2.split_planeaddy));
+                    const uintptr s = field_plane_address(pf2, i, pf2.split_planeaddy).value;
+                    const u8 hw2 = hardware_plane(i, false);
+                    m_patch_split_pf2[i][0] = sched.move_at(copper::bitplane_pointer_high_register(hw2), static_cast<u16>(s >> 16));
+                    m_patch_split_pf2[i][1] = sched.move_at(copper::bitplane_pointer_low_register(hw2), static_cast<u16>(s & 0xffffu));
                 }
             }
         }
@@ -486,6 +530,14 @@ private:
     bool m_initialized = false;
     bool m_copper_initialized = false;
     bool m_ok = false;
+    // Handles de parcheo (indice de la word de instruccion del MOVE) de los punteros BPLxPT,
+    // guardados por `emit_full` con `move_at` y reescritos por `patch` sin re-emitir.
+    u16 m_patch_pf1[6][2] {};
+    u16 m_patch_pf2[6][2] {};
+    u16 m_patch_split_pf1[6][2] {};
+    u16 m_patch_split_pf2[6][2] {};
+    bool m_split_a = false;
+    bool m_split_b = false;
 };
 
 } // namespace eng::field
