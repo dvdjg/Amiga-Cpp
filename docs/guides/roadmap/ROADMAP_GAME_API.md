@@ -133,6 +133,13 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
 - **Decisión (geometría del sprite)**: el `desc` (ancho/alto/planos/frames/stride) **viaja en el manifiesto**
    (JSON) y el engine lo guarda al registrar (`Assets::add_sprite`); el código de juego no lo escribe. El formato
    binario de los blobs sigue siendo el del pipeline (UAF-R aparte).
+- **Nota (carga desde disco, compresión ZX0 y librerías dinámicas)**: la carga de assets **en runtime** desde el
+   sistema de archivos, la **descompresión ZX0** y la **carga/descarga de librerías dinámicas de Amiga**
+   (código/datos en Chip/Fast/Slow) son un frente propio, ya definido en
+   [`FILE_SYSTEM_AND_DYNAMIC_LIBRARIES.md`](../../engine/architecture/FILE_SYSTEM_AND_DYNAMIC_LIBRARIES.md) y
+   planificado como **R6** de [`ROADMAP_RESOURCES.md`](ROADMAP_RESOURCES.md) (R6.1 VFS, R6.4 `.engz`, R6.5 ZX0
+   genérico, R6.3 banco por segmento, R6.6 DynLoader). Este §4 cubre el borde **en tiempo de compilación**
+   (manifiesto + `INCBIN`); R6 cubre el camino **en runtime**.
 
 ## 5. Actores, animación y colisión (2D)
 
@@ -196,6 +203,32 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
    acotados). ⏳ falta el **planner** que elija el motor **solo** (sin que el juego nombre
    `Strip`/`Xlimited`) y una **cámara toroidal** (la `Camera2D` recorta a un mundo acotado); y que el
    **pipeline** (§4) genere el banco ya empaquetado + el mapa como asset tipado (`app.assets().tilemap("n")`).
+
+### Plan del planner de capas de mundo (F4)
+
+El `App` ya materializa las capas **Fill** y **Bitmap** del `World` antes del `render` del juego
+(`materialize_world_layers`) y conduce las capas de scroll registradas (`pump_scroll_layers`); lo que
+falta es materializar una capa **Tilemap**. El planner cierra ese hueco, y tiene **tres decisiones**
+hoy no cerradas (por eso el juego aún nombra el motor):
+
+1. **Selección de motor vs geometría compile-time.** `StripScrollLayer`/`XlimitedScene` fijan su
+   geometría en **tiempo de compilación** (viewport/tiles/anillo), así que el `App` no puede elegirlos
+   con datos de runtime sin (a) un conjunto **canónico** de geometrías de juego, o (b) llevar la
+   geometría a runtime. Vía barata: (a) — una geometría canónica para el camino de juego, dejando el
+   resto a `eng/field` en las demos de técnica.
+2. **Modelo de cámara por tipo de mapa.** `scene::Camera2D` **recorta** a un mundo acotado (mapa
+   finito); un mapa **toroidal** necesita una posición px **sin recortar**. La fachada ya admite ambas
+   (`follow_camera` vs `track_camera`), pero falta que el planner **elija** la representación desde
+   `ScrollSpec` (`map_period_words == 0` ⇒ acotado; `!= 0` ⇒ toroidal).
+3. **Ranura de la capa en el `App`.** El asa *type-erased* (`ScrollLayerHandle`) ya abstrae el motor;
+   falta que el `App` **posea** el motor (hoy lo declara el juego) y le pase la cámara de la capa
+   `World` automáticamente.
+
+**Pasos verificables** (cada uno con su gate): (a) ✅ `follow_camera`/`track_camera` (seam §7); (b)
+`ScrollSpec::map_period_words` conduce la elección acotado/toroidal; (c) `XlimitedScene` gana `handle()`
+y seguimiento de cámara (unifica el asa con el camino de tiras); (d) `App::add_tilemap_layer` construye
+el motor canónico desde `TilemapView` + `ScrollSpec` y lo conduce por la cámara de la capa; (e) demo
+`App` con una capa `World` Tilemap **sin nombrar** `Strip`/`Xlimited` (gate F4).
 
 ## 8. Unificar el vocabulario
 
