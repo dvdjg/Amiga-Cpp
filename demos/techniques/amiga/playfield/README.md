@@ -38,3 +38,12 @@ bash ./tools/analyze/analyze-demo.sh demos/techniques/amiga/playfield/<NNN>_<tem
 ```
 
 El número `NNN` es único **dentro de este ámbito** (`demos/techniques/amiga/playfield`).
+
+## Referencia de scroll (50 fps)
+
+Para scroll por tiles a **50 fps con CPU baja**, la referencia es
+[`128_strip_scroller`](128_strip_scroller/README.md) (camino **Copper ring + incoming strip**,
+validado con visión/Ollama). El camino **corkscrew** (`107_xlimited_corkscrew`,
+`110_ylimited_shooter`, `111_xlimited_sidescroller`) **no alcanza 50 fps** (14–17 fps; limitado por
+el bus y con la restricción de tiles de 16 px) y se considera **superseded** por la 128; no usar como
+modelo de coste cero.
