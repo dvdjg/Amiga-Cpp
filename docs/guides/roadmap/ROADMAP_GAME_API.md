@@ -277,11 +277,15 @@ Para no caer en un «compilador de escena general» (sin cierre), el plano se se
 5. **Split-screen (2 jugadores, mismo mapa)** → dos capas `Band{top,h}` cada una con su motor y su
    cámara (XUnlimited/YUnlimited por campo); estrategia `Bands`.
 
-**Etapas** (cada una verificable): (1) vocabulario `LayerPlan`/`ScenePlan` + elección de estrategia
-(puro, host-testable); (2) estrategia `Dpf` sobre `XlimitedDualConfig`; (3) `Bands` (split-screen);
-(4) split-aware (riesgo 2); (5) ✅ `Parallax`/blit por plano (riesgo 4): `playfield::robocod_bg_frame`
-reúne la copia de fondo (ventana + split + blanking + `bg_flip`) y la **112** lo usa (fondo coherente,
-READY).
+**Etapas** (cada una verificable): (1) ✅ vocabulario `LayerPlan`/`ScenePlan` + elección de estrategia
+(HOST-405); (2) ✅ estrategia `Dpf` (`apply_dpf_plan`; HOST-406, demos 203/202/112 migradas); (3) ✅
+`Bands` (split-screen): `plan_raster_layout` deriva el `RasterLayout` del plan + `plan_bands` valida
+los tramos (HOST-411/407; **129** compone la multi-ventana y enruta objetos con `emit_banded`);
+(4) ✅ split-aware (riesgo 2): `for_each_band_part`/`clip_to_band` (HOST-408; **129**); (5) ✅
+`Parallax`/blit por plano (riesgo 4): `playfield::robocod_bg_frame` reúne la copia de fondo (ventana +
+split + blanking + `bg_flip`) y la **112** lo usa (fondo coherente, READY). **Convergencia
+planner↔`RasterLayout`**: `plan_raster_layout` (HOST-411) hace reutilizable el mismo vocabulario en
+el camino de bajo nivel (127/129).
 
 ## 8. Unificar el vocabulario
 

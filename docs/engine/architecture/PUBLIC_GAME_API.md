@@ -179,6 +179,33 @@ m_cam_x += vx;  m_cam_y += vy;             // el vocabulario de juego
 
 Un mapa **acotado** usa `follow_camera(layer->camera())` (`scene::Camera2D` recorta a sus límites); un mapa **toroidal** usa `track_camera` con una posición `s32` sin recortar (el motor envuelve). Elegir la representación de cámara por tipo de mapa es la línea que cierra el **planner de cámara/tilemap** (`ROADMAP_GAME_API.md` §7); hasta entonces el juego elige el motor y declara su cámara con el tipo que le corresponde. Gates: `204_app_strip_scroll` (App + capa de tiras, validada con Ollama) y `205_xy_limited_scroll` (corcóscru).
 
+#### Planner de escena: vocabulario + estrategias (`eng/scene/plan.hpp`)
+
+Para **componer la pantalla** sin bajar al metal, el juego declara una **escena** como lista de capas
+y el planner la resuelve. Vocabulario (en `eng/scene/`, reexportable por la fachada):
+
+- **`scene::ScenePlan`** (→ **`LayerPlan`**): cada capa declara su **`LayerRole`**
+  (`Background`/`Foreground`/`Overlay`), su **`LayerPlacement`** (`top`/`height`/`field`) y su
+  **`LayerContent`** (`Scroll` = campo con `ScrollPlan`, o `Canvas` = lienzo estático), más su
+  **`playfield::ScrollPlan`** (geometría + política + contenido + `Parallax`).
+- **`scene::choose_strategy`** elige la **estrategia acotada**: `Single` (un campo), `Dpf` (dos campos,
+  PF1 delante + PF2 detrás) o `Bands` (bandas apiladas = split-screen); lo que no encaja es
+  `Unsupported` (**escape** a `eng::field`).
+
+**Estrategias implementadas y reutilizables:**
+
+| Helper | Qué hace | Camino |
+|---|---|---|
+| `apply_dpf_plan(cfg, plan)` | siembra geometría/paleta + roles del DPF en una `XlimitedSceneConfig` | escena (`XlimitedScene`) |
+| `plan_raster_layout(plan, views, out)` | deriva un `scene::RasterLayout` (Single/Dpf/Bands) del plan | **bajo nivel** (`RasterLayout`) |
+| `plan_bands(layers, rows, out)` | valida el layout de bandas y da los tramos `{top,height,rol}` | split-screen |
+| `BobLayer::emit_banded` / `fast` / `for_each_band_part` | enruta objetos/dibujos a su **banda** | objeto |
+
+Así el **mismo vocabulario** sirve al camino de escena (`XlimitedScene`, demos 203/112) y al de
+**bajo nivel** (`RasterLayout`, demos 127/129/202). Gates: **HOST-405..408/411** + demos 127/129/202
+(migradas; imagen validada). Pendiente (`ROADMAP_GAME_API.md` §7): el planner que **deduzca y posea**
+el motor/la composición desde `ScrollSpec` (hoy el juego declara el motor), y la cámara toroidal.
+
 ### 2.1.4 Recursos — `app.load<T>(...)` y presupuesto
 
 El `load<T>` de este contrato es **objetivo, no API implementada**: declara, carga y cachea un asset
