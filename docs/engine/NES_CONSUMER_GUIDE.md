@@ -92,9 +92,12 @@ Planos y color: 4 planos = **16 colores**. La NES usa subpaletas; modela el PPU 
 `eng::effects::CopperChunky` (display copper **sin** bitplanes) existe, pero a 256×240 es carísimo
 (un MOVE de Copper por píxel): úsalo solo para **HUD/franjas** pequeñas.
 
-> ⏳ **Pendiente**: un helper de la fachada «dame un framebuffer indexado y publícalo» (hoy el
-> emulador baja a `Scene`/`C2P`/`Device`, nivel B). El camino está probado por 061/080; falta
-> envolverlo en el nivel A.
+> ✅ **Nivel A**: `eng::IndexedDisplay<Planes,Buffers>` (`eng/api/framebuffer.hpp`) — `framebuffer()`
+> devuelve el chunky, `present()` hace C2P + swap; 4 planos verificado (demo `061_indexed_display`,
+> con `row_repeat` para el fill). **Pero ⚠️ para la NES esto NO es el camino**: el PPU es un motor de
+> **tiles+sprites** → emúlalo a ese nivel (§6); el framebuffer por píxel es solo para efectos o como
+> *fallback*. (El display de 5/6 planos del `IndexedDisplay` aún tiene un bug abierto; el C2P genérico
+> es lento — el rápido es el asm de Kalms.)
 
 ### 1.3 Cargar la ROM y datos de disco
 
@@ -281,7 +284,7 @@ Herramienta completa: `docs/debugging/system/debug-winuae-v2-guide.md` (léela).
 |---|---|---|
 | Memoria Chip/Slow/Fast + bloques tipados | ✅ | `MemoryManager`, `hw::HwInfo`, `BlockPool` |
 | Cargar ROM/datos (VFS, síncrono y asíncrono) | ✅ | `os/vfs.hpp`, `res::load_file`, `AsyncRead`/`AsyncOverlay` |
-| Framebuffer del PPU → pantalla | ✅ **nivel B** | `c2p_1x1_4`/`C2p4` + `Scene` (demos 061/080); ⏳ falta el helper de nivel A |
+| Pantalla de efecto por píxel (*no* la base de la NES, §6) | ✅ | `eng::IndexedDisplay` (nivel A) sobre `c2p_1x1_4` + `Scene`; 4 planos verificado (061/080); 5/6 planos con bug de display; C2P genérico lento → usa asm de Kalms |
 | VBlank/frame sync + mini-OS | ✅ | `App::run` (`init/update/render` por frame), `os::tick`, `pump()` |
 | Entrada (mando) | ✅ | `app.input().pad0` |
 | Audio (SFX + tono por canal o módulo) | ✅ | `AudioSystem`, `AudioMixer::play(SampleEvent)` |
@@ -296,17 +299,52 @@ Herramienta completa: `docs/debugging/system/debug-winuae-v2-guide.md` (léela).
 
 ---
 
-## 6. Orden de ataque sugerido (MVP → completo)
+## 6. La vía **correcta** para la NES: emular a nivel de **tile/sprite** (no de píxel)
+
+**La NES no accede al framebuffer a nivel de píxel.** Su PPU es un **motor de tiles** (nametable +
+pattern tables + atributos) + un **motor de sprites** (OAM). Por tanto, el emulador **no** debe producir
+un framebuffer de píxeles y convertirlo (C2P): debe **mapear el PPU sobre los motores del engine**, que
+son de ese mismo nivel.
+
+| PPU NES | Motor del engine | Estado |
+|---|---|---|
+| nametable `32×30` + atributos `16×16`, scroll 8-way (wrap) | **capa de tiles**: `tilemap::TileMap16`/`TileEditor`/`AttributeTable` + driver **8-way** (corkscrew `XlimitedScene`, `ScrollKind::CopperSplit`) | ✅ |
+| pattern tables (CHR) + subpaletas | `res::decode_2bpp_planar` + tileset + `Palette32` | ✅ |
+| OAM (64 sprites, 8/línea, flip, prioridad) | **`eng::SpriteScene`** → `compose_sprites` (HW sprites + BOB fallback) | ✅ |
+| scroll a mitad de frame (status bar) | `Band` / split de Copper (`RasterLayout`/`present_layout`) | ✅ |
+
+**Por qué NO el C2P / framebuffer de píxeles (para la NES):**
+
+- El C2P es para **efectos por píxel** (rotozoom/fuego/raycasting, demos 061/080) o como **fallback** de
+  un juego que no mapea a tiles. La NES **sí** mapea: su BG **es** un tilemap con scroll y sus objetos
+  **son** sprites. Emular al nivel del PPU (nametable/OAM) es **más fiel y muchísimo más barato**: mueves
+  la cámara y dibujas las **celdas sucias** que entran por los bordes, en vez de recorrer 61 440
+  píxeles/frame.
+- El C2P es **caro y sensible a la optimización**. El de **4 bpp** es un **port fiel del asm de Kalms**
+  (`support/c2p_1x1_4.s`, el rápido) y por eso aguanta; el genérico de 5/6 planos (`c2p_1x1_naive`) es
+  `O(planes·w·h)` y **g++ (m68k, `-O1`/`-O2`) no iguala un merge hecho a mano**. Si algún juego necesita
+  de verdad el camino por píxel, hay que **usar los asm optimizados de Kalms** (`c2p_1x1_5/6`), no
+  reescribirlos en C++. Regla práctica: **el píxel se paga caro; el tile, no.**
+- El motor de **tiles 8-way** ya usa 4-6 planos **eficientemente** (demos 107/201/203): ahí no pagas por
+  píxel.
+
+**Consecuencia para el plan (MVP):** el BG va por `TileEditor`+nametable (scroll 8-way) y los objetos
+por `SpriteScene`. El `IndexedDisplay`/C2P queda para **pantallas de efecto** o juegos con rasterizado
+exótico (o para el *fallback* de un juego que no mapee). Con esa premisa, el camino de tiles/sprites
+conduce el port; el framebuffer por píxel es un extra.
+
+## 7. Orden de ataque sugerido (MVP → completo)
 
 1. **Esqueleto + memoria**: `App` + `configure_memory` con Fast; carga de ROM por el VFS (antes de
    `start`); pantalla de diagnóstico con `Screen`/`debug`.
-2. **PPU → framebuffer**: escribe el chunky de índices (bucle 6502/PPU) + `c2p_1x1_4` + doble buffer
-   + swap en VBlank (copia el patrón de **061**). Valida con captura + Ollama.
-3. **6502 + mappers**: en `update`; mide ciclos con checkpoints del periférico; aprieta el hot loop
-   (C++ `-O2` → asm 68000 si hace falta).
-4. **Entrada + APU** (SFX offline primero; tono por canal después).
-5. **BG con scroll 8-way y OAM**: cuando F7.3/F7.7 estén; hasta entonces, redibuja el BG por software
-   (C2P) o usa `XLimited` (eje X).
+2. **6502 + PPU a nivel de tile/sprite** (§6): el PPU **no** rasteriza píxeles; traduce nametable +
+   atributos a **celdas** de la capa de tiles (scroll 8-way) y OAM a **`SpriteScene`**. Mide ciclos por
+   frame con los checkpoints del periférico; aprieta el hot loop (C++ `-O2` → asm 68000 si hace falta).
+3. **BG con scroll 8-way y OAM** end-to-end (§6): corkscrew/`XLimited` + `SpriteScene`; valida con
+   captura + Ollama (secuencia, no una sola imagen).
+4. **Entrada + APU** (SFX offline primero; tono por canal después, `AudioMixer::play(SampleEvent)`).
+5. **Caminos por píxel** (solo si un juego concreto lo exige): `IndexedDisplay`/C2P, con **asm
+   optimizado** de Kalms — nunca C++ a mano. Es el *fallback*, no la base.
 
 Cualquier capacidad que creas necesaria y no encuentres: **no la simules bajando a registros**; pídela
 como **helper general** en el engine (es la frontera acordada).
