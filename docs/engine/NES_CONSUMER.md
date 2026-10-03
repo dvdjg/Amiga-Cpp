@@ -142,6 +142,33 @@ consumidor **describe**; el engine **materializa**; si una capacidad no está, h
 explícita (nunca fallo silencioso). Ver [GAME_API_TWO_LEVELS.md](architecture/GAME_API_TWO_LEVELS.md)
 y [ENGINE_2D_ABSTRACCIONES.md](architecture/ENGINE_2D_ABSTRACCIONES.md).
 
+### 8.0 Modelo rector: **inferir intenciones**, no rasterizar
+
+El objetivo es que el juego se comporte **como en la máquina original**. La NES **no** dibuja píxeles:
+escribe *estado del PPU* (nametable+atributos, OAM, paleta, scroll) por registros. Por tanto el port
+**no debe producir un framebuffer de píxeles ni convertirlo (C2P)**: debe **inferir la intención** de
+cada escritura del PPU y **traducirla a los motores del engine** (que ya son de ese nivel).
+
+- **C2P/`IndexedDisplay` NO es el camino del port**: es solo *fallback* para efectos o juegos que no
+  mapeen a tiles, y aun así con el **asm de Kalms**. La NES **sí** mapea: su BG **es** un tilemap y sus
+  objetos **son** sprites.
+- **Regla**: el port mantiene el **estado observable del PPU** (lo que el juego escribe) y, por frame,
+  emite **intenciones** al engine: `scroll_to`, celdas sucias (`set_tile`/`set_attr`), sprites (OAM),
+  paleta. El engine decide el *cómo* (Copper/Blitter/HW sprites) y **posee los recursos**.
+
+| Escritura del PPU (lo que hace el juego) | Intención inferida (nivel A) |
+|---|---|
+| `$2006/$2007` → nametable (celda) | `Layer.set_tile(cx, cy, TileId)` |
+| `$2006/$2007` → attribute table (bloque 16×16) | `Layer.set_palette_index(cx, cy, sub)` |
+| `$2005` (scroll) / cambio a mitad de frame | `Layer.scroll_to(x, y)` / banda (split) |
+| `$2003/$2004` y `$4014` (OAM) | `SpriteScene` (actores OAM: tile/flip/prio/paleta) |
+| `$3F00…` (paleta) | `palette.set(index, Color)` |
+| CHR (pattern tables) | decodificar una vez a tileset (`decode_2bpp_planar`) |
+
+Ventaja: mover cámara + repintar **celdas sucias** por los bordes, en vez de recorrer 61 440
+píxeles/frame → **mucho más fiel y mucho más barato**. El port ya **mantiene el estado del PPU** (su
+HAL `$2000-$2007`/`$4014`); inferir intenciones es una **capa fina** sobre ese estado.
+
 ### 8.1 Contrato de frame (VBlank) — **el más crítico**
 
 - **Necesidad NES**: la lógica de frame corre en el **VBlank** (el "NMI"); todo el dibujo del frame
