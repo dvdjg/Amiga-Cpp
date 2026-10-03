@@ -154,6 +154,14 @@ int main() {
 		check(app.scroll_layer_count() == 1u, "la capa queda registrada");
 		app.run(1u);
 		check(scroll.frames >= 1, "App conduce la capa por frame (frame/pump)");
+
+		// Capa con **rol/colocación** (planner §7): el `App` forma el plan de escena → estrategia.
+		MockScroll bg {};
+		check(app.add_scroll_layer(bg, eng::scene::LayerRole::Foreground,
+					   eng::scene::LayerPlacement {}),
+		      "add_scroll_layer con rol");
+		check(app.scene_plan().count() == 1u, "el plan de escena tiene 1 capa");
+		check(app.scene_strategy() == eng::scene::SceneStrategy::Single, "estrategia Single (1 capa)");
 	}
 
 	if (failures == 0) {

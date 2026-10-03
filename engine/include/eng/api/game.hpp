@@ -53,6 +53,7 @@
 #include <eng/res/asset_cache.hpp>
 #include <eng/res/budget.hpp>
 #include <eng/scene/bobs.hpp>
+#include <eng/scene/plan.hpp>
 #include <eng/scene/world.hpp>
 #include <eng/task/background.hpp>
 
@@ -506,6 +507,23 @@ public:
 	}
 	[[nodiscard]] u8 scroll_layer_count() const noexcept { return m_scroll_count; }
 
+	/// **Registra una capa de scroll con su rol y colocación** (planner §7): además de arrancarla y
+	/// conducirla, la **añade al plan de escena** del `App`, del que sale la **estrategia** de
+	/// composición. El **camino manual** (`add_scroll_layer(layer)`, sin rol) sigue disponible.
+	[[nodiscard]] bool add_scroll_layer(eng::playfield::ScrollLayer<Backend>& layer,
+					    eng::scene::LayerRole role,
+					    eng::scene::LayerPlacement placement) noexcept {
+		if (!add_scroll_layer(layer)) return false;
+		(void)m_scene_plan.add(role, placement);
+		return true;
+	}
+	/// **Estrategia de composición** deducida del plan de escena registrado (`Single`/`Dpf`/`Bands`).
+	[[nodiscard]] eng::scene::SceneStrategy scene_strategy() const noexcept {
+		return m_scene_plan.strategy();
+	}
+	/// Plan de escena formado por las capas de scroll registradas con rol.
+	[[nodiscard]] const auto& scene_plan() const noexcept { return m_scene_plan; }
+
 	/// **Planner (actores)**: emite los actores del `world()` al plan del frame con el clip y
 	/// el destino del contexto de dibujo de la escena ligada. Devuelve cuántos se dibujaron.
 	/// Llámalo antes de `present()`. Los actores se dibujan sobre el fondo Fill; las capas de
@@ -817,6 +835,9 @@ private:
 	/// Capas de scroll que conduce el `App` (**observadores no propietarios**: las posee el juego).
 	eng::Ref<eng::playfield::ScrollLayer<Backend>> m_scroll_layers[kMaxScrollLayers] {};
 	u8 m_scroll_count = 0u;
+	/// Plan de escena de las capas registradas **con rol** (planner §7); su estrategia la da
+	/// `scene_strategy()`. El camino manual (sin rol) no lo alimenta.
+	eng::scene::ScenePlan<kMaxScrollLayers> m_scene_plan {};
 	input::InputAggregator m_input {};                  ///< entrada del frame (la lee/rellena el juego)
 	graphics::FramePlan m_plan {};
 	u32 m_frame = 0;

@@ -9,3 +9,7 @@ sim/world_core.hpp
 # ai/planning/goap.hpp (1161): planificador GOAP (de otro hilo de trabajo); pendiente de
 # trocear por tema. Se acepta temporalmente para no bloquear la bateria host.
 ai/planning/goap.hpp
+#
+# api/game.hpp (861): familia `App`; el plan de escena del planner (§7) lo empuja 11 líneas
+# sobre el umbral. Se troceará al consolidar la fachada de escena (D13 / ROADMAP_GAME_API §7).
+api/game.hpp
