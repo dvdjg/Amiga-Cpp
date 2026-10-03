@@ -31,6 +31,13 @@ class CopperChunky {
 public:
 	/// Compone la escena copper-chunky en `scene` (con `memory`/`limits`) y emite la estructura
 	/// de la lista en los dos bloques del `Plan`. `false` si no cabe (geometría o memoria).
+	/// \param scene        escena a componer (modo `CopperChunky`).
+	/// \param memory       gestor de memoria (Chip).
+	/// \param limits       perfil de display (OCS/ECS/AGA).
+	/// \param cfg          geometría del efecto `{.cols, .rows}`.
+	/// \param width,height tamaño de pantalla del efecto.
+	/// \param copper_bytes capacidad reservada de copperlist.
+	/// \return `false` si no cabe.
 	[[nodiscard]] bool init(graphics::composition::Scene& scene, eng::MemoryManager& memory,
 				const graphics::composition::DisplayLimits& limits,
 				graphics::composition::CopperChunkyConfig cfg,
@@ -384,6 +391,8 @@ public:
 	};
 
 	/// Configura la capa. `false` si `plane == nullptr`, `rows == 0` o `visible_words == 0`.
+	/// \param cfg  `{plane (base Chip), rows, visible_words}`.
+	/// \return `true` si la config es válida.
 	[[nodiscard]] bool attach(Config cfg) {
 		if (cfg.plane == nullptr || cfg.rows == 0u || cfg.visible_words == 0u) {
 			return false;

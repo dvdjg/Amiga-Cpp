@@ -59,6 +59,8 @@ enum class StartError : u8 {
 
 /// Recursos de escena (`SceneResources`) derivados de un `GameDisplay`: geometría planar
 /// (`width`×`height`×`color_depth`), número de buffers y layout de planos.
+/// \param d  descripción del display.
+/// \return los `SceneResources` equivalentes (para `composition::compose`).
 [[nodiscard]] inline graphics::composition::SceneResources scene_resources(const GameDisplay& d) noexcept {
 	auto resources = graphics::composition::planar(d.width, d.height, d.color_depth);
 	resources.buffers = d.buffers;
@@ -68,6 +70,8 @@ enum class StartError : u8 {
 
 /// Entrada del presupuesto de bus: la declarada por el juego, o **una franja derivada del
 /// display** si no declaró ninguna, para no aceptar a ciegas un modo que ya satura el bus.
+/// \param d  descripción del display.
+/// \return la entrada del presupuesto de bus (la declarada, o una franja derivada del display).
 [[nodiscard]] inline hw::BusBudgetInput bus_budget_input(const GameDisplay& d) noexcept {
 	hw::BusBudgetInput in = d.bus;
 	if (in.bands_count == 0u) {

@@ -37,15 +37,22 @@ public:
 	/// Fija el **presupuesto de representación** (canales de sprite HW, slots de capa, palabras de
 	/// BOB): cuántos actores caben como sprite hardware antes de degradar a BOB. Llámalo **antes**
 	/// de `add` (el presupuesto se consume al dar de alta cada actor).
+	/// \param b  `{sprite_channels, bob_budget_words, layer_slots}`.
 	void set_budget(const eng::scene::RepresentationBudget& b) noexcept { m_alloc.reset(b); }
 
 	/// **Alta de un actor**. `ActorId{}` (inválido) si el almacén está lleno o la descripción no
 	/// tiene contenido (`visual.pixels`/`w`/`h`).
+	/// \param desc  descripción del actor (visual + posición + prioridad + …).
+	/// \return id del actor, o `ActorId{}` si no se pudo dar de alta.
 	[[nodiscard]] eng::scene::ActorId add(const eng::scene::ActorDesc& desc) noexcept {
 		return m_store.add(desc, m_alloc);
 	}
+	/// \param id  id devuelto por `add`.
+	/// \return `true` si se quitó el actor.
 	[[nodiscard]] bool remove(eng::scene::ActorId id) noexcept { return m_store.remove(id); }
+	/// \return nº de actores vivos.
 	[[nodiscard]] eng::u16 count() const noexcept { return m_store.count(); }
+	/// Vacía el almacén (todos los actores).
 	void clear() noexcept { m_store.reset(); }
 
 	[[nodiscard]] eng::scene::ActorStore<MaxActors>& store() noexcept { return m_store; }
@@ -54,6 +61,10 @@ public:
 	/// **Compone el frame**: añade los BOB degradados (y los actores CPU) al `plan` del frame y deja
 	/// las colocaciones de sprite hardware en `placements()`; si `copper` es válido, recibe las
 	/// intenciones ancladas de los actores. Devuelve el resumen del frame.
+	/// \param plan    plan del frame (recibe los BOB degradados).
+	/// \param ctx     contexto de emisión (targets, cámara, buffer, `display_top`).
+	/// \param copper  plan de Copper opcional para las intenciones ancladas.
+	/// \return resumen: `sprites` (HW), `degraded` (no cupieron), `bobs`, `copper`, `ok`.
 	[[nodiscard]] eng::scene::SpriteComposeResult
 	emit(eng::graphics::FramePlan& plan, const eng::scene::ActorEmitContext& ctx,
 	     eng::Ref<eng::copper::Plan> copper = {}) noexcept {

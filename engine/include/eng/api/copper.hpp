@@ -28,22 +28,30 @@ public:
 	explicit constexpr Copper(copper::Scheduler& sched) noexcept : m_sched(sched) {}
 
 	/// Espera a la línea raster `line` (0..255) antes de los MOVEs siguientes.
+	/// \param line  línea raster de espera (0..255).
 	void wait_line(u16 line) noexcept { m_sched.wait_line(static_cast<u8>(line)); }
 
 	/// Fija `COLOR<index>` (0..31) al color RGB444 `0x0RGB`.
+	/// \param index  índice de color (0..31).
+	/// \param color  color RGB444 (`0x0RGB`).
 	void set_color(u8 index, u16 color) noexcept {
 		m_sched.move(copper::color_register(index), color);
 	}
 
 	/// Emite un tramo de paleta (`first..first+count`).
+	/// \param colors  palabras COLOR.
+	/// \param first   primer índice (def. 0).
+	/// \param count   nº de colores (def. 32).
 	void set_palette(eng::PaletteWords colors, u8 first = 0u, u8 count = 32u) noexcept {
 		m_sched.emit_palette(colors, first, count);
 	}
 
 	/// Scroll fino del playfield 1 (`BPLCON1`): delay de 0..15 en cada nibble.
+	/// \param bplcon1  valor de `BPLCON1` (delay del nibble PF1, replicado al alto).
 	void set_scroll(u16 bplcon1) noexcept { m_sched.move(copper::Register::BPLCON1, bplcon1); }
 
 	/// Palabras de Copper escritas hasta ahora (presupuesto consumido; el libre lo da el `Plan`).
+	/// \return palabras de Copper emitidas.
 	[[nodiscard]] u16 words_used() const noexcept { return m_sched.words_used(); }
 
 private:

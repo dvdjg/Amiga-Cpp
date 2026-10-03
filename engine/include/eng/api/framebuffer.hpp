@@ -60,6 +60,12 @@ public:
 	/// `row_repeat` (`≥1`, divisor de `height`) muestra cada fila lógica `row_repeat` veces por
 	/// Copper: el framebuffer chunky es de `width × (height / row_repeat)` y **cuesta
 	/// `1/row_repeat` el fill por frame** (el truco de las demos 061/080). `1` = sin repetición.
+	/// \param backend     el backend (memoria + display).
+	/// \param width,height  geometría de pantalla (px).
+	/// \param palette     palabras RGB444 de la paleta.
+	/// \param colors      nº de colores a emitir.
+	/// \param row_repeat  veces que se repite cada fila por Copper (divisor de `height`).
+	/// \return `false` si no cabe o la config no es válida.
 	template <class Backend>
 	[[nodiscard]] bool init(Backend& backend, eng::u16 width, eng::u16 height,
 				eng::PaletteWords palette, eng::u8 colors,
@@ -100,6 +106,7 @@ public:
 
 	/// **Framebuffer del buffer trasero**: escribe un índice (0..15) por píxel, fila a fila
 	/// (`px[y * width() + x]`, `y < rows()`). Válido hasta el `present()` de este frame.
+	/// \return vista del framebuffer chunky trasero (`width()*rows()` bytes).
 	[[nodiscard]] eng::Span<eng::u8> framebuffer() noexcept {
 		return eng::Span<eng::u8> {m_chunky[m_scene.back_index()].view.data(),
 					   static_cast<eng::usize>(m_w) * m_rows};
