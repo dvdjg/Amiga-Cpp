@@ -36,6 +36,8 @@ namespace eng::scene {
 		return 4u; ///< split por línea (xyunlimited)
 	case ScrollKind::CopperRing:
 		return 2u; ///< reapuntado/módulo (xlimited)
+	case ScrollKind::Strip:
+		return 0u; ///< parchea punteros por frame (sin Copper por línea)
 	default:
 		return 0u; ///< Fine/BlitterColumns/None: sin Copper por línea
 	}
@@ -59,7 +61,8 @@ namespace eng::scene {
 /// `copper_available_per_line`. `BlitterColumns` no se degrada (no usa Copper).
 [[nodiscard]] constexpr ScrollKind choose_scroll(ScrollKind requested,
 						 u16 copper_available_per_line) noexcept {
-	if (requested == ScrollKind::BlitterColumns || requested == ScrollKind::None) {
+	if (requested == ScrollKind::BlitterColumns || requested == ScrollKind::Strip ||
+	    requested == ScrollKind::None) {
 		return requested;
 	}
 	ScrollKind k = requested;

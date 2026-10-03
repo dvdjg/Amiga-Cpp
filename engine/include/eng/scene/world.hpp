@@ -45,6 +45,8 @@ enum class ScrollKind : u8 {
 	BlitterColumns,  ///< columnas nuevas por Blitter (robocod) + fino por `BPLCON1`
 	CopperRing,      ///< `BPLxPT`/módulo (xlimited): bitmap ring, sin split por línea
 	CopperSplit,     ///< split por línea (xyunlimited): una por banda (caro en Copper)
+	Strip,           ///< camino rápido: anillo de Copper + tira entrante (`field/strip_scroller.hpp`);
+	                 ///< parchea `BPLxPT`/`BPLCON1`/split por frame sin re-emitir (50 fps single).
 };
 
 /// **Playfield preferido** de una capa (el planner decide la materialización final).
