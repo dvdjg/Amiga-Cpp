@@ -50,7 +50,11 @@ struct FramebufferDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00006101u);
 			return;
 		}
-		if (!m_fb.init(backend, kW, kH, eng::PaletteWords {kColors, 16u}, 16u)) {
+		// `row_repeat = 2`: el framebuffer chunky es de 256x120 y el Copper muestra cada fila
+		// dos veces -> 256x240 en pantalla, con la **mitad** de fill por frame (truco 061/080).
+		// (El camino de 5 planos / 32 colores esta soportado por `IndexedDisplay`, pero su
+		// display aun no esta verificado en hardware; ver el README.)
+		if (!m_fb.init(backend, kW, kH, eng::PaletteWords {kColors, 16u}, 16u, 2u)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00006102u);
 			return;
 		}
@@ -64,19 +68,19 @@ struct FramebufferDemo {
 		eng::Span<eng::u8> px = m_fb.framebuffer();
 		auto* row32 = reinterpret_cast<eng::u32*>(px.data());
 		const eng::u32 words_per_row = kW / 4u;
-		for (eng::u32 y = 0u; y < kH; ++y) {
-			const eng::u8 c = static_cast<eng::u8>(((y >> 3u) + m_phase) & 0x0fu);
+		for (eng::u32 y = 0u; y < m_fb.rows(); ++y) {
+			const eng::u8 c = static_cast<eng::u8>(((y >> 2u) + m_phase) & 0x0fu); // 16 colores
 			const eng::u32 fill = static_cast<eng::u32>(c) * 0x01010101u;
 			eng::u32* row = row32 + y * words_per_row;
 			for (eng::u32 i = 0u; i < words_per_row; ++i) {
 				row[i] = fill;
 			}
-			// Barra vertical blanca (dos words = 8 px) en x = phase*4.
-			const eng::u32 bx = static_cast<eng::u32>(m_phase & 0x3fu) * 4u;
-			row[(bx >> 2u) & ~1u] = 0x0f0f0f0fu;
-			row[((bx >> 2u) & ~1u) + 1u] = 0x0f0f0f0fu;
+			// Barra vertical blanca (dos words = 8 px) que barre la pantalla.
+			const eng::u32 bw = (static_cast<eng::u32>(m_phase) * 2u) & 0x3eu;
+			row[bw] = 0x0f0f0f0fu;
+			row[bw + 1u] = 0x0f0f0f0fu;
 		}
-		m_phase = static_cast<eng::u16>((m_phase + 1u) & 0x3fu);
+		m_phase = static_cast<eng::u16>((m_phase + 1u) & 0x1fu);
 	}
 
 	void render(eng::amiga::AmigaBackend&, eng::GameContext& context) {

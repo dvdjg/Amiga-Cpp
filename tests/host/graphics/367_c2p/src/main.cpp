@@ -61,10 +61,38 @@ int main() {
 	check(blit_calls == 1, "ambas Chip -> usa el Blitter");
 	check(chip_planes[0] == 0u, "la via Blitter no escribe en CPU");
 
+	// --- C2P generico a 5 planos (32 colores): transposicion correcta por bits --------------
+	// `c2p_1x1_naive` cubre profundidades que `c2p_1x1_4` no (5 = 32 colores, 6 = 64); es la via
+	// del `IndexedDisplay<5>` (framebuffer indexado de 32 colores, p. ej. el PPU NES).
+	eng::u8 idx5[16] {};
+	for (u32 i = 0; i < 16u; ++i) {
+		idx5[i] = static_cast<eng::u8>(i & 0x1fu); // indices 0..31
+	}
+	eng::u8 plan5[5u * 2u] {}; // 5 planos x 2 bytes (16 px, 1 fila)
+	eng::graphics::c2p_1x1_naive(16u, 1u, 5u, 2u, eng::ChunkyView {idx5, 16u},
+				     eng::PlaneBytes {plan5, sizeof(plan5)});
+	bool ok5 = true;
+	for (u32 p = 0; p < 5u; ++p) {
+		eng::u8 want0 = 0u;
+		eng::u8 want1 = 0u;
+		for (u32 k = 0; k < 16u; ++k) {
+			const eng::u8 bit = static_cast<eng::u8>((idx5[k] >> p) & 1u);
+			if (k < 8u) {
+				want0 = static_cast<eng::u8>(want0 | static_cast<eng::u8>(bit << (7u - k)));
+			} else {
+				want1 = static_cast<eng::u8>(want1 | static_cast<eng::u8>(bit << (15u - k)));
+			}
+		}
+		if (plan5[p * 2u + 0u] != want0 || plan5[p * 2u + 1u] != want1) {
+			ok5 = false;
+		}
+	}
+	check(ok5, "c2p_1x1_naive 5 planos: transposicion correcta (32 colores)");
+
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;
 	}
-	std::printf("OK: c2p (despacho por banco: CPU vs Blitter) validado.\n");
+	std::printf("OK: c2p (despacho por banco + 5 planos) validado.\n");
 	return 0;
 }
