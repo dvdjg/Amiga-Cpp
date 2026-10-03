@@ -197,6 +197,17 @@ function patchConfig(configText, extensionRoot, stagedOutDir, warpEnabled, immed
   let out = configText;
   out = out.replace(/^filesystem=rw,dh0:.*$/m, `filesystem=rw,dh0:${normalizedDh0}`);
 
+  // Maquina emulada: por defecto la de la config base (A500 512K+512K sin Fast, stock).
+  // Se puede cambiar por entorno para probar A1200/A4000 (u otras) sin tocar la config:
+  //   WINUAE_QUICKSTART=a1200,0  WINUAE_KICKSTART=c:/Amiga/KICK31.rom
+  // (ojo: `TARGET_MACHINE` del build cambia el CODIGO, no la maquina emulada).
+  if (process.env.WINUAE_QUICKSTART) {
+    out = setConfigValue(out, 'quickstart', process.env.WINUAE_QUICKSTART);
+  }
+  if (process.env.WINUAE_KICKSTART) {
+    out = setConfigValue(out, 'kickstart_rom_file', process.env.WINUAE_KICKSTART);
+  }
+
   if (/^filesystem2=rw,dh1:.*$/m.test(out)) {
     out = out.replace(/^filesystem2=rw,dh1:.*$/m, `filesystem2=rw,dh1:dh1:${normalizedOut},-128`);
   } else {
