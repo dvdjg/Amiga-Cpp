@@ -72,3 +72,16 @@ Contexto de medida: `CONFIG_ID` **`A500_debug`** (build `--debug`, `-O1`), emula
 El scroller de tiras (`field/strip_scroller.hpp`) usaba en la demo 128 un anillo de 43 words: el puntero recorría `span = ring − visible = 23` posiciones antes de envolver, pero `23` **no es múltiplo del período del mapa** (40 columnas). Al envolver, los slots que no ruedan conservaban contenido viejo: la imagen **saltaba ~una pantalla cada 3,7 s** y, además, la **palabra extra de fetch** (la que revela el fine scroll en el borde derecho) no se pre-pintaba hasta el cruce siguiente, así que esa banda se movía **a trompicones (saltos de 16 px), sin fine**.
 
 Lección: en un anillo toroidal, `span` **debe ser múltiplo del período del mundo**; entonces el slot `s` vale siempre la columna `s % período`, el anillo contiene el mapa completo + una pantalla de solape y **no hay que repintar la ventana al envolver**. La interfaz lo garantiza ahora: `field::StripScrollGeometry<…, MapWords>` deriva `ring = visible + MapWords` y lo blinda con `static_assert`; HOST-244 añade un invariante de **contenido** (ventana visible + palabra extra) que la comprobación de "pintado" no veía. Verificado en hardware (secuencia de 34 frames cruzando el envolver: la base del mundo avanza continua) y con Ollama (mapa coherente, sin huecos). Medida: **49,87 fps** (1,003 campos/frame), sin regresión.
+
+## 5. Bitplane del medio a saltos por `BPLCON1` (2026-10)
+
+La demo 128 mostraba "un bitplane que salta de 16 en 16 px". El análisis **plano a plano** (decodificando cada plano del color de la captura) lo confirmó: `plano0` y `plano2` se movían suaves (2 px/frame) pero **`plano1` (el del medio) saltaba 16/32 px**.
+
+Causa: `BPLCON1` se escribía con el retardo fino **solo en el nibble bajo**. En un playfield single el nibble **alto** sigue gobernando los planos pares (BPL2/4/6), así que el plano del medio no recibía el fino. Arreglo: **duplicar el nibble** (`fine | (fine << 4)`), como ya hacían `amiga_display_mapper.hpp` y la demo 120. Verificado: los tres planos a 2 px/frame uniformes.
+
+## 6. Camino de tiras X + Y y ruta continua; demo 205 XYLimited (2026-10)
+
+- El camino de tiras acepta **Y** como offset de fila (`window_line`) si el bitmap es alto (`RingLines`); la X sigue por tira (Blitter).
+- **Ruta continua** (`field/scroll_route.hpp`, HOST-396): fases H/V/diagonal/circular/Lissajous por **velocidad** (≤1 px/eje, sin saltos, cada frame distinto). Sustituye a `RouteCamera` (que cuantizaba el ángulo a 8 frames por paso).
+- Demo **205** (`playfield/205_xy_limited_scroll`): mismo atlas y ruta que la 204 por **X-Limited**, viewport 320×208, **framebuffer ~31 KB** (anillo 352×240×3) frente a 158 KB de la 204. Medida: **49,92 fps** (1,002 campos) en ambas.
+- **Pendiente**: el **split vertical single-field** del corcóscru (al envolver el anillo, la banda del pie muestra filas equivocadas). El direccionamiento del tileset es correcto (coincide pixel a pixel con la 204); es el wrap del anillo. Hasta arreglarlo, la 205 limita Y a `[0,64]` (sin split).
