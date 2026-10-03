@@ -142,8 +142,11 @@ librerías comprimidas con memoria elegida por segmento. El contrato completo es
   ⏳ faltan lectura **asíncrona** (R6.2 + `os::file_*`), imports/ABI, `init`/`fini` y refcount/pin.
 - **R6.7 Integración**: demo de transición de zona que cargue `.engz`, ejecute un export y descargue
   la librería sin bloquear el frame. **✅ cadena en host hecha**: **HOST-410** integra `Vfs.read_all`
-  → `.engz` → `HunkImage` (carga de overlay end-to-end sin emulador). ⏳ falta la demo **en hardware**
-  (`210_zone_resources`) con la E/S asíncrona (R6.2 cableada al `FileDone`) para no bloquear el frame.
+  → `.engz` → `HunkImage` (carga de overlay end-to-end sin emulador). **✅ demo en hardware**:
+  `212_zone_resources` carga `data/code/answer.engz` del volumen `DH1:` por la **`Vfs`**
+  (`os::file_*`), lo **decodifica** y **carga/ejecuta/descarga** el overlay (`answer()` → 42),
+  validado en WinUAE (Ollama lee el resultado). ⏳ falta hacer la carga **asíncrona** (prefetch que no
+  bloquee el frame) con `file_read_async` + el `RequestTable` (R6.2).
 
 - **Presupuesto por banco.** Chip y Fast tienen costes distintos (Agnus no ve Fast): la caché debe
   respetar `MemBank` y no meter buffers de Paula en Fast.
