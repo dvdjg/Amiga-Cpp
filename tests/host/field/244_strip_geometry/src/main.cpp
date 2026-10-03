@@ -1,13 +1,12 @@
 // ============================================================================
-// Test HOST-244: geometria e invariantes del scroller de tiras (referencia).
+// Test HOST-244: geometria e invariantes del scroller de tiras (eng/field/strip_scroller.hpp).
 // ============================================================================
 //
-// Codifica como codigo verificable la referencia del "Copper ring + incoming
-// strip": constantes compile-time (static_assert) y, sobre un modelo de anillo en
-// sombra, los invariantes:
-//   - la columna destino del blit (guarda) NUNCA esta en la ventana visible,
+// Codifica como codigo verificable la referencia del "Copper ring + incoming strip":
+// constantes compile-time (static_assert) y, sobre un modelo de anillo en sombra, los invariantes:
+//   - la columna destino del blit (guarda) NUNCA esta en la ventana visible actual,
 //   - tras cada cruce de palabra, TODA la ventana visible esta pintada,
-//   - como maximo 1 blit por frame (X-only) en cualquier secuencia de pasos 1..16.
+//   - como maximo 2 blits por frame (columna + fila) en cualquier secuencia de pasos 1..16.
 //
 //   bash tools/run-host-tests.sh tests/host/field/244_strip_geometry
 
@@ -15,35 +14,30 @@
 #include <cstdint>
 #include <cstdio>
 
+#include <eng/field/strip_scroller.hpp>
+
 namespace {
 int g_fail = 0;
 void check(bool ok, const char* what) {
 	if (!ok) { std::printf("[FAIL] %s\n", what); ++g_fail; }
 }
 
-// --- Constantes de la referencia (5 planos, 320x256, tile 16x16) --------------
-constexpr unsigned VIEWPORT_W = 320u, VIEWPORT_H = 256u, PLANES = 5u;
-constexpr unsigned TILE_W = 16u, TILE_H = 16u;
-constexpr unsigned GUARD_WORDS = 2u, FETCH_EXTRA = 1u;
-constexpr unsigned RING_W_WORDS = VIEWPORT_W / TILE_W + GUARD_WORDS + FETCH_EXTRA; // 23
-constexpr unsigned RING_W_BYTES = RING_W_WORDS * 2u;                              // 46
-constexpr unsigned VISIBLE_WORDS = VIEWPORT_W / TILE_W;                           // 20
-constexpr unsigned BPL_MOD = (PLANES - 1u) * RING_W_BYTES;                        // 184
-constexpr unsigned BLTDMOD_COL = RING_W_BYTES - 2u;                               // 44
-constexpr unsigned COLUMN_PLANELINES = (VIEWPORT_H / TILE_H) * TILE_H * PLANES;   // 1280
-constexpr unsigned COLUMN_BYTES = RING_W_WORDS * 2u * (VIEWPORT_H / TILE_H) * PLANES; // guard strip bytes
+// Caso base: 320x208 (split-cap), 5 planos, tile 16, guarda 2 palabras. Anillo X = 23 words.
+using Geom = eng::field::StripScrollGeometry<320u, 208u, 5u, 16u, 16u, 2u, 1u, false>;
+// Variante XY (anillo vertical + split); 208 -> cabe en VPOS.
+using GeomXY = eng::field::StripScrollGeometry<320u, 208u, 5u, 16u, 16u, 2u, 1u, true>;
+// Tile 32: guarda 64 px = 4 palabras; viewport 192 (multiplo de 32).
+using Geom32 = eng::field::StripScrollGeometry<320u, 192u, 5u, 32u, 32u, 4u, 1u, false>;
 
-static_assert(RING_W_WORDS == 23u, "ring 368 px = 23 words");
-static_assert(RING_W_BYTES == 46u, "ring = 46 bytes/planeline");
-static_assert(VISIBLE_WORDS == 20u, "320 px = 20 words");
-static_assert(BPL_MOD == 184u, "BPL1MOD/BPL2MOD interleaved");
-static_assert(BLTDMOD_COL == 44u, "BLTDMOD columna alta");
-static_assert(COLUMN_PLANELINES == 1280u, "columna = 16 tiles x 80 planelines");
-static_assert(GUARD_WORDS * 16u >= 16u + 16u, "guarda >= ceil(max_step/16)+1");
-// Split XY en OCS: SPLIT_LINE = 0x2c + viewport_h debe caber en VPOS (8 bits, 0..255).
-// Con viewport 256 NO cabe (0x2c+256=300); con viewport <= 208 SI (0x2c+208=252).
-static_assert(0x2cu + VIEWPORT_H > 255u, "OCS: el split con 256 lineas no cabe en VPOS (8 bits)");
-static_assert(0x2cu + 208u <= 255u, "OCS: el split con 208 px SI cabe en VPOS (8 bits)");
+static_assert(Geom::visible_words == 20u, "320 px = 20 words");
+static_assert(Geom::ring_w_words == 23u, "anillo = 20 + 2 guarda + 1 fetch");
+static_assert(Geom::ring_w_bytes == 46u, "46 B/planeline");
+static_assert(Geom::bpl_mod == 184u, "BPL1MOD/BPL2MOD interleaved");
+static_assert(Geom::bltdmod_col == 44u, "BLTDMOD columna (tile 16)");
+static_assert(Geom::column_planelines == 1040u, "208 lineas x 5 planos");
+static_assert(Geom32::bltdmod_col == 46u, "BLTDMOD columna (tile 32, anillo 50 B)");
+static_assert(GeomXY::ring_h == 240u, "anillo vertical = 208 + 2*16");
+// Split OCS: la linea de split es 0x2c + viewport_h; con 208 -> 252 <= 255 (cabe).
 
 struct Lcg {
 	std::uint32_t s;
@@ -51,36 +45,41 @@ struct Lcg {
 	std::uint32_t range(std::uint32_t n) { return next() % n; }
 };
 
-// Simula una secuencia aleatoria de pasos 1..16 (adelante/atras) sobre el anillo en
-// sombra y comprueba los invariantes.
 bool simulate(std::uint32_t seed) {
 	Lcg rng {seed * 2654435761u + 12345u};
-	std::array<bool, RING_W_WORDS> painted {};
-	for (unsigned w = 0; w < VISIBLE_WORDS; ++w) painted[w] = true; // pantalla inicial pintada
-	const long period = static_cast<long>(RING_W_WORDS) * 16;
+	std::array<bool, Geom::ring_w_words> painted {};
+	for (unsigned w = 0; w < Geom::visible_words; ++w) painted[w] = true; // pantalla inicial pintada
+	const long period = static_cast<long>(Geom::ring_w_words) * 16;
 	long scroll = 0;
+	bool fwd = true;
 	for (int f = 0; f < 20000; ++f) {
 		const int step = 1 + static_cast<int>(rng.range(16u));
-		const bool fwd = (rng.next() & 1u) != 0u;
-		long nscroll = scroll + (fwd ? step : -step);
-		nscroll = ((nscroll % period) + period) % period;
-		const unsigned w_old = static_cast<unsigned>(scroll / 16);
-		const unsigned w_new = static_cast<unsigned>(nscroll / 16);
-		if (w_new != w_old) {
-			// La columna entrante: adelante = borde derecho (w_old+VISIBLE_WORDS), atras = borde
-			// izquierdo (w_old-1). Debe caer FUERA de la ventana visible actual.
-			const unsigned dest = fwd ? (w_old + VISIBLE_WORDS) % RING_W_WORDS
-						  : (w_old + RING_W_WORDS - 1u) % RING_W_WORDS;
-			for (unsigned k = 0; k < VISIBLE_WORDS; ++k) {
-				if (dest == (w_old + k) % RING_W_WORDS) return false; // destino dentro de la ventana
+		if (rng.range(6u) == 0u) fwd = !fwd;
+		long ns = scroll + (fwd ? step : -step);
+		if (ns < 0) { ns = 0; fwd = true; }          // rebote (mapa acotado)
+		if (ns >= period) { ns = period - 1; fwd = false; }
+		const auto fr = eng::field::plan_strip_frame<Geom>(
+			static_cast<eng::s32>(ns), 0, static_cast<eng::s32>(scroll), 0);
+		check(fr.blits <= 2u, "<= 2 blits/frame");
+		const eng::u16 old_window = static_cast<eng::u16>((static_cast<eng::u32>(scroll) / 16u) %
+								  Geom::ring_w_words);
+		if (fr.column_crossed) {
+			// La columna destino debe caer FUERA de la ventana visible ACTUAL (invisible).
+			if (!eng::field::strip_dest_is_guard(fr.col_dest_word, old_window,
+							     Geom::visible_words, Geom::ring_w_words)) {
+				std::printf("  [seed %u] destino %u dentro de la ventana %u (scroll %ld->%ld)\n",
+					    seed, fr.col_dest_word, old_window, scroll, ns);
+				return false;
 			}
-			painted[dest] = true;
+			painted[fr.col_dest_word] = true;
 		}
-		scroll = nscroll;
-		// Tras el cruce, TODA la ventana visible debe estar pintada.
-		const unsigned w = static_cast<unsigned>(scroll / 16);
-		for (unsigned k = 0; k < VISIBLE_WORDS; ++k) {
-			if (!painted[(w + k) % RING_W_WORDS]) return false;
+		scroll = ns;
+		for (unsigned k = 0; k < Geom::visible_words; ++k) {
+			if (!painted[(fr.window_word + k) % Geom::ring_w_words]) {
+				std::printf("  [seed %u] hueco en ventana %u (scroll %ld)\n", seed,
+					    fr.window_word, scroll);
+				return false;
+			}
 		}
 	}
 	return true;
@@ -94,8 +93,8 @@ int main() {
 	for (std::uint32_t seed = 1; seed <= 40 && ok; ++seed) ok = simulate(seed);
 	check(ok, "guarda y cobertura invariantes en 20000 pasos x 40 semillas");
 
-	// Limite de hardware: con viewport > 208 el split XY no cabe en VPOS de 8 bits; los modos
-	// con Copper split asumen viewport <= 208 px (0x2c+208=252 <= 255) para no duplicar el buffer.
+	// Limite de hardware: los modos con Copper split asumen viewport <= 208 px
+	// (0x2c + viewport_h <= 255) para no duplicar el buffer (espejo/lineal).
 	check(0x2cu + 208u <= 255u, "split XY con viewport 208 px cabe en VPOS (8 bits)");
 
 	if (g_fail != 0) { std::printf("%d fallo(s)\n", g_fail); return 1; }

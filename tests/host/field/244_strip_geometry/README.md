@@ -1,8 +1,8 @@
 # HOST-244: geometría e invariantes del scroller de tiras (anillo de Copper)
 
-Codifica como código verificable la **referencia de "Copper ring + incoming strip"**
-(`docs/debugging/investigaciones/consulta-scroll-optimizacion*.md`): constantes compile-time y, sobre
-un modelo de anillo en sombra, los invariantes del camino rápido hacia 50 fps.
+Prueba `eng/field/strip_scroller.hpp` (y la referencia del mismo nombre en
+`docs/debugging/investigaciones/consulta-scroll-optimizacion*.md`): `StripScrollGeometry` (constantes
+compile-time) y `plan_strip_frame` (qué tira pintar y qué parchear en Copper, sin re-emitir).
 
 ## Qué comprueba
 
