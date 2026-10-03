@@ -54,7 +54,9 @@ constexpr eng::s32 kStepX = 2;                                         // px/fra
 	bool m_ready = false;
 
 	[[nodiscard]] eng::u16 map_tile(eng::u16 col, eng::u16 row) const {
-		return static_cast<eng::u16>((col * 3u + row * 5u) % kTilesetTiles);
+		(void)row;
+		// Gradiente por columna (franjas verticales): scroll claro y verificable con vision.
+		return static_cast<eng::u16>(col % kTilesetTiles);
 	}
 
 	void fill_bank() {
@@ -74,7 +76,7 @@ constexpr eng::s32 kStepX = 2;                                         // px/fra
 	void paint_column(eng::u16 ring_word, eng::u16 map_col) {
 		eng::u16 ids[Geom::column_tiles];
 		for (eng::u16 r = 0u; r < Geom::column_tiles; ++r) {
-			ids[r] = map_tile(static_cast<eng::u16>((map_col + (r / 2u)) % kMapCols), r);
+			ids[r] = map_tile(map_col, r);
 		}
 		(void)eng::field::compose_column<Geom>(m_column_words, m_bank_words, ids, kTileWords);
 		(void)m_backend->blitter_strip_column(m_column_words, m_ring_words + ring_word,

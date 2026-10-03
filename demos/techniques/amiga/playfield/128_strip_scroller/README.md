@@ -33,3 +33,10 @@ bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/128_strip_scroller
 
 - Single-playfield 5 planos. El **DPF 3+3** satura el bus (≤25 fps); ver `BUS_BUDGET.md`.
 - El mapa es un patrón repetido; un mapa largo necesita stream de tiles por chunk.
+
+## Validación visual (regla de oro: Ollama)
+
+Medido: **49,92 fps** (1,002 campos/frame) en release. Validado con el modelo de visión local
+(`node tools/analyze/ollama-desc.mjs ... `, sobre una **secuencia**, no una captura): movimiento
+horizontal **suave, uniforme y continuo, sin saltos de 16 px ni huecos**. El `frame-diff`
+(`tools/vision-review/frame-diff.mjs`) confirma cambio entre frames.
