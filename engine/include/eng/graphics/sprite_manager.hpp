@@ -63,6 +63,9 @@ public:
 
     /// Reserva el bloque de DATA de sprites en Chip RAM (la app escribe los
     /// bitmaps con `sprite_data()`). No reserva copper (lo hace el compositor).
+    /// \param memory      gestor de memoria (bloque en Chip).
+    /// \param data_bytes  tamaño del bloque de DATA de sprites.
+    /// \return `true` si la reserva cupo.
     bool init(MemoryManager& memory, u32 data_bytes) {
 	m_data = eng::Block<eng::SpriteTag> {memory.chip().reserve<eng::SpriteTag>(data_bytes, 16)};
 	return m_data.valid();
@@ -72,6 +75,10 @@ public:
 	Span<u8> sprite_data() { return { m_data.view.data(), m_data.view.size() }; }
 	Span<const u8> sprite_data() const { return { m_data.view.as_const().data(), m_data.view.size() }; }
 
+    /// Configura el canal `index` (0..7). Silenciosamente ignorado si `index >= 8` o si la
+    /// DATA del `cfg` no cubre `height*width_words*2` words (se deshabilita ese canal).
+    /// \param index  canal de sprite (0..7).
+    /// \param cfg    configuración del canal (posición/DATA/tamaño/paleta).
     void set(u8 index, const SpriteConfig& cfg) {
         if (index >= 8) return;
         m_spr[index] = cfg;
@@ -195,6 +202,9 @@ public:
 
     /// Vuelca una lista de `HwSpritePlacement` (salida del compositor) a los 8 canales,
     /// dejando el gestor listo para `emit_into`. No toca hardware.
+    /// \param placements  colocaciones (salida del compositor de sprites).
+    /// \param count       nº de colocaciones.
+    /// \return nº de canales aplicados (≤ 8).
     u8 apply(const HwSpritePlacement* placements, u8 count) {
         if (placements == nullptr) return 0;
         u8 applied = 0;

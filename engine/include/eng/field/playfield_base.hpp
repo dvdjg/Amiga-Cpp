@@ -94,6 +94,8 @@ struct RasterPolicy {
 /// **Minterm del Blitter** para una operación lógica de **blit** con `B = D` (fuente por
 /// A): `Or`=`$FC` (`D=A|B`), `And`=`$C0` (`D=A&B`), `Xor`=`$3C` (`D=A^B`). `Copy` no usa
 /// esta ruta (va por C). Ver AHRM 6 (tabla de minterms).
+/// \param op  operación lógica (`Or`/`And`/`Xor`; `Copy` usa la ruta C).
+/// \return el minterm de Blitter (`$FC`/`$C0`/`$3C`; `Copy` → `$F0`).
 [[nodiscard]] constexpr eng::u8 raster_op_minterm(RasterOp op) {
 	switch (op) {
 		case RasterOp::Or: return 0xFCu;
@@ -146,6 +148,9 @@ struct PlayfieldHardwareView {
 /// está configurado, su base propia. `extra_off` añade un desplazamiento (p. ej. el wrap del
 /// split). Es la **fuente única** de los punteros de una superficie: la usan el driver de scroll
 /// (`XlimitedDisplayComposer`) y la composición por bandas (`scene::RasterLayout`).
+/// \param sched      emisor de Copper (scheduler).
+/// \param view       superficie (base, `bytes_per_row`, planos, `planeaddx/y`, parallax/split).
+/// \param extra_off  desplazamiento adicional de la base (p. ej. el wrap del split).
 template <class Sched>
 inline void emit_view_pointers(Sched& sched, const PlayfieldHardwareView& view,
 			       eng::s32 extra_off = 0) {

@@ -26,6 +26,9 @@ public:
 	}
 
 	/// Fija el atributo (paleta) del bloque `(ax, ay)`. `false` si queda fuera.
+	/// \param ax,ay  bloque (coordenadas en bloques, no píxeles).
+	/// \param value  subpaleta del bloque.
+	/// \return `false` si `(ax, ay)` queda fuera de la rejilla.
 	constexpr bool set(u16 ax, u16 ay, u8 value) noexcept {
 		if (!contains(ax, ay)) {
 			return false;
@@ -34,10 +37,13 @@ public:
 		return true;
 	}
 	/// Atributo del bloque `(ax, ay)` (0 si queda fuera).
+	/// \param ax,ay  bloque.
+	/// \return la subpaleta del bloque (`0` si fuera de rango).
 	[[nodiscard]] constexpr u8 get(u16 ax, u16 ay) const noexcept {
 		return contains(ax, ay) ? m_cells[idx(ax, ay)] : 0u;
 	}
 	/// Rellena toda la tabla con `value`.
+	/// \param value  subpaleta para todos los bloques.
 	constexpr void fill(u8 value) noexcept {
 		const eng::usize n = static_cast<eng::usize>(m_width) * m_height;
 		for (eng::usize i = 0; i < n && i < m_cells.size(); ++i) {
