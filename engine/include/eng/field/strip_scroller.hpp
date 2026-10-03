@@ -22,7 +22,7 @@ namespace eng::field {
 template <eng::u16 ViewportW = 320u, eng::u16 ViewportH = 208u, eng::u8 Planes = 5u,
 	  eng::u16 TileW = 16u, eng::u16 TileH = 16u, eng::u16 GuardWords = 2u,
 	  eng::u16 FetchExtraWords = 1u, bool SplitVertical = false, eng::u16 RingWords = 0u,
-	  eng::u16 RingLines = 0u>
+	  eng::u16 RingLines = 0u, eng::u16 MapWords = 0u>
 struct StripScrollGeometry {
 	static_assert(TileW == 16u || TileW == 32u, "tile 16 o 32");
 	static_assert(TileH == 16u || TileH == 32u, "tile 16 o 32");
@@ -46,13 +46,28 @@ struct StripScrollGeometry {
 	static constexpr eng::u16 split_line = static_cast<eng::u16>(0x2cu + ViewportH);
 	static constexpr bool split_crosses_255 = split_line > 255u;
 	static constexpr eng::u16 visible_words = static_cast<eng::u16>(ViewportW / 16u);
-	/// Ancho del anillo en words. `RingWords == 0` = **pantalla + guarda + fetch** (fondo que se
-	/// repite); para un mapa largo el anillo es el ancho del bitmap del mapa.
+	/// **Ancho del anillo** en words. Tres formas, por orden de prioridad:
+	/// - `MapWords != 0`: **mapa toroidal** de periodo `MapWords` (words). El anillo se deriva como
+	///   `visible + MapWords` (k=1): contiene el mapa completo + una pantalla de solape, el slot `s`
+	///   vale siempre la columna `s % MapWords` y **no hay que repintar la ventana al envolver**.
+	///   Es la forma recomendada; impide por construcción el fallo de "span" no múltiplo del mapa.
+	/// - `RingWords != 0`: ancho de anillo explícito (p. ej. bitmap de mapa largo, o fondo que
+	///   repite con periodo divisor del span). El llamador garantiza la coherencia.
+	/// - ambos 0: **pantalla + guarda + fetch** (fondo que se repite con ese periodo).
+	///
+	/// **Invariante**: el puntero recorre `ring_w_words - visible_words` posiciones antes de
+	/// envolver; esa `span` debe ser múltiplo del periodo del mundo o el contenido se descuadra al
+	/// envolver. Ver HOST-244 (invariante de contenido).
 	static constexpr eng::u16 ring_w_words =
-		(RingWords != 0u) ? RingWords
-				  : static_cast<eng::u16>(visible_words + GuardWords + FetchExtraWords);
+		(MapWords != 0u)
+			? static_cast<eng::u16>(visible_words + MapWords)
+			: ((RingWords != 0u) ? RingWords
+					     : static_cast<eng::u16>(visible_words + GuardWords + FetchExtraWords));
 	static_assert(ring_w_words >= visible_words + GuardWords + FetchExtraWords,
 		      "el anillo debe caber al menos pantalla + guarda + fetch");
+	/// Con `MapWords`, el periodo del mapa es exactamente la `span` del anillo (multiplo trivial).
+	static_assert(MapWords == 0u || (ring_w_words - visible_words) % MapWords == 0u,
+		      "el periodo del mapa debe dividir la span del anillo (o se descuadra al envolver)");
 	static constexpr eng::u16 ring_w_bytes = static_cast<eng::u16>(ring_w_words * 2u);
 	/// Ancho **fetcheado** por el display por linea (viewport + 1 palabra de scroll).
 	static constexpr eng::u16 fetch_words = static_cast<eng::u16>(visible_words + FetchExtraWords);
@@ -185,6 +200,8 @@ struct StripBlit {
 	eng::u16 bltsize = 0u;
 };
 
+/// Descriptor del blit de la tira para el `ash` (fine shift 0..15) y el `chunk` (trozo de
+/// `<= 1024` planelíneas) dados.
 template <class Geom>
 [[nodiscard]] constexpr StripBlit strip_blit_desc(eng::u8 ash, eng::u8 chunk = 0u) noexcept {
 	StripBlit b {};

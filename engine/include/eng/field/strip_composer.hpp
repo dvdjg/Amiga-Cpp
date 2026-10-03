@@ -28,6 +28,7 @@ inline constexpr eng::u16 kStripDdfStop = 0x00d0u; ///< DDFSTOP estandar 320
 template <class Geom>
 class StripComposer {
 public:
+	/// Reserva el doble buffer de copperlist y guarda la paleta; `copper_bytes` acota la lista.
 	bool init(MemoryManager& mem, const eng::PaletteWords& palette, u32 copper_bytes = 1024u) noexcept {
 		m_palette = palette;
 		m_ok = m_copper.begin(mem, copper_bytes);
@@ -67,10 +68,12 @@ public:
 		return true;
 	}
 
+	/// Congela el sistema y arranca la copperlist (setup); `install` publica el bloque inactivo.
 	template <class Backend>
 	void takeover(Backend& backend) const noexcept {
 		if (m_built) m_copper.takeover(backend);
 	}
+	/// Publica (`COP1LC`) el bloque inactivo ya parcheado por `patch`.
 	template <class Backend>
 	void install(Backend& backend) const noexcept {
 		if (m_built) m_copper.install(backend);
@@ -79,16 +82,19 @@ public:
 	[[nodiscard]] constexpr bool ok() const noexcept { return m_ok; }
 	[[nodiscard]] constexpr bool built() const noexcept { return m_built; }
 	[[nodiscard]] constexpr eng::u16 bplcon1_handle() const noexcept { return m_bplcon1_handle; }
+	/// Handle (índice de palabra) del MOVE parcheable de `BPLxPT` del plano `plane` (`hl` 0=alto, 1=bajo).
 	[[nodiscard]] constexpr eng::u16 pt_handle(eng::u8 plane, eng::u8 hl) const noexcept {
 		return m_pt_handle[plane][hl];
 	}
 	[[nodiscard]] const eng::u16* debug_active_words() const noexcept { return m_copper.active_words(); }
 
 private:
+	/// Dirección Chip del anillo + `off` (base de los `BPLxPT`).
 	[[nodiscard]] eng::u32 base_addr(eng::u32 off) const noexcept {
 		return reinterpret_cast<eng::uintptr>(m_base) + off;
 	}
 
+	/// Emite la copperlist completa una vez en el bloque inactivo (setup), con los handles.
 	bool emit() noexcept {
 		copper::SchedulerT<false> sched { m_copper.inactive_block() };
 		sched.move(copper::Register::DMACON, static_cast<eng::u16>(copper::DmaSetClear |

@@ -1,7 +1,7 @@
 # 128 — scroller por tiras (Copper ring + incoming strip)
 
-Referencia del **camino rápido de scroll**: **50 fps (1 campo)** en A500 single-playfield (5 planos),
-CPU baja en el hotpath. Usa el camino implementado en `eng/field/strip_scroller.hpp` +
+Referencia del **camino rápido de scroll**: **50 fps (1 campo)** en A500 single-playfield (3 planos,
+8 colores), CPU baja en el hotpath. Usa el camino implementado en `eng/field/strip_scroller.hpp` +
 `strip_composer.hpp` (ver `docs/engine/architecture/SCROLL_VARIANTS.md §4.1`).
 
 ```bash
@@ -11,7 +11,8 @@ bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/128_strip_scroller
 
 ## Qué hace
 
-- Anillo de **2 pantallas** (43 words) + guarda/fetch; viewport 320×256; 5 planos interleaved.
+- Anillo del **mapa completo + una pantalla de solape** (60 words = 40 columnas de mapa + 20
+  visibles); viewport 320×256; 3 planos interleaved (atlas “Beginning Fields”).
 - **Objetos singulares** de colores distintos (bloques 32×32 cada 6 columnas) sobre fondo azul tenue:
   su desplazamiento horizontal es **inequívoco** (se ve a ojo y lo verifica el modelo de visión).
 - Por frame (`kStepX = 2` px): `plan_strip_frame` decide la tira; si cruza frontera de tile,
@@ -28,11 +29,17 @@ bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/128_strip_scroller
   `(x−1) & ~15` (`playfield_scroll.hpp`). Con el fine "directo" (`x & 15`) el fondo **salta 16 px** al
   cruzar palabra (trompicones); con la canónica `visible_left = x` (movimiento suave).
 - Los tiles del mapa **no se asumen contiguos**: `compose_column` los copia tile a tile.
-- `BLTSIZE` tiene H de 10 bits (máx 1024): la columna se parte en `column_blits` (256×5 = 1280 → 2).
+- `BLTSIZE` tiene H de 10 bits (máx 1024): la columna se parte en `column_blits`.
+- **Dimensionado del anillo (clave)**: el puntero recorre `span = ring − visible` words antes de
+  envolver; para que el contenido **no se descuadre al envolver**, `span` debe ser **múltiplo del
+  período del mapa**. Con el mapa toroidal de 40 columnas: `span = 40` → `ring = 60`. Un anillo
+  “de 2 pantallas” (43 words, span 23) deja los slots fuera de la zona que rueda con contenido
+  viejo y la imagen **salta ~1 pantalla cada envolver** (y la palabra extra de fetch nunca se
+  pre-pinta, así que un plano del borde derecho se mueve “a trompicones”, sin fine). HOST-244.
 
 ## Límites
 
-- Single-playfield 5 planos. El **DPF 3+3** satura el bus (≤25 fps); ver `BUS_BUDGET.md`.
+- Single-playfield. El **DPF 3+3** satura el bus (≤25 fps); ver `BUS_BUDGET.md`.
 - El mapa es un patrón repetido; un mapa largo necesita stream de tiles por chunk.
 
 ## Validación visual (regla de oro: Ollama)

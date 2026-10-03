@@ -86,10 +86,17 @@ scratch** (el `detail≈9861` de la 275, ya documentado en su README) y sacarlo 
 ## Estado real del engine y las demos (2026-09)
 
 - **Scroll**: corkscrew 8-way X-Limited (`XLimitedPlayfield` + `ScrollEngine` +
-  `ScrollSink`), tiles interleaved de 320 px, wrap toroidal, anillo vertical. **En refactor**:
-  el modelo objetivo separa algoritmo/superficie/composición/máquina
+  `ScrollSink`), tiles interleaved de 320 px, wrap toroidal, anillo vertical. Además, el
+  **camino de tiras** (Copper ring + tira entrante) a **50 fps single** (`field/strip_scroller.hpp`
+  + `strip_composer.hpp`, HOST-244/245; demo 128) queda **cerrado como algoritmo**: la interfaz de
+  juego es `scene::ScrollSpec` (técnica + período de mapa + velocidad) en la capa, y
+  `field::StripScrollGeometry<…, MapWords>` deriva el anillo correcto (`visible + período`) e
+  impide por `static_assert`/invariante de contenido el descuadre al envolver. El modelo objetivo
+  separa algoritmo/superficie/composición/máquina
   (`docs/engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md`) con plan en
-  `docs/guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md`.
+  `docs/guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md`; el scroll horizontal sigue **estable** (sin
+  más cambios de algoritmo) y el frente abierto pasa a la fachada de juego (§7 de
+  `ROADMAP_GAME_API.md`).
 - **DPF 3+3** (`XlimitedDualComposer` + `XlimitedScene`): dos playfields con
   banco/mapa/paso propios, transparencia del FG (PF1 color 0), `BPLCON1` por
   campo; bancos reales por campo a 3..6 planos (`blocks_prebuilt`, `blocks_prebuilt2`).

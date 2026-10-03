@@ -51,6 +51,13 @@ static_assert(Geom32::strip_words == 2u, "tile 32 -> 2 words");
 static_assert(Geom32::ring_w_bytes == 50u, "320 + 64 guarda + 16 fetch = 400 px = 50 B");
 static_assert(Geom32::bltdmod_col == 46u, "BLTDMOD = 50 - 4");
 static_assert(Geom32::column_tiles == 6u, "192 / 32 = 6 tiles");
+// Interfaz `MapWords`: deriva el anillo como `visible + periodo` (60) y garantiza el multiplo.
+using GeomMapWords =
+	eng::field::StripScrollGeometry<320u, 256u, 3u, 16u, 16u, 2u, 1u, false, 0u, 0u, 40u>;
+static_assert(GeomMapWords::ring_w_words == 60u, "MapWords: anillo = visible + periodo (20 + 40)");
+static_assert((GeomMapWords::ring_w_words - GeomMapWords::visible_words) % 40u == 0u,
+	      "MapWords: span multiplo del periodo por construccion");
+
 // Split OCS: la linea de split es 0x2c + viewport_h; con 208 -> 252 <= 255 (cabe).
 
 struct Lcg {
@@ -101,6 +108,50 @@ bool simulate(std::uint32_t seed) {
 	return true;
 }
 
+// Invariante de **contenido** (no solo "pintado"): modela el valor de mundo de cada slot y exige
+// que, en todo paso, la ventana visible Y la palabra extra de fetch (`window+visible`) contengan
+// la columna del mundo que les toca. Codifica el requisito de dimensionado que faltaba:
+// `span = ring - visible` debe ser **multiplo del periodo del mapa** `map_period`; si no, el
+// contenido se descuadra al envolver el anillo (el slot `s` dejaria de valer `s % map_period`).
+template <class G>
+bool simulate_content(unsigned map_period, std::uint32_t seed) {
+	Lcg rng {seed * 2654435761u + 99991u};
+	std::array<int, G::ring_w_words> ring {};
+	for (unsigned s = 0; s < G::ring_w_words; ++s) ring[s] = static_cast<int>(s % map_period);
+	const long period = static_cast<long>(G::ring_w_words) * 16;
+	long scroll = 0;
+	bool fwd = true;
+	for (int f = 0; f < 20000; ++f) {
+		const int step = 1 + static_cast<int>(rng.range(16u));
+		if (rng.range(6u) == 0u) fwd = !fwd;
+		long ns = scroll + (fwd ? step : -step);
+		if (ns < 0) { ns = 0; fwd = true; }
+		if (ns >= period) { ns = period - 1; fwd = false; }
+		const auto fr = eng::field::plan_strip_frame<G>(
+			static_cast<eng::s32>(ns), 0, static_cast<eng::s32>(scroll), 0);
+		const unsigned span = G::ring_w_words - G::visible_words;
+		const unsigned sxu = ns < 1 ? 1u : static_cast<unsigned>(ns);
+		const unsigned cw = eng::graphics::fine_scroll_coarse(static_cast<eng::u16>(sxu)) / 16u;
+		if (fr.column_crossed) {
+			const unsigned off = cw - (cw % span);
+			ring[fr.col_dest_word] =
+				static_cast<int>((fr.col_dest_word + off) % map_period);
+		}
+		for (unsigned k = 0u; k <= G::visible_words; ++k) {
+			const unsigned slot = (fr.window_word + k) % G::ring_w_words;
+			if (ring[slot] != static_cast<int>((cw + k) % map_period)) return false;
+		}
+		scroll = ns;
+	}
+	return true;
+}
+
+// Anillo del tipo del demo 128: mapa de 40 columnas -> span 40 = multiplo del periodo.
+using GeomMap =
+	eng::field::StripScrollGeometry<320u, 256u, 3u, 16u, 16u, 2u, 1u, false, 0u, 0u, 40u>;
+// Mismo anillo pero con el tamano ANTERIOR (span 23, no multiplo de 40): se descuadra.
+using GeomMapBad = eng::field::StripScrollGeometry<320u, 256u, 3u, 16u, 16u, 2u, 1u, false, 43u>;
+
 } // namespace
 
 int main() {
@@ -108,6 +159,14 @@ int main() {
 	bool ok = true;
 	for (std::uint32_t seed = 1; seed <= 40 && ok; ++seed) ok = simulate(seed);
 	check(ok, "guarda y cobertura invariantes en 20000 pasos x 40 semillas");
+
+	// Contenido del anillo: con `span` multiplo del periodo del mapa la ventana (visible + la
+	// palabra extra de fetch) siempre tiene la columna correcta; con el tamano antiguo (span 23,
+	// mapa 40) se descuadra al envolver. Este es el invariante que la cobertura de "pintado" no veia.
+	check(simulate_content<GeomMap>(40u, 1u),
+	      "anillo span=40 (multiplo del mapa): ventana + extra siempre correctas");
+	check(!simulate_content<GeomMapBad>(40u, 1u),
+	      "anillo span=23 (no multiplo del mapa): se descuadra (regresion del bug del bitplane)");
 
 	// Limite de hardware: los modos con Copper split asumen viewport <= 208 px
 	// (0x2c + viewport_h <= 255) para no duplicar el buffer (espejo/lineal).

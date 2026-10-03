@@ -164,7 +164,7 @@
   0     3  engine/include/eng/field/scroll_variant.hpp
   0     7  engine/include/eng/field/streaming_map.hpp
   1     8  engine/include/eng/field/strip_composer.hpp
-  0    37  engine/include/eng/field/strip_scroller.hpp
+  0    38  engine/include/eng/field/strip_scroller.hpp
   2    35  engine/include/eng/field/surface.hpp
   0    36  engine/include/eng/field/tile_demo.hpp
   0     2  engine/include/eng/field/tile_map.hpp
@@ -263,7 +263,7 @@
   0     7  engine/include/eng/scene/layer.hpp
   0     1  engine/include/eng/scene/representation.hpp
   0    32  engine/include/eng/scene/route_camera.hpp
-  0    18  engine/include/eng/scene/scroll_plan.hpp
+  0    23  engine/include/eng/scene/scroll_plan.hpp
   0    18  engine/include/eng/scene/virtual_scene.hpp
   0     3  engine/include/eng/sim/archetypes.hpp
   0    10  engine/include/eng/sim/avatar.hpp

@@ -157,6 +157,18 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
 - **Problema**: `XlimitedScene`/`field` son potentísimos pero de bajo nivel (scroll, modulos, EHB).
 - **Salida**: un `Tilemap`/`Camera` de juego que por debajo use ese motor; el juego escribe `camera.move(dx,dy)` y
   `map.tile(x,y)`.
+- **Progreso (interfaz de scroll)**: el vocabulario de juego ya no baja al metal. La capa declara su
+  scroll con `scene::ScrollSpec` (técnica + **período del mapa** en words + velocidad) vía
+  `Layer::set_scroll_spec(...)`; `scene::plan_region` deduce coste/memoria y el anillo correcto
+  (`scroll_ring_words`), degradando si no cabe (`degrade_scroll`: `Strip → Fine → None`). La técnica
+  `ScrollKind::Strip` (camino rápido de tiras, 50 fps) se dimensiona con
+  `field::StripScrollGeometry<…, MapWords>`, que deriva `ring = visible + período` y **garantiza por
+  `static_assert`** que la `span` del puntero es múltiplo del período del mapa (el fallo de contenido
+  al envolver queda imposible por construcción; HOST-244 lo verifica con un invariante de **contenido**
+  —ventana visible + palabra extra de fetch—, no solo de "pintado"). `Camera2D` (`move_by`/scroll) y
+  `World::add_tile_layer`/`Layer::camera()`/`Layer::tilemap()` ya existen. ⏳ falta la
+  **materialización Amiga declarativa** de una capa tilemap por el planner (hoy la demo 128 conduce
+  `StripComposer` a mano) y un **asset de tilemap de juego** ligado a la capa (atlas + paleta).
 
 ## 8. Unificar el vocabulario
 

@@ -9,3 +9,9 @@ sim/world_core.hpp
 # ai/planning/goap.hpp (1161): planificador GOAP (de otro hilo de trabajo); pendiente de
 # trocear por tema. Se acepta temporalmente para no bloquear la bateria host.
 ai/planning/goap.hpp
+#
+# api/game.hpp (1267): fachada de juego (App/Screen/GameDisplay, escenas §6, audio §2, preflight
+# de bus §1). Crecio al cerrar §1-§6 de ROADMAP_GAME_API; pendiente de trocear por tema (escenas /
+# audio / display) para que la plantilla «juego de 30 lineas» (§0/§9) quede legible. Se acepta
+# temporalmente para no bloquear la bateria host.
+api/game.hpp

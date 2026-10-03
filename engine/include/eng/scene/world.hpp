@@ -49,6 +49,19 @@ enum class ScrollKind : u8 {
 	                 ///< parchea `BPLxPT`/`BPLCON1`/split por frame sin re-emitir (50 fps single).
 };
 
+/// **Especificación de scroll de una capa** (vocabulario de juego): la técnica pedida, el
+/// **período del mapa** si es toroidal (en `words`; `0` = mapa acotado o fondo que repite) y la
+/// velocidad máxima. Es lo que el juego declara —sin conocer anillos, guardas ni registros— y de
+/// lo que el planner (`scene/scroll_plan.hpp`) deriva geometría y memoria. Para `Strip` con mapa
+/// toroidal el anillo que resulta es `visible + map_period_words` (el mapa completo + una pantalla
+/// de solape), que es justo el dimensionado que evita el descuadre al envolver (HOST-244).
+struct ScrollSpec {
+	ScrollKind kind = ScrollKind::None;
+	u16 map_period_words = 0u; ///< período del mapa toroidal en words (0 = sin wrap)
+	u8 speed_px = 4u;          ///< velocidad máxima de scroll (px/frame); acota las guardas
+	[[nodiscard]] constexpr bool wraps() const noexcept { return map_period_words != 0u; }
+};
+
 /// **Playfield preferido** de una capa (el planner decide la materialización final).
 enum class LayerPlayfield : u8 {
 	Any,         ///< el planner elige
@@ -90,9 +103,14 @@ struct WorldRegion {
 	ScrollKind scroll = ScrollKind::None;
 	u8 planes = 0;
 	u8 speed_px = 4u; ///< velocidad máxima de scroll pedida (px/frame); acota las guardas
+	u16 map_period_words = 0u; ///< período del mapa toroidal en words (0 = sin wrap)
 	[[nodiscard]] constexpr bool ok() const noexcept { return bottom > top; }
 	[[nodiscard]] constexpr RegionCost cost() const noexcept {
 		return region_cost(mode, scroll, planes);
+	}
+	/// La región vista como `ScrollSpec` (lo que consume el planner de scroll).
+	[[nodiscard]] constexpr ScrollSpec scroll_spec() const noexcept {
+		return ScrollSpec {scroll, map_period_words, speed_px};
 	}
 };
 
@@ -145,8 +163,12 @@ public:
 	[[nodiscard]] constexpr const TileLayer& tilemap() const noexcept { return m_tile; }
 
 	/// **Scroll pedido** y playfield preferido (los valida el planner).
-	[[nodiscard]] constexpr ScrollKind scroll() const noexcept { return m_scroll; }
-	constexpr void set_scroll(ScrollKind s) noexcept { m_scroll = s; }
+	[[nodiscard]] constexpr ScrollKind scroll() const noexcept { return m_scroll.kind; }
+	constexpr void set_scroll(ScrollKind s) noexcept { m_scroll.kind = s; }
+	/// Especificación completa de scroll (técnica + período de mapa + velocidad). Es el
+	/// vocabulario de juego: la capa lo declara y el planner deriva anillo/memoria de él.
+	[[nodiscard]] constexpr const ScrollSpec& scroll_spec() const noexcept { return m_scroll; }
+	constexpr void set_scroll_spec(const ScrollSpec& s) noexcept { m_scroll = s; }
 	[[nodiscard]] constexpr LayerPlayfield prefer() const noexcept { return m_prefer; }
 	constexpr void set_prefer(LayerPlayfield p) noexcept { m_prefer = p; }
 
@@ -154,7 +176,7 @@ private:
 	const char* m_id = "";
 	u8 m_depth = 0;
 	WorldLayerKind m_kind = WorldLayerKind::Actors;
-	ScrollKind m_scroll = ScrollKind::None;
+	ScrollSpec m_scroll {};
 	LayerPlayfield m_prefer = LayerPlayfield::Any;
 	TileLayer m_tile {};
 	Camera2D m_camera {};

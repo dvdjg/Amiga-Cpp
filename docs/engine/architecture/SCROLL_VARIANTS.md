@@ -122,8 +122,17 @@ El camino rápido hacia 50 fps está implementado y **host-verificado** (HOST-24
 - `field/strip_composer.hpp`: `StripComposer` (emite la copperlist una vez + parchea por frame).
 - `platform/amiga`: `blitter_strip_column` (ejecuta la tira, troceada en ≤1024 planelíneas).
 
-⏳ **Pendiente**: una **demo-referencia** (single 320×256 con two-WAIT, o 208) que use el camino y
-mida **50 fps / 1 campo**; y retirar las demos históricas de corkscrew que no cumplen.
+**Demo-referencia**: `demos/techniques/amiga/playfield/128_strip_scroller` (single 320×256, atlas
+“Beginning Fields” a 8 colores, **49,9 fps / 1,003 campos**). **Dimensionado del anillo**: con mapa
+toroidal el llamador usa `StripScrollGeometry<…, MapWords>` (período del mapa en words), que deriva
+`ring = visible + período` y exige por `static_assert` que la `span` del puntero sea múltiplo del
+período; sin eso el contenido se descuadra al envolver y la palabra extra de fetch (borde derecho,
+fine scroll) se queda sin pre-pintar. Ver HOST-244 (invariante de **contenido**). El vocabulario de
+juego es `scene::ScrollSpec` (`ScrollKind::Strip` + período + velocidad) sobre la capa
+(§7 de `ROADMAP_GAME_API.md`).
+
+⏳ **Pendiente**: retirar las demos históricas de corkscrew que no cumplen; materialización
+declarativa de la capa tilemap por el planner (hoy la demo conduce el compositor a mano).
 
 ## 5. Referencias
 

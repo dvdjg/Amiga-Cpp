@@ -43,12 +43,20 @@ extern "C" const unsigned int g_tilebank_xlimited_size;
 
 namespace {
 
-using Geom = eng::field::StripScrollGeometry<320u, 256u, 3u, 16u, 16u, 2u, 1u, false, 43u>;
+constexpr eng::u16 kViewportW = 320u;
+constexpr eng::u16 kViewportH = 256u;
+constexpr eng::u16 kMapSide = 40u; // mapa toroidal de 40 columnas (tiles de 16 px)
+
+// `MapWords` (periodo del mapa) deriva el anillo correcto (`visible + MapWords` = 60) y garantiza
+// por construccion que la `span` del puntero es multiplo del periodo: el slot `s` vale siempre la
+// columna `s % kMapSide` y no hay que repintar la ventana al envolver. Ver `StripScrollGeometry`
+// y el invariante de contenido de HOST-244.
+using Geom = eng::field::StripScrollGeometry<kViewportW, kViewportH, 3u, 16u, 16u, 2u, 1u,
+					    false, 0u, 0u, kMapSide>;
 
 constexpr eng::u16 kTileWords = Geom::tile_h * Geom::planes; // 48 (16x16 x 3 planos)
 constexpr eng::u16 kBlocksPerRow = 20u;                     // tiles por fila del banco X-Limited
 constexpr eng::u16 kBankRowBytes = 40u;                     // 320 px / 8
-constexpr eng::u16 kMapSide = 40u;
 constexpr eng::u32 kBankBytes = 1180u * kTileWords * 2u;   // banco packed (tiles contiguos)
 constexpr eng::u32 kColumnWords = Geom::column_planelines;
 constexpr eng::u32 kColumnBytes = kColumnWords * 2u;
@@ -76,7 +84,9 @@ struct StripGame {
 	/// Reempaqueta el banco X-Limited (interleaved 320 px) a tiles **contiguos** de 16x16x3.
 	void build_packed_bank() {
 		const eng::u8* const xlim = g_tilebank_xlimited;
-		const eng::u32 tile_count = g_tilebank_xlimited_size / (16u * Geom::planes * kBankRowBytes);
+		const eng::u32 block_rows =
+			g_tilebank_xlimited_size / (16u * Geom::planes * kBankRowBytes);
+		const eng::u32 tile_count = block_rows * kBlocksPerRow;
 		for (eng::u32 t = 0u; t < tile_count; ++t) {
 			const eng::u32 tx = t % kBlocksPerRow;
 			const eng::u32 ty = t / kBlocksPerRow;
@@ -140,7 +150,11 @@ struct StripGame {
 			return;
 		}
 		m_composer.takeover(backend);
-		for (eng::u16 w = 0u; w < Geom::visible_words; ++w) paint_column(w, w);
+		// Pre-pinta TODO el anillo (mapa completo + solape). Con base 0 el slot `s` vale la
+		// columna `s % kMapSide`; pintar la pantalla entera deja sin inicializar la palabra extra
+		// de fetch (la que revela el fine scroll en el borde derecho), por eso se cubre el anillo.
+		for (eng::u16 w = 0u; w < Geom::ring_w_words; ++w)
+			paint_column(w, static_cast<eng::u16>(w % kMapSide));
 		m_ready = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x12800000u);
 	}
