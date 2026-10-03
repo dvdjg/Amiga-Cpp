@@ -8,6 +8,7 @@
 
 #include <eng/api/api.hpp>
 #include <eng/core/math/sinetable.hpp>
+#include <eng/debug/prof.hpp>
 #include <eng/field/scroll_route.hpp>
 #include <eng/field/xlimited_scene.hpp>
 #include <eng/platform/amiga/backend.hpp>
@@ -59,6 +60,9 @@ constexpr playfield::ScrollConsts kScroll {
 
 using MapT = playfield::TileLayerMap;
 using Profile = playfield::ScrollProgressive;
+
+// Secciones de perfilado (tools/debug/profile.mjs): planificar+blitear vs recomponer el fondo.
+enum : eng::u8 { kProfUpdate = 0, kProfCompose, kProfCount };
 
 eng::u16 g_palette[8] {};
 
@@ -128,6 +132,7 @@ struct DemoGame {
 		}
 		scene.takeover(backend);
 		ready = true;
+		ENG_PROF_INIT(kProfCount);
 		eng::debug::mark_ready(g_eng_run_status, 0x20500000u);
 	}
 
@@ -141,8 +146,14 @@ struct DemoGame {
 		prev_y = route.y;
 		plan.clear();
 		plan.set_blit_budget_limits({65536, 262144, 64, 8192});
-		if (!scene.update(plan, dx, dy, context.frame.frame_index) ||
-		    !backend.execute_frame_plan(plan) || !scene.compose()) {
+		ENG_PROF_BEGIN(kProfUpdate);
+		const bool ok_update =
+			scene.update(plan, dx, dy, context.frame.frame_index) && backend.execute_frame_plan(plan);
+		ENG_PROF_END(kProfUpdate);
+		ENG_PROF_BEGIN(kProfCompose);
+		const bool ok_compose = ok_update && scene.compose();
+		ENG_PROF_END(kProfCompose);
+		if (!ok_update || !ok_compose) {
 			ready = false;
 			eng::debug::mark_failed(g_eng_run_status, 0x00020504u);
 			return;
@@ -153,6 +164,7 @@ struct DemoGame {
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (ready) scene.install(backend);
+		ENG_PROF_FRAME();
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 };
