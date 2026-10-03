@@ -147,4 +147,21 @@ template <class Geom>
 	return b;
 }
 
+/// **Compone una columna completa** (viewport entero) concatenando los `Geom::column_tiles` tiles del
+/// banco — cada uno `tile_h*planes` palabras (interleaved) — en `dst` **contiguo**, listo para el
+/// blit con `BLTAMOD=0`. `bank_stride_words` = palabras por tile en el banco. Devuelve las palabras
+/// escritas. (El backend lo llama solo al cruzar tile; frames sin cruce = 0 composiciones.)
+template <class Geom>
+[[nodiscard]] constexpr eng::u16 compose_column(eng::u16* dst, const eng::u16* tile_bank,
+						const eng::u16* tile_ids,
+						eng::u16 bank_stride_words) noexcept {
+	const eng::u16 tile_words = static_cast<eng::u16>(Geom::tile_h * Geom::planes);
+	eng::u16 w = 0u;
+	for (eng::u16 t = 0u; t < Geom::column_tiles; ++t) {
+		const eng::u16* src = tile_bank + static_cast<eng::u32>(tile_ids[t]) * bank_stride_words;
+		for (eng::u16 i = 0u; i < tile_words; ++i) dst[w++] = src[i];
+	}
+	return w;
+}
+
 } // namespace eng::field

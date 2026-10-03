@@ -111,6 +111,28 @@ int main() {
 	const auto b1 = eng::field::strip_blit_desc<Geom>(5u, 1u);
 	check(b1.bltsize == static_cast<eng::u16>((16u << 6u) | 1u), "chunk 1: 16 planelines (1040-1024)");
 
+	// Composicion de columna: 13 tiles (208/16) de 80 palabras -> 1040 palabras contiguas.
+	{
+		eng::u16 bank[16u * 80u];
+		for (eng::u16 id = 0u; id < 16u; ++id) {
+			for (eng::u16 i = 0u; i < 80u; ++i) {
+				bank[id * 80u + i] = static_cast<eng::u16>(id * 1000u + i);
+			}
+		}
+		eng::u16 ids[13u];
+		for (eng::u16 t = 0u; t < 13u; ++t) ids[t] = static_cast<eng::u16>((t * 3u + 1u) % 16u);
+		eng::u16 out[Geom::column_planelines];
+		const eng::u16 n = eng::field::compose_column<Geom>(out, bank, ids, 80u);
+		check(n == Geom::column_planelines, "compose_column: 13 tiles x 80 = 1040 palabras");
+		bool okc = true;
+		for (eng::u16 t = 0u; t < 13u && okc; ++t) {
+			for (eng::u16 i = 0u; i < 80u; ++i) {
+				if (out[t * 80u + i] != bank[ids[t] * 80u + i]) { okc = false; break; }
+			}
+		}
+		check(okc, "compose_column: concatenacion correcta (BLTAMOD=0)");
+	}
+
 	if (g_fail != 0) { std::printf("%d fallo(s)\n", g_fail); return 1; }
 	std::printf("OK: geometria de tiras (anillo, guarda, cobertura) e invariantes validados.\n");
 	return 0;
