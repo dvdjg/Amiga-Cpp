@@ -25,6 +25,7 @@
 #include <eng/engine.hpp>
 #include <eng/field/draw_target.hpp>
 #include <eng/field/raster.hpp>
+#include <eng/field/strip_scroller.hpp>
 #include <eng/field/surface.hpp>
 #include <eng/graphics/blitter_state.hpp>
 #include <eng/graphics/anim.hpp>

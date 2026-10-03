@@ -106,6 +106,20 @@ El viewport de 256 px *sin* split (que necesite bucle vertical) usa el modo **li
 
 Cada paso cierra con equivalencia contra el progresivo (sin huecos/tearing) y build/run/checks.
 
+### 4.1 Camino de tiras (Copper ring + incoming strip) — implementado
+
+El camino rápido hacia 50 fps está implementado y **host-verificado** (HOST-244/245):
+
+- `field/strip_scroller.hpp`: `StripScrollGeometry` (anillo/`BPL_MOD`/`BLTDMOD`, `column_blits` por el
+  límite de `BLTSIZE`, split two-WAIT), `plan_strip_frame` (qué tira pintar por frame), `compose_column`
+  (columna contigua para `BLTAMOD=0`), `strip_blit_desc` (registros) y `strip_copper_values`
+  (`BPLCON1`/`BPLxPT`/split).
+- `field/strip_composer.hpp`: `StripComposer` (emite la copperlist una vez + parchea por frame).
+- `platform/amiga`: `blitter_strip_column` (ejecuta la tira, troceada en ≤1024 planelíneas).
+
+⏳ **Pendiente**: una **demo-referencia** (single 320×256 con two-WAIT, o 208) que use el camino y
+mida **50 fps / 1 campo**; y retirar las demos históricas de corkscrew que no cumplen.
+
 ## 5. Referencias
 
 - Política de velocidad y perfiles: `FAST_SCROLL.md`.
