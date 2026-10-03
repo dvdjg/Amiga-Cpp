@@ -9,7 +9,8 @@
 #include <eng/api/api.hpp>
 #include <eng/core/math/sinetable.hpp>
 #include <eng/debug/prof.hpp>
-#include <eng/field/scroll_route.hpp>
+// La ruta de scroll llega por la fachada (`eng/api/scroll.hpp`); `xlimited_scene` es el MOTOR de la
+// técnica del corcóscru que esta demo de `techniques/` demuestra directamente.
 #include <eng/field/xlimited_scene.hpp>
 #include <eng/platform/amiga/backend.hpp>
 

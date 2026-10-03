@@ -60,10 +60,29 @@ public:
 		m_copper_bytes = copper_bytes;
 	}
 	/// Sigue las variables de cámara (px) del juego: el `App` las leerá por frame. `y` puede ser
-	/// `nullptr` (scroll puramente horizontal).
+	/// `nullptr` (scroll puramente horizontal). Es el camino de un mapa **toroidal**, donde la
+	/// posición X avanza sin recortarse (el motor envuelve por su cuenta).
 	constexpr void track_camera(const eng::s32* x, const eng::s32* y = nullptr) noexcept {
 		m_cam_x = x;
 		m_cam_y = y;
+		m_cam_read = nullptr;
+	}
+
+	/// Sigue una **cámara** (cualquier tipo con `x()`/`y()` enteros; `eng::scene::Camera2D` lo
+	/// cumple): la capa lee su posición por frame, sin que el juego mantenga variables sueltas.
+	/// Es el vocabulario de `PUBLIC_GAME_API.md` §2.1.3 para un mapa **acotado** (la cámara ya
+	/// recorta a sus límites); el tipo es parámetro de plantilla, así que esta cabecera no depende
+	/// de `eng/scene` (el lector es *type-erased*).
+	template <class Camera>
+	void follow_camera(const Camera& cam) noexcept {
+		m_cam_obj = const_cast<Camera*>(&cam);
+		m_cam_read = [](void* p, eng::s32& x, eng::s32& y) noexcept {
+			const Camera& c = *static_cast<const Camera*>(p);
+			x = static_cast<eng::s32>(c.x());
+			y = static_cast<eng::s32>(c.y());
+		};
+		m_cam_x = nullptr;
+		m_cam_y = nullptr;
 	}
 
 	/// **Setup**: reserva los buffers, monta y arranca la copperlist del compositor, liga el
@@ -97,10 +116,16 @@ public:
 		m_composer.install(backend);
 	}
 
-	/// Conduce la capa siguiendo las variables de cámara registradas (`track_camera`). Lo usa el `App`.
+	/// Conduce la capa siguiendo la cámara registrada (`track_camera`/`follow_camera`). Lo usa el `App`.
 	void frame_from_source(Backend& backend) noexcept {
-		const eng::s32 x = (m_cam_x != nullptr) ? *m_cam_x : 0;
-		const eng::s32 y = (m_cam_y != nullptr) ? *m_cam_y : 0;
+		eng::s32 x = 0;
+		eng::s32 y = 0;
+		if (m_cam_read != nullptr) {
+			m_cam_read(m_cam_obj, x, y);
+		} else {
+			x = (m_cam_x != nullptr) ? *m_cam_x : 0;
+			y = (m_cam_y != nullptr) ? *m_cam_y : 0;
+		}
 		frame(backend, x, y, m_prev_x, m_prev_y);
 		m_prev_x = x;
 		m_prev_y = y;
@@ -139,6 +164,8 @@ private:
 	eng::u16* m_column_words = nullptr;
 	const eng::s32* m_cam_x = nullptr;
 	const eng::s32* m_cam_y = nullptr;
+	void* m_cam_obj = nullptr;
+	void (*m_cam_read)(void*, eng::s32&, eng::s32&) noexcept = nullptr;
 	eng::s32 m_prev_x = 0;
 	eng::s32 m_prev_y = 0;
 	bool m_ok = false;

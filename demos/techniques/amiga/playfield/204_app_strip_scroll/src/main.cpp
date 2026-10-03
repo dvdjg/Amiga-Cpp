@@ -9,10 +9,10 @@
 //   bash ./tools/build/build-demo.sh demos/techniques/amiga/playfield/204_app_strip_scroll --release
 //   bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/204_app_strip_scroll
 
+// Un solo include de fachada: trae la capa de scroll, la ruta de cámara y el asset de tilemap
+// (`eng/api/scroll.hpp`) sin que el juego incluya `eng/field/*`.
 #include <eng/api/api.hpp>
 #include <eng/core/math/sinetable.hpp>
-#include <eng/field/scroll_route.hpp>
-#include <eng/field/strip_layer.hpp>
 #include <eng/platform/amiga/backend.hpp>
 
 #include <exec/execbase.h>

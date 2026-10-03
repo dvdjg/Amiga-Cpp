@@ -19,6 +19,7 @@
 #include <eng/api/game.hpp>
 #include <eng/api/display.hpp>
 #include <eng/api/screen.hpp>
+#include <eng/api/scroll.hpp>
 #include <eng/api/world_render.hpp>
 #include <eng/core/types/box.hpp>
 #include <eng/core/types/domains.hpp>

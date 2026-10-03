@@ -181,9 +181,15 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
   (`ScrollLayerHandle`) y la conduce por frame tras el `update` del juego (`pump_scroll_layers`); HOST-240 lo
   cubre con una capa mock. ✅ **asset de tilemap** `field::TilemapView` (banco + mapa + paleta) ligado con
   `StripScrollLayer::set_tilemap` (el juego no escribe el adaptador). ✅ **demo `App`** =
-  `demos/techniques/amiga/playfield/204_app_strip_scroll` (App + capa de tiras; el juego no ve el compositor;
-  scroll suave validado con Ollama). ⏳ falta que el **pipeline** (§4) genere el banco ya empaquetado + el mapa
-  como asset tipado (`app.assets().tilemap("n")`).
+   `demos/techniques/amiga/playfield/204_app_strip_scroll` (App + capa de tiras; el juego no ve el compositor;
+   scroll suave validado con Ollama). ✅ **seam público cerrado**: la fachada `eng/api/scroll.hpp`
+   (incluida por `api.hpp`) expone el **vocabulario** (`eng::ScrollSpec`/`ScrollKind`/`Camera2D`) y los
+   **motores** sin que el juego incluya `eng/field/*` (la 204/205 ya solo incluyen la fachada); la capa
+   acepta la **cámara del juego** por `track_camera` (posición px, para mapas toroidales) o
+   `follow_camera(camera)` (cualquier cámara con `x()`/`y()`, p. ej. `scene::Camera2D`, para mapas
+   acotados). ⏳ falta el **planner** que elija el motor **solo** (sin que el juego nombre
+   `Strip`/`Xlimited`) y una **cámara toroidal** (la `Camera2D` recorta a un mundo acotado); y que el
+   **pipeline** (§4) genere el banco ya empaquetado + el mapa como asset tipado (`app.assets().tilemap("n")`).
 
 ## 8. Unificar el vocabulario
 

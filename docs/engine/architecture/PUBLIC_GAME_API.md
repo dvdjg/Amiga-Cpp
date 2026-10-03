@@ -160,6 +160,25 @@ s.sprite(nave, 100, 40);                         // los objetos van en coordenad
 
 Reutiliza `scene::Camera2D` (`virtual_scene.hpp`) y `TileScrollDriver`/`FineScroll`; el `scroll_x` de la cámara es lo que hoy se parchea a mano en `BPLCON1` (en la 213, un `PatchHandle`). **Estado (aditivo):** `eng/scene/world.hpp` da `app.world().add_layer("fondo", 0)` → `Ref<Layer>` (anulable si el mundo está lleno) y `layer->camera().scroll_x`/`set_scroll_x(...)`; el **planner** que materializa cada capa (playfield/tilemap/efecto) y el reparto de recursos se construyen encima. Gates: `214_app_sprite` (cámara de capa moviendo el sprite, HOST-327) y las demos de scroll por tiles.
 
+#### Scroll de capa: vocabulario y motores (`eng/api/scroll.hpp`)
+
+El scroll se separa en **dos capas** que la fachada (`eng/api/scroll.hpp`, incluida por `api.hpp`) fija para que el juego no incluya `eng/field/*`:
+
+- **Vocabulario de juego** (datos sin hardware): `eng::ScrollSpec` —técnica pedida (`ScrollKind`), período del mapa toroidal (`map_period_words`) y velocidad— y `eng::Camera2D` —la ventana al mundo (`move_by`/`scroll_x`/`scroll_y`).
+- **Motores** (los construye/posee el engine): `playfield::StripScrollLayer` (camino de tiras, 50 fps single) y `playfield::XlimitedScene` (corcóscru XYLimited). El juego los **registra** con `App::add_scroll_layer` —que los arranca con su memoria y su backend y los **conduce por frame**— y los alimenta con su cámara.
+
+```cpp
+// setup (Game::init)
+m_layer.set_tilemap(tilemap);              // asset: banco + mapa (ids de tile) + paleta
+m_layer.set_sizes(ring_bytes, column_bytes);
+m_layer.track_camera(&m_cam_x, &m_cam_y);  // cámara = posición (px) de mundo; la capa la sigue
+app.add_scroll_layer(m_layer);             // una línea: arranque + conducción por frame
+// por frame (Game::update)
+m_cam_x += vx;  m_cam_y += vy;             // el vocabulario de juego
+```
+
+Un mapa **acotado** usa `follow_camera(layer->camera())` (`scene::Camera2D` recorta a sus límites); un mapa **toroidal** usa `track_camera` con una posición `s32` sin recortar (el motor envuelve). Elegir la representación de cámara por tipo de mapa es la línea que cierra el **planner de cámara/tilemap** (`ROADMAP_GAME_API.md` §7); hasta entonces el juego elige el motor y declara su cámara con el tipo que le corresponde. Gates: `204_app_strip_scroll` (App + capa de tiras, validada con Ollama) y `205_xy_limited_scroll` (corcóscru).
+
 ### 2.1.4 Recursos — `app.load<T>(...)` y presupuesto
 
 El `load<T>` de este contrato es **objetivo, no API implementada**: declara, carga y cachea un asset
