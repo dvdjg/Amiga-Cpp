@@ -28,3 +28,4 @@ Categoría `os` de la batería host (L1). El índice de categorías está en [..
 | HOST-309 | [os_hook_pump_order](309_os_hook_pump_order/README.md) | Mini-SO: contrato de orden hook de VBlank→pump (`poll_and_post` + `MessagePumpGame::update` entregan el `Timer` en el mismo frame, periodo 1 y 2). |
 | HOST-403 | [path_normalize](403_path_normalize/README.md) | VFS (R6.1): `eng::os::normalize_path` — colapso de separadores, `.`/`..`, absolutos/relativos y errores (vacío, escape, sin cabida). |
 | HOST-404 | [request_table](404_request_table/README.md) | E/S (R6.2): `eng::os::RequestTable`/`RequestId` — peticiones con **generación**: rechazo de respuestas tardías de un slot reutilizado, cancelación y llenado. |
+| HOST-409 | [vfs](409_vfs/README.md) | VFS (R6.1): `eng::os::Vfs<Backend>` — paths normalizados + `exists`/`size`/`read`/`read_all` sobre backend simulado; errores normalizados. |
