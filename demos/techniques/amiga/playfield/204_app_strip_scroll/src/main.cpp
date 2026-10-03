@@ -72,7 +72,7 @@ constexpr eng::u32 kRingBytes =
 
 // Ruta de scroll **continua** del engine (`playfield::ScrollRoute`): fases H/V/diagonal/circular/
 // Lissajous por velocidad, sin saltos y con <= 1 px/frame por eje; la Y se acota al bitmap.
-using Route = eng::playfield::ScrollRoute<static_cast<eng::u16>(kYRange)>;
+using Route = eng::playfield::ScrollRoute<112u>; // misma ruta que la 205 (comparables)
 
 struct AppStripGame {
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bank {};

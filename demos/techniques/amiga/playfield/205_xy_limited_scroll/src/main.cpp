@@ -52,7 +52,7 @@ constexpr eng::u8 kPlanes = 3u;
 constexpr eng::u16 kTilesetCount = 1180u;
 // Anillo vertical del corcóscru: 288 para viewport 208 (como la 202); con 240 el fondo leía filas
 // equivocadas del anillo (mapa roto en la mitad inferior).
-constexpr eng::u16 kDisplayH = 288u;
+constexpr eng::u16 kDisplayH = 320u;
 
 constexpr playfield::ScrollConsts kScroll {
 	kTile, kTile, kDisplayH, static_cast<eng::u32>(kDisplayH) * kPlanes, kPlanes};
@@ -65,7 +65,7 @@ eng::u16 g_palette[8] {};
 /// La Y se mantiene en **`[0, kYMax]`**: el corcóscru single-field solo reconstruye bien la ventana
 /// mientras NO envuelve el anillo (sin split: `y + tile <= display_height - viewport_h`).
 /// `kYMax = display_height - viewport_h - tile = 288 - 208 - 16 = 64`.
-constexpr eng::u16 kYMax = 64u;
+constexpr eng::u16 kYMax = 112u; // display_height - viewport_h (recorrido del anillo)
 /// Ruta de scroll **continua** del engine (mismos fases que la 204), por velocidad y <= 1 px/frame.
 using Route = eng::playfield::ScrollRoute<kYMax>;
 
