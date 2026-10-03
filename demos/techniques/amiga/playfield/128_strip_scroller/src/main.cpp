@@ -54,15 +54,18 @@ constexpr eng::s32 kStepX = 2;                                         // px/fra
 	bool m_ready = false;
 
 	[[nodiscard]] eng::u16 map_tile(eng::u16 col, eng::u16 row) const {
-		(void)row;
-		// Gradiente por columna (franjas verticales): scroll claro y verificable con vision.
-		return static_cast<eng::u16>(col % kTilesetTiles);
+		// **Objetos singulares**: bloques de 2x2 (32x32) cada 6 columnas, cada uno de un color
+		// DISTINTO, sobre un fondo tenue. Asi su desplazamiento es inequivoco (vision + ojo).
+		if ((col % 6u) < 2u && (row % 8u) >= 2u && (row % 8u) < 4u) {
+			return static_cast<eng::u16>(1u + ((col / 6u) % 14u));
+		}
+		return 0u; // fondo
 	}
 
 	void fill_bank() {
-		// Cada tile es un rectangulo de color solido `t`: por planelínea, el bit del color.
+		// tile 0 = fondo (color 1, tenue); tiles 1..15 = objetos (colores 2..16, brillantes).
 		for (eng::u16 t = 0u; t < kTilesetTiles; ++t) {
-			const eng::u16 color = static_cast<eng::u16>(1u + t);
+			const eng::u16 color = (t == 0u) ? 1u : static_cast<eng::u16>(t + 1u);
 			for (eng::u16 line = 0u; line < Geom::tile_h; ++line) {
 				for (eng::u16 plane = 0u; plane < Geom::planes; ++plane) {
 					m_bank_words[t * kTileWords + line * Geom::planes + plane] =
@@ -105,14 +108,23 @@ constexpr eng::s32 kStepX = 2;                                         // px/fra
 		fill_bank();
 
 		eng::Palette32 pal {};
-		for (eng::u16 i = 0u; i < 32u; ++i) {
-			pal.color[i] = static_cast<eng::u16>(((i & 1u) ? 0xf00u : 0u) |
-							     ((i & 2u) ? 0x0f0u : 0u) |
-							     ((i & 4u) ? 0x00fu : 0u) |
-							     ((i & 8u) ? 0x888u : 0u) |
-							     ((i & 16u) ? 0x444u : 0u));
-		}
-		pal.color[0] = 0x000u;
+		pal.color[0] = 0x000u; // negro (borde)
+		pal.color[1] = 0x113u; // fondo azul oscuro
+		pal.color[2] = 0xf00u;
+		pal.color[3] = 0x0f0u;
+		pal.color[4] = 0x00fu;
+		pal.color[5] = 0xff0u;
+		pal.color[6] = 0xf0fu;
+		pal.color[7] = 0x0ffu;
+		pal.color[8] = 0xfffu;
+		pal.color[9] = 0xf80u;
+		pal.color[10] = 0x8f0u;
+		pal.color[11] = 0x0f8u;
+		pal.color[12] = 0x08fu;
+		pal.color[13] = 0x80fu;
+		pal.color[14] = 0xf08u;
+		pal.color[15] = 0x880u;
+		pal.color[16] = 0xaaau;
 		if (!m_composer.init(mm, pal.words(), 1536u)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012803u);
 			return;

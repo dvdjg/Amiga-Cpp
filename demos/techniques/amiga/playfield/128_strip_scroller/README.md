@@ -12,7 +12,8 @@ bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/128_strip_scroller
 ## Qué hace
 
 - Anillo de **2 pantallas** (43 words) + guarda/fetch; viewport 320×256; 5 planos interleaved.
-- Banco de **16 tiles** de 16×16×5 (color sólido) y un **mapa** que se repite (32 columnas).
+- **Objetos singulares** de colores distintos (bloques 32×32 cada 6 columnas) sobre fondo azul tenue:
+  su desplazamiento horizontal es **inequívoco** (se ve a ojo y lo verifica el modelo de visión).
 - Por frame (`kStepX = 2` px): `plan_strip_frame` decide la tira; si cruza frontera de tile,
   `compose_column` la compone desde los tiles (**separados**, tile a tile) y `blitter_strip_column`
   la pinta en la guarda; `strip_copper_values` + `StripComposer::patch` parchean la copperlist
