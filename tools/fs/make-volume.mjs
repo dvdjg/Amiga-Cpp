@@ -66,6 +66,36 @@ function buildHunk() {
 	return Buffer.concat(parts);
 }
 
+// CRC-32 (IEEE, polinomio reflejado 0xEDB88320) — igual que `eng::crc32`.
+const CRC_TABLE = (() => {
+	const t = new Uint32Array(256);
+	for (let n = 0; n < 256; ++n) {
+		let c = n;
+		for (let k = 0; k < 8; ++k) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : c >>> 1;
+		t[n] = c >>> 0;
+	}
+	return t;
+})();
+function crc32(buf) {
+	let c = 0xffffffff >>> 0;
+	for (let i = 0; i < buf.length; ++i) c = (CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8)) >>> 0;
+	return (~c) >>> 0;
+}
+
+// `.engz`: contenedor (cabecera LE de 20 B + payload + CRC-32), codec 0 = Raw.
+// Ver engine/include/eng/res/engz.hpp. El payload podría ir comprimido (ZX0); aquí Raw.
+function buildEngz(payload, codec = 0) {
+	const hdr = Buffer.alloc(20);
+	hdr.writeUInt32LE(0x454e475a, 0); // 'ENGZ' (convención kEngzMagic)
+	hdr.writeUInt16LE(1, 4); // version
+	hdr.writeUInt8(codec, 6);
+	hdr.writeUInt8(1, 7); // align_log2 (2 B)
+	hdr.writeUInt32LE(payload.length, 8);
+	hdr.writeUInt32LE(payload.length, 12); // uncompressed_size (Raw → igual)
+	hdr.writeUInt32LE(crc32(payload), 16);
+	return Buffer.concat([hdr, payload]);
+}
+
 // .englib: header(24) + code(8) + 1 reloc + 1 export ("answer" -> 0).
 // code: 70 2a 4e 75 (moveq #42,%d0 ; rts) + 4 bytes de celda relocable.
 function buildEngLib() {
@@ -128,6 +158,7 @@ function buildContent() {
 		'data/audio/tone_8k_512k.raw': big,
 		'data/code/answer.englib': buildEngLib(),
 		'data/code/answer.hunk': buildHunk(),
+		'data/code/answer.engz': buildEngz(buildHunk()), // HUNK envuelto en `.engz` (R6.4/R6.7)
 	};
 	// Modulos de musica reales (de assets/) para la demo 276: se cargan desde disco con
 	// `file_open`/`file_read_sync` en vez de incrustarlos. Si no existen, se omiten.
