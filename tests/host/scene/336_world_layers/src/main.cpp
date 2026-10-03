@@ -85,7 +85,7 @@ int main() {
 	const eng::scene::WorldTileMapView adapted {*adapted_layer, 2u, 0u, 0u, 0xffffu};
 	check(adapted.has_data() && adapted.width == 2u && adapted.height == 2u,
 	      "WorldTileMapView expone el TileMap16 retenido al contrato TileMap");
-	eng::field::XlimitedSceneConfigT<eng::scene::WorldTileMapView> config {};
+	eng::playfield::XlimitedSceneConfigT<eng::scene::WorldTileMapView> config {};
 	config.map = adapted;
 	check(config.map.has_data() && config.map.tile_at(0, 1) == 3u,
 	      "WorldTileMapView se instala directamente como mapa de XlimitedScene");

@@ -9,7 +9,7 @@
 #include <eng/field/field_display.hpp>
 #include <eng/field/xlimited_playfield.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 /// Compositor mínimo para XLimited/corkscrew (single playfield interleaved).
 ///
@@ -540,8 +540,8 @@ private:
     bool m_split_b = false;
 };
 
-} // namespace eng::field
+} // namespace eng::playfield
 
 /// Depuración: resultado del `valid()` del compositor dual (0 = OK).
-volatile eng::u32 eng::field::g_dbg_dual_valid = 0;
+volatile eng::u32 eng::playfield::g_dbg_dual_valid = 0;
 

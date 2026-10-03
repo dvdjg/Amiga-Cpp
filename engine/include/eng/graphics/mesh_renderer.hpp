@@ -54,7 +54,7 @@ template <typename ColorFn, typename Model>
 inline u32 mesh_render_filled(const math3d::MeshView& mesh, const Model& model,
 			      const math3d::Vec3& camera, s16 focal, s16 cx, s16 cy,
 			      math3d::Vec3* world, math3d::FaceOrder* order,
-			      s16* sx, s16* sy, field::Surface& surface, ColorFn color_of,
+			      s16* sx, s16* sy, playfield::Surface& surface, ColorFn color_of,
 			      bool double_sided = false) {
 	const u32 nv = mesh.vertex_count();
 	const u32 nf = mesh.face_count();
@@ -91,7 +91,7 @@ template <typename ColorFn, typename Model>
 inline u32 mesh_render_poly_filled(const math3d::PolyMeshView& mesh, const Model& model,
 				   const math3d::Vec3& camera, s16 focal, s16 cx, s16 cy,
 				   math3d::Vec3* world, math3d::FaceOrder* order, s16* sx, s16* sy,
-				   field::Surface& surface, ColorFn color_of, bool double_sided = false) {
+				   playfield::Surface& surface, ColorFn color_of, bool double_sided = false) {
 	constexpr u32 kMaxPolyVerts = 12u; // convexo tras culling; tope del relleno
 	const u32 nv = mesh.vertex_count();
 	const u32 nf = mesh.face_count();
@@ -131,7 +131,7 @@ template <typename Model>
 inline u32 mesh_render_wire(const math3d::MeshView& mesh, const Model& model,
 			    const math3d::Vec3& camera, s16 focal, s16 cx, s16 cy,
 			    math3d::Vec3* world, math3d::FaceOrder* order,
-			    s16* sx, s16* sy, field::Surface& surface, u8 color,
+			    s16* sx, s16* sy, playfield::Surface& surface, u8 color,
 			    bool double_sided = false) {
 	const u32 nv = mesh.vertex_count();
 	const u32 nf = mesh.face_count();

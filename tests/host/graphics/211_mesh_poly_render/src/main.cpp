@@ -12,7 +12,7 @@
 #include <eng/memory/mem_bank.hpp>
 
 using namespace eng;
-using namespace eng::field;
+using namespace eng::playfield;
 using namespace eng::math3d;
 
 // Playfield mínimo de prueba (buffer del host, layout interleaved), como HOST-045.

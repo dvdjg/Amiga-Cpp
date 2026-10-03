@@ -28,11 +28,11 @@ void check(bool ok, const char* what) {
 
 using eng::s32;
 using eng::u16;
-using eng::field::parallax_pattern_offset_px;
-using eng::field::fixed_bg_offset_px;
-using eng::field::bg_split_rects;
-using eng::field::bg_shift_for;
-using eng::field::bg_window_for;
+using eng::playfield::parallax_pattern_offset_px;
+using eng::playfield::fixed_bg_offset_px;
+using eng::playfield::bg_split_rects;
+using eng::playfield::bg_shift_for;
+using eng::playfield::bg_window_for;
 
 constexpr u16 kPeriod = 512;   // periodo horizontal del patrón (2 bytes = 16 px word)
 

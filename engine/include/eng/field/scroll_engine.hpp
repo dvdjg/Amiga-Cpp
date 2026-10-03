@@ -36,7 +36,7 @@
 #include <eng/core/util/scope_guard.hpp>
 #include <eng/graphics/frame_plan.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 /// Direcciones del corkscrew (constantes del original Scroller_XYLimited).
 enum ScrollDirection : u8 {
@@ -690,4 +690,4 @@ private:
     ScrollState m_state {};
 };
 
-} // namespace eng::field
+} // namespace eng::playfield

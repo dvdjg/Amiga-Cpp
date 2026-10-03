@@ -2,7 +2,7 @@
 // Test HOST-063: map_ring_scroll (mapper del corkscrew/XYLimited)
 // ============================================================================
 //
-// Valida `eng::field::map_ring_scroll` (amiga_display_mapper.hpp): la traducción
+// Valida `eng::playfield::map_ring_scroll` (amiga_display_mapper.hpp): la traducción
 // NEUTRAL de la cámara del corkscrew a los registros del display (planeaddx,
 // BPLCON1 con fetch ancho, offset vertical del anillo y split). Es la fórmula
 // extraída de `XLimitedPlayfield::hardware_view()` (réplica de UpdateCopperlist,
@@ -22,8 +22,8 @@ void check(bool ok, const char* what) {
 	if (!ok) { std::printf("[FAIL] %s\n", what); ++g_fail; }
 }
 
-using eng::field::map_ring_scroll;
-using eng::field::RingDisplayMapping;
+using eng::playfield::map_ring_scroll;
+using eng::playfield::RingDisplayMapping;
 using eng::s32;
 
 RingDisplayMapping ring(s32 vx, s32 vy, bool scroll_y = true, bool linear = false, eng::u16 I = 16) {

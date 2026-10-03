@@ -77,9 +77,9 @@ void ref_line(bool* out, eng::s32 x0, eng::s32 y0, eng::s32 x1, eng::s32 y1) {
 /// 1 px entre pasos, lo que en lineas gruesas/anchos >1 es correcto). Se exige cobertura total.
 bool line_covers(eng::u8* mem, eng::s32 x0, eng::s32 y0, eng::s32 x1, eng::s32 y1) {
 	for (eng::u32 i = 0u; i < kPlaneStride * kPlanes; ++i) mem[i] = 0u;
-	eng::field::ContiguousPlayfield pf {};
+	eng::playfield::ContiguousPlayfield pf {};
 	pf.bind_raw(mem, kPlaneStride * kPlanes, kW, kH, kPlanes);
-	eng::field::cpu_line(pf, x0, y0, x1, y1, 3u);
+	eng::playfield::cpu_line(pf, x0, y0, x1, y1, 3u);
 	bool ref[kW * kH] = {};
 	ref_line(ref, x0, y0, x1, y1);
 	for (eng::s16 y = 0; y < static_cast<eng::s16>(kH); ++y) {
@@ -94,27 +94,27 @@ bool line_covers(eng::u8* mem, eng::s32 x0, eng::s32 y0, eng::s32 x1, eng::s32 y
 
 int main() {
 	alignas(2) eng::u8 mem[kPlaneStride * kPlanes] {};
-	eng::field::ContiguousPlayfield pf {};
+	eng::playfield::ContiguousPlayfield pf {};
 	check(pf.bind_raw(mem, sizeof(mem), kW, kH, kPlanes), "bind playfield");
 	// Ya blindado con static_assert arriba; aqui solo se deja constancia en el log.
 	std::printf("  eng::pix = %u bytes\n", static_cast<unsigned>(sizeof(eng::pix)));
 
 	// --- Rectangulo por spans ---
-	const eng::u32 rows = eng::field::cpu_fill_rect(pf, 4, 6, 20u, 10u, 5u);
+	const eng::u32 rows = eng::playfield::cpu_fill_rect(pf, 4, 6, 20u, 10u, 5u);
 	check(rows == 10u, "cpu_fill_rect pinta 10 filas");
 	check(pixel_at(mem, 4, 6) == 5u && pixel_at(mem, 23, 15) == 5u, "rect esquinas dentro");
 	check(pixel_at(mem, 3, 6) == 0u && pixel_at(mem, 24, 15) == 0u, "rect fuera intacto");
 
 	// --- Linea horizontal ---
 	for (eng::u32 i = 0u; i < sizeof(mem); ++i) mem[i] = 0u;
-	eng::field::cpu_line(pf, 2, 30, 40, 30, 7u);
+	eng::playfield::cpu_line(pf, 2, 30, 40, 30, 7u);
 	check(pixel_at(mem, 2, 30) == 7u && pixel_at(mem, 21, 30) == 7u && pixel_at(mem, 40, 30) == 7u,
 	      "linea horizontal completa");
 	check(pixel_at(mem, 1, 30) == 0u && pixel_at(mem, 41, 30) == 0u, "horizontal no desborda");
 
 	// --- Linea vertical ---
 	for (eng::u32 i = 0u; i < sizeof(mem); ++i) mem[i] = 0u;
-	eng::field::cpu_line(pf, 10, 2, 10, 35, 7u);
+	eng::playfield::cpu_line(pf, 10, 2, 10, 35, 7u);
 	bool v_ok = true;
 	for (eng::s16 y = 2; y <= 35; ++y) {
 		if (pixel_at(mem, 10, y) != 7u) v_ok = false;
@@ -133,7 +133,7 @@ int main() {
 	for (eng::u32 i = 0u; i < sizeof(mem); ++i) mem[i] = 0u;
 	const eng::s16 xs[3] = {6, 40, 20};
 	const eng::s16 ys[3] = {34, 34, 8};
-	const eng::u32 prows = eng::field::cpu_fill_polygon(
+	const eng::u32 prows = eng::playfield::cpu_fill_polygon(
 		pf, eng::Span<const eng::s16>(xs, 3u), eng::Span<const eng::s16>(ys, 3u), 6u);
 	check(prows > 20u, "poligono rellena varias filas");
 	// Un punto interior conocido debe estar relleno (centroide ~ (22,25)).

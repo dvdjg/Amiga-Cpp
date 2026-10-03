@@ -24,7 +24,7 @@ MemoryManager make_memory() {
 }
 
 /// Color (0..15) de un pixel del bitmap interleaved del lienzo.
-u8 color_at(const field::CanvasPlayfield& pf, s32 x, s32 y) {
+u8 color_at(const playfield::CanvasPlayfield& pf, s32 x, s32 y) {
 	const u8* base = pf.bitplanes().data();
 	const u32 row = pf.bytes_per_row();
 	const u32 planes = pf.planes();
@@ -90,7 +90,7 @@ int main() {
 	check(sc.words() > 0u, "la copperlist tiene palabras");
 	check(sc.playfield().bitplanes().data() != nullptr, "el playfield tiene bitplanes");
 
-	field::Surface surf = sc.surface();
+	playfield::Surface surf = sc.surface();
 	// Cuadrado relleno con color 5.
 	const s16 xs[4] = {40, 120, 120, 40};
 	const s16 ys[4] = {40, 40, 120, 120};
@@ -122,7 +122,7 @@ int main() {
 					       graphics::composition::kBplcon0_4Planes)),
 	      "scene::compose (contiguo) compone");
 	check(s3.ok(), "la escena contigua queda ok");
-	field::Surface ksurf = s3.surface();
+	playfield::Surface ksurf = s3.surface();
 	check(ksurf.valid(), "surface() valido en layout contiguo");
 	const s16 kxs[4] = {40, 120, 120, 40};
 	const s16 kys[4] = {40, 40, 120, 120};
@@ -133,7 +133,7 @@ int main() {
 	check(color_at_contiguous(s3, 8, 5) == 2u, "la linea contigua cae en el plano 1");
 
 	// Blit planar contiguo por **Blitter** (BlitterRaster): un `CopyRect` por plano.
-	s3.set_raster(&field::kBlitterRaster);
+	s3.set_raster(&playfield::kBlitterRaster);
 	u16 src[64] {};
 	u16 mask[16] {};
 	graphics::FramePlan plan {};
@@ -149,7 +149,7 @@ int main() {
 	check(plan2.blit_job_count() == 1u, "blit enmascarado contiguo = 1 job multi-plano");
 
 	// Blit por **CPU** (CpuRaster): copia los pixeles sin encolar jobs.
-	s3.set_raster(&field::kCpuRaster);
+	s3.set_raster(&playfield::kCpuRaster);
 	u16 src2[64];
 	for (u16 i = 0; i < 64u; ++i) src2[i] = 0xffffu;
 	graphics::FramePlan plan3 {};
@@ -177,16 +177,16 @@ int main() {
 		      graphics::composition::display(graphics::composition::kPal320x256,
 					       graphics::composition::kBplcon0_4Planes)),
 	      "escena para RasterOp compone");
-	field::Surface r4 = s4.surface();
-	r4.fill_rect(0, 0, 32, 8, 3u, field::RasterOp::Copy);
+	playfield::Surface r4 = s4.surface();
+	r4.fill_rect(0, 0, 32, 8, 3u, playfield::RasterOp::Copy);
 	check(color_at_contiguous(s4, 0, 0) == 3u, "RasterOp::Copy escribe el color");
-	r4.fill_rect(0, 0, 32, 8, 3u, field::RasterOp::Xor);
+	r4.fill_rect(0, 0, 32, 8, 3u, playfield::RasterOp::Xor);
 	check(color_at_contiguous(s4, 0, 0) == 0u, "Xor dos veces = 0");
-	r4.fill_rect(0, 0, 32, 8, 1u, field::RasterOp::Or);
+	r4.fill_rect(0, 0, 32, 8, 1u, playfield::RasterOp::Or);
 	check(color_at_contiguous(s4, 0, 0) == 1u, "Or enciende el plano");
-	r4.fill_rect(0, 0, 32, 8, 1u, field::RasterOp::And);
+	r4.fill_rect(0, 0, 32, 8, 1u, playfield::RasterOp::And);
 	check(color_at_contiguous(s4, 0, 0) == 1u, "And conserva el plano 1");
-	r4.fill_rect(0, 0, 32, 8, 0u, field::RasterOp::Clear);
+	r4.fill_rect(0, 0, 32, 8, 0u, playfield::RasterOp::Clear);
 	check(color_at_contiguous(s4, 0, 0) == 0u, "Clear borra");
 
 	// BlitterRaster: el relleno va por `fill_polygon` (sink/Blitter si lo hay; CPU si no).
@@ -196,8 +196,8 @@ int main() {
 		      graphics::composition::display(graphics::composition::kPal320x256,
 					       graphics::composition::kBplcon0_4Planes)),
 	      "escena para BlitterRaster compone");
-	s5.set_raster(&field::kBlitterRaster, field::RasterPolicy {field::AccelMode::Blitter, 0u, true});
-	field::Surface r5 = s5.surface();
+	s5.set_raster(&playfield::kBlitterRaster, playfield::RasterPolicy {playfield::AccelMode::Blitter, 0u, true});
+	playfield::Surface r5 = s5.surface();
 	check(r5.fill_rect(0, 0, 32, 8, 5u), "BlitterRaster::fill_rect encola/pinta");
 	check(color_at_contiguous(s5, 8, 4) == 5u, "BlitterRaster pinta el color pedido");
 
@@ -208,8 +208,8 @@ int main() {
 		      graphics::composition::display(graphics::composition::kPal320x256,
 					       graphics::composition::kBplcon0_4Planes)),
 	      "escena para Auto compone");
-	s6.set_polygon_fill_sink(field::PolygonFillSink {&g_fill_rec, record_fill});
-	s6.set_raster(&field::kBlitterRaster, field::RasterPolicy {field::AccelMode::Auto, 64u, true});
+	s6.set_polygon_fill_sink(playfield::PolygonFillSink {&g_fill_rec, record_fill});
+	s6.set_raster(&playfield::kBlitterRaster, playfield::RasterPolicy {playfield::AccelMode::Auto, 64u, true});
 	g_fill_rec.calls = 0;
 	(void)s6.surface().fill_rect(0, 0, 16, 16, 5u); // 256 >= 64 -> sink
 	check(g_fill_rec.calls == 1, "Auto: area grande usa el sink (Blitter)");
@@ -217,13 +217,13 @@ int main() {
 	(void)s6.surface().fill_rect(0, 0, 4, 4, 5u); // 16 < 64 -> CPU
 	check(g_fill_rec.calls == 0, "Auto: area pequena usa CPU");
 	check(color_at_contiguous(s6, 0, 0) == 5u, "Auto CPU pinta el pixel");
-	s6.set_raster(&field::kBlitterRaster, field::RasterPolicy {field::AccelMode::Blitter, 0u, true});
+	s6.set_raster(&playfield::kBlitterRaster, playfield::RasterPolicy {playfield::AccelMode::Blitter, 0u, true});
 	g_fill_rec.calls = 0;
 	(void)s6.surface().fill_rect(0, 0, 4, 4, 5u);
 	check(g_fill_rec.calls == 1, "Blitter: fuerza el sink aunque el area sea pequena");
 
 	// Linea por Blitter: con plan y dentro del clip, una `Line` por plano del color.
-	s6.set_raster(&field::kBlitterRaster, field::RasterPolicy {field::AccelMode::Blitter, 0u, true});
+	s6.set_raster(&playfield::kBlitterRaster, playfield::RasterPolicy {playfield::AccelMode::Blitter, 0u, true});
 	graphics::FramePlan line_plan {};
 	check(s6.surface().draw_line(0, 0, 31, 15, 5u, &line_plan), "BlitterRaster::draw_line encola");
 	check(line_plan.blit_job_count() == 2u, "linea por Blitter = 1 job por plano (color 5 = planos 0,2)");
@@ -231,17 +231,17 @@ int main() {
 	check(s6.surface().draw_line(-10, 8, 40, 8, 5u, &line_plan2), "linea parcial se recorta y encola");
 	check(line_plan2.blit_job_count() == 2u, "linea parcial = 1 job por plano (recortada)");
 	graphics::FramePlan eor_plan {};
-	check(s6.surface().draw_line(0, 0, 31, 15, 5u, &eor_plan, field::RasterOp::Xor),
+	check(s6.surface().draw_line(0, 0, 31, 15, 5u, &eor_plan, playfield::RasterOp::Xor),
 	      "draw_line Xor (EOR) encola");
 	check(eor_plan.blit_job_count() == 2u &&
 		      eor_plan.blit_job(0).kind == graphics::BlitJobKind::LineEor,
 	      "linea EOR usa BlitJobKind::LineEor");
 
 	// Blit con operacion logica (B=D, minterm por op): sombras/glow/mascaras.
-	s3.set_raster(&field::kBlitterRaster);
+	s3.set_raster(&playfield::kBlitterRaster);
 	graphics::FramePlan or_plan {};
 	check(ksurf.blit(or_plan, Span<const u16> {src, 64}, 0, 48, 32, 4, 4, 16, 4, 0u, false,
-			 field::RasterOp::Or),
+			 playfield::RasterOp::Or),
 	      "blit con RasterOp::Or encola");
 	check(or_plan.blit_job_count() == 4u &&
 		      or_plan.blit_job(0).kind == graphics::BlitJobKind::LogicBlit,
@@ -266,11 +266,11 @@ int main() {
 		eng::u8 mb[64] = {};
 		ma[0] = 0x80; // pixel (0,0) de la mascara A
 		mb[0] = 0x80; // mismo pixel -> colision
-		check(field::collide_cpu(eng::PlaneBytes {ma, 64}, eng::PlaneBytes {mb, 64},
+		check(playfield::collide_cpu(eng::PlaneBytes {ma, 64}, eng::PlaneBytes {mb, 64},
 					 16u, 2u, 1u, 0u, 0u, 1u, 1u),
 		      "collide_cpu detecta el solape");
 		mb[0] = 0x40; // pixel distinto -> sin colision
-		check(!field::collide_cpu(eng::PlaneBytes {ma, 64}, eng::PlaneBytes {mb, 64},
+		check(!playfield::collide_cpu(eng::PlaneBytes {ma, 64}, eng::PlaneBytes {mb, 64},
 					  16u, 2u, 1u, 0u, 0u, 1u, 1u),
 		      "collide_cpu sin solape");
 	}
@@ -281,21 +281,21 @@ int main() {
 
 	// Recorte de segmento directo (Cohen-Sutherland entero).
 	{
-		field::ClipRect cr {0, 0, 31, 31};
+		playfield::ClipRect cr {0, 0, 31, 31};
 		eng::s32 a = -10, b = 8, c = 40, d = 8;
-		check(field::clip_segment(cr, a, b, c, d) && a == 0 && c == 31,
+		check(playfield::clip_segment(cr, a, b, c, d) && a == 0 && c == 31,
 		      "clip_segment recorta a [0,31]");
 		eng::s32 e = -100, f = -100, g = -50, h = -50;
-		check(!field::clip_segment(cr, e, f, g, h), "clip_segment rechaza el segmento fuera");
+		check(!playfield::clip_segment(cr, e, f, g, h), "clip_segment rechaza el segmento fuera");
 	}
 
 	// --- bind_raw: tamano de plano con dimensiones no triviales (regresion mulu32x16) ---
 	{
 		alignas(16) static u8 buf[61440u + 16u];
-		field::ContiguousPlayfield cp;
+		playfield::ContiguousPlayfield cp;
 		// 320x256, 6 planos: row = ((320/8)+3)&~3 = 40; need = 40*256*6 = 61440.
 		check(cp.bind_raw(buf, 61440u, 320u, 256u, 6u), "bind_raw 320x256x6 con tamano exacto");
-		field::ContiguousPlayfield cp2;
+		playfield::ContiguousPlayfield cp2;
 		check(!cp2.bind_raw(buf, 61439u, 320u, 256u, 6u), "bind_raw 1 byte corto falla");
 	}
 

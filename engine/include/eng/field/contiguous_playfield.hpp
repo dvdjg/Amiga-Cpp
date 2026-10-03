@@ -7,7 +7,7 @@
 
 #include <eng/field/playfield_base.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 /// Lienzo planar **contiguo**: los planos van uno tras otro (`plano p` en
 /// `base + p*plane_bytes`), el layout que usan las escenas EHB/HAM del modelo de
@@ -176,4 +176,4 @@ private:
     eng::Block<eng::PlaneTag> m_bound {}; ///< bitplanes externos (sin propiedad)
 };
 
-} // namespace eng::field
+} // namespace eng::playfield

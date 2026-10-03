@@ -8,7 +8,7 @@
 
 #include <eng/field/xlimited_base.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 /// **Mapeo y geometría** del X-Limited: la parte del playfield que el `ScrollEngine` consulta
 /// (contrato `ScrollSink`) y que resuelve las direcciones del layout interleaved. No tiene
@@ -192,4 +192,4 @@ protected:
     u16 m_bpl1mod = 0, m_bpl2mod = 0;
 };
 
-} // namespace eng::field
+} // namespace eng::playfield

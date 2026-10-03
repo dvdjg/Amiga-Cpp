@@ -37,7 +37,7 @@
 #include <eng/graphics/c2p.hpp>
 #include <eng/graphics/frame_plan.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 /// **Rectángulo de recorte** inclusivo (en píxeles) que `Surface` pasa al rasterizador.
 /// Evita que `raster.hpp` dependa de `surface.hpp` (que lo incluye) y permite que un
@@ -205,7 +205,7 @@ public:
 			const eng::s32 b = cx0 < cx1 ? cx1 : cx0;
 			return pf.draw_span(a, b, cy0, color);
 		}
-		return eng::field::cpu_line(pf, cx0, cy0, cx1, cy1, color) != 0u;
+		return eng::playfield::cpu_line(pf, cx0, cy0, cx1, cy1, color) != 0u;
 	}
 	/// Copia rectangular por **CPU** (`Playfield::copy_rect_cpu`, con ruta de 32 bits en
 	/// 68020+); no encola trabajo. `source_shift` sí aplica (barrel shift por palabras);
@@ -343,4 +343,4 @@ public:
 inline CpuRaster kCpuRaster {};
 inline BlitterRaster kBlitterRaster {};
 
-} // namespace eng::field
+} // namespace eng::playfield

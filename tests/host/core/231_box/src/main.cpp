@@ -3,8 +3,8 @@
 // ============================================================================
 //
 // Valida el tipo unico de rectangulo (`eng::Box`, 16 bits) y las conversiones a/desde los
-// tipos con semantica distinta que ya existian: `field::SurfaceRect` (s32 + w/h),
-// `field::ClipRect` (bordes inclusivos x1/y1) y `graphics::DirtyRect` (bordes exclusivos).
+// tipos con semantica distinta que ya existian: `playfield::SurfaceRect` (s32 + w/h),
+// `playfield::ClipRect` (bordes inclusivos x1/y1) y `graphics::DirtyRect` (bordes exclusivos).
 //
 // Ejecucion:
 //   bash tools/run-host-tests.sh tests/host/core/231_box
@@ -57,15 +57,15 @@ int main() {
 	// --- Adaptadores: round-trip Box <-> cada tipo ---
 	const eng::Box b {10, 20, 30u, 40u};
 
-	const eng::field::SurfaceRect sr = eng::field::surface_rect_of(b);
+	const eng::playfield::SurfaceRect sr = eng::playfield::surface_rect_of(b);
 	check(sr.x == 10 && sr.y == 20 && sr.w == 30u && sr.h == 40u, "Box -> SurfaceRect");
-	const eng::Box b_sr = eng::field::box_of(sr);
+	const eng::Box b_sr = eng::playfield::box_of(sr);
 	check(b_sr.x == b.x && b_sr.y == b.y && b_sr.w == b.w && b_sr.h == b.h,
 	      "SurfaceRect -> Box");
 
-	const eng::field::ClipRect cr = eng::field::clip_rect_of(b);
+	const eng::playfield::ClipRect cr = eng::playfield::clip_rect_of(b);
 	check(cr.x0 == 10 && cr.y0 == 20 && cr.x1 == 39 && cr.y1 == 59, "Box -> ClipRect");
-	const eng::Box b_cr = eng::field::box_of(cr);
+	const eng::Box b_cr = eng::playfield::box_of(cr);
 	check(b_cr.x == b.x && b_cr.y == b.y && b_cr.w == b.w && b_cr.h == b.h, "ClipRect -> Box");
 
 	const eng::graphics::DirtyRect dr = eng::graphics::dirty_rect_of(b);

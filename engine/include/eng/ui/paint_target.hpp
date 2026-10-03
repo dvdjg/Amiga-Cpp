@@ -1,7 +1,7 @@
 #pragma once
 
 /// \file paint_target.hpp
-/// **Destino de dibujo neutral** (`eng::ui::PaintTarget`): la `field::Surface` del engine o (con
+/// **Destino de dibujo neutral** (`eng::ui::PaintTarget`): la `playfield::Surface` del engine o (con
 /// `-DENG_UI_INTUITION`) el `RastPort` de una ventana de Intuition. Es el *seam* que deja que
 /// `UiPainter` y los widgets no dependan del backend (ver
 /// `docs/guides/roadmap/ROADMAP_WORKBENCH.md`, fases W0/W8).
@@ -22,13 +22,13 @@ struct PaintTarget {
 	enum class Kind : eng::u8 { Surface };
 
 	Kind kind = Kind::Surface;
-	eng::field::Surface* surface = nullptr; ///< destino del engine (`kind == Surface`)
+	eng::playfield::Surface* surface = nullptr; ///< destino del engine (`kind == Surface`)
 	eng::Box clip {};                       ///< recorte, en píxeles de destino
 	eng::u16 aspect_x = 256u;               ///< 8.8: píxeles de destino por píxel lógico a lo ancho
 
 	/// Destino sobre una `Surface`: su recorte natural y píxel cuadrado (sin escalado).
-	[[nodiscard]] static PaintTarget from_surface(eng::field::Surface& s) noexcept {
-		return PaintTarget {Kind::Surface, &s, eng::field::box_of(s.clip()), 256u};
+	[[nodiscard]] static PaintTarget from_surface(eng::playfield::Surface& s) noexcept {
+		return PaintTarget {Kind::Surface, &s, eng::playfield::box_of(s.clip()), 256u};
 	}
 };
 

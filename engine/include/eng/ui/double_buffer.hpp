@@ -33,8 +33,8 @@ public:
 
 	/// Un buffer de pantalla: lienzo planar contiguo + `Surface` de dibujo.
 	struct Buffer {
-		eng::field::ContiguousPlayfield playfield {};
-		eng::field::Surface surface {};
+		eng::playfield::ContiguousPlayfield playfield {};
+		eng::playfield::Surface surface {};
 		bool valid = false;
 	};
 
@@ -57,9 +57,9 @@ public:
 	[[nodiscard]] eng::u16 height() const noexcept { return m_height; }
 
 	/// Buffer donde se compone (el display NO lo muestra todavía).
-	[[nodiscard]] eng::field::Surface& back() noexcept { return m_buffers[m_back].surface; }
+	[[nodiscard]] eng::playfield::Surface& back() noexcept { return m_buffers[m_back].surface; }
 	/// Buffer que el display está mostrando.
-	[[nodiscard]] eng::field::Surface& front() noexcept {
+	[[nodiscard]] eng::playfield::Surface& front() noexcept {
 		return m_buffers[static_cast<eng::u8>(1u - m_back)].surface;
 	}
 
@@ -94,7 +94,7 @@ private:
 		if (mem == nullptr || !b.playfield.bind_raw(mem, bytes, w, h, depth)) {
 			return false;
 		}
-		b.surface = eng::field::Surface {b.playfield, eng::field::SurfaceRect {0, 0, w, h}};
+		b.surface = eng::playfield::Surface {b.playfield, eng::playfield::SurfaceRect {0, 0, w, h}};
 		b.valid = true;
 		return true;
 	}

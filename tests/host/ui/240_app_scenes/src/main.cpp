@@ -12,6 +12,7 @@
 #include <cstdio>
 
 #include <eng/api/api.hpp>
+#include <eng/memory/memory_manager.hpp>
 
 using namespace eng;
 
@@ -25,12 +26,30 @@ void check(bool ok, const char* msg) {
 	}
 }
 
-/// Backend minimo: solo el ciclo que el bucle necesita.
+/// Backend minimo: el ciclo del bucle y un `MemoryManager` (lo pide `add_scroll_layer`).
 struct MockBackend {
+	eng::MemoryManager m_mm {};
+	eng::MemoryManager& memory_manager() { return m_mm; }
 	void boot() {}
 	void wait_vblank() {}
 	template <class F, class P>
 	void wait_vblank(F, P) {}
+};
+
+/// Capa de scroll mock (type-erased): `App` la arranca (`begin`) y la conduce por frame (`frame`).
+struct MockScroll {
+	int begins = 0;
+	int frames = 0;
+	eng::ScrollLayerHandle handle() noexcept {
+		eng::ScrollLayerHandle h {};
+		h.obj = this;
+		h.begin = [](void* o, void*, void*) -> bool {
+			++static_cast<MockScroll*>(o)->begins;
+			return true;
+		};
+		h.frame = [](void* o, void*) { ++static_cast<MockScroll*>(o)->frames; };
+		return h;
+	}
 };
 
 /// El `Game` es el *composition root*: solo empuja escenas; sin escena activa conduce el frame.
@@ -126,6 +145,19 @@ int main() {
 		check(!app.play_music("tema"), "play_music sin assets/audio devuelve false");
 		app.stop_music();
 		check(true, "stop_music sin audio no falla");
+	}
+	{
+		// Capas de scroll: `App` las arranca (begin) y las conduce por frame (pump en el update).
+		MockBackend backend {};
+		SceneGame game {};
+		App app {backend, game};
+		MockScroll scroll {};
+		check(app.scroll_layer_count() == 0u, "sin capas de scroll al arrancar");
+		check(app.add_scroll_layer(scroll), "add_scroll_layer acepta la capa");
+		check(scroll.begins == 1, "add_scroll_layer arranca la capa (begin)");
+		check(app.scroll_layer_count() == 1u, "la capa queda registrada");
+		app.run(1u);
+		check(scroll.frames >= 1, "App conduce la capa por frame (frame/pump)");
 	}
 
 	if (failures == 0) {

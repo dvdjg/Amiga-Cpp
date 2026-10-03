@@ -2,7 +2,7 @@
 
 /// \file lru_cache.hpp
 /// `eng::util::LruCache<K, V, N>`: **caché LRU de capacidad fija** (sin heap) con
-/// `get`/`put`/`erase` en `O(1)`. Generaliza el patrón de `eng::field::ChunkCache`
+/// `get`/`put`/`erase` en `O(1)`. Generaliza el patrón de `eng::playfield::ChunkCache`
 /// (tiles, sprites, mapas): índice hash `clave -> ranura` + lista doblemente enlazada
 /// intrusiva sobre las ranuras para la recencia. Al insertar con la caché llena se
 /// **desaloja la entrada menos usada recientemente** (la cola).

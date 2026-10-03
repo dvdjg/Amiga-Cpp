@@ -2,7 +2,7 @@
 
 Test host de `engine/include/eng/core/util/lru_cache.hpp`: `LruCache<K, V, N>`, caché
 **LRU** sin heap con `get`/`put`/`erase` en `O(1)` (índice hash + lista doblemente
-enlazada intrusiva). Generaliza el patrón de `eng::field::ChunkCache`.
+enlazada intrusiva). Generaliza el patrón de `eng::playfield::ChunkCache`.
 
 ## Qué comprueba
 

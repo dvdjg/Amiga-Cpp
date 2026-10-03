@@ -24,7 +24,7 @@
 #include <eng/core/util/array.hpp>
 #include <eng/core/util/hash_map.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 /// Resultado de una petición de carga al `Loader`.
 enum class LoadResult : eng::u8 {
@@ -49,20 +49,20 @@ struct ChunkKey {
 	}
 };
 
-} // namespace eng::field
+} // namespace eng::playfield
 
 namespace eng::util {
 /// Hash de la clave de chunk (xor de dos avalanchas + rotación; sin multiplicar 32×32).
 template <>
-struct Hash<eng::field::ChunkKey> {
-	[[nodiscard]] eng::u32 operator()(const eng::field::ChunkKey& k) const noexcept {
+struct Hash<eng::playfield::ChunkKey> {
+	[[nodiscard]] eng::u32 operator()(const eng::playfield::ChunkKey& k) const noexcept {
 		return hash_u32(static_cast<eng::u32>(k.cx)) ^
 		       rotl(hash_u32(static_cast<eng::u32>(k.cy)), 16u);
 	}
 };
 } // namespace eng::util
 
-namespace eng::field {
+namespace eng::playfield {
 
 template <eng::u16 ChunkSize, eng::u8 Capacity, ChunkLoader Loader>
 class ChunkCache {
@@ -159,4 +159,4 @@ private:
 	eng::u32 m_pendings = 0;
 };
 
-} // namespace eng::field
+} // namespace eng::playfield

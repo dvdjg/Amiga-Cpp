@@ -262,18 +262,18 @@ public:
 	/// Recursos de la escena (geometría, modo, layout, buffers) tal como se configuraron.
 	[[nodiscard]] constexpr const SceneResources& resources() const { return m_res; }
 	/// Playfield (solo layout interleaved): base de `surface()`.
-	[[nodiscard]] field::CanvasPlayfield& playfield() { return m_playfield; }
+	[[nodiscard]] playfield::CanvasPlayfield& playfield() { return m_playfield; }
 	/// Playfield (versión const, solo lectura).
-	[[nodiscard]] const field::CanvasPlayfield& playfield() const { return m_playfield; }
+	[[nodiscard]] const playfield::CanvasPlayfield& playfield() const { return m_playfield; }
 	/// Superficie de dibujo con clip (cualquier layout): `Surface` enruta por el mapeo
 	/// del playfield, así que la app dibuja igual sobre contiguo o interleaved sin ver
 	/// planos ni punteros. En contiguo con varios buffers apunta al **trasero** (el que
 	/// se publica en `commit`).
-	[[nodiscard]] field::Surface surface() {
-		field::Playfield& pf = (m_res.layout == SceneLayout::Interleaved)
-					       ? static_cast<field::Playfield&>(m_playfield)
-					       : static_cast<field::Playfield&>(m_contiguous);
-		return field::Surface {pf, field::SurfaceRect {0, 0, m_res.width, m_res.height}};
+	[[nodiscard]] playfield::Surface surface() {
+		playfield::Playfield& pf = (m_res.layout == SceneLayout::Interleaved)
+					       ? static_cast<playfield::Playfield&>(m_playfield)
+					       : static_cast<playfield::Playfield&>(m_contiguous);
+		return playfield::Surface {pf, playfield::SurfaceRect {0, 0, m_res.width, m_res.height}};
 	}
 	/// `true` si la construcción de la copperlist cupo en el presupuesto.
 	[[nodiscard]] bool ok() const { return m_plan.ok(); }
@@ -312,7 +312,7 @@ public:
 	/// **Elige el rasterizador** (CPU/Blitter) de `surface()` y su política. El backend
 	/// declara sus `RasterCaps`; la app decide el `RasterPolicy` (`Auto`/`Cpu`/`Blitter`).
 	/// Vacío deja el CPU por defecto. No cambia la API de dibujo.
-	void set_raster(eng::Ref<field::Rasterizer> r, const field::RasterPolicy& policy = {}) {
+	void set_raster(eng::Ref<playfield::Rasterizer> r, const playfield::RasterPolicy& policy = {}) {
 		m_playfield.set_rasterizer(r);
 		m_playfield.set_raster_policy(policy);
 		m_contiguous.set_rasterizer(r);
@@ -321,14 +321,14 @@ public:
 
 	/// Instala el **motor de relleno por hardware** (Blitter) en los playfields de la
 	/// escena. Lo usa el backend (`PolygonFillService`); `BlitterRaster` lo aprovecha.
-	void set_polygon_fill_sink(field::PolygonFillSink sink) {
+	void set_polygon_fill_sink(playfield::PolygonFillSink sink) {
 		m_playfield.set_polygon_fill_sink(sink);
 		m_contiguous.set_polygon_fill_sink(sink);
 	}
 
 	/// Instala el **motor de relleno de rect por hardware** (Blitter D-only) en los playfields
 	/// de la escena. `BlitterRaster` lo usa para las cajas de UI (más barato que el polígono).
-	void set_rect_fill_sink(field::RectFillSink sink) {
+	void set_rect_fill_sink(playfield::RectFillSink sink) {
 		m_playfield.set_rect_fill_sink(sink);
 		m_contiguous.set_rect_fill_sink(sink);
 	}
@@ -336,18 +336,18 @@ public:
 	/// **Objetivo de dibujo** de la escena: `Surface` + `Rasterizer` + `FramePlan` + clip.
 	/// Es la puerta única a las primitivas (fill/línea/texto/blit/c2p) sobre el buffer de
 	/// dibujo activo, sea la escena contigua o interleaved.
-	[[nodiscard]] field::DrawTarget draw_target(eng::Ref<graphics::FramePlan> plan = {}) {
+	[[nodiscard]] playfield::DrawTarget draw_target(eng::Ref<graphics::FramePlan> plan = {}) {
 		const bool interleaved = (m_res.layout == SceneLayout::Interleaved);
-		field::Playfield& pf = interleaved
-					       ? static_cast<field::Playfield&>(m_playfield)
-					       : static_cast<field::Playfield&>(m_contiguous);
-		return field::DrawTarget {surface(), pf.rasterizer(), plan, bob_target()};
+		playfield::Playfield& pf = interleaved
+					       ? static_cast<playfield::Playfield&>(m_playfield)
+					       : static_cast<playfield::Playfield&>(m_contiguous);
+		return playfield::DrawTarget {surface(), pf.rasterizer(), plan, bob_target()};
 	}
 
 	/// **Chunky→planar** a través del rasterizador de la escena: con `BlitterRaster` y
 	/// un `plan` encola un `BlitJobKind::C2P` (el backend ejecuta las 13 fases); con el
 	/// rasterizador CPU convierte ya sin usar `plan`.
-	[[nodiscard]] bool c2p(const field::C2pRequest& req,
+	[[nodiscard]] bool c2p(const playfield::C2pRequest& req,
 			       eng::Ref<graphics::FramePlan> plan = {}) {
 		return draw_target(plan).c2p(req);
 	}
@@ -511,7 +511,7 @@ private:
 			m_back = (buffers > 1u) ? 1u : 0u;
 			if (res.layout == SceneLayout::Interleaved) {
 				if (!m_playfield.bind(m_buffers[0],
-							 field::CanvasPlayfield::Config {res.width, res.height, res.planes})) {
+							 playfield::CanvasPlayfield::Config {res.width, res.height, res.planes})) {
 					release();
 					return false;
 				}
@@ -552,8 +552,8 @@ private:
 	SceneResources m_res {}; ///< geometría/recursos de la escena (copiados en `init`)
 	eng::Ref<eng::MemoryManager> m_memory {}; ///< owner no propietario para liberar los bloques Chip
 	eng::util::Array<eng::Block<eng::PlaneTag, eng::MemoryKind::Chip>, kMaxSceneBuffers> m_buffers {}; ///< buffers de bitplanes (Chip)
-	field::CanvasPlayfield m_playfield {}; ///< playfield del layout interleaved (base de `surface()`)
-	field::ContiguousPlayfield m_contiguous {}; ///< playfield del layout contiguo (base de `surface()`)
+	playfield::CanvasPlayfield m_playfield {}; ///< playfield del layout interleaved (base de `surface()`)
+	playfield::ContiguousPlayfield m_contiguous {}; ///< playfield del layout contiguo (base de `surface()`)
 	copper::Plan m_plan {}; ///< programa de Copper (lista + presupuesto + emisor)
 	u32 m_plane_bytes = 0; ///< bytes de un plano completo (`row_bytes * alloc_rows`)
 	u8 m_buffer_count = 1; ///< buffers de display en uso (1..`kMaxSceneBuffers`)

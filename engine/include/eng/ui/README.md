@@ -1,6 +1,6 @@
 # `eng::ui` — librería GUI para juegos (Amiga)
 
-Librería de **interfaz de usuario** en miniatura montada sobre `field::Surface` + `field::Rasterizer`
+Librería de **interfaz de usuario** en miniatura montada sobre `playfield::Surface` + `playfield::Rasterizer`
 (CPU/Blitter) + `graphics::FramePlan`: primitivas de *chrome* (cajas, marcos, líneas, texto),
 tema/branding configurable, widgets, eventos, foco, dirty rects y ventanas con **compositor y
 backing store** (mover/redimensionar sin invalidar a las vecinas).
@@ -11,7 +11,7 @@ y el plan de fases en
 [`docs/guides/roadmap/ROADMAP_GUI.md`](../../../../docs/guides/roadmap/ROADMAP_GUI.md).
 
 No reinventa el dibujo: reutiliza `Surface` (`fill_rect`/`draw_line`/`draw_text`/`blit`/
-`blit_masked`), las fuentes `Font8`/`Font5x7` y `field::FlatPlayfield` como backing de ventana.
+`blit_masked`), las fuentes `Font8`/`Font5x7` y `playfield::FlatPlayfield` como backing de ventana.
 No depende del mini-SO (`eng::os`), pero se integra con él por el puente `os::Msg` → `UiEvent`.
 
 ## Cabeceras

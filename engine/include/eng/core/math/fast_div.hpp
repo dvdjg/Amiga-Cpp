@@ -52,7 +52,7 @@ constexpr u32 ilog2(u32 n) { u32 e = 0; while (n > 1u) { n >>= 1u; ++e; } return
 /// Envuelve `value` en `[0, period)` (módulo con signo, correcto con negativos).
 /// Con `period` potencia de dos usa máscara (evita `__modsi3` en el 68000);
 /// `period == 0` = sin wrap (devuelve `value`). Lo comparten el campo de tiles
-/// (`eng::field`) y el visor de mundo (`eng::assets`).
+/// (`eng::playfield`) y el visor de mundo (`eng::assets`).
 constexpr s32 wrap_period(s32 value, u16 period) {
     if (period == 0u) return value;
     if (is_pow2(period)) return value & static_cast<s32>(period - 1u);

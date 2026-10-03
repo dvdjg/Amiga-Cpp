@@ -9,7 +9,7 @@
 /// del glifo y conserva el fondo fuera. Ver `docs/engine/architecture/GUI_LIBRARY.md` §6.
 ///
 /// Diseño: sin heap, capacidad fija (`GlyphCache<Max>`), reutiliza `Font8` (no hay fuente nueva) y
-/// el contrato de `field::FramePlan`/`Rasterizer` (CPU o Blitter). La ruta CPU (referencia de
+/// el contrato de `playfield::FramePlan`/`Rasterizer` (CPU o Blitter). La ruta CPU (referencia de
 /// equivalencia) es `Surface::draw_text`; este header es la ruta acelerada. Mismo resultado.
 ///
 /// El Blitter escribe a nivel de **palabra** (16 px), así que el destino de cada blit va alineado;
@@ -188,7 +188,7 @@ private:
 /// medias; coherente con `draw_text_clipped`). Devuelve `false` si no se pudo encolar (tamaño de los
 /// buffers, planos…). La ruta CPU equivalente es `Surface::draw_text`.
 template <eng::u16 Max>
-bool draw_text_blit(eng::field::Surface& s, eng::graphics::FramePlan& plan, GlyphCache<Max>& cache,
+bool draw_text_blit(eng::playfield::Surface& s, eng::graphics::FramePlan& plan, GlyphCache<Max>& cache,
 		    eng::s32 x, eng::s32 y, const char* text, eng::u8 color,
 		    eng::Span<eng::u16> src_scratch, eng::Span<eng::u16> mask_scratch, eng::u8 planes,
 		    eng::Box clip = {}) noexcept {
@@ -314,7 +314,7 @@ bool draw_text_blit(eng::field::Surface& s, eng::graphics::FramePlan& plan, Glyp
 /// pisaría las máscaras de la primera, así que `mask_scratch` debe tener el **doble**
 /// (`2 * pares * 2 * Font8::kRows`): la primera mitad para la sombra y la segunda para el texto.
 template <eng::u16 Max>
-bool draw_text_shadow_blit(eng::field::Surface& s, eng::graphics::FramePlan& plan,
+bool draw_text_shadow_blit(eng::playfield::Surface& s, eng::graphics::FramePlan& plan,
 			   GlyphCache<Max>& cache, eng::s32 x, eng::s32 y, const char* text,
 			   eng::u8 color, eng::u8 shadow, eng::Span<eng::u16> src_scratch,
 			   eng::Span<eng::u16> mask_scratch, eng::u8 planes, eng::Box clip = {}) noexcept {

@@ -13,30 +13,48 @@
 /// bobs.emit(plan, scene.bob_target());      // una pasada por actor visible
 /// ```
 
+#include <eng/graphics/anim.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/raster_intent.hpp>
 #include <eng/graphics/sprite_asset.hpp>
 
 namespace eng::scene {
 
-/// **Actor de una capa de BOBs**: dónde se dibuja y qué frame muestra. Es un valor ligero
-/// (solo posición/frame) para una hoja homogénea; no confundir con `eng::scene::Actor`, el
-/// objeto del sistema generacional (`actor_types.hpp`).
+/// **Actor de una capa de BOBs**: dónde se dibuja, qué frame muestra y su orden. Es un valor
+/// ligero para una hoja homogénea; no confundir con `eng::scene::Actor`, el objeto del sistema
+/// generacional (`actor_types.hpp`). Si `anim` es válida, su frame manda sobre `frame` (el actor
+/// queda **ligado** a su animación sin que el juego lleve el índice a mano).
 struct BobActor {
 	eng::s16 x = 0;
 	eng::s16 y = 0;
 	eng::u8 frame = 0u;
 	bool visible = true;
+	/// Hoja de la capa (`BobLayer::kMaxSheets`) que usa este actor: permite una capa
+	/// **heterogénea** (varias hojas) sin duplicar el tipo. 0 = hoja principal.
+	eng::u8 sheet_index = 0u;
+	/// Orden de superposición **dentro de la capa** (mayor = delante). `emit` ordena por `z`.
+	eng::u8 z = 128u;
+	/// Animación opcional (vistas no propietarias): si `valid()`, `emit` usa su frame y `tick()`
+	/// la avanza. El juego solo rellena `frames`/`durations` desde el asset.
+	eng::graphics::Anim anim {};
+	[[nodiscard]] bool animated() const noexcept { return anim.valid(); }
 };
 
 /// Capa de BOBs de capacidad fija (sin heap): una hoja + actores.
 class BobLayer {
 public:
 	static constexpr eng::u8 kMaxActors = 32u;
+	static constexpr eng::u8 kMaxSheets = 4u; ///< hojas simultáneas (capa heterogénea)
 
-	/// Asocia la hoja de sprites (el `Sprite` del asset). Sin hoja válida, `emit` no dibuja.
-	void set_sheet(eng::graphics::Sprite sheet) noexcept { m_sheet = sheet; }
-	[[nodiscard]] const eng::graphics::Sprite& sheet() const noexcept { return m_sheet; }
+	/// Asocia la hoja **principal** (`index 0`). Sin hoja válida, `emit` no dibuja ese actor.
+	void set_sheet(eng::graphics::Sprite sheet) noexcept { m_sheets[0] = sheet; }
+	/// Asocia una hoja **adicional** (capa heterogénea); el actor la elige con `sheet_index`.
+	void set_sheet(eng::u8 index, eng::graphics::Sprite sheet) noexcept {
+		if (index < kMaxSheets) m_sheets[index] = sheet;
+	}
+	[[nodiscard]] const eng::graphics::Sprite& sheet(eng::u8 index = 0u) const noexcept {
+		return m_sheets[index < kMaxSheets ? index : 0u];
+	}
 
 	/// Fija el número de actores en uso (`<= kMaxActors`).
 	void resize(eng::u8 n) noexcept { m_count = (n <= kMaxActors) ? n : kMaxActors; }
@@ -45,17 +63,40 @@ public:
 	[[nodiscard]] BobActor& operator[](eng::u8 i) noexcept { return m_actors[i]; }
 	[[nodiscard]] const BobActor& operator[](eng::u8 i) const noexcept { return m_actors[i]; }
 
-	/// Dibuja los actores **visibles** en `target`; devuelve cuántos se dibujaron. `fine_scroll`
-	/// (px) compensa el fine scroll del campo (`Band::bob_fine_scroll()`): el campo desplaza todo
-	/// el playfield, así que el objeto se dibuja a `x - fine_scroll` para no "temblar".
+	/// Avanza **un frame de juego** la animación de todos los actores que la tengan. El juego lo
+	/// llama en su `update`; `emit` no avanza nada (solo dibuja).
+	void tick() noexcept {
+		for (eng::u8 i = 0u; i < m_count; ++i) {
+			if (m_actors[i].anim.valid()) m_actors[i].anim.update();
+		}
+	}
+
+	/// Dibuja los actores **visibles** en `target`, ordenados por `z` (menor primero; el mayor
+	/// queda delante); devuelve cuántos se dibujaron. El frame es el de la animación si es válida.
+	/// `fine_scroll` (px) compensa el fine scroll del campo (`Band::bob_fine_scroll()`): el campo
+	/// desplaza todo el playfield, así que el objeto se dibuja a `x - fine_scroll` para no "temblar".
 	[[nodiscard]] eng::u16 emit(eng::graphics::FramePlan& plan,
 				    const eng::graphics::BobTarget& target,
 				    eng::u8 fine_scroll = 0u) const {
-		eng::u16 drawn = 0u;
+		// Orden por `z` estable (inserción; `kMaxActors` es pequeño): sin heap ni allocaciones.
+		eng::u8 order[kMaxActors];
+		eng::u8 n = 0u;
 		for (eng::u8 i = 0u; i < m_count; ++i) {
-			const BobActor& a = m_actors[i];
+			eng::u8 at = n;
+			while (at > 0u && m_actors[order[at - 1u]].z > m_actors[i].z) {
+				order[at] = order[at - 1u];
+				--at;
+			}
+			order[at] = i;
+			++n;
+		}
+		eng::u16 drawn = 0u;
+		for (eng::u8 j = 0u; j < n; ++j) {
+			const BobActor& a = m_actors[order[j]];
 			const eng::s16 dx = a.x - fine_scroll; // compensa el fine scroll del campo
-			if (a.visible && m_sheet.draw(plan, target, a.frame, dx, a.y)) {
+			const eng::u8 frame = a.anim.valid() ? a.anim.frame() : a.frame;
+			const eng::graphics::Sprite& sh = sheet(a.sheet_index);
+			if (a.visible && sh.draw(plan, target, frame, dx, a.y)) {
 				++drawn;
 			}
 		}
@@ -63,7 +104,7 @@ public:
 	}
 
 private:
-	eng::graphics::Sprite m_sheet {};
+	eng::graphics::Sprite m_sheets[kMaxSheets] {};
 	BobActor m_actors[kMaxActors] {};
 	eng::u8 m_count = 0u;
 };

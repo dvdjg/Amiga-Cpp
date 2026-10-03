@@ -171,7 +171,7 @@ struct DpfTwoBitmapsDemo {
 	}
 
 private:
-	static void configure_view(eng::field::PlayfieldHardwareView& v, u8* base) {
+	static void configure_view(eng::playfield::PlayfieldHardwareView& v, u8* base) {
 		v.planes = kFieldPlanes;
 		v.bitmap_bytes_per_row = kPitch;
 		v.bitmap_height = kHeight;
@@ -249,8 +249,8 @@ private:
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_pf2 {};
 	eng::Block<eng::BobTag> m_sheet {};
 	eng::Block<eng::CopperTag> m_copper {};
-	eng::field::PlayfieldHardwareView m_v1 {};
-	eng::field::PlayfieldHardwareView m_v2 {};
+	eng::playfield::PlayfieldHardwareView m_v1 {};
+	eng::playfield::PlayfieldHardwareView m_v2 {};
 	eng::scene::Band m_band {};
 	eng::graphics::Sprite m_sprite {};
 	eng::scene::FastBobLayer m_bobs {};

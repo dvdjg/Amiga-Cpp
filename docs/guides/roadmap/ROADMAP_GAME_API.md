@@ -137,8 +137,13 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
 - **Progreso**: ✅ **colisión de caja** ya existe (`eng::Box::overlaps`/`intersection`). ✅ **`eng::graphics::Anim`**
   (`anim.hpp`): secuencia de frames con duración por frame, bucle/`play_once`, `update()`/`frame()`/`reset()` (la
   demo escribe `screen().sprite(sheet, anim.frame(), x, y)`); sin reservas ni copias (vistas no propietarias).
-  ⏳ falta la animación **ligada** a un sprite/actor (que el actor lleve su `Anim` y `draw_world` la aplique) y
-  un `BobLayer` con orden/prioridad en la fachada.
+  ✅ **animación ligada**: `scene::BobActor` lleva su `graphics::Anim` (vistas no propietarias); `BobLayer::tick()`
+  la avanza y `emit` usa su frame (sin que el juego lleve el índice). ✅ **orden/prioridad**: `BobActor::z` y
+  `BobLayer::emit` ordena por `z` (inserción estable, sin heap); la fachada lo expone con `Screen::bobs(layer)`
+  sin que el juego vea `FramePlan`/`BobTarget`. HOST-354 lo cubre. ✅ **hojas heterogéneas**: `BobActor::sheet_index`
+  elige entre las `BobLayer::kMaxSheets` hojas. ✅ **demo con gate visual**: `demos/techniques/amiga/os/215_app_bobs`
+  (4 BOBs con `Anim`, orden por `z` —rojo delante del amarillo— y dos hojas; doble buffer sin tearing). ⏳ falta el
+  `Anim` **desde el asset** (geometría incrustada por el pipeline, §4) y más hojas por capa si un juego lo pide.
 
 ## 6. Escenas/estados de juego
 
@@ -166,9 +171,19 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
   `static_assert`** que la `span` del puntero es múltiplo del período del mapa (el fallo de contenido
   al envolver queda imposible por construcción; HOST-244 lo verifica con un invariante de **contenido**
   —ventana visible + palabra extra de fetch—, no solo de "pintado"). `Camera2D` (`move_by`/scroll) y
-  `World::add_tile_layer`/`Layer::camera()`/`Layer::tilemap()` ya existen. ⏳ falta la
-  **materialización Amiga declarativa** de una capa tilemap por el planner (hoy la demo 128 conduce
-  `StripComposer` a mano) y un **asset de tilemap de juego** ligado a la capa (atlas + paleta).
+  `World::add_tile_layer`/`Layer::camera()`/`Layer::tilemap()` ya existen. ✅ el **driver del camino de
+  tiras** es reutilizable: `field::StripScrollController<Geom, Map, Sink>` reúne CPU+Blitter
+  (`plan_strip_frame` → `compose_column` → blit) y la demo 128 ya **no** reimplementa la lógica; HOST-244
+  lo verifica end-to-end (contenido de la ventana + palabra extra). ✅ **capa de fachada**
+  `field::StripScrollLayer<Geom, Map, Backend>`: agrupa buffers + controlador + compositor; el juego solo
+  declara mapa/banco/paleta/tamaños y conduce con `frame()` (la demo 128 ya no ve el compositor). ✅ **`App`
+  la conduce**: `App::add_scroll_layer(layer)` la arranca (memoria + backend) con un asa *type-erased*
+  (`ScrollLayerHandle`) y la conduce por frame tras el `update` del juego (`pump_scroll_layers`); HOST-240 lo
+  cubre con una capa mock. ✅ **asset de tilemap** `field::TilemapView` (banco + mapa + paleta) ligado con
+  `StripScrollLayer::set_tilemap` (el juego no escribe el adaptador). ✅ **demo `App`** =
+  `demos/techniques/amiga/playfield/204_app_strip_scroll` (App + capa de tiras; el juego no ve el compositor;
+  scroll suave validado con Ollama). ⏳ falta que el **pipeline** (§4) genere el banco ya empaquetado + el mapa
+  como asset tipado (`app.assets().tilemap("n")`).
 
 ## 8. Unificar el vocabulario
 
@@ -176,6 +191,12 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
   `DisplayDesc`/`Band`/`RasterLayout`/`SceneResources`; `AudioSystem::play_sfx` vs `SfxMixer::play_on`.
 - **Salida**: un nombre por concepto en la capa pública; `field`→`playfield`; `Scene` reservado para el de **juego**.
   Regla ya escrita («una mecánica por eje, menos tipos») aplicada de verdad.
+- **Progreso**: ✅ `scene` desambiguado (`D7` de `ENGINE_STRUCTURE_REVIEW.md`). ✅ la fachada de juego
+  troceada por tema (`api/screen.hpp`, `api/display.hpp`, `api/world_render.hpp`; `api/game.hpp` de
+  familia); ver `D13`. ✅ **`field`→`playfield` completado**: el namespace canónico es ahora
+  `eng::playfield` (renombrado en todo el repo —engine, demos, tests—) y **`eng::field` queda como
+  alias deprecado** (`namespace field = playfield;` en `field/playfield.hpp`) para código externo no
+  migrado. ⏳ pendiente menor: `AudioSystem::play_sfx` vs `SfxMixer::play_on`.
 
 ## 9. Plantilla y tutorial
 

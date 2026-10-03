@@ -400,14 +400,14 @@ public:
 
 	/// **Capacidades de rasterizado** del backend: OCS/AGA tienen Blitter (bus de 16 bits;
 	/// AGA admite FMODE 32/64) con fill/line/shift/minterms. Un backend host declararía
-	/// `blitter = false`. Ver `field::RasterCaps`.
-	[[nodiscard]] constexpr eng::field::RasterCaps raster_caps() const {
+	/// `blitter = false`. Ver `playfield::RasterCaps`.
+	[[nodiscard]] constexpr eng::playfield::RasterCaps raster_caps() const {
 #if defined(K_AGA)
 		// Target AGA (A1200/A4000/CD32): bus de 64 bits con FMODE=4x.
-		return eng::field::RasterCaps { true, 64u, true, true, true, true, 60u };
+		return eng::playfield::RasterCaps { true, 64u, true, true, true, true, 60u };
 #else
 		// Target OCS (A500): bus de 16 bits.
-		return eng::field::RasterCaps { true, 16u, true, true, true, true, 60u };
+		return eng::playfield::RasterCaps { true, 16u, true, true, true, true, 60u };
 #endif
 	}
 
@@ -416,12 +416,12 @@ public:
 	/// conoce al backend: este solo le pasa la elección.
 	template <class Scene>
 	void install_raster(Scene& scene) const {
-		const eng::field::RasterCaps caps = raster_caps();
-		const eng::field::AccelMode mode =
-			caps.blitter ? eng::field::AccelMode::Auto : eng::field::AccelMode::Cpu;
+		const eng::playfield::RasterCaps caps = raster_caps();
+		const eng::playfield::AccelMode mode =
+			caps.blitter ? eng::playfield::AccelMode::Auto : eng::playfield::AccelMode::Cpu;
 		const eng::u16 min_px = caps.blitter ? static_cast<eng::u16>(64u) : static_cast<eng::u16>(0u);
-		scene.set_raster(caps.blitter ? &eng::field::kBlitterRaster : &eng::field::kCpuRaster,
-				 eng::field::RasterPolicy {mode, min_px, true});
+		scene.set_raster(caps.blitter ? &eng::playfield::kBlitterRaster : &eng::playfield::kCpuRaster,
+				 eng::playfield::RasterPolicy {mode, min_px, true});
 	}
 
 	/// Base de registros custom (`$dff000`). Para rutinas de lote `inline` (p. ej.
@@ -459,7 +459,7 @@ public:
 
 	/// **Colisión pixel-perfect por Blitter**: hace `scratch = a & b` (minterm `$C0`) por
 	/// plano y devuelve `true` si alguna palabra del rect es distinta de 0. `words`×`rows`
-	/// es el rect (en palabras de 16 px × filas). Referencia CPU: `field::collide_cpu`.
+	/// es el rect (en palabras de 16 px × filas). Referencia CPU: `playfield::collide_cpu`.
 	/// **Verificada en hardware**: self-test de la demo 077 (colisión y no-colisión).
 	bool blitter_collide(eng::PlaneBytes a, eng::PlaneBytes b, eng::PlaneBytes scratch,
 			     u8 planes, u16 row_bytes, u32 plane_bytes, u16 words, u16 rows);
@@ -644,7 +644,7 @@ public:
 	/// para planos contiguos e interleaved): `plane_stride` = bytes entre planos, `row_stride` =
 	/// bytes entre filas del mismo plano, `row_bytes` = bytes por fila. Enmascara la primera y
 	/// ultima palabra para rectangulos no alineados a palabra. Sincrono (`wait`). Es el motor de
-	/// `field::RectFillSink` (relleno de cajas de UI por hardware).
+	/// `playfield::RectFillSink` (relleno de cajas de UI por hardware).
 	bool blitter_fill_rect(eng::u8* plane_base, u8 planes, u32 plane_stride, u32 row_stride,
 			       u16 row_bytes, u16 bitmap_w, u16 bitmap_h, s32 x, s32 y, u16 w, u16 h,
 			       u8 color, bool wait = true);

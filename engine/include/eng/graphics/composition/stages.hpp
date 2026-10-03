@@ -98,7 +98,7 @@ inline constexpr u16 kBplcon0_Ham6 = 0x7a00;         ///< HAM6 (6 planos, COLOR,
 	return [=](Scene& sc) {
 		copper::Scheduler& s = sc.scheduler();
 		if (sc.layout() == SceneLayout::Interleaved) {
-			const field::PlayfieldHardwareView hv = sc.playfield().hardware_view();
+			const playfield::PlayfieldHardwareView hv = sc.playfield().hardware_view();
 			s.move(copper::Register::DMACON,
 			       static_cast<u16>(copper::DmaSetClear | copper::DmaMaster |
 						copper::DmaCopper | copper::DmaBitplane));

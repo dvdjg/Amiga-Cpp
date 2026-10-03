@@ -1,10 +1,10 @@
 # HOST-212: `scene::compose` con `Surface` (interleaved y contiguo)
 
-Test host del **contexto de dibujo `field::Surface`** sobre el modelo de escena
+Test host del **contexto de dibujo `playfield::Surface`** sobre el modelo de escena
 (`engine/include/eng/graphics/composition/compose.hpp`), en los dos layouts:
 
-- **Interleaved**: `SceneResources.layout = Interleaved` enlaza un `field::CanvasPlayfield`.
-- **Contiguo**: el layout por defecto enlaza un `field::ContiguousPlayfield` (planos uno tras
+- **Interleaved**: `SceneResources.layout = Interleaved` enlaza un `playfield::CanvasPlayfield`.
+- **Contiguo**: el layout por defecto enlaza un `playfield::ContiguousPlayfield` (planos uno tras
   otro, el de las escenas EHB/HAM).
 
 En ambos, `Scene::surface()` devuelve un `Surface` con el mismo contrato

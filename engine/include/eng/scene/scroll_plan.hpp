@@ -12,20 +12,21 @@
 /// Ver `ROADMAP_API_COHERENCE.md` §7.3 y `OBJECT_SYSTEM.md` §15.
 
 #include <eng/core/types/types.hpp>
+#include <eng/field/playfield.hpp> // `eng::playfield` (nombre público del motor de playfields)
 #include <eng/field/scroll_variant.hpp>
 #include <eng/scene/world.hpp>
 
 namespace eng::scene {
 
 /// **Técnica de scroll** (`ScrollKind`, modelo de coste del planner) que corresponde a una
-/// **variante de ejes** de la referencia ScrollingTricks (`field::ScrollVariant`). Es la vía de
-/// alto nivel para el juego: elige la variante (`field::apply_scroll_variant`) y el planner usa
+/// **variante de ejes** de la referencia ScrollingTricks (`playfield::ScrollVariant`). Es la vía de
+/// alto nivel para el juego: elige la variante (`playfield::apply_scroll_variant`) y el planner usa
 /// este `ScrollKind` para declarar su coste de Copper y degradar si no cabe. El vídeo-splitting
 /// (`YUnlimited2`/`XYUnlimited2`/`XYLimited`) usa split por línea (`CopperSplit`); el resto de
 /// anillos X usa reapuntado (`CopperRing`); un Y puro sin split no necesita Copper continuo.
-[[nodiscard]] constexpr ScrollKind scroll_kind_for_variant(field::ScrollVariant v) noexcept {
-	if (field::variant_video_split(v)) return ScrollKind::CopperSplit;
-	if (v == field::ScrollVariant::YUnlimited) return ScrollKind::Fine;
+[[nodiscard]] constexpr ScrollKind scroll_kind_for_variant(playfield::ScrollVariant v) noexcept {
+	if (playfield::variant_video_split(v)) return ScrollKind::CopperSplit;
+	if (v == playfield::ScrollVariant::YUnlimited) return ScrollKind::Fine;
 	return ScrollKind::CopperRing;
 }
 
@@ -109,7 +110,7 @@ struct ScrollMemory {
 
 /// **Anillo (words)** que el planner reserva para una capa a partir de su `ScrollSpec`. Para
 /// `Strip` con mapa toroidal es `visible + periodo` (mapa completo + una pantalla de solape; ver
-/// `field::StripScrollGeometry` y HOST-244). El resto usa solo la pantalla visible (la guarda la
+/// `playfield::StripScrollGeometry` y HOST-244). El resto usa solo la pantalla visible (la guarda la
 /// materializa el driver correspondiente).
 [[nodiscard]] constexpr u16 scroll_ring_words(const ScrollSpec& s, u16 visible_w) noexcept {
 	const u16 visible_words = static_cast<u16>((static_cast<u32>(visible_w) + 15u) / 16u);

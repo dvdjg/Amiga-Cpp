@@ -59,8 +59,8 @@ __attribute__((used)) volatile eng::u32 g_eng_diag_hit = 0;
 
 namespace {
 
-namespace field = eng::field;
-namespace demo = eng::field::demo;
+namespace playfield = eng::playfield;
+namespace demo = eng::playfield::demo;
 
 // -----------------------------------------------------------------------------
 // Demo 107 — xlimited_corkscrew (corkscrew / XYLimited, Georg Steger)
@@ -379,7 +379,7 @@ constexpr eng::u8 kTileCount = 128;
 // coincidir (validación en `XLimitedPlayfield::begin`).
 constexpr eng::u32 kMainDisplayH =
     static_cast<eng::u32>(K_VIEWPORT_H) + 2u * static_cast<eng::u32>(K_TILE_SIZE);
-constexpr field::ScrollConsts kScrollConsts {
+constexpr playfield::ScrollConsts kScrollConsts {
     /*tile_width=*/        static_cast<eng::u32>(K_TILE_WIDTH),
     /*tile_height=*/       static_cast<eng::u32>(K_TILE_SIZE),
     /*display_height=*/    kMainDisplayH,
@@ -490,8 +490,8 @@ constexpr bool phase_needs_pre_y(eng::u8 phase) {
 }
 
 struct DemoGame {
-    field::XlimitedScene<kScrollConsts> scene {}; // escena reutilizable (geometría NTTP)
-    field::XlimitedSceneConfig scene_cfg {};
+    playfield::XlimitedScene<kScrollConsts> scene {}; // escena reutilizable (geometría NTTP)
+    playfield::XlimitedSceneConfig scene_cfg {};
     eng::graphics::FramePlan plan {};
     eng::Block<eng::BobTag> m_bob {};           // BOB enmascarado de prueba (1 plano 16x16 + máscara)
     eng::Block<eng::MapCellsTag> m_fg_map {};        // mapa del FG (checkerboard transparente) en el arena

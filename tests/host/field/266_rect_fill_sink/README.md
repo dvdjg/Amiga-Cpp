@@ -1,7 +1,7 @@
 # HOST-266: relleno de rectángulo por hardware (`RectFillSink`)
 
 Test host del *seam* de **relleno de rectángulo axis-aligned por hardware**
-(`eng::field::RectFillSink` + `Playfield::fill_rect_hw` + `BlitterRaster::fill_rect`).
+(`eng::playfield::RectFillSink` + `Playfield::fill_rect_hw` + `BlitterRaster::fill_rect`).
 
 ## Qué comprueba
 

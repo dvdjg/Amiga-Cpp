@@ -78,14 +78,14 @@ struct MockSink {
 	void restore_saveword() const {}
 };
 
-using Consts = eng::field::ScrollConsts;
+using Consts = eng::playfield::ScrollConsts;
 
-void seed_engine(eng::field::ScrollEngine<MockSink, Consts {0, 0, 0, 0, 0}>& e, eng::u16 mb) {
+void seed_engine(eng::playfield::ScrollEngine<MockSink, Consts {0, 0, 0, 0, 0}>& e, eng::u16 mb) {
 	e.state().mapposx = 0;
 	e.state().videoposx = 0;
 	e.state().mapposy = static_cast<eng::s32>(mb) * 16;
 	e.state().videoposy = e.state().mapposy;
-	e.state().previous_xdirection = eng::field::ScrollDirNone;
+	e.state().previous_xdirection = eng::playfield::ScrollDirNone;
 }
 
 // Analiza la corrida por CHUNKS de un tile: en cada chunk debe haber UNA columna del
@@ -129,7 +129,7 @@ int main() {
 
 		// 1 px/frame: pinta sin prisa en la guarda (caso "tranquilo").
 		{
-			using Engine = eng::field::ScrollEngine<MockSink, Consts {0, 0, 0, 0, 0}>;
+			using Engine = eng::playfield::ScrollEngine<MockSink, Consts {0, 0, 0, 0, 0}>;
 			Engine e; seed_engine(e, mb);
 			bool ok = true;
 			for (int i = 0; i < 48 && ok; ++i) ok = e.scroll_right(plan, sink);
@@ -139,7 +139,7 @@ int main() {
 
 		// 16 px/frame (un tile por llamada): el caso extremo.
 		{
-			using Engine = eng::field::ScrollEngine<MockSink, Consts {0, 0, 0, 0, 0}>;
+			using Engine = eng::playfield::ScrollEngine<MockSink, Consts {0, 0, 0, 0, 0}>;
 			Engine e; seed_engine(e, mb);
 			bool ok = true;
 			for (int c = 0; c < 3 && ok; ++c) ok = e.burst_right_px(plan, sink, 16u);
@@ -151,7 +151,7 @@ int main() {
 	// 1 px y 16 px producen LA MISMA secuencia de plaquetas (el burst no cambia la
 	// eleccion, solo calcula la geometria una vez).
 	{
-		using Engine = eng::field::ScrollEngine<MockSink, Consts {0, 0, 0, 0, 0}>;
+		using Engine = eng::playfield::ScrollEngine<MockSink, Consts {0, 0, 0, 0, 0}>;
 		MockSink a, b;
 		a.map_w = b.map_w = 64; a.wrap_x = b.wrap_x = 64;
 		Engine ea, eb; seed_engine(ea, 1); seed_engine(eb, 1);
@@ -167,7 +167,7 @@ int main() {
 
 	// Mapa acotado: el scroll se detiene en el tope (no salta columnas mas alla del mapa).
 	{
-		using Engine = eng::field::ScrollEngine<MockSink, Consts {0, 0, 0, 0, 0}>;
+		using Engine = eng::playfield::ScrollEngine<MockSink, Consts {0, 0, 0, 0, 0}>;
 		MockSink sink; sink.map_w = 8u; sink.wrap_x = 0u;
 		Engine e; seed_engine(e, 0);
 		bool blocked = false;

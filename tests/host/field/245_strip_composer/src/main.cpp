@@ -21,8 +21,8 @@ void check(bool ok, const char* what) {
 	if (!ok) { std::printf("[FAIL] %s\n", what); ++g_fail; }
 }
 
-using Geom = eng::field::StripScrollGeometry<320u, 208u, 5u, 16u, 16u, 2u, 1u, false>;
-using GeomSplit = eng::field::StripScrollGeometry<320u, 256u, 5u, 16u, 16u, 2u, 1u, true>;
+using Geom = eng::playfield::StripScrollGeometry<320u, 208u, 5u, 16u, 16u, 2u, 1u, false>;
+using GeomSplit = eng::playfield::StripScrollGeometry<320u, 256u, 5u, 16u, 16u, 2u, 1u, true>;
 
 alignas(16) eng::u8 g_chip[64u * 1024u];
 alignas(16) eng::u8 g_ring[8u * 1024u];
@@ -37,21 +37,21 @@ int main() {
 	eng::Palette32 pal {};
 	for (eng::u16 i = 0u; i < 32u; ++i) pal.color[i] = static_cast<eng::u16>(0x100u * i);
 
-	eng::field::StripComposer<Geom> comp {};
+	eng::playfield::StripComposer<Geom> comp {};
 	check(comp.init(mem, pal.words(), 1024u), "init");
 	comp.set_ring(reinterpret_cast<const eng::u16*>(g_ring));
 	check(comp.build(), "build (emite en ambos bloques)");
 
 	// Parchea el frame: coarse(20) = (20-1)&~15 = 16 -> ventana 16/16 = 1; fine_delay(20) = 12.
-	auto fr = eng::field::plan_strip_frame<Geom>(20, 0, 20, 0);
-	auto sc = eng::field::strip_copper_values<Geom>(fr);
-	check(sc.bplcon1 == 12u && fr.window_word == 1u, "fine 12, ventana 1");
+	auto fr = eng::playfield::plan_strip_frame<Geom>(20, 0, 20, 0);
+	auto sc = eng::playfield::strip_copper_values<Geom>(fr);
+	check(sc.bplcon1 == 0xccu && fr.window_word == 1u, "fine 12 duplicado, ventana 1");
 	check(comp.patch(sc), "patch");
 
 	const eng::u16* w = comp.debug_active_words();
 	check(w != nullptr, "copperlist activa disponible");
 	if (w != nullptr) {
-		check(w[comp.bplcon1_handle() + 1u] == 12u, "BPLCON1 parcheado = fine");
+		check(w[comp.bplcon1_handle() + 1u] == 0xccu, "BPLCON1 parcheado = fine duplicado");
 		const eng::uintptr base = reinterpret_cast<eng::uintptr>(g_ring);
 		for (eng::u8 p = 0u; p < Geom::planes; ++p) {
 			const eng::u32 addr = static_cast<eng::u32>(base) +
@@ -64,7 +64,7 @@ int main() {
 	}
 
 	// Split que cruza la 255 (256 lineas) se emite como two-WAIT.
-	eng::field::StripComposer<GeomSplit> comps {};
+	eng::playfield::StripComposer<GeomSplit> comps {};
 	check(comps.init(mem, pal.words(), 2048u), "init (split 256)");
 	comps.set_ring(reinterpret_cast<const eng::u16*>(g_ring));
 	check(comps.build(), "build (split 256, two-WAIT)");

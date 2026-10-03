@@ -43,7 +43,7 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
-namespace field = eng::field;
+namespace playfield = eng::playfield;
 
 constexpr eng::u16 kTileW = 16;
 constexpr eng::u16 kTileH = 16;
@@ -66,12 +66,12 @@ constexpr eng::u8  kChunkCapacity = 12;
 /// Fuente de chunks del mundo (concept `ChunkSource`): envuelve `load_chunk` para
 /// que `StreamingWorldMap` la conozca en compilación (sin punteros a función).
 struct WorldChunkSource {
-	field::LoadResult load(eng::s32 cx, eng::s32 cy, eng::TileBankBuffer cells) const;
+	playfield::LoadResult load(eng::s32 cx, eng::s32 cy, eng::TileBankBuffer cells) const;
 };
-using WorldMap = field::StreamingWorldMap<kChunkTiles, kChunkCapacity, WorldChunkSource>;
-using MapView = field::TileMapView<WorldMap>;
+using WorldMap = playfield::StreamingWorldMap<kChunkTiles, kChunkCapacity, WorldChunkSource>;
+using MapView = playfield::TileMapView<WorldMap>;
 
-constexpr field::ScrollConsts kScrollConsts {
+constexpr playfield::ScrollConsts kScrollConsts {
 	/*tile_width=*/        kTileW,
 	/*tile_height=*/       kTileH,
 	/*display_height=*/    kDisplayH,
@@ -84,7 +84,7 @@ constexpr field::ScrollConsts kScrollConsts {
 // editando esta única línea: `ScrollProgressive` (2 px/frame, clásico), `ScrollFast1`
 // (16 px/frame), `ScrollFast2` (32 px/frame), `ScrollFast4` (64 px/frame),
 // `ScrollSubTile8/16` (paso sub-tile en px, para tiles grandes tipo 32×32).
-using ScrollProfile_t = field::ScrollProgressive;
+using ScrollProfile_t = playfield::ScrollProgressive;
 // Paso de cámara por frame: sub-tile lo fija en px; el rápido, en N tiles; el progresivo, 2 px.
 constexpr eng::s32 kStepX = ScrollProfile_t::sub_px
 	? static_cast<eng::s32>(ScrollProfile_t::sub_px)
@@ -101,7 +101,7 @@ constexpr eng::u8 kProfFg = 4u;
 constexpr eng::u8 kProfCount = 5u;
 
 eng::u16 side_row(eng::u8 glyph, eng::u8 variant, eng::u8 row, eng::u8 plane) {
-	return field::demo::pf_plane_row(glyph, static_cast<eng::u8>(variant & 3u), row, plane, 0, false);
+	return playfield::demo::pf_plane_row(glyph, static_cast<eng::u8>(variant & 3u), row, plane, 0, false);
 }
 
 // Paleta DPF de 16: BG (PF1, 0..7) + objetos (PF2, 8..15).
@@ -121,7 +121,7 @@ constexpr eng::s32 kChunkCols = kMapCols / kChunkTiles; // 16 chunks en X
 // Carga el chunk `(cx,cy)`: rellena `kChunkTiles*kChunkTiles` celdas desde `g_map`.
 // El wrap de X es a nivel de chunks (potencia de dos -> máscara). Las filas fuera
 // del mundo se dejan a 0 (nunca se consultan: `wrap_y=0`).
-field::LoadResult load_chunk(void*, eng::s32 cx, eng::s32 cy, eng::TileBankBuffer cells) {
+playfield::LoadResult load_chunk(void*, eng::s32 cx, eng::s32 cy, eng::TileBankBuffer cells) {
 	const eng::s32 ccx = cx & (kChunkCols - 1);
 	for (eng::u16 ly = 0; ly < kChunkTiles; ++ly) {
 		const eng::s32 wy = cy * kChunkTiles + ly;
@@ -133,17 +133,17 @@ field::LoadResult load_chunk(void*, eng::s32 cx, eng::s32 cy, eng::TileBankBuffe
 					: 0;
 		}
 	}
-	return field::LoadResult::Ready;
+	return playfield::LoadResult::Ready;
 }
 
-field::LoadResult WorldChunkSource::load(eng::s32 cx, eng::s32 cy,
+playfield::LoadResult WorldChunkSource::load(eng::s32 cx, eng::s32 cy,
                                          eng::TileBankBuffer cells) const {
 	return load_chunk(nullptr, cx, cy, cells);
 }
 
 struct DemoGame {
-	field::XlimitedScene<kScrollConsts, MapView, ScrollProfile_t> scene {};
-	field::XlimitedSceneConfigT<MapView> scene_cfg {};
+	playfield::XlimitedScene<kScrollConsts, MapView, ScrollProfile_t> scene {};
+	playfield::XlimitedSceneConfigT<MapView> scene_cfg {};
 	WorldMap m_world {};
 	eng::graphics::FramePlan plan {};
 	eng::s16 m_ship_y = 200;
@@ -170,7 +170,7 @@ struct DemoGame {
 		for (eng::u16 y = 0; y < kMapRows; ++y) {
 			for (eng::u16 x = 0; x < kMapCols; ++x) {
 				g_map[static_cast<eng::u32>(y) * kMapCols + x] =
-					static_cast<eng::u16>(field::demo::cell_hash(x, y, 0x1234u) & (kTilesetCount - 1u));
+					static_cast<eng::u16>(playfield::demo::cell_hash(x, y, 0x1234u) & (kTilesetCount - 1u));
 			}
 		}
 
@@ -180,8 +180,8 @@ struct DemoGame {
 		scene_cfg.tile_height = kTileH;
 		scene_cfg.planes = kPlanes;
 		scene_cfg.fetch_mode = 0;
-		scene_cfg.y_mode = eng::field::AxisPolicy::Off;                                 // X-limited (Y fijo)
-		scene_cfg.direction = eng::field::DirectionPolicy::Bidirectional;
+		scene_cfg.y_mode = eng::playfield::AxisPolicy::Off;                                 // X-limited (Y fijo)
+		scene_cfg.direction = eng::playfield::DirectionPolicy::Bidirectional;
 		scene_cfg.display_height = kDisplayH;
 		scene_cfg.max_step = 4;
 

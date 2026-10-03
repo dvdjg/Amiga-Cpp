@@ -58,7 +58,7 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
-namespace field = eng::field;
+namespace playfield = eng::playfield;
 
 constexpr eng::u16 kTileW = 16;
 constexpr eng::u16 kTileH = 16;
@@ -89,7 +89,7 @@ constexpr eng::u16 kBlankStart = static_cast<eng::u16>(kDiwStrtY + kViewportH);
 #define K_INIT_CAMX (kViewportW / 4)
 #endif
 
-constexpr field::ScrollConsts kScrollConsts {
+constexpr playfield::ScrollConsts kScrollConsts {
 	/*tile_width=*/        kTileW,
 	/*tile_height=*/       kTileH,
 	/*display_height=*/    kDisplayH,
@@ -122,8 +122,8 @@ constexpr eng::u16 kPalette[32] {
 eng::u16 g_map[kMapCols * kMapRows] {};
 
 struct DemoGame {
-	field::XlimitedScene<kScrollConsts> scene {};
-	field::XlimitedSceneConfig scene_cfg {};
+	playfield::XlimitedScene<kScrollConsts> scene {};
+	playfield::XlimitedSceneConfig scene_cfg {};
 	eng::graphics::FramePlan plan {};
 	eng::graphics::FramePlan bg_plan {};   // blit de fondo (filas VISIBLES) -> en blanking
 	eng::Block<eng::PatternTag> m_bg_pattern {};
@@ -182,9 +182,9 @@ struct DemoGame {
 		scene_cfg.tile_height = kTileH;
 		scene_cfg.planes = kPlanes;
 		scene_cfg.fetch_mode = 0;
-		scene_cfg.y_mode = eng::field::AxisPolicy::Ring;                                  // corkscrew (Y)
-		scene_cfg.x_mode = eng::field::AxisPolicy::Finite;            // X lineal acotado
-		scene_cfg.direction = eng::field::DirectionPolicy::Bidirectional;
+		scene_cfg.y_mode = eng::playfield::AxisPolicy::Ring;                                  // corkscrew (Y)
+		scene_cfg.x_mode = eng::playfield::AxisPolicy::Finite;            // X lineal acotado
+		scene_cfg.direction = eng::playfield::DirectionPolicy::Bidirectional;
 		scene_cfg.display_height = kDisplayH;
 		scene_cfg.max_step = 4;
 		scene_cfg.parallax_plane = kParallaxPlane;                  // plano de fondo RoboCod
@@ -272,7 +272,7 @@ struct DemoGame {
 			// fetch = viewport/8 + 1 word: el DDFSTRT=0x30 ya incluye la word extra
 			// que el scroll fino coloca a la izquierda, así que el display lee 21
 			// words (42 B) desde planeaddx -> la ventana necesita 22 words.
-			field::BgWindow win = field::bg_window_for(
+			playfield::BgWindow win = playfield::bg_window_for(
 				camx, kPatPeriodPx, static_cast<eng::u16>(kViewportW / 8u + 2u));
 			// Soft DPF: el fondo tiene su PROPIA cámara (`m_bgscroll`) independiente
 			// del FG. La posición aparente del fondo es `m_bgscroll + x`, así que el
@@ -285,7 +285,7 @@ struct DemoGame {
 			win.src_x = static_cast<eng::u16>(
 				(static_cast<eng::s32>(win.src_x) + m_bgscroll) %
 				static_cast<eng::s32>(kPatPeriodPx));
-			const field::BgSplitRects rects = field::bg_split_rects(
+			const playfield::BgSplitRects rects = playfield::bg_split_rects(
 				scene.bg().display_offset(), kDisplayH, kViewportH, /*bg_y=*/0u);
 			bg_plan.clear();
 			bg_plan.set_blit_budget_limits({8192, 16384, 4, 200});

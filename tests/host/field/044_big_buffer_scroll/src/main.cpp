@@ -2,7 +2,7 @@
 // Test HOST-044: BigBufferScroll (estrategia de scroll trivial "escena ya dibujada")
 // ============================================================================
 //
-// Valida `eng::field::BigBufferScroll` (scroll_engine.hpp): la estrategia base que
+// Valida `eng::playfield::BigBufferScroll` (scroll_engine.hpp): la estrategia base que
 // solo lleva el offset de cámara acotado (sin anillo ni banda de staging que
 // rellenar). Contraste con `ScrollEngine` (corkscrew/XYLimited, que emite blits).
 
@@ -20,7 +20,7 @@ void check(bool ok, const char* what) {
 } // namespace
 
 int main() {
-	using eng::field::BigBufferScroll;
+	using eng::playfield::BigBufferScroll;
 
 	// Rango acotado: clampa en los extremos.
 	BigBufferScroll s {};

@@ -1,6 +1,6 @@
 # Test HOST-025: accesor de tiles `TileSource` (denso y disperso)
 
-Respalda el concepto `eng::field::TileSource` y sus dos implementaciones
+Respalda el concepto `eng::playfield::TileSource` y sus dos implementaciones
 (`engine/include/eng/field/tile_source.hpp`, `tile_map.hpp`):
 
 - `TileLayerMap`: mapa **denso** con wrap toroidal/acotado y `empty_tile`.

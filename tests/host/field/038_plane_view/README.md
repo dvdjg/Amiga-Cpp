@@ -1,6 +1,6 @@
 # Test HOST-038: PlaneView (soft DPF, doble buffer de planos)
 
-Respalda `eng::field::PlaneView` (`engine/include/eng/field/plane_view.hpp`): la pieza del soft DPF
+Respalda `eng::playfield::PlaneView` (`engine/include/eng/field/plane_view.hpp`): la pieza del soft DPF
 (RoboCod) extraída del playfield de scroll — una vista de los planos de otro bitmap con doble
 buffer opcional.
 

@@ -15,8 +15,8 @@
 namespace eng::ui {
 
 struct WindowBacking {
-	eng::field::ContiguousPlayfield playfield {};
-	eng::field::Surface surface {};
+	eng::playfield::ContiguousPlayfield playfield {};
+	eng::playfield::Surface surface {};
 	eng::u16 width = 0u;
 	eng::u16 height = 0u;
 	eng::u8 depth = 0u;
@@ -33,8 +33,8 @@ struct WindowBacking {
 		depth = d;
 		valid = true;
 		needs_repaint = true;
-		surface = eng::field::Surface {playfield,
-					       eng::field::SurfaceRect {0, 0, w, h}};
+		surface = eng::playfield::Surface {playfield,
+					       eng::playfield::SurfaceRect {0, 0, w, h}};
 		return true;
 	}
 

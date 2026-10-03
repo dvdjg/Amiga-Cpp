@@ -1,9 +1,11 @@
 #pragma once
 
 /// \file game.hpp
-/// **Fachada de juego** (borrador evolutivo): `App` junta el bucle, la pantalla, la entrada y
-/// las tareas de fondo; `Screen` es el contexto de dibujo de alto nivel. El juego describe
-/// **qué quiere ver** sin conocer el backend, `GameContext`, `FramePlan`, `Rasterizer` ni planos.
+/// **Fachada de juego**: `App` junta el bucle, la pantalla, la entrada y las tareas de fondo.
+/// Reexporta, ya troceados por tema, el contexto de dibujo (`api/screen.hpp`: `Screen` +
+/// `BlitStream`), la descripción del display (`api/display.hpp`: `GameDisplay`/`StartError`) y el
+/// materializado del mundo retenido (`api/world_render.hpp`). El juego describe **qué quiere ver**
+/// sin conocer el backend, `GameContext`, `FramePlan`, `Rasterizer` ni planos.
 ///
 /// ```cpp
 /// struct MyGame {
@@ -22,6 +24,9 @@
 /// Es **evolutivo**: cubre lo que ya existe y se amplía cuando lleguen los demás módulos.
 
 #include <eng/api/device.hpp>
+#include <eng/api/display.hpp>
+#include <eng/api/screen.hpp>
+#include <eng/api/world_render.hpp>
 #include <eng/core/types/box.hpp>
 #include <eng/core/types/typed.hpp>
 #include <eng/core/types/domains.hpp>
@@ -30,6 +35,7 @@
 #include <eng/core/util/expected.hpp>
 #include <eng/debug/telemetry.hpp>
 #include <eng/engine.hpp>
+#include <eng/field/strip_layer.hpp>
 #include <eng/field/draw_target.hpp>
 #include <eng/graphics/blitter_state.hpp>
 #include <eng/graphics/composition/compose.hpp>
@@ -52,400 +58,6 @@
 
 namespace eng {
 
-/// Descripción declarativa del display que `App::start()` compone y posee.
-struct GameDisplay {
-	static constexpr u8 kMaxColorDepth = 8u;
-	static constexpr u8 kWorldLayerCapacity = scene::kDefaultWorldLayerCapacity;
-	static constexpr u16 kPaletteEntries = eng::kPaletteEntries;
-	static constexpr u8 kDefaultColorDepth = 4u;
-	static constexpr u8 kDefaultBufferCount = 1u;
-	static constexpr u16 kDefaultWidth = 320u;
-	static constexpr u16 kDefaultHeight = 256u;
-	u16 width = kDefaultWidth;
-	u16 height = kDefaultHeight;
-	u8 color_depth = kDefaultColorDepth;
-	u8 buffers = kDefaultBufferCount;
-	graphics::PlaneLayout layout = graphics::PlaneLayout::Contiguous;
-	Palette32 palette = kBlackPalette;
-	/// **Efectos de Copper por línea** (opcional): gradientes, zonas de paleta, etc. El juego los
-	/// declara como intenciones de dominio; `App::start()` los compone sin que el juego vea
-	/// registros ni la copperlist. Ver `composition::intents`.
-	eng::Span<const graphics::CopperIntent> intents {};
-	/// **Presupuesto de bus declarado** (opcional, `eng/hw/bus_budget.hpp`): si el juego declara
-	/// franjas/Blitter/Copper/CPU, `App::start()` lo comprueba y **falla rápido** si la escena no
-	/// cabe en el bus del A500. Con `bands_count == 0` se usa una franja derivada del display
-	/// (ancho/alto/planos) para no aceptar a ciegas un modo que ya satura.
-	hw::BusBudgetInput bus {};
-};
-
-/// Motivo por el que no pudo prepararse el display propio de `App`.
-enum class StartError : u8 {
-	AlreadyStarted,
-	MemoryUnavailable,
-	InvalidDisplay,
-	OutOfMemory,
-	CompositionFailed,
-	BusOverBudget, ///< la escena no cabe en el presupuesto de bus declarado (`GameDisplay::bus`)
-};
-
-/// **Racha de blits en streaming**, inyectada por el `App` en el `Screen` de forma *type-erased*
-/// (punteros a función + contexto): el `Screen` puede emitir blits inmediatos **sin conocer el
-/// backend**. Ver `Screen::stamp`/`clear_now` y `ZERO_COST_FRAME_PATH.md` §Streaming.
-struct BlitStream {
-	void* ctx = nullptr;
-	bool (*begin)(void*, graphics::BlobOp, u16, u16, s16, s16, s16, s16) = nullptr;
-	void (*one)(void*, const void*, const void*, void*, u8) = nullptr;
-	bool (*end)(void*) = nullptr;
-	[[nodiscard]] bool valid() const noexcept { return begin != nullptr; }
-};
-
-/// **Contexto de dibujo de alto nivel** (análogo al `RastPort`): la app dibuja sin ver planos,
-/// `FramePlan` ni `Rasterizer`. Envuelve un `field::DrawTarget` (Surface + rasterizador + plan +
-/// clip) y ofrece primitivas del dominio.
-class Screen {
-public:
-	Screen() = default;
-	explicit constexpr Screen(field::DrawTarget target, BlitStream stream = {}) noexcept
-		: m_target(target), m_stream(stream) {}
-
-
-	[[nodiscard]] bool valid() const noexcept { return m_target.valid(); }
-	[[nodiscard]] Box bounds() const noexcept { return m_target.box(); }
-	/// Borra todo el área de dibujo con `color`.
-	void clear(u8 color) {
-		const Box b = bounds();
-		(void)m_target.fill(b, color);
-	}
-	bool fill(Box box, u8 color) { return m_target.fill(box, color); }
-	bool frame(Box box, u8 color) { return m_target.frame(box, color); }
-	bool line(s16 x0, s16 y0, s16 x1, s16 y1, u8 color,
-		  field::RasterOp op = field::RasterOp::Copy) {
-		return m_target.line(x0, y0, x1, y1, color, op);
-	}
-	bool text(s16 x, s16 y, const char* s, u8 color) { return m_target.text(x, y, s, color); }
-
-	/// Borra `b` (`D = 0`) **encolado en el plan del frame**, en orden con los sprites (a
-	/// diferencia de `fill`, que se vuelca con el rasterizador y puede pisar lo dibujado después).
-	/// Es la forma de limpiar una banda/región antes de pintar objetos. `false` si no hay plan.
-	bool clear_box(Box b) {
-		if (!m_target.plan().valid()) {
-			return false;
-		}
-		return eng::scene::clear_box(*m_target.plan(), m_target.bob_target(), b.x, b.y, b.w, b.h);
-	}
-
-	/// **Rellena un rectángulo con un color** (`D = color`) **encolado en el plan** (Blitter), en
-	/// orden con los sprites. Es el relleno de color a **coste cero** (a diferencia de `fill`, que
-	/// es inmediato y usa el rasterizador/CPU): `D = A` sin fetch (A deshabilitada, `BLTADAT`
-	/// preload), un `FillRect` por plano con `AFWM`/`ALWM` recortando la primera/última palabra.
-	///
-	/// Aviso: al no leer D, los bits de las **palabras de borde** que quedan fuera del rectángulo
-	/// de un `b` **no alineado a 16 px** se ponen a 0 (no se preserva lo de debajo). Alinea `b.x` y
-	/// `b.w` a múltiplos de 16 para evitar ese recorte. `false` si no hay plan.
-	bool fill_box(Box b, u8 color) {
-		if (!m_target.plan().valid() || b.empty()) {
-			return false;
-		}
-		const graphics::BobTarget t = m_target.bob_target();
-		if (t.planes.empty() || t.plane_count == 0u) {
-			return false;
-		}
-		const Box clip = bounds();
-		s32 x = b.x;
-		s32 y = b.y;
-		u16 w = b.w;
-		u16 h = b.h;
-		if (x < clip.x) {
-			const s32 d = clip.x - x;
-			if (d >= static_cast<s32>(w)) return true;
-			w = static_cast<u16>(w - static_cast<u16>(d));
-			x = clip.x;
-		}
-		if (y < clip.y) {
-			const s32 d = clip.y - y;
-			if (d >= static_cast<s32>(h)) return true;
-			h = static_cast<u16>(h - static_cast<u16>(d));
-			y = clip.y;
-		}
-		const s32 cx1 = static_cast<s32>(clip.x) + clip.w - 1;
-		const s32 cy1 = static_cast<s32>(clip.y) + clip.h - 1;
-		if (x > cx1 || y > cy1) return true;
-		if (x + static_cast<s32>(w) - 1 > cx1) w = static_cast<u16>(cx1 - x + 1);
-		if (y + static_cast<s32>(h) - 1 > cy1) h = static_cast<u16>(cy1 - y + 1);
-		const u16 wx0 = static_cast<u16>(x & ~15);
-		const u16 wx1 = static_cast<u16>((x + static_cast<s32>(w) - 1) & ~15);
-		const u16 words = static_cast<u16>(((wx1 - wx0) >> 4) + 1u);
-		const u16 afwm = static_cast<u16>(0xffffu >> (x & 15));
-		const u16 alwm = static_cast<u16>(0xffffu << (15 - ((x + static_cast<s32>(w) - 1) & 15)));
-		const bool inter = (t.layout == graphics::BobLayout::Interleaved);
-		const u32 row = t.row_bytes;
-		const u32 row_stride = inter ? row * t.plane_count : row;
-		const u32 plane_step = t.plane_pointer_step();
-		const s16 dmod = eng::graphics::mod16(static_cast<s32>(row_stride) -
-						      static_cast<s32>(words) * 2);
-		u8* base = t.data() + static_cast<u32>(y) * row_stride + (static_cast<u32>(wx0) >> 3u);
-		for (u8 p = 0u; p < t.plane_count; ++p) {
-			graphics::BlitJob job {};
-			job.destination = graphics::BlitPtr::from_storage(
-				reinterpret_cast<u16*>(base + static_cast<u32>(p) * plane_step));
-			job.words_per_row = words;
-			job.height = h;
-			job.bitplane_count = 1u;
-			job.destination_modulo_bytes = dmod;
-			job.interleaved = true;
-			job.minterm = (color & (1u << p)) != 0u ? 0xffu : 0x00u;
-			job.fill.afwm = afwm;
-			job.fill.alwm = alwm;
-			(void)m_target.plan()->add_fill_rect(job);
-		}
-		return true;
-	}
-
-	/// **Dibuja un sprite** (BOB cocinado) en `(x, y)`. La geometría del destino la trae el
-	/// contexto de dibujo (`DrawTarget::bob_target`, preparado por la escena), así que el
-	/// juego no ve planos, strides ni minterns. `false` si no hay plan de frame o el
-	/// sprite/frame no es válido (ver `graphics::Sprite::draw`).
-	bool sprite(const graphics::Sprite& spr, s16 x, s16 y, u8 frame = 0u) {
-		if (!m_target.plan().valid()) {
-			return false;
-		}
-		const Box clip = m_target.box();
-		if (x < clip.x || y < clip.y || static_cast<s32>(x) + spr.width() >
-			static_cast<s32>(clip.x) + clip.w || static_cast<s32>(y) + spr.height() >
-			static_cast<s32>(clip.y) + clip.h) return false;
-		return spr.draw(*m_target.plan(), m_target.bob_target(), frame, x, y);
-	}
-	/// **Borra la caja de un sprite** en `(x, y)` (si su política es `ClearRect`).
-	bool erase_sprite(const graphics::Sprite& spr, s16 x, s16 y) {
-		if (!m_target.plan().valid()) {
-			return false;
-		}
-		return spr.erase(*m_target.plan(), m_target.bob_target(), x, y);
-	}
-
-	/// **Encola un aviso** (`ticket`) en el plan del frame: en modo asíncrono
-	/// (`App::set_async_present(true)`) la IRQ de fin de blit lo publica como
-	/// `MsgType::IntentDone` (con el `ticket` en `payload.user.a`) cuando hayan terminado los
-	/// trabajos encolados **hasta ahora**. Para avisar al final de la ristra, llamar tras el
-	/// último `sprite`/`clear_box`/… No consume Blitter: es una marca en la cadena.
-	bool notify(u16 ticket) {
-		if (!m_target.plan().valid()) {
-			return false;
-		}
-		return m_target.plan()->add_notify(ticket);
-	}
-
-	/// **Blit planar** al plan del frame (copia desde una hoja planar). Para primitivas que
-	/// `Screen` no cubre (chunky→planar usa `c2p`). El plan lo pone el contexto.
-	bool blit(eng::Span<const u16> src, s32 x, s32 y, u16 w, u16 h, u16 src_row_bytes,
-		  u32 src_plane_stride, u8 planes, u8 source_shift = 0u, bool descending = false,
-		  field::RasterOp op = field::RasterOp::Copy) {
-		if (!m_target.plan().valid()) {
-			return false;
-		}
-		return m_target.blit(*m_target.plan(), src, x, y, w, h, src_row_bytes, src_plane_stride,
-				    planes, source_shift, descending, op);
-	}
-	/// Copia un asset planar completo (procedencia Chip + geometría + layout) a la pantalla en el
-	/// plan del frame. El juego no pasa punteros,
-	/// strides, plano ni cantidad de planos: los trae el asset tipado y el contexto Screen.
-	[[nodiscard]] bool bitmap(graphics::ChipBitmapView<PlaneTag> source, Box destination) {
-		const Box screen_bounds = bounds();
-		const auto& target = m_target.bob_target();
-		if (!m_target.plan().valid() || !source.valid() || destination.empty() ||
-		    source.plane_count > graphics::kBlitterMaxPlanes ||
-		    source.layout != (target.interleaved() ? graphics::PlaneLayout::Interleaved
-						    : graphics::PlaneLayout::Contiguous) ||
-		    source.row_bytes < source.width / graphics::kPixelsPerByte ||
-		    (source.row_bytes & (graphics::kBytesPerBlitterWord - 1u)) != 0u ||
-		    source.planes.size() < source.byte_count() ||
-		    destination.x < screen_bounds.x || destination.y < screen_bounds.y ||
-		    static_cast<u32>(destination.w) > source.width || static_cast<u32>(destination.h) > source.height ||
-		    static_cast<s32>(destination.x) + destination.w > static_cast<s32>(screen_bounds.x) + screen_bounds.w ||
-		    static_cast<s32>(destination.y) + destination.h > static_cast<s32>(screen_bounds.y) + screen_bounds.h ||
-		    (destination.x & (graphics::kPixelsPerBlitterWord - 1u)) != 0 ||
-		    (destination.w & (graphics::kPixelsPerBlitterWord - 1u)) != 0u ||
-		    source.width / graphics::kPixelsPerBlitterWord > graphics::kBlitterMaxWordsPerRow ||
-		    source.height > graphics::kBlitterMaxRows ||
-		    destination.w != source.width || destination.h != source.height) return false;
-		const u16 words = static_cast<u16>(source.width / graphics::kPixelsPerBlitterWord);
-		const u32 copied_row_bytes = static_cast<u32>(words) * graphics::kBytesPerBlitterWord;
-		const u32 source_row_stride = source.interleaved()
-				       ? static_cast<u32>(source.row_bytes) * source.plane_count
-				       : source.row_bytes;
-		const bool source_interleaved = source.interleaved();
-		const bool destination_interleaved = target.interleaved();
-		if (source.plane_count != target.plane_count || source_interleaved != destination_interleaved)
-			return false;
-		const u32 destination_row_stride = target.interleaved()
-					   ? static_cast<u32>(target.row_bytes) * target.plane_count
-					   : target.row_bytes;
-		if (source.interleaved()) {
-			// Each physical plane row is `row_bytes` apart; the modulo skips the remaining
-			// planes to reach the same plane on the next logical scanline.
-			graphics::BlitJob job {};
-			job.kind = graphics::BlitJobKind::CopyRect;
-			job.source = graphics::BlitPtr {source.planes};
-			job.destination = graphics::BlitPtr {target.planes,
-				static_cast<s32>(static_cast<u32>(destination.y) * destination_row_stride +
-						 destination.x / graphics::kPixelsPerByte)};
-			job.words_per_row = words;
-			job.height = source.height;
-			job.source_modulo_bytes = static_cast<s16>(source_row_stride - copied_row_bytes);
-			job.destination_modulo_bytes = static_cast<s16>(destination_row_stride - copied_row_bytes);
-			job.bitplane_count = source.plane_count;
-			job.interleaved = true;
-			job.source_plane_stride_bytes = source.plane_pointer_step();
-			job.destination_plane_stride_bytes = target.plane_pointer_step();
-			return m_target.plan()->add_copy_rect(job);
-		}
-		graphics::BlitJob job {};
-		job.kind = graphics::BlitJobKind::CopyRect;
-		job.source = graphics::BlitPtr {source.planes};
-		job.destination = graphics::BlitPtr {target.planes,
-			static_cast<s32>(static_cast<u32>(destination.y) * destination_row_stride +
-					 destination.x / graphics::kPixelsPerByte)};
-		job.words_per_row = words;
-		job.height = source.height;
-		job.source_modulo_bytes = 0;
-		job.destination_modulo_bytes = 0;
-		job.bitplane_count = source.plane_count;
-		job.interleaved = false;
-		job.source_plane_stride_bytes = source.plane_pointer_step();
-		job.destination_plane_stride_bytes = target.plane_pointer_step();
-		return m_target.plan()->add_copy_rect(job);
-	}
-
-	/// **Chunky→planar** por el seam (Blitter si hay plan, si no CPU del playfield).
-	bool c2p(const field::C2pRequest& req) { return m_target.c2p(req); }
-
-	/// El objetivo de dibujo subyacente (para efectos avanzados; el juego normal no lo necesita).
-	[[nodiscard]] field::DrawTarget& target() noexcept { return m_target; }
-
-	/// **Racha de estampado (streaming)**: emite copias de `sheet` al Blitter **en el momento** de
-	/// cada `at()` (espera al blit anterior y escribe solo los registros que cambian), **sin
-	/// `FramePlan` ni pasada de ejecución**. El juego describe objetos; el motor emite. Ver
-	/// `ZERO_COST_FRAME_PATH.md` §Streaming. Requiere dibujar en orden con `clear_now` (no mezclar
-	/// con el plan, que se ejecuta en `present`).
-	struct StampRun {
-		BlitStream stream {};
-		const graphics::Sprite* sheet = nullptr;
-		graphics::BobTarget target {};
-		graphics::BlobOp op = graphics::BlobOp::CookieCut;
-		u16 words = 0u;
-		s32 start_row = 0;
-		bool active = false;
-
-		/// Emite una copia del `frame` del sprite en `(x, y)`.
-		bool at(s16 x, s16 y, u8 frame) {
-			if (!active || sheet == nullptr || frame >= sheet->bob().frame_count) {
-				return false;
-			}
-			const graphics::Bob& bob = sheet->bob();
-			const s16 wx = static_cast<s16>(x & ~15);
-			const u16* base = reinterpret_cast<const u16*>(
-				bob.sheet.address(static_cast<u32>(frame) * bob.frame_stride).cptr());
-			u8* dst = target.data() + static_cast<u32>(start_row) * static_cast<u32>(y) +
-				  (static_cast<u32>(wx < 0 ? 0 : wx) >> 3u);
-			if (op == graphics::BlobOp::CookieCut) {
-				stream.one(stream.ctx, base + words, base, dst, static_cast<u8>(x & 15));
-			} else {
-				stream.one(stream.ctx, base, base, dst, static_cast<u8>(x & 15));
-			}
-			return true;
-		}
-		/// Espera al último blit de la racha.
-		bool done() {
-			if (!active) {
-				return false;
-			}
-			active = false;
-			return stream.end(stream.ctx);
-		}
-	};
-
-	/// Abre una racha de estampado; el `BlobOp` sale de la política del sprite (`Or`, `Opaque` o
-	/// `CookieCut`). `false`/inactivo si el backend no la soporta o el sprite no vale.
-	[[nodiscard]] StampRun stamp(const graphics::Sprite& sheet) {
-		StampRun run {};
-		if (!m_stream.valid() || !sheet.valid()) {
-			return run;
-		}
-		const graphics::BobTarget bt = m_target.bob_target();
-		const graphics::Bob& bob = sheet.bob();
-		if (bob.sheet.empty() || bt.planes.empty() || bob.width < 16u) {
-			return run;
-		}
-		const u16 words = static_cast<u16>(bob.width / 16u);
-		const s16 amod = static_cast<s16>(words * 2u);
-		const s16 dmod = static_cast<s16>(static_cast<s32>(bt.row_bytes) - static_cast<s32>(words) * 2);
-		const u16 height = static_cast<u16>(bob.height * bob.planes);
-		graphics::BlobOp op = graphics::BlobOp::CookieCut;
-		if (bob.draw == graphics::BobDraw::Or) {
-			op = graphics::BlobOp::Or;
-		} else if (bob.draw == graphics::BobDraw::Opaque) {
-			op = graphics::BlobOp::Opaque;
-		}
-		if (!m_stream.begin(m_stream.ctx, op, words, height, amod, amod, dmod, dmod)) {
-			return run;
-		}
-		run.stream = m_stream;
-		run.sheet = &sheet;
-		run.target = bt;
-		run.op = op;
-		run.words = words;
-		run.start_row = static_cast<s32>(bt.row_bytes) * bt.plane_count;
-		run.active = true;
-		return run;
-	}
-
-	/// **Borra ahora** (streaming, `D = 0`) la banda completa de `box` (filas completas de todos los
-	/// planos, interleaved). Complementa a `stamp`; ambas emiten **en orden**, sin `FramePlan`.
-	bool clear_now(Box box) {
-		if (!m_stream.valid() || box.empty()) {
-			return false;
-		}
-		const graphics::BobTarget bt = m_target.bob_target();
-		if (bt.planes.empty()) {
-			return false;
-		}
-		const u16 words = static_cast<u16>((box.w + 15u) / 16u);
-		if (words == 0u) {
-			return false;
-		}
-		const u16 height = static_cast<u16>(box.h * bt.plane_count);
-		// Fila completa de un plano → filas interleaved contiguas: un solo blit D-only, `dmod = 0`.
-		const bool full_row = (static_cast<u32>(words) * 2u == bt.row_bytes);
-		const s16 dmod = full_row ? 0
-					  : static_cast<s16>(static_cast<s32>(bt.row_bytes) *
-									     bt.plane_count -
-								     static_cast<s32>(words) * 2);
-		u8* dst = bt.data() + static_cast<u32>(box.y) * static_cast<u32>(bt.row_bytes) *
-					      static_cast<u32>(bt.plane_count);
-		if (!m_stream.begin(m_stream.ctx, graphics::BlobOp::Clear, words, height, 0, 0, 0, dmod)) {
-			return false;
-		}
-		m_stream.one(m_stream.ctx, nullptr, nullptr, dst, 0u);
-		return m_stream.end(m_stream.ctx);
-	}
-
-	/// **Copia un rect ahora** (streaming, `D = C`): `words`×`height` palabras de `src` a `dst` con
-	/// módulos `cmod`/`dmod` (bytes). Para desplazar/copiar una banda fuera del plan (scroll).
-	bool copy_now(const void* src, void* dst, u16 words, u16 height, s16 cmod, s16 dmod) {
-		if (!m_stream.valid() || src == nullptr || dst == nullptr || words == 0u || height == 0u) {
-			return false;
-		}
-		if (!m_stream.begin(m_stream.ctx, graphics::BlobOp::Copy, words, height, 0, 0, cmod, dmod)) {
-			return false;
-		}
-		m_stream.one(m_stream.ctx, src, nullptr, dst, 0u);
-		return m_stream.end(m_stream.ctx);
-	}
-
-private:
-	field::DrawTarget m_target;
-	BlitStream m_stream {};
-};
 /// **Aplicación de juego**: bucle + pantalla + tareas, sin exponer el backend ni `GameContext`.
 /// El juego implementa `init(App&)`, `update(App&)` y `render(App&)` (con `auto&` para no nombrar
 /// el tipo concreto).
@@ -496,14 +108,14 @@ public:
 		if (m_started) return util::unexpected(StartError::AlreadyStarted);
 		if (!m_memory.valid() || !m_memory->configured())
 			return util::unexpected(StartError::MemoryUnavailable);
-		const auto resources = scene_resources();
+		const auto resources = scene_resources(m_display);
 		if (!graphics::composition::validate(resources, graphics::composition::ocs_a500).ok())
 			return util::unexpected(StartError::InvalidDisplay);
 		if (graphics::composition::chip_bytes_for(resources) > m_memory->chip().free_bytes())
 			return util::unexpected(StartError::OutOfMemory);
 		// Preflight del **bus DMA**: si la escena declarada (display + Blitter/Copper/CPU) agota el
 		// bus del A500, falla rápido antes de componer (ver `eng/hw/bus_budget.hpp`/`BUS_BUDGET.md`).
-		if (hw::amiga500_bus_budget(bus_budget_input()).remaining_slots < 0)
+		if (hw::amiga500_bus_budget(bus_budget_input(m_display)).remaining_slots < 0)
 			return util::unexpected(StartError::BusOverBudget);
 		const auto display_stage = graphics::composition::display(resources);
 		const auto palette_stage = graphics::composition::palette(m_display.palette.words(),
@@ -872,7 +484,8 @@ public:
 	/// `App` lo ejecuta antes de `Game::render`; se puede repetir tras cambiar el contenido del mundo.
 	[[nodiscard]] bool draw_world_backgrounds() {
 		if (!m_scene.valid()) return false;
-		materialize_world_layers();
+		m_world_materialization_ok =
+			materialize_world_layers(m_world, m_display.width, m_display.height, screen());
 		return m_world_materialization_ok;
 	}
 
@@ -880,6 +493,22 @@ public:
 	/// Capas de actores/tilemaps se conservan para sus caminos específicos.
 	[[nodiscard]] scene::World<GameDisplay::kWorldLayerCapacity>& world() noexcept { return m_world; }
 	[[nodiscard]] const scene::World<GameDisplay::kWorldLayerCapacity>& world() const noexcept { return m_world; }
+
+	/// **Registra una capa de scroll** (p. ej. `playfield::StripScrollLayer`): `App` la **arranca** con
+	/// su memoria y backend y la **conduce por frame**; el juego no ve el compositor ni los
+	/// registros. `false` si no cabe o el arranque falla. Llamar desde `Game::init(App&)`.
+	template <class Layer>
+	[[nodiscard]] bool add_scroll_layer(Layer& layer) noexcept {
+		if (m_scroll_count >= kMaxScrollLayers) return false;
+		ScrollLayerHandle h = layer.handle();
+		if (!h.valid()) return false;
+		if (h.begin != nullptr && !h.begin(h.obj, &m_backend.memory_manager(), &m_backend)) {
+			return false;
+		}
+		m_scroll_layers[m_scroll_count++] = h;
+		return true;
+	}
+	[[nodiscard]] u8 scroll_layer_count() const noexcept { return m_scroll_count; }
 
 	/// **Planner (actores)**: emite los actores del `world()` al plan del frame con el clip y
 	/// el destino del contexto de dibujo de la escena ligada. Devuelve cuántos se dibujaron.
@@ -889,7 +518,7 @@ public:
 		if (!m_scene.valid()) {
 			return 0u;
 		}
-		field::DrawTarget target = m_scene.get()->draw_target(&m_plan);
+		playfield::DrawTarget target = m_scene.get()->draw_target(&m_plan);
 		const eng::Box b = target.box();
 		return m_world.emit(m_plan,
 				    eng::Span<const graphics::BobTarget> {&target.bob_target(), 1u},
@@ -1079,31 +708,17 @@ private:
 	static constexpr u32 kRunIndefinitely = 0xffffffffu;
 	static constexpr u8 kMaxBitmapOwners = graphics::FramePlan::kMaxDmaAssets;
 	static constexpr u16 kMaxScenes = 8u;
+	static constexpr u8 kMaxScrollLayers = 4u;
 	static constexpr u32 kSizeLimit = 0xffffffffu;
 	static constexpr u16 kBitmapAlignmentBytes = 16u;
 	static constexpr u16 kWorldCoordinateLimit = 0x7fffu;
 
-	[[nodiscard]] graphics::composition::SceneResources scene_resources() const noexcept {
-		auto resources = graphics::composition::planar(m_display.width, m_display.height,
-								 m_display.color_depth);
-		resources.buffers = m_display.buffers;
-		resources.layout = m_display.layout;
-		return resources;
-	}
-
-	/// Entrada del presupuesto de bus: la declarada por el juego, o **una franja derivada del
-	/// display** si no declaró ninguna, para no aceptar a ciegas un modo que ya satura el bus.
-	[[nodiscard]] hw::BusBudgetInput bus_budget_input() const noexcept {
-		hw::BusBudgetInput in = m_display.bus;
-		if (in.bands_count == 0u) {
-			in.bands_count = 1u;
-			in.bands[0] = hw::BusBand {};
-			in.bands[0].height = m_display.height;
-			in.bands[0].width = m_display.width;
-			in.bands[0].bitplanes = m_display.color_depth;
-			in.bands[0].hires = m_display.width >= 640u;
+	/// Conduce las capas de scroll registradas por frame (pinta la tira y parchea el Copper). Se
+	/// llama tras el `update` del juego, para que este ya haya movido su cámara/scroll.
+	void pump_scroll_layers() noexcept {
+		for (u8 i = 0u; i < m_scroll_count; ++i) {
+			m_scroll_layers[i].frame(m_scroll_layers[i].obj, &m_backend);
 		}
-		return in;
 	}
 
 	/// Adapta el contrato del engine (`init/update/render(backend, context)`) al del juego
@@ -1124,12 +739,16 @@ private:
 			} else {
 				self->m_game.update(*self); // el juego consume `port()` aquí
 			}
+			self->pump_scroll_layers(); // el juego ya movió su scroll: pintar tira + Copper
 		}
 		void render(Backend&, GameContext& ctx) {
 			self->m_context = ctx;
 			self->begin_async_frame();
 			self->m_world_materialization_ok = true;
-			if (self->m_scene.valid()) self->materialize_world_layers();
+			if (self->m_scene.valid())
+				self->m_world_materialization_ok = materialize_world_layers(
+					self->m_world, self->m_display.width, self->m_display.height,
+					self->screen());
 			if (self->m_scene_depth > 0u) {
 				SceneSlot& slot = self->m_scenes[self->m_scene_depth - 1u];
 				slot.render(slot.obj, *self);
@@ -1138,51 +757,6 @@ private:
 			}
 		}
 	};
-
-	void materialize_world_layers() {
-		Screen background = screen();
-		m_world_materialization_ok = m_world.materialize_fill_layers(
-			[&](const Box& bounds, u8 color) {
-				const bool cleared = background.fill(bounds, 0u);
-				const bool colored = background.fill(bounds, color);
-				return cleared && colored;
-			},
-			m_display.width, m_display.height);
-		if (m_world_materialization_ok) materialize_bitmap_layers();
-	}
-
-	void materialize_bitmap_layers() {
-		Screen background = screen();
-		m_world_materialization_ok = m_world.materialize_bitmap_layers(
-			[&](u16 x, u16 y, ByteView<TextureTag> row) {
-				usize i = 0u;
-				while (i < row.size()) {
-					const u8 color = row[i];
-					usize end = i + 1u;
-					while (end < row.size() && row[end] == color) ++end;
-					if (!background.fill(Box {static_cast<s16>(x + i), static_cast<s16>(y),
-								  static_cast<u16>(end - i), 1u}, color)) return false;
-					i = end;
-				}
-				return true;
-			},
-			m_display.width, m_display.height);
-		if (!m_world_materialization_ok) return;
-		m_world_materialization_ok = m_world.materialize_bitmap_layers(
-			[&](u16 x, u16 y, ByteView<TextureTag> row) {
-				usize i = 0u;
-				while (i < row.size()) {
-					const u8 color = row[i];
-					usize end = i + 1u;
-					while (end < row.size() && row[end] == color) ++end;
-					if (!background.fill(Box {static_cast<s16>(x + i), static_cast<s16>(y),
-								  static_cast<u16>(end - i), 1u}, color)) return false;
-					i = end;
-				}
-				return true;
-			},
-			m_display.width, m_display.height);
-	}
 
 	/// Productor del hook de VBlank: sube el contador y publica en el puerto (IRQ-safe).
 	static void on_vblank(void* user) noexcept {
@@ -1244,6 +818,8 @@ private:
 	volatile u32 m_blitdone_count = 0;                  ///< fines de blit publicados (IRQ)
 	eng::Ref<graphics::composition::Scene> m_scene {};  ///< escena del juego (no propietaria)
 	scene::World<GameDisplay::kWorldLayerCapacity> m_world {}; ///< mundo retenido (capas + cámaras)
+	ScrollLayerHandle m_scroll_layers[kMaxScrollLayers] {};    ///< capas de scroll que conduce el App
+	u8 m_scroll_count = 0u;
 	input::InputAggregator m_input {};                  ///< entrada del frame (la lee/rellena el juego)
 	graphics::FramePlan m_plan {};
 	u32 m_frame = 0;

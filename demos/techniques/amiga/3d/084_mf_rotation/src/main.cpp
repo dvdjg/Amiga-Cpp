@@ -37,7 +37,7 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 namespace {
 
 namespace scene = eng::graphics::composition;
-namespace field = eng::field;
+namespace playfield = eng::playfield;
 namespace em = eng::math;
 using MF = em::MiniFloat16;
 using V3 = em::Vec<3, eng::retro::q0>;
@@ -110,7 +110,7 @@ struct DemoGame {
 		backend.install_raster(m_scene); // Blitter/CPU según las caps del backend
 		draw_static();
 		{
-			field::Surface c = m_scene.surface();
+			playfield::Surface c = m_scene.surface();
 			compute_projection();
 			draw_cube(c); // un frame ya pintado antes de tomar el display
 		}
@@ -132,7 +132,7 @@ struct DemoGame {
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (!m_scene.ok()) return;
 		(void)backend;
-		field::Surface c = m_scene.surface();
+		playfield::Surface c = m_scene.surface();
 		draw_cube(c); // solo traza (rapido) durante el vblank
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
@@ -161,7 +161,7 @@ private:
 		Periph::counter_value(1, tb - ta);
 	}
 
-	void draw_cube(field::Surface& c) {
+	void draw_cube(playfield::Surface& c) {
 		// Borra SOLO las aristas del frame anterior (no un rectangulo): el display nunca
 		// queda vacio a mitad de frame (un `clear_rect` hacia que la captura cogiera el
 		// hueco) y se ahorra escribir toda la zona.
@@ -212,7 +212,7 @@ private:
 	}
 
 	void draw_static() {
-		field::Surface c = m_scene.surface();
+		playfield::Surface c = m_scene.surface();
 		for (eng::s32 i = 0; i < 2; ++i) {
 			const eng::s32 x0 = 6 + i * 4, y0 = 6 + i * 4;
 			const eng::s32 x1 = static_cast<eng::s32>(kWidth) - 7 - i * 4;

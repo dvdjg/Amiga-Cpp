@@ -12,8 +12,8 @@
 // allí el bitmap es un anillo pequeño y el Blitter pinta la banda entrante; aquí
 // el coste por frame es CERO blits y la CPU solo reprograma registros.
 //
-// Estrategia y mapper (en el engine): `eng::field::FlatScrollPlayfield` (bitmap
-// flat interleaved + `BigBufferScroll` por eje) sobre `eng::field::map_flat_scroll`
+// Estrategia y mapper (en el engine): `eng::playfield::FlatScrollPlayfield` (bitmap
+// flat interleaved + `BigBufferScroll` por eje) sobre `eng::playfield::map_flat_scroll`
 // (cámara→BPLxPT/BPLCON1/BPLMOD, geometría del fetch ancho DDF $30, HOST-061). La
 // demo NO conoce registros: mueve la cámara y pide la vista. Fórmula verificada en
 // `engine/include/eng/graphics/drivers/tile_scroll.hpp`.
@@ -69,7 +69,7 @@ extern "C" const unsigned int g_tilebank_xlimited_size;
 
 namespace {
 
-namespace field = eng::field;
+namespace playfield = eng::playfield;
 
 constexpr eng::u16 kWorldW = 448;              // ancho del mundo (múltiplo de 16)
 constexpr eng::u16 kWorldH = 1684;             // alto del mundo
@@ -82,8 +82,8 @@ constexpr eng::u32 kChipNeed =
 	static_cast<eng::u32>(kRowBytes) * kWorldH * kPlanes + 2u * 1536u + 64u;
 
 struct DemoGame {
-	field::FlatScrollPlayfield m_pf {};
-	field::XlimitedDisplayComposer m_comp {};
+	playfield::FlatScrollPlayfield m_pf {};
+	playfield::XlimitedDisplayComposer m_comp {};
 	eng::u16 m_palette[8] {};   // paleta del atlas, convertida a palabras Amiga
 	eng::s32 m_dir_x = 1;
 	eng::s32 m_dir_y = 1;
@@ -102,7 +102,7 @@ struct DemoGame {
 		build_palette();
 		blit_world();
 
-		field::XlimitedDisplayComposer::Config cfg {};
+		playfield::XlimitedDisplayComposer::Config cfg {};
 		cfg.palette = eng::PaletteWords { m_palette, 8u };
 		cfg.copper_bytes = 1536u;
 		cfg.planes = kPlanes;
@@ -142,7 +142,7 @@ struct DemoGame {
 
 private:
 	/// Avanza la cámara 1 px; si ya está en el límite (saturada), invierte.
-	static void sweep(field::BigBufferScroll& cam, eng::s32& dir) {
+	static void sweep(playfield::BigBufferScroll& cam, eng::s32& dir) {
 		const eng::s32 before = cam.position;
 		cam.step(dir);
 		if (cam.position == before) dir = -dir;

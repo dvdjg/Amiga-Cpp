@@ -4,7 +4,7 @@
 /// **Colisión de hardware de sprites** (`CLXCON`/`CLXDAT`, AHRM 3.ª cap. 7): configura qué
 /// pares de sprite y qué bitplanes participan, y decodifica el resultado. Es *pixel-perfect*
 /// y **sin posición** (solo dice *que* hubo choque, no dónde); complementa la colisión por
-/// software (`core/util/collision.hpp`, `field::collide_cpu`/`Backend::blitter_collide`).
+/// software (`core/util/collision.hpp`, `playfield::collide_cpu`/`Backend::blitter_collide`).
 ///
 /// El registro `CLXDAT` **se autolimpia al leerlo**: leerlo una vez por frame.
 ///

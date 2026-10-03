@@ -20,3 +20,13 @@
 #include <eng/field/canvas_playfield.hpp>
 #include <eng/field/contiguous_playfield.hpp>
 #include <eng/field/playfield_base.hpp>
+
+namespace eng {
+
+namespace playfield {} // motor canónico de playfields/scroll
+
+/// **Alias deprecado** (`field`→`playfield`, fase 3 del renombrado; `ROADMAP_GAME_API.md` §8): el
+/// nombre viejo sigue compilando para código externo no migrado. El repo usa `playfield::`.
+namespace field = playfield;
+
+} // namespace eng

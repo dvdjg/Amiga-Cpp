@@ -17,6 +17,9 @@
 /// consolidación de la API pública.
 
 #include <eng/api/game.hpp>
+#include <eng/api/display.hpp>
+#include <eng/api/screen.hpp>
+#include <eng/api/world_render.hpp>
 #include <eng/core/types/box.hpp>
 #include <eng/core/types/domains.hpp>
 #include <eng/core/util/expected.hpp>

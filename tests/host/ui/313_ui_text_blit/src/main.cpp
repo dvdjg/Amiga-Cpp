@@ -109,12 +109,12 @@ int main() {
 	alignas(2) eng::u16 scratch[kPlanes * 2u * eng::Font8::kRows] {};
 	alignas(2) eng::u16 mask_scratch[2u * eng::Font8::kRows] {};
 
-	eng::field::ContiguousPlayfield pf_ref {};
-	eng::field::ContiguousPlayfield pf_blit {};
+	eng::playfield::ContiguousPlayfield pf_ref {};
+	eng::playfield::ContiguousPlayfield pf_blit {};
 	check(pf_ref.bind_raw(mem_ref, sizeof(mem_ref), kSW, kSH, kPlanes), "bind pf_ref");
 	check(pf_blit.bind_raw(mem_blit, sizeof(mem_blit), kSW, kSH, kPlanes), "bind pf_blit");
-	eng::field::Surface s_ref {pf_ref, eng::field::SurfaceRect {0, 0, kSW, kSH}};
-	eng::field::Surface s_blit {pf_blit, eng::field::SurfaceRect {0, 0, kSW, kSH}};
+	eng::playfield::Surface s_ref {pf_ref, eng::playfield::SurfaceRect {0, 0, kSW, kSH}};
+	eng::playfield::Surface s_blit {pf_blit, eng::playfield::SurfaceRect {0, 0, kSW, kSH}};
 
 	// Fondo distinto de 0 para detectar que el cookie-cut NO borra fuera del glifo.
 	constexpr eng::u8 kBg = 2u;
@@ -141,11 +141,11 @@ int main() {
 	// Texto de longitud impar ("A"): la segunda mitad de la palabra no debe pintarse.
 	alignas(2) eng::u8 m2_ref[kPlaneStride * kPlanes] {};
 	alignas(2) eng::u8 m2_blit[kPlaneStride * kPlanes] {};
-	eng::field::ContiguousPlayfield p2r {}, p2b {};
+	eng::playfield::ContiguousPlayfield p2r {}, p2b {};
 	p2r.bind_raw(m2_ref, sizeof(m2_ref), kSW, kSH, kPlanes);
 	p2b.bind_raw(m2_blit, sizeof(m2_blit), kSW, kSH, kPlanes);
-	eng::field::Surface s2r {p2r, eng::field::SurfaceRect {0, 0, kSW, kSH}};
-	eng::field::Surface s2b {p2b, eng::field::SurfaceRect {0, 0, kSW, kSH}};
+	eng::playfield::Surface s2r {p2r, eng::playfield::SurfaceRect {0, 0, kSW, kSH}};
+	eng::playfield::Surface s2b {p2b, eng::playfield::SurfaceRect {0, 0, kSW, kSH}};
 	s2r.fill_rect(0, 0, kSW, kSH, kBg);
 	s2b.fill_rect(0, 0, kSW, kSH, kBg);
 	s2r.draw_text(0, 4, "A", 3u);
@@ -165,11 +165,11 @@ int main() {
 	{
 		alignas(2) eng::u8 nr[kPlaneStride * kPlanes] {};
 		alignas(2) eng::u8 nb[kPlaneStride * kPlanes] {};
-		eng::field::ContiguousPlayfield pnr {}, pnb {};
+		eng::playfield::ContiguousPlayfield pnr {}, pnb {};
 		pnr.bind_raw(nr, sizeof(nr), kSW, kSH, kPlanes);
 		pnb.bind_raw(nb, sizeof(nb), kSW, kSH, kPlanes);
-		eng::field::Surface snr {pnr, eng::field::SurfaceRect {0, 0, kSW, kSH}};
-		eng::field::Surface snb {pnb, eng::field::SurfaceRect {0, 0, kSW, kSH}};
+		eng::playfield::Surface snr {pnr, eng::playfield::SurfaceRect {0, 0, kSW, kSH}};
+		eng::playfield::Surface snb {pnb, eng::playfield::SurfaceRect {0, 0, kSW, kSH}};
 		snr.fill_rect(0, 0, kSW, kSH, kBg);
 		snb.fill_rect(0, 0, kSW, kSH, kBg);
 		eng::graphics::GlyphCache<8> cn;
@@ -191,9 +191,9 @@ int main() {
 	// --- Clip por palabra: con un clip que solo contiene el primer par, el segundo no se pinta ---
 	{
 		alignas(2) eng::u8 mclip[kPlaneStride * kPlanes] {};
-		eng::field::ContiguousPlayfield pfc {};
+		eng::playfield::ContiguousPlayfield pfc {};
 		pfc.bind_raw(mclip, sizeof(mclip), kSW, kSH, kPlanes);
-		eng::field::Surface sc {pfc, eng::field::SurfaceRect {0, 0, kSW, kSH}};
+		eng::playfield::Surface sc {pfc, eng::playfield::SurfaceRect {0, 0, kSW, kSH}};
 		sc.fill_rect(0, 0, kSW, kSH, kBg);
 		eng::graphics::GlyphCache<8> cc;
 		eng::u16 sc2[kPlanes * 2u * eng::Font8::kRows] {};
@@ -210,9 +210,9 @@ int main() {
 	// --- Sombra: color sombra 1 px abajo, texto encima ---
 	{
 		alignas(2) eng::u8 msh[kPlaneStride * kPlanes] {};
-		eng::field::ContiguousPlayfield pfsh {};
+		eng::playfield::ContiguousPlayfield pfsh {};
 		pfsh.bind_raw(msh, sizeof(msh), kSW, kSH, kPlanes);
-		eng::field::Surface ssh {pfsh, eng::field::SurfaceRect {0, 0, kSW, kSH}};
+		eng::playfield::Surface ssh {pfsh, eng::playfield::SurfaceRect {0, 0, kSW, kSH}};
 		ssh.fill_rect(0, 0, kSW, kSH, 0u); // fondo 0 para distinguir la sombra (2)
 		eng::graphics::GlyphCache<8> cs;
 		eng::u16 sc3[kPlanes * 2u * eng::Font8::kRows] {};
@@ -240,10 +240,10 @@ int main() {
 	// palabras/fila desde `x & ~15` (`src_plane_stride = kRows*4`, `bitplane_count = 1`).
 	{
 		alignas(2) eng::u8 mbt[kPlaneStride * kPlanes] {};
-		eng::field::ContiguousPlayfield pbt {};
+		eng::playfield::ContiguousPlayfield pbt {};
 		pbt.bind_raw(mbt, sizeof(mbt), kSW, kSH, kPlanes);
-		pbt.set_rasterizer(&eng::field::kBlitterRaster);
-		eng::field::Surface sbt {pbt, eng::field::SurfaceRect {0, 0, kSW, kSH}};
+		pbt.set_rasterizer(&eng::playfield::kBlitterRaster);
+		eng::playfield::Surface sbt {pbt, eng::playfield::SurfaceRect {0, 0, kSW, kSH}};
 		eng::graphics::GlyphCache<8> cbt;
 		eng::u16 scb[kPlanes * 2u * eng::Font8::kRows] {};
 		eng::u16 msb[6u * 2u * eng::Font8::kRows] {};
@@ -276,13 +276,13 @@ int main() {
 		// buffer. Si coincide, el job apunta bien y el fallo (si lo hay) seria del backend Amiga.
 		{
 			alignas(2) eng::u8 refc[kPlaneStride * kPlanes] {};
-			eng::field::ContiguousPlayfield pfc2 {};
+			eng::playfield::ContiguousPlayfield pfc2 {};
 			pfc2.bind_raw(refc, sizeof(refc), kSW, kSH, kPlanes);
-			eng::field::Surface sfc2 {pfc2, eng::field::SurfaceRect {0, 0, kSW, kSH}};
+			eng::playfield::Surface sfc2 {pfc2, eng::playfield::SurfaceRect {0, 0, kSW, kSH}};
 			sfc2.fill_rect(0, 0, kSW, kSH, kBg);
 			sfc2.draw_text(0, 4, "A", 3u);
 			// `mbt` no se filtro a fondo; pon el mismo fondo para comparar.
-			eng::field::Surface sbt2 {pbt, eng::field::SurfaceRect {0, 0, kSW, kSH}};
+			eng::playfield::Surface sbt2 {pbt, eng::playfield::SurfaceRect {0, 0, kSW, kSH}};
 			sbt2.fill_rect(0, 0, kSW, kSH, kBg);
 			eng::graphics::FramePlan pe {};
 			eng::graphics::GlyphCache<8> ce;
@@ -301,10 +301,10 @@ int main() {
 		// Reutilizar una sola perderia todos los pares menos el ultimo (por eso la mascara por par).
 		{
 			alignas(2) eng::u8 mlong[kPlaneStride * kPlanes] {};
-			eng::field::ContiguousPlayfield pl {};
+			eng::playfield::ContiguousPlayfield pl {};
 			pl.bind_raw(mlong, sizeof(mlong), kSW, kSH, kPlanes);
-			pl.set_rasterizer(&eng::field::kBlitterRaster);
-			eng::field::Surface sl {pl, eng::field::SurfaceRect {0, 0, kSW, kSH}};
+			pl.set_rasterizer(&eng::playfield::kBlitterRaster);
+			eng::playfield::Surface sl {pl, eng::playfield::SurfaceRect {0, 0, kSW, kSH}};
 			sl.fill_rect(0, 0, kSW, kSH, kBg);
 			eng::graphics::GlyphCache<16> cl;
 			eng::u16 scl[kPlanes * 2u * eng::Font8::kRows] {};
@@ -318,9 +318,9 @@ int main() {
 			exec_masked_bob_jobs(pl2);
 			// Referencia CPU sobre otro buffer.
 			alignas(2) eng::u8 rlong[kPlaneStride * kPlanes] {};
-			eng::field::ContiguousPlayfield pr {};
+			eng::playfield::ContiguousPlayfield pr {};
 			pr.bind_raw(rlong, sizeof(rlong), kSW, kSH, kPlanes);
-			eng::field::Surface sr {pr, eng::field::SurfaceRect {0, 0, kSW, kSH}};
+			eng::playfield::Surface sr {pr, eng::playfield::SurfaceRect {0, 0, kSW, kSH}};
 			sr.fill_rect(0, 0, kSW, kSH, kBg);
 			sr.draw_text(0, 4, "Blit x=1", 3u);
 			bool eql = true;
@@ -350,9 +350,9 @@ int main() {
 		// Con el helper, dibujar "AB" (un par) en la MISMA configuracion que `mem_blit` (la
 		// referencia CPU) y comprobar equivalencia.
 		alignas(2) eng::u8 mh[kPlaneStride * kPlanes] {};
-		eng::field::ContiguousPlayfield ph {};
+		eng::playfield::ContiguousPlayfield ph {};
 		ph.bind_raw(mh, sizeof(mh), kSW, kSH, kPlanes);
-		eng::field::Surface sh {ph, eng::field::SurfaceRect {0, 0, kSW, kSH}};
+		eng::playfield::Surface sh {ph, eng::playfield::SurfaceRect {0, 0, kSW, kSH}};
 		sh.fill_rect(0, 0, kSW, kSH, kBg);
 		eng::graphics::GlyphCache<8> ch;
 		eng::graphics::FramePlan pph {};

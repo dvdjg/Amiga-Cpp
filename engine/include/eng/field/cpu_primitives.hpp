@@ -1,7 +1,7 @@
 #pragma once
 
 /// \file cpu_primitives.hpp
-/// **Primitivas CPU optimizadas** (`eng::field`, portables): relleno de rectángulos, líneas y
+/// **Primitivas CPU optimizadas** (`eng::playfield`, portables): relleno de rectángulos, líneas y
 /// polígonos por **tramos horizontales** (`Playfield::draw_span`), que ya agrupa 16/32 píxeles por
 /// escritura. Evita el dibujo píxel a píxel (`write_pixel`) que es demasiado lento para uso real y
 /// sirve también a plataformas sin Blitter (p. ej. el futuro port a Atari ST).
@@ -21,7 +21,7 @@
 #include <eng/core/types/types.hpp>
 #include <eng/field/playfield_base.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 /// Rellena el rectángulo `[x, x+w) × [y, y+h)` con `color` por **spans** (una fila = un tramo).
 /// Recorta contra los límites del playfield. Devuelve el nº de filas pintadas.
@@ -166,4 +166,4 @@ inline eng::u32 cpu_fill_polygon(Playfield& pf, eng::Span<const eng::s16> xs,
 	return rows;
 }
 
-} // namespace eng::field
+} // namespace eng::playfield

@@ -130,12 +130,12 @@ void test_jobs() {
 void test_cross_regression() {
 	// `soft_dpf::bg_shift_for`: el barrel shift del Blitter es el mismo fine delay.
 	for (eng::u16 x = 0u; x < 256u; ++x) {
-		CHECK(eng::field::bg_shift_for(x).shift ==
+		CHECK(eng::playfield::bg_shift_for(x).shift ==
 			      static_cast<eng::u8>(eng::graphics::fine_delay(x)),
 		      "bg_shift_for(x).shift == fine_delay(x)");
 	}
 	// `xlimited` usa el DDFSTRT adelantado compartido.
-	CHECK(eng::field::xlimited_detail::kDdfStrt == eng::graphics::fine_scroll_ddfstrt,
+	CHECK(eng::playfield::xlimited_detail::kDdfStrt == eng::graphics::fine_scroll_ddfstrt,
 	      "xlimited kDdfStrt == fine_scroll_ddfstrt");
 }
 

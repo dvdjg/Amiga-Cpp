@@ -63,7 +63,7 @@ extern "C" const unsigned int g_bank_bg_size;
 eng::u16 g_fgOffMap[kFgCols * kFgRows] = {0};
 
 namespace {
-namespace field = eng::field;
+namespace playfield = eng::playfield;
 
 // -----------------------------------------------------------------------------
 // Demo 202 — DPF 3+3 (dual playfield) sobre el corkscrew X-Limited.
@@ -105,7 +105,7 @@ constexpr eng::u8  kPlanes = 3;           // planos POR playfield (DPF 3+3 = 6 H
 constexpr eng::u32 kDisplayH = 288;       // ANILLO = 256 + 2·16 (invariante §7 201): el
                                           // anillo NO se reduce con el visible.
 
-constexpr field::ScrollConsts kScrollConsts {
+constexpr playfield::ScrollConsts kScrollConsts {
 	/*tile_width=*/       kTileW,
 	/*tile_height=*/      kTileH,
 	/*display_height=*/   kDisplayH,
@@ -156,8 +156,8 @@ static constexpr bool kShareY = false;
 static constexpr int kFastStep = 0;
 
 struct DemoGame {
-	field::XlimitedScene<kScrollConsts> scene {};
-	field::XlimitedSceneConfig scene_cfg {};
+	playfield::XlimitedScene<kScrollConsts> scene {};
+	playfield::XlimitedSceneConfig scene_cfg {};
 	eng::graphics::FramePlan plan {};
 	TourPhase m_phase = TourPhase::HToEnd;
 	eng::u32 m_frameOfDay = 0;
@@ -193,9 +193,9 @@ struct DemoGame {
 		scene_cfg.tile_height = static_cast<eng::u16>(kTileH);
 		scene_cfg.planes = kPlanes;
 		scene_cfg.fetch_mode = 0;
-		scene_cfg.y_mode = eng::field::AxisPolicy::Ring;
+		scene_cfg.y_mode = eng::playfield::AxisPolicy::Ring;
 		scene_cfg.display_height = static_cast<eng::u16>(kDisplayH); // anillo 288 (visible 208)
-		scene_cfg.direction = eng::field::DirectionPolicy::Bidirectional;
+		scene_cfg.direction = eng::playfield::DirectionPolicy::Bidirectional;
 		scene_cfg.linear_display = false; // viewport 208 → split canónico (sin espejo)
 		// DPF MIXTO (defecto): el FG (field0/PF1) en lineal/mirror (sin split,
 		// Y libre) y el BG (field1/PF2, el mapa real) conserva el corkscrew+split.

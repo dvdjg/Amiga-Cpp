@@ -101,7 +101,7 @@ int main() {
 						  graphics::composition::display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 0x4200));
 	check(ok3 && s3.ok(), "escena interleaved compone");
 	check(s3.playfield().bitplanes().data() != nullptr, "el playfield tiene bitplanes");
-	field::Surface surf = s3.surface();
+	playfield::Surface surf = s3.surface();
 	const s16 xs[3] = {8, 40, 8};
 	const s16 ys[3] = {8, 8, 40};
 	check(surf.fill_polygon(xs, ys, 3, 3), "surface() pinta un poligono");

@@ -2,7 +2,7 @@
 // Test HOST-043: XlimitedTileBank (banco propio o aliaseado) + kind del bloque
 // ============================================================================
 //
-// Valida el descriptor `eng::field::XlimitedTileBank` (xlimited_scene.hpp): un
+// Valida el descriptor `eng::playfield::XlimitedTileBank` (xlimited_scene.hpp): un
 // banco de bloques X-Limited que puede ser **propio** (reservado por los builders
 // en Chip RAM) o **aliaseado** a un incbin de solo lectura. Transporta la vista de
 // dominio (`TileBankBytes`) y el `MemoryKind`, de modo que la escena no guarda un
@@ -26,7 +26,7 @@ void check(bool ok, const char* what) {
 int main() {
 	// --- Aliaseado a un array incbin de solo lectura -------------------------
 	static const eng::u8 kIncbin[8] {0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0};
-	const eng::field::XlimitedTileBank aliased {
+	const eng::playfield::XlimitedTileBank aliased {
 		eng::TileBankBytes { kIncbin, sizeof(kIncbin) },
 		eng::MemoryKind::Chip,
 	};
@@ -44,20 +44,20 @@ int main() {
 	check(block.valid(), "reserva valida");
 	check(block.kind == eng::MemoryKind::Chip, "allocate_block propaga kind Chip");
 
-	const eng::field::XlimitedTileBank owned { block.view.as_const(), block.kind };
+	const eng::playfield::XlimitedTileBank owned { block.view.as_const(), block.kind };
 	check(owned.valid(), "owned valido");
 	check(owned.kind == eng::MemoryKind::Chip, "owned kind Chip");
 	check(reinterpret_cast<const eng::u8*>(owned.words()) == block.view.data(), "owned words -> reserva");
 
 	// --- Vacio -----------------------------------------------------------------
-	eng::field::XlimitedTileBank empty {};
+	eng::playfield::XlimitedTileBank empty {};
 	check(!empty.valid(), "vacio no valido");
 	check(empty.words() == nullptr, "vacio words null");
 
 	// En otros medios el `kind` se conserva (Slow/Fast) sin cambiar el dominio.
 	eng::u8 slow_raw[32] {};
 	eng::LinearArena slow {slow_raw, sizeof(slow_raw), eng::MemoryKind::Slow};
-	const eng::field::XlimitedTileBank dark { slow.allocate_block<eng::TileBankTag>(8u, 2u).view.as_const(),
+	const eng::playfield::XlimitedTileBank dark { slow.allocate_block<eng::TileBankTag>(8u, 2u).view.as_const(),
 	                                          eng::MemoryKind::Slow };
 	check(dark.kind == eng::MemoryKind::Slow, "kind Slow conservado");
 

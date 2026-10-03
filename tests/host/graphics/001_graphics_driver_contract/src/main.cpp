@@ -68,11 +68,11 @@ static_assert(DisplayDriver<eng::graphics::drivers::TileScrollScene<eng::graphic
 static_assert(DisplayDriver<eng::graphics::drivers::TileScrollScene<eng::graphics::drivers::TileScrollMode::dual(3, 3)>, MockBackend>);
 
 // 3) Compositores de campo (X-Limited/XYLimited): solo ciclo de display.
-static_assert(DisplayDriver<eng::field::XlimitedDisplayComposer, MockBackend>);
-static_assert(DisplayDriver<eng::field::XlimitedDualComposer, MockBackend>);
+static_assert(DisplayDriver<eng::playfield::XlimitedDisplayComposer, MockBackend>);
+static_assert(DisplayDriver<eng::playfield::XlimitedDualComposer, MockBackend>);
 
 // 4) Escena X-Limited (wrapper) y sus constantes de scroll de ejemplo.
-static_assert(DisplayDriver<eng::field::XlimitedScene<eng::field::ScrollConsts{16, 16, 256, 768, 3}>, MockBackend>);
+static_assert(DisplayDriver<eng::playfield::XlimitedScene<eng::playfield::ScrollConsts{16, 16, 256, 768, 3}>, MockBackend>);
 
 } // namespace
 

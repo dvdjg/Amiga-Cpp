@@ -2,7 +2,7 @@
 
 Gate en hardware del **dual playfield de dos bitmaps** compuesto por bandas
 (`eng::scene::RasterLayout` + `band_from_dual_view`). Tutorial (`AGENTS.md` §1.12): cada campo se
-declara como una **superficie** (`eng::field::PlayfieldHardwareView`), no como punteros de plano.
+declara como una **superficie** (`eng::playfield::PlayfieldHardwareView`), no como punteros de plano.
 
 ## Qué muestra
 

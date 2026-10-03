@@ -28,8 +28,8 @@ namespace {
 
 using eng::MemoryKind;
 using eng::MemoryManager;
-using eng::field::DoubleBufferScrollConfig;
-using eng::field::DoubleBufferScrollPlayfield;
+using eng::playfield::DoubleBufferScrollConfig;
+using eng::playfield::DoubleBufferScrollPlayfield;
 
 alignas(16) eng::u8 g_chip[512 * 1024];
 
@@ -109,7 +109,7 @@ int main() {
 	// un plano suelto): total = row_bytes * height * planes.
 	const eng::u32 bitmap_bytes = static_cast<eng::u32>(row_bytes) * kWorldH * kPlanes;
 	{
-		const eng::field::PlayfieldHardwareView v = pf.hardware_view();
+		const eng::playfield::PlayfieldHardwareView v = pf.hardware_view();
 		if (v.bitplanes.cptr() != pf.buffer_bytes(pf.front_index())) {
 			std::printf("[FAIL] hardware_view no apunta al buffer delantero\n");
 			return 1;
@@ -133,7 +133,7 @@ int main() {
 	// El flip cambia la base que ve el display.
 	pf.flip();
 	{
-		const eng::field::PlayfieldHardwareView v = pf.hardware_view();
+		const eng::playfield::PlayfieldHardwareView v = pf.hardware_view();
 		if (v.bitplanes.cptr() != pf.buffer_bytes(1)) {
 			std::printf("[FAIL] tras flip, hardware_view no sigue al nuevo delantero\n");
 			return 1;
@@ -143,13 +143,13 @@ int main() {
 
 	// --- 4) Camara: mueve el mapping y respeta el clamp -------------------------
 	{
-		const eng::field::PlayfieldHardwareView v0 = pf.hardware_view();
+		const eng::playfield::PlayfieldHardwareView v0 = pf.hardware_view();
 		if (v0.videoposx != pf.cam_x().position || v0.mapposx != pf.cam_x().position) {
 			std::printf("[FAIL] el mapping no refleja la posicion de camara\n");
 			return 1;
 		}
 		pf.cam_x().step(16);
-		const eng::field::PlayfieldHardwareView v1 = pf.hardware_view();
+		const eng::playfield::PlayfieldHardwareView v1 = pf.hardware_view();
 		if (v1.videoposx != pf.cam_x().position || v1.videoposx == v0.videoposx) {
 			std::printf("[FAIL] step(16) no movio el mapping\n");
 			return 1;

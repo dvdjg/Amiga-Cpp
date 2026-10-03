@@ -7,8 +7,8 @@ conversiones a/desde los tipos con semántica distinta que ya existían en el en
 
 1. Helpers de `Box`: `empty`, `right`/`bottom` inclusivos, `contains` inclusivo, `inset`,
    `from_ltrb`, `overlaps`, `intersect`, `merge`, `translate`.
-2. **Round-trip** `Box` ↔ `field::SurfaceRect` (`s32` + `w/h`).
-3. **Round-trip** `Box` ↔ `field::ClipRect` (bordes inclusivos `x1`/`y1`).
+2. **Round-trip** `Box` ↔ `playfield::SurfaceRect` (`s32` + `w/h`).
+3. **Round-trip** `Box` ↔ `playfield::ClipRect` (bordes inclusivos `x1`/`y1`).
 4. **Round-trip** `Box` ↔ `graphics::DirtyRect` (bordes **exclusivos**), y `DirtyRect` inválido
    → `Box` vacío.
 

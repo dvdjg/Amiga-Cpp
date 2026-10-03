@@ -120,9 +120,9 @@ int main() {
 	// --- dibujo sobre Surface ---------------------------------------------
 	alignas(2) eng::u8 planes[kPlaneStride * kPlanes] {};
 	g_planes = planes;
-	eng::field::ContiguousPlayfield pf {};
+	eng::playfield::ContiguousPlayfield pf {};
 	check(pf.bind_raw(planes, sizeof(planes), kW, kH, kPlanes), "bind_raw del playfield");
-	eng::field::Surface surf {pf, eng::field::SurfaceRect {0, 0, kW, kH}};
+	eng::playfield::Surface surf {pf, eng::playfield::SurfaceRect {0, 0, kW, kH}};
 	eng::ui::UiPainter p {surf, nullptr, kT};
 	const auto clear = [&]() { p.fill(kFull, 0u); };
 

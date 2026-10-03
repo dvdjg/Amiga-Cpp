@@ -8,8 +8,8 @@
 /// Modelo y regímenes: `docs/engine/architecture/FAST_SCROLL.md`.
 ///
 /// Uso (una sola selección):
-///   using Scroll = eng::field::ScrollFast2;   // o ScrollProgressive, ScrollFast1...
-///   eng::field::XlimitedScene<kScrollConsts, eng::field::TileLayerMap, Scroll> scene {};
+///   using Scroll = eng::playfield::ScrollFast2;   // o ScrollProgressive, ScrollFast1...
+///   eng::playfield::XlimitedScene<kScrollConsts, eng::playfield::TileLayerMap, Scroll> scene {};
 ///
 /// `ScrollProgressive` (por defecto) reproduce el comportamiento clásico de
 /// 1 px/sub-paso con la guarda del modo de fetch; los perfiles `ScrollFastN`
@@ -17,7 +17,7 @@
 
 #include <eng/core/types/types.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 /// Redondea `v` hacia cero a múltiplos de `tile` (avance en fronteras de tile).
 /// Lo usan los perfiles con `prefill`: la cámara solo se detiene en límites de
@@ -123,4 +123,4 @@ using ScrollFast4 = ScrollProfile<TileBurstFill<4>, GuardTiles<5>, true>;
 using ScrollSubTile8 = ScrollProfile<SubTileFill<8>, GuardTiles<0>>;
 using ScrollSubTile16 = ScrollProfile<SubTileFill<16>, GuardTiles<0>>;
 
-} // namespace eng::field
+} // namespace eng::playfield

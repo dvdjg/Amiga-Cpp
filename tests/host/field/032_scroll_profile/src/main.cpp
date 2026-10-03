@@ -2,7 +2,7 @@
 // Test HOST-032: perfil de scroll estático (SpeedPolicy)
 // ============================================================================
 //
-// Valida `eng::field::ScrollProfile` y sus alias (`ScrollProgressive`,
+// Valida `eng::playfield::ScrollProfile` y sus alias (`ScrollProgressive`,
 // `ScrollFast1/2/4`): relleno por frame, guarda de lookahead, paso máximo por
 // tamaño de tile e invariante de guarda (compile-time). Sin hardware.
 
@@ -15,18 +15,18 @@ int g_fail = 0;
 void check(bool ok, const char* what) {
 	if (!ok) { std::printf("[FAIL] %s\n", what); ++g_fail; }
 }
-using eng::field::ScrollProgressive;
-using eng::field::ScrollFast1;
-using eng::field::ScrollFast2;
-using eng::field::ScrollFast4;
-using eng::field::ScrollSubTile8;
-using eng::field::ScrollSubTile16;
-using eng::field::ScrollProfile;
-using eng::field::ProgressiveFill;
-using eng::field::TileBurstFill;
-using eng::field::SubTileFill;
-using eng::field::StripPrerenderFill;
-using eng::field::GuardTiles;
+using eng::playfield::ScrollProgressive;
+using eng::playfield::ScrollFast1;
+using eng::playfield::ScrollFast2;
+using eng::playfield::ScrollFast4;
+using eng::playfield::ScrollSubTile8;
+using eng::playfield::ScrollSubTile16;
+using eng::playfield::ScrollProfile;
+using eng::playfield::ProgressiveFill;
+using eng::playfield::TileBurstFill;
+using eng::playfield::SubTileFill;
+using eng::playfield::StripPrerenderFill;
+using eng::playfield::GuardTiles;
 } // namespace
 
 int main() {

@@ -17,7 +17,7 @@
 #include <eng/graphics/palette.hpp>
 #include <eng/memory/memory_manager.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 /// Valores de display del compositor de tiras (cabecera estatica + paleta).
 inline constexpr eng::u16 kStripDiwStrt = 0x2c81u; ///< DIWSTRT (vpos 0x2c, hpos 0x81)
@@ -147,4 +147,4 @@ private:
 	bool m_built = false;
 };
 
-} // namespace eng::field
+} // namespace eng::playfield

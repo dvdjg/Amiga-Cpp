@@ -1,6 +1,6 @@
 # Test HOST-035: WorldView → scroll (WorldLayerSource + Loader-RAM)
 
-Respalda `eng::field::WorldLayerSource` y `eng::field::WorldMapChunkLoader`
+Respalda `eng::playfield::WorldLayerSource` y `eng::playfield::WorldMapChunkLoader`
 (`engine/include/eng/field/world_layer.hpp`): los puentes entre un mundo empaquetado
 (`eng::assets::WorldView`, chunk `WorldMap`) y el motor de scroll.
 

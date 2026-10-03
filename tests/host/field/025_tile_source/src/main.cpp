@@ -2,7 +2,7 @@
 // Test HOST-025: accesor de tiles `TileSource` (denso y disperso) + skip de empty
 // ============================================================================
 //
-// Valida el concepto `eng::field::TileSource` y las dos implementaciones:
+// Valida el concepto `eng::playfield::TileSource` y las dos implementaciones:
 //   - `TileLayerMap` (mapa DENSO con wrap toroidal/acotado).
 //   - `SparseTileMap<Chunk>` (mapa DISPERSO por chunks; compatible con los "mapas
 //     infinitos" de Tiled).
@@ -27,14 +27,14 @@ using eng::u16;
 
 int main() {
 	// El concepto lo cumplen ambas implementaciones.
-	static_assert(eng::field::TileSource<eng::field::TileLayerMap>);
-	static_assert(eng::field::TileSource<eng::field::SparseTileMap<16>>);
+	static_assert(eng::playfield::TileSource<eng::playfield::TileLayerMap>);
+	static_assert(eng::playfield::TileSource<eng::playfield::SparseTileMap<16>>);
 
 	// Denso 4x4: tile = indice+1, la celda 5 vacía.
 	{
 		u16 cells[16];
 		for (u16 i = 0; i < 16u; ++i) cells[i] = (i == 5u) ? 0xFFFFu : static_cast<u16>(i + 1u);
-		eng::field::TileLayerMap m {};
+		eng::playfield::TileLayerMap m {};
 		m.cells = eng::Span<const u16>(cells, 16);
 		m.width = 4; m.height = 4; m.empty_tile = 0xFFFFu;
 		check(m.tile_at(0, 0) == 1u, "denso (0,0)");
@@ -50,7 +50,7 @@ int main() {
 			c0[i] = static_cast<u16>(100u + i);
 			c1[i] = static_cast<u16>(200u + i);
 		}
-		using Sparse = eng::field::SparseTileMap<4>;
+		using Sparse = eng::playfield::SparseTileMap<4>;
 		Sparse::Chunk chunks[2] {
 			{ 0, 0, eng::Span<const u16>(c0, 16) },
 			{ 2, -1, eng::Span<const u16>(c1, 16) },
@@ -74,7 +74,7 @@ int main() {
 			cells[i] = empty ? 0xFFFFu : 1u;
 			if (!empty) ++expected;
 		}
-		eng::field::TileLayerMap m {};
+		eng::playfield::TileLayerMap m {};
 		m.cells = eng::Span<const u16>(cells, 64);
 		m.width = 8; m.height = 8; m.empty_tile = 0xFFFFu;
 		int drawn = 0;

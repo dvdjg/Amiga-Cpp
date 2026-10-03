@@ -11,7 +11,7 @@
 // dibujando un cubo que gira a 50 fps. Solo se pintan las caras VISIBLES y en
 // orden lejos->cerca, que es justo lo que devuelve `mesh_painter_order`.
 //
-// El dibujo va por `scene.surface()` (un `field::Surface` sobre los planos contiguos):
+// El dibujo va por `scene.surface()` (un `playfield::Surface` sobre los planos contiguos):
 // la demo pide lineas/pixeles y el engine enruta al layout, sin que la app vea planos
 // ni punteros. El trazado se hace en `render()` (durante el vblank): escribir CPU al
 // Chip RAM con el DMA de bitplanes activo roba ciclos y produce scanlines negros (ver 107).
@@ -40,7 +40,7 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 namespace {
 
 namespace scene = eng::graphics::composition;
-namespace field = eng::field;
+namespace playfield = eng::playfield;
 namespace graphics = eng::graphics;
 
 constexpr eng::u16 kWidth = 320;
@@ -121,7 +121,7 @@ eng::u8 shade_of(eng::s16 zsum) {
 
 /// Dibuja una arista de una cara SI es una de las 12 aristas del cubo (descarta
 /// las diagonales de triangulacion).
-void draw_edge(field::Surface& c, const Vec3* w, eng::u16 p, eng::u16 q, eng::u8 col) {
+void draw_edge(playfield::Surface& c, const Vec3* w, eng::u16 p, eng::u16 q, eng::u8 col) {
 	if (!is_cube_edge(p, q)) {
 		return;
 	}
@@ -172,15 +172,15 @@ struct DemoGame {
 				graphics::FramePlan plan {};
 				// `DrawTarget` agrupa Surface + Rasterizer + plan: las lineas se encolan
 				// en el mismo plan sin pasar el `&plan` en cada llamada.
-				field::DrawTarget dt = m_scene.draw_target(&plan);
+				playfield::DrawTarget dt = m_scene.draw_target(&plan);
 				(void)dt.line(20, 20, 60, 20, 8u);
 				(void)dt.line(60, 20, 40, 50, 8u);
 				(void)dt.line(40, 50, 20, 20, 8u);
 				// Triangulo EOR (ONEDOT) en el MISMO plan: el backend fija los comunes
 				// de la racha EOR una vez (`blitter_lines_eor_begin`).
-				(void)dt.line(260, 20, 300, 20, 8u, field::RasterOp::Xor);
-				(void)dt.line(300, 20, 280, 50, 8u, field::RasterOp::Xor);
-				(void)dt.line(280, 50, 260, 20, 8u, field::RasterOp::Xor);
+				(void)dt.line(260, 20, 300, 20, 8u, playfield::RasterOp::Xor);
+				(void)dt.line(300, 20, 280, 50, 8u, playfield::RasterOp::Xor);
+				(void)dt.line(280, 50, 260, 20, 8u, playfield::RasterOp::Xor);
 				if (!backend.execute_frame_plan(plan)) {
 					eng::debug::mark_failed(g_eng_run_status, 0x00007702u);
 					return;
@@ -285,7 +285,7 @@ struct DemoGame {
 			return;
 		}
 		(void)backend;
-		field::Surface c = m_scene.surface();
+		playfield::Surface c = m_scene.surface();
 		const eng::u32 f = context.frame.frame_index;
 
 		// Rotacion compuesta Rx(f*17)·Ry(f*11)·Rz(f*7) en 4.12. Los angulos son de
@@ -330,7 +330,7 @@ private:
 	/// Marco y estrellas estaticas: solo se pintan una vez. El borrado por frame
 	/// toca unicamente la zona central del cubo, asi que el marco no se pierde.
 	void draw_static() {
-		field::Surface c = m_scene.surface();
+		playfield::Surface c = m_scene.surface();
 
 		// Doble marco.
 		for (eng::s32 i = 0; i < 2; ++i) {

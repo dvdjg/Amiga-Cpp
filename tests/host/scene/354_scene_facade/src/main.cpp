@@ -81,6 +81,18 @@ int main() {
 	bobs.resize(99u); // recorta al maximo
 	check(bobs.count() == eng::scene::BobLayer::kMaxActors, "resize recorta");
 
+	// `BobActor` enriquecido: orden por defecto y animacion ligada (avanzada por `tick`).
+	check(bobs[0].z == 128u && !bobs[0].animated(), "BobActor: z=128 y sin animacion por defecto");
+	static const eng::u8 kFrames[2] = {0u, 1u};
+	static const eng::u8 kDurs[2] = {2u, 2u};
+	bobs[0].anim.frames = eng::Span<const eng::u8> {kFrames, 2u};
+	bobs[0].anim.durations = eng::Span<const eng::u8> {kDurs, 2u};
+	check(bobs[0].animated(), "BobActor: animacion valida con frames");
+	const eng::u8 first = bobs[0].anim.frame();
+	bobs.tick();
+	bobs.tick(); // 2 ticks de juego: pasa el primer frame
+	check(bobs[0].anim.frame() != first, "BobLayer::tick avanza la animacion ligada");
+
 	// --- Limpieza de zona (clear_box) --------------------------------------
 	eng::graphics::FramePlan plan {};
 	plan.clear();
@@ -94,6 +106,33 @@ int main() {
 	check(plan.blit_job(0).kind == eng::graphics::BlitJobKind::ClearRect, "clear_box kind");
 	check(plan.blit_job(0).height == 4u * 2u, "clear_box altura = filas x planos");
 	check(plan.blit_job(0).words_per_row == 2u, "clear_box palabras/fila");
+
+	// `emit` ordenado por `z`: sin hoja valida no dibuja ni falla (la hoja es del asset).
+	plan.clear();
+	check(bobs.emit(plan, t) == 0u, "BobLayer::emit sin hoja valida: 0 dibujados");
+
+	// Capa **heterogenea**: varias hojas (kMaxSheets) y cada actor elige la suya por `sheet_index`.
+	eng::graphics::Bob sb {};
+	sb.sheet = eng::ChipView<eng::BobTag> {
+		eng::Address<eng::MemoryKind::Chip>::from_storage(chip), sizeof(chip)};
+	sb.width = 16u;
+	sb.height = 16u;
+	sb.planes = 2u;
+	sb.frame_count = 1u;
+	sb.layout = eng::graphics::BobLayout::Planar;
+	const eng::graphics::Sprite spr_a {sb, sizeof(chip), 0u};
+	check(spr_a.valid(), "Sprite valido (sheet+geometria)");
+	eng::scene::BobLayer het {};
+	het.set_sheet(0u, spr_a);
+	het.set_sheet(1u, spr_a);                                 // segunda hoja (heterogenea)
+	het.set_sheet(eng::scene::BobLayer::kMaxSheets, spr_a);   // fuera de rango: no debe escribir
+	het.resize(2u);
+	het[0].sheet_index = 0u;
+	het[1].sheet_index = 1u;
+	check(het.count() == 2u && het.sheet(0u).valid() && het.sheet(1u).valid(),
+	      "heterogenea: hojas 0 y 1 validas");
+	plan.clear();
+	check(het.emit(plan, t) == 2u, "heterogenea: actores por sheet_index -> 2 dibujados");
 
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);

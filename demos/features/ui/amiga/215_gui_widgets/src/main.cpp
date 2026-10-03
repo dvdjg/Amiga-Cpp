@@ -43,7 +43,7 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 namespace {
 
 namespace scene = eng::graphics::composition;
-namespace field = eng::field;
+namespace playfield = eng::playfield;
 namespace ui = eng::ui;
 
 constexpr eng::u16 kWidth = 320;
@@ -91,7 +91,7 @@ ui::UiTheme make_theme() {
 	return t;
 }
 
-/// Callback del `field::RectFillSink`: rellena el rect por el Blitter D-only del backend.
+/// Callback del `playfield::RectFillSink`: rellena el rect por el Blitter D-only del backend.
 bool rect_fill_cb(void* ctx, eng::u8* base, eng::u8 planes, eng::u32 plane_stride,
 		  eng::u32 row_stride, eng::u16 row_bytes, eng::u16 bw, eng::u16 bh,
 		  eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h, eng::u8 color) {
@@ -150,9 +150,9 @@ struct DemoGame {
 
 		// Raster Blitter (los fills de caja van por el Blitter D-only, sincrono) + sink de rect.
 		// Las lineas y el texto siguen por CPU (sin FramePlan): el rect D-only no es asincrono.
-		m_scene.set_rect_fill_sink(eng::field::RectFillSink {&backend, &rect_fill_cb});
-		m_scene.set_raster(&eng::field::kBlitterRaster,
-				   eng::field::RasterPolicy {eng::field::AccelMode::Auto, 64u, true});
+		m_scene.set_rect_fill_sink(eng::playfield::RectFillSink {&backend, &rect_fill_cb});
+		m_scene.set_raster(&eng::playfield::kBlitterRaster,
+				   eng::playfield::RasterPolicy {eng::playfield::AccelMode::Auto, 64u, true});
 
 		build_tree();
 		if (!verify_ui()) {
@@ -183,7 +183,7 @@ struct DemoGame {
 		const eng::s16 v = static_cast<eng::s16>((f * 3u) % 101u);
 		if (v != m_slider_value) {
 			m_slider_value = v;
-			field::Surface c = m_scene.surface();
+			playfield::Surface c = m_scene.surface();
 			ui::UiPainter p(c, nullptr, m_theme);
 			eng::Box z = m_slider.bounds;
 			z.x = static_cast<eng::s16>(z.x - 2);
@@ -364,7 +364,7 @@ private:
 
 	/// Pinta el arbol completo una sola vez (la UI es estatica salvo la pista del slider).
 	void draw_static() {
-		field::Surface c = m_scene.surface();
+		playfield::Surface c = m_scene.surface();
 		ui::UiPainter p(c, nullptr, m_theme);
 		ui::draw_tree(m_root, p);
 	}

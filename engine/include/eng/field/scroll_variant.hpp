@@ -12,15 +12,15 @@
 /// algoritmo (ver `SCROLL_VARIANTS.md` §3).
 ///
 /// ```cpp
-/// eng::field::XlimitedConfig cfg {};
+/// eng::playfield::XlimitedConfig cfg {};
 /// cfg.viewport_w = 320; cfg.viewport_h = 256;
 /// cfg.map.width = 64; cfg.map.height = 18;          // dims del mapa ANTES de aplicar
-/// eng::field::apply_scroll_variant(cfg, eng::field::ScrollVariant::XYLimited);
+/// eng::playfield::apply_scroll_variant(cfg, eng::playfield::ScrollVariant::XYLimited);
 /// ```
 
 #include <eng/field/xlimited_base.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 /// Variantes de la referencia ScrollingTricks (`Docs/algorithms-uk.html`).
 enum class ScrollVariant : u8 {
@@ -90,4 +90,4 @@ constexpr void apply_ylimited_wide_x(XlimitedConfigT<MapT>& cfg) noexcept {
 	cfg.map.wrap_x = 0u; // X acotado a la banda (no toroidal)
 }
 
-} // namespace eng::field
+} // namespace eng::playfield

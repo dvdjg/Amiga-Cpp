@@ -14,9 +14,9 @@
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
-/// `eng::wrap_period` (core) disponible como `eng::field::wrap_period`.
+/// `eng::wrap_period` (core) disponible como `eng::playfield::wrap_period`.
 using eng::wrap_period;
 
 /// Contrato del accesor de tiles: `tile_at(celda)->u16` e `is_empty(tile)->bool`.
@@ -99,4 +99,4 @@ struct SparseTileMap {
 	}
 };
 
-} // namespace eng::field
+} // namespace eng::playfield

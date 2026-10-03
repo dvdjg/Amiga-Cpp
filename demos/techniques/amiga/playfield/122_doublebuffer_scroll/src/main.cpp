@@ -15,7 +15,7 @@
 // CONTRASTE con 120/121: mismo mapper flat (`map_flat_scroll`, HOST-061) y mismo
 // algoritmo de cámara; lo propio es el par de bitmaps + la conmutación.
 //
-// Superficie en el engine: `eng::field::DoubleBufferScrollPlayfield`. Art: atlas
+// Superficie en el engine: `eng::playfield::DoubleBufferScrollPlayfield`. Art: atlas
 // *Beginning Fields* a 8 colores (banco X-Limited incrustado en `.MEMF_CHIP`).
 
 #include <eng/api/api.hpp>
@@ -53,7 +53,7 @@ extern "C" const unsigned int g_tilebank_xlimited_size;
 
 namespace {
 
-namespace field = eng::field;
+namespace playfield = eng::playfield;
 
 constexpr eng::u16 kWorldW = 448;
 constexpr eng::u16 kWorldH = 512;              // dos buffers de 56*512*3 = 86 KB
@@ -66,10 +66,10 @@ constexpr eng::u32 kChipNeed =
 	2u * (static_cast<eng::u32>(kRowBytes) * kWorldH * kPlanes) + 2u * 1536u + 64u;
 
 struct DemoGame {
-	field::DoubleBufferScrollPlayfield m_pf {};
+	playfield::DoubleBufferScrollPlayfield m_pf {};
 	eng::gfx::Bitmap m_b0 {};
 	eng::gfx::Bitmap m_b1 {};
-	field::XlimitedDisplayComposer m_comp {};
+	playfield::XlimitedDisplayComposer m_comp {};
 	eng::u16 m_palette[8] {};
 	eng::s32 m_dir_x = 1;
 	eng::s32 m_dir_y = 1;
@@ -97,7 +97,7 @@ struct DemoGame {
 		fill_world(m_pf.buffer_bytes(0));
 		fill_world(m_pf.buffer_bytes(1));
 
-		field::XlimitedDisplayComposer::Config cfg {};
+		playfield::XlimitedDisplayComposer::Config cfg {};
 		cfg.palette = eng::PaletteWords { m_palette, 8u };
 		cfg.copper_bytes = 1536u;
 		cfg.planes = kPlanes;
@@ -137,7 +137,7 @@ struct DemoGame {
 	}
 
 private:
-	static void sweep(field::BigBufferScroll& cam, eng::s32& dir) {
+	static void sweep(playfield::BigBufferScroll& cam, eng::s32& dir) {
 		const eng::s32 before = cam.position;
 		cam.step(dir);
 		if (cam.position == before) dir = -dir;

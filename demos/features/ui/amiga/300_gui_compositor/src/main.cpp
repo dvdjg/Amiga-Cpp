@@ -37,7 +37,7 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 namespace {
 
 namespace scene = eng::graphics::composition;
-namespace field = eng::field;
+namespace playfield = eng::playfield;
 namespace ui = eng::ui;
 
 constexpr eng::u16 kWidth = 320;
@@ -56,7 +56,7 @@ constexpr eng::Palette32 kPalette {{
 	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
 }};
 
-/// Callback del `field::RectFillSink`: rellena el rect por el Blitter D-only del backend. Lo usa
+/// Callback del `playfield::RectFillSink`: rellena el rect por el Blitter D-only del backend. Lo usa
 /// el compositor para limpiar el escritorio (en vez de `set_pixel` por pixel).
 bool rect_fill_cb(void* ctx, eng::u8* base, eng::u8 planes, eng::u32 plane_stride,
 		  eng::u32 row_stride, eng::u16 row_bytes, eng::u16 bw, eng::u16 bh,
@@ -109,7 +109,7 @@ struct CompositorDemo {
 
 		// Copias por Blitter (`CopyRect` en el FramePlan) y clear del escritorio por Blitter D-only.
 		backend.install_raster(m_scene);
-		m_scene.set_rect_fill_sink(eng::field::RectFillSink {&backend, &rect_fill_cb});
+		m_scene.set_rect_fill_sink(eng::playfield::RectFillSink {&backend, &rect_fill_cb});
 		m_screen = m_scene.surface(); // vista estable sobre el playfield de la escena
 		m_comp.set_screen(m_screen);
 		m_comp.set_desktop(0u);
@@ -238,7 +238,7 @@ private:
 	bool m_memory_ok = false;
 	bool m_scene_ok = false;
 	scene::Scene m_scene {};
-	field::Surface m_screen {};
+	playfield::Surface m_screen {};
 	ui::Compositor m_comp {};
 	struct Win {
 		ui::Rect frame {};

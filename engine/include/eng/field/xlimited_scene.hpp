@@ -53,7 +53,7 @@
 #include <eng/memory/arena.hpp>
 #include <eng/memory/memory_manager.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 
 /// Generador de la word de una fila de un tile simbólico (glyph, variant, row,
@@ -212,7 +212,7 @@ struct XlimitedDualConfig {
     eng::u8 parallax_y_div = 1;       // 1 = comparte el split vertical
     // Raster colors opcionales (gradiente del color del patron de fondo). Orden
     // ASCENDENTE de linea. Requieren linear_display (sin split de Copper).
-    eng::Span<const eng::field::XlimitedDualComposer::ColorZone> color_zones {};
+    eng::Span<const eng::playfield::XlimitedDualComposer::ColorZone> color_zones {};
 };
 
 /// Conductor de VALIDACIÓN (recorrido de las 8 direcciones del harness). Es un
@@ -283,7 +283,7 @@ struct XlimitedSceneConfigT {
                                      // 1 px (paint-then-advance): nunca a medio pintar.
                                      // (por-playfield se ajusta con
                                      //  XLimitedPlayfield::set_scroll_step)
-    eng::field::AxisPolicy y_mode = eng::field::AxisPolicy::Ring; // eje Y: Ring = corkscrew
+    eng::playfield::AxisPolicy y_mode = eng::playfield::AxisPolicy::Ring; // eje Y: Ring = corkscrew
                                      // (display_height = viewport_h + 2*tile_height); Off = X-only.
     eng::u16 display_height = 0;     // 0 = auto: viewport_h + 2*tile_height. Override del
                                      // ANILLO vertical (invariante §7 201): puede ser mayor
@@ -299,8 +299,8 @@ struct XlimitedSceneConfigT {
                                      // field0 (PF1/map) · 2 = lineal solo field1 (PF2/map2).
                                      // El campo lineal (mirror) NO tiene split → su Y es libre;
                                      // el otro conserva el corkscrew (ring + split de Copper).
-    eng::field::DirectionPolicy direction = eng::field::DirectionPolicy::Bidirectional; // política de dirección
-    eng::field::AxisPolicy x_mode = eng::field::AxisPolicy::Ring; // eje X: Ring (XLimited) o
+    eng::playfield::DirectionPolicy direction = eng::playfield::DirectionPolicy::Bidirectional; // política de dirección
+    eng::playfield::AxisPolicy x_mode = eng::playfield::AxisPolicy::Ring; // eje X: Ring (XLimited) o
                                        // Finite (lineal acotado, sin guardas). Para un
                                        // juego de scroll Y largo con X corto (shooter).
     eng::u8 parallax_plane = 0xff;    // plano con parallax (RoboCod); 0xff = off
@@ -313,7 +313,7 @@ struct XlimitedSceneConfigT {
     eng::PaletteWords palette {}; // 2^planes colores (single) o 16 (DPF: PF1 0..7, PF2 8..15)
     eng::u32 copper_bytes = 1536;
     // Raster colors del display single (en DPF se usan `dpf.color_zones`).
-    eng::Span<const eng::field::RasterColorZone> color_zones {};
+    eng::Span<const eng::playfield::RasterColorZone> color_zones {};
 
     // --- Sprites hardware (a nivel de escena) ------------------------------
     eng::u32 sprite_data_bytes = 0;   // 0 = sin sprites; si > 0, reserva DATA Chip
@@ -527,7 +527,7 @@ public:
             plan.clear();
             plan.set_blit_budget_limits({8192, 16384, 4, 120});
             const eng::u16 cols = m_field[pf].bitmap_blocks_per_row();
-            const eng::u16 rows = eng::field::AxisPolicy::Ring == m_cfg.y_mode ? m_field[pf].display_blocks_per_col()
+            const eng::u16 rows = eng::playfield::AxisPolicy::Ring == m_cfg.y_mode ? m_field[pf].display_blocks_per_col()
                 : static_cast<eng::u16>(m_cfg.viewport_h / m_cfg.tile_height);
             for (eng::u16 b = 0; b < rows; ++b) {
                 for (eng::u16 a = 0; a < cols; ++a) {
@@ -788,4 +788,4 @@ private:
 template <ScrollConsts SC, class MapT, class Profile>
 eng::SineTable<64> XlimitedScene<SC, MapT, Profile>::kSin{};
 
-} // namespace eng::field
+} // namespace eng::playfield

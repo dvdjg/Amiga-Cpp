@@ -29,7 +29,7 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
-namespace field = eng::field;
+namespace playfield = eng::playfield;
 namespace tilemap = eng::graphics::tilemap;
 
 constexpr eng::u16 kTile = 16u;
@@ -49,14 +49,14 @@ eng::u16 tile_row(eng::u8 glyph, eng::u8 variant, eng::u8 row, eng::u8 plane) {
 	return g_tile_rows[glyph & 15u][variant & 3u][plane][row & 15u];
 }
 
-constexpr field::ScrollConsts kScroll {
+constexpr playfield::ScrollConsts kScroll {
 	kTile, kTile, kHeight, static_cast<eng::u32>(kHeight) * kPlanes, kPlanes};
 #if defined(ENG_203_DIRECT_TILEMAP_BENCH)
-using MapView = field::TileLayerMap;
+using MapView = playfield::TileLayerMap;
 #else
 using MapView = eng::scene::WorldTileMapView;
 #endif
-using Profile = field::ScrollProgressive;
+using Profile = playfield::ScrollProgressive;
 
 tilemap::PackedTileCell g_cells[kMapWidth * kMapHeight] {};
 
@@ -97,7 +97,7 @@ void build_tile_rows() {
 			for (eng::u8 plane = 0u; plane < kPlanes; ++plane) {
 				for (eng::u8 row = 0u; row < kTile; ++row) {
 					g_tile_rows[glyph][variant][plane][row] =
-						field::demo::pf_plane_row(glyph, variant, row, plane, 0u, false);
+						playfield::demo::pf_plane_row(glyph, variant, row, plane, 0u, false);
 				}
 			}
 		}
@@ -108,8 +108,8 @@ struct DemoGame {
 	eng::scene::World<2u> world {};
 	tilemap::TileMap16 tile_map {};
 	eng::Ref<eng::scene::Layer> terrain {};
-	field::XlimitedScene<kScroll, MapView, Profile> scene {};
-	field::XlimitedSceneConfigT<MapView> config {};
+	playfield::XlimitedScene<kScroll, MapView, Profile> scene {};
+	playfield::XlimitedSceneConfigT<MapView> config {};
 	eng::graphics::FramePlan plan {};
 	eng::s16 direction = 1;
 	bool ready = false;
@@ -160,8 +160,8 @@ struct DemoGame {
 		config.tile_width = kTile;
 		config.tile_height = kTile;
 		config.planes = kPlanes;
-		config.y_mode = field::AxisPolicy::Off;
-		config.direction = field::DirectionPolicy::Bidirectional;
+		config.y_mode = playfield::AxisPolicy::Off;
+		config.direction = playfield::DirectionPolicy::Bidirectional;
 		config.display_height = kHeight;
 		config.max_step = 1u;
 #if defined(ENG_203_DIRECT_TILEMAP_BENCH)

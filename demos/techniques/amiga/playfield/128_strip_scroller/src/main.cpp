@@ -51,7 +51,7 @@ constexpr eng::u16 kMapSide = 40u; // mapa toroidal de 40 columnas (tiles de 16 
 // por construccion que la `span` del puntero es multiplo del periodo: el slot `s` vale siempre la
 // columna `s % kMapSide` y no hay que repintar la ventana al envolver. Ver `StripScrollGeometry`
 // y el invariante de contenido de HOST-244.
-using Geom = eng::field::StripScrollGeometry<kViewportW, kViewportH, 3u, 16u, 16u, 2u, 1u,
+using Geom = eng::playfield::StripScrollGeometry<kViewportW, kViewportH, 3u, 16u, 16u, 2u, 1u,
 					    false, 0u, 0u, kMapSide>;
 
 constexpr eng::u16 kTileWords = Geom::tile_h * Geom::planes; // 48 (16x16 x 3 planos)
@@ -64,22 +64,22 @@ constexpr eng::u32 kRingBytes = static_cast<eng::u32>(Geom::ring_w_bytes) * Geom
 				Geom::viewport_h;
 constexpr eng::s32 kStepX = 2; // px/frame
 
-struct StripGame {
-	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_ring {};
-	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bank {};
-	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_column {};
-	eng::field::StripComposer<Geom> m_composer {};
-	eng::amiga::AmigaBackend* m_backend = nullptr;
-	eng::u16* m_ring_words = nullptr;
-	eng::u16* m_bank_words = nullptr;
-	eng::u16* m_column_words = nullptr;
-	eng::s32 m_scroll = 0;
-	bool m_ready = false;
-
-	/// Id del tile del atlas para la celda (col,row), repetido toroidalmente.
-	[[nodiscard]] eng::u16 map_tile(eng::u16 col, eng::u16 row) const {
+/// Adaptador de mapa para `StripScrollController`: id del tile del atlas (toroidal).
+struct TileMap {
+	[[nodiscard]] eng::u16 tile_at(eng::u16 col, eng::u16 row) const noexcept {
 		return static_cast<eng::u16>(kTileIndexedMap[row % kMapSide][col % kMapSide]);
 	}
+};
+
+struct StripGame {
+	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bank {};
+	// La fachada de la capa de tiras: agrupa buffers + CPU/Blitter + Copper. La demo solo declara
+	// mapa/banco/paleta/tamaños y conduce con `frame()`; no ve el compositor ni los `BPLxPT`.
+	eng::playfield::StripScrollLayer<Geom, TileMap, eng::amiga::AmigaBackend> m_layer {};
+	TileMap m_map {};
+	eng::u16* m_bank_words = nullptr;
+	eng::s32 m_scroll = 0;
+	bool m_ready = false;
 
 	/// Reempaqueta el banco X-Limited (interleaved 320 px) a tiles **contiguos** de 16x16x3.
 	void build_packed_bank() {
@@ -102,34 +102,19 @@ struct StripGame {
 		}
 	}
 
-	/// Compone la columna `map_col` (tiles del atlas) y la blitea en el word `ring_word`.
-	void paint_column(eng::u16 ring_word, eng::u16 map_col) {
-		eng::u16 ids[Geom::column_tiles];
-		for (eng::u16 r = 0u; r < Geom::column_tiles; ++r) ids[r] = map_tile(map_col, r);
-		(void)eng::field::compose_column<Geom>(m_column_words, m_bank_words, ids, kTileWords);
-		(void)m_backend->blitter_strip_column(m_column_words, m_ring_words + ring_word,
-						      Geom::strip_words, Geom::bltdmod_col,
-						      Geom::column_planelines, 0u);
-	}
-
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		m_backend = &backend;
 		if (!backend.configure_memory({224u * 1024u, 16u * 1024u, 8u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012801u);
 			return;
 		}
 		auto& mm = backend.memory_manager();
-		m_ring = mm.chip().reserve<eng::PlaneTag>(kRingBytes, 16u);
 		m_bank = mm.chip().reserve<eng::PlaneTag>(kBankBytes, 16u);
-		m_column = mm.chip().reserve<eng::PlaneTag>(kColumnBytes, 16u);
-		if (!m_ring.valid() || !m_bank.valid() || !m_column.valid()) {
+		if (!m_bank.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012802u);
 			return;
 		}
-		m_ring_words = reinterpret_cast<eng::u16*>(m_ring.data());
 		m_bank_words = reinterpret_cast<eng::u16*>(m_bank.data());
-		m_column_words = reinterpret_cast<eng::u16*>(m_column.data());
 		build_packed_bank();
 
 		// Paleta del atlas (8 colores RGB -> palabras Amiga).
@@ -140,21 +125,15 @@ struct StripGame {
 			const eng::u8 b = static_cast<eng::u8>(::kPalette[i * 3u + 2u]);
 			pal.color[i] = static_cast<eng::u16>(((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4));
 		}
-		if (!m_composer.init(mm, pal.words(), 1536u)) {
+		// La capa reserva anillo/columna, monta el compositor y pre-pinta el anillo (setup).
+		m_layer.set_map(m_map);
+		m_layer.set_bank(m_bank_words, kTileWords);
+		m_layer.set_palette(pal.words());
+		m_layer.set_sizes(kRingBytes, kColumnBytes, 1536u);
+		if (!m_layer.begin(backend, mm)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012803u);
 			return;
 		}
-		m_composer.set_ring(m_ring_words);
-		if (!m_composer.build()) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00012804u);
-			return;
-		}
-		m_composer.takeover(backend);
-		// Pre-pinta TODO el anillo (mapa completo + solape). Con base 0 el slot `s` vale la
-		// columna `s % kMapSide`; pintar la pantalla entera deja sin inicializar la palabra extra
-		// de fetch (la que revela el fine scroll en el borde derecho), por eso se cubre el anillo.
-		for (eng::u16 w = 0u; w < Geom::ring_w_words; ++w)
-			paint_column(w, static_cast<eng::u16>(w % kMapSide));
 		m_ready = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x12800000u);
 	}
@@ -164,20 +143,7 @@ struct StripGame {
 		if (!m_ready) return;
 		const eng::s32 prev = m_scroll;
 		m_scroll += kStepX;
-		const auto fr = eng::field::plan_strip_frame<Geom>(m_scroll, 0, prev, 0);
-		if (fr.column_crossed) {
-			// El slot `col_dest_word` contiene la palabra del MUNDO `col_dest_word + offset`, con
-			// `offset` = cuantas `span` palabras ha envuelto el anillo.
-			const eng::u32 coarse_w = eng::graphics::fine_scroll_coarse(
-							  static_cast<eng::u16>(m_scroll)) / 16u;
-			const eng::u32 span = static_cast<eng::u32>(Geom::ring_w_words - Geom::visible_words);
-			const eng::u32 offset = coarse_w - (coarse_w % span);
-			paint_column(fr.col_dest_word,
-				     static_cast<eng::u16>((fr.col_dest_word + offset) % kMapSide));
-		}
-		const auto sc = eng::field::strip_copper_values<Geom>(fr);
-		(void)m_composer.patch(sc);
-		m_composer.install(backend);
+		m_layer.frame(backend, m_scroll, 0, prev, 0); // pinta la tira si cruza + parchea el Copper
 	}
 
 	void render(eng::amiga::AmigaBackend&, eng::GameContext& context) {

@@ -65,7 +65,7 @@ extern "C" const unsigned char g_cube_uafr_end[];
 namespace {
 
 namespace scene = eng::graphics::composition;
-namespace field = eng::field;
+namespace playfield = eng::playfield;
 
 constexpr eng::u16 kWidth = 320;
 constexpr eng::u16 kHeight = 256;
@@ -217,9 +217,9 @@ struct DemoGame {
 			eng::Span<eng::math3d::ConvexFace>(order, 12));
 
 #if K_FILL_BLITTER
-		field::Surface mc = mask_surface(); // mascara 1 bit (Chip)
+		playfield::Surface mc = mask_surface(); // mascara 1 bit (Chip)
 #else
-		field::Surface c = m_scene.surface();
+		playfield::Surface c = m_scene.surface();
 #endif
 		for (eng::u32 i = 0; i < visible; ++i) {
 			const Face& fc = m_faces[order[i].index];
@@ -268,8 +268,8 @@ struct DemoGame {
 
 private:
 	/// Contexto de dibujo de la máscara de 1 plano (solo ruta `K_FILL_BLITTER`).
-	field::Surface mask_surface() {
-		return field::Surface {m_mask_pf, field::SurfaceRect {0, 0, kWidth, kHeight}};
+	playfield::Surface mask_surface() {
+		return playfield::Surface {m_mask_pf, playfield::SurfaceRect {0, 0, kWidth, kHeight}};
 	}
 	/// Carga la malla del blob UAF-R incbinado: `Blob::bind` -> `find(Mesh)` ->
 	/// `MeshAssetView` -> copia a buffers del llamador -> `MeshView`. Es el mismo
@@ -312,7 +312,7 @@ private:
 	}
 
 	void draw_static() {
-		field::Surface c = m_scene.surface();
+		playfield::Surface c = m_scene.surface();
 		for (eng::s32 i = 0; i < 2; ++i) {
 			const eng::s32 x0 = 6 + i * 4, y0 = 6 + i * 4;
 			const eng::s32 x1 = static_cast<eng::s32>(kWidth) - 7 - i * 4;
@@ -346,7 +346,7 @@ private:
 	eng::Block<eng::PatternTag> m_blank_block {};
 	const eng::u16* m_blank = nullptr;
 	eng::Block<eng::MaskTag> m_mask_block {};
-	field::ContiguousPlayfield m_mask_pf {}; ///< lienzo 1 plano sobre `m_mask_block` (K_FILL_BLITTER)
+	playfield::ContiguousPlayfield m_mask_pf {}; ///< lienzo 1 plano sobre `m_mask_block` (K_FILL_BLITTER)
 	scene::Scene m_scene {};
 };
 

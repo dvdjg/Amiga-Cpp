@@ -18,7 +18,7 @@
 #include <eng/field/streaming_map.hpp>
 #include <eng/field/tile_source.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 /// Una capa de un `WorldView` como `TileMap` (width/height/wrap/edge + acceso).
 /// Satisface el contrato que consume `XLimitedPlayfield`; el wrap/borde lo resuelve
@@ -60,19 +60,19 @@ public:
 	eng::u32 layer = 0;
 	eng::u16 chunk_size = 16u;
 
-	[[nodiscard]] eng::field::LoadResult load(eng::s32 cx, eng::s32 cy,
+	[[nodiscard]] eng::playfield::LoadResult load(eng::s32 cx, eng::s32 cy,
 	                                          eng::TileBankBuffer dst) const {
 		if (world == nullptr || dst.data() == nullptr) {
-			return eng::field::LoadResult::Empty;
+			return eng::playfield::LoadResult::Empty;
 		}
-		if (chunk_size != world->chunk_size()) return eng::field::LoadResult::Empty;
+		if (chunk_size != world->chunk_size()) return eng::playfield::LoadResult::Empty;
 		const eng::s32 idx = world->find_chunk(layer, cx, cy);
-		if (idx < 0) return eng::field::LoadResult::Empty;
+		if (idx < 0) return eng::playfield::LoadResult::Empty;
 		if (!world->decode_chunk(layer, static_cast<eng::u32>(idx), dst)) {
-			return eng::field::LoadResult::Empty;
+			return eng::playfield::LoadResult::Empty;
 		}
-		return eng::field::LoadResult::Ready;
+		return eng::playfield::LoadResult::Ready;
 	}
 };
 
-} // namespace eng::field
+} // namespace eng::playfield

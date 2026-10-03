@@ -52,22 +52,22 @@ struct EmitterOnly {
 } // namespace
 
 // La mitad "layout" del playfield real.
-static_assert(eng::field::ScrollTarget<eng::field::XLimitedPlayfield<>>,
+static_assert(eng::playfield::ScrollTarget<eng::playfield::XLimitedPlayfield<>>,
               "XLimitedPlayfield debe cumplir ScrollTarget");
 // La mitad "dibujo" del playfield real.
-static_assert(eng::field::ScrollEmitter<eng::field::XLimitedPlayfield<>>,
+static_assert(eng::playfield::ScrollEmitter<eng::playfield::XLimitedPlayfield<>>,
               "XLimitedPlayfield debe cumplir ScrollEmitter");
 
 int main() {
 	// El contrato está dividido: una mitad no implica la otra.
-	check(eng::field::ScrollTarget<TargetOnly>, "TargetOnly cumple ScrollTarget");
-	check(!eng::field::ScrollEmitter<TargetOnly>, "TargetOnly NO cumple ScrollEmitter");
-	check(eng::field::ScrollEmitter<EmitterOnly>, "EmitterOnly cumple ScrollEmitter");
-	check(!eng::field::ScrollTarget<EmitterOnly>, "EmitterOnly NO cumple ScrollTarget");
+	check(eng::playfield::ScrollTarget<TargetOnly>, "TargetOnly cumple ScrollTarget");
+	check(!eng::playfield::ScrollEmitter<TargetOnly>, "TargetOnly NO cumple ScrollEmitter");
+	check(eng::playfield::ScrollEmitter<EmitterOnly>, "EmitterOnly cumple ScrollEmitter");
+	check(!eng::playfield::ScrollTarget<EmitterOnly>, "EmitterOnly NO cumple ScrollTarget");
 	// El sink completo exige ambas.
-	check(!eng::field::ScrollSink<TargetOnly> && !eng::field::ScrollSink<EmitterOnly>,
+	check(!eng::playfield::ScrollSink<TargetOnly> && !eng::playfield::ScrollSink<EmitterOnly>,
 	      "una sola mitad no basta para ScrollSink");
-	check(eng::field::ScrollSink<eng::field::XLimitedPlayfield<>>,
+	check(eng::playfield::ScrollSink<eng::playfield::XLimitedPlayfield<>>,
 	      "XLimitedPlayfield cumple ScrollSink completo");
 
 	if (g_fail != 0) { std::printf("%d fallo(s)\n", g_fail); return 1; }

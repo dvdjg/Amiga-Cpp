@@ -44,7 +44,7 @@
 #include <eng/graphics/font5x7.hpp>
 #include <eng/graphics/font8.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 /// Rectángulo en el espacio lógico del playfield (mundo o pantalla).
 struct SurfaceRect {
@@ -350,4 +350,4 @@ private:
     SurfaceRect m_clip {};
 };
 
-} // namespace eng::field
+} // namespace eng::playfield

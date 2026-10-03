@@ -1,7 +1,7 @@
 # Test HOST-033: avance en fronteras de tile (prefill/latch) y staging en Y
 
 Respalda la parte de comportamiento de los perfiles rápidos:
-`eng::field::snap_to_tiles` y `ScrollProfile::y_staging_tiles`
+`eng::playfield::snap_to_tiles` y `ScrollProfile::y_staging_tiles`
 (`engine/include/eng/field/scroll_profile.hpp`).
 
 Se comprueban: redondeo a tiles completos con signo (`snap_to_tiles`), el staging vertical del

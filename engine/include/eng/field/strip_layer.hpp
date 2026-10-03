@@ -1,0 +1,148 @@
+#pragma once
+
+/// \file strip_layer.hpp
+/// **Capa de scroll por tiras** de la fachada: agrupa en un solo objeto los buffers (anillo +
+/// columna), el `StripScrollController` (CPU + Blitter) y el `StripComposer` (Copper). El juego
+/// solo declara el mapa, el banco de tiles, la paleta y los tamaños, y conduce la capa con
+/// `frame(scroll, prev)`; **no ve** el compositor, los `BPLxPT` ni los buffers.
+///
+/// La capa es *backend-agnóstica* salvo el `Sink`/`takeover` (templada en `Backend`). Para juegos
+/// sobre `App` (que oculta el backend) existe `handle()`, un asa *type-erased* que el `App`
+/// conduce por frame pasándole su backend (ver `App::add_scroll_layer`).
+
+#include <eng/core/types/ptr.hpp>
+#include <eng/core/types/types.hpp>
+#include <eng/field/strip_composer.hpp>
+#include <eng/field/strip_scroller.hpp>
+#include <eng/field/tilemap_view.hpp>
+#include <eng/graphics/palette.hpp>
+#include <eng/memory/memory_manager.hpp>
+
+namespace eng {
+
+/// **Asa type-erased** de una capa de scroll registrada en `App`: el `App` la conduce por frame
+/// pasándole su backend, sin que el juego vea el compositor. La crea `StripScrollLayer::handle()`.
+struct ScrollLayerHandle {
+	void* obj = nullptr;
+	bool (*begin)(void* obj, void* memory, void* backend) = nullptr;
+	void (*frame)(void* obj, void* backend) = nullptr;
+	[[nodiscard]] constexpr bool valid() const noexcept { return obj != nullptr && frame != nullptr; }
+};
+
+namespace playfield {
+
+/// **Capa de scroll por tiras** de la fachada (ver doc del fichero).
+template <class Geom, class Map, class Backend>
+class StripScrollLayer {
+public:
+	/// El juego declara el mapa (observador, `Ref`).
+	constexpr void set_map(Map& map) noexcept { m_map = map; }
+	/// El juego aporta el **banco de tiles** ya empaquetado (contenido: atlas + repack) y su stride.
+	constexpr void set_bank(const eng::u16* bank, eng::u16 stride_words) noexcept {
+		m_bank = bank;
+		m_bank_stride = stride_words;
+	}
+	/// Paleta del display (vistas no propietarias a palabras Amiga).
+	constexpr void set_palette(eng::PaletteWords palette) noexcept { m_palette = palette; }
+	/// **Liga un asset de tilemap** (`TilemapView`: banco + mapa + paleta) en una llamada. Requiere
+	/// `Map == TilemapView` (el controlador consulta `tile_at(col,row)`).
+	constexpr void set_tilemap(TilemapView& tm) noexcept {
+		m_bank = tm.bank;
+		m_bank_stride = tm.bank_stride_words;
+		m_palette = tm.palette;
+		m_map = tm;
+	}
+	/// Tamaños de reserva: anillo, columna y copperlist.
+	constexpr void set_sizes(eng::u32 ring_bytes, eng::u32 column_bytes,
+				 eng::u32 copper_bytes = 1536u) noexcept {
+		m_ring_bytes = ring_bytes;
+		m_column_bytes = column_bytes;
+		m_copper_bytes = copper_bytes;
+	}
+	/// Sigue las variables de cámara (px) del juego: el `App` las leerá por frame. `y` puede ser
+	/// `nullptr` (scroll puramente horizontal).
+	constexpr void track_camera(const eng::s32* x, const eng::s32* y = nullptr) noexcept {
+		m_cam_x = x;
+		m_cam_y = y;
+	}
+
+	/// **Setup**: reserva los buffers, monta y arranca la copperlist del compositor, liga el
+	/// controlador y pre-pinta el anillo. Requiere un `Backend` y su `MemoryManager`.
+	[[nodiscard]] bool begin(Backend& backend, MemoryManager& mm) noexcept {
+		if (!m_map.valid() || m_bank == nullptr) return false;
+		auto& chip = mm.chip();
+		m_ring = chip.template reserve<eng::PlaneTag>(m_ring_bytes, 16u);
+		m_column = chip.template reserve<eng::PlaneTag>(m_column_bytes, 16u);
+		if (!m_ring.valid() || !m_column.valid()) return false;
+		m_ring_words = reinterpret_cast<eng::u16*>(m_ring.data());
+		m_column_words = reinterpret_cast<eng::u16*>(m_column.data());
+		if (!m_composer.init(mm, m_palette, m_copper_bytes)) return false;
+		m_composer.set_ring(m_ring_words);
+		if (!m_composer.build()) return false;
+		m_composer.takeover(backend);
+		m_ctrl.bind(m_ring_words, m_bank, m_column_words, m_bank_stride, *m_map.get(), backend);
+		m_ctrl.fill_ring();
+		m_ok = true;
+		return true;
+	}
+
+	/// **Frame**: si la cámara X cruzó frontera de tile, pinta la columna entrante; la Y solo mueve
+	/// la ventana vertical (el bitmap ya tiene todas las filas). Parchea la copperlist (fine
+	/// `BPLCON1` + `BPLxPT` por plano, con el offset Y) y publica el bloque.
+	void frame(Backend& backend, eng::s32 x, eng::s32 y, eng::s32 prev_x,
+		   eng::s32 prev_y) noexcept {
+		if (!m_ok) return;
+		const auto fr = m_ctrl.tick(x, y, prev_x, prev_y);
+		(void)m_composer.patch(strip_copper_values<Geom>(fr));
+		m_composer.install(backend);
+	}
+
+	/// Conduce la capa siguiendo las variables de cámara registradas (`track_camera`). Lo usa el `App`.
+	void frame_from_source(Backend& backend) noexcept {
+		const eng::s32 x = (m_cam_x != nullptr) ? *m_cam_x : 0;
+		const eng::s32 y = (m_cam_y != nullptr) ? *m_cam_y : 0;
+		frame(backend, x, y, m_prev_x, m_prev_y);
+		m_prev_x = x;
+		m_prev_y = y;
+	}
+
+	[[nodiscard]] bool ok() const noexcept { return m_ok; }
+	[[nodiscard]] eng::u16* ring_words() noexcept { return m_ring_words; }
+
+	/// **Asa** para que `App` conduzca la capa (type-erased sobre `Backend`).
+	[[nodiscard]] ScrollLayerHandle handle() noexcept {
+		ScrollLayerHandle h {};
+		h.obj = this;
+		h.begin = [](void* o, void* mem, void* be) -> bool {
+			return static_cast<StripScrollLayer*>(o)->begin(
+				*static_cast<Backend*>(be), *static_cast<MemoryManager*>(mem));
+		};
+		h.frame = [](void* o, void* be) {
+			static_cast<StripScrollLayer*>(o)->frame_from_source(*static_cast<Backend*>(be));
+		};
+		return h;
+	}
+
+private:
+	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_ring {};
+	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_column {};
+	eng::playfield::StripComposer<Geom> m_composer {};
+	eng::playfield::StripScrollController<Geom, Map, Backend> m_ctrl {};
+	eng::Ref<Map> m_map {};
+	const eng::u16* m_bank = nullptr;
+	eng::u16 m_bank_stride = 0u;
+	eng::PaletteWords m_palette {};
+	eng::u32 m_ring_bytes = 0u;
+	eng::u32 m_column_bytes = 0u;
+	eng::u32 m_copper_bytes = 1536u;
+	eng::u16* m_ring_words = nullptr;
+	eng::u16* m_column_words = nullptr;
+	const eng::s32* m_cam_x = nullptr;
+	const eng::s32* m_cam_y = nullptr;
+	eng::s32 m_prev_x = 0;
+	eng::s32 m_prev_y = 0;
+	bool m_ok = false;
+};
+
+} // namespace playfield
+} // namespace eng

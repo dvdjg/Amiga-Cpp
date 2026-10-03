@@ -1,4 +1,4 @@
-// Test host de `eng::field::Surface::fill_polygon` (rasterizado CPU de polígono
+// Test host de `eng::playfield::Surface::fill_polygon` (rasterizado CPU de polígono
 // convexo por scanline). Valida geometría (interior/exterior), distintos
 // triángulos y el recorte (clip) de la superficie, con un `Playfield` de prueba
 // (layout interleaved idéntico a `CanvasPlayfield`).
@@ -9,7 +9,7 @@
 #include <vector>
 
 using namespace eng;
-using namespace eng::field;
+using namespace eng::playfield;
 
 // Playfield mínimo de prueba: buffer en RAM del host, layout interleaved.
 struct MockPlayfield : Playfield {

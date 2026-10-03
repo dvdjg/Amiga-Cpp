@@ -19,6 +19,7 @@
 #include <eng/core/types/domains.hpp>
 #include <eng/core/types/typed.hpp>
 #include <eng/field/field_display.hpp>
+#include <eng/field/playfield.hpp> // `eng::playfield` (nombre público del motor de playfields)
 #include <eng/field/playfield_base.hpp>
 #include <eng/graphics/bob.hpp>
 #include <eng/graphics/copper/copper.hpp>
@@ -80,9 +81,9 @@ struct Band {
 	/// `planes_view_b` (impares). No la usa `bob_target` (los BOB van a PF1).
 	eng::ChipPlaneView planes_view_b {};
 	/// Superficie de origen si la banda viene de un `PlayfieldHardwareView` (`band_from_view` /
-	/// `update_from_view`): habilita la emisión de punteros con `eng::field::emit_view_pointers`
+	/// `update_from_view`): habilita la emisión de punteros con `eng::playfield::emit_view_pointers`
 	/// (fuente única, con parallax/soft-DPF). Vacía = banda explícita (bloque o DPF de dos vistas).
-	eng::field::PlayfieldHardwareView source_view {};
+	eng::playfield::PlayfieldHardwareView source_view {};
 	/// Desplazamiento de la base por el scroll actual (bytes): alinea los BOB con la posición de
 	/// pantalla. Lo fija `update_from_view` (`planeaddx + planeaddy`).
 	eng::s32 scroll_off = 0;
@@ -182,7 +183,7 @@ struct Band {
 	/// módulos), sin tocar `top`/`height`/modo. El driver de scroll actualiza su
 	/// `PlayfieldHardwareView`; la composición llama esto por frame y re-`materialize`. Así la
 	/// banda **no** lleva un campo `scroll`: refleja lo que el driver ya calculó.
-	void update_from_view(const eng::field::PlayfieldHardwareView& view) noexcept {
+	void update_from_view(const eng::playfield::PlayfieldHardwareView& view) noexcept {
 		planes = view.planes;
 		bytes_per_row = view.bitmap_bytes_per_row;
 		bplcon1 = view.bplcon1;
@@ -213,7 +214,7 @@ void emit_band_pointers(Scheduler& sched, const Band& b, eng::s32 off = 0, eng::
 	}
 	if (b.source_view.planes != 0u) {
 		// Banda desde superficie: fuente única (incluye parallax/soft-DPF).
-		eng::field::emit_view_pointers(sched, b.source_view, off);
+		eng::playfield::emit_view_pointers(sched, b.source_view, off);
 		return;
 	}
 	if (!b.planes_view_b.empty() && (b.planes % 2u) == 0u) {
@@ -237,7 +238,7 @@ void emit_band_pointers(Scheduler& sched, const Band& b, eng::s32 off = 0, eng::
 /// `RasterLayout` para un solo tramo. El juego no ve registros.
 template <class Scheduler>
 void emit_display(Scheduler& sched, const Band& b) {
-	eng::field::FieldHeaderConfig h {};
+	eng::playfield::FieldHeaderConfig h {};
 	h.dmacon = b.dmacon;
 	h.bplcon0 = b.bplcon0();
 	h.bplcon1 = b.bplcon1;
@@ -251,7 +252,7 @@ void emit_display(Scheduler& sched, const Band& b) {
 	if (!b.palette.empty()) {
 		h.palette = eng::PaletteWords {b.palette.data(), b.palette_colors};
 	}
-	eng::field::emit_field_display_header(sched, h);
+	eng::playfield::emit_field_display_header(sched, h);
 	emit_band_pointers(sched, b, 0);
 }
 
@@ -275,7 +276,7 @@ void emit_display(Scheduler& sched, const Band& b) {
 /// scroll mantiene esa instantánea (base, fine scroll, módulos) y la composición la coloca en su
 /// tramo. Así la banda **no** lleva un campo `scroll`: refleja lo que el driver de scroll ya
 /// calculó (ver `PLAYFIELD_SCROLL_ARCHITECTURE.md` §2-§4). El `top` lo fija el llamador.
-[[nodiscard]] inline Band band_from_view(const eng::field::PlayfieldHardwareView& view,
+[[nodiscard]] inline Band band_from_view(const eng::playfield::PlayfieldHardwareView& view,
 					 eng::u16 top) noexcept {
 	Band b {};
 	b.top = top;
@@ -288,8 +289,8 @@ void emit_display(Scheduler& sched, const Band& b) {
 /// PF1 (planos de hardware pares) y `planes_view_b` = PF2 (impares), cada plano a `i·bpr`, con los
 /// módulos y el fine scroll (dos nibbles) de cada campo. `RasterLayout` emite así el DPF sin bajar
 /// al compositor. Es el caso “DPF con bg y fg independientes”.
-[[nodiscard]] inline Band band_from_dual_view(const eng::field::PlayfieldHardwareView& pf1,
-					      const eng::field::PlayfieldHardwareView& pf2,
+[[nodiscard]] inline Band band_from_dual_view(const eng::playfield::PlayfieldHardwareView& pf1,
+					      const eng::playfield::PlayfieldHardwareView& pf2,
 					      eng::u16 top) noexcept {
 	Band b {};
 	const eng::u8 ppf = pf1.planes;
@@ -357,7 +358,7 @@ public:
 		}
 		const Band& b0 = m_bands[0];
 		// Cabecera por la fuente única (`emit_field_display_header`), igual que el driver de scroll.
-		eng::field::FieldHeaderConfig h {};
+		eng::playfield::FieldHeaderConfig h {};
 		h.dmacon = b0.dmacon;
 		h.bplcon0 = b0.bplcon0();
 		h.bplcon1 = b0.bplcon1;
@@ -371,7 +372,7 @@ public:
 		if (!b0.palette.empty()) {
 			h.palette = eng::PaletteWords {b0.palette.data(), b0.palette_colors};
 		}
-		eng::field::emit_field_display_header(sched, h);
+		eng::playfield::emit_field_display_header(sched, h);
 		emit_band_pointers(sched, b0, 0);
 		if (b0.split_active) {
 			// Wrap del corkscrew: a mitad del tramo los planos vuelven al inicio del bucle.

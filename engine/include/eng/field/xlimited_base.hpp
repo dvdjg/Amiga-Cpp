@@ -306,8 +306,8 @@
 ///      y exigir `OK telemetría`, `OK columna`, `DuplicatePairs==0` y
 ///      `green>0` en `analyze-demo.sh`.
 ///
-/// \see eng::field::TileLayerMap
-/// \see eng::field::XlimitedDisplayComposer
+/// \see eng::playfield::TileLayerMap
+/// \see eng::playfield::XlimitedDisplayComposer
 
 #include <eng/core/math/fast_div.hpp>
 #include <eng/core/types/span.hpp>
@@ -325,7 +325,7 @@
 #include <eng/graphics/sprite_manager.hpp>
 #include <eng/memory/arena.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 /// Depuración: resultado del `valid()` del compositor dual (0 = OK).
 extern volatile eng::u32 g_dbg_dual_valid;
@@ -533,4 +533,4 @@ struct XlimitedConfigT {
 /// Alias del caso denso/disperso (`TileLayerMap`), retrocompatible.
 using XlimitedConfig = XlimitedConfigT<TileLayerMap>;
 
-} // namespace eng::field
+} // namespace eng::playfield
