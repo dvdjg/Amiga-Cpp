@@ -52,6 +52,7 @@
 #include <eng/os/os.hpp>
 #include <eng/res/asset_cache.hpp>
 #include <eng/res/budget.hpp>
+#include <eng/scene/band_plan.hpp>
 #include <eng/scene/bobs.hpp>
 #include <eng/scene/plan.hpp>
 #include <eng/scene/world.hpp>
@@ -523,6 +524,15 @@ public:
 	}
 	/// Plan de escena formado por las capas de scroll registradas con rol.
 	[[nodiscard]] const auto& scene_plan() const noexcept { return m_scene_plan; }
+
+	/// **Tramos de banda** del plan de escena (para rutar objetos/dibujos con
+	/// `BobLayer::emit_banded`/`for_each_band_part`): deriva el layout de bandas (`plan_bands`) sobre
+	/// el alto del display. Devuelve cuántas bandas escribió (`0` si el plan no es de bandas).
+	[[nodiscard]] eng::u16 scene_bands(eng::Span<eng::scene::BandSpan> out) const noexcept {
+		const auto r = eng::scene::plan_bands(m_scene_plan.layers(),
+						      static_cast<eng::u16>(m_display.height), out);
+		return r.has_value() ? *r : 0u;
+	}
 
 	/// **Planner (actores)**: emite los actores del `world()` al plan del frame con el clip y
 	/// el destino del contexto de dibujo de la escena ligada. Devuelve cuántos se dibujaron.

@@ -137,7 +137,8 @@ struct AppStripGame {
 		plan.tilemap = m_view;
 		m_layer.set_plan(plan);
 		m_layer.track_camera(&m_cam_x, &m_cam_y);
-		if (!app.add_scroll_layer(m_layer)) {
+		if (!app.add_scroll_layer(m_layer, eng::scene::LayerRole::Background,
+					  eng::scene::LayerPlacement {})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020402u);
 			return;
 		}

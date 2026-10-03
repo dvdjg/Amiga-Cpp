@@ -185,7 +185,8 @@ struct DemoGame {
 		// Vuelca la config declarada a la escena y liga la cámara; el `App` arranca y conduce.
 		scene.set_config(config);
 		scene.track_camera(&cam_x, &cam_y);
-		if (!app.add_scroll_layer(layer)) {
+		if (!app.add_scroll_layer(layer, eng::scene::LayerRole::Background,
+					  eng::scene::LayerPlacement {})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020303u);
 			return;
 		}

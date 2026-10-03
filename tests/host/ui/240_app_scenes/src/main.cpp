@@ -162,6 +162,25 @@ int main() {
 		      "add_scroll_layer con rol");
 		check(app.scene_plan().count() == 1u, "el plan de escena tiene 1 capa");
 		check(app.scene_strategy() == eng::scene::SceneStrategy::Single, "estrategia Single (1 capa)");
+
+		// Tramos de banda del plan (split-screen): 2 capas en banda → `scene_bands` da 2.
+		MockBackend b2 {};
+		SceneGame g2 {};
+		App app2 {b2, g2};
+		eng::GameDisplay disp {};
+		disp.width = 320u;
+		disp.height = 256u;
+		(void)app2.set_display(disp);
+		MockScroll top {}, bot {};
+		(void)app2.add_scroll_layer(top, eng::scene::LayerRole::Foreground,
+					    eng::scene::LayerPlacement {0u, 128u, 0u});
+		(void)app2.add_scroll_layer(bot, eng::scene::LayerRole::Foreground,
+					    eng::scene::LayerPlacement {128u, 128u, 0u});
+		eng::scene::BandSpan bs[4] {};
+		check(app2.scene_bands(eng::Span<eng::scene::BandSpan> {bs, 4u}) == 2u,
+		      "scene_bands → 2 tramos");
+		check(bs[1].top == 128u, "tramo 1 en top=128");
+		check(app2.scene_strategy() == eng::scene::SceneStrategy::Bands, "estrategia Bands");
 	}
 
 	if (failures == 0) {
