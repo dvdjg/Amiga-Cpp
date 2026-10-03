@@ -135,6 +135,12 @@ El objetivo es que el usuario pueda **revisar** el trabajo antes de que se conso
 - **Sin bajo nivel gratuito**: la lógica de la demo usa la fachada (`eng/api/api.hpp` + tipos de dominio); no nombra registros del chipset, punteros crudos, `BlitJob`, bancos de memoria ni tipos del backend. Si algo obliga a bajar, es una abstracción que falta (§1.9) y se resuelve en el engine — no se deja crudo en la demo.
 - **El comentario enseña la regla, no el paso a paso de la máquina**: nada de narrar cronología ni intentos descartados (eso va a `docs/debugging/`); el `README.md` de la demo presenta el efecto, la técnica (con su ficha en `docs/reference/`) y el contrato que ilustra.
 
+### 1.14 No cerrar el turno por criterio propio
+
+- **El turno se cierra cuando el trabajo pedido está terminado, no antes.** No se corta por longitud, cansancio, presupuesto percibido ni por «dejar margen»: se sigue trabajando hasta completar lo encomendado.
+- **Única excepción —discrepancia técnica—:** se corta el turno (y se **pregunta al usuario**) solo cuando se cree que **no se puede resolver un punto por una discrepancia técnica** y se prefiere su decisión antes de continuar. En ese caso, se nombra el bloqueo y las opciones concretas.
+- Entregar trabajo **parcial como si fuera el final** sin que medie (a) trabajo terminado o (b) un bloqueo técnico declarado se considera un **fallo de proceso**. Si algo queda a medias, se dice explícitamente qué falta y por qué, no se disfraza de cierre.
+
 ---
 
 ## 2. El repositorio
