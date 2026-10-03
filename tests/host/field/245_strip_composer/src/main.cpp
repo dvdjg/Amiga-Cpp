@@ -42,20 +42,20 @@ int main() {
 	comp.set_ring(reinterpret_cast<const eng::u16*>(g_ring));
 	check(comp.build(), "build (emite en ambos bloques)");
 
-	// Parchea el frame: window_word = 3, fine = 5.
-	auto fr = eng::field::plan_strip_frame<Geom>(53, 0, 53, 0); // 53/16 = 3, fine 5, sin cruce
+	// Parchea el frame: el puntero recorre [0, ring_w-visible] (=3 para anillo 23) -> 20/16 = 1, fine 4.
+	auto fr = eng::field::plan_strip_frame<Geom>(20, 0, 20, 0);
 	auto sc = eng::field::strip_copper_values<Geom>(fr);
-	check(sc.bplcon1 == 5u && fr.window_word == 3u, "fine 5, ventana 3");
+	check(sc.bplcon1 == 4u && fr.window_word == 1u, "fine 4, ventana 1");
 	check(comp.patch(sc), "patch");
 
 	const eng::u16* w = comp.debug_active_words();
 	check(w != nullptr, "copperlist activa disponible");
 	if (w != nullptr) {
-		check(w[comp.bplcon1_handle() + 1u] == 5u, "BPLCON1 parcheado = fine");
+		check(w[comp.bplcon1_handle() + 1u] == 4u, "BPLCON1 parcheado = fine");
 		const eng::uintptr base = reinterpret_cast<eng::uintptr>(g_ring);
 		for (eng::u8 p = 0u; p < Geom::planes; ++p) {
 			const eng::u32 addr = static_cast<eng::u32>(base) +
-					      static_cast<eng::u32>(p) * Geom::ring_w_bytes + 3u * 2u;
+					      static_cast<eng::u32>(p) * Geom::ring_w_bytes + 1u * 2u;
 			check(w[comp.pt_handle(p, 0u) + 1u] == static_cast<eng::u16>(addr >> 16u),
 			      "BPLxPT alto por plano");
 			check(w[comp.pt_handle(p, 1u) + 1u] == static_cast<eng::u16>(addr & 0xffffu),

@@ -91,13 +91,17 @@ template <class Geom>
 [[nodiscard]] constexpr StripFrame plan_strip_frame(eng::s32 sx, eng::s32 sy, eng::s32 psx,
 						    eng::s32 psy) noexcept {
 	StripFrame f {};
-	f.window_word = static_cast<eng::u16>((static_cast<eng::u32>(sx) / 16u) % Geom::ring_w_words);
+	// El puntero de la ventana NO puede envolver el anillo (el display lee la ventana CONTIGUA, sin
+	// wrap): recorre `[0, ring_w_words - visible_words]` y envuelve ahi. Con un anillo de 2 pantallas
+	// (+ guarda) la ventana siempre cabe y las columnas entrantes se pintan en la 2a pantalla.
+	const eng::u16 span = static_cast<eng::u16>(Geom::ring_w_words - Geom::visible_words);
+	f.window_word = static_cast<eng::u16>((static_cast<eng::u32>(sx) / 16u) % span);
 	f.bplcon1_fine = static_cast<eng::u8>(static_cast<eng::u32>(sx) & 15u);
 	// Columna entrante: la palabra que se revela al avanzar de `psx` a `sx`. Se pinta cuando la
 	// camara (en el frame anterior) estaba en `psx`, en el borde que la ventana revelara.
 	if ((sx / 16) != (psx / 16)) {
 		f.column_crossed = true;
-		const eng::u16 pw = static_cast<eng::u16>((static_cast<eng::u32>(psx) / 16u) % Geom::ring_w_words);
+		const eng::u16 pw = static_cast<eng::u16>((static_cast<eng::u32>(psx) / 16u) % span);
 		f.col_dest_word = (sx > psx)
 			? static_cast<eng::u16>((pw + Geom::visible_words) % Geom::ring_w_words)
 			: static_cast<eng::u16>((pw + Geom::ring_w_words - 1u) % Geom::ring_w_words);

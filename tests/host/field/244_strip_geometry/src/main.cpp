@@ -75,8 +75,8 @@ bool simulate(std::uint32_t seed) {
 		const auto fr = eng::field::plan_strip_frame<Geom>(
 			static_cast<eng::s32>(ns), 0, static_cast<eng::s32>(scroll), 0);
 		check(fr.blits <= 2u, "<= 2 blits/frame");
-		const eng::u16 old_window = static_cast<eng::u16>((static_cast<eng::u32>(scroll) / 16u) %
-								  Geom::ring_w_words);
+		const eng::u16 span = static_cast<eng::u16>(Geom::ring_w_words - Geom::visible_words);
+		const eng::u16 old_window = static_cast<eng::u16>((static_cast<eng::u32>(scroll) / 16u) % span);
 		if (fr.column_crossed) {
 			// La columna destino debe caer FUERA de la ventana visible ACTUAL (invisible).
 			if (!eng::field::strip_dest_is_guard(fr.col_dest_word, old_window,
