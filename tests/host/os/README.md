@@ -26,3 +26,4 @@ Categoría `os` de la batería host (L1). El índice de categorías está en [..
 | HOST-306 | [os_file_stream](306_os_file_stream/README.md) | Mini-SO: feeder fichero→`ChunkStream` (lecturas secuenciales, EOF, underrun). |
 | HOST-307 | [os_pump_tasks](307_os_pump_tasks/README.md) | Mini-SO: fondo integrado en el bucle (`MessagePumpGame` da idle solo sin mensajes; respeta/limpia `preempt`). |
 | HOST-309 | [os_hook_pump_order](309_os_hook_pump_order/README.md) | Mini-SO: contrato de orden hook de VBlank→pump (`poll_and_post` + `MessagePumpGame::update` entregan el `Timer` en el mismo frame, periodo 1 y 2). |
+| HOST-403 | [path_normalize](403_path_normalize/README.md) | VFS (R6.1): `eng::os::normalize_path` — colapso de separadores, `.`/`..`, absolutos/relativos y errores (vacío, escape, sin cabida). |

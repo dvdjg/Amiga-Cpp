@@ -102,7 +102,10 @@ librerías comprimidas con memoria elegida por segmento. El contrato completo es
 [`FILE_SYSTEM_AND_DYNAMIC_LIBRARIES.md`](../../engine/architecture/FILE_SYSTEM_AND_DYNAMIC_LIBRARIES.md).
 
 - **R6.1 VFS**: normalizar paths, mounts, directorios, errores, cancelación y generaciones de
-  requests; HOST de backend simulado.
+  requests; HOST de backend simulado. **✅ normalización de paths hecha**: `eng/os/path.hpp`
+  (`eng::os::normalize_path` + `PathError`) colapsa separadores, resuelve `.`/`..` y rechaza
+  escapes; **HOST-403**. ⏳ faltan la fachada `Vfs` (mounts/dispositivos, resolución relativa a una
+  raíz, enumeración de directorios, handles propietarios) y los requests con generación (R6.2).
 - **R6.2 Requests robustos**: separar `RequestId` del `IoUser`, conservar path y buffer hasta el
   fin, rechazar respuestas tardías y cerrar requests en vuelo.
 - **R6.3 Política de memoria**: reservar código, datos y BSS por segmento con `MemoryManager`,
