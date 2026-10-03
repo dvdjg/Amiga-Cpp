@@ -69,6 +69,15 @@ Especificación:
   banda de guarda **más ancha que la pantalla** (p. ej. 384 px = 320 + 64, fetch 1x4x), aunque el
   scroll principal sea Y. Es `YUnlimited_64` + cámara X limitada a la banda.
 
+### 3.4 Límite del split de Copper (OCS): viewport ≤ 208 px
+
+El split por línea usa un `WAIT` de Copper cuyo **VPOS es de 8 bits (0–255)**. Con `DIWSTRT` en la
+línea `0x2c` (44), el split cae en `44 + viewport_h`: para `viewport_h = 256` sería la línea 300 y
+**no cabe**. Por eso **todos los modos con Copper split asumen `viewport_h ≤ 208`** (`44 + 208 = 252
+≤ 255`) y así **no hace falta duplicar el buffer** (espejo/lineal). Un viewport de 256 px que necesite
+bucle vertical usa el modo **lineal/espejo** (duplica el bucle en el bitmap) o no usa split. Verificado
+en HOST-244.
+
 ## 4. Orden de implementación propuesto
 
 1. **Selección explícita de variante** en la fachada (`ScrollKind` → `ScrollEngine`+`ScrollConsts`

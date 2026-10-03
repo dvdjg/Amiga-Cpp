@@ -40,8 +40,10 @@ static_assert(BPL_MOD == 184u, "BPL1MOD/BPL2MOD interleaved");
 static_assert(BLTDMOD_COL == 44u, "BLTDMOD columna alta");
 static_assert(COLUMN_PLANELINES == 1280u, "columna = 16 tiles x 80 planelines");
 static_assert(GUARD_WORDS * 16u >= 16u + 16u, "guarda >= ceil(max_step/16)+1");
-// Split XY invalido en OCS: SPLIT_LINE = 0x2c + 256 = 300 > 255 (VPOS 8 bits).
-static_assert(0x2cu + VIEWPORT_H > 255u, "OCS: el split a 0x2c+256 no cabe en VPOS (8 bits)");
+// Split XY en OCS: SPLIT_LINE = 0x2c + viewport_h debe caber en VPOS (8 bits, 0..255).
+// Con viewport 256 NO cabe (0x2c+256=300); con viewport <= 208 SI (0x2c+208=252).
+static_assert(0x2cu + VIEWPORT_H > 255u, "OCS: el split con 256 lineas no cabe en VPOS (8 bits)");
+static_assert(0x2cu + 208u <= 255u, "OCS: el split con 208 px SI cabe en VPOS (8 bits)");
 
 struct Lcg {
 	std::uint32_t s;
@@ -92,8 +94,9 @@ int main() {
 	for (std::uint32_t seed = 1; seed <= 40 && ok; ++seed) ok = simulate(seed);
 	check(ok, "guarda y cobertura invariantes en 20000 pasos x 40 semillas");
 
-	// Limite de hardware documentado: el split XY en OCS no cabe (VPOS 8 bits).
-	check(0x2cu + VIEWPORT_H > 255u, "split XY (5 planes) excede VPOS de 8 bits -> usar mirror/linear");
+	// Limite de hardware: con viewport > 208 el split XY no cabe en VPOS de 8 bits; los modos
+	// con Copper split asumen viewport <= 208 px (0x2c+208=252 <= 255) para no duplicar el buffer.
+	check(0x2cu + 208u <= 255u, "split XY con viewport 208 px cabe en VPOS (8 bits)");
 
 	if (g_fail != 0) { std::printf("%d fallo(s)\n", g_fail); return 1; }
 	std::printf("OK: geometria de tiras (anillo, guarda, cobertura) e invariantes validados.\n");
