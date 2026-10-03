@@ -162,7 +162,17 @@ constexpr eng::s32 kStepX = 2;                                         // px/fra
 		m_scroll += kStepX;
 		const auto fr = eng::field::plan_strip_frame<Geom>(m_scroll, 0, prev, 0);
 		if (fr.column_crossed) {
-			const eng::u16 map_col = static_cast<eng::u16>(((m_scroll / 16) + Geom::visible_words) % kMapCols);
+			// El slot `col_dest_word` del anillo contiene el contenido de la palabra del MUNDO
+			// `col_dest_word + offset`, con `offset` = cuantas `span` palabras ha envuelto el anillo
+			// (`coarse/16` menos la palabra de ventana). Usar solo `col_dest_word` desajustaba el
+			// contenido en el borde entrante (la zona derecha saltaba).
+			const eng::u32 coarse_w = eng::graphics::fine_scroll_coarse(
+							  static_cast<eng::u16>(m_scroll)) /
+						  16u;
+			const eng::u32 span = static_cast<eng::u32>(Geom::ring_w_words - Geom::visible_words);
+			const eng::u32 offset = coarse_w - (coarse_w % span);
+			const eng::u16 map_col =
+				static_cast<eng::u16>((fr.col_dest_word + offset) % kMapCols);
 			paint_column(fr.col_dest_word, map_col);
 		}
 		const auto sc = eng::field::strip_copper_values<Geom>(fr);
