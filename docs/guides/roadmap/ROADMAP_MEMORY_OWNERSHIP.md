@@ -199,11 +199,20 @@ consumidor a elegir banco.
 
 1. **Selección por política**: añadir `FastPreferred`/`FastRequired` con fallback explícito y banco
    efectivo en el handle. Aplicarlo a datos CPU-only y scratch; DMA conserva `ChipRequired`.
+   **Hecho (paso 1)**: `eng::MemoryPolicy` (`ChipRequired`/`FastRequired`/`FastPreferred`/`AnyBank`) +
+   `eng::reserve<Tag>(mm, policy, bytes, align)` en `memory_manager.hpp`, que reutiliza
+   `fast_or_slow`/`any_bank` (sin duplicar la elección). El **banco efectivo** viaja en `Block::kind`
+   (el medio es dato, no tipo); `FastRequired` no cae a otro banco. Probado en HOST-348. ⏳ falta
+   aplicarlo a más datos CPU-only/scratch y completar los pasos 2–5 (presupuesto de arranque, pila,
+   estáticos/código y `DynLoader` por segmento).
 2. **Presupuesto de arranque**: detectar capacidad, reservar primero el stack configurado y
    dimensionar después los pools Fast persistente/scratch dejando margen a Exec y servicios.
 3. **Pila principal**: evolucionar `FAST_STACK=1` fijo a `StackPolicy` (banco, tamaño, fallback),
    conservando base+tamaño para restaurar SP y liberar la reserva al salir. No cambiar SSP en un
-   proceso AmigaDOS en modo usuario.
+   proceso AmigaDOS en modo usuario. **Hecho (base)**: `eng::StackPolicy` + `eng::stack_from(mm, policy)`
+   (`memory/stack.hpp`), con el banco **efectivo** en `Stack::block.kind` y reutilizando
+   `fast_or_slow_stack`; probado en HOST-348. ⏳ falta conectar `FAST_STACK=1` del build a la política
+   (base+tamaño para restaurar SP y liberar).
 4. **Estáticos y código principal**: auditar ELF/HUNK/linker. La ubicación Fast debe decidirse antes
    de ctors/`main` por los flags de segmento que respete el loader; copiar globals ya inicializados
    no es relocalización válida.
