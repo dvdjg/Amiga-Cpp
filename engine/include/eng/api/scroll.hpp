@@ -55,4 +55,31 @@ using scene::ScrollKind;
 /// **Especificación de scroll**: técnica + período del mapa toroidal (en `words`) + velocidad.
 using scene::ScrollSpec;
 
+/// **Capa de scroll por tiras de juego** (`eng::TileScroll<Backend, …>`): el tipo de **fachada** con
+/// el que un juego declara su fondo de tiles **sin nombrar el motor** (`StripScrollLayer`), la
+/// geometría del anillo, la guarda ni el *fetch*. Tiles canónicos de **16×16**.
+///
+/// Los parámetros son **conceptos de juego**, no del motor:
+///   - `ViewportW`/`ViewportH`: tamaño del playfield (px).
+///   - `Planes`: planos del display.
+///   - `YTravelPx`: recorrido vertical útil (px); el alto del bitmap es `ViewportH + YTravelPx`.
+///   - `MapPeriodWords`: período del mapa toroidal (words del anillo; `0` = mapa acotado). Para un
+///     atlas de tiles de 16 px y 2 words/tile, es el ancho del mapa en tiles.
+///
+/// El juego la declara como miembro, le liga el asset (`set_tilemap`, que **deriva los tamaños**) y
+/// la cámara (`track_camera`/`follow_camera`), y la registra con `App::add_scroll_layer`. Ejemplo:
+///
+/// ```cpp
+/// eng::TileScroll<eng::amiga::AmigaBackend, 320, 256, 3, 192, 40> m_bg {};
+/// // init(App&): m_bg.set_tilemap(tilemap); m_bg.track_camera(&cam_x, &cam_y);
+/// //             app.add_scroll_layer(m_bg);
+/// ```
+template <class Backend, eng::u16 ViewportW = 320u, eng::u16 ViewportH = 256u, eng::u8 Planes = 3u,
+	  eng::u16 YTravelPx = 0u, eng::u16 MapPeriodWords = 0u>
+using TileScroll = playfield::StripScrollLayer<
+	playfield::StripScrollGeometry<ViewportW, ViewportH, Planes, 16u, 16u,
+				       2u /*guarda*/, 1u /*fetch*/, false, 0u,
+				       static_cast<eng::u16>(ViewportH + YTravelPx), MapPeriodWords>,
+	playfield::TilemapView, Backend>;
+
 } // namespace eng

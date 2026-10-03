@@ -35,13 +35,16 @@ public:
 	}
 	/// Paleta del display (vistas no propietarias a palabras Amiga).
 	constexpr void set_palette(eng::PaletteWords palette) noexcept { m_palette = palette; }
-	/// **Liga un asset de tilemap** (`TilemapView`: banco + mapa + paleta) en una llamada. Requiere
-	/// `Map == TilemapView` (el controlador consulta `tile_at(col,row)`).
+	/// **Liga un asset de tilemap** (`TilemapView`: banco + mapa + paleta) en una llamada y
+	/// **deriva los tamaños de reserva** de la geometría `Geom` (anillo y columna): el juego no
+	/// calcula bytes ni conoce la guarda/el *fetch*. Requiere `Map == TilemapView`.
 	constexpr void set_tilemap(TilemapView& tm) noexcept {
 		m_bank = tm.bank;
 		m_bank_stride = tm.bank_stride_words;
 		m_palette = tm.palette;
 		m_map = tm;
+		m_ring_bytes = static_cast<eng::u32>(Geom::ring_w_bytes) * Geom::planes * Geom::ring_h;
+		m_column_bytes = static_cast<eng::u32>(Geom::column_planelines) * 2u;
 	}
 	/// Tamaños de reserva: anillo, columna y copperlist.
 	constexpr void set_sizes(eng::u32 ring_bytes, eng::u32 column_bytes,

@@ -232,10 +232,13 @@ conduce **cualquier** motor (tiras o corcóscru) por el mismo contrato, **sin `v
 función** y con la memoria **tipada** (`MemoryManager&`). La demo **203** se migró a `App` + `handle()`
 (F4: `World` Tilemap + motor declarado + `App`, sin `compose`/`FramePlan` en el juego) y mide
 **49,92 fps** (142 102 ciclos/frame, idéntico al camino directo ⇒ asa a coste cero). (d)
-`App::add_tilemap_layer` construye el motor canónico desde `TilemapView` + `ScrollSpec` y lo conduce
-por la cámara de la capa; (e) demo `App` con una capa `World` Tilemap **sin nombrar** `Strip`/`Xlimited`
-(gate F4) — hasta (d) el juego declara el motor (config conocida en compilación, el caso habitual,
-incluso uno por nivel).
+✅ **tipo de fachada con geometría canónica de juego**: `eng::TileScroll<Backend, ViewportW,
+ViewportH, Planes, YTravelPx, MapPeriodWords>` (`api/scroll.hpp`) — el juego declara su viewport,
+planos, recorrido Y y período de mapa **sin nombrar** el motor ni la geometría del anillo; `set_tilemap`
+**deriva los tamaños** (el juego no calcula bytes). La **204** ya lo usa (imagen del pueblito coherente,
+READY). (e) queda para el caso **secundario** (config no conocida en compilación: editor/carga de disco),
+que exige llevar la geometría a runtime; el caso habitual (**config conocida**, incluso una por nivel)
+ya se escribe con `eng::TileScroll` declarando el motor.
 
 ## 8. Unificar el vocabulario
 

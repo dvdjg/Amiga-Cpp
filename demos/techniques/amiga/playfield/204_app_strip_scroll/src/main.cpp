@@ -45,30 +45,23 @@ namespace {
 
 constexpr eng::u16 kViewportW = 320u;
 constexpr eng::u16 kViewportH = 256u;
-constexpr eng::u16 kMapSide = 40u;
-constexpr eng::u16 kMapPx = kMapSide * 16u; // 640: alto (y ancho) del mapa en px
+constexpr eng::u16 kTile = 16u;
+constexpr eng::u8 kPlanes = 3u;
+constexpr eng::u16 kMapSide = 40u;  // tiles de lado del atlas (período del mapa toroidal)
+constexpr eng::u16 kYTravel = 192u; // recorrido vertical (px) que exige la ruta
 
-// El anillo es **ancho de mapa + solape** (X, tira) y **alto del bitmap** (RingLines): así el scroll
-// Y es solo mover la punta de fila (sin split, el bitmap ya tiene las filas) y la tira X rellena
-// columnas ENTERAS → X (tira) + Y (puntero) = vertical, diagonal y Lissajous.
-//
-// Alto del bitmap (`kRingLines`): debe caber el recorrido de la ruta (`RouteCamera` mueve 192 px en
-// vertical/diagonal y radio 90): 256 + 192 = 448. Así **cada frame es distinto** (1 px/frame, sin
-// saturar). Con 320 (Y=64) la fase vertical se queda clavada y se repiten frames. El anillo de 448
-// es ~158 KB + el banco del atlas 111 KB ≈ 270 KB (cabe en A500); el mapa entero (640) serían 225 KB
-// de anillo → A1200/1 MB.
-constexpr eng::u16 kRingLines = 448u;
-constexpr eng::s32 kYRange = static_cast<eng::s32>(kRingLines - kViewportH); // 192 px de recorrido Y
-using Geom = eng::field::StripScrollGeometry<kViewportW, kViewportH, 3u, 16u, 16u, 2u, 1u,
-					    false, 0u, kRingLines, kMapSide>;
+// La capa de scroll es el **tipo de fachada** `eng::TileScroll`: el juego declara su viewport, sus
+// planos, su recorrido Y y el período del mapa; **no nombra** el motor, la geometría del anillo, la
+// guarda ni el *fetch*. El bitmap del anillo (`viewport_h + YTravel`) y los tamaños de reserva los
+// deriva el engine (`set_tilemap`). Intervienen X (tira) e Y (punta de fila) → vertical/diagonal/
+// Lissajous. El anillo (256+192=448) es ~158 KB + el banco del atlas 111 KB ≈ 270 KB (cabe en A500).
+using Layer = eng::TileScroll<eng::amiga::AmigaBackend, kViewportW, kViewportH, kPlanes, kYTravel,
+			      kMapSide>;
 
-constexpr eng::u16 kTileWords = Geom::tile_h * Geom::planes; // 48
+constexpr eng::u16 kTileWords = kTile * kPlanes; // 48
 constexpr eng::u16 kBlocksPerRow = 20u;
 constexpr eng::u16 kBankRowBytes = 40u;
 constexpr eng::u32 kBankBytes = 1180u * kTileWords * 2u;
-constexpr eng::u32 kColumnBytes = static_cast<eng::u32>(Geom::column_planelines) * 2u;
-constexpr eng::u32 kRingBytes =
-	static_cast<eng::u32>(Geom::ring_w_bytes) * Geom::planes * Geom::ring_h;
 
 // Ruta de scroll **continua** del engine (`playfield::ScrollRoute`): fases H/V/diagonal/circular/
 // Lissajous por velocidad, sin saltos y con <= 1 px/frame por eje; la Y se acota al bitmap.
@@ -77,8 +70,8 @@ using Route = eng::playfield::ScrollRoute<112u>; // misma ruta que la 205 (compa
 struct AppStripGame {
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bank {};
 	// El `Map` de la capa es un **asset de tilemap** del engine (`TilemapView`: banco+mapa+paleta);
-	// el juego no escribe un adaptador a mano.
-	eng::field::StripScrollLayer<Geom, eng::field::TilemapView, eng::amiga::AmigaBackend> m_layer {};
+	// el juego no escribe un adaptador ni declara la geometría del motor.
+	Layer m_layer {};
 	eng::field::TilemapView m_view {};
 	eng::Palette32 m_pal {};
 
@@ -90,17 +83,17 @@ struct AppStripGame {
 	void build_packed_bank(eng::u16* bank_words) {
 		const eng::u8* const xlim = g_tilebank_xlimited;
 		const eng::u32 block_rows =
-			g_tilebank_xlimited_size / (16u * Geom::planes * kBankRowBytes);
+			g_tilebank_xlimited_size / (kTile * kPlanes * kBankRowBytes);
 		const eng::u32 tile_count = block_rows * kBlocksPerRow;
 		for (eng::u32 t = 0u; t < tile_count; ++t) {
 			const eng::u32 tx = t % kBlocksPerRow;
 			const eng::u32 ty = t / kBlocksPerRow;
-			for (eng::u32 r = 0u; r < Geom::tile_h; ++r) {
-				for (eng::u32 p = 0u; p < Geom::planes; ++p) {
+			for (eng::u32 r = 0u; r < kTile; ++r) {
+				for (eng::u32 p = 0u; p < kPlanes; ++p) {
 					const eng::u32 src =
-						(ty * 16u * Geom::planes + r * Geom::planes + p) *
+						(ty * kTile * kPlanes + r * kPlanes + p) *
 							kBankRowBytes + tx * 2u;
-					bank_words[t * kTileWords + r * Geom::planes + p] =
+					bank_words[t * kTileWords + r * kPlanes + p] =
 						static_cast<eng::u16>((xlim[src] << 8) | xlim[src + 1u]);
 				}
 			}
@@ -134,8 +127,7 @@ struct AppStripGame {
 		m_view.cols = kMapSide;
 		m_view.rows = kMapSide;
 		m_view.palette = m_pal.words();
-		m_layer.set_tilemap(m_view);
-		m_layer.set_sizes(kRingBytes, kColumnBytes, 1536u);
+		m_layer.set_tilemap(m_view); // liga el asset y deriva los tamaños de la geometría
 		m_layer.track_camera(&m_cam_x, &m_cam_y);
 		if (!app.add_scroll_layer(m_layer)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020402u);
