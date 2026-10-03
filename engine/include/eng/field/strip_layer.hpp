@@ -30,6 +30,8 @@ public:
 	/// El juego declara el mapa (observador, `Ref`).
 	constexpr void set_map(Map& map) noexcept { m_map = map; }
 	/// El juego aporta el **banco de tiles** ya empaquetado (contenido: atlas + repack) y su stride.
+	/// \param bank          base del banco de tiles (Chip).
+	/// \param stride_words  palabras por tile en el banco.
 	constexpr void set_bank(const eng::u16* bank, eng::u16 stride_words) noexcept {
 		m_bank = bank;
 		m_bank_stride = stride_words;
@@ -39,6 +41,7 @@ public:
 	/// **Liga un asset de tilemap** (`TilemapView`: banco + mapa + paleta) en una llamada y
 	/// **deriva los tamaños de reserva** de la geometría `Geom` (anillo y columna): el juego no
 	/// calcula bytes ni conoce la guarda/el *fetch*. Requiere `Map == TilemapView`.
+	/// \param tm  asset de tilemap (banco + mapa + paleta); se guarda como observador.
 	constexpr void set_tilemap(TilemapView& tm) noexcept {
 		m_bank = tm.bank;
 		m_bank_stride = tm.bank_stride_words;
@@ -51,16 +54,21 @@ public:
 	/// **Fija la geometría** (instancia). El NTTP `StripScrollGeometry` la aporta por su tipo
 	/// (miembros `static constexpr`); una `RuntimeScrollGeometry` (cargada en runtime, p. ej. de un
 	/// editor) la trae por valores. Llámalo **antes** de `set_plan`/`set_tilemap` (derivan tamaños).
+	/// \param g  la geometría (NTTP o `RuntimeScrollGeometry`).
 	constexpr void set_geometry(const Geom& g) noexcept { m_geom = g; }
 
 	/// **Setup declarativo**: liga el **contenido** del `ScrollPlan` (el `tilemap`) y deriva los
 	/// tamaños; la geometría la fija el tipo (`Geom`) y la cámara, `track_camera`. Es el vocabulario
 	/// común con el corcóscru (§7(e)). Requiere `Map == TilemapView`.
+	/// \param plan  el `ScrollPlan` (el `tilemap` aporta banco/mapa/paleta).
 	constexpr void set_plan(const ScrollPlan& plan) noexcept {
 		m_plan_tilemap = plan.tilemap;
 		set_tilemap(m_plan_tilemap);
 	}
 	/// Tamaños de reserva: anillo, columna y copperlist.
+	/// \param ring_bytes    bytes del anillo.
+	/// \param column_bytes  bytes de la columna de trabajo.
+	/// \param copper_bytes  capacidad de la copperlist (def. 1536).
 	constexpr void set_sizes(eng::u32 ring_bytes, eng::u32 column_bytes,
 				 eng::u32 copper_bytes = 1536u) noexcept {
 		m_ring_bytes = ring_bytes;
@@ -70,6 +78,8 @@ public:
 	/// Sigue las variables de cámara (px) del juego: el `App` las leerá por frame. `y` puede ser
 	/// `nullptr` (scroll puramente horizontal). Es el camino de un mapa **toroidal**, donde la
 	/// posición X avanza sin recortarse (el motor envuelve por su cuenta).
+	/// \param x  puntero a la posición X del juego (px de mundo).
+	/// \param y  puntero a la Y (o `nullptr` para scroll solo horizontal).
 	constexpr void track_camera(const eng::s32* x, const eng::s32* y = nullptr) noexcept {
 		m_cam_x = x;
 		m_cam_y = y;
@@ -81,6 +91,7 @@ public:
 	/// Es el vocabulario de `PUBLIC_GAME_API.md` §2.1.3 para un mapa **acotado** (la cámara ya
 	/// recorta a sus límites); el tipo es parámetro de plantilla, así que esta cabecera no depende
 	/// de `eng/scene` (el lector es *type-erased*).
+	/// \param cam  cámara con `x()`/`y()` enteros (p. ej. `scene::Camera2D`).
 	template <class Camera>
 	void follow_camera(const Camera& cam) noexcept {
 		m_cam_obj = const_cast<Camera*>(&cam);
@@ -95,6 +106,9 @@ public:
 
 	/// **Setup**: reserva los buffers, monta y arranca la copperlist del compositor, liga el
 	/// controlador y pre-pinta el anillo. Requiere un `Backend` y su `MemoryManager`.
+	/// \param mm       gestor de memoria (anillo + columna + copperlist en Chip).
+	/// \param backend  el backend (arranca la copperlist).
+	/// \return `false` si falta el mapa/banco o no cabe la reserva.
 	[[nodiscard]] bool begin(MemoryManager& mm, Backend& backend) noexcept override {
 		if (!m_map.valid() || m_bank == nullptr) return false;
 		auto& chip = mm.chip();
@@ -118,6 +132,9 @@ public:
 	/// **Frame**: si la cámara X cruzó frontera de tile, pinta la columna entrante; la Y solo mueve
 	/// la ventana vertical (el bitmap ya tiene todas las filas). Parchea la copperlist (fine
 	/// `BPLCON1` + `BPLxPT` por plano, con el offset Y) y publica el bloque.
+	/// \param backend  el backend.
+	/// \param x,y      cámara actual (px de mundo).
+	/// \param prev_x,prev_y  cámara del frame anterior (para el delta).
 	void frame(Backend& backend, eng::s32 x, eng::s32 y, eng::s32 prev_x,
 		   eng::s32 prev_y) noexcept {
 		if (!m_ok) return;
