@@ -372,6 +372,11 @@ public:
 		return add_blit_job(job, BlitJobKind::ClearRect);
 	}
 
+	/// **Relleno de color** de un rectángulo (solo D, `D = A` con A constante `$FFFF`/`$0000`).
+	bool add_fill_rect(const BlitJob& job) {
+		return add_blit_job(job, BlitJobKind::FillRect);
+	}
+
 	/// Clear con stride arbitrario dentro de cada scanline física (p. ej. interleaved).
 	bool add_interleaved_clear_rect(const BlitJob& job) {
 		if (!job.interleaved || job.height == 0u || job.bitplane_count <= 1u ||
@@ -586,10 +591,11 @@ private:
 		const bool masked = kind == BlitJobKind::MaskedBobCookieCut ||
 				    kind == BlitJobKind::MaskedBlobNoSave;
 		const bool clear = kind == BlitJobKind::ClearRect;
-		if ((!clear && job.source.words() == nullptr) || job.destination.words() == nullptr ||
+		const bool no_source = clear || kind == BlitJobKind::FillRect;
+		if ((!no_source && job.source.words() == nullptr) || job.destination.words() == nullptr ||
 		    job.words_per_row == 0 || job.height == 0 || job.bitplane_count == 0 ||
 		    job.source_shift >= 16u ||
-		    (!clear && job.source_plane_stride_bytes == 0 && !job.interleaved) ||
+		    (!no_source && job.source_plane_stride_bytes == 0 && !job.interleaved) ||
 		    (job.destination_plane_stride_bytes == 0 && !job.interleaved) ||
 		    (masked && job.mask.words() == nullptr)) {
 			m_ok = false;

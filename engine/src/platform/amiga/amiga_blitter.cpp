@@ -247,6 +247,7 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 		job.kind == graphics::BlitJobKind::RestoreRect ||
 		job.kind == graphics::BlitJobKind::TileBlockCopy;
 	const bool clear = job.kind == graphics::BlitJobKind::ClearRect;
+	const bool fill = job.kind == graphics::BlitJobKind::FillRect;
 	const bool or_blob = job.kind == graphics::BlitJobKind::OrBlob ||
 			     job.kind == graphics::BlitJobKind::PatternFill;
 	const bool logic = job.kind == graphics::BlitJobKind::LogicBlit;
@@ -254,8 +255,32 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 	const bool line_eor = job.kind == graphics::BlitJobKind::LineEor;
 	const bool c2p = job.kind == graphics::BlitJobKind::C2P;
 
-	if (!masked && !copy && !clear && !or_blob && !logic && !line && !line_eor && !c2p) {
+	if (!masked && !copy && !clear && !fill && !or_blob && !logic && !line && !line_eor && !c2p) {
 		return false;
+	}
+
+	if (fill) {
+		// **Relleno de color del rectangulo** (AHRM "Extracting a Range of Columns" + WinUAE
+		// `custom.cpp` `BLTADAT`): `D = A`, **A deshabilitada** (sin fetch) con `BLTADAT`
+		// preload `$FFFF`/`$0000`; `AFWM`/`ALWM` recortan la primera/ultima palabra. Se cargan
+		// primero `BLTCON0/1` y despues `BLTADAT` (el orden importa: cargar datos antes del shift
+		// da resultados impredecibles). `job.minterm` = `$FF` (plano a 1) o `$00` (plano a 0).
+		if (!wait_blitter()) {
+			return false;
+		}
+		custom_base[custom_bltcon0_offset] =
+			static_cast<u16>(blt_use_d | graphics::kBlitterMintermCopyA); // D = A, sin USEA
+		custom_base[custom_bltcon1_offset] = 0u;
+		custom_base[custom_bltafwm_offset] = job.fill.afwm;
+		custom_base[custom_bltalwm_offset] = job.fill.alwm;
+		custom_base[custom_bltadat_offset] = (job.minterm == 0xffu) ? 0xffffu : 0x0000u;
+		custom_base[custom_bltdmod_offset] = static_cast<u16>(job.destination_modulo_bytes);
+		write_custom_pointer(custom_bltdpt_offset, job.destination.words());
+		custom_base[custom_bltsize_offset] =
+			static_cast<u16>((job.height << 6u) | job.words_per_row);
+		m_blt_common_valid = false;
+		++m_blitter_starts;
+		return true;
 	}
 
 	if (line || line_eor) {

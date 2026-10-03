@@ -127,6 +127,73 @@ public:
 		return eng::scene::clear_box(*m_target.plan(), m_target.bob_target(), b.x, b.y, b.w, b.h);
 	}
 
+	/// **Rellena un rectángulo con un color** (`D = color`) **encolado en el plan** (Blitter), en
+	/// orden con los sprites. Es el relleno de color a **coste cero** (a diferencia de `fill`, que
+	/// es inmediato y usa el rasterizador/CPU): `D = A` sin fetch (A deshabilitada, `BLTADAT`
+	/// preload), un `FillRect` por plano con `AFWM`/`ALWM` recortando la primera/última palabra.
+	///
+	/// Aviso: al no leer D, los bits de las **palabras de borde** que quedan fuera del rectángulo
+	/// de un `b` **no alineado a 16 px** se ponen a 0 (no se preserva lo de debajo). Alinea `b.x` y
+	/// `b.w` a múltiplos de 16 para evitar ese recorte. `false` si no hay plan.
+	bool fill_box(Box b, u8 color) {
+		if (!m_target.plan().valid() || b.empty()) {
+			return false;
+		}
+		const graphics::BobTarget t = m_target.bob_target();
+		if (t.planes.empty() || t.plane_count == 0u) {
+			return false;
+		}
+		const Box clip = bounds();
+		s32 x = b.x;
+		s32 y = b.y;
+		u16 w = b.w;
+		u16 h = b.h;
+		if (x < clip.x) {
+			const s32 d = clip.x - x;
+			if (d >= static_cast<s32>(w)) return true;
+			w = static_cast<u16>(w - static_cast<u16>(d));
+			x = clip.x;
+		}
+		if (y < clip.y) {
+			const s32 d = clip.y - y;
+			if (d >= static_cast<s32>(h)) return true;
+			h = static_cast<u16>(h - static_cast<u16>(d));
+			y = clip.y;
+		}
+		const s32 cx1 = static_cast<s32>(clip.x) + clip.w - 1;
+		const s32 cy1 = static_cast<s32>(clip.y) + clip.h - 1;
+		if (x > cx1 || y > cy1) return true;
+		if (x + static_cast<s32>(w) - 1 > cx1) w = static_cast<u16>(cx1 - x + 1);
+		if (y + static_cast<s32>(h) - 1 > cy1) h = static_cast<u16>(cy1 - y + 1);
+		const u16 wx0 = static_cast<u16>(x & ~15);
+		const u16 wx1 = static_cast<u16>((x + static_cast<s32>(w) - 1) & ~15);
+		const u16 words = static_cast<u16>(((wx1 - wx0) >> 4) + 1u);
+		const u16 afwm = static_cast<u16>(0xffffu >> (x & 15));
+		const u16 alwm = static_cast<u16>(0xffffu << (15 - ((x + static_cast<s32>(w) - 1) & 15)));
+		const bool inter = (t.layout == graphics::BobLayout::Interleaved);
+		const u32 row = t.row_bytes;
+		const u32 row_stride = inter ? row * t.plane_count : row;
+		const u32 plane_step = t.plane_pointer_step();
+		const s16 dmod = eng::graphics::mod16(static_cast<s32>(row_stride) -
+						      static_cast<s32>(words) * 2);
+		u8* base = t.data() + static_cast<u32>(y) * row_stride + (static_cast<u32>(wx0) >> 3u);
+		for (u8 p = 0u; p < t.plane_count; ++p) {
+			graphics::BlitJob job {};
+			job.destination = graphics::BlitPtr::from_storage(
+				reinterpret_cast<u16*>(base + static_cast<u32>(p) * plane_step));
+			job.words_per_row = words;
+			job.height = h;
+			job.bitplane_count = 1u;
+			job.destination_modulo_bytes = dmod;
+			job.interleaved = true;
+			job.minterm = (color & (1u << p)) != 0u ? 0xffu : 0x00u;
+			job.fill.afwm = afwm;
+			job.fill.alwm = alwm;
+			(void)m_target.plan()->add_fill_rect(job);
+		}
+		return true;
+	}
+
 	/// **Dibuja un sprite** (BOB cocinado) en `(x, y)`. La geometría del destino la trae el
 	/// contexto de dibujo (`DrawTarget::bob_target`, preparado por la escena), así que el
 	/// juego no ve planos, strides ni minterns. `false` si no hay plan de frame o el

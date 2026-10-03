@@ -42,6 +42,12 @@ enum class BlitJobKind : u8 {
 	/// Borrado del rectangulo: un blit sin fuentes (solo D). Con bitmaps
 	/// intercalados borra la caja del objeto en UN blit (`height = alto*planos`).
 	ClearRect,
+	/// **Relleno de color** de un rectangulo (solo D, sin fetch de fuentes): un blit por plano con
+	/// `D = A` (minterm `$F0`), **A deshabilitada** y `BLTADAT` preload con `$FFFF`/`$0000`; las
+	/// mascaras de borde (`fill.afwm`/`fill.alwm`) recortan la primera/ultima palabra. Es el
+	/// relleno de color **diferido** (`Screen::fill_box`). Ref.: AHRM 3.ª §"Extracting a Range of
+	/// Columns" (`BLTADAT` constante con A deshabilitada) + WinUAE `custom.cpp` `BLTADAT`.
+	FillRect,
 	/// BOB **OR por desplazamiento** (estilo `bobs3d`): `A` = bitmap del objeto,
 	/// `B = D` = destino, minterm `$FC` (`D = A | D`). Sin mascara: los ceros del
 	/// objeto dejan el fondo (aditivo/glow). Con destino intercalado es UN blit.
@@ -177,6 +183,15 @@ struct BlitJob {
 		u16 bytes = 0;
 	};
 	C2p c2p {};
+
+	/// Campos de **relleno de color** (`BlitJobKind::FillRect`, solo D): mascaras de primera y
+	/// ultima palabra (rect no alineado a 16 px). El color va en `minterm` (`$FF` = plano a 1,
+	/// `$00` = plano a 0); el backend traduce a `BLTADAT` `$FFFF`/`$0000` con A deshabilitada.
+	struct Fill {
+		u16 afwm = 0xffffu; ///< `BLTAFWM` (mascara de la primera palabra)
+		u16 alwm = 0xffffu; ///< `BLTALWM` (mascara de la ultima palabra)
+	};
+	Fill fill {};
 };
 
 /// Configura `job` como **BOB interleaved enmascarado en UNA pasada** (cookie-cut `$CA` con

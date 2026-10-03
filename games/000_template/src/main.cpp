@@ -27,12 +27,12 @@ namespace {
 
 constexpr eng::u16 kWidth = 320u;
 constexpr eng::u16 kHeight = 256u;
-constexpr eng::u16 kBoxPx = 16u;
+constexpr eng::u16 kBoxPx = 32u;
 
 /// **El juego**: describe *qué* quiere (dibujar, mover, animar); el engine decide *cómo*.
 struct TemplateGame {
-	eng::s16 m_x = 152;
-	eng::s16 m_y = 120;
+	eng::s16 m_x = 144;
+	eng::s16 m_y = 112;
 	// Animación de juego (sin assets): 4 frames a 6 frames de juego cada uno.
 	static constexpr eng::u8 kFrames[] = {0u, 1u, 2u, 3u};
 	static constexpr eng::u8 kDurations[] = {6u, 6u, 6u, 6u};
@@ -45,23 +45,23 @@ struct TemplateGame {
 	}
 
 	void update(auto& app) {
-		// Entrada: el juego lee el estado del pad; no sondea hardware.
+		// Entrada: el juego lee el estado del pad; no sondea hardware. Paso 16 = alineado a palabra
+		// (el relleno `fill_box` es exacto y sin recorte de borde con x/w múltiplos de 16).
 		auto& in = app.input();
-		if (in.pad0.left) m_x -= 2;
-		if (in.pad0.right) m_x += 2;
-		if (in.pad0.up) m_y -= 2;
-		if (in.pad0.down) m_y += 2;
+		if (in.pad0.left) m_x -= 16;
+		if (in.pad0.right) m_x += 16;
+		if (in.pad0.up) m_y -= 16;
+		if (in.pad0.down) m_y += 16;
 		m_anim.update();
 		eng::debug::mark_frame(g_eng_run_status, app.frame());
 	}
 
 	void render(auto& app) {
 		auto s = app.screen();
-		// Todo por el **plan del frame** (Blitter), en orden: fondo y el objeto (marco que se mueve
-		// con el pad). No se mezcla con primitivas inmediatas (`fill`/`clear` usan el rasterizador
-		// y pisarían lo diferido). El texto usa la ruta por CPU (`text`) de momento.
-		s.clear_box(eng::Box {0, 0, kWidth, kHeight});
-		s.frame(eng::Box {m_x, m_y, kBoxPx, kBoxPx}, 3u);
+		// Todo por el **plan del frame** (Blitter), en orden. `fill_box` es el relleno de color
+		// **diferido** (D = A con A constante; sin tocar el rasterizador inmediato).
+		s.fill_box(eng::Box {0, 0, kWidth, kHeight}, 1u);      // fondo azul
+		s.fill_box(eng::Box {m_x, m_y, kBoxPx, kBoxPx}, 3u); // objeto rojo que se mueve con el pad
 		app.present();
 		eng::debug::mark_ready(g_eng_run_status, 0u);
 		eng::debug::probe_when_ready(g_eng_run_status, app.frame());
