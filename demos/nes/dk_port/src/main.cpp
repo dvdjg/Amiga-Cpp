@@ -14,6 +14,8 @@
 #include <eng/api/api.hpp>
 #include <eng/graphics/tile_planar.hpp>
 #include <eng/graphics/frame_plan.hpp>
+#include <eng/graphics/copper/scheduler.hpp>
+#include <eng/graphics/sprite_manager.hpp>
 #include <eng/platform/amiga/backend.hpp>
 
 #include <exec/execbase.h>
@@ -62,6 +64,17 @@ constexpr eng::u16 kTileBankBytes = kTileCount * kTileStride; // 4096
 constexpr eng::u16 kMtBankBytes = kMtCount * kMtBytes;        // 30720
 constexpr bool kUseBlitter = true;                             // depuracion: CPU vs Blitter
 
+// Sprites HW (OAM NES): sprite byte (16 px de ancho = hpos en bytes de 16px), 2 planos, y el
+// canal lleva DAT+DATB por linea + 2 palabras a cero que terminan el DMA (AHRM 3a).
+// Los sprites NES 8x8 se colocan en sprites HW de 8 px de ancho (1 palabra por linea).
+constexpr eng::u16 kSpriteWordsPerLine = 2u;                  // DAT + DATB (16 px)
+constexpr eng::u8  kSpriteHeight = 16u;                       // altura fija del canal
+constexpr eng::u16 kSpriteInstanceWords = kSpriteHeight * kSpriteWordsPerLine + 2u; // 34
+constexpr eng::u8  kSpriteChannels = 8u;
+constexpr eng::u16 kSpriteBankWords = kSpriteChannels * kSpriteInstanceWords;       // 272
+// El plano de scroll llega hasta y=240 (15 metatiles); el display empieza en la linea 0x2c.
+constexpr eng::u16 kDisplayVStart = 0x2cu;                    // 44 (como 062/classic NES centrado)
+
 // Paleta maestra NES (2C02), RGB 8-bit -> palabra Amiga 0RGB444. Indice = color NES (0..63).
 constexpr eng::u8 kNesRgb[64][3] = {
 	{84,84,84},{0,30,116},{8,16,144},{48,0,136},{68,0,100},{92,0,48},{84,4,0},{60,24,0},
@@ -84,11 +97,17 @@ struct DkPortGame {
 	eng::graphics::FramePlan m_plan {};
 	eng::Block<eng::TileBankTag> m_tiles {};  // banco planar NES (2 planos/tile)
 	eng::Block<eng::PlaneTag> m_mt {};        // banco de metatiles 4-planos (origen del Blitter)
+	eng::Block<eng::CopperTag> m_copper {};   // lista de Copper (planos + paleta + sprites)
+	eng::Block<eng::SpriteTag> m_sprdata {};  // DATA de los 8 canales de sprite HW
+	eng::graphics::SpriteManager m_sprites {};
 	eng::Palette32 m_pal {};
 	bool m_ready = false;
+	bool m_copper_ok = false;
+	bool m_sprites_on = true; // etapa de sprites HW (OAM -> canales)
 	eng::u16 m_frames = 0u;
 	eng::u16 m_tilebase = 0u;
 	eng::u8 m_mt_dirty[kMtCount] {};
+	eng::u8 m_pal_spr[kSpriteChannels][4] {}; // subpaleta de sprite por canal (COLOR16+ par)
 
 	eng::u8* tile_at(eng::u16 t) { return m_tiles.view.data() + static_cast<eng::u32>(t) * kTileStride; }
 	eng::u8* mt_at(eng::u16 idx) { return m_mt.view.data() + static_cast<eng::u32>(idx) * kMtBytes; }
@@ -234,6 +253,97 @@ struct DkPortGame {
 		}
 	}
 
+	// --- Sprites HW + Copper ----------------------------------------------------------------
+	// Escribe el DATA del canal `ch` a partir de un tile CHR (8x8, 2bpp): DAT/DATB por linea;
+	// con flip horizontal se invierte el orden de bits. El sprite NES 8x8 ocupa 1 palabra/linea
+	// (D=1, bits 0-7). El tile se coloca en las 8 lineas superiores del canal (altura 16).
+	void build_sprite_channel(eng::u8 ch, eng::u16 tile, bool flip_h) {
+		eng::u16* const data = m_sprdata.view.as_words().data();
+		eng::u16* const inst = data + static_cast<eng::u32>(ch) * kSpriteInstanceWords;
+		const eng::u8* const chr = &CHR_ROM[static_cast<eng::u32>(tile) * 16u];
+		for (eng::u16 line = 0; line < kSpriteHeight; ++line) {
+			eng::u16 a = 0u;
+			eng::u16 b = 0u;
+			if (line < 8u) {
+				const eng::u8 p0 = chr[line];
+				const eng::u8 p1 = chr[8u + line];
+				if (flip_h) {
+					for (eng::u8 i = 0; i < 8u; ++i) {
+						a = static_cast<eng::u16>(a | (((p0 >> i) & 1u) << (7u - i)));
+						b = static_cast<eng::u16>(b | (((p1 >> i) & 1u) << (7u - i)));
+					}
+				} else {
+					a = p0;
+					b = p1;
+				}
+			}
+			inst[line * 2u + 0u] = static_cast<eng::u16>(a << 8u);
+			inst[line * 2u + 1u] = static_cast<eng::u16>(b << 8u);
+		}
+		const eng::u16 tail = static_cast<eng::u16>(kSpriteHeight) * kSpriteWordsPerLine;
+		inst[tail + 0u] = 0u;
+		inst[tail + 1u] = 0u;
+	}
+
+	// Refresca los 8 canales HW desde la OAM (primeros 8 sprites con y < $F0).
+	void build_sprites_from_oam() {
+		m_sprites.disable_all();
+		const eng::u16* const data = m_sprdata.view.as_words().data();
+		for (eng::u8 ch = 0; ch < kSpriteChannels; ++ch) {
+			const eng::u8 oy = n2a_ppu_oam(static_cast<eng::u8>(ch * 4u + 0u));
+			const eng::u8 tile = n2a_ppu_oam(static_cast<eng::u8>(ch * 4u + 1u));
+			const eng::u8 attr = n2a_ppu_oam(static_cast<eng::u8>(ch * 4u + 2u));
+			const eng::u8 ox = n2a_ppu_oam(static_cast<eng::u8>(ch * 4u + 3u));
+			if (oy >= 0xF0u) {
+				continue; // sprite fuera de pantalla en la OAM NES
+			}
+			build_sprite_channel(ch, tile, (attr & 0x40u) != 0u);
+			// y NES 0..239 -> linea Amiga +kDisplayVStart (misma geometria que el BG).
+			eng::graphics::SpriteConfig cfg {};
+			cfg.enabled = true;
+			cfg.data = eng::Span<const eng::u16> {
+				data + static_cast<eng::u32>(ch) * kSpriteInstanceWords, kSpriteInstanceWords};
+			cfg.width_words = 1u;
+			cfg.height = kSpriteHeight;
+			cfg.hpos = static_cast<eng::u16>(ox + 128u);
+			cfg.vstart = static_cast<eng::u16>(oy + kDisplayVStart + 1u);
+			cfg.vstop = static_cast<eng::u16>(cfg.vstart + kSpriteHeight - 1u);
+			cfg.palette_base = 16u;
+			m_sprites.set(ch, cfg);
+			// Subpaleta de sprite ($3F10 + attr&3): COLOR16..19 (el par del canal no se puede
+			// cambiar por canal, asi que se usa la subpaleta del sprite de mayor prioridad).
+			const eng::u8 sp = static_cast<eng::u8>(attr & 3u);
+			for (eng::u8 c = 0; c < 4u; ++c) {
+				m_pal_spr[ch][c] = n2a_ppu_pal(static_cast<eng::u8>(0x10u + sp * 4u + c));
+			}
+		}
+	}
+
+	// Reconstruye la copperlist de la escena (planos + paleta + sprites) desde la OAM.
+	void rebuild_scene_copper() {
+		gfx::SceneResources res = gfx::planar(kW, kH, kPlanes);
+		auto sprite_stage = [this](gfx::Scene& sc) {
+			if (!m_sprites_on) {
+				return;
+			}
+			// COLOR17..31 (0x1A2 + c*2): subpaletas de sprite; NO pisar COLOR02/03 del BG.
+			for (eng::u8 c = 0; c < 8u; ++c) {
+				sc.scheduler().move(static_cast<eng::copper::Register>(0x1A2u + c * 2u),
+						    nes_to_amiga(n2a_ppu_pal(static_cast<eng::u8>(0x11u + c))));
+			}
+			// Anade SPREN sin borrar los bits que ya activo `display()`
+			// (DMACON usa SET/CLR: escribir DmaSet|DmaSprite borraria Bitplane/Copper).
+			sc.scheduler().move(eng::copper::Register::DMACON,
+					    static_cast<eng::u16>(0x8000u | eng::copper::DmaSprite));
+			m_sprites.emit_into(sc.scheduler());
+		};
+		m_scene.begin_build();
+		gfx::display(res)(m_scene);
+		gfx::palette(eng::PaletteWords {m_pal.color, 16u}, 0u, 16u)(m_scene);
+		sprite_stage(m_scene);
+		m_copper_ok = m_scene.end_build();
+	}
+
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		m_backend = &backend;
 		eng::debug::mark_init_started(g_eng_run_status);
@@ -253,18 +363,33 @@ struct DkPortGame {
 		for (eng::u16 i = 16u; i < 32u; ++i) {
 			m_pal.color[i] = 0x000u;
 		}
-		// 3) Display planar 256x240, 4 planos + paleta.
+		// 3) Display planar 256x240, 4 planos. Etapas: display(res) (geometria) + paleta NES
+		//    (16 colores) + una etapa propia que emite los sprites HW en la MISMA copperlist.
 		gfx::SceneResources res = gfx::planar(kW, kH, kPlanes);
+		auto sprite_stage = [this](gfx::Scene& sc) {
+			// Subpaleta de sprites: COLOR17..31 (0x1A2 + c*2) = $3F11..$3F1F.
+			for (eng::u8 c = 0; c < 8u; ++c) {
+				sc.scheduler().move(static_cast<eng::copper::Register>(0x1A2u + c * 2u),
+						    nes_to_amiga(n2a_ppu_pal(static_cast<eng::u8>(0x11u + c))));
+			}
+			sc.scheduler().move(eng::copper::Register::DMACON,
+					    static_cast<eng::u16>(0x8000u | eng::copper::DmaSprite));
+			m_sprites.emit_into(sc.scheduler());
+		};
 		if (!gfx::compose(m_scene, backend.memory_manager(), res, gfx::ocs_a500,
 				  gfx::display(res),
-				  gfx::palette(eng::PaletteWords {m_pal.color, 16u}, 0u, 16u))) {
+				  gfx::palette(eng::PaletteWords {m_pal.color, 16u}, 0u, 16u),
+				  sprite_stage)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x0000D002u);
 			return;
 		}
-		// 4) Bancos en CHIP (el Blitter solo lee de chip).
+		// 4) Bancos en CHIP (el Blitter solo lee de chip) + Copper + DATA de sprites.
 		m_tiles = backend.memory_manager().chip().reserve<eng::TileBankTag>(kTileBankBytes, 16);
 		m_mt = backend.memory_manager().chip().reserve<eng::PlaneTag>(kMtBankBytes, 16);
-		if (!m_tiles.valid() || !m_mt.valid()) {
+		m_copper = backend.memory_manager().chip().reserve<eng::CopperTag>(512u * 2u, 16);
+		m_sprdata = backend.memory_manager().chip().reserve<eng::SpriteTag>(
+			static_cast<eng::u32>(kSpriteBankWords) * 2u, 16);
+		if (!m_tiles.valid() || !m_mt.valid() || !m_copper.valid() || !m_sprdata.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x0000D003u);
 			return;
 		}
@@ -276,9 +401,18 @@ struct DkPortGame {
 			}
 		}
 		blit_all();
+		// 6) Sprites HW: DATA inicial desde OAM y takeover de la escena (geometria+paleta+sprites).
+		build_sprites_from_oam();
+		rebuild_scene_copper();
 		m_scene.takeover(backend);
 		m_ready = true;
-		eng::debug::mark_ready(g_eng_run_status, 0xD0000000u);
+		// Diagnostico: publica el PPU observado tras 4 frames (host espera ctrl=90 mask=1E),
+		// y el nº de sprites HW activos + estado del Copper.
+		eng::debug::mark_ready(
+			g_eng_run_status,
+			0xD0000000u | (static_cast<eng::u32>(n2a_ppu_ctrl()) << 8u) |
+				static_cast<eng::u32>(n2a_ppu_mask()) |
+				(m_copper_ok ? 0x80000000u : 0u));
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
@@ -298,6 +432,12 @@ struct DkPortGame {
 		}
 		// Copia con Blitter solo de los metatiles cambiados (y ejecuta el plan).
 		rebuild_dirty();
+		// Sprites HW desde la OAM: reemite la copperlist y la reinstala en VBlank.
+		build_sprites_from_oam();
+		rebuild_scene_copper();
+		if (m_copper_ok) {
+			backend.install_copper_list(m_scene.active_words());
+		}
 	}
 
 	void render(eng::amiga::AmigaBackend&, eng::GameContext& context) {
