@@ -245,7 +245,9 @@ class FastBobLayer {
 public:
 	static constexpr eng::u8 kMaxActors = 32u;
 
-	/// Hoja **con padding** (copia opaca; su `Bob::draw` es `Opaque`) y el padding por lado.
+	/// Hoja **con padding** (copia opaca; su `Bob::draw` es `Opaque`) y el **padding por lado**, que
+	/// debe ser **≥ el desplazamiento máximo del actor por frame (px)** — es lo que garantiza que la
+	/// copia rápida borre el rectángulo previo en el mismo blit. Se consulta con `pad_x()`/`pad_y()`.
 	void set_sheet(eng::graphics::Sprite padded, eng::u8 pad_x, eng::u8 pad_y) noexcept {
 		m_sheet = padded;
 		m_pad_x = pad_x;

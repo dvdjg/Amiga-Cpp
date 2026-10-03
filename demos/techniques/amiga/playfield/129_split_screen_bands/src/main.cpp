@@ -89,6 +89,13 @@ struct SplitScreenDemo {
 		// Una banda por vista: la 0 = display completo; la 1 conmuta en `kSplitLine`.
 		m_band_top = eng::scene::band_from_view(m_v_top, 0u);
 		m_band_bottom = eng::scene::band_from_view(m_v_bottom, kSplitLine);
+		// Declaración de la escena por el vocabulario del planner (2 capas en banda = split-screen);
+		// el layout de esta demo se valida/deriva con `plan_bands` (abajo).
+		(void)m_scene_plan.add(eng::scene::LayerRole::Foreground,
+				       eng::scene::LayerPlacement {0u, kSplitLine, 0u});
+		(void)m_scene_plan.add(eng::scene::LayerRole::Foreground,
+				       eng::scene::LayerPlacement {kSplitLine,
+								   static_cast<eng::u16>(kHeight - kSplitLine), 0u});
 		eng::scene::RasterLayout layout {};
 		(void)layout.add(m_band_top);
 		(void)layout.add(m_band_bottom);
@@ -146,14 +153,17 @@ struct SplitScreenDemo {
 		m_bobs[1] = {static_cast<s16>(280 - (f % 160u)), 192, 0u, true};
 		const eng::graphics::BobTarget targets[2] = {m_band_top.bob_target(),
 							     m_band_bottom.bob_target()};
-		const eng::scene::BandSpan bands[2] = {
-			{0u, kSplitLine, eng::scene::LayerRole::Foreground},
-			{kSplitLine, static_cast<eng::u16>(kHeight - kSplitLine),
-			 eng::scene::LayerRole::Foreground}};
+		// Bandas derivadas del `ScenePlan` (vocabulario del planner), no a mano.
+		eng::scene::BandSpan bands[2] {};
+		const auto bcount = eng::scene::plan_bands(m_scene_plan.layers(), kHeight,
+							   eng::Span<eng::scene::BandSpan> {bands, 2u});
 		m_plan.clear();
 		m_plan.set_blit_budget_limits({8192, 16384, 4, 32});
-		(void)m_bobs.emit_banded(m_plan, eng::Span<const eng::scene::BandSpan> {bands, 2u},
-					 eng::Span<const eng::graphics::BobTarget> {targets, 2u});
+		(void)m_bobs.emit_banded(
+			m_plan,
+			bcount.has_value() ? eng::Span<const eng::scene::BandSpan> {bands, *bcount}
+					   : eng::Span<const eng::scene::BandSpan> {},
+			eng::Span<const eng::graphics::BobTarget> {targets, 2u});
 		(void)backend.execute_frame_plan(m_plan);
 
 		g_eng_run_status.detail = 0x12900000u | (x & 0xffffu);
@@ -275,6 +285,8 @@ private:
 	eng::playfield::PlayfieldHardwareView m_v_bottom {};
 	eng::scene::Band m_band_top {};
 	eng::scene::Band m_band_bottom {};
+	// **Declaración de escena** (vocabulario del planner §7): split-screen = 2 capas en banda.
+	eng::scene::ScenePlan<2u> m_scene_plan {};
 	u16 m_last_x = 0u;
 	bool ready = false;
 };

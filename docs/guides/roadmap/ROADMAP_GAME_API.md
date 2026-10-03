@@ -294,7 +294,10 @@ READY).
   familia); ver `D13`. ✅ **`field`→`playfield` completado**: el namespace canónico es ahora
   `eng::playfield` (renombrado en todo el repo —engine, demos, tests—) y **`eng::field` queda como
   alias deprecado** (`namespace field = playfield;` en `field/playfield.hpp`) para código externo no
-  migrado. ⏳ pendiente menor: `AudioSystem::play_sfx` vs `SfxMixer::play_on`.
+  migrado. ✅ **vocabulario de audio resuelto**: la fachada de juego expone `AudioSystem::play_sfx`
+  (elige canal) / `play_sfx_on` (canal explícito) / `stop_sfx`; `SfxMixer::play_on` es la API
+  **interna** del mezclador (solo la usan las demos de técnica de mezcla, 058/069/070/071). El juego
+  no ve `play_on`.
 
 ## 9. Plantilla y tutorial
 
