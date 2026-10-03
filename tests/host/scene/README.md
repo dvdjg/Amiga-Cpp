@@ -25,3 +25,4 @@ Categoría `scene` de la batería host (L1). El índice de categorías está en 
 | HOST-406 | [dpf_plan](406_dpf_plan/README.md) | Planner (etapa 2 §7): `eng/scene/dpf_plan.hpp` — `apply_dpf_plan`: siembra geometría/paleta/roles del DPF en `XlimitedSceneConfigT` desde un `ScenePlan`. |
 | HOST-407 | [band_plan](407_band_plan/README.md) | Planner (etapa 3 §7): `eng/scene/band_plan.hpp` — `plan_bands`: valida el layout de bandas (split-screen) y produce los tramos `{top,height,rol}`. |
 | HOST-408 | [banded_target](408_banded_target/README.md) | Planner (etapa 4 §7): `eng/scene/banded_target.hpp` — `for_each_band_part`: reparte un rect de pantalla entre bandas (draw **split-aware**). |
+| HOST-411 | [raster_plan](411_raster_plan/README.md) | Planner (§7): `eng/scene/raster_plan.hpp` — `plan_raster_layout`: deriva un `RasterLayout` (Single/Dpf/Bands) de un `ScenePlan`; convergencia planner↔bajo nivel. |

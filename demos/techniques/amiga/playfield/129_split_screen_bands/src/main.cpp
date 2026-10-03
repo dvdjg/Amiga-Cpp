@@ -12,6 +12,7 @@
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/platform/amiga/backend.hpp>
 #include <eng/scene/display.hpp>
+#include <eng/scene/raster_plan.hpp>
 #include <eng/scene/banded_target.hpp>
 
 #include <proto/exec.h>
@@ -86,19 +87,24 @@ struct SplitScreenDemo {
 		configure_view(m_v_top, m_top.view.data());
 		configure_view(m_v_bottom, m_bottom.view.data());
 
-		// Una banda por vista: la 0 = display completo; la 1 conmuta en `kSplitLine`.
-		m_band_top = eng::scene::band_from_view(m_v_top, 0u);
-		m_band_bottom = eng::scene::band_from_view(m_v_bottom, kSplitLine);
-		// Declaración de la escena por el vocabulario del planner (2 capas en banda = split-screen);
-		// el layout de esta demo se valida/deriva con `plan_bands` (abajo).
+		// Declaración de la escena (vocabulario del planner): split-screen = 2 capas en banda.
 		(void)m_scene_plan.add(eng::scene::LayerRole::Foreground,
 				       eng::scene::LayerPlacement {0u, kSplitLine, 0u});
 		(void)m_scene_plan.add(eng::scene::LayerRole::Foreground,
 				       eng::scene::LayerPlacement {kSplitLine,
 								   static_cast<eng::u16>(kHeight - kSplitLine), 0u});
+		// El **RasterLayout** se **deriva del plan** (`plan_raster_layout`): una banda por capa.
+		const eng::playfield::PlayfieldHardwareView views[2] = {m_v_top, m_v_bottom};
 		eng::scene::RasterLayout layout {};
-		(void)layout.add(m_band_top);
-		(void)layout.add(m_band_bottom);
+		if (!eng::scene::plan_raster_layout(
+			    m_scene_plan,
+			    eng::Span<const eng::playfield::PlayfieldHardwareView> {views, 2u}, layout)
+			     .has_value()) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00012904u);
+			return;
+		}
+		m_band_top = layout[0];    // display completo (banda 0)
+		m_band_bottom = layout[1]; // conmuta en `kSplitLine`
 		layout[0].palette = kPalette.words();
 		layout[0].palette_colors = 16u;
 
