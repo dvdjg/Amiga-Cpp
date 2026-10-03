@@ -15,7 +15,7 @@
 #include <eng/os/file.hpp>
 #include <eng/os/os.hpp>
 #include <eng/os/vfs.hpp>
-#include <eng/res/async_load.hpp>
+#include <eng/res/async_overlay.hpp>
 #include <eng/res/dynloader.hpp>
 #include <eng/res/engz.hpp>
 #include <eng/platform/amiga/backend.hpp>
@@ -67,11 +67,10 @@ struct ZoneGame {
 	FileBackend m_fs {};
 	eng::os::Vfs<FileBackend> m_vfs {m_fs};
 	eng::res::DynLoader m_dl {};
-	eng::res::AsyncRead m_load {}; ///< lectura asíncrona del `.engz` (prefetch de zona, R6.7)
-	eng::u8 m_engz[512] {};
-	eng::u8 m_decoded[512] {};
-	eng::u8 m_pool_buf[512] {};
-	eng::LinearArena m_pool {m_pool_buf, sizeof(m_pool_buf), eng::MemoryKind::Any};
+	/// Carga asíncrona del overlay (R6.4/R6.6/R6.7): `AsyncRead` + `decode_engz` + `DynLoader`.
+	eng::res::AsyncOverlay m_overlay {m_dl};
+	eng::u8 m_engz[512] {};    ///< búfer del contenedor `.engz` (lectura asíncrona)
+	eng::u8 m_decoded[512] {}; ///< salida del decode (bytes del HUNK)
 	bool m_ok = false;
 	eng::s32 m_answer = -1;
 	int m_ready_status = 0; ///< 0 = en curso, 1 = OK, -1 = fallo
@@ -87,57 +86,45 @@ struct ZoneGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021210u);
 			return;
 		}
-		// **La lectura NO bloquea el frame** (R6.7): se lanza aquí; la E/S avanza en `update`
-		// (`file_pump`) mientras el juego sigue su curso (aquí, la pantalla de carga).
-		if (!m_load.begin("data/code/answer.engz", eng::Span<eng::u8> {m_engz, sizeof(m_engz)})) {
+		// **La lectura NO bloquea el frame** (R6.7): se lanza aquí; la E/S (`file_pump`) y la
+		// cadena decode+HUNK avanzan en `update` mientras el juego sigue (pantalla de carga).
+		if (!m_overlay.begin(backend.memory_manager(), "data/code/answer.engz",
+				     eng::Span<eng::u8> {m_engz, sizeof(m_engz)},
+				     eng::Span<eng::u8> {m_decoded, sizeof(m_decoded)})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021211u);
 			return;
 		}
 	}
 
 	/// **Sondea la E/S por frame** (no bloquea): `file_pump` resuelve la operación diferida y postea
-	/// el `FileDone`; al llegar, se decodifica el `.engz` y se carga/ejecuta/descarga el overlay.
+	/// el `FileDone`; al llegar, `AsyncOverlay` decodifica el `.engz` y carga el HUNK por segmento.
 	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
-		if (m_ready_status != 0 || !m_load.pending()) {
+		if (m_ready_status != 0 || !m_overlay.reading()) {
 			return;
 		}
 		(void)eng::os::file_pump();
 		eng::os::Msg m;
 		while (eng::os::system_port().pop(m)) {
-			(void)m_load.on_done(m);
+			(void)m_overlay.on_done(m);
 		}
-		if (m_load.done()) {
-			run_zone();
-		} else if (m_load.failed()) {
+		if (m_overlay.ready()) {
+			exec_overlay();
+		} else if (m_overlay.failed()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021212u);
 			m_ready_status = -1;
 		}
 	}
 
-	/// Con los bytes ya en RAM (prefetch completado), decodifica el `.engz` y ejecuta el overlay.
-	void run_zone() {
-		const auto decoded = eng::res::decode_engz(
-			eng::Span<const eng::u8> {m_engz, m_load.received()},
-			eng::Span<eng::u8> {m_decoded, sizeof(m_decoded)});
-		if (!decoded.has_value()) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00021213u);
-			m_ready_status = -1;
-			return;
-		}
-		const eng::res::LibHandle lib = m_dl.declare("zone1");
-		if (!m_dl.load(lib, eng::Span<eng::u8> {m_decoded, *decoded}, &m_pool)) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00021214u);
-			m_ready_status = -1;
-			return;
-		}
+	/// Con el overlay ya cargado, resuelve el símbolo, ejecuta y **descarga** (la zona termina).
+	void exec_overlay() {
 		using Fn = eng::s32 (*)();
-		auto fn = reinterpret_cast<Fn>(m_dl.symbol(lib, "answer"));
+		auto fn = reinterpret_cast<Fn>(m_dl.symbol(m_overlay.handle(), "answer"));
 		if (fn != nullptr) {
 			m_answer = fn();
 			m_ok = (m_answer == 42);
 		}
-		m_dl.unload(lib); // la zona termina: se descarga el overlay
+		m_overlay.unload();
 		eng::debug::mark_ready(g_eng_run_status, 0x21200000u);
 		m_ready_status = 1;
 	}

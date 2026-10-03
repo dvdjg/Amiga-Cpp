@@ -132,7 +132,8 @@ librerías comprimidas con memoria elegida por segmento. El contrato completo es
   `decode_engz`/`verify`) con codec, tamaños, alineación y **CRC-32** sobre el payload, compuesto
   sobre `res::decode`; **HOST-400** (construir→parsear→decodificar, corrupción → `Corrupt`, magic/
   truncado). El payload es un blob arbitrario (los formatos HUNK/ENGL van por su lado: `dynloader`).
-  ⏳ falta integrarlo en la E/S asíncrona (leer de disco → decodificar → reservar por segmento).
+  **✅ integrado en la E/S asíncrona**: `eng/res/async_overlay.hpp` (`AsyncOverlay`) une
+  `AsyncRead` → `decode_engz` → carga por segmento, sin bloquear (demo `212_zone_resources`).
 - **R6.5 Decode ZX0 genérico**: reutilizar el depacker existente fuera de `eng::audio` como etapa
   de recursos y validar truncado, límites y CRC. **✅ hecho**: el depacker vive en
   `eng/res/zx0.hpp` (`eng::res::zx0`; `eng/audio/zx0.hpp` queda como alias `eng::audio::zx0`) y
@@ -143,7 +144,8 @@ librerías comprimidas con memoria elegida por segmento. El contrato completo es
   refcount/pin, rollback y descarga segura. **✅ ownership hecho**: `DynLoader::load(h, image,
   MemoryManager&, policy)` **posee** la memoria (HUNK por banco vía R6.3; `.englib` copiado a un
   bloque) y `unload(h, mem)` la libera (por banco efectivo), con error sin fugas; **HOST-402**.
-  ⏳ faltan lectura **asíncrona** (R6.2 + `os::file_*`), imports/ABI, `init`/`fini` y refcount/pin.
+  **✅ lectura asíncrona**: `AsyncOverlay` (R6.4) une `AsyncRead` → `decode_engz` → `DynLoader::load`,
+  sin bloquear (demo `212_zone_resources`). ⏳ faltan imports/ABI, `init`/`fini` y refcount/pin.
 - **R6.7 Integración**: demo de transición de zona que cargue `.engz`, ejecute un export y descargue
   la librería sin bloquear el frame. **✅ cadena en host hecha**: **HOST-410** integra `Vfs.read_all`
   → `.engz` → `HunkImage` (carga de overlay end-to-end sin emulador). **✅ demo en hardware**:
