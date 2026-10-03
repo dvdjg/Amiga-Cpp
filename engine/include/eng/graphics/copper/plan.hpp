@@ -99,6 +99,10 @@ public:
 	static constexpr u8 max_bands = 16;
 	static constexpr u8 max_dma_assets = 8; ///< owners Chip retenibles durante la vida de la copperlist
 
+	/// Reserva el doble buffer de copperlist (Chip) y prepara el plan.
+	/// \param memory  gestor de memoria.
+	/// \param cfg     configuración (`copper_bytes`, `first_line`, …).
+	/// \return `false` si no cabe (sin dejar recursos).
 	bool begin(eng::MemoryManager& memory, const PlanConfig& cfg = {}) {
 		release();
 		m_cfg = cfg;
@@ -197,6 +201,11 @@ public:
 	/// Ancla `count` intenciones (líneas **relativas**) a `base_line` absoluto y las añade con
 	/// su prioridad `(surface, z)`. Única verdad del anclaje: lo usan el camino de actor
 	/// (`scene::actor_add_copper`) y el de intención (`scene::SpritePlanExecutor`).
+	/// \param intents    intenciones con líneas **relativas**.
+	/// \param count      nº de intenciones.
+	/// \param base_line  línea absoluta a la que se anclan.
+	/// \param surface    superficie (`(surface, z)` da la prioridad de fusión).
+	/// \param z          orden de superposición.
 	void add_anchored(const graphics::CopperIntent* intents, eng::usize count, s32 base_line,
 			  u8 surface, u8 z) {
 		for (eng::usize i = 0u; i < count; ++i) {
@@ -211,6 +220,9 @@ public:
 	/// (0 = cualquiera). Devuelve `false` si **solapa** con otra reserva (misma línea y
 	/// registros) o si no caben más; así el conflicto entre efectos se detecta en vez de
 	/// resolverse en silencio. Las reservas se limpian en `begin_frame()`.
+	/// \param first,last    tramo de líneas raster (se ordena internamente).
+	/// \param register_mask registros reclamados (`0` = cualquiera).
+	/// \return `false` si solapa con otra reserva o no caben más.
 	[[nodiscard]] bool reserve_band(u16 first, u16 last, u16 register_mask = 0u) {
 		if (first > last) {
 			const u16 t = first;
@@ -238,6 +250,8 @@ public:
 	/// Registra el **coste declarado** de un efecto y lo suma al del frame. Devuelve
 	/// `false` si con este efecto el total supera la capacidad del bloque; el índice del
 	/// culpable queda en `over_budget_effect()`. Se limpia en `begin_frame()`.
+	/// \param c  coste declarado del efecto (`{intents, words}`).
+	/// \return `false` si el total supera la capacidad del bloque.
 	[[nodiscard]] bool note_effect_cost(EffectCost c) {
 		if (m_cost_count >= max_bands) {
 			return false;
@@ -348,6 +362,7 @@ public:
 	}
 
 	/// Publica el buffer delantero (swap de `COP1LC`). Llamar tras VBlank.
+	/// \param backend  el backend (instala la copperlist).
 	template <typename Backend>
 	void commit(Backend& backend) const {
 		m_copper->install(backend);
@@ -359,6 +374,7 @@ public:
 	void flip() { m_copper->flip(); }
 
 	/// Toma el control del display mostrando el buffer delantero (una vez).
+	/// \param backend  el backend (congela el SO y arranca la copperlist).
 	template <typename Backend>
 	void takeover(Backend& backend) const {
 		m_copper->takeover(backend);

@@ -428,6 +428,12 @@ struct PatchZone {
 /// ejecuta las etapas en orden, cierra la lista. El perfil es **obligatorio**. El motivo del
 /// rechazo queda en `scene.config_error()`. Para configs conocidas en compilación, además,
 /// usar `static_assert(valid_scene(res, limits))`.
+/// \param scene   escena a construir.
+/// \param memory  gestor de memoria (Chip).
+/// \param res     recursos (geometría/planos/buffers/layout).
+/// \param limits  perfil de display.
+/// \param stages  etapas `void(Scene&)` a ejecutar en orden.
+/// \return `false` si `res` no es válida o no cabe (ver `config_error()`).
 template <class... Stages>
 bool compose(Scene& scene, MemoryManager& memory, const SceneResources& res,
 	     const DisplayLimits& limits, Stages... stages) {
@@ -442,6 +448,13 @@ bool compose(Scene& scene, MemoryManager& memory, const SceneResources& res,
 /// **Composición de juego sin config explícita**: perfil OCS/A500 y display derivado de `res`
 /// (modo/planos/geometría) + paleta. Es la vía del juego (`ROADMAP_GAME_API.md` §1): el motor elige
 /// el perfil y el `BPLCON0`; el `compose` con `DisplayLimits` + etapas queda como escape.
+/// \param scene   escena a construir.
+/// \param memory  gestor de memoria.
+/// \param res     recursos de la escena.
+/// \param colors  paleta inicial.
+/// \param first   primer color (def. 0).
+/// \param count   nº de colores (def. 32).
+/// \return `false` si no cabe/config inválida.
 inline bool compose(Scene& scene, MemoryManager& memory, const SceneResources& res,
 		    eng::PaletteWords colors, u8 first = 0u, u8 count = 32u) {
 	return compose(scene, memory, res, ocs_a500, display(res), palette(colors, first, count));

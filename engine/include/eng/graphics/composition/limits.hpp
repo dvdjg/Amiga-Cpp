@@ -189,6 +189,9 @@ inline constexpr DisplayLimits aga_a1200 {
 ///
 /// Códigos: 1 ancho no múltiplo de 16 · 2/3 ancho fuera de rango · 4 alto · 5 planos ·
 /// 6 filas lógicas · 7 buffers · 8 modo no soportado · 9 planos del modo · 10 DDF incoherente.
+/// \param res  recursos de escena a validar.
+/// \param l    perfil de display (`ocs_a500`/`ecs`/`aga_a1200`).
+/// \return `ConfigError{0}` si es admisible, o el primer rechazo `{código, mensaje}`.
 [[nodiscard]] constexpr ConfigError validate(const SceneResources& res,
 					     const DisplayLimits& l) {
 	// 1) Anchura: múltiplo de la palabra de fetch (16 px), dentro del rango fetchable/visible.
@@ -310,6 +313,8 @@ inline constexpr DisplayLimits aga_a1200 {
 /// `flip_copper`) + un margen. Es el valor a pedir en el **primer** argumento (Chip) de
 /// `backend.configure_memory`; dimensionarlo mal hace fallar `scene::compose` (no una imagen
 /// incorrecta).
+/// \param res  recursos de escena.
+/// \return bytes de Chip necesarios (bitplanes × buffers + copperlist doble + margen).
 [[nodiscard]] constexpr eng::u32 chip_bytes_for(const SceneResources& res) {
 	const eng::u16 row = static_cast<eng::u16>(((res.width / 8u) + 3u) & ~3u);
 	const eng::u16 rows = (res.rows != 0u) ? res.rows : res.height;
@@ -348,6 +353,8 @@ inline constexpr DisplayGeometry kPal320x256 {0x2c81, 0x2cc1, 0x0038, 0x00d0};
 /// **Geometría de display** coherente con los recursos (DIW/DDF). Si `res` la especifica
 /// (campos != 0) se respeta; si no, se deriva del ancho estándar lores: DIW `0x2c81/0x2cc1`
 /// y DDF `0x0038` + palabras de fetch del ancho. La consumen las etapas de composición.
+/// \param res  recursos de escena (ancho/planos + DIW/DDF opcionales).
+/// \return la geometría DIW/DDF (la declarada, o derivada del ancho).
 [[nodiscard]] constexpr DisplayGeometry geometry_for(const SceneResources& res) {
 	DisplayGeometry g {};
 	g.diwstrt = (res.diwstrt != 0u) ? res.diwstrt : 0x2c81u;

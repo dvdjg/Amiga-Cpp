@@ -106,6 +106,8 @@ enum DmaControl : u16 {
 };
 
 /// Devuelve el offset de un registro COLORxx.
+/// \param index  índice de color (0..31).
+/// \return offset del registro `COLORxx` (base `COLOR00` + `index*2`).
 constexpr u16 color_register(u8 index) {
 	return static_cast<u16>(Register::COLOR00) + static_cast<u16>(index) * 2u;
 }
@@ -115,11 +117,15 @@ constexpr u16 color_register(u8 index) {
 /// Los punteros BPLxPT son pares de registros `PTH/PTL`. El Copper solo puede
 /// escribir words, asi que cargar un puntero requiere dos MOVEs. `plane` usa base
 /// cero para encajar con arrays C++: 0 = BPL1, 5 = BPL6.
+/// \param plane  índice de plano base-cero (0 = BPL1).
+/// \return offset del registro `BPLxPTH`.
 constexpr u16 bitplane_pointer_high_register(u8 plane) {
 	return static_cast<u16>(Register::BPL1PTH) + static_cast<u16>(plane) * 4u;
 }
 
 /// Devuelve el offset del word bajo del puntero de un bitplane.
+/// \param plane  índice de plano base-cero (0 = BPL1).
+/// \return offset del registro `BPLxPTL`.
 constexpr u16 bitplane_pointer_low_register(u8 plane) {
 	return static_cast<u16>(Register::BPL1PTL) + static_cast<u16>(plane) * 4u;
 }
@@ -128,6 +134,9 @@ constexpr u16 bitplane_pointer_low_register(u8 plane) {
 ///
 /// Para las demos tempranas usamos `h = 1`, igual que los ejemplos clasicos:
 /// `0x4001` espera aproximadamente a la linea `$40`.
+/// \param vpos  línea vertical (byte bajo del comparador de WAIT).
+/// \param hpos  posición horizontal (def. 1).
+/// \return la primera word del WAIT (`(vpos<<8) | (hpos & 0xfe) | 1`).
 constexpr u16 wait_word(u8 vpos, u8 hpos = 1) {
 	return static_cast<u16>((static_cast<u16>(vpos) << 8) | (hpos & 0xfe) | 1u);
 }
