@@ -14,6 +14,8 @@
 #include <eng/field/xlimited_scene.hpp>
 #include <eng/field/xlimited_scroll_layer.hpp>
 #include <eng/field/tile_demo.hpp>
+#include <eng/scene/dpf_plan.hpp>
+#include <eng/scene/plan.hpp>
 #include <eng/scene/world_tile_map.hpp>
 
 #include <proto/exec.h>
@@ -152,23 +154,33 @@ struct DemoGame {
 					       static_cast<eng::u16>(kMapHeight * kTile)},
 			eng::Size2u {kWidth, kHeight});
 
-		config.viewport_w = kWidth;
-		config.viewport_h = kHeight;
-		config.tile_width = kTile;
-		config.tile_height = kTile;
-		config.planes = kPlanes;
+		// **Plan de escena** (vocabulario del planner, §7): un campo de scroll (BG) + un **lienzo**
+		// FG (rol `Foreground`, `content = Canvas`). `apply_dpf_plan` siembra geometría/paleta y los
+		// roles del DPF (`fg_canvas` + FG delante); lo específico del corcóscru va aparte.
+		playfield::ScrollPlan bg {};
+		bg.viewport_w = kWidth;
+		bg.viewport_h = kHeight;
+		bg.tile_w = kTile;
+		bg.tile_h = kTile;
+		bg.planes = kPlanes;
+		bg.display_height = kHeight;
+		bg.tilemap.palette = eng::PaletteWords {kPalette, 32u};
+		eng::scene::ScenePlan<2u> plan {};
+		(void)plan.add(eng::scene::LayerRole::Background, eng::scene::LayerPlacement {}, bg);
+		(void)plan.add(eng::scene::LayerRole::Foreground, eng::scene::LayerPlacement {}, {},
+			       eng::scene::LayerContent::Canvas);
+		if (!eng::scene::apply_dpf_plan(config, plan)) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00020307u);
+			return;
+		}
+		// Específico del corcóscru: política de ejes, mapa y generador de filas.
 		config.y_mode = playfield::AxisPolicy::Off;
 		config.direction = playfield::DirectionPolicy::Bidirectional;
-		config.display_height = kHeight;
 		config.max_step = 1u;
 		config.map = MapView {*terrain, kMapWidth, kMapHeight, 0u, 0xffffu};
 		config.tileset_count = kTilesetCount;
 		config.fg_row_fn = &tile_row;
 		config.bg_row_fn = &tile_row;
-		config.palette = kPalette;
-		config.dpf.enabled = true;
-		config.dpf.fg_canvas = true;
-		config.dpf.foreground_is_pf2 = true;
 		// Vuelca la config declarada a la escena y liga la cámara; el `App` arranca y conduce.
 		scene.set_config(config);
 		scene.track_camera(&cam_x, &cam_y);
