@@ -112,7 +112,11 @@ librerías comprimidas con memoria elegida por segmento. El contrato completo es
 - **R6.4 Contenedor comprimido**: crear `.engz` con codec, tamaño comprimido/descomprimido, alineación,
   política, CRC y payload HUNK/ENGL.
 - **R6.5 Decode ZX0 genérico**: reutilizar el depacker existente fuera de `eng::audio` como etapa
-  de recursos y validar truncado, límites y CRC.
+  de recursos y validar truncado, límites y CRC. **✅ hecho**: el depacker vive en
+  `eng/res/zx0.hpp` (`eng::res::zx0`; `eng/audio/zx0.hpp` queda como alias `eng::audio::zx0`) y
+  `eng/res/decode.hpp` (`eng::res::decode`) es la **etapa genérica** de recursos (`Codec::Raw`/
+  `Codec::Zx0`), cubierta por **HOST-398** (Raw, ZX0 con el vector del compresor de referencia,
+  codec desconocido y «no cabe»). Falta integrarla en el contenedor con CRC (R6.4).
 - **R6.6 DynLoader propietario**: integrar lectura asíncrona, estados, imports/ABI, init/fini,
   refcount/pin, rollback y descarga segura.
 - **R6.7 Integración**: demo de transición de zona que cargue `.engz`, ejecute un export y descargue

@@ -244,10 +244,12 @@
   5     9  engine/include/eng/platform/amiga/paula.hpp
   0     1  engine/include/eng/platform/amiga/polygon_fill.hpp
   0     5  engine/include/eng/res/asset_cache.hpp
+  0     1  engine/include/eng/res/decode.hpp
   5     2  engine/include/eng/res/dynloader.hpp
   2     7  engine/include/eng/res/hunk.hpp
   0     4  engine/include/eng/res/load.hpp
   0     1  engine/include/eng/res/symbol_hash.hpp
+  0     4  engine/include/eng/res/zx0.hpp
   0    33  engine/include/eng/retro/fixed_mesh.hpp
   0     2  engine/include/eng/retro/fixed_q.hpp
   0     9  engine/include/eng/retro/fixed_trig.hpp
