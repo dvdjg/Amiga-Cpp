@@ -24,6 +24,7 @@ void check(bool ok, const char* msg) {
 }
 
 using eng::scene::apply_dpf_plan;
+using eng::scene::LayerContent;
 using eng::scene::LayerPlacement;
 using eng::scene::LayerRole;
 using eng::scene::ScenePlan;
@@ -55,6 +56,19 @@ void test_dpf_applied() {
 	      "DPF activado con FG delante en PF2");
 }
 
+void test_canvas_fg() {
+	// FG como **lienzo estático** (rol `Foreground` + `content = Canvas`, p. ej. la 203).
+	ScenePlan<4u> plan {};
+	(void)plan.add(LayerRole::Background, LayerPlacement {});
+	(void)plan.add(LayerRole::Foreground, LayerPlacement {}, eng::playfield::ScrollPlan {},
+		       LayerContent::Canvas);
+	check(plan.strategy() == SceneStrategy::Dpf, "canvas FG sigue siendo Dpf");
+
+	eng::playfield::XlimitedSceneConfigT<eng::playfield::TileLayerMap> cfg {};
+	check(apply_dpf_plan(cfg, plan), "apply con canvas FG");
+	check(cfg.dpf.enabled && cfg.dpf.fg_canvas, "FG lienzo → fg_canvas=true");
+}
+
 void test_not_dpf() {
 	ScenePlan<4u> single {};
 	(void)single.add(LayerRole::Background, LayerPlacement {});
@@ -67,6 +81,7 @@ void test_not_dpf() {
 
 int main() {
 	test_dpf_applied();
+	test_canvas_fg();
 	test_not_dpf();
 	if (failures == 0) {
 		std::printf("OK: estrategia Dpf (etapa 2 §7) validada.\n");

@@ -35,10 +35,18 @@ struct LayerPlacement {
 	[[nodiscard]] constexpr bool ok() const noexcept { return height == 0u || (top + height) > top; }
 };
 
-/// **Capa** de una escena: rol + colocación + scroll (un campo).
+/// **Contenido** de una capa: un campo de scroll o un **lienzo estático** (p. ej. el FG de un DPF que
+/// solo dibuja objetos, sin tilemap ni scroll propio — `dpf.fg_canvas`).
+enum class LayerContent : eng::u8 {
+	Scroll = 0, ///< campo de scroll (tilemap)
+	Canvas,     ///< lienzo estático (dibuja sobre él; sin mapa)
+};
+
+/// **Capa** de una escena: rol + colocación + contenido + scroll (un campo).
 struct LayerPlan {
 	LayerRole role = LayerRole::Background;
 	LayerPlacement placement {};
+	LayerContent content = LayerContent::Scroll;
 	eng::playfield::ScrollPlan scroll {};
 };
 
@@ -96,14 +104,17 @@ enum class SceneStrategy : eng::u8 {
 template <eng::u16 MaxLayers = 8u>
 class ScenePlan {
 public:
-	/// Añade una capa (rol + colocación + scroll). `false` si no cabe o la colocación es inválida.
+	/// Añade una capa (rol + colocación + contenido + scroll). `false` si no cabe o la colocación es
+	/// inválida.
 	[[nodiscard]] bool add(LayerRole role, LayerPlacement placement,
-			       const eng::playfield::ScrollPlan& scroll = {}) noexcept {
+			       const eng::playfield::ScrollPlan& scroll = {},
+			       LayerContent content = LayerContent::Scroll) noexcept {
 		if (m_count >= MaxLayers || !placement.ok()) {
 			return false;
 		}
 		m_layers[m_count].role = role;
 		m_layers[m_count].placement = placement;
+		m_layers[m_count].content = content;
 		m_layers[m_count].scroll = scroll;
 		++m_count;
 		return true;
