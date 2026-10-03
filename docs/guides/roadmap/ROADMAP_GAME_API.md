@@ -285,7 +285,11 @@ los tramos (HOST-411/407; **129** compone la multi-ventana y enruta objetos con 
 `Parallax`/blit por plano (riesgo 4): `playfield::robocod_bg_frame` reúne la copia de fondo (ventana +
 split + blanking + `bg_flip`) y la **112** lo usa (fondo coherente, READY). **Convergencia
 planner↔`RasterLayout`**: `plan_raster_layout` (HOST-411) hace reutilizable el mismo vocabulario en
-el camino de bajo nivel (127/129).
+el camino de bajo nivel (127/129). **Geometría runtime (caso secundario / editor)**: la geometría del
+anillo calculada en runtime (`runtime_scroll_geometry`, HOST-412 — equivale al NTTP) + la
+`ScrollLadder` (HOST-413) permiten que el planner **elija el motor por geometría cargada** sin
+refactorizar el NTTP; el refactor que hace al motor consumir geometría runtime es el escalón
+siguiente.
 
 ## 8. Unificar el vocabulario
 
