@@ -56,6 +56,10 @@ public:
 
 	/// Reserva los dos bloques (mismo tamaño y alineación) en Chip RAM.
 	/// `active` arranca en 1 para que el primer bloque que se escribe sea el 0.
+	/// \param memory          gestor de memoria (Chip).
+	/// \param bytes_per_block capacidad de cada bloque.
+	/// \param alignment       alineación (def. 16).
+	/// \return `false` si no caben los dos bloques.
 	bool begin(eng::MemoryManager& memory, u32 bytes_per_block, u8 alignment = 16) {
 		release();
 		if (bytes_per_block < 4u) return false;
@@ -121,6 +125,7 @@ public:
 	constexpr void flip() { m_active = static_cast<u8>(m_active ^ 1u); }
 
 	/// Toma el control del display mostrando el bloque activo (una vez).
+	/// \param backend  el backend.
 	template <typename Backend>
 	void takeover(Backend& backend) const {
 		if (m_ok) {
@@ -129,6 +134,7 @@ public:
 	}
 
 	/// Publica el bloque activo (swap de `COP1LC`). Llamar tras VBlank.
+	/// \param backend  el backend.
 	template <typename Backend>
 	void install(Backend& backend) const {
 		if (m_ok) {

@@ -101,6 +101,10 @@ constexpr void emit_wait_line(StaticCopperList<MaxWords>& out, eng::u16 vpos,
 }
 
 /// MOVE con registro + dato, anotando la ranura del dato.
+/// \param out         lista estática destino.
+/// \param reg         registro destino.
+/// \param value       palabra de dato.
+/// \param is_address  `true` si el valor es una dirección (lo marca para el reloc).
 template <eng::u16 MaxWords>
 constexpr void emit_move(StaticCopperList<MaxWords>& out, eng::u16 reg, eng::u16 value,
 			 bool is_address = false) {
@@ -113,6 +117,9 @@ constexpr void emit_move(StaticCopperList<MaxWords>& out, eng::u16 reg, eng::u16
 
 /// Materializa un MOVE de puntero de bitplane (PTH + PTL), con las MISMAS ranuras de
 /// registro que `move_bitplane_pointer`.
+/// \param out      lista estática destino.
+/// \param plane    índice de plano base-cero.
+/// \param address  dirección Chip del plano.
 template <eng::u16 MaxWords>
 constexpr void emit_plane_pointer(StaticCopperList<MaxWords>& out, eng::u8 plane,
 				  eng::u32 address) {
