@@ -51,10 +51,11 @@ template <class MapT, eng::u16 MaxLayers>
 		cfg.palette = g.tilemap.palette;
 	}
 	cfg.dpf.enabled = true;
-	// El FG puede ser un **campo de scroll** (PF2) o un **lienzo estático** (`fg_canvas`: solo
-	// dibuja objetos, como la 203). El rol lo dice el `content` de la capa.
+	// El FG puede ser un **campo de scroll** o un **lienzo estático** (`fg_canvas`: solo dibuja
+	// objetos). El rol lo dicen el `content` (lienzo) y la colocación (`field == PF2` → el FG se
+	// materializa en el PF2 del DPF; si no, en PF1).
 	cfg.dpf.fg_canvas = plan.layer(fg).content == LayerContent::Canvas;
-	cfg.dpf.foreground_is_pf2 = true; // el FG (rol `Foreground`) va delante, en PF2
+	cfg.dpf.foreground_is_pf2 = plan.layer(fg).placement.field == 2u;
 	return true;
 }
 

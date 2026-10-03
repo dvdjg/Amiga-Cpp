@@ -44,7 +44,7 @@ void test_dpf_applied() {
 
 	ScenePlan<4u> plan {};
 	(void)plan.add(LayerRole::Background, LayerPlacement {}, bg_scroll);
-	(void)plan.add(LayerRole::Foreground, LayerPlacement {}, bg_scroll);
+	(void)plan.add(LayerRole::Foreground, LayerPlacement {0u, 0u, 2u}, bg_scroll); // FG en PF2
 	check(plan.strategy() == SceneStrategy::Dpf, "el plan es Dpf");
 
 	eng::playfield::XlimitedSceneConfigT<eng::playfield::TileLayerMap> cfg {};
@@ -60,8 +60,8 @@ void test_canvas_fg() {
 	// FG como **lienzo estático** (rol `Foreground` + `content = Canvas`, p. ej. la 203).
 	ScenePlan<4u> plan {};
 	(void)plan.add(LayerRole::Background, LayerPlacement {});
-	(void)plan.add(LayerRole::Foreground, LayerPlacement {}, eng::playfield::ScrollPlan {},
-		       LayerContent::Canvas);
+	(void)plan.add(LayerRole::Foreground, LayerPlacement {0u, 0u, 2u},
+		       eng::playfield::ScrollPlan {}, LayerContent::Canvas);
 	check(plan.strategy() == SceneStrategy::Dpf, "canvas FG sigue siendo Dpf");
 
 	eng::playfield::XlimitedSceneConfigT<eng::playfield::TileLayerMap> cfg {};

@@ -6,6 +6,8 @@
 #include <eng/platform/amiga/backend.hpp>
 #include <eng/core/math/sinetable.hpp>
 #include <eng/field/xlimited_scene.hpp>
+#include <eng/scene/dpf_plan.hpp>
+#include <eng/scene/plan.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -187,14 +189,27 @@ struct DemoGame {
 			return;
 		}
 
-		scene_cfg.viewport_w = static_cast<eng::u16>(kViewportW);
-		scene_cfg.viewport_h = static_cast<eng::u16>(kViewportH);
-		scene_cfg.tile_width = static_cast<eng::u16>(kTileW);
-		scene_cfg.tile_height = static_cast<eng::u16>(kTileH);
-		scene_cfg.planes = kPlanes;
+		// **Escena declarada** por el planner (§7): DPF 3+3 (FG en PF1 delante, BG en PF2 detrás).
+		// `apply_dpf_plan` siembra geometría + flags del DPF (`fg_canvas`/`foreground_is_pf2`).
+		eng::playfield::ScrollPlan layer {};
+		layer.viewport_w = static_cast<eng::u16>(kViewportW);
+		layer.viewport_h = static_cast<eng::u16>(kViewportH);
+		layer.tile_w = static_cast<eng::u16>(kTileW);
+		layer.tile_h = static_cast<eng::u16>(kTileH);
+		layer.planes = kPlanes;
+		layer.display_height = static_cast<eng::u16>(kDisplayH); // anillo 288 (visible 208)
+		eng::scene::ScenePlan<2u> scene_plan {};
+		(void)scene_plan.add(eng::scene::LayerRole::Foreground,
+				     eng::scene::LayerPlacement {0u, 0u, 1u}, layer); // FG (PF1)
+		(void)scene_plan.add(eng::scene::LayerRole::Background, eng::scene::LayerPlacement {},
+				     layer); // BG (PF2)
+		if (!eng::scene::apply_dpf_plan(scene_cfg, scene_plan)) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00020201u);
+			return;
+		}
+		// Específico del corcóscru: política de ejes, mapa/bancos, flags DPF mixtos y tuning.
 		scene_cfg.fetch_mode = 0;
 		scene_cfg.y_mode = eng::playfield::AxisPolicy::Ring;
-		scene_cfg.display_height = static_cast<eng::u16>(kDisplayH); // anillo 288 (visible 208)
 		scene_cfg.direction = eng::playfield::DirectionPolicy::Bidirectional;
 		scene_cfg.linear_display = false; // viewport 208 → split canónico (sin espejo)
 		// DPF MIXTO (defecto): el FG (field0/PF1) en lineal/mirror (sin split,
@@ -234,7 +249,7 @@ struct DemoGame {
 		scene_cfg.blocks_prebuilt_size = g_bank_fg_size;
 		scene_cfg.blocks_prebuilt2 = g_bank_bg;     // PF2 (mapa real 8c)
 		scene_cfg.blocks_prebuilt2_size = g_bank_bg_size;
-		scene_cfg.dpf.enabled = true;               // DPF 3+3 homogéneo
+		// `scene_cfg.dpf.enabled` lo puso `apply_dpf_plan` (DPF 3+3 homogéneo).
 		scene_cfg.dpf.parallax_x = false;           // cada campo se mueve por su cuenta
 		for (eng::u8 i = 0; i < 8; ++i) {
 			g_dpfPalette[i] = kFgPalette[i];

@@ -167,7 +167,8 @@ struct DemoGame {
 		bg.tilemap.palette = eng::PaletteWords {kPalette, 32u};
 		eng::scene::ScenePlan<2u> plan {};
 		(void)plan.add(eng::scene::LayerRole::Background, eng::scene::LayerPlacement {}, bg);
-		(void)plan.add(eng::scene::LayerRole::Foreground, eng::scene::LayerPlacement {}, {},
+		(void)plan.add(eng::scene::LayerRole::Foreground,
+			       eng::scene::LayerPlacement {0u, 0u, 2u}, {}, // FG en PF2 (delante)
 			       eng::scene::LayerContent::Canvas);
 		if (!eng::scene::apply_dpf_plan(config, plan)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020307u);
