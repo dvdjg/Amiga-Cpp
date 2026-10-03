@@ -155,6 +155,9 @@ public:
 	/// parchear su dato despues con `patch_data`. Es la via para que un driver
 	/// parchee registros por frame sin depender de offsets cableados (ver
 	/// `copper::DoubleBuffer`).
+	/// \param reg    registro destino.
+	/// \param value  palabra de dato.
+	/// \return índice (en words) del MOVE emitido (para `patch_data`).
 	u16 move_at(Register reg, u16 value) {
 		++m_report.display_moves;
 		return m_builder.move_at(reg, value);
@@ -169,6 +172,9 @@ public:
 	/// Emite un MOVE **parcheable** y devuelve un `PatchHandle` (guarda el índice y este
 	/// emisor). La app lo escribe por frame con `set(value)`; el `Plan` reorienta el
 	/// scheduler al bloque trasero, así que el handle sigue válido tras el swap.
+	/// \param reg    registro destino.
+	/// \param value  palabra de dato inicial.
+	/// \return handle para reescribir el dato por frame (`handle.set(v)`).
 	[[nodiscard]] PatchHandle patchable(Register reg, u16 value) {
 		const u16 index = move_at(reg, value);
 		return PatchHandle {
@@ -224,6 +230,7 @@ public:
 	}
 
 	/// Emite un WAIT de raster sin asociarlo a una paleta. Camino caliente.
+	/// \param line  línea de espera (0..255).
 	__attribute__((always_inline)) inline void wait_line(u8 line) {
 		m_builder.wait_line(line);
 		if constexpr (Report) {

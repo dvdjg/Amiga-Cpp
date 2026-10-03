@@ -24,6 +24,8 @@ namespace eng::scene {
 /// este `ScrollKind` para declarar su coste de Copper y degradar si no cabe. El vídeo-splitting
 /// (`YUnlimited2`/`XYUnlimited2`/`XYLimited`) usa split por línea (`CopperSplit`); el resto de
 /// anillos X usa reapuntado (`CopperRing`); un Y puro sin split no necesita Copper continuo.
+/// \param v  variante de ejes (ScrollingTricks).
+/// \return la `ScrollKind` de coste que le corresponde.
 [[nodiscard]] constexpr ScrollKind scroll_kind_for_variant(playfield::ScrollVariant v) noexcept {
 	if (playfield::variant_video_split(v)) return ScrollKind::CopperSplit;
 	if (v == playfield::ScrollVariant::YUnlimited) return ScrollKind::Fine;
@@ -62,6 +64,9 @@ namespace eng::scene {
 
 /// **Scroll efectivo**: degrada `requested` hasta que su coste de Copper por línea quepa en
 /// `copper_available_per_line`. `BlitterColumns` no se degrada (no usa Copper).
+/// \param requested                  técnica pedida por la capa.
+/// \param copper_available_per_line  palabras de Copper libres por línea.
+/// \return la técnica efectiva (la pedida, o la de la escalera que quepa).
 [[nodiscard]] constexpr ScrollKind choose_scroll(ScrollKind requested,
 						 u16 copper_available_per_line) noexcept {
 	if (requested == ScrollKind::BlitterColumns || requested == ScrollKind::Strip ||
@@ -90,6 +95,11 @@ struct ScrollMemory {
 /// **Memoria de la ventana** de una técnica. `speed_px` = velocidad máxima de scroll (px/frame):
 /// acota las **bandas de guarda** de `CopperRing`/`BlitterColumns` (a más velocidad, más guarda
 /// para esconder la actualización). `CopperSplit` (xyunlimited) usa márgenes fijos (ring).
+/// \param kind                técnica de scroll.
+/// \param visible_w,visible_h viewport visible (px).
+/// \param planes              profundidad del display.
+/// \param speed_px            velocidad máxima (px/frame; acota la guarda).
+/// \return la ventana (`bytes`, `window_w`, `window_h`) a reservar.
 [[nodiscard]] constexpr ScrollMemory scroll_memory(ScrollKind kind, u16 visible_w, u16 visible_h,
 						   u8 planes, u8 speed_px) noexcept {
 	ScrollMemory m {};

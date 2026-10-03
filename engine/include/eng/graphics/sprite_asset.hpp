@@ -84,6 +84,11 @@ public:
 	/// Dibuja el frame `frame` en `(x, y)`. Añade el/los `BlitJob(s)` al plan.
 	/// `false` si el sprite es inválido, el frame está fuera de rango, o el cookie-cut
 	/// interleaved no lo cubre el ejecutor (ver `bob.hpp`).
+	/// \param plan    plan del frame (recibe los blits).
+	/// \param target  destino de BOBs (base, stride, planos, layout).
+	/// \param frame   índice de frame (0 = primero).
+	/// \param x,y     posición de pantalla del ancla.
+	/// \return `false` si no se pudo encolar (ver arriba).
 	[[nodiscard]] bool draw(FramePlan& plan, const BobTarget& target, u8 frame, s16 x,
 				s16 y) const {
 		return bob_draw(plan, m_bob, frame, x, y, target);
@@ -91,6 +96,10 @@ public:
 
 	/// Borra la caja del sprite en `(x, y)` si su política es `BobErase::ClearRect`
 	/// (con otro algoritmo no hace nada).
+	/// \param plan    plan del frame (recibe el blit de borrado).
+	/// \param target  destino de BOBs de la escena.
+	/// \param x,y     posición de pantalla del ancla.
+	/// \return `false` si no se pudo encolar.
 	[[nodiscard]] bool erase(FramePlan& plan, const BobTarget& target, s16 x, s16 y) const {
 		return bob_erase(plan, m_bob, x, y, target);
 	}

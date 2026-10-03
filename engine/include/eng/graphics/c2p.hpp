@@ -59,6 +59,12 @@ inline void store_word_be(u8* p, u16 v) {
 
 } // namespace c2p_detail
 
+/// chunky 4 bpp (16 colores) → 4 planos (ver contrato del fichero).
+/// \param width   ancho en píxeles (múltiplo de 16).
+/// \param height  alto en filas.
+/// \param stride  paso en bytes entre planos destino.
+/// \param chunky  framebuffer chunky de origen (1 byte/píxel, nibble bajo).
+/// \param planes  planos destino (4 contiguos a `planes + p*stride`).
 inline void c2p_1x1_4(
 	u32 width,
 	u32 height,
@@ -146,6 +152,12 @@ inline void c2p_1x1_4(
 /// el `c2p_1x1_5`/`c2p_1x1_6` de Kalms (merge). Convención igual que `c2p_1x1_4`:
 /// chunky 1 byte/pixel, bits 0..planes-1 = índice; salida planar, filas contiguas
 /// (`row_bytes = width/8`), planos a `planes + p*plane_stride_bytes`.
+/// \param width   ancho en píxeles (múltiplo de 8).
+/// \param height  alto en filas.
+/// \param planes  nº de planos (1..6).
+/// \param stride  paso en bytes entre planos destino.
+/// \param chunky  framebuffer chunky de origen.
+/// \param out_planes  planos destino (contiguos a `out + p*stride`).
 inline void c2p_1x1_naive(
 	u32 width,
 	u32 height,
@@ -190,6 +202,13 @@ inline void c2p_1x1_naive(
 ///
 /// `blit_submit(chunky, planes, width, height, plane_stride, plane_count)` es la vía acelerada
 /// (normalmente `plan.add_c2p(...)`); **no** se llama si los bancos no son ambos Chip.
+/// \param chunky        origen chunky con su banco (compilación).
+/// \param planes        destino planar con su banco.
+/// \param width,height  dimensiones (ancho múltiplo de 16).
+/// \param plane_stride  paso entre planos destino.
+/// \param plane_count   nº de planos (4 = merge rápido; 1..6 = genérico).
+/// \param blit_submit   callable de envío al Blitter (vía acelerada).
+/// \return `true` siempre (si el Blitter declina, cae a CPU).
 template <eng::MemoryKind CK, eng::MemoryKind PK, class BlitSubmit>
 bool c2p(eng::MemView<eng::ChunkyTag, CK> chunky, eng::MemView<eng::PlaneTag, PK> planes,
 	 eng::u32 width, eng::u32 height, eng::u32 plane_stride, eng::u8 plane_count,
@@ -214,6 +233,13 @@ bool c2p(eng::MemView<eng::ChunkyTag, CK> chunky, eng::MemView<eng::PlaneTag, PK
 /// es de runtime — el caso de las demos: reservas de arena cuyo medio decide el setup). La vía se
 /// elige en **runtime** leyendo `kind`: Chip+Chip → `blit_submit`; si **alguna** no es Chip (Agnus
 /// no la ve) → CPU. Si el `blit_submit` declina (p. ej. sin plan), también cae a CPU.
+/// \param chunky       bloque chunky (su `kind` decide la vía en runtime).
+/// \param planes       bloque planar destino.
+/// \param width,height dimensiones (ancho múltiplo de 16).
+/// \param plane_stride paso entre planos.
+/// \param plane_count  nº de planos (4 = merge; 1..6 = genérico).
+/// \param blit_submit  callable de envío al Blitter.
+/// \return `true` siempre (Blitter si ambos Chip, si no CPU).
 template <class BlitSubmit>
 bool c2p(const eng::Block<eng::ChunkyTag>& chunky, const eng::Block<eng::PlaneTag>& planes,
 	 eng::u32 width, eng::u32 height, eng::u32 plane_stride, eng::u8 plane_count,
