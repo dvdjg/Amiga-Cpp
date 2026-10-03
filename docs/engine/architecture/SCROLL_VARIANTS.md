@@ -69,14 +69,20 @@ Especificación:
   banda de guarda **más ancha que la pantalla** (p. ej. 384 px = 320 + 64, fetch 1x4x), aunque el
   scroll principal sea Y. Es `YUnlimited_64` + cámara X limitada a la banda.
 
-### 3.4 Límite del split de Copper (OCS): viewport ≤ 208 px
+### 3.4 Split de Copper (OCS): la línea 255 y el VPOS de 8 bits
 
 El split por línea usa un `WAIT` de Copper cuyo **VPOS es de 8 bits (0–255)**. Con `DIWSTRT` en la
-línea `0x2c` (44), el split cae en `44 + viewport_h`: para `viewport_h = 256` sería la línea 300 y
-**no cabe**. Por eso **todos los modos con Copper split asumen `viewport_h ≤ 208`** (`44 + 208 = 252
-≤ 255`) y así **no hace falta duplicar el buffer** (espejo/lineal). Un viewport de 256 px que necesite
-bucle vertical usa el modo **lineal/espejo** (duplica el bucle en el bitmap) o no usa split. Verificado
-en HOST-244.
+línea `0x2c` (44), el split cae en `44 + viewport_h`. Dos vías:
+
+- **Two-WAIT** (estándar en OCS para displays de 256 líneas): `WAIT $ffdf,$fffe` (fin de la línea 255)
+  seguido de `WAIT $0001,$fffe` (la línea 0, ya cruzada la 255 → línea 256 real); después se
+  re-apuntan los `BPLxPT`. Permite un viewport de **256 px** sin duplicar buffer.
+- **Un solo WAIT** con **`viewport_h ≤ 208`** (`44 + 208 = 252 ≤ 255`): más simple, si no hace falta
+  el display completo.
+
+El viewport de 256 px *sin* split (que necesite bucle vertical) usa el modo **lineal/espejo**
+(duplica el bucle en el bitmap). El header `field/strip_scroller.hpp` expone `split_line` y
+`split_crosses_255`; verificado en HOST-244.
 
 ## 4. Orden de implementación propuesto
 

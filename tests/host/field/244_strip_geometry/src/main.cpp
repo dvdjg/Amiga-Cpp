@@ -133,6 +133,18 @@ int main() {
 		check(okc, "compose_column: concatenacion correcta (BLTAMOD=0)");
 	}
 
+	// Valores de Copper: BPLCON1 = fine; BPLxPT por plano = p*ring_w_bytes + window_word*2.
+	{
+		const auto fr = eng::field::plan_strip_frame<Geom>(5, 0, 0, 0);
+		const auto c = eng::field::strip_copper_values<Geom>(fr);
+		check(c.bplcon1 == 5u, "BPLCON1 = fine scroll");
+		check(c.pt_byte[0] == 0u && c.pt_byte[1] == 46u && c.pt_byte[4] == 184u,
+		      "BPLxPT por plano = p*ring_w_bytes + window*2");
+	}
+	// Split con two-WAIT: 0x2c + 256 = 300 > 255 -> hay que cruzar la 255 con dos WAITs.
+	using Geom256 = eng::field::StripScrollGeometry<320u, 256u, 5u, 16u, 16u, 2u, 1u, true>;
+	check(Geom256::split_crosses_255, "split a 300 usa two-WAIT (cruza la linea 255)");
+
 	if (g_fail != 0) { std::printf("%d fallo(s)\n", g_fail); return 1; }
 	std::printf("OK: geometria de tiras (anillo, guarda, cobertura) e invariantes validados.\n");
 	return 0;

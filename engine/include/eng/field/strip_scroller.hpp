@@ -28,10 +28,10 @@ struct StripScrollGeometry {
 	static_assert(ViewportH % TileH == 0u, "viewport_h multiplo de tile");
 	/// Guarda: cubre el paso maximo (<= 16 px = 1 palabra) mas la palabra en vuelo.
 	static_assert(GuardWords >= 2u, "guarda >= ceil(step_max/16)+1 = 2");
-	/// Split de Copper: el WAIT cae en `0x2c + viewport_h` y debe caber en VPOS (8 bits, 0..255).
-	/// `viewport_h <= 208` -> `0x2c + 208 = 252 <= 255` (y no hace falta duplicar el buffer).
-	static_assert(!SplitVertical || (0x2cu + ViewportH) <= 255u,
-		      "split OCS: 0x2c + viewport_h <= 255 (viewport_h <= 208)");
+	/// Split de Copper: la linea de split es `0x2c + viewport_h`. Con la secuencia **two-WAIT**
+	/// (`$ffdf,$fffe` + `$0001,$fffe`) cruza la linea 255, asi que un display de 256 lineas SI se
+	/// puede partir; el cap `viewport_h <= 208` (`0x2c+208=252`) es la alternativa de un solo WAIT.
+	static_assert(!SplitVertical || ViewportH <= 256u, "split: viewport <= 256 (two-WAIT)");
 
 	// Parametros expuestos (los NTTP no son accesibles como `Geom::X`).
 	static constexpr eng::u16 viewport_w = ViewportW;
@@ -40,6 +40,9 @@ struct StripScrollGeometry {
 	static constexpr eng::u16 tile_w = TileW;
 	static constexpr eng::u16 tile_h = TileH;
 	static constexpr bool split_vertical = SplitVertical;
+	/// Linea del split (`0x2c + viewport_h`); si `> 255` hace falta la secuencia two-WAIT.
+	static constexpr eng::u16 split_line = static_cast<eng::u16>(0x2cu + ViewportH);
+	static constexpr bool split_crosses_255 = split_line > 255u;
 
 	static constexpr eng::u16 visible_words = static_cast<eng::u16>(ViewportW / 16u);	static constexpr eng::u16 ring_w_words =
 		static_cast<eng::u16>(visible_words + GuardWords + FetchExtraWords);
@@ -104,6 +107,35 @@ template <class Geom>
 		}
 	}
 	return f;
+}
+
+/// Valores a escribir en la copperlist por frame (sin re-emitir): fine scroll, la direccion
+/// (offset de byte desde la base del anillo) de cada `BPLxPT`, y la linea de split (con two-WAIT
+/// si cruza la 255).
+struct StripCopper {
+	eng::u16 bplcon1 = 0u;        ///< valor de BPLCON1 (fine scroll 0..15)
+	eng::u32 pt_byte[8] {};       ///< offset de cada `BPLxPT` desde la base del anillo (un anillo continuo)
+	eng::u8 planes = 0u;
+	eng::u16 split_line = 0u;     ///< linea del split (0 = sin split)
+	bool split_two_wait = false;  ///< true si el split cruza la linea 255 (secuencia two-WAIT)
+};
+
+/// Calcula los valores de Copper a parchear a partir del plan de frame. El anillo es **continuo**:
+/// el plano `p` vive `p*ring_w_bytes` por delante, y la ventana empieza en `window_word*2` bytes.
+template <class Geom>
+[[nodiscard]] constexpr StripCopper strip_copper_values(const StripFrame& f) noexcept {
+	StripCopper c {};
+	c.bplcon1 = f.bplcon1_fine;
+	c.planes = Geom::planes;
+	for (eng::u8 p = 0u; p < Geom::planes; ++p) {
+		c.pt_byte[p] = static_cast<eng::u32>(p) * Geom::ring_w_bytes +
+			       static_cast<eng::u32>(f.window_word) * 2u;
+	}
+	if constexpr (Geom::split_vertical) {
+		c.split_line = Geom::split_line;
+		c.split_two_wait = Geom::split_crosses_255;
+	}
+	return c;
 }
 
 /// Predicado de verificación (HOST-244): `dest` no debe caer dentro de la ventana visible.
