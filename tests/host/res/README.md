@@ -26,3 +26,4 @@ Categoría `res` de la batería host (L1). El índice de categorías está en [.
 | HOST-384 | [telemetry](384_telemetry/README.md) | Recursos: `telemetry_from` (`eng/debug/telemetry.hpp`) — panel de memoria desde los **bancos** (`MemoryManager`) + scratch de frame + fragmentación del pool. |
 | HOST-386 | [assets_result](386_assets_result/README.md) | `eng::Assets` con **`Result`** (`add_checked`/`create_checked`): causa del fallo (InvalidArgument/OutOfMemory/HardwareLimit) y `reset_phase`/`clear` que liberan en orden inverso. |
 | HOST-398 | [res_decode](398_res_decode/README.md) | Recursos: `eng::res::decode` (`eng/res/decode.hpp`) — etapa **genérica** de decodificación (`Raw`/`Zx0`) compartida por loader y audio; el descompresor ZX0 vive en `eng/res/zx0.hpp`. R6.5. |
+| HOST-400 | [engz](400_engz/README.md) | Recursos: contenedor **`.engz`** (`eng/res/engz.hpp`) — cabecera (codec/tamaños/alineación) + **CRC-32** + `build`/`parse`/`decode`/`verify`. R6.4. |

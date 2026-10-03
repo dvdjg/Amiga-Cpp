@@ -92,6 +92,7 @@ enum class Result : u8 {
 	InvalidArgument,
 	Unsupported,
 	HardwareLimit,
+	Corrupt, ///< el contenido no supera su verificación (p. ej. CRC de `.engz`)
 };
 
 /// Alinea un entero hacia arriba.

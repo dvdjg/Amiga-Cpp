@@ -246,6 +246,7 @@
   0     1  engine/include/eng/platform/amiga/polygon_fill.hpp
   0     5  engine/include/eng/res/asset_cache.hpp
   0     1  engine/include/eng/res/decode.hpp
+  0    12  engine/include/eng/res/engz.hpp
   5     2  engine/include/eng/res/dynloader.hpp
   2     7  engine/include/eng/res/hunk.hpp
   0     4  engine/include/eng/res/load.hpp

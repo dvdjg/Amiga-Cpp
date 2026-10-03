@@ -110,7 +110,11 @@ librerías comprimidas con memoria elegida por segmento. El contrato completo es
   `FastPreferred` automáticamente para segmentos CPU-only cuando haya Fast; Chip requerido nunca
   degrada a Fast. Ver `FAST_RAM_POLICY.md`.
 - **R6.4 Contenedor comprimido**: crear `.engz` con codec, tamaño comprimido/descomprimido, alineación,
-  política, CRC y payload HUNK/ENGL.
+  política, CRC y payload HUNK/ENGL. **✅ contenedor hecho**: `eng/res/engz.hpp` (`build`/`parse`/
+  `decode_engz`/`verify`) con codec, tamaños, alineación y **CRC-32** sobre el payload, compuesto
+  sobre `res::decode`; **HOST-400** (construir→parsear→decodificar, corrupción → `Corrupt`, magic/
+  truncado). El payload es un blob arbitrario (los formatos HUNK/ENGL van por su lado: `dynloader`).
+  ⏳ falta integrarlo en la E/S asíncrona (leer de disco → decodificar → reservar por segmento).
 - **R6.5 Decode ZX0 genérico**: reutilizar el depacker existente fuera de `eng::audio` como etapa
   de recursos y validar truncado, límites y CRC. **✅ hecho**: el depacker vive en
   `eng/res/zx0.hpp` (`eng::res::zx0`; `eng/audio/zx0.hpp` queda como alias `eng::audio::zx0`) y
