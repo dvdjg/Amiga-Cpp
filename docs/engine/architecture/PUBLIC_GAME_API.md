@@ -199,12 +199,15 @@ y el planner la resuelve. Vocabulario (en `eng/scene/`, reexportable por la fach
 | `apply_dpf_plan(cfg, plan)` | siembra geometría/paleta + roles del DPF en una `XlimitedSceneConfig` | escena (`XlimitedScene`) |
 | `plan_raster_layout(plan, views, out)` | deriva un `scene::RasterLayout` (Single/Dpf/Bands) del plan | **bajo nivel** (`RasterLayout`) |
 | `plan_bands(layers, rows, out)` | valida el layout de bandas y da los tramos `{top,height,rol}` | split-screen |
+| **`App::present_layout(layout)`** / **`present_scene(bands)`** | el **`App` posee la composición**: materializa la copperlist (bloque Chip) y hace el `takeover` del `RasterLayout`/bandas | **fachada** (`App`) |
+| `App::emit_bobs_banded(layer, targets)` / `(…, bands, targets)` | enruta los BOBs al `BobTarget` de cada banda (del plan de escena o explícitas) | **fachada** (`App`) |
 | `BobLayer::emit_banded` / `fast` / `for_each_band_part` | enruta objetos/dibujos a su **banda** | objeto |
 
-Así el **mismo vocabulario** sirve al camino de escena (`XlimitedScene`, demos 203/112) y al de
-**bajo nivel** (`RasterLayout`, demos 127/129/202). Gates: **HOST-405..408/411** + demos 127/129/202
-(migradas; imagen validada). Pendiente (`ROADMAP_GAME_API.md` §7): el planner que **deduzca y posea**
-el motor/la composición desde `ScrollSpec` (hoy el juego declara el motor), y la cámara toroidal.
+Así el **mismo vocabulario** sirve al camino de escena (`XlimitedScene`, demos 203/112), al de
+**fachada** (split-screen por el `App`, demo 131) y al de **bajo nivel** (`RasterLayout`, demos
+127/129/202). Gates: **HOST-240/405..408/411** + demos 127/129/131/202 (migradas; imagen validada).
+Pendiente (`ROADMAP_GAME_API.md` §7): que el motor **consuma geometría runtime** (hoy el `App` elige
+entre motores NTTP por `ScrollLadder`) y la cámara toroidal.
 
 ### 2.1.4 Recursos — `app.load<T>(...)` y presupuesto
 

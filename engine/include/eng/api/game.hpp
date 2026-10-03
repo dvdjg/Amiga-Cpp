@@ -55,6 +55,7 @@
 #include <eng/res/budget.hpp>
 #include <eng/scene/band_plan.hpp>
 #include <eng/scene/bobs.hpp>
+#include <eng/scene/display.hpp>
 #include <eng/scene/plan.hpp>
 #include <eng/scene/world.hpp>
 #include <eng/task/background.hpp>
@@ -536,6 +537,56 @@ public:
 	/// Plan de escena formado por las capas de scroll registradas con rol.
 	[[nodiscard]] const auto& scene_plan() const noexcept { return m_scene_plan; }
 
+	/// **Compone la pantalla por bandas y toma el display** (`RasterLayout`): el juego aporta las
+	/// `Band`s (p. ej. `plan_raster_layout` sobre las vistas de sus capas, o `band_from_view`) y el
+	/// `App` **materializa** la copperlist en Chip (**de la que es dueño**) y hace el `takeover`.
+	/// Es el camino del split-screen / varios tramos por la fachada: el `App` posee la
+	/// composición, no solo la escena de un campo. `false` si no hay bandas, memoria, o el backend
+	/// no expone `takeover_display`. Llámalo una vez (en `init`, como `takeover`).
+	template <eng::usize N>
+	[[nodiscard]] bool present_scene(const eng::scene::Band (&bands)[N]) noexcept {
+		return present_scene(eng::Span<const eng::scene::Band> {bands, N});
+	}
+	[[nodiscard]] bool present_scene(eng::Span<const eng::scene::Band> bands) noexcept {
+		if (bands.empty()) {
+			return false;
+		}
+		eng::scene::RasterLayout layout {};
+		for (eng::usize i = 0u; i < bands.size(); ++i) {
+			(void)layout.add(bands[i]);
+		}
+		return present_layout(layout);
+	}
+	/// **Materializa y muestra una `RasterLayout` ya construida** (p. ej. por `plan_raster_layout`)
+	/// y hace el `takeover`. La copperlist la posee el `App`. El juego que prefiere declarar el
+	/// layout entero (varios tramos con geometría propia) usa esta forma.
+	[[nodiscard]] bool present_layout(const eng::scene::RasterLayout& layout) noexcept {
+		if (!m_scene_copper.valid()) {
+			auto& mem = m_memory.valid() ? *m_memory.get() : m_backend.memory_manager();
+			m_scene_copper = mem.chip().template reserve<eng::CopperTag>(kSceneCopperWords, 16u);
+			if (!m_scene_copper.valid()) {
+				return false;
+			}
+		}
+		if constexpr (requires(Backend& backend, const eng::u16* list) {
+			      backend.takeover_display(list);
+		      }) {
+			const eng::Bytes<eng::CopperTag> slice = m_scene_copper.view;
+			eng::copper::SchedulerT<false> sched {eng::Block<eng::CopperTag> {slice, m_scene_copper.kind}};
+			if (!layout.materialize(sched)) {
+				return false;
+			}
+			sched.end();
+			if (!sched.ok()) {
+				return false;
+			}
+			m_backend.takeover_display(sched.data());
+			return true;
+		} else {
+			return false;
+		}
+	}
+
 	/// **Tramos de banda** del plan de escena (para rutar objetos/dibujos con
 	/// `BobLayer::emit_banded`/`for_each_band_part`): deriva el layout de bandas (`plan_bands`) sobre
 	/// el alto del display. Devuelve cuántas bandas escribió (`0` si el plan no es de bandas).
@@ -560,8 +611,17 @@ public:
 							 eng::scene::LayerRole::Foreground};
 			n = 1u;
 		}
-		return layer.emit_banded(m_plan, eng::Span<const eng::scene::BandSpan> {bands, n},
-					 targets, fine);
+		return emit_bobs_banded(layer, eng::Span<const eng::scene::BandSpan> {bands, n},
+					targets, fine);
+	}
+	/// Igual, pero con los **tramos de banda explícitos** (para el juego que compone sus propias
+	/// bandas, p. ej. con `present_layout`/`plan_bands` sin capas de scroll registradas).
+	template <class Bobs>
+	[[nodiscard]] eng::u16 emit_bobs_banded(Bobs& layer,
+						eng::Span<const eng::scene::BandSpan> bands,
+						eng::Span<const eng::graphics::BobTarget> targets,
+						eng::Span<const eng::u8> fine = {}) {
+		return layer.emit_banded(m_plan, bands, targets, fine);
 	}
 
 	/// **Planner (actores)**: emite los actores del `world()` al plan del frame con el clip y
@@ -763,6 +823,9 @@ private:
 	static constexpr u8 kMaxBitmapOwners = graphics::FramePlan::kMaxDmaAssets;
 	static constexpr u16 kMaxScenes = 8u;
 	static constexpr u8 kMaxScrollLayers = 4u;
+	/// Palabras de Copper para la copperlist que **posee** el `App` en el display por bandas
+	/// (`present_scene`): cabecera + punteros por tramo/paleta, con holgura.
+	static constexpr u32 kSceneCopperWords = 2048u;
 	static constexpr u32 kSizeLimit = 0xffffffffu;
 	static constexpr u16 kBitmapAlignmentBytes = 16u;
 	static constexpr u16 kWorldCoordinateLimit = 0x7fffu;
@@ -878,6 +941,8 @@ private:
 	/// Plan de escena de las capas registradas **con rol** (planner §7); su estrategia la da
 	/// `scene_strategy()`. El camino manual (sin rol) no lo alimenta.
 	eng::scene::ScenePlan<kMaxScrollLayers> m_scene_plan {};
+	/// Copperlist del display por bandas (`present_scene`): la **posee** el `App` (bloque Chip).
+	eng::Block<eng::CopperTag> m_scene_copper {};
 	input::InputAggregator m_input {};                  ///< entrada del frame (la lee/rellena el juego)
 	graphics::FramePlan m_plan {};
 	u32 m_frame = 0;

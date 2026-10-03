@@ -26,10 +26,19 @@ void check(bool ok, const char* msg) {
 	}
 }
 
-/// Backend minimo: el ciclo del bucle y un `MemoryManager` (lo pide `add_scroll_layer`).
+/// Backend minimo: el ciclo del bucle, un `MemoryManager` con Chip (lo piden `add_scroll_layer`
+/// y `present_scene`) y `takeover_display` (lo pide el display por bandas).
 struct MockBackend {
+	alignas(16) eng::u8 m_chip[16u * 1024u] {};
 	eng::MemoryManager m_mm {};
+	int takeovers = 0;
+	const eng::u16* last_copper = nullptr;
+	MockBackend() { (void)m_mm.configure(m_chip, sizeof(m_chip), nullptr, 0u, nullptr, 0u, 16u); }
 	eng::MemoryManager& memory_manager() { return m_mm; }
+	void takeover_display(const eng::u16* copper_words) {
+		++takeovers;
+		last_copper = copper_words;
+	}
 	void boot() {}
 	void wait_vblank() {}
 	template <class F, class P>
@@ -215,6 +224,24 @@ int main() {
 		check(geo.has_value(), "geometría válida");
 		check(app3.pick_scroll_engine(ladder, *geo), "pick_scroll_engine registra el motor elegido");
 		check(chosen.begins == 1, "el motor elegido quedó arrancado");
+	}
+	{
+		// `present_scene`: el App materializa un `RasterLayout` (bandas) y toma el display.
+		MockBackend backend {};
+		SceneGame game {};
+		App app {backend, game};
+		eng::scene::Band bands[2] {};
+		bands[0].planes = 0u; // franja sin DMA de planos (solo cabecera)
+		bands[1].top = 128u;
+		bands[1].planes = 0u; // tramo conmutado a top=128
+		check(app.present_scene(bands), "present_scene materializa 2 bandas y toma el display");
+		check(backend.takeovers == 1, "present_scene llama takeover_display una vez");
+		check(backend.last_copper != nullptr, "present_scene entrega una copperlist válida");
+
+		// Sin bandas → no toca el display.
+		const int before = backend.takeovers;
+		check(!app.present_scene(eng::Span<const eng::scene::Band> {}), "sin bandas devuelve false");
+		check(backend.takeovers == before, "sin bandas no hace takeover");
 	}
 
 	if (failures == 0) {
