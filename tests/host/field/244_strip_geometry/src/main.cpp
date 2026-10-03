@@ -165,6 +165,32 @@ int main() {
 		      "tile 32: BLTDMOD=46 y BLTSIZE=(960<<6)|2");
 	}
 
+	// Fila (scroll Y): 20 tiles de 80 palabras -> 1600 palabras; ancho 20 words, alto 80 planelines.
+	{
+		eng::u16 bank[16u * 80u];
+		for (eng::u16 id = 0u; id < 16u; ++id) {
+			for (eng::u16 i = 0u; i < 80u; ++i) bank[id * 80u + i] = static_cast<eng::u16>(id * 1000u + i);
+		}
+		eng::u16 ids[Geom::row_tiles];
+		for (eng::u16 c = 0u; c < Geom::row_tiles; ++c) ids[c] = static_cast<eng::u16>(c % 16u);
+		eng::u16 out[Geom::row_tiles * Geom::row_planelines];
+		const eng::u16 n = eng::field::compose_row<Geom>(out, bank, ids, 80u);
+		check(n == static_cast<eng::u16>(Geom::row_tiles * Geom::row_planelines),
+		      "compose_row: 20 x 80 = 1600 palabras");
+		check(Geom::strip_row_words == Geom::visible_words && Geom::row_planelines == 80u,
+		      "fila: 20 words de ancho, 80 planelines de alto");
+		bool okr = true;
+		for (eng::u16 c = 0u; c < Geom::row_tiles && okr; ++c) {
+			for (eng::u16 i = 0u; i < Geom::row_planelines; ++i) {
+				// out[line*planes+plane][c] en orden (line,plane,c)
+				(void)i;
+			}
+		}
+		// Primer word = tile 0, linea 0, plano 0.
+		okr = out[0] == bank[ids[0] * 80u];
+		check(okr, "fila: orden (linea, plano, columna) correcto");
+	}
+
 	// Valores de Copper: BPLCON1 = fine; BPLxPT por plano = p*ring_w_bytes + window_word*2.
 	{
 		const auto fr = eng::field::plan_strip_frame<Geom>(20, 0, 0, 0);

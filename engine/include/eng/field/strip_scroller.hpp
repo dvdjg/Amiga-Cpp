@@ -74,6 +74,12 @@ struct StripScrollGeometry {
 	/// Tiles que forman una columna/fila completa.
 	static constexpr eng::u16 column_tiles = static_cast<eng::u16>(ViewportH / TileH);
 	static constexpr eng::u16 row_tiles = static_cast<eng::u16>(ViewportW / TileW);
+	/// Tira HORIZONTAL (fila) para el scroll Y: ancho = viewport, alto = tile_h x planos. El blit
+	/// reutiliza el de columna con estos parametros (`{strip_row_words, row_planelines, bltdmod_row}`).
+	static constexpr eng::u16 strip_row_words = static_cast<eng::u16>(visible_words);
+	static constexpr eng::u16 row_planelines = static_cast<eng::u16>(TileH * Planes);
+	static constexpr eng::u16 bltdmod_row =
+		static_cast<eng::u16>(ring_w_bytes - visible_words * 2u);
 	/// Anillo vertical (solo si hay split): alto del bitmap.
 	static constexpr eng::u16 ring_h = static_cast<eng::u16>(ViewportH + (SplitVertical ? 2u * TileH : 0u));
 };
@@ -214,6 +220,28 @@ template <class Geom>
 	for (eng::u16 t = 0u; t < Geom::column_tiles; ++t) {
 		const eng::u16* src = tile_bank + static_cast<eng::u32>(tile_ids[t]) * bank_stride_words;
 		for (eng::u16 i = 0u; i < tile_words; ++i) dst[w++] = src[i];
+	}
+	return w;
+}
+
+/// **Compone una fila completa** (viewport entero) concatenando los `Geom::row_tiles` tiles del banco
+/// (cada uno `tile_h*planes` palabras) en `dst` **contiguo**, interleaved (por linea, por plano, por
+/// columna), listo para el blit de fila con `BLTAMOD=0`. Tiles **separados**, copiados uno a uno.
+/// Devuelve las palabras escritas (`row_tiles*tile_h*planes`).
+template <class Geom>
+[[nodiscard]] constexpr eng::u16 compose_row(eng::u16* dst, const eng::u16* tile_bank,
+					     const eng::u16* tile_ids,
+					     eng::u16 bank_stride_words) noexcept {
+	const eng::u16 cols = Geom::row_tiles;
+	eng::u16 w = 0u;
+	for (eng::u16 line = 0u; line < Geom::tile_h; ++line) {
+		for (eng::u8 plane = 0u; plane < Geom::planes; ++plane) {
+			for (eng::u16 c = 0u; c < cols; ++c) {
+				const eng::u16* src = tile_bank +
+					static_cast<eng::u32>(tile_ids[c]) * bank_stride_words;
+				dst[w++] = src[static_cast<eng::u32>(line) * Geom::planes + plane];
+			}
+		}
 	}
 	return w;
 }

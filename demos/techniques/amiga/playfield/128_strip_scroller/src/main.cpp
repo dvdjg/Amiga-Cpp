@@ -28,8 +28,20 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
-// Anillo de 2 pantallas (640 px) + guarda/fetch; viewport 208 px (split/cabe en VPOS si hiciera).
+// Anillo de 2 pantallas (640 px) + guarda/fetch; viewport 256 px.
+// `K_TILE32=1` cambia a tiles de 32x32 (guarda 64 px = 4 words).
+#ifndef K_TILE32
+#define K_TILE32 0
+#endif
+#if K_TILE32
+using Geom = eng::field::StripScrollGeometry<320u, 256u, 5u, 32u, 32u, 4u, 1u, false, 43u>;
+constexpr eng::u16 kObjCols = 1u; // objeto = 1 tile de 32x32
+constexpr eng::u16 kObjRows = 1u;
+#else
 using Geom = eng::field::StripScrollGeometry<320u, 256u, 5u, 16u, 16u, 2u, 1u, false, 43u>;
+constexpr eng::u16 kObjCols = 2u; // objeto = 2x2 tiles = 32x32
+constexpr eng::u16 kObjRows = 2u;
+#endif
 
 constexpr eng::u16 kTilesetTiles = 16u;
 constexpr eng::u16 kTileWords = Geom::tile_h * Geom::planes;          // 80
@@ -57,7 +69,7 @@ constexpr eng::s32 kStepX = 2;                                         // px/fra
 		// **Objetos singulares**: bloques de 2x2 (32x32) cada 6 columnas, cada uno de un color
 		// DISTINTO, sobre un fondo tenue. Uno de ellos es **blanco** (marcador unico para medir
 		// el paso exacto del scroll en `motion-check.py`).
-		if ((col % 6u) < 2u && (row % 8u) >= 2u && (row % 8u) < 4u) {
+		if ((col % 6u) < kObjCols && (row % 8u) >= 2u && (row % 8u) < 2u + kObjRows) {
 			const eng::u16 idx = static_cast<eng::u16>((col / 6u) % 14u);
 			return (idx == 4u) ? 7u /* tile 7 = color 8 = blanco */ : static_cast<eng::u16>(1u + idx);
 		}
