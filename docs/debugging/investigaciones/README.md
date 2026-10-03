@@ -45,6 +45,7 @@ Norma: **preguntar al modelo externo (Grok) en inglés** — responde mejor en e
 | [consulta-optimizacion-blitter-demoscene.md](consulta-optimizacion-blitter-demoscene.md) | El port C++ de `flatshade-convex` es 2.4× más lento que el original (670k vs 287k ciclos/frame) pese a los mismos blits; desglose por secciones y preguntas. |
 | [consulta-scroll-optimizacion.md](consulta-scroll-optimizacion.md) | Optimización de los algoritmos de scroll por tiles en A500 para **50 fps con CPU baja**: todas las variantes limited (X/Y/XY), tiles 16×16 y 32×32, pasos 1–16 px, DPF 3+3. Diseño actual (corkscrew vs anillo de tiras), medidas y preguntas concretas. |
 | [consulta-scroll-optimizacion-en.md](consulta-scroll-optimizacion-en.md) | English version of the tile-scroll optimization consultation (**ask Grok in English**). |
+| [consulta-scroll-optimizacion-seguimiento-en.md](consulta-scroll-optimizacion-seguimiento-en.md) | Follow-up: request for a **reference implementation** of the recommended Copper-ring + strip scroller (exact registers, ring geometry, guard invariants, XY split, 32×32, DPF 25 fps, host verification). |
 | [consulta-asm-flatshade.md](consulta-asm-flatshade.md) | Consulta: port ASM m68k de `flatshade-convex` (demo 116). |
 | [consulta-asm-flatshade-seguimiento.md](consulta-asm-flatshade-seguimiento.md) | Seguimiento 1: aplicados los fixes, sigue negro. |
 | [consulta-asm-flatshade-seguimiento2.md](consulta-asm-flatshade-seguimiento2.md) | Seguimiento 2 de la consulta ASM de `flatshade-convex`. |
