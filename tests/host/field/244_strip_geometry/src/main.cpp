@@ -42,6 +42,11 @@ static_assert(Geom::column_planelines == 1040u, "208 x 5 planos");
 static_assert(Geom::column_blits == 2u, "1040 > 1024 -> 2 blits");
 static_assert(Geom32::column_planelines == 960u, "192 x 5 planos");
 static_assert(Geom32::column_blits == 1u, "960 <= 1024 -> 1 blit");
+// Tile 32: tira de 2 words, anillo 50 B, BLTDMOD 46, 6 tiles por columna (192/32).
+static_assert(Geom32::strip_words == 2u, "tile 32 -> 2 words");
+static_assert(Geom32::ring_w_bytes == 50u, "320 + 64 guarda + 16 fetch = 400 px = 50 B");
+static_assert(Geom32::bltdmod_col == 46u, "BLTDMOD = 50 - 4");
+static_assert(Geom32::column_tiles == 6u, "192 / 32 = 6 tiles");
 // Split OCS: la linea de split es 0x2c + viewport_h; con 208 -> 252 <= 255 (cabe).
 
 struct Lcg {
@@ -133,6 +138,27 @@ int main() {
 		check(okc, "compose_column: concatenacion correcta (BLTAMOD=0)");
 	}
 
+	// Composicion con tile 32: 6 tiles de 32x32x5 = 160 palabras -> 960 contiguas.
+	{
+		eng::u16 bank[8u * 160u];
+		for (eng::u16 id = 0u; id < 8u; ++id) {
+			for (eng::u16 i = 0u; i < 160u; ++i) bank[id * 160u + i] = static_cast<eng::u16>(id * 1000u + i);
+		}
+		eng::u16 ids[6u] = {2u, 5u, 1u, 7u, 0u, 3u};
+		eng::u16 out[Geom32::column_planelines];
+		const eng::u16 n = eng::field::compose_column<Geom32>(out, bank, ids, 160u);
+		bool okc = n == Geom32::column_planelines;
+		for (eng::u16 t = 0u; t < 6u && okc; ++t) {
+			for (eng::u16 i = 0u; i < 160u; ++i) {
+				if (out[t * 160u + i] != bank[ids[t] * 160u + i]) { okc = false; break; }
+			}
+		}
+		check(okc, "tile 32: compose_column 6x160 = 960 palabras");
+		const auto bs = eng::field::strip_blit_desc<Geom32>(7u, 0u);
+		check(bs.bltdmod == 46 && bs.bltsize == static_cast<eng::u16>((960u << 6u) | 2u),
+		      "tile 32: BLTDMOD=46 y BLTSIZE=(960<<6)|2");
+	}
+
 	// Valores de Copper: BPLCON1 = fine; BPLxPT por plano = p*ring_w_bytes + window_word*2.
 	{
 		const auto fr = eng::field::plan_strip_frame<Geom>(5, 0, 0, 0);
@@ -144,6 +170,12 @@ int main() {
 	// Split con two-WAIT: 0x2c + 256 = 300 > 255 -> hay que cruzar la 255 con dos WAITs.
 	using Geom256 = eng::field::StripScrollGeometry<320u, 256u, 5u, 16u, 16u, 2u, 1u, true>;
 	check(Geom256::split_crosses_255, "split a 300 usa two-WAIT (cruza la linea 255)");
+
+	// Streaming: un frame sin cruce de tile no compone ni blitea (0 blits; solo parcheo de Copper).
+	check(eng::field::plan_strip_frame<Geom>(5, 0, 5, 0).blits == 0u,
+	      "sin cruce: 0 blits (solo parcheo de Copper)");
+	check(eng::field::plan_strip_frame<Geom>(20, 0, 5, 0).blits == 1u,
+	      "con cruce (5->20): 1 columna");
 
 	if (g_fail != 0) { std::printf("%d fallo(s)\n", g_fail); return 1; }
 	std::printf("OK: geometria de tiras (anillo, guarda, cobertura) e invariantes validados.\n");
