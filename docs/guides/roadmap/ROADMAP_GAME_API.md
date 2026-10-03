@@ -190,9 +190,9 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
   lo verifica end-to-end (contenido de la ventana + palabra extra). ✅ **capa de fachada**
   `field::StripScrollLayer<Geom, Map, Backend>`: agrupa buffers + controlador + compositor; el juego solo
   declara mapa/banco/paleta/tamaños y conduce con `frame()` (la demo 128 ya no ve el compositor). ✅ **`App`
-  la conduce**: `App::add_scroll_layer(layer)` la arranca (memoria + backend) con un asa *type-erased*
-  (`ScrollLayerHandle`) y la conduce por frame tras el `update` del juego (`pump_scroll_layers`); HOST-240 lo
-  cubre con una capa mock. ✅ **asset de tilemap** `field::TilemapView` (banco + mapa + paleta) ligado con
+  la conduce**: `App::add_scroll_layer(layer)` la arranca (memoria + backend) y la conduce por frame tras el
+  `update` del juego (`pump_scroll_layers`); la capa implementa la **interfaz C++** `playfield::ScrollLayer<Backend>`
+  (sin `void*` ni punteros a función; la memoria llega **tipada** por `MemoryManager&`); HOST-240 lo cubre con un mock. ✅ **asset de tilemap** `field::TilemapView` (banco + mapa + paleta) ligado con
   `StripScrollLayer::set_tilemap` (el juego no escribe el adaptador). ✅ **demo `App`** =
    `demos/techniques/amiga/playfield/204_app_strip_scroll` (App + capa de tiras; el juego no ve el compositor;
    scroll suave validado con Ollama). ✅ **seam público cerrado**: la fachada `eng/api/scroll.hpp`
@@ -220,15 +220,22 @@ hoy no cerradas (por eso el juego aún nombra el motor):
    finito); un mapa **toroidal** necesita una posición px **sin recortar**. La fachada ya admite ambas
    (`follow_camera` vs `track_camera`), pero falta que el planner **elija** la representación desde
    `ScrollSpec` (`map_period_words == 0` ⇒ acotado; `!= 0` ⇒ toroidal).
-3. **Ranura de la capa en el `App`.** El asa *type-erased* (`ScrollLayerHandle`) ya abstrae el motor;
-   falta que el `App` **posea** el motor (hoy lo declara el juego) y le pase la cámara de la capa
-   `World` automáticamente.
+3. **Ranura de la capa en el `App`.** La interfaz `playfield::ScrollLayer<Backend>` ya abstrae el motor
+   (el `App` guarda `ScrollLayer<Backend>*`); falta que el `App` **posea** el motor (hoy lo declara el
+   juego) y le pase la cámara de la capa `World` automáticamente.
 
 **Pasos verificables** (cada uno con su gate): (a) ✅ `follow_camera`/`track_camera` (seam §7); (b)
-`ScrollSpec::map_period_words` conduce la elección acotado/toroidal; (c) `XlimitedScene` gana `handle()`
-y seguimiento de cámara (unifica el asa con el camino de tiras); (d) `App::add_tilemap_layer` construye
-el motor canónico desde `TilemapView` + `ScrollSpec` y lo conduce por la cámara de la capa; (e) demo
-`App` con una capa `World` Tilemap **sin nombrar** `Strip`/`Xlimited` (gate F4).
+`ScrollSpec::map_period_words` conduce la elección acotado/toroidal; (c) ✅ **asa uniforme**: el
+**interfaz C++** `playfield::ScrollLayer<Backend>` (`field/scroll_layer.hpp`): `StripScrollLayer` la
+implementa y `XlimitedScene` se adapta con `XlimitedScrollLayer<Scene, Backend>`; `App::add_scroll_layer`
+conduce **cualquier** motor (tiras o corcóscru) por el mismo contrato, **sin `void*` ni punteros a
+función** y con la memoria **tipada** (`MemoryManager&`). La demo **203** se migró a `App` + `handle()`
+(F4: `World` Tilemap + motor declarado + `App`, sin `compose`/`FramePlan` en el juego) y mide
+**49,92 fps** (142 102 ciclos/frame, idéntico al camino directo ⇒ asa a coste cero). (d)
+`App::add_tilemap_layer` construye el motor canónico desde `TilemapView` + `ScrollSpec` y lo conduce
+por la cámara de la capa; (e) demo `App` con una capa `World` Tilemap **sin nombrar** `Strip`/`Xlimited`
+(gate F4) — hasta (d) el juego declara el motor (config conocida en compilación, el caso habitual,
+incluso uno por nivel).
 
 ## 8. Unificar el vocabulario
 

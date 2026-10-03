@@ -494,18 +494,14 @@ public:
 	[[nodiscard]] scene::World<GameDisplay::kWorldLayerCapacity>& world() noexcept { return m_world; }
 	[[nodiscard]] const scene::World<GameDisplay::kWorldLayerCapacity>& world() const noexcept { return m_world; }
 
-	/// **Registra una capa de scroll** (p. ej. `playfield::StripScrollLayer`): `App` la **arranca** con
-	/// su memoria y backend y la **conduce por frame**; el juego no ve el compositor ni los
-	/// registros. `false` si no cabe o el arranque falla. Llamar desde `Game::init(App&)`.
-	template <class Layer>
-	[[nodiscard]] bool add_scroll_layer(Layer& layer) noexcept {
+	/// **Registra una capa de scroll** (`playfield::ScrollLayer<Backend>` — p. ej.
+	/// `StripScrollLayer` o `XlimitedScrollLayer`): `App` la **arranca** con su memoria (bloques
+	/// **tageados** por banco) y su backend, y la **conduce por frame**; el juego no ve el compositor,
+	/// los buffers ni los registros. `false` si no cabe o el arranque falla. Llamar desde `init(App&)`.
+	[[nodiscard]] bool add_scroll_layer(eng::playfield::ScrollLayer<Backend>& layer) noexcept {
 		if (m_scroll_count >= kMaxScrollLayers) return false;
-		ScrollLayerHandle h = layer.handle();
-		if (!h.valid()) return false;
-		if (h.begin != nullptr && !h.begin(h.obj, &m_backend.memory_manager(), &m_backend)) {
-			return false;
-		}
-		m_scroll_layers[m_scroll_count++] = h;
+		if (!layer.begin(m_backend.memory_manager(), m_backend)) return false;
+		m_scroll_layers[m_scroll_count++] = layer;
 		return true;
 	}
 	[[nodiscard]] u8 scroll_layer_count() const noexcept { return m_scroll_count; }
@@ -717,7 +713,7 @@ private:
 	/// llama tras el `update` del juego, para que este ya haya movido su cámara/scroll.
 	void pump_scroll_layers() noexcept {
 		for (u8 i = 0u; i < m_scroll_count; ++i) {
-			m_scroll_layers[i].frame(m_scroll_layers[i].obj, &m_backend);
+			if (m_scroll_layers[i].valid()) m_scroll_layers[i]->frame(m_backend);
 		}
 	}
 
@@ -818,7 +814,8 @@ private:
 	volatile u32 m_blitdone_count = 0;                  ///< fines de blit publicados (IRQ)
 	eng::Ref<graphics::composition::Scene> m_scene {};  ///< escena del juego (no propietaria)
 	scene::World<GameDisplay::kWorldLayerCapacity> m_world {}; ///< mundo retenido (capas + cámaras)
-	ScrollLayerHandle m_scroll_layers[kMaxScrollLayers] {};    ///< capas de scroll que conduce el App
+	/// Capas de scroll que conduce el `App` (**observadores no propietarios**: las posee el juego).
+	eng::Ref<eng::playfield::ScrollLayer<Backend>> m_scroll_layers[kMaxScrollLayers] {};
 	u8 m_scroll_count = 0u;
 	input::InputAggregator m_input {};                  ///< entrada del frame (la lee/rellena el juego)
 	graphics::FramePlan m_plan {};

@@ -36,20 +36,16 @@ struct MockBackend {
 	void wait_vblank(F, P) {}
 };
 
-/// Capa de scroll mock (type-erased): `App` la arranca (`begin`) y la conduce por frame (`frame`).
-struct MockScroll {
+/// Capa de scroll mock que implementa la interfaz `ScrollLayer`: `App` la arranca (`begin`) y la
+/// conduce por frame (`frame`). Memoria **tipada** (`MemoryManager&`), backend por su tipo real.
+struct MockScroll : eng::playfield::ScrollLayer<MockBackend> {
 	int begins = 0;
 	int frames = 0;
-	eng::ScrollLayerHandle handle() noexcept {
-		eng::ScrollLayerHandle h {};
-		h.obj = this;
-		h.begin = [](void* o, void*, void*) -> bool {
-			++static_cast<MockScroll*>(o)->begins;
-			return true;
-		};
-		h.frame = [](void* o, void*) { ++static_cast<MockScroll*>(o)->frames; };
-		return h;
+	bool begin(eng::MemoryManager&, MockBackend&) noexcept override {
+		++begins;
+		return true;
 	}
+	void frame(MockBackend&) noexcept override { ++frames; }
 };
 
 /// El `Game` es el *composition root*: solo empuja escenas; sin escena activa conduce el frame.

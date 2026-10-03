@@ -6,12 +6,13 @@
 /// solo declara el mapa, el banco de tiles, la paleta y los tamaños, y conduce la capa con
 /// `frame(scroll, prev)`; **no ve** el compositor, los `BPLxPT` ni los buffers.
 ///
-/// La capa es *backend-agnóstica* salvo el `Sink`/`takeover` (templada en `Backend`). Para juegos
-/// sobre `App` (que oculta el backend) existe `handle()`, un asa *type-erased* que el `App`
-/// conduce por frame pasándole su backend (ver `App::add_scroll_layer`).
+/// Implementa `playfield::ScrollLayer<Backend>` (la **interfaz** que el `App` arranca y conduce por
+/// frame): un juego sobre `App` la registra con `add_scroll_layer` y no ve el compositor, los
+/// buffers ni el backend.
 
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/field/scroll_layer.hpp>
 #include <eng/field/strip_composer.hpp>
 #include <eng/field/strip_scroller.hpp>
 #include <eng/field/tilemap_view.hpp>
@@ -19,21 +20,11 @@
 #include <eng/memory/memory_manager.hpp>
 
 namespace eng {
-
-/// **Asa type-erased** de una capa de scroll registrada en `App`: el `App` la conduce por frame
-/// pasándole su backend, sin que el juego vea el compositor. La crea `StripScrollLayer::handle()`.
-struct ScrollLayerHandle {
-	void* obj = nullptr;
-	bool (*begin)(void* obj, void* memory, void* backend) = nullptr;
-	void (*frame)(void* obj, void* backend) = nullptr;
-	[[nodiscard]] constexpr bool valid() const noexcept { return obj != nullptr && frame != nullptr; }
-};
-
 namespace playfield {
 
-/// **Capa de scroll por tiras** de la fachada (ver doc del fichero).
+/// **Capa de scroll por tiras** de la fachada (ver doc del fichero). Implementa `ScrollLayer`.
 template <class Geom, class Map, class Backend>
-class StripScrollLayer {
+class StripScrollLayer : public ScrollLayer<Backend> {
 public:
 	/// El juego declara el mapa (observador, `Ref`).
 	constexpr void set_map(Map& map) noexcept { m_map = map; }
@@ -87,7 +78,7 @@ public:
 
 	/// **Setup**: reserva los buffers, monta y arranca la copperlist del compositor, liga el
 	/// controlador y pre-pinta el anillo. Requiere un `Backend` y su `MemoryManager`.
-	[[nodiscard]] bool begin(Backend& backend, MemoryManager& mm) noexcept {
+	[[nodiscard]] bool begin(MemoryManager& mm, Backend& backend) noexcept override {
 		if (!m_map.valid() || m_bank == nullptr) return false;
 		auto& chip = mm.chip();
 		m_ring = chip.template reserve<eng::PlaneTag>(m_ring_bytes, 16u);
@@ -134,19 +125,9 @@ public:
 	[[nodiscard]] bool ok() const noexcept { return m_ok; }
 	[[nodiscard]] eng::u16* ring_words() noexcept { return m_ring_words; }
 
-	/// **Asa** para que `App` conduzca la capa (type-erased sobre `Backend`).
-	[[nodiscard]] ScrollLayerHandle handle() noexcept {
-		ScrollLayerHandle h {};
-		h.obj = this;
-		h.begin = [](void* o, void* mem, void* be) -> bool {
-			return static_cast<StripScrollLayer*>(o)->begin(
-				*static_cast<Backend*>(be), *static_cast<MemoryManager*>(mem));
-		};
-		h.frame = [](void* o, void* be) {
-			static_cast<StripScrollLayer*>(o)->frame_from_source(*static_cast<Backend*>(be));
-		};
-		return h;
-	}
+	/// **Override de `ScrollLayer`**: conduce un frame siguiendo la cámara registrada. Lo llama el
+	/// `App`; el juego no.
+	void frame(Backend& backend) noexcept override { frame_from_source(backend); }
 
 private:
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_ring {};

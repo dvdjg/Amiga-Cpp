@@ -46,6 +46,7 @@
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/expected.hpp>
 #include <eng/field/playfield.hpp>
+#include <eng/field/scroll_layer.hpp>
 #include <eng/field/surface.hpp>
 #include <eng/field/xlimited.hpp>
 #include <eng/graphics/frame_plan.hpp>
@@ -699,7 +700,49 @@ public:
     constexpr eng::u8 fields() const {
         return (m_cfg.dpf.enabled && !m_cfg.dpf.fg_canvas) ? 2u : 1u;
     }
-    constexpr const XlimitedSceneConfigT<MapT>& config() const { return m_cfg; }
+    /// Configuración declarativa de la escena (la lee `handle()` para arrancarla). El juego la fija
+    /// con `set_config(...)` **antes** de registrarla en el `App` (si no, `begin` arranca sin ella).
+    [[nodiscard]] constexpr const XlimitedSceneConfigT<MapT>& config() const { return m_cfg; }
+    constexpr void set_config(const XlimitedSceneConfigT<MapT>& cfg) noexcept { m_cfg = cfg; }
+
+    // -------------------------------------------------------------------------
+    // Contrato UNIFORME de capa de scroll (igual que `StripScrollLayer`): un
+    // juego declara la configuración (conocida en compilación) y el `App` la
+    // arranca y la conduce por frame con `add_scroll_layer`. El juego no llama a
+    // `update`/`compose`/`install` ni ve el `FramePlan`.
+    // -------------------------------------------------------------------------
+
+    /// **Sigue la cámara del juego** (posición en px de mundo; `y` puede ser `nullptr`): el `App`
+    /// lee su delta por frame. Es el vocabulario de juego (una posición, no un registro).
+    void track_camera(const eng::s32* x, const eng::s32* y = nullptr) noexcept {
+        m_cam_x = x;
+        m_cam_y = y;
+    }
+
+    /// **Conduce la escena un frame** siguiendo la cámara registrada: `update` (delta) → blit →
+    /// `compose` → `install`. Lo usa `App::add_scroll_layer`; el juego no lo llama.
+    template <typename Backend>
+    void frame_from_source(Backend& backend) noexcept {
+        if (!m_initialized) return;
+        const eng::s32 x = (m_cam_x != nullptr) ? *m_cam_x : 0;
+        const eng::s32 y = (m_cam_y != nullptr) ? *m_cam_y : 0;
+        const eng::s32 dx = x - m_prev_x;
+        const eng::s32 dy = y - m_prev_y;
+        m_prev_x = x;
+        m_prev_y = y;
+        m_layer_plan.clear();
+        m_layer_plan.set_blit_budget_limits({8192, 16384, 4, 120});
+        if (!update(m_layer_plan, dx, dy, m_layer_frame) ||
+            !backend.execute_frame_plan(m_layer_plan) || !compose()) {
+            m_initialized = false; // deja de conducir; el `runstatus` lo refleja en el juego
+            return;
+        }
+        install(backend);
+        ++m_layer_frame;
+    }
+
+
+    /// Palabras de Copperlist que emite la escena (presupuesto del compositor single/dual).
     constexpr u16 copper_words() const {
         return m_cfg.dpf.enabled ? m_dual.copper_words() : m_single.copper_words();
     }
@@ -780,6 +823,14 @@ private:
     bool m_initialized = false;
     eng::u32 m_phase_frame = 0;      // frames transcurridos en la fase actual
     eng::u8 m_phase = 0;             // fase activa del ciclo (0..7)
+
+    // Contrato de capa (`handle`/`track_camera`): plan propio + cámara seguida (posición px).
+    graphics::FramePlan m_layer_plan {};
+    const eng::s32* m_cam_x = nullptr;
+    const eng::s32* m_cam_y = nullptr;
+    eng::s32 m_prev_x = 0;
+    eng::s32 m_prev_y = 0;
+    eng::u32 m_layer_frame = 0;
 };
 
 // Definición out-of-class de la tabla de seno (constant-initialized). Ver la

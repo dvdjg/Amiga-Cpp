@@ -35,10 +35,12 @@
 /// `ROADMAP_GAME_API.md` §7 (planner de cámara/tilemap): hasta entonces el juego elige el motor que
 /// ya conoce y declara su cámara con el tipo que le corresponde.
 
+#include <eng/field/scroll_layer.hpp>
 #include <eng/field/scroll_route.hpp>
 #include <eng/field/strip_layer.hpp>
 #include <eng/field/strip_scroller.hpp>
 #include <eng/field/tilemap_view.hpp>
+#include <eng/field/xlimited_scroll_layer.hpp>
 #include <eng/scene/virtual_scene.hpp>
 #include <eng/scene/world.hpp>
 

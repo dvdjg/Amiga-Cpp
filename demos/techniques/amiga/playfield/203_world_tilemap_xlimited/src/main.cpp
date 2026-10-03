@@ -2,11 +2,17 @@
 //   & 'C:\Program Files\Git\bin\bash.exe' ./tools/build/build-demo.sh demos/techniques/amiga/playfield/203_world_tilemap_xlimited --debug --clean
 //   & 'C:\Program Files\Git\bin\bash.exe' ./tools/run/run-demo.sh demos/techniques/amiga/playfield/203_world_tilemap_xlimited --keep-running
 
-// Demo 203: World::TileLayer → WorldTileMapView → XlimitedScene.
+// Demo 203: `World::TileLayer` → `WorldTileMapView` → `XlimitedScene`, **conducida por la fachada
+// `App`** (F4 de `ROADMAP_GAME_API`): el juego declara el motor (config conocida en compilación —
+// aquí un corcóscru DPF) y lo **registra** con `app.add_scroll_layer(scene)`; el `App` lo arranca y
+// lo conduce por frame siguiendo la cámara del juego. El juego no llama a
+// `update`/`compose`/`install` ni ve `FramePlan`. El motor elige el camino según su configuración
+// (aquí la técnica del corcóscru); un nivel distinto puede declarar otro motor conocido a priori.
 
 #include <eng/api/api.hpp>
 #include <eng/platform/amiga/backend.hpp>
 #include <eng/field/xlimited_scene.hpp>
+#include <eng/field/xlimited_scroll_layer.hpp>
 #include <eng/field/tile_demo.hpp>
 #include <eng/scene/world_tile_map.hpp>
 
@@ -41,9 +47,6 @@ constexpr eng::u8 kPlanes = 3u;
 constexpr eng::u16 kTilesetCount = 128u;
 
 eng::u16 g_tile_rows[16][4][kPlanes][kTile] {};
-#if defined(ENG_203_DIRECT_TILEMAP_BENCH)
-eng::u16 g_direct_cells[kMapWidth * kMapHeight] {};
-#endif
 
 eng::u16 tile_row(eng::u8 glyph, eng::u8 variant, eng::u8 row, eng::u8 plane) {
 	return g_tile_rows[glyph & 15u][variant & 3u][plane][row & 15u];
@@ -51,11 +54,7 @@ eng::u16 tile_row(eng::u8 glyph, eng::u8 variant, eng::u8 row, eng::u8 plane) {
 
 constexpr playfield::ScrollConsts kScroll {
 	kTile, kTile, kHeight, static_cast<eng::u32>(kHeight) * kPlanes, kPlanes};
-#if defined(ENG_203_DIRECT_TILEMAP_BENCH)
-using MapView = playfield::TileLayerMap;
-#else
 using MapView = eng::scene::WorldTileMapView;
-#endif
 using Profile = playfield::ScrollProgressive;
 
 tilemap::PackedTileCell g_cells[kMapWidth * kMapHeight] {};
@@ -83,9 +82,6 @@ void build_map() {
 				tile = static_cast<eng::u16>(8u + ((x / 2u + y * 3u) & 3u));
 			}
 			g_cells[static_cast<eng::u32>(y) * kMapWidth + x].set_tile(tile);
-#if defined(ENG_203_DIRECT_TILEMAP_BENCH)
-			g_direct_cells[static_cast<eng::u32>(y) * kMapWidth + x] = tile;
-#endif
 		}
 	}
 }
@@ -109,12 +105,17 @@ struct DemoGame {
 	tilemap::TileMap16 tile_map {};
 	eng::Ref<eng::scene::Layer> terrain {};
 	playfield::XlimitedScene<kScroll, MapView, Profile> scene {};
+	// Adapta la escena a la interfaz `ScrollLayer` que conduce el `App` (tipada, sin `void*`).
+	playfield::XlimitedScrollLayer<playfield::XlimitedScene<kScroll, MapView, Profile>,
+				       eng::amiga::AmigaBackend> layer {scene};
 	playfield::XlimitedSceneConfigT<MapView> config {};
-	eng::graphics::FramePlan plan {};
+	// Cámara del motor (posición px que conduce el `App`); se sincroniza con la del `World`.
+	eng::s32 cam_x = 0;
+	eng::s32 cam_y = 0;
 	eng::s16 direction = 1;
 	bool ready = false;
 
-	/// Pinta la nave de referencia una vez sobre PF2 en init; no rasteriza píxeles en el bucle.
+	/// Pinta la nave de referencia una vez sobre PF2 tras arrancar la escena; no rasteriza en el bucle.
 	void draw_ship() {
 		auto fg = scene.canvas_fg_surface();
 		constexpr eng::s16 x = 64;
@@ -131,13 +132,9 @@ struct DemoGame {
 		fg.fill_rect(static_cast<eng::s16>(x + 21), static_cast<eng::s16>(y + 6), 8, 7, 1u);
 	}
 
-	/// Inicializa World, adapta su mapa retenido y crea la escena XLimited que lo consume.
-	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
+	/// Inicializa World, adapta su mapa retenido, configura el motor y lo **registra** en el `App`.
+	void init(auto& app) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		if (!backend.configure_memory({300u * 1024u, 16u * 1024u, 8u * 1024u})) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00020301u);
-			return;
-		}
 		build_tile_rows();
 		build_map();
 		tile_map = tilemap::TileMap16 {
@@ -164,17 +161,7 @@ struct DemoGame {
 		config.direction = playfield::DirectionPolicy::Bidirectional;
 		config.display_height = kHeight;
 		config.max_step = 1u;
-#if defined(ENG_203_DIRECT_TILEMAP_BENCH)
-		// Variante A/B: TileLayerMap directo con los mismos índices, límites, wrap y driver.
-		config.map.cells = eng::Span<const eng::u16> {g_direct_cells, kMapWidth * kMapHeight};
-		config.map.width = kMapWidth;
-		config.map.height = kMapHeight;
-		config.map.wrap_x = kMapWidth;
-		config.map.edge_tile = 0u;
-		config.map.empty_tile = 0xffffu;
-#else
 		config.map = MapView {*terrain, kMapWidth, kMapHeight, 0u, 0xffffu};
-#endif
 		config.tileset_count = kTilesetCount;
 		config.fg_row_fn = &tile_row;
 		config.bg_row_fn = &tile_row;
@@ -182,28 +169,21 @@ struct DemoGame {
 		config.dpf.enabled = true;
 		config.dpf.fg_canvas = true;
 		config.dpf.foreground_is_pf2 = true;
-		if (!scene.begin(backend.memory_manager(), config)) {
+		// Vuelca la config declarada a la escena y liga la cámara; el `App` arranca y conduce.
+		scene.set_config(config);
+		scene.track_camera(&cam_x, &cam_y);
+		if (!app.add_scroll_layer(layer)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020303u);
 			return;
 		}
-		scene.bg().set_camera(0, 0);
-		if (!scene.fill(backend, plan)) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00020304u);
-			return;
-		}
-		draw_ship();
-		if (!scene.compose()) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00020304u);
-			return;
-		}
-		scene.takeover(backend);
+		draw_ship(); // el lienzo del FG ya existe tras `add_scroll_layer`
 		ready = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x20300000u);
 	}
 
-	/// Mueve la cámara retenida, dibuja un actor contrastado y pasa el delta al driver.
-	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
+	/// Mueve la cámara del `World` y sincroniza la del motor; el `App` conduce el frame.
+	void update(auto& app) {
+		eng::debug::mark_frame(g_eng_run_status, app.frame());
 		if (!ready) return;
 		terrain->camera().begin_frame();
 		terrain->camera().move_by(direction, 0);
@@ -212,39 +192,40 @@ struct DemoGame {
 			terrain->camera().begin_frame();
 			terrain->camera().move_by(direction, 0);
 		}
-		plan.clear();
-		plan.set_blit_budget_limits({8192, 16384, 4, 160});
-		if (!scene.update(plan, terrain->camera().delta_x(), terrain->camera().delta_y(),
-				  context.frame.frame_index) || !backend.execute_frame_plan(plan)) {
-			ready = false;
-			eng::debug::mark_failed(g_eng_run_status, 0x00020305u);
-			return;
-		}
-		if (!scene.compose()) {
-			ready = false;
-			eng::debug::mark_failed(g_eng_run_status, 0x00020305u);
-			return;
-		}
-		const eng::u32 x = terrain->camera().scroll_x();
+		cam_x = static_cast<eng::s32>(terrain->camera().scroll_x());
+		cam_y = static_cast<eng::s32>(terrain->camera().scroll_y());
+		const eng::u32 x = static_cast<eng::u32>(cam_x);
 		g_eng_run_status.detail = 0x20300000u | ((x & 0xffu) << 16) | ((x >> 8) & 0xffu);
 	}
 
-	/// Instala la composición ya preparada y publica el frame actual al Copper.
-	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		if (ready) scene.install(backend);
-		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
+	/// El `App` materializa el mundo y conduce el motor; el juego solo publica telemetría.
+	void render(auto& app) {
+		eng::debug::probe_when_ready(g_eng_run_status, app.frame());
 	}
 };
 
 } // namespace
 
-/// Punto de entrada Amiga: arranca el backend y deja que el engine conduzca frames hasta salir.
+/// Punto de entrada Amiga: arranca el backend, compone el display y deja que el `App` conduzca.
 int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);
 	eng::amiga::AmigaBackend backend {};
+	if (!backend.configure_memory({300u * 1024u, 16u * 1024u, 8u * 1024u})) {
+		eng::debug::mark_failed(g_eng_run_status, 0x00020301u);
+		return 0;
+	}
+	// Display base mínimo: lo sobreescribe la escena corcóscru (su compositor hace el takeover).
+	eng::GameDisplay display {};
+	display.width = kWidth;
+	display.height = kHeight;
+	display.color_depth = 1u;
 	DemoGame game {};
-	eng::Engine engine {backend, game};
-	engine.run_frames_polling(0xffffu);
+	eng::App app {backend, game, backend.memory_manager()};
+	if (!app.set_display(display) || !app.start()) {
+		eng::debug::mark_failed(g_eng_run_status, 0x00020306u);
+		return 0;
+	}
+	app.run(0xffffu);
 	return 0;
 }
