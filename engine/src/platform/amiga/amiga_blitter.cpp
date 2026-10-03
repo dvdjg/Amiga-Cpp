@@ -868,6 +868,33 @@ bool AmigaBackend::blitter_blob_run_end() {
 	return m_blob_run.end();
 }
 
+bool AmigaBackend::blitter_strip_column(const void* src, void* dst, u16 words, s16 dmod,
+					u16 planelines, u8 shift) {
+	if (src == nullptr || dst == nullptr || words == 0u || planelines == 0u) {
+		return false;
+	}
+	// Origen contiguo (BLTAMOD=0): avanza `words*2` bytes por planelínea. Destino en el anillo
+	// interleaved: avanza `words*2 + dmod` (el dmod ya recorta el resto de la fila interleaved).
+	const eng::u32 src_stride = static_cast<eng::u32>(words) * 2u;
+	const eng::u32 dst_stride = src_stride + static_cast<eng::u16>(dmod);
+	const eng::u8* s = static_cast<const eng::u8*>(src);
+	eng::u8* d = static_cast<eng::u8*>(dst);
+	eng::u16 done = 0u;
+	while (done < planelines) {
+		// H de BLTSIZE = 10 bits (max 1024 planelíneas): trocea la columna si hace falta.
+		const eng::u16 h = static_cast<eng::u16>((planelines - done) > 1024u ? 1024u
+									     : (planelines - done));
+		blitter_blob_run_begin(eng::amiga::BlobOp::Opaque, words, h, 0, 0, 0, dmod);
+		blitter_blob_run_one(s + static_cast<eng::u32>(done) * src_stride, nullptr,
+				     d + static_cast<eng::u32>(done) * dst_stride, shift);
+		if (!blitter_blob_run_end()) {
+			return false;
+		}
+		done = static_cast<eng::u16>(done + h);
+	}
+	return true;
+}
+
 bool AmigaBackend::blitter_or_bobs(const OrBobEntry* entries, u32 count, u16 words, u16 height,
 				     s16 source_modulo, s16 dest_modulo) {
 	if (entries == nullptr || count == 0u || words == 0u || height == 0u) {

@@ -625,6 +625,14 @@ public:
 	void blitter_blob_run_one(const void* a, const void* b, void* d, u8 shift);
 	bool blitter_blob_run_end();
 
+	/// **Tira de scroll** (columna entrante pre-compuesta): copia `planelines` planelíneas de `src`
+	/// (contiguo, `BLTAMOD=0`) al anillo interleaved `dst` (salto `dmod` bytes/planelínea) con
+	/// `words` palabras/planelínea y fine shift `shift` (0..15). Parte en trozos de `<= 1024`
+	/// planelíneas (límite de 10 bits del campo H de `BLTSIZE`). Es la ejecución del descriptor de
+	/// `field/strip_scroller.hpp` (`strip_blit_desc`). Ver `SCROLL_VARIANTS.md`.
+	bool blitter_strip_column(const void* src, void* dst, u16 words, s16 dmod, u16 planelines,
+				  u8 shift);
+
 	/// Area fill `XOR` del mismo rectangulo de UN plano (semilla = ultima palabra
 	/// del rectangulo, recorrido descendente). Port de `BitmapFillFast` acotado a
 	/// una caja, para no barrer el bitmap completo cada frame.
