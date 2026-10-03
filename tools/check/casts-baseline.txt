@@ -247,7 +247,7 @@
   0     5  engine/include/eng/res/asset_cache.hpp
   0     1  engine/include/eng/res/decode.hpp
   0    12  engine/include/eng/res/engz.hpp
-  5     2  engine/include/eng/res/dynloader.hpp
+ 11     5  engine/include/eng/res/dynloader.hpp
   2     8  engine/include/eng/res/hunk.hpp
   0     4  engine/include/eng/res/load.hpp
   0     1  engine/include/eng/res/symbol_hash.hpp

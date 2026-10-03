@@ -127,7 +127,10 @@ librerías comprimidas con memoria elegida por segmento. El contrato completo es
   `Codec::Zx0`), cubierta por **HOST-398** (Raw, ZX0 con el vector del compresor de referencia,
   codec desconocido y «no cabe»). Falta integrarla en el contenedor con CRC (R6.4).
 - **R6.6 DynLoader propietario**: integrar lectura asíncrona, estados, imports/ABI, init/fini,
-  refcount/pin, rollback y descarga segura.
+  refcount/pin, rollback y descarga segura. **✅ ownership hecho**: `DynLoader::load(h, image,
+  MemoryManager&, policy)` **posee** la memoria (HUNK por banco vía R6.3; `.englib` copiado a un
+  bloque) y `unload(h, mem)` la libera (por banco efectivo), con error sin fugas; **HOST-402**.
+  ⏳ faltan lectura **asíncrona** (R6.2 + `os::file_*`), imports/ABI, `init`/`fini` y refcount/pin.
 - **R6.7 Integración**: demo de transición de zona que cargue `.engz`, ejecute un export y descargue
   la librería sin bloquear el frame.
 
