@@ -264,6 +264,7 @@
   0     3  engine/include/eng/scene/actor_sprite.hpp
   0    13  engine/include/eng/scene/actor_store.hpp
   2    16  engine/include/eng/scene/actor_types.hpp
+  0     2  engine/include/eng/scene/band_plan.hpp
   0    35  engine/include/eng/scene/display.hpp
   0     7  engine/include/eng/scene/layer.hpp
   0     1  engine/include/eng/scene/representation.hpp
