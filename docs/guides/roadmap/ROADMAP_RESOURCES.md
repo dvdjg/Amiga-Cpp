@@ -107,7 +107,10 @@ librerías comprimidas con memoria elegida por segmento. El contrato completo es
   escapes; **HOST-403**. ⏳ faltan la fachada `Vfs` (mounts/dispositivos, resolución relativa a una
   raíz, enumeración de directorios, handles propietarios) y los requests con generación (R6.2).
 - **R6.2 Requests robustos**: separar `RequestId` del `IoUser`, conservar path y buffer hasta el
-  fin, rechazar respuestas tardías y cerrar requests en vuelo.
+  fin, rechazar respuestas tardías y cerrar requests en vuelo. **✅ núcleo hecho**: `eng/os/request.hpp`
+  (`RequestTable<MaxSlots>`/`RequestId` con **generación por slot**) — `acquire`/`alive`/`complete`/
+  `cancel`, rechaza respuestas **tardías** de un slot reutilizado; **HOST-404**. ⏳ falta integrarlo en
+  la E/S (validar la generación del `FileDone` antes de escribir) y conservar el path/buffer en el VFS.
 - **R6.3 Política de memoria**: reservar código, datos y BSS por segmento con `MemoryManager`,
   respetar `HUNKF_CHIP`/`HUNKF_FAST`, fallback explícito y pools persistentes liberables. Usar
   `FastPreferred` automáticamente para segmentos CPU-only cuando haya Fast; Chip requerido nunca

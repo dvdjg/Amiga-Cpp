@@ -22,6 +22,7 @@ núcleo, [`MINI_OS_INPUT.md`](../../../../docs/engine/architecture/MINI_OS_INPUT
 | `os.hpp` | Fachada: `system_port`, `frame_count`, `tick`, `post_user`, `request_quit`. | **Implementado** (backend Amiga, demo 208) |
 | `file.hpp` | E/S asíncrona: `FileHandle`, `file_open`/`read_async`/`write_async`/`close`/`delete`/`rename`, `IoNotify`/`IoUser`. | **Contrato** (HOST-255); backend `dos`/`trackdisk` previsto |
 | `path.hpp` | `normalize_path` + `PathError`: normalización de paths del VFS (colapsa `/`, resuelve `.`/`..`, rechaza escapes). | **Implementado** (HOST-403, R6.1) |
+| `request.hpp` | `RequestTable`/`RequestId`: peticiones de E/S con **generación** (rechaza respuestas tardías, cancela). | **Implementado** (HOST-404, R6.2) |
 | `stream.hpp` | `ChunkStream<NumBuffers>`: doble/triple buffer con `request_mask`/`on_chunk_ready`/`advance`/`underrun`/`eof`. | **Implementado** (HOST-257) |
 | `time.hpp` | Tiempo: conversiones ticks↔µs (PAL/NTSC) y `TickSource`/`ScopedTimer`. | **Implementado** (HOST-238) |
 | `timer.hpp` | `TimerService` (timers de frames/µs → `MsgType::Timer`). | **Implementado** (HOST-222) |
