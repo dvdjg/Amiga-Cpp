@@ -29,3 +29,4 @@ Categoría `res` de la batería host (L1). El índice de categorías está en [.
 | HOST-400 | [engz](400_engz/README.md) | Recursos: contenedor **`.engz`** (`eng/res/engz.hpp`) — cabecera (codec/tamaños/alineación) + **CRC-32** + `build`/`parse`/`decode`/`verify`. R6.4. |
 | HOST-401 | [hunk_banks](401_hunk_banks/README.md) | Recursos: `HunkImage::load(image, MemoryManager&, policy)` — **banco por segmento** (`HUNKF_CHIP`/`FAST`/`Any` → Chip/Fast/Slow con fallback), `owns_memory` y `unload`. R6.3. |
 | HOST-402 | [dynloader_owner](402_dynloader_owner/README.md) | Recursos: `DynLoader` **propietario** (`load(..., MemoryManager&)` + `unload(h, mem)`) — `.englib` copiado a bloque / HUNK por banco, error sin fugas. R6.6. |
+| HOST-410 | [zone_load](410_zone_load/README.md) | Recursos: cadena de zona (`Vfs.read_all` → `.engz` → `HunkImage`) — carga de overlay end-to-end en host (R6.7, versión host). |
