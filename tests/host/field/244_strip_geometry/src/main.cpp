@@ -36,7 +36,7 @@ static_assert(GeomLong::ring_w_words == 160u && GeomLong::ring_w_bytes == 320u,
 static_assert(Geom::visible_words == 20u, "320 px = 20 words");
 static_assert(Geom::ring_w_words == 23u, "anillo = 20 + 2 guarda + 1 fetch");
 static_assert(Geom::ring_w_bytes == 46u, "46 B/planeline");
-static_assert(Geom::bpl_mod == 184u, "BPL1MOD/BPL2MOD interleaved");
+static_assert(Geom::bpl_mod == 188u, "BPL1MOD = planes*ring_w_bytes - fetch_words*2");
 static_assert(Geom::bltdmod_col == 44u, "BLTDMOD columna (tile 16)");
 static_assert(Geom::column_planelines == 1040u, "208 lineas x 5 planos");
 static_assert(Geom32::bltdmod_col == 46u, "BLTDMOD columna (tile 32, anillo 50 B)");

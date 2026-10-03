@@ -52,8 +52,12 @@ struct StripScrollGeometry {
 	static_assert(ring_w_words >= visible_words + GuardWords + FetchExtraWords,
 		      "el anillo debe caber al menos pantalla + guarda + fetch");
 	static constexpr eng::u16 ring_w_bytes = static_cast<eng::u16>(ring_w_words * 2u);
-	/// Salto de fila del display interleaved: (PLANES-1) planos por delante.
-	static constexpr eng::u16 bpl_mod = static_cast<eng::u16>((Planes - 1u) * ring_w_bytes);
+	/// Ancho **fetcheado** por el display por linea (viewport + 1 palabra de scroll).
+	static constexpr eng::u16 fetch_words = static_cast<eng::u16>(visible_words + FetchExtraWords);
+	/// Salto de fila del display interleaved: apunta a la MISMA posicion de la linea siguiente
+	/// (`planes*ring_w_bytes`) menos lo ya avanzado por el fetch (`fetch_words*2`).
+	static constexpr eng::u16 bpl_mod =
+		static_cast<eng::u16>(static_cast<eng::u32>(Planes) * ring_w_bytes - fetch_words * 2u);
 	/// Ancho de la tira en palabras (tile 16 -> 1, tile 32 -> 2).
 	static constexpr eng::u16 strip_words = static_cast<eng::u16>(TileW / 16u);
 	/// `BLTDMOD` de la tira en el anillo interleaved.
