@@ -76,11 +76,12 @@ Especificación:
    `field/scroll_variant.hpp` (`ScrollVariant` + `apply_scroll_variant`/`apply_ylimited_wide_x`/
    `xlimited_tall_y_display`) traduce los nombres de la referencia a los campos de `XlimitedConfigT`;
    **expuesto por la fachada** con `scene::scroll_kind_for_variant` (`scroll_plan.hpp`); HOST-071.
-2. **`SubTileFill` (32×32, 16 px/frame)** sobre XYLimited. **Hecho (base)**: perfil `SubTileFill<Px>`
-   + alias `ScrollSubTile8`/`ScrollSubTile16` (`scroll_profile.hpp`), con `sub_px` como paso en px
-   **independiente del tile** (semántica progresiva correcta: pinta cada px revelado antes de
-   avanzar); HOST-032. ⏳ falta la **optimización** de Blitter (px-burst: pintar la tira de ≤16 px en
-   menos operaciones, guarda en palabras) — pendiente y de mayor riesgo (hot path del corkscrew).
+2. **`SubTileFill` (32×32, 16 px/frame)** sobre XYLimited. **Hecho**: perfil `SubTileFill<Px>` +
+   alias `ScrollSubTile8`/`ScrollSubTile16` (`scroll_profile.hpp`), con `sub_px` como paso en px
+   **independiente del tile**; el motor usa **`burst_right_px`** (geometría del cruce calculada una
+   vez por tile, equivalente a los sub-pasos → HOST-034; menos cálculo por píxel a igualdad de
+   blits). Semántica correcta (pinta cada px revelado antes de avanzar); HOST-032. ⏳ falta validarlo
+   en una demo con tiles 32×32 (continuidad + fps).
 3. **XLimited-tall-Y** (anillo Y = viewport + staging con cámara Y limitada): preset
    `xlimited_tall_y_display` **hecho**; ⏳ falta validar en hardware la guarda Y.
 4. **YLimited-wide-X** (`_64` con banda 384 y cámara X acotada): preset `apply_ylimited_wide_x`

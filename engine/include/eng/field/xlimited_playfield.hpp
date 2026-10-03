@@ -78,6 +78,9 @@ public:
                 } else {
                     for (s32 i = 0; i < dx; ++i) { if (!m_scroll.scroll_right(plan, *this)) return false; }
                 }
+            } else if constexpr (Profile::sub_px != 0u) {
+                // Sub-tile: un px-burst (geometría del cruce calculada una vez por tile).
+                if (!m_scroll.burst_right_px(plan, *this, static_cast<u16>(dx))) return false;
             } else {
                 for (s32 i = 0; i < dx; ++i) { if (!m_scroll.scroll_right(plan, *this)) return false; }
             }

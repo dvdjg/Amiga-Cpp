@@ -142,7 +142,28 @@ int main() {
 		check(sa.restores == 1 && sb.restores == 1, "restore exacto (1)");
 	}
 
+	// Burst por píxeles (perfil SubTileFill): burst_right_px(px) == px pasos de scroll_right,
+	// con la geometría del tile calculada una vez. Cubre offsets de stepx, cruce de tile y
+	// varios px.
+	auto cmp_px = [&](const char* label, eng::s32 mx, eng::s32 my, eng::u8 prev, int px) {
+		Engine ea, eb; MockSink sa, sb;
+		seed(ea, mx, my, prev);
+		seed(eb, mx, my, prev);
+		for (int i = 0; i < px; ++i) check(ea.scroll_right(plan, sa), "px avanza");
+		check(eb.burst_right_px(plan, sb, static_cast<eng::u16>(px)), "px-burst avanza");
+		compare(label, ea, sa, eb, sb);
+	};
+	cmp_px("px-burst(8) start stepx=0", 32, 80, eng::field::ScrollDirNone, 8);
+	cmp_px("px-burst(16) start stepx=0", 32, 80, eng::field::ScrollDirNone, 16);
+	cmp_px("px-burst(31) cruza un tile", 32, 80, eng::field::ScrollDirNone, 31);
+	cmp_px("px-burst(32) dos tiles", 0, 96, eng::field::ScrollDirNone, 32);
+	cmp_px("px-burst(8) start stepx=8", 40, 80, eng::field::ScrollDirNone, 8);
+	cmp_px("px-burst(5) start stepx=3", 35, 80, eng::field::ScrollDirNone, 5);
+	cmp_px("px-burst(4) start stepx=15", 47, 80, eng::field::ScrollDirNone, 4);
+	cmp_px("px-burst(16) con stepy!=0", 48, 21, eng::field::ScrollDirNone, 16);
+	cmp_px("px-burst(16) venia de la izquierda", 128, 48, eng::field::ScrollDirLeft, 16);
+
 	if (g_fail != 0) { std::printf("%d fallo(s)\n", g_fail); return 1; }
-	std::printf("OK: burst_right equivalente a los sub-pasos de 1 px.\n");
+	std::printf("OK: burst_right y burst_right_px equivalentes a los sub-pasos de 1 px.\n");
 	return 0;
 }

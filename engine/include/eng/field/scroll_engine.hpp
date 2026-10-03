@@ -384,6 +384,100 @@ public:
         return true;
     }
 
+    /// Avanza hasta `px` píxeles a la derecha (anillo XLimited): replica `px` pasos de
+    /// `scroll_right` calculando la **geometría del tile una vez** por tramo (menos cálculo por
+    /// píxel). Es la base del perfil `SubTileFill` (paso < tile: p. ej. 16 px con tiles de 32×32),
+    /// donde los sub-pasos de 1 px multiplican el cálculo del cruce. Equivalente a los sub-pasos
+    /// (verificado en HOST-034, igual que `burst_right`). `px` no tiene que ser múltiplo de tile.
+    bool burst_right_px(graphics::FramePlan& plan, Sink& sn, u16 px) {
+        if (finite_x(sn)) {
+            for (u16 i = 0; i < px; ++i) if (!scroll_right(plan, sn)) return false;
+            return true;
+        }
+        const u16 twv = tw(sn);
+        const u16 thv = th(sn);
+        const u8 pl = planes(sn);
+        const u16 bpr = sn.bitmap_blocks_per_row();
+        const u16 bw = sn.bitmap_width();
+        const u16 bpll = sn.block_planes_lines();
+        const u16 bpr_bytes = sn.bytes_per_row();
+        const u16 tbs = twoblockstep(sn);
+        const u16 bpc = sn.bitmap_blocks_per_col();
+
+        if (!sn.one_direction() && m_state.previous_xdirection == ScrollDirLeft) sn.restore_saveword();
+
+        bool saveword_armed = false;
+        auto restore_on_error = eng::util::make_scope_guard([&] {
+            if (saveword_armed) sn.restore_saveword();
+        });
+
+        u16 remaining = px;
+        while (remaining > 0u) {
+            u16 n = remaining;
+            // Límite del mapa (X finito): sólo cuando no hay wrap; se recorta el tramo al hueco.
+            if (sn.map_wrap_x() == 0) {
+                const s32 lim = static_cast<s32>(sn.map_width_blocks()) * twv - sn.viewport_w() - twv;
+                if (m_state.mapposx >= lim) return false;
+                const s32 room = lim - m_state.mapposx;
+                if (room < static_cast<s32>(n)) n = static_cast<u16>(room);
+            }
+            const u16 stepx = r_tw(sn, m_state.mapposx);
+            const u16 in_tile = static_cast<u16>(twv - stepx);
+            if (n > in_tile) n = in_tile;
+
+            // Geometría del tile (constante en el tramo): cálculo del cruce UNA vez.
+            const u16 mapblockx = q_tw(sn, m_state.mapposx);
+            const u16 mapblocky = q_th(sn, m_state.mapposy);
+            const u16 stepy = r_th(sn, m_state.mapposy);
+            const u32 bvpos = block_videoposy(sn);
+            const u16 x0 = static_cast<u16>(m_state.videoposx & ~(twv - 1));
+            const u16 mapx = static_cast<u16>(mapblockx + bpr);
+
+            for (u16 k = stepx; k < static_cast<u16>(stepx + n); ++k) {
+                if (k == 0u) {
+                    const u32 y = r_dh(sn, bvpos + thv) * pl;
+                    if (!sn.add_draw(plan, static_cast<u16>(x0 + bw), static_cast<u16>(y), mapx,
+                            static_cast<u16>(mapblocky + 1))) return false;
+                    const u32 y2 = r_dph(sn, y + bpll);
+                    sn.save_word((y2 + bpll - 1u) * bpr_bytes + ((x0 + bw) / 8u));
+                    saveword_armed = true;
+                    if (!sn.add_draw(plan, static_cast<u16>(x0 + bw), static_cast<u16>(y2), mapx,
+                            static_cast<u16>(mapblocky + 2))) return false;
+                } else {
+                    const u16 mapy = static_cast<u16>(k + 2u);
+                    const u32 y = r_dh(sn, bvpos + mapy * thv) * pl;
+                    sn.save_word((y + bpll - 1u) * bpr_bytes + ((x0 + bw) / 8u));
+                    saveword_armed = true;
+                    if (!sn.add_draw(plan, static_cast<u16>(x0 + bw), static_cast<u16>(y), mapx,
+                            static_cast<u16>(mapy + mapblocky))) return false;
+                }
+                ++m_state.mapposx;
+                m_state.videoposx = m_state.mapposx;
+            }
+            remaining = static_cast<u16>(remaining - n);
+
+            if (r_tw(sn, m_state.mapposx) == 0u) {
+                const u16 nx0 = static_cast<u16>(x0 + twv);
+                const u16 nmapblockx = static_cast<u16>(mapblockx + 1u);
+                if (!sn.add_draw(plan, static_cast<u16>(nx0 + (bpr - 1u) * twv),
+                        static_cast<u16>(bvpos * pl), static_cast<u16>(nmapblockx + bpr - 1u),
+                        mapblocky)) return false;
+                if (stepy) {
+                    const u16 mx = stepy >= tbs ? static_cast<u16>(stepy + (tbs - 1u))
+                                                : static_cast<u16>(stepy * 2u - 1u);
+                    if (!sn.add_draw(plan, static_cast<u16>(nx0 + mx * twv),
+                            static_cast<u16>(bvpos * pl), static_cast<u16>(mx + nmapblockx),
+                            static_cast<u16>(mapblocky + bpc))) return false;
+                }
+                m_state.previous_xdirection = ScrollDirNone;
+            } else {
+                m_state.previous_xdirection = ScrollDirRight;
+            }
+        }
+        saveword_armed = false; // camino correcto
+        return true;
+    }
+
     /// Scroll de 1 px a la izquierda (no plane-shifted) — ScrollLeft corkscrew.
     /// Fiel a ScrollLeft de Scroller_XYLimited/main.c:751-867.
     bool scroll_left(graphics::FramePlan& plan, Sink& sn) {
