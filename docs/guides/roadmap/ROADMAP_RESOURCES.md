@@ -109,8 +109,11 @@ librerías comprimidas con memoria elegida por segmento. El contrato completo es
 - **R6.2 Requests robustos**: separar `RequestId` del `IoUser`, conservar path y buffer hasta el
   fin, rechazar respuestas tardías y cerrar requests en vuelo. **✅ núcleo hecho**: `eng/os/request.hpp`
   (`RequestTable<MaxSlots>`/`RequestId` con **generación por slot**) — `acquire`/`alive`/`complete`/
-  `cancel`, rechaza respuestas **tardías** de un slot reutilizado; **HOST-404**. ⏳ falta integrarlo en
-  la E/S (validar la generación del `FileDone` antes de escribir) y conservar el path/buffer en el VFS.
+  `cancel`, rechaza respuestas **tardías** de un slot reutilizado; **HOST-404**. **✅ cableado**: la
+  generación viaja en el cookie (`IoUser` = `tag|generation|id`, `os/file.hpp`), la envía el backend
+  (`AssetBackend::load(..., generation)`) y la valida `AssetCache::on_load_done(id, result,
+  generation)` (rechaza tardías; **HOST-254**). ⏳ falta la E/S **asíncrona** real en hardware y
+  conservar el path/buffer hasta el fin.
 - **R6.3 Política de memoria**: reservar código, datos y BSS por segmento con `MemoryManager`,
   respetar `HUNKF_CHIP`/`HUNKF_FAST`, fallback explícito y pools persistentes liberables. Usar
   `FastPreferred` automáticamente para segmentos CPU-only cuando haya Fast; Chip requerido nunca

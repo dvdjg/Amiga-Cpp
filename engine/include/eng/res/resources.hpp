@@ -26,7 +26,8 @@ bool route_io(const eng::os::Msg& m, Cache& cache, Libs& libs) noexcept {
 	const eng::os::IoUser u = eng::os::IoUser::decode(m.payload.file.cookie);
 	switch (u.tag) {
 	case kTagAsset:
-		cache.on_load_done(u.id, m.payload.file.result);
+		// La generación del cookie permite rechazar una respuesta tardía (R6.2).
+		cache.on_load_done(u.id, m.payload.file.result, u.generation);
 		return true;
 	case kTagLib:
 		libs.on_file_done(u.id, m.payload.file.result);

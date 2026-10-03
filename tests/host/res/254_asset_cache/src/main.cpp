@@ -50,7 +50,7 @@ struct FakeBackend {
 		(void)block;
 		++frees;
 	}
-	bool load(AssetId id, const char* path, Span<u8> dst) {
+	bool load(AssetId id, const char* path, Span<u8> dst, eng::u8 /*generation*/ = 0u) {
 		(void)id;
 		(void)path;
 		(void)dst;
@@ -83,6 +83,25 @@ void test_lifecycle() {
 	d = cache.get(a);
 	check(!d.empty() && d.size() == 100u, "get devuelve los datos");
 	check(cache.used_fast() == 100u, "presupuesto Fast contabilizado");
+}
+
+void test_late_response() {
+	FakeBackend b;
+	AssetCache<FakeBackend, 8> cache;
+	CacheConfig cfg {};
+	cfg.fast_budget = 300u;
+	cfg.chip_budget = 100u;
+	cache.init(b, cfg);
+
+	const AssetId a = cache.declare("a", 100u, MemoryRequest::Fast, 128u);
+	(void)cache.get(a); // carga 1
+	const eng::u8 g = cache.request_generation(a);
+	check(g != 0u, "hay generación de request");
+	const eng::u8 wrong = (g == 200u) ? 201u : 200u;
+	cache.on_load_done(a, 100, wrong); // generación equivocada (tardía) → rechazada
+	check(cache.state(a) == AssetState::Loading, "respuesta tardía (gen distinta) → rechazada");
+	cache.on_load_done(a, 100, g); // generación correcta
+	check(cache.state(a) == AssetState::Ready, "respuesta con la generación correcta → Ready");
 }
 
 void test_eviction_priority() {
@@ -266,6 +285,7 @@ void test_chip_dma_lease_is_distinct() {
 
 int main() {
 	test_lifecycle();
+	test_late_response();
 	test_eviction_priority();
 	test_lru();
 	test_pin_and_ref();

@@ -224,7 +224,7 @@
   0     2  engine/include/eng/memory/stack.hpp
   0     4  engine/include/eng/os/dispatch.hpp
   0     1  engine/include/eng/os/file_stream.hpp
-  0     3  engine/include/eng/os/file.hpp
+  0     5  engine/include/eng/os/file.hpp
   0    19  engine/include/eng/os/floppy.hpp
   0    15  engine/include/eng/os/input.hpp
   0     1  engine/include/eng/os/message_pump.hpp
@@ -248,7 +248,7 @@
   0     4  engine/include/eng/platform/amiga/object3d_poly.hpp
   5     9  engine/include/eng/platform/amiga/paula.hpp
   0     1  engine/include/eng/platform/amiga/polygon_fill.hpp
-  0     5  engine/include/eng/res/asset_cache.hpp
+  0     9  engine/include/eng/res/asset_cache.hpp
   0     1  engine/include/eng/res/decode.hpp
   0    12  engine/include/eng/res/engz.hpp
  11     5  engine/include/eng/res/dynloader.hpp

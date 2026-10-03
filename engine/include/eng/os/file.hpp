@@ -23,19 +23,25 @@ enum class FileOp : eng::u8 { Read = 0, Write, Seek, Create, Delete, Rename };
 
 using FileHandle = eng::u16; ///< 0 = inválido
 
-/// **Cookie de E/S**: quién pidió la operación y con qué id. Se empaqueta en `u32`.
+/// **Cookie de E/S**: quién pidió la operación (`tag`), con qué id y con qué **generación**. La
+/// generación (R6.2) permite **rechazar respuestas tardías** de una operación antigua que reutilizó
+/// el id (`ROADMAP_RESOURCES.md` R6.2; el `RequestTable` de `eng/os/request.hpp` la gestiona). Se
+/// empaqueta en `u32` como `tag(8) | generation(8) | id(16)`.
 struct IoUser {
-	eng::u8 tag = 0; ///< 'A' asset (caché), 'L' lib (loader), 'S' stream
+	eng::u8 tag = 0;        ///< 'A' asset (caché), 'L' lib (loader), 'S' stream
 	eng::u16 id = 0;
+	eng::u8 generation = 0; ///< nº de generación del request (0 = sin control de tardías)
 
-	/// Empaqueta `tag` + `id` en el cookie de 32 bits.
+	/// Empaqueta `tag` + `generation` + `id` en el cookie de 32 bits.
 	[[nodiscard]] constexpr eng::u32 encode() const noexcept {
-		return (static_cast<eng::u32>(tag) << 16u) | id;
+		return (static_cast<eng::u32>(tag) << 24u) |
+		       (static_cast<eng::u32>(generation) << 16u) | id;
 	}
-	/// Desempaqueta un cookie de 32 bits en `tag` + `id`.
+	/// Desempaqueta un cookie de 32 bits en `tag` + `generation` + `id`.
 	[[nodiscard]] static constexpr IoUser decode(eng::u32 cookie) noexcept {
-		return IoUser {static_cast<eng::u8>(cookie >> 16u),
-			       static_cast<eng::u16>(cookie & 0xffffu)};
+		return IoUser {static_cast<eng::u8>(cookie >> 24u),
+			       static_cast<eng::u16>(cookie & 0xffffu),
+			       static_cast<eng::u8>((cookie >> 16u) & 0xffu)};
 	}
 };
 

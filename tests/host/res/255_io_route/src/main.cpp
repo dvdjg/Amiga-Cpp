@@ -30,7 +30,7 @@ struct FakeCache {
 	int calls = 0;
 	u16 last_id = 0;
 	s32 last_result = 0;
-	void on_load_done(u16 id, s32 result) {
+	void on_load_done(u16 id, s32 result, eng::u8 /*generation*/ = 0u) {
 		++calls;
 		last_id = id;
 		last_result = result;
@@ -57,9 +57,13 @@ Msg make_file_msg(MsgType type, u32 cookie, s32 result) {
 
 void test_iouser() {
 	const IoUser a {eng::res::kTagAsset, 7u};
-	check(a.encode() == ((static_cast<u32>('A') << 16u) | 7u), "IoUser encode");
+	check(a.encode() == ((static_cast<u32>('A') << 24u) | 7u), "IoUser encode");
 	const IoUser d = IoUser::decode(a.encode());
 	check(d.tag == 'A' && d.id == 7u, "IoUser decode");
+	// Generación (R6.2): viaja en el cookie y sobrevive el round-trip.
+	const IoUser g = IoUser::decode(IoUser {eng::res::kTagAsset, 7u, 3u}.encode());
+	check(g.tag == eng::res::kTagAsset && g.id == 7u && g.generation == 3u,
+	      "IoUser generation round-trip");
 	check(IoUser::decode(a.encode()).tag == eng::res::kTagAsset, "tag asset");
 }
 
