@@ -37,6 +37,11 @@ static_assert(Geom::bltdmod_col == 44u, "BLTDMOD columna (tile 16)");
 static_assert(Geom::column_planelines == 1040u, "208 lineas x 5 planos");
 static_assert(Geom32::bltdmod_col == 46u, "BLTDMOD columna (tile 32, anillo 50 B)");
 static_assert(GeomXY::ring_h == 240u, "anillo vertical = 208 + 2*16");
+// BLTSIZE H es de 10 bits (max 1024): columna 208x5 = 1040 -> 2 blits; 192x5=960 -> 1.
+static_assert(Geom::column_planelines == 1040u, "208 x 5 planos");
+static_assert(Geom::column_blits == 2u, "1040 > 1024 -> 2 blits");
+static_assert(Geom32::column_planelines == 960u, "192 x 5 planos");
+static_assert(Geom32::column_blits == 1u, "960 <= 1024 -> 1 blit");
 // Split OCS: la linea de split es 0x2c + viewport_h; con 208 -> 252 <= 255 (cabe).
 
 struct Lcg {
@@ -96,6 +101,15 @@ int main() {
 	// Limite de hardware: los modos con Copper split asumen viewport <= 208 px
 	// (0x2c + viewport_h <= 255) para no duplicar el buffer (espejo/lineal).
 	check(0x2cu + 208u <= 255u, "split XY con viewport 208 px cabe en VPOS (8 bits)");
+
+	// Descriptor del blit de tira: A->D copia, ASH en BLTCON0, BLTDMOD del anillo, BLTSIZE con
+	// H de 10 bits (columna partida en 2 para 208x5).
+	const auto b0 = eng::field::strip_blit_desc<Geom>(5u, 0u);
+	check(((b0.bltcon0 >> 12u) & 15u) == 5u, "BLTCON0 ASH = fine 5");
+	check(b0.bltdmod == 44, "BLTDMOD = ring_w_bytes - 2");
+	check(b0.bltsize == static_cast<eng::u16>((1024u << 6u) | 1u), "chunk 0: 1024 planelines x 1 word");
+	const auto b1 = eng::field::strip_blit_desc<Geom>(5u, 1u);
+	check(b1.bltsize == static_cast<eng::u16>((16u << 6u) | 1u), "chunk 1: 16 planelines (1040-1024)");
 
 	if (g_fail != 0) { std::printf("%d fallo(s)\n", g_fail); return 1; }
 	std::printf("OK: geometria de tiras (anillo, guarda, cobertura) e invariantes validados.\n");

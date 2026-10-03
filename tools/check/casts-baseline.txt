@@ -163,7 +163,7 @@
   0     3  engine/include/eng/field/scroll_profile.hpp
   0     3  engine/include/eng/field/scroll_variant.hpp
   0     7  engine/include/eng/field/streaming_map.hpp
-  0    21  engine/include/eng/field/strip_scroller.hpp
+  0    27  engine/include/eng/field/strip_scroller.hpp
   2    35  engine/include/eng/field/surface.hpp
   0    36  engine/include/eng/field/tile_demo.hpp
   0     2  engine/include/eng/field/tile_map.hpp

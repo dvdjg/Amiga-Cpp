@@ -13,6 +13,7 @@
 /// `0x2c + 208 = 252 <= 255`), evitando duplicar el buffer (espejo/lineal). Ver `SCROLL_VARIANTS.md` §3.4.
 
 #include <eng/core/types/types.hpp>
+#include <eng/graphics/blitter_state.hpp>
 
 namespace eng::field {
 
@@ -52,6 +53,11 @@ struct StripScrollGeometry {
 		static_cast<eng::u16>(ring_w_bytes - strip_words * 2u);
 	/// Planelíneas de una columna completa (viewport entero x planos).
 	static constexpr eng::u16 column_planelines = static_cast<eng::u16>(ViewportH * Planes);
+	/// `BLTSIZE` tiene H de 10 bits (max 1024 planelíneas) -> la columna se parte en varios blits.
+	static constexpr eng::u16 max_blt_h = 1024u;
+	static constexpr eng::u8 column_blits =
+		static_cast<eng::u8>((column_planelines + max_blt_h - 1u) / max_blt_h);
+	static_assert(column_blits >= 1u, "columna necesita al menos 1 blit");
 	/// Tiles que forman una columna/fila completa.
 	static constexpr eng::u16 column_tiles = static_cast<eng::u16>(ViewportH / TileH);
 	static constexpr eng::u16 row_tiles = static_cast<eng::u16>(ViewportW / TileW);
@@ -107,6 +113,38 @@ template <class Geom>
 		if (dest == static_cast<eng::u16>((window_word + k) % ring_w_words)) return false;
 	}
 	return true;
+}
+
+/// Descriptor del blit de la tira (registros exactos). La columna se parte en `Geom::column_blits`
+/// blits de `<= 1024` planelíneas (el campo H de `BLTSIZE` es de 10 bits). `ash` = fine shift 0..15
+/// (`BLTCON0` bits 15..12). Origen = columna pre-compuesta (contigua, `BLTAMOD=0`); destino = anillo
+/// (interleaved, `BLTDMOD = ring_w_bytes - strip_words*2`).
+struct StripBlit {
+	eng::u16 bltcon0 = 0u;
+	eng::u16 bltcon1 = 0u;
+	eng::u16 bltafwm = 0xffffu;
+	eng::u16 bltalwm = 0xffffu;
+	eng::s16 bltamod = 0;
+	eng::s16 bltdmod = 0;
+	eng::u16 bltsize = 0u;
+};
+
+template <class Geom>
+[[nodiscard]] constexpr StripBlit strip_blit_desc(eng::u8 ash, eng::u8 chunk = 0u) noexcept {
+	StripBlit b {};
+	b.bltcon0 = static_cast<eng::u16>(eng::graphics::kBlitterUseA | eng::graphics::kBlitterUseD |
+					  eng::graphics::kBlitterMintermCopyA |
+					  (static_cast<eng::u16>(ash) << 12u));
+	b.bltcon1 = 0u;
+	b.bltafwm = 0xffffu;
+	b.bltalwm = 0xffffu;
+	b.bltamod = 0;
+	b.bltdmod = Geom::bltdmod_col;
+	const eng::u16 start = static_cast<eng::u16>(chunk) * Geom::max_blt_h;
+	const eng::u16 remaining = static_cast<eng::u16>(Geom::column_planelines - start);
+	const eng::u16 h = remaining < Geom::max_blt_h ? remaining : Geom::max_blt_h;
+	b.bltsize = static_cast<eng::u16>((h << 6u) | Geom::strip_words);
+	return b;
 }
 
 } // namespace eng::field
