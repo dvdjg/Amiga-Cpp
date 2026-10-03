@@ -44,9 +44,14 @@ public:
 		m_bank_stride = tm.bank_stride_words;
 		m_palette = tm.palette;
 		m_map = tm;
-		m_ring_bytes = static_cast<eng::u32>(Geom::ring_w_bytes) * Geom::planes * Geom::ring_h;
-		m_column_bytes = static_cast<eng::u32>(Geom::column_planelines) * 2u;
+		m_ring_bytes = static_cast<eng::u32>(m_geom.ring_w_bytes) * m_geom.planes * m_geom.ring_h;
+		m_column_bytes = static_cast<eng::u32>(m_geom.column_planelines) * 2u;
 	}
+
+	/// **Fija la geometría** (instancia). El NTTP `StripScrollGeometry` la aporta por su tipo
+	/// (miembros `static constexpr`); una `RuntimeScrollGeometry` (cargada en runtime, p. ej. de un
+	/// editor) la trae por valores. Llámalo **antes** de `set_plan`/`set_tilemap` (derivan tamaños).
+	constexpr void set_geometry(const Geom& g) noexcept { m_geom = g; }
 
 	/// **Setup declarativo**: liga el **contenido** del `ScrollPlan` (el `tilemap`) y deriva los
 	/// tamaños; la geometría la fija el tipo (`Geom`) y la cámara, `track_camera`. Es el vocabulario
@@ -100,8 +105,10 @@ public:
 		m_column_words = reinterpret_cast<eng::u16*>(m_column.data());
 		if (!m_composer.init(mm, m_palette, m_copper_bytes)) return false;
 		m_composer.set_ring(m_ring_words);
+		m_composer.set_geometry(m_geom);
 		if (!m_composer.build()) return false;
 		m_composer.takeover(backend);
+		m_ctrl.set_geometry(m_geom);
 		m_ctrl.bind(m_ring_words, m_bank, m_column_words, m_bank_stride, *m_map.get(), backend);
 		m_ctrl.fill_ring();
 		m_ok = true;
@@ -115,7 +122,7 @@ public:
 		   eng::s32 prev_y) noexcept {
 		if (!m_ok) return;
 		const auto fr = m_ctrl.tick(x, y, prev_x, prev_y);
-		(void)m_composer.patch(strip_copper_values<Geom>(fr));
+		(void)m_composer.patch(strip_copper_values(m_geom, fr));
 		m_composer.install(backend);
 	}
 
@@ -144,6 +151,7 @@ public:
 private:
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_ring {};
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_column {};
+	Geom m_geom {}; ///< geometría (NTTP o `RuntimeScrollGeometry`); ver `set_geometry`
 	eng::playfield::StripComposer<Geom> m_composer {};
 	eng::playfield::StripScrollController<Geom, Map, Backend> m_ctrl {};
 	eng::Ref<Map> m_map {};

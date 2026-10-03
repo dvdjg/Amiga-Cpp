@@ -102,10 +102,14 @@ librerías comprimidas con memoria elegida por segmento. El contrato completo es
 [`FILE_SYSTEM_AND_DYNAMIC_LIBRARIES.md`](../../engine/architecture/FILE_SYSTEM_AND_DYNAMIC_LIBRARIES.md).
 
 - **R6.1 VFS**: normalizar paths, mounts, directorios, errores, cancelación y generaciones de
-  requests; HOST de backend simulado. **✅ normalización de paths hecha**: `eng/os/path.hpp`
-  (`eng::os::normalize_path` + `PathError`) colapsa separadores, resuelve `.`/`..` y rechaza
-  escapes; **HOST-403**. ⏳ faltan la fachada `Vfs` (mounts/dispositivos, resolución relativa a una
-  raíz, enumeración de directorios, handles propietarios) y los requests con generación (R6.2).
+  requests; HOST de backend simulado. **✅ hecho**: `eng/os/path.hpp` (`normalize_path` + `PathError`)
+  colapsa separadores, resuelve `.`/`..` y rechaza escapes (**HOST-403**); la fachada
+  `eng/os/vfs.hpp` (`Vfs<Backend>`) resuelve **mounts** (prefijo lógico → raíz del backend, gana el
+  más largo) y una **raíz** por defecto, y ofrece `exists`/`size`/`read`/`read_all`/**`list`**
+  (enumeración, vía `backend.list` + `DirEntry`) y **handles propietarios** (`open` → `VfsFile` RAII,
+  vía `backend.open_file`/`read_file`/`close_file`); **HOST-409** (backend simulado en memoria). Los
+  requests con generación son R6.2 (hecho). ⏳ falta que el backend `dos.library` implemente
+  `list`/handles (hoy solo `exists`/`size`/`read`).
 - **R6.2 Requests robustos**: separar `RequestId` del `IoUser`, conservar path y buffer hasta el
   fin, rechazar respuestas tardías y cerrar requests en vuelo. **✅ núcleo hecho**: `eng/os/request.hpp`
   (`RequestTable<MaxSlots>`/`RequestId` con **generación por slot**) — `acquire`/`alive`/`complete`/
@@ -143,10 +147,11 @@ librerías comprimidas con memoria elegida por segmento. El contrato completo es
 - **R6.7 Integración**: demo de transición de zona que cargue `.engz`, ejecute un export y descargue
   la librería sin bloquear el frame. **✅ cadena en host hecha**: **HOST-410** integra `Vfs.read_all`
   → `.engz` → `HunkImage` (carga de overlay end-to-end sin emulador). **✅ demo en hardware**:
-  `212_zone_resources` carga `data/code/answer.engz` del volumen `DH1:` por la **`Vfs`**
-  (`os::file_*`), lo **decodifica** y **carga/ejecuta/descarga** el overlay (`answer()` → 42),
-  validado en WinUAE (Ollama lee el resultado). ⏳ falta hacer la carga **asíncrona** (prefetch que no
-  bloquee el frame) con `file_read_async` + el `RequestTable` (R6.2).
+  `212_zone_resources` carga `data/code/answer.engz` del volumen `DH1:` **de forma asíncrona**
+  (prefetch que **no** bloquea el frame): `eng/res/async_load.hpp` (`AsyncRead::begin` lanza
+  `os::file_read_async`; el bucle llama `os::file_pump` y `on_done` completa por el cookie `IoUser{'L'…}`),
+  lo **decodifica** y **carga/ejecuta/descarga** el overlay (`answer()` → 42), validado en WinUAE
+  (Ollama lee el resultado).
 
 - **Presupuesto por banco.** Chip y Fast tienen costes distintos (Agnus no ve Fast): la caché debe
   respetar `MemBank` y no meter buffers de Paula en Fast.

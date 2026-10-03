@@ -43,8 +43,8 @@ int main() {
 	check(comp.build(), "build (emite en ambos bloques)");
 
 	// Parchea el frame: coarse(20) = (20-1)&~15 = 16 -> ventana 16/16 = 1; fine_delay(20) = 12.
-	auto fr = eng::playfield::plan_strip_frame<Geom>(20, 0, 20, 0);
-	auto sc = eng::playfield::strip_copper_values<Geom>(fr);
+	auto fr = eng::playfield::plan_strip_frame(Geom{}, 20, 0, 20, 0);
+	auto sc = eng::playfield::strip_copper_values(Geom{}, fr);
 	check(sc.bplcon1 == 0xccu && fr.window_word == 1u, "fine 12 duplicado, ventana 1");
 	check(comp.patch(sc), "patch");
 

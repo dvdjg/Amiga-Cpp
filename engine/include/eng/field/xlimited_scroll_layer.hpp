@@ -65,6 +65,12 @@ public:
 	/// Conduce un frame: la cámara registrada en la escena → `update`+blit+`compose`+`install`.
 	void frame(Backend& backend) noexcept override { m_scene.frame_from_source(backend); }
 
+	/// Vistas de banda de la escena (1 = single, 2 = DPF): PF1 = `bg()` (delante), PF2 = `fg()`.
+	[[nodiscard]] eng::u8 band_view_count() const noexcept override { return m_scene.fields(); }
+	[[nodiscard]] PlayfieldHardwareView band_view(eng::u8 i) const noexcept override {
+		return i == 0u ? m_scene.bg().hardware_view() : m_scene.fg().hardware_view();
+	}
+
 private:
 	Scene& m_scene;
 	graphics::FramePlan m_plan {};

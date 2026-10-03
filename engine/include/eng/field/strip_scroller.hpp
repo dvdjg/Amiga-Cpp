@@ -117,8 +117,8 @@ struct StripFrame {
 /// decide las tiras a pintar y los valores de Copper. El orden real es: pintar la tira (destination
 /// en la guarda, invisible) -> parchear Copper -> el haz muestra la ventana nueva.
 template <class Geom>
-[[nodiscard]] constexpr StripFrame plan_strip_frame(eng::s32 sx, eng::s32 sy, eng::s32 psx,
-						    eng::s32 psy) noexcept {
+[[nodiscard]] constexpr StripFrame plan_strip_frame(const Geom& g, eng::s32 sx, eng::s32 sy,
+						    eng::s32 psx, eng::s32 psy) noexcept {
 	StripFrame f {};
 	// Convencion canonica (`playfield_scroll.hpp`): el puntero apunta al COARSE `(x-1) & ~15` y
 	// BPLCON1 lleva el retardo `(16 - (x&15)) & 15`. El puntero de la ventana NO puede envolver el
@@ -127,15 +127,15 @@ template <class Geom>
 	const eng::u16 pxu = (psx < 1) ? 1u : static_cast<eng::u16>(psx);
 	const eng::u16 coarse = eng::graphics::fine_scroll_coarse(sxu);
 	const eng::u16 pcoarse = eng::graphics::fine_scroll_coarse(pxu);
-	const eng::u16 span = static_cast<eng::u16>(Geom::ring_w_words - Geom::visible_words);
+	const eng::u16 span = static_cast<eng::u16>(g.ring_w_words - g.visible_words);
 	f.window_word = static_cast<eng::u16>((coarse / 16u) % span);
 	f.bplcon1_fine = static_cast<eng::u8>(eng::graphics::fine_delay(sxu));
 	// Ventana VERTICAL: si el anillo es todo el alto del mapa (`ring_h > viewport_h`), el scroll Y
 	// es solo el offset de fila (sin split: el bitmap ya contiene todas las filas, la tira X las
 	// rellena enteras). La camara Y queda acotada a `[0, ring_h - viewport_h]`.
 	{
-		const eng::s32 max_line = static_cast<eng::s32>(Geom::ring_h) -
-					  static_cast<eng::s32>(Geom::viewport_h);
+		const eng::s32 max_line = static_cast<eng::s32>(g.ring_h) -
+					  static_cast<eng::s32>(g.viewport_h);
 		eng::s32 wl = sy;
 		if (wl < 0) wl = 0;
 		if (wl > max_line) wl = max_line;
@@ -146,15 +146,17 @@ template <class Geom>
 		f.column_crossed = true;
 		const eng::u16 pw = static_cast<eng::u16>((pcoarse / 16u) % span);
 		f.col_dest_word = (sx > psx)
-			? static_cast<eng::u16>((pw + Geom::visible_words) % Geom::ring_w_words)
-			: static_cast<eng::u16>((pw + Geom::ring_w_words - 1u) % Geom::ring_w_words);
+			? static_cast<eng::u16>((pw + g.visible_words) % g.ring_w_words)
+			: static_cast<eng::u16>((pw + g.ring_w_words - 1u) % g.ring_w_words);
 		++f.blits;
 	}
-	if constexpr (Geom::split_vertical) {
-		if ((sy / Geom::tile_h) != (psy / Geom::tile_h)) {
+	// `g.split_vertical` es `static constexpr` en el NTTP (el `if` se pliega a nada) y un miembro
+	// en la geometría runtime (se evalúa por frame).
+	if (g.split_vertical) {
+		if ((sy / g.tile_h) != (psy / g.tile_h)) {
 			f.row_crossed = true;
-			f.row_dest_line = static_cast<eng::u16>((static_cast<eng::u32>(psy) / Geom::tile_h) %
-								(Geom::ring_h / Geom::tile_h));
+			f.row_dest_line = static_cast<eng::u16>((static_cast<eng::u32>(psy) / g.tile_h) %
+								(g.ring_h / g.tile_h));
 			++f.blits;
 		}
 	}
@@ -175,7 +177,8 @@ struct StripCopper {
 /// Calcula los valores de Copper a parchear a partir del plan de frame. El anillo es **continuo**:
 /// el plano `p` vive `p*ring_w_bytes` por delante, y la ventana empieza en `window_word*2` bytes.
 template <class Geom>
-[[nodiscard]] constexpr StripCopper strip_copper_values(const StripFrame& f) noexcept {
+[[nodiscard]] constexpr StripCopper strip_copper_values(const Geom& g,
+							const StripFrame& f) noexcept {
 	StripCopper c {};
 	// `BPLCON1` lleva el retardo fino **duplicado en los DOS nibbles** (nibble bajo = PF1, alto =
 	// PF2). En un playfield single el nibble alto sigue afectando a los planos pares (BPL2/4/6): con
@@ -183,16 +186,16 @@ template <class Geom>
 	// (mismo convenio que `amiga_display_mapper.hpp`/`tile_scroll.hpp` y la demo 120).
 	const eng::u16 nibble = f.bplcon1_fine;
 	c.bplcon1 = static_cast<eng::u16>(nibble | static_cast<eng::u16>(nibble << 4u));
-	c.planes = Geom::planes;
+	c.planes = g.planes;
 	// Offset vertical (Y) de la ventana: `window_line` planelíneas completas (planos*anillo).
-	const eng::u32 y_off = static_cast<eng::u32>(f.window_line) * Geom::planes * Geom::ring_w_bytes;
-	for (eng::u8 p = 0u; p < Geom::planes; ++p) {
-		c.pt_byte[p] = y_off + static_cast<eng::u32>(p) * Geom::ring_w_bytes +
+	const eng::u32 y_off = static_cast<eng::u32>(f.window_line) * g.planes * g.ring_w_bytes;
+	for (eng::u8 p = 0u; p < g.planes; ++p) {
+		c.pt_byte[p] = y_off + static_cast<eng::u32>(p) * g.ring_w_bytes +
 			       static_cast<eng::u32>(f.window_word) * 2u;
 	}
-	if constexpr (Geom::split_vertical) {
-		c.split_line = Geom::split_line;
-		c.split_two_wait = Geom::split_crosses_255;
+	if (g.split_vertical) {
+		c.split_line = g.split_line;
+		c.split_two_wait = g.split_crosses_255;
 	}
 	return c;
 }
@@ -223,7 +226,8 @@ struct StripBlit {
 /// Descriptor del blit de la tira para el `ash` (fine shift 0..15) y el `chunk` (trozo de
 /// `<= 1024` planelíneas) dados.
 template <class Geom>
-[[nodiscard]] constexpr StripBlit strip_blit_desc(eng::u8 ash, eng::u8 chunk = 0u) noexcept {
+[[nodiscard]] constexpr StripBlit strip_blit_desc(const Geom& g, eng::u8 ash,
+						  eng::u8 chunk = 0u) noexcept {
 	StripBlit b {};
 	b.bltcon0 = static_cast<eng::u16>(eng::graphics::kBlitterUseA | eng::graphics::kBlitterUseD |
 					  eng::graphics::kBlitterMintermCopyA |
@@ -232,11 +236,11 @@ template <class Geom>
 	b.bltafwm = 0xffffu;
 	b.bltalwm = 0xffffu;
 	b.bltamod = 0;
-	b.bltdmod = Geom::bltdmod_col;
-	const eng::u16 start = static_cast<eng::u16>(chunk) * Geom::max_blt_h;
-	const eng::u16 remaining = static_cast<eng::u16>(Geom::column_planelines - start);
-	const eng::u16 h = remaining < Geom::max_blt_h ? remaining : Geom::max_blt_h;
-	b.bltsize = static_cast<eng::u16>((h << 6u) | Geom::strip_words);
+	b.bltdmod = g.bltdmod_col;
+	const eng::u16 start = static_cast<eng::u16>(chunk) * g.max_blt_h;
+	const eng::u16 remaining = static_cast<eng::u16>(g.column_planelines - start);
+	const eng::u16 h = remaining < g.max_blt_h ? remaining : g.max_blt_h;
+	b.bltsize = static_cast<eng::u16>((h << 6u) | g.strip_words);
 	return b;
 }
 
@@ -250,12 +254,12 @@ template <class Geom>
 /// tile**. Si se quisiera un origen unido habría que **pre-procesarlo** (no se puede esperar que
 /// muchos tiles caigan juntos). Se llama solo al cruzar tile (0 composiciones en frames sin cruce).
 template <class Geom>
-[[nodiscard]] constexpr eng::u16 compose_column(eng::u16* dst, const eng::u16* tile_bank,
-						const eng::u16* tile_ids,
+[[nodiscard]] constexpr eng::u16 compose_column(const Geom& g, eng::u16* dst,
+						const eng::u16* tile_bank, const eng::u16* tile_ids,
 						eng::u16 bank_stride_words) noexcept {
-	const eng::u16 tile_words = static_cast<eng::u16>(Geom::tile_h * Geom::planes);
+	const eng::u16 tile_words = static_cast<eng::u16>(g.tile_h * g.planes);
 	eng::u16 w = 0u;
-	for (eng::u16 t = 0u; t < Geom::column_tiles; ++t) {
+	for (eng::u16 t = 0u; t < g.column_tiles; ++t) {
 		const eng::u16* src = tile_bank + static_cast<eng::u32>(tile_ids[t]) * bank_stride_words;
 		for (eng::u16 i = 0u; i < tile_words; ++i) dst[w++] = src[i];
 	}
@@ -267,17 +271,17 @@ template <class Geom>
 /// columna), listo para el blit de fila con `BLTAMOD=0`. Tiles **separados**, copiados uno a uno.
 /// Devuelve las palabras escritas (`row_tiles*tile_h*planes`).
 template <class Geom>
-[[nodiscard]] constexpr eng::u16 compose_row(eng::u16* dst, const eng::u16* tile_bank,
-					     const eng::u16* tile_ids,
+[[nodiscard]] constexpr eng::u16 compose_row(const Geom& g, eng::u16* dst,
+					     const eng::u16* tile_bank, const eng::u16* tile_ids,
 					     eng::u16 bank_stride_words) noexcept {
-	const eng::u16 cols = Geom::row_tiles;
+	const eng::u16 cols = g.row_tiles;
 	eng::u16 w = 0u;
-	for (eng::u16 line = 0u; line < Geom::tile_h; ++line) {
-		for (eng::u8 plane = 0u; plane < Geom::planes; ++plane) {
+	for (eng::u16 line = 0u; line < g.tile_h; ++line) {
+		for (eng::u8 plane = 0u; plane < g.planes; ++plane) {
 			for (eng::u16 c = 0u; c < cols; ++c) {
 				const eng::u16* src = tile_bank +
 					static_cast<eng::u32>(tile_ids[c]) * bank_stride_words;
-				dst[w++] = src[static_cast<eng::u32>(line) * Geom::planes + plane];
+				dst[w++] = src[static_cast<eng::u32>(line) * g.planes + plane];
 			}
 		}
 	}
@@ -299,8 +303,20 @@ template <class Geom>
 template <class Geom, class Map, class Sink>
 class StripScrollController {
 public:
+	/// Máximo de tiles de una columna (alto del anillo / alto de tile). Cota del buffer de ids
+	/// (`column_tiles` puede ser runtime con `RuntimeScrollGeometry`, así que no vale un VLA).
+	static constexpr eng::u8 kMaxColumnTiles = 64u;
+
+	/// **Fija la geometría** (instancia). El NTTP `StripScrollGeometry` la aporta por su tipo
+	/// (todos sus miembros son `static constexpr`, accesibles igual vía una instancia) y
+	/// `RuntimeScrollGeometry` la trae de runtime. Llámalo en el setup, antes de `bind`/`fill_ring`.
+	constexpr void set_geometry(const Geom& g) noexcept { m_geom = g; }
+	[[nodiscard]] constexpr const Geom& geometry() const noexcept { return m_geom; }
+
 	/// Periodo del mapa en words (== `span` del puntero): `ring - visible`.
-	static constexpr eng::u16 period = static_cast<eng::u16>(Geom::ring_w_words - Geom::visible_words);
+	[[nodiscard]] constexpr eng::u16 period() const noexcept {
+		return static_cast<eng::u16>(m_geom.ring_w_words - m_geom.visible_words);
+	}
 
 	/// Liga los buffers (anillo/banco/columna, en Chip) y los observadores del mapa y del backend
 	/// (`Ref`, no propietarios). Se llama una vez en el setup, antes de `fill_ring()`.
@@ -317,8 +333,8 @@ public:
 	/// **Setup**: pre-pinta TODA la ventana del anillo con base 0 (el slot `s` vale la columna
 	/// `s % period`). Cubre también los slots de solape para que ningún píxel quede sin inicializar.
 	void fill_ring() noexcept {
-		for (eng::u16 w = 0u; w < Geom::ring_w_words; ++w) {
-			paint_column(w, static_cast<eng::u16>(w % period));
+		for (eng::u16 w = 0u; w < m_geom.ring_w_words; ++w) {
+			paint_column(w, static_cast<eng::u16>(w % period()));
 		}
 	}
 
@@ -327,14 +343,14 @@ public:
 	/// todas las filas). Devuelve el `StripFrame` (para `strip_copper_values`/`patch`).
 	[[nodiscard]] StripFrame tick(eng::s32 x, eng::s32 y, eng::s32 prev_x,
 				      eng::s32 prev_y) noexcept {
-		const StripFrame fr = plan_strip_frame<Geom>(x, y, prev_x, prev_y);
+		const StripFrame fr = plan_strip_frame(m_geom, x, y, prev_x, prev_y);
 		if (fr.column_crossed) {
 			const eng::u16 sxu = (x < 1) ? 1u : static_cast<eng::u16>(x);
 			const eng::u32 coarse_w = eng::graphics::fine_scroll_coarse(sxu) / 16u;
-			const eng::u32 span = Geom::ring_w_words - Geom::visible_words;
+			const eng::u32 span = m_geom.ring_w_words - m_geom.visible_words;
 			const eng::u32 offset = coarse_w - (coarse_w % span);
 			paint_column(fr.col_dest_word,
-				     static_cast<eng::u16>((fr.col_dest_word + offset) % period));
+				     static_cast<eng::u16>((fr.col_dest_word + offset) % period()));
 		}
 		return fr;
 	}
@@ -342,15 +358,18 @@ public:
 private:
 	/// Compone la columna `map_col` (tiles del `Map`) y la blitea en el word `ring_word` del anillo.
 	void paint_column(eng::u16 ring_word, eng::u16 map_col) noexcept {
-		eng::u16 ids[Geom::column_tiles];
-		for (eng::u16 r = 0u; r < Geom::column_tiles; ++r) {
+		eng::u16 ids[kMaxColumnTiles] {};
+		const eng::u16 tiles = m_geom.column_tiles < kMaxColumnTiles ? m_geom.column_tiles
+									     : kMaxColumnTiles;
+		for (eng::u16 r = 0u; r < tiles; ++r) {
 			ids[r] = static_cast<eng::u16>(m_map->tile_at(map_col, r));
 		}
-		(void)compose_column<Geom>(m_column, m_bank, ids, m_bank_stride);
-		(void)m_sink->blitter_strip_column(m_column, m_ring + ring_word, Geom::strip_words,
-						   Geom::bltdmod_col, Geom::column_planelines, 0u);
+		(void)compose_column(m_geom, m_column, m_bank, ids, m_bank_stride);
+		(void)m_sink->blitter_strip_column(m_column, m_ring + ring_word, m_geom.strip_words,
+						   m_geom.bltdmod_col, m_geom.column_planelines, 0u);
 	}
 
+	Geom m_geom {};
 	eng::u16* m_ring = nullptr;
 	const eng::u16* m_bank = nullptr;
 	eng::u16* m_column = nullptr;

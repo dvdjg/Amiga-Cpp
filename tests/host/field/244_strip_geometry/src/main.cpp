@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <cstdio>
 
+#include <eng/field/runtime_scroll_geometry.hpp>
 #include <eng/field/strip_scroller.hpp>
 
 namespace {
@@ -79,7 +80,7 @@ bool simulate(std::uint32_t seed) {
 		long ns = scroll + (fwd ? step : -step);
 		if (ns < 0) { ns = 0; fwd = true; }          // rebote (mapa acotado)
 		if (ns >= period) { ns = period - 1; fwd = false; }
-		const auto fr = eng::playfield::plan_strip_frame<Geom>(
+		const auto fr = eng::playfield::plan_strip_frame(Geom{}, 
 			static_cast<eng::s32>(ns), 0, static_cast<eng::s32>(scroll), 0);
 		check(fr.blits <= 2u, "<= 2 blits/frame");
 		const eng::u16 span = static_cast<eng::u16>(Geom::ring_w_words - Geom::visible_words);
@@ -127,7 +128,7 @@ bool simulate_content(unsigned map_period, std::uint32_t seed) {
 		long ns = scroll + (fwd ? step : -step);
 		if (ns < 0) { ns = 0; fwd = true; }
 		if (ns >= period) { ns = period - 1; fwd = false; }
-		const auto fr = eng::playfield::plan_strip_frame<G>(
+		const auto fr = eng::playfield::plan_strip_frame(G{}, 
 			static_cast<eng::s32>(ns), 0, static_cast<eng::s32>(scroll), 0);
 		const unsigned span = G::ring_w_words - G::visible_words;
 		const unsigned sxu = ns < 1 ? 1u : static_cast<unsigned>(ns);
@@ -228,11 +229,11 @@ int main() {
 
 	// Descriptor del blit de tira: A->D copia, ASH en BLTCON0, BLTDMOD del anillo, BLTSIZE con
 	// H de 10 bits (columna partida en 2 para 208x5).
-	const auto b0 = eng::playfield::strip_blit_desc<Geom>(5u, 0u);
+	const auto b0 = eng::playfield::strip_blit_desc(Geom{}, 5u, 0u);
 	check(((b0.bltcon0 >> 12u) & 15u) == 5u, "BLTCON0 ASH = fine 5");
 	check(b0.bltdmod == 44, "BLTDMOD = ring_w_bytes - 2");
 	check(b0.bltsize == static_cast<eng::u16>((1024u << 6u) | 1u), "chunk 0: 1024 planelines x 1 word");
-	const auto b1 = eng::playfield::strip_blit_desc<Geom>(5u, 1u);
+	const auto b1 = eng::playfield::strip_blit_desc(Geom{}, 5u, 1u);
 	check(b1.bltsize == static_cast<eng::u16>((16u << 6u) | 1u), "chunk 1: 16 planelines (1040-1024)");
 
 	// Composicion de columna: 13 tiles (208/16) de 80 palabras -> 1040 palabras contiguas.
@@ -246,7 +247,7 @@ int main() {
 		eng::u16 ids[13u];
 		for (eng::u16 t = 0u; t < 13u; ++t) ids[t] = static_cast<eng::u16>((t * 3u + 1u) % 16u);
 		eng::u16 out[Geom::column_planelines];
-		const eng::u16 n = eng::playfield::compose_column<Geom>(out, bank, ids, 80u);
+		const eng::u16 n = eng::playfield::compose_column(Geom{}, out, bank, ids, 80u);
 		check(n == Geom::column_planelines, "compose_column: 13 tiles x 80 = 1040 palabras");
 		bool okc = true;
 		for (eng::u16 t = 0u; t < 13u && okc; ++t) {
@@ -265,7 +266,7 @@ int main() {
 		}
 		eng::u16 ids[6u] = {2u, 5u, 1u, 7u, 0u, 3u};
 		eng::u16 out[Geom32::column_planelines];
-		const eng::u16 n = eng::playfield::compose_column<Geom32>(out, bank, ids, 160u);
+		const eng::u16 n = eng::playfield::compose_column(Geom32{}, out, bank, ids, 160u);
 		bool okc = n == Geom32::column_planelines;
 		for (eng::u16 t = 0u; t < 6u && okc; ++t) {
 			for (eng::u16 i = 0u; i < 160u; ++i) {
@@ -273,7 +274,7 @@ int main() {
 			}
 		}
 		check(okc, "tile 32: compose_column 6x160 = 960 palabras");
-		const auto bs = eng::playfield::strip_blit_desc<Geom32>(7u, 0u);
+		const auto bs = eng::playfield::strip_blit_desc(Geom32{}, 7u, 0u);
 		check(bs.bltdmod == 46 && bs.bltsize == static_cast<eng::u16>((960u << 6u) | 2u),
 		      "tile 32: BLTDMOD=46 y BLTSIZE=(960<<6)|2");
 	}
@@ -287,7 +288,7 @@ int main() {
 		eng::u16 ids[Geom::row_tiles];
 		for (eng::u16 c = 0u; c < Geom::row_tiles; ++c) ids[c] = static_cast<eng::u16>(c % 16u);
 		eng::u16 out[Geom::row_tiles * Geom::row_planelines];
-		const eng::u16 n = eng::playfield::compose_row<Geom>(out, bank, ids, 80u);
+		const eng::u16 n = eng::playfield::compose_row(Geom{}, out, bank, ids, 80u);
 		check(n == static_cast<eng::u16>(Geom::row_tiles * Geom::row_planelines),
 		      "compose_row: anillo x 80 palabras");
 		check(Geom::strip_row_words == Geom::ring_w_words && Geom::row_planelines == 80u,
@@ -306,8 +307,8 @@ int main() {
 
 	// Valores de Copper: BPLCON1 = fine; BPLxPT por plano = p*ring_w_bytes + window_word*2.
 	{
-		const auto fr = eng::playfield::plan_strip_frame<Geom>(20, 0, 0, 0);
-		const auto c = eng::playfield::strip_copper_values<Geom>(fr);
+		const auto fr = eng::playfield::plan_strip_frame(Geom{}, 20, 0, 0, 0);
+		const auto c = eng::playfield::strip_copper_values(Geom{}, fr);
 		check(c.bplcon1 == 0xccu,
 		      "BPLCON1 = fine_delay(scroll) duplicado en ambos nibbles (PF1 y PF2)");
 		check(c.pt_byte[0] == 2u && c.pt_byte[1] == 48u && c.pt_byte[4] == 186u,
@@ -318,10 +319,41 @@ int main() {
 	check(Geom256::split_crosses_255, "split a 300 usa two-WAIT (cruza la linea 255)");
 
 	// Streaming: un frame sin cruce de tile no compone ni blitea (0 blits; solo parcheo de Copper).
-	check(eng::playfield::plan_strip_frame<Geom>(5, 0, 5, 0).blits == 0u,
+	check(eng::playfield::plan_strip_frame(Geom{}, 5, 0, 5, 0).blits == 0u,
 	      "sin cruce: 0 blits (solo parcheo de Copper)");
-	check(eng::playfield::plan_strip_frame<Geom>(20, 0, 5, 0).blits == 1u,
+	check(eng::playfield::plan_strip_frame(Geom{}, 20, 0, 5, 0).blits == 1u,
 	      "con cruce (5->20): 1 columna");
+
+	// **Geometría RUNTIME** (§7): `RuntimeScrollGeometry` (cargada en runtime) produce los MISMOS
+	// valores que el NTTP y el motor la consume igual (planner + copper + blit). Es lo que permite
+	// al `App` construir el motor de un `ScrollPlan` no conocido en compilación.
+	{
+		const auto rg = eng::playfield::runtime_scroll_geometry(320u, 208u, 5u, 16u, 16u);
+		check(rg.has_value(), "runtime_scroll_geometry válida");
+		if (rg.has_value()) {
+			const auto& g = *rg;
+			check(g.ring_w_words == Geom::ring_w_words && g.planes == Geom::planes &&
+				      g.bpl_mod == Geom::bpl_mod &&
+				      g.column_planelines == Geom::column_planelines,
+			      "runtime ≡ NTTP (campos clave)");
+			const auto fr_n = eng::playfield::plan_strip_frame(Geom{}, 20, 0, 5, 0);
+			const auto fr_r = eng::playfield::plan_strip_frame(g, 20, 0, 5, 0);
+			check(fr_n.column_crossed == fr_r.column_crossed &&
+				      fr_n.window_word == fr_r.window_word &&
+				      fr_n.col_dest_word == fr_r.col_dest_word &&
+				      fr_n.bplcon1_fine == fr_r.bplcon1_fine,
+			      "plan_strip_frame: runtime ≡ NTTP");
+			const auto c_n = eng::playfield::strip_copper_values(Geom{}, fr_n);
+			const auto c_r = eng::playfield::strip_copper_values(g, fr_r);
+			check(c_n.planes == c_r.planes && c_n.pt_byte[0] == c_r.pt_byte[0] &&
+				      c_n.pt_byte[4] == c_r.pt_byte[4],
+			      "strip_copper_values: runtime ≡ NTTP");
+			const auto b_n = eng::playfield::strip_blit_desc(Geom{}, 5u, 0u);
+			const auto b_r = eng::playfield::strip_blit_desc(g, 5u, 0u);
+			check(b_n.bltsize == b_r.bltsize && b_n.bltdmod == b_r.bltdmod,
+			      "strip_blit_desc: runtime ≡ NTTP");
+		}
+	}
 
 	if (g_fail != 0) { std::printf("%d fallo(s)\n", g_fail); return 1; }
 	std::printf("OK: geometria de tiras (anillo, guarda, cobertura) e invariantes validados.\n");

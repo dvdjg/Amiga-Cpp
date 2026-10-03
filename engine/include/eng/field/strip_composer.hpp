@@ -38,6 +38,9 @@ public:
 	/// Fija la direccion base (Chip) del anillo (los `BPLxPT` se calculan sobre ella).
 	constexpr void set_ring(const eng::u16* base) noexcept { m_base = base; }
 
+	/// **Fija la geometría** (instancia): el NTTP la aporta por su tipo; la runtime, de valores.
+	constexpr void set_geometry(const Geom& g) noexcept { m_geom = g; }
+
 	/// Emite la lista completa en **ambos** bloques del doble buffer (una vez).
 	bool build() noexcept {
 		if (!m_ok) return false;
@@ -55,11 +58,11 @@ public:
 		if (!m_built || m_base == nullptr) return false;
 		eng::u16* const w = m_copper.inactive_words();
 		w[m_bplcon1_handle + 1u] = c.bplcon1;
-		for (eng::u8 p = 0u; p < Geom::planes; ++p) {
+		for (eng::u8 p = 0u; p < m_geom.planes; ++p) {
 			const eng::u32 addr = base_addr(c.pt_byte[p]);
 			w[m_pt_handle[p][0] + 1u] = static_cast<eng::u16>(addr >> 16u);
 			w[m_pt_handle[p][1] + 1u] = static_cast<eng::u16>(addr & 0xffffu);
-			if constexpr (Geom::split_vertical) {
+			if (m_geom.split_vertical) {
 				w[m_split_pt_handle[p][0] + 1u] = static_cast<eng::u16>(addr >> 16u);
 				w[m_split_pt_handle[p][1] + 1u] = static_cast<eng::u16>(addr & 0xffffu);
 			}
@@ -102,30 +105,30 @@ private:
 									    copper::DmaCopper |
 									    copper::DmaBitplane));
 		sched.move(copper::Register::BPLCON0,
-			   static_cast<eng::u16>(0x0200u | (static_cast<eng::u16>(Geom::planes) << 12u)));
+			   static_cast<eng::u16>(0x0200u | (static_cast<eng::u16>(m_geom.planes) << 12u)));
 		m_bplcon1_handle = sched.move_at(copper::Register::BPLCON1, 0u);
 		sched.move(copper::Register::BPLCON2, 0u);
-		sched.move(copper::Register::BPL1MOD, Geom::bpl_mod);
-		sched.move(copper::Register::BPL2MOD, Geom::bpl_mod);
+		sched.move(copper::Register::BPL1MOD, m_geom.bpl_mod);
+		sched.move(copper::Register::BPL2MOD, m_geom.bpl_mod);
 		sched.move(copper::Register::DIWSTRT, kStripDiwStrt);
 		sched.move(copper::Register::DIWSTOP, kStripDiwStop);
 		sched.move(copper::Register::DDFSTRT, kStripDdfStrt);
 		sched.move(copper::Register::DDFSTOP, kStripDdfStop);
 		sched.emit_palette(m_palette, 0u, 32u);
-		for (eng::u8 p = 0u; p < Geom::planes; ++p) {
+		for (eng::u8 p = 0u; p < m_geom.planes; ++p) {
 			m_pt_handle[p][0] = sched.move_at(copper::bitplane_pointer_high_register(p), 0u);
 			m_pt_handle[p][1] = sched.move_at(copper::bitplane_pointer_low_register(p), 0u);
 		}
-		if constexpr (Geom::split_vertical) {
+		if (m_geom.split_vertical) {
 			// Split: la linea de corte es `0x2c + viewport_h`. Si cruza la 255 (OCS VPOS de 8
 			// bits), se usa la secuencia two-WAIT ($ffdf,$fffe + $0001,$fffe).
-			if constexpr (Geom::split_crosses_255) {
+			if (m_geom.split_crosses_255) {
 				sched.wait_raw(0xffu, 0xdfu, 0xfffeu);
 				sched.wait_raw(0x00u, 0x01u, 0xfffeu);
 			} else {
-				sched.wait_raw(static_cast<eng::u16>(Geom::split_line), 0x01u, 0xfffeu);
+				sched.wait_raw(static_cast<eng::u16>(m_geom.split_line), 0x01u, 0xfffeu);
 			}
-			for (eng::u8 p = 0u; p < Geom::planes; ++p) {
+			for (eng::u8 p = 0u; p < m_geom.planes; ++p) {
 				m_split_pt_handle[p][0] =
 					sched.move_at(copper::bitplane_pointer_high_register(p), 0u);
 				m_split_pt_handle[p][1] =
@@ -139,6 +142,7 @@ private:
 
 	copper::DoubleBuffer m_copper {};
 	eng::PaletteWords m_palette {};
+	Geom m_geom {};
 	const eng::u16* m_base = nullptr;
 	eng::u16 m_bplcon1_handle = 0u;
 	eng::u16 m_pt_handle[8][2] {};

@@ -57,6 +57,7 @@
 #include <eng/scene/bobs.hpp>
 #include <eng/scene/display.hpp>
 #include <eng/scene/plan.hpp>
+#include <eng/scene/raster_plan.hpp>
 #include <eng/scene/world.hpp>
 #include <eng/task/background.hpp>
 
@@ -536,6 +537,27 @@ public:
 	}
 	/// Plan de escena formado por las capas de scroll registradas con rol.
 	[[nodiscard]] const auto& scene_plan() const noexcept { return m_scene_plan; }
+
+	/// **Deriva el `RasterLayout` de la escena** del plan + las **vistas de banda** de las capas
+	/// registradas (cada capa declara `band_view_count()`/`band_view()`; ver `ScrollLayer`). El
+	/// juego **no monta el layout**: declara capas con rol y el `App` lo compone — con
+	/// `present_layout(out)` el `App` lo materializa y toma el display. `false` si faltan vistas
+	/// para las capas del plan o la estrategia no tiene mapeo (`Empty`/`Unsupported`).
+	[[nodiscard]] bool scene_layout(eng::scene::RasterLayout& out) noexcept {
+		eng::playfield::PlayfieldHardwareView views[kMaxScrollLayers * 2u] {};
+		eng::usize n = 0u;
+		for (eng::u8 i = 0u; i < m_scroll_count; ++i) {
+			const eng::u8 c = m_scroll_layers[i]->band_view_count();
+			for (eng::u8 v = 0u; v < c && n < kMaxScrollLayers * 2u; ++v) {
+				views[n] = m_scroll_layers[i]->band_view(v);
+				++n;
+			}
+		}
+		return eng::scene::plan_raster_layout(
+			       m_scene_plan,
+			       eng::Span<const eng::playfield::PlayfieldHardwareView> {views, n}, out)
+		       .has_value();
+	}
 
 	/// **Compone la pantalla por bandas y toma el display** (`RasterLayout`): el juego aporta las
 	/// `Band`s (p. ej. `plan_raster_layout` sobre las vistas de sus capas, o `band_from_view`) y el

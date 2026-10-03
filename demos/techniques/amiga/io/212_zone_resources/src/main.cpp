@@ -1,18 +1,21 @@
 // Demo 212 — **recursos de zona**: cargar un overlay por el VFS y `.engz`.
 // ----------------------------------------------------------------------------
 // Tutorial (R6.1/R6.4/R6.6/R6.7 de `ROADMAP_RESOURCES.md`): una **transición de zona** carga el
-// código de la zona desde disco por la **fachada VFS** (paths normalizados), decodifica el
-// contenedor **`.engz`** y **carga/ejecuta/descarga** el overlay (HUNK). El juego no ve `dos.handles`,
-// punteros de memoria ni el formato del recurso:
+// código de la zona desde disco **de forma asíncrona** (`res::AsyncRead` + `os::file_pump`, el frame
+// no se bloquea), decodifica el contenedor **`.engz`** y **carga/ejecuta/descarga** el overlay
+// (HUNK). El juego no ve `dos.handles`, punteros de memoria ni el formato del recurso:
 //
-//   vfs.read_all("...engz") → decode_engz(...) → DynLoader::load(...) → symbol("answer")() → unload
+//   AsyncRead::begin("...engz") → [file_pump por frame] → on_done → decode_engz → DynLoader::load
+//                                                                      → symbol("answer")() → unload
 //
 //   bash ./tools/build/build-demo.sh demos/techniques/amiga/io/212_zone_resources --debug
 //   bash ./tools/run/run-demo.sh demos/techniques/amiga/io/212_zone_resources --warp
 
 #include <eng/api/api.hpp>
 #include <eng/os/file.hpp>
+#include <eng/os/os.hpp>
 #include <eng/os/vfs.hpp>
+#include <eng/res/async_load.hpp>
 #include <eng/res/dynloader.hpp>
 #include <eng/res/engz.hpp>
 #include <eng/platform/amiga/backend.hpp>
@@ -64,12 +67,14 @@ struct ZoneGame {
 	FileBackend m_fs {};
 	eng::os::Vfs<FileBackend> m_vfs {m_fs};
 	eng::res::DynLoader m_dl {};
+	eng::res::AsyncRead m_load {}; ///< lectura asíncrona del `.engz` (prefetch de zona, R6.7)
 	eng::u8 m_engz[512] {};
 	eng::u8 m_decoded[512] {};
 	eng::u8 m_pool_buf[512] {};
 	eng::LinearArena m_pool {m_pool_buf, sizeof(m_pool_buf), eng::MemoryKind::Any};
 	bool m_ok = false;
 	eng::s32 m_answer = -1;
+	int m_ready_status = 0; ///< 0 = en curso, 1 = OK, -1 = fallo
 
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
@@ -77,27 +82,53 @@ struct ZoneGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021201u);
 			return;
 		}
-		// --- **transición de zona**: cargar el overlay `.engz` por el VFS y ejecutarlo ---
+		// --- **transición de zona**: prefetch asíncrono del overlay `.engz` ---
 		if (!m_vfs.exists("data/code/answer.engz")) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021210u);
 			return;
 		}
-		const auto got = m_vfs.read_all("data/code/answer.engz",
-						eng::Span<eng::u8> {m_engz, sizeof(m_engz)});
-		if (!got.has_value()) {
+		// **La lectura NO bloquea el frame** (R6.7): se lanza aquí; la E/S avanza en `update`
+		// (`file_pump`) mientras el juego sigue su curso (aquí, la pantalla de carga).
+		if (!m_load.begin("data/code/answer.engz", eng::Span<eng::u8> {m_engz, sizeof(m_engz)})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021211u);
 			return;
 		}
+	}
+
+	/// **Sondea la E/S por frame** (no bloquea): `file_pump` resuelve la operación diferida y postea
+	/// el `FileDone`; al llegar, se decodifica el `.engz` y se carga/ejecuta/descarga el overlay.
+	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
+		if (m_ready_status != 0 || !m_load.pending()) {
+			return;
+		}
+		(void)eng::os::file_pump();
+		eng::os::Msg m;
+		while (eng::os::system_port().pop(m)) {
+			(void)m_load.on_done(m);
+		}
+		if (m_load.done()) {
+			run_zone();
+		} else if (m_load.failed()) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00021212u);
+			m_ready_status = -1;
+		}
+	}
+
+	/// Con los bytes ya en RAM (prefetch completado), decodifica el `.engz` y ejecuta el overlay.
+	void run_zone() {
 		const auto decoded = eng::res::decode_engz(
-			eng::Span<const eng::u8> {m_engz, *got},
+			eng::Span<const eng::u8> {m_engz, m_load.received()},
 			eng::Span<eng::u8> {m_decoded, sizeof(m_decoded)});
 		if (!decoded.has_value()) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00021212u);
+			eng::debug::mark_failed(g_eng_run_status, 0x00021213u);
+			m_ready_status = -1;
 			return;
 		}
 		const eng::res::LibHandle lib = m_dl.declare("zone1");
 		if (!m_dl.load(lib, eng::Span<eng::u8> {m_decoded, *decoded}, &m_pool)) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00021213u);
+			eng::debug::mark_failed(g_eng_run_status, 0x00021214u);
+			m_ready_status = -1;
 			return;
 		}
 		using Fn = eng::s32 (*)();
@@ -108,10 +139,7 @@ struct ZoneGame {
 		}
 		m_dl.unload(lib); // la zona termina: se descarga el overlay
 		eng::debug::mark_ready(g_eng_run_status, 0x21200000u);
-	}
-
-	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
+		m_ready_status = 1;
 	}
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {

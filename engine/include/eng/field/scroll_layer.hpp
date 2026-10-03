@@ -18,6 +18,7 @@
 /// lazo por píxel); el juego no ve el compositor, los buffers ni el backend.
 
 #include <eng/core/types/types.hpp>
+#include <eng/field/playfield_base.hpp> // `PlayfieldHardwareView` (vista que expone la capa)
 #include <eng/memory/memory_manager.hpp>
 
 namespace eng::playfield {
@@ -37,6 +38,20 @@ public:
 
 	/// **Un frame**: conduce la capa (cámara del juego → blit de lo que cambia → Copper).
 	virtual void frame(Backend& backend) = 0;
+
+	/// **Número de vistas de banda** que la capa aporta a la composición del `App` (planner §7):
+	/// `0` = la capa compone su propio copperlist (camino de tiras); `1` = un campo (`Single`/`Bands`);
+	/// `2` = dual playfield (`Dpf`). Con estas vistas el `App` **deriva el `RasterLayout`** del plan
+	/// (`App::scene_layout`) sin que el juego monte el layout a mano.
+	[[nodiscard]] virtual eng::u8 band_view_count() const noexcept { return 0u; }
+
+	/// **Vista de hardware** de la banda `i` (`i < band_view_count()`), en orden PF1→PF2. El `App`
+	/// la usa para `plan_raster_layout`; el juego no manipula planos. Devuelve una vista vacía si la
+	/// capa no la expone.
+	[[nodiscard]] virtual PlayfieldHardwareView band_view(eng::u8 i) const noexcept {
+		(void)i;
+		return {};
+	}
 
 protected:
 	/// Destructor **no virtual y protegido**: la capa la **posee el juego** y **no se borra** por el

@@ -50,11 +50,23 @@ struct MockBackend {
 struct MockScroll : eng::playfield::ScrollLayer<MockBackend> {
 	int begins = 0;
 	int frames = 0;
+	eng::u8 views = 0u;
 	bool begin(eng::MemoryManager&, MockBackend&) noexcept override {
 		++begins;
 		return true;
 	}
 	void frame(MockBackend&) noexcept override { ++frames; }
+	eng::u8 band_view_count() const noexcept override { return views; }
+	eng::playfield::PlayfieldHardwareView band_view(eng::u8) const noexcept override {
+		eng::playfield::PlayfieldHardwareView v {};
+		v.planes = 3u;
+		v.bitmap_bytes_per_row = 40u;
+		v.bitmap_height = 256u;
+		v.viewport_w = 320u;
+		v.viewport_h = 256u;
+		v.display_height = 256u;
+		return v;
+	}
 };
 
 /// Escalera mock: devuelve siempre el motor registrado (para probar `App::pick_scroll_engine`).
@@ -242,6 +254,31 @@ int main() {
 		const int before = backend.takeovers;
 		check(!app.present_scene(eng::Span<const eng::scene::Band> {}), "sin bandas devuelve false");
 		check(backend.takeovers == before, "sin bandas no hace takeover");
+	}
+	{
+		// `scene_layout`: el App deriva el RasterLayout del plan + las vistas de las capas.
+		MockBackend backend {};
+		SceneGame game {};
+		App app {backend, game};
+		MockScroll layer {};
+		layer.views = 1u; // expone una vista de banda
+		check(app.add_scroll_layer(layer, eng::scene::LayerRole::Foreground,
+					   eng::scene::LayerPlacement {}),
+		      "capa con vista registrada");
+		check(app.scene_strategy() == eng::scene::SceneStrategy::Single, "estrategia Single (1 capa)");
+		eng::scene::RasterLayout layout {};
+		check(app.scene_layout(layout), "scene_layout deriva el layout del plan + vistas");
+		check(layout.count() == 1u, "una banda (estrategia Single)");
+
+		// Sin capas con vistas → no se puede derivar.
+		MockBackend b2 {};
+		SceneGame g2 {};
+		App app2 {b2, g2};
+		MockScroll plain {};
+		(void)app2.add_scroll_layer(plain, eng::scene::LayerRole::Foreground,
+					    eng::scene::LayerPlacement {});
+		eng::scene::RasterLayout l2 {};
+		check(!app2.scene_layout(l2), "sin vistas, scene_layout devuelve false");
 	}
 
 	if (failures == 0) {
