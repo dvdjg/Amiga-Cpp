@@ -36,6 +36,7 @@
 #include <eng/debug/telemetry.hpp>
 #include <eng/engine.hpp>
 #include <eng/field/strip_layer.hpp>
+#include <eng/field/scroll_ladder.hpp>
 #include <eng/field/draw_target.hpp>
 #include <eng/graphics/blitter_state.hpp>
 #include <eng/graphics/composition/compose.hpp>
@@ -518,6 +519,16 @@ public:
 		(void)m_scene_plan.add(role, placement);
 		return true;
 	}
+	/// **Elige el motor del `ladder` que encaja** con la geometría cargada `g` (caso runtime/editor,
+	/// §7) y lo **registra** (lo arranca y lo conduce como `add_scroll_layer`). `false` si ninguna
+	/// geometría del registro coincide o el arranque falla. El camino manual sigue igual.
+	template <class Ladder>
+	[[nodiscard]] bool pick_scroll_engine(Ladder& ladder,
+					      const eng::playfield::RuntimeScrollGeometry& g) noexcept {
+		auto picked = ladder.pick(g);
+		return picked.valid() && add_scroll_layer(*picked);
+	}
+
 	/// **Estrategia de composición** deducida del plan de escena registrado (`Single`/`Dpf`/`Bands`).
 	[[nodiscard]] eng::scene::SceneStrategy scene_strategy() const noexcept {
 		return m_scene_plan.strategy();

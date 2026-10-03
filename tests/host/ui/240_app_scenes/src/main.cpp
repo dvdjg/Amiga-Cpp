@@ -48,6 +48,15 @@ struct MockScroll : eng::playfield::ScrollLayer<MockBackend> {
 	void frame(MockBackend&) noexcept override { ++frames; }
 };
 
+/// Escalera mock: devuelve siempre el motor registrado (para probar `App::pick_scroll_engine`).
+struct MockLadder {
+	eng::Ref<eng::playfield::ScrollLayer<MockBackend>> engine {};
+	eng::Ref<eng::playfield::ScrollLayer<MockBackend>>
+	pick(const eng::playfield::RuntimeScrollGeometry&) noexcept {
+		return engine;
+	}
+};
+
 /// Capa de BOBs mock: solo devuelve cuántas bandas recibió (para probar `App::emit_bobs_banded`).
 struct MockBobs {
 	eng::u16 emit_banded(eng::graphics::FramePlan&, eng::Span<const eng::scene::BandSpan> bands,
@@ -194,6 +203,18 @@ int main() {
 		MockBobs mb {};
 		check(app2.emit_bobs_banded(mb, {}) == 2u, "emit_bobs_banded usa el plan (2 bandas)");
 		check(app.emit_bobs_banded(mb, {}) == 1u, "sin plan de bandas → 1 banda (pantalla)");
+
+		// `pick_scroll_engine`: la escalera elige por geometría; el App registra/arranca el motor.
+		MockBackend b3 {};
+		SceneGame g3 {};
+		App app3 {b3, g3};
+		MockScroll chosen {};
+		MockLadder ladder {};
+		ladder.engine = chosen;
+		const auto geo = eng::playfield::runtime_scroll_geometry(320u, 256u, 3u, 16u, 16u);
+		check(geo.has_value(), "geometría válida");
+		check(app3.pick_scroll_engine(ladder, *geo), "pick_scroll_engine registra el motor elegido");
+		check(chosen.begins == 1, "el motor elegido quedó arrancado");
 	}
 
 	if (failures == 0) {
