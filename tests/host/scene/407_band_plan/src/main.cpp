@@ -75,11 +75,32 @@ void test_errors() {
 	      "salida corta → OutOfRange");
 }
 
+void test_split_aware_primitives() {
+	const BandSpan bands[2] = {{0u, 128u, LayerRole::Foreground},
+				   {128u, 128u, LayerRole::Foreground}};
+	const eng::Span<const BandSpan> sp {bands, 2u};
+	check(eng::scene::band_containing(sp, 0u) == 0u, "y=0 → banda 0");
+	check(eng::scene::band_containing(sp, 127u) == 0u, "y=127 → banda 0");
+	check(eng::scene::band_containing(sp, 128u) == 1u, "y=128 → banda 1");
+	check(eng::scene::band_containing(sp, 255u) == 1u, "y=255 → banda 1");
+
+	// Un rect que cruza el split se recorta a cada banda.
+	const eng::Box rect {10, 100, 20, 60}; // 100..159
+	const eng::Box top = eng::scene::clip_to_band(rect, bands[0]);
+	const eng::Box bottom = eng::scene::clip_to_band(rect, bands[1]);
+	check(top.y == 100 && top.h == 28u, "recorte a banda 0 (100..127)");
+	check(bottom.y == 128 && bottom.h == 32u, "recorte a banda 1 (128..159)");
+	// Un rect fuera de la banda → vacío.
+	check(eng::scene::clip_to_band(eng::Box {0, 200, 10, 10}, bands[0]).h == 0u,
+	      "rect fuera de banda → vacío");
+}
+
 } // namespace
 
 int main() {
 	test_split_screen();
 	test_errors();
+	test_split_aware_primitives();
 	if (failures == 0) {
 		std::printf("OK: layout de bandas (etapa 3 §7) validado.\n");
 		return 0;
