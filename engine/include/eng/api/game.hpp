@@ -311,6 +311,9 @@ public:
 
 	/// **Configura la memoria del backend** (budget por banco). Normalmente en `init`; el motor
 	/// podría fijarlo solo a partir del perfil de hardware (pendiente).
+	/// \param cfg  presupuesto por banco, en **bytes** (`chip_bytes`/`slow_bytes`/`frame_bytes`/
+	///             `fast_bytes`); un campo a 0 = no reservar ese banco.
+	/// \return `true` si los bancos pedidos se reservaron; `false` si alguno no cupo.
 	template <class B = Backend>
 	bool configure_memory(const MemoryConfig& cfg) {
 		return m_backend.configure_memory(cfg);
@@ -333,6 +336,11 @@ public:
 	/// `app.assets().load(path, size, policy)`. `0` si no cabe; la carga se completa al drenar
 	/// el puerto (`pump()`/`route_resource_io`) con los `FileDone`. En backends sin runtime de
 	/// assets devuelve `0`. La decodificación tipada (`load<T>`) llegará con los decoders.
+	/// \param path     ruta del recurso (se normaliza por el VFS).
+	/// \param size     tamaño esperado en bytes (para reservar antes de leer).
+	/// \param request  banco pedido (`Chip`/`Fast`/…; ver `res::MemoryRequest`).
+	/// \param prio     prioridad en la caché (mayor = se desaloja antes).
+	/// \return id de asset (`res::AssetId`), o `0` si no cabe en el banco pedido.
 	template <class B = Backend>
 	eng::u16 load_asset(const char* path, eng::u32 size,
 			    res::MemoryRequest request = res::MemoryRequest::Chip, eng::u8 prio = 128u) {
@@ -503,6 +511,8 @@ public:
 	/// `StripScrollLayer` o `XlimitedScrollLayer`): `App` la **arranca** con su memoria (bloques
 	/// **tageados** por banco) y su backend, y la **conduce por frame**; el juego no ve el compositor,
 	/// los buffers ni los registros. `false` si no cabe o el arranque falla. Llamar desde `init(App&)`.
+	/// \param layer  la capa de scroll (la **posee** el juego; el `App` solo la conduce).
+	/// \return `true` si quedó registrada y arrancada; `false` si no cabe o `begin` falló.
 	[[nodiscard]] bool add_scroll_layer(eng::playfield::ScrollLayer<Backend>& layer) noexcept {
 		if (m_scroll_count >= kMaxScrollLayers) return false;
 		if (!layer.begin(m_backend.memory_manager(), m_backend)) return false;
@@ -524,6 +534,9 @@ public:
 	/// **Elige el motor del `ladder` que encaja** con la geometría cargada `g` (caso runtime/editor,
 	/// §7) y lo **registra** (lo arranca y lo conduce como `add_scroll_layer`). `false` si ninguna
 	/// geometría del registro coincide o el arranque falla. El camino manual sigue igual.
+	/// \param ladder  registro de motores NTTP con su geometría (`ScrollLadder`).
+	/// \param g       geometría cargada en runtime (p. ej. de un editor).
+	/// \return `true` si algún motor del `ladder` coincide y arrancó.
 	template <class Ladder>
 	[[nodiscard]] bool pick_scroll_engine(Ladder& ladder,
 					      const eng::playfield::RuntimeScrollGeometry& g) noexcept {
@@ -637,6 +650,8 @@ public:
 	/// **Tramos de banda** del plan de escena (para rutar objetos/dibujos con
 	/// `BobLayer::emit_banded`/`for_each_band_part`): deriva el layout de bandas (`plan_bands`) sobre
 	/// el alto del display. Devuelve cuántas bandas escribió (`0` si el plan no es de bandas).
+	/// \param out  búfer de tramos a rellenar (`Span<BandSpan>`); se escriben los primeros `N`.
+	/// \return nº de tramos escritos (`0` si no hay plan de bandas).
 	[[nodiscard]] eng::u16 scene_bands(eng::Span<eng::scene::BandSpan> out) const noexcept {
 		const auto r = eng::scene::plan_bands(m_scene_plan.layers(),
 						      static_cast<eng::u16>(m_display.height), out);
@@ -675,6 +690,7 @@ public:
 	/// el destino del contexto de dibujo de la escena ligada. Devuelve cuántos se dibujaron.
 	/// Llámalo antes de `present()`. Los actores se dibujan sobre el fondo Fill; las capas de
 	/// playfield/tilemap todavía esperan su driver de materialización.
+	/// \return nº de actores emitidos al plan del frame (`0` si no hay escena ligada).
 	eng::u16 draw_world() {
 		if (!m_scene.valid()) {
 			return 0u;
