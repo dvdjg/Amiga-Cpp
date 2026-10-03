@@ -162,8 +162,8 @@ intercalado sigue siendo responsabilidad del backend Amiga.
 generalizado en `engine/include/eng/platform/amiga/blob_batch.hpp` (`BlobBatch`), con las
 operaciones `Or` (`$FC`), `CookieCut` (`$CA`) y `Opaque` (`$F0`): fija el estado común una vez y,
 por objeto, escribe `BLTCON0`/`BLTCON1` (con `ASH`/`BSH`), los punteros A/B/C/D y `BLTSIZE`, con
-**una sola espera** por objeto. La secuencia de registros está cubierta por el test host HOST-177
-(`tests/host/platform/amiga/177_blob_batch`). El ejecutor (`AmigaBackend::execute_frame_plan`) ya
+**una sola espera** por objeto. La secuencia de registros está cubierta por el test host HOST-241
+(`tests/host/platform/amiga/241_blob_batch`). El ejecutor (`AmigaBackend::execute_frame_plan`) ya
 usa el lote para **rachas homogéneas** de cookie-cut interleaved: detecta jobs consecutivos con el
 mismo estado fijo (módulos, alto, ancho y minterm) y los ejecuta con `BlobBatch`, sin re-codificar
 por job; invalida la caché de estado común al terminar (escribió registros directamente). Además se

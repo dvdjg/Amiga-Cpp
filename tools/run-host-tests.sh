@@ -82,13 +82,19 @@ if [ ! -f "$src" ]; then
 fi
 {
 	printf '==> [%s]\n' "$name"
+	# En Windows/MinGW el compilador anade `.exe` aunque `-o` no lo lleve; borra ambos antes de
+	# compilar (un binario ELF obsoleto sin extension haria que `"$bin"` fallara con "Exec format
+	# error" en vez de ejecutar el recien compilado) y ejecuta el que exista.
+	rm -f "$bin" "$bin.exe"
 	if ! "$CXX" $CXXFLAGS "$src" -o "$bin"; then
 		printf 'COMPILA: [%s] fallo de compilacion\n' "$name"
 		printf '2\t%s\n' "$test_dir" >>"$RESULT_FILE"
 		exit 0
 	fi
+	runbin="$bin"
+	if [ -f "$bin.exe" ]; then runbin="$bin.exe"; fi
 	ec=0
-	"$bin" || ec=$?
+	"$runbin" || ec=$?
 	if [ "$ec" -eq 3 ]; then
 		printf 'SKIP: [%s] (dependencia ausente; ver su README)\n' "$name"
 	elif [ "$ec" -ne 0 ]; then

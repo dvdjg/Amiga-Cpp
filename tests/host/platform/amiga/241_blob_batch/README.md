@@ -1,4 +1,4 @@
-# HOST-177 — `BlobBatch` (lote de blobs con estado fijo)
+# HOST-241 — `BlobBatch` (lote de blobs con estado fijo)
 
 Cubre `eng/platform/amiga/blob_batch.hpp`: la generalización de `OrBlobBatch` a las
 operaciones que comparten forma de registros (`Or`, `CookieCut`, `Opaque`). Fija el estado
@@ -22,7 +22,7 @@ test); no depende del backend ni del emulador.
 ## Ejecutar
 
 ```bash
-bash ./tools/run-host-tests.sh tests/host/platform/amiga/177_blob_batch
+bash ./tools/run-host-tests.sh tests/host/platform/amiga/241_blob_batch
 ```
 
 ## Referencias
