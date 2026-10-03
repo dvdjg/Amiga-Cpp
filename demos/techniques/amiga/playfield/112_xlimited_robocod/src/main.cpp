@@ -38,6 +38,7 @@
 #include <eng/platform/amiga/backend.hpp>
 #include <eng/field/xlimited_scene.hpp>
 #include <eng/field/xlimited_scroll_layer.hpp>
+#include <eng/field/xlimited_robocod.hpp>
 #include <eng/field/tile_demo.hpp>
 
 #include <proto/exec.h>
@@ -271,64 +272,17 @@ struct DemoGame {
 		//    shifter deja la guarda (<=15 px) justo antes de la cámara (no visible).
 		//    Ver robocod-layered-scroll.md §3.1/§3.3.
 #ifndef K_DIAG_SKIP_BGCOPY
-		if (m_bg_pattern.valid()) {
-			const eng::Pattern pat = m_bg_pattern.view.as_const();
-			const eng::s32 camx = scene.bg().videoposx();
-			// Ventana horizontal del blit (helper puro y testeado): [planeaddx-2,
-			// planeaddx+fetch) = guarda + visible, y src_x para que quede FIJA.
-			// fetch = viewport/8 + 1 word: el DDFSTRT=0x30 ya incluye la word extra
-			// que el scroll fino coloca a la izquierda, así que el display lee 21
-			// words (42 B) desde planeaddx -> la ventana necesita 22 words.
-			playfield::BgWindow win = playfield::bg_window_for(
-				camx, kPatPeriodPx, static_cast<eng::u16>(kViewportW / 8u + 2u));
-			// Soft DPF: el fondo tiene su PROPIA cámara (`m_bgscroll`) independiente
-			// del FG. La posición aparente del fondo es `m_bgscroll + x`, así que el
-			// offset de contenido es `src_x = m_bgscroll - camx (+dest*8)`.
-			m_bgscroll += m_bgdx;
-			if (m_bgscroll >= static_cast<eng::s32>(kPatPeriodPx)) { m_bgscroll = 0; }
-#ifdef K_DIAG_BG_FIXED
-			m_bgscroll = 0;   // diagnóstico: fondo FIJO (verificar ausencia de flicker)
-#endif
-			win.src_x = static_cast<eng::u16>(
-				(static_cast<eng::s32>(win.src_x) + m_bgscroll) %
-				static_cast<eng::s32>(kPatPeriodPx));
-			const playfield::BgSplitRects rects = playfield::bg_split_rects(
-				scene.bg().display_offset(), kDisplayH, kViewportH, /*bg_y=*/0u);
-			bg_plan.clear();
-			bg_plan.set_blit_budget_limits({8192, 16384, 4, 200});
-			for (eng::u8 i = 0; i < rects.count; ++i) {
-				if (!bg_plan.add_tile_block_copy(scene.bg().make_bg_plane_copy_rect_job(
-					pat, kPatRowBytes, win.src_x,
-					rects.src_y[i], rects.dest_row[i], rects.rows[i],
-					win.dest_byte_off, win.words))) {
-					ready = false; eng::debug::mark_failed(g_eng_run_status, 0x00011212u); return;
-				}
-			}
-			// Espera al inicio del blanking vertical (línea kBlankStart). Se entra
-			// lo antes posible: si el primer valor ya está muy avanzado, se espera
-			// al siguiente frame (mejor eso que empezar tarde y derramar al visible).
-			for (;;) {
-				const eng::u16 ln = backend.current_raster_line();
-				if (ln == kBlankStart) break;
-			}
-#ifdef K_DIAG_BG
-			const eng::u32 tb0 = eng::debug::DebugPeripheral::cycle_counter();
-#endif
-			if (!backend.execute_frame_plan(bg_plan)) {
-				ready = false; eng::debug::mark_failed(g_eng_run_status, 0x00011213u); return;
-			}
-#ifdef K_DIAG_BG
-			const eng::u32 tb1 = eng::debug::DebugPeripheral::cycle_counter();
-			const eng::u16 ln1 = backend.current_raster_line();
-			g_eng_run_status.detail = (static_cast<eng::u32>(kBlankStart) << 24) |
-				(static_cast<eng::u32>(ln1) << 16) | ((tb1 - tb0) & 0xffffu);
+		// Fondo RoboCod (etapa 5 §7): ventana + split + blanking + flip, en **una llamada**.
+		if (m_bg_pattern.valid() &&
+		    !playfield::robocod_bg_frame(scene, backend, m_bg_pattern.view.as_const(),
+						 kPatRowBytes, kPatPeriodPx, m_bgscroll, m_bgdx,
+						 kBlankStart, bg_plan)) {
+			ready = false;
+			eng::debug::mark_failed(g_eng_run_status, 0x00011212u);
 			return;
-#endif
 		}
 #endif
-		// 3) Conmuta el doble buffer del fondo (el blit fue al buffer trasero) y compone
-		//    la copperlist con el nuevo delantero -> sin tearing en el plano de fondo.
-		scene.bg().bg_flip();
+		// 3) Compone la copperlist con el fondo YA conmutado (`robocod_bg_frame` hizo el `bg_flip`).
 		if (!scene.compose()) {
 			ready = false; eng::debug::mark_failed(g_eng_run_status, 0x00011211u); return;
 		}

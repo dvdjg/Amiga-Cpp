@@ -279,7 +279,9 @@ Para no caer en un «compilador de escena general» (sin cierre), el plano se se
 
 **Etapas** (cada una verificable): (1) vocabulario `LayerPlan`/`ScenePlan` + elección de estrategia
 (puro, host-testable); (2) estrategia `Dpf` sobre `XlimitedDualConfig`; (3) `Bands` (split-screen);
-(4) split-aware (riesgo 2); (5) `Parallax`/blit por plano (riesgo 4).
+(4) split-aware (riesgo 2); (5) ✅ `Parallax`/blit por plano (riesgo 4): `playfield::robocod_bg_frame`
+reúne la copia de fondo (ventana + split + blanking + `bg_flip`) y la **112** lo usa (fondo coherente,
+READY).
 
 ## 8. Unificar el vocabulario
 
