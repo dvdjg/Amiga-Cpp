@@ -45,6 +45,8 @@ La cifra histórica (101=~48, 102=~50, 103=~50, 104=~47,6) no era reproducible: 
 | `111_xlimited_sidescroller — XLimited DPF, progresivo 2px (release)` | `A500_release` | 16,81 | 422 089 | 0x113e0003 | 2026-10-03 | `0bc89be6` | 337 | 142 244 102 |
 | `101_ehb_tile_scroll_driver — tile scroll driver (release)` | `A500_release` | 49,92 | 142 102 | 0x11b4cf03 | 2026-10-03 | `301e80f4` | 1000 | 142 102 000 |
 | `110_ylimited_shooter — YLimited corkscrew (release)` | `A500_release` | 14,46 | 490 497 | 0x1100004c | 2026-10-03 | `301e80f4` | 290 | 142 244 102 |
+| `105_tile_scroll_xyunlimited_dualpf — tile scroll XY-unlimited DPF (release)` | `A500_release` | 30,25 | 234 492 | 0x105f0fac | 2026-10-03 | `5c776355` | 606 | 142 102 000 |
+| `100_virtual_tile_scene_scroll — tile scroll X single (release)` | `A500_release` | 49,92 | 142 102 | 0x10390941 | 2026-10-03 | `5c776355` | 1000 | 142 102 000 |
 
 Contexto de medida: `CONFIG_ID` **`A500_debug`** (build `--debug`, `-O1`), emulador **WinUAE-DBG x86**, herramienta `tools/debug/measure-fps.mjs` (contador de ciclos del periférico `0xB7E928`, 7,09379 MHz). El fps depende de la **fase** del recorrido (`detail`): comparar siempre con el mismo `detail`. En hardware real las demos de scroll van a 50 fps.
 
