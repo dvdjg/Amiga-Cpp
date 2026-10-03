@@ -38,6 +38,7 @@
 #include <eng/graphics/blit_job.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/bitmap_view.hpp>
+#include <eng/hw/bus_budget.hpp>
 #include <eng/graphics/palette32.hpp>
 #include <eng/graphics/sprite_asset.hpp>
 #include <eng/input/input.hpp>
@@ -70,6 +71,11 @@ struct GameDisplay {
 	/// declara como intenciones de dominio; `App::start()` los compone sin que el juego vea
 	/// registros ni la copperlist. Ver `composition::intents`.
 	eng::Span<const graphics::CopperIntent> intents {};
+	/// **Presupuesto de bus declarado** (opcional, `eng/hw/bus_budget.hpp`): si el juego declara
+	/// franjas/Blitter/Copper/CPU, `App::start()` lo comprueba y **falla rápido** si la escena no
+	/// cabe en el bus del A500. Con `bands_count == 0` se usa una franja derivada del display
+	/// (ancho/alto/planos) para no aceptar a ciegas un modo que ya satura.
+	hw::BusBudgetInput bus {};
 };
 
 /// Motivo por el que no pudo prepararse el display propio de `App`.
@@ -79,6 +85,7 @@ enum class StartError : u8 {
 	InvalidDisplay,
 	OutOfMemory,
 	CompositionFailed,
+	BusOverBudget, ///< la escena no cabe en el presupuesto de bus declarado (`GameDisplay::bus`)
 };
 
 /// **Racha de blits en streaming**, inyectada por el `App` en el `Screen` de forma *type-erased*
@@ -494,6 +501,10 @@ public:
 			return util::unexpected(StartError::InvalidDisplay);
 		if (graphics::composition::chip_bytes_for(resources) > m_memory->chip().free_bytes())
 			return util::unexpected(StartError::OutOfMemory);
+		// Preflight del **bus DMA**: si la escena declarada (display + Blitter/Copper/CPU) agota el
+		// bus del A500, falla rápido antes de componer (ver `eng/hw/bus_budget.hpp`/`BUS_BUDGET.md`).
+		if (hw::amiga500_bus_budget(bus_budget_input()).remaining_slots < 0)
+			return util::unexpected(StartError::BusOverBudget);
 		const auto display_stage = graphics::composition::display(resources);
 		const auto palette_stage = graphics::composition::palette(m_display.palette.words(),
 									  kPaletteFirstColor, kPaletteEntries);
@@ -1078,6 +1089,21 @@ private:
 		resources.buffers = m_display.buffers;
 		resources.layout = m_display.layout;
 		return resources;
+	}
+
+	/// Entrada del presupuesto de bus: la declarada por el juego, o **una franja derivada del
+	/// display** si no declaró ninguna, para no aceptar a ciegas un modo que ya satura el bus.
+	[[nodiscard]] hw::BusBudgetInput bus_budget_input() const noexcept {
+		hw::BusBudgetInput in = m_display.bus;
+		if (in.bands_count == 0u) {
+			in.bands_count = 1u;
+			in.bands[0] = hw::BusBand {};
+			in.bands[0].height = m_display.height;
+			in.bands[0].width = m_display.width;
+			in.bands[0].bitplanes = m_display.color_depth;
+			in.bands[0].hires = m_display.width >= 640u;
+		}
+		return in;
 	}
 
 	/// Adapta el contrato del engine (`init/update/render(backend, context)`) al del juego

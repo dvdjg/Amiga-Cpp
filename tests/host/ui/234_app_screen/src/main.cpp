@@ -429,6 +429,25 @@ int main() {
 		      "display que supera el presupuesto Chip falla antes de reservar parcialmente");
 		check(!small_app.screen().valid(), "fallo de start deja Screen sin escena ligada");
 	}
+	{
+		// Preflight del bus DMA: una escena cuyo Blitter declarado satura el bus se rechaza.
+		MemoryManager bus_mem;
+		(void)bus_mem.configure(g_chip, sizeof(g_chip), nullptr, 0u, nullptr, 0u, 16u);
+		MockBackend bus_backend {};
+		StartGame bus_game {};
+		App bus_app {bus_backend, bus_game, bus_mem};
+		GameDisplay bus_display {};
+		bus_display.width = 320u;
+		bus_display.height = 256u;
+		bus_display.color_depth = 4u;
+		bus_display.bus.blitter_words = 100000u; // mas palabras de Blitter que slots del frame
+		bus_display.bus.blitter_channels = 4u;
+		check(bus_app.set_display(bus_display), "display con presupuesto de bus se describe");
+		const auto over = bus_app.start();
+		check(!over && over.error() == StartError::BusOverBudget,
+		      "start rechaza la escena que no cabe en el bus DMA (fail-fast)");
+		check(!bus_app.screen().valid(), "fallo de bus deja Screen sin escena ligada");
+	}
 
 	MemoryManager mem = make_memory();
 	graphics::composition::Scene scene {};

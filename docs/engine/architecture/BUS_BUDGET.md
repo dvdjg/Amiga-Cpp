@@ -64,6 +64,12 @@ de todas y devuelve qué recurso queda más ahogado (`bottleneck`) y qué variab
 `kHintHiresHeavy` (≥4 hires), `kHintCpuNeedsFast` (la CPU en Chip se come >50 %), `kHintLowerFps`,
 `kHintTight` (<8 % libre), `kHintOverBudget`.
 
+**Preflight de `App::start()`**: si el juego declara `GameDisplay::bus` (franjas + Blitter + Copper +
+CPU), `App::start()` calcula el presupuesto y **falla rápido** con `StartError::BusOverBudget` si la
+escena no cabe, antes de componer. Con `bands_count == 0` se usa una franja derivada del display
+(ancho/alto/planos) para no aceptar a ciegas un modo que ya satura el bus. Si el juego no declara
+Blitter/Copper/CPU, el preflight es una **cota inferior** (solo display), no una validación completa.
+
 ## Uso iterativo
 
 1. Rellena lo que ya conozcas (resolución, planos, longitud de copperlist, palabras de Blitter…).
