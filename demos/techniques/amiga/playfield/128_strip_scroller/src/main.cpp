@@ -55,9 +55,11 @@ constexpr eng::s32 kStepX = 2;                                         // px/fra
 
 	[[nodiscard]] eng::u16 map_tile(eng::u16 col, eng::u16 row) const {
 		// **Objetos singulares**: bloques de 2x2 (32x32) cada 6 columnas, cada uno de un color
-		// DISTINTO, sobre un fondo tenue. Asi su desplazamiento es inequivoco (vision + ojo).
+		// DISTINTO, sobre un fondo tenue. Uno de ellos es **blanco** (marcador unico para medir
+		// el paso exacto del scroll en `motion-check.py`).
 		if ((col % 6u) < 2u && (row % 8u) >= 2u && (row % 8u) < 4u) {
-			return static_cast<eng::u16>(1u + ((col / 6u) % 14u));
+			const eng::u16 idx = static_cast<eng::u16>((col / 6u) % 14u);
+			return (idx == 4u) ? 7u /* tile 7 = color 8 = blanco */ : static_cast<eng::u16>(1u + idx);
 		}
 		return 0u; // fondo
 	}

@@ -11,6 +11,13 @@ y estaba roto en plena animación (el fondo desaparecía al scrollear).
   relativo** entre ellas en cualquier instante.
 - **Separa con contraste.** Capas con **colores contrastados** (p. ej. FG cálido sobre BG frío)
   y **cobertura desigual** para que se distingan. Un patrón uniforme/busy oculta la frontera.
+- **Objetos singulares para ver la evolución temporal.** Para validar **movimiento**, incluye
+  **objetos de color único** (no un patrón uniforme/periódico) cuya trayectoria se siga frame a
+  frame (a ojo y con el modelo de visión). Un patrón uniforme o de alta frecuencia da resultados
+  **ambiguos**: no permite decidir si el algoritmo está bien. Además, un **marcador de color
+  irrepetible** permite medir el paso exacto de forma determinista
+  (`tools/vision-review/motion-check.py --track R,G,B`). Ejemplo: la demo 128 con bloques de
+  colores distintos sobre fondo tenue.
 - **Usa áreas amplias para el efecto protagonista.** Si la técnica es el fondo, deja que **domine**
   la imagen (como el RoboCod original: zonas grandes del plano de fondo). Si el FG tapa el 90%,
   el fondo no se aprecia.
