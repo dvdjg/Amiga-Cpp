@@ -140,8 +140,10 @@ struct SplitScreenDemo {
 		// **BOBs por banda** (`emit_banded`): un marcador por banda, dibujado en el `BobTarget` de
 		// SU banda (coordenadas de pantalla; la capa resta el `top`). El marcador de arriba (y<128)
 		// va a la banda 0 (bitmap A); el de abajo (y≥128) a la 1 (bitmap B).
-		m_bobs[0] = {96, 48, 0u, true};  // banda 0 (arriba): y=48 < 128
-		m_bobs[1] = {192, 192, 0u, true}; // banda 1 (abajo): y=192 ≥ 128
+		// Marcadores moviéndose en X (1 px/frame ≤ padding de 8): la copia con padding borra el
+		// anterior. Uno en la banda 0 (y=48<128), otro en la 1 (y=192≥128).
+		m_bobs[0] = {static_cast<s16>(40 + (f % 160u)), 48, 0u, true};
+		m_bobs[1] = {static_cast<s16>(280 - (f % 160u)), 192, 0u, true};
 		const eng::graphics::BobTarget targets[2] = {m_band_top.bob_target(),
 							     m_band_bottom.bob_target()};
 		const eng::scene::BandSpan bands[2] = {
@@ -237,18 +239,17 @@ private:
 		for (u32 i = 0u; i < kBobSheetBytes; ++i) {
 			s[i] = 0u;
 		}
-		// Marcador **sólido** (toda la hoja de color 5): un cuadro opaco que se redibuja en su sitio
-		// (fijo → sin estela). 32×32 a 3 planos.
-		for (u16 y = 0u; y < kBobPadded; ++y) {
+		// Hoja **con padding**: marcador 16×16 (color 5) en el centro, padding de color 0 alrededor.
+		// Es lo que hace la **copia rápida** de `FastBobLayer` (dibuja y limpia en un blit mientras
+		// el movimiento ≤ padding).
+		for (u16 y = kBobPad; y < kBobPad + kBobVisible; ++y) {
 			for (u8 p = 0u; p < kPlanes; ++p) {
 				if ((5u & (1u << p)) == 0u) { // color 5 = planos 0 y 2
 					continue;
 				}
 				eng::u8* row = s + (static_cast<u32>(y) * kPlanes + p) * (kBobWordsPerPlaneRow * 2u);
-				row[0] = 0xffu;
-				row[1] = 0xffu;
-				row[2] = 0xffu;
-				row[3] = 0xffu;
+				row[1] = 0xffu; // px 8..15
+				row[2] = 0xffu; // px 16..23
 			}
 		}
 		eng::graphics::Bob bob {};
@@ -259,8 +260,8 @@ private:
 		bob.layout = eng::graphics::BobLayout::Interleaved;
 		bob.draw = eng::graphics::BobDraw::Opaque;
 		m_sprite = eng::graphics::Sprite {bob};
-		m_bobs.set_sheet(m_sprite);
-		m_bobs.resize(2u); // un marcador por banda (rutado con `emit_banded`)
+		m_bobs.set_sheet(m_sprite, kBobPad, kBobPad); // hoja con padding (copia rápida)
+		m_bobs.resize(2u);                            // un marcador por banda (rutado con `emit_banded`)
 	}
 
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_top {};
@@ -268,7 +269,7 @@ private:
 	eng::Block<eng::CopperTag> m_copper {};
 	eng::Block<eng::BobTag> m_sheet {};
 	eng::graphics::Sprite m_sprite {};
-	eng::scene::BobLayer m_bobs {};
+	eng::scene::FastBobLayer m_bobs {}; // Fast BOBs: copia con padding (dibuja+limpia)
 	eng::graphics::FramePlan m_plan {};
 	eng::playfield::PlayfieldHardwareView m_v_top {};
 	eng::playfield::PlayfieldHardwareView m_v_bottom {};

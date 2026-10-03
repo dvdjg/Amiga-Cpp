@@ -344,6 +344,94 @@ public:
 		return drawn;
 	}
 
+	/// **Emite cada actor a la banda que contiene su `y`** (split-screen), con la misma política de
+	/// Fast BOBs que `emit` pero `targets[i]`/`fine[i]` por banda. El **conflicto** (degradación) se
+	/// evalúa **dentro de cada banda** (actores en bitmaps distintos no se pisan). Actores en
+	/// coordenadas de pantalla; la capa resta el `top` de su banda. Sin allocaciones.
+	[[nodiscard]] eng::u16 emit_banded(eng::graphics::FramePlan& plan,
+					   const eng::Span<const BandSpan> bands,
+					   const eng::Span<const eng::graphics::BobTarget> targets,
+					   const eng::Span<const eng::u8> fine = {}) {
+		const eng::s16 px = static_cast<eng::s16>(m_pad_x);
+		const eng::s16 py = static_cast<eng::s16>(m_pad_y);
+		const eng::u16 w = m_sheet.width();
+		const eng::u16 h = m_sheet.height();
+		eng::Box fast[kMaxActors] {};
+		eng::Box span[kMaxActors] {};
+		eng::u16 band[kMaxActors] {};
+		bool live[kMaxActors] {};
+		bool slow[kMaxActors] {};
+		for (eng::u8 i = 0u; i < m_count; ++i) {
+			const BobActor& a = m_actors[i];
+			const eng::u16 bi = band_containing(bands, static_cast<eng::u16>(a.y));
+			const eng::u8 fs = bi < fine.size() ? fine[bi] : 0u;
+			live[i] = a.visible && w != 0u && h != 0u && bi < targets.size();
+			if (!live[i]) {
+				continue;
+			}
+			band[i] = bi;
+			const eng::s16 by = static_cast<eng::s16>(a.y - static_cast<eng::s16>(bands[bi].top));
+			fast[i] = eng::Box {static_cast<eng::s16>(a.x - fs - px),
+					    static_cast<eng::s16>(by - py), w, h};
+			span[i] = eng::merge(fast[i], m_painted[i]);
+		}
+		// Conflicto solo entre actores de la MISMA banda.
+		for (eng::u8 i = 0u; i < m_count; ++i) {
+			if (!live[i]) continue;
+			for (eng::u8 j = static_cast<eng::u8>(i + 1u); j < m_count; ++j) {
+				if (live[j] && band[i] == band[j] && eng::overlaps(span[i], span[j])) {
+					slow[i] = true;
+					slow[j] = true;
+				}
+			}
+		}
+		// Movimiento mayor que el padding.
+		for (eng::u8 i = 0u; i < m_count; ++i) {
+			if (!live[i]) continue;
+			const BobActor& a = m_actors[i];
+			const eng::s16 dx = static_cast<eng::s16>(a.x - m_prev_x[i]);
+			const eng::s16 dy = static_cast<eng::s16>(a.y - m_prev_y[i]);
+			const eng::s16 adx = (dx < 0) ? static_cast<eng::s16>(-dx) : dx;
+			const eng::s16 ady = (dy < 0) ? static_cast<eng::s16>(-dy) : dy;
+			if (m_has[i] && (adx > px || ady > py)) {
+				slow[i] = true;
+			}
+		}
+		eng::u16 drawn = 0u;
+		for (eng::u8 i = 0u; i < m_count; ++i) {
+			if (live[i] && slow[i] && !m_painted[i].empty()) {
+				(void)clear_box(plan, targets[band[i]], m_painted[i].x, m_painted[i].y,
+						m_painted[i].w, m_painted[i].h);
+			}
+		}
+		for (eng::u8 i = 0u; i < m_count; ++i) {
+			if (!live[i]) {
+				continue;
+			}
+			const BobActor& a = m_actors[i];
+			const eng::u16 bi = band[i];
+			const eng::u8 fs = bi < fine.size() ? fine[bi] : 0u;
+			const eng::s16 by = static_cast<eng::s16>(a.y - static_cast<eng::s16>(bands[bi].top));
+			bool ok = false;
+			if (slow[i]) {
+				ok = m_cookie.draw(plan, targets[bi], a.frame,
+						   static_cast<eng::s16>(a.x - fs), by);
+				m_painted[i] = eng::Box {static_cast<eng::s16>(a.x - fs), by,
+							 m_cookie.width(), m_cookie.height()};
+			} else {
+				ok = m_sheet.draw(plan, targets[bi], a.frame, fast[i].x, fast[i].y);
+				m_painted[i] = fast[i];
+			}
+			m_prev_x[i] = a.x;
+			m_prev_y[i] = a.y;
+			m_has[i] = true;
+			if (ok) {
+				++drawn;
+			}
+		}
+		return drawn;
+	}
+
 	/// Olvida el historial (tras un clear total del playfield de BOBs).
 	void reset_history() noexcept {
 		for (eng::u8 i = 0u; i < kMaxActors; ++i) {
