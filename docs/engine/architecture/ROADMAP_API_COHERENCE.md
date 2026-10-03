@@ -302,10 +302,12 @@ ello. Ordenados por dependencia:
    (HOST-342) + `tilemap::AttributeTable` (HOST-344); falta el **driver** que materializa lo
    sucio (ligado a F7.3). Gate en 100/052.
 3. **Drivers de scroll por `ScrollKind`**: `XLimited` (`CopperRing`) y `BlitterColumns`/`Fine`
-   **ya existen** (`field::TileScrollDriver`/`xlimited_*`, `effects::FineScroll`); falta el driver
-   **`CopperSplit` (`XYUnlimited`)** (ring + split por línea + guardas). **Núcleo de decisión
-   hecho** (`scroll_plan.hpp`: `choose_scroll`/`scroll_memory`/`plan_region`, HOST-343/345).
-   Gate: demo de scroll 8-way.
+   **ya existen** (`field::TileScrollDriver`/`xlimited_*`, `effects::FineScroll`); el driver
+   **`CopperSplit`** (video-split **8-way**) es el **corkscrew `XlimitedScene`** (`y_mode = Ring`:
+   banda de staging + split de Copper por línea; `AMIGA_8WAY_SCROLLING.md` §13) — **demo 107** — y
+   el **planner lo elige** (`scroll_kind_for_variant`/`choose_scroll`/`scroll_memory`/`plan_region`,
+   HOST-343/345, verificado HOST-343). Un `XYUnlimited` "circular" aparte **no** hace falta
+   (`CIRCULAR_VS_XLIMITED.md`: menos canónico y más caro en Chip). **Hecho.**
 4. **Fachada de Copper** en `Device`/`Screen` (`begin`/`wait_line`/`set_color`/`set_scroll`/
    `split`/`commit`/`free_words`): cubre `ICopper`. **Hecho** (`eng::Copper`,
    `Device::copper_builder()`, HOST-339).

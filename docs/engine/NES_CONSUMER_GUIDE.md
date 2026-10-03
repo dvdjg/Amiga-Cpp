@@ -161,10 +161,13 @@ mapéalos al mando NES. El runner puede presentar un **pad CD32** con `--cd32`.
 - **Sprites/OAM**: `scene::ActorStore`/`Actor` + `SpriteAllocator` + `compose_sprites` + fallback a
   BOB (`graphics::bob_draw`).
 - ✅ Existen `decode_2bpp_planar` (F7.1), `TileEditor`/`AttributeTable` (F7.2), `eng::Copper` (F7.4),
-  Paula (F7.5), `BlockPool` (F7.6).
-- ⏳ **Pendientes**: driver **`CopperSplit`/XYUnlimited** (BG NES 8-way con wrap; hoy `XLimited` solo
-  cubre el eje X bien) — **F7.3**; y un **`SpriteEngine`** de alto nivel con semántica NES
-  (8/línea + overflow) sobre `ActorStore` — **F7.7** (núcleo de decisión y composición ya existen).
+  Paula (F7.5), `BlockPool` (F7.6) y `compose_sprites` (F7.7).
+- ✅ **El 8-way (F7.3) ya está**: el driver **`CopperSplit`** es el **corkscrew `XlimitedScene`**
+  (`y_mode = Ring`, demo 107), elegido por el planner (`scroll_kind_for_variant(XYLimited) →
+  CopperSplit`, HOST-343). **No hace falta** un `XYUnlimited` "circular" (más caro en Chip:
+  `CIRCULAR_VS_XLIMITED.md`). Para **ahorrar memoria**, usa `XLimited`/corkscrew (lo que propones).
+- ✅ **Sprites (F7.7)**: `scene::compose_sprites` (con `SpriteAllocator` + BOB fallback) cubre la
+  semántica NES 8/línea/overflow; el consumidor mapea `place`→`ActorStore::add`.
 
 ---
 
@@ -281,8 +284,8 @@ Herramienta completa: `docs/debugging/system/debug-winuae-v2-guide.md` (léela).
 | VBlank/frame sync + mini-OS | ✅ | `App::run` (`init/update/render` por frame), `os::tick`, `pump()` |
 | Entrada (mando) | ✅ | `app.input().pad0` |
 | Audio (SFX + tono por canal o módulo) | ✅ | `AudioSystem`, `AudioMixer::play(SampleEvent)` |
-| Sprites/OAM (64, flip, prioridad) | parcial | `ActorStore`+`compose_sprites`+BOB ⏳ F7.7 (overflow NES) |
-| BG nametable + atributo 16×16 | parcial | `TileEditor`+`AttributeTable` ✅; ⏳ **F7.3** driver 8-way (`CopperSplit`) |
+| Sprites/OAM (64, flip, prioridad) | ✅ | `scene::compose_sprites` (HW sprites + `SpriteAllocator` + BOB fallback; NES 8/línea → canales HW/multiplexado, el resto **BOB**; `degraded` = no cupieron) |
+| BG nametable + atributo 16×16 | ✅ | `TileEditor` + `AttributeTable` (HOST-344); **8-way = corkscrew `XlimitedScene`** (`ScrollKind::CopperSplit`; demo 107) |
 | Paleta + splits + énfasis | ✅ | `Palette32` + `FramePlan`/`eng::Copper` |
 | Compilar/lanzar/depurar | ✅ | `build-demo.sh` / `run-demo.sh` / GDB + canal lateral |
 

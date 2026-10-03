@@ -123,12 +123,16 @@ de Copper/Chip (`region_cost`). El emulador **pide** por capa y el engine **disp
 max_speed_px}`; el engine responde `Ok` (cabe), `Degradado` (otro algoritmo) o `Rechazado`
 (`ConfigError`). Así el engine mantiene el control de recursos y el emulador no decide registros.
 
-## 7. Qué falta para cerrar el consumo
+## 7. Estado del consumo (lo que falta en el engine)
 
-- **F7.3** driver `XYUnlimited`/`CopperSplit` (y `BlitterColumns`) para el BG.
-- **F7.7** `SpriteEngine` de alto nivel (NES 8/línea + overflow sobre `ActorStore`).
-- **Attribute table** (paleta por bloques 16×16) como tabla paralela al `TileEditor`.
-- **Adaptador de referencia** (fuera del core) con las `I*` reales + emulador como gate.
+- ✅ **8-way / `CopperSplit`**: el **corkscrew `XlimitedScene`** (`y_mode = Ring`, demo 107) lo
+  implementa; el planner lo elige (`scroll_kind_for_variant(XYLimited) → CopperSplit`, HOST-343).
+  **No hace falta** un `XYUnlimited` "circular" (más caro en Chip — para ahorrar memoria, XYLimited).
+- ✅ **`SpriteEngine` (NES 8/línea + overflow)**: `scene::compose_sprites` + `SpriteAllocator` +
+  BOB fallback (el consumidor mapea `place` → `ActorStore::add`).
+- ✅ **Attribute table** (paleta por bloques 16×16): `graphics/tilemap/attribute_table.hpp` (HOST-344).
+- ⏳ **Adaptador de referencia** (fuera del core) con las `I*` reales + el emulador como gate —
+  trabajo del **consumidor** (no del engine).
 
 ## 8. Requisitos de gráficos (PPU NES → engine)
 
