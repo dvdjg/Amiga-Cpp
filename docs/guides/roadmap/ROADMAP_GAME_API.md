@@ -244,6 +244,43 @@ reúne **geometría + política + contenido**; el camino de tiras lo consume con
 runtime; el caso habitual (**config conocida**, incluso una por nivel) ya se escribe declarando el
 motor (`eng::TileScroll` / `XlimitedScrollLayer`) + el `ScrollPlan`.
 
+### Modelo del planner: vocabulario general + composición acotada (decidido)
+
+Para no caer en un «compilador de escena general» (sin cierre), el plano se separa en **intención**
+(general) y **composición** (acotada):
+
+- **Vocabulario de intención** (lo que el juego escribe): una *escena* es una lista de **capas**
+  (`scene::LayerPlan`), cada una con:
+  - **`Role`**: `Background` / `Foreground` / `Overlay` (semántica y orden de composición).
+  - **`Placement`**: `Full` | `Band{top,height}` | `Field{Pf1,Pf2}` (dónde se ve).
+  - **`ScrollPlan`** (ya existe, `field/scroll_plan.hpp`): geometría + política + contenido, **por
+    campo**; más **`Parallax{plane,div}`** opcional (plano de fondo con offset propio).
+- **Composición** (lo que hace el planner): mapea la lista a **una de tres estrategias** —y solo
+  esas—, fallando rápido si no encaja (el resto es **escape** a `eng::field`/demos de técnica):
+  | Estrategia | Cuándo | Mecanismo (ya existe) |
+  |---|---|---|
+  | `Single` | 1 campo a banda completa | `XlimitedScene` single / `Scene` |
+  | `Dpf` | 2 capas FG+BG a banda completa, en su field | `XlimitedDualConfig` (PF1/PF2) |
+  | `Bands` | ≥2 capas con `Placement::Band` apiladas | `copper::Plan` + `ModeSwitchZone` |
+  Combinables (una banda puede ser a su vez Dpf). El mecanismo **ya existe** (203/205/112 lo usan a
+  mano): el planner **unifica el disparo**, no inventa composición.
+
+**Escenarios que cubre** (los 5 de diseño):
+1. **DPF con distinto algoritmo por field** → dos capas `Field{Pf1}`/`Field{Pf2}` con su `ScrollPlan`
+   (una `linear_display` = XUnlimited sin split, la otra corkscrew); estrategia `Dpf`.
+2. **Split-aware (bobs/fills/CPU)** → el `DrawTarget` de cada **ventana** remapea Y por banda.
+   *Riesgo real*: acotado exponiendo los tramos (top/bottom) y recortando en `fill`/`bob`/CPU.
+3. **¿DPF o single?** → lo **deduce** el planner de las capas (2 capas a banda completa con roles
+   FG/BG) o el juego lo **fija**; mismo vocabulario.
+4. **RoboCod (1 fondo + 4 scroll, mismo field)** → capa `Background` con `Parallax{plane,div}`; o
+   `Dpf`. *Riesgo real*: el blit interleaved borra el plano de fondo → requiere **blit por plano**.
+5. **Split-screen (2 jugadores, mismo mapa)** → dos capas `Band{top,h}` cada una con su motor y su
+   cámara (XUnlimited/YUnlimited por campo); estrategia `Bands`.
+
+**Etapas** (cada una verificable): (1) vocabulario `LayerPlan`/`ScenePlan` + elección de estrategia
+(puro, host-testable); (2) estrategia `Dpf` sobre `XlimitedDualConfig`; (3) `Bands` (split-screen);
+(4) split-aware (riesgo 2); (5) `Parallax`/blit por plano (riesgo 4).
+
 ## 8. Unificar el vocabulario
 
 - **Problema**: `Scene` vs `scene::World` vs `graphics::composition::Scene`; `field` vs `graphics`;
