@@ -96,6 +96,10 @@ public:
 	/// Registra `name` **copiando el blob a Chip**. El `Tag` fija el dominio (alineación y vista):
 	/// `PlaneTag` (bitmap), `MusicTag` (módulo), `SpriteTag` (hoja), `PaletteTag` (paleta). `false`
 	/// si no cabe o no hay gestor. Atajo de `add_checked` (sin la causa).
+	/// \param name  nombre lógico del asset (clave del registro).
+	/// \param data  puntero al blob (p. ej. de `INCBIN`).
+	/// \param size  tamaño en bytes.
+	/// \return `true` si se copió a Chip y quedó registrado.
 	template <class Tag>
 	bool add(const char* name, const eng::u8* data, eng::usize size) noexcept {
 		return name != nullptr && add<Tag>(eng::util::StringView {name}, data, size);
@@ -140,6 +144,8 @@ public:
 	/// **Reserva** `bytes` para un recurso del dominio `Tag` (sin copia). El banco lo elige el
 	/// dominio (Chip para DMA, Fast→Slow para CPU). Devuelve un `Block<Tag>` **dueño** (el
 	/// llamador lo usa y puede `release`); con `Bank=Chip` el bloque da `Address<Chip>` para DMA.
+	/// \param bytes  tamaño a reservar.
+	/// \return bloque `Tag` **dueño** (vacío si no hay gestor o no cabe).
 	template <class Tag>
 	[[nodiscard]] Block<Tag> create(u32 bytes) noexcept {
 		if (!m_mem.valid()) {

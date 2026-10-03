@@ -43,19 +43,41 @@ public:
 		: m_target(target), m_stream(stream) {}
 
 
+	/// \return `true` si la fachada tiene un destino de dibujo válido.
 	[[nodiscard]] bool valid() const noexcept { return m_target.valid(); }
+	/// \return el rectángulo visible (clip) del contexto de dibujo.
 	[[nodiscard]] Box bounds() const noexcept { return m_target.box(); }
 	/// Borra todo el área de dibujo con `color`.
+	/// \param color  índice de paleta (0..2^planos−1).
 	void clear(u8 color) {
 		const Box b = bounds();
 		(void)m_target.fill(b, color);
 	}
+	/// Rellena `box` con `color` (inmediato, CPU; puede pisar lo dibujado después).
+	/// \param box    rectángulo a rellenar.
+	/// \param color  índice de paleta.
+	/// \return `false` si el rectángulo queda fuera del clip.
 	bool fill(Box box, u8 color) { return m_target.fill(box, color); }
+	/// Dibuja el **marco** de `box` con `color`.
+	/// \param box    rectángulo.
+	/// \param color  índice de paleta.
+	/// \return `false` si queda fuera del clip.
 	bool frame(Box box, u8 color) { return m_target.frame(box, color); }
+	/// Dibuja una **línea** de `(x0,y0)` a `(x1,y1)`.
+	/// \param x0,y0  extremo inicial (px).
+	/// \param x1,y1  extremo final (px).
+	/// \param color  índice de paleta.
+	/// \param op     operación de rasterizado (`Copy`/`Or`/…).
+	/// \return `false` si queda fuera del clip.
 	bool line(s16 x0, s16 y0, s16 x1, s16 y1, u8 color,
 		  playfield::RasterOp op = playfield::RasterOp::Copy) {
 		return m_target.line(x0, y0, x1, y1, color, op);
 	}
+	/// Dibuja el **texto** `s` en `(x, y)`.
+	/// \param x,y    posición (px).
+	/// \param s      cadena (fuente del engine).
+	/// \param color  índice de paleta.
+	/// \return `false` si no cabe.
 	bool text(s16 x, s16 y, const char* s, u8 color) { return m_target.text(x, y, s, color); }
 
 	/// Borra `b` (`D = 0`) **encolado en el plan del frame**, en orden con los sprites (a
@@ -76,6 +98,9 @@ public:
 	/// Aviso: al no leer D, los bits de las **palabras de borde** que quedan fuera del rectángulo
 	/// de un `b` **no alineado a 16 px** se ponen a 0 (no se preserva lo de debajo). Alinea `b.x` y
 	/// `b.w` a múltiplos de 16 para evitar ese recorte. `false` si no hay plan.
+	/// \param b      rectángulo a rellenar (alinea `x`/`w` a 16 px).
+	/// \param color  índice de paleta.
+	/// \return `false` si no hay plan o el destino no vale.
 	bool fill_box(Box b, u8 color) {
 		if (!m_target.plan().valid() || b.empty()) {
 			return false;
@@ -139,6 +164,10 @@ public:
 	/// contexto de dibujo (`DrawTarget::bob_target`, preparado por la escena), así que el
 	/// juego no ve planos, strides ni minterns. `false` si no hay plan de frame o el
 	/// sprite/frame no es válido (ver `graphics::Sprite::draw`).
+	/// \param spr    sprite cocinado (geometría + frames + máscara).
+	/// \param x,y    posición de pantalla del ancla.
+	/// \param frame  índice de frame (0 = primero).
+	/// \return `false` si no hay plan o el sprite cae fuera del clip.
 	bool sprite(const graphics::Sprite& spr, s16 x, s16 y, u8 frame = 0u) {
 		if (!m_target.plan().valid()) {
 			return false;
