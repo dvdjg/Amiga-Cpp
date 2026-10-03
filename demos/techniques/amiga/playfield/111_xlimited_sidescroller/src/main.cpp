@@ -92,6 +92,14 @@ constexpr eng::s32 kStepX = ScrollProfile_t::sub_px
 		   ? static_cast<eng::s32>(ScrollProfile_t::fill_tiles) * kTileW
 		   : 2);
 
+// Secciones del perfil (tools/debug/profile.mjs): desglose del coste por frame.
+constexpr eng::u8 kProfPrefetch = 0u;
+constexpr eng::u8 kProfScroll = 1u;
+constexpr eng::u8 kProfExec = 2u;
+constexpr eng::u8 kProfCompose = 3u;
+constexpr eng::u8 kProfFg = 4u;
+constexpr eng::u8 kProfCount = 5u;
+
 eng::u16 side_row(eng::u8 glyph, eng::u8 variant, eng::u8 row, eng::u8 plane) {
 	return field::demo::pf_plane_row(glyph, static_cast<eng::u8>(variant & 3u), row, plane, 0, false);
 }
@@ -212,6 +220,7 @@ struct DemoGame {
 			return;
 		}
 		scene.takeover(backend);
+		ENG_PROF_INIT(kProfCount);
 		ready = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x11100000u);
 	}
@@ -224,18 +233,30 @@ struct DemoGame {
 
 		// Avance X hacia la derecha (paso del perfil; por defecto 2 px/frame). El mapa
 		// es toroidal, no se topea.
+		ENG_PROF_BEGIN(kProfPrefetch);
 		prefetch_band();
-		if (!scene.bg().update_scroll(plan, kStepX, 0)) {
+		ENG_PROF_END(kProfPrefetch);
+		ENG_PROF_BEGIN(kProfScroll);
+		const bool scrolled = scene.bg().update_scroll(plan, kStepX, 0);
+		ENG_PROF_END(kProfScroll);
+		if (!scrolled) {
 			scene.bg().set_camera(0, 0);
 		}
-		if (!backend.execute_frame_plan(plan)) {
+		ENG_PROF_BEGIN(kProfExec);
+		const bool executed = backend.execute_frame_plan(plan);
+		ENG_PROF_END(kProfExec);
+		if (!executed) {
 			ready = false; eng::debug::mark_failed(g_eng_run_status, 0x00011110u); return;
 		}
-		if (!scene.compose()) {
+		ENG_PROF_BEGIN(kProfCompose);
+		const bool composed = scene.compose();
+		ENG_PROF_END(kProfCompose);
+		if (!composed) {
 			ready = false; eng::debug::mark_failed(g_eng_run_status, 0x00011111u); return;
 		}
 
 		// FG: nave con vaivén vertical + balas hacia la derecha.
+		ENG_PROF_BEGIN(kProfFg);
 		const eng::s16 ship_x = 60;
 		{
 			auto fg = scene.canvas_fg_surface();
@@ -253,6 +274,8 @@ struct DemoGame {
 			for (auto& b : m_bullets) if (b.live) { fg.fill_rect(b.x, b.y, 6, 2, 2); b.px = b.x; }
 			m_ship_py = m_ship_y;
 		}
+		ENG_PROF_END(kProfFg);
+		ENG_PROF_FRAME();
 
 		// `cameraX` en los bits 16-23 (convención del runner: `--sequence-fine-x` y
 		// `--sequence-step-start-fine` leen ese byte); el byte alto del scroll X y el
