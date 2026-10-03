@@ -108,7 +108,12 @@ librerías comprimidas con memoria elegida por segmento. El contrato completo es
 - **R6.3 Política de memoria**: reservar código, datos y BSS por segmento con `MemoryManager`,
   respetar `HUNKF_CHIP`/`HUNKF_FAST`, fallback explícito y pools persistentes liberables. Usar
   `FastPreferred` automáticamente para segmentos CPU-only cuando haya Fast; Chip requerido nunca
-  degrada a Fast. Ver `FAST_RAM_POLICY.md`.
+  degrada a Fast. Ver `FAST_RAM_POLICY.md`. **✅ hecho (HUNK)**: `HunkImage::load(image,
+  MemoryManager&, MemoryPolicy any = FastPreferred)` reserva **cada hunk en su banco**
+  (`HUNKF_CHIP`→`ChipRequired` sin fallback, `HUNKF_FAST`→`FastRequired`, sin flag→`any_policy`),
+  guarda el `Block` (banco efectivo en `block.kind`) y `unload(mem)` lo libera (`owns_memory`);
+  **HOST-401** (Any→Fast/Slow, Chip→Chip, unload restaura). ⏳ falta aplicar la misma política al
+  `DynLoader`/`.englib` (R6.6) y a la caché de assets.
 - **R6.4 Contenedor comprimido**: crear `.engz` con codec, tamaño comprimido/descomprimido, alineación,
   política, CRC y payload HUNK/ENGL. **✅ contenedor hecho**: `eng/res/engz.hpp` (`build`/`parse`/
   `decode_engz`/`verify`) con codec, tamaños, alineación y **CRC-32** sobre el payload, compuesto
