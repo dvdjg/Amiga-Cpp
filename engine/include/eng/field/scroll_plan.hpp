@@ -33,6 +33,12 @@ struct ScrollPlan {
 	eng::u16 map_period_words = 0u; ///< período del mapa toroidal (words); `0` = mapa acotado
 	eng::u8 speed_px = 4u;          ///< velocidad máxima de scroll (px/frame)
 
+	// --- Parallax por plano (RoboCod) ----------------------------------------
+	/// Plano de **fondo con offset propio** (RoboCod) en el mismo campo: `0xff` = sin parallax.
+	/// El motor lo pinta desde su patrón cada frame (`soft_dpf`) y lo desplaza a `1/parallax_div`.
+	eng::u8 parallax_plane = 0xffu;
+	eng::u8 parallax_div = 2u; ///< divisor de velocidad del plano de parallax
+
 	// --- Contenido (asset de tiles: banco + mapa de ids + paleta) -------------
 	TilemapView tilemap {}; ///< lo consume el camino de tiras (`set_tilemap`)
 };

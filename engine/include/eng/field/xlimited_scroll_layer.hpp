@@ -42,6 +42,8 @@ constexpr void apply_scroll_plan(XlimitedSceneConfigT<MapT>& cfg, const ScrollPl
 	if (plan.tilemap.palette.size() != 0u) {
 		cfg.palette = plan.tilemap.palette;
 	}
+	cfg.parallax_plane = plan.parallax_plane; // RoboCod: plano de fondo con offset propio
+	cfg.parallax_div = plan.parallax_div;
 }
 
 /// Adaptador `XlimitedScene` → `ScrollLayer<Backend>` (ver doc del fichero).

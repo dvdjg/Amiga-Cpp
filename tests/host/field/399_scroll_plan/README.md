@@ -7,6 +7,6 @@ corcóscru, con `apply_scroll_plan(cfg, plan)` (siembra geometría + paleta).
 
 ## Qué comprueba
 
-- `apply_scroll_plan` **siembra** viewport, tiles/planos, `display_height` y paleta desde el plan.
+- `apply_scroll_plan` **siembra** viewport, tiles/planos, `display_height`, paleta y **parallax** (RoboCod) desde el plan.
 - **No pisa** lo que el plan no declara: `display_height == 0` no sobrescribe el del motor; una
   paleta vacía no sobrescribe la del juego.

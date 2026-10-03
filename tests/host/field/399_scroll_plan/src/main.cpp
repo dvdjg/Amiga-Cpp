@@ -40,6 +40,8 @@ void test_seeds_geometry_and_palette() {
 	plan.planes = 3u;
 	plan.display_height = 288u;
 	plan.map_period_words = 25u;
+	plan.parallax_plane = 4u;
+	plan.parallax_div = 2u;
 	plan.tilemap.palette = eng::PaletteWords {pal, 32u};
 
 	XlimitedSceneConfigT<TileLayerMap> cfg {};
@@ -49,6 +51,7 @@ void test_seeds_geometry_and_palette() {
 	check(cfg.tile_width == 16u && cfg.tile_height == 16u && cfg.planes == 3u, "siembra tiles/planos");
 	check(cfg.display_height == 288u, "siembra display_height");
 	check(cfg.palette.size() == 32u && cfg.palette.data()[0] == 0x123u, "siembra paleta");
+	check(cfg.parallax_plane == 4u && cfg.parallax_div == 2u, "siembra parallax (RoboCod)");
 }
 
 void test_does_not_clobber_unspecified() {
