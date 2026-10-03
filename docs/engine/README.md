@@ -85,6 +85,7 @@ mapa «tarea → documentación», en [DOC-MAP-PRINCIPAL.md](../ai-dev-environme
 ### Consumers / integradores
 
 - [NES_CONSUMER.md](NES_CONSUMER.md) — **emulador NES → Amiga 500**: cómo implementar sus interfaces `I*` sobre el engine, opciones de **scroll** (XYUnlimited vs XYLimited) y **índice de la implementación de referencia**.
+- [NES_CONSUMER_GUIDE.md](NES_CONSUMER_GUIDE.md) — **guía práctica** del mismo consumidor: acceso real a cada recurso por el engine (memoria, framebuffer/C2P, ROM/VFS, timing, entrada, audio) y **compilar**, **lanzar** y **depurar** (GDB + canal lateral).
 
 ## Catálogo completo
 

@@ -5,6 +5,11 @@ externo**: define sus propias interfaces y las implementa sobre el engine. Regla
 **la app pide, el engine dispone**; el engine **no** se diseña para la NES. Ver
 [ROADMAP_API_COHERENCE.md](architecture/ROADMAP_API_COHERENCE.md) §7.
 
+> **Cómo acceder a cada recurso (guía práctica)**: este documento fija el *qué necesito / qué falta*;
+> la **integración real** —cómo se accede HOY a memoria, framebuffer, ROM, timing, entrada y audio por
+> el engine, y cómo **compilar**, **lanzar** y **depurar** (GDB + canal lateral)— está en
+> [NES_CONSUMER_GUIDE.md](NES_CONSUMER_GUIDE.md).
+
 ## 1. Índice de la implementación de referencia
 
 La implementación de referencia (externa a este repo) es el proyecto **`RetroReverse`**
