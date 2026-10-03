@@ -14,6 +14,19 @@ contexto irrelevante a quien trabaja en otra cosa.
 
 ---
 
+## 0. Regla de oro (obligatoria)
+
+- **Usar SIEMPRE Ollama (modelo de visión local) para verificar que el resultado se corresponde
+  con lo que se pretende.** No basta con que compile, pase tests host, dé los fps esperados o
+  produzca una captura estática: hay que **mirar la salida con el modelo de visión** y comprobar que
+  es lo que se buscaba (imagen correcta, movimiento suave, sin artefactos/huecos). Una captura única
+  **no** muestra el movimiento: para demos animadas, capturar **secuencia** y validar la dinámica.
+- Se aplica a toda demo/efecto/imagen: antes de dar algo por bueno, pasarlo por Ollama. Si el
+  resultado no se corresponde con la intención, está **mal** aunque el resto pase.
+- Procedimiento y herramientas: [`DEMO_VISUAL_DEBUG.md`](docs/guides/methodology/DEMO_VISUAL_DEBUG.md).
+
+---
+
 ## 1. Reglas generales (aplican a toda tarea)
 
 ### 1.1 Idioma
