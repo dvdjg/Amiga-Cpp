@@ -47,6 +47,7 @@ Norma: **preguntar al modelo externo (Grok) en inglés** — responde mejor en e
 | [consulta-scroll-optimizacion-en.md](consulta-scroll-optimizacion-en.md) | English version of the tile-scroll optimization consultation (**ask Grok in English**). |
 | [consulta-scroll-optimizacion-seguimiento-en.md](consulta-scroll-optimizacion-seguimiento-en.md) | Follow-up: request for a **reference implementation** of the recommended Copper-ring + strip scroller (exact registers, ring geometry, guard invariants, XY split, 32×32, DPF 25 fps, host verification). |
 | [consulta-scroll-optimizacion-seguimiento2-en.md](consulta-scroll-optimizacion-seguimiento2-en.md) | Follow-up 2: gaps in the reference (tile-bank source for the “one tall blit”, exact interleaved modulos, wrap/guard formula, streaming cost, XY split, `DDFSTRT`). |
+| [consulta-scroll-optimizacion-seguimiento3-en.md](consulta-scroll-optimizacion-seguimiento3-en.md) | Follow-up 3: two OCS hardware errors in the reference — split line `0x2c+256` exceeds 8-bit VPOS (cap 208 px), and `BLTSIZE` height is 10 bits (the 1280-planeline “one tall blit” must be split). |
 | [consulta-asm-flatshade.md](consulta-asm-flatshade.md) | Consulta: port ASM m68k de `flatshade-convex` (demo 116). |
 | [consulta-asm-flatshade-seguimiento.md](consulta-asm-flatshade-seguimiento.md) | Seguimiento 1: aplicados los fixes, sigue negro. |
 | [consulta-asm-flatshade-seguimiento2.md](consulta-asm-flatshade-seguimiento2.md) | Seguimiento 2 de la consulta ASM de `flatshade-convex`. |
