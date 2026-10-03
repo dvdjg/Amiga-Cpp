@@ -21,6 +21,7 @@
 #include <eng/api/framebuffer.hpp>
 #include <eng/api/scene.hpp>
 #include <eng/api/screen.hpp>
+#include <eng/api/sprites.hpp>
 #include <eng/api/scroll.hpp>
 #include <eng/api/world_render.hpp>
 #include <eng/core/types/box.hpp>
