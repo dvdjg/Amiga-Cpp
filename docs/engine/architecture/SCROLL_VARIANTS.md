@@ -114,6 +114,11 @@ El camino rápido hacia 50 fps está implementado y **host-verificado** (HOST-24
   límite de `BLTSIZE`, split two-WAIT), `plan_strip_frame` (qué tira pintar por frame), `compose_column`
   (columna contigua para `BLTAMOD=0`), `strip_blit_desc` (registros) y `strip_copper_values`
   (`BPLCON1`/`BPLxPT`/split).
+  - **Tiles separados**: las columnas de la guarda son tiles de un mapa que referencia al tilemap y
+    **no se asume que estén contiguos** (su layout no tiene por qué ser el adecuado). Por eso
+    `compose_column` los copia **tile a tile** a un buffer contiguo (pre-composición); si se quisiera
+    un origen unido habría que pre-procesarlo, y **no se puede esperar que muchos tiles caigan
+    juntos**. La composición ocurre **solo al cruzar tile** (0 en frames sin cruce).
 - `field/strip_composer.hpp`: `StripComposer` (emite la copperlist una vez + parchea por frame).
 - `platform/amiga`: `blitter_strip_column` (ejecuta la tira, troceada en ≤1024 planelíneas).
 

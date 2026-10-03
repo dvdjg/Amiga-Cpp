@@ -187,7 +187,12 @@ template <class Geom>
 /// **Compone una columna completa** (viewport entero) concatenando los `Geom::column_tiles` tiles del
 /// banco — cada uno `tile_h*planes` palabras (interleaved) — en `dst` **contiguo**, listo para el
 /// blit con `BLTAMOD=0`. `bank_stride_words` = palabras por tile en el banco. Devuelve las palabras
-/// escritas. (El backend lo llama solo al cruzar tile; frames sin cruce = 0 composiciones.)
+/// escritas.
+///
+/// **Los tiles de la guarda vienen de un mapa que referencia al tilemap y NO se asume que estén
+/// contiguos en memoria** (su layout no tiene por qué ser el adecuado): por eso se copian **tile a
+/// tile**. Si se quisiera un origen unido habría que **pre-procesarlo** (no se puede esperar que
+/// muchos tiles caigan juntos). Se llama solo al cruzar tile (0 composiciones en frames sin cruce).
 template <class Geom>
 [[nodiscard]] constexpr eng::u16 compose_column(eng::u16* dst, const eng::u16* tile_bank,
 						const eng::u16* tile_ids,
