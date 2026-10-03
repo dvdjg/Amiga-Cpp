@@ -11,6 +11,7 @@
 
 #include <eng/api/api.hpp>
 #include <eng/core/math/sinetable.hpp>
+#include <eng/field/scroll_route.hpp>
 #include <eng/field/strip_layer.hpp>
 #include <eng/platform/amiga/backend.hpp>
 
@@ -69,58 +70,9 @@ constexpr eng::u32 kColumnBytes = static_cast<eng::u32>(Geom::column_planelines)
 constexpr eng::u32 kRingBytes =
 	static_cast<eng::u32>(Geom::ring_w_bytes) * Geom::planes * Geom::ring_h;
 
-/// Ruta de scroll por fases **fina**: el índice de la tabla de seno avanza **cada frame**, así que
-/// cada frame es una imagen distinta. (`RouteCamera` cuantiza el ángulo a 1/64 de vuelta repartido
-/// en 512 frames = 8 frames por paso → el mismo píxel 8 frames seguidos = saltos.)
-/// Fases: horizontal → vertical → diagonal → circular → Lissajous (1:3).
-struct ScrollRoute {
-	static constexpr eng::SineTable<96, 256> kSin {}; // amplitud 96 px, 256 muestras
-	static constexpr eng::s32 kMidY = kYRange / 2;     // 96
-	static constexpr eng::s32 kMidX = 240;
-	static constexpr eng::u32 kPhaseFrames = 256u;
-	eng::s32 x = 1;
-	eng::s32 y = kMidY;
-	eng::s32 vy = 1;
-
-	void advance(eng::u32 f) {
-		const eng::u32 phase = (f / kPhaseFrames) % 5u;
-		const eng::u8 i = static_cast<eng::u8>(f & 0xffu); // avanza 1 muestra/frame
-		switch (phase) {
-		case 0: // horizontal: x avanza 1 px/frame
-			x += 1;
-			y = kMidY;
-			break;
-		case 1: // vertical: y avanza 1 px/frame y rebota (sin saltos)
-			y += vy;
-			bounce();
-			break;
-		case 2: // diagonal: x avanza, y rebota
-			x += 1;
-			y += vy;
-			bounce();
-			break;
-		case 3: // circular: cos/sin de la tabla fina
-			x = kMidX + kSin[static_cast<eng::u8>((i + 64u) & 0xffu)];
-			y = kMidY + kSin[i];
-			break;
-		case 4: // Lissajous 1:3
-			x = kMidX + kSin[static_cast<eng::u8>((3u * i) & 0xffu)];
-			y = kMidY + kSin[i];
-			break;
-		}
-	}
-
-private:
-	void bounce() {
-		if (y <= 0) {
-			y = 0;
-			vy = 1;
-		} else if (y >= kYRange) {
-			y = kYRange;
-			vy = -1;
-		}
-	}
-};
+// Ruta de scroll **continua** del engine (`playfield::ScrollRoute`): fases H/V/diagonal/circular/
+// Lissajous por velocidad, sin saltos y con <= 1 px/frame por eje; la Y se acota al bitmap.
+using Route = eng::playfield::ScrollRoute<static_cast<eng::u16>(kYRange)>;
 
 struct AppStripGame {
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bank {};
@@ -131,9 +83,9 @@ struct AppStripGame {
 	eng::Palette32 m_pal {};
 
 	// **Ruta de scroll** (fases H/V/diagonal/circular/Lissajous) que alimenta X e Y de la capa.
-	ScrollRoute m_route {};
+	Route m_route {};
 	eng::s32 m_cam_x = 1;
-	eng::s32 m_cam_y = ScrollRoute::kMidY;
+	eng::s32 m_cam_y = m_route.y;
 
 	void build_packed_bank(eng::u16* bank_words) {
 		const eng::u8* const xlim = g_tilebank_xlimited;

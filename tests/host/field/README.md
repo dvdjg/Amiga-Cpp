@@ -36,3 +36,4 @@ Categoría `field` de la batería host (L1). El índice de categorías está en 
 | HOST-232 | [draw_target](232_draw_target/README.md) | `playfield::DrawTarget` (Surface+Rasterizer+FramePlan+clip): `fill`/`line`/`frame`/`c2p` y `box()`. |
 | HOST-266 | [rect_fill_sink](266_rect_fill_sink/README.md) | Relleno de rect por hardware: `RectFillSink` + `fill_rect_hw` + elección del `BlitterRaster`. |
 | HOST-319 | [cpu_primitives](319_cpu_primitives/README.md) | Primitivas CPU optimizadas (`cpu_primitives.hpp`): rect por spans, línea con Bresenham agrupado por fila, polígono even-odd. Base portable (Atari ST). |
+| HOST-396 | [scroll_route](396_scroll_route/README.md) | `field/scroll_route.hpp`: ruta de scroll **continua** (H/V/diagonal/circular/Lissajous por velocidad); cada frame mueve <= 1 px por eje (sin saltos) y **al menos un eje** (imagen distinta); Y en `[0, YMax]`. |
