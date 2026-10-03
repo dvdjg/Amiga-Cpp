@@ -34,9 +34,13 @@ enum class ScrollVariant : u8 {
 };
 
 /// ¿La variante scrollea el eje X? ¿Y? ¿Envuelve (mapa toroidal, "unlimited")?
+/// \param v  variante de scroll (`Xlimited`/`XYLimited`/…).
+/// \return `true` si la variante scrollea el eje X.
 [[nodiscard]] constexpr bool variant_scrolls_x(ScrollVariant v) noexcept {
 	return v != ScrollVariant::YUnlimited && v != ScrollVariant::YUnlimited2;
 }
+/// \param v  variante de scroll.
+/// \return `true` si la variante scrollea el eje Y.
 [[nodiscard]] constexpr bool variant_scrolls_y(ScrollVariant v) noexcept {
 	return v != ScrollVariant::XLimited && v != ScrollVariant::XUnlimited;
 }
@@ -61,6 +65,9 @@ enum class ScrollVariant : u8 {
 /// fijado `cfg.map.width`/`height`, `viewport_w`, `tile_width/h`. `wide_fetch` = variante `_64`
 /// (fetch 1x4x, `bitmap_width = viewport_w + 64`); si no, fetch clásico (16 px, `bitmap_width`
 /// automático). No toca `max_step`/perfil ni el vídeo-splitting (trabajo de algoritmo aparte).
+/// \param cfg         config a la que aplicar ejes/wrap/fetch (con `map`/`viewport`/`tile_*` ya fijados).
+/// \param v           variante de scroll.
+/// \param wide_fetch  `true` = variante `_64` (fetch 1x4x, `bitmap_width = viewport_w + 64`).
 template <class MapT>
 constexpr void apply_scroll_variant(XlimitedConfigT<MapT>& cfg, ScrollVariant v,
 				    bool wide_fetch = false) noexcept {
@@ -77,6 +84,9 @@ constexpr void apply_scroll_variant(XlimitedConfigT<MapT>& cfg, ScrollVariant v,
 /// **XLimited con Y mayor que el viewport** (scroll horizontal con mapa alto): el anillo X usa un
 /// `display_height` mayor que el alto visible (p. ej. HUD que reduce `viewport_h`), para que el walk
 /// plane-shifted no colisione `mapy`. Devuelve el `display_height` mínimo (`viewport_h + 2*tile_h`).
+/// \param viewport_h  alto visible en px.
+/// \param tile_h      alto de tile en px.
+/// \return `display_height` mínimo del anillo.
 [[nodiscard]] constexpr u16 xlimited_tall_y_display(u16 viewport_h, u16 tile_h) noexcept {
 	return static_cast<u16>(viewport_h + 2u * tile_h);
 }
@@ -84,6 +94,7 @@ constexpr void apply_scroll_variant(XlimitedConfigT<MapT>& cfg, ScrollVariant v,
 /// **YLimited con X más ancha que la pantalla** (arcades verticales): banda de guarda ancha
 /// (fetch 1x4x → `bitmap_width = viewport_w + 64`; con viewport 320 da 384) y X **acotado** a la
 /// banda (no toroidal) sobre un scroll principal en Y.
+/// \param cfg  config (con `map`/`viewport`/`tile_*` ya fijados).
 template <class MapT>
 constexpr void apply_ylimited_wide_x(XlimitedConfigT<MapT>& cfg) noexcept {
 	apply_scroll_variant(cfg, ScrollVariant::YUnlimited, /*wide_fetch=*/true);

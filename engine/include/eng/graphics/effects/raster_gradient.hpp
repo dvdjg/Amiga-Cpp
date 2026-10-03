@@ -48,6 +48,7 @@ public:
 	static constexpr u16 max_keys = 16;
 
 	/// Configura el rango. Recorta de forma segura `bands`/`band_height`/`first`.
+	/// \param range  rango del degradado (bands/band_height/first).
 	void configure(RasterGradientRange range) {
 		if (range.bands == 0u) {
 			range.bands = 1u;
@@ -66,6 +67,7 @@ public:
 	}
 
 	/// Copia la lista de colores clave (se recorta a `max_keys`).
+	/// \param keys  colores clave (formato de registro de color).
 	void set_keys(Span<const u16> keys) {
 		const u16 n = keys.size() < max_keys ? static_cast<u16>(keys.size()) : max_keys;
 		for (u16 i = 0; i < n; ++i) {
@@ -91,6 +93,8 @@ public:
 	/// Rellena `out` con una intencion `PaletteLine` por banda y devuelve cuantas escribio
 	/// (a lo sumo `cap`). Los colores viven en un buffer propio del efecto, estable hasta
 	/// el siguiente `fill_intents`.
+	/// \param out  buffer destino de intenciones `PaletteLine`.
+	/// \return nº de intenciones escritas (a lo sumo `out.size()`).
 	u16 fill_intents(eng::Span<graphics::CopperIntent> out) {
 		const u16 cap = static_cast<u16>(out.size());
 		if (out.empty() || m_key_count == 0u) {

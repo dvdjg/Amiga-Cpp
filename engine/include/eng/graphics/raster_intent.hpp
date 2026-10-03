@@ -141,6 +141,11 @@ struct BlitterWindow {
 /// **estimado** del trabajo de CPU (`cpu_start_line + blitter_lines(cpu_blit_words)`). Así el
 /// llamador no depende de una línea cableada: el `BLTSIZE` del Copper no puede abortar un blit
 /// de CPU en curso (el Blitter es único). Ver `blitter-memcpy.md` §Concurrencia.
+/// \param cpu_blit_words  tamaño en palabras del blit de CPU previo.
+/// \param cpu_start_line  línea en que arrancó el blit de CPU.
+/// \param border_line     línea mínima (p. ej. borde inferior).
+/// \param last_line       línea final permitida.
+/// \return ventana segura `[start, last_line]` (start = max(border, fin estimado de CPU), tope `last_line`).
 [[nodiscard]] constexpr BlitterWindow safe_blitter_window(u16 cpu_blit_words, u16 cpu_start_line,
                                                           u16 border_line, u16 last_line) noexcept {
     const u32 cpu_end = static_cast<u32>(cpu_start_line) + blitter_lines(cpu_blit_words);

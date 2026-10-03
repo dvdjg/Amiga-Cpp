@@ -70,6 +70,8 @@ struct BigBufferScroll {
     bool clamp = true;  // false = anillo (envuelve sin recortar)
 
     /// Avanza el offset `dx` px (clamp opcional al rango) y devuelve la posición.
+    /// \param dx  desplazamiento en px.
+    /// \return posición de cámara resultante.
     s32 step(s32 dx) {
         position += dx;
         if (clamp) {
@@ -78,6 +80,8 @@ struct BigBufferScroll {
         }
         return position;
     }
+    /// Fija la posición de cámara.
+    /// \param p  nueva posición (px).
     constexpr void reset(s32 p = 0) { position = p; }
 };
 
@@ -145,6 +149,10 @@ public:
     /// Avanza 1 px por eje (0 si no toca). Réplica del driver original: primero
     /// X y luego Y en la misma llamada (diagonal posible). Devuelve false si un
     /// borde del mapa bloqueó el avance en algún eje.
+    /// \param plan  plan del frame (recibe los blits de tira).
+    /// \param sink  fuente de tiles/geometría de la capa.
+    /// \param dx,dy  desplazamiento solicitado por eje (signo = dirección).
+    /// \return `false` si un borde del mapa bloqueó el avance en algún eje.
     bool step(graphics::FramePlan& plan, Sink& sink, s32 dx, s32 dy) {
         if (dx != 0 && !((dx > 0) ? scroll_right(plan, sink) : scroll_left(plan, sink))) return false;
         if (dy != 0 && !((dy > 0) ? scroll_down(plan, sink) : scroll_up(plan, sink))) return false;

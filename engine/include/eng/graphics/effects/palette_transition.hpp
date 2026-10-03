@@ -48,6 +48,7 @@ public:
 
 	/// Configura la franja y el ritmo. Los rangos fuera de los 32 registros fisicos se
 	/// recortan de forma segura.
+	/// \param range  franja + ritmo (`first/count/frames/ping_pong`), recortado a 32 registros.
 	void configure(PaletteTransitionRange range) {
 		if (range.first >= 32u) {
 			range.first = 31u;
@@ -69,6 +70,8 @@ public:
 
 	/// Vincula las paletas cocinadas: `from` en `num == 0`, `to` en `num == den`. El
 	/// efecto no las modifica; produce su propia paleta runtime.
+	/// \param from  paleta inicial (`num == 0`).
+	/// \param to    paleta final (`num == den`).
 	void bind(const eng::Palette32& from, const eng::Palette32& to) {
 		m_from = from.color;
 		m_to = to.color;
@@ -77,6 +80,7 @@ public:
 
 	/// Avanza el estado temporal. Calcula `num/den`: triangular (ida y vuelta) si
 	/// `ping_pong`, o `0..den` y se **queda** en `den` (destino) si no.
+	/// \param frame_index  contador de frame global.
 	void update(u16 frame_index) {
 		const u32 f = m_range.frames;
 		u32 pos = frame_index;

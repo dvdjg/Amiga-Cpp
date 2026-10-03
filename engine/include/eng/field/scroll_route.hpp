@@ -25,6 +25,7 @@ struct ScrollRoute {
 	eng::s32 vy = 0;
 
 	/// Avanza un frame de juego `f`. El llamador lee `x`/`y` (o usa el delta).
+	/// \param f  contador de frame lógico.
 	void advance(eng::u32 f) noexcept {
 		const eng::u32 phase = (f / PhaseFrames) % 5u;
 		switch (phase) {
