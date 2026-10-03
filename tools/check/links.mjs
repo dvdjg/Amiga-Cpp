@@ -32,6 +32,7 @@ const DEFAULT_ROOTS = [
   'docs/CONTINUATION_CONTEXT.md',
   'docs/ai-dev-environment/DOC-MAP-PRINCIPAL.md',
   'docs/engine/architecture',
+  'docs/engine/manual',
   'docs/guides/roadmap',
   'docs/guides/optimization',
   'docs/guides/methodology',

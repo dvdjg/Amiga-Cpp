@@ -8,6 +8,16 @@ mapa «tarea → documentación», en [DOC-MAP-PRINCIPAL.md](../ai-dev-environme
 > Los documentos viven en `docs/engine/architecture/` (salvo los roadmap en
 > `docs/guides/roadmap/`). Este hub solo **enlaza** a los canónicos: no duplica su contenido.
 
+## Manual oficial (aprender + consultar)
+
+- **[manual/](manual/README.md)** — **documentación oficial**: tutoriales guiados, niveles de
+  abstracción, **referencia completa** (por módulo, incluidas clases y plantillas de datos,
+  matemáticas, simulación e IA) y **arquitectura con esquemas ASCII**. Empieza por su índice.
+
+## Documentos de arquitectura y diseño
+
+Los de abajo son **diseño/decisión** (el *porqué*, contratos, roadmaps): el manual los **cita**.
+
 ## Áreas
 
 ### API de aplicaciones (lo que ve un juego/app)
