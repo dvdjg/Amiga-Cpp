@@ -26,6 +26,7 @@ Estructura y numeración: [../../../../docs/STRUCTURE.md](../../../../docs/STRUC
 | [125_layers_dualpf](125_layers_dualpf/README.md) |
 | [128_strip_scroller](128_strip_scroller/README.md) |
 | [129_split_screen_bands](129_split_screen_bands/README.md) |
+| [130_app_scroll_ladder](130_app_scroll_ladder/README.md) |
 | [201_ehb_map](201_ehb_map/README.md) |
 | [202_xlimited_dpf](202_xlimited_dpf/README.md) |
 | [203_world_tilemap_xlimited](203_world_tilemap_xlimited/README.md) |
