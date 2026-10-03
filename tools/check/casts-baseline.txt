@@ -161,6 +161,7 @@
   2    27  engine/include/eng/field/raster.hpp
   0   129  engine/include/eng/field/scroll_engine.hpp
   0     3  engine/include/eng/field/scroll_profile.hpp
+  0     3  engine/include/eng/field/scroll_variant.hpp
   0     7  engine/include/eng/field/streaming_map.hpp
   2    35  engine/include/eng/field/surface.hpp
   0    36  engine/include/eng/field/tile_demo.hpp
@@ -211,12 +212,13 @@
   0     3  engine/include/eng/graphics/tilemap/attribute_table.hpp
   0     8  engine/include/eng/graphics/tilemap/tile_editor.hpp
   0    26  engine/include/eng/graphics/tilemap/tile_scroll.hpp
+  0    15  engine/include/eng/hw/bus_budget.hpp
   0     3  engine/include/eng/hw/info.hpp
   3     6  engine/include/eng/memory/arena.hpp
   4     9  engine/include/eng/memory/block_pool.hpp
   0     1  engine/include/eng/memory/chip_storage.hpp
   1     0  engine/include/eng/memory/mem_bank.hpp
-  0     1  engine/include/eng/memory/stack.hpp
+  0     2  engine/include/eng/memory/stack.hpp
   0     4  engine/include/eng/os/dispatch.hpp
   0     1  engine/include/eng/os/file_stream.hpp
   0     3  engine/include/eng/os/file.hpp

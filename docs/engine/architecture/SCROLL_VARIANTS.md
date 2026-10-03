@@ -72,12 +72,18 @@ Especificación:
 ## 4. Orden de implementación propuesto
 
 1. **Selección explícita de variante** en la fachada (`ScrollKind` → `ScrollEngine`+`ScrollConsts`
-   por sentido/fetch), con los `_64` (1x4x) como presets de fetch.
+   por sentido/fetch), con los `_64` (1x4x) como presets de fetch. **Hecho (base)**:
+   `field/scroll_variant.hpp` (`ScrollVariant` + `apply_scroll_variant`/`apply_ylimited_wide_x`/
+   `xlimited_tall_y_display`) traduce los nombres de la referencia a los campos de `XlimitedConfigT`;
+   HOST-071. ⏳ falta exponerlo por la fachada de juego.
 2. **`SubTileFill` (32×32, 16 px/frame)** sobre XYLimited, con guarda en palabras y blit de 32 px de
-   alto por plano; test de continuidad a 16 px/frame (comparar con el progresivo de 1 px).
-3. **XLimited-tall-Y** (anillo Y = viewport + staging con cámara Y limitada).
-4. **YLimited-wide-X** (`_64` con banda 384 y cámara X acotada).
-5. **`YUnlimited2`/video-splitting vertical** (copper + DPF).
+   alto por plano; test de continuidad a 16 px/frame (comparar con el progresivo de 1 px). **Pendiente.**
+3. **XLimited-tall-Y** (anillo Y = viewport + staging con cámara Y limitada): preset
+   `xlimited_tall_y_display` **hecho**; ⏳ falta validar en hardware la guarda Y.
+4. **YLimited-wide-X** (`_64` con banda 384 y cámara X acotada): preset `apply_ylimited_wide_x`
+   **hecho**; ⏳ falta validar la banda/isla en un demo vertical.
+5. **`YUnlimited2`/video-splitting vertical** (copper + DPF): **pendiente** (`variant_video_split`
+   marca las variantes, pero el mecanismo de split por línea no está cableado).
 
 Cada paso cierra con equivalencia contra el progresivo (sin huecos/tearing) y build/run/checks.
 

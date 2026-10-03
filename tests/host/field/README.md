@@ -23,6 +23,7 @@ Categoría `field` de la batería host (L1). El índice de categorías está en 
 | HOST-039 | [soft_dpf](039_soft_dpf/README.md) | `SoftDpfComposition`: composición soft DPF (doble buffer + blit de copia del patrón) extraída del playfield. |
 | HOST-043 | [xlimited_tile_bank](043_xlimited_tile_bank/README.md) | `XlimitedTileBank`: banco de bloques propio o aliaseado (vista + `MemoryKind`); `Block<Tag>` propaga el `kind` de la reserva. |
 | HOST-044 | [big_buffer_scroll](044_big_buffer_scroll/README.md) | `BigBufferScroll`: estrategia de scroll trivial (offset de cámara acotado / anillo); contraste con `ScrollEngine`. |
+| HOST-071 | [scroll_variant](071_scroll_variant/README.md) | `field/scroll_variant.hpp`: nombres de la referencia ScrollingTricks (XLimited/XUnlimited/YUnlimited(2)/XYLimited/XYUnlimited(2)) → ejes/wrap/fetch de `XlimitedConfigT`; presets tall-Y y wide-X (`_64`, 384 px). |
 | HOST-045 | [surface_polygon](045_surface_polygon/README.md) | `Surface::fill_polygon`: rasterizado CPU de polígono convexo por scanline (interior/exterior, triángulos, clip). |
 | HOST-061 | [flat_mapper](061_flat_mapper/README.md) | `eng::field::map_flat_scroll`: mapper neutral cámara→`planeaddx`/`planeaddy`/`BPLCON1`/`BPLMOD` del virtual playfield (fetch ancho `$30`). |
 | HOST-062 | [polygon_fill_sink](062_polygon_fill_sink/README.md) | `eng::field::PolygonFillSink`: seam de relleno por hardware (`Playfield::fill_polygon`), con geometría planar correcta (interleaved/contiguo) y fallback CPU. |
