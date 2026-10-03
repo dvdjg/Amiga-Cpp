@@ -37,6 +37,7 @@
 #endif
 #include <eng/platform/amiga/backend.hpp>
 #include <eng/field/xlimited_scene.hpp>
+#include <eng/field/xlimited_scroll_layer.hpp>
 #include <eng/field/tile_demo.hpp>
 
 #include <proto/exec.h>
@@ -176,20 +177,27 @@ struct DemoGame {
 			}
 		}
 
-		scene_cfg.viewport_w = kViewportW;
-		scene_cfg.viewport_h = kViewportH;
-		scene_cfg.tile_width = kTileW;
-		scene_cfg.tile_height = kTileH;
-		scene_cfg.planes = kPlanes;
+		// **Plan de scroll** (vocabulario común, `ScrollPlan`): geometría + paleta + **parallax
+		// RoboCod** (`apply_scroll_plan` los siembra). Lo específico del corcóscru va aparte.
+		eng::playfield::ScrollPlan scroll_plan {};
+		scroll_plan.viewport_w = kViewportW;
+		scroll_plan.viewport_h = kViewportH;
+		scroll_plan.tile_w = kTileW;
+		scroll_plan.tile_h = kTileH;
+		scroll_plan.planes = kPlanes;
+		scroll_plan.display_height = kDisplayH;
+		scroll_plan.parallax_plane = kParallaxPlane; // plano de fondo RoboCod
+		scroll_plan.parallax_div = kParallaxDiv;
+		scroll_plan.tilemap.palette = kPalette;
+		eng::playfield::apply_scroll_plan(scene_cfg, scroll_plan);
+
+		// Específico del corcóscru RoboCod: política de ejes, mapa y generador de filas.
 		scene_cfg.fetch_mode = 0;
-		scene_cfg.y_mode = eng::playfield::AxisPolicy::Ring;                                  // corkscrew (Y)
-		scene_cfg.x_mode = eng::playfield::AxisPolicy::Finite;            // X lineal acotado
+		scene_cfg.y_mode = eng::playfield::AxisPolicy::Ring;                  // corkscrew (Y)
+		scene_cfg.x_mode = eng::playfield::AxisPolicy::Finite;                // X lineal acotado
 		scene_cfg.direction = eng::playfield::DirectionPolicy::Bidirectional;
-		scene_cfg.display_height = kDisplayH;
 		scene_cfg.max_step = 4;
-		scene_cfg.parallax_plane = kParallaxPlane;                  // plano de fondo RoboCod
-		scene_cfg.parallax_div = kParallaxDiv;
-		scene_cfg.linear_display = false;                          // SPLIT de Copper (corkscrew)
+		scene_cfg.linear_display = false;                                     // SPLIT de Copper
 
 		scene_cfg.map.cells = eng::Span<const eng::u16>::from_raw(g_map, kMapCols * kMapRows);
 		scene_cfg.map.width = kMapCols;
@@ -201,7 +209,6 @@ struct DemoGame {
 		scene_cfg.tileset_count = kTilesetCount;
 		scene_cfg.fg_row_fn = &fg_row;
 		scene_cfg.bg_row_fn = &fg_row;
-		scene_cfg.palette = kPalette;
 
 		if (!scene.begin(backend.memory_manager(), scene_cfg)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011202u);
