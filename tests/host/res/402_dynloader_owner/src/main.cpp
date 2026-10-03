@@ -46,6 +46,8 @@ usize build_lib(u8* blob) {
 	hdr->entry_offset = 0u;
 	hdr->reloc_count = 1u;
 	hdr->export_count = 1u;
+	hdr->import_count = 0u;
+	hdr->reserved = 0u;
 	u8* const code = blob + sizeof(EngLibHeader);
 	*reinterpret_cast<u32*>(code) = 0u;
 	auto* relocs = reinterpret_cast<u32*>(code + 8u);
@@ -53,6 +55,29 @@ usize build_lib(u8* blob) {
 	auto* ex = reinterpret_cast<LibExport*>(relocs + 1u);
 	ex[0] = LibExport {DynLoader::hash_name("foo"), 0u};
 	return sizeof(EngLibHeader) + 8u + 4u + sizeof(LibExport);
+}
+
+/// `.englib` con **1 import** ("host_fn" en la celda code+0) + 1 export ("foo" → offset 4).
+usize build_lib_imports(u8* blob) {
+	auto* hdr = reinterpret_cast<EngLibHeader*>(blob);
+	hdr->magic = kEngLibMagic;
+	hdr->version = 2u;
+	hdr->code_size = 8u;
+	hdr->data_size = 0u;
+	hdr->bss_size = 0u;
+	hdr->entry_offset = 0u;
+	hdr->reloc_count = 0u;
+	hdr->export_count = 1u;
+	hdr->import_count = 1u;
+	hdr->reserved = 0u;
+	u8* const code = blob + sizeof(EngLibHeader);
+	*reinterpret_cast<u32*>(code) = 0u;        // celda a parchear (host_fn)
+	*reinterpret_cast<u32*>(code + 4u) = 0u;
+	auto* ex = reinterpret_cast<LibExport*>(code + 8u);
+	ex[0] = LibExport {DynLoader::hash_name("foo"), 4u};
+	auto* im = reinterpret_cast<LibImport*>(ex + 1u);
+	im[0] = LibImport {DynLoader::hash_name("host_fn"), 0u}; // celda = code + 0
+	return sizeof(EngLibHeader) + 8u + sizeof(LibExport) + sizeof(LibImport);
 }
 
 struct Writer {
@@ -158,12 +183,84 @@ void test_out_of_memory() {
 	check(dl.state(h) == LibState::Error, "sin memoria → Error");
 }
 
+/// **Imports/ABI** (R6.6): un módulo `.englib` con imports queda `Unresolved` hasta que el host los
+/// resuelve contra su `ImportTable` (todo o nada), que **parchea** las celdas del code.
+void test_imports() {
+	alignas(16) u8 chip_buf[256] {};
+	alignas(16) u8 slow_buf[256] {};
+	alignas(16) u8 fast_buf[256] {};
+	MemoryManager mm {};
+	(void)mm.configure(chip_buf, sizeof(chip_buf), slow_buf, sizeof(slow_buf), fast_buf,
+			   sizeof(fast_buf), 16u);
+
+	alignas(8) u8 blob[96] {};
+	const usize n = build_lib_imports(blob);
+	DynLoader dl;
+	const LibHandle h = dl.declare("imp.englib");
+	check(dl.load(h, Span<u8> {blob, n}, mm), "load con imports");
+	check(dl.state(h) == LibState::Unresolved, "con imports → Unresolved");
+	check(dl.import_count(h) == 1u, "1 import pendiente");
+
+	ImportTable t {};
+	check(!dl.resolve_imports(h, t), "tabla sin el símbolo → no resuelve");
+	check(dl.state(h) == LibState::Unresolved, "sigue Unresolved (todo o nada)");
+
+	u32 host_value = 0u;
+	check(t.add("host_fn", &host_value), "add host_fn");
+	check(dl.resolve_imports(h, t), "resuelve con la tabla");
+	check(dl.state(h) == LibState::Ready, "Ready tras resolver");
+	check(dl.import_count(h) == 0u, "ya no hay imports pendientes");
+	auto* const foo = reinterpret_cast<u32*>(dl.symbol(h, "foo"));
+	check(foo != nullptr, "symbol foo");
+	// La celda (code+0) guarda la dirección en **32 bits** (ABI del módulo): se compara truncada.
+	check(foo != nullptr &&
+		      *(foo - 1) == static_cast<u32>(reinterpret_cast<uintptr_t>(&host_value)),
+	      "la celda del import quedó con la dirección de host_fn");
+	dl.unload(h, mm);
+}
+
+/// **Refcount/pin** (R6.6): `add_ref`/`release` + `pin`/`unpin` (estado).
+void test_refcount() {
+	alignas(8) u8 blob[64] {};
+	(void)build_lib(blob);
+	DynLoader dl;
+	const LibHandle h = dl.declare("refs.englib");
+	check(dl.refs(h) == 1u, "refs inicial = 1 (al declarar)");
+	check(dl.add_ref(h) && dl.refs(h) == 2u, "add_ref");
+	check(dl.release(h) && dl.refs(h) == 1u, "release");
+	check(dl.release(h) && dl.refs(h) == 0u, "release hasta 0");
+	check(!dl.release(h), "release sin refs → false");
+	check(!dl.pinned(h), "no pin por defecto");
+	dl.pin(h);
+	check(dl.pinned(h), "pin");
+	dl.unpin(h);
+	check(!dl.pinned(h), "unpin");
+	dl.unload(h);
+}
+
+/// **init/fini** (R6.6): un módulo sin export `init`/`fini` y `entry_offset == 0` no tiene ciclo de
+/// vida → `call_init`/`call_fini` devuelven `false` **sin** saltar a datos (no crashea).
+void test_lifecycle() {
+	alignas(8) u8 blob[64] {};
+	const usize n = build_lib(blob);
+	DynLoader dl;
+	const LibHandle h = dl.declare("life.englib");
+	check(dl.load(h, Span<u8> {blob, n}), "load (sin poseer)");
+	check(dl.state(h) == LibState::Ready, "Ready");
+	check(!dl.call_init(h), "sin init → false");
+	check(!dl.call_fini(h), "sin fini → false");
+	dl.unload(h);
+}
+
 } // namespace
 
 int main() {
 	test_englib_owner();
 	test_hunk_owner();
 	test_out_of_memory();
+	test_imports();
+	test_refcount();
+	test_lifecycle();
 	if (failures == 0) {
 		std::printf("OK: DynLoader propietario (.englib + HUNK con bancos) validado.\n");
 		return 0;

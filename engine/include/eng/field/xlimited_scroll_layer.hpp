@@ -52,28 +52,52 @@ class XlimitedScrollLayer final : public ScrollLayer<Backend> {
 public:
 	explicit XlimitedScrollLayer(Scene& scene) noexcept : m_scene(scene) {}
 
+	/// **Modo compuesto por el `App`** (*compose-only*): la capa **no** compone ni toma el display;
+	/// solo avanza su scroll. El `App` deriva el `RasterLayout` (`scene_layout`, con `band_view`) y
+	/// lo materializa (`present_layout`), de modo que **posee la composición** (split-screen/DPF de
+	/// varias capas). Por defecto la capa es **autónoma** (compone y toma el display ella misma).
+	void set_compose_only(bool on) noexcept { m_compose_only = on; }
+	[[nodiscard]] bool compose_only() const noexcept { return m_compose_only; }
+
 	/// Arranca la escena: `begin` (reserva en Chip) → cámara inicial → `fill` → `compose` → `takeover`.
 	[[nodiscard]] bool begin(MemoryManager& memory, Backend& backend) noexcept override {
 		if (!m_scene.begin(memory, m_scene.config())) return false;
 		m_scene.bg().set_camera(0, 0); // posición inicial del scroll antes de pintar el anillo
 		if (!m_scene.fill(backend, m_plan)) return false;
-		if (!m_scene.compose()) return false;
-		m_scene.takeover(backend);
+		if (!m_compose_only) {
+			if (!m_scene.compose()) return false;
+			m_scene.takeover(backend);
+		}
 		return true;
 	}
 
-	/// Conduce un frame: la cámara registrada en la escena → `update`+blit+`compose`+`install`.
-	void frame(Backend& backend) noexcept override { m_scene.frame_from_source(backend); }
+	/// Conduce un frame: si es *compose-only*, **solo avanza** el scroll (el `App` compone); si no,
+	/// `update`+blit+`compose`+`install` (autónoma).
+	void frame(Backend& backend) noexcept override {
+		if (m_compose_only) {
+			(void)m_scene.advance_layer(backend);
+			return;
+		}
+		m_scene.frame_from_source(backend);
+	}
 
-	/// Vistas de banda de la escena (1 = single, 2 = DPF): PF1 = `bg()` (delante), PF2 = `fg()`.
-	[[nodiscard]] eng::u8 band_view_count() const noexcept override { return m_scene.fields(); }
+	/// Vistas de banda de la escena: 2 si hay DPF (PF1 + PF2), 1 si no. PF1 = `bg()` (delante);
+	/// PF2 = el **lienzo FG** si el DPF es `fg_canvas`, si no el segundo campo `fg()`.
+	[[nodiscard]] eng::u8 band_view_count() const noexcept override {
+		return m_scene.config().dpf.enabled ? 2u : 1u;
+	}
 	[[nodiscard]] PlayfieldHardwareView band_view(eng::u8 i) const noexcept override {
-		return i == 0u ? m_scene.bg().hardware_view() : m_scene.fg().hardware_view();
+		if (i == 0u) {
+			return m_scene.bg().hardware_view();
+		}
+		return m_scene.config().dpf.fg_canvas ? m_scene.canvas_fg().hardware_view()
+						      : m_scene.fg().hardware_view();
 	}
 
 private:
 	Scene& m_scene;
 	graphics::FramePlan m_plan {};
+	bool m_compose_only = false;
 };
 
 } // namespace eng::playfield

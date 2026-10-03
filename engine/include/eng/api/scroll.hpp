@@ -29,11 +29,12 @@
 /// m_cam_y += vy;
 /// ```
 ///
-/// `Camera2D` es la cámara de un mundo **acotado** (recorta a sus límites). Una capa **toroidal**
-/// (el atlas se envuelve) usa una posición en px **sin recortar**: el motor de tiras envuelve por su
-/// cuenta. Elegir la representación de cámara de cada tipo de mapa es la línea que cierra
-/// `ROADMAP_GAME_API.md` §7 (planner de cámara/tilemap): hasta entonces el juego elige el motor que
-/// ya conoce y declara su cámara con el tipo que le corresponde.
+/// `Camera2D` es la cámara de un mundo **acotado** (`reset`; recorta a sus límites) o **toroidal**
+/// (`reset_ring`; la posición se mantiene en `[0, period)` por **envoltura**, para un mapa que
+/// envuelve en uno o ambos ejes). El motor de tiras ya envuelve por su cuenta (mapa toroidal
+/// `MapWords`); la cámara toroidal da la representación acotada del mundo que envuelve. Elegir la
+/// representación de cámara de cada tipo de mapa es la línea que cierra `ROADMAP_GAME_API.md` §7
+/// (planner de cámara/tilemap): el juego declara su cámara con el tipo que le corresponde.
 
 #include <eng/field/scroll_layer.hpp>
 #include <eng/field/scroll_route.hpp>

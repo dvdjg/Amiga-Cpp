@@ -279,6 +279,18 @@ int main() {
 					    eng::scene::LayerPlacement {});
 		eng::scene::RasterLayout l2 {};
 		check(!app2.scene_layout(l2), "sin vistas, scene_layout devuelve false");
+
+		// DPF de **una sola capa**: la capa expone 2 vistas (PF1+PF2) → una banda **dual**.
+		MockBackend b4 {};
+		SceneGame g4 {};
+		App app4 {b4, g4};
+		MockScroll dpf {};
+		dpf.views = 2u;
+		(void)app4.add_scroll_layer(dpf, eng::scene::LayerRole::Background,
+					    eng::scene::LayerPlacement {});
+		eng::scene::RasterLayout l4 {};
+		check(app4.scene_layout(l4), "scene_layout DPF (1 capa, 2 vistas)");
+		check(l4.count() == 1u && l4[0u].dual_playfield, "una banda dual (DPF)");
 	}
 
 	if (failures == 0) {

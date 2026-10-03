@@ -723,9 +723,12 @@ public:
 
     /// **Conduce la escena un frame** siguiendo la cámara registrada: `update` (delta) → blit →
     /// `compose` → `install`. Lo usa `App::add_scroll_layer`; el juego no lo llama.
+    /// **Avanza el scroll sin componer ni instalar** (modo compuesto por el `App`): `update` +
+    /// blit. Tras él, los campos reflejan la posición nueva y sus vistas son las vivas. `false` si
+    /// la escena no está lista.
     template <typename Backend>
-    void frame_from_source(Backend& backend) noexcept {
-        if (!m_initialized) return;
+    bool advance_layer(Backend& backend) noexcept {
+        if (!m_initialized) return false;
         const eng::s32 x = (m_cam_x != nullptr) ? *m_cam_x : 0;
         const eng::s32 y = (m_cam_y != nullptr) ? *m_cam_y : 0;
         const eng::s32 dx = x - m_prev_x;
@@ -735,12 +738,24 @@ public:
         m_layer_plan.clear();
         m_layer_plan.set_blit_budget_limits({8192, 16384, 4, 120});
         if (!update(m_layer_plan, dx, dy, m_layer_frame) ||
-            !backend.execute_frame_plan(m_layer_plan) || !compose()) {
+            !backend.execute_frame_plan(m_layer_plan)) {
             m_initialized = false; // deja de conducir; el `runstatus` lo refleja en el juego
+            return false;
+        }
+        ++m_layer_frame;
+        return true;
+    }
+
+    /// **Conduce la escena un frame**: avanza el scroll (`advance_layer`) → `compose` → `install`.
+    /// Lo usa `App::add_scroll_layer` (la capa autónoma); el juego no lo llama.
+    template <typename Backend>
+    void frame_from_source(Backend& backend) noexcept {
+        if (!advance_layer(backend)) return;
+        if (!compose()) {
+            m_initialized = false;
             return;
         }
         install(backend);
-        ++m_layer_frame;
     }
 
 

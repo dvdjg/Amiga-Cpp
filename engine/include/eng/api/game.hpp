@@ -553,10 +553,35 @@ public:
 				++n;
 			}
 		}
-		return eng::scene::plan_raster_layout(
-			       m_scene_plan,
-			       eng::Span<const eng::playfield::PlayfieldHardwareView> {views, n}, out)
-		       .has_value();
+		// **DPF de una sola capa**: la capa expone 2 vistas (PF1 + PF2) → una banda **dual** (no
+		// hace falta declarar dos capas). Es el caso `XlimitedScene` con `dpf` en una capa.
+		if (m_scene_plan.count() == 1u && n == 2u) {
+			const eng::u16 top = m_scene_plan.layer(0u).placement.top;
+			(void)out.add(eng::scene::band_from_dual_view(views[0], views[1], top));
+			apply_scene_palette(out);
+			return true;
+		}
+		if (!eng::scene::plan_raster_layout(
+			    m_scene_plan,
+			    eng::Span<const eng::playfield::PlayfieldHardwareView> {views, n}, out)
+			     .has_value()) {
+			return false;
+		}
+		apply_scene_palette(out);
+		return true;
+	}
+
+	/// Copia la **paleta** del plan de escena (primera capa) a la primera banda del layout, para que
+	/// la composición derivada quede completa sin que el juego la fije a mano.
+	void apply_scene_palette(eng::scene::RasterLayout& out) noexcept {
+		if (out.count() == 0u || m_scene_plan.count() == 0u) {
+			return;
+		}
+		const eng::PaletteWords pal = m_scene_plan.layer(0u).scroll.tilemap.palette;
+		if (!pal.empty()) {
+			out[0u].palette = pal;
+			out[0u].palette_colors = static_cast<eng::u8>(pal.size());
+		}
 	}
 
 	/// **Compone la pantalla por bandas y toma el display** (`RasterLayout`): el juego aporta las

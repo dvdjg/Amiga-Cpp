@@ -251,7 +251,7 @@
   0     9  engine/include/eng/res/asset_cache.hpp
   0     4  engine/include/eng/res/async_load.hpp
   0     1  engine/include/eng/res/decode.hpp
- 11     5  engine/include/eng/res/dynloader.hpp
+ 16     6  engine/include/eng/res/dynloader.hpp
   0    12  engine/include/eng/res/engz.hpp
   2     8  engine/include/eng/res/hunk.hpp
   0     4  engine/include/eng/res/load.hpp
@@ -274,7 +274,7 @@
   0     1  engine/include/eng/scene/representation.hpp
   0    32  engine/include/eng/scene/route_camera.hpp
   0    23  engine/include/eng/scene/scroll_plan.hpp
-  0    18  engine/include/eng/scene/virtual_scene.hpp
+  0    25  engine/include/eng/scene/virtual_scene.hpp
   0     3  engine/include/eng/sim/archetypes.hpp
   0    10  engine/include/eng/sim/avatar.hpp
   0    63  engine/include/eng/sim/behavior.hpp

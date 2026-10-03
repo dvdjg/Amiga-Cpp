@@ -96,21 +96,23 @@ function buildEngz(payload, codec = 0) {
 	return Buffer.concat([hdr, payload]);
 }
 
-// .englib: header(24) + code(8) + 1 reloc + 1 export ("answer" -> 0).
+// .englib: header(28) + code(8) + 1 reloc + 1 export ("answer" -> 0) + 0 imports.
 // code: 70 2a 4e 75 (moveq #42,%d0 ; rts) + 4 bytes de celda relocable.
 function buildEngLib() {
 	const code = Buffer.alloc(8);
 	STUB.copy(code, 0); // moveq #42,%d0 ; rts (vasm); code[4..7] = celda relocable (0)
 
-	const hdr = Buffer.alloc(24);
+	const hdr = Buffer.alloc(28);
 	hdr.writeUInt32BE(0x454e474c, 0); // 'ENGL'
-	hdr.writeUInt16BE(1, 4);
-	hdr.writeUInt16BE(8, 6);
-	hdr.writeUInt32BE(0, 8);
-	hdr.writeUInt32BE(0, 12);
-	hdr.writeUInt32BE(0, 16);
-	hdr.writeUInt16BE(1, 20);
-	hdr.writeUInt16BE(1, 22);
+	hdr.writeUInt16BE(1, 4); // version
+	hdr.writeUInt16BE(8, 6); // code_size
+	hdr.writeUInt32BE(0, 8); // data_size
+	hdr.writeUInt32BE(0, 12); // bss_size
+	hdr.writeUInt32BE(0, 16); // entry_offset
+	hdr.writeUInt16BE(1, 20); // reloc_count
+	hdr.writeUInt16BE(1, 22); // export_count
+	hdr.writeUInt16BE(0, 24); // import_count
+	hdr.writeUInt16BE(0, 26); // reserved
 
 	const relocs = Buffer.alloc(4);
 	relocs.writeUInt32BE(4, 0);

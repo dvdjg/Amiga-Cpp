@@ -55,8 +55,27 @@ public:
 		m_y = world.y;
 		m_previous_x = m_x;
 		m_previous_y = m_y;
+		m_ring_x = 0u;
+		m_ring_y = 0u;
 		clamp_to_world();
 	}
+
+	/// Configura la cámara como **toroidal** (mundo que **envuelve** en uno o ambos ejes): la
+	/// posición se mantiene en `[0, period)` por **envoltura** en vez de recortarse a un mundo
+	/// acotado. El motor de tiras ya envuelve por su lado (mapa toroidal `MapWords`); esta cámara da
+	/// la **representación acotada** del mundo que envuelve (la posición no crece sin fin).
+	/// `period_x`/`period_y` = tamaño del mundo que envuelve, en px (`0` = sin envoltura en ese eje).
+	constexpr void reset_ring(u16 period_x, u16 period_y, Size2u viewport) {
+		m_ring_x = period_x;
+		m_ring_y = period_y;
+		m_world = WorldRect {0u, 0u, period_x, period_y};
+		m_viewport = viewport;
+		m_x = 0;
+		m_y = 0;
+		m_previous_x = 0;
+		m_previous_y = 0;
+	}
+	[[nodiscard]] constexpr bool toroidal() const noexcept { return m_ring_x != 0u || m_ring_y != 0u; }
 
 	constexpr void begin_frame() {
 		m_previous_x = m_x;
@@ -70,8 +89,8 @@ public:
 	}
 
 	constexpr void move_by(s16 dx, s16 dy) {
-		m_x = add_signed_clamped(m_x, dx);
-		m_y = add_signed_clamped(m_y, dy);
+		m_x = (m_ring_x != 0u) ? wrap(m_x, dx, m_ring_x) : add_signed_clamped(m_x, dx);
+		m_y = (m_ring_y != 0u) ? wrap(m_y, dy, m_ring_y) : add_signed_clamped(m_y, dy);
 		clamp_to_world();
 	}
 
@@ -127,24 +146,42 @@ private:
 	}
 
 	constexpr void clamp_to_world() {
-		const u16 max_x = m_world.width > m_viewport.width
-			? static_cast<u16>(m_world.x + (m_world.width - m_viewport.width))
-			: m_world.x;
-		const u16 max_y = m_world.height > m_viewport.height
-			? static_cast<u16>(m_world.y + (m_world.height - m_viewport.height))
-			: m_world.y;
-
-		if (m_x < m_world.x) {
-			m_x = m_world.x;
-		} else if (m_x > max_x) {
-			m_x = max_x;
+		if (m_ring_x != 0u) {
+			m_x = static_cast<u16>(m_x % m_ring_x);
+		} else {
+			const u16 max_x = m_world.width > m_viewport.width
+				? static_cast<u16>(m_world.x + (m_world.width - m_viewport.width))
+				: m_world.x;
+			if (m_x < m_world.x) {
+				m_x = m_world.x;
+			} else if (m_x > max_x) {
+				m_x = max_x;
+			}
 		}
 
-		if (m_y < m_world.y) {
-			m_y = m_world.y;
-		} else if (m_y > max_y) {
-			m_y = max_y;
+		if (m_ring_y != 0u) {
+			m_y = static_cast<u16>(m_y % m_ring_y);
+		} else {
+			const u16 max_y = m_world.height > m_viewport.height
+				? static_cast<u16>(m_world.y + (m_world.height - m_viewport.height))
+				: m_world.y;
+			if (m_y < m_world.y) {
+				m_y = m_world.y;
+			} else if (m_y > max_y) {
+				m_y = max_y;
+			}
 		}
+	}
+
+	/// Envuelve `v + d` en `[0, period)` (cámara toroidal). Los `static_cast` son de **promoción
+	/// entera** (el `%` de `u16` promueve a `int`): no hay pérdida, solo el ancho declarado.
+	static constexpr u16 wrap(u16 v, s16 d, u16 period) {
+		s32 n = static_cast<s32>(v) + static_cast<s32>(d);
+		n %= static_cast<s32>(period);
+		if (n < 0) {
+			n += static_cast<s32>(period);
+		}
+		return static_cast<u16>(n);
 	}
 
 	WorldRect m_world {};
@@ -153,6 +190,8 @@ private:
 	u16 m_y = 0;
 	u16 m_previous_x = 0;
 	u16 m_previous_y = 0;
+	u16 m_ring_x = 0; ///< período de envoltura X en px (0 = mundo acotado)
+	u16 m_ring_y = 0; ///< período de envoltura Y en px (0 = mundo acotado)
 };
 
 /// Clase funcional de una capa de escena.

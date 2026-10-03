@@ -145,7 +145,12 @@ librerías comprimidas con memoria elegida por segmento. El contrato completo es
   MemoryManager&, policy)` **posee** la memoria (HUNK por banco vía R6.3; `.englib` copiado a un
   bloque) y `unload(h, mem)` la libera (por banco efectivo), con error sin fugas; **HOST-402**.
   **✅ lectura asíncrona**: `AsyncOverlay` (R6.4) une `AsyncRead` → `decode_engz` → `DynLoader::load`,
-  sin bloquear (demo `212_zone_resources`). ⏳ faltan imports/ABI, `init`/`fini` y refcount/pin.
+  sin bloquear (demo `212_zone_resources`). **✅ imports/ABI + init/fini + refcount/pin**: el
+  `.englib` lleva una sección de **imports** (vista `Span<LibImport>`); el módulo queda `Unresolved`
+  hasta que el host lo resuelve contra su **`ImportTable`** (`resolve_imports`, todo o nada),
+  `call_init`/`call_fini` invocan los exports `init`/`fini` (o el `entry_offset`), y hay
+  `add_ref`/`release`/`pin`/`unpin`/`pinned`/`refs`; **HOST-402** ampliado (imports, refcount,
+  lifecycle) y **211** verifica el `.englib` de 28 B en hardware («englib: OK (answer=42)»).
 - **R6.7 Integración**: demo de transición de zona que cargue `.engz`, ejecute un export y descargue
   la librería sin bloquear el frame. **✅ cadena en host hecha**: **HOST-410** integra `Vfs.read_all`
   → `.engz` → `HunkImage` (carga de overlay end-to-end sin emulador). **✅ demo en hardware**:
