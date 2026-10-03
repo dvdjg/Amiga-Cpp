@@ -18,11 +18,31 @@
 /// ```
 
 #include <eng/field/scroll_layer.hpp>
+#include <eng/field/scroll_plan.hpp>
 #include <eng/field/xlimited_scene.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/memory/memory_manager.hpp>
 
 namespace eng::playfield {
+
+/// **Siembra la parte común** de una `XlimitedSceneConfigT` desde un `ScrollPlan` (geometría +
+/// paleta). Lo **específico del corcóscru** (`map`/`map2`, `fg_row_fn`/`bg_row_fn`, DPF, HUD,
+/// `path`) lo fija el juego aparte. Es el vocabulario común con el camino de tiras (§7(e) de
+/// `ROADMAP_GAME_API`).
+template <class MapT>
+constexpr void apply_scroll_plan(XlimitedSceneConfigT<MapT>& cfg, const ScrollPlan& plan) noexcept {
+	cfg.viewport_w = plan.viewport_w;
+	cfg.viewport_h = plan.viewport_h;
+	cfg.tile_width = plan.tile_w;
+	cfg.tile_height = plan.tile_h;
+	cfg.planes = plan.planes;
+	if (plan.display_height != 0u) {
+		cfg.display_height = plan.display_height;
+	}
+	if (plan.tilemap.palette.size() != 0u) {
+		cfg.palette = plan.tilemap.palette;
+	}
+}
 
 /// Adaptador `XlimitedScene` → `ScrollLayer<Backend>` (ver doc del fichero).
 template <class Scene, class Backend>

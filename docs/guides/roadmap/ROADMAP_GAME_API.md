@@ -236,9 +236,13 @@ función** y con la memoria **tipada** (`MemoryManager&`). La demo **203** se mi
 ViewportH, Planes, YTravelPx, MapPeriodWords>` (`api/scroll.hpp`) — el juego declara su viewport,
 planos, recorrido Y y período de mapa **sin nombrar** el motor ni la geometría del anillo; `set_tilemap`
 **deriva los tamaños** (el juego no calcula bytes). La **204** ya lo usa (imagen del pueblito coherente,
-READY). (e) queda para el caso **secundario** (config no conocida en compilación: editor/carga de disco),
-que exige llevar la geometría a runtime; el caso habitual (**config conocida**, incluso una por nivel)
-ya se escribe con `eng::TileScroll` declarando el motor.
+READY). (e) ✅ **vocabulario declarativo común**: `playfield::ScrollPlan` (`field/scroll_plan.hpp`)
+reúne **geometría + política + contenido**; el camino de tiras lo consume con
+`StripScrollLayer::set_plan` (la 204 ya lo usa) y el corcóscru con `apply_scroll_plan(cfg, plan)`
+(siembra geometría/paleta sin pisar lo no declarado; **HOST-399**). ⏳ queda el caso **secundario**
+(config **no** conocida en compilación: editor/carga de disco), que exige llevar la geometría a
+runtime; el caso habitual (**config conocida**, incluso una por nivel) ya se escribe declarando el
+motor (`eng::TileScroll` / `XlimitedScrollLayer`) + el `ScrollPlan`.
 
 ## 8. Unificar el vocabulario
 

@@ -13,6 +13,7 @@
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/field/scroll_layer.hpp>
+#include <eng/field/scroll_plan.hpp>
 #include <eng/field/strip_composer.hpp>
 #include <eng/field/strip_scroller.hpp>
 #include <eng/field/tilemap_view.hpp>
@@ -45,6 +46,14 @@ public:
 		m_map = tm;
 		m_ring_bytes = static_cast<eng::u32>(Geom::ring_w_bytes) * Geom::planes * Geom::ring_h;
 		m_column_bytes = static_cast<eng::u32>(Geom::column_planelines) * 2u;
+	}
+
+	/// **Setup declarativo**: liga el **contenido** del `ScrollPlan` (el `tilemap`) y deriva los
+	/// tamaños; la geometría la fija el tipo (`Geom`) y la cámara, `track_camera`. Es el vocabulario
+	/// común con el corcóscru (§7(e)). Requiere `Map == TilemapView`.
+	constexpr void set_plan(const ScrollPlan& plan) noexcept {
+		m_plan_tilemap = plan.tilemap;
+		set_tilemap(m_plan_tilemap);
 	}
 	/// Tamaños de reserva: anillo, columna y copperlist.
 	constexpr void set_sizes(eng::u32 ring_bytes, eng::u32 column_bytes,
@@ -138,6 +147,7 @@ private:
 	eng::playfield::StripComposer<Geom> m_composer {};
 	eng::playfield::StripScrollController<Geom, Map, Backend> m_ctrl {};
 	eng::Ref<Map> m_map {};
+	TilemapView m_plan_tilemap {}; // soporte del plan (dueño de la vista ligada por `set_plan`)
 	const eng::u16* m_bank = nullptr;
 	eng::u16 m_bank_stride = 0u;
 	eng::PaletteWords m_palette {};

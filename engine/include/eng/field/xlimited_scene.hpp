@@ -47,6 +47,7 @@
 #include <eng/core/util/expected.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/field/scroll_layer.hpp>
+#include <eng/field/scroll_plan.hpp>
 #include <eng/field/surface.hpp>
 #include <eng/field/xlimited.hpp>
 #include <eng/graphics/frame_plan.hpp>
@@ -322,6 +323,7 @@ struct XlimitedSceneConfigT {
 
 /// Alias del caso denso/disperso (`TileLayerMap`), retrocompatible.
 using XlimitedSceneConfig = XlimitedSceneConfigT<TileLayerMap>;
+
 
 /// Escena corkscrew reutilizable: uno o dos `XlimitedField` + compositor.
 ///

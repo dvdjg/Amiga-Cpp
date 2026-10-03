@@ -127,7 +127,15 @@ struct AppStripGame {
 		m_view.cols = kMapSide;
 		m_view.rows = kMapSide;
 		m_view.palette = m_pal.words();
-		m_layer.set_tilemap(m_view); // liga el asset y deriva los tamaños de la geometría
+		// Setup **declarativo** con el vocabulario común (`ScrollPlan`): el juego describe
+		// geometría/política/contenido y la capa deriva tamaños. `App` la arranca y la conduce.
+		eng::playfield::ScrollPlan plan {};
+		plan.viewport_w = kViewportW;
+		plan.viewport_h = kViewportH;
+		plan.planes = kPlanes;
+		plan.map_period_words = kMapSide;
+		plan.tilemap = m_view;
+		m_layer.set_plan(plan);
 		m_layer.track_camera(&m_cam_x, &m_cam_y);
 		if (!app.add_scroll_layer(m_layer)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020402u);
