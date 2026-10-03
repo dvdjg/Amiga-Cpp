@@ -75,9 +75,12 @@ Especificación:
    por sentido/fetch), con los `_64` (1x4x) como presets de fetch. **Hecho (base)**:
    `field/scroll_variant.hpp` (`ScrollVariant` + `apply_scroll_variant`/`apply_ylimited_wide_x`/
    `xlimited_tall_y_display`) traduce los nombres de la referencia a los campos de `XlimitedConfigT`;
-   HOST-071. ⏳ falta exponerlo por la fachada de juego.
-2. **`SubTileFill` (32×32, 16 px/frame)** sobre XYLimited, con guarda en palabras y blit de 32 px de
-   alto por plano; test de continuidad a 16 px/frame (comparar con el progresivo de 1 px). **Pendiente.**
+   **expuesto por la fachada** con `scene::scroll_kind_for_variant` (`scroll_plan.hpp`); HOST-071.
+2. **`SubTileFill` (32×32, 16 px/frame)** sobre XYLimited. **Hecho (base)**: perfil `SubTileFill<Px>`
+   + alias `ScrollSubTile8`/`ScrollSubTile16` (`scroll_profile.hpp`), con `sub_px` como paso en px
+   **independiente del tile** (semántica progresiva correcta: pinta cada px revelado antes de
+   avanzar); HOST-032. ⏳ falta la **optimización** de Blitter (px-burst: pintar la tira de ≤16 px en
+   menos operaciones, guarda en palabras) — pendiente y de mayor riesgo (hot path del corkscrew).
 3. **XLimited-tall-Y** (anillo Y = viewport + staging con cámara Y limitada): preset
    `xlimited_tall_y_display` **hecho**; ⏳ falta validar en hardware la guarda Y.
 4. **YLimited-wide-X** (`_64` con banda 384 y cámara X acotada): preset `apply_ylimited_wide_x`

@@ -117,9 +117,9 @@ public:
             "XLimitedPlayfield debe cumplir el sink del ScrollEngine (corkscrew/XYLimited).");
         this->m_cfg = cfg;
         m_max_step = this->m_cfg.max_step ? this->m_cfg.max_step : 1; // salto configurable (≥1)
-        // Perfil estático: si impone paso (perfiles rápidos), su valor gana; la
+        // Perfil estático: si impone paso (perfiles rápidos o sub-tile), su valor gana; la
         // selección se hace con un tipo (ver `scroll_profile.hpp`/`FAST_SCROLL.md`).
-        if constexpr (Profile::fill_tiles != 0u) {
+        if constexpr (Profile::fill_tiles != 0u || Profile::sub_px != 0u) {
             m_max_step = static_cast<u8>(Profile::max_step_px(this->m_cfg.tile_width));
         }
         // El eje Y se controla con `y_mode` (Off = X-only, sin banda de staging ni

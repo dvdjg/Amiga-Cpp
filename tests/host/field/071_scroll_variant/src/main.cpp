@@ -10,6 +10,7 @@
 #include <cstdio>
 
 #include <eng/field/scroll_variant.hpp>
+#include <eng/scene/scroll_plan.hpp>
 
 using namespace eng;
 
@@ -104,10 +105,22 @@ int main() {
 		check(cfg.map.wrap_x == 0u, "wide-X: X acotado");
 	}
 
-	// Pistas de video-splitting de las variantes "2".
+	// Pistas de video-splitting (tabla de la referencia: todos los XY* + YUnlimited2).
 	check(field::variant_video_split(field::ScrollVariant::XYUnlimited2), "video-split en XYUnlimited2");
 	check(field::variant_video_split(field::ScrollVariant::YUnlimited2), "video-split en YUnlimited2");
-	check(!field::variant_video_split(field::ScrollVariant::XYUnlimited), "XYUnlimited sin video-split");
+	check(field::variant_video_split(field::ScrollVariant::XYLimited), "video-split en XYLimited");
+	check(!field::variant_video_split(field::ScrollVariant::XLimited), "XLimited sin video-split");
+	check(!field::variant_video_split(field::ScrollVariant::YUnlimited), "YUnlimited sin video-split");
+
+	// Puente a la tecnica del planner (scroll_plan.hpp).
+	check(scene::scroll_kind_for_variant(field::ScrollVariant::XLimited) == scene::ScrollKind::CopperRing,
+	      "bridge XLimited -> CopperRing");
+	check(scene::scroll_kind_for_variant(field::ScrollVariant::XYLimited) == scene::ScrollKind::CopperSplit,
+	      "bridge XYLimited -> CopperSplit (split)");
+	check(scene::scroll_kind_for_variant(field::ScrollVariant::YUnlimited) == scene::ScrollKind::Fine,
+	      "bridge YUnlimited -> Fine (sin split)");
+	check(scene::scroll_kind_for_variant(field::ScrollVariant::XYUnlimited2) == scene::ScrollKind::CopperSplit,
+	      "bridge XYUnlimited2 -> CopperSplit");
 
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);

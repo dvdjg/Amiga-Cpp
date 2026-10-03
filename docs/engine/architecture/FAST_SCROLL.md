@@ -81,6 +81,12 @@ eng::field::XlimitedScene<kScrollConsts, eng::field::TileLayerMap, Scroll> scene
 | `ScrollFast1` | 1 tile/frame | 1 tile | 2 |
 | `ScrollFast2` | 2 tiles/frame | 2 tiles | 3 |
 | `ScrollFast4` | 4 tiles/frame | 4 tiles | 5 |
+| `ScrollSubTile8`/`ScrollSubTile16` | sub-tile (progresivo) | 8/16 px | la del fetch (32/64 px) |
+
+`ScrollSubTile<Px>` es para **tiles grandes** (32×32) con avance ≤ `Px` px/frame: el paso es en
+píxeles, **independiente del tile** (no ancla a frontera de tile porque `plane-shift ≠ 0`), así que
+usa el camino progresivo con `max_step = Px` (correcto; la optimización de Blitter de la tira es la
+pieza pendiente, ver `SCROLL_VARIANTS.md` §3.1).
 
 Un perfil a medida: `ScrollProfile<TileBurstFill<3>, GuardTiles<4>, /*DirectionLatched=*/true>`; el
 `static_assert` del perfil exige `guarda >= relleno + 1`. El perfil por defecto **no impone** paso

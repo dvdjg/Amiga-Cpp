@@ -49,10 +49,12 @@ enum class ScrollVariant : u8 {
 	return v == ScrollVariant::YUnlimited || v == ScrollVariant::YUnlimited2 ||
 	       v == ScrollVariant::XYUnlimited || v == ScrollVariant::XYUnlimited2;
 }
-/// Las variantes `2` usan **video-splitting** (Y); el engine lo modela con `y_mode = Ring` +
+/// Las variantes 8-way (`XY*`) y `YUnlimited2` usan **video-splitting**; `XLimited`/`XUnlimited`/
+/// `YUnlimited` no (tabla de la referencia). El engine lo modela con `y_mode = Ring` +
 /// `display_height` (ver `AMIGA_8WAY_SCROLLING.md`).
 [[nodiscard]] constexpr bool variant_video_split(ScrollVariant v) noexcept {
-	return v == ScrollVariant::YUnlimited2 || v == ScrollVariant::XYUnlimited2;
+	return v == ScrollVariant::YUnlimited2 || v == ScrollVariant::XYLimited ||
+	       v == ScrollVariant::XYUnlimited || v == ScrollVariant::XYUnlimited2;
 }
 
 /// Aplica los **ejes**, el **wrap** y el **ancho de fetch** de `v` a `cfg`. El llamador debe haber
