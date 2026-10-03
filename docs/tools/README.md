@@ -25,6 +25,7 @@ Reglas principales (ver también `docs/STRUCTURE.md` §6):
 | Verificación visual | `tools/vision-review/README.md`, `docs/testing/VISION_REVIEW_ROADMAP.md` | `tools/vision-review/*` |
 | Pipeline de tiles/sprites | `tools/amiga-tiles/README.md`, `docs/demos/tile-pipeline/` | `tools/amiga-tiles/*`, `tools/ehb/*`, `tools/demo202/*` |
 | Assets (UAF-R) | `docs/tools/UAF_PACK.md` | `tools/assets/uaf-pack.ts` |
+| Manifiesto de assets | `docs/tools/ASSET_MANIFEST.md` | `tools/assets/gen-manifest.mjs`, `tools/check/asset-manifests.mjs` |
 | Audio (muestras del mixer) | `tools/audio/README.md` | `tools/audio/*.ts` |
 | FrameScope | `docs/testing/FRAMESCOPE_ROADMAP.md` | `tools/framescope/*` |
 | Entrada (mouse) | `tools/input/*`, `docs/emulation/MOUSE_AUTOMATION.md` | `tools/input/mouse-path.*` |

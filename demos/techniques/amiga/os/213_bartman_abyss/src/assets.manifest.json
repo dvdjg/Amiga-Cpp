@@ -1,0 +1,38 @@
+{
+  "namespace": "abyss",
+  "assets": [
+    {
+      "name": "img",
+      "kind": "bitmap",
+      "path": "assets/amiga/sprites/abyss/abyss.bpl",
+      "width": 320,
+      "height": 256,
+      "planes": 5,
+      "layout": "interleaved"
+    },
+    {
+      "name": "bob",
+      "kind": "sprite",
+      "path": "assets/amiga/sprites/abyss/bob.bpl",
+      "width": 32,
+      "height": 16,
+      "planes": 5,
+      "frames": 6,
+      "frame_stride": 640,
+      "layout": "interleaved",
+      "draw": "cookie_cut",
+      "mask_pack": "interleaved_pair"
+    },
+    {
+      "name": "mod",
+      "kind": "music",
+      "path": "assets/amiga/audio/testmod.p61"
+    },
+    {
+      "name": "pal",
+      "kind": "palette",
+      "path": "assets/amiga/sprites/abyss/abyss.pal",
+      "colors": 32
+    }
+  ]
+}

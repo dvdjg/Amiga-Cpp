@@ -300,6 +300,15 @@ if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 			exit 1
 		fi
 	fi
+	# Manifiestos de assets: el header generado debe coincidir con su JSON (ROADMAP_GAME_API §4).
+	ASSET_MANIFESTS="$ROOT/tools/check/asset-manifests.mjs"
+	if [ -f "$ASSET_MANIFESTS" ] && command -v node >/dev/null 2>&1; then
+		echo "== asset-manifests =="
+		if ! node "$ASSET_MANIFESTS"; then
+			echo "asset-manifests fallo: manifiesto desincronizado (regenera con gen-manifest.mjs)." >&2
+			exit 1
+		fi
+	fi
 	# Arquitectura: cabeceras fundamentales con diagrama ASCII (estricto).
 	DIAGRAMS="$ROOT/tools/check/architecture-diagrams.mjs"
 	if [ -f "$DIAGRAMS" ] && command -v node >/dev/null 2>&1; then

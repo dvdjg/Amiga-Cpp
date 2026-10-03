@@ -226,14 +226,19 @@ struct AbyssDemo {
 		// ORIGINAL: `image`/`bob`/`module` viven en `.MEMF_CHIP` (`#embed`), porque el Blitter y
 		// Paula solo ven Chip RAM. AQUÍ: el motor copia los blobs de `.rodata` a bloques Chip.
 		m_assets.bind(app.device().memory_manager());
-		const bool bitmap_added = m_assets.add_bitmap("abyss", abyss::img_data(),
-					       abyss::img_size(), kWidth, kHeight, kPlanes,
-					       eng::graphics::PlaneLayout::Interleaved);
-		if (!bitmap_added) {
-			eng::debug::mark_failed(g_eng_run_status, kRunDetailBitmapAssetFailed);
+		// La **geometría** (dimensiones/planos/frames) y los `INCBIN` viven en el manifiesto
+		// generado (`assets.manifest.hpp` ← `assets.manifest.json`, §4 de ROADMAP_GAME_API): el
+		// código de juego pide cada recurso **por nombre** y no declara rutas, tamaños ni planos.
+		if (!abyss::register_assets(m_assets)) {
+			// El fallo de reserva queda en `g_mem_probe` (lo registra `res::load`); el `detail`
+			// resume qué banco y por qué, para el `runstatus` del canal lateral.
+			const auto& bank = app.device().memory_manager().chip();
+			const auto snap = bank.snapshot();
+			eng::debug::mark_mem_failed(g_eng_run_status, kRunDetailBase + 5u,
+						    static_cast<eng::u32>(bank.status()), snap.remaining, snap.used);
 			return;
 		}
-		const auto background = m_assets.bitmap("abyss");
+		const auto background = m_assets.bitmap("img");
 		// ORIGINAL: `image` es ya el bitmap de la escena (no hay copia). AQUÍ: se copia el asset
 		// al framebuffer una vez, con un blit interleaved de los 5 planos.
 		const bool background_queued = app.screen().bitmap(background, eng::Box {0, 0, kWidth, kHeight});
@@ -251,35 +256,11 @@ struct AbyssDemo {
 		// `docs/reference/amiga/techniques/interleaved-bob-single-blit.md`). No se reempaqueta:
 		// el engine lo dibuja con **un** blit cookie-cut `$CA` por BOB. Es el mismo `bob.bpl` de
 		// la original: `BLTAPT`/`BLTBPT` y `AMOD`/`BMOD`/`DMOD` los deriva el encoder del motor.
-		const bool sprite_added = m_assets.add<eng::SpriteTag>("bob", abyss::bob_data(),
-						  abyss::bob_size());
-		const bool music_added = m_assets.add<eng::MusicTag>("mod", abyss::mod_data(),
-						 abyss::mod_size());
-		if (!sprite_added || !music_added) {
-			// El fallo de reserva queda en `g_mem_probe` (lo registra `res::load`); el `detail`
-			// resume qué banco y por qué, para el `runstatus` del canal lateral.
-			const auto& bank = app.device().memory_manager().chip();
-			const auto snap = bank.snapshot();
-			eng::debug::mark_mem_failed(g_eng_run_status, kRunDetailBase + 5u,
-						    static_cast<eng::u32>(bank.status()), snap.remaining,
-						    snap.used);
-			return;
-		}
-
-		// --- El objeto como asset de juego (geometría declarada; el sheet lo pone `Assets`) --
-		// ORIGINAL: la geometría del blit estaba implícita en los registros (`BLTAMOD=4`,
-		// `BLTxMOD`, `BLTSIZE=(16*5)<<6|2`). AQUÍ: se declara una vez (32×16, 5 planos,
-		// interleaved, cookie-cut `$CA` con la máscara intercalada por pares). El motor traduce.
-		eng::graphics::Bob desc {};
-		desc.width = kBobW;
-		desc.height = kBobH;
-		desc.planes = kPlanes;
-		desc.frame_count = kSpriteFrameCount;
-		desc.frame_stride = kBobFrameStride;
-		desc.layout = eng::graphics::BobLayout::Interleaved;
-		desc.draw = eng::graphics::BobDraw::CookieCut;
-		desc.mask_pack = eng::graphics::BobMaskPack::InterleavedPair;
-		m_sprite = m_assets.sprite("bob", desc);
+		// El `bob.bpl` original ya trae el layout que consume el motor (interleaved con la máscara
+		// por pares, `docs/reference/amiga/techniques/interleaved-bob-single-blit.md`): el motor lo
+		// dibuja con **un** blit cookie-cut `$CA` por BOB. La geometría (32×16, 5 planos, 6 frames)
+		// viaja en el manifiesto, así que basta pedir el sprite por nombre.
+		m_sprite = m_assets.sprite("bob");
 
 		// --- Música por la fachada de audio ------------------------------------------------
 		// ORIGINAL: el replayer P61 se inicializa (`p61Init`) y avanza en la IRQ de VBlank
@@ -296,7 +277,7 @@ struct AbyssDemo {
 		// muestra. Accedemos a los datos por la escena/asset de dominio, sin punteros crudos.
 		if constexpr (requires { app.debug(); }) {
 			auto& d = app.debug();
-			const auto bg = m_assets.bitmap("abyss");
+			const auto bg = m_assets.bitmap("img");
 			if (bg.valid()) {
 				d.register_bitmap(bg.planes.data(), "abyss.bpl", kWidth, kHeight, kPlanes,
 						  /*interleaved=*/true, /*masked=*/false);

@@ -120,13 +120,19 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
   audio resuelve **formato** (detección por cabecera) y **buffer** (§2). ✅ bitmap planar por nombre conserva
   geometría/layout y se dibuja con `Screen::bitmap`; HOST-234 verifica datos y segmentación de jobs para
   interleaved 320×256×5, y WinUAE muestra el bitmap en la 213. ✅ el `INCBIN` **sale del código de juego** a un
-  **manifiesto** (`demos/.../213/src/assets.manifest.hpp`) que expone los blobs por accesores
-  (`abyss::img_data()`/`img_size()`…); el código de juego ya no tiene rutas de assets ni `INCBIN` (medido:
-  49,9 fps y misma imagen). ⏳ falta el **generador** que emita ese header desde un manifiesto de datos (y la
-  geometría del sprite incrustada por asset).
-- **Decisión (geometría del sprite)**: el `desc` (ancho/alto/planos/frames/stride) se queda como **dato del juego**
-  hasta que exista un **pipeline/tabla** que lo incruste con el blob (cabecera por asset). No se inventa un formato
-  ahora: incrustar geometría es decisión del pipeline, no del API.
+   **manifiesto** (`demos/.../213/src/assets.manifest.hpp`) que expone los blobs por accesores
+   (`abyss::img_data()`/`img_size()`…); el código de juego ya no tiene rutas de assets ni `INCBIN` (medido:
+   49,9 fps y misma imagen). ✅ **generador implementado**: `tools/assets/gen-manifest.mjs` emite el header
+   desde `assets.manifest.json` —blobs + **geometría** (dimensiones/planos/frames)— más
+   `register_assets(Assets&)` que registra todo en una llamada; `Assets::add_sprite`/`sprite(name)` guardan y
+   recuperan la **geometría del sprite**, así el juego escribe `m_assets.sprite("bob")` sin `desc`. La 213 usa
+   ya el manifiesto generado (misma imagen, READY en WinUAE) y el gate `tools/check/asset-manifests.mjs`
+   garantiza que el header no diverge del JSON (corre en `run-host-tests.sh`/`test-regression.sh`). Detalle:
+   `docs/tools/ASSET_MANIFEST.md`. ⏳ falta el **pipeline binario cocinado** (UAF-R) para que el `path` sea un
+   asset empaquetado en vez de un `.bpl` suelto (hoy `INCBIN`), y geometría de audio si un juego la necesita.
+- **Decisión (geometría del sprite)**: el `desc` (ancho/alto/planos/frames/stride) **viaja en el manifiesto**
+   (JSON) y el engine lo guarda al registrar (`Assets::add_sprite`); el código de juego no lo escribe. El formato
+   binario de los blobs sigue siendo el del pipeline (UAF-R aparte).
 
 ## 5. Actores, animación y colisión (2D)
 

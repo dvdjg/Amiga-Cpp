@@ -190,11 +190,13 @@ public:
 		}
 		m_table = eng::res::AssetTable {};
 		m_bitmap_count = 0u;
+		m_sprite_count = 0u;
 	}
 	void clear() noexcept {
 		reset_phase();
 		m_table = eng::res::AssetTable {};
 		m_bitmap_count = 0u;
+		m_sprite_count = 0u;
 	}
 
 	[[nodiscard]] eng::u8 tracked_count() const noexcept { return m_tracked_count; }
@@ -211,8 +213,27 @@ public:
 		return eng::audio::MusicModule {m_table.template get<eng::MusicTag>(name).raw()};
 	}
 
+	/// **Registra una hoja de sprites** con su geometría (`Bob` sin `sheet`): copia el blob a Chip
+	/// y **conserva el `desc`**, de modo que `sprite(name)` la dibuja sin volver a pasar geometría.
+	/// `false` si no cabe, el nombre ya existe o la geometría es inválida.
+	[[nodiscard]] bool add_sprite(eng::util::StringView name, const eng::u8* data, eng::usize size,
+				      const eng::graphics::Bob& desc) noexcept {
+		if (name.empty() || data == nullptr || desc.width == 0u || desc.height == 0u ||
+		    desc.planes == 0u || desc.frame_count == 0u || m_sprite_count >= kMaxBlocks ||
+		    m_table.has(name)) {
+			return false;
+		}
+		if (!add<eng::SpriteTag>(name, data, size)) return false;
+		m_sprites[m_sprite_count++] = SpriteAsset {name, desc};
+		return true;
+	}
+	[[nodiscard]] bool add_sprite(const char* name, const eng::u8* data, eng::usize size,
+				      const eng::graphics::Bob& desc) noexcept {
+		return name != nullptr && add_sprite(eng::util::StringView {name}, data, size, desc);
+	}
+
 	/// **Hoja de sprites** por nombre + su geometría (`Bob` sin hoja) → `Sprite` para
-	/// `screen.sprite(...)`.
+	/// `screen.sprite(...)`. La geometría se pasa aquí si no se registró con `add_sprite`.
 	[[nodiscard]] eng::graphics::Sprite sprite(eng::util::StringView name,
 						   const eng::graphics::Bob& desc) const noexcept {
 		const ByteView<eng::SpriteTag> v = m_table.template get<eng::SpriteTag>(name);
@@ -222,6 +243,17 @@ public:
 		bob.sheet = eng::ChipView<eng::BobTag> {
 			eng::Address<eng::MemoryKind::Chip>::from_storage(v.data()), v.size()};
 		return eng::graphics::Sprite {bob, static_cast<eng::u32>(v.size())};
+	}
+
+	/// **Hoja de sprites** por nombre usando la geometría registrada en `add_sprite`; `Sprite{}` si
+	/// no existe o no se registró geometría. Es la llamada de juego (`sprite("hero")`).
+	[[nodiscard]] eng::graphics::Sprite sprite(eng::util::StringView name) const noexcept {
+		for (eng::u8 i = 0u; i < m_sprite_count; ++i) {
+			if (same_name(m_sprites[i].name, name)) {
+				return sprite(name, m_sprites[i].desc);
+			}
+		}
+		return {};
 	}
 
 	/// **Bytes** de un asset (p. ej. el bitmap de fondo) por nombre.
@@ -286,6 +318,19 @@ private:
 		eng::u8 planes = 0u;
 		eng::graphics::PlaneLayout layout = eng::graphics::PlaneLayout::Interleaved;
 	};
+	struct SpriteAsset {
+		eng::util::StringView name {};
+		eng::graphics::Bob desc {};
+	};
+
+	/// Compara dos `StringView` sin `strcmp` (freestanding).
+	[[nodiscard]] static bool same_name(eng::util::StringView a, eng::util::StringView b) noexcept {
+		if (a.size() != b.size()) return false;
+		for (eng::usize i = 0u; i < a.size(); ++i) {
+			if (a[i] != b[i]) return false;
+		}
+		return true;
+	}
 
 	eng::Ref<MemoryManager> m_mem {};
 	res::AssetTable m_table {};
@@ -293,6 +338,8 @@ private:
 	eng::u8 m_tracked_count = 0u;
 	BitmapAsset m_bitmaps[kMaxBlocks] {};
 	eng::u8 m_bitmap_count = 0u;
+	SpriteAsset m_sprites[kMaxBlocks] {};
+	eng::u8 m_sprite_count = 0u;
 };
 
 } // namespace eng

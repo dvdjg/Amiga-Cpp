@@ -201,6 +201,20 @@ if [ -f "$DOC_INDEX_CHECK" ]; then
 	fi
 fi
 
+# --- Manifiestos de assets: el header generado debe coincidir con su JSON (ROADMAP_GAME_API 4) ---
+ASSET_MANIFESTS="$ROOT/tools/check/asset-manifests.mjs"
+if [ -f "$ASSET_MANIFESTS" ]; then
+	if command -v node >/dev/null 2>&1; then
+		echo "== asset-manifests =="
+		if ! node "$ASSET_MANIFESTS"; then
+			echo "asset-manifests fallo: manifiesto desincronizado (regenera con gen-manifest.mjs)." >&2
+			exit 1
+		fi
+	else
+		echo "node no disponible; se omite asset-manifests." >&2
+	fi
+fi
+
 # --- Gate de codegen: ningun ELF de demo con instrucciones 68020+/FPU (no corren en 68000/OCS) ---
 # Audita los `.elf` ya compilados (`out/demos/**`). Falla si aparece `muls.l`/`fmove`/`extb.l`/`bf*`.
 # Es la salvaguarda que sustituye a las libcalls cuando el engine las evita (ver
