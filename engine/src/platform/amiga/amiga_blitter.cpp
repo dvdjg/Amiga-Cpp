@@ -265,6 +265,10 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 		// preload `$FFFF`/`$0000`; `AFWM`/`ALWM` recortan la primera/ultima palabra. Se cargan
 		// primero `BLTCON0/1` y despues `BLTADAT` (el orden importa: cargar datos antes del shift
 		// da resultados impredecibles). `job.minterm` = `$FF` (plano a 1) o `$00` (plano a 0).
+		// NOTA: al no leer D, los bits de borde de un rect no alineado a 16 px se ponen a 0 (no
+		// se preserva lo de debajo); para bordes exactos con la ruta **sincrona** usar
+		// `Playfield::fill_rect_hw` (RectFillSink), que ya preserva. Ver
+		// `docs/reference/amiga/techniques/blitter-fill-constant.md`.
 		if (!wait_blitter()) {
 			return false;
 		}
