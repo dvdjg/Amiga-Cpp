@@ -154,6 +154,7 @@ constexpr bool kSpritesOn = false;
 // Modo prueba de scroll: mueve la camara X para medir fps/coste real en A1200.
 constexpr bool kScrollTest = true;
 constexpr eng::s32 kScrollStep = 2; // px/frame
+constexpr bool kRunPort = true;     // false = solo render (test de coste del port vs render)
 eng::u32 g_spr_chr = 0u;              // base de la pattern table de sprites ($2000 bit 3)
 constexpr eng::u16 kSpriteTop = 0x2Au; // DIWSTRT_y (0x29) + 1 (linea raster del primer pixel)
 
@@ -366,7 +367,7 @@ struct DkXlGame {
 			n2a_set_pad(pad);
 		}
 		// Logica del port (dirigida por frame).
-		n2a_frame();
+		if (kRunPort) { n2a_frame(); }
 		++m_frames;
 		// REBUILD dinamico: si el juego cambio el nametable (transicion de pantalla), recomponer
 		// el mapa de metatiles + el banco y re-blitear el anillo. Deteccion: celdas sucias del PPU.
