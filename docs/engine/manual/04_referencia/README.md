@@ -8,10 +8,11 @@ propósito, firma, parámetros, errores, invariantes y `fichero:línea` al fuent
 | Módulo | Qué documenta |
 |---|---|
 | `api/` | La **fachada**: `App`/`Screen`/`Scene`/`Scroll`/`Sprites`/`IndexedDisplay`/`Assets`/`Device`/`Effects`/`Copper`. |
-| `core/types/` | Dominios y `Tag`, vistas (`Bytes`/`Words`), `Address`, `Box`, `Span`, handles. |
-| `core/math/` | `Vec`/`Mat`/`Affine`, `Fixed`, `MiniFloat16`, `scalar_traits`, ruido, `SinTable`, interpolación. |
-| `core/data/` | `ct_array`, orden de bytes, binario, checksums. |
-| `core/util/` | `expected`, `static_vector`, `pool`, `string_view`, `function_ref`, `scope_guard`. |
+| [`core/`](core/README.md) | Base sin hardware: tipos, dominios, matemáticas, datos y utilidades. |
+| [`core/types/`](core/types.md) | Tipos base, dominios y `Tag`, vistas (`Bytes`/`Words`/`ChipView`), `Address`, `Box`, `Span`, `Ref`/`NonNull`, `Block`. |
+| [`core/math/`](core/math.md) | Escalar (`scalar_traits`, `Vec`/`Mat`), `Fixed`, `MiniFloat16`, `SinTable`, ruido, interpolación. |
+| [`core/data/`](core/data.md) | `ct_array`, orden de bytes, `crc32`, ordenación, `utf8`, `rtc`, 3D (`mesh3d`/`polygon`). |
+| [`core/util/`](core/util.md) | `expected`, `static_vector`, `pool`, `string_view`, `function_ref`, `scope_guard`, contenedores. |
 | `memory/` | `MemoryManager`, arenas, `BlockPool`, presupuesto. |
 | `graphics/planar/` | Bitmaps, vistas de plano, `Surface`, blits, rasterizado. |
 | `graphics/copper/` | `copper`, `Plan`, `Scheduler`, doble buffer. |
