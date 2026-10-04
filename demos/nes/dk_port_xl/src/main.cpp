@@ -47,7 +47,7 @@ constexpr eng::u16 kViewportW = 256u;                // ancho util NES (256 px)
 constexpr eng::u16 kViewportH = 240u;                // alto util NES (240 px)
 constexpr eng::u8  kPlanes = 4u;
 constexpr eng::u16 kDisplayH = 240u;                 // y_mode=Off -> sin split
-constexpr eng::u16 kMtCols = 20u;                    // >= viewport/tile (16) + margen del anillo
+constexpr eng::u16 kMtCols = 20u;                    // 16 pantalla + 4 de margen (DIW = 320px)
 constexpr eng::u16 kMtRows = 15u;                    // 15 metatiles de alto (240 px)
 constexpr eng::u16 kScreenCols = 16u;                // la pantalla NES real: 16 metatiles (256 px)
 constexpr eng::u16 kTilesetCount = 64u;              // generativo: 16 glyph x 4 variantes
@@ -211,9 +211,10 @@ void rebuild_world_from_port() {
 		}
 		// Columnas del anillo mas alla de la pantalla NES: repite la pantalla (toroide),
 		// para que las 22 columnas que lee el compositor X-limited esten definidas.
+		// Columnas mas alla de la pantalla NES (16): VACIAS (negro). El DIW (320px) muestra 20
+		// metatiles; asi las 4 de margen no repiten la pantalla (el borde derecho limpio).
 		for (eng::u16 tx = kScreenCols; tx < kMtCols; ++tx) {
-			g_cells[static_cast<eng::u32>(ty) * kMtCols + tx] =
-				g_cells[static_cast<eng::u32>(ty) * kMtCols + ((tx - kScreenCols) % kScreenCols)];
+			g_cells[static_cast<eng::u32>(ty) * kMtCols + tx] = 0xFFFFu;
 		}
 	}
 }
@@ -268,15 +269,15 @@ bool update_world_from_dirty() {
 		const eng::u16 ty = static_cast<eng::u16>(row / 2u);
 		const eng::u16 idx = compute_metatile(tx, ty);
 		if (idx == 0xFFFFu) { continue; }
-		for (eng::u16 c = tx; c < kMtCols; c = static_cast<eng::u16>(c + kScreenCols)) {
-			g_cells[static_cast<eng::u32>(ty) * kMtCols + c] = idx;
-			// Registrar (columna,fila) para el re-blit selectivo (dedupe lineal, N pequeno).
+		// Solo la columna de pantalla (tx < kScreenCols); las de margen (16-19) quedan VACIAS.
+		g_cells[static_cast<eng::u32>(ty) * kMtCols + tx] = idx;
+		{
 			bool dup = false;
 			for (eng::u16 k = 0; k < g_chg_n; ++k) {
-				if (g_chg_tx[k] == c && g_chg_ty[k] == ty) { dup = true; break; }
+				if (g_chg_tx[k] == tx && g_chg_ty[k] == ty) { dup = true; break; }
 			}
 			if (!dup && g_chg_n < kChangedMax) {
-				g_chg_tx[g_chg_n] = c; g_chg_ty[g_chg_n] = ty; ++g_chg_n;
+				g_chg_tx[g_chg_n] = tx; g_chg_ty[g_chg_n] = ty; ++g_chg_n;
 			}
 		}
 		any = true;
