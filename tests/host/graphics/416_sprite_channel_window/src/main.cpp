@@ -31,7 +31,7 @@
 namespace {
 
 using eng::graphics::SpriteAllocator;
-using eng::graphics::SpriteBackdropTechnique;
+using eng::graphics::SpriteWindowTechnique;
 using eng::graphics::SpriteChannelLedger;
 using eng::graphics::SpriteChannelWindow;
 using eng::graphics::SpriteChannelWindowError;
@@ -56,7 +56,7 @@ SpriteIntent make_intent(eng::u16 top, eng::u16 bottom) {
 }
 
 SpriteChannelWindow make_window(eng::u16 top, eng::u16 bottom, eng::u8 first, eng::u8 count,
-		     SpriteBackdropTechnique tech = SpriteBackdropTechnique::RiskyWoods,
+		     SpriteWindowTechnique tech = SpriteWindowTechnique::RiskyWoods,
 		     bool attach = false) {
 	SpriteChannelWindow w {};
 	w.top = top;
@@ -93,13 +93,27 @@ void test_ledger_basics() {
 	CHECK(l.free_mask(10u) == 0xffu);
 }
 
+void test_register_mask() {
+	std::printf("sprite_channel_register_mask: mascara de registros por canal\n");
+
+	CHECK(eng::graphics::sprite_channel_register_mask(0u, 4u) == 0x0fu); // canales 0..3
+	CHECK(eng::graphics::sprite_channel_register_mask(4u, 4u) == 0xf0u); // canales 4..7
+	CHECK(eng::graphics::sprite_channel_register_mask(2u, 1u) == 0x04u); // solo el canal 2
+	CHECK(eng::graphics::sprite_channel_register_mask(0u, 8u) == 0xffu);
+	// Dos corridas disjuntas no comparten bits; solapadas sí.
+	CHECK((eng::graphics::sprite_channel_register_mask(0u, 4u) &
+	       eng::graphics::sprite_channel_register_mask(4u, 4u)) == 0u);
+	CHECK((eng::graphics::sprite_channel_register_mask(0u, 4u) &
+	       eng::graphics::sprite_channel_register_mask(3u, 2u)) != 0u);
+}
+
 void test_plan_windows_ok() {
 	std::printf("plan_sprite_windows: ventanas validas (hibrido)\n");
 
 	SpriteChannelWindow windows[3] {
-		make_window(0u, 60u, 0u, 8u, SpriteBackdropTechnique::Layer),
-		make_window(60u, 100u, 0u, 6u, SpriteBackdropTechnique::RiskyWoods),
-		make_window(160u, 200u, 0u, 8u, SpriteBackdropTechnique::FreeForm),
+		make_window(0u, 60u, 0u, 8u, SpriteWindowTechnique::Layer),
+		make_window(60u, 100u, 0u, 6u, SpriteWindowTechnique::RiskyWoods),
+		make_window(160u, 200u, 0u, 8u, SpriteWindowTechnique::FreeForm),
 	};
 	SpriteChannelLedger l {};
 	l.reset();
@@ -155,7 +169,7 @@ void test_plan_windows_errors() {
 		SpriteChannelLedger l {};
 		l.reset();
 		// Attached sobre un canal impar: no forma pares completos.
-		SpriteChannelWindow w[1] { make_window(60u, 100u, 1u, 2u, SpriteBackdropTechnique::RiskyWoods, true) };
+		SpriteChannelWindow w[1] { make_window(60u, 100u, 1u, 2u, SpriteWindowTechnique::RiskyWoods, true) };
 		const auto r = eng::graphics::plan_sprite_windows({w, 1u}, l);
 		CHECK(!r.has_value() && r.error() == SpriteChannelWindowError::BadChannels);
 	}
@@ -271,6 +285,7 @@ int main() {
 	std::printf("================================================================\n");
 
 	test_ledger_basics();
+	test_register_mask();
 	test_plan_windows_ok();
 	test_plan_windows_errors();
 	test_overlapping_windows_disjoint_channels();

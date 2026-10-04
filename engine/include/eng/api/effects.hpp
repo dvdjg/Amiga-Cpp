@@ -11,6 +11,7 @@
 #include <eng/graphics/composition/copper_chunky.hpp>
 #include <eng/graphics/effects/raster_gradient.hpp>
 #include <eng/graphics/effects/rotozoom.hpp>
+#include <eng/graphics/sprite_channel_window.hpp>
 #include <eng/core/types/memory_kind.hpp>
 
 namespace eng::effects {
@@ -306,12 +307,14 @@ public:
 	/// llamador fija el scroll con `set_scroll`), así que aquí no hace nada.
 	void update(eng::u16) noexcept {}
 
-	/// Tramo de raster que reclama la capa (`reserve_band`): la banda que cubre, con
-	/// `register_mask` = 0 (cualquier registro). Sirve para detectar solapes con otros
-	/// efectos que escriban la misma banda.
+	/// Tramo de raster que reclama la capa (`reserve_band`): la banda que cubre y la máscara
+	/// de **sus canales**. Así `reserve_band` solo ve conflicto con otro efecto que use el
+	/// mismo canal en líneas solapadas: dos fondos por sprites en canales distintos comparten
+	/// scanlines (el límite es por canal, no por región de pantalla).
 	[[nodiscard]] copper::BandScope band_scope() const noexcept {
 		const u16 last = static_cast<u16>(m_cfg.first_line + m_cfg.lines - 1u);
-		return copper::BandScope {m_cfg.first_line, last, 0u};
+		return copper::BandScope {m_cfg.first_line, last,
+					  graphics::sprite_channel_register_mask(0u, m_cfg.channels)};
 	}
 
 	/// **Coste declarado** del efecto (huella estimada): nº de "aportaciones" (1 `BPLCON2`
@@ -505,10 +508,14 @@ public:
 	/// Contrato `Effect`: la capa no anima por sí sola (el llamador fija el scroll).
 	void update(eng::u16) noexcept {}
 
-	/// Tramo de raster que reclama la capa (`reserve_band`): la banda que cubre.
+	/// Tramo de raster que reclama la capa (`reserve_band`): la banda que cubre y la máscara
+	/// de **sus canales** (0 con bits = los del fondo). Permite que otro fondo por sprites en
+	/// canales disjuntos solape scanlines; conflicto solo si comparten canal.
 	[[nodiscard]] copper::BandScope band_scope() const noexcept {
 		const u16 last = m_cfg.first_line + m_cfg.lines - 1u;
-		return copper::BandScope {m_cfg.first_line, last, 0u};
+		return copper::BandScope {m_cfg.first_line, last,
+					  graphics::sprite_channel_register_mask(m_cfg.channel_first,
+										 m_cfg.channels)};
 	}
 
 	/// **Contrato `Effect`** sobre el plan: reserva la banda, anota el coste y emite. `false`

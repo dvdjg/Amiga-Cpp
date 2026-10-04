@@ -20,6 +20,7 @@
 
 #include <eng/graphics/blit_queue.hpp>
 #include <eng/graphics/sprite.hpp>
+#include <eng/graphics/sprite_channel_window.hpp>
 #include <eng/graphics/sprite_manager.hpp>
 
 namespace {
@@ -38,6 +39,9 @@ using eng::graphics::DirtyRect;
 using eng::graphics::Frame;
 using eng::graphics::FramePlan;
 using eng::graphics::SpriteAllocator;
+using eng::graphics::SpriteWindowTechnique;
+using eng::graphics::SpriteChannelLedger;
+using eng::graphics::SpriteChannelWindow;
 using eng::graphics::SpriteIntent;
 using eng::graphics::SpriteIntentSet;
 using eng::graphics::HwSpritePaletteSwitch;
@@ -730,6 +734,73 @@ void test_compose_sprites() {
 	CHECK(mgr.apply(nullptr, 0u) == 0u, "sin placements no aplica nada");
 }
 
+/// Dos **ventanas de fondo por sprites que solapan en líneas** con canales distintos
+/// (`SpriteChannelLedger`): cada actor solo puede usar los canales libres de su intervalo,
+/// así que en el solape (los 8 ocupados) los objetos degradan a BOB y fuera de él usan los
+/// que la otra ventana no toca. Valida el reparto bidimensional canal × intervalo.
+void test_compose_sprites_overlapping_windows() {
+	// A: FreeForm canales 0..3 en [100,140);  B: Layer canales 4..7 en [120,160).
+	SpriteChannelWindow w[2] {
+		SpriteChannelWindow {100u, 140u, SpriteWindowTechnique::FreeForm, 0u, 4u, false},
+		SpriteChannelWindow {120u, 160u, SpriteWindowTechnique::Layer, 4u, 4u, false},
+	};
+	SpriteChannelLedger ledger {};
+	ledger.reset();
+	CHECK(eng::graphics::plan_sprite_windows({w, 2u}, ledger).has_value(),
+	      "dos ventanas solapadas en canales disjuntos se reservan");
+
+	ActorStore<4> store;
+	store.reset();
+	RepresentationAllocator alloc {};
+	alloc.reset(RepresentationBudget {8u, 60000u, 0u});
+
+	auto add_at = [&](eng::u16 y) {
+		ActorDesc d = make_desc();
+		d.anchor = {0, 0};
+		d.offset = {0, 0};
+		d.x = 0;
+		d.y = y;
+		d.surface = 0u;
+		d.z = 10u;
+		d.sprite_priority = 2u;
+		d.visual.pixels = eng::Span<const eng::u16> {g_pixel_pool, 16u};
+		return store.add(d, alloc);
+	};
+	CHECK(add_at(105u).valid(), "actor arriba (solo A)");
+	CHECK(add_at(130u).valid(), "actor en el solape (A y B)");
+	CHECK(add_at(150u).valid(), "actor abajo (solo B)");
+
+	ActorEmitContext ctx {};
+	use_targets(ctx);
+
+	FramePlan plan {};
+	plan.clear();
+	ActorId order[4] {};
+	SpriteIntent intents[4] {};
+	eng::u16 intent_actor[4] {};
+	SpriteSlot slots[4] {};
+	HwSpritePlacement placements[4] {};
+	CopperIntent copper[8] {};
+	eng::scene::SpriteComposeScratch sc {};
+	sc.order = order;
+	sc.intents = intents;
+	sc.intent_actor = intent_actor;
+	sc.slots = slots;
+	sc.placements = placements;
+	sc.copper = copper;
+
+	const eng::scene::SpriteComposeResult res =
+		eng::scene::compose_sprites(plan, store, ctx, 0u, sc, {}, ledger);
+	CHECK(res.ok, "composicion con ledger OK");
+	CHECK(res.sprites == 2u, "dos sprites (los de fuera del solape)");
+	CHECK(res.degraded == 1u, "uno degradado (en el solape)");
+	// Orden por top: 105 -> A ocupa 0..3, libre 4..7 -> canal 4; 150 -> B ocupa 4..7 -> canal 0.
+	CHECK(placements[0].vstart == 105u && placements[0].channel == 4u,
+	      "arriba usa un canal que A no toca");
+	CHECK(placements[1].vstart == 150u && placements[1].channel == 0u,
+	      "abajo usa un canal que B no toca");
+}
+
 void test_copper_priority_wiring() {
 	static eng::u16 hi_cols[2] {0u, 0x0ccu};
 	static eng::u16 lo_cols[2] {0u, 0x0aau};
@@ -1006,6 +1077,7 @@ int main() {
 	test_sprite_template_projection();
 	test_sprite_allocation_and_bob_fallback();
 	test_compose_sprites();
+	test_compose_sprites_overlapping_windows();
 	test_copper_priority_wiring();
 	test_add_anchored();
 	test_emit_save_under();

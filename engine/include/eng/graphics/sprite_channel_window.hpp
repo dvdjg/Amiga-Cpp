@@ -44,7 +44,7 @@ namespace eng::graphics {
 /// Es una etiqueta de intención para el planner y los drivers; el ledger solo usa la
 /// cuenta de canales y el rango de líneas. La técnica determina cómo el driver emite
 /// la copperlist del intervalo (ver `docs/reference/amiga/techniques/sprite-horizontal-multiplex.md`).
-enum class SpriteBackdropTechnique : u8 {
+enum class SpriteWindowTechnique : u8 {
 	None = 0,    ///< la ventana no usa sprites para el fondo (no reserva canales)
 	Layer,       ///< N canales contiguos, un patrón de 16 px por canal (`effects::SpriteLayer`)
 	RiskyWoods,  ///< reposición horizontal repetida: patrón de 64 px (15 colores con attached)
@@ -62,7 +62,7 @@ enum class SpriteBackdropTechnique : u8 {
 struct SpriteChannelWindow {
 	u16 top = 0;                                             ///< primera línea de la ventana (inclusive)
 	u16 bottom = 0;                                          ///< línea final (exclusiva)
-	SpriteBackdropTechnique technique = SpriteBackdropTechnique::None; ///< técnica de fondo
+	SpriteWindowTechnique technique = SpriteWindowTechnique::None; ///< técnica de fondo
 	u8 channel_first = 0;                                    ///< primer canal de la corrida (0..7)
 	u8 channel_count = 0;                                    ///< canales contiguos del fondo (1..8)
 	bool attach = false;                                     ///< fondo a 15 colores (pares attached)
@@ -211,6 +211,15 @@ private:
 	u8 m_count[kChannels] {};
 };
 
+/// **Máscara de `copper::BandScope::register_mask` para una corrida de canales de sprite**:
+/// bit `ch` = el grupo de registros `SPRx*` del canal `ch` (AHRM cap. 4: `SPRxPOS = 0x140 + 8·ch`).
+/// Sirve para que dos efectos de fondo por sprites puedan reclamar el MISMO tramo de raster si
+/// usan **canales distintos** (el límite es por canal). Un `register_mask == 0` significa
+/// "cualquier registro" y colisiona con todo (ver `copper::Plan::reserve_band`).
+[[nodiscard]] constexpr u16 sprite_channel_register_mask(u8 first, u8 count) noexcept {
+	return static_cast<u16>(((1u << count) - 1u) << first);
+}
+
 /// Causas de fallo de `plan_sprite_windows`.
 enum class SpriteChannelWindowError : u8 {
 	BadRange,     ///< `top >= bottom` (rango vacío o invertido)
@@ -239,7 +248,7 @@ plan_sprite_windows(eng::Span<const SpriteChannelWindow> windows, SpriteChannelL
 	u8 reserved = 0u;
 	for (eng::usize i = 0; i < windows.size(); ++i) {
 		const SpriteChannelWindow& w = windows[i];
-		if (w.technique == SpriteBackdropTechnique::None) {
+		if (w.technique == SpriteWindowTechnique::None) {
 			continue;
 		}
 		if (w.top >= w.bottom) {

@@ -365,6 +365,8 @@ void test_layer_effect() {
 	CHECK(plan.cost_words() == layer.words_estimate(), "coste declarado = words_estimate");
 	CHECK(layer.band_scope().first_line == 100u && layer.band_scope().last_line == 107u,
 	      "band_scope cubre [first_line, first_line+lines-1]");
+	CHECK(layer.band_scope().register_mask == 0xffu,
+	      "band_scope declara la mascara de sus canales (8 -> 0xff)");
 
 	// Otra capa en la MISMA banda solapa: `reserve_band` falla y `apply_into` lo refleja.
 	eng::effects::SpriteLayer other;

@@ -5,6 +5,7 @@
 /// funciones de compose). Definido aparte de `actor_types.hpp`; `actor.hpp` es la
 /// cabecera de familia.
 
+#include <eng/graphics/sprite_channel_window.hpp>
 #include <eng/scene/actor_store.hpp>
 
 namespace eng::scene {
@@ -37,6 +38,11 @@ struct SpriteComposeScratch {
 ///   5. los degradados a BOB se dibujan en el `FramePlan`, en orden por superficie y `z`;
 ///   6. las necesidades de Copper ancladas de cada actor se escriben en `copper`.
 ///
+/// `ledger` (opcional) descuenta los canales que ocupan los **fondos por sprites** (ventanas:
+/// ver `docs/engine/architecture/SPRITE_CHANNEL_WINDOWS.md`): cada actor solo puede usar los
+/// canales libres de su intervalo, y los recupera por encima/por debajo. Ventanas que solapan
+/// en líneas con canales distintos conviven (el límite es por canal).
+///
 /// Es un paso PURO de composición: no escribe registros. Las necesidades de Copper se
 /// emiten para todos los actores (son contenido anclado a su Y); las que dependan de un
 /// canal de sprite concreto (rearmes) deben declararse solo en actores que vayan a
@@ -45,7 +51,8 @@ template <eng::u16 MaxActors>
 inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors>& store,
 					   const ActorEmitContext& ctx, eng::u16 display_top,
 					   SpriteComposeScratch& s,
-					   eng::Ref<Plan> copper_plan = {}) {
+					   eng::Ref<Plan> copper_plan = {},
+					   eng::Ref<const eng::graphics::SpriteChannelLedger> ledger = {}) {
 	SpriteComposeResult r {};
 	if (store.count() == 0u) {
 		r.ok = true; // nada que componer
@@ -62,7 +69,7 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 	if (build_sprite_intents(store, s.order.first(n), ctx, s.intents, s.intent_actor) != n) {
 		return r;
 	}
-	SpriteAllocator{}.assign(s.intents.first(n), s.slots);
+	SpriteAllocator{}.assign(s.intents.first(n), s.slots, ledger);
 
 	for (eng::u16 i = 0; i < n; ++i) {
 		auto a = store.get(store.id_at(s.intent_actor[i]));

@@ -111,7 +111,7 @@ struct RiskyWoodsDemo {
 		eng::graphics::SpriteChannelWindow band {};
 		band.top = kBandTop;
 		band.bottom = kBandBottom;
-		band.technique = eng::graphics::SpriteBackdropTechnique::RiskyWoods;
+		band.technique = eng::graphics::SpriteWindowTechnique::RiskyWoods;
 		band.channel_first = kBgFirst;
 		band.channel_count = kBgChannels;
 		m_ledger.reset();

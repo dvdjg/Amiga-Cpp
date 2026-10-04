@@ -32,7 +32,7 @@ El diagrama muestra ventanas disjuntas por claridad; también pueden solaparse e
 
 | Tipo | Cometido | Dónde |
 |---|---|---|
-| `SpriteBackdropTechnique` | técnica de fondo por sprites de una ventana (`None`/`Layer`/`RiskyWoods`/`FreeForm`) | `graphics/sprite_channel_window.hpp` |
+| `SpriteWindowTechnique` | técnica de fondo por sprites de una ventana (`None`/`Layer`/`RiskyWoods`/`FreeForm`) | `graphics/sprite_channel_window.hpp` |
 | `SpriteChannelWindow` | ventana `[top,bottom)` que reprograma una corrida de canales para su fondo | `graphics/sprite_channel_window.hpp` |
 | `SpriteChannelLedger` | ocupación **canal × intervalo de líneas** (el recurso compartido) | `graphics/sprite_channel_window.hpp` |
 | `plan_sprite_windows` | valida y vuelca las ventanas al ledger | `graphics/sprite_channel_window.hpp` |
@@ -91,6 +91,10 @@ Detalle de coste y carrera contra el haz: `docs/reference/amiga/techniques/sprit
 
 La variante `RiskyWoods` y la `FreeForm` son **carrera contra el haz**, no presupuesto por frame: el driver debe verificar la separación mínima (≥24 px) y el número de MOVEs por línea. La `Layer` es la más barata y la base del `effects::SpriteLayer` actual. Para una capa o HUD con **imagen propia por scanline** (Parasol Stars / Brian the Lion) el módulo es `graphics/sprite_line_layer.hpp` (`SpriteLineLayer`).
 
+### La ventana de canal y la banda de display son ejes distintos
+
+`SpriteChannelWindow`/`SpriteChannelLedger` reparten **canales de sprite** por intervalo (quién puede dibujar en cada canal). El contrato `Effect` de `SpriteLayer`/`RiskyWoodsLayer` reclama además una **banda de display** (`copper::BandScope` + `Plan::reserve_band`) para detectar efectos que escriben **los mismos registros** en las mismas líneas. Son ejes independientes: la banda de display es un tramo de raster del Copper; la ventana es ocupación canal × intervalo. Un efecto de fondo por sprites declara en su `BandScope` la **máscara de sus canales** (`graphics::sprite_channel_register_mask`), de modo que dos fondos en **canales distintos** pueden **solapar scanlines** sin conflicto; si comparten canal —o si el otro efecto reclama "cualquier registro" (`register_mask == 0`)— `reserve_band` los marca en conflicto.
+
 ## 6. Attached (15 colores)
 
 Dos canales del **mismo par** (0+1, 2+3, 4+5, 6+7) se unen poniendo el bit `ATTACH` en el `SPRxCTL` del impar: el par pasa de 2 objetos de 3 colores a **1 objeto de 15 colores**. En una ventana:
@@ -119,7 +123,7 @@ El juego describe objetos con **un solo descriptor** (`ActorDesc`: `Visual`, pos
       └── no cabe (sin canal o sin presupuesto) ──────────► BOB (BlitJob en el FramePlan)
 ```
 
-El **ledger** es la única entrada nueva: la misma llamada sirve para una ventana con fondo (canales reducidos) y para una sin fondo (8 canales). Así, "sprite libre", "sprite combinado/attached" y "BOB" son **políticas del mismo camino**, no APIs distintas. El `BobLayer`/`FastBobLayer` (`scene/bobs.hpp`) sigue siendo la capa ligera de BOBs puros, pero el camino de objetos con degradación es `compose_sprites`.
+El **ledger** es la única entrada nueva: la misma llamada sirve para una ventana con fondo (canales reducidos) y para una sin fondo (8 canales). Así, "sprite libre", "sprite combinado/attached" y "BOB" son **políticas del mismo camino**, no APIs distintas. En el engine, `scene::compose_sprites` recibe el ledger como parámetro opcional (`eng::Ref<const SpriteChannelLedger>`, por defecto nulo): con él, cada actor solo puede usar los canales libres de su intervalo. El `BobLayer`/`FastBobLayer` (`scene/bobs.hpp`) sigue siendo la capa ligera de BOBs puros, pero el camino de objetos con degradación es `compose_sprites`.
 
 ## 9. Estado y fases
 
