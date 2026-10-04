@@ -92,13 +92,11 @@ public:
 
 	/// **Rellena un rectángulo con un color** (`D = color`) **encolado en el plan** (Blitter), en
 	/// orden con los sprites. Es el relleno de color a **coste cero** (a diferencia de `fill`, que
-	/// es inmediato y usa el rasterizador/CPU): `D = A` sin fetch (A deshabilitada, `BLTADAT`
-	/// preload), un `FillRect` por plano con `AFWM`/`ALWM` recortando la primera/última palabra.
-	///
-	/// Aviso: al no leer D, los bits de las **palabras de borde** que quedan fuera del rectángulo
-	/// de un `b` **no alineado a 16 px** se ponen a 0 (no se preserva lo de debajo). Alinea `b.x` y
-	/// `b.w` a múltiplos de 16 para evitar ese recorte. `false` si no hay plan.
-	/// \param b      rectángulo a rellenar (alinea `x`/`w` a 16 px).
+	/// es inmediato y usa el rasterizador/CPU): un `FillRect` **por plano** con cookie-cut
+	/// `D = (A & B) | (~A & C)` (`$CA`), donde A = máscara de borde (`AFWM`/`ALWM`), B = color y
+	/// C = destino. Los píxeles fuera del rect (primera/última palabra) se **preservan**, así que
+	/// `b` puede **no estar alineado a 16 px**. `false` si no hay plan.
+	/// \param b      rectángulo a rellenar.
 	/// \param color  índice de paleta.
 	/// \return `false` si no hay plan o el destino no vale.
 	bool fill_box(Box b, u8 color) {

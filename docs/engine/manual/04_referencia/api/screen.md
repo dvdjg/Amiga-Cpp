@@ -28,7 +28,7 @@ vea planos, `FramePlan` ni `Rasterizer`. Se obtiene con `app.screen()`.
 | Método | Firma | Parámetros | Devuelve |
 |---|---|---|---|
 | `clear_box` | `bool clear_box(Box)` | `box` | `false` si no hay plan. Borra `D=0` **en orden** con los sprites. |
-| `fill_box` | `bool fill_box(Box, u8 color)` | `box`, `color` | `false` si no hay plan. Relleno a **coste cero** (`D=A` sin fetch); alinea `x`/`w` a 16. |
+| `fill_box` | `bool fill_box(Box, u8 color)` | `box`, `color` | `false` si no hay plan. Relleno a **coste cero** diferido (`D=(A&B)\|(~A&C)`, `$CA`); preserva el borde aunque `x`/`w` no sean múltiplos de 16. |
 | `sprite` | `bool sprite(const Sprite&, s16 x, s16 y, u8 frame = 0)` | sprite, posición, frame | `false` si no hay plan o el sprite no vale. |
 | `erase_sprite` | `bool erase_sprite(const Sprite&, s16 x, s16 y)` | sprite, posición | `false` si no hay plan. |
 | `bobs` | `u16 bobs(const BobLayer&, u8 fine_scroll = 0)` | capa de BOBs, fino del campo | nº de actores dibujados. |

@@ -260,25 +260,27 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 	}
 
 	if (fill) {
-		// **Relleno de color del rectangulo** (AHRM "Extracting a Range of Columns" + WinUAE
-		// `custom.cpp` `BLTADAT`): `D = A`, **A deshabilitada** (sin fetch) con `BLTADAT`
-		// preload `$FFFF`/`$0000`; `AFWM`/`ALWM` recortan la primera/ultima palabra. Se cargan
-		// primero `BLTCON0/1` y despues `BLTADAT` (el orden importa: cargar datos antes del shift
-		// da resultados impredecibles). `job.minterm` = `$FF` (plano a 1) o `$00` (plano a 0).
-		// NOTA: al no leer D, los bits de borde de un rect no alineado a 16 px se ponen a 0 (no
-		// se preserva lo de debajo); para bordes exactos con la ruta **sincrona** usar
-		// `Playfield::fill_rect_hw` (RectFillSink), que ya preserva. Ver
-		// `docs/reference/amiga/techniques/blitter-fill-constant.md`.
+		// **Relleno de color del rectangulo PRESERVANDO el borde parcial**. Cookie-cut con la
+		// mascara de borde como canal A: `D = (A & B) | (~A & C)` (minterm `$CA`). A = mascara
+		// **constante** (`BLTADAT = $FFFF` recortado por `AFWM`/`ALWM`; AHRM cap. 6: la mascara se
+		// aplica al data register de un canal **deshabilitado**), B = relleno constante (`BLTBDAT`
+		// = `$FFFF` pon / `$0000` limpia), C = **destino** (`BLTCPT`=`BLTDPT`). Los bits fuera del
+		// rect (primera/ultima palabra de un rect no alineado a 16) se **preservan** via C; con
+		// `D = A` + `AFWM` se pondrian a 0. `job.minterm` = `$FF` (plano a 1) o `$00` (plano a 0).
 		if (!wait_blitter()) {
 			return false;
 		}
 		custom_base[custom_bltcon0_offset] =
-			static_cast<u16>(blt_use_d | graphics::kBlitterMintermCopyA); // D = A, sin USEA
+			static_cast<u16>(0x00cau | blt_use_c | blt_use_d); // A/B constantes; C=D realimenta
 		custom_base[custom_bltcon1_offset] = 0u;
 		custom_base[custom_bltafwm_offset] = job.fill.afwm;
 		custom_base[custom_bltalwm_offset] = job.fill.alwm;
-		custom_base[custom_bltadat_offset] = (job.minterm == 0xffu) ? 0xffffu : 0x0000u;
+		custom_base[custom_bltadat_offset] = 0xffffu; // A = mascara (recortada por AFWM/ALWM)
+		custom_base[custom_bltbdat_offset] =
+			(job.minterm == 0xffu) ? 0xffffu : 0x0000u; // B = relleno
+		custom_base[custom_bltcmod_offset] = static_cast<u16>(job.destination_modulo_bytes);
 		custom_base[custom_bltdmod_offset] = static_cast<u16>(job.destination_modulo_bytes);
+		write_custom_pointer(custom_bltcpt_offset, job.destination.words());
 		write_custom_pointer(custom_bltdpt_offset, job.destination.words());
 		custom_base[custom_bltsize_offset] =
 			static_cast<u16>((job.height << 6u) | job.words_per_row);

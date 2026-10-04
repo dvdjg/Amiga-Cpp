@@ -20,13 +20,23 @@ Si se activa `USEA` a la vez que se precarga `BLTADAT`, el Blitter **lee A de me
 
 Con `D = A` y una constante, `AFWM`/`ALWM` recortan la A de la primera/última palabra, de modo que la salida es `D = A & mask`: los bits enmascarados quedan a **0**, no conservan el valor previo de D. En un rectángulo **no alineado a palabra** (p. ej. un botón en `x=24`) eso **borra el fondo** de los pocos píxeles que quedan a los lados (primera/última palabra), dejando una banda oscura alrededor de cada widget.
 
-La receta correcta:
+## Ruta **síncrona** (`blit_fill_region` del `RectFillSink`)
 
 - **Rect alineado a palabra** (`AFWM == ALWM == $FFFF`): blit `D = A` con `BLTADAT` constante (canal A deshabilitado). Un solo paso.
-- **Rect con borde parcial**: rellenar por CPU con read-modify-write (`w = (w & ~mask) | (fill & mask)` para la primera/última palabra; las palabras interiores completas se ponen directas). El coste es despreciable para los rects de UI. (Alternativa: B como máscara + A constante con el minterm `D = (A & B) | (D & ~B)`, que exige una palabra de máscara en Chip RAM.)
+- **Rect con borde parcial**: rellenar por CPU con read-modify-write (`w = (w & ~mask) | (fill & mask)` para la primera/última palabra; las palabras interiores completas se ponen directas). El coste es despreciable para los rects de UI.
+
+## Ruta **asíncrona** (`BlitJobKind::FillRect` del `FramePlan`) — cookie-cut `$CA`
+
+La ruta diferida (`Screen::fill_box` → `FillRect`, `AmigaBackend::submit_blit_job`) preserva el borde con el **cookie-cut** con la máscara de borde como canal A:
+
+- `BLTCON0` = minterm `$CA` (`D = (A & B) | (~A & C)`) + `USEC|USED` (A y B deshabilitados).
+- A = `BLTADAT` = `$FFFF` **recortado por `AFWM`/`ALWM`** (la máscara de borde aplica al data register de un canal deshabilitado, AHRM §5290); B = `BLTBDAT` = color (`$FFFF`/`$0000`); C = **destino** (`BLTCPT`=`BLTDPT`).
+- Los bits fuera del rect se **preservan** vía C (realimentado), así que **no hace falta alinear a 16 px**.
+
+Verificado en WinUAE: con `$CA` un rect en `x=11` deja el fondo intacto a ambos lados. (El minterm `$E2` = `(A&B)|(C&~B)` con A/B constantes **no** funcionó: la C parecía no contribuir; `$CA` con A = máscara sí.)
 
 ## Dónde está
 
-- `engine/src/platform/amiga/amiga_internal.hpp` — `blit_fill_region`: Blitter para el caso alineado y CPU read-modify-write para el borde parcial.
-- `engine/src/platform/amiga/amiga_blitter.cpp` — `BlitterRaster` (ruta `fill` de `BlitJob`) usa el mismo patrón `USED | minterm $F0` con `BLTADAT`.
-- Self-test en hardware: demo `215_gui_widgets` (`verify_blitter_fill`) cubre rect alineado, borde parcial (preservación) y multi-plano; si alguno falla, la demo va a `Failed`.
+- `engine/src/platform/amiga/amiga_internal.hpp` — `blit_fill_region` (ruta **síncrona**): Blitter para el caso alineado y CPU read-modify-write para el borde parcial.
+- `engine/src/platform/amiga/amiga_blitter.cpp` — `submit_blit_job`: ruta **asíncrona** `FillRect` con cookie-cut `$CA` en los tres casos (alineado y borde parcial).
+- Self-test en hardware: demo `215_gui_widgets` (`verify_blitter_fill`) cubre rect alineado, borde parcial (preservación) y multi-plano; si alguno falla, la demo va a `Failed`. Gate visual de bandas: `tools/analyze/verify-gui-widgets.mjs` (fuga de fondo dentro del panel).
