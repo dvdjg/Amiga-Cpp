@@ -1819,7 +1819,7 @@ L_C79E: if (g_yield_req) { g_resume = 0xC79Eu; g_yield_req = 0u; return; }
     tick(2u);
     Df = false;
     tick(2u);
-    A = 0x10u; setnz(A);
+    A = 0x10u;
     tick(4u);
     wr(0x2000u, A);
     tick(2u);
@@ -1829,18 +1829,18 @@ L_C79E: if (g_yield_req) { g_resume = 0xC79Eu; g_yield_req = 0u; return; }
     goto L_C7A8;
 L_C7A8: if (g_yield_req) { g_resume = 0xC7A8u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x2002u); setnz(A);
+    A = rd(0x2002u);
     tick(2u);
     A = (u8)(A & 0x80u); setnz(A);
     hal_wait_vblank();
     goto L_C7AF;
 L_C7AF: if (g_yield_req) { g_resume = 0xC7AFu; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = 0x07u; setnz(Y);
+    Y = 0x07u;
     tick(3u);
     wr(0x0001u, Y);
     tick(2u);
-    Y = 0x00u; setnz(Y);
+    Y = 0x00u;
     tick(3u);
     wr(0x0000u, Y);
     tick(2u);
@@ -1869,25 +1869,25 @@ L_C7C2: if (g_yield_req) { g_resume = 0xC7C2u; g_yield_req = 0u; return; }
     goto L_C7C5;
 L_C7C5: if (g_yield_req) { g_resume = 0xC7C5u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x7Fu; setnz(A);
+    A = 0x7Fu;
     tick(4u);
     wr(0x0511u, A);
     tick(2u);
-    A = 0x18u; setnz(A);
+    A = 0x18u;
     tick(3u);
     wr(0x0051u, A);
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     wr(0x004Eu, A);
     tick(3u);
     wr(0x0055u, A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x004Fu, A);
     tick(3u);
-    A = rd(0x0010u); setnz(A);
+    A = rd(0x0010u);
     tick(2u);
     A = (u8)(A ^ 0x80u); setnz(A);
     tick(4u);
@@ -1914,23 +1914,23 @@ L_C85F: if (g_yield_req) { g_resume = 0xC85Fu; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0010u); setnz(A);
+    A = rd(0x0010u);
     tick(2u);
-    A = (u8)(A & 0x7Fu); setnz(A);
+    A = (u8)(A & 0x7Fu);
     tick(4u);
     wr(0x2000u, A);
     tick(3u);
     wr(0x0010u, A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(4u);
     wr(0x2003u, A);
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(4u);
     wr(0x4014u, A);
     tick(2u);
-    A = 0x31u; setnz(A);
+    A = 0x31u;
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
@@ -1958,7 +1958,7 @@ L_C87E: if (g_yield_req) { g_resume = 0xC87Eu; g_yield_req = 0u; return; }
     goto L_C889;
 L_C889: if (g_yield_req) { g_resume = 0xC889u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0011u); setnz(A);
+    A = rd(0x0011u);
     tick(2u);
     A = (u8)(A ^ 0x18u); setnz(A);
     tick(4u);
@@ -1999,7 +1999,7 @@ L_C8A2: if (g_yield_req) { g_resume = 0xC8A2u; g_yield_req = 0u; return; }
     goto L_C8D7;
 L_C8A5: if (g_yield_req) { g_resume = 0xC8A5u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x044Fu); setnz(A);
+    A = rd(0x044Fu);
     if (A != 8u) { goto L_C8D4; }
     goto L_C8AC;
 L_C8AC: if (g_yield_req) { g_resume = 0xC8ACu; g_yield_req = 0u; return; } 
@@ -2017,13 +2017,13 @@ L_C8AF: if (g_yield_req) { g_resume = 0xC8AFu; g_yield_req = 0u; return; }
     goto L_C8B3;
 L_C8B3: if (g_yield_req) { g_resume = 0xC8B3u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(4u);
     wr(0x044Fu, A);
     tick(3u);
     wr(0x004Fu, A);
     tick(2u);
-    A = 0x79u; setnz(A);
+    A = 0x79u;
     tick(3u);
     wr(0x0043u, A);
     tick(3u);
@@ -2070,7 +2070,7 @@ L_C8D4: if (g_yield_req) { g_resume = 0xC8D4u; g_yield_req = 0u; return; }
     goto L_C8D7;
 L_C8D7: if (g_yield_req) { g_resume = 0xC8D7u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0505u); setnz(A);
+    A = rd(0x0505u);
     if (A != 1u) { goto L_C8E8; }
     goto L_C8DE;
 L_C8DE: if (g_yield_req) { g_resume = 0xC8DEu; g_yield_req = 0u; return; } 
@@ -2090,15 +2090,15 @@ L_C8E5: if (g_yield_req) { g_resume = 0xC8E5u; g_yield_req = 0u; return; }
     goto L_C8E8;
 L_C8E8: if (g_yield_req) { g_resume = 0xC8E8u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0010u); setnz(A);
+    A = rd(0x0010u);
     tick(2u);
-    A = (u8)(A ^ 0x80u); setnz(A);
+    A = (u8)(A ^ 0x80u);
     tick(4u);
     wr(0x2000u, A);
     tick(3u);
     wr(0x0010u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(6u);
     return;
 }
@@ -2116,13 +2116,13 @@ static void f_C7E7(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xC7E7u: goto L_C7E7; case 0xC804u: goto L_C804; case 0xCBB7u: goto L_CBB7; case 0xCBBAu: goto L_CBBA; case 0xF1B4u: goto L_F1B4; case 0xF1CEu: goto L_F1CE; case 0xF1D4u: goto L_F1D4; case 0xF1D7u: goto L_F1D7; case 0xF1E5u: goto L_F1E5; case 0xF1EBu: goto L_F1EB; } }
 L_C7E7: if (g_yield_req) { g_resume = 0xC7E7u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x10u; setnz(A);
+    A = 0x10u;
     tick(4u);
     wr(0x2000u, A);
     tick(3u);
     wr(0x0010u, A);
     tick(2u);
-    A = 0x06u; setnz(A);
+    A = 0x06u;
     tick(4u);
     wr(0x2001u, A);
     tick(3u);
@@ -2158,25 +2158,25 @@ L_CBBA: if (g_yield_req) { g_resume = 0xCBBAu; g_yield_req = 0u; return; }
     goto L_F1B4;
 L_F1B4: if (g_yield_req) { g_resume = 0xF1B4u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x2002u); setnz(A);
+    A = rd(0x2002u);
     tick(3u);
-    A = rd(0x0010u); setnz(A);
+    A = rd(0x0010u);
     tick(2u);
-    A = (u8)(A & 0xFBu); setnz(A);
+    A = (u8)(A & 0xFBu);
     tick(4u);
     wr(0x2000u, A);
     tick(2u);
-    A = 0x20u; setnz(A);
+    A = 0x20u;
     tick(4u);
     wr(0x2006u, A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(4u);
     wr(0x2006u, A);
     tick(2u);
-    X = 0x04u; setnz(X);
+    X = 0x04u;
     tick(2u);
-    Y = 0x00u; setnz(Y);
+    Y = 0x00u;
     tick(2u);
     A = 0x24u; setnz(A);
     goto L_F1CE;
@@ -2196,15 +2196,15 @@ L_F1D4: if (g_yield_req) { g_resume = 0xF1D4u; g_yield_req = 0u; return; }
     goto L_F1D7;
 L_F1D7: if (g_yield_req) { g_resume = 0xF1D7u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x23u; setnz(A);
+    A = 0x23u;
     tick(4u);
     wr(0x2006u, A);
     tick(2u);
-    A = 0xC0u; setnz(A);
+    A = 0xC0u;
     tick(4u);
     wr(0x2006u, A);
     tick(2u);
-    Y = 0x40u; setnz(Y);
+    Y = 0x40u;
     tick(2u);
     A = 0x00u; setnz(A);
     goto L_F1E5;
@@ -2225,15 +2225,15 @@ static void f_F4ED(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xF4EDu: goto L_F4ED; case 0xF4FCu: goto L_F4FC; case 0xF4FDu: goto L_F4FD; } }
 L_F4ED: if (g_yield_req) { g_resume = 0xF4EDu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0018u); setnz(A);
+    A = rd(0x0018u);
     tick(2u);
-    A = (u8)(A & 0x02u); setnz(A);
+    A = (u8)(A & 0x02u);
     tick(3u);
     wr(0x0000u, A);
     tick(3u);
-    A = rd(0x0019u); setnz(A);
+    A = rd(0x0019u);
     tick(2u);
-    A = (u8)(A & 0x02u); setnz(A);
+    A = (u8)(A & 0x02u);
     tick(3u);
     A = (u8)(A ^ rd(0x0000u)); setnz(A);
     tick(2u);
@@ -2270,11 +2270,11 @@ static void f_CBAE(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xCBAEu: goto L_CBAE; case 0xF092u: goto L_F092; case 0xF094u: goto L_F094; case 0xF096u: goto L_F096; case 0xF0B9u: goto L_F0B9; case 0xF0CBu: goto L_F0CB; case 0xF0D0u: goto L_F0D0; case 0xF0D6u: goto L_F0D6; case 0xF0D9u: goto L_F0D9; case 0xF0DCu: goto L_F0DC; case 0xF0E0u: goto L_F0E0; case 0xF0E3u: goto L_F0E3; case 0xF0E6u: goto L_F0E6; case 0xF0E9u: goto L_F0E9; case 0xF0ECu: goto L_F0EC; case 0xF0EFu: goto L_F0EF; case 0xF0F2u: goto L_F0F2; } }
 L_CBAE: if (g_yield_req) { g_resume = 0xCBAEu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x0004u, A);
     tick(2u);
-    A = 0xFFu; setnz(A);
+    A = 0xFFu;
     tick(3u);
     goto L_F092;
 L_F092: if (g_yield_req) { g_resume = 0xF092u; g_yield_req = 0u; return; } 
@@ -2291,54 +2291,54 @@ L_F096: if (g_yield_req) { g_resume = 0xF096u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Fu, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0005u); setnz(A);
+    A = rd(0x0005u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0006u); setnz(A);
+    A = rd(0x0006u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0008u); setnz(A);
+    A = rd(0x0008u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0009u); setnz(A);
+    A = rd(0x0009u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x0005u, A);
     tick(3u);
-    A = rd(0x000Fu); setnz(A);
+    A = rd(0x000Fu);
     if (A == 4u) { goto L_F0EF; }
     goto L_F0B9;
 L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Fu; setnz(A);
+    A = 0x0Fu;
     tick(3u);
-    A = (u8)(A & rd(0x0003u)); setnz(A);
+    A = (u8)(A & rd(0x0003u));
     tick(3u);
     wr(0x0007u, A);
     tick(3u);
-    A = rd(0x0003u); setnz(A);
+    A = rd(0x0003u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -2350,7 +2350,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0006u, A);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
     A = 0x00u; setnz(A);
     tick(2u);
@@ -2358,7 +2358,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     goto L_F0CB;
 L_F0CB: if (g_yield_req) { g_resume = 0xF0CBu; g_yield_req = 0u; return; } 
     tick(3u);
-    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Zf) { tick(3u); goto L_F0CB; }
@@ -2421,39 +2421,39 @@ L_F0EF: if (g_yield_req) { g_resume = 0xF0EFu; g_yield_req = 0u; return; }
     goto L_F0F2;
 L_F0F2: if (g_yield_req) { g_resume = 0xF0F2u; g_yield_req = 0u; return; } 
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0009u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0008u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0007u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0006u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0005u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(6u);
     return;
 }
@@ -2464,23 +2464,23 @@ L_F1EC: if (g_yield_req) { g_resume = 0xF1ECu; g_yield_req = 0u; return; }
     tick(4u);
     wr(0x2006u, A);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(5u + (((rd(0x0000u) | (static_cast<eng::u16>(rd(0x0001u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0000u) | ((u16)rd(0x0001u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0000u) | ((u16)rd(0x0001u) << 8)) + Y));
     tick(4u);
     wr(0x2006u, A);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(5u + (((rd(0x0000u) | (static_cast<eng::u16>(rd(0x0001u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0000u) | ((u16)rd(0x0001u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0000u) | ((u16)rd(0x0001u) << 8)) + Y));
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0010u); setnz(A);
+    A = rd(0x0010u);
     tick(2u);
-    A = (u8)(A | 0x04u); setnz(A);
+    A = (u8)(A | 0x04u);
     if (Cf) { tick(3u); goto L_F202; }
     tick(2u);
     goto L_F200;
@@ -2494,7 +2494,7 @@ L_F202: if (g_yield_req) { g_resume = 0xF202u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0010u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     if (!Cf) { tick(3u); goto L_F20E; }
@@ -2502,7 +2502,7 @@ L_F202: if (g_yield_req) { g_resume = 0xF202u; g_yield_req = 0u; return; }
     goto L_F20B;
 L_F20B: if (g_yield_req) { g_resume = 0xF20Bu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = (u8)(A | 0x02u); setnz(A);
+    A = (u8)(A | 0x02u);
     tick(2u);
     Y = (u8)(Y + 1u); setnz(Y);
     goto L_F20E;
@@ -2524,7 +2524,7 @@ L_F213: if (g_yield_req) { g_resume = 0xF213u; g_yield_req = 0u; return; }
     goto L_F214;
 L_F214: if (g_yield_req) { g_resume = 0xF214u; g_yield_req = 0u; return; } 
     tick(5u + (((rd(0x0000u) | (static_cast<eng::u16>(rd(0x0001u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0000u) | ((u16)rd(0x0001u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0000u) | ((u16)rd(0x0001u) << 8)) + Y));
     tick(4u);
     wr(0x2007u, A);
     tick(2u);
@@ -2536,13 +2536,13 @@ L_F21C: if (g_yield_req) { g_resume = 0xF21Cu; g_yield_req = 0u; return; }
     tick(2u);
     Cf = true;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
-    { const u8 v = rd(0x0000u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0000u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     { const u8 v = rd(0x0001u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
     tick(3u);
@@ -2550,9 +2550,9 @@ L_F21C: if (g_yield_req) { g_resume = 0xF21Cu; g_yield_req = 0u; return; }
     goto L_F228;
 L_F228: if (g_yield_req) { g_resume = 0xF228u; g_yield_req = 0u; return; } 
     tick(4u);
-    X = rd(0x2002u); setnz(X);
+    X = rd(0x2002u);
     tick(2u);
-    Y = 0x00u; setnz(Y);
+    Y = 0x00u;
     tick(5u + (((rd(0x0000u) | (static_cast<eng::u16>(rd(0x0001u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
     A = rd((u16)((rd(0x0000u) | ((u16)rd(0x0001u) << 8)) + Y)); setnz(A);
     if (!Zf) { tick(4u); goto L_F1EC; }
@@ -2560,11 +2560,11 @@ L_F228: if (g_yield_req) { g_resume = 0xF228u; g_yield_req = 0u; return; }
     goto L_F231;
 L_F231: if (g_yield_req) { g_resume = 0xF231u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0012u); setnz(A);
+    A = rd(0x0012u);
     tick(4u);
     wr(0x2005u, A);
     tick(3u);
-    A = rd(0x0013u); setnz(A);
+    A = rd(0x0013u);
     tick(4u);
     wr(0x2005u, A);
     tick(6u);
@@ -2575,11 +2575,11 @@ static void f_F50E(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xF50Eu: goto L_F50E; case 0xF51Du: goto L_F51D; case 0xF521u: goto L_F521; } }
 L_F50E: if (g_yield_req) { g_resume = 0xF50Eu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(4u);
     wr(0x4016u, A);
     tick(2u);
-    X = 0x00u; setnz(X);
+    X = 0x00u;
     tick(2u);
     A = 0x00u; setnz(A);
     tick(4u);
@@ -2619,7 +2619,7 @@ L_FA48: if (g_yield_req) { g_resume = 0xFA48u; g_yield_req = 0u; return; }
     goto L_FA50;
 L_FA50: if (g_yield_req) { g_resume = 0xFA50u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = 0x00u; setnz(X);
+    X = 0x00u;
     tick(3u);
     wr(0x00FFu, X);
     tick(3u);
@@ -2627,7 +2627,7 @@ L_FA50: if (g_yield_req) { g_resume = 0xFA50u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x00FDu, X);
     tick(4u);
-    A = rd(0x06F0u); setnz(A);
+    A = rd(0x06F0u);
     if (A >= 144u) { goto L_FA64; }
     goto L_FA5F;
 L_FA5F: if (g_yield_req) { g_resume = 0xFA5Fu; g_yield_req = 0u; return; } 
@@ -2645,7 +2645,7 @@ L_FA68: if (g_yield_req) { g_resume = 0xFA68u; g_yield_req = 0u; return; }
     goto L_FA6B;
 L_FA6B: if (g_yield_req) { g_resume = 0xFA6Bu; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -2661,7 +2661,7 @@ L_FA6B: if (g_yield_req) { g_resume = 0xFA6Bu; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(4u);
     X = rd(0x06F1u); setnz(X);
     if (!Zf) { tick(3u); goto L_FA7F; }
@@ -2727,7 +2727,7 @@ L_CE85: if (g_yield_req) { g_resume = 0xCE85u; g_yield_req = 0u; return; }
     goto L_CE8B;
 L_CE8B: if (g_yield_req) { g_resume = 0xCE8Bu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0015u); setnz(A);
+    A = rd(0x0015u);
     tick(2u);
     A = (u8)(A & 0x20u); setnz(A);
     if (Zf) { tick(3u); goto L_CE94; }
@@ -2769,7 +2769,7 @@ L_CEA5: if (g_yield_req) { g_resume = 0xCEA5u; g_yield_req = 0u; return; }
     goto L_CEA8;
 L_CEA8: if (g_yield_req) { g_resume = 0xCEA8u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x009Au); setnz(A);
+    A = rd(0x009Au);
     if (A != 1u) { goto L_CEB1; }
     goto L_CEAE;
 L_CEAE: if (g_yield_req) { g_resume = 0xCEAEu; g_yield_req = 0u; return; } 
@@ -2786,7 +2786,7 @@ L_CEB5: if (g_yield_req) { g_resume = 0xCEB5u; g_yield_req = 0u; return; }
     goto L_CF13;
 L_CEB8: if (g_yield_req) { g_resume = 0xCEB8u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0096u); setnz(A);
+    A = rd(0x0096u);
     if (A != 255u) { goto L_CEC1; }
     goto L_CEBE;
 L_CEBE: if (g_yield_req) { g_resume = 0xCEBEu; g_yield_req = 0u; return; } 
@@ -2872,7 +2872,7 @@ L_CEE8: if (g_yield_req) { g_resume = 0xCEE8u; g_yield_req = 0u; return; }
     goto L_CEEB;
 L_CEEB: if (g_yield_req) { g_resume = 0xCEEBu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A == 3u) { goto L_CF01; }
     goto L_CEF1;
 L_CEF1: if (g_yield_req) { g_resume = 0xCEF1u; g_yield_req = 0u; return; } 
@@ -2985,7 +2985,7 @@ L_CF2A: if (g_yield_req) { g_resume = 0xCF2Au; g_yield_req = 0u; return; }
     return;
 L_CF2B: if (g_yield_req) { g_resume = 0xCF2Bu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     wr(0x004Eu, A);
     tick(4u);
@@ -2993,11 +2993,11 @@ L_CF2B: if (g_yield_req) { g_resume = 0xCF2Bu; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0055u, A);
     tick(2u);
-    A = 0x20u; setnz(A);
+    A = 0x20u;
     tick(3u);
     wr(0x0044u, A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x0058u, A);
     tick(4u);
@@ -3010,26 +3010,26 @@ static void f_CCF4(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xC815u: goto L_C815; case 0xC823u: goto L_C823; case 0xCA53u: goto L_CA53; case 0xCA56u: goto L_CA56; case 0xCA59u: goto L_CA59; case 0xCCF4u: goto L_CCF4; case 0xCCF9u: goto L_CCF9; case 0xCD07u: goto L_CD07; case 0xCD0Du: goto L_CD0D; case 0xCD10u: goto L_CD10; case 0xCD13u: goto L_CD13; case 0xCD16u: goto L_CD16; case 0xCD19u: goto L_CD19; case 0xCD22u: goto L_CD22; case 0xCD28u: goto L_CD28; case 0xCD2Cu: goto L_CD2C; case 0xCD30u: goto L_CD30; case 0xCD34u: goto L_CD34; case 0xCD38u: goto L_CD38; case 0xCD3Cu: goto L_CD3C; case 0xCD40u: goto L_CD40; case 0xCD44u: goto L_CD44; case 0xCD45u: goto L_CD45; case 0xCD4Au: goto L_CD4A; case 0xCD4Fu: goto L_CD4F; case 0xCD58u: goto L_CD58; case 0xCD61u: goto L_CD61; case 0xCD66u: goto L_CD66; case 0xCD69u: goto L_CD69; case 0xCD6Cu: goto L_CD6C; case 0xCD6Fu: goto L_CD6F; case 0xCD76u: goto L_CD76; case 0xCD7Eu: goto L_CD7E; case 0xCD7Fu: goto L_CD7F; case 0xCD82u: goto L_CD82; case 0xCD89u: goto L_CD89; case 0xCD90u: goto L_CD90; case 0xCD9Du: goto L_CD9D; case 0xCDABu: goto L_CDAB; case 0xCDAEu: goto L_CDAE; case 0xCDB1u: goto L_CDB1; case 0xCDB5u: goto L_CDB5; case 0xCDBEu: goto L_CDBE; case 0xCDCAu: goto L_CDCA; case 0xCDD7u: goto L_CDD7; case 0xCDDEu: goto L_CDDE; case 0xCDE2u: goto L_CDE2; case 0xCDEFu: goto L_CDEF; case 0xCDF3u: goto L_CDF3; case 0xCDFCu: goto L_CDFC; case 0xCE09u: goto L_CE09; case 0xCE0Eu: goto L_CE0E; case 0xCE1Au: goto L_CE1A; case 0xCE1Fu: goto L_CE1F; case 0xCE24u: goto L_CE24; case 0xCE28u: goto L_CE28; case 0xCE2Fu: goto L_CE2F; case 0xCE3Au: goto L_CE3A; case 0xCE4Fu: goto L_CE4F; case 0xCE5Eu: goto L_CE5E; case 0xCE63u: goto L_CE63; case 0xEB89u: goto L_EB89; case 0xEB92u: goto L_EB92; case 0xEBA8u: goto L_EBA8; case 0xEBABu: goto L_EBAB; case 0xF080u: goto L_F080; case 0xF082u: goto L_F082; case 0xF086u: goto L_F086; case 0xF088u: goto L_F088; case 0xF08Cu: goto L_F08C; case 0xF08Eu: goto L_F08E; case 0xF092u: goto L_F092; case 0xF094u: goto L_F094; case 0xF096u: goto L_F096; case 0xF0B9u: goto L_F0B9; case 0xF0CBu: goto L_F0CB; case 0xF0D0u: goto L_F0D0; case 0xF0D6u: goto L_F0D6; case 0xF0D9u: goto L_F0D9; case 0xF0DCu: goto L_F0DC; case 0xF0E0u: goto L_F0E0; case 0xF0E3u: goto L_F0E3; case 0xF0E6u: goto L_F0E6; case 0xF0E9u: goto L_F0E9; case 0xF0ECu: goto L_F0EC; case 0xF0EFu: goto L_F0EF; case 0xF0F2u: goto L_F0F2; case 0xF2D7u: goto L_F2D7; case 0xF2EAu: goto L_F2EA; case 0xF2F2u: goto L_F2F2; case 0xF2FAu: goto L_F2FA; case 0xF303u: goto L_F303; case 0xF306u: goto L_F306; case 0xF310u: goto L_F310; case 0xF313u: goto L_F313; case 0xF327u: goto L_F327; } }
 L_C815: if (g_yield_req) { g_resume = 0xC815u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x003Cu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC03Cu + X)); setnz(A);
+    A = rd((u16)(0xC03Cu + X));
     tick(3u);
     wr(0x0002u, A);
     tick(4u + ((0x003Du + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC03Du + X)); setnz(A);
+    A = rd((u16)(0xC03Du + X));
     tick(3u);
     wr(0x0003u, A);
     tick(3u);
     goto L_F2D7;
 L_C823: if (g_yield_req) { g_resume = 0xC823u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x003Cu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC03Cu + X)); setnz(A);
+    A = rd((u16)(0xC03Cu + X));
     tick(3u);
     wr(0x0000u, A);
     tick(4u + ((0x003Du + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC03Du + X)); setnz(A);
+    A = rd((u16)(0xC03Du + X));
     tick(3u);
     wr(0x0001u, A);
     tick(3u);
@@ -3059,22 +3059,22 @@ L_CCF4: if (g_yield_req) { g_resume = 0xCCF4u; g_yield_req = 0u; return; }
     goto L_CCF9;
 L_CCF9: if (g_yield_req) { g_resume = 0xCCF9u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(4u);
     wr(0x0450u, A);
     tick(2u);
-    A = 0x0Au; setnz(A);
+    A = 0x0Au;
     tick(3u);
     wr(0x0034u, A);
     tick(2u);
-    A = 0x10u; setnz(A);
+    A = 0x10u;
     tick(3u);
     wr(0x00FDu, A);
     tick(6u);
     return;
 L_CD07: if (g_yield_req) { g_resume = 0xCD07u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0043u); setnz(A);
+    A = rd(0x0043u);
     if (A < 88u) { goto L_CD13; }
     goto L_CD0D;
 L_CD0D: if (g_yield_req) { g_resume = 0xCD0Du; g_yield_req = 0u; return; } 
@@ -3103,7 +3103,7 @@ L_CD16: if (g_yield_req) { g_resume = 0xCD16u; g_yield_req = 0u; return; }
     goto L_CD19;
 L_CD19: if (g_yield_req) { g_resume = 0xCD19u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x0043u, A);
     tick(3u);
@@ -3112,7 +3112,7 @@ L_CD19: if (g_yield_req) { g_resume = 0xCD19u; g_yield_req = 0u; return; }
     goto L_CA53;
 L_CD22: if (g_yield_req) { g_resume = 0xCD22u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0043u); setnz(A);
+    A = rd(0x0043u);
     if (A == 159u) { goto L_CD45; }
     goto L_CD28;
 L_CD28: if (g_yield_req) { g_resume = 0xCD28u; g_yield_req = 0u; return; } 
@@ -3151,20 +3151,20 @@ L_CD4A: if (g_yield_req) { g_resume = 0xCD4Au; g_yield_req = 0u; return; }
     goto L_CD7F;
 L_CD4F: if (g_yield_req) { g_resume = 0xCD4Fu; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = 0x1Cu; setnz(Y);
+    Y = 0x1Cu;
     tick(5u);
     { u8 t = (u8)(rd(0x0043u) - 1u); wr(0x0043u, t); setnz(t); }
     tick(2u);
-    A = 0x06u; setnz(A);
+    A = 0x06u;
     tick(3u);
     goto L_C823;
 L_CD58: if (g_yield_req) { g_resume = 0xCD58u; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = 0x1Cu; setnz(Y);
+    Y = 0x1Cu;
     tick(5u);
     { u8 t = (u8)(rd(0x0043u) - 1u); wr(0x0043u, t); setnz(t); }
     tick(2u);
-    A = 0x08u; setnz(A);
+    A = 0x08u;
     tick(3u);
     goto L_C823;
 L_CD61: if (g_yield_req) { g_resume = 0xCD61u; g_yield_req = 0u; return; } 
@@ -3183,14 +3183,14 @@ L_CD6C: if (g_yield_req) { g_resume = 0xCD6Cu; g_yield_req = 0u; return; }
     goto L_CE24;
 L_CD6F: if (g_yield_req) { g_resume = 0xCD6Fu; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = 0x0Cu; setnz(Y);
+    Y = 0x0Cu;
     tick(2u);
-    A = 0x0Au; setnz(A);
+    A = 0x0Au;
     tick(3u);
     goto L_C823;
 L_CD76: if (g_yield_req) { g_resume = 0xCD76u; g_yield_req = 0u; return; } 
     tick(5u + (((rd(0x0000u) | (static_cast<eng::u16>(rd(0x0001u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0000u) | ((u16)rd(0x0001u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0000u) | ((u16)rd(0x0001u) << 8)) + Y));
     tick(5u);
     wr((u16)(0x0331u + Y), A);
     tick(2u);
@@ -3210,14 +3210,14 @@ L_CD7F: if (g_yield_req) { g_resume = 0xCD7Fu; g_yield_req = 0u; return; }
     goto L_CD82;
 L_CD82: if (g_yield_req) { g_resume = 0xCD82u; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = 0x16u; setnz(Y);
+    Y = 0x16u;
     tick(2u);
-    A = 0x0Cu; setnz(A);
+    A = 0x0Cu;
     tick(3u);
     goto L_C823;
 L_CD89: if (g_yield_req) { g_resume = 0xCD89u; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = 0x0Cu; setnz(Y);
+    Y = 0x0Cu;
     tick(2u);
     A = 0x0Eu; setnz(A);
     tick(6u);
@@ -3228,28 +3228,28 @@ L_CD89: if (g_yield_req) { g_resume = 0xCD89u; g_yield_req = 0u; return; }
     goto L_CD90;
 L_CD90: if (g_yield_req) { g_resume = 0xCD90u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x03u; setnz(A);
+    A = 0x03u;
     tick(3u);
     wr(0x0002u, A);
     tick(2u);
-    A = 0x18u; setnz(A);
+    A = 0x18u;
     tick(3u);
     wr(0x0003u, A);
     tick(2u);
-    A = 0x50u; setnz(A);
+    A = 0x50u;
     tick(3u);
     goto L_F08C;
 L_CD9D: if (g_yield_req) { g_resume = 0xCD9Du; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x8Du; setnz(A);
+    A = 0x8Du;
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    A = 0x20u; setnz(A);
+    A = 0x20u;
     tick(3u);
     wr(0x0001u, A);
     tick(3u);
-    A = rd(0x0043u); setnz(A);
+    A = rd(0x0043u);
     tick(2u);
     A = (u8)(A & 0x01u); setnz(A);
     if (Zf) { tick(3u); goto L_CDAE; }
@@ -3268,7 +3268,7 @@ L_CDB5: if (g_yield_req) { g_resume = 0xCDB5u; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0043u) - 1u); wr(0x0043u, t); setnz(t); }
     tick(2u);
-    Y = 0x10u; setnz(Y);
+    Y = 0x10u;
     tick(2u);
     A = 0x10u; setnz(A);
     tick(6u);
@@ -3279,11 +3279,11 @@ L_CDB5: if (g_yield_req) { g_resume = 0xCDB5u; g_yield_req = 0u; return; }
     goto L_CDBE;
 L_CDBE: if (g_yield_req) { g_resume = 0xCDBEu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     wr(0x00FEu, A);
     tick(2u);
-    A = 0x68u; setnz(A);
+    A = 0x68u;
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
@@ -3293,20 +3293,20 @@ L_CDBE: if (g_yield_req) { g_resume = 0xCDBEu; g_yield_req = 0u; return; }
     goto L_CDCA;
 L_CDCA: if (g_yield_req) { g_resume = 0xCDCAu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x40u; setnz(A);
+    A = 0x40u;
     tick(3u);
     wr(0x0002u, A);
     tick(2u);
-    A = 0x46u; setnz(A);
+    A = 0x46u;
     tick(3u);
     wr(0x0003u, A);
     tick(2u);
-    A = 0x50u; setnz(A);
+    A = 0x50u;
     tick(3u);
     goto L_F080;
 L_CDD7: if (g_yield_req) { g_resume = 0xCDD7u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0250u); setnz(A);
+    A = rd(0x0250u);
     if (A == 160u) { goto L_CDEF; }
     goto L_CDDE;
 L_CDDE: if (g_yield_req) { g_resume = 0xCDDEu; g_yield_req = 0u; return; } 
@@ -3316,11 +3316,11 @@ L_CDE2: if (g_yield_req) { g_resume = 0xCDE2u; g_yield_req = 0u; return; }
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x02u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x02u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0001u, A);
     tick(4u);
-    A = rd(0x0253u); setnz(A);
+    A = rd(0x0253u);
     tick(3u);
     wr(0x0000u, A);
     tick(3u);
@@ -3333,7 +3333,7 @@ L_CDEF: if (g_yield_req) { g_resume = 0xCDEFu; g_yield_req = 0u; return; }
     goto L_CDF3;
 L_CDF3: if (g_yield_req) { g_resume = 0xCDF3u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x18u; setnz(A);
+    A = 0x18u;
     tick(3u);
     wr(0x0003u, A);
     tick(2u);
@@ -3346,11 +3346,11 @@ L_CDF3: if (g_yield_req) { g_resume = 0xCDF3u; g_yield_req = 0u; return; }
     goto L_CDFC;
 L_CDFC: if (g_yield_req) { g_resume = 0xCDFCu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xEBu; setnz(A);
+    A = 0xEBu;
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    A = 0x23u; setnz(A);
+    A = 0x23u;
     tick(3u);
     wr(0x0001u, A);
     tick(2u);
@@ -3363,14 +3363,14 @@ L_CDFC: if (g_yield_req) { g_resume = 0xCDFCu; g_yield_req = 0u; return; }
     goto L_CE09;
 L_CE09: if (g_yield_req) { g_resume = 0xCE09u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     goto L_CE0E;
 L_CE0E: if (g_yield_req) { g_resume = 0xCE0Eu; g_yield_req = 0u; return; } 
     tick(3u);
     wr(0x100u + SP, (u8)(0x30u | (Nf?0x80u:0u) | (Vf?0x40u:0u) | (Df?0x08u:0u) | (If?0x04u:0u) | (Zf?0x02u:0u) | (Cf?0x01u:0u))); --SP;
     tick(2u);
-    A = 0x8Du; setnz(A);
+    A = 0x8Du;
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
@@ -3384,12 +3384,12 @@ L_CE0E: if (g_yield_req) { g_resume = 0xCE0Eu; g_yield_req = 0u; return; }
     goto L_CE1A;
 L_CE1A: if (g_yield_req) { g_resume = 0xCE1Au; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x16u; setnz(A);
+    A = 0x16u;
     tick(3u);
     goto L_C815;
 L_CE1F: if (g_yield_req) { g_resume = 0xCE1Fu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x14u; setnz(A);
+    A = 0x14u;
     tick(3u);
     goto L_C815;
 L_CE24: if (g_yield_req) { g_resume = 0xCE24u; g_yield_req = 0u; return; } 
@@ -3397,18 +3397,18 @@ L_CE24: if (g_yield_req) { g_resume = 0xCE24u; g_yield_req = 0u; return; }
     goto L_CE28;
 L_CE28: if (g_yield_req) { g_resume = 0xCE28u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0043u); setnz(A);
+    A = rd(0x0043u);
     tick(2u);
-    A = (u8)(A & 0x01u); setnz(A);
+    A = (u8)(A & 0x01u);
     tick(3u);
     goto L_CE0E;
 L_CE2F: if (g_yield_req) { g_resume = 0xCE2Fu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x04u; setnz(A);
+    A = 0x04u;
     tick(3u);
     wr(0x00FDu, A);
     tick(2u);
-    Y = 0x04u; setnz(Y);
+    Y = 0x04u;
     tick(2u);
     A = 0x18u; setnz(A);
     tick(6u);
@@ -3419,19 +3419,19 @@ L_CE2F: if (g_yield_req) { g_resume = 0xCE2Fu; g_yield_req = 0u; return; }
     goto L_CE3A;
 L_CE3A: if (g_yield_req) { g_resume = 0xCE3Au; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x78u; setnz(A);
+    A = 0x78u;
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    A = 0x20u; setnz(A);
+    A = 0x20u;
     tick(3u);
     wr(0x0001u, A);
     tick(2u);
-    A = 0xC8u; setnz(A);
+    A = 0xC8u;
     tick(3u);
     wr(0x0002u, A);
     tick(2u);
-    A = 0x22u; setnz(A);
+    A = 0x22u;
     tick(3u);
     wr(0x0003u, A);
     tick(2u);
@@ -3446,11 +3446,11 @@ L_CE4F: if (g_yield_req) { g_resume = 0xCE4Fu; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0043u) - 1u); wr(0x0043u, t); setnz(t); }
     tick(2u);
-    A = 0xA0u; setnz(A);
+    A = 0xA0u;
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    A = 0x30u; setnz(A);
+    A = 0x30u;
     tick(3u);
     wr(0x0001u, A);
     tick(2u);
@@ -3472,19 +3472,19 @@ L_CE5E: if (g_yield_req) { g_resume = 0xCE5Eu; g_yield_req = 0u; return; }
     goto L_CE63;
 L_CE63: if (g_yield_req) { g_resume = 0xCE63u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x28u; setnz(A);
+    A = 0x28u;
     tick(4u);
     wr(0x02E8u, A);
     tick(4u);
     wr(0x02ECu, A);
     tick(2u);
-    A = 0x30u; setnz(A);
+    A = 0x30u;
     tick(4u);
     wr(0x02F0u, A);
     tick(4u);
     wr(0x02F8u, A);
     tick(2u);
-    A = 0x38u; setnz(A);
+    A = 0x38u;
     tick(4u);
     wr(0x02F4u, A);
     tick(4u);
@@ -3493,12 +3493,12 @@ L_CE63: if (g_yield_req) { g_resume = 0xCE63u; g_yield_req = 0u; return; }
     return;
 L_EB89: if (g_yield_req) { g_resume = 0xEB89u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x40u; setnz(A);
+    A = 0x40u;
     tick(3u);
     goto L_EBA8;
 L_EB92: if (g_yield_req) { g_resume = 0xEB92u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x42u; setnz(A);
+    A = 0x42u;
     tick(3u);
     goto L_EBA8;
 L_EBA8: if (g_yield_req) { g_resume = 0xEBA8u; g_yield_req = 0u; return; } 
@@ -3512,9 +3512,9 @@ L_EBAB: if (g_yield_req) { g_resume = 0xEBABu; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0044u) - 1u); wr(0x0044u, t); setnz(t); }
     tick(4u);
-    A = rd(0x0505u); setnz(A);
+    A = rd(0x0505u);
     tick(2u);
-    A = (u8)(A | 0x10u); setnz(A);
+    A = (u8)(A | 0x10u);
     tick(4u);
     wr(0x0505u, A);
     tick(6u);
@@ -3563,54 +3563,54 @@ L_F096: if (g_yield_req) { g_resume = 0xF096u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Fu, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0005u); setnz(A);
+    A = rd(0x0005u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0006u); setnz(A);
+    A = rd(0x0006u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0008u); setnz(A);
+    A = rd(0x0008u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0009u); setnz(A);
+    A = rd(0x0009u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x0005u, A);
     tick(3u);
-    A = rd(0x000Fu); setnz(A);
+    A = rd(0x000Fu);
     if (A == 4u) { goto L_F0EF; }
     goto L_F0B9;
 L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Fu; setnz(A);
+    A = 0x0Fu;
     tick(3u);
-    A = (u8)(A & rd(0x0003u)); setnz(A);
+    A = (u8)(A & rd(0x0003u));
     tick(3u);
     wr(0x0007u, A);
     tick(3u);
-    A = rd(0x0003u); setnz(A);
+    A = rd(0x0003u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -3622,7 +3622,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0006u, A);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
     A = 0x00u; setnz(A);
     tick(2u);
@@ -3630,7 +3630,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     goto L_F0CB;
 L_F0CB: if (g_yield_req) { g_resume = 0xF0CBu; g_yield_req = 0u; return; } 
     tick(3u);
-    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Zf) { tick(3u); goto L_F0CB; }
@@ -3693,52 +3693,52 @@ L_F0EF: if (g_yield_req) { g_resume = 0xF0EFu; g_yield_req = 0u; return; }
     goto L_F0F2;
 L_F0F2: if (g_yield_req) { g_resume = 0xF0F2u; g_yield_req = 0u; return; } 
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0009u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0008u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0007u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0006u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0005u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(6u);
     return;
 L_F2D7: if (g_yield_req) { g_resume = 0xF2D7u; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = 0x00u; setnz(Y);
+    Y = 0x00u;
     tick(5u + (((rd(0x0002u) | (static_cast<eng::u16>(rd(0x0003u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y));
     tick(2u);
-    A = (u8)(A & 0x0Fu); setnz(A);
+    A = (u8)(A & 0x0Fu);
     tick(3u);
     wr(0x0005u, A);
     tick(5u + (((rd(0x0002u) | (static_cast<eng::u16>(rd(0x0003u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y));
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -3776,7 +3776,7 @@ L_F2F2: if (g_yield_req) { g_resume = 0xF2F2u; g_yield_req = 0u; return; }
     goto L_F2FA;
 L_F2FA: if (g_yield_req) { g_resume = 0xF2FAu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0004u); setnz(A);
+    A = rd(0x0004u);
     tick(3u);
     wr(0x0006u, A);
     tick(2u);
@@ -3793,9 +3793,9 @@ L_F303: if (g_yield_req) { g_resume = 0xF303u; g_yield_req = 0u; return; }
     goto L_F306;
 L_F306: if (g_yield_req) { g_resume = 0xF306u; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(5u + (((rd(0x0002u) | (static_cast<eng::u16>(rd(0x0003u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y));
     tick(5u);
     wr((u16)(0x0331u + X), A);
     tick(5u);
@@ -3814,15 +3814,15 @@ L_F313: if (g_yield_req) { g_resume = 0xF313u; g_yield_req = 0u; return; }
     tick(2u);
     Cf = false;
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
-    { const u8 v = rd(0x0000u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0000u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
-    { const u8 v = rd(0x0001u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0001u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0001u, A);
     tick(4u);
@@ -3834,7 +3834,7 @@ L_F313: if (g_yield_req) { g_resume = 0xF313u; g_yield_req = 0u; return; }
     goto L_F327;
 L_F327: if (g_yield_req) { g_resume = 0xF327u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(5u);
     wr((u16)(0x0331u + X), A);
     tick(6u);
@@ -3858,7 +3858,7 @@ L_CA33: if (g_yield_req) { g_resume = 0xCA33u; g_yield_req = 0u; return; }
     goto L_CA37;
 L_CA37: if (g_yield_req) { g_resume = 0xCA37u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0043u); setnz(A);
+    A = rd(0x0043u);
     if (A == 117u) { goto L_CA5A; }
     goto L_CA3D;
 L_CA3D: if (g_yield_req) { g_resume = 0xCA3Du; g_yield_req = 0u; return; } 
@@ -3914,43 +3914,43 @@ L_CA64: if (g_yield_req) { g_resume = 0xCA64u; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0043u) - 1u); wr(0x0043u, t); setnz(t); }
     tick(3u);
-    A = rd(0x0050u); setnz(A);
+    A = rd(0x0050u);
     tick(2u);
-    A = (u8)(A & 0x01u); setnz(A);
+    A = (u8)(A & 0x01u);
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(3u);
-    A = rd(0x0021u); setnz(A);
+    A = rd(0x0021u);
     tick(5u);
     wr((u16)(0x0507u + X), A);
     tick(3u);
-    A = rd(0x0022u); setnz(A);
+    A = rd(0x0022u);
     tick(5u);
     wr((u16)(0x0508u + X), A);
     tick(3u);
     goto L_CBF5;
 L_CA79: if (g_yield_req) { g_resume = 0xCA79u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x0052u); setnz(X);
+    X = rd(0x0052u);
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(5u);
     wr((u16)(0x0406u + X), A);
     tick(3u);
     wr(0x004Eu, A);
     tick(3u);
-    A = rd(0x0051u); setnz(A);
+    A = rd(0x0051u);
     if (A != 28u) { goto L_CA94; }
     goto L_CA88;
 L_CA88: if (g_yield_req) { g_resume = 0xCA88u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0052u); setnz(A);
+    A = rd(0x0052u);
     tick(2u);
-    A = (u8)(A ^ 0x01u); setnz(A);
+    A = (u8)(A ^ 0x01u);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x0006u + X) > 0xFFu ? 1u : 0u));
     A = rd((u16)(0x0406u + X)); setnz(A);
     tick(3u);
@@ -3965,13 +3965,13 @@ L_CA94: if (g_yield_req) { g_resume = 0xCA94u; g_yield_req = 0u; return; }
     goto L_CA53;
 L_CA99: if (g_yield_req) { g_resume = 0xCA99u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x85u; setnz(A);
+    A = 0x85u;
     tick(3u);
     wr(0x0043u, A);
     tick(4u);
     wr(0x040Bu, A);
     tick(2u);
-    Y = 0x00u; setnz(Y);
+    Y = 0x00u;
     tick(3u);
     wr(0x004Fu, Y);
     tick(3u);
@@ -3984,15 +3984,15 @@ L_CAA9: if (g_yield_req) { g_resume = 0xCAA9u; g_yield_req = 0u; return; }
     goto L_CAAB;
 L_CAAB: if (g_yield_req) { g_resume = 0xCAABu; g_yield_req = 0u; return; } 
     tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0400u + X)); setnz(A);
+    A = rd((u16)(0x0400u + X));
     tick(5u);
     wr((u16)(0x0053u + Y), A);
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     if (Y != 3u) { goto L_CAAB; }
     goto L_CAB8;
 L_CAB8: if (g_yield_req) { g_resume = 0xCAB8u; g_yield_req = 0u; return; } 
@@ -4000,11 +4000,11 @@ L_CAB8: if (g_yield_req) { g_resume = 0xCAB8u; g_yield_req = 0u; return; }
     return;
 L_CBAE: if (g_yield_req) { g_resume = 0xCBAEu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x0004u, A);
     tick(2u);
-    A = 0xFFu; setnz(A);
+    A = 0xFFu;
     tick(3u);
     goto L_F092;
 L_CBCA: if (g_yield_req) { g_resume = 0xCBCAu; g_yield_req = 0u; return; } 
@@ -4015,14 +4015,14 @@ L_CBCA: if (g_yield_req) { g_resume = 0xCBCAu; g_yield_req = 0u; return; }
     goto L_CBCE;
 L_CBCE: if (g_yield_req) { g_resume = 0xCBCEu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0051u); setnz(A);
+    A = rd(0x0051u);
     if (A != 28u) { goto L_CBF4; }
     goto L_CBD4;
 L_CBD4: if (g_yield_req) { g_resume = 0xCBD4u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x0052u); setnz(X);
+    X = rd(0x0052u);
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
     { const u8 v = rd((u16)(0x0400u + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Zf) { tick(3u); goto L_CBF4; }
@@ -4042,7 +4042,7 @@ L_CBDF: if (g_yield_req) { g_resume = 0xCBDFu; g_yield_req = 0u; return; }
     goto L_CBE7;
 L_CBE7: if (g_yield_req) { g_resume = 0xCBE7u; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(3u);
     goto L_CBDF;
 L_CBEB: if (g_yield_req) { g_resume = 0xCBEBu; g_yield_req = 0u; return; } 
@@ -4074,7 +4074,7 @@ L_CBF7: if (g_yield_req) { g_resume = 0xCBF7u; g_yield_req = 0u; return; }
     goto L_CBFF;
 L_CBFF: if (g_yield_req) { g_resume = 0xCBFFu; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(3u);
     goto L_CBF7;
 L_CC03: if (g_yield_req) { g_resume = 0xCC03u; g_yield_req = 0u; return; } 
@@ -4094,54 +4094,54 @@ L_F096: if (g_yield_req) { g_resume = 0xF096u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Fu, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0005u); setnz(A);
+    A = rd(0x0005u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0006u); setnz(A);
+    A = rd(0x0006u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0008u); setnz(A);
+    A = rd(0x0008u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0009u); setnz(A);
+    A = rd(0x0009u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x0005u, A);
     tick(3u);
-    A = rd(0x000Fu); setnz(A);
+    A = rd(0x000Fu);
     if (A == 4u) { goto L_F0EF; }
     goto L_F0B9;
 L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Fu; setnz(A);
+    A = 0x0Fu;
     tick(3u);
-    A = (u8)(A & rd(0x0003u)); setnz(A);
+    A = (u8)(A & rd(0x0003u));
     tick(3u);
     wr(0x0007u, A);
     tick(3u);
-    A = rd(0x0003u); setnz(A);
+    A = rd(0x0003u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -4153,7 +4153,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0006u, A);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
     A = 0x00u; setnz(A);
     tick(2u);
@@ -4161,7 +4161,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     goto L_F0CB;
 L_F0CB: if (g_yield_req) { g_resume = 0xF0CBu; g_yield_req = 0u; return; } 
     tick(3u);
-    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Zf) { tick(3u); goto L_F0CB; }
@@ -4224,39 +4224,39 @@ L_F0EF: if (g_yield_req) { g_resume = 0xF0EFu; g_yield_req = 0u; return; }
     goto L_F0F2;
 L_F0F2: if (g_yield_req) { g_resume = 0xF0F2u; g_yield_req = 0u; return; } 
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0009u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0008u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0007u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0006u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0005u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(6u);
     return;
 }
@@ -4283,11 +4283,11 @@ L_C8FE: if (g_yield_req) { g_resume = 0xC8FEu; g_yield_req = 0u; return; }
     goto L_C903;
 L_C903: if (g_yield_req) { g_resume = 0xC903u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x80u; setnz(A);
+    A = 0x80u;
     tick(3u);
     wr(0x00FDu, A);
     tick(2u);
-    A = 0x04u; setnz(A);
+    A = 0x04u;
     tick(4u);
     wr(0x0518u, A);
     tick(2u);
@@ -4321,34 +4321,34 @@ L_C91C: if (g_yield_req) { g_resume = 0xC91Cu; g_yield_req = 0u; return; }
     goto L_C921;
 L_C921: if (g_yield_req) { g_resume = 0xC921u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0511u); setnz(A);
+    A = rd(0x0511u);
     tick(4u);
     wr(0x0200u, A);
     tick(2u);
-    A = 0xA2u; setnz(A);
+    A = 0xA2u;
     tick(4u);
     wr(0x0201u, A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(4u);
     wr(0x0202u, A);
     tick(3u);
     wr(0x0058u, A);
     tick(2u);
-    A = 0x38u; setnz(A);
+    A = 0x38u;
     tick(4u);
     wr(0x0203u, A);
     tick(4u);
     wr(0x0510u, A);
     tick(2u);
-    A = 0x20u; setnz(A);
+    A = 0x20u;
     tick(3u);
     wr(0x0044u, A);
     tick(6u);
     return;
 L_C940: if (g_yield_req) { g_resume = 0xC940u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0015u); setnz(A);
+    A = rd(0x0015u);
     tick(2u);
     A = (u8)(A & 0x20u); setnz(A);
     if (!Zf) { tick(3u); goto L_C95D; }
@@ -4356,7 +4356,7 @@ L_C940: if (g_yield_req) { g_resume = 0xC940u; g_yield_req = 0u; return; }
     goto L_C946;
 L_C946: if (g_yield_req) { g_resume = 0xC946u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0015u); setnz(A);
+    A = rd(0x0015u);
     tick(2u);
     A = (u8)(A & 0x10u); setnz(A);
     if (!Zf) { tick(3u); goto L_C98A; }
@@ -4364,7 +4364,7 @@ L_C946: if (g_yield_req) { g_resume = 0xC946u; g_yield_req = 0u; return; }
     goto L_C94C;
 L_C94C: if (g_yield_req) { g_resume = 0xC94Cu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(4u);
     wr(0x0512u, A);
     tick(3u);
@@ -4374,7 +4374,7 @@ L_C94C: if (g_yield_req) { g_resume = 0xC94Cu; g_yield_req = 0u; return; }
     goto L_C955;
 L_C955: if (g_yield_req) { g_resume = 0xC955u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     wr(0x0058u, A);
     tick(3u);
@@ -4384,7 +4384,7 @@ L_C95C: if (g_yield_req) { g_resume = 0xC95Cu; g_yield_req = 0u; return; }
     return;
 L_C95D: if (g_yield_req) { g_resume = 0xC95Du; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x40u; setnz(A);
+    A = 0x40u;
     tick(3u);
     wr(0x0044u, A);
     tick(4u);
@@ -4394,15 +4394,15 @@ L_C95D: if (g_yield_req) { g_resume = 0xC95Du; g_yield_req = 0u; return; }
     goto L_C966;
 L_C966: if (g_yield_req) { g_resume = 0xC966u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x40u; setnz(A);
+    A = 0x40u;
     tick(3u);
     wr(0x0035u, A);
     tick(4u);
-    A = rd(0x0200u); setnz(A);
+    A = rd(0x0200u);
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x10u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x10u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     if (A != 191u) { goto L_C976; }
     goto L_C974;
 L_C974: if (g_yield_req) { g_resume = 0xC974u; g_yield_req = 0u; return; } 
@@ -4417,7 +4417,7 @@ L_C976: if (g_yield_req) { g_resume = 0xC976u; g_yield_req = 0u; return; }
     tick(6u);
     { u8 t = (u8)(rd(0x0512u) + 1u); wr(0x0512u, t); setnz(t); }
     tick(2u);
-    A = 0x0Au; setnz(A);
+    A = 0x0Au;
     tick(4u);
     wr(0x0513u, A);
     tick(6u);
@@ -4435,7 +4435,7 @@ L_C98A: if (g_yield_req) { g_resume = 0xC98Au; g_yield_req = 0u; return; }
     tick(4u);
     wr(0x0514u, A);
     tick(2u);
-    X = 0x0Au; setnz(X);
+    X = 0x0Au;
     tick(2u);
     A = 0x00u; setnz(A);
     goto L_C991;
@@ -4449,7 +4449,7 @@ L_C991: if (g_yield_req) { g_resume = 0xC991u; g_yield_req = 0u; return; }
     goto L_C996;
 L_C996: if (g_yield_req) { g_resume = 0xC996u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0511u); setnz(A);
+    A = rd(0x0511u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -4461,14 +4461,14 @@ L_C996: if (g_yield_req) { g_resume = 0xC996u; g_yield_req = 0u; return; }
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x07u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x07u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0050u, A);
     if (((u8)(A - 2u) & 0x80u) != 0) { goto L_C9AD; }
     goto L_C9A6;
 L_C9A6: if (g_yield_req) { g_resume = 0xC9A6u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x1Cu; setnz(A);
+    A = 0x1Cu;
     tick(3u);
     wr(0x0051u, A);
     tick(3u);
@@ -4481,31 +4481,31 @@ L_C9AD: if (g_yield_req) { g_resume = 0xC9ADu; g_yield_req = 0u; return; }
     goto L_C9B1;
 L_C9B1: if (g_yield_req) { g_resume = 0xC9B1u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0050u); setnz(A);
+    A = rd(0x0050u);
     tick(2u);
-    A = (u8)(A & 0x01u); setnz(A);
+    A = (u8)(A & 0x01u);
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x0007u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0507u + X)); setnz(A);
+    A = rd((u16)(0x0507u + X));
     tick(3u);
     wr(0x0021u, A);
     tick(4u + ((0x0008u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0508u + X)); setnz(A);
+    A = rd((u16)(0x0508u + X));
     tick(3u);
     wr(0x0022u, A);
     tick(2u);
-    A = 0x0Fu; setnz(A);
+    A = 0x0Fu;
     tick(3u);
     wr(0x0018u, A);
     tick(2u);
-    A = 0x13u; setnz(A);
+    A = 0x13u;
     tick(3u);
     wr(0x0019u, A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x004Eu, A);
     tick(4u);
@@ -4521,7 +4521,7 @@ L_C9B1: if (g_yield_req) { g_resume = 0xC9B1u; g_yield_req = 0u; return; }
     tick(4u);
     wr(0x0512u, A);
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     wr(0x0053u, A);
     tick(4u);
@@ -4529,7 +4529,7 @@ L_C9B1: if (g_yield_req) { g_resume = 0xC9B1u; g_yield_req = 0u; return; }
     tick(4u);
     wr(0x0401u, A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x0054u, A);
     tick(4u);
@@ -4537,7 +4537,7 @@ L_C9B1: if (g_yield_req) { g_resume = 0xC9B1u; g_yield_req = 0u; return; }
     tick(4u);
     wr(0x0403u, A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x0052u, A);
     tick(4u);
@@ -4547,7 +4547,7 @@ L_C9B1: if (g_yield_req) { g_resume = 0xC9B1u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x00FCu, A);
     tick(2u);
-    A = 0x03u; setnz(A);
+    A = 0x03u;
     tick(3u);
     X = rd(0x0058u); setnz(X);
     if (Zf) { tick(3u); goto L_CA06; }
@@ -4573,15 +4573,15 @@ L_CA06: if (g_yield_req) { g_resume = 0xCA06u; g_yield_req = 0u; return; }
     goto L_CA15;
 L_CA15: if (g_yield_req) { g_resume = 0xCA15u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x97u; setnz(A);
+    A = 0x97u;
     tick(3u);
     wr(0x0043u, A);
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     wr(0x00FDu, A);
     tick(2u);
-    A = 0x0Fu; setnz(A);
+    A = 0x0Fu;
     tick(4u);
     wr(0x4015u, A);
     tick(4u);
@@ -4592,18 +4592,18 @@ L_CA26: if (g_yield_req) { g_resume = 0xCA26u; g_yield_req = 0u; return; }
     tick(6u);
     { u8 t = (u8)(rd(0x0518u) - 1u); wr(0x0518u, t); setnz(t); }
     tick(2u);
-    A = 0x75u; setnz(A);
+    A = 0x75u;
     tick(3u);
     wr(0x0043u, A);
     tick(3u);
     goto L_CBAE;
 L_CBAE: if (g_yield_req) { g_resume = 0xCBAEu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x0004u, A);
     tick(2u);
-    A = 0xFFu; setnz(A);
+    A = 0xFFu;
     tick(3u);
     goto L_F092;
 L_F092: if (g_yield_req) { g_resume = 0xF092u; g_yield_req = 0u; return; } 
@@ -4620,54 +4620,54 @@ L_F096: if (g_yield_req) { g_resume = 0xF096u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Fu, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0005u); setnz(A);
+    A = rd(0x0005u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0006u); setnz(A);
+    A = rd(0x0006u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0008u); setnz(A);
+    A = rd(0x0008u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0009u); setnz(A);
+    A = rd(0x0009u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x0005u, A);
     tick(3u);
-    A = rd(0x000Fu); setnz(A);
+    A = rd(0x000Fu);
     if (A == 4u) { goto L_F0EF; }
     goto L_F0B9;
 L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Fu; setnz(A);
+    A = 0x0Fu;
     tick(3u);
-    A = (u8)(A & rd(0x0003u)); setnz(A);
+    A = (u8)(A & rd(0x0003u));
     tick(3u);
     wr(0x0007u, A);
     tick(3u);
-    A = rd(0x0003u); setnz(A);
+    A = rd(0x0003u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -4679,7 +4679,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0006u, A);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
     A = 0x00u; setnz(A);
     tick(2u);
@@ -4687,7 +4687,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     goto L_F0CB;
 L_F0CB: if (g_yield_req) { g_resume = 0xF0CBu; g_yield_req = 0u; return; } 
     tick(3u);
-    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Zf) { tick(3u); goto L_F0CB; }
@@ -4750,39 +4750,39 @@ L_F0EF: if (g_yield_req) { g_resume = 0xF0EFu; g_yield_req = 0u; return; }
     goto L_F0F2;
 L_F0F2: if (g_yield_req) { g_resume = 0xF0F2u; g_yield_req = 0u; return; } 
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0009u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0008u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0007u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0006u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0005u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(6u);
     return;
 }
@@ -4791,7 +4791,7 @@ static void f_F4AC(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xF4ACu: goto L_F4AC; case 0xF4B2u: goto L_F4B2; case 0xF4B8u: goto L_F4B8; case 0xF4BCu: goto L_F4BC; case 0xF4BEu: goto L_F4BE; case 0xF4C1u: goto L_F4C1; } }
 L_F4AC: if (g_yield_req) { g_resume = 0xF4ACu; g_yield_req = 0u; return; } 
     tick(2u);
-    X = 0x09u; setnz(X);
+    X = 0x09u;
     tick(5u);
     { u8 t = (u8)(rd(0x0034u) - 1u); wr(0x0034u, t); setnz(t); }
     if (!Nf) { tick(3u); goto L_F4B8; }
@@ -4799,7 +4799,7 @@ L_F4AC: if (g_yield_req) { g_resume = 0xF4ACu; g_yield_req = 0u; return; }
     goto L_F4B2;
 L_F4B2: if (g_yield_req) { g_resume = 0xF4B2u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Au; setnz(A);
+    A = 0x0Au;
     tick(3u);
     wr(0x0034u, A);
     tick(2u);
@@ -4837,17 +4837,17 @@ L_CAC9: if (g_yield_req) { g_resume = 0xCAC9u; g_yield_req = 0u; return; }
     goto L_CACC;
 L_CACC: if (g_yield_req) { g_resume = 0xCACCu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A == 1u) { goto L_CAD8; }
     goto L_CAD2;
 L_CAD2: if (g_yield_req) { g_resume = 0xCAD2u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0043u); setnz(A);
+    A = rd(0x0043u);
     if (A == 132u) { goto L_CB02; }
     goto L_CAD8;
 L_CAD8: if (g_yield_req) { g_resume = 0xCAD8u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0043u); setnz(A);
+    A = rd(0x0043u);
     if (A >= 114u) { goto L_CB18; }
     goto L_CADE;
 L_CADE: if (g_yield_req) { g_resume = 0xCADEu; g_yield_req = 0u; return; } 
@@ -4867,7 +4867,7 @@ L_CAE7: if (g_yield_req) { g_resume = 0xCAE7u; g_yield_req = 0u; return; }
     goto L_CAEC;
 L_CAEC: if (g_yield_req) { g_resume = 0xCAECu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(4u);
     wr(0x040Bu, A);
     tick(5u);
@@ -4904,9 +4904,9 @@ L_CB01: if (g_yield_req) { g_resume = 0xCB01u; g_yield_req = 0u; return; }
     return;
 L_CB02: if (g_yield_req) { g_resume = 0xCB02u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x0052u); setnz(X);
+    X = rd(0x0052u);
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
     { const u8 v = rd((u16)(0x0400u + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_CB15; }
@@ -5002,15 +5002,15 @@ L_CB47: if (g_yield_req) { g_resume = 0xCB47u; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0043u) - 1u); wr(0x0043u, t); setnz(t); }
     tick(3u);
-    X = rd(0x0053u); setnz(X);
+    X = rd(0x0053u);
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(4u + ((0x0008u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC608u + X)); setnz(A);
+    A = rd((u16)(0xC608u + X));
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    A = 0x20u; setnz(A);
+    A = 0x20u;
     tick(3u);
     wr(0x0001u, A);
     tick(3u);
@@ -5024,11 +5024,11 @@ L_CB58: if (g_yield_req) { g_resume = 0xCB58u; g_yield_req = 0u; return; }
     goto L_CB5B;
 L_CB5B: if (g_yield_req) { g_resume = 0xCB5Bu; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x0053u); setnz(X);
+    X = rd(0x0053u);
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(6u);
@@ -5048,16 +5048,16 @@ L_CB63: if (g_yield_req) { g_resume = 0xCB63u; g_yield_req = 0u; return; }
     goto L_CB68;
 L_CB68: if (g_yield_req) { g_resume = 0xCB68u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0051u); setnz(A);
+    A = rd(0x0051u);
     if (A == 28u) { goto L_CB7B; }
     goto L_CB6E;
 L_CB6E: if (g_yield_req) { g_resume = 0xCB6Eu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x76u; setnz(A);
+    A = 0x76u;
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    A = 0x20u; setnz(A);
+    A = 0x20u;
     tick(3u);
     wr(0x0001u, A);
     tick(2u);
@@ -5088,11 +5088,11 @@ L_CB83: if (g_yield_req) { g_resume = 0xCB83u; g_yield_req = 0u; return; }
     goto L_CB86;
 L_CB86: if (g_yield_req) { g_resume = 0xCB86u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xBCu; setnz(A);
+    A = 0xBCu;
     tick(3u);
     wr(0x0000u, A);
     tick(3u);
-    Y = rd(0x0054u); setnz(Y);
+    Y = rd(0x0054u);
     tick(2u);
     Y = (u8)(Y + 1u); setnz(Y);
     tick(6u);
@@ -5103,13 +5103,13 @@ L_CB86: if (g_yield_req) { g_resume = 0xCB86u; g_yield_req = 0u; return; }
     goto L_CB90;
 L_CB90: if (g_yield_req) { g_resume = 0xCB90u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x002Cu, A);
     tick(2u);
-    A = 0x80u; setnz(A);
+    A = 0x80u;
     tick(2u);
-    Y = (u8)(Y - 1u); setnz(Y);
+    Y = (u8)(Y - 1u);
     if (((u8)(Y - 4u) & 0x80u) == 0) { goto L_CB9E; }
     goto L_CB9B;
 L_CB9B: if (g_yield_req) { g_resume = 0xCB9Bu; g_yield_req = 0u; return; } 
@@ -5120,7 +5120,7 @@ L_CB9E: if (g_yield_req) { g_resume = 0xCB9Eu; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x002Eu, A);
     tick(2u);
-    A = 0x0Du; setnz(A);
+    A = 0x0Du;
     tick(3u);
     wr(0x0045u, A);
     tick(2u);
@@ -5153,9 +5153,9 @@ L_EBAB: if (g_yield_req) { g_resume = 0xEBABu; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0044u) - 1u); wr(0x0044u, t); setnz(t); }
     tick(4u);
-    A = rd(0x0505u); setnz(A);
+    A = rd(0x0505u);
     tick(2u);
-    A = (u8)(A | 0x10u); setnz(A);
+    A = (u8)(A | 0x10u);
     tick(4u);
     wr(0x0505u, A);
     tick(6u);
@@ -5206,9 +5206,9 @@ static void f_D19A(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xD19Au: goto L_D19A; } }
 L_D19A: if (g_yield_req) { g_resume = 0xD19Au; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0011u); setnz(A);
+    A = rd(0x0011u);
     tick(2u);
-    A = (u8)(A & 0xE7u); setnz(A);
+    A = (u8)(A & 0xE7u);
     tick(4u);
     wr(0x2001u, A);
     tick(3u);
@@ -5221,13 +5221,13 @@ static void f_C807(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xC807u: goto L_C807; case 0xF1ECu: goto L_F1EC; case 0xF200u: goto L_F200; case 0xF202u: goto L_F202; case 0xF20Bu: goto L_F20B; case 0xF20Eu: goto L_F20E; case 0xF211u: goto L_F211; case 0xF213u: goto L_F213; case 0xF214u: goto L_F214; case 0xF21Cu: goto L_F21C; case 0xF228u: goto L_F228; case 0xF231u: goto L_F231; } }
 L_C807: if (g_yield_req) { g_resume = 0xC807u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x00A7u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC4A7u + X)); setnz(A);
+    A = rd((u16)(0xC4A7u + X));
     tick(3u);
     wr(0x0000u, A);
     tick(4u + ((0x00A8u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC4A8u + X)); setnz(A);
+    A = rd((u16)(0xC4A8u + X));
     tick(3u);
     wr(0x0001u, A);
     tick(3u);
@@ -5236,23 +5236,23 @@ L_F1EC: if (g_yield_req) { g_resume = 0xF1ECu; g_yield_req = 0u; return; }
     tick(4u);
     wr(0x2006u, A);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(5u + (((rd(0x0000u) | (static_cast<eng::u16>(rd(0x0001u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0000u) | ((u16)rd(0x0001u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0000u) | ((u16)rd(0x0001u) << 8)) + Y));
     tick(4u);
     wr(0x2006u, A);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(5u + (((rd(0x0000u) | (static_cast<eng::u16>(rd(0x0001u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0000u) | ((u16)rd(0x0001u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0000u) | ((u16)rd(0x0001u) << 8)) + Y));
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0010u); setnz(A);
+    A = rd(0x0010u);
     tick(2u);
-    A = (u8)(A | 0x04u); setnz(A);
+    A = (u8)(A | 0x04u);
     if (Cf) { tick(3u); goto L_F202; }
     tick(2u);
     goto L_F200;
@@ -5266,7 +5266,7 @@ L_F202: if (g_yield_req) { g_resume = 0xF202u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0010u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     if (!Cf) { tick(3u); goto L_F20E; }
@@ -5274,7 +5274,7 @@ L_F202: if (g_yield_req) { g_resume = 0xF202u; g_yield_req = 0u; return; }
     goto L_F20B;
 L_F20B: if (g_yield_req) { g_resume = 0xF20Bu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = (u8)(A | 0x02u); setnz(A);
+    A = (u8)(A | 0x02u);
     tick(2u);
     Y = (u8)(Y + 1u); setnz(Y);
     goto L_F20E;
@@ -5296,7 +5296,7 @@ L_F213: if (g_yield_req) { g_resume = 0xF213u; g_yield_req = 0u; return; }
     goto L_F214;
 L_F214: if (g_yield_req) { g_resume = 0xF214u; g_yield_req = 0u; return; } 
     tick(5u + (((rd(0x0000u) | (static_cast<eng::u16>(rd(0x0001u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0000u) | ((u16)rd(0x0001u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0000u) | ((u16)rd(0x0001u) << 8)) + Y));
     tick(4u);
     wr(0x2007u, A);
     tick(2u);
@@ -5308,13 +5308,13 @@ L_F21C: if (g_yield_req) { g_resume = 0xF21Cu; g_yield_req = 0u; return; }
     tick(2u);
     Cf = true;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
-    { const u8 v = rd(0x0000u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0000u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     { const u8 v = rd(0x0001u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
     tick(3u);
@@ -5322,9 +5322,9 @@ L_F21C: if (g_yield_req) { g_resume = 0xF21Cu; g_yield_req = 0u; return; }
     goto L_F228;
 L_F228: if (g_yield_req) { g_resume = 0xF228u; g_yield_req = 0u; return; } 
     tick(4u);
-    X = rd(0x2002u); setnz(X);
+    X = rd(0x2002u);
     tick(2u);
-    Y = 0x00u; setnz(Y);
+    Y = 0x00u;
     tick(5u + (((rd(0x0000u) | (static_cast<eng::u16>(rd(0x0001u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
     A = rd((u16)((rd(0x0000u) | ((u16)rd(0x0001u) << 8)) + Y)); setnz(A);
     if (!Zf) { tick(4u); goto L_F1EC; }
@@ -5332,11 +5332,11 @@ L_F228: if (g_yield_req) { g_resume = 0xF228u; g_yield_req = 0u; return; }
     goto L_F231;
 L_F231: if (g_yield_req) { g_resume = 0xF231u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0012u); setnz(A);
+    A = rd(0x0012u);
     tick(4u);
     wr(0x2005u, A);
     tick(3u);
-    A = rd(0x0013u); setnz(A);
+    A = rd(0x0013u);
     tick(4u);
     wr(0x2005u, A);
     tick(6u);
@@ -5357,25 +5357,25 @@ L_CBBA: if (g_yield_req) { g_resume = 0xCBBAu; g_yield_req = 0u; return; }
     goto L_F1B4;
 L_F1B4: if (g_yield_req) { g_resume = 0xF1B4u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x2002u); setnz(A);
+    A = rd(0x2002u);
     tick(3u);
-    A = rd(0x0010u); setnz(A);
+    A = rd(0x0010u);
     tick(2u);
-    A = (u8)(A & 0xFBu); setnz(A);
+    A = (u8)(A & 0xFBu);
     tick(4u);
     wr(0x2000u, A);
     tick(2u);
-    A = 0x20u; setnz(A);
+    A = 0x20u;
     tick(4u);
     wr(0x2006u, A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(4u);
     wr(0x2006u, A);
     tick(2u);
-    X = 0x04u; setnz(X);
+    X = 0x04u;
     tick(2u);
-    Y = 0x00u; setnz(Y);
+    Y = 0x00u;
     tick(2u);
     A = 0x24u; setnz(A);
     goto L_F1CE;
@@ -5395,15 +5395,15 @@ L_F1D4: if (g_yield_req) { g_resume = 0xF1D4u; g_yield_req = 0u; return; }
     goto L_F1D7;
 L_F1D7: if (g_yield_req) { g_resume = 0xF1D7u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x23u; setnz(A);
+    A = 0x23u;
     tick(4u);
     wr(0x2006u, A);
     tick(2u);
-    A = 0xC0u; setnz(A);
+    A = 0xC0u;
     tick(4u);
     wr(0x2006u, A);
     tick(2u);
-    Y = 0x40u; setnz(Y);
+    Y = 0x40u;
     tick(2u);
     A = 0x00u; setnz(A);
     goto L_F1E5;
@@ -5424,20 +5424,20 @@ static void f_CBBD(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xCBBDu: goto L_CBBD; case 0xF4C2u: goto L_F4C2; case 0xF4CDu: goto L_F4CD; case 0xF4D5u: goto L_F4D5; case 0xF4DDu: goto L_F4DD; case 0xF4E4u: goto L_F4E4; } }
 L_CBBD: if (g_yield_req) { g_resume = 0xCBBDu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xB5u; setnz(A);
+    A = 0xB5u;
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    A = 0x20u; setnz(A);
+    A = 0x20u;
     tick(3u);
     wr(0x0001u, A);
     tick(3u);
-    Y = rd(0x0055u); setnz(Y);
+    Y = rd(0x0055u);
     tick(3u);
     goto L_F4C2;
 L_F4C2: if (g_yield_req) { g_resume = 0xF4C2u; g_yield_req = 0u; return; } 
     tick(4u);
-    X = rd(0x0330u); setnz(X);
+    X = rd(0x0330u);
     tick(3u);
     A = rd(0x0001u); setnz(A);
     tick(5u);
@@ -5483,7 +5483,7 @@ L_F4DD: if (g_yield_req) { g_resume = 0xF4DDu; g_yield_req = 0u; return; }
     goto L_F4E4;
 L_F4E4: if (g_yield_req) { g_resume = 0xF4E4u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(5u);
     wr((u16)(0x0331u + X), A);
     tick(4u);
@@ -5521,11 +5521,11 @@ L_CC44: if (g_yield_req) { g_resume = 0xCC44u; g_yield_req = 0u; return; }
     goto L_D7F2;
 L_D7F2: if (g_yield_req) { g_resume = 0xD7F2u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x19u; setnz(A);
+    A = 0x19u;
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    A = 0x3Fu; setnz(A);
+    A = 0x3Fu;
     tick(3u);
     wr(0x0001u, A);
     tick(2u);
@@ -5545,7 +5545,7 @@ static void f_CC47(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xCC47u: goto L_CC47; case 0xCC4Au: goto L_CC4A; case 0xCC54u: goto L_CC54; case 0xCC82u: goto L_CC82; case 0xCC90u: goto L_CC90; case 0xCC94u: goto L_CC94; case 0xCC99u: goto L_CC99; case 0xCCA6u: goto L_CCA6; } }
 L_CC47: if (g_yield_req) { g_resume = 0xCC47u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(2u);
     X = A; setnz(X);
     goto L_CC4A;
@@ -5555,12 +5555,12 @@ L_CC4A: if (g_yield_req) { g_resume = 0xCC4Au; g_yield_req = 0u; return; }
     tick(5u);
     wr((u16)(0x040Du + X), A);
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     if (X != 137u) { goto L_CC4A; }
     goto L_CC54;
 L_CC54: if (g_yield_req) { g_resume = 0xCC54u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     wr(0x0059u, A);
     tick(3u);
@@ -5576,23 +5576,23 @@ L_CC54: if (g_yield_req) { g_resume = 0xCC54u; g_yield_req = 0u; return; }
     tick(4u);
     wr(0x0503u, A);
     tick(2u);
-    A = 0x04u; setnz(A);
+    A = 0x04u;
     tick(3u);
     wr(0x0097u, A);
     tick(2u);
-    A = 0x58u; setnz(A);
+    A = 0x58u;
     tick(4u);
     wr(0x043Du, A);
     tick(2u);
-    A = 0x20u; setnz(A);
+    A = 0x20u;
     tick(3u);
     wr(0x00A2u, A);
     tick(2u);
-    A = 0x80u; setnz(A);
+    A = 0x80u;
     tick(3u);
     wr(0x0018u, A);
     tick(2u);
-    A = 0x0Au; setnz(A);
+    A = 0x0Au;
     tick(3u);
     wr(0x0034u, A);
     tick(3u);
@@ -5605,15 +5605,15 @@ L_CC54: if (g_yield_req) { g_resume = 0xCC54u; g_yield_req = 0u; return; }
     goto L_CC82;
 L_CC82: if (g_yield_req) { g_resume = 0xCC82u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xBBu; setnz(A);
+    A = 0xBBu;
     tick(3u);
     wr(0x0039u, A);
     tick(2u);
-    A = 0x27u; setnz(A);
+    A = 0x27u;
     tick(3u);
     wr(0x0044u, A);
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A == 1u) { goto L_CC99; }
     goto L_CC90;
 L_CC90: if (g_yield_req) { g_resume = 0xCC90u; g_yield_req = 0u; return; } 
@@ -5621,33 +5621,33 @@ L_CC90: if (g_yield_req) { g_resume = 0xCC90u; g_yield_req = 0u; return; }
     goto L_CC94;
 L_CC94: if (g_yield_req) { g_resume = 0xCC94u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x10u; setnz(A);
+    A = 0x10u;
     tick(3u);
     wr(0x00FCu, A);
     tick(6u);
     return;
 L_CC99: if (g_yield_req) { g_resume = 0xCC99u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x38u; setnz(A);
+    A = 0x38u;
     tick(3u);
     wr(0x0036u, A);
     tick(2u);
-    A = 0x40u; setnz(A);
+    A = 0x40u;
     tick(3u);
     wr(0x0043u, A);
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x00FCu, A);
     tick(6u);
     return;
 L_CCA6: if (g_yield_req) { g_resume = 0xCCA6u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x20u; setnz(A);
+    A = 0x20u;
     tick(3u);
     wr(0x0036u, A);
     tick(2u);
-    A = 0x50u; setnz(A);
+    A = 0x50u;
     tick(4u);
     wr(0x043Fu, A);
     tick(4u);
@@ -5655,7 +5655,7 @@ L_CCA6: if (g_yield_req) { g_resume = 0xCCA6u; g_yield_req = 0u; return; }
     tick(4u);
     wr(0x0443u, A);
     tick(2u);
-    A = 0x03u; setnz(A);
+    A = 0x03u;
     tick(4u);
     wr(0x0440u, A);
     tick(4u);
@@ -5670,11 +5670,11 @@ static void f_CC24(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xCC24u: goto L_CC24; case 0xCC31u: goto L_CC31; case 0xD032u: goto L_D032; case 0xF435u: goto L_F435; case 0xF44Au: goto L_F44A; case 0xF44Fu: goto L_F44F; case 0xF453u: goto L_F453; case 0xF45Eu: goto L_F45E; case 0xF468u: goto L_F468; case 0xF472u: goto L_F472; case 0xF474u: goto L_F474; case 0xF479u: goto L_F479; case 0xF47Eu: goto L_F47E; case 0xF481u: goto L_F481; case 0xF483u: goto L_F483; case 0xF493u: goto L_F493; case 0xF499u: goto L_F499; case 0xF49Fu: goto L_F49F; case 0xF4A0u: goto L_F4A0; case 0xF4A4u: goto L_F4A4; case 0xF4A9u: goto L_F4A9; case 0xF4ACu: goto L_F4AC; case 0xF4B2u: goto L_F4B2; case 0xF4B8u: goto L_F4B8; case 0xF4BCu: goto L_F4BC; case 0xF4BEu: goto L_F4BE; case 0xF4C1u: goto L_F4C1; } }
 L_CC24: if (g_yield_req) { g_resume = 0xCC24u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x002Eu); setnz(A);
+    A = rd(0x002Eu);
     tick(3u);
     wr(0x0000u, A);
     tick(3u);
-    A = rd(0x0052u); setnz(A);
+    A = rd(0x0052u);
     tick(2u);
     A = (u8)(A | 0x08u); setnz(A);
     tick(3u);
@@ -5690,40 +5690,40 @@ L_CC31: if (g_yield_req) { g_resume = 0xCC31u; g_yield_req = 0u; return; }
     goto L_D032;
 L_D032: if (g_yield_req) { g_resume = 0xD032u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0505u); setnz(A);
+    A = rd(0x0505u);
     tick(2u);
-    A = (u8)(A | 0x01u); setnz(A);
+    A = (u8)(A | 0x01u);
     tick(4u);
     wr(0x0505u, A);
     tick(2u);
-    A = 0xF9u; setnz(A);
+    A = 0xF9u;
     tick(3u);
     wr(0x0000u, A);
     tick(3u);
     goto L_F435;
 L_F435: if (g_yield_req) { g_resume = 0xF435u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x0004u, A);
     tick(2u);
     Cf = false;
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(2u);
-    { const u8 v = 0x10u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x10u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
-    A = (u8)(A & 0xF0u); setnz(A);
-    tick(2u);
-    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
+    A = (u8)(A & 0xF0u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
-    Y = A; setnz(Y);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
+    tick(2u);
+    Y = A;
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(2u);
-    A = (u8)(A & 0x07u); setnz(A);
+    A = (u8)(A & 0x07u);
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
@@ -5747,7 +5747,7 @@ L_F453: if (g_yield_req) { g_resume = 0xF453u; g_yield_req = 0u; return; }
     tick(2u);
     Cf = true;
     tick(4u + ((0x0023u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0023u + Y)); setnz(A);
+    A = rd((u16)(0x0023u + Y));
     tick(3u);
     wr(0x0003u, A);
     tick(4u);
@@ -5760,7 +5760,7 @@ L_F453: if (g_yield_req) { g_resume = 0xF453u; g_yield_req = 0u; return; }
     goto L_F45E;
 L_F45E: if (g_yield_req) { g_resume = 0xF45Eu; g_yield_req = 0u; return; } 
     tick(4u + ((0x0022u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0022u + Y)); setnz(A);
+    A = rd((u16)(0x0022u + Y));
     tick(3u);
     wr(0x0003u, A);
     tick(4u);
@@ -5773,7 +5773,7 @@ L_F45E: if (g_yield_req) { g_resume = 0xF45Eu; g_yield_req = 0u; return; }
     goto L_F468;
 L_F468: if (g_yield_req) { g_resume = 0xF468u; g_yield_req = 0u; return; } 
     tick(4u + ((0x0021u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0021u + Y)); setnz(A);
+    A = rd((u16)(0x0021u + Y));
     tick(3u);
     wr(0x0003u, A);
     tick(4u);
@@ -5814,15 +5814,15 @@ L_F481: if (g_yield_req) { g_resume = 0xF481u; g_yield_req = 0u; return; }
     goto L_F483;
 L_F483: if (g_yield_req) { g_resume = 0xF483u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd((u16)(0x0024u + X)); setnz(A);
+    A = rd((u16)(0x0024u + X));
     tick(3u);
     wr(0x0020u, A);
     tick(4u);
-    A = rd((u16)(0x0025u + X)); setnz(A);
+    A = rd((u16)(0x0025u + X));
     tick(3u);
     wr(0x0021u, A);
     tick(4u);
-    A = rd((u16)(0x0026u + X)); setnz(A);
+    A = rd((u16)(0x0026u + X));
     tick(3u);
     wr(0x0022u, A);
     tick(4u);
@@ -5832,7 +5832,7 @@ L_F483: if (g_yield_req) { g_resume = 0xF483u; g_yield_req = 0u; return; }
     goto L_F493;
 L_F493: if (g_yield_req) { g_resume = 0xF493u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(2u);
     A = (u8)(A & 0x08u); setnz(A);
     if (Zf) { tick(3u); goto L_F49F; }
@@ -5840,11 +5840,11 @@ L_F493: if (g_yield_req) { g_resume = 0xF493u; g_yield_req = 0u; return; }
     goto L_F499;
 L_F499: if (g_yield_req) { g_resume = 0xF499u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Nf) { tick(3u); goto L_F44A; }
@@ -5873,7 +5873,7 @@ L_F4A9: if (g_yield_req) { g_resume = 0xF4A9u; g_yield_req = 0u; return; }
     goto L_F4AC;
 L_F4AC: if (g_yield_req) { g_resume = 0xF4ACu; g_yield_req = 0u; return; } 
     tick(2u);
-    X = 0x09u; setnz(X);
+    X = 0x09u;
     tick(5u);
     { u8 t = (u8)(rd(0x0034u) - 1u); wr(0x0034u, t); setnz(t); }
     if (!Nf) { tick(3u); goto L_F4B8; }
@@ -5881,7 +5881,7 @@ L_F4AC: if (g_yield_req) { g_resume = 0xF4ACu; g_yield_req = 0u; return; }
     goto L_F4B2;
 L_F4B2: if (g_yield_req) { g_resume = 0xF4B2u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Au; setnz(A);
+    A = 0x0Au;
     tick(3u);
     wr(0x0034u, A);
     tick(2u);
@@ -5918,7 +5918,7 @@ L_CC04: if (g_yield_req) { g_resume = 0xCC04u; g_yield_req = 0u; return; }
     goto L_CC08;
 L_CC08: if (g_yield_req) { g_resume = 0xCC08u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x0052u); setnz(X);
+    X = rd(0x0052u);
     tick(4u + ((0x0008u + X) > 0xFFu ? 1u : 0u));
     A = rd((u16)(0x0408u + X)); setnz(A);
     if (!Zf) { tick(3u); goto L_CC23; }
@@ -5926,9 +5926,9 @@ L_CC08: if (g_yield_req) { g_resume = 0xCC08u; g_yield_req = 0u; return; }
     goto L_CC0F;
 L_CC0F: if (g_yield_req) { g_resume = 0xCC0Fu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(2u);
     Cf = false;
     tick(2u);
@@ -5936,9 +5936,9 @@ L_CC0F: if (g_yield_req) { g_resume = 0xCC0Fu; g_yield_req = 0u; return; }
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
-    A = rd((u16)(0x0025u + X)); setnz(A);
+    A = rd((u16)(0x0025u + X));
     if (A < 2u) { goto L_CC23; }
     goto L_CC1B;
 L_CC1B: if (g_yield_req) { g_resume = 0xCC1Bu; g_yield_req = 0u; return; } 
@@ -5988,14 +5988,14 @@ L_CBCA: if (g_yield_req) { g_resume = 0xCBCAu; g_yield_req = 0u; return; }
     goto L_CBCE;
 L_CBCE: if (g_yield_req) { g_resume = 0xCBCEu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0051u); setnz(A);
+    A = rd(0x0051u);
     if (A != 28u) { goto L_CBF4; }
     goto L_CBD4;
 L_CBD4: if (g_yield_req) { g_resume = 0xCBD4u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x0052u); setnz(X);
+    X = rd(0x0052u);
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
     { const u8 v = rd((u16)(0x0400u + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Zf) { tick(3u); goto L_CBF4; }
@@ -6015,7 +6015,7 @@ L_CBDF: if (g_yield_req) { g_resume = 0xCBDFu; g_yield_req = 0u; return; }
     goto L_CBE7;
 L_CBE7: if (g_yield_req) { g_resume = 0xCBE7u; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(3u);
     goto L_CBDF;
 L_CBEB: if (g_yield_req) { g_resume = 0xCBEBu; g_yield_req = 0u; return; } 
@@ -6039,28 +6039,28 @@ static void f_C815(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xC815u: goto L_C815; case 0xF2D7u: goto L_F2D7; case 0xF2EAu: goto L_F2EA; case 0xF2F2u: goto L_F2F2; case 0xF2FAu: goto L_F2FA; case 0xF303u: goto L_F303; case 0xF306u: goto L_F306; case 0xF310u: goto L_F310; case 0xF313u: goto L_F313; case 0xF327u: goto L_F327; } }
 L_C815: if (g_yield_req) { g_resume = 0xC815u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x003Cu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC03Cu + X)); setnz(A);
+    A = rd((u16)(0xC03Cu + X));
     tick(3u);
     wr(0x0002u, A);
     tick(4u + ((0x003Du + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC03Du + X)); setnz(A);
+    A = rd((u16)(0xC03Du + X));
     tick(3u);
     wr(0x0003u, A);
     tick(3u);
     goto L_F2D7;
 L_F2D7: if (g_yield_req) { g_resume = 0xF2D7u; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = 0x00u; setnz(Y);
+    Y = 0x00u;
     tick(5u + (((rd(0x0002u) | (static_cast<eng::u16>(rd(0x0003u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y));
     tick(2u);
-    A = (u8)(A & 0x0Fu); setnz(A);
+    A = (u8)(A & 0x0Fu);
     tick(3u);
     wr(0x0005u, A);
     tick(5u + (((rd(0x0002u) | (static_cast<eng::u16>(rd(0x0003u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y));
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -6098,7 +6098,7 @@ L_F2F2: if (g_yield_req) { g_resume = 0xF2F2u; g_yield_req = 0u; return; }
     goto L_F2FA;
 L_F2FA: if (g_yield_req) { g_resume = 0xF2FAu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0004u); setnz(A);
+    A = rd(0x0004u);
     tick(3u);
     wr(0x0006u, A);
     tick(2u);
@@ -6115,9 +6115,9 @@ L_F303: if (g_yield_req) { g_resume = 0xF303u; g_yield_req = 0u; return; }
     goto L_F306;
 L_F306: if (g_yield_req) { g_resume = 0xF306u; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(5u + (((rd(0x0002u) | (static_cast<eng::u16>(rd(0x0003u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y));
     tick(5u);
     wr((u16)(0x0331u + X), A);
     tick(5u);
@@ -6136,15 +6136,15 @@ L_F313: if (g_yield_req) { g_resume = 0xF313u; g_yield_req = 0u; return; }
     tick(2u);
     Cf = false;
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
-    { const u8 v = rd(0x0000u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0000u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
-    { const u8 v = rd(0x0001u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0001u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0001u, A);
     tick(4u);
@@ -6156,7 +6156,7 @@ L_F313: if (g_yield_req) { g_resume = 0xF313u; g_yield_req = 0u; return; }
     goto L_F327;
 L_F327: if (g_yield_req) { g_resume = 0xF327u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(5u);
     wr((u16)(0x0331u + X), A);
     tick(6u);
@@ -6167,40 +6167,40 @@ static void f_D032(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xD032u: goto L_D032; case 0xF435u: goto L_F435; case 0xF44Au: goto L_F44A; case 0xF44Fu: goto L_F44F; case 0xF453u: goto L_F453; case 0xF45Eu: goto L_F45E; case 0xF468u: goto L_F468; case 0xF472u: goto L_F472; case 0xF474u: goto L_F474; case 0xF479u: goto L_F479; case 0xF47Eu: goto L_F47E; case 0xF481u: goto L_F481; case 0xF483u: goto L_F483; case 0xF493u: goto L_F493; case 0xF499u: goto L_F499; case 0xF49Fu: goto L_F49F; case 0xF4A0u: goto L_F4A0; case 0xF4A4u: goto L_F4A4; case 0xF4A9u: goto L_F4A9; case 0xF4ACu: goto L_F4AC; case 0xF4B2u: goto L_F4B2; case 0xF4B8u: goto L_F4B8; case 0xF4BCu: goto L_F4BC; case 0xF4BEu: goto L_F4BE; case 0xF4C1u: goto L_F4C1; } }
 L_D032: if (g_yield_req) { g_resume = 0xD032u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0505u); setnz(A);
+    A = rd(0x0505u);
     tick(2u);
-    A = (u8)(A | 0x01u); setnz(A);
+    A = (u8)(A | 0x01u);
     tick(4u);
     wr(0x0505u, A);
     tick(2u);
-    A = 0xF9u; setnz(A);
+    A = 0xF9u;
     tick(3u);
     wr(0x0000u, A);
     tick(3u);
     goto L_F435;
 L_F435: if (g_yield_req) { g_resume = 0xF435u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x0004u, A);
     tick(2u);
     Cf = false;
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(2u);
-    { const u8 v = 0x10u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x10u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
-    A = (u8)(A & 0xF0u); setnz(A);
-    tick(2u);
-    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
+    A = (u8)(A & 0xF0u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
-    Y = A; setnz(Y);
+    { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
+    tick(2u);
+    Y = A;
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(2u);
-    A = (u8)(A & 0x07u); setnz(A);
+    A = (u8)(A & 0x07u);
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
@@ -6224,7 +6224,7 @@ L_F453: if (g_yield_req) { g_resume = 0xF453u; g_yield_req = 0u; return; }
     tick(2u);
     Cf = true;
     tick(4u + ((0x0023u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0023u + Y)); setnz(A);
+    A = rd((u16)(0x0023u + Y));
     tick(3u);
     wr(0x0003u, A);
     tick(4u);
@@ -6237,7 +6237,7 @@ L_F453: if (g_yield_req) { g_resume = 0xF453u; g_yield_req = 0u; return; }
     goto L_F45E;
 L_F45E: if (g_yield_req) { g_resume = 0xF45Eu; g_yield_req = 0u; return; } 
     tick(4u + ((0x0022u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0022u + Y)); setnz(A);
+    A = rd((u16)(0x0022u + Y));
     tick(3u);
     wr(0x0003u, A);
     tick(4u);
@@ -6250,7 +6250,7 @@ L_F45E: if (g_yield_req) { g_resume = 0xF45Eu; g_yield_req = 0u; return; }
     goto L_F468;
 L_F468: if (g_yield_req) { g_resume = 0xF468u; g_yield_req = 0u; return; } 
     tick(4u + ((0x0021u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0021u + Y)); setnz(A);
+    A = rd((u16)(0x0021u + Y));
     tick(3u);
     wr(0x0003u, A);
     tick(4u);
@@ -6291,15 +6291,15 @@ L_F481: if (g_yield_req) { g_resume = 0xF481u; g_yield_req = 0u; return; }
     goto L_F483;
 L_F483: if (g_yield_req) { g_resume = 0xF483u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd((u16)(0x0024u + X)); setnz(A);
+    A = rd((u16)(0x0024u + X));
     tick(3u);
     wr(0x0020u, A);
     tick(4u);
-    A = rd((u16)(0x0025u + X)); setnz(A);
+    A = rd((u16)(0x0025u + X));
     tick(3u);
     wr(0x0021u, A);
     tick(4u);
-    A = rd((u16)(0x0026u + X)); setnz(A);
+    A = rd((u16)(0x0026u + X));
     tick(3u);
     wr(0x0022u, A);
     tick(4u);
@@ -6309,7 +6309,7 @@ L_F483: if (g_yield_req) { g_resume = 0xF483u; g_yield_req = 0u; return; }
     goto L_F493;
 L_F493: if (g_yield_req) { g_resume = 0xF493u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(2u);
     A = (u8)(A & 0x08u); setnz(A);
     if (Zf) { tick(3u); goto L_F49F; }
@@ -6317,11 +6317,11 @@ L_F493: if (g_yield_req) { g_resume = 0xF493u; g_yield_req = 0u; return; }
     goto L_F499;
 L_F499: if (g_yield_req) { g_resume = 0xF499u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Nf) { tick(3u); goto L_F44A; }
@@ -6350,7 +6350,7 @@ L_F4A9: if (g_yield_req) { g_resume = 0xF4A9u; g_yield_req = 0u; return; }
     goto L_F4AC;
 L_F4AC: if (g_yield_req) { g_resume = 0xF4ACu; g_yield_req = 0u; return; } 
     tick(2u);
-    X = 0x09u; setnz(X);
+    X = 0x09u;
     tick(5u);
     { u8 t = (u8)(rd(0x0034u) - 1u); wr(0x0034u, t); setnz(t); }
     if (!Nf) { tick(3u); goto L_F4B8; }
@@ -6358,7 +6358,7 @@ L_F4AC: if (g_yield_req) { g_resume = 0xF4ACu; g_yield_req = 0u; return; }
     goto L_F4B2;
 L_F4B2: if (g_yield_req) { g_resume = 0xF4B2u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Au; setnz(A);
+    A = 0x0Au;
     tick(3u);
     wr(0x0034u, A);
     tick(2u);
@@ -6389,7 +6389,7 @@ static void f_F4C2(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xF4C2u: goto L_F4C2; case 0xF4CDu: goto L_F4CD; case 0xF4D5u: goto L_F4D5; case 0xF4DDu: goto L_F4DD; case 0xF4E4u: goto L_F4E4; } }
 L_F4C2: if (g_yield_req) { g_resume = 0xF4C2u; g_yield_req = 0u; return; } 
     tick(4u);
-    X = rd(0x0330u); setnz(X);
+    X = rd(0x0330u);
     tick(3u);
     A = rd(0x0001u); setnz(A);
     tick(5u);
@@ -6435,7 +6435,7 @@ L_F4DD: if (g_yield_req) { g_resume = 0xF4DDu; g_yield_req = 0u; return; }
     goto L_F4E4;
 L_F4E4: if (g_yield_req) { g_resume = 0xF4E4u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(5u);
     wr((u16)(0x0331u + X), A);
     tick(4u);
@@ -6454,7 +6454,7 @@ L_F344: if (g_yield_req) { g_resume = 0xF344u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0004u, X);
     tick(2u);
-    X = 0x00u; setnz(X);
+    X = 0x00u;
     tick(3u);
     wr(0x0005u, X);
     tick(3u);
@@ -6462,7 +6462,7 @@ L_F344: if (g_yield_req) { g_resume = 0xF344u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0007u, X);
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     tick(2u);
     A = (u8)(A & 0x08u); setnz(A);
     if (!Zf) { tick(3u); goto L_F355; }
@@ -6474,22 +6474,22 @@ L_F354: if (g_yield_req) { g_resume = 0xF354u; g_yield_req = 0u; return; }
     goto L_F355;
 L_F355: if (g_yield_req) { g_resume = 0xF355u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(4u);
     wr((u16)(0x0006u + X), A);
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     tick(3u);
     goto L_F35E;
 L_F35E: if (g_yield_req) { g_resume = 0xF35Eu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = (u8)(A & 0x07u); setnz(A);
+    A = (u8)(A & 0x07u);
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(3u);
     A = rd(0x0004u); setnz(A);
     if (Zf) { tick(3u); goto L_F38E; }
@@ -6505,7 +6505,7 @@ L_F36B: if (g_yield_req) { g_resume = 0xF36Bu; g_yield_req = 0u; return; }
     tick(2u);
     Cf = false;
     tick(4u);
-    A = rd((u16)(0x0027u + X)); setnz(A);
+    A = rd((u16)(0x0027u + X));
     tick(3u);
     wr(0x0003u, A);
     tick(3u);
@@ -6520,7 +6520,7 @@ L_F375: if (g_yield_req) { g_resume = 0xF375u; g_yield_req = 0u; return; }
     tick(4u);
     wr((u16)(0x0027u + X), A);
     tick(4u);
-    A = rd((u16)(0x0026u + X)); setnz(A);
+    A = rd((u16)(0x0026u + X));
     tick(3u);
     wr(0x0003u, A);
     tick(3u);
@@ -6535,7 +6535,7 @@ L_F380: if (g_yield_req) { g_resume = 0xF380u; g_yield_req = 0u; return; }
     tick(4u);
     wr((u16)(0x0026u + X), A);
     tick(4u);
-    A = rd((u16)(0x0025u + X)); setnz(A);
+    A = rd((u16)(0x0025u + X));
     tick(3u);
     wr(0x0003u, A);
     tick(3u);
@@ -6561,7 +6561,7 @@ L_F392: if (g_yield_req) { g_resume = 0xF392u; g_yield_req = 0u; return; }
     tick(2u);
     Cf = true;
     tick(4u);
-    A = rd((u16)(0x0027u + X)); setnz(A);
+    A = rd((u16)(0x0027u + X));
     tick(3u);
     wr(0x0003u, A);
     tick(3u);
@@ -6576,7 +6576,7 @@ L_F39C: if (g_yield_req) { g_resume = 0xF39Cu; g_yield_req = 0u; return; }
     tick(4u);
     wr((u16)(0x0027u + X), A);
     tick(4u);
-    A = rd((u16)(0x0026u + X)); setnz(A);
+    A = rd((u16)(0x0026u + X));
     tick(3u);
     wr(0x0003u, A);
     tick(3u);
@@ -6591,7 +6591,7 @@ L_F3A7: if (g_yield_req) { g_resume = 0xF3A7u; g_yield_req = 0u; return; }
     tick(4u);
     wr((u16)(0x0026u + X), A);
     tick(4u);
-    A = rd((u16)(0x0025u + X)); setnz(A);
+    A = rd((u16)(0x0025u + X));
     tick(3u);
     wr(0x0003u, A);
     tick(3u);
@@ -6628,7 +6628,7 @@ L_F3C0: if (g_yield_req) { g_resume = 0xF3C0u; g_yield_req = 0u; return; }
     goto L_F3C2;
 L_F3C2: if (g_yield_req) { g_resume = 0xF3C2u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd((u16)(0x0024u + X)); setnz(A);
+    A = rd((u16)(0x0024u + X));
     tick(2u);
     A = (u8)(A ^ 0xFFu); setnz(A);
     goto L_F3C6;
@@ -6638,7 +6638,7 @@ L_F3C6: if (g_yield_req) { g_resume = 0xF3C6u; g_yield_req = 0u; return; }
     tick(2u);
     Cf = true;
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x0003u, A);
     tick(4u);
@@ -6684,40 +6684,40 @@ static void f_CCC1(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xCCC1u: goto L_CCC1; case 0xCCD6u: goto L_CCD6; case 0xCCDCu: goto L_CCDC; case 0xCCE4u: goto L_CCE4; case 0xCCEBu: goto L_CCEB; case 0xCCF3u: goto L_CCF3; } }
 L_CCC1: if (g_yield_req) { g_resume = 0xCCC1u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x00A6u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC5A6u + X)); setnz(A);
+    A = rd((u16)(0xC5A6u + X));
     tick(3u);
     wr(0x0009u, A);
     tick(4u + ((0x00A7u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC5A7u + X)); setnz(A);
+    A = rd((u16)(0xC5A7u + X));
     tick(3u);
     wr(0x000Au, A);
     tick(2u);
-    X = 0x00u; setnz(X);
+    X = 0x00u;
     tick(2u);
     Y = 0x00u; setnz(Y);
     goto L_CCD6;
 L_CCD6: if (g_yield_req) { g_resume = 0xCCD6u; g_yield_req = 0u; return; } 
     tick(5u + (((rd(0x0009u) | (static_cast<eng::u16>(rd(0x000Au)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0009u) | ((u16)rd(0x000Au) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0009u) | ((u16)rd(0x000Au) << 8)) + Y));
     if (A == 254u) { goto L_CCF3; }
     goto L_CCDC;
 L_CCDC: if (g_yield_req) { g_resume = 0xCCDCu; g_yield_req = 0u; return; } 
     tick(4u);
     wr((u16)(0x0000u + X), A);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     if (X != 5u) { goto L_CCD6; }
     goto L_CCE4;
 L_CCE4: if (g_yield_req) { g_resume = 0xCCE4u; g_yield_req = 0u; return; } 
@@ -6733,11 +6733,11 @@ L_CCE4: if (g_yield_req) { g_resume = 0xCCE4u; g_yield_req = 0u; return; }
     goto L_CCEB;
 L_CCEB: if (g_yield_req) { g_resume = 0xCCEBu; g_yield_req = 0u; return; } 
     tick(3u);
-    Y = rd(0x0086u); setnz(Y);
+    Y = rd(0x0086u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    X = 0x00u; setnz(X);
+    X = 0x00u;
     tick(3u);
     goto L_CCD6;
 L_CCF3: if (g_yield_req) { g_resume = 0xCCF3u; g_yield_req = 0u; return; } 
@@ -6753,15 +6753,15 @@ L_CAB9: if (g_yield_req) { g_resume = 0xCAB9u; g_yield_req = 0u; return; }
     goto L_CABB;
 L_CABB: if (g_yield_req) { g_resume = 0xCABBu; g_yield_req = 0u; return; } 
     tick(4u + ((0x0053u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0053u + Y)); setnz(A);
+    A = rd((u16)(0x0053u + Y));
     tick(5u);
     wr((u16)(0x0400u + X), A);
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     if (Y != 3u) { goto L_CABB; }
     goto L_CAC8;
 L_CAC8: if (g_yield_req) { g_resume = 0xCAC8u; g_yield_req = 0u; return; } 
@@ -6777,54 +6777,54 @@ L_F096: if (g_yield_req) { g_resume = 0xF096u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Fu, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0005u); setnz(A);
+    A = rd(0x0005u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0006u); setnz(A);
+    A = rd(0x0006u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0008u); setnz(A);
+    A = rd(0x0008u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0009u); setnz(A);
+    A = rd(0x0009u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x0005u, A);
     tick(3u);
-    A = rd(0x000Fu); setnz(A);
+    A = rd(0x000Fu);
     if (A == 4u) { goto L_F0EF; }
     goto L_F0B9;
 L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Fu; setnz(A);
+    A = 0x0Fu;
     tick(3u);
-    A = (u8)(A & rd(0x0003u)); setnz(A);
+    A = (u8)(A & rd(0x0003u));
     tick(3u);
     wr(0x0007u, A);
     tick(3u);
-    A = rd(0x0003u); setnz(A);
+    A = rd(0x0003u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -6836,7 +6836,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0006u, A);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
     A = 0x00u; setnz(A);
     tick(2u);
@@ -6844,7 +6844,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     goto L_F0CB;
 L_F0CB: if (g_yield_req) { g_resume = 0xF0CBu; g_yield_req = 0u; return; } 
     tick(3u);
-    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Zf) { tick(3u); goto L_F0CB; }
@@ -6907,39 +6907,39 @@ L_F0EF: if (g_yield_req) { g_resume = 0xF0EFu; g_yield_req = 0u; return; }
     goto L_F0F2;
 L_F0F2: if (g_yield_req) { g_resume = 0xF0F2u; g_yield_req = 0u; return; } 
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0009u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0008u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0007u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0006u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0005u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(6u);
     return;
 }
@@ -6948,20 +6948,20 @@ static void f_C823(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xC823u: goto L_C823; case 0xCD76u: goto L_CD76; case 0xCD7Eu: goto L_CD7E; } }
 L_C823: if (g_yield_req) { g_resume = 0xC823u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x003Cu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC03Cu + X)); setnz(A);
+    A = rd((u16)(0xC03Cu + X));
     tick(3u);
     wr(0x0000u, A);
     tick(4u + ((0x003Du + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC03Du + X)); setnz(A);
+    A = rd((u16)(0xC03Du + X));
     tick(3u);
     wr(0x0001u, A);
     tick(3u);
     goto L_CD76;
 L_CD76: if (g_yield_req) { g_resume = 0xCD76u; g_yield_req = 0u; return; } 
     tick(5u + (((rd(0x0000u) | (static_cast<eng::u16>(rd(0x0001u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0000u) | ((u16)rd(0x0001u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0000u) | ((u16)rd(0x0001u) << 8)) + Y));
     tick(5u);
     wr((u16)(0x0331u + Y), A);
     tick(2u);
@@ -7000,54 +7000,54 @@ L_F096: if (g_yield_req) { g_resume = 0xF096u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Fu, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0005u); setnz(A);
+    A = rd(0x0005u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0006u); setnz(A);
+    A = rd(0x0006u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0008u); setnz(A);
+    A = rd(0x0008u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0009u); setnz(A);
+    A = rd(0x0009u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x0005u, A);
     tick(3u);
-    A = rd(0x000Fu); setnz(A);
+    A = rd(0x000Fu);
     if (A == 4u) { goto L_F0EF; }
     goto L_F0B9;
 L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Fu; setnz(A);
+    A = 0x0Fu;
     tick(3u);
-    A = (u8)(A & rd(0x0003u)); setnz(A);
+    A = (u8)(A & rd(0x0003u));
     tick(3u);
     wr(0x0007u, A);
     tick(3u);
-    A = rd(0x0003u); setnz(A);
+    A = rd(0x0003u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -7059,7 +7059,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0006u, A);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
     A = 0x00u; setnz(A);
     tick(2u);
@@ -7067,7 +7067,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     goto L_F0CB;
 L_F0CB: if (g_yield_req) { g_resume = 0xF0CBu; g_yield_req = 0u; return; } 
     tick(3u);
-    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Zf) { tick(3u); goto L_F0CB; }
@@ -7130,39 +7130,39 @@ L_F0EF: if (g_yield_req) { g_resume = 0xF0EFu; g_yield_req = 0u; return; }
     goto L_F0F2;
 L_F0F2: if (g_yield_req) { g_resume = 0xF0F2u; g_yield_req = 0u; return; } 
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0009u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0008u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0007u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0006u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0005u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(6u);
     return;
 }
@@ -7213,54 +7213,54 @@ L_F096: if (g_yield_req) { g_resume = 0xF096u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Fu, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0005u); setnz(A);
+    A = rd(0x0005u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0006u); setnz(A);
+    A = rd(0x0006u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0008u); setnz(A);
+    A = rd(0x0008u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0009u); setnz(A);
+    A = rd(0x0009u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x0005u, A);
     tick(3u);
-    A = rd(0x000Fu); setnz(A);
+    A = rd(0x000Fu);
     if (A == 4u) { goto L_F0EF; }
     goto L_F0B9;
 L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Fu; setnz(A);
+    A = 0x0Fu;
     tick(3u);
-    A = (u8)(A & rd(0x0003u)); setnz(A);
+    A = (u8)(A & rd(0x0003u));
     tick(3u);
     wr(0x0007u, A);
     tick(3u);
-    A = rd(0x0003u); setnz(A);
+    A = rd(0x0003u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -7272,7 +7272,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0006u, A);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
     A = 0x00u; setnz(A);
     tick(2u);
@@ -7280,7 +7280,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     goto L_F0CB;
 L_F0CB: if (g_yield_req) { g_resume = 0xF0CBu; g_yield_req = 0u; return; } 
     tick(3u);
-    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Zf) { tick(3u); goto L_F0CB; }
@@ -7343,39 +7343,39 @@ L_F0EF: if (g_yield_req) { g_resume = 0xF0EFu; g_yield_req = 0u; return; }
     goto L_F0F2;
 L_F0F2: if (g_yield_req) { g_resume = 0xF0F2u; g_yield_req = 0u; return; } 
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0009u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0008u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0007u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0006u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0005u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(6u);
     return;
 }
@@ -7388,7 +7388,7 @@ L_EAD4: if (g_yield_req) { g_resume = 0xEAD4u; g_yield_req = 0u; return; }
     goto L_EAD6;
 L_EAD6: if (g_yield_req) { g_resume = 0xEAD6u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x22u; setnz(A);
+    A = 0x22u;
     tick(3u);
     wr(0x0003u, A);
     tick(6u);
@@ -7431,54 +7431,54 @@ L_F096: if (g_yield_req) { g_resume = 0xF096u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Fu, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0005u); setnz(A);
+    A = rd(0x0005u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0006u); setnz(A);
+    A = rd(0x0006u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0008u); setnz(A);
+    A = rd(0x0008u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0009u); setnz(A);
+    A = rd(0x0009u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x0005u, A);
     tick(3u);
-    A = rd(0x000Fu); setnz(A);
+    A = rd(0x000Fu);
     if (A == 4u) { goto L_F0EF; }
     goto L_F0B9;
 L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Fu; setnz(A);
+    A = 0x0Fu;
     tick(3u);
-    A = (u8)(A & rd(0x0003u)); setnz(A);
+    A = (u8)(A & rd(0x0003u));
     tick(3u);
     wr(0x0007u, A);
     tick(3u);
-    A = rd(0x0003u); setnz(A);
+    A = rd(0x0003u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -7490,7 +7490,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0006u, A);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
     A = 0x00u; setnz(A);
     tick(2u);
@@ -7498,7 +7498,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     goto L_F0CB;
 L_F0CB: if (g_yield_req) { g_resume = 0xF0CBu; g_yield_req = 0u; return; } 
     tick(3u);
-    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Zf) { tick(3u); goto L_F0CB; }
@@ -7561,39 +7561,39 @@ L_F0EF: if (g_yield_req) { g_resume = 0xF0EFu; g_yield_req = 0u; return; }
     goto L_F0F2;
 L_F0F2: if (g_yield_req) { g_resume = 0xF0F2u; g_yield_req = 0u; return; } 
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0009u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0008u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0007u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0006u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0005u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(6u);
     return;
 }
@@ -7602,7 +7602,7 @@ static void f_CFA8(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xCFA8u: goto L_CFA8; case 0xCFACu: goto L_CFAC; case 0xCFB0u: goto L_CFB0; case 0xCFB8u: goto L_CFB8; case 0xCFC5u: goto L_CFC5; } }
 L_CFA8: if (g_yield_req) { g_resume = 0xCFA8u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = 0x00u; setnz(X);
+    X = 0x00u;
     tick(2u);
     Y = 0x00u; setnz(Y);
     goto L_CFAC;
@@ -7622,23 +7622,23 @@ L_CFB0: if (g_yield_req) { g_resume = 0xCFB0u; g_yield_req = 0u; return; }
     goto L_CFB8;
 L_CFB8: if (g_yield_req) { g_resume = 0xCFB8u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     if (((u8)(X - 2u) & 0x80u) != 0) { goto L_CFAC; }
     goto L_CFC5;
 L_CFC5: if (g_yield_req) { g_resume = 0xCFC5u; g_yield_req = 0u; return; } 
@@ -7656,11 +7656,11 @@ L_EBDA: if (g_yield_req) { g_resume = 0xEBDAu; g_yield_req = 0u; return; }
     goto L_EBDF;
 L_EBDF: if (g_yield_req) { g_resume = 0xEBDFu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(4u);
     wr(0x050Bu, A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(4u);
     wr(0x050Eu, A);
     tick(4u);
@@ -7675,12 +7675,12 @@ L_EBED: if (g_yield_req) { g_resume = 0xEBEDu; g_yield_req = 0u; return; }
     goto L_EBF2;
 L_EBF2: if (g_yield_req) { g_resume = 0xEBF2u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x050Du); setnz(A);
+    A = rd(0x050Du);
     if (A != 5u) { goto L_EC0A; }
     goto L_EBF9;
 L_EBF9: if (g_yield_req) { g_resume = 0xEBF9u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0096u); setnz(A);
+    A = rd(0x0096u);
     if (A != 10u) { goto L_EC03; }
     goto L_EBFF;
 L_EBFF: if (g_yield_req) { g_resume = 0xEBFFu; g_yield_req = 0u; return; } 
@@ -7691,7 +7691,7 @@ L_EBFF: if (g_yield_req) { g_resume = 0xEBFFu; g_yield_req = 0u; return; }
     goto L_EC03;
 L_EC03: if (g_yield_req) { g_resume = 0xEC03u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x04u; setnz(A);
+    A = 0x04u;
     tick(3u);
     wr(0x0096u, A);
     tick(3u);
@@ -7715,13 +7715,13 @@ L_EC12: if (g_yield_req) { g_resume = 0xEC12u; g_yield_req = 0u; return; }
     return;
 L_EC16: if (g_yield_req) { g_resume = 0xEC16u; g_yield_req = 0u; return; } 
     tick(4u);
-    X = rd(0x050Eu); setnz(X);
+    X = rd(0x050Eu);
     tick(4u + ((0x0028u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC028u + X)); setnz(A);
+    A = rd((u16)(0xC028u + X));
     tick(4u);
     wr(0x050Cu, A);
     tick(4u + ((0x0014u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC014u + X)); setnz(A);
+    A = rd((u16)(0xC014u + X));
     tick(4u);
     wr(0x050Du, A);
     tick(6u);
@@ -7734,13 +7734,13 @@ static void f_D175(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xD175u: goto L_D175; case 0xD181u: goto L_D181; case 0xD185u: goto L_D185; case 0xD189u: goto L_D189; case 0xD18Fu: goto L_D18F; case 0xD195u: goto L_D195; case 0xD199u: goto L_D199; } }
 L_D175: if (g_yield_req) { g_resume = 0xD175u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0052u); setnz(A);
+    A = rd(0x0052u);
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
-    A = rd((u16)(0x0015u + X)); setnz(A);
+    A = rd((u16)(0x0015u + X));
     tick(2u);
     A = (u8)(A & 0x0Fu); setnz(A);
     tick(3u);
@@ -7764,12 +7764,12 @@ L_D185: if (g_yield_req) { g_resume = 0xD185u; g_yield_req = 0u; return; }
     goto L_D189;
 L_D189: if (g_yield_req) { g_resume = 0xD189u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0096u); setnz(A);
+    A = rd(0x0096u);
     if (A != 1u) { goto L_D199; }
     goto L_D18F;
 L_D18F: if (g_yield_req) { g_resume = 0xD18Fu; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd((u16)(0x0015u + X)); setnz(A);
+    A = rd((u16)(0x0015u + X));
     tick(2u);
     A = (u8)(A & 0x80u); setnz(A);
     if (Zf) { tick(3u); goto L_D199; }
@@ -7799,29 +7799,29 @@ L_EB0B: if (g_yield_req) { g_resume = 0xEB0Bu; g_yield_req = 0u; return; }
     return;
 L_EB0C: if (g_yield_req) { g_resume = 0xEB0Cu; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0505u); setnz(A);
+    A = rd(0x0505u);
     tick(2u);
-    A = (u8)(A & 0x0Fu); setnz(A);
+    A = (u8)(A & 0x0Fu);
     tick(4u);
     wr(0x0505u, A);
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(4u + ((0x0008u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC608u + X)); setnz(A);
+    A = rd((u16)(0xC608u + X));
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    A = 0x20u; setnz(A);
+    A = 0x20u;
     tick(3u);
     wr(0x0001u, A);
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     if (((u8)(A - 2u) & 0x80u) != 0) { goto L_EB54; }
     goto L_EB27;
 L_EB27: if (g_yield_req) { g_resume = 0xEB27u; g_yield_req = 0u; return; } 
@@ -7869,14 +7869,14 @@ L_EB4E: if (g_yield_req) { g_resume = 0xEB4Eu; g_yield_req = 0u; return; }
     return;
 L_EB4F: if (g_yield_req) { g_resume = 0xEB4Fu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x25u; setnz(A);
+    A = 0x25u;
     tick(3u);
     wr(0x0044u, A);
     tick(6u);
     return;
 L_EB54: if (g_yield_req) { g_resume = 0xEB54u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0036u); setnz(A);
+    A = rd(0x0036u);
     if (A == 24u) { goto L_EB74; }
     goto L_EB5A;
 L_EB5A: if (g_yield_req) { g_resume = 0xEB5Au; g_yield_req = 0u; return; } 
@@ -7897,7 +7897,7 @@ L_EB63: if (g_yield_req) { g_resume = 0xEB63u; g_yield_req = 0u; return; }
     goto L_EB66;
 L_EB66: if (g_yield_req) { g_resume = 0xEB66u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(4u);
     wr(0x0515u, A);
     tick(2u);
@@ -7907,12 +7907,12 @@ L_EB66: if (g_yield_req) { g_resume = 0xEB66u; g_yield_req = 0u; return; }
     goto L_EB6F;
 L_EB6F: if (g_yield_req) { g_resume = 0xEB6Fu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0044u); setnz(A);
+    A = rd(0x0044u);
     tick(3u);
     goto L_EB2B;
 L_EB74: if (g_yield_req) { g_resume = 0xEB74u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x30u; setnz(A);
+    A = 0x30u;
     tick(3u);
     wr(0x0044u, A);
     tick(3u);
@@ -7939,7 +7939,7 @@ L_EB85: if (g_yield_req) { g_resume = 0xEB85u; g_yield_req = 0u; return; }
     goto L_EB89;
 L_EB89: if (g_yield_req) { g_resume = 0xEB89u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x40u; setnz(A);
+    A = 0x40u;
     tick(3u);
     goto L_EBA8;
 L_EB8E: if (g_yield_req) { g_resume = 0xEB8Eu; g_yield_req = 0u; return; } 
@@ -7950,12 +7950,12 @@ L_EB8E: if (g_yield_req) { g_resume = 0xEB8Eu; g_yield_req = 0u; return; }
     goto L_EB92;
 L_EB92: if (g_yield_req) { g_resume = 0xEB92u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x42u; setnz(A);
+    A = 0x42u;
     tick(3u);
     goto L_EBA8;
 L_EB9C: if (g_yield_req) { g_resume = 0xEB9Cu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x3Eu; setnz(A);
+    A = 0x3Eu;
     tick(3u);
     goto L_EBA8;
 L_EBA8: if (g_yield_req) { g_resume = 0xEBA8u; g_yield_req = 0u; return; } 
@@ -7969,9 +7969,9 @@ L_EBAB: if (g_yield_req) { g_resume = 0xEBABu; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0044u) - 1u); wr(0x0044u, t); setnz(t); }
     tick(4u);
-    A = rd(0x0505u); setnz(A);
+    A = rd(0x0505u);
     tick(2u);
-    A = (u8)(A | 0x10u); setnz(A);
+    A = (u8)(A | 0x10u);
     tick(4u);
     wr(0x0505u, A);
     tick(6u);
@@ -7997,18 +7997,18 @@ L_EBBB: if (g_yield_req) { g_resume = 0xEBBBu; g_yield_req = 0u; return; }
     goto L_EBBF;
 L_EBBF: if (g_yield_req) { g_resume = 0xEBBFu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xFFu; setnz(A);
+    A = 0xFFu;
     tick(3u);
     wr(0x0096u, A);
     tick(6u);
     return;
 L_EBC4: if (g_yield_req) { g_resume = 0xEBC4u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Bu; setnz(A);
+    A = 0x0Bu;
     tick(3u);
     wr(0x0045u, A);
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
@@ -8023,7 +8023,7 @@ L_EBC4: if (g_yield_req) { g_resume = 0xEBC4u; g_yield_req = 0u; return; }
     goto L_EBD3;
 L_EBD3: if (g_yield_req) { g_resume = 0xEBD3u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x0000u, A);
     tick(3u);
@@ -8070,7 +8070,7 @@ static void f_D041(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xD041u: goto L_D041; case 0xD047u: goto L_D047; case 0xD04Bu: goto L_D04B; } }
 L_D041: if (g_yield_req) { g_resume = 0xD041u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x002Eu); setnz(A);
+    A = rd(0x002Eu);
     if (((u8)(A - 16u) & 0x80u) == 0) { goto L_D04B; }
     goto L_D047;
 L_D047: if (g_yield_req) { g_resume = 0xD047u; g_yield_req = 0u; return; } 
@@ -8088,7 +8088,7 @@ static void f_D1A4(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xD1A4u: goto L_D1A4; case 0xD1AAu: goto L_D1AA; case 0xD1AEu: goto L_D1AE; case 0xD1B2u: goto L_D1B2; case 0xD1B6u: goto L_D1B6; case 0xD1BAu: goto L_D1BA; case 0xD1BBu: goto L_D1BB; case 0xD1BEu: goto L_D1BE; case 0xD1C3u: goto L_D1C3; case 0xD1C6u: goto L_D1C6; case 0xD1C9u: goto L_D1C9; case 0xD1CCu: goto L_D1CC; case 0xD37Eu: goto L_D37E; case 0xD384u: goto L_D384; case 0xD388u: goto L_D388; case 0xD38Bu: goto L_D38B; case 0xD38Eu: goto L_D38E; case 0xD392u: goto L_D392; case 0xD395u: goto L_D395; case 0xD39Au: goto L_D39A; case 0xD39Cu: goto L_D39C; case 0xD3A5u: goto L_D3A5; case 0xD3A7u: goto L_D3A7; case 0xD3AFu: goto L_D3AF; case 0xD3B2u: goto L_D3B2; case 0xD3B4u: goto L_D3B4; case 0xD3B8u: goto L_D3B8; case 0xD3BBu: goto L_D3BB; case 0xD3BFu: goto L_D3BF; case 0xD3C6u: goto L_D3C6; case 0xD3C8u: goto L_D3C8; case 0xD3CDu: goto L_D3CD; case 0xD3D0u: goto L_D3D0; case 0xD3D2u: goto L_D3D2; case 0xD3E4u: goto L_D3E4; case 0xD3E7u: goto L_D3E7; case 0xD3EBu: goto L_D3EB; case 0xD3F2u: goto L_D3F2; case 0xD3F4u: goto L_D3F4; case 0xD3F9u: goto L_D3F9; case 0xD3FBu: goto L_D3FB; case 0xD40Du: goto L_D40D; case 0xD417u: goto L_D417; case 0xD421u: goto L_D421; case 0xD426u: goto L_D426; case 0xD42Cu: goto L_D42C; case 0xD42Fu: goto L_D42F; case 0xD432u: goto L_D432; case 0xD436u: goto L_D436; case 0xD439u: goto L_D439; case 0xD43Eu: goto L_D43E; case 0xD442u: goto L_D442; case 0xD445u: goto L_D445; case 0xD450u: goto L_D450; case 0xD452u: goto L_D452; case 0xD45Au: goto L_D45A; case 0xD45Du: goto L_D45D; case 0xD45Fu: goto L_D45F; case 0xD463u: goto L_D463; case 0xD467u: goto L_D467; case 0xD46Eu: goto L_D46E; case 0xD471u: goto L_D471; case 0xD476u: goto L_D476; case 0xD478u: goto L_D478; case 0xD488u: goto L_D488; case 0xD48Bu: goto L_D48B; case 0xD48Fu: goto L_D48F; case 0xD496u: goto L_D496; case 0xD498u: goto L_D498; case 0xD49Du: goto L_D49D; case 0xD49Fu: goto L_D49F; case 0xD4B1u: goto L_D4B1; case 0xD4BBu: goto L_D4BB; case 0xD4C1u: goto L_D4C1; case 0xD4C6u: goto L_D4C6; case 0xD4CCu: goto L_D4CC; case 0xD4CFu: goto L_D4CF; case 0xD4D2u: goto L_D4D2; case 0xD4D6u: goto L_D4D6; case 0xD4DFu: goto L_D4DF; case 0xD4EDu: goto L_D4ED; case 0xD547u: goto L_D547; case 0xD54Cu: goto L_D54C; case 0xD550u: goto L_D550; case 0xD551u: goto L_D551; case 0xD557u: goto L_D557; case 0xD55Au: goto L_D55A; case 0xD55Du: goto L_D55D; case 0xD55Fu: goto L_D55F; case 0xD565u: goto L_D565; case 0xD56Au: goto L_D56A; case 0xD56Cu: goto L_D56C; case 0xD570u: goto L_D570; case 0xD57Au: goto L_D57A; case 0xD585u: goto L_D585; case 0xD589u: goto L_D589; case 0xD58Cu: goto L_D58C; case 0xD590u: goto L_D590; case 0xD59Au: goto L_D59A; case 0xD5A1u: goto L_D5A1; case 0xD5A5u: goto L_D5A5; case 0xD5AFu: goto L_D5AF; case 0xD5B3u: goto L_D5B3; case 0xD5BBu: goto L_D5BB; case 0xD5BFu: goto L_D5BF; case 0xD5C8u: goto L_D5C8; case 0xD5CCu: goto L_D5CC; case 0xD5CFu: goto L_D5CF; case 0xD5D3u: goto L_D5D3; case 0xD5E2u: goto L_D5E2; case 0xD5F1u: goto L_D5F1; case 0xD5F6u: goto L_D5F6; case 0xD5F9u: goto L_D5F9; case 0xD600u: goto L_D600; case 0xD608u: goto L_D608; case 0xD60Du: goto L_D60D; case 0xD615u: goto L_D615; case 0xD61Bu: goto L_D61B; case 0xD620u: goto L_D620; case 0xD631u: goto L_D631; case 0xD642u: goto L_D642; case 0xD64Fu: goto L_D64F; case 0xD697u: goto L_D697; case 0xD69Cu: goto L_D69C; case 0xD69Eu: goto L_D69E; case 0xD6A1u: goto L_D6A1; case 0xD6ABu: goto L_D6AB; case 0xD6B1u: goto L_D6B1; case 0xD6B7u: goto L_D6B7; case 0xD6BCu: goto L_D6BC; case 0xD6BFu: goto L_D6BF; case 0xD6C1u: goto L_D6C1; case 0xD6C5u: goto L_D6C5; case 0xD6C6u: goto L_D6C6; case 0xD6CAu: goto L_D6CA; case 0xD6CDu: goto L_D6CD; case 0xD6D6u: goto L_D6D6; case 0xD6D8u: goto L_D6D8; case 0xD6D9u: goto L_D6D9; case 0xD6DCu: goto L_D6DC; case 0xD6DEu: goto L_D6DE; case 0xD6E4u: goto L_D6E4; case 0xD6E8u: goto L_D6E8; case 0xD6EFu: goto L_D6EF; case 0xD6F2u: goto L_D6F2; case 0xD6FAu: goto L_D6FA; case 0xD6FEu: goto L_D6FE; case 0xD703u: goto L_D703; case 0xD705u: goto L_D705; case 0xD70Au: goto L_D70A; case 0xD710u: goto L_D710; case 0xD713u: goto L_D713; case 0xD716u: goto L_D716; case 0xD71Eu: goto L_D71E; case 0xD723u: goto L_D723; case 0xD725u: goto L_D725; case 0xD72Bu: goto L_D72B; case 0xD732u: goto L_D732; case 0xD735u: goto L_D735; case 0xD737u: goto L_D737; case 0xD73Eu: goto L_D73E; case 0xD746u: goto L_D746; case 0xD74Au: goto L_D74A; case 0xD74Fu: goto L_D74F; case 0xD753u: goto L_D753; case 0xD75Cu: goto L_D75C; case 0xD762u: goto L_D762; case 0xD767u: goto L_D767; case 0xD769u: goto L_D769; case 0xD76Bu: goto L_D76B; case 0xD786u: goto L_D786; case 0xD78Cu: goto L_D78C; case 0xD795u: goto L_D795; case 0xD79Bu: goto L_D79B; case 0xD7ADu: goto L_D7AD; case 0xD7B3u: goto L_D7B3; case 0xD7B8u: goto L_D7B8; case 0xD7BAu: goto L_D7BA; case 0xD7BFu: goto L_D7BF; case 0xD7C9u: goto L_D7C9; case 0xD7D3u: goto L_D7D3; case 0xD7DAu: goto L_D7DA; case 0xD7DFu: goto L_D7DF; case 0xD7E2u: goto L_D7E2; case 0xF070u: goto L_F070; case 0xF075u: goto L_F075; case 0xF078u: goto L_F078; case 0xF096u: goto L_F096; case 0xF0B9u: goto L_F0B9; case 0xF0CBu: goto L_F0CB; case 0xF0D0u: goto L_F0D0; case 0xF0D6u: goto L_F0D6; case 0xF0D9u: goto L_F0D9; case 0xF0DCu: goto L_F0DC; case 0xF0E0u: goto L_F0E0; case 0xF0E3u: goto L_F0E3; case 0xF0E6u: goto L_F0E6; case 0xF0E9u: goto L_F0E9; case 0xF0ECu: goto L_F0EC; case 0xF0EFu: goto L_F0EF; case 0xF0F2u: goto L_F0F2; } }
 L_D1A4: if (g_yield_req) { g_resume = 0xD1A4u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0096u); setnz(A);
+    A = rd(0x0096u);
     if (A == 1u) { goto L_D1BB; }
     goto L_D1AA;
 L_D1AA: if (g_yield_req) { g_resume = 0xD1AAu; g_yield_req = 0u; return; } 
@@ -8115,7 +8115,7 @@ L_D1BB: if (g_yield_req) { g_resume = 0xD1BBu; g_yield_req = 0u; return; }
     goto L_D1BE;
 L_D1BE: if (g_yield_req) { g_resume = 0xD1BEu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0096u); setnz(A);
+    A = rd(0x0096u);
     tick(3u);
     goto L_D1AA;
 L_D1C3: if (g_yield_req) { g_resume = 0xD1C3u; g_yield_req = 0u; return; } 
@@ -8132,7 +8132,7 @@ L_D1CC: if (g_yield_req) { g_resume = 0xD1CCu; g_yield_req = 0u; return; }
     goto L_D6C6;
 L_D37E: if (g_yield_req) { g_resume = 0xD37Eu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0056u); setnz(A);
+    A = rd(0x0056u);
     if (A == 8u) { goto L_D38E; }
     goto L_D384;
 L_D384: if (g_yield_req) { g_resume = 0xD384u; g_yield_req = 0u; return; } 
@@ -8172,7 +8172,7 @@ L_D39A: if (g_yield_req) { g_resume = 0xD39Au; g_yield_req = 0u; return; }
     goto L_D39C;
 L_D39C: if (g_yield_req) { g_resume = 0xD39Cu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x24u; setnz(A);
+    A = 0x24u;
     tick(3u);
     wr(0x000Au, A);
     tick(2u);
@@ -8189,7 +8189,7 @@ L_D3A5: if (g_yield_req) { g_resume = 0xD3A5u; g_yield_req = 0u; return; }
     goto L_D3A7;
 L_D3A7: if (g_yield_req) { g_resume = 0xD3A7u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0200u); setnz(A);
+    A = rd(0x0200u);
     tick(3u);
     wr(0x0001u, A);
     tick(3u);
@@ -8221,7 +8221,7 @@ L_D3BF: if (g_yield_req) { g_resume = 0xD3BFu; g_yield_req = 0u; return; }
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     if (A == 16u) { goto L_D3D2; }
     goto L_D3C6;
 L_D3C6: if (g_yield_req) { g_resume = 0xD3C6u; g_yield_req = 0u; return; } 
@@ -8230,7 +8230,7 @@ L_D3C6: if (g_yield_req) { g_resume = 0xD3C6u; g_yield_req = 0u; return; }
     goto L_D3C8;
 L_D3C8: if (g_yield_req) { g_resume = 0xD3C8u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x10u; setnz(A);
+    A = 0x10u;
     tick(3u);
     goto L_D3D2;
 L_D3CD: if (g_yield_req) { g_resume = 0xD3CDu; g_yield_req = 0u; return; } 
@@ -8244,11 +8244,11 @@ L_D3D2: if (g_yield_req) { g_resume = 0xD3D2u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x005Bu, A);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(4u + ((0x0047u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC147u + X)); setnz(A);
+    A = rd((u16)(0xC147u + X));
     tick(3u);
     wr(0x0002u, A);
     tick(2u);
@@ -8276,7 +8276,7 @@ L_D3EB: if (g_yield_req) { g_resume = 0xD3EBu; g_yield_req = 0u; return; }
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     if (A == 6u) { goto L_D3FB; }
     goto L_D3F2;
 L_D3F2: if (g_yield_req) { g_resume = 0xD3F2u; g_yield_req = 0u; return; } 
@@ -8285,7 +8285,7 @@ L_D3F2: if (g_yield_req) { g_resume = 0xD3F2u; g_yield_req = 0u; return; }
     goto L_D3F4;
 L_D3F4: if (g_yield_req) { g_resume = 0xD3F4u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     goto L_D3FB;
 L_D3F9: if (g_yield_req) { g_resume = 0xD3F9u; g_yield_req = 0u; return; } 
@@ -8296,11 +8296,11 @@ L_D3FB: if (g_yield_req) { g_resume = 0xD3FBu; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x005Cu, A);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(4u + ((0x0059u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC159u + X)); setnz(A);
+    A = rd((u16)(0xC159u + X));
     tick(3u);
     wr(0x0002u, A);
     tick(2u);
@@ -8330,21 +8330,21 @@ L_D40D: if (g_yield_req) { g_resume = 0xD40Du; g_yield_req = 0u; return; }
     goto L_D417;
 L_D417: if (g_yield_req) { g_resume = 0xD417u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x0004u, A);
     tick(3u);
-    A = rd(0x0002u); setnz(A);
+    A = rd(0x0002u);
     if (A == 84u) { goto L_D426; }
     goto L_D421;
 L_D421: if (g_yield_req) { g_resume = 0xD421u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     goto L_D42C;
 L_D426: if (g_yield_req) { g_resume = 0xD426u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x24u; setnz(A);
+    A = 0x24u;
     tick(3u);
     wr(0x0002u, A);
     tick(2u);
@@ -8390,7 +8390,7 @@ L_D442: if (g_yield_req) { g_resume = 0xD442u; g_yield_req = 0u; return; }
     goto L_D4CF;
 L_D445: if (g_yield_req) { g_resume = 0xD445u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x24u; setnz(A);
+    A = 0x24u;
     tick(3u);
     wr(0x000Au, A);
     tick(2u);
@@ -8409,7 +8409,7 @@ L_D450: if (g_yield_req) { g_resume = 0xD450u; g_yield_req = 0u; return; }
     goto L_D452;
 L_D452: if (g_yield_req) { g_resume = 0xD452u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0200u); setnz(A);
+    A = rd(0x0200u);
     tick(3u);
     wr(0x0001u, A);
     tick(3u);
@@ -8438,7 +8438,7 @@ L_D467: if (g_yield_req) { g_resume = 0xD467u; g_yield_req = 0u; return; }
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     if (A < 1u) { goto L_D476; }
     goto L_D46E;
 L_D46E: if (g_yield_req) { g_resume = 0xD46Eu; g_yield_req = 0u; return; } 
@@ -8446,7 +8446,7 @@ L_D46E: if (g_yield_req) { g_resume = 0xD46Eu; g_yield_req = 0u; return; }
     goto L_D478;
 L_D471: if (g_yield_req) { g_resume = 0xD471u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Du; setnz(A);
+    A = 0x0Du;
     tick(3u);
     goto L_D478;
 L_D476: if (g_yield_req) { g_resume = 0xD476u; g_yield_req = 0u; return; } 
@@ -8457,11 +8457,11 @@ L_D478: if (g_yield_req) { g_resume = 0xD478u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x005Bu, A);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(4u + ((0x0047u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC147u + X)); setnz(A);
+    A = rd((u16)(0xC147u + X));
     tick(3u);
     wr(0x0002u, A);
     tick(2u);
@@ -8487,7 +8487,7 @@ L_D48F: if (g_yield_req) { g_resume = 0xD48Fu; g_yield_req = 0u; return; }
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     if (A == 6u) { goto L_D49F; }
     goto L_D496;
 L_D496: if (g_yield_req) { g_resume = 0xD496u; g_yield_req = 0u; return; } 
@@ -8496,7 +8496,7 @@ L_D496: if (g_yield_req) { g_resume = 0xD496u; g_yield_req = 0u; return; }
     goto L_D498;
 L_D498: if (g_yield_req) { g_resume = 0xD498u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     goto L_D49F;
 L_D49D: if (g_yield_req) { g_resume = 0xD49Du; g_yield_req = 0u; return; } 
@@ -8509,11 +8509,11 @@ L_D49F: if (g_yield_req) { g_resume = 0xD49Fu; g_yield_req = 0u; return; }
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x0059u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC159u + X)); setnz(A);
+    A = rd((u16)(0xC159u + X));
     tick(3u);
     wr(0x0002u, A);
     tick(2u);
@@ -8541,17 +8541,17 @@ L_D4B1: if (g_yield_req) { g_resume = 0xD4B1u; g_yield_req = 0u; return; }
     goto L_D4BB;
 L_D4BB: if (g_yield_req) { g_resume = 0xD4BBu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0002u); setnz(A);
+    A = rd(0x0002u);
     if (A == 84u) { goto L_D4C6; }
     goto L_D4C1;
 L_D4C1: if (g_yield_req) { g_resume = 0xD4C1u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     goto L_D4CC;
 L_D4C6: if (g_yield_req) { g_resume = 0xD4C6u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x24u; setnz(A);
+    A = 0x24u;
     tick(3u);
     wr(0x0002u, A);
     tick(2u);
@@ -8579,7 +8579,7 @@ L_D4D2: if (g_yield_req) { g_resume = 0xD4D2u; g_yield_req = 0u; return; }
     goto L_D4D6;
 L_D4D6: if (g_yield_req) { g_resume = 0xD4D6u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0200u); setnz(A);
+    A = rd(0x0200u);
     tick(2u);
     Cf = false;
     tick(2u);
@@ -8594,7 +8594,7 @@ L_D4DF: if (g_yield_req) { g_resume = 0xD4DFu; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0059u, A);
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     wr(0x0096u, A);
     tick(2u);
@@ -8626,7 +8626,7 @@ L_D550: if (g_yield_req) { g_resume = 0xD550u; g_yield_req = 0u; return; }
     return;
 L_D551: if (g_yield_req) { g_resume = 0xD551u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0094u); setnz(A);
+    A = rd(0x0094u);
     if (A < 240u) { goto L_D55A; }
     goto L_D557;
 L_D557: if (g_yield_req) { g_resume = 0xD557u; g_yield_req = 0u; return; } 
@@ -8645,12 +8645,12 @@ L_D55D: if (g_yield_req) { g_resume = 0xD55Du; g_yield_req = 0u; return; }
     goto L_D55F;
 L_D55F: if (g_yield_req) { g_resume = 0xD55Fu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0056u); setnz(A);
+    A = rd(0x0056u);
     if (A != 1u) { goto L_D56A; }
     goto L_D565;
 L_D565: if (g_yield_req) { g_resume = 0xD565u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     goto L_D56C;
 L_D56A: if (g_yield_req) { g_resume = 0xD56Au; g_yield_req = 0u; return; } 
@@ -8665,7 +8665,7 @@ L_D56C: if (g_yield_req) { g_resume = 0xD56Cu; g_yield_req = 0u; return; }
     goto L_D570;
 L_D570: if (g_yield_req) { g_resume = 0xD570u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0200u); setnz(A);
+    A = rd(0x0200u);
     tick(3u);
     wr(0x0001u, A);
     tick(2u);
@@ -8678,11 +8678,11 @@ L_D570: if (g_yield_req) { g_resume = 0xD570u; g_yield_req = 0u; return; }
     goto L_D57A;
 L_D57A: if (g_yield_req) { g_resume = 0xD57Au; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     tick(4u);
     wr(0x0200u, A);
     tick(3u);
-    A = rd(0x0056u); setnz(A);
+    A = rd(0x0056u);
     if (A == 1u) { goto L_D58C; }
     goto L_D585;
 L_D585: if (g_yield_req) { g_resume = 0xD585u; g_yield_req = 0u; return; } 
@@ -8701,14 +8701,14 @@ L_D590: if (g_yield_req) { g_resume = 0xD590u; g_yield_req = 0u; return; }
     tick(6u);
     { u8 t = (u8)(rd(0x0203u) + 1u); wr(0x0203u, t); setnz(t); }
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x009Eu, A);
     tick(3u);
     goto L_D5B3;
 L_D59A: if (g_yield_req) { g_resume = 0xD59Au; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     wr(0x009Eu, A);
     tick(3u);
@@ -8723,7 +8723,7 @@ L_D5A5: if (g_yield_req) { g_resume = 0xD5A5u; g_yield_req = 0u; return; }
     tick(6u);
     { u8 t = (u8)(rd(0x0203u) - 1u); wr(0x0203u, t); setnz(t); }
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x009Eu, A);
     tick(3u);
@@ -8753,11 +8753,11 @@ L_D5BB: if (g_yield_req) { g_resume = 0xD5BBu; g_yield_req = 0u; return; }
     goto L_D5BF;
 L_D5BF: if (g_yield_req) { g_resume = 0xD5BFu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x10u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x10u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     { const u8 v = rd(0x0095u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Cf) { tick(3u); goto L_D5CC; }
@@ -8784,37 +8784,37 @@ L_D5CF: if (g_yield_req) { g_resume = 0xD5CFu; g_yield_req = 0u; return; }
     goto L_D5D3;
 L_D5D3: if (g_yield_req) { g_resume = 0xD5D3u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x004Bu); setnz(A);
+    A = rd(0x004Bu);
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x11u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x11u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(4u);
     wr(0x0200u, A);
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     wr(0x005Au, A);
     tick(3u);
     goto L_D5F6;
 L_D5E2: if (g_yield_req) { g_resume = 0xD5E2u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x04u; setnz(A);
+    A = 0x04u;
     tick(3u);
     wr(0x00FFu, A);
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     wr(0x0094u, A);
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     tick(3u);
     wr(0x0095u, A);
     tick(3u);
     goto L_D5F1;
 L_D5F1: if (g_yield_req) { g_resume = 0xD5F1u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x28u; setnz(A);
+    A = 0x28u;
     tick(3u);
     goto L_F070;
 L_D5F6: if (g_yield_req) { g_resume = 0xD5F6u; g_yield_req = 0u; return; } 
@@ -8837,9 +8837,9 @@ L_D5F9: if (g_yield_req) { g_resume = 0xD5F9u; g_yield_req = 0u; return; }
     goto L_D600;
 L_D600: if (g_yield_req) { g_resume = 0xD600u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0057u); setnz(A);
+    A = rd(0x0057u);
     tick(2u);
-    A = (u8)(A & 0x03u); setnz(A);
+    A = (u8)(A & 0x03u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(6u);
@@ -8850,7 +8850,7 @@ L_D600: if (g_yield_req) { g_resume = 0xD600u; g_yield_req = 0u; return; }
     goto L_D608;
 L_D608: if (g_yield_req) { g_resume = 0xD608u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xF0u; setnz(A);
+    A = 0xF0u;
     tick(3u);
     wr(0x0094u, A);
     tick(6u);
@@ -8859,12 +8859,12 @@ L_D60D: if (g_yield_req) { g_resume = 0xD60Du; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0094u) + 1u); wr(0x0094u, t); setnz(t); }
     tick(3u);
-    A = rd(0x0094u); setnz(A);
+    A = rd(0x0094u);
     if (A != 244u) { goto L_D64F; }
     goto L_D615;
 L_D615: if (g_yield_req) { g_resume = 0xD615u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0095u); setnz(A);
+    A = rd(0x0095u);
     if (A == 255u) { goto L_D642; }
     goto L_D61B;
 L_D61B: if (g_yield_req) { g_resume = 0xD61Bu; g_yield_req = 0u; return; } 
@@ -8878,7 +8878,7 @@ L_D61B: if (g_yield_req) { g_resume = 0xD61Bu; g_yield_req = 0u; return; }
     goto L_D620;
 L_D620: if (g_yield_req) { g_resume = 0xD620u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(4u);
     wr(0x042Cu, A);
     tick(3u);
@@ -8886,7 +8886,7 @@ L_D620: if (g_yield_req) { g_resume = 0xD620u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0095u, A);
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     wr(0x0096u, A);
     tick(3u);
@@ -8896,26 +8896,26 @@ L_D620: if (g_yield_req) { g_resume = 0xD620u; g_yield_req = 0u; return; }
     goto L_D631;
 L_D631: if (g_yield_req) { g_resume = 0xD631u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     wr(0x009Fu, A);
     tick(2u);
-    A = 0x4Bu; setnz(A);
+    A = 0x4Bu;
     tick(3u);
     wr(0x003Fu, A);
     tick(2u);
-    A = 0x0Au; setnz(A);
+    A = 0x0Au;
     tick(3u);
     wr(0x0096u, A);
     tick(2u);
-    A = 0x40u; setnz(A);
+    A = 0x40u;
     tick(3u);
     wr(0x00FCu, A);
     tick(6u);
     return;
 L_D642: if (g_yield_req) { g_resume = 0xD642u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(4u);
     wr(0x042Cu, A);
     tick(3u);
@@ -8956,17 +8956,17 @@ L_D6A1: if (g_yield_req) { g_resume = 0xD6A1u; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0001u) + 1u); wr(0x0001u, t); setnz(t); }
     tick(3u);
-    A = rd(0x0057u); setnz(A);
+    A = rd(0x0057u);
     if (A == 2u) { goto L_D6B1; }
     goto L_D6AB;
 L_D6AB: if (g_yield_req) { g_resume = 0xD6ABu; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0201u); setnz(A);
+    A = rd(0x0201u);
     tick(3u);
     goto L_D6B7;
 L_D6B1: if (g_yield_req) { g_resume = 0xD6B1u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0201u); setnz(A);
+    A = rd(0x0201u);
     tick(2u);
     Cf = true;
     tick(2u);
@@ -9012,7 +9012,7 @@ L_D6CA: if (g_yield_req) { g_resume = 0xD6CAu; g_yield_req = 0u; return; }
     goto L_D7BF;
 L_D6CD: if (g_yield_req) { g_resume = 0xD6CDu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xDBu; setnz(A);
+    A = 0xDBu;
     tick(3u);
     wr(0x000Au, A);
     tick(2u);
@@ -9043,7 +9043,7 @@ L_D6DC: if (g_yield_req) { g_resume = 0xD6DCu; g_yield_req = 0u; return; }
     goto L_D6DE;
 L_D6DE: if (g_yield_req) { g_resume = 0xD6DEu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0056u); setnz(A);
+    A = rd(0x0056u);
     if (A == 1u) { goto L_D70A; }
     goto L_D6E4;
 L_D6E4: if (g_yield_req) { g_resume = 0xD6E4u; g_yield_req = 0u; return; } 
@@ -9051,7 +9051,7 @@ L_D6E4: if (g_yield_req) { g_resume = 0xD6E4u; g_yield_req = 0u; return; }
     goto L_D6E8;
 L_D6E8: if (g_yield_req) { g_resume = 0xD6E8u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x00A2u); setnz(A);
+    A = rd(0x00A2u);
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(3u);
@@ -9064,7 +9064,7 @@ L_D6EF: if (g_yield_req) { g_resume = 0xD6EFu; g_yield_req = 0u; return; }
     goto L_D753;
 L_D6F2: if (g_yield_req) { g_resume = 0xD6F2u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x20u; setnz(A);
+    A = 0x20u;
     tick(3u);
     wr(0x00A2u, A);
     tick(3u);
@@ -9077,7 +9077,7 @@ L_D6FA: if (g_yield_req) { g_resume = 0xD6FAu; g_yield_req = 0u; return; }
     goto L_D6FE;
 L_D6FE: if (g_yield_req) { g_resume = 0xD6FEu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     goto L_D705;
 L_D703: if (g_yield_req) { g_resume = 0xD703u; g_yield_req = 0u; return; } 
@@ -9131,7 +9131,7 @@ L_D723: if (g_yield_req) { g_resume = 0xD723u; g_yield_req = 0u; return; }
     goto L_D725;
 L_D725: if (g_yield_req) { g_resume = 0xD725u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x0053u); setnz(X);
+    X = rd(0x0053u);
     if (X != 1u) { goto L_D732; }
     goto L_D72B;
 L_D72B: if (g_yield_req) { g_resume = 0xD72Bu; g_yield_req = 0u; return; } 
@@ -9155,14 +9155,14 @@ L_D735: if (g_yield_req) { g_resume = 0xD735u; g_yield_req = 0u; return; }
     goto L_D737;
 L_D737: if (g_yield_req) { g_resume = 0xD737u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x08u; setnz(A);
+    A = 0x08u;
     tick(3u);
     wr(0x0096u, A);
     tick(3u);
     goto L_D7BF;
 L_D73E: if (g_yield_req) { g_resume = 0xD73Eu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x08u; setnz(A);
+    A = 0x08u;
     tick(3u);
     wr(0x00FFu, A);
     tick(3u);
@@ -9186,9 +9186,9 @@ L_D74F: if (g_yield_req) { g_resume = 0xD74Fu; g_yield_req = 0u; return; }
     goto L_D753;
 L_D753: if (g_yield_req) { g_resume = 0xD753u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x009Fu); setnz(X);
+    X = rd(0x009Fu);
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(4u + ((0x00A2u + X) > 0xFFu ? 1u : 0u));
     A = rd((u16)(0xC1A2u + X)); setnz(A);
     tick(6u);
@@ -9199,7 +9199,7 @@ L_D753: if (g_yield_req) { g_resume = 0xD753u; g_yield_req = 0u; return; }
     goto L_D75C;
 L_D75C: if (g_yield_req) { g_resume = 0xD75Cu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x009Fu); setnz(A);
+    A = rd(0x009Fu);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -9209,7 +9209,7 @@ L_D75C: if (g_yield_req) { g_resume = 0xD75Cu; g_yield_req = 0u; return; }
     goto L_D762;
 L_D762: if (g_yield_req) { g_resume = 0xD762u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     goto L_D769;
 L_D767: if (g_yield_req) { g_resume = 0xD767u; g_yield_req = 0u; return; } 
@@ -9222,48 +9222,48 @@ L_D769: if (g_yield_req) { g_resume = 0xD769u; g_yield_req = 0u; return; }
     goto L_D76B;
 L_D76B: if (g_yield_req) { g_resume = 0xD76Bu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x04u; setnz(A);
+    A = 0x04u;
     tick(2u);
     Cf = false;
     tick(4u);
-    { const u8 v = rd(0x0203u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0203u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    A = rd(0x0200u); setnz(A);
+    A = rd(0x0200u);
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x0Eu; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x0Eu; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0001u, A);
     tick(2u);
-    A = 0x21u; setnz(A);
+    A = 0x21u;
     tick(3u);
     wr(0x0003u, A);
     tick(2u);
-    A = 0xF6u; setnz(A);
+    A = 0xF6u;
     tick(3u);
     wr(0x0002u, A);
     tick(3u);
     goto L_D7AD;
 L_D786: if (g_yield_req) { g_resume = 0xD786u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0057u); setnz(A);
+    A = rd(0x0057u);
     if (A != 1u) { goto L_D795; }
     goto L_D78C;
 L_D78C: if (g_yield_req) { g_resume = 0xD78Cu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Eu; setnz(A);
+    A = 0x0Eu;
     tick(2u);
     Cf = false;
     tick(4u);
-    { const u8 v = rd(0x0203u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0203u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     goto L_D79B;
 L_D795: if (g_yield_req) { g_resume = 0xD795u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0203u); setnz(A);
+    A = rd(0x0203u);
     tick(2u);
     Cf = true;
     tick(2u);
@@ -9273,15 +9273,15 @@ L_D79B: if (g_yield_req) { g_resume = 0xD79Bu; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    A = 0x06u; setnz(A);
+    A = 0x06u;
     tick(2u);
     Cf = false;
     tick(4u);
-    { const u8 v = rd(0x0200u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0200u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0001u, A);
     tick(2u);
-    A = 0x12u; setnz(A);
+    A = 0x12u;
     tick(3u);
     wr(0x0003u, A);
     tick(2u);
@@ -9291,12 +9291,12 @@ L_D79B: if (g_yield_req) { g_resume = 0xD79Bu; g_yield_req = 0u; return; }
     goto L_D7AD;
 L_D7AD: if (g_yield_req) { g_resume = 0xD7ADu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x00A0u); setnz(A);
+    A = rd(0x00A0u);
     if (A == 1u) { goto L_D7B8; }
     goto L_D7B3;
 L_D7B3: if (g_yield_req) { g_resume = 0xD7B3u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xD8u; setnz(A);
+    A = 0xD8u;
     tick(3u);
     goto L_D7BA;
 L_D7B8: if (g_yield_req) { g_resume = 0xD7B8u; g_yield_req = 0u; return; } 
@@ -9310,25 +9310,25 @@ L_D7BA: if (g_yield_req) { g_resume = 0xD7BAu; g_yield_req = 0u; return; }
     goto L_F078;
 L_D7BF: if (g_yield_req) { g_resume = 0xD7BFu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x12u; setnz(A);
+    A = 0x12u;
     tick(3u);
     wr(0x0003u, A);
     tick(3u);
-    A = rd(0x00A0u); setnz(A);
+    A = rd(0x00A0u);
     if (A == 1u) { goto L_D7D3; }
     goto L_D7C9;
 L_D7C9: if (g_yield_req) { g_resume = 0xD7C9u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(4u);
     wr(0x0452u, A);
     tick(2u);
-    A = 0xD8u; setnz(A);
+    A = 0xD8u;
     tick(3u);
     goto L_D7DA;
 L_D7D3: if (g_yield_req) { g_resume = 0xD7D3u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(4u);
     wr(0x0451u, A);
     tick(2u);
@@ -9352,17 +9352,17 @@ L_D7DF: if (g_yield_req) { g_resume = 0xD7DFu; g_yield_req = 0u; return; }
     goto L_D7E2;
 L_D7E2: if (g_yield_req) { g_resume = 0xD7E2u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     wr(0x0096u, A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x00A0u, A);
     tick(3u);
     wr(0x009Fu, A);
     tick(4u);
-    A = rd(0x0519u); setnz(A);
+    A = rd(0x0519u);
     tick(3u);
     wr(0x00FCu, A);
     tick(6u);
@@ -9385,9 +9385,9 @@ L_F075: if (g_yield_req) { g_resume = 0xF075u; g_yield_req = 0u; return; }
     goto L_F078;
 L_F078: if (g_yield_req) { g_resume = 0xF078u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0057u); setnz(A);
+    A = rd(0x0057u);
     tick(2u);
-    A = (u8)(A & 0x03u); setnz(A);
+    A = (u8)(A & 0x03u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(3u);
@@ -9398,54 +9398,54 @@ L_F096: if (g_yield_req) { g_resume = 0xF096u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Fu, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0005u); setnz(A);
+    A = rd(0x0005u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0006u); setnz(A);
+    A = rd(0x0006u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0008u); setnz(A);
+    A = rd(0x0008u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0009u); setnz(A);
+    A = rd(0x0009u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x0005u, A);
     tick(3u);
-    A = rd(0x000Fu); setnz(A);
+    A = rd(0x000Fu);
     if (A == 4u) { goto L_F0EF; }
     goto L_F0B9;
 L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Fu; setnz(A);
+    A = 0x0Fu;
     tick(3u);
-    A = (u8)(A & rd(0x0003u)); setnz(A);
+    A = (u8)(A & rd(0x0003u));
     tick(3u);
     wr(0x0007u, A);
     tick(3u);
-    A = rd(0x0003u); setnz(A);
+    A = rd(0x0003u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -9457,7 +9457,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0006u, A);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
     A = 0x00u; setnz(A);
     tick(2u);
@@ -9465,7 +9465,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     goto L_F0CB;
 L_F0CB: if (g_yield_req) { g_resume = 0xF0CBu; g_yield_req = 0u; return; } 
     tick(3u);
-    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Zf) { tick(3u); goto L_F0CB; }
@@ -9528,39 +9528,39 @@ L_F0EF: if (g_yield_req) { g_resume = 0xF0EFu; g_yield_req = 0u; return; }
     goto L_F0F2;
 L_F0F2: if (g_yield_req) { g_resume = 0xF0F2u; g_yield_req = 0u; return; } 
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0009u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0008u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0007u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0006u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0005u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(6u);
     return;
 }
@@ -9578,7 +9578,7 @@ L_EA63: if (g_yield_req) { g_resume = 0xEA63u; g_yield_req = 0u; return; }
     return;
 L_EA64: if (g_yield_req) { g_resume = 0xEA64u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x08u; setnz(A);
+    A = 0x08u;
     tick(3u);
     wr(0x000Au, A);
     tick(2u);
@@ -9600,22 +9600,22 @@ L_EA71: if (g_yield_req) { g_resume = 0xEA71u; g_yield_req = 0u; return; }
     return;
 L_EA72: if (g_yield_req) { g_resume = 0xEA72u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x50u; setnz(A);
+    A = 0x50u;
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    A = 0x20u; setnz(A);
+    A = 0x20u;
     tick(3u);
     wr(0x0001u, A);
     tick(4u);
-    A = rd(0x02F1u); setnz(A);
+    A = rd(0x02F1u);
     if (A == 219u) { goto L_EA88; }
     goto L_EA81;
 L_EA81: if (g_yield_req) { g_resume = 0xEA81u; g_yield_req = 0u; return; } 
     tick(5u);
     { u8 t = (u8)(rd(0x00B7u) + 1u); wr(0x00B7u, t); setnz(t); }
     tick(2u);
-    A = 0xDBu; setnz(A);
+    A = 0xDBu;
     tick(3u);
     goto L_EA8A;
 L_EA88: if (g_yield_req) { g_resume = 0xEA88u; g_yield_req = 0u; return; } 
@@ -9640,12 +9640,12 @@ L_EA8D: if (g_yield_req) { g_resume = 0xEA8Du; g_yield_req = 0u; return; }
     goto L_EA92;
 L_EA92: if (g_yield_req) { g_resume = 0xEA92u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x00B7u); setnz(A);
+    A = rd(0x00B7u);
     if (A != 4u) { goto L_EAA0; }
     goto L_EA98;
 L_EA98: if (g_yield_req) { g_resume = 0xEA98u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x00B7u, A);
     tick(2u);
@@ -9675,12 +9675,12 @@ L_E1E9: if (g_yield_req) { g_resume = 0xE1E9u; g_yield_req = 0u; return; }
     goto L_E1EC;
 L_E1EC: if (g_yield_req) { g_resume = 0xE1ECu; g_yield_req = 0u; return; } 
     tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0200u + X)); setnz(A);
+    A = rd((u16)(0x0200u + X));
     if (A != 255u) { goto L_E225; }
     goto L_E1F3;
 L_E1F3: if (g_yield_req) { g_resume = 0xE1F3u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A == 1u) { goto L_E200; }
     goto L_E1F9;
 L_E1F9: if (g_yield_req) { g_resume = 0xE1F9u; g_yield_req = 0u; return; } 
@@ -9706,7 +9706,7 @@ L_E208: if (g_yield_req) { g_resume = 0xE208u; g_yield_req = 0u; return; }
     goto L_E20C;
 L_E20C: if (g_yield_req) { g_resume = 0xE20Cu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x19u; setnz(A);
+    A = 0x19u;
     tick(3u);
     wr(0x0040u, A);
     tick(3u);
@@ -9732,7 +9732,7 @@ L_E21A: if (g_yield_req) { g_resume = 0xE21Au; g_yield_req = 0u; return; }
     goto L_E21F;
 L_E21F: if (g_yield_req) { g_resume = 0xE21Fu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x06u; setnz(A);
+    A = 0x06u;
     tick(3u);
     X = rd(0x00AEu); setnz(X);
     tick(4u);
@@ -9747,13 +9747,13 @@ L_E225: if (g_yield_req) { g_resume = 0xE225u; g_yield_req = 0u; return; }
     goto L_E228;
 L_E228: if (g_yield_req) { g_resume = 0xE228u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x0053u); setnz(X);
+    X = rd(0x0053u);
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(5u);
     { u8 t = (u8)(rd(0x00AEu) + 1u); wr(0x00AEu, t); setnz(t); }
     tick(3u);
-    A = rd(0x00AEu); setnz(A);
+    A = rd(0x00AEu);
     tick(4u + ((0x00F6u + X) > 0xFFu ? 1u : 0u));
     { const u8 v = rd((u16)(0xC1F6u + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_E237; }
@@ -9764,7 +9764,7 @@ L_E234: if (g_yield_req) { g_resume = 0xE234u; g_yield_req = 0u; return; }
     goto L_E1E9;
 L_E237: if (g_yield_req) { g_resume = 0xE237u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A == 3u) { goto L_E24F; }
     goto L_E23D;
 L_E23D: if (g_yield_req) { g_resume = 0xE23Du; g_yield_req = 0u; return; } 
@@ -9775,7 +9775,7 @@ L_E23D: if (g_yield_req) { g_resume = 0xE23Du; g_yield_req = 0u; return; }
     goto L_E241;
 L_E241: if (g_yield_req) { g_resume = 0xE241u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x00D2u, A);
     tick(3u);
@@ -9798,7 +9798,7 @@ static void f_EE79(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xEE79u: goto L_EE79; case 0xEE7Fu: goto L_EE7F; case 0xEE80u: goto L_EE80; case 0xEE84u: goto L_EE84; case 0xEE88u: goto L_EE88; case 0xEE8Du: goto L_EE8D; case 0xEE95u: goto L_EE95; case 0xEE9Du: goto L_EE9D; case 0xEEA5u: goto L_EEA5; case 0xEEACu: goto L_EEAC; case 0xEEB2u: goto L_EEB2; case 0xEEB6u: goto L_EEB6; case 0xEEC2u: goto L_EEC2; case 0xEED4u: goto L_EED4; case 0xEED8u: goto L_EED8; case 0xEED9u: goto L_EED9; case 0xEEDFu: goto L_EEDF; case 0xEEE2u: goto L_EEE2; case 0xEEE6u: goto L_EEE6; case 0xEEE7u: goto L_EEE7; case 0xEEEBu: goto L_EEEB; case 0xEEF0u: goto L_EEF0; case 0xEEF7u: goto L_EEF7; case 0xEEFFu: goto L_EEFF; case 0xEF07u: goto L_EF07; case 0xEF0Cu: goto L_EF0C; case 0xEF18u: goto L_EF18; case 0xEF2Au: goto L_EF2A; case 0xEF2Eu: goto L_EF2E; case 0xEF2Fu: goto L_EF2F; case 0xEF33u: goto L_EF33; } }
 L_EE79: if (g_yield_req) { g_resume = 0xEE79u; g_yield_req = 0u; return; } 
     tick(3u);
-    Y = rd(0x0053u); setnz(Y);
+    Y = rd(0x0053u);
     if (Y != 1u) { goto L_EE80; }
     goto L_EE7F;
 L_EE7F: if (g_yield_req) { g_resume = 0xEE7Fu; g_yield_req = 0u; return; } 
@@ -9815,13 +9815,13 @@ L_EE84: if (g_yield_req) { g_resume = 0xEE84u; g_yield_req = 0u; return; }
     goto L_EE88;
 L_EE88: if (g_yield_req) { g_resume = 0xEE88u; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = 0x00u; setnz(Y);
+    Y = 0x00u;
     tick(4u);
     X = rd(0xC5FFu); setnz(X);
     goto L_EE8D;
 L_EE8D: if (g_yield_req) { g_resume = 0xEE8Du; g_yield_req = 0u; return; } 
     tick(4u + ((0x00C2u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC5C2u + X)); setnz(A);
+    A = rd((u16)(0xC5C2u + X));
     tick(4u);
     { const u8 v = rd(0x0203u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Zf) { tick(3u); goto L_EEE7; }
@@ -9829,7 +9829,7 @@ L_EE8D: if (g_yield_req) { g_resume = 0xEE8Du; g_yield_req = 0u; return; }
     goto L_EE95;
 L_EE95: if (g_yield_req) { g_resume = 0xEE95u; g_yield_req = 0u; return; } 
     tick(4u + ((0x00AEu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC5AEu + X)); setnz(A);
+    A = rd((u16)(0xC5AEu + X));
     tick(4u);
     { const u8 v = rd(0x0200u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Cf) { tick(3u); goto L_EEE7; }
@@ -9839,7 +9839,7 @@ L_EE9D: if (g_yield_req) { g_resume = 0xEE9Du; g_yield_req = 0u; return; }
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x11u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x11u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(4u);
     { const u8 v = rd(0x0200u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Cf) { tick(3u); goto L_EEE7; }
@@ -9847,12 +9847,12 @@ L_EE9D: if (g_yield_req) { g_resume = 0xEE9Du; g_yield_req = 0u; return; }
     goto L_EEA5;
 L_EEA5: if (g_yield_req) { g_resume = 0xEEA5u; g_yield_req = 0u; return; } 
     tick(4u + ((0x00C1u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x00C1u + Y)); setnz(A);
+    A = rd((u16)(0x00C1u + Y));
     if (A != 0u) { goto L_EED9; }
     goto L_EEAC;
 L_EEAC: if (g_yield_req) { g_resume = 0xEEACu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0096u); setnz(A);
+    A = rd(0x0096u);
     if (A == 8u) { goto L_EED8; }
     goto L_EEB2;
 L_EEB2: if (g_yield_req) { g_resume = 0xEEB2u; g_yield_req = 0u; return; } 
@@ -9860,7 +9860,7 @@ L_EEB2: if (g_yield_req) { g_resume = 0xEEB2u; g_yield_req = 0u; return; }
     goto L_EEB6;
 L_EEB6: if (g_yield_req) { g_resume = 0xEEB6u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x11u; setnz(A);
+    A = 0x11u;
     tick(3u);
     wr(0x00CCu, A);
     tick(2u);
@@ -9875,15 +9875,15 @@ L_EEB6: if (g_yield_req) { g_resume = 0xEEB6u; g_yield_req = 0u; return; }
     goto L_EEC2;
 L_EEC2: if (g_yield_req) { g_resume = 0xEEC2u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0200u); setnz(A);
+    A = rd(0x0200u);
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x10u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x10u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0006u, A);
     tick(4u);
-    A = rd(0x0203u); setnz(A);
+    A = rd(0x0203u);
     tick(3u);
     wr(0x0005u, A);
     tick(2u);
@@ -9905,7 +9905,7 @@ L_EED8: if (g_yield_req) { g_resume = 0xEED8u; g_yield_req = 0u; return; }
     return;
 L_EED9: if (g_yield_req) { g_resume = 0xEED9u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0096u); setnz(A);
+    A = rd(0x0096u);
     if (A == 4u) { goto L_EEE6; }
     goto L_EEDF;
 L_EEDF: if (g_yield_req) { g_resume = 0xEEDFu; g_yield_req = 0u; return; } 
@@ -9929,22 +9929,22 @@ L_EEE7: if (g_yield_req) { g_resume = 0xEEE7u; g_yield_req = 0u; return; }
     goto L_EEEB;
 L_EEEB: if (g_yield_req) { g_resume = 0xEEEBu; g_yield_req = 0u; return; } 
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(3u);
     goto L_EE8D;
 L_EEF0: if (g_yield_req) { g_resume = 0xEEF0u; g_yield_req = 0u; return; } 
     tick(3u);
-    Y = rd(0x0053u); setnz(Y);
+    Y = rd(0x0053u);
     tick(4u + ((0x00FAu + Y) > 0xFFu ? 1u : 0u));
-    X = rd((u16)(0xC5FAu + Y)); setnz(X);
+    X = rd((u16)(0xC5FAu + Y));
     tick(2u);
     Y = 0x00u; setnz(Y);
     goto L_EEF7;
 L_EEF7: if (g_yield_req) { g_resume = 0xEEF7u; g_yield_req = 0u; return; } 
     tick(4u + ((0x00AEu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC5AEu + X)); setnz(A);
+    A = rd((u16)(0xC5AEu + X));
     tick(4u);
     { const u8 v = rd(0x0200u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Zf) { tick(4u); goto L_EF2F; }
@@ -9952,7 +9952,7 @@ L_EEF7: if (g_yield_req) { g_resume = 0xEEF7u; g_yield_req = 0u; return; }
     goto L_EEFF;
 L_EEFF: if (g_yield_req) { g_resume = 0xEEFFu; g_yield_req = 0u; return; } 
     tick(4u + ((0x00C2u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC5C2u + X)); setnz(A);
+    A = rd((u16)(0xC5C2u + X));
     tick(4u);
     { const u8 v = rd(0x0203u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Zf) { tick(3u); goto L_EF2F; }
@@ -9966,7 +9966,7 @@ L_EF07: if (g_yield_req) { g_resume = 0xEF07u; g_yield_req = 0u; return; }
     goto L_EF0C;
 L_EF0C: if (g_yield_req) { g_resume = 0xEF0Cu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x22u; setnz(A);
+    A = 0x22u;
     tick(3u);
     wr(0x00CCu, A);
     tick(2u);
@@ -9981,15 +9981,15 @@ L_EF0C: if (g_yield_req) { g_resume = 0xEF0Cu; g_yield_req = 0u; return; }
     goto L_EF18;
 L_EF18: if (g_yield_req) { g_resume = 0xEF18u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0200u); setnz(A);
+    A = rd(0x0200u);
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x08u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x08u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0006u, A);
     tick(4u);
-    A = rd(0x0203u); setnz(A);
+    A = rd(0x0203u);
     tick(3u);
     wr(0x0005u, A);
     tick(2u);
@@ -10014,9 +10014,9 @@ L_EF2F: if (g_yield_req) { g_resume = 0xEF2Fu; g_yield_req = 0u; return; }
     goto L_EF33;
 L_EF33: if (g_yield_req) { g_resume = 0xEF33u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(3u);
     goto L_EEF7;
 }
@@ -10045,7 +10045,7 @@ L_DA1D: if (g_yield_req) { g_resume = 0xDA1Du; g_yield_req = 0u; return; }
     goto L_DA20;
 L_DA20: if (g_yield_req) { g_resume = 0xDA20u; g_yield_req = 0u; return; } 
     tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0200u + X)); setnz(A);
+    A = rd((u16)(0x0200u + X));
     if (A != 255u) { goto L_DA3D; }
     goto L_DA27;
 L_DA27: if (g_yield_req) { g_resume = 0xDA27u; g_yield_req = 0u; return; } 
@@ -10056,9 +10056,9 @@ L_DA27: if (g_yield_req) { g_resume = 0xDA27u; g_yield_req = 0u; return; }
     goto L_DA2B;
 L_DA2B: if (g_yield_req) { g_resume = 0xDA2Bu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x80u; setnz(A);
+    A = 0x80u;
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
     wr((u16)(0x005Eu + X), A);
     tick(2u);
@@ -10086,11 +10086,11 @@ L_DA3D: if (g_yield_req) { g_resume = 0xDA3Du; g_yield_req = 0u; return; }
     goto L_DA40;
 L_DA40: if (g_yield_req) { g_resume = 0xDA40u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x005Du); setnz(A);
+    A = rd(0x005Du);
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x005Du, A);
     if (A != 9u) { goto L_DA1D; }
@@ -10116,19 +10116,19 @@ L_E19F: if (g_yield_req) { g_resume = 0xE19Fu; g_yield_req = 0u; return; }
     goto L_E1A3;
 L_E1A3: if (g_yield_req) { g_resume = 0xE1A3u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x20u; setnz(A);
+    A = 0x20u;
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    A = 0xC0u; setnz(A);
+    A = 0xC0u;
     tick(3u);
     wr(0x0001u, A);
     tick(2u);
-    A = 0xFCu; setnz(A);
+    A = 0xFCu;
     tick(3u);
     wr(0x0002u, A);
     tick(2u);
-    A = 0x12u; setnz(A);
+    A = 0x12u;
     tick(3u);
     wr(0x0003u, A);
     tick(2u);
@@ -10141,7 +10141,7 @@ L_E1A3: if (g_yield_req) { g_resume = 0xE1A3u; g_yield_req = 0u; return; }
     goto L_E1B8;
 L_E1B8: if (g_yield_req) { g_resume = 0xE1B8u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x00ADu, A);
     tick(3u);
@@ -10154,18 +10154,18 @@ L_E1BF: if (g_yield_req) { g_resume = 0xE1BFu; g_yield_req = 0u; return; }
     goto L_E1C3;
 L_E1C3: if (g_yield_req) { g_resume = 0xE1C3u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x03u; setnz(A);
+    A = 0x03u;
     tick(3u);
     wr(0x00ADu, A);
     tick(2u);
-    X = 0xE1u; setnz(X);
+    X = 0xE1u;
     tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0200u + X)); setnz(A);
+    A = rd((u16)(0x0200u + X));
     if (A == 252u) { goto L_E1D5; }
     goto L_E1D0;
 L_E1D0: if (g_yield_req) { g_resume = 0xE1D0u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xFCu; setnz(A);
+    A = 0xFCu;
     tick(3u);
     goto L_E1D7;
 L_E1D5: if (g_yield_req) { g_resume = 0xE1D5u; g_yield_req = 0u; return; } 
@@ -10213,7 +10213,7 @@ L_EC2C: if (g_yield_req) { g_resume = 0xEC2Cu; g_yield_req = 0u; return; }
     goto L_EC31;
 L_EC31: if (g_yield_req) { g_resume = 0xEC31u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A == 3u) { goto L_EC3B; }
     goto L_EC37;
 L_EC37: if (g_yield_req) { g_resume = 0xEC37u; g_yield_req = 0u; return; } 
@@ -10238,12 +10238,12 @@ L_EC41: if (g_yield_req) { g_resume = 0xEC41u; g_yield_req = 0u; return; }
     goto L_EDC5;
 L_EDC5: if (g_yield_req) { g_resume = 0xEDC5u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A != 3u) { goto L_EDD2; }
     goto L_EDCB;
 L_EDCB: if (g_yield_req) { g_resume = 0xEDCBu; g_yield_req = 0u; return; } 
     tick(3u);
-    Y = rd(0x0096u); setnz(Y);
+    Y = rd(0x0096u);
     if (Y == 1u) { goto L_EDD2; }
     goto L_EDD1;
 L_EDD1: if (g_yield_req) { g_resume = 0xEDD1u; g_yield_req = 0u; return; } 
@@ -10253,21 +10253,21 @@ L_EDD2: if (g_yield_req) { g_resume = 0xEDD2u; g_yield_req = 0u; return; }
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x002Bu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC42Bu + X)); setnz(A);
+    A = rd((u16)(0xC42Bu + X));
     tick(3u);
     wr(0x0002u, A);
     tick(4u + ((0x002Cu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC42Cu + X)); setnz(A);
+    A = rd((u16)(0xC42Cu + X));
     tick(3u);
     wr(0x0003u, A);
     tick(4u + ((0x0023u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC423u + X)); setnz(A);
+    A = rd((u16)(0xC423u + X));
     tick(3u);
     wr(0x0000u, A);
     tick(4u + ((0x0024u + X) > 0xFFu ? 1u : 0u));
@@ -10288,21 +10288,21 @@ L_EDEE: if (g_yield_req) { g_resume = 0xEDEEu; g_yield_req = 0u; return; }
     goto L_EDF0;
 L_EDF0: if (g_yield_req) { g_resume = 0xEDF0u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A != 3u) { goto L_EE0B; }
     goto L_EDF6;
 L_EDF6: if (g_yield_req) { g_resume = 0xEDF6u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     if (A == 201u) { goto L_EE0B; }
     goto L_EDFC;
 L_EDFC: if (g_yield_req) { g_resume = 0xEDFCu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x70u; setnz(A);
+    A = 0x70u;
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    A = 0xC9u; setnz(A);
+    A = 0xC9u;
     tick(3u);
     wr(0x0001u, A);
     tick(3u);
@@ -10329,11 +10329,11 @@ L_E834: if (g_yield_req) { g_resume = 0xE834u; g_yield_req = 0u; return; }
     goto L_E837;
 L_E837: if (g_yield_req) { g_resume = 0xE837u; g_yield_req = 0u; return; } 
     tick(4u + ((0x005Cu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC45Cu + X)); setnz(A);
+    A = rd((u16)(0xC45Cu + X));
     tick(3u);
     wr(0x000Au, A);
     tick(4u + ((0x0061u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC461u + X)); setnz(A);
+    A = rd((u16)(0xC461u + X));
     tick(3u);
     wr(0x000Bu, A);
     tick(2u);
@@ -10361,7 +10361,7 @@ L_E84B: if (g_yield_req) { g_resume = 0xE84Bu; g_yield_req = 0u; return; }
     goto L_E84F;
 L_E84F: if (g_yield_req) { g_resume = 0xE84Fu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x00D2u); setnz(A);
+    A = rd(0x00D2u);
     if (A >= 3u) { goto L_E8A9; }
     goto L_E855;
 L_E855: if (g_yield_req) { g_resume = 0xE855u; g_yield_req = 0u; return; } 
@@ -10372,7 +10372,7 @@ L_E855: if (g_yield_req) { g_resume = 0xE855u; g_yield_req = 0u; return; }
     goto L_E858;
 L_E858: if (g_yield_req) { g_resume = 0xE858u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x00DAu); setnz(A);
+    A = rd(0x00DAu);
     if (A != 1u) { goto L_E86A; }
     goto L_E85E;
 L_E85E: if (g_yield_req) { g_resume = 0xE85Eu; g_yield_req = 0u; return; } 
@@ -10387,22 +10387,22 @@ L_E85E: if (g_yield_req) { g_resume = 0xE85Eu; g_yield_req = 0u; return; }
     goto L_E86A;
 L_E86A: if (g_yield_req) { g_resume = 0xE86Au; g_yield_req = 0u; return; } 
     tick(4u + ((0x00CCu + X) > 0xFFu ? 1u : 0u));
-    Y = rd((u16)(0xC2CCu + X)); setnz(Y);
+    Y = rd((u16)(0xC2CCu + X));
     tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0200u + Y)); setnz(A);
+    A = rd((u16)(0x0200u + Y));
     if (A == 255u) { goto L_E8A4; }
     goto L_E874;
 L_E874: if (g_yield_req) { g_resume = 0xE874u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(7u);
     { u8 t = (u8)(rd((u16)(0x0200u + X)) - 1u); wr((u16)(0x0200u + X), t); setnz(t); }
     tick(7u);
     { u8 t = (u8)(rd((u16)(0x0204u + X)) - 1u); wr((u16)(0x0204u + X), t); setnz(t); }
     tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0200u + X)); setnz(A);
+    A = rd((u16)(0x0200u + X));
     if (A != 80u) { goto L_E889; }
     goto L_E883;
 L_E883: if (g_yield_req) { g_resume = 0xE883u; g_yield_req = 0u; return; } 
@@ -10427,7 +10427,7 @@ L_E88D: if (g_yield_req) { g_resume = 0xE88Du; g_yield_req = 0u; return; }
     goto L_E890;
 L_E890: if (g_yield_req) { g_resume = 0xE890u; g_yield_req = 0u; return; } 
     tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0200u + Y)); setnz(A);
+    A = rd((u16)(0x0200u + Y));
     if (A != 112u) { goto L_E89B; }
     goto L_E897;
 L_E897: if (g_yield_req) { g_resume = 0xE897u; g_yield_req = 0u; return; } 
@@ -10438,7 +10438,7 @@ L_E897: if (g_yield_req) { g_resume = 0xE897u; g_yield_req = 0u; return; }
     goto L_E89B;
 L_E89B: if (g_yield_req) { g_resume = 0xE89Bu; g_yield_req = 0u; return; } 
     tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0200u + Y)); setnz(A);
+    A = rd((u16)(0x0200u + Y));
     if (A == 72u) { goto L_E901; }
     goto L_E8A2;
 L_E8A2: if (g_yield_req) { g_resume = 0xE8A2u; g_yield_req = 0u; return; } 
@@ -10455,12 +10455,12 @@ L_E8A9: if (g_yield_req) { g_resume = 0xE8A9u; g_yield_req = 0u; return; }
     goto L_E8AD;
 L_E8AD: if (g_yield_req) { g_resume = 0xE8ADu; g_yield_req = 0u; return; } 
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     if (A != 3u) { goto L_E8C4; }
     goto L_E8B2;
 L_E8B2: if (g_yield_req) { g_resume = 0xE8B2u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x00DAu); setnz(A);
+    A = rd(0x00DAu);
     if (A != 2u) { goto L_E8C4; }
     goto L_E8B8;
 L_E8B8: if (g_yield_req) { g_resume = 0xE8B8u; g_yield_req = 0u; return; } 
@@ -10475,22 +10475,22 @@ L_E8B8: if (g_yield_req) { g_resume = 0xE8B8u; g_yield_req = 0u; return; }
     goto L_E8C4;
 L_E8C4: if (g_yield_req) { g_resume = 0xE8C4u; g_yield_req = 0u; return; } 
     tick(4u + ((0x00CCu + X) > 0xFFu ? 1u : 0u));
-    Y = rd((u16)(0xC2CCu + X)); setnz(Y);
+    Y = rd((u16)(0xC2CCu + X));
     tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0200u + Y)); setnz(A);
+    A = rd((u16)(0x0200u + Y));
     if (A == 255u) { goto L_E8FC; }
     goto L_E8CE;
 L_E8CE: if (g_yield_req) { g_resume = 0xE8CEu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(7u);
     { u8 t = (u8)(rd((u16)(0x0200u + X)) + 1u); wr((u16)(0x0200u + X), t); setnz(t); }
     tick(7u);
     { u8 t = (u8)(rd((u16)(0x0204u + X)) + 1u); wr((u16)(0x0204u + X), t); setnz(t); }
     tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0200u + X)); setnz(A);
+    A = rd((u16)(0x0200u + X));
     if (A != 80u) { goto L_E8E3; }
     goto L_E8DD;
 L_E8DD: if (g_yield_req) { g_resume = 0xE8DDu; g_yield_req = 0u; return; } 
@@ -10515,12 +10515,12 @@ L_E8E7: if (g_yield_req) { g_resume = 0xE8E7u; g_yield_req = 0u; return; }
     goto L_E8EA;
 L_E8EA: if (g_yield_req) { g_resume = 0xE8EAu; g_yield_req = 0u; return; } 
     tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0200u + Y)); setnz(A);
+    A = rd((u16)(0x0200u + Y));
     if (A != 168u) { goto L_E8F8; }
     goto L_E8F1;
 L_E8F1: if (g_yield_req) { g_resume = 0xE8F1u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     wr(0x00D9u, A);
     tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
@@ -10536,7 +10536,7 @@ L_E8FC: if (g_yield_req) { g_resume = 0xE8FCu; g_yield_req = 0u; return; }
     goto L_E84F;
 L_E901: if (g_yield_req) { g_resume = 0xE901u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xFFu; setnz(A);
+    A = 0xFFu;
     tick(5u);
     wr((u16)(0x0200u + Y), A);
     tick(5u);
@@ -10547,7 +10547,7 @@ L_E901: if (g_yield_req) { g_resume = 0xE901u; g_yield_req = 0u; return; }
     goto L_E84F;
 L_E90E: if (g_yield_req) { g_resume = 0xE90Eu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x00D8u); setnz(A);
+    A = rd(0x00D8u);
     if (A != 1u) { goto L_E93B; }
     goto L_E914;
 L_E914: if (g_yield_req) { g_resume = 0xE914u; g_yield_req = 0u; return; } 
@@ -10558,16 +10558,16 @@ L_E914: if (g_yield_req) { g_resume = 0xE914u; g_yield_req = 0u; return; }
     goto L_E918;
 L_E918: if (g_yield_req) { g_resume = 0xE918u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x00D2u); setnz(A);
+    A = rd(0x00D2u);
     if (A == 3u) { goto L_E967; }
     goto L_E91E;
 L_E91E: if (g_yield_req) { g_resume = 0xE91Eu; g_yield_req = 0u; return; } 
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x00CCu + X) > 0xFFu ? 1u : 0u));
-    Y = rd((u16)(0xC2CCu + X)); setnz(Y);
+    Y = rd((u16)(0xC2CCu + X));
     tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0200u + Y)); setnz(A);
+    A = rd((u16)(0x0200u + Y));
     if (A == 255u) { goto L_E92E; }
     goto L_E929;
 L_E929: if (g_yield_req) { g_resume = 0xE929u; g_yield_req = 0u; return; } 
@@ -10593,14 +10593,14 @@ L_E933: if (g_yield_req) { g_resume = 0xE933u; g_yield_req = 0u; return; }
     goto L_E936;
 L_E936: if (g_yield_req) { g_resume = 0xE936u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x00D8u, A);
     tick(6u);
     return;
 L_E93B: if (g_yield_req) { g_resume = 0xE93Bu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x00D9u); setnz(A);
+    A = rd(0x00D9u);
     if (A != 1u) { goto L_E967; }
     goto L_E941;
 L_E941: if (g_yield_req) { g_resume = 0xE941u; g_yield_req = 0u; return; } 
@@ -10611,16 +10611,16 @@ L_E941: if (g_yield_req) { g_resume = 0xE941u; g_yield_req = 0u; return; }
     goto L_E945;
 L_E945: if (g_yield_req) { g_resume = 0xE945u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x00D2u); setnz(A);
+    A = rd(0x00D2u);
     if (A == 6u) { goto L_E967; }
     goto L_E94B;
 L_E94B: if (g_yield_req) { g_resume = 0xE94Bu; g_yield_req = 0u; return; } 
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x00CCu + X) > 0xFFu ? 1u : 0u));
-    Y = rd((u16)(0xC2CCu + X)); setnz(Y);
+    Y = rd((u16)(0xC2CCu + X));
     tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0200u + Y)); setnz(A);
+    A = rd((u16)(0x0200u + Y));
     if (A == 255u) { goto L_E95B; }
     goto L_E956;
 L_E956: if (g_yield_req) { g_resume = 0xE956u; g_yield_req = 0u; return; } 
@@ -10674,11 +10674,11 @@ L_E986: if (g_yield_req) { g_resume = 0xE986u; g_yield_req = 0u; return; }
     goto L_E98C;
 L_E98C: if (g_yield_req) { g_resume = 0xE98Cu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x30u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x30u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     X = A; setnz(X);
     tick(3u);
@@ -10694,13 +10694,13 @@ L_E996: if (g_yield_req) { g_resume = 0xE996u; g_yield_req = 0u; return; }
     goto L_E99A;
 L_E99A: if (g_yield_req) { g_resume = 0xE99Au; g_yield_req = 0u; return; } 
     tick(4u);
-    X = rd(0x0445u); setnz(X);
+    X = rd(0x0445u);
     tick(4u + ((0x0046u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0446u + X)); setnz(A);
+    A = rd((u16)(0x0446u + X));
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0xB0u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0xB0u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     { const u8 v = rd(0x0000u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Cf) { tick(3u); goto L_E9B4; }
@@ -10708,12 +10708,12 @@ L_E99A: if (g_yield_req) { g_resume = 0xE99Au; g_yield_req = 0u; return; }
     goto L_E9A7;
 L_E9A7: if (g_yield_req) { g_resume = 0xE9A7u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     if (A >= 38u) { goto L_E9BE; }
     goto L_E9AD;
 L_E9AD: if (g_yield_req) { g_resume = 0xE9ADu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xC0u; setnz(A);
+    A = 0xC0u;
     tick(3u);
     wr(0x0002u, A);
     tick(3u);
@@ -10733,28 +10733,28 @@ L_E9BB: if (g_yield_req) { g_resume = 0xE9BBu; g_yield_req = 0u; return; }
     goto L_E9EA;
 L_E9BE: if (g_yield_req) { g_resume = 0xE9BEu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xC4u; setnz(A);
+    A = 0xC4u;
     tick(3u);
     wr(0x0002u, A);
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     if (A < 46u) { goto L_E9DA; }
     goto L_E9C8;
 L_E9C8: if (g_yield_req) { g_resume = 0xE9C8u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x00FEu, A);
     tick(2u);
-    A = 0x2Eu; setnz(A);
+    A = 0x2Eu;
     tick(3u);
     wr(0x0001u, A);
     tick(4u);
-    A = rd(0x0445u); setnz(A);
+    A = rd(0x0445u);
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
     A = 0x00u; setnz(A);
     tick(5u);
@@ -10762,15 +10762,15 @@ L_E9C8: if (g_yield_req) { g_resume = 0xE9C8u; g_yield_req = 0u; return; }
     goto L_E9DA;
 L_E9DA: if (g_yield_req) { g_resume = 0xE9DAu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x02u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x02u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    A = rd(0x0445u); setnz(A);
+    A = rd(0x0445u);
     tick(2u);
     Cf = false;
     tick(2u);
@@ -10802,7 +10802,7 @@ L_E9F3: if (g_yield_req) { g_resume = 0xE9F3u; g_yield_req = 0u; return; }
     tick(6u);
     { u8 t = (u8)(rd(0x0445u) + 1u); wr(0x0445u, t); setnz(t); }
     tick(4u);
-    A = rd(0x0445u); setnz(A);
+    A = rd(0x0445u);
     if (A == 3u) { goto L_EA00; }
     goto L_E9FD;
 L_E9FD: if (g_yield_req) { g_resume = 0xE9FDu; g_yield_req = 0u; return; } 
@@ -10817,7 +10817,7 @@ static void f_EE0C(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xEE0Cu: goto L_EE0C; case 0xEE17u: goto L_EE17; case 0xEE19u: goto L_EE19; case 0xEE1Au: goto L_EE1A; case 0xEE20u: goto L_EE20; case 0xEE23u: goto L_EE23; case 0xEE26u: goto L_EE26; case 0xEE29u: goto L_EE29; case 0xEE2Eu: goto L_EE2E; case 0xEE34u: goto L_EE34; case 0xEE38u: goto L_EE38; case 0xEE3Cu: goto L_EE3C; case 0xEE47u: goto L_EE47; case 0xEE4Eu: goto L_EE4E; case 0xEE51u: goto L_EE51; case 0xEE57u: goto L_EE57; case 0xEE5Cu: goto L_EE5C; case 0xEE5Fu: goto L_EE5F; case 0xEE62u: goto L_EE62; case 0xEE67u: goto L_EE67; } }
 L_EE0C: if (g_yield_req) { g_resume = 0xEE0Cu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x80u; setnz(A);
+    A = 0x80u;
     tick(3u);
     wr(0x000Au, A);
     tick(2u);
@@ -10839,7 +10839,7 @@ L_EE19: if (g_yield_req) { g_resume = 0xEE19u; g_yield_req = 0u; return; }
     return;
 L_EE1A: if (g_yield_req) { g_resume = 0xEE1Au; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A != 1u) { goto L_EE26; }
     goto L_EE20;
 L_EE20: if (g_yield_req) { g_resume = 0xEE20u; g_yield_req = 0u; return; } 
@@ -10870,7 +10870,7 @@ L_EE29: if (g_yield_req) { g_resume = 0xEE29u; g_yield_req = 0u; return; }
     goto L_EE2E;
 L_EE2E: if (g_yield_req) { g_resume = 0xEE2Eu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x00BFu); setnz(A);
+    A = rd(0x00BFu);
     if (A != 1u) { goto L_EE38; }
     goto L_EE34;
 L_EE34: if (g_yield_req) { g_resume = 0xEE34u; g_yield_req = 0u; return; } 
@@ -10884,9 +10884,9 @@ L_EE38: if (g_yield_req) { g_resume = 0xEE38u; g_yield_req = 0u; return; }
     goto L_EE3C;
 L_EE3C: if (g_yield_req) { g_resume = 0xEE3Cu; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x00BFu); setnz(X);
+    X = rd(0x00BFu);
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(4u + ((0x00ECu + X) > 0xFFu ? 1u : 0u));
     A = rd((u16)(0xC1ECu + X)); setnz(A);
     tick(3u);
@@ -10899,7 +10899,7 @@ L_EE3C: if (g_yield_req) { g_resume = 0xEE3Cu; g_yield_req = 0u; return; }
     goto L_EE47;
 L_EE47: if (g_yield_req) { g_resume = 0xEE47u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x0004u); setnz(X);
+    X = rd(0x0004u);
     tick(2u);
     A = 0x02u; setnz(A);
     tick(6u);
@@ -10915,7 +10915,7 @@ L_EE4E: if (g_yield_req) { g_resume = 0xEE4Eu; g_yield_req = 0u; return; }
     return;
 L_EE51: if (g_yield_req) { g_resume = 0xEE51u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A != 1u) { goto L_EE5C; }
     goto L_EE57;
 L_EE57: if (g_yield_req) { g_resume = 0xEE57u; g_yield_req = 0u; return; } 
@@ -10952,7 +10952,7 @@ L_EE62: if (g_yield_req) { g_resume = 0xEE62u; g_yield_req = 0u; return; }
     goto L_EE67;
 L_EE67: if (g_yield_req) { g_resume = 0xEE67u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x00BFu, A);
     tick(6u);
@@ -10963,7 +10963,7 @@ static void f_D0C0(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xD0C0u: goto L_D0C0; case 0xD0C9u: goto L_D0C9; case 0xD0CBu: goto L_D0CB; case 0xD0D1u: goto L_D0D1; case 0xD0D5u: goto L_D0D5; case 0xD0D9u: goto L_D0D9; case 0xD0DDu: goto L_D0DD; case 0xD0E4u: goto L_D0E4; case 0xD0E8u: goto L_D0E8; case 0xD0ECu: goto L_D0EC; case 0xD0F0u: goto L_D0F0; case 0xD0F4u: goto L_D0F4; case 0xD0F8u: goto L_D0F8; case 0xD0FFu: goto L_D0FF; case 0xD101u: goto L_D101; case 0xD108u: goto L_D108; case 0xD110u: goto L_D110; case 0xD115u: goto L_D115; case 0xD119u: goto L_D119; case 0xD11Du: goto L_D11D; case 0xD11Fu: goto L_D11F; case 0xD124u: goto L_D124; case 0xD127u: goto L_D127; case 0xD12Au: goto L_D12A; case 0xD130u: goto L_D130; case 0xD138u: goto L_D138; case 0xD139u: goto L_D139; case 0xD13Eu: goto L_D13E; case 0xD142u: goto L_D142; case 0xD14Bu: goto L_D14B; case 0xD151u: goto L_D151; case 0xD15Du: goto L_D15D; case 0xD166u: goto L_D166; case 0xD169u: goto L_D169; } }
 L_D0C0: if (g_yield_req) { g_resume = 0xD0C0u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x00FCu, A);
     tick(2u);
@@ -10980,7 +10980,7 @@ L_D0C9: if (g_yield_req) { g_resume = 0xD0C9u; g_yield_req = 0u; return; }
     goto L_D0CB;
 L_D0CB: if (g_yield_req) { g_resume = 0xD0CBu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0098u); setnz(A);
+    A = rd(0x0098u);
     if (A == 255u) { goto L_D130; }
     goto L_D0D1;
 L_D0D1: if (g_yield_req) { g_resume = 0xD0D1u; g_yield_req = 0u; return; } 
@@ -11003,7 +11003,7 @@ L_D0D9: if (g_yield_req) { g_resume = 0xD0D9u; g_yield_req = 0u; return; }
     goto L_D0DD;
 L_D0DD: if (g_yield_req) { g_resume = 0xD0DDu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x40u; setnz(A);
+    A = 0x40u;
     tick(3u);
     wr(0x003Au, A);
     tick(5u);
@@ -11039,7 +11039,7 @@ L_D0F4: if (g_yield_req) { g_resume = 0xD0F4u; g_yield_req = 0u; return; }
     goto L_D0F8;
 L_D0F8: if (g_yield_req) { g_resume = 0xD0F8u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0201u); setnz(A);
+    A = rd(0x0201u);
     if (A >= 108u) { goto L_D101; }
     goto L_D0FF;
 L_D0FF: if (g_yield_req) { g_resume = 0xD0FFu; g_yield_req = 0u; return; } 
@@ -11050,19 +11050,19 @@ L_D101: if (g_yield_req) { g_resume = 0xD101u; g_yield_req = 0u; return; }
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x04u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x04u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     if (A < 124u) { goto L_D11F; }
     goto L_D108;
 L_D108: if (g_yield_req) { g_resume = 0xD108u; g_yield_req = 0u; return; } 
     tick(5u);
     { u8 t = (u8)(rd(0x0098u) + 1u); wr(0x0098u, t); setnz(t); }
     tick(3u);
-    A = rd(0x0098u); setnz(A);
+    A = rd(0x0098u);
     if (A == 5u) { goto L_D115; }
     goto L_D110;
 L_D110: if (g_yield_req) { g_resume = 0xD110u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x6Cu; setnz(A);
+    A = 0x6Cu;
     tick(3u);
     goto L_D11F;
 L_D115: if (g_yield_req) { g_resume = 0xD115u; g_yield_req = 0u; return; } 
@@ -11106,12 +11106,12 @@ L_D127: if (g_yield_req) { g_resume = 0xD127u; g_yield_req = 0u; return; }
     goto L_D12A;
 L_D12A: if (g_yield_req) { g_resume = 0xD12Au; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0098u); setnz(A);
+    A = rd(0x0098u);
     if (A != 5u) { goto L_D138; }
     goto L_D130;
 L_D130: if (g_yield_req) { g_resume = 0xD130u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xFFu; setnz(A);
+    A = 0xFFu;
     tick(3u);
     wr(0x0098u, A);
     tick(3u);
@@ -11139,27 +11139,27 @@ L_D13E: if (g_yield_req) { g_resume = 0xD13Eu; g_yield_req = 0u; return; }
     goto L_D142;
 L_D142: if (g_yield_req) { g_resume = 0xD142u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     wr(0x004Eu, A);
     tick(2u);
-    A = 0x87u; setnz(A);
+    A = 0x87u;
     tick(3u);
     wr(0x0043u, A);
     tick(6u);
     return;
 L_D14B: if (g_yield_req) { g_resume = 0xD14Bu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0051u); setnz(A);
+    A = rd(0x0051u);
     if (A != 28u) { goto L_D169; }
     goto L_D151;
 L_D151: if (g_yield_req) { g_resume = 0xD151u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0052u); setnz(A);
+    A = rd(0x0052u);
     tick(2u);
-    A = (u8)(A ^ 0x01u); setnz(A);
+    A = (u8)(A ^ 0x01u);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(3u);
     wr(0x0052u, X);
     tick(4u + ((0x0006u + X) > 0xFFu ? 1u : 0u));
@@ -11169,11 +11169,11 @@ L_D151: if (g_yield_req) { g_resume = 0xD151u; g_yield_req = 0u; return; }
     goto L_D15D;
 L_D15D: if (g_yield_req) { g_resume = 0xD15Du; g_yield_req = 0u; return; } 
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(2u);
-    A = (u8)(A ^ 0x01u); setnz(A);
+    A = (u8)(A ^ 0x01u);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(3u);
     wr(0x0052u, X);
     tick(3u);
@@ -11187,13 +11187,13 @@ L_D166: if (g_yield_req) { g_resume = 0xD166u; g_yield_req = 0u; return; }
     goto L_D169;
 L_D169: if (g_yield_req) { g_resume = 0xD169u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x87u; setnz(A);
+    A = 0x87u;
     tick(3u);
     wr(0x0043u, A);
     tick(4u);
     wr(0x040Bu, A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x004Fu, A);
     tick(6u);
@@ -11206,7 +11206,7 @@ L_C98A: if (g_yield_req) { g_resume = 0xC98Au; g_yield_req = 0u; return; }
     tick(4u);
     wr(0x0514u, A);
     tick(2u);
-    X = 0x0Au; setnz(X);
+    X = 0x0Au;
     tick(2u);
     A = 0x00u; setnz(A);
     goto L_C991;
@@ -11220,7 +11220,7 @@ L_C991: if (g_yield_req) { g_resume = 0xC991u; g_yield_req = 0u; return; }
     goto L_C996;
 L_C996: if (g_yield_req) { g_resume = 0xC996u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0511u); setnz(A);
+    A = rd(0x0511u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -11232,14 +11232,14 @@ L_C996: if (g_yield_req) { g_resume = 0xC996u; g_yield_req = 0u; return; }
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x07u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x07u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0050u, A);
     if (((u8)(A - 2u) & 0x80u) != 0) { goto L_C9AD; }
     goto L_C9A6;
 L_C9A6: if (g_yield_req) { g_resume = 0xC9A6u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x1Cu; setnz(A);
+    A = 0x1Cu;
     tick(3u);
     wr(0x0051u, A);
     tick(3u);
@@ -11252,31 +11252,31 @@ L_C9AD: if (g_yield_req) { g_resume = 0xC9ADu; g_yield_req = 0u; return; }
     goto L_C9B1;
 L_C9B1: if (g_yield_req) { g_resume = 0xC9B1u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0050u); setnz(A);
+    A = rd(0x0050u);
     tick(2u);
-    A = (u8)(A & 0x01u); setnz(A);
+    A = (u8)(A & 0x01u);
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x0007u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0507u + X)); setnz(A);
+    A = rd((u16)(0x0507u + X));
     tick(3u);
     wr(0x0021u, A);
     tick(4u + ((0x0008u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0508u + X)); setnz(A);
+    A = rd((u16)(0x0508u + X));
     tick(3u);
     wr(0x0022u, A);
     tick(2u);
-    A = 0x0Fu; setnz(A);
+    A = 0x0Fu;
     tick(3u);
     wr(0x0018u, A);
     tick(2u);
-    A = 0x13u; setnz(A);
+    A = 0x13u;
     tick(3u);
     wr(0x0019u, A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x004Eu, A);
     tick(4u);
@@ -11292,7 +11292,7 @@ L_C9B1: if (g_yield_req) { g_resume = 0xC9B1u; g_yield_req = 0u; return; }
     tick(4u);
     wr(0x0512u, A);
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     wr(0x0053u, A);
     tick(4u);
@@ -11300,7 +11300,7 @@ L_C9B1: if (g_yield_req) { g_resume = 0xC9B1u; g_yield_req = 0u; return; }
     tick(4u);
     wr(0x0401u, A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x0054u, A);
     tick(4u);
@@ -11308,7 +11308,7 @@ L_C9B1: if (g_yield_req) { g_resume = 0xC9B1u; g_yield_req = 0u; return; }
     tick(4u);
     wr(0x0403u, A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x0052u, A);
     tick(4u);
@@ -11318,7 +11318,7 @@ L_C9B1: if (g_yield_req) { g_resume = 0xC9B1u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x00FCu, A);
     tick(2u);
-    A = 0x03u; setnz(A);
+    A = 0x03u;
     tick(3u);
     X = rd(0x0058u); setnz(X);
     if (Zf) { tick(3u); goto L_CA06; }
@@ -11344,15 +11344,15 @@ L_CA06: if (g_yield_req) { g_resume = 0xCA06u; g_yield_req = 0u; return; }
     goto L_CA15;
 L_CA15: if (g_yield_req) { g_resume = 0xCA15u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x97u; setnz(A);
+    A = 0x97u;
     tick(3u);
     wr(0x0043u, A);
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     wr(0x00FDu, A);
     tick(2u);
-    A = 0x0Fu; setnz(A);
+    A = 0x0Fu;
     tick(4u);
     wr(0x4015u, A);
     tick(4u);
@@ -11363,23 +11363,23 @@ L_CA26: if (g_yield_req) { g_resume = 0xCA26u; g_yield_req = 0u; return; }
     tick(6u);
     { u8 t = (u8)(rd(0x0518u) - 1u); wr(0x0518u, t); setnz(t); }
     tick(2u);
-    A = 0x75u; setnz(A);
+    A = 0x75u;
     tick(3u);
     wr(0x0043u, A);
     tick(3u);
     goto L_CBAE;
 L_CBAE: if (g_yield_req) { g_resume = 0xCBAEu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x0004u, A);
     tick(2u);
-    A = 0xFFu; setnz(A);
+    A = 0xFFu;
     tick(3u);
     goto L_F092;
 L_CF42: if (g_yield_req) { g_resume = 0xCF42u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0015u); setnz(A);
+    A = rd(0x0015u);
     tick(2u);
     A = (u8)(A & 0x10u); setnz(A);
     if (Zf) { tick(3u); goto L_CF8F; }
@@ -11393,16 +11393,16 @@ L_CF48: if (g_yield_req) { g_resume = 0xCF48u; g_yield_req = 0u; return; }
     goto L_CF4C;
 L_CF4C: if (g_yield_req) { g_resume = 0xCF4Cu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x0058u, A);
     tick(3u);
-    A = rd(0x0015u); setnz(A);
+    A = rd(0x0015u);
     tick(3u);
     goto L_C98A;
 L_CF55: if (g_yield_req) { g_resume = 0xCF55u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0015u); setnz(A);
+    A = rd(0x0015u);
     tick(4u);
     { const u8 v = rd(0x0514u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_CF92; }
@@ -11426,13 +11426,13 @@ L_CF69: if (g_yield_req) { g_resume = 0xCF69u; g_yield_req = 0u; return; }
     tick(4u);
     wr(0x0516u, A);
     tick(3u);
-    A = rd(0x000Fu); setnz(A);
+    A = rd(0x000Fu);
     tick(3u);
     wr(0x00FCu, A);
     tick(3u);
-    A = rd(0x0011u); setnz(A);
+    A = rd(0x0011u);
     tick(2u);
-    A = (u8)(A & 0xEFu); setnz(A);
+    A = (u8)(A & 0xEFu);
     tick(3u);
     wr(0x0011u, A);
     tick(3u);
@@ -11442,11 +11442,11 @@ L_CF79: if (g_yield_req) { g_resume = 0xCF79u; g_yield_req = 0u; return; }
     return;
 L_CF7A: if (g_yield_req) { g_resume = 0xCF7Au; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(4u);
     wr(0x0516u, A);
     tick(3u);
-    A = rd(0x00FCu); setnz(A);
+    A = rd(0x00FCu);
     tick(3u);
     wr(0x000Fu, A);
     tick(2u);
@@ -11456,7 +11456,7 @@ L_CF7A: if (g_yield_req) { g_resume = 0xCF7Au; g_yield_req = 0u; return; }
     goto L_CF87;
 L_CF87: if (g_yield_req) { g_resume = 0xCF87u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x40u; setnz(A);
+    A = 0x40u;
     tick(4u);
     wr(0x0517u, A);
     tick(3u);
@@ -11489,9 +11489,9 @@ L_CFA0: if (g_yield_req) { g_resume = 0xCFA0u; g_yield_req = 0u; return; }
     return;
 L_CFA1: if (g_yield_req) { g_resume = 0xCFA1u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0011u); setnz(A);
+    A = rd(0x0011u);
     tick(2u);
-    A = (u8)(A | 0x10u); setnz(A);
+    A = (u8)(A | 0x10u);
     tick(3u);
     wr(0x0011u, A);
     tick(6u);
@@ -11510,54 +11510,54 @@ L_F096: if (g_yield_req) { g_resume = 0xF096u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Fu, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0005u); setnz(A);
+    A = rd(0x0005u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0006u); setnz(A);
+    A = rd(0x0006u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0008u); setnz(A);
+    A = rd(0x0008u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0009u); setnz(A);
+    A = rd(0x0009u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x0005u, A);
     tick(3u);
-    A = rd(0x000Fu); setnz(A);
+    A = rd(0x000Fu);
     if (A == 4u) { goto L_F0EF; }
     goto L_F0B9;
 L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Fu; setnz(A);
+    A = 0x0Fu;
     tick(3u);
-    A = (u8)(A & rd(0x0003u)); setnz(A);
+    A = (u8)(A & rd(0x0003u));
     tick(3u);
     wr(0x0007u, A);
     tick(3u);
-    A = rd(0x0003u); setnz(A);
+    A = rd(0x0003u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -11569,7 +11569,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0006u, A);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
     A = 0x00u; setnz(A);
     tick(2u);
@@ -11577,7 +11577,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     goto L_F0CB;
 L_F0CB: if (g_yield_req) { g_resume = 0xF0CBu; g_yield_req = 0u; return; } 
     tick(3u);
-    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Zf) { tick(3u); goto L_F0CB; }
@@ -11640,39 +11640,39 @@ L_F0EF: if (g_yield_req) { g_resume = 0xF0EFu; g_yield_req = 0u; return; }
     goto L_F0F2;
 L_F0F2: if (g_yield_req) { g_resume = 0xF0F2u; g_yield_req = 0u; return; } 
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0009u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0008u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0007u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0006u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0005u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(6u);
     return;
 }
@@ -11687,7 +11687,7 @@ L_D04C: if (g_yield_req) { g_resume = 0xD04Cu; g_yield_req = 0u; return; }
     goto L_D050;
 L_D050: if (g_yield_req) { g_resume = 0xD050u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x0053u); setnz(X);
+    X = rd(0x0053u);
     if (X == 4u) { goto L_D063; }
     goto L_D056;
 L_D056: if (g_yield_req) { g_resume = 0xD056u; g_yield_req = 0u; return; } 
@@ -11698,9 +11698,9 @@ L_D056: if (g_yield_req) { g_resume = 0xD056u; g_yield_req = 0u; return; }
     goto L_D05A;
 L_D05A: if (g_yield_req) { g_resume = 0xD05Au; g_yield_req = 0u; return; } 
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(4u + ((0x00FAu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC1FAu + X)); setnz(A);
+    A = rd((u16)(0xC1FAu + X));
     tick(3u);
     { const u8 v = rd(0x0059u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_D074; }
@@ -11721,7 +11721,7 @@ L_D065: if (g_yield_req) { g_resume = 0xD065u; g_yield_req = 0u; return; }
     goto L_D069;
 L_D069: if (g_yield_req) { g_resume = 0xD069u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(4u);
     wr(0x044Fu, X);
     if (X != 8u) { goto L_D065; }
@@ -11767,11 +11767,11 @@ L_D082: if (g_yield_req) { g_resume = 0xD082u; g_yield_req = 0u; return; }
     goto L_D086;
 L_D086: if (g_yield_req) { g_resume = 0xD086u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x00FCu, A);
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     wr(0x009Au, A);
     tick(2u);
@@ -11789,7 +11789,7 @@ L_D096: if (g_yield_req) { g_resume = 0xD096u; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0053u) + 1u); wr(0x0053u, t); setnz(t); }
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A == 2u) { goto L_D0A5; }
     goto L_D09E;
 L_D09E: if (g_yield_req) { g_resume = 0xD09Eu; g_yield_req = 0u; return; } 
@@ -11805,20 +11805,20 @@ L_D0A5: if (g_yield_req) { g_resume = 0xD0A5u; g_yield_req = 0u; return; }
     goto L_D0B5;
 L_D0AA: if (g_yield_req) { g_resume = 0xD0AAu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     wr(0x0053u, A);
     tick(5u);
     { u8 t = (u8)(rd(0x0054u) + 1u); wr(0x0054u, t); setnz(t); }
     tick(2u);
-    A = 0xA0u; setnz(A);
+    A = 0xA0u;
     tick(3u);
     wr(0x0043u, A);
     tick(6u);
     return;
 L_D0B5: if (g_yield_req) { g_resume = 0xD0B5u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x8Du; setnz(A);
+    A = 0x8Du;
     tick(3u);
     wr(0x0043u, A);
     tick(2u);
@@ -11837,11 +11837,11 @@ static void f_D008(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xD008u: goto L_D008; case 0xD010u: goto L_D010; case 0xD024u: goto L_D024; case 0xD02Au: goto L_D02A; case 0xD02Du: goto L_D02D; } }
 L_D008: if (g_yield_req) { g_resume = 0xD008u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
@@ -11851,17 +11851,17 @@ L_D008: if (g_yield_req) { g_resume = 0xD008u; g_yield_req = 0u; return; }
     goto L_D010;
 L_D010: if (g_yield_req) { g_resume = 0xD010u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0052u); setnz(A);
+    A = rd(0x0052u);
     tick(2u);
-    A = (u8)(A | 0x18u); setnz(A);
+    A = (u8)(A | 0x18u);
     tick(3u);
     wr(0x0001u, A);
     tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC600u + X)); setnz(A);
+    A = rd((u16)(0xC600u + X));
     tick(3u);
     wr(0x0000u, A);
     tick(3u);
-    A = rd(0x0005u); setnz(A);
+    A = rd(0x0005u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
@@ -11876,7 +11876,7 @@ L_D010: if (g_yield_req) { g_resume = 0xD010u; g_yield_req = 0u; return; }
     goto L_D024;
 L_D024: if (g_yield_req) { g_resume = 0xD024u; g_yield_req = 0u; return; } 
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0006u, A);
     tick(4u);
@@ -11893,13 +11893,13 @@ L_D02A: if (g_yield_req) { g_resume = 0xD02Au; g_yield_req = 0u; return; }
     goto L_D02D;
 L_D02D: if (g_yield_req) { g_resume = 0xD02Du; g_yield_req = 0u; return; } 
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(6u);
     return;
 }
@@ -11908,11 +11908,11 @@ static void f_EAE1(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xEAE1u: goto L_EAE1; } }
 L_EAE1: if (g_yield_req) { g_resume = 0xEAE1u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0203u); setnz(A);
+    A = rd(0x0203u);
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    A = rd(0x0200u); setnz(A);
+    A = rd(0x0200u);
     tick(3u);
     wr(0x0001u, A);
     tick(6u);
@@ -11932,7 +11932,7 @@ L_EAD1: if (g_yield_req) { g_resume = 0xEAD1u; g_yield_req = 0u; return; }
     goto L_EAD6;
 L_EAD6: if (g_yield_req) { g_resume = 0xEAD6u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x22u; setnz(A);
+    A = 0x22u;
     tick(3u);
     wr(0x0003u, A);
     tick(6u);
@@ -11971,54 +11971,54 @@ L_F096: if (g_yield_req) { g_resume = 0xF096u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Fu, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0005u); setnz(A);
+    A = rd(0x0005u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0006u); setnz(A);
+    A = rd(0x0006u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0008u); setnz(A);
+    A = rd(0x0008u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0009u); setnz(A);
+    A = rd(0x0009u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x0005u, A);
     tick(3u);
-    A = rd(0x000Fu); setnz(A);
+    A = rd(0x000Fu);
     if (A == 4u) { goto L_F0EF; }
     goto L_F0B9;
 L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Fu; setnz(A);
+    A = 0x0Fu;
     tick(3u);
-    A = (u8)(A & rd(0x0003u)); setnz(A);
+    A = (u8)(A & rd(0x0003u));
     tick(3u);
     wr(0x0007u, A);
     tick(3u);
-    A = rd(0x0003u); setnz(A);
+    A = rd(0x0003u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -12030,7 +12030,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0006u, A);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
     A = 0x00u; setnz(A);
     tick(2u);
@@ -12038,7 +12038,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     goto L_F0CB;
 L_F0CB: if (g_yield_req) { g_resume = 0xF0CBu; g_yield_req = 0u; return; } 
     tick(3u);
-    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Zf) { tick(3u); goto L_F0CB; }
@@ -12101,39 +12101,39 @@ L_F0EF: if (g_yield_req) { g_resume = 0xF0EFu; g_yield_req = 0u; return; }
     goto L_F0F2;
 L_F0F2: if (g_yield_req) { g_resume = 0xF0F2u; g_yield_req = 0u; return; } 
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0009u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0008u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0007u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0006u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0005u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(6u);
     return;
 }
@@ -12150,7 +12150,7 @@ L_D9E8: if (g_yield_req) { g_resume = 0xD9E8u; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0088u) + 1u); wr(0x0088u, t); setnz(t); }
     tick(3u);
-    A = rd(0x0088u); setnz(A);
+    A = rd(0x0088u);
     if (A >= 15u) { goto L_D9F5; }
     goto L_D9F2;
 L_D9F2: if (g_yield_req) { g_resume = 0xD9F2u; g_yield_req = 0u; return; } 
@@ -12167,22 +12167,22 @@ L_D9F9: if (g_yield_req) { g_resume = 0xD9F9u; g_yield_req = 0u; return; }
     goto L_D9FD;
 L_D9FD: if (g_yield_req) { g_resume = 0xD9FDu; g_yield_req = 0u; return; } 
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x00BCu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC1BCu + X)); setnz(A);
+    A = rd((u16)(0xC1BCu + X));
     tick(3u);
-    A = (u8)(A & rd(0x000Au)); setnz(A);
+    A = (u8)(A & rd(0x000Au));
     tick(3u);
     goto L_DA0F;
 L_DA06: if (g_yield_req) { g_resume = 0xDA06u; g_yield_req = 0u; return; } 
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x08u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x08u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x00BCu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC1BCu + X)); setnz(A);
+    A = rd((u16)(0xC1BCu + X));
     tick(3u);
     A = (u8)(A & rd(0x000Bu)); setnz(A);
     goto L_DA0F;
@@ -12243,54 +12243,54 @@ L_F096: if (g_yield_req) { g_resume = 0xF096u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Fu, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0005u); setnz(A);
+    A = rd(0x0005u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0006u); setnz(A);
+    A = rd(0x0006u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0008u); setnz(A);
+    A = rd(0x0008u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0009u); setnz(A);
+    A = rd(0x0009u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x0005u, A);
     tick(3u);
-    A = rd(0x000Fu); setnz(A);
+    A = rd(0x000Fu);
     if (A == 4u) { goto L_F0EF; }
     goto L_F0B9;
 L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Fu; setnz(A);
+    A = 0x0Fu;
     tick(3u);
-    A = (u8)(A & rd(0x0003u)); setnz(A);
+    A = (u8)(A & rd(0x0003u));
     tick(3u);
     wr(0x0007u, A);
     tick(3u);
-    A = rd(0x0003u); setnz(A);
+    A = rd(0x0003u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -12302,7 +12302,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0006u, A);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
     A = 0x00u; setnz(A);
     tick(2u);
@@ -12310,7 +12310,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     goto L_F0CB;
 L_F0CB: if (g_yield_req) { g_resume = 0xF0CBu; g_yield_req = 0u; return; } 
     tick(3u);
-    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Zf) { tick(3u); goto L_F0CB; }
@@ -12373,39 +12373,39 @@ L_F0EF: if (g_yield_req) { g_resume = 0xF0EFu; g_yield_req = 0u; return; }
     goto L_F0F2;
 L_F0F2: if (g_yield_req) { g_resume = 0xF0F2u; g_yield_req = 0u; return; } 
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0009u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0008u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0007u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0006u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0005u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(6u);
     return;
 }
@@ -12418,15 +12418,15 @@ L_CAA9: if (g_yield_req) { g_resume = 0xCAA9u; g_yield_req = 0u; return; }
     goto L_CAAB;
 L_CAAB: if (g_yield_req) { g_resume = 0xCAABu; g_yield_req = 0u; return; } 
     tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0400u + X)); setnz(A);
+    A = rd((u16)(0x0400u + X));
     tick(5u);
     wr((u16)(0x0053u + Y), A);
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     if (Y != 3u) { goto L_CAAB; }
     goto L_CAB8;
 L_CAB8: if (g_yield_req) { g_resume = 0xCAB8u; g_yield_req = 0u; return; } 
@@ -12438,7 +12438,7 @@ static void f_D1CF(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xD1CFu: goto L_D1CF; case 0xD1D5u: goto L_D1D5; case 0xD1D9u: goto L_D1D9; case 0xD1DDu: goto L_D1DD; case 0xD1E1u: goto L_D1E1; case 0xD1E2u: goto L_D1E2; case 0xD1E5u: goto L_D1E5; case 0xD1EEu: goto L_D1EE; case 0xD1F0u: goto L_D1F0; case 0xD1F3u: goto L_D1F3; case 0xD1F6u: goto L_D1F6; case 0xD1F8u: goto L_D1F8; case 0xD1F9u: goto L_D1F9; case 0xD1FFu: goto L_D1FF; case 0xD205u: goto L_D205; case 0xD208u: goto L_D208; case 0xD20Bu: goto L_D20B; case 0xD213u: goto L_D213; case 0xD218u: goto L_D218; case 0xD21Au: goto L_D21A; case 0xD220u: goto L_D220; case 0xD227u: goto L_D227; case 0xD22Au: goto L_D22A; case 0xD22Eu: goto L_D22E; case 0xD233u: goto L_D233; case 0xD237u: goto L_D237; case 0xD23Eu: goto L_D23E; case 0xD24Au: goto L_D24A; case 0xD24Eu: goto L_D24E; case 0xD256u: goto L_D256; case 0xD25Bu: goto L_D25B; case 0xD25Du: goto L_D25D; case 0xD262u: goto L_D262; case 0xD26Du: goto L_D26D; case 0xD275u: goto L_D275; case 0xD278u: goto L_D278; case 0xD27Fu: goto L_D27F; case 0xD285u: goto L_D285; case 0xD288u: goto L_D288; case 0xD28Bu: goto L_D28B; case 0xD28Eu: goto L_D28E; case 0xD299u: goto L_D299; case 0xD2B7u: goto L_D2B7; case 0xD2B9u: goto L_D2B9; case 0xD2CAu: goto L_D2CA; case 0xF082u: goto L_F082; case 0xF086u: goto L_F086; case 0xF088u: goto L_F088; case 0xF08Cu: goto L_F08C; case 0xF08Eu: goto L_F08E; case 0xF092u: goto L_F092; case 0xF094u: goto L_F094; case 0xF096u: goto L_F096; case 0xF0B9u: goto L_F0B9; case 0xF0CBu: goto L_F0CB; case 0xF0D0u: goto L_F0D0; case 0xF0D6u: goto L_F0D6; case 0xF0D9u: goto L_F0D9; case 0xF0DCu: goto L_F0DC; case 0xF0E0u: goto L_F0E0; case 0xF0E3u: goto L_F0E3; case 0xF0E6u: goto L_F0E6; case 0xF0E9u: goto L_F0E9; case 0xF0ECu: goto L_F0EC; case 0xF0EFu: goto L_F0EF; case 0xF0F2u: goto L_F0F2; } }
 L_D1CF: if (g_yield_req) { g_resume = 0xD1CFu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0056u); setnz(A);
+    A = rd(0x0056u);
     if (A == 1u) { goto L_D1E5; }
     goto L_D1D5;
 L_D1D5: if (g_yield_req) { g_resume = 0xD1D5u; g_yield_req = 0u; return; } 
@@ -12458,7 +12458,7 @@ L_D1E2: if (g_yield_req) { g_resume = 0xD1E2u; g_yield_req = 0u; return; }
     goto L_D28B;
 L_D1E5: if (g_yield_req) { g_resume = 0xD1E5u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xDBu; setnz(A);
+    A = 0xDBu;
     tick(3u);
     wr(0x000Au, A);
     tick(2u);
@@ -12492,7 +12492,7 @@ L_D1F8: if (g_yield_req) { g_resume = 0xD1F8u; g_yield_req = 0u; return; }
     return;
 L_D1F9: if (g_yield_req) { g_resume = 0xD1F9u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0056u); setnz(A);
+    A = rd(0x0056u);
     if (A == 2u) { goto L_D205; }
     goto L_D1FF;
 L_D1FF: if (g_yield_req) { g_resume = 0xD1FFu; g_yield_req = 0u; return; } 
@@ -12537,7 +12537,7 @@ L_D218: if (g_yield_req) { g_resume = 0xD218u; g_yield_req = 0u; return; }
     goto L_D21A;
 L_D21A: if (g_yield_req) { g_resume = 0xD21Au; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x0053u); setnz(X);
+    X = rd(0x0053u);
     if (X != 1u) { goto L_D227; }
     goto L_D220;
 L_D220: if (g_yield_req) { g_resume = 0xD220u; g_yield_req = 0u; return; } 
@@ -12560,7 +12560,7 @@ L_D22A: if (g_yield_req) { g_resume = 0xD22Au; g_yield_req = 0u; return; }
     goto L_D22E;
 L_D22E: if (g_yield_req) { g_resume = 0xD22Eu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x08u; setnz(A);
+    A = 0x08u;
     tick(3u);
     wr(0x0096u, A);
     tick(6u);
@@ -12573,18 +12573,18 @@ L_D233: if (g_yield_req) { g_resume = 0xD233u; g_yield_req = 0u; return; }
     goto L_D237;
 L_D237: if (g_yield_req) { g_resume = 0xD237u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     wr(0x009Bu, A);
     tick(3u);
     goto L_D275;
 L_D23E: if (g_yield_req) { g_resume = 0xD23Eu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x08u; setnz(A);
+    A = 0x08u;
     tick(3u);
     wr(0x00FFu, A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x009Bu, A);
     tick(3u);
@@ -12597,7 +12597,7 @@ L_D24A: if (g_yield_req) { g_resume = 0xD24Au; g_yield_req = 0u; return; }
     goto L_D24E;
 L_D24E: if (g_yield_req) { g_resume = 0xD24Eu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x04u; setnz(A);
+    A = 0x04u;
     tick(3u);
     wr(0x0097u, A);
     tick(3u);
@@ -12607,7 +12607,7 @@ L_D24E: if (g_yield_req) { g_resume = 0xD24Eu; g_yield_req = 0u; return; }
     goto L_D256;
 L_D256: if (g_yield_req) { g_resume = 0xD256u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     goto L_D25D;
 L_D25B: if (g_yield_req) { g_resume = 0xD25Bu; g_yield_req = 0u; return; } 
@@ -12621,18 +12621,18 @@ L_D25D: if (g_yield_req) { g_resume = 0xD25Du; g_yield_req = 0u; return; }
     goto L_D275;
 L_D262: if (g_yield_req) { g_resume = 0xD262u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x04u; setnz(A);
+    A = 0x04u;
     tick(3u);
     wr(0x0097u, A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x0085u, A);
     tick(3u);
     goto L_D275;
 L_D26D: if (g_yield_req) { g_resume = 0xD26Du; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x04u; setnz(A);
+    A = 0x04u;
     tick(3u);
     wr(0x0097u, A);
     tick(2u);
@@ -12660,7 +12660,7 @@ L_D278: if (g_yield_req) { g_resume = 0xD278u; g_yield_req = 0u; return; }
     goto L_D27F;
 L_D27F: if (g_yield_req) { g_resume = 0xD27Fu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0056u); setnz(A);
+    A = rd(0x0056u);
     if (A == 2u) { goto L_D288; }
     goto L_D285;
 L_D285: if (g_yield_req) { g_resume = 0xD285u; g_yield_req = 0u; return; } 
@@ -12678,7 +12678,7 @@ L_D28B: if (g_yield_req) { g_resume = 0xD28Bu; g_yield_req = 0u; return; }
     goto L_D28E;
 L_D28E: if (g_yield_req) { g_resume = 0xD28Eu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x86u; setnz(A);
+    A = 0x86u;
     tick(3u);
     wr(0x0002u, A);
     tick(2u);
@@ -12693,25 +12693,25 @@ L_D28E: if (g_yield_req) { g_resume = 0xD28Eu; g_yield_req = 0u; return; }
     goto L_D299;
 L_D299: if (g_yield_req) { g_resume = 0xD299u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x007Bu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC47Bu + X)); setnz(A);
+    A = rd((u16)(0xC47Bu + X));
     tick(3u);
     wr(0x0004u, A);
     tick(4u + ((0x007Cu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC47Cu + X)); setnz(A);
+    A = rd((u16)(0xC47Cu + X));
     tick(3u);
     wr(0x0005u, A);
     tick(4u + ((0x0083u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC483u + X)); setnz(A);
+    A = rd((u16)(0xC483u + X));
     tick(3u);
     wr(0x0006u, A);
     tick(4u + ((0x0084u + X) > 0xFFu ? 1u : 0u));
@@ -12730,15 +12730,15 @@ L_D2B7: if (g_yield_req) { g_resume = 0xD2B7u; g_yield_req = 0u; return; }
     goto L_D2B9;
 L_D2B9: if (g_yield_req) { g_resume = 0xD2B9u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x04u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x04u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x00A1u, A);
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x0096u, A);
     tick(2u);
@@ -12791,54 +12791,54 @@ L_F096: if (g_yield_req) { g_resume = 0xF096u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Fu, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0005u); setnz(A);
+    A = rd(0x0005u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0006u); setnz(A);
+    A = rd(0x0006u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0008u); setnz(A);
+    A = rd(0x0008u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0009u); setnz(A);
+    A = rd(0x0009u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x0005u, A);
     tick(3u);
-    A = rd(0x000Fu); setnz(A);
+    A = rd(0x000Fu);
     if (A == 4u) { goto L_F0EF; }
     goto L_F0B9;
 L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Fu; setnz(A);
+    A = 0x0Fu;
     tick(3u);
-    A = (u8)(A & rd(0x0003u)); setnz(A);
+    A = (u8)(A & rd(0x0003u));
     tick(3u);
     wr(0x0007u, A);
     tick(3u);
-    A = rd(0x0003u); setnz(A);
+    A = rd(0x0003u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -12850,7 +12850,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0006u, A);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
     A = 0x00u; setnz(A);
     tick(2u);
@@ -12858,7 +12858,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     goto L_F0CB;
 L_F0CB: if (g_yield_req) { g_resume = 0xF0CBu; g_yield_req = 0u; return; } 
     tick(3u);
-    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Zf) { tick(3u); goto L_F0CB; }
@@ -12921,39 +12921,39 @@ L_F0EF: if (g_yield_req) { g_resume = 0xF0EFu; g_yield_req = 0u; return; }
     goto L_F0F2;
 L_F0F2: if (g_yield_req) { g_resume = 0xF0F2u; g_yield_req = 0u; return; } 
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0009u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0008u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0007u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0006u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0005u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(6u);
     return;
 }
@@ -12966,7 +12966,7 @@ L_D9E8: if (g_yield_req) { g_resume = 0xD9E8u; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0088u) + 1u); wr(0x0088u, t); setnz(t); }
     tick(3u);
-    A = rd(0x0088u); setnz(A);
+    A = rd(0x0088u);
     if (A >= 15u) { goto L_D9F5; }
     goto L_D9F2;
 L_D9F2: if (g_yield_req) { g_resume = 0xD9F2u; g_yield_req = 0u; return; } 
@@ -12983,22 +12983,22 @@ L_D9F9: if (g_yield_req) { g_resume = 0xD9F9u; g_yield_req = 0u; return; }
     goto L_D9FD;
 L_D9FD: if (g_yield_req) { g_resume = 0xD9FDu; g_yield_req = 0u; return; } 
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x00BCu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC1BCu + X)); setnz(A);
+    A = rd((u16)(0xC1BCu + X));
     tick(3u);
-    A = (u8)(A & rd(0x000Au)); setnz(A);
+    A = (u8)(A & rd(0x000Au));
     tick(3u);
     goto L_DA0F;
 L_DA06: if (g_yield_req) { g_resume = 0xDA06u; g_yield_req = 0u; return; } 
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x08u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x08u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x00BCu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC1BCu + X)); setnz(A);
+    A = rd((u16)(0xC1BCu + X));
     tick(3u);
     A = (u8)(A & rd(0x000Bu)); setnz(A);
     goto L_DA0F;
@@ -13021,7 +13021,7 @@ static void f_D990(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xD990u: goto L_D990; case 0xD996u: goto L_D996; case 0xD99Au: goto L_D99A; case 0xD99Du: goto L_D99D; case 0xD9AAu: goto L_D9AA; case 0xD9ACu: goto L_D9AC; case 0xD9AFu: goto L_D9AF; case 0xD9BDu: goto L_D9BD; case 0xD9C3u: goto L_D9C3; case 0xD9C9u: goto L_D9C9; case 0xD9CDu: goto L_D9CD; case 0xD9D0u: goto L_D9D0; case 0xD9D4u: goto L_D9D4; case 0xD9DBu: goto L_D9DB; case 0xD9DDu: goto L_D9DD; case 0xD9E0u: goto L_D9E0; case 0xD9E3u: goto L_D9E3; } }
 L_D990: if (g_yield_req) { g_resume = 0xD990u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0056u); setnz(A);
+    A = rd(0x0056u);
     if (A == 1u) { goto L_D99D; }
     goto L_D996;
 L_D996: if (g_yield_req) { g_resume = 0xD996u; g_yield_req = 0u; return; } 
@@ -13032,15 +13032,15 @@ L_D99A: if (g_yield_req) { g_resume = 0xD99Au; g_yield_req = 0u; return; }
     goto L_D9E3;
 L_D99D: if (g_yield_req) { g_resume = 0xD99Du; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(4u + ((0x00B4u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC1B4u + X)); setnz(A);
+    A = rd((u16)(0xC1B4u + X));
     tick(4u);
     { const u8 v = rd(0x0203u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_D9E0; }
@@ -13055,17 +13055,17 @@ L_D9AC: if (g_yield_req) { g_resume = 0xD9ACu; g_yield_req = 0u; return; }
     goto L_D9E3;
 L_D9AF: if (g_yield_req) { g_resume = 0xD9AFu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(4u + ((0x00B4u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC1B4u + X)); setnz(A);
+    A = rd((u16)(0xC1B4u + X));
     tick(4u);
     { const u8 v = rd(0x0203u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Cf) { tick(3u); goto L_D9E0; }
@@ -13073,12 +13073,12 @@ L_D9AF: if (g_yield_req) { g_resume = 0xD9AFu; g_yield_req = 0u; return; }
     goto L_D9BD;
 L_D9BD: if (g_yield_req) { g_resume = 0xD9BDu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A == 4u) { goto L_D9E3; }
     goto L_D9C3;
 L_D9C3: if (g_yield_req) { g_resume = 0xD9C3u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x0059u); setnz(X);
+    X = rd(0x0059u);
     if (A == 3u) { goto L_D9D0; }
     goto L_D9C9;
 L_D9C9: if (g_yield_req) { g_resume = 0xD9C9u; g_yield_req = 0u; return; } 
@@ -13092,7 +13092,7 @@ L_D9D0: if (g_yield_req) { g_resume = 0xD9D0u; g_yield_req = 0u; return; }
     goto L_D9D4;
 L_D9D4: if (g_yield_req) { g_resume = 0xD9D4u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0203u); setnz(A);
+    A = rd(0x0203u);
     if (A == 104u) { goto L_D9E0; }
     goto L_D9DB;
 L_D9DB: if (g_yield_req) { g_resume = 0xD9DBu; g_yield_req = 0u; return; } 
@@ -13104,12 +13104,12 @@ L_D9DD: if (g_yield_req) { g_resume = 0xD9DDu; g_yield_req = 0u; return; }
     goto L_D9E3;
 L_D9E0: if (g_yield_req) { g_resume = 0xD9E0u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(6u);
     return;
 L_D9E3: if (g_yield_req) { g_resume = 0xD9E3u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(6u);
     return;
 }
@@ -13125,7 +13125,7 @@ L_D2CB: if (g_yield_req) { g_resume = 0xD2CBu; g_yield_req = 0u; return; }
     goto L_D2CE;
 L_D2CE: if (g_yield_req) { g_resume = 0xD2CEu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0096u); setnz(A);
+    A = rd(0x0096u);
     if (A == 4u) { goto L_D2DD; }
     goto L_D2D4;
 L_D2D4: if (g_yield_req) { g_resume = 0xD2D4u; g_yield_req = 0u; return; } 
@@ -13133,7 +13133,7 @@ L_D2D4: if (g_yield_req) { g_resume = 0xD2D4u; g_yield_req = 0u; return; }
     goto L_D2D8;
 L_D2D8: if (g_yield_req) { g_resume = 0xD2D8u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x2Cu; setnz(A);
+    A = 0x2Cu;
     tick(3u);
     goto L_D2DF;
 L_D2DD: if (g_yield_req) { g_resume = 0xD2DDu; g_yield_req = 0u; return; } 
@@ -13149,18 +13149,18 @@ L_D2DF: if (g_yield_req) { g_resume = 0xD2DFu; g_yield_req = 0u; return; }
     goto L_D2E2;
 L_D2E2: if (g_yield_req) { g_resume = 0xD2E2u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A == 1u) { goto L_D2F0; }
     goto L_D2E8;
 L_D2E8: if (g_yield_req) { g_resume = 0xD2E8u; g_yield_req = 0u; return; } 
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(3u);
     goto L_D2FD;
 L_D2F0: if (g_yield_req) { g_resume = 0xD2F0u; g_yield_req = 0u; return; } 
@@ -13186,15 +13186,15 @@ L_D2F8: if (g_yield_req) { g_resume = 0xD2F8u; g_yield_req = 0u; return; }
     goto L_D323;
 L_D2FD: if (g_yield_req) { g_resume = 0xD2FDu; g_yield_req = 0u; return; } 
     tick(4u + ((0x006Bu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC46Bu + X)); setnz(A);
+    A = rd((u16)(0xC46Bu + X));
     tick(3u);
     wr(0x0004u, A);
     tick(4u + ((0x006Cu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC46Cu + X)); setnz(A);
+    A = rd((u16)(0xC46Cu + X));
     tick(3u);
     wr(0x0005u, A);
     tick(4u + ((0x0073u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC473u + X)); setnz(A);
+    A = rd((u16)(0xC473u + X));
     tick(3u);
     wr(0x0006u, A);
     tick(4u + ((0x0074u + X) > 0xFFu ? 1u : 0u));
@@ -13215,7 +13215,7 @@ L_D314: if (g_yield_req) { g_resume = 0xD314u; g_yield_req = 0u; return; }
     goto L_D318;
 L_D318: if (g_yield_req) { g_resume = 0xD318u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A != 3u) { goto L_D323; }
     goto L_D31E;
 L_D31E: if (g_yield_req) { g_resume = 0xD31Eu; g_yield_req = 0u; return; } 
@@ -13231,7 +13231,7 @@ L_D321: if (g_yield_req) { g_resume = 0xD321u; g_yield_req = 0u; return; }
     goto L_D323;
 L_D323: if (g_yield_req) { g_resume = 0xD323u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x000Cu); setnz(A);
+    A = rd(0x000Cu);
     tick(6u);
     return;
 }
@@ -13242,25 +13242,25 @@ L_E016: if (g_yield_req) { g_resume = 0xE016u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Au, A);
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x0093u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC493u + X)); setnz(A);
+    A = rd((u16)(0xC493u + X));
     tick(3u);
     wr(0x0008u, A);
     tick(4u + ((0x0094u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC494u + X)); setnz(A);
+    A = rd((u16)(0xC494u + X));
     tick(3u);
     wr(0x0009u, A);
     tick(2u);
-    Y = 0x00u; setnz(Y);
+    Y = 0x00u;
     tick(2u);
     A = 0x01u; setnz(A);
     tick(3u);
@@ -13268,7 +13268,7 @@ L_E016: if (g_yield_req) { g_resume = 0xE016u; g_yield_req = 0u; return; }
     goto L_E02F;
 L_E02F: if (g_yield_req) { g_resume = 0xE02Fu; g_yield_req = 0u; return; } 
     tick(5u + (((rd(0x0008u) | (static_cast<eng::u16>(rd(0x0009u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0008u) | ((u16)rd(0x0009u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0008u) | ((u16)rd(0x0009u) << 8)) + Y));
     if (A == 255u) { goto L_E041; }
     goto L_E035;
 L_E035: if (g_yield_req) { g_resume = 0xE035u; g_yield_req = 0u; return; } 
@@ -13285,7 +13285,7 @@ L_E03B: if (g_yield_req) { g_resume = 0xE03Bu; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x000Bu) + 1u); wr(0x000Bu, t); setnz(t); }
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(3u);
     goto L_E02F;
 L_E041: if (g_yield_req) { g_resume = 0xE041u; g_yield_req = 0u; return; } 
@@ -13296,7 +13296,7 @@ L_E041: if (g_yield_req) { g_resume = 0xE041u; g_yield_req = 0u; return; }
     goto L_E045;
 L_E045: if (g_yield_req) { g_resume = 0xE045u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x000Bu); setnz(A);
+    A = rd(0x000Bu);
     tick(6u);
     return;
 }
@@ -13323,7 +13323,7 @@ L_D8F3: if (g_yield_req) { g_resume = 0xD8F3u; g_yield_req = 0u; return; }
     goto L_D8F7;
 L_D8F7: if (g_yield_req) { g_resume = 0xD8F7u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0056u); setnz(A);
+    A = rd(0x0056u);
     if (A == 1u) { goto L_D914; }
     goto L_D8FD;
 L_D8FD: if (g_yield_req) { g_resume = 0xD8FDu; g_yield_req = 0u; return; } 
@@ -13334,7 +13334,7 @@ L_D901: if (g_yield_req) { g_resume = 0xD901u; g_yield_req = 0u; return; }
     goto L_D917;
 L_D904: if (g_yield_req) { g_resume = 0xD904u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0056u); setnz(A);
+    A = rd(0x0056u);
     if (A == 1u) { goto L_D911; }
     goto L_D90A;
 L_D90A: if (g_yield_req) { g_resume = 0xD90Au; g_yield_req = 0u; return; } 
@@ -13345,17 +13345,17 @@ L_D90E: if (g_yield_req) { g_resume = 0xD90Eu; g_yield_req = 0u; return; }
     goto L_D917;
 L_D911: if (g_yield_req) { g_resume = 0xD911u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xFFu; setnz(A);
+    A = 0xFFu;
     tick(6u);
     return;
 L_D914: if (g_yield_req) { g_resume = 0xD914u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(6u);
     return;
 L_D917: if (g_yield_req) { g_resume = 0xD917u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(6u);
     return;
 }
@@ -13364,7 +13364,7 @@ static void f_D36A(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xD36Au: goto L_D36A; case 0xD370u: goto L_D370; case 0xD373u: goto L_D373; case 0xD378u: goto L_D378; case 0xD37Bu: goto L_D37B; case 0xD8ADu: goto L_D8AD; case 0xD8B9u: goto L_D8B9; case 0xD8D3u: goto L_D8D3; case 0xD8D5u: goto L_D8D5; case 0xD8DEu: goto L_D8DE; case 0xD8E1u: goto L_D8E1; case 0xD8E6u: goto L_D8E6; case 0xD8E8u: goto L_D8E8; } }
 L_D36A: if (g_yield_req) { g_resume = 0xD36Au; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A == 1u) { goto L_D373; }
     goto L_D370;
 L_D370: if (g_yield_req) { g_resume = 0xD370u; g_yield_req = 0u; return; } 
@@ -13384,20 +13384,20 @@ L_D378: if (g_yield_req) { g_resume = 0xD378u; g_yield_req = 0u; return; }
     goto L_D8AD;
 L_D37B: if (g_yield_req) { g_resume = 0xD37Bu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(6u);
     return;
 L_D8AD: if (g_yield_req) { g_resume = 0xD8ADu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xF3u; setnz(A);
+    A = 0xF3u;
     tick(3u);
     wr(0x000Bu, A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x0086u, A);
     tick(2u);
-    Y = 0x00u; setnz(Y);
+    Y = 0x00u;
     tick(5u + (((rd(0x0004u) | (static_cast<eng::u16>(rd(0x0005u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
     A = rd((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y)); setnz(A);
     goto L_D8B9;
@@ -13405,23 +13405,23 @@ L_D8B9: if (g_yield_req) { g_resume = 0xD8B9u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(5u + (((rd(0x0004u) | (static_cast<eng::u16>(rd(0x0005u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y));
     tick(3u);
     wr(0x0001u, A);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(5u + (((rd(0x0004u) | (static_cast<eng::u16>(rd(0x0005u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y));
     tick(2u);
     Cf = false;
     tick(3u);
-    { const u8 v = rd(0x0006u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0006u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0002u, A);
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     tick(2u);
     { const u8 v = 0x00u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
     tick(3u);
@@ -13440,11 +13440,11 @@ L_D8D3: if (g_yield_req) { g_resume = 0xD8D3u; g_yield_req = 0u; return; }
     goto L_D8D5;
 L_D8D5: if (g_yield_req) { g_resume = 0xD8D5u; g_yield_req = 0u; return; } 
     tick(3u);
-    Y = rd(0x0086u); setnz(Y);
+    Y = rd(0x0086u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(5u + (((rd(0x0004u) | (static_cast<eng::u16>(rd(0x0005u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y));
     if (A == 254u) { goto L_D8E6; }
     goto L_D8DE;
 L_D8DE: if (g_yield_req) { g_resume = 0xD8DEu; g_yield_req = 0u; return; } 
@@ -13452,7 +13452,7 @@ L_D8DE: if (g_yield_req) { g_resume = 0xD8DEu; g_yield_req = 0u; return; }
     goto L_D8B9;
 L_D8E1: if (g_yield_req) { g_resume = 0xD8E1u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     goto L_D8E8;
 L_D8E6: if (g_yield_req) { g_resume = 0xD8E6u; g_yield_req = 0u; return; } 
@@ -13488,15 +13488,15 @@ L_EFF5: if (g_yield_req) { g_resume = 0xEFF5u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Cu, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    Y = 0x00u; setnz(Y);
+    Y = 0x00u;
     tick(3u);
     A = rd(0x000Cu); setnz(A);
     if (!Zf) { tick(3u); goto L_F018; }
@@ -13579,23 +13579,23 @@ L_F02A: if (g_yield_req) { g_resume = 0xF02Au; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x004Du, A);
     tick(3u);
-    A = rd(0x004Au); setnz(A);
+    A = rd(0x004Au);
     tick(2u);
     Cf = true;
     tick(3u);
-    { const u8 v = rd(0x0046u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0046u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x009Cu, A);
     tick(3u);
-    A = rd(0x004Bu); setnz(A);
+    A = rd(0x004Bu);
     tick(2u);
     Cf = true;
     tick(3u);
-    { const u8 v = rd(0x0047u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0047u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x009Du, A);
     tick(3u);
-    A = rd(0x0049u); setnz(A);
+    A = rd(0x0049u);
     tick(3u);
     { const u8 v = rd(0x004Bu); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Cf) { tick(3u); goto L_F057; }
@@ -13603,7 +13603,7 @@ L_F02A: if (g_yield_req) { g_resume = 0xF02Au; g_yield_req = 0u; return; }
     goto L_F040;
 L_F040: if (g_yield_req) { g_resume = 0xF040u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x004Du); setnz(A);
+    A = rd(0x004Du);
     tick(3u);
     { const u8 v = rd(0x0047u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Cf) { tick(3u); goto L_F057; }
@@ -13611,7 +13611,7 @@ L_F040: if (g_yield_req) { g_resume = 0xF040u; g_yield_req = 0u; return; }
     goto L_F046;
 L_F046: if (g_yield_req) { g_resume = 0xF046u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x004Cu); setnz(A);
+    A = rd(0x004Cu);
     tick(3u);
     { const u8 v = rd(0x0046u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Cf) { tick(3u); goto L_F057; }
@@ -13619,7 +13619,7 @@ L_F046: if (g_yield_req) { g_resume = 0xF046u; g_yield_req = 0u; return; }
     goto L_F04C;
 L_F04C: if (g_yield_req) { g_resume = 0xF04Cu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0048u); setnz(A);
+    A = rd(0x0048u);
     tick(3u);
     { const u8 v = rd(0x004Au); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Cf) { tick(3u); goto L_F057; }
@@ -13627,7 +13627,7 @@ L_F04C: if (g_yield_req) { g_resume = 0xF04Cu; g_yield_req = 0u; return; }
     goto L_F052;
 L_F052: if (g_yield_req) { g_resume = 0xF052u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     goto L_F059;
 L_F057: if (g_yield_req) { g_resume = 0xF057u; g_yield_req = 0u; return; } 
@@ -13638,15 +13638,15 @@ L_F059: if (g_yield_req) { g_resume = 0xF059u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Cu, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(3u);
-    A = rd(0x000Cu); setnz(A);
+    A = rd(0x000Cu);
     tick(6u);
     return;
 }
@@ -13655,15 +13655,15 @@ static void f_D8AD(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xD8ADu: goto L_D8AD; case 0xD8B9u: goto L_D8B9; case 0xD8D3u: goto L_D8D3; case 0xD8D5u: goto L_D8D5; case 0xD8DEu: goto L_D8DE; case 0xD8E1u: goto L_D8E1; case 0xD8E6u: goto L_D8E6; case 0xD8E8u: goto L_D8E8; } }
 L_D8AD: if (g_yield_req) { g_resume = 0xD8ADu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xF3u; setnz(A);
+    A = 0xF3u;
     tick(3u);
     wr(0x000Bu, A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x0086u, A);
     tick(2u);
-    Y = 0x00u; setnz(Y);
+    Y = 0x00u;
     tick(5u + (((rd(0x0004u) | (static_cast<eng::u16>(rd(0x0005u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
     A = rd((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y)); setnz(A);
     goto L_D8B9;
@@ -13671,23 +13671,23 @@ L_D8B9: if (g_yield_req) { g_resume = 0xD8B9u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(5u + (((rd(0x0004u) | (static_cast<eng::u16>(rd(0x0005u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y));
     tick(3u);
     wr(0x0001u, A);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(5u + (((rd(0x0004u) | (static_cast<eng::u16>(rd(0x0005u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y));
     tick(2u);
     Cf = false;
     tick(3u);
-    { const u8 v = rd(0x0006u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0006u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0002u, A);
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     tick(2u);
     { const u8 v = 0x00u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
     tick(3u);
@@ -13706,11 +13706,11 @@ L_D8D3: if (g_yield_req) { g_resume = 0xD8D3u; g_yield_req = 0u; return; }
     goto L_D8D5;
 L_D8D5: if (g_yield_req) { g_resume = 0xD8D5u; g_yield_req = 0u; return; } 
     tick(3u);
-    Y = rd(0x0086u); setnz(Y);
+    Y = rd(0x0086u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(5u + (((rd(0x0004u) | (static_cast<eng::u16>(rd(0x0005u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y));
     if (A == 254u) { goto L_D8E6; }
     goto L_D8DE;
 L_D8DE: if (g_yield_req) { g_resume = 0xD8DEu; g_yield_req = 0u; return; } 
@@ -13718,7 +13718,7 @@ L_D8DE: if (g_yield_req) { g_resume = 0xD8DEu; g_yield_req = 0u; return; }
     goto L_D8B9;
 L_D8E1: if (g_yield_req) { g_resume = 0xD8E1u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     goto L_D8E8;
 L_D8E6: if (g_yield_req) { g_resume = 0xD8E6u; g_yield_req = 0u; return; } 
@@ -13761,15 +13761,15 @@ L_EFF5: if (g_yield_req) { g_resume = 0xEFF5u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Cu, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    Y = 0x00u; setnz(Y);
+    Y = 0x00u;
     tick(3u);
     A = rd(0x000Cu); setnz(A);
     if (!Zf) { tick(3u); goto L_F018; }
@@ -13852,23 +13852,23 @@ L_F02A: if (g_yield_req) { g_resume = 0xF02Au; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x004Du, A);
     tick(3u);
-    A = rd(0x004Au); setnz(A);
+    A = rd(0x004Au);
     tick(2u);
     Cf = true;
     tick(3u);
-    { const u8 v = rd(0x0046u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0046u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x009Cu, A);
     tick(3u);
-    A = rd(0x004Bu); setnz(A);
+    A = rd(0x004Bu);
     tick(2u);
     Cf = true;
     tick(3u);
-    { const u8 v = rd(0x0047u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0047u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x009Du, A);
     tick(3u);
-    A = rd(0x0049u); setnz(A);
+    A = rd(0x0049u);
     tick(3u);
     { const u8 v = rd(0x004Bu); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Cf) { tick(3u); goto L_F057; }
@@ -13876,7 +13876,7 @@ L_F02A: if (g_yield_req) { g_resume = 0xF02Au; g_yield_req = 0u; return; }
     goto L_F040;
 L_F040: if (g_yield_req) { g_resume = 0xF040u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x004Du); setnz(A);
+    A = rd(0x004Du);
     tick(3u);
     { const u8 v = rd(0x0047u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Cf) { tick(3u); goto L_F057; }
@@ -13884,7 +13884,7 @@ L_F040: if (g_yield_req) { g_resume = 0xF040u; g_yield_req = 0u; return; }
     goto L_F046;
 L_F046: if (g_yield_req) { g_resume = 0xF046u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x004Cu); setnz(A);
+    A = rd(0x004Cu);
     tick(3u);
     { const u8 v = rd(0x0046u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Cf) { tick(3u); goto L_F057; }
@@ -13892,7 +13892,7 @@ L_F046: if (g_yield_req) { g_resume = 0xF046u; g_yield_req = 0u; return; }
     goto L_F04C;
 L_F04C: if (g_yield_req) { g_resume = 0xF04Cu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0048u); setnz(A);
+    A = rd(0x0048u);
     tick(3u);
     { const u8 v = rd(0x004Au); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Cf) { tick(3u); goto L_F057; }
@@ -13900,7 +13900,7 @@ L_F04C: if (g_yield_req) { g_resume = 0xF04Cu; g_yield_req = 0u; return; }
     goto L_F052;
 L_F052: if (g_yield_req) { g_resume = 0xF052u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     goto L_F059;
 L_F057: if (g_yield_req) { g_resume = 0xF057u; g_yield_req = 0u; return; } 
@@ -13911,15 +13911,15 @@ L_F059: if (g_yield_req) { g_resume = 0xF059u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Cu, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(3u);
-    A = rd(0x000Cu); setnz(A);
+    A = rd(0x000Cu);
     tick(6u);
     return;
 }
@@ -13928,21 +13928,21 @@ static void f_C831(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xC831u: goto L_C831; } }
 L_C831: if (g_yield_req) { g_resume = 0xC831u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x003Cu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC03Cu + X)); setnz(A);
+    A = rd((u16)(0xC03Cu + X));
     tick(3u);
     wr(0x0004u, A);
     tick(4u + ((0x003Du + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC03Du + X)); setnz(A);
+    A = rd((u16)(0xC03Du + X));
     tick(3u);
     wr(0x0005u, A);
     tick(4u + ((0x0044u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC044u + X)); setnz(A);
+    A = rd((u16)(0xC044u + X));
     tick(3u);
     wr(0x0006u, A);
     tick(4u + ((0x0045u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC045u + X)); setnz(A);
+    A = rd((u16)(0xC045u + X));
     tick(3u);
     wr(0x0007u, A);
     tick(6u);
@@ -13953,7 +13953,7 @@ static void f_D91A(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xD91Au: goto L_D91A; case 0xD923u: goto L_D923; case 0xD929u: goto L_D929; case 0xD92Du: goto L_D92D; case 0xD931u: goto L_D931; case 0xD938u: goto L_D938; case 0xD93Bu: goto L_D93B; case 0xD93Cu: goto L_D93C; case 0xD964u: goto L_D964; case 0xD967u: goto L_D967; case 0xD969u: goto L_D969; case 0xD97Au: goto L_D97A; case 0xD982u: goto L_D982; case 0xD986u: goto L_D986; case 0xD98Bu: goto L_D98B; case 0xD98Du: goto L_D98D; } }
 L_D91A: if (g_yield_req) { g_resume = 0xD91Au; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0200u); setnz(A);
+    A = rd(0x0200u);
     tick(2u);
     Cf = false;
     tick(2u);
@@ -13971,7 +13971,7 @@ L_D923: if (g_yield_req) { g_resume = 0xD923u; g_yield_req = 0u; return; }
     goto L_D929;
 L_D929: if (g_yield_req) { g_resume = 0xD929u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = 0x02u; setnz(X);
+    X = 0x02u;
     tick(2u);
     A = 0x0Cu; setnz(A);
     goto L_D92D;
@@ -13985,9 +13985,9 @@ L_D931: if (g_yield_req) { g_resume = 0xD931u; g_yield_req = 0u; return; }
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x06u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x06u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(3u);
     goto L_D92D;
 L_D938: if (g_yield_req) { g_resume = 0xD938u; g_yield_req = 0u; return; } 
@@ -14002,41 +14002,41 @@ L_D93B: if (g_yield_req) { g_resume = 0xD93Bu; g_yield_req = 0u; return; }
     goto L_D93C;
 L_D93C: if (g_yield_req) { g_resume = 0xD93Cu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x0086u, A);
     tick(4u + ((0x008Cu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC08Cu + X)); setnz(A);
+    A = rd((u16)(0xC08Cu + X));
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(4u + ((0x008Cu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC08Cu + X)); setnz(A);
+    A = rd((u16)(0xC08Cu + X));
     tick(3u);
     wr(0x0001u, A);
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(4u + ((0x008Cu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC08Cu + X)); setnz(A);
+    A = rd((u16)(0xC08Cu + X));
     tick(2u);
     Cf = false;
     tick(3u);
-    { const u8 v = rd(0x0006u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0006u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0002u, A);
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     tick(3u);
     wr(0x0003u, A);
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(4u + ((0x008Cu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC08Cu + X)); setnz(A);
+    A = rd((u16)(0xC08Cu + X));
     tick(3u);
     wr(0x0008u, A);
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(4u + ((0x008Cu + X) > 0xFFu ? 1u : 0u));
     A = rd((u16)(0xC08Cu + X)); setnz(A);
     tick(3u);
@@ -14055,11 +14055,11 @@ L_D967: if (g_yield_req) { g_resume = 0xD967u; g_yield_req = 0u; return; }
     goto L_D969;
 L_D969: if (g_yield_req) { g_resume = 0xD969u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(2u);
     Cf = false;
     tick(3u);
-    { const u8 v = rd(0x0008u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0008u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0000u, A);
     tick(5u);
@@ -14067,7 +14067,7 @@ L_D969: if (g_yield_req) { g_resume = 0xD969u; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0086u) + 1u); wr(0x0086u, t); setnz(t); }
     tick(3u);
-    A = rd(0x0009u); setnz(A);
+    A = rd(0x0009u);
     tick(3u);
     { const u8 v = rd(0x0086u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Zf) { tick(3u); goto L_D964; }
@@ -14075,19 +14075,19 @@ L_D969: if (g_yield_req) { g_resume = 0xD969u; g_yield_req = 0u; return; }
     goto L_D97A;
 L_D97A: if (g_yield_req) { g_resume = 0xD97Au; g_yield_req = 0u; return; } 
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(4u + ((0x008Cu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC08Cu + X)); setnz(A);
+    A = rd((u16)(0xC08Cu + X));
     if (A == 254u) { goto L_D986; }
     goto L_D982;
 L_D982: if (g_yield_req) { g_resume = 0xD982u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(3u);
     goto L_D93C;
 L_D986: if (g_yield_req) { g_resume = 0xD986u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     goto L_D98D;
 L_D98B: if (g_yield_req) { g_resume = 0xD98Bu; g_yield_req = 0u; return; } 
@@ -14120,16 +14120,16 @@ L_D32B: if (g_yield_req) { g_resume = 0xD32Bu; g_yield_req = 0u; return; }
     goto L_D32F;
 L_D32F: if (g_yield_req) { g_resume = 0xD32Fu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x00D2u); setnz(A);
+    A = rd(0x00D2u);
     if (A == 6u) { goto L_D365; }
     goto L_D335;
 L_D335: if (g_yield_req) { g_resume = 0xD335u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x00CCu + X) > 0xFFu ? 1u : 0u));
-    Y = rd((u16)(0xC2CCu + X)); setnz(Y);
+    Y = rd((u16)(0xC2CCu + X));
     tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0200u + Y)); setnz(A);
+    A = rd((u16)(0x0200u + Y));
     if (A == 255u) { goto L_D34E; }
     goto L_D340;
 L_D340: if (g_yield_req) { g_resume = 0xD340u; g_yield_req = 0u; return; } 
@@ -14155,12 +14155,12 @@ L_D34E: if (g_yield_req) { g_resume = 0xD34Eu; g_yield_req = 0u; return; }
     goto L_D32F;
 L_D353: if (g_yield_req) { g_resume = 0xD353u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x00D2u); setnz(A);
+    A = rd(0x00D2u);
     if (A >= 3u) { goto L_D35E; }
     goto L_D359;
 L_D359: if (g_yield_req) { g_resume = 0xD359u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     goto L_D360;
 L_D35E: if (g_yield_req) { g_resume = 0xD35Eu; g_yield_req = 0u; return; } 
@@ -14171,12 +14171,12 @@ L_D360: if (g_yield_req) { g_resume = 0xD360u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x00DAu, A);
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(6u);
     return;
 L_D365: if (g_yield_req) { g_resume = 0xD365u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x00DAu, A);
     tick(6u);
@@ -14187,13 +14187,13 @@ static void f_C847(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xC847u: goto L_C847; } }
 L_C847: if (g_yield_req) { g_resume = 0xC847u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x003Cu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC03Cu + X)); setnz(A);
+    A = rd((u16)(0xC03Cu + X));
     tick(3u);
     wr(0x0002u, A);
     tick(4u + ((0x003Du + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC03Du + X)); setnz(A);
+    A = rd((u16)(0xC03Du + X));
     tick(3u);
     wr(0x0003u, A);
     tick(6u);
@@ -14216,15 +14216,15 @@ L_EFF5: if (g_yield_req) { g_resume = 0xEFF5u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Cu, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    Y = 0x00u; setnz(Y);
+    Y = 0x00u;
     tick(3u);
     A = rd(0x000Cu); setnz(A);
     if (!Zf) { tick(3u); goto L_F018; }
@@ -14307,23 +14307,23 @@ L_F02A: if (g_yield_req) { g_resume = 0xF02Au; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x004Du, A);
     tick(3u);
-    A = rd(0x004Au); setnz(A);
+    A = rd(0x004Au);
     tick(2u);
     Cf = true;
     tick(3u);
-    { const u8 v = rd(0x0046u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0046u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x009Cu, A);
     tick(3u);
-    A = rd(0x004Bu); setnz(A);
+    A = rd(0x004Bu);
     tick(2u);
     Cf = true;
     tick(3u);
-    { const u8 v = rd(0x0047u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0047u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x009Du, A);
     tick(3u);
-    A = rd(0x0049u); setnz(A);
+    A = rd(0x0049u);
     tick(3u);
     { const u8 v = rd(0x004Bu); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Cf) { tick(3u); goto L_F057; }
@@ -14331,7 +14331,7 @@ L_F02A: if (g_yield_req) { g_resume = 0xF02Au; g_yield_req = 0u; return; }
     goto L_F040;
 L_F040: if (g_yield_req) { g_resume = 0xF040u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x004Du); setnz(A);
+    A = rd(0x004Du);
     tick(3u);
     { const u8 v = rd(0x0047u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Cf) { tick(3u); goto L_F057; }
@@ -14339,7 +14339,7 @@ L_F040: if (g_yield_req) { g_resume = 0xF040u; g_yield_req = 0u; return; }
     goto L_F046;
 L_F046: if (g_yield_req) { g_resume = 0xF046u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x004Cu); setnz(A);
+    A = rd(0x004Cu);
     tick(3u);
     { const u8 v = rd(0x0046u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Cf) { tick(3u); goto L_F057; }
@@ -14347,7 +14347,7 @@ L_F046: if (g_yield_req) { g_resume = 0xF046u; g_yield_req = 0u; return; }
     goto L_F04C;
 L_F04C: if (g_yield_req) { g_resume = 0xF04Cu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0048u); setnz(A);
+    A = rd(0x0048u);
     tick(3u);
     { const u8 v = rd(0x004Au); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Cf) { tick(3u); goto L_F057; }
@@ -14355,7 +14355,7 @@ L_F04C: if (g_yield_req) { g_resume = 0xF04Cu; g_yield_req = 0u; return; }
     goto L_F052;
 L_F052: if (g_yield_req) { g_resume = 0xF052u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     goto L_F059;
 L_F057: if (g_yield_req) { g_resume = 0xF057u; g_yield_req = 0u; return; } 
@@ -14366,15 +14366,15 @@ L_F059: if (g_yield_req) { g_resume = 0xF059u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Cu, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(3u);
-    A = rd(0x000Cu); setnz(A);
+    A = rd(0x000Cu);
     tick(6u);
     return;
 }
@@ -14399,25 +14399,25 @@ L_D50D: if (g_yield_req) { g_resume = 0xD50Du; g_yield_req = 0u; return; }
     goto L_D512;
 L_D512: if (g_yield_req) { g_resume = 0xD512u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x008Bu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC48Bu + X)); setnz(A);
+    A = rd((u16)(0xC48Bu + X));
     tick(3u);
     wr(0x0004u, A);
     tick(4u + ((0x008Cu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC48Cu + X)); setnz(A);
+    A = rd((u16)(0xC48Cu + X));
     tick(3u);
     wr(0x0005u, A);
     tick(2u);
-    A = 0x43u; setnz(A);
+    A = 0x43u;
     tick(3u);
     wr(0x0006u, A);
     tick(2u);
@@ -14434,7 +14434,7 @@ L_D52E: if (g_yield_req) { g_resume = 0xD52Eu; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0008u, A);
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A != 1u) { goto L_D544; }
     goto L_D536;
 L_D536: if (g_yield_req) { g_resume = 0xD536u; g_yield_req = 0u; return; } 
@@ -14465,7 +14465,7 @@ L_D540: if (g_yield_req) { g_resume = 0xD540u; g_yield_req = 0u; return; }
     goto L_D544;
 L_D544: if (g_yield_req) { g_resume = 0xD544u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0008u); setnz(A);
+    A = rd(0x0008u);
     tick(6u);
     return;
 }
@@ -14474,11 +14474,11 @@ static void f_D4EE(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xD4EEu: goto L_D4EE; case 0xD501u: goto L_D501; case 0xD505u: goto L_D505; case 0xD509u: goto L_D509; } }
 L_D4EE: if (g_yield_req) { g_resume = 0xD4EEu; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0200u); setnz(A);
+    A = rd(0x0200u);
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0001u, A);
     tick(3u);
@@ -14507,7 +14507,7 @@ L_EAD1: if (g_yield_req) { g_resume = 0xEAD1u; g_yield_req = 0u; return; }
     goto L_EAD6;
 L_EAD6: if (g_yield_req) { g_resume = 0xEAD6u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x22u; setnz(A);
+    A = 0x22u;
     tick(3u);
     wr(0x0003u, A);
     tick(6u);
@@ -14518,7 +14518,7 @@ static void f_D4F9(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xD4F9u: goto L_D4F9; case 0xD501u: goto L_D501; case 0xD505u: goto L_D505; case 0xD509u: goto L_D509; } }
 L_D4F9: if (g_yield_req) { g_resume = 0xD4F9u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0200u); setnz(A);
+    A = rd(0x0200u);
     tick(2u);
     Cf = false;
     tick(2u);
@@ -14551,7 +14551,7 @@ L_EF72: if (g_yield_req) { g_resume = 0xEF72u; g_yield_req = 0u; return; }
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x002Cu + X) > 0xFFu ? 1u : 0u));
     A = rd((u16)(0x042Cu + X)); setnz(A);
     if (!Zf) { tick(3u); goto L_EF94; }
@@ -14564,7 +14564,7 @@ L_EF7B: if (g_yield_req) { g_resume = 0xEF7Bu; g_yield_req = 0u; return; }
     goto L_EF82;
 L_EF82: if (g_yield_req) { g_resume = 0xEF82u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x08u; setnz(A);
+    A = 0x08u;
     tick(3u);
     goto L_EF89;
 L_EF87: if (g_yield_req) { g_resume = 0xEF87u; g_yield_req = 0u; return; } 
@@ -14575,19 +14575,19 @@ L_EF89: if (g_yield_req) { g_resume = 0xEF89u; g_yield_req = 0u; return; }
     tick(5u);
     wr((u16)(0x0435u + X), A);
     tick(2u);
-    A = 0xF0u; setnz(A);
+    A = 0xF0u;
     tick(5u);
     wr((u16)(0x042Du + X), A);
     tick(3u);
     goto L_EFAD;
 L_EF94: if (g_yield_req) { g_resume = 0xEF94u; g_yield_req = 0u; return; } 
     tick(4u + ((0x0035u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0435u + X)); setnz(A);
+    A = rd((u16)(0x0435u + X));
     if (X != 0u) { goto L_EFA0; }
     goto L_EF9B;
 L_EF9B: if (g_yield_req) { g_resume = 0xEF9Bu; g_yield_req = 0u; return; } 
     tick(2u);
-    { const u8 v = 0x10u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x10u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     goto L_EFA2;
 L_EFA0: if (g_yield_req) { g_resume = 0xEFA0u; g_yield_req = 0u; return; } 
@@ -14598,7 +14598,7 @@ L_EFA2: if (g_yield_req) { g_resume = 0xEFA2u; g_yield_req = 0u; return; }
     tick(5u);
     wr((u16)(0x0435u + X), A);
     tick(4u + ((0x0036u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0436u + X)); setnz(A);
+    A = rd((u16)(0x0436u + X));
     tick(2u);
     { const u8 v = 0x00u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
     tick(5u);
@@ -14606,37 +14606,37 @@ L_EFA2: if (g_yield_req) { g_resume = 0xEFA2u; g_yield_req = 0u; return; }
     goto L_EFAD;
 L_EFAD: if (g_yield_req) { g_resume = 0xEFADu; g_yield_req = 0u; return; } 
     tick(4u + ((0x002Du + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x042Du + X)); setnz(A);
+    A = rd((u16)(0x042Du + X));
     tick(2u);
     Cf = true;
     tick(4u + ((0x003Du + X) > 0xFFu ? 1u : 0u));
-    { const u8 v = rd((u16)(0x043Du + X)); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd((u16)(0x043Du + X)); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(5u);
     wr((u16)(0x042Du + X), A);
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     tick(4u + ((0x003Eu + X) > 0xFFu ? 1u : 0u));
-    { const u8 v = rd((u16)(0x043Eu + X)); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd((u16)(0x043Eu + X)); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0001u, A);
     tick(2u);
     Cf = false;
     tick(4u + ((0x002Du + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x042Du + X)); setnz(A);
+    A = rd((u16)(0x042Du + X));
     tick(4u + ((0x0035u + X) > 0xFFu ? 1u : 0u));
-    { const u8 v = rd((u16)(0x0435u + X)); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd((u16)(0x0435u + X)); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(5u);
     wr((u16)(0x042Du + X), A);
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     tick(4u + ((0x0036u + X) > 0xFFu ? 1u : 0u));
-    { const u8 v = rd((u16)(0x0436u + X)); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd((u16)(0x0436u + X)); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0001u, A);
     tick(7u);
     { u8 t = (u8)(rd((u16)(0x042Cu + X)) + 1u); wr((u16)(0x042Cu + X), t); setnz(t); }
     tick(3u);
-    X = rd(0x000Fu); setnz(X);
+    X = rd(0x000Fu);
     tick(6u);
     return;
 }
@@ -14654,7 +14654,7 @@ L_D804: if (g_yield_req) { g_resume = 0xD804u; g_yield_req = 0u; return; }
     return;
 L_D805: if (g_yield_req) { g_resume = 0xD805u; g_yield_req = 0u; return; } 
     tick(3u);
-    Y = rd(0x0053u); setnz(Y);
+    Y = rd(0x0053u);
     if (Y != 3u) { goto L_D80E; }
     goto L_D80B;
 L_D80B: if (g_yield_req) { g_resume = 0xD80Bu; g_yield_req = 0u; return; } 
@@ -14662,7 +14662,7 @@ L_D80B: if (g_yield_req) { g_resume = 0xD80Bu; g_yield_req = 0u; return; }
     goto L_D8A8;
 L_D80E: if (g_yield_req) { g_resume = 0xD80Eu; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0203u); setnz(A);
+    A = rd(0x0203u);
     if (Y == 1u) { goto L_D81E; }
     goto L_D815;
 L_D815: if (g_yield_req) { g_resume = 0xD815u; g_yield_req = 0u; return; } 
@@ -14687,7 +14687,7 @@ L_D824: if (g_yield_req) { g_resume = 0xD824u; g_yield_req = 0u; return; }
     goto L_D8A8;
 L_D827: if (g_yield_req) { g_resume = 0xD827u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0200u); setnz(A);
+    A = rd(0x0200u);
     tick(2u);
     Cf = false;
     tick(2u);
@@ -14702,17 +14702,17 @@ L_D830: if (g_yield_req) { g_resume = 0xD830u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0059u, A);
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(3u);
-    A = rd(0x0059u); setnz(A);
+    A = rd(0x0059u);
     tick(4u + ((0x00A8u + X) > 0xFFu ? 1u : 0u));
     { const u8 v = rd((u16)(0xC1A8u + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_D849; }
@@ -14720,7 +14720,7 @@ L_D830: if (g_yield_req) { g_resume = 0xD830u; g_yield_req = 0u; return; }
     goto L_D840;
 L_D840: if (g_yield_req) { g_resume = 0xD840u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(4u + ((0x00A8u + X) > 0xFFu ? 1u : 0u));
     { const u8 v = rd((u16)(0xC1A8u + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_D849; }
@@ -14731,7 +14731,7 @@ L_D846: if (g_yield_req) { g_resume = 0xD846u; g_yield_req = 0u; return; }
     goto L_D8A8;
 L_D849: if (g_yield_req) { g_resume = 0xD849u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(2u);
     A = (u8)(A & 0x01u); setnz(A);
     if (Zf) { tick(3u); goto L_D867; }
@@ -14748,15 +14748,15 @@ L_D853: if (g_yield_req) { g_resume = 0xD853u; g_yield_req = 0u; return; }
     goto L_D8A8;
 L_D856: if (g_yield_req) { g_resume = 0xD856u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x00A0u, A);
     tick(4u);
-    A = rd(0x02D8u); setnz(A);
+    A = rd(0x02D8u);
     tick(3u);
     wr(0x0001u, A);
     tick(4u);
-    A = rd(0x02DBu); setnz(A);
+    A = rd(0x02DBu);
     tick(3u);
     wr(0x0000u, A);
     tick(3u);
@@ -14772,11 +14772,11 @@ L_D86C: if (g_yield_req) { g_resume = 0xD86Cu; g_yield_req = 0u; return; }
     goto L_D8A8;
 L_D86F: if (g_yield_req) { g_resume = 0xD86Fu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     wr(0x00A0u, A);
     tick(4u);
-    A = rd(0x02D0u); setnz(A);
+    A = rd(0x02D0u);
     tick(3u);
     wr(0x0001u, A);
     tick(4u);
@@ -14822,20 +14822,20 @@ L_D88D: if (g_yield_req) { g_resume = 0xD88Du; g_yield_req = 0u; return; }
     goto L_D88F;
 L_D88F: if (g_yield_req) { g_resume = 0xD88Fu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x00FCu); setnz(A);
+    A = rd(0x00FCu);
     tick(4u);
     wr(0x0519u, A);
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A != 4u) { goto L_D8A7; }
     goto L_D89A;
 L_D89A: if (g_yield_req) { g_resume = 0xD89Au; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x19u; setnz(A);
+    A = 0x19u;
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    A = 0x3Fu; setnz(A);
+    A = 0x3Fu;
     tick(3u);
     wr(0x0001u, A);
     tick(2u);
@@ -14851,7 +14851,7 @@ L_D8A7: if (g_yield_req) { g_resume = 0xD8A7u; g_yield_req = 0u; return; }
     return;
 L_D8A8: if (g_yield_req) { g_resume = 0xD8A8u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x00A0u, A);
     tick(6u);
@@ -14878,9 +14878,9 @@ L_F075: if (g_yield_req) { g_resume = 0xF075u; g_yield_req = 0u; return; }
     goto L_F078;
 L_F078: if (g_yield_req) { g_resume = 0xF078u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0057u); setnz(A);
+    A = rd(0x0057u);
     tick(2u);
-    A = (u8)(A & 0x03u); setnz(A);
+    A = (u8)(A & 0x03u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(3u);
@@ -14891,54 +14891,54 @@ L_F096: if (g_yield_req) { g_resume = 0xF096u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Fu, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0005u); setnz(A);
+    A = rd(0x0005u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0006u); setnz(A);
+    A = rd(0x0006u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0008u); setnz(A);
+    A = rd(0x0008u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0009u); setnz(A);
+    A = rd(0x0009u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x0005u, A);
     tick(3u);
-    A = rd(0x000Fu); setnz(A);
+    A = rd(0x000Fu);
     if (A == 4u) { goto L_F0EF; }
     goto L_F0B9;
 L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Fu; setnz(A);
+    A = 0x0Fu;
     tick(3u);
-    A = (u8)(A & rd(0x0003u)); setnz(A);
+    A = (u8)(A & rd(0x0003u));
     tick(3u);
     wr(0x0007u, A);
     tick(3u);
-    A = rd(0x0003u); setnz(A);
+    A = rd(0x0003u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -14950,7 +14950,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0006u, A);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
     A = 0x00u; setnz(A);
     tick(2u);
@@ -14958,7 +14958,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     goto L_F0CB;
 L_F0CB: if (g_yield_req) { g_resume = 0xF0CBu; g_yield_req = 0u; return; } 
     tick(3u);
-    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Zf) { tick(3u); goto L_F0CB; }
@@ -15021,39 +15021,39 @@ L_F0EF: if (g_yield_req) { g_resume = 0xF0EFu; g_yield_req = 0u; return; }
     goto L_F0F2;
 L_F0F2: if (g_yield_req) { g_resume = 0xF0F2u; g_yield_req = 0u; return; } 
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0009u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0008u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0007u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0006u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0005u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(6u);
     return;
 }
@@ -15069,9 +15069,9 @@ L_F075: if (g_yield_req) { g_resume = 0xF075u; g_yield_req = 0u; return; }
     goto L_F078;
 L_F078: if (g_yield_req) { g_resume = 0xF078u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0057u); setnz(A);
+    A = rd(0x0057u);
     tick(2u);
-    A = (u8)(A & 0x03u); setnz(A);
+    A = (u8)(A & 0x03u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(3u);
@@ -15082,54 +15082,54 @@ L_F096: if (g_yield_req) { g_resume = 0xF096u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Fu, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0005u); setnz(A);
+    A = rd(0x0005u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0006u); setnz(A);
+    A = rd(0x0006u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0008u); setnz(A);
+    A = rd(0x0008u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0009u); setnz(A);
+    A = rd(0x0009u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x0005u, A);
     tick(3u);
-    A = rd(0x000Fu); setnz(A);
+    A = rd(0x000Fu);
     if (A == 4u) { goto L_F0EF; }
     goto L_F0B9;
 L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Fu; setnz(A);
+    A = 0x0Fu;
     tick(3u);
-    A = (u8)(A & rd(0x0003u)); setnz(A);
+    A = (u8)(A & rd(0x0003u));
     tick(3u);
     wr(0x0007u, A);
     tick(3u);
-    A = rd(0x0003u); setnz(A);
+    A = rd(0x0003u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -15141,7 +15141,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0006u, A);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
     A = 0x00u; setnz(A);
     tick(2u);
@@ -15149,7 +15149,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     goto L_F0CB;
 L_F0CB: if (g_yield_req) { g_resume = 0xF0CBu; g_yield_req = 0u; return; } 
     tick(3u);
-    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Zf) { tick(3u); goto L_F0CB; }
@@ -15212,39 +15212,39 @@ L_F0EF: if (g_yield_req) { g_resume = 0xF0EFu; g_yield_req = 0u; return; }
     goto L_F0F2;
 L_F0F2: if (g_yield_req) { g_resume = 0xF0F2u; g_yield_req = 0u; return; } 
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0009u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0008u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0007u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0006u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0005u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(6u);
     return;
 }
@@ -15261,54 +15261,54 @@ L_F096: if (g_yield_req) { g_resume = 0xF096u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Fu, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0005u); setnz(A);
+    A = rd(0x0005u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0006u); setnz(A);
+    A = rd(0x0006u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0008u); setnz(A);
+    A = rd(0x0008u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0009u); setnz(A);
+    A = rd(0x0009u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x0005u, A);
     tick(3u);
-    A = rd(0x000Fu); setnz(A);
+    A = rd(0x000Fu);
     if (A == 4u) { goto L_F0EF; }
     goto L_F0B9;
 L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Fu; setnz(A);
+    A = 0x0Fu;
     tick(3u);
-    A = (u8)(A & rd(0x0003u)); setnz(A);
+    A = (u8)(A & rd(0x0003u));
     tick(3u);
     wr(0x0007u, A);
     tick(3u);
-    A = rd(0x0003u); setnz(A);
+    A = rd(0x0003u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -15320,7 +15320,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0006u, A);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
     A = 0x00u; setnz(A);
     tick(2u);
@@ -15328,7 +15328,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     goto L_F0CB;
 L_F0CB: if (g_yield_req) { g_resume = 0xF0CBu; g_yield_req = 0u; return; } 
     tick(3u);
-    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Zf) { tick(3u); goto L_F0CB; }
@@ -15391,39 +15391,39 @@ L_F0EF: if (g_yield_req) { g_resume = 0xF0EFu; g_yield_req = 0u; return; }
     goto L_F0F2;
 L_F0F2: if (g_yield_req) { g_resume = 0xF0F2u; g_yield_req = 0u; return; } 
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0009u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0008u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0007u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0006u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0005u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(6u);
     return;
 }
@@ -15432,11 +15432,11 @@ static void f_D7F2(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xD7F2u: goto L_D7F2; case 0xD7FFu: goto L_D7FF; } }
 L_D7F2: if (g_yield_req) { g_resume = 0xD7F2u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x19u; setnz(A);
+    A = 0x19u;
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    A = 0x3Fu; setnz(A);
+    A = 0x3Fu;
     tick(3u);
     wr(0x0001u, A);
     tick(2u);
@@ -15462,15 +15462,15 @@ L_EFF5: if (g_yield_req) { g_resume = 0xEFF5u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Cu, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    Y = 0x00u; setnz(Y);
+    Y = 0x00u;
     tick(3u);
     A = rd(0x000Cu); setnz(A);
     if (!Zf) { tick(3u); goto L_F018; }
@@ -15553,23 +15553,23 @@ L_F02A: if (g_yield_req) { g_resume = 0xF02Au; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x004Du, A);
     tick(3u);
-    A = rd(0x004Au); setnz(A);
+    A = rd(0x004Au);
     tick(2u);
     Cf = true;
     tick(3u);
-    { const u8 v = rd(0x0046u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0046u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x009Cu, A);
     tick(3u);
-    A = rd(0x004Bu); setnz(A);
+    A = rd(0x004Bu);
     tick(2u);
     Cf = true;
     tick(3u);
-    { const u8 v = rd(0x0047u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0047u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x009Du, A);
     tick(3u);
-    A = rd(0x0049u); setnz(A);
+    A = rd(0x0049u);
     tick(3u);
     { const u8 v = rd(0x004Bu); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Cf) { tick(3u); goto L_F057; }
@@ -15577,7 +15577,7 @@ L_F02A: if (g_yield_req) { g_resume = 0xF02Au; g_yield_req = 0u; return; }
     goto L_F040;
 L_F040: if (g_yield_req) { g_resume = 0xF040u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x004Du); setnz(A);
+    A = rd(0x004Du);
     tick(3u);
     { const u8 v = rd(0x0047u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Cf) { tick(3u); goto L_F057; }
@@ -15585,7 +15585,7 @@ L_F040: if (g_yield_req) { g_resume = 0xF040u; g_yield_req = 0u; return; }
     goto L_F046;
 L_F046: if (g_yield_req) { g_resume = 0xF046u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x004Cu); setnz(A);
+    A = rd(0x004Cu);
     tick(3u);
     { const u8 v = rd(0x0046u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Cf) { tick(3u); goto L_F057; }
@@ -15593,7 +15593,7 @@ L_F046: if (g_yield_req) { g_resume = 0xF046u; g_yield_req = 0u; return; }
     goto L_F04C;
 L_F04C: if (g_yield_req) { g_resume = 0xF04Cu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0048u); setnz(A);
+    A = rd(0x0048u);
     tick(3u);
     { const u8 v = rd(0x004Au); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Cf) { tick(3u); goto L_F057; }
@@ -15601,7 +15601,7 @@ L_F04C: if (g_yield_req) { g_resume = 0xF04Cu; g_yield_req = 0u; return; }
     goto L_F052;
 L_F052: if (g_yield_req) { g_resume = 0xF052u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     goto L_F059;
 L_F057: if (g_yield_req) { g_resume = 0xF057u; g_yield_req = 0u; return; } 
@@ -15612,15 +15612,15 @@ L_F059: if (g_yield_req) { g_resume = 0xF059u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Cu, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(3u);
-    A = rd(0x000Cu); setnz(A);
+    A = rd(0x000Cu);
     tick(6u);
     return;
 }
@@ -15629,7 +15629,7 @@ static void f_E166(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xE166u: goto L_E166; case 0xE16Au: goto L_E16A; case 0xE170u: goto L_E170; case 0xE172u: goto L_E172; case 0xE177u: goto L_E177; case 0xE17Fu: goto L_E17F; case 0xE183u: goto L_E183; case 0xE187u: goto L_E187; case 0xE18Du: goto L_E18D; case 0xE195u: goto L_E195; case 0xE199u: goto L_E199; } }
 L_E166: if (g_yield_req) { g_resume = 0xE166u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(2u);
     Y = 0x06u; setnz(Y);
     goto L_E16A;
@@ -15653,9 +15653,9 @@ L_E172: if (g_yield_req) { g_resume = 0xE172u; g_yield_req = 0u; return; }
     goto L_E177;
 L_E177: if (g_yield_req) { g_resume = 0xE177u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
-    A = rd((u16)(0x007Eu + X)); setnz(A);
+    A = rd((u16)(0x007Eu + X));
     tick(2u);
     Cf = false;
     tick(2u);
@@ -15668,24 +15668,24 @@ L_E17F: if (g_yield_req) { g_resume = 0xE17Fu; g_yield_req = 0u; return; }
     goto L_E183;
 L_E183: if (g_yield_req) { g_resume = 0xE183u; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(3u);
     goto L_E172;
 L_E187: if (g_yield_req) { g_resume = 0xE187u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x0059u); setnz(X);
+    X = rd(0x0059u);
     if (X == 7u) { goto L_E199; }
     goto L_E18D;
 L_E18D: if (g_yield_req) { g_resume = 0xE18Du; g_yield_req = 0u; return; } 
     tick(6u);
     { u8 t = (u8)(rd((u16)(0x007Eu + X)) + 1u); wr((u16)(0x007Eu + X), t); setnz(t); }
     tick(3u);
-    A = rd(0x0096u); setnz(A);
+    A = rd(0x0096u);
     if (A != 10u) { goto L_E199; }
     goto L_E195;
 L_E195: if (g_yield_req) { g_resume = 0xE195u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x0059u); setnz(X);
+    X = rd(0x0059u);
     tick(6u);
     { u8 t = (u8)(rd((u16)(0x007Eu + X)) + 1u); wr((u16)(0x007Eu + X), t); setnz(t); }
     goto L_E199;
@@ -15704,7 +15704,7 @@ L_EFD7: if (g_yield_req) { g_resume = 0xEFD7u; g_yield_req = 0u; return; }
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x03u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x03u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     goto L_EFE2;
 L_EFE2: if (g_yield_req) { g_resume = 0xEFE2u; g_yield_req = 0u; return; } 
@@ -15717,7 +15717,7 @@ L_EFE2: if (g_yield_req) { g_resume = 0xEFE2u; g_yield_req = 0u; return; }
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(6u);
     return;
 }
@@ -15726,15 +15726,15 @@ static void f_EAF7(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xEAF7u: goto L_EAF7; case 0xEB03u: goto L_EB03; case 0xEB05u: goto L_EB05; } }
 L_EAF7: if (g_yield_req) { g_resume = 0xEAF7u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0050u); setnz(A);
+    A = rd(0x0050u);
     tick(2u);
-    A = (u8)(A & 0x01u); setnz(A);
+    A = (u8)(A & 0x01u);
     tick(2u);
     Cf = false;
     tick(3u);
-    { const u8 v = rd(0x0054u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0054u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     if (X < 4u) { goto L_EB05; }
     goto L_EB03;
 L_EB03: if (g_yield_req) { g_resume = 0xEB03u; g_yield_req = 0u; return; } 
@@ -15750,9 +15750,9 @@ static void f_DA4C(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xDA4Cu: goto L_DA4C; case 0xDA54u: goto L_DA54; case 0xDA58u: goto L_DA58; case 0xDA5Cu: goto L_DA5C; case 0xDA60u: goto L_DA60; case 0xDA64u: goto L_DA64; case 0xDA68u: goto L_DA68; case 0xDA6Cu: goto L_DA6C; case 0xDA70u: goto L_DA70; case 0xDA74u: goto L_DA74; case 0xDA78u: goto L_DA78; case 0xDA7Cu: goto L_DA7C; case 0xDA7Du: goto L_DA7D; case 0xDA80u: goto L_DA80; case 0xDA83u: goto L_DA83; case 0xDA86u: goto L_DA86; case 0xDA89u: goto L_DA89; case 0xDA8Fu: goto L_DA8F; case 0xDA92u: goto L_DA92; case 0xDA95u: goto L_DA95; case 0xDA98u: goto L_DA98; case 0xDA9Bu: goto L_DA9B; case 0xDA9Cu: goto L_DA9C; case 0xDA9Fu: goto L_DA9F; case 0xDAAEu: goto L_DAAE; case 0xDAB2u: goto L_DAB2; case 0xDAC0u: goto L_DAC0; case 0xDAC3u: goto L_DAC3; case 0xDAC7u: goto L_DAC7; case 0xDAD5u: goto L_DAD5; case 0xDAD9u: goto L_DAD9; case 0xDADDu: goto L_DADD; case 0xDAEAu: goto L_DAEA; case 0xDAF2u: goto L_DAF2; case 0xDAF7u: goto L_DAF7; case 0xDAFAu: goto L_DAFA; case 0xDAFFu: goto L_DAFF; case 0xDB00u: goto L_DB00; case 0xDB05u: goto L_DB05; case 0xDB07u: goto L_DB07; case 0xDB0Au: goto L_DB0A; case 0xDB1Bu: goto L_DB1B; case 0xDB21u: goto L_DB21; case 0xDB2Bu: goto L_DB2B; case 0xDB2Cu: goto L_DB2C; case 0xDB31u: goto L_DB31; case 0xDB33u: goto L_DB33; case 0xDB34u: goto L_DB34; case 0xDB37u: goto L_DB37; case 0xDB3Bu: goto L_DB3B; case 0xDB40u: goto L_DB40; case 0xDB49u: goto L_DB49; case 0xDB4Eu: goto L_DB4E; case 0xDB50u: goto L_DB50; case 0xDB55u: goto L_DB55; case 0xDB5Au: goto L_DB5A; case 0xDB62u: goto L_DB62; case 0xDB69u: goto L_DB69; case 0xDB6Eu: goto L_DB6E; case 0xDB73u: goto L_DB73; case 0xDB75u: goto L_DB75; case 0xDB78u: goto L_DB78; case 0xDB7Fu: goto L_DB7F; case 0xDB8Bu: goto L_DB8B; case 0xDB91u: goto L_DB91; case 0xDB9Bu: goto L_DB9B; case 0xDBA3u: goto L_DBA3; case 0xDBACu: goto L_DBAC; case 0xDBB1u: goto L_DBB1; case 0xDBB3u: goto L_DBB3; case 0xDBB6u: goto L_DBB6; case 0xDBB9u: goto L_DBB9; case 0xDBC1u: goto L_DBC1; case 0xDBC4u: goto L_DBC4; case 0xDBCAu: goto L_DBCA; case 0xDBCCu: goto L_DBCC; case 0xDBCDu: goto L_DBCD; case 0xDBD8u: goto L_DBD8; case 0xDBE7u: goto L_DBE7; case 0xDBEDu: goto L_DBED; case 0xDC30u: goto L_DC30; case 0xDC35u: goto L_DC35; case 0xDC37u: goto L_DC37; case 0xDC3Au: goto L_DC3A; case 0xDC3Fu: goto L_DC3F; case 0xDC4Au: goto L_DC4A; case 0xDC4Fu: goto L_DC4F; case 0xDC51u: goto L_DC51; case 0xDC5Au: goto L_DC5A; case 0xDC62u: goto L_DC62; case 0xDC68u: goto L_DC68; case 0xDC69u: goto L_DC69; case 0xDC6Eu: goto L_DC6E; case 0xDC70u: goto L_DC70; case 0xDC71u: goto L_DC71; case 0xDC74u: goto L_DC74; case 0xDC79u: goto L_DC79; case 0xDC81u: goto L_DC81; case 0xDC89u: goto L_DC89; case 0xDC8Eu: goto L_DC8E; case 0xDC90u: goto L_DC90; case 0xDC93u: goto L_DC93; case 0xDC9Cu: goto L_DC9C; case 0xDCA1u: goto L_DCA1; case 0xDCA6u: goto L_DCA6; case 0xDCA8u: goto L_DCA8; case 0xDCB1u: goto L_DCB1; case 0xDCB3u: goto L_DCB3; case 0xDCB9u: goto L_DCB9; case 0xDCBCu: goto L_DCBC; case 0xDCC8u: goto L_DCC8; case 0xDCC9u: goto L_DCC9; case 0xDCCFu: goto L_DCCF; case 0xDCD0u: goto L_DCD0; case 0xDCD5u: goto L_DCD5; case 0xDCD7u: goto L_DCD7; case 0xDCD8u: goto L_DCD8; case 0xDCDBu: goto L_DCDB; case 0xDCE0u: goto L_DCE0; case 0xDCE5u: goto L_DCE5; case 0xDCEDu: goto L_DCED; case 0xDCF3u: goto L_DCF3; case 0xDCF8u: goto L_DCF8; case 0xDCFDu: goto L_DCFD; case 0xDD00u: goto L_DD00; case 0xDD06u: goto L_DD06; case 0xDD0Bu: goto L_DD0B; case 0xDD10u: goto L_DD10; case 0xDD13u: goto L_DD13; case 0xDD1Fu: goto L_DD1F; case 0xDD25u: goto L_DD25; case 0xDD28u: goto L_DD28; case 0xDD31u: goto L_DD31; case 0xDD32u: goto L_DD32; case 0xDD37u: goto L_DD37; case 0xDD39u: goto L_DD39; case 0xDD3Au: goto L_DD3A; case 0xDD3Du: goto L_DD3D; case 0xDD42u: goto L_DD42; case 0xDD47u: goto L_DD47; case 0xDD4Fu: goto L_DD4F; case 0xDD57u: goto L_DD57; case 0xDD59u: goto L_DD59; case 0xDD5Du: goto L_DD5D; case 0xDD60u: goto L_DD60; case 0xDD68u: goto L_DD68; case 0xDD6Au: goto L_DD6A; case 0xDD70u: goto L_DD70; case 0xDD73u: goto L_DD73; case 0xDD76u: goto L_DD76; case 0xDD7Fu: goto L_DD7F; case 0xDD84u: goto L_DD84; case 0xDD8Bu: goto L_DD8B; case 0xDD95u: goto L_DD95; case 0xDD98u: goto L_DD98; case 0xDD9Cu: goto L_DD9C; case 0xDDA2u: goto L_DDA2; case 0xDDA6u: goto L_DDA6; case 0xDDABu: goto L_DDAB; case 0xDDB0u: goto L_DDB0; case 0xDDB2u: goto L_DDB2; case 0xDDB5u: goto L_DDB5; case 0xDDB8u: goto L_DDB8; case 0xDDC0u: goto L_DDC0; case 0xDDC6u: goto L_DDC6; case 0xDDC9u: goto L_DDC9; case 0xDDCDu: goto L_DDCD; case 0xDDD7u: goto L_DDD7; case 0xDDDAu: goto L_DDDA; case 0xDDE4u: goto L_DDE4; case 0xDDE9u: goto L_DDE9; case 0xDDEBu: goto L_DDEB; case 0xDDF5u: goto L_DDF5; case 0xDE01u: goto L_DE01; case 0xDE06u: goto L_DE06; case 0xDE0Bu: goto L_DE0B; case 0xDE0Du: goto L_DE0D; case 0xDE10u: goto L_DE10; case 0xDE13u: goto L_DE13; case 0xDE18u: goto L_DE18; case 0xDE1Au: goto L_DE1A; case 0xDE27u: goto L_DE27; case 0xDE30u: goto L_DE30; case 0xDE36u: goto L_DE36; case 0xDE3Au: goto L_DE3A; case 0xDE40u: goto L_DE40; case 0xDE47u: goto L_DE47; case 0xDE50u: goto L_DE50; case 0xDE56u: goto L_DE56; case 0xDE63u: goto L_DE63; case 0xDE68u: goto L_DE68; case 0xDE6Au: goto L_DE6A; case 0xDE73u: goto L_DE73; case 0xDE82u: goto L_DE82; case 0xDE85u: goto L_DE85; case 0xEADBu: goto L_EADB; case 0xEADEu: goto L_EADE; case 0xF082u: goto L_F082; case 0xF086u: goto L_F086; case 0xF088u: goto L_F088; case 0xF08Cu: goto L_F08C; case 0xF08Eu: goto L_F08E; case 0xF092u: goto L_F092; case 0xF094u: goto L_F094; case 0xF096u: goto L_F096; case 0xF0B9u: goto L_F0B9; case 0xF0CBu: goto L_F0CB; case 0xF0D0u: goto L_F0D0; case 0xF0D6u: goto L_F0D6; case 0xF0D9u: goto L_F0D9; case 0xF0DCu: goto L_F0DC; case 0xF0E0u: goto L_F0E0; case 0xF0E3u: goto L_F0E3; case 0xF0E6u: goto L_F0E6; case 0xF0E9u: goto L_F0E9; case 0xF0ECu: goto L_F0EC; case 0xF0EFu: goto L_F0EF; case 0xF0F2u: goto L_F0F2; } }
 L_DA4C: if (g_yield_req) { g_resume = 0xDA4Cu; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
-    A = rd((u16)(0x005Eu + X)); setnz(A);
+    A = rd((u16)(0x005Eu + X));
     if (A == 128u) { goto L_DA7D; }
     goto L_DA54;
 L_DA54: if (g_yield_req) { g_resume = 0xDA54u; g_yield_req = 0u; return; } 
@@ -15802,7 +15802,7 @@ L_DA86: if (g_yield_req) { g_resume = 0xDA86u; g_yield_req = 0u; return; }
     goto L_DC30;
 L_DA89: if (g_yield_req) { g_resume = 0xDA89u; g_yield_req = 0u; return; } 
     tick(4u + ((0x0021u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0421u + X)); setnz(A);
+    A = rd((u16)(0x0421u + X));
     tick(3u);
     goto L_DD8B;
 L_DA8F: if (g_yield_req) { g_resume = 0xDA8Fu; g_yield_req = 0u; return; } 
@@ -15833,7 +15833,7 @@ L_DA9C: if (g_yield_req) { g_resume = 0xDA9Cu; g_yield_req = 0u; return; }
     goto L_DA9F;
 L_DA9F: if (g_yield_req) { g_resume = 0xDA9Fu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x30u; setnz(A);
+    A = 0x30u;
     tick(3u);
     wr(0x0000u, A);
     tick(3u);
@@ -15858,13 +15858,13 @@ L_DAAE: if (g_yield_req) { g_resume = 0xDAAEu; g_yield_req = 0u; return; }
     goto L_DAB2;
 L_DAB2: if (g_yield_req) { g_resume = 0xDAB2u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x81u; setnz(A);
+    A = 0x81u;
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
     wr((u16)(0x005Eu + X), A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(4u);
     wr((u16)(0x008Au + X), A);
     tick(3u);
@@ -15883,13 +15883,13 @@ L_DAC3: if (g_yield_req) { g_resume = 0xDAC3u; g_yield_req = 0u; return; }
     goto L_DAC7;
 L_DAC7: if (g_yield_req) { g_resume = 0xDAC7u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xC0u; setnz(A);
+    A = 0xC0u;
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
     wr((u16)(0x005Eu + X), A);
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(5u);
     wr((u16)(0x0421u + X), A);
     tick(3u);
@@ -15908,18 +15908,18 @@ L_DAD9: if (g_yield_req) { g_resume = 0xDAD9u; g_yield_req = 0u; return; }
     goto L_DADD;
 L_DADD: if (g_yield_req) { g_resume = 0xDADDu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xC0u; setnz(A);
+    A = 0xC0u;
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
     wr((u16)(0x005Eu + X), A);
     tick(4u + ((0x0021u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0421u + X)); setnz(A);
+    A = rd((u16)(0x0421u + X));
     if (A != 1u) { goto L_DAF2; }
     goto L_DAEA;
 L_DAEA: if (g_yield_req) { g_resume = 0xDAEAu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x03u; setnz(A);
+    A = 0x03u;
     tick(5u);
     wr((u16)(0x0421u + X), A);
     tick(3u);
@@ -15968,11 +15968,11 @@ L_DB07: if (g_yield_req) { g_resume = 0xDB07u; g_yield_req = 0u; return; }
     goto L_DB0A;
 L_DB0A: if (g_yield_req) { g_resume = 0xDB0Au; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x4Du; setnz(A);
+    A = 0x4Du;
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    A = 0x32u; setnz(A);
+    A = 0x32u;
     tick(3u);
     wr(0x0001u, A);
     tick(2u);
@@ -15994,9 +15994,9 @@ L_DB1B: if (g_yield_req) { g_resume = 0xDB1Bu; g_yield_req = 0u; return; }
     goto L_DB2B;
 L_DB21: if (g_yield_req) { g_resume = 0xDB21u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(4u);
     wr((u16)(0x005Eu + X), A);
     tick(2u);
@@ -16050,7 +16050,7 @@ L_DB3B: if (g_yield_req) { g_resume = 0xDB3Bu; g_yield_req = 0u; return; }
     goto L_DB40;
 L_DB40: if (g_yield_req) { g_resume = 0xDB40u; g_yield_req = 0u; return; } 
     tick(3u);
-    Y = rd(0x005Du); setnz(Y);
+    Y = rd(0x005Du);
     tick(5u);
     wr((u16)(0x0068u + Y), A);
     tick(2u);
@@ -16100,7 +16100,7 @@ L_DB5A: if (g_yield_req) { g_resume = 0xDB5Au; g_yield_req = 0u; return; }
     goto L_DB62;
 L_DB62: if (g_yield_req) { g_resume = 0xDB62u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
     A = rd((u16)(0x0072u + X)); setnz(A);
     tick(6u);
@@ -16111,7 +16111,7 @@ L_DB62: if (g_yield_req) { g_resume = 0xDB62u; g_yield_req = 0u; return; }
     goto L_DB69;
 L_DB69: if (g_yield_req) { g_resume = 0xDB69u; g_yield_req = 0u; return; } 
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
     X = A; setnz(X);
     tick(6u);
@@ -16142,7 +16142,7 @@ L_DB75: if (g_yield_req) { g_resume = 0xDB75u; g_yield_req = 0u; return; }
     goto L_DB78;
 L_DB78: if (g_yield_req) { g_resume = 0xDB78u; g_yield_req = 0u; return; } 
     tick(4u + ((0x0048u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC448u + X)); setnz(A);
+    A = rd((u16)(0xC448u + X));
     tick(3u);
     A = (u8)(A & rd(0x0019u)); setnz(A);
     if (!Zf) { tick(3u); goto L_DBAC; }
@@ -16150,27 +16150,27 @@ L_DB78: if (g_yield_req) { g_resume = 0xDB78u; g_yield_req = 0u; return; }
     goto L_DB7F;
 L_DB7F: if (g_yield_req) { g_resume = 0xDB7Fu; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
-    A = rd((u16)(0x0068u + X)); setnz(A);
+    A = rd((u16)(0x0068u + X));
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(4u);
-    A = rd((u16)(0x007Eu + X)); setnz(A);
+    A = rd((u16)(0x007Eu + X));
     if (A >= 4u) { goto L_DBAC; }
     goto L_DB8B;
 L_DB8B: if (g_yield_req) { g_resume = 0xDB8Bu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0096u); setnz(A);
+    A = rd(0x0096u);
     if (A != 2u) { goto L_DBA3; }
     goto L_DB91;
 L_DB91: if (g_yield_req) { g_resume = 0xDB91u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x0004u); setnz(X);
+    X = rd(0x0004u);
     tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0200u + X)); setnz(A);
+    A = rd((u16)(0x0200u + X));
     tick(4u);
     { const u8 v = rd(0x0200u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Cf) { tick(3u); goto L_DBA3; }
@@ -16180,7 +16180,7 @@ L_DB9B: if (g_yield_req) { g_resume = 0xDB9Bu; g_yield_req = 0u; return; }
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x0Fu; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x0Fu; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(4u);
     { const u8 v = rd(0x0200u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Cf) { tick(3u); goto L_DBAC; }
@@ -16188,9 +16188,9 @@ L_DB9B: if (g_yield_req) { g_resume = 0xDB9Bu; g_yield_req = 0u; return; }
     goto L_DBA3;
 L_DBA3: if (g_yield_req) { g_resume = 0xDBA3u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
     wr((u16)(0x005Eu + X), A);
     tick(6u);
@@ -16222,9 +16222,9 @@ L_DBB6: if (g_yield_req) { g_resume = 0xDBB6u; g_yield_req = 0u; return; }
     goto L_DBB9;
 L_DBB9: if (g_yield_req) { g_resume = 0xDBB9u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
-    A = rd((u16)(0x0068u + X)); setnz(A);
+    A = rd((u16)(0x0068u + X));
     if (A != 1u) { goto L_DBED; }
     goto L_DBC1;
 L_DBC1: if (g_yield_req) { g_resume = 0xDBC1u; g_yield_req = 0u; return; } 
@@ -16236,7 +16236,7 @@ L_DBC1: if (g_yield_req) { g_resume = 0xDBC1u; g_yield_req = 0u; return; }
     goto L_DBC4;
 L_DBC4: if (g_yield_req) { g_resume = 0xDBC4u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     if (A == 32u) { goto L_DBCD; }
     goto L_DBCA;
 L_DBCA: if (g_yield_req) { g_resume = 0xDBCAu; g_yield_req = 0u; return; } 
@@ -16248,7 +16248,7 @@ L_DBCC: if (g_yield_req) { g_resume = 0xDBCCu; g_yield_req = 0u; return; }
     return;
 L_DBCD: if (g_yield_req) { g_resume = 0xDBCDu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x03u; setnz(A);
+    A = 0x03u;
     tick(3u);
     wr(0x0002u, A);
     tick(2u);
@@ -16263,24 +16263,24 @@ L_DBCD: if (g_yield_req) { g_resume = 0xDBCDu; g_yield_req = 0u; return; }
     goto L_DBD8;
 L_DBD8: if (g_yield_req) { g_resume = 0xDBD8u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     wr(0x00ADu, A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
     wr((u16)(0x0068u + X), A);
     tick(2u);
-    A = 0x80u; setnz(A);
+    A = 0x80u;
     tick(3u);
     wr(0x00FEu, A);
     tick(6u);
     return;
 L_DBE7: if (g_yield_req) { g_resume = 0xDBE7u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(2u);
     A = 0x08u; setnz(A);
     tick(4u);
@@ -16322,14 +16322,14 @@ L_DC3F: if (g_yield_req) { g_resume = 0xDC3Fu; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0001u) + 1u); wr(0x0001u, t); setnz(t); }
     tick(3u);
-    Y = rd(0x005Du); setnz(Y);
+    Y = rd(0x005Du);
     tick(4u + ((0x0072u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0072u + Y)); setnz(A);
+    A = rd((u16)(0x0072u + Y));
     if (A != 144u) { goto L_DC4F; }
     goto L_DC4A;
 L_DC4A: if (g_yield_req) { g_resume = 0xDC4Au; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x94u; setnz(A);
+    A = 0x94u;
     tick(3u);
     goto L_DC51;
 L_DC4F: if (g_yield_req) { g_resume = 0xDC4Fu; g_yield_req = 0u; return; } 
@@ -16351,9 +16351,9 @@ L_DC51: if (g_yield_req) { g_resume = 0xDC51u; g_yield_req = 0u; return; }
     goto L_DC5A;
 L_DC5A: if (g_yield_req) { g_resume = 0xDC5Au; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
     { const u8 v = rd((u16)(0x00A3u + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Zf) { tick(3u); goto L_DC68; }
@@ -16361,7 +16361,7 @@ L_DC5A: if (g_yield_req) { g_resume = 0xDC5Au; g_yield_req = 0u; return; }
     goto L_DC62;
 L_DC62: if (g_yield_req) { g_resume = 0xDC62u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(2u);
     A = 0x01u; setnz(A);
     tick(4u);
@@ -16406,7 +16406,7 @@ L_DC79: if (g_yield_req) { g_resume = 0xDC79u; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0001u) + 1u); wr(0x0001u, t); setnz(t); }
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     tick(2u);
     A = (u8)(A & 0x01u); setnz(A);
     if (Zf) { tick(3u); goto L_DC90; }
@@ -16414,9 +16414,9 @@ L_DC79: if (g_yield_req) { g_resume = 0xDC79u; g_yield_req = 0u; return; }
     goto L_DC81;
 L_DC81: if (g_yield_req) { g_resume = 0xDC81u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
-    A = rd((u16)(0x0068u + X)); setnz(A);
+    A = rd((u16)(0x0068u + X));
     tick(2u);
     A = (u8)(A & 0x01u); setnz(A);
     if (Zf) { tick(3u); goto L_DC8E; }
@@ -16440,7 +16440,7 @@ L_DC90: if (g_yield_req) { g_resume = 0xDC90u; g_yield_req = 0u; return; }
     goto L_DC93;
 L_DC93: if (g_yield_req) { g_resume = 0xDC93u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
     A = rd((u16)(0x0072u + X)); setnz(A);
     tick(3u);
@@ -16475,7 +16475,7 @@ L_DCA6: if (g_yield_req) { g_resume = 0xDCA6u; g_yield_req = 0u; return; }
     goto L_DCA8;
 L_DCA8: if (g_yield_req) { g_resume = 0xDCA8u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(2u);
     A = 0x10u; setnz(A);
     tick(4u);
@@ -16492,7 +16492,7 @@ L_DCB1: if (g_yield_req) { g_resume = 0xDCB1u; g_yield_req = 0u; return; }
     goto L_DCB3;
 L_DCB3: if (g_yield_req) { g_resume = 0xDCB3u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0019u); setnz(A);
+    A = rd(0x0019u);
     tick(2u);
     A = (u8)(A & 0x01u); setnz(A);
     if (Zf) { tick(3u); goto L_DCBC; }
@@ -16503,15 +16503,15 @@ L_DCB9: if (g_yield_req) { g_resume = 0xDCB9u; g_yield_req = 0u; return; }
     goto L_DCC9;
 L_DCBC: if (g_yield_req) { g_resume = 0xDCBCu; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
-    A = rd((u16)(0x0068u + X)); setnz(A);
+    A = rd((u16)(0x0068u + X));
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(4u);
-    A = rd((u16)(0x007Eu + X)); setnz(A);
+    A = rd((u16)(0x007Eu + X));
     if (A >= 4u) { goto L_DCC9; }
     goto L_DCC8;
 L_DCC8: if (g_yield_req) { g_resume = 0xDCC8u; g_yield_req = 0u; return; } 
@@ -16519,7 +16519,7 @@ L_DCC8: if (g_yield_req) { g_resume = 0xDCC8u; g_yield_req = 0u; return; }
     return;
 L_DCC9: if (g_yield_req) { g_resume = 0xDCC9u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(2u);
     A = 0x20u; setnz(A);
     tick(4u);
@@ -16571,7 +16571,7 @@ L_DCE0: if (g_yield_req) { g_resume = 0xDCE0u; g_yield_req = 0u; return; }
     goto L_DCE5;
 L_DCE5: if (g_yield_req) { g_resume = 0xDCE5u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
     wr((u16)(0x0068u + X), A);
     tick(2u);
@@ -16583,7 +16583,7 @@ L_DCED: if (g_yield_req) { g_resume = 0xDCEDu; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0000u) + 1u); wr(0x0000u, t); setnz(t); }
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(2u);
     X = 0x00u; setnz(X);
     goto L_DCF3;
@@ -16595,7 +16595,7 @@ L_DCF3: if (g_yield_req) { g_resume = 0xDCF3u; g_yield_req = 0u; return; }
     goto L_DCF8;
 L_DCF8: if (g_yield_req) { g_resume = 0xDCF8u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     if (X == 11u) { goto L_DD25; }
     goto L_DCFD;
 L_DCFD: if (g_yield_req) { g_resume = 0xDCFDu; g_yield_req = 0u; return; } 
@@ -16605,7 +16605,7 @@ L_DD00: if (g_yield_req) { g_resume = 0xDD00u; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0000u) - 1u); wr(0x0000u, t); setnz(t); }
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(2u);
     X = 0x00u; setnz(X);
     goto L_DD06;
@@ -16617,7 +16617,7 @@ L_DD06: if (g_yield_req) { g_resume = 0xDD06u; g_yield_req = 0u; return; }
     goto L_DD0B;
 L_DD0B: if (g_yield_req) { g_resume = 0xDD0Bu; g_yield_req = 0u; return; } 
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     if (X == 11u) { goto L_DD25; }
     goto L_DD10;
 L_DD10: if (g_yield_req) { g_resume = 0xDD10u; g_yield_req = 0u; return; } 
@@ -16625,18 +16625,18 @@ L_DD10: if (g_yield_req) { g_resume = 0xDD10u; g_yield_req = 0u; return; }
     goto L_DD06;
 L_DD13: if (g_yield_req) { g_resume = 0xDD13u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     tick(2u);
     Cf = false;
     tick(4u + ((0x0007u + X) > 0xFFu ? 1u : 0u));
-    { const u8 v = rd((u16)(0xC407u + X)); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd((u16)(0xC407u + X)); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0001u, A);
     if (X != 10u) { goto L_DD25; }
     goto L_DD1F;
 L_DD1F: if (g_yield_req) { g_resume = 0xDD1Fu; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(2u);
     A = 0x01u; setnz(A);
     tick(4u);
@@ -16651,7 +16651,7 @@ L_DD25: if (g_yield_req) { g_resume = 0xDD25u; g_yield_req = 0u; return; }
     goto L_DD28;
 L_DD28: if (g_yield_req) { g_resume = 0xDD28u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
     A = rd((u16)(0x0072u + X)); setnz(A);
     tick(3u);
@@ -16708,7 +16708,7 @@ L_DD42: if (g_yield_req) { g_resume = 0xDD42u; g_yield_req = 0u; return; }
     goto L_DD47;
 L_DD47: if (g_yield_req) { g_resume = 0xDD47u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
     wr((u16)(0x0068u + X), A);
     tick(2u);
@@ -16720,7 +16720,7 @@ L_DD4F: if (g_yield_req) { g_resume = 0xDD4Fu; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0000u) - 1u); wr(0x0000u, t); setnz(t); }
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     if (A != 20u) { goto L_DD59; }
     goto L_DD57;
 L_DD57: if (g_yield_req) { g_resume = 0xDD57u; g_yield_req = 0u; return; } 
@@ -16740,7 +16740,7 @@ L_DD60: if (g_yield_req) { g_resume = 0xDD60u; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0000u) + 1u); wr(0x0000u, t); setnz(t); }
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     if (A != 236u) { goto L_DD6A; }
     goto L_DD68;
 L_DD68: if (g_yield_req) { g_resume = 0xDD68u; g_yield_req = 0u; return; } 
@@ -16749,7 +16749,7 @@ L_DD68: if (g_yield_req) { g_resume = 0xDD68u; g_yield_req = 0u; return; }
     goto L_DD6A;
 L_DD6A: if (g_yield_req) { g_resume = 0xDD6Au; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     if (A != 244u) { goto L_DD73; }
     goto L_DD70;
 L_DD70: if (g_yield_req) { g_resume = 0xDD70u; g_yield_req = 0u; return; } 
@@ -16764,9 +16764,9 @@ L_DD73: if (g_yield_req) { g_resume = 0xDD73u; g_yield_req = 0u; return; }
     goto L_DD76;
 L_DD76: if (g_yield_req) { g_resume = 0xDD76u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
-    A = rd((u16)(0x0072u + X)); setnz(A);
+    A = rd((u16)(0x0072u + X));
     tick(3u);
     wr(0x0002u, A);
     tick(3u);
@@ -16782,9 +16782,9 @@ L_DD7F: if (g_yield_req) { g_resume = 0xDD7Fu; g_yield_req = 0u; return; }
     goto L_DD84;
 L_DD84: if (g_yield_req) { g_resume = 0xDD84u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
     wr((u16)(0x0068u + X), A);
     tick(6u);
@@ -16793,9 +16793,9 @@ L_DD8B: if (g_yield_req) { g_resume = 0xDD8Bu; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0007u, A);
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
-    A = rd((u16)(0x005Eu + X)); setnz(A);
+    A = rd((u16)(0x005Eu + X));
     if (A != 194u) { goto L_DD98; }
     goto L_DD95;
 L_DD95: if (g_yield_req) { g_resume = 0xDD95u; g_yield_req = 0u; return; } 
@@ -16806,7 +16806,7 @@ L_DD98: if (g_yield_req) { g_resume = 0xDD98u; g_yield_req = 0u; return; }
     goto L_DD9C;
 L_DD9C: if (g_yield_req) { g_resume = 0xDD9Cu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     if (A == 2u) { goto L_DDAB; }
     goto L_DDA2;
 L_DDA2: if (g_yield_req) { g_resume = 0xDDA2u; g_yield_req = 0u; return; } 
@@ -16814,12 +16814,12 @@ L_DDA2: if (g_yield_req) { g_resume = 0xDDA2u; g_yield_req = 0u; return; }
     goto L_DDA6;
 L_DDA6: if (g_yield_req) { g_resume = 0xDDA6u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x34u; setnz(A);
+    A = 0x34u;
     tick(3u);
     goto L_DDB2;
 L_DDAB: if (g_yield_req) { g_resume = 0xDDABu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x36u; setnz(A);
+    A = 0x36u;
     tick(3u);
     goto L_DDB2;
 L_DDB0: if (g_yield_req) { g_resume = 0xDDB0u; g_yield_req = 0u; return; } 
@@ -16853,7 +16853,7 @@ L_DDB8: if (g_yield_req) { g_resume = 0xDDB8u; g_yield_req = 0u; return; }
     goto L_DDC0;
 L_DDC0: if (g_yield_req) { g_resume = 0xDDC0u; g_yield_req = 0u; return; } 
     tick(3u);
-    Y = rd(0x000Au); setnz(Y);
+    Y = rd(0x000Au);
     if (Y != 4u) { goto L_DDC9; }
     goto L_DDC6;
 L_DDC6: if (g_yield_req) { g_resume = 0xDDC6u; g_yield_req = 0u; return; } 
@@ -16864,9 +16864,9 @@ L_DDC9: if (g_yield_req) { g_resume = 0xDDC9u; g_yield_req = 0u; return; }
     goto L_DDCD;
 L_DDCD: if (g_yield_req) { g_resume = 0xDDCDu; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(4u);
     wr((u16)(0x008Au + X), A);
     tick(2u);
@@ -16885,9 +16885,9 @@ L_DDDA: if (g_yield_req) { g_resume = 0xDDDAu; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0004u, X);
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
-    A = rd((u16)(0x005Eu + X)); setnz(A);
+    A = rd((u16)(0x005Eu + X));
     if (A != 193u) { goto L_DE13; }
     goto L_DDE4;
 L_DDE4: if (g_yield_req) { g_resume = 0xDDE4u; g_yield_req = 0u; return; } 
@@ -16905,22 +16905,22 @@ L_DDE9: if (g_yield_req) { g_resume = 0xDDE9u; g_yield_req = 0u; return; }
     goto L_DDEB;
 L_DDEB: if (g_yield_req) { g_resume = 0xDDEBu; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x0004u); setnz(X);
+    X = rd(0x0004u);
     tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0200u + X)); setnz(A);
+    A = rd((u16)(0x0200u + X));
     tick(3u);
     wr(0x0001u, A);
     tick(3u);
     goto L_DE27;
 L_DDF5: if (g_yield_req) { g_resume = 0xDDF5u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(2u);
-    A = 0xC0u; setnz(A);
+    A = 0xC0u;
     tick(4u);
     wr((u16)(0x005Eu + X), A);
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     if (A != 3u) { goto L_DE10; }
     goto L_DE01;
 L_DE01: if (g_yield_req) { g_resume = 0xDE01u; g_yield_req = 0u; return; } 
@@ -16931,7 +16931,7 @@ L_DE01: if (g_yield_req) { g_resume = 0xDE01u; g_yield_req = 0u; return; }
     goto L_DE06;
 L_DE06: if (g_yield_req) { g_resume = 0xDE06u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     goto L_DE0D;
 L_DE0B: if (g_yield_req) { g_resume = 0xDE0Bu; g_yield_req = 0u; return; } 
@@ -16960,9 +16960,9 @@ L_DE18: if (g_yield_req) { g_resume = 0xDE18u; g_yield_req = 0u; return; }
     goto L_DE1A;
 L_DE1A: if (g_yield_req) { g_resume = 0xDE1Au; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x0004u); setnz(X);
+    X = rd(0x0004u);
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(2u);
     Cf = false;
     tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
@@ -16977,13 +16977,13 @@ L_DE1A: if (g_yield_req) { g_resume = 0xDE1Au; g_yield_req = 0u; return; }
     goto L_DE27;
 L_DE27: if (g_yield_req) { g_resume = 0xDE27u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     if (A != 2u) { goto L_DE36; }
     goto L_DE30;
 L_DE30: if (g_yield_req) { g_resume = 0xDE30u; g_yield_req = 0u; return; } 
@@ -16996,7 +16996,7 @@ L_DE36: if (g_yield_req) { g_resume = 0xDE36u; g_yield_req = 0u; return; }
     goto L_DE3A;
 L_DE3A: if (g_yield_req) { g_resume = 0xDE3Au; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     tick(2u);
     A = (u8)(A & 0x01u); setnz(A);
     if (Zf) { tick(3u); goto L_DE56; }
@@ -17004,7 +17004,7 @@ L_DE3A: if (g_yield_req) { g_resume = 0xDE3Au; g_yield_req = 0u; return; }
     goto L_DE40;
 L_DE40: if (g_yield_req) { g_resume = 0xDE40u; g_yield_req = 0u; return; } 
     tick(3u);
-    Y = rd(0x005Du); setnz(Y);
+    Y = rd(0x005Du);
     tick(4u + ((0x0017u + Y) > 0xFFu ? 1u : 0u));
     A = rd((u16)(0x0417u + Y)); setnz(A);
     if (!Zf) { tick(3u); goto L_DE50; }
@@ -17025,18 +17025,18 @@ L_DE50: if (g_yield_req) { g_resume = 0xDE50u; g_yield_req = 0u; return; }
     goto L_DE56;
 L_DE56: if (g_yield_req) { g_resume = 0xDE56u; g_yield_req = 0u; return; } 
     tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0200u + X)); setnz(A);
+    A = rd((u16)(0x0200u + X));
     tick(3u);
     wr(0x0000u, A);
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
-    A = rd((u16)(0x0072u + X)); setnz(A);
+    A = rd((u16)(0x0072u + X));
     if (A != 144u) { goto L_DE68; }
     goto L_DE63;
 L_DE63: if (g_yield_req) { g_resume = 0xDE63u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x94u; setnz(A);
+    A = 0x94u;
     tick(3u);
     goto L_DE6A;
 L_DE68: if (g_yield_req) { g_resume = 0xDE68u; g_yield_req = 0u; return; } 
@@ -17047,22 +17047,22 @@ L_DE6A: if (g_yield_req) { g_resume = 0xDE6Au; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0002u, A);
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
     wr((u16)(0x0072u + X), A);
     tick(3u);
     goto L_EADB;
 L_DE73: if (g_yield_req) { g_resume = 0xDE73u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xC2u; setnz(A);
+    A = 0xC2u;
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
     wr((u16)(0x005Eu + X), A);
     tick(3u);
-    X = rd(0x0004u); setnz(X);
+    X = rd(0x0004u);
     tick(4u + ((0x0003u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0203u + X)); setnz(A);
+    A = rd((u16)(0x0203u + X));
     tick(4u);
     wr(0x042Bu, A);
     tick(6u);
@@ -17127,54 +17127,54 @@ L_F096: if (g_yield_req) { g_resume = 0xF096u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Fu, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0005u); setnz(A);
+    A = rd(0x0005u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0006u); setnz(A);
+    A = rd(0x0006u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0008u); setnz(A);
+    A = rd(0x0008u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0009u); setnz(A);
+    A = rd(0x0009u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x0005u, A);
     tick(3u);
-    A = rd(0x000Fu); setnz(A);
+    A = rd(0x000Fu);
     if (A == 4u) { goto L_F0EF; }
     goto L_F0B9;
 L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Fu; setnz(A);
+    A = 0x0Fu;
     tick(3u);
-    A = (u8)(A & rd(0x0003u)); setnz(A);
+    A = (u8)(A & rd(0x0003u));
     tick(3u);
     wr(0x0007u, A);
     tick(3u);
-    A = rd(0x0003u); setnz(A);
+    A = rd(0x0003u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -17186,7 +17186,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0006u, A);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
     A = 0x00u; setnz(A);
     tick(2u);
@@ -17194,7 +17194,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     goto L_F0CB;
 L_F0CB: if (g_yield_req) { g_resume = 0xF0CBu; g_yield_req = 0u; return; } 
     tick(3u);
-    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Zf) { tick(3u); goto L_F0CB; }
@@ -17257,39 +17257,39 @@ L_F0EF: if (g_yield_req) { g_resume = 0xF0EFu; g_yield_req = 0u; return; }
     goto L_F0F2;
 L_F0F2: if (g_yield_req) { g_resume = 0xF0F2u; g_yield_req = 0u; return; } 
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0009u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0008u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0007u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0006u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0005u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(6u);
     return;
 }
@@ -17332,12 +17332,12 @@ L_DF17: if (g_yield_req) { g_resume = 0xDF17u; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0001u) + 1u); wr(0x0001u, t); setnz(t); }
     tick(4u + ((0x0001u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0201u + X)); setnz(A);
+    A = rd((u16)(0x0201u + X));
     if (A == 144u) { goto L_DF25; }
     goto L_DF20;
 L_DF20: if (g_yield_req) { g_resume = 0xDF20u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x90u; setnz(A);
+    A = 0x90u;
     tick(3u);
     goto L_DF27;
 L_DF25: if (g_yield_req) { g_resume = 0xDF25u; g_yield_req = 0u; return; } 
@@ -17355,7 +17355,7 @@ L_DF27: if (g_yield_req) { g_resume = 0xDF27u; g_yield_req = 0u; return; }
     goto L_DF2C;
 L_DF2C: if (g_yield_req) { g_resume = 0xDF2Cu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x00C0u); setnz(A);
+    A = rd(0x00C0u);
     tick(3u);
     { const u8 v = rd(0x0001u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_DF35; }
@@ -17370,13 +17370,13 @@ L_DF34: if (g_yield_req) { g_resume = 0xDF34u; g_yield_req = 0u; return; }
     return;
 L_DF35: if (g_yield_req) { g_resume = 0xDF35u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(4u);
     wr((u16)(0x005Eu + X), A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x00C0u, A);
     tick(6u);
@@ -17435,54 +17435,54 @@ L_F096: if (g_yield_req) { g_resume = 0xF096u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Fu, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0005u); setnz(A);
+    A = rd(0x0005u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0006u); setnz(A);
+    A = rd(0x0006u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0008u); setnz(A);
+    A = rd(0x0008u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0009u); setnz(A);
+    A = rd(0x0009u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x0005u, A);
     tick(3u);
-    A = rd(0x000Fu); setnz(A);
+    A = rd(0x000Fu);
     if (A == 4u) { goto L_F0EF; }
     goto L_F0B9;
 L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Fu; setnz(A);
+    A = 0x0Fu;
     tick(3u);
-    A = (u8)(A & rd(0x0003u)); setnz(A);
+    A = (u8)(A & rd(0x0003u));
     tick(3u);
     wr(0x0007u, A);
     tick(3u);
-    A = rd(0x0003u); setnz(A);
+    A = rd(0x0003u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -17494,7 +17494,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0006u, A);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
     A = 0x00u; setnz(A);
     tick(2u);
@@ -17502,7 +17502,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     goto L_F0CB;
 L_F0CB: if (g_yield_req) { g_resume = 0xF0CBu; g_yield_req = 0u; return; } 
     tick(3u);
-    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Zf) { tick(3u); goto L_F0CB; }
@@ -17565,39 +17565,39 @@ L_F0EF: if (g_yield_req) { g_resume = 0xF0EFu; g_yield_req = 0u; return; }
     goto L_F0F2;
 L_F0F2: if (g_yield_req) { g_resume = 0xF0F2u; g_yield_req = 0u; return; } 
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0009u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0008u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0007u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0006u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0005u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(6u);
     return;
 }
@@ -17612,7 +17612,7 @@ L_DFE4: if (g_yield_req) { g_resume = 0xDFE4u; g_yield_req = 0u; return; }
     goto L_DFE8;
 L_DFE8: if (g_yield_req) { g_resume = 0xDFE8u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(6u);
     { u8 t = (u8)(rd((u16)(0x008Au + X)) + 1u); wr((u16)(0x008Au + X), t); setnz(t); }
     tick(4u);
@@ -17637,22 +17637,22 @@ L_DFFB: if (g_yield_req) { g_resume = 0xDFFBu; g_yield_req = 0u; return; }
     goto L_DFFF;
 L_DFFF: if (g_yield_req) { g_resume = 0xDFFFu; g_yield_req = 0u; return; } 
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x00BCu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC1BCu + X)); setnz(A);
+    A = rd((u16)(0xC1BCu + X));
     tick(3u);
-    A = (u8)(A & rd(0x000Au)); setnz(A);
+    A = (u8)(A & rd(0x000Au));
     tick(3u);
     goto L_E011;
 L_E008: if (g_yield_req) { g_resume = 0xE008u; g_yield_req = 0u; return; } 
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x08u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x08u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x00BCu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC1BCu + X)); setnz(A);
+    A = rd((u16)(0xC1BCu + X));
     tick(3u);
     A = (u8)(A & rd(0x000Bu)); setnz(A);
     goto L_E011;
@@ -17673,11 +17673,11 @@ static void f_EAEC(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xEAECu: goto L_EAEC; } }
 L_EAEC: if (g_yield_req) { g_resume = 0xEAECu; g_yield_req = 0u; return; } 
     tick(4u + ((0x0003u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0203u + X)); setnz(A);
+    A = rd((u16)(0x0203u + X));
     tick(3u);
     wr(0x0000u, A);
     tick(4u + ((0x0000u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0200u + X)); setnz(A);
+    A = rd((u16)(0x0200u + X));
     tick(3u);
     wr(0x0001u, A);
     tick(6u);
@@ -17690,9 +17690,9 @@ L_E05A: if (g_yield_req) { g_resume = 0xE05Au; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Cu, A);
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
-    A = rd((u16)(0x0068u + X)); setnz(A);
+    A = rd((u16)(0x0068u + X));
     if (A == 1u) { goto L_E079; }
     goto L_E064;
 L_E064: if (g_yield_req) { g_resume = 0xE064u; g_yield_req = 0u; return; } 
@@ -17704,7 +17704,7 @@ L_E068: if (g_yield_req) { g_resume = 0xE068u; g_yield_req = 0u; return; }
     goto L_E06A;
 L_E06A: if (g_yield_req) { g_resume = 0xE06Au; g_yield_req = 0u; return; } 
     tick(4u + ((0x00C4u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC1C4u + X)); setnz(A);
+    A = rd((u16)(0xC1C4u + X));
     tick(3u);
     { const u8 v = rd(0x000Cu); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_E08A; }
@@ -17712,7 +17712,7 @@ L_E06A: if (g_yield_req) { g_resume = 0xE06Au; g_yield_req = 0u; return; }
     goto L_E071;
 L_E071: if (g_yield_req) { g_resume = 0xE071u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     if (X == 9u) { goto L_E08D; }
     goto L_E076;
 L_E076: if (g_yield_req) { g_resume = 0xE076u; g_yield_req = 0u; return; } 
@@ -17724,7 +17724,7 @@ L_E079: if (g_yield_req) { g_resume = 0xE079u; g_yield_req = 0u; return; }
     goto L_E07B;
 L_E07B: if (g_yield_req) { g_resume = 0xE07Bu; g_yield_req = 0u; return; } 
     tick(4u + ((0x00C4u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC1C4u + X)); setnz(A);
+    A = rd((u16)(0xC1C4u + X));
     tick(3u);
     { const u8 v = rd(0x000Cu); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_E08A; }
@@ -17732,7 +17732,7 @@ L_E07B: if (g_yield_req) { g_resume = 0xE07Bu; g_yield_req = 0u; return; }
     goto L_E082;
 L_E082: if (g_yield_req) { g_resume = 0xE082u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     if (X == 9u) { goto L_E08D; }
     goto L_E087;
 L_E087: if (g_yield_req) { g_resume = 0xE087u; g_yield_req = 0u; return; } 
@@ -17740,12 +17740,12 @@ L_E087: if (g_yield_req) { g_resume = 0xE087u; g_yield_req = 0u; return; }
     goto L_E07B;
 L_E08A: if (g_yield_req) { g_resume = 0xE08Au; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(6u);
     return;
 L_E08D: if (g_yield_req) { g_resume = 0xE08Du; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(6u);
     return;
 }
@@ -17754,9 +17754,9 @@ static void f_E048(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xE048u: goto L_E048; case 0xE050u: goto L_E050; case 0xE054u: goto L_E054; case 0xE057u: goto L_E057; } }
 L_E048: if (g_yield_req) { g_resume = 0xE048u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
-    A = rd((u16)(0x005Eu + X)); setnz(A);
+    A = rd((u16)(0x005Eu + X));
     if (A != 1u) { goto L_E057; }
     goto L_E050;
 L_E050: if (g_yield_req) { g_resume = 0xE050u; g_yield_req = 0u; return; } 
@@ -17767,12 +17767,12 @@ L_E050: if (g_yield_req) { g_resume = 0xE050u; g_yield_req = 0u; return; }
     goto L_E054;
 L_E054: if (g_yield_req) { g_resume = 0xE054u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(6u);
     return;
 L_E057: if (g_yield_req) { g_resume = 0xE057u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(6u);
     return;
 }
@@ -17781,11 +17781,11 @@ static void f_DBEE(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xDBEEu: goto L_DBEE; case 0xDBFAu: goto L_DBFA; case 0xDBFBu: goto L_DBFB; case 0xDC06u: goto L_DC06; case 0xDC0Fu: goto L_DC0F; case 0xDC13u: goto L_DC13; case 0xDC16u: goto L_DC16; case 0xDC1Bu: goto L_DC1B; case 0xDC24u: goto L_DC24; case 0xDC28u: goto L_DC28; case 0xDC2Bu: goto L_DC2B; case 0xDC2Du: goto L_DC2D; } }
 L_DBEE: if (g_yield_req) { g_resume = 0xDBEEu; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(7u);
     { u8 t = (u8)(rd((u16)(0x040Du + X)) + 1u); wr((u16)(0x040Du + X), t); setnz(t); }
     tick(4u + ((0x000Du + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x040Du + X)); setnz(A);
+    A = rd((u16)(0x040Du + X));
     if (A >= 6u) { goto L_DBFB; }
     goto L_DBFA;
 L_DBFA: if (g_yield_req) { g_resume = 0xDBFAu; g_yield_req = 0u; return; } 
@@ -17793,11 +17793,11 @@ L_DBFA: if (g_yield_req) { g_resume = 0xDBFAu; g_yield_req = 0u; return; }
     return;
 L_DBFB: if (g_yield_req) { g_resume = 0xDBFBu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(5u);
     wr((u16)(0x040Du + X), A);
     tick(4u);
-    A = rd((u16)(0x0068u + X)); setnz(A);
+    A = rd((u16)(0x0068u + X));
     tick(2u);
     A = (u8)(A & 0x01u); setnz(A);
     if (Zf) { tick(3u); goto L_DC1B; }
@@ -17805,11 +17805,11 @@ L_DBFB: if (g_yield_req) { g_resume = 0xDBFBu; g_yield_req = 0u; return; }
     goto L_DC06;
 L_DC06: if (g_yield_req) { g_resume = 0xDC06u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd((u16)(0x0072u + X)); setnz(A);
+    A = rd((u16)(0x0072u + X));
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x04u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x04u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     if (A < 128u) { goto L_DC16; }
     goto L_DC0F;
 L_DC0F: if (g_yield_req) { g_resume = 0xDC0Fu; g_yield_req = 0u; return; } 
@@ -17820,16 +17820,16 @@ L_DC13: if (g_yield_req) { g_resume = 0xDC13u; g_yield_req = 0u; return; }
     goto L_DC2D;
 L_DC16: if (g_yield_req) { g_resume = 0xDC16u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x80u; setnz(A);
+    A = 0x80u;
     tick(3u);
     goto L_DC2D;
 L_DC1B: if (g_yield_req) { g_resume = 0xDC1Bu; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd((u16)(0x0072u + X)); setnz(A);
+    A = rd((u16)(0x0072u + X));
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x04u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x04u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     if (A < 128u) { goto L_DC2B; }
     goto L_DC24;
 L_DC24: if (g_yield_req) { g_resume = 0xDC24u; g_yield_req = 0u; return; } 
@@ -17855,9 +17855,9 @@ L_E0AE: if (g_yield_req) { g_resume = 0xE0AEu; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Cu, A);
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
-    A = rd((u16)(0x0068u + X)); setnz(A);
+    A = rd((u16)(0x0068u + X));
     if (A == 2u) { goto L_E0CB; }
     goto L_E0B8;
 L_E0B8: if (g_yield_req) { g_resume = 0xE0B8u; g_yield_req = 0u; return; } 
@@ -17894,7 +17894,7 @@ L_E0D1: if (g_yield_req) { g_resume = 0xE0D1u; g_yield_req = 0u; return; }
     goto L_E0D4;
 L_E0D4: if (g_yield_req) { g_resume = 0xE0D4u; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = 0x89u; setnz(Y);
+    Y = 0x89u;
     if (A == 196u) { goto L_E109; }
     goto L_E0DA;
 L_E0DA: if (g_yield_req) { g_resume = 0xE0DAu; g_yield_req = 0u; return; } 
@@ -17909,7 +17909,7 @@ L_E0DD: if (g_yield_req) { g_resume = 0xE0DDu; g_yield_req = 0u; return; }
     goto L_E0E0;
 L_E0E0: if (g_yield_req) { g_resume = 0xE0E0u; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = 0x71u; setnz(Y);
+    Y = 0x71u;
     if (A == 180u) { goto L_E109; }
     goto L_E0E6;
 L_E0E6: if (g_yield_req) { g_resume = 0xE0E6u; g_yield_req = 0u; return; } 
@@ -17924,12 +17924,12 @@ L_E0E9: if (g_yield_req) { g_resume = 0xE0E9u; g_yield_req = 0u; return; }
     goto L_E0EC;
 L_E0EC: if (g_yield_req) { g_resume = 0xE0ECu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     goto L_E10F;
 L_E109: if (g_yield_req) { g_resume = 0xE109u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
     wr((u16)(0x00A3u + X), Y);
     tick(2u);
@@ -17948,9 +17948,9 @@ L_E090: if (g_yield_req) { g_resume = 0xE090u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Cu, A);
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
-    A = rd((u16)(0x0068u + X)); setnz(A);
+    A = rd((u16)(0x0068u + X));
     tick(2u);
     A = (u8)(A & 0x01u); setnz(A);
     if (Zf) { tick(3u); goto L_E09F; }
@@ -17958,7 +17958,7 @@ L_E090: if (g_yield_req) { g_resume = 0xE090u; g_yield_req = 0u; return; }
     goto L_E09A;
 L_E09A: if (g_yield_req) { g_resume = 0xE09Au; g_yield_req = 0u; return; } 
     tick(2u);
-    X = 0x00u; setnz(X);
+    X = 0x00u;
     tick(3u);
     goto L_E0A1;
 L_E09F: if (g_yield_req) { g_resume = 0xE09Fu; g_yield_req = 0u; return; } 
@@ -17967,7 +17967,7 @@ L_E09F: if (g_yield_req) { g_resume = 0xE09Fu; g_yield_req = 0u; return; }
     goto L_E0A1;
 L_E0A1: if (g_yield_req) { g_resume = 0xE0A1u; g_yield_req = 0u; return; } 
     tick(4u + ((0x00CDu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC1CDu + X)); setnz(A);
+    A = rd((u16)(0xC1CDu + X));
     tick(3u);
     { const u8 v = rd(0x000Cu); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_E0AB; }
@@ -17975,12 +17975,12 @@ L_E0A1: if (g_yield_req) { g_resume = 0xE0A1u; g_yield_req = 0u; return; }
     goto L_E0A8;
 L_E0A8: if (g_yield_req) { g_resume = 0xE0A8u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(6u);
     return;
 L_E0AB: if (g_yield_req) { g_resume = 0xE0ABu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(6u);
     return;
 }
@@ -17998,7 +17998,7 @@ L_DF44: if (g_yield_req) { g_resume = 0xDF44u; g_yield_req = 0u; return; }
     return;
 L_DF45: if (g_yield_req) { g_resume = 0xDF45u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0096u); setnz(A);
+    A = rd(0x0096u);
     if (A == 10u) { goto L_DF4C; }
     goto L_DF4B;
 L_DF4B: if (g_yield_req) { g_resume = 0xDF4Bu; g_yield_req = 0u; return; } 
@@ -18006,7 +18006,7 @@ L_DF4B: if (g_yield_req) { g_resume = 0xDF4Bu; g_yield_req = 0u; return; }
     return;
 L_DF4C: if (g_yield_req) { g_resume = 0xDF4Cu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0059u); setnz(A);
+    A = rd(0x0059u);
     if (A == 3u) { goto L_DF55; }
     goto L_DF52;
 L_DF52: if (g_yield_req) { g_resume = 0xDF52u; g_yield_req = 0u; return; } 
@@ -18014,9 +18014,9 @@ L_DF52: if (g_yield_req) { g_resume = 0xDF52u; g_yield_req = 0u; return; }
     goto L_DF72;
 L_DF55: if (g_yield_req) { g_resume = 0xDF55u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = 0x03u; setnz(X);
+    X = 0x03u;
     tick(4u);
-    A = rd((u16)(0x007Eu + X)); setnz(A);
+    A = rd((u16)(0x007Eu + X));
     if (A >= 5u) { goto L_DF5E; }
     goto L_DF5D;
 L_DF5D: if (g_yield_req) { g_resume = 0xDF5Du; g_yield_req = 0u; return; } 
@@ -18028,17 +18028,17 @@ L_DF5E: if (g_yield_req) { g_resume = 0xDF5Eu; g_yield_req = 0u; return; }
     goto L_DF60;
 L_DF60: if (g_yield_req) { g_resume = 0xDF60u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd((u16)(0x005Eu + X)); setnz(A);
+    A = rd((u16)(0x005Eu + X));
     if (A != 1u) { goto L_DF6C; }
     goto L_DF66;
 L_DF66: if (g_yield_req) { g_resume = 0xDF66u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd((u16)(0x0068u + X)); setnz(A);
+    A = rd((u16)(0x0068u + X));
     if (A == 3u) { goto L_DF8F; }
     goto L_DF6C;
 L_DF6C: if (g_yield_req) { g_resume = 0xDF6Cu; g_yield_req = 0u; return; } 
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     if (X != 10u) { goto L_DF60; }
     goto L_DF71;
 L_DF71: if (g_yield_req) { g_resume = 0xDF71u; g_yield_req = 0u; return; } 
@@ -18046,9 +18046,9 @@ L_DF71: if (g_yield_req) { g_resume = 0xDF71u; g_yield_req = 0u; return; }
     return;
 L_DF72: if (g_yield_req) { g_resume = 0xDF72u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = 0x05u; setnz(X);
+    X = 0x05u;
     tick(4u);
-    A = rd((u16)(0x007Eu + X)); setnz(A);
+    A = rd((u16)(0x007Eu + X));
     if (A >= 5u) { goto L_DF7B; }
     goto L_DF7A;
 L_DF7A: if (g_yield_req) { g_resume = 0xDF7Au; g_yield_req = 0u; return; } 
@@ -18060,17 +18060,17 @@ L_DF7B: if (g_yield_req) { g_resume = 0xDF7Bu; g_yield_req = 0u; return; }
     goto L_DF7D;
 L_DF7D: if (g_yield_req) { g_resume = 0xDF7Du; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd((u16)(0x005Eu + X)); setnz(A);
+    A = rd((u16)(0x005Eu + X));
     if (A != 1u) { goto L_DF89; }
     goto L_DF83;
 L_DF83: if (g_yield_req) { g_resume = 0xDF83u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd((u16)(0x0068u + X)); setnz(A);
+    A = rd((u16)(0x0068u + X));
     if (A == 5u) { goto L_DF8F; }
     goto L_DF89;
 L_DF89: if (g_yield_req) { g_resume = 0xDF89u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     if (A != 10u) { goto L_DF7D; }
     goto L_DF8E;
 L_DF8E: if (g_yield_req) { g_resume = 0xDF8Eu; g_yield_req = 0u; return; } 
@@ -18078,17 +18078,17 @@ L_DF8E: if (g_yield_req) { g_resume = 0xDF8Eu; g_yield_req = 0u; return; }
     return;
 L_DF8F: if (g_yield_req) { g_resume = 0xDF8Fu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x40u; setnz(A);
+    A = 0x40u;
     tick(4u);
     wr((u16)(0x005Eu + X), A);
     tick(6u);
     { u8 t = (u8)(rd((u16)(0x0068u + X)) - 1u); wr((u16)(0x0068u + X), t); setnz(t); }
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x03u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x03u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
@@ -18098,17 +18098,17 @@ L_DF8F: if (g_yield_req) { g_resume = 0xDF8Fu; g_yield_req = 0u; return; }
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0200u + Y)); setnz(A);
+    A = rd((u16)(0x0200u + Y));
     tick(3u);
     wr(0x0001u, A);
     tick(4u + ((0x0003u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0203u + Y)); setnz(A);
+    A = rd((u16)(0x0203u + Y));
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    A = rd(0xC1EBu); setnz(A);
+    A = rd(0xC1EBu);
     tick(2u);
     Y = 0x00u; setnz(Y);
     goto L_DFAD;
@@ -18122,24 +18122,24 @@ L_DFB1: if (g_yield_req) { g_resume = 0xDFB1u; g_yield_req = 0u; return; }
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x18u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x18u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(3u);
     goto L_DFAD;
 L_DFB8: if (g_yield_req) { g_resume = 0xDFB8u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x15u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x15u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     Cf = false;
     tick(3u);
-    { const u8 v = rd(0x0001u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0001u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x00C0u, A);
     tick(6u);
@@ -18150,9 +18150,9 @@ static void f_DFC3(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xDFC3u: goto L_DFC3; case 0xDFCBu: goto L_DFCB; case 0xDFCEu: goto L_DFCE; case 0xDFD5u: goto L_DFD5; case 0xDFE3u: goto L_DFE3; } }
 L_DFC3: if (g_yield_req) { g_resume = 0xDFC3u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
-    A = rd((u16)(0x0068u + X)); setnz(A);
+    A = rd((u16)(0x0068u + X));
     if (A != 1u) { goto L_DFE3; }
     goto L_DFCB;
 L_DFCB: if (g_yield_req) { g_resume = 0xDFCBu; g_yield_req = 0u; return; } 
@@ -18164,7 +18164,7 @@ L_DFCB: if (g_yield_req) { g_resume = 0xDFCBu; g_yield_req = 0u; return; }
     goto L_DFCE;
 L_DFCE: if (g_yield_req) { g_resume = 0xDFCEu; g_yield_req = 0u; return; } 
     tick(4u + ((0x0003u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0203u + X)); setnz(A);
+    A = rd((u16)(0x0203u + X));
     if (A >= 48u) { goto L_DFE3; }
     goto L_DFD5;
 L_DFD5: if (g_yield_req) { g_resume = 0xDFD5u; g_yield_req = 0u; return; } 
@@ -18206,54 +18206,54 @@ L_F096: if (g_yield_req) { g_resume = 0xF096u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Fu, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0005u); setnz(A);
+    A = rd(0x0005u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0006u); setnz(A);
+    A = rd(0x0006u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0008u); setnz(A);
+    A = rd(0x0008u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0009u); setnz(A);
+    A = rd(0x0009u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x0005u, A);
     tick(3u);
-    A = rd(0x000Fu); setnz(A);
+    A = rd(0x000Fu);
     if (A == 4u) { goto L_F0EF; }
     goto L_F0B9;
 L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Fu; setnz(A);
+    A = 0x0Fu;
     tick(3u);
-    A = (u8)(A & rd(0x0003u)); setnz(A);
+    A = (u8)(A & rd(0x0003u));
     tick(3u);
     wr(0x0007u, A);
     tick(3u);
-    A = rd(0x0003u); setnz(A);
+    A = rd(0x0003u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -18265,7 +18265,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0006u, A);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
     A = 0x00u; setnz(A);
     tick(2u);
@@ -18273,7 +18273,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     goto L_F0CB;
 L_F0CB: if (g_yield_req) { g_resume = 0xF0CBu; g_yield_req = 0u; return; } 
     tick(3u);
-    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Zf) { tick(3u); goto L_F0CB; }
@@ -18336,39 +18336,39 @@ L_F0EF: if (g_yield_req) { g_resume = 0xF0EFu; g_yield_req = 0u; return; }
     goto L_F0F2;
 L_F0F2: if (g_yield_req) { g_resume = 0xF0F2u; g_yield_req = 0u; return; } 
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0009u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0008u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0007u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0006u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0005u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(6u);
     return;
 }
@@ -18377,13 +18377,13 @@ static void f_C853(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xC853u: goto L_C853; } }
 L_C853: if (g_yield_req) { g_resume = 0xC853u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x003Cu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC03Cu + X)); setnz(A);
+    A = rd((u16)(0xC03Cu + X));
     tick(3u);
     wr(0x0008u, A);
     tick(4u + ((0x003Du + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC03Du + X)); setnz(A);
+    A = rd((u16)(0xC03Du + X));
     tick(3u);
     wr(0x0009u, A);
     tick(6u);
@@ -18400,7 +18400,7 @@ L_E112: if (g_yield_req) { g_resume = 0xE112u; g_yield_req = 0u; return; }
     goto L_E116;
 L_E116: if (g_yield_req) { g_resume = 0xE116u; g_yield_req = 0u; return; } 
     tick(5u + (((rd(0x0008u) | (static_cast<eng::u16>(rd(0x0009u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0008u) | ((u16)rd(0x0009u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0008u) | ((u16)rd(0x0009u) << 8)) + Y));
     if (A == 254u) { goto L_E129; }
     goto L_E11C;
 L_E11C: if (g_yield_req) { g_resume = 0xE11Cu; g_yield_req = 0u; return; } 
@@ -18411,12 +18411,12 @@ L_E11C: if (g_yield_req) { g_resume = 0xE11Cu; g_yield_req = 0u; return; }
     goto L_E120;
 L_E120: if (g_yield_req) { g_resume = 0xE120u; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(3u);
     goto L_E116;
 L_E124: if (g_yield_req) { g_resume = 0xE124u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     goto L_E12B;
 L_E129: if (g_yield_req) { g_resume = 0xE129u; g_yield_req = 0u; return; } 
@@ -18436,9 +18436,9 @@ static void f_E130(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xE130u: goto L_E130; case 0xE139u: goto L_E139; case 0xE13Bu: goto L_E13B; case 0xE13Eu: goto L_E13E; case 0xE141u: goto L_E141; } }
 L_E130: if (g_yield_req) { g_resume = 0xE130u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
-    A = rd((u16)(0x0068u + X)); setnz(A);
+    A = rd((u16)(0x0068u + X));
     tick(2u);
     Cf = true;
     tick(3u);
@@ -18455,12 +18455,12 @@ L_E13B: if (g_yield_req) { g_resume = 0xE13Bu; g_yield_req = 0u; return; }
     goto L_E141;
 L_E13E: if (g_yield_req) { g_resume = 0xE13Eu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(6u);
     return;
 L_E141: if (g_yield_req) { g_resume = 0xE141u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(6u);
     return;
 }
@@ -18481,54 +18481,54 @@ L_F096: if (g_yield_req) { g_resume = 0xF096u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Fu, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0005u); setnz(A);
+    A = rd(0x0005u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0006u); setnz(A);
+    A = rd(0x0006u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0008u); setnz(A);
+    A = rd(0x0008u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0009u); setnz(A);
+    A = rd(0x0009u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x0005u, A);
     tick(3u);
-    A = rd(0x000Fu); setnz(A);
+    A = rd(0x000Fu);
     if (A == 4u) { goto L_F0EF; }
     goto L_F0B9;
 L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Fu; setnz(A);
+    A = 0x0Fu;
     tick(3u);
-    A = (u8)(A & rd(0x0003u)); setnz(A);
+    A = (u8)(A & rd(0x0003u));
     tick(3u);
     wr(0x0007u, A);
     tick(3u);
-    A = rd(0x0003u); setnz(A);
+    A = rd(0x0003u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -18540,7 +18540,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0006u, A);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
     A = 0x00u; setnz(A);
     tick(2u);
@@ -18548,7 +18548,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     goto L_F0CB;
 L_F0CB: if (g_yield_req) { g_resume = 0xF0CBu; g_yield_req = 0u; return; } 
     tick(3u);
-    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Zf) { tick(3u); goto L_F0CB; }
@@ -18611,39 +18611,39 @@ L_F0EF: if (g_yield_req) { g_resume = 0xF0EFu; g_yield_req = 0u; return; }
     goto L_F0F2;
 L_F0F2: if (g_yield_req) { g_resume = 0xF0F2u; g_yield_req = 0u; return; } 
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0009u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0008u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0007u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0006u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0005u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(6u);
     return;
 }
@@ -18652,12 +18652,12 @@ static void f_DE86(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xDE86u: goto L_DE86; case 0xDE8Cu: goto L_DE8C; case 0xDE90u: goto L_DE90; case 0xDE95u: goto L_DE95; case 0xDE9Au: goto L_DE9A; case 0xDE9Fu: goto L_DE9F; case 0xDEA4u: goto L_DEA4; } }
 L_DE86: if (g_yield_req) { g_resume = 0xDE86u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     if (A != 1u) { goto L_DEA4; }
     goto L_DE8C;
 L_DE8C: if (g_yield_req) { g_resume = 0xDE8Cu; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = 0x00u; setnz(Y);
+    Y = 0x00u;
     tick(3u);
     A = rd(0x0001u); setnz(A);
     goto L_DE90;
@@ -18680,7 +18680,7 @@ L_DE9A: if (g_yield_req) { g_resume = 0xDE9Au; g_yield_req = 0u; return; }
     goto L_DEA4;
 L_DE9F: if (g_yield_req) { g_resume = 0xDE9Fu; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     if (Y != 3u) { goto L_DE90; }
     goto L_DEA4;
 L_DEA4: if (g_yield_req) { g_resume = 0xDEA4u; g_yield_req = 0u; return; } 
@@ -18710,11 +18710,11 @@ L_DEAD: if (g_yield_req) { g_resume = 0xDEADu; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0000u) - 1u); wr(0x0000u, t); setnz(t); }
     tick(4u);
-    A = rd(0x042Bu); setnz(A);
+    A = rd(0x042Bu);
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     { const u8 v = rd(0x0000u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_DEE8; }
@@ -18724,7 +18724,7 @@ L_DEB9: if (g_yield_req) { g_resume = 0xDEB9u; g_yield_req = 0u; return; }
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     { const u8 v = rd(0x0000u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_DEE8; }
@@ -18734,7 +18734,7 @@ L_DEC0: if (g_yield_req) { g_resume = 0xDEC0u; g_yield_req = 0u; return; }
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     { const u8 v = rd(0x0000u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_DEF2; }
@@ -18744,7 +18744,7 @@ L_DEC7: if (g_yield_req) { g_resume = 0xDEC7u; g_yield_req = 0u; return; }
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x08u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x08u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     { const u8 v = rd(0x0000u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_DEED; }
@@ -18754,7 +18754,7 @@ L_DECE: if (g_yield_req) { g_resume = 0xDECEu; g_yield_req = 0u; return; }
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     { const u8 v = rd(0x0000u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_DEED; }
@@ -18764,7 +18764,7 @@ L_DED5: if (g_yield_req) { g_resume = 0xDED5u; g_yield_req = 0u; return; }
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     { const u8 v = rd(0x0000u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Zf) { tick(3u); goto L_DEFB; }
@@ -18772,13 +18772,13 @@ L_DED5: if (g_yield_req) { g_resume = 0xDED5u; g_yield_req = 0u; return; }
     goto L_DEDC;
 L_DEDC: if (g_yield_req) { g_resume = 0xDEDCu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
     wr((u16)(0x005Eu + X), A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(5u);
     wr((u16)(0x0417u + X), A);
     tick(6u);
@@ -18795,14 +18795,14 @@ L_DEED: if (g_yield_req) { g_resume = 0xDEEDu; g_yield_req = 0u; return; }
     goto L_DEFB;
 L_DEF2: if (g_yield_req) { g_resume = 0xDEF2u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u + ((0x0021u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0421u + X)); setnz(A);
+    A = rd((u16)(0x0421u + X));
     if (A == 1u) { goto L_DEDC; }
     goto L_DEFB;
 L_DEFB: if (g_yield_req) { g_resume = 0xDEFBu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x84u; setnz(A);
+    A = 0x84u;
     tick(3u);
     X = rd(0x005Du); setnz(X);
     tick(4u);
@@ -18824,15 +18824,15 @@ static void f_E0F1(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xE0F1u: goto L_E0F1; case 0xE0FEu: goto L_E0FE; case 0xE106u: goto L_E106; case 0xE107u: goto L_E107; case 0xE109u: goto L_E109; case 0xE10Fu: goto L_E10F; } }
 L_E0F1: if (g_yield_req) { g_resume = 0xE0F1u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(3u);
-    A = rd(0x000Cu); setnz(A);
+    A = rd(0x000Cu);
     tick(4u + ((0x0072u + X) > 0xFFu ? 1u : 0u));
-    Y = rd((u16)(0xC172u + X)); setnz(Y);
+    Y = rd((u16)(0xC172u + X));
     tick(4u + ((0x0077u + X) > 0xFFu ? 1u : 0u));
     { const u8 v = rd((u16)(0xC177u + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(4u); goto L_E107; }
@@ -18840,7 +18840,7 @@ L_E0F1: if (g_yield_req) { g_resume = 0xE0F1u; g_yield_req = 0u; return; }
     goto L_E0FE;
 L_E0FE: if (g_yield_req) { g_resume = 0xE0FEu; g_yield_req = 0u; return; } 
     tick(4u + ((0x007Cu + X) > 0xFFu ? 1u : 0u));
-    Y = rd((u16)(0xC17Cu + X)); setnz(Y);
+    Y = rd((u16)(0xC17Cu + X));
     tick(4u + ((0x0081u + X) > 0xFFu ? 1u : 0u));
     { const u8 v = rd((u16)(0xC181u + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_E107; }
@@ -18851,13 +18851,13 @@ L_E106: if (g_yield_req) { g_resume = 0xE106u; g_yield_req = 0u; return; }
     return;
 L_E107: if (g_yield_req) { g_resume = 0xE107u; g_yield_req = 0u; return; } 
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(4u);
     ++SP; A = rd(0x100u + SP); setnz(A);
     goto L_E109;
 L_E109: if (g_yield_req) { g_resume = 0xE109u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
     wr((u16)(0x00A3u + X), Y);
     tick(2u);
@@ -18874,7 +18874,7 @@ static void f_EFDD(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xEFDDu: goto L_EFDD; case 0xEFE2u: goto L_EFE2; } }
 L_EFDD: if (g_yield_req) { g_resume = 0xEFDDu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x00AEu); setnz(A);
+    A = rd(0x00AEu);
     tick(2u);
     Cf = false;
     tick(2u);
@@ -18890,7 +18890,7 @@ L_EFE2: if (g_yield_req) { g_resume = 0xEFE2u; g_yield_req = 0u; return; }
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(6u);
     return;
 }
@@ -18899,7 +18899,7 @@ static void f_E250(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xE250u: goto L_E250; case 0xE254u: goto L_E254; case 0xE258u: goto L_E258; case 0xE25Cu: goto L_E25C; case 0xE260u: goto L_E260; case 0xE264u: goto L_E264; case 0xE268u: goto L_E268; case 0xE26Cu: goto L_E26C; case 0xE272u: goto L_E272; case 0xE275u: goto L_E275; case 0xE278u: goto L_E278; case 0xE280u: goto L_E280; case 0xE286u: goto L_E286; case 0xE28Au: goto L_E28A; case 0xE28Cu: goto L_E28C; case 0xE28Fu: goto L_E28F; case 0xE292u: goto L_E292; case 0xE295u: goto L_E295; case 0xE29Au: goto L_E29A; case 0xE29Cu: goto L_E29C; case 0xE2A1u: goto L_E2A1; case 0xE2A7u: goto L_E2A7; case 0xE2AAu: goto L_E2AA; case 0xE2B0u: goto L_E2B0; case 0xE2B3u: goto L_E2B3; case 0xE2F9u: goto L_E2F9; case 0xE302u: goto L_E302; case 0xE304u: goto L_E304; case 0xE305u: goto L_E305; case 0xE308u: goto L_E308; case 0xE30Du: goto L_E30D; case 0xE315u: goto L_E315; case 0xE31Au: goto L_E31A; case 0xE31Eu: goto L_E31E; case 0xE323u: goto L_E323; case 0xE325u: goto L_E325; case 0xE332u: goto L_E332; case 0xE336u: goto L_E336; case 0xE33Bu: goto L_E33B; case 0xE340u: goto L_E340; case 0xE344u: goto L_E344; case 0xE349u: goto L_E349; case 0xE34Bu: goto L_E34B; case 0xE34Eu: goto L_E34E; case 0xE356u: goto L_E356; case 0xE35Eu: goto L_E35E; case 0xE363u: goto L_E363; case 0xE365u: goto L_E365; case 0xE368u: goto L_E368; case 0xE371u: goto L_E371; case 0xE373u: goto L_E373; case 0xE374u: goto L_E374; case 0xE377u: goto L_E377; case 0xE37Cu: goto L_E37C; case 0xE380u: goto L_E380; case 0xE385u: goto L_E385; case 0xE387u: goto L_E387; case 0xE38Fu: goto L_E38F; case 0xE393u: goto L_E393; case 0xE396u: goto L_E396; case 0xE39Bu: goto L_E39B; case 0xE3A2u: goto L_E3A2; case 0xE3A7u: goto L_E3A7; case 0xE3AAu: goto L_E3AA; case 0xE3AFu: goto L_E3AF; case 0xE3B3u: goto L_E3B3; case 0xE3B7u: goto L_E3B7; case 0xE3BAu: goto L_E3BA; case 0xE3C0u: goto L_E3C0; case 0xE3C5u: goto L_E3C5; case 0xE3C7u: goto L_E3C7; case 0xE3CEu: goto L_E3CE; case 0xE3D2u: goto L_E3D2; case 0xE3D8u: goto L_E3D8; case 0xE3DAu: goto L_E3DA; case 0xE3DDu: goto L_E3DD; case 0xE3E6u: goto L_E3E6; case 0xE3EDu: goto L_E3ED; case 0xE3FAu: goto L_E3FA; case 0xE3FEu: goto L_E3FE; case 0xE403u: goto L_E403; case 0xE408u: goto L_E408; case 0xE40Cu: goto L_E40C; case 0xE411u: goto L_E411; case 0xE413u: goto L_E413; case 0xE416u: goto L_E416; case 0xE41Bu: goto L_E41B; case 0xE429u: goto L_E429; case 0xE436u: goto L_E436; case 0xE441u: goto L_E441; case 0xE44Bu: goto L_E44B; case 0xE44Eu: goto L_E44E; case 0xE450u: goto L_E450; case 0xE451u: goto L_E451; case 0xE454u: goto L_E454; case 0xE459u: goto L_E459; case 0xE45Fu: goto L_E45F; case 0xE463u: goto L_E463; case 0xE466u: goto L_E466; case 0xE46Du: goto L_E46D; case 0xE473u: goto L_E473; case 0xE47Au: goto L_E47A; case 0xE480u: goto L_E480; case 0xE483u: goto L_E483; case 0xE487u: goto L_E487; case 0xE48Bu: goto L_E48B; case 0xE48Eu: goto L_E48E; case 0xE498u: goto L_E498; case 0xE49Bu: goto L_E49B; case 0xE4A5u: goto L_E4A5; case 0xE4A8u: goto L_E4A8; case 0xE4B5u: goto L_E4B5; case 0xE4BDu: goto L_E4BD; case 0xE4C0u: goto L_E4C0; case 0xE4CDu: goto L_E4CD; case 0xE4D3u: goto L_E4D3; case 0xE4D6u: goto L_E4D6; case 0xE4DEu: goto L_E4DE; case 0xE4E6u: goto L_E4E6; case 0xE4F0u: goto L_E4F0; case 0xE4F9u: goto L_E4F9; case 0xE506u: goto L_E506; case 0xE50Cu: goto L_E50C; case 0xE519u: goto L_E519; case 0xE51Du: goto L_E51D; case 0xE522u: goto L_E522; case 0xE527u: goto L_E527; case 0xE52Bu: goto L_E52B; case 0xE530u: goto L_E530; case 0xE532u: goto L_E532; case 0xE535u: goto L_E535; case 0xE538u: goto L_E538; case 0xE540u: goto L_E540; case 0xE544u: goto L_E544; case 0xE545u: goto L_E545; case 0xE548u: goto L_E548; case 0xE54Eu: goto L_E54E; case 0xE552u: goto L_E552; case 0xE553u: goto L_E553; case 0xE564u: goto L_E564; case 0xE56Bu: goto L_E56B; case 0xE570u: goto L_E570; case 0xE572u: goto L_E572; case 0xE592u: goto L_E592; case 0xE594u: goto L_E594; case 0xE597u: goto L_E597; case 0xE59Au: goto L_E59A; case 0xE59Fu: goto L_E59F; case 0xE5A2u: goto L_E5A2; case 0xE5A7u: goto L_E5A7; case 0xE5ADu: goto L_E5AD; case 0xE5B3u: goto L_E5B3; case 0xE5B4u: goto L_E5B4; case 0xE5BCu: goto L_E5BC; case 0xE5BEu: goto L_E5BE; case 0xE5C6u: goto L_E5C6; case 0xE5D4u: goto L_E5D4; case 0xE5D9u: goto L_E5D9; case 0xE5DBu: goto L_E5DB; case 0xE5DFu: goto L_E5DF; case 0xE5E5u: goto L_E5E5; case 0xF082u: goto L_F082; case 0xF086u: goto L_F086; case 0xF088u: goto L_F088; case 0xF08Cu: goto L_F08C; case 0xF08Eu: goto L_F08E; case 0xF092u: goto L_F092; case 0xF094u: goto L_F094; case 0xF096u: goto L_F096; case 0xF0B9u: goto L_F0B9; case 0xF0CBu: goto L_F0CB; case 0xF0D0u: goto L_F0D0; case 0xF0D6u: goto L_F0D6; case 0xF0D9u: goto L_F0D9; case 0xF0DCu: goto L_F0DC; case 0xF0E0u: goto L_F0E0; case 0xF0E3u: goto L_F0E3; case 0xF0E6u: goto L_F0E6; case 0xF0E9u: goto L_F0E9; case 0xF0ECu: goto L_F0EC; case 0xF0EFu: goto L_F0EF; case 0xF0F2u: goto L_F0F2; } }
 L_E250: if (g_yield_req) { g_resume = 0xE250u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
     A = rd((u16)(0x00AFu + X)); setnz(A);
     goto L_E254;
@@ -18926,7 +18926,7 @@ L_E268: if (g_yield_req) { g_resume = 0xE268u; g_yield_req = 0u; return; }
     goto L_E26C;
 L_E26C: if (g_yield_req) { g_resume = 0xE26Cu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A == 3u) { goto L_E278; }
     goto L_E272;
 L_E272: if (g_yield_req) { g_resume = 0xE272u; g_yield_req = 0u; return; } 
@@ -18941,9 +18941,9 @@ L_E275: if (g_yield_req) { g_resume = 0xE275u; g_yield_req = 0u; return; }
     goto L_E280;
 L_E278: if (g_yield_req) { g_resume = 0xE278u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd((u16)(0x0019u + X)); setnz(A);
+    A = rd((u16)(0x0019u + X));
     tick(2u);
-    A = (u8)(A & 0x03u); setnz(A);
+    A = (u8)(A & 0x03u);
     tick(3u);
     X = rd(0x00AEu); setnz(X);
     tick(4u);
@@ -18951,7 +18951,7 @@ L_E278: if (g_yield_req) { g_resume = 0xE278u; g_yield_req = 0u; return; }
     goto L_E280;
 L_E280: if (g_yield_req) { g_resume = 0xE280u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd((u16)(0x00AFu + X)); setnz(A);
+    A = rd((u16)(0x00AFu + X));
     if (A == 1u) { goto L_E28A; }
     goto L_E286;
 L_E286: if (g_yield_req) { g_resume = 0xE286u; g_yield_req = 0u; return; } 
@@ -18972,7 +18972,7 @@ L_E292: if (g_yield_req) { g_resume = 0xE292u; g_yield_req = 0u; return; }
     goto L_E2F9;
 L_E295: if (g_yield_req) { g_resume = 0xE295u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     goto L_E29C;
 L_E29A: if (g_yield_req) { g_resume = 0xE29Au; g_yield_req = 0u; return; } 
@@ -18986,7 +18986,7 @@ L_E29C: if (g_yield_req) { g_resume = 0xE29Cu; g_yield_req = 0u; return; }
     goto L_E368;
 L_E2A1: if (g_yield_req) { g_resume = 0xE2A1u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A != 1u) { goto L_E2B3; }
     goto L_E2A7;
 L_E2A7: if (g_yield_req) { g_resume = 0xE2A7u; g_yield_req = 0u; return; } 
@@ -18998,7 +18998,7 @@ L_E2A7: if (g_yield_req) { g_resume = 0xE2A7u; g_yield_req = 0u; return; }
     goto L_E2AA;
 L_E2AA: if (g_yield_req) { g_resume = 0xE2AAu; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
     A = rd((u16)(0x00AFu + X)); setnz(A);
     if (!Zf) { tick(3u); goto L_E2B3; }
@@ -19048,14 +19048,14 @@ L_E308: if (g_yield_req) { g_resume = 0xE308u; g_yield_req = 0u; return; }
     goto L_E30D;
 L_E30D: if (g_yield_req) { g_resume = 0xE30Du; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
-    A = rd((u16)(0x00AFu + X)); setnz(A);
+    A = rd((u16)(0x00AFu + X));
     if (A != 32u) { goto L_E31A; }
     goto L_E315;
 L_E315: if (g_yield_req) { g_resume = 0xE315u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xFFu; setnz(A);
+    A = 0xFFu;
     tick(4u);
     wr((u16)(0x00AFu + X), A);
     tick(6u);
@@ -19074,15 +19074,15 @@ L_E323: if (g_yield_req) { g_resume = 0xE323u; g_yield_req = 0u; return; }
     goto L_E325;
 L_E325: if (g_yield_req) { g_resume = 0xE325u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0004u); setnz(A);
+    A = rd(0x0004u);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0200u + Y)); setnz(A);
+    A = rd((u16)(0x0200u + Y));
     tick(3u);
-    X = rd(0x0053u); setnz(X);
+    X = rd(0x0053u);
     if (X == 4u) { goto L_E340; }
     goto L_E332;
 L_E332: if (g_yield_req) { g_resume = 0xE332u; g_yield_req = 0u; return; } 
@@ -19090,12 +19090,12 @@ L_E332: if (g_yield_req) { g_resume = 0xE332u; g_yield_req = 0u; return; }
     goto L_E336;
 L_E336: if (g_yield_req) { g_resume = 0xE336u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x9Cu; setnz(A);
+    A = 0x9Cu;
     tick(3u);
     goto L_E34B;
 L_E33B: if (g_yield_req) { g_resume = 0xE33Bu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x98u; setnz(A);
+    A = 0x98u;
     tick(3u);
     goto L_E34B;
 L_E340: if (g_yield_req) { g_resume = 0xE340u; g_yield_req = 0u; return; } 
@@ -19103,7 +19103,7 @@ L_E340: if (g_yield_req) { g_resume = 0xE340u; g_yield_req = 0u; return; }
     goto L_E344;
 L_E344: if (g_yield_req) { g_resume = 0xE344u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xACu; setnz(A);
+    A = 0xACu;
     tick(3u);
     goto L_E34B;
 L_E349: if (g_yield_req) { g_resume = 0xE349u; g_yield_req = 0u; return; } 
@@ -19119,9 +19119,9 @@ L_E34B: if (g_yield_req) { g_resume = 0xE34Bu; g_yield_req = 0u; return; }
     goto L_E34E;
 L_E34E: if (g_yield_req) { g_resume = 0xE34Eu; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
-    A = rd((u16)(0x00B3u + X)); setnz(A);
+    A = rd((u16)(0x00B3u + X));
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(6u);
@@ -19132,14 +19132,14 @@ L_E34E: if (g_yield_req) { g_resume = 0xE34Eu; g_yield_req = 0u; return; }
     goto L_E356;
 L_E356: if (g_yield_req) { g_resume = 0xE356u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
-    A = rd((u16)(0x00AFu + X)); setnz(A);
+    A = rd((u16)(0x00AFu + X));
     if (A == 16u) { goto L_E363; }
     goto L_E35E;
 L_E35E: if (g_yield_req) { g_resume = 0xE35Eu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x10u; setnz(A);
+    A = 0x10u;
     tick(3u);
     goto L_E365;
 L_E363: if (g_yield_req) { g_resume = 0xE363u; g_yield_req = 0u; return; } 
@@ -19204,9 +19204,9 @@ L_E385: if (g_yield_req) { g_resume = 0xE385u; g_yield_req = 0u; return; }
     goto L_E387;
 L_E387: if (g_yield_req) { g_resume = 0xE387u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(2u);
-    A = (u8)(A & 0x0Fu); setnz(A);
+    A = (u8)(A & 0x0Fu);
     if (A == 4u) { goto L_E396; }
     goto L_E38F;
 L_E38F: if (g_yield_req) { g_resume = 0xE38Fu; g_yield_req = 0u; return; } 
@@ -19222,7 +19222,7 @@ L_E396: if (g_yield_req) { g_resume = 0xE396u; g_yield_req = 0u; return; }
     goto L_E3AF;
 L_E39B: if (g_yield_req) { g_resume = 0xE39Bu; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x0099u); setnz(X);
+    X = rd(0x0099u);
     tick(4u + ((0x00E2u + X) > 0xFFu ? 1u : 0u));
     { const u8 v = rd((u16)(0xC3E2u + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_E3AA; }
@@ -19253,7 +19253,7 @@ L_E3B7: if (g_yield_req) { g_resume = 0xE3B7u; g_yield_req = 0u; return; }
     goto L_E3C0;
 L_E3BA: if (g_yield_req) { g_resume = 0xE3BAu; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(2u);
     A = 0xFFu; setnz(A);
     tick(4u);
@@ -19274,9 +19274,9 @@ L_E3C5: if (g_yield_req) { g_resume = 0xE3C5u; g_yield_req = 0u; return; }
     goto L_E3C7;
 L_E3C7: if (g_yield_req) { g_resume = 0xE3C7u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
     wr((u16)(0x00AFu + X), A);
     tick(6u);
@@ -19289,7 +19289,7 @@ L_E3CE: if (g_yield_req) { g_resume = 0xE3CEu; g_yield_req = 0u; return; }
     goto L_E3D2;
 L_E3D2: if (g_yield_req) { g_resume = 0xE3D2u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     if (A == 12u) { goto L_E3DD; }
     goto L_E3D8;
 L_E3D8: if (g_yield_req) { g_resume = 0xE3D8u; g_yield_req = 0u; return; } 
@@ -19301,33 +19301,33 @@ L_E3DA: if (g_yield_req) { g_resume = 0xE3DAu; g_yield_req = 0u; return; }
     goto L_E3ED;
 L_E3DD: if (g_yield_req) { g_resume = 0xE3DDu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
     wr((u16)(0x00AFu + X), A);
     tick(3u);
     goto L_E3ED;
 L_E3E6: if (g_yield_req) { g_resume = 0xE3E6u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
     wr((u16)(0x00AFu + X), A);
     tick(6u);
     return;
 L_E3ED: if (g_yield_req) { g_resume = 0xE3EDu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0004u); setnz(A);
+    A = rd(0x0004u);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0200u + Y)); setnz(A);
+    A = rd((u16)(0x0200u + Y));
     tick(3u);
-    X = rd(0x0053u); setnz(X);
+    X = rd(0x0053u);
     if (X == 4u) { goto L_E408; }
     goto L_E3FA;
 L_E3FA: if (g_yield_req) { g_resume = 0xE3FAu; g_yield_req = 0u; return; } 
@@ -19335,12 +19335,12 @@ L_E3FA: if (g_yield_req) { g_resume = 0xE3FAu; g_yield_req = 0u; return; }
     goto L_E3FE;
 L_E3FE: if (g_yield_req) { g_resume = 0xE3FEu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x9Cu; setnz(A);
+    A = 0x9Cu;
     tick(3u);
     goto L_E413;
 L_E403: if (g_yield_req) { g_resume = 0xE403u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x98u; setnz(A);
+    A = 0x98u;
     tick(3u);
     goto L_E413;
 L_E408: if (g_yield_req) { g_resume = 0xE408u; g_yield_req = 0u; return; } 
@@ -19348,7 +19348,7 @@ L_E408: if (g_yield_req) { g_resume = 0xE408u; g_yield_req = 0u; return; }
     goto L_E40C;
 L_E40C: if (g_yield_req) { g_resume = 0xE40Cu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xACu; setnz(A);
+    A = 0xACu;
     tick(3u);
     goto L_E413;
 L_E411: if (g_yield_req) { g_resume = 0xE411u; g_yield_req = 0u; return; } 
@@ -19364,14 +19364,14 @@ L_E413: if (g_yield_req) { g_resume = 0xE413u; g_yield_req = 0u; return; }
     goto L_E416;
 L_E416: if (g_yield_req) { g_resume = 0xE416u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0099u); setnz(A);
+    A = rd(0x0099u);
     tick(3u);
     goto L_F096;
 L_E41B: if (g_yield_req) { g_resume = 0xE41Bu; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
-    A = rd((u16)(0x00AFu + X)); setnz(A);
+    A = rd((u16)(0x00AFu + X));
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -19379,36 +19379,36 @@ L_E41B: if (g_yield_req) { g_resume = 0xE41Bu; g_yield_req = 0u; return; }
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A == 4u) { goto L_E436; }
     goto L_E429;
 L_E429: if (g_yield_req) { g_resume = 0xE429u; g_yield_req = 0u; return; } 
     tick(4u + ((0x00F4u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC3F4u + X)); setnz(A);
+    A = rd((u16)(0xC3F4u + X));
     tick(3u);
     wr(0x000Au, A);
     tick(4u + ((0x00F5u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC3F5u + X)); setnz(A);
+    A = rd((u16)(0xC3F5u + X));
     tick(3u);
     wr(0x000Bu, A);
     tick(3u);
     goto L_E44B;
 L_E436: if (g_yield_req) { g_resume = 0xE436u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0050u); setnz(A);
+    A = rd(0x0050u);
     tick(2u);
-    A = (u8)(A & 0x01u); setnz(A);
+    A = (u8)(A & 0x01u);
     tick(2u);
     Cf = false;
     tick(3u);
-    { const u8 v = rd(0x0054u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0054u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     if (A < 3u) { goto L_E429; }
     goto L_E441;
 L_E441: if (g_yield_req) { g_resume = 0xE441u; g_yield_req = 0u; return; } 
     tick(4u + ((0x00F8u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC3F8u + X)); setnz(A);
+    A = rd((u16)(0xC3F8u + X));
     tick(3u);
     wr(0x000Au, A);
     tick(4u + ((0x00F9u + X) > 0xFFu ? 1u : 0u));
@@ -19448,7 +19448,7 @@ L_E454: if (g_yield_req) { g_resume = 0xE454u; g_yield_req = 0u; return; }
     goto L_E459;
 L_E459: if (g_yield_req) { g_resume = 0xE459u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
     A = rd((u16)(0x00E8u + X)); setnz(A);
     if (Zf) { tick(3u); goto L_E46D; }
@@ -19462,14 +19462,14 @@ L_E463: if (g_yield_req) { g_resume = 0xE463u; g_yield_req = 0u; return; }
     goto L_E46D;
 L_E466: if (g_yield_req) { g_resume = 0xE466u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(4u);
     wr((u16)(0x00E8u + X), A);
     tick(3u);
     goto L_E47A;
 L_E46D: if (g_yield_req) { g_resume = 0xE46Du; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     tick(2u);
     A = (u8)(A & 0x03u); setnz(A);
     if (!Zf) { tick(3u); goto L_E47A; }
@@ -19477,14 +19477,14 @@ L_E46D: if (g_yield_req) { g_resume = 0xE46Du; g_yield_req = 0u; return; }
     goto L_E473;
 L_E473: if (g_yield_req) { g_resume = 0xE473u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(6u);
     { u8 t = (u8)(rd((u16)(0x00E8u + X)) + 1u); wr((u16)(0x00E8u + X), t); setnz(t); }
     tick(3u);
     goto L_E50C;
 L_E47A: if (g_yield_req) { g_resume = 0xE47Au; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A == 1u) { goto L_E4B5; }
     goto L_E480;
 L_E480: if (g_yield_req) { g_resume = 0xE480u; g_yield_req = 0u; return; } 
@@ -19507,9 +19507,9 @@ L_E48E: if (g_yield_req) { g_resume = 0xE48Eu; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0001u) - 1u); wr(0x0001u, t); setnz(t); }
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
     { const u8 v = rd((u16)(0x00DBu + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_E4A8; }
@@ -19522,9 +19522,9 @@ L_E49B: if (g_yield_req) { g_resume = 0xE49Bu; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0001u) + 1u); wr(0x0001u, t); setnz(t); }
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
     { const u8 v = rd((u16)(0x00DBu + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_E4A8; }
@@ -19535,22 +19535,22 @@ L_E4A5: if (g_yield_req) { g_resume = 0xE4A5u; g_yield_req = 0u; return; }
     goto L_E50C;
 L_E4A8: if (g_yield_req) { g_resume = 0xE4A8u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
     wr((u16)(0x00AFu + X), A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(4u);
     wr((u16)(0x00DBu + X), A);
     tick(3u);
     goto L_E50C;
 L_E4B5: if (g_yield_req) { g_resume = 0xE4B5u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
-    A = rd((u16)(0x00AFu + X)); setnz(A);
+    A = rd((u16)(0x00AFu + X));
     if (A == 19u) { goto L_E4C0; }
     goto L_E4BD;
 L_E4BD: if (g_yield_req) { g_resume = 0xE4BDu; g_yield_req = 0u; return; } 
@@ -19560,15 +19560,15 @@ L_E4C0: if (g_yield_req) { g_resume = 0xE4C0u; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0001u) + 1u); wr(0x0001u, t); setnz(t); }
     tick(3u);
-    A = rd(0x00AEu); setnz(A);
+    A = rd(0x00AEu);
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(4u);
-    A = rd((u16)(0x00B9u + X)); setnz(A);
+    A = rd((u16)(0x00B9u + X));
     tick(3u);
     { const u8 v = rd(0x0001u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Zf) { tick(3u); goto L_E4D3; }
@@ -19576,7 +19576,7 @@ L_E4C0: if (g_yield_req) { g_resume = 0xE4C0u; g_yield_req = 0u; return; }
     goto L_E4CD;
 L_E4CD: if (g_yield_req) { g_resume = 0xE4CDu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     X = rd(0x00AEu); setnz(X);
     tick(4u);
@@ -19589,25 +19589,25 @@ L_E4D6: if (g_yield_req) { g_resume = 0xE4D6u; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0001u) - 1u); wr(0x0001u, t); setnz(t); }
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     if (X != 0u) { goto L_E4F9; }
     goto L_E4DE;
 L_E4DE: if (g_yield_req) { g_resume = 0xE4DEu; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
-    A = rd((u16)(0x00E0u + X)); setnz(A);
+    A = rd((u16)(0x00E0u + X));
     if (A == 2u) { goto L_E4F9; }
     goto L_E4E6;
 L_E4E6: if (g_yield_req) { g_resume = 0xE4E6u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x00AEu); setnz(A);
+    A = rd(0x00AEu);
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
-    A = rd((u16)(0x00B9u + X)); setnz(A);
+    A = rd((u16)(0x00B9u + X));
     tick(3u);
     { const u8 v = rd(0x0001u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Zf) { tick(4u); goto L_E50C; }
@@ -19615,26 +19615,26 @@ L_E4E6: if (g_yield_req) { g_resume = 0xE4E6u; g_yield_req = 0u; return; }
     goto L_E4F0;
 L_E4F0: if (g_yield_req) { g_resume = 0xE4F0u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
     wr((u16)(0x00AFu + X), A);
     tick(3u);
     goto L_E50C;
 L_E4F9: if (g_yield_req) { g_resume = 0xE4F9u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x00AEu); setnz(A);
+    A = rd(0x00AEu);
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
-    A = rd((u16)(0x00B9u + X)); setnz(A);
+    A = rd((u16)(0x00B9u + X));
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x0Du; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x0Du; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     { const u8 v = rd(0x0001u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Zf) { tick(3u); goto L_E50C; }
@@ -19642,7 +19642,7 @@ L_E4F9: if (g_yield_req) { g_resume = 0xE4F9u; g_yield_req = 0u; return; }
     goto L_E506;
 L_E506: if (g_yield_req) { g_resume = 0xE506u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x13u; setnz(A);
+    A = 0x13u;
     tick(3u);
     X = rd(0x00AEu); setnz(X);
     tick(4u);
@@ -19650,15 +19650,15 @@ L_E506: if (g_yield_req) { g_resume = 0xE506u; g_yield_req = 0u; return; }
     goto L_E50C;
 L_E50C: if (g_yield_req) { g_resume = 0xE50Cu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0004u); setnz(A);
+    A = rd(0x0004u);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0200u + Y)); setnz(A);
+    A = rd((u16)(0x0200u + Y));
     tick(3u);
-    X = rd(0x0053u); setnz(X);
+    X = rd(0x0053u);
     if (X == 4u) { goto L_E527; }
     goto L_E519;
 L_E519: if (g_yield_req) { g_resume = 0xE519u; g_yield_req = 0u; return; } 
@@ -19666,12 +19666,12 @@ L_E519: if (g_yield_req) { g_resume = 0xE519u; g_yield_req = 0u; return; }
     goto L_E51D;
 L_E51D: if (g_yield_req) { g_resume = 0xE51Du; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x9Cu; setnz(A);
+    A = 0x9Cu;
     tick(3u);
     goto L_E532;
 L_E522: if (g_yield_req) { g_resume = 0xE522u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x98u; setnz(A);
+    A = 0x98u;
     tick(3u);
     goto L_E532;
 L_E527: if (g_yield_req) { g_resume = 0xE527u; g_yield_req = 0u; return; } 
@@ -19679,7 +19679,7 @@ L_E527: if (g_yield_req) { g_resume = 0xE527u; g_yield_req = 0u; return; }
     goto L_E52B;
 L_E52B: if (g_yield_req) { g_resume = 0xE52Bu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xACu; setnz(A);
+    A = 0xACu;
     tick(3u);
     goto L_E532;
 L_E530: if (g_yield_req) { g_resume = 0xE530u; g_yield_req = 0u; return; } 
@@ -19698,9 +19698,9 @@ L_E535: if (g_yield_req) { g_resume = 0xE535u; g_yield_req = 0u; return; }
     goto L_F088;
 L_E538: if (g_yield_req) { g_resume = 0xE538u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
-    A = rd((u16)(0x00AFu + X)); setnz(A);
+    A = rd((u16)(0x00AFu + X));
     if (A == 6u) { goto L_E548; }
     goto L_E540;
 L_E540: if (g_yield_req) { g_resume = 0xE540u; g_yield_req = 0u; return; } 
@@ -19714,7 +19714,7 @@ L_E545: if (g_yield_req) { g_resume = 0xE545u; g_yield_req = 0u; return; }
     goto L_E59F;
 L_E548: if (g_yield_req) { g_resume = 0xE548u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A == 1u) { goto L_E553; }
     goto L_E54E;
 L_E54E: if (g_yield_req) { g_resume = 0xE54Eu; g_yield_req = 0u; return; } 
@@ -19725,29 +19725,29 @@ L_E552: if (g_yield_req) { g_resume = 0xE552u; g_yield_req = 0u; return; }
     return;
 L_E553: if (g_yield_req) { g_resume = 0xE553u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x20u; setnz(A);
+    A = 0x20u;
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    A = 0xB8u; setnz(A);
+    A = 0xB8u;
     tick(3u);
     wr(0x0001u, A);
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(2u);
-    A = 0x08u; setnz(A);
+    A = 0x08u;
     tick(4u);
     wr((u16)(0x00AFu + X), A);
     tick(3u);
     goto L_E592;
 L_E564: if (g_yield_req) { g_resume = 0xE564u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0203u); setnz(A);
+    A = rd(0x0203u);
     if (A < 120u) { goto L_E570; }
     goto L_E56B;
 L_E56B: if (g_yield_req) { g_resume = 0xE56Bu; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = 0x00u; setnz(Y);
+    Y = 0x00u;
     tick(3u);
     goto L_E572;
 L_E570: if (g_yield_req) { g_resume = 0xE570u; g_yield_req = 0u; return; } 
@@ -19758,33 +19758,33 @@ L_E572: if (g_yield_req) { g_resume = 0xE572u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Cu, Y);
     tick(3u);
-    A = rd(0x0019u); setnz(A);
+    A = rd(0x0019u);
     tick(2u);
-    A = (u8)(A & 0x03u); setnz(A);
+    A = (u8)(A & 0x03u);
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
     Cf = false;
     tick(3u);
-    { const u8 v = rd(0x000Cu); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x000Cu); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x00CEu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC3CEu + X)); setnz(A);
+    A = rd((u16)(0xC3CEu + X));
     tick(3u);
     wr(0x0000u, A);
     tick(4u + ((0x00CFu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC3CFu + X)); setnz(A);
+    A = rd((u16)(0xC3CFu + X));
     tick(3u);
     wr(0x0001u, A);
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(4u);
     wr((u16)(0x00AFu + X), A);
     tick(2u);
-    A = 0xA8u; setnz(A);
+    A = 0xA8u;
     tick(3u);
     goto L_E594;
 L_E592: if (g_yield_req) { g_resume = 0xE592u; g_yield_req = 0u; return; } 
@@ -19837,7 +19837,7 @@ L_E5A7: if (g_yield_req) { g_resume = 0xE5A7u; g_yield_req = 0u; return; }
     goto L_E5AD;
 L_E5AD: if (g_yield_req) { g_resume = 0xE5ADu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A == 1u) { goto L_E5B4; }
     goto L_E5B3;
 L_E5B3: if (g_yield_req) { g_resume = 0xE5B3u; g_yield_req = 0u; return; } 
@@ -19847,7 +19847,7 @@ L_E5B4: if (g_yield_req) { g_resume = 0xE5B4u; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0000u) + 1u); wr(0x0000u, t); setnz(t); }
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     if (A == 44u) { goto L_E5BE; }
     goto L_E5BC;
 L_E5BC: if (g_yield_req) { g_resume = 0xE5BCu; g_yield_req = 0u; return; } 
@@ -19858,20 +19858,20 @@ L_E5BE: if (g_yield_req) { g_resume = 0xE5BEu; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0001u) + 1u); wr(0x0001u, t); setnz(t); }
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     if (A != 197u) { goto L_E5E5; }
     goto L_E5C6;
 L_E5C6: if (g_yield_req) { g_resume = 0xE5C6u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
     wr((u16)(0x00AFu + X), A);
     tick(5u);
     { u8 t = (u8)(rd(0x0000u) - 1u); wr(0x0000u, t); setnz(t); }
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     if (A >= 104u) { goto L_E5D9; }
     goto L_E5D4;
 L_E5D4: if (g_yield_req) { g_resume = 0xE5D4u; g_yield_req = 0u; return; } 
@@ -19888,7 +19888,7 @@ L_E5DB: if (g_yield_req) { g_resume = 0xE5DBu; g_yield_req = 0u; return; }
     goto L_E5DF;
 L_E5DF: if (g_yield_req) { g_resume = 0xE5DFu; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(2u);
     A = 0x00u; setnz(A);
     tick(4u);
@@ -19937,54 +19937,54 @@ L_F096: if (g_yield_req) { g_resume = 0xF096u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Fu, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0005u); setnz(A);
+    A = rd(0x0005u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0006u); setnz(A);
+    A = rd(0x0006u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0007u); setnz(A);
+    A = rd(0x0007u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0008u); setnz(A);
+    A = rd(0x0008u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(3u);
-    A = rd(0x0009u); setnz(A);
+    A = rd(0x0009u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x0005u, A);
     tick(3u);
-    A = rd(0x000Fu); setnz(A);
+    A = rd(0x000Fu);
     if (A == 4u) { goto L_F0EF; }
     goto L_F0B9;
 L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Fu; setnz(A);
+    A = 0x0Fu;
     tick(3u);
-    A = (u8)(A & rd(0x0003u)); setnz(A);
+    A = (u8)(A & rd(0x0003u));
     tick(3u);
     wr(0x0007u, A);
     tick(3u);
-    A = rd(0x0003u); setnz(A);
+    A = rd(0x0003u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -19996,7 +19996,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0006u, A);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
     A = 0x00u; setnz(A);
     tick(2u);
@@ -20004,7 +20004,7 @@ L_F0B9: if (g_yield_req) { g_resume = 0xF0B9u; g_yield_req = 0u; return; }
     goto L_F0CB;
 L_F0CB: if (g_yield_req) { g_resume = 0xF0CBu; g_yield_req = 0u; return; } 
     tick(3u);
-    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0007u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Zf) { tick(3u); goto L_F0CB; }
@@ -20067,39 +20067,39 @@ L_F0EF: if (g_yield_req) { g_resume = 0xF0EFu; g_yield_req = 0u; return; }
     goto L_F0F2;
 L_F0F2: if (g_yield_req) { g_resume = 0xF0F2u; g_yield_req = 0u; return; } 
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0009u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0008u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0007u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0006u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0005u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(6u);
     return;
 }
@@ -20108,7 +20108,7 @@ static void f_E2B6(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xE2B6u: goto L_E2B6; case 0xE2BCu: goto L_E2BC; case 0xE2D2u: goto L_E2D2; case 0xE2D9u: goto L_E2D9; case 0xE2DDu: goto L_E2DD; case 0xE2E8u: goto L_E2E8; case 0xE2EBu: goto L_E2EB; case 0xE2F1u: goto L_E2F1; case 0xE2F4u: goto L_E2F4; case 0xE2F6u: goto L_E2F6; } }
 L_E2B6: if (g_yield_req) { g_resume = 0xE2B6u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
     A = rd((u16)(0x00D2u + X)); setnz(A);
     if (!Zf) { tick(3u); goto L_E2DD; }
@@ -20116,15 +20116,15 @@ L_E2B6: if (g_yield_req) { g_resume = 0xE2B6u; g_yield_req = 0u; return; }
     goto L_E2BC;
 L_E2BC: if (g_yield_req) { g_resume = 0xE2BCu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(4u);
     wr((u16)(0x00D2u + X), A);
     tick(3u);
-    A = rd(0x00AEu); setnz(A);
+    A = rd(0x00AEu);
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
@@ -20134,9 +20134,9 @@ L_E2BC: if (g_yield_req) { g_resume = 0xE2BCu; g_yield_req = 0u; return; }
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u + ((0x0003u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0203u + Y)); setnz(A);
+    A = rd((u16)(0x0203u + Y));
     tick(4u);
     { const u8 v = rd(0x0203u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Cf) { tick(3u); goto L_E2D9; }
@@ -20144,7 +20144,7 @@ L_E2BC: if (g_yield_req) { g_resume = 0xE2BCu; g_yield_req = 0u; return; }
     goto L_E2D2;
 L_E2D2: if (g_yield_req) { g_resume = 0xE2D2u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(4u);
     wr((u16)(0x00ECu + X), A);
     tick(3u);
@@ -20157,13 +20157,13 @@ L_E2D9: if (g_yield_req) { g_resume = 0xE2D9u; g_yield_req = 0u; return; }
     goto L_E2DD;
 L_E2DD: if (g_yield_req) { g_resume = 0xE2DDu; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd((u16)(0x0019u + X)); setnz(A);
+    A = rd((u16)(0x0019u + X));
     tick(2u);
-    A = (u8)(A & 0x07u); setnz(A);
+    A = (u8)(A & 0x07u);
     tick(4u);
     wr((u16)(0x00AFu + X), A);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     if (A >= 4u) { goto L_E2EB; }
     goto L_E2E8;
 L_E2E8: if (g_yield_req) { g_resume = 0xE2E8u; g_yield_req = 0u; return; } 
@@ -20171,7 +20171,7 @@ L_E2E8: if (g_yield_req) { g_resume = 0xE2E8u; g_yield_req = 0u; return; }
     goto L_E2F6;
 L_E2EB: if (g_yield_req) { g_resume = 0xE2EBu; g_yield_req = 0u; return; } 
     tick(4u);
-    Y = rd((u16)(0x00ECu + X)); setnz(Y);
+    Y = rd((u16)(0x00ECu + X));
     if (A >= 7u) { goto L_E2F4; }
     goto L_E2F1;
 L_E2F1: if (g_yield_req) { g_resume = 0xE2F1u; g_yield_req = 0u; return; } 
@@ -20192,9 +20192,9 @@ static void f_E626(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xE626u: goto L_E626; case 0xE62Eu: goto L_E62E; case 0xE62Fu: goto L_E62F; case 0xE632u: goto L_E632; case 0xE635u: goto L_E635; case 0xE63Du: goto L_E63D; case 0xE640u: goto L_E640; case 0xE646u: goto L_E646; case 0xE64Au: goto L_E64A; case 0xE64Du: goto L_E64D; case 0xE65Du: goto L_E65D; case 0xE66Du: goto L_E66D; case 0xE673u: goto L_E673; case 0xE677u: goto L_E677; case 0xE67Au: goto L_E67A; case 0xE68Au: goto L_E68A; case 0xE697u: goto L_E697; case 0xE69Eu: goto L_E69E; } }
 L_E626: if (g_yield_req) { g_resume = 0xE626u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
-    A = rd((u16)(0x00AFu + X)); setnz(A);
+    A = rd((u16)(0x00AFu + X));
     if (A != 19u) { goto L_E62F; }
     goto L_E62E;
 L_E62E: if (g_yield_req) { g_resume = 0xE62Eu; g_yield_req = 0u; return; } 
@@ -20216,9 +20216,9 @@ L_E632: if (g_yield_req) { g_resume = 0xE632u; g_yield_req = 0u; return; }
     goto L_E635;
 L_E635: if (g_yield_req) { g_resume = 0xE635u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
-    A = rd((u16)(0x00E0u + X)); setnz(A);
+    A = rd((u16)(0x00E0u + X));
     if (A == 1u) { goto L_E640; }
     goto L_E63D;
 L_E63D: if (g_yield_req) { g_resume = 0xE63Du; g_yield_req = 0u; return; } 
@@ -20226,7 +20226,7 @@ L_E63D: if (g_yield_req) { g_resume = 0xE63Du; g_yield_req = 0u; return; }
     goto L_E66D;
 L_E640: if (g_yield_req) { g_resume = 0xE640u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     if (A == 92u) { goto L_E64D; }
     goto L_E646;
 L_E646: if (g_yield_req) { g_resume = 0xE646u; g_yield_req = 0u; return; } 
@@ -20237,45 +20237,45 @@ L_E64A: if (g_yield_req) { g_resume = 0xE64Au; g_yield_req = 0u; return; }
     goto L_E69E;
 L_E64D: if (g_yield_req) { g_resume = 0xE64Du; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x00AEu); setnz(A);
+    A = rd(0x00AEu);
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
-    A = 0xA6u; setnz(A);
+    A = 0xA6u;
     tick(4u);
     wr((u16)(0x00B9u + X), A);
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(2u);
-    A = 0xC7u; setnz(A);
+    A = 0xC7u;
     tick(4u);
     wr((u16)(0x00B9u + X), A);
     tick(3u);
     goto L_E697;
 L_E65D: if (g_yield_req) { g_resume = 0xE65Du; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x00AEu); setnz(A);
+    A = rd(0x00AEu);
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
-    A = 0xABu; setnz(A);
+    A = 0xABu;
     tick(4u);
     wr((u16)(0x00B9u + X), A);
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(2u);
-    A = 0xC3u; setnz(A);
+    A = 0xC3u;
     tick(4u);
     wr((u16)(0x00B9u + X), A);
     tick(3u);
     goto L_E697;
 L_E66D: if (g_yield_req) { g_resume = 0xE66Du; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     if (A == 44u) { goto L_E67A; }
     goto L_E673;
 L_E673: if (g_yield_req) { g_resume = 0xE673u; g_yield_req = 0u; return; } 
@@ -20286,36 +20286,36 @@ L_E677: if (g_yield_req) { g_resume = 0xE677u; g_yield_req = 0u; return; }
     goto L_E69E;
 L_E67A: if (g_yield_req) { g_resume = 0xE67Au; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x00AEu); setnz(A);
+    A = rd(0x00AEu);
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
-    A = 0x8Du; setnz(A);
+    A = 0x8Du;
     tick(4u);
     wr((u16)(0x00B9u + X), A);
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(2u);
-    A = 0xA4u; setnz(A);
+    A = 0xA4u;
     tick(4u);
     wr((u16)(0x00B9u + X), A);
     tick(3u);
     goto L_E697;
 L_E68A: if (g_yield_req) { g_resume = 0xE68Au; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x00AEu); setnz(A);
+    A = rd(0x00AEu);
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
-    A = 0x8Au; setnz(A);
+    A = 0x8Au;
     tick(4u);
     wr((u16)(0x00B9u + X), A);
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(2u);
     A = 0xA7u; setnz(A);
     tick(4u);
@@ -20323,18 +20323,18 @@ L_E68A: if (g_yield_req) { g_resume = 0xE68Au; g_yield_req = 0u; return; }
     goto L_E697;
 L_E697: if (g_yield_req) { g_resume = 0xE697u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x03u; setnz(A);
+    A = 0x03u;
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
     wr((u16)(0x00AFu + X), A);
     tick(6u);
     return;
 L_E69E: if (g_yield_req) { g_resume = 0xE69Eu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
     wr((u16)(0x00AFu + X), A);
     tick(6u);
@@ -20345,7 +20345,7 @@ static void f_E806(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xE806u: goto L_E806; case 0xE80Eu: goto L_E80E; case 0xE812u: goto L_E812; case 0xE815u: goto L_E815; case 0xE819u: goto L_E819; case 0xE81Du: goto L_E81D; case 0xE826u: goto L_E826; case 0xE82Fu: goto L_E82F; case 0xE831u: goto L_E831; case 0xE833u: goto L_E833; } }
 L_E806: if (g_yield_req) { g_resume = 0xE806u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(6u);
     { u8 t = (u8)(rd((u16)(0x00E4u + X)) + 1u); wr((u16)(0x00E4u + X), t); setnz(t); }
     tick(4u);
@@ -20370,22 +20370,22 @@ L_E819: if (g_yield_req) { g_resume = 0xE819u; g_yield_req = 0u; return; }
     goto L_E81D;
 L_E81D: if (g_yield_req) { g_resume = 0xE81Du; g_yield_req = 0u; return; } 
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x00BCu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC1BCu + X)); setnz(A);
+    A = rd((u16)(0xC1BCu + X));
     tick(3u);
-    A = (u8)(A & rd(0x000Au)); setnz(A);
+    A = (u8)(A & rd(0x000Au));
     tick(3u);
     goto L_E82F;
 L_E826: if (g_yield_req) { g_resume = 0xE826u; g_yield_req = 0u; return; } 
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x08u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x08u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x00BCu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC1BCu + X)); setnz(A);
+    A = rd((u16)(0xC1BCu + X));
     tick(3u);
     A = (u8)(A & rd(0x000Bu)); setnz(A);
     goto L_E82F;
@@ -20406,7 +20406,7 @@ static void f_E6A5(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xE6A5u: goto L_E6A5; case 0xE6ADu: goto L_E6AD; case 0xE6B9u: goto L_E6B9; case 0xE6BCu: goto L_E6BC; case 0xE6C0u: goto L_E6C0; case 0xE6C3u: goto L_E6C3; case 0xE6C6u: goto L_E6C6; case 0xE6CBu: goto L_E6CB; case 0xE6CDu: goto L_E6CD; case 0xE6D5u: goto L_E6D5; case 0xE6DBu: goto L_E6DB; case 0xE6DEu: goto L_E6DE; case 0xE6E3u: goto L_E6E3; case 0xE6EBu: goto L_E6EB; case 0xE6F2u: goto L_E6F2; case 0xE6F3u: goto L_E6F3; case 0xE6FAu: goto L_E6FA; case 0xE6FBu: goto L_E6FB; case 0xE702u: goto L_E702; case 0xE70Au: goto L_E70A; case 0xE711u: goto L_E711; case 0xE716u: goto L_E716; case 0xE719u: goto L_E719; case 0xE71Du: goto L_E71D; case 0xE721u: goto L_E721; case 0xE728u: goto L_E728; case 0xE72Du: goto L_E72D; case 0xE72Eu: goto L_E72E; case 0xE734u: goto L_E734; case 0xE735u: goto L_E735; case 0xE73Cu: goto L_E73C; case 0xE747u: goto L_E747; case 0xE74Bu: goto L_E74B; case 0xE74Fu: goto L_E74F; case 0xE755u: goto L_E755; case 0xE758u: goto L_E758; case 0xE75Cu: goto L_E75C; case 0xE760u: goto L_E760; case 0xE766u: goto L_E766; case 0xE768u: goto L_E768; case 0xE769u: goto L_E769; } }
 L_E6A5: if (g_yield_req) { g_resume = 0xE6A5u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     tick(2u);
     Cf = false;
     tick(2u);
@@ -20419,13 +20419,13 @@ L_E6A5: if (g_yield_req) { g_resume = 0xE6A5u; g_yield_req = 0u; return; }
     goto L_E6AD;
 L_E6AD: if (g_yield_req) { g_resume = 0xE6ADu; g_yield_req = 0u; return; } 
     tick(3u);
-    Y = rd(0x0099u); setnz(Y);
+    Y = rd(0x0099u);
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
     wr((u16)(0x00E0u + X), A);
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A != 1u) { goto L_E6BC; }
     goto L_E6B9;
 L_E6B9: if (g_yield_req) { g_resume = 0xE6B9u; g_yield_req = 0u; return; } 
@@ -20455,9 +20455,9 @@ L_E6CB: if (g_yield_req) { g_resume = 0xE6CBu; g_yield_req = 0u; return; }
     goto L_E6CD;
 L_E6CD: if (g_yield_req) { g_resume = 0xE6CDu; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
-    A = rd((u16)(0x00E0u + X)); setnz(A);
+    A = rd((u16)(0x00E0u + X));
     tick(2u);
     A = (u8)(A & 0x01u); setnz(A);
     if (Zf) { tick(3u); goto L_E6DB; }
@@ -20465,7 +20465,7 @@ L_E6CD: if (g_yield_req) { g_resume = 0xE6CDu; g_yield_req = 0u; return; }
     goto L_E6D5;
 L_E6D5: if (g_yield_req) { g_resume = 0xE6D5u; g_yield_req = 0u; return; } 
     tick(4u + ((0x009Au + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC79Au + Y)); setnz(A);
+    A = rd((u16)(0xC79Au + Y));
     tick(3u);
     goto L_E6DE;
 L_E6DB: if (g_yield_req) { g_resume = 0xE6DBu; g_yield_req = 0u; return; } 
@@ -20482,14 +20482,14 @@ L_E6DE: if (g_yield_req) { g_resume = 0xE6DEu; g_yield_req = 0u; return; }
     goto L_E6E3;
 L_E6E3: if (g_yield_req) { g_resume = 0xE6E3u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
-    A = rd((u16)(0x00E0u + X)); setnz(A);
+    A = rd((u16)(0x00E0u + X));
     if (A == 1u) { goto L_E6F3; }
     goto L_E6EB;
 L_E6EB: if (g_yield_req) { g_resume = 0xE6EBu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(4u + ((0x00E6u + Y) > 0xFFu ? 1u : 0u));
     { const u8 v = rd((u16)(0xC3E6u + Y)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_E6FB; }
@@ -20500,7 +20500,7 @@ L_E6F2: if (g_yield_req) { g_resume = 0xE6F2u; g_yield_req = 0u; return; }
     return;
 L_E6F3: if (g_yield_req) { g_resume = 0xE6F3u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(4u + ((0x00E8u + Y) > 0xFFu ? 1u : 0u));
     { const u8 v = rd((u16)(0xC3E8u + Y)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_E6FB; }
@@ -20511,23 +20511,23 @@ L_E6FA: if (g_yield_req) { g_resume = 0xE6FAu; g_yield_req = 0u; return; }
     return;
 L_E6FB: if (g_yield_req) { g_resume = 0xE6FBu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
     wr((u16)(0x00AFu + X), A);
     tick(6u);
     return;
 L_E702: if (g_yield_req) { g_resume = 0xE702u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
-    A = rd((u16)(0x00E0u + X)); setnz(A);
+    A = rd((u16)(0x00E0u + X));
     if (A != 2u) { goto L_E719; }
     goto L_E70A;
 L_E70A: if (g_yield_req) { g_resume = 0xE70Au; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(4u + ((0x00EAu + Y) > 0xFFu ? 1u : 0u));
     { const u8 v = rd((u16)(0xC3EAu + Y)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_E735; }
@@ -20550,7 +20550,7 @@ L_E71D: if (g_yield_req) { g_resume = 0xE71Du; g_yield_req = 0u; return; }
     goto L_E721;
 L_E721: if (g_yield_req) { g_resume = 0xE721u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(4u + ((0x00EEu + Y) > 0xFFu ? 1u : 0u));
     { const u8 v = rd((u16)(0xC3EEu + Y)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_E735; }
@@ -20567,7 +20567,7 @@ L_E72D: if (g_yield_req) { g_resume = 0xE72Du; g_yield_req = 0u; return; }
     return;
 L_E72E: if (g_yield_req) { g_resume = 0xE72Eu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     if (A == 219u) { goto L_E735; }
     goto L_E734;
 L_E734: if (g_yield_req) { g_resume = 0xE734u; g_yield_req = 0u; return; } 
@@ -20575,24 +20575,24 @@ L_E734: if (g_yield_req) { g_resume = 0xE734u; g_yield_req = 0u; return; }
     return;
 L_E735: if (g_yield_req) { g_resume = 0xE735u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(4u);
     wr((u16)(0x00AFu + X), A);
     tick(6u);
     return;
 L_E73C: if (g_yield_req) { g_resume = 0xE73Cu; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
-    A = rd((u16)(0x00E0u + X)); setnz(A);
+    A = rd((u16)(0x00E0u + X));
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(2u);
-    Y = (u8)(Y - 1u); setnz(Y);
+    Y = (u8)(Y - 1u);
     tick(3u);
-    X = rd(0x0099u); setnz(X);
+    X = rd(0x0099u);
     tick(4u + ((0x00F2u + X) > 0xFFu ? 1u : 0u));
     A = rd((u16)(0xC3F2u + X)); setnz(A);
     goto L_E747;
@@ -20606,7 +20606,7 @@ L_E74F: if (g_yield_req) { g_resume = 0xE74Fu; g_yield_req = 0u; return; }
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x08u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x08u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     goto L_E758;
 L_E755: if (g_yield_req) { g_resume = 0xE755u; g_yield_req = 0u; return; } 
@@ -20617,7 +20617,7 @@ L_E755: if (g_yield_req) { g_resume = 0xE755u; g_yield_req = 0u; return; }
     goto L_E758;
 L_E758: if (g_yield_req) { g_resume = 0xE758u; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = (u8)(Y - 1u); setnz(Y);
+    Y = (u8)(Y - 1u);
     tick(3u);
     goto L_E747;
 L_E75C: if (g_yield_req) { g_resume = 0xE75Cu; g_yield_req = 0u; return; } 
@@ -20628,7 +20628,7 @@ L_E75C: if (g_yield_req) { g_resume = 0xE75Cu; g_yield_req = 0u; return; }
     goto L_E760;
 L_E760: if (g_yield_req) { g_resume = 0xE760u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0099u); setnz(A);
+    A = rd(0x0099u);
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(6u);
@@ -20646,9 +20646,9 @@ L_E768: if (g_yield_req) { g_resume = 0xE768u; g_yield_req = 0u; return; }
     return;
 L_E769: if (g_yield_req) { g_resume = 0xE769u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(4u);
     wr((u16)(0x00AFu + X), A);
     tick(6u);
@@ -20659,7 +20659,7 @@ static void f_E7A3(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xE7A3u: goto L_E7A3; case 0xE7A9u: goto L_E7A9; case 0xE7AEu: goto L_E7AE; case 0xE7C5u: goto L_E7C5; case 0xE7E2u: goto L_E7E2; case 0xE7E6u: goto L_E7E6; case 0xE7ECu: goto L_E7EC; case 0xE7F2u: goto L_E7F2; case 0xE7F9u: goto L_E7F9; } }
 L_E7A3: if (g_yield_req) { g_resume = 0xE7A3u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
     A = rd((u16)(0x00DBu + X)); setnz(A);
     if (Zf) { tick(3u); goto L_E7AE; }
@@ -20667,32 +20667,32 @@ L_E7A3: if (g_yield_req) { g_resume = 0xE7A3u; g_yield_req = 0u; return; }
     goto L_E7A9;
 L_E7A9: if (g_yield_req) { g_resume = 0xE7A9u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
-    A = rd((u16)(0x00AFu + X)); setnz(A);
+    A = rd((u16)(0x00AFu + X));
     tick(6u);
     return;
 L_E7AE: if (g_yield_req) { g_resume = 0xE7AEu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x02u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x02u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u + ((0x009Bu + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC49Bu + Y)); setnz(A);
+    A = rd((u16)(0xC49Bu + Y));
     tick(3u);
     wr(0x0007u, A);
     tick(4u + ((0x009Cu + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC49Cu + Y)); setnz(A);
+    A = rd((u16)(0xC49Cu + Y));
     tick(3u);
     wr(0x0008u, A);
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
     Y = rd((u16)(0x00E0u + X)); setnz(Y);
     if (Zf) { tick(3u); goto L_E7F2; }
@@ -20700,33 +20700,33 @@ L_E7AE: if (g_yield_req) { g_resume = 0xE7AEu; g_yield_req = 0u; return; }
     goto L_E7C5;
 L_E7C5: if (g_yield_req) { g_resume = 0xE7C5u; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = (u8)(Y - 1u); setnz(Y);
+    Y = (u8)(Y - 1u);
     tick(5u + (((rd(0x0007u) | (static_cast<eng::u16>(rd(0x0008u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0007u) | ((u16)rd(0x0008u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0007u) | ((u16)rd(0x0008u) << 8)) + Y));
     tick(3u);
     wr(0x0009u, A);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(5u + (((rd(0x0007u) | (static_cast<eng::u16>(rd(0x0008u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0007u) | ((u16)rd(0x0008u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0007u) | ((u16)rd(0x0008u) << 8)) + Y));
     tick(3u);
     wr(0x000Au, A);
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x02u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x02u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u + ((0x00A1u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC4A1u + Y)); setnz(A);
+    A = rd((u16)(0xC4A1u + Y));
     tick(3u);
     wr(0x0007u, A);
     tick(4u + ((0x00A2u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC4A2u + Y)); setnz(A);
+    A = rd((u16)(0xC4A2u + Y));
     tick(3u);
     wr(0x0008u, A);
     tick(3u);
@@ -20740,7 +20740,7 @@ L_E7E2: if (g_yield_req) { g_resume = 0xE7E2u; g_yield_req = 0u; return; }
     goto L_E7E6;
 L_E7E6: if (g_yield_req) { g_resume = 0xE7E6u; g_yield_req = 0u; return; } 
     tick(5u + (((rd(0x0007u) | (static_cast<eng::u16>(rd(0x0008u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0007u) | ((u16)rd(0x0008u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0007u) | ((u16)rd(0x0008u) << 8)) + Y));
     tick(3u);
     { const u8 v = rd(0x0000u); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_E7F9; }
@@ -20748,35 +20748,35 @@ L_E7E6: if (g_yield_req) { g_resume = 0xE7E6u; g_yield_req = 0u; return; }
     goto L_E7EC;
 L_E7EC: if (g_yield_req) { g_resume = 0xE7ECu; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(3u);
     goto L_E7E2;
 L_E7F2: if (g_yield_req) { g_resume = 0xE7F2u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
     wr((u16)(0x00AFu + X), A);
     tick(6u);
     return;
 L_E7F9: if (g_yield_req) { g_resume = 0xE7F9u; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(5u + (((rd(0x0007u) | (static_cast<eng::u16>(rd(0x0008u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0007u) | ((u16)rd(0x0008u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0007u) | ((u16)rd(0x0008u) << 8)) + Y));
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
     wr((u16)(0x00DBu + X), A);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(5u + (((rd(0x0007u) | (static_cast<eng::u16>(rd(0x0008u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0007u) | ((u16)rd(0x0008u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0007u) | ((u16)rd(0x0008u) << 8)) + Y));
     tick(4u);
     wr((u16)(0x00AFu + X), A);
     tick(6u);
@@ -20789,9 +20789,9 @@ L_E5E8: if (g_yield_req) { g_resume = 0xE5E8u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x000Cu, A);
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
-    A = rd((u16)(0x00E0u + X)); setnz(A);
+    A = rd((u16)(0x00E0u + X));
     if (A == 1u) { goto L_E60F; }
     goto L_E5F2;
 L_E5F2: if (g_yield_req) { g_resume = 0xE5F2u; g_yield_req = 0u; return; } 
@@ -20799,7 +20799,7 @@ L_E5F2: if (g_yield_req) { g_resume = 0xE5F2u; g_yield_req = 0u; return; }
     goto L_E5F6;
 L_E5F6: if (g_yield_req) { g_resume = 0xE5F6u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = 0x00u; setnz(X);
+    X = 0x00u;
     tick(2u);
     A = 0x18u; setnz(A);
     goto L_E5FA;
@@ -20811,22 +20811,22 @@ L_E5FA: if (g_yield_req) { g_resume = 0xE5FAu; g_yield_req = 0u; return; }
     goto L_E5FE;
 L_E5FE: if (g_yield_req) { g_resume = 0xE5FEu; g_yield_req = 0u; return; } 
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     if (X == 9u) { goto L_E60C; }
     goto L_E603;
 L_E603: if (g_yield_req) { g_resume = 0xE603u; g_yield_req = 0u; return; } 
     tick(4u + ((0x00C4u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC1C4u + X)); setnz(A);
+    A = rd((u16)(0xC1C4u + X));
     tick(3u);
     goto L_E5FA;
 L_E609: if (g_yield_req) { g_resume = 0xE609u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(6u);
     return;
 L_E60C: if (g_yield_req) { g_resume = 0xE60Cu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(6u);
     return;
 L_E60F: if (g_yield_req) { g_resume = 0xE60Fu; g_yield_req = 0u; return; } 
@@ -20835,7 +20835,7 @@ L_E60F: if (g_yield_req) { g_resume = 0xE60Fu; g_yield_req = 0u; return; }
     goto L_E611;
 L_E611: if (g_yield_req) { g_resume = 0xE611u; g_yield_req = 0u; return; } 
     tick(4u + ((0x00C4u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC1C4u + X)); setnz(A);
+    A = rd((u16)(0xC1C4u + X));
     tick(3u);
     { const u8 v = rd(0x000Cu); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_E620; }
@@ -20843,7 +20843,7 @@ L_E611: if (g_yield_req) { g_resume = 0xE611u; g_yield_req = 0u; return; }
     goto L_E618;
 L_E618: if (g_yield_req) { g_resume = 0xE618u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     if (X == 9u) { goto L_E623; }
     goto L_E61D;
 L_E61D: if (g_yield_req) { g_resume = 0xE61Du; g_yield_req = 0u; return; } 
@@ -20851,12 +20851,12 @@ L_E61D: if (g_yield_req) { g_resume = 0xE61Du; g_yield_req = 0u; return; }
     goto L_E611;
 L_E620: if (g_yield_req) { g_resume = 0xE620u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(6u);
     return;
 L_E623: if (g_yield_req) { g_resume = 0xE623u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(6u);
     return;
 }
@@ -20874,21 +20874,21 @@ L_E770: if (g_yield_req) { g_resume = 0xE770u; g_yield_req = 0u; return; }
     goto L_E775;
 L_E775: if (g_yield_req) { g_resume = 0xE775u; g_yield_req = 0u; return; } 
     tick(4u + ((0x0003u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0203u + X)); setnz(A);
+    A = rd((u16)(0x0203u + X));
     tick(3u);
     wr(0x000Au, A);
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
-    A = rd((u16)(0x00E0u + X)); setnz(A);
+    A = rd((u16)(0x00E0u + X));
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x02u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x02u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
     A = rd((u16)(0x00C1u + X)); setnz(A);
     if (Zf) { tick(3u); goto L_E790; }
@@ -20896,9 +20896,9 @@ L_E775: if (g_yield_req) { g_resume = 0xE775u; g_yield_req = 0u; return; }
     goto L_E787;
 L_E787: if (g_yield_req) { g_resume = 0xE787u; g_yield_req = 0u; return; } 
     tick(3u);
-    Y = rd(0x0009u); setnz(Y);
+    Y = rd(0x0009u);
     tick(4u + ((0x00DEu + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC3DEu + Y)); setnz(A);
+    A = rd((u16)(0xC3DEu + Y));
     tick(3u);
     { const u8 v = rd(0x000Au); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_E79D; }
@@ -20912,9 +20912,9 @@ L_E790: if (g_yield_req) { g_resume = 0xE790u; g_yield_req = 0u; return; }
     goto L_E794;
 L_E794: if (g_yield_req) { g_resume = 0xE794u; g_yield_req = 0u; return; } 
     tick(3u);
-    Y = rd(0x0009u); setnz(Y);
+    Y = rd(0x0009u);
     tick(4u + ((0x00DFu + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC3DFu + Y)); setnz(A);
+    A = rd((u16)(0xC3DFu + Y));
     tick(3u);
     { const u8 v = rd(0x000Au); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (!Zf) { tick(3u); goto L_E7A0; }
@@ -20922,12 +20922,12 @@ L_E794: if (g_yield_req) { g_resume = 0xE794u; g_yield_req = 0u; return; }
     goto L_E79D;
 L_E79D: if (g_yield_req) { g_resume = 0xE79Du; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(6u);
     return;
 L_E7A0: if (g_yield_req) { g_resume = 0xE7A0u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(6u);
     return;
 }
@@ -20936,7 +20936,7 @@ static void f_DFE8(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xDFE8u: goto L_DFE8; case 0xDFF0u: goto L_DFF0; case 0xDFF4u: goto L_DFF4; case 0xDFF7u: goto L_DFF7; case 0xDFFBu: goto L_DFFB; case 0xDFFFu: goto L_DFFF; case 0xE008u: goto L_E008; case 0xE011u: goto L_E011; case 0xE013u: goto L_E013; case 0xE015u: goto L_E015; } }
 L_DFE8: if (g_yield_req) { g_resume = 0xDFE8u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(6u);
     { u8 t = (u8)(rd((u16)(0x008Au + X)) + 1u); wr((u16)(0x008Au + X), t); setnz(t); }
     tick(4u);
@@ -20961,22 +20961,22 @@ L_DFFB: if (g_yield_req) { g_resume = 0xDFFBu; g_yield_req = 0u; return; }
     goto L_DFFF;
 L_DFFF: if (g_yield_req) { g_resume = 0xDFFFu; g_yield_req = 0u; return; } 
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x00BCu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC1BCu + X)); setnz(A);
+    A = rd((u16)(0xC1BCu + X));
     tick(3u);
-    A = (u8)(A & rd(0x000Au)); setnz(A);
+    A = (u8)(A & rd(0x000Au));
     tick(3u);
     goto L_E011;
 L_E008: if (g_yield_req) { g_resume = 0xE008u; g_yield_req = 0u; return; } 
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x08u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x08u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x00BCu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC1BCu + X)); setnz(A);
+    A = rd((u16)(0xC1BCu + X));
     tick(3u);
     A = (u8)(A & rd(0x000Bu)); setnz(A);
     goto L_E011;
@@ -20997,7 +20997,7 @@ static void f_E968(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xE968u: goto L_E968; } }
 L_E968: if (g_yield_req) { g_resume = 0xE968u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x23u; setnz(A);
+    A = 0x23u;
     tick(5u);
     wr((u16)(0x0202u + Y), A);
     tick(5u);
@@ -21010,7 +21010,7 @@ static void f_E971(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xE971u: goto L_E971; } }
 L_E971: if (g_yield_req) { g_resume = 0xE971u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x03u; setnz(A);
+    A = 0x03u;
     tick(5u);
     wr((u16)(0x0202u + Y), A);
     tick(5u);
@@ -21036,7 +21036,7 @@ L_EFD7: if (g_yield_req) { g_resume = 0xEFD7u; g_yield_req = 0u; return; }
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x03u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x03u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     goto L_EFE2;
 L_EFE2: if (g_yield_req) { g_resume = 0xEFE2u; g_yield_req = 0u; return; } 
@@ -21049,7 +21049,7 @@ L_EFE2: if (g_yield_req) { g_resume = 0xEFE2u; g_yield_req = 0u; return; }
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(6u);
     return;
 }
@@ -21058,7 +21058,7 @@ static void f_EA01(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xEA01u: goto L_EA01; case 0xEA0Du: goto L_EA0D; case 0xEA11u: goto L_EA11; case 0xEA15u: goto L_EA15; case 0xEA19u: goto L_EA19; case 0xEA1Du: goto L_EA1D; case 0xEA21u: goto L_EA21; case 0xEA24u: goto L_EA24; case 0xEA27u: goto L_EA27; case 0xEA2Au: goto L_EA2A; case 0xEA2Fu: goto L_EA2F; } }
 L_EA01: if (g_yield_req) { g_resume = 0xEA01u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     tick(5u);
     { u8 t = (u8)(rd(0x0001u) + 1u); wr(0x0001u, t); setnz(t); }
     tick(5u);
@@ -21101,19 +21101,19 @@ L_EA24: if (g_yield_req) { g_resume = 0xEA24u; g_yield_req = 0u; return; }
     goto L_EA27;
 L_EA27: if (g_yield_req) { g_resume = 0xEA27u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xFFu; setnz(A);
+    A = 0xFFu;
     tick(6u);
     return;
 L_EA2A: if (g_yield_req) { g_resume = 0xEA2Au; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xC4u; setnz(A);
+    A = 0xC4u;
     tick(3u);
     wr(0x0002u, A);
     tick(6u);
     return;
 L_EA2F: if (g_yield_req) { g_resume = 0xEA2Fu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xC0u; setnz(A);
+    A = 0xC0u;
     tick(3u);
     wr(0x0002u, A);
     tick(6u);
@@ -21130,25 +21130,25 @@ L_EA34: if (g_yield_req) { g_resume = 0xEA34u; g_yield_req = 0u; return; }
     goto L_EA38;
 L_EA38: if (g_yield_req) { g_resume = 0xEA38u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0019u); setnz(A);
+    A = rd(0x0019u);
     tick(2u);
-    A = (u8)(A & 0x03u); setnz(A);
+    A = (u8)(A & 0x03u);
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x00FFu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC1FFu + X)); setnz(A);
+    A = rd((u16)(0xC1FFu + X));
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x10u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x10u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(4u);
-    X = rd(0x0445u); setnz(X);
+    X = rd(0x0445u);
     tick(5u);
     wr((u16)(0x0446u + X), A);
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    A = 0x30u; setnz(A);
+    A = 0x30u;
     tick(3u);
     wr(0x0001u, A);
     tick(2u);
@@ -21206,22 +21206,22 @@ L_EAB2: if (g_yield_req) { g_resume = 0xEAB2u; g_yield_req = 0u; return; }
     goto L_EAB6;
 L_EAB6: if (g_yield_req) { g_resume = 0xEAB6u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x00BCu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC1BCu + X)); setnz(A);
+    A = rd((u16)(0xC1BCu + X));
     tick(3u);
-    A = (u8)(A & rd(0x000Au)); setnz(A);
+    A = (u8)(A & rd(0x000Au));
     tick(3u);
     goto L_EAC8;
 L_EABF: if (g_yield_req) { g_resume = 0xEABFu; g_yield_req = 0u; return; } 
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x08u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x08u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x00BCu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC1BCu + X)); setnz(A);
+    A = rd((u16)(0xC1BCu + X));
     tick(3u);
     A = (u8)(A & rd(0x000Bu)); setnz(A);
     goto L_EAC8;
@@ -21255,9 +21255,9 @@ L_EBAB: if (g_yield_req) { g_resume = 0xEBABu; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0044u) - 1u); wr(0x0044u, t); setnz(t); }
     tick(4u);
-    A = rd(0x0505u); setnz(A);
+    A = rd(0x0505u);
     tick(2u);
-    A = (u8)(A | 0x10u); setnz(A);
+    A = (u8)(A | 0x10u);
     tick(4u);
     wr(0x0505u, A);
     tick(6u);
@@ -21268,7 +21268,7 @@ static void f_EBA1(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xEBA1u: goto L_EBA1; case 0xEBA8u: goto L_EBA8; case 0xEBABu: goto L_EBAB; } }
 L_EBA1: if (g_yield_req) { g_resume = 0xEBA1u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     goto L_EBA8;
 L_EBA8: if (g_yield_req) { g_resume = 0xEBA8u; g_yield_req = 0u; return; } 
@@ -21282,9 +21282,9 @@ L_EBAB: if (g_yield_req) { g_resume = 0xEBABu; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0044u) - 1u); wr(0x0044u, t); setnz(t); }
     tick(4u);
-    A = rd(0x0505u); setnz(A);
+    A = rd(0x0505u);
     tick(2u);
-    A = (u8)(A | 0x10u); setnz(A);
+    A = (u8)(A | 0x10u);
     tick(4u);
     wr(0x0505u, A);
     tick(6u);
@@ -21295,7 +21295,7 @@ static void f_EB97(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xEB97u: goto L_EB97; case 0xEBA8u: goto L_EBA8; case 0xEBABu: goto L_EBAB; } }
 L_EB97: if (g_yield_req) { g_resume = 0xEB97u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x44u; setnz(A);
+    A = 0x44u;
     tick(3u);
     goto L_EBA8;
 L_EBA8: if (g_yield_req) { g_resume = 0xEBA8u; g_yield_req = 0u; return; } 
@@ -21309,9 +21309,9 @@ L_EBAB: if (g_yield_req) { g_resume = 0xEBABu; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x0044u) - 1u); wr(0x0044u, t); setnz(t); }
     tick(4u);
-    A = rd(0x0505u); setnz(A);
+    A = rd(0x0505u);
     tick(2u);
-    A = (u8)(A | 0x10u); setnz(A);
+    A = (u8)(A | 0x10u);
     tick(4u);
     wr(0x0505u, A);
     tick(6u);
@@ -21334,7 +21334,7 @@ L_F344: if (g_yield_req) { g_resume = 0xF344u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0004u, X);
     tick(2u);
-    X = 0x00u; setnz(X);
+    X = 0x00u;
     tick(3u);
     wr(0x0005u, X);
     tick(3u);
@@ -21342,7 +21342,7 @@ L_F344: if (g_yield_req) { g_resume = 0xF344u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0007u, X);
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     tick(2u);
     A = (u8)(A & 0x08u); setnz(A);
     if (!Zf) { tick(3u); goto L_F355; }
@@ -21354,22 +21354,22 @@ L_F354: if (g_yield_req) { g_resume = 0xF354u; g_yield_req = 0u; return; }
     goto L_F355;
 L_F355: if (g_yield_req) { g_resume = 0xF355u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(4u);
     wr((u16)(0x0006u + X), A);
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     tick(3u);
     goto L_F35E;
 L_F35E: if (g_yield_req) { g_resume = 0xF35Eu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = (u8)(A & 0x07u); setnz(A);
+    A = (u8)(A & 0x07u);
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(3u);
     A = rd(0x0004u); setnz(A);
     if (Zf) { tick(3u); goto L_F38E; }
@@ -21385,7 +21385,7 @@ L_F36B: if (g_yield_req) { g_resume = 0xF36Bu; g_yield_req = 0u; return; }
     tick(2u);
     Cf = false;
     tick(4u);
-    A = rd((u16)(0x0027u + X)); setnz(A);
+    A = rd((u16)(0x0027u + X));
     tick(3u);
     wr(0x0003u, A);
     tick(3u);
@@ -21400,7 +21400,7 @@ L_F375: if (g_yield_req) { g_resume = 0xF375u; g_yield_req = 0u; return; }
     tick(4u);
     wr((u16)(0x0027u + X), A);
     tick(4u);
-    A = rd((u16)(0x0026u + X)); setnz(A);
+    A = rd((u16)(0x0026u + X));
     tick(3u);
     wr(0x0003u, A);
     tick(3u);
@@ -21415,7 +21415,7 @@ L_F380: if (g_yield_req) { g_resume = 0xF380u; g_yield_req = 0u; return; }
     tick(4u);
     wr((u16)(0x0026u + X), A);
     tick(4u);
-    A = rd((u16)(0x0025u + X)); setnz(A);
+    A = rd((u16)(0x0025u + X));
     tick(3u);
     wr(0x0003u, A);
     tick(3u);
@@ -21441,7 +21441,7 @@ L_F392: if (g_yield_req) { g_resume = 0xF392u; g_yield_req = 0u; return; }
     tick(2u);
     Cf = true;
     tick(4u);
-    A = rd((u16)(0x0027u + X)); setnz(A);
+    A = rd((u16)(0x0027u + X));
     tick(3u);
     wr(0x0003u, A);
     tick(3u);
@@ -21456,7 +21456,7 @@ L_F39C: if (g_yield_req) { g_resume = 0xF39Cu; g_yield_req = 0u; return; }
     tick(4u);
     wr((u16)(0x0027u + X), A);
     tick(4u);
-    A = rd((u16)(0x0026u + X)); setnz(A);
+    A = rd((u16)(0x0026u + X));
     tick(3u);
     wr(0x0003u, A);
     tick(3u);
@@ -21471,7 +21471,7 @@ L_F3A7: if (g_yield_req) { g_resume = 0xF3A7u; g_yield_req = 0u; return; }
     tick(4u);
     wr((u16)(0x0026u + X), A);
     tick(4u);
-    A = rd((u16)(0x0025u + X)); setnz(A);
+    A = rd((u16)(0x0025u + X));
     tick(3u);
     wr(0x0003u, A);
     tick(3u);
@@ -21508,7 +21508,7 @@ L_F3C0: if (g_yield_req) { g_resume = 0xF3C0u; g_yield_req = 0u; return; }
     goto L_F3C2;
 L_F3C2: if (g_yield_req) { g_resume = 0xF3C2u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd((u16)(0x0024u + X)); setnz(A);
+    A = rd((u16)(0x0024u + X));
     tick(2u);
     A = (u8)(A ^ 0xFFu); setnz(A);
     goto L_F3C6;
@@ -21518,7 +21518,7 @@ L_F3C6: if (g_yield_req) { g_resume = 0xF3C6u; g_yield_req = 0u; return; }
     tick(2u);
     Cf = true;
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x0003u, A);
     tick(4u);
@@ -21586,16 +21586,16 @@ L_EC4D: if (g_yield_req) { g_resume = 0xEC4Du; g_yield_req = 0u; return; }
     goto L_EC50;
 L_EC50: if (g_yield_req) { g_resume = 0xEC50u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A == 1u) { goto L_EC5B; }
     goto L_EC56;
 L_EC56: if (g_yield_req) { g_resume = 0xEC56u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x30u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x30u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     X = A; setnz(X);
     goto L_EC5B;
@@ -21619,12 +21619,12 @@ L_EC61: if (g_yield_req) { g_resume = 0xEC61u; g_yield_req = 0u; return; }
     goto L_EC63;
 L_EC63: if (g_yield_req) { g_resume = 0xEC63u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0096u); setnz(A);
+    A = rd(0x0096u);
     if (A != 4u) { goto L_EC97; }
     goto L_EC69;
 L_EC69: if (g_yield_req) { g_resume = 0xEC69u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0056u); setnz(A);
+    A = rd(0x0056u);
     tick(2u);
     A = (u8)(A & 0x03u); setnz(A);
     if (!Zf) { tick(3u); goto L_EC76; }
@@ -21641,7 +21641,7 @@ L_EC73: if (g_yield_req) { g_resume = 0xEC73u; g_yield_req = 0u; return; }
     goto L_EC97;
 L_EC76: if (g_yield_req) { g_resume = 0xEC76u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x009Cu); setnz(A);
+    A = rd(0x009Cu);
     if (A >= 3u) { goto L_EC97; }
     goto L_EC7C;
 L_EC7C: if (g_yield_req) { g_resume = 0xEC7Cu; g_yield_req = 0u; return; } 
@@ -21652,16 +21652,16 @@ L_EC7C: if (g_yield_req) { g_resume = 0xEC7Cu; g_yield_req = 0u; return; }
     goto L_EC80;
 L_EC80: if (g_yield_req) { g_resume = 0xEC80u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x009Du); setnz(A);
+    A = rd(0x009Du);
     if (A >= 24u) { goto L_EC97; }
     goto L_EC86;
 L_EC86: if (g_yield_req) { g_resume = 0xEC86u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(3u);
     wr(0x0005u, A);
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     tick(3u);
     wr(0x0006u, A);
     tick(2u);
@@ -21682,13 +21682,13 @@ L_EC97: if (g_yield_req) { g_resume = 0xEC97u; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x005Du) + 1u); wr(0x005Du, t); setnz(t); }
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(3u);
-    A = rd(0x005Du); setnz(A);
+    A = rd(0x005Du);
     tick(4u + ((0x00FDu + X) > 0xFFu ? 1u : 0u));
     { const u8 v = rd((u16)(0xC1FDu + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_ECAF; }
@@ -21706,19 +21706,19 @@ L_ECA7: if (g_yield_req) { g_resume = 0xECA7u; g_yield_req = 0u; return; }
     goto L_ECAA;
 L_ECAA: if (g_yield_req) { g_resume = 0xECAAu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xFFu; setnz(A);
+    A = 0xFFu;
     tick(3u);
     wr(0x0096u, A);
     tick(6u);
     return;
 L_ECAF: if (g_yield_req) { g_resume = 0xECAFu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A == 3u) { goto L_ECBE; }
     goto L_ECB5;
 L_ECB5: if (g_yield_req) { g_resume = 0xECB5u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0096u); setnz(A);
+    A = rd(0x0096u);
     if (A != 10u) { goto L_ECBE; }
     goto L_ECBB;
 L_ECBB: if (g_yield_req) { g_resume = 0xECBBu; g_yield_req = 0u; return; } 
@@ -21738,7 +21738,7 @@ L_ECC3: if (g_yield_req) { g_resume = 0xECC3u; g_yield_req = 0u; return; }
     goto L_ED87;
 L_ECC6: if (g_yield_req) { g_resume = 0xECC6u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x009Fu); setnz(A);
+    A = rd(0x009Fu);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -21748,7 +21748,7 @@ L_ECC6: if (g_yield_req) { g_resume = 0xECC6u; g_yield_req = 0u; return; }
     goto L_ECCC;
 L_ECCC: if (g_yield_req) { g_resume = 0xECCCu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     goto L_ECD3;
 L_ECD1: if (g_yield_req) { g_resume = 0xECD1u; g_yield_req = 0u; return; } 
@@ -21761,40 +21761,40 @@ L_ECD3: if (g_yield_req) { g_resume = 0xECD3u; g_yield_req = 0u; return; }
     goto L_ECD5;
 L_ECD5: if (g_yield_req) { g_resume = 0xECD5u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x04u; setnz(A);
+    A = 0x04u;
     tick(2u);
     Cf = false;
     tick(4u);
-    { const u8 v = rd(0x0203u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0203u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    A = rd(0x0200u); setnz(A);
+    A = rd(0x0200u);
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x10u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x10u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0001u, A);
     tick(3u);
     goto L_ED07;
 L_ECE8: if (g_yield_req) { g_resume = 0xECE8u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0057u); setnz(A);
+    A = rd(0x0057u);
     if (A == 1u) { goto L_ECF7; }
     goto L_ECEE;
 L_ECEE: if (g_yield_req) { g_resume = 0xECEEu; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0203u); setnz(A);
+    A = rd(0x0203u);
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x10u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x10u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     goto L_ECFD;
 L_ECF7: if (g_yield_req) { g_resume = 0xECF7u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0203u); setnz(A);
+    A = rd(0x0203u);
     tick(2u);
     Cf = false;
     tick(2u);
@@ -21804,7 +21804,7 @@ L_ECFD: if (g_yield_req) { g_resume = 0xECFDu; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    A = rd(0x0200u); setnz(A);
+    A = rd(0x0200u);
     tick(2u);
     Cf = false;
     tick(2u);
@@ -21823,7 +21823,7 @@ L_ED07: if (g_yield_req) { g_resume = 0xED07u; g_yield_req = 0u; return; }
     goto L_ED0C;
 L_ED0C: if (g_yield_req) { g_resume = 0xED0Cu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A != 1u) { goto L_ED34; }
     goto L_ED12;
 L_ED12: if (g_yield_req) { g_resume = 0xED12u; g_yield_req = 0u; return; } 
@@ -21868,11 +21868,11 @@ L_ED24: if (g_yield_req) { g_resume = 0xED24u; g_yield_req = 0u; return; }
     goto L_ED26;
 L_ED26: if (g_yield_req) { g_resume = 0xED26u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x005Du); setnz(A);
+    A = rd(0x005Du);
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x005Du, A);
     if (A == 9u) { goto L_ED85; }
@@ -21924,11 +21924,11 @@ L_ED48: if (g_yield_req) { g_resume = 0xED48u; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x00AEu) + 1u); wr(0x00AEu, t); setnz(t); }
     tick(3u);
-    A = rd(0x00AEu); setnz(A);
+    A = rd(0x00AEu);
     tick(3u);
-    X = rd(0x0053u); setnz(X);
+    X = rd(0x0053u);
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(4u + ((0x00F6u + X) > 0xFFu ? 1u : 0u));
     { const u8 v = rd((u16)(0xC1F6u + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_ED85; }
@@ -21939,47 +21939,47 @@ L_ED54: if (g_yield_req) { g_resume = 0xED54u; g_yield_req = 0u; return; }
     goto L_ED38;
 L_ED57: if (g_yield_req) { g_resume = 0xED57u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x00FFu, A);
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(3u);
     wr(0x0005u, A);
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     tick(3u);
     wr(0x0006u, A);
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A != 1u) { goto L_ED74; }
     goto L_ED69;
 L_ED69: if (g_yield_req) { g_resume = 0xED69u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
     wr((u16)(0x0068u + X), A);
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     goto L_ED87;
 L_ED74: if (g_yield_req) { g_resume = 0xED74u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x10u; setnz(A);
+    A = 0x10u;
     tick(3u);
     wr(0x0040u, A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
     wr((u16)(0x00E0u + X), A);
     tick(4u);
     wr((u16)(0x00DBu + X), A);
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     goto L_ED87;
 L_ED85: if (g_yield_req) { g_resume = 0xED85u; g_yield_req = 0u; return; } 
@@ -21997,7 +21997,7 @@ static void f_ED8A(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xED8Au: goto L_ED8A; case 0xED93u: goto L_ED93; case 0xED96u: goto L_ED96; case 0xED99u: goto L_ED99; case 0xED9Cu: goto L_ED9C; case 0xED9Eu: goto L_ED9E; case 0xEDAAu: goto L_EDAA; case 0xEDADu: goto L_EDAD; case 0xEDB0u: goto L_EDB0; case 0xEDB5u: goto L_EDB5; case 0xEDBBu: goto L_EDBB; case 0xEDC1u: goto L_EDC1; case 0xEDC4u: goto L_EDC4; } }
 L_ED8A: if (g_yield_req) { g_resume = 0xED8Au; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x00AEu, A);
     tick(2u);
@@ -22037,11 +22037,11 @@ L_ED9E: if (g_yield_req) { g_resume = 0xED9Eu; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x00AEu) + 1u); wr(0x00AEu, t); setnz(t); }
     tick(3u);
-    A = rd(0x00AEu); setnz(A);
+    A = rd(0x00AEu);
     tick(3u);
-    X = rd(0x0053u); setnz(X);
+    X = rd(0x0053u);
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(4u + ((0x00F6u + X) > 0xFFu ? 1u : 0u));
     { const u8 v = rd((u16)(0xC1F6u + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_EDB5; }
@@ -22059,19 +22059,19 @@ L_EDAD: if (g_yield_req) { g_resume = 0xEDADu; g_yield_req = 0u; return; }
     goto L_EDB0;
 L_EDB0: if (g_yield_req) { g_resume = 0xEDB0u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xFFu; setnz(A);
+    A = 0xFFu;
     tick(3u);
     wr(0x0096u, A);
     tick(6u);
     return;
 L_EDB5: if (g_yield_req) { g_resume = 0xEDB5u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0096u); setnz(A);
+    A = rd(0x0096u);
     if (A != 10u) { goto L_EDC4; }
     goto L_EDBB;
 L_EDBB: if (g_yield_req) { g_resume = 0xEDBBu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A == 1u) { goto L_EDC4; }
     goto L_EDC1;
 L_EDC1: if (g_yield_req) { g_resume = 0xEDC1u; g_yield_req = 0u; return; } 
@@ -22101,59 +22101,59 @@ L_CFC6: if (g_yield_req) { g_resume = 0xCFC6u; g_yield_req = 0u; return; }
     goto L_CFCD;
 L_CFCD: if (g_yield_req) { g_resume = 0xCFCDu; g_yield_req = 0u; return; } 
     tick(4u + ((0x00C0u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x02C0u + Y)); setnz(A);
+    A = rd((u16)(0x02C0u + Y));
     if (A != 255u) { goto L_CFF9; }
     goto L_CFD4;
 L_CFD4: if (g_yield_req) { g_resume = 0xCFD4u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0005u); setnz(A);
+    A = rd(0x0005u);
     tick(5u);
     wr((u16)(0x02C3u + Y), A);
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x08u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x08u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(5u);
     wr((u16)(0x02C7u + Y), A);
     tick(3u);
-    A = rd(0x0006u); setnz(A);
+    A = rd(0x0006u);
     tick(5u);
     wr((u16)(0x02C0u + Y), A);
     tick(5u);
     wr((u16)(0x02C4u + Y), A);
     tick(4u + ((0x0004u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC604u + X)); setnz(A);
+    A = rd((u16)(0xC604u + X));
     tick(5u);
     wr((u16)(0x02C1u + Y), A);
     tick(2u);
-    A = 0xD4u; setnz(A);
+    A = 0xD4u;
     tick(5u);
     wr((u16)(0x02C5u + Y), A);
     tick(3u);
-    X = rd(0x000Fu); setnz(X);
+    X = rd(0x000Fu);
     tick(2u);
-    A = 0x03u; setnz(A);
+    A = 0x03u;
     tick(4u);
     wr((u16)(0x0041u + X), A);
     tick(6u);
     return;
 L_CFF9: if (g_yield_req) { g_resume = 0xCFF9u; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(5u);
     { u8 t = (u8)(rd(0x000Fu) + 1u); wr(0x000Fu, t); setnz(t); }
     if (((u8)(Y - 16u) & 0x80u) != 0) { goto L_CFCD; }
@@ -22167,7 +22167,7 @@ static void f_EF51(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xEF51u: goto L_EF51; case 0xEF57u: goto L_EF57; case 0xEF5Bu: goto L_EF5B; case 0xEF71u: goto L_EF71; } }
 L_EF51: if (g_yield_req) { g_resume = 0xEF51u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0096u); setnz(A);
+    A = rd(0x0096u);
     if (A != 10u) { goto L_EF71; }
     goto L_EF57;
 L_EF57: if (g_yield_req) { g_resume = 0xEF57u; g_yield_req = 0u; return; } 
@@ -22180,15 +22180,15 @@ L_EF5B: if (g_yield_req) { g_resume = 0xEF5Bu; g_yield_req = 0u; return; }
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x01u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(5u);
     wr((u16)(0x0451u + X), A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
@@ -22196,7 +22196,7 @@ L_EF5B: if (g_yield_req) { g_resume = 0xEF5Bu; g_yield_req = 0u; return; }
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
     A = 0xFFu; setnz(A);
     tick(5u);
@@ -22222,7 +22222,7 @@ L_ECC3: if (g_yield_req) { g_resume = 0xECC3u; g_yield_req = 0u; return; }
     goto L_ED87;
 L_ECC6: if (g_yield_req) { g_resume = 0xECC6u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x009Fu); setnz(A);
+    A = rd(0x009Fu);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -22232,7 +22232,7 @@ L_ECC6: if (g_yield_req) { g_resume = 0xECC6u; g_yield_req = 0u; return; }
     goto L_ECCC;
 L_ECCC: if (g_yield_req) { g_resume = 0xECCCu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     goto L_ECD3;
 L_ECD1: if (g_yield_req) { g_resume = 0xECD1u; g_yield_req = 0u; return; } 
@@ -22245,40 +22245,40 @@ L_ECD3: if (g_yield_req) { g_resume = 0xECD3u; g_yield_req = 0u; return; }
     goto L_ECD5;
 L_ECD5: if (g_yield_req) { g_resume = 0xECD5u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x04u; setnz(A);
+    A = 0x04u;
     tick(2u);
     Cf = false;
     tick(4u);
-    { const u8 v = rd(0x0203u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0203u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    A = rd(0x0200u); setnz(A);
+    A = rd(0x0200u);
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x10u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x10u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0001u, A);
     tick(3u);
     goto L_ED07;
 L_ECE8: if (g_yield_req) { g_resume = 0xECE8u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0057u); setnz(A);
+    A = rd(0x0057u);
     if (A == 1u) { goto L_ECF7; }
     goto L_ECEE;
 L_ECEE: if (g_yield_req) { g_resume = 0xECEEu; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0203u); setnz(A);
+    A = rd(0x0203u);
     tick(2u);
     Cf = true;
     tick(2u);
-    { const u8 v = 0x10u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x10u; const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     goto L_ECFD;
 L_ECF7: if (g_yield_req) { g_resume = 0xECF7u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x0203u); setnz(A);
+    A = rd(0x0203u);
     tick(2u);
     Cf = false;
     tick(2u);
@@ -22288,7 +22288,7 @@ L_ECFD: if (g_yield_req) { g_resume = 0xECFDu; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0000u, A);
     tick(4u);
-    A = rd(0x0200u); setnz(A);
+    A = rd(0x0200u);
     tick(2u);
     Cf = false;
     tick(2u);
@@ -22307,7 +22307,7 @@ L_ED07: if (g_yield_req) { g_resume = 0xED07u; g_yield_req = 0u; return; }
     goto L_ED0C;
 L_ED0C: if (g_yield_req) { g_resume = 0xED0Cu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A != 1u) { goto L_ED34; }
     goto L_ED12;
 L_ED12: if (g_yield_req) { g_resume = 0xED12u; g_yield_req = 0u; return; } 
@@ -22352,11 +22352,11 @@ L_ED24: if (g_yield_req) { g_resume = 0xED24u; g_yield_req = 0u; return; }
     goto L_ED26;
 L_ED26: if (g_yield_req) { g_resume = 0xED26u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x005Du); setnz(A);
+    A = rd(0x005Du);
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x005Du, A);
     if (A == 9u) { goto L_ED85; }
@@ -22408,11 +22408,11 @@ L_ED48: if (g_yield_req) { g_resume = 0xED48u; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = (u8)(rd(0x00AEu) + 1u); wr(0x00AEu, t); setnz(t); }
     tick(3u);
-    A = rd(0x00AEu); setnz(A);
+    A = rd(0x00AEu);
     tick(3u);
-    X = rd(0x0053u); setnz(X);
+    X = rd(0x0053u);
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(4u + ((0x00F6u + X) > 0xFFu ? 1u : 0u));
     { const u8 v = rd((u16)(0xC1F6u + X)); const u16 t = (u16)A - (u16)v; Cf = (t < 0x100u); setnz((u8)t); }
     if (Zf) { tick(3u); goto L_ED85; }
@@ -22423,47 +22423,47 @@ L_ED54: if (g_yield_req) { g_resume = 0xED54u; g_yield_req = 0u; return; }
     goto L_ED38;
 L_ED57: if (g_yield_req) { g_resume = 0xED57u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x02u; setnz(A);
+    A = 0x02u;
     tick(3u);
     wr(0x00FFu, A);
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(3u);
     wr(0x0005u, A);
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     tick(3u);
     wr(0x0006u, A);
     tick(3u);
-    A = rd(0x0053u); setnz(A);
+    A = rd(0x0053u);
     if (A != 1u) { goto L_ED74; }
     goto L_ED69;
 L_ED69: if (g_yield_req) { g_resume = 0xED69u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
-    X = rd(0x005Du); setnz(X);
+    X = rd(0x005Du);
     tick(4u);
     wr((u16)(0x0068u + X), A);
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     goto L_ED87;
 L_ED74: if (g_yield_req) { g_resume = 0xED74u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x10u; setnz(A);
+    A = 0x10u;
     tick(3u);
     wr(0x0040u, A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
-    X = rd(0x00AEu); setnz(X);
+    X = rd(0x00AEu);
     tick(4u);
     wr((u16)(0x00E0u + X), A);
     tick(4u);
     wr((u16)(0x00DBu + X), A);
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
     goto L_ED87;
 L_ED85: if (g_yield_req) { g_resume = 0xED85u; g_yield_req = 0u; return; } 
@@ -22496,20 +22496,20 @@ static void f_EF38(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xC815u: goto L_C815; case 0xEF38u: goto L_EF38; case 0xF2D7u: goto L_F2D7; case 0xF2EAu: goto L_F2EA; case 0xF2F2u: goto L_F2F2; case 0xF2FAu: goto L_F2FA; case 0xF303u: goto L_F303; case 0xF306u: goto L_F306; case 0xF310u: goto L_F310; case 0xF313u: goto L_F313; case 0xF327u: goto L_F327; } }
 L_C815: if (g_yield_req) { g_resume = 0xC815u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x003Cu + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC03Cu + X)); setnz(A);
+    A = rd((u16)(0xC03Cu + X));
     tick(3u);
     wr(0x0002u, A);
     tick(4u + ((0x003Du + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC03Du + X)); setnz(A);
+    A = rd((u16)(0xC03Du + X));
     tick(3u);
     wr(0x0003u, A);
     tick(3u);
     goto L_F2D7;
 L_EF38: if (g_yield_req) { g_resume = 0xEF38u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x24u; setnz(A);
+    A = 0x24u;
     tick(3u);
     wr(0x00CDu, A);
     tick(3u);
@@ -22519,28 +22519,28 @@ L_EF38: if (g_yield_req) { g_resume = 0xEF38u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x00D0u, A);
     tick(4u + ((0x00D6u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC5D6u + X)); setnz(A);
+    A = rd((u16)(0xC5D6u + X));
     tick(3u);
     wr(0x0001u, A);
     tick(4u + ((0x00E9u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC5E9u + X)); setnz(A);
+    A = rd((u16)(0xC5E9u + X));
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    A = 0x48u; setnz(A);
+    A = 0x48u;
     tick(3u);
     goto L_C815;
 L_F2D7: if (g_yield_req) { g_resume = 0xF2D7u; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = 0x00u; setnz(Y);
+    Y = 0x00u;
     tick(5u + (((rd(0x0002u) | (static_cast<eng::u16>(rd(0x0003u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y));
     tick(2u);
-    A = (u8)(A & 0x0Fu); setnz(A);
+    A = (u8)(A & 0x0Fu);
     tick(3u);
     wr(0x0005u, A);
     tick(5u + (((rd(0x0002u) | (static_cast<eng::u16>(rd(0x0003u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y));
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -22578,7 +22578,7 @@ L_F2F2: if (g_yield_req) { g_resume = 0xF2F2u; g_yield_req = 0u; return; }
     goto L_F2FA;
 L_F2FA: if (g_yield_req) { g_resume = 0xF2FAu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0004u); setnz(A);
+    A = rd(0x0004u);
     tick(3u);
     wr(0x0006u, A);
     tick(2u);
@@ -22595,9 +22595,9 @@ L_F303: if (g_yield_req) { g_resume = 0xF303u; g_yield_req = 0u; return; }
     goto L_F306;
 L_F306: if (g_yield_req) { g_resume = 0xF306u; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(5u + (((rd(0x0002u) | (static_cast<eng::u16>(rd(0x0003u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y));
     tick(5u);
     wr((u16)(0x0331u + X), A);
     tick(5u);
@@ -22616,15 +22616,15 @@ L_F313: if (g_yield_req) { g_resume = 0xF313u; g_yield_req = 0u; return; }
     tick(2u);
     Cf = false;
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(3u);
-    { const u8 v = rd(0x0000u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0000u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
-    { const u8 v = rd(0x0001u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0001u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0001u, A);
     tick(4u);
@@ -22636,7 +22636,7 @@ L_F313: if (g_yield_req) { g_resume = 0xF313u; g_yield_req = 0u; return; }
     goto L_F327;
 L_F327: if (g_yield_req) { g_resume = 0xF327u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(5u);
     wr((u16)(0x0331u + X), A);
     tick(6u);
@@ -22647,11 +22647,11 @@ static void f_F063(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xF063u: goto L_F063; } }
 L_F063: if (g_yield_req) { g_resume = 0xF063u; g_yield_req = 0u; return; } 
     tick(5u + (((rd(0x0002u) | (static_cast<eng::u16>(rd(0x0003u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y));
     tick(2u);
     Cf = false;
     tick(3u);
-    { const u8 v = rd(0x0000u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0000u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(6u);
     return;
 }
@@ -22660,13 +22660,13 @@ static void f_F069(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xF069u: goto L_F069; } }
 L_F069: if (g_yield_req) { g_resume = 0xF069u; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(5u + (((rd(0x0002u) | (static_cast<eng::u16>(rd(0x0003u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y));
     tick(2u);
     Cf = false;
     tick(3u);
-    { const u8 v = rd(0x0001u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0001u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(6u);
     return;
 }
@@ -22679,11 +22679,11 @@ L_F062: if (g_yield_req) { g_resume = 0xF062u; g_yield_req = 0u; return; }
     goto L_F063;
 L_F063: if (g_yield_req) { g_resume = 0xF063u; g_yield_req = 0u; return; } 
     tick(5u + (((rd(0x0002u) | (static_cast<eng::u16>(rd(0x0003u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0002u) | ((u16)rd(0x0003u) << 8)) + Y));
     tick(2u);
     Cf = false;
     tick(3u);
-    { const u8 v = rd(0x0000u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0000u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(6u);
     return;
 }
@@ -22692,9 +22692,9 @@ static void f_F11E(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xF11Eu: goto L_F11E; case 0xF124u: goto L_F124; case 0xF138u: goto L_F138; } }
 L_F11E: if (g_yield_req) { g_resume = 0xF11Eu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0002u); setnz(A);
+    A = rd(0x0002u);
     tick(3u);
-    X = rd(0x0008u); setnz(X);
+    X = rd(0x0008u);
     tick(2u);
     Y = 0x01u; setnz(Y);
     goto L_F124;
@@ -22704,25 +22704,25 @@ L_F124: if (g_yield_req) { g_resume = 0xF124u; g_yield_req = 0u; return; }
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x01u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(5u + (((rd(0x0004u) | (static_cast<eng::u16>(rd(0x0005u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y));
     tick(2u);
-    A = (u8)(A & 0x3Fu); setnz(A);
+    A = (u8)(A & 0x3Fu);
     tick(6u);
     wr((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y), A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Zf) { tick(3u); goto L_F124; }
@@ -22741,9 +22741,9 @@ L_F195: if (g_yield_req) { g_resume = 0xF195u; g_yield_req = 0u; return; }
     goto L_F197;
 L_F197: if (g_yield_req) { g_resume = 0xF197u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x0006u); setnz(X);
+    X = rd(0x0006u);
     tick(3u);
-    A = rd(0x0001u); setnz(A);
+    A = rd(0x0001u);
     tick(3u);
     wr(0x0009u, A);
     tick(2u);
@@ -22753,13 +22753,13 @@ L_F19F: if (g_yield_req) { g_resume = 0xF19Fu; g_yield_req = 0u; return; }
     tick(6u);
     wr((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y), A);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Zf) { tick(3u); goto L_F19F; }
@@ -22767,11 +22767,11 @@ L_F19F: if (g_yield_req) { g_resume = 0xF19Fu; g_yield_req = 0u; return; }
     goto L_F1A8;
 L_F1A8: if (g_yield_req) { g_resume = 0xF1A8u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x08u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x08u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0000u, A);
     tick(5u);
@@ -22788,11 +22788,11 @@ static void f_F161(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xF161u: goto L_F161; case 0xF16Au: goto L_F16A; case 0xF16Fu: goto L_F16F; case 0xF18Du: goto L_F18D; case 0xF194u: goto L_F194; } }
 L_F161: if (g_yield_req) { g_resume = 0xF161u; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = 0x01u; setnz(Y);
+    Y = 0x01u;
     tick(3u);
     wr(0x000Au, Y);
     tick(3u);
-    A = rd(0x0008u); setnz(A);
+    A = rd(0x0008u);
     tick(2u);
     Cf = true;
     tick(3u);
@@ -22800,7 +22800,7 @@ L_F161: if (g_yield_req) { g_resume = 0xF161u; g_yield_req = 0u; return; }
     goto L_F16A;
 L_F16A: if (g_yield_req) { g_resume = 0xF16Au; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(3u);
     wr(0x000Bu, A);
     tick(3u);
@@ -22808,43 +22808,43 @@ L_F16A: if (g_yield_req) { g_resume = 0xF16Au; g_yield_req = 0u; return; }
     goto L_F16F;
 L_F16F: if (g_yield_req) { g_resume = 0xF16Fu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
     Cf = false;
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(3u);
-    { const u8 v = rd(0x0002u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0002u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
-    Y = rd(0x000Au); setnz(Y);
+    Y = rd(0x000Au);
     tick(6u);
     wr((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y), A);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(5u + (((rd(0x0004u) | (static_cast<eng::u16>(rd(0x0005u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
-    A = rd((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y)); setnz(A);
+    A = rd((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y));
     tick(2u);
-    A = (u8)(A & 0x3Fu); setnz(A);
+    A = (u8)(A & 0x3Fu);
     tick(2u);
-    A = (u8)(A ^ 0x40u); setnz(A);
+    A = (u8)(A ^ 0x40u);
     tick(6u);
     wr((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y), A);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(3u);
     wr(0x000Au, Y);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Zf) { tick(3u); goto L_F16F; }
@@ -22852,7 +22852,7 @@ L_F16F: if (g_yield_req) { g_resume = 0xF16Fu; g_yield_req = 0u; return; }
     goto L_F18D;
 L_F18D: if (g_yield_req) { g_resume = 0xF18Du; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x000Bu); setnz(A);
+    A = rd(0x000Bu);
     tick(2u);
     Cf = true;
     tick(3u);
@@ -22873,7 +22873,7 @@ L_F139: if (g_yield_req) { g_resume = 0xF139u; g_yield_req = 0u; return; }
     goto L_F13B;
 L_F13B: if (g_yield_req) { g_resume = 0xF13Bu; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x0006u); setnz(X);
+    X = rd(0x0006u);
     tick(3u);
     A = rd(0x0001u); setnz(A);
     tick(3u);
@@ -22881,27 +22881,27 @@ L_F13B: if (g_yield_req) { g_resume = 0xF13Bu; g_yield_req = 0u; return; }
     goto L_F141;
 L_F141: if (g_yield_req) { g_resume = 0xF141u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0009u); setnz(A);
+    A = rd(0x0009u);
     tick(6u);
     wr((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y), A);
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x08u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x08u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0009u, A);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(6u);
     wr((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y), A);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Zf) { tick(3u); goto L_F141; }
@@ -22909,11 +22909,11 @@ L_F141: if (g_yield_req) { g_resume = 0xF141u; g_yield_req = 0u; return; }
     goto L_F155;
 L_F155: if (g_yield_req) { g_resume = 0xF155u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0000u); setnz(A);
+    A = rd(0x0000u);
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0x08u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x08u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0000u, A);
     tick(5u);
@@ -22930,27 +22930,27 @@ static void f_F10A(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xF10Au: goto L_F10A; case 0xF10Eu: goto L_F10E; case 0xF11Du: goto L_F11D; } }
 L_F10A: if (g_yield_req) { g_resume = 0xF10Au; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x0003u); setnz(X);
+    X = rd(0x0003u);
     tick(2u);
     Y = 0x00u; setnz(Y);
     goto L_F10E;
 L_F10E: if (g_yield_req) { g_resume = 0xF10Eu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xFFu; setnz(A);
+    A = 0xFFu;
     tick(6u);
     wr((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y), A);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(3u);
-    A = rd(0x0002u); setnz(A);
+    A = rd(0x0002u);
     tick(6u);
     wr((u16)((rd(0x0004u) | ((u16)rd(0x0005u) << 8)) + Y), A);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(2u);
     X = (u8)(X - 1u); setnz(X);
     if (!Zf) { tick(3u); goto L_F10E; }
@@ -22969,11 +22969,11 @@ L_F24E: if (g_yield_req) { g_resume = 0xF24Eu; g_yield_req = 0u; return; }
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(3u);
     wr(0x0001u, A);
     tick(4u);
-    X = rd(0x0330u); setnz(X);
+    X = rd(0x0330u);
     tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
     A = rd((u16)(0xC000u + Y)); setnz(A);
     tick(5u);
@@ -22986,7 +22986,7 @@ L_F24E: if (g_yield_req) { g_resume = 0xF24Eu; g_yield_req = 0u; return; }
     goto L_F25F;
 L_F25F: if (g_yield_req) { g_resume = 0xF25Fu; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
     A = rd((u16)(0xC000u + Y)); setnz(A);
     tick(5u);
@@ -22999,19 +22999,19 @@ L_F25F: if (g_yield_req) { g_resume = 0xF25Fu; g_yield_req = 0u; return; }
     goto L_F269;
 L_F269: if (g_yield_req) { g_resume = 0xF269u; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC000u + Y)); setnz(A);
+    A = rd((u16)(0xC000u + Y));
     tick(2u);
-    A = (u8)(A & 0x87u); setnz(A);
+    A = (u8)(A & 0x87u);
     tick(5u);
     wr((u16)(0x0331u + X), A);
     tick(2u);
-    A = (u8)(A & 0x07u); setnz(A);
+    A = (u8)(A & 0x07u);
     tick(3u);
     wr(0x0002u, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(2u);
     Cf = true;
     tick(3u);
@@ -23024,17 +23024,17 @@ L_F269: if (g_yield_req) { g_resume = 0xF269u; g_yield_req = 0u; return; }
     goto L_F27D;
 L_F27D: if (g_yield_req) { g_resume = 0xF27Du; g_yield_req = 0u; return; } 
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u);
     wr(0x0330u, X);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(5u);
     wr((u16)(0x0331u + X), A);
     tick(2u);
-    Y = (u8)(Y + 1u); setnz(Y);
+    Y = (u8)(Y + 1u);
     tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xC000u + Y)); setnz(A);
+    A = rd((u16)(0xC000u + Y));
     tick(3u);
     wr(0x0003u, A);
     tick(2u);
@@ -23044,7 +23044,7 @@ L_F27D: if (g_yield_req) { g_resume = 0xF27Du; g_yield_req = 0u; return; }
     goto L_F28E;
 L_F28E: if (g_yield_req) { g_resume = 0xF28Eu; g_yield_req = 0u; return; } 
     tick(4u + ((0x0020u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0020u + Y)); setnz(A);
+    A = rd((u16)(0x0020u + Y));
     tick(2u);
     A = (u8)(A & 0x0Fu); setnz(A);
     if (Zf) { tick(3u); goto L_F296; }
@@ -23066,7 +23066,7 @@ L_F29A: if (g_yield_req) { g_resume = 0xF29Au; g_yield_req = 0u; return; }
     tick(5u);
     wr((u16)(0x0331u + X), A);
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(5u);
     { u8 t = (u8)(rd(0x0002u) - 1u); wr(0x0002u, t); setnz(t); }
     if (Zf) { tick(3u); goto L_F2C4; }
@@ -23074,9 +23074,9 @@ L_F29A: if (g_yield_req) { g_resume = 0xF29Au; g_yield_req = 0u; return; }
     goto L_F2A2;
 L_F2A2: if (g_yield_req) { g_resume = 0xF2A2u; g_yield_req = 0u; return; } 
     tick(4u + ((0x0020u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0020u + Y)); setnz(A);
+    A = rd((u16)(0x0020u + Y));
     tick(2u);
-    A = (u8)(A & 0xF0u); setnz(A);
+    A = (u8)(A & 0xF0u);
     tick(3u);
     wr(0x100u + SP, (u8)(0x30u | (Nf?0x80u:0u) | (Vf?0x40u:0u) | (Df?0x08u:0u) | (If?0x04u:0u) | (Zf?0x02u:0u) | (Cf?0x01u:0u))); --SP;
     tick(2u);
@@ -23108,7 +23108,7 @@ L_F2B4: if (g_yield_req) { g_resume = 0xF2B4u; g_yield_req = 0u; return; }
     tick(5u);
     wr((u16)(0x0331u + X), A);
     tick(3u);
-    A = rd(0x0003u); setnz(A);
+    A = rd(0x0003u);
     tick(2u);
     A = (u8)(A & 0x01u); setnz(A);
     if (Zf) { tick(3u); goto L_F2BE; }
@@ -23120,9 +23120,9 @@ L_F2BD: if (g_yield_req) { g_resume = 0xF2BDu; g_yield_req = 0u; return; }
     goto L_F2BE;
 L_F2BE: if (g_yield_req) { g_resume = 0xF2BEu; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = (u8)(Y - 1u); setnz(Y);
+    Y = (u8)(Y - 1u);
     tick(2u);
-    X = (u8)(X - 1u); setnz(X);
+    X = (u8)(X - 1u);
     tick(5u);
     { u8 t = (u8)(rd(0x0002u) - 1u); wr(0x0002u, t); setnz(t); }
     if (!Zf) { tick(3u); goto L_F28E; }
@@ -23130,7 +23130,7 @@ L_F2BE: if (g_yield_req) { g_resume = 0xF2BEu; g_yield_req = 0u; return; }
     goto L_F2C4;
 L_F2C4: if (g_yield_req) { g_resume = 0xF2C4u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0003u); setnz(A);
+    A = rd(0x0003u);
     tick(2u);
     A = (u8)(A & 0x10u); setnz(A);
     if (Zf) { tick(3u); goto L_F2D6; }
@@ -23138,13 +23138,13 @@ L_F2C4: if (g_yield_req) { g_resume = 0xF2C4u; g_yield_req = 0u; return; }
     goto L_F2CA;
 L_F2CA: if (g_yield_req) { g_resume = 0xF2CAu; g_yield_req = 0u; return; } 
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(3u);
-    Y = rd(0x0001u); setnz(Y);
+    Y = rd(0x0001u);
     tick(2u);
     Cf = false;
     tick(4u + ((0x0020u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x0020u + Y)); setnz(A);
+    A = rd((u16)(0x0020u + Y));
     tick(2u);
     { const u8 v = 0x37u; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
     tick(5u);
@@ -23159,7 +23159,7 @@ static void f_F32D(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xF32Du: goto L_F32D; case 0xF32Fu: goto L_F32F; case 0xF333u: goto L_F333; case 0xF33Du: goto L_F33D; } }
 L_F32D: if (g_yield_req) { g_resume = 0xF32Du; g_yield_req = 0u; return; } 
     tick(2u);
-    X = (u8)(X + 1u); setnz(X);
+    X = (u8)(X + 1u);
     tick(2u);
     A = X; setnz(A);
     goto L_F32F;
@@ -23168,13 +23168,13 @@ L_F32F: if (g_yield_req) { g_resume = 0xF32Fu; g_yield_req = 0u; return; }
     goto L_F333;
 L_F333: if (g_yield_req) { g_resume = 0xF333u; g_yield_req = 0u; return; } 
     tick(4u);
-    X = rd(0x0330u); setnz(X);
+    X = rd(0x0330u);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(5u);
     wr((u16)(0x0331u + X), A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(4u);
     ++SP; A = rd(0x100u + SP); setnz(A);
     goto L_F33D;
@@ -23190,13 +23190,13 @@ L_F32F: if (g_yield_req) { g_resume = 0xF32Fu; g_yield_req = 0u; return; }
     goto L_F333;
 L_F333: if (g_yield_req) { g_resume = 0xF333u; g_yield_req = 0u; return; } 
     tick(4u);
-    X = rd(0x0330u); setnz(X);
+    X = rd(0x0330u);
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(5u);
     wr((u16)(0x0331u + X), A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(4u);
     ++SP; A = rd(0x100u + SP); setnz(A);
     goto L_F33D;
@@ -23216,7 +23216,7 @@ L_F3E3: if (g_yield_req) { g_resume = 0xF3E3u; g_yield_req = 0u; return; }
     goto L_F3E6;
 L_F3E6: if (g_yield_req) { g_resume = 0xF3E6u; g_yield_req = 0u; return; } 
     tick(3u);
-    { const u8 v = rd(0x0001u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0001u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     if (A < 10u) { goto L_F3EE; }
     goto L_F3EC;
 L_F3EC: if (g_yield_req) { g_resume = 0xF3ECu; g_yield_req = 0u; return; } 
@@ -23227,21 +23227,21 @@ L_F3EE: if (g_yield_req) { g_resume = 0xF3EEu; g_yield_req = 0u; return; }
     tick(2u);
     Cf = false;
     tick(3u);
-    { const u8 v = rd(0x0002u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0002u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0002u, A);
     tick(3u);
-    A = rd(0x0003u); setnz(A);
+    A = rd(0x0003u);
     tick(2u);
-    A = (u8)(A & 0xF0u); setnz(A);
+    A = (u8)(A & 0xF0u);
     tick(3u);
-    { const u8 v = rd(0x0002u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0002u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     if (!Cf) { tick(3u); goto L_F3FF; }
     tick(2u);
     goto L_F3FB;
 L_F3FB: if (g_yield_req) { g_resume = 0xF3FBu; g_yield_req = 0u; return; } 
     tick(2u);
-    { const u8 v = 0x5Fu; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x5Fu; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     Cf = true;
     tick(6u);
@@ -23265,7 +23265,7 @@ L_F404: if (g_yield_req) { g_resume = 0xF404u; g_yield_req = 0u; return; }
     goto L_F407;
 L_F407: if (g_yield_req) { g_resume = 0xF407u; g_yield_req = 0u; return; } 
     tick(3u);
-    { const u8 v = rd(0x0001u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0001u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0001u, A);
     if (Cf) { tick(3u); goto L_F417; }
@@ -23273,11 +23273,11 @@ L_F407: if (g_yield_req) { g_resume = 0xF407u; g_yield_req = 0u; return; }
     goto L_F40D;
 L_F40D: if (g_yield_req) { g_resume = 0xF40Du; g_yield_req = 0u; return; } 
     tick(2u);
-    { const u8 v = 0x0Au; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0x0Au; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(3u);
     wr(0x0001u, A);
     tick(3u);
-    A = rd(0x0002u); setnz(A);
+    A = rd(0x0002u);
     tick(2u);
     { const u8 v = 0x0Fu; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
     tick(3u);
@@ -23285,13 +23285,13 @@ L_F40D: if (g_yield_req) { g_resume = 0xF40Du; g_yield_req = 0u; return; }
     goto L_F417;
 L_F417: if (g_yield_req) { g_resume = 0xF417u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0003u); setnz(A);
+    A = rd(0x0003u);
     tick(2u);
-    A = (u8)(A & 0xF0u); setnz(A);
+    A = (u8)(A & 0xF0u);
     tick(2u);
     Cf = true;
     tick(3u);
-    { const u8 v = rd(0x0002u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0002u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     if (Cf) { tick(3u); goto L_F423; }
     tick(2u);
     goto L_F420;
@@ -23303,7 +23303,7 @@ L_F420: if (g_yield_req) { g_resume = 0xF420u; g_yield_req = 0u; return; }
     goto L_F423;
 L_F423: if (g_yield_req) { g_resume = 0xF423u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = (u8)(A | rd(0x0001u)); setnz(A);
+    A = (u8)(A | rd(0x0001u));
     tick(6u);
     return;
 }
@@ -23314,19 +23314,19 @@ L_F426: if (g_yield_req) { g_resume = 0xF426u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(2u);
-    A = (u8)(A & 0x0Fu); setnz(A);
+    A = (u8)(A & 0x0Fu);
     tick(3u);
     wr(0x0001u, A);
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
-    A = (u8)(A & 0xF0u); setnz(A);
+    A = (u8)(A & 0xF0u);
     tick(3u);
     wr(0x0002u, A);
     tick(3u);
-    A = rd(0x0003u); setnz(A);
+    A = rd(0x0003u);
     tick(2u);
-    A = (u8)(A & 0x0Fu); setnz(A);
+    A = (u8)(A & 0x0Fu);
     tick(6u);
     return;
 }
@@ -23341,17 +23341,17 @@ L_F524: if (g_yield_req) { g_resume = 0xF524u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x100u + SP, A); --SP;
     tick(4u + ((0x0016u + X) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0x4016u + X)); setnz(A);
+    A = rd((u16)(0x4016u + X));
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(3u);
-    A = (u8)(A | rd(0x0000u)); setnz(A);
+    A = (u8)(A | rd(0x0000u));
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(4u);
-    ++SP; A = rd(0x100u + SP); setnz(A);
+    ++SP; A = rd(0x100u + SP);
     tick(2u);
     { u8 t = A; { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 0x80u) != 0); t = (u8)((t << 1) | oc); } A = t; setnz(t); }
     tick(2u);
@@ -23365,9 +23365,9 @@ L_F533: if (g_yield_req) { g_resume = 0xF533u; g_yield_req = 0u; return; }
     tick(5u);
     { u8 t = rd(0x0000u); Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); wr(0x0000u, t); setnz(t); }
     tick(3u);
-    X = rd(0x0000u); setnz(X);
+    X = rd(0x0000u);
     tick(4u);
-    Y = rd((u16)(0x0014u + X)); setnz(Y);
+    Y = rd((u16)(0x0014u + X));
     tick(3u);
     wr(0x0000u, Y);
     tick(4u);
@@ -23389,13 +23389,13 @@ L_F547: if (g_yield_req) { g_resume = 0xF547u; g_yield_req = 0u; return; }
     goto L_F549;
 L_F549: if (g_yield_req) { g_resume = 0xF549u; g_yield_req = 0u; return; } 
     tick(4u);
-    Y = rd((u16)(0x0015u + X)); setnz(Y);
+    Y = rd((u16)(0x0015u + X));
     tick(4u);
     wr((u16)(0x0015u + X), A);
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(2u);
-    A = (u8)(A & 0x0Fu); setnz(A);
+    A = (u8)(A & 0x0Fu);
     tick(4u);
     A = (u8)(A & rd((u16)(0x0015u + X))); setnz(A);
     if (Zf) { tick(3u); goto L_F55A; }
@@ -23403,7 +23403,7 @@ L_F549: if (g_yield_req) { g_resume = 0xF549u; g_yield_req = 0u; return; }
     goto L_F554;
 L_F554: if (g_yield_req) { g_resume = 0xF554u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = (u8)(A | 0xF0u); setnz(A);
+    A = (u8)(A | 0xF0u);
     tick(4u);
     A = (u8)(A & rd((u16)(0x0015u + X))); setnz(A);
     tick(4u);
@@ -23422,16 +23422,16 @@ L_FB75: if (g_yield_req) { g_resume = 0xFB75u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x00FBu, A);
     tick(2u);
-    Y = 0x08u; setnz(Y);
+    Y = 0x08u;
     tick(3u);
     goto L_FD67;
 L_FB7E: if (g_yield_req) { g_resume = 0xFB7Eu; g_yield_req = 0u; return; } 
     tick(3u);
     wr(0x00F0u, Y);
     tick(2u);
-    A = 0x71u; setnz(A);
+    A = 0x71u;
     tick(2u);
-    Y = 0x00u; setnz(Y);
+    Y = 0x00u;
     tick(2u);
     X = 0x9Fu; setnz(X);
     tick(6u);
@@ -23442,9 +23442,9 @@ L_FB7E: if (g_yield_req) { g_resume = 0xFB7Eu; g_yield_req = 0u; return; }
     goto L_FB89;
 L_FB89: if (g_yield_req) { g_resume = 0xFB89u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x00F2u); setnz(X);
+    X = rd(0x00F2u);
     tick(4u + ((0x0067u + X) > 0xFFu ? 1u : 0u));
-    Y = rd((u16)(0xFB67u + X)); setnz(Y);
+    Y = rd((u16)(0xFB67u + X));
     tick(5u);
     { u8 t = (u8)(rd(0x00F1u) - 1u); wr(0x00F1u, t); setnz(t); }
     tick(3u);
@@ -23460,11 +23460,11 @@ L_FB94: if (g_yield_req) { g_resume = 0xFB94u; g_yield_req = 0u; return; }
     goto L_FB98;
 L_FB98: if (g_yield_req) { g_resume = 0xFB98u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(4u + ((0x0067u + X) > 0xFFu ? 1u : 0u));
-    { const u8 v = rd((u16)(0xFB67u + X)); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd((u16)(0xFB67u + X)); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     Y = A; setnz(Y);
     if (!Zf) { tick(3u); goto L_FBA7; }
@@ -23486,7 +23486,7 @@ L_FBA7: if (g_yield_req) { g_resume = 0xFBA7u; g_yield_req = 0u; return; }
     tick(4u);
     wr(0x4002u, Y);
     tick(2u);
-    Y = 0x28u; setnz(Y);
+    Y = 0x28u;
     if (!Cf) { tick(3u); goto L_FBAF; }
     tick(2u);
     goto L_FBAE;
@@ -23500,16 +23500,16 @@ L_FBAF: if (g_yield_req) { g_resume = 0xFBAFu; g_yield_req = 0u; return; }
     goto L_FBB2;
 L_FBB2: if (g_yield_req) { g_resume = 0xFBB2u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     goto L_FE00;
 L_FBB7: if (g_yield_req) { g_resume = 0xFBB7u; g_yield_req = 0u; return; } 
     tick(3u);
     wr(0x00F0u, Y);
     tick(2u);
-    A = 0x54u; setnz(A);
+    A = 0x54u;
     tick(2u);
-    Y = 0x6Au; setnz(Y);
+    Y = 0x6Au;
     tick(2u);
     X = 0x9Cu; setnz(X);
     tick(6u);
@@ -23520,9 +23520,9 @@ L_FBB7: if (g_yield_req) { g_resume = 0xFBB7u; g_yield_req = 0u; return; }
     goto L_FBC2;
 L_FBC2: if (g_yield_req) { g_resume = 0xFBC2u; g_yield_req = 0u; return; } 
     tick(3u);
-    Y = rd(0x00F2u); setnz(Y);
+    Y = rd(0x00F2u);
     tick(3u);
-    A = rd(0x00F1u); setnz(A);
+    A = rd(0x00F1u);
     tick(2u);
     A = (u8)(A & 0x03u); setnz(A);
     if (Zf) { tick(3u); goto L_FBD4; }
@@ -23546,17 +23546,17 @@ L_FBD1: if (g_yield_req) { g_resume = 0xFBD1u; g_yield_req = 0u; return; }
     goto L_FBD4;
 L_FBD4: if (g_yield_req) { g_resume = 0xFBD4u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(3u);
-    { const u8 v = rd(0x00F2u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x00F2u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     Y = A; setnz(Y);
     goto L_FBD9;
 L_FBD9: if (g_yield_req) { g_resume = 0xFBD9u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(2u);
     { u8 t = A; { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 0x80u) != 0); t = (u8)((t << 1) | oc); } A = t; setnz(t); }
     tick(2u);
@@ -23570,7 +23570,7 @@ L_FBD9: if (g_yield_req) { g_resume = 0xFBD9u; g_yield_req = 0u; return; }
     tick(4u);
     wr(0x4003u, A);
     tick(3u);
-    A = rd(0x00F1u); setnz(A);
+    A = rd(0x00F1u);
     if (A >= 24u) { goto L_FC44; }
     goto L_FBEA;
 L_FBEA: if (g_yield_req) { g_resume = 0xFBEAu; g_yield_req = 0u; return; } 
@@ -23585,9 +23585,9 @@ L_FBEA: if (g_yield_req) { g_resume = 0xFBEAu; g_yield_req = 0u; return; }
     goto L_FBF2;
 L_FBF2: if (g_yield_req) { g_resume = 0xFBF2u; g_yield_req = 0u; return; } 
     tick(3u);
-    Y = rd(0x00FFu); setnz(Y);
+    Y = rd(0x00FFu);
     tick(3u);
-    A = rd(0x00F0u); setnz(A);
+    A = rd(0x00F0u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     if (Cf) { tick(3u); goto L_FB89; }
@@ -23648,11 +23648,11 @@ L_FC19: if (g_yield_req) { g_resume = 0xFC19u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x00F0u, Y);
     tick(2u);
-    A = 0x22u; setnz(A);
+    A = 0x22u;
     tick(3u);
     wr(0x00F1u, A);
     tick(2u);
-    Y = 0x0Bu; setnz(Y);
+    Y = 0x0Bu;
     tick(3u);
     wr(0x00F2u, Y);
     tick(2u);
@@ -23677,20 +23677,20 @@ L_FC2C: if (g_yield_req) { g_resume = 0xFC2Cu; g_yield_req = 0u; return; }
     goto L_FC30;
 L_FC30: if (g_yield_req) { g_resume = 0xFC30u; g_yield_req = 0u; return; } 
     tick(3u);
-    X = rd(0x00F2u); setnz(X);
+    X = rd(0x00F2u);
     tick(4u + ((0x00F5u + X) > 0xFFu ? 1u : 0u));
-    Y = rd((u16)(0xFAF5u + X)); setnz(Y);
+    Y = rd((u16)(0xFAF5u + X));
     tick(2u);
-    X = 0x5Au; setnz(X);
+    X = 0x5Au;
     tick(3u);
-    A = rd(0x00F1u); setnz(A);
+    A = rd(0x00F1u);
     if (A >= 20u) { goto L_FC41; }
     goto L_FC3D;
 L_FC3D: if (g_yield_req) { g_resume = 0xFC3Du; g_yield_req = 0u; return; } 
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
-    A = (u8)(A | 0x50u); setnz(A);
+    A = (u8)(A | 0x50u);
     tick(2u);
     X = A; setnz(X);
     goto L_FC41;
@@ -23726,11 +23726,11 @@ L_FC51: if (g_yield_req) { g_resume = 0xFC51u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x00F0u, Y);
     tick(2u);
-    A = 0x0Au; setnz(A);
+    A = 0x0Au;
     tick(3u);
     wr(0x00F1u, A);
     tick(4u);
-    Y = rd(0x06F0u); setnz(Y);
+    Y = rd(0x06F0u);
     tick(4u);
     wr(0x4002u, Y);
     tick(2u);
@@ -23740,19 +23740,19 @@ L_FC51: if (g_yield_req) { g_resume = 0xFC51u; g_yield_req = 0u; return; }
     goto L_FC62;
 L_FC62: if (g_yield_req) { g_resume = 0xFC62u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x0018u); setnz(A);
+    A = rd(0x0018u);
     tick(2u);
-    A = (u8)(A & 0x08u); setnz(A);
+    A = (u8)(A & 0x08u);
     tick(2u);
     Cf = false;
     tick(3u);
-    { const u8 v = rd(0x00F1u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x00F1u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
-    { const u8 v = 0xFEu; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0xFEu; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(4u + ((0x00E5u + X) > 0xFFu ? 1u : 0u));
-    Y = rd((u16)(0xFAE5u + X)); setnz(Y);
+    Y = rd((u16)(0xFAE5u + X));
     tick(2u);
     X = 0x41u; setnz(X);
     if (!Zf) { tick(3u); goto L_FC41; }
@@ -23760,11 +23760,11 @@ L_FC62: if (g_yield_req) { g_resume = 0xFC62u; g_yield_req = 0u; return; }
     goto L_FC73;
 L_FC73: if (g_yield_req) { g_resume = 0xFC73u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x0Eu; setnz(A);
+    A = 0x0Eu;
     tick(4u);
     wr(0x06A5u, A);
     tick(2u);
-    Y = 0x85u; setnz(Y);
+    Y = 0x85u;
     tick(2u);
     A = 0x46u; setnz(A);
     tick(6u);
@@ -23781,11 +23781,11 @@ L_FC7F: if (g_yield_req) { g_resume = 0xFC7Fu; g_yield_req = 0u; return; }
     goto L_FC84;
 L_FC84: if (g_yield_req) { g_resume = 0xFC84u; g_yield_req = 0u; return; } 
     tick(4u);
-    A = rd(0x06A5u); setnz(A);
+    A = rd(0x06A5u);
     tick(2u);
-    A = (u8)(A | 0x90u); setnz(A);
+    A = (u8)(A | 0x90u);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(2u);
     Y = (u8)(Y - 1u); setnz(Y);
     tick(4u);
@@ -23825,9 +23825,9 @@ L_FCA1: if (g_yield_req) { g_resume = 0xFCA1u; g_yield_req = 0u; return; }
     goto L_FCA5;
 L_FCA5: if (g_yield_req) { g_resume = 0xFCA5u; g_yield_req = 0u; return; } 
     tick(3u);
-    Y = rd(0x00FEu); setnz(Y);
+    Y = rd(0x00FEu);
     tick(4u);
-    A = rd(0x06A1u); setnz(A);
+    A = rd(0x06A1u);
     tick(5u);
     { u8 t = rd(0x00FEu); Cf = ((t & 1u) != 0); t = (u8)(t >> 1); wr(0x00FEu, t); setnz(t); }
     if (Cf) { tick(3u); goto L_FCBA; }
@@ -23875,7 +23875,7 @@ L_FCC2: if (g_yield_req) { g_resume = 0xFCC2u; g_yield_req = 0u; return; }
     goto L_FCC6;
 L_FCC6: if (g_yield_req) { g_resume = 0xFCC6u; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x00F6u); setnz(A);
+    A = rd(0x00F6u);
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(2u);
@@ -23887,7 +23887,7 @@ L_FCC6: if (g_yield_req) { g_resume = 0xFCC6u; g_yield_req = 0u; return; }
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     tick(3u);
-    { const u8 v = rd(0x00F6u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x00F6u); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     if (!Cf) { tick(4u); goto L_FD00; }
     tick(2u);
     goto L_FCD1;
@@ -23909,11 +23909,11 @@ L_FCDD: if (g_yield_req) { g_resume = 0xFCDDu; g_yield_req = 0u; return; }
     tick(4u);
     wr(0x06A1u, Y);
     tick(2u);
-    X = 0x0Eu; setnz(X);
+    X = 0x0Eu;
     tick(3u);
     wr(0x00F5u, X);
     tick(2u);
-    Y = 0xFFu; setnz(Y);
+    Y = 0xFFu;
     tick(4u);
     wr(0x4008u, Y);
     tick(2u);
@@ -23925,7 +23925,7 @@ L_FCDD: if (g_yield_req) { g_resume = 0xFCDDu; g_yield_req = 0u; return; }
     goto L_FCF0;
 L_FCF0: if (g_yield_req) { g_resume = 0xFCF0u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0xFEu; setnz(A);
+    A = 0xFEu;
     tick(3u);
     Y = rd(0x00F5u); setnz(Y);
     if (Zf) { tick(3u); goto L_FCD1; }
@@ -23936,7 +23936,7 @@ L_FCF6: if (g_yield_req) { g_resume = 0xFCF6u; g_yield_req = 0u; return; }
     goto L_FCFA;
 L_FCFA: if (g_yield_req) { g_resume = 0xFCFAu; g_yield_req = 0u; return; } 
     tick(3u);
-    A = rd(0x00F6u); setnz(A);
+    A = rd(0x00F6u);
     tick(2u);
     Y = A; setnz(Y);
     tick(6u);
@@ -23996,11 +23996,11 @@ L_FD1D: if (g_yield_req) { g_resume = 0xFD1Du; g_yield_req = 0u; return; }
     goto L_FD25;
 L_FD25: if (g_yield_req) { g_resume = 0xFD25u; g_yield_req = 0u; return; } 
     tick(4u + ((0x00CDu + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xFFCDu + Y)); setnz(A);
+    A = rd((u16)(0xFFCDu + Y));
     tick(4u);
     wr(0x0680u, A);
     tick(2u);
-    A = 0xD4u; setnz(A);
+    A = 0xD4u;
     tick(3u);
     wr(0x00F5u, A);
     tick(2u);
@@ -24018,7 +24018,7 @@ L_FD35: if (g_yield_req) { g_resume = 0xFD35u; g_yield_req = 0u; return; }
     goto L_FD3A;
 L_FD3A: if (g_yield_req) { g_resume = 0xFD3Au; g_yield_req = 0u; return; } 
     tick(4u);
-    Y = rd(0x0680u); setnz(Y);
+    Y = rd(0x0680u);
     tick(6u);
     { u8 t = (u8)(rd(0x0680u) + 1u); wr(0x0680u, t); setnz(t); }
     tick(5u + (((rd(0x00F5u) | (static_cast<eng::u16>(rd(0x00F6u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
@@ -24028,11 +24028,11 @@ L_FD3A: if (g_yield_req) { g_resume = 0xFD3Au; g_yield_req = 0u; return; }
     goto L_FD44;
 L_FD44: if (g_yield_req) { g_resume = 0xFD44u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
     { u8 t = A; { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 1u) != 0); t = (u8)((t >> 1) | (oc << 7)); } A = t; setnz(t); }
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(2u);
     { u8 t = A; { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 0x80u) != 0); t = (u8)((t << 1) | oc); } A = t; setnz(t); }
     tick(2u);
@@ -24040,11 +24040,11 @@ L_FD44: if (g_yield_req) { g_resume = 0xFD44u; g_yield_req = 0u; return; }
     tick(2u);
     { u8 t = A; { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 0x80u) != 0); t = (u8)((t << 1) | oc); } A = t; setnz(t); }
     tick(2u);
-    A = (u8)(A & 0x07u); setnz(A);
+    A = (u8)(A & 0x07u);
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u + ((0x0062u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xFB62u + Y)); setnz(A);
+    A = rd((u16)(0xFB62u + Y));
     tick(4u);
     wr(0x0698u, A);
     tick(2u);
@@ -24083,31 +24083,31 @@ L_FD65: if (g_yield_req) { g_resume = 0xFD65u; g_yield_req = 0u; return; }
     goto L_FD67;
 L_FD67: if (g_yield_req) { g_resume = 0xFD67u; g_yield_req = 0u; return; } 
     tick(4u + ((0x0059u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xFE59u + Y)); setnz(A);
+    A = rd((u16)(0xFE59u + Y));
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u + ((0x0059u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xFE59u + Y)); setnz(A);
+    A = rd((u16)(0xFE59u + Y));
     tick(4u);
     wr(0x068Du, A);
     tick(4u + ((0x005Au + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xFE5Au + Y)); setnz(A);
+    A = rd((u16)(0xFE5Au + Y));
     tick(3u);
     wr(0x00F7u, A);
     tick(4u + ((0x005Bu + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xFE5Bu + Y)); setnz(A);
+    A = rd((u16)(0xFE5Bu + Y));
     tick(3u);
     wr(0x00F8u, A);
     tick(4u + ((0x005Cu + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xFE5Cu + Y)); setnz(A);
+    A = rd((u16)(0xFE5Cu + Y));
     tick(3u);
     wr(0x00F9u, A);
     tick(4u + ((0x005Du + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xFE5Du + Y)); setnz(A);
+    A = rd((u16)(0xFE5Du + Y));
     tick(3u);
     wr(0x00FAu, A);
     tick(2u);
-    A = 0x01u; setnz(A);
+    A = 0x01u;
     tick(4u);
     wr(0x0695u, A);
     tick(4u);
@@ -24117,7 +24117,7 @@ L_FD67: if (g_yield_req) { g_resume = 0xFD67u; g_yield_req = 0u; return; }
     tick(4u);
     wr(0x0102u, A);
     tick(2u);
-    Y = 0x00u; setnz(Y);
+    Y = 0x00u;
     tick(3u);
     wr(0x00F3u, Y);
     tick(3u);
@@ -24160,7 +24160,7 @@ L_FDAF: if (g_yield_req) { g_resume = 0xFDAFu; g_yield_req = 0u; return; }
     tick(4u);
     wr(0x0691u, A);
     tick(3u);
-    Y = rd(0x00FAu); setnz(Y);
+    Y = rd(0x00FAu);
     tick(5u);
     { u8 t = (u8)(rd(0x00FAu) + 1u); wr(0x00FAu, t); setnz(t); }
     tick(5u + (((rd(0x00F7u) | (static_cast<eng::u16>(rd(0x00F8u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
@@ -24185,7 +24185,7 @@ L_FDBD: if (g_yield_req) { g_resume = 0xFDBDu; g_yield_req = 0u; return; }
     goto L_FDC1;
 L_FDC1: if (g_yield_req) { g_resume = 0xFDC1u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = 0x9Fu; setnz(X);
+    X = 0x9Fu;
     tick(3u);
     A = rd(0x00FBu); setnz(A);
     if (Zf) { tick(3u); goto L_FDCF; }
@@ -24193,7 +24193,7 @@ L_FDC1: if (g_yield_req) { g_resume = 0xFDC1u; g_yield_req = 0u; return; }
     goto L_FDC7;
 L_FDC7: if (g_yield_req) { g_resume = 0xFDC7u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = 0x06u; setnz(X);
+    X = 0x06u;
     tick(3u);
     A = rd(0x00F9u); setnz(A);
     if (!Zf) { tick(3u); goto L_FDCF; }
@@ -24230,7 +24230,7 @@ L_FDDC: if (g_yield_req) { g_resume = 0xFDDCu; g_yield_req = 0u; return; }
     goto L_FDE1;
 L_FDE1: if (g_yield_req) { g_resume = 0xFDE1u; g_yield_req = 0u; return; } 
     tick(3u);
-    Y = rd(0x00F3u); setnz(Y);
+    Y = rd(0x00F3u);
     tick(5u);
     { u8 t = (u8)(rd(0x00F3u) + 1u); wr(0x00F3u, t); setnz(t); }
     tick(5u + (((rd(0x00F7u) | (static_cast<eng::u16>(rd(0x00F8u)) << 8u)) & 0xFFu) + Y > 0xFFu ? 1u : 0u));
@@ -24247,7 +24247,7 @@ L_FDE9: if (g_yield_req) { g_resume = 0xFDE9u; g_yield_req = 0u; return; }
     goto L_FDEC;
 L_FDEC: if (g_yield_req) { g_resume = 0xFDECu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x00u; setnz(A);
+    A = 0x00u;
     tick(3u);
     wr(0x00FAu, A);
     tick(3u);
@@ -24273,7 +24273,7 @@ L_FE00: if (g_yield_req) { g_resume = 0xFE00u; g_yield_req = 0u; return; }
     goto L_FE03;
 L_FE03: if (g_yield_req) { g_resume = 0xFE03u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x10u; setnz(A);
+    A = 0x10u;
     tick(4u);
     wr(0x4004u, A);
     tick(6u);
@@ -24289,9 +24289,9 @@ L_FE0C: if (g_yield_req) { g_resume = 0xFE0Cu; g_yield_req = 0u; return; }
     tick(4u);
     wr(0x0695u, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(2u);
-    A = (u8)(A & 0x3Eu); setnz(A);
+    A = (u8)(A & 0x3Eu);
     tick(2u);
     Y = 0x7Fu; setnz(Y);
     tick(6u);
@@ -24312,14 +24312,14 @@ L_FE19: if (g_yield_req) { g_resume = 0xFE19u; g_yield_req = 0u; return; }
     goto L_FE1D;
 L_FE1D: if (g_yield_req) { g_resume = 0xFE1Du; g_yield_req = 0u; return; } 
     tick(2u);
-    X = 0x89u; setnz(X);
+    X = 0x89u;
     tick(4u);
-    A = rd(0x0695u); setnz(A);
+    A = rd(0x0695u);
     if (A >= 24u) { goto L_FE2E; }
     goto L_FE26;
 L_FE26: if (g_yield_req) { g_resume = 0xFE26u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = 0x86u; setnz(X);
+    X = 0x86u;
     if (A >= 16u) { goto L_FE2E; }
     goto L_FE2C;
 L_FE2C: if (g_yield_req) { g_resume = 0xFE2Cu; g_yield_req = 0u; return; } 
@@ -24359,7 +24359,7 @@ L_FE41: if (g_yield_req) { g_resume = 0xFE41u; g_yield_req = 0u; return; }
     tick(2u);
     Cf = false;
     tick(2u);
-    { const u8 v = 0xFEu; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = 0xFEu; const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
     { u8 t = A; Cf = ((t & 0x80u) != 0); t = (u8)(t << 1); A = t; setnz(t); }
     tick(2u);
@@ -24417,7 +24417,7 @@ static void f_FAD5(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xFAD5u: goto L_FAD5; case 0xFAD7u: goto L_FAD7; } }
 L_FAD5: if (g_yield_req) { g_resume = 0xFAD5u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(2u);
     { u8 t = A; Cf = ((t & 1u) != 0); t = (u8)(t >> 1); A = t; setnz(t); }
     goto L_FAD7;
@@ -24429,11 +24429,11 @@ L_FAD7: if (g_yield_req) { g_resume = 0xFAD7u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(2u);
     Cf = true;
     tick(3u);
-    { const u8 v = rd(0x0000u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0000u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(6u);
     return;
 }
@@ -24446,7 +24446,7 @@ L_FA9F: if (g_yield_req) { g_resume = 0xFA9Fu; g_yield_req = 0u; return; }
     goto L_FAA1;
 L_FAA1: if (g_yield_req) { g_resume = 0xFAA1u; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u + ((0x0001u + Y) > 0xFFu ? 1u : 0u));
     A = rd((u16)(0xFB01u + Y)); setnz(A);
     if (Zf) { tick(3u); goto L_FAB2; }
@@ -24456,7 +24456,7 @@ L_FAA7: if (g_yield_req) { g_resume = 0xFAA7u; g_yield_req = 0u; return; }
     tick(5u);
     wr((u16)(0x4002u + X), A);
     tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xFB00u + Y)); setnz(A);
+    A = rd((u16)(0xFB00u + Y));
     tick(2u);
     A = (u8)(A | 0x08u); setnz(A);
     tick(5u);
@@ -24482,7 +24482,7 @@ static void f_FAE0(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xFAE0u: goto L_FAE0; } }
 L_FAE0: if (g_yield_req) { g_resume = 0xFAE0u; g_yield_req = 0u; return; } 
     tick(2u);
-    A = 0x90u; setnz(A);
+    A = 0x90u;
     tick(4u);
     wr(0x4000u, A);
     tick(6u);
@@ -24493,7 +24493,7 @@ static void f_FAB3(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xFAA1u: goto L_FAA1; case 0xFAA7u: goto L_FAA7; case 0xFAB2u: goto L_FAB2; case 0xFAB3u: goto L_FAB3; case 0xFABAu: goto L_FABA; case 0xFAC4u: goto L_FAC4; case 0xFACAu: goto L_FACA; } }
 L_FAA1: if (g_yield_req) { g_resume = 0xFAA1u; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u + ((0x0001u + Y) > 0xFFu ? 1u : 0u));
     A = rd((u16)(0xFB01u + Y)); setnz(A);
     if (Zf) { tick(3u); goto L_FAB2; }
@@ -24503,7 +24503,7 @@ L_FAA7: if (g_yield_req) { g_resume = 0xFAA7u; g_yield_req = 0u; return; }
     tick(5u);
     wr((u16)(0x4002u + X), A);
     tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xFB00u + Y)); setnz(A);
+    A = rd((u16)(0xFB00u + Y));
     tick(2u);
     A = (u8)(A | 0x08u); setnz(A);
     tick(5u);
@@ -24524,9 +24524,9 @@ L_FABA: if (g_yield_req) { g_resume = 0xFABAu; g_yield_req = 0u; return; }
     tick(4u);
     wr(0x4008u, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(2u);
-    A = (u8)(A & 0x3Eu); setnz(A);
+    A = (u8)(A & 0x3Eu);
     tick(2u);
     X = 0x08u; setnz(X);
     if (!Zf) { tick(3u); goto L_FAA1; }
@@ -24534,11 +24534,11 @@ L_FABA: if (g_yield_req) { g_resume = 0xFABAu; g_yield_req = 0u; return; }
     goto L_FAC4;
 L_FAC4: if (g_yield_req) { g_resume = 0xFAC4u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
     { u8 t = A; { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 1u) != 0); t = (u8)((t >> 1) | (oc << 7)); } A = t; setnz(t); }
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(2u);
     { u8 t = A; { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 0x80u) != 0); t = (u8)((t << 1) | oc); } A = t; setnz(t); }
     tick(2u);
@@ -24548,15 +24548,15 @@ L_FAC4: if (g_yield_req) { g_resume = 0xFAC4u; g_yield_req = 0u; return; }
     goto L_FACA;
 L_FACA: if (g_yield_req) { g_resume = 0xFACAu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = (u8)(A & 0x07u); setnz(A);
+    A = (u8)(A & 0x07u);
     tick(2u);
     Cf = false;
     tick(4u);
-    { const u8 v = rd(0x068Du); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x068Du); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u + ((0x004Cu + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xFB4Cu + Y)); setnz(A);
+    A = rd((u16)(0xFB4Cu + Y));
     tick(6u);
     return;
 }
@@ -24571,11 +24571,11 @@ L_FAD7: if (g_yield_req) { g_resume = 0xFAD7u; g_yield_req = 0u; return; }
     tick(3u);
     wr(0x0000u, A);
     tick(2u);
-    A = Y; setnz(A);
+    A = Y;
     tick(2u);
     Cf = true;
     tick(3u);
-    { const u8 v = rd(0x0000u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x0000u); const u8 nv = (u8)(~v); const u16 t = (u16)A + (u16)nv + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (nv ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(6u);
     return;
 }
@@ -24607,7 +24607,7 @@ static void f_FABA(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xFAA1u: goto L_FAA1; case 0xFAA7u: goto L_FAA7; case 0xFAB2u: goto L_FAB2; case 0xFABAu: goto L_FABA; case 0xFAC4u: goto L_FAC4; case 0xFACAu: goto L_FACA; } }
 L_FAA1: if (g_yield_req) { g_resume = 0xFAA1u; g_yield_req = 0u; return; } 
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u + ((0x0001u + Y) > 0xFFu ? 1u : 0u));
     A = rd((u16)(0xFB01u + Y)); setnz(A);
     if (Zf) { tick(3u); goto L_FAB2; }
@@ -24617,7 +24617,7 @@ L_FAA7: if (g_yield_req) { g_resume = 0xFAA7u; g_yield_req = 0u; return; }
     tick(5u);
     wr((u16)(0x4002u + X), A);
     tick(4u + ((0x0000u + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xFB00u + Y)); setnz(A);
+    A = rd((u16)(0xFB00u + Y));
     tick(2u);
     A = (u8)(A | 0x08u); setnz(A);
     tick(5u);
@@ -24630,9 +24630,9 @@ L_FABA: if (g_yield_req) { g_resume = 0xFABAu; g_yield_req = 0u; return; }
     tick(4u);
     wr(0x4008u, A);
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(2u);
-    A = (u8)(A & 0x3Eu); setnz(A);
+    A = (u8)(A & 0x3Eu);
     tick(2u);
     X = 0x08u; setnz(X);
     if (!Zf) { tick(3u); goto L_FAA1; }
@@ -24640,11 +24640,11 @@ L_FABA: if (g_yield_req) { g_resume = 0xFABAu; g_yield_req = 0u; return; }
     goto L_FAC4;
 L_FAC4: if (g_yield_req) { g_resume = 0xFAC4u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
     { u8 t = A; { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 1u) != 0); t = (u8)((t >> 1) | (oc << 7)); } A = t; setnz(t); }
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(2u);
     { u8 t = A; { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 0x80u) != 0); t = (u8)((t << 1) | oc); } A = t; setnz(t); }
     tick(2u);
@@ -24654,15 +24654,15 @@ L_FAC4: if (g_yield_req) { g_resume = 0xFAC4u; g_yield_req = 0u; return; }
     goto L_FACA;
 L_FACA: if (g_yield_req) { g_resume = 0xFACAu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = (u8)(A & 0x07u); setnz(A);
+    A = (u8)(A & 0x07u);
     tick(2u);
     Cf = false;
     tick(4u);
-    { const u8 v = rd(0x068Du); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x068Du); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u + ((0x004Cu + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xFB4Cu + Y)); setnz(A);
+    A = rd((u16)(0xFB4Cu + Y));
     tick(6u);
     return;
 }
@@ -24671,15 +24671,15 @@ static void f_FACA(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xFACAu: goto L_FACA; } }
 L_FACA: if (g_yield_req) { g_resume = 0xFACAu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = (u8)(A & 0x07u); setnz(A);
+    A = (u8)(A & 0x07u);
     tick(2u);
     Cf = false;
     tick(4u);
-    { const u8 v = rd(0x068Du); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x068Du); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u + ((0x004Cu + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xFB4Cu + Y)); setnz(A);
+    A = rd((u16)(0xFB4Cu + Y));
     tick(6u);
     return;
 }
@@ -24703,11 +24703,11 @@ static void f_FAC4(void) {
     if (g_resume != 0u) { const u16 n2a_r = g_resume; g_resume = 0u; switch (n2a_r) { case 0xFAC4u: goto L_FAC4; case 0xFACAu: goto L_FACA; } }
 L_FAC4: if (g_yield_req) { g_resume = 0xFAC4u; g_yield_req = 0u; return; } 
     tick(2u);
-    X = A; setnz(X);
+    X = A;
     tick(2u);
     { u8 t = A; { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 1u) != 0); t = (u8)((t >> 1) | (oc << 7)); } A = t; setnz(t); }
     tick(2u);
-    A = X; setnz(A);
+    A = X;
     tick(2u);
     { u8 t = A; { const u8 oc = Cf ? 1u : 0u; Cf = ((t & 0x80u) != 0); t = (u8)((t << 1) | oc); } A = t; setnz(t); }
     tick(2u);
@@ -24717,15 +24717,15 @@ L_FAC4: if (g_yield_req) { g_resume = 0xFAC4u; g_yield_req = 0u; return; }
     goto L_FACA;
 L_FACA: if (g_yield_req) { g_resume = 0xFACAu; g_yield_req = 0u; return; } 
     tick(2u);
-    A = (u8)(A & 0x07u); setnz(A);
+    A = (u8)(A & 0x07u);
     tick(2u);
     Cf = false;
     tick(4u);
-    { const u8 v = rd(0x068Du); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; setnz(A); }
+    { const u8 v = rd(0x068Du); const u16 t = (u16)A + (u16)v + (Cf ? 1u : 0u); Cf = (t > 0xFFu); Vf = (((A ^ (u8)t) & (v ^ (u8)t) & 0x80u) != 0u); A = (u8)t; }
     tick(2u);
-    Y = A; setnz(Y);
+    Y = A;
     tick(4u + ((0x004Cu + Y) > 0xFFu ? 1u : 0u));
-    A = rd((u16)(0xFB4Cu + Y)); setnz(A);
+    A = rd((u16)(0xFB4Cu + Y));
     tick(6u);
     return;
 }
