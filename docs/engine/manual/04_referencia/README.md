@@ -14,10 +14,11 @@ propósito, firma, parámetros, errores, invariantes y `fichero:línea` al fuent
 | [`core/data/`](core/data.md) | `ct_array`, orden de bytes, `crc32`, ordenación, `utf8`, `rtc`, 3D (`mesh3d`/`polygon`). |
 | [`core/util/`](core/util.md) | `expected`, `static_vector`, `pool`, `string_view`, `function_ref`, `scope_guard`, contenedores. |
 | [`memory/`](memory/README.md) | `MemoryManager`, bancos (`MemBank`), arenas, `BlockPool`, `ChipStorage`, pilas. |
-| `graphics/planar/` | Bitmaps, vistas de plano, `Surface`, blits, rasterizado. |
-| `graphics/copper/` | `copper`, `Plan`, `Scheduler`, doble buffer. |
+| [`graphics/`](graphics/README.md) | Memoria gráfica, Blitter, Copper y composición. |
+| [`graphics/planar/`](graphics/planar.md) | `Bitmap`/`BitmapView`, `PlaneLayout`, `BlitJob`/`BlitPtr`, `BlitQueue`, estado de Blitter. |
+| [`graphics/copper/`](graphics/copper.md) | `ListBuilder`, `Plan`, `Scheduler`/`Timeline`, `DoubleBuffer`, `Template`, lista estática. |
 | `graphics/blitter/` | Estado de Blitter, BOB, sprites, asignador/manager de sprites. |
-| `graphics/composition/` | `Scene`, `compose`, etapas, límites, *copper chunky*. |
+| [`graphics/composition/`](graphics/composition.md) | `Scene`, `compose`, etapas, límites, *copper chunky*. |
 | `graphics/tilemap/` | Tilemap, scroll por tiles, tabla de atributos, decodificación planar. |
 | `graphics/effects/` | Rotozoom, fine-scroll, paletas, C2P. |
 | `graphics/drivers/` | Drivers gráficos por estrategia. |
