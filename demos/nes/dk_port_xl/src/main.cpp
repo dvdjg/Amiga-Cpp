@@ -402,8 +402,9 @@ struct DkXlGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x0000E011u);
 			return;
 		}
-		g_eng_run_status.detail = 0xE0000000u | ((static_cast<eng::u32>(m_rebuilds) & 0xffu) << 16u) |
-					  ((static_cast<eng::u32>(g_mt_count) & 0xffu) << 8u);
+		// Diagnostico fps: m_frames en bits 8-23, m_rebuilds en 24-31.
+		g_eng_run_status.detail = 0xE0000000u | ((static_cast<eng::u32>(m_frames) & 0xffffu) << 8u) |
+					  ((static_cast<eng::u32>(m_rebuilds) & 0xffu) << 24u);
 	}
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
