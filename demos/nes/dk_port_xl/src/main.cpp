@@ -14,6 +14,7 @@
 #include <eng/field/tile_source.hpp>
 #include <eng/graphics/sprite_manager.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
+#include <eng/platform/amiga/input_poll.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -349,6 +350,18 @@ struct DkXlGame {
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!ready) return;
+		// Input: joystick Amiga -> botones NES (bit0=A,1=B,2=Select,3=Start,4=Up..7=Right).
+		{
+			eng::amiga::GameInput gin;
+			eng::amiga::poll_input(gin);
+			eng::u8 pad = 0u;
+			if ((gin.port0 & eng::amiga::kJoyUp) != 0u) pad = static_cast<eng::u8>(pad | 0x10u);
+			if ((gin.port0 & eng::amiga::kJoyDown) != 0u) pad = static_cast<eng::u8>(pad | 0x20u);
+			if ((gin.port0 & eng::amiga::kJoyLeft) != 0u) pad = static_cast<eng::u8>(pad | 0x40u);
+			if ((gin.port0 & eng::amiga::kJoyRight) != 0u) pad = static_cast<eng::u8>(pad | 0x80u);
+			if ((gin.port0 & eng::amiga::kJoyFire) != 0u) pad = static_cast<eng::u8>(pad | 0x09u); // A + Start
+			n2a_set_pad(pad);
+		}
 		// Logica del port (dirigida por frame).
 		n2a_frame();
 		++m_frames;

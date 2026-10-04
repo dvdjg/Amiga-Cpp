@@ -1582,12 +1582,15 @@ static u8 ppu_ctrl=0, ppu_mask=0, ppu_status=0, ppu_oam_addr=0, ppu_latch=0;
 static u16 ppu_scroll=0, ppu_addr=0;
 static u8 vram[0x1000]; static u8 palette[0x20]; static u8 oam[0x100];
 static u8 nt_dirty[0x1000];
+static u8 n2a_pad = 0, n2a_pad_shift = 0;
+static void n2a_set_pad(u8 v) { n2a_pad = v; }
 static u8 hanam = 0; // hook del app: 0 = no inferir intenciones
 static u8 (*hal_ppu_read_hook)(u16) = 0;
 static void (*hal_vblank_hook)(void) = 0;
 static u8 hal_ppu_read(u16 a) {
     if (hal_ppu_read_hook != 0) { return hal_ppu_read_hook(a); }
     if ((a & 7u) == 2u) { const u8 r = ppu_status; ppu_status = (u8)(ppu_status & 0x7Fu); ppu_latch = 0; return r; }
+    if (a == 0x4016u || a == 0x4017u) { const u8 r = (u8)(n2a_pad_shift & 1u); n2a_pad_shift = (u8)((n2a_pad_shift >> 1) | 0x80u); return r; }
     return 0;
 }
 static void hal_ppu_write(u16 a, u8 v) {
@@ -1600,6 +1603,7 @@ static void hal_ppu_write(u16 a, u8 v) {
     case 0x2006u: if (ppu_latch == 0) { ppu_addr = (u16)(v << 8); } else { ppu_addr = (u16)((ppu_addr & 0xFF00u) | v); } ppu_latch ^= 1u; break;
     case 0x2007u: { const u16 x = (u16)(ppu_addr & 0x3FFFu); if (x >= 0x2000u && x < 0x3F00u) { vram[x & 0xFFFu] = v; nt_dirty[x & 0xFFFu] = 1u; } else if (x >= 0x3F00u) { palette[(x - 0x3F00u) & 0x1Fu] = v; } ppu_addr = (u16)(ppu_addr + ((ppu_ctrl & 0x04u) ? 32u : 1u)); } break;
     case 0x4014u: { const u8* s = ram + ((u16)v << 8); for (int i = 0; i < 256; ++i) { oam[i] = s[i]; } } break;
+    case 0x4016u: if (v & 1u) { n2a_pad_shift = n2a_pad; } break;
     default: break;
     }
 }
