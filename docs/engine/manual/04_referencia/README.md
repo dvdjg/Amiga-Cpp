@@ -22,8 +22,8 @@ propósito, firma, parámetros, errores, invariantes y `fichero:línea` al fuent
 | `graphics/tilemap/` | Tilemap, scroll por tiles, tabla de atributos, decodificación planar. |
 | `graphics/effects/` | Rotozoom, fine-scroll, paletas, C2P. |
 | `graphics/drivers/` | Drivers gráficos por estrategia. |
-| `field/` | Playfields, `Xlimited*` (corkscrew), `Strip*`, geometría de scroll runtime. |
-| `scene/` | `World`, `ScenePlan`, actores, planes de DPF/bandas/raster. |
+| [`field/`](field/README.md) | Playfields, `Xlimited*` (corkscrew), `Strip*`, geometría de scroll runtime. |
+| [`scene/`](scene/README.md) | `World`, `ScenePlan`, actores, planes de DPF/bandas/raster. |
 | `input/` | Estado de entrada. |
 | `os/` | Mini-OS: mensajes, puertos, timers, ficheros, VFS, requests, tareas. |
 | `res/` | Caché de assets, `DynLoader`, `.engz`, HUNK, ZX0, decode, load, presupuesto. |

@@ -31,9 +31,12 @@ a la explicación.
 | `core/math/*` | [04_referencia/core/math](../04_referencia/core/math.md) |
 | `core/data/*` | [04_referencia/core/data](../04_referencia/core/data.md) |
 | `core/util/*` | [04_referencia/core/util](../04_referencia/core/util.md) |
-| `graphics/copper/*` | [05_arquitectura/copper_y_scheduler](../05_arquitectura/README.md) (pendiente) |
+| `graphics/copper/*` | [04_referencia/graphics/copper](../04_referencia/graphics/copper.md) + [05_arquitectura/copper_y_scheduler](../05_arquitectura/README.md) |
+| `graphics/bitmap*.hpp`, `blit_*.hpp`, `plane_layout.hpp`, `blitter_state.hpp` | [04_referencia/graphics/planar](../04_referencia/graphics/planar.md) |
+| `graphics/composition/*`, `frame_plan.hpp` | [04_referencia/graphics/composition](../04_referencia/graphics/composition.md) |
 | `graphics/c2p.hpp` | [05_arquitectura/c2p_y_framebuffer_indexado](../05_arquitectura/README.md) |
-| `field/xlimited_*`, `strip_*` | [04_referencia/field](../04_referencia/README.md) (pendiente) |
+| `field/*` (playfield, scroll, Xlimited, strip, tiles) | [04_referencia/field](../04_referencia/field/README.md) |
+| `scene/*` (World, Layer, ScenePlan, planner) | [04_referencia/scene](../04_referencia/scene/README.md) |
 | `os/*` (msg, IO, timers) | [05_arquitectura/mini_os_de_mensajes](../05_arquitectura/README.md) |
 | `res/*` (assets, VFS, engz) | [04_referencia/res](../04_referencia/README.md) (pendiente) |
 | `audio/*` | [05_arquitectura/audio_sintesis_y_streaming](../05_arquitectura/README.md) |
