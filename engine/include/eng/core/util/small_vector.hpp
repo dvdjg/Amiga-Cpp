@@ -16,12 +16,13 @@
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/allocator.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/core/util/type_traits.hpp>
 
 namespace eng::util {
 
 template <class T, usize N, class A = NullAlloc>
-class SmallVector {
+class SmallVector : public Noncopyable {
 	static_assert(N > 0u, "SmallVector: N debe ser mayor que 0");
 	static_assert(is_trivially_copyable_v<T>, "SmallVector: T debe ser copiable trivialmente");
 
@@ -32,9 +33,6 @@ public:
 
 	constexpr SmallVector() noexcept = default;
 	explicit constexpr SmallVector(A alloc) noexcept : m_alloc(alloc) {}
-
-	SmallVector(const SmallVector&) = delete;
-	SmallVector& operator=(const SmallVector&) = delete;
 
 	constexpr SmallVector(SmallVector&& other) noexcept : m_alloc(other.m_alloc) {
 		move_from(other);

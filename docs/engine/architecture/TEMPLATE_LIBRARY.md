@@ -60,6 +60,8 @@ La librería **complementa** el núcleo de `eng/core/`, no lo duplica:
                                      static_string.hpp StaticString<N>
                                      scope_guard.hpp   ScopeGuard
                                      function_ref.hpp  FunctionRef<Sig>
+                                     noncopyable.hpp   Noncopyable/NonMovable (ciclo de vida)
+                                     index_list.hpp    IndexList<Index,Null> (lista por índices)
 ```
 
 Puntos de reutilización explícitos:
@@ -75,10 +77,18 @@ Puntos de reutilización explícitos:
   (`arena_alloc.hpp`) adapta `eng::LinearArena`. No hay `malloc`.
 - `hash.hpp` se apoya en `eng::math::mulu16` (`arith.hpp`, un `mulu.w`) y en `rotl`
   (`bit.hpp`); evita la multiplicación de 32×32 que emitiría `__mulsi3`.
+- Las **claves compuestas** (varios campos) se hashean con `hash_combine(seed, campos...)`,
+  que encadena `Hash<T>` de cada campo con la mezcla de Boost.ContainerHash (constante y
+  desplazamientos) seguida de la avalancha `hash_u32`, también sin multiplicar. Es el punto
+  de extensión: se especializa `Hash<T>` una vez y `hash_combine` la reutiliza. En el engine
+  lo usan `Hash<ChunkKey>` (`chunk_cache.hpp`) y las claves del GOAP (`StateKey64`/
+  `StateKeyNV`/`StateKeyNVWide`, `goap.hpp`).
 - Los contenedores de capacidad fija siguen el patrón de handles/pool de `eng/task/background.hpp` (sin heap, con `valid()` explícito donde aplica).
 - `eng/scene/actor.hpp` usa `eng::util::Pool<Actor, MaxActors>` como parque de actores con handles generacionales (`ActorStore`), `BitSet<MaxActors>` y `StaticVector` en la emisión de BOB.
 - `eng/assets/uaf.hpp` (`Blob`) indexa los chunks con `FlatMap<ChunkType, u16, kMaxChunks>` y guarda la lista en `StaticVector<ChunkRef, kMaxChunks>`; lo consumen las demos de assets (078/100/101).
 - `eng/task/background.hpp` usa `IntrusiveSList<Entry>` como free-list de slots de tarea (reparto y devolución `O(1)`, sin heap); lo ejercita la demo `081_background_tasks`.
+- `Noncopyable`/`NonMovable` centralizan el ciclo de vida que decenas de tipos escribían a mano (`X(const X&) = delete; X& operator=(const X&) = delete;`). Los contenedores que crecen (`Vector`, `SmallVector`, `ChunkedVector`, `DynamicHashMap`) derivan de `Noncopyable` y declaran su movimiento; los tipos con punteros a sus propios miembros (p. ej. `LruCache`) usan `NonMovable`.
+- `index_list.hpp` (`IndexList<Index, Null>`) enlaza **por índices** (16 bits) donde `IntrusiveList` enlazaría por punteros (32): `LruCache` comparte un mismo par `prev`/`next` entre su lista de recencia y la de ranuras libres (una ranura está en una o en la otra), de modo que la lista genérica no cuesta memoria extra. Lo ejercita HOST-127/HOST-414 y la sonda `c_lru_cache_ops`.
 - `eng/field/chunk_cache.hpp` indexa los chunks residentes con `HashMap<ChunkKey, u8, Capacity>` (`(cx,cy) -> ranura`) en vez de recorrer los slots; lo ejercita la demo `111_xlimited_sidescroller`.
 
 ## 2. Inventario
@@ -96,7 +106,7 @@ Puntos de reutilización explícitos:
 | `binary.hpp` | `ByteReader`/`ByteWriter` (cursores little-endian sobre `Span`, con comprobación de límites; u8/u16/u32/s16/s32 y copia de bloques) | (sin equivalente; I/O binario) |
 | `allocator.hpp` | `Allocator` (concepto), `NullAlloc`, `BumpAlloc`, `InlineAlloc<N>` | (sin equivalente) |
 | `arena_alloc.hpp` | `ArenaAlloc` (sobre `eng::LinearArena`) | (sin equivalente) |
-| `hash.hpp` | `hash_u8/u16/u32`, `hash_value`, `hash_bytes`/`hash_string`, `Hash<T>` | `std::hash` |
+| `hash.hpp` | `hash_u8/u16/u32`, `hash_value`, `hash_bytes`/`hash_string`, `Hash<T>`, `hash_combine` (claves compuestas) | `std::hash` / `boost::hash_combine` |
 | `static_vector.hpp` | `StaticVector<T, N>` (capacidad fija) | (sin equivalente) |
 | `small_vector.hpp` | `SmallVector<T, N, A>` (inline + arena) | `llvm::SmallVector` |
 | `vector.hpp` | `Vector<T, A>` (crece en arena) | `std::vector` (sin heap) |
@@ -123,7 +133,7 @@ Puntos de reutilización explícitos:
 | `static_string.hpp` | `StaticString<N>` | (sin equivalente; `llvm::SmallString`) |
 | `dynamic_string.hpp` | `DynamicString<A>` (crece con un asignador; `view()` no incluye NUL) | `std::string` (usa heap) |
 | `string_interner.hpp` | `StringInterner<MaxStrings, A>` (dedup por contenido sobre arena) | `boost::flyweight` |
-| `lru_cache.hpp` | `LruCache<K, V, N>` (LRU `O(1)`, sin heap) | (sin equivalente) |
+| `lru_cache.hpp` | `LruCache<K, V, N>` (LRU `O(1)`, sin heap; recencia y libres con `IndexList` compartido) | (sin equivalente) |
 | `task.hpp` | `TaskStatus`, `TaskSequence<N>`, `Delay` (tareas *stackless*) | (coroutine ligera) |
 | `interval.hpp` | `Interval`, `IntervalSet<N>` (rangos `[lo,hi)` fusionados) | `boost::icl` (mínimo) |
 | `variant.hpp` | `Variant<Ts...>` (unión etiquetada de alternativas triviales, `visit`) | `std::variant` (sin heap) |
@@ -139,6 +149,8 @@ Puntos de reutilización explícitos:
 | `graph.hpp` | `Graph<MaxNodes,MaxEdges>` (adyacencia), `graph_bfs`, `graph_astar`, `topological_sort` | (sin equivalente; grafo) |
 | `dsp.hpp` | `Adsr`, `OnePole`, `DelayLine`, `soft_clip`, `osc_*` | (sin equivalente; audio) |
 | `function_ref.hpp` | `FunctionRef<Sig>` | `std::function_ref` (C++26) |
+| `noncopyable.hpp` | `Noncopyable`, `NonMovable` (bases de ciclo de vida) | `boost::noncopyable` |
+| `index_list.hpp` | `IndexList<Index, Null>` (lista doble por índices, arrays de enlaces del llamador) | (sin equivalente; lista por índice) |
 
 ## 3. Reglas de diseño para Amiga 500
 
@@ -173,6 +185,7 @@ referencia para **elegir contenedor por coste**, no por hábito:
 | `DirectMap::find` (clave densa) | **22** | 0 | 0 |
 | `FlatMap::find` (búsqueda binaria) | **36** | 0 | 0 |
 | `HashMap::find` (abierto) | **62** | 1 | 0 |
+| `hash_combine(seed,a,b)` (clave compuesta) | 96 (sonda `c_hash_combine`) | 0 | 0 |
 | `Expected<T,E>` construir fallo | 23 (vs 18 de `bool`+out-param) | 0 | 0 |
 | consumidor `r ? r.value() : fallback` | 14 (igual que `bool`) | 0 | 0 |
 | `StateMachine::dispatch` (tabla de 3) | 33 (sonda `c_state_machine_ops`) | 0 | 0 |
@@ -280,6 +293,7 @@ canónica de validar algoritmos puros (sin hardware):
 | HOST-128 | `core/util/task.hpp` (tareas *stackless*) |
 | HOST-129 | `core/util/interval.hpp` (rangos `[lo,hi)` fusionados) |
 | HOST-130 | `core/util/variant.hpp` (unión etiquetada sin heap) |
+| HOST-414 | `core/util/noncopyable.hpp` (`Noncopyable`/`NonMovable`) e `core/util/index_list.hpp` (`IndexList`; compartición de `prev`/`next`) |
 
 > **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id), `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`), `Pool` por `086_bob_objects` (parque de actores), `HashMap` por `111_xlimited_sidescroller` (índice de chunks de `ChunkCache`), `color` también por `086_bob_objects` (gradiente del cielo con `eng::util::lerp444`), y `broadphase` y `pathfinding` por `110_ylimited_shooter` (self-test en `init`: `SpatialHash` + `bfs`/`reconstruct_path` en el 68000; si falla, la demo no llega a READY). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashSet`, `DynamicHashMap`, `PriorityQueue`, `Stack`/`Queue`/`Deque`, `EnumSet`, `ScopeGuard`, `StaticString`, `DynamicString`, `stats`, `collision`, `text`, `grid`, `dsp`, `allocator`/`arena_alloc`/`hash`) están respaldados por tests host y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
 
@@ -296,7 +310,7 @@ mide 4 bytes y coincide con m68k) mediante `tools/run-host-tests.sh`.
 4. Si la utilidad es de bits o entra en un bucle caliente, añadir una sonda al gate
    de codegen (`tools/analyze/codegen-report.mjs`) para fijar que no aparecen libcalls
    de libgcc ni instrucciones de 68020. Ya está cubierto el vocabulario sensible:
-   `hash.hpp` (`c_hash_u16`/`c_hash_u32`), `hash_map.hpp`/`hash_set.hpp`
+   `hash.hpp` (`c_hash_u16`/`c_hash_u32`/`c_hash_combine`), `hash_map.hpp`/`hash_set.hpp`
    (`c_hashmap_find`/`c_hashset_contains`), `vector.hpp`/`chunked_vector.hpp`
    (`c_vector_grow`/`c_chunked_push`), `pool.hpp`/`priority_queue.hpp`/`intrusive_list.hpp`
    (`c_pool_ops`/`c_pq_ops`/`c_ilist_ops`), la ordenación de `core/sort.hpp`
@@ -309,7 +323,7 @@ mide 4 bytes y coincide con m68k) mediante `tools/run-host-tests.sh`.
    `bitstream.hpp`/`dynamic_bitset.hpp` (`c_bitstream_ops`/`c_dynamic_bitset_ops`),
    `string_interner.hpp` (`c_string_interner_ops`), `collision.hpp`
    (`c_collision_ops`/`c_convex_overlap_ops`), `graph.hpp` (`c_graph_ops`),
-   `lru_cache.hpp`/`task.hpp` (`c_lru_cache_ops`/`c_task_ops`), `interval.hpp`/`variant.hpp`
+   `lru_cache.hpp`/`task.hpp` (`c_lru_cache_ops`/`c_task_ops`; `c_lru_cache_ops` ejercita además `index_list.hpp`), `interval.hpp`/`variant.hpp`
    (`c_interval_ops`/`c_variant_ops`), `core/random.hpp` (`c_random_ops`) y `dsp.hpp`
    (`c_dsp_ops`).
 5. Antes de añadir una utilidad nueva, comprobar si el **vocabulario** de §7 ya cubre la
@@ -333,8 +347,11 @@ Qué usar según la necesidad, con el criterio del A500 (sin heap; coste visible
 | Flags de estado por `enum` | `EnumSet<E, N>` |
 | Mapa/conjunto hash grande (fijo) | `HashMap<K,V,N>` / `HashSet<T,N>` |
 | Mapa hash que crece (fase `init`) | `DynamicHashMap<K,V,A>` |
+| Clave compuesta (varios campos) | especializar `Hash<T>` con `hash_combine(seed, campos...)` (`hash.hpp`) |
 | Parque de objetos con handle estable | `Pool<T, N>` |
 | Lista de objetos sin asignar | `IntrusiveList<T>` / `IntrusiveSList<T>` |
+| Lista de ranuras por índice (compacta, 16 bits) | `IndexList<Index,Null>` (`index_list.hpp`) |
+| Tipo que no se copia (o ni copia ni mueve) | derivar de `Noncopyable` / `NonMovable` (`noncopyable.hpp`) |
 | Prioridad / heap | `PriorityQueue<T, N, Cmp>` |
 | Ordenar en su sitio | `quick_sort` (`core/sort.hpp`) |
 | Ordenar estable / top-k / por conteo | `stable_sort`, `nth_element`, `partial_sort`, `radix_sort_u16` |

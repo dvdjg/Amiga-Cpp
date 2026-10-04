@@ -22,7 +22,7 @@ Ya entregado y verificado por test host: base (`type_traits`, `util`, `bit`,
 `flat_set`, `hash_map`, `hash_set`, `dynamic_hash_map`, `direct_map`), utilidades de valor
 (`optional`, `expected`, `string_view`, `static_string`, `scope_guard`, `function_ref`,
 `enum_set`, `stack_queue`), ordenación (`quick_sort`, `stable_sort`, `nth_element`,
-`partial_sort`, `radix_sort_u16`), `hash` y sondas de codegen. Extras de decisión,
+`partial_sort`, `radix_sort_u16`), `hash` (con `hash_combine` para claves compuestas), las bases de ciclo de vida `Noncopyable`/`NonMovable` y la lista por índices `IndexList` (HOST-414), y sondas de codegen. Extras de decisión,
 partición, bits y texto: `state_machine` (R4.4), `event` (R4.3), `union_find` (DSU),
 `sparse_set` (disperso-denso, ECS), `bitstream`/`dynamic_bitset` (R4.1), `string_interner`
 (HOST-124), `graph` (HOST-126) y SAT 2D en `collision` (HOST-125). Verificados **por demo**:
