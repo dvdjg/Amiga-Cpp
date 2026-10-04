@@ -201,7 +201,7 @@ struct DemoGame {
 			z.w = static_cast<eng::u16>(z.w + 4u);
 			z.y = static_cast<eng::s16>(z.y - 2);
 			z.h = static_cast<eng::u16>(z.h + 4u);
-			p.fill(z, m_theme.bg);
+			p.fill(z, m_theme.fill); // fondo del panel, no el del lienzo
 			ui::draw_widget(m_slider, p);
 		}
 
@@ -432,7 +432,7 @@ private:
 		z.w = static_cast<eng::u16>(z.w + 4u);
 		z.y = static_cast<eng::s16>(z.y - 2);
 		z.h = static_cast<eng::u16>(z.h + 4u);
-		p.fill(z, m_theme.bg);
+		p.fill(z, m_theme.fill); // fondo del panel, no el del lienzo
 		ui::draw_widget(w, p);
 	}
 
