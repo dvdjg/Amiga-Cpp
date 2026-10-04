@@ -195,6 +195,7 @@ struct DkXlGame {
 	eng::s32 cam_y = 0;
 	bool ready = false;
 	eng::u16 m_frames = 0u;
+	eng::u16 m_rebuilds = 0u; // nº de rebuilds del mapa (cambios de nametable)
 
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
@@ -212,8 +213,9 @@ struct DkXlGame {
 			g_palette[i] = nes_to_amiga(n2a_ppu_pal(static_cast<eng::u8>(i)));
 		}
 		rebuild_world_from_port();
-		// Banco prebuilt en Chip, dimensionado a los metatiles UNICOS reales.
-		const eng::u32 bbytes = bank_bytes(g_mt_count, kPlanes);
+		// Banco prebuilt en Chip, dimensionado al MAXIMO de metatiles (para poder rebuilds de
+		// pantalla sin reasignar): kMaxMt entradas.
+		const eng::u32 bbytes = bank_bytes(kMaxMt, kPlanes);
 		m_bank = backend.memory_manager().chip().reserve<eng::TileBankTag>(bbytes, 16);
 		if (!m_bank.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x0000E005u);
@@ -269,10 +271,28 @@ struct DkXlGame {
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!ready) return;
-		// Logica del port (dirigida por frame). El titulo es ESTATICO: no hace scroll.
+		// Logica del port (dirigida por frame).
 		n2a_frame();
 		++m_frames;
+		// REBUILD dinamico: si el juego cambio el nametable (transicion de pantalla), recomponer
+		// el mapa de metatiles + el banco y re-blitear el anillo. Deteccion: celdas sucias del PPU.
+		eng::u16 da = 0u;
+		eng::u8 dv = 0u;
+		bool nt_changed = false;
+		while (n2a_ppu_dirty_pop(&da, &dv)) {
+			nt_changed = true;
+		}
 		plan.clear();
+		if (nt_changed) {
+			rebuild_world_from_port();
+			fill_bank(m_bank.view.data(), g_mt_count, kPlanes);
+			if (!scene.fill(backend, plan)) {
+				ready = false;
+				eng::debug::mark_failed(g_eng_run_status, 0x0000E012u);
+				return;
+			}
+			m_rebuilds = static_cast<eng::u16>(m_rebuilds + 1u);
+		}
 		plan.set_blit_budget_limits({8192, 16384, 4, 160});
 		if (!backend.execute_frame_plan(plan)) {
 			ready = false;
@@ -284,7 +304,8 @@ struct DkXlGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x0000E011u);
 			return;
 		}
-		g_eng_run_status.detail = 0xE0000000u | ((static_cast<eng::u32>(scene.bg().mapposx()) & 0xffffu) << 8u);
+		g_eng_run_status.detail = 0xE0000000u | ((static_cast<eng::u32>(m_rebuilds) & 0xffu) << 16u) |
+					  ((static_cast<eng::u32>(g_mt_count) & 0xffu) << 8u);
 	}
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
