@@ -331,7 +331,7 @@ struct DkXlGame {
 			return;
 		}
 		scene.bg().set_camera(0, 0);
-		build_sprites(); // canales HW desde la OAM (DATA ya reservada por begin)
+		if (kSpritesOn) { build_sprites(); } // canales HW desde la OAM (DATA reservada por begin)
 		plan.clear();
 		if (!scene.fill(backend, plan)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x0000E003u);
@@ -371,7 +371,7 @@ struct DkXlGame {
 			}
 			m_rebuilds = static_cast<eng::u16>(m_rebuilds + 1u);
 		}
-		build_sprites(); // actualiza los canales HW desde la OAM cada frame
+		if (kSpritesOn) { build_sprites(); } // actualiza los canales HW desde la OAM cada frame
 		plan.set_blit_budget_limits({8192, 16384, 4, 160});
 		if (!backend.execute_frame_plan(plan)) {
 			ready = false;
