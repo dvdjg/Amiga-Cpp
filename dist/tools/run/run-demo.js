@@ -1000,6 +1000,21 @@ const diskAdf = diskArg !== '' ? path.resolve(diskArg) : '';
 const mousePath = buildMousePathFromArgs();
 const mouseDelayMs = Math.max(0, parseInt(argValue('--mouse-duration-ms', '800'), 10)) / Math.max(1, mousePath.length - 1);
 const mouseButton = Math.max(0, parseInt(argValue('--mouse-button', '0'), 10));
+// --mouse-click-at X,Y: movimiento **relativo** (+X,+Y) seguido de un click. Determinista
+// para demos que leen el raton por **deltas** (JOYxDAT): `input mouse move dx dy` no depende
+// de la posicion absoluta del emulador (a diferencia de --mouse-from/--mouse-to, que usan
+// `input mouse abs` y por tanto son relativos a la posicion previa del raton emulado).
+// Admite deltas negativos.
+const mouseClickAtText = argValue('--mouse-click-at', '');
+const mouseClickAt = (() => {
+    if (mouseClickAtText === '')
+        return null;
+    const parts = mouseClickAtText.split(',').map((value) => parseInt(value.trim(), 10));
+    if (parts.length !== 2 || !Number.isInteger(parts[0]) || !Number.isInteger(parts[1])) {
+        throw new Error('--mouse-click-at requiere X,Y (enteros; pueden ser negativos).');
+    }
+    return { x: parts[0], y: parts[1] };
+})();
 const stopEmulator = !hasArg('--keep-running');
 const protectSpecs = parseProtectSpecs();
 const outputDir = configId
@@ -1353,6 +1368,19 @@ try {
             button: mouseButton,
             clicked: hasArg('--mouse-click'),
             dragged: hasArg('--mouse-drag'),
+        };
+    }
+    if (mouseClickAt) {
+        console.log(`[run-demo] injecting relative mouse click at (+${mouseClickAt.x},+${mouseClickAt.y})`);
+        await protocol.sendMonitorCommand(`input mouse move ${mouseClickAt.x} ${mouseClickAt.y}`, 5000);
+        await sleep(Math.max(0, parseInt(argValue('--mouse-move-ms', '150'), 10)));
+        await protocol.sendMonitorCommand(`input mouse button ${mouseButton} 1`, 5000);
+        await sleep(Math.max(20, parseInt(argValue('--mouse-click-ms', '80'), 10)));
+        await protocol.sendMonitorCommand(`input mouse button ${mouseButton} 0`, 5000);
+        report.mouse = {
+            relative: { dx: mouseClickAt.x, dy: mouseClickAt.y },
+            button: mouseButton,
+            clicked: true,
         };
     }
     // --keys: inyecta teclas Amiga por **rawkey** (hex, separadas por comas; p. ej. --keys 0x45,0x44)
