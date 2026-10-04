@@ -207,6 +207,11 @@ function patchConfig(configText, extensionRoot, stagedOutDir, warpEnabled, immed
   if (process.env.WINUAE_KICKSTART) {
     out = setConfigValue(out, 'kickstart_rom_file', process.env.WINUAE_KICKSTART);
   }
+  // CD32 (y otras placas con ROM extendida) requieren ademas el fichero de ROM extendida.
+  //   WINUAE_KICKSTART_EXT=C:/amiga/CD32_EXT.rom
+  if (process.env.WINUAE_KICKSTART_EXT) {
+    out = setConfigValue(out, 'kickstart_ext_rom_file', process.env.WINUAE_KICKSTART_EXT);
+  }
   // Medicion a velocidad plena: `WINUAE_NO_CYCLE_EXACT=1` relaja el modo mas pesado del emulador
   // (cycle_exact + cpu_memory + blitter). Util para separar el coste real del codigo del techo
   // del emulador cycle-exact.
@@ -218,7 +223,8 @@ function patchConfig(configText, extensionRoot, stagedOutDir, warpEnabled, immed
   }
   // Con un Kickstart 1.3 en quickstart=a1200, WinUAE puede no fijar el 68020 -> el codigo
   // compilado con `-m68020` (TARGET_MACHINE=A1200) daria instruccion ilegal. Forzar la CPU.
-  if (process.env.WINUAE_QUICKSTART && /a1200|a4000/i.test(process.env.WINUAE_QUICKSTART)) {
+  // CD32 tambien es 68020 (AGA + Akiko).
+  if (process.env.WINUAE_QUICKSTART && /a1200|a4000|cd32/i.test(process.env.WINUAE_QUICKSTART)) {
     out = setConfigValue(out, 'cpu_model', '68020');
     out = setConfigValue(out, 'fpu_model', 'none');
     out = setConfigValue(out, 'cpu_compatible', 'false');

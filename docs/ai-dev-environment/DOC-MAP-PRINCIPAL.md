@@ -36,6 +36,7 @@ Cuando termine la lectura contextual, puede abrir solo los enlaces que necesite.
 | Si necesito... | Leer |
 |---|---|
 | Contexto global del proyecto | [docs/README.md](../README.md), [CONTINUATION_CONTEXT.md](../CONTINUATION_CONTEXT.md) |
+| Entorno completo: toolchain, compilar/ejecutar/depurar (GDB + canal lateral), MCP, capturas/secuencias, perfilar y analizar con Ollama | [AMIGA_DEV_GUIDE.md](AMIGA_DEV_GUIDE.md) |
 | Estructura del repo (dónde va cada cosa) | [docs/STRUCTURE.md](../STRUCTURE.md) |
 | Capas de plataforma y contrato de backend (dominio ↔ chipset ↔ backend) | [PLATFORM_LAYERS.md](../engine/architecture/PLATFORM_LAYERS.md) |
 | Política de cabeceras (header-only vs `.cpp`) | [HEADER_POLICY.md](../engine/architecture/HEADER_POLICY.md) |
