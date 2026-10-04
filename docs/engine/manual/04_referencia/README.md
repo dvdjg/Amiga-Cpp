@@ -27,7 +27,7 @@ propósito, firma, parámetros, errores, invariantes y `fichero:línea` al fuent
 | [`scene/`](scene/README.md) | `World`, `ScenePlan`, actores, planes de DPF/bandas/raster. |
 | `input/` | Estado de entrada. |
 | [`os/`](os/README.md) | Mini-OS: mensajes, puertos, timers, ficheros, VFS, requests, tareas, entrada. |
-| `res/` | Caché de assets, `DynLoader`, `.engz`, HUNK, ZX0, decode, load, presupuesto. |
+| [`res/`](res/README.md) | Caché de assets, `DynLoader`, `.engz`, HUNK, ZX0, decode, load, presupuesto, carga asíncrona. |
 | `audio/` | Mixer, modos de canal, música (Pt/P61), streaming. |
 | `ui/` | Widgets, compositor, layout. |
 | `hw/` | Inventario de hardware, presupuesto de bus. |

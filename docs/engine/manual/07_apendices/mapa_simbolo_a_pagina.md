@@ -43,7 +43,7 @@ a la explicación.
 | `field/*` (playfield, scroll, Xlimited, strip, tiles) | [04_referencia/field](../04_referencia/field/README.md) |
 | `scene/*` (World, Layer, ScenePlan, planner) | [04_referencia/scene](../04_referencia/scene/README.md) |
 | `os/*` (msg, IO, timers, VFS, tareas, entrada) | [04_referencia/os](../04_referencia/os/README.md) + [05_arquitectura/mini_os_de_mensajes](../05_arquitectura/README.md) |
-| `res/*` (assets, VFS, engz) | [04_referencia/res](../04_referencia/README.md) (pendiente) |
+| `res/*` (assets, caché, engz, HUNK, DynLoader, async) | [04_referencia/res](../04_referencia/res/README.md) |
 | `audio/*` | [05_arquitectura/audio_sintesis_y_streaming](../05_arquitectura/README.md) |
 | `ai/*`, `board/*`, `cards/*`, `sim/*` | [04_referencia/ai](../04_referencia/README.md) (pendiente) |
 
