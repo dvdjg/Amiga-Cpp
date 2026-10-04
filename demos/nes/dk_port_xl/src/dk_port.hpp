@@ -1626,7 +1626,7 @@ static u16 g_resume = 0;
 static void (*hal_frame_hook)(void) = 0;
 static void frame_event(void) { g_frame_deadline += 29780u; hal_vblank(); if (hal_frame_hook) { hal_frame_hook(); } f_C85F(); if (g_engine_mode) { g_yield_req = 1u; } }
 static void hal_wait_vblank(void) { g_cyc = g_frame_deadline; frame_event(); }
-static void tick(u32 n) { g_cyc += n; while (g_cyc >= g_frame_deadline) { frame_event(); } }
+static void tick(u32 n) { g_cyc += n; }
 static unsigned long g_steps = 0, g_step_limit = 0;
 static unsigned g_label = 0; /* diagnostico: ultima etiqueta ejecutada */
 static void (*hal_limit_hook)(void) = 0; /* diagnostico: corta al pasar g_steps */
@@ -1905,7 +1905,7 @@ L_C7E1: if (g_yield_req) { g_resume = 0xC7E1u; g_yield_req = 0u; return; }
     goto L_C7E4;
 L_C7E4: if (g_yield_req) { g_resume = 0xC7E4u; g_yield_req = 0u; return; } 
     tick(3u);
-    if (g_cyc + 2000u < g_frame_deadline) { g_cyc = g_frame_deadline; frame_event(); }
+    frame_event();
     goto L_C7E1;
 }
 
