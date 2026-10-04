@@ -61,6 +61,7 @@ constexpr eng::u8  kBgChannels = 6;   // columnas del patrón
 constexpr eng::u8  kBgFirst = 2;      // canales 2..7
 constexpr eng::u16 kColumnWidth = 16;
 constexpr eng::u16 kScreenWidth = 320;
+constexpr eng::u16 kPeriod = static_cast<eng::u16>(kBgChannels * kColumnWidth); // 96 px (potencia de 2 no; se usa mascara abajo)
 // Estructura DMA por canal del fondo: cabecera POS+CTL + DATA por línea + terminador.
 constexpr eng::u16 kBgStride = static_cast<eng::u16>(2u + kBandLines * 2u + 2u); // 196
 
@@ -166,9 +167,19 @@ struct RiskyWoodsDemo {
 			(free_mask << 8u) | static_cast<eng::u32>(m_obj_channel[0]));
 	}
 
-	void update(eng::amiga::AmigaBackend&, eng::GameContext&) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
+		// **Scroll del fondo (3)**: avanza el patrón 1 px cada 2 frames y reconstruye la
+		// copperlist (cabecera + reposiciones con las X desplazadas). En una versión de producción
+		// se parchearían solo las palabras `SPRxPOS` con el Blitter; aquí se re-emite para
+		// claridad, que es suficiente para la demo.
+		const eng::u16 frame = context.frame.frame_index;
+		// 96 px de periodo: se avanza 1 px cada 2 frames y se envuelve con `%` (no es potencia
+		// de 2; el `%` va en el bucle de juego, no en el hot path de dibujo del frame).
+		m_scroll = static_cast<eng::u16>((frame / 2u) % kPeriod);
+		m_layer.set_scroll(m_scroll);
+
 		// Rebote horizontal de los objetos: se parchea la cabecera POS de su estructura DMA
-		// (el DMA la relee al armar el sprite cada frame). La copperlist no cambia.
+		// (el DMA la relee al armar el sprite cada frame).
 		eng::Words<eng::SpriteTag> data = m_sprite_block.view.as_words();
 		eng::u16* obj = data.data() + kBgChannels * kBgStride;
 		for (eng::u8 i = 0; i < kObjects; ++i) {
@@ -182,6 +193,10 @@ struct RiskyWoodsDemo {
 			obj[static_cast<eng::u16>(i) * kObjStride] =
 				static_cast<eng::u16>((kObjY << 8u) | ((m_obj_x[i] >> 1u) & 0xffu));
 		}
+
+		if (build_copper()) {
+			backend.install_copper_list(m_copper_ptr);
+		}
 	}
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
@@ -189,33 +204,69 @@ struct RiskyWoodsDemo {
 	}
 
 private:
-	/// Rellena las 6 estructuras DMA del fondo: cabecera POS/CTL + DATA sólida por línea +
-	/// terminador. Columnas pares usan el color 1 del par (`DAT`), impares el color 2 (`DATB`).
+	/// Rellena las 6 estructuras DMA del fondo con un **motivo de ladrillos**: cada canal
+	/// (columna de 16 px) forma una franja de ladrillo con junta horizontal cada 8 líneas y
+	/// un escalonado alterno (ladrillo trabado). DAT = plano 0 (color 1), DATB = plano 1
+	/// (color 2): las líneas de junta van a color 2, el cuerpo a color 1, y el escalonado
+	/// mueve la junta vertical de lado a lado para que el patrón no parezca columnas planas.
 	void build_background_data(eng::u16* base) {
 		for (eng::u8 c = 0; c < kBgChannels; ++c) {
 			eng::u16* s = base + static_cast<eng::u16>(c) * kBgStride;
 			const eng::u16 hstart = static_cast<eng::u16>((static_cast<eng::u16>(c) * kColumnWidth) >> 1u);
 			s[0] = static_cast<eng::u16>((kBandTop << 8u) | (hstart & 0xffu)); // POS
 			s[1] = static_cast<eng::u16>(kBandBottom << 8u);                   // CTL (VSTOP)
-			const bool color2 = (c & 1u) != 0u;
 			for (eng::u16 l = 0; l < kBandLines; ++l) {
-				s[2u + l * 2u + 0u] = color2 ? 0x0000u : 0xffffu; // DAT
-				s[2u + l * 2u + 1u] = color2 ? 0xffffu : 0x0000u; // DATB
+				// Junta horizontal cada 8 líneas.
+				const bool mortar_h = (l & 7u) == 0u;
+				// Ladrillo trabado: el ladrillo impar (bloques de 8 líneas) va desfasado
+				// media columna, con una junta vertical en el borde de 4 px.
+				const bool row_odd = (l & 8u) != 0u;
+				const eng::u16 shifted = row_odd
+					? static_cast<eng::u16>((c + 1u) & 1u)
+					: static_cast<eng::u16>(c & 1u);
+				// DAT: cuerpo del ladrillo (todo a 1 salvo la junta de 4 px que se deja 0).
+				eng::u16 dat = 0xffffu;
+				if (shifted != 0u) {
+					dat = 0x0fffu; // junta vertical de 4 px por un lado
+				} else {
+					dat = 0xfff0u; // junta vertical por el otro
+				}
+				// DATB: marca la junta horizontal (color 2) en las líneas de mortero.
+				const eng::u16 datb = mortar_h ? 0xffffu : 0x0000u;
+				s[2u + l * 2u + 0u] = dat;
+				s[2u + l * 2u + 1u] = datb;
 			}
 			s[2u + kBandLines * 2u + 0u] = 0u; // terminador
 			s[2u + kBandLines * 2u + 1u] = 0u;
 		}
 	}
 
-	/// Rellena las estructuras DMA de los objetos (16x16 sólido; color 1 / color 2).
+	/// Rellena las estructuras DMA de los objetos con una **forma** (rombo/asterisco), no un
+	/// bloque sólido: DAT (color 1) y DATB (color 2) dibujan un patrón 16x16 legible.
 	void build_object_data(eng::u16* base) {
+		// Mascara de un rombo de 16x16 (funcion de distancia de Manhattan).
 		for (eng::u8 i = 0; i < kObjects; ++i) {
 			eng::u16* s = base + static_cast<eng::u16>(i) * kObjStride;
 			s[0] = static_cast<eng::u16>((kObjY << 8u) | ((m_obj_x[i] >> 1u) & 0xffu)); // POS
 			s[1] = static_cast<eng::u16>(kObjVstop << 8u);                              // CTL
 			for (eng::u16 l = 0; l < kObjH; ++l) {
-				s[2u + l * 2u + 0u] = (i == 0u) ? 0xffffu : 0x0000u; // DAT
-				s[2u + l * 2u + 1u] = (i == 1u) ? 0xffffu : 0x0000u; // DATB
+				// Distancia al centro vertical; anchura del rombo por línea.
+				const eng::u16 dy = (l < 8u) ? l : static_cast<eng::u16>(15u - l);
+				const eng::u16 half = static_cast<eng::u16>((dy + 1u) * 2u); // 2..16 px por lado
+				const eng::u16 center = 8u;
+				eng::u16 dat = 0u;
+				for (eng::u16 x = 0u; x < 16u; ++x) {
+					const eng::u16 dx = (x < center) ? (center - x) : (x - center);
+					if (dx < half) {
+						dat |= static_cast<eng::u16>(0x8000u >> x);
+					}
+				}
+				// El objeto 0 usa el color 1 del par (DAT -> COLOR17) y el 1 el color 2
+				// (DATB -> COLOR18): los dos canales del par comparten COLORxx, asi que la
+				// forma debe salir de un plano distinto para verse de color diferente.
+				const bool use_b = (i == 1u);
+				s[2u + l * 2u + 0u] = use_b ? 0x0000u : dat;
+				s[2u + l * 2u + 1u] = use_b ? dat : 0x0000u;
 			}
 			s[2u + kObjH * 2u + 0u] = 0u; // terminador
 			s[2u + kObjH * 2u + 1u] = 0u;
@@ -278,6 +329,7 @@ private:
 	eng::u16 m_obj_x[kObjects] { 40u, 240u };
 	eng::s16 m_obj_dx[kObjects] { 2, -2 };
 	eng::u8  m_obj_channel[kObjects] {};
+	eng::u16 m_scroll = 0u; ///< desplazamiento del fondo (px low-res, 0..kPeriod-1)
 };
 
 } // namespace

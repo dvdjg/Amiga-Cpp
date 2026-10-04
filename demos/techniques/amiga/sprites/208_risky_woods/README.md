@@ -22,23 +22,23 @@ playfield de color 0.
 
 - `build` y `run` OK; el reparto es correcto (`detail = 0x0300`: libre-mask 0b11,
   canal de objeto 0).
-- **Renderizado**: el fondo **cubre 320 px sin huecos** (Un `WAIT` al inicio + una
-  reposición de `SPRxPOS` por período con los canales ciclando 2→…→7→2, paso 16 px y
-  `head_start` de 24 px). Los **dos objetos** (canales 0/1) se dibujan delante y se
-  mueven. Verificado con captura y con visión (Ollama): la banda no tiene columnas
+- **Renderizado**: el fondo de **ladrillos** cubre 320 px **sin huecos** y hace **scroll**
+  (1 px cada 2 frames, con envolvente del patrón). Un **objeto con forma** (rombo) se
+  dibuja delante y se mueve. Verificado con captura y visión (Ollama): sin columnas
   negras internas.
-- El copper emitido es: `WAIT` por período + 6 MOVEs de `SPRxPOS`; un canal nunca se
-  reutiliza a menos de 96 px (muy por encima del mínimo ≈24 px).
-
-Evidencia: `out/run/208_risky_woods/A500_debug/screenshot.png` y `sequence/`; registros
-vivos `SPR0/SPR1` armados (`hstart=40/240, vstart=120, vstop=136`).
+- Copper emitido (decodificado y test host HOST-417): `WAIT` por período + 6 MOVEs de
+  `SPRxPOS`, canales ciclando 2→…→7→2 en pasos de 16 px, sin reescribir `SPRxCTL`.
+- **Pendiente**: el **segundo objeto** (canal 1) no llega a verse: los dos comparten
+  `COLOR17..19` (par 0/1) y su forma debe salir de un plano distinto (DATB) para tener
+  color propio; queda por confirmar el armado del canal 1 con la sonda de registros en
+  caliente (la última lectura se hizo contra una instancia sin READY).
 
 ## Siguiente
 
-- Añadir **scroll** (`set_scroll`) con el wraparound del patrón.
-- Contenido gráfico real (no solo columnas planas de color).
-- Demostrar en la franja inferior una banda con **todos los canales libres** (otra
-  técnica), como pide el modelo híbrido.
+- Segundo objeto visible (color propio del par) y más objetos degradando a BOB.
+- Franja inferior con **todos los canales libres** (otra técnica), como pide el modelo
+  híbrido.
+- Animación HW del bitmap (Jim Power): inyectar `SPRxDATA/DATB` en caliente.
 
 ## Lanzar
 

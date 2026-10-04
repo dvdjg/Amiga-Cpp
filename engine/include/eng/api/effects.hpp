@@ -458,23 +458,19 @@ public:
 		}
 
 		const u16 vstop = m_cfg.first_line + m_cfg.lines;
-		// **Carrera contra el haz (patrón Risky Woods): un solo WAIT + ráfaga pura.**
-		//
-		// Un único `WAIT` temprano (`arm_hpos`) y luego una **ráfaga de `SPRxPOS`** que
-		// reposiciona los canales ciclando `2→…→7→2`, con X creciente de `column_width` en
-		// `column_width` px (16 px). La primera columna se coloca `head_start` px por delante
-		// del haz. La reutilización de un canal cae a `period = channels*column_width`
-		// (96 px con 6×16), muy por encima del mínimo ≈24 px.
+		// **Carrera contra el haz (patrón Risky Woods).** Por línea, un `WAIT` al inicio de
+		// cada período del patrón y luego los `channels` MOVEs de `SPRxPOS` de ese período
+		// (canales ciclando `2→…→7→2`, X creciente `column_width` px). La reutilización de un
+		// canal cae a `period = channels*column_width` (96 px con 6×16), muy por encima del
+		// mínimo ≈24 px.
 		//
 		// **Por qué funciona** (AHRM cap. 4 + análisis de Risky Woods): el comparador
 		// horizontal de Denise está vivo; cuando el haz iguala el `SPRxPOS` del canal, el
-		// sprite empieza a desplazar su DATA. Solo entonces es seguro reescribir `SPRxPOS`
-		// con una X mayor, que volverá a disparar más tarde. La ráfaga no se ejecuta de
-		// golpe: con 4 bitplanes la DMA de planos se lleva la mayoría de los ciclos, así que
-		// el Copper avanza despacio y **justo por detrás del haz** — el "Gromit colocando
-		// vías ante el tren". Sin WAITs intermedios: un WAIT por período rompería la carrera
-		// (deja huecos); el grupo de colocación DMA antes de la ráfaga también estorba (el
-		// Copper debe ser el ÚNICO que escribe `SPRxPOS` de cada instancia visible).
+		// sprite empieza a desplazar su DATA. Solo entonces es seguro reescribir `SPRxPOS` con
+		// una X mayor, que volverá a disparar más tarde. El `WAIT` por período fija cada vuelta
+		// del patrón a su X de forma determinista (el "Gromit colocando vías ante el tren"): la
+		// variante de una sola ráfaga sin WAITs depende del robo de ciclos de la DMA de
+		// bitplanes y colapsaba a 6 columnas en el emulador. El `SPRxCTL` NO se reescribe.
 		const eng::s32 period = m_cfg.channels * m_cfg.column_width;
 		// `arm_hpos` es el `WAIT` (px/2); la 1.ª columna cae `head_start` px después del
 		// WAIT. Con `arm_hpos=0` y `head_start=24`, el patrón arranca a 24 px y cubre de
@@ -534,13 +530,32 @@ public:
 
 	[[nodiscard]] const Config& config() const noexcept { return m_cfg; }
 
-	/// Huella estimada en palabras de Copper: `BPLCON2` + 2 por canal (`SPRxPT`) + por
-	/// línea un `WAIT` (2 words) y un MOVE (2 words) por tramo de columna.
+	/// Huella estimada en palabras de Copper: `BPLCON2` (1 MOVE) + arranque (4 MOVEs por
+	/// canal: `SPRxPTH/L`+`SPRxPOS`+`SPRxCTL`) + por línea [`periods` `WAIT` + `instances`
+	/// MOVEs de `SPRxPOS`]. Cada instrucción son 2 palabras.
 	[[nodiscard]] u16 words_estimate() const noexcept {
-		return 1u + m_cfg.channels * 2u + m_cfg.lines * (2u + instances_per_line() * 2u);
+		const u32 arranque = 1u + static_cast<u32>(m_cfg.channels) * 4u;
+		const u32 per_line = static_cast<u32>(periods_per_line()) + instances_per_line();
+		// +2 words del `end()` (0xffff,0xfffe) que cierra la lista.
+		return static_cast<u16>((arranque + static_cast<u32>(m_cfg.lines) * per_line) * 2u + 2u);
 	}
 
 private:
+	/// Periodos del patrón con al menos una columna visible en la línea actual.
+	[[nodiscard]] u16 periods_per_line() const noexcept {
+		const eng::s32 wait_px0 = static_cast<eng::s32>(m_cfg.arm_hpos) * 2;
+		const eng::s32 first_x = wait_px0 + m_cfg.head_start;
+		const eng::s32 period = static_cast<eng::s32>(m_cfg.channels) * m_cfg.column_width;
+		if (period <= 0) {
+			return 0u;
+		}
+		u16 count = 0u;
+		for (eng::s32 x0 = first_x; x0 - m_scroll < m_cfg.screen_width; x0 += period) {
+			++count;
+		}
+		return count;
+	}
+
 	/// Tramos de columna por línea (MOVEs de `SPRxPOS`), desde la primera columna (tras el
 	/// scroll) hasta `screen_width`. Sin división.
 	[[nodiscard]] u16 instances_per_line() const noexcept {
