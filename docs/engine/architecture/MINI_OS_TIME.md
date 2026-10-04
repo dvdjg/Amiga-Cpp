@@ -90,61 +90,72 @@ Blitter y del Copper).
 Timers de software sobre el VBlank (unidad *frames*) o sobre los ticks CIA (unidad *µs*),
 one-shot o periódicos. El `TimerService` puro compara `frame_now`/`ticks_now` y postea
 `MsgType::Timer`; nunca ejecuta lógica de juego en la ISR. La precisión efectiva depende del
-productor que llama `poll_and_post`: si se llama una vez por VBlank, **ambas unidades** se observan
-con resolución de frame y los timers en µs no son temporizadores precisos. En el backend Amiga
-actual `amiga_os.cpp` pasa `ticks_now = 0`, por lo que la ruta µs no está operativa como reloj real
-(TIME-003/TIME-004). Para deadlines sub-frame debe usarse `TickClock`/CIA one-shot y publicar el
-vencimiento desde el pump seguro, no declarar precisión que el polling no ofrece.
+productor que llama `poll_and_post`: se llama una vez por VBlank, así que **ambas unidades** se
+observan con resolución de frame. Para deadlines sub-frame debe usarse `TickClock`/CIA one-shot y
+publicar el vencimiento desde el pump seguro, no declarar precisión que el polling no ofrece.
 
-Los timers periódicos actuales vuelven a fijar `deadline = now + period`; si el pump llega tarde,
-acumulan deriva y condensan los periodos que ya vencieron en un único mensaje. El contrato objetivo
-debe avanzar desde el deadline anterior y declarar la política de atraso (`CatchUpAll`, coalescer con
-contador de expiraciones o saltar a la siguiente fase). La comparación de deadlines debe ser segura
-ante el wrap de `u32`, y los ids deben ser únicos o llevar generación al reutilizar slots (TIME-005..
-TIME-008; detalle en `docs/debugging/investigaciones/vblank-timer-inconsistencies.md`).
+El **reloj de µs** lo aporta un contador libre de **CIA-B Timer B** (modo continuo, reloj E): el
+backend lo lee en cada `tick` (`ciab_ticks_now()`) y lo entrega a `poll_and_post` como `ticks_now`.
+Así los timers µs comparan contra una base monotónica real, no contra cero. El sondeo sigue siendo
+por VBlank, de modo que un timer µs vence con latencia de hasta un frame; resolver la resolución
+sub-frame con un pump más fino o un one-shot de CIA es una mejora posterior.
+
+El contrato de `TimerService` resuelve las inconsistencias TIME-005..008:
+
+- **Fase preservada**: un periódico avanza `deadline += period` (no `now + period`), así que el
+  periodo no acumula deriva aunque el sondeo llegue tarde.
+- **Catch-up explícito**: `TimerCatchUp::Coalesce` (defecto) condensa el atraso en un mensaje con
+  `expirations` = periodos vencidos; `SkipToNext` descarta el atraso y reprograma desde ahora;
+  `CatchUpAll` entrega un mensaje por periodo vencido. Nunca se oculta el atraso.
+- **Comparación wrap-safe**: un timer vence cuando `s32(now - deadline) >= 0`; `deadline` y
+  `period` se acotan a menos de `2^31` (`kTimerMaxHorizon`) para que la aritmética modular no sea
+  ambigua.
+- **Identidad por handle**: `start` devuelve un `TimerHandle {slot, generation}` y `stop(handle)`
+  cancela **una** instancia concreta; un handle obsoleto se rechaza. `stop_by_id(id)` cancela todas
+  las instancias con ese id de usuario (compatibilidad con `os::add_timer`). El payload del mensaje
+  lleva `id`, `handle`, `deadline` y `expirations`.
 
 ```cpp
 enum class TimerUnit : eng::u8 { Frames, Microseconds };
+enum class TimerCatchUp : eng::u8 { Coalesce, SkipToNext, CatchUpAll };
+
+struct TimerHandle { eng::u8 slot; eng::u16 generation; /* valid(), packed() */ };
 
 struct TimerSlot {
 	bool active = false, periodic = false;
 	TimerUnit unit = TimerUnit::Frames;
-	eng::u16 id = 0;
-	eng::u32 deadline = 0, period = 0;
+	TimerCatchUp catch_up = TimerCatchUp::Coalesce;
+	eng::u16 id = 0, generation = 0;
+	eng::u32 deadline = 0, period = 0; ///< horizonte < 2^31
 };
 
 constexpr eng::u8 kMaxTimers = 16;
 
 struct TimerService {
 	TimerSlot slots[kMaxTimers] {};
-	eng::u32 frame_now = 0u;
 
-	/// `id` 0 = autoasignado; devuelve el id real o 0 si no hay slot libre.
-	eng::u16 start(eng::u16 id, eng::u32 delay, TimerUnit unit, bool periodic);
-	void stop(eng::u16 id);
+	/// `id` 0 = autoasignado; devuelve el handle o uno inválido si no hay slot.
+	TimerHandle start(eng::u16 id, eng::u32 delay, TimerUnit unit, bool periodic,
+			  eng::u32 frame_now, eng::u32 ticks_now,
+			  TimerCatchUp catch_up = TimerCatchUp::Coalesce);
+	bool stop(TimerHandle h);
+	eng::u8 stop_by_id(eng::u16 id);
 
 	/// Llamar 1× por VBlank: postea los timers vencidos y reprograma los periódicos.
-	void poll_and_post(MsgPort& port, eng::u32 stamp);
+	eng::u16 poll_and_post(MsgPort& port, eng::u32 frame_now, eng::u32 ticks_now);
 };
-
-inline TimerService g_timers {};
 ```
 
 Uso:
 
 ```cpp
-os::g_timers.start(1, 50, os::TimerUnit::Frames, true);        // cada 1 s (PAL)
-os::g_timers.start(2, 5000, os::TimerUnit::Microseconds, false); // one-shot de 5 ms
+// cada 1 s (PAL): periodo 50 frames
+(void)os::g_timers.start(1, 50, os::TimerUnit::Frames, true, os::frame_count(), 0u);
+// one-shot de 5 ms
+(void)os::g_timers.start(2, 5000, os::TimerUnit::Microseconds, false, os::frame_count(), 0u);
 ```
 
-En el bucle, tras el VBlank:
-
-```cpp
-if (sig & os::SigVBlank) {
-	os::g_timers.poll_and_post(os::system_port(), os::frame_count());
-	on_frame(ui, os::frame_count());   // puede haber Timer pendiente: se drena al siguiente pop
-}
-```
+El backend lo envuelve en `os::add_timer(id, frames)` (periódico de frames con `Coalesce`).
 
 ## 6. One-shot de hardware (CIA)
 
@@ -162,26 +173,30 @@ contador de reboses o se usa un timer de frames.
 
 - **Frames**: el `VBlank` latched (§10 del núcleo) ya da el ritmo; `TimerService` (unidad frames)
   es una capa fina encima y no añade productores.
-- **µs**: `TickClock` + timers de CIA-B; el servicio actual aún debe conectar el valor monotónico
-  real al `TimerService` o programar el one-shot de hardware.
+- **µs**: el backend lee `ciab_ticks_now()` (CIA-B Timer B continuo) en cada `tick` y lo pasa a
+  `TimerService`; la resolución efectiva sigue siendo de frame (TIME-004) hasta un pump más fino.
 - **Profiling**: `ScopedTimer` y `beam_now()` no postean nada; son lectura directa para el HUD y la
   telemetría (no pasan por la cola, para no ensuciarla en el camino caliente).
 
 ## 8. Política de sincronización de frame
 
-El contador real de VBlank debe existir independientemente de que el juego consuma mensajes. La
-notificación, la espera del bucle y el trabajo de frame son decisiones separadas. La configuración
-debe permitir `VBlankLatch` (IRQ, secuencia y evento coalescido), `ActiveWait` (el juego espera
-VBlank sin recibir un mensaje por interrupción), `External` (reloj del host/backend) y `Disabled`
-(sin hook automático). `ActiveWait` desactiva la notificación, no la capacidad del backend para
-medir o esperar el raster.
+El contador real de VBlank existe independientemente de que el juego consuma mensajes. La
+notificación, la espera del bucle y el trabajo de frame son decisiones separadas. `App::set_frame_sync`
+elige la **política de notificación** sin duplicar el contador:
 
-Una única secuencia monotónica y un único latch deben alimentar `Engine`, `App` y `eng::os`. No se
-debe duplicar un contador en `App` y otro en el mini-SO ni publicar además un VBlank FIFO al puerto.
-El consumidor obtiene `{sequence, missed}` y decide si hace catch-up de simulación, actualiza usando
-tiempo transcurrido o salta renders intermedios. La integración actual de `App::on_vblank` aún
-publica un mensaje FIFO por IRQ en un puerto separado; su unificación está registrada en TIME-001,
-TIME-002 y TIME-010.
+- `FrameSyncMode::Event`: publica un `MsgType::VBlank` **FIFO** por IRQ en `port()` (comportamiento
+  histórico; puede desbordar una cola pequeña si el juego no la drena).
+- `FrameSyncMode::Latch` (**recomendado**): no encola; la app lee la **instantánea coherente**
+  `{sequence, missed}` con `take_frame_tick(VBlankTick&)`. `VBlankTick::frames_elapsed(from)` deriva
+  el catch-up con aritmética unsigned.
+- `FrameSyncMode::Disabled`: ni mensaje ni latch de la app; el contador sigue avanzando (para juegos
+  que gestionan su propio sincronismo).
+
+**Una única secuencia monotónica** (`App::m_vblank_count`) es la fuente de verdad; el backend mide el
+VBlank (IRQ o `wait_vblank`) aunque la app no consuma mensajes. El `Engine` propaga el catch-up en
+`context.frame.frames_elapsed` (latidos desde el frame anterior), de modo que el juego decide si hace
+pasos fijos, anima por tiempo acumulado o renderiza latest-only, en lugar de que el bucle descarte
+latidos en silencio (`run_frames` expone el conteo; `run_frames_polling` marca `1` por iteración).
 
 ## 9. Referencias
 

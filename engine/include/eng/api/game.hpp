@@ -236,6 +236,37 @@ public:
 	[[nodiscard]] u32 vblank_count() const noexcept { return m_vblank_count; }
 	[[nodiscard]] u32 blitdone_count() const noexcept { return m_blitdone_count; }
 
+	/// **Política de sincronización de frame** (`TIME-010` de
+	/// `vblank-timer-inconsistencies.md`). Elige cómo se notifica el VBlank, **sin duplicar** el
+	/// contador de secuencia (una sola fuente de verdad: `m_vblank_count`).
+	///
+	/// - `Event`: mantiene la compatibilidad histórica: publica un `MsgType::VBlank` **FIFO** por
+	///   IRQ en `port()` (puede desbordar una cola de 16 si el juego no la drena). Útil cuando el
+	///   juego quiere **un mensaje por interrupción**.
+	/// - `Latch` (**recomendado**): no encola nada; la app lee la **instantánea coherente**
+	///   `{sequence, missed}` con `take_frame_tick()`. El `VBlankLatch` del mini-SO (`eng::os`) ya
+	///   lleva la cuenta de pisados, así que no se pierde información.
+	/// - `Disabled`: ni mensaje ni latch de la app; el contador sigue avanzando (el backend mide
+	///   igual el VBlank). Para juegos que gestionan su propio sincronismo.
+	///
+	/// `ActiveWait`/`External` (espera activa / reloj externo) se expresan con `Disabled` + el
+	/// `wait_vblank()` del backend cuando aplique; el contador del backend sigue siendo el mismo.
+	enum class FrameSyncMode : eng::u8 { Event, Latch, Disabled };
+
+	/// Fija la **política de notificación de VBlank**. Por defecto `Event` (comportamiento
+	/// histórico). Debe llamarse antes de `run()`/`present()` (normalmente al inicio de `init`).
+	void set_frame_sync(FrameSyncMode mode) noexcept { m_frame_sync = mode; }
+	[[nodiscard]] FrameSyncMode frame_sync() const noexcept { return m_frame_sync; }
+
+	/// **Instantánea latched del último VBlank** (modo `Latch`): secuencia del último latido y
+	/// cuántos VBlanks se pisaron sin consumir desde la llamada anterior. Mismo contrato que
+	/// `os::take_vblank`: como máximo hay un tick pendiente y `missed` cuenta los perdidos.
+	/// `false` si no hay un VBlank nuevo desde la última lectura (o en modo `Event`/`Disabled`, en
+	/// los que usa `os::take_vblank`/`vblank_count`).
+	[[nodiscard]] bool take_frame_tick(eng::os::VBlankTick& out) noexcept {
+		return eng::os::take_vblank(m_frame_latch, out);
+	}
+
 	/// **Blit asíncrono con notificación al puerto**: arranca la copia por Blitter y, cuando
 	/// termina la IRQ BLIT, publica un `MsgType::BlitDone` (y sube `blitdone_count`). `false`
 	/// si el backend no lo soporta o no cabe. La lógica puede encadenar trabajo en `update`.
@@ -961,10 +992,23 @@ private:
 		}
 		const u32 seq = self.m_vblank_count + 1u;
 		self.m_vblank_count = seq;
-		eng::os::Msg msg {};
-		msg.type = eng::os::MsgType::VBlank;
-		msg.time_stamp = seq;
-		self.m_port.post(msg);
+		// **Una sola fuente de verdad** de la secuencia (`m_vblank_count`). Según la política
+		// (`set_frame_sync`), el latido se entrega como mensaje FIFO (`Event`), como latch
+		// coherente (`Latch`) o solo se cuenta (`Disabled`). Ver `TIME-001/TIME-010`.
+		switch (self.m_frame_sync) {
+		case FrameSyncMode::Event: {
+			eng::os::Msg msg {};
+			msg.type = eng::os::MsgType::VBlank;
+			msg.time_stamp = seq;
+			self.m_port.post(msg);
+			break;
+		}
+		case FrameSyncMode::Latch:
+			self.m_frame_latch.signal(seq);
+			break;
+		case FrameSyncMode::Disabled:
+			break;
+		}
 	}
 	/// Productor de fin de blit: sube el contador y publica `BlitDone` (IRQ-safe).
 	static void on_blit_done(App& self, u16) noexcept {
@@ -994,6 +1038,8 @@ private:
 	eng::os::MsgPort<16> m_port {};                     ///< puerto de mensajes del sistema
 	volatile u32 m_vblank_count = 0;                    ///< VBlanks publicados (IRQ)
 	volatile u32 m_blitdone_count = 0;                  ///< fines de blit publicados (IRQ)
+	FrameSyncMode m_frame_sync = FrameSyncMode::Event;  ///< política de notificación de VBlank
+	eng::os::VBlankLatch m_frame_latch {};              ///< latch coherente del modo `Latch`
 	eng::Ref<graphics::composition::Scene> m_scene {};  ///< escena del juego (no propietaria)
 	scene::World<GameDisplay::kWorldLayerCapacity> m_world {}; ///< mundo retenido (capas + cámaras)
 	/// Capas de scroll que conduce el `App` (**observadores no propietarios**: las posee el juego).

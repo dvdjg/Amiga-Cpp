@@ -99,6 +99,13 @@ inline volatile unsigned char* ciaa_reg(unsigned short index) {
 	     + static_cast<unsigned long>(index) * 0x100u;
 }
 
+// CIA-B: registros a 0xBFD000 + reg*0x100. El reloj libre de µs conviene aqui (Timer B continuo)
+// para no colisionar con el timer de fondo (CIA-A Timer A) ni con el teclado (SP de CIA-A).
+inline volatile unsigned char* ciab_reg(unsigned short index) {
+	return reinterpret_cast<volatile unsigned char*>(0xbfd000)
+	     + static_cast<unsigned long>(index) * 0x100u;
+}
+
 // Handler UNICO del autovector de nivel 3 (VERTB/BLIT/COPER comparten vector). El
 // engine lo usa para el tick del juego (VBlank) y para el servicio de blit.
 inline void (*g_vbl_task)(void*, unsigned short) = nullptr;

@@ -74,7 +74,10 @@ union MsgPayload {
 	struct { eng::u8 port; eng::u8 dirs; eng::u8 fire; } joy; ///< direcciones (bits) + fuego
 	struct { eng::u8 port; eng::u16 buttons; } pad;    ///< CD32: bitmask de botones
 	struct { eng::u32 sequence; eng::u16 missed; } vblank; ///< secuencia + frames perdidos
-	struct { eng::u16 id; } timer;
+	/// Expiración de un timer: `id` legado + `handle` (slot+generación, identifica la instancia),
+	/// `deadline` (frame/tick del vencimiento) y `expirations` (nº de periodos condensados si el
+	/// catch-up los agrupa; 1 = un único vencimiento). Ver `TIME-008`.
+	struct { eng::u16 id; eng::u16 handle; eng::u32 deadline; eng::u16 expirations; } timer;
 	struct { eng::u16 handle; eng::s32 result; eng::u8 op; eng::u32 cookie; } file;
 	struct { eng::u32 code; eng::u32 a; eng::u32 b; } user;
 

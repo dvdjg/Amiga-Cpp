@@ -38,6 +38,7 @@ enum class GraphicsDriverId : u8 {
 /// antes de saturar el hardware.
 struct FrameStats {
 	u32 frame_index = 0;       ///< nº de frame desde el arranque
+	u32 frames_elapsed = 1u;   ///< latidos VBlank desde el frame anterior (catch-up; ≥1)
 	u16 blit_jobs = 0;         ///< trabajos de Blitter encolados este frame
 	u16 copper_patches = 0;    ///< parches de Copper aplicados este frame
 	u16 hardware_sprites = 0;  ///< sprites de hardware en uso

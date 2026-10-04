@@ -303,4 +303,29 @@ struct VBlankLatch {
 	return true;
 }
 
+/// **Instantánea de un tick de frame**: la secuencia del último VBlank y cuántos se pisaron sin
+/// consumir. Alternativa ligera a construir un `Msg` completo cuando solo interesa el latido.
+struct VBlankTick {
+	eng::u32 sequence = 0u; ///< secuencia del último VBlank observado
+	eng::u16 missed = 0u;   ///< VBlanks pisados desde la lectura anterior
+
+	/// **Frames transcurridos** desde la secuencia `from` (aritmética unsigned, segura ante
+	/// wrap): `sequence - from`. Permite derivar el catch-up sin llevar un segundo contador.
+	[[nodiscard]] constexpr eng::u32 frames_elapsed(eng::u32 from) const noexcept {
+		return sequence - from;
+	}
+};
+
+/// Igual que `take_vblank(latch, Msg&)` pero entrega solo la instantánea `{sequence, missed}`.
+[[nodiscard]] inline bool take_vblank(VBlankLatch& latch, VBlankTick& out) noexcept {
+	if (latch.pending == 0u) {
+		return false;
+	}
+	out.sequence = latch.sequence;
+	out.missed = latch.missed;
+	latch.pending = 0u;
+	latch.missed = 0u;
+	return true;
+}
+
 } // namespace eng::os

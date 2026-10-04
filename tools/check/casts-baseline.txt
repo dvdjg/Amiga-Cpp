@@ -237,7 +237,7 @@
   0     5  engine/include/eng/os/stream.hpp
   1     5  engine/include/eng/os/task.hpp
   0     3  engine/include/eng/os/telemetry.hpp
-  0     1  engine/include/eng/os/timer.hpp
+  0     8  engine/include/eng/os/timer.hpp
   0     3  engine/include/eng/os/vfs.hpp
   0     2  engine/include/eng/parallel/parallel.hpp
   0     1  engine/include/eng/platform/amiga/asset_backend.hpp
@@ -341,6 +341,6 @@
   3    13  engine/src/platform/amiga/amiga_floppy.cpp
   4    15  engine/src/platform/amiga/amiga_hw.cpp
   8    43  engine/src/platform/amiga/amiga_internal.hpp
-  2    14  engine/src/platform/amiga/amiga_os.cpp
+  2    16  engine/src/platform/amiga/amiga_os.cpp
   4     7  engine/src/platform/amiga/amiga_trackdisk.cpp
  12    21  engine/src/platform/amiga/amiga.cpp

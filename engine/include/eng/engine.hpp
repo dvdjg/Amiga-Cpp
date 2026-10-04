@@ -152,6 +152,7 @@ class Engine {
 
 		for (u32 i = 0; i < frame_count; ++i) {
 			context.frame.frame_index = i;
+			context.frame.frames_elapsed = 1u; // polling: 1 latido por iteracion, sin salto
 			reset_frame_scratch();
 			if (m_vblank_hook != nullptr) {
 				m_vblank_hook(m_vblank_user);
@@ -225,6 +226,13 @@ class Engine {
 						m_background.run_slice(done, 0u);
 						continue;
 					}
+					// **Catch-up explícito** (TIME-009): `hb.frames` puede avanzar más de 1
+					// respecto a `seen` si el `update` anterior tardó >1 campo. En vez de
+					// descartar los latidos intermedios en silencio, se cuentan en
+					// `frames_elapsed`; el juego decide su política (pasos fijos, animación por
+					// tiempo, latest-only) en lugar de que el bucle decida por él.
+					const u32 beats = hb.frames - seen;
+					context.frame.frames_elapsed = beats; // catch-up (≥1; satura solo al envolver 2^32)
 					seen = hb.frames;
 					context.frame.frame_index = done;
 					reset_frame_scratch();

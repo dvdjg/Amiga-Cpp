@@ -2,24 +2,25 @@
 
 ## Estado
 
-Abierto. `eng::os` ya tiene un latch de VBlank con secuencia y `missed`, pero no todos los caminos
-de la aplicación lo usan. `TimerService` implementa timers de software útiles para periodos largos,
-pero el contrato publicado incluye precisión en microsegundos que el backend actual no entrega.
+**Resuelto el núcleo (TIME-001..003, TIME-005..010)**; queda **TIME-004** abierto. `App::set_frame_sync`
+elige la política de notificación con **una sola** secuencia de frame; `TimerService` es robusto ante
+wrap, fase y catch-up, con handles generacionales; el backend entrega un reloj de µs real (CIA-B Timer
+B). La resolución **sub-frame** de los timers µs sigue limitada por el sondeo por VBlank.
 
 ## Hallazgos
 
 | ID | Severidad | Hallazgo | Evidencia | Consecuencia |
 |---|---|---|---|---|
-| TIME-001 | Alta | `App::on_vblank` publica un mensaje `VBlank` en `App::m_port`, cuya `PrioMsgQueue` conserva los VBlank en FIFO; `MsgPort` solo coalesce `MouseMove`. | `engine/include/eng/api/game.hpp:392-398`; `engine/include/eng/os/port.hpp:259-265` | Si el juego no drena `app.port()`, puede llenar la cola de 16 entradas aunque `eng::os` ya use un latch. |
-| TIME-002 | Media | `App` mantiene un contador y un mensaje VBlank propios además del `VBlankLatch` global de `eng::os`. | `game.hpp:392-398`; `amiga_os.cpp:17-20,132-138` | Hay dos fuentes de secuencia y dos políticas de consumo; pueden divergir o duplicar trabajo. |
-| TIME-003 | Alta | El backend Amiga llama `TimerService::poll_and_post(g_port, g_frame, 0u)`, así que no entrega ticks CIA. | `engine/src/platform/amiga/amiga_os.cpp:181` | Los timers `Microseconds` iniciados con ticks actuales cero no vencen según tiempo real; algunos pueden parecer detenidos o usar deadlines incoherentes. |
-| TIME-004 | Alta | Incluso con `ticks_now` correcto, los timers µs solo se comprueban desde `tick_body`, ligado al VBlank. | `amiga_os.cpp:132-189`; `timer.hpp:69-105` | Resolución efectiva de hasta un frame (~20 ms PAL), no microsegundos. No sirve como timer preciso. |
-| TIME-005 | Media | Un timer periódico vencido se reprograma como `now + period`, no desde el deadline anterior. | `engine/include/eng/os/timer.hpp:95-98` | Acumula deriva; si se sondea tarde colapsa todos los periodos transcurridos en un único mensaje. |
-| TIME-006 | Media | Comparación de vencimiento `now >= deadline` no es segura ante wrap de `u32`. | `timer.hpp:84-85` | Un timer puede vencer incorrectamente cerca del wrap de frames/ticks. |
-| TIME-007 | Media | `TimerService::start(id, ...)` permite ids duplicados; `stop(id)` detiene todas las coincidencias y la asignación automática puede colisionar con un id explícito. | `timer.hpp:39-55,59-66` | Identidad ambigua, reemplazo no especificado y cancelación difícil de razonar. |
-| TIME-008 | Media | El payload de Timer solo lleva `id`; no expone deadline, expiraciones acumuladas ni coalescing. | `engine/include/eng/os/message.hpp:77` | El consumidor no distingue un tick puntual de varios vencimientos periódicos condensados. |
-| TIME-009 | Alta | `Engine::run_frames()` puede observar un salto en `hb.frames` y ejecutar un solo `update/render`, descartando implícitamente los ticks intermedios sin contabilizar `missed`. | `engine/include/eng/engine.hpp:207-225` | La simulación frame-driven puede ralentizarse o saltar pasos sin política explícita. |
-| TIME-010 | Diseño | No hay opción de arranque que exprese si se quiere IRQ de VBlank, espera activa/polling o ninguna notificación de frame. | `App::run()` instala siempre hook; `Engine::run_frames_polling()` aún invoca hook por frame | Juegos que gestionan su propio sincronismo no pueden declarar claramente su política ni evitar servicios que no usan. |
+| TIME-001 | Alta | `App::on_vblank` publica un mensaje `VBlank` en `App::m_port`, cuya `PrioMsgQueue` conserva los VBlank en FIFO; `MsgPort` solo coalesce `MouseMove`. | `engine/include/eng/api/game.hpp` | **Resuelto**: `FrameSyncMode::Latch` (recomendado) no encola; `take_frame_tick` da la instantánea. `Event` conserva el FIFO histórico. |
+| TIME-002 | Media | `App` mantiene un contador y un mensaje VBlank propios además del `VBlankLatch` global de `eng::os`. | `game.hpp`; `amiga_os.cpp` | **Resuelto**: `App::m_vblank_count` es la única secuencia; el modo decide la entrega. |
+| TIME-003 | Alta | El backend Amiga llama `TimerService::poll_and_post(g_port, g_frame, 0u)`, así que no entrega ticks CIA. | `engine/src/platform/amiga/amiga_os.cpp` | **Resuelto**: se pasa `ciab_ticks_now()` (CIA-B Timer B continuo). |
+| TIME-004 | Alta | Incluso con `ticks_now` correcto, los timers µs solo se comprueban desde `tick_body`, ligado al VBlank. | `amiga_os.cpp`; `timer.hpp` | **Abierto**: resolución efectiva de hasta un frame. Pendiente un pump sub-frame o one-shot de CIA. |
+| TIME-005 | Media | Un timer periódico vencido se reprograma como `now + period`, no desde el deadline anterior. | `timer.hpp` | **Resuelto**: `deadline += period` (fase preservada) + política `Coalesce`/`SkipToNext`/`CatchUpAll`. |
+| TIME-006 | Media | Comparación de vencimiento `now >= deadline` no es segura ante wrap de `u32`. | `timer.hpp` | **Resuelto**: `s32(now - deadline) >= 0` con horizonte < `2^31`. |
+| TIME-007 | Media | `TimerService::start(id, ...)` permite ids duplicados; `stop(id)` detiene todas las coincidencias. | `timer.hpp` | **Resuelto**: `TimerHandle {slot, generation}`; `stop(handle)` cancela una instancia. |
+| TIME-008 | Media | El payload de Timer solo lleva `id`; no expone deadline, expiraciones acumuladas ni coalescing. | `message.hpp` | **Resuelto**: `payload.timer = {id, handle, deadline, expirations}`. |
+| TIME-009 | Alta | `Engine::run_frames()` puede observar un salto en `hb.frames` y ejecutar un solo `update/render`, descartando los ticks intermedios sin contabilizar `missed`. | `engine.hpp` | **Resuelto**: `context.frame.frames_elapsed` cuenta los latidos; el juego decide el catch-up. |
+| TIME-010 | Diseño | No hay opción de arranque que exprese si se quiere IRQ de VBlank, espera activa/polling o ninguna notificación de frame. | `App::run()` | **Resuelto**: `App::set_frame_sync(FrameSyncMode::{Event,Latch,Disabled})`. |
 
 ## Estado útil ya implementado
 
