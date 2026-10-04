@@ -291,8 +291,12 @@ struct Widget {
 ```
 
 Los **datos específicos** de cada tipo van en campos del propio struct derivado (Button con
-`text`/`on_click`, `CheckBox` con `bool* value`, `EditBox` con `char* buf`/`len`/`caret`, etc.),
-no en una unión opaca: se gana claridad y se evita *tagged union* en el camino de pintado. El
+`text`/`on_click`, `CheckBox`/`RadioButton` con `bool* value`/`on_change`, `ListView`/`Slider`/
+`ScrollBar` con su `on_select`/`on_change` y sobre el valor externo, `EditBox` con `char* buf`/
+`len`/`caret`/`on_change`, etc.), no en una unión opaca: se gana claridad y se evita *tagged
+union* en el camino de pintado. Los avisos son `eng::util::Callback<>` (puntero a función +
+contexto, POD y null-safe; ver `TEMPLATE_LIBRARY.md`), no el par a mano `void (*)(void*)`+
+`void*`. El
 despacho por tipo se hace con un `switch` sobre `type` (exhaustivo y chequeable por el
 compilador) o con una **tabla estática de `draw`/`event`** indexada por `WidgetType`.
 
@@ -384,7 +388,7 @@ struct UiEvent {
 
 1. **Panel / Group**: contenedor; dibuja el fondo y el bevel del tema.
 2. **Label**: texto estático (`draw_text_literal` cuando el texto es un literal).
-3. **Button**: cara + bevel según `WfPressed`; `on_click`.
+3. **Button**: cara + bevel según `WfPressed`; `on_click` (`Callback<>`, se instala con `{fn, ctx}`).
 4. **CheckBox**: caja + tick 1-bit; alterna un `bool*`.
 5. **RadioButton**: círculo/glifo + `group_id`; activa uno y desactiva el grupo.
 6. **EditBox**: fondo *recessed*, caret, inserción/borrado, buffer externo, *scroll* horizontal.

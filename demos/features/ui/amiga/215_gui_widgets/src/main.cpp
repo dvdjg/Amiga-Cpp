@@ -207,6 +207,9 @@ private:
 
 		m_button.bounds = ui::Rect {24, 42, 84, 14};
 		m_button.text = "Aceptar";
+		// `Callback<>` (fn + ctx) en vez del viejo par `void (*)(void* user)`+`void* user`:
+		// el boton avisa por el mismo despacho `UiContext` que un click de usuario.
+		m_button.on_click = {&DemoGame::accept_cb, this};
 
 		m_check.bounds = ui::Rect {124, 44, 120, 10};
 		m_check.label = "Sonido";
@@ -233,7 +236,7 @@ private:
 		m_slider.max = 100;
 
 		m_status.bounds = ui::Rect {24, 150, 260, 10};
-		m_status.text = "Listo. Tab cambia el foco.";
+		m_status.text = m_status_text;
 
 		// Prueba de la fuente cirilica en hardware (HOST-264): el literal UTF-8 se
 		// decodifica y se pinta con los glifos U+04xx de `Font8`.
@@ -352,6 +355,22 @@ private:
 		if (m_sound == before) {
 			return false;
 		}
+		// `on_click` del boton por el mismo despacho que un click de usuario: si el Callback
+		// no dispara en m68k, la demo va a Failed. La etiqueta de estado cambia y se ve en la
+		// captura (draw_static la pinta despues).
+		ui::UiEvent bdown {};
+		bdown.kind = ui::UiEventKind::MouseDown;
+		bdown.x = 60;
+		bdown.y = 49;
+		m_ctx.dispatch(bdown);
+		ui::UiEvent bup {};
+		bup.kind = ui::UiEventKind::MouseUp;
+		bup.x = 60;
+		bup.y = 49;
+		m_ctx.dispatch(bup);
+		if (m_clicks != 1u) {
+			return false;
+		}
 		// Fuente cirilica (HOST-264): А (U+0410) y я (U+044F) deben tener glifo.
 		bool cyr_ok = false;
 		for (eng::u8 r = 0; r < eng::Font8::kRows; ++r) {
@@ -360,6 +379,15 @@ private:
 			}
 		}
 		return cyr_ok;
+	}
+
+	/// `on_click` del boton (`Callback<>`: la funcion recibe el `ctx`): sube el contador y
+	/// cambia la etiqueta de estado. Es el camino real de un click, no un atajo de test.
+	static void accept_cb(void* ctx) noexcept { static_cast<DemoGame*>(ctx)->on_accept(); }
+	void on_accept() noexcept {
+		++m_clicks;
+		m_status_text = "Aceptar pulsado.";
+		m_status.text = m_status_text;
 	}
 
 	/// Pinta el arbol completo una sola vez (la UI es estatica salvo la pista del slider).
@@ -377,6 +405,8 @@ private:
 	bool m_radio_b_on = false;
 	eng::s16 m_slider_value = 0;
 	char m_text[16] = "Hola Amiga";
+	const char* m_status_text = "Listo. Tab cambia el foco.";
+	eng::u8 m_clicks = 0u;
 
 	ui::Panel m_root {};
 	ui::Label m_title {};
