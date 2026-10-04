@@ -50,6 +50,7 @@ constexpr eng::u16 kDisplayH = 240u;                 // y_mode=Off -> sin split
 constexpr eng::u16 kMtCols = 20u;                    // 16 pantalla + 4 de margen (DIW = 320px)
 constexpr eng::u16 kMtRows = 15u;                    // 15 metatiles de alto (240 px)
 constexpr eng::u16 kScreenCols = 16u;                // la pantalla NES real: 16 metatiles (256 px)
+constexpr eng::u16 kMarginTx = 2u;                   // columnas de margen IZQUIERDA (centra 256 en 320)
 constexpr eng::u16 kTilesetCount = 64u;              // generativo: 16 glyph x 4 variantes
 
 constexpr playfield::ScrollConsts kScrollConsts {
@@ -179,6 +180,10 @@ void rebuild_world_from_port() {
 	const eng::u16 tb = static_cast<eng::u16>((n2a_ppu_ctrl() & 1u) * 0x400u);
 	g_mt_count = 0u;
 	for (eng::u16 ty = 0; ty < kMtRows; ++ty) {
+		// Fila entera VACIA; el juego se escribe desplazado kMarginTx (centrado en el DIW de 320px).
+		for (eng::u16 tx = 0; tx < kMtCols; ++tx) {
+			g_cells[static_cast<eng::u32>(ty) * kMtCols + tx] = 0xFFFFu;
+		}
 		for (eng::u16 tx = 0; tx < kScreenCols; ++tx) {
 			const eng::u16 cx = static_cast<eng::u16>(tx * 2u);
 			const eng::u16 cy = static_cast<eng::u16>(ty * 2u);
@@ -207,14 +212,7 @@ void rebuild_world_from_port() {
 				g_mt4[idx][2] = t4[2]; g_mt4[idx][3] = t4[3];
 				g_mtpal[idx] = pal;
 			}
-			g_cells[static_cast<eng::u32>(ty) * kMtCols + tx] = (idx == 0xFFFFu) ? 0xFFFFu : idx;
-		}
-		// Columnas del anillo mas alla de la pantalla NES: repite la pantalla (toroide),
-		// para que las 22 columnas que lee el compositor X-limited esten definidas.
-		// Columnas mas alla de la pantalla NES (16): VACIAS (negro). El DIW (320px) muestra 20
-		// metatiles; asi las 4 de margen no repiten la pantalla (el borde derecho limpio).
-		for (eng::u16 tx = kScreenCols; tx < kMtCols; ++tx) {
-			g_cells[static_cast<eng::u32>(ty) * kMtCols + tx] = 0xFFFFu;
+			g_cells[static_cast<eng::u32>(ty) * kMtCols + (kMarginTx + tx)] = (idx == 0xFFFFu) ? 0xFFFFu : idx;
 		}
 	}
 }
@@ -269,15 +267,16 @@ bool update_world_from_dirty() {
 		const eng::u16 ty = static_cast<eng::u16>(row / 2u);
 		const eng::u16 idx = compute_metatile(tx, ty);
 		if (idx == 0xFFFFu) { continue; }
-		// Solo la columna de pantalla (tx < kScreenCols); las de margen (16-19) quedan VACIAS.
-		g_cells[static_cast<eng::u32>(ty) * kMtCols + tx] = idx;
+		// Columna del anillo = kMarginTx + tx (el juego va centrado en el DIW de 320px).
+		const eng::u16 cx = static_cast<eng::u16>(kMarginTx + tx);
+		g_cells[static_cast<eng::u32>(ty) * kMtCols + cx] = idx;
 		{
 			bool dup = false;
 			for (eng::u16 k = 0; k < g_chg_n; ++k) {
-				if (g_chg_tx[k] == tx && g_chg_ty[k] == ty) { dup = true; break; }
+				if (g_chg_tx[k] == cx && g_chg_ty[k] == ty) { dup = true; break; }
 			}
 			if (!dup && g_chg_n < kChangedMax) {
-				g_chg_tx[g_chg_n] = tx; g_chg_ty[g_chg_n] = ty; ++g_chg_n;
+				g_chg_tx[g_chg_n] = cx; g_chg_ty[g_chg_n] = ty; ++g_chg_n;
 			}
 		}
 		any = true;
