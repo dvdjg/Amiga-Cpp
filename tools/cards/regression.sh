@@ -20,31 +20,24 @@ CXX="${CXX:-g++}"
 BIN="$ROOT/out/tmp/cards-selfplay"
 CSV="$ROOT/out/cards/selfplay/regression.csv"
 
-# Las DLLs de runtime (libstdc++/libgcc) deben ser las del compilador que enlazó el
-# binario: en Windows, mezclar la libstdc++ de otra instalación de MinGW provoca un
-# fallo de carga del ejecutable. Se antepone el `bin` del propio compilador al PATH.
-if CXX_PATH="$(command -v "$CXX" 2>/dev/null)"; then
-	export PATH="$(dirname "$CXX_PATH"):$PATH"
-fi
+# Runtime del compilador en el PATH + `.exe` de MinGW (ver tools/scripts/host-cxx-env.sh).
+. "$ROOT/tools/scripts/host-cxx-env.sh"
+host_cxx_prepare "$CXX"
 
 mkdir -p "$ROOT/out/tmp" "$ROOT/out/cards/selfplay"
 
-# En Windows/MinGW el compilador añade `.exe` al nombre y un `cards-selfplay` antiguo
-# (p. ej. un ELF de Linux) haría sombra al binario recién compilado (Exec format error).
-# Se elimina el homónimo sin extensión y se resuelve el ejecutable real.
+# Un `cards-selfplay` antiguo (p. ej. un ELF de Linux) haría sombra al binario recién
+# compilado; se elimina el homónimo sin extensión y se resuelve el ejecutable real.
 rm -f "$BIN"
 "$CXX" -std=gnu++23 -I"$ROOT/engine/include" -O2 -Wall -Wextra \
 	"$ROOT/tools/cards/selfplay.cpp" -o "$BIN"
-if [ -f "$BIN.exe" ]; then
-	BIN="$BIN.exe"
-fi
 
 UPDATE=""
 if [ "${1:-}" = "--update" ]; then
 	UPDATE="--update"
 fi
 
-"$BIN" 200 --seats 4 --compare --sweep --sessions 4 --seed 12345 \
+"$(host_exe "$BIN")" 200 --seats 4 --compare --sweep --sessions 4 --seed 12345 \
 	--table-samples 32 --csv "$CSV" --quiet
 
 if command -v node >/dev/null 2>&1; then

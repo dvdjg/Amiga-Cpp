@@ -22,6 +22,10 @@ OUT="$ROOT/out/host-tests"
 FLAGS="-std=gnu++23 -I$ROOT/engine/include -Wall -Wextra -Werror=narrowing -O2"
 CXX="${CXX:-g++}"
 
+# Runtime del compilador en el PATH + `.exe` de MinGW (ver tools/scripts/host-cxx-env.sh).
+. "$ROOT/tools/scripts/host-cxx-env.sh"
+host_cxx_prepare "$CXX"
+
 if [ ! -f "$SRC" ]; then
 	echo "ERROR: no existe el fuente '$SRC'." >&2
 	exit 1
@@ -37,6 +41,6 @@ for mode in native RETRO16 RETRO32; do
 	bin="$OUT/scalar-modes-$mode"
 	echo "== $mode =="
 	"$CXX" $FLAGS $def "$SRC" -o "$bin"
-	"$bin"
+	"$(host_exe "$bin")"
 	echo
 done
