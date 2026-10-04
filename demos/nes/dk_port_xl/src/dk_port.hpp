@@ -1624,9 +1624,11 @@ static void f_C85F(void); /* handler NMI */
 static u32 g_cyc = 0, g_frame_deadline = 29780u;
 static u8 g_engine_mode = 0, g_yield_req = 0;
 static u8 g_nmi_pending = 0; /* flat: `frame_event` marca NMI; `n2a_run` lo ejecuta inline */
+static unsigned g_nmi_fires = 0u; /* diagnostico: NMIs disparados (debe ser 1/frame) */
+static unsigned n2a_nmi_fires(void) { return g_nmi_fires; }
 static u16 g_resume = 0;
 static void (*hal_frame_hook)(void) = 0;
-static void frame_event(void) { g_frame_deadline += 29780u; hal_vblank(); if (hal_frame_hook) { hal_frame_hook(); } g_nmi_pending = 1u; if (g_engine_mode) { g_yield_req = 1u; } }
+static void frame_event(void) { g_frame_deadline += 29780u; hal_vblank(); if (hal_frame_hook) { hal_frame_hook(); } g_nmi_pending = (u8)((ppu_ctrl & 0x80u) ? 1u : 0u); if (g_engine_mode) { g_yield_req = 1u; } }
 static void hal_wait_vblank(void) { frame_event(); }
 static void tick(u32 n) { (void)n; }
 static unsigned long g_steps = 0, g_step_limit = 0;
@@ -1844,7 +1846,7 @@ L_C7A8: if (g_yield_req) { g_resume = 0xC7A8u; g_yield_req = 0u; return; }
     tick(2u);
     A = (u8)(A & 0x80u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
     hal_wait_vblank();
-    if (g_nmi_pending) { g_nmi_pending = 0u; g_yield_req = 0u; ret_lbl[ret_sp++] = &&L_nmiret_0; goto L_C85F; }
+    if (g_nmi_pending) { g_nmi_pending = 0u; g_yield_req = 0u; ret_lbl[ret_sp++] = &&L_nmiret_0; ++g_nmi_fires; goto L_C85F; }
 L_nmiret_0: if (g_engine_mode) { g_yield_req = 1u; }
     goto L_C7AF;
 L_C7AF: if (g_yield_req) { g_resume = 0xC7AFu; g_yield_req = 0u; return; } 
@@ -1914,7 +1916,7 @@ L_C7E1: if (g_yield_req) { g_resume = 0xC7E1u; g_yield_req = 0u; return; }
 L_C7E4: if (g_yield_req) { g_resume = 0xC7E4u; g_yield_req = 0u; return; } 
     tick(3u);
     frame_event();
-    if (g_nmi_pending) { g_nmi_pending = 0u; g_yield_req = 0u; ret_lbl[ret_sp++] = &&L_nmiret_1; goto L_C85F; }
+    if (g_nmi_pending) { g_nmi_pending = 0u; g_yield_req = 0u; ret_lbl[ret_sp++] = &&L_nmiret_1; ++g_nmi_fires; goto L_C85F; }
 L_nmiret_1: if (g_engine_mode) { g_yield_req = 1u; }
     goto L_C7E1;
 L_C85F: if (g_yield_req) { g_resume = 0xC85Fu; g_yield_req = 0u; return; } 
