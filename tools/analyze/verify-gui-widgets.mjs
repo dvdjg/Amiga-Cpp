@@ -33,12 +33,27 @@ function count(imagePath) {
 	const img = readPng(imagePath);
 	const W = img.width, H = img.height;
 	const n = { fill: 0, text: 0, shine: 0, ring: 0, bg: 0, edit: 0 };
+	// Caja del panel = bbox del color de relleno (0x248).
+	let x0 = W, y0 = H, x1 = -1, y1 = -1;
 	for (let y = 0; y < H; y++)
 		for (let x = 0; x < W; x++) {
 			const [r, g, b] = pixel(img, x, y);
 			for (const k in COLORS) if (eq(r, g, b, COLORS[k])) n[k]++;
+			if (eq(r, g, b, COLORS.fill)) {
+				if (x < x0) x0 = x; if (x > x1) x1 = x;
+				if (y < y0) y0 = y; if (y > y1) y1 = y;
+			}
 		}
-	return { imagePath, W, H, ...n };
+	// `leak` = fondo de pantalla (0x012) DENTRO de la caja del panel: debe ser residual. Si el
+	// relleno de un widget borra los bits de borde (regresion), aparecen bandas de 0x012 a los
+	// lados de cada widget.
+	let leak = 0;
+	for (let y = y0; y <= y1; y++)
+		for (let x = x0; x <= x1; x++) {
+			const [r, g, b] = pixel(img, x, y);
+			if (eq(r, g, b, COLORS.bg)) leak++;
+		}
+	return { imagePath, W, H, leak, ...n };
 }
 
 /// Diferencia de dos PNG: numero de pixeles distintos y su caja envolvente.
@@ -73,6 +88,7 @@ if (image) {
 	check(s.shine > 200, `bisel claro presente (${s.shine} px)`);
 	check(s.ring > 10, `anillo de foco presente (${s.ring} px)`);
 	check(s.bg > 1000, `fondo presente (${s.bg} px)`);
+	check(s.leak < 300, `sin bandas de fondo dentro del panel (${s.leak} px)`);
 } else if (seqDir) {
 	if (!fs.existsSync(seqDir)) { console.error(`No existe ${seqDir}`); process.exit(2); }
 	const frames = fs.readdirSync(seqDir).filter((f) => /^frame_\d+\.png$/.test(f)).sort();
@@ -82,7 +98,8 @@ if (image) {
 	for (const r of results) {
 		console.log(`    ${path.basename(r.imagePath)}: panel=${r.fill} texto=${r.text} bisel=${r.shine} foco=${r.ring}`);
 	}
-	check(results.every((r) => r.fill > 10000 && r.text > 500), 'panel y texto en todos los frames');
+	check(results.every((r) => r.fill > 10000 && r.text > 500 && r.leak < 300),
+		'panel, texto y sin bandas de fondo en todos los frames');
 	// La animacion se comprueba entre frames CONSECUTIVOS (primero y ultimo pueden coincidir si
 	// el periodo del slider casa con el intervalo de captura).
 	let animated = false;
