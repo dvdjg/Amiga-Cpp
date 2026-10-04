@@ -28,8 +28,8 @@ propósito, firma, parámetros, errores, invariantes y `fichero:línea` al fuent
 | `input/` | Estado de entrada. |
 | [`os/`](os/README.md) | Mini-OS: mensajes, puertos, timers, ficheros, VFS, requests, tareas, entrada. |
 | [`res/`](res/README.md) | Caché de assets, `DynLoader`, `.engz`, HUNK, ZX0, decode, load, presupuesto, carga asíncrona. |
-| `audio/` | Mixer, modos de canal, música (Pt/P61), streaming. |
-| `ui/` | Widgets, compositor, layout. |
+| [`audio/`](audio/README.md) | Mixer, modos de canal, música (Pt/P61), codecs y streaming. |
+| [`ui/`](ui/README.md) | Widgets, contexto, compositor con backing store, ventanas, controles. |
 | `hw/` | Inventario de hardware, presupuesto de bus. |
 | `debug/` | `RunStatus`, periférico de depuración, sonda de memoria, telemetría. |
 | `cpu/` | Utilidades/emulación `m68k`. |

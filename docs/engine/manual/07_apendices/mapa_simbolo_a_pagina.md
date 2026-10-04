@@ -44,7 +44,8 @@ a la explicación.
 | `scene/*` (World, Layer, ScenePlan, planner) | [04_referencia/scene](../04_referencia/scene/README.md) |
 | `os/*` (msg, IO, timers, VFS, tareas, entrada) | [04_referencia/os](../04_referencia/os/README.md) + [05_arquitectura/mini_os_de_mensajes](../05_arquitectura/README.md) |
 | `res/*` (assets, caché, engz, HUNK, DynLoader, async) | [04_referencia/res](../04_referencia/res/README.md) |
-| `audio/*` | [05_arquitectura/audio_sintesis_y_streaming](../05_arquitectura/README.md) |
+| `audio/*` (mixer, música, codecs, streaming) | [04_referencia/audio](../04_referencia/audio/README.md) + [05_arquitectura/audio_sintesis_y_streaming](../05_arquitectura/README.md) |
+| `ui/*` (widgets, compositor, ventanas) | [04_referencia/ui](../04_referencia/ui/README.md) |
 | `ai/*`, `board/*`, `cards/*`, `sim/*` | [04_referencia/ai](../04_referencia/README.md) (pendiente) |
 
 > Los destinos marcados «(pendiente)» apuntan a su **área** hasta que exista la página; el mapa se
