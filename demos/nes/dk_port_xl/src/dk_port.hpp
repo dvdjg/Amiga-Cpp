@@ -1587,13 +1587,13 @@ static void n2a_set_pad(u8 v) { n2a_pad = v; }
 static u8 hanam = 0; // hook del app: 0 = no inferir intenciones
 static u8 (*hal_ppu_read_hook)(u16) = 0;
 static void (*hal_vblank_hook)(void) = 0;
-static u8 hal_ppu_read(u16 a) {
+static __attribute__((always_inline)) inline u8 hal_ppu_read(u16 a) {
     if (hal_ppu_read_hook != 0) { return hal_ppu_read_hook(a); }
     if ((a & 7u) == 2u) { const u8 r = ppu_status; ppu_status = (u8)(ppu_status & 0x7Fu); ppu_latch = 0; return r; }
     if (a == 0x4016u || a == 0x4017u) { const u8 r = (u8)(n2a_pad_shift & 1u); n2a_pad_shift = (u8)((n2a_pad_shift >> 1) | 0x80u); return r; }
     return 0;
 }
-static void hal_ppu_write(u16 a, u8 v) {
+static __attribute__((always_inline)) inline void hal_ppu_write(u16 a, u8 v) {
     switch (a) {
     case 0x2000u: ppu_ctrl = v; break;
     case 0x2001u: ppu_mask = v; break;
@@ -1630,12 +1630,12 @@ static void tick(u32 n) { (void)n; }
 static unsigned long g_steps = 0, g_step_limit = 0;
 static unsigned g_label = 0; /* diagnostico: ultima etiqueta ejecutada */
 static void (*hal_limit_hook)(void) = 0; /* diagnostico: corta al pasar g_steps */
-static u8 rd(u16 a) {
+static __attribute__((always_inline)) inline u8 rd(u16 a) {
     if (a < 0x2000u) { return ram[a & 0x7FFu]; }
     if (a >= 0x8000u) { return PRG_ROM[(a - 0x8000u) & (kPrgSize - 1u)]; }
     return hal_ppu_read(a);
 }
-static void wr(u16 a, u8 v) {
+static __attribute__((always_inline)) inline void wr(u16 a, u8 v) {
     if (a < 0x2000u) { ram[a & 0x7FFu] = v; return; }
     hal_ppu_write(a, v);
 }
