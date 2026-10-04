@@ -1625,8 +1625,8 @@ static u8 g_engine_mode = 0, g_yield_req = 0;
 static u16 g_resume = 0;
 static void (*hal_frame_hook)(void) = 0;
 static void frame_event(void) { g_frame_deadline += 29780u; hal_vblank(); if (hal_frame_hook) { hal_frame_hook(); } f_C85F(); if (g_engine_mode) { g_yield_req = 1u; } }
-static void hal_wait_vblank(void) { g_cyc = g_frame_deadline; frame_event(); }
-static void tick(u32 n) { g_cyc += n; }
+static void hal_wait_vblank(void) { frame_event(); }
+static void tick(u32 n) { (void)n; }
 static unsigned long g_steps = 0, g_step_limit = 0;
 static unsigned g_label = 0; /* diagnostico: ultima etiqueta ejecutada */
 static void (*hal_limit_hook)(void) = 0; /* diagnostico: corta al pasar g_steps */
