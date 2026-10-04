@@ -167,6 +167,9 @@ constexpr bool kScrollTest = true;   // sigue el scroll de la ROM ($2005/$2006) 
 constexpr eng::s32 kScrollStep = 2;  // (obsoleto) paso artificial del modo test
 constexpr bool kRunPort = true;     // false = solo render (test de coste del port vs render)
 constexpr bool kDoCompose = true;  // false = saltar compose/install (test del bucle del engine)
+// Prueba de gameplay automatizada: pulsa Start (0x08) desde el frame 30 durante 6 frames para
+// entrar en la partida sin joystick (para capturas de referencia vs el oraculo).
+constexpr bool kAutoStart = true;
 eng::u32 g_spr_chr = 0u;              // base de la pattern table de sprites ($2000 bit 3)
 constexpr eng::u16 kSpriteTop = 0x2Au; // DIWSTRT_y (0x29) + 1 (linea raster del primer pixel)
 
@@ -290,6 +293,7 @@ struct DkXlGame {
 	bool ready = false;
 	eng::u16 m_frames = 0u;
 	eng::u16 m_rebuilds = 0u; // nÂº de rebuilds del mapa (cambios de nametable)
+	eng::u32 m_pal_hash = 0u; // hash de la paleta NES ($3F00-1F) para detectar cambios
 
 	// Refresca los 8 canales HW desde la OAM (los primeros 8 sprites con y<$F0). Cada sprite NES
 	// se asigna a un canal del PAR de su subpaleta (attr&3), porque cada par comparte la gama
@@ -419,6 +423,12 @@ struct DkXlGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x0000E003u);
 			return;
 		}
+		// Drenar las celdas sucias acumuladas durante el warmup: la pantalla inicial YA se ha
+		// volcado con `scene.fill`; evitar que el primer `update` las reprocese (serian >128 jobs).
+		{
+			eng::u16 da = 0u; eng::u8 dv = 0u;
+			while (n2a_ppu_dirty_pop(&da, &dv)) {}
+		}
 		if (!scene.compose()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x0000E004u);
 			return;
@@ -441,10 +451,25 @@ struct DkXlGame {
 			if ((gin.port0 & eng::amiga::kJoyLeft) != 0u) pad = static_cast<eng::u8>(pad | 0x40u);
 			if ((gin.port0 & eng::amiga::kJoyRight) != 0u) pad = static_cast<eng::u8>(pad | 0x80u);
 			if ((gin.port0 & eng::amiga::kJoyFire) != 0u) pad = static_cast<eng::u8>(pad | 0x09u); // A + Start
+			if (kAutoStart && m_frames >= 30u && m_frames < 36u) { pad = static_cast<eng::u8>(pad | 0x08u); } // Start
 			n2a_set_pad(pad);
 		}
 		// Logica del port (dirigida por frame).
 		if (kRunPort) { n2a_frame(); }
+		// PALETA: si la paleta NES ($3F00-1F) cambio (p. ej. el juego cambia al arrancar la
+		// partida), re-mapear los colores Amiga. Si no, el render usa la paleta del titulo
+		// (colores equivocados en gameplay). Se re-hornea `g_palette` (el compositor la emite).
+		{
+			eng::u32 ph = 0u;
+			for (eng::u8 i = 0; i < 0x20u; ++i) { ph = ph * 131u + n2a_ppu_pal(i); }
+			if (ph != m_pal_hash) {
+				m_pal_hash = ph;
+				for (eng::u16 i = 0; i < 16u; ++i) {
+					g_palette[i] = nes_to_amiga(n2a_ppu_pal(static_cast<eng::u8>(i)));
+					g_palette[16u + i] = nes_to_amiga(n2a_ppu_pal(static_cast<eng::u8>(0x10u + i)));
+				}
+			}
+		}
 		++m_frames;
 		// REBUILD dinamico: si el juego cambio el nametable (transicion de pantalla), recomponer
 		// el mapa de metatiles + el banco y re-blitear el anillo. Deteccion: celdas sucias del PPU.
@@ -453,9 +478,9 @@ struct DkXlGame {
 		plan.clear();
 		const eng::u16 mt_before = g_mt_count;
 		if (update_world_from_dirty()) {
-			if (g_mt_count > static_cast<eng::u16>(kMaxMt - 32u)) {
-				// Caso raro: la tabla incremental ha crecido demasiado -> compactar (rebuild
-				// completo + fill total). Ocurre muy de vez en cuando (transiciones grandes).
+			if (g_mt_count > static_cast<eng::u16>(kMaxMt - 32u) || g_chg_n > 56u) {
+				// Caso raro: tabla incremental demasiado grande o DEMASIADAS celdas cambiadas en
+				// un frame (el plan tendria >kMaxBlitJobs=128 jobs) -> rebuild + fill completo.
 				rebuild_world_from_port();
 				fill_bank(m_bank.view.data(), g_mt_count, kPlanes);
 				if (!scene.fill(backend, plan)) {
