@@ -87,6 +87,13 @@ eng::u8 g_mt4[kMaxMt][4] {};
 eng::u8 g_mtpal[kMaxMt] {};
 eng::u16 g_mt_count = 0u;
 
+// Celdas (metatiles) cambiadas en el ultimo `update_world_from_dirty`, para el re-blit
+// SELECTIVO (1 `add_draw` por celda cambiada, en vez de `fill` del anillo completo).
+constexpr eng::u16 kChangedMax = 256u;
+eng::u16 g_chg_tx[kChangedMax] {};
+eng::u16 g_chg_ty[kChangedMax] {};
+eng::u16 g_chg_n = 0u;
+
 // Base de la pattern table del BG en el CHR (bits 4 de $2000): 0x0000 o 0x1000. DK usa
 // $1000 para el BG -> sin esto se pinta el tile equivocado (la tabla de sprites).
 eng::u32 g_bg_chr = 0u;
@@ -120,24 +127,28 @@ eng::u32 bank_bytes(eng::u16 count, eng::u8 planes) {
 	return rows * (16u * planes) * 40u;
 }
 
-/// Rellena el banco con el MISMO layout que `xlimited_build_blocks_bitmap`.
-void fill_bank(eng::u8* d, eng::u16 count, eng::u8 planes) {
+/// Rellena UNA entrada de metatile `m` del banco (mismo layout que `fill_bank`). Para el
+/// rebuild incremental: solo se rellenan los metatiles NUEVOS, no los 512 del banco.
+void fill_bank_one(eng::u8* d, eng::u16 m, eng::u8 planes) {
 	const eng::u32 sbpr = 40u, bpr = 20u;
-	for (eng::u16 m = 0; m < count; ++m) {
-		const eng::u16 bx = static_cast<eng::u16>(m % bpr);
-		const eng::u16 by = static_cast<eng::u16>(m / bpr);
-		const eng::u32 base_pl = static_cast<eng::u32>(by) * (16u * planes) * sbpr;
-		for (eng::u16 row = 0; row < 16u; ++row) {
-			for (eng::u8 pl = 0; pl < planes; ++pl) {
-				const eng::u16 word = mt_word(m, static_cast<eng::u8>(row), pl);
-				const eng::u32 off = base_pl +
-					static_cast<eng::u32>(row) * planes * sbpr +
-					static_cast<eng::u32>(pl) * sbpr + bx * 2u;
-				d[off] = static_cast<eng::u8>(word >> 8u);
-				d[off + 1u] = static_cast<eng::u8>(word & 0xffu);
-			}
+	const eng::u16 bx = static_cast<eng::u16>(m % bpr);
+	const eng::u16 by = static_cast<eng::u16>(m / bpr);
+	const eng::u32 base_pl = static_cast<eng::u32>(by) * (16u * planes) * sbpr;
+	for (eng::u16 row = 0; row < 16u; ++row) {
+		for (eng::u8 pl = 0; pl < planes; ++pl) {
+			const eng::u16 word = mt_word(m, static_cast<eng::u8>(row), pl);
+			const eng::u32 off = base_pl +
+				static_cast<eng::u32>(row) * planes * sbpr +
+				static_cast<eng::u32>(pl) * sbpr + bx * 2u;
+			d[off] = static_cast<eng::u8>(word >> 8u);
+			d[off + 1u] = static_cast<eng::u8>(word & 0xffu);
 		}
 	}
+}
+
+/// Rellena el banco con el MISMO layout que `xlimited_build_blocks_bitmap`.
+void fill_bank(eng::u8* d, eng::u16 count, eng::u8 planes) {
+	for (eng::u16 m = 0; m < count; ++m) { fill_bank_one(d, m, planes); }
 }
 
 eng::u16 g_palette[32] {}; // 0..15 = BG ($3F00-0F); 16..31 = sprites ($3F10-1F, COLOR16-31)
@@ -241,6 +252,7 @@ eng::u16 compute_metatile(eng::u16 tx, eng::u16 ty) {
 bool update_world_from_dirty() {
 	const eng::u16 tb = static_cast<eng::u16>((n2a_ppu_ctrl() & 1u) * 0x400u);
 	bool any = false;
+	g_chg_n = 0u;
 	eng::u16 da = 0u;
 	eng::u8 dv = 0u;
 	while (n2a_ppu_dirty_pop(&da, &dv)) {
@@ -255,6 +267,14 @@ bool update_world_from_dirty() {
 		if (idx == 0xFFFFu) { continue; }
 		for (eng::u16 c = tx; c < kMtCols; c = static_cast<eng::u16>(c + kScreenCols)) {
 			g_cells[static_cast<eng::u32>(ty) * kMtCols + c] = idx;
+			// Registrar (columna,fila) para el re-blit selectivo (dedupe lineal, N pequeno).
+			bool dup = false;
+			for (eng::u16 k = 0; k < g_chg_n; ++k) {
+				if (g_chg_tx[k] == c && g_chg_ty[k] == ty) { dup = true; break; }
+			}
+			if (!dup && g_chg_n < kChangedMax) {
+				g_chg_tx[g_chg_n] = c; g_chg_ty[g_chg_n] = ty; ++g_chg_n;
+			}
 		}
 		any = true;
 	}
@@ -431,15 +451,36 @@ struct DkXlGame {
 		// REBUILD dinamico INCREMENTAL: consumir las celdas sucias del PPU y recomputar solo los
 		// metatiles afectados (antes: rebuild completo 16x15 + dedupe O(n^2) cada frame).
 		plan.clear();
+		const eng::u16 mt_before = g_mt_count;
 		if (update_world_from_dirty()) {
-			// Compactar si la tabla incremental ha crecido demasiado (evita llenar kMaxMt).
-			if (g_mt_count > static_cast<eng::u16>(kMaxMt - 32u)) { rebuild_world_from_port(); }
-			// Reconstruccion de pantalla: re-blitear el anillo (sin scroll ese frame).
-			fill_bank(m_bank.view.data(), g_mt_count, kPlanes);
-			if (!scene.fill(backend, plan)) {
-				ready = false;
-				eng::debug::mark_failed(g_eng_run_status, 0x0000E012u);
-				return;
+			if (g_mt_count > static_cast<eng::u16>(kMaxMt - 32u)) {
+				// Caso raro: la tabla incremental ha crecido demasiado -> compactar (rebuild
+				// completo + fill total). Ocurre muy de vez en cuando (transiciones grandes).
+				rebuild_world_from_port();
+				fill_bank(m_bank.view.data(), g_mt_count, kPlanes);
+				if (!scene.fill(backend, plan)) {
+					ready = false;
+					eng::debug::mark_failed(g_eng_run_status, 0x0000E012u);
+					return;
+				}
+			} else {
+				// Camino caliente: rellena el banco SOLO de los metatiles NUEVOS y re-blitea
+				// SOLO las celdas cambiadas (1 TileBlockCopy interleaved por celda), sin fill.
+				for (eng::u16 m = mt_before; m < g_mt_count; ++m) {
+					fill_bank_one(m_bank.view.data(), m, kPlanes);
+				}
+				const eng::u16 bpl = scene.bg().block_planes_lines();
+				for (eng::u16 k = 0; k < g_chg_n; ++k) {
+					(void)scene.bg().add_draw(plan,
+						static_cast<eng::u16>(g_chg_tx[k] * kTileW),
+						static_cast<eng::u16>(g_chg_ty[k] * bpl),
+						g_chg_tx[k], g_chg_ty[k]);
+				}
+				if (!backend.execute_frame_plan(plan)) {
+					ready = false;
+					eng::debug::mark_failed(g_eng_run_status, 0x0000E012u);
+					return;
+				}
 			}
 			m_rebuilds = static_cast<eng::u16>(m_rebuilds + 1u);
 		} else if (kScrollTest) {
