@@ -6,6 +6,7 @@
 /// `docs/engine/architecture/GUI_LIBRARY.md` §11.
 
 #include <eng/core/types/types.hpp>
+#include <eng/core/util/callback.hpp>
 #include <eng/ui/event.hpp>
 #include <eng/ui/keys.hpp>
 #include <eng/ui/painter.hpp>
@@ -24,8 +25,7 @@ struct Slider : Widget {
 	eng::s16* value = nullptr;
 	eng::s16 min = 0;
 	eng::s16 max = 100;
-	void (*on_change)(void* user) = nullptr;
-	void* user = nullptr;
+	eng::util::Callback<> on_change {}; ///< avisa al cambiar `*value`
 
 	/// Fija `*value` a partir de la coordenada `x` (mapea el ancho útil al rango).
 	void set_from_x(eng::s16 x) noexcept {
@@ -94,8 +94,8 @@ inline bool event_slider(Slider& s, const UiEvent& ev) {
 		s.set_flag(WfPressed);
 		s.set_from_x(ev.x);
 		s.mark_dirty();
-		if (s.on_change != nullptr) {
-			s.on_change(s.user);
+		if (s.on_change) {
+			s.on_change();
 		}
 		return true;
 	}

@@ -9,6 +9,7 @@
 
 #include <eng/core/types/types.hpp>
 #include <eng/core/data/utf8.hpp>
+#include <eng/core/util/callback.hpp>
 #include <eng/ui/event.hpp>
 #include <eng/ui/keys.hpp>
 #include <eng/ui/painter.hpp>
@@ -29,8 +30,7 @@ struct EditBox : Widget {
 	eng::u16 len = 0u;   ///< longitud actual
 	eng::u16 caret = 0u; ///< posición del caret (0..len)
 	eng::u16 view = 0u;  ///< primer caracter visible (scroll horizontal)
-	void (*on_change)(void* user) = nullptr;
-	void* user = nullptr;
+	eng::util::Callback<> on_change {}; ///< avisa al cambiar el texto (ctx del llamador)
 
 	/// Columnas de texto visibles (mínimo 1).
 	[[nodiscard]] eng::u16 cols() const noexcept {
@@ -275,8 +275,8 @@ inline bool event_edit(EditBox& e, const UiEvent& ev) {
 		}
 		if (changed) {
 			e.mark_dirty();
-			if (e.on_change != nullptr) {
-				e.on_change(e.user);
+			if (e.on_change) {
+				e.on_change();
 			}
 		}
 		return consumed;

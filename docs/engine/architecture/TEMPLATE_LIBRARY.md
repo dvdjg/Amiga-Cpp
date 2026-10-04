@@ -89,6 +89,7 @@ Puntos de reutilización explícitos:
 - `eng/task/background.hpp` usa `IntrusiveSList<Entry>` como free-list de slots de tarea (reparto y devolución `O(1)`, sin heap); lo ejercita la demo `081_background_tasks`.
 - `Noncopyable`/`NonMovable` centralizan el ciclo de vida que decenas de tipos escribían a mano (`X(const X&) = delete; X& operator=(const X&) = delete;`). Los contenedores que crecen (`Vector`, `SmallVector`, `ChunkedVector`, `DynamicHashMap`) y el resto de recursos con identidad del engine (`App`, `Scene`, `Bitmap`, `Plan`, `DoubleBuffer`, `SfxMixer`, `GameAudio`, `AudioSystem`, `SpriteManager`, `XlimitedScene`, `ScrollLayer`, `Playfield` y sus derivados, `AssetLease`, `AmigaBackend`, `Parallel*`) derivan de `Noncopyable` y, cuando se mueven, declaran su movimiento; los tipos que guardan punteros a sus propios miembros (p. ej. `LruCache`), o que borran también el movimiento (`BackgroundQueue`, `VfsFile`), usan `NonMovable`. Los pocos tipos con movimiento `= default` (`Block`, `DynamicString`) lo mantienen explícito y no adoptan la base.
 - `index_list.hpp` (`IndexList<Index, Null>`) enlaza **por índices** (16 bits) donde `IntrusiveList` enlazaría por punteros (32): `LruCache` comparte un mismo par `prev`/`next` entre su lista de recencia y la de ranuras libres (una ranura está en una o en la otra), de modo que la lista genérica no cuesta memoria extra. Lo ejercita HOST-127/HOST-414 y la sonda `c_lru_cache_ops`.
+- El par escrito a mano `void (*fn)(void* user); void* user;` de `eng/ui` (botón, casilla, radio, lista, slider, barra y caja de edición) se sustituye por `Callback<Args...>` (`callback.hpp`): un solo miembro de dos palabras, **POD** y null-safe, que se invoca con `cb(args...)`. La UI no cruza una ISR, así que el contexto explícito por `void*` es seguro y evita `std::function`. Lo respaldan HOST-079 y los tests de UI (HOST-225/261/312).
 - `eng/field/chunk_cache.hpp` indexa los chunks residentes con `HashMap<ChunkKey, u8, Capacity>` (`(cx,cy) -> ranura`) en vez de recorrer los slots; lo ejercita la demo `111_xlimited_sidescroller`.
 
 ## 2. Inventario
@@ -149,6 +150,7 @@ Puntos de reutilización explícitos:
 | `graph.hpp` | `Graph<MaxNodes,MaxEdges>` (adyacencia), `graph_bfs`, `graph_astar`, `topological_sort` | (sin equivalente; grafo) |
 | `dsp.hpp` | `Adsr`, `OnePole`, `DelayLine`, `soft_clip`, `osc_*` | (sin equivalente; audio) |
 | `function_ref.hpp` | `FunctionRef<Sig>` | `std::function_ref` (C++26) |
+| `callback.hpp` | `Callback<Args...>` (puntero a función + contexto, POD) | (sin equivalente; *delegate* POD) |
 | `noncopyable.hpp` | `Noncopyable`, `NonMovable` (bases de ciclo de vida) | `boost::noncopyable` |
 | `index_list.hpp` | `IndexList<Index, Null>` (lista doble por índices, arrays de enlaces del llamador) | (sin equivalente; lista por índice) |
 
@@ -252,7 +254,7 @@ canónica de validar algoritmos puros (sin hardware):
 | HOST-076 | `array.hpp`, `bitset.hpp` |
 | HOST-077 | `static_vector.hpp`, `ring_buffer.hpp` |
 | HOST-078 | `optional.hpp`, `expected.hpp` |
-| HOST-079 | `string_view.hpp`, `function_ref.hpp` |
+| HOST-079 | `string_view.hpp`, `function_ref.hpp`, `callback.hpp` |
 | HOST-080 | `allocator.hpp`, `hash.hpp` |
 | HOST-081 | `vector.hpp`, `small_vector.hpp` |
 | HOST-082 | `flat_map.hpp`, `flat_set.hpp` |
@@ -370,6 +372,7 @@ Qué usar según la necesidad, con el criterio del A500 (sin heap; coste visible
 | Ruido procedural (value/fbm/worley) | `core/noise.hpp` |
 | Audio/efectos (envolvente/filtro/eco/oscilador) | `dsp.hpp` |
 | Pasar un callable sin poseerlo | `FunctionRef<Sig>` |
+| Callback con estado (fn + contexto), POD | `Callback<Args...>` (`callback.hpp`); sin contexto, `FunctionRef` |
 | Estados/eventos con transiciones | `state_machine.hpp` (`StateMachine<State,Event>`, tabla `constexpr`) |
 | Difundir un suceso a varios oyentes | `event.hpp` (`Event<Signature,MaxSubscribers>`) |
 | Grafo / dependencias / waypoints | `graph.hpp` (`Graph<N,E>` + `graph_astar`/`topological_sort`) |

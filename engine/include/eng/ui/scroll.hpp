@@ -11,6 +11,7 @@
 /// testeable sin tocar el rasterizador.
 
 #include <eng/core/types/types.hpp>
+#include <eng/core/util/callback.hpp>
 #include <eng/ui/event.hpp>
 #include <eng/ui/keys.hpp>
 #include <eng/ui/painter.hpp>
@@ -34,8 +35,7 @@ struct ScrollBar : Widget {
 	eng::s16 max = 100;
 	eng::s16 page = 10;    ///< unidades por página (alto del pomo en unidades)
 	bool vertical = true;  ///< `true` = barra vertical; `false` = horizontal
-	void (*on_change)(void* user) = nullptr;
-	void* user = nullptr;
+	eng::util::Callback<> on_change {}; ///< avisa al cambiar `*value`
 
 	/// Longitud de la pista (px) según la orientación.
 	[[nodiscard]] eng::s16 track_len() const noexcept {
@@ -157,8 +157,8 @@ inline bool event_scroll_bar(ScrollBar& s, const UiEvent& ev) {
 		s.set_flag(WfPressed);
 		s.set_from_pos(s.vertical ? ev.y : ev.x);
 		s.mark_dirty();
-		if (s.on_change != nullptr) {
-			s.on_change(s.user);
+		if (s.on_change) {
+			s.on_change();
 		}
 		return true;
 	}
@@ -208,8 +208,8 @@ inline bool event_scroll_bar(ScrollBar& s, const UiEvent& ev) {
 			return false;
 		}
 		s.mark_dirty();
-		if (s.on_change != nullptr) {
-			s.on_change(s.user);
+		if (s.on_change) {
+			s.on_change();
 		}
 		return true;
 	}
