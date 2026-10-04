@@ -26,7 +26,7 @@ propósito, firma, parámetros, errores, invariantes y `fichero:línea` al fuent
 | [`field/`](field/README.md) | Playfields, `Xlimited*` (corkscrew), `Strip*`, geometría de scroll runtime. |
 | [`scene/`](scene/README.md) | `World`, `ScenePlan`, actores, planes de DPF/bandas/raster. |
 | `input/` | Estado de entrada. |
-| `os/` | Mini-OS: mensajes, puertos, timers, ficheros, VFS, requests, tareas. |
+| [`os/`](os/README.md) | Mini-OS: mensajes, puertos, timers, ficheros, VFS, requests, tareas, entrada. |
 | `res/` | Caché de assets, `DynLoader`, `.engz`, HUNK, ZX0, decode, load, presupuesto. |
 | `audio/` | Mixer, modos de canal, música (Pt/P61), streaming. |
 | `ui/` | Widgets, compositor, layout. |
