@@ -29,6 +29,10 @@ template <class Geom>
 class StripComposer {
 public:
 	/// Reserva el doble buffer de copperlist y guarda la paleta; `copper_bytes` acota la lista.
+	/// \param mem          gestor de memoria (el doble buffer va a Chip).
+	/// \param palette      colores de la copperlist.
+	/// \param copper_bytes tamaño (bytes) de cada bloque de copperlist.
+	/// \return `false` si no caben los bloques.
 	bool init(MemoryManager& mem, const eng::PaletteWords& palette, u32 copper_bytes = 1024u) noexcept {
 		m_palette = palette;
 		m_ok = m_copper.begin(mem, copper_bytes);
@@ -36,12 +40,15 @@ public:
 	}
 
 	/// Fija la direccion base (Chip) del anillo (los `BPLxPT` se calculan sobre ella).
+	/// \param base  base del anillo en Chip.
 	constexpr void set_ring(const eng::u16* base) noexcept { m_base = base; }
 
 	/// **Fija la geometría** (instancia): el NTTP la aporta por su tipo; la runtime, de valores.
+	/// \param g  geometría del anillo.
 	constexpr void set_geometry(const Geom& g) noexcept { m_geom = g; }
 
 	/// Emite la lista completa en **ambos** bloques del doble buffer (una vez).
+	/// \return `false` si no se inicializó o la lista desborda.
 	bool build() noexcept {
 		if (!m_ok) return false;
 		if (!emit()) return false;
@@ -54,6 +61,8 @@ public:
 
 	/// **Parchea** en el bloque inactivo los valores de Copper (BPLxPT de la ventana + BPLCON1 +
 	/// split) y lo publica. No re-emite la lista.
+	/// \param c  valores de Copper del frame (`strip_copper_values`).
+	/// \return `false` si la lista no está construida o falta la base del anillo.
 	bool patch(const StripCopper& c) noexcept {
 		if (!m_built || m_base == nullptr) return false;
 		eng::u16* const w = m_copper.inactive_words();
@@ -72,11 +81,13 @@ public:
 	}
 
 	/// Congela el sistema y arranca la copperlist (setup); `install` publica el bloque inactivo.
+	/// \param backend  el backend.
 	template <class Backend>
 	void takeover(Backend& backend) const noexcept {
 		if (m_built) m_copper.takeover(backend);
 	}
 	/// Publica (`COP1LC`) el bloque inactivo ya parcheado por `patch`.
+	/// \param backend  el backend.
 	template <class Backend>
 	void install(Backend& backend) const noexcept {
 		if (m_built) m_copper.install(backend);

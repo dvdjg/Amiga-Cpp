@@ -54,6 +54,9 @@ public:
     /// el reveal lo hace el Copper tras ejecutar el plan → NUNCA se muestra un
     /// píxel sin pintar, para cualquier salto ≤ max_step (16 px = la columna
     /// completa cada frame; el coste de Blitter crece ∝ salto).
+    /// \param plan   plan del frame (recibe los blits de tira).
+    /// \param dx,dy  desplazamiento por eje (recortado a `±max_step`).
+    /// \return `false` si la capa no se inicializó o un borde bloqueó el avance.
     bool update_scroll(graphics::FramePlan& plan, s32 dx, s32 dy) override {
         if (!this->m_initialized) return false;
         m_dbg_ink_visible = false; // DEBUG: reinicio el flag del frame (hipótesis offset)
@@ -113,6 +116,9 @@ public:
     /// RAM con alineación 16 (como `AllocBitMap(..., BMF_INTERLEAVED|BMF_CLEAR)`).
     /// `frontbuffer` apunta a `base + bitmapoffset` para los modos de fetch
     /// ancho (16 bytes para BPL32, 48 para 4x). En modo normal offset=0.
+    /// \param memory  gestor de memoria (reserva Chip del bitmap interleaved).
+    /// \param cfg     config de la capa (mapa, geometría, fetch, DPF…).
+    /// \return `false` si la reserva o la geometría no cuadran.
     bool begin(MemoryManager& memory, const XlimitedConfigT<MapT>& cfg) {
         // Verifica en compile-time que este playfield cumple el contrato del
         // algoritmo (`ScrollEngine`); hace el scroll portátil y explícito.
@@ -306,6 +312,10 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
     }
 
     /// Compatibilidad: copia la fila completa del anillo (`display_height` filas).
+    /// \param pattern            patrón de fondo (tile/lineal).
+    /// \param pattern_row_bytes  bytes por fila del patrón.
+    /// \param src_x_pixels,src_y origen en el patrón (en px/filas).
+    /// \return el `BlitJob` de copia de fondo.
     graphics::BlitJob make_bg_plane_copy_job(eng::Pattern pattern, u16 pattern_row_bytes,
                                              u16 src_x_pixels, u16 src_y) const {
         return m_soft_dpf.make_copy_job(pattern, pattern_row_bytes, src_x_pixels, src_y);
@@ -316,6 +326,9 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
     void bg_flip() { m_soft_dpf.flip(); }
     constexpr bool bg_double_buffered() const { return m_soft_dpf.double_buffered(); }
 
+    /// Rellena la pantalla completa del anillo (blit de fondo por plano) en `plan`.
+    /// \param plan  plan del frame.
+    /// \return `false` si la capa no está inicializada.
     bool fill_screen(graphics::FramePlan& plan) const {
         if (!this->m_initialized) return false;
         const u16 cols = this->m_bitmap_blocks_per_row;

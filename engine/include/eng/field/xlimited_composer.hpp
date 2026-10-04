@@ -63,6 +63,9 @@ public:
         eng::Span<const ColorZone> color_zones {};
     };
 
+    /// \param memory  gestor de memoria (doble buffer de copperlist en Chip).
+    /// \param cfg     config del display (paleta, registros, sprites opcionales).
+    /// \return `false` si no cabe el doble buffer o la paleta está vacía.
     bool init(MemoryManager& memory, const Config& cfg) {
         m_cfg = cfg;
         if (!m_copper.begin(memory, cfg.copper_bytes) || cfg.palette.empty()) return false;
@@ -70,6 +73,9 @@ public:
         return true;
     }
 
+    /// Compone el frame sin overlay (wrapper de `compose(view, nullptr)`).
+    /// \param view  vista de hardware del playfield principal.
+    /// \return `false` si la vista no es válida o la emisión falla.
     bool compose(const PlayfieldHardwareView& view) {
         return compose(view, nullptr);
     }
@@ -93,6 +99,10 @@ public:
         graphics::ModeSwitchZone mode_switch {};
     };
 
+    /// Compone el frame, con la zona overlay opcional (HUD/lienzo) en la franja inferior.
+    /// \param view  vista de hardware del playfield principal.
+    /// \param hud   zona overlay (o `nullptr`); si trae `palette`, se emite en el raster de corte.
+    /// \return `false` si la vista no es válida o la emisión falla.
     bool compose(const PlayfieldHardwareView& view, eng::Ref<const OverlayZone> hud) {
         if (!m_initialized || !view.bitplanes.valid()) return false;
         if (!valid_view(view)) return false;
@@ -112,6 +122,7 @@ public:
     }
 
     /// Toma el control del display e instala la primera copperlist (una vez).
+    /// \param backend  el backend.
     template <typename Backend>
     void takeover(Backend& backend) const {
         if (m_initialized && m_copper_initialized) {
@@ -119,6 +130,8 @@ public:
         }
     }
 
+    /// Publica (`COP1LC`) el bloque inactivo ya compuesto.
+    /// \param backend  el backend.
     template <typename Backend>
     void install(Backend& backend) const {
         if (m_initialized && m_copper_initialized) {
@@ -326,6 +339,9 @@ public:
         eng::Span<const ColorZone> color_zones {};
     };
 
+    /// \param memory  gestor de memoria (doble buffer de copperlist en Chip).
+    /// \param cfg     config del display (paleta, registros, sprites opcionales).
+    /// \return `false` si no cabe el doble buffer o la paleta está vacía.
     bool init(MemoryManager& memory, const Config& cfg) {
         m_cfg = cfg;
         if (!m_copper.begin(memory, cfg.copper_bytes) || cfg.palette.empty()) return false;
@@ -385,6 +401,7 @@ public:
     }
 
     /// Toma el control del display e instala la primera copperlist (una vez).
+    /// \param backend  el backend.
     template <typename Backend>
     void takeover(Backend& backend) const {
         if (m_initialized && m_copper_initialized) {
@@ -392,6 +409,8 @@ public:
         }
     }
 
+    /// Publica (`COP1LC`) el bloque inactivo ya compuesto.
+    /// \param backend  el backend.
     template <typename Backend>
     void install(Backend& backend) const {
         if (m_initialized && m_copper_initialized) {

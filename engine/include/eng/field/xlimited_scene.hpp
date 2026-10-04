@@ -528,12 +528,18 @@ public:
     }
 
     /// Wrapper booleano de `begin_checked` (compatibilidad de la API existente).
+    /// \param memory  gestor de memoria (reservas Chip de playfields/copper).
+    /// \param cfg     config de la escena (mapa, geometría, DPF, ruta…).
+    /// \return `false` si alguna reserva falla.
     bool begin(MemoryManager& memory, const XlimitedSceneConfigT<MapT>& cfg) {
         return begin_checked(memory, cfg).has_value();
     }
 
     /// Rellena la pantalla inicial (y el PF2 si dual) en lotes. Devuelve false
     /// si un plan no se pudo encolar o ejecutar.
+    /// \param backend  el backend (ejecuta los planes por lotes).
+    /// \param plan     plan de trabajo reutilizable.
+    /// \return `false` si un plan no se pudo ejecutar.
     template <typename Backend>
     bool fill(Backend& backend, graphics::FramePlan& plan) {
         const eng::u8 n = fields();
@@ -565,6 +571,10 @@ public:
 
     /// Pre-scrolla los playfields hacia delante (derecha/abajo) para dar
     /// recorrido a las direcciones reversas. Ejecuta los planes en lotes.
+    /// \param backend  el backend.
+    /// \param plan     plan de trabajo reutilizable.
+    /// \param px_x,px_y  píxeles de pre-scroll hacia delante por eje.
+    /// \return `false` si un plan no se pudo ejecutar.
     template <typename Backend>
     bool pre_scroll(Backend& backend, graphics::FramePlan& plan, eng::s32 px_x, eng::s32 px_y) {
         plan.clear();
@@ -599,6 +609,10 @@ public:
 
     /// Desplazamiento explícito de 1 px (o 0) por eje, para un juego. Aplica el
     /// parallax configurado al PF2. Devuelve false si un borde bloqueó el avance.
+    /// \param plan   plan del frame (recibe los blits de tira).
+    /// \param dx,dy  desplazamiento por eje (signo = dirección).
+    /// \param frame  contador de frame (gobierna el divisor del parallax X).
+    /// \return `false` si un borde del mapa bloqueó el avance.
     bool update(graphics::FramePlan& plan, eng::s32 dx, eng::s32 dy, eng::u32 frame) {
         const eng::u8 n = fields();
         // Ambos playfields con el mismo paso (parallax opcional en X).

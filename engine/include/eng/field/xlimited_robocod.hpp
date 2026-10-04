@@ -21,6 +21,16 @@ namespace eng::playfield {
 
 /// Copia el fondo RoboCod de `scene` al `plan`: ventana + split + *blanking* + `bg_flip`. `false` si
 /// no hay parallax/patrón o un blit no cupo. `scroll` es la cámara propia del fondo (se avanza).
+/// \param scene              escena (config + `bg()`).
+/// \param backend            el backend.
+/// \param pattern            patrón de fondo.
+/// \param pattern_row_bytes  bytes por fila del patrón.
+/// \param period_px          período horizontal del patrón en px.
+/// \param scroll             cámara propia del fondo (se avanza `bg_dx`).
+/// \param bg_dx              avance del fondo este frame.
+/// \param blank_line         línea de blanking del raster.
+/// \param plan               plan del frame.
+/// \return `false` si no hay parallax/patrón o un blit no cupo.
 template <class SceneT, class Backend>
 [[nodiscard]] bool robocod_bg_frame(SceneT& scene, Backend& backend, eng::Pattern pattern,
 				    eng::u16 pattern_row_bytes, eng::u16 period_px, eng::s32& scroll,
