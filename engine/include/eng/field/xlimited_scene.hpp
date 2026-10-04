@@ -487,6 +487,17 @@ public:
         const u16 diwstop = hud_zone
             ? xlimited_detail::diwstop_for_viewport(cfg.viewport_h)
             : xlimited_detail::diwstop_for_viewport(main_h);
+        // DDFSTOP debe cubrir EXACTAMENTE el ancho visible (+1 palabra de guarda del
+        // fetch): el DMA avanza por scanline `fetch_bytes + BPL1MOD`, y `BPL1MOD` se
+        // calcula con `viewport_w/8` (ver `xlimited_playfield.hpp`, begin). Si el DDF
+        // no coincide con el viewport (p. ej. el fijo de 320 en un viewport de 256),
+        // cada línea deriva `fetch - viewport_w/8` bytes → el display lee planelíneas
+        // como filas (barras horizontales). Paso de DDF = 8 unidades = 1 palabra de
+        // 16 px; `$30 + 8*(viewport_w/16)` deja 1 palabra de guarda tras lo visible
+        // (para 320 px da el canónico `$D0`). Misma derivación que
+        // `graphics::composition::geometry_for`.
+        const u16 ddfstop = static_cast<u16>(xlimited_detail::kDdfStrt +
+                                             8u * (cfg.viewport_w / 16u));
         const eng::Ref<const graphics::SpriteManager> sprites =
             (cfg.sprite_data_bytes != 0) ? eng::Ref<const graphics::SpriteManager>(m_sprites)
                                          : eng::Ref<const graphics::SpriteManager>();
@@ -494,12 +505,12 @@ public:
             if (!m_dual.init(memory, {cfg.palette, cfg.copper_bytes, cfg.planes,
                 cfg.dpf.foreground_is_pf2,
                 xlimited_detail::kDiwStrt, diwstop,
-                xlimited_detail::kDdfStrt, xlimited_detail::kDdfStop,
+                xlimited_detail::kDdfStrt, ddfstop,
                 cfg.dpf.color_zones})) return eng::util::unexpected(eng::Result::OutOfMemory);
         } else {
             if (!m_single.init(memory, {cfg.palette, cfg.copper_bytes, cfg.planes,
                 xlimited_detail::kDiwStrt, diwstop,
-                xlimited_detail::kDdfStrt, xlimited_detail::kDdfStop,
+                xlimited_detail::kDdfStrt, ddfstop,
                 sprites, cfg.color_zones})) return eng::util::unexpected(eng::Result::OutOfMemory);
         }
         if (cfg.sprite_data_bytes != 0) {

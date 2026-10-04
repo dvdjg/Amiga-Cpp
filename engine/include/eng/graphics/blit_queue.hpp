@@ -138,12 +138,11 @@ struct BlitOp {
 		b.bltalwm = shifted ? static_cast<eng::u16>(0xffffu << shift) : 0xffffu;
 		b.bltamod = shifted ? src_mod : 0;
 		b.bltbmod = 0;
-		// Fuente "apretada" (C, `D=C`): el puntero avanza por `plane*stride_words` y C lee
-		// `words_per_row` palabras CONTIGUAS por fila, así que el módulo de C **no** lleva el
-		// `src_mod` de una fuente ancha — debe ser 0 (con `src_mod` la fuente se desalinea un
-		// bloque de `h*words` en la segunda fila: la imagen sale comprimida). El `source_words_per_row`
-		// (fuente ancha) solo aplica al camino desplazado (A, `bltamod`).
-		b.bltcmod = 0;
+		// Fuente por C (`D=C`): `words_per_row` palabras por fila + `bltcmod` tras cada fila.
+		// Una fuente COMPACTA (`source_modulo_bytes == 0`) lee contiguo (modulo 0); una fuente
+		// con stride (p. ej. `TileBlockCopy` del banco X-limited, 40 B/planelínea → src_mod 38)
+		// necesita su modulo. Por eso C usa `src_mod`, no 0.
+		b.bltcmod = src_mod;
 		b.bltdmod = j.destination_modulo_bytes;
 		b.bltapt = shifted ? j.source.words() : nullptr;
 		b.bltcpt = shifted ? nullptr : j.source.words();
