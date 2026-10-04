@@ -230,13 +230,13 @@ Los límites de hardware de esta ficha están como constantes de dominio en
 
 - **Multiplexado vertical por Y** (técnicas 1-3): `SpriteAllocator` (`graphics/sprite_allocator.hpp`)
   asigna cada objeto a un canal libre con *greedy first-fit*; reparte los objetos entre los canales
-  que deja libre el fondo de su franja (`SpriteChannelLedger`, `graphics/sprite_band.hpp`).
+  que deja libre el fondo de su intervalo (`SpriteChannelLedger`, `graphics/sprite_channel_window.hpp`).
 - **Capa/HUD por parcheo de POS+DATA por línea** (técnica 4, Parasol Stars / Brian the Lion):
   `SpriteLineLayer` (`graphics/sprite_line_layer.hpp`) arma un `SpriteHorizontalRearm` por
   (línea, canal) con la imagen de esa scanline; el `copper::Scheduler` la coloca en el H-Blank.
 - **Fondo repetitivo *Risky Woods*** (técnica 5): driver `effects::RiskyWoodsLayer` (`api/effects.hpp`).
-- **Reparto de canales por franja** (mezclar técnicas y dejar canales a los objetos):
-  `SpriteBand`/`plan_sprite_bands`; diseño en [SPRITE_BANDS.md](../../engine/architecture/SPRITE_BANDS.md),
+- **Reparto de canales por ventana** (mezclar técnicas y dejar canales a los objetos):
+  `SpriteChannelWindow`/`plan_sprite_windows`; diseño en [SPRITE_CHANNEL_WINDOWS.md](../../engine/architecture/SPRITE_CHANNEL_WINDOWS.md),
   tests HOST-416/417/418.
 - **Colisión de hardware**: `graphics/sprite_collision.hpp` (`CLXCON`/`CLXDAT`).
 - **Pendiente**: fondo Free Form (datos distintos por columna), animación de DATA del sprite

@@ -6,14 +6,14 @@
 // Demo 208 — fondo por sprites *Risky Woods* + 2 canales libres para objetos.
 // ============================================================================
 //
-// Materializa el reparto híbrido de `docs/engine/architecture/SPRITE_BANDS.md`:
+// Materializa el reparto híbrido de `docs/engine/architecture/SPRITE_CHANNEL_WINDOWS.md`:
 //
-//   - `RiskyWoodsLayer` (`eng/api/effects.hpp`) dibuja una banda con **6 canales de
+//   - `RiskyWoodsLayer` (`eng/api/effects.hpp`) dibuja una ventana con **6 canales de
 //     sprite** (2..7) que forman un patrón de 6 columnas de 16 px repetido a lo ancho.
 //     El canal se arma por DMA (estructura con cabecera POS/CTL) y el Copper **solo
 //     reposiciona `SPRxPOS`** por línea (técnica Risky Woods; 1 MOVE por repetición).
-//   - La banda reserva esos 6 canales en el `SpriteChannelLedger` con
-//     `plan_sprite_bands`; `SpriteAllocator::assign` reparte los **2 objetos** en los
+//   - La ventana reserva esos 6 canales en el `SpriteChannelLedger` con
+//     `plan_sprite_windows`; `SpriteAllocator::assign` reparte los **2 objetos** en los
 //     canales que quedan libres (0 y 1), delante del fondo (menor canal = más prioridad).
 //   - Los objetos son sprites hardware que rebotan; su posición se parchea en la
 //     cabecera DMA cada frame (el DMA la relee al armar el sprite).
@@ -25,7 +25,7 @@
 #include <eng/api/effects.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/sprite_allocator.hpp>
-#include <eng/graphics/sprite_band.hpp>
+#include <eng/graphics/sprite_channel_window.hpp>
 #include <eng/platform/amiga/backend.hpp>
 
 #include <exec/execbase.h>
@@ -107,20 +107,20 @@ struct RiskyWoodsDemo {
 		build_background_data(data.data());
 		build_object_data(data.data() + kBgChannels * kBgStride);
 
-		// Fondo: reserva canales 2..7 en la banda con el ledger (reparto híbrido).
-		eng::graphics::SpriteBand band {};
+		// Fondo: reserva canales 2..7 en la ventana con el ledger (reparto híbrido).
+		eng::graphics::SpriteChannelWindow band {};
 		band.top = kBandTop;
 		band.bottom = kBandBottom;
 		band.technique = eng::graphics::SpriteBackdropTechnique::RiskyWoods;
 		band.channel_first = kBgFirst;
 		band.channel_count = kBgChannels;
 		m_ledger.reset();
-		if (!eng::graphics::plan_sprite_bands({&band, 1u}, m_ledger).has_value()) {
+		if (!eng::graphics::plan_sprite_windows({&band, 1u}, m_ledger).has_value()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020803u);
 			return;
 		}
 
-		// Objetos: el asignador les da los canales libres de la banda (0 y 1).
+		// Objetos: el asignador les da los canales libres de la ventana (0 y 1).
 		eng::graphics::SpriteIntent intents[kObjects] {};
 		for (eng::u8 i = 0; i < kObjects; ++i) {
 			intents[i].top = kObjY;
@@ -160,7 +160,7 @@ struct RiskyWoodsDemo {
 		}
 		backend.takeover_display(m_copper_ptr);
 
-		// Telemetría: canales libres en la banda (0,1) y canales de los objetos.
+		// Telemetría: canales libres en la ventana (0,1) y canales de los objetos.
 		const eng::u32 free_mask = m_ledger.free_mask(kObjY);
 		eng::debug::mark_ready(
 			g_eng_run_status,
@@ -291,8 +291,8 @@ private:
 						 eng::copper::DmaSprite));
 		sched.emit_palette(kPalette.color);
 		// **Objetos primero** (canales 0/1): su `SPRxPT`/POS/CTL deben fijarse ANTES de que
-		// la lista entre en la banda del fondo (que avanza por líneas con WAITs). Si se
-		// emitieran después, no se ejecutarían hasta pasada la banda y los objetos no
+		// la lista entre en la ventana del fondo (que avanza por líneas con WAITs). Si se
+		// emitieran después, no se ejecutarían hasta pasada la ventana y los objetos no
 		// estarían armados cuando el haz llega a su VSTART (línea 120).
 		eng::Words<eng::SpriteTag> data = m_sprite_block.view.as_words();
 		const eng::uintptr obj_base =

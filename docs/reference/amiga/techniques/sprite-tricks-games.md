@@ -215,7 +215,7 @@ colores sin patrón repetitivo):
 ## Encaje en el engine
 
 - **Risky Woods**: driver `effects::RiskyWoodsLayer` + reparto por franja
-  ([SPRITE_BANDS.md](../../engine/architecture/SPRITE_BANDS.md)); demo `208`.
+  ([SPRITE_CHANNEL_WINDOWS.md](../../engine/architecture/SPRITE_CHANNEL_WINDOWS.md)); demo `208`.
 - **Jim Power (animación de DATA)**, **Free Form (datos por columna)**, **bending por tabla
   de seno** y **scroll por punteros pre-shifteados**: pendientes (catalogados en
   [sprite-techniques-catalog.md](sprite-techniques-catalog.md) §Encaje en el engine).

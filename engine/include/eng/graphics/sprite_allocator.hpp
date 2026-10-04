@@ -11,14 +11,14 @@
 /// Algoritmo: *greedy first-fit* con multiplexado vertical. Procesa los intents
 /// ordenados por `top` ascendente y asigna a cada uno el primer canal cuyo
 /// `busy_until < top` (sin solape vertical). Si los 8 canales están ocupados en
-/// esa franja, marca `as_bob`. Es el mismo criterio que usan los juegos reales
+/// ese intervalo, marca `as_bob`. Es el mismo criterio que usan los juegos reales
 /// (Turrican, etc.) para repartir objetos entre sprites y blits.
 ///
 /// **Reparto híbrido:** el overload con `reserved` (`SpriteChannelLedger`) descuenta
-/// los canales que un **fondo por sprites** ocupa en una franja (`SpriteBand`), de modo
-/// que los objetos usan solo los canales libres de su banda y los recuperan por encima
-/// y por debajo. Es la base de mezclar técnicas por franja (Risky Woods, Free Form) con
-/// objetos tradicionales. Ver `docs/engine/architecture/SPRITE_BANDS.md`.
+/// los canales que un **fondo por sprites** ocupa en un intervalo (`SpriteChannelWindow`), de
+/// modo que los objetos usan solo los canales libres de ese intervalo y los recuperan por
+/// encima y por debajo. Es la base de mezclar técnicas por ventana (Risky Woods, Free Form)
+/// con objetos tradicionales. Ver `docs/engine/architecture/SPRITE_CHANNEL_WINDOWS.md`.
 ///
 /// Es lógica pura (sin hardware, sin heap), host-testable.
 
@@ -26,7 +26,7 @@
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/raster_intent.hpp>
-#include <eng/graphics/sprite_band.hpp>
+#include <eng/graphics/sprite_channel_window.hpp>
 
 namespace eng::graphics {
 
@@ -59,10 +59,10 @@ public:
 	/// Devuelve cuántos caben en hardware (los restantes quedan `as_bob`), para
 	/// telemetría: `bobs = count - result`.
 	///
-	/// `reserved` es el **ledger de fondos por franja** (`SpriteChannelLedger`): un canal
-	/// ocupado por el fondo de una banda no se ofrece a un objeto en esa franja, pero sí
+	/// `reserved` es el **ledger de fondos por intervalo** (`SpriteChannelLedger`): un canal
+	/// ocupado por el fondo de una ventana no se ofrece a un objeto en ese intervalo, pero sí
 	/// por encima o por debajo (multiplexado vertical). Con `reserved` nulo/vacío el
-	/// reparto es el clásico de 8 canales. Ver `docs/engine/architecture/SPRITE_BANDS.md`.
+	/// reparto es el clásico de 8 canales. Ver `docs/engine/architecture/SPRITE_CHANNEL_WINDOWS.md`.
 	///
 	/// Las **tiras horizontales** (`strip_span > 1`) reservan una corrida de canales
 	/// contiguos: si no hay una corrida libre del tamaño pedido, la tira ENTERA va a

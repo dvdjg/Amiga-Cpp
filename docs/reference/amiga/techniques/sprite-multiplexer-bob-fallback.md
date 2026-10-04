@@ -126,8 +126,8 @@ Ya existe buena parte:
   para el caso general. Tests **HOST-003/416**.
 - **`scene/compose_sprites`** + `emit_bob_fallbacks`: una intención por actor, reparto, y los
   degradados se emiten como BOB en el `FramePlan`. Fachada `eng::SpriteScene` (HOST-391).
-- **Reparto por franja** (`graphics/sprite_band.hpp`, `SpriteChannelLedger`): permite reservar
-  canales a fondos por banda y dejar el resto a objetos (HOST-416).
+- **Reparto por ventana** (`graphics/sprite_channel_window.hpp`, `SpriteChannelLedger`): permite reservar
+  canales a fondos por intervalo y dejar el resto a objetos (HOST-416).
 - **Capa/HUD por parcheo de POS+DATA por línea** (`graphics/sprite_line_layer.hpp`,
   `SpriteLineLayer`): rearma cada scanline de un tramo con la imagen propia de esa línea
   (Parasol Stars / Brian the Lion), reutilizando `Scheduler::emit_sprite_horizontal_rearm`
@@ -161,4 +161,4 @@ Un test host del caso de grupos (ristra asignada junta, o degradada entera) cerr
 - Engine: `graphics/sprite_allocator.hpp`, `graphics/sprite_line_layer.hpp`,
   `graphics/sprite_limits.hpp`, `scene/actor_sprite.hpp`,
   [OBJECT_SYSTEM.md](../../engine/architecture/OBJECT_SYSTEM.md),
-  [SPRITE_BANDS.md](../../engine/architecture/SPRITE_BANDS.md); HOST-003/391/416/418.
+  [SPRITE_CHANNEL_WINDOWS.md](../../engine/architecture/SPRITE_CHANNEL_WINDOWS.md); HOST-003/391/416/418.

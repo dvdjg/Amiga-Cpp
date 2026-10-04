@@ -1,7 +1,7 @@
 # 208_risky_woods — fondo por sprites *Risky Woods* (en verificación)
 
-Demo del **reparto híbrido de canales de sprite por franjas**
-(`docs/engine/architecture/SPRITE_BANDS.md`): un fondo por sprites usa **6 canales**
+Demo del **reparto de canales de sprite por ventanas de reprogramación**
+(`docs/engine/architecture/SPRITE_CHANNEL_WINDOWS.md`): un fondo por sprites usa **6 canales**
 (2..7) y deja **2 libres** (0..1) para objetos tradicionales, todo por encima de un
 playfield de color 0.
 
@@ -15,7 +15,7 @@ playfield de color 0.
   [sprite-horizontal-multiplex.md](../../../../docs/reference/amiga/techniques/sprite-horizontal-multiplex.md).
 - **Objetos** (canales 0/1): sprites hardware que rebotan; su `SPRxPOS` de la cabecera
   DMA se parchea cada frame (el DMA la relee al armar el sprite).
-- **Reparto**: el fondo reserva 2..7 en el `SpriteChannelLedger` con `plan_sprite_bands`;
+- **Reparto**: el fondo reserva 2..7 en el `SpriteChannelLedger` con `plan_sprite_windows`;
   `SpriteAllocator::assign` da a los objetos los canales libres (0 y 1).
 
 ## Estado
@@ -36,8 +36,8 @@ playfield de color 0.
 ## Siguiente
 
 - Segundo objeto visible (color propio del par) y más objetos degradando a BOB.
-- Franja inferior con **todos los canales libres** (otra técnica), como pide el modelo
-  híbrido.
+- Intervalo inferior con **todos los canales libres** (otra técnica), como pide el modelo
+  por ventanas.
 - Animación HW del bitmap (Jim Power): inyectar `SPRxDATA/DATB` en caliente.
 
 ## Lanzar

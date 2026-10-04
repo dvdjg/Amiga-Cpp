@@ -1,37 +1,40 @@
 // ============================================================================
-// Test HOST-416: reparto híbrido de canales de sprite por franjas (SpriteBand).
+// Test HOST-416: reparto de canales de sprite por ventanas de reprogramación.
 // ============================================================================
 //
 // Valida en host el backbone puro del modelo híbrido
-// (`eng/graphics/sprite_band.hpp` + el overload con ledger de
+// (`eng/graphics/sprite_channel_window.hpp` + el overload con ledger de
 // `eng/graphics/sprite_allocator.hpp`): reservar canales para un FONDO por sprites
-// en una franja y repartir OBJETOS solo en los canales libres de esa franja,
-// recuperando los 8 canales por encima y por debajo.
+// en un intervalo y repartir OBJETOS solo en los canales libres de ese intervalo,
+// recuperando los 8 canales por encima y por debajo. Cada canal se reprograma de
+// forma independiente, así que dos ventanas pueden solaparse en vertical si usan
+// canales distintos.
 //
 // Comprobaciones:
 //   1) Ledger: occupy/free, solape, corridas y máscara por línea.
-//   2) plan_sprite_bands: bandas válidas y errores (rango, canales, solape, ocupado).
-//   3) Híbrido: banda Risky Woods [60,100) usa 0..5; objetos de la franja usan 6..7
-//      (el 3.º degrada a BOB); fuera de la franja se recuperan los 8 canales.
+//   2) plan_sprite_windows: ventanas válidas y errores (rango, canales, canal ocupado);
+//      dos ventanas solapadas en vertical con canales DISJUNTOS son válidas.
+//   3) Híbrido: ventana Risky Woods [60,100) usa 0..5; objetos del intervalo usan 6..7
+//      (el 3.º degrada a BOB); fuera del intervalo se recuperan los 8 canales.
 //   4) Attached y tiras respetan el ledger.
 //
 // Ejecución:
-//   bash tools/run-host-tests.sh tests/host/graphics/416_sprite_band   (solo este)
+//   bash tools/run-host-tests.sh tests/host/graphics/416_sprite_channel_window   (solo este)
 //   bash tools/run-host-tests.sh                                    (todos)
 
 #include <cstdio>
 
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/sprite_allocator.hpp>
-#include <eng/graphics/sprite_band.hpp>
+#include <eng/graphics/sprite_channel_window.hpp>
 
 namespace {
 
 using eng::graphics::SpriteAllocator;
 using eng::graphics::SpriteBackdropTechnique;
-using eng::graphics::SpriteBand;
-using eng::graphics::SpriteBandError;
 using eng::graphics::SpriteChannelLedger;
+using eng::graphics::SpriteChannelWindow;
+using eng::graphics::SpriteChannelWindowError;
 using eng::graphics::SpriteIntent;
 using eng::graphics::SpriteSlot;
 
@@ -52,17 +55,17 @@ SpriteIntent make_intent(eng::u16 top, eng::u16 bottom) {
 	return it;
 }
 
-SpriteBand make_band(eng::u16 top, eng::u16 bottom, eng::u8 first, eng::u8 count,
+SpriteChannelWindow make_window(eng::u16 top, eng::u16 bottom, eng::u8 first, eng::u8 count,
 		     SpriteBackdropTechnique tech = SpriteBackdropTechnique::RiskyWoods,
 		     bool attach = false) {
-	SpriteBand b {};
-	b.top = top;
-	b.bottom = bottom;
-	b.technique = tech;
-	b.channel_first = first;
-	b.channel_count = count;
-	b.attach = attach;
-	return b;
+	SpriteChannelWindow w {};
+	w.top = top;
+	w.bottom = bottom;
+	w.technique = tech;
+	w.channel_first = first;
+	w.channel_count = count;
+	w.attach = attach;
+	return w;
 }
 
 void test_ledger_basics() {
@@ -83,87 +86,108 @@ void test_ledger_basics() {
 	CHECK(!l.free(2u, 70u, 80u) && !l.free(3u, 70u, 80u) && !l.free(4u, 70u, 80u));
 	CHECK(l.free(5u, 70u, 80u));
 	CHECK(l.free_run(3u, 70u, 80u) == 5u);
-	CHECK(l.free_run(4u, 70u, 80u) == 0xffu); // solo quedan 5,6,7 en esa franja
+	CHECK(l.free_run(4u, 70u, 80u) == 0xffu); // solo quedan 5,6,7 en ese intervalo
 
 	// Máscara por línea: en 70, ocupados 0 y 2..4 -> libres 1,5,6,7.
 	CHECK(l.free_mask(70u) == 0xe2u);
 	CHECK(l.free_mask(10u) == 0xffu);
 }
 
-void test_plan_bands_ok() {
-	std::printf("plan_sprite_bands: bandas validas (hibrido)\n");
+void test_plan_windows_ok() {
+	std::printf("plan_sprite_windows: ventanas validas (hibrido)\n");
 
-	SpriteBand bands[3] {
-		make_band(0u, 60u, 0u, 8u, SpriteBackdropTechnique::Layer),
-		make_band(60u, 100u, 0u, 6u, SpriteBackdropTechnique::RiskyWoods),
-		make_band(160u, 200u, 0u, 8u, SpriteBackdropTechnique::FreeForm),
+	SpriteChannelWindow windows[3] {
+		make_window(0u, 60u, 0u, 8u, SpriteBackdropTechnique::Layer),
+		make_window(60u, 100u, 0u, 6u, SpriteBackdropTechnique::RiskyWoods),
+		make_window(160u, 200u, 0u, 8u, SpriteBackdropTechnique::FreeForm),
 	};
 	SpriteChannelLedger l {};
 	l.reset();
-	const auto r = eng::graphics::plan_sprite_bands({bands, 3u}, l);
+	const auto r = eng::graphics::plan_sprite_windows({windows, 3u}, l);
 	CHECK(r.has_value());
 	CHECK(r.value() == 3u);
-	// En la franja del fondo a 6 canales, libres 6 y 7.
+	// En el intervalo del fondo a 6 canales, libres 6 y 7.
 	CHECK(l.free_mask(70u) == 0xc0u);
-	// En el hueco entre bandas, los 8 canales.
+	// En el hueco entre ventanas, los 8 canales.
 	CHECK(l.free_mask(120u) == 0xffu);
-	// La banda Free Form usa los 8: ninguno libre.
+	// La ventana Free Form usa los 8: ninguno libre.
 	CHECK(l.free_mask(170u) == 0x00u);
 }
 
-void test_plan_bands_errors() {
-	std::printf("plan_sprite_bands: errores de rango/canales/solape/ocupado\n");
+void test_plan_windows_errors() {
+	std::printf("plan_sprite_windows: errores de rango/canales/ocupado\n");
 
 	{
 		SpriteChannelLedger l {};
 		l.reset();
-		SpriteBand b[1] { make_band(60u, 60u, 0u, 4u) }; // rango vacio
-		const auto r = eng::graphics::plan_sprite_bands({b, 1u}, l);
-		CHECK(!r.has_value() && r.error() == SpriteBandError::BadRange);
+		SpriteChannelWindow w[1] { make_window(60u, 60u, 0u, 4u) }; // rango vacio
+		const auto r = eng::graphics::plan_sprite_windows({w, 1u}, l);
+		CHECK(!r.has_value() && r.error() == SpriteChannelWindowError::BadRange);
 	}
 	{
 		SpriteChannelLedger l {};
 		l.reset();
-		SpriteBand b[1] { make_band(60u, 100u, 6u, 4u) }; // 6..9 se sale de 0..7
-		const auto r = eng::graphics::plan_sprite_bands({b, 1u}, l);
-		CHECK(!r.has_value() && r.error() == SpriteBandError::BadChannels);
-	}
-	{
-		SpriteChannelLedger l {};
-		l.reset();
-		SpriteBand b[2] {
-			make_band(60u, 100u, 0u, 4u),
-			make_band(90u, 120u, 4u, 4u), // solapa con la anterio
-		};
-		const auto r = eng::graphics::plan_sprite_bands({b, 2u}, l);
-		CHECK(!r.has_value() && r.error() == SpriteBandError::Overlap);
+		SpriteChannelWindow w[1] { make_window(60u, 100u, 6u, 4u) }; // 6..9 se sale de 0..7
+		const auto r = eng::graphics::plan_sprite_windows({w, 1u}, l);
+		CHECK(!r.has_value() && r.error() == SpriteChannelWindowError::BadChannels);
 	}
 	{
 		SpriteChannelLedger l {};
 		l.reset();
 		// Una reserva previa (p. ej. de otro sistema) ocupa 0..1 en [40,55).
 		CHECK(l.occupy_run(0u, 2u, 40u, 55u));
-		SpriteBand b[1] { make_band(40u, 55u, 0u, 2u) };
-		const auto r = eng::graphics::plan_sprite_bands({b, 1u}, l);
-		CHECK(!r.has_value() && r.error() == SpriteBandError::ChannelBusy);
+		SpriteChannelWindow w[1] { make_window(40u, 55u, 0u, 2u) };
+		const auto r = eng::graphics::plan_sprite_windows({w, 1u}, l);
+		CHECK(!r.has_value() && r.error() == SpriteChannelWindowError::ChannelBusy);
+	}
+	{
+		SpriteChannelLedger l {};
+		l.reset();
+		// Dos ventanas que comparten canal en líneas solapadas: conflicto por canal.
+		SpriteChannelWindow w[2] {
+			make_window(60u, 100u, 0u, 4u),
+			make_window(90u, 120u, 2u, 4u), // 2..3 ya ocupados por la primera
+		};
+		const auto r = eng::graphics::plan_sprite_windows({w, 2u}, l);
+		CHECK(!r.has_value() && r.error() == SpriteChannelWindowError::ChannelBusy);
 	}
 	{
 		SpriteChannelLedger l {};
 		l.reset();
 		// Attached sobre un canal impar: no forma pares completos.
-		SpriteBand b[1] { make_band(60u, 100u, 1u, 2u, SpriteBackdropTechnique::RiskyWoods, true) };
-		const auto r = eng::graphics::plan_sprite_bands({b, 1u}, l);
-		CHECK(!r.has_value() && r.error() == SpriteBandError::BadChannels);
+		SpriteChannelWindow w[1] { make_window(60u, 100u, 1u, 2u, SpriteBackdropTechnique::RiskyWoods, true) };
+		const auto r = eng::graphics::plan_sprite_windows({w, 1u}, l);
+		CHECK(!r.has_value() && r.error() == SpriteChannelWindowError::BadChannels);
 	}
+}
+
+void test_overlapping_windows_disjoint_channels() {
+	std::printf("plan_sprite_windows: solape vertical con canales disjuntos es valido\n");
+
+	// Cada canal se reprograma de forma independiente: dos ventanas pueden solapar en
+	// vertical si usan canales distintos. 0..3 y 4..7 solapan en [90,100).
+	SpriteChannelWindow w[2] {
+		make_window(60u, 100u, 0u, 4u),
+		make_window(90u, 120u, 4u, 4u),
+	};
+	SpriteChannelLedger l {};
+	l.reset();
+	const auto r = eng::graphics::plan_sprite_windows({w, 2u}, l);
+	CHECK(r.has_value());
+	CHECK(r.value() == 2u);
+	// En [90,100) los dos fondos juntos ocupan los 8 canales.
+	CHECK(l.free_mask(95u) == 0x00u);
+	// En [100,120) solo la segunda ventana (4..7): libres 0..3.
+	CHECK(l.free_mask(110u) == 0x0fu);
 }
 
 void test_hybrid_objects_around_backdrop() {
 	std::printf("Hibrido: fondo Risky Woods [60,100) deja 2 canales a los objetos\n");
 
-	SpriteBand band[1] { make_band(60u, 100u, 0u, 6u) };
+	SpriteChannelWindow window[1] { make_window(60u, 100u, 0u, 6u) };
 	SpriteChannelLedger l {};
 	l.reset();
-	CHECK(eng::graphics::plan_sprite_bands({band, 1u}, l).has_value());
+	CHECK(eng::graphics::plan_sprite_windows({window, 1u}, l).has_value());
 
 	// Intents ordenados por top: 2 arriba, 3 dentro del fondo, 2 abajo.
 	SpriteIntent intents[7] {
@@ -171,7 +195,7 @@ void test_hybrid_objects_around_backdrop() {
 		make_intent(20u, 40u),   // B -> canal 1
 		make_intent(70u, 90u),   // C -> canal 6 (0..5 son del fondo)
 		make_intent(70u, 90u),   // D -> canal 7
-		make_intent(70u, 90u),   // E -> BOB (no queda canal en la franja)
+		make_intent(70u, 90u),   // E -> BOB (no queda canal en el intervalo)
 		make_intent(120u, 140u), // F -> canal 0 (reutilizado)
 		make_intent(130u, 140u), // G -> canal 1
 	};
@@ -184,7 +208,7 @@ void test_hybrid_objects_around_backdrop() {
 	CHECK(!slots[1].as_bob && slots[1].channel == 1u);
 	CHECK(!slots[2].as_bob && slots[2].channel == 6u);
 	CHECK(!slots[3].as_bob && slots[3].channel == 7u);
-	CHECK(slots[4].as_bob);                    // el 3.º de la franja degrada a BOB
+	CHECK(slots[4].as_bob);                    // el 3.º del intervalo degrada a BOB
 	CHECK(!slots[5].as_bob && slots[5].channel == 0u); // recupera el 0 por debajo
 	CHECK(!slots[6].as_bob && slots[6].channel == 1u);
 }
@@ -193,19 +217,19 @@ void test_hybrid_attached_and_strip() {
 	std::printf("Hibrido: par attached y tira respetan el ledger\n");
 
 	// Fondo que ocupa 0..3 en [60,100): deja 4..7 para objetos.
-	SpriteBand band[1] { make_band(60u, 100u, 0u, 4u) };
+	SpriteChannelWindow window[1] { make_window(60u, 100u, 0u, 4u) };
 	SpriteChannelLedger l {};
 	l.reset();
-	CHECK(eng::graphics::plan_sprite_bands({band, 1u}, l).has_value());
+	CHECK(eng::graphics::plan_sprite_windows({window, 1u}, l).has_value());
 
 	// El asignador se llama UNA vez por frame con TODOS los objetos: la ocupación de
 	// objetos vive en la pasada (busy_until), no en el ledger (que es solo de fondos).
 	// Por eso par y tira van en la misma lista, ordenada por top.
 	SpriteIntent intents[5] {};
 	intents[0] = make_intent(70u, 90u);            // par attached, lider (par)
-	intents[1] = make_intent(70u, 90u);            // par attached, impa
+	intents[1] = make_intent(70u, 90u);            // par attached, impar
 	intents[1].attach = true;
-	for (int i = 2; i < 5; ++i) {                  // tira de 3 en la misma franja
+	for (int i = 2; i < 5; ++i) {                  // tira de 3 en el mismo intervalo
 		intents[i] = make_intent(70u, 90u);
 		intents[i].strip_id = 1u;
 		intents[i].strip_index = static_cast<eng::u8>(i - 2);
@@ -243,18 +267,19 @@ void test_empty_ledger_matches_classic() {
 } // namespace
 
 int main() {
-	std::printf("Test HOST-416 sprite_band (reparto hibrido por franjas)\n");
-	std::printf("=====================================================\n");
+	std::printf("Test HOST-416 sprite_channel_window (ventanas de reprogramacion)\n");
+	std::printf("================================================================\n");
 
 	test_ledger_basics();
-	test_plan_bands_ok();
-	test_plan_bands_errors();
+	test_plan_windows_ok();
+	test_plan_windows_errors();
+	test_overlapping_windows_disjoint_channels();
 	test_hybrid_objects_around_backdrop();
 	test_hybrid_attached_and_strip();
 	test_empty_ledger_matches_classic();
 
 	if (g_failures == 0) {
-		std::printf("OK: reparto hibrido de sprites por franjas validado.\n");
+		std::printf("OK: reparto de sprites por ventanas de reprogramacion validado.\n");
 		return 0;
 	}
 	std::printf("FAIL: %d comprobacion(es) fallaron\n", g_failures);

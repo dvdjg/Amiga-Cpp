@@ -373,9 +373,9 @@ private:
 /// `SPRxPOS`** para redibujar el patrón más a la derecha (1 MOVE por repetición, sin
 /// recargar la DATA). Es más barato que el rearmado completo de `effects::SpriteLayer`
 /// (técnica Free Form). Los canales del fondo se reservan en el `SpriteChannelLedger` (con
-/// `SpriteBand`) y los restantes quedan libres para objetos. Ver
+/// `SpriteChannelWindow`) y los restantes quedan libres para objetos. Ver
 /// `docs/reference/amiga/techniques/sprite-horizontal-multiplex.md` y
-/// `docs/engine/architecture/SPRITE_BANDS.md`.
+/// `docs/engine/architecture/SPRITE_CHANNEL_WINDOWS.md`.
 ///
 /// ```text
 ///   canal 2  ├─[16px]────────[16px]────────[16px]─┤   ← reposición de SPRxPOS (≥24 px)

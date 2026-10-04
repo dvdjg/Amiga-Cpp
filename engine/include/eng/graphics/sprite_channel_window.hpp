@@ -1,33 +1,36 @@
 #pragma once
 
-/// \file sprite_band.hpp
-/// **Reparto híbrido de los 8 canales de sprite por franjas de raster**.
+/// \file sprite_channel_window.hpp
+/// **Reparto de los 8 canales de sprite por ventanas de reprogramación**.
 ///
-/// El chipset OCS/ECS/AGA tiene 8 canales de sprite reutilizables **verticalmente**
-/// (un canal dibuja cosas distintas en franjas separadas) y **horizontalmente** (un
-/// canal se reposiciona varias veces dentro de la misma línea). Este header modela el
-/// **recurso compartido** que hace posible mezclar técnicas distintas por franja:
+/// En el chipset OCS/ECS/AGA **no hay "bandas" de hardware**: cada uno de los 8 canales es
+/// una secuencia DMA que el Copper puede **reprogramar en cualquier línea** (rearmar el
+/// puntero, cambiar `POS`/`CTL`/`DATA`). Lo que aquí se agrupa como **ventana**
+/// (`SpriteChannelWindow`) es solo la convención de un intervalo `[top,bottom)` durante el
+/// cual una **corrida de canales** se reprograma de forma semejante para un **fondo** por
+/// sprites (`Layer`, `RiskyWoods`, `FreeForm`). Varias ventanas pueden **solaparse en
+/// vertical** mientras usen **canales distintos**: el único límite real es *por canal* (dos
+/// fondos no pueden reusar el mismo canal en líneas solapadas).
 ///
-///   - `SpriteBand`: una banda de raster que reclama una corrida de canales para su
-///     **fondo** por sprites (`Layer`, `RiskyWoods`, `FreeForm`).
-///   - `SpriteChannelLedger`: ocupación **canal × intervalo de líneas**. Los fondos la
-///     llenan con `occupy_run`; el `SpriteAllocator` la consulta para repartir los
-///     **objetos** solo en los canales libres de su franja.
-///   - `plan_sprite_bands`: valida las bandas y las vuelca al ledger.
+///   - `SpriteChannelWindow`: ventana `[top,bottom)` + corrida de canales + técnica de fondo.
+///   - `SpriteChannelLedger`: ocupación **canal × intervalo de líneas**. Es el recurso real:
+///     los fondos la llenan con `occupy_run`; el `SpriteAllocator` la consulta para repartir
+///     los **objetos** solo en los canales libres de su intervalo.
+///   - `plan_sprite_windows`: valida las ventanas y las vuelca al ledger.
 ///
-/// Ejemplo de uso (el caso híbrido que motiva el diseño): un fondo *Risky Woods* usa 6
-/// canales en la franja `[60,100)` y deja los canales 6 y 7 libres para objetos; por
-/// encima y por debajo de la banda, los 8 canales vuelven a estar disponibles:
+/// Ejemplo (el caso híbrido que motiva el diseño): un fondo *Risky Woods* reprograma 6
+/// canales en `[60,100)` y deja los canales 6 y 7 libres para objetos en ese intervalo;
+/// fuera de él, los 8 canales vuelven a estar disponibles:
 ///
 /// ```text
 ///   canal 0..5  ├──── fondo Risky Woods [60,100) ────┤
-///   canal 6..7  (libres)  ← 2 canales para objetos en la franja
+///   canal 6..7  (libres)  ← 2 canales para objetos en el intervalo
 /// ```
 ///
-/// Es lógica **pura** (sin hardware, sin heap, sin STL): host-testable. El driver de
-/// cada técnica de fondo (`effects::SpriteLayer` y los futuros `RiskyWoods`/`FreeForm`)
-/// es quien emite los MOVEs de Copper; aquí solo se reserva y se consulta el recurso.
-/// Diseño completo: `docs/engine/architecture/SPRITE_BANDS.md`.
+/// Es lógica **pura** (sin hardware, sin heap, sin STL): host-testable. El driver de cada
+/// técnica de fondo (`effects::SpriteLayer`/`effects::RiskyWoodsLayer`, `SpriteLineLayer`) es
+/// quien emite los MOVEs de Copper; aquí solo se reserva y se consulta el recurso.
+/// Diseño completo: `docs/engine/architecture/SPRITE_CHANNEL_WINDOWS.md`.
 
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
@@ -36,26 +39,28 @@
 
 namespace eng::graphics {
 
-/// **Técnica de fondo por sprites** de una banda de raster.
+/// **Técnica de fondo por sprites** de una ventana.
 ///
 /// Es una etiqueta de intención para el planner y los drivers; el ledger solo usa la
 /// cuenta de canales y el rango de líneas. La técnica determina cómo el driver emite
-/// la copperlist de la franja (ver `docs/reference/amiga/techniques/sprite-horizontal-multiplex.md`).
+/// la copperlist del intervalo (ver `docs/reference/amiga/techniques/sprite-horizontal-multiplex.md`).
 enum class SpriteBackdropTechnique : u8 {
-	None = 0,    ///< la banda no usa sprites para el fondo (no reserva canales)
+	None = 0,    ///< la ventana no usa sprites para el fondo (no reserva canales)
 	Layer,       ///< N canales contiguos, un patrón de 16 px por canal (`effects::SpriteLayer`)
 	RiskyWoods,  ///< reposición horizontal repetida: patrón de 64 px (15 colores con attached)
 	FreeForm,    ///< reposición + DATA distinta por columna: fondo libre, sin patrón repetido
 };
 
-/// **Banda de raster que reclama canales de sprite para su fondo.**
+/// **Ventana de reprogramación: un intervalo `[top,bottom)` y una corrida de canales.**
 ///
-/// `[top, bottom)` en líneas raster (bottom exclusivo, como el resto del engine). Los
-/// canales `[channel_first, channel_first + channel_count)` quedan reservados para el
-/// fondo en esa franja y no los puede usar un objeto. `attach` exige que la corrida
-/// sean pares completos (canales 0+1, 2+3, 4+5, 6+7) para el fondo a 15 colores.
-struct SpriteBand {
-	u16 top = 0;                                             ///< primera línea de la banda (inclusive)
+/// `[top, bottom)` en líneas raster (bottom exclusivo). **No** implica ninguna partición de
+/// la pantalla: es la agrupación de los canales que se reprograman para un fondo durante ese
+/// intervalo. Los canales `[channel_first, channel_first + channel_count)` quedan reservados
+/// en el ledger para ese fondo y no los puede usar ni un objeto ni otro fondo en esas líneas
+/// (dos ventanas pueden solaparse en vertical si usan canales distintos). `attach` exige que
+/// la corrida sean pares completos (canales 0+1, 2+3, 4+5, 6+7) para el fondo a 15 colores.
+struct SpriteChannelWindow {
+	u16 top = 0;                                             ///< primera línea de la ventana (inclusive)
 	u16 bottom = 0;                                          ///< línea final (exclusiva)
 	SpriteBackdropTechnique technique = SpriteBackdropTechnique::None; ///< técnica de fondo
 	u8 channel_first = 0;                                    ///< primer canal de la corrida (0..7)
@@ -66,7 +71,7 @@ struct SpriteBand {
 /// **Ocupación canal × intervalo de líneas** (el recurso compartido por fondos y objetos).
 ///
 /// Por canal guarda una lista corta y ordenada de intervalos `[top,bottom)` ocupados. El
-/// número de intervalos por canal está acotado por el de bandas de la pantalla (pocas),
+/// número de intervalos por canal está acotado por el de ventanas de la pantalla (pocas),
 /// así que cabe en un array fijo sin heap. Los **objetos no se guardan aquí** (podrían
 /// ser decenas por canal); el `SpriteAllocator` los multiplexa con su propio escalar y
 /// usa el ledger solo como **pre-ocupación de los fondos**.
@@ -76,7 +81,7 @@ class SpriteChannelLedger {
 public:
 	/// Canales de sprite del chipset (OCS/ECS/AGA); fuente única: `sprite_limits.hpp`.
 	static constexpr u8 kChannels = kSpriteChannels;
-	/// Intervalos máximos por canal: acota las bandas de fondo de una pantalla.
+	/// Intervalos máximos por canal: acota las ventanas de fondo de una pantalla.
 	static constexpr u8 kMaxIntervals = 8;
 
 	/// Intervalo de líneas `[top,bottom)` ocupado en un canal.
@@ -183,7 +188,7 @@ public:
 	}
 
 	/// Máscara de canales libres en una **línea** (bit `c` = canal `c` libre). Para telemetría
-	/// y para que el juego/driver consulte cuántos canales quedan en una franja.
+	/// y para que el juego/driver consulte cuántos canales quedan en un intervalo.
 	[[nodiscard]] constexpr u8 free_mask(u16 line) const noexcept {
 		u8 mask = 0u;
 		for (u8 c = 0; c < kChannels; ++c) {
@@ -206,56 +211,51 @@ private:
 	u8 m_count[kChannels] {};
 };
 
-/// Causas de fallo de `plan_sprite_bands`.
-enum class SpriteBandError : u8 {
+/// Causas de fallo de `plan_sprite_windows`.
+enum class SpriteChannelWindowError : u8 {
 	BadRange,     ///< `top >= bottom` (rango vacío o invertido)
 	BadChannels,  ///< corrida fuera de 0..7, vacía, o attached con límites no pares
-	Overlap,      ///< la banda solapa verticalmente con la anterior (deben ir ordenadas)
-	ChannelBusy,  ///< el canal ya estaba ocupado en esa franja (o se agotaron los intervalos)
+	ChannelBusy,  ///< el canal ya estaba ocupado en ese intervalo (o se agotaron los intervalos)
 };
 
-/// **Valida las bandas de fondo y las vuelca al ledger** (reparto híbrido, fase 1).
+/// **Valida las ventanas de fondo y las vuelca al ledger** (reparto híbrido, fase 1).
 ///
-/// Recorre `bands` en orden (de arriba abajo) y reserva en `out` los canales de cada
-/// banda con técnica distinta de `None`. Las bandas con `technique == None` se ignoran y
-/// no consumen recurso. Requisitos: rangos válidos, corridas válidas, `attach` sobre
-/// pares completos, y **sin solape vertical** (el fondo de una franja no se solapa con el
-/// de otra; los objetos sí pueden solaparse entre franjas, eso lo resuelve el asignador).
+/// Recorre `windows` y reserva en `out` los canales de cada ventana con técnica distinta de
+/// `None`. Las ventanas con `technique == None` se ignoran y no consumen recurso. Requisitos:
+/// rangos válidos, corridas válidas y `attach` sobre pares completos. **No** se exige que las
+/// ventanas sean disjuntas en vertical: dos ventanas pueden solaparse en líneas si usan
+/// canales distintos; si comparten canal en líneas solapadas, la reserva falla con
+/// `ChannelBusy` (el único conflicto real, porque cada canal se reprograma de forma
+/// independiente en cualquier línea).
 ///
 /// `out` **no se resetea** aquí: el llamador decide si parte de cero (`out.reset()`) o si
-/// acumula bandas de varias fuentes. Devuelve el número de bandas reservadas.
+/// acumula ventanas de varias fuentes. Devuelve el número de ventanas reservadas.
 ///
-/// \param bands  bandas de fondo, ordenadas de arriba abajo.
-/// \param out    ledger a llenar (por referencia; ver nota de reset).
-/// \return nº de bandas reservadas, o el error concreto.
-[[nodiscard]] inline eng::util::Expected<u8, SpriteBandError>
-plan_sprite_bands(eng::Span<const SpriteBand> bands, SpriteChannelLedger& out) noexcept {
+/// \param windows  ventanas de fondo (el orden no importa; ver nota de solape).
+/// \param out      ledger a llenar (por referencia; ver nota de reset).
+/// \return nº de ventanas reservadas, o el error concreto.
+[[nodiscard]] inline eng::util::Expected<u8, SpriteChannelWindowError>
+plan_sprite_windows(eng::Span<const SpriteChannelWindow> windows, SpriteChannelLedger& out) noexcept {
 	u8 reserved = 0u;
-	u16 prev_bottom = 0u;
-	for (eng::usize i = 0; i < bands.size(); ++i) {
-		const SpriteBand& b = bands[i];
-		if (b.technique == SpriteBackdropTechnique::None) {
+	for (eng::usize i = 0; i < windows.size(); ++i) {
+		const SpriteChannelWindow& w = windows[i];
+		if (w.technique == SpriteBackdropTechnique::None) {
 			continue;
 		}
-		if (b.top >= b.bottom) {
-			return eng::util::unexpected(SpriteBandError::BadRange);
+		if (w.top >= w.bottom) {
+			return eng::util::unexpected(SpriteChannelWindowError::BadRange);
 		}
-		if (b.channel_count == 0u ||
-		    b.channel_first + b.channel_count > SpriteChannelLedger::kChannels) {
-			return eng::util::unexpected(SpriteBandError::BadChannels);
+		if (w.channel_count == 0u ||
+		    w.channel_first + w.channel_count > SpriteChannelLedger::kChannels) {
+			return eng::util::unexpected(SpriteChannelWindowError::BadChannels);
 		}
 		// Attached (15 colores): el fondo consume pares completos (0+1, 2+3, ...).
-		if (b.attach && (((b.channel_first & 1u) != 0u) || ((b.channel_count & 1u) != 0u))) {
-			return eng::util::unexpected(SpriteBandError::BadChannels);
+		if (w.attach && (((w.channel_first & 1u) != 0u) || ((w.channel_count & 1u) != 0u))) {
+			return eng::util::unexpected(SpriteChannelWindowError::BadChannels);
 		}
-		// Bandas ordenadas de arriba abajo y sin solape vertical.
-		if (reserved > 0u && b.top < prev_bottom) {
-			return eng::util::unexpected(SpriteBandError::Overlap);
+		if (!out.occupy_run(w.channel_first, w.channel_count, w.top, w.bottom)) {
+			return eng::util::unexpected(SpriteChannelWindowError::ChannelBusy);
 		}
-		if (!out.occupy_run(b.channel_first, b.channel_count, b.top, b.bottom)) {
-			return eng::util::unexpected(SpriteBandError::ChannelBusy);
-		}
-		prev_bottom = b.bottom;
 		++reserved;
 	}
 	return reserved;
