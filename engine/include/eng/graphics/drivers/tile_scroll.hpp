@@ -155,6 +155,7 @@ public:
 	static constexpr u16 prefetch_column_count = surface_columns - visible_columns;
 	static constexpr u16 unknown_column = 0xffffu;
 
+	/// \param first_world_column  columna de mundo que ocupa el primer slot de la superficie.
 	constexpr void reset(u16 first_world_column) {
 		m_first_world_column = first_world_column;
 		for (u16 i = 0; i < surface_columns; ++i) {
@@ -162,18 +163,28 @@ public:
 		}
 	}
 
+	/// \param world_column  columna de mundo.
+	/// \return el slot (módulo `surface_columns`) que le corresponde.
 	constexpr u16 slot_for_world_column(u16 world_column) const {
 		return static_cast<u16>(world_column % surface_columns);
 	}
 
+	/// \param slot  índice de slot.
+	/// \return la columna de mundo que el slot tiene preparada (`unknown_column` si fuera).
 	constexpr u16 world_column_in_slot(u16 slot) const {
 		return slot < surface_columns ? m_world_column_by_slot[slot] : unknown_column;
 	}
 
+	/// \param slot          índice de slot.
+	/// \param world_column  columna de mundo a comprobar.
+	/// \return `true` si el slot ya contiene esa columna.
 	constexpr bool slot_contains(u16 slot, u16 world_column) const {
 		return slot < surface_columns && m_world_column_by_slot[slot] == world_column;
 	}
 
+	/// Marca que `slot` ya contiene `world_column` (tras prepararlo).
+	/// \param slot          índice de slot.
+	/// \param world_column  columna de mundo preparada.
 	constexpr void mark_slot_ready(u16 slot, u16 world_column) {
 		if (slot < surface_columns) {
 			m_world_column_by_slot[slot] = world_column;
@@ -181,6 +192,11 @@ public:
 	}
 
 	/// Devuelve la siguiente columna derecha que conviene preparar.
+	/// \param camera_world_column  columna de mundo de la cámara.
+	/// \param map_height           alto del mapa en tiles (para el rect).
+	/// \param out_rect             [out] rect de la columna a preparar.
+	/// \param out_surface_slot     [out] slot de superficie destino.
+	/// \return `false` si la columna entrante ya está preparada.
 	constexpr bool next_right_prefetch(
 		u16 camera_world_column,
 		u16 map_height,

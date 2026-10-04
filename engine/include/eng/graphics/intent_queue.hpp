@@ -66,6 +66,8 @@ public:
 	}
 
 	/// Añade una intención fija (setup). `false` si la receta está llena.
+	/// \param item  intención de dibujo.
+	/// \return `false` si la receta está llena.
 	constexpr bool add(const DrawIntent& item) noexcept {
 		if (m_count >= N) {
 			return false;
@@ -75,6 +77,7 @@ public:
 	}
 
 	/// **Reproduce** la receta en la cola (una vez por frame): recorrido mínimo, sin bloquear.
+	/// \param queue  cola destino (recibe cada intención por `enqueue`).
 	template <class Queue>
 	void emit(Queue& queue) const noexcept {
 		for (eng::u16 i = 0u; i < m_count; ++i) {

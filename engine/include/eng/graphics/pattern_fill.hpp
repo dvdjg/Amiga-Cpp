@@ -31,6 +31,18 @@ namespace eng::graphics {
 /// - `pattern_plane_stride` = bytes de un plano del patrón; `planes` = planos.
 ///
 /// Devuelve `false` si el plan se llena o los argumentos no valen.
+/// \param plan        plan del frame (recibe los blits de relleno).
+/// \param dst         puntero al destino (planos Chip).
+/// \param dst_row_bytes  bytes por fila del destino.
+/// \param x_word,y    esquina superior izquierda (en words de 16 px / filas).
+/// \param words,rows  tamaño del rect (en words / filas).
+/// \param pattern     filas contiguas del patrón (`pattern_words` por fila).
+/// \param pattern_words  words por fila del patrón.
+/// \param pattern_plane_stride  bytes de un plano del patrón.
+/// \param pattern_rows  filas del patrón.
+/// \param dst_plane_stride_bytes  bytes de un plano del destino.
+/// \param planes      nº de planos.
+/// \return `false` si el plan se llena o los argumentos no valen.
 [[nodiscard]] inline bool add_rect_pattern(FramePlan& plan, BlitPtr dst, u16 dst_row_bytes,
 					   u16 x_word, u16 y, u16 words, u16 rows,
 					   const u16* pattern, u16 pattern_words,

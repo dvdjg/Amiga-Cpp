@@ -44,14 +44,19 @@ struct PackedTileCell {
 		return (value & flag) != 0;
 	}
 
+	/// Fija el índice de tile y lo marca sucio en ambos buffers.
+	/// \param index  índice de tile del banco.
 	constexpr void set_tile(u16 index) {
 		value = static_cast<u16>((index << tile_shift) | dirty_all);
 	}
 
+	/// Marca la celda sucia en ambos buffers (sin cambiar el tile).
 	constexpr void mark_dirty() {
 		value = static_cast<u16>(value | dirty_all);
 	}
 
+	/// Limpia el dirty de un buffer tras redibujarlo.
+	/// \param buffer_index  buffer de display (0/1).
 	constexpr void clear_dirty_for(u8 buffer_index) {
 		const u16 flag = static_cast<u16>(1u << (buffer_index & 1u));
 		value = static_cast<u16>(value & ~flag);
