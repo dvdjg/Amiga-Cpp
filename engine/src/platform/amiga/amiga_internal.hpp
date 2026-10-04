@@ -194,13 +194,18 @@ inline void blit_fill_region(eng::u8* plane, eng::u16 row_stride, eng::u16 wx0, 
 	eng::u8* d = plane + row_offset(y, row_stride) + (wx0 >> 3);
 	const eng::u16 mod = static_cast<eng::u16>(row_stride - words * 2u);
 	wait_blitter();
+	// `D = A` con el canal A **deshabilitado** (sin fetch): AHRM cap. 6, «when disabled ... for
+	// a source channel, the constant value stored in the data register of that channel will be
+	// used for each blitter cycle». Con USEA activo, A se leeria de `BLTAPTR` (sin inicializar)
+	// y el relleno saldria con basura. Con USEA=0, `BLTADAT` es la constante y `AFWM`/`ALWM`
+	// recortan la primera/ultima palabra (aplican a la constante A). Ver `amiga_blitter.cpp`
+	// (mismo patron en la ruta `fill` de `BlitterRaster`).
 	custom_base[custom_bltcon0_offset] =
-		static_cast<eng::u16>(blt_use_a | blt_use_d | eng::graphics::kBlitterMintermCopyA);
+		static_cast<eng::u16>(blt_use_d | eng::graphics::kBlitterMintermCopyA);
 	custom_base[custom_bltcon1_offset] = 0;
-	custom_base[custom_bltadat_offset] = fill; // A constante (canal A sin puntero)
-	custom_base[custom_bltamod_offset] = 0;
 	custom_base[custom_bltafwm_offset] = afwm;
 	custom_base[custom_bltalwm_offset] = alwm;
+	custom_base[custom_bltadat_offset] = fill;
 	custom_base[custom_bltdmod_offset] = mod;
 	write_custom_pointer(custom_bltdpt_offset, d);
 	custom_base[custom_bltsize_offset] = static_cast<eng::u16>((h << 6) | words);
