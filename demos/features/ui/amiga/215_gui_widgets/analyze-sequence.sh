@@ -6,6 +6,18 @@
 # reenvia --warp al runner).
 #
 # Uso: demos/features/ui/amiga/215_gui_widgets/analyze-sequence.sh [--warp] [...]
+#
+# Interaccion (click real): la demo lee el raton por **deltas** (JOYxDAT) y arranca el
+# cursor en (0,0); el boton "Aceptar" esta en (66,49). Para disparar su `on_click` de
+# forma determinista (movimiento relativo, no depende de la posicion absoluta del
+# emulador):
+#
+#   bash tools/run/run-demo.sh demos/features/ui/amiga/215_gui_widgets \
+#       --sequence-frames 6 --mouse-click-at 66,49
+#
+# La etiqueta de estado pasa de "Listo. Sin pulsar." a "Pulsado: on_click." (leelo con el
+# modelo de vision local). Alternativa equivalente en mitad de la captura:
+# `--inject-commands 'input mouse move 66 49|sleep:250|input mouse button 0 1|sleep:160|input mouse button 0 0' --inject-sample 3`.
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
