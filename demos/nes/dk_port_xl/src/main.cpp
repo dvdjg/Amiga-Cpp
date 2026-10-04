@@ -42,10 +42,10 @@ namespace playfield = eng::playfield;
 // Metatile 16x16 -> 16x16 px de pantalla. NES: 32x30 celdas 8x8 = 16x15 metatiles.
 constexpr eng::u16 kTileW = 16u;
 constexpr eng::u16 kTileH = 16u;
-constexpr eng::u16 kViewportW = 256u;
-constexpr eng::u16 kViewportH = 256u;
+constexpr eng::u16 kViewportW = 256u;                // ancho util NES (256 px)
+constexpr eng::u16 kViewportH = 240u;                // alto util NES (240 px)
 constexpr eng::u8  kPlanes = 4u;
-constexpr eng::u16 kDisplayH = 256u;                 // y_mode=Off -> sin split
+constexpr eng::u16 kDisplayH = 240u;                 // y_mode=Off -> sin split
 constexpr eng::u16 kMtCols = 20u;                    // >= viewport/tile (16) + margen del anillo
 constexpr eng::u16 kMtRows = 15u;                    // 15 metatiles de alto (240 px)
 constexpr eng::u16 kScreenCols = 16u;                // la pantalla NES real: 16 metatiles (256 px)
