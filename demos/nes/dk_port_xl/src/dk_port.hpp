@@ -1905,6 +1905,7 @@ L_C7E1: if (g_yield_req) { g_resume = 0xC7E1u; g_yield_req = 0u; return; }
     goto L_C7E4;
 L_C7E4: if (g_yield_req) { g_resume = 0xC7E4u; g_yield_req = 0u; return; } 
     tick(3u);
+    if (g_cyc + 2000u < g_frame_deadline) { g_cyc = g_frame_deadline; frame_event(); }
     goto L_C7E1;
 }
 
