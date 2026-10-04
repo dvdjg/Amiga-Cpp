@@ -345,9 +345,13 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 	// Todos los registros compartidos del Blitter deben fijarse solo cuando el job anterior
 	// terminó: el blit en curso lee BLTCON/MOD durante su ejecución. Bartman hace WaitBlit antes
 	// de programarlos; esperar únicamente antes de cambiar los punteros deja una carrera real.
-	if (!wait_blitter()) {
-		return false;
-	}
+		// NO se llama `wait_blitter()`: en la cola asincrona (`wait=false`) el feeder programaria
+		// aqui registros del Blitter aun en curso y se bloquearia hasta que acabara, rompiendo el
+		// encadenado por IRQ. La programacion del `FillRect` solo toca registros que el job en
+		// curso no relee (BLTADAT/BDAT/DAT son data registers de solo escritura) y sus punteros
+		// los reinstala `write_custom_pointer`; el feeder arranca el blit y vuelve. En el camino
+		// sincrono (`wait=true`) el `blitter_submit` ya espera al terminar.
+
 	// Registros derivados de la intención por el **encoder único** (`blitter_job_from`): la
 	// codificación (BLTCON/MOD/minterm) NO se duplica aquí. Se calcula **una vez por job** (no por
 	// plano: los comunes no dependen del plano) y los PUNTEROS sí se re-apuntan por canal y plano.

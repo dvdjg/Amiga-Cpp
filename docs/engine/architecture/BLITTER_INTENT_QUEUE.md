@@ -243,8 +243,8 @@ detrás.
 ## 10. La GUI en el modelo asíncrono (no adoptado)
 
 La UI (`eng::ui`: `UiPainter`/`draw_tree`) dibuja hoy **síncrona** por el `RectFillSink`/`Surface`:
-cada `fill_rect` se ejecuta ya (Blitter + `wait_blitter`, o CPU para el borde parcial). Es simple y
-correcto, pero **no solapa CPU y Blitter**.
+cada `fill_rect` se ejecuta ya (Blitter + `wait_blitter`, con cookie-cut `$CA` también para el borde
+parcial). Es simple y correcto, pero **no solapa CPU y Blitter**.
 
 **Cómo sería** adoptar el modelo asíncrono en la UI sin cambiar la API de dibujo:
 

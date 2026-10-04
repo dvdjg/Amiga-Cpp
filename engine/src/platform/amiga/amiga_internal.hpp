@@ -182,57 +182,34 @@ inline eng::u32 row_offset(eng::s16 y, eng::u16 row_bytes) {
 	return static_cast<eng::u32>(r);
 }
 
-/// Rellena un rectangulo de palabras de UN plano con un valor constante por hardware:
-/// canal A **deshabilitado como puntero** (usa `BLTADAT`, AHRM 3rd: «for a source channel,
-/// the constant value stored in the data register ... will be used for each blitter cycle»)
-/// y minterm `D = A` (`$F0`); `BLTAFWM`/`BLTALWM` recortan los bits fuera del rect en la
-/// primera y ultima palabra, de modo que **no hace falta guardar/restaurar los bordes por
-/// CPU**. `wx0` = x (pixel) de la primera palabra; `afwm`/`alwm` = mascaras de borde.
+/// Rellena un rectangulo de palabras de UN plano con un valor constante, **preservando el
+/// borde parcial** por hardware (cookie-cut). `wx0` = x (pixel) de la primera palabra;
+/// `afwm`/`alwm` = mascaras de borde; `fill` = `$FFFF` (poner el plano a 1) o `$0000` (a 0).
 inline void blit_fill_region(eng::u8* plane, eng::u16 row_stride, eng::u16 wx0, eng::s16 y,
 			     eng::u16 words, eng::u16 h, eng::u16 fill, eng::u16 afwm,
 			     eng::u16 alwm) {
-	// Rect **alineado a palabra** (`AFWM`/`ALWM` completos): Blitter `D = A` con el canal A
-	// **deshabilitado** (sin fetch). AHRM cap. 6: «when disabled ... for a source channel, the
-	// constant value stored in the data register of that channel will be used for each blitter
-	// cycle»; con USEA activo, A se leeria de `BLTAPTR` (sin inicializar) -> basura. Ver la
-	// ruta `fill` de `BlitterRaster` (`amiga_blitter.cpp`).
-	if (afwm == 0xffffu && alwm == 0xffffu) {
-		eng::u8* d = plane + row_offset(y, row_stride) + (wx0 >> 3);
-		const eng::u16 mod = static_cast<eng::u16>(row_stride - words * 2u);
-		wait_blitter();
-		custom_base[custom_bltcon0_offset] =
-			static_cast<eng::u16>(blt_use_d | eng::graphics::kBlitterMintermCopyA);
-		custom_base[custom_bltcon1_offset] = 0;
-		custom_base[custom_bltafwm_offset] = 0xffff;
-		custom_base[custom_bltalwm_offset] = 0xffff;
-		custom_base[custom_bltadat_offset] = fill;
-		custom_base[custom_bltdmod_offset] = mod;
-		write_custom_pointer(custom_bltdpt_offset, d);
-		custom_base[custom_bltsize_offset] = static_cast<eng::u16>((h << 6) | words);
-		return;
-	}
-	// Rect con borde **parcial** (x o ancho no multiplos de 16): se rellena por CPU con
-	// read-modify-write para **preservar** los pixeles fuera del rect. El Blitter con
-	// `D = A`/`AFWM`/`ALWM` deja a 0 los bits enmascarados de la primera/ultima palabra
-	// (D = A & mask), NO conserva la D; usarlo aqui borraria el fondo a los lados del widget
-	// (los rects de UI con borde parcial son pequeños, el coste es despreciable).
+	eng::u8* d = plane + row_offset(y, row_stride) + (wx0 >> 3);
+	const eng::u16 mod = static_cast<eng::u16>(row_stride - words * 2u);
 	wait_blitter();
-	for (eng::u16 r = 0u; r < h; ++r) {
-		eng::u16* row = reinterpret_cast<eng::u16*>(
-			plane + row_offset(y, row_stride) + (wx0 >> 3) +
-			static_cast<eng::u32>(r) * row_stride);
-		const eng::u16 inv = 0xffffu;
-		if (words == 1u) {
-			const eng::u16 mask = afwm & alwm;
-			row[0] = (row[0] & (mask ^ inv)) | (fill & mask);
-		} else {
-			row[0] = (row[0] & (afwm ^ inv)) | (fill & afwm);
-			for (eng::u16 w = 1u; w + 1u < words; ++w) {
-				row[w] = fill;
-			}
-			row[words - 1u] = (row[words - 1u] & (alwm ^ inv)) | (fill & alwm);
-		}
-	}
+	// Cookie-cut `D = (A & B) | (~A & C)` (minterm `$CA`): A = mascara de borde (canal A
+	// **deshabilitado** -> constante `BLTADAT = $FFFF`, recortada por `AFWM`/`ALWM`; AHRM cap. 6:
+	// la mascara se aplica al data register de un canal deshabilitado), B = relleno (`BLTBDAT`),
+	// C = **destino** (`BLTCPT`=`BLTDPT`, realimentado). Los bits fuera del rect se **preservan**
+	// via C; con `D = A` + `AFWM` se pondrian a 0. Sirve para cualquier rect (alineado:
+	// `AFWM = ALWM = $FFFF` -> A = $FFFF -> `D = B`, como antes). Ver la ficha
+	// `docs/reference/amiga/techniques/blitter-fill-constant.md`.
+	custom_base[custom_bltcon0_offset] =
+		static_cast<eng::u16>(0x00cau | blt_use_c | blt_use_d);
+	custom_base[custom_bltcon1_offset] = 0;
+	custom_base[custom_bltafwm_offset] = afwm;
+	custom_base[custom_bltalwm_offset] = alwm;
+	custom_base[custom_bltadat_offset] = 0xffffu; // A = mascara (recortada por AFWM/ALWM)
+	custom_base[custom_bltbdat_offset] = fill;    // B = relleno
+	custom_base[custom_bltcmod_offset] = mod;
+	custom_base[custom_bltdmod_offset] = mod;
+	write_custom_pointer(custom_bltcpt_offset, d);
+	write_custom_pointer(custom_bltdpt_offset, d);
+	custom_base[custom_bltsize_offset] = static_cast<eng::u16>((h << 6) | words);
 }
 
 /// Borra una region de palabras (D=0) en un plano planar.

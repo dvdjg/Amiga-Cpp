@@ -148,6 +148,13 @@ struct DemoGame {
 			return;
 		}
 
+		// Self-test del `FillRect` **asincrono** (camino `FramePlan`/cola de intencion): el
+		// cookie-cut `$CA` del backend asincrono debe preservar el borde parcial como el sincrono.
+		if (!verify_async_fill(backend)) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00021504u);
+			return;
+		}
+
 		// Raster Blitter (los fills de caja van por el Blitter D-only, sincrono) + sink de rect.
 		// Las lineas y el texto siguen por CPU (sin FramePlan): el rect D-only no es asincrono.
 		m_scene.set_rect_fill_sink(eng::playfield::RectFillSink {&backend, &rect_fill_cb});
@@ -405,6 +412,48 @@ private:
 			}
 		}
 		return true;
+	}
+
+	/// Self-test EN HARDWARE del `FillRect` **asincrono** (`BlitJobKind::FillRect` via
+	/// `blitter_submit`, el camino del `FramePlan`/cola de intencion). Comprueba que el
+	/// cookie-cut `$CA` del backend asincrono **preserva el borde parcial** igual que el
+	/// sincrono: el bug de `D=A`+`AFWM`/`ALWM` ponia a 0 los bits fuera del rect.
+	bool verify_async_fill(eng::amiga::AmigaBackend& backend) {
+		constexpr eng::u16 fw = 64;
+		constexpr eng::u16 fh = 16;
+		constexpr eng::u16 fw_words = fw / 16u; // 4 palabras por fila
+		constexpr eng::u32 fplane = static_cast<eng::u32>(fw / 8u) * fh;
+		const auto bit_at = [](const eng::u8* base, eng::u16 x, eng::u16 y) {
+			return (base[static_cast<eng::u32>(y) * (fw / 8u) + (x >> 3)] &
+				(0x80u >> (x & 7u))) != 0u;
+		};
+		auto blk = backend.memory_manager().chip().reserve<eng::PlaneTag>(fplane + 16u, 16);
+		if (!blk.valid()) {
+			return false;
+		}
+		// Fondo a 1; se limpia (color 0) un rect x=10..29 (no alineado a 16). Espeja el caso (b)
+		// del self-test sincrono: `afwm = $FFFF >> 10 = $003F` (bits set = x10..15, que son los
+		// pixeles **afectados** del primer word) y `alwm = $FFFF << 2 = $FFFC` (x16..29 afectados
+		// del ultimo word). El borde (x<10 y x>=30) debe seguir a 1 si el cookie-cut preserva la D.
+		for (eng::u32 i = 0; i < fplane; ++i) blk.view.data()[i] = 0xffu;
+		eng::graphics::BlitJob job {};
+		job.kind = eng::graphics::BlitJobKind::FillRect;
+		job.destination = eng::graphics::BlitPtr::from_storage(
+			reinterpret_cast<const eng::u16*>(blk.view.data()));
+		job.words_per_row = 2u;           // x10..29 ocupa las palabras 0..1 (x0..31)
+		job.height = fh;
+		job.bitplane_count = 1u;
+		job.destination_plane_stride_bytes = static_cast<eng::u32>(fw / 8u) * fh;
+		job.destination_modulo_bytes = 0u; // contiguo: fila tras fila
+		job.minterm = 0x00u;               // plano a 0 (limpiar)
+		job.fill.afwm = static_cast<eng::u16>(0xffffu >> (10u & 15u)); // $003F
+		job.fill.alwm = static_cast<eng::u16>(0xffffu << (15u - (29u & 15u))); // $FFFC
+		if (!backend.blitter_submit(job, true)) {
+			return false;
+		}
+		const eng::u8* b = blk.view.data();
+		return !bit_at(b, 10, 2) && !bit_at(b, 29, 2) && bit_at(b, 9, 2) && bit_at(b, 0, 2) &&
+		       bit_at(b, 30, 2) && bit_at(b, 31, 2) && bit_at(b, 63, 2);
 	}
 
 	/// encuentra el boton en su centro y un click sobre la casilla alterna su valor. Si la
