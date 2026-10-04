@@ -1722,6 +1722,11 @@ if (index !== injectSample - 1) return;
     }
   }
 
+  // Deja que el demo procese las inyecciones de entrada (raton/teclado/joystick) antes de la
+  // captura principal: si no, `screenshot.png` puede salir un frame antes del efecto del click
+  // (el frame de secuencia si lo reflejaba). Ajustable con `--screenshot-settle-ms`.
+  await sleep(Math.max(0, parseInt(argValue('--screenshot-settle-ms', '300'), 10)));
+
   const screenshot = await captureScreenshot(protocol, screenshotPath);
   report.screenshotReply = screenshot.reply;
   report.screenshotReplyText = screenshot.replyText;
