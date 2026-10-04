@@ -1851,8 +1851,9 @@ L_C7A8: if (g_yield_req) { g_resume = 0xC7A8u; g_yield_req = 0u; g_sA = A; g_sX 
     A = (u8)(A & 0x80u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
     if ((ppu_status & 0x80u) == 0u) { hal_wait_vblank(); }
     if (g_nmi_pending) { g_nmi_pending = 0u; g_yield_req = 0u; ret_lbl[ret_sp++] = &&L_nmiret_0; ++g_nmi_fires; goto L_C85F; } else { goto L_nmiskip_0; }
-L_nmiret_0: if (g_engine_mode) { g_yield_req = 1u; }
+L_nmiret_0: ;
 L_nmiskip_0: ;
+    if ((ppu_ctrl & 0x80u) != 0u) { g_resume = 0xC7AFu; g_sA = A; g_sX = X; g_sY = Y; g_sSP = SP; g_sCf = (u8)Cf; g_sZf = (u8)Zf; g_sNf = (u8)Nf; g_sVf = (u8)Vf; g_sDf = (u8)Df; g_sIf = (u8)If; return; }
     goto L_C7AF;
 L_C7AF: if (g_yield_req) { g_resume = 0xC7AFu; g_yield_req = 0u; g_sA = A; g_sX = X; g_sY = Y; g_sSP = SP; g_sCf = (u8)Cf; g_sZf = (u8)Zf; g_sNf = (u8)Nf; g_sVf = (u8)Vf; g_sDf = (u8)Df; g_sIf = (u8)If; return; }
     g_cyc += 12u;
@@ -1929,8 +1930,10 @@ L_C7E4: if (g_yield_req) { g_resume = 0xC7E4u; g_yield_req = 0u; g_sA = A; g_sX 
     tick(3u);
     if (g_cyc >= g_frame_deadline) { frame_event();
     if (g_nmi_pending) { g_nmi_pending = 0u; g_yield_req = 0u; ret_lbl[ret_sp++] = &&L_nmiret_1; ++g_nmi_fires; goto L_C85F; } else { goto L_nmiskip_1; }
-L_nmiret_1: if (g_engine_mode) { g_yield_req = 1u; }
-L_nmiskip_1: ; }
+L_nmiret_1: ;
+L_nmiskip_1: ;
+    if (g_engine_mode) { g_resume = 0xC7E1u; g_sA = A; g_sX = X; g_sY = Y; g_sSP = SP; g_sCf = (u8)Cf; g_sZf = (u8)Zf; g_sNf = (u8)Nf; g_sVf = (u8)Vf; g_sDf = (u8)Df; g_sIf = (u8)If; return; }
+    }
     goto L_C7E1;
 L_C85F: if (g_yield_req) { g_resume = 0xC85Fu; g_yield_req = 0u; g_sA = A; g_sX = X; g_sY = Y; g_sSP = SP; g_sCf = (u8)Cf; g_sZf = (u8)Zf; g_sNf = (u8)Nf; g_sVf = (u8)Vf; g_sDf = (u8)Df; g_sIf = (u8)If; return; }
     g_cyc += 43u;
