@@ -167,6 +167,27 @@ void test_stop_and_capacity() {
 	check(!t2.start(0u, 0u, TimerUnit::Frames, true, 0u, 0u).valid(), "periodico delay 0 rechazado");
 }
 
+// TIME-004: `next_micro_deadline`/`has_micro_timers` permiten al backend armar un pump sub-frame
+// para los timers de µs.
+void test_micro_deadline_helper() {
+	TimerService t;
+	check(!t.has_micro_timers(), "sin timers us al inicio");
+	check(t.next_micro_deadline() == 0u, "sin deadline us -> 0");
+	// Un timer de frames no cuenta para el pump de us.
+	(void)t.start(1u, 100u, TimerUnit::Frames, true, 0u, 0u);
+	check(!t.has_micro_timers(), "un timer de frames no es de us");
+	// Dos timers us: el deadline menor manda.
+	const u32 ticks0 = 1000u;
+	(void)t.start(2u, 5000u, TimerUnit::Microseconds, false, 0u, ticks0); // +7090
+	(void)t.start(3u, 1000u, TimerUnit::Microseconds, false, 0u, ticks0); // +709
+	check(t.has_micro_timers(), "hay timers us");
+	check(t.next_micro_deadline() == ticks0 + us_to_ticks(1000u), "gana el deadline menor");
+	// Consumido el vencimiento, el siguiente deadline es el del otro timer.
+	MsgPort<8> port;
+	(void)t.poll_and_post(port, 0u, ticks0 + us_to_ticks(1000u));
+	check(t.next_micro_deadline() == ticks0 + us_to_ticks(5000u), "tras vencer, el siguiente");
+}
+
 } // namespace
 
 int main() {
@@ -180,9 +201,10 @@ int main() {
 	test_catchup_all();
 	test_wrap_safe();
 	test_stop_and_capacity();
+	test_micro_deadline_helper();
 
 	if (failures == 0) {
-		std::printf("OK: timers (frames/us, fase, wrap, catch-up, handles) validados.\n");
+		std::printf("OK: timers (frames/us, fase, wrap, catch-up, handles, deadline us) validados.\n");
 		return 0;
 	}
 	std::printf("FAIL: %d comprobaciones\n", failures);

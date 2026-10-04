@@ -237,6 +237,15 @@ void tick_body() {
 
 void tick() { tick_body(); }
 
+/// **Servicio de timers de alta frecuencia** (TIME-004): postea los timers vencidos usando el
+/// reloj de µs (CIA-B) sin esperar al VBlank. Pensado para llamarse desde un bucle de espera
+/// activa (p. ej. la E/S o un plazo corto) o, en el futuro, desde un **one-shot de CIA-B** armado
+/// con `g_timers.next_micro_deadline()`. En el tick normal ya se llama una vez por VBlank; esta
+/// entrada permite una segunda llamada sub-frame para los timers µs. Devuelve cuántos posteó.
+eng::u16 service_timers() {
+	return g_timers.poll_and_post(g_port, g_frame, ciab_ticks_now());
+}
+
 /// Tarea de frame opcional (ver `os.hpp`): se ejecuta en cada tick, tras entrada/timers.
 void set_frame_task(void (*cb)(void*, eng::u16), void* user) {
 	g_frame_task = cb;

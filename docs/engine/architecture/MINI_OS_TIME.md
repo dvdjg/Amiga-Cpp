@@ -174,7 +174,11 @@ contador de reboses o se usa un timer de frames.
 - **Frames**: el `VBlank` latched (§10 del núcleo) ya da el ritmo; `TimerService` (unidad frames)
   es una capa fina encima y no añade productores.
 - **µs**: el backend lee `ciab_ticks_now()` (CIA-B Timer B continuo) en cada `tick` y lo pasa a
-  `TimerService`; la resolución efectiva sigue siendo de frame (TIME-004) hasta un pump más fino.
+  `TimerService`; para la resolución **sub-frame** el backend expone `os::service_timers()`, que
+  postea los timers vencidos contra el reloj de µs sin esperar al VBlank (llamable desde un bucle
+  de espera activa, p. ej. un plazo corto de E/S). `TimerService::next_micro_deadline()`/
+  `has_micro_timers()` permiten armar un **one-shot de CIA-B** que venza justo en el próximo
+  deadline (el arranque de esa IRQ de nivel 6 es el paso pendiente de TIME-004).
 - **Profiling**: `ScopedTimer` y `beam_now()` no postean nada; son lectura directa para el HUD y la
   telemetría (no pasan por la cola, para no ensuciarla en el camino caliente).
 

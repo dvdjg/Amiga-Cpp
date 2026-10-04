@@ -2,10 +2,11 @@
 
 ## Estado
 
-**Resuelto el núcleo (TIME-001..003, TIME-005..010)**; queda **TIME-004** abierto. `App::set_frame_sync`
+**Resuelto el núcleo (TIME-001..003, TIME-005..010)**; **TIME-004 parcial** (pump sub-frame y
+`next_micro_deadline` disponibles; falta la IRQ de nivel 6 del one-shot de CIA-B). `App::set_frame_sync`
 elige la política de notificación con **una sola** secuencia de frame; `TimerService` es robusto ante
 wrap, fase y catch-up, con handles generacionales; el backend entrega un reloj de µs real (CIA-B Timer
-B). La resolución **sub-frame** de los timers µs sigue limitada por el sondeo por VBlank.
+B) y expone `os::service_timers()`.
 
 ## Hallazgos
 
@@ -14,7 +15,7 @@ B). La resolución **sub-frame** de los timers µs sigue limitada por el sondeo 
 | TIME-001 | Alta | `App::on_vblank` publica un mensaje `VBlank` en `App::m_port`, cuya `PrioMsgQueue` conserva los VBlank en FIFO; `MsgPort` solo coalesce `MouseMove`. | `engine/include/eng/api/game.hpp` | **Resuelto**: `FrameSyncMode::Latch` (recomendado) no encola; `take_frame_tick` da la instantánea. `Event` conserva el FIFO histórico. |
 | TIME-002 | Media | `App` mantiene un contador y un mensaje VBlank propios además del `VBlankLatch` global de `eng::os`. | `game.hpp`; `amiga_os.cpp` | **Resuelto**: `App::m_vblank_count` es la única secuencia; el modo decide la entrega. |
 | TIME-003 | Alta | El backend Amiga llama `TimerService::poll_and_post(g_port, g_frame, 0u)`, así que no entrega ticks CIA. | `engine/src/platform/amiga/amiga_os.cpp` | **Resuelto**: se pasa `ciab_ticks_now()` (CIA-B Timer B continuo). |
-| TIME-004 | Alta | Incluso con `ticks_now` correcto, los timers µs solo se comprueban desde `tick_body`, ligado al VBlank. | `amiga_os.cpp`; `timer.hpp` | **Abierto**: resolución efectiva de hasta un frame. Pendiente un pump sub-frame o one-shot de CIA. |
+| TIME-004 | Alta | Incluso con `ticks_now` correcto, los timers µs solo se comprueban desde `tick_body`, ligado al VBlank. | `amiga_os.cpp`; `timer.hpp` | **Parcial**: `os::service_timers()` (pump de alta frecuencia) y `TimerService::next_micro_deadline()`/`has_micro_timers()` ya existen para armar un one-shot de CIA-B; falta arrancar la IRQ de nivel 6. La resolución efectiva sigue siendo de frame sin un llamador sub-frame. |
 | TIME-005 | Media | Un timer periódico vencido se reprograma como `now + period`, no desde el deadline anterior. | `timer.hpp` | **Resuelto**: `deadline += period` (fase preservada) + política `Coalesce`/`SkipToNext`/`CatchUpAll`. |
 | TIME-006 | Media | Comparación de vencimiento `now >= deadline` no es segura ante wrap de `u32`. | `timer.hpp` | **Resuelto**: `s32(now - deadline) >= 0` con horizonte < `2^31`. |
 | TIME-007 | Media | `TimerService::start(id, ...)` permite ids duplicados; `stop(id)` detiene todas las coincidencias. | `timer.hpp` | **Resuelto**: `TimerHandle {slot, generation}`; `stop(handle)` cancela una instancia. |

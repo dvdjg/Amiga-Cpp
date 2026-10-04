@@ -251,9 +251,12 @@ UI (`eng::ui`).
   (`deadline += period`), catch-up `Coalesce`/`SkipToNext`/`CatchUpAll`, comparación wrap-safe
   (`s32(now-deadline) >= 0`) y handles `{slot, generation}`. El backend lee un reloj libre de
   **CIA-B Timer B** (`ciab_ticks_now`) y lo pasa a `poll_and_post`. Tests HOST-222 (ampliado) y
-  HOST-415. **Pendiente**: resolución µs sub-frame con un pump más fino o un one-shot de CIA
-  (TIME-004); `ActiveWait`/`External` están cubiertos por `Disabled` + `wait_vblank`.
-  Diagnóstico previo: [`vblank-timer-inconsistencies.md`](../../debugging/investigaciones/vblank-timer-inconsistencies.md), TIME-001..TIME-010.
+  HOST-415. Para la resolución **sub-frame** de los µs, el backend expone `os::service_timers()`
+  (pump de alta frecuencia) y `TimerService` da `next_micro_deadline()`/`has_micro_timers()` para
+  armar un one-shot de CIA-B; el arranque de esa IRQ de nivel 6 es el paso final de **TIME-004**.
+  `ActiveWait`/`External` están cubiertos por `Disabled` + `wait_vblank`. **Adopción**: la demo 213
+  usa `FrameSyncMode::Latch` (verificado en hardware + visión). Diagnóstico previo:
+  [`vblank-timer-inconsistencies.md`](../../debugging/investigaciones/vblank-timer-inconsistencies.md), TIME-001..TIME-010.
 
 ## Tests y demos previstos
 

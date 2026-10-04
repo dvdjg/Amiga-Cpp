@@ -17,6 +17,7 @@ Hallazgos concretos de depuración: **bloqueos abiertos**, **post-mortems/leccio
 | [memory-ownership-inconsistencies.md](memory-ownership-inconsistencies.md) | **MEM-001..MEM-011**: divergencias abiertas entre `MemoryManager`/arenas, pools persistentes, caché de assets, ownership y documentación; MEM-009 añade las leases por nivel de `FramePlan`/Copper y la demo SFX 281 pendiente de ejecución Amiga. |
 | [vblank-timer-inconsistencies.md](vblank-timer-inconsistencies.md) | **TIME-001..TIME-010**: duplicación del VBlank entre latch y FIFO, modos de sincronización ausentes e integración incompleta/deriva de timers. |
 | [300_compositor-una-sola-ventana.md](300_compositor-una-sola-ventana.md) | Demo 300 (compositor GUI): la captura de **un solo frame** mostraba solo la ventana B. Con **secuencia larga** se ven las tres: no había defecto de composición. El "parpadeo" percibido era del **movimiento** (saltos de 16 px + frames congelados), corregido a 1 px/frame. Lección: capturar secuencia + **frame-diff determinista**, no fiarse del modelo de visión. |
+| [minios-demo-captura-estatica.md](minios-demo-captura-estatica.md) | Las demos del mini-SO con `run_frames_polling` (206/209/212/213) quedan **congeladas en el frame 0** en la captura automática (secuencia idéntica; el input no llega). Pre-existente (confirmado con `git stash`) y **no** una regresión de M12. 215 (bucle `run_frames` con copperlist real) sí captura movimiento. Sospecha: `debug()` (overlay host-side) vs display real. |
 
 ## Hallazgos y lecciones (cerrados)
 

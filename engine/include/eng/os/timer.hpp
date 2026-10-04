@@ -223,6 +223,35 @@ public:
 	/// Nº de timers activos (O(1), mantenido por `start`/`stop`/`poll_and_post`).
 	[[nodiscard]] eng::u8 active_count() const noexcept { return m_active; }
 
+	/// **Próximo deadline en µs** de los timers activos de unidad `Microseconds` (0 si no hay
+	/// ninguno). El backend lo usa para armar un **one-shot de CIA-B** que venza justo entonces y
+	/// llame a `poll_and_post`, dando resolución sub-frame sin un sondeo continuo (TIME-004). Nota
+	/// semántica: 0 = "ninguno"; los timers µs con deadline 0 (delay 0) no existen (rechazados o
+	/// vencen al momento), así que no colisiona.
+	[[nodiscard]] eng::u32 next_micro_deadline() const noexcept {
+		eng::u32 next = 0u;
+		for (const TimerSlot& s : m_slots) {
+			if (s.active && s.unit == TimerUnit::Microseconds) {
+				// `s.deadline` es anterior a `next` si el salto modular `next - s.deadline`
+				// queda en la mitad "futura" (< 2^31); sin cast, seguro ante wrap (TIME-006).
+				if (next == 0u || (next - s.deadline) < 0x80000000u) {
+					next = s.deadline;
+				}
+			}
+		}
+		return next;
+	}
+
+	/// `true` si hay algún timer activo de µs (para decidir si armar el one-shot de CIA-B).
+	[[nodiscard]] bool has_micro_timers() const noexcept {
+		for (const TimerSlot& s : m_slots) {
+			if (s.active && s.unit == TimerUnit::Microseconds) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 private:
 	/// Construye y postea un `MsgType::Timer` con el payload extendido (`id`, `handle`, `deadline`,
 	/// `expirations`). `slot` es el índice de la ranura (parte del `TimerHandle`).
