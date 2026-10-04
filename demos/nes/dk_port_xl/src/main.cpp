@@ -151,6 +151,9 @@ constexpr eng::u32 kSpriteDataBytes = kSpriteChannels * kSpriteInstanceWords * 2
 // Cableado OAM->canales HW listo; posicion/paleta pendientes de calibrar (se ve un sprite
 // desplazado). Desactivado por defecto para no ensuciar el render mientras se calibra.
 constexpr bool kSpritesOn = false;
+// Modo prueba de scroll: mueve la camara X para medir fps/coste real en A1200.
+constexpr bool kScrollTest = true;
+constexpr eng::s32 kScrollStep = 2; // px/frame
 eng::u32 g_spr_chr = 0u;              // base de la pattern table de sprites ($2000 bit 3)
 constexpr eng::u16 kSpriteTop = 0x2Au; // DIWSTRT_y (0x29) + 1 (linea raster del primer pixel)
 
@@ -375,6 +378,7 @@ struct DkXlGame {
 		}
 		plan.clear();
 		if (nt_changed) {
+			// Reconstruccion de pantalla: re-blitear el anillo (sin scroll ese frame).
 			rebuild_world_from_port();
 			fill_bank(m_bank.view.data(), g_mt_count, kPlanes);
 			if (!scene.fill(backend, plan)) {
@@ -383,6 +387,8 @@ struct DkXlGame {
 				return;
 			}
 			m_rebuilds = static_cast<eng::u16>(m_rebuilds + 1u);
+		} else if (kScrollTest) {
+			(void)scene.bg().update_scroll(plan, kScrollStep, 0);
 		}
 		if (kSpritesOn) { build_sprites(); } // actualiza los canales HW desde la OAM cada frame
 		plan.set_blit_budget_limits({8192, 16384, 4, 160});
