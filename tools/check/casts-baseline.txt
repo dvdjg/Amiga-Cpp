@@ -211,6 +211,7 @@
   0     9  engine/include/eng/graphics/sprite_allocator.hpp
   2     0  engine/include/eng/graphics/sprite_asset.hpp
   0     8  engine/include/eng/graphics/sprite_collision.hpp
+  0     4  engine/include/eng/graphics/sprite_line_layer.hpp
   1    18  engine/include/eng/graphics/sprite_manager.hpp
   0     2  engine/include/eng/graphics/sprite.hpp
   0    10  engine/include/eng/graphics/tile_planar.hpp

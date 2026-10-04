@@ -127,11 +127,13 @@ El **ledger** es la única entrada nueva: la misma llamada sirve para una banda 
 | Tira horizontal de canales contiguos | EXISTE | `SpriteIntent::strip_*`, `SpriteAllocator` |
 | Pares attached (asignación) | EXISTE | `sprite_allocator.hpp` |
 | `attach` en `SpriteConfig`/`HwSpriteTemplate`/`HwSpritePlacement` | EXISTE (declarado) | `sprite.hpp`, `sprite_manager.hpp` |
-| `attach` cableado en la emisión (`apply`/`emit_template_into`) | PROPUESTO | `sprite_manager.hpp` |
-| Ledger canal × franja (`SpriteChannelLedger`) y `plan_sprite_bands` | PROPUESTO | `graphics/sprite_band.hpp` |
-| Reparto híbrido (`SpriteAllocator::assign` con ledger) | PROPUESTO | `sprite_allocator.hpp` |
+| `attach` cableado en la emisión (`apply`/`emit_template_into`) | EXISTE | `sprite_manager.hpp` |
+| Ledger canal × franja (`SpriteChannelLedger`) y `plan_sprite_bands` | EXISTE | `graphics/sprite_band.hpp` (HOST-416) |
+| Reparto híbrido (`SpriteAllocator::assign` con ledger) | EXISTE | `sprite_allocator.hpp` (HOST-416) |
+| Límites de hardware de sprites (canales, reuso, planos) | EXISTE | `graphics/sprite_limits.hpp` |
 | Driver de fondo `Layer` (8 canales, una instancia/canal) | EXISTE | `effects::SpriteLayer` (`api/effects.hpp`) |
-| Driver de fondo `RiskyWoods` (reposición repetida) | PROPUESTO | driver de fondo |
+| Capa/HUD por parcheo de POS+DATA por línea | EXISTE | `graphics/sprite_line_layer.hpp` (HOST-418) |
+| Driver de fondo `RiskyWoods` (reposición repetida) | EXISTE | `effects::RiskyWoodsLayer` (`api/effects.hpp`, HOST-417) |
 | Driver de fondo `FreeForm` (datos distintos por columna) | PROPUESTO | driver de fondo |
 | Animación del bitmap del sprite | PROPUESTO | `compose_sprites`/`actor_to_sprite_intent` |
 | Demo con gate visual del híbrido | PROPUESTO | `demos/techniques/amiga/sprites/` |
@@ -151,4 +153,4 @@ El **ledger** es la única entrada nueva: la misma llamada sirve para una banda 
 - `docs/reference/amiga/techniques/sprite-horizontal-multiplex.md` — Risky Woods / Free Form y coste por línea.
 - `docs/reference/emulators/winuae/sprite-dma.md` — estructura DMA y columna fantasma.
 - `OBJECT_SYSTEM.md` — representación, transparencia y degradación de objetos.
-- `engine/include/eng/graphics/{sprite_band,sprite_allocator,sprite,sprite_manager}.hpp`.
+- `engine/include/eng/graphics/{sprite_band,sprite_allocator,sprite_line_layer,sprite_limits,sprite,sprite_manager}.hpp`.

@@ -128,6 +128,12 @@ Ya existe buena parte:
   degradados se emiten como BOB en el `FramePlan`. Fachada `eng::SpriteScene` (HOST-391).
 - **Reparto por franja** (`graphics/sprite_band.hpp`, `SpriteChannelLedger`): permite reservar
   canales a fondos por banda y dejar el resto a objetos (HOST-416).
+- **Capa/HUD por parcheo de POS+DATA por línea** (`graphics/sprite_line_layer.hpp`,
+  `SpriteLineLayer`): rearma cada scanline de un tramo con la imagen propia de esa línea
+  (Parasol Stars / Brian the Lion), reutilizando `Scheduler::emit_sprite_horizontal_rearm`
+  (HOST-418).
+- **Límites de hardware** (`graphics/sprite_limits.hpp`): `kSpriteChannels`, `kSpriteMinReusePx`,
+  `kSpriteLineDataMaxBitplanes`, fuente única de los topes que respetan el allocator y los drivers.
 - **`scene::RepresentationAllocator`**: elige sprite/BOB/CPU al dar de alta el actor.
 
 **Pendiente (lo que aporta esta técnica):**
@@ -152,6 +158,7 @@ Un test host del caso de grupos (ristra asignada junta, o degradada entera) cerr
   [sprite-layer.md](sprite-layer.md) (multiplexado vertical, gap, attached),
   [sprite-horizontal-multiplex.md](sprite-horizontal-multiplex.md) (mux horizontal).
 - AHRM 3.ª cap. 4 (reuso de canales DMA de sprites).
-- Engine: `graphics/sprite_allocator.hpp`, `scene/actor_sprite.hpp`,
+- Engine: `graphics/sprite_allocator.hpp`, `graphics/sprite_line_layer.hpp`,
+  `graphics/sprite_limits.hpp`, `scene/actor_sprite.hpp`,
   [OBJECT_SYSTEM.md](../../engine/architecture/OBJECT_SYSTEM.md),
-  [SPRITE_BANDS.md](../../engine/architecture/SPRITE_BANDS.md); HOST-003/391/416.
+  [SPRITE_BANDS.md](../../engine/architecture/SPRITE_BANDS.md); HOST-003/391/416/418.

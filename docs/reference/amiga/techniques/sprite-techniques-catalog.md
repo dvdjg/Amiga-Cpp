@@ -53,17 +53,17 @@ colores por par, attached, prioridad `BPLCON2`, colisión `CLXCON/CLXDAT`) está
 
 | # | Técnica | Qué es | Coste / clave | Ejemplos |
 |---|---|---|---|---|
-| 1 | **Sprites básicos de objeto** | Jugador, enemigos, balas, power-ups, HUD | Cero CPU; sin save/restore | R-Type, Saint Dragon (casi todos los shmups) |
-| 2 | **Attached (15 colores)** | Dos canales del mismo par unidos por el bit `ATTACH` | Reduce 8→4 objetos; mismo coste DMA | Personaje/boss grande (multi-juego) |
-| 3 | **Multiplexado vertical** | Rearmar el canal más abajo (otra Y) en la misma lista DMA | ≥1 línea vacía entre reusos; decenas de "VSprites" | Saint Dragon (4 canales → 15 balas) |
-| 4 | **Multiplexado horizontal (Copper)** | El Copper reposiciona `SPRxPOS` dentro de la misma línea (y a veces recarga DATA) | Carrera contra el haz; ≥24 px entre usos del mismo canal | Fondos repetidos, ensanchar >128 px |
-| 5 | **Fondo repetitivo *Risky Woods*** | 8 sprites (4 pares attached) = patrón de 64 px, reposicionado cada 16/32 px a lo ancho | Muy barato si el scroll va por punteros pre-shifteados | Risky Woods |
+| 1 | **Sprites básicos de objeto** | Jugador, enemigos, balas, power-ups, HUD | Cero CPU; sin save/restore | [Jim Power](sprite-tricks-games.md), [R-Type 2](sprite-tricks-games.md) (casi todos los shmups) |
+| 2 | **Attached (15 colores)** | Dos canales del mismo par unidos por el bit `ATTACH` | Reduce 8→4 objetos; mismo coste DMA | [Rod-Land](sprite-tricks-games.md) (HUD), [Pac-Mania](sprite-tricks-games.md), [Shadow of the Beast](sprite-tricks-games.md), [Agony](sprite-tricks-games.md), [Jim Power](sprite-tricks-games.md) |
+| 3 | **Multiplexado vertical** | Rearmar el canal más abajo (otra Y) en la misma lista DMA | ≥1 línea vacía entre reusos; decenas de "VSprites" | [Saint Dragon](sprite-tricks-games.md) (4 canales → 15 balas) |
+| 4 | **Multiplexado horizontal (Copper)** | El Copper reposiciona `SPRxPOS` dentro de la misma línea (y a veces recarga DATA) | Carrera contra el haz; ≥24 px entre usos del mismo canal | [R-Type 2](sprite-tricks-games.md), [Jim Power](sprite-tricks-games.md), [Parasol Stars](sprite-tricks-games.md) (HUD), [Brian the Lion](sprite-tricks-games.md), [Videokid](sprite-tricks-games.md) |
+| 5 | **Fondo repetitivo *Risky Woods*** | 8 sprites (4 pares attached) = patrón de 64 px, reposicionado cada 16/32 px a lo ancho | Muy barato si el scroll va por punteros pre-shifteados | [Risky Woods](sprite-tricks-games.md), [Videokid](sprite-tricks-games.md), [R-Type 2](sprite-tricks-games.md) |
 | 6 | **Free Form Sprite Layer** | Redesplegar los 8 canales (POS **y** DATA) para un fondo **libre**, sin patrón | Alto (4 copperlists, Blitter); 3-4 colores | [spr-layer](https://www.powerprograms.nl/amiga/spr-layer.html) (Roondar) |
-| 7 | **Combinación con BOBs** | Sprites para jugador/balas/HUD/parallax; BOBs (Blitter) para enemigos/plataformas/multicolor | El DMA de sprites compite con el Blitter | Risky Woods, Jim Power (enemigos por Blitter) |
-| 8 | **Colisión** | Hardware `CLXDAT`/`CLXCON` (sprite↔sprite, sprite↔bitplane) | No pixel-perfect con multiplexado; sin posición | La mayoría usaba cajas/máscaras por software |
+| 7 | **Combinación con BOBs** | Sprites para jugador/balas/HUD/parallax; BOBs (Blitter) para enemigos/plataformas/multicolor | El DMA de sprites compite con el Blitter | [Risky Woods](sprite-tricks-games.md), [Jim Power](sprite-tricks-games.md), [Pac-Mania](sprite-tricks-games.md) |
+| 8 | **Colisión** | Hardware `CLXDAT`/`CLXCON` (sprite↔sprite, sprite↔bitplane) | No pixel-perfect con multiplexado; sin posición | software (cajas/máscaras); `graphics/sprite_collision.hpp` |
 | 9 | **Offset por fila (bending)** | El Copper cambia `SPRxPOS` cada línea (o cada pocas) con una tabla | Tabla de seno; parcheo barato por frame | Ondas, distorsión, parallax por franjas; Leander |
-| 10 | **Palette splitting** | El Copper cambia `COLOR17`-`COLOR31` por franja de altura | Mismo sprite con paletas distintas arriba/abajo | Cielo/montaña/suelo; Shadow of the Beast |
-| 11 | **Avanzadas** | Prioridad dinámica (`BPLCON2` por franja), modo manual (POS/DATA por CPU/Copper), *sprite chasing* extremo, capas de parallax, HUD de sprites | Ver cada una | Shadow of the Beast, Parasol Stars, Leander |
+| 10 | **Palette splitting** | El Copper cambia `COLOR17`-`COLOR31` por franja de altura | Mismo sprite con paletas distintas arriba/abajo | [Shadow of the Beast](sprite-tricks-games.md), [Agony](sprite-tricks-games.md), [Brian the Lion](sprite-tricks-games.md), [Rod-Land](sprite-tricks-games.md), [Stardust](sprite-tricks-games.md) |
+| 11 | **Avanzadas** | Prioridad dinámica (`BPLCON2` por franja), modo manual (POS/DATA por CPU/Copper), *sprite chasing* extremo, capas de parallax, HUD de sprites | Ver cada una | [Shadow of the Beast](sprite-tricks-games.md) (prioridad por bandas), [Stunt Car Racer](sprite-tricks-games.md) (solo punteros), [Stardust](sprite-tricks-games.md) (espejo por módulo negativo), [WWF Wrestlemania](sprite-tricks-games.md) |
 
 ## Efectos especiales
 
@@ -217,15 +217,28 @@ restan el coste del efecto del presupuesto restante.
 - Al menos **1 línea** vacía entre reusos verticales del mismo canal.
 - El tiempo DMA del Copper **compite** con el Blitter y con los bitplanes.
 - Los sprites son **low-res** (movimiento de 2 px incluso en hires).
-- Con scroll horizontal o **>4 bitplanes** se **pierden canales** de sprite (el fetch ancho
-  come los slots de los canales 6-7 y a veces 4-5).
+- Con scroll horizontal o **≥6 bitplanes** se **pierden canales** de sprite (el fetch ancho
+  come los slots de los canales 6-7 y a veces 4-5). El **parcheo de `SPRxDATA` a media línea**
+  (técnica de Brian the Lion) solo tiene ventana con **4-5 planos**: de ahí
+  `kSpriteLineDataMaxBitplanes`.
 
 ## Encaje en el engine
 
-- **Reparto de canales por franja** (la pieza que permite mezclar técnicas y dejar canales
-  libres para objetos): `graphics/sprite_band.hpp` + `SpriteAllocator` con ledger;
-  diseño en [SPRITE_BANDS.md](../../engine/architecture/SPRITE_BANDS.md), tests HOST-416/417.
-- **Driver de fondo por reposición**: `effects::RiskyWoodsLayer` (`api/effects.hpp`).
+Los límites de hardware de esta ficha están como constantes de dominio en
+`graphics/sprite_limits.hpp` (`kSpriteChannels`, `kSpriteMinReusePx`,
+`kSpriteLineDataMaxBitplanes`, …), fuente única del número de canales.
+
+- **Multiplexado vertical por Y** (técnicas 1-3): `SpriteAllocator` (`graphics/sprite_allocator.hpp`)
+  asigna cada objeto a un canal libre con *greedy first-fit*; reparte los objetos entre los canales
+  que deja libre el fondo de su franja (`SpriteChannelLedger`, `graphics/sprite_band.hpp`).
+- **Capa/HUD por parcheo de POS+DATA por línea** (técnica 4, Parasol Stars / Brian the Lion):
+  `SpriteLineLayer` (`graphics/sprite_line_layer.hpp`) arma un `SpriteHorizontalRearm` por
+  (línea, canal) con la imagen de esa scanline; el `copper::Scheduler` la coloca en el H-Blank.
+- **Fondo repetitivo *Risky Woods*** (técnica 5): driver `effects::RiskyWoodsLayer` (`api/effects.hpp`).
+- **Reparto de canales por franja** (mezclar técnicas y dejar canales a los objetos):
+  `SpriteBand`/`plan_sprite_bands`; diseño en [SPRITE_BANDS.md](../../engine/architecture/SPRITE_BANDS.md),
+  tests HOST-416/417/418.
+- **Colisión de hardware**: `graphics/sprite_collision.hpp` (`CLXCON`/`CLXDAT`).
 - **Pendiente**: fondo Free Form (datos distintos por columna), animación de DATA del sprite
   (Jim Power), bending por tabla de seno, y el scroll por cambio de punteros pre-shifteados.
 

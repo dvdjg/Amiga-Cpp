@@ -49,7 +49,8 @@ struct SpriteSlot {
 /// coste de DMA; no altera la asignación.
 class SpriteAllocator {
 public:
-	static constexpr u8 kChannels = 8;
+	/// Canales de sprite del chipset; fuente única: `sprite_limits.hpp`.
+	static constexpr u8 kChannels = kSpriteChannels;
 
 	constexpr SpriteAllocator() = default;
 

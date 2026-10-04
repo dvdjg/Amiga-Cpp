@@ -32,6 +32,7 @@
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/expected.hpp>
+#include <eng/graphics/sprite_limits.hpp>
 
 namespace eng::graphics {
 
@@ -73,8 +74,8 @@ struct SpriteBand {
 /// Invariante: los intervalos de un canal no se solapan entre sí (lo garantiza `occupy`).
 class SpriteChannelLedger {
 public:
-	/// Canales de sprite del chipset (OCS/ECS/AGA).
-	static constexpr u8 kChannels = 8;
+	/// Canales de sprite del chipset (OCS/ECS/AGA); fuente única: `sprite_limits.hpp`.
+	static constexpr u8 kChannels = kSpriteChannels;
 	/// Intervalos máximos por canal: acota las bandas de fondo de una pantalla.
 	static constexpr u8 kMaxIntervals = 8;
 
