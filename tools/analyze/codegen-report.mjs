@@ -372,6 +372,9 @@ extern "C" void c_mf_transform(const u16* mm, const s16* pp, s16* out) {
 namespace eu = eng::util;
 extern "C" eng::u32 c_hash_u16(u16 a) { return eu::hash_u16(a); }
 extern "C" eng::u32 c_hash_u32(eng::u32 a) { return eu::hash_u32(a); }
+extern "C" eng::u32 c_hash_combine(eng::u32 seed, eng::u32 a, eng::u32 b) {
+	return eu::hash_combine(seed, a, b);
+}
 extern "C" u16 c_hashmap_find(u16 key) {
 	eu::HashMap<u16, u16, 16> m;
 	m.insert(key, 7u);

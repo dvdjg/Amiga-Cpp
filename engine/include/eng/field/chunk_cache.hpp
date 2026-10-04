@@ -52,12 +52,12 @@ struct ChunkKey {
 } // namespace eng::playfield
 
 namespace eng::util {
-/// Hash de la clave de chunk (xor de dos avalanchas + rotación; sin multiplicar 32×32).
+/// Hash de la clave de chunk: combina los dos campos con `hash_combine` (sin
+/// multiplicar 32×32; ver `hash.hpp`).
 template <>
 struct Hash<eng::playfield::ChunkKey> {
-	[[nodiscard]] eng::u32 operator()(const eng::playfield::ChunkKey& k) const noexcept {
-		return hash_u32(static_cast<eng::u32>(k.cx)) ^
-		       rotl(hash_u32(static_cast<eng::u32>(k.cy)), 16u);
+	[[nodiscard]] constexpr eng::u32 operator()(const eng::playfield::ChunkKey& k) const noexcept {
+		return hash_combine(0u, k.cx, k.cy);
 	}
 };
 } // namespace eng::util

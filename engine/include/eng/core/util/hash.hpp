@@ -18,6 +18,7 @@
 /// Uso:
 ///   const eng::u32 h = eng::util::hash_value(entity_id);
 ///   const eng::u32 s = eng::util::hash_string(name);
+///   const eng::u32 k = eng::util::hash_combine(0u, key.x, key.y); // clave compuesta
 
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
@@ -108,5 +109,33 @@ struct Hash<StringView> {
 		return hash_string(text);
 	}
 };
+
+/// Combina en un único hash el de varios valores, en orden, encadenando `Hash<T>`
+/// (que por defecto delega en `hash_value`). Es el punto de extensión para **claves
+/// compuestas**: especializa `Hash<T>` para tus tipos y combina sus campos, en vez de
+/// escribir la mezcla a mano en cada especialización. Es la idea de Boost.ContainerHash
+/// (`hash_combine`), adaptada a la aritmética del 68000.
+///
+/// Sin multiplicación: la mezcla es la de Boost.ContainerHash (una constante más
+/// desplazamientos) seguida de la avalancha `hash_u32`, así que no aparece `__mulsi3`
+/// (el 68000 no tiene `muls.l`; una multiplicación de 32×32 sería una libcall de ~150
+/// ciclos). El orden importa: `hash_combine(s, a, b)` ≠ `hash_combine(s, b, a)`. Sin
+/// valores devuelve `seed` (identidad), útil para arrancar la acumulación.
+///
+/// Uso:
+///   struct ChunkKey { s32 cx; s32 cy; };
+///   template <> struct Hash<ChunkKey> {
+///     u32 operator()(const ChunkKey& k) const noexcept {
+///       return hash_combine(0u, k.cx, k.cy);
+///     }
+///   };
+template <class... Ts>
+[[nodiscard]] constexpr u32 hash_combine(u32 seed, const Ts&... values) noexcept {
+	u32 h = seed;
+	((h = hash_u32(h ^ (Hash<remove_cvref_t<Ts>> {}(values) + 0x9e3779b9u + (h << 6u) +
+			       (h >> 2u)))),
+	 ...);
+	return h;
+}
 
 } // namespace eng::util

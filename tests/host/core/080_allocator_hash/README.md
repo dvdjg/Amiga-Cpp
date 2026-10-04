@@ -10,8 +10,10 @@ Respalda `engine/include/eng/core/util/allocator.hpp` y
   Se comprueba la alineación, el no-solape, la contabilidad y el rechazo controlado
   cuando no cabe.
 - **`hash.hpp`**: `hash_u8/u16/u32`, `hash_value` (enteros, enums, punteros),
-  `hash_bytes`/`hash_string` y el functor `Hash<T>`. Se comprueba determinismo,
-  dispersión de claves consecutivas y `Hash<StringView>`.
+  `hash_bytes`/`hash_string`, el functor `Hash<T>` y `hash_combine` para claves
+  compuestas. Se comprueba determinismo, dispersión de claves consecutivas,
+  `Hash<StringView>`, la sensibilidad al orden de `hash_combine` y una clave de dos
+  campos (`Hash<TestKey>` + `HashMap`) que no confunde `(3,4)` con `(4,3)`.
 
 ## Por qué así (68000)
 

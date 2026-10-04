@@ -1077,11 +1077,12 @@ private:
 
 namespace eng::util {
 
-/// `HashMap` hashea la clave de 64 bits combinando sus dos palabras (sin `mulu.l`).
+/// `HashMap` hashea la clave de 64 bits combinando sus dos palabras con
+/// `hash_combine` (sin `mulu.l`; ver `hash.hpp`).
 template <>
 struct Hash<eng::ai::detail::StateKey64> {
 	[[nodiscard]] constexpr u32 operator()(const eng::ai::detail::StateKey64& k) const noexcept {
-		return hash_u32(k.lo ^ rotl(k.hi, 16u));
+		return hash_combine(0u, k.lo, k.hi);
 	}
 };
 
@@ -1089,7 +1090,7 @@ struct Hash<eng::ai::detail::StateKey64> {
 template <>
 struct Hash<eng::ai::detail::StateKeyNV> {
 	[[nodiscard]] constexpr u32 operator()(const eng::ai::detail::StateKeyNV& k) const noexcept {
-		return hash_u32(k.facts ^ rotl(hash_u32(k.vars), 16u));
+		return hash_combine(k.facts, k.vars);
 	}
 };
 
@@ -1100,7 +1101,7 @@ struct Hash<eng::ai::detail::StateKeyNVWide<Words>> {
 	    const eng::ai::detail::StateKeyNVWide<Words>& k) const noexcept {
 		u32 h = k.facts;
 		for (usize i = 0u; i < Words; ++i) {
-			h = hash_u32(h ^ rotl(hash_u32(k.vars[i]), 16u));
+			h = hash_combine(h, k.vars[i]);
 		}
 		return h;
 	}
