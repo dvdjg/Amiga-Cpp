@@ -77,7 +77,7 @@ int main() {
 	lv.items = items;
 	lv.count = 5u;
 	lv.selected = &sel;
-	lv.on_select = on_pick;
+	lv.on_select = {on_pick, nullptr};
 	check(lv.visible_rows() == 3, "filas visibles = alto / item_h");
 
 	lv.select(4);

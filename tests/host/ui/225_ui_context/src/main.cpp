@@ -72,11 +72,11 @@ int main() {
 	eng::ui::Button a;
 	a.bounds = eng::ui::Rect {0, 0, 20u, 12u};
 	a.text = "A";
-	a.on_click = on_a;
+	a.on_click = {on_a, nullptr};
 	eng::ui::Button b;
 	b.bounds = eng::ui::Rect {10, 0, 20u, 12u}; // solapa con A en x 10..19
 	b.text = "B";
-	b.on_click = on_b;
+	b.on_click = {on_b, nullptr};
 	root.add_child(&a);
 	root.add_child(&b); // al frente
 

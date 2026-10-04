@@ -80,8 +80,7 @@ int main() {
 	eng::ui::Button btn;
 	btn.bounds = eng::ui::Rect {0, 0, 20u, 12u};
 	btn.text = "ok";
-	btn.on_click = [](void* u) { ++*static_cast<int*>(u); };
-	btn.user = &clicks;
+	btn.on_click = {[](void* u) { ++*static_cast<int*>(u); }, &clicks};
 	eng::ui::Panel root2;
 	root2.bounds = eng::ui::Rect {0, 0, 40u, 20u};
 	root2.add_child(&btn);
