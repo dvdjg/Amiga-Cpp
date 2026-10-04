@@ -173,7 +173,7 @@ struct DkXlGame {
 			return;
 		}
 		// Arranca el port unos frames para que escriba el nametable y la paleta.
-		for (eng::u16 i = 0; i < 4u; ++i) {
+		for (eng::u16 i = 0; i < 60u; ++i) {
 			n2a_frame();
 		}
 		for (eng::u16 i = 0; i < 16u; ++i) {
@@ -226,17 +226,11 @@ struct DkXlGame {
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!ready) return;
-		// Logica del port (dirigida por frame).
+		// Logica del port (dirigida por frame). El titulo es ESTATICO: no hace scroll.
 		n2a_frame();
 		++m_frames;
-		// Scroll por hardware: la camara del engine avanza (X). El compositor X-limited
-		// reemite BPLxPT/BPL1MOD/conBPL1 por Copper.
 		plan.clear();
 		plan.set_blit_budget_limits({8192, 16384, 4, 160});
-		const bool scrolled = scene.bg().update_scroll(plan, 1, 0);
-		if (!scrolled) {
-			scene.bg().set_camera(0, 0);
-		}
 		if (!backend.execute_frame_plan(plan)) {
 			ready = false;
 			eng::debug::mark_failed(g_eng_run_status, 0x0000E010u);
