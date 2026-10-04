@@ -15,9 +15,13 @@ El módulo `eng::graphics` (`engine/include/eng/graphics/`) describe **memoria g
 | [`planar.md`](planar.md) | `Bitmap`/`BitmapView`, `PlaneLayout`, `BlitJob`/`BlitPtr`, `BlitQueue`, constantes de `blitter_state.hpp`. |
 | [`copper.md`](copper.md) | `copper::ListBuilder`/`Register`, `Plan`, `Scheduler`/`Timeline`, `DoubleBuffer`, `Template`, `StaticCopperList`. |
 | [`composition.md`](composition.md) | `Scene`/etapas/`compose`/`limits`/`copper_chunky` y `frame_plan.hpp`. |
-| `tilemap/` | `TileMap`/scroll por tiles, `TileEditor`, tabla de atributos, decodificación planar. |
-| `effects/` | `Rotozoom`, `RasterGradient`, `PaletteCycle`/`PaletteTransition`. |
-| `drivers/` | Drivers gráficos por estrategia (`tile_scroll`, `ehb_tile_scroll`). |
+| [`blitter.md`](blitter.md) | `Bob`/`BobDraw`/`BobErase`, `SpriteManager`/`SpriteConfig`, plantillas de sprite, `SpriteAllocator`/colisión, `Anim`. |
+| [`palette.md`](palette.md) | `Palette`/`Color`/`ColorIndex` y `Palette32`/`PaletteWords`. |
+| [`tilemap/`](tilemap.md) | `PackedTileCell`/dirty flags, `AttributeTable`, `TileEditor`. |
+| [`effects/`](effects.md) | `Rotozoom`, `RasterGradientEffect`, `PaletteCycle`/`PaletteTransition`. |
+| [`drivers/`](drivers.md) | `TileScrollScene<Mode>` y las convenciones de `playfield_scroll`. |
+
+Otras cabeceras de nivel superior: `blit_job`/`blit_queue`/`blitter_state` (planar), `c2p`/`tile_planar` (conversión chunky↔planar), `pattern_fill`/`polygon_planes`/`mode_switch`/`raster_intent`, fuentes (`font5x7`/`font8`/`glyph_cache`) y `mesh_renderer`.
 
 > Los subsistemas «planar» y «blitter» agrupan las cabeceras de nivel superior (`bitmap*`, `plane_layout`, `blit_*`, `blitter_state`, `bob`, `sprite*`); el resto son subdirectorios.
 

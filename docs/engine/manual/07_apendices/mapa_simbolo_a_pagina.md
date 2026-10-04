@@ -34,6 +34,11 @@ a la explicación.
 | `graphics/copper/*` | [04_referencia/graphics/copper](../04_referencia/graphics/copper.md) + [05_arquitectura/copper_y_scheduler](../05_arquitectura/README.md) |
 | `graphics/bitmap*.hpp`, `blit_*.hpp`, `plane_layout.hpp`, `blitter_state.hpp` | [04_referencia/graphics/planar](../04_referencia/graphics/planar.md) |
 | `graphics/composition/*`, `frame_plan.hpp` | [04_referencia/graphics/composition](../04_referencia/graphics/composition.md) |
+| `graphics/bob.hpp`, `sprite*.hpp`, `anim*.hpp`, `raster_intent.hpp` | [04_referencia/graphics/blitter](../04_referencia/graphics/blitter.md) |
+| `graphics/palette.hpp`, `palette32.hpp` | [04_referencia/graphics/palette](../04_referencia/graphics/palette.md) |
+| `graphics/tilemap/*` | [04_referencia/graphics/tilemap](../04_referencia/graphics/tilemap.md) |
+| `graphics/effects/*` | [04_referencia/graphics/effects](../04_referencia/graphics/effects.md) |
+| `graphics/drivers/*`, `playfield_scroll.hpp` | [04_referencia/graphics/drivers](../04_referencia/graphics/drivers.md) |
 | `graphics/c2p.hpp` | [05_arquitectura/c2p_y_framebuffer_indexado](../05_arquitectura/README.md) |
 | `field/*` (playfield, scroll, Xlimited, strip, tiles) | [04_referencia/field](../04_referencia/field/README.md) |
 | `scene/*` (World, Layer, ScenePlan, planner) | [04_referencia/scene](../04_referencia/scene/README.md) |

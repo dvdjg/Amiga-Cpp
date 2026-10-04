@@ -17,11 +17,12 @@ propósito, firma, parámetros, errores, invariantes y `fichero:línea` al fuent
 | [`graphics/`](graphics/README.md) | Memoria gráfica, Blitter, Copper y composición. |
 | [`graphics/planar/`](graphics/planar.md) | `Bitmap`/`BitmapView`, `PlaneLayout`, `BlitJob`/`BlitPtr`, `BlitQueue`, estado de Blitter. |
 | [`graphics/copper/`](graphics/copper.md) | `ListBuilder`, `Plan`, `Scheduler`/`Timeline`, `DoubleBuffer`, `Template`, lista estática. |
-| `graphics/blitter/` | Estado de Blitter, BOB, sprites, asignador/manager de sprites. |
+| [`graphics/blitter/`](graphics/blitter.md) | BOB, sprites hardware, plantillas/`SpriteAllocator`/colisión, `Anim`. |
+| [`graphics/palette/`](graphics/palette.md) | `Palette`/`Color`/`ColorIndex`, `Palette32`. |
 | [`graphics/composition/`](graphics/composition.md) | `Scene`, `compose`, etapas, límites, *copper chunky*. |
-| `graphics/tilemap/` | Tilemap, scroll por tiles, tabla de atributos, decodificación planar. |
-| `graphics/effects/` | Rotozoom, fine-scroll, paletas, C2P. |
-| `graphics/drivers/` | Drivers gráficos por estrategia. |
+| [`graphics/tilemap/`](graphics/tilemap.md) | Tilemap, scroll por tiles, tabla de atributos, dirty flags. |
+| [`graphics/effects/`](graphics/effects.md) | Rotozoom, raster gradient, paletas animadas. |
+| [`graphics/drivers/`](graphics/drivers.md) | Drivers gráficos por estrategia. |
 | [`field/`](field/README.md) | Playfields, `Xlimited*` (corkscrew), `Strip*`, geometría de scroll runtime. |
 | [`scene/`](scene/README.md) | `World`, `ScenePlan`, actores, planes de DPF/bandas/raster. |
 | `input/` | Estado de entrada. |
