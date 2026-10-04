@@ -213,6 +213,20 @@ int main() {
 			      c1.bltcon1 == static_cast<eng::u16>(3u << 12) &&
 			      c1.bltapt == cj.source.words(),
 		      "blitter_job_from CopyRect con shift (D = A, $F0)");
+		// La copia por C debe HONRAR el modulo de fuente: el banco X-limited entrega
+		// 40 B/planelínea (source_modulo_bytes = 38). Con bltcmod=0 el canal C leia
+		// contiguo (2 B/planelínea) -> barras horizontales en el fill (regresión del
+		// port NES). Fuente compacta (src_mod 0) -> bltcmod 0 (sin cambio).
+		eng::graphics::BlitJob cj_strided = cj;
+		cj_strided.source_shift = 0u;
+		cj_strided.source_modulo_bytes = 38;
+		const eng::graphics::BlitterJob c2 = blitter_job_from(cj_strided);
+		check(c2.bltcmod == 38 && c2.bltamod == 0,
+		      "blitter_job_from CopyRect sin shift honra source_modulo_bytes en C");
+		eng::graphics::BlitJob cj_tight = cj_strided;
+		cj_tight.source_modulo_bytes = 0;
+		check(blitter_job_from(cj_tight).bltcmod == 0,
+		      "blitter_job_from CopyRect fuente compacta -> bltcmod 0");
 	}
 
 	// 2f) Modo LÍNEA: replica de `blitter_line` (octante/error); ADAT/BDAT = pendiente.
