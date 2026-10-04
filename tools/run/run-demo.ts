@@ -207,6 +207,15 @@ function patchConfig(configText, extensionRoot, stagedOutDir, warpEnabled, immed
   if (process.env.WINUAE_KICKSTART) {
     out = setConfigValue(out, 'kickstart_rom_file', process.env.WINUAE_KICKSTART);
   }
+  // Medicion a velocidad plena: `WINUAE_NO_CYCLE_EXACT=1` relaja el modo mas pesado del emulador
+  // (cycle_exact + cpu_memory + blitter). Util para separar el coste real del codigo del techo
+  // del emulador cycle-exact.
+  if (process.env.WINUAE_NO_CYCLE_EXACT) {
+    out = setConfigValue(out, 'cycle_exact', 'false');
+    out = setConfigValue(out, 'cpu_cycle_exact', 'false');
+    out = setConfigValue(out, 'cpu_memory_cycle_exact', 'false');
+    out = setConfigValue(out, 'blitter_cycle_exact', 'false');
+  }
   // Con un Kickstart 1.3 en quickstart=a1200, WinUAE puede no fijar el 68020 -> el codigo
   // compilado con `-m68020` (TARGET_MACHINE=A1200) daria instruccion ilegal. Forzar la CPU.
   if (process.env.WINUAE_QUICKSTART && /a1200|a4000/i.test(process.env.WINUAE_QUICKSTART)) {
