@@ -23,9 +23,14 @@ a la explicación.
 | `api/scroll.hpp` | [04_referencia/api](../04_referencia/api/README.md) + [01_tutoriales/08](../01_tutoriales/README.md) |
 | `api/sprites.hpp` | [04_referencia/api](../04_referencia/api/README.md) + [01_tutoriales/07](../01_tutoriales/README.md) |
 | `api/framebuffer.hpp` | [04_referencia/api](../04_referencia/api/README.md) + [05_arquitectura/c2p_y_framebuffer_indexado](../05_arquitectura/README.md) |
-| `memory/memory_manager.hpp` | [05_arquitectura/modelo_de_memoria](../05_arquitectura/modelo_de_memoria.md) |
-| `core/types/typed.hpp`, `domains.hpp` | [05_arquitectura/sistema_de_tipos](../05_arquitectura/sistema_de_tipos.md) |
-| `core/math/*` | [04_referencia/core/math](../04_referencia/README.md) (pendiente) |
+| `memory/memory_manager.hpp` | [04_referencia/memory/manager](../04_referencia/memory/manager.md) + [05_arquitectura/modelo_de_memoria](../05_arquitectura/modelo_de_memoria.md) |
+| `memory/arena.hpp`, `block_pool.hpp` | [04_referencia/memory/arena](../04_referencia/memory/arena.md), [block_pool](../04_referencia/memory/block_pool.md) |
+| `memory/mem_bank.hpp`, `chip_storage.hpp`, `stack.hpp` | [04_referencia/memory/banks](../04_referencia/memory/banks.md) |
+| `core/types/typed.hpp`, `domains.hpp` | [04_referencia/core/types](../04_referencia/core/types.md) + [05_arquitectura/sistema_de_tipos](../05_arquitectura/sistema_de_tipos.md) |
+| `core/types/span.hpp`, `box.hpp`, `ptr.hpp`, `memory_kind.hpp` | [04_referencia/core/types](../04_referencia/core/types.md) |
+| `core/math/*` | [04_referencia/core/math](../04_referencia/core/math.md) |
+| `core/data/*` | [04_referencia/core/data](../04_referencia/core/data.md) |
+| `core/util/*` | [04_referencia/core/util](../04_referencia/core/util.md) |
 | `graphics/copper/*` | [05_arquitectura/copper_y_scheduler](../05_arquitectura/README.md) (pendiente) |
 | `graphics/c2p.hpp` | [05_arquitectura/c2p_y_framebuffer_indexado](../05_arquitectura/README.md) |
 | `field/xlimited_*`, `strip_*` | [04_referencia/field](../04_referencia/README.md) (pendiente) |

@@ -13,7 +13,7 @@ propósito, firma, parámetros, errores, invariantes y `fichero:línea` al fuent
 | [`core/math/`](core/math.md) | Escalar (`scalar_traits`, `Vec`/`Mat`), `Fixed`, `MiniFloat16`, `SinTable`, ruido, interpolación. |
 | [`core/data/`](core/data.md) | `ct_array`, orden de bytes, `crc32`, ordenación, `utf8`, `rtc`, 3D (`mesh3d`/`polygon`). |
 | [`core/util/`](core/util.md) | `expected`, `static_vector`, `pool`, `string_view`, `function_ref`, `scope_guard`, contenedores. |
-| `memory/` | `MemoryManager`, arenas, `BlockPool`, presupuesto. |
+| [`memory/`](memory/README.md) | `MemoryManager`, bancos (`MemBank`), arenas, `BlockPool`, `ChipStorage`, pilas. |
 | `graphics/planar/` | Bitmaps, vistas de plano, `Surface`, blits, rasterizado. |
 | `graphics/copper/` | `copper`, `Plan`, `Scheduler`, doble buffer. |
 | `graphics/blitter/` | Estado de Blitter, BOB, sprites, asignador/manager de sprites. |
