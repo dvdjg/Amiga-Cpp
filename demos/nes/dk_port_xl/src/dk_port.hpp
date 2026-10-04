@@ -1845,7 +1845,7 @@ L_C7A8: if (g_yield_req) { g_resume = 0xC7A8u; g_yield_req = 0u; return; }
     A = rd(0x2002u);
     tick(2u);
     A = (u8)(A & 0x80u); { const u8 _n2az = A; Zf = (_n2az == 0u); Nf = ((_n2az & 0x80u) != 0u); }
-    hal_wait_vblank();
+    if ((ppu_status & 0x80u) == 0u) { hal_wait_vblank(); }
     if (g_nmi_pending) { g_nmi_pending = 0u; g_yield_req = 0u; ret_lbl[ret_sp++] = &&L_nmiret_0; ++g_nmi_fires; goto L_C85F; }
 L_nmiret_0: if (g_engine_mode) { g_yield_req = 1u; }
     goto L_C7AF;
