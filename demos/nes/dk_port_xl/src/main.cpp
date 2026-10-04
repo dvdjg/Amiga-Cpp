@@ -78,24 +78,31 @@ eng::u16 g_cells[kMtCols * kMtRows] {};
 // El row_fn generativo solo recibe (glyph, variant) = indice de metatile 0..63, asi que
 // horneamos una tabla descriptora por metatile: los 4 tiles NES (TL,TR,BL,BR) y su
 // subpaleta NES (0..3) — el nametable NES no sigue ningun patron TL/TL+1.
-eng::u8 g_mt_tile[64][4] {};
-eng::u8 g_mt_pal[64] {};
-eng::u8 g_mt_used[64] {};
+// Tabla de metatiles UNICOS (sin tope de 64): cada uno guarda los 4 tiles NES (TL,TR,BL,BR)
+// reales del nametable (no vecinos forzados) y su subpaleta. El banco se construye en Chip
+// (prebuilt) dimensionado a `g_mt_count`, referenciado por el mapa.
+constexpr eng::u16 kMaxMt = 512u;
+eng::u8 g_mt4[kMaxMt][4] {};
+eng::u8 g_mtpal[kMaxMt] {};
+eng::u16 g_mt_count = 0u;
 
-// Genera una fila planar (16 px = 1 word) del metatile: mitad izquierda en bits
-// 15..8, mitad derecha en bits 7..0. glyph = indice de metatile mod 16, variant = (idx>>4)&3.
-eng::u16 mt_row(eng::u8 glyph, eng::u8 variant, eng::u8 y, eng::u8 plane) {
-	const eng::u8 mt = static_cast<eng::u8>((variant << 4u) | (glyph & 15u));
-	const eng::u8 pal = g_mt_pal[mt];
+// Base de la pattern table del BG en el CHR (bits 4 de $2000): 0x0000 o 0x1000. DK usa
+// $1000 para el BG -> sin esto se pinta el tile equivocado (la tabla de sprites).
+eng::u32 g_bg_chr = 0u;
+
+// Palabra planar (16 px) de la fila `y`/plano `plane` del metatile `m`.
+eng::u16 mt_word(eng::u16 m, eng::u8 y, eng::u8 plane) {
+	const eng::u8 pal = g_mtpal[m];
 	const bool lower = (y >= 8u);
 	const eng::u8 row8 = static_cast<eng::u8>(y & 7u);
-	// Los 4 tiles NES del metatile: 0=TL, 1=TR, 2=BL, 3=BR.
-	const eng::u8 tl = g_mt_tile[mt][lower ? 2u : 0u];
-	const eng::u8 tr = g_mt_tile[mt][lower ? 3u : 1u];
-	const eng::u8 p0l = CHR_ROM[static_cast<eng::u32>(tl) * 16u + row8];
-	const eng::u8 p1l = CHR_ROM[static_cast<eng::u32>(tl) * 16u + 8u + row8];
-	const eng::u8 p0r = CHR_ROM[static_cast<eng::u32>(tr) * 16u + row8];
-	const eng::u8 p1r = CHR_ROM[static_cast<eng::u32>(tr) * 16u + 8u + row8];
+	const eng::u8 tl = g_mt4[m][lower ? 2u : 0u];
+	const eng::u8 tr = g_mt4[m][lower ? 3u : 1u];
+	const eng::u32 bo = g_bg_chr + static_cast<eng::u32>(tl) * 16u;
+	const eng::u32 br = g_bg_chr + static_cast<eng::u32>(tr) * 16u;
+	const eng::u8 p0l = CHR_ROM[bo + row8];
+	const eng::u8 p1l = CHR_ROM[bo + 8u + row8];
+	const eng::u8 p0r = CHR_ROM[br + row8];
+	const eng::u8 p1r = CHR_ROM[br + 8u + row8];
 	switch (plane) {
 	case 0u: return static_cast<eng::u16>((static_cast<eng::u16>(p0l) << 8u) | p0r);
 	case 1u: return static_cast<eng::u16>((static_cast<eng::u16>(p1l) << 8u) | p1r);
@@ -104,12 +111,41 @@ eng::u16 mt_row(eng::u8 glyph, eng::u8 variant, eng::u8 y, eng::u8 plane) {
 	}
 }
 
+/// Tamano del banco prebuilt X-limited (interleaved) para `count` metatiles de 16x16 y
+/// `planes` planos: 40 B/planelinea, 16*planes planelineas por fila de 20 bloques.
+eng::u32 bank_bytes(eng::u16 count, eng::u8 planes) {
+	const eng::u32 blocks_per_row = 320u / 16u; // 20
+	const eng::u32 rows = (count + blocks_per_row - 1u) / blocks_per_row;
+	return rows * (16u * planes) * 40u;
+}
+
+/// Rellena el banco con el MISMO layout que `xlimited_build_blocks_bitmap`.
+void fill_bank(eng::u8* d, eng::u16 count, eng::u8 planes) {
+	const eng::u32 sbpr = 40u, bpr = 20u;
+	for (eng::u16 m = 0; m < count; ++m) {
+		const eng::u16 bx = static_cast<eng::u16>(m % bpr);
+		const eng::u16 by = static_cast<eng::u16>(m / bpr);
+		const eng::u32 base_pl = static_cast<eng::u32>(by) * (16u * planes) * sbpr;
+		for (eng::u16 row = 0; row < 16u; ++row) {
+			for (eng::u8 pl = 0; pl < planes; ++pl) {
+				const eng::u16 word = mt_word(m, static_cast<eng::u8>(row), pl);
+				const eng::u32 off = base_pl +
+					static_cast<eng::u32>(row) * planes * sbpr +
+					static_cast<eng::u32>(pl) * sbpr + bx * 2u;
+				d[off] = static_cast<eng::u8>(word >> 8u);
+				d[off + 1u] = static_cast<eng::u8>(word & 0xffu);
+			}
+		}
+	}
+}
+
 eng::u16 g_palette[16] {};
 
-// Reconstruye el mapa de metatiles a partir del nametable NES (tilebase actual):
-// por cada metatile (16x15), su tile TL y su subpaleta (del primer cuadrante).
+// Reconstruye el mapa de metatiles a partir del nametable NES (tilebase actual): los 4 tiles
+// NES REALES de cada bloque 2x2 (no vecinos forzados) y su subpaleta (del cuadrante de atributos).
 void rebuild_world_from_port() {
 	const eng::u16 tb = static_cast<eng::u16>((n2a_ppu_ctrl() & 1u) * 0x400u);
+	g_mt_count = 0u;
 	for (eng::u16 ty = 0; ty < kMtRows; ++ty) {
 		for (eng::u16 tx = 0; tx < kScreenCols; ++tx) {
 			const eng::u16 cx = static_cast<eng::u16>(tx * 2u);
@@ -123,30 +159,23 @@ void rebuild_world_from_port() {
 			const eng::u16 attr_addr = static_cast<eng::u16>(tb + 0x3C0u + (cy / 4u) * 8u + (cx / 4u));
 			const eng::u8 ab = n2a_ppu_vram(attr_addr);
 			const eng::u8 pal = static_cast<eng::u8>((ab >> (((cy % 4u) / 2u) * 4u + ((cx % 4u) / 2u) * 2u)) & 3u);
-			// Dedupe: reutiliza un descriptor existente si (4 tiles, pal) coinciden.
-			eng::u8 idx = 0xFFu;
-			for (eng::u8 m = 0; m < 64u; ++m) {
-				if (!g_mt_used[m]) continue;
-				if (g_mt_pal[m] != pal) continue;
-				if (g_mt_tile[m][0] == t4[0] && g_mt_tile[m][1] == t4[1] &&
-				    g_mt_tile[m][2] == t4[2] && g_mt_tile[m][3] == t4[3]) {
+			// Dedupe contra TODOS los metatiles ya vistos (sin tope de 64).
+			eng::u16 idx = 0xFFFFu;
+			for (eng::u16 m = 0; m < g_mt_count; ++m) {
+				if (g_mtpal[m] != pal) continue;
+				if (g_mt4[m][0] == t4[0] && g_mt4[m][1] == t4[1] &&
+				    g_mt4[m][2] == t4[2] && g_mt4[m][3] == t4[3]) {
 					idx = m;
 					break;
 				}
 			}
-			if (idx == 0xFFu) {
-				for (eng::u8 m = 0; m < 64u; ++m) {
-					if (!g_mt_used[m]) {
-						g_mt_tile[m][0] = t4[0]; g_mt_tile[m][1] = t4[1];
-						g_mt_tile[m][2] = t4[2]; g_mt_tile[m][3] = t4[3];
-						g_mt_pal[m] = pal;
-						g_mt_used[m] = 1u;
-						idx = m;
-						break;
-					}
-				}
+			if (idx == 0xFFFFu && g_mt_count < kMaxMt) {
+				idx = g_mt_count++;
+				g_mt4[idx][0] = t4[0]; g_mt4[idx][1] = t4[1];
+				g_mt4[idx][2] = t4[2]; g_mt4[idx][3] = t4[3];
+				g_mtpal[idx] = pal;
 			}
-			g_cells[static_cast<eng::u32>(ty) * kMtCols + tx] = (idx == 0xFFu) ? 0xFFFFu : idx;
+			g_cells[static_cast<eng::u32>(ty) * kMtCols + tx] = (idx == 0xFFFFu) ? 0xFFFFu : idx;
 		}
 		// Columnas del anillo mas alla de la pantalla NES: repite la pantalla (toroide),
 		// para que las 22 columnas que lee el compositor X-limited esten definidas.
@@ -160,6 +189,7 @@ void rebuild_world_from_port() {
 struct DkXlGame {
 	playfield::XlimitedScene<kScrollConsts, playfield::TileLayerMap, playfield::ScrollProgressive> scene {};
 	playfield::XlimitedSceneConfigT<playfield::TileLayerMap> cfg {};
+	eng::Block<eng::TileBankTag> m_bank {};  // banco prebuilt de metatiles (Chip)
 	eng::graphics::FramePlan plan {};
 	eng::s32 cam_x = 0;
 	eng::s32 cam_y = 0;
@@ -176,10 +206,20 @@ struct DkXlGame {
 		for (eng::u16 i = 0; i < 60u; ++i) {
 			n2a_frame();
 		}
+		// Base de la pattern table del BG ($2000 bit 4): DK = $1000.
+		g_bg_chr = (n2a_ppu_ctrl() & 0x10u) ? 0x1000u : 0u;
 		for (eng::u16 i = 0; i < 16u; ++i) {
 			g_palette[i] = nes_to_amiga(n2a_ppu_pal(static_cast<eng::u8>(i)));
 		}
 		rebuild_world_from_port();
+		// Banco prebuilt en Chip, dimensionado a los metatiles UNICOS reales.
+		const eng::u32 bbytes = bank_bytes(g_mt_count, kPlanes);
+		m_bank = backend.memory_manager().chip().reserve<eng::TileBankTag>(bbytes, 16);
+		if (!m_bank.valid()) {
+			eng::debug::mark_failed(g_eng_run_status, 0x0000E005u);
+			return;
+		}
+		fill_bank(m_bank.view.data(), g_mt_count, kPlanes);
 
 		cfg.viewport_w = kViewportW;
 		cfg.viewport_h = kViewportH;
@@ -198,9 +238,12 @@ struct DkXlGame {
 		cfg.map.wrap_x = kMtCols;   // X toroidal
 		cfg.map.wrap_y = 0;
 		cfg.map.edge_tile = 0u;
-		cfg.tileset_count = kTilesetCount;
-		cfg.fg_row_fn = &mt_row;
+		cfg.tileset_count = g_mt_count;
+		cfg.fg_row_fn = nullptr;
 		cfg.bg_row_fn = nullptr;
+		// Banco prebuilt (aliaseado por la escena): sin tope de 64 y con los tiles reales.
+		cfg.blocks_prebuilt = m_bank.view.data();
+		cfg.blocks_prebuilt_size = bbytes;
 		cfg.palette = eng::PaletteWords {g_palette, 16u};
 		cfg.copper_bytes = 1536u;
 
