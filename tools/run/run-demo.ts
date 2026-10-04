@@ -221,11 +221,19 @@ function patchConfig(configText, extensionRoot, stagedOutDir, warpEnabled, immed
     out = setConfigValue(out, 'cpu_memory_cycle_exact', 'false');
     out = setConfigValue(out, 'blitter_cycle_exact', 'false');
   }
-  // Con un Kickstart 1.3 en quickstart=a1200, WinUAE puede no fijar el 68020 -> el codigo
-  // compilado con `-m68020` (TARGET_MACHINE=A1200) daria instruccion ilegal. Forzar la CPU.
-  // CD32 tambien es 68020 (AGA + Akiko).
-  if (process.env.WINUAE_QUICKSTART && /a1200|a4000|cd32/i.test(process.env.WINUAE_QUICKSTART)) {
-    out = setConfigValue(out, 'cpu_model', '68020');
+  // La maquina emulada debe tener la MISMA CPU que espera el codigo compilado:
+  // A1200 y CD32 son 68020; A4000 es 68030. Si el quickstart no la fija (p. ej.
+  // con KS 1.3), el binario `-m68020`/`-m68030` daria instruccion ilegal. Forzar
+  // `cpu_model` segun el modelo (no forzar 68020 en A4000: rompe el arranque).
+  const qs = process.env.WINUAE_QUICKSTART || '';
+  let forcedCpu = '';
+  if (/a1200|cd32/i.test(qs)) {
+    forcedCpu = '68020';
+  } else if (/a4000/i.test(qs)) {
+    forcedCpu = '68030';
+  }
+  if (forcedCpu !== '') {
+    out = setConfigValue(out, 'cpu_model', forcedCpu);
     out = setConfigValue(out, 'fpu_model', 'none');
     out = setConfigValue(out, 'cpu_compatible', 'false');
     out = setConfigValue(out, 'cpu_24bit_addressing', 'false');

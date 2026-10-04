@@ -7,6 +7,7 @@ Este árbol documenta las piezas que permiten trabajar sobre el engine Amiga 500
 ```text
 ai-dev-environment/
 ├── README.md                 # mapa, contratos y estado resumido
+├── AMIGA_DEV_GUIDE.md        # guía transversal: toolchain, run, debug (GDB+canal), MCP, capturas, perfil, Ollama
 ├── DOC-MAP-PRINCIPAL.md      # navegación IA → documentación (leer primero)
 ├── project-map.md            # archivos y proyectos de alto valor
 ├── ollama-local.md           # Ollama, modelos, scripts y operación segura
@@ -66,6 +67,7 @@ editar código
 7. `docs/ai-dev-environment/project-map.md`
 8. `docs/ai-dev-environment/ollama-local.md`
 9. `docs/ai-dev-environment/session-evidence.md`
+10. `docs/ai-dev-environment/AMIGA_DEV_GUIDE.md` (entorno completo: compilar por máquina, WinUAE, GDB/canal lateral, MCP, capturas, perfil, Ollama)
 
 ## Fuentes hermanas
 

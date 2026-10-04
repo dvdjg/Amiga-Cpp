@@ -169,7 +169,7 @@ fi
 # distintas configuraciones (TARGET_MACHINE + EXTRA_DEFINES + debug/release)
 # conviven sin pisarse. El token es canónico: MACHINE_fLAGS_modo.
 #
-#   TARGET_MACHINE=A500 (defecto) · A1200 · AtariST · Megadrive · NeoGeo
+#   TARGET_MACHINE=A500 (defecto) · A1200 · A4000 · CD32 · AtariST · Megadrive · NeoGeo
 #   EXTRA_DEFINES="-DK_HUD=0 -DK_DUAL=1" → flags "k_hud_0_k_dual_1"
 #   modo: debug | release
 MACHINE_ID="${TARGET_MACHINE:-A500}"
@@ -185,6 +185,20 @@ if [ "$O0_BUILD" -eq 1 ]; then GEN_MODE="o0"; fi
 CONFIG_ID="${MACHINE_ID}"
 if [ -n "$GEN_FLAGS" ]; then CONFIG_ID="${CONFIG_ID}_${GEN_FLAGS}"; fi
 CONFIG_ID="${CONFIG_ID}_${GEN_MODE}"
+
+# --- CPU y chipset por máquina ---------------------------------------------
+# El engine se compila a **68000** (A500). A1200 y CD32 piden **68020 + AGA** y
+# A4000 **68030 + AGA**: `TARGET_MACHINE` deja de ser solo una etiqueta del
+# `CONFIG_ID` y elige también el `-march` y `-DK_AGA=1` (AGA es chipset, no
+# exige 68020; se añade porque esos modelos son AGA). Para forzar otro CPU o
+# defines, `EXTRA_DEFINES` los añade encima (gana el último flag).
+MACHINE_UP="$(echo "$MACHINE_ID" | tr '[:lower:]' '[:upper:]')"
+MACHINE_FLAGS=()
+case "$MACHINE_UP" in
+	CD32|A1200) MACHINE_FLAGS=("-m68020" "-DK_AGA=1") ;;
+	A4000)      MACHINE_FLAGS=("-m68030" "-DK_AGA=1") ;;
+	*)          MACHINE_FLAGS=() ;;
+esac
 
 # --- Directorios de salida --------------------------------------------------
 OBJ_DIR="$ROOT/obj/demos/$DEMO_ID/$CONFIG_ID"
@@ -251,6 +265,12 @@ COMMON=(
 EXTRA_DEFINES="${EXTRA_DEFINES:-}"
 if [ -n "$EXTRA_DEFINES" ]; then
 	COMMON+=($EXTRA_DEFINES)
+fi
+
+# CPU/AGA según la máquina (ver arriba). Se añade DESPUÉS de `-m68000` para que
+# `-m68020`/`-m68030` lo sobreescriban (gana el último `-march`).
+if [ ${#MACHINE_FLAGS[@]} -gt 0 ]; then
+	COMMON+=("${MACHINE_FLAGS[@]}")
 fi
 
 # Overrides por demo (`build.args` en el dir de la demo): una asignacion `CLAVE=valor` por

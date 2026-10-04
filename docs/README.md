@@ -23,7 +23,7 @@ repositorio mantiene dos flujos claramente separados:
 2. **Navegación IA → documentación (leer primero como IA)**: [ai-dev-environment/DOC-MAP-PRINCIPAL.md](ai-dev-environment/DOC-MAP-PRINCIPAL.md).
 3. **Para continuar el trabajo**: [CONTINUATION_CONTEXT.md](CONTINUATION_CONTEXT.md)
    (estado del proyecto y orden de lectura).
-4. **Para operar build/run/analyze**: [build/BUILD_AND_RUN.md](build/BUILD_AND_RUN.md).
+4. **Para operar build/run/analyze**: [build/BUILD_AND_RUN.md](build/BUILD_AND_RUN.md) y la **guía transversal del entorno Amiga** (toolchain, compilar A500/A1200/A4000/CD32, WinUAE, GDB/canal lateral, MCP, capturas, perfil, Ollama): [ai-dev-environment/AMIGA_DEV_GUIDE.md](ai-dev-environment/AMIGA_DEV_GUIDE.md).
 5. **Para usar el engine (tutoriales + referencia)**: [engine/manual/README.md](engine/manual/README.md).
 6. **Para entender el engine (diseño/decisión)**: [engine/README.md](engine/README.md).
 

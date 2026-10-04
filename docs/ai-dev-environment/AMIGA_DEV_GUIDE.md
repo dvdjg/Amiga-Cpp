@@ -91,19 +91,23 @@ Flujo de la extensión: command palette → **`Amiga: Init Project`** → apunta
 
 ### 2.3 Modelo de máquina (A500 / A1200 / A4000 / CD32)
 
-Importante: en el engine, **`TARGET_MACHINE` solo etiqueta el `CONFIG_ID`** (`MACHINE_ID="${TARGET_MACHINE:-A500}"` en `tools/build/build-demo.sh`); **no añade `-m68020` ni AGA**. La CPU y el chipset se eligen con flags de compilación y con el quickstart de WinUAE.
+`TARGET_MACHINE` del build elige **CPU y chipset**, además del `CONFIG_ID`: A500 → 68000; A1200 y CD32 → **68020 + AGA**; A4000 → **68030 + AGA** (`tools/build/build-demo.sh`). El **entorno por defecto** (config base y runner) es **A500 con 512 kB de Slow RAM** (`quickstart=a500,1`: 0.5 MB Chip + 0.5 MB Slow).
 
-| Destino | CPU (compilar) | AGA/chipset | Kickstart | Quickstart WinUAE |
-|---|---|---|---|---|
-| **A500** (defecto) | `-m68000` | OCS/ECS, `-DENG_AMIGA=1` | 1.3 | `quickstart=a500,1` |
-| **A1200** | `-m68020` | `-DK_AGA=1` | 3.1 | `quickstart=a1200,0` (+ `cpu_model=68020`) |
-| **A4000** | `-m68030` | `-DK_AGA=1` | 3.1 | `quickstart=a4000,0` |
-| **CD32** | `-m68020` | `-DK_AGA=1` | 3.1 (ROM CD32) | `quickstart=CD32,0` |
+| Destino | `TARGET_MACHINE` | CPU | AGA | Kickstart | Quickstart WinUAE |
+|---|---|---|---|---|---|
+| **A500** (defecto) | `A500` | 68000 | no | 1.3 (`C:/amiga/KICK13.rom`) | `quickstart=a500,1` (0.5 MB chip + 0.5 MB slow) |
+| **A1200** | `A1200` | `-m68020` | `-DK_AGA=1` | 3.1 (`C:/amiga/KICK_A1200.rom`) | `quickstart=a1200,0` |
+| **A4000** | `A4000` | `-m68030` | `-DK_AGA=1` | 3.1 (`C:/amiga/KICK_A4000.rom`) | `quickstart=a4000,0` |
+| **CD32** | `CD32` | `-m68020` | `-DK_AGA=1` | 3.1 CD32 (`KICK_CD32.rom` + `CD32_EXT.rom`) | `quickstart=CD32,0` |
 
 - El backend lee AGA con `#if defined(K_AGA)` (`engine/include/eng/platform/amiga/backend.hpp`).
-- En el engine, para A1200 suele bastar `TARGET_MACHINE=A1200 C_OPT=-m68020 EXTRA_DEFINES=-DK_AGA=1` (o `build.args` por demo). El `tools/run/run-demo.ts` **fuerza `cpu_model=68020`** cuando `WINUAE_QUICKSTART` es `a1200`/`a4000` (para que código `-m68020` no dé *instrucción ilegal*). La compilación por defecto del engine es **68000**.
-- La extensión expone presets en `launch.json` (campo `"config"`): `A500`, `A1200`, `A1200-FAST`, `A1200-030` (necesita `cpuboard`), `A3000`, `A4000`. **No hay preset `CD32`** en la extensión; se configura a mano en WinUAE (`quickstart=CD32,0`).
-- **CD32 (receta)**: compilar `-m68020 -DK_AGA=1`; ejecutar con `WINUAE_QUICKSTART=CD32,0` y Kickstart de CD32. WinUAE modela CD32 con 68020 + AGA + Akiko (`akiko.cpp`). El runner admite `--cd32` para presentar un *pad* CD32 en el puerto 2 (`joyport1mode=cd32joy`; el pad puede no detectarse sin hardware joystick real, ver `run-demo.ts`).
+- **Recetas validadas** (build + run hasta `READY`):
+  - **A1200**: `TARGET_MACHINE=A1200 bash tools/build/build-demo.sh <demo> --debug` y ejecutar con `WINUAE_QUICKSTART=a1200,0 WINUAE_KICKSTART=C:/amiga/KICK_A1200.rom`.
+  - **CD32**: `TARGET_MACHINE=CD32 …` y `WINUAE_QUICKSTART=CD32,0 WINUAE_KICKSTART=C:/amiga/KICK_CD32.rom WINUAE_KICKSTART_EXT=C:/amiga/CD32_EXT.rom`.
+  - **A4000**: compila (`TARGET_MACHINE=A4000`) y el modelo arranca, pero el runner **no alcanza `READY`** con la config base (queda un requester de AmigaDOS: no ejecuta la app desde `dh1:`); pendiente de ajuste. Para probar AGA, usar A1200.
+- El runner fija `cpu_model` según el modelo del quickstart (**A1200/CD32 → 68020, A4000 → 68030**) cuando la config no lo trae. `EXTRA_DEFINES` puede forzar otro CPU/defines (gana el último flag).
+- La extensión expone presets en `launch.json` (campo `"config"`): `A500`, `A1200`, `A1200-FAST`, `A1200-030` (necesita `cpuboard`), `A3000`, `A4000`. **No hay preset `CD32`**; se configura a mano.
+- **CD32**: el runner admite `--cd32` para presentar un *pad* CD32 en el puerto 2 (`joyport1mode=cd32joy`; el pad puede no detectarse sin hardware joystick real).
 
 ### 2.4 Tipos de salida
 
@@ -152,9 +156,9 @@ Opciones más usadas:
 | teclado/joystick: `--key-events <id>`, `--key-scan <from>-<to>`, `--joy <port>:<dir\|fire>` | entrada |
 | `--no-side-channel` | desactiva la espera por canal lateral |
 
-Máquina emulada por entorno: `WINUAE_QUICKSTART` (p. ej. `a1200,0`, `CD32,0`), `WINUAE_KICKSTART` (ROM) y, para placas con ROM extendida (CD32), `WINUAE_KICKSTART_EXT` (p. ej. `C:/amiga/CD32_EXT.rom`). El runner fuerza `cpu_model=68020` cuando el quickstart es A1200/A4000/CD32.
+Máquina emulada por entorno: `WINUAE_QUICKSTART` (p. ej. `a1200,0`, `CD32,0`), `WINUAE_KICKSTART` (ROM) y, para placas con ROM extendida (CD32), `WINUAE_KICKSTART_EXT` (p. ej. `C:/amiga/CD32_EXT.rom`). El runner fija `cpu_model` según el modelo (A1200/CD32 → 68020, A4000 → 68030). El **entorno por defecto** es **A500 + 512 kB Slow**.
 
-> **Receta CD32 validada** (build con `EXTRA_DEFINES="-DK_AGA=1"`, código 68000 —AGA es chipset, no exige 68020— y ejecución con `WINUAE_QUICKSTART=CD32,0 WINUAE_KICKSTART=C:/amiga/KICK_CD32.rom WINUAE_KICKSTART_EXT=C:/amiga/CD32_EXT.rom`): el modelo CD32 de WinUAE arranca, el programa alcanza `READY` (state 3) y la captura interna sale 756×576. Si se quiere codegen 68020, añadir `-m68020`, pero entonces el binario deja de pasar `asm-audit` (la política del engine es 68000).
+> **Recetas validadas** (build con `TARGET_MACHINE=A1200`/`CD32` —que ya añade `-m68020 -DK_AGA=1` (§2.3)— y ejecución con el quickstart/ROM correspondientes): **A1200** y **CD32** alcanzan `READY` (state 3) y guardan captura 756×576. **A4000** compila (`-m68030`) y el modelo arranca, pero el runner no alcanza `READY` con la config base (requester de AmigaDOS: no ejecuta la app desde `dh1:`); pendiente de ajuste. Si se quiere codegen 68020 en un target A500, añadir `-m68020`, pero entonces el binario deja de pasar `asm-audit` (la política del engine es 68000).
 
 ### 3.2 Runner de la extensión (VS Code)
 

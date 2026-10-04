@@ -27,4 +27,5 @@ archivo.
 ## Enlaces relacionados
 
 - Emulación y despliegue en WinUAE: [../emulation/](../emulation/README.md).
+- Guía transversal del entorno Amiga (toolchain, compilar A500/A1200/A4000/CD32, WinUAE, GDB/canal lateral, MCP, capturas, perfil, Ollama): [../ai-dev-environment/AMIGA_DEV_GUIDE.md](../ai-dev-environment/AMIGA_DEV_GUIDE.md).
 - Fuente autoritativa de formatos: [../reference/](../reference/README.md).
