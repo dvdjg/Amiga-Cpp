@@ -16,6 +16,7 @@
 #include <eng/board/storage/block_source.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/core/util/string_view.hpp>
 
 #if !defined(__m68k__)
@@ -27,14 +28,12 @@ namespace eng::board {
 #if !defined(__m68k__)
 
 /// Fichero del PC leído por bloques. No copiable (posee el `FILE*`).
-class FileBlockSource {
+class FileBlockSource : public eng::util::Noncopyable {
 public:
 	static constexpr eng::usize max_path = 512u;
 
 	FileBlockSource() noexcept = default;
 	~FileBlockSource() noexcept { close(); }
-	FileBlockSource(const FileBlockSource&) = delete;
-	FileBlockSource& operator=(const FileBlockSource&) = delete;
 
 	/// Abre el fichero y fija el tamaño de bloque. `false` si falla.
 	[[nodiscard]] bool open(eng::util::StringView path, u32 block_size) noexcept {

@@ -18,6 +18,7 @@
 /// lazo por píxel); el juego no ve el compositor, los buffers ni el backend.
 
 #include <eng/core/types/types.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/field/playfield_base.hpp> // `PlayfieldHardwareView` (vista que expone la capa)
 #include <eng/memory/memory_manager.hpp>
 
@@ -26,11 +27,9 @@ namespace eng::playfield {
 /// Contrato de una capa de scroll que el `App` arranca y conduce. `Backend` es el backend concreto
 /// (el `App` ya está parametrizado por él), así que la interfaz es **no borrada**.
 template <class Backend>
-class ScrollLayer {
+class ScrollLayer : public eng::util::Noncopyable {
 public:
 	constexpr ScrollLayer() noexcept = default;
-	ScrollLayer(const ScrollLayer&) = delete;
-	ScrollLayer& operator=(const ScrollLayer&) = delete;
 
 	/// **Arranque** (una vez): reserva en `memory` (bloques **tageados** por banco), prepara el
 	/// contenido y toma el display en `backend`. `false` si no cabe o algo falla.

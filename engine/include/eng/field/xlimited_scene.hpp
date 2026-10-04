@@ -45,6 +45,7 @@
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/expected.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/field/scroll_layer.hpp>
 #include <eng/field/scroll_plan.hpp>
@@ -373,11 +374,9 @@ inline graphics::ModeSwitchZone make_hud_mode_switch_zone(
 }
 
 template <ScrollConsts SC = ScrollConsts{}, class MapT = TileLayerMap, class Profile = ScrollProgressive>
-class XlimitedScene {
+class XlimitedScene : public eng::util::Noncopyable {
 public:
     XlimitedScene() = default;
-    XlimitedScene(const XlimitedScene&) = delete;
-    XlimitedScene& operator=(const XlimitedScene&) = delete;
 
     /// Igual que `begin`, pero devolviendo el **motivo** del fallo.
     ///

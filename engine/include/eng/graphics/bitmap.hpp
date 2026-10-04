@@ -28,6 +28,7 @@
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/typed.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/graphics/plane_layout.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/memory/memory_manager.hpp>
@@ -51,12 +52,10 @@ struct BitmapConfig {
 };
 
 /// Framebuffer hardware: memoria + layout + addressing. SIN dibujo.
-class Bitmap {
+class Bitmap : public eng::util::Noncopyable {
 public:
 	Bitmap() = default;
 	~Bitmap() { release(); }
-	Bitmap(const Bitmap&) = delete;
-	Bitmap& operator=(const Bitmap&) = delete;
 
 	/// Devuelve al banco el bloque Chip si la instancia conserva una reserva válida.
 	void release() noexcept {

@@ -22,6 +22,7 @@
 #include <eng/core/types/domains.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/memory/memory_manager.hpp>
 
@@ -214,12 +215,10 @@ using SfxChannel = s32;
 ///   sfx.play(explosion, 2, LoopMode::Once);
 ///   ...
 ///   sfx.shutdown();                  // detiene y desinstala el handler
-class SfxMixer {
+class SfxMixer : public eng::util::Noncopyable {
 public:
 	~SfxMixer() { shutdown(); }
 	SfxMixer() = default;
-	SfxMixer(const SfxMixer&) = delete;
-	SfxMixer& operator=(const SfxMixer&) = delete;
 
 	/// Reserva el buffer **Chip** de salida (obligatorio) y arranca el handler. El mixer
 	/// sintetiza en `mixer_buffer` y Paula lo **reproduce por DMA**: ese buffer **debe** estar en

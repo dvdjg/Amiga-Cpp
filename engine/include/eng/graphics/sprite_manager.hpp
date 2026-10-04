@@ -30,6 +30,7 @@
 
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/sprite.hpp>
 #include <eng/memory/arena.hpp>
@@ -55,11 +56,9 @@ struct SpriteConfig {
 };
 
 /// Gestor de hasta 8 sprites hardware (componente de la escena).
-class SpriteManager {
+class SpriteManager : public eng::util::Noncopyable {
 public:
     SpriteManager() = default;
-    SpriteManager(const SpriteManager&) = delete;
-    SpriteManager& operator=(const SpriteManager&) = delete;
 
     /// Reserva el bloque de DATA de sprites en Chip RAM (la app escribe los
     /// bitmaps con `sprite_data()`). No reserva copper (lo hace el compositor).

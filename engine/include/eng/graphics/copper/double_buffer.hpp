@@ -42,17 +42,16 @@
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/copper/template.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/memory/memory_manager.hpp>
 
 namespace eng::copper {
 
-class DoubleBuffer {
+class DoubleBuffer : public eng::util::Noncopyable {
 public:
 	DoubleBuffer() = default;
 	~DoubleBuffer() { release(); }
-	DoubleBuffer(const DoubleBuffer&) = delete;
-	DoubleBuffer& operator=(const DoubleBuffer&) = delete;
 
 	/// Reserva los dos bloques (mismo tamaño y alineación) en Chip RAM.
 	/// `active` arranca en 1 para que el primer bloque que se escribe sea el 0.

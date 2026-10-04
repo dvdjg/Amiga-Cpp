@@ -23,6 +23,7 @@
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/expected.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/core/util/string_view.hpp>
 #include <eng/os/path.hpp>
 
@@ -202,14 +203,10 @@ public:
 	/// **Handle propietario** de un fichero (`VfsFile`): abre una vez y lee por offset sin re-abrir,
 	/// cerrando el handle en su destructor (RAII). Guarda el **backend por referencia** (no un
 	/// observador; `VfsFile` es un objeto de corta vida ligado a un `Vfs` vivo).
-	class VfsFile {
+	class VfsFile : public eng::util::NonMovable {
 	public:
 		VfsFile(Backend& backend, eng::u32 handle) noexcept
 			: m_backend(backend), m_handle(handle) {}
-		VfsFile(const VfsFile&) = delete;
-		VfsFile& operator=(const VfsFile&) = delete;
-		VfsFile(VfsFile&&) = delete;
-		VfsFile& operator=(VfsFile&&) = delete;
 		~VfsFile() { close(); }
 
 		[[nodiscard]] bool valid() const noexcept { return m_handle != 0u; }

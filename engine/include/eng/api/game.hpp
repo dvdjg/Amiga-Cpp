@@ -33,6 +33,7 @@
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/util/expected.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/debug/telemetry.hpp>
 #include <eng/engine.hpp>
 #include <eng/field/strip_layer.hpp>
@@ -67,7 +68,7 @@ namespace eng {
 /// El juego implementa `init(App&)`, `update(App&)` y `render(App&)` (con `auto&` para no nombrar
 /// el tipo concreto).
 template <class Backend, class Game>
-class App {
+class App : public eng::util::Noncopyable {
 public:
 	constexpr App(Backend& backend, Game& game) noexcept
 		: m_backend(backend), m_game(game), m_engine(backend, m_adapter) {
@@ -83,9 +84,6 @@ public:
 			if (m_memory.valid() && m_bitmap_owners[i].valid()) m_memory->chip().release(m_bitmap_owners[i]);
 		}
 	}
-	App(const App&) = delete;
-	App& operator=(const App&) = delete;
-
 	/// Ejecuta el bucle del engine en el modo **IRQ mínima**: la IRQ de VBlank solo lleva el
 	/// **latido** (el hook que alimenta el puerto de mensajes / el mini-SO) y `update`/`render`
 	/// corren en el **bucle principal**. Registra el **hook de VBlank** que publica

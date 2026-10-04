@@ -13,6 +13,7 @@
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/memory/arena.hpp>
 
 namespace eng::res {
@@ -63,11 +64,9 @@ struct AssetSlot {
 
 /// Lease no copiable que retiene el slot mientras un consumidor conserva su vista. La caché usa
 /// slots de dirección estable; cada lease se cierra descontando su contador en ese mismo slot.
-class AssetLease {
+class AssetLease : public eng::util::Noncopyable {
 public:
 	AssetLease() noexcept = default;
-	AssetLease(const AssetLease&) = delete;
-	AssetLease& operator=(const AssetLease&) = delete;
 	AssetLease(AssetLease&& other) noexcept
 		: m_slot(other.m_slot), m_view(other.m_view), m_dma(other.m_dma) {
 		other.m_slot.reset();

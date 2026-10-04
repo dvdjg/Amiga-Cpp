@@ -19,16 +19,15 @@
 /// Verificación: HOST-141.
 
 #include <eng/board/core/types.hpp>
+#include <eng/core/util/noncopyable.hpp>
 
 namespace eng::board::chess {
 
 /// Historial circular de claves Zobrist. Capacidad fija (`MaxMoves`), sin heap.
 template <eng::u32 MaxMoves>
-class PositionHistory {
+class PositionHistory : public eng::util::Noncopyable {
 public:
 	PositionHistory() noexcept { reset(); }
-	PositionHistory(const PositionHistory&) = delete;
-	PositionHistory& operator=(const PositionHistory&) = delete;
 
 	void reset() noexcept { m_count = 0u; }
 

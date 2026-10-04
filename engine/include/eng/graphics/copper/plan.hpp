@@ -43,6 +43,7 @@
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/algorithm.hpp>
 #include <eng/core/util/array.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/graphics/copper/double_buffer.hpp>
 #include <eng/debug/prof.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
@@ -84,12 +85,10 @@ struct EffectCost {
 /// Índice "ningún efecto" de `over_budget_effect()`.
 inline constexpr u8 no_effect = 0xffu;
 
-class Plan {
+class Plan : public eng::util::Noncopyable {
 public:
 	Plan() = default;
 	~Plan() { release(); }
-	Plan(const Plan&) = delete;
-	Plan& operator=(const Plan&) = delete;
 
 	/// Capacidad de intenciones por frame (fijo, sin heap). `add` marca overflow si se
 	/// supera; `end_frame` devuelve false en ese caso (no se publica una lista parcial).

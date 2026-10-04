@@ -18,6 +18,7 @@
 #include <eng/core/types/domains.hpp>
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/field/raster.hpp>
 #include <eng/graphics/blitter_state.hpp>
 #include <eng/graphics/frame_plan.hpp>
@@ -98,7 +99,7 @@ struct FlatTriangle {
 /// - escribir colores custom simples;
 /// - exponer el overlay de debug;
 /// - dejar claro donde usamos ROM kernel y donde tocamos hardware directo.
-class AmigaBackend {
+class AmigaBackend : public eng::util::Noncopyable {
 public:
 	using Profile = HardwareProfile;
 
@@ -107,9 +108,6 @@ public:
 	constexpr AmigaBackend(Profile profile, GameMemoryProfile game_memory)
 		: m_profile(profile), m_game_memory(game_memory) {}
 	~AmigaBackend();
-
-	AmigaBackend(const AmigaBackend&) = delete;
-	AmigaBackend& operator=(const AmigaBackend&) = delete;
 
 	/// Inicializacion minima del backend.
 	void boot();

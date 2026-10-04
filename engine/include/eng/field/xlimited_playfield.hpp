@@ -40,10 +40,6 @@ class XLimitedPlayfield : public XLimitedMapping<SC, MapT> {
 public:
     XLimitedPlayfield() = default;
 
-    // No copiable (posee memoria Chip)
-    XLimitedPlayfield(const XLimitedPlayfield&) = delete;
-    XLimitedPlayfield& operator=(const XLimitedPlayfield&) = delete;
-
 
     /// Scroll de N píxeles por eje (especialización del playfield). Devuelve false
     /// si un borde del mapa bloqueó el avance (dirección inversa sin recorrido).

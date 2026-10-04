@@ -23,6 +23,7 @@
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/typed.hpp>
 #include <eng/core/util/expected.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/graphics/sprite_asset.hpp>
 #include <eng/graphics/bitmap_view.hpp>
 #include <eng/graphics/plane_layout.hpp>
@@ -39,13 +40,11 @@ namespace eng {
 /// dominio (`DomainAsset<Tag>`) elige el banco (Chip para DMA, Fast→Slow para CPU) y el `Assets`
 /// conserva el `Block` como dueño, entregando **vistas no propietarias**. `reset_phase()` libera
 /// todos los bloques en **orden inverso** al de reserva.
-class Assets {
+class Assets : public eng::util::Noncopyable {
 public:
 	static constexpr eng::u8 kMaxBlocks = 16u;
 
 	Assets() = default;
-	Assets(const Assets&) = delete;
-	Assets& operator=(const Assets&) = delete;
 
 	/// Liga el gestor de memoria donde se copian los blobs. Llamar antes de `add`/`create`.
 	void bind(MemoryManager& memory) noexcept { m_mem = memory; }

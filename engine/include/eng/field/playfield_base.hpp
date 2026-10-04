@@ -45,6 +45,7 @@
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/graphics/bitmap.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/memory/arena.hpp>
@@ -218,11 +219,9 @@ struct RectFillSink {
 /// Con esos hooks, `set_pixel`/`fill_rect`/`draw_line` están implementados UNA
 /// vez en la base; los blits son virtuales porque la costura/espejo dependen del
 /// layout concreto.
-class Playfield {
+class Playfield : public eng::util::Noncopyable {
 public:
     Playfield() = default;
-    Playfield(const Playfield&) = delete;
-    Playfield& operator=(const Playfield&) = delete;
     // Sin destructor virtual: el engine no hace heap ni borra polimórficamente
     // (la Scene posee los playfields como miembros concretos). Evita que el
     // compilador emita `operator delete` (_ZdlPvm) y bloat del vtable.

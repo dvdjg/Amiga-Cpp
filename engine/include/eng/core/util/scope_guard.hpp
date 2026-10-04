@@ -17,18 +17,17 @@
 ///   ...                                // si algo falla y se sale, restaura
 ///   restore.release();                 // camino correcto: no restaurar
 
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/core/util/type_traits.hpp>
 #include <eng/core/util/util.hpp>
 
 namespace eng::util {
 
 template <class F>
-class ScopeGuard {
+class ScopeGuard : public Noncopyable {
 public:
 	constexpr explicit ScopeGuard(F fn) noexcept : m_fn(fn), m_active(true) {}
 
-	ScopeGuard(const ScopeGuard&) = delete;
-	ScopeGuard& operator=(const ScopeGuard&) = delete;
 	ScopeGuard& operator=(ScopeGuard&&) = delete;
 
 	constexpr ScopeGuard(ScopeGuard&& other) noexcept

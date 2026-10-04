@@ -12,6 +12,7 @@
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/array.hpp>
 #include <eng/core/util/function_ref.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/field/draw_target.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/field/raster.hpp>
@@ -73,12 +74,10 @@ struct Patch32 {
 
 /// Escena viva: posee los bitplanes (contiguos) y la copperlist, y el emisor de Copper.
 /// No reserva al sistema más que a través de la `MemorySystem` del backend.
-class Scene {
+class Scene : public eng::util::Noncopyable {
 public:
 	Scene() = default;
 	~Scene() { release(); }
-	Scene(const Scene&) = delete;
-	Scene& operator=(const Scene&) = delete;
 
 	/// **Efecto de escena**: callable que recibe la escena y aporta intenciones/trabajos al
 	/// plan del frame. Ver `docs/engine/architecture/EFFECT_MODEL.md`.
