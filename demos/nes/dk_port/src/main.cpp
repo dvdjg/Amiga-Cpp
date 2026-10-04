@@ -105,7 +105,10 @@ struct DkPortGame {
 	bool m_copper_ok = false;
 	bool m_sprites_on = true; // etapa de sprites HW (OAM -> canales)
 	eng::u16 m_frames = 0u;
-	eng::u16 m_tilebase = 0u;
+	eng::u16 m_batch = 0u;       // jobs acumulados en el FramePlan actual (vaciado antes del tope)
+	eng::u16 m_tilebase = 0u;    // base de la nametable en VRAM ($2000/$2400)
+	eng::u32 m_chr_base = 0u;    // base de la pattern table del BG en el CHR ($1000 si ctrl bit4)
+	eng::u32 m_spr_base = 0u;    // base de la pattern table de sprites ($1000 si ctrl bit3)
 	eng::u8 m_mt_dirty[kMtCount] {};
 	eng::u8 m_pal_spr[kSpriteChannels][4] {}; // subpaleta de sprite por canal (COLOR16+ par)
 
@@ -115,8 +118,11 @@ struct DkPortGame {
 	// Decodifica el CHR (2bpp) de la NES al formato planar del engine (2 planos, 8 filas).
 	void build_tile_bank() {
 		for (eng::u16 t = 0; t < kTileCount; ++t) {
-			(void)eng::graphics::decode_2bpp_planar(&CHR_ROM[static_cast<eng::u32>(t) * 16u],
-								tile_at(t), 8u, 8u, 2u, 1u, 8u);
+			// Los tiles de BG se leen de la pattern table seleccionada por $2000 bit 4
+			// (`m_chr_base`); sin esto se pinta la tabla de sprites.
+			(void)eng::graphics::decode_2bpp_planar(
+				&CHR_ROM[m_chr_base + static_cast<eng::u32>(t) * 16u],
+				tile_at(t), 8u, 8u, 2u, 1u, 8u);
 		}
 	}
 
@@ -191,17 +197,23 @@ struct DkPortGame {
 		}
 	}
 
-	// Añade un job al plan; si el plan (max 128) se llena, lo ejecuta y sigue.
+	// Añade un job al plan. IMPORTANTE: `FramePlan::add_*` marca el plan NO-OK al llenarse
+	// (max_blit_jobs), y `execute_frame_plan` RECHAZA un plan no-ok -> si vaciamos "cuando falla
+	// el add", el lote ya esta marcado no-ok y se PIERDE. Hay que vaciar ANTES de llenar; por eso
+	// llevamos `m_batch` y vaciamos a 64 (holgadamente por debajo del tope de 128).
 	void add_mt_job(eng::u16 mx, eng::u16 my) {
-		if (!m_plan.add_tile_block_copy(make_mt_job(mx, my))) {
+		if (m_batch >= 64u) {
 			(void)m_backend->execute_frame_plan(m_plan);
 			m_plan.clear();
-			(void)m_plan.add_tile_block_copy(make_mt_job(mx, my));
+			m_batch = 0u;
 		}
+		(void)m_plan.add_tile_block_copy(make_mt_job(mx, my));
+		++m_batch;
 	}
 
 	void blit_all() {
 		m_plan.clear();
+		m_batch = 0u;
 		for (eng::u16 my = 0; my < kMtY; ++my) {
 			for (eng::u16 mx = 0; mx < kMtX; ++mx) {
 				if (kUseBlitter) {
@@ -234,6 +246,7 @@ struct DkPortGame {
 
 	void rebuild_dirty() {
 		m_plan.clear();
+		m_batch = 0u;
 		for (eng::u16 my = 0; my < kMtY; ++my) {
 			for (eng::u16 mx = 0; mx < kMtX; ++mx) {
 				const eng::u16 idx = static_cast<eng::u16>(my * kMtX + mx);
@@ -260,7 +273,7 @@ struct DkPortGame {
 	void build_sprite_channel(eng::u8 ch, eng::u16 tile, bool flip_h) {
 		eng::u16* const data = m_sprdata.view.as_words().data();
 		eng::u16* const inst = data + static_cast<eng::u32>(ch) * kSpriteInstanceWords;
-		const eng::u8* const chr = &CHR_ROM[static_cast<eng::u32>(tile) * 16u];
+		const eng::u8* const chr = &CHR_ROM[m_spr_base + static_cast<eng::u32>(tile) * 16u];
 		for (eng::u16 line = 0; line < kSpriteHeight; ++line) {
 			eng::u16 a = 0u;
 			eng::u16 b = 0u;
@@ -352,10 +365,13 @@ struct DkPortGame {
 			return;
 		}
 		// 1) Correr el port unos frames para que escriba nametable/atributos/paleta.
-		for (eng::u16 i = 0; i < 4u; ++i) {
+		for (eng::u16 i = 0; i < 60u; ++i) {
 			n2a_frame();
 		}
 		m_tilebase = static_cast<eng::u16>((n2a_ppu_ctrl() & 1u) * 0x400u);
+		// Base de la pattern table del BG ($2000 bit 4) y de los sprites ($2000 bit 3).
+		m_chr_base = (n2a_ppu_ctrl() & 0x10u) ? 0x1000u : 0u;
+		m_spr_base = (n2a_ppu_ctrl() & 0x08u) ? 0x1000u : 0u;
 		// 2) Paleta BG ($3F00-$3F0F) -> COLOR00..15.
 		for (eng::u16 i = 0; i < 16u; ++i) {
 			m_pal.color[i] = nes_to_amiga(n2a_ppu_pal(static_cast<eng::u8>(i)));
@@ -400,11 +416,12 @@ struct DkPortGame {
 				compose_metatile(mx, my);
 			}
 		}
-		blit_all();
 		// 6) Sprites HW: DATA inicial desde OAM y takeover de la escena (geometria+paleta+sprites).
 		build_sprites_from_oam();
 		rebuild_scene_copper();
 		m_scene.takeover(backend);
+		// Copiar los metatiles DESPUES del takeover (el buffer mostrado ya es el activo).
+		blit_all();
 		m_ready = true;
 		// Diagnostico: publica el PPU observado tras 4 frames (host espera ctrl=90 mask=1E),
 		// y el nº de sprites HW activos + estado del Copper.
