@@ -139,7 +139,19 @@ void fill_bank(eng::u8* d, eng::u16 count, eng::u8 planes) {
 	}
 }
 
-eng::u16 g_palette[16] {};
+eng::u16 g_palette[32] {}; // 0..15 = BG ($3F00-0F); 16..31 = sprites ($3F10-1F, COLOR16-31)
+
+// Sprites HW desde la OAM: 8 canales, DATA = DAT+DATB por linea + 2 palabras de fin de DMA.
+// Un sprite NES 8x8 ocupa 1 palabra/linea (16 px de ancho de canal, 8 usados).
+constexpr eng::u8  kSpriteChannels = 8u;
+constexpr eng::u16 kSpriteHeight = 16u;
+constexpr eng::u16 kSpriteInstanceWords = kSpriteHeight * 2u + 2u; // 34
+constexpr eng::u32 kSpriteDataBytes = kSpriteChannels * kSpriteInstanceWords * 2u;
+// Cableado OAM->canales HW listo; posicion/paleta pendientes de calibrar (se ve un sprite
+// desplazado). Desactivado por defecto para no ensuciar el render mientras se calibra.
+constexpr bool kSpritesOn = false;
+eng::u32 g_spr_chr = 0u;              // base de la pattern table de sprites ($2000 bit 3)
+constexpr eng::u16 kSpriteTop = 0x2Au; // DIWSTRT_y (0x29) + 1 (linea raster del primer pixel)
 
 // Reconstruye el mapa de metatiles a partir del nametable NES (tilebase actual): los 4 tiles
 // NES REALES de cada bloque 2x2 (no vecinos forzados) y su subpaleta (del cuadrante de atributos).
@@ -197,6 +209,68 @@ struct DkXlGame {
 	eng::u16 m_frames = 0u;
 	eng::u16 m_rebuilds = 0u; // nº de rebuilds del mapa (cambios de nametable)
 
+	// Refresca los 8 canales HW desde la OAM (los primeros 8 sprites con y<$F0). Cada sprite NES
+	// se asigna a un canal del PAR de su subpaleta (attr&3), porque cada par comparte la gama
+	// COLOR16+s*4. DATA: tile 8x8 en las 8 lineas altas del canal (D=1, MSB=izquierda).
+	void build_sprites() {
+		eng::graphics::SpriteManager& sm = scene.sprites();
+		sm.disable_all();
+		eng::u16* const data = reinterpret_cast<eng::u16*>(sm.sprite_data().data());
+		eng::u8 used[kSpriteChannels] = {};
+		for (eng::u8 i = 0; i < 64u; ++i) {
+			const eng::u8 oy = n2a_ppu_oam(static_cast<eng::u8>(i * 4u + 0u));
+			const eng::u8 tile = n2a_ppu_oam(static_cast<eng::u8>(i * 4u + 1u));
+			const eng::u8 attr = n2a_ppu_oam(static_cast<eng::u8>(i * 4u + 2u));
+			const eng::u8 ox = n2a_ppu_oam(static_cast<eng::u8>(i * 4u + 3u));
+			if (oy >= 0xF0u) {
+				continue;
+			}
+			const eng::u8 s = static_cast<eng::u8>(attr & 3u);
+			eng::s8 ch = -1;
+			for (eng::u8 c = static_cast<eng::u8>(s * 2u);
+			     c < static_cast<eng::u8>(s * 2u + 2u) && c < kSpriteChannels; ++c) {
+				if (used[c] == 0u) { ch = static_cast<eng::s8>(c); break; }
+			}
+			if (ch < 0) {
+				continue; // no hay canal libre para esa subpaleta
+			}
+			used[ch] = 1u;
+			eng::u16* const inst = data + static_cast<eng::u32>(ch) * kSpriteInstanceWords;
+			const eng::u8* const chr = &CHR_ROM[g_spr_chr + static_cast<eng::u32>(tile) * 16u];
+			const bool flip = (attr & 0x40u) != 0u;
+			for (eng::u16 line = 0; line < kSpriteHeight; ++line) {
+				eng::u16 a = 0u, b = 0u;
+				if (line < 8u) {
+					a = chr[line];
+					b = chr[8u + line];
+					if (flip) {
+						eng::u16 fa = 0u, fb = 0u;
+						for (eng::u8 k = 0; k < 8u; ++k) {
+							fa = static_cast<eng::u16>(fa | (((a >> k) & 1u) << (7u - k)));
+							fb = static_cast<eng::u16>(fb | (((b >> k) & 1u) << (7u - k)));
+						}
+						a = fa;
+						b = fb;
+					}
+				}
+				inst[line * 2u + 0u] = static_cast<eng::u16>(a << 8u);
+				inst[line * 2u + 1u] = static_cast<eng::u16>(b << 8u);
+			}
+			inst[16u * 2u + 0u] = 0u; // fin de DMA (2 palabras a cero)
+			inst[16u * 2u + 1u] = 0u;
+			eng::graphics::SpriteConfig cfg {};
+			cfg.enabled = true;
+			cfg.data = eng::Span<const eng::u16> {inst, kSpriteInstanceWords};
+			cfg.width_words = 1u;
+			cfg.height = kSpriteHeight;
+			cfg.hpos = static_cast<eng::u16>(ox + 128u);
+			cfg.vstart = static_cast<eng::u16>(oy + kSpriteTop);
+			cfg.vstop = static_cast<eng::u16>(cfg.vstart + kSpriteHeight - 1u);
+			cfg.palette_base = 16u;
+			sm.set(static_cast<eng::u8>(ch), cfg);
+		}
+	}
+
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({256u * 1024u, 16u * 1024u, 8u * 1024u})) {
@@ -207,10 +281,12 @@ struct DkXlGame {
 		for (eng::u16 i = 0; i < 60u; ++i) {
 			n2a_frame();
 		}
-		// Base de la pattern table del BG ($2000 bit 4): DK = $1000.
+		// Base de las pattern tables ($2000): bit 4 = BG, bit 3 = sprites. DK: BG $1000, sprites $0000.
 		g_bg_chr = (n2a_ppu_ctrl() & 0x10u) ? 0x1000u : 0u;
+		g_spr_chr = (n2a_ppu_ctrl() & 0x08u) ? 0x1000u : 0u;
 		for (eng::u16 i = 0; i < 16u; ++i) {
-			g_palette[i] = nes_to_amiga(n2a_ppu_pal(static_cast<eng::u8>(i)));
+			g_palette[i] = nes_to_amiga(n2a_ppu_pal(static_cast<eng::u8>(i)));       // BG $3F00-0F
+			g_palette[16u + i] = nes_to_amiga(n2a_ppu_pal(static_cast<eng::u8>(0x10u + i))); // spr $3F10-1F
 		}
 		rebuild_world_from_port();
 		// Banco prebuilt en Chip, dimensionado al MAXIMO de metatiles (para poder rebuilds de
@@ -246,7 +322,8 @@ struct DkXlGame {
 		// Banco prebuilt (aliaseado por la escena): sin tope de 64 y con los tiles reales.
 		cfg.blocks_prebuilt = m_bank.view.data();
 		cfg.blocks_prebuilt_size = bbytes;
-		cfg.palette = eng::PaletteWords {g_palette, 16u};
+		cfg.palette = eng::PaletteWords {g_palette, 32u}; // 0-15 BG, 16-31 sprites (COLOR16-31)
+		cfg.sprite_data_bytes = kSpritesOn ? kSpriteDataBytes : 0u; // sprites HW (0 = no emitir)
 		cfg.copper_bytes = 1536u;
 
 		if (!scene.begin(backend.memory_manager(), cfg)) {
@@ -254,6 +331,7 @@ struct DkXlGame {
 			return;
 		}
 		scene.bg().set_camera(0, 0);
+		build_sprites(); // canales HW desde la OAM (DATA ya reservada por begin)
 		plan.clear();
 		if (!scene.fill(backend, plan)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x0000E003u);
@@ -293,6 +371,7 @@ struct DkXlGame {
 			}
 			m_rebuilds = static_cast<eng::u16>(m_rebuilds + 1u);
 		}
+		build_sprites(); // actualiza los canales HW desde la OAM cada frame
 		plan.set_blit_budget_limits({8192, 16384, 4, 160});
 		if (!backend.execute_frame_plan(plan)) {
 			ready = false;
