@@ -168,7 +168,18 @@ struct DemoGame {
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		(void)backend; // la lista es estatica: `takeover` ya la instalo
-		update_cursor(); // el cursor de hardware sigue al raton
+		// Una sola lectura del raton por frame: mueve el cursor de hardware y, si el boton
+		// izquierdo cambio de estado, despacha el click al arbol de widgets.
+		eng::input::MouseState mouse;
+		eng::amiga::poll_mouse(mouse, m_mouse_poll);
+		update_cursor(mouse);
+		if (handle_mouse(mouse)) {
+			// El demo repinta por zona (como la pista del slider), no el arbol completo.
+			if (ui::Widget* hit = m_ctx.hit_test(&m_root, m_cx, m_cy)) {
+				repaint_widget(*hit);
+			}
+			repaint_widget(m_status); // el boton cambia la etiqueta de estado
+		}
 	}
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
@@ -257,10 +268,24 @@ private:
 		m_ctx.set_focus(&m_button);
 	}
 
+	/// Despacha los clicks reales del boton izquierdo al `UiContext` (borde de flanco). Un
+	/// click sobre el boton dispara su `Callback<>` en vivo. Devuelve `true` si el evento lo
+	/// consumio un widget (el llamador repinta). Durante el self-test (init) no se repinta.
+	[[nodiscard]] bool handle_mouse(const eng::input::MouseState& mouse) {
+		const bool left = mouse.left_button;
+		if (left == m_prev_left) {
+			return false;
+		}
+		m_prev_left = left;
+		ui::UiEvent ev {};
+		ev.kind = left ? ui::UiEventKind::MouseDown : ui::UiEventKind::MouseUp;
+		ev.x = m_cx;
+		ev.y = m_cy;
+		return m_ctx.dispatch(ev);
+	}
+
 	/// Mueve el cursor con el raton (deltas de `JOY0DAT`) y reescribe POS/CTL en la estructura.
-	void update_cursor() {
-		eng::input::MouseState mouse;
-		eng::amiga::poll_mouse(mouse, m_mouse_poll);
+	void update_cursor(const eng::input::MouseState& mouse) {
 		eng::s16 cx = static_cast<eng::s16>(m_cx + mouse.dx);
 		eng::s16 cy = static_cast<eng::s16>(m_cy + mouse.dy);
 		if (cx < 0) cx = 0;
@@ -355,22 +380,29 @@ private:
 		if (m_sound == before) {
 			return false;
 		}
-		// `on_click` del boton por el mismo despacho que un click de usuario: si el Callback
-		// no dispara en m68k, la demo va a Failed. La etiqueta de estado cambia y se ve en la
-		// captura (draw_static la pinta despues).
-		ui::UiEvent bdown {};
-		bdown.kind = ui::UiEventKind::MouseDown;
-		bdown.x = 60;
-		bdown.y = 49;
-		m_ctx.dispatch(bdown);
-		ui::UiEvent bup {};
-		bup.kind = ui::UiEventKind::MouseUp;
-		bup.x = 60;
-		bup.y = 49;
-		m_ctx.dispatch(bup);
+		// `handle_mouse` es la MISMA funcion del bucle de runtime: ejercita el flanco del boton
+		// izquierdo y el `Callback<>` en m68k. Se apunta el cursor al boton y se restaura.
+		const eng::s16 save_x = m_cx;
+		const eng::s16 save_y = m_cy;
+		m_cx = 66;
+		m_cy = 49;
+		m_prev_left = false;
+		eng::input::MouseState press {};
+		press.left_button = true;
+		eng::input::MouseState release {};
+		release.left_button = false;
+		(void)handle_mouse(press);
+		(void)handle_mouse(release);
+		m_cx = save_x;
+		m_cy = save_y;
 		if (m_clicks != 1u) {
 			return false;
 		}
+		// El self-test ya valido que el `on_click` dispara; se deja el estado "fresco" para
+		// que la captura inicial muestre la etiqueta de reposo (un click real la cambiara).
+		m_clicks = 0u;
+		m_status_text = "Listo. Sin pulsar.";
+		m_status.text = m_status_text;
 		// Fuente cirilica (HOST-264): А (U+0410) y я (U+044F) deben tener glifo.
 		bool cyr_ok = false;
 		for (eng::u8 r = 0; r < eng::Font8::kRows; ++r) {
@@ -386,8 +418,22 @@ private:
 	static void accept_cb(void* ctx) noexcept { static_cast<DemoGame*>(ctx)->on_accept(); }
 	void on_accept() noexcept {
 		++m_clicks;
-		m_status_text = "Aceptar pulsado.";
+		m_status_text = "Pulsado: on_click.";
 		m_status.text = m_status_text;
+	}
+
+	/// Repinta la zona de un widget (rect + margen) sobre el fondo, igual que la pista del
+	/// slider: el demo repinta por zona en runtime, no el arbol completo.
+	void repaint_widget(ui::Widget& w) {
+		playfield::Surface c = m_scene.surface();
+		ui::UiPainter p(c, nullptr, m_theme);
+		eng::Box z = w.bounds;
+		z.x = static_cast<eng::s16>(z.x - 2);
+		z.w = static_cast<eng::u16>(z.w + 4u);
+		z.y = static_cast<eng::s16>(z.y - 2);
+		z.h = static_cast<eng::u16>(z.h + 4u);
+		p.fill(z, m_theme.bg);
+		ui::draw_widget(w, p);
 	}
 
 	/// Pinta el arbol completo una sola vez (la UI es estatica salvo la pista del slider).
@@ -405,7 +451,7 @@ private:
 	bool m_radio_b_on = false;
 	eng::s16 m_slider_value = 0;
 	char m_text[16] = "Hola Amiga";
-	const char* m_status_text = "Listo. Tab cambia el foco.";
+	const char* m_status_text = "Listo. Sin pulsar.";
 	eng::u8 m_clicks = 0u;
 
 	ui::Panel m_root {};
@@ -426,8 +472,11 @@ private:
 	eng::Block<eng::SpriteTag> m_sprite_block {}; ///< estructura DMA del cursor (Chip RAM)
 	ui::HardwareCursor m_cursor {};               ///< cursor por sprite de hardware
 	eng::amiga::MousePollState m_mouse_poll {};
-	eng::s16 m_cx = 160; ///< posicion del cursor (sigue al raton)
-	eng::s16 m_cy = 128;
+	bool m_prev_left = false; ///< estado previo del boton izquierdo (deteccion de flanco)
+	/// Cursor de hardware (sigue al raton por deltas). Arranca en (0,0) para que una
+	/// inyeccion absoluta (`--mouse-from 0,0 --mouse-to X,Y`) lo coloque en (X,Y).
+	eng::s16 m_cx = 0;
+	eng::s16 m_cy = 0;
 };
 
 } // namespace
