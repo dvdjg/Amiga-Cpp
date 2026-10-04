@@ -152,8 +152,8 @@ constexpr eng::u32 kSpriteDataBytes = kSpriteChannels * kSpriteInstanceWords * 2
 // desplazado). Desactivado por defecto para no ensuciar el render mientras se calibra.
 constexpr bool kSpritesOn = false;
 // Modo prueba de scroll: mueve la camara X para medir fps/coste real en A1200.
-constexpr bool kScrollTest = true;
-constexpr eng::s32 kScrollStep = 2; // px/frame
+constexpr bool kScrollTest = true;   // sigue el scroll de la ROM ($2005/$2006) — NO un paso artificial
+constexpr eng::s32 kScrollStep = 2;  // (obsoleto) paso artificial del modo test
 constexpr bool kRunPort = true;     // false = solo render (test de coste del port vs render)
 constexpr bool kDoCompose = true;  // false = saltar compose/install (test del bucle del engine)
 eng::u32 g_spr_chr = 0u;              // base de la pattern table de sprites ($2000 bit 3)
@@ -204,6 +204,62 @@ void rebuild_world_from_port() {
 	}
 }
 
+// Recalcula UN metatile (tx,ty) desde el nametable actual y lo registra (dedupe). Devuelve su
+// indice (o 0xFFFF si la tabla esta llena). Lo usan el rebuild incremental de celdas sucias.
+eng::u16 compute_metatile(eng::u16 tx, eng::u16 ty) {
+	const eng::u16 tb = static_cast<eng::u16>((n2a_ppu_ctrl() & 1u) * 0x400u);
+	const eng::u16 cx = static_cast<eng::u16>(tx * 2u);
+	const eng::u16 cy = static_cast<eng::u16>(ty * 2u);
+	eng::u8 t4[4];
+	t4[0] = static_cast<eng::u8>(n2a_ppu_vram(static_cast<eng::u16>(tb + cy * 32u + cx)));
+	t4[1] = static_cast<eng::u8>(n2a_ppu_vram(static_cast<eng::u16>(tb + cy * 32u + cx + 1u)));
+	t4[2] = static_cast<eng::u8>(n2a_ppu_vram(static_cast<eng::u16>(tb + (cy + 1u) * 32u + cx)));
+	t4[3] = static_cast<eng::u8>(n2a_ppu_vram(static_cast<eng::u16>(tb + (cy + 1u) * 32u + cx + 1u)));
+	const eng::u16 attr_addr = static_cast<eng::u16>(tb + 0x3C0u + (cy / 4u) * 8u + (cx / 4u));
+	const eng::u8 ab = n2a_ppu_vram(attr_addr);
+	const eng::u8 pal = static_cast<eng::u8>((ab >> (((cy % 4u) / 2u) * 4u + ((cx % 4u) / 2u) * 2u)) & 3u);
+	for (eng::u16 m = 0; m < g_mt_count; ++m) {
+		if (g_mtpal[m] != pal) continue;
+		if (g_mt4[m][0] == t4[0] && g_mt4[m][1] == t4[1] &&
+		    g_mt4[m][2] == t4[2] && g_mt4[m][3] == t4[3]) {
+			return m;
+		}
+	}
+	if (g_mt_count < kMaxMt) {
+		const eng::u16 idx = g_mt_count++;
+		g_mt4[idx][0] = t4[0]; g_mt4[idx][1] = t4[1];
+		g_mt4[idx][2] = t4[2]; g_mt4[idx][3] = t4[3];
+		g_mtpal[idx] = pal;
+		return idx;
+	}
+	return 0xFFFFu;
+}
+
+// **Rebuild INCREMENTAL**: consume las celdas sucias del PPU y recomputa SOLO los metatiles
+// afectados (en vez de los 16x15 completos con dedupe O(n^2)). Devuelve `true` si algo cambio.
+// El llamador debe rellenar el banco y re-blitear (aqui se mantiene simple: fill completo).
+bool update_world_from_dirty() {
+	const eng::u16 tb = static_cast<eng::u16>((n2a_ppu_ctrl() & 1u) * 0x400u);
+	bool any = false;
+	eng::u16 da = 0u;
+	eng::u8 dv = 0u;
+	while (n2a_ppu_dirty_pop(&da, &dv)) {
+		if (da < tb || da >= static_cast<eng::u16>(tb + 0x3C0u)) { continue; } // no es el nametable BG
+		const eng::u16 cell = static_cast<eng::u16>(da - tb);
+		const eng::u16 col = static_cast<eng::u16>(cell % 32u);
+		const eng::u16 row = static_cast<eng::u16>(cell / 32u);
+		if (col >= kScreenCols * 2u || row >= kMtRows * 2u) { continue; }
+		const eng::u16 tx = static_cast<eng::u16>(col / 2u);
+		const eng::u16 ty = static_cast<eng::u16>(row / 2u);
+		const eng::u16 idx = compute_metatile(tx, ty);
+		if (idx == 0xFFFFu) { continue; }
+		for (eng::u16 c = tx; c < kMtCols; c = static_cast<eng::u16>(c + kScreenCols)) {
+			g_cells[static_cast<eng::u32>(ty) * kMtCols + c] = idx;
+		}
+		any = true;
+	}
+	return any;
+}
 struct DkXlGame {
 	playfield::XlimitedScene<kScrollConsts, playfield::TileLayerMap, playfield::ScrollProgressive> scene {};
 	playfield::XlimitedSceneConfigT<playfield::TileLayerMap> cfg {};
@@ -372,16 +428,13 @@ struct DkXlGame {
 		++m_frames;
 		// REBUILD dinamico: si el juego cambio el nametable (transicion de pantalla), recomponer
 		// el mapa de metatiles + el banco y re-blitear el anillo. Deteccion: celdas sucias del PPU.
-		eng::u16 da = 0u;
-		eng::u8 dv = 0u;
-		bool nt_changed = false;
-		while (n2a_ppu_dirty_pop(&da, &dv)) {
-			nt_changed = true;
-		}
+		// REBUILD dinamico INCREMENTAL: consumir las celdas sucias del PPU y recomputar solo los
+		// metatiles afectados (antes: rebuild completo 16x15 + dedupe O(n^2) cada frame).
 		plan.clear();
-		if (nt_changed) {
+		if (update_world_from_dirty()) {
+			// Compactar si la tabla incremental ha crecido demasiado (evita llenar kMaxMt).
+			if (g_mt_count > static_cast<eng::u16>(kMaxMt - 32u)) { rebuild_world_from_port(); }
 			// Reconstruccion de pantalla: re-blitear el anillo (sin scroll ese frame).
-			rebuild_world_from_port();
 			fill_bank(m_bank.view.data(), g_mt_count, kPlanes);
 			if (!scene.fill(backend, plan)) {
 				ready = false;
@@ -390,7 +443,15 @@ struct DkXlGame {
 			}
 			m_rebuilds = static_cast<eng::u16>(m_rebuilds + 1u);
 		} else if (kScrollTest) {
-			(void)scene.bg().update_scroll(plan, kScrollStep, 0);
+			// Scroll dirigido por la INTENCION de la ROM: seguir los registros del PPU que el
+			// juego escribe ($2005/$2006 via el port). En el titulo de DK el scroll es 0 -> no se
+			// mueve nada. Solo se engancha el scroll hardware cuando la ROM realmente lo cambia.
+			const eng::s32 sx = static_cast<eng::s32>(n2a_ppu_scroll_x());
+			const eng::s32 dx = sx - cam_x;
+			if (dx != 0) {
+				(void)scene.bg().update_scroll(plan, dx, 0);
+				cam_x = sx;
+			}
 		}
 		if (kSpritesOn) { build_sprites(); } // actualiza los canales HW desde la OAM cada frame
 		plan.set_blit_budget_limits({8192, 16384, 4, 160});
