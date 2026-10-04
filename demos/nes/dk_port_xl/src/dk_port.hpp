@@ -1631,7 +1631,6 @@ static unsigned long g_steps = 0, g_step_limit = 0;
 static unsigned g_label = 0; /* diagnostico: ultima etiqueta ejecutada */
 static void (*hal_limit_hook)(void) = 0; /* diagnostico: corta al pasar g_steps */
 static u8 rd(u16 a) {
-    if (g_step_limit != 0 && ++g_steps > g_step_limit) { if (hal_limit_hook) { hal_limit_hook(); } }
     if (a < 0x2000u) { return ram[a & 0x7FFu]; }
     if (a >= 0x8000u) { return PRG_ROM[(a - 0x8000u) & (kPrgSize - 1u)]; }
     return hal_ppu_read(a);
