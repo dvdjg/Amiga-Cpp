@@ -15,7 +15,7 @@
   0     2  engine/include/eng/ai/steering/steering.hpp
   0     1  engine/include/eng/api/copper.hpp
   0     1  engine/include/eng/api/device.hpp
-  1    41  engine/include/eng/api/effects.hpp
+  1    51  engine/include/eng/api/effects.hpp
   0     3  engine/include/eng/api/framebuffer.hpp
   0     1  engine/include/eng/api/scroll.hpp
   0     1  engine/include/eng/api/sprites.hpp

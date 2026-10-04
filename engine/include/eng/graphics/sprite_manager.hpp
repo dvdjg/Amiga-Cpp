@@ -168,6 +168,10 @@ public:
                 0, // palette_base: los sprites usan COLOR16+; para multiplexar por par
                    // hay que respetar que el switch cambia el COLORxx del par (ver abajo)
             };
+            // `attach` (15 colores) de la plantilla: el canal impar une su par y aporta
+            // los bits 2-3 del índice (AHRM cap. 4, "Attached Sprites"). Sin esto, la
+            // plantilla declararía el par pero la emisión no lo activaría.
+            cfg.attach = tpl.attach;
             // WAIT en la línea VSTART del segmento (mismo patrón que el bootcamp:
             // WAIT + MOVE SPRxPOS/CTL). El primer segmento también espera; el gap
             // de 1 línea (`line += height + 1`) garantiza que el anterior terminó.
@@ -221,6 +225,10 @@ public:
             cfg.hpos = p.hpos;
             cfg.vstart = p.vstart;
             cfg.vstop = static_cast<u16>(p.vstart + cfg.height - 1u);
+            // `attach` (15 colores): sin esta copia, el par del compositor se emitiría
+            // como dos sprites independientes y el color 4 bits se perdería. El CTL del
+            // canal impar lleva el bit 7 (`emit_config`). Ver `sprite-layer.md` §4.
+            cfg.attach = p.attach;
             set(p.channel, cfg);
             ++applied;
         }

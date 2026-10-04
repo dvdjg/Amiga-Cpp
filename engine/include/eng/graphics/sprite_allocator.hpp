@@ -14,11 +14,19 @@
 /// esa franja, marca `as_bob`. Es el mismo criterio que usan los juegos reales
 /// (Turrican, etc.) para repartir objetos entre sprites y blits.
 ///
+/// **Reparto híbrido:** el overload con `reserved` (`SpriteChannelLedger`) descuenta
+/// los canales que un **fondo por sprites** ocupa en una franja (`SpriteBand`), de modo
+/// que los objetos usan solo los canales libres de su banda y los recuperan por encima
+/// y por debajo. Es la base de mezclar técnicas por franja (Risky Woods, Free Form) con
+/// objetos tradicionales. Ver `docs/engine/architecture/SPRITE_BANDS.md`.
+///
 /// Es lógica pura (sin hardware, sin heap), host-testable.
 
+#include <eng/core/types/ptr.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/raster_intent.hpp>
+#include <eng/graphics/sprite_band.hpp>
 
 namespace eng::graphics {
 
@@ -50,10 +58,16 @@ public:
 	/// Devuelve cuántos caben en hardware (los restantes quedan `as_bob`), para
 	/// telemetría: `bobs = count - result`.
 	///
+	/// `reserved` es el **ledger de fondos por franja** (`SpriteChannelLedger`): un canal
+	/// ocupado por el fondo de una banda no se ofrece a un objeto en esa franja, pero sí
+	/// por encima o por debajo (multiplexado vertical). Con `reserved` nulo/vacío el
+	/// reparto es el clásico de 8 canales. Ver `docs/engine/architecture/SPRITE_BANDS.md`.
+	///
 	/// Las **tiras horizontales** (`strip_span > 1`) reservan una corrida de canales
 	/// contiguos: si no hay una corrida libre del tamaño pedido, la tira ENTERA va a
 	/// `as_bob` (no se parte a medias).
-	u8 assign(eng::Span<const SpriteIntent> intents, eng::Span<SpriteSlot> out) {
+	u8 assign(eng::Span<const SpriteIntent> intents, eng::Span<SpriteSlot> out,
+		  eng::Ref<const SpriteChannelLedger> reserved = {}) {
 		const u8 count = static_cast<u8>(intents.size());
 		u16 busy_until[kChannels] {};
 		u8 in_hardware = 0;
@@ -61,6 +75,14 @@ public:
 		u8 run_base = 0; // primer canal de la corrida reservada
 		u8 run_span = 1;
 		bool run_ok = false;
+		// Canal libre para un objeto en `[top,bottom)`: ningún objeto anterior lo ocupa
+		// (`busy_until <= top`) y el fondo no lo reserva (`ledger.free`).
+		auto ch_free = [&](u8 c, u16 top, u16 bottom) -> bool {
+			if (busy_until[c] > top) {
+				return false;
+			}
+			return !reserved.valid() || reserved->free(c, top, bottom);
+		};
 		for (u8 i = 0; i < count; ++i) {
 			const SpriteIntent& it = intents[i];
 			if (it.strip_span > 1u && it.strip_id != 0u) {
@@ -75,7 +97,7 @@ public:
 						for (u8 b = 0; static_cast<u16>(b) + run_span <= kChannels; ++b) {
 							bool free_run = true;
 							for (u8 k = 0; k < run_span; ++k) {
-								if (busy_until[static_cast<u8>(b + k)] > it.top) {
+								if (!ch_free(static_cast<u8>(b + k), it.top, it.bottom)) {
 									free_run = false;
 									break;
 								}
@@ -109,7 +131,8 @@ public:
 				u8 even = 0xff;
 				for (u8 c = 0; static_cast<u8>(c + 1u) < kChannels;
 				     c = static_cast<u8>(c + 2u)) {
-					if (busy_until[c] <= it.top && busy_until[c + 1u] <= it.top) {
+					if (ch_free(c, it.top, it.bottom) &&
+					    ch_free(c + 1u, it.top, it.bottom)) {
 						even = c;
 						break;
 					}
@@ -128,7 +151,7 @@ public:
 					const u8 even = out[i - 1u].channel;
 					const u8 odd = static_cast<u8>(even + 1u);
 					if ((even % 2u) == 0u && odd < kChannels &&
-					    busy_until[odd] <= it.top) {
+					    ch_free(odd, it.top, it.bottom)) {
 						out[i] = SpriteSlot {odd, false};
 						busy_until[odd] = it.bottom;
 						++in_hardware;
@@ -140,7 +163,7 @@ public:
 			}
 			u8 channel = 0xff;
 			for (u8 c = 0; c < kChannels; ++c) {
-				if (busy_until[c] <= it.top) {
+				if (ch_free(c, it.top, it.bottom)) {
 					channel = c;
 					break;
 				}
