@@ -332,31 +332,79 @@ private:
 		return any && w[t] == 0u && w[t + 1u] == 0u;
 	}
 
-	/// Self-test EN HARDWARE del relleno de rect D-only por Blitter (`blitter_fill_rect`):
-	/// llena el rect (10,2)-(29,4) de un plano 64x16 y comprueba los bits dentro y fuera. Valida
-	/// el motor que consume el `RectFillSink` (equivalencia con el relleno CPU esperado).
+	/// Self-test EN HARDWARE del relleno de rect por Blitter (`blitter_fill_rect`), el motor
+	/// que consume el `RectFillSink`. Cubre los tres casos que importan:
+	///  (a) rect alineado a palabra (1 plano): rellena dentro, no toca fuera;
+	///  (b) rect con borde PARCIAL: los pixeles fuera del rect (primera/ultima palabra) se
+	///      **preservan** (el bug de `D=A`+`AFWM`/`ALWM` los ponia a 0, borrando el fondo a los
+	///      lados de cada widget);
+	///  (c) MULTI-PLANO contiguo: cada plano se rellena segun su bit de color.
 	bool verify_blitter_fill(eng::amiga::AmigaBackend& backend) {
 		constexpr eng::u16 fw = 64;
 		constexpr eng::u16 fh = 16;
 		constexpr eng::u16 frow = fw / 8u; // 8 bytes/fila
 		constexpr eng::u32 fplane = static_cast<eng::u32>(frow) * fh;
-		auto blk = backend.memory_manager().chip().reserve<eng::PlaneTag>(fplane + 16u, 16);
-		if (!blk.valid()) {
-			return false;
-		}
-		for (eng::u32 i = 0; i < fplane; ++i) {
-			blk.view.data()[i] = 0u;
-		}
-		if (!backend.blitter_fill_rect(blk.view.data(), 1u, fplane, frow, frow, fw, fh, 10, 2, 20u,
-					       3u, 1u, true)) {
-			return false;
-		}
-		auto on = [&](eng::u16 x, eng::u16 y) {
-			return (blk.view.data()[static_cast<eng::u32>(y) * frow + (x >> 3)] &
+		const auto bit_at = [](const eng::u8* base, eng::u16 x, eng::u16 y, eng::u32 plane_bytes) {
+			return (base[plane_bytes + static_cast<eng::u32>(y) * frow + (x >> 3)] &
 				(0x80u >> (x & 7u))) != 0u;
 		};
-		return on(10, 2) && on(29, 2) && on(10, 4) && on(29, 4) &&
-		       !on(9, 2) && !on(30, 2) && !on(10, 1) && !on(10, 5) && !on(0, 0);
+		// (a) Alineado a palabra, 1 plano: rellena y respeta los bordes.
+		{
+			auto blk = backend.memory_manager().chip().reserve<eng::PlaneTag>(fplane + 16u, 16);
+			if (!blk.valid()) {
+				return false;
+			}
+			for (eng::u32 i = 0; i < fplane; ++i) blk.view.data()[i] = 0u;
+			if (!backend.blitter_fill_rect(blk.view.data(), 1u, fplane, frow, frow, fw, fh, 16, 2,
+						       16u, 3u, 1u, true)) {
+				return false;
+			}
+			const eng::u8* b = blk.view.data();
+			if (!(bit_at(b, 16, 2, 0u) && bit_at(b, 31, 2, 0u) && bit_at(b, 16, 4, 0u) &&
+			      !bit_at(b, 15, 2, 0u) && !bit_at(b, 32, 2, 0u) && !bit_at(b, 0, 0, 0u))) {
+				return false;
+			}
+		}
+		// (b) Borde parcial: pre-rellena a 1, limpia (color 0) un rect x=10; el borde sigue a 1.
+		{
+			auto blk = backend.memory_manager().chip().reserve<eng::PlaneTag>(fplane + 16u, 16);
+			if (!blk.valid()) {
+				return false;
+			}
+			for (eng::u32 i = 0; i < fplane; ++i) blk.view.data()[i] = 0xffu;
+			if (!backend.blitter_fill_rect(blk.view.data(), 1u, fplane, frow, frow, fw, fh, 10, 2,
+						       20u, 3u, 0u, true)) {
+				return false;
+			}
+			const eng::u8* b = blk.view.data();
+			if (!(!bit_at(b, 10, 2, 0u) && !bit_at(b, 29, 2, 0u) && bit_at(b, 9, 2, 0u) &&
+			      bit_at(b, 0, 2, 0u) && bit_at(b, 30, 2, 0u) && bit_at(b, 63, 2, 0u))) {
+				return false;
+			}
+		}
+		// (c) Multi-plano contiguo: color 7 -> planos 0,1,2 a 1; 3,4,5 a 0.
+		{
+			constexpr eng::u8 planes = 6;
+			auto blk = backend.memory_manager().chip().reserve<eng::PlaneTag>(
+				static_cast<eng::u32>(fplane) * planes + 16u, 16);
+			if (!blk.valid()) {
+				return false;
+			}
+			for (eng::u32 i = 0; i < static_cast<eng::u32>(fplane) * planes; ++i) {
+				blk.view.data()[i] = 0u;
+			}
+			if (!backend.blitter_fill_rect(blk.view.data(), planes, fplane, frow, frow, fw, fh, 0,
+						       0, fw, fh, 7u, true)) {
+				return false;
+			}
+			const eng::u8* b = blk.view.data();
+			if (!(bit_at(b, 4, 4, 0u) && bit_at(b, 4, 4, fplane) &&
+			      bit_at(b, 4, 4, 2u * fplane) && !bit_at(b, 4, 4, 3u * fplane) &&
+			      !bit_at(b, 4, 4, 4u * fplane) && !bit_at(b, 4, 4, 5u * fplane))) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	/// encuentra el boton en su centro y un click sobre la casilla alterna su valor. Si la

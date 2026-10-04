@@ -191,24 +191,48 @@ inline eng::u32 row_offset(eng::s16 y, eng::u16 row_bytes) {
 inline void blit_fill_region(eng::u8* plane, eng::u16 row_stride, eng::u16 wx0, eng::s16 y,
 			     eng::u16 words, eng::u16 h, eng::u16 fill, eng::u16 afwm,
 			     eng::u16 alwm) {
-	eng::u8* d = plane + row_offset(y, row_stride) + (wx0 >> 3);
-	const eng::u16 mod = static_cast<eng::u16>(row_stride - words * 2u);
+	// Rect **alineado a palabra** (`AFWM`/`ALWM` completos): Blitter `D = A` con el canal A
+	// **deshabilitado** (sin fetch). AHRM cap. 6: «when disabled ... for a source channel, the
+	// constant value stored in the data register of that channel will be used for each blitter
+	// cycle»; con USEA activo, A se leeria de `BLTAPTR` (sin inicializar) -> basura. Ver la
+	// ruta `fill` de `BlitterRaster` (`amiga_blitter.cpp`).
+	if (afwm == 0xffffu && alwm == 0xffffu) {
+		eng::u8* d = plane + row_offset(y, row_stride) + (wx0 >> 3);
+		const eng::u16 mod = static_cast<eng::u16>(row_stride - words * 2u);
+		wait_blitter();
+		custom_base[custom_bltcon0_offset] =
+			static_cast<eng::u16>(blt_use_d | eng::graphics::kBlitterMintermCopyA);
+		custom_base[custom_bltcon1_offset] = 0;
+		custom_base[custom_bltafwm_offset] = 0xffff;
+		custom_base[custom_bltalwm_offset] = 0xffff;
+		custom_base[custom_bltadat_offset] = fill;
+		custom_base[custom_bltdmod_offset] = mod;
+		write_custom_pointer(custom_bltdpt_offset, d);
+		custom_base[custom_bltsize_offset] = static_cast<eng::u16>((h << 6) | words);
+		return;
+	}
+	// Rect con borde **parcial** (x o ancho no multiplos de 16): se rellena por CPU con
+	// read-modify-write para **preservar** los pixeles fuera del rect. El Blitter con
+	// `D = A`/`AFWM`/`ALWM` deja a 0 los bits enmascarados de la primera/ultima palabra
+	// (D = A & mask), NO conserva la D; usarlo aqui borraria el fondo a los lados del widget
+	// (los rects de UI con borde parcial son pequeños, el coste es despreciable).
 	wait_blitter();
-	// `D = A` con el canal A **deshabilitado** (sin fetch): AHRM cap. 6, «when disabled ... for
-	// a source channel, the constant value stored in the data register of that channel will be
-	// used for each blitter cycle». Con USEA activo, A se leeria de `BLTAPTR` (sin inicializar)
-	// y el relleno saldria con basura. Con USEA=0, `BLTADAT` es la constante y `AFWM`/`ALWM`
-	// recortan la primera/ultima palabra (aplican a la constante A). Ver `amiga_blitter.cpp`
-	// (mismo patron en la ruta `fill` de `BlitterRaster`).
-	custom_base[custom_bltcon0_offset] =
-		static_cast<eng::u16>(blt_use_d | eng::graphics::kBlitterMintermCopyA);
-	custom_base[custom_bltcon1_offset] = 0;
-	custom_base[custom_bltafwm_offset] = afwm;
-	custom_base[custom_bltalwm_offset] = alwm;
-	custom_base[custom_bltadat_offset] = fill;
-	custom_base[custom_bltdmod_offset] = mod;
-	write_custom_pointer(custom_bltdpt_offset, d);
-	custom_base[custom_bltsize_offset] = static_cast<eng::u16>((h << 6) | words);
+	for (eng::u16 r = 0u; r < h; ++r) {
+		eng::u16* row = reinterpret_cast<eng::u16*>(
+			plane + row_offset(y, row_stride) + (wx0 >> 3) +
+			static_cast<eng::u32>(r) * row_stride);
+		const eng::u16 inv = 0xffffu;
+		if (words == 1u) {
+			const eng::u16 mask = afwm & alwm;
+			row[0] = (row[0] & (mask ^ inv)) | (fill & mask);
+		} else {
+			row[0] = (row[0] & (afwm ^ inv)) | (fill & afwm);
+			for (eng::u16 w = 1u; w + 1u < words; ++w) {
+				row[w] = fill;
+			}
+			row[words - 1u] = (row[words - 1u] & (alwm ^ inv)) | (fill & alwm);
+		}
+	}
 }
 
 /// Borra una region de palabras (D=0) en un plano planar.
