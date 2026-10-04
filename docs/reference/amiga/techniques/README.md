@@ -31,6 +31,7 @@ Resúmenes operativos para la IA y el desarrollador: **qué problema resuelve**,
 | [trackloading.md](trackloading.md) | Carga en segundo plano desde disquete (`trackdisk.device` vs. trackloader de hardware) y equivalente desde HD |
 | [blitter-line-subpixel-fill.md](blitter-line-subpixel-fill.md) | Líneas por Blitter (octantes, acumulador/incrementos), **receta de polígono relleno** (contorno `ONEDOT`+EOR + un `area fill` XOR; truco `BLTDPTR`=base, `BLTSIZE` altura 0) y rasterizado **sub-píxel** de polígonos |
 | [interleaved-bob-single-blit.md](interleaved-bob-single-blit.md) | BOB **interleaved enmascarado en un solo blit** (`$CA` con máscara expandida una copia por plano): layout, registros (`height=filas*planos`, `DMOD`=fila de plano) y uso desde el engine (demo 213) |
+| [blitter-fill-constant.md](blitter-fill-constant.md) | **Relleno de rect por Blitter con valor constante**: `BLTADAT` es constante **solo con el canal A deshabilitado** (`USEA=0`); y `AFWM`/`ALWM` con `D=A` **no preservan** la D (por eso el borde parcial va por CPU). Regla y trampas que rompieron el `RectFillSink` |
 
 **Manual local:** [amiga-hardware-manual-index.md](../../ahrm/amiga-hardware-manual-index.md) y el `.cat.md` del AHRM. **Matriz de máquinas:** [amiga-chipset-matrix.md](../hardware/amiga-chipset-matrix.md).
 
