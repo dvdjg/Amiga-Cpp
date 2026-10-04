@@ -1,4 +1,4 @@
-// Demo - PORT DK con render de BG por X-limited (scroll HW por Copper) + sprites HW.
+﻿// Demo - PORT DK con render de BG por X-limited (scroll HW por Copper) + sprites HW.
 //
 // Idea: el nametable NES se trata como la fuente de un mapa de tiles; los metatiles (16x16)
 // se hornean a un banco planar y el compositor X-limited del engine hace el scroll por
@@ -78,7 +78,7 @@ eng::u16 g_cells[kMtCols * kMtRows] {};
 
 // El row_fn generativo solo recibe (glyph, variant) = indice de metatile 0..63, asi que
 // horneamos una tabla descriptora por metatile: los 4 tiles NES (TL,TR,BL,BR) y su
-// subpaleta NES (0..3) — el nametable NES no sigue ningun patron TL/TL+1.
+// subpaleta NES (0..3) â€” el nametable NES no sigue ningun patron TL/TL+1.
 // Tabla de metatiles UNICOS (sin tope de 64): cada uno guarda los 4 tiles NES (TL,TR,BL,BR)
 // reales del nametable (no vecinos forzados) y su subpaleta. El banco se construye en Chip
 // (prebuilt) dimensionado a `g_mt_count`, referenciado por el mapa.
@@ -155,6 +155,7 @@ constexpr bool kSpritesOn = false;
 constexpr bool kScrollTest = true;
 constexpr eng::s32 kScrollStep = 2; // px/frame
 constexpr bool kRunPort = true;     // false = solo render (test de coste del port vs render)
+constexpr bool kDoCompose = true;  // false = saltar compose/install (test del bucle del engine)
 eng::u32 g_spr_chr = 0u;              // base de la pattern table de sprites ($2000 bit 3)
 constexpr eng::u16 kSpriteTop = 0x2Au; // DIWSTRT_y (0x29) + 1 (linea raster del primer pixel)
 
@@ -212,7 +213,7 @@ struct DkXlGame {
 	eng::s32 cam_y = 0;
 	bool ready = false;
 	eng::u16 m_frames = 0u;
-	eng::u16 m_rebuilds = 0u; // nº de rebuilds del mapa (cambios de nametable)
+	eng::u16 m_rebuilds = 0u; // nÂº de rebuilds del mapa (cambios de nametable)
 
 	// Refresca los 8 canales HW desde la OAM (los primeros 8 sprites con y<$F0). Cada sprite NES
 	// se asigna a un canal del PAR de su subpaleta (attr&3), porque cada par comparte la gama
@@ -398,7 +399,7 @@ struct DkXlGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x0000E010u);
 			return;
 		}
-		if (!scene.compose()) {
+		if (kDoCompose && !scene.compose()) {
 			ready = false;
 			eng::debug::mark_failed(g_eng_run_status, 0x0000E011u);
 			return;
@@ -409,7 +410,7 @@ struct DkXlGame {
 	}
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		if (ready) scene.install(backend);
+		if (ready && kDoCompose) scene.install(backend);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 };
