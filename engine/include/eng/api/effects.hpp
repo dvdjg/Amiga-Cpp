@@ -680,6 +680,14 @@ public:
 	void emit_into(Sched& sched) const {
 		sched.move(copper::Register::BPLCON2, m_cfg.bplcon2);
 		const u16 bottom = static_cast<u16>(m_cfg.first_line + m_cfg.lines);
+		// Arma los canales **UNA vez** (`SPRxCTL` con VSTART/VSTOP de la banda + ATTACH en el
+		// impar). En el bucle solo se reescriben POS + DATA: reescribir el CTL por columna
+		// **desarma** el canal (la salida sale a trazos). Ver `sprite-dma.md`.
+		for (eng::u8 c = 0u; c < m_cfg.channels; ++c) {
+			const eng::u8 ch = static_cast<eng::u8>((m_cfg.channel_first + c) & 7u);
+			const u16 ab = (m_cfg.attach && (ch & 1u)) ? 0x80u : 0u;
+			sched.move(static_cast<eng::u16>(0x142u + ch * 8u), ctl(bottom, m_cfg.display_x0, ab));
+		}
 		for (u16 line = m_cfg.first_line; line < bottom; ++line) {
 			const eng::s32 wait_px = static_cast<eng::s32>(m_cfg.arm_hpos) * 2 -
 						 static_cast<eng::s32>(m_cfg.head_start);
@@ -695,9 +703,7 @@ public:
 				if (m_cfg.attach) {
 					const u8 che = static_cast<u8>((m_cfg.channel_first + (col % 4u) * 2u) & 7u);
 					const u8 cho = static_cast<u8>((che + 1u) & 7u);
-					sched.move(static_cast<u16>(0x142u + che * 8u), ctl(bottom, x, 0x00u));
 					sched.move(static_cast<u16>(0x140u + che * 8u), pos(line, x));
-					sched.move(static_cast<u16>(0x142u + cho * 8u), ctl(bottom, x, 0x80u));
 					sched.move(static_cast<u16>(0x140u + cho * 8u), pos(line, x));
 					sched.move(static_cast<u16>(0x146u + che * 8u), datb);
 					sched.move(static_cast<u16>(0x144u + che * 8u), dat);
@@ -705,7 +711,6 @@ public:
 					sched.move(static_cast<u16>(0x144u + cho * 8u), 0u);
 				} else {
 					const u8 ch = static_cast<u8>((m_cfg.channel_first + col % m_cfg.channels) & 7u);
-					sched.move(static_cast<u16>(0x142u + ch * 8u), ctl(bottom, x, 0x00u));
 					sched.move(static_cast<u16>(0x140u + ch * 8u), pos(line, x));
 					sched.move(static_cast<u16>(0x146u + ch * 8u), datb);
 					sched.move(static_cast<u16>(0x144u + ch * 8u), dat);
