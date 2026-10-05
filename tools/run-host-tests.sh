@@ -350,6 +350,16 @@ if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 			exit 1
 		fi
 	fi
+	# Host-tool `audio-compressor`: se compila para que HOST-382 no se omita en un checkout
+	# limpio. Si el build falla se avisa y se sigue (el test depende de un binario externo y
+	# se salta por diseno); no se convierte en fallo duro de la suite.
+	AUDIO_COMPRESSOR_BUILD="$ROOT/host-tools/audio-compressor/build.sh"
+	if [ -f "$AUDIO_COMPRESSOR_BUILD" ] && command -v "$CXX" >/dev/null 2>&1; then
+		echo "== audio-compressor (build) =="
+		if ! CXX="$CXX" bash "$AUDIO_COMPRESSOR_BUILD" >/dev/null; then
+			echo "audio-compressor no se pudo compilar; HOST-382 se omitira." >&2
+		fi
+	fi
 fi
 
 # Selección de tests (en **paralelo** por defecto; `-j1` para secuencial).
