@@ -172,6 +172,19 @@ void test_attach_sets_odd_bit() {
 	}
 }
 
+void test_burst_no_wait() {
+	std::printf("RiskyWoodsLayer: burst_no_wait = un solo WAIT por linea\n");
+	u16 dma[64] {};
+	RiskyWoodsLayer l;
+	RiskyWoodsLayer::Config c = base_cfg(dma);
+	c.burst_no_wait = true;
+	CHECK(l.attach(c));
+	SpySched s;
+	l.emit_into(s);
+	// Sin WAITs intermedios: solo el `WAIT` inicial de cada linea.
+	CHECK(s.n_waits == static_cast<unsigned>(c.lines));
+}
+
 void test_ctl_not_rewritten_in_carousel() {
 	std::printf("RiskyWoodsLayer: la carrera no reescribe SPRxCTL\n");
 	u16 dma[64] {};
@@ -238,6 +251,7 @@ int main() {
 
 	test_attach_validation();
 	test_periods_and_channels();
+	test_burst_no_wait();
 	test_pos_values_cycle();
 	test_ctl_not_rewritten_in_carousel();
 	test_attach_sets_odd_bit();

@@ -414,6 +414,14 @@ public:
 		/// línea (solo `SPRxPOS`) **conserva** el bit; el `head_start` debe permitir que la
 		/// `SPRxPOS` del impar se escriba antes de que el haz alcance su X.
 		bool attach = false;
+		/// **Carrera de una sola ráfaga**: un `WAIT` al inicio de la línea y luego toda la ráfaga
+		/// de `SPRxPOS` **sin** `WAIT`s intermedios. Necesario cuando el coste del Copper por
+		/// periodo (`2N MOVE` + los 8 px del `WAIT`) supera el periodo del patrón (p. ej. 4 pares
+		/// *attached*: `8 MOVE = 64 px = periodo`; el `WAIT` añadido daría 72 > 64 y el Copper se
+		/// retrasaría 8 px por periodo hasta perder los bits altos del impar). Sin el `WAIT` el
+		/// Copper corre **pareado** con el haz (`2N MOVE = periodo`). Los tramos no-*attached*
+		/// deben dejarlo `false`: sin el `WAIT`, el `POS` de un canal pisa al del canal anterior.
+		bool burst_no_wait = false;
 		u16* dma_data = nullptr; ///< `channels` estructuras de `dma_stride` words (cabecera POS+CTL + DATA + terminador)
 		u16 dma_stride = 0u;     ///< words por estructura (`2 + lines*2 + 2`)
 	};
@@ -495,13 +503,17 @@ public:
 		const eng::s32 first_x = wait_px0 + m_cfg.head_start;
 		for (u16 line = m_cfg.first_line; line < vstop; ++line) {
 			for (eng::s32 x0 = first_x; x0 - m_scroll < m_cfg.screen_width; x0 += period) {
-				const eng::s32 wait_px = (x0 == first_x)
-							 ? wait_px0
-							 : (x0 - m_scroll - m_cfg.head_start);
-				if (wait_px < 0) {
-					continue;
+				// Con `burst_no_wait` solo el primer periodo lleva `WAIT`: los demás van en la
+				// misma ráfaga y el Copper corre pareado con el haz (ver el campo del `Config`).
+				if (!m_cfg.burst_no_wait || x0 == first_x) {
+					const eng::s32 wait_px = (x0 == first_x)
+								 ? wait_px0
+								 : (x0 - m_scroll - m_cfg.head_start);
+					if (wait_px < 0) {
+						continue;
+					}
+					sched.wait_position_safe(line, static_cast<u8>((wait_px >> 1u) & 0xfeu));
 				}
-				sched.wait_position_safe(line, static_cast<u8>((wait_px >> 1u) & 0xfeu));
 				for (u8 c = 0u; c < m_cfg.channels; ++c) {
 					const eng::s32 px = x0 + c * m_cfg.column_width - m_scroll;
 					if (px < 0 || px >= m_cfg.screen_width) {
