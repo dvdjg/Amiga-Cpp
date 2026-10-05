@@ -431,21 +431,27 @@ private:
 		}
 		const eng::u16 period = bd.pattern;
 		for (eng::u16 line = bd.top; line < bottom; ++line) {
-			// Reposicion por linea con un head-start (kCuGap) suficiente: el Copper va por
-			// delante del haz y cada shifter re-arma cuando su propia X coincide con el haz
-			// (WinUAE drawing.cpp:4940). Con head-start corto la 1a columna de cada grupo parpadea
-			// y, en el par *attached*, se pierden los bits altos -> se reposicionan AMBOS canales
-			// del par (par y non), sin tocar SPRxCTL (que desarmaria y perderia el ATTACH).
-			// Franja C (*attached*): el coste de Copper por periodo (1 WAIT + 8 MOVE = 72 px) supera
-			// el periodo del patron (64 px), asi que solo caben ~3 repeticiones antes de que el
-			// impar llegue tarde y el par caiga a 4 colores. Se limita a esas 3 (sin huecos).
-			const eng::u16 span = bd.attach ? static_cast<eng::u16>(3u * period) : kDisplayW;
+			// Reposicion por linea con head-start suficiente: el Copper va por delante del haz y
+			// cada shifter re-arma al coincidir su X con el haz (WinUAE drawing.cpp:4940). En el
+			// par *attached* hay que reposicionar AMBOS canales (par y non), sin tocar SPRxCTL.
+			// C: el coste por periodo era 1 WAIT + 8 MOVE = 72 px > 64 px del patron (overrun
+			// progresivo: el impar llegaba tarde). Se ELIMINAN los WAIT intermedios: 8 MOVE =
+			// 64 px = periodo, y el Copper corre pareado con el haz.
+			const eng::u16 span = kDisplayW;
+			if (bd.attach) {
+				const eng::s32 w0 = static_cast<eng::s32>(kDisplayX0) - static_cast<eng::s32>(kCuGap);
+				if (w0 > 0) {
+					sched.wait_position_safe(line, static_cast<eng::u8>((static_cast<eng::u16>(w0) >> 1u) & 0xfeu));
+				}
+			}
 			for (eng::u16 xstart = kDisplayX0; xstart < kDisplayX0 + span;
 			     xstart = static_cast<eng::u16>(xstart + period)) {
-				const eng::s32 wpx = static_cast<eng::s32>(xstart) - static_cast<eng::s32>(kCuGap);
-				if (wpx > 0) {
-					sched.wait_position_safe(
-						line, static_cast<eng::u8>((static_cast<eng::u16>(wpx) >> 1u) & 0xfeu));
+				if (!bd.attach) {
+					const eng::s32 wpx = static_cast<eng::s32>(xstart) - static_cast<eng::s32>(kCuGap);
+					if (wpx > 0) {
+						sched.wait_position_safe(
+							line, static_cast<eng::u8>((static_cast<eng::u16>(wpx) >> 1u) & 0xfeu));
+					}
 				}
 				for (eng::u8 c = 0; c < bd.channels; ++c) {
 					const eng::u8 ch = static_cast<eng::u8>(bd.channel_first + c);
