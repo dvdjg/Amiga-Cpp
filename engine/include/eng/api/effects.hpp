@@ -655,34 +655,52 @@ public:
 		u16 head_start = 32u;    ///< px del `WAIT` a la 1.ª columna (head-start del haz)
 		u16 columns = 0u;        ///< columnas a dibujar (<= `MaxColumns`)
 		bool attach = false;     ///< 15 colores (pares *attached*: el impar aporta los bits 2-3)
-		/// DATA de la imagen: `columns * lines * 2` palabras (`DAT`, `DATB` por columna y línea).
-		/// Es **fuente de CPU** (se copia como inmediato a la Copperlist): no es DMA, vive en ROM.
+		/// DATA de la imagen (fuente CPU, vive en ROM): `columns * lines * 2` palabras (`DAT`,
+		/// `DATB` por columna y línea). `attach()` las copia a las estructuras DMA de `dma_data`.
 		eng::Span<const eng::u16> tiles {};
+		/// **Estructuras DMA** (Chip): `columns` estructuras de `dma_stride` words, rellenadas por
+		/// `attach()` desde `tiles` con el formato `[POS, CTL, DAT0, DATB0, …, POS(bottom), CTL(bottom)]`.
+		/// El sprite las lee por **DMA** (no hay DATA inmediata): su `SPRxPT` debe apuntar a una
+		/// cabecera válida o el canal dibuja a trazos (ver `sprite-dma.md`).
+		eng::Span<eng::u16> dma_data {};
+		u16 dma_stride = 0u; ///< words por estructura (`2 + lines*2 + 2`)
 		/// Si `true`, al final de la banda los canales quedan **desarmados** (`VSTART=VSTOP`):
 		/// evita la columna fantasma hacia lo de abajo.
 		bool reset_at_end = false;
 	};
 
 	[[nodiscard]] bool attach(Config cfg) {
+		const u16 stride = static_cast<u16>(2u + cfg.lines * 2u + 2u);
 		if (cfg.lines == 0u || cfg.columns == 0u || cfg.columns > MaxColumns ||
 		    cfg.channels == 0u || cfg.channels > 8u || cfg.channel_first + cfg.channels > 8u ||
 		    cfg.column_width == 0u || cfg.screen_width == 0u ||
-		    cfg.tiles.size() < static_cast<eng::usize>(cfg.columns) * cfg.lines * 2u) {
+		    cfg.tiles.size() < static_cast<eng::usize>(cfg.columns) * cfg.lines * 2u ||
+		    cfg.dma_stride != stride ||
+		    cfg.dma_data.size() < static_cast<eng::usize>(cfg.columns) * stride) {
 			return false;
 		}
 		m_cfg = cfg;
+		build_structures();
 		return true;
 	}
 
-	/// Emite la capa: `BPLCON2` y, por línea, un `WAIT` (head-start) + la ráfaga de
-	/// `SPRxCTL`/`SPRxPOS`/`SPRxDATB`/`SPRxDATA` de cada columna (carrera contra el haz).
+	/// Relocaliza una estructura DMA en Chip a partir del índice de columna (dirección de la
+	/// cabecera POS/CTL). Cada estructura ocupa `dma_stride` words contiguas.
+	[[nodiscard]] eng::Address<eng::MemoryKind::Chip> structure_at(u16 col) const noexcept {
+		const eng::Address<eng::MemoryKind::Chip> base =
+			eng::Address<eng::MemoryKind::Chip>::from_storage(m_cfg.dma_data.data());
+		return base + static_cast<eng::u32>(col) * m_cfg.dma_stride * 2u;
+	}
+
+	/// Emite la capa: `BPLCON2` y, por línea, un `WAIT` (head-start) + la ráfaga, por columna, del
+	/// `SPRxPT` (a la estructura DMA de esa columna) y el `SPRxPOS`. La **DATA sale de la
+	/// estructura** por DMA; no hay DATA inmediata.
 	template <class Sched>
 	void emit_into(Sched& sched) const {
 		sched.move(copper::Register::BPLCON2, m_cfg.bplcon2);
 		const u16 bottom = static_cast<u16>(m_cfg.first_line + m_cfg.lines);
 		// Arma los canales **UNA vez** (`SPRxCTL` con VSTART/VSTOP de la banda + ATTACH en el
-		// impar). En el bucle solo se reescriben POS + DATA: reescribir el CTL por columna
-		// **desarma** el canal (la salida sale a trazos). Ver `sprite-dma.md`.
+		// impar). En el bucle de columnas solo se reescriben PT + POS.
 		for (eng::u8 c = 0u; c < m_cfg.channels; ++c) {
 			const eng::u8 ch = static_cast<eng::u8>((m_cfg.channel_first + c) & 7u);
 			const u16 ab = (m_cfg.attach && (ch & 1u)) ? 0x80u : 0u;
@@ -696,25 +714,12 @@ public:
 			}
 			for (u16 col = 0u; col < m_cfg.columns; ++col) {
 				const u16 x = static_cast<u16>(m_cfg.display_x0 + m_cfg.column_width * col);
-				const eng::usize t = (static_cast<eng::usize>(col) * m_cfg.lines +
-						      (line - m_cfg.first_line)) * 2u;
-				const u16 dat = m_cfg.tiles[t];
-				const u16 datb = m_cfg.tiles[t + 1u];
-				if (m_cfg.attach) {
-					const u8 che = static_cast<u8>((m_cfg.channel_first + (col % 4u) * 2u) & 7u);
-					const u8 cho = static_cast<u8>((che + 1u) & 7u);
-					sched.move(static_cast<u16>(0x140u + che * 8u), pos(line, x));
-					sched.move(static_cast<u16>(0x140u + cho * 8u), pos(line, x));
-					sched.move(static_cast<u16>(0x146u + che * 8u), datb);
-					sched.move(static_cast<u16>(0x144u + che * 8u), dat);
-					sched.move(static_cast<u16>(0x146u + cho * 8u), 0u);
-					sched.move(static_cast<u16>(0x144u + cho * 8u), 0u);
-				} else {
-					const u8 ch = static_cast<u8>((m_cfg.channel_first + col % m_cfg.channels) & 7u);
-					sched.move(static_cast<u16>(0x140u + ch * 8u), pos(line, x));
-					sched.move(static_cast<u16>(0x146u + ch * 8u), datb);
-					sched.move(static_cast<u16>(0x144u + ch * 8u), dat);
-				}
+				const u8 ch = static_cast<u8>((m_cfg.channel_first + col % m_cfg.channels) & 7u);
+				const eng::Address<eng::MemoryKind::Chip> addr = structure_at(col);
+				const eng::u16 pt_reg = static_cast<eng::u16>(0x120u + ch * 4u);
+				sched.move(pt_reg, static_cast<u16>(addr.value >> 16u)); // SPRxPTH
+				sched.move(static_cast<eng::u16>(pt_reg + 2u), static_cast<u16>(addr.value & 0xffffu)); // SPRxPTL
+				sched.move(static_cast<eng::u16>(0x140u + ch * 8u), pos(line, x)); // SPRxPOS
 			}
 		}
 		// Reset al final: canales desarmados (`VSTART=VSTOP`) -> sin columna fantasma.
@@ -758,13 +763,36 @@ public:
 
 	[[nodiscard]] const Config& config() const noexcept { return m_cfg; }
 
-	/// Huella estimada en palabras de Copper (`BPLCON2` + 4 MOVEs por columna y línea + `WAIT`).
+	/// Huella estimada en palabras de Copper: `BPLCON2` (1) + armado (1 `MOVE`/canal) + por línea
+	/// [`WAIT` + 3 `MOVE` por columna (`SPRxPTH`/`SPRxPTL`/`SPRxPOS`)] + reset final.
 	[[nodiscard]] u16 words_estimate() const noexcept {
-		const u32 per_line = 1u + static_cast<u32>(m_cfg.columns) * 4u;
-		return static_cast<u16>((1u + static_cast<u32>(m_cfg.lines) * per_line) * 2u + 2u);
+		const u32 per_line = 1u + static_cast<u32>(m_cfg.columns) * 3u;
+		const u32 arm = 1u + static_cast<u32>(m_cfg.channels);
+		const u32 reset = m_cfg.reset_at_end ? static_cast<u32>(m_cfg.channels) * 2u : 0u;
+		return static_cast<u16>((arm + static_cast<u32>(m_cfg.lines) * per_line + reset) * 2u + 2u);
 	}
 
 private:
+	/// Rellena las `columns` estructuras DMA (en `dma_data`) desde `tiles`: cabecera `POS`/`CTL`
+	/// (VSTART=`first_line`), `DAT`/`DATB` por línea y terminador `POS`/`CTL` (VSTART=VSTOP).
+	void build_structures() {
+		const u16 bottom = static_cast<u16>(m_cfg.first_line + m_cfg.lines);
+		eng::u16* dst = m_cfg.dma_data.data();
+		for (u16 col = 0u; col < m_cfg.columns; ++col) {
+			eng::u16* s = dst + static_cast<eng::usize>(col) * m_cfg.dma_stride;
+			const u16 x = static_cast<u16>(m_cfg.display_x0 + m_cfg.column_width * col);
+			s[0] = pos(m_cfg.first_line, x);
+			s[1] = ctl(bottom, x, 0u);
+			for (u16 l = 0u; l < m_cfg.lines; ++l) {
+				const eng::usize t = (static_cast<eng::usize>(col) * m_cfg.lines + l) * 2u;
+				s[2u + l * 2u + 0u] = m_cfg.tiles[t];
+				s[2u + l * 2u + 1u] = m_cfg.tiles[t + 1u];
+			}
+			s[2u + m_cfg.lines * 2u + 0u] = pos(bottom, x);
+			s[2u + m_cfg.lines * 2u + 1u] = ctl(bottom, x, 0u);
+		}
+	}
+
 	static constexpr u16 pos(u16 vstart, u16 x) noexcept {
 		return static_cast<u16>(((vstart & 0xffu) << 8u) | ((x >> 1u) & 0xffu));
 	}

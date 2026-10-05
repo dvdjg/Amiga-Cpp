@@ -47,6 +47,9 @@ constexpr eng::u16 kColWidth = 16;    // 16 px por columna
 constexpr eng::u16 kScreenW = 320;
 constexpr eng::u8  kChannels = 8;
 constexpr eng::u32 kCuBytes = 48u * 1024u;
+// Estructuras DMA de sprite: cabecera POS/CTL + DAT/DATB por línea + terminador POS/CTL.
+constexpr eng::u16 kStructStride = static_cast<eng::u16>(2u + kBandLines * 2u + 2u);
+constexpr eng::u32 kSpriteBytes = static_cast<eng::u32>(kCols) * kStructStride * 2u;
 
 // COLOR00 fondo navy; colores 1/2/3 de cada par de sprite (suelo/cresta/cielo).
 constexpr eng::Palette32 kPalette {{
@@ -65,7 +68,8 @@ struct FreeScrollDemo {
 		}
 		m_bitplane = backend.memory_manager().chip().reserve<eng::PlaneTag>(kBitplaneBytes, 16);
 		m_copper = backend.memory_manager().chip().reserve<eng::CopperTag>(kCuBytes, 16);
-		if (!m_bitplane.valid() || !m_copper.valid()) {
+		m_sprite = backend.memory_manager().chip().reserve<eng::SpriteTag>(kSpriteBytes, 16);
+		if (!m_bitplane.valid() || !m_copper.valid() || !m_sprite.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021202u); return;
 		}
 		build_image();
@@ -82,6 +86,8 @@ struct FreeScrollDemo {
 		cfg.bplcon2 = 0x0008u;   // fondo (sprites) detrás del playfield
 		cfg.columns = kCols;
 		cfg.tiles = m_tiles;
+		cfg.dma_data = m_sprite.view.as_words().raw(); // estructuras DMA (Chip) rellenadas por attach()
+		cfg.dma_stride = kStructStride;
 		cfg.reset_at_end = true;   // sin columna fantasma hacia lo de abajo
 		if (!m_layer.attach(cfg)) { eng::debug::mark_failed(g_eng_run_status, 0x00021203u); return; }
 		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00021204u); return; }
@@ -141,6 +147,7 @@ private:
 	eng::effects::FreeScrollLayer<kCols> m_layer {};
 	eng::Block<eng::PlaneTag> m_bitplane {};
 	eng::Block<eng::CopperTag> m_copper {};
+	eng::Block<eng::SpriteTag> m_sprite {};
 };
 
 } // namespace
