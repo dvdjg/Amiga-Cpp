@@ -426,7 +426,11 @@ private:
 		}
 		const eng::u16 period = bd.pattern;
 		for (eng::u16 line = bd.top; line < bottom; ++line) {
-			for (eng::u16 xstart = kDisplayX0; xstart < kDisplayX0 + kDisplayW;
+			// La franja C es *attached*: sus repeticiones no rinden los 15 colores (el reuso
+			// pierde los bits altos; ver 2.10 del diagnostico). Patron mas estrecho: solo la
+			// posicion de armadura (64 px) sale a 15 colores.
+			const eng::u16 span = bd.attach ? period : kDisplayW;
+			for (eng::u16 xstart = kDisplayX0; xstart < kDisplayX0 + span;
 			     xstart = static_cast<eng::u16>(xstart + period)) {
 				const eng::s32 wpx = static_cast<eng::s32>(xstart) - static_cast<eng::s32>(kCuGap);
 				if (wpx > 0) {
@@ -434,10 +438,10 @@ private:
 						line, static_cast<eng::u8>((static_cast<eng::u16>(wpx) >> 1u) & 0xfeu));
 				}
 				for (eng::u8 c = 0; c < bd.channels; ++c) {
-					// En attached solo se reposiciona el canal PAR. El shifter de cada canal se
-					// re-arma cuando su propia X coincide con el haz (WinUAE drawing.cpp:4940): el
-					// impar no re-arma en el reuso y las repeticiones caen a 4 colores (solo la
-					// posicion de armadura da los 15). Reposicionar tambien el impar EMPEORA.
+					// En attached solo se reposiciona el canal PAR: el shifter de cada canal se
+					// re-arma cuando su propia X coincide con el haz (WinUAE drawing.cpp:4940); el
+					// impar no re-arma en el reuso (por eso la franja C se limita a la zona de
+					// armadura; ver 2.10). Reposicionar tambien el impar EMPEORA.
 					if (bd.attach && (c & 1u)) { continue; }
 					const eng::u8 ch = static_cast<eng::u8>(bd.channel_first + c);
 					const eng::u8 colx = bd.attach ? static_cast<eng::u8>(c >> 1u) : c;

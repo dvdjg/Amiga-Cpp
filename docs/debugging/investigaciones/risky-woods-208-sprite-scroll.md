@@ -97,13 +97,17 @@ El Copper ejecuta la copperlist **más rápido que el haz**: las escrituras que 
 
 Solución: **un `WAIT` en el inicio de cada franja** (`wait_line(bd.top)` al entrar en `emit_band` cuando la franja no es la primera) para que recarga y armadura se apliquen **exactamente desde la primera línea de la franja**. Verificado por píxeles y con el VLM. (El Copper ejecuta instrucciones con efecto inmediato, independiente del haz: no hay un `fichero:línea` único, es arquitectural.)
 
-**Descartado (probado):** adelantar la **armadura** (PT/POS/CTL) al **final de la línea anterior** para dar más margen a la 1.ª línea no limpia el parpadeo de B: mueve el artefacto a la **frontera** (los sprites de la franja previa que aún dibujan en esa línea recogen la armadura nueva → p. ej. 10 px rojos en la 208). Con un solo `WAIT` en la frontera el resultado es más limpio; el parpadeo fino de las primeras columnas queda como **pendiente de verificación temporal** (secuencia + `flicker-check`).
+**Descartado (probado):** adelantar la **armadura** (PT/POS/CTL) al **final de la línea anterior** para dar más margen a la 1.ª línea no limpia el parpadeo de B: mueve el artefacto a la **frontera** (los sprites de la franja previa que aún dibujan en esa línea recogen la armadura nueva → p. ej. 10 px rojos en la 208). Con un solo `WAIT` en la frontera el resultado es más limpio.
+
+**Parpadeo confirmado (secuencia + medición):** capturando 12 frames consecutivos (`--sequence-frames`), el contenido de la **1.ª columna** de la franja B (canal 2) oscila **0 % ↔ 98 %** (vacía / llena) frame a frame: el sprite del primer canal no se dibuja en algunos frames. La causa es que la armadura de ese canal cae en la 1.ª línea y compite con el fetch; falta una solución que no reintroduzca artefactos en la frontera (p. ej. re-armar el canal **en la zona de HBLANK** tras la última columna de la franja anterior).
 
 ### 2.10 El **reuso** de un par *attached* a lo ancho pierde los bits altos
 
 Al **reutilizar** repetidamente un par *attached* a lo ancho (reposicionar el par para repetir el patrón), las posiciones repetidas **pierden los bits altos**: la franja C mostraba 16 colores (8 bits) en la **primera** repetición (posición de armadura) y solo **4 colores** (2 bits) en las siguientes. Es decir, el canal impar (que aporta los bits 2,3 por ATTACH) **solo entrega los bits altos en la armadura inicial**; el reuso posterior no los incluye. Reposicionar también el canal impar **empeora** el resultado (más posiciones → degradación mayor). Es una limitación del reuso del par *attached* en OCS: para varios ciclos de un patrón a 15 colores hay que **volver a armar el par entero** (con `WAIT` en la posición) o reducir el número de repeticiones.
 
 **Fuente (WinUAE):** `drawing.cpp:4940-4968` (`matchsprites2`: re-arma el *shifter* solo cuando la X del sprite coincide con el haz) y `drawing.cpp:2656-2664` (mismo caso al escribir la `SPRxPOS`); los bits altos del par vienen del *shifter* del impar (`drawing.cpp:4373-4384`, `4239`), que no se re-arma en las repeticiones. Ficha: [`sprite-color-priority.md`](../../reference/emulators/winuae/sprite-color-priority.md).
+
+**Solución aplicada en la 208 (patrón más estrecho):** como el reuso del par *attached* solo rinde 15 colores en la **posición de armadura** (64 px), la franja C se limita a esa posición (`span = period` en el bucle de la ráfaga). Probar a re-armar el par (POS+CTL por posición) mueve la zona de 15 colores pero **no la uniformiza**; reposicionar el impar empeora. Queda como **limitación conocida** de OCS (alternativa: banda C no-*attached* con los 4 pares en grupos de color distintos).
 
 ## 3. El algoritmo de Risky Woods (artículo de codetapper)
 
