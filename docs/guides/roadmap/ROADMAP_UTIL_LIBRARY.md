@@ -121,15 +121,16 @@ implementa **solo con consumidor real**; el orden es por valor/coste.
 | R5.3 | `task.hpp` (coroutine *stackless*) | tarea con estado en `struct` y `step()` (patrón `switch`); secuencias/scripting sin corrutinas C++20 | **HOST-128** (entregado; falta secuencia de demo) |
 | R5.4 | `variant.hpp` (R4.2) | unión etiquetada sin heap con `visit`, para colas de comandos/mensajes heterogéneos | **HOST-130** (entregado) |
 | R5.5 | heap d-ario / `stable_heap` | *open set* de A* con *decrease-key* (índice) o heap 4-ario; **medir** antes de adoptar | **Medido (HOST-131)**: el 4-ario hace **más** comparaciones que el binario (ratio 1.04–1.15) → **no se adopta**; se mantiene `PriorityQueue` |
-| R5.6 | `bloom.hpp` | filtro de Bloom fijo (bitset + k hashes) para «visitados» grandes (GOAP) | HOST |
+| R5.6 | `bloom.hpp` | Filtro Bloom fijo opcional en GOAP: omite consultas exactas negativas a `m_best`; todo positivo se confirma en el `HashMap` exacto; `BloomBits=0` conserva el planner por defecto sin almacenamiento Bloom | **HOST-415**: resultado/coste/expansiones idénticos; mide negativas omitidas, falsos positivos y huella; cruce m68k |
 | R5.7 | `trie.hpp` | trie / *prefix map* para autocompletado y búsqueda por prefijo | HOST + consumidor (consola) |
 | R5.8 | `grid_view.hpp` (mdspan) | vista multidimensional sobre `Span` para rejillas de nivel | HOST |
 
 > Prioridad práctica: R5.1 (cachés), R5.2 (rangos) y R5.3 (tareas) tienen consumidor claro
 > (streaming, buffs/animación, secuencias); R5.4 en cuanto aparezca una cola de comandos;
 > R5.5 exige **medición** (el heap binario actual puede ganar con claves pequeñas);
-> R5.6–R5.8 solo si aparecen conjuntos de visitados grandes, consola de comandos o código de
-> rejillas que lo pida. `type_list` (R4.5) sigue pospuesto.
+> R5.6 queda opt-in en GOAP y solo se activa cuando una medición del dominio objetivo
+> justifique sus bits; R5.7–R5.8 siguen supeditados a consola de comandos o código de rejillas.
+> `type_list` (R4.5) sigue pospuesto.
 
 ## 5. Dependencias entre fases
 
@@ -164,6 +165,9 @@ implementa **por consumidor y en cualquier orden** una vez cerradas R1–R4.
 - **Interner de cadenas**: **implementado** (`string_interner.hpp`, HOST-124). Deduplica por
   contenido (`HashMap<StringView,u16>`) y copia los bytes en una arena (`Allocator`) que
   aporta el llamador; pensado para nombres construidos en runtime (assets/config, etiquetas).
+- **Bloom/GOAP**: implementado como precomprobación opt-in de ausencias. Toda respuesta
+  positiva se confirma en `m_best`; los falsos positivos solo reducen el ahorro. HOST-415
+  compara 32 y 256 bits con la ruta exacta en Hanoi; `BloomBits=0` mantiene el filtro apagado.
 - **Heurística parametrizable**: **implementada** en `pathfinding.hpp`: `astar` acepta
   `detail::ChebyshevH`/`detail::EuclideanH` (Manhattan por defecto, la óptima en 4 vecinos;
   las otras son para mallas con diagonal). HOST-099.

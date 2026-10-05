@@ -115,6 +115,17 @@ búsqueda del `Planner<MaxNodes>`, con valor por defecto. Consulta de estado:
 `applicable(s, a)`, `apply(s, a)`, `satisfies(s, g)` y `goal_distance(s, g)`, que deducen
 `MaxFacts` de sus argumentos.
 
+El Bloom del planner es **opt-in** mediante el cuarto parámetro de `Planner` (`BloomBits`; 0
+por defecto). `false` en `may_contain` garantiza que el estado es nuevo y omite la búsqueda en
+`m_best`; `true` siempre se confirma en el `HashMap` exacto, que sigue siendo la autoridad del
+coste. Por tanto los falsos positivos pueden reducir el ahorro, pero no alterar la solución. La
+memoria adicional queda limitada a `BloomBits / 8` bytes de bits más los contadores del filtro y
+se instancia dentro del planner; `bloom_stats()` informa consultas, negativas, posibles y falsos
+positivos confirmados. HOST-415 compara sin filtro y con 32/256 bits: en Hanoi de tres discos,
+256 bits evitan 22 de 50 búsquedas exactas y no producen falsos positivos en esa muestra; 32 bits
+evitan 10 y producen 12 falsos positivos. Es un resultado de ese escenario, no una garantía de
+tasa para otros dominios.
+
 ### 3.2 Uso
 
 ```cpp
@@ -317,7 +328,7 @@ HOST-117.
 
 | Cabecera | Tipos / funciones | Estado |
 |---|---|---|
-| `planning/goap.hpp` | **Cabecera única**: `Goap<MaxFacts, MaxVars>` (dominio: `State`/`state`/`Action`/`Builder`/`Goal`/`Planner`), `plan`/`plan_relaxed`, cachés (`plan_cached`/`plan_reusing`/`invalidate_selective`), anytime (`set_budget`/`partial`), `Fact`, `applicable`, `apply`, `satisfies`, `goal_distance` | Implementado, HOST-107/185/186/314/315/316 |
+| `planning/goap.hpp` | **Cabecera única**: `Goap<MaxFacts, MaxVars>` (dominio: `State`/`state`/`Action`/`Builder`/`Goal`/`Planner`), `plan`/`plan_relaxed`, cachés (`plan_cached`/`plan_reusing`/`invalidate_selective`), anytime (`set_budget`/`partial`), filtro Bloom opt-in para descartar consultas exactas negativas, `Fact`, `applicable`, `apply`, `satisfies`, `goal_distance` | Implementado, HOST-107/185/186/320/321/415 |
 | `planning/numeric_goap.hpp` | Alias de la cabecera única: `NumericGoap<MaxVars> = Goap<32, MaxVars>` (y las constantes `numeric_goap_*`) | Implementado, HOST-185/186/316 |
 | `planning/htn.hpp` | `Htn<...>`: planificación **jerárquica** (descomposición por métodos, backtracking acotado); reutiliza `Goap`'s `State`/`Action` | Implementado, HOST-318 |
 | `decision/agent_fsm.hpp` | `AgentFsm<State,Event,MaxStates>`: FSM de agente con efectos de entrada/salida sobre `eng::util::StateMachine` | Implementado, HOST-110 |
