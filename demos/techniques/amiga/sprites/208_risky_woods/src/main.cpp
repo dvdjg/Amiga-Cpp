@@ -53,7 +53,7 @@ constexpr eng::u8  kShifts = 16;                 // sets pre-shifteados (1 px ca
 constexpr eng::u16 kDisplayX0 = 128;             // borde izquierdo del display
 constexpr eng::u16 kDisplayW = 320;
 constexpr eng::u16 kStride = static_cast<eng::u16>(2u + kBandLines * 2u + 2u); // 164
-constexpr eng::u16 kCuGap = 24;                  // margen del WAIT respecto a la 1.ª columna
+constexpr eng::u16 kCuGap = 56;                  // head-start del WAIT respecto a la 1.ª columna
 constexpr eng::u16 kCuBytes = 48u * 1024u;
 constexpr eng::u16 kOffWords = 8u;
 constexpr eng::u16 kOffWord = 0xfe00u; // VSTART=VSTOP=254 (nunca arma)
@@ -426,10 +426,12 @@ private:
 		}
 		const eng::u16 period = bd.pattern;
 		for (eng::u16 line = bd.top; line < bottom; ++line) {
-			// La franja C es *attached*: sus repeticiones no rinden los 15 colores (el reuso
-			// pierde los bits altos; ver 2.10 del diagnostico). Patron mas estrecho: solo la
-			// posicion de armadura (64 px) sale a 15 colores.
-			const eng::u16 span = bd.attach ? period : kDisplayW;
+			// Reposicion por linea con un head-start (kCuGap) suficiente: el Copper va por
+			// delante del haz y cada shifter re-arma cuando su propia X coincide con el haz
+			// (WinUAE drawing.cpp:4940). Con head-start corto la 1a columna de cada grupo parpadea
+			// y, en el par *attached*, se pierden los bits altos -> se reposicionan AMBOS canales
+			// del par (par y non), sin tocar SPRxCTL (que desarmaria y perderia el ATTACH).
+			const eng::u16 span = kDisplayW;
 			for (eng::u16 xstart = kDisplayX0; xstart < kDisplayX0 + span;
 			     xstart = static_cast<eng::u16>(xstart + period)) {
 				const eng::s32 wpx = static_cast<eng::s32>(xstart) - static_cast<eng::s32>(kCuGap);
@@ -438,11 +440,6 @@ private:
 						line, static_cast<eng::u8>((static_cast<eng::u16>(wpx) >> 1u) & 0xfeu));
 				}
 				for (eng::u8 c = 0; c < bd.channels; ++c) {
-					// En attached solo se reposiciona el canal PAR: el shifter de cada canal se
-					// re-arma cuando su propia X coincide con el haz (WinUAE drawing.cpp:4940); el
-					// impar no re-arma en el reuso (por eso la franja C se limita a la zona de
-					// armadura; ver 2.10). Reposicionar tambien el impar EMPEORA.
-					if (bd.attach && (c & 1u)) { continue; }
 					const eng::u8 ch = static_cast<eng::u8>(bd.channel_first + c);
 					const eng::u8 colx = bd.attach ? static_cast<eng::u8>(c >> 1u) : c;
 					const eng::u16 x = static_cast<eng::u16>(xstart + colx * kColWidth);

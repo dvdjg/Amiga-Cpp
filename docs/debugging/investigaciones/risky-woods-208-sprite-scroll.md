@@ -99,7 +99,9 @@ Solución: **un `WAIT` en el inicio de cada franja** (`wait_line(bd.top)` al ent
 
 **Descartado (probado):** adelantar la **armadura** (PT/POS/CTL) al **final de la línea anterior** para dar más margen a la 1.ª línea no limpia el parpadeo de B: mueve el artefacto a la **frontera** (los sprites de la franja previa que aún dibujan en esa línea recogen la armadura nueva → p. ej. 10 px rojos en la 208). Con un solo `WAIT` en la frontera el resultado es más limpio.
 
-**Parpadeo confirmado (secuencia + medición):** capturando 12 frames consecutivos (`--sequence-frames`), el contenido de la **1.ª columna** de la franja B (canal 2) oscila **0 % ↔ 98 %** (vacía / llena) frame a frame: el sprite del primer canal no se dibuja en algunos frames. La causa es que la armadura de ese canal cae en la 1.ª línea y compite con el fetch; falta una solución que no reintroduzca artefactos en la frontera (p. ej. re-armar el canal **en la zona de HBLANK** tras la última columna de la franja anterior).
+**Parpadeo confirmado (secuencia + medición):** capturando 12 frames consecutivos (`--sequence-frames`), el contenido de la **1.ª columna de cada grupo** de reposición (canales en las posiciones 128 y 224; c0 y c6) oscilaba **0 % ↔ 99 %** frame a frame: la reposición del primer canal de cada grupo competía con el haz.
+
+**RESUELTO por head-start:** aumentando el margen del `WAIT` respecto a la columna (`kCuGap` 24 → 56) el parpadeo desaparece: las 8 columnas de B quedan estables 98–99 % en los 12 frames. **No era un límite de hardware ni la recarga de paleta: era el head-start de la reposición** (el `POS` debe escribirse con holgura antes de que el haz llegue a la nueva X).
 
 ### 2.10 El **reuso** de un par *attached* a lo ancho pierde los bits altos
 
@@ -107,7 +109,7 @@ Al **reutilizar** repetidamente un par *attached* a lo ancho (reposicionar el pa
 
 **Fuente (WinUAE):** `drawing.cpp:4940-4968` (`matchsprites2`: re-arma el *shifter* solo cuando la X del sprite coincide con el haz) y `drawing.cpp:2656-2664` (mismo caso al escribir la `SPRxPOS`); los bits altos del par vienen del *shifter* del impar (`drawing.cpp:4373-4384`, `4239`), que no se re-arma en las repeticiones. Ficha: [`sprite-color-priority.md`](../../reference/emulators/winuae/sprite-color-priority.md).
 
-**Solución aplicada en la 208 (patrón más estrecho):** como el reuso del par *attached* solo rinde 15 colores en la **posición de armadura** (64 px), la franja C se limita a esa posición (`span = period` en el bucle de la ráfaga). Probar a re-armar el par (POS+CTL por posición) mueve la zona de 15 colores pero **no la uniformiza**; reposicionar el impar empeora. Queda como **limitación conocida** de OCS (alternativa: banda C no-*attached* con los 4 pares en grupos de color distintos).
+**Corrección (era el head-start, NO un límite de OCS):** reposicionando **ambos `SPRxPOS` del par** (par y non, sin tocar `SPRxCTL`) y subiendo el head-start `kCuGap` (24 → 56), la franja C rinde ~15 colores en (casi) todas las columnas a lo ancho (antes solo la posición de armadura). Es decir, la pérdida de bits altos era **timing/head-start** (el `POS` del non debe escribirse con holgura antes de que el haz llegue a su X), no una limitación de OCS. Liga con la técnica real de Risky Woods y `effects::RiskyWoodsLayer` (reposiciona toda la corrida, solo POS). Queda afinar la uniformidad total (la 1.ª columna de cada grupo aún sale con menos colores); consulta abierta a Grok: [`consulta-ocs-attached-sprite-multiplexing-en.md`](consulta-ocs-attached-sprite-multiplexing-en.md).
 
 ## 3. El algoritmo de Risky Woods (artículo de codetapper)
 
