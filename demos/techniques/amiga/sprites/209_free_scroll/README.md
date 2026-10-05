@@ -19,15 +19,15 @@ también el dato — la `SPRxDATA`+`SPRxDATB` (2 `MOVE`) **o** el `SPRxPT` (2 `M
 | Variante | `MOVE` por columna | 320 px (20 col) | Ancho máximo (verificado) |
 |---|---|---|---|
 | **4 colores** | `CTL`+`POS`+`DAT`+`DATB` = **4** | 80 `MOVE`/línea | **20 col = 320 px** (completo) |
-| **16 colores** | 2·(`CTL`+`POS`+`DAT`+`DATB`) = **8** | 160 `MOVE`/línea | **18 col = 288 px** (memoria de Copper) |
+| **16 colores** | 2·(`CTL`+`POS`+`DAT`+`DATB`) = **8** | 160 `MOVE`/línea | **20 col = 320 px** (bloque de Copper grande) |
 
-**Resultados verificados:**
-- **4 colores → 320 px completos** solo con Copper, con imagen **no repetitiva** (20 columnas
-  distintas). La estimación previa (60 `MOVE` > 56) era **demasiado pesimista**: la línea da para
-  más de 80 `MOVE`.
-- **16 colores → 288 px (18 columnas)**, y **no** por la línea sino por la **memoria del Copper**:
-  la copperlist (`N·8·80` `MOVE`) desborda los 48 KB del bloque a partir de ~19 columnas
-  (20 col = 12800 `MOVE` ≈ 51 KB > 48 KB). Con la línea no se llega a saturar a este ancho.
+**Resultados verificados (bloque de Copper de 128 KB):**
+- **4 colores → 320 px completos** (20 columnas) solo con Copper, imagen **no repetitiva**.
+- **16 colores → 320 px completos** (20 columnas). El límite **no es de hardware**: los 48 KB eran
+  el tamaño del **bloque reservado en la demo** (y `kCuBytes` estaba en `eng::u16`, que **desborda**
+  por encima de 64 KB: 160 KB → 32 KB). Con 128 KB caben las 20 columnas y la línea tampoco se
+  satura a este ancho. *(Falta afinar un fantasma pequeño abajo-derecha que aparece a 20 columnas
+  en 16 colores.)*
 
 **Hallazgo de hardware:** los canales que el Copper alimenta por línea necesitan, tras la banda, un
 **reset** (`SPRxCTL` y `SPRxPOS` a `VSTART=VSTOP`) o dejan una **columna fantasma** por debajo
@@ -54,7 +54,7 @@ también el dato — la `SPRxDATA`+`SPRxDATB` (2 `MOVE`) **o** el `SPRxPT` (2 `M
 | **E0** | 8 tiles **distintos**, estático (validar "no repetitivo" vs 208). | **OK** |
 | **E1** | 20 tiles (3 pasadas) → **320 px** a 4 colores. | **OK** (20 columnas caben) |
 | **E2** | scroll de 1 px/frame por sets pre-shifteados + parche de `SPRxDATA`. | — |
-| **E3** | variante **16 colores** (4 pares *attached*) — cota de ancho. | **OK** (18 col = 288 px) |
+| **E3** | variante **16 colores** (4 pares *attached*) — cota de ancho. | **OK** (20 col = 320 px) |
 
 ## Lanzar
 

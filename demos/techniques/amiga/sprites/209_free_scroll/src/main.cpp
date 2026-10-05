@@ -47,11 +47,11 @@ constexpr eng::u16 kColWidth = 16;
 constexpr eng::u16 kDisplayX0 = 128;
 constexpr eng::u16 kDisplayW = 320;
 constexpr eng::u16 kCuGap = 56;            // head-start del WAIT
-constexpr eng::u16 kCuBytes = 48u * 1024u;
+constexpr eng::u32 kCuBytes = 128u * 1024u;
 
 // Columnas DISTINTAS a dibujar con el Copper (cota: 3 MOVE/columna). 20 = 320 px (deberia saturar);
 // 18 = 288 px (cota esperada). Ajustar para medir.
-constexpr eng::u16 kCols = 18;
+constexpr eng::u16 kCols = 20;
 
 // COLOR00 fondo navy; colores 1/2/3 de cada par de sprite distintos (rojo/verde/azul).
 constexpr eng::Palette32 kPalette {{
