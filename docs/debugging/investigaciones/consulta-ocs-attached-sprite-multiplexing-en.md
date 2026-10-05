@@ -1,5 +1,7 @@
 # Consulta a Grok — OCS attached-sprite multiplexing (inglés)
 
+> **Respondida por Grok.** Es posible en OCS real: escribir **ambos `SPRxPOS`** (mismo valor, **sin** tocar `SPRxCTL`) con **antelación ≥ 16 px lo-res** (si el `WAIT` va cerca, `SPR0POS` llega pero el haz pasa antes de `SPR1POS` → solo 4 colores). La pérdida de los bits altos es comportamiento **físico de Denise**, no artefacto de WinUAE. Resultado aplicado y verificado en la 208 (`kCuGap=56`); ficha: [`sprite-color-priority.md`](../../reference/emulators/winuae/sprite-color-priority.md).
+
 Consulta autocontenida en inglés (AGENTS §1.3). Preguntar a Grok con el texto de abajo.
 
 ---

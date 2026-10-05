@@ -53,7 +53,12 @@ constexpr eng::u8  kShifts = 16;                 // sets pre-shifteados (1 px ca
 constexpr eng::u16 kDisplayX0 = 128;             // borde izquierdo del display
 constexpr eng::u16 kDisplayW = 320;
 constexpr eng::u16 kStride = static_cast<eng::u16>(2u + kBandLines * 2u + 2u); // 164
-constexpr eng::u16 kCuGap = 56;                  // head-start del WAIT respecto a la 1.ª columna
+// Head-start de la reposicion: el WAIT debe caer con antelacion suficiente antes de la nueva X.
+// Reposicionar un canal cuesta 2 MOVEs (4 ciclos de bus = 16 px lo-res); si el WAIT va cerca, el
+// haz sobrepasa la X antes de escribir el 2.o canal -> el par (par+non, attached) pierde los bits
+// altos (queda a 4 colores). Minimo ~16 px de antelacion (Grok: consulta-ocs-attached-sprite-
+// multiplexing-en.md); 56 da margen comodo en todas las franjas.
+constexpr eng::u16 kCuGap = 56;
 constexpr eng::u16 kCuBytes = 48u * 1024u;
 constexpr eng::u16 kOffWords = 8u;
 constexpr eng::u16 kOffWord = 0xfe00u; // VSTART=VSTOP=254 (nunca arma)
