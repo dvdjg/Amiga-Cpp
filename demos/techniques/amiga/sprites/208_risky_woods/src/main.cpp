@@ -80,7 +80,7 @@ struct BandSpec {
 constexpr BandSpec kBands[3] = {
 	{ 48u, 8u, 128u, false, 0u }, // A: 8 sueltos, 128 px
 	{ 128u, 6u, 96u, false, 2u }, // B
-	{ 208u, 8u, 64u, true, 0u },  // C: 4 pares attached, 64 px
+	{ 208u, 8u, 64u, true, 0u },  // C: 4 pares attached, 64 px (<=3 repeticiones: coste Copper)
 };
 constexpr eng::u8 kCols[3] { 8u, 6u, 4u }; // columnas (sueltos) o pares (attached)
 // Offset (words) de la estructura `(banda, shift, columna)` **precalculado** (constexpr) para
@@ -436,7 +436,10 @@ private:
 			// (WinUAE drawing.cpp:4940). Con head-start corto la 1a columna de cada grupo parpadea
 			// y, en el par *attached*, se pierden los bits altos -> se reposicionan AMBOS canales
 			// del par (par y non), sin tocar SPRxCTL (que desarmaria y perderia el ATTACH).
-			const eng::u16 span = kDisplayW;
+			// Franja C (*attached*): el coste de Copper por periodo (1 WAIT + 8 MOVE = 72 px) supera
+			// el periodo del patron (64 px), asi que solo caben ~3 repeticiones antes de que el
+			// impar llegue tarde y el par caiga a 4 colores. Se limita a esas 3 (sin huecos).
+			const eng::u16 span = bd.attach ? static_cast<eng::u16>(3u * period) : kDisplayW;
 			for (eng::u16 xstart = kDisplayX0; xstart < kDisplayX0 + span;
 			     xstart = static_cast<eng::u16>(xstart + period)) {
 				const eng::s32 wpx = static_cast<eng::s32>(xstart) - static_cast<eng::s32>(kCuGap);
