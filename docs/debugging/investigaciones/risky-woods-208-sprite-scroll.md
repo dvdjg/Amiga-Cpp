@@ -103,6 +103,8 @@ Solución: **un `WAIT` en el inicio de cada franja** (`wait_line(bd.top)` al ent
 
 **RESUELTO por head-start:** aumentando el margen del `WAIT` respecto a la columna (`kCuGap` 24 → 56) el parpadeo desaparece: las 8 columnas de B quedan estables 98–99 % en los 12 frames. **No era un límite de hardware ni la recarga de paleta: era el head-start de la reposición** (el `POS` debe escribirse con holgura antes de que el haz llegue a la nueva X).
 
+**Guarda entre bandas:** separar las bandas con **una línea de guarda** (`top+1` respecto a la anterior) elimina la **franja vertical sólida de la 1.ª columna de B**: el DMA dispone de una línea neutra para recargar el `SPRxPT`/cabecera sin mezclar la estructura de la banda anterior con la nueva (Grok: desincronización del DMA entre bandas).
+
 ### 2.10 El **reuso** de un par *attached* a lo ancho pierde los bits altos
 
 Al **reutilizar** repetidamente un par *attached* a lo ancho (reposicionar el par para repetir el patrón), las posiciones repetidas **pierden los bits altos**: la franja C mostraba 16 colores (8 bits) en la **primera** repetición (posición de armadura) y solo **4 colores** (2 bits) en las siguientes. Es decir, el canal impar (que aporta los bits 2,3 por ATTACH) **solo entrega los bits altos en la armadura inicial**; el reuso posterior no los incluye. Reposicionar también el canal impar **empeora** el resultado (más posiciones → degradación mayor). Es una limitación del reuso del par *attached* en OCS: para varios ciclos de un patrón a 15 colores hay que **volver a armar el par entero** (con `WAIT` en la posición) o reducir el número de repeticiones.

@@ -79,8 +79,8 @@ struct BandSpec {
 // Franjas y tablas (namespace scope: arrays constexpr con constructor propio).
 constexpr BandSpec kBands[3] = {
 	{ 48u, 8u, 128u, false, 0u }, // A: 8 sueltos, 128 px
-	{ 128u, 6u, 96u, false, 2u }, // B
-	{ 208u, 8u, 64u, true, 0u },  // C: 4 pares attached, 64 px (<=3 repeticiones: coste Copper)
+	{ 129u, 6u, 96u, false, 2u }, // B: +1 linea de guarda respecto a A
+	{ 210u, 8u, 64u, true, 0u },  // C: 4 pares attached, 64 px; +1 linea de guarda respecto a B
 };
 constexpr eng::u8 kCols[3] { 8u, 6u, 4u }; // columnas (sueltos) o pares (attached)
 // Offset (words) de la estructura `(banda, shift, columna)` **precalculado** (constexpr) para
