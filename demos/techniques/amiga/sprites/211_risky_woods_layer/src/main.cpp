@@ -73,6 +73,7 @@ constexpr eng::u16 kPalC[16] { 0x000, 0x630, 0x950, 0xc60, 0xfc0, 0xff0, 0xcf0, 
 struct LayerDemo {
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
+		// 384K chip (bitplanes 40K + copper 48K + sprites + margen), 8K slow (Bogo), 8K fast.
 		if (!backend.configure_memory({ 384u * 1024u, 8u * 1024u, 8u * 1024u })) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021101u); return;
 		}
@@ -108,6 +109,7 @@ private:
 					const eng::u16 v = attach
 						? fig15(pxg, l, pattern)
 						: fig3(pxg, l, pattern, b);
+					// `v` = valor del pixel; bit 0 -> DAT, bit 1 -> DATB (bit 15 = pixel 0, izq.).
 					if ((v & 1u) != 0u) { dat = static_cast<eng::u16>(dat | (0x8000u >> px)); }
 					if ((v & 2u) != 0u) { datb = static_cast<eng::u16>(datb | (0x8000u >> px)); }
 				}
@@ -121,6 +123,7 @@ private:
 
 	bool build_copper() {
 		eng::copper::SchedulerT<false> sched { m_copper };
+		// Registros de display: BPLCON0/BPLCON1/DIWSTRT/DIWSTOP; 40 B/fila, 4 planos, 320x256.
 		sched.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0, kBytesPerRow, 0x4200,
 					  kPlanes, m_bitplane.mem_view_chip(), kPlaneBytes);
 		sched.move(eng::copper::Register::DMACON,

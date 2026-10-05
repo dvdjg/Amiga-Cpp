@@ -79,6 +79,7 @@ constexpr eng::Palette32 kPalette {{
 struct FreeScrollDemo {
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
+		// 384K chip (bitplanes + copper 128K + sprites), 8K slow (Bogo), 8K fast.
 		if (!backend.configure_memory({ 384u * 1024u, 8u * 1024u, 8u * 1024u })) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020901u);
 			return;
@@ -111,6 +112,7 @@ struct FreeScrollDemo {
 private:
 	bool build_copper() {
 		eng::copper::SchedulerT<false> sched { m_copper_block };
+		// Registros de display: BPLCON0/BPLCON1/DIWSTRT/DIWSTOP; 40 B/fila, 4 planos, 320x256.
 		sched.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0, kBytesPerRow, 0x4200,
 					  kPlanes, m_bitplane_block.mem_view_chip(), kPlaneBytes);
 		const eng::uintptr spr_base = reinterpret_cast<eng::uintptr>(m_sprite_block.view.data());

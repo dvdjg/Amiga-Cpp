@@ -142,6 +142,7 @@ El objetivo es que el usuario pueda **revisar** el trabajo antes de que se conso
 - **Comentarios al nivel de la intención**: cada bloque explica **qué** se hace con el vocabulario del engine (`App`/`Screen`/`Scene`/`BobLayer`/`RasterLayout`/`CopperIntent`…), **por qué** es así y **qué haría mal un lector** si bajara a bajo nivel; las decisiones no obvias (alineación, orden de registros, `MEMF_*`, límites de hardware) citan la referencia canónica.
 - **Sin bajo nivel gratuito**: la lógica de la demo usa la fachada (`eng/api/api.hpp` + tipos de dominio); no nombra registros del chipset, punteros crudos, `BlitJob`, bancos de memoria ni tipos del backend. Si algo obliga a bajar, es una abstracción que falta (§1.9) y se resuelve en el engine — no se deja crudo en la demo.
 - **El comentario enseña la regla, no el paso a paso de la máquina**: nada de narrar cronología ni intentos descartados (eso va a `docs/debugging/`); el `README.md` de la demo presenta el efecto, la técnica (con su ficha en `docs/reference/`) y el contrato que ilustra.
+- **Números y líneas no obvias, justificados**: todo literal en una llamada a la API o en una operación cuyo propósito **no sea evidente al leerlo** lleva **comentario** (misma línea o encima) o un `constexpr` con nombre; y cualquier sentencia que no se explique sola lleva un **comentario de línea** (ver «Literales numéricos semánticos»).
 
 ### 1.14 No cerrar el turno por criterio propio
 
@@ -205,6 +206,20 @@ Reglas críticas:
 - Los literales con significado deben quedar explicados en el mismo uso o en un comentario inmediatamente anterior; si la explicación necesita contexto, enlazar/citar su fuente canónica. Se pueden dejar como literales cuando la constante nombrada añadiría ruido.
 - Usar `constexpr` cuando el valor tenga un nombre de dominio claro, se reutilice o haga más legible la configuración. Mantener el conjunto pequeño y coherente; no crear una constante por cada número. Antes de declarar límites derivados del hardware, buscar y reutilizar los existentes.
 - Ejemplo: `mark_failed(status, 0x00021303u)` debe documentar qué etapa de init representa o usar un identificador semántico si esos códigos se consultan en más de un sitio. En cambio, dimensiones y factores usados una sola vez pueden seguir literales si el comentario cercano explica su papel.
+- **Números en operaciones y llamadas a la API**: si el propósito de un literal **no es evidente al leerlo**, **justificarlo con un comentario** (en la misma línea o justo encima) o darle un nombre `constexpr`. Aplica a llamadas de configuración y a operaciones aritméticas/bit a bit. Ej.:
+  ```cpp
+  // 384K chip (bitplanes + copper + sprites), 8K slow (Bogo), 8K fast.
+  backend.configure_memory({ 384u * 1024u, 8u * 1024u, 8u * 1024u });
+  ```
+- **Comentario de línea cuando el código no se explica solo**: si una sentencia no deja claro **qué** hace o **por qué** usa ese valor, añadir un **comentario de línea** (en la misma línea o justo encima). Ej.:
+  ```cpp
+  // Registros de display: BPLCON0/BPLCON1/DIWSTRT/DIWSTOP; 40 B/fila, 4 planos, 320x256.
+  sched.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0, kBytesPerRow, 0x4200,
+                            kPlanes, m_bitplane.mem_view_chip(), kPlaneBytes);
+  // `v` = valor 1..3 del pixel; bit 0 -> DAT, bit 1 -> DATB (bit 15 = pixel 0, a la izquierda).
+  if ((v & 1u) != 0u) { dat = static_cast<eng::u16>(dat | (0x8000u >> px)); }
+  ```
+  Ver también §1.13 (comentarios didácticos: **qué**, **por qué** y **qué haría mal** un lector).
 
 ### 3.1 Herramientas locales
 
