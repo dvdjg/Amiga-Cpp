@@ -630,113 +630,92 @@ private:
 	u16 m_scroll = 0;
 };
 
-/// **Fondo LIBRE por sprites** (`FreeScrollLayer`): como `RiskyWoodsLayer`, pero cada columna
-/// muestra **DATA distinta** — una imagen de `screen_width` px partida en columnas de
-/// `column_width` px (no un patrón que se repite). Rearma `SPRxPOS` + `SPRxDATA`/`SPRxDATB` por
-/// línea (cabecera + DATA inmediata). **Paramétrica por `MaxColumns`**: disposición fija en
-/// compilación (sin heap, sin cola, sin despacho dinámico; bucles acotados).
+/// **Scroll de fondo por sprites** (`FreeScrollLayer`): un **patrón** de `channels` columnas (de
+/// `column_width` px) que se repite a lo ancho de `screen_width` y se desplaza con `set_scroll`.
+/// `attach()` construye las **estructuras DMA** de cada columna desde `tiles` (fuente CPU) en
+/// `dma_data` (Chip) y **delega la emisión en `RiskyWoodsLayer`** (la técnica de la demo 208:
+/// `SPRxPT` **fijo por canal** + el Copper rearmando solo `SPRxPOS` en carrera contra el haz).
+///
+/// Por eso el fondo **se repite** cada `channels * column_width` px: con 8 canales y `PT` fijo un
+/// fondo de 320 px **no repetitivo** no es alcanzable con Copper puro (haría falta el Blitter; ver
+/// `docs/reference/emulators/winuae/sprite-horizontal-multiplex.md`). **Paramétrica por
+/// `MaxColumns`** (disposición fija en compilación).
 ///
 /// Cumple el contrato `Effect` (`band_scope`/`apply_into`/`effect_cost`): se **combina** con otros
-/// efectos en el mismo `copper::Plan`, que monta la lista y la manda al Copper. Ver
-/// `docs/reference/amiga/techniques/sprite-techniques-catalog.md` (técnica 6, *Free Form*).
-template <eng::u8 MaxColumns = 20u>
+/// efectos en el mismo `copper::Plan`, que monta la lista y la manda al Copper.
+template <eng::u8 MaxColumns = 8u>
 class FreeScrollLayer {
 public:
 	struct Config {
-		u16 first_line = 0u;     ///< primera línea de la banda (inclusive)
-		u16 lines = 0u;          ///< líneas que cubre
-		u8  channel_first = 0u;  ///< primer canal de sprite (0..7)
-		u8  channels = 0u;       ///< canales usados (1..8)
-		u16 column_width = 16u;  ///< ancho de cada columna (px)
-		u16 screen_width = 320u; ///< ancho a cubrir (px)
-		u16 display_x0 = 128u;   ///< borde izquierdo del display (lo-res): X de la 1.ª columna
-		u16 bplcon2 = 0u;        ///< prioridad (`BPLCON2`); fondo = detrás del playfield
-		u8  arm_hpos = 0x30u;    ///< `WAIT` (hpos = px/2) tras el fetch DMA de sprites
-		u16 head_start = 32u;    ///< px del `WAIT` a la 1.ª columna (head-start del haz)
-		u16 columns = 0u;        ///< columnas a dibujar (<= `MaxColumns`)
-		bool attach = false;     ///< 15 colores (pares *attached*: el impar aporta los bits 2-3)
-		/// DATA de la imagen (fuente CPU, vive en ROM): `columns * lines * 2` palabras (`DAT`,
-		/// `DATB` por columna y línea). `attach()` las copia a las estructuras DMA de `dma_data`.
+		u16 first_line = 0u;        ///< primera línea de la banda (inclusive)
+		u16 lines = 0u;             ///< líneas que cubre
+		u8  channel_first = 0u;     ///< primer canal de sprite (0..7)
+		u8  channels = 0u;          ///< columnas del patrón = canales (1..`MaxColumns`)
+		u16 column_width = 16u;     ///< ancho de cada columna (px)
+		u16 screen_width = 320u;    ///< ancho a cubrir (px)
+		u16 display_x0 = 128u;      ///< borde izquierdo del display (lo-res)
+		u16 bplcon2 = 0u;           ///< prioridad (`BPLCON2`); fondo = detrás del playfield
+		u8  arm_hpos = 0x30u;       ///< `WAIT` (hpos = px/2) tras el fetch DMA de sprites
+		u16 head_start = 32u;       ///< px del `WAIT` a la 1.ª columna (head-start del haz)
+		bool attach = false;        ///< 15 colores (pares *attached*; el impar aporta bits 2-3)
+		bool burst_no_wait = false; ///< ráfaga sin WAITs intermedios (ver `RiskyWoodsLayer`)
+		bool reset_at_end = false;  ///< desarma los canales al final (sin columna fantasma)
+		/// Patrón de CPU (ROM): `channels * lines * 2` palabras (`DAT`, `DATB` por columna y línea).
 		eng::Span<const eng::u16> tiles {};
-		/// **Estructuras DMA** (Chip): `columns` estructuras de `dma_stride` words, rellenadas por
-		/// `attach()` desde `tiles` con el formato `[POS, CTL, DAT0, DATB0, …, POS(bottom), CTL(bottom)]`.
-		/// El sprite las lee por **DMA** (no hay DATA inmediata): su `SPRxPT` debe apuntar a una
-		/// cabecera válida o el canal dibuja a trazos (ver `sprite-dma.md`).
+		/// **Estructuras DMA** (Chip): `channels * dma_stride` words; `attach()` las rellena con
+		/// `[POS, CTL, DAT0, DATB0, …, POS(bottom), CTL(bottom)]`.
 		eng::Span<eng::u16> dma_data {};
-		u16 dma_stride = 0u; ///< words por estructura (`2 + lines*2 + 2`)
-		/// Si `true`, al final de la banda los canales quedan **desarmados** (`VSTART=VSTOP`):
-		/// evita la columna fantasma hacia lo de abajo.
-		bool reset_at_end = false;
+		u16 dma_stride = 0u;        ///< words por estructura (`2 + lines*2 + 2`)
 	};
 
 	[[nodiscard]] bool attach(Config cfg) {
 		const u16 stride = static_cast<u16>(2u + cfg.lines * 2u + 2u);
-		if (cfg.lines == 0u || cfg.columns == 0u || cfg.columns > MaxColumns ||
-		    cfg.channels == 0u || cfg.channels > 8u || cfg.channel_first + cfg.channels > 8u ||
-		    cfg.column_width == 0u || cfg.screen_width == 0u ||
-		    cfg.tiles.size() < static_cast<eng::usize>(cfg.columns) * cfg.lines * 2u ||
+		if (cfg.lines == 0u || cfg.channels == 0u || cfg.channels > MaxColumns ||
+		    cfg.channel_first + cfg.channels > 8u || cfg.column_width == 0u ||
+		    cfg.screen_width == 0u ||
+		    cfg.tiles.size() < static_cast<eng::usize>(cfg.channels) * cfg.lines * 2u ||
 		    cfg.dma_stride != stride ||
-		    cfg.dma_data.size() < static_cast<eng::usize>(cfg.columns) * stride) {
+		    cfg.dma_data.size() < static_cast<eng::usize>(cfg.channels) * stride) {
 			return false;
 		}
 		m_cfg = cfg;
 		build_structures();
-		return true;
+		// Delega la emisión en la técnica probada de la 208: `PT` fijo por canal + la Copper
+		// rearmando solo `SPRxPOS` en carrera contra el haz.
+		RiskyWoodsLayer::Config rc {};
+		rc.first_line = cfg.first_line;
+		rc.lines = cfg.lines;
+		rc.channel_first = cfg.channel_first;
+		rc.channels = cfg.channels;
+		rc.column_width = cfg.column_width;
+		// `RiskyWoodsLayer::screen_width` es el **borde derecho** de la cobertura (desde x=0), no
+		// el ancho: hay que sumarle el borde izquierdo del display (`display_x0`).
+		rc.screen_width = static_cast<u16>(cfg.display_x0 + cfg.screen_width);
+		rc.bplcon2 = cfg.bplcon2;
+		rc.arm_hpos = cfg.arm_hpos;
+		rc.head_start = cfg.head_start;
+		rc.attach = cfg.attach;
+		rc.burst_no_wait = cfg.burst_no_wait;
+		rc.reset_at_end = cfg.reset_at_end;
+		rc.dma_data = cfg.dma_data;
+		rc.dma_stride = stride;
+		return m_layer.attach(rc);
 	}
 
-	/// Relocaliza una estructura DMA en Chip a partir del índice de columna (dirección de la
-	/// cabecera POS/CTL). Cada estructura ocupa `dma_stride` words contiguas.
-	[[nodiscard]] eng::Address<eng::MemoryKind::Chip> structure_at(u16 col) const noexcept {
-		const eng::Address<eng::MemoryKind::Chip> base =
-			eng::Address<eng::MemoryKind::Chip>::from_storage(m_cfg.dma_data.data());
-		return base + static_cast<eng::u32>(col) * m_cfg.dma_stride * 2u;
-	}
+	/// Desplaza el patrón horizontalmente (px lo-res): entra por la izquierda.
+	void set_scroll(u16 x) noexcept { m_layer.set_scroll(x); }
 
-	/// Emite la capa: `BPLCON2` y, por línea, un `WAIT` (head-start) + la ráfaga, por columna, del
-	/// `SPRxPT` (a la estructura DMA de esa columna) y el `SPRxPOS`. La **DATA sale de la
-	/// estructura** por DMA; no hay DATA inmediata.
+	/// Emite la capa delegando en `RiskyWoodsLayer` (`PT` fijo por canal + ráfaga de `SPRxPOS`).
 	template <class Sched>
 	void emit_into(Sched& sched) const {
-		sched.move(copper::Register::BPLCON2, m_cfg.bplcon2);
-		const u16 bottom = static_cast<u16>(m_cfg.first_line + m_cfg.lines);
-		// Arma los canales **UNA vez** (`SPRxCTL` con VSTART/VSTOP de la banda + ATTACH en el
-		// impar). En el bucle de columnas solo se reescriben PT + POS.
-		for (eng::u8 c = 0u; c < m_cfg.channels; ++c) {
-			const eng::u8 ch = static_cast<eng::u8>((m_cfg.channel_first + c) & 7u);
-			const u16 ab = (m_cfg.attach && (ch & 1u)) ? 0x80u : 0u;
-			sched.move(static_cast<eng::u16>(0x142u + ch * 8u), ctl(bottom, m_cfg.display_x0, ab));
-		}
-		for (u16 line = m_cfg.first_line; line < bottom; ++line) {
-			const eng::s32 wait_px = static_cast<eng::s32>(m_cfg.arm_hpos) * 2 -
-						 static_cast<eng::s32>(m_cfg.head_start);
-			if (wait_px >= 0) {
-				sched.wait_position_safe(line, static_cast<u8>((static_cast<u16>(wait_px) >> 1u) & 0xfeu));
-			}
-			for (u16 col = 0u; col < m_cfg.columns; ++col) {
-				const u16 x = static_cast<u16>(m_cfg.display_x0 + m_cfg.column_width * col);
-				const u8 ch = static_cast<u8>((m_cfg.channel_first + col % m_cfg.channels) & 7u);
-				const eng::Address<eng::MemoryKind::Chip> addr = structure_at(col);
-				const eng::u16 pt_reg = static_cast<eng::u16>(0x120u + ch * 4u);
-				sched.move(pt_reg, static_cast<u16>(addr.value >> 16u)); // SPRxPTH
-				sched.move(static_cast<eng::u16>(pt_reg + 2u), static_cast<u16>(addr.value & 0xffffu)); // SPRxPTL
-				sched.move(static_cast<eng::u16>(0x140u + ch * 8u), pos(line, x)); // SPRxPOS
-			}
-		}
-		// Reset al final: canales desarmados (`VSTART=VSTOP`) -> sin columna fantasma.
-		if (m_cfg.reset_at_end) {
-			for (u8 c = 0u; c < m_cfg.channels; ++c) {
-				const u8 ch = static_cast<u8>((m_cfg.channel_first + c) & 7u);
-				sched.move(static_cast<u16>(0x142u + ch * 8u), 0xfe00u);
-				sched.move(static_cast<u16>(0x140u + ch * 8u), 0xfe00u);
-			}
-		}
+		m_layer.emit_into(sched);
 	}
 
 	/// Emite al plan de la escena (`emit_into(scene.scheduler())`).
 	void frame(graphics::composition::Scene& scene) { emit_into(scene.scheduler()); }
 
-	/// Contrato `Effect`: la capa no anima por sí sola.
-	void update(eng::u16) noexcept {}
+	/// Contrato `Effect`: la capa no anima por sí sola (el llamador fija el scroll).
+	void update(eng::u16 f) noexcept { m_layer.update(f); }
 
 	/// Tramo de raster + canales que reclama (para combinarse con otros fondos).
 	[[nodiscard]] copper::BandScope band_scope() const noexcept {
@@ -755,30 +734,19 @@ public:
 		return free && fits;
 	}
 
-	/// Coste declarado (una intención por `WAIT` + una por línea y columna).
-	[[nodiscard]] copper::EffectCost effect_cost() const noexcept {
-		const u16 per_line = static_cast<u16>(1u + m_cfg.columns);
-		return copper::EffectCost {static_cast<u16>(m_cfg.lines * per_line), words_estimate()};
-	}
+	/// Coste declarado (delegado en `RiskyWoodsLayer`).
+	[[nodiscard]] copper::EffectCost effect_cost() const noexcept { return m_layer.effect_cost(); }
 
 	[[nodiscard]] const Config& config() const noexcept { return m_cfg; }
 
-	/// Huella estimada en palabras de Copper: `BPLCON2` (1) + armado (1 `MOVE`/canal) + por línea
-	/// [`WAIT` + 3 `MOVE` por columna (`SPRxPTH`/`SPRxPTL`/`SPRxPOS`)] + reset final.
-	[[nodiscard]] u16 words_estimate() const noexcept {
-		const u32 per_line = 1u + static_cast<u32>(m_cfg.columns) * 3u;
-		const u32 arm = 1u + static_cast<u32>(m_cfg.channels);
-		const u32 reset = m_cfg.reset_at_end ? static_cast<u32>(m_cfg.channels) * 2u : 0u;
-		return static_cast<u16>((arm + static_cast<u32>(m_cfg.lines) * per_line + reset) * 2u + 2u);
-	}
-
 private:
-	/// Rellena las `columns` estructuras DMA (en `dma_data`) desde `tiles`: cabecera `POS`/`CTL`
-	/// (VSTART=`first_line`), `DAT`/`DATB` por línea y terminador `POS`/`CTL` (VSTART=VSTOP).
+	/// Rellena la estructura DMA de cada columna (en `dma_data`) desde `tiles`: cabecera
+	/// `POS`/`CTL` (VSTART=`first_line`), `DAT`/`DATB` por línea y terminador `POS`/`CTL`
+	/// (VSTART=VSTOP, para que el DMA del sprite no desborde la estructura al acabar la banda).
 	void build_structures() {
 		const u16 bottom = static_cast<u16>(m_cfg.first_line + m_cfg.lines);
 		eng::u16* dst = m_cfg.dma_data.data();
-		for (u16 col = 0u; col < m_cfg.columns; ++col) {
+		for (u16 col = 0u; col < m_cfg.channels; ++col) {
 			eng::u16* s = dst + static_cast<eng::usize>(col) * m_cfg.dma_stride;
 			const u16 x = static_cast<u16>(m_cfg.display_x0 + m_cfg.column_width * col);
 			s[0] = pos(m_cfg.first_line, x);
@@ -801,6 +769,7 @@ private:
 	}
 
 	Config m_cfg {};
+	RiskyWoodsLayer m_layer {};
 };
 
 /// **Scroll horizontal fino de una capa planar** (`visible_words` words = 320 px). Mantiene el

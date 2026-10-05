@@ -42,7 +42,7 @@ constexpr eng::u32 kBitplaneBytes = kPlaneBytes * kPlanes;
 
 constexpr eng::u16 kBandTop = 48;
 constexpr eng::u16 kBandLines = 80;
-constexpr eng::u16 kCols = 20;        // 20 columnas = 320 px
+constexpr eng::u16 kCols = 8;         // columnas del patrón (8 = 128 px, se repite a lo ancho)
 constexpr eng::u16 kColWidth = 16;    // 16 px por columna
 constexpr eng::u16 kScreenW = 320;
 constexpr eng::u8  kChannels = 8;
@@ -74,8 +74,8 @@ struct FreeScrollDemo {
 		}
 		build_image();
 
-		// La capa: una imagen de 320 px partida en 20 columnas. La DATA de cada columna es distinta
-		// (no patrón repetido). La capa resuelve canales/WAIT/head-start.
+		// La capa: un patrón de `kCols` columnas (128 px) que se repite a lo ancho. Construye las
+		// estructuras DMA y emite la ráfaga de POS (técnica 208); la DATA sale de la estructura.
 		eng::effects::FreeScrollLayer<kCols>::Config cfg {};
 		cfg.first_line = kBandTop;
 		cfg.lines = kBandLines;
@@ -84,7 +84,6 @@ struct FreeScrollDemo {
 		cfg.column_width = kColWidth;
 		cfg.screen_width = kScreenW;
 		cfg.bplcon2 = 0x0008u;   // fondo (sprites) detrás del playfield
-		cfg.columns = kCols;
 		cfg.tiles = m_tiles;
 		cfg.dma_data = m_sprite.view.as_words().raw(); // estructuras DMA (Chip) rellenadas por attach()
 		cfg.dma_stride = kStructStride;
