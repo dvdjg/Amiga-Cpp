@@ -654,6 +654,12 @@ public:
 	bool blitter_fill_words_strided(eng::u16* d, eng::u16 value, eng::u16 rows, u16 stride_words,
 					bool wait = true);
 
+	/// **Copy strided de palabras** con el Blitter (A -> D, minterm `$F0`): `words` palabras por
+	/// fila en `rows` filas, modulos en palabras. Pensado para volcar columnas del mundo a la
+	/// copperlist (`DATB`+`DATA`) sin CPU. `s`/`d` alineadas a palabra. Sincrono (`wait`).
+	bool blitter_copy_words_strided(const eng::u16* s, eng::u16* d, eng::u16 words, eng::u16 rows,
+					u16 smod_words, u16 dmod_words, bool wait = true);
+
 	/// Escribe el registro de datos de un bitplane (`BLTxDAT`, $110 + 2*plane). Lo
 	/// usa fire-rgb para los bits HAM fijos de los planos 4/5 (`0x7777`/`0xcccc`).
 	void set_bitplane_dat(u8 plane, u16 value);

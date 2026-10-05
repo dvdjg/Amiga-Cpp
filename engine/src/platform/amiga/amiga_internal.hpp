@@ -247,6 +247,21 @@ inline void blit_fill_word_strided(eng::u16* d, eng::u16 value, eng::u16 rows, e
 	custom_base[custom_bltsize_offset] = static_cast<eng::u16>((rows << 6) | 1u);
 }
 
+/// **Copy strided de palabras**: copia `words` palabras por fila (A -> D, minterm `$F0`) en `rows`
+/// filas, con modulos `smod`/`dmod` (bytes). Sirve para volcar una columna del mundo a la
+/// copperlist (DATB+DATA) sin CPU. `s`/`d` alineadas a palabra.
+inline void blit_copy_words_strided(const eng::u16* s, eng::u16* d, eng::u16 words, eng::u16 rows,
+				    eng::u16 smod, eng::u16 dmod) {
+	wait_blitter();
+	custom_base[custom_bltcon0_offset] = static_cast<eng::u16>(blt_use_a | blt_use_d | 0x00f0u); // D=A
+	custom_base[custom_bltcon1_offset] = 0;
+	custom_base[custom_bltamod_offset] = smod;
+	custom_base[custom_bltdmod_offset] = dmod;
+	write_custom_pointer(custom_bltapt_offset, s);
+	write_custom_pointer(custom_bltdpt_offset, d);
+	custom_base[custom_bltsize_offset] = static_cast<eng::u16>((rows << 6) | words);
+}
+
 /// Rellena un rectangulo de palabras de UN plano con 1s (D-only, minterm `$FF`; D=0 con
 /// `blit_clear_region`). `wx0` = x (pixel) de la primera palabra (multiplo de 16). No usa
 /// fuente, asi que no depende de que haya una mascara en Chip RAM.

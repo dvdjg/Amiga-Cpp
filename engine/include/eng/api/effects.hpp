@@ -290,12 +290,12 @@ public:
 				}
 				u16 dat = m_cfg.data_high;
 				u16 datb = m_cfg.data_low;
-				if (!m_cfg.image.empty()) { // Free form: DATA distinta por posición (ventana).
+				if (!m_cfg.image.empty()) { // Free form (ventana). `image` va (DATB, DATA).
 					const eng::usize t = (static_cast<eng::usize>(k + m_cfg.window_col) *
 							      m_cfg.lines +
 							      (line - m_cfg.first_line)) * 2u;
-					dat = m_cfg.image[t];
-					datb = m_cfg.image[t + 1u];
+					datb = m_cfg.image[t];     // SPRxDATB = bit 1
+					dat = m_cfg.image[t + 1u]; // SPRxDATA = bit 0
 				}
 				// Rearmado por Copper: **solo** `POS`+`DATB`+`DATA` (NO se escribe `SPRxCTL`;
 				// `SPRxDATA` arma el sprite). Ver `spr_layer/Data/copperlists.asm`.

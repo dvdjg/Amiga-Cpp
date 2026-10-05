@@ -76,9 +76,13 @@ struct FreeFormDemo {
 		m_bitplane = backend.memory_manager().chip().reserve<eng::PlaneTag>(kBitplaneBytes, 16);
 		m_copper = backend.memory_manager().chip().reserve<eng::CopperTag>(kCuBytes, 16);
 		m_sprite = backend.memory_manager().chip().reserve<eng::SpriteTag>(kSpriteBytes, 16);
-		if (!m_bitplane.valid() || !m_copper.valid() || !m_sprite.valid()) {
+		m_world_block = backend.memory_manager().chip().reserve<eng::PlaneTag>(
+			static_cast<eng::u32>(kWorldCols) * kBandLines * 2u * 2u, 16);
+		if (!m_bitplane.valid() || !m_copper.valid() || !m_sprite.valid() ||
+		    !m_world_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021202u); return;
 		}
+		m_world = m_world_block.view.as_words().data();
 		build_world();
 
 		eng::effects::FreeFormSpriteLayer::Config cfg {};
@@ -91,28 +95,42 @@ struct FreeFormDemo {
 		cfg.arm_hpos = 0x40u;    // WAIT del rearmado
 		cfg.channels = kChannels;
 		cfg.dma_channels = kChannels;
-		cfg.image = m_world;     // el MUNDO entero; la ventana la fija `window_col`
+		cfg.image = eng::Span<const eng::u16> {m_world, // el MUNDO; la ventana la fija `window_col`
+			static_cast<eng::usize>(kWorldCols) * kBandLines * 2u};
 		cfg.dma_data = eng::Span<eng::u16> {m_sprite.view.as_words().data(),
 						    static_cast<eng::usize>(kChannels) * kDmaStride};
 		cfg.dma_stride = kDmaStride;
 		if (!m_layer.attach(cfg)) { eng::debug::mark_failed(g_eng_run_status, 0x00021203u); return; }
 		fill_window(0u);
+		m_last_window = 0u; // la ventana inicial ya esta montada
 		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00021204u); return; }
 		backend.takeover_display(m_copper_ptr);
 		eng::debug::mark_ready(g_eng_run_status, 0x00021200u);
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& c) {
-		// Scroll: ping-pong 1 px/frame por el mundo (304 px de recorrido). Los SPRxPOS se
-		// parchean con el **Blitter** (fill strided, valor constante por columna) -- CPU libre.
+		// Scroll: ping-pong 1 px/frame por el mundo. El fino (0..15) va en `SPRxPOS`; el grueso
+		// (columna nueva cada 16 px) en la DATA. **Todo con el Blitter** -> CPU libre.
 		const eng::u16 t = static_cast<eng::u16>(c.frame.frame_index % static_cast<eng::u32>(2u * kScrollRange));
 		const eng::u16 s = static_cast<eng::u16>(t < kScrollRange ? t : 2u * kScrollRange - t);
-		m_layer.set_scroll(static_cast<eng::u16>(s % kHposStep)); // solo el fino (0..15) va en SPRxPOS
+		const eng::u16 window = static_cast<eng::u16>(s / kHposStep);
+		m_layer.set_scroll(static_cast<eng::u16>(s % kHposStep));
 		eng::u16* w = m_copper.view.as_words().data();
 		const eng::u16 base = m_layer.pos_word_base();
 		const eng::u16 stride = m_layer.pos_line_stride_words();
 		const eng::u16 cop_cols = static_cast<eng::u16>(kViewCols - kChannels); // columnas Copper
-		for (eng::u16 j = 0u; j < cop_cols; ++j) {
+		if (window != m_last_window) { // entra/sale una columna del mundo
+			m_layer.set_window_col(window);
+			for (eng::u16 j = 0u; j < cop_cols; ++j) {
+				const eng::u16 src_col = static_cast<eng::u16>(window + kChannels + j);
+				const eng::u16* src = m_world + static_cast<eng::usize>(src_col) * kBandLines * 2u;
+				backend.blitter_copy_words_strided(src, w + base + j * 6u + 2u, 2u, kBandLines,
+								   0u, static_cast<eng::u16>(stride - 2u));
+			}
+			fill_window(window); // estructuras DMA de los 8 canales (ventana)
+			m_last_window = window;
+		}
+		for (eng::u16 j = 0u; j < cop_cols; ++j) { // `SPRxPOS` (fino) por Blitter
 			backend.blitter_fill_words_strided(w + base + j * 6u,
 							   m_layer.column_pos(static_cast<eng::u16>(kChannels + j)),
 							   kBandLines, stride);
@@ -157,8 +175,9 @@ private:
 					if ((v & 1u) != 0u) { dat = static_cast<eng::u16>(dat | (0x8000u >> px)); }
 					if ((v & 2u) != 0u) { datb = static_cast<eng::u16>(datb | (0x8000u >> px)); }
 				}
-				m_world[(static_cast<eng::usize>(k) * kBandLines + l) * 2u] = dat;
-				m_world[(static_cast<eng::usize>(k) * kBandLines + l) * 2u + 1u] = datb;
+				// Orden (DATB, DATA) en el mundo: la copia a la copperlist es directa.
+				m_world[(static_cast<eng::usize>(k) * kBandLines + l) * 2u] = datb;
+				m_world[(static_cast<eng::usize>(k) * kBandLines + l) * 2u + 1u] = dat;
 			}
 		}
 	}
@@ -173,8 +192,9 @@ private:
 			const eng::u16 col = static_cast<eng::u16>(window + ch);
 			for (eng::u16 l = 0u; l < kBandLines; ++l) {
 				const eng::usize t = (static_cast<eng::usize>(col) * kBandLines + l) * 2u;
-				s[2u + l * 2u + 0u] = m_world[t];
-				s[2u + l * 2u + 1u] = m_world[t + 1u];
+				// La estructura es [.., DAT, DATB, ..]; el mundo va (DATB, DAT) -> swap.
+				s[2u + l * 2u + 0u] = m_world[t + 1u]; // DAT
+				s[2u + l * 2u + 1u] = m_world[t];     // DATB
 			}
 			s[2u + kBandLines * 2u + 0u] = 0u;
 			s[2u + kBandLines * 2u + 1u] = 0u;
@@ -208,7 +228,9 @@ private:
 	const eng::u16* m_copper_ptr = nullptr;
 	eng::u32 m_frame = 0u;
 	eng::u16 m_last_window = 0xffffu;
-	eng::u16 m_world[kWorldCols * kBandLines * 2u] {};
+	// El MUNDO va en Chip RAM: lo lee el Blitter (copia) ademas de la CPU (emision).
+	eng::Block<eng::PlaneTag> m_world_block {};
+	eng::u16* m_world = nullptr;
 	eng::effects::FreeFormSpriteLayer m_layer {};
 	eng::Block<eng::PlaneTag> m_bitplane {};
 	eng::Block<eng::CopperTag> m_copper {};

@@ -1024,6 +1024,19 @@ bool AmigaBackend::blitter_fill_words_strided(eng::u16* d, eng::u16 value, eng::
 	return wait ? wait_blitter() : true;
 }
 
+bool AmigaBackend::blitter_copy_words_strided(const eng::u16* s, eng::u16* d, eng::u16 words,
+					      eng::u16 rows, u16 smod_words, u16 dmod_words, bool wait) {
+	if (s == nullptr || d == nullptr || words == 0u || rows == 0u) {
+		return false;
+	}
+	const u16 dma_cur = static_cast<u16>(custom_base[custom_dmaconr_offset] & 0x03ffu);
+	custom_base[custom_dmacon_offset] =
+		static_cast<u16>(dma_setclr | (dma_cur | dma_master | dma_blitter));
+	blit_copy_words_strided(s, d, words, rows, static_cast<u16>(smod_words * 2u),
+				static_cast<u16>(dmod_words * 2u));
+	return wait ? wait_blitter() : true;
+}
+
 bool AmigaBackend::blitter_busy() const {
 	return (custom_base[custom_dmaconr_offset] & dmaconr_blitter_busy) != 0u;
 }
