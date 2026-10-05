@@ -18,6 +18,7 @@
 #include <vector>
 
 #include <eng/audio/auzx.hpp>
+#include <eng/audio/audio_mode.hpp>
 #include <eng/audio/fib_delta.hpp>
 #include <eng/audio/media.hpp>
 #include <eng/audio/pcm_codec.hpp>
@@ -707,11 +708,21 @@ int main(int argc, char** argv) {
 			}
 			eng::u64 event_count = 0u;
 			const eng::u32 cost_row_samples = tracker_row_samples == 0u ? std::max<eng::u32>(result.fft_size, static_cast<eng::u32>(rate * 6u / 50u)) : std::max<eng::u32>(result.fft_size, tracker_row_samples);
+			eng::u64 pattern_candidates = 0u, pattern_event_savings = 0u;
 			for (const auto& prototype : result.prototypes) {
 				eng::u64 previous_slot = std::numeric_limits<eng::u64>::max();
 				for (eng::usize frame = 0u; frame < prototype.activation.size(); ++frame) if (prototype.activation[frame] > 0.0) {
 					const eng::u64 slot = cost_row_samples == 0u ? frame : (static_cast<eng::u64>(frame) * result.hop_samples) / cost_row_samples;
 					if (slot != previous_slot) { ++event_count; previous_slot = slot; }
+				}
+				const eng::usize rows = (pcm.size() + cost_row_samples - 1u) / cost_row_samples;
+				std::vector<eng::s16> row_pitch(rows, 0); std::vector<bool> row_active(rows, false);
+				for (eng::usize frame = 0u; frame < prototype.activation.size(); ++frame) if (prototype.activation[frame] > 0.0) { const eng::usize row = std::min<eng::usize>(rows - 1u, (frame * result.hop_samples) / cost_row_samples); row_active[row] = true; row_pitch[row] = prototype.shift_bins[frame]; }
+				const eng::usize active_rows = static_cast<eng::usize>(std::count(row_active.begin(), row_active.end(), true));
+				for (eng::usize period = 1u; period * 2u <= rows; ++period) {
+					bool exact = true; for (eng::usize row = period; row < rows; ++row) if (row_active[row] != row_active[row % period] || (row_active[row] && row_pitch[row] != row_pitch[row % period])) { exact = false; break; }
+					const eng::usize pattern_rows = static_cast<eng::usize>(std::count(row_active.begin(), row_active.begin() + period, true));
+					if (exact && active_rows > pattern_rows && pattern_rows > 0u) { ++pattern_candidates; pattern_event_savings += active_rows - pattern_rows; break; }
 				}
 			}
 			const eng::u64 tracker_bytes = 336u + static_cast<eng::u64>(result.prototypes.size()) * 24u + event_count * 44u + compressed_prototype_bytes;
@@ -785,7 +796,7 @@ int main(int argc, char** argv) {
 					if (!audio_compressor::io::write_file(directory / "octamed-route.txt", bytes)) return false;
 				}
 			}
-			std::printf("spectral-separation=ok max=%u prototipos=%lu MSE_mag=%.6f SNR_mag=%.2f residual=%.4f bytes_tracker=%llu eventos=%llu bytes_estimados=%llu bytes_codec=%llu voces=%u periodo_frames=%u periodicidad=%.3f ruta=%s codecs=%s\n", prototype_count, static_cast<unsigned long>(result.prototypes.size()), result.metrics.magnitude_mse, result.metrics.magnitude_snr_db, result.metrics.residual_ratio, static_cast<unsigned long long>(tracker_bytes), static_cast<unsigned long long>(event_count), static_cast<unsigned long long>(result.estimated_bytes), static_cast<unsigned long long>(compressed_prototype_bytes), result.peak_concurrent_prototypes, result.dominant_period_frames, result.periodicity_score, route.c_str(), [&] { std::string value; for (eng::usize i = 0u; i < prototype_codecs.size(); ++i) { if (i != 0u) value += ","; value += prototype_codecs[i]; } return value; }().c_str());
+			std::printf("spectral-separation=ok max=%u prototipos=%lu MSE_mag=%.6f SNR_mag=%.2f residual=%.4f bytes_tracker=%llu eventos=%llu patrones=%llu ahorro_eventos=%llu bytes_estimados=%llu bytes_codec=%llu voces=%u periodo_frames=%u periodicidad=%.3f ruta=%s codecs=%s periodos=%s\n", prototype_count, static_cast<unsigned long>(result.prototypes.size()), result.metrics.magnitude_mse, result.metrics.magnitude_snr_db, result.metrics.residual_ratio, static_cast<unsigned long long>(tracker_bytes), static_cast<unsigned long long>(event_count), static_cast<unsigned long long>(pattern_candidates), static_cast<unsigned long long>(pattern_event_savings), static_cast<unsigned long long>(result.estimated_bytes), static_cast<unsigned long long>(compressed_prototype_bytes), result.peak_concurrent_prototypes, result.dominant_period_frames, result.periodicity_score, route.c_str(), [&] { std::string value; for (eng::usize i = 0u; i < prototype_codecs.size(); ++i) { if (i != 0u) value += ","; value += prototype_codecs[i]; } return value; }().c_str(), [&] { std::string value; for (const auto& prototype : result.prototypes) { double weighted = 0.0, total = 0.0; for (eng::usize bin = 0u; bin < prototype.magnitude.size(); ++bin) { weighted += bin * prototype.magnitude[bin]; total += prototype.magnitude[bin]; } const eng::u32 hz = static_cast<eng::u32>(std::max(1.0, (weighted / std::max(1.0e-9, total)) * rate / result.fft_size)); if (!value.empty()) value += ","; value += std::to_string(eng::audio::paula::period_for_hz(hz)); } return value; }().c_str());
 			return true;
 		};
 		if (spectral_both) { if (!run_spectral(3u) || !run_spectral(8u)) { std::fprintf(stderr, "la separación espectral no produjo una representación válida\n"); return 2; } }

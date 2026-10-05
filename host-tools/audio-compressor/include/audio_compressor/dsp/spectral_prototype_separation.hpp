@@ -246,6 +246,13 @@ inline double energy(const std::vector<double>& frame) {
 		double peak = 1.0; for (eng::usize i = 0u; i < options.fft_size; ++i) peak = std::max(peak, std::abs(spectrum[i].real()));
 		prototype.pcm.resize(options.fft_size, 128u);
 		for (eng::usize i = 0u; i < options.fft_size; ++i) prototype.pcm[i] = static_cast<eng::u8>(static_cast<eng::s8>(std::clamp(static_cast<int>(std::lround(spectrum[i].real() * 127.0 / peak)), -128, 127)));
+		const eng::usize crossfade = std::min<eng::usize>(32u, options.fft_size / 4u);
+		for (eng::usize i = 0u; i < crossfade; ++i) {
+			const double blend = static_cast<double>(i + 1u) / (crossfade + 1u);
+			const eng::s32 tail = static_cast<eng::s8>(prototype.pcm[options.fft_size - crossfade + i]);
+			const eng::s32 head = static_cast<eng::s8>(prototype.pcm[i]);
+			prototype.pcm[options.fft_size - crossfade + i] = static_cast<eng::u8>(static_cast<eng::s8>(std::lround(tail * (1.0 - blend) + head * blend)));
+		}
 		output.reconstructed_tracks.emplace_back(); render_component(&prototype, output.reconstructed_tracks.back());
 	}
 	output.peak_concurrent_prototypes = static_cast<eng::u8>(std::min<eng::usize>(output.prototypes.size(), 255u));
