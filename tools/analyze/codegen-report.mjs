@@ -94,6 +94,7 @@ const probe = `#include <eng/core/math/fixed.hpp>
 #include <eng/retro/lib2d.hpp>
 #include <eng/retro/minifloat_fixed.hpp>
 #include <eng/core/util/hash.hpp>
+#include <eng/core/util/bloom.hpp>
 #include <eng/core/util/hash_map.hpp>
 #include <eng/core/util/hash_set.hpp>
 #include <eng/core/util/vector.hpp>
@@ -538,6 +539,24 @@ extern "C" u16 c_goap_ops(u16 seed) {
 	eng::u16 plan[4] {};
 	const eng::usize n = planner.plan(start, goal, acts.span(), eng::Span<eng::u16> {plan, 4});
 	return static_cast<u16>(n + (planner.found() ? 1u : 0u));
+}
+extern "C" u16 c_goap_bloom_ops(u16 seed) {
+	using Ai = eng::ai::Goap<>;
+	constexpr eng::util::Array<Ai::Action, 3> acts { {
+		Ai::Builder {}.require(0).produce(1).build(),
+		Ai::Builder {}.require(1).produce(2).build(),
+		Ai::Builder {}.require(2).produce(3).build(),
+	} };
+	Ai::State start {};
+	start.facts.set(static_cast<eng::usize>(seed % 8u));
+	Ai::Goal goal {};
+	goal.want_true.facts.set(static_cast<eng::ai::Fact>(3u));
+	Ai::Planner<32u, 4u, 64u, 256u> planner;
+	eng::u16 plan[4] {};
+	const eng::usize n = planner.plan(start, goal, acts.span(), eng::Span<eng::u16> {plan, 4u});
+	const eng::util::BloomFilterStats stats = planner.bloom_stats();
+	return static_cast<u16>(n + stats.negatives + stats.possibles +
+				 (planner.found() ? 1u : 0u));
 }
 extern "C" u16 c_goap64_ops(u16 seed) {
 	using Big = eng::ai::Goap<64>;
