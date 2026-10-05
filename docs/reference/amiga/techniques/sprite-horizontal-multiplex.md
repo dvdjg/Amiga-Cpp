@@ -62,6 +62,13 @@ Estructura por línea (referencia, 212 px de alto, canales 0–7 por DMA + colum
   8× [SPRxPOS = posición izquierda]           ; fin de línea (orden inverso 7..0)
 ```
 
+Posiciones del fuente (`spr_layer/Data/copperlists.i`): `SPRPOS=$48` (X=144), `DMAPOS=$2c00|SPRPOS`
+(VSTART=$2c; posición de los DMA), `SPRRPOS=$7f00|SPRPOS+$40` (X=272; columnas Copper 0–11), y las
+columnas **12+ usan `DMAPOS`** como base. El `VSTART` de las posiciones de rearmado **no es la línea
+actual** sino el de la constante. El orden **inverso** en la reposición de fin de línea evita que el
+haz alcance una X antes de reposicionarla. Un montaje que ponga `VSTART = línea actual` en todas las
+posiciones deja una **junta de una columna** en la frontera entre las columnas de base distinta.
+
 El **`WAIT`** va al inicio de la línea (después del fetch DMA de sprites, `DDFSTRT`). Un `WAIT` por
 canal en su X **no** funciona. La CPU queda libre; se devora **DMA de Copper**.
 
