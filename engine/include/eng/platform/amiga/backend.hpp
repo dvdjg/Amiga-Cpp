@@ -647,6 +647,13 @@ public:
 			       u16 row_bytes, u16 bitmap_w, u16 bitmap_h, s32 x, s32 y, u16 w, u16 h,
 			       u8 color, bool wait = true);
 
+	/// **Fill strided de palabras** con el Blitter (D=A, A deshabilitado -> `BLTADAT` constante; 1
+	/// palabra por fila): escribe `value` en `rows` palabras separadas `stride_words` (palabras).
+	/// Pensado para parchear la **copperlist** (p. ej. `SPRxPOS`, que es constante por columna)
+	/// sin tocar la CPU. `d` debe estar alineada a palabra. Sincrono (`wait`).
+	bool blitter_fill_words_strided(eng::u16* d, eng::u16 value, eng::u16 rows, u16 stride_words,
+					bool wait = true);
+
 	/// Escribe el registro de datos de un bitplane (`BLTxDAT`, $110 + 2*plane). Lo
 	/// usa fire-rgb para los bits HAM fijos de los planos 4/5 (`0x7777`/`0xcccc`).
 	void set_bitplane_dat(u8 plane, u16 value);

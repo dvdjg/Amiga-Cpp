@@ -1010,6 +1010,20 @@ bool AmigaBackend::blitter_fill_rect(eng::u8* plane_base, u8 planes, u32 plane_s
 	return wait ? wait_blitter() : true;
 }
 
+bool AmigaBackend::blitter_fill_words_strided(eng::u16* d, eng::u16 value, eng::u16 rows,
+					      u16 stride_words, bool wait) {
+	if (d == nullptr || rows == 0u || stride_words == 0u) {
+		return false;
+	}
+	// Habilita el Blitter SIN borrar el resto del DMA (bitplane/copper/sprite).
+	const u16 dma_cur = static_cast<u16>(custom_base[custom_dmaconr_offset] & 0x03ffu);
+	custom_base[custom_dmacon_offset] =
+		static_cast<u16>(dma_setclr | (dma_cur | dma_master | dma_blitter));
+	blit_fill_word_strided(d, value, rows,
+			       static_cast<u16>(static_cast<u32>(stride_words) * 2u - 2u));
+	return wait ? wait_blitter() : true;
+}
+
 bool AmigaBackend::blitter_busy() const {
 	return (custom_base[custom_dmaconr_offset] & dmaconr_blitter_busy) != 0u;
 }

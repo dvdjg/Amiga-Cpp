@@ -234,6 +234,19 @@ inline void blit_clear_region(eng::u8* plane, eng::u16 row_bytes, eng::u16 wx0, 
 	custom_base[custom_bltsize_offset] = static_cast<eng::u16>((h << 6) | words);
 }
 
+/// **Fill strided de palabras**: escribe `value` en `rows` palabras separadas `dmod` bytes
+/// (D = A con A deshabilitado -> `BLTADAT` constante; 1 palabra por fila). Sirve para parchear
+/// la copperlist (p. ej. `SPRxPOS`, constante por columna) sin tocar la CPU. `d` alineada a word.
+inline void blit_fill_word_strided(eng::u16* d, eng::u16 value, eng::u16 rows, eng::u16 dmod) {
+	wait_blitter();
+	custom_base[custom_bltcon0_offset] = static_cast<eng::u16>(blt_use_d | 0x00f0u); // D = A
+	custom_base[custom_bltcon1_offset] = 0;
+	custom_base[custom_bltadat_offset] = value; // A deshabilitado -> constante
+	custom_base[custom_bltdmod_offset] = dmod;
+	write_custom_pointer(custom_bltdpt_offset, d);
+	custom_base[custom_bltsize_offset] = static_cast<eng::u16>((rows << 6) | 1u);
+}
+
 /// Rellena un rectangulo de palabras de UN plano con 1s (D-only, minterm `$FF`; D=0 con
 /// `blit_clear_region`). `wx0` = x (pixel) de la primera palabra (multiplo de 16). No usa
 /// fuente, asi que no depende de que haya una mascara en Chip RAM.

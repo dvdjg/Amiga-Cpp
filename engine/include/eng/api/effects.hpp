@@ -177,6 +177,9 @@ public:
 		/// **no repetitivo**); si está vacía se usa `data_high`/`data_low` en todas (patrón
 		/// repetido). La DATA debe estar en Chip RAM (el Copper la escribe; el DMA la lee).
 		eng::Span<const eng::u16> image {};
+		/// **Ventana**: primera columna del **mundo** que muestra la 1.ª posición. Permite un mundo
+		/// más ancho que la vista y scrollear sobre él sin recomponer la DATA (`image` es el mundo).
+		u16 window_col = 0u;
 		u16 bplcon2 = 0;    ///< prioridad (`BPLCON2`); sprites detrás del playfield = fondo
 		u16 arm_hpos = 0x40; ///< posición H del `WAIT` de rearmado: debe caer **después** del
 		                     ///< fetch DMA de sprites (`DDFSTRT`) y **antes** de la primera
@@ -213,6 +216,22 @@ public:
 
 	/// Desplaza la capa horizontalmente (px low-res; el paso entre columnas no cambia).
 	void set_scroll(u16 x) noexcept { m_scroll = x; }
+
+	/// Fija la **ventana** sobre el mundo (primera columna de `image` que se muestra). El llamador
+	/// debe rellenar las estructuras DMA de los canales con la DATA de esa ventana y re-emitir.
+	void set_window_col(u16 c) noexcept { m_cfg.window_col = c; }
+
+	/// **Layout de parcheo por Blitter** (válido tras `bind`): índice (en words) del 1.er
+	/// `SPRxPOS` de las columnas Copper; stride entre líneas del bloque; y base del bloque de
+	/// reposición de fin de línea. Permite a la capa/demo parchear con `blitter_fill_words_strided`.
+	[[nodiscard]] u16 pos_word_base() const noexcept { return m_pos_base; }
+	[[nodiscard]] u16 pos_line_stride_words() const noexcept {
+		const u16 col_end = (m_cfg.columns != 0u) ? m_cfg.columns : m_cfg.channels;
+		return static_cast<u16>((col_end - m_cfg.dma_channels) * 6u +
+					m_cfg.dma_channels * 2u + 2u);
+	}
+	/// `SPRxPOS` de la columna `k` con el scroll actual (valor a escribir en la copperlist).
+	[[nodiscard]] u16 column_pos(u16 k) const noexcept { return pos_for(0u, k); }
 
 	/// Emite la capa completa. **Todos los canales** reciben `SPRxPT` apuntando a su
 	/// estructura (`dma_data`), con `POS`+`CTL`: es lo que impide que el DMA de un canal
@@ -259,7 +278,7 @@ public:
 				// Canal reutilizado: las posiciones extra ciclan los canales (`k % channels`).
 				const u8 ch = static_cast<u8>(k % m_cfg.channels);
 				const u16 hpos = static_cast<u16>(m_cfg.hpos0 + k * m_cfg.hpos_step + m_scroll);
-				const u16 pos = static_cast<u16>(((line & 0xffu) << 8u) |
+				const u16 pos = static_cast<u16>(((m_cfg.first_line & 0xffu) << 8u) |
 								 ((hpos >> 1u) & 0xffu));
 				if (m_binding && line == m_cfg.first_line && k == m_cfg.dma_channels) {
 					// Palabra de DATO del primer `SPRxPOS` (la 2.ª de las 4 words del canal).
@@ -271,8 +290,9 @@ public:
 				}
 				u16 dat = m_cfg.data_high;
 				u16 datb = m_cfg.data_low;
-				if (!m_cfg.image.empty()) { // Free form: DATA distinta por posición.
-					const eng::usize t = (static_cast<eng::usize>(k) * m_cfg.lines +
+				if (!m_cfg.image.empty()) { // Free form: DATA distinta por posición (ventana).
+					const eng::usize t = (static_cast<eng::usize>(k + m_cfg.window_col) *
+							      m_cfg.lines +
 							      (line - m_cfg.first_line)) * 2u;
 					dat = m_cfg.image[t];
 					datb = m_cfg.image[t + 1u];
@@ -314,17 +334,25 @@ public:
 			return;
 		}
 		const u16 col_end = (m_cfg.columns != 0u) ? m_cfg.columns : m_cfg.channels;
+		// Precomputa el HSTART por columna (una vez por frame): evita el producto `k*step` por
+		// línea (era una libcall `__mulsi3` por palabra -> el patch se comía el frame).
+		u16 hstart[32] {};
+		for (u16 k = 0u; k < col_end && k < 32u; ++k) {
+			hstart[k] = static_cast<u16>((m_cfg.hpos0 + k * m_cfg.hpos_step + m_scroll) >> 1u) &
+				    0xffu;
+		}
 		u16 idx = m_pos_base;
 		const u16 vstop = static_cast<u16>(m_cfg.first_line + m_cfg.lines);
+		const u16 v = static_cast<u16>((m_cfg.first_line & 0xffu) << 8u); // VSTART fijo
 		for (u16 line = m_cfg.first_line; line < vstop; ++line) {
 			// Columnas Copper: `POS`+`DATB`+`DATA` (3 MOVEs = 6 words); el `POS` va primero.
 			for (u16 k = m_cfg.dma_channels; k < col_end; ++k) {
-				words[idx] = pos_for(line, k);
+				words[idx] = static_cast<u16>(v | hstart[k]);
 				idx = static_cast<u16>(idx + 6u);
 			}
 			// Fin de línea: reposición de los canales DMA (1 MOVE = 2 words cada uno).
 			for (u16 i = m_cfg.dma_channels; i-- > 0u; ) {
-				words[idx] = pos_for(line, i);
+				words[idx] = static_cast<u16>(v | hstart[i]);
 				idx = static_cast<u16>(idx + 2u);
 			}
 			idx = static_cast<u16>(idx + 2u); // WAIT de la línea siguiente
@@ -387,9 +415,9 @@ public:
 
 private:
 	/// `SPRxPOS` de la línea `line` y canal `ch` con el `m_scroll` actual.
-	[[nodiscard]] u16 pos_for(u16 line, u16 k) const noexcept {
+	[[nodiscard]] u16 pos_for(u16 /*line*/, u16 k) const noexcept {
 		const u16 hpos = static_cast<u16>(m_cfg.hpos0 + k * m_cfg.hpos_step + m_scroll);
-		return static_cast<u16>(((line & 0xffu) << 8u) | ((hpos >> 1u) & 0xffu));
+		return static_cast<u16>(((m_cfg.first_line & 0xffu) << 8u) | ((hpos >> 1u) & 0xffu));
 	}
 
 	Config m_cfg {};
@@ -737,6 +765,15 @@ public:
 
 	/// Desplaza el fondo horizontalmente (px lo-res). Coste ~0: el llamador aplica con `patch`.
 	void set_scroll(u16 x) noexcept { m_layer.set_scroll(x); }
+
+	/// Fija la **ventana** sobre el mundo (primera columna de `image` que se muestra); el llamador
+	/// rellena las estructuras DMA de la ventana y re-emite la copperlist.
+	void set_window_col(u16 c) noexcept { m_layer.set_window_col(c); }
+
+	/// Layout de parcheo por Blitter (ver `SpriteLayer`).
+	[[nodiscard]] u16 pos_word_base() const noexcept { return m_layer.pos_word_base(); }
+	[[nodiscard]] u16 pos_line_stride_words() const noexcept { return m_layer.pos_line_stride_words(); }
+	[[nodiscard]] u16 column_pos(u16 k) const noexcept { return m_layer.column_pos(k); }
 
 	/// Reescribe las palabras `SPRxPOS` con el scroll actual (~0 CPU), sobre la lista ya montada.
 	void patch(u16* words) const noexcept { m_layer.patch(words); }
