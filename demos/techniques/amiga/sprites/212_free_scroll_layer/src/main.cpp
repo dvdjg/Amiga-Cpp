@@ -6,6 +6,13 @@
 // Demo 212 — Free Form Sprite Layer: fondo de sprites HW a PANTALLA COMPLETA con scroll
 // ============================================================================
 //
+// !! NO VERIFICADA (ROTA) !! El scroll por Blitter esta a medias y NO cumple fps:
+//   - POS (fino, `blitter_fill_words_strided`): OK, 38.9 fps (CPU libre).
+//   - DATA (columna nueva, `blitter_copy_words_strided`): ~1000x mas lenta de lo esperado
+//     (~40M ciclos por cambio de columna) -> 1.3 fps. El blit de COPIA (canal A) es el sospechoso;
+//     el de FILL (POS) va bien. Pendiente depurar los parametros/uso del blit de copia.
+// Algoritmo objetivo (Grok/referencia): emit-once + POS 4 frames + DATA 32 frames + 4 copperlists.
+//
 // Un **mundo** ancho (escena: cielo + sierras + suelo, 40 columnas = 640 px, 3 colores) se ve por
 // una **ventana** de 320 px que scrollea sobre él. Lo monta `effects::FreeFormSpriteLayer`: los 8
 // canales de sprite dibujan las 8 primeras columnas por **DMA**; el **Copper** reutiliza esos
@@ -53,6 +60,10 @@ constexpr eng::u16 kDmaStride = static_cast<eng::u16>(2u + kBandLines * 2u + 2u)
 constexpr eng::u32 kSpriteBytes = static_cast<eng::u32>(kChannels) * kDmaStride * 2u;
 constexpr eng::u32 kCuBytes = 64u * 1024u;
 constexpr eng::u16 kScrollRange = static_cast<eng::u16>((kWorldCols - kViewCols) * kHposStep); // 304
+
+// Toggles de diagnostico (aislar el coste por frame):
+constexpr bool kEnableData = true;       // copia de DATA (columna nueva) por Blitter
+constexpr bool kEnableFillWindow = true; // fill_window de las estructuras DMA
 
 // COLOR16-19 = colores 1/2/3 del par de sprite 0/1: cielo, sierra, suelo. Los 8 canales van por
 // PARES (0/1, 2/3, 4/5, 6/7) y cada par usa 4 registros distintos -> hay que poner los MISMOS 3
@@ -121,13 +132,17 @@ struct FreeFormDemo {
 		const eng::u16 cop_cols = static_cast<eng::u16>(kViewCols - kChannels); // columnas Copper
 		if (window != m_last_window) { // entra/sale una columna del mundo
 			m_layer.set_window_col(window);
-			for (eng::u16 j = 0u; j < cop_cols; ++j) {
-				const eng::u16 src_col = static_cast<eng::u16>(window + kChannels + j);
-				const eng::u16* src = m_world + static_cast<eng::usize>(src_col) * kBandLines * 2u;
-				backend.blitter_copy_words_strided(src, w + base + j * 6u + 2u, 2u, kBandLines,
-								   0u, static_cast<eng::u16>(stride - 2u));
+			if (kEnableData) {
+				for (eng::u16 j = 0u; j < cop_cols; ++j) {
+					const eng::u16 src_col = static_cast<eng::u16>(window + kChannels + j);
+					const eng::u16* src = m_world + static_cast<eng::usize>(src_col) * kBandLines * 2u;
+					backend.blitter_copy_words_strided(src, w + base + j * 6u + 2u, 2u, kBandLines,
+									   0u, static_cast<eng::u16>(stride - 2u));
+				}
 			}
-			fill_window(window); // estructuras DMA de los 8 canales (ventana)
+			if (kEnableFillWindow) {
+				fill_window(window); // estructuras DMA de los 8 canales (ventana)
+			}
 			m_last_window = window;
 		}
 		for (eng::u16 j = 0u; j < cop_cols; ++j) { // `SPRxPOS` (fino) por Blitter
