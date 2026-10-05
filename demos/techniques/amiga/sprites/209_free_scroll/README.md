@@ -16,16 +16,20 @@ solo la `SPRxPOS` **repite** ese contenido. Para que cada columna sea **distinta
 también el dato — la `SPRxDATA`+`SPRxDATB` (2 `MOVE`) **o** el `SPRxPT` (2 `MOVE`) — además de la
 `POS` (1 `MOVE`) → **3 `MOVE` por columna**. Con 8 canales y 20 columnas hacen falta **3 pasadas**.
 
-| Variante | `MOVE` por columna | 20 columnas | ¿cabe en la línea (~56 instr.)? |
+| Variante | `MOVE` por columna | 20 columnas | ¿cabe en la línea? |
 |---|---|---|---|
-| **4 colores** | `POS` + `DAT` + `DATB` = 3 | **60 `MOVE` ≈ 480 px** | **NO** |
-| **16 colores** | 2·`POS` + 4·(`DAT`/`DATB`) = 6 | **120 `MOVE` ≈ 960 px** | **NO** |
+| **4 colores** | `CTL`+`POS`+`DAT`+`DATB` = 4 | **80 `MOVE`** | **SÍ** (verificado) |
+| **16 colores** | 2·(`CTL`+`POS`) + 4·(`DAT`/`DATB`) = 12 | **240 `MOVE`** | a medir |
 
-Conclusión esperada (a verificar): una imagen de **320 px no repetitiva NO cabe solo con Copper**,
-ni en 4 colores. Es el motivo por el que el **Free Form real usa el Blitter** (regenera la DATA de
-una sola estructura por línea) y no solo Copper. La [208_risky_woods](../208_risky_woods/README.md)
-y la [207_sprite_layer](../207_sprite_layer/README.md) son baratas precisamente porque **reutilizan
-la DATA** (patrón fijo); en cuanto el fondo es libre, hace falta el Blitter.
+**Resultado verificado (4 colores):** **20 columnas (320 px) SÍ caben solo con Copper**, con la
+imagen **no repetitiva**. La estimación previa (60 `MOVE` > 56) era **demasiado pesimista**: el
+presupuesto real de una línea PAL da para más de 80 `MOVE` (la instrucción de Copper ocupa menos de
+lo supuesto). La [208_risky_woods](../208_risky_woods/README.md) y la [207_sprite_layer](../207_sprite_layer/README.md)
+son baratas porque **reutilizan la DATA**; aquí, con la DATA por columna, sigue cabiendo a 320 px.
+
+**Hallazgo de hardware:** los canales que el Copper alimenta por línea necesitan, tras la banda, un
+**reset** (`SPRxCTL` y `SPRxPOS` a `VSTART=VSTOP`) o dejan una **columna fantasma** por debajo
+(§2.5 / `docs/reference/emulators/winuae/sprite-dma.md`).
 
 ## Plan (a "ver a dónde llegamos")
 
@@ -45,9 +49,9 @@ la DATA** (patrón fijo); en cuanto el fondo es libre, hace falta el Blitter.
 
 | Etapa | Qué | Estado |
 |---|---|---|
-| **E0** | 8 tiles **distintos**, estático (validar "no repetitivo" vs 208). | — |
-| **E1** | 20 tiles (3 pasadas) → **320 px** a 4 colores. | — |
-| **E2** | scroll de 1 px/frame por sets pre-shifteados + parche de `SPRxPT`. | — |
+| **E0** | 8 tiles **distintos**, estático (validar "no repetitivo" vs 208). | **OK** |
+| **E1** | 20 tiles (3 pasadas) → **320 px** a 4 colores. | **OK** (20 columnas caben) |
+| **E2** | scroll de 1 px/frame por sets pre-shifteados + parche de `SPRxDATA`. | — |
 | **E3** | variante **16 colores** (4 pares *attached*) — cota de ancho. | — |
 
 ## Lanzar
