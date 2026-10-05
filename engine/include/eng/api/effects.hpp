@@ -403,8 +403,17 @@ public:
 		/// `0x30`; la primera columna cae `head_start` px más a la derecha.
 		u8  arm_hpos = 0x30u;
 		/// **Ventaja del haz**: px entre el `WAIT` y la primera columna. El Copper debe ganar
-		/// al haz para escribir el primer `SPRxPOS` antes de que pase por esa X. ≈24 px.
-		u16 head_start = 24u;
+		/// al haz para escribir el primer `SPRxPOS` antes de que pase por esa X. Reposicionar
+		/// un canal cuesta 2 `MOVE` (≈16 px lo-res) y el «impar» de un par *attached* debe
+		/// llegar a tiempo o el par pierde los bits altos (cae a 4 colores): mínimo ≈16 px,
+		/// con margen cómodo ≈32–56 px según el número de reposiciones. Ver
+		/// `docs/debugging/investigaciones/consulta-ocs-attached-sprite-multiplexing-en.md`.
+		u16 head_start = 32u;
+		/// Si `true`, cada canal **impar** del tramo se marca como *attached* (bit 7 de su
+		/// `SPRxCTL`): el par (par, impar) forma un sprite de 15 colores. El rearmado por
+		/// línea (solo `SPRxPOS`) **conserva** el bit; el `head_start` debe permitir que la
+		/// `SPRxPOS` del impar se escriba antes de que el haz alcance su X.
+		bool attach = false;
 		u16* dma_data = nullptr; ///< `channels` estructuras de `dma_stride` words (cabecera POS+CTL + DATA + terminador)
 		u16 dma_stride = 0u;     ///< words por estructura (`2 + lines*2 + 2`)
 	};
@@ -457,7 +466,11 @@ public:
 			// columna "pegada" antes de la ráfaga.
 			const u16 arm_x = static_cast<u16>((m_cfg.screen_width >> 1u) & 0xffu);
 			sched.move(0x140u + ch * 8u, static_cast<u16>((m_cfg.first_line << 8u) | arm_x)); // SPRxPOS
-			sched.move(0x142u + ch * 8u, static_cast<u16>(vstop0 << 8u));          // SPRxCTL
+			// Bit 7 = ATTACH en el canal IMPAR: el par (par, impar) forma 15 colores. Se fija
+			// aquí (armado) y el rearmado por línea (solo `SPRxPOS`) lo conserva.
+			const u16 ctl = static_cast<u16>((vstop0 << 8u) |
+							 ((m_cfg.attach && (ch & 1u)) ? 0x80u : 0u));
+			sched.move(0x142u + ch * 8u, ctl);                                     // SPRxCTL
 		}
 
 		const u16 vstop = m_cfg.first_line + m_cfg.lines;

@@ -153,6 +153,25 @@ void test_pos_values_cycle() {
 	}
 }
 
+void test_attach_sets_odd_bit() {
+	std::printf("RiskyWoodsLayer: attach marca el bit 7 del canal impar\n");
+	u16 dma[64] {};
+	RiskyWoodsLayer l;
+	RiskyWoodsLayer::Config c = base_cfg(dma);
+	c.attach = true;
+	CHECK(l.attach(c));
+	SpySched s;
+	l.emit_into(s);
+	// Arranque: BPLCON2 + por canal (PTH, PTL, POS, CTL). El CTL del impar lleva bit 7.
+	for (unsigned i = 0; i < c.channels; ++i) {
+		const unsigned base = 1u + i * 4u;
+		const u16 pos_reg = s.moves[base + 2u].reg;
+		const u8 ch = static_cast<u8>((pos_reg - 0x140u) / 8u);
+		CHECK(s.moves[base + 3u].reg == static_cast<u16>(0x142u + ch * 8u));
+		CHECK(((s.moves[base + 3u].val & 0x80u) != 0u) == ((ch & 1u) != 0u));
+	}
+}
+
 void test_ctl_not_rewritten_in_carousel() {
 	std::printf("RiskyWoodsLayer: la carrera no reescribe SPRxCTL\n");
 	u16 dma[64] {};
@@ -221,6 +240,7 @@ int main() {
 	test_periods_and_channels();
 	test_pos_values_cycle();
 	test_ctl_not_rewritten_in_carousel();
+	test_attach_sets_odd_bit();
 	test_scroll_shifts_and_clips();
 	test_words_estimate();
 
