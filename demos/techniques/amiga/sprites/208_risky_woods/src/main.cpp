@@ -434,10 +434,10 @@ private:
 						line, static_cast<eng::u8>((static_cast<eng::u16>(wpx) >> 1u) & 0xfeu));
 				}
 				for (eng::u8 c = 0; c < bd.channels; ++c) {
-					// En attached, el canal IMPAR aporta los bits altos por ATTACH: alcanza con
-					// reposicionar el par; mover tambien el impar degrada el reuso (el par pierde
-					// los bits altos en posiciones repetidas). Limitacion del reuso OCS del par.
-					// ATTACH: WinUAE drawing.cpp:2722/4239; reuso: drawing.cpp:2656.
+					// En attached solo se reposiciona el canal PAR. El shifter de cada canal se
+					// re-arma cuando su propia X coincide con el haz (WinUAE drawing.cpp:4940): el
+					// impar no re-arma en el reuso y las repeticiones caen a 4 colores (solo la
+					// posicion de armadura da los 15). Reposicionar tambien el impar EMPEORA.
 					if (bd.attach && (c & 1u)) { continue; }
 					const eng::u8 ch = static_cast<eng::u8>(bd.channel_first + c);
 					const eng::u8 colx = bd.attach ? static_cast<eng::u8>(c >> 1u) : c;

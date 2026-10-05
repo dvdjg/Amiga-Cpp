@@ -97,11 +97,13 @@ El Copper ejecuta la copperlist **más rápido que el haz**: las escrituras que 
 
 Solución: **un `WAIT` en el inicio de cada franja** (`wait_line(bd.top)` al entrar en `emit_band` cuando la franja no es la primera) para que recarga y armadura se apliquen **exactamente desde la primera línea de la franja**. Verificado por píxeles y con el VLM. (El Copper ejecuta instrucciones con efecto inmediato, independiente del haz: no hay un `fichero:línea` único, es arquitectural.)
 
+**Descartado (probado):** adelantar la **armadura** (PT/POS/CTL) al **final de la línea anterior** para dar más margen a la 1.ª línea no limpia el parpadeo de B: mueve el artefacto a la **frontera** (los sprites de la franja previa que aún dibujan en esa línea recogen la armadura nueva → p. ej. 10 px rojos en la 208). Con un solo `WAIT` en la frontera el resultado es más limpio; el parpadeo fino de las primeras columnas queda como **pendiente de verificación temporal** (secuencia + `flicker-check`).
+
 ### 2.10 El **reuso** de un par *attached* a lo ancho pierde los bits altos
 
 Al **reutilizar** repetidamente un par *attached* a lo ancho (reposicionar el par para repetir el patrón), las posiciones repetidas **pierden los bits altos**: la franja C mostraba 16 colores (8 bits) en la **primera** repetición (posición de armadura) y solo **4 colores** (2 bits) en las siguientes. Es decir, el canal impar (que aporta los bits 2,3 por ATTACH) **solo entrega los bits altos en la armadura inicial**; el reuso posterior no los incluye. Reposicionar también el canal impar **empeora** el resultado (más posiciones → degradación mayor). Es una limitación del reuso del par *attached* en OCS: para varios ciclos de un patrón a 15 colores hay que **volver a armar el par entero** (con `WAIT` en la posición) o reducir el número de repeticiones.
 
-**Fuente (WinUAE):** `drawing.cpp:2656-2664` — el reuso por línea re-arma solo el canal cuya X coincide con el haz (`s->xpos_lores == denise_hcounter` → copia del shifter + `spr_arms`); el canal impar que aporta los bits altos por ATTACH (`drawing.cpp:2722`, `4239`) no se re-arma en las repeticiones. Ficha: [`sprite-color-priority.md`](../../reference/emulators/winuae/sprite-color-priority.md).
+**Fuente (WinUAE):** `drawing.cpp:4940-4968` (`matchsprites2`: re-arma el *shifter* solo cuando la X del sprite coincide con el haz) y `drawing.cpp:2656-2664` (mismo caso al escribir la `SPRxPOS`); los bits altos del par vienen del *shifter* del impar (`drawing.cpp:4373-4384`, `4239`), que no se re-arma en las repeticiones. Ficha: [`sprite-color-priority.md`](../../reference/emulators/winuae/sprite-color-priority.md).
 
 ## 3. El algoritmo de Risky Woods (artículo de codetapper)
 

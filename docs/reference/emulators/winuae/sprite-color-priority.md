@@ -20,11 +20,10 @@ Lo **observado** en `../WinUAE-DBG/drawing.cpp` al depurar la demo `208_risky_wo
 
 ## Reuso (reposicionar el mismo canal dentro de la línea)
 
-- `drawing.cpp:2656-2664`: si el sprite **ya estaba armado** y se escribe una `SPRxPOS` cuya X coincide con el contador del haz (`s->xpos_lores == denise_hcounter`), se copia el shifter (`dataas = dataa; …`) y se re-arma (`spr_arms(s, 1)`). Es la vía del **multiplexado por línea** (reutilizar un canal varias veces por línea).
+- `drawing.cpp:4940-4968` (`matchsprites2`): por cada sprite **armado**, cuando la X coincide con el contador del haz (`cnt == (sp->xpos & ~3)`) se copia el *shifter* (`dataas = dataa; databs = datab;`, línea 4950) y se arma (`spr_arms`, línea 4960). Es la vía del **multiplexado por línea** (reutilizar un canal varias veces por línea): reescribir `SPRxPOS` cambia `xpos` y, cuando el haz llega a la nueva X, el sprite se re-arma.
+- `drawing.cpp:4373-4384` (`denise_render_sprites`): el color de cada píxel se compone de los `pix` (2 bits) de **todos** los canales; por eso un par *attached* necesita **los dos** *shifters* corriendo (`drawing.cpp:4239-4244` combina los 4 bits).
 
-**Implicación (observada en la 208):** al **reusar un par *attached*** a lo ancho, las posiciones repetidas **pierden los bits altos**: solo la **armadura inicial** entrega los 15 colores y las repeticiones caen a 4 (2 bits) porque el canal impar que aporta los bits 2,3 no se re-arma. Reposicionar **también** el canal impar **empeora** el resultado (más re-armes → degradación mayor). Para repetir un patrón a 15 colores hay que **volver a armar el par entero** con un `WAIT` en cada posición, o reducir el número de repeticiones.
-
-> *Punto pendiente de confirmar en el fuente exacto del reuso de la pareja *attached* (interacción `spr_arms`/`spr_nearest` del canal impar); contrastar con el AHRM cap. 4.*
+**Implicación (observada en la 208 y confirmada en el fuente):** al **reusar un par *attached*** a lo ancho reescribiendo solo la `SPRxPOS` del **canal par**, el **impar no se re-arma** (su `xpos` no cambió → su match no dispara en la nueva X) y sus bits 2,3 no llegan al píxel: la **armadura inicial** (donde el Copper sí escribió ambos `SPRxPOS`) entrega los 15 colores, pero las repeticiones caen a **4** (2 bits del par). Para conservar los 15 colores hay que **reescribir también la `SPRxPOS` del impar** en cada posición (para que su *shifter* re-arme), o reducir el número de repeticiones.
 
 ## Validación
 
