@@ -12,6 +12,13 @@ Estructura y numeración: [../../../../docs/STRUCTURE.md](../../../../docs/STRUC
 | [054_sprite_allocator](054_sprite_allocator/README.md) |
 | [206_sprite_collision](206_sprite_collision/README.md) |
 | [207_sprite_layer](207_sprite_layer/README.md) |
+| [208_risky_woods](208_risky_woods/README.md) |
+
+Técnicas del [catálogo](../../../../docs/reference/amiga/techniques/sprite-techniques-catalog.md)
+**aún sin demo** (candidatas): *attached* de objetos, **multiplexado vertical**
+(4 canales → N balas), **combinación con BOBs**, **bending** (onda por línea con tabla de seno),
+**palette splitting** (misma DATA, paletas por franja), **HUD de sprites** y prioridad dinámica
+por franjas.
 
 ## Build / run / analyze
 
