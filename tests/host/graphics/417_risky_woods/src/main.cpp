@@ -81,7 +81,7 @@ RiskyWoodsLayer::Config base_cfg(u16* dma) {
 	c.screen_width = 320u;
 	c.arm_hpos = 0x00u;
 	c.head_start = 24u;
-	c.dma_data = dma;
+	c.dma_data = eng::Span<eng::u16> {dma, 64u};
 	c.dma_stride = 4u;
 	return c;
 }
@@ -100,7 +100,7 @@ void test_attach_validation() {
 	bad.channels = 6u; // 4..9 se sale de 0..7
 	CHECK(!l.attach(bad));
 	bad = base_cfg(dma);
-	bad.dma_data = nullptr;
+	bad.dma_data = {};
 	CHECK(!l.attach(bad));
 	bad = base_cfg(dma);
 	bad.lines = 0u;

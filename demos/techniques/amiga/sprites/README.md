@@ -14,6 +14,7 @@ Estructura y numeración: [../../../../docs/STRUCTURE.md](../../../../docs/STRUC
 | [207_sprite_layer](207_sprite_layer/README.md) |
 | [208_risky_woods](208_risky_woods/README.md) |
 | [209_free_scroll](209_free_scroll/README.md) |
+| [211_risky_woods_layer](211_risky_woods_layer/README.md) |
 
 Técnicas del [catálogo](../../../../docs/reference/amiga/techniques/sprite-techniques-catalog.md)
 **aún sin demo** (candidatas): *attached* de objetos, **multiplexado vertical**

@@ -108,7 +108,7 @@ struct SpriteLayerDemo {
 		cfg.data_low = 0x0000u;
 		cfg.bplcon2 = 0x0008u;   // sprites DETRÁS de PF1 (capa de fondo)
 		cfg.dma_channels = kDmaChannels;
-		cfg.dma_data = dma;
+		cfg.dma_data = eng::Span<eng::u16> {dma, static_cast<eng::usize>(kChannels) * kDmaStride};
 		cfg.dma_stride = kDmaStride;
 		if (!m_layer.attach(cfg)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020703u);

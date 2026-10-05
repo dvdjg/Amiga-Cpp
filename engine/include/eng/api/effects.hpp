@@ -180,8 +180,8 @@ public:
 		/// cabecera basura (columna fantasma fuera de la banda). Ver
 		/// `spr_layer/Sprite_Layer/` (Jeroen Knoester).
 		u8 dma_channels = 0;
-		u16* dma_data = nullptr; ///< estructura DMA por canal (`channels` estructuras de `dma_stride` words)
-		u16 dma_stride = 0;      ///< words por estructura (`2 + dma_height*2 + 2`)
+		eng::Span<eng::u16> dma_data {}; ///< estructura DMA por canal (`channels` estructuras de `dma_stride` words)
+		u16 dma_stride = 0;              ///< words por estructura (`2 + dma_height*2 + 2`)
 	};
 
 	/// Configura la capa. `false` si `lines == 0`, `channels` fuera de 1..8, `hpos_step < 16`,
@@ -190,7 +190,7 @@ public:
 	[[nodiscard]] bool attach(Config cfg) {
 		if (cfg.lines == 0u || cfg.channels == 0u || cfg.channels > 8u ||
 		    cfg.hpos_step < 16u || cfg.dma_channels > cfg.channels ||
-		    (cfg.dma_channels > 0u && (cfg.dma_data == nullptr || cfg.dma_stride == 0u))) {
+		    (cfg.dma_channels > 0u && (cfg.dma_data.empty() || cfg.dma_stride == 0u))) {
 			return false;
 		}
 		m_cfg = cfg;
@@ -218,8 +218,8 @@ public:
 		// el DMA del canal seguiría avanzando por memoria y leería basura como cabecera
 		// (columna fantasma fuera de la banda). El Copper reescribe POS/DATA por línea
 		// (más abajo), pero el DMA necesita una estructura consistente.
-		if (m_cfg.dma_data != nullptr && m_cfg.dma_stride != 0u) {
-			const eng::uintptr base = reinterpret_cast<eng::uintptr>(m_cfg.dma_data);
+		if (!m_cfg.dma_data.empty() && m_cfg.dma_stride != 0u) {
+			const eng::uintptr base = reinterpret_cast<eng::uintptr>(m_cfg.dma_data.data());
 			for (u8 ch = 0u; ch < m_cfg.channels; ++ch) {
 				const u16 hpos = static_cast<u16>(m_cfg.hpos0 +
 								  static_cast<u16>(ch) * m_cfg.hpos_step + m_scroll);
@@ -295,7 +295,7 @@ public:
 			}
 			idx = static_cast<u16>(idx + 2u); // WAIT de la línea siguiente
 		}
-		if (m_cfg.dma_data != nullptr && m_cfg.dma_stride != 0u) {
+		if (!m_cfg.dma_data.empty() && m_cfg.dma_stride != 0u) {
 			for (u8 ch = 0u; ch < m_cfg.dma_channels; ++ch) {
 				m_cfg.dma_data[static_cast<eng::u32>(ch) * m_cfg.dma_stride] =
 					pos_for(m_cfg.first_line, ch);
@@ -344,7 +344,7 @@ public:
 	/// con estructura (`SPRxPT` H/L) + por línea [`WAIT` (2) + 4 MOVEs por canal Copper].
 	[[nodiscard]] u16 words_estimate() const noexcept {
 		const u32 cop = static_cast<u32>(m_cfg.channels - m_cfg.dma_channels);
-		const u32 struct_ch = (m_cfg.dma_data != nullptr && m_cfg.dma_stride != 0u)
+		const u32 struct_ch = (!m_cfg.dma_data.empty() && m_cfg.dma_stride != 0u)
 					      ? static_cast<u32>(m_cfg.channels)
 					      : static_cast<u32>(m_cfg.dma_channels);
 		return static_cast<u16>(1u + struct_ch * 2u +
@@ -422,26 +422,26 @@ public:
 		/// Copper corre **pareado** con el haz (`2N MOVE = periodo`). Los tramos no-*attached*
 		/// deben dejarlo `false`: sin el `WAIT`, el `POS` de un canal pisa al del canal anterior.
 		bool burst_no_wait = false;
-		/// **Paleta por banda**: `count` valores en `colors` para (re)cargar los registros de color
-		/// desde `first_reg` (0 = `COLOR00`) al inicio de la banda. Permite que varias capas usen
+		/// **Paleta por banda**: los valores a (re)cargar en los registros de color desde
+		/// `palette_first_reg` (0 = `COLOR00`) al inicio de la banda. Permite que varias capas usen
 		/// paletas distintas por franja (p. ej. la paleta de los objetos o un arcoiris en una sola
 		/// banda) sin que el llamador emita los `MOVE` de `COLORxx` a mano.
-		const u16* palette = nullptr;
+		eng::Span<const eng::u16> palette {};
 		u16 palette_first_reg = 0u;
-		u16 palette_count = 0u;
 		/// Si `true`, al final de la banda los canales quedan **desarmados** (`SPRxPOS`/`SPRxCTL`
 		/// a `VSTART=VSTOP`): evita la **columna fantasma** / la franja sólida en la transición a la
 		/// banda siguiente (ver `docs/reference/emulators/winuae/sprite-dma.md` §columna fantasma).
 		bool reset_at_end = false;
-		u16* dma_data = nullptr; ///< `channels` estructuras de `dma_stride` words (cabecera POS+CTL + DATA + terminador)
-		u16 dma_stride = 0u;     ///< words por estructura (`2 + lines*2 + 2`)
+		eng::Span<eng::u16> dma_data {}; ///< `channels` estructuras de `dma_stride` words (cabecera POS+CTL + DATA + terminador)
+		u16 dma_stride = 0u;             ///< words por estructura (`2 + lines*2 + 2`)
 	};
 
 	/// Configura la capa. `false` si la geometría no es válida o falta la estructura DMA.
 	[[nodiscard]] bool attach(Config cfg) {
 		if (cfg.lines == 0u || cfg.channels == 0u || cfg.channels > 8u ||
 		    cfg.channel_first + cfg.channels > 8u || cfg.column_width == 0u ||
-		    cfg.screen_width == 0u || cfg.dma_data == nullptr || cfg.dma_stride == 0u) {
+		    cfg.screen_width == 0u || cfg.dma_data.empty() || cfg.dma_stride == 0u ||
+		    cfg.dma_data.size() < static_cast<eng::usize>(cfg.channels) * cfg.dma_stride) {
 			return false;
 		}
 		m_cfg = cfg;
@@ -463,9 +463,9 @@ public:
 	template <class Sched>
 	void emit_into(Sched& sched) const {
 		sched.move(copper::Register::BPLCON2, m_cfg.bplcon2);
-		// Paleta por banda (si se pide): recarga `count` registros de color desde `first_reg`.
-		for (u16 i = 0u; i < m_cfg.palette_count; ++i) {
-			sched.move(static_cast<u16>(0x180u + (m_cfg.palette_first_reg + i) * 2u),
+		// Paleta por banda (si se pide): recarga los registros de color desde `palette_first_reg`.
+		for (eng::usize i = 0u; i < m_cfg.palette.size(); ++i) {
+			sched.move(static_cast<u16>(0x180u + (m_cfg.palette_first_reg + static_cast<u16>(i)) * 2u),
 				   m_cfg.palette[i]);
 		}
 
@@ -473,7 +473,7 @@ public:
 		// Sin cabecera válida el DMA del canal avanza por memoria y deja una columna fantasma
 		// (ver `docs/reference/emulators/winuae/sprite-dma.md`).
 		const eng::Address<eng::MemoryKind::Chip> base =
-			eng::Address<eng::MemoryKind::Chip>::from_storage(m_cfg.dma_data);
+			eng::Address<eng::MemoryKind::Chip>::from_storage(m_cfg.dma_data.data());
 		const u16 vstop0 = m_cfg.first_line + m_cfg.lines;
 		for (u8 c = 0u; c < m_cfg.channels; ++c) {
 			const eng::Address<eng::MemoryKind::Chip> addr = base + c * m_cfg.dma_stride * 2u;
@@ -591,7 +591,7 @@ public:
 	/// MOVEs de `SPRxPOS`]. Cada instrucción son 2 palabras.
 	[[nodiscard]] u16 words_estimate() const noexcept {
 		const u32 arranque = 1u + static_cast<u32>(m_cfg.channels) * 4u +
-				     static_cast<u32>(m_cfg.palette_count) +
+				     static_cast<u32>(m_cfg.palette.size()) +
 				     (m_cfg.reset_at_end ? static_cast<u32>(m_cfg.channels) * 2u : 0u);
 		const u32 per_line = static_cast<u32>(periods_per_line()) + instances_per_line();
 		// +2 words del `end()` (0xffff,0xfffe) que cierra la lista.
