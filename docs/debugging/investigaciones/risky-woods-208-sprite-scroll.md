@@ -80,6 +80,12 @@ un crash: es un timeout.** Solución: **precalcular en compilación** (una tabla
 hace que el compilador evalúe la división) y usar `mulsw`/`mulu.w` (16-bit nativo) y
 desplazamientos; para el módulo, un lazo de resta. Ver `docs/reference/toolchain/m68k-gcc.md`.
 
+### 2.8 Prioridad de sprites: **canal mayor = detrás** (los sprites 0/1 van DELANTE)
+
+**Un sprite con número de canal mayor se dibuja DETRÁS de uno con número menor**, con independencia del orden de la copperlist. En E4 el fondo de la franja B usaba los canales 0..5 y los dos objetos los canales 6/7: los objetos quedaban **ocultos tras el fondo** (el fondo los tapaba) aunque sus estructuras, `POS` y paleta fuesen correctas. Síntoma engañoso: parecía que los objetos «no se dibujaban», pero bastaba mirar que no había ni un píxel de su color.
+
+Solución: **el fondo de la franja B ocupa canales 2..7** (número alto = detrás) y **los objetos 0/1** (número bajo = delante). Como los objetos pasan al par de canales (0,1), su paleta es el grupo **COLOR16-19** (no el 28-31 que usaban en 6/7); el fondo de la franja B, al usar 2..7, emplea **COLOR20-31**, de modo que ambos grupos no se solapan y la recarga de paleta de los objetos (COLOR16-19) no afecta al fondo. El ancho visible va de `kDisplayX0=128` a `128+320=448`; la X de los objetos debe acotarse a `[128, 448-16]` (acotar a `[0, 304]` los pegaba al borde y los solapaba).
+
 ## 3. El algoritmo de Risky Woods (artículo de codetapper)
 
 - 4 pares **attached** (8 canales) = patrón de **64 px** a 15 colores.
