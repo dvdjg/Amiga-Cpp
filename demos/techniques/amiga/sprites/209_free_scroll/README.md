@@ -16,16 +16,18 @@ solo la `SPRxPOS` **repite** ese contenido. Para que cada columna sea **distinta
 también el dato — la `SPRxDATA`+`SPRxDATB` (2 `MOVE`) **o** el `SPRxPT` (2 `MOVE`) — además de la
 `POS` (1 `MOVE`) → **3 `MOVE` por columna**. Con 8 canales y 20 columnas hacen falta **3 pasadas**.
 
-| Variante | `MOVE` por columna | 20 columnas | ¿cabe en la línea? |
+| Variante | `MOVE` por columna | 320 px (20 col) | Ancho máximo (verificado) |
 |---|---|---|---|
-| **4 colores** | `CTL`+`POS`+`DAT`+`DATB` = 4 | **80 `MOVE`** | **SÍ** (verificado) |
-| **16 colores** | 2·(`CTL`+`POS`) + 4·(`DAT`/`DATB`) = 12 | **240 `MOVE`** | a medir |
+| **4 colores** | `CTL`+`POS`+`DAT`+`DATB` = **4** | 80 `MOVE`/línea | **20 col = 320 px** (completo) |
+| **16 colores** | 2·(`CTL`+`POS`+`DAT`+`DATB`) = **8** | 160 `MOVE`/línea | **18 col = 288 px** (memoria de Copper) |
 
-**Resultado verificado (4 colores):** **20 columnas (320 px) SÍ caben solo con Copper**, con la
-imagen **no repetitiva**. La estimación previa (60 `MOVE` > 56) era **demasiado pesimista**: el
-presupuesto real de una línea PAL da para más de 80 `MOVE` (la instrucción de Copper ocupa menos de
-lo supuesto). La [208_risky_woods](../208_risky_woods/README.md) y la [207_sprite_layer](../207_sprite_layer/README.md)
-son baratas porque **reutilizan la DATA**; aquí, con la DATA por columna, sigue cabiendo a 320 px.
+**Resultados verificados:**
+- **4 colores → 320 px completos** solo con Copper, con imagen **no repetitiva** (20 columnas
+  distintas). La estimación previa (60 `MOVE` > 56) era **demasiado pesimista**: la línea da para
+  más de 80 `MOVE`.
+- **16 colores → 288 px (18 columnas)**, y **no** por la línea sino por la **memoria del Copper**:
+  la copperlist (`N·8·80` `MOVE`) desborda los 48 KB del bloque a partir de ~19 columnas
+  (20 col = 12800 `MOVE` ≈ 51 KB > 48 KB). Con la línea no se llega a saturar a este ancho.
 
 **Hallazgo de hardware:** los canales que el Copper alimenta por línea necesitan, tras la banda, un
 **reset** (`SPRxCTL` y `SPRxPOS` a `VSTART=VSTOP`) o dejan una **columna fantasma** por debajo
@@ -52,7 +54,7 @@ son baratas porque **reutilizan la DATA**; aquí, con la DATA por columna, sigue
 | **E0** | 8 tiles **distintos**, estático (validar "no repetitivo" vs 208). | **OK** |
 | **E1** | 20 tiles (3 pasadas) → **320 px** a 4 colores. | **OK** (20 columnas caben) |
 | **E2** | scroll de 1 px/frame por sets pre-shifteados + parche de `SPRxDATA`. | — |
-| **E3** | variante **16 colores** (4 pares *attached*) — cota de ancho. | — |
+| **E3** | variante **16 colores** (4 pares *attached*) — cota de ancho. | **OK** (18 col = 288 px) |
 
 ## Lanzar
 

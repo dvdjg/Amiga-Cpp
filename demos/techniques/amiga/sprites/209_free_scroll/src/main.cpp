@@ -51,16 +51,14 @@ constexpr eng::u16 kCuBytes = 48u * 1024u;
 
 // Columnas DISTINTAS a dibujar con el Copper (cota: 3 MOVE/columna). 20 = 320 px (deberia saturar);
 // 18 = 288 px (cota esperada). Ajustar para medir.
-constexpr eng::u16 kCols = 20;
+constexpr eng::u16 kCols = 18;
 
 // COLOR00 fondo navy; colores 1/2/3 de cada par de sprite distintos (rojo/verde/azul).
 constexpr eng::Palette32 kPalette {{
 	0x013, 0x111, 0x222, 0x333, 0x444, 0x555, 0x666, 0x777,
 	0x888, 0x999, 0xaaa, 0xbbb, 0xccc, 0xddd, 0xeee, 0xfff,
-	0x000, 0xf00, 0x0f0, 0x00f, // 16-19
-	0x000, 0xf00, 0x0f0, 0x00f, // 20-23
-	0x000, 0xf00, 0x0f0, 0x00f, // 24-27
-	0x000, 0xf00, 0x0f0, 0x00f, // 28-31
+	0x000, 0x630, 0x950, 0xc60, 0xfc0, 0xff0, 0xcf0, 0x8f0, // 16-23 (arcoiris)
+	0x0f0, 0x0f8, 0x0cf, 0x09f, 0x60f, 0x90f, 0xc0f, 0xf0f, // 24-31
 }};
 
 [[nodiscard]] constexpr eng::u16 sprite_pos(eng::u16 vstart, eng::u16 x) {
@@ -72,17 +70,16 @@ constexpr eng::Palette32 kPalette {{
 				     (x & 0x1u));
 }
 
-// Valor 0..3 (3 colores) del pixel (px 0..15) de la columna `c` en la linea `l`. Patron diagonal
-// con desfase por columna -> cada columna es visualmente DISTINTA (fondo NO repetitivo).
+// Valor 0..15 (15 colores + transparente) del pixel de la columna `c`, linea `l`. Patron diagonal
+// con desfase por columna -> cada columna DISTINTA (fondo no repetitivo); 16 colores via par attached.
 [[nodiscard]] constexpr eng::u16 col_value(eng::u16 px, eng::u16 c, eng::u16 l) {
-	const eng::u16 d = static_cast<eng::u16>((px + l + c * 5u) & 15u);
-	return static_cast<eng::u16>((d >> 2u) + 1u); // 1..3
+	return static_cast<eng::u16>((px + l + c * 7u) & 15u);
 }
 
 struct FreeScrollDemo {
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		if (!backend.configure_memory({ 96u * 1024u, 8u * 1024u, 8u * 1024u })) {
+		if (!backend.configure_memory({ 384u * 1024u, 8u * 1024u, 8u * 1024u })) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020901u);
 			return;
 		}
@@ -137,19 +134,27 @@ private:
 				sched.wait_position_safe(line, static_cast<eng::u8>((static_cast<eng::u16>(w0) >> 1u) & 0xfeu));
 			}
 			for (eng::u16 col = 0; col < kCols; ++col) {
-				const eng::u8 ch = static_cast<eng::u8>(col % kChannels);
+				const eng::u8 p = static_cast<eng::u8>(col % 4u);       // par (0..3)
+				const eng::u8 che = static_cast<eng::u8>(p * 2u);       // canal par (bits 0-1)
+				const eng::u8 cho = static_cast<eng::u8>(p * 2u + 1u);  // canal impar (bits 2-3, ATTACH)
 				const eng::u16 x = static_cast<eng::u16>(kDisplayX0 + col * kColWidth);
-				eng::u16 dat = 0u, datb = 0u;
+				eng::u16 de = 0u, dbe = 0u, do_ = 0u, dbo = 0u;
 				for (eng::u16 px = 0; px < kColWidth; ++px) {
 					const eng::u16 v = col_value(px, col, static_cast<eng::u16>(line - kBandTop));
-					if ((v & 1u) != 0u) { dat = static_cast<eng::u16>(dat | (0x8000u >> px)); }
-					if ((v & 2u) != 0u) { datb = static_cast<eng::u16>(datb | (0x8000u >> px)); }
+					if ((v & 1u) != 0u) { de = static_cast<eng::u16>(de | (0x8000u >> px)); }
+					if ((v & 2u) != 0u) { dbe = static_cast<eng::u16>(dbe | (0x8000u >> px)); }
+					if ((v & 4u) != 0u) { do_ = static_cast<eng::u16>(do_ | (0x8000u >> px)); }
+					if ((v & 8u) != 0u) { dbo = static_cast<eng::u16>(dbo | (0x8000u >> px)); }
 				}
-				// CTL (arma, VSTART/VSTOP de la banda) + POS + DAT + DATB.
-				sched.move(static_cast<eng::u16>(0x142u + ch * 8u), sprite_ctl(line, bottom, x, false));
-				sched.move(static_cast<eng::u16>(0x140u + ch * 8u), sprite_pos(line, x));
-				sched.move(static_cast<eng::u16>(0x146u + ch * 8u), datb);
-				sched.move(static_cast<eng::u16>(0x144u + ch * 8u), dat);
+				// Par *attached* (15 colores): CTL+POS+DAT+DATB por canal (8 MOVE/columna).
+				sched.move(static_cast<eng::u16>(0x142u + che * 8u), sprite_ctl(line, bottom, x, false));
+				sched.move(static_cast<eng::u16>(0x140u + che * 8u), sprite_pos(line, x));
+				sched.move(static_cast<eng::u16>(0x142u + cho * 8u), sprite_ctl(line, bottom, x, true));
+				sched.move(static_cast<eng::u16>(0x140u + cho * 8u), sprite_pos(line, x));
+				sched.move(static_cast<eng::u16>(0x146u + che * 8u), dbe);
+				sched.move(static_cast<eng::u16>(0x144u + che * 8u), de);
+				sched.move(static_cast<eng::u16>(0x146u + cho * 8u), dbo);
+				sched.move(static_cast<eng::u16>(0x144u + cho * 8u), do_);
 			}
 		}
 		// Reset tras la banda: canales desarmados (VSTART=VSTOP) -> evita el fantasma por debajo.
