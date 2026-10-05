@@ -1,10 +1,8 @@
 # Demo 208 — fondo de sprites estilo *Risky Woods*: diagnóstico y reinicio
 
-**Estado: bloqueado (abierto).** El muro de ladrillos por sprites se dibuja, pero **no
-cubre de lado a lado** (quedan bloques con huecos) y el scroll/objetos no acaban de
-cerrarse. El motor de la demo se ha reconstruido varias veces sin converger; este
-documento fija los **hechos de hardware verificados** y el **plan de reimplementación**
-para no volver a derivarlos a ciegas.
+**Estado: en curso (E0 verificado).** El muro de ladrillos por sprites se dibujaba con
+huecos y los objetos faltaban; la causa raíz (auto-armado de canales, §2.5) está resuelta
+y E0 (una columna estática con sus 3 colores) pasa. Se avanza por etapas (E1…E5).
 
 ## 1. Objetivo
 
@@ -50,6 +48,25 @@ Leídos en `../WinUAE-DBG/` (regla §1.12 de `AGENTS.md`).
   deje `VSTART=0`; un terminador `0,0` provoca que la **línea 0** del frame siguiente
   re-dispare el fetch y el canal quede desfasado 2 words → *sprites fantasma*).
 
+### 2.5 El DMA **auto-arma** un canal apuntado a una estructura con `VSTART` válido
+
+Cuando un canal está desarmado y su `SPRxPT` apunta a una estructura, el DMA lee la
+**primera word como `POS`** y usa su `VSTART` para armarlo: un canal "de sobra" que apunte
+a la estructura del fondo **se dibuja solo**. En la 208 el reset apuntaba los **8** canales
+a la misma estructura → todos dibujaban la columna y ganaba el canal 0 (con sus colores
+COLOR17-19, no los del canal pedido). Fue la causa de los huecos y de los objetos perdidos.
+
+Los canales no usados deben apuntar a una estructura **desactivada** donde *todas* las words
+tengan `VSTART=VSTOP` (nunca arma): **no** `0,0` (arma en la línea 0 → fantasma) y **no** la
+estructura del fondo. Verificado en E0: con el fix, el canal 2 muestra **COLOR21/22/23**.
+
+### 2.6 El display visible empieza en X lo-res ≈ 128
+
+El borde izquierdo usa `COLOR0` (aquí navy), así que no se distingue del fondo. Los sprites
+con `SPRxPOS` HSTART < 64 (X < 128) caen en el **borde izquierdo** y no se ven en la captura;
+el fondo de 320 px arranca en **X ≈ 128**. Verificado en E1: con `kDisplayX0=128` la figura
+aparece en x=128..255; con `kDisplayX0=0` no aparece nada.
+
 ## 3. El algoritmo de Risky Woods (artículo de codetapper)
 
 - 4 pares **attached** (8 canales) = patrón de **64 px** a 15 colores.
@@ -82,17 +99,23 @@ Cada etapa con su evidencia; **no se avanza sin cerrar la anterior** (protocolo 
 etapas). Reutiliza el ledger/allocator (`graphics/sprite_channel_window.hpp`, ya en verde HOST-416)
 y el driver `effects::RiskyWoodsLayer` (HOST-417).
 
-- **E0 — Un solo canal, ventana pequeña, estático.** 1 canal, 16 px, sin scroll: el canal
-  dibuja su columna y **se sostiene** durante la ventana. Verificación: captura
-  (columna de color a toda la altura de la ventana). Aquí se fija la estructura DMA (cabecera
-  + DATA + **final sin `VSTART=0`**) y el armado.
-- **E1 — 6 canales, patrón de 96 px, sin repetir (1 período).** Los 6 canales contiguos
-  cubren 96 px. Verificación: captura (96 px de patrón). Fija el orden de canales y la
-  colocación inicial (DMA o Copper).
-- **E2 — Repetición a 320 px con UN `WAIT` + ráfaga** (patrón del artículo). Ajustar la
-  X inicial y el orden de la ráfaga para que **cada MOVE caiga por detrás del haz** y las
-  reutilizaciones de canal disten ≥ período. Verificación: captura **sin huecos** (análisis
-  de píxeles determinista: 0 huecos internos en la ventana).
+- **E0 — Un solo canal, ventana pequeña, estático.  ESTADO: OK (verificado).** 1 canal,
+  16 px, sin scroll: el canal dibuja su columna y **se sostiene** durante la ventana.
+  Evidencia: captura con columna estable 16×96 en `x=160`, tiras COLOR21/22/23 (los 3
+  colores del par 2/3). Fijado: estructura DMA (cabecera + DATA + candado `VSTART=VSTOP`,
+  sin `0,0`) y **desactivación** de los canales no usados (§2.5).
+- **E1 — 8 sprites sueltos lado a lado (128 px), UNA franja, sin repetir.  ESTADO: OK
+  (verificado).** 8 canales, cada uno con su estructura, forman una **figura coherente**
+  (colina: cielo azul, suelo marrón, cresta amarilla) de 128×80. Evidencia: captura con la
+  figura en x=128..255 (borde izquierdo del display). Fija la geometría y el mapeo de color
+  por pares (canales 0/1→COLOR17-19, 2/3→21-23, …; todos los pares con los MISMOS 3 colores
+  para coherencia).
+- **E2 — Repetición a 320 px (carrera contra el haz).  ESTADO: OK (verificado).** Por línea,
+  por período (X = 128, 256, 384), un `WAIT` con margen (`kCuGap=24 px`) por detrás de la
+  1.ª columna y una **ráfaga** de `SPRxPOS` (8 canales; el 3.er período 4). Ciclar canales
+  reutiliza cada uno cada 128 px (≥24 px). Evidencia: figura a x=128..447 con **0 columnas
+  vacías** (sin huecos); Ollama ve 3 repeticiones continuas. La copperlist se emite **una vez**
+  (CPU ~0); el coste es de Copper.
 - **E3 — Scroll por cambio de punteros** (8 sets pre-shifteados + bit H0), copperlist
   **estática**. Verificación: secuencia de frames consecutivos; el patrón se mueve 1 px por
   frame y el coste por frame son ~20 words.
