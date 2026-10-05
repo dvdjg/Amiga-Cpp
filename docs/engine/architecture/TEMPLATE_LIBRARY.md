@@ -105,6 +105,7 @@ Puntos de reutilización explícitos:
 | `array.hpp` | `Array<T, N>` | `std::array` |
 | `bitset.hpp` | `BitSet<N>` | `std::bitset` |
 | `dynamic_bitset.hpp` | `DynamicBitSet<A>` (tamaño fijado en `init`, palabras en arena) | `boost::dynamic_bitset` |
+| `bloom.hpp` | `BloomFilter<T, Bits, HashCount>` (Bloom fijo; ausencia fiable, positivos requieren confirmación exacta) | `boost::bloom::filter` |
 | `bitstream.hpp` | `BitWriter`/`BitReader` (campos de 1..32 bits, LSB-first) | (sin equivalente; bit I/O) |
 | `binary.hpp` | `ByteReader`/`ByteWriter` (cursores little-endian sobre `Span`, con comprobación de límites; u8/u16/u32/s16/s32 y copia de bloques) | (sin equivalente; I/O binario) |
 | `allocator.hpp` | `Allocator` (concepto), `NullAlloc`, `BumpAlloc`, `InlineAlloc<N>` | (sin equivalente) |
@@ -290,6 +291,7 @@ canónica de validar algoritmos puros (sin hardware):
 | HOST-122 | `core/util/dynamic_bitset.hpp` (bitset de tamaño en `init`, en arena) |
 | HOST-123 | consumidor de `bitstream`/`dynamic_bitset` (nivel empaquetado y tiles sucios) |
 | HOST-124 | `core/util/string_interner.hpp` (internado de cadenas) |
+| HOST-426 | `core/util/bloom.hpp` + GOAP opt-in (A/B exacto, falsos positivos confirmados y huella) |
 | HOST-393 | `core/util/dynamic_string.hpp` (asignador explícito, auto-append seguro ante realocación y agotamiento) |
 | HOST-125 | `core/util/collision.hpp` (SAT 2D de polígonos convexos y punto en convexo) |
 | HOST-126 | `core/util/graph.hpp` (adyacencia, BFS, A*, orden topológico) |

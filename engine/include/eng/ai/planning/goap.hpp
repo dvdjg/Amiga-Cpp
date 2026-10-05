@@ -55,13 +55,14 @@
 ///
 /// Verificacion: HOST-107 (Hanoi, pastel, soldado y dominio de 64 hechos), HOST-185/186
 /// (numerico: enteros, decimales, saturacion, memo, sufijo y heuristica relajada), HOST-320
-/// (anytime), HOST-321/316 (invalidacion selectiva y LRU).
+/// (anytime), HOST-321/316 (invalidacion selectiva y LRU), HOST-426 (Bloom opt-in).
 
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/array.hpp>
 #include <eng/core/util/bit.hpp>
 #include <eng/core/util/bitset.hpp>
+#include <eng/core/util/bloom.hpp>
 #include <eng/core/util/hash_map.hpp>
 #include <eng/core/util/priority_queue.hpp>
 
@@ -193,6 +194,32 @@ struct HMemo<K, 0u> {
 	[[nodiscard]] constexpr const u16* find(const K&) const noexcept { return nullptr; }
 	constexpr void insert_or_assign(const K&, u16) noexcept {}
 	constexpr void clear() noexcept {}
+};
+
+/// Caso activado: filtro Bloom insert-only; los positivos se validan en el mapa exacto.
+template <class K, usize BloomBits>
+struct PlannerSeenFilter {
+	constexpr void clear() noexcept { m_filter.clear(); }
+	constexpr void insert(const K& key) noexcept { m_filter.insert(key); }
+	[[nodiscard]] constexpr bool may_contain(const K& key) noexcept {
+		return m_filter.may_contain(key);
+	}
+	constexpr void note_false_positive() noexcept { m_filter.note_false_positive(); }
+	[[nodiscard]] constexpr eng::util::BloomFilterStats stats() const noexcept {
+		return m_filter.stats();
+	}
+
+	eng::util::BloomFilter<K, BloomBits> m_filter {};
+};
+
+/// Caso desactivado: almacenamiento y consultas Bloom nulos en planners existentes.
+template <class K>
+struct PlannerSeenFilter<K, 0u> {
+	constexpr void clear() noexcept {}
+	constexpr void insert(const K&) noexcept {}
+	[[nodiscard]] constexpr bool may_contain(const K&) noexcept { return true; }
+	constexpr void note_false_positive() noexcept {}
+	[[nodiscard]] constexpr eng::util::BloomFilterStats stats() const noexcept { return {}; }
 };
 
 /// Estado: hechos booleanos + `MaxVars` niveles (0..255).
@@ -492,7 +519,7 @@ template <usize MaxFacts, usize MaxVars>
 /// y elementos de la cola. El estado de trabajo va inline en el objeto, asi que conviene
 /// instanciarlo en estatica para no consumir pila en el 68000.
 template <usize MaxFacts, usize MaxVars, usize MaxNodes, usize MaxCachedPlans = 4u,
-	  usize MaxCachedActions = 64u>
+	  usize MaxCachedActions = 64u, usize BloomBits = 0u>
 class Planner {
 	static_assert(MaxNodes > 0u, "Planner: MaxNodes debe ser mayor que 0");
 
@@ -501,6 +528,9 @@ public:
 	using ActionT = Action<MaxFacts, MaxVars>;
 	using GoalT = Goal<MaxFacts, MaxVars>;
 	using KeyT = typename StateT::Key;
+	static_assert(BloomBits == 0u || (BloomBits >= 32u &&
+					      (BloomBits & (BloomBits - 1u)) == 0u),
+		      "Planner: BloomBits debe ser 0 (desactivado) o potencia de dos >= 32");
 
 	/// ¿La ultima llamada encontro una solucion? (un plan vacio es valido: el estado
 	/// inicial ya cumplia el objetivo).
@@ -511,6 +541,11 @@ public:
 
 	/// Nodos expandidos en la ultima busqueda (diagnostico de presupuesto).
 	[[nodiscard]] constexpr usize expansions() const noexcept { return m_expansions; }
+
+	/// Diagnósticos del filtro opcional; con `BloomBits == 0` todos los contadores son cero.
+	[[nodiscard]] constexpr eng::util::BloomFilterStats bloom_stats() const noexcept {
+		return m_seen.stats();
+	}
 
 	/// Fija el **presupuesto** de la busqueda: maximo de nodos a expandir (0 = sin limite).
 	/// Con presupuesto, `plan()` devuelve el mejor **parcial** si no alcanza el objetivo
@@ -701,6 +736,7 @@ private:
 		m_best_partial_h = 0xffffu;
 		m_best_partial_g = 0u;
 		m_best.clear();
+		m_seen.clear();
 		m_open.clear();
 
 		if (satisfies(start, goal)) {
@@ -714,6 +750,7 @@ private:
 		const u16 root_h = heuristic<Relaxed>(start, goal, actions);
 		const u16 root = add_node(start.key(), no_fact_link, no_fact_link, 0u);
 		m_best.insert(start.key(), 0u);
+		m_seen.insert(start.key());
 		m_open.push(OpenNode {start.key(), 0u, root_h, root});
 		m_best_partial_h = root_h;
 
@@ -746,16 +783,22 @@ private:
 				StateT next = state;
 				apply(next, a);
 				const u16 ng = static_cast<u16>(current.g + a.cost);
-				const u16* seen = m_best.find(next.key());
+				const KeyT next_key = next.key();
+				const u16* seen = nullptr;
+				if (m_seen.may_contain(next_key)) {
+					seen = m_best.find(next_key); // Bloom positivo: siempre confirmar exactamente
+					if (seen == nullptr) m_seen.note_false_positive();
+				}
 				if (seen != nullptr && *seen <= ng) {
 					continue;
 				}
 				if (m_node_count >= MaxNodes) {
 					break; // presupuesto de nodos agotado
 				}
-				const u16 child = add_node(next.key(), current.node,
+				const u16 child = add_node(next_key, current.node,
 							   static_cast<u16>(ai), ng);
-				m_best.insert_or_assign(next.key(), ng);
+				m_best.insert_or_assign(next_key, ng);
+				m_seen.insert(next_key);
 				const u16 h = heuristic<Relaxed>(next, goal, actions);
 				const u16 fc = static_cast<u16>(static_cast<u32>(ng) + h > 0xffffu
 								    ? 0xffffu
@@ -1049,7 +1092,9 @@ private:
 		u16 cost = 0u;
 	};
 
-	eng::util::HashMap<KeyT, u16, MaxNodes> m_best {}; ///< estado -> mejor coste g
+	eng::util::HashMap<KeyT, u16, MaxNodes> m_best {}; ///< estado -> mejor coste g exacto
+	/// Prefiltro opcional de ausencias; los positivos siempre se confirman en `m_best`.
+	[[no_unique_address]] PlannerSeenFilter<KeyT, BloomBits> m_seen {};
 	/// Memo de la heuristica relajada (solo si el dominio tiene variables; 0 bytes si no).
 	HMemo<KeyT, (MaxVars > 0u ? MaxNodes : 0u)> m_h_cache {};
 	eng::util::PriorityQueue<OpenNode, MaxNodes, OpenCmp> m_open {};
@@ -1137,9 +1182,10 @@ struct Goap {
 	template <usize MaxActions>
 	using Domain = detail::Domain<MaxFacts, MaxVars, MaxActions>;
 
-	template <usize MaxNodes = 128u, usize MaxCachedPlans = 4u, usize MaxCachedActions = 64u>
+	template <usize MaxNodes = 128u, usize MaxCachedPlans = 4u, usize MaxCachedActions = 64u,
+		  usize BloomBits = 0u>
 	using Planner = detail::Planner<MaxFacts, MaxVars, MaxNodes, MaxCachedPlans,
-					MaxCachedActions>;
+					MaxCachedActions, BloomBits>;
 
 	/// Estado formado por los hechos indicados (azucar para construir escenarios).
 	template <class... Fs>
