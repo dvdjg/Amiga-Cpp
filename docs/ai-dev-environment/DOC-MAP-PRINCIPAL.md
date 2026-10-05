@@ -104,6 +104,7 @@ Cuando termine la lectura contextual, puede abrir solo los enlaces que necesite.
 | **Blitter asíncrono por intención** (cola, IRQ de blit, estilo OpenGL) | [BLITTER_INTENT_QUEUE.md](../engine/architecture/BLITTER_INTENT_QUEUE.md) | (propuesto) `engine/include/eng/gfx/blit_queue.hpp`; banco `tools/analyze/profile-report.mjs` |
 | **Defectos del compilador / verificar codegen 68000** (libcalls, instrucciones 68020+/FPU, ICE) | [toolchain/m68k-gcc.md](../reference/toolchain/m68k-gcc.md) (defectos con caso mínimo + re-verificación por versión; §3 riesgo de optimizaciones que ocultan defectos) | `tools/analyze/asm-audit.mjs` (`bad020`, `--strict`), `tools/analyze/codegen-report.mjs`; AGENTS §1.10 |
 | **Depurar un bug de visual** | [DEMO_VISUAL_DEBUG.md](../guides/methodology/DEMO_VISUAL_DEBUG.md) (diseño + depuración visual con Ollama/secuencias), [debug-winuae-v2-guide.md](../debugging/system/debug-winuae-v2-guide.md), invariantes microtests, y para arranque/display+doble texto/banda: [debug-demo-arranque-doble-texto-banda.md](../debugging/investigaciones/debug-demo-arranque-doble-texto-banda.md) | — |
+| **Pedir a un modelo de visión local (Ollama)** | [PROMPTS_VISION_LOCAL.md](PROMPTS_VISION_LOCAL.md) (registro de prompts: recortar por zonas, expectativas explícitas, eventualidades y plantillas por escenario) | — |
 | **Nueva referencia/documento externo** | §6 de este mapa, [amiga-authoritative-sources.md](../reference/amiga-authoritative-sources.md) | — |
 
 ---

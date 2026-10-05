@@ -124,3 +124,7 @@ La salida debe conservar `request.json`, frames seleccionados, respuesta bruta y
 ## Rendimiento y contexto
 
 El modelo predeterminado ocupa aproximadamente 9.8 GB en Q8_0. La experiencia de `D:/scripts` recomienda no aumentar contexto y concurrencia sin medir VRAM; para este flujo la prioridad es calidad de evidencia, no clasificación masiva. Un análisis de 4--6 frames por incidencia es el tamaño inicial recomendado.
+
+## Cómo pedir (prompts)
+
+El **registro de prompts** para modelos de visión local (principios, eventualidades a buscar y plantillas por escenario: regiones/recorte, secuencia, color, sprites, tiles) está en [`PROMPTS_VISION_LOCAL.md`](PROMPTS_VISION_LOCAL.md). Es la referencia de **cómo preguntar**; los prompts ejecutables viven en `tools/vision-review/PROMPTS.md` y `tools/profile/prompts/`.

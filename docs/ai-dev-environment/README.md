@@ -11,6 +11,7 @@ ai-dev-environment/
 ├── DOC-MAP-PRINCIPAL.md      # navegación IA → documentación (leer primero)
 ├── project-map.md            # archivos y proyectos de alto valor
 ├── ollama-local.md           # Ollama, modelos, scripts y operación segura
+├── PROMPTS_VISION_LOCAL.md   # registro de prompts para visión local (cómo pedir)
 ├── session-evidence.md       # ciclo de sesión WinUAE y evidencias mínimas
 └── mcp-debug-tools-audit.md  # utilidad de las modificaciones locales del MCP DAP
 ```
