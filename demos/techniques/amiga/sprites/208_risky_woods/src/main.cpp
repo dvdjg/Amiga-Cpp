@@ -3,20 +3,20 @@
 //   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/sprites/208_risky_woods --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/sprites/208_risky_woods --keep-running
 
 // ============================================================================
-// Demo 208 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â fondo por sprites *Risky Woods*  Ãƒâ€šÃ‚Â·  ETAPA E4
+// Demo 208 — fondo por sprites *Risky Woods*  ·  ETAPA E4
 // ============================================================================
 //
 // Plan (docs/debugging/investigaciones/risky-woods-208-sprite-scroll.md):
-//   E0 OK (1 canal) Ãƒâ€šÃ‚Â· E1 OK (8 sueltos, 128 px) Ãƒâ€šÃ‚Â· E2 OK (repeticiÃƒÆ’Ã‚Â³n a 320 px) Ãƒâ€šÃ‚Â·
-//   E3 OK (scroll 1 px/frame por punteros + rotaciÃƒÆ’Ã‚Â³n de columna).
-//   E4 (esta) ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â **3 franjas** con las 3 variantes y scroll continuo:
-//     A (8 sprites sueltos, patrÃƒÆ’Ã‚Â³n 128 px)   B (6 sueltos, 96 px + 2 objetos) Ãƒâ€šÃ‚Â·
+//   E0 OK (1 canal) · E1 OK (8 sueltos, 128 px) · E2 OK (repetición a 320 px) ·
+//   E3 OK (scroll 1 px/frame por punteros + rotación de columna).
+//   E4 (esta) — **3 franjas** con las 3 variantes y scroll continuo:
+//     A (8 sprites sueltos, patrón 128 px)   B (6 sueltos, 96 px + 2 objetos) ·
 //     C (8 sprites emparejados/attached, 64 px, 15 colores).
 //   Las 8 canales se **reutilizan verticalmente** entre franjas (no solapan).
 //
-// **Hallazgos**: las divisiones/mÃƒÆ’Ã‚Â³dulos 32-bit (`__udivsi3`/`__modsi3`) en `-nostdlib`
-// son una trampa ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Âse sustituyen por **recÃƒÆ’Ã‚Â­proco fijo Q16** y por lazo de restaÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â. El
-// scroll va por cambio de punteros `SPRxPT` pre-shifteados (CPU ~0).
+// **Disciplina de coste (AGENTS 1.15)**: nada de `*`/`/`/`%` en bucles por píxel ni en el
+// bucle de juego. Figuras precalculadas con `constexpr`, `mulsw` (16-bit) para los anillos,
+// desplazamientos y una tabla de offsets; el scroll va por punteros pre-shifteados (CPU ~0).
 
 #include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
@@ -53,15 +53,17 @@ constexpr eng::u8  kShifts = 16;                 // sets pre-shifteados (1 px ca
 constexpr eng::u16 kDisplayX0 = 128;             // borde izquierdo del display
 constexpr eng::u16 kDisplayW = 320;
 constexpr eng::u16 kStride = static_cast<eng::u16>(2u + kBandLines * 2u + 2u); // 164
-constexpr eng::u16 kCuGap = 24;                  // margen del WAIT respecto a la 1.Ãƒâ€šÃ‚Âª columna
-constexpr eng::u16 kCuBytes = 48u * 1024u;       // holgura de la copperlist
+// Margen del WAIT respecto a la 1.ª columna del período: > la ráfaga (8 px) y < el hueco al
+// canal anterior (16 px) para no pisarlo antes de que el haz lo dibuje.
+constexpr eng::u16 kCuGap = 24;
+constexpr eng::u16 kCuBytes = 48u * 1024u;
 constexpr eng::u16 kOffWords = 8u;
-constexpr eng::u16 kOffWord = 0xfe00u;           // VSTART=VSTOP=254 (nunca arma)
+constexpr eng::u16 kOffWord = 0xfe00u; // VSTART=VSTOP=254 (nunca arma)
 
 constexpr eng::u8  kObjs = 2;
 constexpr eng::u16 kObjH = 16;
 constexpr eng::u16 kObjStride = static_cast<eng::u16>(2u + kObjH * 2u + 2u); // 36
-constexpr eng::u16 kObjY = 152;                  // dentro de la franja B [128,208)
+constexpr eng::u16 kObjY = 152; // dentro de la franja B [128,208)
 
 struct BandSpec {
 	eng::u16 top;
@@ -70,15 +72,15 @@ struct BandSpec {
 	bool     attach;
 };
 
-// Franjas y tablas auxiliares (namespace scope: arrays constexpr con constructor propio).
+// Franjas y tablas (namespace scope: arrays constexpr con constructor propio).
 constexpr BandSpec kBands[3] = {
 	{ 48u, 8u, 128u, false }, // A: 8 sueltos, 128 px
 	{ 128u, 6u, 96u, false }, // B: 6 sueltos, 96 px (+2 objetos)
 	{ 208u, 8u, 64u, true },  // C: 4 pares attached, 64 px
 };
 constexpr eng::u8 kCols[3] { 8u, 6u, 4u }; // columnas (sueltos) o pares (attached)
-// Offset (en words) de la estructura `(banda, shift, columna)` **precalculado** (constexpr)
-// para no multiplicar por `kStride` en el bucle de juego.
+// Offset (words) de la estructura `(banda, shift, columna)` **precalculado** (constexpr) para
+// no multiplicar por `kStride` en el bucle de juego.
 struct StructOffTable {
 	eng::u16 v[3][kShifts][8] {};
 	constexpr StructOffTable() {
@@ -104,8 +106,9 @@ constexpr eng::Palette32 kPalette {{
 	0x000, 0x630, 0xff0, 0x24a, // 28-31
 }};
 
-// --- Figuras SIN mul/div de runtime (las libcalls son ~50-150 ciclos: el init de
-// 1,35 M pÃƒÆ’Ã‚Â­xeles tardarÃƒÆ’Ã‚Â­a ~50 s = timeout). Perfil de colina precalculado en COMPILACIÃƒÆ’Ã¢â‚¬Å“N.
+// --- Figuras SIN mul/div de runtime (las libcalls son ~50-150 ciclos) ---------
+// Perfil de la colina (`wy = 40 ± 20·(·)/h`) precalculado en COMPILACIÓN (constexpr): en
+// runtime solo se indexa la tabla. Franja A: colina (pico central). Franja B: valle.
 struct HillProfiles {
 	eng::u16 wy[3][65] {};
 	constexpr HillProfiles() {
@@ -113,7 +116,6 @@ struct HillProfiles {
 		for (eng::u8 b = 0; b < 3u; ++b) {
 			for (eng::u16 d = 0; d <= 64u; ++d) {
 				const eng::u16 dd = (d > hs[b]) ? hs[b] : d;
-				// Franja A: colina (pico en el centro). Franja B: valle (invertida).
 				wy[b][d] = (b == 1u)
 						   ? static_cast<eng::u16>(40u + (20u * static_cast<eng::u32>(dd)) / hs[b])
 						   : static_cast<eng::u16>(
@@ -125,7 +127,7 @@ struct HillProfiles {
 constexpr HillProfiles kHill {};
 constexpr eng::u16 kHalf[3] { 64u, 48u, 32u };
 
-/// Valor 1..3 (3 colores) de la colina de la franja `band` en `px` (0..pattern-1).
+/// Valor 1..3 (3 colores) de la figura de la franja `band` en `px` (0..pattern-1).
 [[nodiscard]] constexpr eng::u16 figure3(eng::u16 px, eng::u16 y, eng::u8 band) {
 	const eng::u16 half = kHalf[band];
 	const eng::u16 d = static_cast<eng::u16>(px < half ? (half - px) : (px - half));
@@ -135,8 +137,7 @@ constexpr eng::u16 kHalf[3] { 64u, 48u, 32u };
 	return 2u;
 }
 
-/// Valor 0..15 (15 colores, attached) de la franja C: anillos concÃƒÆ’Ã‚Â©ntricos.
-/// Usa `mulsw` (16-bit nativo) y `>> 7` en vez de `*`/`/` de 32 bits.
+/// Valor 0..15 (15 colores, attached) de la franja C: anillos concéntricos (mulsw 16-bit).
 [[nodiscard]] eng::u16 figure15(eng::u16 px, eng::u16 y, eng::u16 pattern) {
 	const eng::s16 cx = static_cast<eng::s16>(pattern / 2u);
 	const eng::s16 dx = static_cast<eng::s16>(static_cast<eng::s16>(px) - cx);
@@ -145,7 +146,7 @@ constexpr eng::u16 kHalf[3] { 64u, 48u, 32u };
 	return static_cast<eng::u16>((static_cast<eng::u16>(r2) >> 7u) & 15u);
 }
 
-/// Envuelve `v` a [0,mod) con un lazo de resta (sin `%`; aquÃƒÆ’Ã‚Â­ `v < 2*mod`).
+/// Envuelve `v` a [0,mod) con un lazo de resta (sin `%`; aquí `v < 2*mod`).
 [[nodiscard]] constexpr eng::u16 wrap(eng::u16 v, eng::u16 mod) {
 	while (v >= mod) {
 		v = static_cast<eng::u16>(v - mod);
@@ -153,15 +154,12 @@ constexpr eng::u16 kHalf[3] { 64u, 48u, 32u };
 	return v;
 }
 
-/// POS/CTL de un sprite (AHRM cap. 4): VSTART/VSTOP con sus bits altos en CTL.
 [[nodiscard]] constexpr eng::u16 sprite_pos(eng::u16 vstart, eng::u16 x) {
 	return static_cast<eng::u16>(((vstart & 0xffu) << 8u) | ((x >> 1u) & 0xffu));
 }
 [[nodiscard]] constexpr eng::u16 sprite_ctl(eng::u16 vstart, eng::u16 vstop, eng::u16 x, bool attach) {
-	return static_cast<eng::u16>(((vstop & 0xffu) << 8u) |
-				     (attach ? 0x0080u : 0u) |
-				     (((vstart >> 8u) & 0x1u) << 2u) |
-				     (((vstop >> 8u) & 0x1u) << 1u) |
+	return static_cast<eng::u16>(((vstop & 0xffu) << 8u) | (attach ? 0x0080u : 0u) |
+				     (((vstart >> 8u) & 0x1u) << 2u) | (((vstop >> 8u) & 0x1u) << 1u) |
 				     (x & 0x1u));
 }
 
@@ -206,7 +204,7 @@ struct RiskyWoodsDemo {
 	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
 		const eng::u32 pos = context.frame.frame_index;
 		const eng::u8 s = static_cast<eng::u8>(pos & (kShifts - 1u));
-		// RotaciÃƒÆ’Ã‚Â³n de columna cada kShifts px (contador incremental, sin `%` de runtime).
+		// Rotación de columna cada kShifts px (contador incremental, sin `%`).
 		if (pos != 0u && (pos & (kShifts - 1u)) == 0u) {
 			for (eng::u8 b = 0; b < 3u; ++b) {
 				if (++m_k[b] >= kCols[b]) {
@@ -230,7 +228,7 @@ struct RiskyWoodsDemo {
 				m_copper_words[m_pt_idx[b][c][1] + 1u] = static_cast<eng::u16>(addr & 0xffffu);
 			}
 		}
-		// Objetos: vaivÃƒÆ’Ã‚Â©n senoidal dentro de la franja B (tabla ya escalada, sin `*`).
+		// Objetos: vaivén senoidal dentro de la franja B (tabla ya escalada, sin `*`).
 		for (eng::u8 i = 0; i < kObjs; ++i) {
 			const eng::u16 phase = static_cast<eng::u16>((pos + (static_cast<eng::u32>(i) << 5u)) & 63u);
 			const eng::s16 swing = static_cast<eng::s16>(kSine[phase]);
@@ -361,7 +359,7 @@ private:
 
 		emit_band(sched, spr_base, 0);
 		// Objetos (canales 6/7): se **arman antes** de la franja B (su Y=152) para que el haz
-		// los dibuje; su X se parchea por frame. La franja C los reutiliza despuÃƒÆ’Ã‚Â©s.
+		// los dibuje; su X se parchea por frame. La franja C los reutiliza después.
 		for (eng::u8 i = 0; i < kObjs; ++i) {
 			const eng::u8 ch = static_cast<eng::u8>(6u + i);
 			const eng::uintptr addr = spr_base + static_cast<eng::uintptr>(m_obj_off + i * kObjStride) * 2u;
@@ -412,8 +410,9 @@ private:
 						line, static_cast<eng::u8>((static_cast<eng::u16>(wpx) >> 1u) & 0xfeu));
 				}
 				for (eng::u8 c = 0; c < bd.channels; ++c) {
-					if (bd.attach && (c & 1u)) { continue; } // el impar del par sigue al par (ATTACH)
-					const eng::u8 colx = bd.attach ? static_cast<eng::u8>(c / 2u) : c;
+					// En attached, el canal IMPAR sigue al par (ATTACH): no se reposiciona.
+					if (bd.attach && (c & 1u)) { continue; }
+					const eng::u8 colx = bd.attach ? static_cast<eng::u8>(c >> 1u) : c;
 					const eng::u16 x = static_cast<eng::u16>(xstart + colx * kColWidth);
 					if (x >= kDisplayX0 + kDisplayW) { break; }
 					sched.move(static_cast<eng::u16>(0x140u + c * 8u),
@@ -450,6 +449,3 @@ int main() {
 
 	return 0;
 }
-
-
-
