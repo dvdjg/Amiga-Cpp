@@ -630,6 +630,145 @@ private:
 	u16 m_scroll = 0;
 };
 
+/// **Fondo LIBRE por sprites** (`FreeScrollLayer`): como `RiskyWoodsLayer`, pero cada columna
+/// muestra **DATA distinta** — una imagen de `screen_width` px partida en columnas de
+/// `column_width` px (no un patrón que se repite). Rearma `SPRxPOS` + `SPRxDATA`/`SPRxDATB` por
+/// línea (cabecera + DATA inmediata). **Paramétrica por `MaxColumns`**: disposición fija en
+/// compilación (sin heap, sin cola, sin despacho dinámico; bucles acotados).
+///
+/// Cumple el contrato `Effect` (`band_scope`/`apply_into`/`effect_cost`): se **combina** con otros
+/// efectos en el mismo `copper::Plan`, que monta la lista y la manda al Copper. Ver
+/// `docs/reference/amiga/techniques/sprite-techniques-catalog.md` (técnica 6, *Free Form*).
+template <eng::u8 MaxColumns = 20u>
+class FreeScrollLayer {
+public:
+	struct Config {
+		u16 first_line = 0u;     ///< primera línea de la banda (inclusive)
+		u16 lines = 0u;          ///< líneas que cubre
+		u8  channel_first = 0u;  ///< primer canal de sprite (0..7)
+		u8  channels = 0u;       ///< canales usados (1..8)
+		u16 column_width = 16u;  ///< ancho de cada columna (px)
+		u16 screen_width = 320u; ///< ancho a cubrir (px)
+		u16 bplcon2 = 0u;        ///< prioridad (`BPLCON2`); fondo = detrás del playfield
+		u8  arm_hpos = 0x30u;    ///< `WAIT` (hpos = px/2) tras el fetch DMA de sprites
+		u16 head_start = 32u;    ///< px del `WAIT` a la 1.ª columna (head-start del haz)
+		u16 columns = 0u;        ///< columnas a dibujar (<= `MaxColumns`)
+		bool attach = false;     ///< 15 colores (pares *attached*: el impar aporta los bits 2-3)
+		/// DATA de la imagen: `columns * lines * 2` palabras (`DAT`, `DATB` por columna y línea).
+		/// Es **fuente de CPU** (se copia como inmediato a la Copperlist): no es DMA, vive en ROM.
+		eng::Span<const eng::u16> tiles {};
+		/// Si `true`, al final de la banda los canales quedan **desarmados** (`VSTART=VSTOP`):
+		/// evita la columna fantasma hacia lo de abajo.
+		bool reset_at_end = false;
+	};
+
+	[[nodiscard]] bool attach(Config cfg) {
+		if (cfg.lines == 0u || cfg.columns == 0u || cfg.columns > MaxColumns ||
+		    cfg.channels == 0u || cfg.channels > 8u || cfg.channel_first + cfg.channels > 8u ||
+		    cfg.column_width == 0u || cfg.screen_width == 0u ||
+		    cfg.tiles.size() < static_cast<eng::usize>(cfg.columns) * cfg.lines * 2u) {
+			return false;
+		}
+		m_cfg = cfg;
+		return true;
+	}
+
+	/// Emite la capa: `BPLCON2` y, por línea, un `WAIT` (head-start) + la ráfaga de
+	/// `SPRxCTL`/`SPRxPOS`/`SPRxDATB`/`SPRxDATA` de cada columna (carrera contra el haz).
+	template <class Sched>
+	void emit_into(Sched& sched) const {
+		sched.move(copper::Register::BPLCON2, m_cfg.bplcon2);
+		const u16 bottom = static_cast<u16>(m_cfg.first_line + m_cfg.lines);
+		for (u16 line = m_cfg.first_line; line < bottom; ++line) {
+			const eng::s32 wait_px = static_cast<eng::s32>(m_cfg.arm_hpos) * 2 -
+						 static_cast<eng::s32>(m_cfg.head_start);
+			if (wait_px >= 0) {
+				sched.wait_position_safe(line, static_cast<u8>((static_cast<u16>(wait_px) >> 1u) & 0xfeu));
+			}
+			for (u16 col = 0u; col < m_cfg.columns; ++col) {
+				const u16 x = static_cast<u16>(m_cfg.column_width * col);
+				const eng::usize t = (static_cast<eng::usize>(col) * m_cfg.lines +
+						      (line - m_cfg.first_line)) * 2u;
+				const u16 dat = m_cfg.tiles[t];
+				const u16 datb = m_cfg.tiles[t + 1u];
+				if (m_cfg.attach) {
+					const u8 che = static_cast<u8>((m_cfg.channel_first + (col % 4u) * 2u) & 7u);
+					const u8 cho = static_cast<u8>((che + 1u) & 7u);
+					sched.move(static_cast<u16>(0x142u + che * 8u), ctl(bottom, x, 0x00u));
+					sched.move(static_cast<u16>(0x140u + che * 8u), pos(line, x));
+					sched.move(static_cast<u16>(0x142u + cho * 8u), ctl(bottom, x, 0x80u));
+					sched.move(static_cast<u16>(0x140u + cho * 8u), pos(line, x));
+					sched.move(static_cast<u16>(0x146u + che * 8u), datb);
+					sched.move(static_cast<u16>(0x144u + che * 8u), dat);
+					sched.move(static_cast<u16>(0x146u + cho * 8u), 0u);
+					sched.move(static_cast<u16>(0x144u + cho * 8u), 0u);
+				} else {
+					const u8 ch = static_cast<u8>((m_cfg.channel_first + col % m_cfg.channels) & 7u);
+					sched.move(static_cast<u16>(0x142u + ch * 8u), ctl(bottom, x, 0x00u));
+					sched.move(static_cast<u16>(0x140u + ch * 8u), pos(line, x));
+					sched.move(static_cast<u16>(0x146u + ch * 8u), datb);
+					sched.move(static_cast<u16>(0x144u + ch * 8u), dat);
+				}
+			}
+		}
+		// Reset al final: canales desarmados (`VSTART=VSTOP`) -> sin columna fantasma.
+		if (m_cfg.reset_at_end) {
+			for (u8 c = 0u; c < m_cfg.channels; ++c) {
+				const u8 ch = static_cast<u8>((m_cfg.channel_first + c) & 7u);
+				sched.move(static_cast<u16>(0x142u + ch * 8u), 0xfe00u);
+				sched.move(static_cast<u16>(0x140u + ch * 8u), 0xfe00u);
+			}
+		}
+	}
+
+	/// Emite al plan de la escena (`emit_into(scene.scheduler())`).
+	void frame(graphics::composition::Scene& scene) { emit_into(scene.scheduler()); }
+
+	/// Contrato `Effect`: la capa no anima por sí sola.
+	void update(eng::u16) noexcept {}
+
+	/// Tramo de raster + canales que reclama (para combinarse con otros fondos).
+	[[nodiscard]] copper::BandScope band_scope() const noexcept {
+		const u16 last = static_cast<u16>(m_cfg.first_line + m_cfg.lines - 1u);
+		return copper::BandScope {m_cfg.first_line, last,
+					  graphics::sprite_channel_register_mask(m_cfg.channel_first,
+										 m_cfg.channels)};
+	}
+
+	/// **Contrato `Effect`** sobre el plan: reserva la banda, anota el coste y emite.
+	[[nodiscard]] bool apply_into(copper::Plan& plan) const {
+		const copper::BandScope band = band_scope();
+		const bool free = plan.reserve_band(band.first_line, band.last_line, band.register_mask);
+		const bool fits = plan.note_effect_cost(effect_cost());
+		emit_into(plan.scheduler());
+		return free && fits;
+	}
+
+	/// Coste declarado (una intención por `WAIT` + una por línea y columna).
+	[[nodiscard]] copper::EffectCost effect_cost() const noexcept {
+		const u16 per_line = static_cast<u16>(1u + m_cfg.columns);
+		return copper::EffectCost {static_cast<u16>(m_cfg.lines * per_line), words_estimate()};
+	}
+
+	[[nodiscard]] const Config& config() const noexcept { return m_cfg; }
+
+	/// Huella estimada en palabras de Copper (`BPLCON2` + 4 MOVEs por columna y línea + `WAIT`).
+	[[nodiscard]] u16 words_estimate() const noexcept {
+		const u32 per_line = 1u + static_cast<u32>(m_cfg.columns) * 4u;
+		return static_cast<u16>((1u + static_cast<u32>(m_cfg.lines) * per_line) * 2u + 2u);
+	}
+
+private:
+	static constexpr u16 pos(u16 vstart, u16 x) noexcept {
+		return static_cast<u16>(((vstart & 0xffu) << 8u) | ((x >> 1u) & 0xffu));
+	}
+	static constexpr u16 ctl(u16 vstop, u16 x, u16 attach_bit) noexcept {
+		return static_cast<u16>(((vstop & 0xffu) << 8u) | attach_bit | (x & 0x1u));
+	}
+
+	Config m_cfg {};
+};
+
 /// **Scroll horizontal fino de una capa planar** (`visible_words` words = 320 px). Mantiene el
 /// estado (**fine 0..15** + **columna absoluta**) y produce la `BPLCON1` del frame y, al cruzar
 /// el word, los `graphics::BlitJob` de **desplazamiento** + **columna nueva**. Se apoya en
