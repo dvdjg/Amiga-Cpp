@@ -57,3 +57,4 @@ Norma: **preguntar al modelo externo (Grok) en inglés** — responde mejor en e
 | [consulta-asm-flatshade-seguimiento2.md](consulta-asm-flatshade-seguimiento2.md) | Seguimiento 2 de la consulta ASM de `flatshade-convex`. |
 | [consulta-asm-flatshade-seguimiento3.md](consulta-asm-flatshade-seguimiento3.md) | Seguimiento 3 de la consulta ASM de `flatshade-convex`. |
 | [consulta-asm-flatshade-seguimiento4.md](consulta-asm-flatshade-seguimiento4.md) | Seguimiento 4 de la consulta ASM de `flatshade-convex`. |
+| [consulta-freeform-scroll-blitter-en.md](consulta-freeform-scroll-blitter-en.md) | English consultation: best **lateral scroll** algorithm (min CPU + Blitter) for a **Free Form Sprite Layer** — world 40×16 px × 256 tall, viewport 20 columns, 8 reused sprite channels, copperlist emitted once; how to patch `SPRxCTL`/`SPRxPOS` and the incoming column DATA with the Blitter, frame split and copperlist strategy. |
