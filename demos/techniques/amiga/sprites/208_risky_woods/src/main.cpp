@@ -433,7 +433,9 @@ private:
 						line, static_cast<eng::u8>((static_cast<eng::u16>(wpx) >> 1u) & 0xfeu));
 				}
 				for (eng::u8 c = 0; c < bd.channels; ++c) {
-					// En attached, el canal IMPAR sigue al par (ATTACH): no se reposiciona.
+					// En attached, el canal IMPAR aporta los bits altos por ATTACH: alcanza con
+					// reposicionar el par; mover tambien el impar degrada el reuso (el par pierde
+					// los bits altos en posiciones repetidas). Limitacion del reuso OCS del par.
 					if (bd.attach && (c & 1u)) { continue; }
 					const eng::u8 ch = static_cast<eng::u8>(bd.channel_first + c);
 					const eng::u8 colx = bd.attach ? static_cast<eng::u8>(c >> 1u) : c;
