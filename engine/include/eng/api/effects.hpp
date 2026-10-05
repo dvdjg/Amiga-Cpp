@@ -649,6 +649,7 @@ public:
 		u8  channels = 0u;       ///< canales usados (1..8)
 		u16 column_width = 16u;  ///< ancho de cada columna (px)
 		u16 screen_width = 320u; ///< ancho a cubrir (px)
+		u16 display_x0 = 128u;   ///< borde izquierdo del display (lo-res): X de la 1.ª columna
 		u16 bplcon2 = 0u;        ///< prioridad (`BPLCON2`); fondo = detrás del playfield
 		u8  arm_hpos = 0x30u;    ///< `WAIT` (hpos = px/2) tras el fetch DMA de sprites
 		u16 head_start = 32u;    ///< px del `WAIT` a la 1.ª columna (head-start del haz)
@@ -686,7 +687,7 @@ public:
 				sched.wait_position_safe(line, static_cast<u8>((static_cast<u16>(wait_px) >> 1u) & 0xfeu));
 			}
 			for (u16 col = 0u; col < m_cfg.columns; ++col) {
-				const u16 x = static_cast<u16>(m_cfg.column_width * col);
+				const u16 x = static_cast<u16>(m_cfg.display_x0 + m_cfg.column_width * col);
 				const eng::usize t = (static_cast<eng::usize>(col) * m_cfg.lines +
 						      (line - m_cfg.first_line)) * 2u;
 				const u16 dat = m_cfg.tiles[t];

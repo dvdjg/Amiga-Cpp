@@ -102,11 +102,10 @@ private:
 				eng::u16 dat = 0u, datb = 0u;
 				for (eng::u16 px = 0; px < kColWidth; ++px) {
 					const eng::u16 x = static_cast<eng::u16>(col * kColWidth + px);
-					// Perfil: dos senos de periodo primo -> sierra no repetitiva (0..319 px).
-					const eng::u16 wy = static_cast<eng::u16>(40u +
-						static_cast<eng::u16>((10u * (x % 29u)) / 29u) +
-						static_cast<eng::u16>((7u * (x % 13u)) / 13u));
-					const eng::u16 v = (l + 1u < wy) ? 1u : (l > wy + 1u ? 3u : 2u);
+					// Damero de bloques de 8 px: 3 colores solidos (suelo/cresta/cielo), DISTINTO por
+					// columna (cada columna desplaza el damero) -> fondo no repetitivo.
+					const eng::u16 v = static_cast<eng::u16>(1u + (((x + col) >> 3u) & 1u) +
+									 ((static_cast<eng::u16>(l) >> 3u) & 1u));
 					// `v` = valor del pixel; bit 0 -> DAT, bit 1 -> DATB (bit 15 = pixel 0, izq.).
 					if ((v & 1u) != 0u) { dat = static_cast<eng::u16>(dat | (0x8000u >> px)); }
 					if ((v & 2u) != 0u) { datb = static_cast<eng::u16>(datb | (0x8000u >> px)); }
