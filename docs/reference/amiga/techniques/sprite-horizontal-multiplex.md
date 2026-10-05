@@ -43,10 +43,32 @@ Datos de la fuente (resolución 304×224, 4 planos + panel 288×16×3):
 - **Scroll (técnica de la fuente):** no desplazar la imagen, sino **mover la X** del sprite (`SPRxPOS` en pasos de 2 px + el bit de paridad/impar en `SPRxCTL`) y repartir la actualización de la DATA de los 8 canales en **4 copperlists** a lo largo de varios frames (se actualizan ~1,875 columnas de 16 px por frame). La posición hace falta 4 frames antes que la data.
 - **Memoria (Free Form con scroll, 224 líneas):** 4 copperlists (~152 KB) + sprites doble-buffer (~14 KB) ≈ **163 KB**; recomendable ≥1 MB. La variante estática usa **1 sola copperlist**.
 
+## Cómo se monta el *Free Form* (claves verificadas)
+
+Las **dos claves** de la copperlist (fuente: `spr_layer/Data/copperlists.asm`, Jeroen Knoester):
+
+1. **Por posición, SOLO `SPRxPOS` + `SPRxDATB` + `SPRxDATA`** — **no** se escribe `SPRxCTL`
+   (escribirlo **desactiva** el comparador; `SPRxDATA` es quien **arma** el sprite en la nueva X).
+   Escribiendo el `CTL` por posición el rearmado **no dibuja**.
+2. **Al final de cada línea** hay que **reposicionar los 8 canales a la izquierda, en orden inverso**
+   (`SPRxPOS` solo), para que el renglón siguiente los vuelva a dibujar por DMA en su sitio.
+
+Estructura por línea (referencia, 212 px de alto, canales 0–7 por DMA + columnas extra por Copper):
+
+```
+  WAIT (inicio de línea)
+  8× [SPRxPOS, SPRxDATB, SPRxDATA]            ; columnas 0..7 (reusa canales 0..7)
+  N× [SPRxPOS, SPRxDATB, SPRxDATA]            ; columnas 8.. (reusa canales k%8)
+  8× [SPRxPOS = posición izquierda]           ; fin de línea (orden inverso 7..0)
+```
+
+El **`WAIT`** va al inicio de la línea (después del fetch DMA de sprites, `DDFSTRT`). Un `WAIT` por
+canal en su X **no** funciona. La CPU queda libre; se devora **DMA de Copper**.
+
 ## Límites y notas
 
 - El efecto consume **mucho tiempo de raster** y es **proporcional al número de líneas** que ocupa: conviene acotarlo a una banda, mezclar con una banda de sprite layer estándar o dejar zonas sin efecto.
 - El número de DMA del Copper tiene que caber **entre el borde izquierdo y la posición de cada rearmado**: es una **carrera contra el haz**, no un presupuesto por frame.
 - `SPRxPOS`/`SPRxCTL` son *write-only* en la práctica (su lectura no es fiable). Las posiciones y data deben vivir en Chip RAM.
 - **AHRM:** capítulo 4 (Sprite): "Reusing Sprite DMA Channels" (~línea 3507), "Manual Mode" (~3703), control del hardware y `SPRxPOS`/`SPRxCTL`/`SPRxDATA`. Índice: [amiga-hardware-manual-index.md](../../ahrm/amiga-hardware-manual-index.md).
-- **Estado en el engine:** la **capa de fondo** completa está en `effects::SpriteLayer` (demo `207_sprite_layer`, validada). El patrón (de `spr_layer/`, Jeroen Knoester) es **un `WAIT` por línea** y luego una **ráfaga** de `SPRxCTL`+`SPRxPOS`+`SPRxDATB`+`SPRxDATA` de los canales Copper. El `WAIT` cae en `arm_hpos` (por defecto `0x40`), **después del fetch DMA** de sprites (`DDFSTRT`) y antes de la primera columna: si se espera al inicio de línea, la `DATA` del Copper la pisa el fetch del DMA. Cada canal (también los Copper) **necesita una estructura DMA válida** con cabecera y terminador; si no, el DMA del canal avanza por memoria, lee una cabecera basura y deja una columna fantasma (ver `docs/reference/emulators/winuae/sprite-dma.md`). Un `WAIT` por canal en su X **no** funciona (solo se arman algunos canales). `graphics::SpriteHorizontalRearm` + `Scheduler::emit_sprite_horizontal_rearm` cubren el caso de un rearm suelto; para una **capa/HUD con imagen propia por línea** (Parasol Stars / Brian the Lion) el módulo es `graphics/sprite_line_layer.hpp` (`SpriteLineLayer`, HOST-418), que arma un `SpriteHorizontalRearm` por (línea, canal) con la DATA de esa scanline. Resumen del subsistema: [sprite-layer.md](sprite-layer.md) §11.
+- **Estado en el engine:** la **capa de fondo** completa está en `effects::SpriteLayer`, con **free form** (`Config::columns` + `Config::image`: DATA distinta por columna y línea → fondo **no repetitivo**) y `bind`/`patch` para el scroll **~0 CPU** (demo `212_free_scroll_layer`, 320 px no repetitivos + scroll). El emit por línea es **`WAIT` + ráfaga de `SPRxPOS`+`SPRxDATB`+`SPRxDATA`** (canales extra ciclando `k % channels`) **+ reposición de fin de línea** (ver arriba: **sin** `SPRxCTL` por posición). Cada canal (DMA y Copper) **necesita una estructura DMA válida** con cabecera y terminador; si no, el DMA del canal avanza por memoria y deja una **columna fantasma** (ver `docs/reference/emulators/winuae/sprite-dma.md`). Un `WAIT` por canal en su X **no** funciona. `graphics::SpriteHorizontalRearm` + `Scheduler::emit_sprite_horizontal_rearm` cubren un rearm suelto; para una **capa/HUD con imagen propia por línea** el módulo es `graphics/sprite_line_layer.hpp` (`SpriteLineLayer`, HOST-418). Resumen del subsistema: [sprite-layer.md](sprite-layer.md) §11.
