@@ -81,7 +81,18 @@ void AmigaBackend::boot() {
 	set_warpmode(false);
 }
 
-bool AmigaBackend::configure_memory(const MemoryConfig& config) {
+bool AmigaBackend::configure_memory(const MemoryConfig& in) {
+	MemoryConfig config = in;
+	if (in.all) {
+		// Máquina desnuda: reservar toda la memoria disponible. Deja margen en Chip para la pila
+		// de ejecución y las estructuras del sistema; la Fast es CPU-privada (Agnus no la ve).
+		constexpr u32 kChipMargin = 64u * 1024u;
+		const u32 chip_avail = static_cast<u32>(AvailMem(MEMF_CHIP));
+		config.chip_bytes = (chip_avail > kChipMargin) ? chip_avail - kChipMargin : 0u;
+		config.fast_bytes = static_cast<u32>(AvailMem(MEMF_FAST));
+		config.slow_bytes = 0u;
+		config.frame_bytes = 0u;
+	}
 	release_memory();
 	// `release_memory` conserva las raíces si una carga async/lease DMA sigue activa; no
 	// sobreescribir esos punteros ni crear pools nuevos sobre una vida de recursos aún abierta.
