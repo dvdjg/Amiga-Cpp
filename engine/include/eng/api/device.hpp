@@ -66,6 +66,13 @@ public:
 	}
 
 	/// Borra `planes` planos (`w`×`h`, `D = 0`). `wait` sincroniza con el fin del blit.
+	/// \param dst          base de los planos (Chip).
+	/// \param planes       nº de planos a borrar.
+	/// \param row_bytes    bytes por fila de un plano.
+	/// \param plane_bytes  separación entre planos.
+	/// \param w,h          rectángulo en píxeles.
+	/// \param wait         `true` espera al Blitter; `false` lo deja en vuelo.
+	/// \return `false` si el backend no lo soporta.
 	template <class B = Backend>
 	bool blitter_clear(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 w,
 			   u16 h, bool wait = true) {
@@ -87,6 +94,12 @@ public:
 
 	/// **BOBs OR en lote** (`D = A | D`) en orden; `source_modulo`/`dest_modulo` son
 	/// `BLTAMOD`/`BLTBMOD`=`BLTDMOD`.
+	/// \param bobs           lote de BOBs (orden de dibujo).
+	/// \param words          ancho de cada BOB en palabras.
+	/// \param height         alto en píxeles.
+	/// \param source_modulo  `BLTAMOD`/`BLTBMOD` (bytes).
+	/// \param dest_modulo    `BLTDMOD` (bytes; normalmente = `source_modulo`).
+	/// \return `false` si el backend no lo soporta.
 	template <class B = Backend>
 	bool blitter_or_bobs(eng::Span<const graphics::OrBob> bobs, u16 words, u16 height,
 			     s16 source_modulo, s16 dest_modulo) {
@@ -117,6 +130,13 @@ public:
 
 	/// **Colisión pixel-perfect** por Blitter: `scratch = a & b` por plano y `true` si hay
 	/// algún bit. `words`×`rows` es el rect en palabras de 16 px × filas.
+	/// \param a,b         planos a comprobar (`A` y `B`).
+	/// \param scratch     planos de trabajo para el `a & b`.
+	/// \param planes      nº de planos.
+	/// \param row_bytes   bytes por fila de un plano.
+	/// \param plane_bytes separación entre planos.
+	/// \param words,rows  rectángulo (palabras de 16 px × filas).
+	/// \return `true` si hay algún bit común (colisión).
 	template <class B = Backend>
 	bool blitter_collide(eng::PlaneBytes a, eng::PlaneBytes b, eng::PlaneBytes scratch, u8 planes,
 			     u16 row_bytes, u32 plane_bytes, u16 words, u16 rows) {
@@ -139,6 +159,8 @@ public:
 	}
 
 	/// Ejecuta un `FramePlan` (jobs de Blitter) en el backend.
+	/// \param plan  el plan del frame (blits encolados).
+	/// \return `false` si el backend no ejecuta planes.
 	template <class B = Backend>
 	bool execute_frame_plan(graphics::FramePlan& plan) {
 		if constexpr (requires(B& b, const graphics::FramePlan& p) { b.execute_frame_plan(p); }) {
@@ -151,6 +173,8 @@ public:
 
 	// --- Copper -----------------------------------------------------------------------
 	/// Instala un programa de Copper propio (`copper::Plan`) en el backend (una vez, en `init`).
+	/// \param plan  el programa de Copper a instalar.
+	/// \return `false` si el programa/backend no lo permite.
 	template <class B = Backend>
 	bool takeover_copper(copper::Plan& plan) {
 		if constexpr (requires(B& b, copper::Plan& p) { p.takeover(b); }) {
@@ -163,6 +187,8 @@ public:
 	}
 
 	/// Publica un programa de Copper propio (swap de `COP1LC`, tras VBlank).
+	/// \param plan  el programa de Copper ya emitido.
+	/// \return `false` si el backend no lo publica.
 	template <class B = Backend>
 	bool commit_copper(copper::Plan& plan) {
 		if constexpr (requires(B& b, copper::Plan& p) { p.commit(b); }) {

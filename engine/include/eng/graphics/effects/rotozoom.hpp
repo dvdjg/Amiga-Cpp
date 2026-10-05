@@ -66,6 +66,9 @@ struct RotozoomSteps {
 /// para que todos los productos quepan en 32 bits: el runtime m68k-amiga NO enlaza
 /// `__muldi3` (libgcc), así que un `s64` aquí no compilaría/lincharía. La pérdida de
 /// precisión es de 1/256 de texel, invisible.
+/// \param r      parámetros (ángulo/zoom/offset, 16.16).
+/// \param w,h    tamaño del destino.
+/// \return los pasos `(u, du, v, dv)` de la textura `TW×TH`.
 template <u16 TW, u16 TH>
 constexpr RotozoomSteps rotozoom_steps(const Rotozoom& r, u16 w, u16 h) {
 	const s32 ca = rotozoom_detail::kSin16[static_cast<u8>((r.angle + 64u) & 0xffu)]; // cos
@@ -86,6 +89,10 @@ constexpr RotozoomSteps rotozoom_steps(const Rotozoom& r, u16 w, u16 h) {
 
 /// Muestrea `tex` (TW×TH texeles, potencias de dos) hacia `dst` (w×h índices, 1 B/píxel,
 /// `w` múltiplo de 16 para que el C2P lo acepte). `dst` debe medir al menos `w*h` bytes.
+/// \param tex  textura indexada `TW×TH` (potencias de dos).
+/// \param r    parámetros (ángulo/zoom/offset).
+/// \param dst  framebuffer chunky destino (`w*h` bytes).
+/// \param w,h  tamaño del destino (`w` múltiplo de 16).
 template <u16 TW, u16 TH>
 void rotozoom_into(IndexedTexture tex, const Rotozoom& r, ChunkyBuffer dst, u16 w, u16 h) {
 	static_assert(TW > 0 && (TW & (TW - 1u)) == 0, "TW debe ser potencia de dos");

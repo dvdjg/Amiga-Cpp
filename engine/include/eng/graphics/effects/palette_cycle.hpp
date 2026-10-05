@@ -47,6 +47,7 @@ public:
 	/// Un `speed_frames` de 1 avanza cada frame; valores mayores hacen la animacion
 	/// mas lenta. Si `first/count` salen de los 32 registros fisicos, se recortan de
 	/// forma segura.
+	/// \param range  tramo a rotar (first/count/speed_frames), recortado a 32 registros.
 	void configure(PaletteCycleRange range) {
 		if (range.first >= 32u) {
 			range.first = 31u;
@@ -67,6 +68,7 @@ public:
 	}
 
 	/// Avanza el estado temporal del efecto.
+	/// \param frame_index  contador de frame global (`frame_index/speed_frames` da la fase).
 	void update(u16 frame_index) {
 		m_phase = static_cast<u8>((frame_index / m_range.speed_frames) % m_range.count);
 	}
@@ -76,6 +78,8 @@ public:
 	/// El efecto no modifica la paleta original. Esto es importante para un motor
 	/// retained-mode: los assets cocinados permanecen inmutables y cada frame se
 	/// generan vistas/runtime state baratas.
+	/// \param source       paleta cocinada (inmutable).
+	/// \param destination  paleta destino (se sobreescribe con la rotacion).
 	void apply(
 		const eng::Palette32& source,
 		eng::Palette32& destination

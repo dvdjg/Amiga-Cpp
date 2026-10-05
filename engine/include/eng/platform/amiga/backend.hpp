@@ -19,6 +19,7 @@
 #include <eng/core/types/domains.hpp>
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/field/raster.hpp>
 #include <eng/graphics/blitter_state.hpp>
 #include <eng/graphics/frame_plan.hpp>
@@ -99,7 +100,7 @@ struct FlatTriangle {
 /// - escribir colores custom simples;
 /// - exponer el overlay de debug;
 /// - dejar claro donde usamos ROM kernel y donde tocamos hardware directo.
-class AmigaBackend {
+class AmigaBackend : public eng::util::Noncopyable {
 public:
 	using Profile = HardwareProfile;
 
@@ -108,9 +109,6 @@ public:
 	constexpr AmigaBackend(Profile profile, GameMemoryProfile game_memory)
 		: m_profile(profile), m_game_memory(game_memory) {}
 	~AmigaBackend();
-
-	AmigaBackend(const AmigaBackend&) = delete;
-	AmigaBackend& operator=(const AmigaBackend&) = delete;
 
 	/// Inicializacion minima del backend.
 	void boot();
@@ -649,6 +647,19 @@ public:
 	bool blitter_fill_rect(eng::u8* plane_base, u8 planes, u32 plane_stride, u32 row_stride,
 			       u16 row_bytes, u16 bitmap_w, u16 bitmap_h, s32 x, s32 y, u16 w, u16 h,
 			       u8 color, bool wait = true);
+
+	/// **Fill strided de palabras** con el Blitter (D=A, A deshabilitado -> `BLTADAT` constante; 1
+	/// palabra por fila): escribe `value` en `rows` palabras separadas `stride_words` (palabras).
+	/// Pensado para parchear la **copperlist** (p. ej. `SPRxPOS`, que es constante por columna)
+	/// sin tocar la CPU. `d` debe estar alineada a palabra. Sincrono (`wait`).
+	bool blitter_fill_words_strided(eng::u16* d, eng::u16 value, eng::u16 rows, u16 stride_words,
+					bool wait = true);
+
+	/// **Copy strided de palabras** con el Blitter (A -> D, minterm `$F0`): `words` palabras por
+	/// fila en `rows` filas, modulos en palabras. Pensado para volcar columnas del mundo a la
+	/// copperlist (`DATB`+`DATA`) sin CPU. `s`/`d` alineadas a palabra. Sincrono (`wait`).
+	bool blitter_copy_words_strided(const eng::u16* s, eng::u16* d, eng::u16 words, eng::u16 rows,
+					u16 smod_words, u16 dmod_words, bool wait = true);
 
 	/// Escribe el registro de datos de un bitplane (`BLTxDAT`, $110 + 2*plane). Lo
 	/// usa fire-rgb para los bits HAM fijos de los planos 4/5 (`0x7777`/`0xcccc`).

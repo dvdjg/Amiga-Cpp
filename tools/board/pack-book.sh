@@ -18,8 +18,12 @@ CXX="${CXX:-g++}"
 INPUT="${1:?uso: pack-book.sh <entrada.txt> [salida.bin]}"
 OUTPUT="${2:-$ROOT/out/assets/board/book.bin}"
 
+# Runtime del compilador en el PATH + `.exe` de MinGW (ver tools/scripts/host-cxx-env.sh).
+. "$ROOT/tools/scripts/host-cxx-env.sh"
+host_cxx_prepare "$CXX"
+
 mkdir -p "$ROOT/out/tmp" "$(dirname "$OUTPUT")"
 BIN="$ROOT/out/tmp/pack_book"
 
 "$CXX" -std=gnu++23 -I"$ROOT/engine/include" -O2 "$ROOT/tools/board/pack_book.cpp" -o "$BIN"
-"$BIN" "$INPUT" "$OUTPUT"
+"$(host_exe "$BIN")" "$INPUT" "$OUTPUT"

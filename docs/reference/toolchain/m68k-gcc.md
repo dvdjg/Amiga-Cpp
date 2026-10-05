@@ -58,6 +58,13 @@ nm tu.o | grep -E '__mul|__div|__mod|__float|__fix'
 aritmética y tablas; `Fixed<s16,E>` (E ≤ 15) en vez de `Fixed<s32,E>`; ver `AGENTS.md` §1.10 y
 `tools/analyze/asm-audit.mjs`.
 
+**Coste, no solo el build.** Aunque una libcall esté enlazada (p. ej. vía el soporte del engine),
+es **lenta** (`__mulsi3` ≈ 50 ciclos; `__udivsi3`/`__modsi3` ≈ 150) y rompe el *cycle-exact*.
+En un **bucle por píxel/línea o en el bucle de juego no es aceptable**: precalcular con
+`constexpr` (el compilador evalúa `*`/`/` a coste cero de runtime), usar `mulu.w`/`muls.w`/`divu.w`
+(16-bit nativo) y desplazamientos. Ver `docs/guides/optimization/OPTIMIZACION_GPP_68000.md`
+§«Disciplina de coste» y `AGENTS.md` §1.15.
+
 ## 3. Codegen incorrecto a `-O1` en el bucle de mensajes del mini-SO
 
 **Síntoma**: con `os::add_timer` de **periodo > 1**, los `MsgType::Timer` se postean y el pump los

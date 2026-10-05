@@ -80,8 +80,9 @@ intención, y elige el que corresponde:
   `FramePlan` y se **ejecuta** al publicar. Aporta lo que el streaming no puede: **reordenar** por
   estado del Blitter, **lotes**, y la **cadena async** con avisos (`set_async_present`). Es el
   camino cuando la escena es heterogénea o se quiere diferir/encadenar. `clear_box` borra
-  (`D=0`) y `fill_box` **rellena un color sólido** (`D=A` con `BLTADAT`, sin fetch de D) — ambos
-  diferidos y en orden con los sprites.
+  (`D=0`) y `fill_box` **rellena un color sólido** (`D = (A & B) | (~A & C)`, `$CA`: máscara de
+  borde por A, color por B, destino por C — preserva lo de debajo aunque el rect no esté alineado a
+  16) — ambos diferidos y en orden con los sprites.
 - **Streaming** (`screen().stamp(sheet)` / `screen().clear_now(box)`): los blits se **emiten en el
   momento** (espera al anterior y escribe solo lo que cambia), **sin `FramePlan` ni pasada de
   ejecución**. Es el bucle del `main.c` de referencia envuelto como API, y es **coste cero**. Es el

@@ -57,20 +57,28 @@ public:
 	[[nodiscard]] eng::Box box() const noexcept { return box_of(m_surface.clip()); }
 
 	// --- Primitivas (delegan en `Surface`, que recorta y enruta CPU/Blitter) ---
+	/// \param b  rectángulo; \param color  índice; \param op  operación de rasterizado.
+	/// \return `false` si queda fuera del clip.
 	bool fill(eng::Box b, eng::u8 color, RasterOp op = RasterOp::Copy) {
 		return m_surface.fill_rect(b.x, b.y, b.w, b.h, color, op);
 	}
+	/// \param x0,y0,x1,y1  extremos; \param color  índice; \param op  operación.
+	/// \return `false` si la línea queda fuera del clip.
 	bool line(eng::s16 x0, eng::s16 y0, eng::s16 x1, eng::s16 y1, eng::u8 color,
 		  RasterOp op = RasterOp::Copy) {
 		return m_surface.draw_line(x0, y0, x1, y1, color, m_plan, op);
 	}
 	/// Marco de 1 px alrededor de `b` (4 líneas).
+	/// \param b  rectángulo; \param color  índice.
+	/// \return `false` si no cupo; `true` si siempre había sitio.
 	bool frame(eng::Box b, eng::u8 color) {
 		const eng::s16 x1 = b.right();
 		const eng::s16 y1 = b.bottom();
 		return line(b.x, b.y, x1, b.y, color) & line(b.x, y1, x1, y1, color) &
 		       line(b.x, b.y, b.x, y1, color) & line(x1, b.y, x1, y1, color);
 	}
+	/// \param x,y  posición; \param s  cadena; \param color  índice.
+	/// \return `false` si no cupo.
 	bool text(eng::s16 x, eng::s16 y, const char* s, eng::u8 color) {
 		return m_surface.draw_text(x, y, s, color);
 	}

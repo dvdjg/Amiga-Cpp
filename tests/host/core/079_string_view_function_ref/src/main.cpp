@@ -1,15 +1,18 @@
 // ============================================================================
-// Test HOST-079: StringView y FunctionRef (vistas no propietarias).
+// Test HOST-079: StringView, FunctionRef y Callback (vistas y callables).
 // ============================================================================
 //
-// Respalda `eng/core/util/string_view.hpp` y `eng/core/util/function_ref.hpp`.
+// Respalda `eng/core/util/string_view.hpp`, `eng/core/util/function_ref.hpp` y
+// `eng/core/util/callback.hpp`.
 //
 //   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/079_string_view_function_ref
 
 #include <cstdio>
 
+#include <eng/core/util/callback.hpp>
 #include <eng/core/util/function_ref.hpp>
 #include <eng/core/util/string_view.hpp>
+#include <eng/core/util/type_traits.hpp>
 
 namespace eu = eng::util;
 
@@ -41,6 +44,10 @@ int apply(eu::FunctionRef<int(int)> fn, int x) {
 int g_sink = 0;
 void accumulate_into(eu::FunctionRef<void(int)> fn, int x) {
 	fn(x);
+}
+
+void cb_add(void* ctx, int x) {
+	*static_cast<int*>(ctx) += x;
 }
 
 } // namespace
@@ -91,6 +98,21 @@ int main() {
 	const auto sink = [](int x) { g_sink = g_sink + x; };
 	accumulate_into(sink, 7);
 	check(g_sink == 7, "FunctionRef de retorno void");
+
+	// --- Callback (fn + ctx, POD) --------------------------------------------
+	static_assert(eu::is_trivially_copyable_v<eu::Callback<int>>, "Callback es POD");
+	int cb_state = 0;
+	eu::Callback<int> cb {&cb_add, &cb_state};
+	check(cb.valid() && static_cast<bool>(cb), "Callback instalado");
+	cb(5);
+	cb(3);
+	check(cb_state == 8, "Callback pasa el contexto");
+	eu::Callback<int> empty {};
+	check(!empty.valid(), "Callback vacío no válido");
+	empty(1); // no-op
+	check(cb_state == 8, "Callback vacío no llama");
+	cb.clear();
+	check(!cb.valid(), "clear desactiva el Callback");
 
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);

@@ -33,6 +33,7 @@
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/util/expected.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/debug/telemetry.hpp>
 #include <eng/engine.hpp>
 #include <eng/field/strip_layer.hpp>
@@ -67,7 +68,7 @@ namespace eng {
 /// El juego implementa `init(App&)`, `update(App&)` y `render(App&)` (con `auto&` para no nombrar
 /// el tipo concreto).
 template <class Backend, class Game>
-class App {
+class App : public eng::util::Noncopyable {
 public:
 	constexpr App(Backend& backend, Game& game) noexcept
 		: m_backend(backend), m_game(game), m_engine(backend, m_adapter) {
@@ -83,9 +84,6 @@ public:
 			if (m_memory.valid() && m_bitmap_owners[i].valid()) m_memory->chip().release(m_bitmap_owners[i]);
 		}
 	}
-	App(const App&) = delete;
-	App& operator=(const App&) = delete;
-
 	/// Ejecuta el bucle del engine en el modo **IRQ mínima**: la IRQ de VBlank solo lleva el
 	/// **latido** (el hook que alimenta el puerto de mensajes / el mini-SO) y `update`/`render`
 	/// corren en el **bucle principal**. Registra el **hook de VBlank** que publica
@@ -238,6 +236,37 @@ public:
 	[[nodiscard]] u32 vblank_count() const noexcept { return m_vblank_count; }
 	[[nodiscard]] u32 blitdone_count() const noexcept { return m_blitdone_count; }
 
+	/// **Política de sincronización de frame** (`TIME-010` de
+	/// `vblank-timer-inconsistencies.md`). Elige cómo se notifica el VBlank, **sin duplicar** el
+	/// contador de secuencia (una sola fuente de verdad: `m_vblank_count`).
+	///
+	/// - `Event`: mantiene la compatibilidad histórica: publica un `MsgType::VBlank` **FIFO** por
+	///   IRQ en `port()` (puede desbordar una cola de 16 si el juego no la drena). Útil cuando el
+	///   juego quiere **un mensaje por interrupción**.
+	/// - `Latch` (**recomendado**): no encola nada; la app lee la **instantánea coherente**
+	///   `{sequence, missed}` con `take_frame_tick()`. El `VBlankLatch` del mini-SO (`eng::os`) ya
+	///   lleva la cuenta de pisados, así que no se pierde información.
+	/// - `Disabled`: ni mensaje ni latch de la app; el contador sigue avanzando (el backend mide
+	///   igual el VBlank). Para juegos que gestionan su propio sincronismo.
+	///
+	/// `ActiveWait`/`External` (espera activa / reloj externo) se expresan con `Disabled` + el
+	/// `wait_vblank()` del backend cuando aplique; el contador del backend sigue siendo el mismo.
+	enum class FrameSyncMode : eng::u8 { Event, Latch, Disabled };
+
+	/// Fija la **política de notificación de VBlank**. Por defecto `Event` (comportamiento
+	/// histórico). Debe llamarse antes de `run()`/`present()` (normalmente al inicio de `init`).
+	void set_frame_sync(FrameSyncMode mode) noexcept { m_frame_sync = mode; }
+	[[nodiscard]] FrameSyncMode frame_sync() const noexcept { return m_frame_sync; }
+
+	/// **Instantánea latched del último VBlank** (modo `Latch`): secuencia del último latido y
+	/// cuántos VBlanks se pisaron sin consumir desde la llamada anterior. Mismo contrato que
+	/// `os::take_vblank`: como máximo hay un tick pendiente y `missed` cuenta los perdidos.
+	/// `false` si no hay un VBlank nuevo desde la última lectura (o en modo `Event`/`Disabled`, en
+	/// los que usa `os::take_vblank`/`vblank_count`).
+	[[nodiscard]] bool take_frame_tick(eng::os::VBlankTick& out) noexcept {
+		return eng::os::take_vblank(m_frame_latch, out);
+	}
+
 	/// **Blit asíncrono con notificación al puerto**: arranca la copia por Blitter y, cuando
 	/// termina la IRQ BLIT, publica un `MsgType::BlitDone` (y sube `blitdone_count`). `false`
 	/// si el backend no lo soporta o no cabe. La lógica puede encadenar trabajo en `update`.
@@ -311,6 +340,9 @@ public:
 
 	/// **Configura la memoria del backend** (budget por banco). Normalmente en `init`; el motor
 	/// podría fijarlo solo a partir del perfil de hardware (pendiente).
+	/// \param cfg  presupuesto por banco, en **bytes** (`chip_bytes`/`slow_bytes`/`frame_bytes`/
+	///             `fast_bytes`); un campo a 0 = no reservar ese banco.
+	/// \return `true` si los bancos pedidos se reservaron; `false` si alguno no cupo.
 	template <class B = Backend>
 	bool configure_memory(const MemoryConfig& cfg) {
 		return m_backend.configure_memory(cfg);
@@ -333,6 +365,11 @@ public:
 	/// `app.assets().load(path, size, policy)`. `0` si no cabe; la carga se completa al drenar
 	/// el puerto (`pump()`/`route_resource_io`) con los `FileDone`. En backends sin runtime de
 	/// assets devuelve `0`. La decodificación tipada (`load<T>`) llegará con los decoders.
+	/// \param path     ruta del recurso (se normaliza por el VFS).
+	/// \param size     tamaño esperado en bytes (para reservar antes de leer).
+	/// \param request  banco pedido (`Chip`/`Fast`/…; ver `res::MemoryRequest`).
+	/// \param prio     prioridad en la caché (mayor = se desaloja antes).
+	/// \return id de asset (`res::AssetId`), o `0` si no cabe en el banco pedido.
 	template <class B = Backend>
 	eng::u16 load_asset(const char* path, eng::u32 size,
 			    res::MemoryRequest request = res::MemoryRequest::Chip, eng::u8 prio = 128u) {
@@ -503,6 +540,8 @@ public:
 	/// `StripScrollLayer` o `XlimitedScrollLayer`): `App` la **arranca** con su memoria (bloques
 	/// **tageados** por banco) y su backend, y la **conduce por frame**; el juego no ve el compositor,
 	/// los buffers ni los registros. `false` si no cabe o el arranque falla. Llamar desde `init(App&)`.
+	/// \param layer  la capa de scroll (la **posee** el juego; el `App` solo la conduce).
+	/// \return `true` si quedó registrada y arrancada; `false` si no cabe o `begin` falló.
 	[[nodiscard]] bool add_scroll_layer(eng::playfield::ScrollLayer<Backend>& layer) noexcept {
 		if (m_scroll_count >= kMaxScrollLayers) return false;
 		if (!layer.begin(m_backend.memory_manager(), m_backend)) return false;
@@ -524,6 +563,9 @@ public:
 	/// **Elige el motor del `ladder` que encaja** con la geometría cargada `g` (caso runtime/editor,
 	/// §7) y lo **registra** (lo arranca y lo conduce como `add_scroll_layer`). `false` si ninguna
 	/// geometría del registro coincide o el arranque falla. El camino manual sigue igual.
+	/// \param ladder  registro de motores NTTP con su geometría (`ScrollLadder`).
+	/// \param g       geometría cargada en runtime (p. ej. de un editor).
+	/// \return `true` si algún motor del `ladder` coincide y arrancó.
 	template <class Ladder>
 	[[nodiscard]] bool pick_scroll_engine(Ladder& ladder,
 					      const eng::playfield::RuntimeScrollGeometry& g) noexcept {
@@ -637,6 +679,8 @@ public:
 	/// **Tramos de banda** del plan de escena (para rutar objetos/dibujos con
 	/// `BobLayer::emit_banded`/`for_each_band_part`): deriva el layout de bandas (`plan_bands`) sobre
 	/// el alto del display. Devuelve cuántas bandas escribió (`0` si el plan no es de bandas).
+	/// \param out  búfer de tramos a rellenar (`Span<BandSpan>`); se escriben los primeros `N`.
+	/// \return nº de tramos escritos (`0` si no hay plan de bandas).
 	[[nodiscard]] eng::u16 scene_bands(eng::Span<eng::scene::BandSpan> out) const noexcept {
 		const auto r = eng::scene::plan_bands(m_scene_plan.layers(),
 						      static_cast<eng::u16>(m_display.height), out);
@@ -675,6 +719,7 @@ public:
 	/// el destino del contexto de dibujo de la escena ligada. Devuelve cuántos se dibujaron.
 	/// Llámalo antes de `present()`. Los actores se dibujan sobre el fondo Fill; las capas de
 	/// playfield/tilemap todavía esperan su driver de materialización.
+	/// \return nº de actores emitidos al plan del frame (`0` si no hay escena ligada).
 	eng::u16 draw_world() {
 		if (!m_scene.valid()) {
 			return 0u;
@@ -947,10 +992,23 @@ private:
 		}
 		const u32 seq = self.m_vblank_count + 1u;
 		self.m_vblank_count = seq;
-		eng::os::Msg msg {};
-		msg.type = eng::os::MsgType::VBlank;
-		msg.time_stamp = seq;
-		self.m_port.post(msg);
+		// **Una sola fuente de verdad** de la secuencia (`m_vblank_count`). Según la política
+		// (`set_frame_sync`), el latido se entrega como mensaje FIFO (`Event`), como latch
+		// coherente (`Latch`) o solo se cuenta (`Disabled`). Ver `TIME-001/TIME-010`.
+		switch (self.m_frame_sync) {
+		case FrameSyncMode::Event: {
+			eng::os::Msg msg {};
+			msg.type = eng::os::MsgType::VBlank;
+			msg.time_stamp = seq;
+			self.m_port.post(msg);
+			break;
+		}
+		case FrameSyncMode::Latch:
+			self.m_frame_latch.signal(seq);
+			break;
+		case FrameSyncMode::Disabled:
+			break;
+		}
 	}
 	/// Productor de fin de blit: sube el contador y publica `BlitDone` (IRQ-safe).
 	static void on_blit_done(App& self, u16) noexcept {
@@ -980,6 +1038,8 @@ private:
 	eng::os::MsgPort<16> m_port {};                     ///< puerto de mensajes del sistema
 	volatile u32 m_vblank_count = 0;                    ///< VBlanks publicados (IRQ)
 	volatile u32 m_blitdone_count = 0;                  ///< fines de blit publicados (IRQ)
+	FrameSyncMode m_frame_sync = FrameSyncMode::Event;  ///< política de notificación de VBlank
+	eng::os::VBlankLatch m_frame_latch {};              ///< latch coherente del modo `Latch`
 	eng::Ref<graphics::composition::Scene> m_scene {};  ///< escena del juego (no propietaria)
 	scene::World<GameDisplay::kWorldLayerCapacity> m_world {}; ///< mundo retenido (capas + cámaras)
 	/// Capas de scroll que conduce el `App` (**observadores no propietarios**: las posee el juego).

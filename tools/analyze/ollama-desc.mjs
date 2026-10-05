@@ -51,7 +51,7 @@
   const dir = process.argv[2];
   const idxs = (process.argv[3] || '0').split(',').map(Number);
   const prompt = process.argv[4] || 'Describe brevemente lo que se ve.';
-  const files = fs.readdirSync(dir).filter((f) => /^frame_\d{3}\.png$/.test(f)).sort();
+  const files = fs.readdirSync(dir).filter((f) => /^frame_\d{3}(_f\d+)?\.png$/.test(f)).sort();
   const images = idxs.map((i) => fs.readFileSync(path.join(dir, files[i])).toString('base64'));
   const res = await fetch(`${BASE}/api/chat`, {
     method: 'POST',

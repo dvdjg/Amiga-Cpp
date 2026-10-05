@@ -239,3 +239,31 @@ detrás.
 - El **planner** (capa de arriba) añade vocabulario de juego (`DrawIntent`) y **completación**; ver
   [`INTENT_PLANNER.md`](INTENT_PLANNER.md). Estado probado: HOST-365 (equivalencia intención↔directo),
   HOST-368 (cola + receta + capa), HOST-369 (intención → evento).
+
+## 10. La GUI en el modelo asíncrono (no adoptado)
+
+La UI (`eng::ui`: `UiPainter`/`draw_tree`) dibuja hoy **síncrona** por el `RectFillSink`/`Surface`:
+cada `fill_rect` se ejecuta ya (Blitter + `wait_blitter`, con cookie-cut `$CA` también para el borde
+parcial). Es simple y correcto, pero **no solapa CPU y Blitter**.
+
+**Cómo sería** adoptar el modelo asíncrono en la UI sin cambiar la API de dibujo:
+
+1. `UiPainter::fill`/`frame`/`bevel`/`text` **encolan** (no ejecutan): un `BlitOp` (`Fill`) / `Line`
+   en la `BlitQueue` del frame (o directamente en el `FramePlan`), igual que `Screen::fill_box`.
+2. El plan/cola se ejecuta **una vez** en `present()` (`execute_frame_plan` /
+   `execute_frame_plan_async`): el Blitter encadena los rellenos sin que la CPU espere entre ellos.
+3. `wait_blitter` solo en los **puntos de dependencia** reales (p. ej. si un `draw_text` por CPU
+   debe escribir sobre un relleno del Blitter, o al cerrar el frame).
+
+Requisitos: los rellenos de UI **no** deben leer su propio resultado a mitad de frame (hoy no lo
+hacen), y el borde parcial ya está resuelto en el `FillRect` asíncrono (cookie-cut `$CA`, ver
+[`blitter-fill-constant.md`](../../reference/amiga/techniques/blitter-fill-constant.md)), así que los
+widgets no alineados a 16 px no se recortan.
+
+**Beneficio escaso en un juego.** La UI emite **pocas** primitivas por frame (un panel, unos
+widgets: decenas) y muchas se repintan **por zona** (solo slider/estado), así que el ahorro de no
+esperar al Blitter es pequeño frente al trabajo pesado del frame (tiles, BOBs, Copper), que ya va
+por el plan asíncrono. Por eso **no se adopta ahora**: la complejidad añadida (dependencias
+explícitas, orden) no compensa. Tendría sentido si la UI creciera mucho (formularios grandes) o si
+la medición mostrara un cuello de botella de espera en `fill_rect`; la vía síncrona queda como
+respaldo y para `init`/cambios inmediatos.

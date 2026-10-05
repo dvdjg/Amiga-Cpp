@@ -15,12 +15,18 @@
 /// es `sizeof(BloomFilter<T, Bits, HashCount, Hasher>)`; no hay memoria dinámica.
 /// El hash usa `eng::util::Hash<T>` (sin multiplicación 32×32 en las claves del engine).
 ///
+/// **Nota de uso**: un filtro Bloom compensa cuando la comprobación exacta es **cara** (E/S,
+/// disco, red); sobre una comprobación **in-memory O(1)** (p. ej. el `m_best` de GOAP) **no
+/// mejora**: `may_contain` recalcula el hash que la búsqueda exacta volvería a hacer y su trabajo
+/// (hash del `step` + pruebas de bit) supera la sonda evitada. Ver
+/// docs/engine/architecture/GAME_AI_LIBRARY.md §3.1 (HOST-426).
+///
 /// Uso:
 ///   eng::util::BloomFilter<u32, 1024> maybe_seen;
 ///   if (maybe_seen.may_contain(key)) exact_set.contains(key);
 ///   else maybe_seen.insert(key); // negativo: se sabe que no estaba
 ///
-/// Verificación: HOST-396.
+/// Verificación: HOST-426.
 
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/hash.hpp>
@@ -59,7 +65,8 @@ public:
 		u32 bit_hash = m_hash(value);
 		const u32 step = hash_u32(bit_hash ^ 0x9e3779b9u) | 1u;
 		for (usize i = 0u; i < HashCount; ++i, bit_hash += step) {
-			const usize bit = static_cast<usize>(bit_hash) & (Bits - 1u);
+			// `bit_hash` (u32) se promueve a `usize` al operar con `Bits` (usize): sin cast.
+			const usize bit = bit_hash & (Bits - 1u);
 			m_words[bit / word_bits] |= bit_mask(bit);
 		}
 	}
@@ -70,7 +77,7 @@ public:
 		u32 bit_hash = m_hash(value);
 		const u32 step = hash_u32(bit_hash ^ 0x9e3779b9u) | 1u;
 		for (usize i = 0u; i < HashCount; ++i, bit_hash += step) {
-			const usize bit = static_cast<usize>(bit_hash) & (Bits - 1u);
+			const usize bit = bit_hash & (Bits - 1u);
 			if ((m_words[bit / word_bits] & bit_mask(bit)) == 0u) {
 				++m_stats.negatives;
 				return false;
@@ -93,7 +100,9 @@ private:
 
 	/// Máscara del bit global `bit` dentro de su palabra de 32 bits.
 	[[nodiscard]] static constexpr Word bit_mask(usize bit) noexcept {
-		return static_cast<Word>(static_cast<Word>(1u) << (bit % word_bits));
+		// `one` es `Word` (32 bits garantizados): el desplazamiento no depende de `unsigned int`.
+		constexpr Word one = 1u;
+		return one << (bit % word_bits);
 	}
 
 	Word m_words[word_count] {}; ///< representación compacta del conjunto probabilístico

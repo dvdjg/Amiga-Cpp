@@ -28,7 +28,7 @@ struct FakeAssetBackend {
 		return block;
 	}
 	void free(const eng::MemoryBlock&) {}
-	bool load(eng::res::AssetId, const char*, eng::Span<eng::u8>) { return true; }
+	bool load(eng::res::AssetId, const char*, eng::Span<eng::u8>, eng::u8) { return true; }
 };
 
 } // namespace

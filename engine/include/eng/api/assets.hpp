@@ -23,6 +23,7 @@
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/typed.hpp>
 #include <eng/core/util/expected.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/graphics/sprite_asset.hpp>
 #include <eng/graphics/bitmap_view.hpp>
 #include <eng/graphics/plane_layout.hpp>
@@ -39,13 +40,11 @@ namespace eng {
 /// dominio (`DomainAsset<Tag>`) elige el banco (Chip para DMA, Fast→Slow para CPU) y el `Assets`
 /// conserva el `Block` como dueño, entregando **vistas no propietarias**. `reset_phase()` libera
 /// todos los bloques en **orden inverso** al de reserva.
-class Assets {
+class Assets : public eng::util::Noncopyable {
 public:
 	static constexpr eng::u8 kMaxBlocks = 16u;
 
 	Assets() = default;
-	Assets(const Assets&) = delete;
-	Assets& operator=(const Assets&) = delete;
 
 	/// Liga el gestor de memoria donde se copian los blobs. Llamar antes de `add`/`create`.
 	void bind(MemoryManager& memory) noexcept { m_mem = memory; }
@@ -96,6 +95,10 @@ public:
 	/// Registra `name` **copiando el blob a Chip**. El `Tag` fija el dominio (alineación y vista):
 	/// `PlaneTag` (bitmap), `MusicTag` (módulo), `SpriteTag` (hoja), `PaletteTag` (paleta). `false`
 	/// si no cabe o no hay gestor. Atajo de `add_checked` (sin la causa).
+	/// \param name  nombre lógico del asset (clave del registro).
+	/// \param data  puntero al blob (p. ej. de `INCBIN`).
+	/// \param size  tamaño en bytes.
+	/// \return `true` si se copió a Chip y quedó registrado.
 	template <class Tag>
 	bool add(const char* name, const eng::u8* data, eng::usize size) noexcept {
 		return name != nullptr && add<Tag>(eng::util::StringView {name}, data, size);
@@ -140,6 +143,8 @@ public:
 	/// **Reserva** `bytes` para un recurso del dominio `Tag` (sin copia). El banco lo elige el
 	/// dominio (Chip para DMA, Fast→Slow para CPU). Devuelve un `Block<Tag>` **dueño** (el
 	/// llamador lo usa y puede `release`); con `Bank=Chip` el bloque da `Address<Chip>` para DMA.
+	/// \param bytes  tamaño a reservar.
+	/// \return bloque `Tag` **dueño** (vacío si no hay gestor o no cabe).
 	template <class Tag>
 	[[nodiscard]] Block<Tag> create(u32 bytes) noexcept {
 		if (!m_mem.valid()) {

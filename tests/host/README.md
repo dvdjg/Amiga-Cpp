@@ -42,18 +42,18 @@ dependen de hardware y no necesitan WinUAE.
 | Categoría | Tests | Catálogo |
 |-----------|-------|----------|
 | `ai` | 19 | [ai/README.md](ai/README.md) |
-| `audio` | 29 | [audio/README.md](audio/README.md) |
+| `audio` | 36 | [audio/README.md](audio/README.md) |
 | `board` | 20 | [board/README.md](board/README.md) |
 | `cards` | 12 | [cards/README.md](cards/README.md) |
-| `core` | 80 | [core/README.md](core/README.md) |
-| `field` | 26 | [field/README.md](field/README.md) |
-| `graphics` | 45 | [graphics/README.md](graphics/README.md) |
-| `os` | 20 | [os/README.md](os/README.md) |
+| `core` | 81 | [core/README.md](core/README.md) |
+| `field` | 35 | [field/README.md](field/README.md) |
+| `graphics` | 49 | [graphics/README.md](graphics/README.md) |
+| `os` | 24 | [os/README.md](os/README.md) |
 | `parallel` | 1 | [parallel/README.md](parallel/README.md) |
-| `platform/amiga` | 9 | [platform/amiga/README.md](platform/amiga/README.md) |
+| `platform/amiga` | 12 | [platform/amiga/README.md](platform/amiga/README.md) |
 | `res` | 24 | [res/README.md](res/README.md) |
-| `scene` | 21 | [scene/README.md](scene/README.md) |
+| `scene` | 22 | [scene/README.md](scene/README.md) |
 | `sim` | 34 | [sim/README.md](sim/README.md) |
-| `ui` | 24 | [ui/README.md](ui/README.md) |
+| `ui` | 25 | [ui/README.md](ui/README.md) |
 
-Total: 364 tests. Los IDs `HOST-NNN` son únicos en todo `tests/host/` (no por categoría).
+Total: 394 tests. Los IDs `HOST-NNN` son únicos en todo `tests/host/` (no por categoría).

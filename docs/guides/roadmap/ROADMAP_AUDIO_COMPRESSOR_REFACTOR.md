@@ -141,7 +141,7 @@ La variante estricta sin dependencias externas debe compilar WAV/RAW, AUZX, ACP1
 |---|---|---|
 | R0 | Parcialmente ejecutada | El diagnóstico y la matriz de dependencias están documentados en esta ficha; falta convertir las reglas en gates automáticos de CI. |
 | R1 | Parcialmente ejecutada | `include/audio_compressor/io/file_io.hpp` centraliza lectura/escritura, `sdl_player.hpp` usa `unique_ptr` con deleter SDL3 y `main.cpp` ya no incluye Win32; aún quedan `std::FILE`, `system()` y rutas temporales en el pipeline heredado. |
-| R2 | En curso | `io/wav_source.hpp` y `io/raw_source.hpp` leen ventanas; `dsp/resampler.hpp` conserva fase y muestra de borde; SAMPLE forzado con codec explícito usa `write_auzx_windowed` y `formats/auzx_sink.hpp`. Quedan remuestreo conectado al pipeline, `auto`/MUSIC y el cierre del test HOST-394. |
+| R2 | En curso | `io/wav_source.hpp` y `io/raw_source.hpp` leen ventanas; `dsp/resampler.hpp` conserva fase y muestra de borde; SAMPLE forzado con codec explícito usa `write_auzx_windowed` y `formats/auzx_sink.hpp`. Quedan remuestreo conectado al pipeline, `auto`/MUSIC y el cierre del test HOST-420. |
 | R3 | Parcialmente ejecutada | `codecs/registry.hpp` centraliza los encoders AUZX y `formats/binary.hpp` se usa en writers ACP1 v2/v3; falta migrar todos los lectores/parsers y eliminar helpers duplicados del engine/host. |
 
 ### R0 — Contrato y medición
@@ -208,7 +208,7 @@ La variante estricta sin dependencias externas debe compilar WAV/RAW, AUZX, ACP1
 
 ## Evidencia actual
 
-- HOST-394 valida lectura WAV por ventanas, downmix PCM8 y remuestreo stateful entre ventanas. El runner host usa el linker del runtime seleccionado y enlaza estáticamente `libgcc` y `libstdc++` para evitar mezclar runtimes MSYS2/UCRT en Windows.
+- HOST-420 valida lectura WAV por ventanas, downmix PCM8 y remuestreo stateful entre ventanas. El runner host usa el linker del runtime seleccionado y enlaza estáticamente `libgcc` y `libstdc++` para evitar mezclar runtimes MSYS2/UCRT en Windows.
 - La ruta SAMPLE windowed se ha probado con un WAV PCM8 de 11025 Hz, ventanas de 5 muestras, salida a 22050 Hz y codec `none`. El informe resultante valida 64 muestras, `round_trip_ok: true`, `mse_pcm8: 0` y `peak_error: 0`.
 
 ## Conclusiones de auditoría del modelo
@@ -249,7 +249,7 @@ No se debe introducir un `AudioAsset` universal que mezcle fuente, PCM, unidades
 - Completado: `domain/audio_types.hpp` define `AudioFormat`, `WindowSource`, `ApplicationOptions` y `ConversionReport`; WAV y RAW exponen el mismo contrato estático y `SamplePipeline` lo consume sin dispatch virtual.
 - Completado: `Descriptor` declara pérdida, round-trip exacto y paridad de chunk; `CandidateSearch` centraliza la elección por tamaño y el test host cubre Delta+RLE, Fibonacci e IMA.
 - Parcial: `MusicPlan` y `MusicPipeline` separan la deduplicación de unidades, la timeline y el writer ACP1 de la llamada CLI; HPSS y la ingestión windowed de stems todavía se encuentran en `main.cpp` y requieren la extracción completa de R4.
-- Completado: `Acp1HostPlayer` consume ACP1 v1/v2 por ventanas mediante `media::mix_window`; HOST-394 valida una composición mono reconstruida por el player. La reproducción SDL3 de ACP1 sigue pendiente.
+- Completado: `Acp1HostPlayer` consume ACP1 v1/v2 por ventanas mediante `media::mix_window`; HOST-420 valida una composición mono reconstruida por el player. La reproducción SDL3 de ACP1 sigue pendiente.
 - Completado: `file_io.hpp` usa la E/S estándar de batch y `sdl_file_io.hpp` contiene el adaptador SDL3 opcional; la lógica de conversión ya no selecciona SDL3 mediante una macro transitiva.
 - Completado: `AuzxSink` escribe en un archivo temporal y solo reemplaza la salida pública tras `finalize`; el destructor elimina temporales abandonados.
 - Parcial: `hpss_windowed_pcm` conecta HPSS con la ruta MUSIC, reutiliza el buffer de entrada y une los solapes mediante pesos lineales normalizados. La fuente PACK-PCM todavía entrega cada stem completo y `hpss()` reserva sus buffers FFT internos por ventana; ambas acumulaciones quedan pendientes de una workspace/source plenamente streaming.

@@ -14,6 +14,7 @@
 ///   check/radio `lado + pad_x + ancho_etiqueta`; contenedores usan su `bounds`.
 
 #include <eng/core/types/types.hpp>
+#include <eng/core/util/callback.hpp>
 #include <eng/ui/editbox.hpp>
 #include <eng/ui/event.hpp>
 #include <eng/ui/layout.hpp>
@@ -44,7 +45,7 @@ struct Label : Widget {
 	eng::u16 wrap_w = 0u;           ///< ancho de ajuste (0 = usar `bounds.w`)
 };
 
-/// Botón: cara + bisel según `WfPressed`; dispara `on_click(user)` al soltar dentro.
+/// Botón: cara + bisel según `WfPressed`; dispara `on_click()` al soltar dentro.
 struct Button : Widget {
 	Button() noexcept {
 		type = WidgetType::Button;
@@ -53,8 +54,7 @@ struct Button : Widget {
 	const char* text = nullptr;
 	eng::u8 color = 0u;
 	bool use_theme_color = true;
-	void (*on_click)(void* user) = nullptr;
-	void* user = nullptr;
+	eng::util::Callback<> on_click {}; ///< dispara al soltar dentro
 };
 
 /// Casilla: caja + tick; alterna `*value` al soltar dentro.
@@ -65,8 +65,7 @@ struct CheckBox : Widget {
 	}
 	const char* label = nullptr;
 	bool* value = nullptr;
-	void (*on_change)(void* user) = nullptr;
-	void* user = nullptr;
+	eng::util::Callback<> on_change {}; ///< dispara al alternar `*value`
 };
 
 /// Botón de radio: círculo + punto; activa `*value` y desactiva el grupo (`group_id`).
@@ -78,8 +77,7 @@ struct RadioButton : Widget {
 	const char* label = nullptr;
 	bool* value = nullptr;
 	eng::u8 group_id = 0u;
-	void (*on_change)(void* user) = nullptr;
-	void* user = nullptr;
+	eng::util::Callback<> on_change {}; ///< dispara al activar este radio
 };
 
 /// Glifo 1-bit de tick (8×8, MSB primero).
@@ -252,8 +250,8 @@ inline bool event_button(Button& b, const UiEvent& ev) {
 		const bool inside = b.bounds.contains(ev.x, ev.y);
 		b.clear_flag(WfPressed);
 		b.mark_dirty();
-		if (inside && b.on_click != nullptr) {
-			b.on_click(b.user);
+		if (inside && b.on_click) {
+			b.on_click();
 		}
 		return true;
 	}
@@ -278,8 +276,8 @@ inline bool event_check(CheckBox& c, const UiEvent& ev) {
 			if (c.value != nullptr) {
 				*c.value = !*c.value;
 			}
-			if (c.on_change != nullptr) {
-				c.on_change(c.user);
+			if (c.on_change) {
+				c.on_change();
 			}
 		}
 		return true;
@@ -324,8 +322,8 @@ inline bool event_radio(RadioButton& r, const UiEvent& ev) {
 		r.clear_flag(WfPressed);
 		if (inside) {
 			radio_activate(r);
-			if (r.on_change != nullptr) {
-				r.on_change(r.user);
+			if (r.on_change) {
+				r.on_change();
 			}
 		}
 		r.mark_dirty();

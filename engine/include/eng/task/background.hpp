@@ -32,6 +32,7 @@
 
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/intrusive_list.hpp>
+#include <eng/core/util/noncopyable.hpp>
 
 namespace eng::task {
 
@@ -130,7 +131,7 @@ struct TaskProgress {
 };
 
 /// Cola cooperativa de tareas de fondo (pool fijo, sin heap).
-class BackgroundQueue {
+class BackgroundQueue : public eng::util::NonMovable {
 public:
 	static constexpr u8 max_tasks = 8;
 
@@ -140,10 +141,6 @@ public:
 			m_free.push_front(&m_entries[i]);
 		}
 	}
-	BackgroundQueue(const BackgroundQueue&) = delete;
-	BackgroundQueue& operator=(const BackgroundQueue&) = delete;
-	BackgroundQueue(BackgroundQueue&&) = delete;
-	BackgroundQueue& operator=(BackgroundQueue&&) = delete;
 
 	/// Registra una tarea **tipada**. `total_units = 0` la hace continua (nunca
 	/// termina sola; el juego la cancela). `slice_units` es el presupuesto por

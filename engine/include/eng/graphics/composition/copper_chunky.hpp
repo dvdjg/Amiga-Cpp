@@ -52,6 +52,9 @@ public:
 
 	/// Prepara la capa sobre `scene` (debe estar en modo `CopperChunky`): emite la estructura
 	/// en los **dos** bloques del `Plan`. `false` si la geometría no cabe en la capa.
+	/// \param scene  escena en modo `CopperChunky`.
+	/// \param cfg    geometría `{.cols, .rows}` (dentro de `MaxCols`/`MaxRows`).
+	/// \return `false` si la geometría no cabe.
 	[[nodiscard]] bool attach(Scene& scene, CopperChunkyConfig cfg) {
 		if (cfg.cols == 0u || cfg.rows == 0u || cfg.cols > MaxCols || cfg.rows > MaxRows) {
 			m_ok = false;
@@ -69,12 +72,15 @@ public:
 	}
 
 	/// Toma el display mostrando el bloque activo (una vez, tras `attach`).
+	/// \param scene    la escena.
+	/// \param backend  el backend.
 	template <typename Backend>
 	void takeover(Scene& scene, Backend& backend) const {
 		scene.takeover(backend);
 	}
 
 	/// Inicia el frame: el destino de `row()` pasa a ser el bloque **inactivo**.
+	/// \param scene  la escena.
 	void begin_frame(Scene& scene) { m_base = scene.inactive_words(); }
 
 	/// Puntero al `data` del bloque 0 de la fila `row` (válido entre `begin_frame`/`end_frame`).

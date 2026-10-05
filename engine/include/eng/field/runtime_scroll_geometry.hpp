@@ -54,6 +54,16 @@ struct RuntimeScrollGeometry {
 
 /// Construye la geometría del anillo de tiras con parámetros de **runtime**. `nullopt`/error si no
 /// cumple las invariantes que el NTTP verifica por `static_assert`.
+/// \param viewport_w,viewport_h  tamaño visible (px; múltiplo del tile).
+/// \param planes                 profundidad del display.
+/// \param tile_w,tile_h          tamaño de tile (16 o 32).
+/// \param guard_words            guarda en words (≥2; def. 2).
+/// \param fetch_extra_words      words extra de *fetch* (def. 1).
+/// \param split_vertical         `true` para corcóscru (split por línea).
+/// \param ring_words             ancho de anillo explícito (0 = derivado).
+/// \param ring_lines             alto del anillo explícito (0 = derivado).
+/// \param map_words              período del mapa toroidal (0 = mapa acotado).
+/// \return la geometría calculada, o el `ScrollGeomError` que incumple.
 [[nodiscard]] inline eng::util::Expected<RuntimeScrollGeometry, ScrollGeomError>
 runtime_scroll_geometry(eng::u16 viewport_w, eng::u16 viewport_h, eng::u8 planes, eng::u16 tile_w,
 			eng::u16 tile_h, eng::u16 guard_words = 2u, eng::u16 fetch_extra_words = 1u,

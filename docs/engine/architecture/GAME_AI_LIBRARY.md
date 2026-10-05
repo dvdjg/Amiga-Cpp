@@ -121,10 +121,23 @@ por defecto). `false` en `may_contain` garantiza que el estado es nuevo y omite 
 coste. Por tanto los falsos positivos pueden reducir el ahorro, pero no alterar la solución. La
 memoria adicional queda limitada a `BloomBits / 8` bytes de bits más los contadores del filtro y
 se instancia dentro del planner; `bloom_stats()` informa consultas, negativas, posibles y falsos
-positivos confirmados. HOST-415 compara sin filtro y con 32/256 bits: en Hanoi de tres discos,
+positivos confirmados. HOST-426 compara sin filtro y con 32/256 bits: en Hanoi de tres discos,
 256 bits evitan 22 de 50 búsquedas exactas y no producen falsos positivos en esa muestra; 32 bits
 evitan 10 y producen 12 falsos positivos. Es un resultado de ese escenario, no una garantía de
 tasa para otros dominios.
+
+**Medido: el prefiltro no mejora el planner y por eso queda desactivado.** Aunque omite búsquedas
+exactas, `may_contain` **recalcula** el `Hash<KeyT>` de la clave que `m_best.find` volvería a
+calcular, y la sonda del `HashMap` que se evita es más barata que ese hash: el Bloom paga su
+trabajo (hash del `step` + pruebas de bit) en **todas** las consultas y solo ahorra la sonda de
+las negativas. En una microbenchmark con clave de 64 bits (Hanoi 6 discos, `-O2`, mapa de
+768-2048 nodos) el planner con Bloom resultó **~13-16 % más lento** (plan, coste y expansiones
+idénticos), y la penalización no depende del tamaño del filtro ni de la carga del mapa; en el
+68000 el hash es relativamente más caro que la sonda, así que la brecha sería mayor. Un filtro
+Bloom ayuda cuando la comprobación exacta es cara (disco/red), no sobre un mapa in-memory O(1).
+`BloomBits` se conserva como opt-in documentado y **no debe activarse en GOAP**; el cacheo
+`next_key = next.key()` (calcular la clave una vez por sucesor) sí es una micro-mejora que se
+mantiene.
 
 ### 3.2 Uso
 

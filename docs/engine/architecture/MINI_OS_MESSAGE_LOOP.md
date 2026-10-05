@@ -587,11 +587,14 @@ fijos (`for i in missed: fixed_step()`) o hacer un solo update y anotar *lag*. L
 **nunca se detiene** (la lleva la ISR), pero la cola **nunca acumula VBlanks**.
 
 La misma política aplica a otros mensajes de **estado** (joystick/gamepad: solo importa el estado
-actual) con un `StateLatch<T>`; **no** se aplica a `KeyDown` ni `FileDone`, que son eventos. El
-`VBlankLatch` ya implementa secuencia y `missed`, pero `App::on_vblank` publica además un `VBlank`
-por IRQ en su `MsgPort` FIFO. Hasta unificar esos caminos, el latch del mini-SO no evita que el
-puerto independiente de `App` se llene si el juego no lo drena (TIME-001/TIME-002). La arquitectura
-objetivo usa una única secuencia y una única notificación latched por servicio de frame.
+actual) con un `StateLatch<T>`; **no** se aplica a `KeyDown` ni `FileDone`, que son eventos. La
+arquitectura usa **una única secuencia** (`App::m_vblank_count`) y una única notificación por servicio
+de frame: `App::set_frame_sync` elige entre `Event` (mensaje `VBlank` FIFO por IRQ, comportamiento
+histórico), `Latch` (recomendado: sin encolar; la app lee `{sequence, missed}` con `take_frame_tick`)
+o `Disabled` (solo contador, para juegos con su propio sincronismo). El mini-SO siempre mide el VBlank
+aunque la app no consuma mensajes, así que el puerto no se llena por VBlanks no drenados. El `Engine`
+propaga el atraso en `context.frame.frames_elapsed` para que el juego elija su catch-up (TIME-001/
+TIME-002/TIME-009/TIME-010).
 
 ## 11. ¿Busy-wait eliminado?
 

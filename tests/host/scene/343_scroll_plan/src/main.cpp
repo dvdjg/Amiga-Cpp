@@ -34,6 +34,20 @@ int main() {
 	check(eng::scene::scroll_copper_per_line(ScrollKind::CopperRing) == 2u, "ring = 2");
 	check(eng::scene::scroll_copper_per_line(ScrollKind::Fine) == 0u, "fine = 0");
 
+	// Mapeo variante (ScrollingTricks) -> ScrollKind: las variantes con video-split (las XY y
+	// `YUnlimited2`) usan **CopperSplit** —el driver 8-way es el corkscrew `XlimitedScene`
+	// (`y_mode=Ring`), demo 107; no hace falta un `XYUnlimited` aparte—; el resto de anillos X,
+	// CopperRing. Es la via del consumidor NES (ROADMAP_API_COHERENCE §7.3).
+	using eng::playfield::ScrollVariant;
+	check(eng::scene::scroll_kind_for_variant(ScrollVariant::XYLimited) == ScrollKind::CopperSplit,
+	      "XYLimited -> CopperSplit (corkscrew 8-way)");
+	check(eng::scene::scroll_kind_for_variant(ScrollVariant::XYUnlimited) == ScrollKind::CopperSplit,
+	      "XYUnlimited -> CopperSplit");
+	check(eng::scene::scroll_kind_for_variant(ScrollVariant::XLimited) == ScrollKind::CopperRing,
+	      "XLimited -> CopperRing");
+	check(eng::scene::scroll_kind_for_variant(ScrollVariant::YUnlimited) == ScrollKind::Fine,
+	      "YUnlimited -> Fine (sin split)");
+
 	// Degradacion por presupuesto de Copper.
 	check(eng::scene::choose_scroll(ScrollKind::CopperSplit, 4u) == ScrollKind::CopperSplit,
 	      "cabe -> split");

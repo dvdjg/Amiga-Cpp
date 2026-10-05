@@ -260,21 +260,27 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 	}
 
 	if (fill) {
-		// **Relleno de color del rectangulo** (AHRM "Extracting a Range of Columns" + WinUAE
-		// `custom.cpp` `BLTADAT`): `D = A`, **A deshabilitada** (sin fetch) con `BLTADAT`
-		// preload `$FFFF`/`$0000`; `AFWM`/`ALWM` recortan la primera/ultima palabra. Se cargan
-		// primero `BLTCON0/1` y despues `BLTADAT` (el orden importa: cargar datos antes del shift
-		// da resultados impredecibles). `job.minterm` = `$FF` (plano a 1) o `$00` (plano a 0).
+		// **Relleno de color del rectangulo PRESERVANDO el borde parcial**. Cookie-cut con la
+		// mascara de borde como canal A: `D = (A & B) | (~A & C)` (minterm `$CA`). A = mascara
+		// **constante** (`BLTADAT = $FFFF` recortado por `AFWM`/`ALWM`; AHRM cap. 6: la mascara se
+		// aplica al data register de un canal **deshabilitado**), B = relleno constante (`BLTBDAT`
+		// = `$FFFF` pon / `$0000` limpia), C = **destino** (`BLTCPT`=`BLTDPT`). Los bits fuera del
+		// rect (primera/ultima palabra de un rect no alineado a 16) se **preservan** via C; con
+		// `D = A` + `AFWM` se pondrian a 0. `job.minterm` = `$FF` (plano a 1) o `$00` (plano a 0).
 		if (!wait_blitter()) {
 			return false;
 		}
 		custom_base[custom_bltcon0_offset] =
-			static_cast<u16>(blt_use_d | graphics::kBlitterMintermCopyA); // D = A, sin USEA
+			static_cast<u16>(0x00cau | blt_use_c | blt_use_d); // A/B constantes; C=D realimenta
 		custom_base[custom_bltcon1_offset] = 0u;
 		custom_base[custom_bltafwm_offset] = job.fill.afwm;
 		custom_base[custom_bltalwm_offset] = job.fill.alwm;
-		custom_base[custom_bltadat_offset] = (job.minterm == 0xffu) ? 0xffffu : 0x0000u;
+		custom_base[custom_bltadat_offset] = 0xffffu; // A = mascara (recortada por AFWM/ALWM)
+		custom_base[custom_bltbdat_offset] =
+			(job.minterm == 0xffu) ? 0xffffu : 0x0000u; // B = relleno
+		custom_base[custom_bltcmod_offset] = static_cast<u16>(job.destination_modulo_bytes);
 		custom_base[custom_bltdmod_offset] = static_cast<u16>(job.destination_modulo_bytes);
+		write_custom_pointer(custom_bltcpt_offset, job.destination.words());
 		write_custom_pointer(custom_bltdpt_offset, job.destination.words());
 		custom_base[custom_bltsize_offset] =
 			static_cast<u16>((job.height << 6u) | job.words_per_row);
@@ -339,9 +345,13 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 	// Todos los registros compartidos del Blitter deben fijarse solo cuando el job anterior
 	// terminó: el blit en curso lee BLTCON/MOD durante su ejecución. Bartman hace WaitBlit antes
 	// de programarlos; esperar únicamente antes de cambiar los punteros deja una carrera real.
-	if (!wait_blitter()) {
-		return false;
-	}
+		// NO se llama `wait_blitter()`: en la cola asincrona (`wait=false`) el feeder programaria
+		// aqui registros del Blitter aun en curso y se bloquearia hasta que acabara, rompiendo el
+		// encadenado por IRQ. La programacion del `FillRect` solo toca registros que el job en
+		// curso no relee (BLTADAT/BDAT/DAT son data registers de solo escritura) y sus punteros
+		// los reinstala `write_custom_pointer`; el feeder arranca el blit y vuelve. En el camino
+		// sincrono (`wait=true`) el `blitter_submit` ya espera al terminar.
+
 	// Registros derivados de la intención por el **encoder único** (`blitter_job_from`): la
 	// codificación (BLTCON/MOD/minterm) NO se duplica aquí. Se calcula **una vez por job** (no por
 	// plano: los comunes no dependen del plano) y los PUNTEROS sí se re-apuntan por canal y plano.
@@ -997,6 +1007,33 @@ bool AmigaBackend::blitter_fill_rect(eng::u8* plane_base, u8 planes, u32 plane_s
 		blit_fill_region(plane, rstride, wx0, static_cast<eng::s16>(y), words, h, fill,
 				 afwm, alwm);
 	}
+	return wait ? wait_blitter() : true;
+}
+
+bool AmigaBackend::blitter_fill_words_strided(eng::u16* d, eng::u16 value, eng::u16 rows,
+					      u16 stride_words, bool wait) {
+	if (d == nullptr || rows == 0u || stride_words == 0u) {
+		return false;
+	}
+	// Habilita el Blitter SIN borrar el resto del DMA (bitplane/copper/sprite).
+	const u16 dma_cur = static_cast<u16>(custom_base[custom_dmaconr_offset] & 0x03ffu);
+	custom_base[custom_dmacon_offset] =
+		static_cast<u16>(dma_setclr | (dma_cur | dma_master | dma_blitter));
+	blit_fill_word_strided(d, value, rows,
+			       static_cast<u16>(static_cast<u32>(stride_words) * 2u - 2u));
+	return wait ? wait_blitter() : true;
+}
+
+bool AmigaBackend::blitter_copy_words_strided(const eng::u16* s, eng::u16* d, eng::u16 words,
+					      eng::u16 rows, u16 smod_words, u16 dmod_words, bool wait) {
+	if (s == nullptr || d == nullptr || words == 0u || rows == 0u) {
+		return false;
+	}
+	const u16 dma_cur = static_cast<u16>(custom_base[custom_dmaconr_offset] & 0x03ffu);
+	custom_base[custom_dmacon_offset] =
+		static_cast<u16>(dma_setclr | (dma_cur | dma_master | dma_blitter));
+	blit_copy_words_strided(s, d, words, rows, static_cast<u16>(smod_words * 2u),
+				static_cast<u16>(dmod_words * 2u));
 	return wait ? wait_blitter() : true;
 }
 

@@ -317,5 +317,47 @@ las 3D `077_math3d_cube`, `078_math3d_solid` y `084_mf_rotation`, sin `install` 
 5. **Medición**: el `runner.uae` lo genera `run-demo.ts`; en entornos sin Git Bash se
    construye a mano para `measure-fps` (como se hizo con 081).
 
+## 6. Ejemplo: juego con varias regiones (DPF + sprites + chunky)
+
+Un juego **no elige una sola técnica**: compone el frame registrando **efectos** en una `Scene`.
+Cada efecto (un **ladrillo**: `effects::RiskyWoodsLayer`/`FreeFormSpriteLayer`, un DPF por playfields,
+un `CopperChunkyLayer`, un degradado, un HUD) **reclama su rectángulo** con `band_scope()` —
+scanlines (`first_line..last_line`) **y** los registros/canales que toca (`register_mask`) — y
+aporta su trozo al `copper::Plan`, que es **la clase que monta la Copperlist y la manda al Copper**.
+
+```cpp
+eng::composition::Scene scene;
+scene.create(mem, res, limits::ocs_a500);          // bitplanes + Copperlist + Plan
+
+// Fondo por sprites en su banda (canales de sprite + BPLCON2):
+scene.add_effect([&](eng::composition::Scene& s) { free_bg.apply_into(s.plan()); });
+// DPF 3+3 en otra banda (playfield, BPLCON1 grano fino, módulos):
+scene.add_effect([&](eng::composition::Scene& s) { dual_pf.apply_into(s.plan()); });
+// Chunky (Copper sin bitplanes, COLOR00 por scanline) en su trozo:
+scene.add_effect([&](eng::composition::Scene& s) { chunky.compose(s); });
+// Paleta base + zonas raster:
+scene.add_effect([&](eng::composition::Scene& s) { palette_zones.apply(s.plan()); });
+
+// por frame: montar -> (Parchear lo variable) -> cerrar -> presentar
+scene.begin_build();
+scene.run_effects();         // cada efecto llama a su apply_into(plan)
+scene.end_build();           // flip del Plan; false si overflow
+scene.present(backend);      // instala el bloque activo
+```
+
+**Reglas del encaje** (lo que hace cómoda la composición):
+
+- **Un efecto, un rectángulo, una máscara.** Dos efectos **pueden compartir scanlines** si sus
+  `register_mask` **no solapan** (p. ej. sprites arriba + un degradado de fondo). `reserve_band`
+  marca conflicto solo si solapan **rango y registros**.
+- **Nada de propiedades cruzadas**: la `FreeFormSpriteLayer` no sabe que existe un DPF; el DPF no sabe
+  de sprites. El `Plan` los reconcilia (bandas, presupuesto, orden por scanline).
+- **Coste casi nulo**: la lista es *data* que ejecuta el Copper; la CPU solo **parchea** lo variable
+  (`Plan`/`patch`), nunca la traduce por frame (ver §3).
+
+Así, la `FreeFormSpriteLayer` deja de ser "la escena": es **un ladrillo** que se registra como
+cualquier otro, y el mismo juego puede ponerla en una banda acotada mientras un DPF ocupa otra y
+un chunky una tercera.
+
 
 

@@ -17,6 +17,7 @@
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/memory/memory_manager.hpp>
 #include <eng/os/file.hpp>
 #include <eng/os/message.hpp>
@@ -28,13 +29,11 @@ namespace eng::res {
 
 /// Ver doc del fichero. `DynLoader` y `MemoryManager` entran por **referencia** (no son observadores
 /// `Ref`: la vida del overlay es la de quien lo declara, típicamente el juego/una zona).
-class AsyncOverlay {
+class AsyncOverlay : public eng::util::Noncopyable {
 public:
 	enum class State : eng::u8 { Idle = 0, Reading, Ready, Failed };
 
 	explicit AsyncOverlay(DynLoader& loader) noexcept : m_dl(loader) {}
-	AsyncOverlay(const AsyncOverlay&) = delete;
-	AsyncOverlay& operator=(const AsyncOverlay&) = delete;
 
 	/// Arranca la lectura asíncrona del `.engz` en `container`; `scratch` es la salida del decode.
 	/// El `MemoryManager` (por `Ref`, no propietario) se fija aquí. `false` (estado `Failed`) si no

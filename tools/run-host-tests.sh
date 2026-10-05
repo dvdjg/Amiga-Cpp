@@ -28,6 +28,12 @@ CXXFLAGS="-std=$STD -I$ROOT/engine/include -Wall -Wextra -Werror=narrowing -fno-
 
 CXX="${CXX:-g++}"
 
+# Antepone el `bin` del compilador al PATH: en Windows/MinGW las DLLs de runtime
+# (libstdc++/libgcc) de los tests deben ser las del que los enlaza, no las de otra
+# instalacion. Ver tools/scripts/host-cxx-env.sh.
+. "$ROOT/tools/scripts/host-cxx-env.sh"
+host_cxx_prepare "$CXX"
+
 # --- Argumentos -------------------------------------------------------------
 # Sin argumentos: todos los tests host. Con rutas: solo esos. Con `--category X`:
 # solo los tests de la categoría X (`tests/host/X/...`). Ver docs/testing/TAXONOMY.md.

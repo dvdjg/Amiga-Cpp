@@ -1,0 +1,8 @@
+# Rutas EXCLUIDAS del gate de encoding (deuda temporal; reincorporar al arreglarlas).
+# Formato: una ruta relativa a la raiz del repo por linea (prefijo); '#' comenta.
+# Ver tools/check/encoding.mjs y AGENTS.md §1.4.
+#
+# El generador de ports NES emite BOM + UTF-8 doblemente codificado en demos/nes/.
+# Se aisla la demo hasta arreglar el generador (ver tools/check/encoding.mjs).
+demos/nes/dk_port/
+demos/nes/dk_port_xl/

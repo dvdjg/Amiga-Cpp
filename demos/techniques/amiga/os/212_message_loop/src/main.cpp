@@ -131,6 +131,10 @@ struct DemoApp {
 
 	void on_frame(eng::u32 f) {
 		frames = f;
+		// El run-status `frame` avanza por el **canal lateral**, independiente del overlay
+		// `debug()`: prueba que el bucle corre aunque la captura del overlay salga estatica
+		// (ver `docs/debugging/investigaciones/minios-demo-captura-estatica.md`).
+		eng::debug::mark_frame(g_eng_run_status, f);
 		bg_work = g_bg_work;
 		// Reporta el avance del fondo por el run-status (0x2120BBBB). Si ya llegó alguna tecla,
 		// joystick, pad o timer, conserva su marca para que el runner pueda verla al final.

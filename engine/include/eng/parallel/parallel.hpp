@@ -36,6 +36,7 @@
 
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/core/util/noncopyable.hpp>
 
 #if !defined(__m68k__)
 #include <atomic>
@@ -68,11 +69,9 @@ namespace eng::parallel {
 
 /// Mutex de exclusión mutua. En el Amiga es un no-op (un solo contexto); en el host
 /// envuelve `std::mutex`.
-class Mutex {
+class Mutex : public eng::util::Noncopyable {
 public:
 	Mutex() noexcept = default;
-	Mutex(const Mutex&) = delete;
-	Mutex& operator=(const Mutex&) = delete;
 
 	void lock() noexcept {
 #if !defined(__m68k__)
@@ -102,7 +101,7 @@ private:
 };
 
 /// Cierre RAII de un `Mutex` (equivalente a `std::lock_guard`).
-class LockGuard {
+class LockGuard : public eng::util::Noncopyable {
 public:
 	explicit LockGuard(Mutex& mutex) noexcept : m_mutex(mutex) { m_mutex->lock(); }
 	~LockGuard() noexcept {
@@ -110,9 +109,6 @@ public:
 			m_mutex->unlock();
 		}
 	}
-	LockGuard(const LockGuard&) = delete;
-	LockGuard& operator=(const LockGuard&) = delete;
-
 private:
 	eng::Ref<Mutex> m_mutex {};
 };
@@ -121,7 +117,7 @@ private:
 /// `volatile T`; en el host, `std::atomic<T>`. La API es la mínima que usan los
 /// algoritmos del engine (contadores de trabajo y flags de cancelación).
 template <class T>
-class Atomic {
+class Atomic : public eng::util::Noncopyable {
 public:
 	Atomic() noexcept = default;
 	explicit Atomic(T value) noexcept
@@ -131,8 +127,6 @@ public:
 		: m_value(value)
 #endif
 	{}
-	Atomic(const Atomic&) = delete;
-	Atomic& operator=(const Atomic&) = delete;
 
 	[[nodiscard]] T load() const noexcept {
 #if defined(__m68k__)
@@ -195,11 +189,9 @@ private:
 
 /// Variable de condición. En el Amiga `wait` es un no-op (no hay otro contexto que
 /// notifique); se mantiene para que el código compile sin ramas.
-class ConditionVariable {
+class ConditionVariable : public eng::util::Noncopyable {
 public:
 	ConditionVariable() noexcept = default;
-	ConditionVariable(const ConditionVariable&) = delete;
-	ConditionVariable& operator=(const ConditionVariable&) = delete;
 
 	void notify_one() noexcept {
 #if !defined(__m68k__)
@@ -256,11 +248,9 @@ private:
 
 /// Fuente de cancelación cooperativa: los hilos/tareas consultan su `StopToken` en
 /// cada rebanada y terminan limpiamente.
-class StopSource {
+class StopSource : public eng::util::Noncopyable {
 public:
 	StopSource() noexcept = default;
-	StopSource(const StopSource&) = delete;
-	StopSource& operator=(const StopSource&) = delete;
 
 	[[nodiscard]] StopToken token() const noexcept { return StopToken(m_flag); }
 	void request_stop() noexcept { m_flag.store(true); }
@@ -275,7 +265,7 @@ using ThreadFn = void (*)(void*);
 
 /// Hilo real. En el Amiga `start` devuelve `false` (no hay hilos); el llamador debe
 /// comprobar el retorno o condicionar con `hardware_threads()`.
-class Thread {
+class Thread : public eng::util::Noncopyable {
 public:
 	Thread() noexcept = default;
 	~Thread() noexcept {
@@ -283,9 +273,6 @@ public:
 			join();
 		}
 	}
-	Thread(const Thread&) = delete;
-	Thread& operator=(const Thread&) = delete;
-
 	/// Arranca el hilo. Devuelve `false` si ya estaba activo o si el target no
 	/// soporta hilos (Amiga).
 	[[nodiscard]] bool start(ThreadFn fn, void* arg) noexcept {

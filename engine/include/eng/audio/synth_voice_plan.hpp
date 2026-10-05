@@ -46,6 +46,7 @@ struct SynthTrackAssignment {
 		const bool mixer_first = request.route == SynthRoute::PreferMixer || request.route == SynthRoute::MixerRequired;
 		const bool paula_only = request.route == SynthRoute::PaulaRequired;
 		const bool mixer_only = request.route == SynthRoute::MixerRequired;
+		// Intenta colocar la pista en una de las tres voces Paula sin solape; false si no cabe.
 		const auto try_paula = [&]() {
 			if (mixer_only) return false;
 			for (eng::u8 voice = 0u; voice < 3u; ++voice) {
@@ -56,6 +57,7 @@ struct SynthTrackAssignment {
 			}
 			return false;
 		};
+		// Intenta colocar la pista en una de las cuatro voces mixer sin solape; false si no cabe.
 		const auto try_mixer = [&]() {
 			if (paula_only) return false;
 			for (eng::u8 voice = 0u; voice < 4u; ++voice) {

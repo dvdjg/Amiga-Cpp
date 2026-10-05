@@ -143,11 +143,15 @@ struct DirtyRect {
 };
 
 /// Conversión `eng::Box` → `DirtyRect` (bordes `right`/`bottom` **exclusivos**).
+/// \param b  rectángulo en coordenadas enteras.
+/// \return el `DirtyRect` equivalente (`right = x+w`, `bottom = y+h`).
 [[nodiscard]] constexpr DirtyRect dirty_rect_of(const eng::Box& b) {
 	return { b.x, b.y, static_cast<s16>(b.x + b.w), static_cast<s16>(b.y + b.h) };
 }
 
 /// Conversión `DirtyRect` → `eng::Box` (inclusivo en `right`/`bottom`).
+/// \param d  rectángulo (bordes exclusivos).
+/// \return el `Box` equivalente, o vacío si `d` no es válido.
 [[nodiscard]] constexpr eng::Box box_of(const DirtyRect& d) {
 	return d.valid() ? eng::Box::from_ltrb(d.left, d.top, static_cast<s16>(d.right - 1),
 					       static_cast<s16>(d.bottom - 1))
@@ -208,10 +212,21 @@ public:
 	}
 	[[nodiscard]] constexpr u8 dma_asset_count() const noexcept { return m_dma_asset_count; }
 
+	/// Parche de **paleta base** (todo el campo) de `count` colores desde `first`.
+	/// \param colors  paleta de dominio (cubre el tramo pedido).
+	/// \param first   primer índice (0..31).
+	/// \param count   nº de colores.
+	/// \return `false` (y `ok()==false`) si el tramo no es válido o no cabe.
 	bool add_base_palette_patch(eng::PaletteWords colors, u8 first = 0, u8 count = 32) {
 		return add_palette_patch({PalettePatchTarget::Base, 0, first, count, colors});
 	}
 
+	/// Parche de **paleta por zona** (a partir de la línea `line`).
+	/// \param line    línea raster donde empieza la zona.
+	/// \param colors  paleta de dominio.
+	/// \param first   primer índice (0..31).
+	/// \param count   nº de colores.
+	/// \return `false` (y `ok()==false`) si no es válido o no cabe.
 	bool add_zone_palette_patch(u8 line, eng::PaletteWords colors, u8 first = 0, u8 count = 32) {
 		return add_palette_patch({PalettePatchTarget::Zone, line, first, count, colors});
 	}
@@ -285,6 +300,8 @@ public:
 	/// Encola un aviso con `ticket`, que se disparará cuando hayan terminado los trabajos
 	/// encolados **hasta ahora**. Para avisar al final de la ristra, llamar tras el último
 	/// `sprite`/`clear_box`/… Es una **intención más** del plan (no un trabajo): no ocupa Blitter.
+	/// \param ticket  id que viaja en el `MsgType::IntentDone` al dispararse.
+	/// \return `false` (y `ok()==false`) si no cabe.
 	bool add_notify(u16 ticket) noexcept {
 		if (m_notify_count >= kMaxNotifies) {
 			m_ok = false;
@@ -298,6 +315,8 @@ public:
 		return m_notifies[index];
 	}
 
+	/// Fija los **límites** del presupuesto de Blitter y refresca el informe.
+	/// \param limits  `{warning_words, max_words, warning_jobs, max_jobs}`.
 	void set_blit_budget_limits(BlitBudgetLimits limits) {
 		m_blit_budget_limits = limits;
 		rebuild_blit_budget_report();
@@ -321,6 +340,8 @@ public:
 	/// pequenos redundantes cuando un BOB se mueve poco: el area anterior y la nueva
 	/// suelen formar una unica banda que conviene tratar junta a nivel de scheduler,
 	/// aunque internamente el Blitter siga haciendo save/restore/draw concretos.
+	/// \param rect  rectángulo tocado (se fusiona con los que solapen o toquen).
+	/// \return `false` (y `ok()==false`) si es inválido o no cabe.
 	bool add_dirty_rect(DirtyRect rect) {
 		if (!rect.valid()) {
 			m_ok = false;

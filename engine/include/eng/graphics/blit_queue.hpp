@@ -59,6 +59,8 @@ struct BlitOp {
 /// **no inventa un «juego de registros» paralelo**: reusa el trabajo canónico; el paso a registros
 /// lo hace `blitter_job_from`. `Fill` → `ClearRect`; `Stamp` → `OrBlob`; `MaskedStamp` →
 /// `MaskedBobCookieCut`. `Stamp`/`MaskedStamp` leen desde la esquina de su zona y desplazan con `ASH`.
+/// \param op  intención de blit (`Fill`/`Stamp`/`MaskedStamp`).
+/// \return el `BlitJob` canónico equivalente.
 [[nodiscard]] inline BlitJob blit_job_from(const BlitOp& op) noexcept {
   const bool inter = op.dst.interleaved();
 	const eng::u8 planes = op.dst.plane_count;
@@ -110,6 +112,8 @@ struct BlitOp {
 /// `BLTCON0` de EOR, pero su `FILL_XOR`/base son un **preámbulo de lote** del backend (estado
 /// `eor_open`, una vez por racha), no un registro por trabajo → se queda en el backend. **`C2P`**
 /// **no** es un `BlitterJob` (13 fases encadenadas) → camino aparte.
+/// \param j  trabajo canónico.
+/// \return el `BlitterJob` (registros listos para el Blitter) equivalente.
 [[nodiscard]] inline BlitterJob blitter_job_from(const BlitJob& j) noexcept {
 	const eng::u16 shift = static_cast<eng::u16>(j.source_shift);
 	const bool clear = j.kind == BlitJobKind::ClearRect;
@@ -138,6 +142,10 @@ struct BlitOp {
 		b.bltalwm = shifted ? static_cast<eng::u16>(0xffffu << shift) : 0xffffu;
 		b.bltamod = shifted ? src_mod : 0;
 		b.bltbmod = 0;
+		// Fuente por C (`D=C`): `words_per_row` palabras por fila + `bltcmod` tras cada fila.
+		// Una fuente COMPACTA (`source_modulo_bytes == 0`) lee contiguo (modulo 0); una fuente
+		// con stride (p. ej. `TileBlockCopy` del banco X-limited, 40 B/planelínea → src_mod 38)
+		// necesita su modulo. Por eso C usa `src_mod`, no 0.
 		b.bltcmod = src_mod;
 		b.bltdmod = j.destination_modulo_bytes;
 		b.bltapt = shifted ? j.source.words() : nullptr;
@@ -270,17 +278,28 @@ template <eng::u16 N, class Executor>
 class BlitQueue : public eng::IntentQueue<N, BlitOp, Executor, eng::NoDone> {
 public:
 	/// **Intención**: rellenar (`D = 0`) un rectángulo del destino (una petición).
+	/// \param dst   destino (planos Chip).
+	/// \param rect  rectángulo a rellenar.
 	void fill(BitmapView<PlaneTag, MemoryKind::Chip> dst, eng::Box rect) noexcept {
 		this->enqueue(BlitOp {BlitOp::Kind::Fill, dst, {}, {}, rect, 0});
 	}
 
 	/// **Intención**: OR de un asset sobre el destino (fino con `ashift`), una petición.
+	/// \param src     asset BOB (Chip).
+	/// \param dst     destino (planos Chip).
+	/// \param rect    rectángulo del stamp.
+	/// \param ashift  fine shift 0..15.
 	void stamp(BitmapView<BobTag, MemoryKind::Chip> src, BitmapView<PlaneTag, MemoryKind::Chip> dst,
 		   eng::Box rect, eng::u8 ashift = 0) noexcept {
 		this->enqueue(BlitOp {BlitOp::Kind::Stamp, dst, src, {}, rect, ashift});
 	}
 
 	/// Encola una vista usando una lease Chip mantenida por el llamador hasta completar el plan.
+	/// \param src     asset BOB (Chip).
+	/// \param dst     destino (planos Chip).
+	/// \param rect    rectángulo del stamp.
+	/// \param lease   lease DMA del asset (debe seguir viva al ejecutar el plan).
+	/// \param ashift  fine shift 0..15.
 	void stamp(BitmapView<BobTag, MemoryKind::Chip> src, BitmapView<PlaneTag, MemoryKind::Chip> dst,
 		   eng::Box rect, const eng::res::AssetDmaLease& lease, eng::u8 ashift = 0) noexcept {
 		if (lease.valid() && lease.view().kind == MemoryKind::Chip &&
@@ -291,6 +310,11 @@ public:
 
 	/// **Intención**: cookie-cut (`D = (A & B) | (~A & C)`), una petición. `mask` es el plano de
 	/// máscara (`1` = tomar la imagen `src`, `0` = conservar el fondo).
+	/// \param src     imagen BOB (Chip).
+	/// \param mask    plano de máscara (Chip).
+	/// \param dst     destino (planos Chip).
+	/// \param rect    rectángulo del cookie-cut.
+	/// \param ashift  fine shift 0..15.
 	void masked_stamp(BitmapView<BobTag, MemoryKind::Chip> src,
 			  BitmapView<BobTag, MemoryKind::Chip> mask,
 			  BitmapView<PlaneTag, MemoryKind::Chip> dst, eng::Box rect,
@@ -299,6 +323,7 @@ public:
 	}
 
 	/// **Intención en array de golpe**: encola muchas de una vez.
+	/// \param ops  operaciones a encolar.
 	void all(eng::Span<const BlitOp> ops) noexcept {
 		for (const BlitOp& op : ops) {
 			this->enqueue(op);

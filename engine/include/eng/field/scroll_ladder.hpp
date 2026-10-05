@@ -31,6 +31,9 @@ template <class Backend, eng::u16 MaxEngines = 4u>
 class ScrollLadder {
 public:
 	/// Registra un motor con la geometría que implementa. `false` si no cabe.
+	/// \param layer  el motor (lo **posee** el juego).
+	/// \param geom   geometría del anillo que implementa el motor.
+	/// \return `false` si la escalera está llena.
 	[[nodiscard]] bool add(eng::playfield::ScrollLayer<Backend>& layer,
 			       const RuntimeScrollGeometry& geom) noexcept {
 		if (m_count >= MaxEngines) {
@@ -43,6 +46,8 @@ public:
 	}
 
 	/// El motor cuya geometría **coincide** con `g` (mismo layout); `Ref` inválido si ninguno encaja.
+	/// \param g  geometría cargada en runtime.
+	/// \return el motor que la implementa, o `Ref` inválido.
 	[[nodiscard]] eng::Ref<eng::playfield::ScrollLayer<Backend>>
 	pick(const RuntimeScrollGeometry& g) noexcept {
 		for (eng::u16 i = 0u; i < m_count; ++i) {

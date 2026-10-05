@@ -33,9 +33,10 @@ declara el `GameDisplay` (geometría + paleta + efectos) y arranca (`set_display
 - Bucle de **coste cero** con las primitivas del **plan del Blitter**: `fill_box` para el fondo y
   el objeto (relleno de color diferido, `D = A` sin fetch de D). Medido: **~37,5 fps (1,34
   campos/frame)** con fondo + objeto; un solo `clear_box` de fondo va a 50.
-- `fill_box` recorta el rect con `AFWM`/`ALWM` sin leer D: en un rect **no alineado a 16 px**, las
-  palabras de borde ponen a 0 los bits que quedan **fuera** del rectángulo. Alinea `b.x`/`b.w` a
-  múltiplos de 16 (como hace la plantilla) para bordes exactos.
+- `fill_box` hace cookie-cut (`D = (A & B) | (~A & C)`, `$CA`): la máscara de borde va por A
+  (`AFWM`/`ALWM`), el color por B y el destino se realimenta por C, así que en un rect **no
+  alineado a 16 px** los píxeles fuera del rect se **preservan**. Alinear `b.x`/`b.w` sigue siendo
+  lo más barato (un solo blit por palabra completa).
 - **No mezclar inmediato con diferido**: `fill`/`clear` usan el rasterizador (CPU o Blitter
   inmediato) y se vuelcan **ya**, mientras `clear_box`/`fill_box`/`sprite`/`text`/`frame` se
   **encolan** y se ejecutan en `present`. Dibujar un `fill` antes de un `clear_box` diferido hace

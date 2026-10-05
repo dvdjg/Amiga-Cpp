@@ -302,18 +302,31 @@ struct AbyssDemo {
 				app.set_async_present(true);
 			}
 		}
+		// **Política de sincronización de frame = `Latch`** (M12, `TIME-001/010`): en vez de un
+		// mensaje `VBlank` FIFO por IRQ, el `App` mantiene una **instantánea coherente**
+		// `{sequence, missed}` que el juego lee con `take_frame_tick`. Es el modo recomendado: no
+		// arriesga desbordar el puerto y da el catch-up (`frames_elapsed`) sin un segundo contador.
+		if constexpr (requires { app.set_frame_sync(decltype(app)::FrameSyncMode::Latch); }) {
+			app.set_frame_sync(decltype(app)::FrameSyncMode::Latch);
+		}
 		m_ready = true;
 	}
 
 	void update(auto& app) {
 
-		// **Cola de mensajes del mini-SO** (`ENG_APP_MAIN` la deja lista): el latido de VBlank
-		// del `App` publica `MsgType::VBlank` en `app.port()` y el juego lo drena aquí. Sin
-		// drenar, el puerto se llena y descarta; un juego real consume además la entrada.
+		// **Cola de mensajes del mini-SO**: en modo `Latch` el VBlank **no** llega como mensaje
+		// FIFO; se lee la instantánea `{sequence, missed}` con `take_frame_tick` (no-op si el
+		// modo es `Event`). El resto de mensajes (p. ej. `IntentDone` de la cadena async) sí van
+		// por el puerto.
+		eng::os::VBlankTick tick {};
+		if (app.take_frame_tick(tick)) {
+			++m_vblank_msgs;
+			m_last_frames_elapsed = tick.missed + 1u;
+		}
 		eng::os::Msg m;
 		while (app.port().pop(m)) {
 			if (m.type == eng::os::MsgType::VBlank) {
-				++m_vblank_msgs;
+				++m_vblank_msgs; // por si el backend sigue en modo `Event`
 			} else if (m.type == eng::os::MsgType::IntentDone) {
 				// Aviso de la cadena async (`Screen::notify`): el `ticket` identifica qué punto
 				// de la ristra ha terminado. Aquí solo se cuenta para verificar el mecanismo.
@@ -428,7 +441,8 @@ struct AbyssDemo {
 
 	eng::graphics::Sprite m_sprite {};
 	eng::Assets m_assets {};
-	eng::u32 m_vblank_msgs = 0u; ///< mensajes `VBlank` drenados del puerto del mini-SO
+	eng::u32 m_vblank_msgs = 0u; ///< ticks `VBlank` leídos del latch/mensajes del mini-SO
+	eng::u32 m_last_frames_elapsed = 1u; ///< `frames_elapsed` del último tick (catch-up, M12)
 	eng::u32 m_chain_done = 0u;  ///< avisos `IntentDone` de la cadena async (kChainTicket)
 	bool m_ready = false;
 };

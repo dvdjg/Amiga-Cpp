@@ -10,7 +10,7 @@ Categoría `os` de la batería host (L1). El índice de categorías está en [..
 | HOST-017 | [background_task](017_background_task/README.md) | `eng::task::BackgroundQueue`: tareas de fondo cooperativas (progreso/rendimiento, adaptación por `vpos`, prioridad al bucle principal). |
 | HOST-219 | [os_core](219_os_core/README.md) | Mini-SO núcleo (`eng/os/message.hpp` + `port.hpp`): `Msg` trivial, `MsgQueue` SPSC (FIFO/peek/overflow) y señales OR-eadas. |
 | HOST-220 | [ui_bridge](220_ui_bridge/README.md) | Mini-SO: puente `os::Msg` → `ui::UiEvent` (ratón, teclado con modificadores, joystick/pad; descarta lo que no es entrada). |
-| HOST-222 | [os_timer](222_os_timer/README.md) | Mini-SO: `TimerService` (frames/µs, one-shot/periódico, `stop`, capacidad). |
+| HOST-222 | [os_timer](222_os_timer/README.md) | Mini-SO: `TimerService` (frames/µs, one-shot/periódico, `stop` por handle, capacidad, fase preservada, deadlines wrap-safe, catch-up `Coalesce`/`SkipToNext`/`CatchUpAll` y handles generacionales). |
 | HOST-236 | [os_latched](236_os_latched/README.md) | Mini-SO: prioridad (`PrioMsgQueue`, los `High` se cuelan), `peek`, coalescing de `MouseMove` y VBlank latched (secuencia + `missed`). |
 | HOST-237 | [os_dispatch](237_os_dispatch/README.md) | Mini-SO: despacho por tabla (`HandlerTable`) indexada por `MsgType`, cobertura y `dispatch_all`. |
 | HOST-238 | [os_time](238_os_time/README.md) | Mini-SO: `eng/os/time.hpp` — conversiones ticks↔µs (PAL/NTSC) y `ScopedTimer` con `TickSource`. |
@@ -29,3 +29,4 @@ Categoría `os` de la batería host (L1). El índice de categorías está en [..
 | HOST-403 | [path_normalize](403_path_normalize/README.md) | VFS (R6.1): `eng::os::normalize_path` — colapso de separadores, `.`/`..`, absolutos/relativos y errores (vacío, escape, sin cabida). |
 | HOST-404 | [request_table](404_request_table/README.md) | E/S (R6.2): `eng::os::RequestTable`/`RequestId` — peticiones con **generación**: rechazo de respuestas tardías de un slot reutilizado, cancelación y llenado. |
 | HOST-409 | [vfs](409_vfs/README.md) | VFS (R6.1): `eng::os::Vfs<Backend>` — paths normalizados + `exists`/`size`/`read`/`read_all` sobre backend simulado; errores normalizados. |
+| HOST-415 | [frame_sync_policy](415_frame_sync_policy/README.md) | Mini-SO: política de sincronización de frame (`Event`/`Latch`/`Disabled`) y catch-up (`VBlankTick::frames_elapsed`, wrap-safe) — `TIME-001/002/009/010`. |

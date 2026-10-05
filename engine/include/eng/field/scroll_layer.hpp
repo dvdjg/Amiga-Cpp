@@ -18,6 +18,7 @@
 /// lazo por píxel); el juego no ve el compositor, los buffers ni el backend.
 
 #include <eng/core/types/types.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/field/playfield_base.hpp> // `PlayfieldHardwareView` (vista que expone la capa)
 #include <eng/memory/memory_manager.hpp>
 
@@ -26,28 +27,33 @@ namespace eng::playfield {
 /// Contrato de una capa de scroll que el `App` arranca y conduce. `Backend` es el backend concreto
 /// (el `App` ya está parametrizado por él), así que la interfaz es **no borrada**.
 template <class Backend>
-class ScrollLayer {
+class ScrollLayer : public eng::util::Noncopyable {
 public:
 	constexpr ScrollLayer() noexcept = default;
-	ScrollLayer(const ScrollLayer&) = delete;
-	ScrollLayer& operator=(const ScrollLayer&) = delete;
 
 	/// **Arranque** (una vez): reserva en `memory` (bloques **tageados** por banco), prepara el
 	/// contenido y toma el display en `backend`. `false` si no cabe o algo falla.
+	/// \param memory   gestor de memoria (bloques tipados por banco).
+	/// \param backend  el backend (toma el display en el arranque).
+	/// \return `false` si la reserva/el arranque falla.
 	[[nodiscard]] virtual bool begin(MemoryManager& memory, Backend& backend) = 0;
 
 	/// **Un frame**: conduce la capa (cámara del juego → blit de lo que cambia → Copper).
+	/// \param backend  el backend de la plataforma.
 	virtual void frame(Backend& backend) = 0;
 
 	/// **Número de vistas de banda** que la capa aporta a la composición del `App` (planner §7):
 	/// `0` = la capa compone su propio copperlist (camino de tiras); `1` = un campo (`Single`/`Bands`);
 	/// `2` = dual playfield (`Dpf`). Con estas vistas el `App` **deriva el `RasterLayout`** del plan
 	/// (`App::scene_layout`) sin que el juego monte el layout a mano.
+	/// \return nº de vistas de banda (0 = la capa compone su propio copperlist).
 	[[nodiscard]] virtual eng::u8 band_view_count() const noexcept { return 0u; }
 
 	/// **Vista de hardware** de la banda `i` (`i < band_view_count()`), en orden PF1→PF2. El `App`
 	/// la usa para `plan_raster_layout`; el juego no manipula planos. Devuelve una vista vacía si la
 	/// capa no la expone.
+	/// \param i  índice de banda (0..`band_view_count()`-1).
+	/// \return la vista de hardware de esa banda (por defecto, vacía).
 	[[nodiscard]] virtual PlayfieldHardwareView band_view(eng::u8 i) const noexcept {
 		(void)i;
 		return {};

@@ -11,8 +11,28 @@
 
 #include <eng/core/util/allocator.hpp>
 #include <eng/core/util/hash.hpp>
+#include <eng/core/util/hash_map.hpp>
 
 namespace eu = eng::util;
+
+/// Clave compuesta del test: `Hash` la combina con `hash_combine` (el patrón del
+/// engine para `ChunkKey` y las claves del GOAP).
+struct TestKey {
+	eng::s16 x = 0;
+	eng::s16 y = 0;
+	[[nodiscard]] constexpr bool operator==(const TestKey& other) const noexcept {
+		return x == other.x && y == other.y;
+	}
+};
+
+namespace eng::util {
+template <>
+struct Hash<TestKey> {
+	[[nodiscard]] constexpr eng::u32 operator()(const TestKey& k) const noexcept {
+		return hash_combine(0u, k.x, k.y);
+	}
+};
+} // namespace eng::util
 
 namespace {
 
@@ -96,6 +116,24 @@ int main() {
 	      "hash_string distingue");
 	check(eu::Hash<eu::StringView> {}(hello) == eu::hash_string(hello), "Hash<StringView>");
 	check(eu::Hash<eng::u16> {}(static_cast<eng::u16>(9u)) == eu::hash_u16(9u), "Hash<u16>");
+
+	// --- hash_combine (claves compuestas) ------------------------------------
+	check(eu::hash_combine(7u) == 7u, "hash_combine sin valores = seed");
+	check(eu::hash_combine(1u, 2u, 3u) == eu::hash_combine(1u, 2u, 3u), "hash_combine determinista");
+	check(eu::hash_combine(0u, 1u, 2u) != eu::hash_combine(0u, 2u, 1u),
+	      "hash_combine sensible al orden");
+	check(eu::hash_combine(0u, 1u, 2u) != eu::hash_combine(0u, 1u, 3u),
+	      "hash_combine distingue campos");
+	check(eu::hash_combine(0u, eu::StringView("ab")) != eu::hash_combine(0u, eu::StringView("ba")),
+	      "hash_combine sobre StringView");
+
+	// Clave compuesta integrada en HashMap (mismo patrón que ChunkKey del engine).
+	eu::HashMap<TestKey, eng::u16, 8> keys;
+	check(keys.insert(TestKey {3, 4}, 30u) != nullptr, "HashMap<clave compuesta> inserta");
+	check(keys.find(TestKey {3, 4}) != nullptr && *keys.find(TestKey {3, 4}) == 30u,
+	      "HashMap<clave compuesta> encuentra");
+	check(keys.find(TestKey {4, 3}) == nullptr,
+	      "HashMap<clave compuesta> no confunde (3,4) con (4,3)");
 
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);

@@ -28,6 +28,7 @@
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/typed.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/graphics/plane_layout.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/memory/memory_manager.hpp>
@@ -51,12 +52,10 @@ struct BitmapConfig {
 };
 
 /// Framebuffer hardware: memoria + layout + addressing. SIN dibujo.
-class Bitmap {
+class Bitmap : public eng::util::Noncopyable {
 public:
 	Bitmap() = default;
 	~Bitmap() { release(); }
-	Bitmap(const Bitmap&) = delete;
-	Bitmap& operator=(const Bitmap&) = delete;
 
 	/// Devuelve al banco el bloque Chip si la instancia conserva una reserva válida.
 	void release() noexcept {
@@ -75,6 +74,9 @@ public:
     /// `total_bytes + guard_bytes`; `bytes()`/frontbuffer apuntan a `base + frontbase_offset`
     /// (el offset de fetch ancho del corkscrew: normal=0, BPL32=16, 4x=48). La guardia protege
     /// las lecturas DMA/blits que rebasan el final lógico del framebuffer.
+	/// \param memory  gestor de memoria (la reserva va a Chip).
+	/// \param cfg     geometría/layout/offset de fetch/guarda.
+	/// \return `false` si la config no vale o no cabe en Chip.
 	bool init(MemoryManager& memory, const BitmapConfig& cfg) {
 		release();
 		if (cfg.width == 0 || cfg.height == 0 || cfg.planes == 0 || cfg.planes > 6) return false;
@@ -129,6 +131,9 @@ public:
     /// Offset físico (bytes) del píxel (x, y) en el plano `plane`, según el layout.
     /// Interleaved: `(y*planes + plane)*row_bytes + x/8`.
     /// Separate:    `plane*(row_bytes*height) + y*row_bytes + x/8`.
+    /// \param x,y    píxel (x en píxeles, y en filas).
+    /// \param plane  índice de plano.
+    /// \return offset físico en bytes dentro del bitmap.
     constexpr u32 byte_offset(u16 x, u8 y, u8 plane) const {
         const u32 row = m_row_bytes;
         if (m_cfg.layout == PlaneLayout::Separate) {

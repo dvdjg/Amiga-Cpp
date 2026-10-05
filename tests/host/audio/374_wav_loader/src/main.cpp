@@ -77,14 +77,28 @@ int main() {
 	check(stems.sample_rate == 11025u && stems.channels.size() == 2u && stems.channels[0].size() == 4u &&
 		stems.channels[0][0] == 0x80u && stems.channels[0][1] == 0xc0u &&
 		stems.channels[1][0] == 0x7fu && stems.channels[1][1] == 0x40u, "stems estéreo mantienen canal, orden y signo");
-	check(pack_pcm::load_stems(multichannel_path, stems, 22050u), "WAV8 de tres canales acepta override");
-	check(stems.sample_rate == 22050u && stems.channels.size() == 3u && stems.channels[0].size() == 2u &&
+	// Sin override: conserva los canales intercalados y la tasa del WAV.
+	check(pack_pcm::load_stems(multichannel_path, stems), "WAV8 de tres canales acepta");
+	check(stems.sample_rate == 32000u && stems.source_sample_rate == 32000u &&
+		stems.channels.size() == 3u && stems.channels[0].size() == 2u &&
 		stems.channels[0][0] == 0x80u && stems.channels[0][1] == 0x00u &&
 		stems.channels[1][0] == 0xffu && stems.channels[1][1] == 0xc0u &&
 		stems.channels[2][0] == 0x7fu && stems.channels[2][1] == 0x40u,
 		"WAV multicanal conserva stems intercalados y convierte PCM8 sin mezclar");
-	check(pack_pcm::load(mono_path, pcm, rate, 22050u), "WAV16 mono acepta");
-	check(rate == 22050u && pcm.size() == 2u && pcm[0] == 0x80u && pcm[1] == 0x7fu, "WAV16 y override de tasa");
+	// Con override: remuestrea a 22050 manteniendo la separación de canales.
+	check(pack_pcm::load_stems(multichannel_path, stems, 22050u), "WAV8 de tres canales acepta override");
+	check(stems.sample_rate == 22050u && stems.source_sample_rate == 32000u &&
+		stems.channels.size() == 3u && stems.channels[0].size() == 1u &&
+		stems.channels[0][0] == 0x80u && stems.channels[1][0] == 0xffu &&
+		stems.channels[2][0] == 0x7fu,
+		"WAV multicanal con override remuestrea conservando los canales");
+	// Sin override (PCM16 -> PCM8) y con override (remuestreo 16000 -> 22050).
+	check(pack_pcm::load(mono_path, pcm, rate), "WAV16 mono acepta");
+	check(rate == 16000u && pcm.size() == 2u && pcm[0] == 0x80u && pcm[1] == 0x7fu,
+		"WAV16 PCM8 y tasa de origen");
+	check(pack_pcm::load(mono_path, pcm, rate, 22050u), "WAV16 mono acepta override");
+	check(rate == 22050u && pcm.size() == 3u && pcm[0] == 0x80u && pcm[1] == 0x39u && pcm[2] == 0x7fu,
+		"WAV16 con override remuestrea");
 	std::remove(stereo_path); std::remove(multichannel_path); std::remove(mono_path);
 	if (failures == 0) { std::printf("OK: ingestión WAV PCM8/PCM16 mono/estéreo y stems multicanal validada.\n"); return 0; }
 	return 1;

@@ -25,6 +25,7 @@
 #include <eng/audio/sfx_mixer.hpp>
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/typed.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/os/message.hpp>
 #include <eng/res/asset_cache.hpp>
 #include <eng/memory/memory_manager.hpp>
@@ -64,12 +65,10 @@ enum class MusicFormat : u8 {
 }
 
 /// Sistema de audio del engine (SFX + música).
-class AudioSystem {
+class AudioSystem : public eng::util::Noncopyable {
 public:
 	AudioSystem() = default;
 	~AudioSystem() { shutdown(); }
-	AudioSystem(const AudioSystem&) = delete;
-	AudioSystem& operator=(const AudioSystem&) = delete;
 
 	/// Inicia el SFX mixer (reserva el buffer Chip y arranca). La música se
 	/// arranca aparte con `play_music()`.

@@ -26,6 +26,46 @@ TimerService g_timers {};        ///< timers de usuario (`add_timer`)
 void (*g_frame_task)(void*, eng::u16) = nullptr; ///< tarea de frame del mini-SO (`set_frame_task`)
 void* g_frame_task_user = nullptr;
 
+/// **Estado del reloj de µs (CIA-B Timer B continuo)**. El Timer B decrementa en cada tick del E
+/// clock; se lee su latch de 16 bits y se extiende a 32 bits contando las vueltas por el salto
+/// entre lecturas. Es un reloj monotónico estable (TIME-003), con precisión de µs; el sondeo sigue
+/// siendo por VBlank, así que un timer µs vence con latencia de hasta un frame (TIME-004 se
+/// resuelve con un pump más fino, fuera del alcance de esta pasada). Ver `MINI_OS_TIME.md`.
+eng::u16 g_ciab_last = 0u;      ///< última lectura del contador de 16 bits de CIA-B
+eng::u32 g_ciab_high = 0u;      ///< vueltas acumuladas (bits altos del reloj de 32 bits)
+bool g_ciab_ready = false;
+
+/// Lee el contador de CIA-B Timer B y lo extiende a 32 bits. En cada lectura, si el valor de 16
+/// bits **bajó** respecto a la anterior, el contador dio una vuelta (decrementa): sube `high`.
+eng::u32 ciab_ticks_now() {
+	using eng::amiga::detail::ciab_reg;
+	// Los dos bytes de TALO/TAHI forman el contador descendente de 16 bits (hardware -> u16).
+	const eng::u16 lo = *ciab_reg(6u);
+	const eng::u16 hi = *ciab_reg(7u);
+	const eng::u16 value = static_cast<eng::u16>(lo | static_cast<eng::u16>(hi << 8u));
+	if (g_ciab_ready && value > g_ciab_last) {
+		g_ciab_high += 0x10000u; // envolvió
+	}
+	g_ciab_last = value;
+	g_ciab_ready = true;
+	return g_ciab_high + (0xffffu - value); // contador descendente -> ascendente
+}
+
+/// Arranca el **Timer B de CIA-B (modo continuo, reloj E)** como reloj libre de µs. Se usa CIA-B
+/// para no colisionar con el timer de fondo (CIA-A Timer A) ni con el teclado (SP de CIA-A).
+void start_ciab_clock() {
+	using eng::amiga::detail::ciab_reg;
+	volatile eng::u8* const crb = ciab_reg(0x0fu); // CRB
+	volatile eng::u8* const tbhi = ciab_reg(7u);
+	volatile eng::u8* const tblo = ciab_reg(6u);
+	*crb = 0x00u;                                  // parar; INMODE=0 (reloj E)
+	*tbhi = 0xffu;
+	*tblo = 0xffu;
+	*crb = 0x10u;                                  // LOAD (continuo: RUNMODE=0)
+	*crb = 0x11u;                                  // LOAD|START
+	(void)*tblo;
+}
+
 /// Lee el registro de desplazamiento del **pad CD32** del puerto 2. Devuelve 9 bits: `bit i` = nivel
 /// en el i-ésimo pulso de reloj (1 = alto). Reloj = CIA-A PRA bit 7 como **salida** (el pin de fire
 /// del puerto 2); dato = `POTINP` bit 14; `POTGO` arranca el puerto. Ref: `lowlevel.library` /
@@ -133,6 +173,13 @@ void tick_body() {
 	using eng::amiga::detail::ciaa_reg;
 	using eng::amiga::detail::custom_base;
 
+	// Arranca el reloj de µs (CIA-B Timer B) la primera vez: así los timers µs ven una base de
+	// tiempo monotónica real, no `ticks_now == 0` (TIME-003).
+	if (!g_ciab_ready) {
+		start_ciab_clock();
+		(void)ciab_ticks_now(); // primera lectura de referencia
+	}
+
 	++g_frame;
 	g_vblank.signal(g_frame);
 	g_port.signal(SigVBlank);
@@ -178,7 +225,7 @@ void tick_body() {
 		}
 	}
 
-	(void)g_timers.poll_and_post(g_port, g_frame, 0u);
+	(void)g_timers.poll_and_post(g_port, g_frame, ciab_ticks_now());
 
 	// Tarea de frame (p. ej. música): en el mismo contexto que el tick (IRQ si va por IRQ).
 	if (g_frame_task != nullptr) {
@@ -189,6 +236,15 @@ void tick_body() {
 }
 
 void tick() { tick_body(); }
+
+/// **Servicio de timers de alta frecuencia** (TIME-004): postea los timers vencidos usando el
+/// reloj de µs (CIA-B) sin esperar al VBlank. Pensado para llamarse desde un bucle de espera
+/// activa (p. ej. la E/S o un plazo corto) o, en el futuro, desde un **one-shot de CIA-B** armado
+/// con `g_timers.next_micro_deadline()`. En el tick normal ya se llama una vez por VBlank; esta
+/// entrada permite una segunda llamada sub-frame para los timers µs. Devuelve cuántos posteó.
+eng::u16 service_timers() {
+	return g_timers.poll_and_post(g_port, g_frame, ciab_ticks_now());
+}
 
 /// Tarea de frame opcional (ver `os.hpp`): se ejecuta en cada tick, tras entrada/timers.
 void set_frame_task(void (*cb)(void*, eng::u16), void* user) {
@@ -206,13 +262,16 @@ void input_enable(eng::u8 mask) {
 }
 
 /// Añade/actualiza un **timer de usuario**: `MsgType::Timer` con `id` cada `frames` VBlanks.
-/// `frames == 0` lo elimina.
+/// `frames == 0` lo elimina. Es un timer periódico de frames con catch-up `Coalesce` (un mensaje
+/// por_frame pendiente consolidado; `expirations` lleva los periodos condensados). Reemplaza
+/// cualquier timer previo con el mismo `id`.
 void add_timer(eng::u16 id, eng::u16 frames) {
 	if (frames == 0u) {
-		g_timers.stop(id);
+		(void)g_timers.stop_by_id(id);
 		return;
 	}
-	(void)g_timers.start(id, frames, TimerUnit::Frames, true, g_frame, 0u);
+	(void)g_timers.stop_by_id(id); // reemplaza (TIME-007: identidad explícita)
+	(void)g_timers.start(id, frames, TimerUnit::Frames, true, g_frame, ciab_ticks_now());
 }
 
 /// Hook de VBlank del mini-SO (lo registra `os::init` en el `Engine`): ejecuta el latido.

@@ -24,12 +24,13 @@
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/allocator.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/core/util/type_traits.hpp>
 
 namespace eng::util {
 
 template <class T, class A = NullAlloc>
-class Vector {
+class Vector : public Noncopyable {
 	static_assert(is_trivially_copyable_v<T>, "Vector: T debe ser copiable trivialmente");
 
 public:
@@ -39,9 +40,6 @@ public:
 
 	constexpr Vector() noexcept = default;
 	explicit constexpr Vector(A alloc) noexcept : m_alloc(alloc) {}
-
-	Vector(const Vector&) = delete;
-	Vector& operator=(const Vector&) = delete;
 
 	constexpr Vector(Vector&& other) noexcept
 		: m_data(other.m_data), m_size(other.m_size), m_cap(other.m_cap),

@@ -30,6 +30,7 @@
 
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/sprite.hpp>
 #include <eng/memory/arena.hpp>
@@ -55,14 +56,15 @@ struct SpriteConfig {
 };
 
 /// Gestor de hasta 8 sprites hardware (componente de la escena).
-class SpriteManager {
+class SpriteManager : public eng::util::Noncopyable {
 public:
     SpriteManager() = default;
-    SpriteManager(const SpriteManager&) = delete;
-    SpriteManager& operator=(const SpriteManager&) = delete;
 
     /// Reserva el bloque de DATA de sprites en Chip RAM (la app escribe los
     /// bitmaps con `sprite_data()`). No reserva copper (lo hace el compositor).
+    /// \param memory      gestor de memoria (bloque en Chip).
+    /// \param data_bytes  tamaño del bloque de DATA de sprites.
+    /// \return `true` si la reserva cupo.
     bool init(MemoryManager& memory, u32 data_bytes) {
 	m_data = eng::Block<eng::SpriteTag> {memory.chip().reserve<eng::SpriteTag>(data_bytes, 16)};
 	return m_data.valid();
@@ -72,6 +74,10 @@ public:
 	Span<u8> sprite_data() { return { m_data.view.data(), m_data.view.size() }; }
 	Span<const u8> sprite_data() const { return { m_data.view.as_const().data(), m_data.view.size() }; }
 
+    /// Configura el canal `index` (0..7). Silenciosamente ignorado si `index >= 8` o si la
+    /// DATA del `cfg` no cubre `height*width_words*2` words (se deshabilita ese canal).
+    /// \param index  canal de sprite (0..7).
+    /// \param cfg    configuración del canal (posición/DATA/tamaño/paleta).
     void set(u8 index, const SpriteConfig& cfg) {
         if (index >= 8) return;
         m_spr[index] = cfg;
@@ -162,6 +168,10 @@ public:
                 0, // palette_base: los sprites usan COLOR16+; para multiplexar por par
                    // hay que respetar que el switch cambia el COLORxx del par (ver abajo)
             };
+            // `attach` (15 colores) de la plantilla: el canal impar une su par y aporta
+            // los bits 2-3 del índice (AHRM cap. 4, "Attached Sprites"). Sin esto, la
+            // plantilla declararía el par pero la emisión no lo activaría.
+            cfg.attach = tpl.attach;
             // WAIT en la línea VSTART del segmento (mismo patrón que el bootcamp:
             // WAIT + MOVE SPRxPOS/CTL). El primer segmento también espera; el gap
             // de 1 línea (`line += height + 1`) garantiza que el anterior terminó.
@@ -195,6 +205,9 @@ public:
 
     /// Vuelca una lista de `HwSpritePlacement` (salida del compositor) a los 8 canales,
     /// dejando el gestor listo para `emit_into`. No toca hardware.
+    /// \param placements  colocaciones (salida del compositor de sprites).
+    /// \param count       nº de colocaciones.
+    /// \return nº de canales aplicados (≤ 8).
     u8 apply(const HwSpritePlacement* placements, u8 count) {
         if (placements == nullptr) return 0;
         u8 applied = 0;
@@ -212,6 +225,10 @@ public:
             cfg.hpos = p.hpos;
             cfg.vstart = p.vstart;
             cfg.vstop = static_cast<u16>(p.vstart + cfg.height - 1u);
+            // `attach` (15 colores): sin esta copia, el par del compositor se emitiría
+            // como dos sprites independientes y el color 4 bits se perdería. El CTL del
+            // canal impar lleva el bit 7 (`emit_config`). Ver `sprite-layer.md` §4.
+            cfg.attach = p.attach;
             set(p.channel, cfg);
             ++applied;
         }

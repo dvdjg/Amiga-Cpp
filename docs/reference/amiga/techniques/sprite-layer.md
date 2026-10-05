@@ -134,6 +134,8 @@ necesidad de máscara en RAM.
 ## 12. Referencias
 
 - `amiga-bootcamp/08_graphics/sprites.md` (y `01_hardware/ocs_a500/sprites.md`)
+- [sprite-techniques-catalog.md](sprite-techniques-catalog.md) — catálogo de técnicas históricas con sprites hardware
+- [sprite-tricks-games.md](sprite-tricks-games.md) — casos reales (Risky Woods, Jim Power, Agony, Shadow of the Beast, Free Form)
 - [Free Form Sprite Layer](https://www.powerprograms.nl/amiga/spr-layer.html) (Jeroen Knoester) — capa de sprites *free-form* con scroll
 - [sprite-horizontal-multiplex.md](sprite-horizontal-multiplex.md) — rearmado horizontal
 - [WinUAE — colisión CLXCON/CLXDAT](../../emulators/winuae/collision.md) — fuente del emulador

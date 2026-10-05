@@ -79,7 +79,9 @@ int main() {
 			return n <= sizeof(bytes) ? eng::MemoryBlock {bytes, n, k} : eng::MemoryBlock {};
 		}
 		void free(const eng::MemoryBlock&) noexcept {}
-		bool load(eng::res::AssetId, const char*, eng::Span<eng::u8>) noexcept { return true; }
+		bool load(eng::res::AssetId, const char*, eng::Span<eng::u8>, eng::u8) noexcept {
+			return true;
+		}
 	};
 	eng::res::AssetRuntime<HostBackend, 2u> host_assets;
 	check(host_assets.init(HostBackend {}, {.chip_budget = 128u, .max_assets = 2u}),

@@ -13,6 +13,7 @@
 
 #include <eng/audio/audio_system.hpp>
 #include <eng/core/types/ptr.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/audio/sfx_bank.hpp>
 
 namespace eng::audio {
@@ -29,15 +30,13 @@ namespace eng::audio {
 ///   audio.play(0, frame);   // dispara explosion (aplica política)
 ///   audio.update(frame);    // poda voces + ducking
 ///   audio.update_music();   // avanza música (solo P61)
-class GameAudio {
+class GameAudio : public eng::util::Noncopyable {
 public:
 	/// Referencia al `AudioSystem` subyacente (típicamente el del backend).
 	explicit GameAudio(AudioSystem& system) : m_audio(system) {}
 
 	/// Sin sistema: se enlaza después con `attach`.
 	GameAudio() = default;
-	GameAudio(const GameAudio&) = delete;
-	GameAudio& operator=(const GameAudio&) = delete;
 
 	/// Enlaza este `GameAudio` a un `AudioSystem` (p. ej. `backend.audio()`).
 	void attach(AudioSystem& system) { m_audio = system; }

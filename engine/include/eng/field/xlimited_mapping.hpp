@@ -17,8 +17,6 @@ template <ScrollConsts SC = ScrollConsts{}, class MapT = TileLayerMap>
 class XLimitedMapping : public Playfield {
 public:
     XLimitedMapping() = default;
-    XLimitedMapping(const XLimitedMapping&) = delete;
-    XLimitedMapping& operator=(const XLimitedMapping&) = delete;
 
     /// Fila (en planelíneas) de inicio de la fila de mundo `wy` en el bucle
     /// vertical (costura del split). Hook del mapeo de la base `Playfield`.

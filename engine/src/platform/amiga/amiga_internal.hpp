@@ -99,6 +99,13 @@ inline volatile unsigned char* ciaa_reg(unsigned short index) {
 	     + static_cast<unsigned long>(index) * 0x100u;
 }
 
+// CIA-B: registros a 0xBFD000 + reg*0x100. El reloj libre de µs conviene aqui (Timer B continuo)
+// para no colisionar con el timer de fondo (CIA-A Timer A) ni con el teclado (SP de CIA-A).
+inline volatile unsigned char* ciab_reg(unsigned short index) {
+	return reinterpret_cast<volatile unsigned char*>(0xbfd000)
+	     + static_cast<unsigned long>(index) * 0x100u;
+}
+
 // Handler UNICO del autovector de nivel 3 (VERTB/BLIT/COPER comparten vector). El
 // engine lo usa para el tick del juego (VBlank) y para el servicio de blit.
 inline void (*g_vbl_task)(void*, unsigned short) = nullptr;
@@ -182,26 +189,32 @@ inline eng::u32 row_offset(eng::s16 y, eng::u16 row_bytes) {
 	return static_cast<eng::u32>(r);
 }
 
-/// Rellena un rectangulo de palabras de UN plano con un valor constante por hardware:
-/// canal A **deshabilitado como puntero** (usa `BLTADAT`, AHRM 3rd: «for a source channel,
-/// the constant value stored in the data register ... will be used for each blitter cycle»)
-/// y minterm `D = A` (`$F0`); `BLTAFWM`/`BLTALWM` recortan los bits fuera del rect en la
-/// primera y ultima palabra, de modo que **no hace falta guardar/restaurar los bordes por
-/// CPU**. `wx0` = x (pixel) de la primera palabra; `afwm`/`alwm` = mascaras de borde.
+/// Rellena un rectangulo de palabras de UN plano con un valor constante, **preservando el
+/// borde parcial** por hardware (cookie-cut). `wx0` = x (pixel) de la primera palabra;
+/// `afwm`/`alwm` = mascaras de borde; `fill` = `$FFFF` (poner el plano a 1) o `$0000` (a 0).
 inline void blit_fill_region(eng::u8* plane, eng::u16 row_stride, eng::u16 wx0, eng::s16 y,
 			     eng::u16 words, eng::u16 h, eng::u16 fill, eng::u16 afwm,
 			     eng::u16 alwm) {
 	eng::u8* d = plane + row_offset(y, row_stride) + (wx0 >> 3);
 	const eng::u16 mod = static_cast<eng::u16>(row_stride - words * 2u);
 	wait_blitter();
+	// Cookie-cut `D = (A & B) | (~A & C)` (minterm `$CA`): A = mascara de borde (canal A
+	// **deshabilitado** -> constante `BLTADAT = $FFFF`, recortada por `AFWM`/`ALWM`; AHRM cap. 6:
+	// la mascara se aplica al data register de un canal deshabilitado), B = relleno (`BLTBDAT`),
+	// C = **destino** (`BLTCPT`=`BLTDPT`, realimentado). Los bits fuera del rect se **preservan**
+	// via C; con `D = A` + `AFWM` se pondrian a 0. Sirve para cualquier rect (alineado:
+	// `AFWM = ALWM = $FFFF` -> A = $FFFF -> `D = B`, como antes). Ver la ficha
+	// `docs/reference/amiga/techniques/blitter-fill-constant.md`.
 	custom_base[custom_bltcon0_offset] =
-		static_cast<eng::u16>(blt_use_a | blt_use_d | eng::graphics::kBlitterMintermCopyA);
+		static_cast<eng::u16>(0x00cau | blt_use_c | blt_use_d);
 	custom_base[custom_bltcon1_offset] = 0;
-	custom_base[custom_bltadat_offset] = fill; // A constante (canal A sin puntero)
-	custom_base[custom_bltamod_offset] = 0;
 	custom_base[custom_bltafwm_offset] = afwm;
 	custom_base[custom_bltalwm_offset] = alwm;
+	custom_base[custom_bltadat_offset] = 0xffffu; // A = mascara (recortada por AFWM/ALWM)
+	custom_base[custom_bltbdat_offset] = fill;    // B = relleno
+	custom_base[custom_bltcmod_offset] = mod;
 	custom_base[custom_bltdmod_offset] = mod;
+	write_custom_pointer(custom_bltcpt_offset, d);
 	write_custom_pointer(custom_bltdpt_offset, d);
 	custom_base[custom_bltsize_offset] = static_cast<eng::u16>((h << 6) | words);
 }
@@ -219,6 +232,34 @@ inline void blit_clear_region(eng::u8* plane, eng::u16 row_bytes, eng::u16 wx0, 
 	custom_base[custom_bltdmod_offset] = mod;
 	write_custom_pointer(custom_bltdpt_offset, d);
 	custom_base[custom_bltsize_offset] = static_cast<eng::u16>((h << 6) | words);
+}
+
+/// **Fill strided de palabras**: escribe `value` en `rows` palabras separadas `dmod` bytes
+/// (D = A con A deshabilitado -> `BLTADAT` constante; 1 palabra por fila). Sirve para parchear
+/// la copperlist (p. ej. `SPRxPOS`, constante por columna) sin tocar la CPU. `d` alineada a word.
+inline void blit_fill_word_strided(eng::u16* d, eng::u16 value, eng::u16 rows, eng::u16 dmod) {
+	wait_blitter();
+	custom_base[custom_bltcon0_offset] = static_cast<eng::u16>(blt_use_d | 0x00f0u); // D = A
+	custom_base[custom_bltcon1_offset] = 0;
+	custom_base[custom_bltadat_offset] = value; // A deshabilitado -> constante
+	custom_base[custom_bltdmod_offset] = dmod;
+	write_custom_pointer(custom_bltdpt_offset, d);
+	custom_base[custom_bltsize_offset] = static_cast<eng::u16>((rows << 6) | 1u);
+}
+
+/// **Copy strided de palabras**: copia `words` palabras por fila (A -> D, minterm `$F0`) en `rows`
+/// filas, con modulos `smod`/`dmod` (bytes). Sirve para volcar una columna del mundo a la
+/// copperlist (DATB+DATA) sin CPU. `s`/`d` alineadas a palabra.
+inline void blit_copy_words_strided(const eng::u16* s, eng::u16* d, eng::u16 words, eng::u16 rows,
+				    eng::u16 smod, eng::u16 dmod) {
+	wait_blitter();
+	custom_base[custom_bltcon0_offset] = static_cast<eng::u16>(blt_use_a | blt_use_d | 0x00f0u); // D=A
+	custom_base[custom_bltcon1_offset] = 0;
+	custom_base[custom_bltamod_offset] = smod;
+	custom_base[custom_bltdmod_offset] = dmod;
+	write_custom_pointer(custom_bltapt_offset, s);
+	write_custom_pointer(custom_bltdpt_offset, d);
+	custom_base[custom_bltsize_offset] = static_cast<eng::u16>((rows << 6) | words);
 }
 
 /// Rellena un rectangulo de palabras de UN plano con 1s (D-only, minterm `$FF`; D=0 con

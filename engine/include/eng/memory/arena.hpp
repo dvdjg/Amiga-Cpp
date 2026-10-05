@@ -298,6 +298,9 @@ struct MemoryConfig {
 	u32 slow_bytes = 0;
 	u32 frame_bytes = 0;
 	u32 fast_bytes = 0; ///< Fast RAM (solo CPU); 0 = no reservar (o no hay)
+	/// Si `true`, el backend reserva **toda** la memoria disponible de cada banco (ignora los
+	/// `*_bytes`): caso de **máquina desnuda**, donde la app no quiere dimensionar a mano.
+	bool all = false;
 };
 
 /// Resultado de la configuracion de memoria.

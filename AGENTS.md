@@ -24,6 +24,13 @@ contexto irrelevante a quien trabaja en otra cosa.
 - Se aplica a toda demo/efecto/imagen: antes de dar algo por bueno, pasarlo por Ollama. Si el
   resultado no se corresponde con la intención, está **mal** aunque el resto pase.
 - Procedimiento y herramientas: [`DEMO_VISUAL_DEBUG.md`](docs/guides/methodology/DEMO_VISUAL_DEBUG.md).
+- **Comportamiento de chipset que no cuadra → PARAR y leer la fuente ANTES de tocar nada.** Ante
+  cualquier mecanismo de hardware que no se comporte como se espera (Copper, sprites, Blitter, DMA,
+  colisión, timers…), **no experimentar a ciegas ni por prueba y error**: leer primero la
+  implementación del emulador (`../WinUAE-DBG/`, fichero según el síntoma) y el AHRM, y **citar
+  `fichero:línea`** en el comentario del código y en el commit. Un hallazgo de hardware **sin
+  `file:line` está incompleto**. Índice «síntoma → fichero» y fichas en
+  [`docs/reference/emulators/winuae/`](docs/reference/emulators/winuae/README.md); detalle en §1.12.
 
 ---
 
@@ -107,7 +114,9 @@ El objetivo es que el usuario pueda **revisar** el trabajo antes de que se conso
 - La lógica de demo **no nombra tipos del backend** (`AmigaBackend::C2p4State`, `…::OrBobEntry`, `…::LineEorParams`): usa el **tipo de dominio** (`eng::graphics::C2p4`/`OrBob`/`LineEor`) o la API del seam (`FramePlan`, `Rasterizer`, `DrawTarget`). El backend se instancia en `main()` y se pasa al `Engine`.
 - El backend no expone registros ni punteros a la app; si una demo necesita un valor preparado por hardware, se declara en la capa de dominio y el backend lo **aliasa** (ver `docs/engine/architecture/ENGINE_STRUCTURE_REVIEW.md`).
 - **API público final**: debe ser **lo más intuitivo y simple posible** y **no restringir funcionalidad** (ver §1.1 de `docs/engine/architecture/PUBLIC_API.md`). Las interfaces **intermedias** del engine pueden ser técnicas; lo que consume el juego, no. Mientras falten módulos, se escribe el API de lo que ya existe y se adapta después. Al tocar un módulo, preguntar «¿cómo lo pediría un juego?».
+- **Menos recursos en runtime = mejor opción (prioridad de diseño).** Ante varias soluciones válidas, elegir la de **menor coste en CPU/DMA/memoria en ejecución**. Resolver en **compilación** lo que se pueda (`template`/`constexpr`/disposición fija; **cero heap, cero cola, cero despacho dinámico**) y dejar la sobrecarga de runtime solo como **último recurso** (cuando no hay otra). La opción elegida debe además **simplificar el uso** (ladrillos que encajan). Aplica a toda decisión de arquitectura (capas, colas de intenciones, drivers, efectos), no solo a la de este hilo.
 - **Fast RAM**: los juegos detectan en **runtime** si hay Fast RAM (Agnus no la ve, CPU a plena velocidad) y la usan para tareas intensivas de CPU. **No** usar Slow RAM para eso (comparte el bus DMA pero Agnus no la ve: lo peor de ambos).
+- **Memoria DMA = tipada por banco (Chip), y el compilador lo exige.** Ningún buffer que el hardware lea por **DMA** (Copper, `BPLxPT`, sprite `SPRxPT`/`DATA`, blitter, audio) puede llegar como `Span`/`TaggedSpan` **sin banco**: la API debe llevar el banco en el **tipo** (`Address<MemoryKind::Chip>`, `MemView<Tag, MemoryKind::Chip>`/`ChipView<Tag>`, `Block<Tag, MemoryKind::Chip>`) de modo que pasar RAM **Slow/Fast** (o una `Span` agnóstica) **no compile**. Un `Span<T>` suelto que termina en DMA es un **agujero de tipos**: la procedencia la garantiza la **fuente** (`Block<Tag, Chip>`, `as_chip`), nunca se inventa ni se reinterpreta. Ver `engine/include/eng/core/types/typed.hpp` y `docs/engine/architecture/INTERNAL_TYPE_SYSTEM.md`.
 
 ### 1.11 Genericidad de las cabeceras
 
@@ -122,10 +131,11 @@ El objetivo es que el usuario pueda **revisar** el trabajo antes de que se conso
 
 ### 1.12 Si el hardware no funciona: fuente del emulador
 
+- **Disparador (obligatorio, sin decidir «si consulto o no»)**: en cuanto un mecanismo de hardware **no cuadre** —píxel/color que no sale, sprite tapado, elemento desplazado, fila/columna con basura, parpadeo, etc.—, **PARAR** y leer la fuente **antes** de construir diagnósticos o experimentos. No se redescubre por prueba y error lo que está escrito en la referencia. Índice «síntoma → fichero» y fichas por tema: [`docs/reference/emulators/winuae/README.md`](docs/reference/emulators/winuae/README.md).
 - Cuando un mecanismo del chipset **no se comporta como se espera** y la documentación de referencia (`docs/reference/ahrm/`, `../amiga-bootcamp/`, datasheets) no lo explica, la **implementación del emulador es la referencia de facto**: leer su **código fuente**.
 - **Fuente local**: `../WinUAE-DBG/`. Ficheros clave: `custom.cpp` (registros custom: handlers de escritura/lectura, p. ej. `CLXCON`/`CLXDAT`), `drawing.cpp` (render por píxel/línea: colisión, sprites, playfield), `include/custom.h` (mapa de registros), `cfgfile.cpp` (preferencias como `collision_level`).
 - **Procedimiento**: (1) localizar con `grep -rnE '<REG>|<término>'`; (2) leer el handler en `custom.cpp` y la lógica por píxel/línea en `drawing.cpp`; (3) comprobar **preferencias** que puedan desactivar la función (p. ej. `currprefs.collision_level`); (4) contrastar con el AHRM y **anotar la discrepancia**; (5) validar en emulador con una demo (caso positivo **y** negativo).
-- Documentar el hallazgo en `docs/reference/emulators/<emulador>/<tema>.md` (índice en `docs/reference/emulators/README.md`), citando **fichero y línea**. Ficha de referencia por **tema**: mecanismo observado (tabla `registro/handler/fuente`), contraste con el AHRM, implicación para el engine y enlaces al código que la usa. Ejemplo: [`winuae/audio-irq.md`](docs/reference/emulators/winuae/audio-irq.md) (IRQ de audio: `setirq`/`event_audxdat_func`, `AUDxLEN`/`AUDxLCH`, contraste AHRM `:4378`, y por qué el servicio de nivel 4 es el sitio del *swap*).
+- Documentar el hallazgo en `docs/reference/emulators/<emulador>/<tema>.md` (índice en `docs/reference/emulators/README.md`), citando **fichero y línea** (sin `fichero:línea` el hallazgo **no está hecho**). Ficha de referencia por **tema**: mecanismo observado (tabla `registro/handler/fuente`), contraste con el AHRM, implicación para el engine y enlaces al código que la usa. Ejemplo: [`winuae/audio-irq.md`](docs/reference/emulators/winuae/audio-irq.md) (IRQ de audio: `setirq`/`event_audxdat_func`, `AUDxLEN`/`AUDxLCH`, contraste AHRM `:4378`, y por qué el servicio de nivel 4 es el sitio del *swap*).
 - **Completar la referencia**: si el emulador aclara o corrige la doc del manual, añadir la aclaración a la copia local (`docs/reference/ahrm/ERRATA_Y_NOTAS.md` o la ficha de técnica), indicando **de dónde se obtuvo** (emulador + `fichero:línea`).
 
 ### 1.13 Las demos son tutoriales
@@ -134,12 +144,19 @@ El objetivo es que el usuario pueda **revisar** el trabajo antes de que se conso
 - **Comentarios al nivel de la intención**: cada bloque explica **qué** se hace con el vocabulario del engine (`App`/`Screen`/`Scene`/`BobLayer`/`RasterLayout`/`CopperIntent`…), **por qué** es así y **qué haría mal un lector** si bajara a bajo nivel; las decisiones no obvias (alineación, orden de registros, `MEMF_*`, límites de hardware) citan la referencia canónica.
 - **Sin bajo nivel gratuito**: la lógica de la demo usa la fachada (`eng/api/api.hpp` + tipos de dominio); no nombra registros del chipset, punteros crudos, `BlitJob`, bancos de memoria ni tipos del backend. Si algo obliga a bajar, es una abstracción que falta (§1.9) y se resuelve en el engine — no se deja crudo en la demo.
 - **El comentario enseña la regla, no el paso a paso de la máquina**: nada de narrar cronología ni intentos descartados (eso va a `docs/debugging/`); el `README.md` de la demo presenta el efecto, la técnica (con su ficha en `docs/reference/`) y el contrato que ilustra.
+- **Números y líneas no obvias, justificados**: todo literal en una llamada a la API o en una operación cuyo propósito **no sea evidente al leerlo** lleva **comentario** (misma línea o encima) o un `constexpr` con nombre; y cualquier sentencia que no se explique sola lleva un **comentario de línea** (ver «Literales numéricos semánticos»).
 
 ### 1.14 No cerrar el turno por criterio propio
 
 - **El turno se cierra cuando el trabajo pedido está terminado, no antes.** No se corta por longitud, cansancio, presupuesto percibido ni por «dejar margen»: se sigue trabajando hasta completar lo encomendado.
 - **Única excepción —discrepancia técnica—:** se corta el turno (y se **pregunta al usuario**) solo cuando se cree que **no se puede resolver un punto por una discrepancia técnica** y se prefiere su decisión antes de continuar. En ese caso, se nombra el bloqueo y las opciones concretas.
 - Entregar trabajo **parcial como si fuera el final** sin que medie (a) trabajo terminado o (b) un bloqueo técnico declarado se considera un **fallo de proceso**. Si algo queda a medias, se dice explícitamente qué falta y por qué, no se disfraza de cierre.
+
+### 1.15 Disciplina de coste de la máquina (68000 / A500)
+
+- **Cada operación de un bucle cuesta ciclos y compite** con el Blitter, el Copper, los bitplanes y el resto del frame. Antes de poner una operación en un bucle **por píxel/línea o en el bucle de juego**, calcular su coste y decidir si cabe.
+- **Nada de `*`, `/` ni `%` en bucles por píxel/línea o en el bucle principal** sin justificarlo con medidas. Alternativas obligatorias: **desplazamientos** para potencias de 2; **`constexpr`** para precalcular en compilación lo que depende solo de constantes (figuras geométricas, perfiles, tablas de seno, mapas de color) e **indexar** en runtime; **sumas/restas acumuladas** para funciones lineales; **tablas ROM** para las no lineales. Recordar que `*`/`/`/`%` de **32 bits** son **libcalls** (`__mulsi3` ~50 ciclos, `__udivsi3`/`__modsi3` ~150) y `divu.w` ~140.
+- La explicación detallada (ciclos por operación, alternativas, verificación con `nm`/`asm-audit`) está en [§Disciplina de coste](docs/guides/optimization/OPTIMIZACION_GPP_68000.md).
 
 ---
 
@@ -191,6 +208,20 @@ Reglas críticas:
 - Los literales con significado deben quedar explicados en el mismo uso o en un comentario inmediatamente anterior; si la explicación necesita contexto, enlazar/citar su fuente canónica. Se pueden dejar como literales cuando la constante nombrada añadiría ruido.
 - Usar `constexpr` cuando el valor tenga un nombre de dominio claro, se reutilice o haga más legible la configuración. Mantener el conjunto pequeño y coherente; no crear una constante por cada número. Antes de declarar límites derivados del hardware, buscar y reutilizar los existentes.
 - Ejemplo: `mark_failed(status, 0x00021303u)` debe documentar qué etapa de init representa o usar un identificador semántico si esos códigos se consultan en más de un sitio. En cambio, dimensiones y factores usados una sola vez pueden seguir literales si el comentario cercano explica su papel.
+- **Números en operaciones y llamadas a la API**: si el propósito de un literal **no es evidente al leerlo**, **justificarlo con un comentario** (en la misma línea o justo encima) o darle un nombre `constexpr`. Aplica a llamadas de configuración y a operaciones aritméticas/bit a bit. Ej.:
+  ```cpp
+  // 384K chip (bitplanes + copper + sprites), 8K slow (Bogo), 8K fast.
+  backend.configure_memory({ 384u * 1024u, 8u * 1024u, 8u * 1024u });
+  ```
+- **Comentario de línea cuando el código no se explica solo**: si una sentencia no deja claro **qué** hace o **por qué** usa ese valor, añadir un **comentario de línea** (en la misma línea o justo encima). Ej.:
+  ```cpp
+  // Registros de display: BPLCON0/BPLCON1/DIWSTRT/DIWSTOP; 40 B/fila, 4 planos, 320x256.
+  sched.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0, kBytesPerRow, 0x4200,
+                            kPlanes, m_bitplane.mem_view_chip(), kPlaneBytes);
+  // `v` = valor 1..3 del pixel; bit 0 -> DAT, bit 1 -> DATB (bit 15 = pixel 0, a la izquierda).
+  if ((v & 1u) != 0u) { dat = static_cast<eng::u16>(dat | (0x8000u >> px)); }
+  ```
+  Ver también §1.13 (comentarios didácticos: **qué**, **por qué** y **qué haría mal** un lector).
 
 ### 3.1 Herramientas locales
 

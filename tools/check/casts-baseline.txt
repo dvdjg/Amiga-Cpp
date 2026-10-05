@@ -15,8 +15,10 @@
   0     2  engine/include/eng/ai/steering/steering.hpp
   0     1  engine/include/eng/api/copper.hpp
   0     1  engine/include/eng/api/device.hpp
-  1    41  engine/include/eng/api/effects.hpp
+  1    99  engine/include/eng/api/effects.hpp
+  0     3  engine/include/eng/api/framebuffer.hpp
   0     1  engine/include/eng/api/scroll.hpp
+  0     1  engine/include/eng/api/sprites.hpp
   4    35  engine/include/eng/assets/uaf.hpp
   0     7  engine/include/eng/audio/acp1_stream.hpp
   0    19  engine/include/eng/audio/acp1_v3.hpp
@@ -174,7 +176,7 @@
   0    44  engine/include/eng/field/xlimited_composer.hpp
   0    11  engine/include/eng/field/xlimited_mapping.hpp
   0     5  engine/include/eng/field/xlimited_robocod.hpp
-  0    41  engine/include/eng/field/xlimited_scene.hpp
+  0    42  engine/include/eng/field/xlimited_scene.hpp
   0     1  engine/include/eng/graphics/anim.hpp
   0     3  engine/include/eng/graphics/animation.hpp
   0     5  engine/include/eng/graphics/bitmap_view.hpp
@@ -208,7 +210,9 @@
   0     2  engine/include/eng/graphics/raster_intent.hpp
   0     9  engine/include/eng/graphics/sprite_allocator.hpp
   2     0  engine/include/eng/graphics/sprite_asset.hpp
+  0     1  engine/include/eng/graphics/sprite_channel_window.hpp
   0     8  engine/include/eng/graphics/sprite_collision.hpp
+  0     4  engine/include/eng/graphics/sprite_line_layer.hpp
   1    18  engine/include/eng/graphics/sprite_manager.hpp
   0     2  engine/include/eng/graphics/sprite.hpp
   0    10  engine/include/eng/graphics/tile_planar.hpp
@@ -235,11 +239,11 @@
   0     5  engine/include/eng/os/stream.hpp
   1     5  engine/include/eng/os/task.hpp
   0     3  engine/include/eng/os/telemetry.hpp
-  0     1  engine/include/eng/os/timer.hpp
+  0     8  engine/include/eng/os/timer.hpp
   0     3  engine/include/eng/os/vfs.hpp
   0     2  engine/include/eng/parallel/parallel.hpp
   0     1  engine/include/eng/platform/amiga/asset_backend.hpp
-  4    11  engine/include/eng/platform/amiga/backend.hpp
+  4    13  engine/include/eng/platform/amiga/backend.hpp
   2    16  engine/include/eng/platform/amiga/blob_batch.hpp
   7    14  engine/include/eng/platform/amiga/blob.hpp
   1     1  engine/include/eng/platform/amiga/entry.hpp
@@ -338,7 +342,7 @@
   8     8  engine/src/platform/amiga/amiga_file.cpp
   3    13  engine/src/platform/amiga/amiga_floppy.cpp
   4    15  engine/src/platform/amiga/amiga_hw.cpp
-  7    42  engine/src/platform/amiga/amiga_internal.hpp
-  2    14  engine/src/platform/amiga/amiga_os.cpp
+  8    47  engine/src/platform/amiga/amiga_internal.hpp
+  2    16  engine/src/platform/amiga/amiga_os.cpp
   4     7  engine/src/platform/amiga/amiga_trackdisk.cpp
- 12    21  engine/src/platform/amiga/amiga.cpp
+ 12    23  engine/src/platform/amiga/amiga.cpp

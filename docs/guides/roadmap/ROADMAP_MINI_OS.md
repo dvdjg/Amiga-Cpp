@@ -244,7 +244,19 @@ UI (`eng::ui`).
 - **Verificación**: tests host para interrupciones acumuladas, carreras de `take_vblank`, wrap,
   catch-up, IDs duplicados, periodos perdidos y modos de sync; demo hardware comparando secuencia IRQ
   con contador leído fuera del latch.
-- **Estado**: pendiente. Diagnóstico actual: [`vblank-timer-inconsistencies.md`](../../debugging/investigaciones/vblank-timer-inconsistencies.md), TIME-001..TIME-010.
+- **Estado**: **entregado (núcleo)**. `App::set_frame_sync(FrameSyncMode::{Event,Latch,Disabled})`
+  elige la notificación con **una sola** secuencia (`m_vblank_count`); `take_frame_tick(VBlankTick&)`
+  da `{sequence, missed}` y `frames_elapsed(from)`. `Engine::run_frames` propaga el catch-up en
+  `context.frame.frames_elapsed`. `TimerService` resuelve TIME-005..008: fase preservada
+  (`deadline += period`), catch-up `Coalesce`/`SkipToNext`/`CatchUpAll`, comparación wrap-safe
+  (`s32(now-deadline) >= 0`) y handles `{slot, generation}`. El backend lee un reloj libre de
+  **CIA-B Timer B** (`ciab_ticks_now`) y lo pasa a `poll_and_post`. Tests HOST-222 (ampliado) y
+  HOST-415. Para la resolución **sub-frame** de los µs, el backend expone `os::service_timers()`
+  (pump de alta frecuencia) y `TimerService` da `next_micro_deadline()`/`has_micro_timers()` para
+  armar un one-shot de CIA-B; el arranque de esa IRQ de nivel 6 es el paso final de **TIME-004**.
+  `ActiveWait`/`External` están cubiertos por `Disabled` + `wait_vblank`. **Adopción**: la demo 213
+  usa `FrameSyncMode::Latch` (verificado en hardware + visión). Diagnóstico previo:
+  [`vblank-timer-inconsistencies.md`](../../debugging/investigaciones/vblank-timer-inconsistencies.md), TIME-001..TIME-010.
 
 ## Tests y demos previstos
 

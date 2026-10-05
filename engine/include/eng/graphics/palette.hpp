@@ -71,14 +71,19 @@ public:
 	[[nodiscard]] constexpr bool valid_index(ColorIndex i) const noexcept { return i.valid(); }
 
 	/// Fija un color. El índice se recorta a 0..31 (no hay fallo que comprobar).
+	/// \param i  índice de color (se recorta a 0..31).
+	/// \param c  color RGB444.
 	constexpr void set(ColorIndex i, Color c) noexcept {
 		m_data.color[color_index(i.value).value] = static_cast<u16>(c.value & 0x0fffu);
 	}
+	/// \param i  índice de color (se recorta a 0..31).
+	/// \return el color RGB444 de ese índice.
 	[[nodiscard]] constexpr Color get(ColorIndex i) const noexcept {
 		return Color {static_cast<u16>(m_data.color[color_index(i.value).value] & 0x0fffu)};
 	}
 
 	/// Pinta los 32 colores con `c`.
+	/// \param c  color RGB444 para los 32 índices.
 	constexpr void fill(Color c) noexcept {
 		for (u8 i = 0; i < 32u; ++i) {
 			m_data.color[i] = static_cast<u16>(c.value & 0x0fffu);
@@ -94,6 +99,7 @@ public:
 
 	/// **Fundido *in place***: cada canal a `num/den` (`0` apaga la paleta, `num == den` la
 	/// deja igual). Es `util::palette_scale` sobre los 32 colores.
+	/// \param num,den  factor `num/den` (0 apaga; `num == den` deja igual).
 	constexpr void fade(u16 num, u16 den) noexcept {
 		(void)eng::util::palette_scale({m_data.color, 32u}, {m_data.color, 32u}, num, den);
 	}
@@ -103,6 +109,10 @@ public:
 	}
 	/// **Interpola** `a`→`b` (`num == 0` deja `a`, `num == den` deja `b`) en el tramo
 	/// `[first, first+count)`; el resto de colores queda igual a `a`. Es `util::palette_lerp`.
+	/// \param a,b      paletas extremo (`num==0` → `a`, `num==den` → `b`).
+	/// \param num,den  factor de mezcla.
+	/// \param first    primer índice del tramo (def. 0).
+	/// \param count    nº de colores (def. 32).
 	constexpr void mix(const Palette32& a, const Palette32& b, u16 num, u16 den, u8 first = 0u,
 			   u8 count = 32u) noexcept {
 		m_data = a;
@@ -124,6 +134,10 @@ public:
 
 	/// Registra el parche base de paleta en el plan; el driver lo materializa. `false` si no
 	/// cabe (límite de parches del plan).
+	/// \param plan   plan del frame que recibe el parche.
+	/// \param first  primer índice (def. 0).
+	/// \param count  nº de colores (def. 32).
+	/// \return `false` si no cabe (límite de parches).
 	[[nodiscard]] bool apply(graphics::FramePlan& plan, u8 first = 0u, u8 count = 32u) const {
 		return plan.add_base_palette_patch(words(), first, count);
 	}

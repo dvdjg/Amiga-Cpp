@@ -21,12 +21,13 @@
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/allocator.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/core/util/type_traits.hpp>
 
 namespace eng::util {
 
 template <class T, usize Chunk, usize MaxChunks, class A = NullAlloc>
-class ChunkedVector {
+class ChunkedVector : public Noncopyable {
 	static_assert(Chunk > 0u && MaxChunks > 0u, "ChunkedVector: Chunk y MaxChunks > 0");
 	static_assert((Chunk & (Chunk - 1u)) == 0u, "ChunkedVector: Chunk debe ser potencia de dos");
 	static_assert(is_trivially_copyable_v<T>, "ChunkedVector: T debe ser copiable trivialmente");
@@ -36,9 +37,6 @@ public:
 
 	constexpr ChunkedVector() noexcept = default;
 	explicit constexpr ChunkedVector(A alloc) noexcept : m_alloc(alloc) {}
-
-	ChunkedVector(const ChunkedVector&) = delete;
-	ChunkedVector& operator=(const ChunkedVector&) = delete;
 
 	constexpr ChunkedVector(ChunkedVector&& other) noexcept : m_alloc(other.m_alloc) {
 		adopt(other);

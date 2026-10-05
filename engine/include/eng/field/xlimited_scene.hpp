@@ -45,6 +45,7 @@
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/expected.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/field/scroll_layer.hpp>
 #include <eng/field/scroll_plan.hpp>
@@ -373,11 +374,9 @@ inline graphics::ModeSwitchZone make_hud_mode_switch_zone(
 }
 
 template <ScrollConsts SC = ScrollConsts{}, class MapT = TileLayerMap, class Profile = ScrollProgressive>
-class XlimitedScene {
+class XlimitedScene : public eng::util::Noncopyable {
 public:
     XlimitedScene() = default;
-    XlimitedScene(const XlimitedScene&) = delete;
-    XlimitedScene& operator=(const XlimitedScene&) = delete;
 
     /// Igual que `begin`, pero devolviendo el **motivo** del fallo.
     ///
@@ -487,6 +486,17 @@ public:
         const u16 diwstop = hud_zone
             ? xlimited_detail::diwstop_for_viewport(cfg.viewport_h)
             : xlimited_detail::diwstop_for_viewport(main_h);
+        // DDFSTOP debe cubrir EXACTAMENTE el ancho visible (+1 palabra de guarda del
+        // fetch): el DMA avanza por scanline `fetch_bytes + BPL1MOD`, y `BPL1MOD` se
+        // calcula con `viewport_w/8` (ver `xlimited_playfield.hpp`, begin). Si el DDF
+        // no coincide con el viewport (p. ej. el fijo de 320 en un viewport de 256),
+        // cada línea deriva `fetch - viewport_w/8` bytes → el display lee planelíneas
+        // como filas (barras horizontales). Paso de DDF = 8 unidades = 1 palabra de
+        // 16 px; `$30 + 8*(viewport_w/16)` deja 1 palabra de guarda tras lo visible
+        // (para 320 px da el canónico `$D0`). Misma derivación que
+        // `graphics::composition::geometry_for`.
+        const u16 ddfstop = static_cast<u16>(xlimited_detail::kDdfStrt +
+                                             8u * (cfg.viewport_w / 16u));
         const eng::Ref<const graphics::SpriteManager> sprites =
             (cfg.sprite_data_bytes != 0) ? eng::Ref<const graphics::SpriteManager>(m_sprites)
                                          : eng::Ref<const graphics::SpriteManager>();
@@ -494,12 +504,12 @@ public:
             if (!m_dual.init(memory, {cfg.palette, cfg.copper_bytes, cfg.planes,
                 cfg.dpf.foreground_is_pf2,
                 xlimited_detail::kDiwStrt, diwstop,
-                xlimited_detail::kDdfStrt, xlimited_detail::kDdfStop,
+                xlimited_detail::kDdfStrt, ddfstop,
                 cfg.dpf.color_zones})) return eng::util::unexpected(eng::Result::OutOfMemory);
         } else {
             if (!m_single.init(memory, {cfg.palette, cfg.copper_bytes, cfg.planes,
                 xlimited_detail::kDiwStrt, diwstop,
-                xlimited_detail::kDdfStrt, xlimited_detail::kDdfStop,
+                xlimited_detail::kDdfStrt, ddfstop,
                 sprites, cfg.color_zones})) return eng::util::unexpected(eng::Result::OutOfMemory);
         }
         if (cfg.sprite_data_bytes != 0) {
@@ -517,12 +527,18 @@ public:
     }
 
     /// Wrapper booleano de `begin_checked` (compatibilidad de la API existente).
+    /// \param memory  gestor de memoria (reservas Chip de playfields/copper).
+    /// \param cfg     config de la escena (mapa, geometría, DPF, ruta…).
+    /// \return `false` si alguna reserva falla.
     bool begin(MemoryManager& memory, const XlimitedSceneConfigT<MapT>& cfg) {
         return begin_checked(memory, cfg).has_value();
     }
 
     /// Rellena la pantalla inicial (y el PF2 si dual) en lotes. Devuelve false
     /// si un plan no se pudo encolar o ejecutar.
+    /// \param backend  el backend (ejecuta los planes por lotes).
+    /// \param plan     plan de trabajo reutilizable.
+    /// \return `false` si un plan no se pudo ejecutar.
     template <typename Backend>
     bool fill(Backend& backend, graphics::FramePlan& plan) {
         const eng::u8 n = fields();
@@ -554,6 +570,10 @@ public:
 
     /// Pre-scrolla los playfields hacia delante (derecha/abajo) para dar
     /// recorrido a las direcciones reversas. Ejecuta los planes en lotes.
+    /// \param backend  el backend.
+    /// \param plan     plan de trabajo reutilizable.
+    /// \param px_x,px_y  píxeles de pre-scroll hacia delante por eje.
+    /// \return `false` si un plan no se pudo ejecutar.
     template <typename Backend>
     bool pre_scroll(Backend& backend, graphics::FramePlan& plan, eng::s32 px_x, eng::s32 px_y) {
         plan.clear();
@@ -588,6 +608,10 @@ public:
 
     /// Desplazamiento explícito de 1 px (o 0) por eje, para un juego. Aplica el
     /// parallax configurado al PF2. Devuelve false si un borde bloqueó el avance.
+    /// \param plan   plan del frame (recibe los blits de tira).
+    /// \param dx,dy  desplazamiento por eje (signo = dirección).
+    /// \param frame  contador de frame (gobierna el divisor del parallax X).
+    /// \return `false` si un borde del mapa bloqueó el avance.
     bool update(graphics::FramePlan& plan, eng::s32 dx, eng::s32 dy, eng::u32 frame) {
         const eng::u8 n = fields();
         // Ambos playfields con el mismo paso (parallax opcional en X).

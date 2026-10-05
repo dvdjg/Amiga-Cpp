@@ -9,6 +9,7 @@
 
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/core/util/callback.hpp>
 #include <eng/ui/event.hpp>
 #include <eng/ui/keys.hpp>
 #include <eng/ui/painter.hpp>
@@ -32,8 +33,7 @@ struct ListView : Widget {
 	eng::u16 count = 0u;
 	eng::s16* selected = nullptr; ///< índice externo (`-1` = ninguno)
 	eng::u8 item_h = kListItemH;
-	void (*on_select)(void* user) = nullptr;
-	void* user = nullptr;
+	eng::util::Callback<> on_select {}; ///< avisa al cambiar la selección
 
 	eng::s16 top = 0; ///< primera fila visible (desplazamiento)
 
@@ -134,8 +134,8 @@ inline bool event_list(ListView& l, const UiEvent& ev) {
 		l.mark_dirty();
 		if (idx >= 0 && idx < static_cast<eng::s16>(l.count)) {
 			l.select(idx);
-			if (l.on_select != nullptr) {
-				l.on_select(l.user);
+			if (l.on_select) {
+				l.on_select();
 			}
 		}
 		return true;
@@ -167,8 +167,8 @@ inline bool event_list(ListView& l, const UiEvent& ev) {
 			return false;
 		}
 		l.mark_dirty();
-		if (l.on_select != nullptr) {
-			l.on_select(l.user);
+		if (l.on_select) {
+			l.on_select();
 		}
 		return true;
 	}

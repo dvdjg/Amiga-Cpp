@@ -317,7 +317,8 @@ docs/
 ├── README.md             → índice maestro de la documentación
 ├── STRUCTURE.md          → ESTE documento (organización del repo)
 ├── engine/
-│   ├── architecture/     → arquitectura del engine (layers, memoria, rendering)
+│   ├── manual/           → MANUAL OFICIAL: tutoriales, niveles, referencia y arquitectura
+│   ├── architecture/     → arquitectura/diseño del engine (layers, memoria, rendering)
 │   └── c-engine/         → doc del engine C legado (contexto histórico)
 ├── demos/
 │   ├── effects/          → doc de demos y efectos (demoscene, qué enseña cada demo)

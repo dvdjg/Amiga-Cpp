@@ -116,6 +116,10 @@ struct StripFrame {
 /// **Planificador**: dado el scroll actual `(sx, sy)` y el previo `(psx, psy)` (en px, no negativos),
 /// decide las tiras a pintar y los valores de Copper. El orden real es: pintar la tira (destination
 /// en la guarda, invisible) -> parchear Copper -> el haz muestra la ventana nueva.
+/// \param g          geometría del anillo (NTTP o runtime).
+/// \param sx,sy      cámara actual (px, no negativos).
+/// \param psx,psy    cámara del frame previo.
+/// \return el `StripFrame`: tiras a pintar (`column_crossed`/`row_crossed`), ventana y fine scroll.
 template <class Geom>
 [[nodiscard]] constexpr StripFrame plan_strip_frame(const Geom& g, eng::s32 sx, eng::s32 sy,
 						    eng::s32 psx, eng::s32 psy) noexcept {
@@ -176,6 +180,9 @@ struct StripCopper {
 
 /// Calcula los valores de Copper a parchear a partir del plan de frame. El anillo es **continuo**:
 /// el plano `p` vive `p*ring_w_bytes` por delante, y la ventana empieza en `window_word*2` bytes.
+/// \param g  geometría del anillo.
+/// \param f  plan del frame (`plan_strip_frame`).
+/// \return los valores de Copper a parchear (`BPLCON1`, offsets de `BPLxPT`, split).
 template <class Geom>
 [[nodiscard]] constexpr StripCopper strip_copper_values(const Geom& g,
 							const StripFrame& f) noexcept {
@@ -225,6 +232,10 @@ struct StripBlit {
 
 /// Descriptor del blit de la tira para el `ash` (fine shift 0..15) y el `chunk` (trozo de
 /// `<= 1024` planelíneas) dados.
+/// \param g      geometría del anillo.
+/// \param ash    fine shift 0..15 (`BLTCON0` bits 15..12).
+/// \param chunk  trozo de `<= 1024` planelíneas (def. 0).
+/// \return los registros del blit de la tira (`BLTCON0/1`, módulos, `BLTSIZE`).
 template <class Geom>
 [[nodiscard]] constexpr StripBlit strip_blit_desc(const Geom& g, eng::u8 ash,
 						  eng::u8 chunk = 0u) noexcept {
@@ -253,6 +264,12 @@ template <class Geom>
 /// contiguos en memoria** (su layout no tiene por qué ser el adecuado): por eso se copian **tile a
 /// tile**. Si se quisiera un origen unido habría que **pre-procesarlo** (no se puede esperar que
 /// muchos tiles caigan juntos). Se llama solo al cruzar tile (0 composiciones en frames sin cruce).
+/// \param g                 geometría del anillo.
+/// \param dst               destino contiguo (para el blit con `BLTAMOD=0`).
+/// \param tile_bank         banco de tiles (Chip).
+/// \param tile_ids          ids de tile de la columna (de arriba abajo).
+/// \param bank_stride_words palabras por tile en el banco.
+/// \return nº de palabras escritas (`column_tiles*tile_h*planes`).
 template <class Geom>
 [[nodiscard]] constexpr eng::u16 compose_column(const Geom& g, eng::u16* dst,
 						const eng::u16* tile_bank, const eng::u16* tile_ids,
@@ -270,6 +287,12 @@ template <class Geom>
 /// (cada uno `tile_h*planes` palabras) en `dst` **contiguo**, interleaved (por linea, por plano, por
 /// columna), listo para el blit de fila con `BLTAMOD=0`. Tiles **separados**, copiados uno a uno.
 /// Devuelve las palabras escritas (`row_tiles*tile_h*planes`).
+/// \param g                 geometría del anillo.
+/// \param dst               destino contiguo (para el blit de fila con `BLTAMOD=0`).
+/// \param tile_bank         banco de tiles (Chip).
+/// \param tile_ids          ids de tile de la fila (de izquierda a derecha).
+/// \param bank_stride_words palabras por tile en el banco.
+/// \return nº de palabras escritas (`row_tiles*tile_h*planes`).
 template <class Geom>
 [[nodiscard]] constexpr eng::u16 compose_row(const Geom& g, eng::u16* dst,
 					     const eng::u16* tile_bank, const eng::u16* tile_ids,

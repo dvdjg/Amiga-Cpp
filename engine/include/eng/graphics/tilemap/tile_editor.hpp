@@ -36,6 +36,9 @@ public:
 
 	/// Fija el tile de `(tx, ty)` (índice) y lo marca sucio en ambos buffers. `false` si la
 	/// coordenada queda fuera (la capa decide wrap/clamp antes).
+	/// \param tx,ty  celda (coordenadas de tile).
+	/// \param index  índice de tile del banco.
+	/// \return `false` si `(tx, ty)` queda fuera de la rejilla.
 	constexpr bool set_tile(u16 tx, u16 ty, u16 index) noexcept {
 		if (!contains(tx, ty)) {
 			return false;
@@ -57,6 +60,8 @@ public:
 
 	/// **Caja envolvente** de las celdas sucias del `buffer` (vacía si no hay ninguna). Es el
 	/// rectángulo mínimo a redibujar (`flush`).
+	/// \param buffer  buffer de display (0/1) del que se lee el dirty.
+	/// \return la caja envolvente de celdas sucias (vacía si no hay).
 	[[nodiscard]] constexpr TileRect dirty_rect(u8 buffer) const noexcept {
 		s32 l = m_width, t = m_height, r = -1, b = -1;
 		for (u16 y = 0; y < m_height; ++y) {

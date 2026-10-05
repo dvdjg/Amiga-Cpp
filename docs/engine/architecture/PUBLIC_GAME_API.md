@@ -86,7 +86,7 @@ fugas conocidas.
 eng::Screen& s = app.screen();
 s.clear(0);
 s.fill({10, 10, 40, 12}, color);            // inmediato (rasterizador)
-s.fill_box({10, 24, 40, 12}, color);        // diferido (Blitter, D=A sin fetch de D)
+s.fill_box({10, 24, 40, 12}, color);        // diferido (Blitter, preserva el borde)
 s.frame({8, 8, 100, 40}, color);
 s.line(0, 0, 319, 0, color);
 s.text(4, 4, "hola", color);

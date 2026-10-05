@@ -56,6 +56,7 @@ public:
 	/// solo avanza su scroll. El `App` deriva el `RasterLayout` (`scene_layout`, con `band_view`) y
 	/// lo materializa (`present_layout`), de modo que **posee la composición** (split-screen/DPF de
 	/// varias capas). Por defecto la capa es **autónoma** (compone y toma el display ella misma).
+	/// \param on  `true` = la capa **no** compone ni toma el display (lo hace el `App`).
 	void set_compose_only(bool on) noexcept { m_compose_only = on; }
 	[[nodiscard]] bool compose_only() const noexcept { return m_compose_only; }
 

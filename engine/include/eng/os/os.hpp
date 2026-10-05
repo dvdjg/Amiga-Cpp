@@ -67,6 +67,13 @@ void input_enable(eng::u8 mask);
 /// `frames == 0` lo elimina. Lo implementa el backend (sobre `TimerService`).
 void add_timer(eng::u16 id, eng::u16 frames);
 
+/// **Servicio de timers de alta frecuencia** (TIME-004): postea los timers vencidos contra el
+/// reloj de µs (CIA-B) **sin** esperar al VBlank. El tick normal ya lo hace una vez por frame; un
+/// bucle de espera activa (o, en el futuro, un one-shot de CIA-B armado con el deadline de µs) lo
+/// llama para dar resolución **sub-frame** a los timers de microsegundos. Devuelve cuántos posteó.
+/// Lo implementa el backend Amiga.
+eng::u16 service_timers();
+
 /// **Hook de VBlank** del mini-SO (lo implementa el backend): avanza el frame, señaliza
 /// `SigVBlank` y pollea la entrada habilitada + los timers. Es el mismo latido que `os::tick`
 /// (polling); `os::init` lo registra como `vblank_hook` del `Engine`, que es quien posee la IRQ de

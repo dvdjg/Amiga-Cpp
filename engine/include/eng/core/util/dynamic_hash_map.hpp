@@ -24,12 +24,13 @@
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/allocator.hpp>
 #include <eng/core/util/hash.hpp>
+#include <eng/core/util/noncopyable.hpp>
 #include <eng/core/util/type_traits.hpp>
 
 namespace eng::util {
 
 template <class K, class V, class A = NullAlloc>
-class DynamicHashMap {
+class DynamicHashMap : public Noncopyable {
 	static_assert(is_trivially_copyable_v<K>, "DynamicHashMap: K debe ser copiable trivialmente");
 	static_assert(is_trivially_copyable_v<V>, "DynamicHashMap: V debe ser copiable trivialmente");
 
@@ -39,9 +40,6 @@ public:
 
 	constexpr DynamicHashMap() noexcept = default;
 	explicit constexpr DynamicHashMap(A alloc) noexcept : m_alloc(alloc) {}
-
-	DynamicHashMap(const DynamicHashMap&) = delete;
-	DynamicHashMap& operator=(const DynamicHashMap&) = delete;
 
 	constexpr DynamicHashMap(DynamicHashMap&& other) noexcept
 		: m_alloc(other.m_alloc), m_keys(other.m_keys), m_values(other.m_values),

@@ -182,6 +182,48 @@ function patchConfig(configText, extensionRoot, stagedOutDir, warpEnabled, immed
     const normalizedOut = stagedOutDir.replace(/\//g, '\\');
     let out = configText;
     out = out.replace(/^filesystem=rw,dh0:.*$/m, `filesystem=rw,dh0:${normalizedDh0}`);
+    // Maquina emulada: por defecto la de la config base (A500 512K+512K sin Fast, stock).
+    // Se puede cambiar por entorno para probar A1200/A4000 (u otras) sin tocar la config:
+    //   WINUAE_QUICKSTART=a1200,0  WINUAE_KICKSTART=c:/Amiga/KICK31.rom
+    // (ojo: `TARGET_MACHINE` del build cambia el CODIGO, no la maquina emulada).
+    if (process.env.WINUAE_QUICKSTART) {
+        out = setConfigValue(out, 'quickstart', process.env.WINUAE_QUICKSTART);
+    }
+    if (process.env.WINUAE_KICKSTART) {
+        out = setConfigValue(out, 'kickstart_rom_file', process.env.WINUAE_KICKSTART);
+    }
+    // CD32 (y otras placas con ROM extendida) requieren ademas el fichero de ROM extendida.
+    //   WINUAE_KICKSTART_EXT=C:/amiga/CD32_EXT.rom
+    if (process.env.WINUAE_KICKSTART_EXT) {
+        out = setConfigValue(out, 'kickstart_ext_rom_file', process.env.WINUAE_KICKSTART_EXT);
+    }
+    // Medicion a velocidad plena: `WINUAE_NO_CYCLE_EXACT=1` relaja el modo mas pesado del emulador
+    // (cycle_exact + cpu_memory + blitter). Util para separar el coste real del codigo del techo
+    // del emulador cycle-exact.
+    if (process.env.WINUAE_NO_CYCLE_EXACT) {
+        out = setConfigValue(out, 'cycle_exact', 'false');
+        out = setConfigValue(out, 'cpu_cycle_exact', 'false');
+        out = setConfigValue(out, 'cpu_memory_cycle_exact', 'false');
+        out = setConfigValue(out, 'blitter_cycle_exact', 'false');
+    }
+    // La maquina emulada debe tener la MISMA CPU que espera el codigo compilado:
+    // A1200 y CD32 son 68020; A4000 es 68030. Si el quickstart no la fija (p. ej.
+    // con KS 1.3), el binario `-m68020`/`-m68030` daria instruccion ilegal. Forzar
+    // `cpu_model` segun el modelo (no forzar 68020 en A4000: rompe el arranque).
+    const qs = process.env.WINUAE_QUICKSTART || '';
+    let forcedCpu = '';
+    if (/a1200|cd32/i.test(qs)) {
+        forcedCpu = '68020';
+    }
+    else if (/a4000/i.test(qs)) {
+        forcedCpu = '68030';
+    }
+    if (forcedCpu !== '') {
+        out = setConfigValue(out, 'cpu_model', forcedCpu);
+        out = setConfigValue(out, 'fpu_model', 'none');
+        out = setConfigValue(out, 'cpu_compatible', 'false');
+        out = setConfigValue(out, 'cpu_24bit_addressing', 'false');
+    }
     if (/^filesystem2=rw,dh1:.*$/m.test(out)) {
         out = out.replace(/^filesystem2=rw,dh1:.*$/m, `filesystem2=rw,dh1:dh1:${normalizedOut},-128`);
     }
@@ -973,6 +1015,21 @@ const diskAdf = diskArg !== '' ? path.resolve(diskArg) : '';
 const mousePath = buildMousePathFromArgs();
 const mouseDelayMs = Math.max(0, parseInt(argValue('--mouse-duration-ms', '800'), 10)) / Math.max(1, mousePath.length - 1);
 const mouseButton = Math.max(0, parseInt(argValue('--mouse-button', '0'), 10));
+// --mouse-click-at X,Y: movimiento **relativo** (+X,+Y) seguido de un click. Determinista
+// para demos que leen el raton por **deltas** (JOYxDAT): `input mouse move dx dy` no depende
+// de la posicion absoluta del emulador (a diferencia de --mouse-from/--mouse-to, que usan
+// `input mouse abs` y por tanto son relativos a la posicion previa del raton emulado).
+// Admite deltas negativos.
+const mouseClickAtText = argValue('--mouse-click-at', '');
+const mouseClickAt = (() => {
+    if (mouseClickAtText === '')
+        return null;
+    const parts = mouseClickAtText.split(',').map((value) => parseInt(value.trim(), 10));
+    if (parts.length !== 2 || !Number.isInteger(parts[0]) || !Number.isInteger(parts[1])) {
+        throw new Error('--mouse-click-at requiere X,Y (enteros; pueden ser negativos).');
+    }
+    return { x: parts[0], y: parts[1] };
+})();
 const stopEmulator = !hasArg('--keep-running');
 const protectSpecs = parseProtectSpecs();
 const outputDir = configId
@@ -1328,6 +1385,19 @@ try {
             dragged: hasArg('--mouse-drag'),
         };
     }
+    if (mouseClickAt) {
+        console.log(`[run-demo] injecting relative mouse click at (+${mouseClickAt.x},+${mouseClickAt.y})`);
+        await protocol.sendMonitorCommand(`input mouse move ${mouseClickAt.x} ${mouseClickAt.y}`, 5000);
+        await sleep(Math.max(0, parseInt(argValue('--mouse-move-ms', '150'), 10)));
+        await protocol.sendMonitorCommand(`input mouse button ${mouseButton} 1`, 5000);
+        await sleep(Math.max(20, parseInt(argValue('--mouse-click-ms', '80'), 10)));
+        await protocol.sendMonitorCommand(`input mouse button ${mouseButton} 0`, 5000);
+        report.mouse = {
+            relative: { dx: mouseClickAt.x, dy: mouseClickAt.y },
+            button: mouseButton,
+            clicked: true,
+        };
+    }
     // --keys: inyecta teclas Amiga por **rawkey** (hex, separadas por comas; p. ej. --keys 0x45,0x44)
     // vía el monitor `input key <rawkey>` de WinUAE-DBG. Sirve para validar la entrada de teclado por
     // IRQ (mini-SO `os::enable_keyboard`).
@@ -1564,6 +1634,10 @@ try {
             }
         }
     }
+    // Deja que el demo procese las inyecciones de entrada (raton/teclado/joystick) antes de la
+    // captura principal: si no, `screenshot.png` puede salir un frame antes del efecto del click
+    // (el frame de secuencia si lo reflejaba). Ajustable con `--screenshot-settle-ms`.
+    await sleep(Math.max(0, parseInt(argValue('--screenshot-settle-ms', '300'), 10)));
     const screenshot = await captureScreenshot(protocol, screenshotPath);
     report.screenshotReply = screenshot.reply;
     report.screenshotReplyText = screenshot.replyText;

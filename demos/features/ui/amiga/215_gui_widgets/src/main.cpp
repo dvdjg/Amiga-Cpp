@@ -148,6 +148,13 @@ struct DemoGame {
 			return;
 		}
 
+		// Self-test del `FillRect` **asincrono** (camino `FramePlan`/cola de intencion): el
+		// cookie-cut `$CA` del backend asincrono debe preservar el borde parcial como el sincrono.
+		if (!verify_async_fill(backend)) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00021504u);
+			return;
+		}
+
 		// Raster Blitter (los fills de caja van por el Blitter D-only, sincrono) + sink de rect.
 		// Las lineas y el texto siguen por CPU (sin FramePlan): el rect D-only no es asincrono.
 		m_scene.set_rect_fill_sink(eng::playfield::RectFillSink {&backend, &rect_fill_cb});
@@ -168,7 +175,18 @@ struct DemoGame {
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		(void)backend; // la lista es estatica: `takeover` ya la instalo
-		update_cursor(); // el cursor de hardware sigue al raton
+		// Una sola lectura del raton por frame: mueve el cursor de hardware y, si el boton
+		// izquierdo cambio de estado, despacha el click al arbol de widgets.
+		eng::input::MouseState mouse;
+		eng::amiga::poll_mouse(mouse, m_mouse_poll);
+		update_cursor(mouse);
+		if (handle_mouse(mouse)) {
+			// El demo repinta por zona (como la pista del slider), no el arbol completo.
+			if (ui::Widget* hit = m_ctx.hit_test(&m_root, m_cx, m_cy)) {
+				repaint_widget(*hit);
+			}
+			repaint_widget(m_status); // el boton cambia la etiqueta de estado
+		}
 	}
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
@@ -190,7 +208,7 @@ struct DemoGame {
 			z.w = static_cast<eng::u16>(z.w + 4u);
 			z.y = static_cast<eng::s16>(z.y - 2);
 			z.h = static_cast<eng::u16>(z.h + 4u);
-			p.fill(z, m_theme.bg);
+			p.fill(z, m_theme.fill); // fondo del panel, no el del lienzo
 			ui::draw_widget(m_slider, p);
 		}
 
@@ -207,6 +225,9 @@ private:
 
 		m_button.bounds = ui::Rect {24, 42, 84, 14};
 		m_button.text = "Aceptar";
+		// `Callback<>` (fn + ctx) en vez del viejo par `void (*)(void* user)`+`void* user`:
+		// el boton avisa por el mismo despacho `UiContext` que un click de usuario.
+		m_button.on_click = {&DemoGame::accept_cb, this};
 
 		m_check.bounds = ui::Rect {124, 44, 120, 10};
 		m_check.label = "Sonido";
@@ -233,7 +254,7 @@ private:
 		m_slider.max = 100;
 
 		m_status.bounds = ui::Rect {24, 150, 260, 10};
-		m_status.text = "Listo. Tab cambia el foco.";
+		m_status.text = m_status_text;
 
 		// Prueba de la fuente cirilica en hardware (HOST-264): el literal UTF-8 se
 		// decodifica y se pinta con los glifos U+04xx de `Font8`.
@@ -254,10 +275,24 @@ private:
 		m_ctx.set_focus(&m_button);
 	}
 
+	/// Despacha los clicks reales del boton izquierdo al `UiContext` (borde de flanco). Un
+	/// click sobre el boton dispara su `Callback<>` en vivo. Devuelve `true` si el evento lo
+	/// consumio un widget (el llamador repinta). Durante el self-test (init) no se repinta.
+	[[nodiscard]] bool handle_mouse(const eng::input::MouseState& mouse) {
+		const bool left = mouse.left_button;
+		if (left == m_prev_left) {
+			return false;
+		}
+		m_prev_left = left;
+		ui::UiEvent ev {};
+		ev.kind = left ? ui::UiEventKind::MouseDown : ui::UiEventKind::MouseUp;
+		ev.x = m_cx;
+		ev.y = m_cy;
+		return m_ctx.dispatch(ev);
+	}
+
 	/// Mueve el cursor con el raton (deltas de `JOY0DAT`) y reescribe POS/CTL en la estructura.
-	void update_cursor() {
-		eng::input::MouseState mouse;
-		eng::amiga::poll_mouse(mouse, m_mouse_poll);
+	void update_cursor(const eng::input::MouseState& mouse) {
 		eng::s16 cx = static_cast<eng::s16>(m_cx + mouse.dx);
 		eng::s16 cy = static_cast<eng::s16>(m_cy + mouse.dy);
 		if (cx < 0) cx = 0;
@@ -304,31 +339,121 @@ private:
 		return any && w[t] == 0u && w[t + 1u] == 0u;
 	}
 
-	/// Self-test EN HARDWARE del relleno de rect D-only por Blitter (`blitter_fill_rect`):
-	/// llena el rect (10,2)-(29,4) de un plano 64x16 y comprueba los bits dentro y fuera. Valida
-	/// el motor que consume el `RectFillSink` (equivalencia con el relleno CPU esperado).
+	/// Self-test EN HARDWARE del relleno de rect por Blitter (`blitter_fill_rect`), el motor
+	/// que consume el `RectFillSink`. Cubre los tres casos que importan:
+	///  (a) rect alineado a palabra (1 plano): rellena dentro, no toca fuera;
+	///  (b) rect con borde PARCIAL: los pixeles fuera del rect (primera/ultima palabra) se
+	///      **preservan** (el bug de `D=A`+`AFWM`/`ALWM` los ponia a 0, borrando el fondo a los
+	///      lados de cada widget);
+	///  (c) MULTI-PLANO contiguo: cada plano se rellena segun su bit de color.
 	bool verify_blitter_fill(eng::amiga::AmigaBackend& backend) {
 		constexpr eng::u16 fw = 64;
 		constexpr eng::u16 fh = 16;
 		constexpr eng::u16 frow = fw / 8u; // 8 bytes/fila
 		constexpr eng::u32 fplane = static_cast<eng::u32>(frow) * fh;
+		const auto bit_at = [](const eng::u8* base, eng::u16 x, eng::u16 y, eng::u32 plane_bytes) {
+			return (base[plane_bytes + static_cast<eng::u32>(y) * frow + (x >> 3)] &
+				(0x80u >> (x & 7u))) != 0u;
+		};
+		// (a) Alineado a palabra, 1 plano: rellena y respeta los bordes.
+		{
+			auto blk = backend.memory_manager().chip().reserve<eng::PlaneTag>(fplane + 16u, 16);
+			if (!blk.valid()) {
+				return false;
+			}
+			for (eng::u32 i = 0; i < fplane; ++i) blk.view.data()[i] = 0u;
+			if (!backend.blitter_fill_rect(blk.view.data(), 1u, fplane, frow, frow, fw, fh, 16, 2,
+						       16u, 3u, 1u, true)) {
+				return false;
+			}
+			const eng::u8* b = blk.view.data();
+			if (!(bit_at(b, 16, 2, 0u) && bit_at(b, 31, 2, 0u) && bit_at(b, 16, 4, 0u) &&
+			      !bit_at(b, 15, 2, 0u) && !bit_at(b, 32, 2, 0u) && !bit_at(b, 0, 0, 0u))) {
+				return false;
+			}
+		}
+		// (b) Borde parcial: pre-rellena a 1, limpia (color 0) un rect x=10; el borde sigue a 1.
+		{
+			auto blk = backend.memory_manager().chip().reserve<eng::PlaneTag>(fplane + 16u, 16);
+			if (!blk.valid()) {
+				return false;
+			}
+			for (eng::u32 i = 0; i < fplane; ++i) blk.view.data()[i] = 0xffu;
+			if (!backend.blitter_fill_rect(blk.view.data(), 1u, fplane, frow, frow, fw, fh, 10, 2,
+						       20u, 3u, 0u, true)) {
+				return false;
+			}
+			const eng::u8* b = blk.view.data();
+			if (!(!bit_at(b, 10, 2, 0u) && !bit_at(b, 29, 2, 0u) && bit_at(b, 9, 2, 0u) &&
+			      bit_at(b, 0, 2, 0u) && bit_at(b, 30, 2, 0u) && bit_at(b, 63, 2, 0u))) {
+				return false;
+			}
+		}
+		// (c) Multi-plano contiguo: color 7 -> planos 0,1,2 a 1; 3,4,5 a 0.
+		{
+			constexpr eng::u8 planes = 6;
+			auto blk = backend.memory_manager().chip().reserve<eng::PlaneTag>(
+				static_cast<eng::u32>(fplane) * planes + 16u, 16);
+			if (!blk.valid()) {
+				return false;
+			}
+			for (eng::u32 i = 0; i < static_cast<eng::u32>(fplane) * planes; ++i) {
+				blk.view.data()[i] = 0u;
+			}
+			if (!backend.blitter_fill_rect(blk.view.data(), planes, fplane, frow, frow, fw, fh, 0,
+						       0, fw, fh, 7u, true)) {
+				return false;
+			}
+			const eng::u8* b = blk.view.data();
+			if (!(bit_at(b, 4, 4, 0u) && bit_at(b, 4, 4, fplane) &&
+			      bit_at(b, 4, 4, 2u * fplane) && !bit_at(b, 4, 4, 3u * fplane) &&
+			      !bit_at(b, 4, 4, 4u * fplane) && !bit_at(b, 4, 4, 5u * fplane))) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/// Self-test EN HARDWARE del `FillRect` **asincrono** (`BlitJobKind::FillRect` via
+	/// `blitter_submit`, el camino del `FramePlan`/cola de intencion). Comprueba que el
+	/// cookie-cut `$CA` del backend asincrono **preserva el borde parcial** igual que el
+	/// sincrono: el bug de `D=A`+`AFWM`/`ALWM` ponia a 0 los bits fuera del rect.
+	bool verify_async_fill(eng::amiga::AmigaBackend& backend) {
+		constexpr eng::u16 fw = 64;
+		constexpr eng::u16 fh = 16;
+		constexpr eng::u16 fw_words = fw / 16u; // 4 palabras por fila
+		constexpr eng::u32 fplane = static_cast<eng::u32>(fw / 8u) * fh;
+		const auto bit_at = [](const eng::u8* base, eng::u16 x, eng::u16 y) {
+			return (base[static_cast<eng::u32>(y) * (fw / 8u) + (x >> 3)] &
+				(0x80u >> (x & 7u))) != 0u;
+		};
 		auto blk = backend.memory_manager().chip().reserve<eng::PlaneTag>(fplane + 16u, 16);
 		if (!blk.valid()) {
 			return false;
 		}
-		for (eng::u32 i = 0; i < fplane; ++i) {
-			blk.view.data()[i] = 0u;
-		}
-		if (!backend.blitter_fill_rect(blk.view.data(), 1u, fplane, frow, frow, fw, fh, 10, 2, 20u,
-					       3u, 1u, true)) {
+		// Fondo a 1; se limpia (color 0) un rect x=10..29 (no alineado a 16). Espeja el caso (b)
+		// del self-test sincrono: `afwm = $FFFF >> 10 = $003F` (bits set = x10..15, que son los
+		// pixeles **afectados** del primer word) y `alwm = $FFFF << 2 = $FFFC` (x16..29 afectados
+		// del ultimo word). El borde (x<10 y x>=30) debe seguir a 1 si el cookie-cut preserva la D.
+		for (eng::u32 i = 0; i < fplane; ++i) blk.view.data()[i] = 0xffu;
+		eng::graphics::BlitJob job {};
+		job.kind = eng::graphics::BlitJobKind::FillRect;
+		job.destination = eng::graphics::BlitPtr::from_storage(
+			reinterpret_cast<const eng::u16*>(blk.view.data()));
+		job.words_per_row = 2u;           // x10..29 ocupa las palabras 0..1 (x0..31)
+		job.height = fh;
+		job.bitplane_count = 1u;
+		job.destination_plane_stride_bytes = static_cast<eng::u32>(fw / 8u) * fh;
+		job.destination_modulo_bytes = 0u; // contiguo: fila tras fila
+		job.minterm = 0x00u;               // plano a 0 (limpiar)
+		job.fill.afwm = static_cast<eng::u16>(0xffffu >> (10u & 15u)); // $003F
+		job.fill.alwm = static_cast<eng::u16>(0xffffu << (15u - (29u & 15u))); // $FFFC
+		if (!backend.blitter_submit(job, true)) {
 			return false;
 		}
-		auto on = [&](eng::u16 x, eng::u16 y) {
-			return (blk.view.data()[static_cast<eng::u32>(y) * frow + (x >> 3)] &
-				(0x80u >> (x & 7u))) != 0u;
-		};
-		return on(10, 2) && on(29, 2) && on(10, 4) && on(29, 4) &&
-		       !on(9, 2) && !on(30, 2) && !on(10, 1) && !on(10, 5) && !on(0, 0);
+		const eng::u8* b = blk.view.data();
+		return !bit_at(b, 10, 2) && !bit_at(b, 29, 2) && bit_at(b, 9, 2) && bit_at(b, 0, 2) &&
+		       bit_at(b, 30, 2) && bit_at(b, 31, 2) && bit_at(b, 63, 2);
 	}
 
 	/// encuentra el boton en su centro y un click sobre la casilla alterna su valor. Si la
@@ -352,6 +477,29 @@ private:
 		if (m_sound == before) {
 			return false;
 		}
+		// `handle_mouse` es la MISMA funcion del bucle de runtime: ejercita el flanco del boton
+		// izquierdo y el `Callback<>` en m68k. Se apunta el cursor al boton y se restaura.
+		const eng::s16 save_x = m_cx;
+		const eng::s16 save_y = m_cy;
+		m_cx = 66;
+		m_cy = 49;
+		m_prev_left = false;
+		eng::input::MouseState press {};
+		press.left_button = true;
+		eng::input::MouseState release {};
+		release.left_button = false;
+		(void)handle_mouse(press);
+		(void)handle_mouse(release);
+		m_cx = save_x;
+		m_cy = save_y;
+		if (m_clicks != 1u) {
+			return false;
+		}
+		// El self-test ya valido que el `on_click` dispara; se deja el estado "fresco" para
+		// que la captura inicial muestre la etiqueta de reposo (un click real la cambiara).
+		m_clicks = 0u;
+		m_status_text = "Listo. Sin pulsar.";
+		m_status.text = m_status_text;
 		// Fuente cirilica (HOST-264): А (U+0410) y я (U+044F) deben tener glifo.
 		bool cyr_ok = false;
 		for (eng::u8 r = 0; r < eng::Font8::kRows; ++r) {
@@ -360,6 +508,29 @@ private:
 			}
 		}
 		return cyr_ok;
+	}
+
+	/// `on_click` del boton (`Callback<>`: la funcion recibe el `ctx`): sube el contador y
+	/// cambia la etiqueta de estado. Es el camino real de un click, no un atajo de test.
+	static void accept_cb(void* ctx) noexcept { static_cast<DemoGame*>(ctx)->on_accept(); }
+	void on_accept() noexcept {
+		++m_clicks;
+		m_status_text = "Pulsado: on_click.";
+		m_status.text = m_status_text;
+	}
+
+	/// Repinta la zona de un widget (rect + margen) sobre el fondo, igual que la pista del
+	/// slider: el demo repinta por zona en runtime, no el arbol completo.
+	void repaint_widget(ui::Widget& w) {
+		playfield::Surface c = m_scene.surface();
+		ui::UiPainter p(c, nullptr, m_theme);
+		eng::Box z = w.bounds;
+		z.x = static_cast<eng::s16>(z.x - 2);
+		z.w = static_cast<eng::u16>(z.w + 4u);
+		z.y = static_cast<eng::s16>(z.y - 2);
+		z.h = static_cast<eng::u16>(z.h + 4u);
+		p.fill(z, m_theme.fill); // fondo del panel, no el del lienzo
+		ui::draw_widget(w, p);
 	}
 
 	/// Pinta el arbol completo una sola vez (la UI es estatica salvo la pista del slider).
@@ -377,6 +548,8 @@ private:
 	bool m_radio_b_on = false;
 	eng::s16 m_slider_value = 0;
 	char m_text[16] = "Hola Amiga";
+	const char* m_status_text = "Listo. Sin pulsar.";
+	eng::u8 m_clicks = 0u;
 
 	ui::Panel m_root {};
 	ui::Label m_title {};
@@ -396,8 +569,11 @@ private:
 	eng::Block<eng::SpriteTag> m_sprite_block {}; ///< estructura DMA del cursor (Chip RAM)
 	ui::HardwareCursor m_cursor {};               ///< cursor por sprite de hardware
 	eng::amiga::MousePollState m_mouse_poll {};
-	eng::s16 m_cx = 160; ///< posicion del cursor (sigue al raton)
-	eng::s16 m_cy = 128;
+	bool m_prev_left = false; ///< estado previo del boton izquierdo (deteccion de flanco)
+	/// Cursor de hardware (sigue al raton por deltas). Arranca en (0,0) para que una
+	/// inyeccion absoluta (`--mouse-from 0,0 --mouse-to X,Y`) lo coloque en (X,Y).
+	eng::s16 m_cx = 0;
+	eng::s16 m_cy = 0;
 };
 
 } // namespace

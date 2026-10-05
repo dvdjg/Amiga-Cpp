@@ -5,6 +5,9 @@ Prompts canónicos para las consultas al modelo de visión local (Ollama) y desc
 es la fuente ejecutable; este documento es el contrato de los prompts para poder revisarlos y
 versionarlos sin leer el JS.
 
+> Principios y plantillas por escenario (regiones/recorte, secuencia, color, sprites, tiles):
+> [`docs/ai-dev-environment/PROMPTS_VISION_LOCAL.md`](../../docs/ai-dev-environment/PROMPTS_VISION_LOCAL.md).
+
 ## Principios
 
 1. **Referencia + comparación.** Se pasa siempre un **frame de referencia** (comportamiento esperado)
