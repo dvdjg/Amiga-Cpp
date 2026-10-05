@@ -29,6 +29,8 @@ Lo **observado** en `../WinUAE-DBG/drawing.cpp` al depurar la demo `208_risky_wo
 
 **Presupuesto de ancho de banda del Copper (regla de diseño):** cada `MOVE`/`WAIT` del Copper cuesta **2 ciclos de bus = 8 px lo-res**. Reposicionar un par *attached* = **2 MOVE** (16 px); 4 pares = **8 MOVE** (64 px). Si además se pone **un `WAIT` por periodo** (8 px), el coste por periodo es **72 px**: **si el periodo del patrón es 64 px, el Copper se retrasa +8 px cada periodo** y a partir del ~4.º el `MOVE` del impar llega tarde → el par cae a 4 colores (banda C de la 208). **Solución:** **quitar los `WAIT` intermedios** en los tramos *attached* (un solo `WAIT` al inicio de la línea + la ráfaga de `SPRxPOS`); así `8 MOVE = 64 px = periodo` y el Copper corre pareado con el haz → 15 colores a todo el ancho. Los tramos **no-*attached*** sí necesitan el `WAIT` por periodo (sin él, el `POS` de un canal pisa al anterior).
 
+**Guarda entre bandas (evitar la franja sólida de la 1.ª columna):** al cambiar de banda, si el Copper reescribe el `SPRxPT`/cabecera en la misma línea en la que los sprites de la banda anterior alcanzan su `VSTOP`, el DMA lee parte de la estructura anterior y parte de la nueva → una **columna vertical sólida** con la paleta de la banda previa. Se evita dejando **una línea de guarda** (`top+1` respecto a la banda anterior): Agnus recarga el `SPRxPT` en una línea neutra. Ver `docs/debugging/investigaciones/risky-woods-208-sprite-scroll.md` §2.9.
+
 ## Validación
 
 - `demos/techniques/amiga/sprites/208_risky_woods` E4: prioridad (objetos 0/1 delante), ATTACH (franja C) y reuso del par.
