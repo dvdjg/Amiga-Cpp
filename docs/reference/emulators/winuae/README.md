@@ -6,6 +6,7 @@ Lo **observado** en el código fuente de WinUAE (local: `../WinUAE-DBG/`) al con
 |---|---|---|
 | Colisión de sprites | `CLXCON`/`CLXDAT` (máscara y latch) | [collision.md](collision.md) |
 | Sprite DMA | estructura de sprite con cabecera | [sprite-dma.md](sprite-dma.md) |
+| Color de sprite | prioridad de pareja (número de canal), ATTACH y reuso | [sprite-color-priority.md](sprite-color-priority.md) |
 | Copper: autoridad de escritura | `CDANG` (`COPCON`) | [copper.md](copper.md) |
 | Disco a nivel de device | `DSKPT`/`DSKLEN`/`DSKBYTR` (DMA, MFM) | [trackdisk.md](trackdisk.md) |
 | IRQ de audio (`AUD0..3`, nivel 4) | `setirq`/`event_audxdat_func`, `AUDxLEN`/`AUDxLCH` | [audio-irq.md](audio-irq.md) |

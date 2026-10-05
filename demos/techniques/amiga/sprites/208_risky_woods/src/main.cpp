@@ -363,6 +363,7 @@ private:
 		// Objetos (canales 0/1, PRIORIDAD MAXIMA: se dibujan DELANTE del fondo): se **arman
 		// antes** de la franja B (su Y=152) para que el haz los dibuje; su X se parchea por frame.
 		// El fondo de la franja B va en canales 2..7 (numero mayor = detras). La franja C los reutiliza despues.
+		// Prioridad = numero de canal mas bajo (WinUAE drawing.cpp:4226; ficha winuae/sprite-color-priority.md).
 		for (eng::u8 i = 0; i < kObjs; ++i) {
 			const eng::u8 ch = i;
 			const eng::uintptr addr = spr_base + static_cast<eng::uintptr>(m_obj_off + i * kObjStride) * 2u;
@@ -436,6 +437,7 @@ private:
 					// En attached, el canal IMPAR aporta los bits altos por ATTACH: alcanza con
 					// reposicionar el par; mover tambien el impar degrada el reuso (el par pierde
 					// los bits altos en posiciones repetidas). Limitacion del reuso OCS del par.
+					// ATTACH: WinUAE drawing.cpp:2722/4239; reuso: drawing.cpp:2656.
 					if (bd.attach && (c & 1u)) { continue; }
 					const eng::u8 ch = static_cast<eng::u8>(bd.channel_first + c);
 					const eng::u8 colx = bd.attach ? static_cast<eng::u8>(c >> 1u) : c;

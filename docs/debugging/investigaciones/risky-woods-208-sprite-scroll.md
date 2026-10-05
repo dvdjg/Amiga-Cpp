@@ -86,6 +86,8 @@ desplazamientos; para el módulo, un lazo de resta. Ver `docs/reference/toolchai
 
 Solución: **el fondo de la franja B ocupa canales 2..7** (número alto = detrás) y **los objetos 0/1** (número bajo = delante). Como los objetos pasan al par de canales (0,1), su paleta es el grupo **COLOR16-19** (no el 28-31 que usaban en 6/7); el fondo de la franja B, al usar 2..7, emplea **COLOR20-31**, de modo que ambos grupos no se solapan y la recarga de paleta de los objetos (COLOR16-19) no afecta al fondo. El ancho visible va de `kDisplayX0=128` a `128+320=448`; la X de los objetos debe acotarse a `[128, 448-16]` (acotar a `[0, 304]` los pegaba al borde y los solapaba).
 
+**Fuente (WinUAE):** `drawing.cpp:4226-4266` — el color se toma de la pareja con **mayor prioridad = número más bajo** (`OFFS`); `col += offs*2` → pareja 0→COLOR16-19, 1→COLOR20-23. Ficha: [`sprite-color-priority.md`](../../reference/emulators/winuae/sprite-color-priority.md).
+
 ### 2.9 El Copper va por delante del haz: **sincronizar la recarga de paleta con el inicio de la franja**
 
 El Copper ejecuta la copperlist **más rápido que el haz**: las escrituras que no llevan un `WAIT` delante se ejecutan antes de que el haz llegue a esa línea. Consecuencia en E4 (recargas de paleta y armadura de cada franja emitidas en el *arm* de la franja, tras el `WAIT` de la última línea de la franja anterior): la recarga se aplicaba **durante las últimas líneas de la franja anterior**, y:
@@ -93,11 +95,13 @@ El Copper ejecuta la copperlist **más rápido que el haz**: las escrituras que 
 - los sprites que aún se estaban dibujando recogían la paleta nueva → **puntos sueltos en las filas de separación** (amarillos en la 208, rojo/verde en la 128);
 - al desplazar la armadura de los objetos el bloque de la franja B unas instrucciones, su recarga caía **en su primera línea** y la primera columna del fondo (canal 2) se pintaba con el registro de color **corrido** (amarillo↔marrón).
 
-Solución: **un `WAIT` en el inicio de cada franja** (`wait_line(bd.top)` al entrar en `emit_band` cuando la franja no es la primera) para que recarga y armadura se apliquen **exactamente desde la primera línea de la franja**. Verificado por píxeles y con el VLM.
+Solución: **un `WAIT` en el inicio de cada franja** (`wait_line(bd.top)` al entrar en `emit_band` cuando la franja no es la primera) para que recarga y armadura se apliquen **exactamente desde la primera línea de la franja**. Verificado por píxeles y con el VLM. (El Copper ejecuta instrucciones con efecto inmediato, independiente del haz: no hay un `fichero:línea` único, es arquitectural.)
 
 ### 2.10 El **reuso** de un par *attached* a lo ancho pierde los bits altos
 
 Al **reutilizar** repetidamente un par *attached* a lo ancho (reposicionar el par para repetir el patrón), las posiciones repetidas **pierden los bits altos**: la franja C mostraba 16 colores (8 bits) en la **primera** repetición (posición de armadura) y solo **4 colores** (2 bits) en las siguientes. Es decir, el canal impar (que aporta los bits 2,3 por ATTACH) **solo entrega los bits altos en la armadura inicial**; el reuso posterior no los incluye. Reposicionar también el canal impar **empeora** el resultado (más posiciones → degradación mayor). Es una limitación del reuso del par *attached* en OCS: para varios ciclos de un patrón a 15 colores hay que **volver a armar el par entero** (con `WAIT` en la posición) o reducir el número de repeticiones.
+
+**Fuente (WinUAE):** `drawing.cpp:2656-2664` — el reuso por línea re-arma solo el canal cuya X coincide con el haz (`s->xpos_lores == denise_hcounter` → copia del shifter + `spr_arms`); el canal impar que aporta los bits altos por ATTACH (`drawing.cpp:2722`, `4239`) no se re-arma en las repeticiones. Ficha: [`sprite-color-priority.md`](../../reference/emulators/winuae/sprite-color-priority.md).
 
 ## 3. El algoritmo de Risky Woods (artículo de codetapper)
 

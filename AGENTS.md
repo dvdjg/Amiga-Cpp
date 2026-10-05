@@ -24,6 +24,13 @@ contexto irrelevante a quien trabaja en otra cosa.
 - Se aplica a toda demo/efecto/imagen: antes de dar algo por bueno, pasarlo por Ollama. Si el
   resultado no se corresponde con la intención, está **mal** aunque el resto pase.
 - Procedimiento y herramientas: [`DEMO_VISUAL_DEBUG.md`](docs/guides/methodology/DEMO_VISUAL_DEBUG.md).
+- **Comportamiento de chipset que no cuadra → PARAR y leer la fuente ANTES de tocar nada.** Ante
+  cualquier mecanismo de hardware que no se comporte como se espera (Copper, sprites, Blitter, DMA,
+  colisión, timers…), **no experimentar a ciegas ni por prueba y error**: leer primero la
+  implementación del emulador (`../WinUAE-DBG/`, fichero según el síntoma) y el AHRM, y **citar
+  `fichero:línea`** en el comentario del código y en el commit. Un hallazgo de hardware **sin
+  `file:line` está incompleto**. Índice «síntoma → fichero» y fichas en
+  [`docs/reference/emulators/winuae/`](docs/reference/emulators/winuae/README.md); detalle en §1.12.
 
 ---
 
@@ -122,10 +129,11 @@ El objetivo es que el usuario pueda **revisar** el trabajo antes de que se conso
 
 ### 1.12 Si el hardware no funciona: fuente del emulador
 
+- **Disparador (obligatorio, sin decidir «si consulto o no»)**: en cuanto un mecanismo de hardware **no cuadre** —píxel/color que no sale, sprite tapado, elemento desplazado, fila/columna con basura, parpadeo, etc.—, **PARAR** y leer la fuente **antes** de construir diagnósticos o experimentos. No se redescubre por prueba y error lo que está escrito en la referencia. Índice «síntoma → fichero» y fichas por tema: [`docs/reference/emulators/winuae/README.md`](docs/reference/emulators/winuae/README.md).
 - Cuando un mecanismo del chipset **no se comporta como se espera** y la documentación de referencia (`docs/reference/ahrm/`, `../amiga-bootcamp/`, datasheets) no lo explica, la **implementación del emulador es la referencia de facto**: leer su **código fuente**.
 - **Fuente local**: `../WinUAE-DBG/`. Ficheros clave: `custom.cpp` (registros custom: handlers de escritura/lectura, p. ej. `CLXCON`/`CLXDAT`), `drawing.cpp` (render por píxel/línea: colisión, sprites, playfield), `include/custom.h` (mapa de registros), `cfgfile.cpp` (preferencias como `collision_level`).
 - **Procedimiento**: (1) localizar con `grep -rnE '<REG>|<término>'`; (2) leer el handler en `custom.cpp` y la lógica por píxel/línea en `drawing.cpp`; (3) comprobar **preferencias** que puedan desactivar la función (p. ej. `currprefs.collision_level`); (4) contrastar con el AHRM y **anotar la discrepancia**; (5) validar en emulador con una demo (caso positivo **y** negativo).
-- Documentar el hallazgo en `docs/reference/emulators/<emulador>/<tema>.md` (índice en `docs/reference/emulators/README.md`), citando **fichero y línea**. Ficha de referencia por **tema**: mecanismo observado (tabla `registro/handler/fuente`), contraste con el AHRM, implicación para el engine y enlaces al código que la usa. Ejemplo: [`winuae/audio-irq.md`](docs/reference/emulators/winuae/audio-irq.md) (IRQ de audio: `setirq`/`event_audxdat_func`, `AUDxLEN`/`AUDxLCH`, contraste AHRM `:4378`, y por qué el servicio de nivel 4 es el sitio del *swap*).
+- Documentar el hallazgo en `docs/reference/emulators/<emulador>/<tema>.md` (índice en `docs/reference/emulators/README.md`), citando **fichero y línea** (sin `fichero:línea` el hallazgo **no está hecho**). Ficha de referencia por **tema**: mecanismo observado (tabla `registro/handler/fuente`), contraste con el AHRM, implicación para el engine y enlaces al código que la usa. Ejemplo: [`winuae/audio-irq.md`](docs/reference/emulators/winuae/audio-irq.md) (IRQ de audio: `setirq`/`event_audxdat_func`, `AUDxLEN`/`AUDxLCH`, contraste AHRM `:4378`, y por qué el servicio de nivel 4 es el sitio del *swap*).
 - **Completar la referencia**: si el emulador aclara o corrige la doc del manual, añadir la aclaración a la copia local (`docs/reference/ahrm/ERRATA_Y_NOTAS.md` o la ficha de técnica), indicando **de dónde se obtuvo** (emulador + `fichero:línea`).
 
 ### 1.13 Las demos son tutoriales
