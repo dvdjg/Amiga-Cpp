@@ -121,7 +121,7 @@ implementa **solo con consumidor real**; el orden es por valor/coste.
 | R5.3 | `task.hpp` (coroutine *stackless*) | tarea con estado en `struct` y `step()` (patrón `switch`); secuencias/scripting sin corrutinas C++20 | **HOST-128** (entregado; falta secuencia de demo) |
 | R5.4 | `variant.hpp` (R4.2) | unión etiquetada sin heap con `visit`, para colas de comandos/mensajes heterogéneos | **HOST-130** (entregado) |
 | R5.5 | heap d-ario / `stable_heap` | *open set* de A* con *decrease-key* (índice) o heap 4-ario; **medir** antes de adoptar | **Medido (HOST-131)**: el 4-ario hace **más** comparaciones que el binario (ratio 1.04–1.15) → **no se adopta**; se mantiene `PriorityQueue` |
-| R5.6 | `bloom.hpp` | Filtro Bloom fijo opcional en GOAP: omite consultas exactas negativas a `m_best`; todo positivo se confirma en el `HashMap` exacto; `BloomBits=0` conserva el planner por defecto sin almacenamiento Bloom | **HOST-426**: resultado/coste/expansiones idénticos; mide negativas omitidas, falsos positivos y huella; cruce m68k |
+| R5.6 | `bloom.hpp` | Filtro Bloom fijo opcional en GOAP: omite consultas exactas negativas a `m_best`; todo positivo se confirma en el `HashMap` exacto; `BloomBits=0` conserva el planner por defecto sin almacenamiento Bloom | **Medido (HOST-426)**: resultado/coste/expansiones idénticos, pero el planner con Bloom es **~13-16 % más lento** (recalcula el hash de la clave y la sonda evitada es más barata) → **no se adopta**: `BloomBits` queda opt-in apagado; `bloom.hpp` se conserva como utilidad para comprobaciones caras (E/S) |
 | R5.7 | `trie.hpp` | trie / *prefix map* para autocompletado y búsqueda por prefijo | HOST + consumidor (consola) |
 | R5.8 | `grid_view.hpp` (mdspan) | vista multidimensional sobre `Span` para rejillas de nivel | HOST |
 
@@ -168,6 +168,8 @@ implementa **por consumidor y en cualquier orden** una vez cerradas R1–R4.
 - **Bloom/GOAP**: implementado como precomprobación opt-in de ausencias. Toda respuesta
   positiva se confirma en `m_best`; los falsos positivos solo reducen el ahorro. HOST-426
   compara 32 y 256 bits con la ruta exacta en Hanoi; `BloomBits=0` mantiene el filtro apagado.
+  **Medido**: no se adopta en GOAP (el planner con Bloom es ~13-16 % más lento porque recalcula
+  el hash de la clave y la sonda evitada es más barata); ver GAME_AI_LIBRARY.md §3.1.
 - **Heurística parametrizable**: **implementada** en `pathfinding.hpp`: `astar` acepta
   `detail::ChebyshevH`/`detail::EuclideanH` (Manhattan por defecto, la óptima en 4 vecinos;
   las otras son para mallas con diagonal). HOST-099.

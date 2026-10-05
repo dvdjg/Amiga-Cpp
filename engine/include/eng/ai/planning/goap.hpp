@@ -196,6 +196,16 @@ struct HMemo<K, 0u> {
 	constexpr void clear() noexcept {}
 };
 
+// Prefiltro Bloom del conjunto `m_best`: **opt-in y desactivado por defecto (`BloomBits == 0`)**.
+// Medido (HOST-426 + microbenchmark): **no mejora** el planner y lo ralentiza ~13-16 % con clave
+// de 64 bits, porque `may_contain` recalcula el `Hash<K>` que `m_best.find` volveria a calcular y
+// la sonda del `HashMap` que evita es mas barata que ese hash; el Bloom paga su trabajo (hash del
+// `step` + pruebas de bit) en TODAS las consultas y solo ahorra la sonda de las negativas. En el
+// 68000 el hash es relativamente mas caro que la sonda, asi que la brecha seria mayor. Un filtro
+// Bloom ayuda cuando la comprobacion exacta es cara (disco/red), no sobre un mapa in-memory O(1).
+// Se conserva como opt-in documentado para no perder la via, pero **no debe activarse en GOAP**.
+// Ver docs/engine/architecture/GAME_AI_LIBRARY.md §3.1 y tests/host/ai/426_goap_bloom.
+
 /// Caso activado: filtro Bloom insert-only; los positivos se validan en el mapa exacto.
 template <class K, usize BloomBits>
 struct PlannerSeenFilter {
@@ -518,6 +528,9 @@ template <usize MaxFacts, usize MaxVars>
 /// `MaxNodes` es el presupuesto comun de nodos generados, entradas del mapa de mejor coste
 /// y elementos de la cola. El estado de trabajo va inline en el objeto, asi que conviene
 /// instanciarlo en estatica para no consumir pila en el 68000.
+///
+/// `BloomBits` (ultimo parametro) es un prefiltro Bloom **opt-in que debe quedar en 0**: medido,
+/// no mejora el planner y lo ralentiza (ver `PlannerSeenFilter` y GAME_AI_LIBRARY.md §3.1).
 template <usize MaxFacts, usize MaxVars, usize MaxNodes, usize MaxCachedPlans = 4u,
 	  usize MaxCachedActions = 64u, usize BloomBits = 0u>
 class Planner {

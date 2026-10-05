@@ -15,6 +15,12 @@
 /// es `sizeof(BloomFilter<T, Bits, HashCount, Hasher>)`; no hay memoria dinámica.
 /// El hash usa `eng::util::Hash<T>` (sin multiplicación 32×32 en las claves del engine).
 ///
+/// **Nota de uso**: un filtro Bloom compensa cuando la comprobación exacta es **cara** (E/S,
+/// disco, red); sobre una comprobación **in-memory O(1)** (p. ej. el `m_best` de GOAP) **no
+/// mejora**: `may_contain` recalcula el hash que la búsqueda exacta volvería a hacer y su trabajo
+/// (hash del `step` + pruebas de bit) supera la sonda evitada. Ver
+/// docs/engine/architecture/GAME_AI_LIBRARY.md §3.1 (HOST-426).
+///
 /// Uso:
 ///   eng::util::BloomFilter<u32, 1024> maybe_seen;
 ///   if (maybe_seen.may_contain(key)) exact_set.contains(key);
