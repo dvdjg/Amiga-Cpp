@@ -1,6 +1,6 @@
 # HOST-382: CLI única audio-compressor
 
-Valida la CLI de la aplicación única: crea un WAV estéreo sintético, comprueba `--mode sample`→AUZX, remuestreo real con `--sample-rate`, rechazo de codec desconocido, `--mode music`→ACP1 v2 con eventos secuenciales/round-trip, `--hpss` con cuatro pistas y una fuente FLAC multicanal decodificada por FFmpeg.
+Valida la CLI de la aplicación única: crea un WAV estéreo sintético, comprueba `--mode sample`→AUZX, remuestreo real con `--sample-rate`, rechazo de codec desconocido, `--mode music`→ACP1 v2 con eventos secuenciales/round-trip, `--hpss` (positivo con un mono de dos capas armónica/percusiva; negativo con un estéreo de cuatro stems, rechazado por la política de tres voces Paula de MUSIC — ver `ROADMAP_AUDIO_COMPRESSOR_REFACTOR.md` §Política) y una fuente FLAC multicanal decodificada por FFmpeg.
 
 El binario se compila aparte (nombre por plataforma; en POSIX sin `.exe`):
 

@@ -18,13 +18,3 @@ api/game.hpp
 # planner, §7) lo empuja sobre el umbral. Trocearlo por tema (base/mapping/dual/scroll) queda
 # para una pasada del motor; se acepta temporalmente para no bloquear la batería host.
 field/xlimited_scene.hpp
-#
-# api/effects.hpp (904): fachada de efectos de sprites (SpriteLayer, RiskyWoodsLayer,
-# FreeFormSpriteLayer y su scroll/parcheo). Pendiente de trocear por técnica (ver
-# docs/reference/amiga/techniques/sprite-horizontal-multiplex.md); se acepta temporalmente
-# para no bloquear la batería host.
-api/effects.hpp
-#
-# platform/amiga/backend.hpp (876): backend Amiga (memoria, display, audio/síntesis, IRQ).
-# Pendiente de trocear por subsistema; se acepta temporalmente para no bloquear la batería host.
-platform/amiga/backend.hpp

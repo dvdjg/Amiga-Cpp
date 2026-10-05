@@ -33,6 +33,15 @@ bool write_wav(const std::string& path) {
 	std::FILE* out = std::fopen(path.c_str(), "wb"); if (!out) { std::perror("WAV fopen"); return false; } const bool ok = std::fwrite(data, 1u, sizeof(data), out) == sizeof(data); std::fclose(out); return ok;
 }
 
+/// Genera un WAV PCM8 **mono** de cuatro muestras (HPSS de un mono da 2 stems, dentro de la
+/// política de tres voces Paula de MUSIC).
+bool write_wav_mono(const std::string& path) {
+	eng::u8 data[48]{}; std::memcpy(data, "RIFF", 4u); put32(data, 4u, 40u); std::memcpy(data + 8u, "WAVEfmt ", 8u);
+	put32(data, 16u, 16u); put16(data, 20u, 1u); put16(data, 22u, 1u); put32(data, 24u, 11025u); put32(data, 28u, 11025u); put16(data, 32u, 1u); put16(data, 34u, 8u);
+	std::memcpy(data + 36u, "data", 4u); put32(data, 40u, 4u); data[44] = 0u; data[45] = 255u; data[46] = 64u; data[47] = 192u;
+	std::FILE* out = std::fopen(path.c_str(), "wb"); if (!out) { std::perror("WAV fopen"); return false; } const bool ok = std::fwrite(data, 1u, sizeof(data), out) == sizeof(data); std::fclose(out); return ok;
+}
+
 /// Ruta del binario: `AUDIO_COMPRESSOR_BIN` o el defecto por plataforma.
 std::string binary_path() {
 	const char* env = std::getenv("AUDIO_COMPRESSOR_BIN");
@@ -90,12 +99,14 @@ int main() {
 	const std::string dir = temp_directory();
 	if (dir.empty()) { std::fprintf(stderr, "no se pudo resolver el directorio temporal\n"); return 1; }
 	const std::string input = dir + "host382_in.wav";
+	const std::string mono_input = dir + "host382_in_mono.wav";
 	const std::string sample_output = dir + "host382_out.auzx";
 	const std::string music_output = dir + "host382_music.acp1";
 	const std::string hpss_output = dir + "host382_hpss.acp1";
+	const std::string hpss_mono_output = dir + "host382_hpss_mono.acp1";
 	const std::string resampled_output = dir + "host382_resampled.auzx";
 	const std::string invalid_output = dir + "host382_invalid.auzx";
-	if (!write_wav(input)) { std::fprintf(stderr, "no se pudo crear WAV de prueba\n"); return 1; }
+	if (!write_wav(input) || !write_wav_mono(mono_input)) { std::fprintf(stderr, "no se pudo crear WAV de prueba\n"); return 1; }
 
 	const int process = run_binary(binary, input, sample_output, "sample");
 	if (process != 0) { std::fprintf(stderr, "audio-compressor terminó con %d\n", process); std::remove(input.c_str()); return 1; }
@@ -151,16 +162,22 @@ int main() {
 			std::fprintf(stderr, "round-trip ACP1 alteró muestras del stem %u\n", track_index); return 1;
 		}
 	}
-	const int hpss_process = run_binary(binary, input, hpss_output, "music", true);
-	if (hpss_process != 0) { std::fprintf(stderr, "audio-compressor music --hpss terminó con %d\n", hpss_process); return 1; }
-	file = std::fopen(hpss_output.c_str(), "rb");
+	// Política de salida (ROADMAP_AUDIO_COMPRESSOR_REFACTOR §Política): MUSIC con pitch/volumen
+	// variable se restringe a tres voces Paula y falla antes de publicar ACP1 si necesita más.
+	// HPSS de un estéreo da 4 stems -> debe rechazarse; HPSS de un mono (2 stems) sí cabe.
+	if (run_binary(binary, input, hpss_output, "music", true) == 0) {
+		std::fprintf(stderr, "--hpss de estéreo (4 pistas) fue aceptado pese a la política de tres voces Paula\n"); return 1;
+	}
+	const int hpss_process = run_binary(binary, mono_input, hpss_mono_output, "music", true);
+	if (hpss_process != 0) { std::fprintf(stderr, "audio-compressor music --hpss (mono) terminó con %d\n", hpss_process); return 1; }
+	file = std::fopen(hpss_mono_output.c_str(), "rb");
 	if (file == nullptr) { std::fprintf(stderr, "no se pudo abrir salida ACP1 HPSS\n"); return 1; }
 	std::fseek(file, 0, SEEK_END); const long hpss_size = std::ftell(file); std::rewind(file);
 	std::vector<eng::u8> hpss_bytes(static_cast<std::size_t>(hpss_size));
 	const bool hpss_read = std::fread(hpss_bytes.data(), 1u, hpss_bytes.size(), file) == hpss_bytes.size(); std::fclose(file);
 	eng::audio::acp1::Info hpss_info{};
-	if (!hpss_read || !eng::audio::acp1::parse({hpss_bytes.data(), hpss_bytes.size()}, hpss_info) || hpss_info.track_count != 4u) {
-		std::fprintf(stderr, "HPSS no genera dos capas sincronizadas por canal\n"); return 1;
+	if (!hpss_read || !eng::audio::acp1::parse({hpss_bytes.data(), hpss_bytes.size()}, hpss_info) || hpss_info.track_count != 2u) {
+		std::fprintf(stderr, "HPSS de mono no genera las dos capas armónica/percusiva\n"); return 1;
 	}
 	const std::string flac_input = dir + "host382_in.flac";
 	const std::string flac_output = dir + "host382_ffmpeg.acp1";
@@ -183,12 +200,13 @@ int main() {
 			std::fprintf(stderr, "FFmpeg downmixó o perdió canales al normalizar FLAC\n"); return 1;
 		}
 	}
-	std::remove(input.c_str()); std::remove(sample_output.c_str()); std::remove(resampled_output.c_str());
+	std::remove(input.c_str()); std::remove(mono_input.c_str()); std::remove(sample_output.c_str()); std::remove(resampled_output.c_str());
 	std::remove(invalid_output.c_str()); std::remove(music_output.c_str());
-	std::remove(hpss_output.c_str());
+	std::remove(hpss_output.c_str()); std::remove(hpss_mono_output.c_str());
 	std::remove(flac_input.c_str()); std::remove(flac_output.c_str());
 	std::remove((music_output + ".linear.auzx").c_str());
 	std::remove((hpss_output + ".linear.auzx").c_str());
-	std::printf("OK: CLI produce AUZX sample, ACP1 sincronizado y ACP1 con HPSS%s.\n", ffmpeg_available ? "; FFmpeg conserva canales FLAC" : "");
+	std::remove((hpss_mono_output + ".linear.auzx").c_str());
+	std::printf("OK: CLI produce AUZX sample, ACP1 sincronizado, HPSS mono (2 pistas) y rechaza HPSS estéreo (>3 voces Paula)%s.\n", ffmpeg_available ? "; FFmpeg conserva canales FLAC" : "");
 	return 0;
 }
