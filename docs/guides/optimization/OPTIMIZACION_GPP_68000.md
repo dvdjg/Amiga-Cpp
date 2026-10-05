@@ -9,6 +9,47 @@ Convención de marcas (es un doc que se completa con descubrimientos):
 
 ---
 
+## Disciplina de coste: cada operación cuenta en el A500
+
+El A500 (68000 a ~7,09 MHz, bus de 16 bits, sin caché) es un sistema **cycle-bound**: cada
+operación de un bucle consume ciclos que **compiten** con el Blitter, el Copper, los
+bitplanes y el resto del frame. Escribir código «correcto pero caro» —una multiplicación o
+división por píxel— puede agotar el frame entero y arruinar el efecto. Antes de escribir una
+operación dentro de un bucle de píxeles/líneas o del bucle principal, preguntarse **«¿cuántos
+ciclos cuesta y con qué compite?»**. Si la respuesta no es «constante, desplazamiento o
+suma/resta», buscar la formulación que sí lo sea.
+
+**Prohibido `*`, `/`, `%` en bucles por píxel/línea o en el bucle de juego** salvo
+justificación medida. Alternativas obligatorias:
+
+- **Potencia de 2** → **desplazamiento**: `x * 8` = `x << 3`; `x / 8` (sin signo) = `x >> 3`;
+  `x % 8` = `x & 7`. Escalar por 2^n es gratis.
+- **Coste real de `*`/`/` en 68000**: enteros de **32 bits** → **libcall**
+  (`__mulsi3` ~50 ciclos, `__udivsi3`/`__modsi3` ~150) y rompen la precisión cycle-exact;
+  enteros de **16 bits** → nativos (`mulu.w`/`muls.w` baratas; `divu.w`/`divs.w` ~140
+  ciclos). Una sola de estas por píxel en un bucle de miles de píxeles cuesta **más que un
+  frame**.
+- **Precalcular en compilación (`constexpr`)**: todo lo que dependa solo de constantes
+  (geometrías, perfiles, tablas de seno, mapas de color, curvas) se genera con `constexpr`;
+  **el compilador evalúa `*`/`/`** a coste cero de runtime y en runtime solo se **indexa la
+  tabla**. Es la forma correcta de preparar **figuras geométricas**, paletas y patrones.
+- **Sumas/restas acumuladas**: las funciones lineales (`y = a·x + b`, rampas, barridos,
+  posiciones incrementales, contadores) se calculan acumulando un incremento ya escalado, no
+  multiplicando en cada paso.
+- **Tablas (ROM)** para funciones no lineales (seno, atan, raíz, perspectiva) en vez de
+  cómputo por píxel; **Q-format** (enteros con punto fijo) con desplazamientos.
+- **Sin `%` de runtime**: si `v < 2·mod`, un lazo de resta (`while (v >= mod) v -= mod;`)
+  es O(1) aquí y evita la libcall.
+- **Verificar que no aparecen libcalls** en un camino caliente: `nm fichero.o | grep
+  '__mul\|__div\|__mod\|__float'` y `tools/analyze/asm-audit.mjs` (falla con 68020+/FPU).
+  Leer el `.s` (`-S`) del bucle para confirmar que no hay `jsr __udivsi3`.
+
+Documento hermano del **presupuesto por operación** (tablas de ciclos): `docs/guides/optimization/`
+y `copper-timing-and-budget.md`. La regla de **hardware** (DMA, bus, competencia) está en
+`docs/reference/amiga/`.
+
+---
+
 ## 0. Entorno de verificación (evidencia reproducible)
 
 ```

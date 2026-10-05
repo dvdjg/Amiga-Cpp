@@ -3,20 +3,20 @@
 //   Optimizada: bash ./tools/build/build-demo.sh demos/techniques/amiga/sprites/208_risky_woods --release && bash ./tools/run/run-demo.sh demos/techniques/amiga/sprites/208_risky_woods --keep-running
 
 // ============================================================================
-// Demo 208 â€” fondo por sprites *Risky Woods*  Â·  ETAPA E4
+// Demo 208 — fondo por sprites *Risky Woods*  ·  ETAPA E4
 // ============================================================================
 //
 // Plan (docs/debugging/investigaciones/risky-woods-208-sprite-scroll.md):
-//   E0 OK (1 canal) Â· E1 OK (8 sueltos, 128 px) Â· E2 OK (repeticiÃ³n a 320 px) Â·
-//   E3 OK (scroll 1 px/frame por punteros + rotaciÃ³n de columna).
-//   E4 (esta) â€” **3 franjas** con las 3 variantes y scroll continuo:
-//     A (8 sprites sueltos, patrÃ³n 128 px, 2,5 repeticiones)
-//     B (6 sprites sueltos, patrÃ³n 96 px + 2 sprites con vaivÃ©n senoidal)
-//     C (8 sprites emparejados/attached, patrÃ³n 64 px, 5 repeticiones, 15 colores)
-//   Las 8 canales se **reutilizan verticalmente** entre franjas (no se solapan).
+//   E0 OK (1 canal) · E1 OK (8 sueltos, 128 px) · E2 OK (repetición a 320 px) ·
+//   E3 OK (scroll 1 px/frame por punteros + rotación de columna).
+//   E4 (esta) — **3 franjas** con las 3 variantes y scroll continuo:
+//     A (8 sprites sueltos, patrón 128 px)   B (6 sueltos, 96 px + 2 objetos) ·
+//     C (8 sprites emparejados/attached, 64 px, 15 colores).
+//   Las 8 canales se **reutilizan verticalmente** entre franjas (no solapan).
 //
-// **Rendimiento**: la copperlist se emite UNA vez; por frame solo se parchean los
-// `SPRxPT` (scroll) y la X de los 2 objetos. CPU ~0.
+// **Hallazgos**: las divisiones/módulos 32-bit (`__udivsi3`/`__modsi3`) en `-nostdlib`
+// son una trampa —se sustituyen por **recíproco fijo Q16** y por lazo de resta—. El
+// scroll va por cambio de punteros `SPRxPT` pre-shifteados (CPU ~0).
 
 #include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
@@ -49,22 +49,20 @@ constexpr eng::u32 kBitplaneBytes = kPlaneBytes * kPlanes;
 
 constexpr eng::u16 kBandLines = 80;
 constexpr eng::u16 kColWidth = 16;
-constexpr eng::u8  kShifts = 16;                        // sets pre-shifteados (1 px)
-constexpr eng::u16 kDisplayX0 = 128;                    // borde izquierdo del display
+constexpr eng::u8  kShifts = 16;                 // sets pre-shifteados (1 px cada uno)
+constexpr eng::u16 kDisplayX0 = 128;             // borde izquierdo del display
 constexpr eng::u16 kDisplayW = 320;
 constexpr eng::u16 kStride = static_cast<eng::u16>(2u + kBandLines * 2u + 2u); // 164
-// Margen del WAIT respecto a la 1.Âª columna del perÃ­odo (rÃ¡faga de â‰¤8 px, sin pisar antes).
-constexpr eng::u16 kCuGap = 24;
+constexpr eng::u16 kCuGap = 24;                  // margen del WAIT respecto a la 1.ª columna
+constexpr eng::u16 kCuBytes = 48u * 1024u;       // holgura de la copperlist
 constexpr eng::u16 kOffWords = 8u;
-constexpr eng::u16 kOffWord = 0xfe00u; // VSTART=VSTOP=254 (nunca arma)
+constexpr eng::u16 kOffWord = 0xfe00u;           // VSTART=VSTOP=254 (nunca arma)
 
-// Objetos (franja B): 2 sprites con vaivÃ©n.
 constexpr eng::u8  kObjs = 2;
 constexpr eng::u16 kObjH = 16;
 constexpr eng::u16 kObjStride = static_cast<eng::u16>(2u + kObjH * 2u + 2u); // 36
-constexpr eng::u16 kObjY = 152; // dentro de la franja B [128,208)
+constexpr eng::u16 kObjY = 152;                  // dentro de la franja B [128,208)
 
-// Franjas: top, nÂº canales, patrÃ³n (px), attached.
 struct BandSpec {
 	eng::u16 top;
 	eng::u8  channels;
@@ -72,7 +70,7 @@ struct BandSpec {
 	bool     attach;
 };
 
-// COLOR00 playfield. 3 colores coherentes para A/B (suelo/cresta/cielo) en cada par.
+// COLOR00 playfield (navy). 3 colores coherentes para A/B en cada par.
 constexpr eng::Palette32 kPalette {{
 	0x013, 0x111, 0x222, 0x333, 0x444, 0x555, 0x666, 0x777,
 	0x888, 0x999, 0xaaa, 0xbbb, 0xccc, 0xddd, 0xeee, 0xfff,
@@ -82,42 +80,73 @@ constexpr eng::Palette32 kPalette {{
 	0x000, 0x630, 0xff0, 0x24a, // 28-31
 }};
 
-// --- Figuras -----------------------------------------------------------------
-// Valor 1..3 (3 colores) de la franja `style` (0=colina, 1=ola) en `px` (0..pattern-1).
-[[nodiscard]] constexpr eng::u16 figure3(eng::u16 px, eng::u16 y, eng::u16 pattern, eng::u8 style) {
-	const eng::u16 half = static_cast<eng::u16>(pattern / 2u);
-	eng::u16 d = static_cast<eng::u16>(px < half ? (half - px) : (px - half));
-	// Ola (style 1): perfil triangular invertido; colina (0): suave.
-	eng::u16 wy;
-	if (style == 1u) {
-		wy = static_cast<eng::u16>(30u + (d * 30u) / half);
-	} else {
-		wy = static_cast<eng::u16>(40u - (20u * (half - d)) / half);
+// --- Figuras SIN mul/div de runtime (las libcalls son ~50-150 ciclos: el init de
+// 1,35 M píxeles tardaría ~50 s = timeout). Perfil de colina precalculado en COMPILACIÓN.
+struct HillProfiles {
+	eng::u16 wy[3][65] {};
+	constexpr HillProfiles() {
+		const eng::u16 hs[3] { 64u, 48u, 32u };
+		for (eng::u8 b = 0; b < 3u; ++b) {
+			for (eng::u16 d = 0; d <= 64u; ++d) {
+				const eng::u16 dd = (d > hs[b]) ? hs[b] : d;
+				wy[b][d] = static_cast<eng::u16>(
+					40u - (20u * static_cast<eng::u32>(hs[b] - dd)) / hs[b]); // constexpr
+			}
+		}
 	}
+};
+constexpr HillProfiles kHill {};
+constexpr eng::u16 kHalf[3] { 64u, 48u, 32u };
+
+/// Valor 1..3 (3 colores) de la colina de la franja `band` en `px` (0..pattern-1).
+[[nodiscard]] constexpr eng::u16 figure3(eng::u16 px, eng::u16 y, eng::u8 band) {
+	const eng::u16 half = kHalf[band];
+	const eng::u16 d = static_cast<eng::u16>(px < half ? (half - px) : (px - half));
+	const eng::u16 wy = kHill.wy[band][d];
 	if (y + 1u < wy) { return 3u; }
 	if (y > wy + 1u) { return 1u; }
 	return 2u;
 }
 
-// Valor 0..15 (15 colores, attached) de la franja C: anillos concÃ©ntricos (64 px de patrÃ³n).
-[[nodiscard]] constexpr eng::u16 figure15(eng::u16 px, eng::u16 y, eng::u16 pattern) {
-	const eng::s32 cx = static_cast<eng::s32>(pattern / 2u);
-	const eng::s32 cy = 40;
-	const eng::s32 dx = static_cast<eng::s32>(px) - cx;
-	const eng::s32 dy = static_cast<eng::s32>(y) - cy;
-	const eng::s32 r2 = dx * dx + dy * dy;
-	return static_cast<eng::u16>((r2 / 96) & 15);
+/// Valor 0..15 (15 colores, attached) de la franja C: anillos concéntricos.
+/// Usa `mulsw` (16-bit nativo) y `>> 7` en vez de `*`/`/` de 32 bits.
+[[nodiscard]] eng::u16 figure15(eng::u16 px, eng::u16 y, eng::u16 pattern) {
+	const eng::s16 cx = static_cast<eng::s16>(pattern / 2u);
+	const eng::s16 dx = static_cast<eng::s16>(static_cast<eng::s16>(px) - cx);
+	const eng::s16 dy = static_cast<eng::s16>(static_cast<eng::s16>(y) - 40);
+	const eng::s16 r2 = static_cast<eng::s16>(mulsw(dx, dx) + mulsw(dy, dy));
+	return static_cast<eng::u16>((static_cast<eng::u16>(r2) >> 7u) & 15u);
+}
+
+/// Envuelve `v` a [0,mod) con un lazo de resta (sin `%`; aquí `v < 2*mod`).
+[[nodiscard]] constexpr eng::u16 wrap(eng::u16 v, eng::u16 mod) {
+	while (v >= mod) {
+		v = static_cast<eng::u16>(v - mod);
+	}
+	return v;
+}
+
+/// POS/CTL de un sprite (AHRM cap. 4): VSTART/VSTOP con sus bits altos en CTL.
+[[nodiscard]] constexpr eng::u16 sprite_pos(eng::u16 vstart, eng::u16 x) {
+	return static_cast<eng::u16>(((vstart & 0xffu) << 8u) | ((x >> 1u) & 0xffu));
+}
+[[nodiscard]] constexpr eng::u16 sprite_ctl(eng::u16 vstart, eng::u16 vstop, eng::u16 x, bool attach) {
+	return static_cast<eng::u16>(((vstop & 0xffu) << 8u) |
+				     (attach ? 0x0080u : 0u) |
+				     (((vstart >> 8u) & 0x1u) << 2u) |
+				     (((vstop >> 8u) & 0x1u) << 1u) |
+				     (x & 0x1u));
 }
 
 struct RiskyWoodsDemo {
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		if (!backend.configure_memory({ 256u * 1024u, 8u * 1024u, 8u * 1024u })) {
+		if (!backend.configure_memory({ 384u * 1024u, 8u * 1024u, 8u * 1024u })) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020801u);
 			return;
 		}
 		m_bitplane_block = backend.memory_manager().chip().reserve<eng::PlaneTag>(kBitplaneBytes, 16);
-		m_copper_block = backend.memory_manager().chip().reserve<eng::CopperTag>(48u * 1024u, 16);
+		m_copper_block = backend.memory_manager().chip().reserve<eng::CopperTag>(kCuBytes, 16);
 		m_sprite_block = backend.memory_manager().chip().reserve<eng::SpriteTag>(
 			static_cast<eng::u32>(sprite_words()) * 2u, 16);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid() || !m_sprite_block.valid()) {
@@ -147,35 +176,42 @@ struct RiskyWoodsDemo {
 		eng::debug::mark_ready(g_eng_run_status, 3u * 256u + kBands[0].pattern);
 	}
 
-	// Scroll continuo + objetos. Se parchean los SPRxPT de cada franja y la X de los objetos.
 	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
 		const eng::u32 pos = context.frame.frame_index;
-		const eng::u8 s = static_cast<eng::u8>(pos % kShifts);
+		const eng::u8 s = static_cast<eng::u8>(pos & (kShifts - 1u));
+		// Rotación de columna cada kShifts px (contador incremental, sin `%` de runtime).
+		if (pos != 0u && (pos & (kShifts - 1u)) == 0u) {
+			for (eng::u8 b = 0; b < 3u; ++b) {
+				const eng::u8 cols = kBands[b].attach
+							     ? static_cast<eng::u8>(kBands[b].channels / 2u)
+							     : kBands[b].channels;
+				if (++m_k[b] >= cols) {
+					m_k[b] = 0u;
+				}
+			}
+		}
 		const eng::uintptr base = reinterpret_cast<eng::uintptr>(m_sprite_block.view.data());
 		for (eng::u8 b = 0; b < 3u; ++b) {
 			const BandSpec& bd = kBands[b];
-			// Columnas = canales (sueltos) o pares (attached).
 			const eng::u8 cols = bd.attach ? static_cast<eng::u8>(bd.channels / 2u) : bd.channels;
-			const eng::u8 k = static_cast<eng::u8>((pos / kShifts) % cols); // rotaciÃ³n de columna
+			const eng::u8 k = m_k[b];
 			for (eng::u8 c = 0; c < bd.channels; ++c) {
-				eng::u8 col;
-				if (bd.attach) {
-					col = static_cast<eng::u8>((((c / 2u) + k) % cols) * 2u + (c & 1u));
-				} else {
-					col = static_cast<eng::u8>((c + k) % cols);
-				}
+				const eng::u8 col = bd.attach
+					? static_cast<eng::u8>(wrap(static_cast<eng::u16>((c / 2u) + k), cols) * 2u + (c & 1u))
+					: static_cast<eng::u8>(wrap(static_cast<eng::u16>(c + k), cols));
 				const eng::u16 word = static_cast<eng::u16>(m_band_off[b] + (s * bd.channels + col) * kStride);
 				const eng::uintptr addr = base + static_cast<eng::uintptr>(word) * 2u;
 				m_copper_words[m_pt_idx[b][c][0] + 1u] = static_cast<eng::u16>(addr >> 16u);
 				m_copper_words[m_pt_idx[b][c][1] + 1u] = static_cast<eng::u16>(addr & 0xffffu);
 			}
 		}
-		// Objetos: vaivÃ©n senoidal (tabla) dentro de la franja B.
+		// Objetos: vaivén senoidal dentro de la franja B.
 		for (eng::u8 i = 0; i < kObjs; ++i) {
-			const eng::u16 phase = static_cast<eng::u16>((pos * (i == 0u ? 1u : 1u) + i * 32u) & 63u);
-			const eng::s16 swing = static_cast<eng::s16>(kSine[phase] * 4); // Â±~120 px
+			const eng::u16 phase = static_cast<eng::u16>((pos + i * 32u) & 63u);
+			const eng::s16 swing = static_cast<eng::s16>(kSine[phase] * 4);
 			const eng::s16 x = static_cast<eng::s16>(kObjBaseX[i] + swing);
-			const eng::u16 xx = static_cast<eng::u16>(x < 0 ? 0 : (x > static_cast<eng::s16>(kDisplayW - kColWidth) ? (kDisplayW - kColWidth) : x));
+			const eng::u16 xx = static_cast<eng::u16>(
+				x < 0 ? 0 : (x > static_cast<eng::s16>(kDisplayW - kColWidth) ? (kDisplayW - kColWidth) : x));
 			m_obj_x[i] = xx;
 			m_copper_words[m_obj_pos_idx[i] + 1u] =
 				static_cast<eng::u16>((kObjY << 8u) | ((xx >> 1u) & 0xffu));
@@ -192,66 +228,67 @@ private:
 		{ 128u, 6u, 96u, false }, // B: 6 sueltos, 96 px (+2 objetos)
 		{ 208u, 8u, 64u, true },  // C: 4 pares attached, 64 px
 	};
-	// Paleta de 16 colores para la franja C (attached, 15 colores).
-	static constexpr eng::u16 kRainbow[16] = {
-		0x000, 0x630, 0x950, 0xc60, 0xfc0, 0xff0, 0xcf0, 0x8f0,
-		0x0f0, 0x0f8, 0x0cf, 0x09f, 0x60f, 0x90f, 0xc0f, 0xf0f,
-	};
 	static constexpr eng::s16 kSine[64] = {
 		0, 3, 6, 9, 12, 14, 17, 19, 21, 23, 25, 26, 27, 28, 29, 29,
 		30, 29, 29, 28, 27, 26, 25, 23, 21, 19, 17, 14, 12, 9, 6, 3,
 		0, -3, -6, -9, -12, -14, -17, -19, -21, -23, -25, -26, -27, -28, -29, -29,
 		-30, -29, -29, -28, -27, -26, -25, -23, -21, -19, -17, -14, -12, -9, -6, -3,
 	};
+	static constexpr eng::u16 kRainbow[16] = {
+		0x000, 0x630, 0x950, 0xc60, 0xfc0, 0xff0, 0xcf0, 0x8f0,
+		0x0f0, 0x0f8, 0x0cf, 0x09f, 0x60f, 0x90f, 0xc0f, 0xf0f,
+	};
+	static constexpr eng::u16 kObjBaseX[kObjs] { 184u, 200u };
 
 	static constexpr eng::u16 sprite_words() {
 		return static_cast<eng::u16>(kShifts * (8u + 6u + 8u) * kStride + kObjs * kObjStride + kOffWords);
 	}
 
-	/// Construye los kShifts sets pre-shifteados de la franja `b`.
 	void build_band(eng::u16* data, eng::u8 b) {
 		const BandSpec& bd = kBands[b];
 		for (eng::u8 s = 0; s < kShifts; ++s) {
 			for (eng::u8 c = 0; c < bd.channels; ++c) {
 				eng::u16* st = data + m_band_off[b] + static_cast<eng::u16>(s * bd.channels + c) * kStride;
 				if (bd.attach) {
-					build_attached(st, static_cast<eng::u8>(c >> 1u), static_cast<eng::u8>(c & 1u), bd, s);
+					build_attached(st, static_cast<eng::u8>(c >> 1u),
+						       static_cast<eng::u8>(c & 1u), bd, s);
 				} else {
-					build_column3(st, c, bd, s, static_cast<eng::u8>(b == 1u ? 1u : 0u));
+					build_column3(st, c, bd, s, b);
 				}
 			}
 		}
 	}
 
-	void build_column3(eng::u16* s, eng::u8 c, const BandSpec& bd, eng::u8 shift, eng::u8 style) {
+	void build_column3(eng::u16* s, eng::u8 c, const BandSpec& bd, eng::u8 shift, eng::u8 band) {
+		const eng::u16 bottom = static_cast<eng::u16>(bd.top + kBandLines);
 		const eng::u16 gx0 = static_cast<eng::u16>(kDisplayX0 + c * kColWidth);
-		s[0] = static_cast<eng::u16>((bd.top << 8u) | (gx0 >> 1u));
-		s[1] = static_cast<eng::u16>((bd.top + kBandLines) << 8u);
+		s[0] = sprite_pos(bd.top, gx0);
+		s[1] = sprite_ctl(bd.top, bottom, gx0, false);
 		for (eng::u16 l = 0; l < kBandLines; ++l) {
 			eng::u16 dat = 0u, datb = 0u;
 			for (eng::u16 px = 0; px < kColWidth; ++px) {
-				const eng::u16 pxg = static_cast<eng::u16>((c * kColWidth + px + shift) % bd.pattern);
-				const eng::u16 v = figure3(pxg, l, bd.pattern, style);
+				const eng::u16 pxg = wrap(static_cast<eng::u16>(c * kColWidth + px + shift), bd.pattern);
+				const eng::u16 v = figure3(pxg, l, band);
 				if ((v & 1u) != 0u) { dat = static_cast<eng::u16>(dat | (0x8000u >> px)); }
 				if ((v & 2u) != 0u) { datb = static_cast<eng::u16>(datb | (0x8000u >> px)); }
 			}
 			s[2u + l * 2u + 0u] = dat;
 			s[2u + l * 2u + 1u] = datb;
 		}
-		const eng::u16 h = static_cast<eng::u16>(gx0 >> 1u);
-		s[2u + kBandLines * 2u + 0u] = static_cast<eng::u16>(((bd.top + kBandLines) << 8u) | h);
-		s[2u + kBandLines * 2u + 1u] = static_cast<eng::u16>((bd.top + kBandLines) << 8u);
+		s[2u + kBandLines * 2u + 0u] = sprite_pos(bottom, gx0);
+		s[2u + kBandLines * 2u + 1u] = sprite_ctl(bottom, bottom, gx0, false);
 	}
 
-	/// Par attached: `plane_lo`=0 â†’ canales pares (bits 0-1); 1 â†’ impares (bits 2-3, ATTACH).
 	void build_attached(eng::u16* s, eng::u8 pair, eng::u8 plane_lo, const BandSpec& bd, eng::u8 shift) {
+		const eng::u16 bottom = static_cast<eng::u16>(bd.top + kBandLines);
 		const eng::u16 gx0 = static_cast<eng::u16>(kDisplayX0 + pair * kColWidth);
-		s[0] = static_cast<eng::u16>((bd.top << 8u) | (gx0 >> 1u));
-		s[1] = static_cast<eng::u16>(((bd.top + kBandLines) << 8u) | (plane_lo ? 0x0080u : 0u)); // ATTACH
+		const bool attach = plane_lo != 0u;
+		s[0] = sprite_pos(bd.top, gx0);
+		s[1] = sprite_ctl(bd.top, bottom, gx0, attach);
 		for (eng::u16 l = 0; l < kBandLines; ++l) {
 			eng::u16 dat = 0u, datb = 0u;
 			for (eng::u16 px = 0; px < kColWidth; ++px) {
-				const eng::u16 pxg = static_cast<eng::u16>((pair * kColWidth + px + shift) % bd.pattern);
+				const eng::u16 pxg = wrap(static_cast<eng::u16>(pair * kColWidth + px + shift), bd.pattern);
 				const eng::u16 v = static_cast<eng::u16>((figure15(pxg, l, bd.pattern) >> (plane_lo ? 2u : 0u)) & 3u);
 				if ((v & 1u) != 0u) { dat = static_cast<eng::u16>(dat | (0x8000u >> px)); }
 				if ((v & 2u) != 0u) { datb = static_cast<eng::u16>(datb | (0x8000u >> px)); }
@@ -259,9 +296,8 @@ private:
 			s[2u + l * 2u + 0u] = dat;
 			s[2u + l * 2u + 1u] = datb;
 		}
-		const eng::u16 h = static_cast<eng::u16>(gx0 >> 1u);
-		s[2u + kBandLines * 2u + 0u] = static_cast<eng::u16>(((bd.top + kBandLines) << 8u) | h);
-		s[2u + kBandLines * 2u + 1u] = static_cast<eng::u16>(((bd.top + kBandLines) << 8u) | (plane_lo ? 0x0080u : 0u));
+		s[2u + kBandLines * 2u + 0u] = sprite_pos(bottom, gx0);
+		s[2u + kBandLines * 2u + 1u] = sprite_ctl(bottom, bottom, gx0, attach);
 	}
 
 	void build_objects(eng::u16* data) {
@@ -306,7 +342,6 @@ private:
 		for (eng::u8 b = 0; b < 3u; ++b) {
 			emit_band(sched, spr_base, b);
 		}
-		// Objetos (canales 6/7).
 		for (eng::u8 i = 0; i < kObjs; ++i) {
 			const eng::u8 ch = static_cast<eng::u8>(6u + i);
 			const eng::uintptr addr = spr_base + static_cast<eng::uintptr>(m_obj_off + i * kObjStride) * 2u;
@@ -329,14 +364,11 @@ private:
 	void emit_band(eng::copper::SchedulerT<false>& sched, eng::uintptr spr_base, eng::u8 b) {
 		const BandSpec& bd = kBands[b];
 		const eng::u16 bottom = static_cast<eng::u16>(bd.top + kBandLines);
-		// La franja C usa 15 colores: recarga COLOR16-31 al empezar (las A/B usan las 3
-		// colores de la paleta base).
 		if (bd.attach) {
 			for (eng::u8 i = 0; i < 16u; ++i) {
 				sched.move(static_cast<eng::u16>(0x180u + (16u + i) * 2u), kRainbow[i]);
 			}
 		}
-		// Arma los canales de la franja (PT a su set 0) + registra Ã­ndices para el scroll.
 		for (eng::u8 c = 0; c < bd.channels; ++c) {
 			const eng::uintptr addr =
 				spr_base + static_cast<eng::uintptr>(m_band_off[b] + c * kStride) * 2u;
@@ -345,21 +377,19 @@ private:
 							  static_cast<eng::u16>(addr >> 16u));
 			m_pt_idx[b][c][1] = sched.move_at(static_cast<eng::u16>(0x122u + c * 4u),
 							  static_cast<eng::u16>(addr & 0xffffu));
-			const eng::u16 ctl = static_cast<eng::u16>((bottom << 8u) | ((bd.attach && (c & 1u)) ? 0x0080u : 0u));
-			sched.move(static_cast<eng::u16>(0x140u + c * 8u),
-				   static_cast<eng::u16>((bd.top << 8u) | ((x >> 1u) & 0xffu)));
-			sched.move(static_cast<eng::u16>(0x142u + c * 8u), ctl);
+			sched.move(static_cast<eng::u16>(0x140u + c * 8u), sprite_pos(bd.top, x));
+			sched.move(static_cast<eng::u16>(0x142u + c * 8u), sprite_ctl(bd.top, bottom, x, bd.attach && (c & 1u)));
 		}
-		// RepeticiÃ³n a lo ancho: por lÃ­nea, por perÃ­odo, WAIT + rÃ¡faga (ciclando canales).
 		const eng::u16 period = bd.pattern;
 		for (eng::u16 line = bd.top; line < bottom; ++line) {
-			for (eng::u16 xstart = kDisplayX0; xstart < kDisplayX0 + kDisplayW; xstart = static_cast<eng::u16>(xstart + period)) {
+			for (eng::u16 xstart = kDisplayX0; xstart < kDisplayX0 + kDisplayW;
+			     xstart = static_cast<eng::u16>(xstart + period)) {
 				const eng::s32 wpx = static_cast<eng::s32>(xstart) - static_cast<eng::s32>(kCuGap);
 				if (wpx > 0) {
-					sched.wait_position_safe(line, static_cast<eng::u8>((static_cast<eng::u16>(wpx) >> 1u) & 0xfeu));
+					sched.wait_position_safe(
+						line, static_cast<eng::u8>((static_cast<eng::u16>(wpx) >> 1u) & 0xfeu));
 				}
 				for (eng::u8 c = 0; c < bd.channels; ++c) {
-					// En attached, el par p (canales 2p y 2p+1) comparte X (16 px por par).
 					const eng::u8 colx = bd.attach ? static_cast<eng::u8>(c / 2u) : c;
 					const eng::u16 x = static_cast<eng::u16>(xstart + colx * kColWidth);
 					if (x >= kDisplayX0 + kDisplayW) { break; }
@@ -374,11 +404,11 @@ private:
 	const eng::u16* m_copper_ptr = nullptr;
 	eng::u16* m_copper_words = nullptr;
 	eng::u16 m_band_off[3] {};
+	eng::u8  m_k[3] {};
 	eng::u16 m_obj_off = 0;
 	eng::u16 m_pt_idx[3][8][2] {};
 	eng::u16 m_obj_pos_idx[kObjs] {};
 	eng::u16 m_obj_x[kObjs] { 168u, 200u };
-	static constexpr eng::u16 kObjBaseX[kObjs] { 184u, 200u };
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::Block<eng::CopperTag> m_copper_block {};
 	eng::Block<eng::SpriteTag> m_sprite_block {};
@@ -397,4 +427,3 @@ int main() {
 
 	return 0;
 }
-

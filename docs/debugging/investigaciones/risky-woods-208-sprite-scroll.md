@@ -1,8 +1,11 @@
 # Demo 208 — fondo de sprites estilo *Risky Woods*: diagnóstico y reinicio
 
-**Estado: en curso (E0 verificado).** El muro de ladrillos por sprites se dibujaba con
-huecos y los objetos faltaban; la causa raíz (auto-armado de canales, §2.5) está resuelta
-y E0 (una columna estática con sus 3 colores) pasa. Se avanza por etapas (E1…E5).
+**Estado: E0–E4 verificados.** El reparto híbrido y el scroll funcionan: E0 (1 canal),
+E1 (8 sueltos / patrón 128 px), E2 (repetición a 320 px sin huecos), E3 (scroll 1 px/frame
+por punteros pre-shifteados + rotación de columna) y E4 (3 franjas: 8 sueltos / 6 + 2
+objetos / 4 pares attached, con scroll común). Hallazgos clave: auto-armado de canales
+(§2.5), el display empieza en X≈128 (§2.6) y las **libcalls 32-bit son ~50-150 ciclos**
+(§2.7).
 
 ## 1. Objetivo
 
@@ -66,6 +69,16 @@ El borde izquierdo usa `COLOR0` (aquí navy), así que no se distingue del fondo
 con `SPRxPOS` HSTART < 64 (X < 128) caen en el **borde izquierdo** y no se ven en la captura;
 el fondo de 320 px arranca en **X ≈ 128**. Verificado en E1: con `kDisplayX0=128` la figura
 aparece en x=128..255; con `kDisplayX0=0` no aparece nada.
+
+### 2.7 Las libcalls aritméticas (`__udivsi3`/`__mulsi3`) son lentísimas en `-nostdlib`
+
+La generación de estructuras **por píxel** (E4: 3 franjas × 16 sets ≈ 1,35 M píxeles) con
+divisiones, módulos o multiplicaciones de 32 bits paga una **libcall (~50-150 ciclos)** por
+operación: el `init` tardaría decenas de segundos y el runner **expira** (parece un cuelgue:
+`state=2`, con el PC en la ROM por una IRQ del sistema en el momento de la captura). **No es
+un crash: es un timeout.** Solución: **precalcular en compilación** (una tabla `constexpr`
+hace que el compilador evalúe la división) y usar `mulsw`/`mulu.w` (16-bit nativo) y
+desplazamientos; para el módulo, un lazo de resta. Ver `docs/reference/toolchain/m68k-gcc.md`.
 
 ## 3. El algoritmo de Risky Woods (artículo de codetapper)
 

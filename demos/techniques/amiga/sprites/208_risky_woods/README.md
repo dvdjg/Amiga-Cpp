@@ -13,8 +13,8 @@ libres para objetos.
 | **E0** | **1 canal, 16 px, estático** — estructura DMA + armado. | **OK** |
 | **E1** | **8 sprites sueltos lado a lado = patrón de 128 px** (una franja, figura coherente). | **OK** |
 | **E2** | **repetición a 320 px** (Copper: WAIT + ráfaga por período). | **OK** |
-| E3 | scroll por punteros pre-shifteados (copperlist **estática**, ~0 CPU). | — |
-| E4 | 3 franjas con las variantes (6 sprites + objetos / 8 / attached). | — |
+| **E3** | scroll por punteros pre-shifteados (copperlist **estática**, ~0 CPU). | **OK** |
+| **E4** | **3 franjas**: 8 sueltos / 6 + 2 objetos / 4 pares attached, con scroll común. | **OK** |
 | E5 | gate visual (Ollama) + FPS/flicker. | — |
 
 ## E1 — qué hace
