@@ -26,10 +26,11 @@ de actores (`SpriteScene` → `compose_sprites`) en los canales libres.
 
 ## Estado
 
-- Las **3 franjas renderizan por la capa** (colina, valle, anillos *attached*). Validado por visión.
-- **Pendiente**: la **cobertura de ancho** de cada franja (ajustar `arm_hpos`/`head_start`/
-  `screen_width`), y el **scroll** (la capa `RiskyWoodsLayer` solo tiene `set_scroll`+re-emit; le
-  falta un `bind`/`patch` como el de `SpriteLayer` para el scroll ~0 CPU).
+- Las **3 franjas renderizan por la capa** (colina, valle, anillos *attached*) **a ancho completo**
+  (validado por visión). Ajuste: `screen_width` = **borde derecho** (`128 + 320 = 448`),
+  `arm_hpos=0x30`, `head_start=32` (1.ª columna en X=128).
+- **Pendiente**: la franja C (*attached*) deja un hueco en el centro de la banda; y el **scroll**
+  (la capa `RiskyWoodsLayer` solo tiene `set_scroll`+re-emit; le falta un `bind`/`patch` ~0 CPU).
 
 ## Lanzar
 

@@ -13,7 +13,6 @@ Estructura y numeración: [../../../../docs/STRUCTURE.md](../../../../docs/STRUC
 | [206_sprite_collision](206_sprite_collision/README.md) |
 | [207_sprite_layer](207_sprite_layer/README.md) |
 | [208_risky_woods](208_risky_woods/README.md) |
-| [209_free_scroll](209_free_scroll/README.md) |
 | [211_risky_woods_layer](211_risky_woods_layer/README.md) |
 | [212_free_scroll_layer](212_free_scroll_layer/README.md) |
 

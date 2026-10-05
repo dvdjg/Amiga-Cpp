@@ -139,10 +139,12 @@ private:
 			cfg.channel_first = kBands[b].channel_first;
 			cfg.channels = kBands[b].channels;
 			cfg.column_width = kColWidth;
-			cfg.screen_width = kScreenW;
+			// `RiskyWoodsLayer::screen_width` es el **borde derecho** de la cobertura (desde x=0):
+			// borde izquierdo del display (128) + ancho (320) = 448.
+			cfg.screen_width = static_cast<eng::u16>(128u + kScreenW);
 			cfg.bplcon2 = 0x0008u;          // sprites (fondo) detras del playfield
-			cfg.arm_hpos = 0x00u;
-			cfg.head_start = 40u;
+			cfg.arm_hpos = 0x30u;           // WAIT tras el fetch DMA (hpos = px/2)
+			cfg.head_start = 32u;           // 1.ª columna en X = 0x30*2 + 32 = 128 (borde display)
 			cfg.attach = kBands[b].attach;
 			cfg.burst_no_wait = kBands[b].attach; // el par attached no lleva WAIT intermedio
 			cfg.dma_data = eng::Span<eng::u16> {m_sprite.view.as_words().data() + b * 8u * kStride,
