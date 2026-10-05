@@ -133,9 +133,10 @@ private:
 				for (eng::u16 px = 0u; px < kHposStep; ++px) {
 					const eng::u16 x = static_cast<eng::u16>(k * kHposStep + px);
 					// `v` 1..3: cada columna lleva una fase propia (`k*16`) -> sin repetición.
+					// Rejilla de bloques de 8 px, con la fase vertical desplazada por columna
+					// (`k`) -> cada columna es distinta (no repetitivo) pero sin discontinuidad.
 					const eng::u16 v = static_cast<eng::u16>(
-						1u + (((x + static_cast<eng::u16>(l * 2u)) >> 4u) & 1u) +
-						(((static_cast<eng::u16>(x + static_cast<eng::u16>(l))) >> 3u) & 1u));
+						1u + ((x >> 3u) & 1u) + ((static_cast<eng::u16>(l + k * 8u) >> 3u) & 1u));
 					// Bit 15 = pixel 0 (izquierda); bit 0 -> DAT, bit 1 -> DATB.
 					if ((v & 1u) != 0u) { dat = static_cast<eng::u16>(dat | (0x8000u >> px)); }
 					if ((v & 2u) != 0u) { datb = static_cast<eng::u16>(datb | (0x8000u >> px)); }
