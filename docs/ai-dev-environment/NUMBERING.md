@@ -1,16 +1,11 @@
 # Numeración por ámbito (anti-solape de demos y tests)
 
-El número de una demo o un test host es **único dentro de su ámbito** (no global). Un **ámbito** es
-el directorio que contiene directamente los elementos numerados:
+El número de una demo o un test host es **único dentro de su ámbito**. Un **ámbito** es el conjunto de elementos numerados que comparten espacio de numeración:
 
-- **Tests host**: `tests/host/<categoría>/` (p. ej. `tests/host/graphics`).
-- **Demos**: `demos/techniques/<familia>/<categoría>/` (p. ej. `demos/techniques/amiga/copper`) y
-  `demos/features/<feature>/<plataforma>/` (p. ej. `demos/features/ui/amiga`).
+- **Tests host**: `tests/host/` — el `NNN` es único en **toda** la batería host (los IDs `HOST-NNN` son globales, **no** por categoría; lo cierra `tools/check/test-numbering.mjs` y lo fijan `tests/host/README.md` y `docs/testing/TAXONOMY.md`).
+- **Demos**: `demos/techniques/<familia>/<categoría>/` (p. ej. `demos/techniques/amiga/copper`) y `demos/features/<feature>/<plataforma>/` (p. ej. `demos/features/ui/amiga`).
 
-Así, `demos/features/ui/amiga/007_foo` y `demos/features/ui/megadrive/007_foo` **no colisionan**
-(el path difiere), y dos ramas que trabajan en ámbitos distintos tampoco. Este documento es la
-**fuente única de verdad** de la numeración. Contexto de la organización de demos:
-[`PLAN_ORGANIZACION_DEMOS.md`](../guides/roadmap/PLAN_ORGANIZACION_DEMOS.md).
+Así, `demos/features/ui/amiga/007_foo` y `demos/features/ui/megadrive/007_foo` **no colisionan** (el path difiere), y dos ramas que trabajan en ámbitos distintos tampoco. Los tests host, en cambio, comparten un único ámbito: `tests/host/audio/007_foo` y `tests/host/graphics/007_foo` **sí** colisionan. Este documento es la **fuente única de verdad** de la numeración. Contexto de la organización de demos: [`PLAN_ORGANIZACION_DEMOS.md`](../guides/roadmap/PLAN_ORGANIZACION_DEMOS.md).
 
 ## Regla
 

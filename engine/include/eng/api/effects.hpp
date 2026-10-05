@@ -403,14 +403,14 @@ public:
 
 	[[nodiscard]] const Config& config() const noexcept { return m_cfg; }
 	/// Huella estimada en palabras de Copper (para `EffectCost`): `BPLCON2` + 2 por canal
-	/// con estructura (`SPRxPT` H/L) + por línea [`WAIT` (2) + 4 MOVEs por canal Copper].
+	/// con estructura (`SPRxPT` H/L) + por línea [`WAIT` (2) + 3 MOVEs por canal Copper].
 	[[nodiscard]] u16 words_estimate() const noexcept {
 		const u32 cop = static_cast<u32>(m_cfg.channels - m_cfg.dma_channels);
 		const u32 struct_ch = (!m_cfg.dma_data.empty() && m_cfg.dma_stride != 0u)
 					      ? static_cast<u32>(m_cfg.channels)
 					      : static_cast<u32>(m_cfg.dma_channels);
 		return static_cast<u16>(1u + struct_ch * 2u +
-					static_cast<u32>(m_cfg.lines) * (2u + cop * 8u));
+					static_cast<u32>(m_cfg.lines) * (2u + cop * 6u));
 	}
 
 private:

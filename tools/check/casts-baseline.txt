@@ -342,7 +342,7 @@
   8     8  engine/src/platform/amiga/amiga_file.cpp
   3    13  engine/src/platform/amiga/amiga_floppy.cpp
   4    15  engine/src/platform/amiga/amiga_hw.cpp
-  8    43  engine/src/platform/amiga/amiga_internal.hpp
+  8    47  engine/src/platform/amiga/amiga_internal.hpp
   2    16  engine/src/platform/amiga/amiga_os.cpp
   4     7  engine/src/platform/amiga/amiga_trackdisk.cpp
- 12    21  engine/src/platform/amiga/amiga.cpp
+ 12    23  engine/src/platform/amiga/amiga.cpp

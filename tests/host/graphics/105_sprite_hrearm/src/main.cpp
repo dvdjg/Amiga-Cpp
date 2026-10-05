@@ -259,9 +259,11 @@ void test_sprite_layer() {
 	FakeSched fs;
 	layer.emit_into(fs);
 	CHECK(fs.waits == 4, "SpriteLayer: 4 lineas -> 4 WAIT");
-	CHECK(fs.moves == 1 + 4 * 8 * 4, "SpriteLayer: BPLCON2 + 4 lineas*8 canales*4 MOVEs");
+	// Por posición solo `POS`+`DATB`+`DATA` (3 MOVEs; sin `SPRxCTL`: escribirlo desactiva el
+	// comparador, lo arma `SPRxDATA`). Ver docs/reference/amiga/techniques/sprite-horizontal-multiplex.md.
+	CHECK(fs.moves == 1 + 4 * 8 * 3, "SpriteLayer: BPLCON2 + 4 lineas*8 canales*3 MOVEs");
 	CHECK(fs.bplcon2 == 0x0008u, "SpriteLayer: BPLCON2 de fondo");
-	CHECK(layer.words_estimate() == 1u + 4u * (2u + 8u * 8u), "SpriteLayer: huella");
+	CHECK(layer.words_estimate() == 1u + 4u * (2u + 8u * 6u), "SpriteLayer: huella");
 
 	eng::effects::SpriteLayer bad;
 	eng::effects::SpriteLayer::Config bad_cfg {};
@@ -284,8 +286,8 @@ void test_sprite_layer() {
 	CHECK(dma.attach(dcfg), "SpriteLayer DMA attach");
 	FakeSched fd;
 	dma.emit_into(fd);
-	// BPLCON2(1) + PT de 8 canales*2 (H/L) + 4 lineas*(6 canales*4) = 1+16+96 = 113.
-	CHECK(fd.moves == 1 + 8 * 2 + 4 * 6 * 4, "SpriteLayer DMA: MOVEs");
+	// BPLCON2(1) + PT de 8 canales*2 (H/L) + 4 lineas*(6 canales*3 + reposicion 2) = 1+16+80 = 97.
+	CHECK(fd.moves == 1 + 8 * 2 + 4 * (6 * 3 + 2), "SpriteLayer DMA: MOVEs");
 	CHECK(fd.waits == 4, "SpriteLayer DMA: 4 WAIT (solo canales Copper)");
 	eng::effects::SpriteLayer bad2;
 	eng::effects::SpriteLayer::Config b2 {};
