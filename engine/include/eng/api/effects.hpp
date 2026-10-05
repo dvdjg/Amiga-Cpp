@@ -422,6 +422,17 @@ public:
 		/// Copper corre **pareado** con el haz (`2N MOVE = periodo`). Los tramos no-*attached*
 		/// deben dejarlo `false`: sin el `WAIT`, el `POS` de un canal pisa al del canal anterior.
 		bool burst_no_wait = false;
+		/// **Paleta por banda**: `count` valores en `colors` para (re)cargar los registros de color
+		/// desde `first_reg` (0 = `COLOR00`) al inicio de la banda. Permite que varias capas usen
+		/// paletas distintas por franja (p. ej. la paleta de los objetos o un arcoiris en una sola
+		/// banda) sin que el llamador emita los `MOVE` de `COLORxx` a mano.
+		const u16* palette = nullptr;
+		u16 palette_first_reg = 0u;
+		u16 palette_count = 0u;
+		/// Si `true`, al final de la banda los canales quedan **desarmados** (`SPRxPOS`/`SPRxCTL`
+		/// a `VSTART=VSTOP`): evita la **columna fantasma** / la franja sólida en la transición a la
+		/// banda siguiente (ver `docs/reference/emulators/winuae/sprite-dma.md` §columna fantasma).
+		bool reset_at_end = false;
 		u16* dma_data = nullptr; ///< `channels` estructuras de `dma_stride` words (cabecera POS+CTL + DATA + terminador)
 		u16 dma_stride = 0u;     ///< words por estructura (`2 + lines*2 + 2`)
 	};
@@ -452,6 +463,11 @@ public:
 	template <class Sched>
 	void emit_into(Sched& sched) const {
 		sched.move(copper::Register::BPLCON2, m_cfg.bplcon2);
+		// Paleta por banda (si se pide): recarga `count` registros de color desde `first_reg`.
+		for (u16 i = 0u; i < m_cfg.palette_count; ++i) {
+			sched.move(static_cast<u16>(0x180u + (m_cfg.palette_first_reg + i) * 2u),
+				   m_cfg.palette[i]);
+		}
 
 		// `SPRxPT` de cada canal a su estructura DMA (cabecera POS/CTL + DATA + terminador).
 		// Sin cabecera válida el DMA del canal avanza por memoria y deja una columna fantasma
@@ -525,6 +541,14 @@ public:
 				}
 			}
 		}
+		// Reset al final de la banda (si se pide): canales desarmados (sin columna fantasma).
+		if (m_cfg.reset_at_end) {
+			for (u8 c = 0u; c < m_cfg.channels; ++c) {
+				const u8 ch = static_cast<u8>((m_cfg.channel_first + c) & 7u);
+				sched.move(static_cast<u16>(0x142u + ch * 8u), 0xfe00u);
+				sched.move(static_cast<u16>(0x140u + ch * 8u), 0xfe00u);
+			}
+		}
 	}
 
 	/// Emite la capa al plan de la escena (azúcar de `emit_into(scene.scheduler())`).
@@ -566,7 +590,9 @@ public:
 	/// canal: `SPRxPTH/L`+`SPRxPOS`+`SPRxCTL`) + por línea [`periods` `WAIT` + `instances`
 	/// MOVEs de `SPRxPOS`]. Cada instrucción son 2 palabras.
 	[[nodiscard]] u16 words_estimate() const noexcept {
-		const u32 arranque = 1u + static_cast<u32>(m_cfg.channels) * 4u;
+		const u32 arranque = 1u + static_cast<u32>(m_cfg.channels) * 4u +
+				     static_cast<u32>(m_cfg.palette_count) +
+				     (m_cfg.reset_at_end ? static_cast<u32>(m_cfg.channels) * 2u : 0u);
 		const u32 per_line = static_cast<u32>(periods_per_line()) + instances_per_line();
 		// +2 words del `end()` (0xffff,0xfffe) que cierra la lista.
 		return static_cast<u16>((arranque + static_cast<u32>(m_cfg.lines) * per_line) * 2u + 2u);
