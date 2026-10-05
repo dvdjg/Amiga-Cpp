@@ -624,7 +624,7 @@ public:
 
 	/// Índice (en words) de la word de instrucción `SPRxPTH` (`hi=0`) o `SPRxPTL` (`hi=1`) de un
 	/// canal, válido tras `emit_into`. Permite reescribir el `PT` por frame con `Sched::patch_data`
-	/// para un scroll **~0 CPU** (sin re-emitir la lista). Ver `FreeScrollLayer::scroll_to`.
+	/// para un scroll **~0 CPU** (sin re-emitir la lista). Ver `FreeFormSpriteLayer` (patch del scroll).
 	[[nodiscard]] u16 pt_handle(u8 ch, u8 hi) const noexcept { return m_pt_handle[ch & 7u][hi & 1u]; }
 
 	/// Huella estimada en palabras de Copper: `BPLCON2` (1 MOVE) + arranque (4 MOVEs por
@@ -674,7 +674,7 @@ private:
 	mutable u16 m_pt_handle[8][2] {};
 };
 
-/// **Fondo de sprites NO repetitivo con scroll** (`FreeScrollLayer`): un fondo de `columns`
+/// **Fondo de sprites NO repetitivo con scroll** (`FreeFormSpriteLayer`): un fondo de `columns`
 /// columnas de 16 px donde **cada columna es distinta** (no un patrón que se repite), con scroll
 /// por Copper y **CPU libre**. Los `dma_channels` primeros canales dibujan sus columnas por **DMA**;
 /// el **Copper reutiliza** esos canales para el resto reescribiendo `SPRxPOS`+`SPRxDATB`+`SPRxDATA`
@@ -682,9 +682,9 @@ private:
 /// Knoester); apoya en `SpriteLayer` en modo libre y añade el `bind`/`patch` del scroll (~0 CPU).
 ///
 /// Reparto de ladrillos: `RiskyWoodsLayer` = patrón que **se repite** (solo reposiciona `POS`,
-/// barato); `SpriteLayer` = capa genérica; **`FreeScrollLayer` = no repetitivo**. Ver
+/// barato); `SpriteLayer` = capa genérica; **`FreeFormSpriteLayer` = no repetitivo**. Ver
 /// `docs/reference/amiga/techniques/sprite-horizontal-multiplex.md`.
-class FreeScrollLayer {
+class FreeFormSpriteLayer {
 public:
 	struct Config {
 		u16 first_line = 0u;   ///< primera línea de la banda (inclusive)

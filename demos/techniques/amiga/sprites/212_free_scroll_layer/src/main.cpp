@@ -93,7 +93,7 @@ struct FreeFormDemo {
 			s[2u + kBandLines * 2u + 1u] = 0u;
 		}
 
-		eng::effects::FreeScrollLayer::Config cfg {};
+		eng::effects::FreeFormSpriteLayer::Config cfg {};
 		cfg.first_line = kBandLine0;
 		cfg.lines = kBandLines;
 		cfg.channels = kChannels;
@@ -175,7 +175,7 @@ private:
 	const eng::u16* m_copper_ptr = nullptr;
 	eng::u32 m_frame = 0u;
 	eng::u16 m_image[kColumns * kBandLines * 2u] {};
-	eng::effects::FreeScrollLayer m_layer {};
+	eng::effects::FreeFormSpriteLayer m_layer {};
 	eng::Block<eng::PlaneTag> m_bitplane {};
 	eng::Block<eng::CopperTag> m_copper {};
 	eng::Block<eng::SpriteTag> m_sprite {};
