@@ -2,7 +2,7 @@
 
 /// \file text.hpp
 /// **Medida y recorte de texto** de UI (`eng::ui`). No añade fuente nueva: mide con `Font8`
-/// (8×8, avance 8 px) y se apoya en `field::Surface` para pintar. Ver
+/// (8×8, avance 8 px) y se apoya en `playfield::Surface` para pintar. Ver
 /// `docs/engine/architecture/GUI_LIBRARY.md` §6.
 
 #include <eng/core/types/box.hpp>

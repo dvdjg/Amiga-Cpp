@@ -2,7 +2,7 @@
 // Test HOST-032: perfil de scroll estático (SpeedPolicy)
 // ============================================================================
 //
-// Valida `eng::field::ScrollProfile` y sus alias (`ScrollProgressive`,
+// Valida `eng::playfield::ScrollProfile` y sus alias (`ScrollProgressive`,
 // `ScrollFast1/2/4`): relleno por frame, guarda de lookahead, paso máximo por
 // tamaño de tile e invariante de guarda (compile-time). Sin hardware.
 
@@ -15,15 +15,18 @@ int g_fail = 0;
 void check(bool ok, const char* what) {
 	if (!ok) { std::printf("[FAIL] %s\n", what); ++g_fail; }
 }
-using eng::field::ScrollProgressive;
-using eng::field::ScrollFast1;
-using eng::field::ScrollFast2;
-using eng::field::ScrollFast4;
-using eng::field::ScrollProfile;
-using eng::field::ProgressiveFill;
-using eng::field::TileBurstFill;
-using eng::field::StripPrerenderFill;
-using eng::field::GuardTiles;
+using eng::playfield::ScrollProgressive;
+using eng::playfield::ScrollFast1;
+using eng::playfield::ScrollFast2;
+using eng::playfield::ScrollFast4;
+using eng::playfield::ScrollSubTile8;
+using eng::playfield::ScrollSubTile16;
+using eng::playfield::ScrollProfile;
+using eng::playfield::ProgressiveFill;
+using eng::playfield::TileBurstFill;
+using eng::playfield::SubTileFill;
+using eng::playfield::StripPrerenderFill;
+using eng::playfield::GuardTiles;
 } // namespace
 
 int main() {
@@ -59,7 +62,15 @@ int main() {
 	using Strip = ScrollProfile<StripPrerenderFill<6>, GuardTiles<7>>;
 	check(Strip::fill_tiles == 6 && Strip::max_step_px(16) == 96, "strip prerender 6");
 
+	// SubTileFill: paso en px, independiente del tile (32x32 con avance <= 16 px/frame).
+	check(ScrollSubTile16::sub_px == 16 && ScrollSubTile16::fill_tiles == 0 &&
+	      !ScrollSubTile16::prefill,
+	      "subtile16: paso 16 px, sin snap a frontera");
+	check(ScrollSubTile16::max_step_px(32) == 16 && ScrollSubTile16::max_step_px(16) == 16,
+	      "subtile16: paso 16 px sea cual sea el tile");
+	check(ScrollSubTile8::max_step_px(32) == 8, "subtile8: paso 8 px");
+
 	if (g_fail != 0) { std::printf("%d fallo(s)\n", g_fail); return 1; }
-	std::printf("OK: ScrollProfile (paso, guarda, prefill, invariante) validado.\n");
+	std::printf("OK: ScrollProfile (paso, guarda, prefill, sub-tile, invariante) validado.\n");
 	return 0;
 }

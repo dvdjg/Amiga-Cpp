@@ -1,6 +1,6 @@
 # Test HOST-032: perfil de scroll estático (SpeedPolicy)
 
-Respalda `eng::field::ScrollProfile` (`engine/include/eng/field/scroll_profile.hpp`): la selección
+Respalda `eng::playfield::ScrollProfile` (`engine/include/eng/field/scroll_profile.hpp`): la selección
 **compile-time** del comportamiento de scroll que el desarrollador elige con un solo tipo
 (`ScrollProgressive`, `ScrollFast1/2/4` o un perfil a medida).
 

@@ -6,13 +6,13 @@
 /// mismo** (`{s16 x,y; u16 w,h}`) lo usan directamente — `graphics::BlitOp::rect` y el área de
 /// Fast BOBs eran copias literales, ya retiradas. Los que **no** son lo mismo se conservan por
 /// **formato o anchura**, no por rol: `graphics::DirtyRect` (bordes `left/top/right/bottom`),
-/// `field::ClipRect`/`field::SurfaceRect` (`s32`, clipping de mundo), `util::Aabb` (min/max, `s16`)
+/// `playfield::ClipRect`/`playfield::SurfaceRect` (`s32`, clipping de mundo), `util::Aabb` (min/max, `s16`)
 /// y el `Rect<S>` genérico (`core/math`). Se convierten a/desde `Box` en su capa, sin duplicar
 /// `contains`/`inset`/`intersect`.
 ///
 /// Convención: `w`/`h` son tamaños (no bordes) y `contains` es **inclusivo** en `right()` y
 /// `bottom()` (`x + w - 1`, `y + h - 1`), que es como se comportan las primitivas de dibujo
-/// de `field::Surface`. Un `Box` con `w == 0` o `h == 0` está vacío.
+/// de `playfield::Surface`. Un `Box` con `w == 0` o `h == 0` está vacío.
 
 #include <eng/core/types/types.hpp>
 

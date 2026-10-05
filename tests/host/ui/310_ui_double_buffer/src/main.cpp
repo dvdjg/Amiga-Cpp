@@ -70,7 +70,7 @@ int main() {
 	w->backing.surface.fill_rect(0, 0, 32u, 32u, 3u);
 
 	// 1) Componer en el TRASERO sin flip: el delantero NO cambia.
-	eng::field::Surface& front_before = db.front();
+	eng::playfield::Surface& front_before = db.front();
 	comp.set_screen(db.back());
 	comp.damage_screen(eng::ui::Rect {0, 0, kSW, kSH});
 	comp.present();

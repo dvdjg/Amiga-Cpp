@@ -12,7 +12,7 @@
 /// comprueba la interfaz y `BlockCache` se especializa por fuente.
 ///
 /// Contrato de tres estados, **el mismo del streaming del engine**
-/// (`eng::field::LoadResult`, ver `docs/engine/architecture/STREAMING_LOADER.md`):
+/// (`eng::playfield::LoadResult`, ver `docs/engine/architecture/STREAMING_LOADER.md`):
 ///
 ///   | Estado    | Significado                          | Uso del motor          |
 ///   |-----------|--------------------------------------|------------------------|
@@ -32,7 +32,7 @@
 
 namespace eng::board {
 
-/// Resultado de una lectura de bloque (espeja `eng::field::LoadResult`).
+/// Resultado de una lectura de bloque (espeja `eng::playfield::LoadResult`).
 enum class BlockStatus : u8 {
 	Ready = 0u,
 	Empty = 1u,

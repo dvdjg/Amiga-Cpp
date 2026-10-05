@@ -95,7 +95,7 @@ int main() {
 
 	// Banda desde una superficie de scroll: refleja base + fine scroll sin campo propio.
 	{
-		eng::field::PlayfieldHardwareView view {};
+		eng::playfield::PlayfieldHardwareView view {};
 		view.planes = 3u;
 		view.bitmap_bytes_per_row = 48u;
 		view.real_base = planes.mem_view().address(0);
@@ -125,14 +125,14 @@ int main() {
 
 	// DPF de dos superficies (bg XYLimited + fg XLimited) + franja 0-bpp, por bandas.
 	{
-		eng::field::PlayfieldHardwareView pf1 {};
+		eng::playfield::PlayfieldHardwareView pf1 {};
 		pf1.planes = 3u;
 		pf1.bitmap_bytes_per_row = 48u;
 		pf1.real_base = planes.mem_view().address(0);
 		pf1.plane_bytes = 3u * 48u * 256u;
 		pf1.bpl1mod = 0x28u;
 		pf1.bplcon1 = 0x03u;
-		eng::field::PlayfieldHardwareView pf2 {};
+		eng::playfield::PlayfieldHardwareView pf2 {};
 		pf2.planes = 3u;
 		pf2.bitmap_bytes_per_row = 48u;
 		pf2.real_base = planes.mem_view().address(0) + 240; // segunda superficie
@@ -164,7 +164,7 @@ int main() {
 
 	// El driver refresca la banda por frame (base/bplcon1) sin campo `scroll`.
 	{
-		eng::field::PlayfieldHardwareView view {};
+		eng::playfield::PlayfieldHardwareView view {};
 		view.planes = 3u;
 		view.bitmap_bytes_per_row = 48u;
 		view.real_base = planes.mem_view().address(0);
@@ -192,7 +192,7 @@ int main() {
 
 	// El split vertical (wrap del corkscrew) es una intención de banda: reemite los punteros.
 	{
-		eng::field::PlayfieldHardwareView view {};
+		eng::playfield::PlayfieldHardwareView view {};
 		view.planes = 3u;
 		view.bitmap_bytes_per_row = 48u;
 		view.real_base = planes.mem_view().address(0);
@@ -219,7 +219,7 @@ int main() {
 
 	// Composición por bandas y driver comparten la MISMA emisión de punteros (fuente única).
 	{
-		eng::field::PlayfieldHardwareView view {};
+		eng::playfield::PlayfieldHardwareView view {};
 		view.planes = 3u;
 		view.bitmap_bytes_per_row = 48u;
 		view.real_base = planes.mem_view().address(0);
@@ -233,7 +233,7 @@ int main() {
 		eng::copper::SchedulerT<false> sb {cb};
 		const eng::scene::Band band = eng::scene::band_from_view(view, 0u);
 		eng::scene::emit_band_pointers(sa, band, 0);
-		eng::field::emit_view_pointers(sb, view);
+		eng::playfield::emit_view_pointers(sb, view);
 		sa.end();
 		sb.end();
 		bool same = (sa.words_used() == sb.words_used());
@@ -245,7 +245,7 @@ int main() {
 
 	// Los BOB de una banda con scroll se compensan con el desplazamiento vertical.
 	{
-		eng::field::PlayfieldHardwareView view {};
+		eng::playfield::PlayfieldHardwareView view {};
 		view.planes = 3u;
 		view.bitmap_bytes_per_row = 48u;
 		view.real_base = planes.mem_view().address(0);
@@ -260,7 +260,7 @@ int main() {
 	{
 		eng::scene::RasterLayout l {};
 		l.add({.top = 0u, .planes = 0u, .color = false});
-		eng::field::PlayfieldHardwareView view {};
+		eng::playfield::PlayfieldHardwareView view {};
 		view.planes = 3u;
 		view.bitmap_bytes_per_row = 48u;
 		view.real_base = planes.mem_view().address(0);
@@ -310,7 +310,7 @@ int main() {
 
 	// Split por campo (dual playfield): cada field vuelve a su fila 0 en su propio offset.
 	{
-		eng::field::PlayfieldHardwareView pf1 {};
+		eng::playfield::PlayfieldHardwareView pf1 {};
 		pf1.planes = 3u;
 		pf1.bitmap_bytes_per_row = 48u;
 		pf1.real_base = planes.mem_view().address(0);
@@ -318,7 +318,7 @@ int main() {
 		pf1.split_active = true;
 		pf1.split_line = 100u;
 		pf1.split_planeaddy = 0u;
-		eng::field::PlayfieldHardwareView pf2 {};
+		eng::playfield::PlayfieldHardwareView pf2 {};
 		pf2.planes = 3u;
 		pf2.bitmap_bytes_per_row = 48u;
 		pf2.real_base = planes.mem_view().address(0) + 240;

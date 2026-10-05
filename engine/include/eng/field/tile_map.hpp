@@ -15,7 +15,7 @@
 #include <eng/core/types/types.hpp>
 #include <eng/field/tile_source.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 struct TileLayerMap {
 	eng::Span<const eng::u16> cells {};
@@ -57,4 +57,4 @@ struct TileLayerMap {
 	}
 };
 
-} // namespace eng::field
+} // namespace eng::playfield

@@ -14,6 +14,9 @@ y el plan en [`docs/guides/roadmap/ROADMAP_RESOURCES.md`](../../../../docs/guide
 | `asset_cache.hpp` | `AssetCache<Backend, MaxAssets>`: `declare`/`get`/`prefetch`/`pin`/`set_priority`/`add_ref`/`release`/`on_load_done`/`set_frame`; presupuesto Chip/Fast y desalojo por prioridad+LRU. | **Implementado** (HOST-254) |
 | `resources.hpp` | `route_io`: enruta `FileDone`/`FileError` al subsistema por `IoUser::tag`. | **Implementado** (HOST-255) |
 | `dynloader.hpp` | `DynLoader`: formato `.englib` (relocs + exports), `load`/`unload`/`symbol`. | **Implementado** (HOST-248) |
+| `decode.hpp` | `decode(Codec, src, dst)`: etapa **genérica** de decodificación de recursos (`Raw`/`Zx0`), compartida por loader y audio. | **Implementado** (HOST-398) |
+| `engz.hpp` | Contenedor **`.engz`**: `build`/`parse`/`decode_engz`/`verify` con codec, tamaños, alineación y **CRC-32**. | **Implementado** (HOST-400) |
+| `zx0.hpp` | Descompresor **ZX0** (Einar Saukas v2), freestanding con control de límites (R6.5). | **Implementado** (HOST-271/398) |
 
 El `Backend` de la caché aporta `alloc(bytes, bank)`, `free(block, bank)` y `load(id, path, dst)`;
 el de Amiga usará `MemorySystem` + `os::file_read_async`, y el host un arena falsa. Reglas del

@@ -213,10 +213,12 @@ python tools/vision-review/frame-diff.py --sequence <dir> --metric both [--json]
 
 La versión **Python** (`frame-diff.py`) es más rápida (operaciones de array con SIMD: SSE/AVX) y
 añade **SSIM** por par (`--metric diff|ssim|both`): 1.0 = idéntico; `blocks_low` cuenta bloques con
-SSIM bajo (cambio **estructural** real, no solo brillo). `flicker-check.mjs` prefiere la versión
-Python si está disponible y cae a la de Node si no. Si una **zona estable** cambia erráticamente,
-es glitch; si solo cambian las zonas que se desplazan, es movimiento. Ante discrepancia con el
-modelo de visión, **prevalece el frame-diff**.
+SSIM bajo. Con `--compensate-global-motion`, el análisis estima la traslación global por correlación
+de fase y calcula bloques con cambio residual después de compensar el movimiento entero en píxeles;
+las zonas coarse de borde y actores excluidos deben declararse como `--ignore-roi X,Y,W,H`. Esto
+separa el paneo coherente del movimiento local no esperado. `flicker-check.mjs` usa ese gate cuando
+la demo declara baseline; ante discrepancia con el modelo de visión, el detector determinista conserva
+la autoridad.
 
 ## Diff de buffers gráficos (`screendump-diff.mjs`, canal lateral)
 
@@ -270,7 +272,8 @@ node tools/vision-review/flicker-check.mjs --demo <ruta> [--frames 6] [--cells 1
 ```
 
 1. **Capa 1 — detección temporal determinista** (`tools/vision-review/temporal-detect.py`, OpenCV):
-   diferencia de frames + *optical flow* denso (Farneback) + análisis por bloques. Clasifica:
+   compensa primero un paneo global coherente (correlación de fase); después usa diferencia de
+   frames + *optical flow* denso (Farneback) + análisis por bloques. Clasifica:
    `flicker` (cambia **sin** flujo: parpadeo/oscilación), `tearing` (cambio con flujo disperso),
    `corruption` (cambio muy alto). El **movimiento coherente** (objetos/scroll que se desplazan) se
    descarta comparándolo con el flujo de referencia de la escena. Ventana de contexto ±1 frame.
@@ -298,6 +301,4 @@ y pedir **regiones relativas**; pasar siempre pares/tríos (referencia + actual 
 > Cautela: **ningún** VLM open-weight es 100 % fiable en glitches temporales finos (parpadeo de 1–2
 > frames, tearing sutil, corrupción de copperlist). La referencia fiable es la **capa determinista**;
 > la respuesta del modelo es **apoyo**, no veredicto. Ante discrepancia, prevalece el frame-diff.
-
-
 

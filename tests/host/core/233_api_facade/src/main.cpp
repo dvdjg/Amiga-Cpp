@@ -53,7 +53,7 @@ int main() {
 	      "valores preparados de Blitter por la fachada");
 
 	// Rasterizador CPU por defecto (visible por la fachada).
-	check(sizeof(eng::field::kCpuRaster) > 0u, "kCpuRaster por la fachada");
+	check(sizeof(eng::playfield::kCpuRaster) > 0u, "kCpuRaster por la fachada");
 
 	// Entrada y tareas de fondo.
 	eng::input::InputAggregator in {};

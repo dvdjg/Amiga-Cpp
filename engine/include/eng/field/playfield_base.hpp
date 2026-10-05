@@ -49,7 +49,7 @@
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/memory/arena.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 /// **Operación lógica** de una escritura sobre el bitmap: qué hace el dato con el
 /// contenido previo. El CPU la aplica con lógica de palabras; el Blitter, con el
@@ -686,4 +686,4 @@ protected:
     RasterPolicy m_raster_policy {};    ///< política de aceleración
 };
 
-} // namespace eng::field
+} // namespace eng::playfield

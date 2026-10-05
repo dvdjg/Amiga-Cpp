@@ -55,7 +55,7 @@ int main() {
 						  eng::MemoryKind::Chip};
 	};
 
-	const eng::field::C2pRequest req {
+	const eng::playfield::C2pRequest req {
 		cblk(chunky, sizeof(chunky)),
 		pblk(a, sizeof(a)),
 		kW,
@@ -63,7 +63,7 @@ int main() {
 		kPlaneStride,
 		4u,
 	};
-	const bool ok = eng::field::kCpuRaster.c2p(req);
+	const bool ok = eng::playfield::kCpuRaster.c2p(req);
 	check(ok, "CpuRaster::c2p acepta la peticion");
 
 	eng::graphics::c2p_1x1_naive(kW, kH, 4u, kPlaneStride,
@@ -85,7 +85,7 @@ int main() {
 
 	// 6 planos -> cae a la via naive sin fallar.
 	eng::u8 c6[kPlaneStride * 6u] {};
-	const bool ok6 = eng::field::kCpuRaster.c2p(eng::field::C2pRequest {
+	const bool ok6 = eng::playfield::kCpuRaster.c2p(eng::playfield::C2pRequest {
 		cblk(chunky, sizeof(chunky)),
 		pblk(c6, sizeof(c6)),
 		kW,
@@ -99,7 +99,7 @@ int main() {
 	{
 		eng::graphics::FramePlan plan {};
 		eng::u8 dst[kPlaneBytes] {};
-		const bool queued = eng::field::kBlitterRaster.c2p(eng::field::C2pRequest {
+		const bool queued = eng::playfield::kBlitterRaster.c2p(eng::playfield::C2pRequest {
 			cblk(chunky, sizeof(chunky)),
 			pblk(dst, sizeof(dst)),
 			kW,
@@ -119,7 +119,7 @@ int main() {
 	// BlitterRaster sin plan (o !=4 planos) -> cae a CPU.
 	{
 		eng::u8 dst[kPlaneBytes] {};
-		check(eng::field::kBlitterRaster.c2p(eng::field::C2pRequest {
+		check(eng::playfield::kBlitterRaster.c2p(eng::playfield::C2pRequest {
 			      cblk(chunky, sizeof(chunky)),
 			      pblk(dst, sizeof(dst)), kW, kH, kPlaneStride, 4u}),
 		      "BlitterRaster::c2p sin plan cae a CPU");

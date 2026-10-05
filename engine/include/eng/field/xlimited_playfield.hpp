@@ -7,7 +7,7 @@
 #include <eng/field/xlimited_base.hpp>
 #include <eng/field/xlimited_mapping.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 /// Campo XLimited: scroll infinito en X con bitmap interleaved y wrap vertical.
 ///
@@ -62,8 +62,8 @@ public:
         // y que la franja entre alineada (plane-shift 0 al terminar). El perfil
         // progresivo conserva el paso exacto de la config (1 px/sub-paso).
         if constexpr (Profile::prefill) {
-            dx = eng::field::snap_to_tiles(dx, this->ctw());
-            dy = eng::field::snap_to_tiles(dy, this->cth());
+            dx = eng::playfield::snap_to_tiles(dx, this->ctw());
+            dy = eng::playfield::snap_to_tiles(dy, this->cth());
         }
         const s32 lim = m_max_step;
         if (dx > lim) dx = lim; else if (dx < -lim) dx = -lim;
@@ -78,6 +78,9 @@ public:
                 } else {
                     for (s32 i = 0; i < dx; ++i) { if (!m_scroll.scroll_right(plan, *this)) return false; }
                 }
+            } else if constexpr (Profile::sub_px != 0u) {
+                // Sub-tile: un px-burst (geometría del cruce calculada una vez por tile).
+                if (!m_scroll.burst_right_px(plan, *this, static_cast<u16>(dx))) return false;
             } else {
                 for (s32 i = 0; i < dx; ++i) { if (!m_scroll.scroll_right(plan, *this)) return false; }
             }
@@ -113,13 +116,13 @@ public:
     bool begin(MemoryManager& memory, const XlimitedConfigT<MapT>& cfg) {
         // Verifica en compile-time que este playfield cumple el contrato del
         // algoritmo (`ScrollEngine`); hace el scroll portátil y explícito.
-        static_assert(eng::field::ScrollSink<XLimitedPlayfield<SC, MapT, Profile>>,
+        static_assert(eng::playfield::ScrollSink<XLimitedPlayfield<SC, MapT, Profile>>,
             "XLimitedPlayfield debe cumplir el sink del ScrollEngine (corkscrew/XYLimited).");
         this->m_cfg = cfg;
         m_max_step = this->m_cfg.max_step ? this->m_cfg.max_step : 1; // salto configurable (≥1)
-        // Perfil estático: si impone paso (perfiles rápidos), su valor gana; la
+        // Perfil estático: si impone paso (perfiles rápidos o sub-tile), su valor gana; la
         // selección se hace con un tipo (ver `scroll_profile.hpp`/`FAST_SCROLL.md`).
-        if constexpr (Profile::fill_tiles != 0u) {
+        if constexpr (Profile::fill_tiles != 0u || Profile::sub_px != 0u) {
             m_max_step = static_cast<u8>(Profile::max_step_px(this->m_cfg.tile_width));
         }
         // El eje Y se controla con `y_mode` (Off = X-only, sin banda de staging ni
@@ -263,7 +266,7 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
     /// El scroll de ese plano lo da su `BPLxPT` (no se repinta por frame). Sustituir
     /// por un tileset artístico es cambiar esta función.
     void fill_parallax_pattern() {
-        eng::field::fill_parallax_pattern(this->m_frontbuffer.ptr(), this->m_bytes_per_row, this->m_cfg.planes,
+        eng::playfield::fill_parallax_pattern(this->m_frontbuffer.ptr(), this->m_bytes_per_row, this->m_cfg.planes,
                                           this->m_cfg.parallax_plane, this->m_bitmap_width, this->m_bitmap_height);
     }
 
@@ -808,4 +811,4 @@ private:
     u8 m_dbg_ink_visible_row = 0;                 // DEBUG: fila del bucle donde cayó el ink
 };
 
-} // namespace eng::field
+} // namespace eng::playfield

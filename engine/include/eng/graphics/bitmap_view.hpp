@@ -20,6 +20,16 @@
 
 namespace eng::graphics {
 
+/// Límites de transferencias bitmap con el Blitter OCS/ECS. Referencia: AHRM, capítulo 6,
+/// descripción de BLTSIZE (anchura 1..64 words, altura 1..1024 filas), y seis BPLxPT lores.
+inline constexpr eng::u16 kBlitterMaxWordsPerRow = 64u;
+inline constexpr eng::u16 kBlitterMaxRows = 1024u;
+inline constexpr eng::u8 kBlitterMaxPlanes = 6u;
+inline constexpr eng::u8 kBlitterCookieCutPlanes = 5u;
+inline constexpr eng::u8 kPixelsPerByte = 8u;
+inline constexpr eng::u8 kBytesPerBlitterWord = sizeof(eng::u16);
+inline constexpr eng::u8 kPixelsPerBlitterWord = kBytesPerBlitterWord * kPixelsPerByte;
+
 /// Vista de una zona rectangular. `Bank = Chip` por defecto (el caso DMA: `BPLxPT`/Blitter/Copper).
 template <class Tag, eng::MemoryKind Bank = eng::MemoryKind::Chip>
 struct BitmapView {
@@ -40,7 +50,7 @@ struct BitmapView {
 	}
 	/// Palabras por fila (`BLTSIZE` bajo): `row_bytes / 2`.
 	[[nodiscard]] constexpr eng::u16 words_per_row() const noexcept {
-		return static_cast<eng::u16>(row_bytes / 2u);
+		return static_cast<eng::u16>(row_bytes / kBytesPerBlitterWord);
 	}
 	/// Bytes por fila del bitmap **completo**: `row_bytes × planos` si interleaved, `row_bytes` si
 	/// separado.

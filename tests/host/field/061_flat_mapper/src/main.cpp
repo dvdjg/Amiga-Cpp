@@ -2,7 +2,7 @@
 // Test HOST-061: map_flat_scroll (mapeo cámara -> BPLxPT/BPLCON1/BPLMOD)
 // ============================================================================
 //
-// Valida `eng::field::map_flat_scroll` (amiga_display_mapper.hpp): la traducción
+// Valida `eng::playfield::map_flat_scroll` (amiga_display_mapper.hpp): la traducción
 // NEUTRAL de la cámara de un bitmap flat a los registros del display (fetch
 // ancho DDF $30). Aísla el mapper de la superficie y del Copper (modelo objetivo
 // §5). Fórmula verificada en hardware por la demo 120.
@@ -21,7 +21,7 @@ void check(bool ok, const char* what) {
 } // namespace
 
 int main() {
-	using eng::field::map_flat_scroll;
+	using eng::playfield::map_flat_scroll;
 
 	const eng::u16 row = 56; // 448 px / 8
 	const eng::u8 planes = 4;

@@ -8,7 +8,11 @@
 //   (1) es una PERMUTACION (mismos jobs, mismo multiconjunto);
 //   (2) los del mismo estado quedan contiguos;
 //   (3) el orden relativo dentro de un grupo se conserva (sort estable);
-//   (4) con todos distinto estado, un solo pase no los mezcla de forma incorrecta.
+//   (4) con todos distinto estado, un solo pase no los mezcla de forma incorrecta;
+//   (5) la reordenacion es EXPLICITA: `ReorderPolicy::PreserveOrder` (defecto) no reordena;
+//       `GroupByState` (declarada por el llamador) la habilita;
+//   (6) los AVISOS (`add_notify`) guardan su punto (`after_jobs`) y su `ticket`, no se ven
+//       alterados por `sort_by_state`, y `clear()` los vacía.
 //
 //   CXX=<g++> bash tools/run-host-tests.sh tests/host/graphics/388_frame_plan_state
 
@@ -98,6 +102,36 @@ int main() {
 	const int sum_before = id_sum();
 	check(sum_before == 15, "suma de ids = 15 antes");
 
+	// Orden original de los jobs (id = height-1), capturado antes de reordenar.
+	eng::s16 orig_order[6] {};
+	for (eng::u8 i = 0; i < n; ++i) {
+		orig_order[i] = static_cast<eng::s16>(plan.blit_job(i).height - 1);
+	}
+
+	// La reordenacion es **explicita**: con el defecto `PreserveOrder` no cambia nada.
+	{
+		FramePlan keep {};
+		keep.clear();
+		keep.add_or_blob(a0);
+		keep.add_masked_bob(b0);
+		keep.add_or_blob(a1);
+		keep.add_clear_rect(c0);
+		keep.add_masked_bob(b1);
+		keep.add_or_blob(a2);
+		const bool default_pol =
+			(keep.reorder_policy() == eng::graphics::ReorderPolicy::PreserveOrder);
+		keep.sort_by_state();
+		bool same_order = true;
+		for (eng::u8 i = 0; i < keep.blit_job_count(); ++i) {
+			if (static_cast<eng::s16>(keep.blit_job(i).height - 1) != orig_order[i]) {
+				same_order = false;
+			}
+		}
+		check(default_pol, "politica por defecto = PreserveOrder");
+		check(same_order, "PreserveOrder: sort_by_state NO reordena");
+	}
+
+	plan.set_reorder_policy(eng::graphics::ReorderPolicy::GroupByState);
 	plan.sort_by_state();
 	check(plan.blit_job_count() == n, "el conteo no cambia");
 	check(id_sum() == sum_before, "es una PERMUTACION (mismos jobs)");
@@ -159,6 +193,30 @@ int main() {
 	check(t_after < t_before, "sort_by_state reduce las rachas (menos reprogramaciones)");
 	check(t_after <= 2, "despues: a lo sumo 2 transiciones (3 grupos)");
 	std::printf("  rachas: antes=%d despues=%d\n", t_before, t_after);
+
+	// --- Avisos de la cadena (`add_notify`) ----------------------------------------------------
+	// Un aviso guarda cuántos trabajos deben completarse antes de disparar (`after_jobs`) y su
+	// `ticket`. Se declara en el punto de la ristra donde se quiere el aviso.
+	FramePlan np {};
+	np.clear();
+	np.add_or_blob(a0);
+	np.add_or_blob(a1);
+	check(np.add_notify(0x1111u), "aviso intermedio se encola");
+	np.add_or_blob(a2);
+	check(np.add_notify(0x2222u), "aviso final se encola");
+	check(np.notify_count() == 2u, "dos avisos registrados");
+	check(np.notify(0u).after_jobs == 2u && np.notify(0u).ticket == 0x1111u,
+	      "el aviso intermedio apunta a 2 trabajos");
+	check(np.notify(1u).after_jobs == 3u && np.notify(1u).ticket == 0x2222u,
+	      "el aviso final apunta a los 3 trabajos");
+	// Reordenar con avisos encolados no debe tocar el orden (los avisos son un contrato).
+	np.set_reorder_policy(eng::graphics::ReorderPolicy::GroupByState);
+	const eng::s16 id_before = static_cast<eng::s16>(np.blit_job(0u).height);
+	np.sort_by_state();
+	check(np.blit_job(0u).height == id_before, "sort_by_state respeta el orden con avisos");
+	// `clear` vacía también los avisos.
+	np.clear();
+	check(np.notify_count() == 0u, "clear() vacía los avisos");
 
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);

@@ -1,7 +1,7 @@
 # HOST-062 — seam de relleno de polígonos (`PolygonFillSink`)
 
 Test host del **seam de relleno por hardware** del engine
-(`eng::field::PolygonFillSink` + `Playfield::fill_polygon`, en
+(`eng::playfield::PolygonFillSink` + `Playfield::fill_polygon`, en
 `engine/include/eng/field/playfield.hpp`).
 
 ## Qué fija

@@ -23,15 +23,18 @@
 #include <eng/graphics/bob.hpp>
 #include <eng/graphics/composition/limits.hpp>
 #include <eng/graphics/frame_plan.hpp>
+#include <eng/graphics/bitmap_view.hpp>
 #include <eng/scene/actor.hpp>
 #include <eng/scene/virtual_scene.hpp>
 
 namespace eng::scene {
 
-/// **Contenido de una capa del mundo**: actores (por defecto) o un tilemap (reusa `TileLayer`).
+	/// **Contenido de una capa del mundo**: actores, tilemap o región Fill.
 enum class WorldLayerKind : u8 {
 	Actors,  ///< capa de actores (BOBs/sprites) hermanada por `ActorStore`
 	Tilemap, ///< capa de tiles (contenido en `TileLayer`)
+	Fill,    ///< región de color opaco materializada antes del render del juego
+	Bitmap,  ///< bitmap indexado opaco de un plano
 };
 
 /// **Técnica de scroll** de una región/capa (desplazamiento, independiente del modo de display).
@@ -42,6 +45,21 @@ enum class ScrollKind : u8 {
 	BlitterColumns,  ///< columnas nuevas por Blitter (robocod) + fino por `BPLCON1`
 	CopperRing,      ///< `BPLxPT`/módulo (xlimited): bitmap ring, sin split por línea
 	CopperSplit,     ///< split por línea (xyunlimited): una por banda (caro en Copper)
+	Strip,           ///< camino rápido: anillo de Copper + tira entrante (`field/strip_scroller.hpp`);
+	                 ///< parchea `BPLxPT`/`BPLCON1`/split por frame sin re-emitir (50 fps single).
+};
+
+/// **Especificación de scroll de una capa** (vocabulario de juego): la técnica pedida, el
+/// **período del mapa** si es toroidal (en `words`; `0` = mapa acotado o fondo que repite) y la
+/// velocidad máxima. Es lo que el juego declara —sin conocer anillos, guardas ni registros— y de
+/// lo que el planner (`scene/scroll_plan.hpp`) deriva geometría y memoria. Para `Strip` con mapa
+/// toroidal el anillo que resulta es `visible + map_period_words` (el mapa completo + una pantalla
+/// de solape), que es justo el dimensionado que evita el descuadre al envolver (HOST-244).
+struct ScrollSpec {
+	ScrollKind kind = ScrollKind::None;
+	u16 map_period_words = 0u; ///< período del mapa toroidal en words (0 = sin wrap)
+	u8 speed_px = 4u;          ///< velocidad máxima de scroll (px/frame); acota las guardas
+	[[nodiscard]] constexpr bool wraps() const noexcept { return map_period_words != 0u; }
 };
 
 /// **Playfield preferido** de una capa (el planner decide la materialización final).
@@ -85,9 +103,14 @@ struct WorldRegion {
 	ScrollKind scroll = ScrollKind::None;
 	u8 planes = 0;
 	u8 speed_px = 4u; ///< velocidad máxima de scroll pedida (px/frame); acota las guardas
+	u16 map_period_words = 0u; ///< período del mapa toroidal en words (0 = sin wrap)
 	[[nodiscard]] constexpr bool ok() const noexcept { return bottom > top; }
 	[[nodiscard]] constexpr RegionCost cost() const noexcept {
 		return region_cost(mode, scroll, planes);
+	}
+	/// La región vista como `ScrollSpec` (lo que consume el planner de scroll).
+	[[nodiscard]] constexpr ScrollSpec scroll_spec() const noexcept {
+		return ScrollSpec {scroll, map_period_words, speed_px};
 	}
 };
 
@@ -99,6 +122,23 @@ public:
 	constexpr void configure(const char* id, u8 depth) noexcept {
 		m_id = id;
 		m_depth = depth;
+		m_kind = WorldLayerKind::Actors;
+		m_fill_bounds = {};
+		m_fill_color = 0u;
+		m_bitmap = {};
+		m_tile = {};
+	}
+	constexpr void configure_fill(const char* id, u8 depth, const Box& bounds, u8 color) noexcept {
+		configure(id, depth);
+		m_kind = WorldLayerKind::Fill;
+		m_fill_bounds = bounds;
+		m_fill_color = color;
+	}
+	constexpr void configure_bitmap(const char* id, u8 depth,
+					const graphics::BitmapView<eng::TextureTag>& bitmap) noexcept {
+		configure(id, depth);
+		m_kind = WorldLayerKind::Bitmap;
+		m_bitmap = bitmap;
 	}
 	[[nodiscard]] constexpr const char* id() const noexcept { return m_id; }
 	[[nodiscard]] constexpr u8 depth() const noexcept { return m_depth; }
@@ -109,6 +149,11 @@ public:
 	/// **Contenido**: actores (por defecto) o tilemap.
 	[[nodiscard]] constexpr WorldLayerKind kind() const noexcept { return m_kind; }
 	[[nodiscard]] constexpr bool is_tilemap() const noexcept { return m_kind == WorldLayerKind::Tilemap; }
+	[[nodiscard]] constexpr bool is_fill() const noexcept { return m_kind == WorldLayerKind::Fill; }
+	[[nodiscard]] constexpr const Box& fill_bounds() const noexcept { return m_fill_bounds; }
+	[[nodiscard]] constexpr u8 fill_color() const noexcept { return m_fill_color; }
+	[[nodiscard]] constexpr bool is_bitmap() const noexcept { return m_kind == WorldLayerKind::Bitmap; }
+	[[nodiscard]] constexpr const graphics::BitmapView<eng::TextureTag>& bitmap() const noexcept { return m_bitmap; }
 	/// Liga el contenido de tilemap (reusa `TileLayer`); pasa la capa a `Tilemap`.
 	constexpr void bind_tilemap(const TileLayer& t) noexcept {
 		m_tile = t;
@@ -118,8 +163,12 @@ public:
 	[[nodiscard]] constexpr const TileLayer& tilemap() const noexcept { return m_tile; }
 
 	/// **Scroll pedido** y playfield preferido (los valida el planner).
-	[[nodiscard]] constexpr ScrollKind scroll() const noexcept { return m_scroll; }
-	constexpr void set_scroll(ScrollKind s) noexcept { m_scroll = s; }
+	[[nodiscard]] constexpr ScrollKind scroll() const noexcept { return m_scroll.kind; }
+	constexpr void set_scroll(ScrollKind s) noexcept { m_scroll.kind = s; }
+	/// Especificación completa de scroll (técnica + período de mapa + velocidad). Es el
+	/// vocabulario de juego: la capa lo declara y el planner deriva anillo/memoria de él.
+	[[nodiscard]] constexpr const ScrollSpec& scroll_spec() const noexcept { return m_scroll; }
+	constexpr void set_scroll_spec(const ScrollSpec& s) noexcept { m_scroll = s; }
 	[[nodiscard]] constexpr LayerPlayfield prefer() const noexcept { return m_prefer; }
 	constexpr void set_prefer(LayerPlayfield p) noexcept { m_prefer = p; }
 
@@ -127,26 +176,57 @@ private:
 	const char* m_id = "";
 	u8 m_depth = 0;
 	WorldLayerKind m_kind = WorldLayerKind::Actors;
-	ScrollKind m_scroll = ScrollKind::None;
+	ScrollSpec m_scroll {};
 	LayerPlayfield m_prefer = LayerPlayfield::Any;
 	TileLayer m_tile {};
 	Camera2D m_camera {};
+	Box m_fill_bounds {};
+	u8 m_fill_color = 0u;
+	graphics::BitmapView<eng::TextureTag> m_bitmap {};
 };
 
 /// **Mundo**: conjunto fijo de capas (sin heap) y de actores. El orden de dibujo lo fija la
 /// profundidad de capa (menor = al fondo) y, dentro del plan, el `z` del actor; el planner
 /// lo usará al componer.
-template <u8 MaxLayers = 8u, u8 MaxActors = 16u, u8 MaxRegions = 8u>
+inline constexpr eng::u8 kDefaultWorldLayerCapacity = graphics::FramePlan::kMaxDirtyRects;
+inline constexpr eng::u8 kDefaultWorldActorCapacity = graphics::FramePlan::kMaxDmaAssets * 2u;
+inline constexpr eng::u8 kDefaultWorldRegionCapacity = graphics::FramePlan::kMaxDirtyRects;
+template <u8 MaxLayers = kDefaultWorldLayerCapacity,
+	  u8 MaxActors = kDefaultWorldActorCapacity,
+	  u8 MaxRegions = kDefaultWorldRegionCapacity>
 class World {
 public:
-	/// Añade una capa. Devuelve `Ref<Layer>` inválido si el mundo está lleno (no hay fallo
-	/// silencioso: comprueba `if (fondo)`).
+	/// Añade una capa de actores. Devuelve `Ref<Layer>` inválido si el mundo está lleno.
 	[[nodiscard]] Ref<Layer> add_layer(const char* id, u8 depth) noexcept {
 		if (m_count >= MaxLayers) {
 			return {};
 		}
 		Layer& l = m_layers[m_count];
 		l.configure(id, depth);
+		++m_count;
+		return l;
+	}
+
+	/// Añade una región de color opaco. Las capas Fill se pintan por profundidad ascendente antes
+	/// de `Game::render`; el juego puede dibujar encima en el mismo frame. `false` si la región está vacía.
+	[[nodiscard]] Ref<Layer> add_fill_layer(const char* id, u8 depth, const eng::Box& bounds,
+						 u8 color) noexcept {
+		if (m_count >= MaxLayers || bounds.empty()) return {};
+		Layer& l = m_layers[m_count];
+		l.configure_fill(id, depth, bounds, color);
+		++m_count;
+		return l;
+	}
+
+	/// Añade una vista bitmap no propietaria. El owner debe vivir mientras viva la capa; `App`
+	/// conserva la reserva Chip del helper `add_bitmap_background`.
+	[[nodiscard]] Ref<Layer> add_bitmap_layer(const char* id, u8 depth,
+						 const graphics::BitmapView<eng::TextureTag>& bitmap) noexcept {
+		if (m_count >= MaxLayers || id == nullptr || !bitmap.valid() ||
+		    bitmap.layout != graphics::PlaneLayout::Contiguous || bitmap.plane_count != 1u ||
+		    bitmap.row_bytes < bitmap.width) return {};
+		Layer& l = m_layers[m_count];
+		l.configure_bitmap(id, depth, bitmap);
 		++m_count;
 		return l;
 	}
@@ -168,6 +248,80 @@ public:
 	[[nodiscard]] constexpr u8 count() const noexcept { return m_count; }
 	[[nodiscard]] constexpr u8 capacity() const noexcept { return MaxLayers; }
 	[[nodiscard]] constexpr bool full() const noexcept { return m_count >= MaxLayers; }
+
+	/// Materializa solo las capas Fill, con orden estable por profundidad (menor = fondo),
+	/// trasladando coordenadas de mundo con la cámara de cada capa y recortando al viewport.
+	/// Cada región es un rectángulo opaco: primero se limpia a color 0 y luego se aplica su color.
+	template <class Sink>
+	[[nodiscard]] bool materialize_fill_layers(Sink&& sink, u16 viewport_width,
+						   u16 viewport_height) const {
+		u8 order[MaxLayers] {};
+		u8 count = 0u;
+		for (u8 i = 0u; i < m_count; ++i) {
+			if (!m_layers[i].is_fill()) continue;
+			u8 at = count;
+			while (at > 0u && m_layers[order[at - 1u]].depth() > m_layers[i].depth()) {
+				order[at] = order[at - 1u];
+				--at;
+			}
+			order[at] = i;
+			++count;
+		}
+		for (u8 i = 0u; i < count; ++i) {
+			const Layer& layer = m_layers[order[i]];
+			const Box& world_bounds = layer.fill_bounds();
+			const s32 left = static_cast<s32>(world_bounds.x) - layer.camera().scroll_x();
+			const s32 top = static_cast<s32>(world_bounds.y) - layer.camera().scroll_y();
+			const s32 right = left + world_bounds.w;
+			const s32 bottom = top + world_bounds.h;
+			const s32 clip_left = left > 0 ? left : 0;
+			const s32 clip_top = top > 0 ? top : 0;
+			const s32 clip_right = right < viewport_width ? right : viewport_width;
+			const s32 clip_bottom = bottom < viewport_height ? bottom : viewport_height;
+			if (clip_right <= clip_left || clip_bottom <= clip_top) continue;
+			const Box screen_bounds {
+				static_cast<s16>(clip_left), static_cast<s16>(clip_top),
+				static_cast<u16>(clip_right - clip_left),
+				static_cast<u16>(clip_bottom - clip_top)};
+			if (!sink(screen_bounds, 0u) || !sink(screen_bounds, layer.fill_color())) return false;
+		}
+		return true;
+	}
+
+	/// Emite filas visibles de bitmaps indexados, trasladadas por la cámara y recortadas al viewport.
+	/// El sink recibe (x, y, row) sin que World tome ownership del bitmap.
+	template <class Sink>
+	[[nodiscard]] bool materialize_bitmap_layers(Sink&& sink, u16 viewport_width,
+						     u16 viewport_height) const {
+		u8 order[MaxLayers] {};
+		u8 count = 0u;
+		for (u8 i = 0u; i < m_count; ++i) {
+			if (!m_layers[i].is_bitmap()) continue;
+			u8 at = count;
+			while (at > 0u && m_layers[order[at - 1u]].depth() > m_layers[i].depth()) {
+				order[at] = order[at - 1u];
+				--at;
+			}
+			order[at] = i;
+			++count;
+		}
+		for (u8 i = 0u; i < count; ++i) {
+			const Layer& layer = m_layers[order[i]];
+			const auto& bitmap = layer.bitmap();
+			const s32 src_x = layer.camera().scroll_x();
+			const s32 src_y = layer.camera().scroll_y();
+			if (src_x >= bitmap.width || src_y >= bitmap.height) continue;
+			const u16 copy_w = static_cast<u16>(bitmap.width - src_x < viewport_width
+							    ? bitmap.width - src_x : viewport_width);
+			const u16 copy_h = static_cast<u16>(bitmap.height - src_y < viewport_height
+							    ? bitmap.height - src_y : viewport_height);
+			for (u16 y = 0u; y < copy_h; ++y) {
+				const eng::usize offset = static_cast<eng::usize>(src_y + y) * bitmap.row_bytes + src_x;
+				if (!sink(0u, y, bitmap.planes.view().subspan(offset, copy_w))) return false;
+			}
+		}
+		return true;
+	}
 
 	/// Capa por índice (`Ref` inválido si fuera de rango).
 	[[nodiscard]] Ref<Layer> layer(u8 i) noexcept {

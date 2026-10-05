@@ -1,5 +1,5 @@
 // Test host del seam de relleno de polígonos por hardware
-// (`eng::field::PolygonFillSink` + `Playfield::fill_polygon`).
+// (`eng::playfield::PolygonFillSink` + `Playfield::fill_polygon`).
 //
 // Valida que un `Playfield` con sink instalado DELEGA el relleno (con la
 // geometría planar correcta: planos, strides y dimensiones) y no toca la CPU; y
@@ -13,7 +13,7 @@
 #include <vector>
 
 using namespace eng;
-using namespace eng::field;
+using namespace eng::playfield;
 
 namespace {
 

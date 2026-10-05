@@ -2,8 +2,8 @@
 // Test HOST-035: WorldView -> scroll (WorldLayerSource + Loader-RAM)
 // ============================================================================
 //
-// Valida los puentes `eng::field::WorldLayerSource` (capa de `WorldView` como
-// `TileMap`) y `eng::field::WorldMapChunkLoader` (Loader de `StreamingWorldMap`
+// Valida los puentes `eng::playfield::WorldLayerSource` (capa de `WorldView` como
+// `TileMap`) y `eng::playfield::WorldMapChunkLoader` (Loader de `StreamingWorldMap`
 // que sirve chunks desde el blob del mundo). Es la cadena completa:
 // WorldMap -> StreamingWorldMap (Loader-RAM) -> TileMapView -> contrato `TileMap`.
 
@@ -58,7 +58,7 @@ void build_world(eng::u8* buf, u32 size) {
 
 int main() {
 	// El adaptador directo cumple el contrato del scroll.
-	static_assert(eng::field::TileMap<eng::field::WorldLayerSource>,
+	static_assert(eng::playfield::TileMap<eng::playfield::WorldLayerSource>,
 	              "WorldLayerSource debe cumplir TileMap");
 
 	eng::u8 buf[1200] {};
@@ -67,7 +67,7 @@ int main() {
 	check(w.read(eng::UafPayload(buf, kTotal)), "read WorldMap");
 
 	// 1) Capa entera residente como TileMap.
-	eng::field::WorldLayerSource ws {};
+	eng::playfield::WorldLayerSource ws {};
 	check(ws.bind(w, 0u), "bind capa 0");
 	check(ws.has_data() && ws.width == 32u && ws.height == 16u && ws.wrap_x == 0u,
 	      "bounds de la capa");
@@ -77,13 +77,13 @@ int main() {
 	check(ws.is_empty(ws.tile_at(0, 16)), "fuera de height -> empty");
 
 	// 2) Streaming con Loader-RAM desde el blob del mundo.
-	using World = eng::field::StreamingWorldMap<16, 4, eng::field::WorldMapChunkLoader>;
-	using View = eng::field::TileMapView<World>;
-	static_assert(eng::field::TileMap<View>, "TileMapView debe cumplir TileMap");
+	using World = eng::playfield::StreamingWorldMap<16, 4, eng::playfield::WorldMapChunkLoader>;
+	using View = eng::playfield::TileMapView<World>;
+	static_assert(eng::playfield::TileMap<View>, "TileMapView debe cumplir TileMap");
 
 	eng::u16 pool[World::kPoolCells] {};
 	World world {};
-	eng::field::WorldMapChunkLoader loader {&w, 0u, 16u};
+	eng::playfield::WorldMapChunkLoader loader {&w, 0u, 16u};
 	check(world.init(loader, eng::TileBankBuffer {pool}, 0xFFFFu), "init streaming");
 
 	View view {};
@@ -109,7 +109,7 @@ int main() {
 
 	// Chunk ausente: el Loader devuelve Empty sin romper.
 	eng::u16 tmp[256] {};
-	check(loader.load(9, 9, eng::TileBankBuffer {tmp}) == eng::field::LoadResult::Empty,
+	check(loader.load(9, 9, eng::TileBankBuffer {tmp}) == eng::playfield::LoadResult::Empty,
 	      "chunk ausente -> Empty");
 	check(world.loads() >= 2, "el Loader contó cargas");
 

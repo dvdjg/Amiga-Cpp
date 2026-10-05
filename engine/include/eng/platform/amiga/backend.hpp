@@ -29,7 +29,12 @@
 #include <eng/platform/amiga/asset_backend.hpp>
 #include <eng/res/asset_runtime.hpp>
 #include <eng/platform/amiga/blob.hpp>
+#include <eng/platform/amiga/blob_batch.hpp>
 #include <eng/platform/amiga/paula.hpp>
+#include <eng/platform/amiga/memory_profile.hpp>
+
+#include <exec/memory.h>
+#include <proto/exec.h>
 
 namespace eng::amiga {
 
@@ -63,6 +68,16 @@ struct DebugOverlay {
 	void text(s16 x, s16 y, const char* value, u32 rgb);
 	void rect(s16 left, s16 top, s16 right, s16 bottom, u32 rgb);
 	void filled_rect(s16 left, s16 top, s16 right, s16 bottom, u32 rgb);
+
+	/// **Vista de recursos** del depurador gráfico de WinUAE: registra un bitmap, una paleta o
+	/// una copperlist para que el gfx debugger los muestre como recursos nombrados (equivalente
+	/// a `debug_register_*` de la demo original). `addr` debe permanecer válido mientras el
+	/// recurso esté registrado; `debug_unregister(addr)` lo retira.
+	void register_bitmap(const void* addr, const char* name, u16 width, u16 height,
+			     u16 num_planes, bool interleaved, bool masked) noexcept;
+	void register_palette(const void* addr, const char* name, u16 num_entries) noexcept;
+	void register_copperlist(const void* addr, const char* name, u32 size) noexcept;
+	void unregister(const void* addr) noexcept;
 };
 
 /// Triangulo plano (coordenadas de pantalla) para el relleno por Blitter.
@@ -90,6 +105,8 @@ public:
 
 	constexpr explicit AmigaBackend(Profile profile = a500_1mb_slow)
 		: m_profile(profile) {}
+	constexpr AmigaBackend(Profile profile, GameMemoryProfile game_memory)
+		: m_profile(profile), m_game_memory(game_memory) {}
 	~AmigaBackend();
 
 	AmigaBackend(const AmigaBackend&) = delete;
@@ -104,6 +121,37 @@ public:
 	/// bloques solicitados. En modo takeover futuro, esta misma API podra poblarse
 	/// con rangos fisicos conocidos sin pasar por Exec.
 	bool configure_memory(const MemoryConfig& config);
+
+	/// Preflight y reserva los pools configurados por el composition root. `AvailMem` es una
+	/// instantánea del mayor bloque contiguo requerido; `AllocMem` sigue siendo el árbitro final.
+	[[nodiscard]] bool configure_game_memory(const GameMemoryProfile& profile) {
+		return configure_game_memory(profile, false);
+	}
+
+	/// Reserva un perfil elegido para una instantánea automática concreta, sin consultar AvailMem dos veces.
+	[[nodiscard]] bool configure_game_memory(const GameMemoryProfile& profile, bool preflighted) {
+		m_game_memory = profile;
+		const auto& pools = profile.pools;
+		if (preflighted) return configure_memory(pools);
+		const u32 chip = static_cast<u32>(AvailMem(MEMF_CHIP | MEMF_LARGEST));
+		const u32 any = static_cast<u32>(AvailMem(MEMF_ANY | MEMF_LARGEST));
+		const u32 fast = static_cast<u32>(AvailMem(MEMF_FAST | MEMF_LARGEST));
+		if (!game_memory_fits(pools, chip, any, fast)) return false;
+		return configure_memory(pools);
+	}
+
+	/// Sondea la máquina y elige un presupuesto inicial editable según Chipset/RAM; en hardware
+	/// desconocido usa A500. El composition root puede preferir el overload explícito/custom.
+	[[nodiscard]] bool configure_game_memory() {
+		hw::HwInfo hardware {};
+		(void)hw::probe(hardware);
+		const u32 largest_chip = static_cast<u32>(AvailMem(MEMF_CHIP | MEMF_LARGEST));
+		const u32 largest_any = static_cast<u32>(AvailMem(MEMF_ANY | MEMF_LARGEST));
+		const u32 largest_fast = static_cast<u32>(AvailMem(MEMF_FAST | MEMF_LARGEST));
+		const auto preferred = game_memory_for_hardware(hardware);
+		m_game_memory = game_memory_fit_available(preferred, largest_chip, largest_any, largest_fast);
+		return configure_game_memory(m_game_memory, true);
+	}
 
 	/// Libera los bloques reservados con Exec.
 	void release_memory();
@@ -314,22 +362,53 @@ public:
 	/// antiguos que solo conocian `install_copper_list`).
 	void install_copper_list(const u16* copper_words);
 
+	/// Detiene los canales DMA del display antes de liberar la escena/copperlist que consumen.
+	/// No devuelve el control al sistema operativo: `takeover_display` ya congeló sus IRQ.
+	void stop_display();
+
 	/// Ejecuta los trabajos hardware descritos por un `FramePlan`.
 	///
 	/// Por ahora solo materializa BOBs enmascarados mediante Blitter. Los parches de
 	/// paleta pertenecen a la escena (offsets internos de su copperlist).
 	bool execute_frame_plan(const graphics::FramePlan& plan);
 
+	/// **Ejecuta el `FramePlan` de forma asíncrona** (vía IRQ de blit, `BLITTER_INTENT_QUEUE.md`
+	/// §6 vía I): lanza el primer trabajo (`wait=false`) y **vuelve de inmediato**; la IRQ de fin
+	/// de blit (nivel 3, bit BLIT) programa el siguiente trabajo, y así hasta agotar el plan. La
+	/// CPU queda libre durante la cadena (medido: ~98 % menos ciclos que el poll en la 212).
+	///
+	/// El `plan` debe **sobrevivir** hasta que la cadena termine (`frame_plan_async_busy()`
+	/// devuelva false); normalmente es el `FramePlan` de la escena, que no se limpia hasta el
+	/// `present()` siguiente. Devuelve `false` si el plan está vacío o no se pudo instalar el
+	/// servicio de IRQ (en ese caso, usar `execute_frame_plan`).
+	bool execute_frame_plan_async(const graphics::FramePlan& plan);
+
+	/// `true` mientras la cadena asíncrona (o un blit suelto) sigue viva. Un juego que reutilice
+	/// o libere el `FramePlan` debe esperar a que baje (p. ej. al final del frame).
+	[[nodiscard]] bool frame_plan_async_busy() const noexcept;
+
+	/// Espera a que la cadena asíncrona termine (bloqueo explícito, como `glFinish`).
+	void frame_plan_async_wait() noexcept { while (frame_plan_async_busy()) { } }
+
+	/// **Avisos de la cadena** (`FramePlan::add_notify`): `fn(ctx, ticket)` se ejecuta **en la ISR**
+	/// de fin de blit al cruzar cada marca. Debe ser corto y **IRQ-safe** (típico: `port.post`).
+	/// Sin callback instalado, los avisos se consumen igual (no se disparan efectos).
+	using ChainNotifyFn = void (*)(void* ctx, eng::u32 ticket);
+	void set_blit_chain_notify(ChainNotifyFn fn, void* ctx) noexcept {
+		m_chain_notify = fn;
+		m_chain_notify_ctx = ctx;
+	}
+
 	/// **Capacidades de rasterizado** del backend: OCS/AGA tienen Blitter (bus de 16 bits;
 	/// AGA admite FMODE 32/64) con fill/line/shift/minterms. Un backend host declararía
-	/// `blitter = false`. Ver `field::RasterCaps`.
-	[[nodiscard]] constexpr eng::field::RasterCaps raster_caps() const {
+	/// `blitter = false`. Ver `playfield::RasterCaps`.
+	[[nodiscard]] constexpr eng::playfield::RasterCaps raster_caps() const {
 #if defined(K_AGA)
 		// Target AGA (A1200/A4000/CD32): bus de 64 bits con FMODE=4x.
-		return eng::field::RasterCaps { true, 64u, true, true, true, true, 60u };
+		return eng::playfield::RasterCaps { true, 64u, true, true, true, true, 60u };
 #else
 		// Target OCS (A500): bus de 16 bits.
-		return eng::field::RasterCaps { true, 16u, true, true, true, true, 60u };
+		return eng::playfield::RasterCaps { true, 16u, true, true, true, true, 60u };
 #endif
 	}
 
@@ -338,12 +417,12 @@ public:
 	/// conoce al backend: este solo le pasa la elección.
 	template <class Scene>
 	void install_raster(Scene& scene) const {
-		const eng::field::RasterCaps caps = raster_caps();
-		const eng::field::AccelMode mode =
-			caps.blitter ? eng::field::AccelMode::Auto : eng::field::AccelMode::Cpu;
+		const eng::playfield::RasterCaps caps = raster_caps();
+		const eng::playfield::AccelMode mode =
+			caps.blitter ? eng::playfield::AccelMode::Auto : eng::playfield::AccelMode::Cpu;
 		const eng::u16 min_px = caps.blitter ? static_cast<eng::u16>(64u) : static_cast<eng::u16>(0u);
-		scene.set_raster(caps.blitter ? &eng::field::kBlitterRaster : &eng::field::kCpuRaster,
-				 eng::field::RasterPolicy {mode, min_px, true});
+		scene.set_raster(caps.blitter ? &eng::playfield::kBlitterRaster : &eng::playfield::kCpuRaster,
+				 eng::playfield::RasterPolicy {mode, min_px, true});
 	}
 
 	/// Base de registros custom (`$dff000`). Para rutinas de lote `inline` (p. ej.
@@ -381,7 +460,7 @@ public:
 
 	/// **Colisión pixel-perfect por Blitter**: hace `scratch = a & b` (minterm `$C0`) por
 	/// plano y devuelve `true` si alguna palabra del rect es distinta de 0. `words`×`rows`
-	/// es el rect (en palabras de 16 px × filas). Referencia CPU: `field::collide_cpu`.
+	/// es el rect (en palabras de 16 px × filas). Referencia CPU: `playfield::collide_cpu`.
 	/// **Verificada en hardware**: self-test de la demo 077 (colisión y no-colisión).
 	bool blitter_collide(eng::PlaneBytes a, eng::PlaneBytes b, eng::PlaneBytes scratch,
 			     u8 planes, u16 row_bytes, u32 plane_bytes, u16 words, u16 rows);
@@ -536,6 +615,25 @@ public:
 	/// Espera al ultimo BOB. `false` si el Blitter no responde.
 	bool blitter_or_bobs_end();
 
+	/// **Racha de blits** genérica en streaming (coste cero, sin `FramePlan`): fija el estado
+	/// común con `blitter_blob_run_begin(op, ...)`, por objeto llama `blitter_blob_run_one`
+	/// (espera al anterior, escribe solo los registros que cambian) y cierra con
+	/// `blitter_blob_run_end`. Es el bucle del `main.c` de referencia envuelto como API: el
+	/// llamador describe objetos y el backend emite registro a registro, **sin plan intermedio
+	/// ni copia**. `op` = `eng::amiga::BlobOp::{Or,CookieCut,Opaque,Clear}`.
+	void blitter_blob_run_begin(eng::amiga::BlobOp op, u16 words, u16 height, s16 amod, s16 bmod,
+				    s16 cmod, s16 dmod);
+	void blitter_blob_run_one(const void* a, const void* b, void* d, u8 shift);
+	bool blitter_blob_run_end();
+
+	/// **Tira de scroll** (columna entrante pre-compuesta): copia `planelines` planelíneas de `src`
+	/// (contiguo, `BLTAMOD=0`) al anillo interleaved `dst` (salto `dmod` bytes/planelínea) con
+	/// `words` palabras/planelínea y fine shift `shift` (0..15). Parte en trozos de `<= 1024`
+	/// planelíneas (límite de 10 bits del campo H de `BLTSIZE`). Es la ejecución del descriptor de
+	/// `field/strip_scroller.hpp` (`strip_blit_desc`). Ver `SCROLL_VARIANTS.md`.
+	bool blitter_strip_column(const void* src, void* dst, u16 words, s16 dmod, u16 planelines,
+				  u8 shift);
+
 	/// Area fill `XOR` del mismo rectangulo de UN plano (semilla = ultima palabra
 	/// del rectangulo, recorrido descendente). Port de `BitmapFillFast` acotado a
 	/// una caja, para no barrer el bitmap completo cada frame.
@@ -547,7 +645,7 @@ public:
 	/// para planos contiguos e interleaved): `plane_stride` = bytes entre planos, `row_stride` =
 	/// bytes entre filas del mismo plano, `row_bytes` = bytes por fila. Enmascara la primera y
 	/// ultima palabra para rectangulos no alineados a palabra. Sincrono (`wait`). Es el motor de
-	/// `field::RectFillSink` (relleno de cajas de UI por hardware).
+	/// `playfield::RectFillSink` (relleno de cajas de UI por hardware).
 	bool blitter_fill_rect(eng::u8* plane_base, u8 planes, u32 plane_stride, u32 row_stride,
 			       u16 row_bytes, u16 bitmap_w, u16 bitmap_h, s32 x, s32 y, u16 w, u16 h,
 			       u8 color, bool wait = true);
@@ -665,6 +763,7 @@ public:
 	void set_warpmode(bool enabled);
 
 	constexpr const Profile& profile() const { return m_profile; }
+	constexpr const GameMemoryProfile& game_memory_profile() const noexcept { return m_game_memory; }
 	constexpr MemorySystem& memory() { return m_memory; }
 	constexpr const MemorySystem& memory() const { return m_memory; }
 	constexpr const MemoryReport& memory_report() const { return m_memory_report; }
@@ -699,6 +798,7 @@ private:
 	bool submit_blit_job(const graphics::BlitJob& job, bool& eor_open);
 
 	Profile m_profile; ///< perfil de máquina configurado
+	GameMemoryProfile m_game_memory = game_memory_a500; ///< presupuesto editable de la aplicación
 	MemorySystem m_memory {}; ///< arenas (Chip/Slow/Frame) entregadas al engine
 	MemoryReport m_memory_report {}; ///< informe de la reserva de memoria
 	MemoryManager m_memmanager {}; ///< bancos tipados por uso (mismos buffers que las arenas)
@@ -737,10 +837,28 @@ private:
 	/// Estado del lote de BOBs no-inline (`blitter_or_bobs_begin/one/end`): delega en
 	/// la misma implementacion `inline` de `blob.hpp` que usa el camino de coste cero.
 	eng::amiga::OrBlobBatch m_or_bob {};
+	eng::amiga::BlobBatch m_blob_run {}; ///< racha de blits en streaming (`blitter_blob_run_*`)
 	/// true una vez que la primera copperlist ha tomado el control completo del
 	/// display (INTENA/INTREQ/DMACON apagados e interrupciones del sistema
 	/// congeladas). Las instalaciones posteriores son solo swaps de puntero.
 	bool m_display_taken = false;
+
+	/// Estado del **feeder asíncrono** de `FramePlan` (`execute_frame_plan_async`): plan vivo
+	/// (no propietario), índice del próximo job y bandera de cadena activa. `m_async_busy` es
+	/// `volatile`: la ISR de blit la baja al agotar la cadena.
+	const graphics::FramePlan* m_async_plan = nullptr;
+	volatile u16 m_async_next = 0u;
+	volatile bool m_async_busy = false;
+	bool m_async_service_installed = false;
+	/// Índice del próximo aviso de `m_async_plan` por disparar; callback de aviso (IRQ-safe).
+	u8 m_async_notify_next = 0u;
+	ChainNotifyFn m_chain_notify = nullptr;
+	void* m_chain_notify_ctx = nullptr;
+	/// Dispara los avisos cuyo punto (`after_jobs`) ya alcanzó la cadena. Solo desde la ISR.
+	void fire_due_notifies() noexcept;
+	/// Programa el próximo job de la cadena async (llamado desde la ISR de blit). `true` si
+	/// quedan jobs; `false` cuando la cadena termina.
+	static void frame_plan_async_step(AmigaBackend& self, eng::u16 vpos);
 };
 
 } // namespace eng::amiga

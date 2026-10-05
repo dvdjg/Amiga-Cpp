@@ -73,8 +73,8 @@ struct MockSink {
 	void restore_saveword() const { ++restores; }
 };
 
-using Consts = eng::field::ScrollConsts;
-using Engine = eng::field::ScrollEngine<MockSink, Consts{16, 16, 288, 1152, 4}>;
+using Consts = eng::playfield::ScrollConsts;
+using Engine = eng::playfield::ScrollEngine<MockSink, Consts{16, 16, 288, 1152, 4}>;
 
 } // namespace
 

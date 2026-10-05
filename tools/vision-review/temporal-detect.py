@@ -6,8 +6,9 @@ Primera capa del enfoque híbrido de verificación visual: **antes** de consulta
 visión (que alucina en glitches temporales finos), localizar de forma barata y reproducible las
 zonas/candidatos sospechosos. El VLM solo confirmará o descartará una sospecha ya localizada.
 
-Método: diferencia absoluta entre frames consecutivos + *optical flow* denso (Farneback) y
-análisis por bloques. Un cambio con **flujo bajo** (la zona no se mueve pero cambia) es parpadeo;
+Método: compensación del paneo global por correlación de fase y luego diferencia absoluta entre
+frames consecutivos + *optical flow* denso (Farneback) y análisis por bloques. Un cambio con
+**flujo bajo** (la zona no se mueve pero cambia) es parpadeo;
 un cambio con **flujo disperso/incoherente** es tearing; un cambio muy alto es corrupción. El
 movimiento coherente (un objeto que se desplaza) **no** se marca.
 
@@ -30,10 +31,10 @@ import cv2
 import numpy as np
 
 
-def load_frames(folder, max_frames=None):
-    """Carga frames PNG/JPG de una carpeta, ordenados por nombre."""
-    files = sorted(Path(folder).glob("frame_*.png"))
-    if not files:
+def load_frames(folder=None, max_frames=None, files=None):
+    """Carga frames explícitos o los de una carpeta, ordenados por nombre."""
+    files = [Path(p) for p in files] if files else sorted(Path(folder).glob("frame_*.png"))
+    if not files and folder:
         files = sorted(Path(folder).glob("*.png")) + sorted(Path(folder).glob("*.jpg"))
     frames = []
     for f in files[:max_frames] if max_frames else files:
@@ -70,6 +71,59 @@ def _is_motion(prev, curr, x, y, bs, search):
     dy = (y0 + minloc[1]) - y
     # (1) mismo sitio, muy parecido; (2) mismo contenido desplazado.
     return best < 0.10
+
+
+def align_global_motion(frames, min_response=0.15):
+    """Compensa paneos globales coherentes antes de buscar cambios locales.
+
+    Devuelve (frames_alineados, metadatos). La traslación se estima entre pares consecutivos y
+    cada imagen original se transforma directamente al marco del primer frame para no acumular
+    interpolaciones. Si una pareja no tiene correlación fiable o el movimiento excede un cuarto
+    de pantalla, conserva la secuencia sin alinear y el detector analiza los frames originales.
+    """
+    if len(frames) < 2:
+        return frames, {"applied": False, "reason": "insufficient_frames", "pairs": []}
+
+    gray = [cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32) for frame in frames]
+    h, w = gray[0].shape
+    pairs = []
+    offsets = [(0.0, 0.0)]
+    for previous, current in zip(gray, gray[1:]):
+        (dx, dy), response = cv2.phaseCorrelate(previous, current)
+        pairs.append({"dx": round(float(dx), 3), "dy": round(float(dy), 3),
+                      "response": round(float(response), 4)})
+        if (not np.isfinite(dx) or not np.isfinite(dy) or not np.isfinite(response) or
+                response < min_response or abs(dx) > w / 4 or abs(dy) > h / 4):
+            return frames, {"applied": False, "reason": "unreliable_pair", "pairs": pairs}
+        ox, oy = offsets[-1]
+        offsets.append((ox + float(dx), oy + float(dy)))
+
+    # Elimina paneos subpíxel residuales del estimador: no compensa ruido de cámara/captura.
+    total_motion = max((abs(x) + abs(y) for x, y in offsets), default=0.0)
+    if total_motion < 1.0:
+        return frames, {"applied": False, "reason": "no_global_translation", "pairs": pairs}
+
+    aligned = []
+    for frame, (dx, dy) in zip(frames, offsets):
+        matrix = np.float32([[1.0, 0.0, -dx], [0.0, 1.0, -dy]])
+        aligned.append(cv2.warpAffine(frame, matrix, (w, h), flags=cv2.INTER_NEAREST,
+                                      borderMode=cv2.BORDER_CONSTANT))
+    # Excluye las áreas sin contenido común creadas por el desplazamiento; rellenarlas podría
+    # inventar un borde oscilante y convertir el movimiento legítimo en candidato de glitch.
+    x0 = max(0, int(np.ceil(max(x for x, _ in offsets))))
+    y0 = max(0, int(np.ceil(max(y for _, y in offsets))))
+    x1 = min(w, int(np.floor(w + min(x for x, _ in offsets))))
+    y1 = min(h, int(np.floor(h + min(y for _, y in offsets))))
+    if x1 - x0 < w // 2 or y1 - y0 < h // 2:
+        return frames, {"applied": False, "reason": "insufficient_common_area", "pairs": pairs}
+    aligned = [frame[y0:y1, x0:x1] for frame in aligned]
+    return aligned, {
+        "applied": True,
+        "method": "phase_correlation_translation",
+        "pairs": pairs,
+        "cumulative": [{"dx": round(x, 3), "dy": round(y, 3)} for x, y in offsets],
+        "common_roi": {"x": x0, "y": y0, "w": x1 - x0, "h": y1 - y0},
+    }
 
 
 def _ssim(a, b):
@@ -242,7 +296,9 @@ def relative_region(x, y, w, h, img_w, img_h):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--sequence", required=True)
+    ap.add_argument("--sequence", default=None)
+    ap.add_argument("--files", nargs="+", default=None,
+                    help="lista exacta de frames; permite ignorar secuencias antiguas de la carpeta")
     ap.add_argument("--out", default=None)
     ap.add_argument("--block", type=int, default=16)
     ap.add_argument("--diff", type=float, default=30.0)
@@ -252,20 +308,23 @@ def main():
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
 
-    files, frames = load_frames(args.sequence, args.max_frames)
+    if not args.sequence and not args.files:
+        ap.error("se requiere --sequence o --files")
+    files, frames = load_frames(args.sequence, args.max_frames, args.files)
     if len(frames) < 3:
-        print(f"[temporal-detect] {args.sequence}: <3 frames (se omite).", file=sys.stderr)
+        print(f"[temporal-detect] {args.sequence or args.files}: <3 frames (se omite).", file=sys.stderr)
         return 3
 
     h, w = frames[0].shape[:2]
-    maps, anomalies = compute_suspicion(frames, args.block, args.flow, args.diff, args.ssim)
+    analysis_frames, motion_alignment = align_global_motion(frames)
+    maps, anomalies = compute_suspicion(
+        analysis_frames, args.block, args.flow, args.diff, args.ssim)
     candidates = merge_candidates(anomalies, frame_count=len(frames), img_w=w, img_h=h)
     for c in candidates:
         x1, y1, x2, y2 = c["region"]
         c["relative"] = relative_region(x1, y1, x2 - x1, y2 - y1, w, h)
 
-    demo_id = os.path.basename(os.path.normpath(args.sequence))
-    seq_path = Path(args.sequence).resolve()
+    seq_path = Path(args.sequence).resolve() if args.sequence else Path(args.files[0]).resolve().parent
     # demoId = carpeta dos niveles por encima de `sequence` (out/run/<demoId>/<config>/sequence);
     # si no aplica, se usa el nombre de la carpeta padre.
     parts = seq_path.parts
@@ -274,11 +333,12 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
 
     report = {
-        "sequence": args.sequence.replace("\\", "/"),
+        "sequence": (args.sequence or str(seq_path)).replace("\\", "/"),
         "demo": demo_id,
         "frames": len(frames),
         "size": [w, h],
         "params": {"block": args.block, "diff": args.diff, "flow": args.flow},
+        "motion_alignment": motion_alignment,
         "anomaly_blocks": len(anomalies),
         "candidates": candidates,
     }

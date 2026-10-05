@@ -21,7 +21,7 @@
 #include <eng/field/scroll_engine.hpp>
 #include <eng/graphics/bitmap.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 /// Config de scroll con doble buffer: **el mismo tipo** que el scroll de buffer grande
 /// (`ScrollConfig`, en `flat_playfield.hpp`). El alias se conserva por el nombre histórico.
@@ -98,5 +98,5 @@ private:
     BigBufferScroll m_cam_y {};
 };
 
-} // namespace eng::field
+} // namespace eng::playfield
 

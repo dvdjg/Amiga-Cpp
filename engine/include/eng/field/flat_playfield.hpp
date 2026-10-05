@@ -18,7 +18,7 @@
 #include <eng/memory/arena.hpp>
 #include <eng/memory/memory_manager.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 /// Configuración del virtual playfield: tamaño del mundo, ventana visible y profundidad.
 /// `fetch_bytes` es el fetch del DDF programado (42 con $30). **Un solo tipo** para scroll con
@@ -89,4 +89,4 @@ private:
     BigBufferScroll m_cam_y {};
 };
 
-} // namespace eng::field
+} // namespace eng::playfield

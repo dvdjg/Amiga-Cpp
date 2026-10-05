@@ -32,8 +32,8 @@ public:
 	static constexpr eng::u8 kMaxWindows = 8u;
 
 	/// Fija la superficie de pantalla destino (no propietario).
-	void set_screen(eng::field::Surface& s) noexcept {
-		m_screen = eng::Ref<eng::field::Surface>(s);
+	void set_screen(eng::playfield::Surface& s) noexcept {
+		m_screen = eng::Ref<eng::playfield::Surface>(s);
 	}
 	void set_desktop(eng::u8 color) noexcept { m_desktop = color; }
 
@@ -113,7 +113,7 @@ private:
 		if (!m_screen.valid()) {
 			return;
 		}
-		eng::field::Surface& scr = *m_screen;
+		eng::playfield::Surface& scr = *m_screen;
 		for (eng::u8 d = 0u; d < m_damage.count; ++d) {
 			const Rect region = m_damage.rects[d];
 			scr.fill_rect(region.x, region.y, region.w, region.h, m_desktop);
@@ -148,7 +148,7 @@ private:
 	/// blit planar no desplaza el destino); el origen `sx` sí puede tener *shift* fino (0..15).
 	/// Si no procede (playfield no contiguo o rect inválido), `false` → bucle de píxeles.
 	[[nodiscard]] static bool blit_backing(eng::graphics::FramePlan& plan,
-					       eng::field::Surface& scr, const CompWindow& w,
+					       eng::playfield::Surface& scr, const CompWindow& w,
 					       const Rect& I) noexcept {
 		if ((I.x & 15) != 0 || (I.w & 15) != 0 || (I.w == 0u)) {
 			return false;
@@ -176,7 +176,7 @@ private:
 				rb, ps, np, shift);
 	}
 
-	eng::Ref<eng::field::Surface> m_screen {};
+	eng::Ref<eng::playfield::Surface> m_screen {};
 	eng::u8 m_desktop = 0u;
 	CompWindow m_wins[kMaxWindows] {};
 	eng::u8 m_order[kMaxWindows] {}; ///< orden de composición (atrás -> frente), índices a m_wins

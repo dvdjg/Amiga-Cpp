@@ -105,9 +105,9 @@ int main() {
 	// --- dibujo: pista + pomo ---
 	alignas(2) eng::u8 planes[kPlaneStride * kPlanes] {};
 	g_planes = planes;
-	eng::field::ContiguousPlayfield pf {};
+	eng::playfield::ContiguousPlayfield pf {};
 	check(pf.bind_raw(planes, sizeof(planes), kW, kH, kPlanes), "bind_raw");
-	eng::field::Surface surf {pf, eng::field::SurfaceRect {0, 0, kW, kH}};
+	eng::playfield::Surface surf {pf, eng::playfield::SurfaceRect {0, 0, kW, kH}};
 	eng::ui::UiPainter p {surf, nullptr, kT};
 	p.fill(kFull, 0u);
 	val = 0;

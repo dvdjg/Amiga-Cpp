@@ -24,7 +24,7 @@
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 
-namespace eng::field::demo {
+namespace eng::playfield::demo {
 
 /// Paleta por defecto (32 colores). En dual 3+3: PF1 usa 0..7 (0 transparente)
 /// y PF2 8..15 (8 transparente). En single 5 planos se usan los 32 colores.
@@ -248,4 +248,4 @@ constexpr CameraQ16 fg_lissajous_camera(
 	};
 }
 
-} // namespace eng::field::demo
+} // namespace eng::playfield::demo

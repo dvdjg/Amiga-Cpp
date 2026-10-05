@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 // Mide los fps de una demo con `measure-fps.mjs` y anexa (o actualiza) su fila en la
-// tabla trazable de `docs/guides/roadmap/BITACORA_SCROLL_TILES.md`, con fecha, commit
-// y CONFIG_ID. Deja cada medición reproducible y comparable.
+// tabla trazable de `docs/guides/roadmap/BITACORA_SCROLL_TILES.md`, con fecha, commit,
+// config y detail. Deja cada medición reproducible y comparable.
 //
 // Uso:
-//   node tools/debug/record-fps.mjs <demo_dir_name> [CONFIG_NAME] [--samples N] [--dry-run]
+//   node tools/debug/record-fps.mjs <demo_dir_name> [CONFIG_NAME] [--samples N] [--duration-ms N] [--label TEXT] [--dry-run]
 //
 //   --samples N  nº de mediciones; se registra la de mayor fps (def. 2). Reduce el
 //                sesgo frente a la fase del recorrido (`detail`).
+//   --duration-ms N  duración de cada muestra (default del medidor: 20 s).
+//   --label TEXT     etiqueta opcional para agregar medidas A/B como filas separadas.
 //   --dry-run    imprime la fila que se escribiría, sin tocar la bitácora.
 //
 // Requisitos: la demo compilada en la config a medir y un `runner.uae` de un
@@ -24,7 +26,7 @@ const MEASURE = path.join(ROOT, 'tools/debug/measure-fps.mjs');
 
 const ARGV = process.argv.slice(2);
 if (ARGV.includes('--help') || ARGV.includes('-h')) {
-  console.log(`Uso: node tools/debug/record-fps.mjs <demo_dir_name> [CONFIG_NAME] [--samples N] [--dry-run]
+  console.log(`Uso: node tools/debug/record-fps.mjs <demo_dir_name> [CONFIG_NAME] [--samples N] [--duration-ms N] [--label TEXT] [--dry-run]
 
 Mide fps con tools/debug/measure-fps.mjs --json y anexa/actualiza la fila de la demo
 en la tabla de BITACORA_SCROLL_TILES.md (documento, config, fps, ciclos/frame, detail,
@@ -37,6 +39,9 @@ const DEMO = POSITIONAL[0];
 if (!DEMO) { console.error('Falta <demo_dir_name>. Uso: node tools/debug/record-fps.mjs <demo_dir_name> [CONFIG_NAME] [--samples N] [--dry-run]'); process.exit(1); }
 const CONFIG_NAME = POSITIONAL[1] || 'A500_debug';
 const SAMPLES = (() => { const i = ARGV.indexOf('--samples'); const n = i >= 0 ? parseInt(ARGV[i + 1], 10) : 2; return Number.isFinite(n) && n > 0 ? n : 2; })();
+const DURATION_MS = (() => { const i = ARGV.indexOf('--duration-ms'); const n = i >= 0 ? parseInt(ARGV[i + 1], 10) : 20000; return Number.isFinite(n) && n >= 1000 ? n : 20000; })();
+const EXTRA_MEASURE_ARGS = DURATION_MS === 20000 ? [] : ['--duration-ms', String(DURATION_MS)];
+const LABEL = (() => { const i = ARGV.indexOf('--label'); return i >= 0 ? String(ARGV[i + 1] || '').trim() : ''; })();
 
 // El arranque de WinUAE + GDB ocasionalmente falla de forma transitoria (handshake,
 // puerto aun en TIME_WAIT tras una medicion previa). Se reintenta con backoff antes
@@ -45,7 +50,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function measureOnce() {
   let lastErr = '';
   for (let attempt = 1; attempt <= 3; attempt++) {
-    const run = spawnSync(process.execPath, [MEASURE, DEMO, CONFIG_NAME, '--json'], { cwd: ROOT, encoding: 'utf8' });
+    const run = spawnSync(process.execPath, [MEASURE, DEMO, CONFIG_NAME, '--json', ...EXTRA_MEASURE_ARGS],
+      { cwd: ROOT, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
     const out = run.stdout || '';
     const line = out.split(/\r?\n/).reverse().find((l) => l.trim().startsWith('{'));
     if (run.status === 0 && line) return { res: JSON.parse(line) };
@@ -77,7 +83,10 @@ console.log(`[record-fps] mejor de ${measured.length}/${SAMPLES}: ${res.emulated
 const fmtFps = (n) => Number(n).toFixed(2).replace('.', ',');
 const fmtCycles = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 const commit = res.commit ? '`' + res.commit + '`' : '—';
-const row = `| \`${res.demo}\` | \`${res.config}\` | ${fmtFps(res.emulatedFps)} | ${fmtCycles(res.cyclesPerFrame)} | ${res.detail} | ${res.date} | ${commit} |`;
+const framesCol = Number.isFinite(res.frames) ? res.frames : '';
+const rawCyclesCol = Number.isFinite(res.cycles) ? fmtCycles(res.cycles) : '';
+const displayName = LABEL ? `${res.demo} — ${LABEL}` : res.demo;
+const row = `| \`${displayName}\` | \`${res.config}\` | ${fmtFps(res.emulatedFps)} | ${fmtCycles(res.cyclesPerFrame)} | ${res.detail} | ${res.date} | ${commit} | ${framesCol} | ${rawCyclesCol} |`;
 
 if (DRY_RUN) {
   console.log('[record-fps] fila (dry-run): ' + row);
@@ -96,11 +105,11 @@ const keyOf = (l) => (l.split('|')[1] || '').trim().replace(/`/g, '');
 const existing = lines.slice(sepIdx + 1, endIdx);
 let replaced = false;
 const newRows = existing.map((l) => {
-  if (keyOf(l) === res.demo) { replaced = true; return row; }
+  if (keyOf(l) === displayName) { replaced = true; return row; }
   return l;
 });
 if (!replaced) newRows.push(row);
 
 const out = [...lines.slice(0, sepIdx + 1), ...newRows, ...lines.slice(endIdx)];
 fs.writeFileSync(BITACORA, out.join('\n'), 'utf8');
-console.log(`[record-fps] ${replaced ? 'actualizada' : 'anadida'} la fila de ${res.demo} en ${path.relative(ROOT, BITACORA).split(path.sep).join('/')}.`);
+console.log(`[record-fps] ${replaced ? 'actualizada' : 'anadida'} la fila de ${displayName} en ${path.relative(ROOT, BITACORA).split(path.sep).join('/')}.`);

@@ -98,12 +98,14 @@ inline constexpr u16 kBplcon0_Ham6 = 0x7a00;         ///< HAM6 (6 planos, COLOR,
 	return [=](Scene& sc) {
 		copper::Scheduler& s = sc.scheduler();
 		if (sc.layout() == SceneLayout::Interleaved) {
-			const field::PlayfieldHardwareView hv = sc.playfield().hardware_view();
+			const playfield::PlayfieldHardwareView hv = sc.playfield().hardware_view();
 			s.move(copper::Register::DMACON,
 			       static_cast<u16>(copper::DmaSetClear | copper::DmaMaster |
 						copper::DmaCopper | copper::DmaBitplane));
 			s.move(copper::Register::BPLCON0, bplcon0);
-			s.move(copper::Register::BPLCON1, 0x0000);
+			// `BPLCON1` parcheable: la escena lo reescribe por frame con `set_fine_scroll`
+			// (scroll senoidal del fondo, dither…) sin re-emitir la lista.
+			sc.set_fine_scroll_patch(s.patchable(copper::Register::BPLCON1, 0x0000));
 			s.move(copper::Register::BPLCON2, 0x0000);
 			s.move(copper::Register::BPL1MOD, hv.bpl1mod);
 			s.move(copper::Register::BPL2MOD, hv.bpl2mod);
@@ -120,7 +122,7 @@ inline constexpr u16 kBplcon0_Ham6 = 0x7a00;         ///< HAM6 (6 planos, COLOR,
 			       static_cast<u16>(copper::DmaSetClear | copper::DmaMaster |
 						copper::DmaCopper | copper::DmaBitplane));
 			s.move(copper::Register::BPLCON0, bplcon0);
-			s.move(copper::Register::BPLCON1, 0x0000);
+			sc.set_fine_scroll_patch(s.patchable(copper::Register::BPLCON1, 0x0000));
 			s.move(copper::Register::BPLCON2, 0x0000);
 			s.move(copper::Register::BPL1MOD, 0x0000);
 			s.move(copper::Register::BPL2MOD, 0x0000);

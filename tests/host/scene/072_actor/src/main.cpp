@@ -18,6 +18,7 @@
 
 #include <eng/scene/actor.hpp>
 
+#include <eng/graphics/blit_queue.hpp>
 #include <eng/graphics/sprite.hpp>
 #include <eng/graphics/sprite_manager.hpp>
 
@@ -903,7 +904,7 @@ void test_bob_job_matrix() {
 		CHECK(!j.interleaved, "planar sin flag interleaved");
 	}
 
-	// Cookie-cut interleaved "par" ([máscara][imagen] por fila de plano): 1 blit $CA.
+	// Cookie-cut interleaved "par" ([imagen][máscara] por fila de plano): 1 blit $CA.
 	{
 		FramePlan plan {};
 		plan.clear();
@@ -920,10 +921,14 @@ void test_bob_job_matrix() {
 		CHECK(j.destination_modulo_bytes == static_cast<eng::s16>(kRowBytes - 6u),
 		      "modulo destino");
 		CHECK(j.interleaved && j.bitplane_count == 1u, "intercalado de 1 columna");
-		CHECK(j.mask.words() == reinterpret_cast<const eng::u16*>(g_matrix_sheet),
-		      "mascara = inicio de la hoja");
-		CHECK(j.source.words() == reinterpret_cast<const eng::u16*>(g_matrix_sheet) + 3u,
-		      "imagen = mascara + palabras");
+		CHECK(j.source.words() == reinterpret_cast<const eng::u16*>(g_matrix_sheet),
+		      "imagen = primera mitad de la hoja");
+		CHECK(j.mask.words() == reinterpret_cast<const eng::u16*>(g_matrix_sheet) + 3u,
+		      "máscara = segunda mitad de la hoja");
+		const auto regs = eng::graphics::blitter_job_from(j);
+		CHECK(regs.bltapt == j.mask.words() && regs.bltbpt == j.source.words() &&
+		      regs.bltcon0 == 0x3fcau && regs.bltcon1 == 0x3000u,
+		      "encoder interleaved conecta A=máscara, B=imagen y desplaza ambos con ASH/BSH");
 	}
 
 	// Cookie-cut con destino intercalado: rechazado (documentado).
@@ -941,11 +946,26 @@ void test_bob_job_matrix() {
 		Bob b = mk(BobLayout::Interleaved, BobDraw::Or, 4u);
 		b.erase = BobErase::ClearRect;
 		CHECK(bob_erase(plan, b, 100, 64, tgt(BobLayout::Interleaved)), "borrado intercalado");
-		CHECK(plan.blit_job_count() == 1u, "borrado intercalado: 1 blit");
+	CHECK(plan.blit_job_count() == 1u, "borrado intercalado: 1 blit");
 		const auto& j = plan.blit_job(0);
 		CHECK(j.minterm == 0x00u, "minterm clear $00");
 		CHECK(j.height == 32u * 4u, "altura clear = alto x planos");
-		CHECK(j.words_per_row == 4u, "palabras clear (base + shift)");
+		CHECK(j.bitplane_count == 1u && j.destination_plane_stride_bytes == 0u,
+		      "clear interleaved barre filas físicas consecutivas");
+	CHECK(j.words_per_row == 4u, "palabras clear (base + shift)");
+	}
+	{
+		FramePlan plan {};
+		plan.clear();
+		Bob b = mk(BobLayout::Interleaved, BobDraw::Or, 4u);
+		b.erase = BobErase::ClearRect;
+		const BobTarget five_plane_target = tgt(BobLayout::Interleaved, 5u);
+		CHECK(bob_erase(plan, b, 100, 64, five_plane_target),
+		      "borrado interleaved conserva planos sobrantes del destino");
+		const auto& j = plan.blit_job(0);
+		CHECK(j.height == 32u && j.bitplane_count == 4u && j.destination_plane_stride_bytes == 40u &&
+			      j.destination_modulo_bytes == 40 * 5 - 8,
+		      "clear interleaved parcial usa stride explícito por plano");
 	}
 	{
 		FramePlan plan {};

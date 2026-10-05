@@ -25,6 +25,8 @@ inline constexpr u16 kBlitterUseB = 0x0400u;          ///< habilita el canal B
 inline constexpr u16 kBlitterUseC = 0x0200u;          ///< habilita el canal C
 inline constexpr u16 kBlitterUseD = 0x0100u;          ///< habilita el canal D
 inline constexpr s16 kBlitterAshift = 12;             ///< desplazamiento de `ASH` en `BLTCON0`
+inline constexpr s16 kBlitterBshift = 12;             ///< desplazamiento de `BSH` en `BLTCON1`
+inline constexpr u16 kBlitterSizeMaxHeight = 1023u;   ///< Campo height de 10 bits; cero codifica 1024 filas (AHRM §6).
 inline constexpr u16 kBlitterDesc = 0x0002u;          ///< `BLTCON1` BLITREVERSE (blit descendente)
 inline constexpr u16 kBlitterMintermZero = 0x0000u;   ///< `D = 0` (borrado)
 inline constexpr u16 kBlitterMintermCopyA = 0x00f0u;  ///< `D = A` (copia desde A)
@@ -42,6 +44,18 @@ inline constexpr u16 kBlitterSud = 0x0010u;      ///< SUD (octante)
 inline constexpr u16 kBlitterSignFlag = 0x0040u; ///< `SIGN` (signo del error)
 inline constexpr u16 kBlitterLineOr = 0x0bcau;   ///< `BLTCON0` de línea (`BC0F_LINE_OR`)
 inline constexpr u16 kBlitterLineEor = 0x0b4au;  ///< `BLTCON0` de línea EOR (`BC0F_LINE_EOR`)
+
+/// **Operación de una racha de blits** (lote homogéneo de objetos sobre un bitmap). Es el
+/// vocabulario de dominio de `AmigaBackend::blitter_blob_run_*` (streaming, coste cero): el
+/// llamador describe objetos con la operación y el backend emite los registros. Evita que la
+/// fachada (`eng/api`) nombre tipos del backend.
+enum class BlobOp : eng::u8 {
+	Or,        ///< `D = A | B` (aditivo; canales A y B = destino).
+	CookieCut, ///< `D = (A & B) | (~A & C)`: A = máscara, B = imagen, C = D = fondo.
+	Opaque,    ///< `D = A` (copia opaca, sin máscara).
+	Copy,      ///< `D = C` (copia recta; C = origen, D = destino). Para desplazar/copiar rects.
+	Clear,     ///< `D = 0` (borrado de cajas homogéneas).
+};
 
 /// **Modelo de coste del Blitter**: líneas de raster que ocupa un blit de `words` palabras.
 /// El Blitter mueve ~1 palabra cada `cck_per_word` CCK con el DMA de bitplanes activo

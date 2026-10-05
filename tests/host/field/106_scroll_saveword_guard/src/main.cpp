@@ -75,8 +75,8 @@ struct MockSink {
 	void restore_saveword() const { ++restores; }
 };
 
-using Consts = eng::field::ScrollConsts;
-using Engine = eng::field::ScrollEngine<MockSink, Consts{16, 16, 288, 1152, 4}>;
+using Consts = eng::playfield::ScrollConsts;
+using Engine = eng::playfield::ScrollEngine<MockSink, Consts{16, 16, 288, 1152, 4}>;
 
 void seed(Engine& e, eng::s32 mx, eng::s32 my, eng::u8 prev) {
 	e.state().mapposx = mx;
@@ -91,7 +91,7 @@ void test_right_fails_restores() {
 	// Primero un pase completo para conocer cuantos add_draw/save_word hace el cruce.
 	Engine probe;
 	MockSink sp;
-	seed(probe, 48, 21, eng::field::ScrollDirNone); // stepy != 0 -> rama con save_word
+	seed(probe, 48, 21, eng::playfield::ScrollDirNone); // stepy != 0 -> rama con save_word
 	eng::graphics::FramePlan plan0;
 	// Avanzar hasta el pixel que cruza la columna (guarda la costura).
 	for (u16 i = 0; i < 16u; ++i) {
@@ -102,7 +102,7 @@ void test_right_fails_restores() {
 	// Ahora, con fallo en el primer add_draw posterior al primer save_word.
 	Engine e;
 	MockSink s;
-	seed(e, 48, 21, eng::field::ScrollDirNone);
+	seed(e, 48, 21, eng::playfield::ScrollDirNone);
 	s.fail_after_save = true;
 	eng::graphics::FramePlan plan;
 	bool r = true;
@@ -117,7 +117,7 @@ void test_right_fails_restores() {
 void test_right_ok_no_restore() {
 	Engine e;
 	MockSink s; // no falla
-	seed(e, 16, 16, eng::field::ScrollDirNone);
+	seed(e, 16, 16, eng::playfield::ScrollDirNone);
 	eng::graphics::FramePlan plan;
 	const bool r = e.scroll_right(plan, s);
 	check(r, "scroll_right devuelve true sin fallo");
@@ -129,7 +129,7 @@ void test_left_fails_restores() {
 	Engine e;
 	MockSink s;
 	s.fail_after_save = true;
-	seed(e, 32, 80, eng::field::ScrollDirNone);
+	seed(e, 32, 80, eng::playfield::ScrollDirNone);
 	eng::graphics::FramePlan plan;
 	bool r = true;
 	for (u16 i = 0; i < 20u && r; ++i) {
@@ -147,7 +147,7 @@ void test_down_fails_restores() {
 	Engine e;
 	MockSink s;
 	s.fail_after_save = true;
-	seed(e, 50, 21, eng::field::ScrollDirNone); // 50 = 48+2 -> stepx != 0
+	seed(e, 50, 21, eng::playfield::ScrollDirNone); // 50 = 48+2 -> stepx != 0
 	eng::graphics::FramePlan plan;
 	bool r = true;
 	for (u16 i = 0; i < 64u && r; ++i) {

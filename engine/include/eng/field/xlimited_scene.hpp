@@ -46,6 +46,8 @@
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/expected.hpp>
 #include <eng/field/playfield.hpp>
+#include <eng/field/scroll_layer.hpp>
+#include <eng/field/scroll_plan.hpp>
 #include <eng/field/surface.hpp>
 #include <eng/field/xlimited.hpp>
 #include <eng/graphics/frame_plan.hpp>
@@ -53,7 +55,7 @@
 #include <eng/memory/arena.hpp>
 #include <eng/memory/memory_manager.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 
 /// Generador de la word de una fila de un tile simbólico (glyph, variant, row,
@@ -212,7 +214,7 @@ struct XlimitedDualConfig {
     eng::u8 parallax_y_div = 1;       // 1 = comparte el split vertical
     // Raster colors opcionales (gradiente del color del patron de fondo). Orden
     // ASCENDENTE de linea. Requieren linear_display (sin split de Copper).
-    eng::Span<const eng::field::XlimitedDualComposer::ColorZone> color_zones {};
+    eng::Span<const eng::playfield::XlimitedDualComposer::ColorZone> color_zones {};
 };
 
 /// Conductor de VALIDACIÓN (recorrido de las 8 direcciones del harness). Es un
@@ -283,7 +285,7 @@ struct XlimitedSceneConfigT {
                                      // 1 px (paint-then-advance): nunca a medio pintar.
                                      // (por-playfield se ajusta con
                                      //  XLimitedPlayfield::set_scroll_step)
-    eng::field::AxisPolicy y_mode = eng::field::AxisPolicy::Ring; // eje Y: Ring = corkscrew
+    eng::playfield::AxisPolicy y_mode = eng::playfield::AxisPolicy::Ring; // eje Y: Ring = corkscrew
                                      // (display_height = viewport_h + 2*tile_height); Off = X-only.
     eng::u16 display_height = 0;     // 0 = auto: viewport_h + 2*tile_height. Override del
                                      // ANILLO vertical (invariante §7 201): puede ser mayor
@@ -299,8 +301,8 @@ struct XlimitedSceneConfigT {
                                      // field0 (PF1/map) · 2 = lineal solo field1 (PF2/map2).
                                      // El campo lineal (mirror) NO tiene split → su Y es libre;
                                      // el otro conserva el corkscrew (ring + split de Copper).
-    eng::field::DirectionPolicy direction = eng::field::DirectionPolicy::Bidirectional; // política de dirección
-    eng::field::AxisPolicy x_mode = eng::field::AxisPolicy::Ring; // eje X: Ring (XLimited) o
+    eng::playfield::DirectionPolicy direction = eng::playfield::DirectionPolicy::Bidirectional; // política de dirección
+    eng::playfield::AxisPolicy x_mode = eng::playfield::AxisPolicy::Ring; // eje X: Ring (XLimited) o
                                        // Finite (lineal acotado, sin guardas). Para un
                                        // juego de scroll Y largo con X corto (shooter).
     eng::u8 parallax_plane = 0xff;    // plano con parallax (RoboCod); 0xff = off
@@ -313,7 +315,7 @@ struct XlimitedSceneConfigT {
     eng::PaletteWords palette {}; // 2^planes colores (single) o 16 (DPF: PF1 0..7, PF2 8..15)
     eng::u32 copper_bytes = 1536;
     // Raster colors del display single (en DPF se usan `dpf.color_zones`).
-    eng::Span<const eng::field::RasterColorZone> color_zones {};
+    eng::Span<const eng::playfield::RasterColorZone> color_zones {};
 
     // --- Sprites hardware (a nivel de escena) ------------------------------
     eng::u32 sprite_data_bytes = 0;   // 0 = sin sprites; si > 0, reserva DATA Chip
@@ -321,6 +323,7 @@ struct XlimitedSceneConfigT {
 
 /// Alias del caso denso/disperso (`TileLayerMap`), retrocompatible.
 using XlimitedSceneConfig = XlimitedSceneConfigT<TileLayerMap>;
+
 
 /// Escena corkscrew reutilizable: uno o dos `XlimitedField` + compositor.
 ///
@@ -527,7 +530,7 @@ public:
             plan.clear();
             plan.set_blit_budget_limits({8192, 16384, 4, 120});
             const eng::u16 cols = m_field[pf].bitmap_blocks_per_row();
-            const eng::u16 rows = eng::field::AxisPolicy::Ring == m_cfg.y_mode ? m_field[pf].display_blocks_per_col()
+            const eng::u16 rows = eng::playfield::AxisPolicy::Ring == m_cfg.y_mode ? m_field[pf].display_blocks_per_col()
                 : static_cast<eng::u16>(m_cfg.viewport_h / m_cfg.tile_height);
             for (eng::u16 b = 0; b < rows; ++b) {
                 for (eng::u16 a = 0; a < cols; ++a) {
@@ -699,7 +702,64 @@ public:
     constexpr eng::u8 fields() const {
         return (m_cfg.dpf.enabled && !m_cfg.dpf.fg_canvas) ? 2u : 1u;
     }
-    constexpr const XlimitedSceneConfigT<MapT>& config() const { return m_cfg; }
+    /// Configuración declarativa de la escena (la lee `handle()` para arrancarla). El juego la fija
+    /// con `set_config(...)` **antes** de registrarla en el `App` (si no, `begin` arranca sin ella).
+    [[nodiscard]] constexpr const XlimitedSceneConfigT<MapT>& config() const { return m_cfg; }
+    constexpr void set_config(const XlimitedSceneConfigT<MapT>& cfg) noexcept { m_cfg = cfg; }
+
+    // -------------------------------------------------------------------------
+    // Contrato UNIFORME de capa de scroll (igual que `StripScrollLayer`): un
+    // juego declara la configuración (conocida en compilación) y el `App` la
+    // arranca y la conduce por frame con `add_scroll_layer`. El juego no llama a
+    // `update`/`compose`/`install` ni ve el `FramePlan`.
+    // -------------------------------------------------------------------------
+
+    /// **Sigue la cámara del juego** (posición en px de mundo; `y` puede ser `nullptr`): el `App`
+    /// lee su delta por frame. Es el vocabulario de juego (una posición, no un registro).
+    void track_camera(const eng::s32* x, const eng::s32* y = nullptr) noexcept {
+        m_cam_x = x;
+        m_cam_y = y;
+    }
+
+    /// **Conduce la escena un frame** siguiendo la cámara registrada: `update` (delta) → blit →
+    /// `compose` → `install`. Lo usa `App::add_scroll_layer`; el juego no lo llama.
+    /// **Avanza el scroll sin componer ni instalar** (modo compuesto por el `App`): `update` +
+    /// blit. Tras él, los campos reflejan la posición nueva y sus vistas son las vivas. `false` si
+    /// la escena no está lista.
+    template <typename Backend>
+    bool advance_layer(Backend& backend) noexcept {
+        if (!m_initialized) return false;
+        const eng::s32 x = (m_cam_x != nullptr) ? *m_cam_x : 0;
+        const eng::s32 y = (m_cam_y != nullptr) ? *m_cam_y : 0;
+        const eng::s32 dx = x - m_prev_x;
+        const eng::s32 dy = y - m_prev_y;
+        m_prev_x = x;
+        m_prev_y = y;
+        m_layer_plan.clear();
+        m_layer_plan.set_blit_budget_limits({8192, 16384, 4, 120});
+        if (!update(m_layer_plan, dx, dy, m_layer_frame) ||
+            !backend.execute_frame_plan(m_layer_plan)) {
+            m_initialized = false; // deja de conducir; el `runstatus` lo refleja en el juego
+            return false;
+        }
+        ++m_layer_frame;
+        return true;
+    }
+
+    /// **Conduce la escena un frame**: avanza el scroll (`advance_layer`) → `compose` → `install`.
+    /// Lo usa `App::add_scroll_layer` (la capa autónoma); el juego no lo llama.
+    template <typename Backend>
+    void frame_from_source(Backend& backend) noexcept {
+        if (!advance_layer(backend)) return;
+        if (!compose()) {
+            m_initialized = false;
+            return;
+        }
+        install(backend);
+    }
+
+
+    /// Palabras de Copperlist que emite la escena (presupuesto del compositor single/dual).
     constexpr u16 copper_words() const {
         return m_cfg.dpf.enabled ? m_dual.copper_words() : m_single.copper_words();
     }
@@ -780,6 +840,14 @@ private:
     bool m_initialized = false;
     eng::u32 m_phase_frame = 0;      // frames transcurridos en la fase actual
     eng::u8 m_phase = 0;             // fase activa del ciclo (0..7)
+
+    // Contrato de capa (`handle`/`track_camera`): plan propio + cámara seguida (posición px).
+    graphics::FramePlan m_layer_plan {};
+    const eng::s32* m_cam_x = nullptr;
+    const eng::s32* m_cam_y = nullptr;
+    eng::s32 m_prev_x = 0;
+    eng::s32 m_prev_y = 0;
+    eng::u32 m_layer_frame = 0;
 };
 
 // Definición out-of-class de la tabla de seno (constant-initialized). Ver la
@@ -788,4 +856,4 @@ private:
 template <ScrollConsts SC, class MapT, class Profile>
 eng::SineTable<64> XlimitedScene<SC, MapT, Profile>::kSin{};
 
-} // namespace eng::field
+} // namespace eng::playfield

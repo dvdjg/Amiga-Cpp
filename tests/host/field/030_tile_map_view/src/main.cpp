@@ -2,7 +2,7 @@
 // Test HOST-030: TileMapView (accesor de scroll con límites) + wrap_period
 // ============================================================================
 //
-// Valida `eng::field::TileMapView<Src>`: envuelve un accesor `TileSource` (aquí un
+// Valida `eng::playfield::TileMapView<Src>`: envuelve un accesor `TileSource` (aquí un
 // `StreamingWorldMap`) con los límites/wrap del mundo que consume el scroll, de modo
 // que el playfield no depende del almacén concreto. También valida `wrap_period`.
 
@@ -25,29 +25,29 @@ constexpr u16 kEmpty = 0xFFFFu;
 namespace {
 /// Fuente de chunks de prueba: valor único por celda (con wrap de chunks en X).
 struct ChunkSrc {
-	eng::field::LoadResult load(s32 cx, s32 cy, eng::TileBankBuffer cells) {
+	eng::playfield::LoadResult load(s32 cx, s32 cy, eng::TileBankBuffer cells) {
 		const s32 ccx = cx & 15; // wrap de chunks en X (16 chunks = mundo 256)
 		for (u32 i = 0; i < 256u; ++i) {
 			cells[i] = static_cast<u16>((ccx * 16 + cy) * 256 + static_cast<s32>(i));
 		}
-		return eng::field::LoadResult::Ready;
+		return eng::playfield::LoadResult::Ready;
 	}
 };
-using Map = eng::field::StreamingWorldMap<16, 4, ChunkSrc>;
+using Map = eng::playfield::StreamingWorldMap<16, 4, ChunkSrc>;
 } // namespace
 
 int main() {
 	// wrap_period: potencia de dos (máscara, incluye negativos), no-pow2 y 0.
-	check(eng::field::wrap_period(-1, 256) == 255, "wrap_period(-1,256)==255");
-	check(eng::field::wrap_period(300, 256) == 44, "wrap_period(300,256)==44");
-	check(eng::field::wrap_period(-1, 10) == 9, "wrap_period(-1,10)==9");
-	check(eng::field::wrap_period(5, 0) == 5, "wrap_period(_,0) sin wrap");
+	check(eng::playfield::wrap_period(-1, 256) == 255, "wrap_period(-1,256)==255");
+	check(eng::playfield::wrap_period(300, 256) == 44, "wrap_period(300,256)==44");
+	check(eng::playfield::wrap_period(-1, 10) == 9, "wrap_period(-1,10)==9");
+	check(eng::playfield::wrap_period(5, 0) == 5, "wrap_period(_,0) sin wrap");
 
 	u16 pool[Map::kPoolCells] {};
 	Map world {};
 	check(world.init(ChunkSrc {}, eng::TileBankBuffer {pool}, kEmpty), "init");
 
-	eng::field::TileMapView<Map> view {};
+	eng::playfield::TileMapView<Map> view {};
 	check(!view.has_data(), "vista sin src -> sin datos");
 	check(view.tile_at(3, 4) == 0 && view.is_empty(0xABCDu) == false, "src null -> edge_tile, no vacío");
 

@@ -12,9 +12,23 @@
 /// Ver `ROADMAP_API_COHERENCE.md` §7.3 y `OBJECT_SYSTEM.md` §15.
 
 #include <eng/core/types/types.hpp>
+#include <eng/field/playfield.hpp> // `eng::playfield` (nombre público del motor de playfields)
+#include <eng/field/scroll_variant.hpp>
 #include <eng/scene/world.hpp>
 
 namespace eng::scene {
+
+/// **Técnica de scroll** (`ScrollKind`, modelo de coste del planner) que corresponde a una
+/// **variante de ejes** de la referencia ScrollingTricks (`playfield::ScrollVariant`). Es la vía de
+/// alto nivel para el juego: elige la variante (`playfield::apply_scroll_variant`) y el planner usa
+/// este `ScrollKind` para declarar su coste de Copper y degradar si no cabe. El vídeo-splitting
+/// (`YUnlimited2`/`XYUnlimited2`/`XYLimited`) usa split por línea (`CopperSplit`); el resto de
+/// anillos X usa reapuntado (`CopperRing`); un Y puro sin split no necesita Copper continuo.
+[[nodiscard]] constexpr ScrollKind scroll_kind_for_variant(playfield::ScrollVariant v) noexcept {
+	if (playfield::variant_video_split(v)) return ScrollKind::CopperSplit;
+	if (v == playfield::ScrollVariant::YUnlimited) return ScrollKind::Fine;
+	return ScrollKind::CopperRing;
+}
 
 /// Palabras de Copper por línea que consume una técnica de scroll.
 [[nodiscard]] constexpr u16 scroll_copper_per_line(ScrollKind k) noexcept {
@@ -23,6 +37,8 @@ namespace eng::scene {
 		return 4u; ///< split por línea (xyunlimited)
 	case ScrollKind::CopperRing:
 		return 2u; ///< reapuntado/módulo (xlimited)
+	case ScrollKind::Strip:
+		return 0u; ///< parchea punteros por frame (sin Copper por línea)
 	default:
 		return 0u; ///< Fine/BlitterColumns/None: sin Copper por línea
 	}
@@ -35,6 +51,8 @@ namespace eng::scene {
 		return ScrollKind::CopperRing;
 	case ScrollKind::CopperRing:
 		return ScrollKind::Fine;
+	case ScrollKind::Strip:
+		return ScrollKind::Fine; ///< el camino rapido no usa Copper; por memoria cae a fino
 	case ScrollKind::Fine:
 		return ScrollKind::None;
 	default:
@@ -46,7 +64,8 @@ namespace eng::scene {
 /// `copper_available_per_line`. `BlitterColumns` no se degrada (no usa Copper).
 [[nodiscard]] constexpr ScrollKind choose_scroll(ScrollKind requested,
 						 u16 copper_available_per_line) noexcept {
-	if (requested == ScrollKind::BlitterColumns || requested == ScrollKind::None) {
+	if (requested == ScrollKind::BlitterColumns || requested == ScrollKind::Strip ||
+	    requested == ScrollKind::None) {
 		return requested;
 	}
 	ScrollKind k = requested;
@@ -87,6 +106,33 @@ struct ScrollMemory {
 	}
 	m.bytes = static_cast<u32>(planar_row_bytes(m.window_w)) * m.window_h * planes;
 	return m;
+}
+
+/// **Anillo (words)** que el planner reserva para una capa a partir de su `ScrollSpec`. Para
+/// `Strip` con mapa toroidal es `visible + periodo` (mapa completo + una pantalla de solape; ver
+/// `playfield::StripScrollGeometry` y HOST-244). El resto usa solo la pantalla visible (la guarda la
+/// materializa el driver correspondiente).
+[[nodiscard]] constexpr u16 scroll_ring_words(const ScrollSpec& s, u16 visible_w) noexcept {
+	const u16 visible_words = static_cast<u16>((static_cast<u32>(visible_w) + 15u) / 16u);
+	if (s.kind == ScrollKind::Strip && s.wraps()) {
+		return static_cast<u16>(visible_words + s.map_period_words);
+	}
+	return visible_words;
+}
+
+/// **Memoria de la ventana** a partir de la `ScrollSpec` de la capa. Igual que
+/// `scroll_memory(kind, ...)` pero `Strip` dimensiona el anillo por `scroll_ring_words`
+/// (mapa completo + solape si es toroidal), no por la guarda por velocidad.
+[[nodiscard]] constexpr ScrollMemory scroll_memory(const ScrollSpec& s, u16 visible_w,
+						   u16 visible_h, u8 planes) noexcept {
+	if (s.kind == ScrollKind::Strip) {
+		ScrollMemory m {};
+		m.window_w = static_cast<u16>(scroll_ring_words(s, visible_w) * 16u);
+		m.window_h = visible_h;
+		m.bytes = static_cast<u32>(planar_row_bytes(m.window_w)) * m.window_h * planes;
+		return m;
+	}
+	return scroll_memory(s.kind, visible_w, visible_h, planes, s.speed_px);
 }
 
 /// **Geometría de un anillo de scroll** (ring con márgenes de guarda en ambos ejes): ventana =
@@ -159,10 +205,12 @@ struct RingSplit {
 [[nodiscard]] constexpr ScrollKind choose_scroll_fitting(ScrollKind requested, u16 visible_w,
 							 u16 visible_h, u8 planes, u8 speed_px,
 							 u16 copper_available_per_line,
-							 u32 chip_available) noexcept {
+							 u32 chip_available,
+							 u16 map_period_words = 0u) noexcept {
 	ScrollKind k = choose_scroll(requested, copper_available_per_line);
 	while (k != ScrollKind::None) {
-		const ScrollMemory m = scroll_memory(k, visible_w, visible_h, planes, speed_px);
+		const ScrollMemory m = scroll_memory(ScrollSpec {k, map_period_words, speed_px},
+						     visible_w, visible_h, planes);
 		if (m.bytes <= chip_available) {
 			return k;
 		}
@@ -192,10 +240,31 @@ struct RegionPlan {
 					       u16 visible_h, RegionBudget budget) noexcept {
 	RegionPlan p {};
 	p.scroll = choose_scroll_fitting(region.scroll, visible_w, visible_h, region.planes,
-					 region.speed_px, budget.copper_per_line, budget.chip_available);
+					 region.speed_px, budget.copper_per_line, budget.chip_available,
+					 region.map_period_words);
 	p.cost = region_cost(region.mode, p.scroll, region.planes);
-	p.memory = scroll_memory(p.scroll, visible_w, visible_h, region.planes, region.speed_px);
+	ScrollSpec eff = region.scroll_spec();
+	eff.kind = p.scroll;
+	p.memory = scroll_memory(eff, visible_w, visible_h, region.planes);
 	p.ok = (p.scroll != ScrollKind::None) || (region.scroll == ScrollKind::None);
+	return p;
+}
+
+/// **Planifica una capa** a partir de su `ScrollSpec` directamente (sin `WorldRegion`): elige la
+/// técnica efectiva (degradando por Copper/Chip) y devuelve coste y memoria. Es la entrada del
+/// planner que usa el juego cuando declara el scroll de una capa con `Layer::set_scroll_spec`.
+[[nodiscard]] constexpr RegionPlan plan_scroll(const ScrollSpec& spec, u16 visible_w,
+					       u16 visible_h, u8 planes,
+					       RegionBudget budget) noexcept {
+	RegionPlan p {};
+	p.scroll = choose_scroll_fitting(spec.kind, visible_w, visible_h, planes, spec.speed_px,
+					 budget.copper_per_line, budget.chip_available,
+					 spec.map_period_words);
+	p.cost = region_cost(graphics::composition::SceneMode::Standard, p.scroll, planes);
+	ScrollSpec eff = spec;
+	eff.kind = p.scroll;
+	p.memory = scroll_memory(eff, visible_w, visible_h, planes);
+	p.ok = (p.scroll != ScrollKind::None) || (spec.kind == ScrollKind::None);
 	return p;
 }
 

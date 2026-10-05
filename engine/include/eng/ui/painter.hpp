@@ -1,7 +1,7 @@
 #pragma once
 
 /// \file painter.hpp
-/// **`eng::ui::UiPainter`**: chrome de UI sobre `field::Surface`. No dibuja píxeles: delega en
+/// **`eng::ui::UiPainter`**: chrome de UI sobre `playfield::Surface`. No dibuja píxeles: delega en
 /// `Surface`, que enruta por `Rasterizer` (CPU/Blitter) y recorta contra el clip. Aporta las
 /// operaciones con concepto de UI (marcos, biseles, paneles, texto con fondo, glifos). Ver
 /// `docs/engine/architecture/GUI_LIBRARY.md` §5.
@@ -27,7 +27,7 @@ class UiPainter {
 public:
 	/// Pinta sobre una `Surface` (atajo de `PaintTarget::from_surface`: recorte natural, píxel
 	/// cuadrado).
-	UiPainter(eng::field::Surface& surface, eng::Ref<eng::graphics::FramePlan> plan,
+	UiPainter(eng::playfield::Surface& surface, eng::Ref<eng::graphics::FramePlan> plan,
 		  const UiTheme& theme) noexcept
 		: UiPainter(PaintTarget::from_surface(surface), plan, theme) {}
 
@@ -40,7 +40,7 @@ public:
 	[[nodiscard]] const PaintTarget& target() const noexcept { return m_target; }
 	[[nodiscard]] const Rect& clip() const noexcept { return m_target.clip; }
 	[[nodiscard]] const UiTheme& theme() const noexcept { return m_theme; }
-	[[nodiscard]] eng::field::Surface& surface() noexcept { return *m_target.surface; }
+	[[nodiscard]] eng::playfield::Surface& surface() noexcept { return *m_target.surface; }
 
 	// --- Primitivas (delegan en Surface/Rasterizer) ---
 	void fill(Rect r, eng::u8 color) {

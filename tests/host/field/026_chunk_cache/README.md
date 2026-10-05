@@ -1,6 +1,6 @@
 # Test HOST-026: cache de chunks residentes (streaming bajo presupuesto)
 
-Respalda `eng::field::ChunkCache<ChunkSize, Capacity>`
+Respalda `eng::playfield::ChunkCache<ChunkSize, Capacity>`
 (`engine/include/eng/field/chunk_cache.hpp`): mantiene `Capacity` chunks en un pool
 aportado por el llamador, los carga bajo demanda con un `Loader` y evicta por **LRU**.
 

@@ -31,15 +31,23 @@ Hallazgos concretos de depuración: **bloqueos abiertos**, **post-mortems/leccio
 | [106_sesion-tilefield.md](106_sesion-tilefield.md) | Sesión de desarrollo: API `TileField` + demo 106 (anillo de tres tramos). |
 | [112_bg-flicker.md](112_bg-flicker.md) | Demo 112: flicker de 1 px del fondo RoboCod (bitmap único); análisis y decisión. |
 | [board-selfplay-and-perf.md](board-selfplay-and-perf.md) | Board games: coherencia en host y rendimiento en Amiga. |
+| [213_release-strict-aliasing.md](213_release-strict-aliasing.md) | **213, resuelto**: el render de los 16 BOBs se rompía en `--release` (`-O2`) por **strict aliasing** (type-punning) del engine; fix `-fno-strict-aliasing`. El «50 fps» de release era falso (el miscompile saltaba BOBs); con imagen correcta son 38 fps. Incluye la comparación de DMA/perfil con el original. |
 | [npc-table-scenarios.md](npc-table-scenarios.md) | Laboratorio de escenarios de mesa (`eng::sim` + `eng::cards`). |
 | [sim-ecosystem-scenarios.md](sim-ecosystem-scenarios.md) | Laboratorio de escenarios del ecosistema (`eng::sim`). |
 
 ## Consultas a IA externa (autocontenidas)
 
+Norma: **preguntar al modelo externo (Grok) en inglés** — responde mejor en ese idioma. Cuando la consulta se redacte primero en castellano, guardar también la versión en inglés (`*-en.md`) y pasarle esa.
+
 | Documento | Descripción |
 |-----------|-------------|
 | [consulta-grok-disco-y-loader.md](consulta-grok-disco-y-loader.md) | Disco a bajo nivel (`df0:` sin Workbench, `trackdisk.device`, buffers DMA en Chip), carga `.englib`+HUNK, teclado, E/S async y ADF datos/arranque. Estado verificado, evidencia y preguntas. |
 | [consulta-optimizacion-blitter-demoscene.md](consulta-optimizacion-blitter-demoscene.md) | El port C++ de `flatshade-convex` es 2.4× más lento que el original (670k vs 287k ciclos/frame) pese a los mismos blits; desglose por secciones y preguntas. |
+| [consulta-scroll-optimizacion.md](consulta-scroll-optimizacion.md) | Optimización de los algoritmos de scroll por tiles en A500 para **50 fps con CPU baja**: todas las variantes limited (X/Y/XY), tiles 16×16 y 32×32, pasos 1–16 px, DPF 3+3. Diseño actual (corkscrew vs anillo de tiras), medidas y preguntas concretas. |
+| [consulta-scroll-optimizacion-en.md](consulta-scroll-optimizacion-en.md) | English version of the tile-scroll optimization consultation (**ask Grok in English**). |
+| [consulta-scroll-optimizacion-seguimiento-en.md](consulta-scroll-optimizacion-seguimiento-en.md) | Follow-up: request for a **reference implementation** of the recommended Copper-ring + strip scroller (exact registers, ring geometry, guard invariants, XY split, 32×32, DPF 25 fps, host verification). |
+| [consulta-scroll-optimizacion-seguimiento2-en.md](consulta-scroll-optimizacion-seguimiento2-en.md) | Follow-up 2: gaps in the reference (tile-bank source for the “one tall blit”, exact interleaved modulos, wrap/guard formula, streaming cost, XY split, `DDFSTRT`). |
+| [consulta-scroll-optimizacion-seguimiento3-en.md](consulta-scroll-optimizacion-seguimiento3-en.md) | Follow-up 3: two OCS hardware errors in the reference — split line `0x2c+256` exceeds 8-bit VPOS (cap 208 px), and `BLTSIZE` height is 10 bits (the 1280-planeline “one tall blit” must be split). |
 | [consulta-asm-flatshade.md](consulta-asm-flatshade.md) | Consulta: port ASM m68k de `flatshade-convex` (demo 116). |
 | [consulta-asm-flatshade-seguimiento.md](consulta-asm-flatshade-seguimiento.md) | Seguimiento 1: aplicados los fixes, sigue negro. |
 | [consulta-asm-flatshade-seguimiento2.md](consulta-asm-flatshade-seguimiento2.md) | Seguimiento 2 de la consulta ASM de `flatshade-convex`. |

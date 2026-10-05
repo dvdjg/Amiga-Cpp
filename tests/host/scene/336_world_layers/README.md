@@ -5,6 +5,7 @@ actores (por defecto) o **tilemap** (reusando `TileLayer`). Cubre:
 
 - `add_layer` (capa de actores) vs `add_tile_layer` (capa de tilemap);
 - `kind()`/`is_tilemap()` y el acceso al `TileLayer` de la capa (id, campos copiados);
+- `WorldTileMapView` decodifica `PackedTileCell`, aplica wrap/bordes y se asigna a la configuración tipada de `XlimitedScene`;
 - `count`/`find` siguen funcionando.
 
 Es el **modelo** de capas (F4b); la **materialización** de cada capa (playfield/tilemap a

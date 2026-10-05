@@ -2,7 +2,7 @@
 // Test HOST-026: cache de chunks residentes con streaming (LRU) y presupuesto
 // ============================================================================
 //
-// Valida `eng::field::ChunkCache<ChunkSize, Capacity, Loader>`: mantiene `Capacity`
+// Valida `eng::playfield::ChunkCache<ChunkSize, Capacity, Loader>`: mantiene `Capacity`
 // chunks en un pool aportado por el llamador, carga bajo demanda con un loader (un
 // **tipo** con `load(cx,cy,dst)`, concept `ChunkLoader`) y evicta por LRU. Es la
 // pieza que hace viable un `WorldMap` disperso sin tener todo el mundo en Chip RAM.
@@ -23,36 +23,36 @@ struct LoaderData { int calls; };
 /// Loader de prueba: rellena cada chunk con un patrón dependiente de (cx,cy).
 struct FakeLoader {
 	LoaderData* data;
-	eng::field::LoadResult load(eng::s32 cx, eng::s32 cy, eng::TileBankBuffer dst) {
+	eng::playfield::LoadResult load(eng::s32 cx, eng::s32 cy, eng::TileBankBuffer dst) {
 		++data->calls;
 		for (eng::u32 i = 0; i < dst.size(); ++i) {
 			dst[i] = static_cast<eng::u16>(cx * 100 + cy * 10 + static_cast<eng::s32>(i));
 		}
-		return eng::field::LoadResult::Ready;
+		return eng::playfield::LoadResult::Ready;
 	}
 };
 
 /// Carga que ejercita los tres estados: (9,*) aún no lista; (5,*) ausente; resto lista.
 struct SpecialLoader {
 	LoaderData* data;
-	eng::field::LoadResult load(eng::s32 cx, eng::s32 cy, eng::TileBankBuffer dst) {
+	eng::playfield::LoadResult load(eng::s32 cx, eng::s32 cy, eng::TileBankBuffer dst) {
 		++data->calls;
-		if (cx == 9) return eng::field::LoadResult::Pending;
+		if (cx == 9) return eng::playfield::LoadResult::Pending;
 		if (cx == 5) {
 			for (eng::u32 i = 0; i < dst.size(); ++i) dst[i] = 0xFFFFu;
-			return eng::field::LoadResult::Empty;
+			return eng::playfield::LoadResult::Empty;
 		}
 		for (eng::u32 i = 0; i < dst.size(); ++i) {
 			dst[i] = static_cast<eng::u16>(cx * 100 + cy * 10 + static_cast<eng::s32>(i));
 		}
-		return eng::field::LoadResult::Ready;
+		return eng::playfield::LoadResult::Ready;
 	}
 };
 
 } // namespace
 
 int main() {
-	using Cache = eng::field::ChunkCache<4u, 2u, FakeLoader>; // 2 chunks de 4x4
+	using Cache = eng::playfield::ChunkCache<4u, 2u, FakeLoader>; // 2 chunks de 4x4
 	eng::u16 pool[Cache::kPoolCells] {};                      // pool del llamador
 	LoaderData ld {0};
 	FakeLoader loader {&ld};
@@ -82,7 +82,7 @@ int main() {
 	check(cache.get(0, 0) != nullptr && cache.loads() == 4, "(0,0) recargado");
 
 	// Tres estados del Loader: Pending no queda residente (se reintenta), Empty sí.
-	using Cache2 = eng::field::ChunkCache<4u, 2u, SpecialLoader>;
+	using Cache2 = eng::playfield::ChunkCache<4u, 2u, SpecialLoader>;
 	eng::u16 pool2[Cache2::kPoolCells] {};
 	LoaderData ld2 {0};
 	SpecialLoader special {&ld2};

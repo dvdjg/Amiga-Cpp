@@ -14,7 +14,7 @@
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/copper/copper.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 /// Valores de la cabecera de un campo (todos explícitos: quien compone los conoce).
 struct FieldHeaderConfig {
@@ -57,4 +57,4 @@ inline void emit_field_display_header(Sched& sched, const FieldHeaderConfig& h) 
 	}
 }
 
-} // namespace eng::field
+} // namespace eng::playfield

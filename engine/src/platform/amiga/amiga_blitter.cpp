@@ -3,12 +3,82 @@
 /// (copias, cookie-cut, OR de BOBs, lineas, area fill, colision, relleno por plano).
 
 #include <eng/graphics/blit_queue.hpp>
+#include <eng/platform/amiga/blob_batch.hpp>
 
 #include "amiga_internal.hpp"
 
 using namespace eng::amiga::detail;
 
 namespace eng::amiga {
+
+namespace {
+/// Job de cookie-cut interleaved con el contrato del par `[imagen][mascara]`: un solo blit
+/// (`bitplane_count == 1`) y el minterm `$CA`. Es el caso que puede ejecutarse como lote de
+/// **estado fijo** (`BlobBatch`).
+///
+/// Referencia del lote y su motivación: `docs/engine/architecture/BLITTER_INTENT_QUEUE.md` y
+/// `docs/guides/roadmap/ROADMAP_BLITTER_COPPER.md` (§"copias, cookie-cut y fast blobs").
+/// La medición A/B (2026-10, demo 213) y el detalle del API quedan ahí para la doc del API.
+bool batchable_masked(const eng::graphics::BlitJob& j) {
+	return j.kind == eng::graphics::BlitJobKind::MaskedBobCookieCut && j.interleaved &&
+	       j.bitplane_count == 1u && j.source_words_per_row == 0u && !j.descending &&
+	       j.minterm == eng::graphics::kBlitterMintermCookieCut;
+}
+
+/// Dos jobs de cookie-cut comparten el estado **fijo** del lote si coinciden en todo menos
+/// los punteros y el desplazamiento fino (`source_shift`).
+bool same_masked_state(const eng::graphics::BlitJob& a, const eng::graphics::BlitJob& b) {
+	return a.words_per_row == b.words_per_row && a.height == b.height &&
+	       a.source_modulo_bytes == b.source_modulo_bytes &&
+	       a.destination_modulo_bytes == b.destination_modulo_bytes &&
+	       a.minterm == b.minterm;
+}
+
+/// Job de clear interleaved en **bloque continuo** (una fila física por plano, `D=0`): el
+/// contrato del `clear_box` de banda completa (`bitplane_count == 1`, sin saltos entre planos).
+bool batchable_clear(const eng::graphics::BlitJob& j) {
+	return j.kind == eng::graphics::BlitJobKind::ClearRect && j.interleaved &&
+	       j.bitplane_count == 1u && j.destination_plane_stride_bytes == 0u && !j.descending &&
+	       j.minterm == 0x00u;
+}
+
+/// Dos clears comparten estado fijo si coinciden en ancho, módulo de destino y minterm.
+bool same_clear_state(const eng::graphics::BlitJob& a, const eng::graphics::BlitJob& b) {
+	return a.words_per_row == b.words_per_row &&
+	       a.destination_modulo_bytes == b.destination_modulo_bytes && a.minterm == b.minterm;
+}
+
+/// Ejecuta una racha `[from, to)` de clears interleaved con estado fijo (`BlobBatch`).
+bool execute_clear_run(const eng::graphics::FramePlan& plan, u8 from, u8 to) {
+	const eng::graphics::BlitJob& f = plan.blit_job(from);
+	BlobBatch batch;
+	batch.begin(custom_base, BlobOp::Clear, f.words_per_row, f.height, 0, 0, 0,
+		    f.destination_modulo_bytes, g_blitter_service, g_blitter_service_user);
+	for (u8 i = from; i < to; ++i) {
+		const eng::graphics::BlitJob& j = plan.blit_job(i);
+		batch.one(nullptr, nullptr, j.destination.words(), 0u);
+	}
+	return batch.end();
+}
+
+/// Ejecuta una racha `[from, to)` de cookie-cut interleaved con el estado común fijado UNA vez
+/// (`BlobBatch`): sin re-codificar por job y con **una sola espera** por objeto. Es el camino
+/// del `main.c` de referencia, aplicado a una racha homogénea del `FramePlan`.
+bool execute_masked_run(const eng::graphics::FramePlan& plan, u8 from, u8 to) {
+	const eng::graphics::BlitJob& f = plan.blit_job(from);
+	BlobBatch batch;
+	batch.begin(custom_base, BlobOp::CookieCut, f.words_per_row, f.height,
+		    f.source_modulo_bytes, f.source_modulo_bytes,
+		    f.destination_modulo_bytes, f.destination_modulo_bytes,
+		    g_blitter_service, g_blitter_service_user);
+	for (u8 i = from; i < to; ++i) {
+		const eng::graphics::BlitJob& j = plan.blit_job(i);
+		batch.one(j.mask.words(), j.source.words(), j.destination.words(),
+			  static_cast<eng::u8>(j.source_shift));
+	}
+	return batch.end();
+}
+} // namespace
 
 bool AmigaBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 	if (!plan.ok()) {
@@ -24,13 +94,133 @@ bool AmigaBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 		custom_base[custom_dmacon_offset] = dma_setclr | dma_master | dma_blitter;
 	}
 	bool eor_open = false; // racha de líneas EOR con los registros comunes ya fijados
-	for (u8 job_index = 0; job_index < plan.blit_job_count(); ++job_index) {
+	const u8 job_count = plan.blit_job_count();
+	u8 job_index = 0u;
+	while (job_index < job_count) {
+		// Racha homogénea de cookie-cut interleaved: se ejecuta con estado fijo (`BlobBatch`),
+		// sin re-codificar registros por job ni pagar la espera extra del bucle por plano.
+		if (batchable_masked(plan.blit_job(job_index))) {
+			u8 end = static_cast<u8>(job_index + 1u);
+			while (end < job_count &&
+			       same_masked_state(plan.blit_job(job_index), plan.blit_job(end))) {
+				++end;
+			}
+			if (static_cast<u8>(end - job_index) >= 2u) {
+				if (!execute_masked_run(plan, job_index, end)) {
+					return false;
+				}
+				// El lote escribió registros directamente: la caché de estado común ya no
+				// refleja el hardware.
+				m_blt_common_valid = false;
+				m_blitter_starts += static_cast<u16>(end - job_index);
+				job_index = end;
+				continue;
+			}
+		}
+		if (batchable_clear(plan.blit_job(job_index))) {
+			u8 end = static_cast<u8>(job_index + 1u);
+			while (end < job_count &&
+			       same_clear_state(plan.blit_job(job_index), plan.blit_job(end))) {
+				++end;
+			}
+			if (static_cast<u8>(end - job_index) >= 2u) {
+				if (!execute_clear_run(plan, job_index, end)) {
+					return false;
+				}
+				m_blt_common_valid = false;
+				m_blitter_starts += static_cast<u16>(end - job_index);
+				job_index = end;
+				continue;
+			}
+		}
 		if (!submit_blit_job(plan.blit_job(job_index), eor_open)) {
 			return false;
 		}
+		++job_index;
 	}
 
 	return wait_blitter();
+}
+
+/// Diagnóstico del feeder async de `FramePlan` (leíble por el canal lateral del emulador con
+/// `tools/debug/probe_*`): lanzamientos del primer job, pasos de la ISR de encadenado (uno por
+/// fin de blit), cierres de cadena y submits con éxito dentro de la ISR.
+volatile eng::u32 g_blit_async_launches = 0u;
+volatile eng::u32 g_blit_async_irqs = 0u;
+volatile eng::u32 g_blit_async_ends = 0u;
+volatile eng::u32 g_blit_async_submits = 0u;
+
+bool AmigaBackend::execute_frame_plan_async(const graphics::FramePlan& plan) {
+	if (!plan.ok() || plan.blit_job_count() == 0u) {
+		return false;
+	}
+	// Instala el servicio de IRQ de blit (una vez). No se desinstala al acabar la cadena: se
+	// reutiliza en el siguiente frame (la ISR es no-op si `m_async_busy` esta bajo).
+	if (!m_async_service_installed) {
+		if (!set_blit_service(&AmigaBackend::frame_plan_async_step, *this)) {
+			return false;
+		}
+		m_async_service_installed = true;
+	}
+	// Si la cadena del frame anterior sigue viva, se espera (no se puede pisar el plan anterior).
+	while (m_async_busy) {
+		wait_blitter();
+	}
+	m_async_plan = &plan;
+	m_async_next = 1u;
+	m_async_notify_next = 0u;
+	m_async_busy = true;
+	g_blit_async_launches = g_blit_async_launches + 1u;
+	// Avisos con `after_jobs == 0` (declarados antes de encolar trabajo): se disparan ya.
+	fire_due_notifies();
+	if (!blitter_submit(plan.blit_job(0u), /*wait=*/false)) {
+		m_async_busy = false;
+		return false;
+	}
+	return true;
+}
+
+/// Dispara los avisos cuyo punto ya alcanzó la cadena (los trabajos `[0, m_async_next)` están
+/// hechos). Se llama desde la ISR y desde el lanzamiento inicial; el callback debe ser IRQ-safe.
+void AmigaBackend::fire_due_notifies() noexcept {
+	const graphics::FramePlan* plan = m_async_plan;
+	if (plan == nullptr) {
+		return;
+	}
+	while (m_async_notify_next < plan->notify_count()) {
+		const graphics::FramePlan::NotifyMark& mark = plan->notify(m_async_notify_next);
+		if (mark.after_jobs > m_async_next) {
+			break;
+		}
+		if (m_chain_notify != nullptr) {
+			m_chain_notify(m_chain_notify_ctx, mark.ticket);
+		}
+		++m_async_notify_next;
+	}
+}
+
+void AmigaBackend::frame_plan_async_step(AmigaBackend& self, eng::u16) {
+	g_blit_async_irqs = g_blit_async_irqs + 1u;
+	const graphics::FramePlan* plan = self.m_async_plan;
+	if (plan == nullptr) {
+		self.m_async_busy = false;
+		return;
+	}
+	// Al entrar aquí ha terminado el trabajo `m_async_next - 1`: dispara los avisos que toquen.
+	self.fire_due_notifies();
+	const u16 next = self.m_async_next;
+	if (next >= plan->blit_job_count() ||
+	    !self.blitter_submit(plan->blit_job(next), /*wait=*/false)) {
+		self.m_async_busy = false;
+		g_blit_async_ends = g_blit_async_ends + 1u;
+		return;
+	}
+	g_blit_async_submits = g_blit_async_submits + 1u;
+	self.m_async_next = static_cast<u16>(next + 1u);
+}
+
+bool AmigaBackend::frame_plan_async_busy() const noexcept {
+	return m_async_busy;
 }
 
 bool AmigaBackend::blitter_submit(const graphics::BlitJob& job, bool wait) {
@@ -57,6 +247,7 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 		job.kind == graphics::BlitJobKind::RestoreRect ||
 		job.kind == graphics::BlitJobKind::TileBlockCopy;
 	const bool clear = job.kind == graphics::BlitJobKind::ClearRect;
+	const bool fill = job.kind == graphics::BlitJobKind::FillRect;
 	const bool or_blob = job.kind == graphics::BlitJobKind::OrBlob ||
 			     job.kind == graphics::BlitJobKind::PatternFill;
 	const bool logic = job.kind == graphics::BlitJobKind::LogicBlit;
@@ -64,8 +255,32 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 	const bool line_eor = job.kind == graphics::BlitJobKind::LineEor;
 	const bool c2p = job.kind == graphics::BlitJobKind::C2P;
 
-	if (!masked && !copy && !clear && !or_blob && !logic && !line && !line_eor && !c2p) {
+	if (!masked && !copy && !clear && !fill && !or_blob && !logic && !line && !line_eor && !c2p) {
 		return false;
+	}
+
+	if (fill) {
+		// **Relleno de color del rectangulo** (AHRM "Extracting a Range of Columns" + WinUAE
+		// `custom.cpp` `BLTADAT`): `D = A`, **A deshabilitada** (sin fetch) con `BLTADAT`
+		// preload `$FFFF`/`$0000`; `AFWM`/`ALWM` recortan la primera/ultima palabra. Se cargan
+		// primero `BLTCON0/1` y despues `BLTADAT` (el orden importa: cargar datos antes del shift
+		// da resultados impredecibles). `job.minterm` = `$FF` (plano a 1) o `$00` (plano a 0).
+		if (!wait_blitter()) {
+			return false;
+		}
+		custom_base[custom_bltcon0_offset] =
+			static_cast<u16>(blt_use_d | graphics::kBlitterMintermCopyA); // D = A, sin USEA
+		custom_base[custom_bltcon1_offset] = 0u;
+		custom_base[custom_bltafwm_offset] = job.fill.afwm;
+		custom_base[custom_bltalwm_offset] = job.fill.alwm;
+		custom_base[custom_bltadat_offset] = (job.minterm == 0xffu) ? 0xffffu : 0x0000u;
+		custom_base[custom_bltdmod_offset] = static_cast<u16>(job.destination_modulo_bytes);
+		write_custom_pointer(custom_bltdpt_offset, job.destination.words());
+		custom_base[custom_bltsize_offset] =
+			static_cast<u16>((job.height << 6u) | job.words_per_row);
+		m_blt_common_valid = false;
+		++m_blitter_starts;
+		return true;
 	}
 
 	if (line || line_eor) {
@@ -121,6 +336,12 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 
 	const u32 source_plane_stride_words = job.source_plane_stride_bytes / sizeof(u16);
 	const u32 destination_plane_stride_words = job.destination_plane_stride_bytes / sizeof(u16);
+	// Todos los registros compartidos del Blitter deben fijarse solo cuando el job anterior
+	// terminó: el blit en curso lee BLTCON/MOD durante su ejecución. Bartman hace WaitBlit antes
+	// de programarlos; esperar únicamente antes de cambiar los punteros deja una carrera real.
+	if (!wait_blitter()) {
+		return false;
+	}
 	// Registros derivados de la intención por el **encoder único** (`blitter_job_from`): la
 	// codificación (BLTCON/MOD/minterm) NO se duplica aquí. Se calcula **una vez por job** (no por
 	// plano: los comunes no dependen del plano) y los PUNTEROS sí se re-apuntan por canal y plano.
@@ -156,18 +377,29 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 		m_blt_dmod = b.bltdmod;
 		m_blt_common_valid = true;
 	}
+	const bool explicit_interleaved_clear = clear && job.interleaved && job.bitplane_count > 1u;
+	const u32 destination_stride_words = explicit_interleaved_clear
+		? job.destination_plane_stride_bytes / sizeof(u16)
+		: destination_plane_stride_words;
 	for (u8 plane = 0; plane < job.bitplane_count; ++plane) {
-		if (!wait_blitter()) {
+		// Solo hay que esperar entre planos: el plano 0 ya viene de la espera común de arriba
+		// (antes de reprogramar los registros compartidos). Para `bitplane_count == 1`
+		// (interleaved) el bucle no vuelve a esperar.
+		if (plane > 0u && !wait_blitter()) {
 			return false;
 		}
 
 		const u16* source_plane = job.source.words() + static_cast<u32>(plane) * source_plane_stride_words;
-		u16* destination_plane = job.destination.words() + static_cast<u32>(plane) * destination_plane_stride_words;
+		u16* destination_plane = job.destination.words() + static_cast<u32>(plane) * destination_stride_words;
 
 		const bool shifted_copy = !masked && !or_blob && !logic && job.source_shift != 0u;
 		if (clear) {
 			write_custom_pointer(custom_bltdpt_offset, destination_plane);
 		} else if (masked) {
+			// Cookie-cut `$CA`: A = máscara, B = imagen, C = D = destino. La máscara va en
+			// `job.mask` y la imagen en `job.source` (o en `source_plane` si el layout es
+			// planar con un stride por plano). Con plano intercalado hay un solo job
+			// (`bitplane_count == 1`) y ambas mitades del par avanzan con `BLTxMOD`.
 			write_custom_pointer(custom_bltapt_offset, job.mask.words());
 			write_custom_pointer(custom_bltbpt_offset, source_plane);
 			write_custom_pointer(custom_bltcpt_offset, destination_plane);
@@ -621,6 +853,48 @@ bool AmigaBackend::blitter_or_bobs_end() {
 	return m_or_bob.end();
 }
 
+void AmigaBackend::blitter_blob_run_begin(eng::amiga::BlobOp op, u16 words, u16 height, s16 amod,
+					  s16 bmod, s16 cmod, s16 dmod) {
+	m_blob_run.begin(custom_base, op, words, height, amod, bmod, cmod, dmod, g_blitter_service,
+			 g_blitter_service_user);
+	m_blt_common_valid = false; // el lote programó los registros comunes directamente
+}
+
+void AmigaBackend::blitter_blob_run_one(const void* a, const void* b, void* d, u8 shift) {
+	m_blob_run.one(a, b, d, shift);
+}
+
+bool AmigaBackend::blitter_blob_run_end() {
+	return m_blob_run.end();
+}
+
+bool AmigaBackend::blitter_strip_column(const void* src, void* dst, u16 words, s16 dmod,
+					u16 planelines, u8 shift) {
+	if (src == nullptr || dst == nullptr || words == 0u || planelines == 0u) {
+		return false;
+	}
+	// Origen contiguo (BLTAMOD=0): avanza `words*2` bytes por planelínea. Destino en el anillo
+	// interleaved: avanza `words*2 + dmod` (el dmod ya recorta el resto de la fila interleaved).
+	const eng::u32 src_stride = static_cast<eng::u32>(words) * 2u;
+	const eng::u32 dst_stride = src_stride + static_cast<eng::u16>(dmod);
+	const eng::u8* s = static_cast<const eng::u8*>(src);
+	eng::u8* d = static_cast<eng::u8*>(dst);
+	eng::u16 done = 0u;
+	while (done < planelines) {
+		// H de BLTSIZE = 10 bits (max 1024 planelíneas): trocea la columna si hace falta.
+		const eng::u16 h = static_cast<eng::u16>((planelines - done) > 1024u ? 1024u
+									     : (planelines - done));
+		blitter_blob_run_begin(eng::amiga::BlobOp::Opaque, words, h, 0, 0, 0, dmod);
+		blitter_blob_run_one(s + static_cast<eng::u32>(done) * src_stride, nullptr,
+				     d + static_cast<eng::u32>(done) * dst_stride, shift);
+		if (!blitter_blob_run_end()) {
+			return false;
+		}
+		done = static_cast<eng::u16>(done + h);
+	}
+	return true;
+}
+
 bool AmigaBackend::blitter_or_bobs(const OrBobEntry* entries, u32 count, u16 words, u16 height,
 				     s16 source_modulo, s16 dest_modulo) {
 	if (entries == nullptr || count == 0u || words == 0u || height == 0u) {
@@ -713,39 +987,15 @@ bool AmigaBackend::blitter_fill_rect(eng::u8* plane_base, u8 planes, u32 plane_s
 	const u16 dma_cur = static_cast<u16>(custom_base[custom_dmaconr_offset] & 0x03ffu);
 	custom_base[custom_dmacon_offset] =
 		static_cast<u16>(dma_setclr | (dma_cur | dma_master | dma_blitter));
+	// Un blit por plano con canal A constante (`BLTADAT`) y mascaras de borde `AFWM`/`ALWM`: el
+	// hardware recorta la primera y ultima palabra, asi que NO hace falta guardar/restaurar los
+	// bordes por CPU (la version anterior usaba dos arrays de 256 words y 2 esperas/plano).
 	for (u8 p = 0u; p < planes; ++p) {
 		eng::u8* plane = plane_base + static_cast<u32>(p) * plane_stride;
 		const bool on = (color & (1u << p)) != 0u;
 		const u16 fill = on ? 0xffffu : 0x0000u;
-		// El Blitter rellena palabras COMPLETAS; los bits fuera del rect en la primera y ultima
-		// palabra se preservan guardando su valor y restaurando la parte externa tras el fill
-		// (la mascara por AFWM/ALWM solo aplica al canal A, no a un fill D-only sin fuente).
-		eng::u16 saved_first[kMaxRows];
-		eng::u16 saved_last[kMaxRows];
-		wait_blitter();
-		for (u16 r = 0u; r < h; ++r) {
-			const eng::u16* row = reinterpret_cast<const eng::u16*>(
-				plane + row_offset(static_cast<eng::s16>(y + r), rstride) + (wx0 >> 3));
-			saved_first[r] = row[0];
-			saved_last[r] = row[words - 1u];
-		}
-		if (on) {
-			blit_set_region(plane, rstride, wx0, static_cast<eng::s16>(y), words, h);
-		} else {
-			blit_clear_region(plane, rstride, wx0, static_cast<eng::s16>(y), words, h);
-		}
-		wait_blitter();
-		for (u16 r = 0u; r < h; ++r) {
-			eng::u16* row = reinterpret_cast<eng::u16*>(
-				plane + row_offset(static_cast<eng::s16>(y + r), rstride) + (wx0 >> 3));
-			if (words == 1u) {
-				const u16 m = static_cast<u16>(afwm & alwm);
-				row[0] = static_cast<eng::u16>((saved_first[r] & static_cast<eng::u16>(~m)) | (fill & m));
-			} else {
-				row[0] = static_cast<eng::u16>((saved_first[r] & static_cast<eng::u16>(~afwm)) | (fill & afwm));
-				row[words - 1u] = static_cast<eng::u16>((saved_last[r] & static_cast<eng::u16>(~alwm)) | (fill & alwm));
-			}
-		}
+		blit_fill_region(plane, rstride, wx0, static_cast<eng::s16>(y), words, h, fill,
+				 afwm, alwm);
 	}
 	return wait ? wait_blitter() : true;
 }

@@ -15,9 +15,9 @@ en `[288,576)`); el display lee de forma **contigua** desde la cámara y **no ha
 
 ## Qué demuestra
 
-- **`eng::field::MirrorScrollPlayfield`** (engine): bitmap con el bucle duplicado; cámara X saturada
+- **`eng::playfield::MirrorScrollPlayfield`** (engine): bitmap con el bucle duplicado; cámara X saturada
   (revee) y cámara Y **envolvente** dentro del bucle. Reutiliza el mapper flat
-  `eng::field::map_flat_scroll` (HOST-061): el espejo permite leer contiguo desde `cam_y` sin
+  `eng::playfield::map_flat_scroll` (HOST-061): el espejo permite leer contiguo desde `cam_y` sin
   envolver el puntero, así que el mapeo horizontal/vertical es el mismo que el virtual playfield.
 - **Scroll vertical de 256 px sin split**, la alternativa recomendada en
   `docs/guides/roadmap/CONSULTA-SPLIT-208.md` (el comparador de 8 bits del Copper no permite un

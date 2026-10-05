@@ -24,8 +24,14 @@ Estructura y numeración: [../../../../docs/STRUCTURE.md](../../../../docs/STRUC
 | [121_mirror_scroll](121_mirror_scroll/README.md) |
 | [122_doublebuffer_scroll](122_doublebuffer_scroll/README.md) |
 | [125_layers_dualpf](125_layers_dualpf/README.md) |
+| [128_strip_scroller](128_strip_scroller/README.md) |
+| [129_split_screen_bands](129_split_screen_bands/README.md) |
+| [130_app_scroll_ladder](130_app_scroll_ladder/README.md) |
+| [131_app_split_screen](131_app_split_screen/README.md) |
+| [132_runtime_geometry](132_runtime_geometry/README.md) |
 | [201_ehb_map](201_ehb_map/README.md) |
 | [202_xlimited_dpf](202_xlimited_dpf/README.md) |
+| [203_world_tilemap_xlimited](203_world_tilemap_xlimited/README.md) |
 
 ## Build / run / analyze
 
@@ -36,3 +42,12 @@ bash ./tools/analyze/analyze-demo.sh demos/techniques/amiga/playfield/<NNN>_<tem
 ```
 
 El número `NNN` es único **dentro de este ámbito** (`demos/techniques/amiga/playfield`).
+
+## Referencia de scroll (50 fps)
+
+Para scroll por tiles a **50 fps con CPU baja**, la referencia es
+[`128_strip_scroller`](128_strip_scroller/README.md) (camino **Copper ring + incoming strip**,
+validado con visión/Ollama). El camino **corkscrew** (`107_xlimited_corkscrew`,
+`110_ylimited_shooter`, `111_xlimited_sidescroller`) **no alcanza 50 fps** (14–17 fps; limitado por
+el bus y con la restricción de tiles de 16 px) y se considera **superseded** por la 128; no usar como
+modelo de coste cero.

@@ -37,6 +37,8 @@
 #endif
 #include <eng/platform/amiga/backend.hpp>
 #include <eng/field/xlimited_scene.hpp>
+#include <eng/field/xlimited_scroll_layer.hpp>
+#include <eng/field/xlimited_robocod.hpp>
 #include <eng/field/tile_demo.hpp>
 
 #include <proto/exec.h>
@@ -58,7 +60,7 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
-namespace field = eng::field;
+namespace playfield = eng::playfield;
 
 constexpr eng::u16 kTileW = 16;
 constexpr eng::u16 kTileH = 16;
@@ -89,7 +91,7 @@ constexpr eng::u16 kBlankStart = static_cast<eng::u16>(kDiwStrtY + kViewportH);
 #define K_INIT_CAMX (kViewportW / 4)
 #endif
 
-constexpr field::ScrollConsts kScrollConsts {
+constexpr playfield::ScrollConsts kScrollConsts {
 	/*tile_width=*/        kTileW,
 	/*tile_height=*/       kTileH,
 	/*display_height=*/    kDisplayH,
@@ -122,8 +124,8 @@ constexpr eng::u16 kPalette[32] {
 eng::u16 g_map[kMapCols * kMapRows] {};
 
 struct DemoGame {
-	field::XlimitedScene<kScrollConsts> scene {};
-	field::XlimitedSceneConfig scene_cfg {};
+	playfield::XlimitedScene<kScrollConsts> scene {};
+	playfield::XlimitedSceneConfig scene_cfg {};
 	eng::graphics::FramePlan plan {};
 	eng::graphics::FramePlan bg_plan {};   // blit de fondo (filas VISIBLES) -> en blanking
 	eng::Block<eng::PatternTag> m_bg_pattern {};
@@ -176,20 +178,27 @@ struct DemoGame {
 			}
 		}
 
-		scene_cfg.viewport_w = kViewportW;
-		scene_cfg.viewport_h = kViewportH;
-		scene_cfg.tile_width = kTileW;
-		scene_cfg.tile_height = kTileH;
-		scene_cfg.planes = kPlanes;
+		// **Plan de scroll** (vocabulario común, `ScrollPlan`): geometría + paleta + **parallax
+		// RoboCod** (`apply_scroll_plan` los siembra). Lo específico del corcóscru va aparte.
+		eng::playfield::ScrollPlan scroll_plan {};
+		scroll_plan.viewport_w = kViewportW;
+		scroll_plan.viewport_h = kViewportH;
+		scroll_plan.tile_w = kTileW;
+		scroll_plan.tile_h = kTileH;
+		scroll_plan.planes = kPlanes;
+		scroll_plan.display_height = kDisplayH;
+		scroll_plan.parallax_plane = kParallaxPlane; // plano de fondo RoboCod
+		scroll_plan.parallax_div = kParallaxDiv;
+		scroll_plan.tilemap.palette = kPalette;
+		eng::playfield::apply_scroll_plan(scene_cfg, scroll_plan);
+
+		// Específico del corcóscru RoboCod: política de ejes, mapa y generador de filas.
 		scene_cfg.fetch_mode = 0;
-		scene_cfg.y_mode = eng::field::AxisPolicy::Ring;                                  // corkscrew (Y)
-		scene_cfg.x_mode = eng::field::AxisPolicy::Finite;            // X lineal acotado
-		scene_cfg.direction = eng::field::DirectionPolicy::Bidirectional;
-		scene_cfg.display_height = kDisplayH;
+		scene_cfg.y_mode = eng::playfield::AxisPolicy::Ring;                  // corkscrew (Y)
+		scene_cfg.x_mode = eng::playfield::AxisPolicy::Finite;                // X lineal acotado
+		scene_cfg.direction = eng::playfield::DirectionPolicy::Bidirectional;
 		scene_cfg.max_step = 4;
-		scene_cfg.parallax_plane = kParallaxPlane;                  // plano de fondo RoboCod
-		scene_cfg.parallax_div = kParallaxDiv;
-		scene_cfg.linear_display = false;                          // SPLIT de Copper (corkscrew)
+		scene_cfg.linear_display = false;                                     // SPLIT de Copper
 
 		scene_cfg.map.cells = eng::Span<const eng::u16>::from_raw(g_map, kMapCols * kMapRows);
 		scene_cfg.map.width = kMapCols;
@@ -201,7 +210,6 @@ struct DemoGame {
 		scene_cfg.tileset_count = kTilesetCount;
 		scene_cfg.fg_row_fn = &fg_row;
 		scene_cfg.bg_row_fn = &fg_row;
-		scene_cfg.palette = kPalette;
 
 		if (!scene.begin(backend.memory_manager(), scene_cfg)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011202u);
@@ -264,64 +272,17 @@ struct DemoGame {
 		//    shifter deja la guarda (<=15 px) justo antes de la cámara (no visible).
 		//    Ver robocod-layered-scroll.md §3.1/§3.3.
 #ifndef K_DIAG_SKIP_BGCOPY
-		if (m_bg_pattern.valid()) {
-			const eng::Pattern pat = m_bg_pattern.view.as_const();
-			const eng::s32 camx = scene.bg().videoposx();
-			// Ventana horizontal del blit (helper puro y testeado): [planeaddx-2,
-			// planeaddx+fetch) = guarda + visible, y src_x para que quede FIJA.
-			// fetch = viewport/8 + 1 word: el DDFSTRT=0x30 ya incluye la word extra
-			// que el scroll fino coloca a la izquierda, así que el display lee 21
-			// words (42 B) desde planeaddx -> la ventana necesita 22 words.
-			field::BgWindow win = field::bg_window_for(
-				camx, kPatPeriodPx, static_cast<eng::u16>(kViewportW / 8u + 2u));
-			// Soft DPF: el fondo tiene su PROPIA cámara (`m_bgscroll`) independiente
-			// del FG. La posición aparente del fondo es `m_bgscroll + x`, así que el
-			// offset de contenido es `src_x = m_bgscroll - camx (+dest*8)`.
-			m_bgscroll += m_bgdx;
-			if (m_bgscroll >= static_cast<eng::s32>(kPatPeriodPx)) { m_bgscroll = 0; }
-#ifdef K_DIAG_BG_FIXED
-			m_bgscroll = 0;   // diagnóstico: fondo FIJO (verificar ausencia de flicker)
-#endif
-			win.src_x = static_cast<eng::u16>(
-				(static_cast<eng::s32>(win.src_x) + m_bgscroll) %
-				static_cast<eng::s32>(kPatPeriodPx));
-			const field::BgSplitRects rects = field::bg_split_rects(
-				scene.bg().display_offset(), kDisplayH, kViewportH, /*bg_y=*/0u);
-			bg_plan.clear();
-			bg_plan.set_blit_budget_limits({8192, 16384, 4, 200});
-			for (eng::u8 i = 0; i < rects.count; ++i) {
-				if (!bg_plan.add_tile_block_copy(scene.bg().make_bg_plane_copy_rect_job(
-					pat, kPatRowBytes, win.src_x,
-					rects.src_y[i], rects.dest_row[i], rects.rows[i],
-					win.dest_byte_off, win.words))) {
-					ready = false; eng::debug::mark_failed(g_eng_run_status, 0x00011212u); return;
-				}
-			}
-			// Espera al inicio del blanking vertical (línea kBlankStart). Se entra
-			// lo antes posible: si el primer valor ya está muy avanzado, se espera
-			// al siguiente frame (mejor eso que empezar tarde y derramar al visible).
-			for (;;) {
-				const eng::u16 ln = backend.current_raster_line();
-				if (ln == kBlankStart) break;
-			}
-#ifdef K_DIAG_BG
-			const eng::u32 tb0 = eng::debug::DebugPeripheral::cycle_counter();
-#endif
-			if (!backend.execute_frame_plan(bg_plan)) {
-				ready = false; eng::debug::mark_failed(g_eng_run_status, 0x00011213u); return;
-			}
-#ifdef K_DIAG_BG
-			const eng::u32 tb1 = eng::debug::DebugPeripheral::cycle_counter();
-			const eng::u16 ln1 = backend.current_raster_line();
-			g_eng_run_status.detail = (static_cast<eng::u32>(kBlankStart) << 24) |
-				(static_cast<eng::u32>(ln1) << 16) | ((tb1 - tb0) & 0xffffu);
+		// Fondo RoboCod (etapa 5 §7): ventana + split + blanking + flip, en **una llamada**.
+		if (m_bg_pattern.valid() &&
+		    !playfield::robocod_bg_frame(scene, backend, m_bg_pattern.view.as_const(),
+						 kPatRowBytes, kPatPeriodPx, m_bgscroll, m_bgdx,
+						 kBlankStart, bg_plan)) {
+			ready = false;
+			eng::debug::mark_failed(g_eng_run_status, 0x00011212u);
 			return;
-#endif
 		}
 #endif
-		// 3) Conmuta el doble buffer del fondo (el blit fue al buffer trasero) y compone
-		//    la copperlist con el nuevo delantero -> sin tearing en el plano de fondo.
-		scene.bg().bg_flip();
+		// 3) Compone la copperlist con el fondo YA conmutado (`robocod_bg_frame` hizo el `bg_flip`).
 		if (!scene.compose()) {
 			ready = false; eng::debug::mark_failed(g_eng_run_status, 0x00011211u); return;
 		}

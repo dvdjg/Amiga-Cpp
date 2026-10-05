@@ -22,17 +22,19 @@
 
 namespace eng {
 
+inline constexpr eng::u16 kPaletteEntries = 32u;
+
 /// 32 colores RGB444 (los registros fisicos de paleta del Amiga).
 struct Palette32 {
-	u16 color[32] {};
+	u16 color[kPaletteEntries] {};
 
 	/// Vista de dominio: permite pasar un `Palette32` a cualquier API que pida
 	/// `PaletteWords` (p. ej. `emit_palette`), sin casts.
-	constexpr operator PaletteWords() const noexcept { return PaletteWords {color, 32u}; }
+	constexpr operator PaletteWords() const noexcept { return PaletteWords {color, kPaletteEntries}; }
 
 	/// Vista de dominio de los 32 colores (para APIs que piden `PaletteWords`).
 	[[nodiscard]] constexpr PaletteWords words() const noexcept {
-		return PaletteWords {color, 32u};
+		return PaletteWords {color, kPaletteEntries};
 	}
 };
 

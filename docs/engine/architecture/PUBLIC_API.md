@@ -71,6 +71,35 @@ app.run();
 - Los recursos (tiles, paletas, sprites, audio) son **handles** a assets cocinados (UAF-R), no
   punteros.
 
+### 3.1 Dos caminos de dibujo: plan y streaming (coste cero)
+
+El dev **no elige registros**, pero el engine ofrece dos caminos con el mismo vocabulario de
+intención, y elige el que corresponde:
+
+- **Plan** (`screen().sprite/clear_box/fill_box/...` + `present()`): el frame se **construye** en un
+  `FramePlan` y se **ejecuta** al publicar. Aporta lo que el streaming no puede: **reordenar** por
+  estado del Blitter, **lotes**, y la **cadena async** con avisos (`set_async_present`). Es el
+  camino cuando la escena es heterogénea o se quiere diferir/encadenar. `clear_box` borra
+  (`D=0`) y `fill_box` **rellena un color sólido** (`D=A` con `BLTADAT`, sin fetch de D) — ambos
+  diferidos y en orden con los sprites.
+- **Streaming** (`screen().stamp(sheet)` / `screen().clear_now(box)`): los blits se **emiten en el
+  momento** (espera al anterior y escribe solo lo que cambia), **sin `FramePlan` ni pasada de
+  ejecución**. Es el bucle del `main.c` de referencia envuelto como API, y es **coste cero**. Es el
+  camino cuando el frame es una **secuencia homogénea** de objetos que no necesita reordenarse.
+
+```cpp
+auto s = app.screen();
+s.clear_now(band);
+auto run = s.stamp(sheet);                 // fija el estado común una vez
+for (/* cada objeto */) run.at(x, y, frame);
+run.done();
+app.present();                              // commit (doble buffer)
+```
+
+Regla práctica: si el frame cabe en un campo y no se necesita reordenar ni encadenar, **streaming**;
+si hay estados mezclados, orden a optimizar o ejecución diferida, **plan**. Medido en la 213: plan
+32,9→38,0 fps; **streaming 49,9 fps** (1 campo) en debug y release.
+
 ## 4. Planner (compilación de escena)
 
 Entre la descripción de la app y el frame hay un **planner** (`RenderCompiler`) que:

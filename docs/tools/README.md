@@ -25,6 +25,7 @@ Reglas principales (ver también `docs/STRUCTURE.md` §6):
 | Verificación visual | `tools/vision-review/README.md`, `docs/testing/VISION_REVIEW_ROADMAP.md` | `tools/vision-review/*` |
 | Pipeline de tiles/sprites | `tools/amiga-tiles/README.md`, `docs/demos/tile-pipeline/` | `tools/amiga-tiles/*`, `tools/ehb/*`, `tools/demo202/*` |
 | Assets (UAF-R) | `docs/tools/UAF_PACK.md` | `tools/assets/uaf-pack.ts` |
+| Manifiesto de assets | `docs/tools/ASSET_MANIFEST.md` | `tools/assets/gen-manifest.mjs`, `tools/check/asset-manifests.mjs` |
 | Audio (muestras del mixer) | `tools/audio/README.md` | `tools/audio/*.ts` |
 | FrameScope | `docs/testing/FRAMESCOPE_ROADMAP.md` | `tools/framescope/*` |
 | Entrada (mouse) | `tools/input/*`, `docs/emulation/MOUSE_AUTOMATION.md` | `tools/input/mouse-path.*` |
@@ -82,6 +83,19 @@ que distingue **trabajo propio** de **espera** sin instrumentar el motor.
   `node tools/debug/profile.mjs <demo> [config] [segundos]`.
 - Coste: ~2 lecturas del contador por sección y frame (el contador es el mismo `0xB7E928` que usa
   `measure-fps.mjs`).
+
+## Sonda de reservas de memoria (¿por qué falló un `add`?)
+
+`tools/debug/mem-probe.mjs <demo> [config]` lee `eng::debug::g_mem_probe`
+(`engine/include/eng/debug/mem_probe.hpp`) y muestra el estado de los bancos Chip/Slow/Fast
+(`status`, usados, libres, pico, slots) y el **último fallo de reserva** de cada uno (tamaño pedido
+y `MemBank::Status`). Responde a lo que un `mark_failed` no dice: *qué banco* y *por qué*.
+
+- Se puebla solo en **fallos** de carga (`res::load` → `probe_reserve_failure`) y en refrescos
+  explícitos (`eng::debug::probe_memory_banks(mm)`); coste cero en el frame caliente.
+- Para un fallo de setup, el `detail` del run-status puede resumirlo con
+  `eng::debug::mark_mem_failed(status, base, bank_status, free, used)`.
+- Uso: `bash tools/run/run-demo.sh <demo>` y luego `node tools/debug/mem-probe.mjs <demo> [config]`.
 
 ## Análisis de perfiles (muestras de CPU por rutina)
 

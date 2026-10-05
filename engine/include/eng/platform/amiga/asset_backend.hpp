@@ -52,14 +52,16 @@ public:
 	}
 
 	/// Abre el fichero y lanza la lectura asíncrona a `dst` (0..`dst.size()`). El resultado
-	/// llega por `FileDone`/`FileError` con el cookie `IoUser{'A', id}`. `false` si no abre.
-	bool load(eng::res::AssetId id, const char* path, eng::Span<eng::u8> dst) noexcept {
+	/// llega por `FileDone`/`FileError` con el cookie `IoUser{'A', id, generation}` (la generación
+	/// permite rechazar respuestas tardías, R6.2). `false` si no abre.
+	bool load(eng::res::AssetId id, const char* path, eng::Span<eng::u8> dst,
+		  eng::u8 generation = 0u) noexcept {
 		eng::os::FileHandle h = eng::os::file_open(path, eng::os::FileMode::Read);
 		if (h == 0u) {
 			return false;
 		}
 		eng::os::IoNotify n {};
-		n.cookie = eng::os::IoUser {static_cast<eng::u8>('A'), id}.encode();
+		n.cookie = eng::os::IoUser {static_cast<eng::u8>('A'), id, generation}.encode();
 		if (!eng::os::file_read_async(h, dst, 0u, n)) {
 			eng::os::file_close(h);
 			return false;

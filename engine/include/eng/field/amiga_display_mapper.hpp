@@ -22,7 +22,7 @@
 #include <eng/core/math/fast_div.hpp>
 #include <eng/core/types/types.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 /// Resultado del mapeo del corkscrew/XYLimited (anillo + staging + split).
 struct RingDisplayMapping {
@@ -111,4 +111,4 @@ constexpr FlatDisplayMapping map_flat_scroll(
     return m;
 }
 
-} // namespace eng::field
+} // namespace eng::playfield

@@ -1,6 +1,6 @@
 # HOST-044 — `BigBufferScroll` (estrategia trivial "escena ya dibujada")
 
-Valida `eng::field::BigBufferScroll` (`engine/include/eng/field/scroll_engine.hpp`), la estrategia
+Valida `eng::playfield::BigBufferScroll` (`engine/include/eng/field/scroll_engine.hpp`), la estrategia
 de scroll **trivial** de Fase 2: no hay anillo ni banda de staging que rellenar; el único estado es
 el offset de cámara sobre el buffer completo (el display mueve el puntero/BPLxPT).
 

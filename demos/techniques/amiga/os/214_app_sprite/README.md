@@ -7,13 +7,18 @@ con **`app.screen().sprite(spr, x, y)`**; la geometría del destino la prepara l
 
 ## Qué muestra
 
-- Escena planar estándar 320×256×4 con paleta base.
+- Escena planar estándar 320×256×4 con fondo bitmap indexado de 640×256 en coordenadas de mundo,
+  propiedad de `App` y desplazado por la cámara de la capa `World`.
 - Un **BOB 32×32 de 2 planos** (disco rojo con centro amarillo) dibujado por cookie-cut, con
   la hoja generada en Chip al arrancar.
 - El sprite recorre la pantalla en horizontal y rebota en vertical.
 - El consumer incluye `<eng/api/api.hpp>` como única puerta del engine; el backend Amiga se incluye
   aparte en el composition root.
+- El composition root deja que `configure_game_memory()` seleccione el presupuesto inicial desde
+  `HwInfo`, lo ajuste al mayor bloque disponible conservando headroom y lo preflight con Exec antes
+  de reservarlo. Fast queda en cero porque esta demo no necesita un pool CPU dedicado.
 - Todo el ciclo de juego pasa por `eng::App`/`Screen`: `init(app)`/`update(app)`/`render(app)`.
+- El composition root configura el perfil de memoria y entrega el `MemoryManager` a `App`; `App::start()` compone, posee e instala su escena, y el juego no crea ni enlaza manualmente un `Scene`.
 
 ## Criterio de aceptación
 

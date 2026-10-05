@@ -21,6 +21,7 @@
 #include <eng/graphics/copper/plan.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/composition/limits.hpp>
+#include <eng/graphics/playfield_scroll.hpp>
 #include <eng/hw/info.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/memory/memory_manager.hpp>
@@ -133,6 +134,37 @@ public:
 	/// Cierra el programa (orden + presupuesto) y voltea el buffer. `false` si no cupo.
 	[[nodiscard]] bool end_build() { return m_plan.end_frame(); }
 
+	/// **Fine-scroll horizontal del playfield**: valor de **retardo de `BPLCON1`** (0..15,
+	/// color-clocks), escrito tal cual en los dos nibbles (PF1 y PF2) — el mismo valor que
+	/// programa el `main.c` de referencia (`*scroll = sin | (sin << 4)`). El campo desplaza
+	/// todo el playfield (incluido lo que escribe el Blitter), así que un BOB que deba quedarse
+	/// fijo en pantalla se dibuja a `x - fine_scroll()`. Un juego que **quiera** mover todo el
+	/// fondo (scroll senoidal del original Bartman) solo cambia este valor por frame. **Debe
+	/// aplicarse en VBlank** (`scene.commit()` lo hace), no a media pantalla, o el cambio de
+	/// `BPLCON1` parte la scanline donde caiga el haz.
+	///
+	/// NOTA: se escribe el valor **crudo** (no `fine_delay`) para reproducir exactamente la
+	/// convención del `main.c`; la convención `fine_delay` + `DDFSTRT=$30` + coarse pertenece
+	/// a `graphics::effects::FineScroll` (scroll continuo con columna de guarda), que es otro
+	/// contrato y no pasa por aquí.
+	///
+	/// Hallazgo (2026-10, demo 213): escribir `fine_delay(v)=16−v` **invierte el signo** del
+	/// desplazamiento respecto al `main.c` (`*scroll = sin`), así que un scroll senoidal se movía
+	/// en dirección contraria al original. El valor de `BPLCON1` es un *retardo* (nibble PF1 y PF2
+	/// iguales); el original lo escribe sin compensación.
+	[[nodiscard]] bool set_fine_scroll(u8 fine) noexcept {
+		if (!m_fine_scroll_patch.valid()) {
+			return false;
+		}
+		m_fine_scroll = static_cast<u8>(fine & 0x0fu);
+		m_fine_scroll_patch.set(static_cast<u16>(m_fine_scroll | (static_cast<u16>(m_fine_scroll) << 4u)));
+		return true;
+	}
+	[[nodiscard]] constexpr u8 fine_scroll() const noexcept { return m_fine_scroll; }
+	[[nodiscard]] bool fine_scroll_patch_valid() const noexcept {
+		return m_fine_scroll_patch.valid();
+	}
+
 	/// Emisor de Copper de esta escena (las etapas emiten por aquí).
 	[[nodiscard]] copper::Scheduler& scheduler() { return m_plan.scheduler(); }
 	/// Emisor de Copper (versión const, solo lectura).
@@ -230,18 +262,18 @@ public:
 	/// Recursos de la escena (geometría, modo, layout, buffers) tal como se configuraron.
 	[[nodiscard]] constexpr const SceneResources& resources() const { return m_res; }
 	/// Playfield (solo layout interleaved): base de `surface()`.
-	[[nodiscard]] field::CanvasPlayfield& playfield() { return m_playfield; }
+	[[nodiscard]] playfield::CanvasPlayfield& playfield() { return m_playfield; }
 	/// Playfield (versión const, solo lectura).
-	[[nodiscard]] const field::CanvasPlayfield& playfield() const { return m_playfield; }
+	[[nodiscard]] const playfield::CanvasPlayfield& playfield() const { return m_playfield; }
 	/// Superficie de dibujo con clip (cualquier layout): `Surface` enruta por el mapeo
 	/// del playfield, así que la app dibuja igual sobre contiguo o interleaved sin ver
 	/// planos ni punteros. En contiguo con varios buffers apunta al **trasero** (el que
 	/// se publica en `commit`).
-	[[nodiscard]] field::Surface surface() {
-		field::Playfield& pf = (m_res.layout == SceneLayout::Interleaved)
-					       ? static_cast<field::Playfield&>(m_playfield)
-					       : static_cast<field::Playfield&>(m_contiguous);
-		return field::Surface {pf, field::SurfaceRect {0, 0, m_res.width, m_res.height}};
+	[[nodiscard]] playfield::Surface surface() {
+		playfield::Playfield& pf = (m_res.layout == SceneLayout::Interleaved)
+					       ? static_cast<playfield::Playfield&>(m_playfield)
+					       : static_cast<playfield::Playfield&>(m_contiguous);
+		return playfield::Surface {pf, playfield::SurfaceRect {0, 0, m_res.width, m_res.height}};
 	}
 	/// `true` si la construcción de la copperlist cupo en el presupuesto.
 	[[nodiscard]] bool ok() const { return m_plan.ok(); }
@@ -280,7 +312,7 @@ public:
 	/// **Elige el rasterizador** (CPU/Blitter) de `surface()` y su política. El backend
 	/// declara sus `RasterCaps`; la app decide el `RasterPolicy` (`Auto`/`Cpu`/`Blitter`).
 	/// Vacío deja el CPU por defecto. No cambia la API de dibujo.
-	void set_raster(eng::Ref<field::Rasterizer> r, const field::RasterPolicy& policy = {}) {
+	void set_raster(eng::Ref<playfield::Rasterizer> r, const playfield::RasterPolicy& policy = {}) {
 		m_playfield.set_rasterizer(r);
 		m_playfield.set_raster_policy(policy);
 		m_contiguous.set_rasterizer(r);
@@ -289,14 +321,14 @@ public:
 
 	/// Instala el **motor de relleno por hardware** (Blitter) en los playfields de la
 	/// escena. Lo usa el backend (`PolygonFillService`); `BlitterRaster` lo aprovecha.
-	void set_polygon_fill_sink(field::PolygonFillSink sink) {
+	void set_polygon_fill_sink(playfield::PolygonFillSink sink) {
 		m_playfield.set_polygon_fill_sink(sink);
 		m_contiguous.set_polygon_fill_sink(sink);
 	}
 
 	/// Instala el **motor de relleno de rect por hardware** (Blitter D-only) en los playfields
 	/// de la escena. `BlitterRaster` lo usa para las cajas de UI (más barato que el polígono).
-	void set_rect_fill_sink(field::RectFillSink sink) {
+	void set_rect_fill_sink(playfield::RectFillSink sink) {
 		m_playfield.set_rect_fill_sink(sink);
 		m_contiguous.set_rect_fill_sink(sink);
 	}
@@ -304,18 +336,18 @@ public:
 	/// **Objetivo de dibujo** de la escena: `Surface` + `Rasterizer` + `FramePlan` + clip.
 	/// Es la puerta única a las primitivas (fill/línea/texto/blit/c2p) sobre el buffer de
 	/// dibujo activo, sea la escena contigua o interleaved.
-	[[nodiscard]] field::DrawTarget draw_target(eng::Ref<graphics::FramePlan> plan = {}) {
+	[[nodiscard]] playfield::DrawTarget draw_target(eng::Ref<graphics::FramePlan> plan = {}) {
 		const bool interleaved = (m_res.layout == SceneLayout::Interleaved);
-		field::Playfield& pf = interleaved
-					       ? static_cast<field::Playfield&>(m_playfield)
-					       : static_cast<field::Playfield&>(m_contiguous);
-		return field::DrawTarget {surface(), pf.rasterizer(), plan, bob_target()};
+		playfield::Playfield& pf = interleaved
+					       ? static_cast<playfield::Playfield&>(m_playfield)
+					       : static_cast<playfield::Playfield&>(m_contiguous);
+		return playfield::DrawTarget {surface(), pf.rasterizer(), plan, bob_target()};
 	}
 
 	/// **Chunky→planar** a través del rasterizador de la escena: con `BlitterRaster` y
 	/// un `plan` encola un `BlitJobKind::C2P` (el backend ejecuta las 13 fases); con el
 	/// rasterizador CPU convierte ya sin usar `plan`.
-	[[nodiscard]] bool c2p(const field::C2pRequest& req,
+	[[nodiscard]] bool c2p(const playfield::C2pRequest& req,
 			       eng::Ref<graphics::FramePlan> plan = {}) {
 		return draw_target(plan).c2p(req);
 	}
@@ -380,6 +412,10 @@ public:
 			m_plane_source[p] = source;
 		}
 	}
+
+	/// Registra el slot parcheable de `BPLCON1` (fine-scroll del playfield); lo llama la
+	/// etapa `display`. A partir de ahí `set_fine_scroll` lo reescribe por frame.
+	void set_fine_scroll_patch(copper::PatchHandle handle) { m_fine_scroll_patch = handle; }
 
 	// --- Ciclo de vida (plano de comportamiento) ------------------------------------
 	/// Liga la tarea de **setup** (una vez, tras `init`).
@@ -475,7 +511,7 @@ private:
 			m_back = (buffers > 1u) ? 1u : 0u;
 			if (res.layout == SceneLayout::Interleaved) {
 				if (!m_playfield.bind(m_buffers[0],
-							 field::CanvasPlayfield::Config {res.width, res.height, res.planes})) {
+							 playfield::CanvasPlayfield::Config {res.width, res.height, res.planes})) {
 					release();
 					return false;
 				}
@@ -516,14 +552,16 @@ private:
 	SceneResources m_res {}; ///< geometría/recursos de la escena (copiados en `init`)
 	eng::Ref<eng::MemoryManager> m_memory {}; ///< owner no propietario para liberar los bloques Chip
 	eng::util::Array<eng::Block<eng::PlaneTag, eng::MemoryKind::Chip>, kMaxSceneBuffers> m_buffers {}; ///< buffers de bitplanes (Chip)
-	field::CanvasPlayfield m_playfield {}; ///< playfield del layout interleaved (base de `surface()`)
-	field::ContiguousPlayfield m_contiguous {}; ///< playfield del layout contiguo (base de `surface()`)
+	playfield::CanvasPlayfield m_playfield {}; ///< playfield del layout interleaved (base de `surface()`)
+	playfield::ContiguousPlayfield m_contiguous {}; ///< playfield del layout contiguo (base de `surface()`)
 	copper::Plan m_plan {}; ///< programa de Copper (lista + presupuesto + emisor)
 	u32 m_plane_bytes = 0; ///< bytes de un plano completo (`row_bytes * alloc_rows`)
 	u8 m_buffer_count = 1; ///< buffers de display en uso (1..`kMaxSceneBuffers`)
 	u8 m_back = 0; ///< índice del buffer trasero (el que se dibuja/publica)
 	Patch32 m_plane_patch[kMaxScenePlanes] {}; ///< parcheo `BPLxPT` por registro (doble/triple buffer)
 	u8 m_plane_source[kMaxScenePlanes] {}; ///< qué plano de bitmap muestra cada registro `BPLxPT`
+	copper::PatchHandle m_fine_scroll_patch {}; ///< MOVE parcheable de `BPLCON1` (fine-scroll)
+	u8 m_fine_scroll = 0u; ///< fine-scroll pedido este frame (0..15 px)
 	Task m_setup {}; ///< tarea de setup (una vez)
 	Task m_frame {}; ///< tarea de frame (por `tick`)
 	Task m_teardown {}; ///< tarea de teardown

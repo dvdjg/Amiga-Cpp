@@ -1,6 +1,6 @@
 # Test HOST-029: mundo disperso con streaming (prefetch + solo-residentes)
 
-Respalda `eng::field::StreamingWorldMap` (`engine/include/eng/field/streaming_map.hpp`):
+Respalda `eng::playfield::StreamingWorldMap` (`engine/include/eng/field/streaming_map.hpp`):
 un mundo disperso por **chunks** cuya ventana visible se **precarga** antes de dibujar,
 de modo que el acceso durante el dibujo (`tile_at`) solo consulta chunks residentes y
 nunca dispara una carga.

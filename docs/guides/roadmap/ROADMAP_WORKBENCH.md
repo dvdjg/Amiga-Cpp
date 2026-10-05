@@ -121,7 +121,8 @@ void app_ui_main(Host& host) {
 
 1. **Policy por plantilla, no `IUiBackend` virtual.** El engine es agnóstico del backend por
    plantilla (§1.9/§1.10). Si alguna app debe compilar sin plantillas, se añade después una fachada
-   *type-erased* (struct de punteros a función) **encima** de la policy, no al revés.
+   *type-erased* (una **interfaz** / clase abstracta, no un struct de punteros a función estilo C)
+   **encima** de la policy, no al revés.
 2. **Eventos: un solo contrato y una sola traducción.** IDCMP → `os::Msg` → `UiEvent`
    (`intuition_bridge` reusa `to_ui_event`/`dispatch_msg`); no se duplica la lógica de keymap.
 3. **Soft controls primero** (mismo árbol y mismo tema `kThemeWb13`): el `Window` de Intuition va

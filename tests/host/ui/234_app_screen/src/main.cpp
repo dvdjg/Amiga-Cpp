@@ -13,6 +13,7 @@
 #include <cstdio>
 
 #include <eng/api/api.hpp>
+#include <eng/api/assets.hpp>
 #include <eng/hw/info.hpp>
 
 using namespace eng;
@@ -20,6 +21,13 @@ using namespace eng;
 namespace {
 
 alignas(16) u8 g_chip[512 * 1024];
+alignas(16) u8 g_app_chip[128 * 1024];
+alignas(16) u8 g_small_chip[16 * 1024];
+u8 g_bitmap_background[96u * 64u];
+alignas(16) u8 g_interleaved_bitmap_src[40u * 5u * 256u];
+eng::Assets g_test_assets {};
+
+bool pixel_bit(const u8* base, u32 plane_bytes, u16 row_bytes, u8 plane, u16 x, u16 y);
 
 MemoryManager make_memory() {
 	MemoryManager mem;
@@ -38,10 +46,174 @@ void check(bool ok, const char* msg) {
 /// Backend minimo: solo el ciclo que el bucle necesita (`boot` + `wait_vblank`). Sin
 /// `execute_frame_plan`: `App::present` lo omite.
 struct MockBackend {
+	MemoryManager* memory = nullptr;
+	MemoryManager& memory_manager() { return *memory; }
+	bool stopped_while_allocated = false;
+	const u16* installed_copper = nullptr;
+	const u8* scene_buffer = nullptr;
+	u32 scene_plane_bytes = 0u;
+	bool camera_pixel = false;
+	bool clipped_pixel = false;
+	bool bitmap_pixel = false;
+	bool bitmap_plan_valid = false;
+	bool bitmap_copy_matches = false;
+	bool bitmap_first_segment = false;
+	u8 bitmap_jobs_checked = 0u;
+	bool clear_plan_valid = false;
+	bool clear_matches = false;
+	u32 bitmap_first_diff = 0xffffffffu;
+	u8 bitmap_actual = 0u;
+	u8 bitmap_expected = 0u;
 	void boot() {}
 	void wait_vblank() {}
+	void takeover_display(const u16* words) { installed_copper = words; }
+	void install_raster(graphics::composition::Scene& scene) {
+		scene_buffer = scene.buffer(0u).data();
+		scene_plane_bytes = scene.plane_bytes();
+	}
+	bool execute_frame_plan(const graphics::FramePlan& plan) {
+		for (u8 i = 0u; i < plan.blit_job_count(); ++i) {
+			const auto& job = plan.blit_job(i);
+			if (job.kind == graphics::BlitJobKind::CopyRect && job.words_per_row == 20u && job.interleaved &&
+			    job.source_plane_stride_bytes != 0u && job.bitplane_count == 5u) {
+				const bool valid = job.bitplane_count == 5u && job.height == 256u &&
+				job.source_modulo_bytes == 160 && job.destination_modulo_bytes == 160 &&
+					job.source_plane_stride_bytes == 40u && job.destination_plane_stride_bytes == 40u;
+				bitmap_plan_valid = bitmap_plan_valid || valid;
+				bitmap_jobs_checked = static_cast<u8>(bitmap_jobs_checked + (valid ? 1u : 0u));
+				const u32 row_bytes = static_cast<u32>(job.words_per_row) * sizeof(u16);
+				for (u8 plane = 0u; plane < job.bitplane_count; ++plane) {
+					const u8* src = reinterpret_cast<const u8*>(job.source.words()) +
+						static_cast<u32>(plane) * job.source_plane_stride_bytes;
+					u8* dst = reinterpret_cast<u8*>(job.destination.words()) +
+						static_cast<u32>(plane) * job.destination_plane_stride_bytes;
+					for (u16 row = 0u; row < job.height; ++row) {
+						for (u32 byte = 0u; byte < row_bytes; ++byte) dst[byte] = src[byte];
+						src += row_bytes + job.source_modulo_bytes;
+						dst += row_bytes + job.destination_modulo_bytes;
+					}
+				}
+				bitmap_first_segment = valid;
+			}
+			if (job.kind == graphics::BlitJobKind::ClearRect && job.words_per_row == 20u && job.interleaved) {
+				const bool valid = job.height == 280u && job.bitplane_count == 1u &&
+					job.destination_modulo_bytes == 0 && job.destination_plane_stride_bytes == 0u;
+				clear_plan_valid = clear_plan_valid || valid;
+				const u32 row_bytes = static_cast<u32>(job.words_per_row) * sizeof(u16);
+				u8* dst = reinterpret_cast<u8*>(job.destination.words());
+				for (u16 row = 0u; row < job.height; ++row) {
+					for (u32 byte = 0u; byte < row_bytes; ++byte) dst[byte] = 0u;
+					dst += row_bytes + job.destination_modulo_bytes;
+				}
+				clear_matches = valid;
+			}
+		}
+		if (bitmap_plan_valid && bitmap_jobs_checked == 1u && bitmap_first_segment && clear_plan_valid) {
+			bitmap_copy_matches = true;
+			for (u32 byte = 0u; byte < sizeof(g_interleaved_bitmap_src); ++byte) {
+				const u32 y = byte / 200u;
+				const u8 expected = y >= 200u ? 0u : g_interleaved_bitmap_src[byte];
+				if (scene_buffer[byte] != expected) {
+					bitmap_copy_matches = false;
+					bitmap_first_diff = byte;
+					bitmap_actual = scene_buffer[byte];
+					bitmap_expected = expected;
+					break;
+				}
+			}
+			clear_matches = clear_matches && bitmap_copy_matches;
+		}
+		if (scene_buffer != nullptr) {
+			camera_pixel = !pixel_bit(scene_buffer, scene_plane_bytes, 8u, 0u, 8u, 8u) &&
+					pixel_bit(scene_buffer, scene_plane_bytes, 8u, 1u, 8u, 8u);
+			clipped_pixel = pixel_bit(scene_buffer, scene_plane_bytes, 8u, 0u, 32u, 8u) &&
+					!pixel_bit(scene_buffer, scene_plane_bytes, 8u, 1u, 32u, 8u);
+			bitmap_pixel = pixel_bit(scene_buffer, scene_plane_bytes, 8u, 1u, 8u, 8u) &&
+				       !pixel_bit(scene_buffer, scene_plane_bytes, 8u, 0u, 8u, 8u);
+		}
+		return true;
+	}
+	eng::Assets& assets() { return g_test_assets; }
+	void stop_display() {
+		stopped_while_allocated = memory != nullptr && memory->chip().free_bytes() < memory->chip().capacity();
+	}
 	template <class F, class P>
 	void wait_vblank(F, P) {} // variante con bombeo de fondo (no usada aqui)
+};
+
+struct StartGame {
+	void init(auto&) {}
+	void update(auto&) {}
+	void render(auto&) {}
+};
+
+struct BackgroundGame {
+	bool background_added = false;
+	bool invalid_background_rejected = false;
+	bool render_called = false;
+	bool materialization_ok = false;
+	void init(auto& app) {
+		invalid_background_rejected =
+			!app.add_background("bad-color", 0u, Box {0, 0, 64u, 64u}, 4u).valid() &&
+			!app.add_background(nullptr, 0u, Box {0, 0, 64u, 64u}, 1u).valid() &&
+			!app.add_background("too-large", 0u, Box {0, 0, 0x8000u, 64u}, 1u).valid();
+		const auto front = app.add_background("front", 1u, Box {40, 0, 32u, 64u}, 2u);
+		if (front) {
+			front->camera().reset(scene::WorldRect {0u, 0u, 128u, 64u}, Size2u {64u, 64u});
+			front->camera().set_scroll_x(48u);
+		}
+		const auto sky = app.add_background("sky", 0u, Box {0, 0, 96u, 64u}, 1u);
+		background_added = sky.valid();
+		if (sky) {
+			sky->camera().reset(scene::WorldRect {0u, 0u, 128u, 64u}, Size2u {64u, 64u});
+			sky->camera().set_scroll_x(16u);
+		}
+	}
+	void update(auto&) {}
+	void render(auto& app) {
+		render_called = true;
+		materialization_ok = app.world_materialization_ok();
+		(void)app.screen().fill(Box {0, 0, 4u, 4u}, 0u);
+		(void)app.screen().fill(Box {0, 0, 4u, 4u}, 3u);
+		app.present();
+	}
+};
+
+struct BitmapBackgroundGame {
+	bool bitmap_added = false;
+	bool materialization_ok = false;
+	void init(auto& app) {
+		const auto layer = app.add_bitmap_background(
+			"bitmap", 0u, Span<const u8> {g_bitmap_background, sizeof(g_bitmap_background)},
+			96u, 64u);
+		bitmap_added = layer.valid();
+		if (layer) {
+			layer->camera().reset(scene::WorldRect {0u, 0u, 96u, 64u}, Size2u {64u, 64u});
+			layer->camera().set_scroll_x(16u);
+		}
+	}
+	void update(auto&) {}
+	void render(auto& app) {
+		materialization_ok = app.world_materialization_ok();
+		app.present();
+	}
+};
+
+struct InterleavedBitmapGame {
+	bool copied = false;
+	bool clear_queued = false;
+	void init(auto& app) {
+		app.assets().bind(app.memory_manager());
+		copied = app.assets().add_bitmap("screen", g_interleaved_bitmap_src,
+						 sizeof(g_interleaved_bitmap_src), 320u, 256u, 5u,
+						 graphics::PlaneLayout::Interleaved);
+		copied = copied && app.screen().bitmap(app.assets().bitmap("screen"), Box {0, 0, 320u, 256u});
+	}
+	void update(auto&) {}
+	void render(auto& app) {
+		clear_queued = app.screen().clear_box(Box {0, 200, 320u, 56u});
+		app.present();
+	}
 };
 
 /// Juego de prueba con el contrato del API publico (`auto&` = no nombra el tipo del App).
@@ -82,9 +254,201 @@ u32 bits_in_plane(const u8* base, u32 bytes) {
 	return n;
 }
 
+bool pixel_bit(const u8* base, u32 plane_bytes, u16 row_bytes, u8 plane, u16 x, u16 y) {
+	const u32 offset = static_cast<u32>(plane) * plane_bytes + static_cast<u32>(y) * row_bytes + x / 8u;
+	return (base[offset] & static_cast<u8>(0x80u >> (x & 7u))) != 0u;
+}
+
 } // namespace
 
 int main() {
+	for (usize i = 0u; i < sizeof(g_bitmap_background); ++i) g_bitmap_background[i] = 2u;
+	for (usize i = 0u; i < sizeof(g_interleaved_bitmap_src); ++i)
+		g_interleaved_bitmap_src[i] = static_cast<u8>(i / 40u);
+	{
+		MemoryManager bitmap_mem;
+		(void)bitmap_mem.configure(g_app_chip, sizeof(g_app_chip), nullptr, 0u, nullptr, 0u, 16u);
+		MockBackend bitmap_backend {};
+		bitmap_backend.memory = &bitmap_mem;
+		BitmapBackgroundGame bitmap_game {};
+		const u32 free_before = bitmap_mem.chip().free_bytes();
+		{
+			App bitmap_app {bitmap_backend, bitmap_game, bitmap_mem};
+			GameDisplay display {};
+			display.width = 64u;
+			display.height = 64u;
+			display.color_depth = 2u;
+			display.buffers = 1u;
+			(void)bitmap_app.set_display(display);
+			check(bitmap_app.start().has_value(), "App compone display para la capa bitmap");
+			bitmap_app.run(1u);
+		check(bitmap_game.bitmap_added, "World registra y App copia el asset bitmap");
+		check(bitmap_game.materialization_ok, "World materializa el bitmap después del scroll");
+			check(bitmap_mem.chip().free_bytes() < free_before,
+			      "App conserva ownership Chip del asset bitmap durante su vida");
+			check(bitmap_backend.scene_buffer != nullptr &&
+			      bitmap_backend.bitmap_pixel,
+			      "pixel de bitmap del mundo aparece en el viewport tras aplicar cámara");
+		}
+		check(bitmap_mem.chip().free_bytes() == free_before,
+		      "destruir App libera la reserva propietaria del bitmap");
+	}
+
+	{
+		MemoryManager bitmap_mem = make_memory();
+		MockBackend bitmap_backend {};
+		bitmap_backend.memory = &bitmap_mem;
+		InterleavedBitmapGame bitmap_game {};
+		App bitmap_app {bitmap_backend, bitmap_game, bitmap_mem};
+		GameDisplay display {};
+		display.width = 320u;
+		display.height = 256u;
+		display.color_depth = 5u;
+		display.buffers = 1u;
+		display.layout = graphics::PlaneLayout::Interleaved;
+		(void)bitmap_app.set_display(display);
+		check(bitmap_app.start().has_value(), "App inicia Scene interleaved para Screen::bitmap");
+		bitmap_app.run(1u);
+		check(bitmap_game.copied && bitmap_backend.bitmap_plan_valid && bitmap_backend.bitmap_jobs_checked == 1u &&
+		      bitmap_backend.bitmap_first_segment,
+		      "Screen::bitmap genera un job interleaved multiancho con BLTSIZE válido");
+		check(bitmap_backend.bitmap_copy_matches,
+		      "ejecutar el plan copia todos los bytes del bitmap al framebuffer interleaved");
+		check(bitmap_game.clear_queued && bitmap_backend.clear_plan_valid && bitmap_backend.clear_matches,
+		      "clear_box interleaved borra cada fila lógica en los cinco planos");
+	}
+
+	{
+		MemoryManager layer_mem;
+		(void)layer_mem.configure(g_app_chip, sizeof(g_app_chip), nullptr, 0u, nullptr, 0u, 16u);
+		MockBackend layer_backend {};
+		layer_backend.memory = &layer_mem;
+		BackgroundGame layer_game {};
+		App layer_app {layer_backend, layer_game, layer_mem};
+		GameDisplay display {};
+		display.width = 64u;
+		display.height = 64u;
+		display.color_depth = 2u;
+		display.buffers = 1u;
+		(void)layer_app.set_display(display);
+		check(layer_app.start().has_value(), "App compone el display antes de materializar capas Fill");
+		layer_app.run(1u);
+		check(layer_game.background_added && layer_game.invalid_background_rejected && layer_game.render_called,
+		      "World conserva el background y App renderiza la capa antes del juego");
+		check(layer_game.materialization_ok,
+		      "App materializa background antes del render personalizado del juego");
+		check(layer_backend.scene_buffer != nullptr && layer_backend.scene_plane_bytes == 512u,
+		      "backend de prueba observa el bitmap compuesto por App");
+		check(layer_backend.camera_pixel,
+		      "cámara y profundidad ordenan Fill aunque la capa frontal se añada primero");
+		check(layer_backend.clipped_pixel, "la capa frontal recortada deja ver el fondo inferior");
+	}
+
+	{
+		MockBackend missing_memory_backend {};
+		StartGame start_game {};
+		App missing_memory_app {missing_memory_backend, start_game};
+		const auto missing = missing_memory_app.start();
+		check(!missing && missing.error() == StartError::MemoryUnavailable,
+		      "start sin MemoryManager preconfigurado devuelve error tipado");
+		check(!missing_memory_app.screen().valid(), "sin memoria no se expone una pantalla válida");
+	}
+	{
+		MemoryManager invalid_mem;
+		(void)invalid_mem.configure(g_chip, sizeof(g_chip), nullptr, 0u, nullptr, 0u, 16u);
+		MockBackend invalid_backend {};
+		StartGame start_game {};
+		App invalid_app {invalid_backend, start_game, invalid_mem};
+		GameDisplay invalid_display {};
+		invalid_display.color_depth = 7u;
+		check(invalid_app.set_display(invalid_display), "display no válido aún puede editarse");
+		const auto invalid = invalid_app.start();
+		check(!invalid && invalid.error() == StartError::InvalidDisplay,
+		      "start distingue una configuración de display no válida");
+		invalid_display.color_depth = 2u;
+		invalid_display.width = 64u;
+		invalid_display.height = 64u;
+		check(invalid_app.set_display(invalid_display), "display puede corregirse tras fallo de validación");
+		check(invalid_app.start().has_value(), "App::start puede reintentarse después de corregir el display");
+	}
+
+	// App puede poseer y componer su display desde un pool preconfigurado. Al salir del scope
+	// libera los bloques de escena; el MemoryManager sigue perteneciendo al composition root.
+	{
+		MemoryManager app_mem;
+		check(app_mem.configure(g_app_chip, sizeof(g_app_chip), nullptr, 0u, nullptr, 0u, 16u),
+		      "composition root configura el pool de la App");
+		MockBackend app_backend {};
+		app_backend.memory = &app_mem;
+		StartGame start_game {};
+		const u32 free_before = app_mem.chip().free_bytes();
+		{
+			App start_app {app_backend, start_game, app_mem};
+			GameDisplay display {};
+			display.width = 64u;
+			display.height = 64u;
+			display.color_depth = 2u;
+			Palette32 palette {};
+			palette.color[1] = 0x0f00u;
+			display.palette = palette;
+			check(start_app.set_display(display), "display se declara antes de start");
+			const auto started = start_app.start();
+			check(started.has_value(), "App::start compone la escena propia");
+			check(app_backend.installed_copper != nullptr,
+			      "App::start instala la lista de display cuando el backend admite takeover");
+			check(start_app.screen().valid(), "App::start deja Screen ligada a la escena");
+			check(start_app.screen().fill(Box {0, 0, 8u, 8u}, 1u),
+			      "Screen de la escena propia acepta primitivas de dibujo");
+			check(start_app.remaining_chip() < free_before, "la escena propia ocupa el pool Chip");
+			check(!start_app.set_display(display), "display queda fijo tras start");
+			const auto again = start_app.start();
+			check(!again && again.error() == StartError::AlreadyStarted,
+			      "start repetido se rechaza de forma explícita");
+			start_app.run(1u);
+			check(start_app.shutdown_complete() && app_backend.stopped_while_allocated,
+			      "run finito apaga display mientras la escena DMA todavía conserva sus buffers");
+		}
+		check(app_mem.chip().free_bytes() == free_before,
+		      "la destrucción de App libera el display propio sin destruir el pool externo");
+		check(app_backend.stopped_while_allocated,
+		      "App detiene el display antes de liberar los buffers DMA de su escena");
+	}
+	{
+		MemoryManager small_mem;
+		(void)small_mem.configure(g_small_chip, sizeof(g_small_chip), nullptr, 0u, nullptr, 0u, 16u);
+		MockBackend small_backend {};
+		StartGame start_game {};
+		App small_app {small_backend, start_game, small_mem};
+		GameDisplay oversized {};
+		oversized.width = 320u;
+		oversized.height = 256u;
+		oversized.color_depth = 4u;
+		check(small_app.set_display(oversized), "display grande puede describirse durante setup");
+		const auto failed = small_app.start();
+		check(!failed && failed.error() == StartError::OutOfMemory,
+		      "display que supera el presupuesto Chip falla antes de reservar parcialmente");
+		check(!small_app.screen().valid(), "fallo de start deja Screen sin escena ligada");
+	}
+	{
+		// Preflight del bus DMA: una escena cuyo Blitter declarado satura el bus se rechaza.
+		MemoryManager bus_mem;
+		(void)bus_mem.configure(g_chip, sizeof(g_chip), nullptr, 0u, nullptr, 0u, 16u);
+		MockBackend bus_backend {};
+		StartGame bus_game {};
+		App bus_app {bus_backend, bus_game, bus_mem};
+		GameDisplay bus_display {};
+		bus_display.width = 320u;
+		bus_display.height = 256u;
+		bus_display.color_depth = 4u;
+		bus_display.bus.blitter_words = 100000u; // mas palabras de Blitter que slots del frame
+		bus_display.bus.blitter_channels = 4u;
+		check(bus_app.set_display(bus_display), "display con presupuesto de bus se describe");
+		const auto over = bus_app.start();
+		check(!over && over.error() == StartError::BusOverBudget,
+		      "start rechaza la escena que no cabe en el bus DMA (fail-fast)");
+		check(!bus_app.screen().valid(), "fallo de bus deja Screen sin escena ligada");
+	}
+
 	MemoryManager mem = make_memory();
 	graphics::composition::Scene scene {};
 	const bool composed = graphics::composition::compose(

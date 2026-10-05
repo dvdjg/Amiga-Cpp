@@ -13,7 +13,7 @@
 using namespace eng::retro;
 
 using namespace eng;
-using namespace eng::field;
+using namespace eng::playfield;
 using namespace eng::graphics;
 
 struct MockPlayfield : Playfield {

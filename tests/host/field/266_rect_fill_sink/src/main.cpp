@@ -1,5 +1,5 @@
 // Test host del seam de relleno de RECTANGULO por hardware
-// (`eng::field::RectFillSink` + `Playfield::fill_rect_hw` + `BlitterRaster::fill_rect`).
+// (`eng::playfield::RectFillSink` + `Playfield::fill_rect_hw` + `BlitterRaster::fill_rect`).
 //
 // Valida que un `Playfield` con sink instalado DELEGA el relleno (con la geometria planar
 // correcta: planos, strides y dimensiones), que sin sink cae al relleno CPU (`draw_span` por
@@ -14,7 +14,7 @@
 #include <vector>
 
 using namespace eng;
-using namespace eng::field;
+using namespace eng::playfield;
 
 namespace {
 

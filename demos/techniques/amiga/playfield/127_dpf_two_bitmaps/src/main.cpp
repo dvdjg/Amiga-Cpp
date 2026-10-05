@@ -27,6 +27,7 @@
 #include <eng/platform/amiga/backend.hpp>
 #include <eng/scene/bobs.hpp>
 #include <eng/scene/display.hpp>
+#include <eng/scene/raster_plan.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -109,6 +110,11 @@ struct DpfTwoBitmapsDemo {
 		configure_view(m_v1, m_pf1.view.data());
 		configure_view(m_v2, m_pf2.view.data());
 
+		// **Escena declarada** por el planner (§7): DPF con PF1 delante (objetos) + PF2 detrás
+		// (fondo). El `RasterLayout` se deriva de aquí (`plan_raster_layout`).
+		(void)m_dpf_plan.add(eng::scene::LayerRole::Foreground, eng::scene::LayerPlacement {});
+		(void)m_dpf_plan.add(eng::scene::LayerRole::Background, eng::scene::LayerPlacement {});
+
 		// BOB con padding (copia = dibuja y limpia en un blit) en PF1.
 		eng::graphics::Bob bob {};
 		bob.sheet = m_sheet.mem_view_chip();
@@ -171,7 +177,7 @@ struct DpfTwoBitmapsDemo {
 	}
 
 private:
-	static void configure_view(eng::field::PlayfieldHardwareView& v, u8* base) {
+	static void configure_view(eng::playfield::PlayfieldHardwareView& v, u8* base) {
 		v.planes = kFieldPlanes;
 		v.bitmap_bytes_per_row = kPitch;
 		v.bitmap_height = kHeight;
@@ -226,12 +232,19 @@ private:
 	/// Reconstruye la banda desde las superficies (el driver solo movio sus offsets X) y la
 	/// materializa en la copperlist `list`.
 	bool build_display(u8 list) {
-		m_band = eng::scene::band_from_dual_view(m_v1, m_v2, 0u);
+		// **RasterLayout derivado del plan** (banda dual DPF); luego la franja extra de 0 planos.
+		const eng::playfield::PlayfieldHardwareView views[2] = {m_v1, m_v2};
+		eng::scene::RasterLayout layout {};
+		if (!eng::scene::plan_raster_layout(
+			    m_dpf_plan,
+			    eng::Span<const eng::playfield::PlayfieldHardwareView> {views, 2u}, layout)
+			     .has_value()) {
+			return false;
+		}
+		m_band = layout[0];
 		m_band.palette = kPalette.words();
 		m_band.palette_colors = 16u;
-
-		eng::scene::RasterLayout layout {};
-		layout.add(m_band);
+		layout[0] = m_band;
 		layout.add({.top = kBandBottom, .planes = 0u, .color = false});
 
 		const eng::Bytes<eng::CopperTag> slice =
@@ -249,8 +262,9 @@ private:
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_pf2 {};
 	eng::Block<eng::BobTag> m_sheet {};
 	eng::Block<eng::CopperTag> m_copper {};
-	eng::field::PlayfieldHardwareView m_v1 {};
-	eng::field::PlayfieldHardwareView m_v2 {};
+	eng::playfield::PlayfieldHardwareView m_v1 {};
+	eng::playfield::PlayfieldHardwareView m_v2 {};
+	eng::scene::ScenePlan<2u> m_dpf_plan {}; // escena declarada (PF1 delante + PF2 detrás)
 	eng::scene::Band m_band {};
 	eng::graphics::Sprite m_sprite {};
 	eng::scene::FastBobLayer m_bobs {};

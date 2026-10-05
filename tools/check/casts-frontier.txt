@@ -9,10 +9,18 @@ engine/include/eng/graphics/bob.hpp           # BOB: punteros de registro deriva
 engine/include/eng/graphics/pattern_fill.hpp  # patrones: fila de la fuente ya en Chip (Block/patron certificado)
 engine/include/eng/field/playfield_base.hpp   # bitplanes: BlitPtr desde m_frontbuffer (Address<Chip> del playfield)
 engine/include/eng/field/canvas_playfield.hpp # bitplanes interleaved: desplazamiento de la base Chip del Buffer
+engine/include/eng/field/strip_scroller.hpp    # scroller de tiras: words/px<->planos del Blitter (frontera del driver)
+engine/include/eng/field/strip_layer.hpp        # capa de tiras: base Chip de los buffers -> pointer del driver
 engine/include/eng/field/contiguous_playfield.hpp # bitplanes contiguos: base Chip + strides de la vista
 engine/include/eng/field/xlimited_playfield.hpp   # tile blits: RLE/desplazamiento sobre la base Chip del bitmap
 engine/include/eng/field/soft_dpf.hpp         # DPF suave: copia de plano a plano (bases Chip del bitmap)
 engine/include/eng/scene/bobs.hpp             # BOB de escena: BlitPtr desde el target Chip
+engine/include/eng/api/assets.hpp               # Assets bitmap: límites de bytes/stride y vistas DMA
+engine/include/eng/api/game.hpp                 # App: adaptar geometría lógica a jobs del Blitter
+engine/include/eng/api/screen.hpp                # Screen: geometría lógica (Box) -> jobs del Blitter
+engine/include/eng/api/world_render.hpp          # materializar mundo->Screen: coords de fill a words del plan
+engine/include/eng/scene/world.hpp               # World TileLayer: coordenadas y packed tile cells
+engine/include/eng/scene/world_tile_map.hpp      # WorldTileMapView: packed tile cell -> índice lógico
 engine/src/platform/amiga/amiga_blitter.cpp   # backend: plano (PlaneBytes) -> registro del Blitter (frontera DMA)
 engine/include/eng/graphics/copper/scheduler.hpp # emisor Copper: Address<Chip> de los bloques del plan
 engine/include/eng/graphics/copper/copper.hpp    # ListBuilder: palabras de la copperlist (Address<Chip>)

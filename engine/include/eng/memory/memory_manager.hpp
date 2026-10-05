@@ -74,6 +74,16 @@ private:
 	bool m_configured = false;
 };
 
+/// **Política de banco** de una reserva (Fase 7): unifica la elección de banco con **fallback
+/// explícito**. El **banco efectivo** viaja en `Block::kind` (el medio es dato, no tipo), así que
+/// un consumidor puede saber dónde cayó sin duplicar la decisión. DMA conserva `ChipRequired`.
+enum class MemoryPolicy : u8 {
+	ChipRequired,  ///< solo Chip (DMA): sin fallback.
+	FastRequired,  ///< solo Fast (CPU): sin fallback; inválido si no hay Fast.
+	FastPreferred, ///< Fast si hay, si no Slow (CPU, no DMA).
+	AnyBank,       ///< Fast → Slow → Chip (cualquier RAM).
+};
+
 /// Reserva **CPU** (no DMA): **Fast si la hay, si no Slow**. Es la decisión de runtime para
 /// buffers que la CPU procesa intensivamente (descompresión, simulación, pilas): el banco se
 /// elige según disponibilidad. Devuelve `Block<Tag>` (el medio va como dato).
@@ -110,6 +120,25 @@ template <class Tag>
 	}
 	if (mm.chip().capacity() != 0u) {
 		return Block<Tag> {mm.chip().reserve<Tag>(bytes, alignment)};
+	}
+	return {};
+}
+
+/// Reserva según una **`MemoryPolicy`** nombrada (Fase 7), reutilizando los helpers de runtime
+/// (`fast_or_slow`/`any_bank`) para no duplicar la elección. El banco efectivo queda en
+/// `Block::kind`.
+template <class Tag>
+[[nodiscard]] inline Block<Tag> reserve(MemoryManager& mm, MemoryPolicy policy, u32 bytes,
+					u32 alignment = 0u) noexcept {
+	switch (policy) {
+		case MemoryPolicy::ChipRequired:
+			return Block<Tag> {mm.chip().reserve<Tag>(bytes, alignment)};
+		case MemoryPolicy::FastRequired:
+			return Block<Tag> {mm.fast().reserve<Tag>(bytes, alignment)};
+		case MemoryPolicy::FastPreferred:
+			return fast_or_slow<Tag>(mm, bytes, alignment);
+		case MemoryPolicy::AnyBank:
+			return any_bank<Tag>(mm, bytes, alignment);
 	}
 	return {};
 }

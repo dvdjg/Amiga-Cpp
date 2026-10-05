@@ -289,14 +289,26 @@ public:
 		}
 	}
 
-	/// Completa una carga (`result` = bytes o <0). El llamador lo invoca al recibir `FileDone`.
+	/// Completa una carga sin validar la generación (usa la del slot actual; para backends/tests
+	/// que no llevan generación en el cookie).
 	void on_load_done(AssetId id, eng::s32 result) noexcept {
+		on_load_done(id, result, valid(id) ? static_cast<eng::u8>(m_slots[id - 1u].generation & 0xffu) : 0u);
+	}
+
+	/// Completa una carga (`result` = bytes o <0) validando la **generación** (R6.2): una respuesta
+	/// **tardía** de una carga anterior del mismo slot (generación distinta) se **rechaza** (no escribe
+	/// el buffer nuevo).
+	void on_load_done(AssetId id, eng::s32 result, eng::u8 generation) noexcept {
 		if (!valid(id)) {
 			return;
 		}
 		AssetSlot& s = m_slots[id - 1u];
 		if (s.state != AssetState::Loading) {
 			return;
+		}
+		// Generación `0` = respuesta sin control de tardías (compatibilidad); si no, debe coincidir.
+		if (generation != 0u && static_cast<eng::u8>(s.generation & 0xffu) != generation) {
+			return; // respuesta tardía: el slot ya es de otra carga
 		}
 		if (result < 0 || static_cast<eng::u32>(result) < s.size) {
 			free_slot(s);
@@ -312,6 +324,11 @@ public:
 	/// Estado del asset (`Empty` si el id no es válido).
 	[[nodiscard]] AssetState state(AssetId id) const noexcept {
 		return valid(id) ? m_slots[id - 1u].state : AssetState::Empty;
+	}
+	/// **Generación del request** vigente del slot (`0` si el id no es válido). La usa quien
+	/// completa una carga para construir el cookie (`on_load_done(..., generation)`).
+	[[nodiscard]] eng::u8 request_generation(AssetId id) const noexcept {
+		return valid(id) ? static_cast<eng::u8>(m_slots[id - 1u].generation & 0xffu) : 0u;
 	}
 	[[nodiscard]] eng::u16 count() const noexcept { return m_count; }
 	[[nodiscard]] eng::u32 used_chip() const noexcept { return m_used_chip; }
@@ -407,7 +424,10 @@ private:
 		s.generation = next_generation(s.generation);
 		used(s.block.kind) += s.reserved_size;
 		s.state = AssetState::Loading;
-		if (!m_backend.get()->load(id, s.path, raw_view(s))) {
+		// La generación del request viaja en el cookie (R6.2): una respuesta de otra generación se
+		// rechaza en `on_load_done`.
+		if (!m_backend.get()->load(id, s.path, raw_view(s),
+					  static_cast<eng::u8>(s.generation & 0xffu))) {
 			free_slot(s);
 			s.state = AssetState::Error;
 			return false;

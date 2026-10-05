@@ -1,6 +1,6 @@
 # Test HOST-030: TileMapView (accesor de scroll con límites) y wrap_period
 
-Respalda `eng::field::TileMapView<Src>` (`engine/include/eng/field/tile_source.hpp`): envuelve
+Respalda `eng::playfield::TileMapView<Src>` (`engine/include/eng/field/tile_source.hpp`): envuelve
 un accesor `TileSource` (aquí un `StreamingWorldMap`) con los límites del mundo
 (`width/height/wrap_x/wrap_y/edge_tile`) que necesita el scroll, de modo que el playfield no
 dependa del almacén concreto (denso, disperso o streaming).

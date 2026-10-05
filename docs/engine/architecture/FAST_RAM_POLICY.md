@@ -25,7 +25,10 @@ Si se detecta Fast RAM, las nuevas reservas de trabajo exclusivamente CPU deben 
 automáticamente mediante `MemoryManager`/`ResourceStore` (`FastPreferred`); el consumidor no debería
 repetir la detección ni escoger `fast()` manualmente en cada subsistema. El handle debe registrar el
 banco efectivo. `FastRequired` falla si el banco no existe o no cabe; `FastPreferred` puede caer a
-Slow solo si su política lo permite. Chip/DMA nunca cae a Fast o Slow.
+Slow solo si su política lo permite. Chip/DMA nunca cae a Fast o Slow. En el engine esto es
+`eng::MemoryPolicy` (`ChipRequired`/`FastRequired`/`FastPreferred`/`AnyBank`) con
+`eng::reserve<Tag>(mm, policy, bytes, align)`, que resuelve el banco reutilizando
+`fast_or_slow`/`any_bank` y deja el **banco efectivo** en `Block::kind`.
 
 El arranque debe reservar Fast primero para el stack configurado y después calcular una cuota para
 los pools persistentes y scratch CPU. `HwInfo::fast_ram_bytes` es capacidad detectada, no capacidad
@@ -59,7 +62,9 @@ no está construido en ese punto.
 
 La política objetivo es `StackPolicy {bank = FastPreferred, bytes = ...}`. Debe devolver el banco
 efectivo/fallback y conservar base+tamaño para liberar la reserva al salir. No debe intentar cambiar
-el SSP de un proceso en modo usuario.
+el SSP de un proceso en modo usuario. En el engine existe ya `eng::StackPolicy` +
+`eng::stack_from(mm, policy)` (`memory/stack.hpp`), con el banco efectivo en `Stack::block.kind`;
+falta conectar `FAST_STACK=1` del build a esa política.
 
 ### Datos globales/estáticos
 

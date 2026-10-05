@@ -55,7 +55,7 @@ extern "C" const unsigned int g_tilebank_xlimited_size;
 
 namespace {
 
-namespace field = eng::field;
+namespace playfield = eng::playfield;
 
 // -----------------------------------------------------------------------------
 // Demo 201 — RECORRIDO de scroll 8-WAY X-Limited EHB (512 KB A500)
@@ -171,7 +171,7 @@ constexpr eng::s32 kMaxScrollY = static_cast<eng::s32>(
 // plane-shifted del scroll horizontal necesita el anillo completo de 18 bloques
 // para que `mapy` (hasta 17) no colisione en el módulo del bucle.
 constexpr eng::u32 kDisplayH = kViewportH + 2u * kTileHeight;
-constexpr field::ScrollConsts kScrollConsts {
+constexpr playfield::ScrollConsts kScrollConsts {
 	/*tile_width=*/        kTileWidth,
 	/*tile_height=*/       kTileHeight,
 	/*display_height=*/    kDisplayH,
@@ -462,7 +462,7 @@ constexpr eng::s8 font_index(char ch) {
 	return -1;
 }
 
-void draw_glyph(field::Surface& s, eng::s32 px, eng::s32 py, eng::s32 scale, eng::s8 gi, eng::u8 ink) {
+void draw_glyph(playfield::Surface& s, eng::s32 px, eng::s32 py, eng::s32 scale, eng::s8 gi, eng::u8 ink) {
 	if (gi < 0) return;
 	for (eng::u8 r = 0; r < 7; ++r) {
 		const eng::u8 bits = kFont[gi][r];
@@ -477,7 +477,7 @@ void draw_glyph(field::Surface& s, eng::s32 px, eng::s32 py, eng::s32 scale, eng
 
 // Dibuja un string de ancho fijo SOBRE un fondo ya rellenado; `ink` marca los
 // píxeles del glifo y `bg` rellena las celdas no usadas (para borrar lo previo).
-void draw_text(field::Surface& s, eng::s32 x, eng::s32 y, eng::s32 scale, const char* t, eng::u8 ink, eng::u8 bg) {
+void draw_text(playfield::Surface& s, eng::s32 x, eng::s32 y, eng::s32 scale, const char* t, eng::u8 ink, eng::u8 bg) {
 	const eng::s32 gw = 6 * scale;          // avance de celda (5 + 1 de espacio)
 	const eng::s32 gh = 7 * scale;
 	eng::s32 cx = x;
@@ -503,8 +503,8 @@ void u16_to_str(eng::u16 v, char* out) {
 // Juego
 // -----------------------------------------------------------------------------
 struct DemoGame {
-	field::XlimitedScene<kScrollConsts> scene {};
-	field::XlimitedSceneConfig scene_cfg {};
+	playfield::XlimitedScene<kScrollConsts> scene {};
+	playfield::XlimitedSceneConfig scene_cfg {};
 	eng::graphics::FramePlan plan {};
 	TourDriver driver {};
 	eng::u32 frameOfDay = 0;
@@ -538,8 +538,8 @@ struct DemoGame {
 		scene_cfg.tile_height = kTileHeight;
 		scene_cfg.planes = kPlanes;
 		scene_cfg.fetch_mode = 0;
-		scene_cfg.y_mode = eng::field::AxisPolicy::Ring;
-		scene_cfg.direction = eng::field::DirectionPolicy::Bidirectional;
+		scene_cfg.y_mode = eng::playfield::AxisPolicy::Ring;
+		scene_cfg.direction = eng::playfield::DirectionPolicy::Bidirectional;
 		scene_cfg.linear_display = false; // main=208: el split queda dentro del rango WAIT OCS
 		scene_cfg.max_step = 16;
 		scene_cfg.map.cells = eng::Span<const eng::u16>::from_raw(
@@ -696,7 +696,7 @@ struct DemoGame {
 		return kRenderMap[static_cast<eng::u32>(by)][static_cast<eng::u32>(bx)];
 	}
 	// Lee el índice EHB REAL (6 planos) del mundo (wx,wy) en el anillo.
-	static eng::u16 fb_read_index(const field::XLimitedPlayfield<kScrollConsts>& pf,
+	static eng::u16 fb_read_index(const playfield::XLimitedPlayfield<kScrollConsts>& pf,
 		const eng::u8* fp, eng::u16 bpr, eng::u8 planes, eng::s32 wx, eng::s32 wy) {
 		const eng::u32 base_pl = pf.planeline_for(wy);
 		const eng::u32 byte = pf.byte_for(wx);
@@ -833,7 +833,7 @@ struct DemoGame {
 };
 
 // Evidencia del contrato de compositor de display (driver.hpp).
-static_assert(eng::DisplayDriver<field::XlimitedScene<kScrollConsts>, eng::amiga::AmigaBackend>);
+static_assert(eng::DisplayDriver<playfield::XlimitedScene<kScrollConsts>, eng::amiga::AmigaBackend>);
 
 } // namespace
 

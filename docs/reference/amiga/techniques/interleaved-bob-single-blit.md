@@ -7,26 +7,26 @@ por plano. Es el truco clásico de *interleaved bitplane BOBs* (Use Case 4 de
 
 **Idea.** En el BOB interleaved, cada fila de cada plano lleva su **propia copia de la máscara**
 (máscara **expandida**, una copia por plano). Así un único blit de `altura = filas_objeto *
-planos` recorre, con `DMOD` = bytes de una fila de plano, todas las filas de todos los planos, y el
-mismo par A=máscara / B=imagen vale para cada uno.
+planos` recorre, con `DMOD` = bytes de una fila de plano, todas las filas de todos los planos, y
+reutiliza el cableado de Bartman: A=máscara, B=imagen.
 
 **Layout del BOB** (32×16, 5 planos, con máscara). Por cada `(plano p, fila r)` hay un par
-`[máscara 2 palabras][imagen 2 palabras]` (8 B); el blit avanza una "fila" cada 8 B:
+`[imagen 2 palabras][máscara 2 palabras]` (8 B); el blit avanza una "fila" cada 8 B:
 
 ```
 offset = ((r * planos) + p) * 8
-   +0..3 : máscara (2 palabras de 32 px)
-   +4..7 : imagen  (2 palabras de 32 px)
+   +0..3 : imagen  (2 palabras de 32 px)
+   +4..7 : máscara (2 palabras de 32 px)
 ```
 
 **Registros** (blit de `32/16 = 2` palabras × `16*5 = 80` filas, con desplazamiento fino `sh`):
 
 | Registro | Valor |
 |---|---|
-| `BLTCON0` | `$CA \| USEA\|USEB\|USEC\|USED \| (sh << 12)` |
-| `BLTCON1` | `sh << 12` (BSH; el barrel shifter actúa sobre A y B) |
-| `BLTAPT` | base del BOB + `0` (máscara) |
-| `BLTBPT` | base del BOB + `4` (imagen) |
+| `BLTCON0` | `$CA \| USEA\|USEB\|USEC\|USED \| (sh << 12)` (ASH) |
+| `BLTCON1` | `sh << 12` (BSH; el barrel shifter desplaza el canal B) |
+| `BLTAPT` | base del BOB + `4` (máscara expandida) |
+| `BLTBPT` | base del BOB + `0` (imagen) |
 | `BLTAMOD` / `BLTBMOD` | `8 - words*2 = 4` |
 | `BLTCPT` / `BLTDPT` | `bitmap + fila_destino*row_stride + (x>>3)` |
 | `BLTCMOD` / `BLTDMOD` | `row_plano - words*2` (p. ej. `40 - 4 = 36`) |
@@ -51,7 +51,7 @@ a 1 y **conserva el fondo** donde está a 0. El puntero de destino puede caer en
 blit con un `BlitJob` (`MaskedBobCookieCut`, `BlitJob::interleaved = true`, `height` ya incluye los
 planos) y se envía con `AmigaBackend::blitter_submit`. El helper
 `eng::graphics::make_interleaved_masked_bob(job, src, dest, w, h, planes, dest_row_bytes, shift)`
-rellena ese `BlitJob` a partir del layout `[máscara][imagen]` (evita al llamador conocer los
+rellena ese `BlitJob` a partir del layout `[imagen][máscara]` (evita al llamador conocer los
 campos de módulo/altura). La demo **213_bartman_abyss** lo usa con su `bob.bpl` (generado con
 `kingcon ... -Interleaved -Format=5 -Mask`) y un solo `blitter_submit` por BOB. Ver
 `engine/graphics/blit_job.hpp` y `docs/reference/amiga/techniques/blitter-memcpy.md` para el

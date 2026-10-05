@@ -46,31 +46,52 @@ function findSequence() {
 }
 const seqDir = findSequence();
 if (!seqDir) { console.log(`[flicker] ${demoArg}: sin secuencia en out/run/${demoId}/*/sequence (se omite).`); process.exit(3); }
-const files = fs.readdirSync(seqDir).filter((f) => /^frame_\d{3,}\.png$/.test(f)).sort();
-if (files.length < 3) { console.log(`[flicker] ${demoArg}: secuencia con <3 frames (se omite).`); process.exit(3); }
+// `--sequence-step-frames` añade el número de frame congelado al nombre.
+const files = fs.readdirSync(seqDir).filter((f) => /^frame_\d{3,}(?:_f\d+)?\.png$/.test(f)).sort();
+const maxFramesArg = parseInt(arg('--frames', String(files.length)), 10);
+const selectedFiles = files.slice(0, Number.isFinite(maxFramesArg) && maxFramesArg > 0 ? maxFramesArg : files.length);
+if (selectedFiles.length < 3) { console.log(`[flicker] ${demoArg}: secuencia con <3 frames (se omite).`); process.exit(3); }
+const framePaths = selectedFiles.map((f) => path.join(seqDir, f));
+const demoPath = path.join(ROOT, norm);
+const baselinePath = path.join(demoPath, 'flicker-baseline.json');
+let baseline = null;
+try { baseline = JSON.parse(fs.readFileSync(baselinePath, 'utf8')); } catch { baseline = null; }
 
 // --- Capa 1: detección temporal determinista (OpenCV). Fiable para parpadeo/tearing. ---
 // Devuelve candidatos {frame, region[px], relative, type, context_frames} o null si no aplica.
 let detector = null;
 let frameDiff = null;
 const outDirEarly = path.join(ROOT, 'out/vision-review', demoId);
+let frameDiffError = false;
 
 // Frame-diff determinista: cuántos píxeles cambian y en qué bbox entre frames consecutivos, más
-// SSIM (cambio estructural). Es la referencia para separar movimiento (cambia la zona que se
-// desplaza) de glitch (cambia una zona estable). Prevalece ante una respuesta dudosa del modelo.
-// Se usa la versión Python (NumPy/OpenCV, SIMD) si está disponible; si no, la de Node.
+// SSIM y cambio residual tras compensar paneo global. Las ROIs coarse/actor proceden del baseline
+// explícito de la demo y el detector falla si el análisis compensado no está disponible.
 {
   const pyFile = path.join(ROOT, 'tools/vision-review/frame-diff.py');
   let got = null;
   try {
+    const ignoreRois = Array.isArray(baseline?.ignore_rois) ? baseline.ignore_rois : [];
+    const ignoreArgs = ignoreRois.flatMap((r) => ['--ignore-roi', `${r.x},${r.y},${r.w},${r.h}`]);
     const out = execFileSync(process.env.PYTHON || 'python',
-      [pyFile, '--sequence', seqDir, '--json'], { stdio: ['ignore', 'pipe', 'pipe'] });
+      [pyFile, '--files', ...framePaths, '--metric', 'both', '--stdout-json',
+        '--compensate-global-motion', ...ignoreArgs, '--out', outDirEarly],
+      { stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 16 * 1024 * 1024 });
     got = JSON.parse(out.toString('utf8'));
-  } catch { got = null; }
+  } catch (err) {
+    frameDiffError = true;
+    const py = process.env.PYTHON || 'python';
+    try {
+      const out = execFileSync(py, ['-c', 'import cv2,numpy'], { stdio: 'ignore' });
+      void out;
+    } catch {
+      got = null;
+    }
+  }
   if (!got) {
     try {
       const fd = execFileSync(process.execPath, [path.join(ROOT, 'tools/vision-review/frame-diff.mjs'),
-        '--sequence', seqDir, '--json'], { stdio: ['ignore', 'pipe', 'pipe'] });
+        '--files', ...framePaths, '--json', '--stdout-json', '--node'], { stdio: ['ignore', 'pipe', 'pipe'] });
       got = JSON.parse(fd.toString('utf8'));
     } catch { got = null; }
   }
@@ -82,8 +103,9 @@ if (!has('--no-detect')) {
   const script = path.join(ROOT, 'tools/vision-review/temporal-detect.py');
   try {
     // El detector devuelve 4 cuando hay candidatos: no es un error, es informativo.
-    execFileSync(py, [script, '--sequence', seqDir, '--out', outDirEarly], { stdio: ['ignore', 'ignore', 'pipe'] });
+    execFileSync(py, [script, '--files', ...framePaths, '--out', outDirEarly], { stdio: ['ignore', 'ignore', 'pipe'] });
   } catch (e) {
+    if (e && e.status !== 4 && e.status !== 0) frameDiffError = true;
     if (!(e && typeof e.status === 'number' && (e.status === 4 || e.status === 0))) {
       console.warn(`[flicker] detector determinista no disponible (${(e.stderr || e.message || '').toString().split('\n')[0]}); se usa la rejilla.`);
     }
@@ -93,10 +115,13 @@ if (!has('--no-detect')) {
     try { detector = JSON.parse(fs.readFileSync(jf, 'utf8')); } catch { detector = null; }
   }
 }
+if (fs.existsSync(baselinePath) && (!detector || frameDiffError || !frameDiff || !frameDiff.motion_alignment?.applied)) {
+  detector = { candidates: [{ type: ['analysis-unavailable'], relative: 'pantalla completa' }] };
+}
 
 let PNG;
 try { ({ PNG } = require('pngjs')); } catch { console.error('[flicker] pngjs no disponible.'); process.exit(2); }
-const imgs = files.map((f) => PNG.sync.read(fs.readFileSync(path.join(seqDir, f))));
+const imgs = framePaths.map((f) => PNG.sync.read(fs.readFileSync(f)));
 const W = imgs[0].width, H = imgs[0].height;
 const lum = (img, x, y) => { const i = (y * img.width + x) * 4; return (img.data[i] + img.data[i + 1] + img.data[i + 2]) / 3; };
 
@@ -216,6 +241,7 @@ const report = {
   demo: demoArg, seqDir, framesAnalyzed: files.length,
   grid: { cells: cw + 'x' + ch }, window: windowFiles, topZones: top,
   frameDiff: frameDiff ? frameDiff.pairs : null,
+  motionAlignment: frameDiff ? frameDiff.motion_alignment : null,
   detector: detector ? { candidates: candidates, anomalyBlocks: detector.anomaly_blocks } : null,
   modelText,
 };
@@ -237,13 +263,15 @@ if (detector) {
       `Pares de frames con cambio de píxeles (umbral 40): ${frameDiff.pairs.length - frozen}/${frameDiff.pairs.length} con cambio` +
       (frozen ? `, ${frozen} congelado(s).` : '.') + (hasSsim ? ' SSIM = cambio estructural (1.0 = idéntico).' : ''),
       '',
-      hasSsim ? '| par | px cambiados | bbox | SSIM |' : '| par | px cambiados | bbox |',
-      hasSsim ? '|---|---|---|---|' : '|---|---|---|',
+      hasSsim ? '| par | px cambiados | bbox | SSIM | bloques bajos |' : '| par | px cambiados | bbox |',
+      hasSsim ? '|---|---|---|---|---|' : '|---|---|---|',
       ...frameDiff.pairs.map((p) => {
         const bb = p.bbox ? `${p.bbox[0]},${p.bbox[1]}–${p.bbox[2]},${p.bbox[3]}` : '(sin cambio)';
-        return hasSsim ? `| f${p.from}→f${p.to} | ${p.changed} | ${bb} | ${p.ssim ?? '—'} |`
-                       : `| f${p.from}→f${p.to} | ${p.changed} | ${bb} |`;
+        return hasSsim ? `| f${p.from}→f${p.to} | ${p.changed} | ${bb} | ${p.ssim ?? '—'} | ${p.blocks_low ?? '—'} |`
+                        : `| f${p.from}→f${p.to} | ${p.changed} | ${bb} |`;
       }),
+      '',
+      `Compensación de movimiento global: ${frameDiff.motion_alignment?.applied ? 'aplicada' : 'no aplicada'}${frameDiff.motion_alignment?.method ? ` (${frameDiff.motion_alignment.method})` : ''}.`,
       '');
   }
   md.push(

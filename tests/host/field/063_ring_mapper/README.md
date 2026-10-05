@@ -1,6 +1,6 @@
 # HOST-063 — `map_ring_scroll` (mapper del corkscrew/XYLimited)
 
-Valida `eng::field::map_ring_scroll` (`engine/include/eng/field/amiga_display_mapper.hpp`), la
+Valida `eng::playfield::map_ring_scroll` (`engine/include/eng/field/amiga_display_mapper.hpp`), la
 traducción **neutral** de la cámara del corkscrew a los registros del display: `planeaddx`, `BPLCON1`
 (incluidos los bits de fetch ancho `0x4400`/`0x8800`), offset vertical del anillo
 (`display_offset`/`planeaddy`) y **split** (`split_line`/`split_active`).

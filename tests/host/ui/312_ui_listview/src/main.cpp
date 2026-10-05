@@ -128,9 +128,9 @@ int main() {
 
 	// --- Smoketest de dibujo ----------------------------------------------
 	alignas(2) eng::u8 mem[kPlaneStride * kPlanes] {};
-	eng::field::ContiguousPlayfield pf {};
+	eng::playfield::ContiguousPlayfield pf {};
 	check(pf.bind_raw(mem, sizeof(mem), kSW, kSH, kPlanes), "bind_raw pantalla");
-	eng::field::Surface screen {pf, eng::field::SurfaceRect {0, 0, kSW, kSH}};
+	eng::playfield::Surface screen {pf, eng::playfield::SurfaceRect {0, 0, kSW, kSH}};
 	eng::ui::UiTheme th {};
 	th.edit_bg = 0u;
 	th.fill_active = 1u;

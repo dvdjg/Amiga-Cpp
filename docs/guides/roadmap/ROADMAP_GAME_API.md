@@ -1,6 +1,15 @@
 # Roadmap de la fachada de juego (API de juego limpio)
 
-Estado: **propuesta abierta**. Origen: revisión honesta de lo que la demo 213 necesita realmente escribir (ver
+Estado: **en curso**. §1 (arranque cero-config) y §3 (ocultar composición/escena) **hechos para la
+213** vía `App::start()` + `GameDisplay` declarativo (la 213 ya no escribe `configure_memory`,
+`compose`, `SceneResources`, `ocs_a500`, `BPLCON0`, `takeover`; 49,9 fps). §5 con `Anim` + colisión
+de caja. §2 (audio auto-conducido: formato + buffer P61 + `App::play_music`) y §4 (el `INCBIN` sale
+del juego a un manifiesto) con su base hecha. §6 (estados de escena) **base hecha**: pila de escenas
+en la fachada (`push_scene`/`pop_scene`/`set_scene`, HOST-240). **Pendientes**: §4 (generador del
+manifiesto), §7 (cámara/tilemap de juego), §8 (vocabulario), §9 (plantilla + 213 sin una línea
+técnica; base en `games/000_template`). El contrato de §0 («juego de 30 líneas») **aún no compila**
+del todo.
+Origen: revisión honesta de lo que la demo 213 necesita escribir (ver
 [`GAME_API_TWO_LEVELS.md`](../../engine/architecture/GAME_API_TWO_LEVELS.md)). El objetivo de este roadmap es que una
 persona pueda **cerrar un juego 2D sin bajar al metal**: la "capa A" debe bastar.
 
@@ -44,12 +53,31 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
 
 - **Problema**: el juego llama `app.configure_memory({96k, 8k, 4k, 0})` y `comp::compose(...)` con `ocs_a500`,
   `SceneResources` y un `BPLCON0` crudo (`comp::display(res, 0x5200)` en 213).
-- **Salida**: `ENG_GAME_MAIN(Game)` bootea hardware (detección en `eng::hw`), elige memoria y un display por defecto
-  (320x256, planos según el fondo que pida el juego), y llama `init/update/render`. El juego **no** nombra
-  `MemoryConfig`, `SceneResources`, `ocs_a500` ni registros.
-- **Decisión (`configure_memory`)**: el default del engine será «todo lo posible menos headroom» (sin **restringir**,
-  regla §1.1 del API), detectado con `hw`/`AvailMem`; el juego podrá **ajustar** (dejará de ser obligatorio
-  configurar). Pendiente de implementar.
+- **Salida**: `App::start()` compone un display declarativo dentro del pool de memoria asignado por el
+  composition root. El juego no nombra `SceneResources`, `ocs_a500` ni registros. Perfiles de producto
+  A500/A1200 son valores por defecto; el composition root puede suministrar un `MemoryConfig` propio.
+- **Política de RAM acordada**: asignar pools de juego desde presupuestos populares conocidos (A500:
+  512 KiB Chip + 512 KiB Slow; A1200: 2 MiB Chip), dejando headroom explícito a Exec. Fast RAM no se
+  presupone: un integrador que la detecte puede añadirla mediante el perfil personalizado. `AvailMem`
+  solo consulta el mayor bloque contiguo antes de `AllocMem`; no reserva memoria ni garantiza que el
+  bloque siga libre. `configure_game_memory()` selecciona perfil desde `HwInfo` y limita la reserva
+  automática al bloque libre preservando headroom. Demo 214 ejercita selección automática y pasa
+  `build -> run -> analyze` en WinUAE/A500. `App::start()` y `GameDisplay` componen y poseen la escena
+  sobre un `MemoryManager` preconfigurado por el composition root; HOST-234 cubre éxito, errores tipados,
+  reintento, `run(n)` finito y liberación de la escena. L1-001 ejecuta el ciclo completo en WinUAE y
+  exige `DMACONR=0` más recuperación del pool Chip tras destruir `App`. HOST-394 valida selección
+  automática y preflight puro. AGA/A1200 tiene cobertura host; el runner no ofrece un perfil AGA.
+
+## 1.1 Materializador inicial de capas `World`
+
+- **Alcance implementado**: `App::add_background(id, depth, bounds, color)` añade una capa opaca
+  `WorldLayerKind::Fill`; `App` materializa esas regiones antes de `Game::render`, trasladándolas con
+  la cámara y recortándolas al viewport. Profundidad ascendente con orden estable: el fondo se compone
+  primero y los objetos del juego después.
+- **Gate**: HOST-234 verifica cámara, recorte, profundidad y píxeles. Demo 214 usa `World` para limpiar
+  el fondo móvil detrás de ambos BOBs y pasa el gate visual de WinUAE.
+- **Límites de este hito**: no materializa tilemaps ni bitmap assets y no deduce DPF/planos de varias
+  capas. Es un materializador CPU de regiones opacas, no el planner general de escenas.
 
 ## 2. Audio auto-conducido (el eslabón con más dolor)
 
@@ -60,7 +88,7 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
   el buffer de descompresión, registra la tarea de frame y arma el DMA; `stop_music()` deshace. El juego nunca ve
   `os::*`, `_P61_dma`, `MusicFormat` ni `reserve<AudioTag>`.
 - **Nota**: unificar el vocabulario (ver §8): `play_sfx`/`play_music` en `AudioSystem`; `sfx()` deja de exponerse a juego.
-- **Progreso**: ✅ el `App` **avanza la música en su latido** (`on_vblank` → `audio().update_music()`); la 213 ya **no** llama `os::set_frame_task` ni tiene `music_tick`/`m_audio`. ⏳ falta: que `play_music` **resuelva el formato y el buffer de descompresión** (que el juego no vea `p61_needs_sample_buffer`/`reserve<AudioTag>`).
+- **Progreso**: ✅ el `App` **avanza la música en su latido** (`on_vblank` → `audio().update_music()`); la 213 ya **no** llama `os::set_frame_task` ni tiene `music_tick`/`m_audio`. ✅ `play_music` **resuelve el formato** (detección por cabecera) y el **buffer de descompresión P61** (el engine reserva en Chip si el módulo lo pide, `audio_system.hpp`): el juego no ve `p61_needs_sample_buffer` ni `reserve<AudioTag>`. ✅ `App::play_music(name)`/`stop_music()` atan `assets().music(name)` + `audio().play_music(...)`; la música **por escena** se hace en el `enter` (la siguiente `play_music` detiene la anterior, §6).
 
 ## 3. `Screen` de juego y ocultar el display
 
@@ -70,8 +98,13 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
   `SceneResources`/`ocs_a500`/`BPLCON0` (`comp::display(res, 0x5200)`) en código de juego.
 - **Salida**: el juego dibuja solo con `Screen`; el display se pide a alto nivel ("fondo 320x256, N planos, esta
   imagen/paleta") y `Scene`/`Band`/`BPLCON0`/copperlist quedan tras el motor y el escape.
-- **Progreso**: ✅ `comp::compose(scene, memory, res, paleta)` compone **sin** `DisplayLimits`/`BPLCON0`; la 213 ya
-  no nombra `ocs_a500` ni `0x5200`. ⏳ falta: la **imagen de fondo** por la fachada (hoy `bitplanes().raw()` + memcpy).
+- **Progreso**: ✅ `App::start()` compone la escena desde un `GameDisplay` **declarativo**
+  (geometría + paleta + `intents` de copper por línea) y hace el `takeover`; la **213 ya no
+  nombra** `SceneResources`, `planar`, `compose`, `ocs_a500`, `BPLCON0`, `bind_scene` ni
+  `takeover`. Medido: 213 a **49,9 fps** (1 campo) tras la migración. El gradiente de la 213 se
+  declara como `GameDisplay::intents` (etapa `composition::intents`), sin que el juego vea la
+  copperlist. ⏳ el `GameDisplay` cubre un display planar base; multi-capa (DPF), tilemaps y el
+  reparto de recursos siguen en el planner pendiente (§7).
 
 ## 4. Assets tipados con formato resuelto
 
@@ -84,11 +117,29 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
   `INCBIN`, sin `Block<Tag>`, sin memcpy, sin `reserve<AudioTag>`.
 - **Progreso**: ✅ `eng::Assets` (`eng/api/assets.hpp`): `add<Tag>` (copia a Chip) + `music/sprite/bytes/palette`
   **por nombre**; la 213 ya **no** usa `res::load` ni `Block<BobTag>/<MusicTag>` (sprite y música por nombre). ✅ el
-  audio resuelve **formato** (detección por cabecera) y **buffer** (§2). ⏳ falta: el **bitmap de fondo** por nombre
-  (`bytes()` existe, pero la 213 copia a mano) y quitar el `INCBIN` del código de juego.
-- **Decisión (geometría del sprite)**: el `desc` (ancho/alto/planos/frames/stride) se queda como **dato del juego**
-  hasta que exista un **pipeline/tabla** que lo incruste con el blob (cabecera por asset). No se inventa un formato
-  ahora: incrustar geometría es decisión del pipeline, no del API.
+  audio resuelve **formato** (detección por cabecera) y **buffer** (§2). ✅ bitmap planar por nombre conserva
+  geometría/layout y se dibuja con `Screen::bitmap`; HOST-234 verifica datos y segmentación de jobs para
+  interleaved 320×256×5, y WinUAE muestra el bitmap en la 213. ✅ el `INCBIN` **sale del código de juego** a un
+   **manifiesto** (`demos/.../213/src/assets.manifest.hpp`) que expone los blobs por accesores
+   (`abyss::img_data()`/`img_size()`…); el código de juego ya no tiene rutas de assets ni `INCBIN` (medido:
+   49,9 fps y misma imagen). ✅ **generador implementado**: `tools/assets/gen-manifest.mjs` emite el header
+   desde `assets.manifest.json` —blobs + **geometría** (dimensiones/planos/frames)— más
+   `register_assets(Assets&)` que registra todo en una llamada; `Assets::add_sprite`/`sprite(name)` guardan y
+   recuperan la **geometría del sprite**, así el juego escribe `m_assets.sprite("bob")` sin `desc`. La 213 usa
+   ya el manifiesto generado (misma imagen, READY en WinUAE) y el gate `tools/check/asset-manifests.mjs`
+   garantiza que el header no diverge del JSON (corre en `run-host-tests.sh`/`test-regression.sh`). Detalle:
+   `docs/tools/ASSET_MANIFEST.md`. ⏳ falta el **pipeline binario cocinado** (UAF-R) para que el `path` sea un
+   asset empaquetado en vez de un `.bpl` suelto (hoy `INCBIN`), y geometría de audio si un juego la necesita.
+- **Decisión (geometría del sprite)**: el `desc` (ancho/alto/planos/frames/stride) **viaja en el manifiesto**
+   (JSON) y el engine lo guarda al registrar (`Assets::add_sprite`); el código de juego no lo escribe. El formato
+   binario de los blobs sigue siendo el del pipeline (UAF-R aparte).
+- **Nota (carga desde disco, compresión ZX0 y librerías dinámicas)**: la carga de assets **en runtime** desde el
+   sistema de archivos, la **descompresión ZX0** y la **carga/descarga de librerías dinámicas de Amiga**
+   (código/datos en Chip/Fast/Slow) son un frente propio, ya definido en
+   [`FILE_SYSTEM_AND_DYNAMIC_LIBRARIES.md`](../../engine/architecture/FILE_SYSTEM_AND_DYNAMIC_LIBRARIES.md) y
+   planificado como **R6** de [`ROADMAP_RESOURCES.md`](ROADMAP_RESOURCES.md) (R6.1 VFS, R6.4 `.engz`, R6.5 ZX0
+   genérico, R6.3 banco por segmento, R6.6 DynLoader). Este §4 cubre el borde **en tiempo de compilación**
+   (manifiesto + `INCBIN`); R6 cubre el camino **en runtime**.
 
 ## 5. Actores, animación y colisión (2D)
 
@@ -96,17 +147,149 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
   no hay animación ni colisión de juego (aunque exista `SpriteCollisionConfig`/`BobLayer`).
 - **Salida**: `Sprite`+`Anim` (frames, duración, `update()`), un `BobLayer`/`Actor` con orden/prioridad, y consultas de
   colisión simples (caja/píxel). El juego escribe `sprite(anim,i,x,y)`.
+- **Progreso**: ✅ **colisión de caja** ya existe (`eng::Box::overlaps`/`intersection`). ✅ **`eng::graphics::Anim`**
+  (`anim.hpp`): secuencia de frames con duración por frame, bucle/`play_once`, `update()`/`frame()`/`reset()` (la
+  demo escribe `screen().sprite(sheet, anim.frame(), x, y)`); sin reservas ni copias (vistas no propietarias).
+  ✅ **animación ligada**: `scene::BobActor` lleva su `graphics::Anim` (vistas no propietarias); `BobLayer::tick()`
+  la avanza y `emit` usa su frame (sin que el juego lleve el índice). ✅ **orden/prioridad**: `BobActor::z` y
+  `BobLayer::emit` ordena por `z` (inserción estable, sin heap); la fachada lo expone con `Screen::bobs(layer)`
+  sin que el juego vea `FramePlan`/`BobTarget`. HOST-354 lo cubre. ✅ **hojas heterogéneas**: `BobActor::sheet_index`
+  elige entre las `BobLayer::kMaxSheets` hojas. ✅ **demo con gate visual**: `demos/techniques/amiga/os/215_app_bobs`
+  (4 BOBs con `Anim`, orden por `z` —rojo delante del amarillo— y dos hojas; doble buffer sin tearing). ⏳ falta el
+  `Anim` **desde el asset** (geometría incrustada por el pipeline, §4) y más hojas por capa si un juego lo pide.
 
 ## 6. Escenas/estados de juego
 
 - **Problema**: no hay un gestor de estados (title→game→gameover) en la fachada.
 - **Salida**: `app.set_scene(...)`/`push`/`pop` con `enter/exit/update/render`; la música por escena se apoya en §2.
+- **Progreso**: ✅ `App::push_scene`/`pop_scene`/`set_scene`/`scene_depth` (`game.hpp`): pila de escenas
+  **sin heap ni vtable** (thunks de puntero a función, capacidad fija `kMaxScenes`). La escena superior
+  **sustituye** a `update`/`render` del `Game` (el `Game` sigue siendo el *composition root*); `enter`/`exit`
+  en las transiciones; hooks opcionales detectados con `requires`. HOST-240 (dispatch, `enter`/`exit`,
+  `set_scene`, hooks opcionales y capacidad). ✅ **música por escena**: `App::play_music(name)`/`stop_music()`
+  (§2) permiten que el `enter` de cada escena arranque su tema y una escena sin música la silencie; la
+  siguiente `play_music` detiene la anterior. ⏳ falta que la 213/plantilla usen una escena de título real.
 
 ## 7. Cámara y tilemap de juego
 
 - **Problema**: `XlimitedScene`/`field` son potentísimos pero de bajo nivel (scroll, modulos, EHB).
 - **Salida**: un `Tilemap`/`Camera` de juego que por debajo use ese motor; el juego escribe `camera.move(dx,dy)` y
   `map.tile(x,y)`.
+- **Progreso (interfaz de scroll)**: el vocabulario de juego ya no baja al metal. La capa declara su
+  scroll con `scene::ScrollSpec` (técnica + **período del mapa** en words + velocidad) vía
+  `Layer::set_scroll_spec(...)`; `scene::plan_region` deduce coste/memoria y el anillo correcto
+  (`scroll_ring_words`), degradando si no cabe (`degrade_scroll`: `Strip → Fine → None`). La técnica
+  `ScrollKind::Strip` (camino rápido de tiras, 50 fps) se dimensiona con
+  `field::StripScrollGeometry<…, MapWords>`, que deriva `ring = visible + período` y **garantiza por
+  `static_assert`** que la `span` del puntero es múltiplo del período del mapa (el fallo de contenido
+  al envolver queda imposible por construcción; HOST-244 lo verifica con un invariante de **contenido**
+  —ventana visible + palabra extra de fetch—, no solo de "pintado"). `Camera2D` (`move_by`/scroll) y
+  `World::add_tile_layer`/`Layer::camera()`/`Layer::tilemap()` ya existen. ✅ el **driver del camino de
+  tiras** es reutilizable: `field::StripScrollController<Geom, Map, Sink>` reúne CPU+Blitter
+  (`plan_strip_frame` → `compose_column` → blit) y la demo 128 ya **no** reimplementa la lógica; HOST-244
+  lo verifica end-to-end (contenido de la ventana + palabra extra). ✅ **capa de fachada**
+  `field::StripScrollLayer<Geom, Map, Backend>`: agrupa buffers + controlador + compositor; el juego solo
+  declara mapa/banco/paleta/tamaños y conduce con `frame()` (la demo 128 ya no ve el compositor). ✅ **`App`
+  la conduce**: `App::add_scroll_layer(layer)` la arranca (memoria + backend) y la conduce por frame tras el
+  `update` del juego (`pump_scroll_layers`); la capa implementa la **interfaz C++** `playfield::ScrollLayer<Backend>`
+  (sin `void*` ni punteros a función; la memoria llega **tipada** por `MemoryManager&`); HOST-240 lo cubre con un mock. ✅ **asset de tilemap** `field::TilemapView` (banco + mapa + paleta) ligado con
+  `StripScrollLayer::set_tilemap` (el juego no escribe el adaptador). ✅ **demo `App`** =
+   `demos/techniques/amiga/playfield/204_app_strip_scroll` (App + capa de tiras; el juego no ve el compositor;
+   scroll suave validado con Ollama). ✅ **seam público cerrado**: la fachada `eng/api/scroll.hpp`
+   (incluida por `api.hpp`) expone el **vocabulario** (`eng::ScrollSpec`/`ScrollKind`/`Camera2D`) y los
+   **motores** sin que el juego incluya `eng/field/*` (la 204/205 ya solo incluyen la fachada); la capa
+   acepta la **cámara del juego** por `track_camera` (posición px, para mapas toroidales) o
+   `follow_camera(camera)` (cualquier cámara con `x()`/`y()`, p. ej. `scene::Camera2D`, para mapas
+   acotados). ⏳ falta el **planner** que elija el motor **solo** (sin que el juego nombre
+   `Strip`/`Xlimited`) y una **cámara toroidal** (la `Camera2D` recorta a un mundo acotado); y que el
+   **pipeline** (§4) genere el banco ya empaquetado + el mapa como asset tipado (`app.assets().tilemap("n")`).
+
+### Plan del planner de capas de mundo (F4)
+
+El `App` ya materializa las capas **Fill** y **Bitmap** del `World` antes del `render` del juego
+(`materialize_world_layers`) y conduce las capas de scroll registradas (`pump_scroll_layers`); lo que
+falta es materializar una capa **Tilemap**. El planner cierra ese hueco, y tiene **tres decisiones**
+hoy no cerradas (por eso el juego aún nombra el motor):
+
+1. **Selección de motor vs geometría compile-time.** `StripScrollLayer`/`XlimitedScene` fijan su
+   geometría en **tiempo de compilación** (viewport/tiles/anillo), así que el `App` no puede elegirlos
+   con datos de runtime sin (a) un conjunto **canónico** de geometrías de juego, o (b) llevar la
+   geometría a runtime. Vía barata: (a) — una geometría canónica para el camino de juego, dejando el
+   resto a `eng/field` en las demos de técnica.
+2. **Modelo de cámara por tipo de mapa.** `scene::Camera2D` **recorta** a un mundo acotado (mapa
+   finito); un mapa **toroidal** necesita una posición px **sin recortar**. La fachada ya admite ambas
+   (`follow_camera` vs `track_camera`), pero falta que el planner **elija** la representación desde
+   `ScrollSpec` (`map_period_words == 0` ⇒ acotado; `!= 0` ⇒ toroidal).
+3. **Ranura de la capa en el `App`.** La interfaz `playfield::ScrollLayer<Backend>` ya abstrae el motor
+   (el `App` guarda `ScrollLayer<Backend>*`); falta que el `App` **posea** el motor (hoy lo declara el
+   juego) y le pase la cámara de la capa `World` automáticamente.
+
+**Pasos verificables** (cada uno con su gate): (a) ✅ `follow_camera`/`track_camera` (seam §7); (b)
+`ScrollSpec::map_period_words` conduce la elección acotado/toroidal; (c) ✅ **asa uniforme**: el
+**interfaz C++** `playfield::ScrollLayer<Backend>` (`field/scroll_layer.hpp`): `StripScrollLayer` la
+implementa y `XlimitedScene` se adapta con `XlimitedScrollLayer<Scene, Backend>`; `App::add_scroll_layer`
+conduce **cualquier** motor (tiras o corcóscru) por el mismo contrato, **sin `void*` ni punteros a
+función** y con la memoria **tipada** (`MemoryManager&`). La demo **203** se migró a `App` + `handle()`
+(F4: `World` Tilemap + motor declarado + `App`, sin `compose`/`FramePlan` en el juego) y mide
+**49,92 fps** (142 102 ciclos/frame, idéntico al camino directo ⇒ asa a coste cero). (d)
+✅ **tipo de fachada con geometría canónica de juego**: `eng::TileScroll<Backend, ViewportW,
+ViewportH, Planes, YTravelPx, MapPeriodWords>` (`api/scroll.hpp`) — el juego declara su viewport,
+planos, recorrido Y y período de mapa **sin nombrar** el motor ni la geometría del anillo; `set_tilemap`
+**deriva los tamaños** (el juego no calcula bytes). La **204** ya lo usa (imagen del pueblito coherente,
+READY). (e) ✅ **vocabulario declarativo común**: `playfield::ScrollPlan` (`field/scroll_plan.hpp`)
+reúne **geometría + política + contenido**; el camino de tiras lo consume con
+`StripScrollLayer::set_plan` (la 204 ya lo usa) y el corcóscru con `apply_scroll_plan(cfg, plan)`
+(siembra geometría/paleta sin pisar lo no declarado; **HOST-399**). ⏳ queda el caso **secundario**
+(config **no** conocida en compilación: editor/carga de disco), que exige llevar la geometría a
+runtime; el caso habitual (**config conocida**, incluso una por nivel) ya se escribe declarando el
+motor (`eng::TileScroll` / `XlimitedScrollLayer`) + el `ScrollPlan`.
+
+### Modelo del planner: vocabulario general + composición acotada (decidido)
+
+Para no caer en un «compilador de escena general» (sin cierre), el plano se separa en **intención**
+(general) y **composición** (acotada):
+
+- **Vocabulario de intención** (lo que el juego escribe): una *escena* es una lista de **capas**
+  (`scene::LayerPlan`), cada una con:
+  - **`Role`**: `Background` / `Foreground` / `Overlay` (semántica y orden de composición).
+  - **`Placement`**: `Full` | `Band{top,height}` | `Field{Pf1,Pf2}` (dónde se ve).
+  - **`ScrollPlan`** (ya existe, `field/scroll_plan.hpp`): geometría + política + contenido, **por
+    campo**; más **`Parallax{plane,div}`** opcional (plano de fondo con offset propio).
+- **Composición** (lo que hace el planner): mapea la lista a **una de tres estrategias** —y solo
+  esas—, fallando rápido si no encaja (el resto es **escape** a `eng::field`/demos de técnica):
+  | Estrategia | Cuándo | Mecanismo (ya existe) |
+  |---|---|---|
+  | `Single` | 1 campo a banda completa | `XlimitedScene` single / `Scene` |
+  | `Dpf` | 2 capas FG+BG a banda completa, en su field | `XlimitedDualConfig` (PF1/PF2) |
+  | `Bands` | ≥2 capas con `Placement::Band` apiladas | `copper::Plan` + `ModeSwitchZone` |
+  Combinables (una banda puede ser a su vez Dpf). El mecanismo **ya existe** (203/205/112 lo usan a
+  mano): el planner **unifica el disparo**, no inventa composición.
+
+**Escenarios que cubre** (los 5 de diseño):
+1. **DPF con distinto algoritmo por field** → dos capas `Field{Pf1}`/`Field{Pf2}` con su `ScrollPlan`
+   (una `linear_display` = XUnlimited sin split, la otra corkscrew); estrategia `Dpf`.
+2. **Split-aware (bobs/fills/CPU)** → el `DrawTarget` de cada **ventana** remapea Y por banda.
+   *Riesgo real*: acotado exponiendo los tramos (top/bottom) y recortando en `fill`/`bob`/CPU.
+3. **¿DPF o single?** → lo **deduce** el planner de las capas (2 capas a banda completa con roles
+   FG/BG) o el juego lo **fija**; mismo vocabulario.
+4. **RoboCod (1 fondo + 4 scroll, mismo field)** → capa `Background` con `Parallax{plane,div}`; o
+   `Dpf`. *Riesgo real*: el blit interleaved borra el plano de fondo → requiere **blit por plano**.
+5. **Split-screen (2 jugadores, mismo mapa)** → dos capas `Band{top,h}` cada una con su motor y su
+   cámara (XUnlimited/YUnlimited por campo); estrategia `Bands`.
+
+**Etapas** (cada una verificable): (1) ✅ vocabulario `LayerPlan`/`ScenePlan` + elección de estrategia
+(HOST-405); (2) ✅ estrategia `Dpf` (`apply_dpf_plan`; HOST-406, demos 203/202/112 migradas); (3) ✅
+`Bands` (split-screen): `plan_raster_layout` deriva el `RasterLayout` del plan + `plan_bands` valida
+los tramos (HOST-411/407; **129** compone la multi-ventana y enruta objetos con `emit_banded`);
+(4) ✅ split-aware (riesgo 2): `for_each_band_part`/`clip_to_band` (HOST-408; **129**); (5) ✅
+`Parallax`/blit por plano (riesgo 4): `playfield::robocod_bg_frame` reúne la copia de fondo (ventana +
+split + blanking + `bg_flip`) y la **112** lo usa (fondo coherente, READY). **Convergencia
+planner↔`RasterLayout`**: `plan_raster_layout` (HOST-411) hace reutilizable el mismo vocabulario en
+el camino de bajo nivel (127/129). **Geometría runtime (caso secundario / editor)**: la geometría del
+anillo calculada en runtime (`runtime_scroll_geometry`, HOST-412 — equivale al NTTP) + la
+`ScrollLadder` (HOST-413) permiten que el planner **elija el motor por geometría cargada** sin
+refactorizar el NTTP; el refactor que hace al motor consumir geometría runtime es el escalón
+siguiente.
 
 ## 8. Unificar el vocabulario
 
@@ -114,6 +297,15 @@ composición) puede ser lento; lo resoluble en compilación se resuelve con C++2
   `DisplayDesc`/`Band`/`RasterLayout`/`SceneResources`; `AudioSystem::play_sfx` vs `SfxMixer::play_on`.
 - **Salida**: un nombre por concepto en la capa pública; `field`→`playfield`; `Scene` reservado para el de **juego**.
   Regla ya escrita («una mecánica por eje, menos tipos») aplicada de verdad.
+- **Progreso**: ✅ `scene` desambiguado (`D7` de `ENGINE_STRUCTURE_REVIEW.md`). ✅ la fachada de juego
+  troceada por tema (`api/screen.hpp`, `api/display.hpp`, `api/world_render.hpp`; `api/game.hpp` de
+  familia); ver `D13`. ✅ **`field`→`playfield` completado**: el namespace canónico es ahora
+  `eng::playfield` (renombrado en todo el repo —engine, demos, tests—) y **`eng::field` queda como
+  alias deprecado** (`namespace field = playfield;` en `field/playfield.hpp`) para código externo no
+  migrado. ✅ **vocabulario de audio resuelto**: la fachada de juego expone `AudioSystem::play_sfx`
+  (elige canal) / `play_sfx_on` (canal explícito) / `stop_sfx`; `SfxMixer::play_on` es la API
+  **interna** del mezclador (solo la usan las demos de técnica de mezcla, 058/069/070/071). El juego
+  no ve `play_on`.
 
 ## 9. Plantilla y tutorial
 

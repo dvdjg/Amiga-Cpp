@@ -48,7 +48,7 @@ namespace {
 
 namespace obj = eng::object3d;
 namespace copper = eng::copper;
-namespace field = eng::field;
+namespace playfield = eng::playfield;
 namespace graphics = eng::graphics;
 
 // Geometria del original (256x256, 4 planos).
@@ -170,7 +170,7 @@ void transform_vertices(obj::Object3D& object) {
 	}
 }
 
-void draw_object(obj::Object3D& object, field::Surface& surf, graphics::FramePlan& plan,
+void draw_object(obj::Object3D& object, playfield::Surface& surf, graphics::FramePlan& plan,
 		 eng::u8 color) {
 	for (const eng::Ref<obj::Edge>& er : object.edges()) {
 		obj::Edge* edge = er.get();
@@ -213,7 +213,7 @@ struct WireframeDemo {
 		(void)m_lines_pf.bind_raw(m_bitplane_block.view.data(),
 					  static_cast<eng::u32>(m_bitplane_block.view.size()),
 					  kWidth, kHeight, kRing, kPlaneBytes);
-		m_lines_pf.set_rasterizer(&field::kBlitterRaster);
+		m_lines_pf.set_rasterizer(&playfield::kBlitterRaster);
 
 		for (eng::u8 a = 0; a < kRing; ++a) {
 			if (!build_copper(a)) {
@@ -252,7 +252,7 @@ struct WireframeDemo {
 		update_edge_visibility(m_object);
 		transform_vertices(m_object);
 		// Líneas por el seam: color = bit del plano activo (el Copper lo muestra como bit 3).
-		field::Surface surf {m_lines_pf, field::SurfaceRect {0, 0, kWidth, kHeight}};
+		playfield::Surface surf {m_lines_pf, playfield::SurfaceRect {0, 0, kWidth, kHeight}};
 		graphics::FramePlan plan {};
 		draw_object(m_object, surf, plan, static_cast<eng::u8>(1u << active));
 		if (!backend.execute_frame_plan(plan)) {
@@ -293,7 +293,7 @@ private:
 	bool m_memory_ok = false;
 	eng::u8 m_active = 0;
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
-	field::ContiguousPlayfield m_lines_pf {}; ///< lienzo contiguo para las líneas (seam)
+	playfield::ContiguousPlayfield m_lines_pf {}; ///< lienzo contiguo para las líneas (seam)
 	eng::Block<eng::CopperTag> m_copper_block {};
 	const eng::u16* m_copper_ptrs[kRing] = {nullptr, nullptr, nullptr, nullptr, nullptr};
 	eng::object3d::Object3D m_object {};

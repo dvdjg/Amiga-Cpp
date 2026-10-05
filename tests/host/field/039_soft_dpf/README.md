@@ -1,6 +1,6 @@
 # Test HOST-039: SoftDpfComposition (soft DPF extraído del playfield)
 
-Respalda `eng::field::SoftDpfComposition` (`engine/include/eng/field/soft_dpf.hpp`): la composición
+Respalda `eng::playfield::SoftDpfComposition` (`engine/include/eng/field/soft_dpf.hpp`): la composición
 soft DPF (RoboCod) extraída de `XLimitedPlayfield` — vista del plano de fondo con doble buffer +
 geometría + construcción de los blits de copia.
 

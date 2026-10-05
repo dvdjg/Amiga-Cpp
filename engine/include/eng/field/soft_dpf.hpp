@@ -23,7 +23,7 @@
 #include <eng/memory/arena.hpp>
 #include <eng/memory/memory_manager.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 /// Offset en píxeles de la ventana del patrón para un fondo con **parallax**
 /// (velocidad `1/div`): `src = -camx*(div-1)/div`, envuelto en `[0, period_px)`.
@@ -221,4 +221,4 @@ private:
 	Geometry m_geo {};
 };
 
-} // namespace eng::field
+} // namespace eng::playfield

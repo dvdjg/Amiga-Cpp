@@ -14,6 +14,19 @@ contexto irrelevante a quien trabaja en otra cosa.
 
 ---
 
+## 0. Regla de oro (obligatoria)
+
+- **Usar SIEMPRE Ollama (modelo de visión local) para verificar que el resultado se corresponde
+  con lo que se pretende.** No basta con que compile, pase tests host, dé los fps esperados o
+  produzca una captura estática: hay que **mirar la salida con el modelo de visión** y comprobar que
+  es lo que se buscaba (imagen correcta, movimiento suave, sin artefactos/huecos). Una captura única
+  **no** muestra el movimiento: para demos animadas, capturar **secuencia** y validar la dinámica.
+- Se aplica a toda demo/efecto/imagen: antes de dar algo por bueno, pasarlo por Ollama. Si el
+  resultado no se corresponde con la intención, está **mal** aunque el resto pase.
+- Procedimiento y herramientas: [`DEMO_VISUAL_DEBUG.md`](docs/guides/methodology/DEMO_VISUAL_DEBUG.md).
+
+---
+
 ## 1. Reglas generales (aplican a toda tarea)
 
 ### 1.1 Idioma
@@ -38,6 +51,7 @@ contexto irrelevante a quien trabaja en otra cosa.
 - **Todo documento de hallazgo o investigación queda indexado por tema en la misma pasada**, en dos niveles: (1) su README de carpeta (`docs/debugging/README.md`, `docs/reference/emulators/README.md`, …) con una fila descriptiva, y (2) si un programador lo buscaría por tema al tocar un dominio, una entrada en la tabla «tareas → documentación» de `docs/ai-dev-environment/DOC-MAP-PRINCIPAL.md` §3. Un hallazgo citado desde el código debe ser localizable por quien vaya a tocar ese código. El **nombre** del fichero es kebab-case, con prefijo `NNN_` solo si el doc es de una demo concreta. Se verifica con `node tools/check/doc-index.mjs` (áreas declaradas en `tools/check/doc-index-areas.txt`, sin tocar código; corre en `tools/run-host-tests.sh` y `tools/test-regression.sh`).
 - **Los enlaces relativos de la documentación no deben quedar rotos**: `node tools/check/links.mjs` los valida y corre en `tools/test-regression.sh` y `tools/run-host-tests.sh`. La deuda histórica se acepta de forma explícita en `tools/check/links-baseline.txt`; regenerar con `--update-baseline` solo si se decide aceptar roturas nuevas.
 - Protocolo detallado de ingesta de repos/referencias externas: §6 de `docs/ai-dev-environment/DOC-MAP-PRINCIPAL.md`.
+- **Consultas a IA externa (Grok): preguntar SIEMPRE en inglés** (responde mejor en ese idioma). Si la consulta se redacta primero en castellano, guardar también la versión en inglés (`*-en.md`) y pasarle esa. Las consultas autocontenidas viven en `docs/debugging/investigaciones/` (`consulta-*.md`).
 
 ### 1.4 Encoding y finales de línea
 
@@ -121,6 +135,12 @@ El objetivo es que el usuario pueda **revisar** el trabajo antes de que se conso
 - **Sin bajo nivel gratuito**: la lógica de la demo usa la fachada (`eng/api/api.hpp` + tipos de dominio); no nombra registros del chipset, punteros crudos, `BlitJob`, bancos de memoria ni tipos del backend. Si algo obliga a bajar, es una abstracción que falta (§1.9) y se resuelve en el engine — no se deja crudo en la demo.
 - **El comentario enseña la regla, no el paso a paso de la máquina**: nada de narrar cronología ni intentos descartados (eso va a `docs/debugging/`); el `README.md` de la demo presenta el efecto, la técnica (con su ficha en `docs/reference/`) y el contrato que ilustra.
 
+### 1.14 No cerrar el turno por criterio propio
+
+- **El turno se cierra cuando el trabajo pedido está terminado, no antes.** No se corta por longitud, cansancio, presupuesto percibido ni por «dejar margen»: se sigue trabajando hasta completar lo encomendado.
+- **Única excepción —discrepancia técnica—:** se corta el turno (y se **pregunta al usuario**) solo cuando se cree que **no se puede resolver un punto por una discrepancia técnica** y se prefiere su decisión antes de continuar. En ese caso, se nombra el bloqueo y las opciones concretas.
+- Entregar trabajo **parcial como si fuera el final** sin que medie (a) trabajo terminado o (b) un bloqueo técnico declarado se considera un **fallo de proceso**. Si algo queda a medias, se dice explícitamente qué falta y por qué, no se disfraza de cierre.
+
 ---
 
 ## 2. El repositorio
@@ -159,17 +179,30 @@ Reglas críticas:
 
 ## 3. Operación (build / run / analyze)
 
+### Objetivos de rendimiento y estabilidad visual de demos Amiga
+
+- Objetivo de cierre: **un frame de juego completado por cada VBlank PAL** (frecuencia nominal Amiga de 50 Hz; WinUAE suele reportar aproximadamente 49,9–50,0 fps) y **cero flicker/tearing**. Una demo cuyo efecto principal sea relleno de polígonos debe alcanzar al menos **25 fps**. Al medir, registrar fps/ciclos por frame y comparar implementaciones A/B equivalentes para cuantificar el coste de la abstracción; una diferencia menor que la resolución/ruido del medidor se informa como «no medible», no como coste cero absoluto.
+- Medir, no inferir: usar `node tools/debug/measure-fps.mjs <demoId> A500_debug --json`; para diagnóstico, perfilar con `node tools/debug/profile.mjs <demoId> A500_debug` o `node tools/debug/winuae-profile.mjs <demoId> A500_debug <frames>`. Registrar medidas en `docs/guides/roadmap/BITACORA_SCROLL_TILES.md` con `tools/debug/record-fps.mjs`.
+- Para flicker, ejecutar `tools/test-regression.sh --flicker --require-flicker-ok --demo <ruta>` y declarar `flicker-baseline.json` con `max_candidates: 0` y `max_blocks_low: 0` cuando la secuencia esté limpia. Pasar flicker no sustituye el contrato de movimiento de la demo.
+- Si no cumple FPS/flicker, la demo queda **abierta/no verificada**; no relajar el umbral ni alterar telemetría/cadencia para simular cumplimiento. Perfilar el hotspot y optimizar el trabajo real del frame.
+
+### Literales numéricos semánticos
+
+- Los literales con significado deben quedar explicados en el mismo uso o en un comentario inmediatamente anterior; si la explicación necesita contexto, enlazar/citar su fuente canónica. Se pueden dejar como literales cuando la constante nombrada añadiría ruido.
+- Usar `constexpr` cuando el valor tenga un nombre de dominio claro, se reutilice o haga más legible la configuración. Mantener el conjunto pequeño y coherente; no crear una constante por cada número. Antes de declarar límites derivados del hardware, buscar y reutilizar los existentes.
+- Ejemplo: `mark_failed(status, 0x00021303u)` debe documentar qué etapa de init representa o usar un identificador semántico si esos códigos se consultan en más de un sitio. En cambio, dimensiones y factores usados una sola vez pueden seguir literales si el comentario cercano explica su papel.
+
 ### 3.1 Herramientas locales
 
-Windows nativo + Git Bash + Node.js. **No usar WSL** para invocar binarios `.exe` del toolchain. El toolchain Amiga se resuelve por `AMIGA_BIN_PATH` y luego por las extensiones Bartman. Detalle completo: `docs/build/BUILD_AND_RUN.md` §Herramientas locales requeridas.
+Windows nativo + Git Bash + Node.js. **No usar WSL** ni un `bash` sin ruta absoluta para invocar binarios `.exe` del toolchain: puede resolver a WSL y no ejecutar el GCC de Windows. En este workspace, el toolchain está en `../vscode-amiga-debug/bin/win32`; exporta esa carpeta como `AMIGA_BIN_PATH`, comprueba `opt/bin/m68k-amiga-elf-g++.exe` y lanza build/run/analyze/regression desde PowerShell con `& 'C:\Program Files\Git\bin\bash.exe' <script> ...`. Los scripts también detectan las extensiones Bartman en `%USERPROFILE%\.cursor\extensions` y `%USERPROFILE%\.vscode\extensions`, y el build elige el GCC más reciente entre candidatos válidos. Receta y comandos completos: `docs/build/BUILD_AND_RUN.md` §Requisitos y §Compilar una demo.
 
 ### 3.2 Comandos canónicos
 
-- Compilar una demo: `bash ./tools/build/build-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23 --debug --clean`
-- Ejecutar una demo y capturar: `bash ./tools/run/run-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23`
-- Analizar una demo: `bash ./tools/analyze/analyze-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23`
-- Regresión completa: `bash ./tools/test-regression.sh`
-- Bucle de regresión de una demo: `bash ./tools/test-regression.sh --demo demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver --warp`
+- Compilar una demo desde PowerShell: `& 'C:\Program Files\Git\bin\bash.exe' ./tools/build/build-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23 --debug --clean`
+- Ejecutar una demo y capturar: `& 'C:\Program Files\Git\bin\bash.exe' ./tools/run/run-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23`
+- Analizar una demo: `& 'C:\Program Files\Git\bin\bash.exe' ./tools/analyze/analyze-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23`
+- Regresión completa: `& 'C:\Program Files\Git\bin\bash.exe' ./tools/test-regression.sh`
+- Bucle de regresión de una demo: `& 'C:\Program Files\Git\bin\bash.exe' ./tools/test-regression.sh --demo demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver --warp`
 
 ### 3.3 Orden de verificación (no saltar)
 

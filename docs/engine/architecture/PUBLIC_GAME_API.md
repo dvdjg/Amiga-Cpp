@@ -19,8 +19,8 @@ construye materialización en la app. El diagnóstico actualizado está en
 | Área | Existe hoy (interno) | Falta (objetivo) |
 |---|---|---|
 | Bucle | `eng::App` oculta `backend`/`GameContext` en `init/update/render` | Un ejemplo 2D completo de nivel A, sin configuración manual de memoria/escena |
-| Display/escena | `Scene`/`scene::compose` y `App::bind_scene` existen | `World`/capas con materializador para fondo y tilemap; hoy el planner completo de capas falta |
-| Dibujo | `Screen` ofrece primitivas y `sprite` | Retirar `Screen::target()` de la ruta normal; `Screen::blit` aún expone stride/planos/shift/operación |
+| Display/escena | `App::start()` compone/posee el display y materializa fondos Fill desde `World`, aplicando cámara; `Screen::bitmap` dibuja un bitmap planar de asset | Materializador de tilemap y planner de composición de múltiples capas |
+| Dibujo | `Screen` ofrece primitivas, `sprite` y copia de bitmap planar por asset | Retirar `Screen::target()` de la ruta normal; `Screen::blit` aún expone stride/planos/shift/operación |
 | Entrada | `input::InputAggregator` (estado por frame) | Fachada de acciones + (mini-SO de mensajes, documentado) |
 | Tareas de fondo | `task::BackgroundQueue` | Fachada `tasks()` |
 | Blitter/efectos | `FramePlan` (jobs), `graphics::blitter_state` (`OrBob`/`LineEor`/`C2p4`) | Efectos como concepto (`world.add_effect`) |
@@ -35,8 +35,10 @@ construye materialización en la app. El diagnóstico actualizado está en
 ```cpp
 // main.cpp de un juego
 eng::amiga::AmigaBackend backend {};
+if (!backend.configure_game_memory()) return; // perfil editable seleccionado desde HwInfo
 MyGame game {};
-eng::App app {backend, game};   // junta bucle + pantalla + entrada + tareas
+eng::App app {backend, game, backend.memory_manager()};
+if (!app.start()) return;       // compone y posee el display declarado por GameDisplay
 app.run();                       // bucle por defecto (interrupt-driven, sin polling)
 ```
 
@@ -57,7 +59,9 @@ struct MyGame {
 | `app.input()` | estado de entrada del frame | `input::InputAggregator` (vía `poll_input`) |
 | `app.audio()` | audio del backend (SFX + música) | `backend.audio()` |
 | `app.tasks()` | tareas de fondo | `context.background` |
-| `app.scene()` | la escena (para configurarla en `init`) | `scene::Scene` |
+| `app.start()` | compone, posee e instala el display antes de `run()` | `scene::compose` + `Scene::takeover` |
+| `app.add_background(id, depth, bounds, color)` | declara una región Fill opaca en coordenadas de mundo; `App` la traslada con cámara y presenta antes de `Game::render` | `scene::World` + `Screen::fill` |
+| `app.shutdown()` | detiene DMA/presentación antes de liberar la escena | ciclo de vida interno de `Scene` + backend |
 | `app.present()` | publica el frame (copper/swap) | `scene.commit()`/`present()` |
 
 **Efectos** (borrador, `eng/api/effects.hpp`): el juego pide el efecto, no la secuencia de
@@ -74,18 +78,35 @@ fx.end_frame(scene, backend);                                    // flip + insta
 
 `Screen` es la envoltura de dibujo disponible, pero aún no es el contexto de dominio final:
 `Screen::target()` devuelve `field::DrawTarget&`, y `Screen::blit` recibe layout/strides/planos.
-Un juego debe preferir las primitivas de `Screen`; el acceso al target se considera fuga conocida y
-la operación de blit debe migrar a un asset/surface con geometría autocontenida.
+Para imágenes planares registradas con `Assets::add_bitmap`, `Screen::bitmap(assets.bitmap(name), box)`
+usa la geometría y el layout asociados al asset; el acceso al target y el blit genérico se consideran
+fugas conocidas.
 
 ```cpp
 eng::Screen& s = app.screen();
 s.clear(0);
-s.fill({10, 10, 40, 12}, color);
+s.fill({10, 10, 40, 12}, color);            // inmediato (rasterizador)
+s.fill_box({10, 24, 40, 12}, color);        // diferido (Blitter, D=A sin fetch de D)
 s.frame({8, 8, 100, 40}, color);
 s.line(0, 0, 319, 0, color);
 s.text(4, 4, "hola", color);
 s.sprite(...);            // cuando exista el sistema de objetos
 app.present();            // ejecuta el plan del frame y publica
+```
+
+### 2.0 Estados de escena — `App::push_scene`/`pop_scene`/`set_scene`
+
+Un juego con estados (title→game→gameover) apila **escenas** sobre el `Game`. Mientras haya una escena
+en la pila, su `update`/`render` **sustituyen** a los del `Game`; `enter`/`exit` se llaman en las
+transiciones (y son opcionales). Sin heap ni vtable: capacidad fija `kMaxScenes` y despacho por thunks.
+Ver `tests/host/ui/240_app_scenes`.
+
+```cpp
+struct Title {
+    void enter(eng::App& app) { app.play_music("title"); }   // música por escena (§2+§6)
+    void update(eng::App& app) { if (app.input().pad0.fire) app.set_scene(m_menu); }
+    void render(eng::App& app) { app.screen().text(8, 8, "PULSA FUEGO"); }
+};
 ```
 
 ## 2.1 Contrato de las abstracciones de juego (dibujo, color, scroll, recursos)
@@ -138,6 +159,55 @@ s.sprite(nave, 100, 40);                         // los objetos van en coordenad
 ```
 
 Reutiliza `scene::Camera2D` (`virtual_scene.hpp`) y `TileScrollDriver`/`FineScroll`; el `scroll_x` de la cámara es lo que hoy se parchea a mano en `BPLCON1` (en la 213, un `PatchHandle`). **Estado (aditivo):** `eng/scene/world.hpp` da `app.world().add_layer("fondo", 0)` → `Ref<Layer>` (anulable si el mundo está lleno) y `layer->camera().scroll_x`/`set_scroll_x(...)`; el **planner** que materializa cada capa (playfield/tilemap/efecto) y el reparto de recursos se construyen encima. Gates: `214_app_sprite` (cámara de capa moviendo el sprite, HOST-327) y las demos de scroll por tiles.
+
+#### Scroll de capa: vocabulario y motores (`eng/api/scroll.hpp`)
+
+El scroll se separa en **dos capas** que la fachada (`eng/api/scroll.hpp`, incluida por `api.hpp`) fija para que el juego no incluya `eng/field/*`:
+
+- **Vocabulario de juego** (datos sin hardware): `eng::ScrollSpec` —técnica pedida (`ScrollKind`), período del mapa toroidal (`map_period_words`) y velocidad— y `eng::Camera2D` —la ventana al mundo (`move_by`/`scroll_x`/`scroll_y`).
+- **Motores** (los construye/posee el engine): `playfield::StripScrollLayer` (camino de tiras, 50 fps single) y `playfield::XlimitedScene` (corcóscru XYLimited). El juego los **registra** con `App::add_scroll_layer` —que los arranca con su memoria y su backend y los **conduce por frame**— y los alimenta con su cámara.
+
+```cpp
+// setup (Game::init)
+m_layer.set_tilemap(tilemap);              // asset: banco + mapa (ids de tile) + paleta
+m_layer.set_sizes(ring_bytes, column_bytes);
+m_layer.track_camera(&m_cam_x, &m_cam_y);  // cámara = posición (px) de mundo; la capa la sigue
+app.add_scroll_layer(m_layer);             // una línea: arranque + conducción por frame
+// por frame (Game::update)
+m_cam_x += vx;  m_cam_y += vy;             // el vocabulario de juego
+```
+
+Un mapa **acotado** usa `follow_camera(layer->camera())` (`scene::Camera2D` recorta a sus límites); un mapa **toroidal** usa `track_camera` con una posición `s32` sin recortar (el motor envuelve). Elegir la representación de cámara por tipo de mapa es la línea que cierra el **planner de cámara/tilemap** (`ROADMAP_GAME_API.md` §7); hasta entonces el juego elige el motor y declara su cámara con el tipo que le corresponde. Gates: `204_app_strip_scroll` (App + capa de tiras, validada con Ollama) y `205_xy_limited_scroll` (corcóscru).
+
+#### Planner de escena: vocabulario + estrategias (`eng/scene/plan.hpp`)
+
+Para **componer la pantalla** sin bajar al metal, el juego declara una **escena** como lista de capas
+y el planner la resuelve. Vocabulario (en `eng/scene/`, reexportable por la fachada):
+
+- **`scene::ScenePlan`** (→ **`LayerPlan`**): cada capa declara su **`LayerRole`**
+  (`Background`/`Foreground`/`Overlay`), su **`LayerPlacement`** (`top`/`height`/`field`) y su
+  **`LayerContent`** (`Scroll` = campo con `ScrollPlan`, o `Canvas` = lienzo estático), más su
+  **`playfield::ScrollPlan`** (geometría + política + contenido + `Parallax`).
+- **`scene::choose_strategy`** elige la **estrategia acotada**: `Single` (un campo), `Dpf` (dos campos,
+  PF1 delante + PF2 detrás) o `Bands` (bandas apiladas = split-screen); lo que no encaja es
+  `Unsupported` (**escape** a `eng::field`).
+
+**Estrategias implementadas y reutilizables:**
+
+| Helper | Qué hace | Camino |
+|---|---|---|
+| `apply_dpf_plan(cfg, plan)` | siembra geometría/paleta + roles del DPF en una `XlimitedSceneConfig` | escena (`XlimitedScene`) |
+| `plan_raster_layout(plan, views, out)` | deriva un `scene::RasterLayout` (Single/Dpf/Bands) del plan | **bajo nivel** (`RasterLayout`) |
+| `plan_bands(layers, rows, out)` | valida el layout de bandas y da los tramos `{top,height,rol}` | split-screen |
+| **`App::present_layout(layout)`** / **`present_scene(bands)`** | el **`App` posee la composición**: materializa la copperlist (bloque Chip) y hace el `takeover` del `RasterLayout`/bandas | **fachada** (`App`) |
+| `App::emit_bobs_banded(layer, targets)` / `(…, bands, targets)` | enruta los BOBs al `BobTarget` de cada banda (del plan de escena o explícitas) | **fachada** (`App`) |
+| `BobLayer::emit_banded` / `fast` / `for_each_band_part` | enruta objetos/dibujos a su **banda** | objeto |
+
+Así el **mismo vocabulario** sirve al camino de escena (`XlimitedScene`, demos 203/112), al de
+**fachada** (split-screen por el `App`, demo 131) y al de **bajo nivel** (`RasterLayout`, demos
+127/129/202). Gates: **HOST-240/405..408/411** + demos 127/129/131/202 (migradas; imagen validada).
+Pendiente (`ROADMAP_GAME_API.md` §7): que el motor **consuma geometría runtime** (hoy el `App` elige
+entre motores NTTP por `ScrollLadder`) y la cámara toroidal.
 
 ### 2.1.4 Recursos — `app.load<T>(...)` y presupuesto
 

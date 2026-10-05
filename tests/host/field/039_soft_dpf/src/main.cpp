@@ -2,7 +2,7 @@
 // Test HOST-039: SoftDpfComposition (composición soft DPF extraída del playfield)
 // ============================================================================
 //
-// Valida `eng::field::SoftDpfComposition` con punteros crudos: geometría, doble
+// Valida `eng::playfield::SoftDpfComposition` con punteros crudos: geometría, doble
 // buffer, y la construcción del blit de copia del patrón (destino en el buffer
 // trasero, origen con el shift del barrel shifter, módulos).
 
@@ -16,8 +16,8 @@ int g_fail = 0;
 void check(bool ok, const char* what) {
 	if (!ok) { std::printf("[FAIL] %s\n", what); ++g_fail; }
 }
-using eng::field::SoftDpfComposition;
-using eng::field::bg_shift_for;
+using eng::playfield::SoftDpfComposition;
+using eng::playfield::bg_shift_for;
 } // namespace
 
 int main() {

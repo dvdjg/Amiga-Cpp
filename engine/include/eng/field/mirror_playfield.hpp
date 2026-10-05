@@ -19,7 +19,7 @@
 #include <eng/memory/arena.hpp>
 #include <eng/memory/memory_manager.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 struct MirrorScrollConfig {
     u16 world_w = 0;    // ancho del bitmap (mundo horizontal)
@@ -94,4 +94,4 @@ private:
     s32 m_dir_x = 1;
 };
 
-} // namespace eng::field
+} // namespace eng::playfield

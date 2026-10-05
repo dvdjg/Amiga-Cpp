@@ -182,6 +182,30 @@ inline eng::u32 row_offset(eng::s16 y, eng::u16 row_bytes) {
 	return static_cast<eng::u32>(r);
 }
 
+/// Rellena un rectangulo de palabras de UN plano con un valor constante por hardware:
+/// canal A **deshabilitado como puntero** (usa `BLTADAT`, AHRM 3rd: «for a source channel,
+/// the constant value stored in the data register ... will be used for each blitter cycle»)
+/// y minterm `D = A` (`$F0`); `BLTAFWM`/`BLTALWM` recortan los bits fuera del rect en la
+/// primera y ultima palabra, de modo que **no hace falta guardar/restaurar los bordes por
+/// CPU**. `wx0` = x (pixel) de la primera palabra; `afwm`/`alwm` = mascaras de borde.
+inline void blit_fill_region(eng::u8* plane, eng::u16 row_stride, eng::u16 wx0, eng::s16 y,
+			     eng::u16 words, eng::u16 h, eng::u16 fill, eng::u16 afwm,
+			     eng::u16 alwm) {
+	eng::u8* d = plane + row_offset(y, row_stride) + (wx0 >> 3);
+	const eng::u16 mod = static_cast<eng::u16>(row_stride - words * 2u);
+	wait_blitter();
+	custom_base[custom_bltcon0_offset] =
+		static_cast<eng::u16>(blt_use_a | blt_use_d | eng::graphics::kBlitterMintermCopyA);
+	custom_base[custom_bltcon1_offset] = 0;
+	custom_base[custom_bltadat_offset] = fill; // A constante (canal A sin puntero)
+	custom_base[custom_bltamod_offset] = 0;
+	custom_base[custom_bltafwm_offset] = afwm;
+	custom_base[custom_bltalwm_offset] = alwm;
+	custom_base[custom_bltdmod_offset] = mod;
+	write_custom_pointer(custom_bltdpt_offset, d);
+	custom_base[custom_bltsize_offset] = static_cast<eng::u16>((h << 6) | words);
+}
+
 /// Borra una region de palabras (D=0) en un plano planar.
 inline void blit_clear_region(eng::u8* plane, eng::u16 row_bytes, eng::u16 wx0, eng::s16 y,
 		       eng::u16 words, eng::u16 h) {

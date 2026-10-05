@@ -23,6 +23,7 @@
 #include <eng/core/types/types.hpp>
 #include <eng/core/types/typed.hpp>
 #include <eng/core/util/binary.hpp>
+#include <eng/debug/mem_probe.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/memory/memory_manager.hpp>
 #include <eng/os/file.hpp>
@@ -63,6 +64,28 @@ template <> struct DomainAsset<AudioTag> {
 	static constexpr u32 align = 4u;
 };
 
+/// Refresca la **sonda** (`g_mem_probe`) con el estado del banco del dominio de `Tag` y registra
+/// el fallo. La llama `load` cuando una reserva no cabe: es el punto único por el que pasan los
+/// assets, así el diagnóstico queda poblado sin que cada demo instrumente a mano. Ver
+/// `eng/debug/mem_probe.hpp` y `tools/debug/mem-probe.mjs`.
+template <class Tag>
+inline void probe_reserve_failure(MemoryManager& mm, u32 requested) noexcept {
+	constexpr MemoryKind kind = DomainAsset<Tag>::kind;
+	const auto refresh = [&](const auto& bank) {
+		const auto snap = bank.snapshot();
+		debug::refresh_mem_probe(kind, snap.capacity, snap.used, snap.remaining, snap.peak,
+					 bank.block_count(), static_cast<u32>(bank.status()));
+		debug::record_mem_failure(kind, requested, static_cast<u32>(bank.status()));
+	};
+	if (kind == MemoryKind::Chip) {
+		refresh(mm.chip());
+	} else if (kind == MemoryKind::Slow) {
+		refresh(mm.slow());
+	} else {
+		refresh(mm.fast());
+	}
+}
+
 /// **Carga tipada con los bancos** (`MemoryManager`): la puerta única. DMA
 /// (`DomainAsset<Tag>::kind == Chip`) -> `MemBank<Chip>`; datos de CPU -> **Fast si la hay, si no
 /// Slow** (`fast_or_slow`). Copia **una vez** (típicamente en `init`; no es camino caliente).
@@ -77,6 +100,8 @@ template <class Tag>
 				   ? Block<Tag> {mm.chip().reserve<Tag>(need, DomainAsset<Tag>::align)}
 				   : fast_or_slow<Tag>(mm, need, DomainAsset<Tag>::align);
 	if (!block.valid()) {
+		// Punto único de fallo de carga de assets: deja el diagnóstico en `g_mem_probe`.
+		probe_reserve_failure<Tag>(mm, need);
 		return {};
 	}
 	eng::util::ByteReader reader {src};

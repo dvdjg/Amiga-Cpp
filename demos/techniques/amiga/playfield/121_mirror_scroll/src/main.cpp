@@ -16,9 +16,9 @@
 // en Chip RAM) pero limitado a campos ≤214 px; el espejo paga 2× el alto del
 // bucle en memoria a cambio de scroll vertical completo y sin artefacto.
 //
-// Superficie y mapper en el engine: `eng::field::MirrorScrollPlayfield` (bitmap
+// Superficie y mapper en el engine: `eng::playfield::MirrorScrollPlayfield` (bitmap
 // con espejo + cámara X saturada, Y envolvente) sobre el mapper flat
-// `eng::field::map_flat_scroll` (HOST-061). Art: atlas *Beginning Fields* a 8
+// `eng::playfield::map_flat_scroll` (HOST-061). Art: atlas *Beginning Fields* a 8
 // colores desde el banco X-Limited incrustado en `.MEMF_CHIP`.
 
 #include <eng/api/api.hpp>
@@ -56,7 +56,7 @@ extern "C" const unsigned int g_tilebank_xlimited_size;
 
 namespace {
 
-namespace field = eng::field;
+namespace playfield = eng::playfield;
 
 constexpr eng::u16 kWorldW = 448;
 constexpr eng::u16 kViewW = 320;
@@ -69,8 +69,8 @@ constexpr eng::u32 kChipNeed =
 	static_cast<eng::u32>(kRowBytes) * (kDisplayH * 2u) * kPlanes + 2u * 1536u + 64u;
 
 struct DemoGame {
-	field::MirrorScrollPlayfield m_pf {};
-	field::XlimitedDisplayComposer m_comp {};
+	playfield::MirrorScrollPlayfield m_pf {};
+	playfield::XlimitedDisplayComposer m_comp {};
 	eng::u16 m_palette[8] {};
 	bool m_ready = false;
 
@@ -87,7 +87,7 @@ struct DemoGame {
 		build_palette();
 		fill_loop();
 
-		field::XlimitedDisplayComposer::Config cfg {};
+		playfield::XlimitedDisplayComposer::Config cfg {};
 		cfg.palette = eng::PaletteWords { m_palette, 8u };
 		cfg.copper_bytes = 1536u;
 		cfg.planes = kPlanes;

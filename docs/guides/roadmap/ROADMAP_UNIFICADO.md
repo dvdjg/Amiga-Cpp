@@ -86,10 +86,17 @@ scratch** (el `detail≈9861` de la 275, ya documentado en su README) y sacarlo 
 ## Estado real del engine y las demos (2026-09)
 
 - **Scroll**: corkscrew 8-way X-Limited (`XLimitedPlayfield` + `ScrollEngine` +
-  `ScrollSink`), tiles interleaved de 320 px, wrap toroidal, anillo vertical. **En refactor**:
-  el modelo objetivo separa algoritmo/superficie/composición/máquina
+  `ScrollSink`), tiles interleaved de 320 px, wrap toroidal, anillo vertical. Además, el
+  **camino de tiras** (Copper ring + tira entrante) a **50 fps single** (`field/strip_scroller.hpp`
+  + `strip_composer.hpp`, HOST-244/245; demo 128) queda **cerrado como algoritmo**: la interfaz de
+  juego es `scene::ScrollSpec` (técnica + período de mapa + velocidad) en la capa, y
+  `field::StripScrollGeometry<…, MapWords>` deriva el anillo correcto (`visible + período`) e
+  impide por `static_assert`/invariante de contenido el descuadre al envolver. El modelo objetivo
+  separa algoritmo/superficie/composición/máquina
   (`docs/engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md`) con plan en
-  `docs/guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md`.
+  `docs/guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md`; el scroll horizontal sigue **estable** (sin
+  más cambios de algoritmo) y el frente abierto pasa a la fachada de juego (§7 de
+  `ROADMAP_GAME_API.md`).
 - **DPF 3+3** (`XlimitedDualComposer` + `XlimitedScene`): dos playfields con
   banco/mapa/paso propios, transparencia del FG (PF1 color 0), `BPLCON1` por
   campo; bancos reales por campo a 3..6 planos (`blocks_prebuilt`, `blocks_prebuilt2`).
@@ -475,6 +482,18 @@ desarrolla en varios turnos; el orden es 1→2→3.
   objetos: nave con barrido vertical + balas), `analyze` OK y telemetría de cámara.
   Pendiente fino: `y_mode` `Finite` para un Y corto *con* scroll (hoy Y fijo), si un
   juego lo necesita.
+- ✅ Consumer vertical-slice `203_world_tilemap_xlimited`: `World::TileLayer` →
+  `WorldTileMapView` → `XlimitedScene`, compilado y llega a READY en WinUAE/A500.
+  **Contrato, estabilidad y overhead verificados:** regresión con READY, 8 frames distintos,
+  pixel contract PASS, `--flicker --require-flicker-ok` PASS (cero candidatos y bloques
+  tras compensación de paneo; prueba sintética conserva sensibilidad a flicker/corrupción)
+  y análisis de visión sin anomalías. Las filas de tiles se precalculan conservando el
+  patrón. **A/B de abstracción:** el mismo driver/mapa con `WorldTileMapView` y con
+  `TileLayerMap` directo midieron ambos 142 102 ciclos/frame y 49,92 fps en ventanas de 60 s;
+  overhead medible del adaptador en el bucle: 0 ciclos/frame dentro de la resolución del contador.
+  Aceptación PAL: un update por VBlank nominal (~49,9–50 Hz); la cifra cumple. HOST-336
+  pasa al compilar y ejecutar directamente con MinGW nativo; el wrapper bash de host no puede
+  ejecutar ese PE en Git Bash por formato.
 - ✅ Parte 3: demo **`112_xlimited_robocod`** — XYLimited de **5 planos** con el
   plano 4 de **fondo geométrico con parallax RoboCod** (`parallax_plane=4`,
   `parallax_div=2`: su `BPLxPT` avanza a la mitad), paleta de 32 índices mapeada a

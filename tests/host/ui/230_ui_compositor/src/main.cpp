@@ -49,10 +49,10 @@ int main() {
 	alignas(2) eng::u8 mem_a[128u * 4u] {};
 	alignas(2) eng::u8 mem_b[128u * 4u] {};
 
-	eng::field::ContiguousPlayfield screen_pf {};
+	eng::playfield::ContiguousPlayfield screen_pf {};
 	check(screen_pf.bind_raw(screen_mem, sizeof(screen_mem), kSW, kSH, kPlanes),
 	      "bind_raw pantalla");
-	eng::field::Surface screen {screen_pf, eng::field::SurfaceRect {0, 0, kSW, kSH}};
+	eng::playfield::Surface screen {screen_pf, eng::playfield::SurfaceRect {0, 0, kSW, kSH}};
 
 	eng::ui::Compositor comp;
 	comp.set_screen(screen);

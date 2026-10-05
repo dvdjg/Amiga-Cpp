@@ -1,6 +1,6 @@
 # HOST-061 — `map_flat_scroll` (mapper de virtual playfield)
 
-Valida `eng::field::map_flat_scroll` (`engine/include/eng/field/amiga_display_mapper.hpp`), la
+Valida `eng::playfield::map_flat_scroll` (`engine/include/eng/field/amiga_display_mapper.hpp`), la
 traducción **neutral** de la cámara de un bitmap flat a los registros del display (fetch ancho
 `DDFSTRT=$30`): `planeaddx`, `planeaddy`, `BPLCON1` y `BPLMOD`. Aísla el mapper de la superficie y
 del Copper (modelo objetivo §5 de `PLAYFIELD_SCROLL_ARCHITECTURE.md`).
@@ -22,6 +22,6 @@ bash tools/run-host-tests.sh tests/host/field/061_flat_mapper
 ## Relación
 
 - Estrategia de cámara: `BigBufferScroll` (HOST-044).
-- Consumidor: `eng::field::FlatScrollPlayfield` (`flat_playfield.hpp`), verificado por la demo
+- Consumidor: `eng::playfield::FlatScrollPlayfield` (`flat_playfield.hpp`), verificado por la demo
   `demos/techniques/amiga/playfield/120_virtual_playfield`.
 - Fórmula de referencia: `engine/include/eng/graphics/drivers/tile_scroll.hpp`.

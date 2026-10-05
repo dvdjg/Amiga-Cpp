@@ -71,8 +71,8 @@ struct MockSink {
 	void restore_saveword() const { ++restores; }
 };
 
-using Consts = eng::field::ScrollConsts;
-using Engine = eng::field::ScrollEngine<MockSink, Consts{16, 16, 288, 1152, 4}>;
+using Consts = eng::playfield::ScrollConsts;
+using Engine = eng::playfield::ScrollEngine<MockSink, Consts{16, 16, 288, 1152, 4}>;
 
 void seed(Engine& e, eng::s32 mx, eng::s32 my, eng::u8 prev) {
 	e.state().mapposx = mx;
@@ -107,8 +107,8 @@ int main() {
 	// Caso 1: inicio alineado (stepy=0) y 1 tile.
 	{
 		Engine ea, eb; MockSink sa, sb;
-		seed(ea, 32, 80, eng::field::ScrollDirNone);
-		seed(eb, 32, 80, eng::field::ScrollDirNone);
+		seed(ea, 32, 80, eng::playfield::ScrollDirNone);
+		seed(eb, 32, 80, eng::playfield::ScrollDirNone);
 		for (int i = 0; i < 16; ++i) check(ea.scroll_right(plan, sa), "px avanza");
 		check(eb.burst_right(plan, sb, 1), "burst avanza");
 		compare("burst(1) == 16 px (alineado)", ea, sa, eb, sb);
@@ -116,8 +116,8 @@ int main() {
 	// Caso 2: stepy != 0 (fila del mapa desplazada -> rama de fillup con stepy).
 	{
 		Engine ea, eb; MockSink sa, sb;
-		seed(ea, 48, 21, eng::field::ScrollDirNone);
-		seed(eb, 48, 21, eng::field::ScrollDirNone);
+		seed(ea, 48, 21, eng::playfield::ScrollDirNone);
+		seed(eb, 48, 21, eng::playfield::ScrollDirNone);
 		for (int i = 0; i < 16; ++i) check(ea.scroll_right(plan, sa), "px avanza");
 		check(eb.burst_right(plan, sb, 1), "burst avanza");
 		compare("burst(1) == 16 px (stepy!=0)", ea, sa, eb, sb);
@@ -125,8 +125,8 @@ int main() {
 	// Caso 3: 2 tiles de golpe.
 	{
 		Engine ea, eb; MockSink sa, sb;
-		seed(ea, 0, 96, eng::field::ScrollDirNone);
-		seed(eb, 0, 96, eng::field::ScrollDirNone);
+		seed(ea, 0, 96, eng::playfield::ScrollDirNone);
+		seed(eb, 0, 96, eng::playfield::ScrollDirNone);
 		for (int i = 0; i < 32; ++i) check(ea.scroll_right(plan, sa), "px avanza");
 		check(eb.burst_right(plan, sb, 2), "burst avanza");
 		compare("burst(2) == 32 px", ea, sa, eb, sb);
@@ -134,15 +134,36 @@ int main() {
 	// Caso 4: venía de la izquierda (restore_saveword una vez).
 	{
 		Engine ea, eb; MockSink sa, sb;
-		seed(ea, 128, 48, eng::field::ScrollDirLeft);
-		seed(eb, 128, 48, eng::field::ScrollDirLeft);
+		seed(ea, 128, 48, eng::playfield::ScrollDirLeft);
+		seed(eb, 128, 48, eng::playfield::ScrollDirLeft);
 		for (int i = 0; i < 16; ++i) check(ea.scroll_right(plan, sa), "px avanza");
 		check(eb.burst_right(plan, sb, 1), "burst avanza");
 		compare("burst(1) == 16 px (restore previo)", ea, sa, eb, sb);
 		check(sa.restores == 1 && sb.restores == 1, "restore exacto (1)");
 	}
 
+	// Burst por píxeles (perfil SubTileFill): burst_right_px(px) == px pasos de scroll_right,
+	// con la geometría del tile calculada una vez. Cubre offsets de stepx, cruce de tile y
+	// varios px.
+	auto cmp_px = [&](const char* label, eng::s32 mx, eng::s32 my, eng::u8 prev, int px) {
+		Engine ea, eb; MockSink sa, sb;
+		seed(ea, mx, my, prev);
+		seed(eb, mx, my, prev);
+		for (int i = 0; i < px; ++i) check(ea.scroll_right(plan, sa), "px avanza");
+		check(eb.burst_right_px(plan, sb, static_cast<eng::u16>(px)), "px-burst avanza");
+		compare(label, ea, sa, eb, sb);
+	};
+	cmp_px("px-burst(8) start stepx=0", 32, 80, eng::playfield::ScrollDirNone, 8);
+	cmp_px("px-burst(16) start stepx=0", 32, 80, eng::playfield::ScrollDirNone, 16);
+	cmp_px("px-burst(31) cruza un tile", 32, 80, eng::playfield::ScrollDirNone, 31);
+	cmp_px("px-burst(32) dos tiles", 0, 96, eng::playfield::ScrollDirNone, 32);
+	cmp_px("px-burst(8) start stepx=8", 40, 80, eng::playfield::ScrollDirNone, 8);
+	cmp_px("px-burst(5) start stepx=3", 35, 80, eng::playfield::ScrollDirNone, 5);
+	cmp_px("px-burst(4) start stepx=15", 47, 80, eng::playfield::ScrollDirNone, 4);
+	cmp_px("px-burst(16) con stepy!=0", 48, 21, eng::playfield::ScrollDirNone, 16);
+	cmp_px("px-burst(16) venia de la izquierda", 128, 48, eng::playfield::ScrollDirLeft, 16);
+
 	if (g_fail != 0) { std::printf("%d fallo(s)\n", g_fail); return 1; }
-	std::printf("OK: burst_right equivalente a los sub-pasos de 1 px.\n");
+	std::printf("OK: burst_right y burst_right_px equivalentes a los sub-pasos de 1 px.\n");
 	return 0;
 }

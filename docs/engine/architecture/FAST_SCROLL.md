@@ -81,6 +81,14 @@ eng::field::XlimitedScene<kScrollConsts, eng::field::TileLayerMap, Scroll> scene
 | `ScrollFast1` | 1 tile/frame | 1 tile | 2 |
 | `ScrollFast2` | 2 tiles/frame | 2 tiles | 3 |
 | `ScrollFast4` | 4 tiles/frame | 4 tiles | 5 |
+| `ScrollSubTile8`/`ScrollSubTile16` | sub-tile (progresivo) | 8/16 px | la del fetch (32/64 px) |
+
+`ScrollSubTile<Px>` es para **tiles grandes** (32×32) con avance ≤ `Px` px/frame: el paso es en
+píxeles, **independiente del tile** (no ancla a frontera de tile porque `plane-shift ≠ 0`). Usa
+`ScrollEngine::burst_right_px`, que replica `px` sub-pasos de `scroll_right` **calculando la
+geometría del cruce una vez por tile** (equivalente a los sub-pasos, verificado en HOST-034): menos
+cálculo por píxel a igualdad de blits, que es lo que el perfil clásico paga al multiplicar los
+sub-pasos de 1 px.
 
 Un perfil a medida: `ScrollProfile<TileBurstFill<3>, GuardTiles<4>, /*DirectionLatched=*/true>`; el
 `static_assert` del perfil exige `guarda >= relleno + 1`. El perfil por defecto **no impone** paso

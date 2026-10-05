@@ -2,7 +2,7 @@
 // Test HOST-033: avance en fronteras de tile (prefill/latch) y staging en Y
 // ============================================================================
 //
-// Valida `eng::field::snap_to_tiles` y los derivados del perfil que usan los
+// Valida `eng::playfield::snap_to_tiles` y los derivados del perfil que usan los
 // perfiles rápidos: avance por tiles completos (dirección laceda a frontera) y
 // staging vertical del corkscrew (`y_staging_tiles`).
 
@@ -16,11 +16,11 @@ void check(bool ok, const char* what) {
 	if (!ok) { std::printf("[FAIL] %s\n", what); ++g_fail; }
 }
 using eng::s32;
-using eng::field::ScrollProgressive;
-using eng::field::ScrollFast1;
-using eng::field::ScrollFast2;
-using eng::field::ScrollFast4;
-using eng::field::snap_to_tiles;
+using eng::playfield::ScrollProgressive;
+using eng::playfield::ScrollFast1;
+using eng::playfield::ScrollFast2;
+using eng::playfield::ScrollFast4;
+using eng::playfield::snap_to_tiles;
 } // namespace
 
 int main() {

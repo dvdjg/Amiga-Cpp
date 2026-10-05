@@ -47,7 +47,7 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
-namespace field = eng::field;
+namespace playfield = eng::playfield;
 
 /// Self-test de las utilidades de rejilla y búsqueda de caminos: se ejecuta en `init`
 /// (en el 68000) y el demo NO llega a READY si falla. Verificación por demo de
@@ -179,7 +179,7 @@ constexpr eng::u16 kMapCols = 25;
 constexpr eng::u16 kMapRows = 128;
 constexpr eng::u16 kTilesetCount = 128;
 
-constexpr field::ScrollConsts kScrollConsts {
+constexpr playfield::ScrollConsts kScrollConsts {
 	/*tile_width=*/        kTileW,
 	/*tile_height=*/       kTileH,
 	/*display_height=*/    kDisplayH,
@@ -189,7 +189,7 @@ constexpr field::ScrollConsts kScrollConsts {
 
 // Generador de filas del tileset (128 tiles = 16 glifos x 8 variantes).
 eng::u16 shooter_row(eng::u8 glyph, eng::u8 variant, eng::u8 row, eng::u8 plane) {
-	return field::demo::pf_plane_row(glyph, static_cast<eng::u8>(variant & 3u), row, plane, 0, false);
+	return playfield::demo::pf_plane_row(glyph, static_cast<eng::u8>(variant & 3u), row, plane, 0, false);
 }
 
 // Paleta DPF de 16 registros: BG (PF1, regs 0..7) + objetos (PF2, regs 8..15).
@@ -203,8 +203,8 @@ constexpr eng::u16 kPalette[16] {
 eng::u16 g_map[kMapCols * kMapRows] {};
 
 struct DemoGame {
-	field::XlimitedScene<kScrollConsts> scene {};
-	field::XlimitedSceneConfig scene_cfg {};
+	playfield::XlimitedScene<kScrollConsts> scene {};
+	playfield::XlimitedSceneConfig scene_cfg {};
 	eng::graphics::FramePlan plan {};
 	eng::u8 patrol = 0;          // fase del vaivén X
 	eng::u8 patrol_acc = 0;
@@ -230,7 +230,7 @@ struct DemoGame {
 		for (eng::u16 y = 0; y < kMapRows; ++y) {
 			for (eng::u16 x = 0; x < kMapCols; ++x) {
 				g_map[static_cast<eng::u32>(y) * kMapCols + x] =
-					static_cast<eng::u16>(field::demo::cell_hash(x, y, 0x5eedu) & (kTilesetCount - 1u));
+					static_cast<eng::u16>(playfield::demo::cell_hash(x, y, 0x5eedu) & (kTilesetCount - 1u));
 			}
 		}
 
@@ -240,9 +240,9 @@ struct DemoGame {
 		scene_cfg.tile_height = kTileH;
 		scene_cfg.planes = kPlanes;
 		scene_cfg.fetch_mode = 0;
-		scene_cfg.y_mode = eng::field::AxisPolicy::Ring;                                  // anillo corkscrew (Y)
-		scene_cfg.x_mode = eng::field::AxisPolicy::Finite;                 // X lineal acotado
-		scene_cfg.direction = eng::field::DirectionPolicy::OneWay;    // solo fila entrante
+		scene_cfg.y_mode = eng::playfield::AxisPolicy::Ring;                                  // anillo corkscrew (Y)
+		scene_cfg.x_mode = eng::playfield::AxisPolicy::Finite;                 // X lineal acotado
+		scene_cfg.direction = eng::playfield::DirectionPolicy::OneWay;    // solo fila entrante
 		scene_cfg.display_height = kDisplayH;
 		scene_cfg.max_step = 4;
 

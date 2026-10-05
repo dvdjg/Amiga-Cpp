@@ -116,9 +116,16 @@ struct VBlankHeartbeat {
 template <typename Backend, typename Game>
 requires GameModule<Game, Backend>
 class Engine {
-public:
+	public:
 	constexpr Engine(Backend& backend, Game& game)
 		: m_backend(backend), m_game(game) {}
+
+	/// Desactiva el **servicio de fondo en la IRQ de blit** (`BackgroundBlitterService`). La
+	/// IRQ de blit es un recurso exclusivo (un solo `slot`), y `App::set_async_present(true)`
+	/// lo necesita para el feeder del `FramePlan`; un juego que use ambos modos debe elegir
+	/// uno por frame (el modo async retiene el slot mientras su cadena esté viva).
+	void set_blit_service_enabled(bool on) noexcept { m_blit_service_enabled = on; }
+	[[nodiscard]] bool blit_service_enabled() const noexcept { return m_blit_service_enabled; }
 
 	/// Modo **polling** (fallback, **sin** IRQ de VBlank): `update -> wait_vblank -> render`
 	/// en el bucle principal, con el fondo drenado en el hueco de VBlank y en las esperas de
@@ -201,8 +208,10 @@ public:
 					m_backend.clear_vblank_service();
 				});
 				BackgroundBlitterService blitter_service {&m_background, &context};
-				if constexpr (requires { m_backend.set_blit_service(&BackgroundBlitterService::run, blitter_service); }) {
-					m_backend.set_blit_service(&BackgroundBlitterService::run, blitter_service);
+				if (m_blit_service_enabled) {
+					if constexpr (requires { m_backend.set_blit_service(&BackgroundBlitterService::run, blitter_service); }) {
+						m_backend.set_blit_service(&BackgroundBlitterService::run, blitter_service);
+					}
 				}
 				// El bucle consume el latido: mientras no avance el contador, adelanta el
 				// fondo (equivale al hueco de VBlank); cuando avanza, corre el frame fuera
@@ -243,6 +252,7 @@ private:
 	Backend& m_backend;
 	Game& m_game;
 	task::BackgroundQueue m_background {};
+	bool m_blit_service_enabled = true;
 	VBlankHook m_vblank_hook = nullptr;
 	void* m_vblank_user = nullptr;
 };

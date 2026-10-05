@@ -27,7 +27,7 @@
 #include <eng/field/chunk_cache.hpp>
 #include <eng/field/tile_source.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 /// Contrato de una fuente de chunks (estático, sin punteros).
 template <class Source>
@@ -120,4 +120,4 @@ private:
 	ChunkCache<ChunkSize, Capacity, MapLoader> m_cache {};
 };
 
-} // namespace eng::field
+} // namespace eng::playfield

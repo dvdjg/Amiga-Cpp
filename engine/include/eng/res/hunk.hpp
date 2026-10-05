@@ -6,8 +6,10 @@
 /// Un fichero HUNK es una secuencia lineal de **registros** (`[tag u32][payload]`). El
 /// primero es `HUNK_HEADER`, con la tabla de tamaños por hunk; después vienen los hunks de
 /// código/datos/BSS y, tras cada uno, sus tablas de **relocación** y símbolos, cerrando con
-/// `HUNK_END`. El loader reserva los segmentos en una `eng::LinearArena` (sin heap), copia
-/// el contenido, aplica las relocaciones e indexa los símbolos por hash FNV-1a.
+/// `HUNK_END`. El loader reserva los segmentos en una `eng::LinearArena` (sin heap) **o, por
+/// segmento, en un banco del `MemoryManager`** (`HUNKF_CHIP`/`HUNKF_FAST` → Chip/Fast, resto →
+/// `FastPreferred`), copia el contenido, aplica las relocaciones e indexa los símbolos por hash
+/// FNV-1a. Con `MemoryManager` la imagen **posee** su memoria y `unload(mem)` la libera (R6.3).
 ///
 /// ```text
 ///   HUNK_HEADER  [0][num][first][last][size×num]     ← tamaños (longs) + flags de memoria
@@ -21,9 +23,12 @@
 /// `docs/reference/amiga/techniques/` (HUNK). Ver `docs/engine/architecture/RESOURCE_SYSTEM.md` §2.
 
 #include <eng/core/data/byte_order.hpp>
+#include <eng/core/types/domains.hpp>
 #include <eng/core/types/span.hpp>
+#include <eng/core/types/typed.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/memory/arena.hpp>
+#include <eng/memory/memory_manager.hpp>
 #include <eng/res/symbol_hash.hpp>
 
 namespace eng::res {
@@ -72,6 +77,10 @@ inline constexpr eng::u32 kHunkSizeMask = 0x3FFFFFFFu;
 /// Política de memoria solicitada por un hunk (`HUNKF_CHIP`/`HUNKF_FAST`).
 enum class HunkMem : eng::u8 { Any = 0, Chip, Fast };
 
+/// Política de banco para hunks **sin flag** de memoria: CPU (Fast→Slow). Un `HUNKF_CHIP` (DMA)
+/// exige Chip y **nunca** degrada a Fast.
+inline constexpr eng::MemoryPolicy kHunkAnyPolicy = eng::MemoryPolicy::FastPreferred;
+
 /// Segmento cargado de un hunk: vista al bloque reservado en la arena del llamador.
 struct HunkSegment {
 	eng::u8* base = nullptr; ///< inicio del segmento (ya con relocaciones aplicadas)
@@ -95,10 +104,11 @@ public:
 	static constexpr eng::u16 kMaxHunks = 8u;   ///< hunks por imagen (código/datos/BSS)
 	static constexpr eng::u16 kMaxSymbols = 32u; ///< símbolos indexados por imagen
 
-	/// Parsea `image` y reserva/copia sus hunks en `pool` (alineados a 4, BSS a cero),
-	/// aplicando las relocaciones. `false` si el formato no es válido o la arena no cabe.
-	/// El `image` puede liberarse tras la carga (los segmentos viven en `pool`).
-	bool load(eng::Span<eng::u8> image, eng::LinearArena& pool) noexcept {
+	/// **Cuerpo común** de carga: parsea `image` y, por cada hunk, pide a `reserve(bytes, mem_kind)`
+	/// un bloque (arena del llamador o banco del `MemoryManager`), copia el contenido (BSS a cero) y
+	/// aplica las relocaciones. `false` si el formato no es válido o una reserva falla.
+	template <class ReserveFn>
+	bool load_impl(eng::Span<eng::u8> image, ReserveFn&& reserve) noexcept {
 		m_count = 0u;
 		m_symbol_count = 0u;
 		const eng::u8* p = image.data();
@@ -138,12 +148,12 @@ public:
 				mem = HunkMem::Fast;
 			}
 			const eng::u32 bytes = (entry & kHunkSizeMask) * 4u;
-			const eng::MemoryBlock mb = pool.allocate(bytes != 0u ? bytes : 4u, 4u);
-			if (!mb.valid()) {
+			eng::u8* const base = reserve(bytes != 0u ? bytes : 4u, mem);
+			if (base == nullptr) {
 				return false;
 			}
 			HunkSegment& s = m_hunks[i];
-			s.base = static_cast<eng::u8*>(mb.data);
+			s.base = base;
 			s.size = bytes;
 			s.mem = mem;
 			s.type = 0u;
@@ -232,6 +242,66 @@ public:
 		}
 		return cur == num;
 	}
+
+	/// Carga reservando los hunks en la **arena del llamador** (`LinearArena`): el dueño es el
+	/// llamador. El `image` puede liberarse tras la carga.
+	bool load(eng::Span<eng::u8> image, eng::LinearArena& pool) noexcept {
+		return load_impl(image, [&pool](eng::u32 bytes, HunkMem) noexcept -> eng::u8* {
+			const eng::MemoryBlock mb = pool.allocate(bytes, 4u);
+			return mb.valid() ? static_cast<eng::u8*>(mb.data) : nullptr;
+		});
+	}
+
+	/// Carga reservando **cada hunk en su banco** (`MemoryManager`): `HUNKF_CHIP` → `ChipRequired`,
+	/// `HUNKF_FAST` → `FastRequired`, sin flag → `any_policy` (por defecto `FastPreferred`: CPU en
+	/// Fast con fallback a Slow). Los bloques (con el banco efectivo en `block.kind`) se conservan y
+	/// `unload(mem)` los libera. `false` (sin dejar memoria) si no cabe o el formato es inválido.
+	bool load(eng::Span<eng::u8> image, MemoryManager& mem,
+		  MemoryPolicy any_policy = kHunkAnyPolicy) noexcept {
+		m_bank_count = 0u;
+		const bool ok = load_impl(
+			image, [this, &mem, any_policy](eng::u32 bytes, HunkMem hm) noexcept -> eng::u8* {
+				const MemoryPolicy pol = hm == HunkMem::Chip
+							     ? MemoryPolicy::ChipRequired
+						     : hm == HunkMem::Fast ? MemoryPolicy::FastRequired
+									   : any_policy;
+				eng::Block<eng::LibSegmentTag> b =
+					eng::reserve<eng::LibSegmentTag>(mem, pol, bytes, 4u);
+				if (!b.valid() || m_bank_count >= kMaxHunks) {
+					return nullptr;
+				}
+				eng::u8* const ptr = b.view.data();
+				m_bank_blocks[m_bank_count++] =
+					static_cast<eng::Block<eng::LibSegmentTag>&&>(b);
+				return ptr;
+			});
+		if (!ok) {
+			unload(mem);
+			return false;
+		}
+		m_owns = true;
+		return true;
+	}
+
+	/// Libera los segmentos reservados por la sobrecarga de `MemoryManager` (por su banco efectivo).
+	void unload(MemoryManager& mem) noexcept {
+		for (eng::u16 i = 0u; i < m_bank_count; ++i) {
+			eng::u8* const ptr = m_bank_blocks[i].view.data();
+			switch (m_bank_blocks[i].kind) {
+			case eng::MemoryKind::Chip: mem.chip().release(ptr); break;
+			case eng::MemoryKind::Fast: mem.fast().release(ptr); break;
+			default: mem.slow().release(ptr); break;
+			}
+			m_bank_blocks[i] = eng::Block<eng::LibSegmentTag> {};
+		}
+		m_bank_count = 0u;
+		m_owns = false;
+		m_count = 0u;
+		m_symbol_count = 0u;
+	}
+
+	/// ¿La imagen posee su memoria (cargada con `MemoryManager`)? `unload(mem)` la libera.
+	[[nodiscard]] bool owns_memory() const noexcept { return m_owns; }
 
 	/// Nº de segmentos cargados.
 	[[nodiscard]] eng::u16 hunk_count() const noexcept { return m_count; }
@@ -420,6 +490,9 @@ private:
 	HunkSymbolEntry m_symbols[kMaxSymbols] {};
 	eng::u16 m_count = 0u;
 	eng::u16 m_symbol_count = 0u;
+	eng::Block<eng::LibSegmentTag> m_bank_blocks[kMaxHunks] {}; ///< bloques por banco (a liberar)
+	eng::u16 m_bank_count = 0u;
+	bool m_owns = false; ///< los segmentos vienen de `MemoryManager` (los libera `unload`)
 };
 
 } // namespace eng::res

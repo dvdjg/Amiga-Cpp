@@ -1,7 +1,7 @@
 #pragma once
 
 /// \file polygon_fill.hpp
-/// Puente entre el seam `field::PolygonFillSink` y el **Blitter** del backend
+/// Puente entre el seam `playfield::PolygonFillSink` y el **Blitter** del backend
 /// Amiga: aporta el relleno de polígonos por hardware que un playfield instala con
 /// `Playfield::set_polygon_fill_sink`. Así `Surface::fill_polygon` / el
 /// `mesh_render_filled` rellenan caras sólidas por Blitter (máscara 1 bit +
@@ -43,7 +43,7 @@ struct PolygonFillService {
 
 	/// Sink listo para `Playfield::set_polygon_fill_sink`. No valida la máscara: el
 	/// llamador garantiza su tamaño (`>= row_bytes*bitmap_h` en Chip RAM).
-	eng::field::PolygonFillSink sink() { return eng::field::PolygonFillSink { this, &dispatch }; }
+	eng::playfield::PolygonFillSink sink() { return eng::playfield::PolygonFillSink { this, &dispatch }; }
 };
 
 } // namespace eng::amiga

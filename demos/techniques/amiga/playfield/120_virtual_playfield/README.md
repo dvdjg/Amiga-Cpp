@@ -19,10 +19,10 @@ entrante.
 
 ## Qué demuestra
 
-- **`eng::field::BigBufferScroll`** cableada a una superficie real: aporta la cámara saturada por
+- **`eng::playfield::BigBufferScroll`** cableada a una superficie real: aporta la cámara saturada por
   eje (el struct modela un eje; se usan dos instancias, X e Y).
-- **`eng::field::FlatScrollPlayfield`** (engine) como superficie flat interleaved, con el mapper
-  **`eng::field::map_flat_scroll`** (geometría del **fetch ancho** `DDFSTRT=$30`, 42 B/fila):
+- **`eng::playfield::FlatScrollPlayfield`** (engine) como superficie flat interleaved, con el mapper
+  **`eng::playfield::map_flat_scroll`** (geometría del **fetch ancho** `DDFSTRT=$30`, 42 B/fila):
   `planeaddx = ((cam_x-1)&~15)/8`, `BPLCON1 = (16-fine)&15` duplicado en ambos nibbles y
   `BPLMOD = row_bytes*planes - 42`. Fórmula del driver lineal verificado `tile_scroll.hpp`.
 - **Cero blits por frame** (a diferencia del anillo): la CPU solo recompone la copperlist.
@@ -54,8 +54,8 @@ bash ./demos/techniques/amiga/playfield/120_virtual_playfield/analyze-sequence.s
 
 - `BigBufferScroll` deja de ser «solo test host» y queda **verificada por demo** (regla de cierre
   de `docs/testing/README.md`).
-- El **mapper está en el engine** (Fase 3): `eng::field::map_flat_scroll`
-  (`amiga_display_mapper.hpp`, HOST-061) y la superficie `eng::field::FlatScrollPlayfield`
+- El **mapper está en el engine** (Fase 3): `eng::playfield::map_flat_scroll`
+  (`amiga_display_mapper.hpp`, HOST-061) y la superficie `eng::playfield::FlatScrollPlayfield`
   (`flat_playfield.hpp`). La demo ya no calcula registros.
 - **Art integrado**: el mundo usa el atlas *Beginning Fields* a 8 colores
   (`out/assets/beginning-fields/8c`, generado por `src/prebuild.sh` con `tools/amiga-tiles`).

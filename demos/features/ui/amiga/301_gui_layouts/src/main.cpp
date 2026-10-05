@@ -41,7 +41,7 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 namespace {
 
 namespace scene = eng::graphics::composition;
-namespace field = eng::field;
+namespace playfield = eng::playfield;
 namespace ui = eng::ui;
 
 constexpr eng::u16 kWidth = 320;
@@ -117,7 +117,7 @@ inline bool col_set(const eng::Font3x5&, eng::u8 bits, eng::u8 k) {
 }
 
 template <class Font>
-void draw_font_glyphs(field::Surface& s, eng::s16 x, eng::s16 y, const char* chars, eng::u8 fg,
+void draw_font_glyphs(playfield::Surface& s, eng::s16 x, eng::s16 y, const char* chars, eng::u8 fg,
 		      bool italic) {
 	const eng::u8 adv = font_width(Font {});
 	eng::s16 cx = x;
@@ -155,9 +155,9 @@ struct DemoGame {
 			return;
 		}
 
-		m_scene.set_rect_fill_sink(eng::field::RectFillSink {&backend, &rect_fill_cb});
-		m_scene.set_raster(&eng::field::kBlitterRaster,
-				   eng::field::RasterPolicy {eng::field::AccelMode::Auto, 64u, true});
+		m_scene.set_rect_fill_sink(eng::playfield::RectFillSink {&backend, &rect_fill_cb});
+		m_scene.set_raster(&eng::playfield::kBlitterRaster,
+				   eng::playfield::RasterPolicy {eng::playfield::AccelMode::Auto, 64u, true});
 
 		// Buffers de trabajo del texto por Blitter (`TextBlitScratch`): en **Chip RAM** (el
 		// Blitter solo lee Chip por DMA) y con los tamaños correctos (sólido compartido +
@@ -188,7 +188,7 @@ private:
 	/// Monta los paneles, pinta el chrome (CPU) y el texto por Blitter, y verifica en hardware que
 	/// la ruta acelerada escribio tinta y que los layouts colocaron.
 	bool build_and_draw(eng::amiga::AmigaBackend& backend) {
-		field::Surface screen = m_scene.surface();
+		playfield::Surface screen = m_scene.surface();
 		ui::UiPainter p(screen, {}, m_theme);
 
 		// --- Panel 1: columna adaptable al contenido (fit + stack) ---

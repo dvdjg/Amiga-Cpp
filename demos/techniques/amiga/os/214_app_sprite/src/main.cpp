@@ -75,27 +75,36 @@ constexpr eng::u32 kObjPlane = kObjH * kObjRow;         // 192
 constexpr eng::u32 kObjData = kObjPlane * kObjPlanes;   // 384
 constexpr eng::u32 kObjMask = kObjPlane;                // 192
 constexpr eng::u32 kSheetBytes = kObjData + kObjMask;   // 576
+constexpr eng::u16 kBackdropWidth = 640u;
+constexpr eng::u16 kBackdropHeight = kHeight;
+eng::u8 g_backdrop[kBackdropWidth * kBackdropHeight] {};
+
+void build_backdrop() {
+	for (eng::u16 y = 0u; y < kBackdropHeight; ++y) {
+		for (eng::u16 x = 0u; x < kBackdropWidth; ++x) {
+			const bool ridge = y > 196u + ((x >> 5u) & 7u);
+			const bool marker = (((x >> 4u) ^ (y >> 3u)) & 7u) == 0u;
+			g_backdrop[static_cast<eng::u32>(y) * kBackdropWidth + x] =
+				ridge ? static_cast<eng::u8>(1u + (marker ? 2u : 0u)) : 0u;
+		}
+	}
+}
 
 struct AppSpriteDemo {
 	void init(auto& app) {
 		eng::debug::mark_init_started(g_eng_run_status);
 
-		if (!scene::compose(m_scene, app.device().memory_manager(), kRes, scene::ocs_a500,
-				    scene::display(scene::kPal320x256, scene::kBplcon0_4Planes),
-				    scene::palette(kPalette.words()))) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00021401u);
-			return;
-		}
-		app.bind_scene(m_scene);
-
-		// Mundo retenido: una capa de fondo con su cámara; el sprite sigue su scroll.
-		auto fondo = app.world().add_layer("fondo", 0u);
+		// World conserva un bitmap indexado; App posee la copia Chip y lo presenta tras la cámara.
+		build_backdrop();
+		auto fondo = app.add_bitmap_background(
+			"fondo", 0u, eng::Span<const eng::u8> {g_backdrop, sizeof(g_backdrop)},
+			kBackdropWidth, kBackdropHeight);
 		if (!fondo) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021404u);
 			return;
 		}
-		fondo->camera().reset(eng::scene::WorldRect {0u, 0u, 2048u, 256u},
-				      eng::Size2u {kWidth, kHeight});
+		fondo->camera().reset(eng::scene::WorldRect {0u, 0u, kBackdropWidth, kBackdropHeight},
+					      eng::Size2u {kWidth, kHeight});
 
 		m_sheet = app.device().memory_manager().chip().template reserve<eng::BobTag>(kSheetBytes, 16u);
 		if (!m_sheet.valid()) {
@@ -113,7 +122,7 @@ struct AppSpriteDemo {
 		m_bob.planes = kObjPlanes;
 		m_bob.layout = graphics::BobLayout::Planar;
 		m_bob.draw = graphics::BobDraw::CookieCut;
-		m_bob.erase = graphics::BobErase::None; // se repinta el fondo entero cada frame
+		m_bob.erase = graphics::BobErase::None; // App materializa el bitmap antes de los BOBs
 		m_sprite = graphics::Sprite {m_bob, kObjData, kObjMask};
 
 		// Segundo objeto por el **mundo retenido**: el engine elige la representación (aquí
@@ -125,7 +134,6 @@ struct AppSpriteDemo {
 			return;
 		}
 
-		app.takeover(); // instala la copperlist del camino planar
 		// READY se retrasa hasta que el display haya completado varios ciclos de doble buffer:
 		// el primer render puede ocurrir antes de que la primera captura vea el buffer publicado.
 	}
@@ -140,7 +148,10 @@ struct AppSpriteDemo {
 
 	void render(auto& app) {
 		auto s = app.screen();
-		s.clear(0u);
+		if (!app.world_materialization_ok()) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00021406u);
+			return;
+		}
 		const auto fondo = app.world().layer(0u);
 		const eng::u16 scroll = fondo.valid() ? fondo->camera().scroll_x() : 0u;
 		const eng::s16 x = static_cast<eng::s16>(16u + scroll % (kWidth - kObjW));
@@ -187,7 +198,6 @@ private:
 		}
 	}
 
-	scene::Scene m_scene {};
 	eng::scene::ActorId m_actor {};
 	eng::Block<eng::BobTag> m_sheet {};
 	graphics::Bob m_bob {};
@@ -201,12 +211,28 @@ int main() {
 	eng::debug::reset(g_eng_run_status);
 
 	eng::amiga::AmigaBackend backend {};
-	if (!backend.configure_memory({96u * 1024u, 8u * 1024u, 4u * 1024u})) {
-		eng::debug::mark_failed(g_eng_run_status, 0x00021403u);
+	if (!backend.configure_game_memory()) {
+		const auto& selected_memory = backend.game_memory_profile();
+		const auto& report = backend.memory_report();
+		const eng::u32 detail = ((selected_memory.pools.chip_bytes / 1024u) << 14u) |
+			((selected_memory.pools.slow_bytes / 1024u) << 4u) |
+			(report.chip_ok ? 1u : 0u) | (report.slow_ok ? 2u : 0u) |
+			(report.frame_ok ? 4u : 0u) | (report.fast_ok ? 8u : 0u);
+		eng::debug::mark_failed(g_eng_run_status, detail);
 		return 0;
 	}
 	AppSpriteDemo game {};
-	eng::App app {backend, game};
+	eng::App app {backend, game, backend.memory_manager()};
+	eng::GameDisplay display {};
+	display.width = kWidth;
+	display.height = kHeight;
+	display.color_depth = kPlanes;
+	display.buffers = kRes.buffers;
+	display.palette = kPalette;
+	if (!app.set_display(display) || !app.start()) {
+		eng::debug::mark_failed(g_eng_run_status, 0x00021401u);
+		return 0;
+	}
 	app.run(0xffffu);
 
 	return 0;

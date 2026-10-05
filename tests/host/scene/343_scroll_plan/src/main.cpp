@@ -63,10 +63,45 @@ int main() {
 		eng::scene::choose_scroll_fitting(ScrollKind::CopperSplit, 256u, 240u, 3u, 4u, 4u, 0u);
 	check(none == ScrollKind::None, "sin Chip -> none");
 
+	// Interfaz de juego (`ScrollSpec`): la capa declara tecnica + periodo de mapa + velocidad y el
+	// planner deriva el anillo. Para `Strip` toroidal el anillo es `visible + periodo` (el mapa
+	// completo + una pantalla de solape), que es el dimensionado que evita el descuadre al envolver.
+	const eng::scene::ScrollSpec strip {ScrollKind::Strip, 40u, 2u};
+	check(strip.wraps(), "ScrollSpec toroidal: wraps()");
+	check(eng::scene::scroll_ring_words(strip, 320u) == 60u,
+	      "strip toroidal: anillo = visible(20) + periodo(40) = 60 words");
+	const auto strip_mem = eng::scene::scroll_memory(strip, 320u, 256u, 3u);
+	check(strip_mem.window_w == 960u && strip_mem.window_h == 256u,
+	      "strip: ventana = anillo(60)*16 px x alto");
+	check(strip_mem.bytes == 92160u, "strip: memoria = 120 B/fila-plano * 256 * 3");
+	// Region toroidal con `Strip`: el planner usa la misma geometria y respeta el presupuesto.
+	eng::scene::WorldRegion region {};
+	region.top = 0; region.bottom = 256; region.planes = 3; region.speed_px = 2;
+	region.scroll = ScrollKind::Strip; region.map_period_words = 40u;
+	const auto plan_strip = eng::scene::plan_region(region, 320u, 256u, {0xffffu, 92160u});
+	check(plan_strip.ok && plan_strip.scroll == ScrollKind::Strip, "plan_region strip cabe en Chip");
+	check(plan_strip.memory.bytes == 92160u, "plan_region strip: memoria del anillo del mapa");
+	const auto plan_tight = eng::scene::plan_region(region, 320u, 256u, {0xffffu, 92159u});
+	check(plan_tight.scroll == ScrollKind::Fine, "plan_region strip: Chip ajustada -> degrada a fino");
+
+	// Punto de entrada por `ScrollSpec` (sin `WorldRegion`): lo que usara el juego.
+	const auto psc = eng::scene::plan_scroll(strip, 320u, 256u, 3u, {0xffffu, 92160u});
+	check(psc.ok && psc.scroll == ScrollKind::Strip && psc.memory.bytes == 92160u,
+	      "plan_scroll(ScrollSpec): strip cabe con la memoria del anillo del mapa");
+
+	// La capa del mundo transporta su `ScrollSpec` (vocabulario de juego) sin conocer anillos.
+	eng::scene::Layer layer {};
+	check(layer.scroll() == ScrollKind::None && !layer.scroll_spec().wraps(),
+	      "capa: scroll por defecto None");
+	layer.set_scroll_spec({ScrollKind::Strip, 40u, 2u});
+	check(layer.scroll() == ScrollKind::Strip && layer.scroll_spec().map_period_words == 40u &&
+		      layer.scroll_spec().speed_px == 2u,
+	      "capa: set_scroll_spec conserva tecnica, periodo y velocidad");
+
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;
 	}
-	std::printf("OK: scroll_plan (degradacion + memoria) validado.\n");
+	std::printf("OK: scroll_plan (degradacion + memoria + ScrollSpec) validado.\n");
 	return 0;
 }

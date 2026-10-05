@@ -1,15 +1,23 @@
 {
-  "#": "Puntos de verificacion visual de 213 (Bartman abyss con el mini-SO).",
+  "#": "Puntos de verificacion visual de 213 (Bartman abyss: BOBs interleaved + fine-scroll del playfield + gradiente copper2).",
   "points": [
     {
-      "name": "imagen abyss + BOBs",
+      "name": "imagen abyss + 16 BOBs",
       "last": true,
-      "expect": "La imagen 'abyss' (logo rosa y gorro) es visible sobre fondo claro; en la banda inferior hay una fila de bobs (glyph japones 'a') de varios colores. Sin zonas negras grandes ni glitches."
+      "expect": "La imagen 'abyss' (logo rosa y gorro) es visible sobre fondo claro; en la banda inferior hay UN ENJAMBRE de 16 bobs (glyph japones 'a') repartidos en horizontal y ondulando en vertical, varios colores por el ciclo de frames 0..5. Sin zonas negras grandes ni glitches."
     },
     {
-      "name": "movimiento de los BOBs",
-      "max_diff": true,
-      "expect": "Entre frames los bobs se desplazan horizontal y verticalmente por senos de forma coherente; la imagen de fondo no se rompe ni parpadea."
+      "name": "gradiente copper2 (lineas $41..$4F)",
+      "last": true,
+      "expect": "En la parte alta del display, la franja de lineas $41..$4F muestra el fondo (COLOR00) con el degradado gris 0x0111..0x0fff; por encima y por debajo vuelve el blanco de la paleta base. En la captura estatica puede confundirse con el fondo blanco: verificar con el diff por franja (out/tmp/diff213.mjs) frente a una captura sin gradiente."
+    },
+    {
+      "name": "fine-scroll del playfield",
+      "start": 0,
+      "end": 5,
+      "require_visual_motion": true,
+      "min_mean_diff": 0.5,
+      "expect": "Compara la secuencia de seis imagenes en orden. Todo el fondo (logo, gorro y texto) se desplaza horizontalmente por el fine-scroll de BPLCON1 (tabla sinus15); el enjambre de BOBs se mueve con el. En cada frame la imagen es nitida, sin duplicados ni huellas residuales."
     }
   ]
 }

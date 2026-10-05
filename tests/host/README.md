@@ -51,9 +51,9 @@ dependen de hardware y no necesitan WinUAE.
 | `os` | 20 | [os/README.md](os/README.md) |
 | `parallel` | 1 | [parallel/README.md](parallel/README.md) |
 | `platform/amiga` | 9 | [platform/amiga/README.md](platform/amiga/README.md) |
-| `res` | 19 | [res/README.md](res/README.md) |
-| `scene` | 15 | [scene/README.md](scene/README.md) |
+| `res` | 24 | [res/README.md](res/README.md) |
+| `scene` | 21 | [scene/README.md](scene/README.md) |
 | `sim` | 34 | [sim/README.md](sim/README.md) |
 | `ui` | 24 | [ui/README.md](ui/README.md) |
 
-Total: 352 tests. Los IDs `HOST-NNN` son únicos en todo `tests/host/` (no por categoría).
+Total: 363 tests. Los IDs `HOST-NNN` son únicos en todo `tests/host/` (no por categoría).

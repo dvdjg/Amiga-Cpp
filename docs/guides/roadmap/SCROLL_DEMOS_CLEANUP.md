@@ -27,6 +27,7 @@ hoja de ruta de la limpieza**.
 | `107_xlimited_corkscrew` | XYLimited 8-way (single/DPF) | `XlimitedScene`/`XLimitedPlayfield`/`XlimitedDualComposer` | 352×(288) | fuerte: `verify-xlimited`/`verify-corkscrew`/secuencia |
 | `110_ylimited_shooter` | YLimited: X `Finite` + Y `Ring` one-way | `XlimitedScene` | 320×208; anillo 288 | `analyze-sequence` |
 | `111_xlimited_sidescroller` | XLimited: X `Ring`, Y `Off` | `XlimitedScene` + `TileMapView<StreamingWorldMap>` | 320×256 | `analyze-sequence` |
+| `203_world_tilemap_xlimited` | XLimited: X `Ring`, Y `Off` | `World::TileLayer` + `WorldTileMapView` + `XlimitedScene` | 320×256 | `analyze-sequence` + pixel contract |
 | `112_xlimited_robocod` | XYLimited 5 planos + soft DPF (parallax por plano) | `XlimitedScene` + `PlaneView`/`SoftDpfComposition` | 320×208; anillo 288 | `analyze-sequence` |
 | `201_ehb_map` | XYLimited 8-way EHB + HUD | `XlimitedScene` + `ModeSwitchZone` | 320×256; anillo 288 | `src/README` + `verify-201-*` |
 | `202_xlimited_dpf` | XYLimited DPF 3+3 mixto (Y por campo) | `XlimitedScene` con `dual_linear_field` | 320×208; anillo 288 | `analyze-sequence` + `verify-parallax` |

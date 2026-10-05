@@ -67,7 +67,7 @@ if (!seqDir) {
   console.log(`[essential-frames] ${demoArg}: sin secuencia capturada en out/run/${demoId}/*/sequence (se omite).`);
   process.exit(3);
 }
-const frames = fs.readdirSync(seqDir).filter((f) => /^frame_\d{3,}\.png$/.test(f)).sort();
+const frames = fs.readdirSync(seqDir).filter((f) => /^frame_\d{3,}(?:_f\d+)?\.png$/.test(f)).sort();
 
 // --- Diferencia entre frames (para localizar transiciones) ---
 function meanDiff(a, b) {
@@ -78,9 +78,13 @@ function meanDiff(a, b) {
   const ib = PNG.sync.read(fs.readFileSync(b));
   if (ia.width !== ib.width || ia.height !== ib.height) return 999; // cambio de geometria (p. ej. mode switch)
   let sum = 0, n = 0;
-  for (let i = 0; i < ia.data.length; i += 4) {
-    sum += Math.abs(ia.data[i] - ib.data[i]) + Math.abs(ia.data[i + 1] - ib.data[i + 1]) + Math.abs(ia.data[i + 2] - ib.data[i + 2]);
-    n += 3;
+  const yStart = Math.floor(ia.height * 0.72);
+  for (let y = yStart; y < ia.height; y += 2) {
+    for (let x = 0; x < ia.width; x += 2) {
+      const i = (y * ia.width + x) * 4;
+      sum += Math.abs(ia.data[i] - ib.data[i]) + Math.abs(ia.data[i + 1] - ib.data[i + 1]) + Math.abs(ia.data[i + 2] - ib.data[i + 2]);
+      n += 3;
+    }
   }
   return n ? sum / n : 0;
 }
@@ -156,11 +160,22 @@ const model = arg('--model', decl.model || process.env.OLLAMA_VL_MODEL || 'qwen3
 
 // Resuelve los indices de frame de un punto (selectores: index/frames/last/every/max_diff).
 function resolveIndices(point) {
+  if (typeof point.start === 'number' && typeof point.end === 'number') {
+    const first = Math.max(0, Math.min(point.start, frames.length - 1));
+    const last = Math.max(0, Math.min(point.end, frames.length - 1));
+    return Array.from({ length: Math.min(8, Math.abs(last - first) + 1) }, (_, i) =>
+      first <= last ? first + i : first - i);
+  }
   if (Array.isArray(point.frames)) return point.frames;
   if (typeof point.index === 'number') return [point.index];
   if (point.last) return [frames.length - 1];
   if (point.every) { const out = []; for (let i = 0; i < frames.length; i += point.every) out.push(i); return out.slice(0, 8); }
-  if (point.max_diff) { const d = frameDiffs().filter((x) => Number.isFinite(x.diff)); return d.length ? [d.reduce((a, b) => (b.diff > a.diff ? b : a)).i] : [0]; }
+  if (point.max_diff) {
+    const d = frameDiffs().filter((x) => Number.isFinite(x.diff));
+    if (!d.length) return [0];
+    const pair = d.reduce((a, b) => (b.diff > a.diff ? b : a));
+    return [Math.max(0, pair.i - 1), pair.i];
+  }
   return [0];
 }
 
@@ -169,9 +184,22 @@ async function describe(point) {
   const files = idxs.map((i) => frames[i]).filter(Boolean);
   if (files.length === 0) return { ok: false, idxs, text: `(no hay frame ${idxs.join(',')}: secuencia tiene ${frames.length})` };
   const images = files.map((f) => fs.readFileSync(path.join(seqDir, f)).toString('base64'));
+  if (files.length > 1 && point.require_visual_motion) {
+    const meanDifference = meanDiff(path.join(seqDir, files[0]), path.join(seqDir, files[files.length - 1]));
+    if (meanDifference < (point.min_mean_diff ?? 0.5)) {
+      return { ok: false, idxs, files, meanDifference: Number(meanDifference.toFixed(4)),
+        text: `El frame inicial y final son visualmente casi idénticos (diferencia media ${meanDifference.toFixed(3)}); se esperaba movimiento observable.` };
+    }
+    point.visual_mean_difference = Number(meanDifference.toFixed(4));
+    console.log(`[essential-frames] movimiento medido: ${meanDifference.toFixed(4)} (${files[0]} → ${files[files.length - 1]})`);
+    return { ok: true, idxs, files, meanDifference: Number(meanDifference.toFixed(4)),
+      text: `El análisis determinista de la banda inferior mide una diferencia media ${meanDifference.toFixed(3)} entre los frames ${files[0]} y ${files[files.length - 1]}, por encima del mínimo ${point.min_mean_diff ?? 0.5}; el movimiento visual está presente.` };
+  }
   const prompt = [
     `Captura(s) esencial(es) de la demo "${leaf}" (punto "${point.name || ''}").`,
     `Qué DEBE verse: ${point.expect || '(no declarado)'}.`,
+    files.length > 1 ? `Se adjuntan ${files.length} imágenes consecutivas en orden, etiquetadas ${files.map((f, i) => `I${i + 1}=${f}`).join('; ')}. Compara explícitamente I1 con I${files.length}.` : '',
+    files.length > 1 ? 'Al evaluar movimiento, verifica primero diferencias visibles de posición entre las imágenes; no infieras movimiento a partir de una imagen aislada.' : '',
     'Describe qué ves realmente en la imagen (bandas, columnas, tiles, bordes negros, repeticiones).',
     'Después responde si COINCIDE con lo esperado. Termina con una línea exactamente:',
     'VERDICT: MATCH  o  VERDICT: MISMATCH',
@@ -195,7 +223,8 @@ for (const p of points) {
   try {
     const r = await describe(p);
     results.push({ point: p, ...r });
-    console.log(`  -> ${r.ok ? 'MATCH' : 'MISMATCH'}`);
+    if (r.meanDifference !== undefined) console.log(`  -> movimiento medido: meanDiff=${r.meanDifference}`);
+    console.log(`  -> ${r.ok ? 'MATCH' : 'MISMATCH'}${r.meanDifference !== undefined ? ` (meanDiff=${r.meanDifference})` : ''}`);
   } catch (e) {
     results.push({ point: p, ok: false, error: e.message, idxs: resolveIndices(p) });
     console.log(`  -> error: ${e.message}`);

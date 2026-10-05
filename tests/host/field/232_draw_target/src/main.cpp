@@ -50,11 +50,11 @@ eng::u32 bits_in_plane(const eng::u8* planes, eng::u32 p) {
 
 int main() {
 	alignas(2) eng::u8 planes[kPlaneBytes * 4u] {};
-	eng::field::ContiguousPlayfield pf {};
+	eng::playfield::ContiguousPlayfield pf {};
 	check(pf.bind_raw(planes, sizeof(planes), kW, kH, 4u), "bind_raw del playfield");
 
-	eng::field::Surface surf {pf, eng::field::SurfaceRect {0, 0, kW, kH}};
-	eng::field::DrawTarget dt {surf, &eng::field::kCpuRaster,
+	eng::playfield::Surface surf {pf, eng::playfield::SurfaceRect {0, 0, kW, kH}};
+	eng::playfield::DrawTarget dt {surf, &eng::playfield::kCpuRaster,
 				   nullptr};
 	check(dt.valid(), "DrawTarget valido");
 	check(dt.box().w == kW && dt.box().h == kH, "box() = clip del destino");
@@ -77,7 +77,7 @@ int main() {
 	for (eng::u32 i = 0; i < 16u; ++i) {
 		chunky[i] = 8u; // solo el bit 3
 	}
-	const eng::field::C2pRequest req {
+	const eng::playfield::C2pRequest req {
 		eng::Block<eng::ChunkyTag> {eng::Bytes<eng::ChunkyTag> {chunky, sizeof(chunky)},
 					    eng::MemoryKind::Chip},
 		eng::Block<eng::PlaneTag> {eng::Bytes<eng::PlaneTag> {planes, sizeof(planes)},

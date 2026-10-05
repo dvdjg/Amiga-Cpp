@@ -60,7 +60,7 @@ inline void mark_init_started(volatile RunStatus& status) {
 	status.state = static_cast<u16>(RunState::InitStarted);
 }
 
-inline void mark_ready(volatile RunStatus& status, u32 detail = 0) {
+inline void mark_ready(volatile RunStatus& status, u32 detail = 0u) {
 	status.state = static_cast<u16>(RunState::Ready);
 	status.detail = detail;
 }
@@ -68,6 +68,23 @@ inline void mark_ready(volatile RunStatus& status, u32 detail = 0) {
 inline void mark_failed(volatile RunStatus& status, u32 detail) {
 	status.state = static_cast<u16>(RunState::Failed);
 	status.detail = detail;
+}
+
+/// **Fallo de memoria**: marca `Failed` con un `detail` que empaqueta el código base de la etapa y
+/// el estado del banco de memoria, de modo que un solo `runstatus` del canal lateral baste para
+/// saber *qué banco* y *por qué* sin recompilar. El diagnóstico completo (tamaños pedidos, último
+/// fallo) vive en `eng::debug::g_mem_probe` (`mem_probe.hpp`), que un host lee aparte.
+///
+/// Codificación del `detail` (compatible con los códigos de etapa existentes, que ocupan los 8
+/// bits bajos): `base` (bits 0..7) | causa (bits 8..11, `MemBank::Status`) | libres KB (bits
+/// 12..19) | usados KB (bits 20..27). Así el valor de compatibilidad (`base`) no se altera.
+inline void mark_mem_failed(volatile RunStatus& status, u8 base, u32 bank_status, u32 free_bytes,
+			    u32 used_bytes) {
+	u32 detail = static_cast<u32>(base) & 0xffu;
+	detail |= (bank_status & 0xfu) << 8;
+	detail |= ((free_bytes >> 10) & 0xffu) << 12;
+	detail |= ((used_bytes >> 10) & 0xffu) << 20;
+	mark_failed(status, detail);
 }
 
 inline void mark_frame(volatile RunStatus& status, u32 frame) {

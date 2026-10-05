@@ -42,6 +42,12 @@ enum class BlitJobKind : u8 {
 	/// Borrado del rectangulo: un blit sin fuentes (solo D). Con bitmaps
 	/// intercalados borra la caja del objeto en UN blit (`height = alto*planos`).
 	ClearRect,
+	/// **Relleno de color** de un rectangulo (solo D, sin fetch de fuentes): un blit por plano con
+	/// `D = A` (minterm `$F0`), **A deshabilitada** y `BLTADAT` preload con `$FFFF`/`$0000`; las
+	/// mascaras de borde (`fill.afwm`/`fill.alwm`) recortan la primera/ultima palabra. Es el
+	/// relleno de color **diferido** (`Screen::fill_box`). Ref.: AHRM 3.ª §"Extracting a Range of
+	/// Columns" (`BLTADAT` constante con A deshabilitada) + WinUAE `custom.cpp` `BLTADAT`.
+	FillRect,
 	/// BOB **OR por desplazamiento** (estilo `bobs3d`): `A` = bitmap del objeto,
 	/// `B = D` = destino, minterm `$FC` (`D = A | D`). Sin mascara: los ceros del
 	/// objeto dejan el fondo (aditivo/glow). Con destino intercalado es UN blit.
@@ -117,6 +123,7 @@ struct BlitJob {
 	BlitPtr source {};
 	BlitPtr destination {};
 	u16 words_per_row = 0;
+	/// Filas físicas del job; en OCS/ECS el valor 1024 se codifica como BLTSIZE height=0.
 	u16 height = 0;
 	s16 source_modulo_bytes = 0;
 	s16 destination_modulo_bytes = 0;
@@ -176,25 +183,35 @@ struct BlitJob {
 		u16 bytes = 0;
 	};
 	C2p c2p {};
+
+	/// Campos de **relleno de color** (`BlitJobKind::FillRect`, solo D): mascaras de primera y
+	/// ultima palabra (rect no alineado a 16 px). El color va en `minterm` (`$FF` = plano a 1,
+	/// `$00` = plano a 0); el backend traduce a `BLTADAT` `$FFFF`/`$0000` con A deshabilitada.
+	struct Fill {
+		u16 afwm = 0xffffu; ///< `BLTAFWM` (mascara de la primera palabra)
+		u16 alwm = 0xffffu; ///< `BLTALWM` (mascara de la ultima palabra)
+	};
+	Fill fill {};
 };
 
 /// Configura `job` como **BOB interleaved enmascarado en UNA pasada** (cookie-cut `$CA` con
 /// **máscara expandida**: una copia de la máscara por plano). `src` apunta al par
-/// `[máscara `w/16` palabras][imagen `w/16` palabras]` de la primera fila del BOB (layout que
+/// `[imagen `w/16` palabras][máscara `w/16` palabras]` de la primera fila del BOB (layout que
 /// produce `kingcon ... -Interleaved -Format=N -Mask`); `dest` al bitmap interleaved en
 /// `x & ~15`; `w`/`h` = tamaño en píxeles (`w` múltiplo de 16); `planes` = planos del bitmap;
 /// `dest_row_bytes` = bytes de **una fila de un plano**; `shift` = `x & 15`.
 ///
-/// Un solo blit recorre `h*planes` filas: `A` = máscara, `B` = imagen, `DMOD` = fila de plano.
-/// Ver `docs/reference/amiga/techniques/interleaved-bob-single-blit.md`. El job queda listo
-/// para `FramePlan::add_masked_bob` o `AmigaBackend::blitter_submit`.
+/// Un solo blit recorre `h*planes` filas: `A` = máscara (segunda mitad), `B` = imagen (primera
+/// mitad), `C = D` = destino; `ASH`/`BSH` desplazan ambos canales con el mismo `shift`. Ver
+/// `docs/reference/amiga/techniques/interleaved-bob-single-blit.md`. El job queda listo para
+/// `FramePlan::add_masked_bob` o `AmigaBackend::blitter_submit`.
 inline void make_interleaved_masked_bob(BlitJob& job, const u16* src, u16* dest, u16 w, u16 h,
 					u8 planes, u16 dest_row_bytes, u8 shift) noexcept {
 	const u16 words = static_cast<u16>(w / 16u);
 	job = BlitJob {};
 	job.kind = BlitJobKind::MaskedBobCookieCut;
-	job.mask = BlitPtr::from_storage(src);
-	job.source = BlitPtr::from_storage(src + words); // 2ª mitad de la fila = imagen
+	job.source = BlitPtr::from_storage(src);         // primera mitad de la fila = imagen
+	job.mask = BlitPtr::from_storage(src + words);   // segunda mitad de la fila = máscara
 	job.destination = BlitPtr::from_storage(dest);
 	job.words_per_row = words;
 	job.height = static_cast<u16>(h * planes);

@@ -87,13 +87,19 @@ if [ ! -f "$src" ]; then
 fi
 {
 	printf '==> [%s]\n' "$name"
+	# En Windows/MinGW el compilador anade `.exe` aunque `-o` no lo lleve; borra ambos antes de
+	# compilar (un binario ELF obsoleto sin extension haria que `"$bin"` fallara con "Exec format
+	# error" en vez de ejecutar el recien compilado) y ejecuta el que exista.
+	rm -f "$bin" "$bin.exe"
 	if ! "$CXX" $CXXFLAGS "$src" -o "$bin"; then
 		printf 'COMPILA: [%s] fallo de compilacion\n' "$name"
 		printf '2\t%s\n' "$test_dir" >>"$RESULT_FILE"
 		exit 0
 	fi
+	runbin="$bin"
+	if [ -f "$bin.exe" ]; then runbin="$bin.exe"; fi
 	ec=0
-	"$bin" || ec=$?
+	"$runbin" || ec=$?
 	if [ "$ec" -eq 3 ]; then
 		printf 'SKIP: [%s] (dependencia ausente; ver su README)\n' "$name"
 	elif [ "$ec" -ne 0 ]; then
@@ -227,6 +233,15 @@ if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 			exit 1
 		fi
 	fi
+	# Coste cero en el camino de frame: sin construir/copiar `BlitJob` local (memset/memcpy).
+	FRAME_HOT_PATH="$ROOT/tools/check/frame-hot-path.mjs"
+	if [ -f "$FRAME_HOT_PATH" ] && command -v node >/dev/null 2>&1; then
+		echo "== frame-hot-path =="
+		if ! node "$FRAME_HOT_PATH"; then
+			echo "frame-hot-path fallo: construccion/copia local en el camino de frame." >&2
+			exit 1
+		fi
+	fi
 	# Frontera dominio <-> plataforma (anillo 0 no toca vocabulario de chipset).
 	PLATFORM_BOUNDARIES="$ROOT/tools/check/platform-boundaries.mjs"
 	if [ -f "$PLATFORM_BOUNDARIES" ] && command -v node >/dev/null 2>&1; then
@@ -287,6 +302,15 @@ if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 		echo "== doc-index =="
 		if ! node "$DOC_INDEX"; then
 			echo "doc-index fallo: doc de hallazgo huerfano o con nombre fuera de la convencion." >&2
+			exit 1
+		fi
+	fi
+	# Manifiestos de assets: el header generado debe coincidir con su JSON (ROADMAP_GAME_API §4).
+	ASSET_MANIFESTS="$ROOT/tools/check/asset-manifests.mjs"
+	if [ -f "$ASSET_MANIFESTS" ] && command -v node >/dev/null 2>&1; then
+		echo "== asset-manifests =="
+		if ! node "$ASSET_MANIFESTS"; then
+			echo "asset-manifests fallo: manifiesto desincronizado (regenera con gen-manifest.mjs)." >&2
 			exit 1
 		fi
 	fi

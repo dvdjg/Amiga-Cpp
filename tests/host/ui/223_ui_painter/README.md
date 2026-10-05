@@ -2,7 +2,7 @@
 
 Test host de la fase **G0** de la librería GUI (`engine/include/eng/ui/`): `theme.hpp`
 (`UiTheme` + presets), `painter.hpp` (`UiPainter`) y `text.hpp` (`text_width`,
-`draw_text_clipped`), sobre `field::Surface`. Ver `ROADMAP_GUI.md` (G0) y
+`draw_text_clipped`), sobre `playfield::Surface`. Ver `ROADMAP_GUI.md` (G0) y
 `GUI_LIBRARY.md` §5–§7.
 
 Pinta sobre un `ContiguousPlayfield` enlazado a **memoria host** (sin Chip) y **lee el color de

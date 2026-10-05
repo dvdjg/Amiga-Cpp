@@ -18,7 +18,7 @@
 #include <eng/memory/arena.hpp>
 #include <eng/memory/memory_manager.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 class PlaneView {
 public:
@@ -80,4 +80,4 @@ private:
 	eng::u8 m_active = 0;
 };
 
-} // namespace eng::field
+} // namespace eng::playfield

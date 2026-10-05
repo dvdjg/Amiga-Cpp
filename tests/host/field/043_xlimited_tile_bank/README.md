@@ -1,6 +1,6 @@
 # HOST-043 — `XlimitedTileBank` (banco propio o aliaseado)
 
-Valida el descriptor `eng::field::XlimitedTileBank` (`engine/include/eng/field/xlimited_scene.hpp`),
+Valida el descriptor `eng::playfield::XlimitedTileBank` (`engine/include/eng/field/xlimited_scene.hpp`),
 que representa un banco de bloques X-Limited que puede ser **propio** (reservado en Chip RAM por
 los builders) o **aliaseado** a un `incbin` de solo lectura.
 

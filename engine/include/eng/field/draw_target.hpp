@@ -27,12 +27,13 @@
 #include <eng/graphics/bob.hpp>
 #include <eng/graphics/frame_plan.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 /// Destino de dibujo: `Surface` + `Rasterizer` + `FramePlan` (opcional) + la geometría
 /// del bitmap para los BOBs (`BobTarget`).
 class DrawTarget {
 public:
+	DrawTarget() = default;
 	DrawTarget(Surface surface, eng::Ref<Rasterizer> rasterizer,
 		   eng::Ref<graphics::FramePlan> plan,
 		   graphics::BobTarget bob_target = {}) noexcept
@@ -90,7 +91,7 @@ public:
 	/// llegaba al display). Sin `plan`, o fuera de 4 planos, se cae al CPU del playfield.
 	bool c2p(const C2pRequest& req) {
 		if (m_plan.valid()) {
-			return eng::field::kBlitterRaster.c2p(req, m_plan);
+			return eng::playfield::kBlitterRaster.c2p(req, m_plan);
 		}
 		return rasterizer()->c2p(req, {});
 	}
@@ -102,4 +103,4 @@ private:
 	graphics::BobTarget m_bob_target {};           ///< geometría del bitmap para BOBs
 };
 
-} // namespace eng::field
+} // namespace eng::playfield

@@ -2,7 +2,7 @@
 // Test HOST-029: mundo disperso con streaming (prefetch + solo-residentes)
 // ============================================================================
 //
-// Valida `eng::field::StreamingWorldMap<ChunkSize, Capacity, Source>`: prefetch de
+// Valida `eng::playfield::StreamingWorldMap<ChunkSize, Capacity, Source>`: prefetch de
 // los chunks que cubren la ventana, lectura de SOLO residentes (sin cargar durante el
 // dibujo), chunks ausentes como `empty_tile`, y telemetría de loads/evictions. La
 // fuente es un tipo con `load(cx,cy,dst)` (concept `ChunkSource`), no un puntero.
@@ -20,21 +20,21 @@ void check(bool ok, const char* what) {
 /// Fuente de prueba: puebla los chunks (1..4, *) y deja el resto como ausentes.
 struct Src {
 	int calls;
-	eng::field::LoadResult load(eng::s32 cx, eng::s32 cy, eng::TileBankBuffer cells) {
+	eng::playfield::LoadResult load(eng::s32 cx, eng::s32 cy, eng::TileBankBuffer cells) {
 		++calls;
 		if (cx >= 1 && cx <= 4) {
 			for (eng::u32 i = 0; i < 16u; ++i) { // 4x4 celdas
 				cells[i] = static_cast<eng::u16>(cx * 100 + cy * 10 + static_cast<eng::s32>(i));
 			}
-			return eng::field::LoadResult::Ready;
+			return eng::playfield::LoadResult::Ready;
 		}
-		return eng::field::LoadResult::Empty;
+		return eng::playfield::LoadResult::Empty;
 	}
 };
 } // namespace
 
 namespace {
-using Map = eng::field::StreamingWorldMap<4, 2, Src>;
+using Map = eng::playfield::StreamingWorldMap<4, 2, Src>;
 } // namespace
 
 int main() {

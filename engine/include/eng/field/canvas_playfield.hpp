@@ -7,7 +7,7 @@
 
 #include <eng/field/playfield_base.hpp>
 
-namespace eng::field {
+namespace eng::playfield {
 
 /// Lienzo plano: un playfield SIN tiles ni scroll, para blits y primitivas de
 /// CPU. Es la base de un HUD, de un fondo estático o de una capa de actores.
@@ -197,4 +197,4 @@ private:
     eng::Block<eng::PlaneTag> m_bound {};
 };
 
-} // namespace eng::field
+} // namespace eng::playfield

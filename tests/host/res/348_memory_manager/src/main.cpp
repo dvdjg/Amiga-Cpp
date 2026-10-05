@@ -65,6 +65,21 @@ int main() {
 	const auto cpu_slow = eng::fast_or_slow<eng::PlaneTag>(mm, 64u);
 	check(cpu_slow.valid() && cpu_slow.kind == eng::MemoryKind::Slow, "fast_or_slow cae a Slow");
 
+	// Politica nombrada (Fase 7): unifica la eleccion y deja el banco efectivo en `kind`.
+	const auto p_chip = eng::reserve<eng::PlaneTag>(mm2, eng::MemoryPolicy::ChipRequired, 32u);
+	check(p_chip.valid() && p_chip.kind == eng::MemoryKind::Chip, "policy ChipRequired -> Chip");
+	const auto p_fast = eng::reserve<eng::PlaneTag>(mm2, eng::MemoryPolicy::FastRequired, 32u);
+	check(p_fast.valid() && p_fast.kind == eng::MemoryKind::Fast, "policy FastRequired -> Fast");
+	const auto p_fast_absent = eng::reserve<eng::PlaneTag>(mm, eng::MemoryPolicy::FastRequired, 32u);
+	check(!p_fast_absent.valid(), "policy FastRequired sin Fast -> invalido (sin fallback)");
+	const auto p_pref = eng::reserve<eng::PlaneTag>(mm, eng::MemoryPolicy::FastPreferred, 32u);
+	check(p_pref.valid() && p_pref.kind == eng::MemoryKind::Slow, "policy FastPreferred cae a Slow");
+	const auto p_pref_fast = eng::reserve<eng::PlaneTag>(mm2, eng::MemoryPolicy::FastPreferred, 32u);
+	check(p_pref_fast.valid() && p_pref_fast.kind == eng::MemoryKind::Fast,
+	      "policy FastPreferred elige Fast");
+	const auto p_any = eng::reserve<eng::PlaneTag>(mm, eng::MemoryPolicy::AnyBank, 32u);
+	check(p_any.valid() && p_any.kind == eng::MemoryKind::Slow, "policy AnyBank Fast->Slow");
+
 	// Pila de CPU: banco seleccionable; tope alineado (valor para SP).
 	const eng::Stack st = eng::fast_or_slow_stack(mm2, 128u);
 	check(st.valid() && (st.top & 7u) == 0u && st.block.kind == eng::MemoryKind::Fast,
@@ -73,6 +88,26 @@ int main() {
 	check(st_slow.valid() && st_slow.block.kind == eng::MemoryKind::Slow, "pila cae a Slow");
 	const eng::Stack st_chip = eng::stack_from(mm.chip(), 128u);
 	check(st_chip.valid() && st_chip.block.kind == eng::MemoryKind::Chip, "stack_from<Chip>");
+
+	// StackPolicy (Fase 7, paso 3): banco/tamano/fallback en un valor. Banco Fast fresco (mm2 ya
+	// esta lleno por las reservas anteriores).
+	eng::u8 fast_buf2[512] {};
+	eng::MemoryManager mm3 {};
+	(void)mm3.configure(chip_buf, sizeof(chip_buf), slow_buf, sizeof(slow_buf), fast_buf2,
+			    sizeof(fast_buf2), 16u);
+	const eng::Stack sp_fast =
+		eng::stack_from(mm3, eng::StackPolicy {eng::MemoryPolicy::FastPreferred, 128u, 8u});
+	check(sp_fast.valid() && sp_fast.block.kind == eng::MemoryKind::Fast && (sp_fast.top & 7u) == 0u,
+	      "StackPolicy FastPreferred -> Fast (tope alineado)");
+	const eng::Stack sp_slow =
+		eng::stack_from(mm, eng::StackPolicy {eng::MemoryPolicy::FastPreferred, 128u, 8u});
+	check(sp_slow.valid() && sp_slow.block.kind == eng::MemoryKind::Slow, "StackPolicy cae a Slow");
+	const eng::Stack sp_chip =
+		eng::stack_from(mm, eng::StackPolicy {eng::MemoryPolicy::ChipRequired, 128u, 8u});
+	check(sp_chip.valid() && sp_chip.block.kind == eng::MemoryKind::Chip, "StackPolicy ChipRequired");
+	const eng::Stack sp_fast_req =
+		eng::stack_from(mm, eng::StackPolicy {eng::MemoryPolicy::FastRequired, 128u, 8u});
+	check(!sp_fast_req.valid(), "StackPolicy FastRequired sin Fast -> invalido (sin fallback)");
 
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);

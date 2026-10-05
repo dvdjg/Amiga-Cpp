@@ -2,7 +2,7 @@
 // Test HOST-038: PlaneView (soft DPF, doble buffer de planos)
 // ============================================================================
 //
-// Valida `eng::field::PlaneView` con punteros crudos (sin MemorySystem): el
+// Valida `eng::playfield::PlaneView` con punteros crudos (sin MemorySystem): el
 // buffer delantero que publica el display, el trasero que escribe el Blit y la
 // conmutación `flip()`. Es la pieza extraída del playfield de scroll.
 
@@ -16,7 +16,7 @@ int g_fail = 0;
 void check(bool ok, const char* what) {
 	if (!ok) { std::printf("[FAIL] %s\n", what); ++g_fail; }
 }
-using eng::field::PlaneView;
+using eng::playfield::PlaneView;
 } // namespace
 
 int main() {

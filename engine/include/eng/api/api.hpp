@@ -17,6 +17,11 @@
 /// consolidación de la API pública.
 
 #include <eng/api/game.hpp>
+#include <eng/api/display.hpp>
+#include <eng/api/scene.hpp>
+#include <eng/api/screen.hpp>
+#include <eng/api/scroll.hpp>
+#include <eng/api/world_render.hpp>
 #include <eng/core/types/box.hpp>
 #include <eng/core/types/domains.hpp>
 #include <eng/core/util/expected.hpp>
@@ -25,8 +30,10 @@
 #include <eng/engine.hpp>
 #include <eng/field/draw_target.hpp>
 #include <eng/field/raster.hpp>
+#include <eng/field/strip_scroller.hpp>
 #include <eng/field/surface.hpp>
 #include <eng/graphics/blitter_state.hpp>
+#include <eng/graphics/anim.hpp>
 #include <eng/graphics/font_italic.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/glyph_cache.hpp>
