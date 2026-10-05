@@ -13,7 +13,6 @@
 
 #include <eng/api/api.hpp>
 #include <eng/graphics/tile_planar.hpp>
-#include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/platform/amiga/input_poll.hpp>
 #include <eng/graphics/sprite_manager.hpp>

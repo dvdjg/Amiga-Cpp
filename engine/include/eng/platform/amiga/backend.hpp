@@ -15,6 +15,7 @@
 ///   takeover completo o una mezcla de ambos.
 
 #include <eng/audio/audio_system.hpp>
+#include <eng/audio/synth_playback_plan.hpp>
 #include <eng/core/types/domains.hpp>
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/types.hpp>
@@ -713,9 +714,26 @@ public:
 		m_paula.start_channel(channel);
 	}
 
+	/// Publica una ventana de síntesis preparada en AUD1..AUD3; no acepta la ruta mixer ni buffers impares.
+	[[nodiscard]] bool start_synth_window(const eng::audio::SynthPlaybackWindow& window, eng::Span<const u8> sample) {
+		if (window.route != eng::audio::SynthRoute::PaulaRequired || window.hardware_channel < 1u || window.hardware_channel > 3u ||
+			sample.empty() || (sample.size() & 1u) != 0u || sample.size() > 131070u || !m_composition_playing || m_audio.sfx().ready()) return false;
+		start_audio_buffer(window.hardware_channel, sample.data(), static_cast<u16>(sample.size() / 2u), window.period, window.volume);
+		return true;
+	}
+
 	/// Cambia el buffer PCM del canal en la IRQ de audio; no asigna ni decodifica.
 	void swap_audio_buffer(u8 channel, const u8* sample, u16 words) {
 		if (m_composition_playing) m_paula.set_buffer(channel, sample, words);
+	}
+
+	/// Cambia una ventana Paula ya preparada y actualiza periodo/volumen en el límite de evento.
+	[[nodiscard]] bool swap_synth_window(const eng::audio::SynthPlaybackWindow& window, eng::Span<const u8> sample) {
+		if (window.route != eng::audio::SynthRoute::PaulaRequired || window.hardware_channel < 1u || window.hardware_channel > 3u ||
+			sample.empty() || (sample.size() & 1u) != 0u || sample.size() > 131070u || !m_composition_playing) return false;
+		m_paula.set_period(window.hardware_channel, window.period); m_paula.set_volume(window.hardware_channel, window.volume);
+		swap_audio_buffer(window.hardware_channel, sample.data(), static_cast<u16>(sample.size() / 2u));
+		return true;
 	}
 
 	/// Detiene una voz de Paula sin cambiar la propiedad del vector nivel 4; apto para EOF en IRQ.

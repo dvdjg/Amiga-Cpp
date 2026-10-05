@@ -54,6 +54,64 @@ struct Info {
 	Section sections[kSectionCount] {};
 };
 
+/// Vista validada de una unidad ACP1 v3 y su representación.
+struct Unit {
+	eng::u32 id = 0u; ///< Índice consecutivo de la unidad.
+	eng::u8 representation = 0u; ///< 0 PCM, 1 Additive o 2 Hybrid.
+	eng::u8 flags = 0u; ///< bit 0: la unidad PCM puede repetirse durante un evento largo.
+	eng::u32 decoded_samples = 0u; ///< Duración reconstruida en muestras.
+	eng::u32 first_segment = 0xffffffffu; ///< Primer segmento o sentinel si es aditiva.
+	eng::u16 segment_count = 0u; ///< Número de segmentos residuales.
+	eng::u16 synthesis_index = 0xffffu; ///< Índice de SynthesisParams o sentinel.
+	eng::u16 reference_gain_q8_8 = 256u; ///< Ganancia de referencia; 256 = unidad.
+};
+
+/// Vista de los parámetros de síntesis asociados a una unidad.
+struct SynthesisParams {
+	eng::u32 unit_id = 0u; ///< Unidad que referencia estos parámetros.
+	eng::u32 fundamental_hz_q16_16 = 0u; ///< Fundamental base en Hz Q16.16.
+	eng::u32 phase_q0_32 = 0u; ///< Fase inicial de la fundamental.
+	eng::u32 first_partial = 0u; ///< Primer parcial asociado.
+	eng::u16 partial_count = 0u; ///< Número de parciales asociados.
+	eng::u8 waveform = 0u; ///< 0 seno, 1 wavetable, 2 triangular, 3 cuadrada.
+	eng::u16 level_q8_8 = 256u; ///< Nivel de la suma; 256 = unidad.
+	eng::u16 wave_table_id = 0xffffu; ///< Wavetable custom o sentinel para formas estándar.
+};
+
+/// Parcial armónico serializado en ACP1 v3.
+struct Partial {
+	eng::u16 ratio_q8_8 = 256u; ///< Relación respecto a la fundamental; 256 = 1x.
+	eng::s16 amplitude_q1_15 = 0; ///< Amplitud firmada del parcial.
+	eng::u32 phase_q0_32 = 0u; ///< Desfase del parcial.
+};
+
+/// Vista de una pista y sus restricciones de ruta.
+struct Track {
+	eng::u16 id = 0u; ///< Identificador de la pista.
+	eng::u8 route = 0u; ///< Ruta ACP1 v3: Auto, Paula/Mixer preferido o requerido.
+	eng::u32 first_event = 0u; ///< Primer evento de la pista.
+	eng::u32 event_count = 0u; ///< Número de eventos de la pista.
+	eng::u16 gain_envelope = 0xffffu; ///< Envolvente de ganancia o sentinel.
+	eng::u16 pitch_envelope = 0xffffu; ///< Envolvente de pitch o sentinel.
+	eng::u16 gain_q8_8 = 256u; ///< Ganancia fija de pista.
+	eng::s8 pan_s8 = 0; ///< Paneo -127..127.
+	eng::u8 priority = 0u; ///< Prioridad para la planificación de voces.
+};
+
+/// Vista de un evento de nota o unidad en la timeline común.
+struct Event {
+	eng::u16 track_id = 0u; ///< Pista propietaria.
+	eng::u16 flags = 0u; ///< Flags v3, incluido CueOnly.
+	eng::u64 start_sample = 0u; ///< Inicio en muestras de la timeline maestra.
+	eng::u32 duration = 0u; ///< Duración del evento.
+	eng::u32 unit_id = 0u; ///< Unidad aditiva, híbrida o PCM.
+	eng::u32 unit_offset = 0u; ///< Desplazamiento dentro de la unidad.
+	eng::u16 gain_q8_8 = 256u; ///< Ganancia del evento.
+	eng::s16 pitch_semitones_q8_8 = 0; ///< Desplazamiento de pitch en semitonos Q8.8.
+	eng::u16 gain_envelope = 0xffffu; ///< Envolvente de ganancia o sentinel.
+	eng::u16 pitch_envelope = 0xffffu; ///< Envolvente de pitch o sentinel.
+};
+
 [[nodiscard]] inline eng::u16 rd16(eng::Span<const eng::u8> file, eng::usize at) noexcept {
 	return static_cast<eng::u16>(file[at]) |
 		static_cast<eng::u16>(static_cast<eng::u16>(file[at + 1u]) << 8u);
@@ -110,8 +168,10 @@ struct Info {
 	const auto& payloads = parsed.sections[kPayloadBytes - 1u];
 	const auto& tracks = parsed.sections[kTracks - 1u];
 	const auto& events = parsed.sections[kEvents - 1u];
+	const auto& synthesis = parsed.sections[8u];
+	const auto& partials = parsed.sections[9u];
 	if (units.entry_size != kUnitSize || segments.entry_size != kSegmentSize || tracks.entry_size != kTrackSize ||
-		events.entry_size != kEventSize || payloads.entry_size != 1u || (units.flags & kRequired) == 0u ||
+		events.entry_size != kEventSize || payloads.entry_size != 1u || synthesis.entry_size != 28u || partials.entry_size != 8u || (units.flags & kRequired) == 0u ||
 		(tracks.flags & kRequired) == 0u || (events.flags & kRequired) == 0u || units.entry_count == 0u ||
 		tracks.entry_count == 0u || tracks.entry_count > 7u || events.entry_count == 0u ||
 		((segments.entry_count != 0u) != ((segments.flags & kRequired) != 0u)) ||
@@ -133,12 +193,24 @@ struct Info {
 	parsed.event_count = events.entry_count;
 	for (eng::u32 i = 0u; i < parsed.unit_count; ++i) {
 		const eng::usize at = units.offset + static_cast<eng::usize>(i) * kUnitSize;
-		if (rd32(file, at) != i || file[at + 4u] > 2u || file[at + 5u] != 0u || rd32(file, at + 20u) != 0u) return false;
+		const eng::u8 representation = file[at + 4u];
+		const eng::u16 synthesis_index = rd16(file, at + 16u);
+		const eng::u16 segment_count = rd16(file, at + 14u);
+		if (rd32(file, at) != i || representation > 2u || (file[at + 5u] & ~1u) != 0u || rd32(file, at + 20u) != 0u ||
+			(representation == 0u && synthesis_index != 0xffffu) ||
+			(representation != 0u && (synthesis_index >= synthesis.entry_count || segment_count != 0u || rd32(file, at + 10u) != 0xffffffffu))) return false;
 		const eng::u32 decoded = rd32(file, at + 6u);
 		const eng::u32 first = rd32(file, at + 10u);
 		const eng::u16 count = rd16(file, at + 14u);
 		if ((count == 0u) != (first == 0xffffffffu) || decoded == 0u) return false;
 		if (static_cast<eng::u64>(first) + count > parsed.segment_count && count != 0u) return false;
+	}
+	for (eng::u32 i = 0u; i < synthesis.entry_count; ++i) {
+		const eng::usize at = synthesis.offset + i * synthesis.entry_size;
+		const eng::u32 first = rd32(file, at + 12u);
+		const eng::u16 count = rd16(file, at + 16u);
+		if (rd32(file, at) >= parsed.unit_count || file[at + 18u] == 1u || file[at + 18u] > 3u ||
+			eng::u64 {first} + count > partials.entry_count) return false;
 	}
 	for (eng::u32 i = 0u; i < parsed.segment_count; ++i) {
 		const eng::usize at = segments.offset + static_cast<eng::usize>(i) * kSegmentSize;
@@ -150,7 +222,7 @@ struct Info {
 		if (unit >= parsed.unit_count || count == 0u || payload_size == 0u || rd16(file, at + 20u) > 7u ||
 			file[at + 23u] != 0u || rd16(file, at + 26u) != 0u || payload_at < payloads.offset || payload_at > payloads.offset + payloads.entry_count ||
 			payload_size > payloads.offset + payloads.entry_count - payload_at) return false;
-		const eng::usize unit_at = units.offset + static_cast<eng::usize>(unit) * kUnitSize;
+		const eng::usize unit_at = units.offset + unit * kUnitSize;
 		if (start > rd32(file, unit_at + 6u) || count > rd32(file, unit_at + 6u) - start) return false;
 	}
 	for (eng::u32 i = 0u; i < parsed.event_count; ++i) {
@@ -160,8 +232,68 @@ struct Info {
 		const eng::u32 unit = rd32(file, at + 16u);
 		if (track >= parsed.track_count || rd16(file, at + 2u) != 0u || duration == 0u || unit >= parsed.unit_count ||
 			rd16(file, at + 38u) != 0u || rd32(file, at + 40u) != 0u) return false;
+		const eng::usize unit_at = units.offset + unit * kUnitSize;
+		const eng::u32 unit_samples = rd32(file, unit_at + 6u);
+		const eng::u32 unit_offset = rd32(file, at + 20u);
+		const bool loopable_pcm = file[unit_at + 4u] == 0u && (file[unit_at + 5u] & 1u) != 0u;
+		if (unit_offset > unit_samples || (!loopable_pcm && duration > unit_samples - unit_offset)) return false;
 	}
 	out = parsed;
+	return true;
+}
+
+/// Lee una unidad validada de la tabla `Units` sin reservar memoria.
+[[nodiscard]] inline bool unit(eng::Span<const eng::u8> file, const Info& info, eng::u32 index, Unit& out) noexcept {
+	const Section& section = info.sections[kUnits - 1u];
+	if (index >= section.entry_count || section.entry_size != kUnitSize) return false;
+	const eng::usize at = section.offset + index * kUnitSize;
+	out.id = rd32(file, at); out.representation = file[at + 4u]; out.decoded_samples = rd32(file, at + 6u);
+	out.flags = file[at + 5u];
+	out.first_segment = rd32(file, at + 10u); out.segment_count = rd16(file, at + 14u);
+	out.synthesis_index = rd16(file, at + 16u); out.reference_gain_q8_8 = rd16(file, at + 18u);
+	return out.id == index;
+}
+
+/// Lee los parámetros de síntesis de una unidad validada.
+[[nodiscard]] inline bool synthesis(eng::Span<const eng::u8> file, const Info& info, eng::u32 index, SynthesisParams& out) noexcept {
+	const Section& section = info.sections[8u];
+	if (index >= section.entry_count || section.entry_size != 28u) return false;
+	const eng::usize at = section.offset + index * 28u;
+	out.unit_id = rd32(file, at); out.fundamental_hz_q16_16 = rd32(file, at + 4u); out.phase_q0_32 = rd32(file, at + 8u);
+	out.first_partial = rd32(file, at + 12u); out.partial_count = rd16(file, at + 16u); out.waveform = file[at + 18u];
+	out.level_q8_8 = rd16(file, at + 20u); out.wave_table_id = rd16(file, at + 22u);
+	return true;
+}
+
+/// Lee un parcial armónico validado.
+[[nodiscard]] inline bool partial(eng::Span<const eng::u8> file, const Info& info, eng::u32 index, Partial& out) noexcept {
+	const Section& section = info.sections[9u];
+	if (index >= section.entry_count || section.entry_size != 8u) return false;
+	const eng::usize at = section.offset + index * 8u;
+	out.ratio_q8_8 = rd16(file, at); out.amplitude_q1_15 = rd16(file, at + 2u); out.phase_q0_32 = rd32(file, at + 4u);
+	return true;
+}
+
+/// Lee una pista y conserva sus restricciones de asignación para el planner.
+[[nodiscard]] inline bool track(eng::Span<const eng::u8> file, const Info& info, eng::u32 index, Track& out) noexcept {
+	const Section& section = info.sections[kTracks - 1u];
+	if (index >= section.entry_count || section.entry_size != kTrackSize) return false;
+	const eng::usize at = section.offset + index * kTrackSize;
+	out.id = rd16(file, at); out.route = file[at + 2u]; out.first_event = rd32(file, at + 4u); out.event_count = rd32(file, at + 8u);
+	out.gain_envelope = rd16(file, at + 12u); out.pitch_envelope = rd16(file, at + 14u); out.gain_q8_8 = rd16(file, at + 16u);
+	out.pan_s8 = file[at + 18u]; out.priority = file[at + 19u];
+	return out.id == index;
+}
+
+/// Lee un evento de nota validado y expone su pitch y ganancia sin interpretar hardware.
+[[nodiscard]] inline bool event(eng::Span<const eng::u8> file, const Info& info, eng::u32 index, Event& out) noexcept {
+	const Section& section = info.sections[kEvents - 1u];
+	if (index >= section.entry_count || section.entry_size != kEventSize) return false;
+	const eng::usize at = section.offset + index * kEventSize;
+	out.track_id = rd16(file, at); out.flags = rd16(file, at + 2u); out.start_sample = rd64(file, at + 4u);
+	out.duration = rd32(file, at + 12u); out.unit_id = rd32(file, at + 16u); out.unit_offset = rd32(file, at + 20u);
+	out.gain_q8_8 = rd16(file, at + 24u); out.pitch_semitones_q8_8 = rd16(file, at + 28u);
+	out.gain_envelope = rd16(file, at + 30u); out.pitch_envelope = rd16(file, at + 32u);
 	return true;
 }
 

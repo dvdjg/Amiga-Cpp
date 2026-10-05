@@ -732,6 +732,8 @@ public:
 		u16 dma_stride = 0u;   ///< words por estructura (`2 + lines*2 + 2`)
 	};
 
+	/// Instala el efecto con `cfg` (geometría, imagen y estructuras DMA) delegando en el
+	/// `SpriteLayer` interno; devuelve si la capa aceptó la configuración. Llamar antes de `bind`.
 	[[nodiscard]] bool attach(Config cfg) {
 		m_cfg = cfg;
 		SpriteLayer::Config sc {};
