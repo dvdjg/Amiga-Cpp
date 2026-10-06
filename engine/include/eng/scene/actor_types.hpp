@@ -20,7 +20,9 @@
 ///
 /// Verificación: lógica y emisión cubiertas por el test host `tests/host/scene/072_actor`
 /// (almacén generacional, políticas, geometría, jobs de fondo/dibujo y Copper anclado).
-/// **NO VERIFICADA por demo**: todavía no hay una demo con gate visual que lo consuma.
+/// **Verificada por demo en la vía de sprites**: `216_attached_actors` consume el camino de
+/// actores → `compose_sprites` con gate visual (secuencia + visión); las políticas de BOB,
+/// save-under y culling siguen cubiertas solo por el test host.
 
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/span.hpp>

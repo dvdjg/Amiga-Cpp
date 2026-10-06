@@ -10,10 +10,16 @@
 /// como sprite hardware se **degradan a BOB** (`result.degraded`), dibujados por Blitter en el plan
 /// del frame. El juego **no ve** canales, registros ni `BPLxPT`.
 ///
+/// Un actor con `visual.attached` (4 planos sobre un par *attached*) consume **dos canales
+/// contiguos** y se publica como dos placements de 15 colores; el engine cocina sus dos
+/// estructuras DMA en el pool Chip que da `set_cooked_pool` (`ChipView<SpriteTag>`), con la DATA
+/// del frame vigente. Sin pool, el par se rechaza de forma controlada (`result.ok == false`).
+///
 /// ```cpp
 /// eng::SpriteScene<64> sprites;                   // hasta 64 actores (NES OAM)
 /// sprites.set_budget({8u, 60000u, 0u});           // 8 canales HW, 60k palabras de BOB, 0 capas
-/// sprites.add({.visual = nave, .x = 100, .y = 40, .sprite_priority = 1});
+/// sprites.set_cooked_pool(cooked_block.mem_view()); // par attached: pool Chip de estructuras
+/// sprites.add({.visual = gema, .x = 100, .y = 40, .sprite_priority = 1});
 /// // render: compone (los BOB van al `plan`) y deja las colocaciones HW en `placements()`
 /// auto r = sprites.emit(plan, ctx);
 /// ```
@@ -39,6 +45,13 @@ public:
 	/// de `add` (el presupuesto se consume al dar de alta cada actor).
 	/// \param b  `{sprite_channels, bob_budget_words, layer_slots}`.
 	void set_budget(const eng::scene::RepresentationBudget& b) noexcept { m_alloc.reset(b); }
+
+	/// **Pool Chip para los pares *attached***: donde `emit` cocina las estructuras DMA de los
+	/// actores con `visual.attached` (dos por par, `attached_pair_structure_words(h) * 2` bytes
+	/// cada una). Sin pool, un actor *attached* provoca rechazo controlado. El bloque lo posee
+	/// el llamador; aquí solo se referencia (vista Chip tipada, la lee el DMA).
+	/// \param pool  vista Chip de las estructuras (tamaño = pares vivos × 2 × estructura).
+	void set_cooked_pool(eng::ChipView<eng::SpriteTag> pool) noexcept { m_cooked = pool; }
 
 	/// **Alta de un actor**. `ActorId{}` (inválido) si el almacén está lleno o la descripción no
 	/// tiene contenido (`visual.pixels`/`w`/`h`).
@@ -70,11 +83,12 @@ public:
 	     eng::Ref<eng::copper::Plan> copper = {}) noexcept {
 		eng::scene::SpriteComposeScratch sc {
 			eng::Span<eng::scene::ActorId> {m_order, MaxActors},
-			eng::Span<eng::scene::SpriteIntent> {m_intents, MaxActors},
-			eng::Span<eng::u16> {m_intent_actor, MaxActors},
-			eng::Span<eng::scene::SpriteSlot> {m_slots, MaxActors},
-			eng::Span<eng::scene::HwSpritePlacement> {m_placements, MaxActors},
+			eng::Span<eng::scene::SpriteIntent> {m_intents, kMaxIntents},
+			eng::Span<eng::u16> {m_intent_actor, kMaxIntents},
+			eng::Span<eng::scene::SpriteSlot> {m_slots, kMaxIntents},
+			eng::Span<eng::scene::HwSpritePlacement> {m_placements, kMaxIntents},
 			eng::Span<eng::scene::CopperIntent> {m_copper, kCopperMax}};
+		sc.cooked = m_cooked;
 		m_result = eng::scene::compose_sprites(plan, m_store, ctx, ctx.display_top, sc, copper);
 		return m_result;
 	}
@@ -88,14 +102,18 @@ public:
 
 private:
 	static constexpr eng::u16 kCopperMax = static_cast<eng::u16>(MaxActors * 4u); ///< intents/actor
+	/// Capacidad por buffer: un actor normal usa 1; un par *attached*, 2 (intent, slot y
+	/// placement). El orden de emisión no se duplica (sigue siendo `MaxActors`).
+	static constexpr eng::u16 kMaxIntents = static_cast<eng::u16>(MaxActors * 2u);
 	eng::scene::ActorStore<MaxActors> m_store {};
 	eng::scene::RepresentationAllocator m_alloc {};
 	eng::scene::ActorId m_order[MaxActors] {};
-	eng::scene::SpriteIntent m_intents[MaxActors] {};
-	eng::u16 m_intent_actor[MaxActors] {};
-	eng::scene::SpriteSlot m_slots[MaxActors] {};
-	eng::scene::HwSpritePlacement m_placements[MaxActors] {};
+	eng::scene::SpriteIntent m_intents[kMaxIntents] {};
+	eng::u16 m_intent_actor[kMaxIntents] {};
+	eng::scene::SpriteSlot m_slots[kMaxIntents] {};
+	eng::scene::HwSpritePlacement m_placements[kMaxIntents] {};
 	eng::scene::CopperIntent m_copper[kCopperMax] {};
+	eng::ChipView<eng::SpriteTag> m_cooked {}; ///< pool de estructuras de pares *attached*
 	eng::scene::SpriteComposeResult m_result {};
 };
 

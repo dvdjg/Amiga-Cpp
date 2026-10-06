@@ -14,6 +14,9 @@ Cubre:
 - **Paridad de la X**: `SPRxPOS` lleva `HSTART>>1` y el bit 0 de `SPRxCTL` lleva `HSTART[0]`.
 - **`SpriteManager::emit_armed_into`**: un solo `WAIT` en la línea de armado y el armado de
   todos los canales habilitados, sin `WAIT` por `VSTART` (patrón de objetos).
+- **`SpriteManager::emit_placements_into`**: primera config de cada canal en la línea de
+  armado compartida y **rearme vertical** de un canal reutilizado por el allocator en otra
+  franja (multiplexado), en orden no decreciente de `vstart` (demo `216_attached_actors`).
 - **Rechazos sin emisión**: canal ≥ 8, DATA vacía y alto 0.
 
 Es host (sin hardware): la copperlist se construye en un bloque Chip del arena y se

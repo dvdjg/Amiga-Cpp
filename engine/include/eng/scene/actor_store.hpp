@@ -282,10 +282,14 @@ inline eng::u16 emit_actors_in_order(FramePlan& plan, ActorStore<MaxActors>& sto
 	return emitted;
 }
 
-/// Construye una `SpriteIntent` por actor (en el orden dado) y las ordena por `top`, que
-/// es el contrato de `SpriteAllocator::assign`. `intent_actor[i]` recibe el índice de
-/// slot del actor de `intents[i]`, para asociar después los `SpriteSlot` con su actor.
+/// Construye las `SpriteIntent` de los actores (en el orden dado) y las ordena por `top`,
+/// que es el contrato de `SpriteAllocator::assign`. Un actor normal produce una intención;
+/// un actor con **par *attached*** (`visual.attached`) produce DOS contiguas (el canal par
+/// y el impar con `attach = true`), que el allocator reparte como pareja 0+1, 2+3, …
+/// `intent_actor[i]` recibe el índice de slot del actor de `intents[i]`, para asociar
+/// después los `SpriteSlot` con su actor (los dos intents de un par comparten índice).
 /// Devuelve cuántas escribió, o 0 si no caben en `capacity` (rechazo controlado).
+/// La ordenación es estable: los intents de un par (mismo `top`) conservan su adyacencia.
 template <eng::u16 MaxActors>
 inline eng::u16 build_sprite_intents(const ActorStore<MaxActors>& store,
 				     eng::Span<const ActorId> order, const ActorEmitContext& ctx,
@@ -304,9 +308,23 @@ inline eng::u16 build_sprite_intents(const ActorStore<MaxActors>& store,
 		}
 		const Frame f = actor_current_frame(*a);
 		const DirtyRect r = actor_screen_rect(*a, f, ctx.cam_x, ctx.cam_y);
+		// Un par *attached* ocupa dos canales contiguos: dos intents con el MISMO rango
+		// vertical/posición, el segundo con `attach` (AHRM cap. 4, Table 4-5).
+		const eng::u16 need =
+			eng::graphics::visual_is_attached_pair(a->desc.visual) ? 2u : 1u;
+		if (static_cast<eng::u16>(n + need) > intents.size() ||
+		    static_cast<eng::u16>(n + need) > intent_actor.size()) {
+			return 0u; // no cabe la intención (ni el par): rechazo controlado
+		}
 		intents[n] = actor_to_sprite_intent(*a, f, r);
 		intent_actor[n] = order[i].index;
 		++n;
+		if (need == 2u) {
+			intents[n] = intents[n - 1u];
+			intents[n].attach = true; // canal impar del par
+			intent_actor[n] = order[i].index;
+			++n;
+		}
 	}
 	// Orden por `top` (inserción, estable: los empates conservan el orden por
 	// superficie/`z` con el que llegaron).
@@ -327,8 +345,10 @@ inline eng::u16 build_sprite_intents(const ActorStore<MaxActors>& store,
 
 /// Emite como BOB los actores que el `SpriteAllocator` degradó (`SpriteSlot::as_bob`),
 /// respetando el orden por superficie y `z`. `intent_actor[i]` asocia `slots[i]` con su
-/// actor. Los actores que sí caben en sprite NO se dibujan aquí (los materializa el
-/// camino de sprite). Devuelve cuántos emitió; 0 si algún actor devuelve `Full`.
+/// actor; los dos intents de un par *attached* comparten actor, así que el degradado se
+/// emite **una sola vez** (gana el líder). Los actores que sí caben en sprite NO se
+/// dibujan aquí (los materializa el camino de sprite). Devuelve cuántos emitió; 0 si algún
+/// actor devuelve `Full`.
 template <eng::u16 MaxActors>
 inline eng::u16 emit_bob_fallbacks(FramePlan& plan, ActorStore<MaxActors>& store,
 				   eng::Span<const eng::u16> intent_actor,
@@ -340,9 +360,16 @@ inline eng::u16 emit_bob_fallbacks(FramePlan& plan, ActorStore<MaxActors>& store
 	}
 	eng::util::StaticVector<eng::u16, MaxActors> fallback;
 	for (eng::u16 i = 0; i < count && !fallback.full(); ++i) {
-		if (slots[i].as_bob) {
-			fallback.push_back(intent_actor[i]);
+		if (!slots[i].as_bob) {
+			continue;
 		}
+		// Un par *attached* produce DOS intents para el MISMO actor (el impar con
+		// `attach`): el BOB degradado es UNO; solo cuenta el líder (mismo `intent_actor`
+		// que el intent anterior).
+		if (i > 0u && intent_actor[i] == intent_actor[i - 1u]) {
+			continue;
+		}
+		fallback.push_back(intent_actor[i]);
 	}
 	const eng::u16 nf = static_cast<eng::u16>(fallback.size());
 	// Los degradados se dibujan en orden por superficie y `z`, no en orden de intent

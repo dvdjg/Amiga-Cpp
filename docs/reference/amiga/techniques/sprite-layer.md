@@ -133,11 +133,11 @@ necesidad de máscara en RAM.
 | Capacidad | Estado | Dónde |
 |---|---|---|
 | 8 canales, POS/CTL/PT | **sí** | `SpriteManager::emit_into`/`emit_config` |
-| **Armado de objeto** (PT/POS/CTL temprano, `ATTACH` en el impar) | **sí** | `SpriteManager::arm_object` + `emit_armed_into` (HOST-428; demos 054/214) |
-| Multiplexado vertical + color mux | **sí** | `SpriteManager::emit_template_into`, `HwSpriteTemplate` |
+| **Armado de objeto** (PT/POS/CTL temprano, `ATTACH` en el impar) | **sí** | `SpriteManager::arm_object` + `emit_armed_into`/`emit_placements_into` (HOST-428; demos 054/214/216) |
+| Multiplexado vertical + color mux | **sí** | `SpriteManager::emit_template_into`, `HwSpriteTemplate`; rearme por franja de objetos en `emit_placements_into` |
 | Asignación con degradado a BOB | **sí** | `SpriteAllocator` (first-fit; `as_bob`) |
 | **Rearmado horizontal** | **sí** | `SpriteHorizontalRearm` + `Scheduler::emit_sprite_horizontal_rearm`, intent `SpriteRearm` |
-| **Attached (15 colores)** | **sí** | `attach` en `SpriteConfig`/`HwSpriteTemplate`/`SpriteIntent`/`HwSpritePlacement` y cocinado de la DATA de 4 planos (`graphics/sprite_attached.hpp`, HOST-427); validado por la demo `214_attached_object` (captura + secuencia con visión) |
+| **Attached (15 colores)** | **sí** | `attach` en `SpriteConfig`/`HwSpriteTemplate`/`SpriteIntent`/`HwSpritePlacement` y cocinado de la DATA de 4 planos (`graphics/sprite_attached.hpp`, HOST-427); demos `214_attached_object` (a mano) y `216_attached_actors` (**end-to-end por actores**, secuencia + visión) |
 | **Sprite DMA** (columna alta) | **sí** | `SpriteLayer` con `dma_channels` (estructura **con cabecera POS+CTL**; `SPRxPT`→cabecera) |
 | **Sprite-as-playfield** (capa de fondo) | **sí** | `effects::SpriteLayer` (sobre el rearmado horizontal) |
 | **Colisión hardware** (CLXCON/CLXDAT) | **sí** (utilidad + backend) | `graphics/sprite_collision.hpp`, `AmigaBackend::set/read_sprite_collision` |

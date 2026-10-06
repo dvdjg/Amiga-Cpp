@@ -255,6 +255,52 @@ public:
         emit_config(sched, channel, cfg, data);
     }
 
+    /// **Arma una lista de `HwSpritePlacement`** (salida de `compose_sprites`) soportando el
+    /// **multiplexado vertical** del `SpriteAllocator`: la **primera** config de cada canal se
+    /// arma en `arm_line` (línea temprana compartida, patrón de objetos HOST-428) y cada
+    /// **rearma posterior** se emite en el `vstart` de su placement (patrón de segmentos de
+    /// `emit_template_into`). Así un mismo canal puede servir objetos en franjas disjuntas del
+    /// frame, que es lo que el allocator reparte (p. ej. ch0 arriba para un par *attached* y
+    /// abajo para otro objeto).
+    ///
+    /// `placements` debe venir en orden **no decreciente de `vstart`** (lo garantiza
+    /// `compose_sprites`: los intents se ordenan por `top`). Los placements con `vstart` por
+    /// encima de `arm_line` no se rearman (no son visibles y un `WAIT` hacia atrás envolvería
+    /// al frame siguiente). No usa el estado del gestor: es `arm_object` puro sobre la lista.
+    template <class Sched>
+    static void emit_placements_into(Sched& sched, eng::Span<const HwSpritePlacement> placements,
+                                     u16 arm_line = 32u) {
+        // 1) Primera config de cada canal: en la línea de armado temprana (un solo WAIT).
+        bool seen[8] {};
+        sched.wait_line_safe(arm_line);
+        for (eng::u16 i = 0; i < placements.size(); ++i) {
+            const HwSpritePlacement& p = placements[i];
+            if (p.channel >= 8u || p.data.empty() || p.height == 0u || p.width_words == 0u) {
+                continue;
+            }
+            if (seen[p.channel]) continue;
+            seen[p.channel] = true;
+            arm_object(sched, p.channel, p.data, p.hpos, p.vstart, p.height, p.attach);
+        }
+        // 2) Rearmes del multiplexado vertical: cada config posterior, en su `vstart`.
+        for (eng::u16 k = 0; k < 8u; ++k) {
+            seen[k] = false;
+        }
+        for (eng::u16 i = 0; i < placements.size(); ++i) {
+            const HwSpritePlacement& p = placements[i];
+            if (p.channel >= 8u || p.data.empty() || p.height == 0u || p.width_words == 0u) {
+                continue;
+            }
+            if (!seen[p.channel]) { // primera del canal: ya armada en (1)
+                seen[p.channel] = true;
+                continue;
+            }
+            if (p.vstart <= arm_line) continue; // por encima del armado: no visible
+            sched.wait_line_safe(p.vstart);
+            arm_object(sched, p.channel, p.data, p.hpos, p.vstart, p.height, p.attach);
+        }
+    }
+
     /// Vuelca una lista de `HwSpritePlacement` (salida del compositor) a los 8 canales,
     /// dejando el gestor listo para `emit_into`. No toca hardware.
     /// \param placements  colocaciones (salida del compositor de sprites).

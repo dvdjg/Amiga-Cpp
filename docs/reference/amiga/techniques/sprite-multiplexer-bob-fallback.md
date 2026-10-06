@@ -124,8 +124,10 @@ Ya existe buena parte:
   vertical** (`busy_until[8]`), tiras horizontales (`strip_id`/`strip_index`/`strip_span`),
   pares **attached** y **fallback `SpriteSlot::as_bob`** — es exactamente este multiplexor
   para el caso general. Tests **HOST-003/416**.
-- **`scene/compose_sprites`** + `emit_bob_fallbacks`: una intención por actor, reparto, y los
-  degradados se emiten como BOB en el `FramePlan`. Fachada `eng::SpriteScene` (HOST-391).
+- **`scene/compose_sprites`** + `emit_bob_fallbacks`: una intención por actor (dos si es un par
+  *attached*), reparto, y los degradados se emiten como BOB en el `FramePlan`. Fachada
+  `eng::SpriteScene` (HOST-391/072); el armado de los placements (con rearme vertical del canal
+  reutilizado) lo hace `SpriteManager::emit_placements_into` (HOST-428).
 - **Reparto por ventana** (`graphics/sprite_channel_window.hpp`, `SpriteChannelLedger`): permite reservar
   canales a fondos por intervalo y dejar el resto a objetos (HOST-416).
 - **Capa/HUD por parcheo de POS+DATA por línea** (`graphics/sprite_line_layer.hpp`,

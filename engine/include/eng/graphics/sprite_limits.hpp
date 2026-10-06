@@ -45,4 +45,11 @@ inline constexpr u8 kSpriteLineDataMaxBitplanes = 5u;
 /// `sprite-techniques-catalog.md` §Multiplexado horizontal (Copper).
 inline constexpr u8 kSpriteHscrollLostChannels = 1u;
 
+/// Cabecera **OFF** de una estructura DMA de sprite (`VSTART=VSTOP=254`, HSTART=0): un canal
+/// que la lee queda desarmado y no se auto-arma con la posición real (antipatrón *Phantom
+/// Sprite*, `docs/reference/amiga/techniques/sprite-layer.md` §10). Es la cabecera que llevan
+/// las estructuras cocinadas para armado por Copper (`SPRxPOS`/`SPRxCTL` se escriben aparte).
+inline constexpr u16 kSpriteOffPos = 0xfe00u;
+inline constexpr u16 kSpriteOffCtl = 0xfe00u;
+
 } // namespace eng::graphics

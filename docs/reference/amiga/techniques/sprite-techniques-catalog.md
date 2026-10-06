@@ -239,17 +239,20 @@ Los límites de hardware de esta ficha están como constantes de dominio en
   (`SpriteConfig`/`HwSpriteTemplate`/`SpriteIntent`/`HwSpritePlacement`) y cocinado de las dos
   **estructuras DMA** del par con `graphics/sprite_attached.hpp` (`cook_attached_pair`, HOST-427);
   armado de objetos con `SpriteManager::arm_object` (PT/POS/CTL en una línea temprana, HOST-428);
-  demo `214_attached_object` (gema de 15 tonos + chispas de 3 colores, validada por captura y
-  secuencia con visión). Prioridad sprite/playfield: `BPLCON2=0x0024` (AHRM cap. 7 Table 7-2;
-  en single-playfield manda `PF2P`; ver `winuae/sprite-color-priority.md`).
+  demos `214_attached_object` (a mano, gema de 15 tonos + chispas de 3 colores) y
+  `216_attached_actors` (**end-to-end por actores**: `visual.attached` → dos intents/placements,
+  cocinado del par en el pool Chip y `emit_placements_into`; validada por secuencia y visión).
+  Prioridad sprite/playfield: `BPLCON2=0x0024` (AHRM cap. 7 Table 7-2; en single-playfield manda
+  `PF2P`; ver `winuae/sprite-color-priority.md`).
 - **Reparto de canales por ventana** (mezclar técnicas y dejar canales a los objetos):
   `SpriteChannelWindow`/`plan_sprite_windows`; diseño en [SPRITE_CHANNEL_WINDOWS.md](../../engine/architecture/SPRITE_CHANNEL_WINDOWS.md),
   tests HOST-416/417/418.
 - **Colisión de hardware**: `graphics/sprite_collision.hpp` (`CLXCON`/`CLXDAT`).
-- **Pendiente**: pacing del fondo *Jim Power* (demo 215), attached end-to-end por el camino de
-  actores, segmentos/rearme vertical del objeto, refinamientos del allocator, bending por tabla
-  de seno y demos de cierre (HUD con `SpriteLineLayer`, prioridad por franjas). La **lista viva
-  y priorizada** está en `docs/guides/roadmap/ROADMAP_UNIFICADO.md` §«Sprites hardware — estado».
+- **Pendiente**: pacing del fondo *Jim Power* (demo 215), proyección
+  `sprite_template_to_intents` (franjas + `SpriteRearm` + paleta) sobre la emisión de placements,
+  refinamientos del allocator, bending por tabla de seno y demos de cierre (HUD con
+  `SpriteLineLayer`, prioridad por franjas). La **lista viva y priorizada** está en
+  `docs/guides/roadmap/ROADMAP_UNIFICADO.md` §«Sprites hardware — estado».
 
 ## Referencias
 

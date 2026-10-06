@@ -61,7 +61,22 @@ struct Visual {
     u32 frame_stride = 0;       // bytes entre frames (0 = denso/una sola imagen)
     u16 offset_x = 0;           // shift de blit (X no alineada a 16 px)
     u16 palette_base = 16;      // COLORxx base (sprites usan COLOR16+)
+    /// **Par *attached*** (15 colores): un sprite de 16 px dibujado con **4 planos** sobre
+    /// DOS canales contiguos (par 0+1, 2+3, 4+5 o 6+7): el canal par aporta los bits 0-1
+    /// del índice de color y el impar los bits 2-3 (AHRM 3.ª cap. 4, «Attached Sprites»).
+    /// Exige `kind == HardwareSprite`, `w <= 16` y `bitplanes == 4`; `pixels` es arte de
+    /// CPU con los **4 planos contiguos** (`p*height + row`). El camino de actores lo
+    /// cocina con `graphics::cook_attached_pair` y publica las dos estructuras DMA del par
+    /// (`scene::compose_sprites`); la pareja de canales la asigna `SpriteAllocator`.
+    bool attached = false;
 };
+
+/// ¿El `Visual` declara un par *attached* **bien formado**? (`kind == HardwareSprite`,
+/// `attached`, `w <= 16`, `bitplanes == 4`). Un `attached` mal formado no es un par:
+/// `scene::compose_sprites` lo rechaza en vez de cocinar una estructura inconsistente.
+[[nodiscard]] constexpr bool visual_is_attached_pair(const Visual& v) noexcept {
+    return v.kind == VisualKind::HardwareSprite && v.attached && v.w <= 16u && v.bitplanes == 4u;
+}
 
 /// Qué registro/grupo de registros cambia una intención de Copper.
 ///

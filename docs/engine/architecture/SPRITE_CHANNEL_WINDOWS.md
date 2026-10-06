@@ -105,6 +105,8 @@ Dos canales del **mismo par** (0+1, 2+3, 4+5, 6+7) se unen poniendo el bit `ATTA
 
 El motor declara `attach` en `SpriteConfig`, `HwSpriteTemplate`, `SpriteIntent` y `HwSpritePlacement`; la proyección de plantilla a intenciones, el asignador de pares y el cableado en la emisión (`SpriteManager::apply` y `emit_template_into`) existen. El **cocinado de la DATA de 4 planos** está en `graphics/sprite_attached.hpp` (`cook_attached_pair`): divide el arte en las dos **estructuras DMA** (par = planos 0-1; impar = planos 2-3 + `ATTACH`, con terminador) sobre memoria **Chip tipada** (`ChipView<SpriteTag>`), cubierto por HOST-427. La demo `214_attached_object` valida el objeto de 15 colores en vivo (par *attached* + contraste de chispas de 3 colores, con los sprites delante del playfield).
 
+**End-to-end por el camino de actores:** un `Visual` con `attached = true` (4 planos, `w <= 16`) produce **dos intents** contiguos (`build_sprite_intents`), el allocator asigna la pareja y `compose_sprites` cocina el par en el pool Chip del llamador (`SpriteComposeScratch::cooked` / `SpriteScene::set_cooked_pool`) publicando **dos placements**. El armado usa `SpriteManager::emit_placements_into` (primera config de cada canal en una línea temprana + **rearme por franja** del multiplexado vertical). Cubierto por HOST-072/HOST-428 y por la demo `216_attached_actors` (dos gemas de 15 colores + chispas), validada con secuencia y visión local.
+
 ## 7. Animación del bitmap del sprite (estilo Jim Power)
 
 Un sprite hardware lee su DATA de Chip RAM; **animar** un sprite es cambiar el puntero `SPRxPT` (o recargar `SPRxDATA/DATB`) por frame. El engine tiene el contenido animado (`Animation`/`Frame`, `Visual::frame_count`/`frame_stride` y `actor_current_frame`).
@@ -141,9 +143,11 @@ El **ledger** es la única entrada nueva: la misma llamada sirve para una ventan
 | Capa/HUD por parcheo de POS+DATA por línea | EXISTE | `graphics/sprite_line_layer.hpp` (HOST-418) |
 | Driver de fondo `RiskyWoods` (reposición repetida) | EXISTE | `effects::RiskyWoodsLayer` (`api/effects.hpp`, HOST-417) |
 | Armado de **objeto** de sprite (PT/POS/CTL en una línea temprana; `ATTACH` en el impar) | EXISTE | `SpriteManager::arm_object` + `emit_armed_into` (`sprite_manager.hpp`, HOST-428; demos 054/214) |
+| **Armado de placements + rearme vertical** del canal reutilizado (multiplexado del allocator) | EXISTE | `SpriteManager::emit_placements_into` (HOST-428; demo 216) |
+| **Par *attached* end-to-end por actores** (dos intents/placements + cocinado desde `Visual`) | EXISTE | `actor_store.hpp`/`actor_sprite.hpp` + `SpriteScene::set_cooked_pool` (HOST-072/427/428; demo 216) |
 | Driver de fondo `FreeForm` (datos distintos por columna) | PROPUESTO | driver de fondo |
-| Animación del bitmap del sprite (§7) | EXISTE | `compose_sprites` (frame vigente por `frame_stride`; HOST-072; demo 054) |
-| Demo con gate visual del híbrido | PROPUESTO | `demos/techniques/amiga/sprites/` |
+| Animación del bitmap del sprite (§7) | EXISTE | `compose_sprites` (frame vigente por `frame_stride`; HOST-072; demos 054/216) |
+| Demo con gate visual del híbrido | EXISTE | `demos/techniques/amiga/sprites/216_attached_actors` (secuencia + Ollama) |
 
 ## 10. Trampas de hardware que el sistema debe absorber
 

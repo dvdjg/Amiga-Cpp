@@ -713,6 +713,141 @@ void test_compose_sprite_frame_data() {
 	      "frame 1 -> base + stride (16 words)");
 }
 
+/// Par *attached* end-to-end: el actor declara los 4 planos (`visual.attached`),
+/// `compose_sprites` cocina las DOS estructuras DMA en el pool Chip y publica dos
+/// placements (canal par + impar con `attach`). El degradado a BOB del par se emite UNA vez.
+void test_compose_attached_pair() {
+	constexpr eng::u16 kH = 4u;                        // alto corto: 4 planos x 4 lineas
+	constexpr eng::usize kFrameWords = 4u * kH;        // words por frame (4 planos contiguos)
+	alignas(16) eng::u16 planes[2u * 4u * kH] {};
+	for (eng::u16 p = 0; p < 4u; ++p) {
+		for (eng::u16 row = 0; row < kH; ++row) {
+			planes[p * kH + row] =
+				static_cast<eng::u16>(0x1111u * (p + 1u)); // frame 0
+			planes[kFrameWords + p * kH + row] =
+				static_cast<eng::u16>(0x2222u * (p + 1u)); // frame 1
+		}
+	}
+	// Animacion de 2 frames de 4 lineas (el sheet planar avanza por `frame_stride`).
+	constexpr Frame kAttachedFrames[2] = {
+		Frame {0u, 0u, 16u, kH, 1u, 0u},
+		Frame {static_cast<eng::u16>(kFrameWords), 0u, 16u, kH, 1u, 0u},
+	};
+	const Animation kAttachedAnim {eng::Span<const Frame> {kAttachedFrames, 2u}, true};
+
+	auto make_attached = [&]() {
+		ActorDesc d = make_desc();
+		d.animation = &kAttachedAnim;
+		d.anchor = {0, 0};
+		d.offset = {0, 0};
+		d.x = 16;
+		d.y = 100;
+		d.z = 10;
+		d.visual.kind = VisualKind::HardwareSprite;
+		d.visual.attached = true;
+		d.visual.pixels = eng::Span<const eng::u16> {planes, 2u * 4u * kH};
+		d.visual.w = 16u;
+		d.visual.h = kH;
+		d.visual.bitplanes = 4u;
+		d.visual.frame_stride = static_cast<eng::u32>(kFrameWords) * 2u; // bytes entre frames
+		return d;
+	};
+
+	ActorStore<4> store;
+	store.reset();
+	RepresentationAllocator alloc {};
+	alloc.reset(RepresentationBudget {8u, 60000u, 0u});
+	const ActorId id = store.add(make_attached(), alloc);
+	CHECK(id.valid(), "alta del actor attached");
+
+	ActorEmitContext ctx {};
+	use_targets(ctx);
+	FramePlan plan {};
+	plan.clear();
+
+	ActorId order[4] {};
+	SpriteIntent intents[8] {};
+	eng::u16 intent_actor[8] {};
+	SpriteSlot slots[8] {};
+	HwSpritePlacement placements[8] {};
+	alignas(16) eng::u16 cooked[256] {};
+	eng::scene::SpriteComposeScratch sc {};
+	sc.order = order;
+	sc.intents = intents;
+	sc.intent_actor = intent_actor;
+	sc.slots = slots;
+	sc.placements = placements;
+	sc.cooked = chip_view<eng::SpriteTag>(cooked);
+
+	eng::scene::SpriteComposeResult res =
+		eng::scene::compose_sprites(plan, store, ctx, 0x2cu, sc);
+	CHECK(res.ok, "composicion attached OK");
+	CHECK(res.sprites == 2u, "dos placements: canal par + impar");
+	CHECK((placements[0].channel % 2u) == 0u &&
+		      placements[1].channel == static_cast<eng::u8>(placements[0].channel + 1u),
+	      "canales contiguos con el par en un canal PAR");
+	CHECK(!placements[0].attach && placements[1].attach, "ATTACH solo en el impar");
+	CHECK(placements[0].hpos == placements[1].hpos &&
+		      placements[0].vstart == placements[1].vstart &&
+		      placements[0].height == kH && placements[1].height == kH,
+	      "misma POS/alto en los dos canales del par");
+	CHECK(res.degraded == 0u, "sin degradados: el par cabe");
+
+	// `SPRxPT` apunta a la DATA (tras la cabecera POS/CTL) y el canal termina en 0,0.
+	const eng::u16* ev =
+		reinterpret_cast<const eng::u16*>(placements[0].data.address(0).cptr());
+	const eng::u16* od =
+		reinterpret_cast<const eng::u16*>(placements[1].data.address(0).cptr());
+	CHECK(ev[0] == 0x1111u && ev[1] == 0x2222u, "canal par: planos 0-1 (DAT/DATB)");
+	CHECK(od[0] == 0x3333u && od[1] == 0x4444u, "canal impar: planos 2-3");
+	CHECK(ev[kH * 2u] == 0u && ev[kH * 2u + 1u] == 0u, "terminador tras la DATA");
+
+	// La animacion avanza el frame: la DATA cocinada sale de la segunda mitad de la hoja.
+	auto a = store.get(id);
+	CHECK(eng::scene::actor_tick(*a, 1u), "avanza al frame 1");
+	plan.clear();
+	res = eng::scene::compose_sprites(plan, store, ctx, 0x2cu, sc);
+	CHECK(res.ok && res.sprites == 2u, "recomposicion del par en el frame 1");
+	ev = reinterpret_cast<const eng::u16*>(placements[0].data.address(0).cptr());
+	CHECK(ev[0] == 0x2222u && ev[1] == 0x4444u, "frame 1: planos 0-1 de la segunda mitad");
+
+	// Sin pool Chip no se puede cocinar el par: rechazo controlado (no estructura inventada).
+	sc.cooked = {};
+	CHECK(!eng::scene::compose_sprites(plan, store, ctx, 0x2cu, sc).ok,
+	      "sin pool de cocinado el par se rechaza");
+
+	// Par que no cabe (5 actores = 10 canales): degrada y el BOB sale UNA sola vez.
+	ActorStore<5> many;
+	many.reset();
+	RepresentationAllocator alloc5 {};
+	alloc5.reset(RepresentationBudget {8u, 60000u, 0u});
+	for (eng::u16 i = 0; i < 5u; ++i) {
+		ActorDesc d = make_attached();
+		d.y = 100;
+		d.z = static_cast<eng::u8>(10u * (i + 1u));
+		CHECK(many.add(d, alloc5).valid(), "alta attached para el desbordamiento");
+	}
+	plan.clear();
+	ActorId order5[5] {};
+	SpriteIntent intents5[10] {};
+	eng::u16 intent_actor5[10] {};
+	SpriteSlot slots5[10] {};
+	HwSpritePlacement placements5[10] {};
+	eng::scene::SpriteComposeScratch sc5 {};
+	sc5.order = order5;
+	sc5.intents = intents5;
+	sc5.intent_actor = intent_actor5;
+	sc5.slots = slots5;
+	sc5.placements = placements5;
+	sc5.cooked = chip_view<eng::SpriteTag>(cooked);
+	const eng::scene::SpriteComposeResult res5 =
+		eng::scene::compose_sprites(plan, many, ctx, 0x2cu, sc5);
+	CHECK(res5.ok, "composicion con desbordamiento OK");
+	CHECK(res5.sprites == 8u, "cuatro pares en hardware");
+	CHECK(res5.degraded == 1u && res5.bobs == 1u, "un par degradado");
+	CHECK(plan.blit_job_count() == 1u, "el par degradado dibuja UN BOB (sin duplicar)");
+}
+
 void test_compose_sprites() {
 	ActorStore<12> store;
 	store.reset();
@@ -1129,6 +1264,7 @@ int main() {
 	test_sprite_allocation_and_bob_fallback();
 	test_compose_sprites();
 	test_compose_sprite_frame_data();
+	test_compose_attached_pair();
 	test_compose_sprites_overlapping_windows();
 	test_copper_priority_wiring();
 	test_add_anchored();

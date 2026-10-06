@@ -13,6 +13,9 @@
 //      `SPRxPT` a la DATA de cada canal.
 //   2) Paridad de la X: bit 0 de `SPRxCTL` y HSTART/2 en `SPRxPOS`.
 //   3) Rechazos sin emisión: canal >= 8, DATA vacía, alto 0.
+//   4) `emit_armed_into`: un solo WAIT temprano para todos los canales.
+//   5) `emit_placements_into`: primera config por canal en el armado y REARME vertical del
+//      canal reutilizado en otra franja (multiplexado del allocator; demo 216).
 //
 // El scheduler se sustituye por el real ligado a un bloque Chip del arena (como HOST-105);
 // los MOVEs se leen de la copperlist construida.
@@ -210,6 +213,79 @@ void test_manager_armed_into() {
 	}
 }
 
+/// `emit_placements_into`: primera config de cada canal en la línea de armado y **rearme
+/// vertical** de un canal reutilizado por el allocator en otra franja (multiplexado).
+void test_placements_multiplex() {
+	std::printf("emit_placements_into: rearme vertical del mismo canal\n");
+
+	alignas(4) u16 d0[64] {};
+	alignas(4) u16 d1[64] {};
+	MemoryManager mem = make_memory();
+	eng::copper::Scheduler sched = make_scheduler(mem, 256u);
+
+	// Lista en orden no decreciente de `vstart`: par 0/1 en [100,116), ch5 en [120,136),
+	// y el canal 0 REUTILIZADO en [140,156) (franja disjunta: multiplexado vertical).
+	eng::graphics::HwSpritePlacement ps[4] {};
+	ps[0].channel = 0u;
+	ps[0].hpos = 80u;
+	ps[0].vstart = 100u;
+	ps[0].height = 16u;
+	ps[0].data = chip(d0);
+	ps[1].channel = 1u;
+	ps[1].hpos = 80u;
+	ps[1].vstart = 100u;
+	ps[1].height = 16u;
+	ps[1].attach = true;
+	ps[1].data = chip(d1);
+	ps[2].channel = 5u;
+	ps[2].hpos = 16u;
+	ps[2].vstart = 120u;
+	ps[2].height = 16u;
+	ps[2].data = chip(d0);
+	ps[3].channel = 0u;
+	ps[3].hpos = 200u;
+	ps[3].vstart = 140u;
+	ps[3].height = 16u;
+	ps[3].data = chip(d1);
+
+	eng::graphics::SpriteManager::emit_placements_into(
+		sched, eng::Span<const eng::graphics::HwSpritePlacement> {ps, 4u}, 32u);
+	sched.end();
+
+	const u16* w = sched.data();
+	const u16 count = sched.words_used();
+	unsigned waits32 = 0, waits140 = 0;
+	for (u16 i = 0; i + 1u < count; i += 2u) {
+		if (w[i] == 0xffffu) break;
+		if ((w[i] & 1u) == 0u) continue;
+		if ((w[i] >> 8u) == 32u) ++waits32;
+		if ((w[i] >> 8u) == 140u) ++waits140;
+	}
+	CHECK(waits32 == 1u, "un solo WAIT compartido en la linea de armado (32)");
+	CHECK(waits140 == 1u, "rearme del canal 0 en su nueva franja (140)");
+
+	// Cuenta de MOVEs por registro y ultimo valor (el rearme pisa al primero).
+	auto count_reg = [&](u16 reg, u16* last) {
+		unsigned n = 0;
+		for (u16 i = 0; i + 1u < count; i += 2u) {
+			if (w[i] == 0xffffu) break;
+			if ((w[i] & 1u) != 0u) continue;
+			if (w[i] == reg) {
+				++n;
+				if (last != nullptr) *last = w[i + 1u];
+			}
+		}
+		return n;
+	};
+	u16 pos0 = 0u, ctl1 = 0u, pos5 = 0u;
+	CHECK(count_reg(0x140u, &pos0) == 2u, "SPR0POS: armado + rearme (dos escrituras)");
+	CHECK(pos0 == static_cast<u16>((140u << 8u) | (200u >> 1u)), "ultimo POS0 en la franja 140");
+	CHECK(count_reg(0x148u, nullptr) == 1u, "SPR1POS: una sola (primera config en el armado)");
+	CHECK(count_reg(0x14Au, &ctl1) == 1u && (ctl1 & 0x0080u) != 0u, "SPR1CTL con ATTACH");
+	CHECK(count_reg(0x168u, &pos5) == 1u, "SPR5POS una sola (canal no reutilizado)");
+	CHECK(pos5 == static_cast<u16>((120u << 8u) | (16u >> 1u)), "POS5 en su franja");
+}
+
 void test_rejects() {
 	std::printf("arm_object: rechazos sin emision\n");
 
@@ -237,6 +313,7 @@ int main() {
 	test_attached_pair();
 	test_odd_x_parity();
 	test_manager_armed_into();
+	test_placements_multiplex();
 	test_rejects();
 
 	if (g_fail == 0) {
