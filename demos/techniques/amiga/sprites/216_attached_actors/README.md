@@ -62,11 +62,13 @@ SpriteManager::emit_placements_into            ← armado temprano + rearmes por
   DATA cocinada del frame vigente, rechazo sin pool y degradado a BOB una sola vez.
 - **HOST-428** `emit_placements_into`: armado temprano compartido y rearme vertical del canal
   reutilizado.
-- **Rendimiento**: `measure-fps` da **49,92 fps** emulados y 142 102 ciclos/frame
-  (`fieldsPerFrame` 1,002; un frame por VBlank PAL). **Perfil por frame** (`.amigaprofile`):
-  `profileCycles` idéntico en los 8 frames (sin frames de 2 VBlanks ni picos de procesamiento),
-  DMA estable (±120 ciclos) y el código propio de la demo es una fracción mínima de las
-  muestras de CPU (el resto es la espera de VBlank del engine y tareas de AmigaDOS).
+- **Rendimiento y espera por mensajes**: `measure-fps` da **49,87 fps** emulados y 142 244
+  ciclos/frame (`fieldsPerFrame` 1,003; un frame por VBlank PAL). **Perfil por frame**
+  (`.amigaprofile`): `profileCycles` idéntico en los 8 frames (sin frames de 2 VBlanks ni picos
+  de procesamiento) y DMA estable. El bucle sincroniza por el **latido del mini-SO en la IRQ**
+  (`os::init` + `Engine::run_frames`): la IRQ levanta una señal Exec y la tarea **duerme en
+  `Wait()`** cuando no hay nada que procesar — con el emulador en pausa el PC está en el
+  `STOP.L #$2000` de Exec (CPU parada entre frames), no en un sondeo de `VPOSR`.
 - **Secuencia** (8 frames, 150 ms): los 4 actores presentes en todos los frames (las fusiones
   de clúster del análisis por píxel son solapes de objetos, no desapariciones), colores
   estables, posiciones cambiando **por toda la pantalla** y `frame-diff` con cambios confinados

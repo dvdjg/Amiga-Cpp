@@ -115,6 +115,70 @@ inline void* g_blit_task_user = nullptr;
 inline bool g_level3_installed = false;
 inline unsigned long g_level3_old_vector = 0;
 
+// **Señal Exec de VBlank** (modelo de mensajes): la IRQ de nivel 3 (VERTB) incrementa
+// `g_vblank_seq` y levanta la señal de la tarea que espera; los bucles de espera
+// (`wait_vblank` bloqueante y `os::wait`) **duermen en `Wait()`** en vez de sondear VPOSR.
+// El bit se reserva con `AllocSignal` al instalar el servicio de VBlank (la tarea llamante,
+// que es la del bucle) y se libera al quitarlo. Es la única dependencia de Exec que el engine
+// conserva tras `takeover_display`: no usa servicios del SO, solo señales para no consumir
+// CPU mientras no hay nada que procesar.
+inline volatile unsigned long g_vblank_seq = 0;
+struct VBlankSignal {
+	struct Task* task = nullptr; ///< tarea que espera (`FindTask(nullptr)` al armar)
+	unsigned char sig = 0xffu;   ///< bit de señal (`AllocSignal`) o 0xff = sin armar
+};
+inline VBlankSignal& vblank_signal() {
+	static VBlankSignal s {};
+	return s;
+}
+/// Arma la señal (idempotente). `false` si `AllocSignal` no tiene bits libres.
+inline bool vblank_signal_arm() {
+	VBlankSignal& s = vblank_signal();
+	if (s.task != nullptr) {
+		return true;
+	}
+	const BYTE bit = AllocSignal(-1);
+	if (bit < 0) {
+		return false;
+	}
+	s.sig = static_cast<unsigned char>(bit);
+	s.task = FindTask(nullptr);
+	return true;
+}
+/// Libera la señal (llamar con la IRQ ya desarmada).
+inline void vblank_signal_release() {
+	VBlankSignal& s = vblank_signal();
+	if (s.task != nullptr) {
+		FreeSignal(s.sig);
+	}
+	s = VBlankSignal {};
+}
+[[nodiscard]] inline bool vblank_signal_armed() {
+	return vblank_signal().task != nullptr;
+}
+/// La IRQ de VBlank la levanta (ISR-safe; no hace nada si no está armada).
+inline void vblank_signal_raise() {
+	const VBlankSignal& s = vblank_signal();
+	if (s.task != nullptr) {
+		Signal(s.task, 1UL << s.sig);
+	}
+}
+/// **Espera BLOQUEADO al próximo VBlank**: duerme en `Wait()` hasta que la IRQ avanza
+/// `g_vblank_seq` por encima de `seen`. Las señales ya latchadas se consumen sin esperar de
+/// más: si el VBlank ya ocurrió (el frame se pasó de tiempo), vuelve de inmediato. Devuelve
+/// `false` si no hay señal armada (el llamador debe sondear).
+inline bool vblank_signal_wait_next(unsigned long& seen) {
+	const VBlankSignal& s = vblank_signal();
+	if (s.task == nullptr) {
+		return false;
+	}
+	while (g_vblank_seq == seen) {
+		Wait(1UL << s.sig);
+	}
+	seen = g_vblank_seq;
+	return true;
+}
+
 // Handler UNICO del autovector de nivel 4 (AUD0..3 comparten vector): la IRQ de audio del
 // streaming digital. El engine la usa para cambiar de buffer PCM sin parar el DMA.
 inline void (*g_audio_task)(void*, unsigned short) = nullptr;

@@ -233,6 +233,11 @@ int main() {
 	// gcc 15 m68k a `-O1` (ver pump-timer-o1-codegen.md).
 	(void)eng::os::init(engine, eng::os::InputAll);
 	eng::os::add_timer(1u, 2u);
+	// NOTA: con `run_frames` (latido por IRQ + espera bloqueada por señal) el bucle de este
+	// demo no avanza: la ruta de entrada (CIA/teclado + CD32) interactúa con el servicio de
+	// VBlank y el vector de nivel 3 no queda activo (`tick_body` no corre). Migrarlo al
+	// modelo por mensajes queda PENDIENTE de ese diagnóstico; mientras tanto se usa el modo
+	// polling validado.
 	engine.run_frames_polling(0xffff);
 
 	return 0;

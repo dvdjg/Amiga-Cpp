@@ -208,6 +208,15 @@ void AmigaBackend::release_memory() {
 
 void AmigaBackend::wait_vblank_run(void (*thunk)(void*, u16), void* user) {
 	debug_start_idle();
+	// **Espera bloqueada por señal** (modelo de mensajes): con el servicio de VBlank
+	// instalado, la IRQ levanta una señal Exec y esta tarea **duerme en `Wait()`** en vez de
+	// sondear `VPOSR`. Solo cuando no hay trabajo de fondo (`thunk == nullptr`): con thunk
+	// (drenaje de la cola) se mantiene el sondeo para no perder rebanadas.
+	static unsigned long seen_seq = 0u;
+	if (thunk == nullptr && vblank_signal_wait_next(seen_seq)) {
+		debug_stop_idle();
+		return;
+	}
 	// Una sola lectura de VPOSR por iteracion: la condicion y el `vpos` que recibe
 	// la tarea comparten el mismo valor (no anade accesos al bus en el bucle caliente).
 	u32 vposr = *vpos_long;
@@ -258,6 +267,9 @@ extern "C" void level3_dispatch() {
 		if (g_vbl_task != nullptr) {
 			g_vbl_task(g_vbl_task_user, vpos);
 		}
+		// Señal de VBlank: despierta al bucle que duerme en `Wait()` (modelo de mensajes).
+		++g_vblank_seq;
+		vblank_signal_raise();
 	}
 	if ((req & 0x0040u) != 0u) {                    // BLIT
 		custom_base[custom_intreq_offset] = 0x0040u;
@@ -295,6 +307,9 @@ bool AmigaBackend::install_vblank_service(ServiceSlot& slot) {
 	if (g_vbl_task != nullptr) {
 		return false;
 	}
+	// Arma la señal de VBlank ANTES de habilitar la IRQ: el primer VBlank ya despierta al
+	// bucle que espera (si `AllocSignal` falla, la espera cae al sondeo de VPOSR).
+	(void)vblank_signal_arm();
 	g_vbl_task = slot.thunk;
 	g_vbl_task_user = &slot;
 	level3_sync();
@@ -308,7 +323,8 @@ void AmigaBackend::clear_vblank_service() {
 	custom_base[custom_intreq_offset] = 0x0020u;
 	g_vbl_task = nullptr;
 	g_vbl_task_user = nullptr;
-	level3_sync();
+	level3_sync(); // desarma VERTB antes de liberar la señal (nadie la levanta ya)
+	vblank_signal_release();
 }
 
 bool AmigaBackend::install_blit_service(ServiceSlot& slot) {
@@ -477,8 +493,9 @@ void AmigaBackend::takeover_display(const u16* copper_words) {
 	// de un color de paleta (AHRM cap. 4: sprite DMA apagado a mitad de
 	// listado -> ultima linea fetchada -> barra vertical). Por eso aqui
 	// congelamos TODO antes de arrancar nuestra lista. A partir de este
-	// punto el engine NO vuelve a usar exec: el bucle es espera activa
-	// por VPOSR y la depuracion usa el canal lateral 0xf0ff60.
+	// punto el engine NO usa servicios del SO: el bucle principal espera al
+	// VBlank por **senal Exec** (la IRQ la levanta; `Wait()` duerme la tarea
+	// hasta ella) y la depuracion usa el canal lateral 0xf0ff60.
 
 	// 1) Apagar interrupciones del sistema y limpiar peticiones.
 	custom_base[custom_intena_offset] = dma_clear_all;   // INTENA=0x7FFF

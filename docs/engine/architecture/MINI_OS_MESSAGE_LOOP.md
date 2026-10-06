@@ -239,10 +239,11 @@ struct MsgPort {
 	}
 
 	/// Espera a que haya señales de `mask` y devuelve los bits consumidos. El **host** decide cómo
-	/// se bloquea: el host del engine coopera con `tick()` (ritmo de VBlank, sin girar en un bucle
-	/// apretado); el host de **Workbench** será `Wait(señales Exec)` + volcado `Exec → Msg` (ver
-	/// `ROADMAP_WORKBENCH.md`, W5). Optimización futura: `stop` con el vector de IRQ armado
-	/// (`os_wait_interrupt`) cuando el VBlank llegue por IRQ en vez de por sondeo.
+	/// se bloquea: con el latido por **IRQ de VBlank**, la IRQ levanta una **señal Exec** de la
+	/// tarea y `wait` **duerme en `Wait()`** (la CPU queda en el `STOP` de Exec si no hay otra
+	/// tarea lista); sin IRQ (modo polling) coopera con `tick()`. El host de **Workbench**
+	/// reutilizará el mismo `Wait(señales Exec)` + volcado `Exec → Msg` (ver `ROADMAP_WORKBENCH.md`,
+	/// W5).
 	eng::u32 wait(eng::u32 mask);
 };
 

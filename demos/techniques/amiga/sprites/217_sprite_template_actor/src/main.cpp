@@ -15,7 +15,9 @@
 //   4. `SpriteManager::emit_placements_into` arma la primera franja en una línea temprana y
 //      **rearma** el canal en cada franja, intercalando la paleta en orden de línea.
 // El juego no escribe `SPRxPT`/`SPRxPOS` ni conoce canales: un solo canal sirve al objeto
-// entero (las cuatro franjas de 24 líneas).
+// entero (las cuatro franjas de 24 líneas). El frame se sincroniza por el **latido del mini-SO
+// en la IRQ de VBlank** (`os::init` + `run_frames`): cuando el frame no tiene nada más que
+// procesar, el bucle **duerme en `Wait()`** (CPU en el `STOP` de Exec).
 //
 // Qué muestra: un "tótem" vertical de 4 tramos en losange (anchos 4/16/16/4) con un color
 // propio por franja (COLOR17: rojo, naranja, verde, cian) que **recorre toda la pantalla** en
@@ -29,6 +31,7 @@
 #include <eng/graphics/copper/double_buffer.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/sprite_manager.hpp>
+#include <eng/os/os.hpp>
 #include <eng/platform/amiga/backend.hpp>
 
 #include <exec/execbase.h>
@@ -293,7 +296,10 @@ int main() {
 	eng::amiga::AmigaBackend backend {};
 	SpriteTemplateActorDemo game {};
 	eng::Engine engine { backend, game };
-	engine.run_frames_polling(0xffff);
+	// **Modelo de mensajes**: el latido (frame + puerto) va por la IRQ de VBlank y el bucle
+	// principal **duerme en `Wait()`** cuando no hay nada que procesar (sin sondear VPOSR).
+	(void)eng::os::init(engine, 0u); // sin productores de entrada: solo el latido
+	engine.run_frames(0xffff);
 
 	return 0;
 }

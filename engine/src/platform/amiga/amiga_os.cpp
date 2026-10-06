@@ -286,11 +286,24 @@ void enable_cd32_pad() {
 }
 
 eng::u32 wait(eng::u32 mask) {
-	// Host del **engine**: se coopera con `tick()` (ritmo de VBlank) hasta que alguna señal de
-	// `mask` está puesta, y se devuelven los bits consumidos. En Workbench este `wait` se sustituye
-	// por `Wait(señales Exec)` + volcado `Exec -> Msg` (ver `ROADMAP_WORKBENCH.md`, W5).
+	// **Modelo de mensajes**: si el latido corre por IRQ de VBlank (señal Exec armada al
+	// instalar el servicio), el puerto se señaliza desde la IRQ y esta tarea **duerme en
+	// `Wait()`** hasta el próximo VBlank (CPU en el `STOP` de Exec si no hay otra tarea
+	// lista); sin señal armada (modo polling) se coopera con `tick()`. En ambos casos se
+	// devuelven los bits consumidos. En Workbench este `wait` se sustituye por el mismo
+	// `Wait(señales Exec)` + volcado `Exec -> Msg` (ver `ROADMAP_WORKBENCH.md`, W5).
 	if (mask == 0u) {
 		return 0u;
+	}
+	if (eng::amiga::detail::vblank_signal_armed()) {
+		static unsigned long seen_seq = 0u;
+		for (;;) {
+			const eng::u32 got = g_port.pending(mask);
+			if (got != 0u) {
+				return g_port.take_signals(got);
+			}
+			(void)eng::amiga::detail::vblank_signal_wait_next(seen_seq);
+		}
 	}
 	for (;;) {
 		const eng::u32 got = g_port.pending(mask);

@@ -224,6 +224,13 @@ class Engine {
 				while (done < frame_count) {
 					if (hb.frames == seen) {
 						m_background.run_slice(done, 0u);
+						if (m_background.live_count() == 0u) {
+							// Nada más que procesar este frame: la tarea espera
+							// **BLOQUEADA** la señal de VBlank (la IRQ la levanta;
+							// `Wait()` de Exec) en vez de sondear. La CPU no gira en
+							// vacío entre frames.
+							m_backend.wait_vblank();
+						}
 						continue;
 					}
 					// **Catch-up explícito** (TIME-009): `hb.frames` puede avanzar más de 1

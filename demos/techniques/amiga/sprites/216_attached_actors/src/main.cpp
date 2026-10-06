@@ -16,7 +16,9 @@
 //   3. publica **dos** `HwSpritePlacement` por actor (canal par + impar, misma POS).
 // El juego solo arma los placements con `SpriteManager::emit_placements_into` (primera config
 // de cada canal en una línea temprana y rearmes por franja) y publica con doble buffer de
-// copperlist; no escribe `SPRxDATA`/`SPRxPT` ni conoce canales.
+// copperlist; no escribe `SPRxDATA`/`SPRxPT` ni conoce canales. El frame se sincroniza por el
+// **latido del mini-SO en la IRQ de VBlank** (`os::init` + `run_frames`): cuando el frame no
+// tiene nada más que procesar, el bucle **duerme en `Wait()`** (CPU en el `STOP` de Exec).
 //
 // Qué muestra: dos gemas de **15 colores** (pares 0/1 y 2/3) que recorren **toda la
 // pantalla** en X e Y y animan (2 frames), y dos chispas de 3 colores (canales 4/5) que
@@ -38,6 +40,7 @@
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/sprite_attached.hpp>
 #include <eng/graphics/sprite_manager.hpp>
+#include <eng/os/os.hpp>
 #include <eng/platform/amiga/backend.hpp>
 
 #include <exec/execbase.h>
@@ -419,7 +422,10 @@ int main() {
 	eng::amiga::AmigaBackend backend {};
 	AttachedActorsDemo game {};
 	eng::Engine engine { backend, game };
-	engine.run_frames_polling(0xffff);
+	// **Modelo de mensajes**: el latido (frame + puerto) va por la IRQ de VBlank y el bucle
+	// principal **duerme en `Wait()`** cuando no hay nada que procesar (sin sondear VPOSR).
+	(void)eng::os::init(engine, 0u); // sin productores de entrada: solo el latido
+	engine.run_frames(0xffff);
 
 	return 0;
 }

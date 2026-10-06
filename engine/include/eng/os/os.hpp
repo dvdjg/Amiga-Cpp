@@ -26,9 +26,11 @@ namespace eng::os {
 void tick();
 
 /// **Espera** a que haya alguna señal de `mask` y devuelve los bits ya listos (consumidos). El
-/// **host** decide cómo se bloquea: en el engine se coopera con `tick()` (ritmo de VBlank); en
-/// Workbench será `Wait(señales Exec)` (ver `ROADMAP_WORKBENCH.md`, W5). No bloquea con el teclado
-/// ni el ratón apagados: si no llega nada, gira en `tick()`.
+/// **host** decide cómo se bloquea: con el latido por **IRQ de VBlank** (señal Exec armada por
+/// el servicio de VBlank), la IRQ señaliza y esta tarea **duerme en `Wait()`** (la CPU queda en
+/// el `STOP` de Exec si no hay otra tarea lista); sin IRQ (modo polling) coopera con `tick()`.
+/// En Workbench se reutilizará el mismo `Wait(señales Exec)` + volcado `Exec → Msg`
+/// (ver `ROADMAP_WORKBENCH.md`, W5).
 [[nodiscard]] eng::u32 wait(eng::u32 mask);
 
 /// Postea un mensaje de usuario (`MsgType::User`); seguro desde cualquier sitio.

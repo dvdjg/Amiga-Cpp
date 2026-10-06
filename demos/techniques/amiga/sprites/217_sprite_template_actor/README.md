@@ -68,10 +68,13 @@ Copper: WAIT 32 + armado franja 0 · WAIT 48 COLOR17 · WAIT 73 rearm+COLOR17 ·
   se rechaza).
 - **HOST-428**: rearme por franja y paleta intercalada en orden de línea (COLOR17 antes del
   rearme de la franja).
-- **Rendimiento**: `measure-fps` da **49,87 fps** emulados y 142 244 ciclos/frame
-  (`fieldsPerFrame` 1,003); `detail = 0x000400` (canal 0, 4 franjas, 0 degradados). **Perfil por
-  frame** (`.amigaprofile`): `profileCycles` idéntico en los 8 frames (sin frames de 2 VBlanks ni
-  picos de procesamiento), DMA estable (±120 ciclos) e idle ≈57 %.
+- **Rendimiento y espera por mensajes**: `measure-fps` da **49,92 fps** emulados y 142 102
+  ciclos/frame (`fieldsPerFrame` 1,002); `detail = 0x000400` (canal 0, 4 franjas, 0 degradados).
+  **Perfil por frame** (`.amigaprofile`): `profileCycles` idéntico en los 8 frames (sin frames de
+  2 VBlanks ni picos). El bucle sincroniza por el **latido del mini-SO en la IRQ** (`os::init` +
+  `Engine::run_frames`): la IRQ levanta una señal Exec y la tarea **duerme en `Wait()`** cuando no
+  hay nada que procesar — con el emulador en pausa el PC está en el `STOP.L #$2000` de Exec (CPU
+  parada entre frames), no en un sondeo de `VPOSR`.
 - **Secuencia** (8 frames, 150 ms): un único objeto presente en todos los frames con
   **3840 px de paleta de sprite** (4×24 rojo + 16×24 naranja + 16×24 verde + 4×24 cian), anchos
   y colores exactos, posición cambiando **por toda la pantalla** (diagonal); `frame-diff`
