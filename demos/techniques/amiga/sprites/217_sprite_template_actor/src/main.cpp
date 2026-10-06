@@ -7,7 +7,7 @@
 // ============================================================================
 //
 // Tutorial: el juego declara **una** `ActorDesc` cuyo `Visual` referencia una
-// `HwSpriteTemplate` (bitmap + 3 segmentos + switches de paleta); el engine:
+// `HwSpriteTemplate` (bitmap + 4 segmentos + switches de paleta); el engine:
 //   1. proyecta las franjas a intents **encadenados** (`sprite_template_to_intents`):
 //      todas exigen el MISMO canal y `SpriteAllocator` lo reserva para el rango completo;
 //   2. publica **una placement por franja** (mismo canal, `vstart` con gap ≥1);
@@ -15,11 +15,12 @@
 //   4. `SpriteManager::emit_placements_into` arma la primera franja en una línea temprana y
 //      **rearma** el canal en cada franja, intercalando la paleta en orden de línea.
 // El juego no escribe `SPRxPT`/`SPRxPOS` ni conoce canales: un solo canal sirve al objeto
-// entero (las tres franjas de 24 líneas).
+// entero (las cuatro franjas de 24 líneas).
 //
-// Qué muestra: un "totem" vertical de 3 tramos con formas y colores propios (COLOR17 cambia
-// por franja) que se desplaza en horizontal; el canal se rearma y la paleta se conmuta
-// mientras el haz baja. Referencia directa (driver, no actores): demo 053.
+// Qué muestra: un "tótem" vertical de 4 tramos en losange (anchos 4/16/16/4) con un color
+// propio por franja (COLOR17: rojo, naranja, verde, cian) que **recorre toda la pantalla** en
+// X e Y; el canal se rearma y la paleta se conmuta en la línea de cada franja mientras el haz
+// baja. Referencia directa (driver, no actores): demo 053.
 // Plantilla/segmentos/paleta: `sprite.hpp` (`HwSpriteTemplate`), AHRM 3.ª cap. 4 y
 // `sprite-techniques-catalog.md` (técnica 3, multiplexado vertical).
 
@@ -57,16 +58,17 @@ constexpr eng::u8  kPlanes = 4;
 constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kBytesPerRow) * 256u;
 constexpr eng::u32 kBitplaneBytes = kPlaneBytes * kPlanes;
 
-// Plantilla: 3 franjas de 16x24 contiguas en el bitmap (DAT/DATB por línea).
-constexpr eng::u8  kSegments = 3;
+// Plantilla: 4 franjas de 16x24 contiguas en el bitmap (DAT/DATB por línea), con forma de
+// losange (anchos 4/16/16/4) y un tono por franja: cuatro rearmes y cuatro switches por frame.
+constexpr eng::u8  kSegments = 4;
 constexpr eng::u8  kSegHeight = 24;
 constexpr eng::u16 kSegWords = static_cast<eng::u16>(kSegHeight) * 2u; // 48 words por franja
-constexpr eng::u16 kSpriteWords = static_cast<eng::u16>(kSegWords * kSegments); // 144
-constexpr eng::u16 kBaseY = 48u;      // primera línea de la primera franja (raster)
+constexpr eng::u16 kSpriteWords = static_cast<eng::u16>(kSegWords * kSegments); // 192
 constexpr eng::u16 kArmLine = 32u;    // armado temprano (antes de todo VSTART)
-// Rebote X dentro de la ventana de display (DIWSTRT x≈129): un sprite a la izquierda del
-// borde no se ve (lección de la demo 054).
-constexpr eng::u16 kHpos0 = 144u;     // rebote 144..270 px
+// Recorrido por TODA la pantalla (sin `*`/`/`): X = 144..398 (ancho visible desde DIWSTRT
+// x≈129; un sprite a la izquierda del borde no se ve, lección de la 054) e Y = 44..186.
+constexpr eng::u16 kHpos0 = 144u;
+constexpr eng::u16 kY0 = 44u;
 
 // Fondo navy + grises; el cuerpo de cada franja es COLOR17 (lo cambia cada switch).
 constexpr eng::Palette32 kBasePalette {{
@@ -76,8 +78,10 @@ constexpr eng::Palette32 kBasePalette {{
 	0x555, 0x555, 0x555, 0x555, 0x555, 0x555, 0x555, 0x555, 0x555, 0x555, 0x555, 0x555,
 }};
 
-// Un tono por franja (COLOR17 de cada tramo).
-constexpr eng::u16 kHues[kSegments] = { 0xf00u, 0x0f0u, 0x0ffu };
+// Un tono por franja (COLOR17 de cada tramo): rojo, naranja, verde, cian.
+constexpr eng::u16 kHues[kSegments] = { 0xf00u, 0xf60u, 0x0f0u, 0x0ffu };
+// Ancho de cada franja (px de 16): losange 4/16/16/4.
+constexpr eng::u8 kSegWidth[kSegments] = { 4u, 16u, 16u, 4u };
 
 struct SpriteTemplateActorDemo {
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
@@ -112,23 +116,25 @@ struct SpriteTemplateActorDemo {
 		m_copper.takeover(backend);
 		eng::debug::mark_ready(
 			g_eng_run_status,
-			(static_cast<eng::u32>(m_sprites_in_hw) << 8u) |
+			(static_cast<eng::u32>(m_chan0) << 16u) |
+				(static_cast<eng::u32>(m_sprites_in_hw) << 8u) |
 				static_cast<eng::u32>(m_bob_count));
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		const eng::u16 f = context.frame.frame_index;
 		eng::debug::mark_frame(g_eng_run_status, f); // telemetría de fps
-		// Rebote horizontal suave (onda triangular, sin `*`/`/`).
-		const eng::u16 period = 64u;
-		const eng::u16 phase = static_cast<eng::u16>(f & (2u * period - 1u));
-		const eng::u16 t = (phase < period) ? phase
-						    : static_cast<eng::u16>(2u * period - 1u - phase);
-		m_hpos = static_cast<eng::u16>(kHpos0 + t * 2u);
+		// Recorrido por TODA la pantalla (X e Y) con onda triangular, sin `*`/`/`:
+		// X = 144..398 e Y = 44..186 (el tótem mide 99 líneas y queda visible entero).
+		const eng::u16 tx = tri8(static_cast<eng::u16>(f << 1u));
+		const eng::u16 ty = tri8(static_cast<eng::u16>(f + 128u));
+		m_hpos = static_cast<eng::u16>(kHpos0 + (tx << 1u));
+		m_vpos = static_cast<eng::u16>(kY0 + ty + (ty >> 3u));
 		// La posición vive en el actor; el engine recompone y rearma cada franja.
 		auto a = m_scene.store().get(m_id);
 		if (a.valid()) {
 			a->desc.x = static_cast<eng::s16>(m_hpos);
+			a->desc.y = static_cast<eng::s16>(m_vpos);
 		}
 		if (compose() && build_copper()) {
 			m_copper.install(backend); // swap de COP1LC (estreno en el VBlank)
@@ -140,11 +146,17 @@ struct SpriteTemplateActorDemo {
 	}
 
 private:
-	/// Bitmap de la plantilla: 3 franjas contiguas de barras de anchura decreciente
-	/// (16, 10, 4 px), cuerpo en DAT (COLOR17) y DATB a 0.
+	/// Triángulo 0..127..0 desde `t & 0xff` (sin `*`/`/`).
+	[[nodiscard]] static constexpr eng::u16 tri8(eng::u16 t) {
+		const eng::u16 m = static_cast<eng::u16>(t & 0xffu);
+		return (m < 128u) ? m : static_cast<eng::u16>(255u - m);
+	}
+
+	/// Bitmap de la plantilla: 4 franjas contiguas con forma de losange (anchos 4/16/16/4),
+	/// cuerpo en DAT (COLOR17) y DATB a 0.
 	void build_sprite_sheet(eng::Words<eng::SpriteTag> data) {
 		for (eng::u8 seg = 0; seg < kSegments; ++seg) {
-			const eng::u8 w = static_cast<eng::u8>(16u - static_cast<eng::u8>(seg) * 6u);
+			const eng::u8 w = kSegWidth[seg];
 			const eng::u8 margin = static_cast<eng::u8>(16u - w);
 			const eng::u16 body =
 				static_cast<eng::u16>((0xFFFFu >> margin) << (margin / 2u));
@@ -155,7 +167,7 @@ private:
 		}
 	}
 
-	/// Plantilla de capacidad fija (miembro, vida estable): segmentos contiguos y un
+	/// Plantilla de capacidad fija (miembro, vida estable): 4 segmentos contiguos y un
 	/// switch de COLOR17 por franja, con la línea **relativa** al top del actor.
 	void build_template(eng::WordView<eng::SpriteTag> sheet) {
 		m_template.width_words = 1u;
@@ -185,8 +197,14 @@ private:
 		d.visual.h = kSegHeight;
 		d.visual.bitplanes = 2u;
 		d.sprite_template = m_template.view(); // franjas + rearme + paleta
+		// Clasificación de reparto: objeto FIJO con canal preferido (el allocator lo asigna
+		// antes que los libres y conserva el canal 0). Los switches de la plantilla escriben
+		// `COLOR17` (registros del par 0/1): fijar el canal al par 0/1 evita que el allocator
+		// lo mueva a otro par, cuyos sprites leen `COLOR21/25/29`.
+		d.assign_rank = 1u;
+		d.preferred_channel = 0u;
 		d.x = static_cast<eng::s16>(m_hpos);
-		d.y = static_cast<eng::s16>(kBaseY);
+		d.y = static_cast<eng::s16>(m_vpos);
 		d.z = 10u;
 		d.preferred = scene::Representation::Sprite;
 		d.transparency = scene::TransparencyMode::Opaque; // sprite: transparencia nativa
@@ -208,6 +226,8 @@ private:
 		const scene::SpriteComposeResult res = m_scene.emit(m_frame_plan, ctx);
 		m_sprites_in_hw = static_cast<eng::u8>(res.sprites);
 		m_bob_count = static_cast<eng::u8>(res.degraded);
+		// Canal del primer placement (el fijo debe conservar su preferido): telemetría.
+		m_chan0 = res.sprites > 0u ? m_scene.placements()[0].channel : 0xffu;
 		return res.ok;
 	}
 
@@ -251,8 +271,10 @@ private:
 	}
 
 	eng::u16 m_hpos = kHpos0;
+	eng::u16 m_vpos = kY0;
 	eng::u16 m_sprites_in_hw = 0;
 	eng::u8  m_bob_count = 0;
+	eng::u8  m_chan0 = 0xffu; ///< canal del primer placement (telemetría: fijo -> 2)
 	scene::ActorId m_id {};
 	eng::graphics::HwSpriteTemplate<kSegments, kSegments> m_template {};
 	eng::Block<eng::PlaneTag> m_bitplane_block {};

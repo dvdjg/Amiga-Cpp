@@ -165,8 +165,11 @@ struct ActorDesc {
 	/// como **franjas verticales del MISMO canal** ("chasing the raster"): cada segmento se
 	/// rearma en su línea y los `switches` cambian `COLORxx` por franja (**relativos** al
 	/// top del actor). El `bitmap` es la DATA cocinada en Chip; `visual` sigue siendo el
-	/// contenido para el fallback a BOB. Plantillas `attach` no están soportadas por este
-	/// camino (rechazo controlado). Ver `sprite_template_to_intents` y
+	/// contenido para el fallback a BOB. Los switches referencian registros `COLORxx`
+	/// **absolutos**: una plantilla que cambie `COLOR17-19` (par 0/1) debe fijarse a un canal
+	/// de ese par (`assign_rank` + `preferred_channel`) para que el allocator no la mueva a
+	/// otro par, cuyos sprites leen `COLOR21/25/29`. Plantillas `attach` no están soportadas
+	/// por este camino (rechazo controlado). Ver `sprite_template_to_intents` y
 	/// `docs/engine/architecture/OBJECT_SYSTEM.md` §2.
 	eng::graphics::HwSpriteTemplateView sprite_template {};
 	eng::Ref<const Animation> animation {}; ///< opcional; sin ella el frame es el Visual
@@ -182,6 +185,21 @@ struct ActorDesc {
 	/// Prioridad del sprite hardware FRENTE A LOS PLAYFIELDS (0..3, `BPLCON2`); no es
 	/// el `z` de los BOBs. Solo aplica si el actor se materializa como sprite.
 	eng::u8 sprite_priority = 0;
+	/// **Clasificación de reparto** (multiplexor clásico, `sprite-multiplexer-bob-fallback.md`
+	/// §2–§3): 0 = objeto libre; 1..3 = **fijo/prioritario** (jugador, HUD), elige canal antes
+	/// que los libres aunque un objeto libre tenga un `top` menor (`SpriteIntent::assign_rank`).
+	eng::u8 assign_rank = 0;
+	/// **Canal preferido** del sprite hardware (0..7): el `SpriteAllocator` lo intenta primero
+	/// y reasigna si está ocupado. Un fijo con preferido conserva su canal entre frames.
+	eng::u8 preferred_channel = 0;
+	/// **Grupo con trayectoria** (ristra/formación): los actores con el mismo `group` (>0)
+	/// reclaman juntos una corrida de `group_span` canales **contiguos** para su bounding box
+	/// (min `top`/max `bottom` del grupo); cada uno ocupa `base + group_index`. Si la corrida
+	/// no cabe, el grupo **entero** va a BOB (dibujo coherente). No combinable con
+	/// `visual.attached` ni con `sprite_template` (rechazo controlado).
+	eng::u8 group = 0;
+	eng::u8 group_index = 0;
+	eng::u8 group_span = 1;
 	Representation preferred = Representation::Sprite;
 	TransparencyMode transparency = TransparencyMode::ColorKey0;
 	BackgroundPolicy background = BackgroundPolicy::ClearRect;

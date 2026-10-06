@@ -148,9 +148,7 @@ Ya existe buena parte:
 1. **Orden por Y incremental con memoria del frame anterior**: `build_sprite_intents` ya ordena
    por inserción (casi O(n) con lista casi ordenada); falta reutilizar el orden del frame
    anterior para no reconstruir la lista entera.
-2. **Productor de grupos**: la API del allocator existe (`group_*`); falta que el juego/planner
-   declare formaciones/ristras desde `ActorDesc` (clasificación de setup).
-3. **DMA encadenado por canal**: construir la estructura `[…][sprite][sprite]…` con el gap de 1
+2. **DMA encadenado por canal**: construir la estructura `[…][sprite][sprite]…` con el gap de 1
    línea (lo hace el driver por segmentos; unificar).
 
 ## 10. Referencias

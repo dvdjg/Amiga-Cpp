@@ -15,14 +15,16 @@ Técnica y mecanismo: [sprite-techniques-catalog.md](../../../../docs/reference/
 ## Qué muestra
 
 - **Dos gemas *attached*** (16×16, 4 planos → 15 colores) en los pares 0/1 y 2/3, con 2 frames
-  de animación (bandas concéntricas que pulsan y brillo especular móvil) y rebote triangular en X.
-- **Dos chispas** de 3 colores (rombo y cruz, canales 4/5) que conviven en el mismo reparto: un
-  par *attached* direcciona `COLOR17-31` completo (WinUAE `drawing.cpp` ~4239: `col = v + 16`),
-  mientras que un sprite no-*attached* toma los 3 tonos de su par (`COLOR25-27` para 4/5).
-- Los cuatro actores comparten una **banda vertical con intervalos solapados**: el allocator no
-  reutiliza canales y cada objeto conserva su par de color (sin *color bleed*). El **rearme
-  vertical** para franjas disjuntas sí está soportado por el emisor (`emit_placements_into`,
-  cubierto en HOST-428) y lo usará un juego con objetos repartidos en Y.
+  de animación (bandas concéntricas que pulsan y brillo especular móvil) que **recorren toda la
+  pantalla** en X e Y con fases propias.
+- **Dos chispas** de 3 colores (rombo y cruz, canales 4/5) que cruzan la pantalla con fases
+  propias: la comparación **15 tonos vs 3 tonos** es directa. Un par *attached* direcciona
+  `COLOR17-31` completo (WinUAE `drawing.cpp` ~4239: `col = v + 16`), mientras que un sprite
+  no-*attached* toma los 3 tonos de su par (`COLOR25-27` para 4/5).
+- Los cuatro actores van **fijos a su canal** (`assign_rank = 1` + `preferred_channel` 0/2/4/5):
+  pueden solaparse y recorrer la pantalla sin que el allocator les cambie el par de color
+  (cada par tiene sus `COLORxx`). El **rearme vertical** para franjas disjuntas sigue soportado
+  por el emisor (`emit_placements_into`, HOST-428).
 
 ## Implementación (el contrato que ilustra)
 
@@ -60,16 +62,19 @@ SpriteManager::emit_placements_into            ← armado temprano + rearmes por
   DATA cocinada del frame vigente, rechazo sin pool y degradado a BOB una sola vez.
 - **HOST-428** `emit_placements_into`: armado temprano compartido y rearme vertical del canal
   reutilizado.
-- **Rendimiento**: `measure-fps` da **49,97 fps** emulados y 141 952 ciclos/frame
-  (`fieldsPerFrame` 1,001; un frame por VBlank PAL). La demo marca el frame con
-  `debug::mark_frame` para la telemetría.
+- **Rendimiento**: `measure-fps` da **49,92 fps** emulados y 142 102 ciclos/frame
+  (`fieldsPerFrame` 1,002; un frame por VBlank PAL). **Perfil por frame** (`.amigaprofile`):
+  `profileCycles` idéntico en los 8 frames (sin frames de 2 VBlanks ni picos de procesamiento),
+  DMA estable (±120 ciclos) y el código propio de la demo es una fracción mínima de las
+  muestras de CPU (el resto es la espera de VBlank del engine y tareas de AmigaDOS).
 - **Secuencia** (8 frames, 150 ms): los 4 actores presentes en todos los frames (las fusiones
   de clúster del análisis por píxel son solapes de objetos, no desapariciones), colores
-  estables, `frame-diff` con cambios confinados a la banda de sprites (SSIM ≈0.99; fondo
-  estable) y `analyze-demo` OK.
-- **Visión local (Ollama, qwen3-vl)**: por elementos y por frame, sin sprites cortados,
-  incompletos, parpadeando ni huecos negros/costuras; la variación de brillo señalada es el
-  pulso de animación de las gemas (verificado con el frame-diff determinista).
+  estables, posiciones cambiando **por toda la pantalla** y `frame-diff` con cambios confinados
+  a los objetos en movimiento (SSIM ≈0,98; fondo estable).
+- **Visión local (Ollama, qwen3-vl)**: por frame, gemas multicolor (sin pérdida de tonos) y
+  chispas de 3 colores, sin cortes, parpadeos, huecos ni basura. Su afirmación de «no hay
+  movimiento» en stills la refuta el gate determinista (bboxes de los 4 objetos cambian en cada
+  frame, cubriendo la pantalla).
 
 ## Lanzar
 

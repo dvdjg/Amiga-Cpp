@@ -18,10 +18,13 @@
 // de cada canal en una línea temprana y rearmes por franja) y publica con doble buffer de
 // copperlist; no escribe `SPRxDATA`/`SPRxPT` ni conoce canales.
 //
-// Qué muestra: dos gemas de **15 colores** (pares 0/1 y 2/3) que rebotan y animan (2 frames),
-// y dos chispas de 3 colores (canales 4/5) que conviven en el mismo reparto. La demo hermana
-// `214_attached_object` hace lo mismo **a mano** con el helper; ésta demuestra el camino de
-// actores (`ActorDesc` → `compose_sprites` → placements).
+// Qué muestra: dos gemas de **15 colores** (pares 0/1 y 2/3) que recorren **toda la
+// pantalla** en X e Y y animan (2 frames), y dos chispas de 3 colores (canales 4/5) que
+// cruzan la pantalla con fases propias: la comparación 15 vs 3 tonos es directa. Los cuatro
+// actores van **fijos a su canal** (`assign_rank` + `preferred_channel`), de modo que el
+// reparto no les cambia el par de color al solaparse. La demo hermana `214_attached_object`
+// hace lo mismo **a mano** con el helper; ésta demuestra el camino de actores
+// (`ActorDesc` → `compose_sprites` → placements).
 //
 // Referencias: AHRM 3.ª cap. 4 («Attached Sprites», Table 4-5), `sprite-layer.md` §4 y
 // `sprite-techniques-catalog.md` técnica 2. La paleta COLOR16-31 es **compartida** por todos
@@ -189,22 +192,23 @@ struct AttachedActorsDemo {
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		const eng::u16 f = context.frame.frame_index;
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index); // telemetría de fps
-		// Rebote triangular 0..127..0 (sin `*`/`/`); fases distintas por actor. Todas las X
-		// caen dentro de la ventana de display (DIWSTRT x≈129): un sprite a la izquierda
-		// del borde no se ve (lección de la demo 054).
-		m_gem_x[0] = static_cast<eng::u16>(144u + tri8(static_cast<eng::u16>(f << 1u)));
-		m_gem_x[1] = static_cast<eng::u16>(176u + tri8(static_cast<eng::u16>((f << 1u) + 96u)));
-		// Banda vertical común: los intervalos de los 4 actores se SOLAPAN siempre (tops a
-		// ≤15 líneas), así el allocator no reutiliza canales y cada objeto conserva su par
-		// de color y su tono (sin *color bleed*). El rearme por multiplexado sí está
-		// soportado por `emit_placements_into` (HOST-428) para franjas disjuntas.
-		const eng::u16 bounce =
-			static_cast<eng::u16>(tri8(static_cast<eng::u16>(f << 1u)) >> 5u); // 0..3
-		m_gem_y[0] = static_cast<eng::u16>(102u + bounce);
-		m_gem_y[1] = static_cast<eng::u16>(106u + bounce);
-		for (eng::u8 i = 0; i < kSparks; ++i) {
-			m_spark_y[i] = static_cast<eng::u16>(110u + static_cast<eng::u16>(i) * 4u + bounce);
-		}
+		// Recorrido por TODA la pantalla (X e Y) con fases distintas por actor y sin
+		// `*`/`/`: X = 144..398 (todo el ancho visible; DIWSTRT x≈129) e Y = 44..~230.
+		// Los actores están **fijados a su canal** (`assign_rank` + `preferred_channel`), así
+		// que pueden solaparse libremente en Y sin que el allocator les cambie el par de
+		// color (cada par tiene sus `COLORxx`).
+		const eng::u16 t0 = tri8(static_cast<eng::u16>(f << 1u));
+		const eng::u16 t1 = tri8(static_cast<eng::u16>((f << 1u) + 96u));
+		const eng::u16 t2 = tri8(static_cast<eng::u16>(f + 32u));
+		const eng::u16 t3 = tri8(static_cast<eng::u16>(f + 160u));
+		m_gem_x[0] = static_cast<eng::u16>(144u + (t0 << 1u));
+		m_gem_y[0] = static_cast<eng::u16>(44u + t2 + (t2 >> 1u));
+		m_gem_x[1] = static_cast<eng::u16>(144u + (t1 << 1u));
+		m_gem_y[1] = static_cast<eng::u16>(44u + t3 + (t3 >> 1u));
+		m_spark_x[0] = static_cast<eng::u16>(144u + (t2 << 1u));
+		m_spark_y[0] = static_cast<eng::u16>(44u + t0 + (t0 >> 1u));
+		m_spark_x[1] = static_cast<eng::u16>(144u + (t3 << 1u));
+		m_spark_y[1] = static_cast<eng::u16>(44u + t1 + (t1 >> 1u));
 		// La posición vive en el actor (`ActorDesc`): se actualiza por id y el engine
 		// recompone con la nueva franja. Las gemas además avanzan su animación.
 		for (eng::u8 i = 0; i < kGems; ++i) {
@@ -218,6 +222,7 @@ struct AttachedActorsDemo {
 		for (eng::u8 i = 0; i < kSparks; ++i) {
 			auto a = m_scene.store().get(m_ids[kGems + i]);
 			if (a.valid()) {
+				a->desc.x = static_cast<eng::s16>(m_spark_x[i]);
 				a->desc.y = static_cast<eng::s16>(m_spark_y[i]);
 			}
 		}
@@ -258,6 +263,11 @@ private:
 			d.y = static_cast<eng::s16>(m_gem_y[i]);
 			d.surface = 0u;
 			d.z = static_cast<eng::u8>(10u + i);
+			// Fijo con canal preferido: gema 0 -> par 0/1, gema 1 -> par 2/3. El par de
+			// color queda estable aunque las gemas recorran toda la pantalla (si el
+			// allocator las moviera a otro par, leerían otros `COLORxx`).
+			d.assign_rank = 1u;
+			d.preferred_channel = static_cast<eng::u8>(i * 2u);
 			d.preferred = scene::Representation::Sprite;
 			d.transparency = scene::TransparencyMode::Opaque; // sprite: transparencia nativa
 			d.background = scene::BackgroundPolicy::None;
@@ -274,10 +284,13 @@ private:
 			d.visual.w = 16u;
 			d.visual.h = static_cast<eng::u16>(kActorH);
 			d.visual.bitplanes = 2u;
-			d.x = static_cast<eng::s16>(144u + static_cast<eng::u16>(i) * 96u);
+			d.x = static_cast<eng::s16>(m_spark_x[i]);
 			d.y = static_cast<eng::s16>(m_spark_y[i]);
 			d.surface = 0u;
 			d.z = static_cast<eng::u8>(40u + i);
+			// Fijos con canal preferido 4 y 5 (par 4/5): conservan su gama al moverse.
+			d.assign_rank = 1u;
+			d.preferred_channel = static_cast<eng::u8>(4u + i);
 			d.preferred = scene::Representation::Sprite;
 			d.transparency = scene::TransparencyMode::Opaque;
 			d.background = scene::BackgroundPolicy::None;
@@ -381,8 +394,9 @@ private:
 	}
 
 	eng::u16 m_gem_x[kGems] { 144u, 176u };
-	eng::u16 m_gem_y[kGems] { 102u, 106u };
-	eng::u16 m_spark_y[kSparks] { 110u, 114u };
+	eng::u16 m_gem_y[kGems] { 44u, 120u };
+	eng::u16 m_spark_x[kSparks] { 144u, 240u };
+	eng::u16 m_spark_y[kSparks] { 80u, 160u };
 	scene::ActorId m_ids[kGems + kSparks] {};
 	eng::u16 m_sprites_in_hw = 0;
 	eng::u8  m_bob_count = 0;

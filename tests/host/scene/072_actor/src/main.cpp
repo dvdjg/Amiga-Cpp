@@ -961,6 +961,102 @@ void test_compose_template_chain() {
 	CHECK(plan.blit_job_count() == 1u, "un BOB para la cadena");
 }
 
+/// Clasificación de reparto desde `ActorDesc`: fijo con canal preferido (`assign_rank` +
+/// `preferred_channel`) y grupo con trayectoria (corrida contigua para el bounding box);
+/// grupo + *attached* se rechaza (un par ocuparía dos canales de la corrida).
+void test_compose_group_and_rank() {
+	ActorStore<6> store;
+	store.reset();
+	RepresentationAllocator alloc {};
+	alloc.reset(RepresentationBudget {8u, 60000u, 0u});
+
+	auto make_actor = [&](eng::s16 y, eng::u8 z) {
+		ActorDesc d = make_desc();
+		d.anchor = {0, 0};
+		d.offset = {0, 0};
+		d.x = 0;
+		d.y = y;
+		d.z = z;
+		d.visual.kind = VisualKind::HardwareSprite;
+		d.visual.pixels = eng::Span<const eng::u16> {g_pixel_pool, 16u};
+		d.visual.w = 16u;
+		d.visual.h = 8u;
+		d.visual.bitplanes = 2u;
+		return d;
+	};
+
+	ActorDesc fixed = make_actor(100, 10);
+	fixed.assign_rank = 1u;
+	fixed.preferred_channel = 5u;
+	CHECK(store.add(fixed, alloc).valid(), "alta del fijo");
+
+	for (eng::u8 k = 0; k < 3u; ++k) {
+		ActorDesc g = make_actor(static_cast<eng::s16>(120 + 4 * k),
+					 static_cast<eng::u8>(20 + k));
+		g.group = 7u;
+		g.group_index = k;
+		g.group_span = 3u;
+		CHECK(store.add(g, alloc).valid(), "alta del miembro de grupo");
+	}
+	ActorDesc free_actor = make_actor(124, 30);
+	CHECK(store.add(free_actor, alloc).valid(), "alta del libre");
+
+	ActorEmitContext ctx {};
+	use_targets(ctx);
+	FramePlan plan {};
+	plan.clear();
+	ActorId order[6] {};
+	SpriteIntent intents[16] {};
+	eng::u16 intent_actor[16] {};
+	SpriteSlot slots[16] {};
+	HwSpritePlacement placements[16] {};
+	CopperIntent copper[8] {};
+	eng::scene::SpriteComposeScratch sc {};
+	sc.order = order;
+	sc.intents = intents;
+	sc.intent_actor = intent_actor;
+	sc.slots = slots;
+	sc.placements = placements;
+	sc.copper = copper;
+	const eng::scene::SpriteComposeResult res =
+		eng::scene::compose_sprites(plan, store, ctx, 0x2cu, sc);
+	CHECK(res.ok && res.sprites == 5u && res.degraded == 0u, "5 sprites, 0 degradados");
+	// Orden de placements = intents por top: fijo(100), G0(120), G1(124), libre(124), G2(128).
+	CHECK(placements[0].channel == 5u, "el fijo conserva su canal preferido");
+	CHECK(placements[1].channel == 0u && placements[2].channel == 1u &&
+		      placements[4].channel == 2u,
+	      "grupo: corrida contigua base+indice");
+	CHECK(placements[3].channel == 3u, "el libre no roba la corrida");
+
+	// Grupo + *attached*: rechazo controlado.
+	ActorStore<2> bad_store;
+	bad_store.reset();
+	RepresentationAllocator bad_alloc {};
+	bad_alloc.reset(RepresentationBudget {8u, 60000u, 0u});
+	ActorDesc bad = make_actor(120, 10);
+	bad.visual.attached = true;
+	bad.visual.bitplanes = 4u;
+	bad.visual.pixels = eng::Span<const eng::u16> {g_pixel_pool, 32u};
+	bad.group = 1u;
+	bad.group_index = 0u;
+	bad.group_span = 2u;
+	CHECK(bad_store.add(bad, bad_alloc).valid(), "alta del grupo+attached");
+	plan.clear();
+	ActorId order1[2] {};
+	SpriteIntent intents1[4] {};
+	eng::u16 ia1[4] {};
+	SpriteSlot slots1[4] {};
+	HwSpritePlacement pl1[4] {};
+	eng::scene::SpriteComposeScratch sc1 {};
+	sc1.order = order1;
+	sc1.intents = intents1;
+	sc1.intent_actor = ia1;
+	sc1.slots = slots1;
+	sc1.placements = pl1;
+	CHECK(!eng::scene::compose_sprites(plan, bad_store, ctx, 0x2cu, sc1).ok,
+	      "grupo + attached se rechaza");
+}
+
 void test_compose_sprites() {
 	ActorStore<12> store;
 	store.reset();
@@ -1379,6 +1475,7 @@ int main() {
 	test_compose_sprite_frame_data();
 	test_compose_attached_pair();
 	test_compose_template_chain();
+	test_compose_group_and_rank();
 	test_compose_sprites_overlapping_windows();
 	test_copper_priority_wiring();
 	test_add_anchored();

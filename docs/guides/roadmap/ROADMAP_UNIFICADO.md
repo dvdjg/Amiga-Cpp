@@ -195,9 +195,10 @@ scratch** (el `detail≈9861` de la 275, ya documentado en su README) y sacarlo 
      (Free Form, 213).
   2. **Refinamientos del allocator** (`sprite-multiplexer-bob-fallback.md` §9): **hechos**
      canal preferido (`SpriteIntent::channel`), prioridad de asignación (`assign_rank`),
-     **grupos con trayectoria** (corrida contigua para el bounding box o entera a BOB) y
-     **ocupación exacta por línea** (bitfield) — HOST-003. **Pendientes**: productor de
-     grupos desde `ActorDesc` (clasificación de setup), orden Y incremental con memoria del
+     **grupos con trayectoria** (corrida contigua para el bounding box o entera a BOB),
+     **ocupación exacta por línea** (bitfield) y **clasificación desde `ActorDesc`**
+     (`assign_rank`/`preferred_channel`/`group_*` en `build_sprite_intents`) — HOST-003/072;
+     demo 217 (fijo con canal preferido). **Pendientes**: orden Y incremental con memoria del
      frame anterior y DMA encadenado por canal.
   3. **Camino legado**: `SpriteManager::emit_into` (un `WAIT` por `VSTART`) queda solo para los
      segmentos rearmados de la 053; decidir si se retira tras `emit_armed_into`.

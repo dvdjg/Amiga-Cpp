@@ -316,8 +316,9 @@ inline eng::u16 build_sprite_intents(const ActorStore<MaxActors>& store,
 		const eng::graphics::HwSpriteTemplateView tpl = a->desc.sprite_template;
 		if (!tpl.empty()) {
 			// **Plantilla de franjas**: proyección a intents encadenados (mismo canal).
-			// `attach` (par de 15 colores) no está soportado en cadena: rechazo controlado.
-			if (tpl.attach || next_chain == 0u) {
+			// `attach` (par de 15 colores) y `group` (corrida de canales) no están
+			// soportados en cadena: rechazo controlado.
+			if (tpl.attach || next_chain == 0u || a->desc.group != 0u) {
 				return 0u;
 			}
 			const eng::usize remaining = intents.size() - n;
@@ -326,7 +327,7 @@ inline eng::u16 build_sprite_intents(const ActorStore<MaxActors>& store,
 			set.intent_capacity =
 				static_cast<eng::u8>(remaining > 255u ? 255u : remaining);
 			eng::graphics::sprite_template_view_to_intents(
-				tpl, 0u, static_cast<eng::u16>(r.top),
+				tpl, a->desc.preferred_channel, static_cast<eng::u16>(r.top),
 				static_cast<eng::u16>(r.left), a->desc.sprite_priority, set,
 				next_chain);
 			if (set.overflow || set.intent_count == 0u ||
@@ -336,20 +337,33 @@ inline eng::u16 build_sprite_intents(const ActorStore<MaxActors>& store,
 			const eng::u16 added = set.intent_count;
 			for (eng::u16 k = 0; k < added; ++k) {
 				intent_actor[n + k] = order[i].index;
+				// Clasificación de reparto (fijo/prioritario) también en plantillas.
+				intents[n + k].assign_rank = a->desc.assign_rank;
 			}
 			n = static_cast<eng::u16>(n + added);
 			++next_chain;
 			continue;
 		}
 		// Un par *attached* ocupa dos canales contiguos: dos intents con el MISMO rango
-		// vertical/posición, el segundo con `attach` (AHRM cap. 4, Table 4-5).
-		const eng::u16 need =
-			eng::graphics::visual_is_attached_pair(a->desc.visual) ? 2u : 1u;
+		// vertical/posición, el segundo con `attach` (AHRM cap. 4, Table 4-5). Un par no
+		// puede ser miembro de un grupo (ocuparía dos canales de la corrida): rechazo.
+		const bool attached = eng::graphics::visual_is_attached_pair(a->desc.visual);
+		if (attached && a->desc.group != 0u) {
+			return 0u;
+		}
+		const eng::u16 need = attached ? 2u : 1u;
 		if (static_cast<eng::u16>(n + need) > intents.size() ||
 		    static_cast<eng::u16>(n + need) > intent_actor.size()) {
 			return 0u; // no cabe la intención (ni el par): rechazo controlado
 		}
 		intents[n] = actor_to_sprite_intent(*a, f, r);
+		// Clasificación de reparto del actor (multiplexor clásico §2–§3): fijo, canal
+		// preferido y pertenencia a grupo con trayectoria.
+		intents[n].assign_rank = a->desc.assign_rank;
+		intents[n].channel = a->desc.preferred_channel;
+		intents[n].group_id = a->desc.group;
+		intents[n].group_index = a->desc.group_index;
+		intents[n].group_span = a->desc.group_span;
 		intent_actor[n] = order[i].index;
 		++n;
 		if (need == 2u) {
