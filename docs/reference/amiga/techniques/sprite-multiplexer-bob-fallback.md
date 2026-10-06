@@ -121,13 +121,18 @@ a `drawSprite(ch)` o `drawBob()`.
 Ya existe buena parte:
 
 - **`graphics/sprite_allocator.hpp`** (`SpriteAllocator`): first-fit **greedy con multiplexado
-  vertical** (`busy_until[8]`), tiras horizontales (`strip_id`/`strip_index`/`strip_span`),
-  pares **attached** y **fallback `SpriteSlot::as_bob`** — es exactamente este multiplexor
-  para el caso general. Tests **HOST-003/416**.
+  vertical** y **ocupación exacta por línea** (bitfield de 256 líneas por canal), tiras
+  horizontales (`strip_id`/`strip_index`/`strip_span`), pares **attached**, **cadenas
+  verticales** (`chain_*`), **canal preferido** (`SpriteIntent::channel`), **prioridad de
+  asignación** (`assign_rank`, pasadas de mayor a menor) y **grupos con trayectoria**
+  (`group_id`/`group_index`/`group_span`: corrida contigua para el bounding box del grupo, o
+  entera a BOB), con **fallback `SpriteSlot::as_bob`** — es exactamente este multiplexor
+  para el caso general. Tests **HOST-003/416** (el de grupos incluido).
 - **`scene/compose_sprites`** + `emit_bob_fallbacks`: una intención por actor (dos si es un par
-  *attached*), reparto, y los degradados se emiten como BOB en el `FramePlan`. Fachada
-  `eng::SpriteScene` (HOST-391/072); el armado de los placements (con rearme vertical del canal
-  reutilizado) lo hace `SpriteManager::emit_placements_into` (HOST-428).
+  *attached*, una por franja si lleva plantilla), reparto, y los degradados se emiten como BOB
+  en el `FramePlan`. Fachada `eng::SpriteScene` (HOST-391/072); el armado de los placements
+  (con rearme vertical del canal reutilizado y paleta por franja) lo hace
+  `SpriteManager::emit_placements_into` (HOST-428).
 - **Reparto por ventana** (`graphics/sprite_channel_window.hpp`, `SpriteChannelLedger`): permite reservar
   canales a fondos por intervalo y dejar el resto a objetos (HOST-416).
 - **Capa/HUD por parcheo de POS+DATA por línea** (`graphics/sprite_line_layer.hpp`,
@@ -140,19 +145,13 @@ Ya existe buena parte:
 
 **Pendiente (lo que aporta esta técnica):**
 
-1. **Grupos con trayectoria** en el asignador: un `SpriteIntent` "de grupo" que reclame una
-   corrida de canales para todo el bounding box (análogo a las tiras, pero por trayectoria) y
-   `preferred_channel`. Encaja como extensión de `SpriteAllocator`/`SpriteIntent`.
-2. **Orden por Y incremental**: hoy `build_sprite_intents` ordena por `top` (el llamador
-   garantiza el orden); añadir un **reuso del orden del frame anterior** (insertion sort sobre
-   una lista casi ordenada) para no reordenar todo.
-3. **Ocupación precisa por línea** (bitfield) como política opcional del allocator para escenas
-   densas de objetos cortos (hoy `busy_until[8]` es suficiente para el caso ordenado por Y).
-4. **Prioridad de asignación** (fijos/grupos antes que libres) expuesta al allocator.
-5. **DMA encadenado por canal**: construir la estructura `[…][sprite][sprite]…` con el gap de 1
+1. **Orden por Y incremental con memoria del frame anterior**: `build_sprite_intents` ya ordena
+   por inserción (casi O(n) con lista casi ordenada); falta reutilizar el orden del frame
+   anterior para no reconstruir la lista entera.
+2. **Productor de grupos**: la API del allocator existe (`group_*`); falta que el juego/planner
+   declare formaciones/ristras desde `ActorDesc` (clasificación de setup).
+3. **DMA encadenado por canal**: construir la estructura `[…][sprite][sprite]…` con el gap de 1
    línea (lo hace el driver por segmentos; unificar).
-
-Un test host del caso de grupos (ristra asignada junta, o degradada entera) cerraría la pieza.
 
 ## 10. Referencias
 

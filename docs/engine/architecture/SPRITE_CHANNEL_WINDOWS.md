@@ -138,6 +138,7 @@ El **ledger** es la única entrada nueva: la misma llamada sirve para una ventan
 | `attach` cableado en la emisión (`apply`/`emit_template_into`) | EXISTE | `sprite_manager.hpp` |
 | Ledger canal × intervalo (`SpriteChannelLedger`) y `plan_sprite_windows` | EXISTE | `graphics/sprite_channel_window.hpp` (HOST-416) |
 | Reparto híbrido (`SpriteAllocator::assign` con ledger) | EXISTE | `sprite_allocator.hpp` (HOST-416) |
+| Canal preferido, prioridad (`assign_rank`), grupos con trayectoria y ocupación exacta por línea | EXISTE | `sprite_allocator.hpp` (HOST-003) |
 | Límites de hardware de sprites (canales, reuso, planos) | EXISTE | `graphics/sprite_limits.hpp` |
 | Driver de fondo `Layer` (8 canales, una instancia/canal) | EXISTE | `effects::SpriteLayer` (`api/effects.hpp`) |
 | Capa/HUD por parcheo de POS+DATA por línea | EXISTE | `graphics/sprite_line_layer.hpp` (HOST-418) |

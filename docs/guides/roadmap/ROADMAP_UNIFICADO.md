@@ -193,9 +193,12 @@ scratch** (el `detail≈9861` de la 275, ya documentado en su README) y sacarlo 
      sprites (robo de bus), régimen de head-start (¿ir *detrás* del haz?), por qué la copperlist
      real usa `hpos` variable por línea ($1c/$20/$24); fallback: `POS+DATB+DATA` por columna
      (Free Form, 213).
-  2. **Refinamientos del allocator** (`sprite-multiplexer-bob-fallback.md` §9): grupos con
-     trayectoria y `preferred_channel`, orden Y incremental, ocupación precisa por línea,
-     prioridad de asignación y DMA encadenado por canal (con test host del caso de grupos).
+  2. **Refinamientos del allocator** (`sprite-multiplexer-bob-fallback.md` §9): **hechos**
+     canal preferido (`SpriteIntent::channel`), prioridad de asignación (`assign_rank`),
+     **grupos con trayectoria** (corrida contigua para el bounding box o entera a BOB) y
+     **ocupación exacta por línea** (bitfield) — HOST-003. **Pendientes**: productor de
+     grupos desde `ActorDesc` (clasificación de setup), orden Y incremental con memoria del
+     frame anterior y DMA encadenado por canal.
   3. **Camino legado**: `SpriteManager::emit_into` (un `WAIT` por `VSTART`) queda solo para los
      segmentos rearmados de la 053; decidir si se retira tras `emit_armed_into`.
   4. **Demos de cierre**: HUD con `SpriteLineLayer` (HOST-418, sin demo), prioridad `BPLCON2`

@@ -230,12 +230,25 @@ struct CopperIntent {
 /// multiplexa. La data (DAT/DATB) sale del `Visual.pixels`.
 struct SpriteIntent {
     u8  visual_index = 0;      // indice del `Visual` en la escena retenida
-    u8  channel = 0;           // canal 0..7 propuesto (el allocator puede reasignar)
+    u8  channel = 0;           // canal 0..7 **preferido** (el allocator lo intenta primero)
     u16 top = 0;
     u16 bottom = 0;
     u16 hpos = 0;
     u8  width_words = 1;       // 16 px o 32 px
     bool attach = false;       // attached al canal anterior (15 colores)
+    /// **Orden de asignación** (fijos/grupos antes que libres): 0 = normal; 1..3 = se
+    /// asignan antes (el `SpriteAllocator` hace una pasada por rango, mayor primero). Un
+    /// fijo con `channel` preferido conserva su canal aunque un objeto libre tenga un `top`
+    /// menor. Ver `sprite-multiplexer-bob-fallback.md` §2–§3.
+    u8  assign_rank = 0;
+    /// **Grupo con trayectoria** (formación/ristra): los miembros reclaman juntos una
+    /// corrida de `group_span` canales **contiguos** para todo el **bounding box** del grupo
+    /// (min `top` / max `bottom` de sus miembros); cada miembro ocupa `base + group_index`.
+    /// `group_id == 0` = suelto; si la corrida no cabe, el grupo **entero** va a BOB
+    /// (dibujo coherente). Es el análogo vertical de las tiras horizontales.
+    u8  group_id = 0;
+    u8  group_index = 0;
+    u8  group_span = 1;
     /// Prioridad del sprite FRENTE A LOS PLAYFIELDS (0..3, modo `BPLCON2`): un sprite
     /// puede quedar delante o detrás de PF1/PF2. No es el `z` de los BOBs (que ordena
     /// objetos dentro de un mismo playfield).

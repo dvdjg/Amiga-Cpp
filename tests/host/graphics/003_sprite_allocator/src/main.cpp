@@ -12,6 +12,9 @@
 //   2) Overflow horizontal: más de 8 sprites solapados desbordan a `as_bob`.
 //   3) Mixto: sprites que solapan consumen canales distintos; los que no
 //      solapan reutilizan.
+//   4) Tiras horizontales (corrida contigua o BOB entera).
+//   5) Pares attached, cadenas verticales, canal preferido, prioridad de asignación
+//      (`assign_rank`) y grupos con trayectoria (corrida para el bounding box o BOB entero).
 //
 // Ejecución:
 //   bash tools/run-host-tests.sh tests/host/graphics/003_sprite_allocator   (solo este)
@@ -315,6 +318,101 @@ void test_vertical_chain() {
 	CHECK(full_slots[8].as_bob && full_slots[9].as_bob && full_slots[10].as_bob);
 }
 
+void test_preferred_channel() {
+	std::printf("SpriteAllocator: canal preferido\n");
+
+	SpriteIntent intents[2] {};
+	intents[0] = make_intent(10, 20);
+	intents[0].channel = 3u;
+	intents[1] = make_intent(10, 20); // solapa con el primero: el 3 está ocupado
+	intents[1].channel = 3u;
+	SpriteSlot slots[2] {};
+	const eng::u8 hw = SpriteAllocator{}.assign({intents, 2}, slots);
+	CHECK(hw == 2u);
+	CHECK(slots[0].channel == 3u);
+	CHECK(slots[1].channel != 3u);
+}
+
+void test_assign_rank() {
+	std::printf("SpriteAllocator: prioridad de asignacion (fijos primero)\n");
+
+	// El fijo (rank 1) tiene top MAYOR que el libre y solapan: sin prioridad, el libre
+	// se llevaría el canal 0 por orden de Y.
+	SpriteIntent intents[2] {};
+	intents[0] = make_intent(40, 60); // libre (rank 0), prefiere 0
+	intents[0].channel = 0u;
+	intents[1] = make_intent(50, 70); // fijo (rank 1), prefiere 0
+	intents[1].channel = 0u;
+	intents[1].assign_rank = 1u;
+	SpriteSlot slots[2] {};
+	const eng::u8 hw = SpriteAllocator{}.assign({intents, 2}, slots);
+	CHECK(hw == 2u);
+	CHECK(slots[1].channel == 0u);
+	CHECK(slots[0].channel == 1u);
+
+	// Con ocupación EXACTA, un libre sin solape SÍ reutiliza el canal del fijo aunque se
+	// asigne después (un `lastY[8]` conservador lo habría degradado).
+	SpriteIntent apart[2] {};
+	apart[0] = make_intent(10, 30);
+	apart[0].channel = 0u;
+	apart[1] = make_intent(50, 70);
+	apart[1].channel = 0u;
+	apart[1].assign_rank = 1u;
+	SpriteSlot apart_slots[2] {};
+	const eng::u8 hw2 = SpriteAllocator{}.assign({apart, 2}, apart_slots);
+	CHECK(hw2 == 2u);
+	CHECK(apart_slots[1].channel == 0u && apart_slots[0].channel == 0u);
+}
+
+void test_trajectory_group() {
+	std::printf("SpriteAllocator: grupo con trayectoria (corrida contigua)\n");
+
+	// Formación de 3 naves con tops 40/44/48 y alto 12; base preferida 2. Un libre que
+	// empieza dentro del bounding box NO puede robar la corrida.
+	SpriteIntent intents[4] {};
+	intents[0] = make_intent(40, 52);
+	intents[0].group_id = 4u;
+	intents[0].group_index = 0u;
+	intents[0].group_span = 3u;
+	intents[0].channel = 2u;
+	intents[0].assign_rank = 1u;
+	intents[1] = make_intent(42, 54); // libre
+	intents[2] = make_intent(44, 56);
+	intents[2].group_id = 4u;
+	intents[2].group_index = 1u;
+	intents[2].group_span = 3u;
+	intents[2].assign_rank = 1u;
+	intents[3] = make_intent(48, 60);
+	intents[3].group_id = 4u;
+	intents[3].group_index = 2u;
+	intents[3].group_span = 3u;
+	intents[3].assign_rank = 1u;
+	SpriteSlot slots[4] {};
+	const eng::u8 hw = SpriteAllocator{}.assign({intents, 4}, slots);
+	CHECK(hw == 4u);
+	CHECK(slots[0].channel == 2u && slots[2].channel == 3u && slots[3].channel == 4u);
+	CHECK(slots[1].channel == 0u); // fuera de la corrida reservada
+
+	// Grupo que no cabe (solo quedan 2 canales para una corrida de 3): TODO a BOB.
+	SpriteIntent full[9] {};
+	for (int i = 0; i < 6; ++i) {
+		full[i] = make_intent(0, 200);
+		full[i].assign_rank = 2u; // ocupan 0..5 antes que el grupo
+	}
+	for (int i = 6; i < 9; ++i) {
+		full[i] = make_intent(0, 200);
+		full[i].group_id = 9u;
+		full[i].group_index = static_cast<eng::u8>(i - 6);
+		full[i].group_span = 3u;
+		full[i].channel = 6u;
+		full[i].assign_rank = 1u;
+	}
+	SpriteSlot full_slots[9] {};
+	const eng::u8 hw2 = SpriteAllocator{}.assign({full, 9}, full_slots);
+	CHECK(hw2 == 6u);
+	CHECK(full_slots[6].as_bob && full_slots[7].as_bob && full_slots[8].as_bob);
+}
+
 void test_aga_wide_sprite() {
 	std::printf("SpriteAllocator: width_words=2 (AGA 32 px) usa 1 canal\n");
 
@@ -349,6 +447,9 @@ int main() {
 	test_strip_bad_order_rejected();
 	test_attached_pair();
 	test_vertical_chain();
+	test_preferred_channel();
+	test_assign_rank();
+	test_trajectory_group();
 	test_aga_wide_sprite();
 
 	if (g_failures == 0) {
