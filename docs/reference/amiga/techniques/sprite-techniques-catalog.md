@@ -246,8 +246,10 @@ Los límites de hardware de esta ficha están como constantes de dominio en
   `SpriteChannelWindow`/`plan_sprite_windows`; diseño en [SPRITE_CHANNEL_WINDOWS.md](../../engine/architecture/SPRITE_CHANNEL_WINDOWS.md),
   tests HOST-416/417/418.
 - **Colisión de hardware**: `graphics/sprite_collision.hpp` (`CLXCON`/`CLXDAT`).
-- **Pendiente**: fondo Free Form (datos distintos por columna), animación de DATA del sprite
-  (Jim Power), bending por tabla de seno, y el scroll por cambio de punteros pre-shifteados.
+- **Pendiente**: pacing del fondo *Jim Power* (demo 215), attached end-to-end por el camino de
+  actores, segmentos/rearme vertical del objeto, refinamientos del allocator, bending por tabla
+  de seno y demos de cierre (HUD con `SpriteLineLayer`, prioridad por franjas). La **lista viva
+  y priorizada** está en `docs/guides/roadmap/ROADMAP_UNIFICADO.md` §«Sprites hardware — estado».
 
 ## Referencias
 

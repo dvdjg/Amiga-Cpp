@@ -167,37 +167,48 @@ scratch** (el `detail≈9861` de la 275, ya documentado en su README) y sacarlo 
   crecimiento (percepción imperfecta, tácticas de manada). Detalle:
   `docs/engine/architecture/SIM_ECOSYSTEM.md`.
 
-## Sprites hardware — estado (2026-09)
+## Sprites hardware — estado
 
-- **Hecho**: `HwSpriteTemplate` + `SpriteManager::emit_template_into` (multiplexado
-  vertical "chasing the raster" + color multiplexing) validados por la demo 053.
-  Se corrigió la codificación de `SPRxPOS`/`SPRxCTL` (VSTART byte alto, HSTART÷2 en
-  byte bajo; ver `amiga-bootcamp/08_graphics/sprites.md`) y los offsets de registro
-  (antes caían en registros de audio).
-- **Pendiente (mejoras apuntadas)**:
-  - `SpriteAllocator` (paso 4 de `ENGINE_DESIGN.md` §5): asignar canales a
-    `SpriteIntent` con multiplexado y decidir el overflow → BOB (transición
-    sprite→BOB transparente). Es el siguiente paso. **Hecho**: la lógica pura
-    (`sprite_allocator.hpp`) está validada por el test host HOST-003.
-    `SpriteManager::emit_into` (camino de 8 canales, demo 054): **arreglado el
-    "no dibuja"** añadiendo `wait_line_safe(vstart)` antes de cada sprite (el
-    sprite debe programarse en su VSTART, no arriba del frame); también corregido
-    `copper_words()` (6→10 words/sprite). **Pendiente (bug secundario)**: los
-    sprites dibujan pero TODOS en azul (COLOR25) y agrupados, en vez de
-    rojo/verde/azul/amarillo en fila; queda por diagnosticar (paleta/posición con
-    8 sprites en el mismo VSTART).
-  - Diagnosticar por qué **rellenar bitplanes rompe el rearm** del sprite en modo
-    6 planos (solo dibuja el primer segmento); bloquea fondos reales en demos de
-    sprites. Alternativa segura: fondo por copper-gradient (`COLOR00` por línea).
-  - Materializar los `CopperIntent` que faltan (`ShiftLines`, `BitplaneSplit`,
-    `SpriteRearm`, `Priority`) en el driver que conoce el layout (paso 2/3).
-    **Hecho**: `CopperScheduler::emit_copper_intents_full`/`emit_single_intent`
-    materializan ya `PaletteLine/PaletteSpan/BitplaneSplit/ShiftLines/
-    SpriteRearm/Priority`; HOST-002 ampliado y en verde. `StaticEhbScene::
-    rebuild_copper` emite las zonas de paleta como `PaletteLine` (demos 030/040
-    llegan a READY).
-  - Embellecer la demo 053 (fondo, animación de colores) siguiendo la regla
-    «Demos atractivas» de `docs/guides/methodology/DEMO_VISUAL_DEBUG.md`.
+- **Validado (demos + tests host)**: multiplexado vertical "chasing the raster" + color
+  multiplexing (053); `SpriteAllocator` con overflow → BOB (054; HOST-003/416); colisión
+  `CLXCON`/`CLXDAT` (206); sprite-as-playfield con rearmado horizontal (207); Risky Woods con
+  ventanas de canales (208/211; HOST-417/416); Free Form no repetitivo con scroll (213);
+  **par *attached* de 15 colores**: cocinado `cook_attached_pair` (HOST-427) y armado
+  `SpriteManager::arm_object`/`emit_armed_into` (HOST-428; demos 214/054); **animación de DATA
+  por frame** en el camino de objetos (HOST-072; demo 054). Interfaz: `emit_planes_display`
+  fija `BPLCON2=0x0024` (sprites delante; AHRM cap. 7 Table 7-2 — en single-playfield manda
+  `PF2P` — ver `winuae/sprite-color-priority.md`) y `SpriteConfig::data`/`HwSpritePlacement::data`
+  van tipados `ChipView<SpriteTag>`.
+- **Pendiente (por prioridad)**:
+  1. **Pacing del fondo *Jim Power*** (demo 215, NO VERIFICADA): DATA por línea + ráfaga pura de
+     `SPRxPOS`. Con la receta aplicada solo se pintan las últimas columnas (el Copper adelanta
+     al haz más de un período). Seguimiento con medidas enviado a Grok
+     (`consulta-jim-power-data-line-pacing-en.md`): coste real del `MOVE` con 4 planos + DMA de
+     sprites (robo de bus), régimen de head-start (¿ir *detrás* del haz?), por qué la copperlist
+     real usa `hpos` variable por línea ($1c/$20/$24); fallback: `POS+DATB+DATA` por columna
+     (Free Form, 213).
+  2. **Attached end-to-end por el camino de actores**: `compose_sprites` debe emitir los **dos
+     intents/placements** del par y cocinar la DATA de 4 planos desde `ActorDesc` (hoy la demo
+     214 lo hace a mano con el helper).
+  3. **Segmentos/rearme vertical del objeto** (`OBJECT_SYSTEM.md` §2 lo marca PARCIAL): conectar
+     la proyección `sprite_template_to_intents` (franjas + `SpriteRearm` + paleta) a la emisión
+     real del compositor.
+  4. **Refinamientos del allocator** (`sprite-multiplexer-bob-fallback.md` §9): grupos con
+     trayectoria y `preferred_channel`, orden Y incremental, ocupación precisa por línea,
+     prioridad de asignación y DMA encadenado por canal (con test host del caso de grupos).
+  5. **Camino legado**: `SpriteManager::emit_into` (un `WAIT` por `VSTART`) queda solo para los
+     segmentos rearmados de la 053; decidir si se retira tras `emit_armed_into`.
+  6. **Demos de cierre**: HUD con `SpriteLineLayer` (HOST-418, sin demo), prioridad `BPLCON2`
+     por franjas (intent `Priority` existe, sin demo) y resolver
+     `087_sprite_horizontal_rearm` (arreglar o retirar; la técnica ya está cubierta por 207/208).
+  7. **Bending por tabla de seno** (`SPRxPOS` por línea) y **palette splitting** con sprites
+     (parcial en 211).
+  8. **Cerrar 212/`FreeFormSpriteLayer`** (roto) o deprecarlo en favor de 213; añadir doble
+     copperlist al Free Form (mejora apuntada en 213).
+  9. **Sprites con playfields de 5-6 planos**: validar el robo de slots de fetch
+     (`kSpriteLineDataMaxBitplanes`) y, si aplica, retomar el diagnóstico del rearm con 6 planos.
+  10. **Pipeline de assets**: cocinado del par *attached* en build-time (hoy en runtime) y carga
+      desde UAF.
 
 ## Input y audio — estado (2026-09)
 
