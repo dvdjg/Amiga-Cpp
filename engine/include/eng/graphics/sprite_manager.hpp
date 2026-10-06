@@ -51,7 +51,7 @@ struct SpriteConfig {
     u8 height = 0;               // líneas (1..128)
     u16 hpos = 0;                // posición horizontal (px)
     u16 vstart = 0;              // línea vertical de inicio
-    u16 vstop = 0;               // última línea (vstart + height - 1)
+    u16 vstop = 0;               // línea SIGUIENTE a la última visible (exclusiva; AHRM cap. 4)
     u8 palette_base = 16;        // COLOR16 + palette_base*4 (defecto 16: COLOR16-19)
     /// **Attached** al sprite anterior del par (bit 0 de `SPRxCTL`): 4 bits/píxel sobre
     /// `COLOR16-31` (15 colores). Los pares válidos son 0+1, 2+3, 4+5, 6+7; reduce los
@@ -177,7 +177,7 @@ public:
                 data_words.size() * 2u};
             SpriteConfig cfg {
                 true, data, tpl.width_words, static_cast<u8>(seg.height & 0xffu),
-                hpos, line, static_cast<u16>(line + seg.height - 1u),
+                hpos, line, static_cast<u16>(line + seg.height), // VSTOP exclusivo (AHRM)
                 0, // palette_base: los sprites usan COLOR16+; para multiplexar por par
                    // hay que respetar que el switch cambia el COLORxx del par (ver abajo)
             };
@@ -214,6 +214,21 @@ public:
         // Por sprite: 1 WAIT (2 words) + POS + CTL + PTH + PTL (4 MOVEs = 8 words).
         for (const auto& s : m_spr) if (s.enabled && !s.data.empty()) w += 10;
         return w;
+    }
+
+    /// **Armado de objetos (patrón validado)**: un solo `WAIT` en `arm_line` y, por canal
+    /// habilitado, un `arm_object` (PT a la DATA, POS/CTL con `VSTOP` exclusivo y `ATTACH`).
+    /// `arm_line` debe caer tras el VBlank y **antes del primer `VSTART`** (p. ej. 32). Es el
+    /// camino recomendado para objetos; `emit_into` (un `WAIT` por `vstart`) queda para
+    /// segmentos rearmados por línea ("chasing the raster", demo 053).
+    template <class Sched>
+    void emit_armed_into(Sched& sched, u16 arm_line) const {
+        sched.wait_line_safe(arm_line);
+        for (u8 i = 0u; i < 8u; ++i) {
+            const SpriteConfig& s = m_spr[i];
+            if (!s.enabled || s.data.empty()) continue;
+            arm_object(sched, i, s.data, s.hpos, s.vstart, s.height, s.attach);
+        }
     }
 
     /// **Arma un objeto de sprite** en la posición actual del Copper (patrón validado por la
@@ -262,7 +277,7 @@ public:
             cfg.height = static_cast<u8>(p.height > 128u ? 128u : p.height);
             cfg.hpos = p.hpos;
             cfg.vstart = p.vstart;
-            cfg.vstop = static_cast<u16>(p.vstart + cfg.height - 1u);
+            cfg.vstop = static_cast<u16>(p.vstart + cfg.height); // exclusivo (AHRM cap. 4)
             // `attach` (15 colores): sin esta copia, el par del compositor se emitiría
             // como dos sprites independientes y el color 4 bits se perdería. El CTL del
             // canal impar lleva el bit 7 (`emit_config`). Ver `sprite-layer.md` §4.

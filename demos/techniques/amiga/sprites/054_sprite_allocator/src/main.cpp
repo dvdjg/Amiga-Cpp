@@ -66,15 +66,27 @@ constexpr eng::u32 kBitplaneBytes = kPlaneBytes * kPlanes;
 constexpr eng::u8  kActors = 9;
 constexpr eng::u8  kSpriteHeight = 16;
 constexpr eng::u16 kWordsPerLine = 2;   // DAT + DATB
-// Cada instancia lleva su DATA (16 líneas x DAT/DATB) y, detrás, DOS palabras a cero que
-// terminan el canal de DMA (AHRM 3.ª: "two all-zero words are placed at the end of the
-// data structure to stop the DMA channel"). Sin ellas el canal sigue leyendo la
-// instancia vecina.
-constexpr eng::u16 kInstanceWords = static_cast<eng::u16>(kSpriteHeight) * kWordsPerLine + 2u; // 34
-constexpr eng::u16 kSpriteWords = static_cast<eng::u16>(kInstanceWords * kActors);              // 306
+// **Animación del bitmap (§7)**: cada instancia lleva DOS frames (16 líneas x DAT/DATB)
+// y, detrás, DOS palabras a cero que terminan el canal de DMA (AHRM 3.ª: "two all-zero
+// words are placed at the end of the data structure to stop the DMA channel"). Sin ellas el
+// canal sigue leyendo la instancia vecina. `frame_stride` separa los frames (bytes).
+constexpr eng::u8  kFrames = 2;
+constexpr eng::u16 kFrameWords = static_cast<eng::u16>(kSpriteHeight) * kWordsPerLine; // 32
+constexpr eng::u32 kFrameStride = static_cast<eng::u32>(kFrameWords) * 2u;             // 64 B
+constexpr eng::u16 kInstanceWords = static_cast<eng::u16>(kFrameWords * kFrames) + 2u; // 66
+constexpr eng::u16 kSpriteWords = static_cast<eng::u16>(kInstanceWords * kActors);              // 594
 constexpr eng::u16 kY = 100;
 constexpr eng::u16 kHpos0 = 144;
 constexpr eng::u16 kHposStep = 32;
+
+// Animación compartida de 2 frames (16 ticks cada uno): el camino de sprite publica la DATA
+// del frame vigente (`SPRITE_CHANNEL_WINDOWS` §7), así que el sprite cambia de imagen solo.
+constexpr eng::graphics::Frame kActorFrames[kFrames] = {
+	{0u, 0u, 16u, static_cast<eng::u16>(kSpriteHeight), 16u, 0u},
+	{0u, 0u, 16u, static_cast<eng::u16>(kSpriteHeight), 16u, 0u},
+};
+constexpr eng::graphics::Animation kActorAnim {
+	eng::Span<const eng::graphics::Frame> {kActorFrames, kFrames}, true};
 
 // Fondo navy + parejas de color de sprite: COLOR17=rojo, COLOR21=verde,
 // COLOR25=azul, COLOR29=amarillo (cada par de canales comparte su gama).
@@ -132,7 +144,15 @@ struct SpriteAllocatorDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
-		if (m_copper_ok) {
+		// §7: avanza la animación (el sprite publica la DATA del frame vigente) y recompone
+		// el frame (reparto + emisión). La copperlist se reconstruye porque cambia la DATA.
+		for (eng::u16 i = 0u; i < m_actors.count(); ++i) {
+			auto a = m_actors.get(m_actors.id_at(i));
+			if (a.valid()) {
+				(void)eng::scene::actor_tick(*a, 1u);
+			}
+		}
+		if (m_copper_ok && compose() && build_copper()) {
 			backend.install_copper_list(m_copper_ptr);
 		}
 	}
@@ -143,15 +163,20 @@ struct SpriteAllocatorDemo {
 
 private:
 	void build_sprite_sheet(eng::Words<eng::SpriteTag> data) {
-		for (eng::u8 inst = 0; inst < kActors; ++inst) {
-			for (eng::u8 line = 0; line < kSpriteHeight; ++line) {
-				data[static_cast<eng::u16>(inst) * kInstanceWords + line * 2u + 0u] = 0xFFFFu; // DAT
-				data[static_cast<eng::u16>(inst) * kInstanceWords + line * 2u + 1u] = 0x0000u; // DATB
+		for (eng::u16 inst = 0; inst < kActors; ++inst) {
+			const eng::u16 base = static_cast<eng::u16>(inst) * kInstanceWords;
+			for (eng::u8 f = 0; f < kFrames; ++f) {
+				for (eng::u8 line = 0; line < kSpriteHeight; ++line) {
+					// Frame 0: barra de 16 px; frame 1: barra central de 8 px (cambio visible).
+					const eng::u16 dat = (f == 0u) ? 0xFFFFu : 0x0FF0u;
+					data[base + f * kFrameWords + line * 2u + 0u] = dat; // DAT
+					data[base + f * kFrameWords + line * 2u + 1u] = 0u;  // DATB
+				}
 			}
-			// Terminador del canal de DMA: dos palabras a cero tras la DATA.
-			const eng::u16 tail = static_cast<eng::u16>(kSpriteHeight) * kWordsPerLine;
-			data[static_cast<eng::u16>(inst) * kInstanceWords + tail + 0u] = 0u;
-			data[static_cast<eng::u16>(inst) * kInstanceWords + tail + 1u] = 0u;
+			// Terminador del canal de DMA: dos palabras a cero tras el ÚLTIMO frame.
+			const eng::u16 tail = static_cast<eng::u16>(kFrameWords * kFrames);
+			data[base + tail + 0u] = 0u;
+			data[base + tail + 1u] = 0u;
 		}
 	}
 
@@ -168,6 +193,9 @@ private:
 			d.visual.w = 16u;
 			d.visual.h = kSpriteHeight;
 			d.visual.bitplanes = 2u;
+			// §7: la hoja tiene 2 frames (stride en bytes) y el actor avanza la animación.
+			d.visual.frame_stride = kFrameStride;
+			d.animation = &kActorAnim;
 			d.x = static_cast<eng::s16>(kHpos0 + static_cast<eng::u16>(i) * kHposStep);
 			d.y = static_cast<eng::s16>(kY);
 			d.surface = 0u;
@@ -231,8 +259,10 @@ private:
 			)
 		);
 		sched.emit_palette(kBasePalette.color);
-		// Los sprites se programan DESPUÉS de habilitar SPREN.
-		m_sprites.emit_into(sched);
+		// Los sprites se programan DESPUÉS de habilitar SPREN, con el patrón de objetos
+		// validado (HOST-428): un solo WAIT temprano (línea 32, antes del VSTART de los
+		// actores) y el armado de los 8 canales con PT/POS/CTL (VSTOP exclusivo, ATTACH).
+		m_sprites.emit_armed_into(sched, 32u);
 		sched.wait_line(0xf8);
 		sched.move(eng::copper::Register::COLOR00, 0x0000);
 		sched.end();

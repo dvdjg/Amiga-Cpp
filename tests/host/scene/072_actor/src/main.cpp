@@ -664,6 +664,55 @@ void test_sprite_allocation_and_bob_fallback() {
 	      "intents rechazadas si no caben");
 }
 
+/// Animación del bitmap del sprite (§7): la DATA publicada avanza con el frame vigente
+/// (`base + índice * frame_stride`), igual que un BOB animado.
+void test_compose_sprite_frame_data() {
+	ActorStore<4> store;
+	store.reset();
+	RepresentationAllocator alloc {};
+	alloc.reset(RepresentationBudget {8u, 60000u, 0u});
+
+	ActorDesc d = make_desc();
+	d.anchor = {0, 0};
+	d.offset = {0, 0};
+	d.x = 0;
+	d.y = 100;
+	d.z = 10;
+	d.visual.pixels = eng::Span<const eng::u16> {g_pixel_pool, 64u};
+	d.visual.frame_stride = 32u; // 2 frames de 16 words
+	const ActorId id = store.add(d, alloc);
+	CHECK(id.valid(), "actor animado de alta");
+
+	ActorEmitContext ctx {};
+	use_targets(ctx);
+	FramePlan plan {};
+	plan.clear();
+	ActorId order[4] {};
+	SpriteIntent intents[4] {};
+	eng::u16 intent_actor[4] {};
+	SpriteSlot slots[4] {};
+	HwSpritePlacement placements[4] {};
+	eng::scene::SpriteComposeScratch sc {};
+	sc.order = order;
+	sc.intents = intents;
+	sc.intent_actor = intent_actor;
+	sc.slots = slots;
+	sc.placements = placements;
+
+	CHECK(eng::scene::compose_sprites(plan, store, ctx, 0x2cu, sc).ok, "composicion frame 0");
+	CHECK(reinterpret_cast<const eng::u16*>(placements[0].data.address(0).cptr()) ==
+		      g_pixel_pool,
+	      "frame 0 -> base de la hoja");
+
+	auto a = store.get(id);
+	CHECK(eng::scene::actor_tick(*a, 1u), "avanza al frame 1");
+	plan.clear();
+	CHECK(eng::scene::compose_sprites(plan, store, ctx, 0x2cu, sc).ok, "composicion frame 1");
+	CHECK(reinterpret_cast<const eng::u16*>(placements[0].data.address(0).cptr()) ==
+		      g_pixel_pool + 16u,
+	      "frame 1 -> base + stride (16 words)");
+}
+
 void test_compose_sprites() {
 	ActorStore<12> store;
 	store.reset();
@@ -1079,6 +1128,7 @@ int main() {
 	test_sprite_template_projection();
 	test_sprite_allocation_and_bob_fallback();
 	test_compose_sprites();
+	test_compose_sprite_frame_data();
 	test_compose_sprites_overlapping_windows();
 	test_copper_priority_wiring();
 	test_add_anchored();

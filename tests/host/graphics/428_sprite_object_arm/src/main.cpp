@@ -158,6 +158,58 @@ void test_odd_x_parity() {
 	}
 }
 
+/// `emit_armed_into`: un solo `WAIT` en la línea de armado y todos los canales habilitados
+/// (ningún `WAIT` por `VSTART`).
+void test_manager_armed_into() {
+	std::printf("emit_armed_into: un WAIT temprano y los canales habilitados\n");
+
+	alignas(4) u16 d0[64] {};
+	alignas(4) u16 d1[64] {};
+	MemoryManager mem = make_memory();
+	eng::graphics::SpriteManager sm {};
+	CHECK(sm.init(mem, 256u), "SpriteManager init");
+
+	eng::graphics::SpriteConfig c0 {};
+	c0.enabled = true;
+	c0.data = chip(d0);
+	c0.width_words = 1u;
+	c0.height = 16u;
+	c0.hpos = 100u;
+	c0.vstart = 120u;
+	c0.vstop = 136u;
+	eng::graphics::SpriteConfig c1 = c0;
+	c1.data = chip(d1);
+	c1.attach = true;
+	sm.set(0u, c0);
+	sm.set(1u, c1);
+
+	eng::copper::Scheduler sched = make_scheduler(mem, 256u);
+	sm.emit_armed_into(sched, 32u);
+	sched.end();
+
+	const u16* w = sched.data();
+	const u16 count = sched.words_used();
+	unsigned waits32 = 0, waits120 = 0;
+	for (u16 i = 0; i + 1u < count; i += 2u) {
+		if (w[i] == 0xffffu) break;
+		if ((w[i] & 1u) == 0u) continue;
+		if ((w[i] >> 8u) == 32u) ++waits32;
+		if ((w[i] >> 8u) == 120u) ++waits120;
+	}
+	CHECK(waits32 == 1u, "un solo WAIT en la linea de armado (32)");
+	CHECK(waits120 == 0u, "ningun WAIT por VSTART (patron de objetos)");
+
+	Mv mv[32] {};
+	const unsigned n = collect_moves(w, count, mv, 32u);
+	const Mv* p0 = find(mv, n, 0x140u);
+	const Mv* c1v = find(mv, n, 0x14Au);
+	CHECK(p0 != nullptr, "SPR0POS emitido");
+	CHECK(c1v != nullptr && (c1v->val & 0x0080u) != 0u, "SPR1CTL con ATTACH");
+	if (p0) {
+		CHECK(p0->val == static_cast<u16>((120u << 8u) | 50u), "POS del canal 0");
+	}
+}
+
 void test_rejects() {
 	std::printf("arm_object: rechazos sin emision\n");
 
@@ -184,6 +236,7 @@ int main() {
 
 	test_attached_pair();
 	test_odd_x_parity();
+	test_manager_armed_into();
 	test_rejects();
 
 	if (g_fail == 0) {

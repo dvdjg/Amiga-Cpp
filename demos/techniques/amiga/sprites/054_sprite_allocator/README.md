@@ -11,6 +11,16 @@ que no caben.
 color: rojo, verde, azul, amarillo); el noveno no cabe y queda `as_bob`. El reparto se publica en
 `g_eng_run_status.detail` (`sprites << 8 | degradados`).
 
+El armado usa el **patrón de objetos validado** (`SpriteManager::emit_armed_into`, HOST-428): un
+solo `WAIT` temprano (línea 32, antes del `VSTART`) y los 8 canales con `PT`/`POS`/`CTL`
+(`VSTOP` exclusivo, ATTACH en el impar); `emit_into` (un `WAIT` por `VSTART`) queda para los
+segmentos rearmados por línea de la 053.
+
+Los actores **animan** (hoja de 2 frames, `frame_stride` en bytes): `compose_sprites` publica la
+DATA del frame vigente (`SPRITE_CHANNEL_WINDOWS` §7), así que las barras cambian de anchura por
+frame sin copias por frame. Validado en vivo por captura+secuencia: los píxeles del sprite se
+duplican entre frame estrecho y ancho.
+
 **`hpos` debe caer DENTRO de la ventana de display.** El display empieza en `DIWSTRT` (x≈128); los
 sprites situados a la izquierda de ese punto se dibujan en el **borde** y no se ven. Con
 `kHpos0 = 16` solo se veían los dos últimos pares que entraban en la ventana (y en azul, porque

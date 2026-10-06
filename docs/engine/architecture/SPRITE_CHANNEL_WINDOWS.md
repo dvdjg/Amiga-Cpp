@@ -107,9 +107,9 @@ El motor declara `attach` en `SpriteConfig`, `HwSpriteTemplate`, `SpriteIntent` 
 
 ## 7. Animación del bitmap del sprite (estilo Jim Power)
 
-Un sprite hardware lee su DATA de Chip RAM; **animar** un sprite es cambiar el puntero `SPRxPT` (o recargar `SPRxDATA/DATB`) por frame. El engine ya tiene el contenido animado (`Animation`/`Frame`, `Visual::frame_count`/`frame_stride` y `actor_current_frame`), pero el camino de sprite usa `visual.pixels.data()` sin aplicar el frame vigente.
+Un sprite hardware lee su DATA de Chip RAM; **animar** un sprite es cambiar el puntero `SPRxPT` (o recargar `SPRxDATA/DATB`) por frame. El engine tiene el contenido animado (`Animation`/`Frame`, `Visual::frame_count`/`frame_stride` y `actor_current_frame`).
 
-El contrato: `compose_sprites` (y `actor_to_sprite_intent`) deben seleccionar el puntero de DATA del **frame actual** dentro de la hoja (`pixels.data() + frame_offset`), de modo que el mismo actor cambie de imagen por frame igual que un BOB animado. El desplazamiento por frame sale de `frame_stride` (o del layout canónico de la hoja), nunca de una copia por frame.
+**Contrato (implementado):** `compose_sprites` publica la DATA del **frame vigente** dentro de la hoja (`pixels.data() + índice * frame_stride`), igual que un BOB animado; el desplazamiento sale del `frame_stride` (0 = sin animación/base y si la hoja no cubre el frame se cae a la base, rechazo controlado). Cada vez que la animación avanza, la siguiente composición apunta al frame nuevo y el emisor rearma el canal con esa DATA. Cubierto por HOST-072 (`test_compose_sprite_frame_data`) y por la demo 054 (hoja de 2 frames, barras que cambian de anchura por frame; validado en vivo con gate de píxeles).
 
 ## 8. API unificada de objetos (sprite libre / attached / BOB)
 
@@ -140,9 +140,9 @@ El **ledger** es la única entrada nueva: la misma llamada sirve para una ventan
 | Driver de fondo `Layer` (8 canales, una instancia/canal) | EXISTE | `effects::SpriteLayer` (`api/effects.hpp`) |
 | Capa/HUD por parcheo de POS+DATA por línea | EXISTE | `graphics/sprite_line_layer.hpp` (HOST-418) |
 | Driver de fondo `RiskyWoods` (reposición repetida) | EXISTE | `effects::RiskyWoodsLayer` (`api/effects.hpp`, HOST-417) |
-| Armado de **objeto** de sprite (PT/POS/CTL en una línea temprana; `ATTACH` en el impar) | EXISTE | `SpriteManager::arm_object` (`sprite_manager.hpp`, HOST-428; demo 214) |
+| Armado de **objeto** de sprite (PT/POS/CTL en una línea temprana; `ATTACH` en el impar) | EXISTE | `SpriteManager::arm_object` + `emit_armed_into` (`sprite_manager.hpp`, HOST-428; demos 054/214) |
 | Driver de fondo `FreeForm` (datos distintos por columna) | PROPUESTO | driver de fondo |
-| Animación del bitmap del sprite | PROPUESTO | `compose_sprites`/`actor_to_sprite_intent` |
+| Animación del bitmap del sprite (§7) | EXISTE | `compose_sprites` (frame vigente por `frame_stride`; HOST-072; demo 054) |
 | Demo con gate visual del híbrido | PROPUESTO | `demos/techniques/amiga/sprites/` |
 
 ## 10. Trampas de hardware que el sistema debe absorber

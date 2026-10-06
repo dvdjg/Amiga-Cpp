@@ -133,7 +133,7 @@ necesidad de máscara en RAM.
 | Capacidad | Estado | Dónde |
 |---|---|---|
 | 8 canales, POS/CTL/PT | **sí** | `SpriteManager::emit_into`/`emit_config` |
-| **Armado de objeto** (PT/POS/CTL temprano, `ATTACH` en el impar) | **sí** | `SpriteManager::arm_object` (HOST-428; demo 214) |
+| **Armado de objeto** (PT/POS/CTL temprano, `ATTACH` en el impar) | **sí** | `SpriteManager::arm_object` + `emit_armed_into` (HOST-428; demos 054/214) |
 | Multiplexado vertical + color mux | **sí** | `SpriteManager::emit_template_into`, `HwSpriteTemplate` |
 | Asignación con degradado a BOB | **sí** | `SpriteAllocator` (first-fit; `as_bob`) |
 | **Rearmado horizontal** | **sí** | `SpriteHorizontalRearm` + `Scheduler::emit_sprite_horizontal_rearm`, intent `SpriteRearm` |

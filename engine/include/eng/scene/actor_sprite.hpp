@@ -107,12 +107,25 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 		p.height = static_cast<eng::u16>(s.intents[i].bottom - s.intents[i].top);
 		p.width_words = s.intents[i].width_words;
 		p.attach = s.intents[i].attach;
+		// **Animación del bitmap del sprite** (SPRITE_CHANNEL_WINDOWS §7): la DATA publicada es
+		// la del **frame vigente** de la animación, igual que un BOB animado: `base + índice *
+		// frame_stride` (bytes). Sin stride (0) o sin animación, la base. Si la hoja no cubre
+		// ese frame, se cae a la base (rechazo controlado, nunca lectura fuera de rango).
+		eng::usize word_off = 0u;
+		if (a->desc.visual.frame_stride != 0u && a->desc.animation.valid()) {
+			eng::usize byte_off = a->anim.index; // u16 -> usize (sin cast)
+			byte_off *= a->desc.visual.frame_stride;
+			if (byte_off / 2u < a->desc.visual.pixels.size()) {
+				word_off = byte_off / 2u;
+			}
+		}
 		// Puente documentado `Visual` -> contrato DMA: el camino de sprite exige contenido en
 		// **Chip** (los `Visual` del camino de sprite se cocinan en Chip; `sprite-layer.md` §9).
 		// El tipo `ChipView<SpriteTag>` del placement fuerza que el emisor no lo olvide.
 		p.data = eng::ChipView<eng::SpriteTag> {
-			eng::Address<eng::MemoryKind::Chip>::from_storage(a->desc.visual.pixels.data()),
-			a->desc.visual.pixels.size() * 2u};
+			eng::Address<eng::MemoryKind::Chip>::from_storage(a->desc.visual.pixels.data() +
+									  word_off),
+			(a->desc.visual.pixels.size() - word_off) * 2u};
 		++r.sprites;
 	}
 
