@@ -567,15 +567,19 @@ void test_sprite_template_projection() {
 	tpl.attach = true;
 	tpl.add_segment(HwSpriteSegment {0u, 8u, 0u});
 	tpl.add_segment(HwSpriteSegment {16u, 8u, 8u});
-	tpl.add_switch(HwSpritePaletteSwitch {104u, sw_colors, 16u, 2u});
+	// Línea del switch RELATIVA a `base_y` (aquí cae en la 104 absoluta).
+	tpl.add_switch(HwSpritePaletteSwitch {4u, sw_colors, 16u, 2u});
 
 	SpriteIntent intents[4] {};
 	CopperIntent copper[4] {};
+	eng::graphics::SpritePaletteEvent pal[2] {};
 	SpriteIntentSet set {};
 	set.intents = intents;
 	set.intent_capacity = 4u;
 	set.copper = copper;
 	set.copper_capacity = 4u;
+	set.palette = pal;
+	set.palette_capacity = 2u;
 
 	eng::graphics::sprite_template_to_intents(tpl, 3u, 100u, 40u, 2u, set);
 	CHECK(set.intent_count == 2u, "una intencion por franja");
@@ -585,12 +589,29 @@ void test_sprite_template_projection() {
 	CHECK(intents[0].channel == 3u && intents[0].hpos == 40u, "canal y X de la franja");
 	CHECK(intents[0].width_words == 2u && intents[0].attach, "32 px con attach");
 	CHECK(intents[0].priority == 2u, "prioridad frente a playfields");
-	CHECK(set.copper_count == 2u, "rearme + cambio de paleta");
+	CHECK(set.copper_count == 1u, "rearme de la 2a franja");
 	CHECK(copper[0].kind == CopperIntentKind::SpriteRearm, "rearme de la 2a franja");
 	CHECK(copper[0].top == 109u && copper[0].sprite_channel == 3u, "rearme en la linea 109");
 	CHECK(copper[0].sprite_ptr == tpl_bitmap + 16u, "rearme apunta a la DATA de la franja");
-	CHECK(copper[1].kind == CopperIntentKind::PaletteLine && copper[1].top == 104u, "paleta en la 104");
-	CHECK(copper[1].first == 16u && copper[1].count == 2u, "COLOR16.. del par");
+	CHECK(set.palette_count == 1u, "switch de paleta proyectado");
+	CHECK(pal[0].line == 104u && pal[0].first == 16u && pal[0].count == 2u,
+	      "paleta 0-based en la 104, COLOR16..");
+	CHECK(pal[0].colors == sw_colors, "los colores del switch");
+
+	// Cadena vertical: `chain_id` marca las franjas para que el allocator las sirva en el
+	// MISMO canal; con `copper == nullptr` las intenciones de Copper se omiten sin marcar
+	// desbordamiento (el compositor de actores materializa la paleta anclada al actor).
+	SpriteIntent chain_intents[4] {};
+	SpriteIntentSet chain_set {};
+	chain_set.intents = chain_intents;
+	chain_set.intent_capacity = 4u;
+	eng::graphics::sprite_template_to_intents(tpl, 0u, 100u, 40u, 0u, chain_set, 7u);
+	CHECK(chain_set.intent_count == 2u && !chain_set.overflow, "cadena proyectada");
+	CHECK(chain_intents[0].chain_id == 7u && chain_intents[0].chain_index == 0u &&
+		      chain_intents[0].chain_span == 2u,
+	      "lider de cadena");
+	CHECK(chain_intents[1].chain_id == 7u && chain_intents[1].chain_index == 1u,
+	      "seguidor de cadena");
 
 	// Buffers diminutos: se marca el desbordamiento y no se sale del array.
 	SpriteIntent one_intent[1] {};
@@ -846,6 +867,98 @@ void test_compose_attached_pair() {
 	CHECK(res5.sprites == 8u, "cuatro pares en hardware");
 	CHECK(res5.degraded == 1u && res5.bobs == 1u, "un par degradado");
 	CHECK(plan.blit_job_count() == 1u, "el par degradado dibuja UN BOB (sin duplicar)");
+}
+
+/// Cadena vertical end-to-end: un actor con `sprite_template` (2 franjas) se compone como
+/// dos placements en el MISMO canal con gap >=1, la DATA de cada segmento y la paleta por
+/// franja anclada al actor; sin canal libre la cadena degrada UNA vez a BOB.
+void test_compose_template_chain() {
+	constexpr eng::u16 kH = 8u;
+	constexpr eng::u16 kSegWords = kH * 2u;                                 // DAT/DATB por linea
+	constexpr eng::u16 kSegStride = static_cast<eng::u16>(kSegWords + 2u);  // pad entre franjas
+	alignas(16) eng::u16 sheet[2u * kSegStride] {};
+	for (eng::u16 i = 0; i < 2u * kSegStride; ++i) {
+		sheet[i] = static_cast<eng::u16>(0x1000u + i);
+	}
+	alignas(4) eng::u16 sw_color {0x0f0u};
+	eng::graphics::HwSpriteSegment segs[2] = {
+		HwSpriteSegment {0u, kH, 0u},
+		HwSpriteSegment {kSegStride, kH, kH},
+	};
+	HwSpritePaletteSwitch sws[1] = {HwSpritePaletteSwitch {2u, &sw_color, 17u, 1u}};
+	eng::graphics::HwSpriteTemplateView tpl {};
+	tpl.bitmap = eng::Span<const eng::u16> {sheet, 2u * kSegStride};
+	tpl.segments = eng::Span<const eng::graphics::HwSpriteSegment> {segs, 2u};
+	tpl.switches = eng::Span<const HwSpritePaletteSwitch> {sws, 1u};
+
+	ActorStore<4> store;
+	store.reset();
+	RepresentationAllocator alloc {};
+	alloc.reset(RepresentationBudget {8u, 60000u, 0u});
+	ActorDesc d = make_desc();
+	d.anchor = {0, 0};
+	d.offset = {0, 0};
+	d.x = 100;
+	d.y = 120;
+	d.z = 10;
+	d.visual.kind = VisualKind::HardwareSprite;
+	d.visual.pixels = eng::Span<const eng::u16> {g_pixel_pool, 16u}; // contenido para el BOB
+	d.visual.w = 16u;
+	d.visual.h = kH;
+	d.visual.bitplanes = 2u;
+	d.sprite_template = tpl;
+	CHECK(store.add(d, alloc).valid(), "alta del actor con plantilla");
+
+	ActorEmitContext ctx {};
+	use_targets(ctx);
+	FramePlan plan {};
+	plan.clear();
+
+	ActorId order[4] {};
+	SpriteIntent intents[8] {};
+	eng::u16 intent_actor[8] {};
+	SpriteSlot slots[8] {};
+	HwSpritePlacement placements[8] {};
+	CopperIntent copper[4] {};
+	eng::graphics::SpritePaletteEvent pal[2] {};
+	eng::scene::SpriteComposeScratch sc {};
+	sc.order = order;
+	sc.intents = intents;
+	sc.intent_actor = intent_actor;
+	sc.slots = slots;
+	sc.placements = placements;
+	sc.copper = copper;
+	sc.palette = pal;
+
+	eng::scene::SpriteComposeResult res =
+		eng::scene::compose_sprites(plan, store, ctx, 0x2cu, sc);
+	CHECK(res.ok, "composicion de plantilla OK");
+	CHECK(res.sprites == 2u, "una placement por franja");
+	CHECK(placements[0].channel == placements[1].channel, "misma cadena -> mismo canal");
+	CHECK(placements[1].vstart >= static_cast<eng::u16>(placements[0].vstart + kH + 1u),
+	      "gap >= 1 linea entre franjas");
+	CHECK(placements[0].data.address(0).cptr() == reinterpret_cast<const eng::u8*>(sheet),
+	      "franja 0: DATA del segmento 0");
+	CHECK(placements[1].data.address(0).cptr() ==
+		      reinterpret_cast<const eng::u8*>(sheet + kSegStride),
+	      "franja 1: DATA del segmento 1");
+	CHECK(res.palette == 1u && pal[0].line == 122u && pal[0].first == 17u &&
+		      pal[0].count == 1u,
+	      "paleta de la plantilla en la escala del sprite");
+	CHECK(pal[0].colors != nullptr && pal[0].colors[0] == 0x0f0u, "color del switch");
+
+	// Sin canal libre (ventana que reserva los 8 canales en el tramo): la cadena degrada
+	// UNA vez a BOB, no una por franja.
+	SpriteChannelWindow w {120u, 136u, SpriteWindowTechnique::FreeForm, 0u, 8u, false};
+	SpriteChannelLedger ledger {};
+	ledger.reset();
+	CHECK(eng::graphics::plan_sprite_windows({&w, 1u}, ledger).has_value(),
+	      "ventana reservada");
+	plan.clear();
+	res = eng::scene::compose_sprites(plan, store, ctx, 0x2cu, sc, {}, ledger);
+	CHECK(res.ok && res.sprites == 0u, "sin canal: sin placements");
+	CHECK(res.degraded == 1u && res.bobs == 1u, "una degradacion (no una por franja)");
+	CHECK(plan.blit_job_count() == 1u, "un BOB para la cadena");
 }
 
 void test_compose_sprites() {
@@ -1265,6 +1378,7 @@ int main() {
 	test_compose_sprites();
 	test_compose_sprite_frame_data();
 	test_compose_attached_pair();
+	test_compose_template_chain();
 	test_compose_sprites_overlapping_windows();
 	test_copper_priority_wiring();
 	test_add_anchored();

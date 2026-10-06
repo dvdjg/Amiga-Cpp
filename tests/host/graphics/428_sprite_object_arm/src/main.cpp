@@ -284,6 +284,35 @@ void test_placements_multiplex() {
 	CHECK(count_reg(0x14Au, &ctl1) == 1u && (ctl1 & 0x0080u) != 0u, "SPR1CTL con ATTACH");
 	CHECK(count_reg(0x168u, &pos5) == 1u, "SPR5POS una sola (canal no reutilizado)");
 	CHECK(pos5 == static_cast<u16>((120u << 8u) | (16u >> 1u)), "POS5 en su franja");
+
+	// Extra de paleta entre el armado y el rearme: se intercala por línea (nunca espera
+	// hacia atrás) y el MOVE de COLOR17 va antes del rearme de la franja 140.
+	eng::copper::Scheduler sched2 = make_scheduler(mem, 256u);
+	u16 color = 0x0f00u;
+	eng::graphics::SpritePaletteEvent ev {130u, &color, 17u, 1u};
+	eng::graphics::SpriteManager::emit_placements_into(
+		sched2, eng::Span<const eng::graphics::HwSpritePlacement> {ps, 4u}, 32u,
+		eng::Span<const eng::graphics::SpritePaletteEvent> {&ev, 1u});
+	sched2.end();
+	const u16* w2 = sched2.data();
+	const u16 count2 = sched2.words_used();
+	unsigned waits130 = 0;
+	u16 color_at = 0xffffu, pos0_at = 0xffffu, pos0_seen = 0u;
+	for (u16 i = 0; i + 1u < count2; i += 2u) {
+		if (w2[i] == 0xffffu) break;
+		if ((w2[i] & 1u) != 0u) {
+			if ((w2[i] >> 8u) == 130u) ++waits130;
+			continue;
+		}
+		if (w2[i] == 0x1a2u && color_at == 0xffffu) color_at = i;
+		if (w2[i] == 0x140u) {
+			++pos0_seen;
+			if (pos0_seen == 2u) pos0_at = i;
+		}
+	}
+	CHECK(waits130 == 1u, "WAIT de la paleta en la linea 130");
+	CHECK(color_at != 0xffffu && w2[color_at + 1u] == 0x0f00u, "COLOR17 del extra");
+	CHECK(color_at < pos0_at, "paleta antes del rearme de la franja 140");
 }
 
 void test_rejects() {

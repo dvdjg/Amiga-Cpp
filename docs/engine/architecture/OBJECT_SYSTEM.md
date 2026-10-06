@@ -72,7 +72,7 @@ La separación de capas es la misma que en `VISUAL_EFFECT_SPRITE_DESIGN.md` §2:
 | Degradación sprite → BOB (`emit_bob_fallbacks` sobre `SpriteSlot::as_bob`) | EXISTE | `engine/include/eng/scene/actor.hpp` |
 | Composición de sprites del frame (`compose_sprites`, `SpriteComposeScratch`, `SpriteComposeResult`) | EXISTE | `engine/include/eng/scene/actor.hpp` |
 | Contrato del sprite resuelto (`HwSpritePlacement`) y volcado al emisor (`SpriteManager::apply`) | EXISTE | `graphics/sprite.hpp`, `graphics/sprite_manager.hpp` |
-| Franjas de sprite y rearme intra-scanline (Risky Woods / Jim Power) | PARCIAL | proyección de franjas/rearme/paleta hecha; falta conectarla a la emisión real del compositor |
+| Franjas de sprite y rearme intra-scanline (Risky Woods / Jim Power) | EXISTE | proyección (`sprite_template_view_to_intents`), **cadena vertical** en el allocator (`chain_id` reserva el canal para todo el rango) y emisión por franja con paleta intercalada (`emit_placements_into`); HOST-003/072/428, demo `217_sprite_template_actor` |
 | Tiles como BOB (blit desde banco común + posición de mapa) | EXISTE | `BlitJobKind::TileBlockCopy` (`frame_plan.hpp`), `field/xlimited.hpp` |
 | Objeto CPU sobre `Surface` con política de fondo | PROPUESTO | §14.7 |
 

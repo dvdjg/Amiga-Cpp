@@ -231,6 +231,9 @@ Los límites de hardware de esta ficha están como constantes de dominio en
 - **Multiplexado vertical por Y** (técnicas 1-3): `SpriteAllocator` (`graphics/sprite_allocator.hpp`)
   asigna cada objeto a un canal libre con *greedy first-fit*; reparte los objetos entre los canales
   que deja libre el fondo de su intervalo (`SpriteChannelLedger`, `graphics/sprite_channel_window.hpp`).
+  Un objeto puede además servirse en **franjas del mismo canal** ("chasing the raster") declarando
+  `ActorDesc::sprite_template`: la cadena (`chain_id`) reserva el canal para todo el rango y la
+  emisión rearma por franja con paleta intercalada (demo 217; HOST-003/072/428).
 - **Capa/HUD por parcheo de POS+DATA por línea** (técnica 4, Parasol Stars / Brian the Lion):
   `SpriteLineLayer` (`graphics/sprite_line_layer.hpp`) arma un `SpriteHorizontalRearm` por
   (línea, canal) con la imagen de esa scanline; el `copper::Scheduler` la coloca en el H-Blank.
@@ -248,10 +251,9 @@ Los límites de hardware de esta ficha están como constantes de dominio en
   `SpriteChannelWindow`/`plan_sprite_windows`; diseño en [SPRITE_CHANNEL_WINDOWS.md](../../engine/architecture/SPRITE_CHANNEL_WINDOWS.md),
   tests HOST-416/417/418.
 - **Colisión de hardware**: `graphics/sprite_collision.hpp` (`CLXCON`/`CLXDAT`).
-- **Pendiente**: pacing del fondo *Jim Power* (demo 215), proyección
-  `sprite_template_to_intents` (franjas + `SpriteRearm` + paleta) sobre la emisión de placements,
-  refinamientos del allocator, bending por tabla de seno y demos de cierre (HUD con
-  `SpriteLineLayer`, prioridad por franjas). La **lista viva y priorizada** está en
+- **Pendiente**: pacing del fondo *Jim Power* (demo 215), refinamientos del allocator, bending
+  por tabla de seno y demos de cierre (HUD con `SpriteLineLayer`, prioridad por franjas). La
+  **lista viva y priorizada** está en
   `docs/guides/roadmap/ROADMAP_UNIFICADO.md` §«Sprites hardware — estado».
 
 ## Referencias

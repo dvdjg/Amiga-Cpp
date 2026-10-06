@@ -232,6 +232,89 @@ void test_attached_pair() {
 	CHECK(slots3[8].as_bob && slots3[9].as_bob);
 }
 
+void test_vertical_chain() {
+	std::printf("SpriteAllocator: cadena vertical en un solo canal\n");
+
+	// Dos franjas del MISMO objeto (cadena) + un suelto intercalado: el suelto no puede
+	// robar el canal que la cadena reserva para todo su rango.
+	SpriteIntent intents[4] {};
+	intents[0] = make_intent(40, 60);
+	intents[0].chain_id = 5u;
+	intents[0].chain_index = 0u;
+	intents[0].chain_span = 3u;
+	intents[1] = make_intent(50, 70); // suelto intercalado
+	intents[2] = make_intent(80, 100);
+	intents[2].chain_id = 5u;
+	intents[2].chain_index = 1u;
+	intents[2].chain_span = 3u;
+	intents[3] = make_intent(120, 140);
+	intents[3].chain_id = 5u;
+	intents[3].chain_index = 2u;
+	intents[3].chain_span = 3u;
+
+	SpriteSlot slots[4] {};
+	const eng::u8 hw = SpriteAllocator{}.assign({intents, 4}, slots);
+	CHECK(hw == 4u);
+	CHECK(!slots[0].as_bob && slots[0].channel == 0u);
+	CHECK(!slots[1].as_bob && slots[1].channel == 1u); // suelto en otro canal
+	CHECK(!slots[2].as_bob && slots[2].channel == 0u); // franja 2: canal de la cadena
+	CHECK(!slots[3].as_bob && slots[3].channel == 0u); // franja 3: canal de la cadena
+
+	// El hueco ENTRE franjas tampoco se cede: la reserva cubre el rango completo.
+	SpriteIntent hole[3] {};
+	hole[0] = make_intent(40, 60);
+	hole[0].chain_id = 7u;
+	hole[0].chain_index = 0u;
+	hole[0].chain_span = 2u;
+	hole[1] = make_intent(62, 78); // sonda en el hueco
+	hole[2] = make_intent(80, 100);
+	hole[2].chain_id = 7u;
+	hole[2].chain_index = 1u;
+	hole[2].chain_span = 2u;
+	SpriteSlot hole_slots[3] {};
+	const eng::u8 hw2 = SpriteAllocator{}.assign({hole, 3}, hole_slots);
+	CHECK(hw2 == 3u);
+	CHECK(hole_slots[0].channel == 0u);
+	CHECK(hole_slots[1].channel != 0u);
+	CHECK(hole_slots[2].channel == 0u);
+
+	// Dos cadenas intercaladas conviven en canales distintos.
+	SpriteIntent two[4] {};
+	two[0] = make_intent(10, 30);
+	two[0].chain_id = 1u;
+	two[0].chain_span = 2u;
+	two[1] = make_intent(20, 40);
+	two[1].chain_id = 2u;
+	two[1].chain_span = 2u;
+	two[2] = make_intent(50, 70);
+	two[2].chain_id = 1u;
+	two[2].chain_index = 1u;
+	two[2].chain_span = 2u;
+	two[3] = make_intent(60, 80);
+	two[3].chain_id = 2u;
+	two[3].chain_index = 1u;
+	two[3].chain_span = 2u;
+	SpriteSlot two_slots[4] {};
+	const eng::u8 hw3 = SpriteAllocator{}.assign({two, 4}, two_slots);
+	CHECK(hw3 == 4u);
+	CHECK(two_slots[0].channel == 0u && two_slots[1].channel == 1u);
+	CHECK(two_slots[2].channel == 0u && two_slots[3].channel == 1u);
+
+	// Ocho canales ocupados: la cadena no cabe y degrada ENTERA (nadie queda a medias).
+	SpriteIntent full[11] {};
+	for (int i = 0; i < 8; ++i) full[i] = make_intent(0, 200);
+	for (int i = 8; i < 11; ++i) {
+		full[i] = make_intent(0, 200);
+		full[i].chain_id = 9u;
+		full[i].chain_index = static_cast<eng::u8>(i - 8);
+		full[i].chain_span = 3u;
+	}
+	SpriteSlot full_slots[11] {};
+	const eng::u8 hw4 = SpriteAllocator{}.assign({full, 11}, full_slots);
+	CHECK(hw4 == 8u);
+	CHECK(full_slots[8].as_bob && full_slots[9].as_bob && full_slots[10].as_bob);
+}
+
 void test_aga_wide_sprite() {
 	std::printf("SpriteAllocator: width_words=2 (AGA 32 px) usa 1 canal\n");
 
@@ -265,6 +348,7 @@ int main() {
 	test_strip_overflow_to_bob();
 	test_strip_bad_order_rejected();
 	test_attached_pair();
+	test_vertical_chain();
 	test_aga_wide_sprite();
 
 	if (g_failures == 0) {

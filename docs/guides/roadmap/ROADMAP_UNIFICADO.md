@@ -176,9 +176,12 @@ scratch** (el `detail≈9861` de la 275, ya documentado en su README) y sacarlo 
   **par *attached* de 15 colores**: cocinado `cook_attached_pair` (HOST-427), armado
   `SpriteManager::arm_object`/`emit_armed_into` (HOST-428; demos 214/054) y **end-to-end por
   actores** (`Visual::attached` → dos intents/placements + cocinado en el pool Chip;
-  HOST-072/428; demo 216); **armado de placements con rearme vertical** del canal reutilizado
-  (`emit_placements_into`, HOST-428) y doble buffer de copperlist en la demo; **animación de
-  DATA por frame** en el camino de objetos (HOST-072; demos 054/216). Interfaz:
+  HOST-072/428; demo 216); **plantilla de franjas por actores** ("chasing the raster":
+  cadena `chain_id` al mismo canal, rearme por franja y paleta por franja
+  `SpritePaletteEvent`; HOST-003/072/428; demo 217); **armado de placements con rearme
+  vertical** del canal reutilizado (`emit_placements_into`, HOST-428) y doble buffer de
+  copperlist en las demos; **animación de DATA por frame** en el camino de objetos
+  (HOST-072; demos 054/216). Interfaz:
   `emit_planes_display` fija `BPLCON2=0x0024` (sprites delante; AHRM cap. 7 Table 7-2 — en
   single-playfield manda `PF2P` — ver `winuae/sprite-color-priority.md`) y
   `SpriteConfig::data`/`HwSpritePlacement::data` van tipados `ChipView<SpriteTag>`.
@@ -190,25 +193,21 @@ scratch** (el `detail≈9861` de la 275, ya documentado en su README) y sacarlo 
      sprites (robo de bus), régimen de head-start (¿ir *detrás* del haz?), por qué la copperlist
      real usa `hpos` variable por línea ($1c/$20/$24); fallback: `POS+DATB+DATA` por columna
      (Free Form, 213).
-  2. **Segmentos/rearme vertical del objeto por plantilla** (`OBJECT_SYSTEM.md` §2 lo marca
-     PARCIAL): conectar la proyección `sprite_template_to_intents` (franjas + `SpriteRearm` +
-     paleta) a la emisión real del compositor (el rearme de placements ya existe:
-     `emit_placements_into`).
-  3. **Refinamientos del allocator** (`sprite-multiplexer-bob-fallback.md` §9): grupos con
+  2. **Refinamientos del allocator** (`sprite-multiplexer-bob-fallback.md` §9): grupos con
      trayectoria y `preferred_channel`, orden Y incremental, ocupación precisa por línea,
      prioridad de asignación y DMA encadenado por canal (con test host del caso de grupos).
-  4. **Camino legado**: `SpriteManager::emit_into` (un `WAIT` por `VSTART`) queda solo para los
+  3. **Camino legado**: `SpriteManager::emit_into` (un `WAIT` por `VSTART`) queda solo para los
      segmentos rearmados de la 053; decidir si se retira tras `emit_armed_into`.
-  5. **Demos de cierre**: HUD con `SpriteLineLayer` (HOST-418, sin demo), prioridad `BPLCON2`
+  4. **Demos de cierre**: HUD con `SpriteLineLayer` (HOST-418, sin demo), prioridad `BPLCON2`
      por franjas (intent `Priority` existe, sin demo) y resolver
      `087_sprite_horizontal_rearm` (arreglar o retirar; la técnica ya está cubierta por 207/208).
-  6. **Bending por tabla de seno** (`SPRxPOS` por línea) y **palette splitting** con sprites
+  5. **Bending por tabla de seno** (`SPRxPOS` por línea) y **palette splitting** con sprites
      (parcial en 211).
-  7. **Cerrar 212/`FreeFormSpriteLayer`** (roto) o deprecarlo en favor de 213; añadir doble
+  6. **Cerrar 212/`FreeFormSpriteLayer`** (roto) o deprecarlo en favor de 213; añadir doble
      copperlist al Free Form (mejora apuntada en 213).
-  8. **Sprites con playfields de 5-6 planos**: validar el robo de slots de fetch
+  7. **Sprites con playfields de 5-6 planos**: validar el robo de slots de fetch
      (`kSpriteLineDataMaxBitplanes`) y, si aplica, retomar el diagnóstico del rearm con 6 planos.
-  9. **Pipeline de assets**: cocinado del par *attached* en build-time (hoy en runtime) y carga
+  8. **Pipeline de assets**: cocinado del par *attached* en build-time (hoy en runtime) y carga
      desde UAF.
 
 ## Input y audio — estado (2026-09)

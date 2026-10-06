@@ -249,6 +249,16 @@ struct SpriteIntent {
     u8  strip_id = 0;
     u8  strip_index = 0;
     u8  strip_span = 1;
+    /// **Cadena vertical** (multiplexado "chasing the raster" de un objeto): franjas
+    /// disjuntas del MISMO objeto servidas por el MISMO canal, cada una rearmada en su
+    /// `top` por la emisión (`SpriteManager::emit_placements_into`). `chain_id == 0` =
+    /// suelto; los miembros comparten `chain_id`, declaran el mismo `chain_span` y
+    /// llegan en orden ascendente de `top` con `chain_index == 0` (líder) primero. El
+    /// `SpriteAllocator` reserva el canal para **todo el rango** de la cadena (así nadie
+    /// lo roba en los huecos entre franjas). Ver `sprite_template_to_intents`.
+    u8  chain_id = 0;
+    u8  chain_index = 0;
+    u8  chain_span = 1;
 };
 
 } // namespace eng::graphics

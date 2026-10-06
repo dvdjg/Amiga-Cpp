@@ -87,7 +87,8 @@ public:
 			eng::Span<eng::u16> {m_intent_actor, kMaxIntents},
 			eng::Span<eng::scene::SpriteSlot> {m_slots, kMaxIntents},
 			eng::Span<eng::scene::HwSpritePlacement> {m_placements, kMaxIntents},
-			eng::Span<eng::scene::CopperIntent> {m_copper, kCopperMax}};
+			eng::Span<eng::scene::CopperIntent> {m_copper, kCopperMax},
+			eng::Span<eng::graphics::SpritePaletteEvent> {m_palette, kPaletteMax}};
 		sc.cooked = m_cooked;
 		m_result = eng::scene::compose_sprites(plan, m_store, ctx, ctx.display_top, sc, copper);
 		return m_result;
@@ -98,13 +99,28 @@ public:
 	[[nodiscard]] eng::Span<const eng::scene::HwSpritePlacement> placements() const noexcept {
 		return eng::Span<const eng::scene::HwSpritePlacement> {m_placements, m_result.sprites};
 	}
+	/// Intenciones de Copper del **último** `emit` (válidas las `result().copper` primeras):
+	/// necesidades ancladas de los actores. Se materializan por el `Plan` de Copper del
+	/// conductor.
+	[[nodiscard]] eng::Span<const eng::scene::CopperIntent> copper_intents() const noexcept {
+		return eng::Span<const eng::scene::CopperIntent> {m_copper, m_result.copper};
+	}
+	/// **Paleta por franja** de las plantillas de los actores (válidos los `result().palette`
+	/// primeros; evento 0-based, con línea absoluta en la escala del sprite). Se materializa
+	/// con `SpriteManager::emit_placements_into` (parámetro `extra`).
+	[[nodiscard]] eng::Span<const eng::graphics::SpritePaletteEvent> palette_events() const
+		noexcept {
+		return eng::Span<const eng::graphics::SpritePaletteEvent> {m_palette, m_result.palette};
+	}
 	[[nodiscard]] const eng::scene::SpriteComposeResult& result() const noexcept { return m_result; }
 
 private:
 	static constexpr eng::u16 kCopperMax = static_cast<eng::u16>(MaxActors * 4u); ///< intents/actor
-	/// Capacidad por buffer: un actor normal usa 1; un par *attached*, 2 (intent, slot y
-	/// placement). El orden de emisión no se duplica (sigue siendo `MaxActors`).
-	static constexpr eng::u16 kMaxIntents = static_cast<eng::u16>(MaxActors * 2u);
+	/// Capacidad por buffer: un actor normal usa 1; un par *attached*, 2; una plantilla de
+	/// franjas, una por segmento. Por defecto se dimensiona para **hasta 4 por actor**.
+	static constexpr eng::u16 kMaxIntents = static_cast<eng::u16>(MaxActors * 4u);
+	/// Capacidad de eventos de paleta (switches de plantilla): hasta 4 por actor.
+	static constexpr eng::u16 kPaletteMax = static_cast<eng::u16>(MaxActors * 4u);
 	eng::scene::ActorStore<MaxActors> m_store {};
 	eng::scene::RepresentationAllocator m_alloc {};
 	eng::scene::ActorId m_order[MaxActors] {};
@@ -113,6 +129,7 @@ private:
 	eng::scene::SpriteSlot m_slots[kMaxIntents] {};
 	eng::scene::HwSpritePlacement m_placements[kMaxIntents] {};
 	eng::scene::CopperIntent m_copper[kCopperMax] {};
+	eng::graphics::SpritePaletteEvent m_palette[kPaletteMax] {};
 	eng::ChipView<eng::SpriteTag> m_cooked {}; ///< pool de estructuras de pares *attached*
 	eng::scene::SpriteComposeResult m_result {};
 };

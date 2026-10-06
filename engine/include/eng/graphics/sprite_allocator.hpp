@@ -47,6 +47,11 @@ struct SpriteSlot {
 /// el par va en un canal PAR y el intent impar (`attach = true`) en el contiguo. El ancho
 /// de 32 px de AGA (`width_words = 2`) no cambia el nº de canales (1 por sprite), solo el
 /// coste de DMA; no altera la asignación.
+///
+/// También modela las **cadenas verticales** (`chain_id`/`chain_index`/`chain_span`): las
+/// franjas de un mismo objeto ("chasing the raster") van al MISMO canal, que el líder
+/// reserva para el rango completo de la cadena; si el líder no cabe, la cadena entera
+/// degrada a BOB. Ver `sprite_template_to_intents`.
 class SpriteAllocator {
 public:
 	/// Canales de sprite del chipset; fuente única: `sprite_limits.hpp`.
@@ -76,6 +81,13 @@ public:
 		u8 run_base = 0; // primer canal de la corrida reservada
 		u8 run_span = 1;
 		bool run_ok = false;
+		// Cadenas verticales en curso: id -> canal reservado hasta `end`.
+		struct ChainState {
+			u8 id = 0u;
+			u8 channel = 0u;
+			u16 end = 0u;
+		};
+		ChainState chains[kChannels] {};
 		// Canal libre para un objeto en `[top,bottom)`: ningún objeto anterior lo ocupa
 		// (`busy_until <= top`) y el fondo no lo reserva (`ledger.free`).
 		auto ch_free = [&](u8 c, u16 top, u16 bottom) -> bool {
@@ -86,6 +98,70 @@ public:
 		};
 		for (u8 i = 0; i < count; ++i) {
 			const SpriteIntent& it = intents[i];
+			// Retira las cadenas cuyo último tramo ya pasó (liberan su entrada).
+			for (u8 k = 0; k < kChannels; ++k) {
+				if (chains[k].id != 0u && chains[k].end <= it.top) {
+					chains[k].id = 0u;
+				}
+			}
+			// **Cadena vertical** (mismo objeto en franjas, "chasing the raster"): el
+			// líder reserva un canal para TODO el rango de la cadena y los seguidores lo
+			// reutilizan. Si el líder no cabe, toda la cadena degrada.
+			if (it.chain_id != 0u && it.chain_span > 1u) {
+				u8 entry = 0xff;
+				for (u8 k = 0; k < kChannels; ++k) {
+					if (chains[k].id == it.chain_id) {
+						entry = k;
+						break;
+					}
+				}
+				if (entry != 0xff) {
+					out[i] = SpriteSlot {chains[entry].channel, false};
+					++in_hardware;
+					continue;
+				}
+				if (it.chain_index != 0u) {
+					out[i] = SpriteSlot {0u, true}; // seguidor sin líder: degrada
+					continue;
+				}
+				// Fin de la cadena = mayor `bottom` de sus miembros.
+				u16 end = it.bottom;
+				u8 found = 1u;
+				for (u8 k = static_cast<u8>(i + 1u); k < count && found < it.chain_span; ++k) {
+					if (intents[k].chain_id != it.chain_id) {
+						continue;
+					}
+					if (intents[k].bottom > end) {
+						end = intents[k].bottom;
+					}
+					++found;
+				}
+				u8 channel = 0xff;
+				for (u8 c = 0; c < kChannels; ++c) {
+					if (ch_free(c, it.top, end)) {
+						channel = c;
+						break;
+					}
+				}
+				u8 slot = 0xff;
+				if (channel != 0xff) {
+					for (u8 k = 0; k < kChannels; ++k) {
+						if (chains[k].id == 0u) {
+							slot = k;
+							break;
+						}
+					}
+				}
+				if (channel == 0xff || slot == 0xff) {
+					out[i] = SpriteSlot {0u, true};
+					continue;
+				}
+				chains[slot] = ChainState {it.chain_id, channel, end};
+				busy_until[channel] = end;
+				out[i] = SpriteSlot {channel, false};
+				++in_hardware;
+				continue;
+			}
 			if (it.strip_span > 1u && it.strip_id != 0u) {
 				if (it.strip_id != run_id) {
 					// Líder de una tira nueva: solo si llega con el índice 0 (el

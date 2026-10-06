@@ -16,7 +16,9 @@ Cubre:
   todos los canales habilitados, sin `WAIT` por `VSTART` (patrón de objetos).
 - **`SpriteManager::emit_placements_into`**: primera config de cada canal en la línea de
   armado compartida y **rearme vertical** de un canal reutilizado por el allocator en otra
-  franja (multiplexado), en orden no decreciente de `vstart` (demo `216_attached_actors`).
+  franja (multiplexado), en orden no decreciente de `vstart` (demo `216_attached_actors`);
+  los **eventos de paleta por franja** (`SpritePaletteEvent`, 0-based) se intercalan en su
+  orden de línea (demo `217_sprite_template_actor`).
 - **Rechazos sin emisión**: canal ≥ 8, DATA vacía y alto 0.
 
 Es host (sin hardware): la copperlist se construye en un bloque Chip del arena y se

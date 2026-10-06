@@ -14,21 +14,23 @@ namespace eng::scene {
 
 /// Resumen de la composición de sprites de un frame.
 struct SpriteComposeResult {
-	eng::u16 sprites = 0;  ///< sprites hardware publicados (dos por actor *attached*)
+	eng::u16 sprites = 0;  ///< sprites hardware publicados (dos por actor *attached*, una por franja)
 	eng::u16 degraded = 0; ///< actores que no caben en hardware (`as_bob`)
 	eng::u16 bobs = 0;     ///< actores finalmente dibujados como BOB
 	eng::u16 copper = 0;   ///< intenciones de Copper escritas (ancladas a los actores)
+	eng::u16 palette = 0;  ///< eventos de paleta por franja (plantillas)
 	bool ok = false;       ///< false = rechazo controlado (ver `OBJECT_SYSTEM.md`)
 };
 
 /// Buffers del llamador para `compose_sprites` (capacidad fija, sin heap).
 struct SpriteComposeScratch {
 	eng::Span<ActorId> order {};           ///< orden de emisión (tamaño = aforo)
-	eng::Span<SpriteIntent> intents {};    ///< una intención por actor (dos si va en par *attached*)
+	eng::Span<SpriteIntent> intents {};    ///< una intención por actor (dos si va en par *attached*, una por franja)
 	eng::Span<eng::u16> intent_actor {};   ///< slot del actor de `intents[i]`
 	eng::Span<SpriteSlot> slots {};        ///< canales asignados por el allocator
-	eng::Span<HwSpritePlacement> placements {}; ///< sprites publicados (dos por actor *attached*)
+	eng::Span<HwSpritePlacement> placements {}; ///< sprites publicados
 	eng::Span<CopperIntent> copper {};     ///< intenciones de Copper ancladas
+	eng::Span<SpritePaletteEvent> palette {}; ///< paleta por franja de las plantillas
 	/// Pool **Chip** del llamador para las estructuras DMA de los pares *attached* (dos
 	/// por par; `attached_pair_structure_words(h) * 2` bytes cada una). Vacío o
 	/// insuficiente = la composición rechaza el par (nunca cocina fuera de rango).
@@ -40,14 +42,17 @@ struct SpriteComposeScratch {
 ///
 ///   1. orden de emisión por superficie y `z` (`plan_actor_order`);
 ///   2. las intenciones de sprite de cada actor, ordenadas por `top` (`build_sprite_intents`);
-///      un actor con **par *attached*** produce dos contiguas (canal par + impar con `attach`);
-///   3. reparto de canales con multiplexado y tiras (`SpriteAllocator`);
+///      un actor con **par *attached*** produce dos contiguas (canal par + impar con `attach`)
+///      y uno con **plantilla de franjas** una por segmento, encadenadas al mismo canal;
+///   3. reparto de canales con multiplexado, tiras y cadenas (`SpriteAllocator`);
 ///   4. los que caben se publican como `HwSpritePlacement` (para `SpriteManager::apply`); un
 ///      par *attached* publica DOS —cada una con su estructura DMA cocinada en `s.cooked`
-///      (`cook_attached_pair`, cabecera OFF)—, con la DATA del frame vigente;
+///      (`cook_attached_pair`, cabecera OFF)—, y una cadena publica **una por franja**
+///      (mismo canal; el emisor rearma en cada `vstart`), con la DATA del frame vigente;
 ///   5. los degradados a BOB se dibujan en el `FramePlan`, en orden por superficie y `z`
-///      (un par *attached* degradado se dibuja UNA vez, desde su `Visual` de 4 planos);
-///   6. las necesidades de Copper ancladas de cada actor se escriben en `copper`.
+///      (cada actor degradado se dibuja UNA vez, desde su `Visual` de 4 planos o normal);
+///   6. las necesidades de Copper ancladas de cada actor y la **paleta por franja** de su
+///      plantilla se escriben en `copper`.
 ///
 /// `ledger` (opcional) descuenta los canales que ocupan los **fondos por sprites** (ventanas:
 /// ver `docs/engine/architecture/SPRITE_CHANNEL_WINDOWS.md`): cada actor solo puede usar los
@@ -86,34 +91,66 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 	}
 	SpriteAllocator{}.assign(s.intents.first(n), s.slots, ledger);
 
+	// Un actor puede aportar varios intents (par *attached*, cadena de franjas): el
+	// Copper y la paleta se emiten UNA vez (su primer intent); los placements, uno por
+	// intent en el orden (ascendente por `top`) que exonera `emit_placements_into`.
+	eng::util::BitSet<MaxActors> done {};
 	for (eng::u16 i = 0; i < n; ++i) {
-		// Un par *attached* llega como DOS intents contiguos del MISMO actor: el líder
-		// (canal par) procesa el par entero y el impar se salta. `intent_actor` es el
-		// discriminante (los dos intents comparten índice de slot).
-		if (i > 0u && s.intent_actor[i] == s.intent_actor[i - 1u]) {
-			continue;
-		}
-		auto a = store.get(store.id_at(s.intent_actor[i]));
+		const eng::u16 slot = s.intent_actor[i];
+		const bool first = !done.test(slot);
+		done.set(slot);
+		auto a = store.get(store.id_at(slot));
 		if (!a.valid()) {
 			return r;
 		}
-		const Frame f = actor_current_frame(*a);
-		const DirtyRect rect = actor_screen_rect(*a, f, ctx.cam_x, ctx.cam_y);
-		if (copper_plan.valid()) {
-			// Al Plan, con la prioridad (superficie, z) del actor: activa la fusion de
-			// conflictos en la misma linea.
-			r.copper = static_cast<eng::u16>(
-				r.copper + actor_add_copper(*copper_plan, *a, rect.top, display_top));
-		} else {
-			const eng::usize room = s.copper.size() > r.copper
-							? s.copper.size() - r.copper
-							: 0u;
-			r.copper = static_cast<eng::u16>(
-				r.copper + actor_emit_copper(*a, rect.top, display_top,
-							     s.copper.subspan(r.copper, room)));
+		if (first) {
+			const Frame f = actor_current_frame(*a);
+			const DirtyRect rect = actor_screen_rect(*a, f, ctx.cam_x, ctx.cam_y);
+			if (copper_plan.valid()) {
+				// Al Plan, con la prioridad (superficie, z) del actor: activa la fusion de
+				// conflictos en la misma linea.
+				r.copper = static_cast<eng::u16>(
+					r.copper +
+					actor_add_copper(*copper_plan, *a, rect.top, display_top));
+			} else {
+				const eng::usize room = s.copper.size() > r.copper
+								? s.copper.size() - r.copper
+								: 0u;
+				r.copper = static_cast<eng::u16>(
+					r.copper + actor_emit_copper(*a, rect.top, display_top,
+								     s.copper.subspan(r.copper, room)));
+			}
+			// **Paleta por franja de la plantilla** (`HwSpritePaletteSwitch`): evento
+			// 0-based (como el switch) con la línea ya absoluta en la escala del sprite
+			// (la misma que `HwSpritePlacement::vstart`); el emisor lo intercala con los
+			// rearmes (`emit_placements_into`).
+			const eng::graphics::HwSpriteTemplateView tpl = a->desc.sprite_template;
+			eng::u16 span = 0u;
+			for (eng::usize k = 0; k < tpl.segments.size(); ++k) {
+				span = static_cast<eng::u16>(span + tpl.segments[k].height + 1u);
+			}
+			if (span != 0u) {
+				span = static_cast<eng::u16>(span - 1u); // sin el gap final
+			}
+			for (eng::usize k = 0; k < tpl.switches.size(); ++k) {
+				const eng::graphics::HwSpritePaletteSwitch& sw = tpl.switches[k];
+				if (sw.line >= span || sw.colors == nullptr || sw.count == 0u) {
+					continue; // fuera del tramo o switch vacío
+				}
+				if (r.palette >= s.palette.size()) {
+					continue; // sin sitio: se omite (no invalida el frame)
+				}
+				SpritePaletteEvent& ev = s.palette[r.palette++];
+				ev.line = static_cast<eng::u16>(rect.top + sw.line);
+				ev.colors = sw.colors;
+				ev.first = sw.first;
+				ev.count = sw.count;
+			}
 		}
 		if (s.slots[i].as_bob) {
-			++r.degraded;
+			if (first) {
+				++r.degraded;
+			}
 			continue;
 		}
 		// **Animación del bitmap del sprite** (SPRITE_CHANNEL_WINDOWS §7): la DATA publicada es
@@ -133,6 +170,9 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 			return r;
 		}
 		if (eng::graphics::visual_is_attached_pair(a->desc.visual)) {
+			if (!first) {
+				continue; // el líder ya publicó los dos canales del par
+			}
 			// **Par *attached* end-to-end**: el `Visual` trae los 4 planos del frame; el
 			// engine cocina las DOS estructuras DMA (par = planos 0-1, impar = 2-3 +
 			// ATTACH) en el pool Chip del llamador y publica un placement por canal, en
@@ -194,6 +234,43 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 			po.width_words = 1u;
 			po.attach = true; // canal impar del par: une los 4 bits sobre COLOR16-31
 			po.data = odd.subview(4u, data_bytes);
+			++r.sprites;
+			continue;
+		}
+		const eng::graphics::HwSpriteTemplateView tpl = a->desc.sprite_template;
+		if (!tpl.empty()) {
+			// **Franja de una plantilla** ("chasing the raster"): una placement por
+			// segmento, todas en el canal que el allocator reservó para la cadena; el
+			// emisor rearma el canal en el `vstart` de cada franja. `chain_index` indexa
+			// el segmento proyectado por `build_sprite_intents`.
+			const eng::u16 k = s.intents[i].chain_index;
+			if (k >= tpl.segments.size()) {
+				return r; // cadena mal formada
+			}
+			const eng::graphics::HwSpriteSegment& seg = tpl.segments[k];
+			const eng::usize seg_words = static_cast<eng::usize>(seg.height) *
+						     tpl.width_words * 2u;
+			if (tpl.bitmap.size() < static_cast<eng::usize>(seg.data_offset) + seg_words) {
+				return r; // el bitmap no cubre la franja
+			}
+			if (r.sprites >= s.placements.size()) {
+				return r;
+			}
+			HwSpritePlacement& p = s.placements[r.sprites];
+			p = HwSpritePlacement {};
+			p.channel = s.slots[i].channel;
+			p.priority = s.intents[i].priority;
+			p.hpos = s.intents[i].hpos;
+			p.vstart = s.intents[i].top;
+			p.height = static_cast<eng::u16>(s.intents[i].bottom - s.intents[i].top);
+			p.width_words = tpl.width_words;
+			p.attach = false;
+			// Mismo contrato que `emit_template_into`: `SPRxPT` apunta a la DATA de la
+			// franja dentro del bitmap cocinado (Chip) de la plantilla.
+			p.data = eng::ChipView<eng::SpriteTag> {
+				eng::Address<eng::MemoryKind::Chip>::from_storage(
+					tpl.bitmap.data() + seg.data_offset),
+				seg_words * 2u};
 			++r.sprites;
 			continue;
 		}

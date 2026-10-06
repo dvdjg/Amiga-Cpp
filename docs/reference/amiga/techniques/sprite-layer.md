@@ -134,7 +134,7 @@ necesidad de máscara en RAM.
 |---|---|---|
 | 8 canales, POS/CTL/PT | **sí** | `SpriteManager::emit_into`/`emit_config` |
 | **Armado de objeto** (PT/POS/CTL temprano, `ATTACH` en el impar) | **sí** | `SpriteManager::arm_object` + `emit_armed_into`/`emit_placements_into` (HOST-428; demos 054/214/216) |
-| Multiplexado vertical + color mux | **sí** | `SpriteManager::emit_template_into`, `HwSpriteTemplate`; rearme por franja de objetos en `emit_placements_into` |
+| Multiplexado vertical + color mux | **sí** | `SpriteManager::emit_template_into`, `HwSpriteTemplate`; por actores: `ActorDesc::sprite_template` (cadena al mismo canal) + `emit_placements_into` con `SpritePaletteEvent` (demos 053/217) |
 | Asignación con degradado a BOB | **sí** | `SpriteAllocator` (first-fit; `as_bob`) |
 | **Rearmado horizontal** | **sí** | `SpriteHorizontalRearm` + `Scheduler::emit_sprite_horizontal_rearm`, intent `SpriteRearm` |
 | **Attached (15 colores)** | **sí** | `attach` en `SpriteConfig`/`HwSpriteTemplate`/`SpriteIntent`/`HwSpritePlacement` y cocinado de la DATA de 4 planos (`graphics/sprite_attached.hpp`, HOST-427); demos `214_attached_object` (a mano) y `216_attached_actors` (**end-to-end por actores**, secuencia + visión) |

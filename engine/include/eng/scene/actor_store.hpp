@@ -6,6 +6,7 @@
 
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/span.hpp>
+#include <eng/core/util/bitset.hpp>
 #include <eng/scene/actor_types.hpp>
 
 namespace eng::scene {
@@ -285,11 +286,14 @@ inline eng::u16 emit_actors_in_order(FramePlan& plan, ActorStore<MaxActors>& sto
 /// Construye las `SpriteIntent` de los actores (en el orden dado) y las ordena por `top`,
 /// que es el contrato de `SpriteAllocator::assign`. Un actor normal produce una intención;
 /// un actor con **par *attached*** (`visual.attached`) produce DOS contiguas (el canal par
-/// y el impar con `attach = true`), que el allocator reparte como pareja 0+1, 2+3, …
+/// y el impar con `attach = true`), que el allocator reparte como pareja 0+1, 2+3, …; un
+/// actor con **plantilla de franjas** (`sprite_template`) produce una intención por
+/// segmento, marcadas como **cadena vertical** (mismo canal, rearme por franja).
 /// `intent_actor[i]` recibe el índice de slot del actor de `intents[i]`, para asociar
-/// después los `SpriteSlot` con su actor (los dos intents de un par comparten índice).
-/// Devuelve cuántas escribió, o 0 si no caben en `capacity` (rechazo controlado).
-/// La ordenación es estable: los intents de un par (mismo `top`) conservan su adyacencia.
+/// después los `SpriteSlot` con su actor (todas las intenciones de un actor comparten
+/// índice). Devuelve cuántas escribió, o 0 si no caben en `capacity` (rechazo controlado).
+/// La ordenación es estable por `top`: el compositor publica una placement por intención y
+/// la emisión exige `vstart` no decreciente.
 template <eng::u16 MaxActors>
 inline eng::u16 build_sprite_intents(const ActorStore<MaxActors>& store,
 				     eng::Span<const ActorId> order, const ActorEmitContext& ctx,
@@ -301,6 +305,7 @@ inline eng::u16 build_sprite_intents(const ActorStore<MaxActors>& store,
 		return 0u;
 	}
 	eng::u16 n = 0;
+	eng::u8 next_chain = 1u; // id único por actor-plantilla (0 = sin cadena)
 	for (eng::u16 i = 0; i < count; ++i) {
 		const auto a = store.get(order[i]);
 		if (!a.valid()) {
@@ -308,6 +313,34 @@ inline eng::u16 build_sprite_intents(const ActorStore<MaxActors>& store,
 		}
 		const Frame f = actor_current_frame(*a);
 		const DirtyRect r = actor_screen_rect(*a, f, ctx.cam_x, ctx.cam_y);
+		const eng::graphics::HwSpriteTemplateView tpl = a->desc.sprite_template;
+		if (!tpl.empty()) {
+			// **Plantilla de franjas**: proyección a intents encadenados (mismo canal).
+			// `attach` (par de 15 colores) no está soportado en cadena: rechazo controlado.
+			if (tpl.attach || next_chain == 0u) {
+				return 0u;
+			}
+			const eng::usize remaining = intents.size() - n;
+			eng::graphics::SpriteIntentSet set {};
+			set.intents = intents.subspan(n).data();
+			set.intent_capacity =
+				static_cast<eng::u8>(remaining > 255u ? 255u : remaining);
+			eng::graphics::sprite_template_view_to_intents(
+				tpl, 0u, static_cast<eng::u16>(r.top),
+				static_cast<eng::u16>(r.left), a->desc.sprite_priority, set,
+				next_chain);
+			if (set.overflow || set.intent_count == 0u ||
+			    static_cast<eng::u16>(n + set.intent_count) > intent_actor.size()) {
+				return 0u;
+			}
+			const eng::u16 added = set.intent_count;
+			for (eng::u16 k = 0; k < added; ++k) {
+				intent_actor[n + k] = order[i].index;
+			}
+			n = static_cast<eng::u16>(n + added);
+			++next_chain;
+			continue;
+		}
 		// Un par *attached* ocupa dos canales contiguos: dos intents con el MISMO rango
 		// vertical/posición, el segundo con `attach` (AHRM cap. 4, Table 4-5).
 		const eng::u16 need =
@@ -359,16 +392,17 @@ inline eng::u16 emit_bob_fallbacks(FramePlan& plan, ActorStore<MaxActors>& store
 		return 0u;
 	}
 	eng::util::StaticVector<eng::u16, MaxActors> fallback;
+	eng::util::BitSet<MaxActors> seen {};
 	for (eng::u16 i = 0; i < count && !fallback.full(); ++i) {
 		if (!slots[i].as_bob) {
 			continue;
 		}
-		// Un par *attached* produce DOS intents para el MISMO actor (el impar con
-		// `attach`): el BOB degradado es UNO; solo cuenta el líder (mismo `intent_actor`
-		// que el intent anterior).
-		if (i > 0u && intent_actor[i] == intent_actor[i - 1u]) {
+		// Un actor puede tener varios intents (par *attached*, cadena de franjas): el BOB
+		// degradado es UNO; solo cuenta la primera aparición del actor.
+		if (seen.test(intent_actor[i])) {
 			continue;
 		}
+		seen.set(intent_actor[i]);
 		fallback.push_back(intent_actor[i]);
 	}
 	const eng::u16 nf = static_cast<eng::u16>(fallback.size());

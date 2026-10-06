@@ -144,6 +144,7 @@ El **ledger** es la única entrada nueva: la misma llamada sirve para una ventan
 | Driver de fondo `RiskyWoods` (reposición repetida) | EXISTE | `effects::RiskyWoodsLayer` (`api/effects.hpp`, HOST-417) |
 | Armado de **objeto** de sprite (PT/POS/CTL en una línea temprana; `ATTACH` en el impar) | EXISTE | `SpriteManager::arm_object` + `emit_armed_into` (`sprite_manager.hpp`, HOST-428; demos 054/214) |
 | **Armado de placements + rearme vertical** del canal reutilizado (multiplexado del allocator) | EXISTE | `SpriteManager::emit_placements_into` (HOST-428; demo 216) |
+| **Plantilla de franjas por actores** (cadena al mismo canal + rearme + paleta por franja) | EXISTE | `ActorDesc::sprite_template`, `chain_id` en `SpriteIntent`/allocator y `SpritePaletteEvent` (HOST-003/072/428; demo 217) |
 | **Par *attached* end-to-end por actores** (dos intents/placements + cocinado desde `Visual`) | EXISTE | `actor_store.hpp`/`actor_sprite.hpp` + `SpriteScene::set_cooked_pool` (HOST-072/427/428; demo 216) |
 | Driver de fondo `FreeForm` (datos distintos por columna) | PROPUESTO | driver de fondo |
 | Animación del bitmap del sprite (§7) | EXISTE | `compose_sprites` (frame vigente por `frame_stride`; HOST-072; demos 054/216) |

@@ -58,6 +58,7 @@ using eng::graphics::FramePlan;
 using eng::graphics::SpriteAllocator;
 using eng::graphics::SpriteIntent;
 using eng::graphics::HwSpritePlacement;
+using eng::graphics::SpritePaletteEvent;
 using eng::graphics::SpriteSlot;
 using eng::graphics::Visual;
 using eng::graphics::VisualKind;
@@ -160,6 +161,14 @@ constexpr BackgroundPolicy resolve_background(BackgroundPolicy policy, eng::u16 
 /// Descripción que aporta la aplicación (sin mecanismo ni registros).
 struct ActorDesc {
 	Visual visual {};
+	/// **Plantilla de franjas** (opcional): si no está vacía, el sprite del actor se sirve
+	/// como **franjas verticales del MISMO canal** ("chasing the raster"): cada segmento se
+	/// rearma en su línea y los `switches` cambian `COLORxx` por franja (**relativos** al
+	/// top del actor). El `bitmap` es la DATA cocinada en Chip; `visual` sigue siendo el
+	/// contenido para el fallback a BOB. Plantillas `attach` no están soportadas por este
+	/// camino (rechazo controlado). Ver `sprite_template_to_intents` y
+	/// `docs/engine/architecture/OBJECT_SYSTEM.md` §2.
+	eng::graphics::HwSpriteTemplateView sprite_template {};
 	eng::Ref<const Animation> animation {}; ///< opcional; sin ella el frame es el Visual
 	eng::s16 x = 0;                       ///< posición de mundo del ANCLA
 	eng::s16 y = 0;

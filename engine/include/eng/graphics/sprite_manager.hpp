@@ -267,9 +267,14 @@ public:
     /// `compose_sprites`: los intents se ordenan por `top`). Los placements con `vstart` por
     /// encima de `arm_line` no se rearman (no son visibles y un `WAIT` hacia atrás envolvería
     /// al frame siguiente). No usa el estado del gestor: es `arm_object` puro sobre la lista.
+    ///
+    /// `extra` intercala **cambios de paleta por franja** (`SpritePaletteEvent`, 0-based:
+    /// `colors[k]` → `COLOR[first+k]`, p. ej. los switches de una plantilla de actor) en su
+    /// orden de línea con los rearmes. Sus líneas deben ser `> arm_line`.
     template <class Sched>
     static void emit_placements_into(Sched& sched, eng::Span<const HwSpritePlacement> placements,
-                                     u16 arm_line = 32u) {
+                                     u16 arm_line = 32u,
+                                     eng::Span<const SpritePaletteEvent> extra = {}) {
         // 1) Primera config de cada canal: en la línea de armado temprana (un solo WAIT).
         bool seen[8] {};
         sched.wait_line_safe(arm_line);
@@ -282,22 +287,54 @@ public:
             seen[p.channel] = true;
             arm_object(sched, p.channel, p.data, p.hpos, p.vstart, p.height, p.attach);
         }
-        // 2) Rearmes del multiplexado vertical: cada config posterior, en su `vstart`.
-        for (eng::u16 k = 0; k < 8u; ++k) {
-            seen[k] = false;
-        }
-        for (eng::u16 i = 0; i < placements.size(); ++i) {
-            const HwSpritePlacement& p = placements[i];
-            if (p.channel >= 8u || p.data.empty() || p.height == 0u || p.width_words == 0u) {
-                continue;
+        // 2) Rearmes del multiplexado vertical y eventos de paleta, fusionados por línea
+        //    (el Copper no puede esperar hacia atrás).
+        bool marked[8] {};
+        u16 ri = 0u;
+        u16 r_idx = 0u;
+        bool r_have = false;
+        auto pull_rearm = [&]() {
+            r_have = false;
+            while (ri < placements.size()) {
+                const HwSpritePlacement& p = placements[ri++];
+                if (p.channel >= 8u || p.data.empty() || p.height == 0u ||
+                    p.width_words == 0u) {
+                    continue;
+                }
+                if (!marked[p.channel]) { // primera del canal: ya armada en (1)
+                    marked[p.channel] = true;
+                    continue;
+                }
+                if (p.vstart <= arm_line) continue; // por encima del armado: no visible
+                r_idx = static_cast<u16>(ri - 1u);
+                r_have = true;
+                return;
             }
-            if (!seen[p.channel]) { // primera del canal: ya armada en (1)
-                seen[p.channel] = true;
-                continue;
+        };
+        u16 ei = 0u;
+        pull_rearm();
+        while (r_have || ei < extra.size()) {
+            const u16 rline = r_have ? placements[r_idx].vstart : 0xffffu;
+            const u16 eline = (ei < extra.size()) ? extra.data()[ei].line : 0xffffu;
+            if (rline <= eline) {
+                const HwSpritePlacement& p = placements[r_idx];
+                sched.wait_line_safe(rline);
+                arm_object(sched, p.channel, p.data, p.hpos, p.vstart, p.height, p.attach);
+                pull_rearm();
+            } else {
+                const SpritePaletteEvent& ev = extra.data()[ei];
+                if (ev.line > arm_line && ev.colors != nullptr) {
+                    sched.wait_line_safe(ev.line);
+                    // Switch 0-based: `colors[k]` -> COLOR[first+k] (como
+                    // `SpriteManager::emit_template_into`).
+                    for (u8 k = 0; k < ev.count; ++k) {
+                        sched.move(static_cast<copper::Register>(
+                                           0x180u + (ev.first + k) * 2u),
+                                   ev.colors[k]);
+                    }
+                }
+                ++ei;
             }
-            if (p.vstart <= arm_line) continue; // por encima del armado: no visible
-            sched.wait_line_safe(p.vstart);
-            arm_object(sched, p.channel, p.data, p.hpos, p.vstart, p.height, p.attach);
         }
     }
 

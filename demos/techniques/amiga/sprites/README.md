@@ -19,6 +19,7 @@ Estructura y numeración: [../../../../docs/STRUCTURE.md](../../../../docs/STRUC
 | [214_attached_object](214_attached_object/README.md) — objeto de 15 colores (*attached*) |
 | [215_jim_power](215_jim_power/README.md) — **NO VERIFICADA**: fondo por DATA por línea (pacing abierto) |
 | [216_attached_actors](216_attached_actors/README.md) — pares *attached* end-to-end por el camino de actores |
+| [217_sprite_template_actor](217_sprite_template_actor/README.md) — plantilla de franjas (rearme + paleta por franja) por el camino de actores |
 
 Técnicas del [catálogo](../../../../docs/reference/amiga/techniques/sprite-techniques-catalog.md)
 **aún sin demo** (candidatas): **multiplexado vertical**

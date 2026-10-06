@@ -52,6 +52,23 @@ struct HwSpritePaletteSwitch {
     u8  count = 0;                 // cuantos
 };
 
+/// **Vista de una `HwSpriteTemplate` sin capacidad fija** (camino de actores): un
+/// `ActorDesc` puede referenciar una plantilla cocinada (`bitmap` en Chip + segmentos +
+/// switches de paleta) sin conocer el `MaxSegments`/`MaxPaletteSwitches` con que se
+/// construyó. `empty()` = sin plantilla (el actor se sirve como sprite normal).
+struct HwSpriteTemplateView {
+    Span<const u16> bitmap {};                        ///< imagen fuente (Chip; DAT/DATB)
+    Span<const HwSpriteSegment> segments {};          ///< franjas (offsets en words al bitmap)
+    Span<const HwSpritePaletteSwitch> switches {};    ///< cambios de COLORxx por franja
+    u8 width_words = 1;                               ///< 1 = 16 px, 2 = 32 px
+    bool attach = false;                              ///< par *attached* (15 colores)
+
+    /// ¿Sin plantilla? (sin segmentos o sin bitmap): el actor se sirve como sprite normal.
+    [[nodiscard]] constexpr bool empty() const noexcept {
+        return segments.empty() || bitmap.empty();
+    }
+};
+
 /// Plantilla portable de un sprite hardware.
 ///
 /// `MaxSegments` y `MaxPaletteSwitches` son parametros de plantilla para mantener el
@@ -80,6 +97,18 @@ struct HwSpriteTemplate {
         switches[switch_count++] = sw;
         return true;
     }
+
+    /// **Vista sin capacidad** de esta plantilla (para el camino de actores): el actor
+    /// referencia la plantilla cocinada sin arrastrar sus arrays de tamaño fijo.
+    [[nodiscard]] constexpr HwSpriteTemplateView view() const noexcept {
+        return HwSpriteTemplateView {
+            bitmap,
+            Span<const HwSpriteSegment> {segments.data(), segment_count},
+            Span<const HwSpritePaletteSwitch> {switches.data(), switch_count},
+            width_words,
+            attach,
+        };
+    }
 };
 
 /// Sprite ya repartido a un canal hardware: la salida del compositor hacia el emisor de
@@ -101,6 +130,19 @@ struct HwSpritePlacement {
     ChipView<SpriteTag> data {}; ///< DATA del sprite (Chip; `height*2*width_words` words)
 };
 
+/// **Cambio de paleta por franja de una plantilla**, en el vocabulario del switch:
+/// `colors[k]` se escribe en `COLOR[first+k]` (**0-based**, como
+/// `HwSpritePaletteSwitch::colors`) y `line` va en la escala del llamador (absoluta para el
+/// camino de actores). No se usa `CopperIntent::PaletteLine` para esto porque su contrato
+/// indexa los colores de forma **absoluta** (`colors[first+i]`, ver `Scheduler::emit_palette`),
+/// incompatible con el switch 0-based de la plantilla.
+struct SpritePaletteEvent {
+    u16 line = 0;              ///< línea (escala del llamador)
+    const u16* colors = nullptr; ///< valores a programar (0-based)
+    u8 first = 0;              ///< primer registro COLORxx
+    u8 count = 0;              ///< cuántos
+};
+
 /// Salida de proyectar una `HwSpriteTemplate` al vocabulario de intenciones.
 struct SpriteIntentSet {
     SpriteIntent* intents = nullptr;
@@ -109,6 +151,9 @@ struct SpriteIntentSet {
     CopperIntent* copper = nullptr;
     u8 copper_capacity = 0;
     u8 copper_count = 0;
+    SpritePaletteEvent* palette = nullptr;
+    u8 palette_capacity = 0;
+    u8 palette_count = 0;
     bool overflow = false; ///< true = alguna intención no cupo en su buffer
 };
 
@@ -119,19 +164,38 @@ struct SpriteIntentSet {
 ///     1 línea que exige el DMA (así el `SpriteAllocator` multiplexa el canal);
 ///   - una `CopperIntent::SpriteRearm` por cada franja a partir de la segunda, para
 ///     reapuntar el canal a la DATA de esa franja en su primera línea;
-///   - una `CopperIntent::PaletteLine` por cada `HwSpritePaletteSwitch` que caiga dentro
-///     del tramo ocupado por el sprite.
+///   - un `SpritePaletteEvent` por cada `HwSpritePaletteSwitch` que caiga dentro
+///     del tramo del sprite (0-based, como el switch).
 ///
-/// `base_y` y `HwSpritePaletteSwitch::line` van en la MISMA escala de línea raster que usa
-/// `SpriteManager::emit_template_into` (es una proyección, no un cambio de escala). El
-/// `first` de los switches es el registro COLOR: los sprites usan `COLOR16..31`. El
-/// compositor (`copper::Plan`) ordena después las intenciones por línea.
-template <u8 MaxSegments, u8 MaxPaletteSwitches>
-inline void sprite_template_to_intents(const HwSpriteTemplate<MaxSegments, MaxPaletteSwitches>& tpl,
-				       u8 channel, u16 base_y, u16 hpos, u8 priority,
-				       SpriteIntentSet& out) {
+/// `base_y` es la primera línea del sprite (la escala del llamador): las franjas empiezan
+/// en `base_y` y las líneas de los switches son **relativas a `base_y`**, de modo que la
+/// misma plantilla sirve para un objeto móvil (el compositor de actores pasa su `top`).
+///
+/// `chain_id != 0` marca las franjas como **cadena vertical** (`SpriteIntent::chain_*`):
+/// todas deben servirse por el MISMO canal (el `SpriteAllocator` lo reserva para el rango
+/// completo). Con `chain_id == 0` las franjas quedan sueltas (uso del driver directo).
+/// El `first` de los switches es el registro COLOR: los sprites usan `COLOR16..31`.
+///
+/// Si `out.copper`/`out.palette` son nulos, esas intenciones se omiten en silencio (no
+/// cuentan como desbordamiento): el compositor de actores materializa la paleta anclada al
+/// actor en la escala del sprite.
+inline void sprite_template_view_to_intents(const HwSpriteTemplateView& tpl, u8 channel,
+					    u16 base_y, u16 hpos, u8 priority,
+					    SpriteIntentSet& out, u8 chain_id = 0u) {
+    auto emit_copper = [&out](const CopperIntent& c) {
+        if (out.copper == nullptr) {
+            return; // el llamador no recoge Copper (la paleta la emite el compositor)
+        }
+        if (out.copper_count < out.copper_capacity) {
+            out.copper[out.copper_count++] = c;
+        } else {
+            out.overflow = true;
+        }
+    };
+    const u8 seg_count =
+        static_cast<u8>(tpl.segments.size() > 255u ? 255u : tpl.segments.size());
     u16 line = base_y;
-    for (u8 i = 0; i < tpl.segment_count; ++i) {
+    for (u8 i = 0; i < seg_count; ++i) {
         const HwSpriteSegment& seg = tpl.segments[i];
         if (out.intents != nullptr && out.intent_count < out.intent_capacity) {
             SpriteIntent it {};
@@ -142,6 +206,11 @@ inline void sprite_template_to_intents(const HwSpriteTemplate<MaxSegments, MaxPa
             it.width_words = tpl.width_words;
             it.attach = tpl.attach;
             it.priority = priority;
+            if (chain_id != 0u) {
+                it.chain_id = chain_id;
+                it.chain_index = i;
+                it.chain_span = seg_count;
+            }
             out.intents[out.intent_count++] = it;
         } else {
             out.overflow = true;
@@ -149,39 +218,45 @@ inline void sprite_template_to_intents(const HwSpriteTemplate<MaxSegments, MaxPa
         // La primera franja se carga con la DATA inicial del canal; las siguientes
         // necesitan rearme (SPRxPT) al empezar su tramo.
         if (i > 0u) {
-            if (out.copper != nullptr && out.copper_count < out.copper_capacity) {
-                CopperIntent c {};
-                c.kind = CopperIntentKind::SpriteRearm;
-                c.top = line;
-                c.bottom = line;
-                c.sprite_channel = channel;
-                c.sprite_ptr = tpl.bitmap.data() + seg.data_offset;
-                out.copper[out.copper_count++] = c;
-            } else {
-                out.overflow = true;
-            }
+            CopperIntent c {};
+            c.kind = CopperIntentKind::SpriteRearm;
+            c.top = line;
+            c.bottom = line;
+            c.sprite_channel = channel;
+            c.sprite_ptr = tpl.bitmap.data() + seg.data_offset;
+            emit_copper(c);
         }
         line = static_cast<u16>(line + seg.height + 1u); // +1: gap requerido por el DMA
     }
     const u16 end_line = line;
-    for (u8 s = 0; s < tpl.switch_count; ++s) {
+    const u8 sw_count =
+        static_cast<u8>(tpl.switches.size() > 255u ? 255u : tpl.switches.size());
+    for (u8 s = 0; s < sw_count; ++s) {
         const HwSpritePaletteSwitch& sw = tpl.switches[s];
-        if (sw.line < base_y || sw.line >= end_line) {
+        if (sw.line >= static_cast<u16>(end_line - base_y)) {
             continue; // fuera del tramo del sprite: no se proyecta
         }
-        if (out.copper != nullptr && out.copper_count < out.copper_capacity) {
-            CopperIntent c {};
-            c.kind = CopperIntentKind::PaletteLine;
-            c.top = sw.line;
-            c.bottom = sw.line;
-            c.colors = eng::PaletteWords {sw.colors, sw.count};
-            c.first = sw.first;
-            c.count = sw.count;
-            out.copper[out.copper_count++] = c;
+        if (out.palette == nullptr) {
+            continue; // el llamador no recoge la paleta (la emite el compositor)
+        }
+        if (out.palette_count < out.palette_capacity) {
+            SpritePaletteEvent& ev = out.palette[out.palette_count++];
+            ev.line = static_cast<u16>(base_y + sw.line);
+            ev.colors = sw.colors;
+            ev.first = sw.first;
+            ev.count = sw.count;
         } else {
             out.overflow = true;
         }
     }
+}
+
+/// Azúcar: proyecta una `HwSpriteTemplate` de capacidad fija a través de su vista.
+template <u8 MaxSegments, u8 MaxPaletteSwitches>
+inline void sprite_template_to_intents(const HwSpriteTemplate<MaxSegments, MaxPaletteSwitches>& tpl,
+				       u8 channel, u16 base_y, u16 hpos, u8 priority,
+				       SpriteIntentSet& out, u8 chain_id = 0u) {
+    sprite_template_view_to_intents(tpl.view(), channel, base_y, hpos, priority, out, chain_id);
 }
 
 } // namespace eng::graphics

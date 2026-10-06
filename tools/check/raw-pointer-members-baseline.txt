@@ -75,6 +75,7 @@ eng/graphics/raster_intent.hpp:blitter_job
 eng/graphics/sprite_manager.hpp:placements
 eng/graphics/sprite.hpp:copper
 eng/graphics/sprite.hpp:intents
+eng/graphics/sprite.hpp:palette
 eng/parallel/parallel.hpp:fn
 eng/parallel/parallel.hpp:j
 eng/parallel/parallel.hpp:next
