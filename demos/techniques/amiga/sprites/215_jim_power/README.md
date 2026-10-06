@@ -53,9 +53,6 @@ Hipótesis abiertas (consulta enviada a Grok con estas medidas):
 Mientras tanto, el mecanismo validado equivalente (POS+DATA por columna, capa no
 repetitiva) es el **Free Form de la demo 213** (`effects::SpriteLayer`).
 
-Mientras tanto, el mecanismo validado equivalente (POS+DATA por columna, capa no
-repetitiva) es el **Free Form de la demo 213** (`effects::SpriteLayer`).
-
 ## Lanzar
 
 ```bash
