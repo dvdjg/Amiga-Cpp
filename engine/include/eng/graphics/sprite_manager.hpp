@@ -28,8 +28,10 @@
 ///   Prioridad: BPLCON2 (PF1P/PF2P) fija sprite vs playfield; entre sprites, por canal.
 /// ```
 
+#include <eng/core/types/domains.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/core/types/typed.hpp>
 #include <eng/core/util/noncopyable.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/sprite.hpp>
@@ -41,7 +43,10 @@ namespace eng::graphics {
 /// Configuración de un sprite hardware.
 struct SpriteConfig {
     bool enabled = false;
-    Span<const u16> data {}; // Chip RAM: `height*2*width_words` words (DAT/DATB)
+    /// DATA en **Chip RAM** con el banco en el tipo (`ChipView<SpriteTag>`): la lee el DMA
+    /// de sprites (`SPRxPT`), así que una vista Fast/Slow o sin banco **no compila**
+    /// (AGENTS §1.10). Tamaño en **bytes** de `height*2*width_words` words (DAT/DATB).
+    ChipView<SpriteTag> data {};
     u8 width_words = 1;          // 1 = 16 px, 2 = 32 px (SPRxCTL bit doble ancho)
     u8 height = 0;               // líneas (1..128)
     u16 hpos = 0;                // posición horizontal (px)
@@ -85,7 +90,8 @@ public:
         // `height*width_words*2` words (DAT+DATB por línea). Si la DATA del span
         // no lo cubre, se descarta (no se emite) en lugar de leer fuera de rango.
         if (cfg.enabled && !cfg.data.empty()) {
-            const usize need = static_cast<usize>(cfg.height) * cfg.width_words * 2u;
+            // `height*width_words*2` words = ×2 bytes (la vista es de bytes).
+            const usize need = static_cast<usize>(cfg.height) * cfg.width_words * 2u * 2u;
             if (cfg.data.size() < need) m_spr[index].enabled = false;
         }
     }
@@ -161,7 +167,14 @@ public:
         u16 line = base_y;
         for (u8 i = 0; i < tpl.segment_count; ++i) {
             const HwSpriteSegment& seg = tpl.segments[i];
-            const Span<const u16> data = tpl.bitmap.subspan(seg.data_offset, seg.height * (tpl.width_words * 2u));
+            const Span<const u16> data_words =
+                tpl.bitmap.subspan(seg.data_offset, seg.height * (tpl.width_words * 2u));
+            // Puente documentado: `HwSpriteTemplate::bitmap` es una imagen **cocinada en Chip
+            // RAM** (contrato de `sprite.hpp`); aquí se certifica el banco al pasar al emisor
+            // DMA. Si la procedencia no fuera Chip, el bug es del productor del template.
+            const ChipView<SpriteTag> data {
+                Address<MemoryKind::Chip>::from_storage(data_words.data()),
+                data_words.size() * 2u};
             SpriteConfig cfg {
                 true, data, tpl.width_words, static_cast<u8>(seg.height & 0xffu),
                 hpos, line, static_cast<u16>(line + seg.height - 1u),
@@ -203,6 +216,30 @@ public:
         return w;
     }
 
+    /// **Arma un objeto de sprite** en la posición actual del Copper (patrón validado por la
+    /// demo 214): escribe `SPRxPTH/L` a `data`, `SPRxPOS` y `SPRxCTL`. Llamar **tras**
+    /// `wait_line_safe(arm_line)`, con una línea temprana (antes del primer `VSTART`) y **una
+    /// vez por frame** para todos los canales (un solo `WAIT` compartido). La DATA apunta a la
+    /// imagen (deja fuera la cabecera de la estructura si la hay); `VSTOP` es la línea
+    /// **siguiente** a la última visible (AHRM cap. 4, *«the line after the last displayed
+    /// row»*). `attach` (bit 7) solo es válido en el canal **impar** de un par (0+1, 2+3, …).
+    /// No toca el gestor ni hardware hasta que el Copper ejecute la lista.
+    template <class Sched>
+    static void arm_object(Sched& sched, u8 channel, ChipView<SpriteTag> data, u16 x, u16 y,
+                           u16 height, bool attach = false) {
+        if (channel >= 8u || data.empty() || height == 0u) return;
+        SpriteConfig cfg {};
+        cfg.enabled = true;
+        cfg.data = data;
+        cfg.width_words = 1u;
+        cfg.height = static_cast<u8>(height > 128u ? 128u : height);
+        cfg.hpos = x;
+        cfg.vstart = y;
+        cfg.vstop = y + cfg.height; // exclusivo (AHRM cap. 4); u16 + u8 -> u16
+        cfg.attach = attach;
+        emit_config(sched, channel, cfg, data);
+    }
+
     /// Vuelca una lista de `HwSpritePlacement` (salida del compositor) a los 8 canales,
     /// dejando el gestor listo para `emit_into`. No toca hardware.
     /// \param placements  colocaciones (salida del compositor de sprites).
@@ -213,13 +250,14 @@ public:
         u8 applied = 0;
         for (u8 i = 0; i < count; ++i) {
             const HwSpritePlacement& p = placements[i];
-            if (p.channel >= 8u || p.data == nullptr || p.height == 0u || p.width_words == 0u) {
+            if (p.channel >= 8u || p.data.empty() || p.height == 0u || p.width_words == 0u) {
                 continue;
             }
             SpriteConfig cfg {};
             cfg.enabled = true;
-            cfg.data = Span<const u16> {p.data,
-                                        static_cast<usize>(p.height) * p.width_words * 2u};
+            // El placement ya trae la DATA **Chip** tipada (`ChipView<SpriteTag>`): no hay
+            // puente aquí; el banco lo certificó el productor (compositor de sprites).
+            cfg.data = p.data;
             cfg.width_words = p.width_words;
             cfg.height = static_cast<u8>(p.height > 128u ? 128u : p.height);
             cfg.hpos = p.hpos;
@@ -249,7 +287,8 @@ private:
     ///   SPRxCTL: bits 15-8 = VSTOP[7:0], bit 3 = VSTART[8], bit 2 = VSTOP[8],
     ///            bit 1 = HSTART[0], bit 0 = ATTACH.
     template <class Sched>
-    static void emit_config(Sched& sched, u8 channel, const SpriteConfig& s, Span<const u16> data) {
+    static void emit_config(Sched& sched, u8 channel, const SpriteConfig& s,
+                            ChipView<SpriteTag> data) {
         const u16 pos = static_cast<u16>(((s.vstart & 0xff) << 8) | ((s.hpos >> 1) & 0xff));
         const u16 ctl = static_cast<u16>(
             ((s.vstop & 0xff) << 8) |
@@ -260,7 +299,7 @@ private:
         );
         sched.move(static_cast<copper::Register>(0x140 + channel * 8), pos);     // SPRxPOS
         sched.move(static_cast<copper::Register>(0x142 + channel * 8), ctl);     // SPRxCTL
-        const uintptr addr = reinterpret_cast<uintptr>(data.data());
+        const uintptr addr = data.address(0).value;
         sched.move(static_cast<copper::Register>(0x120 + channel * 4), static_cast<u16>(addr >> 16));   // SPRxPTH
         sched.move(static_cast<copper::Register>(0x122 + channel * 4), static_cast<u16>(addr & 0xffff)); // SPRxPTL
     }

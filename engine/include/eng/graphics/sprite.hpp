@@ -24,6 +24,7 @@
 #include <eng/core/types/domains.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/core/types/typed.hpp>
 #include <eng/core/util/array.hpp>
 #include <eng/graphics/raster_intent.hpp>
 
@@ -85,10 +86,10 @@ struct HwSpriteTemplate {
 /// sprites (`SpriteManager`), que escribe `SPRxPOS/CTL/PT`. El compositor no escribe
 /// registros; solo publica este contrato.
 ///
-/// `data` apunta a la DATA del sprite en Chip RAM (`height * width_words * 2` words, con
-/// DAT/DATB intercalados por línea). La prioridad frente a los playfields no es por
-/// sprite (es un registro global, `BPLCON2`): viaja aquí para que el emisor la aplique
-/// una vez por frame.
+/// `data` apunta a la DATA del sprite en **Chip RAM** con el banco en el tipo
+/// (`ChipView<SpriteTag>`, la lee el DMA de sprites: pasar Fast/Slow o una vista sin banco
+/// **no compila**). La prioridad frente a los playfields no es por sprite (es un registro
+/// global, `BPLCON2`): viaja aquí para que el emisor la aplique una vez por frame.
 struct HwSpritePlacement {
     u8 channel = 0;        ///< canal hardware 0..7
     u8 priority = 0;       ///< prioridad frente a los playfields (0..3, `BPLCON2`)
@@ -97,7 +98,7 @@ struct HwSpritePlacement {
     u16 height = 0;        ///< líneas (1..128)
     u8 width_words = 1;    ///< 1 = 16 px, 2 = 32 px (doble ancho/attach)
     bool attach = false;   ///< attached al canal anterior (15 colores)
-    const u16* data = nullptr; ///< DATA del sprite (Chip RAM)
+    ChipView<SpriteTag> data {}; ///< DATA del sprite (Chip; `height*2*width_words` words)
 };
 
 /// Salida de proyectar una `HwSpriteTemplate` al vocabulario de intenciones.

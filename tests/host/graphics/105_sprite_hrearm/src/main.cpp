@@ -189,7 +189,9 @@ void test_attach() {
 	const eng::Span<u8> data = sm.sprite_data();
 	eng::graphics::SpriteConfig cfg {};
 	cfg.enabled = true;
-	cfg.data = eng::Span<const eng::u16> {reinterpret_cast<const eng::u16*>(data.data()), 4u};
+	// DATA con el banco en el tipo (`ChipView`): 4 words = 8 bytes del bloque Chip del manager.
+	cfg.data = eng::ChipView<eng::SpriteTag> {
+		eng::Address<eng::MemoryKind::Chip>::from_storage(data.data()), 8u};
 	cfg.width_words = 1;
 	cfg.height = 1;
 	cfg.hpos = 20;

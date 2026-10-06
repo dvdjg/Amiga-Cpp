@@ -10,6 +10,14 @@ Lo **observado** en `../WinUAE-DBG/drawing.cpp` al depurar la demo `208_risky_wo
 
 **Implicación:** para que un elemento se dibuje **delante** hay que darle el **número de canal más bajo**. Un sprite de número mayor queda **detrás** aunque su copperlist se escriba después. En la 208 los dos objetos usan canales 0/1 (delante) y el fondo de la franja B los canales 2..7 (detrás).
 
+## Playfield vs sprites (`BPLCON2`): el valor `0x0000` oculta los sprites
+
+- `drawing.cpp:3086-3089` (`expand_bplcon2`) construye `plf_sprite_mask` a partir de `PF1P`/`PF2P` (`bplcon2 & 7` y `(bplcon2 >> 3) & 7`): cada playfield ocupa **una posición de la cadena de prioridad** entre los grupos de sprites (`SP01 SP23 SP45 SP67`). El valor `000` coloca al playfield **delante de todos** los sprites.
+- `drawing.cpp:4220` (`plfmask = (plf_sprite_mask >> maskshift) >> maskshift; v &= ~plfmask;`): el píxel de sprite solo gana donde su grupo tiene más prioridad que el playfield.
+- AHRM 3.ª cap. 7, Table 7-2: `PF1P=000` → `PF1 SP01 SP23 SP45 SP67`; el ejemplo canónico del propio manual es `MOVE.W #$0024,BPLCON2` (*«Sprites have priority over playfields»*, AHRM `:3292`) — `$24` = `PF1P=PF2P=100`, los playfields detrás de los cuatro grupos. **En single-playfield manda `PF2P` (bits 5-3)**, no `PF1P` (nota de Table 7-2; confirmado con Grok en `docs/debugging/investigaciones/consulta-bplcon2-single-playfield-priority-en.md`). `BPLCON2` no tiene reset documentado: hay que escribirlo siempre.
+
+**Implicación (defecto corregido en el engine):** `copper::Scheduler::emit_planes_display` escribía `BPLCON2=0x0000`, lo que ponía **el playfield delante de todos los sprites**; los sprites solo se veían sobre los píxeles de color 0 del bitmap (borde/zonas transparentes). Corregido a `0x0024` con comentario y cita; regresión de 207/208/054/101 en verde. En demos que quieran sprites **detrás** del playfield (p. ej. 207) el driver escribe su propio `BPLCON2` después.
+
 ## ATTACH: los bits altos los aporta el canal impar
 
 - `drawing.cpp:2722`: al escribir `POS`/`CTL`, `dspr[n & ~1].attached = (dspr[n | 1].ctl & 0x80) != 0;` → el flag de *attach* se guarda en el **canal par**, tomado del **bit 7 del `SPRxCTL` del impar**.
@@ -34,6 +42,7 @@ Lo **observado** en `../WinUAE-DBG/drawing.cpp` al depurar la demo `208_risky_wo
 ## Validación
 
 - `demos/techniques/amiga/sprites/208_risky_woods` E4: prioridad (objetos 0/1 delante), ATTACH (franja C) y reuso del par.
+- `demos/techniques/amiga/sprites/214_attached_object`: el par *attached* (canales 0/1) y seis chispas (2..7) **delante del playfield** con el `BPLCON2=0x0024` del scheduler; captura única y secuencia validadas por visión + MD5.
 
 ## Referencias
 

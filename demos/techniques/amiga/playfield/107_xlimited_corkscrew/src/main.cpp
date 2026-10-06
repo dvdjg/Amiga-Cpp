@@ -898,7 +898,10 @@ scene_cfg.max_step = kStepMax;
                 data[y * 2] = a;
                 data[y * 2 + 1] = b;
             }
-            sp.set(0, {true, eng::Span<const eng::u16>::from_raw(data, 32), 1, 16, 120, 96, 111, 16});
+            sp.set(0, {true,
+                       eng::ChipView<eng::SpriteTag> {
+                           eng::Address<eng::MemoryKind::Chip>::from_storage(data), 64u},
+                       1, 16, 120, 96, 111, 16});
         }
 #endif
 

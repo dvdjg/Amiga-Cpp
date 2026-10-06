@@ -235,6 +235,13 @@ Los límites de hardware de esta ficha están como constantes de dominio en
   `SpriteLineLayer` (`graphics/sprite_line_layer.hpp`) arma un `SpriteHorizontalRearm` por
   (línea, canal) con la imagen de esa scanline; el `copper::Scheduler` la coloca en el H-Blank.
 - **Fondo repetitivo *Risky Woods*** (técnica 5): driver `effects::RiskyWoodsLayer` (`api/effects.hpp`).
+- **Attached de objeto (15 colores, técnica 2)**: `attach` en el camino de sprites
+  (`SpriteConfig`/`HwSpriteTemplate`/`SpriteIntent`/`HwSpritePlacement`) y cocinado de las dos
+  **estructuras DMA** del par con `graphics/sprite_attached.hpp` (`cook_attached_pair`, HOST-427);
+  armado de objetos con `SpriteManager::arm_object` (PT/POS/CTL en una línea temprana, HOST-428);
+  demo `214_attached_object` (gema de 15 tonos + chispas de 3 colores, validada por captura y
+  secuencia con visión). Prioridad sprite/playfield: `BPLCON2=0x0024` (AHRM cap. 7 Table 7-2;
+  en single-playfield manda `PF2P`; ver `winuae/sprite-color-priority.md`).
 - **Reparto de canales por ventana** (mezclar técnicas y dejar canales a los objetos):
   `SpriteChannelWindow`/`plan_sprite_windows`; diseño en [SPRITE_CHANNEL_WINDOWS.md](../../engine/architecture/SPRITE_CHANNEL_WINDOWS.md),
   tests HOST-416/417/418.

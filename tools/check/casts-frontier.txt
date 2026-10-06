@@ -26,3 +26,4 @@ engine/src/platform/amiga/amiga.cpp           # backend Amiga: vectores IRQ (0x6
 engine/src/platform/amiga/amiga_internal.hpp  # registros custom (custom_base $dff000, VPOSR, COP1LC, CIA) y Blitter
 engine/include/eng/graphics/copper/scheduler.hpp # emisor Copper: Address<Chip> de los bloques del plan
 engine/include/eng/graphics/copper/copper.hpp    # ListBuilder: palabras de la copperlist (Address<Chip>)
+engine/include/eng/graphics/sprite_attached.hpp  # cocina de estructuras DMA del par attached: Address<Chip> -> words

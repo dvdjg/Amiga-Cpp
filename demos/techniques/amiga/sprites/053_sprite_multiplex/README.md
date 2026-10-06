@@ -25,6 +25,10 @@ copperlist por frame, para mostrar el reposicionado por Copper en movimiento.
   a `emit_template_into`.
 - **Rearm**: `WAIT` en la línea VSTART de cada segmento (patrón del bootcamp), con
   un gap de 1 línea entre instancias.
+- **Prioridad sprite/playfield**: el display fija `BPLCON2=0x0024` (`emit_planes_display`):
+  los sprites van **delante** del playfield EHB (AHRM cap. 7, Table 7-2; en single-playfield
+  el campo que coloca el playfield es `PF2P`). Antes el scheduler escribía `0x0000` y el
+  playfield tapaba los sprites fuera de las zonas de color 0.
 
 ## Build & run
 

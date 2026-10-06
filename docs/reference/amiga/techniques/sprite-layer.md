@@ -67,9 +67,20 @@ aporta bits 0–1 (par) y 2–3 (impar) → índice de 4 bits sobre `COLOR16–3
 
 ## 5. Prioridad (BPLCON2)
 
-Orden por defecto (frente → fondo): `sprites 0-1 > 2-3 > 4-5 > 6-7 > PF1 > PF2`. Con
-`BPLCON2` (`PF1P`/`PF2P`) los sprites pueden quedar **entre** playfields (p. ej. personaje
-tras árboles de primer plano y delante del cielo).
+Orden canónico (frente → fondo): `sprites 0-1 > 2-3 > 4-5 > 6-7 > playfield(s)`. Lo fija
+`BPLCON2`: el ejemplo del AHRM (`MOVE.W #$0024,BPLCON2`, «sprites have priority over
+playfields», AHRM 3.ª cap. 7) coloca `PF1P`/`PF2P = 100` (playfields **detrás** de los
+cuatro grupos de sprites). **En modo single-playfield el campo que coloca el playfield es
+`PF2P` (bits 5-3)**, no `PF1P` (AHRM, nota de Table 7-2: *«PF2P2-PF2P0 … are the priority
+bits for normal (non-dual) playfields»*; confirmado con Grok, ver
+[`consulta-bplcon2-single-playfield-priority-en.md`](../../debugging/investigaciones/consulta-bplcon2-single-playfield-priority-en.md)).
+Ojo con el valor `000`: **invierte** la relación y pone el playfield **delante de todos los
+sprites** (AHRM Table 7-2; los sprites solo se ven sobre los píxeles de color 0 del bitmap);
+el `emit_planes_display` del engine usaba `000` y se corrigió a `$24` — ver
+[`winuae/sprite-color-priority.md`](../../emulators/winuae/sprite-color-priority.md).
+`BPLCON2` **no tiene valor de reset documentado** (indefinido): escríbelo siempre. Con
+`PF1P`/`PF2P` intermedios los sprites pueden quedar **entre** playfields (p. ej.
+personaje tras árboles de primer plano y delante del cielo).
 
 ## 6. Multiplexado
 
@@ -122,10 +133,11 @@ necesidad de máscara en RAM.
 | Capacidad | Estado | Dónde |
 |---|---|---|
 | 8 canales, POS/CTL/PT | **sí** | `SpriteManager::emit_into`/`emit_config` |
+| **Armado de objeto** (PT/POS/CTL temprano, `ATTACH` en el impar) | **sí** | `SpriteManager::arm_object` (HOST-428; demo 214) |
 | Multiplexado vertical + color mux | **sí** | `SpriteManager::emit_template_into`, `HwSpriteTemplate` |
 | Asignación con degradado a BOB | **sí** | `SpriteAllocator` (first-fit; `as_bob`) |
 | **Rearmado horizontal** | **sí** | `SpriteHorizontalRearm` + `Scheduler::emit_sprite_horizontal_rearm`, intent `SpriteRearm` |
-| **Attached (15 colores)** | **no** | `SpriteConfig` no tiene `attach`; el allocator lo declara pendiente |
+| **Attached (15 colores)** | **sí** | `attach` en `SpriteConfig`/`HwSpriteTemplate`/`SpriteIntent`/`HwSpritePlacement` y cocinado de la DATA de 4 planos (`graphics/sprite_attached.hpp`, HOST-427); validado por la demo `214_attached_object` (captura + secuencia con visión) |
 | **Sprite DMA** (columna alta) | **sí** | `SpriteLayer` con `dma_channels` (estructura **con cabecera POS+CTL**; `SPRxPT`→cabecera) |
 | **Sprite-as-playfield** (capa de fondo) | **sí** | `effects::SpriteLayer` (sobre el rearmado horizontal) |
 | **Colisión hardware** (CLXCON/CLXDAT) | **sí** (utilidad + backend) | `graphics/sprite_collision.hpp`, `AmigaBackend::set/read_sprite_collision` |

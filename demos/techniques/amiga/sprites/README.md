@@ -15,9 +15,11 @@ Estructura y numeración: [../../../../docs/STRUCTURE.md](../../../../docs/STRUC
 | [208_risky_woods](208_risky_woods/README.md) |
 | [211_risky_woods_layer](211_risky_woods_layer/README.md) |
 | [212_free_scroll_layer](212_free_scroll_layer/README.md) — **NO VERIFICADA (rota)** |
+| [213_spr_layer](213_spr_layer/README.md) |
+| [214_attached_object](214_attached_object/README.md) — objeto de 15 colores (*attached*) |
 
 Técnicas del [catálogo](../../../../docs/reference/amiga/techniques/sprite-techniques-catalog.md)
-**aún sin demo** (candidatas): *attached* de objetos, **multiplexado vertical**
+**aún sin demo** (candidatas): **multiplexado vertical**
 (4 canales → N balas), **combinación con BOBs**, **bending** (onda por línea con tabla de seno),
 **palette splitting** (misma DATA, paletas por franja), **HUD de sprites** y prioridad dinámica
 por franjas.

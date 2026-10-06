@@ -25,7 +25,14 @@ sobre el rectángulo (rojo).
    bash ./tools/run/run-demo.sh demos/techniques/amiga/sprites/206_sprite_collision --warp
 ```
 
+## Nota de prioridad
+
+El display fija `BPLCON2=0x0024` (`emit_planes_display`): el sprite (capa de sprites) va
+**delante** del playfield (AHRM cap. 7, Table 7-2). Con el antiguo `0x0000` el playfield tapaba
+el sprite fuera de las zonas de color 0.
+
 ## Referencias
 
 - AHRM 3.ª, Table 7-3 (`CLXDAT`) y Table 7-4 (`CLXCON`).
 - `docs/reference/amiga/techniques/sprite-layer.md` §8.
+- `docs/reference/emulators/winuae/sprite-color-priority.md` (`BPLCON2`).

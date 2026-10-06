@@ -397,7 +397,15 @@ public:
 
 		move(Register::BPLCON0, bplcon0);            // BPU + bits modo (EHB/HAM/DPF…)
 		move(Register::BPLCON1, 0x0000);
-		move(Register::BPLCON2, 0x0000);
+		// `0x0024` = PF1P/PF2P `100` = los playfields por DETRÁS de los 4 grupos de
+		// sprites (AHRM 3.ª cap. 7, Table 7-2 y el ejemplo `MOVE.W #$0024,BPLCON2`;
+		// «sprites have priority over playfields»). En single-playfield el campo que
+		// coloca el playfield es PF2P (bits 5-3; nota de Table 7-2 y consulta Grok en
+		// docs/debugging/investigaciones/consulta-bplcon2-single-playfield-priority-en.md);
+		// BPLCON2 no tiene reset documentado, así que se escribe siempre. Escribir
+		// `0x0000` pondría el playfield DELANTE de todos los sprites y estos solo se
+		// verían sobre los píxeles de color 0 del bitmap.
+		move(Register::BPLCON2, 0x0024);
 		move(Register::BPL1MOD, 0x0000);
 		move(Register::BPL2MOD, 0x0000);
 		move(Register::DIWSTRT, diwstrt);

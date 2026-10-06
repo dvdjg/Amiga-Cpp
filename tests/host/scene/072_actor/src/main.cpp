@@ -723,7 +723,9 @@ void test_compose_sprites() {
 	CHECK(placements[0].vstart == 100u && placements[0].hpos == 0u, "franja del placement");
 	CHECK(placements[0].height == 8u, "altura del placement");
 	CHECK(placements[0].priority == 2u, "prioridad en el placement");
-	CHECK(placements[0].data == g_pixel_pool + 0u, "data del primer actor");
+	CHECK(reinterpret_cast<const eng::u16*>(placements[0].data.address(0).cptr()) ==
+		      g_pixel_pool + 0u,
+	      "data del primer actor");
 
 	// El emisor de sprites acepta los placements (sin tocar hardware).
 	SpriteManager mgr {};

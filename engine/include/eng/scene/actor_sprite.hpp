@@ -107,7 +107,12 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 		p.height = static_cast<eng::u16>(s.intents[i].bottom - s.intents[i].top);
 		p.width_words = s.intents[i].width_words;
 		p.attach = s.intents[i].attach;
-		p.data = a->desc.visual.pixels.data();
+		// Puente documentado `Visual` -> contrato DMA: el camino de sprite exige contenido en
+		// **Chip** (los `Visual` del camino de sprite se cocinan en Chip; `sprite-layer.md` §9).
+		// El tipo `ChipView<SpriteTag>` del placement fuerza que el emisor no lo olvide.
+		p.data = eng::ChipView<eng::SpriteTag> {
+			eng::Address<eng::MemoryKind::Chip>::from_storage(a->desc.visual.pixels.data()),
+			a->desc.visual.pixels.size() * 2u};
 		++r.sprites;
 	}
 

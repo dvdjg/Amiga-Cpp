@@ -103,7 +103,7 @@ Dos canales del **mismo par** (0+1, 2+3, 4+5, 6+7) se unen poniendo el bit `ATTA
 - El driver emite los dos canales del par con `SPRxCTL` del impar en `ATTACH` (bit 7) y la **misma** `SPRxPOS`/`SPRxCTL` de rango; la DATA se reparte entre los 4 bitplanes (el par aporta bits 0–1, el impar bits 2–3).
 - La paleta del par vive en `COLOR16–31`; cambiar el color de un canal afecta a **su par** ("Color Bleed", `sprite-layer.md` §3).
 
-El motor declara `attach` en `SpriteConfig`, `HwSpriteTemplate`, `SpriteIntent` y `HwSpritePlacement`; la proyección de plantilla a intenciones, el asignador de pares y el cableado en la emisión (`SpriteManager::apply` y `emit_template_into`) existen. Falta un helper que cocine la DATA de 4 planos.
+El motor declara `attach` en `SpriteConfig`, `HwSpriteTemplate`, `SpriteIntent` y `HwSpritePlacement`; la proyección de plantilla a intenciones, el asignador de pares y el cableado en la emisión (`SpriteManager::apply` y `emit_template_into`) existen. El **cocinado de la DATA de 4 planos** está en `graphics/sprite_attached.hpp` (`cook_attached_pair`): divide el arte en las dos **estructuras DMA** (par = planos 0-1; impar = planos 2-3 + `ATTACH`, con terminador) sobre memoria **Chip tipada** (`ChipView<SpriteTag>`), cubierto por HOST-427. La demo `214_attached_object` valida el objeto de 15 colores en vivo (par *attached* + contraste de chispas de 3 colores, con los sprites delante del playfield).
 
 ## 7. Animación del bitmap del sprite (estilo Jim Power)
 
@@ -140,6 +140,7 @@ El **ledger** es la única entrada nueva: la misma llamada sirve para una ventan
 | Driver de fondo `Layer` (8 canales, una instancia/canal) | EXISTE | `effects::SpriteLayer` (`api/effects.hpp`) |
 | Capa/HUD por parcheo de POS+DATA por línea | EXISTE | `graphics/sprite_line_layer.hpp` (HOST-418) |
 | Driver de fondo `RiskyWoods` (reposición repetida) | EXISTE | `effects::RiskyWoodsLayer` (`api/effects.hpp`, HOST-417) |
+| Armado de **objeto** de sprite (PT/POS/CTL en una línea temprana; `ATTACH` en el impar) | EXISTE | `SpriteManager::arm_object` (`sprite_manager.hpp`, HOST-428; demo 214) |
 | Driver de fondo `FreeForm` (datos distintos por columna) | PROPUESTO | driver de fondo |
 | Animación del bitmap del sprite | PROPUESTO | `compose_sprites`/`actor_to_sprite_intent` |
 | Demo con gate visual del híbrido | PROPUESTO | `demos/techniques/amiga/sprites/` |
