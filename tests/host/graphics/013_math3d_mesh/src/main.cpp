@@ -273,6 +273,16 @@ int main() {
 		cmp(tr_x, tr_y, 3, "convex_spans: triangulo == referencia");
 		cmp(pe_x, pe_y, 5, "convex_spans: pentagono == referencia");
 		cmp(di_x, di_y, 4, "convex_spans: rombo == referencia");
+		// El tipo de coordenada es parámetro: el mismo cuadrado en s16 da 10 filas.
+		{
+			const eng::s16 x2[4] = {0, 10, 10, 0};
+			const eng::s16 y2[4] = {0, 0, 10, 10};
+			eng::u32 rows2 = 0;
+			eng::math3d::convex_spans(
+				eng::Span<const eng::s16> {x2, 4}, eng::Span<const eng::s16> {y2, 4},
+				[&](eng::s16, eng::s16, eng::s16) { ++rows2; });
+			check(rows2 == 10u, "convex_spans: cuadrado s16 (10 filas)");
+		}
 	}
 
 	if (failures == 0) {

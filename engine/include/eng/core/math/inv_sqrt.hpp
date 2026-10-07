@@ -20,6 +20,7 @@
 
 #include <eng/core/data/ct_array.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/core/util/type_traits.hpp>
 
 namespace eng::math {
 
@@ -46,6 +47,8 @@ namespace eng::math {
 /// una magnitud); la saturación usa el máximo de `R`.
 template <typename R, int E, eng::usize N = 512u>
 struct InvSqrtTable {
+	static_assert(eng::util::is_integral_v<R> && eng::util::is_unsigned_v<R>,
+		      "inv_sqrt: R debe ser un entero sin signo (la tabla es una magnitud)");
 	static_assert(E > 0 && E < 32, "inv_sqrt: exponente E fuera de rango");
 	static_assert(N >= 1u, "inv_sqrt: N debe ser >= 1");
 	/// Exponente (bits de fracción) de la tabla: el consumidor lo usa para normalizar (`>> kExponent`).

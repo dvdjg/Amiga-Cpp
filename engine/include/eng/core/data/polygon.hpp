@@ -22,18 +22,22 @@
 
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/core/util/type_traits.hpp>
 
 namespace eng::math3d {
 
 /// Genera los **spans** horizontales `(y, xl, xr)` de un polígono **convexo** por dos
 /// cadenas. `emit(y, xl, xr)` se llama una vez por scanline (con `xl <= xr`; la fila
 /// inferior queda semiaabierta, como el barrido de referencia). Los vértices deben estar en
-/// orden de giro y formar un polígono convexo.
+/// orden de giro y formar un polígono convexo. El tipo de coordenada es parámetro
+/// (`T`, entero con signo): sirve pantalla `s16`, coordenadas `s32` o cualquier ancho.
 ///
 /// La interpolación de cada arista es un **DDA incremental** (acumulador de error), **sin
 /// división** por scanline (nada de `__divsi3` en el relleno de polígono).
-template <class Emit>
-inline u32 convex_spans(Span<const s32> xs, Span<const s32> ys, Emit&& emit) {
+template <class T, class Emit>
+inline u32 convex_spans(Span<const T> xs, Span<const T> ys, Emit&& emit) {
+	static_assert(eng::util::is_integral_v<T> && eng::util::is_signed_v<T>,
+		      "convex_spans: T debe ser un entero con signo (coordenadas)");
 	const u32 n = static_cast<u32>(xs.size());
 	if (n < 3u || ys.size() != xs.size()) {
 		return 0;
@@ -54,17 +58,17 @@ inline u32 convex_spans(Span<const s32> xs, Span<const s32> ys, Emit&& emit) {
 
 	/// Estado DDA de una cadena: interpola `x` a lo largo de la arista `a->b` fila a fila.
 	struct Dda {
-		s32 x = 0;
-		s32 adx = 0; // |dx|
-		s32 dy = 0;  // altura (aristas horizontales se saltan antes)
-		s32 rem = 0;
-		s32 sx = 1;
+		T x = 0;
+		T adx = 0; // |dx|
+		T dy = 0;  // altura (aristas horizontales se saltan antes)
+		T rem = 0;
+		T sx = 1;
 	};
 	auto setup = [&](Dda& d, u32 a, u32 b) {
-		d.dy = ys[b] - ys[a];
-		const s32 dx = xs[b] - xs[a];
-		d.sx = dx >= 0 ? 1 : -1;
-		d.adx = dx >= 0 ? dx : -dx;
+		d.dy = static_cast<T>(ys[b] - ys[a]);
+		const T dx = static_cast<T>(xs[b] - xs[a]);
+		d.sx = dx >= 0 ? T {1} : T {-1};
+		d.adx = dx >= 0 ? dx : static_cast<T>(-dx);
 		d.x = xs[a];
 		// Truncamiento (half-open), no redondeo: el DDA debe reproducir EXACTAMENTE el
 		// barrido `x0 + (x1-x0)*(y-y0)/(y1-y0)` de la referencia (división entera).
@@ -95,7 +99,7 @@ inline u32 convex_spans(Span<const s32> xs, Span<const s32> ys, Emit&& emit) {
 	setup(db, ib, nb);
 
 	u32 rows = 0;
-	for (s32 y = ys[top]; y < ys[bot]; ++y) {
+	for (T y = ys[top]; y < ys[bot]; ++y) {
 		while (na != bot && y >= ys[na]) {
 			ia = na;
 			na = (ia + 1u) % n;

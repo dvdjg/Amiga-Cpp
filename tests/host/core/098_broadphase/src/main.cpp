@@ -81,6 +81,15 @@ int main() {
 		check(small.empty(), "clear");
 	}
 
+	// Identificador de 8 bits (parámetro de plantilla): mismas consultas con Span<u8>.
+	{
+		eu::SpatialHash<8, 4, 4, 8, eng::u8> g8;
+		check(g8.insert(eng::u8 {7}, 2, 2), "id u8: insert");
+		eng::u8 hits[4] = {};
+		const eng::usize n = g8.query(eu::Aabb {0, 0, 8, 8}, eng::Span<eng::u8> {hits, 4});
+		check(n == 1u && hits[0] == 7u, "id u8: query");
+	}
+
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;

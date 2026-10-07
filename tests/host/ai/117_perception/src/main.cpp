@@ -50,6 +50,17 @@ void test_influence() {
 	      "influencia: degradada del todo -> no_cell");
 }
 
+void test_influence_s16() {
+	// El valor es parámetro (entero con signo): s16 no hereda el s32 por defecto.
+	eng::ai::InfluenceMap<4, 4, eng::s16> map;
+	map.clear();
+	map.deposit(6u, eng::s16 {9000});
+	map.deposit(3u, eng::s16 {12000});
+	check(map.strongest() == 3u, "influencia s16: manda la mayor");
+	map.decay(eng::s16 {10000});
+	check(map.at(3u) == 2000 && map.at(6u) == 0, "influencia s16: decay sin bajar de 0");
+}
+
 void test_memory() {
 	eng::ai::AgentMemory mem;
 	check(!mem.has_target, "memoria: arranca sin objetivo");
@@ -76,6 +87,7 @@ void test_memory() {
 int main() {
 	std::printf("Perception:\n");
 	test_influence();
+	test_influence_s16();
 	test_memory();
 
 	if (g_fail == 0u) {

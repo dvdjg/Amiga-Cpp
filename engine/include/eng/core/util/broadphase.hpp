@@ -8,7 +8,9 @@
 ///
 /// Se reconstruye por frame (`clear()` + `insert()`), que es el patrón habitual cuando
 /// las posiciones cambian a menudo. `CellSize` debe ser potencia de dos (índice por
-/// desplazamiento) y las coordenadas, no negativas y dentro de `CellsX×CellsY`.
+/// desplazamiento) y las coordenadas, no negativas y dentro de `CellsX×CellsY`. El
+/// identificador `Id` (por defecto `u16`) es parámetro de plantilla; la posición es
+/// dominio de pantalla/tile (`s16`).
 ///
 /// Uso:
 ///   eng::util::SpatialHash<16, 20, 15, 64> grid;
@@ -23,15 +25,19 @@
 #include <eng/core/util/collision.hpp>
 #include <eng/core/util/intrusive_list.hpp>
 #include <eng/core/util/pool.hpp>
+#include <eng/core/util/type_traits.hpp>
 
 namespace eng::util {
 
-template <u16 CellSize, u16 CellsX, u16 CellsY, u16 MaxItems>
+template <u16 CellSize, u16 CellsX, u16 CellsY, u16 MaxItems, class Id = u16>
 class SpatialHash {
 	static_assert(CellSize > 0u && has_single_bit(CellSize),
 		      "SpatialHash: CellSize potencia de dos");
 	static_assert(CellsX > 0u && CellsY > 0u, "SpatialHash: celdas > 0");
 	static_assert(MaxItems > 0u, "SpatialHash: MaxItems > 0");
+	static_assert(is_unsigned_v<Id>, "SpatialHash: Id debe ser un entero sin signo");
+	/// Las posiciones son de **dominio** de pantalla/tile (`s16`, `Aabb`/`Point2s` de
+	/// `collision.hpp`); lo que se parametriza es el identificador (`Id`).
 
 public:
 	static constexpr usize cell_count() noexcept {
@@ -48,7 +54,7 @@ public:
 
 	/// Inserta `(id, x, y)`. `false` si el punto está fuera de la rejilla o no hay
 	/// hueco en el pool.
-	constexpr bool insert(u16 id, s16 x, s16 y) noexcept {
+	constexpr bool insert(Id id, s16 x, s16 y) noexcept {
 		const int cell = cell_of(x, y);
 		if (cell < 0) {
 			return false;
@@ -91,9 +97,9 @@ public:
 	}
 
 	/// Escribe en `out` los ids que caen en `box` (hasta `out.size()`). Devuelve cuántos.
-	constexpr usize query(const Aabb& box, Span<u16> out) const {
+	constexpr usize query(const Aabb& box, Span<Id> out) const {
 		usize n = 0;
-		for_each_in(box, [&](u16 id, s16, s16) {
+		for_each_in(box, [&](Id id, s16, s16) {
 			if (n < out.size()) {
 				out[n] = id;
 			}
@@ -104,7 +110,7 @@ public:
 
 private:
 	struct Entry : IntrusiveSLink<Entry> {
-		u16 id = 0;
+		Id id = 0;
 		s16 x = 0;
 		s16 y = 0;
 	};

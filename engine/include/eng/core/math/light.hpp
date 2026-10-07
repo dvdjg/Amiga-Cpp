@@ -24,14 +24,20 @@ namespace eng::math {
 /// `E` es el **exponente del fixed** de la tabla (bits de fracción): la tabla se genera como
 /// `⌊2^E/√x⌋` (`eng/core/math/inv_sqrt.hpp`) y el producto se normaliza `>> E`. Por defecto 16
 /// (0.16, la instancia histórica de lib3d); para otro fixed, pásalo (p. ej. `Fx::exp`).
+/// El índice de la magnitud² se recorta al **tamaño de la tabla** (`Table::size()`, p. ej. la
+/// instancia histórica son 512 entradas); una tabla sin `size()` (adaptador propio) usa 511.
 template <int E = 16, typename Table>
 [[nodiscard]] constexpr s16 shade_portable(s32 v, s32 e1_sq, const Table& inv_sqrt) {
 	if (v < 0) {
 		v = -v;
 	}
+	s16 lim = 511;
+	if constexpr (requires { inv_sqrt.size(); }) {
+		lim = static_cast<s16>(inv_sqrt.size() - 1u);
+	}
 	s16 s = hi16(e1_sq);
-	if (s > 511) {
-		s = 511;
+	if (s > lim) {
+		s = lim;
 	}
 	const s16 vv = hi16(v);
 	return static_cast<s16>(

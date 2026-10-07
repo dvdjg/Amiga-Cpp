@@ -86,6 +86,14 @@ int main() {
 		      "shade<12>: nativa == portable");
 	}
 
+	// El clamp de la magnitud sale del tamaño de la tabla: con 64 entradas recorta a 63.
+	{
+		const auto& t64 = eng::math::InvSqrtTable<u16, 16, 64>::value;
+		check(shade_portable<16>(0x01000000, 0x7fffffff, t64) ==
+			      shade_portable<16>(0x01000000, 0x003f0000, t64),
+		      "clamp por tamaño de tabla (64 entradas -> indice 63)");
+	}
+
 	if (failures == 0) {
 		std::printf("OK: light_ops (sombreado por cara) e hi16 validados.\n");
 		return 0;

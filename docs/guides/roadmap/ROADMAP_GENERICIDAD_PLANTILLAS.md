@@ -38,7 +38,7 @@ Ejemplo canónico: un generador de seno debe poder emitir la muestra como `u8`, 
 | # | Sitio | Atadura | Propuesta | Estado |
 |---|---|---|---|---|
 | 1.1 | `engine/include/eng/core/math/sinetable.hpp` (`SineTable`) | salida siempre `s32` (`ct_array<s32,…>`, `sample() -> s32`) | `template <s32 Amp, u32 Steps = 64, class T = s32, s32 Offset = 0>`; conversión de muestra por punto de extensión `detail::sine_sample<T>` (aritméticos por `static_cast`; `Fixed` por especialización en `fixed_math.hpp`); `Offset` cubre los tipos sin signo centrados (p. ej. `u8` con 128) | hecho |
-| 1.2 | `engine/include/eng/audio/wave_tables.hpp:15-68` | `sine_byte`/`synth_tone`/`synth_sequence` solo 8 bits (`s8`/`u8`) | `template <class T, …>` con `wave_traits<T>` (rango/centro) para emisión de muestra; los `*_byte` quedan como envoltorios de conveniencia | pendiente |
+| 1.2 | `engine/include/eng/audio/wave_tables.hpp` | `sine_byte`/`synth_tone`/`synth_sequence` solo 8 bits (`s8`/`u8`) | `sine_wave<T>`/`synth_tone<Len,T>`/`synth_sequence<Len,T>` con `wave_traits<T>` (pico y tipo con signo; `u8` de Paula con signo interpretado, `s16` PCM); el seno se genera en compilación. `triangle_byte`/`square_byte` siguen 8-bit (formas de control) | hecho |
 
 ## Fase 2 — Índices y costes (quitar el techo estructural de 16/32767 bits)
 
@@ -47,18 +47,18 @@ Ejemplo canónico: un generador de seno debe poder emitir la muestra como `u8`, 
 | 2.1 | `engine/include/eng/core/util/graph.hpp` (`Graph`, `graph_*`) | `Graph` con nodos/costes `u16`; `came_from` `s16` | `template <u16 MaxNodes, u16 MaxEdges, class Index = u16, class Cost = u16>`; `no_node = ~Index{0}`; `came_from` en el entero con signo correspondiente a `Index` | hecho |
 | 2.2 | `engine/include/eng/core/util/pathfinding.hpp` (`bfs`/`astar`/`reconstruct_path`) | índice `u16` (límite 32767 por `came_from` `s16`), coste `u16` | `Index` (y `Cost` en `astar`) como parámetros con defecto; heurísticas parametrizadas por el tipo de coste | hecho |
 | 2.3 | `engine/include/eng/ai/navigation/flow_field.hpp` (`compute_flow_field`) | integración/coste `u16` (0xffff bloqueada = inalcanzable) | `template <u16 W, u16 H, class Index = u16, class Cost = u16>`; sentinela por el máximo del tipo de coste | hecho |
-| 2.4 | `engine/include/eng/core/util/broadphase.hpp:29-139` (`SpatialHash`) | id `u16` + posición `s16` fijos | política `Id`/`Pos` (como `Crowd<S, Broadphase>` ya hace con la fase amplia) | pendiente |
+| 2.4 | `engine/include/eng/core/util/broadphase.hpp` (`SpatialHash`) | id `u16` fijo (la posición es dominio: `s16`/`Aabb`) | `Id` como parámetro con defecto `u16`; la posición se deja `s16` (colisión de pantalla/tile) | hecho |
 
 ## Fase 3 — Numéricos con representación o promoción fija
 
 | # | Sitio | Atadura | Propuesta | Estado |
 |---|---|---|---|---|
 | 3.1 | `engine/include/eng/core/util/stats.hpp` (`sum`/`mean`) | la ruta ancha accede a `x.v`, `sat_s16` y `div_wide` (asume `Fixed<s16>`) | rasgos declarados en `scalar_traits` (`wide_t`, `to_wide`, `from_wide`, `wide_div`); sin tocar miembros internos desde `stats` | hecho |
-| 3.2 | `engine/include/eng/core/math/light.hpp:27-48` (`shade_portable`) | devuelve `s16`, entradas `s32`, clamp 511/Q16 fijos | tipar por `E`/`Fixed` o recibir límites y tabla por rasgos (`InvSqrtTable::kMaxIndex`) | pendiente |
-| 3.3 | `engine/include/eng/core/data/polygon.hpp:36` (`convex_spans`) | `Span<const s32>` para xs/ys | `template <class T>` con acumulador de ancho según `arith_wide<T>` | pendiente |
-| 3.4 | `engine/include/eng/core/math/inv_sqrt.hpp:45-59` | exige `R` sin signo (`~R{0}`) y `E < 32` | hacer explícita la restricción (concept) o derivar máximo con `numeric_traits`/`make_unsigned` | pendiente |
-| 3.5 | `engine/include/eng/core/data/mesh3d.hpp:90-131` | `mesh_traits::key = s16`; `face_signed_area -> s32` | clave/tipo de retorno derivados del escalar (`scalar_key_t<S>`, signo como `int`) | pendiente |
-| 3.6 | `engine/include/eng/ai/perception/influence_map.hpp:36-78` | valores `s32` fijos | `template <u16 W, u16 H, class T = s32>`; saturación por `numeric_traits<T>` | pendiente |
+| 3.2 | `engine/include/eng/core/math/light.hpp` (`shade_portable`) | clamp 511 fijo | clamp por `Table::size()` (511 si el adaptador no expone tamaño); el pipeline `hi16`/`mulu` es el ABI 16 bits de lib3d | hecho |
+| 3.3 | `engine/include/eng/core/data/polygon.hpp` (`convex_spans`) | `Span<const s32>` para xs/ys | `template <class T>` (entero con signo) | hecho |
+| 3.4 | `engine/include/eng/core/math/inv_sqrt.hpp` | `R` sin signo sin comprobar | `static_assert` de entero sin signo (la tabla es una magnitud) | hecho |
+| 3.5 | `engine/include/eng/core/data/mesh3d.hpp` | `mesh_traits::key = s16`; `face_signed_area -> s32` | **se deja como está** (decisión): `mesh3d` es vocabulario retro (lib3d, orden Z de 16 bits) y no es del todo reutilizable fuera de ese camino; `mesh_traits<S>` ya es especializable si un consumidor lo necesita | descartado (documentado) |
+| 3.6 | `engine/include/eng/ai/perception/influence_map.hpp` | valores `s32` fijos | `template <u16 W, u16 H, class T = s32>` (entero con signo); decay satura al cero | hecho |
 
 ## Fase 4 — Resto (conveniencia y deuda menor)
 
