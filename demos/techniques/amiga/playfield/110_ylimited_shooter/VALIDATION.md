@@ -78,6 +78,22 @@ roadmap debe atribuir esa cifra a los elementos de la tabla con el perfilador.
 
 **Lectura:** el montaje etiquetado **sí se atiende** (comparó paneles leyendo glifos distintos), pero la reducción de resolución de la hoja hace que el desplazamiento fino del fondo no se perciba; lo detecta como «cambios aleatorios» de glifos.
 
+## F2 — aislamiento del scroll y captura de ventana (actualizado)
+
+- **Banco aislado** (sin FG, uncommitted): mapa con la fila como glifo (`g_map = y & 15`) y
+  captura determinista por paso. El desplazamiento vertical del color compuesto es uniforme
+  (−2 px/juego, `mad=0.00` en 11 pares) — **alcance probado**: traslación global de una franja;
+  **no** cubre sincronía entre planos, eje X ni la ventana.
+- **Captura de ventana** (MCP arreglado, `PrintWindow`): la ventana real muestra **dígitos
+  duplicados por filas** (1,1,2,2,3,3…) y **banda basura** inferior → el área visible no se pinta
+  bien. El screenshot interno (288 líneas) recortaba esa zona en negro y ocultaba el fallo.
+- **Registros en ejecución**: `DIWSTRT=$2981/DIWSTOP=$F9C1`, `BPL1MOD=$0078`, `BPL2MOD=$004E`,
+  PF1 a **54 B/plano** vs PF2 a **40 B/plano** con DDF compartido → geometrías de fila distintas.
+- Diagnóstico completo y plan en [`docs/reference/amiga/techniques/ylimited-corkscrew.md`](../../../../../../docs/reference/amiga/techniques/ylimited-corkscrew.md)
+  (DT-006): la referencia exige bitmap `(SCREENWIDTH+16) × (256+32)`, una sola `row_bytes` por
+  plano para PF1/PF2 y el modulo-trick con sobre-fetch; el engine usa `viewport 208 + 288`,
+  sin fillup ni sobre-fetch.
+
 ## Conclusiones
 
 1. **Primeros auxilios validados** (commit `3067365e`): nave visible y en vaivén suave, torreta presente en 40/40 capturas (antes: 0/parcial en ~50%), cañón dibujado.

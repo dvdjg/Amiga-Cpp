@@ -16,6 +16,7 @@ Resúmenes operativos para la IA y el desarrollador: **qué problema resuelve**,
 | Ficha | Tema |
 |-------|------|
 | [modulo-tricks.md](modulo-tricks.md) | Módulos de bitplane (`BPL1MOD`, `BPL2MOD`) para efectos y límites de fetch |
+| [ylimited-corkscrew.md](ylimited-corkscrew.md) | **Corkscrew Y-limited**: registros que intervienen (`DIWSTRT/STOP`, `DDFSTRT/STOP`, `BPL1MOD/2MOD` —impares=P F1, pares=PF2—, `BPLxPT`, `BPLCON1`), geometría de bitmap de la referencia, modulo-trick con sobre-fetch y **desviaciones medidas del engine (roto, DT-006)** |
 | [dual-layer.md](dual-layer.md) | Dos capas gráficas (dual playfield vs otras composiciones) |
 | [robocod-layered-scroll.md](robocod-layered-scroll.md) | Fondo más lento tras un primer plano (parallax por capas, DPF 2 campos) + raster colors |
 | [copper-chunky.md](copper-chunky.md) | “Chunky” vía copper / cambios por línea |
