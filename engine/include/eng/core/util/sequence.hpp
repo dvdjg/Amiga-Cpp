@@ -128,6 +128,7 @@ struct EventTrack {
 	Event events[MaxEvents] {};
 	eng::u8 count = 0;
 
+	/// Añade un evento `(tick, id)`; `false` si no cabe o el tick rompe el orden.
 	bool add(eng::u16 tick, eng::u16 id) noexcept {
 		if (count >= MaxEvents) {
 			return false;
@@ -162,6 +163,7 @@ struct SequenceRunner {
 
 	void play() noexcept { playing = true; }
 	void pause() noexcept { playing = false; }
+	/// Reinicia el reproductor a tick 0; `start_playing` decide si queda en marcha.
 	void reset(bool start_playing = true) noexcept {
 		tick = 0u;
 		finished = false;

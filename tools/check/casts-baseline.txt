@@ -5,10 +5,10 @@
   0     4  engine/include/eng/ai/decision/behavior_tree.hpp
   0     1  engine/include/eng/ai/decision/blackboard.hpp
   0     4  engine/include/eng/ai/decision/utility.hpp
-  0    19  engine/include/eng/ai/navigation/flow_field.hpp
+  0    17  engine/include/eng/ai/navigation/flow_field.hpp
   0    24  engine/include/eng/ai/navigation/navmesh_lite.hpp
   0     5  engine/include/eng/ai/navigation/waypoints.hpp
-  0     2  engine/include/eng/ai/perception/influence_map.hpp
+  0     3  engine/include/eng/ai/perception/influence_map.hpp
   0    57  engine/include/eng/ai/planning/goap.hpp
   0     2  engine/include/eng/ai/planning/htn.hpp
   0     5  engine/include/eng/ai/steering/crowd.hpp
@@ -19,11 +19,12 @@
   0    25  engine/include/eng/api/effects/risky_woods.hpp
   1    43  engine/include/eng/api/effects/sprite_layer.hpp
   0     3  engine/include/eng/api/framebuffer.hpp
+  0    19  engine/include/eng/api/objects.hpp
   0     1  engine/include/eng/api/scroll.hpp
-  0     1  engine/include/eng/api/sprites.hpp
+  0     3  engine/include/eng/api/sprites.hpp
   4    35  engine/include/eng/assets/uaf.hpp
   0     7  engine/include/eng/audio/acp1_stream.hpp
-  0    19  engine/include/eng/audio/acp1_v3.hpp
+  0    18  engine/include/eng/audio/acp1_v3.hpp
   0    29  engine/include/eng/audio/acp1.hpp
   0    12  engine/include/eng/audio/aplib.hpp
   0     3  engine/include/eng/audio/asm_codec.hpp
@@ -83,7 +84,7 @@
   0     1  engine/include/eng/core/data/crc32.hpp
   0     1  engine/include/eng/core/data/ct_array.hpp
   0    17  engine/include/eng/core/data/mesh3d.hpp
-  0     1  engine/include/eng/core/data/polygon.hpp
+  0     4  engine/include/eng/core/data/polygon.hpp
   0     4  engine/include/eng/core/data/rtc.hpp
   0     1  engine/include/eng/core/data/sort.hpp
   0     9  engine/include/eng/core/data/utf8.hpp
@@ -94,7 +95,7 @@
   0    80  engine/include/eng/core/math/fixed_math.hpp
   0    50  engine/include/eng/core/math/fixed.hpp
   0     2  engine/include/eng/core/math/isqrt.hpp
-  0     5  engine/include/eng/core/math/light.hpp
+  0     6  engine/include/eng/core/math/light.hpp
   0    10  engine/include/eng/core/math/linalg.hpp
   0    49  engine/include/eng/core/math/minifloat_math.hpp
   0   105  engine/include/eng/core/math/minifloat.hpp
@@ -131,14 +132,14 @@
   4     0  engine/include/eng/core/util/heap_alloc.hpp
   0     4  engine/include/eng/core/util/interval.hpp
   0    12  engine/include/eng/core/util/intmath.hpp
-  0     2  engine/include/eng/core/util/lru_cache.hpp
-  0    41  engine/include/eng/core/util/pathfinding.hpp
+  0    39  engine/include/eng/core/util/pathfinding.hpp
   0     4  engine/include/eng/core/util/pool.hpp
   0     5  engine/include/eng/core/util/quantizer.hpp
+  0     4  engine/include/eng/core/util/sequence.hpp
   6     0  engine/include/eng/core/util/small_vector.hpp
   0     1  engine/include/eng/core/util/sparse_set.hpp
   0     1  engine/include/eng/core/util/static_vector.hpp
-  0    11  engine/include/eng/core/util/stats.hpp
+  0     6  engine/include/eng/core/util/stats.hpp
   1     1  engine/include/eng/core/util/string_interner.hpp
   0     1  engine/include/eng/core/util/string_view.hpp
   0     9  engine/include/eng/core/util/text.hpp
@@ -156,7 +157,7 @@
   0     6  engine/include/eng/debug/run_status.hpp
   0    10  engine/include/eng/debug/telemetry.hpp
   0    23  engine/include/eng/field/amiga_display_mapper.hpp
-  0     7  engine/include/eng/field/chunk_cache.hpp
+  0     5  engine/include/eng/field/chunk_cache.hpp
   0    11  engine/include/eng/field/cpu_primitives.hpp
   0     2  engine/include/eng/field/double_buffer_playfield.hpp
   0     2  engine/include/eng/field/flat_playfield.hpp
@@ -210,13 +211,14 @@
   0     2  engine/include/eng/graphics/playfield_scroll.hpp
   0    15  engine/include/eng/graphics/polygon_planes.hpp
   0     2  engine/include/eng/graphics/raster_intent.hpp
-  0     9  engine/include/eng/graphics/sprite_allocator.hpp
+  0    33  engine/include/eng/graphics/sprite_allocator.hpp
   2     0  engine/include/eng/graphics/sprite_asset.hpp
   0     1  engine/include/eng/graphics/sprite_channel_window.hpp
   0     8  engine/include/eng/graphics/sprite_collision.hpp
   0     4  engine/include/eng/graphics/sprite_line_layer.hpp
-  1    18  engine/include/eng/graphics/sprite_manager.hpp
-  0     2  engine/include/eng/graphics/sprite.hpp
+  0    20  engine/include/eng/graphics/sprite_manager.hpp
+  0     2  engine/include/eng/graphics/sprite_palette.hpp
+  0     6  engine/include/eng/graphics/sprite.hpp
   0    10  engine/include/eng/graphics/tile_planar.hpp
   0     3  engine/include/eng/graphics/tilemap/attribute_table.hpp
   0     8  engine/include/eng/graphics/tilemap/tile_editor.hpp
@@ -270,16 +272,19 @@
   0    40  engine/include/eng/retro/lib2d.hpp
   0    26  engine/include/eng/retro/minifloat_fixed.hpp
   0     2  engine/include/eng/retro/sintab.hpp
-  0     3  engine/include/eng/scene/actor_sprite.hpp
-  0    13  engine/include/eng/scene/actor_store.hpp
+  0    13  engine/include/eng/scene/actor_sprite.hpp
+  0    20  engine/include/eng/scene/actor_store.hpp
   2    16  engine/include/eng/scene/actor_types.hpp
   0     9  engine/include/eng/scene/band_plan.hpp
   0     1  engine/include/eng/scene/banded_target.hpp
+  0    18  engine/include/eng/scene/composite_actor.hpp
   0    35  engine/include/eng/scene/display.hpp
+  0     2  engine/include/eng/scene/formation.hpp
   0     7  engine/include/eng/scene/layer.hpp
   0     1  engine/include/eng/scene/representation.hpp
   0    32  engine/include/eng/scene/route_camera.hpp
   0    23  engine/include/eng/scene/scroll_plan.hpp
+  0    15  engine/include/eng/scene/trajectory.hpp
   0    25  engine/include/eng/scene/virtual_scene.hpp
   0     3  engine/include/eng/sim/archetypes.hpp
   0    10  engine/include/eng/sim/avatar.hpp

@@ -59,11 +59,13 @@ enum class SpritePaletteDecision : u8 {
 
 namespace sprite_palette_detail {
 
+/// ¿Se solapan las franjas de líneas (`top`..`bottom`) de dos usos?
 [[nodiscard]] constexpr bool lines_overlap(const SpritePaletteNeed& a,
 					   const SpritePaletteNeed& b) noexcept {
 	return a.top < b.bottom && b.top < a.bottom;
 }
 
+/// ¿Se solapan los rangos de registros `[first, first+count)` de dos usos? (count 0 = vacío)
 [[nodiscard]] constexpr bool regs_overlap(const SpritePaletteNeed& a,
 					  const SpritePaletteNeed& b) noexcept {
 	return a.count != 0u && b.count != 0u && a.first < static_cast<u8>(b.first + b.count) &&

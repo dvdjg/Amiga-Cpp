@@ -105,6 +105,7 @@ public:
 	}
 
 	[[nodiscard]] eng::u16 count() const noexcept { return m_count; }
+	/// ¿El id corresponde a un actor vivo? (`id < MaxActors` y entrada activa).
 	[[nodiscard]] bool valid(Id id) const noexcept {
 		return id < MaxActors && m_entries[id].active;
 	}
@@ -413,6 +414,8 @@ private:
 		return true;
 	}
 
+	/// Dibuja un BOB derivado del `Visual` (layout + transparencia) en el plan: puente
+	/// entre la descripción de escena y `bob_draw`.
 	static bool draw_bob(eng::graphics::FramePlan& plan, const eng::graphics::BobTarget& target,
 			     const eng::graphics::Visual& v, eng::u8 frame, eng::s16 x, eng::s16 y,
 			     eng::graphics::BobLayout layout,
