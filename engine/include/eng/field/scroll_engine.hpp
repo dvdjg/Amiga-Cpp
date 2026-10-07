@@ -181,6 +181,15 @@ public:
         if constexpr (requires { sn.finite_x(); }) return sn.finite_x();
         else return false;
     }
+    /// ¿El eje Y es lineal acotado? Mismo contrato que `finite_x` pero para el eje
+    /// vertical: el atajo de pintar la fila completa al cruzar de fila de mapa solo
+    /// vale si el eje Y no envuelve. Los sinks sin `finite_y` conservan el
+    /// comportamiento previo (`finite_x`). Con corkscrew (`y_mode = Ring`) esto es
+    /// false → walk incremental del anillo (sin picos de ~1 campo cada cruce).
+    inline bool finite_y(const Sink& sn) const {
+        if constexpr (requires { sn.finite_y(); }) return sn.finite_y();
+        else return finite_x(sn);
+    }
     // Cociente/resto por tile_width: shift/mask si C.tile_width es potencia de 2.
     inline u16 q_tw(const Sink& sn, s32 v) const {
         if constexpr (C.tile_width != 0u) return fast_div<C.tile_width>::q(static_cast<u32>(v));
@@ -557,7 +566,7 @@ public:
     /// Scroll vertical 1 px hacia abajo — ScrollDown corkscrew.
     /// Fiel a ScrollDown de Scroller_XYLimited/main.c:639-749.
     bool scroll_down(graphics::FramePlan& plan, Sink& sn) {
-        if (finite_x(sn)) {
+        if (finite_y(sn)) {
             // Y corkscrew con X lineal: la fila entrante ocupa TODO el ancho del
             // bitmap (no hay desplazamiento plane-shifted del anillo X). Se pinta
             // UNA vez por fila de mapa (no por pixel): la banda se revela luego.
@@ -573,6 +582,24 @@ public:
             }
             ++m_state.mapposy;
             m_state.videoposy = static_cast<s32>(r_dh(sn, static_cast<u32>(m_state.mapposy)));
+            return true;
+        }
+        if (finite_x(sn)) {
+            // Y con anillo y X finita: fila entrante en RODAJAS (espejo del
+            // scroll_up): 1/16 de las columnas por sub-paso de 1 px.
+            const s32 limitY = static_cast<s32>(sn.map_height_blocks()) * th(sn) - sn.viewport_h();
+            if (sn.map_wrap_y() == 0 && m_state.mapposy >= limitY) return false;
+            ++m_state.mapposy;
+            m_state.videoposy = static_cast<s32>(r_dh(sn, static_cast<u32>(m_state.mapposy)));
+            const u16 k = r_th(sn, m_state.mapposy); // 0..15: rodaja dentro del tile
+            const u16 cols = sn.bitmap_blocks_per_row();
+            const u16 c0 = static_cast<u16>((static_cast<u32>(k) * cols) >> 4u);
+            const u16 c1 = static_cast<u16>(((static_cast<u32>(k) + 1u) * cols) >> 4u);
+            const u32 y_pl = block_videoposy(sn) * planes(sn);
+            const u16 mapy = static_cast<u16>(q_th(sn, m_state.mapposy) + sn.bitmap_blocks_per_col());
+            for (u16 c = c0; c < c1; ++c) {
+                if (!sn.add_draw(plan, static_cast<u16>(c * tw(sn)), static_cast<u16>(y_pl), c, mapy)) return false;
+            }
             return true;
         }
         const s32 limitY = static_cast<s32>(sn.map_height_blocks()) * th(sn) -
@@ -635,7 +662,7 @@ public:
     /// re-fill del anillo (ver README §7.9). Por eso aquí se BLOQUEA en
     /// mapposy<1 (igual que ScrollLeft): la demo 201 acota la cámara a [0,max].
     bool scroll_up(graphics::FramePlan& plan, Sink& sn) {
-        if (finite_x(sn)) {
+        if (finite_y(sn)) {
             if (m_state.mapposy < 1) return false;
             const u16 row_before = q_th(sn, m_state.mapposy);
             --m_state.mapposy;
@@ -648,6 +675,29 @@ public:
                 for (u16 c = 0; c < cols; ++c) {
                     if (!sn.add_draw(plan, static_cast<u16>(c * tw(sn)), static_cast<u16>(y_pl), c, mapy)) return false;
                 }
+            }
+            return true;
+        }
+        if (finite_x(sn)) {
+            // Y con anillo y X finita: la fila entrante NO usa el walk
+            // plane-shifted (asume anillo también en X). Se pinta la fila
+            // completa en RODAJAS: cada sub-paso de 1 px pinta 1/16 de las
+            // columnas, de modo que la fila queda pintada justo antes de
+            // revelarse sin el pico de ~1 campo por cruce (27 blits de golpe).
+            if (m_state.mapposy < 1) return false;
+            --m_state.mapposy;
+            m_state.videoposy = static_cast<s32>(r_dh(sn, static_cast<u32>(m_state.mapposy)));
+            const u16 k = r_th(sn, m_state.mapposy); // 0..15: rodaja dentro del tile
+            const u16 cols = sn.bitmap_blocks_per_row();
+            const u16 c0 = static_cast<u16>((static_cast<u32>(k) * cols) >> 4u);
+            const u16 c1 = static_cast<u16>(((static_cast<u32>(k) + 1u) * cols) >> 4u);
+            const u16 mapy = q_th(sn, m_state.mapposy);
+            // Fila del anillo fija para toda la fila: `block_videoposy` =
+            // r_dh(q_th*tile_height), la primera fila del tile en el anillo
+            // (constante mientras `q_th` no cambia).
+            const u32 y_pl = block_videoposy(sn) * planes(sn);
+            for (u16 c = c0; c < c1; ++c) {
+                if (!sn.add_draw(plan, static_cast<u16>(c * tw(sn)), static_cast<u16>(y_pl), c, mapy)) return false;
             }
             return true;
         }

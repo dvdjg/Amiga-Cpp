@@ -19,18 +19,25 @@ public:
         u16 width = 320;      // ancho visible en píxeles
         u16 height = 32;      // alto en filas (p. ej. franja HUD)
         u8 planes = 4;        // nº de planos de bitplane
+        u16 row_bytes = 0;    // 0 = auto (width/8); si >0, stride de plano (>= width/8+2
+                              // si el display usa el fetch ancho del corkscrew, DDFSTRT=$30)
+        u16 x_offset_px = 0;  // guarda izquierda: píxeles de la ventana visible que se
+                              // desplazan dentro de la fila (16 con DDF $30; 0 con $38)
     };
 
-    /// Reserva el framebuffer en Chip RAM (interleaved, `width/8*height*planes`).
+    /// Reserva el framebuffer en Chip RAM (interleaved, `row_bytes*height*planes`).
     bool begin(MemoryManager& memory, const Config& cfg) {
         if (cfg.width == 0 || cfg.height == 0 || cfg.planes == 0 || cfg.planes > 6) return false;
         gfx::BitmapConfig bc;
-        bc.width = cfg.width;
+        bc.width = static_cast<u16>(cfg.width + cfg.x_offset_px);
         bc.height = cfg.height;
         bc.planes = cfg.planes;
+        bc.row_bytes = cfg.row_bytes;
         bc.layout = gfx::PlaneLayout::Interleaved;
         if (!m_bitmap.init(memory, bc)) return false;
         sync_from_bitmap();
+        m_width = cfg.width; // coordenadas del juego = fila visible (sin la guarda)
+        m_x_offset_px = cfg.x_offset_px;
         __builtin_memset(m_frontbuffer.ptr(), 0, m_total_bytes);
         m_initialized = true;
         return true;
@@ -45,7 +52,9 @@ public:
             cfg.planes > 6u) {
             return false;
         }
-        const u16 row = static_cast<u16>((cfg.width / 8u) & ~1u);
+        const u16 row = cfg.row_bytes != 0
+            ? cfg.row_bytes
+            : static_cast<u16>(((cfg.width + cfg.x_offset_px) / 8u) & ~1u);
         const u32 need = static_cast<u32>(row) * cfg.planes * cfg.height;
         if (static_cast<u32>(bitplanes.view.size()) < need) return false;
         m_bound = bitplanes.view;
@@ -53,6 +62,7 @@ public:
         m_height = cfg.height;
         m_planes = cfg.planes;
         m_bytes_per_row = row;
+        m_x_offset_px = cfg.x_offset_px;
         m_total_bytes = need;
         m_frontbuffer = bitplanes.mem_view_chip().address(); // vía cruda interna (núcleo)
         m_initialized = true;
@@ -70,7 +80,9 @@ public:
         return eng::math::mulu16(static_cast<u16>(wy), m_planes);
     }
     u32 byte_for(eng::pix wx) const override {
-        return static_cast<u32>(wx / 8) & ~1u;
+        // `wx` es coordenada de juego (0..width-1); la guarda izquierda desplaza la
+        // fila dentro del bitmap (16 px con el fetch $30 del corkscrew).
+        return static_cast<u32>(wx + m_x_offset_px) / 8u;
     }
     u32 mirror_planelines() const override { return 0; }
     bool supports_walk() const override { return false; }
@@ -118,7 +130,7 @@ public:
                           u8 planes, u8 source_shift = 0u, bool descending = false,
                           RasterOp op = RasterOp::Copy) override {
         if (!m_initialized || src.empty() || planes == 0) return false;
-        if (wx < 0 || (wx & 15) != 0 || static_cast<u32>(wx / 8) + (w / 8u) > m_bytes_per_row) return false;
+        if (wx < 0 || (wx & 15) != 0 || static_cast<u32>((wx + m_x_offset_px) / 8) + (w / 8u) > m_bytes_per_row) return false;
         if (wy < 0 || static_cast<u32>(wy) + h > m_height) return false;
         const u16 words = static_cast<u16>(w / 16u);
         const u32 need_src = (planes > 1u ? eng::math::mulu16(static_cast<u16>(planes - 1u), static_cast<u16>(src_plane_stride / 2u)) : 0u)
@@ -126,7 +138,7 @@ public:
                            + static_cast<u32>(words);
         if (src.size() < need_src) return false;
         const bool logic = op != RasterOp::Copy;
-        const u16 x_byte = static_cast<u16>(wx / 8u);
+        const u16 x_byte = static_cast<u16>((wx + m_x_offset_px) / 8u);
         const u32 pl = eng::math::mulu16(static_cast<u16>(wy), m_planes);
         const s16 src_mod = eng::graphics::mod16(static_cast<s32>(src_row_bytes) - static_cast<s32>(words) * 2);
         const s16 dst_mod = eng::graphics::mod16(static_cast<s32>(eng::math::mulu16(m_bytes_per_row, m_planes)) - static_cast<s32>(words) * 2);
@@ -152,7 +164,7 @@ public:
                                  u32 src_plane_stride, u8 planes,
                                  u8 source_shift = 0u) override {
         if (!m_initialized || src.empty() || mask.empty() || planes == 0) return false;
-        if (wx < 0 || (wx & 15) != 0 || static_cast<u32>(wx / 8) + (w / 8u) > m_bytes_per_row) return false;
+        if (wx < 0 || (wx & 15) != 0 || static_cast<u32>((wx + m_x_offset_px) / 8) + (w / 8u) > m_bytes_per_row) return false;
         if (wy < 0 || static_cast<u32>(wy) + h > m_height) return false;
         const u16 words = static_cast<u16>(w / 16u);
         // El origen debe cubrir los `planes` planos; la máscara es UN plano de 1
@@ -163,7 +175,7 @@ public:
         const u32 need_mask = (h > 1u ? eng::math::mulu16(static_cast<u16>(h - 1u), static_cast<u16>(src_row_bytes / 2u)) : 0u)
                             + static_cast<u32>(words);
         if (src.size() < need_src || mask.size() < need_mask) return false;
-        const u16 x_byte = static_cast<u16>(wx / 8u);
+        const u16 x_byte = static_cast<u16>((wx + m_x_offset_px) / 8u);
         const u32 pl = eng::math::mulu16(static_cast<u16>(wy), m_planes);
         const s16 src_mod = eng::graphics::mod16(static_cast<s32>(src_row_bytes) - static_cast<s32>(words) * 2);
         const s16 dst_mod = eng::graphics::mod16(static_cast<s32>(eng::math::mulu16(m_bytes_per_row, m_planes)) - static_cast<s32>(words) * 2);
@@ -195,6 +207,8 @@ private:
     gfx::Bitmap m_bitmap {};
     /// Bitplanes externos cuando el lienzo se construyó con `bind` (vacio con `begin`).
     eng::Block<eng::PlaneTag> m_bound {};
+    /// Guarda izquierda (px) sumada en `byte_for`; no altera las coordenadas de juego.
+    u16 m_x_offset_px = 0;
 };
 
 } // namespace eng::playfield

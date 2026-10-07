@@ -174,7 +174,7 @@ constexpr eng::u16 kViewportW = 320;
 // 208 (13 filas de tile) como canónico (igual que 201/202). NO usar 256.
 constexpr eng::u16 kViewportH = 208;
 constexpr eng::u8  kPlanes = 3;            // planos POR playfield (DPF 3+3 = 6 HW)
-constexpr eng::u16 kDisplayH = 288;        // anillo = 256 + 2*16
+constexpr eng::u16 kDisplayH = kViewportH + 2 * kTileH; // anillo = visible + 2 bloques de staging (240)
 
 // Mundo: 400 x 2048 px -> 25 x 128 tiles.
 constexpr eng::u16 kMapCols = 25;
@@ -234,11 +234,14 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011001u);
 			return;
 		}
-		// Mapa: rejilla de tiles determinista (128 tiles).
+		// AISLAMIENTO SCROLL: cada fila del mapa usa `y & 15` como tile (glifo = nº de fila
+		// módulo 16). Así el dígito visible en cada fila de pantalla identifica su fila de
+		// mapa y se puede comparar «esperado vs real» frame a frame. (Temporal; revertir.)
 		for (eng::u16 y = 0; y < kMapRows; ++y) {
 			for (eng::u16 x = 0; x < kMapCols; ++x) {
+				(void)x;
 				g_map[static_cast<eng::u32>(y) * kMapCols + x] =
-					static_cast<eng::u16>(playfield::demo::cell_hash(x, y, 0x5eedu) & (kTilesetCount - 1u));
+					static_cast<eng::u16>(y & 15u); // AISLAMIENTO: glifo = fila mod 16
 			}
 		}
 
@@ -311,6 +314,7 @@ struct DemoGame {
 		// single-buffer y el haz ya barre la torreta (y≈36) ~3 ms tras el VBlank. Si el FG
 		// se pinta después del scroll, el borrado+repintado coincide con el barrido y la
 		// torreta se ve a medias o desaparece (flicker). El color 0 de PF2 es transparente.
+#if 0 // AISLAMIENTO SCROLL: sin capa FG (nave/balas/torreta)
 		ENG_PROF_BEGIN(2); // sección 2: FG (objetos)
 		const eng::s16 ship_y = static_cast<eng::s16>(kViewportH - 16); // fila visible más baja
 		{
@@ -384,6 +388,7 @@ struct DemoGame {
 			m_cannon_valid = true;
 		}
 		ENG_PROF_END(2);
+#endif // AISLAMIENTO SCROLL
 
 		// --- BG: scroll + composición (tras el FG: el blitter tarda más y su contenido no
 		//     tiene el hueco de borrado del dirty-rect) --------------------------
@@ -395,17 +400,19 @@ struct DemoGame {
 		                                        : (cur_x - target_x > 2 ? -2 : target_x - cur_x);
 		const eng::s32 dy = -2;
 
-		ENG_PROF_BEGIN(0); // sección 0: scroll + blits
+		ENG_PROF_BEGIN(0); // sección 0: cálculo de scroll (update_scroll)
 		if (!scene.bg().update_scroll(plan, dx, dy)) {
 			// Tope del mundo (arriba): reinicia abajo (demo infinita).
 			scene.bg().set_camera(kViewportW / 4, static_cast<eng::s32>(kMapRows * kTileH) - kViewportH);
 		}
+		ENG_PROF_END(0);
+		ENG_PROF_BEGIN(3); // sección 3: ejecución del plan (blits)
 		if (!backend.execute_frame_plan(plan)) {
 			ready = false;
 			eng::debug::mark_failed(g_eng_run_status, 0x00011010u);
 			return;
 		}
-		ENG_PROF_END(0);
+		ENG_PROF_END(3);
 		ENG_PROF_BEGIN(1); // sección 1: compose (copperlist)
 		if (!scene.compose()) {
 			ready = false;

@@ -209,6 +209,10 @@ struct XlimitedDualConfig {
     bool enabled = false;             // DPF: dos playfields (3+3 o con lienzo)
     bool fg_canvas = false;           // DPF heterogéneo: el "fg" es un CanvasPlayfield
     bool foreground_is_pf2 = false;   // true = PF2 (2º campo / lienzo fg) DELANTE
+    // Ancho de la banda de guardia del lienzo FG (16 ó 32 px): la fila del lienzo
+    // debe cubrir el fetch real del DDF del corkscrew (viewport_w/8 + 2 B) más la
+    // guarda izquierda de 16 px que el fetch $30 desplaza fuera de la ventana.
+    u16 fg_guard_px = 16;
                                       // (BPLCON2.PF2PRI). Para objetos sobre el BG.
     bool parallax_x = false;          // el segundo playfield a velocidad reducida en X
     eng::u8 parallax_x_div = 2;
@@ -517,8 +521,12 @@ public:
         }
         // FG como lienzo plano (DPF heterogéneo): el BG es el corkscrew, el FG un
         // CanvasPlayfield estático de viewport_w × viewport_h y `planes` bitplanes.
+        // Bajo el DDF $30 ambos campos comparten fetch (viewport_w/8 + 2 B) y la
+        // ventana visible empieza 16 px dentro de la fila → `row_bytes` cubre el
+        // fetch + la guarda (fg_guard_px) y `x_offset_px` compensa la guarda.
         if (cfg.dpf.enabled && cfg.dpf.fg_canvas) {
-            if (!m_fg_canvas.begin(memory, {cfg.viewport_w, cfg.viewport_h, cfg.planes})) return eng::util::unexpected(eng::Result::OutOfMemory);
+            const u16 fg_row = static_cast<u16>((cfg.viewport_w + cfg.dpf.fg_guard_px) / 8u);
+            if (!m_fg_canvas.begin(memory, {cfg.viewport_w, cfg.viewport_h, cfg.planes, fg_row, 16u})) return eng::util::unexpected(eng::Result::OutOfMemory);
         }
         m_phase_frame = 0;
         m_phase = cfg.path.start_phase; // fase inicial del ciclo (update_auto)

@@ -94,6 +94,35 @@ roadmap debe atribuir esa cifra a los elementos de la tabla con el perfilador.
   plano para PF1/PF2 y el modulo-trick con sobre-fetch; el engine usa `viewport 208 + 288`,
   sin fillup ni sobre-fetch.
 
+## F3 — corkscrew corregido y 50 fps (banco scroll-only, actualizado)
+
+**Causas raíz encontradas y corregidas** (todas verificadas con la copperlist viva por el canal lateral y `qOffsets` por RSP):
+
+1. **WAIT del split obsoleto**: el camino caliente del composer dual (`patch`) parcheaba los punteros cada frame pero **no la línea del WAIT** (no tenía handle). Medido: WAIT en raster 43 (fila 2) con punteros a 142 filas → costura rota. Corregido grabando el handle en `emit_full` y reescribiendo la palabra del WAIT en `patch` (`xlimited_composer.hpp`). Verificado de nuevo: WAIT raster 47 (fila 6) con Δ=234×162 B → 234+6=240 ✓ coherente.
+2. **BPLCON1 (fine X) obsoleto**: tampoco se parcheaba en el camino caliente. Corregido con handle del MOVE.
+3. **Pico por eje Y con `x=Finite`+`y=Ring`**: un único flag `finite_x()` hacía que el Y usara el atajo «pinta la fila entera al cruzar» → pico de CPU+Blitter (~87k ciclos de blits) cada cruce; medido por secciones: sec0 avg 38k con mínimos de 1k (ráfagas) → 1.252 campos/frame. Corregido con `finite_y()` por eje (`scroll_engine.hpp`): el Y con anillo usa el walk incremental.
+4. **Geometría del lienzo PF2**: fila 40 B < fetch 42 B del DDF $30 (desbordaba a la fila del plano siguiente) y sin guarda izquierda. Corregido: `CanvasPlayfield` acepta `row_bytes`/`x_offset_px` (guardas 16/32 px) y la escena crea el lienzo con fila 42 B + offset 16. En vivo: `BPL2MOD=$0054` (84 = 42·3−42) ✓.
+5. **Anillo a 240** (= viewport 208 + 2 bloques, como la referencia) en vez del 288 forzado.
+
+**Medidas** (bench aislado de scroll; mapa de glifos por fila; FG desactivado; X patrulla + Y 2 px/frame):
+
+| Estado | fps | ciclos/frame | campos/frame |
+|---|---|---|---|
+| Antes (con los bugs) | 39.94 | 177 628 | 1.252 |
+| Ejes congelados (control del bucle) | 49.92 | 142 102 | 1.002 |
+| Con walk genérico del anillo (contenido roto) | 49.92 | 142 102 | 1.002 |
+| **Ahora (fila en rodajas, anillo correcto)** | **49.87** | **142 244** | **1.003** |
+
+**Enrollado del anillo (fila en rodajas).** El walk genérico del corkscrew asume anillo también en X; con `x=Finite` escribía la fila entrante con contenido mezclado (visión: f0086 «fila F seguida de 1s»; f0130 «dos bloques 4-8 y A-F»). Corregido en `scroll_engine.hpp`: con `finite_x` + `y=Ring` la fila entrante se pinta **en rodajas** (1/16 de las columnas por sub-paso de 1 px) en la fila fija del anillo (`block_videoposy`), sin walk plane-shifted y sin el pico de fila completa.
+
+**Verificación visual (Ollama, prompts crudos en el informe de ejecución):** misma secuencia y mismos índices antes/después: f0086 (envoltura) marcaba la fila mezclada → ahora f0087 «¿fila que mezcle dos caracteres? No; ¿ruido/bloques? No»; f0130 marcaba los dos bloques → ahora f0131 «sin discontinuidades ni anomalías»; f0089/f0209 limpias.
+
+**Gate de flicker:** `test-regression.sh --flicker --require-flicker-ok` → **Regression OK**, `DuplicatePairs=0`, `ChangedPairs=5`, `MeanDiffAvg=30.3`, sin picos (`MaxDiff=40.1`).
+
+**Artefactos de la pasada** (§6.5 de `DEMO_VISUAL_DEBUG.md`): informe crudo `out/run/110_ylimited_shooter/A500_debug/110_ylimited_shooter_report.md`; capturas con nombre canónico en `out/run/110_ylimited_shooter/A500_debug/vision/110_ylimited_shooter_f0087.png` (y f0089/f0131/f0209); ambas rutas bajo `out/` (gitignored). Herramienta: `tools/analyze/vision-run.mjs`.
+
+**Alcance probado / SIN VERIFICAR**: cubre el scroll vertical del anillo (geometría, split, punteros, mods, enrollado, flicker, 50 fps) en el banco scroll-only. **Sin verificar**: el fine X con mapa no uniforme (1 px/píxel), el FG reactivado (≈307k → DT-001 F4) y la demo con su mapa real. El bench conserva aislamiento (mapa de glifos + `#if 0` del FG): revertir al cerrar la validación final.
+
 ## Conclusiones
 
 1. **Primeros auxilios validados** (commit `3067365e`): nave visible y en vaivén suave, torreta presente en 40/40 capturas (antes: 0/parcial en ~50%), cañón dibujado.

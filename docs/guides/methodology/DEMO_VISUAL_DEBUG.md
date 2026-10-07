@@ -192,3 +192,16 @@ Responde en español.
 La fase C no sustituye a A/B: es la comprobación contra la intención, no la fuente de la verdad.
 
 **Informe por demo.** Cada demo mantiene un `VALIDATION.md` en su carpeta con: prompts exactos enviados (A/B/C), **respuestas crudas** del modelo, medidas objetivas (fps/ciclos, `tools/analyze/check-elements.mjs`, band-diff) y conclusiones. Es la evidencia de F4/F5 del `PROCEDIMIENTO_DEMOS_Y_JUEGOS.md` y se actualiza en cada pasada que cambie el render o el coste.
+
+### 6.5 Artefactos de una pasada de visión: nombres y ubicación
+
+Toda pasada de visión deja **dos artefactos** con nombre canónico, siempre bajo `out/` (el `.gitignore` excluye `/out/*`; **nunca** se copian capturas a `docs/` ni a la carpeta de la demo):
+
+| Artefacto | Ruta | Nombre |
+|---|---|---|
+| Capturas analizadas | `out/run/<demoId>/<config>/vision/` | `<demoId>_fNNNN.png` (NNNN = frame real; si el índice de la secuencia no es el frame, `<demoId>_sNNN.png`) |
+| Informe de ejecución | `out/run/<demoId>/<config>/` | `<demoId>_report.md` — **idéntico al nombre del directorio de la demo** |
+
+El informe (`<demoId>_report.md`) contiene: comando exacto, tramo de secuencia y frames analizados, medidas de la pasada, **prompts crudos y respuestas crudas** por frame, y la conclusión con el alcance probado y lo SIN VERIFICAR. Es el crudo de la pasada; el `VALIDATION.md` de la demo (commiteado, junto a `main.cpp`) es el resumen canónico.
+
+Herramienta: `node tools/analyze/vision-run.mjs <demoId> <config> <dirSeq> <idx…> --prompt "…" [--prompt "…"] [--model …] [--conclusion "…"]` — copia los frames con el nombre canónico, interroga a Ollama (una imagen por llamada, §6.4) y **escribe/agrega** `<demoId>_report.md`. El índice `idx` es el número de la secuencia (`frame_<idx>_*.png`); de ahí sale el frame real para el nombre.

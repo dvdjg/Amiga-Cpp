@@ -378,6 +378,16 @@ public:
         if (!m_ok) return false;
         if (pf1.split_active != m_split_a || pf2.split_active != m_split_b) return false;
         u16* const w = m_copper.inactive_words();
+        // BPLCON1 (fine X de ambos campos) y la LÍNEA del WAIT del split avanzan
+        // cada frame de scroll: se reescriben aquí sin re-emitir la lista.
+        w[m_patch_bplcon1_word + 1u] = static_cast<u16>(
+            ((pf2.bplcon1 & 0x0f) << 4) | (pf1.bplcon1 & 0x0f));
+        if (m_patch_split_wait_word != 0xffffu) {
+            const u16 sl = pf1.split_active ? pf1.split_line : pf2.split_line;
+            const u16 raster = static_cast<u16>((m_cfg.diwstrt >> 8u) + sl);
+            const u8 wait = raster > 0xffu ? 0xffu : static_cast<u8>(raster);
+            w[m_patch_split_wait_word] = static_cast<u16>((static_cast<u16>(wait) << 8u) | 0x01u);
+        }
         for (u8 i = 0; i < m_cfg.planes_per_field; ++i) {
             const uintptr a1 = field_plane_address(pf1, i, pf1.planeaddy).value;
             const uintptr a2 = field_plane_address(pf2, i, pf2.planeaddy).value;
@@ -471,7 +481,9 @@ private:
             static_cast<u16>(copper::DmaSetClear | copper::DmaMaster |
                              copper::DmaCopper | copper::DmaBitplane));
         sched.move(copper::Register::BPLCON0, bplcon0);
-        sched.move(copper::Register::BPLCON1, bplcon1);
+        // Handle del MOVE de BPLCON1: el fine X cambia con cada pixel de scroll y
+        // el camino caliente solo parchea words (no re-emite la lista).
+        m_patch_bplcon1_word = sched.move_at(copper::Register::BPLCON1, bplcon1);
         sched.move(copper::Register::BPLCON2, m_cfg.foreground_is_pf2 ? 0x0040u : 0x0000u);
         // Módulos: en DPF AMBOS playfields se muestran con el MISMO DDF/fetch, así
         // que el módulo de cada uno debe usar el fetch real de PF1 (no el suyo
@@ -513,10 +525,14 @@ private:
         // (split) y el otro lineal/mirror (sin split, Y independiente): el lineal
         // nunca se re-apunta, su display lee contiguo su mirror.
         const bool aS = pf1.split_active, bS = pf2.split_active;
+        m_patch_split_wait_word = 0xffffu;
         if (aS || bS) {
             const u16 split_line = aS ? pf1.split_line : pf2.split_line;
             raster = static_cast<u16>((m_cfg.diwstrt >> 8u) + split_line);
             const u8 wait = raster > 0xffu ? 0xffu : static_cast<u8>(raster);
+            // Handle de la word del WAIT: el camino caliente reescribe la LÍNEA
+            // (el split avanza cada pixel de scroll; re-emitir costaría ~63K).
+            m_patch_split_wait_word = sched.words_used();
             sched.wait_line(wait);
             for (u8 i = 0; i < m_cfg.planes_per_field; ++i) {
                 if (aS) {
@@ -555,6 +571,10 @@ private:
     u16 m_patch_pf2[6][2] {};
     u16 m_patch_split_pf1[6][2] {};
     u16 m_patch_split_pf2[6][2] {};
+    /// Word de la instrucción MOVE de BPLCON1 (0xffff si no aplica).
+    u16 m_patch_bplcon1_word = 0xffffu;
+    /// Word de la instrucción WAIT del split (0xffff = la lista no lleva split).
+    u16 m_patch_split_wait_word = 0xffffu;
     bool m_split_a = false;
     bool m_split_b = false;
 };

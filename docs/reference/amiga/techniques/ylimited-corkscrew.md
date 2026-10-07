@@ -35,7 +35,9 @@ ficha documenta los registros que intervienen, el algoritmo correcto (referencia
 - **Fillup-row/col**: la fila/columna de relleno se mueve al cruzar fronteras de bloque y ambos
   se corrigen mutuamente (blits de corrección con backup de la planeline que se pisa).
 
-## 3. Desviaciones del engine (medidas con el banco aislado, 2026-10)
+## 3. Desviaciones del motor detectadas y corregidas
+
+> Estado: las cinco desviaciones de esta sección están **corregidas y verificadas** con copperlist viva + medidas (detalle en §5). Se conservan aquí como catálogo de los fallos que el algoritmo puede presentar y sus firmas medibles.
 
 Config de la demo 110: `viewport_h = 208`, `display_height = 288`, `y_mode = Ring`,
 `x_mode = Finite` («puntero directo; no repinta»), `dy = −2` (`src/main.cpp:242-251`).
@@ -61,17 +63,36 @@ Desviaciones:
 4. El screenshot **interno** de 288 líneas recorta la zona donde se ve el fallo; la captura de
    **ventana** (arreglada en `mcp-winuae-emu`, `PrintWindow`) es la evidencia válida.
 
-## 4. Plan de arreglo (incremental)
+## 4. Verificación y trabajo restante
 
-1. Fijar la geometría canónica de la referencia: bitmap `(SCREENWIDTH+16) × (SCREENHEIGHT+32)` y
-   **una sola** `row_bytes` por plano para PF1 y PF2 (misma DDF); calcular `BPL1MOD/BPL2MOD` con
-   el sobre-fetch.
-2. Split/punteros: parchear Hi/Low por línea de split (ya se hace) verificando que **todos** los
-   planos de un campo avanzan igual (`field_plane_address` con el mismo `planeaddy`).
-3. `DIWSTRT/STOP` = pantalla visible (256), no 208; el área extra del bitmap es solo wrap.
-4. Fine X con `BPLCON1` + corrección del fillup de ancho.
-5. Banco de pruebas: 110 **solo-scroll** con filas como glifo (`g_map = y & 15`), captura paso a
-   paso y comparación de dígitos por frame (la expectativa: fila superior = `mapposy/16`,
-   sin duplicados ni filas saltadas).
+### 4.0 Mecanismos localizados en código (análisis estático, corregidos)
+
+- **PF1 fila = 54 B**: con `x_mode = Finite` el bitmap toma el ancho del mundo + guarda:
+  `bitmap_width = world_w + EXTRAWIDTH` (400 + 32 = 432 px → 54 B), y
+  `BPL1MOD = row·planes − (viewport_w/8) − 2 = 54·3 − 42 = 120` ✓ (valor medido)
+  — `xlimited_playfield.hpp:146,152,:234`.
+- **PF2 (canvas)**: corregido a fila 42 B (fetch real) con guarda izquierda de 16 px
+  (`CanvasPlayfield::Config::row_bytes`/`x_offset_px`, `xlimited_scene.hpp`); en vivo
+  `BPL2MOD = 42·3 − 42 = 84` ✓.
+- **Anillo**: `display_height = viewport_h + 2·tile_height` (= 240 para 208); la envoltura
+  `split_line = display_height − display_offset` (`xlimited_composer.hpp`) es coherente con
+  los punteros (verificado: Δpunteros 234 filas + WAIT en fila 6 = 240).
+- **Camino caliente del composer dual**: parchea BPLxPT **y** la palabra del WAIT del split
+  **y** BPLCON1 (antes quedaban obsoletos: costura rota y fine X congelado).
+- **Eje Y**: `finite_y()` separado de `finite_x()`. Con `x=Finite`+`y=Ring`, el atajo de
+  pintar la fila entera al cruzar (modo finito) producía un pico de ~1 campo cada cruce
+  (medido: sec0 avg 38k con min 1k → 1.252 campos/frame) y el walk genérico del corkscrew
+  (que asume anillo también en X) escribía la fila entrante con contenido mezclado. La forma
+  correcta para X finita + Y anillo es la **fila en rodajas**: 1/16 de las columnas por
+  sub-paso de 1 px en la fila fija del anillo (`block_videoposy`), sin walk plane-shifted:
+  **49.87 fps / 1.003 campos** con X e Y activos, enrollado sin costuras (visión + flicker OK).
+
+### 4.1 Trabajo restante
+
+1. Verificar el fine X con mapa no uniforme (1 px/píxel) — el parche de BPLCON1 es nuevo.
+2. Reactivar el FG (≈307k ciclos, DT-001 F4: pre-render + Blitter/BOB) hasta 50 fps.
+3. Casos `linear_display` (visor 256) y viewports con HUD: revalidar con la copperlist.
+4. Repetir en 202 (misma familia DPF) y en 107/201 (single: re-emiten cada frame; evaluar
+   darles el mismo camino caliente con parche de WAIT/BPLCON1).
 
 Deuda relacionada: `ROADMAP_DEUDA_TECNICA.md` DT-006.

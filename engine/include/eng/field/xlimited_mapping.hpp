@@ -141,6 +141,12 @@ constexpr u16 bitmap_blocks_per_row() const { return m_bitmap_blocks_per_row; }
     /// Eje X lineal acotado (sin anillo ni bandas de guarda). Lo consulta el
     /// `ScrollEngine` para mover el puntero sin creep.
     constexpr bool finite_x() const { return m_cfg.x_mode == AxisPolicy::Finite; }
+    /// Eje Y lineal acotado. El atajo del `ScrollEngine` de pintar la fila entera
+    /// al cruzar de fila de mapa SOLO es válido si el eje Y no envuelve; con
+    /// corkscrew (`y_mode = Ring`) el Y usa el walk incremental (1-2 tiles por
+    /// sub-paso). Pintar la fila completa de golpe produce un pico de CPU+Blitter
+    /// de ~1 campo cada cruce (~87K ciclos de blits medidos en la 110).
+    constexpr bool finite_y() const { return m_cfg.y_mode == AxisPolicy::Finite; }
     constexpr u16 block_planes_lines() const { return m_block_planes_lines; }
     constexpr bool initialized() const { return m_initialized; }
     constexpr u16 bpl1mod() const { return m_bpl1mod; }
