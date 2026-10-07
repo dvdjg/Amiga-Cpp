@@ -60,10 +60,10 @@
 // ============================================================================
 
 #include <eng/api/api.hpp>
+#include <eng/debug/peripheral.hpp> // Temporal: instrumentación de coste por sección.
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/os/os.hpp>
 #include <eng/platform/amiga/backend.hpp>
-#include <eng/platform/amiga/input_poll.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -385,41 +385,27 @@ struct SprLayerDemo {
 		plot_text_multi(reinterpret_cast<u8*>(m_sb_ptr) + kSbTextOffset, kSbMod * 3u, kSbMod, 3u,
 				kSubText, sizeof(kSubText) / sizeof(TextLine));
 
-		// Display: activo al principio, pero el efecto (scroll) arranca con el clic.
+		// Display: toma de control y arranque **inmediato** del efecto (sin esperar
+		// eventos): la primera pantalla es el estado inicial del original (capa de
+		// sprites + texto del título) y el scroll empieza en el primer frame.
 		backend.takeover_display(m_clist_ptr[0]);
-		m_state = State::Title;
+		start_main_loop();
 		eng::debug::mark_ready(g_eng_run_status, kDetailReady);
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& c) {
-		if (m_state == State::Title) {
-			// `DBGPause`: el original espera al botón izquierdo (pulsar y soltar) antes
-			// del bucle. Aquí arranca con la **pulsación**: en WinUAE el clic que captura
-			// el ratón puede ser el único que llega a la emulación y esperar al "release"
-			// dejaría la demo parada. Se aceptan además el botón derecho y el fuego de
-			// cualquiera de los dos puertos (comodidad del engine; el original solo mira
-			// el izquierdo). Se cuentan los frames igualmente para que el runner mida la
-			// cadencia con `g_eng_run_status.frame`.
-			eng::input::InputAggregator in {};
-			eng::amiga::poll_input(in);
-			eng::amiga::poll_mouse(in.mouse, m_mouse_poll);
-			eng::debug::mark_frame(g_eng_run_status, c.frame.frame_index);
-			if (in.mouse.left_button || in.mouse.right_button || in.pad0.fire ||
-			    in.pad1.fire) {
-				start_main_loop();
-				m_state = State::Run;
-			} else {
-				return;
-			}
-		}
+		const eng::u32 t0 = eng::debug::DebugPeripheral::cycle_counter();
 		if (m_fg_offset == kFgScrollMax) {
 			// El original deja de actualizar al llegar a las 49 pantallas.
 			eng::debug::mark_frame(g_eng_run_status, c.frame.frame_index);
 			return;
 		}
 		update_spr_ctl();
+		const eng::u32 t1 = eng::debug::DebugPeripheral::cycle_counter();
 		update_layer_pos(backend);
+		const eng::u32 t2 = eng::debug::DebugPeripheral::cycle_counter();
 		update_layer_data(backend);
+		const eng::u32 t3 = eng::debug::DebugPeripheral::cycle_counter();
 		update_fg_tiles(backend);
 		update_counters();
 		update_scroll();
@@ -431,7 +417,17 @@ struct SprLayerDemo {
 		list[m_lay.shift_word] = m_fg_shift;
 		const u8 buf = ((m_c32 & 0x100u) != 0u) ? 0u : 1u;
 		set_fg_ptrs(idx, buf, m_fg_offset);
+		const eng::u32 t4 = eng::debug::DebugPeripheral::cycle_counter();
 		draw_bobs(backend);
+		const eng::u32 t5 = eng::debug::DebugPeripheral::cycle_counter();
+		// Instrumentación temporal (contadores del periférico de depuración).
+		static eng::u32 s_prev_t0 = 0;
+		eng::debug::DebugPeripheral::counter_value(0, t5 - t0); // update total
+		eng::debug::DebugPeripheral::counter_value(1, t2 - t1); // UpdateLayerPos
+		eng::debug::DebugPeripheral::counter_value(2, t3 - t2); // UpdateLayerData
+		eng::debug::DebugPeripheral::counter_value(3, t5 - t4); // draw_bobs
+		eng::debug::DebugPeripheral::counter_value(4, t0 - s_prev_t0); // periodo del bucle
+		s_prev_t0 = t0;
 		// Rebote de los BOBs entre y=16 e y=224 (`bob_speed`/`bob_y`).
 		s16 speed = m_bob_speed;
 		s16 y = static_cast<s16>(m_bob_y + speed);
@@ -453,8 +449,6 @@ struct SprLayerDemo {
 	}
 
 private:
-	enum class State : u8 { Title, Run };
-
 	// ------------------------------------------------------------------
 	// Utilidades de memoria (CPU)
 	// ------------------------------------------------------------------
@@ -1044,8 +1038,6 @@ private:
 	const u8* m_masks = nullptr;
 	const u8* m_font = nullptr;
 	ListLayout m_lay {};
-	State m_state = State::Title;
-	eng::amiga::MousePollState m_mouse_poll {};
 
 	u16 m_c2 = 0u;
 	u16 m_c4 = 0u;

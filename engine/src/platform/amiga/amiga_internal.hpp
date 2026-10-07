@@ -60,6 +60,15 @@ constexpr unsigned short dma_copper = 0x0080;
 constexpr unsigned short dma_blitter = 0x0040;
 constexpr unsigned short dma_clear_all = 0x7fff;
 constexpr unsigned short dmaconr_blitter_busy = 0x4000;
+// Blitter nasty (BLTPRI, DMACON bit 10): con SETCLR, $8400 activa y $0400 desactiva.
+// Da al Blitter prioridad total sobre el 680x0 durante la espera (el display, disco y
+// audio conservan sus ciclos de bus; AHRM 3.ª ed. «blitter-nasty», líneas 5803/6600/8269
+// de la copia en docs/reference/ahrm/). Es el mismo truco de la macro `BlitWait` del
+// original (`spr_layer/Sprite_Layer/GFX/blitter.i:26-31`), que lo usa «to reduce CPU usage
+// of chipmemory during wait»: sin él el sondeo del CPU roba un ciclo de bus de cada dos y
+// las líneas de blit tardan ~4-8x más (medido en 218: 37 ciclos/palabra en el cookie-cut).
+constexpr unsigned short dma_bltpri_set = 0x8400;
+constexpr unsigned short dma_bltpri_clear = 0x0400;
 constexpr unsigned short blt_use_a = eng::graphics::kBlitterUseA;
 constexpr unsigned short blt_use_b = eng::graphics::kBlitterUseB;
 constexpr unsigned short blt_use_c = eng::graphics::kBlitterUseC;
@@ -187,25 +196,30 @@ inline bool g_level4_installed = false;
 inline unsigned long g_level4_old_vector = 0;
 
 inline bool wait_blitter() {
-	// El bit BBUSY de DMACONR baja cuando el Blitter queda libre. Camino rapido sin
-	// servicio de fondo: bucle apretado, identico al `_WaitBlitter` del origen
-	// (`while (dmaconr & 0x4000);`). Comprobar el servicio en cada vuelta cuesta
-	// ciclos reales en efectos con muchas lineas de blit (p. ej. flatshade-convex).
+	// El bit BBUSY de DMACONR baja cuando el Blitter queda libre. La espera se hace en
+	// modo «blitter nasty» (BLTPRI): el CPU suelta el bus mientras sondea y el Blitter
+	// lo usa entero, como la macro `BlitWait` del original
+	// (`spr_layer/Sprite_Layer/GFX/blitter.i:26-31`; AHRM «blitter-nasty», l. 5803).
 	if (g_blitter_service == nullptr) {
+		custom_base[custom_dmacon_offset] = dma_bltpri_set;
 		while ((custom_base[custom_dmaconr_offset] & dmaconr_blitter_busy) != 0u) {
 		}
+		custom_base[custom_dmacon_offset] = dma_bltpri_clear;
 		return true;
 	}
 	// Camino con servicio: drena el fondo durante la espera, con limite anti-bloqueo.
 	// Mientras gira, si hay un servicio de fondo registrado, lo ejecuta.
 	eng::u32 guard = 0x00ffffffu;
+	custom_base[custom_dmacon_offset] = dma_bltpri_set;
 	while ((custom_base[custom_dmaconr_offset] & dmaconr_blitter_busy) != 0u) {
 		g_blitter_service(g_blitter_service_user,
 				  static_cast<unsigned short>((*vpos_long & 0x1ff00u) >> 8));
 		if (--guard == 0u) {
+			custom_base[custom_dmacon_offset] = dma_bltpri_clear;
 			return false;
 		}
 	}
+	custom_base[custom_dmacon_offset] = dma_bltpri_clear;
 	return true;
 }
 

@@ -83,7 +83,10 @@ public:
 	///   - `Or`/`Opaque`: `a` = fuente (imagen), `b`/`d` = destino.
 	///   - `CookieCut`: `a` = máscara, `b` = imagen, `c`/`d` = destino (fondo).
 	/// Espera al blob anterior antes de reprogramar los punteros (hardware: un juego de
-	/// registros); es la ÚNICA espera por objeto.
+	/// registros); es la ÚNICA espera por objeto. La cola del Blitter es de un nivel: si
+	/// se encadenan las escrituras sin esperar, la siguiente pisa a la encolada y el
+	/// blit sale incompleto (probado: BOBs con anillos cortados). El original también
+	/// espera por objeto (`BlitBob`, `spr_layer/Sprite_Layer/GFX/blitter.asm:94`).
 	__attribute__((always_inline)) inline void one(const void* a, const void* b, void* d,
 						       eng::u8 shift) {
 		wait();
@@ -136,7 +139,8 @@ private:
 	/// Escribe el par PTH/PTL como **dos stores de 16 bits** (registro alto primero, big-endian),
 	/// igual que hace el compilador al asignar un `u32` a un registro de 16 bits en el original.
 	/// Se evita el `reinterpret_cast<volatile u32*>` sobre registros `volatile u16*` (aliasing que
-	/// a `-O2` puede reordenarse/miscompilarse); el par se escribe con el Blitter parado.
+	/// a `-O2` puede reordenarse/miscompilarse). El par puede escribirse con el Blitter ocupado:
+	/// queda latcheado para el siguiente blit.
 	__attribute__((always_inline)) inline void write_ptr(eng::u16 word_index, const void* p) {
 		const eng::u32 v = static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(p));
 		c[word_index] = static_cast<eng::u16>(v >> 16u);
@@ -144,13 +148,20 @@ private:
 	}
 
 	/// BBUSY (DMACONR bit 14). Con `wait_fn`, drena fondo en cada vuelta.
+	/// Sondea en modo «blitter nasty» (BLTPRI): el CPU suelta el bus mientras espera y
+	/// no le roba ciclos al Blitter. Sin ello, el Blitter de un blit largo (p. ej. los
+	/// BOBs de 384 palabras de la 218) tarda hasta 3x más (WinUAE ciclo-exacto:
+	/// `blitter.cpp:1745-1770`, el robo del CPU se desactiva con `DMA_BLITPRI`).
+	/// Es la macro `BlitWait` del original (`spr_layer/Sprite_Layer/GFX/blitter.i:26-31`).
 	__attribute__((always_inline)) inline void wait() const {
+		c[kDmacon] = 0x8400u; // SETCLR | BLTPRI: activa nasty
 		while ((c[kDmaconr] & 0x4000u) != 0u) {
 			if (wait_fn_ != nullptr) {
 				const eng::u32 vposr = *reinterpret_cast<volatile eng::u32*>(&c[kVposr]);
 				wait_fn_(wait_user_, static_cast<eng::u16>((vposr & 0x1ff00u) >> 8u));
 			}
 		}
+		c[kDmacon] = 0x0400u; // SETCLR=0 | BLTPRI: desactiva nasty
 	}
 
 	// Offsets de registro (en palabras de 16 bits, `byte/2`).
