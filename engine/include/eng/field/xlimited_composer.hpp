@@ -387,13 +387,12 @@ public:
         u16* const w = m_copper.inactive_words();
         // BPLCON1 (fine X de ambos campos) y la LÍNEA del WAIT del split avanzan
         // cada frame de scroll: se reescriben aquí sin re-emitir la lista.
-        w[m_patch_bplcon1_word + 1u] = static_cast<u16>(
-            ((pf2.bplcon1 & 0x0f) << 4) | (pf1.bplcon1 & 0x0f));
+        w[m_patch_bplcon1_word + 1u] = ((pf2.bplcon1 & 0x0f) << 4) | (pf1.bplcon1 & 0x0f);
         if (m_patch_split_wait_word != 0xffffu) {
             const u16 sl = pf1.split_active ? pf1.split_line : pf2.split_line;
-            const u16 raster = static_cast<u16>((m_cfg.diwstrt >> 8u) + sl);
-            const u8 wait = raster > 0xffu ? 0xffu : static_cast<u8>(raster);
-            w[m_patch_split_wait_word] = static_cast<u16>((static_cast<u16>(wait) << 8u) | 0x01u);
+            const u16 raster = (m_cfg.diwstrt >> 8u) + sl;
+            const u8 wait = raster > 0xffu ? 0xffu : raster;
+            w[m_patch_split_wait_word] = (wait << 8u) | 0x01u;
         }
         for (u8 i = 0; i < m_cfg.planes_per_field; ++i) {
             const uintptr a1 = field_plane_address(pf1, i, pf1.planeaddy).value;

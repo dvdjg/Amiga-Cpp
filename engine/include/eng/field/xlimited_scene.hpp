@@ -525,7 +525,7 @@ public:
         // ventana visible empieza 16 px dentro de la fila → `row_bytes` cubre el
         // fetch + la guarda (fg_guard_px) y `x_offset_px` compensa la guarda.
         if (cfg.dpf.enabled && cfg.dpf.fg_canvas) {
-            const u16 fg_row = static_cast<u16>((cfg.viewport_w + cfg.dpf.fg_guard_px) / 8u);
+            const u16 fg_row = (cfg.viewport_w + cfg.dpf.fg_guard_px) / 8u;
             if (!m_fg_canvas.begin(memory, {cfg.viewport_w, cfg.viewport_h, cfg.planes, fg_row, 16u})) return eng::util::unexpected(eng::Result::OutOfMemory);
         }
         m_phase_frame = 0;
