@@ -40,9 +40,10 @@ F0 Diseño -> F1 Esqueleto -> F2 Implementación por etapas -> F3 Gates técnico
   2. `node tools/debug/measure-fps.mjs <demo> <config>` → **50 fps / 1 field** (o 25 fps si el efecto es relleno); sin picos de ciclos.
   3. `bash tools/test-regression.sh --flicker --require-flicker-ok --demo <ruta>` → 0 candidatos; **declarar `flicker-baseline.json` solo después de F4**.
   4. Tests host del dominio (`docs/testing/README.md`) y gates globales (`tools/run-host-tests.sh`).
-  5. **Presupuesto por elemento y peor caso**: desglose por elemento del bucle (incluidas las rutas no frecuentes que causan tirones) con la medida que lo respalda.
+  5. **Presupuesto por elemento y peor caso**: desglose por elemento del bucle (incluidas las rutas no frecuentes que causan tirones) con la medida que lo respalda. Para atribuir coste cuando el perfil por secciones no esté disponible: **ablación** (desactivar un elemento, medir y comparar).
+  6. **Presencia de elementos**: `node tools/analyze/check-elements.mjs <seq> <colores> --expect <color>=<min>` — falla si un elemento esperado desaparece o queda a medias en algún frame.
 - **F4 · Validación visual** (obligatoria; no sustituible por F3):
-  - Capturar **secuencia** (no un frame): `run-demo.sh <demo> --sequence-frames N --sequence-interval-ms M`, cubriendo las **transiciones internas** (arranque, rebotes, envolturas, cambios de fase).
+  - Capturar **secuencia determinista por paso de frame**: `run-demo.sh <demo> --sequence-step-frames N` (un frame de juego entre capturas, `eng_debug_ready_probe`); el modo por intervalo (`--sequence-frames/--sequence-interval-ms`) solo para vistazos. Cubrir las **transiciones internas** (arranque, rebotes, envolturas, cambios de fase).
   - Aplicar el **protocolo de prompts** de `DEMO_VISUAL_DEBUG.md` §6.4: (A) **inventario sin contexto**, (B) **dinámica/seguimiento**, (C) **verificación dirigida** con los elementos esperados.
   - **El agente mira los frames** y aporta una **comprobación objetiva de presencia** (conteo por color/región, `band-diff`, MD5/diff de frames). **Una anomalía de contenido es bloqueante** hasta confirmarla o refutarla con inspección propia y evidencia, nunca con un gate de movimiento.
   - El veredicto y la respuesta cruda del modelo se guardan como evidencia.

@@ -159,7 +159,7 @@ Herramienta: `node tools/analyze/ollama-desc.mjs <dir_seq> <idx0,idx1,...> "<pro
 Reglas del interrogatorio:
 
 - Si A y C se contradicen, **manda A** (C puede inducir complacencia).
-- **Una imagen por llamada** o **hoja de contacto etiquetada** (una sola imagen con paneles rotulados `FRAME_nnn.PNG`). El modelo **no atiende de forma fiable varias imágenes en un mensaje**: en la 110, con 4 imágenes declaró «ambos frames» y con 2 declaró «un único frame» (evidencia en su `VALIDATION.md`). El montaje etiquetado sí se compara panel a panel, pero **pierde resolución**: úsalo para inventario/presencia y dinámica gruesa, no para movimiento fino.
+- **Una imagen por llamada** o **hoja de contacto etiquetada** (una sola imagen con paneles rotulados `FRAME_nnn.PNG`). El modelo **no atiende de forma fiable varias imágenes en un mensaje**: en la 110, con 4 imágenes declaró «ambos frames» y con 2 declaró «un único frame» (evidencia en su `VALIDATION.md`). El montaje etiquetado sí se compara panel a panel, pero **pierde resolución**: úsalo para inventario/presencia de elementos **grandes** (en la 085 el disco desapareció en la hoja; en la 110 sirvió para el inventario); para detalle, **una imagen por llamada**.
 - **Prohibido pedir coordenadas en píxeles** (alucina columnas: respondió «columna 14/15»); zona relativa: arriba/centro/abajo, izquierda/centro/derecha.
 - Guardar la **respuesta cruda** como evidencia junto a los frames (y en el `VALIDATION.md` de la demo).
 - **Un aviso de contenido es bloqueante**: el agente abre los frames y aporta conteo objetivo (por color/región, `tools/analyze/check-elements.mjs`, bbox/traslación) antes de concluir. Los gates de movimiento/flicker **no** refutan contenido.

@@ -8,7 +8,7 @@ Registro de deuda técnica **transversal** detectada durante el desarrollo (no l
 
 ## DT-001 · Demo 110 (`ylimited_shooter`): scroll, cadencia y FG rotos
 
-**Estado: ABIERTA (en arreglo por fases).** Reportada por el usuario tras ver la demo en WinUAE; confirmada por medidas.
+**Estado: ABIERTA — F1 hecho (atribución por ablación); F2 reclasificado como bug de engine (DT-006).** Reportada por el usuario tras ver la demo en WinUAE; confirmada por medidas.
 
 Síntomas (reporte en vivo + medidas propias):
 
@@ -22,17 +22,17 @@ Causa raíz conocida hoy: la demo/engine hace **mucho más trabajo por frame que
 
 Plan **incremental** (una fase por pasada, cada una con medida y validación):
 
-- **F1 · Perfil y presupuesto.** `tools/debug/profile.mjs 110_ylimited_shooter` + análisis con IA local; localizar los 3,4 fields (¿scroll blits, compose, FG CPU en -O0, self-tests?). Bajar a 1 field. Comparar con control (202/203) cuando `measure-fps` resuelva símbolos (ver DT-004).
-- **F2 · Scroll.** Leer `PLAYFIELD_SCROLL_ARCHITECTURE.md` y el modo `Ring`/`Finite`; identificar por qué las 64 líneas inferiores no se actualizan y qué son las tres bandas bugeadas; decidir si es config de la demo, límite del motor o bug (con caso de test).
+- **F1 · Perfil y presupuesto. HECHO (ablación):** sin el bloque FG la demo pasa a **39,9 fps / 1,25 fields / 178k ciclos**; con FG, 485k → **el FG cuesta ~307k ciclos/frame (63%)** y el resto ~178k (25% sobre presupuesto). `profile.mjs` no resuelve `g_eng_prof` en estos builds (DT-008). Camino: rediseñar el FG (pre-render + Blitter/BOB o sprites) y recortar el resto.
+- **F2 · Scroll. RECLASIFICADO:** las «tres bandas» inferiores son un **bug de engine de la familia XLimited** (la 202 las tiene igual) → **DT-006**. No es de la demo.
 - **F3 · Fine scroll X.** Definir el contrato (`Finite` con `BPLCON1` fino) o documentar la limitación; la demo debe moverse suave.
-- **F4 · FG sin tearing.** Estudiar doble buffer del lienzo FG (el composer ya dobla copperlist); si es motor, implementar; si no, redibujado mínimo en vblank.
-- **F5 · Validación.** `measure-fps` a 50 fps, gate de flicker con baseline real, secuencia densa + prompts de visión (`DEMO_VISUAL_DEBUG.md` §6.4).
+- **F4 · FG sin tearing y en presupuesto.** El lienzo FG single-buffer dibujado por CPU es a la vez el hotspot (63%) y la fuente del flicker; candidato: pre-render + blit o canal de sprites/BOB.
+- **F5 · Validación.** `measure-fps` a 50 fps, gate de flicker con baseline real, secuencia **determinista** (`--sequence-step-frames`) + prompts de visión (`DEMO_VISUAL_DEBUG.md` §6.4) + `check-elements --expect`.
 
 Restricción de método: **no tocar a la vez scroll y rendimiento**; cada fase cierra con medida (fps/ciclos), captura y visión.
 
-## DT-002 · `flicker-check` no cazó la torreta de 110
+## DT-002 · Presencia de elementos en la validación — RESUELTO
 
-`tools/vision-review/flicker-check.mjs` reportó `0 candidatos` sobre una secuencia en la que la torreta se perdía/queda a medias en varias capturas (conteo de color: verde 0/parcial en 2-6 de cada 6-40 frames según captura). El gate muestrea pocos frames y clasifica zonas en movimiento coherente; una **pérdida intermitente de un elemento pequeño** no entra en su definición de candidato. **Impacto:** un gate «OK» no implica contenido correcto; la visión y el conteo de elementos siguen siendo obligatorios. **Plan:** añadir al gate (o a la secuencia) un chequeo de **presencia de elementos esperados** por color/región, o documentar su alcance como «solo parpadeo de bloques».
+`tools/analyze/check-elements.mjs` admite `--expect <color>=<min>`: **falla** si en algún frame el número de píxeles de un color esperado baja del mínimo (gate de presencia de elementos). Uso obligatorio en F3/F4 del procedimiento (p. ej. `... 00ff00,ff4400 --expect ff4400=250 --expect 00ff00=900`). Complementa a `flicker-check`, que mide parpadeo de bloques y no pérdida de elementos.
 
 ## DT-003 · Protocolo de prompts de visión (referencia) — RESUELTO (ampliado)
 
@@ -44,6 +44,18 @@ Escrito en `docs/guides/methodology/DEMO_VISUAL_DEBUG.md` §6.4 (tres pases: A i
 
 `measure-fps 202_xlimited_dpf A500_release` falla con `runtime=0x0`/«no se pudo resolver g_eng_run_status» (map/baseText), dejando sin control comparativo a 110. **Plan:** revisar la resolución por `.map`/`qOffsets` para configs release de esa familia o dejar el control con `A500_debug`.
 
-## DT-005 · Captura de secuencia no determinista
+## DT-005 · Captura de secuencia no determinista — RESUELTO
 
-La captura de frames (100/20 ms) muestrea mientras el juego corre: las imágenes pueden pillarse a mitad de update (se ve en conteos de color parciales y en `sequence-analysis`). **Impacto:** conclusiones falsas de «flicker» o «roto» a partir de artefactos de captura, y viceversa. **Plan:** captura determinista (pausa/step por frame o captura tras frontera de frame) para los análisis de contenido.
+El runner ya soporta **`--sequence-step-frames N`** (`tools/run/run-demo.ts`): captura N frames **1 frame de juego aparte** con el breakpoint `eng_debug_ready_probe` (`frame_NNN_fNNNN.png` consecutivos). Es el modo obligatorio para validar movimiento/cadencia; el modo por intervalo queda para vistazos. Las medidas de `band-diff`/`check-elements` deben hacerse sobre la captura por paso.
+
+## DT-006 · Bandas de tiles inferiores estáticas (familia XLimited)
+
+**Síntoma (usuario):** tres bandas de tiles abajo que no se mueven y parecen bugeadas. **Evidencia:** la 110 y la **202** (misma familia, `display_height=288`, `viewport_h=208`, `Ring`) muestran la zona inferior estática en el barrido por bandas; el **screenshot interno recorta esa zona en negro** (no la muestra), luego solo se ve en la ventana. **Impacto:** render incorrecto en la familia (201/202/110) y auditoría visual que el screenshot no revela. **Estado:** causa sin confirmar; siguiente paso leer `xlimited_composer.hpp`/`xlimited_base.hpp` (DIW/ring staging) y el AHRM/WinUAE antes de tocar; test objetivo: `band-diff` de la zona baja en captura de ventana.
+
+## DT-007 · Demo 085 a 16,6 fps (3 fields) y mancha blanca del disco
+
+`measure-fps 085_copper_plan_scene A500_debug` = **16,62 fps / 3,01 fields / 426.733 ciclos**. El conteo objetivo de blanco alterna 1088↔2204 (frames 1 y 5) y la visión señala una **mancha blanca irregular** en el borde del disco. Hotspot candidato: `RasterGradientEffect::rebuild()` (2 `mul` + 2 `mod` por reconstrucción). Informe: `demos/techniques/amiga/copper/085_copper_plan_scene/VALIDATION.md`.
+
+## DT-008 · `profile.mjs` no resuelve `g_eng_prof`
+
+El símbolo vive en `.gnu.linkonce.b._ZN3eng5debug10g_eng_profE` y el `.map` no le da dirección resoluble por el script (`mapSections` solo mira `.text/.rodata/.eh_frame/.data/.bss`), así que el perfil por secciones no arranca. Mientras se arregla (o se instrumentan secciones del bucle XLimited), la atribución de coste se hizo por **ablación** (desactivar un elemento y medir) — método documentado en el informe de la 110.

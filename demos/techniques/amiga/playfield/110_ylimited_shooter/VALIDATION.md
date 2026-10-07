@@ -17,6 +17,8 @@ horizontal, balas blancas subiendo y torreta verde fija arriba-izquierda que apu
 | bandas | ídem con `frame_000.png frame_020.png` | **y=448..575 del PNG (2×) diff 0.00 → 64 líneas Amiga inferiores ESTÁTICAS** | bug de scroll (DT-001 F2) |
 | traslación por pares consecutivos | `shift-pairs` (franja de tiles, 40 pares) | offsets +4/+8 px PNG (2–4 px Amiga) con `mad≈0`, salvo pares con `mad≈36` (balas cruzando la franja) | el scroll Y **sí traduce** en la zona alta; la franja baja no |
 | movimiento nave/torreta | `motion-audit` (bbox por color) | nave `x=368→444→410` (vaivén suave ±1 px Amiga/frame); torreta `x=124..155` fija | animación real, contraria a lo que dijo la visión |
+| **ablación F1 (sin FG)** | compilar con el bloque FG desactivado + `measure-fps` | **39,9 fps · 1,25 fields · 177.805 ciclos** | **el FG cuesta ~307k ciclos/frame (63%)**; el resto (scroll+compose+bucle) 178k (25% sobre presupuesto) |
+| captura determinista | `run-demo.sh … --sequence-step-frames 16` | `frame_NNN_fNNNN.png` consecutivos (f0008…f0023) | DT-005 resuelto: usar este modo para validar |
 
 ## Presupuesto por elemento (estimación inicial, a confirmar en F1)
 
@@ -79,15 +81,16 @@ roadmap debe atribuir esa cifra a los elementos de la tabla con el perfilador.
 ## Conclusiones
 
 1. **Primeros auxilios validados** (commit `3067365e`): nave visible y en vaivén suave, torreta presente en 40/40 capturas (antes: 0/parcial en ~50%), cañón dibujado.
-2. **La demo sigue NO VERIFICADA**: 3,4–4,3 fields/frame (DT-001 F1), 64 líneas inferiores estáticas (DT-001 F2), sin fine scroll X (F3), FG single-buffer (F4).
-3. **Capacidades observadas del modelo de visión** (a registrar en §6.4):
+2. **F1 (perfil) resuelto por ablación**: el **pintado del FG en CPU sobre el lienzo Chip single-buffer cuesta ~307k ciclos/frame (63%)**; sin él la demo queda en 1,25 fields (39,9 fps) y el resto (scroll+compose+bucle) son ~178k ciclos (25% sobre el presupuesto). Camino a 50 fps: **rediseñar el FG** (pre-render + Blitter/BOB o sprites) y recortar el resto (DT-001 F1/F4).
+3. **La demo sigue NO VERIFICADA**: 3,4–4,3 fields/frame, bandas inferiores estáticas en la ventana en vivo (bug de engine de la familia XLimited: **DT-006**, la 202 las tiene igual; el screenshot interno las recorta en negro), sin fine scroll X (F3), FG single-buffer (F4).
+4. **Capacidades observadas del modelo de visión** (a registrar en §6.4):
    - **Multi-imagen: no fiable.** Con 4 imágenes declaró «ambos frames»; con 2 declaró «un único frame». Estrategia operativa: **una imagen por llamada** o **hoja de contacto etiquetada** (que sí compara paneles).
    - **Movimiento lento y patrones periódicos: falsos negativos.** Declaró «nave estática» y «fondo fijo» donde la bbox y la traslación demuestran movimiento; los tiles de glifos periódicos ocultan la traslación.
    - **Aciertos:** inventario de elementos y presencia/ausencia (torreta/nave/balas); en la sesión previa detectó el parpadeo real de la torreta («zonas corrompidas»), que resultó cierto.
    - **Regla operativa:** la visión propone; **la evidencia objetiva decide** (`check-elements`, `band-diff`, bbox/traslación). Un aviso de contenido es bloqueante; un «está bien» no es prueba.
-4. **Captura no determinista** (DT-005): el intervalo pedido (20 ms) no se cumple de forma estable (offsets alternan 1–2 updates); las conclusiones de cadencia necesitan captura determinista.
+5. **Captura no determinista — RESUELTO**: el modo por intervalo no es estable; para validar se usa `run-demo.sh … --sequence-step-frames N` (paso de frame real, `frame_NNN_fNNNN.png`).
 
 ## Deuda registrada
 
-- DT-001 (abierta, plan F1–F5) · DT-002 (`flicker-check` sin presencia de elementos) · DT-005 (captura no determinista).
-- DT-003 queda **ampliado** con el hallazgo multi-imagen (protocolo §6.4 actualizado).
+- DT-001 (abierta: F1 hecho por ablación; F2 → DT-006; F3/F4 pendientes) · DT-006 (bandas inferiores XLimited, también en 202) · DT-002 (resuelto: `check-elements --expect`).
+- DT-003 ampliado con el hallazgo multi-imagen (protocolo §6.4 actualizado).

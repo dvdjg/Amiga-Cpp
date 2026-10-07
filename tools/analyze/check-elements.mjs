@@ -5,10 +5,13 @@
 //
 // Uso:
 //   node tools/analyze/check-elements.mjs <dir_seq> <#RRGGBB,...> [frameA.png frameB.png]
+//   node tools/analyze/check-elements.mjs <dir_seq> <#RRGGBB,...> --expect <color>=<min> [--expect ...]
 //
 //   - Imprime, por frame, cuántos píxeles hay de cada color EXACTO de la lista (elementos
 //     esperados: p. ej. "#00ff00,#ffffff,#ff4400"). Sirve para ver si un elemento
 //     aparece/desaparece o queda a medias a lo largo de la secuencia.
+//   - Con `--expect <color>=<min>` FALLA (exit 1) si en algún frame el color baja de `min`
+//     píxeles: gate de PRESENCIA de elementos (DT-002 de ROADMAP_DEUDA_TECNICA).
 //   - Si se dan dos frames, imprime además el diff medio por bandas de 16 px (PNG 2x),
 //     marcando las bandas ESTÁTICAS: zonas que no cambian mientras el resto sí.
 import fs from 'node:fs';
@@ -20,8 +23,22 @@ const { PNG } = require('pngjs');
 
 const dir = process.argv[2];
 const colorsArg = process.argv[3];
-const frameA = process.argv[4];
-const frameB = process.argv[5];
+const rest = process.argv.slice(4);
+const expects = [];
+for (let i = 0; i < rest.length; i++) {
+	if (rest[i] === '--expect' && rest[i + 1]) {
+		const m = rest[i + 1].match(/^#?([0-9a-fA-F]{6})=(\d+)$/);
+		if (!m) {
+			console.error(`--expect inválido: ${rest[i + 1]} (usa hex=min)`);
+			process.exit(2);
+		}
+		expects.push({ hex: '#' + m[1].toLowerCase(), min: parseInt(m[2], 10) });
+		i++;
+	}
+}
+const positional = rest.filter((v) => v !== '--expect' && !/^#?[0-9a-fA-F]{6}=\d+$/.test(v));
+const frameA = positional[0];
+const frameB = positional[1];
 if (!dir || !colorsArg) {
 	console.error('uso: node tools/analyze/check-elements.mjs <dir_seq> <#RRGGBB,...> [frameA.png frameB.png]');
 	process.exit(2);
@@ -40,7 +57,7 @@ function parseColor(s) {
 const colors = colorsArg.split(',').filter(Boolean).map((s) => ({ hex: s.trim(), ...parseColor(s) }));
 const files = fs
 	.readdirSync(dir)
-	.filter((f) => /^frame_\d{3}\.png$/.test(f))
+	.filter((f) => /^frame_\d{3}(_f\d+)?\.png$/.test(f))
 	.sort();
 if (files.length === 0) {
 	console.error(`sin frames en ${dir}`);
@@ -49,6 +66,7 @@ if (files.length === 0) {
 
 console.log(`# check-elements ${dir}`);
 console.log(`# colores: ${colors.map((c) => c.hex).join(' ')}`);
+const minCounts = colors.map(() => Infinity);
 for (const f of files) {
 	const png = PNG.sync.read(fs.readFileSync(path.join(dir, f)));
 	const counts = colors.map(() => 0);
@@ -61,7 +79,28 @@ for (const f of files) {
 			}
 		}
 	}
+	for (let c = 0; c < counts.length; c++) if (counts[c] < minCounts[c]) minCounts[c] = counts[c];
 	console.log(`${f} ${counts.map((n, c) => `${colors[c].hex}=${n}`).join(' ')}`);
+}
+
+if (expects.length > 0) {
+	const fails = [];
+	for (const e of expects) {
+		const norm = (s) => s.replace(/^#/, '').toLowerCase();
+		const ci = colors.findIndex((c) => norm(c.hex) === norm(e.hex));
+		if (ci < 0) {
+			fails.push(`--expect ${e.hex}: el color no está en la lista`);
+			continue;
+		}
+		if (minCounts[ci] < e.min) {
+			fails.push(`--expect ${e.hex} >= ${e.min}: mínimo visto ${minCounts[ci]}`);
+		}
+	}
+	if (fails.length > 0) {
+		for (const f of fails) console.error(`[check-elements] FAIL ${f}`);
+		process.exit(1);
+	}
+	console.log(`# expect OK: ${expects.map((e) => `${e.hex}>=${e.min}`).join(' ')}`);
 }
 
 if (frameA && frameB) {
