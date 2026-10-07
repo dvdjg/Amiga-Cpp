@@ -1,0 +1,31 @@
+# Tope de usos de tipo crudo en contexto genérico por fichero (solo puede BAJAR).
+# Regenerar tras justificar cada subida:
+#   node tools/check/generic-headers.mjs --update-raw-baseline
+  2  ai/navigation/flow_field.hpp
+  1  ai/navigation/navmesh_lite.hpp
+  1  ai/perception/influence_map.hpp
+  1  ai/planning/goap.hpp
+  1  api/objects.hpp
+  1  audio/sfx_mixer.hpp
+  3  audio/wave_tables.hpp
+  4  board/core/types.hpp
+  2  cards/core/types.hpp
+  2  core/data/mesh3d.hpp
+  4  core/math/arith.hpp
+  2  core/math/linalg.hpp
+  8  core/math/numeric_traits.hpp
+  1  core/math/sinetable.hpp
+  2  core/types/types.hpp
+  1  core/util/broadphase.hpp
+  1  core/util/graph.hpp
+  1  core/util/intent_queue.hpp
+  2  core/util/interval.hpp
+  6  core/util/pathfinding.hpp
+  1  graphics/raster_intent.hpp
+  1  os/file.hpp
+  1  os/task.hpp
+  1  os/trackdisk.hpp
+  1  res/asset_cache.hpp
+  1  res/dynloader.hpp
+  5  sim/types.hpp
+  2  task/background.hpp

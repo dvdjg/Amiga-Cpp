@@ -9,11 +9,12 @@
 // se aceptan de forma explícita en `generic-headers-baseline.txt`. Cualquier fichero NUEVO
 // con un tipo concreto falla.
 //
-// Además (aviso no bloqueante) lista las cabeceras con TIPOS CRUDOS en contexto genérico
-// (`ct_array<u16>`, `class T = s32`, `using X = u8`): deuda visible sin romper CI. Plan de
-// ampliación a gate con baseline: docs/guides/roadmap/ROADMAP_GENERICIDAD_PLANTILLAS.md (F4).
+// Los TIPOS CRUDOS en contexto genérico (`ct_array<u16>`, `class T = s32`, `using X = u8`)
+// son deuda vigilada: cada fichero tiene un tope en `generic-headers-raw-baseline.txt`
+// (solo puede BAJAR; un fichero nuevo con usos falla). Regenerar tras justificar subidas:
+//   node tools/check/generic-headers.mjs --update-raw-baseline
 //
-// Uso: node tools/check/generic-headers.mjs [--quiet]
+// Uso: node tools/check/generic-headers.mjs [--quiet] [--update-raw-baseline]
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -74,6 +75,18 @@ const baseline = new Set(
 		.filter((l) => l && !l.startsWith('#')),
 );
 
+// Tope de usos de tipo crudo por fichero (deuda aceptada; solo puede bajar).
+const RAW_BASELINE = path.join(__dirname, 'generic-headers-raw-baseline.txt');
+const UPDATE_RAW = process.argv.includes('--update-raw-baseline');
+const rawBaseline = new Map();
+if (fs.existsSync(RAW_BASELINE)) {
+	for (const line of fs.readFileSync(RAW_BASELINE, 'utf8').split(/\r?\n/)) {
+		if (line.startsWith('#')) continue;
+		const m = line.match(/^\s*(\d+)\s+(.+?)\s*$/);
+		if (m) rawBaseline.set(m[2], parseInt(m[1], 10));
+	}
+}
+
 function walk(dir) {
 	const out = [];
 	for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -109,19 +122,45 @@ for (const abs of walk(ENG)) {
 	if (hit && baseline.has(rel)) exempted.push(rel);
 }
 
+if (UPDATE_RAW) {
+	const lines = [...rawCounts.entries()]
+		.sort((a, b) => a[0].localeCompare(b[0]))
+		.map(([f, n]) => `${String(n).padStart(3)}  ${f}`);
+	fs.writeFileSync(
+		RAW_BASELINE,
+		`# Tope de usos de tipo crudo en contexto genérico por fichero (solo puede BAJAR).\n` +
+			`# Regenerar tras justificar cada subida:\n` +
+			`#   node tools/check/generic-headers.mjs --update-raw-baseline\n` +
+			lines.join('\n') +
+			'\n',
+	);
+	console.log(`[generic-headers] raw-baseline -> ${path.relative(ROOT, RAW_BASELINE)} (${lines.length} ficheros)`);
+	// El tope recién escrito es el estado actual: no disparar el fallo en esta misma pasada.
+	for (const [f, n] of rawCounts) rawBaseline.set(f, n);
+}
+
+const rawProblems = [];
+for (const [f, n] of rawCounts) {
+	const cap = rawBaseline.get(f) ?? 0;
+	if (n > cap) rawProblems.push(`eng/${f}: ${n} uso(s) de tipo crudo > baseline ${cap}`);
+}
+
 if (!QUIET) for (const f of exempted) console.log(`[generic-headers] aviso: ${f} (baseline; pendiente de reubicar)`);
 if (!QUIET && rawCounts.size > 0) {
 	const total = [...rawCounts.values()].reduce((a, b) => a + b, 0);
 	console.log(
-		`[generic-headers] aviso: ${total} uso(s) de tipo crudo en contexto genérico en ${rawCounts.size} cabecera(s) (deuda visible; plan en docs/guides/roadmap/ROADMAP_GENERICIDAD_PLANTILLAS.md):`,
+		`[generic-headers] deuda vigilada: ${total} uso(s) de tipo crudo en ${rawCounts.size} cabecera(s) (tope por fichero en raw-baseline; plan en docs/guides/roadmap/ROADMAP_GENERICIDAD_PLANTILLAS.md):`,
 	);
 	for (const [f, n] of [...rawCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20)) {
 		console.log(`[generic-headers]   ${f}: ${n}`);
 	}
 }
-if (problems.length) {
+if (problems.length || rawProblems.length) {
 	for (const p of problems) console.error(`[generic-headers] FAIL: ${p}`);
-	console.error(`[generic-headers] ${problems.length} cabecera(s) genérica(s) con tipo concreto.`);
+	for (const p of rawProblems) console.error(`[generic-headers] FAIL: ${p}`);
+	console.error(
+		`[generic-headers] ${problems.length + rawProblems.length} problema(s). Si el tipo crudo es intencionado, baja el uso o regenera el tope con --update-raw-baseline.`,
+	);
 	process.exit(1);
 }
-if (!QUIET) console.log('[generic-headers] OK: cabeceras genéricas sin tipos concretos (baseline aparte).');
+if (!QUIET) console.log('[generic-headers] OK: cabeceras genéricas sin tipos concretos (baselines aparte).');
