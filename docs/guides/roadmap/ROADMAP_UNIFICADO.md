@@ -214,6 +214,11 @@ scratch** (el `detail≈9861` de la 275, ya documentado en su README) y sacarlo 
   8. **Pipeline de assets**: cocinado del par *attached* en build-time (hoy en runtime) y carga
      desde UAF.
 
+La **capa de juego** sobre este soporte (objetos compuestos multi-parte, trayectorias/formaciones
+con pool de entidades, mecanismos flexibles y la optimización de emisión DMA encadenada) se
+analiza y se planifica en [ROADMAP_JUEGO_SPRITES_BOBS.md](ROADMAP_JUEGO_SPRITES_BOBS.md)
+(fases F1–F6); este roadmap sigue siendo la fuente única del estado de las técnicas de sprites.
+
 ## Input y audio — estado (2026-09)
 
 - **Hecho (input, paso 6 de `ENGINE_DESIGN.md` §5)**: `eng::input::InputAggregator`

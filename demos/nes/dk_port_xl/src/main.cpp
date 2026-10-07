@@ -352,7 +352,6 @@ struct DkXlGame {
 			cfg.hpos = static_cast<eng::u16>(ox + 128u);
 			cfg.vstart = static_cast<eng::u16>(oy + kSpriteTop);
 			cfg.vstop = static_cast<eng::u16>(cfg.vstart + kSpriteHeight - 1u);
-			cfg.palette_base = 16u;
 			sm.set(static_cast<eng::u8>(ch), cfg);
 		}
 	}

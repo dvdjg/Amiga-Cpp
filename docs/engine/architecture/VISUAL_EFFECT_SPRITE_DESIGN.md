@@ -101,16 +101,18 @@ struct Visual {
     Span<const u16> mask {};    // 1 plano, opcional (cookie-cut)
     u16 w = 0, h = 0;
     u8  bitplanes = 0;
+    u8  frame_count = 1;        // frames en la hoja (1 = imagen suelta)
+    u32 frame_stride = 0;       // bytes entre frames (0 = denso/una sola imagen)
     u16 offset_x = 0;           // shift de blit (X no alineada a 16)
-    u16 palette_base = 16;      // COLORxx base
+    bool attached = false;      // par attached de 15 colores (4 planos, w <= 16)
 };
 
 } // namespace eng::graphics
 ```
 
 La regla de "mismo objeto, distintas pinturas" (navecita que pasa de sprite a BOB sin que se
-note) se resuelve con que **el `Visual.id` no cambia**; solo cambia el `VisualKind` materializado
-por el `SpriteAllocator`/`BlitterQueue` según disponibilidad. Como sprite y BOB comparten paleta
+note) se resuelve con que **el contenido (`Visual`) no cambia**; solo cambia el `VisualKind`
+materializado por el `SpriteAllocator`/`BlitterQueue` según disponibilidad. Como sprite y BOB comparten paleta
 (sprites usan `COLOR16+`, el BOB puede usar la misma franja) y geometría, la transición es
 imperceptible de forma natural.
 

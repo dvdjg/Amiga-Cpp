@@ -16,6 +16,14 @@
 /// los 8 sprites, reserva su Chip RAM y emite los MOVEs de Copper
 /// (SPRxPT/SPRxPOS/SPRxCTL) dentro de la copperlist que construye el compositor.
 ///
+/// **Rutas de emisión.** El camino canónico de juego es `emit_placements_into`
+/// (placements del compositor de actores, con rearme vertical del canal reutilizado y
+/// paleta por franja). `emit_armed_into`/`arm_object` y `emit_template_into` son drivers
+/// de bajo nivel para demos de la técnica; `emit_into` (un `WAIT` por `VSTART`) es legado
+/// de demos antiguas y no debe usarse en código nuevo. La lógica de juego no llama al
+/// `SpriteManager` directamente: compone con `SpriteScene` y aplica los placements.
+/// Ver `docs/guides/roadmap/ROADMAP_JUEGO_SPRITES_BOBS.md` §4.1.
+///
 /// Reglas del engine: sin heap, sin RTTI, gnu++23. La DATA del sprite la aporta
 /// la aplicación (bloque Chip); el manager solo la referencia y la posición.
 ///
@@ -52,8 +60,7 @@ struct SpriteConfig {
     u16 hpos = 0;                // posición horizontal (px)
     u16 vstart = 0;              // línea vertical de inicio
     u16 vstop = 0;               // línea SIGUIENTE a la última visible (exclusiva; AHRM cap. 4)
-    u8 palette_base = 16;        // COLOR16 + palette_base*4 (defecto 16: COLOR16-19)
-    /// **Attached** al sprite anterior del par (bit 0 de `SPRxCTL`): 4 bits/píxel sobre
+    /// **Attached** al sprite anterior del par (bit 7 de `SPRxCTL`): 4 bits/píxel sobre
     /// `COLOR16-31` (15 colores). Los pares válidos son 0+1, 2+3, 4+5, 6+7; reduce los
     /// canales útiles de 8 a 4. Se puede conmutar por zona con el rearmado (el CTL es
     /// reescribible por línea). Ver `docs/reference/amiga/techniques/sprite-layer.md` §4.
@@ -178,13 +185,14 @@ public:
             SpriteConfig cfg {
                 true, data, tpl.width_words, static_cast<u8>(seg.height & 0xffu),
                 hpos, line, static_cast<u16>(line + seg.height), // VSTOP exclusivo (AHRM)
-                0, // palette_base: los sprites usan COLOR16+; para multiplexar por par
-                   // hay que respetar que el switch cambia el COLORxx del par (ver abajo)
             };
             // `attach` (15 colores) de la plantilla: el canal impar une su par y aporta
             // los bits 2-3 del índice (AHRM cap. 4, "Attached Sprites"). Sin esto, la
             // plantilla declararía el par pero la emisión no lo activaría.
             cfg.attach = tpl.attach;
+            // Los sprites usan siempre COLOR16..31: un switch de paleta cambia los COLORxx
+            // del PAR de canales (Color Bleed), así que dos plantillas que compartan canal
+            // no pueden tener paletas distintas en líneas solapadas (ver `sprite-layer.md` §3).
             // WAIT en la línea VSTART del segmento (mismo patrón que el bootcamp:
             // WAIT + MOVE SPRxPOS/CTL). El primer segmento también espera; el gap
             // de 1 línea (`line += height + 1`) garantiza que el anterior terminó.

@@ -45,7 +45,7 @@ enum class VisualKind : u8 {
 /// la consume DMA). El `Visual` no posee memoria; el `AssetRuntime` la gestiona.
 ///
 /// **Relación con `Bob`/`Sprite` (no son duplicados):** `Visual` es la **intención** portable
-/// (vista agnóstica, `kind`, `palette_base`, `offset_x`); `Bob` (`bob.hpp`) es el **detalle de
+/// (vista agnóstica, `kind`, `offset_x`); `Bob` (`bob.hpp`) es el **detalle de
 /// ejecución** del Blitter (hoja/máscara **certificadas en Chip** vía `ChipView`, `layout`,
 /// `mask_pack`, `draw`/`erase`); y `Sprite` (`sprite_asset.hpp`) es **azúcar de dominio** sobre un
 /// `Bob` (más el tamaño del *frame* cuando la hoja es un atlas). Cada uno aporta algo que el otro
@@ -60,7 +60,6 @@ struct Visual {
     u8  frame_count = 1;        // frames en la hoja (1 = imagen suelta)
     u32 frame_stride = 0;       // bytes entre frames (0 = denso/una sola imagen)
     u16 offset_x = 0;           // shift de blit (X no alineada a 16 px)
-    u16 palette_base = 16;      // COLORxx base (sprites usan COLOR16+)
     /// **Par *attached*** (15 colores): un sprite de 16 px dibujado con **4 planos** sobre
     /// DOS canales contiguos (par 0+1, 2+3, 4+5 o 6+7): el canal par aporta los bits 0-1
     /// del índice de color y el impar los bits 2-3 (AHRM 3.ª cap. 4, «Attached Sprites»).

@@ -68,8 +68,11 @@ enum class BobErase : u8 {
 	/// Borra la caja del objeto (`D = 0`) antes de dibujar el nuevo. Barato; válido
 	/// cuando el fondo bajo el objeto es liso (p. ej. un cielo por copper).
 	ClearRect,
-	/// Guarda el fondo y lo restaura al moverlo (save-under). **PENDIENTE**: exige
-	/// buffer de guardado y 2 jobs (`RestoreRect` + `CopyRect`), como la demo 050.
+	/// Guarda el fondo y lo restaura al moverlo (save-under). `bob_erase` **no** lo
+	/// ejecuta (solo atiende `ClearRect`): es una secuencia en la capa superior — la
+	/// política `BackgroundPolicy::SaveUnder` del actor (`scene/actor_types.hpp`) y el
+	/// camino de intención (`scene/layer.hpp`) emiten `RestoreRect` + `CopyRect` con
+	/// `bob_save_box`/`bob_restore_box`; cubierto por HOST-072 y la demo 086.
 	RestoreUnder,
 };
 

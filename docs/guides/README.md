@@ -14,6 +14,7 @@ docs/guides/
 │   ├── REFACTOR_PLAYFIELD_SCROLL.md  → plan por fases del refactor playfield/scroll
 │   ├── REGLAS_PIPELINE_TILES.md      → reglas de oro del pipeline de tiles
 │   ├── ROADMAP_TILED_WORLD_SUPPORT.md → Tiled: parser/cooker, tilesets, capas, orientación y streaming
+│   ├── ROADMAP_JUEGO_SPRITES_BOBS.md → adecuación de sprites HW/BOBs para juego: compuestos, trayectorias y mecanismos
 │   ├── PROBLEMA_LAUNCHER_DEMOS_NUEVAS.md → enunciado de un problema conocido
 │   └── …
 ├── optimization/        → guías de optimización 68000/C++ y rendimiento

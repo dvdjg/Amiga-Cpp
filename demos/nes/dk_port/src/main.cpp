@@ -321,7 +321,6 @@ struct DkPortGame {
 			cfg.hpos = static_cast<eng::u16>(ox + 128u);
 			cfg.vstart = static_cast<eng::u16>(oy + kDisplayVStart + 1u);
 			cfg.vstop = static_cast<eng::u16>(cfg.vstart + kSpriteHeight - 1u);
-			cfg.palette_base = 16u;
 			m_sprites.set(ch, cfg);
 			// Subpaleta de sprite ($3F10 + attr&3): COLOR16..19 (el par del canal no se puede
 			// cambiar por canal, asi que se usa la subpaleta del sprite de mayor prioridad).

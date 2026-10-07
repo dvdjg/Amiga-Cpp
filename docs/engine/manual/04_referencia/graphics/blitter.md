@@ -9,7 +9,7 @@ El chipset ofrece dos formas de poner objetos en pantalla: **BOBs** (bitmaps cop
 | Tipo | Qué es |
 |---|---|
 | `BobDraw` (`:51`) | Algoritmo de dibujo: aditivo (`D = A \| D`, `$FC`, sin máscara), cookies/opaco. |
-| `BobErase` (`:65`) | Borrado: `ClearRect` (blit de borrado) o ninguno (objetos aditivos). |
+| `BobErase` (`:65`) | Borrado: `ClearRect` (blit de borrado), `RestoreUnder` (save-under: la capa de actor/intención emite `RestoreRect` + `CopyRect` con `bob_save_box`/`bob_restore_box`) o ninguno (objetos aditivos). |
 | `BobLayout` (`:77`) | Alias de `PlaneLayout`. `BobMaskPack` (`:80`). |
 | `BobTarget` (`:113`) | Alias `BitmapView<PlaneTag, Chip>`; `make_bob_target(...)` (`:125`). |
 | `save-under` (`bob_erase_box`/`restore`) | La caja procesa `base + (shift != 0)` palabras — las **mismas** que el dibujo: borrar solo `base` deja hasta 15 px por fila sin limpiar (residuo en el borde derecho). |
@@ -18,7 +18,7 @@ Contrato de la **hoja**: por cada fila de cada plano, `base + 1` palabras (`base
 
 ## Sprites de hardware — `sprite.hpp`, `sprite_manager.hpp`
 
-`SpriteManager` (`sprite_manager.hpp:58`) gestiona los 8 sprites DMA a nivel de escena: guarda la config, reserva su Chip RAM y emite los MOVEs (`SPRxPT`/`SPRxPOS`/`SPRxCTL`) en la copperlist. `SpriteConfig` (`:41`) declara `data`/`width_words`/`height`/`hpos`/`vstart`/`vstop`/`palette_base`/`attached`.
+`SpriteManager` gestiona los 8 sprites DMA a nivel de escena: guarda la config, reserva su Chip RAM y emite los MOVEs (`SPRxPT`/`SPRxPOS`/`SPRxCTL`) en la copperlist. `SpriteConfig` declara `data`/`width_words`/`height`/`hpos`/`vstart`/`vstop`/`attach`. El camino canónico de emisión de objetos es `emit_placements_into` (placements del compositor con rearme vertical); `emit_armed_into`/`emit_template_into` son drivers de demos y `emit_into` es legado (ver `ROADMAP_JUEGO_SPRITES_BOBS.md` §4.1).
 
 Los **pares attached** (0+1, 2+3, 4+5, 6+7) comparten sus 3 `COLORxx` (cambiar el color de un canal afecta a su par: *Color Bleed*) y dan 4 bits/píxel (15 colores) sobre `COLOR16-31`; reducen los canales útiles de 8 a 4. La prioridad frente a los playfields la fija `BPLCON2` (`PF1P`/`PF2P`); entre sprites, el orden de canal.
 
