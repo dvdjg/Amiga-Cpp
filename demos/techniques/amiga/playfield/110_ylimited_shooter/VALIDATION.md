@@ -143,6 +143,21 @@ y envuelve solo la fila de mapa, `scroll_engine.hpp`). Verificado con captura de
 Comparativa de modelos de visión (misma ventana): qwen3-vl (preferido) vs gemma3:12b (más verboso,
 inventa movimientos) — §6.4.1 de `DEMO_VISUAL_DEBUG.md`.
 
+**FG: rediseño de objetos (torreta con forma y movimiento) e investigación de coste.** La torreta
+enemiga ya no es un cuadrado: base, cuerpo, cúpula y ojo (4 rects) + **vaivén** horizontal (24..120
+px) además de apuntar al jugador con el cañón (3 puntos). El borrado/repintado se hace en orden
+consistente (área previa → forma → cañón), que elimina el detalle «marca amarilla que desaparece»
+que marcaban los modelos de visión. Medidas por sección (PROF): FG ≈ 399k ciclos/frame (nave 89k,
+balas 188k, torreta ≈122k), con un coste **por llamada** a `fill_rect` de ~12-15k (tanto CPU como
+en el fill HW síncrono). Con `set_rect_fill_sink` + `kBlitterRaster` (Auto, ≥64 px) el FG baja de
+~8.7 fps (CPU puro) a **12.48 fps**; forzar el fill HW para todo es patológico (501 campos/frame).
+Siguiente enfoque (DT-001 F4): **sprites pre-renderizados + blits encolados** (`add_world_bitmap`,
+la ruta rápida ya probada por el scroll) en vez de `fill_rect` por objeto.
+
+**Gate anti-flicker alterno en la regresión**: `test-regression.sh --flicker` ejecuta
+`tools/analyze/check-alternating-bands.mjs` sobre la secuencia del run (si existe) y marca
+`bandas-alternas` como fallo — no depende del modelo de visión (§6.4.1).
+
 **Demo real (FG reactivado, mapa real) — estado actual:** el bloque FG volvió a compilarse tras
 muchos turnos y destapó un **address error** introducido al añadir la guarda del lienzo: `byte_for`
 devolvía byte impar para `wx=8..15` (se perdió el `& ~1`), y el 68000 no admite escrituras de word

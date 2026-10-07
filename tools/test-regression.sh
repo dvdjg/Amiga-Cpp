@@ -406,6 +406,18 @@ for demo_path in "${DEMO_DIRS[@]}"; do
 	#   - `max_blocks_low` (máx. de bloques con SSIM bajo del frame-diff = cambio estructural).
 	# Superar un límite es fallo aunque no se pase `--require-flicker-ok`. Así una demo declara
 	# explícitamente su estabilidad (p. ej. ambos a 0).
+	# Bandas alternas (flicker 1-de-cada-2 frames): check objetivo por luminancia de
+	# bandas (el modelo de visión no lo caza; ver DEMO_VISUAL_DEBUG §6.4.1). Opt-in con
+	# `--flicker`; solo actúa si hay una secuencia por paso del run.
+	if [ "$FLICKER" -eq 1 ] && [ "$SKIP_RUN" -eq 0 ] && command -v node >/dev/null 2>&1; then
+		seq_dir="$(ls -d "$ROOT/out/run/${demo_id}"/*/sequence 2>/dev/null | head -1)"
+		if [ -n "$seq_dir" ] && ls "$seq_dir"/frame_*_f*.png >/dev/null 2>&1; then
+			if ! node "$ROOT/tools/analyze/check-alternating-bands.mjs" "$seq_dir" >/dev/null 2>&1; then
+				flicker="fail"; notes="${notes:+$notes,}bandas-alternas"
+			fi
+		fi
+	fi
+
 	if [ "$FLICKER" -eq 1 ] && [ "$SKIP_RUN" -eq 0 ] && command -v node >/dev/null 2>&1; then
 		echo "== ${demo_name}: flicker =="
 		flicker_json="$ROOT/out/vision-review/${demo_id}/flicker-report.json"

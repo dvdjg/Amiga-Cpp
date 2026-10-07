@@ -204,6 +204,18 @@ constexpr eng::u16 kPalette[16] {
 
 eng::u16 g_map[kMapCols * kMapRows] {};
 
+// Relleno de rect por Blitter D-only (sink del lienzo FG): los rects grandes
+// (borrados de nave/torreta) van por hardware; los pequeños siguen por CPU.
+// Patrón de la demo 215 (`Scene::set_rect_fill_sink`). Medido: ~12.5 fps vs
+// ~8.7 fps sin el sink (el camino CPU por píxel es más caro que el fill HW).
+bool rect_fill_cb(void* ctx, eng::u8* base, eng::u8 planes, eng::u32 plane_stride,
+                  eng::u32 row_stride, eng::u16 row_bytes, eng::u16 bw, eng::u16 bh,
+                  eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h, eng::u8 color) {
+	auto* b = static_cast<eng::amiga::AmigaBackend*>(ctx);
+	return b->blitter_fill_rect(base, planes, plane_stride, row_stride, row_bytes, bw, bh, x, y, w,
+	                            h, color, true);
+}
+
 struct DemoGame {
 	playfield::XlimitedScene<kScrollConsts> scene {};
 	playfield::XlimitedSceneConfig scene_cfg {};
@@ -219,8 +231,10 @@ struct DemoGame {
 	eng::s16 m_ship_px = 152;
 	eng::u8 m_ship_dir = 0;
 	eng::u8 m_fire = 0;
-	eng::s16 m_enemy_x = 40; // torreta fija que apunta al jugador
+	eng::s16 m_enemy_x = 40; // torreta enemiga (patrulla + apunta al jugador)
 	eng::s16 m_enemy_y = 36;
+	eng::s16 m_enemy_px = 40; // posición previa (para borrar el área al moverse)
+	eng::s16 m_enemy_dir = 1; // sentido del vaivén de la torreta
 	eng::s16 m_cannon_px[3] {}; // puntos previos del cañón (se borran uno a uno)
 	eng::s16 m_cannon_py[3] {};
 	bool m_cannon_valid = false;
@@ -278,7 +292,10 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011002u);
 			return;
 		}
-		// Arranca abajo del mundo, a media anchura (la nave sube).
+		// Lienzo FG acelerado por Blitter: rects >=64 px por D-only (sink), resto CPU.
+		scene.set_rect_fill_sink(eng::playfield::RectFillSink {&backend, &rect_fill_cb});
+		scene.set_raster(&eng::playfield::kBlitterRaster,
+		                 eng::playfield::RasterPolicy {eng::playfield::AccelMode::Auto, 64u, true});
 		// Arranca abajo del mundo, a media anchura (la nave sube). Con `wrap_y` el
 		// scroll es infinito: al pasar la fila 0 continúa por la 127 (sin teleport).
 		scene.bg().set_camera(kViewportW / 4, static_cast<eng::s32>(kMapRows * kTileH) - kViewportH);
@@ -342,19 +359,14 @@ struct DemoGame {
 			const auto aim = eng::math::angle_of(eng::math::Vec<2, qa> {{ddx, ddy}});
 			const eng::math::Vec<2, qa> dir = eng::math::from_angle(aim);
 
-			// 3) Nave: la nave se mueve ±1 px/frame, así que basta borrar la franja de
-			//    1 px que deja atrás (borrar el bloque 16×16 dejaba un hueco que el haz
-			//    barre) y repintarla encima de inmediato.
-			if (m_ship_x > m_ship_px) {
-				fg.fill_rect(m_ship_px, static_cast<eng::s16>(ship_y - 4), 1, 16, 0);
-			} else if (m_ship_x < m_ship_px) {
-				fg.fill_rect(static_cast<eng::s16>(m_ship_px + 15), static_cast<eng::s16>(ship_y - 4),
-					     1, 16, 0);
-			}
-			fg.fill_rect(static_cast<eng::s16>(m_ship_x + 7), static_cast<eng::s16>(ship_y - 4), 2, 4, 2); // morro
-			fg.fill_rect(static_cast<eng::s16>(m_ship_x + 5), ship_y, 6, 4, 1);
-			fg.fill_rect(static_cast<eng::s16>(m_ship_x + 3), static_cast<eng::s16>(ship_y + 4), 10, 4, 1);
-			fg.fill_rect(m_ship_x, static_cast<eng::s16>(ship_y + 8), 16, 4, 3); // base
+			// 3) Nave: borrado del área completa (rect >=64 px → Blitter D-only) y forma
+			//    con detalles (morro, cuerpo, cabina, base, motor).
+			fg.fill_rect(static_cast<eng::s16>(m_ship_px - 2), static_cast<eng::s16>(ship_y - 8), 20, 20, 0);
+			fg.fill_rect(static_cast<eng::s16>(m_ship_x + 7), static_cast<eng::s16>(ship_y - 6), 2, 4, 2);  // morro
+			fg.fill_rect(static_cast<eng::s16>(m_ship_x + 6), static_cast<eng::s16>(ship_y - 2), 4, 3, 6);  // cabina
+			fg.fill_rect(static_cast<eng::s16>(m_ship_x + 3), static_cast<eng::s16>(ship_y + 1), 10, 4, 1); // cuerpo
+			fg.fill_rect(m_ship_x, static_cast<eng::s16>(ship_y + 5), 16, 4, 3);                            // base
+			fg.fill_rect(static_cast<eng::s16>(m_ship_x + 5), static_cast<eng::s16>(ship_y + 9), 6, 3, 4);  // motor
 			m_ship_px = m_ship_x;
 
 			// 4) Balas: por bala, borrado de la posición previa + avance + repintado
@@ -368,15 +380,23 @@ struct DemoGame {
 				b.py = b.y;
 			}
 
-			// 5) Torreta: el cuerpo se REPINTA encima (sin borrado: borrarlo dejaba un
-			//    hueco que el haz barre → flicker); solo se borran los puntos previos del
-			//    cañón, que pueden caer fuera del cuerpo.
+			// 5) Torreta enemiga: vaivén lento (además de apuntar al jugador); se borra el
+			//    área previa (rect grande → Blitter) y se dibuja una forma con cúpula, ojo
+			//    y base (nada de cuadrado plano). El cañón son 3 puntos que siguen a la nave.
+			m_enemy_x += m_enemy_dir;
+			if (m_enemy_x >= 120) m_enemy_dir = -1;
+			else if (m_enemy_x <= 24) m_enemy_dir = 1;
 			if (m_cannon_valid) {
 				for (eng::u8 i = 0; i < 3u; ++i) {
 					fg.fill_rect(m_cannon_px[i], m_cannon_py[i], 2, 2, 0);
 				}
 			}
-			fg.fill_rect(m_enemy_x, m_enemy_y, 16, 16, 4); // cuerpo de la torreta
+			fg.fill_rect(static_cast<eng::s16>(m_enemy_px - 6), static_cast<eng::s16>(m_enemy_y - 1), 28, 18, 0);
+			fg.fill_rect(m_enemy_x, static_cast<eng::s16>(m_enemy_y + 12), 16, 4, 3);           // base
+			fg.fill_rect(static_cast<eng::s16>(m_enemy_x + 2), static_cast<eng::s16>(m_enemy_y + 6), 12, 6, 4); // cuerpo
+			fg.fill_rect(static_cast<eng::s16>(m_enemy_x + 5), static_cast<eng::s16>(m_enemy_y + 2), 6, 4, 6);  // cúpula
+			fg.fill_rect(static_cast<eng::s16>(m_enemy_x + 7), static_cast<eng::s16>(m_enemy_y + 3), 2, 2, 7);  // ojo
+			m_enemy_px = m_enemy_x;
 			for (eng::u8 i = 0; i < 3u; ++i) {
 				const qa li = eng::math::scalar_traits<qa>::from_int(
 					static_cast<int>(2u + i * 2u));

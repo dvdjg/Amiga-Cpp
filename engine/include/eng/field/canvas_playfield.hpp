@@ -92,6 +92,14 @@ public:
         return wx >= 0 && wy >= 0 && static_cast<u32>(wx) < m_width && static_cast<u32>(wy) < m_height;
     }
 
+    /// Relleno de rect por hardware: el sink recibe la x YA desplazada por la guarda
+    /// izquierda (el sink escribe en bytes absolutos del bitmap). Sin sink, el camino CPU
+    /// del base usa `byte_for` (que ya aplica la guarda): no se desplaza dos veces.
+    bool fill_rect_hw(s32 x, s32 y, u16 w, u16 h, u8 color) override {
+        if (has_rect_fill()) return Playfield::fill_rect_hw(x + m_x_offset_px, y, w, h, color);
+        return Playfield::fill_rect_hw(x, y, w, h, color);
+    }
+
     /// Vista de hardware del playfield (base de planos, strides, alto): lo que consume el
     /// backend/Compositor para programar `BPLxPT`/módulos. `CanvasPlayfield` la expone tal cual.
     PlayfieldHardwareView hardware_view() const override {

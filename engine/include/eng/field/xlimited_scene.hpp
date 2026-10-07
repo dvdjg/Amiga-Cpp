@@ -816,6 +816,19 @@ public:
     /// Segundo XLimited (DPF 3+3 homogéneo). En `fg_canvas` usa `canvas_fg()`.
     XLimitedPlayfield<SC, MapT, Profile>& fg() { return m_field[1]; }
     const XLimitedPlayfield<SC, MapT, Profile>& fg() const { return m_field[1]; }
+    /// Rasterizador de los lienzos de la escena (FG/HUD): el backend declara sus
+    /// capacidades y la app elige la política (patrón de `Scene::set_raster`; ver
+    /// demo 215). Con `kBlitterRaster` los rects grandes del FG van por Blitter
+    /// D-only (el lienzo con guarda desplaza la x en `fill_rect_hw`).
+    void set_raster(eng::Ref<playfield::Rasterizer> r, const playfield::RasterPolicy& policy = {}) {
+        m_fg_canvas.set_rasterizer(r);
+        m_fg_canvas.set_raster_policy(policy);
+    }
+
+    /// Instala el motor de **relleno de rect por hardware** (Blitter D-only) en el
+    /// lienzo FG. Lo usa `BlitterRaster`; sin sink cae a CPU (`draw_span`).
+    void set_rect_fill_sink(playfield::RectFillSink sink) { m_fg_canvas.set_rect_fill_sink(sink); }
+
     /// FG como lienzo plano (DPF heterogéneo: `dual && fg_canvas`). Dibuja aquí
     /// (una vez en init) con las primitivas; el contenido es estático.
     CanvasPlayfield& canvas_fg() { return m_fg_canvas; }

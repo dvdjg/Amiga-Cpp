@@ -480,8 +480,9 @@ public:
 
     /// **Rellena un rectángulo axis-aligned** con `color`: por el sink de hardware si lo hay
     /// (Blitter D-only), o por CPU (`draw_span` por fila). El llamador (`BlitterRaster`) ya
-    /// decidió la ruta; aquí solo se ejecuta.
-    bool fill_rect_hw(s32 x, s32 y, u16 w, u16 h, u8 color) {
+    /// decidió la ruta; aquí solo se ejecuta. `virtual`: los lienzos con guarda izquierda
+    /// (`CanvasPlayfield::x_offset_px`) desplazan la x que ve el sink.
+    virtual bool fill_rect_hw(s32 x, s32 y, u16 w, u16 h, u8 color) {
         if (!m_initialized || w == 0u || h == 0u) return false;
         if (m_rect_sink.ready()) {
             return m_rect_sink.fn(m_rect_sink.ctx, m_frontbuffer.ptr(), m_planes, plane_stride(),
