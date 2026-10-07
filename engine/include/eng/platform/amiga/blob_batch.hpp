@@ -69,14 +69,17 @@ public:
 		}
 		base_con0 = static_cast<eng::u16>(use | minterm);
 		size = static_cast<eng::u16>((static_cast<eng::u16>(height) << 6u) | words);
-		c[kBltcon0] = base_con0; // Clear no lo reescribe en `one`; el resto lo ajusta con el shift
-		c[kBltcon1] = 0;
-		c[kBltafwm] = 0xffff;
-		c[kBlctalwm] = 0xffff;
-		c[kBltamod] = static_cast<eng::u16>(amod);
-		c[kBltbmod] = static_cast<eng::u16>(bmod);
-		c[kBltcmod] = static_cast<eng::u16>(cmod);
-		c[kBltdmod] = static_cast<eng::u16>(dmod);
+		// Registros comunes en escrituras de 32 bits, como el original (`move.l
+		// d6,bltcon0`, `move.l #$ffffffff,bltafwm`, `move.l d4,bltamod` + swap a
+		// `bltcmod`, GFX/blitter.asm:95-98): cada escritura a un registro custom cuesta
+		// un ciclo de bus y empaquetar pares contiguos reduce a la mitad el coste por
+		// blob. En el long big-endian el primer registro del par va en los 16 bits altos.
+		write_long(kBltcon0, static_cast<eng::u32>(base_con0) << 16u); // CON1 = 0
+		write_long(kBltafwm, 0xffffffffu);
+		write_long(kBltcmod, (static_cast<eng::u32>(static_cast<eng::u16>(cmod)) << 16u) |
+					     static_cast<eng::u16>(bmod));
+		write_long(kBltamod, (static_cast<eng::u32>(static_cast<eng::u16>(amod)) << 16u) |
+					     static_cast<eng::u16>(dmod));
 	}
 
 	/// Lanza UN blob. `shift` = desplazamiento fino X (0..15). Según la operación:
@@ -104,9 +107,13 @@ public:
 			return;
 		}
 		const eng::u16 s = static_cast<eng::u16>(static_cast<eng::u16>(shift & 0x0fu) << 12u);
-		c[kBltcon0] = static_cast<eng::u16>(base_con0 | s);
+		// CON0/CON1 en una sola escritura de 32 bits para cookie-cut (el original:
+		// `move.l d6,bltcon0`, con BSH en CON1); para el resto CON1 queda 0 (fijado en
+		// `begin`) y basta CON0.
 		if (op_ == BlobOp::CookieCut) {
-			c[kBltcon1] = s; // BSH (el barrel shifter desplaza A y B)
+			write_long(kBltcon0, (static_cast<eng::u32>(static_cast<eng::u16>(base_con0 | s)) << 16u) | s);
+		} else {
+			c[kBltcon0] = static_cast<eng::u16>(base_con0 | s);
 		}
 		write_ptr(kBltapt, a);
 		if (op_ == BlobOp::CookieCut) {
@@ -125,8 +132,7 @@ public:
 	/// solo 2 palabras y usa la tercera como arrastre del barrel shifter. La referencia
 	/// («SPR Layer») lo fija justo antes de dibujar sus 9 BOBs.
 	__attribute__((always_inline)) inline void set_window_masks(eng::u16 afwm, eng::u16 alwm) {
-		c[kBltafwm] = afwm;
-		c[kBlctalwm] = alwm;
+		write_long(kBltafwm, (static_cast<eng::u32>(afwm) << 16u) | alwm);
 	}
 
 	/// Espera al último blob del lote.
@@ -136,15 +142,19 @@ public:
 	}
 
 private:
-	/// Escribe el par PTH/PTL como **dos stores de 16 bits** (registro alto primero, big-endian),
-	/// igual que hace el compilador al asignar un `u32` a un registro de 16 bits en el original.
-	/// Se evita el `reinterpret_cast<volatile u32*>` sobre registros `volatile u16*` (aliasing que
-	/// a `-O2` puede reordenarse/miscompilarse). El par puede escribirse con el Blitter ocupado:
-	/// queda latcheado para el siguiente blit.
+	/// Escribe el par PTH/PTL en **una sola escritura de 32 bits** (el original usa
+	/// `move.l a2,bltapt`): una transaccion de bus en vez de dos. Los registros de punteros
+	/// ($048-$056) estan alineados a 4 bytes y el build usa `-fno-strict-aliasing`. El par
+	/// puede escribirse con el Blitter ocupado: queda latcheado para el siguiente blit.
 	__attribute__((always_inline)) inline void write_ptr(eng::u16 word_index, const void* p) {
-		const eng::u32 v = static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(p));
-		c[word_index] = static_cast<eng::u16>(v >> 16u);
-		c[static_cast<eng::u16>(word_index + 1u)] = static_cast<eng::u16>(v);
+		write_long(word_index, static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(p)));
+	}
+
+	/// Escribe un registro doble (par contiguo de 16 bits) como una escritura de 32 bits,
+	/// big-endian: el primer registro del par va en los 16 bits altos. Los pares usados
+	/// (CON0/CON1, AFWM/ALWM, CMOD/BMOD, AMOD/DMOD) estan alineados a 4 bytes.
+	__attribute__((always_inline)) inline void write_long(eng::u16 word_index, eng::u32 v) {
+		*reinterpret_cast<volatile eng::u32*>(&c[word_index]) = v;
 	}
 
 	/// BBUSY (DMACONR bit 14). Con `wait_fn`, drena fondo en cada vuelta.
