@@ -48,9 +48,14 @@ Independiente de GDB; útil cuando GDB no está disponible o quedó inerte.
 **Aviso de parseo (comprobado 2026-10):** en `mem`/`runstatus` una dirección **hexadecimal sin
 letras** (p. ej. `22820`) se interpreta como **DECIMAL** (`22820` → `$5924`) y la lectura devuelve
 memoria ajena en silencio. Usar SIEMPRE prefijo `0x` (`mem 0x22820 24`) para direcciones hex.
-También: en modo `--keep-running` la instancia puede quedar en estado degradado tras desconectar el
-runner (observado `COP1LC=0` y memoria liberada); para trazas de estado del display usar
-instrumentación EN la demo o el MCP con la sesión viva.
+También: las respuestas de `mem` se **truncan a ~200 bytes** por petición (leer por trozos y avanzar
+con la longitud devuelta, no con la pedida), y en modo `--keep-running` la instancia puede quedar en
+estado degradado tras desconectar el runner (observado `COP1LC=0` y memoria liberada); para trazas de
+estado del display usar instrumentación EN la demo o el MCP con la sesión viva.
+**No leer `COP1LC` desde la demo para trazar la lista**: los registros `COP1LCH/L` no devuelven la
+base fiable (write-only/PC del copper); una demo que los leyó y copió 128 words se quedó colgada en
+el frame 78 (posible acceso a dirección derivada). Trazar por el puntero del compositor (accesor de
+debug del bloque activo), no por el registro de hardware.
 
 **Puertos configurables (varias instancias en paralelo).** **Ambos** puertos se eligen por entorno:
 el servidor GDB del fork lee **`WINUAE_GDB_PORT`** (por defecto 2345) y el canal lateral lee
