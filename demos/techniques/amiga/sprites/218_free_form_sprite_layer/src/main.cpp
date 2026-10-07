@@ -60,7 +60,7 @@
 // ============================================================================
 
 #include <eng/api/api.hpp>
-#include <eng/debug/peripheral.hpp> // Temporal: instrumentación de coste por sección.
+#include <eng/debug/peripheral.hpp> // presupuesto por elemento del bucle (contadores 0-4)
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/os/os.hpp>
 #include <eng/platform/amiga/backend.hpp>
@@ -393,11 +393,28 @@ struct SprLayerDemo {
 		eng::debug::mark_ready(g_eng_run_status, kDetailReady);
 	}
 
+	/// `WaitRaster 0x2c` del original (`PhotonsMiniWrapper.asm:89-95`, llamada al inicio del
+	/// bucle principal): espera a que el haz pase por la línea 44. Ancla la **fase** de cada
+	/// iteración respecto al display. Sin ella, con el efecto ocupando más de un campo, el
+	/// bucle encadena updates sin esperar al VBlank y las escrituras «vivas» del update
+	/// (`SPRxCTL` de `UpdateSprCtl` y las `SPRxPOS` de las estructuras DMA del caso 3, que no
+	/// van por la copperlist) caen en posiciones de haz distintas cada frame: barren la capa
+	/// a media visualización y producen temblor. El original lo evita esperando siempre la
+	/// misma línea.
+	static void wait_raster_layer() {
+		// VPOSR/VHPOSR como long en $dff004; línea = bits 8-0 tras `lsr.l #1 / lsr.w #7`.
+		volatile const u32* const vpos = reinterpret_cast<volatile const u32*>(0x00dff004u);
+		while (((*vpos >> 8u) & 0x1ffu) != 0x2cu) {
+		}
+	}
+
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& c) {
+		wait_raster_layer();
 		const eng::u32 t0 = eng::debug::DebugPeripheral::cycle_counter();
 		if (m_fg_offset == kFgScrollMax) {
 			// El original deja de actualizar al llegar a las 49 pantallas.
-			eng::debug::mark_frame(g_eng_run_status, c.frame.frame_index);
+			m_updates++;
+			eng::debug::mark_frame(g_eng_run_status, m_updates);
 			return;
 		}
 		update_spr_ctl();
@@ -420,13 +437,17 @@ struct SprLayerDemo {
 		const eng::u32 t4 = eng::debug::DebugPeripheral::cycle_counter();
 		draw_bobs(backend);
 		const eng::u32 t5 = eng::debug::DebugPeripheral::cycle_counter();
-		// Instrumentación temporal (contadores del periférico de depuración).
+		// Presupuesto por elemento del bucle (contadores 0-4 del periférico de depuración,
+		// legibles con `run-demo.sh --read-debugperiph counters`): 0 = update completo,
+		// 1 = UpdateLayerPos, 2 = UpdateLayerData, 3 = BOBs (restore + dibujo),
+		// 4 = periodo del bucle (update + espera de VBlank). El efecto ocupa más de un
+		// campo: el periodo es el dato que refleja la tasa real de updates.
 		static eng::u32 s_prev_t0 = 0;
-		eng::debug::DebugPeripheral::counter_value(0, t5 - t0); // update total
-		eng::debug::DebugPeripheral::counter_value(1, t2 - t1); // UpdateLayerPos
-		eng::debug::DebugPeripheral::counter_value(2, t3 - t2); // UpdateLayerData
-		eng::debug::DebugPeripheral::counter_value(3, t5 - t4); // draw_bobs
-		eng::debug::DebugPeripheral::counter_value(4, t0 - s_prev_t0); // periodo del bucle
+		eng::debug::DebugPeripheral::counter_value(0, t5 - t0);
+		eng::debug::DebugPeripheral::counter_value(1, t2 - t1);
+		eng::debug::DebugPeripheral::counter_value(2, t3 - t2);
+		eng::debug::DebugPeripheral::counter_value(3, t5 - t4);
+		eng::debug::DebugPeripheral::counter_value(4, t0 - s_prev_t0);
 		s_prev_t0 = t0;
 		// Rebote de los BOBs entre y=16 e y=224 (`bob_speed`/`bob_y`).
 		s16 speed = m_bob_speed;
@@ -441,11 +462,12 @@ struct SprLayerDemo {
 		m_bob_y = static_cast<u16>(y);
 		m_bob_speed = speed;
 		backend.wait_blitter();
-		eng::debug::mark_frame(g_eng_run_status, c.frame.frame_index);
+		m_updates++;
+		eng::debug::mark_frame(g_eng_run_status, m_updates);
 	}
 
 	void render(eng::amiga::AmigaBackend&, eng::GameContext& c) {
-		eng::debug::probe_when_ready(g_eng_run_status, c.frame.frame_index);
+		eng::debug::probe_when_ready(g_eng_run_status, m_updates);
 	}
 
 private:
@@ -641,12 +663,16 @@ private:
 		// siguiente bloque de 4 frames). Índices en bytes como el original.
 		const u8 target = static_cast<u8>(((4u - m_clist_idx) + m_cpos_idx) >> 2u);
 		u16* layer = m_clist_ptr[target];
-		const u16 base = static_cast<u16>(kSprRPos - m_cpos_offset);
 
 		switch (m_c4) {
 		case 0u: {
+			// El original incrementa aquí el offset base de posición y lo usa ya
+			// actualizado (`layer.asm:88-98`): +1 (=2 px), con vuelta a 0 al pasar de 7.
+			// Es el avance grueso de la capa (0.5 px/frame de media, con el toggle de
+			// SPRxCTL cada 2 frames poniendo el píxel impar).
+			m_cpos_offset = static_cast<u16>((m_cpos_offset + 1u) & 7u);
 			// Columnas 1-4 completas + 3/4 de la 5.
-			u16 x = base;
+			u16 x = static_cast<u16>(kSprRPos - m_cpos_offset);
 			for (u8 c = 0; c < 4u; ++c) {
 				blit_pattern(backend, layer + m_lay.pos_word[c], x, kLayerLines);
 				x = static_cast<u16>(x + 8u);
@@ -696,11 +722,12 @@ private:
 				d = static_cast<u16>(d + 8u);
 				blit_pattern(backend, layer + m_lay.pos_word[c], d, kLayerLines - 1u);
 			}
-			// SPRxPOS de las estructuras DMA (canales 0..7): DMAPOS+8k.
+			// SPRxPOS de las estructuras DMA (canales 0..7): DMAPOS+8k − cpos_offset
+			// (`layer.asm:213-234`), mismo avance grueso que las columnas Copper.
 			u16* set = m_sprset_ptr[m_sprshow];
 			for (u8 c = 0; c < kDmaCols; ++c) {
-				set[static_cast<u32>(c) * kSprStructWords] =
-					static_cast<u16>(kDmaPos + c * 8u);
+				set[static_cast<u32>(c) * kSprStructWords] = static_cast<u16>(
+					kDmaPos + static_cast<u16>(c * 8u) - m_cpos_offset);
 			}
 			break;
 		}
@@ -754,7 +781,9 @@ private:
 			u16* dst = m_clist_ptr[list] + m_lay.datb_word[col];
 			const u16* map = kBgTileMap + offset;
 			// Una racha: 28 medios tiles (A→D, 16 filas × 1 palabra; fuente con paso
-			// 4 bytes —palabras alternas— y destino con paso 168 bytes).
+			// 4 bytes —palabras alternas— y destino con paso 168 bytes). Es la forma
+			// exacta del original (`layer.asm:358-363`): dos blits por fila, uno por
+			// plano, que escriben la pareja [plano1, plano0] de cada línea.
 			backend.blitter_blob_run_begin(eng::graphics::BlobOp::Opaque, 1u, 16u, 2, 0,
 						       kSprColMod, kSprColMod);
 			for (u16 row = 0; row < 14u; ++row) {
@@ -849,13 +878,21 @@ private:
 	void draw_bobs(eng::amiga::AmigaBackend& backend) {
 		const bool second = (m_c32 & 0x100u) != 0u;
 		// --- Restore: copia el fondo limpio de fg_buf3 al buffer de dibujo ---
+		// Los BOBs de una fila están a 48 px = 3 palabras y comparten alineación, así que
+		// sus celdas de 3 palabras son contiguas: la unión de la fila de 5 BOBs son 15
+		// palabras y la de 4 son 12. Dos copias equivalen a las 9 del original
+		// (`SPR_Layer.asm:404-411`), que escriben exactamente las mismas palabras.
 		RestoreEntry* entries = m_restore[second ? 0 : 1];
-		backend.blitter_blob_run_begin(eng::graphics::BlobOp::Opaque, 3u, 128u, 38, 38, 38, 38);
-		for (u8 i = 0; i < kBobCount; ++i) {
-			if (entries[i].dst == nullptr) { break; }
-			backend.blitter_blob_run_one(entries[i].src, entries[i].src, entries[i].dst, 0u);
+		if (entries[0].dst != nullptr) {
+			backend.blitter_blob_run_begin(eng::graphics::BlobOp::Opaque, 15u, 128u, 14, 14,
+						       14, 14);
+			backend.blitter_blob_run_one(entries[0].src, entries[0].src, entries[0].dst, 0u);
+			backend.blitter_blob_run_end();
+			backend.blitter_blob_run_begin(eng::graphics::BlobOp::Opaque, 12u, 128u, 20, 20,
+						       20, 20);
+			backend.blitter_blob_run_one(entries[1].src, entries[1].src, entries[1].dst, 0u);
+			backend.blitter_blob_run_end();
 		}
-		backend.blitter_blob_run_end();
 
 		// --- Dibujo: 9 BOBs a X = 40 + (c32 & 15) + 24*i ---
 		const u8 buf = second ? 0u : 1u;
@@ -863,6 +900,17 @@ private:
 		u16 x = static_cast<u16>((m_c32 & 0x0fu) + m_bob_x);
 		RestoreEntry* out = m_restore[second ? 0 : 1];
 		u8* clean = m_fg[2].view.data() + scroll;
+		// Entradas de restore del próximo frame: la unión de las celdas de cada fila
+		// (fila par: BOBs 0,2,4,6,8 a X = x y 224-bob_y; impar: 1,3,5,7 a X = x+24 y bob_y).
+		{
+			const u32 off_even = static_cast<u32>(224u - m_bob_y) * kFgMod + (x >> 3u);
+			const u32 off_odd = static_cast<u32>(m_bob_y) * kFgMod + ((x + 24u) >> 3u);
+			u8* dst_buf = m_fg[buf].view.data() + scroll;
+			out[0].src = clean + off_even;
+			out[0].dst = dst_buf + off_even;
+			out[1].src = clean + off_odd;
+			out[1].dst = dst_buf + off_odd;
+		}
 		backend.blitter_blob_run_begin(eng::graphics::BlobOp::CookieCut, 3u, 128u,
 					       static_cast<s16>(0xfffe), static_cast<s16>(0xfffe),
 					       38, 38);
@@ -874,8 +922,6 @@ private:
 			// y*176 + (x>>3): sin multiplicación (176 = 16+32+128).
 			const u32 off = static_cast<u32>(y) * kFgMod + (x >> 3u);
 			u8* dst = m_fg[buf].view.data() + scroll + off;
-			out[i].src = clean + off; // fg_buf3 + fg_offset + off
-			out[i].dst = dst;
 			backend.blitter_blob_run_one(m_masks, m_bobs, dst, static_cast<u8>(x & 0x0fu));
 			x = static_cast<u16>(x + 24u);
 		}
@@ -962,7 +1008,7 @@ private:
 		m_bgt_offset = 0u;
 		m_fgt_offset = 0u;
 		for (u8 s = 0; s < 2u; ++s) {
-			for (u8 i = 0; i < kBobCount; ++i) {
+			for (u8 i = 0; i < 2u; ++i) {
 				m_restore[s][i].src = nullptr;
 				m_restore[s][i].dst = nullptr;
 			}
@@ -1042,6 +1088,10 @@ private:
 	u16 m_c2 = 0u;
 	u16 m_c4 = 0u;
 	u16 m_c32 = 0u;
+	// Contador de *updates* (no de ticks de VBlank): el efecto puede ocupar más de un
+	// campo, y el frame_index del engine lo avanza la IRQ a 50 Hz. La telemetría y los
+	// pasos de secuencia deben contar actualizaciones reales del efecto.
+	u32 m_updates = 0u;
 	u16 m_ctl_idx = 0u;
 	u16 m_clist_idx = 0u;
 	u16 m_cpos_idx = 0u;
@@ -1059,7 +1109,8 @@ private:
 	s16 m_bob_speed = 0;
 	u16 m_bob_x = 0u;
 	u16 m_bob_y = 0u;
-	RestoreEntry m_restore[2][kBobCount] {};
+	// [doble buffer][fila de BOBs: 0 = pares (y=224-bob_y), 1 = impares (y=bob_y)]
+	RestoreEntry m_restore[2][2] {};
 };
 
 } // namespace
