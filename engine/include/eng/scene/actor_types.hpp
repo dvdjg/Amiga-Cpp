@@ -61,7 +61,6 @@ using eng::graphics::HwSpritePlacement;
 using eng::graphics::SpritePaletteEvent;
 using eng::graphics::SpriteSlot;
 using eng::graphics::Visual;
-using eng::graphics::VisualKind;
 
 /// Buffers de display soportados por actor (paralelo a los `buffers` de `scene::compose`).
 inline constexpr eng::u8 kActorBuffers = 3u;

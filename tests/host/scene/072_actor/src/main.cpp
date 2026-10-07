@@ -51,7 +51,6 @@ using eng::graphics::HwSpriteSegment;
 using eng::graphics::SpriteSlot;
 using eng::graphics::HwSpriteTemplate;
 using eng::graphics::Visual;
-using eng::graphics::VisualKind;
 using eng::scene::Actor;
 using eng::scene::ActorDesc;
 using eng::scene::ActorEmitContext;
@@ -106,7 +105,6 @@ const Animation kAnim {eng::Span<const Frame> {kFrames, 2u}, true};
 
 Visual make_visual() {
 	Visual v {};
-	v.kind = VisualKind::Bob;
 	v.pixels = eng::Span<const eng::u16> {g_pixels, 32u};
 	v.mask = eng::Span<const eng::u16> {g_mask, 16u};
 	v.w = 16u;
@@ -764,7 +762,6 @@ void test_compose_attached_pair() {
 		d.x = 16;
 		d.y = 100;
 		d.z = 10;
-		d.visual.kind = VisualKind::HardwareSprite;
 		d.visual.pixels = eng::Span<const eng::u16> {planes, 2u * 4u * kH};
 		d.visual.w = 16u;
 		d.visual.h = kH;
@@ -900,7 +897,6 @@ void test_compose_template_chain() {
 	d.x = 100;
 	d.y = 120;
 	d.z = 10;
-	d.visual.kind = VisualKind::HardwareSprite;
 	d.visual.pixels = eng::Span<const eng::u16> {g_pixel_pool, 16u}; // contenido para el BOB
 	d.visual.w = 16u;
 	d.visual.h = kH;
@@ -976,7 +972,6 @@ void test_compose_group_and_rank() {
 		d.x = 0;
 		d.y = y;
 		d.z = z;
-		d.visual.kind = VisualKind::HardwareSprite;
 		d.visual.pixels = eng::Span<const eng::u16> {g_pixel_pool, 16u};
 		d.visual.w = 16u;
 		d.visual.h = 8u;

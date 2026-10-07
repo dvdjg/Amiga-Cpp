@@ -36,7 +36,6 @@ using eng::graphics::Effect;
 using eng::graphics::SpriteIntent;
 using eng::graphics::HwSpriteTemplate;
 using eng::graphics::Visual;
-using eng::graphics::VisualKind;
 using eng::MemoryBlock;
 using eng::MemoryKind;
 
@@ -63,9 +62,6 @@ struct MockCycler {
 // Evidencia del contract: MockCycler cumple `Effect<_, MockPlan>` (Tick = u16 por defecto).
 static_assert(Effect<MockCycler, MockPlan>);
 
-// `VisualKind` es distinguible y compacto (u8).
-static_assert(sizeof(VisualKind) == 1);
-
 } // namespace
 
 int main() {
@@ -82,13 +78,12 @@ int main() {
         return 1;
     }
 
-    // Runtime: un `Visual` tipo Bob con mascara conserva su identidad de contenido.
+    // Runtime: un `Visual` de contenido conserva su identidad (sin flags de representación).
     Visual v {};
-    v.kind = VisualKind::Bob;
     v.w = 32;
     v.h = 32;
     v.bitplanes = 4;
-    if (v.kind != VisualKind::Bob || v.w != 32 || v.bitplanes != 4) {
+    if (v.w != 32 || v.h != 32 || v.bitplanes != 4 || v.frame_count != 1) {
         std::printf("[FAIL] Visual incorrecto\n");
         return 1;
     }

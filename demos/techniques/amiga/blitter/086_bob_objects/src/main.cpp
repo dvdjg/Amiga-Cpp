@@ -431,7 +431,6 @@ private:
 			const eng::u8 index = static_cast<eng::u8>(variant + 1u); // registro COLOR
 			const eng::u32 base = static_cast<eng::u32>(variant) * kObjStride;
 			scene::ActorDesc d {};
-			d.visual.kind = graphics::VisualKind::Bob;
 			d.visual.pixels = eng::Span<const eng::u16> {
 				reinterpret_cast<const eng::u16*>(sheet + base),
 				static_cast<eng::usize>(kObjData / 2u)};

@@ -33,7 +33,6 @@ eng::u16 g_dest[256] {};
 
 scene::ActorDesc make_bob(eng::s16 x, eng::s16 y, eng::u8 z) {
 	scene::ActorDesc d {};
-	d.visual.kind = graphics::VisualKind::Bob;
 	d.visual.pixels = eng::Span<const eng::u16> {g_sheet, 64u};
 	d.visual.mask = eng::Span<const eng::u16> {g_mask, 64u};
 	d.visual.w = 32u;

@@ -87,7 +87,7 @@ publica la lista.
 
 ## 5. Capa 3 — orquestación: `copper::Plan`
 
-El vocabulario portable **ya existe** (`graphics/raster_intent.hpp`: `VisualKind`,
+El vocabulario portable **ya existe** (`graphics/raster_intent.hpp`: `Visual`,
 `CopperIntent`, `CopperIntentKind`, `SpriteIntent`, y el patrón «un efecto aporta con
 `apply_into(plan)`»), y `FramePlan` recoge trabajos por frame. `copper::Plan` es el supervisor
 de la copperlist de escena:

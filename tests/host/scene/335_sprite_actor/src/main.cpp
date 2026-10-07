@@ -57,7 +57,6 @@ int main() {
 
 	// Vista de dominio (mismo asset).
 	const eng::graphics::Visual v = spr.visual();
-	check(v.kind == eng::graphics::VisualKind::Bob, "kind Bob");
 	check(v.w == 32u && v.h == 16u && v.bitplanes == 2u, "geometria");
 	check(v.pixels.size() == sizeof(g_sheet) / 2u, "pixels dimensionado por sheet_bytes");
 	check(v.mask.size() == sizeof(g_mask) / 2u, "mascara dimensionada por mask_bytes");

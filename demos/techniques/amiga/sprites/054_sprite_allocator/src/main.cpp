@@ -187,7 +187,6 @@ private:
 		m_allocator.reset({8u, 4096u, 0u});
 		for (eng::u8 i = 0; i < kActors; ++i) {
 			scene::ActorDesc d {};
-			d.visual.kind = eng::graphics::VisualKind::HardwareSprite;
 			d.visual.pixels = sprite_data.subspan(
 				static_cast<eng::u16>(i) * kInstanceWords, kInstanceWords).raw();
 			d.visual.w = 16u;

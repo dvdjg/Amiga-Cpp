@@ -193,7 +193,6 @@ private:
 		m_scene.clear();
 		m_scene.set_budget({8u, 4096u, 0u});
 		scene::ActorDesc d {};
-		d.visual.kind = eng::graphics::VisualKind::HardwareSprite;
 		// Contenido para el fallback a BOB (la primera franja como sprite normal).
 		d.visual.pixels = m_sprite_block.view.as_words().as_const().subspan(0u, kSegWords).raw();
 		d.visual.w = 16u;

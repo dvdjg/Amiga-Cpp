@@ -254,7 +254,6 @@ private:
 		m_scene.set_cooked_pool(m_cooked_block.mem_view());
 		for (eng::u8 i = 0; i < kGems; ++i) {
 			scene::ActorDesc d {};
-			d.visual.kind = eng::graphics::VisualKind::HardwareSprite;
 			// 4 planos de 16 px = par *attached* (15 colores): el planner lo deriva del arte.
 			d.visual.pixels = eng::Span<const eng::u16> {
 				&kGemArt.plane[0][0][0], static_cast<eng::usize>(kGemFrames) * kGemFrameWords};
@@ -282,7 +281,6 @@ private:
 		}
 		for (eng::u8 i = 0; i < kSparks; ++i) {
 			scene::ActorDesc d {};
-			d.visual.kind = eng::graphics::VisualKind::HardwareSprite;
 			d.visual.pixels = spark_sheet.subspan(
 				static_cast<eng::u16>(i) * kSparkWords, kSparkWords).raw();
 			d.visual.w = 16u;

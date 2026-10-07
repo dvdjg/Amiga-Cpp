@@ -38,7 +38,7 @@ La separación de capas es la misma que en `VISUAL_EFFECT_SPRITE_DESIGN.md` §2:
 | Pieza | Estado | Dónde |
 |---|---|---|
 | Elección de representación (`Representation`, `ActorTemplate`, `RepresentationBudget`, `RepresentationAllocator`, `choose_representation`) | EXISTE | `engine/include/eng/scene/representation.hpp` |
-| Contenido portable (`Visual`, `VisualKind`) y vocabulario de intención (`CopperIntent`, `SpriteIntent`, concept `Effect`) | EXISTE | `engine/include/eng/graphics/raster_intent.hpp` |
+| Contenido portable (`Visual`) y vocabulario de intención (`CopperIntent`, `SpriteIntent`, concept `Effect`) | EXISTE | `engine/include/eng/graphics/raster_intent.hpp` |
 | Contenido animado (`Animation`, `Frame`) | EXISTE | `engine/include/eng/graphics/animation.hpp` |
 | Plan de Blits (`FramePlan`, `BlitJob`, `BlitJobKind`, `DirtyRect`, `BlitBudget`) | EXISTE | `engine/include/eng/graphics/frame_plan.hpp` |
 | BOB de bitmap (`Bob`, `BobTarget`, `bob_draw`, `bob_erase_box`) | EXISTE | `engine/include/eng/graphics/bob.hpp` |

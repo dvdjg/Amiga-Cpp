@@ -26,38 +26,24 @@
 
 namespace eng::graphics {
 
-/// Cómo se materializa un `Visual`. El dato es el mismo; cambia el backend/allocator.
-///
-/// La transicion "sprite hardware que en el juego se cambia por un BOB equivalente sin
-/// que se note" se resuelve con que el `Visual` NO cambia de identidad: solo cambia el
-/// `kind` que el `SpriteAllocator`/`BlitterQueue` materializan este frame. Como sprite
-/// y BOB comparten paleta y geometria, la transicion es imperceptible de forma natural.
-enum class VisualKind : u8 {
-    Bob,             // blitter cookie-cut con mascara
-    HardwareSprite,  // 16 px (1 word) o 32 px (2 words), 1..128 lineas
-    Tile,            // tile 16x16 de un tilemap
-    FillRect,        // rectangulo de color plano
-};
-
 /// Descriptor portable del **contenido** de un objeto (retained, sin registros ni DMA).
 ///
 /// Es la capa de **qué se ve**, no la de **cómo se materializa**: el `Visual` no lleva
-/// flags de hardware (ni `attached` ni paletas de sprite); lo que es un par *attached* o
-/// un BOB lo decide el planner a partir de la forma del contenido (`kind`, `w`,
-/// `bitplanes`) y lo cocina el materializador correspondiente. La preferencia de
+/// flags de hardware (ni `attached`, ni `kind`, ni paletas de sprite); lo que es un par
+/// *attached* o un BOB lo decide el planner a partir de la forma del contenido (`w`,
+/// `h`, `bitplanes`) y lo cocina el materializador correspondiente. La preferencia de
 /// representación vive en `scene::ActorDesc::preferred` (`Representation`), no aquí.
 ///
 /// `pixels`/`mask` son `Span` a memoria ya cocinada (Chip RAM si el backend es Amiga y
 /// la consume DMA). El `Visual` no posee memoria; el `AssetRuntime` la gestiona.
 ///
-/// **Relación con `Bob`/`Sprite` (no son duplicados):** `Visual` es la **intención** portable
-/// (vista agnóstica, `kind`, `offset_x`); `Bob` (`bob.hpp`) es el **detalle de
+/// **Relación con `Bob`/`Sprite` (no son duplicados):** `Visual` es el **contenido** portable
+/// (vista agnóstica, geometría y frames); `Bob` (`bob.hpp`) es el **detalle de
 /// ejecución** del Blitter (hoja/máscara **certificadas en Chip** vía `ChipView`, `layout`,
 /// `mask_pack`, `draw`/`erase`); y `Sprite` (`sprite_asset.hpp`) es **azúcar de dominio** sobre un
 /// `Bob` (más el tamaño del *frame* cuando la hoja es un atlas). Cada uno aporta algo que el otro
 /// no tiene: no se unifican.
 struct Visual {
-    VisualKind kind = VisualKind::Bob;
     Span<const u16> pixels {};  // data planar cocinada
     Span<const u16> mask {};    // 1 plano, opcional (cookie-cut)
     u16 w = 0;
@@ -75,10 +61,10 @@ struct Visual {
 /// **deriva** de la forma del arte. Un Sprite HW de 16 px solo puede leer 1 word por línea
 /// (2 planos), así que un contenido de **4 planos y `w <= 16`** solo cabe como par; el
 /// planner lo elige y el compositor lo cocina (`graphics::cook_attached_pair`). Sin
-/// `attached` en el `Visual`, el mismo contenido puede servirse como BOB (4 planos
-/// contiguos) sin arrastrar un flag de hardware.
+/// flag en el `Visual`, el mismo contenido puede servirse como BOB (4 planos contiguos)
+/// sin arrastrar un detalle de hardware.
 [[nodiscard]] constexpr bool visual_is_attached_pair(const Visual& v) noexcept {
-    return v.kind == VisualKind::HardwareSprite && v.w > 0u && v.w <= 16u && v.bitplanes == 4u;
+    return v.w > 0u && v.w <= 16u && v.bitplanes == 4u;
 }
 
 /// Qué registro/grupo de registros cambia una intención de Copper.

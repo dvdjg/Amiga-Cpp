@@ -86,17 +86,8 @@ decisión del driver/allocator). Es la pieza mínima y no guarda punteros a hard
 ```cpp
 namespace eng::graphics {
 
-/// Cómo se materializa un `Visual`. El dato es el mismo; cambia el backend.
-enum class VisualKind : u8 {
-    Bob,              // blitter cookie-cut con máscara
-    HardwareSprite,   // 1 word de ancho (16 px) o 2 (32 px), 1..128 líneas
-    Tile,             // tile 16x16 de un tilemap
-    FillRect,         // rect de color plano
-};
-
-/// Descriptor portable de un objeto dibujable (retained, sin registros).
+/// Descriptor portable del contenido de un objeto dibujable (retained, sin registros).
 struct Visual {
-    VisualKind kind = VisualKind::Bob;
     Span<const u16> pixels {};  // data planar cocinada (Chip RAM)
     Span<const u16> mask {};    // 1 plano, opcional (cookie-cut)
     u16 w = 0, h = 0;
@@ -110,9 +101,10 @@ struct Visual {
 ```
 
 La regla de "mismo objeto, distintas pinturas" (navecita que pasa de sprite a BOB sin que se
-note) se resuelve con que **el contenido (`Visual`) no cambia**; solo cambia el `VisualKind`
-materializado por el `SpriteAllocator`/`BlitterQueue` según disponibilidad. Como sprite y BOB comparten paleta
-(sprites usan `COLOR16+`, el BOB puede usar la misma franja) y geometría, la transición es
+note) se resuelve con que **el contenido (`Visual`) no cambia**: ni siquiera lleva un flag de
+representación. La materialización la elige el **planner** (`Representation`/`SpriteAllocator`/
+`BlitterQueue`) según la forma del contenido y la disponibilidad, y puede cambiarla entre
+frames. Como el contenido es el mismo (mismos píxeles, misma geometría) la transición es
 imperceptible de forma natural.
 
 ## 4. `CopperIntent`: el objeto versátil (cambio de paleta / shift por línea)

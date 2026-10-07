@@ -185,6 +185,12 @@ inline bool bob_erase_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, 
 	if (wx < 0) {
 		return true; // caja fuera por la izquierda
 	}
+	if (y < 0) {
+		// Fuera por arriba: no se borra (el recorte parcial está pendiente, ver
+		// `OBJECT_SYSTEM.md`); sin esta guarda el offset negativo del destino envuelve y
+		// el blit escribe FUERA del bitmap (corrupción de Chip RAM).
+		return true;
+	}
 	const bool inter = (t.layout == BobLayout::Interleaved);
 	// La caja debe cubrir el objeto TAL COMO SE DIBUJA: con desplazamiento fino el blit
 	// procesa una palabra de más (`base + shift`), así que borrar `base` dejaría el borde
@@ -240,8 +246,9 @@ inline bool bob_save_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, s
 			 const BobTarget& t, eng::Span<eng::u16> save, u16 save_words_per_row,
 			 u16 save_height) {
 	const u16 words = static_cast<u16>((w + 15u) / 16u + ((x & 15) != 0 ? 1u : 0u));
-	if (save.empty() || words > save_words_per_row || h > save_height) {
-		return false; // sin buffer o buffer insuficiente
+	if (save.empty() || words > save_words_per_row || h > save_height || y < 0 ||
+	    (x & ~15) < 0) {
+		return false; // sin buffer, buffer insuficiente o caja fuera por arriba/izquierda
 	}
 	const u32 save_row_bytes = static_cast<u32>(save_words_per_row) * 2u;
 	BlitJob& job = plan.begin_blit_job(BlitJobKind::CopyRect);
@@ -268,8 +275,9 @@ inline bool bob_restore_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x
 			    const BobTarget& t, eng::Span<eng::u16> save, u16 save_words_per_row,
 			    u16 save_height) {
 	const u16 words = static_cast<u16>((w + 15u) / 16u + ((x & 15) != 0 ? 1u : 0u));
-	if (save.empty() || words > save_words_per_row || h > save_height) {
-		return false;
+	if (save.empty() || words > save_words_per_row || h > save_height || y < 0 ||
+	    (x & ~15) < 0) {
+		return false; // sin buffer, buffer insuficiente o caja fuera por arriba/izquierda
 	}
 	const u32 save_row_bytes = static_cast<u32>(save_words_per_row) * 2u;
 	BlitJob& job = plan.begin_blit_job(BlitJobKind::RestoreRect);
@@ -368,6 +376,12 @@ __attribute__((always_inline)) inline bool bob_draw(FramePlan& plan, const Bob& 
 	using namespace bob_detail;
 	if (!valid(bob, t) || frame >= bob.frame_count) {
 		return false;
+	}
+	if (y < 0) {
+		// Objeto fuera por arriba: no se dibuja (recorte parcial pendiente). Sin esta
+		// guarda el offset negativo del destino envuelve y el blit escribe FUERA del
+		// bitmap, corrompiendo Chip RAM (caso visto en la demo 064: enemigos a y=-24).
+		return true;
 	}
 	if (bob.draw == BobDraw::CookieCut && bob.layout == BobLayout::Interleaved) {
 		if (bob.mask_pack == BobMaskPack::InterleavedPair) {

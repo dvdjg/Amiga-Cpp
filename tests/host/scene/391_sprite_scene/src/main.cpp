@@ -40,7 +40,6 @@ int main() {
 		g_sheet[i] = 0xffffu;
 	}
 	eng::graphics::Visual v {};
-	v.kind = eng::graphics::VisualKind::Bob;
 	v.pixels = eng::Span<const eng::u16> {g_sheet, 32u};
 	v.w = 16u;
 	v.h = 16u;

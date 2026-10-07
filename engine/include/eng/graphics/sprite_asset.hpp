@@ -66,7 +66,6 @@ public:
 	/// descriptor de objeto). El campo `pixels` queda vacío si no se declaró `sheet_bytes`.
 	[[nodiscard]] Visual visual() const noexcept {
 		Visual v {};
-		v.kind = VisualKind::Bob;
 		v.pixels = eng::Span<const u16> {reinterpret_cast<const u16*>(m_bob.sheet.data()),
 						 m_sheet_bytes / 2u};
 		v.mask = (!m_bob.mask.empty())
