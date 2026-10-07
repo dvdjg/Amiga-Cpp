@@ -121,14 +121,28 @@ roadmap debe atribuir esa cifra a los elementos de la tabla con el perfilador.
 
 **Artefactos de la pasada** (§6.5 de `DEMO_VISUAL_DEBUG.md`): informe crudo `out/run/110_ylimited_shooter/A500_debug/110_ylimited_shooter_report.md`; capturas con nombre canónico en `out/run/110_ylimited_shooter/A500_debug/vision/110_ylimited_shooter_f0087.png` (y f0089/f0131/f0209); ambas rutas bajo `out/` (gitignored). Herramienta: `tools/analyze/vision-run.mjs`.
 
+**Flicker alterno (banda negra 1 de cada 2 frames) — corregido.** La pasada de 100 frames pedida
+(hoja de contacto f0109–f0208, captura desde el frame 100) mostró una **banda horizontal negra en
+los frames pares** y limpios los impares: los dos bloques de la copperlist tenían **estructuras
+distintas** (uno emitido con split y otro sin él); al cambiar la estructura, `compose()` solo
+re-emitía el bloque inactivo y `patch()` reescribía en el otro handles de WAIT/BPLCON1 que no le
+correspondían → una de cada dos listas visible corrupta. Corregido en `xlimited_composer.hpp`:
+al cambiar la estructura se re-emiten **ambos** bloques. Verificado con la misma pasada (100 frames
+limpios, sin bandas ni parpadeo) y gate de flicker **OK**.
+
+**Nota de método (límite del modelo):** el modelo de visión (qwen3-vl) **no detectó** la banda
+alterna en la hoja (respondió «sin parpadeo» también en la versión rota); la cazó el agente al
+mirar la hoja. Las hojas de contacto (100 frames, celdas etiquetadas) sí permiten la inspección
+visual del conjunto; el modelo no sustituye la mirada del agente (§6.4/§6.5 de `DEMO_VISUAL_DEBUG.md`).
+
 **Demo real (FG reactivado, mapa real) — estado actual:** el bloque FG volvió a compilarse tras
 muchos turnos y destapó un **address error** introducido al añadir la guarda del lienzo: `byte_for`
 devolvía byte impar para `wx=8..15` (se perdió el `& ~1`), y el 68000 no admite escrituras de word
 en dirección impar (Guru tras el frame 1; PC en ROM, registros con direcciones impares). Corregido
 en `canvas_playfield.hpp` (byte alineado a word, comentado). Verificado: la demo corre con nave,
-balas y torreta visibles; gate de flicker **Regression OK** con el FG activo. Medida actual:
-**12.29 fps / 577 073 ciclos / 4.067 campos** — el coste del FG (~307k) domina; su rediseño es
-DT-001 F4 (pre-render + Blitter/BOB) y es lo que falta para los 50 fps del demo completo.
+balas y torreta visibles. Medida actual: **12.28 fps / 577 650 ciclos / 4.072 campos** — el coste
+del FG (~307k) domina; su rediseño es DT-001 F4 (pre-render + Blitter/BOB) y es lo que falta para
+los 50 fps del demo completo.
 
 **Verificación visual por secuencia** (modo secuencia de `vision-run.mjs`, 6 frames en una llamada
 con leyenda de orden temporal): «el objeto azul/naranja de abajo se desplaza… continuo y progresivo

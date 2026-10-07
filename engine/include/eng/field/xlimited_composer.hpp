@@ -364,6 +364,13 @@ public:
         // Camino caliente: parchear SOLO los punteros (sin re-emitir la lista). Si el
         // conjunto de punteros cambió (split por campo), re-emitir una vez. Ver `patch`.
         if (patch(pf1, pf2)) return true;
+        // La ESTRUCTURA cambió (presencia del WAIT del split): re-emitir AMBOS bloques.
+        // Si solo se re-emitiera el inactivo, el otro conservaría la estructura vieja y
+        // `patch` reescribiría con él handles de otro esquema → banda/flicker alterno
+        // (una de cada dos listas visible corrupta). Los handles de parcheo (índices de
+        // word) solo son válidos si ambos bloques comparten la misma estructura.
+        if (!emit_full(pf1, pf2)) return false;
+        m_copper.flip();
         if (!emit_full(pf1, pf2)) return false;
         m_copper.flip();
         return true;

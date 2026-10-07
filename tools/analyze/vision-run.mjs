@@ -25,6 +25,7 @@
   let conclusion = '';
   let demoDirArg = '';
   let perFrame = false;
+  const sheets = [];
   for (let i = 0; i < argv.length; ++i) {
     const a = argv[i];
     if (a === '--prompt') prompts.push(argv[++i]);
@@ -32,6 +33,7 @@
     else if (a === '--conclusion') conclusion = argv[++i];
     else if (a === '--demo-dir') demoDirArg = argv[++i];
     else if (a === '--per-frame') perFrame = true;
+    else if (a === '--sheet') sheets.push(argv[++i]);
     else positional.push(a);
   }
   const [demoId, seqDir, ...idxRaw] = positional;
@@ -120,10 +122,16 @@
         console.log(`[vision] f${p.frame} respondido (${resp.length} chars)`);
       }
     } else {
-      const images = picked.map((p) => fs.readFileSync(p.dst).toString('base64'));
-      const full = `Las ${picked.length} imágenes adjuntas van EN ORDEN TEMPORAL: ${legend}. ${prompt}`;
+      const images = [
+        ...picked.map((p) => fs.readFileSync(p.dst).toString('base64')),
+        ...sheets.map((s) => fs.readFileSync(s).toString('base64')),
+      ];
+      const sheetNote = sheets.length
+        ? ` Las imágenes ${picked.length + 1}..${picked.length + sheets.length} son hojas de contacto (rejilla etiquetada con fNNNN por celda, en orden temporal).`
+        : '';
+      const full = `Las ${picked.length} imágenes adjuntas van EN ORDEN TEMPORAL: ${legend}.${sheetNote} ${prompt}`;
       const resp = await ask(images, full);
-      out += `\n### Secuencia (${picked.map((p) => 'f' + p.frame).join(', ')}) — prompt\n\n\`\`\`text\n${full}\n\`\`\`\n\n### Secuencia — respuesta cruda\n\n${resp}\n`;
+      out += `\n### Secuencia (${picked.map((p) => 'f' + p.frame).join(', ')}${sheets.length ? ' + hojas' : ''}) — prompt\n\n\`\`\`text\n${full}\n\`\`\`\n\n### Secuencia — respuesta cruda\n\n${resp}\n`;
       console.log(`[vision] secuencia respondida (${resp.length} chars)`);
     }
   }
