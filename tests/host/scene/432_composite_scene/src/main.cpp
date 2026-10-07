@@ -110,8 +110,8 @@ int main() {
 	check(scene.remove(id2) && scene.count() == 1u, "remove reutiliza el hueco");
 
 	// Estado por la fachada: mover/girar/secuencia + tick de animacion.
-	auto* st = scene.state(id);
-	check(st != nullptr && st->x == 100 && st->y == 50, "estado inicial");
+	auto st = scene.state(id);
+	check(st.valid() && st->x == 100 && st->y == 50, "estado inicial");
 	st->facing_left = true;
 	const eng::Box legs_l = scene.part_box(id, 0u);
 	check(legs_l.x == 84 && legs_l.y == 58, "caja de parte espejada");

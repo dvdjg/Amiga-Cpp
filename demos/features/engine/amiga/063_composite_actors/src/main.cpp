@@ -160,8 +160,8 @@ struct CompositeActorsDemo {
 		// 3) Avance de las animaciones + sincronización del estado del actor.
 		m_scene.tick(1u);
 		for (eng::u8 i = 0u; i < kHeroes; ++i) {
-			auto* st = m_scene.state(m_ids[i]);
-			if (st == nullptr) {
+			auto st = m_scene.state(m_ids[i]);
+			if (!st) {
 				continue;
 			}
 			st->x = static_cast<eng::s16>(m_x[i]);

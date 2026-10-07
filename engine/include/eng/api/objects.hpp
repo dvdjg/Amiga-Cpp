@@ -30,6 +30,7 @@
 /// El borrado del rastro es política del juego (como en `BobLayer`): repinta o usa
 /// `scene::clear_box` con las cajas de las partes (`part_box(id, part, ...)`).
 
+#include <eng/core/types/ptr.hpp>
 #include <eng/graphics/bob.hpp>
 #include <eng/graphics/composite_visual.hpp>
 #include <eng/graphics/frame_plan.hpp>
@@ -110,22 +111,23 @@ public:
 		return id < MaxActors && m_entries[id].active;
 	}
 
-	/// Estado de un actor (mover, girar, cambiar secuencia). `nullptr` si el id no existe.
-	[[nodiscard]] eng::scene::CompositeState* state(Id id) noexcept {
+	/// Estado de un actor (mover, girar, cambiar secuencia). `Ref` vacío si el id no existe.
+	[[nodiscard]] eng::Ref<eng::scene::CompositeState> state(Id id) noexcept {
 		return valid(id) ? &m_entries[id].state : nullptr;
 	}
-	[[nodiscard]] const eng::scene::CompositeState* state(Id id) const noexcept {
+	[[nodiscard]] eng::Ref<const eng::scene::CompositeState> state(Id id) const noexcept {
 		return valid(id) ? &m_entries[id].state : nullptr;
 	}
 
-	/// Contenido del actor (para consultar partes o hitboxes por el juego).
-	[[nodiscard]] const eng::graphics::CompositeVisual* visual(Id id) const noexcept {
+	/// Contenido del actor (para consultar partes o hitboxes por el juego); `Ref` vacío si
+	/// el id no existe.
+	[[nodiscard]] eng::Ref<const eng::graphics::CompositeVisual> visual(Id id) const noexcept {
 		return valid(id) ? m_entries[id].visual : nullptr;
 	}
 
 	/// Cambia la secuencia de un actor y reinicia su avance (animación dirigida por juego).
 	void set_sequence(Id id, eng::u8 sequence, bool restart = true) noexcept {
-		if (auto* st = state(id); st != nullptr) {
+		if (auto st = state(id)) {
 			eng::scene::composite_set_sequence(*st, sequence, restart);
 		}
 	}
@@ -134,7 +136,7 @@ public:
 	void tick(eng::u16 ticks) noexcept {
 		for (eng::u16 i = 0u; i < MaxActors; ++i) {
 			Entry& e = m_entries[i];
-			if (e.active && e.visual != nullptr) {
+			if (e.active && e.visual) {
 				(void)eng::scene::composite_advance(*e.visual, e.state, ticks);
 			}
 		}
@@ -157,7 +159,7 @@ public:
 
 	/// Caja de una parte en pantalla (mundo), para consultas del juego (borrado, debug).
 	[[nodiscard]] eng::Box part_box(Id id, eng::usize part_index) const noexcept {
-		if (!valid(id) || m_entries[id].visual == nullptr) {
+		if (!valid(id) || !m_entries[id].visual) {
 			return {};
 		}
 		return eng::scene::composite_part_box(*m_entries[id].visual, m_entries[id].state,
@@ -166,7 +168,7 @@ public:
 
 	/// **Hitboxes** del frame vigente del actor, en coordenadas de pantalla. Devuelve cuántas.
 	[[nodiscard]] eng::u8 hitboxes(Id id, eng::Span<eng::Box> out) const noexcept {
-		if (!valid(id) || m_entries[id].visual == nullptr) {
+		if (!valid(id) || !m_entries[id].visual) {
 			return 0u;
 		}
 		return eng::scene::composite_hitboxes(*m_entries[id].visual, m_entries[id].state, out);
@@ -185,12 +187,12 @@ public:
 
 		for (eng::u16 a = 0u; a < MaxActors; ++a) {
 			Entry& e = m_entries[a];
-			if (!e.active || e.visual == nullptr) {
+			if (!e.active || !e.visual) {
 				continue;
 			}
-			const eng::graphics::CompositeFrame* fr =
+			const eng::Ref<const eng::graphics::CompositeFrame> fr =
 				eng::scene::composite_current_frame(*e.visual, e.state);
-			if (fr == nullptr) {
+			if (!fr) {
 				continue;
 			}
 			for (eng::usize p = 0u; p < e.visual->parts.size(); ++p) {
@@ -227,9 +229,9 @@ public:
 		for (eng::u16 k = 0u; k < m_intent_count; ++k) {
 			const eng::u16 a = m_intent_actor[k];
 			Entry& e = m_entries[a];
-			const eng::graphics::CompositeFrame* fr =
+			const eng::Ref<const eng::graphics::CompositeFrame> fr =
 				eng::scene::composite_current_frame(*e.visual, e.state);
-			if (fr == nullptr) {
+			if (!fr) {
 				continue;
 			}
 			const eng::usize p = m_intent_part[k];
@@ -287,7 +289,7 @@ public:
 
 private:
 	struct Entry {
-		const eng::graphics::CompositeVisual* visual = nullptr;
+		eng::Ref<const eng::graphics::CompositeVisual> visual {};
 		eng::scene::CompositeState state {};
 		bool active = false;
 	};
