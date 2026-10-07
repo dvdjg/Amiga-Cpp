@@ -13,6 +13,9 @@ using namespace eng::amiga::detail;
 
 namespace eng::amiga {
 
+// Declaracion anticipada: `wait_vblank_run` (arriba) re-arma VERTB con ella.
+void level3_sync();
+
 namespace {
 /// Etiqueta un bloque por su **direccion** (`hw::classify_region`), no por el flag de `AllocMem`:
 /// en un A1200, `AllocMem(MEMF_ANY)` puede caer en Fast RAM (que no es Slow). Frontera: se
@@ -208,6 +211,13 @@ void AmigaBackend::release_memory() {
 
 void AmigaBackend::wait_vblank_run(void (*thunk)(void*, u16), void* user) {
 	debug_start_idle();
+	// **Re-arme del latido**: el SO (proceso AmigaDOS vivo) puede reescribir INTENA y
+	// apagar VERTB (ver `docs/debugging/investigaciones/212-vblank-irq-apagada-por-el-so.md`).
+	// Con espera activa el bucle esta despierto y la re-arma aqui; con `Wait()` bloqueante
+	// cubre tambien el hueco entre esperas.
+	if (g_vbl_task != nullptr && (custom_base[custom_intena_offset] & 0x0020u) == 0u) {
+		level3_sync();
+	}
 	// **Espera bloqueada por señal** (modelo de mensajes): con el servicio de VBlank
 	// instalado, la IRQ levanta una señal Exec y esta tarea **duerme en `Wait()`** en vez de
 	// sondear `VPOSR`. Solo cuando no hay trabajo de fondo (`thunk == nullptr`): con thunk
@@ -303,13 +313,24 @@ void level3_sync() {
 	}
 }
 
+// **Restriccion conocida (demos bajo un SO vivo)**: sustituir el vector de nivel 3 y
+// habilitar VERTB a mano no convive con el libro de interrupciones/dispatch de exec
+// (`Wait`/`Switch` reescriben INTENA y el despacho de supervisor usa la tabla en
+// `SysBase-$36`): el camino de `Wait()` puede morir. Para demos sin `takeover_display`
+// se usa la espera **activa** (`set_vblank_sleep(false)`): mismo bucle por mensajes y
+// latido por IRQ, sin dormir en `Wait()`. Ver
+// `docs/debugging/investigaciones/212-vblank-irq-apagada-por-el-so.md`.
 bool AmigaBackend::install_vblank_service(ServiceSlot& slot) {
 	if (g_vbl_task != nullptr) {
 		return false;
 	}
 	// Arma la señal de VBlank ANTES de habilitar la IRQ: el primer VBlank ya despierta al
-	// bucle que espera (si `AllocSignal` falla, la espera cae al sondeo de VPOSR).
-	(void)vblank_signal_arm();
+	// bucle que espera (si `AllocSignal` falla, la espera cae al sondeo de VPOSR). Con
+	// `set_vblank_sleep(false)` NO se arma: las esperas usan sus ramas de sondeo (espera
+	// activa) y se evita el camino de `Wait()`.
+	if (m_vblank_sleep) {
+		(void)vblank_signal_arm();
+	}
 	g_vbl_task = slot.thunk;
 	g_vbl_task_user = &slot;
 	level3_sync();

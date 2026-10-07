@@ -75,7 +75,7 @@ eng::u16 read_cd32_shift_port2() {
 	using eng::amiga::detail::ciaa_reg;
 	using eng::amiga::detail::custom_base;
 	volatile eng::u8* const pra = ciaa_reg(0x00u);
-	volatile eng::u8* const ddra = ciaa_reg(0x200u);
+	volatile eng::u8* const ddra = ciaa_reg(0x02u); // DDRA = 0xBFE201 (índice = nº de registro)
 	constexpr eng::u8 kClock = 0x80u; // PRA bit 7 = fire/reloj del puerto 2
 
 	*ddra = static_cast<eng::u8>(*ddra | kClock);  // reloj como salida

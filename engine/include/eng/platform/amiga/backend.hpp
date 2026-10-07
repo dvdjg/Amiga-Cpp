@@ -189,6 +189,13 @@ public:
 	/// antes de destruir el contexto del llamador (el slot no posee ese contexto).
 	void clear_blitter_service();
 
+	/// **Politica de espera de VBlank**: `true` (defecto) instala la senal Exec y el bucle
+	/// **duerme en `Wait()`** entre frames; `false` mantiene el latido por IRQ pero las
+	/// esperas son **activas** (sondeo de `VPOSR`), para demos bajo un SO vivo donde el
+	/// libro de exec puede matar el camino de `Wait()`. Ver
+	/// `docs/debugging/investigaciones/212-vblank-irq-apagada-por-el-so.md`.
+	void set_vblank_sleep(bool on) noexcept { m_vblank_sleep = on; }
+
 	/// Instala la IRQ de **VBlank** (nivel 3) y hace que el backend ejecute
 	/// `task(user, vpos)` en cada VBlank. Es el **latido del juego**: `Engine` la usa en
 	/// modo interrupt-driven para correr `update`/`render` con deadline de un frame,
@@ -769,6 +776,7 @@ private:
 	ServiceSlot m_blitter_slot {}; ///< servicio de espera de Blitter
 	ServiceSlot m_vblank_slot {}; ///< servicio de VBlank
 	ServiceSlot m_blit_slot {}; ///< servicio de fin de blit (IRQ de blit)
+	bool m_vblank_sleep = true; ///< espera de VBlank: true = dormir en `Wait()`; false = activa
 	ServiceSlot m_timer_slot {}; ///< servicio del timer de CIA
 	ServiceSlot m_audio_slot {}; ///< servicio de la IRQ de audio (nivel 4, streaming)
 	void* m_chip_alloc = nullptr; ///< bloque base de Chip RAM reservado
