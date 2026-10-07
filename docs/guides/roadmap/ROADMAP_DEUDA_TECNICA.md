@@ -48,9 +48,20 @@ Escrito en `docs/guides/methodology/DEMO_VISUAL_DEBUG.md` §6.4 (tres pases: A i
 
 El runner ya soporta **`--sequence-step-frames N`** (`tools/run/run-demo.ts`): captura N frames **1 frame de juego aparte** con el breakpoint `eng_debug_ready_probe` (`frame_NNN_fNNNN.png` consecutivos). Es el modo obligatorio para validar movimiento/cadencia; el modo por intervalo queda para vistazos. Las medidas de `band-diff`/`check-elements` deben hacerse sobre la captura por paso.
 
-## DT-006 · Bandas de tiles inferiores estáticas (familia XLimited)
+## DT-006 · Bandas de tiles inferiores estáticas (familia XLimited) — diagnosticado, sin arreglar
 
-**Síntoma (usuario):** tres bandas de tiles abajo que no se mueven y parecen bugeadas. **Evidencia:** la 110 y la **202** (misma familia, `display_height=288`, `viewport_h=208`, `Ring`) muestran la zona inferior estática en el barrido por bandas; el **screenshot interno recorta esa zona en negro** (no la muestra), luego solo se ve en la ventana. **Impacto:** render incorrecto en la familia (201/202/110) y auditoría visual que el screenshot no revela. **Estado:** causa sin confirmar; siguiente paso leer `xlimited_composer.hpp`/`xlimited_base.hpp` (DIW/ring staging) y el AHRM/WinUAE antes de tocar; test objetivo: `band-diff` de la zona baja en captura de ventana.
+**Síntoma (usuario):** tres bandas de tiles abajo que no se mueven y parecen bugeadas; «planos moviéndose cada uno a su lado». **Evidencia (2026-10):**
+
+- **Aislamiento reproducible**: build de la 110 **solo-scroll** (FG comentado) con el mapa codificando la fila como glifo (`g_map = y & 15`) y captura determinista `--sequence-step-frames`. Desplazamiento vertical compuesto uniforme (−2 px/juego, `mad=0.00`), **pero** la ventana real muestra los **dígitos duplicados por filas** (1,1,2,2,3,3…) y una **banda basura** (roja/rayas) en la zona inferior: el área visible no se pinta correctamente.
+- **Estado real de hardware** (dump de registros con MCP): `DIWSTRT=$2981`, `DIWSTOP=$F9C1`; `BPL1MOD=$0078` (120), `BPL2MOD=$004E` (78); separación de punteros **PF1 = 54 B/plano** ($020746/$02077C/$0207B2) y **PF2 = 40 B/plano** ($02B300/$02B328/$02B350). Las dos capas del DPF tienen **geometrías de fila distintas** (54 vs 40 B por plano) con un **DDF compartido**, y el `BPL2MOD` se calcula «para igualar fetch» (`xlimited_composer.hpp:481-484`) — principal sospechoso de la duplicación/desincronía por plano y de la banda inferior.
+- **Herramienta de captura de ventana**: `mcp-winuae-emu/src/winuae-window-capture.ts` capturaba mal (en modo cliente ni intentaba `PrintWindow`); arreglado a `PrintWindow(PW_CLIENTONLY|PW_RENDERFULLCONTENT)` con DPI y verificado (`method=printwindow`). Requiere **reiniciar el servidor MCP** para que el proceso lo use.
+- **Referencia**: algoritmo de corkscrew y layout en `C:\Users\dvdjg\Documents\programa\AI\Amiga\ScrollingTricks\ScrollingTricks\Docs` (pendiente de leer/comparar).
+
+**Estado:** causa localizada a geometría/mods DPF; siguiente paso leer ScrollingTricks + AHRM/emulador, corregir el compositor/base XLimited con el banco aislado y test de dígitos.
+
+## DT-009 · Auditoría de flota de demos (deuda masiva)
+
+Hay demos que **no sirven actualmente** (110 rota; 085 a 3 fields; 202 con las mismas bandas) y no existe un inventario. **Plan:** herramienta `tools/debug/audit-demos-fps.mjs` que recorra las demos construidas, ejecute `measure-fps` y vuelque una tabla (demo, fps, fields) en `out/`; con ella, registrar en DT cada demo NO VERIFICADA y priorizar. Barrido con `tools/test-regression.sh` para el estado funcional.
 
 ## DT-007 · Demo 085 a 16,6 fps (3 fields) y mancha blanca del disco
 

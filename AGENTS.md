@@ -74,8 +74,9 @@ contexto irrelevante a quien trabaja en otra cosa.
 ### 1.5 Evidencia
 
 - No afirmar que una funcionalidad funciona sin evidencia reproducible de esa funcionalidad concreta.
+- **El alcance de la afirmación no puede exceder el de la prueba.** Enumerar los grados de libertad del sistema (planos, ejes, buffers, regiones, fases temporales, caminos de código) y decir **qué cubre la medición y qué no**; lo no cubierto queda **SIN VERIFICAR**, nunca «correcto». Ejemplo real: medir que «la franja central traslada verticalmente de forma uniforme» **no** autoriza a decir «el scroll es correcto» (no cubre sincronía entre planos, eje X, ni la zona de la ventana que el screenshot recorta). Prohibido extrapolar de un subconjunto al todo o de un caso favorable al caso general; al informar, usar «correcto **en el alcance probado** (…), sin verificar (…)».
 - Distinguir siempre entre indicios, validación parcial y evidencia concluyente; una compilación, un test host o una imagen que cambia no prueban por sí solos continuidad visual ni corrección del hardware.
-- Si faltan herramientas para observar el comportamiento real (por ejemplo, registros Copper efectivos, punteros BPL por frame o ciclos del Blitter), declararlo explícitamente y no presentar una hipótesis como resultado.
+- Si faltan herramientas para observar el comportamiento real (por ejemplo, registros Copper efectivos, punteros BPL por frame o ciclos del Blitter), declararlo explícitamente y no presentar una hipótesis como resultado. Si una herramienta de observación da resultados no fiables (p. ej. la captura de ventana del MCP), **arreglar la herramienta** antes de seguir diagnosticando con ella.
 - Probar primero el caso límite relevante y solo después documentar o afirmar que el cambio está resuelto.
 
 ### 1.6 Próximos pasos al final de cada turno

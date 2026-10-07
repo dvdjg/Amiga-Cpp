@@ -62,6 +62,9 @@ F0 Diseño -> F1 Esqueleto -> F2 Implementación por etapas -> F3 Gates técnico
 9. **Nada de "ya se optimizará después"**: cada etapa deja el frame en presupuesto, con el peor caso medido (incluidas las rutas que no se ejecutan siempre).
 10. **Cada demo tiene su informe de validación** (`VALIDATION.md`): prompts de visión + respuestas + medidas + conclusiones; se actualiza en cada pasada que cambie su render o su coste.
 11. **Usar el modelo de visión local (Ollama) sin límite** para todo lo que aporte (inventario, dinámica, dirigido, dudas sobre frames): es local y gratis; ante la duda, otra pregunta y otra pasada.
+12. **El alcance de la afirmación no puede exceder el de la prueba** (AGENTS §1.5): enumerar los grados de libertad (planos, ejes, buffers, regiones, fases, caminos) y decir qué cubre la medida y qué no; lo no cubierto queda **SIN VERIFICAR**. Un test que solo mira una franja/registro no autoriza un «está bien» global; se informa «correcto en el alcance probado (…), sin verificar (…)».
+13. **Diagnóstico por aislamiento antes de arreglar**: reproducir con el mínimo de elementos (p. ej. scroll sin objetos), con datos **identificables** (el propio contenido codifica su índice), expectativa escrita por frame y comparación objetiva (copper dump/punteros, `band-diff`, conteo). No se itera lanzando la escena completa «a ver si mejora».
+14. **La herramienta de observación es parte del sistema**: si mide mal (captura, perfilador), se arregla primero; no se sustituye por parches ad-hoc (scripts temporales) que quedan fuera del procedimiento.
 
 ## 4. Errores del engine que no son de tu turno
 
