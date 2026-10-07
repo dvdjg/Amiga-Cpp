@@ -24,6 +24,7 @@ contexto irrelevante a quien trabaja en otra cosa.
 - Se aplica a toda demo/efecto/imagen: antes de dar algo por bueno, pasarlo por Ollama. Si el
   resultado no se corresponde con la intención, está **mal** aunque el resto pase.
 - Procedimiento y herramientas: [`DEMO_VISUAL_DEBUG.md`](docs/guides/methodology/DEMO_VISUAL_DEBUG.md).
+- **Procedimiento completo para crear y arreglar demos/juegos**: [`PROCEDIMIENTO_DEMOS_Y_JUEGOS.md`](docs/guides/methodology/PROCEDIMIENTO_DEMOS_Y_JUEGOS.md) (fases F0–F5, gates, presupuesto 50 fps, reglas anti-basura y registro de errores del engine ajenos al turno). Instrucciones exactas de visión: `DEMO_VISUAL_DEBUG.md` §6.4.
 - **Comportamiento de chipset que no cuadra → PARAR y leer la fuente ANTES de tocar nada.** Ante
   cualquier mecanismo de hardware que no se comporte como se espera (Copper, sprites, Blitter, DMA,
   colisión, timers…), **no experimentar a ciegas ni por prueba y error**: leer primero la
@@ -263,6 +264,7 @@ Estas reglas son obligatorias, pero solo son relevantes cuando se toca su domini
 |---|---|
 | **Tests y verificación por demo** (toda API con test; NO VERIFICADA si no hay demo) | `docs/testing/README.md` |
 | **Construcción por etapas de efectos gráficos/hardware** (CPU primero, luego Blitter/Copper; equivalencia CPU como referencia; parar tras 3–4 intentos) | `docs/guides/methodology/PROTOCOLO_ETAPAS_GRAFICOS.md` |
+| **Crear o arreglar una demo/juego (procedimiento completo)** (fases F0–F5, gates, presupuesto 50 fps, visión y deuda) | `docs/guides/methodology/PROCEDIMIENTO_DEMOS_Y_JUEGOS.md` |
 | **Demos atractivas, validación visual (Ollama) y gate de optimizaciones de render** | `docs/guides/methodology/DEMO_VISUAL_DEBUG.md` |
 | **API del engine** (sin hardware, sin punteros, versátil, prueba de diseño) | `docs/engine/architecture/PUBLIC_API.md` |
 | **Estilo y restricciones de diseño** (gnu++23, sin excepciones/RTTI/heap, APIs paramétricas, agnosticismo del backend, comentarios didácticos) | `docs/engine/architecture/CODING_STYLE.md` |

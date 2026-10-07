@@ -338,6 +338,10 @@ alta dinámica de actores de sprite desde `update`
 
 Pasada dedicada: revisar las cabeceras de **algoritmo** que aún fijan un tipo concreto de coordenada (`Point2s`) o escalar y decidir caso por caso si es **valor** (se deja) o **coordenada** (se generaliza a plantilla o se decopa como política). Punto de partida: `node tools/check/generic-headers.mjs` (gate) más una búsqueda de `Point2s`/`s16`/`float` en `engine/include/eng/**` fuera de las cabeceras exentas (`retro/`, `platform/`, `cpu/`, `field/`, `fixed*`, `minifloat*`). Ya generalizados: `navmesh_lite`, `waypoints`, `crowd` (con `NavPoint<S>` y políticas de cruz). Regla: `AGENTS.md` §1.11 y la «regla de oro» de `CODING_STYLE.md`. **Inventario completo de candidatos y fases**: [ROADMAP_GENERICIDAD_PLANTILLAS.md](ROADMAP_GENERICIDAD_PLANTILLAS.md) (F1 generadores/tablas, F2 índices/costes, F3 numéricos con representación fija, F4 resto y gate de tipos crudos). **Cerrado**: todos los ítems están hechos o descartados con motivo, y la evidencia de la pasada (tests, builds, visión y commits) está en el propio roadmap.
 
+## Deuda técnica (registro)
+
+Registro transversal de deuda y demos **NO VERIFICADAS**: [ROADMAP_DEUDA_TECNICA.md](ROADMAP_DEUDA_TECNICA.md). Entrada abierta activa: **DT-001 (demo 110: 3,4–4,3 fields/frame, bandas inferiores estáticas y tres filas de tiles bugeadas, sin fine scroll X, FG single-buffer y flicker de sprites)**, con plan incremental F1–F5. Otras: `flicker-check` sin cobertura de pérdida de elementos (DT-002), protocolo de prompts de visión pendiente de escribir (DT-003), resolución de símbolos de `measure-fps` en release (DT-004) y captura no determinista (DT-005).
+
 ## Decisiones tomadas en 202 (a respetar)
 
 1. El scroll debe ser **un único algoritmo toroidal** (sin modos de borde finito);

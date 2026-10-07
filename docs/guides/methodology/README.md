@@ -11,9 +11,10 @@ agrupa los procesos de trabajo, no el diseño del engine.
 | Documento | Contenido |
 |-----------|-----------|
 | [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md) | Registro de desarrollo del engine actual (este repo): decisiones, descubrimientos y comandos verificados. |
+| [PROCEDIMIENTO_DEMOS_Y_JUEGOS.md](PROCEDIMIENTO_DEMOS_Y_JUEGOS.md) | **Procedimiento único para crear y arreglar demos/juegos**: fases F0–F5, gates (build/run/analyze, 50 fps, flicker, tests), validación visual, reglas anti-basura y registro de errores del engine (aunque no sean del turno). |
 | [development-methodology.md](development-methodology.md) | Metodología incremental general: fases verificables, no big-bang. |
 | [PROTOCOLO_ETAPAS_GRAFICOS.md](PROTOCOLO_ETAPAS_GRAFICOS.md) | Protocolo de construcción por etapas para gráficos/hardware (CPU primero, luego Blitter/Copper) y reglas ante fallos. |
-| [DEMO_VISUAL_DEBUG.md](DEMO_VISUAL_DEBUG.md) | Diseño de demos y depuración visual: secuencias, visión local (Ollama) y checklist de fallos. |
+| [DEMO_VISUAL_DEBUG.md](DEMO_VISUAL_DEBUG.md) | Diseño de demos y depuración visual: secuencias, visión local (Ollama), protocolo de prompts (§6.4) y checklist de fallos. |
 | [LECCION-CONTEXTO-DE-LA-FUENTE.md](LECCION-CONTEXTO-DE-LA-FUENTE.md) | El contexto de la fuente primero al portar/integrar código de terceros. |
 | [agent-runbook.md](agent-runbook.md) | Runbook del agente IA: compilación, lanzamiento/depuración WinUAE, análisis y escalado al usuario. |
 | [agent-system-roadmap.md](agent-system-roadmap.md) | Sistema de agentes G0-G5: roles, cola de trabajo y Definition of Done. |

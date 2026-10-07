@@ -116,6 +116,13 @@ comenta. **Antes de quitarlo, mirar si el tipo debería ser el mismo**: muchos c
 
 **Hecho (2026-09):**
 
+- **Baseline refrescado en la pasada de genericidad** (`ROADMAP_GENERICIDAD_PLANTILLAS.md`, commit
+  `50d7c83c`). El baseline estaba obsoleto en ambos sentidos (12 ficheros por encima y varios por
+  debajo del estado real); se regeneró: **495 ficheros, duros=281** (`reinterpret` 268 + `const` 13,
+  concentrados en backend/fronteras declaradas y en triage), **static=5083**, `void*`=202, con 25
+  ficheros de frontera exentos. La regla sigue siendo de no-reincidencia (cada columna solo baja) y
+  la medida se reproduce con `node tools/analyze/cast-audit.mjs` (tabla) y `--check` (gate).
+
 - **F0 (red)**: `cast-audit.mjs` con gate de dos columnas + `--list`. Baseline inicial: 249 duros.
 - **F1 parcial (`object3d.hpp`)**: aclarado que ya usa `Fixed`; aplicado el método §233 —
   fuera los `static_cast<s16>` de ruido en los accesores y en la cámara

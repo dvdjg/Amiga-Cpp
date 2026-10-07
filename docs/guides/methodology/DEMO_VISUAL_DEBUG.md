@@ -139,6 +139,7 @@ Estas reglas son de obligado cumplimiento y `AGENTS.md` enruta aquí. Complement
 - El prompt debe pedir explícitamente **anomalías** y lo que **se pretendía** ver (`--prompt "scroll horizontal fino; ¿hay saltos de 16 px o costuras entre tiles?"`), no una descripción genérica.
 - Guardar el veredicto como evidencia (salida del informe) y, si hay glitch, **no dar la demo por hecha**: anotarlo y arreglarlo o marcarla como pendiente.
 - **El veredicto de visión es un filtro de sospecha, no una prueba**: puede sobre-reportar en texturas de alta frecuencia (caso real: `qwen3-vl` acusó «permutación de planos» en la 061 y un gate objetivo de 7 estados —rotación/zoom/paneo— la descartó) y también **dar falsos negativos** (dijo «los frames son idénticos, no hay movimiento» en la 083, cuyos 3 frames tenían MD5 distintos). Toda anomalía señalada **y toda afirmación de «no se mueve»** se confirma o refuta con un gate objetivo (gate de estados, diff de frames/MD5, comparación por fase); si el gate no cubre ese estado (p. ej. la 061 solo comparaba la identidad), **ampliarlo** antes de dar nada por bueno. Ojo también con el **ritmo de captura**: si la demo va a menos fps que el intervalo de captura, los frames salen iguales por muestreo, no por falta de animación (083: 2,3 fps → capturar cada 1,5 s).
+- **Un aviso de visión sobre el CONTENIDO es bloqueante** (falta un elemento, algo se corrompe o parpadea): se confirma o refuta **mirando los frames y con conteo objetivo** (color/región, `band-diff`, MD5/diff) — jamás con un gate de movimiento/flicker, que miden cambio, no corrección. Protocolo de prompts: §6.4.
 - Herramientas: `tools/profile/ai-analyze.mjs` (`--mode frames|montage|all`), `tools/analyze/verify-scroll-directions.mjs`, `tools/amiga-tiles/run-vision-verify.mjs`. Ollama en `127.0.0.1:11434`; alternativa por MCP: `winuae_profile_ollama`. Nota: el camino `--demo` de `ai-analyze.mjs` no levanta el canal lateral; hoy lo fiable es `run-demo.sh <demo> --sequence-frames N` (deja `out/run/<demo>/<cfg>/sequence/`) y analizar esos frames con el modelo de visión.
 
 ### 6.3 Validación de optimizaciones de render
@@ -146,3 +147,46 @@ Estas reglas son de obligado cumplimiento y `AGENTS.md` enruta aquí. Complement
 - Una optimización que toque el **render** (registros/blits/orden de operaciones) **NO se da por buena con `verify-*` de cobertura/tonos**: hay que validarla **visual o estructuralmente** contra la referencia.
 - Gate mínimo con el emulador: capturar una **secuencia** y compararla con el original por **fase** (mejor IoU + MAD de color; ver `tools/analyze/bestphase.mjs` o `tools/analyze/phasecmp.mjs`) o pedir una descripción a Ollama preguntando explícitamente por **anomalías** (caras deformes, aristas que no cierran). `verify-116` pasó con el sólido deformado: cobertura y nº de tonos no bastan.
 - Ejecutar el gate **después de cada** cambio de render y **revertir** si empeora, aunque el cambio parezca inocuo (p. ej. fijar los comunes del Blitter 1×/frame rompió flatshade-convex).
+
+### 6.4 Protocolo de interrogatorio al modelo de visión (prompts exactos)
+
+Herramienta: `node tools/analyze/ollama-desc.mjs <dir_seq> <idx0,idx1,...> "<prompt>"` (modelo `qwen3-vl:8b-instruct-q8_0`, Ollama local). Estructura en **tres pases, en este orden**:
+
+1. **A · Inventario SIN contexto** (el modelo no sabe qué pretende la demo; no condicionar).
+2. **B · Dinámica/seguimiento** de un elemento concreto del inventario.
+3. **C · Verificación dirigida** con la intención y los elementos esperados.
+
+Reglas del interrogatorio:
+
+- Si A y C se contradicen, **manda A** (C puede inducir complacencia).
+- **2–3 frames por pase** (con 4 imágenes el modelo respondió «en ambos frames»: atención parcial). Para C pueden usarse 4–6 con la hoja de contacto delante del agente.
+- **Prohibido pedir coordenadas en píxeles** (alucina columnas: respondió «columna 14/15»); zona relativa: arriba/centro/abajo, izquierda/centro/derecha.
+- Guardar la **respuesta cruda** como evidencia junto a los frames.
+- **Un aviso de contenido es bloqueante**: el agente abre los frames y aporta conteo objetivo (por color/región) antes de concluir. Los gates de movimiento/flicker **no** refutan contenido.
+- Límites medidos (sesión 085/110): detecta parpadeo/pérdida de un elemento cuando se pregunta por anomalías concretas (dijo «parpadeo», «zonas corrompidas» en 110 y era cierto); describe elementos y su evolución si se le pide por elementos; sobre-reporta si el patrón es de alta frecuencia; no sustituye la mirada del agente.
+
+**Prompt A (rellenar N):**
+```text
+Vas a analizar N capturas consecutivas (frames 0..N-1) de la misma animación. No conoces el programa ni lo que pretende mostrar; describe SOLO lo que observas.
+1) Inventario: enumera los elementos distintos que ves (forma, color, tamaño relativo) y cuántos hay de cada tipo.
+2) Dinámica: para cada elemento, ¿cambia de posición, tamaño, forma o color entre frames? ¿cómo se relaciona con los demás (orden, solapes, capas)?
+3) ¿Algún elemento aparece o desaparece en algún frame? ¿alguno parpadea (está en unos frames y en otros no)?
+4) ¿Ves discontinuidades, cortes, zonas incoherentes o "basura" (ruido, bloques, texto raro)? Indica zona relativa (arriba/centro/abajo, izquierda/centro/derecha) y en qué frames.
+5) ¿El conjunto se mueve de forma coherente? ¿hay algo que debería moverse y no se mueve?
+Responde en español con observaciones concretas. No inventes coordenadas en píxeles.
+```
+
+**Prompt B (rellenar {ELEMENTO} y {LO QUE DEBERÍA HACER}):**
+```text
+Céntrate en "{ELEMENTO}". Sigue su evolución frame a frame: posición (zona relativa), tamaño y aspecto; di si su trayectoria es suave y continua o si da saltos, se para o desaparece. ¿Es coherente con "{LO QUE DEBERÍA HACER}"?
+Responde en español.
+```
+
+**Prompt C (rellenar {INTENCIÓN} y {LISTA DE ELEMENTOS}):**
+```text
+Esta animación PRETENDE mostrar: {INTENCIÓN}. Los elementos esperados son: {LISTA: p. ej. fondo de N filas de tiles que scrollea hacia arriba; 1 nave abajo; balas blancas subiendo; 1 torreta verde que apunta a la nave}.
+Para CADA elemento esperado indica en cada frame: presente / ausente / a medias, y si su posición y forma son coherentes. Después responde: ¿el movimiento es continuo o hay saltos o costuras? ¿algo parpadea o se corrompe? Señala zona relativa y frames. No des por bueno nada; si algo es ambiguo, dilo.
+Responde en español.
+```
+
+La fase C no sustituye a A/B: es la comprobación contra la intención, no la fuente de la verdad.
