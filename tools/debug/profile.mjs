@@ -108,43 +108,52 @@ const profOk = async (a) => {
   const b = await readMem(a, 4);
   return !!b && b.length >= 4 && b.readUInt32BE(0) === PROF_MAGIC;
 };
-// Resolucion robusta: (1) MISMO offset en cada seccion runtime (los hunks runtime no casan
-// con el `.map`); (2) inicio de cada seccion; (3) ESCANEO por el magic `PROF` dentro de cada
-// seccion (necesario cuando el simbolo cae en `.gnu.linkonce.b`, que el `.map` lista aparte de
-// `.bss` y por tanto los offsets por indice no casan). Mismo criterio que `measure-fps.mjs`.
-const ms = mapSections();
-const rs = st.reply.sections;
-const cand = (linked !== null && Array.isArray(ms)) ? ms.find((s) => linked >= s.start && linked < s.end) : null;
-const off = cand ? (linked - cand.start) : (linked !== null ? (linked - 0x400) : 0);
+// Resolución robusta, con REINTENTO hasta que la demo esté READY (el magic `PROF` lo escribe
+// `ENG_PROF_INIT` en el init; antes de eso no hay nada que resolver):
+// (1) MISMO offset en cada seccion runtime (los hunks no casan con el `.map`);
+// (2) inicio de cada seccion; (3) ESCANEO por el magic `PROF`. Mismo criterio que measure-fps.
+async function resolveProfAddr() {
+	const ms = mapSections();
+	const st2 = await sideChannelCommand('state', SIDE_PORT, 5000).catch(() => null);
+	const rs = st2 && st2.reply ? st2.reply.sections : null;
+	const cand = (linked !== null && Array.isArray(ms)) ? ms.find((s) => linked >= s.start && linked < s.end) : null;
+	const off = cand ? (linked - cand.start) : (linked !== null ? (linked - 0x400) : 0);
+	let found = null;
+	if (Array.isArray(rs)) {
+		for (const sec of rs) {
+			const a = parseInt(sec, 16) + off;
+			if (await profOk(a)) { found = a; break; }
+		}
+		if (found === null) {
+			for (const sec of rs) {
+				const a = parseInt(sec, 16);
+				if (a && await profOk(a)) { found = a; break; }
+			}
+		}
+		// Escaneo por magic: lee bloques grandes de cada seccion y busca 'PROF' alineado a 4.
+		if (found === null) {
+			const CHUNK = 4096;
+			for (const sec of rs) {
+				const base = parseInt(sec, 16);
+				if (!base) continue;
+				for (let read = 0; read < 0x20000; read += CHUNK) {
+					const b = await readMem(base + read, CHUNK);
+					if (!b || b.length < 4) break;
+					for (let i = 0; i + 4 <= b.length; i += 4) {
+						if (b.readUInt32BE(i) === PROF_MAGIC) { found = base + read + i; break; }
+					}
+					if (found !== null) break;
+				}
+				if (found !== null) break;
+			}
+		}
+	}
+	return found;
+}
 let addr = null;
-if (Array.isArray(rs)) {
-  for (const sec of rs) {
-    const a = parseInt(sec, 16) + off;
-    if (await profOk(a)) { addr = a; break; }
-  }
-  if (addr === null) {
-    for (const sec of rs) {
-      const a = parseInt(sec, 16);
-      if (a && await profOk(a)) { addr = a; break; }
-    }
-  }
-  // Escaneo por magic: lee bloques grandes de cada seccion y busca 'PROF' alineado a 4.
-  if (addr === null) {
-    const CHUNK = 4096;
-    for (const sec of rs) {
-      const base = parseInt(sec, 16);
-      if (!base) continue;
-      for (let read = 0; read < 0x20000; read += CHUNK) {
-        const b = await readMem(base + read, CHUNK);
-        if (!b || b.length < 4) break;
-        for (let i = 0; i + 4 <= b.length; i += 4) {
-          if (b.readUInt32BE(i) === PROF_MAGIC) { addr = base + read + i; break; }
-        }
-        if (addr !== null) break;
-      }
-      if (addr !== null) break;
-    }
-  }
+for (let attempt = 0; attempt < 45 && addr === null; ++attempt) {
+	addr = await resolveProfAddr();
+	if (addr === null) await sleep(1000);
 }
 if (addr === null) {
   console.error('[prof] no se pudo resolver g_eng_prof (¿map? ¿sections?)');
