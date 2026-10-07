@@ -45,6 +45,13 @@ Cualquier tool MCP que acabe en `monitor X` es un wrapper de `monitor X`.
 `state`, `regs`, `mem <addr> <len>`, `runstatus <addr>`, `screenshot`, `input`.
 Independiente de GDB; útil cuando GDB no está disponible o quedó inerte.
 
+**Aviso de parseo (comprobado 2026-10):** en `mem`/`runstatus` una dirección **hexadecimal sin
+letras** (p. ej. `22820`) se interpreta como **DECIMAL** (`22820` → `$5924`) y la lectura devuelve
+memoria ajena en silencio. Usar SIEMPRE prefijo `0x` (`mem 0x22820 24`) para direcciones hex.
+También: en modo `--keep-running` la instancia puede quedar en estado degradado tras desconectar el
+runner (observado `COP1LC=0` y memoria liberada); para trazas de estado del display usar
+instrumentación EN la demo o el MCP con la sesión viva.
+
 **Puertos configurables (varias instancias en paralelo).** **Ambos** puertos se eligen por entorno:
 el servidor GDB del fork lee **`WINUAE_GDB_PORT`** (por defecto 2345) y el canal lateral lee
 **`WINUAE_SIDE_CHANNEL_PORT`** (por defecto 2346) — ver `WinUAE-DBG/od-win32/barto_gdbserver.cpp`.
