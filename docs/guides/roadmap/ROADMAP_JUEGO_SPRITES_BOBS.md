@@ -137,12 +137,30 @@ La retirada de `emit_into` no se aplica todavía (rompería demos antiguas aún 
 ### 4.5 Descontaminación de la capa de contenido (`Visual`): aplicada y propuesta
 
 - **Aplicado — `Visual::attached` eliminado.** Era un flag de Sprite HW dentro del descriptor de contenido: no significa nada si el contenido se materializa como BOB. Un Sprite HW de 16 px solo lee 1 word de datos por línea (2 planos), así que un contenido de **4 planos y `w <= 16`** solo cabe como **par *attached***: la condición se **deriva** (`visual_is_attached_pair`) y la materialización (cocinar las dos estructuras DMA, asignar la pareja de canales) es cosa del compositor. El mismo contenido sigue sirviendo de BOB sin flag alguno.
-- **Propuesta — retirar `VisualKind` como preferencia.** `VisualKind::HardwareSprite`/`Bob` duplica `ActorDesc::preferred` (`Representation`), que ya elige el planner; y `Tile`/`FillRect` no son tipos de contenido (un tile es un BOB con origen en un banco de tiles y una rejilla; un rect es una primitiva de dibujo): son **semántica de juego** y hoy no se usan en ningún camino de materialización. Fase de limpieza: `Visual` queda con `pixels`/`mask`/`w`/`h`/`bitplanes`/`frame_count`/`frame_stride`/`offset_x`; la preferencia va en `Representation`; lo que hoy necesita saber «puede ser Sprite HW» se deriva del contenido (≤ 16 px, planos, alto).
+- **Aplicado — `VisualKind` retirado.** `VisualKind::HardwareSprite`/`Bob` duplicaba `ActorDesc::preferred` (`Representation`), que es quien elige el planner; y `Tile`/`FillRect` no son tipos de contenido (un tile es un BOB con origen en un banco de tiles y una rejilla; un rect es una primitiva de dibujo): son **semántica de juego** y no se usaban en ningún camino de materialización. `Visual` queda con `pixels`/`mask`/`w`/`h`/`bitplanes`/`frame_count`/`frame_stride`/`offset_x`; la preferencia va en `Representation`; «puede ser Sprite HW» se deriva del contenido (ancho, alto, planos).
 - **Regla de frontera para nuevas distinciones**: si una distinción cambia **qué píxeles** se ven (frames, planos, máscara) es contenido; si cambia **cómo** se dibujan (canal, par *attached*, layout, paleta) es materialización y va al planner; si describe **qué significa** el objeto en el juego (tile, proyectil, plataforma) va a la capa de gameplay/entidades, no al descriptor gráfico.
 
 ## 5. Roadmap de implementación
 
 Orden por **dependencia y valor para juego**. Cada fase declara objetivo, contrato extraído (adaptado al estilo del engine: sin heap, sin RTTI, sin STL, tipos `u8`/`s16`/`Span`/`Ref`), encaje y verificación.
+
+| Fase | Estado |
+|---|---|
+| F1 actores compuestos | **Hecha**: `graphics/composite_visual.hpp` + `scene/composite_actor.hpp` (HOST-429) y fachada `api/objects.hpp` (`CompositeScene`, HOST-432); demo **063_composite_actors** validada con visión. `Visual.Kind` retirado y par *attached* derivado. |
+| F2 trayectorias/formaciones/pool | **Hecha**: `scene/{trajectory,formation,entity_pool}.hpp` (HOST-430); demo **064_shmup_wave** (formación seno en espejo + pool de enemigos) validada con visión. |
+| F3 DMA encadenado + selector | Propuesta (requiere verificación en fuente del emulador). |
+| F4 cierre de pendientes de sprites | Drivers/demos pendientes (lista viva en `ROADMAP_UNIFICADO.md`). |
+| F5 márgenes FastCopy | Base hecha (`FastBobLayer`, HOST-355); preproceso de márgenes pendiente. |
+| F6 mecanismos de escenario | Propuesta (sólidos/puertas con diseño en `PIXEL_ART_2D_ISOMETRIC.md` §7). |
+| F7 paleta de sprites | **Planificador hecho**: `graphics/sprite_palette.hpp` (HOST-433: conflicto → degrada por `z`, conmutación vertical por `PaletteLine`). Integración con allocator/fachada y demo pendientes. |
+| F8 secuenciador (timeline) | **Hecho**: `core/util/sequence.hpp` (HOST-431); demo **064_shmup_wave** dirigida por timeline (ráfagas) validada con visión. |
+
+**Hallazgo abierto asociado**: el alta dinámica de actores de sprite desde `update` (no desde
+`init`) produce placements correctos pero no se publica en target; evidencia, descartes y plan en
+`docs/debugging/investigaciones/064-sprite-hw-creado-en-update-no-publica.md`. La demo 064 lo
+esquiva con un pool fijo reciclado por posición. Además, `bob_draw`/`bob_erase_box`/
+`bob_save_box`/`bob_restore_box` rechazan ahora cajas con `y < 0` (antes envolvían el offset y
+escribían fuera del bitmap; caso visto en la 064).
 
 ### F1. Actores compuestos (personajes, vehículos, jefes)
 

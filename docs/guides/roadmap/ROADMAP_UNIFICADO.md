@@ -217,7 +217,17 @@ scratch** (el `detail≈9861` de la 275, ya documentado en su README) y sacarlo 
 La **capa de juego** sobre este soporte (objetos compuestos multi-parte, trayectorias/formaciones
 con pool de entidades, mecanismos flexibles y la optimización de emisión DMA encadenada) se
 analiza y se planifica en [ROADMAP_JUEGO_SPRITES_BOBS.md](ROADMAP_JUEGO_SPRITES_BOBS.md)
-(fases F1–F6); este roadmap sigue siendo la fuente única del estado de las técnicas de sprites.
+(fases F1–F8); este roadmap sigue siendo la fuente única del estado de las técnicas de sprites.
+**Capa de juego (hecha, con demos)**: `graphics/composite_visual.hpp` + `scene/composite_actor.hpp`
+(F1, HOST-429) con la fachada `api/objects.hpp` (`CompositeScene`, HOST-432);
+`scene/{trajectory,formation,entity_pool}.hpp` (F2, HOST-430); `core/util/sequence.hpp` (F8,
+HOST-431) y el planificador `graphics/sprite_palette.hpp` (F7, HOST-433). Demos
+`063_composite_actors` (personaje de tres partes con BOB + Sprite HW) y `064_shmup_wave`
+(formaciones con rutas seno, pool y ráfagas por timeline), validadas con captura y visión.
+En el contenido, `Visual` ya no lleva flags de hardware: el par *attached* se deriva del arte
+y `VisualKind` se ha retirado (la preferencia vive en `Representation`). Hallazgo abierto:
+alta dinámica de actores de sprite desde `update`
+(`docs/debugging/investigaciones/064-sprite-hw-creado-en-update-no-publica.md`).
 
 ## Input y audio — estado (2026-09)
 
