@@ -34,9 +34,11 @@ Restricción de método: **no tocar a la vez scroll y rendimiento**; cada fase c
 
 `tools/vision-review/flicker-check.mjs` reportó `0 candidatos` sobre una secuencia en la que la torreta se perdía/queda a medias en varias capturas (conteo de color: verde 0/parcial en 2-6 de cada 6-40 frames según captura). El gate muestrea pocos frames y clasifica zonas en movimiento coherente; una **pérdida intermitente de un elemento pequeño** no entra en su definición de candidato. **Impacto:** un gate «OK» no implica contenido correcto; la visión y el conteo de elementos siguen siendo obligatorios. **Plan:** añadir al gate (o a la secuencia) un chequeo de **presencia de elementos esperados** por color/región, o documentar su alcance como «solo parpadeo de bloques».
 
-## DT-003 · Protocolo de prompts de visión (referencia) — RESUELTO
+## DT-003 · Protocolo de prompts de visión (referencia) — RESUELTO (ampliado)
 
 Escrito en `docs/guides/methodology/DEMO_VISUAL_DEBUG.md` §6.4 (tres pases: A inventario **sin contexto**, B dinámica/seguimiento, C dirigida con la intención; prompts exactos, reglas —aviso de contenido bloqueante, sin coordenadas de píxel, guardar respuesta cruda— y límites medidos del modelo). El procedimiento completo que lo usa en cada demo/juego es `docs/guides/methodology/PROCEDIMIENTO_DEMOS_Y_JUEGOS.md` (fases F0–F5 y registro de errores ajenos al turno).
+
+**Ampliación (informe 110):** el modelo **no atiende de forma fiable varias imágenes por mensaje** — con 4 imágenes declaró «ambos frames» y con 2 declaró «un único frame» — y da **falsos negativos en movimiento lento/patrones periódicos** («nave estática», «fondo fijo» con bbox y traslación demostrando lo contrario). Estrategia operativa en §6.4: una imagen por llamada o **hoja de contacto etiquetada** (una imagen), y la **evidencia objetiva decide** (`tools/analyze/check-elements.mjs`, `band-diff`, bbox/traslación). Informe de la demo: `demos/techniques/amiga/playfield/110_ylimited_shooter/VALIDATION.md`.
 
 ## DT-004 · `measure-fps` no resuelve símbolos en algunas demos
 

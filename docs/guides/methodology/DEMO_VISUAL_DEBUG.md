@@ -159,11 +159,11 @@ Herramienta: `node tools/analyze/ollama-desc.mjs <dir_seq> <idx0,idx1,...> "<pro
 Reglas del interrogatorio:
 
 - Si A y C se contradicen, **manda A** (C puede inducir complacencia).
-- **2–3 frames por pase** (con 4 imágenes el modelo respondió «en ambos frames»: atención parcial). Para C pueden usarse 4–6 con la hoja de contacto delante del agente.
+- **Una imagen por llamada** o **hoja de contacto etiquetada** (una sola imagen con paneles rotulados `FRAME_nnn.PNG`). El modelo **no atiende de forma fiable varias imágenes en un mensaje**: en la 110, con 4 imágenes declaró «ambos frames» y con 2 declaró «un único frame» (evidencia en su `VALIDATION.md`). El montaje etiquetado sí se compara panel a panel, pero **pierde resolución**: úsalo para inventario/presencia y dinámica gruesa, no para movimiento fino.
 - **Prohibido pedir coordenadas en píxeles** (alucina columnas: respondió «columna 14/15»); zona relativa: arriba/centro/abajo, izquierda/centro/derecha.
-- Guardar la **respuesta cruda** como evidencia junto a los frames.
-- **Un aviso de contenido es bloqueante**: el agente abre los frames y aporta conteo objetivo (por color/región) antes de concluir. Los gates de movimiento/flicker **no** refutan contenido.
-- Límites medidos (sesión 085/110): detecta parpadeo/pérdida de un elemento cuando se pregunta por anomalías concretas (dijo «parpadeo», «zonas corrompidas» en 110 y era cierto); describe elementos y su evolución si se le pide por elementos; sobre-reporta si el patrón es de alta frecuencia; no sustituye la mirada del agente.
+- Guardar la **respuesta cruda** como evidencia junto a los frames (y en el `VALIDATION.md` de la demo).
+- **Un aviso de contenido es bloqueante**: el agente abre los frames y aporta conteo objetivo (por color/región, `tools/analyze/check-elements.mjs`, bbox/traslación) antes de concluir. Los gates de movimiento/flicker **no** refutan contenido.
+- Límites medidos (sesiones 085/110): detecta parpadeo/pérdida de un elemento cuando se pregunta por anomalías concretas (dijo «parpadeo», «zonas corrompidas» en 110 y era cierto); describe elementos y su presencia si se le pregunta por elementos; **falsos negativos en movimiento lento y patrones periódicos** (dijo «nave estática» y «fondo fijo» cuando la bbox y la traslación demuestran que se mueven); sobre-reporta en texturas de alta frecuencia; no sustituye la mirada del agente.
 
 **Prompt A (rellenar N):**
 ```text
@@ -190,3 +190,5 @@ Responde en español.
 ```
 
 La fase C no sustituye a A/B: es la comprobación contra la intención, no la fuente de la verdad.
+
+**Informe por demo.** Cada demo mantiene un `VALIDATION.md` en su carpeta con: prompts exactos enviados (A/B/C), **respuestas crudas** del modelo, medidas objetivas (fps/ciclos, `tools/analyze/check-elements.mjs`, band-diff) y conclusiones. Es la evidencia de F4/F5 del `PROCEDIMIENTO_DEMOS_Y_JUEGOS.md` y se actualiza en cada pasada que cambie el render o el coste.

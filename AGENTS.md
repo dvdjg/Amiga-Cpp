@@ -21,6 +21,7 @@ contexto irrelevante a quien trabaja en otra cosa.
   produzca una captura estática: hay que **mirar la salida con el modelo de visión** y comprobar que
   es lo que se buscaba (imagen correcta, movimiento suave, sin artefactos/huecos). Una captura única
   **no** muestra el movimiento: para demos animadas, capturar **secuencia** y validar la dinámica.
+  **Sin límite**: el modelo es local y gratis; ante la duda, otra pregunta, otra pasada o más frames.
 - Se aplica a toda demo/efecto/imagen: antes de dar algo por bueno, pasarlo por Ollama. Si el
   resultado no se corresponde con la intención, está **mal** aunque el resto pase.
 - Procedimiento y herramientas: [`DEMO_VISUAL_DEBUG.md`](docs/guides/methodology/DEMO_VISUAL_DEBUG.md).
@@ -204,6 +205,9 @@ Reglas críticas:
 - **Sin tirones y con CPU baja (obligatorio)**: verificar **siempre** que la animación mantiene **cadencia uniforme** (ningún frame que ocupe 2 VBlanks, sin picos de ciclos por frame) y que el **trabajo por frame es escaso** (CPU holgada, sin hotspots puntuales). Un **tirón** o un **pico de procesamiento** en ciertos momentos es señal de que **la técnica puede no ser válida**: perfilar ese instante (`.amigaprofile` + IA local) antes de dar la demo por buena y, si el pico es intrínseco al algoritmo, replantear la técnica en vez de maquillar la medida.
 - **Sincronización de frame por señal, no por polling**: las demos sincronizan con el VBlank por el **latido del mini-SO en la IRQ** (`eng::os::init` + `Engine::run_frames`): la IRQ levanta una **señal Exec** y el bucle **duerme en `Wait()`** (CPU en el `STOP` de Exec) cuando no hay nada más que procesar. No usar sondeo de `VPOSR` (`run_frames_polling`) en demos nuevas salvo fallback justificado (backend sin servicio de VBlank).
 - Medir, no inferir: usar `node tools/debug/measure-fps.mjs <demoId> A500_debug --json`; para diagnóstico, perfilar con `node tools/debug/profile.mjs <demoId> A500_debug` o `node tools/debug/winuae-profile.mjs <demoId> A500_debug <frames>`. Registrar medidas en `docs/guides/roadmap/BITACORA_SCROLL_TILES.md` con `tools/debug/record-fps.mjs`.
+- **Excepciones de presupuesto, documentadas**: solo demos intrínsecamente cargantes, con suelo **25 fps**, motivo y medida en el `VALIDATION.md` de la demo (procedimiento: §1 de `docs/guides/methodology/PROCEDIMIENTO_DEMOS_Y_JUEGOS.md`). Sin documentar, la demo queda NO VERIFICADA.
+- **Presupuesto por elemento del bucle y peor caso**: desglosar el coste por elemento (scroll, composición, objetos, IA…) y medir las **rutas que no se ejecutan siempre** (spawn, wrap del scroll, cambio de fase). Un pico repetido (tirón) invalida la demo hasta replantear la técnica.
+- **Informe de validación por demo**: `VALIDATION.md` en la carpeta de la demo con **prompts de visión + respuestas crudas + medidas** (fps/ciclos, `tools/analyze/check-elements.mjs`, band-diff) **+ conclusiones**; obligatorio antes de declarar VERIFICADA y se actualiza si cambia el render o el coste.
 - Para flicker, ejecutar `tools/test-regression.sh --flicker --require-flicker-ok --demo <ruta>` y declarar `flicker-baseline.json` con `max_candidates: 0` y `max_blocks_low: 0` cuando la secuencia esté limpia. Pasar flicker no sustituye el contrato de movimiento de la demo.
 - Si no cumple FPS/flicker, la demo queda **abierta/no verificada**; no relajar el umbral ni alterar telemetría/cadencia para simular cumplimiento. Perfilar el hotspot y optimizar el trabajo real del frame.
 
