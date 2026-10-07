@@ -13,11 +13,13 @@
 /// funciona igual en EHB / single 4 planos / DPF: la app nunca ve planos ni
 /// registros. Reutiliza `mesh3d`/`math3d`/`Surface` (no duplica).
 ///
-/// **Nota de genericidad (§1.11)**: `mesh_render_filled`/`wire` toman `math3d::MeshView`, que usa el
-/// escalar por defecto (`Coord = eng::coord`); es una **conveniencia atada al escalar de estado**,
-/// no una cabecera genérica. Las piezas genéricas sobre `S` son `mesh3d` (`Vec3t<S>`/`MeshViewT<S>`)
-/// y `project_perspective<S>` (Fixed/int/float). Un renderer genérico sobre `S` sería una fase
-/// aparte; hoy no se instancia con otro escalar (pendiente, ver `generic-headers-baseline.txt`).
+/// **Nota de genericidad (§1.11)**: las piezas genéricas sobre `S` son `mesh3d`
+/// (`Vec3t<S>`/`MeshViewT<S>`) y `project_perspective<S>` (Fixed/int/float). Los `mesh_render_*`
+/// de este fichero son el **adaptador de dominio** de `Surface` (píxel de pantalla `s16`): su
+/// contrato es rellenar la superficie del engine, no un renderer genérico sobre otro escalar.
+/// `mesh3d`/lib3d son vocabulario retro y no se generalizan para otro backend; un renderer
+/// genérico sería una fase aparte (decisión en `docs/guides/roadmap/ROADMAP_GENERICIDAD_PLANTILLAS.md`,
+/// F4.1).
 
 #include <eng/core/math/arith.hpp>
 #include <eng/core/data/mesh3d.hpp>

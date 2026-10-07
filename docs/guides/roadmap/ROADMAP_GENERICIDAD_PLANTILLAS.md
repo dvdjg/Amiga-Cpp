@@ -1,5 +1,7 @@
 # Roadmap: genericidad de plantillas (sin tipos de dato concretos)
 
+**Estado: cerrado.** Todos los ítems están hechos o descartados con motivo (ver la columna Estado); la deuda aceptada por el tope de tipos crudos está triada (defaults de compatibilidad de parámetros ya genéricos o tipos de dominio/formato/ABI). La evidencia de la pasada está al final.
+
 Plan para que las plantillas del engine que valen para varios tipos **no queden atadas a uno concreto** (`s32`, `s16`, `u16`, `u8`, `float`…): el tipo que varía se declara como **parámetro de plantilla** o **punto de extensión**, y el comportamiento propio de una representación se aporta como **especialización explícita**, no con ramas internas. Regla vigente: `AGENTS.md` §1.11 y «Reglas obligatorias de diseño» de [`CODING_STYLE.md`](../../engine/architecture/CODING_STYLE.md).
 
 ```
@@ -64,10 +66,11 @@ Ejemplo canónico: un generador de seno debe poder emitir la muestra como `u8`, 
 
 | # | Sitio | Atadura | Propuesta | Estado |
 |---|---|---|---|---|
-| 4.1 | `engine/include/eng/graphics/mesh_renderer.hpp:16-135` | `focal/cx/cy` y píxel de pantalla `s16`; deuda declarada pero ausente de `generic-headers-baseline.txt` | parametrizar el tipo de píxel (`class Px = s16`) o registrar la deuda en el baseline de forma explícita | pendiente |
-| 4.2 | `engine/include/eng/scene/trajectory.hpp:164-179` | `gen_line`/`gen_sine_vertical` solo `PathPoint<s16>` | parametrizar `S` sobre `Trajectory<S>` (ya genérico) | pendiente |
-| 4.3 | `engine/include/eng/core/util/interval.hpp:22-31`, `quantizer.hpp:55-57`, `random.hpp:92-141`, `ai/navigation/navmesh_lite.hpp:83-90` | rangos/niveles/tamaños concretos (`s32`, 64, `u16`) | parámetro de tipo/`NTTP` con defecto según uso real | pendiente |
-| 4.4 | `tools/check/generic-headers.mjs` | solo detecta representaciones conocidas | modo **aviso** (no bloqueante) para los patrones crudos de alta señal (`ct_array<s16\|s32\|…>`, `class/typename X = <crudo>`, alias internos a crudo) y, después, promoción a gate con baseline de deuda | hecho (aviso); promoción a gate pendiente |
+| 4.1 | `engine/include/eng/graphics/mesh_renderer.hpp` | pixels de pantalla `s16` y `MeshView` por defecto | **se deja como está** (decisión): es el adaptador de dominio de `Surface`; las piezas genéricas (`mesh3d`, `project_perspective<S>`) ya lo son; nota del fichero actualizada | descartado (documentado) |
+| 4.2 | `engine/include/eng/scene/trajectory.hpp` (`gen_line`/`gen_sine_vertical`) | solo `PathPoint<s16>` | `template <class S>` (deducido de `Span<PathPoint<S>>`; los usos s16 no cambian) | hecho |
+| 4.3 | `engine/include/eng/core/util/interval.hpp`, `quantizer.hpp` | extremos `s32`; scratch interno de 64 niveles | `IntervalT<T>`/`IntervalSet<N,T>` (alias `Interval = IntervalT<s32>`) y `lloyd_max<S, MaxLevels>` | hecho |
+| 4.3b | `engine/include/eng/core/math/random.hpp`, `ai/navigation/navmesh_lite.hpp` | salidas `s32` del PRNG; coste de portal `u16` | **se dejan** (decisión): el ancho de palabra del PRNG es su contrato de rango, y el coste de portal es dominio de navegación (máscara de terreno `u16`) | descartado (documentado) |
+| 4.4 | `tools/check/generic-headers.mjs` | solo detectaba representaciones conocidas | tope de tipos crudos por fichero (`generic-headers-raw-baseline.txt`, solo puede bajar; fichero nuevo con usos falla) | hecho (tope triado: defaults de compatibilidad o dominio/ABI) |
 
 ## Verificación por fase
 
@@ -75,6 +78,13 @@ Ejemplo canónico: un generador de seno debe poder emitir la muestra como `u8`, 
 - Gates en cada pasada: `node tools/check/{generic-headers,encoding,links,doc-index}.mjs`.
 - Sin regresión de comportamiento: los tipos por defecto conservan el contrato actual (mismos valores y mismas firmas donde ya se instanciaba).
 - Demos afectadas: build + regresión de las que usan la utilidad tocada (083/086/110/201/202/275, rotozoom, `route_camera`).
+
+## Validación de la pasada (evidencia)
+
+- Tests host: HOST-009 (ondas), 013 (polygon), 020 (seno), 047/054 (light/lib3d), 093 (stats), 098 (broadphase), 099/114/126/116 (grafo/rejilla/campo/camino), 104 (fixed_math), 129 (interval), 154/158/164/166/249 (sim/crowd), 380 (Lloyd-Max) en verde.
+- m68k: demos 067 (audio), 085 (copper/`SineTable`), 110 (playfield/`bfs`), 116 (light/polygon) compilan; `codegen-report` sin libcalls ni 68020+.
+- Visión (Ollama, `DEMO_VISUAL_DEBUG`): 085 descripción limpia; en 110 la sospecha de «columnas desplazadas/parpadeo» quedó **refutada por los gates objetivos** (secuencia animada sin pares duplicados, regresión de flicker OK, `camX=0` fijo → borde de mapa, no artefacto).
+- Commits de la pasada: `010c6516`, `9fceabb0`, `5b2e89ef`, `9ecf1faa`, `5ea80cff` (regla/roadmap, SineTable, índices, stats, gate) y `9a855391`, `50d7c83c`, `964203e8` (F2/F3, gates saneados, ondas).
 
 ## Fuera de alcance (tipos de dominio que se dejan)
 

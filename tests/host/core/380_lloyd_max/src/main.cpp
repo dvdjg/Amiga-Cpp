@@ -26,6 +26,14 @@ bool train_scalar() {
 int main() {
 	using Fixed = eng::math::Fixed<eng::s32, 16>;
 	if (!train_scalar<float>() || !train_scalar<Fixed>()) return 1;
+
+	// El tope de niveles es parámetro de plantilla y dimensiona el scratch interno.
+	float c4[4] {};
+	const float smp[4] = {0.0f, 1.0f, 2.0f, 3.0f};
+	const auto r4 = eng::util::lloyd_max<float, 4>(eng::Span<const float>{smp},
+						       eng::Span<float>{c4}, 4u);
+	if (!r4.valid) return 1;
+
 	std::printf("OK: Lloyd-Max genérico validado con float y Fixed.\n");
 	return 0;
 }

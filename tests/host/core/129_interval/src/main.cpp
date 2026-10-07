@@ -72,6 +72,16 @@ void test_overlaps() {
 	check(!eng::util::interval_overlaps({0, 10}, {15, 25}), "intervalo: separados");
 }
 
+void test_small_type() {
+	// Extremos de 16 bits sin signo (parámetro de tipo): mismos rangos y fusión.
+	eng::util::IntervalSet<8, u16> s;
+	check(s.add(0u, 10u) && s.add(10u, 20u), "intervalo u16: fusion por adyacencia");
+	check(s.size() == 1u && s.contains(19u) && !s.contains(20u),
+	      "intervalo u16: contiene semiabierto");
+	const eng::util::IntervalT<u16> iv {2u, 5u};
+	check(iv.length() == 3u && iv.contains(2u) && !iv.contains(5u), "IntervalT<u16>: longitud");
+}
+
 } // namespace
 
 int main() {
@@ -79,6 +89,7 @@ int main() {
 	test_merge_and_contains();
 	test_capacity();
 	test_overlaps();
+	test_small_type();
 
 	if (g_fail == 0u) {
 		std::printf("OK: Interval (fusion de solapes/adyacencias, contains, capacidad)\n");

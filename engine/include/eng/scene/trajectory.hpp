@@ -8,8 +8,8 @@
 ///
 /// El **seguimiento es genérico sobre el escalar** `S` (patrón del repo: `Vec<2,S>` +
 /// `scalar_traits`, vale para `s16`, `s32`, `Fixed` o `float`); los **generadores** de
-/// puntos trabajan en la escala del juego (enteros `s16`, coordenadas de pantalla) porque
-/// son contenido cocinado/`constexpr`.
+/// puntos también son genéricos sobre el tipo de coordenada `S` (deducido de
+/// `PathPoint<S>`; el uso retro es `s16`, coordenadas de pantalla).
 ///
 /// La polilínea controla la **velocidad** de forma explícita (ticks por punto); la spline
 /// controla la **forma** (posición y tangente). Un asset puede combinar ambas: cocer la
@@ -23,6 +23,7 @@
 #include <eng/core/math/spline.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/core/util/type_traits.hpp>
 
 namespace eng::scene {
 
@@ -159,25 +160,29 @@ inline constexpr eng::SineTable<127, 256> kPathSine {};
 
 } // namespace trajectory_detail
 
-/// **Generador de línea** (s16, cocinado): `length` puntos de `(i*dx, i*dy)` con la misma
-/// duración por punto. Devuelve cuántos escribió.
-inline u16 gen_line(eng::Span<PathPoint<s16>> out, s16 dx, s16 dy, u16 length,
-		    u16 ticks_per = 1u) noexcept {
+/// **Generador de línea** (coordenada `S`, por defecto `s16` al deducirse de `PathPoint`):
+/// `length` puntos de `(i*dx, i*dy)` con la misma duración por punto. Devuelve cuántos
+/// escribió.
+template <class S>
+inline u16 gen_line(eng::Span<PathPoint<S>> out, eng::util::type_identity_t<S> dx,
+		    eng::util::type_identity_t<S> dy, u16 length, u16 ticks_per = 1u) noexcept {
 	u16 n = 0u;
 	for (u16 i = 0u; i < length && n < out.size(); ++i) {
-		out[n].p.v[0] = static_cast<s16>(i * dx);
-		out[n].p.v[1] = static_cast<s16>(i * dy);
+		out[n].p.v[0] = static_cast<S>(i * dx);
+		out[n].p.v[1] = static_cast<S>(i * dy);
 		out[n].ticks = ticks_per != 0u ? ticks_per : 1u;
 		++n;
 	}
 	return n;
 }
 
-/// **Generador de seno vertical** (s16, cocinado): desplazamiento en X de amplitud
+/// **Generador de seno vertical** (coordenada `S`): desplazamiento en X de amplitud
 /// `amplitude` (tabla 4.12 reutilizada del engine) y avance en Y de `y_step` por punto.
 /// `phase0` (0..255) permite desfasar brazos de una formación. Devuelve cuántos escribió.
-inline u16 gen_sine_vertical(eng::Span<PathPoint<s16>> out, s16 amplitude, s16 y_step,
-			     u16 length, u8 phase0 = 0u, u16 ticks_per = 1u) noexcept {
+template <class S>
+inline u16 gen_sine_vertical(eng::Span<PathPoint<S>> out, eng::util::type_identity_t<S> amplitude,
+			     eng::util::type_identity_t<S> y_step, u16 length, u8 phase0 = 0u,
+			     u16 ticks_per = 1u) noexcept {
 	u16 n = 0u;
 	if (out.empty()) {
 		return 0u;
@@ -187,8 +192,8 @@ inline u16 gen_sine_vertical(eng::Span<PathPoint<s16>> out, s16 amplitude, s16 y
 									    256u) /
 									   (length != 0u ? length : 1u)));
 		const eng::s32 s = trajectory_detail::kPathSine[phase];
-		out[n].p.v[0] = static_cast<s16>((s * amplitude) / 127);
-		out[n].p.v[1] = static_cast<s16>(i * y_step);
+		out[n].p.v[0] = static_cast<S>((s * amplitude) / 127);
+		out[n].p.v[1] = static_cast<S>(i * y_step);
 		out[n].ticks = ticks_per != 0u ? ticks_per : 1u;
 		++n;
 	}
