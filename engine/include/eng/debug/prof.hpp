@@ -43,16 +43,14 @@ struct ProfBlock {
 	eng::u32 max_cycles[prof_max_sections];
 };
 
-/// Instancia unica del bloque, `volatile` y `inline`: una sola definicion por programa
-/// (sin errores de enlace en host ni en Amiga) y accesos ordenados respecto al contador,
-/// que es lo que hace fiable la medida tambien en builds optimizados.
-///
-/// El host lo localiza por el simbolo del `.map`; con enlace C++ el nombre va manglado
-/// (`_ZN3eng6debug10g_eng_profE`), asi que `tools/debug/profile.mjs` busca por subcadena.
-inline volatile ProfBlock g_eng_prof {};
+/// Instancia unica del bloque, `volatile`: UNA definicion por programa (no `inline`, para que
+/// el `.map` le de direccion final y `tools/debug/profile.mjs` la resuelva; con `inline` cae en
+/// `.gnu.linkonce.b` y el mapa no publica su direccion). La define `amiga.cpp`. Enlace **C**
+/// (como `g_eng_run_status`): el mapa publica el nombre sin manglar con su direccion.
+extern "C" volatile ProfBlock g_eng_prof;
 
-/// Marcas de inicio (la escribe `ENG_PROF_BEGIN`).
-inline volatile eng::u32 g_prof_start[prof_max_sections] {};
+/// Marcas de inicio (la escribe `ENG_PROF_BEGIN`). Definida en `amiga.cpp`.
+extern "C" volatile eng::u32 g_prof_start[prof_max_sections];
 
 /// Secciones que instrumenta el PROPIO engine (indices altos, para no chocar con las de la
 /// demo). El coste es ~2 lecturas del contador por seccion y frame: despreciable, por eso

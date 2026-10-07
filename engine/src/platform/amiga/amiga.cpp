@@ -3,6 +3,7 @@
 #include "support/gcc8_c_support.h"
 #include <proto/exec.h>
 #include <exec/memory.h>
+#include <eng/debug/prof.hpp>
 #include <eng/hw/info.hpp>
 
 
@@ -10,6 +11,20 @@
 
 using namespace eng::amiga::detail;
 
+// Definiciones fuera de linea del bloque de perfilado (declarado en `eng/debug/prof.hpp`):
+// asi el `.map` publica una direccion final que `tools/debug/profile.mjs` puede resolver.
+namespace eng::debug {
+// Inicializador NO nulo a propósito: así el bloque vive en `.data` y el `.map` publica su
+// dirección (en `.bss` el mapa de este toolchain no lista direcciones de símbolo y
+// `tools/debug/profile.mjs` no lo resuelve). Enlace C, como `g_eng_run_status`, para que el
+// mapa publique el nombre sin manglar. `ENG_PROF_INIT` lo reinicializa igualmente.
+extern "C" {
+[[gnu::used]] volatile ProfBlock g_eng_prof {
+	prof_magic, 0u, {0u, 0u, 0u}, 0u, {}, {}, {}, {},
+};
+[[gnu::used]] volatile eng::u32 g_prof_start[prof_max_sections] {1u};
+}
+} // namespace eng::debug
 
 namespace eng::amiga {
 

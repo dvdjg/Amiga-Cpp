@@ -20,6 +20,7 @@
 // al principio del frame, antes del scroll, para que el barrido no pille el dirty-rect.
 
 #include <eng/api/api.hpp>
+#include <eng/debug/prof.hpp>
 #include <eng/platform/amiga/backend.hpp>
 #include <eng/field/xlimited_scene.hpp>
 #include <eng/field/tile_demo.hpp>
@@ -50,7 +51,7 @@ namespace {
 
 namespace playfield = eng::playfield;
 
-/// Self-test de las utilidades de rejilla y búsqueda de caminos: se ejecuta en `init`
+	/// Self-test de las utilidades de rejilla y búsqueda de caminos: se ejecuta en `init`
 /// (en el 68000) y el demo NO llega a READY si falla. Verificación por demo de
 /// `eng::util::SpatialHash` (broadphase) y `eng::util::bfs`/`reconstruct_path`.
 bool util_selftest() {
@@ -225,6 +226,9 @@ struct DemoGame {
 	bool m_cannon_valid = false;
 
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
+		// Perfilado por secciones (opt-in): scroll+blits, compose y FG. ~2 lecturas del
+		// contador por sección y frame; atribuye los fields por elemento (F1).
+		ENG_PROF_INIT(3);
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({300u * 1024u, 16u * 1024u, 8u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011001u);
@@ -297,6 +301,7 @@ struct DemoGame {
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!ready) return;
+		ENG_PROF_FRAME();
 
 		plan.clear();
 		plan.set_blit_budget_limits({8192, 16384, 4, 160});
@@ -306,6 +311,7 @@ struct DemoGame {
 		// single-buffer y el haz ya barre la torreta (y≈36) ~3 ms tras el VBlank. Si el FG
 		// se pinta después del scroll, el borrado+repintado coincide con el barrido y la
 		// torreta se ve a medias o desaparece (flicker). El color 0 de PF2 es transparente.
+		ENG_PROF_BEGIN(2); // sección 2: FG (objetos)
 		const eng::s16 ship_y = static_cast<eng::s16>(kViewportH - 16); // fila visible más baja
 		{
 			auto fg = scene.canvas_fg_surface();
@@ -377,6 +383,7 @@ struct DemoGame {
 			}
 			m_cannon_valid = true;
 		}
+		ENG_PROF_END(2);
 
 		// --- BG: scroll + composición (tras el FG: el blitter tarda más y su contenido no
 		//     tiene el hueco de borrado del dirty-rect) --------------------------
@@ -388,6 +395,7 @@ struct DemoGame {
 		                                        : (cur_x - target_x > 2 ? -2 : target_x - cur_x);
 		const eng::s32 dy = -2;
 
+		ENG_PROF_BEGIN(0); // sección 0: scroll + blits
 		if (!scene.bg().update_scroll(plan, dx, dy)) {
 			// Tope del mundo (arriba): reinicia abajo (demo infinita).
 			scene.bg().set_camera(kViewportW / 4, static_cast<eng::s32>(kMapRows * kTileH) - kViewportH);
@@ -397,11 +405,14 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011010u);
 			return;
 		}
+		ENG_PROF_END(0);
+		ENG_PROF_BEGIN(1); // sección 1: compose (copperlist)
 		if (!scene.compose()) {
 			ready = false;
 			eng::debug::mark_failed(g_eng_run_status, 0x00011011u);
 			return;
 		}
+		ENG_PROF_END(1);
 
 		// Telemetría: cámara X/Y para el assert de movimiento en regresión.
 		g_eng_run_status.detail = 0x11000000u |
