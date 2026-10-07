@@ -1,10 +1,13 @@
 // ============================================================================
-// Test HOST-009: tablas de onda (eng::audio::sine_byte/triangle_byte/square_byte).
+// Test HOST-009: tablas de onda (eng::audio::sine_byte/triangle_byte/square_byte)
+// y generación de muestras (sine_wave<T>/synth_tone<T>).
 // ============================================================================
 //
 // Valida en host las tablas de forma de onda del engine (enteras, sin float):
 // que un ciclo de 64 muestras cubra el rango ±127, tenga media ~0 y la simetría
-// esperada (el seno pasa por 0 en los cuartos del ciclo).
+// esperada (el seno pasa por 0 en los cuartos del ciclo). Además, que el seno sea
+// genérico sobre el tipo de muestra (s16 con su pico) y que `synth_tone` escriba
+// u8 (Paula) o s16 con la amplitud pedida.
 
 #include <cstdio>
 
@@ -58,6 +61,33 @@ int main() {
 	check_wave<eng::audio::triangle_byte>("triangle");
 	check_wave<eng::audio::square_byte>("square");
 	test_sine_symmetry();
+
+	// La tabla generada (serie de Taylor redondeada) reproduce byte a byte la histórica.
+	{
+		static const eng::s8 kRef[17] = {0,  12,  25,  37,  49,  60,  71,  81,  90,
+						 98, 106, 112, 117, 122, 125, 126, 127};
+		bool exact = true;
+		for (eng::u32 i = 0; i < 17u; ++i) {
+			exact = exact && eng::audio::sine_byte(i) == kRef[i];
+		}
+		CHECK(exact);
+	}
+
+	// El seno es genérico sobre el tipo de muestra: s16 usa su pico completo.
+	CHECK(eng::audio::sine_wave<eng::s16>(0u) == 0);
+	CHECK(eng::audio::sine_wave<eng::s16>(16u) == 32767);
+	CHECK(eng::audio::sine_wave<eng::s16>(48u) == -32767);
+
+	// `synth_tone` escribe el tipo de muestra pedido con la amplitud dada.
+	{
+		eng::u8 b8[64] = {};
+		eng::audio::synth_tone<64>(b8, 1000u, 44100u, 100);
+		CHECK(b8[0] == 0u && b8[16] == 100u && b8[48] == 156u); // -100 con signo en byte
+
+		eng::s16 b16[64] = {};
+		eng::audio::synth_tone<64>(b16, 1000u, 44100u, 30000);
+		CHECK(b16[0] == 0 && b16[16] == 30000 && b16[48] == -30000);
+	}
 
 	if (g_failures == 0) {
 		std::printf("OK: tablas de onda validadas (seno/triangular/cuadrada).\n");

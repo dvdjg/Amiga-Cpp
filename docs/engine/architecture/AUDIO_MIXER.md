@@ -170,7 +170,10 @@ Reglas del patrón:
   > `eng::audio::synth_tone<Len>(dst, freq, rate, amplitude)` /
   > `synth_sequence<NoteLen>(...)` (en `eng/audio/wave_tables.hpp`), que calcula la
   > fase como posición exacta dentro del ciclo (`p = (i*cycles) % Len`) y cierra el
-  > bucle **en fase 0**, sin clic. `Len` debe ser constante (el compilador optimiza
+  > bucle **en fase 0**, sin clic. El destino es **cualquier tipo de muestra** con
+  > `wave_traits` (`u8` para el DMA de Paula —con signo interpretado—, `s16` PCM u
+  > otro ancho especializando el trait); la onda seno se genera en compilación.
+  > `Len` debe ser constante (el compilador optimiza
   > las divisiones). `cycles` se redondea, así que hay un detune despreciable.
 - **Fundido** corto (32 muestras) al inicio y al final de cada muestra para que el
   punto de bucle no chasquee.
