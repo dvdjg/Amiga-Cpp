@@ -193,6 +193,27 @@ La fase C no sustituye a A/B: es la comprobación contra la intención, no la fu
 
 **Informe por demo.** Cada demo mantiene un `VALIDATION.md` en su carpeta con: prompts exactos enviados (A/B/C), **respuestas crudas** del modelo, medidas objetivas (fps/ciclos, `tools/analyze/check-elements.mjs`, band-diff) y conclusiones. Es la evidencia de F4/F5 del `PROCEDIMIENTO_DEMOS_Y_JUEGOS.md` y se actualiza en cada pasada que cambie el render o el coste.
 
+### 6.4.1 Secuencias temporales con ventanas deslizantes (evaluación del modelo)
+
+Evaluación de `qwen3-vl:8b-instruct-q8_0` (2026-10, demo 110) pasando **ventanas de 12 frames consecutivos** (misma resolución) en **una sola llamada** con la leyenda de orden temporal de `vision-run.mjs` y un prompt pixel-a-pixel (plantilla abajo). Resultados medidos:
+
+| Prueba | Respuesta del modelo | Veredicto |
+|---|---|---|
+| Ventana con vaivén X (f0010–f0021) | Evolución **frame a frame con etiquetas** (nave x=38→46, proyectil y=57→46, torreta fija), «sin glitches ni artefactos» | **Sí trata la secuencia como temporal**; útil para continuidad y evolución |
+| Ventana con reversión X (f0030–f0041) | Frame a frame, sin discontinuidades | No detectó nada en la reversión (no había fallo) |
+| Ventana tras el reinicio del mundo (f0016–f0027) | «El fondo cambia abruptamente en f0018… reemplazo total» | **Detecta transiciones bruscas** (el teleport del reinicio, real) |
+| Ventana tardía (f0070–f0081) | Frame a frame | — |
+
+Límites confirmados con este prompt: **direcciones/coordenadas no fiables** (dijo «derecha» con la nave moviéndose a la izquierda; el §6.4 prohíbe pedir píxeles), **falso negativo con fondo periódico** («completamente estático» con scroll de 2 px/frame) y **no cazó la banda alterna** de la 110 sin este prompt (la cazó el agente en la hoja). Conclusión operativa: las ventanas de 12-24 frames sirven para **continuidad, aparición/desaparición y transiciones**, no para dirección ni para movimiento periódico lento; el agente mira siempre la hoja de contacto además de la respuesta.
+
+Plantilla del prompt (usada y verificada):
+
+```text
+Analiza esta secuencia de frames consecutivos (N imágenes en orden temporal, misma resolución) de un juego de arcade retro pixel-art. Compara frame a frame de forma precisa: 1) Detecta cualquier parpadeo, cambio de un solo píxel, sprite que aparece/desaparece incorrectamente o cambia de forma anómala. 2) Señala glitches, discontinuidades en animaciones, artefactos de captura o emulación. 3) Describe la evolución exacta de cada entidad (nave, proyectiles, torreta, fondo) indicando en qué frames ocurre cada cambio. Sé extremadamente literal y pixel-oriented. Si algo parpadea o tiene un fallo de 1-2 frames, indícalo claramente. Responde en español.
+```
+
+Protocolo recomendado: **ventanas deslizantes** de 12-24 frames consecutivos (avance ~50% del tamaño), `--prompt` de arriba; la hoja de contacto del mismo tramo la revisa el agente; los hallazgos van al `<demoId>_report.md` (§6.5).
+
 ### 6.5 Artefactos de una pasada de visión: nombres y ubicación
 
 Toda pasada de visión deja **dos artefactos** con nombre canónico, **en la propia carpeta de la demo** (junto a su `src/`), ignorados por git (reglas `demos/**/vision/` y `demos/**/*_report.md` del `.gitignore`; **nunca** se copian a `docs/`):
