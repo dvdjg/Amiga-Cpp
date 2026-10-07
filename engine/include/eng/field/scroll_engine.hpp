@@ -212,6 +212,13 @@ public:
         if constexpr (C.display_height != 0u) return fast_div<C.display_height>::r(v);
         return v % sn.display_height();
     }
+    /// Como `r_dh` pero con módulo con signo (para posiciones negativas del toroide).
+    inline u32 r_dh_signed(const Sink& sn, s32 v) const {
+        const s32 dh = static_cast<s32>(C.display_height != 0u ? C.display_height : sn.display_height());
+        s32 r = v % dh;
+        if (r < 0) r += dh;
+        return static_cast<u32>(r);
+    }
     inline u32 r_dph(const Sink& sn, u32 v) const {
         if constexpr (C.display_planelines != 0u) return fast_div<C.display_planelines>::r(v);
         return v % sn.display_planelines();
@@ -586,17 +593,27 @@ public:
         }
         if (finite_x(sn)) {
             // Y con anillo y X finita: fila entrante en RODAJAS (espejo del
-            // scroll_up): 1/16 de las columnas por sub-paso de 1 px.
+            // scroll_up): 1/16 de las columnas por sub-paso de 1 px. Con
+            // `map_wrap_y` la fila entrante se envuelve al mapa (toroide).
             const s32 limitY = static_cast<s32>(sn.map_height_blocks()) * th(sn) - sn.viewport_h();
             if (sn.map_wrap_y() == 0 && m_state.mapposy >= limitY) return false;
             ++m_state.mapposy;
-            m_state.videoposy = static_cast<s32>(r_dh(sn, static_cast<u32>(m_state.mapposy)));
-            const u16 k = r_th(sn, m_state.mapposy); // 0..15: rodaja dentro del tile
+            const s32 my = m_state.mapposy;
+            const s32 ths = static_cast<s32>(th(sn));
+            m_state.videoposy = static_cast<s32>(r_dh_signed(sn, my));
+            const s32 mapy_s = my / ths; // my >= 0 en la bajada
+            const s32 sub = my - mapy_s * ths;
+            const s32 mh = static_cast<s32>(sn.map_height_blocks());
+            s32 wrapped = mapy_s % mh;
+            if (wrapped < 0) wrapped += mh;
+            s32 incoming = (wrapped + static_cast<s32>(sn.bitmap_blocks_per_col())) % mh;
+            if (incoming < 0) incoming += mh;
+            const u16 mapy = static_cast<u16>(incoming);
+            const u16 k = static_cast<u16>(sub); // 0..15: rodaja dentro del tile
             const u16 cols = sn.bitmap_blocks_per_row();
             const u16 c0 = static_cast<u16>((static_cast<u32>(k) * cols) >> 4u);
             const u16 c1 = static_cast<u16>(((static_cast<u32>(k) + 1u) * cols) >> 4u);
-            const u32 y_pl = block_videoposy(sn) * planes(sn);
-            const u16 mapy = static_cast<u16>(q_th(sn, m_state.mapposy) + sn.bitmap_blocks_per_col());
+            const u32 y_pl = r_dh_signed(sn, mapy_s * ths) * planes(sn);
             for (u16 c = c0; c < c1; ++c) {
                 if (!sn.add_draw(plan, static_cast<u16>(c * tw(sn)), static_cast<u16>(y_pl), c, mapy)) return false;
             }
@@ -684,18 +701,29 @@ public:
             // completa en RODAJAS: cada sub-paso de 1 px pinta 1/16 de las
             // columnas, de modo que la fila queda pintada justo antes de
             // revelarse sin el pico de ~1 campo por cruce (27 blits de golpe).
-            if (m_state.mapposy < 1) return false;
+            // Con `map_wrap_y` la posición de scroll sigue bajando (el display no
+            // salta: `videoposy` es módulo del anillo) y solo la FILA DE MAPA se
+            // envuelve → scroll infinito sin teleport de reinicio.
+            if (m_state.mapposy < 1 && sn.map_wrap_y() == 0) return false;
             --m_state.mapposy;
-            m_state.videoposy = static_cast<s32>(r_dh(sn, static_cast<u32>(m_state.mapposy)));
-            const u16 k = r_th(sn, m_state.mapposy); // 0..15: rodaja dentro del tile
+            const s32 my = m_state.mapposy;
+            const s32 ths = static_cast<s32>(th(sn));
+            m_state.videoposy = static_cast<s32>(r_dh_signed(sn, my));
+            // División con signo: fila de mapa (signed) y sub-fila 0..15 válidas para my<0.
+            s32 mapy_s = my / ths;
+            s32 sub = my - mapy_s * ths;
+            if (sub < 0) { sub += ths; mapy_s -= 1; }
+            const s32 mh = static_cast<s32>(sn.map_height_blocks());
+            s32 wrapped = mapy_s % mh;
+            if (wrapped < 0) wrapped += mh;
+            const u16 mapy = static_cast<u16>(wrapped);
+            const u16 k = static_cast<u16>(sub); // 0..15: rodaja dentro del tile
             const u16 cols = sn.bitmap_blocks_per_row();
             const u16 c0 = static_cast<u16>((static_cast<u32>(k) * cols) >> 4u);
             const u16 c1 = static_cast<u16>(((static_cast<u32>(k) + 1u) * cols) >> 4u);
-            const u16 mapy = q_th(sn, m_state.mapposy);
-            // Fila del anillo fija para toda la fila: `block_videoposy` =
-            // r_dh(q_th*tile_height), la primera fila del tile en el anillo
-            // (constante mientras `q_th` no cambia).
-            const u32 y_pl = block_videoposy(sn) * planes(sn);
+            // Fila del anillo fija para toda la fila: r_dh(fila de mapa * tile_height)
+            // con módulo con signo (constante mientras `mapy_s` no cambie).
+            const u32 y_pl = r_dh_signed(sn, mapy_s * ths) * planes(sn);
             for (u16 c = c0; c < c1; ++c) {
                 if (!sn.add_draw(plan, static_cast<u16>(c * tw(sn)), static_cast<u16>(y_pl), c, mapy)) return false;
             }

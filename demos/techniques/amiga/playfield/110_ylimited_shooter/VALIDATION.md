@@ -135,6 +135,14 @@ alterna en la hoja (respondió «sin parpadeo» también en la versión rota); l
 mirar la hoja. Las hojas de contacto (100 frames, celdas etiquetadas) sí permiten la inspección
 visual del conjunto; el modelo no sustituye la mirada del agente (§6.4/§6.5 de `DEMO_VISUAL_DEBUG.md`).
 
+**Scroll infinito (toroide).** El mapa se enrolla en Y (`scene_cfg.map.wrap_y = kMapRows`): la fila
+-1 es la 127 y la posición de scroll no se reinicia (el motor mantiene `videoposy` módulo del anillo
+y envuelve solo la fila de mapa, `scroll_engine.hpp`). Verificado con captura de 100 frames
+(f0008–f0107) alrededor del cruce: sin teleport, sin bandas ni glitches; check objetivo nuevo
+`tools/analyze/check-alternating-bands.mjs` → **OK** (100 frames, 36 bandas, 0 alternancias).
+Comparativa de modelos de visión (misma ventana): qwen3-vl (preferido) vs gemma3:12b (más verboso,
+inventa movimientos) — §6.4.1 de `DEMO_VISUAL_DEBUG.md`.
+
 **Demo real (FG reactivado, mapa real) — estado actual:** el bloque FG volvió a compilarse tras
 muchos turnos y destapó un **address error** introducido al añadir la guarda del lienzo: `byte_for`
 devolvía byte impar para `wx=8..15` (se perdió el `& ~1`), y el 68000 no admite escrituras de word

@@ -257,6 +257,9 @@ struct DemoGame {
 		scene_cfg.map.cells = eng::Span<const eng::u16>::from_raw(g_map, kMapCols * kMapRows);
 		scene_cfg.map.width = kMapCols;
 		scene_cfg.map.height = kMapRows;
+		// Toroide: el mapa se enrolla en Y (scroll infinito real; la fila -1 es la
+		// 127) → sin teleport de reinicio. El motor envuelve la fila pintada.
+		scene_cfg.map.wrap_y = kMapRows;
 		scene_cfg.map.wrap_x = 0;    // X finito: sin wrap
 		scene_cfg.map.wrap_y = 0;    // Y acotado (se recorre de abajo arriba)
 		scene_cfg.map.edge_tile = 0;
@@ -276,6 +279,8 @@ struct DemoGame {
 			return;
 		}
 		// Arranca abajo del mundo, a media anchura (la nave sube).
+		// Arranca abajo del mundo, a media anchura (la nave sube). Con `wrap_y` el
+		// scroll es infinito: al pasar la fila 0 continúa por la 127 (sin teleport).
 		scene.bg().set_camera(kViewportW / 4, static_cast<eng::s32>(kMapRows * kTileH) - kViewportH);
 		if (!scene.fill(backend, plan)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011003u);

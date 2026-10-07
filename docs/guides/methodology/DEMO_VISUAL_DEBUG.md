@@ -214,6 +214,8 @@ Analiza esta secuencia de frames consecutivos (N imágenes en orden temporal, mi
 
 Protocolo recomendado: **ventanas deslizantes** de 12-24 frames consecutivos (avance ~50% del tamaño), `--prompt` de arriba; la hoja de contacto del mismo tramo la revisa el agente; los hallazgos van al `<demoId>_report.md` (§6.5).
 
+**Comparativa de modelos (misma ventana, f0024–f0035):** `qwen3-vl:8b-instruct-q8_0` da evolución frame a frame y señala cambios concretos (p. ej. el detalle amarillo de la torreta que cambia de forma); `gemma3:12b` es más verboso pero **inventa movimientos** (dice que la torreta se desplaza, siendo estática) y sus «anomalías» son vagas («posible variación de color… difícil determinar»). **Preferido: qwen3-vl**; gemma3 queda como segunda opinión. Además: para el flicker 1-de-cada-2 frames (bandas alternas) existe el check objetivo `node tools/analyze/check-alternating-bands.mjs <dirSeq>` (por bandas de 16 filas y alternancias de luminancia), que no depende del modelo.
+
 ### 6.5 Artefactos de una pasada de visión: nombres y ubicación
 
 Toda pasada de visión deja **dos artefactos** con nombre canónico, **en la propia carpeta de la demo** (junto a su `src/`), ignorados por git (reglas `demos/**/vision/` y `demos/**/*_report.md` del `.gitignore`; **nunca** se copian a `docs/`):
