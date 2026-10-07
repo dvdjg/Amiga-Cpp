@@ -577,6 +577,10 @@ public:
 	void blitter_blob_run_begin(eng::amiga::BlobOp op, u16 words, u16 height, s16 amod, s16 bmod,
 				    s16 cmod, s16 dmod);
 	void blitter_blob_run_one(const void* a, const void* b, void* d, u8 shift);
+	/// Fija las ventanas de máscara (`BLTAFWM`/`BLTALWM`) de la racha en curso. Uso típico:
+	/// `blitter_blob_run_masks(0xffff, 0x0000)` para los BOBs de 3 palabras con desplazamiento
+	/// (descarta la tercera palabra; ver `BlobBatch::set_window_masks`).
+	void blitter_blob_run_masks(u16 afwm, u16 alwm) { m_blob_run.set_window_masks(afwm, alwm); }
 	bool blitter_blob_run_end();
 
 	/// **Tira de scroll** (columna entrante pre-compuesta): copia `planelines` planelíneas de `src`

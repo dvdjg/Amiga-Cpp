@@ -11,15 +11,15 @@ Estructura y numeración: [../../../../docs/STRUCTURE.md](../../../../docs/STRUC
 | [053_sprite_multiplex](053_sprite_multiplex/README.md) |
 | [054_sprite_allocator](054_sprite_allocator/README.md) |
 | [206_sprite_collision](206_sprite_collision/README.md) |
-| [207_sprite_layer](207_sprite_layer/README.md) |
 | [208_risky_woods](208_risky_woods/README.md) |
 | [211_risky_woods_layer](211_risky_woods_layer/README.md) |
 | [212_free_scroll_layer](212_free_scroll_layer/README.md) — **NO VERIFICADA (rota)** |
-| [213_spr_layer](213_spr_layer/README.md) |
+| [213_spr_layer](213_spr_layer/README.md) — capa de sprites free-form a pantalla completa (sin playfield) |
 | [214_attached_object](214_attached_object/README.md) — objeto de 15 colores (*attached*) |
 | [215_jim_power](215_jim_power/README.md) — **NO VERIFICADA**: fondo por DATA por línea (pacing abierto) |
 | [216_attached_actors](216_attached_actors/README.md) — pares *attached* end-to-end por el camino de actores |
 | [217_sprite_template_actor](217_sprite_template_actor/README.md) — plantilla de franjas (rearme + paleta por franja) por el camino de actores |
+| [218_free_form_sprite_layer](218_free_form_sprite_layer/README.md) — **recreación fiel de «SPR Layer»** (Jeroen Knoester, 2018): 19 columnas, playfield 4bpl con scroll 1 px/frame, 9 BOBs y sub-buffer |
 
 Técnicas del [catálogo](../../../../docs/reference/amiga/techniques/sprite-techniques-catalog.md)
 **aún sin demo** (candidatas): **multiplexado vertical**

@@ -116,6 +116,16 @@ public:
 		c[kBltsize] = size;
 	}
 
+	/// Fija las ventanas de máscara del lote (`BLTAFWM`/`BLTALWM`). Sirve para el truco de
+	/// los BOBs de 3 palabras: `alwm = 0x0000` **descarta la última palabra** del blit
+	/// (fuente y destino), de modo que un blit de 3 palabras con `ASH`/`BSH` lee y escribe
+	/// solo 2 palabras y usa la tercera como arrastre del barrel shifter. La referencia
+	/// («SPR Layer») lo fija justo antes de dibujar sus 9 BOBs.
+	__attribute__((always_inline)) inline void set_window_masks(eng::u16 afwm, eng::u16 alwm) {
+		c[kBltafwm] = afwm;
+		c[kBlctalwm] = alwm;
+	}
+
 	/// Espera al último blob del lote.
 	__attribute__((always_inline)) inline bool end() {
 		wait();

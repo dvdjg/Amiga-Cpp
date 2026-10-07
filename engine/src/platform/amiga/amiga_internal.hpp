@@ -305,6 +305,10 @@ inline void blit_fill_word_strided(eng::u16* d, eng::u16 value, eng::u16 rows, e
 	wait_blitter();
 	custom_base[custom_bltcon0_offset] = static_cast<eng::u16>(blt_use_d | 0x00f0u); // D = A
 	custom_base[custom_bltcon1_offset] = 0;
+	// Ventanas completas: sin esto heredaria el `ALWM=0` de un lote de BOBs anterior y
+	// enmascararia la unica palabra de cada fila (fill de 1 palabra -> no escribiria nada).
+	custom_base[custom_bltafwm_offset] = 0xffff;
+	custom_base[custom_bltalwm_offset] = 0xffff;
 	custom_base[custom_bltadat_offset] = value; // A deshabilitado -> constante
 	custom_base[custom_bltdmod_offset] = dmod;
 	write_custom_pointer(custom_bltdpt_offset, d);
@@ -319,6 +323,10 @@ inline void blit_copy_words_strided(const eng::u16* s, eng::u16* d, eng::u16 wor
 	wait_blitter();
 	custom_base[custom_bltcon0_offset] = static_cast<eng::u16>(blt_use_a | blt_use_d | 0x00f0u); // D=A
 	custom_base[custom_bltcon1_offset] = 0;
+	// Ventanas completas: mismo motivo que en `blit_fill_word_strided` (no heredar el
+	// `ALWM=0` de un lote de BOBs).
+	custom_base[custom_bltafwm_offset] = 0xffff;
+	custom_base[custom_bltalwm_offset] = 0xffff;
 	custom_base[custom_bltamod_offset] = smod;
 	custom_base[custom_bltdmod_offset] = dmod;
 	write_custom_pointer(custom_bltapt_offset, s);
