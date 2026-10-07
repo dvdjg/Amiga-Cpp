@@ -11,6 +11,13 @@
 /// división **explícita** del engine: el `Fixed` del núcleo no tiene `operator/` pero
 /// sí `div_norm` (saturante), igual que `remap`/`inv_lerp`.
 ///
+/// Cuando el escalar declara **acumulador ancho** (`scalar_traits<S>::wide_accum`, p. ej.
+/// `Fixed<s16>`), `sum`/`mean` acumulan en `scalar_traits<S>::wide_t` (s32 para `Fixed`
+/// de 16 bits, s64 para el de 32 en host) y el resultado se estrecha con saturación
+/// (`from_wide`); `stats` no toca miembros internos del escalar: usa el vocabulario
+/// declarado (`to_wide`/`from_wide`/`wide_div`), así que otro escalar con acumulador
+/// ancho se integra sin cambios.
+///
 /// Coste y límites:
 /// - `mean`/`variance`/`histogram` **dividen** vía `div_norm`; con `Fixed` saturan y
 ///   con `MiniFloat16` llevan ~1e-3 de error.
@@ -26,7 +33,6 @@
 
 #include <eng/core/math/linalg.hpp>
 #include <eng/core/math/scalar_math.hpp>
-#include <eng/core/math/arith.hpp>
 
 namespace eng::util {
 
@@ -35,27 +41,18 @@ using eng::math::mul_norm;
 using eng::math::scalar_sqrt;
 using eng::math::scalar_traits;
 
-namespace detail {
-
-[[nodiscard]] constexpr s16 sat_s16(s32 v) noexcept {
-	if (v > 32767) return static_cast<s16>(32767);
-	if (v < -32768) return static_cast<s16>(-32768);
-	return static_cast<s16>(v);
-}
-
-} // namespace detail
-
-/// Suma de todos los elementos (0 si la vista está vacía). Si el escalar pide acumulador
-/// ancho (`scalar_traits<S>::wide_accum`, p. ej. `Fixed<s16>`) acumula en **s32** (`add.l`)
-/// y solo el resultado se estrecha.
+/// Suma de todos los elementos (0 si la vista está vacía). Si el escalar declara
+/// acumulador ancho (`scalar_traits<S>::wide_accum`, p. ej. `Fixed<s16>`), suma en
+/// `scalar_traits<S>::wide_t` (p. ej. s32) con `to_wide` y solo el resultado se
+/// estrecha, saturando (`from_wide`).
 template <class S>
 [[nodiscard]] constexpr S sum(Span<const S> xs) {
 	if constexpr (scalar_traits<S>::wide_accum) {
-		s32 acc = 0;
+		typename scalar_traits<S>::wide_t acc = 0;
 		for (const S& x : xs) {
-			acc += static_cast<s32>(x.v);
+			acc += scalar_traits<S>::to_wide(x);
 		}
-		return S {detail::sat_s16(acc)};
+		return scalar_traits<S>::from_wide(acc);
 	} else {
 		S acc = scalar_traits<S>::zero();
 		for (const S& x : xs) {
@@ -65,19 +62,19 @@ template <class S>
 	}
 }
 
-/// Media aritmética. Con acumulador ancho suma en **s32** y divide con `div_wide` (`divs.w`),
-/// así la suma intermedia no satura; el tamaño de la vista debe caber en `s16`.
+/// Media aritmética. Con acumulador ancho suma en `wide_t` y divide con `wide_div`
+/// (en 68000, `divs.w` para `Fixed<s16>`), así la suma intermedia no satura.
 template <class S>
 [[nodiscard]] constexpr S mean(Span<const S> xs) {
 	if (xs.empty()) {
 		return scalar_traits<S>::zero();
 	}
 	if constexpr (scalar_traits<S>::wide_accum) {
-		s32 acc = 0;
+		typename scalar_traits<S>::wide_t acc = 0;
 		for (const S& x : xs) {
-			acc += static_cast<s32>(x.v);
+			acc += scalar_traits<S>::to_wide(x);
 		}
-		return S {eng::math::div_wide(acc, static_cast<s16>(xs.size()))};
+		return scalar_traits<S>::wide_div(acc, static_cast<int>(xs.size()));
 	} else {
 		return div_norm(sum(xs), scalar_traits<S>::from_int(static_cast<int>(xs.size())));
 	}

@@ -148,6 +148,19 @@ int main() {
 		check(em::to_double(eu::sum(cspan(big))) <= 8.0, "sum<q12> cabe/satura en rango");
 	}
 
+	// --- acumulador ancho declarado por el escalar: Fixed de 32 bits ---------
+	// `wide_t = s64` (host): dos muestras al máximo de s32 desbordan la suma de 32 bits;
+	// el resultado satura al rango del escalar en vez de envolver.
+	{
+		using q12_32 = eng::math::Fixed<eng::s32, 12>;
+		const q12_32 big2[2] = {q12_32 {2147483647}, q12_32 {2147483647}};
+		const double mx = em::numeric_traits<q12_32>::max_finite;
+		check(std::fabs(em::to_double(eu::sum(cspan(big2))) - mx) <= 1.0e-6,
+		      "sum<Fixed<s32,12>> satura (acumulador s64)");
+		check(std::fabs(em::to_double(eu::mean(cspan(big2))) - mx) <= 1.0e-6,
+		      "mean<Fixed<s32,12>> acumula en s64");
+	}
+
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;

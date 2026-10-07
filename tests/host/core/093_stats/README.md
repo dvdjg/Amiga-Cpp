@@ -10,6 +10,9 @@ Respalda `engine/include/eng/core/util/stats.hpp`.
 - `ema` (media móvil exponencial) y `RunningMean<S, N>` (ventana deslizante).
 - Los **mismos algoritmos** con `double`, `MiniFloat16` y `q12` (fixed), contra
   referencias conocidas; `stddev` solo para escalares con `sqrt` (no `Fixed`).
+- `sum`/`mean` usan el **acumulador ancho declarado por el escalar**
+  (`scalar_traits<S>::wide_t`): `s32` para `q12` y `s64` para `Fixed<s32,12>` (host),
+  saturando al estrechar; dos muestras al máximo de `s32` no envuelven.
 
 ## Límites
 

@@ -5,8 +5,8 @@ Respalda `engine/include/eng/core/math/fixed_math.hpp`: especializa `scalar_sin`
 
 ## Qué cubre
 
-- `sin`/`cos` de `q12` (tabla `SineTable<(1<<E),4096>`) contra referencias y la
-  identidad `sin²+cos²=1`.
+- `sin`/`cos` de `q12` (tabla interna `detail::FixedSineTable<R,E,Size,Iter>`, indexada por
+  ángulo) contra referencias y la identidad `sin²+cos²=1`.
 - `sqrt` de `q12` (`isqrt(raw<<E)`), incluido negativo → 0.
 - **`exp2`/`log2` de `q12`** por tabla (generada en compile-time) y exponente entero;
   `exp2` satura al rango del fixed y `log2` solo es válido si el resultado cabe.

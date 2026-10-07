@@ -113,7 +113,7 @@ struct DefaultPolicy {
 //
 // `wide`/`common_repr`/`mul_repr` viven ahora en `numeric_traits.hpp` (genéricas, sin atarse a
 // `Fixed`): las cabeceras de algoritmo (linalg/geometry/noise…) pueden usarlas sin arrastrar una
-// representación concreta (AGENTS §1.10). Aquí se consume vía el include de `numeric_traits.hpp`.
+// representación concreta (AGENTS §1.11). Aquí se consume vía el include de `numeric_traits.hpp`.
 
 namespace detail {
 
@@ -555,6 +555,49 @@ struct scalar_traits<Fixed<R, E, P>> {
 	static constexpr bool needs_normalize = true;
 	/// Sumar muchas muestras puede saturar el `s16`; el acumulador ancho es `s32`.
 	static constexpr bool wide_accum = true;
+
+	/// Tipo del acumulador ancho para acumulaciones largas (`stats::sum`/`mean`):
+	/// `wide<R>` (s16 → s32, s32 → s64; este último solo host, ver `wide_div`).
+	using wide_t = typename wide<R>::type;
+	/// Muestra como acumulador ancho (sin normalizar; el ensanchado es implícito).
+	static constexpr wide_t to_wide(scalar x) { return x.v; }
+	/// Acumulador ancho → escalar, **saturando** al rango de `R` (una suma larga puede
+	/// desbordar la representación). El estrechado es una asignación (no list-init), ya
+	/// dentro de rango.
+	static constexpr scalar from_wide(wide_t w) {
+		scalar s {};
+		if (w > limits<R>::max) {
+			s.v = limits<R>::max;
+		} else if (w < limits<R>::min) {
+			s.v = limits<R>::min;
+		} else {
+			s.v = w;
+		}
+		return s;
+	}
+	/// `w / n` con el cociente en el escalar (saturado). Usa el `arith<R>` del target
+	/// (en 68000, `divs.w` nativo para `Fixed<s16>`); en m68k la división de 64 bits son
+	/// libcalls, así que `Fixed<s32>` queda vetado con un `static_assert` (igual que
+	/// `scalar_div<Fixed<s32>>`).
+	static constexpr scalar wide_div(wide_t w, int n) {
+		if (n == 0) {
+			return zero();
+		}
+#if defined(__m68k__)
+		if constexpr (sizeof(R) >= 4u) {
+			(void)w;
+			(void)n;
+			static_assert(sizeof(scalar) == 0u,
+				      "eng::util: la media de Fixed<s32> usaria libgcc de 64 bits en "
+				      "m68k; usa Fixed<s16>");
+			return scalar {0};
+		} else {
+			return scalar {arith<R>::div(w, n)};
+		}
+#else
+		return from_wide(w / n);
+#endif
+	}
 };
 
 /// Constante escalar desde un `double` de compilación para `Fixed<R,E>` (cuantiza a `E`
@@ -626,7 +669,7 @@ struct scalar_div<Fixed<s32, E, P>> {
 /// `fila · vector`: `dot` de N pares con normalización **FUSIONADA** (los productos comparten
 /// exponente, se suman exactos y se normaliza una vez al escalar del vector). Lee una fórmula de
 /// transformación como lo que es: la fila `i` de `M*v`. Específico de `Fixed` (usa `repr`/`exp`/
-/// `policy`), por eso vive aquí y no en `linalg.hpp` (AGENTS §1.10). `v` es un `Vec<N,S>` de
+/// `policy`), por eso vive aquí y no en `linalg.hpp` (AGENTS §1.11). `v` es un `Vec<N,S>` de
 /// `linalg.hpp`; se acepta por plantilla para no crear dependencia.
 template <int N, typename SR, class Vec>
 [[nodiscard]] constexpr auto dot_fixed_row(const SR* row, const Vec& v) {
