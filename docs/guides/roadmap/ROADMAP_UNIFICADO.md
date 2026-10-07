@@ -334,9 +334,9 @@ alta dinámica de actores de sprite desde `update`
   4. **Consumir el inventario en el mini-SO/GUI** (panel de diagnóstico) reutilizando el overlay de
      la demo 010.
 
-## Deuda de genericidad de cabeceras (pendiente)
+## Deuda de genericidad de cabeceras (roadmap dedicado)
 
-Pasada dedicada (más adelante): revisar las cabeceras de **algoritmo** que aún fijan un tipo concreto de coordenada (`Point2s`) o escalar y decidir caso por caso si es **valor** (se deja) o **coordenada** (se generaliza a plantilla o se decopa como política). Punto de partida: `node tools/check/generic-headers.mjs` (gate) más una búsqueda de `Point2s`/`s16`/`float` en `engine/include/eng/**` fuera de las cabeceras exentas (`retro/`, `platform/`, `cpu/`, `field/`, `fixed*`, `minifloat*`). Ya generalizados: `navmesh_lite`, `waypoints`, `crowd` (con `NavPoint<S>` y políticas de cruz). Regla: `AGENTS.md` §1.10 y la «regla de oro» de `CODING_STYLE.md`.
+Pasada dedicada: revisar las cabeceras de **algoritmo** que aún fijan un tipo concreto de coordenada (`Point2s`) o escalar y decidir caso por caso si es **valor** (se deja) o **coordenada** (se generaliza a plantilla o se decopa como política). Punto de partida: `node tools/check/generic-headers.mjs` (gate) más una búsqueda de `Point2s`/`s16`/`float` en `engine/include/eng/**` fuera de las cabeceras exentas (`retro/`, `platform/`, `cpu/`, `field/`, `fixed*`, `minifloat*`). Ya generalizados: `navmesh_lite`, `waypoints`, `crowd` (con `NavPoint<S>` y políticas de cruz). Regla: `AGENTS.md` §1.11 y la «regla de oro» de `CODING_STYLE.md`. **Inventario completo de candidatos y fases**: [ROADMAP_GENERICIDAD_PLANTILLAS.md](ROADMAP_GENERICIDAD_PLANTILLAS.md) (F1 generadores/tablas, F2 índices/costes, F3 numéricos con representación fija, F4 resto y ampliación del gate).
 
 ## Decisiones tomadas en 202 (a respetar)
 

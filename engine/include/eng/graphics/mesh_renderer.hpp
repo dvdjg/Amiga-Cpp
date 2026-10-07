@@ -13,7 +13,7 @@
 /// funciona igual en EHB / single 4 planos / DPF: la app nunca ve planos ni
 /// registros. Reutiliza `mesh3d`/`math3d`/`Surface` (no duplica).
 ///
-/// **Nota de genericidad (§1.10)**: `mesh_render_filled`/`wire` toman `math3d::MeshView`, que usa el
+/// **Nota de genericidad (§1.11)**: `mesh_render_filled`/`wire` toman `math3d::MeshView`, que usa el
 /// escalar por defecto (`Coord = eng::coord`); es una **conveniencia atada al escalar de estado**,
 /// no una cabecera genérica. Las piezas genéricas sobre `S` son `mesh3d` (`Vec3t<S>`/`MeshViewT<S>`)
 /// y `project_perspective<S>` (Fixed/int/float). Un renderer genérico sobre `S` sería una fase

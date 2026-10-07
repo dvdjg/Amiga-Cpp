@@ -55,7 +55,7 @@ nm tu.o | grep -E '__mul|__div|__mod|__float|__fix'
 ```
 
 **Regla del engine**: nada de `float`/`u32 *`/`u32 %` en la ruta que corre en Amiga; `u16` para
-aritmética y tablas; `Fixed<s16,E>` (E ≤ 15) en vez de `Fixed<s32,E>`; ver `AGENTS.md` §1.10 y
+aritmética y tablas; `Fixed<s16,E>` (E ≤ 15) en vez de `Fixed<s32,E>`; ver `AGENTS.md` §1.11 y
 `tools/analyze/asm-audit.mjs`.
 
 **Coste, no solo el build.** Aunque una libcall esté enlazada (p. ej. vía el soporte del engine),
@@ -148,7 +148,7 @@ sin que el build falle ni se vea una libcall en el asm.
    rutina propia es **más lenta** que el libgcc que sustituye, el conteo de `calls` y el coste medido
    (`codegen-report.mjs`, `Timeline`) lo delatan.
 4. **Criterio de diseño**: una optimización propia **debe** venir con su test de equivalencia y (si es
-   caliente) con la medición A/B; sin eso no se acepta (AGENTS §1.5/§1.10, `OPTIMIZACION_GPP_68000` §12).
+   caliente) con la medición A/B; sin eso no se acepta (AGENTS §1.5/§1.11, `OPTIMIZACION_GPP_68000` §12).
 
 > Regla: **nunca** sustituir una libcall por una rutina propia sin (a) test de equivalencia contra una
 > referencia y (b) comprobar que el binario sigue en 68000 (`asm-audit`). El silencio de las libcalls

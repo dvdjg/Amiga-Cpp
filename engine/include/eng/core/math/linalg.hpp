@@ -19,7 +19,7 @@
 
 // Sin escalares concretos: `linalg` es una cabecera de ALGORITMO genérica. La promoción de
 // representación (`mul_repr`) vive en `numeric_traits.hpp`. El `dot` de fila Fixed-específico se
-// movió a `fixed.hpp` (`dot_fixed_row`), que es donde vive el formato. Ver AGENTS §1.10.
+// movió a `fixed.hpp` (`dot_fixed_row`), que es donde vive el formato. Ver AGENTS §1.11.
 #include <eng/core/math/numeric_traits.hpp>
 #include <eng/core/types/types.hpp>
 
@@ -333,7 +333,7 @@ template <int N, typename S, int M, typename T>
 }
 
 // `fila · vector` con normalización FUSIONADA (Fixed): vive en `fixed.hpp` como
-// `dot_fixed_row` (depende del formato `Fixed`, no del algoritmo de `linalg`). Ver AGENTS §1.10.
+// `dot_fixed_row` (depende del formato `Fixed`, no del algoritmo de `linalg`). Ver AGENTS §1.11.
 
 // ============================================================================
 //  Rectángulo (AABB 2D) — genérico sobre el escalar

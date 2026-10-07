@@ -120,7 +120,7 @@ void app_ui_main(Host& host) {
 ## Decisiones de diseño (adaptación al engine)
 
 1. **Policy por plantilla, no `IUiBackend` virtual.** El engine es agnóstico del backend por
-   plantilla (§1.9/§1.10). Si alguna app debe compilar sin plantillas, se añade después una fachada
+   plantilla (§1.11). Si alguna app debe compilar sin plantillas, se añade después una fachada
    *type-erased* (una **interfaz** / clase abstracta, no un struct de punteros a función estilo C)
    **encima** de la policy, no al revés.
 2. **Eventos: un solo contrato y una sola traducción.** IDCMP → `os::Msg` → `UiEvent`

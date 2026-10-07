@@ -6,7 +6,7 @@
 /// un backend de CPU puede especializarlo para empaquetar dos productos en una sola instrucción (el
 /// 68000 lo hace con `muls.w`).
 ///
-/// **No es genérico sobre el escalar** (§1.10, ver `generic-headers-baseline.txt`): usa
+/// **No es genérico sobre el escalar** (§1.11, ver `generic-headers-baseline.txt`): usa
 /// `SR::repr`/`SR::exp`/`SR::policy` y `dot_fixed_row`. Por eso el fichero se llama `fixed_affine`
 /// (dependencia de `Fixed` explícita) y no vive en `affine`.
 ///

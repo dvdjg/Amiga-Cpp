@@ -135,7 +135,7 @@ virtual (el engine usa funciones libres y buffers externos).
 
 G6.1–G6.3 y G6.6 están entregados y verificados (HOST-118/249 + gate de codegen); G6.4, G6.5 y G6.7
 quedan **pendientes**. El crowd y el navmesh son **genéricos sobre el escalar** y reciben lo atado al
-tipo como **política** (regla de genericidad, `AGENTS.md` §1.10): `Broadphase` en el crowd, `Cross`
+tipo como **política** (regla de genericidad, `AGENTS.md` §1.11): `Broadphase` en el crowd, `Cross`
 en el navmesh; la variante `SpatialHashBroadphase` reutiliza la rejilla de colisiones
 (`eng::util::SpatialHash`) para evitar el `O(N²)` y `NavCrossWide`/`q12` evitan las libcalls en el
 68000.

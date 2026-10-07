@@ -20,7 +20,7 @@
 
 // NADA de escalares concretos (`fixed.hpp`/`minifloat.hpp`): el escalar es **parámetro de plantilla**
 // (`Fx`) y lo aporta el llamador. Este header solo usa el vocabulario genérico (`scalar_const`,
-// `mul_norm`, `fbm2`, `worley2`, `scalar_traits`), que no ata a una representación (AGENTS §1.10).
+// `mul_norm`, `fbm2`, `worley2`, `scalar_traits`), que no ata a una representación (AGENTS §1.11).
 #include <eng/core/math/noise.hpp>
 #include <eng/core/math/random.hpp>
 #include <eng/core/types/types.hpp>
@@ -129,7 +129,7 @@ template <class Fx>
 
 /// **Asigna biomas con ruido** (`fbm2`/`worley2`) usando el escalar `Fx` que aporta el llamador
 /// (p. ej. `MiniFloat16` en host, o un `Fixed` con ruido en punto fijo en Amiga). **Genérico**: el
-/// header no fija el escalar (regla §1.10). `coords[i]` = macro-celda de la sala `i`; `cells_x/y` =
+/// header no fija el escalar (regla §1.11). `coords[i]` = macro-celda de la sala `i`; `cells_x/y` =
 /// escala del ruido. Determinista respecto a `seed`.
 ///
 /// En **m68k** el llamador debe elegir un `Fx` sin libcalls (`Fixed`), porque `MiniFloat16`+

@@ -205,7 +205,7 @@ int main() {
 		      "W2: PathKind (Open/KeyDoor/AbilityWall/OneWay)");
 	}
 
-	// 9) Genericidad (§1.10): `assign_biomes_fbm` es plantilla sobre el escalar. Se instancia con un
+	// 9) Genericidad (§1.11): `assign_biomes_fbm` es plantilla sobre el escalar. Se instancia con un
 	//    SEGUNDO escalar distinto (`float`, un backend con float nativo) -> demuestra que la cabecera
 	//    no impone `MiniFloat16`. (El gate `generic-headers` cierra el caso estatico.)
 	{

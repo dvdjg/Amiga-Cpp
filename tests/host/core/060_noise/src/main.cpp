@@ -11,7 +11,7 @@
 #include <cmath>
 #include <cstdio>
 
-// `noise.hpp` es genérico y NO incluye escalares concretos (§1.10): el test trae el suyo.
+// `noise.hpp` es genérico y NO incluye escalares concretos (§1.11): el test trae el suyo.
 #include <eng/core/math/minifloat.hpp>
 #include <eng/core/math/noise.hpp>
 

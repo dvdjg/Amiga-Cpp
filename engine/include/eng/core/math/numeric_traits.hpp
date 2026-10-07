@@ -111,7 +111,7 @@ constexpr bool in_range(S x, double lo, double hi) {
 // --- Promoción de representaciones (genérica, sin depender de `Fixed`) ---------------------
 //
 // Viven aquí (no en `fixed.hpp`) para que las cabeceras de ALGORITMO (linalg, geometry, noise…)
-// puedan usar la promoción de producto/suma sin arrastrar una representación concreta (§1.10).
+// puedan usar la promoción de producto/suma sin arrastrar una representación concreta (§1.11).
 // `Fixed` las usa; cualquier otro escalar con representación ancha también puede.
 
 /// El producto de dos `R` necesita más ancho o desborda. Es contrato del algoritmo.

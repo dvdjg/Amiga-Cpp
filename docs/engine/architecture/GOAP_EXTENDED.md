@@ -90,7 +90,7 @@ con `MaxVars >= 1` aparecen `get`/`add_sat` y las precondiciones/efectos numéri
 
 Los niveles son **enteros de nivel**: un valor decimal se representa escalado (el mismo criterio que
 `numeric_goap.hpp`, p. ej. `Fixed` q4.4 → nivel `v*16`), de modo que toda la aritmética queda en
-enteros de 8 bits y no aparecen *libcalls* en `-nostdlib` (`AGENTS.md` §1.10).
+enteros de 8 bits y no aparecen *libcalls* en `-nostdlib` (`AGENTS.md` §1.11).
 
 ```text
    HybridState<32,8>   (1 palabra de hechos + 8 bytes de niveles = 12 B)
