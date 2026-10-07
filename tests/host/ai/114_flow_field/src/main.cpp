@@ -117,6 +117,27 @@ void test_bad_input() {
 	check(!compute(nullptr, 0u), "flujo: sin objetivos devuelve false");
 }
 
+void test_small_types() {
+	// Índice y coste de 8 bits: el bloqueo/inalcanzable es el máximo del tipo (255).
+	u8 cost8[kN] {};
+	u8 integration8[kN] {};
+	u8 direction8[kN] {};
+	for (usize i = 0; i < kN; ++i) {
+		cost8[i] = 1u;
+	}
+	const u8 goals[1] = {7u};
+	auto cost = [&](u8 i) { return cost8[i]; };
+	const bool ok = eng::ai::compute_flow_field<8, 8, u8, u8>(
+		eng::Span<const u8> {goals, 1u}, cost, eng::Span<u8> {integration8, kN},
+		eng::Span<u8> {direction8, kN});
+	check(ok, "flujo u8: calcula");
+	check(integration8[56] == 14u, "flujo u8: coste minimo Manhattan");
+	u8 next = 0u;
+	check(eng::ai::flow_next<8, u8>(eng::Span<const u8> {direction8, kN}, u8 {56}, next) &&
+		      next != u8 {56},
+	      "flujo u8: da la siguiente celda");
+}
+
 } // namespace
 
 int main() {
@@ -125,6 +146,7 @@ int main() {
 	test_terrain_detour();
 	test_unreachable();
 	test_bad_input();
+	test_small_types();
 
 	if (g_fail == 0u) {
 		std::printf("OK: FlowField (camino minimo, muro, inalcanzable, sin objetivos)\n");

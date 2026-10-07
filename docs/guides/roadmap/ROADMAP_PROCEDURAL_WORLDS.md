@@ -38,9 +38,9 @@ mecanismos + topología de superficies); este roadmap lo **mejora y lo adapta al
 | Grafo macro + BFS de salas | `eng/sim/world_core.hpp:612` (`route_room`), `:177` (`link_rooms`) | topología del mundo |
 | Ruido procedural | `eng/core/math/noise.hpp:211` (`fbm2`), `:319` (`worley2`), `:352` (`ridged2`) | alturas/biomas/cavernas con **coherencia espacial** |
 | RNG determinista | `eng/core/math/random.hpp:40` (`Xoroshiro64pp`), `:101` (`chance`), `:119` (`shuffle`) | todo lo aleatorio |
-| Grafo genérico + A\* | `eng/core/util/graph.hpp:199` (`graph_astar`), `:162` (`graph_bfs`) | solvencia y rutas macro |
-| Rejilla BFS/A\* | `eng/core/util/pathfinding.hpp:109` (`bfs<W,H>`), `:162` (`astar<W,H>`) | caminos en la rejilla de sala |
-| Flow field / navmesh | `eng/ai/navigation/flow_field.hpp:66`, `navmesh_lite.hpp` | navegación de NPCs (ya existentes) |
+| Grafo genérico + A\* | `eng/core/util/graph.hpp` (`graph_astar`/`graph_bfs`) | solvencia y rutas macro |
+| Rejilla BFS/A\* | `eng/core/util/pathfinding.hpp` (`bfs<W,H>`/`astar<W,H>`) | caminos en la rejilla de sala |
+| Flow field / navmesh | `eng/ai/navigation/flow_field.hpp`, `navmesh_lite.hpp` | navegación de NPCs (ya existentes) |
 | Mapa de tiles | `eng/field/tile_map.hpp:20` (`TileLayerMap`), `tile_source.hpp:74` (`SparseTileMap<16>`) | salida de la geometría |
 | Chunks + streaming | `eng/field/chunk_cache.hpp:68`, `streaming_map.hpp:64` | carga bajo demanda |
 | Formato de mundo | `docs/engine/architecture/WORLD_FORMAT.md`, `eng/assets/uaf.hpp` (`WorldView`) | contenedor `WorldMap` (celdas `u16` banco) |

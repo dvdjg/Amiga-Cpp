@@ -348,7 +348,7 @@ HOST-117.
 | `decision/utility.hpp` | `Utility`/`UtilitySelector<MaxOptions>`: utilidad ponderada; entero y determinista | Implementado, HOST-112 |
 | `decision/behavior_tree.hpp` | `BehaviorTree<MaxNodes>`, `BtStatus`, `BtTask`: secuencia/selector sin heap | Implementado, HOST-113 |
 | `decision/blackboard.hpp` | `Blackboard<Key,Value,MaxKeys>`: memoria compartida `O(1)` | Implementado, HOST-111 |
-| `navigation/flow_field.hpp` | `compute_flow_field<W,H>`, `flow_next<W>`, `FlowDir`: campo de flujo multi-fuente | Implementado, HOST-114 |
+| `navigation/flow_field.hpp` | `compute_flow_field<W,H,Index,Cost>`, `flow_next<W,Index>`, `FlowDir`: campo de flujo multi-fuente | Implementado, HOST-114 |
 | `navigation/waypoints.hpp` | `WaypointGraph<S,MaxNodes,MaxEdges>`, `find_path` (A* Manhattan) | Implementado, HOST-116 |
 | `navigation/navmesh_lite.hpp` | `NavMesh<S,...>` (cruz como política), `locate`/`locate_from`, `find_path`/`find_smooth_path`, coste+terreno por portal, `MovementProfile` | Implementado, HOST-118 |
 | `steering/steering.hpp` | `seek`/`flee`/`arrive`, `separation`/`cohesion`/`alignment`/`flock`, `pursue`/`evade`/`wander`/`avoid_circles` | Implementado, HOST-115 |

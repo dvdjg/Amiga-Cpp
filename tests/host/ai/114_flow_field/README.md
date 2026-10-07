@@ -2,8 +2,9 @@
 
 Test host de `engine/include/eng/ai/navigation/flow_field.hpp`: un Dijkstra multi-fuente
 desde los objetivos rellena, para cada celda de una rejilla `W×H`, el coste al objetivo
-más cercano y la dirección hacia él. Muchos agentes siguen el campo con una lectura por
-celda, reutilizando la malla de 4 vecinos de `eng::util::pathfinding`.
+más cercano y la dirección hacia él (`compute_flow_field<W,H,Index,Cost>`). Muchos agentes
+siguen el campo con una lectura por celda, reutilizando la malla de 4 vecinos de
+`eng::util::pathfinding`.
 
 ## Qué comprueba
 
@@ -13,6 +14,8 @@ celda, reutilizando la malla de 4 vecinos de `eng::util::pathfinding`.
    pisa celdas bloqueadas.
 3. **Región inalcanzable**: `integration = 0xffff` y sin dirección.
 4. **Sin objetivos**: `compute_flow_field` devuelve `false`.
+5. **Índice y coste de 8 bits** (`<8,8,u8,u8>`): bloqueo/inalcanzable = 255 y mismo
+   resultado (regla de genericidad, AGENTS §1.11).
 
 ## Salida de referencia
 

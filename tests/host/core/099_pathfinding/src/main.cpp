@@ -137,6 +137,34 @@ int main() {
 		check(!found, "BFS no cruza un muro completo");
 	}
 
+	// --- Índice y coste de 8 bits (AGENTS §1.11) -----------------------------
+	{
+		static eng::s8 came8[N] = {};
+		static eng::u8 queue8[N] = {};
+		const eng::u8 start = 0u;
+		const eng::u8 goal = static_cast<eng::u8>(N - 1u);
+		const auto walk8 = [](eng::u8 i) { return !wall[i]; };
+		const bool found = eu::bfs<W, H, eng::u8>(
+			start, goal, walk8, eng::Span<eng::s8> {came8, N},
+			eng::Span<eng::u8> {queue8, N});
+		check(found, "BFS con Index=u8 encuentra camino");
+
+		static eng::u8 path8[N] = {};
+		const eng::usize len = eu::reconstruct_path<W, H, eng::u8>(
+			eng::Span<const eng::s8> {came8, N}, start, goal,
+			eng::Span<eng::u8> {path8, N});
+		check(len >= 15u && path8[0] == start && path8[len - 1u] == goal,
+		      "camino con Index=u8 valido");
+
+		static eng::u8 gs8[N] = {};
+		static eng::u8 closed8[N] = {};
+		const bool afound = eu::astar<W, H, eng::u8, eng::u8>(
+			start, goal, walk8, [](eng::u8, eng::u8) { return eng::u8 {1}; },
+			eng::Span<eng::s8> {came8, N}, eng::Span<eng::u8> {gs8, N},
+			eng::Span<eng::u8> {closed8, N});
+		check(afound, "A* con Index=u8 y Cost=u8 encuentra camino");
+	}
+
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;

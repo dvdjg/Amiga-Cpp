@@ -127,6 +127,28 @@ void test_capacity() {
 	check(!g.add_edge(0u, 1u, 1u), "grafo: sin aristas libres -> false");
 }
 
+void test_small_types() {
+	// Índice y coste de 8 bits (AGENTS §1.11): mismas tablas `s8`/`u8`, sin heredar u16.
+	eng::util::Graph<8, 12, eng::u8, eng::u8> g;
+	const eng::u8 a = g.add_node();
+	const eng::u8 b = g.add_node();
+	const eng::u8 c = g.add_node();
+	check(a == 0u && b == 1u && c == 2u, "grafo u8: indices de nodo");
+	check(g.add_edge(a, b, 4u) && g.add_edge(b, c, 5u), "grafo u8: aristas");
+
+	eng::s8 came[8] {};
+	eng::u8 queue[8] {};
+	eng::u8 out[8] {};
+	const usize n = eng::util::graph_bfs(g, a, c, came, queue, out);
+	check(n == 3u && out[0] == a && out[1] == b && out[2] == c, "grafo u8: BFS");
+
+	eng::u8 gs[8] {};
+	eng::u8 closed[8] {};
+	const auto zero_h = [](eng::u8, eng::u8) { return eng::u8 {0}; };
+	const usize m = eng::util::graph_astar(g, a, c, zero_h, gs, came, closed, out);
+	check(m == 3u && gs[c] == 9u, "grafo u8: A* con coste de 8 bits");
+}
+
 } // namespace
 
 int main() {
@@ -135,6 +157,7 @@ int main() {
 	test_astar_optimal();
 	test_topological_sort();
 	test_capacity();
+	test_small_types();
 
 	if (g_fail == 0u) {
 		std::printf("OK: Graph (adyacencia, BFS, A*, orden topologico, capacidad)\n");

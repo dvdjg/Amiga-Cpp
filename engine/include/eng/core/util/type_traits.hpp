@@ -163,6 +163,16 @@ using enable_if_t = typename enable_if<B, T>::type;
 template <class...>
 using void_t = void;
 
+/// Identidad de tipo: `type_identity_t<T>` es `T`, pero al ser una forma dependiente
+/// **bloquea la deducción** de `T` en el parámetro donde aparece (útil cuando el tipo
+/// debe venir de otro argumento o de un valor por defecto, no del literal que se pasa).
+template <class T>
+struct type_identity {
+	using type = T;
+};
+template <class T>
+using type_identity_t = typename type_identity<T>::type;
+
 // --- Categorías de tipo -----------------------------------------------------
 //
 // GCC no expone `__is_integral`/`__is_arithmetic` como builtins (sí
@@ -349,6 +359,63 @@ struct make_unsigned {
 };
 template <class T>
 using make_unsigned_t = typename make_unsigned<T>::type;
+
+// --- Entero con signo del mismo ancho ---------------------------------------
+
+namespace detail {
+
+/// Entero CON signo de exactamente `Bytes` bytes (1, 2, 4 u 8). Complemento de
+/// `uint_of`: los centinelas `-1` de las tablas de predecesores necesitan el mismo
+/// ancho que el índice, no un `int` distinto por plataforma.
+template <unsigned Bytes>
+struct int_of;
+template <>
+struct int_of<1> {
+	using type = __INT8_TYPE__;
+};
+template <>
+struct int_of<2> {
+	using type = __INT16_TYPE__;
+};
+template <>
+struct int_of<4> {
+	using type = __INT32_TYPE__;
+};
+template <>
+struct int_of<8> {
+	using type = __INT64_TYPE__;
+};
+
+} // namespace detail
+
+/// Representación CON signo del MISMO ancho que `T` (p. ej. `u16 -> s16`): para tablas
+/// de predecesores cuyo índice es sin signo y usan `-1` como "no visitado".
+template <class T>
+struct make_signed {
+	static_assert(is_integral_v<T>, "make_signed: T no es un entero");
+	using type = typename detail::int_of<sizeof(T)>::type;
+};
+template <class T>
+using make_signed_t = typename make_signed<T>::type;
+
+namespace detail {
+
+/// Cuerpo de `signed_max` (la conversión de `~T{0}` a `T` se hace por copia, sin
+/// list-init: el complemento de un entero pequeño promociona a `int` negativo).
+template <class T>
+constexpr eng::u32 signed_max_impl() {
+	static_assert(is_unsigned_v<T>, "signed_max: T debe ser un entero sin signo");
+	T m = ~T {0}; // p. ej. u16: -1 -> 65535
+	T half = m >> 1u;
+	return half;
+}
+
+} // namespace detail
+
+/// Máximo representable del entero CON signo del mismo ancho que `T` (u16 -> 32767):
+/// cota de las tablas de predecesores (`-1` = no visitado) de grafos y rejillas.
+template <class T>
+inline constexpr eng::u32 signed_max = detail::signed_max_impl<T>();
 
 /// Tipo subyacente de un `enum` (para serializar o indexar por su valor).
 template <class T>

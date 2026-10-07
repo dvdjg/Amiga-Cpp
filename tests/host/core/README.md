@@ -65,7 +65,7 @@ Categoría `core` de la batería host (L1). El índice de categorías está en [
 | HOST-123 | [packed_level](123_packed_level/README.md) | Consumidor de `bitstream`/`dynamic_bitset`: nivel empaquetado (cabecera + 4 bits de tile + flag) con round-trip 100 %, y set de tiles sucios de 4096 celdas. |
 | HOST-124 | [string_interner](124_string_interner/README.md) | `util/string_interner.hpp`: `StringInterner<MaxStrings,Allocator>` (dedup por contenido, id -> texto, arena). |
 | HOST-125 | [convex_sat](125_convex_sat/README.md) | `util/collision.hpp`: `convex_overlap` (SAT 2D, polígonos convexos) y `point_in_convex`; rombo (ejes no alineados), borde y sentido de giro. |
-| HOST-126 | [graph](126_graph/README.md) | `util/graph.hpp`: `Graph<MaxNodes,MaxEdges>` (adyacencia) + `graph_bfs`/`graph_astar`/`topological_sort`. Consolida waypoints (HOST-116). |
+| HOST-126 | [graph](126_graph/README.md) | `util/graph.hpp`: `Graph<MaxNodes,MaxEdges,Index,Cost>` (adyacencia) + `graph_bfs`/`graph_astar`/`topological_sort`; caso `u8`/`u8`. Consolida waypoints (HOST-116). |
 | HOST-127 | [lru_cache](127_lru_cache/README.md) | `util/lru_cache.hpp`: `LruCache<K,V,N>` (LRU O(1), get/peek/put/erase, sin heap). |
 | HOST-128 | [task](128_task/README.md) | `util/task.hpp`: `TaskSequence<N>` y `Delay` (tareas *stackless*: espera, encadena y aborta). |
 | HOST-129 | [interval](129_interval/README.md) | `util/interval.hpp`: `Interval` e `IntervalSet<N>` (rangos `[lo,hi)`, fusión de solapes/adyacencias, `contains` binario). |

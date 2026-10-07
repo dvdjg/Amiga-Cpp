@@ -24,8 +24,22 @@
 
 #include <eng/core/math/arith.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/core/util/type_traits.hpp>
 
 namespace eng::util {
+
+/// Suma **saturada** de dos costes (`min(a + b, máximo de Cost)`): acumula sin envolver,
+/// que es lo que necesitan los algoritmos con coste (A\* de grafo/rejilla, campo de
+/// flujo) cuando el coste de un nodo es un entero sin signo. El ancho de trabajo es `u32`
+/// (los costes del motor son de 16 bits o menos); el valor se recorta al máximo del tipo.
+template <class Cost>
+[[nodiscard]] constexpr Cost sat_add(Cost a, Cost b) noexcept {
+	static_assert(is_unsigned_v<Cost> && sizeof(Cost) <= 2u,
+		      "sat_add: el coste debe ser un entero sin signo de 16 bits o menos");
+	const u32 sum = a + b; // promoción implícita: <=16 bits no desborda u32
+	const Cost cap = ~Cost {0};
+	return sum > cap ? cap : sum;
+}
 
 /// División `u32 / u16` nativa del 68000 (`divu.w`): cociente y **resto en 16 bits**.
 /// Precondición: cociente < 65536. En host se calcula con `/` y `%`.

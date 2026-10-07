@@ -1,7 +1,7 @@
 # HOST-126: grafo genérico
 
-Test host de `engine/include/eng/core/util/graph.hpp`: `Graph<MaxNodes, MaxEdges>` con
-listas de adyacencia de capacidad fija (sin heap), y sus algoritmos `graph_bfs`,
+Test host de `engine/include/eng/core/util/graph.hpp`: `Graph<MaxNodes, MaxEdges, Index,
+Cost>` con listas de adyacencia de capacidad fija (sin heap), y sus algoritmos `graph_bfs`,
 `graph_astar` (heurística del llamador) y `topological_sort` (Kahn). Es la pieza que
 consolida el grafo de waypoints (`ai::navigation::WaypointGraph` se apoya en ella).
 
@@ -12,6 +12,8 @@ consolida el grafo de waypoints (`ai::navigation::WaypointGraph` se apoya en ell
 3. `graph_astar` (Dijkstra) elige la ruta de **coste mínimo** (barata frente a cara).
 4. `topological_sort` de un DAG (orden válido) y de un grafo con **ciclo** (no cubre todo).
 5. Capacidad: `add_node`/`add_edge` devuelven `no_node`/`false` al llenarse.
+6. **Índice y coste de 8 bits** (`Graph<8,12,u8,u8>`): mismas tablas `s8`/`u8` y mismo
+   resultado, sin heredar `u16` (regla de genericidad, AGENTS §1.11).
 
 ## Salida de referencia
 

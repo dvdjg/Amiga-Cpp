@@ -149,8 +149,8 @@ Puntos de reutilización explícitos:
 | `text.hpp` | `trim`/`split_next`/`equal_ci`/`parse_u32`/`parse_s32`/`to_chars_*`/`join` | (parte de `boost::string`/`charconv`) |
 | `grid.hpp` | `TileCoord`/`grid_to_world`/`world_to_grid`/`iso_to_screen`/`Hex` | (sin equivalente; rejilla/iso/hex) |
 | `broadphase.hpp` | `SpatialHash<CellSize,CellsX,CellsY,MaxItems>` | (sin equivalente; broadphase) |
-| `pathfinding.hpp` | `bfs<W,H>`, `astar<W,H>` (heurística parametrizable), `reconstruct_path<W,H>` | (sin equivalente; A*/BFS) |
-| `graph.hpp` | `Graph<MaxNodes,MaxEdges>` (adyacencia), `graph_bfs`, `graph_astar`, `topological_sort` | (sin equivalente; grafo) |
+| `pathfinding.hpp` | `bfs<W,H,Index>`, `astar<W,H,Index,Cost>` (índice, coste y heurística parametrizables), `reconstruct_path<W,H,Index>` | (sin equivalente; A*/BFS) |
+| `graph.hpp` | `Graph<MaxNodes,MaxEdges,Index,Cost>` (adyacencia), `graph_bfs`, `graph_astar`, `topological_sort` | (sin equivalente; grafo) |
 | `dsp.hpp` | `Adsr`, `OnePole`, `DelayLine`, `soft_clip`, `osc_*` | (sin equivalente; audio) |
 | `function_ref.hpp` | `FunctionRef<Sig>` | `std::function_ref` (C++26) |
 | `callback.hpp` | `Callback<Args...>` (puntero a función + contexto, POD) | (sin equivalente; *delegate* POD) |
