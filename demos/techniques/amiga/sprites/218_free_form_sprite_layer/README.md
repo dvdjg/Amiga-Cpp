@@ -13,12 +13,14 @@ simplificada de 128 px que no reproducía el efecto).
 
 ## El efecto (qué se ve)
 
-1. **Pantalla de título**: la capa de sprites + el texto de la referencia en el playfield. Se
-   espera al **botón izquierdo del ratón** (el `DBGPause` original) para arrancar el efecto.
+1. **Pantalla de título**: la capa de sprites + el texto de la referencia en el playfield. La demo
+   **arranca el efecto inmediatamente** al cargar (la referencia original espera al botón izquierdo
+   del ratón; aquí no se espera ninguna entrada, por petición explícita).
 2. **Efecto en marcha** (1 frame por VBlank):
    - el **playfield** (texto y patrón de puntos) se desplaza **1 px/frame** hacia la izquierda;
-   - la **capa de sprites** avanza ~1 columna de 16 px cada 32 frames (con el dither de posición
-     y la paridad de `SPRxCTL`), y **cada columna entra con su propia imagen** (no repetitiva);
+   - la **capa de sprites** avanza **0.5 px/frame de forma uniforme** (offset base de posición
+     +1 = 2 px cada 4 frames con vuelta a 0 tras 7, y el toggle de `SPRxCTL` cada 2 frames que
+     pone el píxel impar), y **cada columna entra con su propia imagen** (no repetitiva);
    - los **9 BOBs** (4 planos, cookie-cut) van en dos filas (`y` y `224-y`) que rebotan entre
      `y=16` e `y=224`, con jitter horizontal de 15 px y separación de 24 px;
    - la **barra del sub-buffer** (3 planos) queda estática abajo.
@@ -94,34 +96,29 @@ solo la lee la CPU.
 
 ```bash
 bash ./tools/build/build-demo.sh demos/techniques/amiga/sprites/218_free_form_sprite_layer --debug
-# título (no hace falta clic para la captura estática):
-bash ./tools/run/run-demo.sh demos/techniques/amiga/sprites/218_free_form_sprite_layer --keep-running
 # efecto en marcha + secuencia:
 bash ./tools/run/run-demo.sh demos/techniques/amiga/sprites/218_free_form_sprite_layer \
-  --mouse-click-at 5,5 --sequence-frames 6 --sequence-interval-ms 250
+  --sequence-frames 6 --sequence-interval-ms 250
+# 24 updates consecutivos (paso por update, determinista) para visión:
+bash ./tools/run/run-demo.sh demos/techniques/amiga/sprites/218_free_form_sprite_layer \
+  --sequence-step-frames 24 --sequence-interval-ms 30
 ```
 
-**Ratón en WinUAE**: la ventana arranca con el ratón **sin capturar** y el clic que la
-activa/captura puede no llegar a la emulación. La demo arranca con la **primera pulsación** que
-sí llegue (botón izquierdo o derecho, o el fuego del joystick de cualquiera de los dos puertos),
-así que basta con hacer clic **dentro del área de pantalla** (no en el marco de la ventana); si la
-ventana está detrás, el primer clic puede consumirse en activarla y hace falta un segundo clic.
+## Estado: VALIDADA (capa de sprites) / sin verificar (cadencia vs original)
 
-## Estado: VALIDADA
+- **Capa de sprites correcta**: el fondo (columnas Copper + DMA) cubre toda la pantalla sin zonas
+  negras ni cortadas; pantalla de título **pixel-idéntica** al original (0 de 281 880 píxeles
+  distintos, captura del runner, mismo encuadre 756x576) y efecto en movimiento verificado con
+  visión («exactamente 9 bobs completos en cada frame, ningún frame roto»).
+- **Dinámica**: scroll del texto 1 px/update (medido por correlación); **capa de sprites
+  0.5 px/update uniforme** (medido por correlación enmascarada solo-fondo: −1 px cada 2 updates);
+  BOBs con la trayectoria de rebote del original.
+- **Cadencia**: el efecto ocupa más de un campo de VBlank (≈ 20 updates/s en emulación
+  ciclo-exacta; el original ≈ 26 en el mismo entorno). En hardware real ambos caben en un campo.
+  Medido con los contadores del periférico de depuración; detalle en [`VALIDATION.md`](VALIDATION.md).
 
-- **Pantalla de título pixel-idéntica** a la del ejecutable original: 0 de 281 880 píxeles
-  distintos (captura del runner del original y del port, mismo encuadre 756x576).
-- **Dinámica igual**: en secuencias del original y del port, las dos filas de BOBs ocupan las
-  **mismas posiciones** en los mismos instantes de muestreo (trayectoria de rebote idéntica, con
-  el desfase del clic) y el fondo/texto se desplazan a la misma cadencia.
-- Validación con visión (Ollama, local) de la secuencia: mismos elementos y comportamiento que
-  la descripción de la secuencia del original (sin parpadeo ni zonas rotas).
-- Evidencia completa (prompts y respuestas crudas, medidas y comparaciones):
-  [`VALIDATION.md`](VALIDATION.md).
-
-Nota: la demo **no vuelve a AmigaDOS** al pulsar el botón (el `takeover_display` del engine
-congela el SO); el botón izquierdo se usa para arrancar el efecto, como en el original. La
-captura/cierre los hace el runner.
+Nota: la demo **no vuelve a AmigaDOS** (el `takeover_display` del engine congela el SO) y **no
+procesa entrada**: el efecto arranca solo al cargar. La captura/cierre los hace el runner.
 
 ## Referencias
 

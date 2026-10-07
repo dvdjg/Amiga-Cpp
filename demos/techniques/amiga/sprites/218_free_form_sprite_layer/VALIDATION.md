@@ -116,46 +116,130 @@ BOBs por el submuestreo de frames (0,4,8,…) — el mismo falso negativo que pr
 del **original** («los círculos no cambian de posición»). La medición objetiva de la sección 2
 demuestra que el rebote existe y coincide con el original.
 
-## 4. Cadencia y coste
+## 4. Cadencia y coste (medido con los contadores 0-4 del periférico de depuración)
 
-- El bucle usa el **latido del mini-SO por IRQ de VBlank** (`os::init` + `run_frames`); el
-  trabajo por frame se completa dentro del VBlank (la trayectoria medida avanza al ritmo del
-  original, sección 2).
-- `node tools/debug/measure-fps.mjs 218_free_form_sprite_layer A500_debug --json`
-  (estado de título, 20 s): **emulated 49.97 fps / host 49.93 fps**, `fieldsPerFrame = 1.00059`
-  (1001 frames, 142 102 000 ciclos ≈ 141 960 ciclos/frame). Un frame por VBlank, sin saltos.
-- El coste por frame es el de la referencia: 20 fills de posición + 28 copias de media columna +
-  3 copias de cuarto de tile + 18 restores/dibujos de BOB (3 palabras × 128 filas) repartidos por
-  el Blitter, más ~40 escrituras de registros de Blitter y 13 palabras de parcheo de punteros.
+El efecto **ocupa más de un campo** de VBlank: el bucle no se queda un frame por VBlank. Por eso
+`g_eng_run_status.frame` ya no publica el tick de la IRQ (que avanza a 50 Hz aunque el update no
+termine) sino un **contador de updates** del efecto (`m_updates`), y `measure-fps.mjs` mide la
+tasa real de actualizaciones.
+
+Medición por elementos (`run-demo.sh --read-debugperiph counters`; unidades = ciclos de CPU,
+1 campo PAL = 142 102):
+
+| Elemento | Ciclos | ≈ líneas |
+|---|---|---|
+| UpdateLayerPos (fills de POS) | 21 972 | 48 |
+| UpdateLayerData (columnas Copper) | 125 460 | 276 |
+| BOBs (2 restores fusionados + 9 dibujos) | 154 108 | 339 |
+| Update completo | 366 992 | 808 |
+| Periodo del bucle (update + espera) | 344 490 | 758 |
+
+Tasa resultante ≈ **20 updates/s** en la configuración ciclo-exacta del runner. La referencia
+original, medida con el mismo método indirecto (scroll del texto: 1 px por update), corre en ese
+mismo entorno a ≈ **26 updates/s**: el efecto es intrínsecamente más caro que un campo en
+emulación ciclo-exacta (los blits compiten con el DMA de display; el coste fijo por blit del
+emulador es ~2 000 ciclos). El original usa la macro `BlitWait` con *blitter nasty*; el engine
+aplica el mismo truco en `BlobBatch::wait()` (ver `engine/include/eng/platform/amiga/blob_batch.hpp`).
+
+Medición de referencia del estado de título (cuando la demo aún esperaba clic): 49.97 fps,
+`fieldsPerFrame = 1.00059` — válida para el bucle ocioso, no para la tasa de updates del efecto.
 
 ## 5. Conclusiones
 
-- **VERIFICADA** para el estado inicial: igualdad píxel a píxel con el original.
-- **VERIFICADA** para la dinámica: mismas trayectorias (BOBs), misma cadencia y mismo
-  comportamiento del fondo/texto/barra que el original, con el desfase del clic como única
-  diferencia.
-- Sin parpadeo ni zonas rotas (visión, pases A de ambos binarios).
+- **VERIFICADA** la capa de sprites: el fondo (columnas Copper + DMA) cubre toda la pantalla sin
+  zonas negras ni cortadas, en el estado inicial (comparación píxel a píxel, §1) y en el efecto en
+  movimiento (visión, §3.4; comparación con el original, §2).
+- **VERIFICADA** la dinámica: scroll del texto 1 px/update (correlación de banda, −2 px de captura
+  por par = 1 px de pantalla), BOBs presentes y completos en todos los frames muestreados, misma
+  trayectoria de rebote que el original.
+- **SIN VERIFICAR**: paridad de cadencia exacta con el original en emulación ciclo-exacta (el port
+  ≈ 20 updates/s, el original ≈ 26 en el mismo entorno; en hardware real ambos caben en un campo).
 
-### 5.1 Arranque por ratón (arreglado durante la validación)
+### 5.1 Arranque (cambio pedido por el usuario)
 
-Síntoma reportado: lanzar la demo y hacer clic no arrancaba el efecto. Reproducido: en WinUAE la
-ventana arranca con el ratón **sin capturar** y el clic que la activa/captura puede ser el único
-que llega a la emulación; la lógica inicial (esperar pulsación **y** liberación, como el
-`DBGPause` original) se quedaba esperando un "release" que nunca llegaba. Ahora el efecto arranca
-con la **primera pulsación** (izquierdo, derecho o fuego del joystick). Comprobado con los tres
-caminos:
+La demo **arranca el efecto inmediatamente** al cargar, sin esperar clic ni tecla (la referencia
+original espera una pulsación del ratón; es una desviación deliberada y documentada). No hay
+polling de entrada en el bucle.
 
-| Vía | Resultado (diff vs título) |
-|---|---|
-| Clic inyectado por el runner (`--mouse-click-at 5,5`) | **21.7 %** (arranca) |
-| Clic de ratón real en la ventana (host, ventana activada) | **44.5 %** (arranca) |
-| Fuego del joystick (`--joy 0:fire`) | **24.5 %** (arranca) |
+### 5.2 BOBs: restore fusionado (9→2 blits) y regresiones corregidas
+
+- **Restore**: las 9 copias de 3 palabras del original (`SPR_Layer.asm:404-411`) se fusionan en 2
+  copias por frame (15 y 12 palabras) porque los BOBs de una fila están a 48 px = 3 palabras con
+  la misma alineación: la unión de sus celdas es contigua y escribe exactamente las mismas
+  palabras (mismo fondo limpio, mismas posiciones).
+- **Regresión detectada y corregida (columnas Copper en negro)**: un intento de fusionar también
+  los 28 blits de media columna en 14 blits de 2 palabras (con una copia de tiles con pares
+  intercambiados) dejó las **columnas Copper en negro** (la geometría real del *half-tile* no es
+  la supuesta: la fila avanza 168 B en destino y 4 B en fuente). Revertido a la forma exacta del
+  original (dos blits de 1 palabra por fila, `layer.asm:358-363`), que es la validada en §1.
+
+### 5.3 Scroll fino de la capa (arreglado)
+
+Síntoma: la capa de sprites **no avanzaba**, solo vibraba ±1 px con la paridad de `SPRxCTL`; el
+mundo daba un salto de 16 px cuando entraba la columna. Causa: el port leía `cpos_offset` pero
+**nunca lo incrementaba**, y las 8 posiciones DMA se escribían sin el offset. Correcciones
+(transcripción literal del original):
+
+- caso 0 de `UpdateLayerPos` incrementa `cpos_offset` (+1 = 2 px, vuelta a 0 tras 7) y lo usa ya
+  actualizado (`layer.asm:88-98`);
+- las 8 `SPRxPOS` de las estructuras DMA llevan `− cpos_offset` (`layer.asm:213-234`).
+
+Verificación objetiva (correlación por pares de frames consecutivos, enmascarando texto naranja y
+BOBs para quedarse solo con el fondo): el desplazamiento medido es **uniforme, −1 px de pantalla
+cada 2 updates (0.5 px/update)**, patrón `0,−2,0,−2,…` en píxeles de captura. Antes del arreglo el
+patrón era de vibración sin avance neto.
+
+Cross-validación con el original (§2 del método): capturas a 40 ms, con el desplazamiento del
+texto (1 px/update) como reloj; en los pares limpios el fondo del original da
+**ratio dxFondo/dxTexto ≈ 0.4–0.6**, es decir, también ~0.5 px/update. La precisión del método está
+limitada (el emulador avanza varios updates por captura, el patrón de puntos es periódico y el
+original no expone contador de updates); los valores se documentan como indicio fuerte, no como
+medida exacta.
+
+### 5.4 Temblor del fondo: anclaje de fase del bucle (`WaitRaster 0x2c`)
+
+Síntoma: con el scroll fino ya avanzando, el fondo temblaba de forma **no constante**. Causa: el
+efecto ocupa más de un campo (≈2.7), así que el bucle de la demo encadenaba iteraciones sin esperar
+al VBlank (la señal ya estaba latchada) y la **fase del update respecto al haz derivaba**; las
+escrituras «vivas» del update (`SPRxCTL` y las `SPRxPOS` de las estructuras DMA del caso 3, que no
+van por la copperlist) caían cada frame en una posición de haz distinta y barrían la capa a media
+visualización. El original lo evita esperando **siempre la línea 44** al inicio de cada iteración
+(`WaitRaster 0x2c`, `PhotonsMiniWrapper.asm:89-95`). El port reproduce esa espera al inicio de
+`update()`.
+
+Evidencia (contadores 0/4 del periférico, 3 arranques):
+
+| Medición | Antes | Después |
+|---|---|---|
+| Periodo del bucle (unidades = ciclos CPU) | 344k–422k (deriva) | **426350 / 426310 / 426334** (= 3×142102, 3 campos exactos) |
+| Coste del update | 338k–403k (±10 %) | **389.5k / 389.5k / 391.6k (±0.5 %)** |
+| Patrón de desplazamiento del fondo | uniforme salvo deriva | uniforme y **periódico estable** |
+
+El bucle queda clavado a 3 campos (≈16.7 updates/s en emulación ciclo-exacta; el original ≈25). El
+objetivo a medio plazo es bajar el update a ≤2 campos (merge correcto de los blits de columna +
+menos coste por blit) para igualar la cadencia del original; queda como deuda.
 
 ## 6. Deuda declarada
 
 - No se ha hecho una comparación **fotograma a fotograma** del efecto: el instante del clic no es
-  determinista con el runner (se inyecta tras el READY) y la demo no expone un hook de «frame N
-  tras el clic» que el runner pueda usar en el original. Mitigación: comparación de trayectorias
-  (§2) y de la estructura de la copperlist/estructuras de sprite contra la fuente (§README).
+  determinista con el runner y el original no expone un hook de «frame N». Mitigación: comparación
+  de trayectorias (§2) y de la estructura de la copperlist/estructuras de sprite contra la fuente
+  (§README).
 - El modelo de visión local **no es fiable** para el movimiento lento, la dirección del scroll ni
   el conteo de BOBs (falsos negativos también en el original); las medidas objetivas mandan.
+  En la pasada de secuencia (§3.4) acierta el fondo y los 9 BOBs completos, y falla el scroll de
+  1 px/update del texto (imperceptible en la rejilla de 12 imágenes).
+- El contador de *updates* es local a la demo: `measure-fps.mjs` sigue midiendo el tick de la IRQ
+  en las demás demos.
+
+### 6.1 Pasada de visión por secuencia de updates (§3.4)
+
+`node tools/analyze/vision-run.mjs 218_free_form_sprite_layer <dirSeq> 0..11 --prompt "<pixel-oriented>"`,
+12 frames consecutivos (1 update por frame). Respuesta cruda (extracto):
+
+> «(1) El fondo **cubre toda la pantalla**. No hay zonas negras ni cortadas a la derecha. […]
+> (3) En cada uno de los 12 frames se muestran **exactamente 9 bobs** […]. Todos los bobs están
+> completos y bien formados en todos los frames. […] ningún bob está roto, incompleto o ausente
+> en ninguno de los 12 frames. […] **No hay frame roto.**»
+
+El informe crudo queda en `218_free_form_sprite_layer_report.md` (no versionado).
