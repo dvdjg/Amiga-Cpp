@@ -285,7 +285,8 @@ inline eng::u16 emit_actors_in_order(FramePlan& plan, ActorStore<MaxActors>& sto
 
 /// Construye las `SpriteIntent` de los actores (en el orden dado) y las ordena por `top`,
 /// que es el contrato de `SpriteAllocator::assign`. Un actor normal produce una intención;
-/// un actor con **par *attached*** (`visual.attached`) produce DOS contiguas (el canal par
+/// un actor con **par *attached*** (contenido de 4 planos y 16 px, derivado por
+/// `visual_is_attached_pair`) produce DOS contiguas (el canal par
 /// y el impar con `attach = true`), que el allocator reparte como pareja 0+1, 2+3, …; un
 /// actor con **plantilla de franjas** (`sprite_template`) produce una intención por
 /// segmento, marcadas como **cadena vertical** (mismo canal, rearme por franja).

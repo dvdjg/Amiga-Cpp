@@ -10,10 +10,11 @@
 /// como sprite hardware se **degradan a BOB** (`result.degraded`), dibujados por Blitter en el plan
 /// del frame. El juego **no ve** canales, registros ni `BPLxPT`.
 ///
-/// Un actor con `visual.attached` (4 planos sobre un par *attached*) consume **dos canales
-/// contiguos** y se publica como dos placements de 15 colores; el engine cocina sus dos
-/// estructuras DMA en el pool Chip que da `set_cooked_pool` (`ChipView<SpriteTag>`), con la DATA
-/// del frame vigente. Sin pool, el par se rechaza de forma controlada (`result.ok == false`).
+/// Un actor cuyo **contenido** es de 4 planos y 16 px (par *attached* derivado del arte)
+/// consume **dos canales contiguos** y se publica como dos placements de 15 colores; el engine
+/// cocina sus dos estructuras DMA en el pool Chip que da `set_cooked_pool`
+/// (`ChipView<SpriteTag>`), con la DATA del frame vigente. Sin pool, el par se rechaza de forma
+/// controlada (`result.ok == false`).
 ///
 /// ```cpp
 /// eng::SpriteScene<64> sprites;                   // hasta 64 actores (NES OAM)
@@ -47,9 +48,10 @@ public:
 	void set_budget(const eng::scene::RepresentationBudget& b) noexcept { m_alloc.reset(b); }
 
 	/// **Pool Chip para los pares *attached***: donde `emit` cocina las estructuras DMA de los
-	/// actores con `visual.attached` (dos por par, `attached_pair_structure_words(h) * 2` bytes
-	/// cada una). Sin pool, un actor *attached* provoca rechazo controlado. El bloque lo posee
-	/// el llamador; aquí solo se referencia (vista Chip tipada, la lee el DMA).
+	/// actores con contenido de par *attached* (4 planos y 16 px; dos por par,
+	/// `attached_pair_structure_words(h) * 2` bytes cada una). Sin pool, un actor *attached*
+	/// provoca rechazo controlado. El bloque lo posee el llamador; aquí solo se referencia
+	/// (vista Chip tipada, la lee el DMA).
 	/// \param pool  vista Chip de las estructuras (tamaño = pares vivos × 2 × estructura).
 	void set_cooked_pool(eng::ChipView<eng::SpriteTag> pool) noexcept { m_cooked = pool; }
 

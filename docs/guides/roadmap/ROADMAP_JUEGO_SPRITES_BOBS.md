@@ -1,4 +1,4 @@
-# Sprites hardware y BOBs para videojuegos: análisis de adecuación y roadmap
+# Sprites HW y BOBs para videojuegos: análisis de adecuación y roadmap
 
 Este documento responde a una pregunta concreta: **¿el soporte de sprites hardware y BOBs del engine es adecuado para desarrollar videojuegos, o puede simplificarse?** Contrasta el inventario de técnicas históricas (la consulta externa sobre sprites, con Free Form, Risky Woods, Jim Power, multiplexado, compuestos y trayectorias) con las piezas que el engine ya tiene, separa lo que existe de lo que es propuesta y fija el **roadmap de implementación** de lo que falta con los algoritmos y clases extraídos.
 
@@ -18,6 +18,18 @@ La **lista viva y priorizada de pendientes de sprites** sigue en `ROADMAP_UNIFIC
   │ BOB: cookie-cut/OR/opaco/save-under  │ emisión DMA encadenada        │
   └──────────────────────────────────────────────────────────────────────┘
 ```
+
+### Vocabulario (convención del proyecto)
+
+- **Sprite** (a secas): la **entidad gráfica animada de alto nivel** de un juego —contenido, animaciones, ancla, hitboxes y comportamiento (el sprite del jugador, el de un camión, el de una bala)—. Puede materializarse con cualquier combinación de piezas internas. En el engine se describe con `ActorDesc` + `Animation` y, cuando es multi-parte, con `CompositeVisual`/`CompositeState` (F1).
+- **Sprite HW**: uno de los 8 canales DMA de Agnus (`graphics/sprite_manager.hpp`). Se nombra siempre «Sprite HW», nunca «sprite» a secas, para no mezclar capas.
+- **BOB** (*Blitter object*, «sprite blob»): copia de bitmap por Blitter (`graphics/bob.hpp`).
+- **Sprite CPU**: objeto rasterizado por la CPU (en A1200, *CPU Blit Assist*); corresponde a `Representation::Cpu`, aún sin camino de juego implementado.
+- **Sprite Playfield**: una capa de playfield (p. ej. PF2 de un DPF) usada como un objeto grande con scroll (enemigo gigante, patrón Jim Power); corresponde a `Representation::Layer`.
+- **Materialización**: el cómo se dibuja este frame un sprite (Sprite HW / BOB / CPU / Playfield). La elige el **planner** (`RepresentationAllocator` y composición) y puede degradar sin cambiar el contenido.
+- **Contenido**: los píxeles, máscara y frames (`Visual`), sin flags de hardware ni de representación.
+
+**Frontera de capas (regla):** el contenido dice **qué se ve**; la preferencia de materialización vive en `ActorDesc::preferred` (`Representation`); la decisión efectiva (canal, par *attached*, layout, paleta, Copper) la toma el **planner/materializador** a partir de la forma del contenido y del presupuesto. Ni `Visual` ni `CompositePart` llevan registros, canales ni flags de Sprite HW.
 
 ## 1. Veredicto
 
@@ -82,7 +94,7 @@ La tabla mapea cada técnica de la consulta al estado real del engine. «Cubiert
 | 7. Combinación sprites + BOBs (sprites = jugador/HUD/fondo; BOBs = resto) | Cubierta | Degradación `as_bob` + `emit_bob_fallbacks`; `FastBobLayer` en DPF |
 | 8. Detección de colisiones (hardware y software) | Hardware cubierta (sin posición); software: primitivas, sin hitboxes por frame | `sprite_collision.hpp`; `core/util/collision.hpp`; F1 |
 | 9. Efectos de Copper sobre offsets/posiciones por fila (bending) | Propuesta | F4 (driver de bending con tabla de seno reutilizada de `core/math/sinetable.hpp`) |
-| 10. Cambios de color por Copper (palette splitting por franjas) | Parcial: `HwSpritePaletteSwitch` de plantilla | F4 (demo y generalización) |
+| 10. Cambios de color por Copper (palette splitting por franjas) | Parcial: `HwSpritePaletteSwitch` de plantilla y zonas de paleta por frame | F4 (demo y generalización) + F7 (requisitos y arbitraje por canal/franja/escena) |
 | 11. Modos avanzados: sprites manuales, chasing extremo, parallax, HUD por sprites | Cubierta en su mayoría | `SpriteHorizontalRearm`, `chain_*`, `SpriteLineLayer` |
 | Algoritmo de reparto: first-fit + `lastY[8]` / **bitfield por línea** | **Cubierta y superada**: el bitfield es la versión exacta con arrays fijos (sin `std::bitset`) | `sprite_allocator.hpp` (HOST-003) |
 | Grupos de trayectoria (ristras/formaciones) reservando canales | Cubierta a nivel de asignación | `group_*` (HOST-003); la generación de formaciones es F2 |
@@ -122,6 +134,12 @@ La retirada de `emit_into` no se aplica todavía (rompería demos antiguas aún 
 
 `graphics/anim.hpp` (`Anim`) es una animación ligera de frames + duraciones para capas de BOB; `graphics/animation.hpp` (`Animation`, con `Frame {x,y,w,h,ticks,event}` y estado `elapsed`) es la animación de contenido de actor, con eventos y velocidad entera. El solape es real pero pequeño: `Anim` resuelve el caso de `BobLayer` sin arrastrar `Frame`/eventos. Recomendación: **no fusionar todavía**; documentar la frontera («capa ligera» vs «contenido de actor») y, si aparece un tercer uso, unificar sobre `Animation`. Cualquier compuesto (F1) usa `Animation`.
 
+### 4.5 Descontaminación de la capa de contenido (`Visual`): aplicada y propuesta
+
+- **Aplicado — `Visual::attached` eliminado.** Era un flag de Sprite HW dentro del descriptor de contenido: no significa nada si el contenido se materializa como BOB. Un Sprite HW de 16 px solo lee 1 word de datos por línea (2 planos), así que un contenido de **4 planos y `w <= 16`** solo cabe como **par *attached***: la condición se **deriva** (`visual_is_attached_pair`) y la materialización (cocinar las dos estructuras DMA, asignar la pareja de canales) es cosa del compositor. El mismo contenido sigue sirviendo de BOB sin flag alguno.
+- **Propuesta — retirar `VisualKind` como preferencia.** `VisualKind::HardwareSprite`/`Bob` duplica `ActorDesc::preferred` (`Representation`), que ya elige el planner; y `Tile`/`FillRect` no son tipos de contenido (un tile es un BOB con origen en un banco de tiles y una rejilla; un rect es una primitiva de dibujo): son **semántica de juego** y hoy no se usan en ningún camino de materialización. Fase de limpieza: `Visual` queda con `pixels`/`mask`/`w`/`h`/`bitplanes`/`frame_count`/`frame_stride`/`offset_x`; la preferencia va en `Representation`; lo que hoy necesita saber «puede ser Sprite HW» se deriva del contenido (≤ 16 px, planos, alto).
+- **Regla de frontera para nuevas distinciones**: si una distinción cambia **qué píxeles** se ven (frames, planos, máscara) es contenido; si cambia **cómo** se dibujan (canal, par *attached*, layout, paleta) es materialización y va al planner; si describe **qué significa** el objeto en el juego (tile, proyectil, plataforma) va a la capa de gameplay/entidades, no al descriptor gráfico.
+
 ## 5. Roadmap de implementación
 
 Orden por **dependencia y valor para juego**. Cada fase declara objetivo, contrato extraído (adaptado al estilo del engine: sin heap, sin RTTI, sin STL, tipos `u8`/`s16`/`Span`/`Ref`), encaje y verificación.
@@ -137,11 +155,10 @@ Orden por **dependencia y valor para juego**. Cada fase declara objetivo, contra
 struct HitBox { Box box {}; u8 group = 0; bool solid = true; };
 
 struct CompositePart {
-    Visual visual {};        // Bob o HardwareSprite: mismos caminos de §2
+    Visual visual {};        // contenido puro: sin flags de representación (§4.5)
     s16    offset_x = 0;     // respecto al ancla del actor
     s16    offset_y = 0;
     u8     z = 0;            // orden de dibujo dentro del compuesto
-    bool   attach = false;   // parte HW a 15 colores (par attached)
 };
 
 struct CompositeFrame {
@@ -183,7 +200,7 @@ void composite_set_sequence(CompositeState&, u8 seq, bool restart = true);
 u8   composite_hitboxes(const CompositeVisual&, const CompositeState&, Span<Box> out);
 ```
 
-**Materialización (tipos concretos, sin virtual en el camino caliente):** dos funciones libres que leen el mismo estado; las partes se filtran por `VisualKind`:
+**Materialización (tipos concretos, sin virtual en el camino caliente):** dos funciones libres que leen el mismo estado; la materialización de cada parte (Sprite HW si su forma lo permite y hay canal, si no BOB) la decide el planner, no un flag en el contenido (§4.5):
 
 ```cpp
 // HW: una SpriteIntent por parte HardwareSprite activa (el allocator reparte después).
@@ -235,6 +252,25 @@ u16 gen_line(Span<PathPoint> out, s16 dx, s16 dy, u16 length, u16 ticks_per = 1)
 u16 gen_sine_vertical(Span<PathPoint> out, s16 amplitude, s16 y_step, u16 length,
                       u8 phase0 = 0, u16 ticks_per = 1);
 ```
+
+**Rutas con spline (posición, velocidad y orientación).** Las curvas **ya existen** en el engine: `eng::math::bezier2`/`bezier3`/`hermite`/`catmull_rom` (`core/math/spline.hpp`, genéricas sobre el escalar `S` y `Vec<N,S>`) más `lerp`/easings (`core/math/interp.hpp`). Una ruta spline es una **vista de puntos de control** (no propietaria) que el seguidor evalúa en runtime; sirve para formaciones que dibujan arcos suaves, jefes y proyectiles:
+
+```cpp
+// Propuesta: el contenido de la ruta son los puntos de control (vivos, sin copia).
+template <typename S>
+struct RouteSpline {
+    Span<const Vec<2, S>> controls {};  // p0..pn; Bézier cúbica (grupos de 4) o Catmull-Rom
+    bool closed = false;
+};
+// Muestrea posición y orientación (derivada) en `t`.
+template <typename S>
+void route_sample(const RouteSpline<S>&, S t, Vec<2, S>& out_pos, s16& out_angle256);
+```
+
+- **Velocidad por longitud de arco**: para que `t` avance en píxeles (y no en parámetro), el setup precalcula una tabla de longitudes por tramo (con `eng::math::isqrt` cuando haga falta); el seguidor avanza por ella y la velocidad es constante sin `sqrt` por frame.
+- **Orientación**: derivada numérica (`sample(t)` vs `sample(t+Δ)`), lista para naves y proyectiles.
+- **Puntos de control animables**: `controls` es un `Span` vivo; el secuenciador (F8) o la lógica del juego pueden moverlos y la ruta cambia en marcha sin recocinar el asset.
+- `Trajectory`/`TrajectoryFollower` valen igual para polilínea y spline: la ruta expone `sample`/longitud; la tabla `PathPoint` es la versión **cocida** (constexpr/assets) de la ruta.
 
 **Formaciones y spawner:**
 
@@ -344,9 +380,84 @@ void rope_apply_impulse(Rope&, u8 index, s16 ix, s16 iy);
 
 Decisiones de coste: la restricción de distancia puede hacerse con la aproximación sin `sqrt` (`diff * dx / (4·dist²)`) o con `eng/core/math/isqrt.hpp` si la estabilidad lo pide; el puente se puede **congelar** cuando no hay peso encima y simular solo al pisarlo. Muelles y catapulta son máquinas de estado cortas (compresión + impulso; ángulo + `sine_scale` para el tip); la catapulta articulada se beneficia de F1 (brazo multi-parte con secuencias por rango de ángulo). Verificación: HOST de la simulación (conservación aproximada, extremos, impulso desde arriba) + demo de puente con jugador cruzando.
 
+### F7. Paleta de colores de los sprites: requisitos y arbitraje
+
+**Problema.** La paleta de los Sprites HW es el espacio `COLOR16-31`, y ese espacio se comparte en tres ejes que hoy no están coordinados por el planner:
+
+1. **Entre los dos canales de un par** (par e impar comparten sus colores: *Color Bleed*, `sprite-layer.md` §3). El engine lo documenta y lo esquiva a mano (`preferred_channel` + `assign_rank` fijan la plantilla a su par), pero el `SpriteAllocator` no recibe requisitos de paleta y puede mover un objeto a un par con otros colores.
+2. **Entre sprites de la misma franja horizontal** que comparten canal a distintas líneas: la paleta del canal es una sola por línea, así que dos reusos verticales con paletas distintas exigen conmutar `COLORxx` por Copper en la línea del segundo (lo que ya modela `CopperIntentKind::PaletteLine`).
+3. **Con la escena.** Con 4 planos el playfield usa `COLOR00-15` y los sprites `COLOR16-31` (disjuntos); con **5+ planos / 32 colores, EHB o HAM** el playfield y los Sprites HW comparten el mismo fichero de registros, de modo que un cambio por franja afecta a los dos. Las restricciones de cada modo están documentadas en `sprite-layer.md`/`sprite-color-priority.md`.
+
+**Diseño propuesto.** Declarar la **necesidad de paleta** como un requisito de materialización (no del contenido):
+
+```cpp
+// Propuesta: por sprite, las entradas COLORxx que necesita y en qué franjas.
+struct SpritePaletteNeed {
+    u8  first = 16;      // primera entrada (16..31)
+    u8  count = 0;       // entradas usadas
+    u16 top = 0, bottom = 0; // franja en la que aplica (0,0 = todo el frame)
+};
+```
+
+- El compositor agrega las necesidades por **canal × franja**; el planner las resuelve con las **intenciones de paleta** que ya existen (`CopperIntent` `PaletteLine`/`PaletteSpan` + `Plan::add_prioritized`, que fusiona conflictos por línea).
+- Conflictos: mismo par de canales con paletas distintas en líneas solapadas → reasignar canal si hay hueco; si no, **degradar el de menor `z` a BOB** (que tiene paleta propia de playfield) o cambiar el color por Copper en la línea de entrada (si el arte lo permite).
+- Con la escena: el arbitraje usa la misma maquinaria de zonas de paleta (`PaletteZone`/`PatchZone` por frame) para que los cambios de `COLOR16-31` sean compatibles entre playfield y sprites (especialmente con 5+ planos).
+- Piezas existentes: `HwSpritePaletteSwitch`/`SpritePaletteEvent` (plantilla por franja), `CopperIntent`/`Plan`, `Palette`/`Palette32`/`PatchZone`. Huecos: `SpriteIntent` no lleva requisito de paleta y el reparto del par es manual.
+
+**Verificación:** HOST del arbitraje (dos sprites de paletas distintas en el mismo par → reasigna o degrada; misma franja con Copper → convive), + demo con sprites de paletas distintas arriba/abajo y fondo de sprites con conmutación por frame.
+
+### F8. Secuenciador de eventos y animaciones (timeline)
+
+**Objetivo.** Poder secuenciar de forma genérica (shmup por oleadas, cutscenes, cámara, UI) una línea temporal de **pistas de valores con interpolación** y **pistas de eventos**, determinista por ticks de juego y sin asignación dinámica.
+
+**Dónde va.** No es `eng::sim` (ese dominio es el ecosistema de criaturas/IA) ni `eng::ai` (decisión/planificación): es un algoritmo **genérico de dominio**, así que corresponde a `engine/include/eng/core/` (p. ej. `core/seq/sequencer.hpp`), con integración de juego en `eng/scene`/fachada. Piezas a reutilizar: `core/math/interp.hpp` (lerp/easings), `core/math/spline.hpp` (tracks de posición), `core/util/{state_machine,event}.hpp`, y el concept `Effect` (`update`/`apply_into`) como puente al frame.
+
+**Contrato extraído (adaptado al estilo del engine):**
+
+```cpp
+// Propuesta: pistas de capacidad fija; `S` = escalar del valor (genérico, §1.11).
+template <typename S, u8 MaxKeys>
+struct KeyTrack {
+    struct Key { u16 tick = 0; S value {}; u8 ease = 0; }; // ease: id de core/math/interp
+    Key keys[MaxKeys] {};
+    u8 count = 0;
+    S sample(u32 tick) const;               // interpolación entre claves (sin heap)
+};
+
+template <u8 MaxEvents>
+struct EventTrack {
+    struct Event { u16 tick = 0; u16 id = 0; }; // id interpretado por el juego
+    Event events[MaxEvents] {};
+    u8 count = 0;
+};
+
+template <u8 MaxTracks, u8 MaxKeys, u8 MaxEvents>
+struct Sequence {
+    KeyTrack<s16, MaxKeys> value_tracks[MaxTracks] {};   // posición, escala, velocidad…
+    EventTrack<MaxEvents>  event_tracks[MaxTracks] {};
+    u16 length = 0;          // ticks totales
+    bool loop = false;
+};
+
+struct SequenceRunner {
+    u16 tick = 0;
+    bool playing = false;
+    bool finished = false;
+    // `advance` devuelve los eventos disparados este tick (sin cola: callback o span).
+    template <class OnEvent> void advance(const Sequence<...>&, u16 ticks, OnEvent on_event);
+    void seek(const Sequence<...>&, u16 tick);
+};
+```
+
+- **Determinista**: avanza con los mismos ticks que `actor_tick`/`composite_advance`; `seek` permite depurar/repetir y el host puede cocinar la secuencia.
+- **Genérico**: una pista puede animar los puntos de control de una ruta (F2), la posición de una cámara (`route_camera`) o la paleta; los eventos disparan spawns de formaciones, música o cambios de estado de juego.
+- **Datos**: las secuencias se cocinan a `constexpr`/tables desde un formato de autoría (futuro cooker), como el resto de assets.
+
+**Verificación:** HOST (avance con `ticks` múltiples, `seek`, `loop`, orden de eventos, fin de secuencia) + demo de nivel/oleada dirigida por timeline (spawner F2 + rutas F2) con gate visual.
+
 ### Orden recomendado
 
-F1 → F2 (o F2 → F1 si el primer juego objetivo es un shmup) → F5/F6 según el juego → F3/F4 como optimización y cierre de técnicas. F3 **no** bloquea a F1/F2: el camino de rearme por Copper actual es correcto y suficiente para ambos.
+F1 → F2 (o F2 → F1 si el primer juego objetivo es un shmup) → F8 si hay niveles/oleadas que secuenciar → F5/F6 según el juego → F7 cuando aparezcan 5+ planos o sprites con paletas por zona → F3/F4 como optimización y cierre de técnicas. F3 **no** bloquea a las demás: el camino de rearme por Copper actual es correcto y suficiente.
 
 ## 6. Riesgos y protocolo de verificación
 
@@ -366,5 +477,6 @@ F1 → F2 (o F2 → F1 si el primer juego objetivo es un shmup) → F5/F6 según
 
 - Contratos: `OBJECT_SYSTEM.md`, `SPRITE_CHANNEL_WINDOWS.md`, `VISUAL_EFFECT_SPRITE_DESIGN.md`, `CONTENT_AND_TILEMAP.md`, `PIXEL_ART_2D_ISOMETRIC.md` (§5-§7: movimiento, mecanismos, sólidos).
 - Técnicas: `sprite-techniques-catalog.md`, `sprite-tricks-games.md`, `sprite-layer.md`, `sprite-horizontal-multiplex.md`, `sprite-multiplexer-bob-fallback.md`, `dual-playfield-fastbobs.md`, `interleaved-bob-single-blit.md`.
-- Emulador: `docs/reference/emulators/winuae/sprite-dma.md`, `sprite-color-priority.md`; AHRM 3.ª cap. 4 (sprites) y cap. 7 (`BPLCON2`, `CLXCON`/`CLXDAT`).
+- Emulador: `docs/reference/emulators/winuae/sprite-dma.md`, `sprite-color-priority.md`; AHRM 3.ª cap. 4 (sprites) y cap. 7 (`BPLCON2`, `CLXCON`/`CLXDAT`); *CPU Blit Assist* (Power Programs) para el camino de Sprite CPU (A1200).
+- Reutilización en el engine: `core/math/spline.hpp` (Bézier/Hermite/Catmull-Rom genéricos), `core/math/interp.hpp` (lerp/easings), `core/math/isqrt.hpp`, `core/math/sinetable.hpp`, `core/util/{state_machine,event}.hpp`, `scene/representation.hpp` (`Representation`), `graphics/copper/plan.hpp` (conflictos por línea), `scene/route_camera.hpp`.
 - Estado vivo: `ROADMAP_UNIFICADO.md` §«Sprites hardware — estado»; fachada `eng/api/sprites.hpp`; metódica `DEMO_VISUAL_DEBUG.md` y `docs/testing/README.md`.

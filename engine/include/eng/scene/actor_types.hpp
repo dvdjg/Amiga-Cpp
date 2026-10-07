@@ -195,8 +195,9 @@ struct ActorDesc {
 	/// **Grupo con trayectoria** (ristra/formación): los actores con el mismo `group` (>0)
 	/// reclaman juntos una corrida de `group_span` canales **contiguos** para su bounding box
 	/// (min `top`/max `bottom` del grupo); cada uno ocupa `base + group_index`. Si la corrida
-	/// no cabe, el grupo **entero** va a BOB (dibujo coherente). No combinable con
-	/// `visual.attached` ni con `sprite_template` (rechazo controlado).
+	/// no cabe, el grupo **entero** va a BOB (dibujo coherente). No combinable con un
+	/// contenido de par *attached* (4 planos y 16 px) ni con `sprite_template` (rechazo
+	/// controlado).
 	eng::u8 group = 0;
 	eng::u8 group_index = 0;
 	eng::u8 group_span = 1;

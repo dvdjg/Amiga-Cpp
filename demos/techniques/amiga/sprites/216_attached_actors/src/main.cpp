@@ -6,9 +6,9 @@
 // Demo 216: actores *attached* end-to-end — 15 colores por el camino de actores.
 // ============================================================================
 //
-// Tutorial: el juego da de alta actores cuyo `Visual` declara un **par *attached***
-// (`visual.attached = true`, 4 planos de 16 px) en `eng::SpriteScene` y llama `emit`; el
-// engine hace el resto:
+// Tutorial: el juego da de alta actores en `eng::SpriteScene` con contenido de **4 planos
+// de 16 px** (el par *attached* se deriva del arte; el contenido no lleva flags de hardware)
+// y llama `emit`; el engine hace el resto:
 //   1. reparte **dos canales contiguos** por par con `SpriteAllocator` (par 0+1, 2+3, …);
 //   2. cocina las dos **estructuras DMA** del par (canal par = planos 0-1; canal impar =
 //      planos 2-3 + `ATTACH`) con `graphics::cook_attached_pair` en el pool Chip que da
@@ -244,8 +244,9 @@ private:
 		return (m < 128u) ? m : static_cast<eng::u16>(255u - m);
 	}
 
-	/// Las gemas declaran `visual.attached` (4 planos contiguos); las chispas son sprites de
-	/// 2 planos normales. Todas pasan por la misma fachada: el engine decide el reparto.
+	/// Las gemas son contenido de 4 planos contiguos de 16 px (par *attached* derivado del
+	/// arte); las chispas son de 2 planos. Todas pasan por la misma fachada: el engine decide
+	/// el reparto y la materialización.
 	bool add_actors(eng::WordView<eng::SpriteTag> spark_sheet) {
 		m_scene.clear();
 		m_scene.set_budget({8u, 4096u, 0u}); // 8 canales HW, 4k palabras de BOB, 0 capas
@@ -254,7 +255,7 @@ private:
 		for (eng::u8 i = 0; i < kGems; ++i) {
 			scene::ActorDesc d {};
 			d.visual.kind = eng::graphics::VisualKind::HardwareSprite;
-			d.visual.attached = true; // par *attached*: 4 planos -> 15 colores
+			// 4 planos de 16 px = par *attached* (15 colores): el planner lo deriva del arte.
 			d.visual.pixels = eng::Span<const eng::u16> {
 				&kGemArt.plane[0][0][0], static_cast<eng::usize>(kGemFrames) * kGemFrameWords};
 			d.visual.w = 16u;

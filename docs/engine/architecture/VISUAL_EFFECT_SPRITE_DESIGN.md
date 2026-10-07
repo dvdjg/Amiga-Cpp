@@ -104,7 +104,6 @@ struct Visual {
     u8  frame_count = 1;        // frames en la hoja (1 = imagen suelta)
     u32 frame_stride = 0;       // bytes entre frames (0 = denso/una sola imagen)
     u16 offset_x = 0;           // shift de blit (X no alineada a 16)
-    bool attached = false;      // par attached de 15 colores (4 planos, w <= 16)
 };
 
 } // namespace eng::graphics

@@ -175,8 +175,8 @@ scratch** (el `detail≈9861` de la 275, ya documentado en su README) y sacarlo 
   ventanas de canales (208/211; HOST-417/416); Free Form no repetitivo con scroll (213);
   **par *attached* de 15 colores**: cocinado `cook_attached_pair` (HOST-427), armado
   `SpriteManager::arm_object`/`emit_armed_into` (HOST-428; demos 214/054) y **end-to-end por
-  actores** (`Visual::attached` → dos intents/placements + cocinado en el pool Chip;
-  HOST-072/428; demo 216); **plantilla de franjas por actores** ("chasing the raster":
+  actores** (contenido de 4 planos y 16 px → par derivado → dos intents/placements + cocinado
+  en el pool Chip; HOST-072/428; demo 216); **plantilla de franjas por actores** ("chasing the raster":
   cadena `chain_id` al mismo canal, rearme por franja y paleta por franja
   `SpritePaletteEvent`; HOST-003/072/428; demo 217); **armado de placements con rearme
   vertical** del canal reutilizado (`emit_placements_into`, HOST-428) y doble buffer de

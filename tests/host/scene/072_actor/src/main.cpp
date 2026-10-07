@@ -734,9 +734,9 @@ void test_compose_sprite_frame_data() {
 	      "frame 1 -> base + stride (16 words)");
 }
 
-/// Par *attached* end-to-end: el actor declara los 4 planos (`visual.attached`),
-/// `compose_sprites` cocina las DOS estructuras DMA en el pool Chip y publica dos
-/// placements (canal par + impar con `attach`). El degradado a BOB del par se emite UNA vez.
+/// Par *attached* end-to-end: el actor declara un contenido de 4 planos de 16 px (el par se
+/// deriva del arte), `compose_sprites` cocina las DOS estructuras DMA en el pool Chip y
+/// publica dos placements (canal par + impar con `attach`). El degradado a BOB se emite UNA vez.
 void test_compose_attached_pair() {
 	constexpr eng::u16 kH = 4u;                        // alto corto: 4 planos x 4 lineas
 	constexpr eng::usize kFrameWords = 4u * kH;        // words por frame (4 planos contiguos)
@@ -765,7 +765,6 @@ void test_compose_attached_pair() {
 		d.y = 100;
 		d.z = 10;
 		d.visual.kind = VisualKind::HardwareSprite;
-		d.visual.attached = true;
 		d.visual.pixels = eng::Span<const eng::u16> {planes, 2u * 4u * kH};
 		d.visual.w = 16u;
 		d.visual.h = kH;
@@ -1028,13 +1027,12 @@ void test_compose_group_and_rank() {
 	      "grupo: corrida contigua base+indice");
 	CHECK(placements[3].channel == 3u, "el libre no roba la corrida");
 
-	// Grupo + *attached*: rechazo controlado.
+	// Grupo + *attached* (4 planos de 16 px, derivado): rechazo controlado.
 	ActorStore<2> bad_store;
 	bad_store.reset();
 	RepresentationAllocator bad_alloc {};
 	bad_alloc.reset(RepresentationBudget {8u, 60000u, 0u});
 	ActorDesc bad = make_actor(120, 10);
-	bad.visual.attached = true;
 	bad.visual.bitplanes = 4u;
 	bad.visual.pixels = eng::Span<const eng::u16> {g_pixel_pool, 32u};
 	bad.group = 1u;
