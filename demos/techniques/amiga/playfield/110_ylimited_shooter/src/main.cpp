@@ -16,7 +16,8 @@
 //   X: AxisPolicy::Finite  (puntero directo; no repinta)
 //   Y: y_mode = Ring       (anillo corkscrew) + DirectionPolicy::OneWay
 //
-// El FG de objetos (DPF) se anade en una fase posterior; esta demo es el BG.
+// El FG de objetos (nave + balas + torreta) se pinta sobre el lienzo plano PF2 (DPF)
+// al principio del frame, antes del scroll, para que el barrido no pille el dirty-rect.
 
 #include <eng/api/api.hpp>
 #include <eng/platform/amiga/backend.hpp>
@@ -219,6 +220,9 @@ struct DemoGame {
 	eng::u8 m_fire = 0;
 	eng::s16 m_enemy_x = 40; // torreta fija que apunta al jugador
 	eng::s16 m_enemy_y = 36;
+	eng::s16 m_cannon_px[3] {}; // puntos previos del cañón (se borran uno a uno)
+	eng::s16 m_cannon_py[3] {};
+	bool m_cannon_valid = false;
 
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
@@ -297,6 +301,85 @@ struct DemoGame {
 		plan.clear();
 		plan.set_blit_budget_limits({8192, 16384, 4, 160});
 
+		// --- FG: objetos (nave + balas + torreta) -----------------------------
+		// Se pinta NADA MÁS arrancar el frame, antes del scroll/compose: el lienzo FG es
+		// single-buffer y el haz ya barre la torreta (y≈36) ~3 ms tras el VBlank. Si el FG
+		// se pinta después del scroll, el borrado+repintado coincide con el barrido y la
+		// torreta se ve a medias o desaparece (flicker). El color 0 de PF2 es transparente.
+		const eng::s16 ship_y = static_cast<eng::s16>(kViewportH - 16); // fila visible más baja
+		{
+			auto fg = scene.canvas_fg_surface();
+
+			// 1) Estado nuevo (sin tocar el bitmap): X de la nave, disparo y balas.
+			if (m_ship_dir == 0) { ++m_ship_x; if (m_ship_x >= 200) m_ship_dir = 1; }
+			else { --m_ship_x; if (m_ship_x <= 40) m_ship_dir = 0; }
+			if ((++m_fire & 7u) == 0u) {
+				for (auto& b : m_bullets) {
+					if (!b.live) { b.live = true; b.x = static_cast<eng::s16>(m_ship_x + 7); b.y = static_cast<eng::s16>(ship_y - 8); break; }
+				}
+			}
+
+			// 2) Cañón de la torreta (trigonometría fixed con tablas, sin float) con la
+			//    posición nueva de la nave; se calcula ANTES de borrar para no dejar hueco.
+			const eng::s16 ship_cx = static_cast<eng::s16>(m_ship_x + 7);
+			const eng::s16 ship_cy = static_cast<eng::s16>(ship_y + 4);
+			using qa = eng::math::Fixed<eng::s16, 6>; // rango ±511 px: cabe el delta de pantalla
+			const eng::s16 ex = static_cast<eng::s16>(m_enemy_x + 8);
+			const eng::s16 ey = static_cast<eng::s16>(m_enemy_y + 8);
+			const qa ddx = eng::math::scalar_traits<qa>::from_int(ship_cx - ex);
+			const qa ddy = eng::math::scalar_traits<qa>::from_int(ship_cy - ey);
+			const auto aim = eng::math::angle_of(eng::math::Vec<2, qa> {{ddx, ddy}});
+			const eng::math::Vec<2, qa> dir = eng::math::from_angle(aim);
+
+			// 3) Nave: la nave se mueve ±1 px/frame, así que basta borrar la franja de
+			//    1 px que deja atrás (borrar el bloque 16×16 dejaba un hueco que el haz
+			//    barre) y repintarla encima de inmediato.
+			if (m_ship_x > m_ship_px) {
+				fg.fill_rect(m_ship_px, static_cast<eng::s16>(ship_y - 4), 1, 16, 0);
+			} else if (m_ship_x < m_ship_px) {
+				fg.fill_rect(static_cast<eng::s16>(m_ship_px + 15), static_cast<eng::s16>(ship_y - 4),
+					     1, 16, 0);
+			}
+			fg.fill_rect(static_cast<eng::s16>(m_ship_x + 7), static_cast<eng::s16>(ship_y - 4), 2, 4, 2); // morro
+			fg.fill_rect(static_cast<eng::s16>(m_ship_x + 5), ship_y, 6, 4, 1);
+			fg.fill_rect(static_cast<eng::s16>(m_ship_x + 3), static_cast<eng::s16>(ship_y + 4), 10, 4, 1);
+			fg.fill_rect(m_ship_x, static_cast<eng::s16>(ship_y + 8), 16, 4, 3); // base
+			m_ship_px = m_ship_x;
+
+			// 4) Balas: por bala, borrado de la posición previa + avance + repintado
+			//    pegados (mismo par de operaciones, sin trabajo intermedio).
+			for (auto& b : m_bullets) {
+				if (!b.live) continue;
+				fg.fill_rect(b.x, b.py, 2, 6, 0);
+				b.y = static_cast<eng::s16>(b.y - 6);
+				if (b.y < 2) { b.live = false; continue; }
+				fg.fill_rect(b.x, b.y, 2, 5, 2);
+				b.py = b.y;
+			}
+
+			// 5) Torreta: el cuerpo se REPINTA encima (sin borrado: borrarlo dejaba un
+			//    hueco que el haz barre → flicker); solo se borran los puntos previos del
+			//    cañón, que pueden caer fuera del cuerpo.
+			if (m_cannon_valid) {
+				for (eng::u8 i = 0; i < 3u; ++i) {
+					fg.fill_rect(m_cannon_px[i], m_cannon_py[i], 2, 2, 0);
+				}
+			}
+			fg.fill_rect(m_enemy_x, m_enemy_y, 16, 16, 4); // cuerpo de la torreta
+			for (eng::u8 i = 0; i < 3u; ++i) {
+				const qa li = eng::math::scalar_traits<qa>::from_int(
+					static_cast<int>(2u + i * 2u));
+				m_cannon_px[i] = static_cast<eng::s16>(
+					ex + (eng::math::mul_norm(dir.v[0], li).v >> 6));
+				m_cannon_py[i] = static_cast<eng::s16>(
+					ey + (eng::math::mul_norm(dir.v[1], li).v >> 6));
+				fg.fill_rect(m_cannon_px[i], m_cannon_py[i], 2, 2, 5);
+			}
+			m_cannon_valid = true;
+		}
+
+		// --- BG: scroll + composición (tras el FG: el blitter tarda más y su contenido no
+		//     tiene el hueco de borrado del dirty-rect) --------------------------
 		// Vaivén X lento (0..80) y avance Y hacia arriba (-2 px/frame).
 		if (++patrol_acc >= 4) { patrol_acc = 0; ++patrol; }
 		const eng::s32 target_x = (patrol & 128u) ? 80 : 0;
@@ -318,61 +401,6 @@ struct DemoGame {
 			ready = false;
 			eng::debug::mark_failed(g_eng_run_status, 0x00011011u);
 			return;
-		}
-
-		// --- FG: objetos (nave + balas) en el lienzo plano (PF2). --------------
-		// Dirty-rect: se borra lo del frame anterior y se pinta lo nuevo. El color
-		// 0 de PF2 es transparente (deja ver el BG).
-		const eng::s16 ship_y = 208;
-		{
-			auto fg = scene.canvas_fg_surface();
-			// Borra nave (posición previa) y balas (posición previa).
-			fg.fill_rect(m_ship_px, ship_y, 16, 14, 0);
-			for (auto& b : m_bullets) if (b.live) fg.fill_rect(b.x, b.py, 2, 6, 0);
-
-			// Avanza la nave en X (vaivén 40..200) y dispara.
-			if (m_ship_dir == 0) { ++m_ship_x; if (m_ship_x >= 200) m_ship_dir = 1; }
-			else { --m_ship_x; if (m_ship_x <= 40) m_ship_dir = 0; }
-			if ((++m_fire & 7u) == 0u) {
-				for (auto& b : m_bullets) {
-					if (!b.live) { b.live = true; b.x = static_cast<eng::s16>(m_ship_x + 7); b.y = static_cast<eng::s16>(ship_y - 8); break; }
-				}
-			}
-			for (auto& b : m_bullets) {
-				if (!b.live) continue;
-				b.y = static_cast<eng::s16>(b.y - 6);
-				if (b.y < 2) b.live = false;
-			}
-
-			// Pinta nave (silueta) y balas. Color 0 = transparente; 1..7 = regs 9..15.
-			fg.fill_rect(static_cast<eng::s16>(m_ship_x + 7), static_cast<eng::s16>(ship_y - 4), 2, 4, 2);  // morro
-			fg.fill_rect(static_cast<eng::s16>(m_ship_x + 5), ship_y, 6, 4, 1);
-			fg.fill_rect(static_cast<eng::s16>(m_ship_x + 3), static_cast<eng::s16>(ship_y + 4), 10, 4, 1);
-			fg.fill_rect(m_ship_x, static_cast<eng::s16>(ship_y + 8), 16, 4, 3);                          // base
-			for (auto& b : m_bullets) if (b.live) { fg.fill_rect(b.x, b.y, 2, 5, 2); b.py = b.y; }
-			m_ship_px = m_ship_x;
-
-			// Torreta: mira al jugador con trigonometría fixed (`angle_of`/`from_angle`,
-			// tablas compartidas), sin `float`. El cañón es un radio de 7 px.
-			const eng::s16 ship_cx = static_cast<eng::s16>(m_ship_x + 7);
-			const eng::s16 ship_cy = static_cast<eng::s16>(ship_y + 4);
-			using qa = eng::math::Fixed<eng::s16, 6>; // rango ±511 px: cabe el delta de pantalla
-			const eng::s16 ex = static_cast<eng::s16>(m_enemy_x + 8);
-			const eng::s16 ey = static_cast<eng::s16>(m_enemy_y + 8);
-			fg.fill_rect(m_enemy_x, m_enemy_y, 24, 24, 0); // borra cuerpo + cañón previos
-			const qa ddx = eng::math::scalar_traits<qa>::from_int(ship_cx - ex);
-			const qa ddy = eng::math::scalar_traits<qa>::from_int(ship_cy - ey);
-			const auto aim = eng::math::angle_of(eng::math::Vec<2, qa> {{ddx, ddy}});
-			const eng::math::Vec<2, qa> dir = eng::math::from_angle(aim);
-			for (eng::s16 i = 2; i <= 7; i += 2) {
-				const qa li = eng::math::scalar_traits<qa>::from_int(i);
-				const eng::s16 bx = static_cast<eng::s16>(
-					ex + (eng::math::mul_norm(dir.v[0], li).v >> 6));
-				const eng::s16 by = static_cast<eng::s16>(
-					ey + (eng::math::mul_norm(dir.v[1], li).v >> 6));
-				fg.fill_rect(bx, by, 2, 2, 5);
-			}
-			fg.fill_rect(m_enemy_x, m_enemy_y, 16, 16, 4); // cuerpo de la torreta
 		}
 
 		// Telemetría: cámara X/Y para el assert de movimiento en regresión.
