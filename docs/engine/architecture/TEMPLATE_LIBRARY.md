@@ -139,11 +139,11 @@ Puntos de reutilización explícitos:
 | `string_interner.hpp` | `StringInterner<MaxStrings, A>` (dedup por contenido sobre arena) | `boost::flyweight` |
 | `lru_cache.hpp` | `LruCache<K, V, N>` (LRU `O(1)`, sin heap; recencia y libres con `IndexList` compartido) | (sin equivalente) |
 | `task.hpp` | `TaskStatus`, `TaskSequence<N>`, `Delay` (tareas *stackless*) | (coroutine ligera) |
-| `interval.hpp` | `Interval`, `IntervalSet<N>` (rangos `[lo,hi)` fusionados) | `boost::icl` (mínimo) |
+| `interval.hpp` | `IntervalT<T>` (alias `Interval` = `<s32>`), `IntervalSet<N,T>` (rangos `[lo,hi)` fusionados) | `boost::icl` (mínimo) |
 | `variant.hpp` | `Variant<Ts...>` (unión etiquetada de alternativas triviales, `visit`) | `std::variant` (sin heap) |
 | `scope_guard.hpp` | `ScopeGuard`, `make_scope_guard` | `boost::scope_exit` |
 | `stats.hpp` | `sum`/`mean`/`variance`/`stddev`/`kth_smallest`/`median`/`histogram`/`ema`/`RunningMean` | (sin equivalente; estadística) |
-| `quantizer.hpp` | `QuantizerResult<S>`/`lloyd_max` (Lloyd-Max sin heap, scratch del llamador) | (sin equivalente; entrenamiento offline) |
+| `quantizer.hpp` | `QuantizerResult<S>`/`lloyd_max<S, MaxLevels>` (Lloyd-Max sin heap, scratch del llamador y de plantilla) | (sin equivalente; entrenamiento offline) |
 | `color.hpp` | `rgb444`/`lerp444`/`scale444`/`hsv_to_rgb444` + `palette_lerp`/`palette_scale` (transición y fundido de una paleta completa) + `gradient444` (degradado multi-parada) | (sin equivalente; color Amiga) |
 | `collision.hpp` | `Aabb`, `aabb_*`, `segments_intersect`, `point_in_triangle`, `circle_overlap` | (sin equivalente; juego 2D) |
 | `text.hpp` | `trim`/`split_next`/`equal_ci`/`parse_u32`/`parse_s32`/`to_chars_*`/`join` | (parte de `boost::string`/`charconv`) |
@@ -297,7 +297,7 @@ canónica de validar algoritmos puros (sin hardware):
 | HOST-126 | `core/util/graph.hpp` (adyacencia, BFS, A*, orden topológico) |
 | HOST-127 | `core/util/lru_cache.hpp` (LRU `O(1)`) |
 | HOST-128 | `core/util/task.hpp` (tareas *stackless*) |
-| HOST-129 | `core/util/interval.hpp` (rangos `[lo,hi)` fusionados) |
+| HOST-129 | `core/util/interval.hpp` (`IntervalT<T>`/`IntervalSet<N,T>`: rangos `[lo,hi)` fusionados) |
 | HOST-130 | `core/util/variant.hpp` (unión etiquetada sin heap) |
 | HOST-414 | `core/util/noncopyable.hpp` (`Noncopyable`/`NonMovable`) e `core/util/index_list.hpp` (`IndexList`; compartición de `prev`/`next`) |
 
@@ -382,7 +382,7 @@ Qué usar según la necesidad, con el criterio del A500 (sin heap; coste visible
 | Grafo / dependencias / waypoints | `graph.hpp` (`Graph<N,E>` + `graph_astar`/`topological_sort`) |
 | Caché con desalojo por uso | `lru_cache.hpp` (`LruCache<K,V,N>`) |
 | Secuencia/scripting que espera entre frames | `task.hpp` (`TaskSequence<N>`, `Delay`) |
-| Rangos de nivel / ventanas temporales | `interval.hpp` (`IntervalSet<N>`) |
+| Rangos de nivel / ventanas temporales | `interval.hpp` (`IntervalSet<N,T>`) |
 | Mensajes/comandos heterogéneos sin heap | `variant.hpp` (`Variant<Ts...>`) |
 | Componentes conexas / particionar el mundo | `union_find.hpp` (`UnionFind<N>`) |
 | Componentes por entidad con id disperso (ECS) | `sparse_set.hpp` (`SparseSet<T,N>`) |
