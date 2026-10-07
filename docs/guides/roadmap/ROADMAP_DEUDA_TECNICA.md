@@ -54,7 +54,7 @@ El runner ya soporta **`--sequence-step-frames N`** (`tools/run/run-demo.ts`): c
 
 ## DT-007 · Demo 085 a 16,6 fps (3 fields) y mancha blanca del disco
 
-`measure-fps 085_copper_plan_scene A500_debug` = **16,62 fps / 3,01 fields / 426.733 ciclos**. El conteo objetivo de blanco alterna 1088↔2204 (frames 1 y 5) y la visión señala una **mancha blanca irregular** en el borde del disco. Hotspot candidato: `RasterGradientEffect::rebuild()` (2 `mul` + 2 `mod` por reconstrucción). Informe: `demos/techniques/amiga/copper/085_copper_plan_scene/VALIDATION.md`.
+`measure-fps 085_copper_plan_scene A500_debug` = **16,62 fps / 3,01 fields / 426.733 ciclos**. **Atribución por ablación:** sin intents del BOB → **24,99 fps / 2,00 fields / 283.920 ciclos** (el BOB ≈ **143k**); congelar la fase del cielo (sin `rebuild`) **no** cambia nada; la base (plan + 16 intents de cielo + materialize/commit) sigue a **2× presupuesto (~284k)**. El blanco alternante (1088↔2204) era el **ciclo de paleta del disco** (constante 1088 con fase congelada), no corrupción. Informe: `demos/techniques/amiga/copper/085_copper_plan_scene/VALIDATION.md`.
 
 ## DT-008 · `profile.mjs` no resuelve `g_eng_prof`
 

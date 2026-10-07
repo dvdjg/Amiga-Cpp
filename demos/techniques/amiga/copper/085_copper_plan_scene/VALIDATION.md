@@ -17,6 +17,20 @@ cicla y un BOB (disco) que se mueve en Lissajous aportando intenciones de color 
 Hotspot candidato (evidencia previa `asm-audit`): `eng::graphics::effects::RasterGradientEffect::rebuild()`
 (peso 16, 2 `mul` y 2 `mod`) — el `mod` en el bucle del cielo es caro; confirmar con perfil/ablación en F1.
 
+### Ablaciones F1 (medidas)
+
+| Ablación | fps | fields | ciclos/frame | Atribución |
+|---|---|---|---|---|
+| baseline | 16,62 | 3,01 | 426.733 | — |
+| fase del cielo congelada (sin `rebuild` por frame) | 16,62 | 3,01 | 426.733 | `rebuild()` **no** es el hotspot |
+| sin intents del BOB | **24,99** | **2,00** | **283.920** | el BOB cuesta **~143k ciclos/frame** (33%) |
+| — | — | — | 284k restantes | base (plan + 16 intents de cielo + materialize/commit) **también 2× presupuesto** |
+
+Conclusión F1: hay **dos** focos de coste (BOB ≈ 143k y base del plan ≈ 284k); el ciclo del cielo (`rebuild`)
+queda descartado. El blanco alternante (1088↔2204) pasa a constante 1088 con la fase congelada: era el
+**ciclo de paleta del disco** (animación esperada), no corrupción → la «mancha blanca» de la visión es
+probablemente contenido del disco en ciertas fases.
+
 ## Prompts y respuestas (crudos)
 
 ### A · Inventario sin contexto, una imagen (frame 4)
