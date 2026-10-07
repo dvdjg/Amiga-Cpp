@@ -234,14 +234,11 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011001u);
 			return;
 		}
-		// AISLAMIENTO SCROLL: cada fila del mapa usa `y & 15` como tile (glifo = nº de fila
-		// módulo 16). Así el dígito visible en cada fila de pantalla identifica su fila de
-		// mapa y se puede comparar «esperado vs real» frame a frame. (Temporal; revertir.)
+		// Mapa: rejilla de tiles determinista (128 tiles).
 		for (eng::u16 y = 0; y < kMapRows; ++y) {
 			for (eng::u16 x = 0; x < kMapCols; ++x) {
-				(void)x;
 				g_map[static_cast<eng::u32>(y) * kMapCols + x] =
-					static_cast<eng::u16>(y & 15u); // AISLAMIENTO: glifo = fila mod 16
+					static_cast<eng::u16>(playfield::demo::cell_hash(x, y, 0x5eedu) & (kTilesetCount - 1u));
 			}
 		}
 
@@ -314,7 +311,6 @@ struct DemoGame {
 		// single-buffer y el haz ya barre la torreta (y≈36) ~3 ms tras el VBlank. Si el FG
 		// se pinta después del scroll, el borrado+repintado coincide con el barrido y la
 		// torreta se ve a medias o desaparece (flicker). El color 0 de PF2 es transparente.
-#if 0 // AISLAMIENTO SCROLL: sin capa FG (nave/balas/torreta)
 		ENG_PROF_BEGIN(2); // sección 2: FG (objetos)
 		const eng::s16 ship_y = static_cast<eng::s16>(kViewportH - 16); // fila visible más baja
 		{
@@ -388,7 +384,6 @@ struct DemoGame {
 			m_cannon_valid = true;
 		}
 		ENG_PROF_END(2);
-#endif // AISLAMIENTO SCROLL
 
 		// --- BG: scroll + composición (tras el FG: el blitter tarda más y su contenido no
 		//     tiene el hueco de borrado del dirty-rect) --------------------------

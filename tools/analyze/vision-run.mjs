@@ -1,15 +1,18 @@
 #!/usr/bin/env node
 // Pasada de visión de una demo: copia los frames con NOMBRE CANÓNICO a
-// `out/run/<demoId>/<config>/vision/` y escribe/agrega el informe crudo
-// `out/run/<demoId>/<config>/<demoId>_report.md`. Convención completa en
+// `<demoDir>/vision/<demoId>_fNNNN.png` y escribe/agrega el informe crudo
+// `<demoDir>/<demoId>_report.md`. Convención completa en
 // docs/guides/methodology/DEMO_VISUAL_DEBUG.md §6.5.
 //
 // Uso:
-//   node tools/analyze/vision-run.mjs <demoId> <config> <dirSeq> <idx…>
+//   node tools/analyze/vision-run.mjs <demoId> <dirSeq> <idx…>
 //        --prompt "…" [--prompt "…"] [--model m] [--conclusion "…"]
+//        [--demo-dir ruta] [--per-frame]
 //
-// - `idx` = número de la secuencia (frame_<idx>_f<frame>.png); una imagen por
-//   llamada (§6.4: el modelo no atiende varias imágenes de forma fiable).
+// - `idx` = número de la secuencia (frame_<idx>_f<frame>.png).
+// - Modo por defecto: SECUENCIA (todas las imágenes en UNA llamada, con leyenda
+//   de orden temporal) — preguntas de movimiento/continuidad.
+// - `--per-frame`: una imagen por llamada (detalle de una captura concreta).
 (async () => {
   const fs = await import('node:fs');
   const path = await import('node:path');
@@ -20,19 +23,33 @@
   const prompts = [];
   let model = 'qwen3-vl:8b-instruct-q8_0';
   let conclusion = '';
+  let demoDirArg = '';
+  let perFrame = false;
   for (let i = 0; i < argv.length; ++i) {
     const a = argv[i];
     if (a === '--prompt') prompts.push(argv[++i]);
     else if (a === '--model') model = argv[++i];
     else if (a === '--conclusion') conclusion = argv[++i];
+    else if (a === '--demo-dir') demoDirArg = argv[++i];
+    else if (a === '--per-frame') perFrame = true;
     else positional.push(a);
   }
-  const [demoId, config, seqDir, ...idxRaw] = positional;
+  const [demoId, seqDir, ...idxRaw] = positional;
   const idxs = idxRaw.map((v) => parseInt(v, 10)).filter((v) => Number.isFinite(v));
-  if (!demoId || !config || !seqDir || idxs.length === 0 || prompts.length === 0) {
-    console.error('uso: vision-run.mjs <demoId> <config> <dirSeq> <idx…> --prompt "…" [--prompt "…"] [--conclusion "…"]');
+  if (!demoId || !seqDir || idxs.length === 0 || prompts.length === 0) {
+    console.error('uso: vision-run.mjs <demoId> <dirSeq> <idx…> --prompt "…" [--demo-dir ruta] [--per-frame]');
     process.exit(2);
   }
+
+  // ---- Carpeta de la demo: --demo-dir o búsqueda por nombre bajo demos/ ----
+  let demoDir = demoDirArg;
+  if (!demoDir) {
+    const hit = fs.readdirSync('demos', { recursive: true, withFileTypes: true })
+      .find((e) => e.isDirectory() && e.name === demoId);
+    if (!hit) { console.error(`[vision] no encuentro demos/**/${demoId}; pasa --demo-dir`); process.exit(3); }
+    demoDir = path.join(hit.parentPath ?? hit.path, hit.name);
+  }
+  console.log(`[vision] demoDir = ${demoDir}`);
 
   // ---- Ollama: salud / arranque (mismo patrón que ollama-desc.mjs) ----
   const BASE = 'http://127.0.0.1:11434';
@@ -56,7 +73,7 @@
 
   // ---- Frames: localizar, copiar con nombre canónico ----
   const files = fs.readdirSync(seqDir).filter((f) => /^frame_\d+_f\d+\.png$/.test(f));
-  const visionDir = path.join('out', 'run', demoId, config, 'vision');
+  const visionDir = path.join(demoDir, 'vision');
   fs.mkdirSync(visionDir, { recursive: true });
   const picked = [];
   for (const idx of idxs) {
@@ -69,30 +86,45 @@
   }
   console.log(`[vision] ${picked.length} capturas copiadas a ${visionDir}`);
 
+  const legend = picked.map((p, i) => `imagen ${i + 1} = frame f${p.frame}`).join(', ');
+
+  async function ask(images, prompt) {
+    const body = { model, prompt, images, stream: false };
+    const r = await fetch(`${BASE}/api/generate`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      signal: AbortSignal.timeout(300000),
+    });
+    const j = await r.json();
+    return (j.response ?? '').trim();
+  }
+
   // ---- Informe ----
-  const reportPath = path.join('out', 'run', demoId, config, `${demoId}_report.md`);
+  const reportPath = path.join(demoDir, `${demoId}_report.md`);
   let out = '';
   const exists = fs.existsSync(reportPath);
   if (!exists) {
-    out += `# Informe de ejecución — ${demoId} (${config})\n\n`;
+    out += `# Informe de ejecución — ${demoId}\n\n`;
     out += `Crudo de las pasadas de visión/medida. Convención: docs/guides/methodology/DEMO_VISUAL_DEBUG.md §6.5.\n`;
     out += `El resumen canónico commiteado vive en el VALIDATION.md de la demo.\n`;
   }
   out += `\n## Pasada ${new Date().toISOString()}\n\n`;
-  out += `- Secuencia: \`${seqDir}\`\n- Frames analizados: ${picked.map((p) => `f${p.frame}`).join(', ')} (capturas: \`${visionDir.replaceAll('\\', '/')}/${demoId}_f*.png\`)\n`;
-  out += `- Modelo: ${model}\n`;
+  out += `- Secuencia: \`${seqDir}\`\n- Frames: ${picked.map((p) => `f${p.frame}`).join(', ')} (capturas: \`vision/${demoId}_f*.png\`)\n`;
+  out += `- Modelo: ${model} — modo: ${perFrame ? 'per-frame' : 'secuencia'}\n`;
 
-  for (const p of picked) {
-    const b64 = fs.readFileSync(p.dst).toString('base64');
-    for (const prompt of prompts) {
-      const body = { model, prompt, images: [b64], stream: false };
-      const r = await fetch(`${BASE}/api/generate`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-        signal: AbortSignal.timeout(300000),
-      });
-      const j = await r.json();
-      out += `\n### f${p.frame} — prompt\n\n\`\`\`text\n${prompt}\n\`\`\`\n\n### f${p.frame} — respuesta cruda\n\n${(j.response ?? '').trim()}\n`;
-      console.log(`[vision] f${p.frame} respondido (${(j.response ?? '').length} chars)`);
+  for (const prompt of prompts) {
+    if (perFrame) {
+      for (const p of picked) {
+        const b64 = fs.readFileSync(p.dst).toString('base64');
+        const resp = await ask([b64], prompt);
+        out += `\n### f${p.frame} — prompt\n\n\`\`\`text\n${prompt}\n\`\`\`\n\n### f${p.frame} — respuesta cruda\n\n${resp}\n`;
+        console.log(`[vision] f${p.frame} respondido (${resp.length} chars)`);
+      }
+    } else {
+      const images = picked.map((p) => fs.readFileSync(p.dst).toString('base64'));
+      const full = `Las ${picked.length} imágenes adjuntas van EN ORDEN TEMPORAL: ${legend}. ${prompt}`;
+      const resp = await ask(images, full);
+      out += `\n### Secuencia (${picked.map((p) => 'f' + p.frame).join(', ')}) — prompt\n\n\`\`\`text\n${full}\n\`\`\`\n\n### Secuencia — respuesta cruda\n\n${resp}\n`;
+      console.log(`[vision] secuencia respondida (${resp.length} chars)`);
     }
   }
   if (conclusion) out += `\n## Conclusión de la pasada\n\n${conclusion}\n`;

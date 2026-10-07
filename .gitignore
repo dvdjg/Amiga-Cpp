@@ -64,6 +64,12 @@ __pycache__/
 /legacy/obj/
 /legacy/out/
 
+# ===== Artefactos de validación visual por demo (no versionar) ==============
+# Capturas para el modelo de visión y el informe crudo de ejecución viven en la
+# carpeta de la demo (convención: DEMO_VISUAL_DEBUG.md §6.5) pero no entran en git.
+demos/**/vision/
+demos/**/*_report.md
+
 # ===== Ficheros temporales, logs y editor ===================================
 *.log
 *.tmp

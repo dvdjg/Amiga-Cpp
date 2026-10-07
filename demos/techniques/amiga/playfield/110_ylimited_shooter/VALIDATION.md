@@ -121,7 +121,25 @@ roadmap debe atribuir esa cifra a los elementos de la tabla con el perfilador.
 
 **Artefactos de la pasada** (§6.5 de `DEMO_VISUAL_DEBUG.md`): informe crudo `out/run/110_ylimited_shooter/A500_debug/110_ylimited_shooter_report.md`; capturas con nombre canónico en `out/run/110_ylimited_shooter/A500_debug/vision/110_ylimited_shooter_f0087.png` (y f0089/f0131/f0209); ambas rutas bajo `out/` (gitignored). Herramienta: `tools/analyze/vision-run.mjs`.
 
-**Alcance probado / SIN VERIFICAR**: cubre el scroll vertical del anillo (geometría, split, punteros, mods, enrollado, flicker, 50 fps) en el banco scroll-only. **Sin verificar**: el fine X con mapa no uniforme (1 px/píxel), el FG reactivado (≈307k → DT-001 F4) y la demo con su mapa real. El bench conserva aislamiento (mapa de glifos + `#if 0` del FG): revertir al cerrar la validación final.
+**Demo real (FG reactivado, mapa real) — estado actual:** el bloque FG volvió a compilarse tras
+muchos turnos y destapó un **address error** introducido al añadir la guarda del lienzo: `byte_for`
+devolvía byte impar para `wx=8..15` (se perdió el `& ~1`), y el 68000 no admite escrituras de word
+en dirección impar (Guru tras el frame 1; PC en ROM, registros con direcciones impares). Corregido
+en `canvas_playfield.hpp` (byte alineado a word, comentado). Verificado: la demo corre con nave,
+balas y torreta visibles; gate de flicker **Regression OK** con el FG activo. Medida actual:
+**12.29 fps / 577 073 ciclos / 4.067 campos** — el coste del FG (~307k) domina; su rediseño es
+DT-001 F4 (pre-render + Blitter/BOB) y es lo que falta para los 50 fps del demo completo.
+
+**Verificación visual por secuencia** (modo secuencia de `vision-run.mjs`, 6 frames en una llamada
+con leyenda de orden temporal): «el objeto azul/naranja de abajo se desplaza… continuo y progresivo
+sin saltos, repeticiones ni retrocesos; el objeto verde de arriba permanece estacionario; sin filas
+mezcladas, ruido ni zonas corruptas». Respuestas crudas en `110_ylimited_shooter_report.md` (junto a
+esta carpeta) y capturas en `vision/` (ambos gitignored).
+
+**Alcance probado / SIN VERIFICAR**: cubre el scroll vertical del anillo (geometría, split,
+punteros, mods, enrollado, flicker) y la demo real con FG visible. **Sin verificar**: el fine X con
+mapa no uniforme (1 px/píxel) y los 50 fps del demo completo (pendiente del rediseño del FG,
+DT-001 F4).
 
 ## Conclusiones
 

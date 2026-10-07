@@ -81,8 +81,10 @@ public:
     }
     u32 byte_for(eng::pix wx) const override {
         // `wx` es coordenada de juego (0..width-1); la guarda izquierda desplaza la
-        // fila dentro del bitmap (16 px con el fetch $30 del corkscrew).
-        return static_cast<u32>(wx + m_x_offset_px) / 8u;
+        // fila dentro del bitmap (16 px con el fetch $30 del corkscrew). El `& ~1`
+        // mantiene el byte ALINEADO A WORD: `draw_span`/`write_pixel` escriben words
+        // y un byte impar en un 68000 = address error (Guru).
+        return static_cast<u32>(wx + m_x_offset_px) / 8u & ~1u;
     }
     u32 mirror_planelines() const override { return 0; }
     bool supports_walk() const override { return false; }

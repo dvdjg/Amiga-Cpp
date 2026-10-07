@@ -195,13 +195,17 @@ La fase C no sustituye a A/B: es la comprobación contra la intención, no la fu
 
 ### 6.5 Artefactos de una pasada de visión: nombres y ubicación
 
-Toda pasada de visión deja **dos artefactos** con nombre canónico, siempre bajo `out/` (el `.gitignore` excluye `/out/*`; **nunca** se copian capturas a `docs/` ni a la carpeta de la demo):
+Toda pasada de visión deja **dos artefactos** con nombre canónico, **en la propia carpeta de la demo** (junto a su `src/`), ignorados por git (reglas `demos/**/vision/` y `demos/**/*_report.md` del `.gitignore`; **nunca** se copian a `docs/`):
 
 | Artefacto | Ruta | Nombre |
 |---|---|---|
-| Capturas analizadas | `out/run/<demoId>/<config>/vision/` | `<demoId>_fNNNN.png` (NNNN = frame real; si el índice de la secuencia no es el frame, `<demoId>_sNNN.png`) |
-| Informe de ejecución | `out/run/<demoId>/<config>/` | `<demoId>_report.md` — **idéntico al nombre del directorio de la demo** |
+| Capturas analizadas | `<demoDir>/vision/` | `<demoId>_fNNNN.png` (NNNN = frame real; si el índice de la secuencia no es el frame, `<demoId>_sNNN.png`) |
+| Informe de ejecución | `<demoDir>/` | `<demoId>_report.md` — **idéntico al nombre del directorio de la demo** |
 
-El informe (`<demoId>_report.md`) contiene: comando exacto, tramo de secuencia y frames analizados, medidas de la pasada, **prompts crudos y respuestas crudas** por frame, y la conclusión con el alcance probado y lo SIN VERIFICAR. Es el crudo de la pasada; el `VALIDATION.md` de la demo (commiteado, junto a `main.cpp`) es el resumen canónico.
+El informe (`<demoId>_report.md`) contiene: comando exacto, tramo de secuencia y frames analizados, medidas de la pasada, **prompts crudos y respuestas crudas** y la conclusión con el alcance probado y lo SIN VERIFICAR. Es el crudo de la pasada; el `VALIDATION.md` de la demo (commiteado) es el resumen canónico.
 
-Herramienta: `node tools/analyze/vision-run.mjs <demoId> <config> <dirSeq> <idx…> --prompt "…" [--prompt "…"] [--model …] [--conclusion "…"]` — copia los frames con el nombre canónico, interroga a Ollama (una imagen por llamada, §6.4) y **escribe/agrega** `<demoId>_report.md`. El índice `idx` es el número de la secuencia (`frame_<idx>_*.png`); de ahí sale el frame real para el nombre.
+Herramienta: `node tools/analyze/vision-run.mjs <demoId> <dirSeq> <idx…> --prompt "…" [--prompt "…"] [--model …] [--demo-dir ruta] [--per-frame] [--conclusion "…"]`.
+
+- **Modo por defecto: SECUENCIA** — todas las imágenes en **una sola llamada**, precedidas de la leyenda `imagen k = frame fNNNN` en orden temporal. Es el modo para preguntas de **movimiento, continuidad, saltos y parpadeo**; sin la leyenda el modelo tiende a describir «un único frame» o a confundir el orden.
+- `--per-frame`: una imagen por llamada (detalle de una captura concreta; §6.4).
+- El índice `idx` es el número de la secuencia (`frame_<idx>_*.png`); de ahí sale el frame real para el nombre.
