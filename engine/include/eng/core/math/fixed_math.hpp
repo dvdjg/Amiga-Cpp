@@ -81,6 +81,22 @@
 #define ENG_FIXED_ATAN_SIZE 256
 #endif
 
+namespace eng::detail {
+
+/// Muestra de `SineTable<Amp, Steps, Fixed<R,E,P>>` (punto de extensión declarado en
+/// `eng/core/math/sinetable.hpp`): cuantiza la muestra real con el **cuantizador del
+/// escalar** (`scalar_const<Fixed>`, redondeo al más cercano), de modo que
+/// `SineTable<1, 4096, Fixed<s16,12>>` es la tabla 4.12 en `Fixed` (a ±1 ulp de la
+/// truncada del original). Vive aquí, y no en el generador, porque depende del formato.
+template <typename R, int E, typename P>
+struct sine_sample<math::Fixed<R, E, P>> {
+	static constexpr math::Fixed<R, E, P> from(double v) {
+		return math::scalar_const<math::Fixed<R, E, P>>::from(v);
+	}
+};
+
+} // namespace eng::detail
+
 namespace eng::math {
 
 namespace detail {

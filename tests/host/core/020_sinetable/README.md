@@ -9,6 +9,9 @@ Fija la tabla de seno **4.12 exacta** del original (`libmisc/sintab.c`), generad
 - **Simetría** (`sin(4096−i) = −sin(i)`) y **monotonía** en el primer cuadrante.
 - **Checksum** de regresión (`1083047936`) → fija la tabla byte a byte.
 - **`math2d` la usa** (`sin_q12`/`cos_q12` == `kSinTab`) y un valor concreto (`kSinTab[512]=2896`).
+- **Tipo de muestra genérico** (`SineTable<Amp, Steps, T, Offset>`): `u8` centrada
+  (`Amp=127`, `Offset=128`), `float` con amplitud real (`Amp=1`) y `Fixed<s16,12>` (la 4.12
+  como `Fixed`, a ±1 ulp de la truncada del original).
 
 ## Por qué existe
 
@@ -20,6 +23,10 @@ Taylor con reducción al cuadrante** en doble precisión (`detail::sin_series`).
 el error queda por debajo del umbral de truncado: `SineTable<4096, 4096>` reproduce la tabla
 del original **4096/4096 (0 diferencias)**. La generación es numérica pero determinista
 (evaluada por el compilador).
+
+La conversión de muestra es un punto de extensión (`eng::detail::sine_sample<T>`): los tipos
+aritméticos truncan con `static_cast` (fiel al original); `Fixed` se especializa en
+`fixed_math.hpp` con su cuantizador declarado (`scalar_const`, redondeo).
 
 ## Ejecución
 

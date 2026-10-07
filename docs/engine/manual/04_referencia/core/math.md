@@ -23,7 +23,7 @@ El modo se elige en compilación (`scalar_mode`): *retro16* (`intw = s16`, `real
 | Cabecera | Contenido |
 |---|---|
 | `interp.hpp` | `clamp`, `saturate`, `lerp`, `inv_lerp`, `remap`, `step`, `smoothstep`/`smootherstep`, easings (`interp.hpp:46`). |
-| `sinetable.hpp` | `SineTable<Amp, Steps>`: tabla seno `constexpr` (`sinetable.hpp:61`). |
+| `sinetable.hpp` | `SineTable<Amp, Steps, T, Offset>`: tabla de seno `constexpr` en el tipo de muestra `T` (`sinetable.hpp:81`). |
 | `noise.hpp` | `value_noise1/2/3` + `fbm` con `noise_traits<S>` (`noise.hpp:142`). |
 | `isqrt.hpp` / `inv_sqrt.hpp` | raíz cuadrada entera / 1/√x. |
 | `fast_div.hpp` | división por potencias de dos. |

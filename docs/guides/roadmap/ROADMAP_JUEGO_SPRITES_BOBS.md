@@ -263,7 +263,7 @@ struct TrajectoryFollower {
 void trajectory_advance(const Trajectory&, TrajectoryFollower&, u16 ticks, s16& out_x, s16& out_y);
 ```
 
-**Generadores** (setup/constexpr; la tabla de seno **ya existe**, no se añade otra): `eng/core/math/sinetable.hpp` (`SineTable<Amp, Steps>`, generada en compilación) y `eng/retro/sintab.hpp` (la 4.12 exacta, `kSinTab`); el coseno es la misma tabla con la fase desplazada un cuarto de período.
+**Generadores** (setup/constexpr; la tabla de seno **ya existe**, no se añade otra): `eng/core/math/sinetable.hpp` (`SineTable<Amp, Steps, T, Offset>`, generada en compilación, con la muestra en el tipo que se pida) y `eng/retro/sintab.hpp` (la 4.12 exacta, `kSinTab`); el coseno es la misma tabla con la fase desplazada un cuarto de período.
 
 ```cpp
 u16 gen_line(Span<PathPoint> out, s16 dx, s16 dy, u16 length, u16 ticks_per = 1);
