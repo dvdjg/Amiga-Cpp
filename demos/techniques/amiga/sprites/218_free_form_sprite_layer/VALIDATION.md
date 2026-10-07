@@ -136,6 +136,21 @@ demuestra que el rebote existe y coincide con el original.
   diferencia.
 - Sin parpadeo ni zonas rotas (visión, pases A de ambos binarios).
 
+### 5.1 Arranque por ratón (arreglado durante la validación)
+
+Síntoma reportado: lanzar la demo y hacer clic no arrancaba el efecto. Reproducido: en WinUAE la
+ventana arranca con el ratón **sin capturar** y el clic que la activa/captura puede ser el único
+que llega a la emulación; la lógica inicial (esperar pulsación **y** liberación, como el
+`DBGPause` original) se quedaba esperando un "release" que nunca llegaba. Ahora el efecto arranca
+con la **primera pulsación** (izquierdo, derecho o fuego del joystick). Comprobado con los tres
+caminos:
+
+| Vía | Resultado (diff vs título) |
+|---|---|
+| Clic inyectado por el runner (`--mouse-click-at 5,5`) | **21.7 %** (arranca) |
+| Clic de ratón real en la ventana (host, ventana activada) | **44.5 %** (arranca) |
+| Fuego del joystick (`--joy 0:fire`) | **24.5 %** (arranca) |
+
 ## 6. Deuda declarada
 
 - No se ha hecho una comparación **fotograma a fotograma** del efecto: el instante del clic no es
