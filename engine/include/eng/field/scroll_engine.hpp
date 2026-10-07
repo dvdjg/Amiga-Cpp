@@ -613,7 +613,7 @@ public:
             const u16 cols = sn.bitmap_blocks_per_row();
             const u16 c0 = (k * cols) >> 4u;
             const u16 c1 = ((k + 1u) * cols) >> 4u;
-            const u32 y_pl = r_dh_signed(sn, mapy_s * ths) * planes(sn);
+            const u32 y_pl = r_dh_signed(sn, wrapped * ths) * planes(sn);
             for (u16 c = c0; c < c1; ++c) {
                 if (!sn.add_draw(plan, c * tw(sn), y_pl, c, mapy)) return false;
             }
@@ -721,9 +721,10 @@ public:
             const u16 cols = sn.bitmap_blocks_per_row();
             const u16 c0 = (k * cols) >> 4u;
             const u16 c1 = ((k + 1u) * cols) >> 4u;
-            // Fila del anillo fija para toda la fila: r_dh(fila de mapa * tile_height)
-            // con módulo con signo (constante mientras `mapy_s` no cambie).
-            const u32 y_pl = r_dh_signed(sn, mapy_s * ths) * planes(sn);
+            // Fila del anillo de la fila ENVUELTA (no de la posición signed): el anillo
+            // se indexa por fila de mapa (mapy*16 mod display_height); con la fila sin
+            // envolver (p. ej. -1) el tile de la 127 iría al bloque de la 14.
+            const u32 y_pl = r_dh_signed(sn, wrapped * ths) * planes(sn);
             for (u16 c = c0; c < c1; ++c) {
                 if (!sn.add_draw(plan, c * tw(sn), y_pl, c, mapy)) return false;
             }

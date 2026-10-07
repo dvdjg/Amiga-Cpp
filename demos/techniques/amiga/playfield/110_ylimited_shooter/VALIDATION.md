@@ -137,11 +137,20 @@ visual del conjunto; el modelo no sustituye la mirada del agente (§6.4/§6.5 de
 
 **Scroll infinito (toroide).** El mapa se enrolla en Y (`scene_cfg.map.wrap_y = kMapRows`): la fila
 -1 es la 127 y la posición de scroll no se reinicia (el motor mantiene `videoposy` módulo del anillo
-y envuelve solo la fila de mapa, `scroll_engine.hpp`). Verificado con captura de 100 frames
-(f0008–f0107) alrededor del cruce: sin teleport, sin bandas ni glitches; check objetivo nuevo
-`tools/analyze/check-alternating-bands.mjs` → **OK** (100 frames, 36 bandas, 0 alternancias).
-Comparativa de modelos de visión (misma ventana): qwen3-vl (preferido) vs gemma3:12b (más verboso,
-inventa movimientos) — §6.4.1 de `DEMO_VISUAL_DEBUG.md`.
+y envuelve solo la fila de mapa, `scroll_engine.hpp`). **Corregido (tiles corruptos al enrollar):**
+la fila del anillo se calculaba con la fila *sin envolver* (`mapy_s = -1` → bloque 14) en vez de la
+*envuelta* (127 → bloque 7), pintando los tiles del toroide en el bloque equivocado; ahora
+`y_pl = r_dh(wrapped * tile_height)` en ambas ramas (up/down). Comparativa de modelos de visión
+(qwen3-vl preferido; gemma3:12b inventa movimientos) — §6.4.1 de `DEMO_VISUAL_DEBUG.md`.
+
+**GLITCH DE ENVOLTURA — ABIERTO (bloqueante #1).** La pasada de 100 frames de la demo completa
+(f0011–f0110, mapa real + FG) muestra **f0082–f0088 corruptos** (frames sin mapa, uno negro y una
+línea roja vertical) en cada ciclo del anillo; `check-alternating-bands` → FAIL. Causa probable: el
+cambio de estructura de la copperlist (presencia del WAIT del split) fuerza re-emitir ambos bloques
+(~2×63k) en un frame ya cargado y la instalación/punteros quedan mal varios frames. Un intento de
+«emitir el WAIT siempre (aparcado en 0xf8)» empeoró (negro alterno persistente) y se revirtió.
+Siguiente paso: volcar la copperlist en los frames del cruce por canal lateral y corregir el camino
+de toggle con evidencia.
 
 **FG: rediseño de objetos (torreta con forma y movimiento) e investigación de coste.** La torreta
 enemiga ya no es un cuadrado: base, cuerpo, cúpula y ojo (4 rects) + **vaivén** horizontal (24..120
