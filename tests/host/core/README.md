@@ -87,3 +87,4 @@ Categoría `core` de la batería host (L1). El índice de categorías está en [
 | HOST-380 | [lloyd_max](380_lloyd_max/README.md) | `eng/core/util/quantizer.hpp`: entrenamiento Lloyd-Max sin heap con `float` y `Fixed<s32,16>`. |
 | HOST-393 | [dynamic_string](393_dynamic_string/README.md) | `eng/core/util/dynamic_string.hpp`: crecimiento con asignador explícito, auto-append seguro ante realocación y fallo de reserva. |
 | HOST-414 | [lifecycle_index_list](414_lifecycle_index_list/README.md) | `util/noncopyable.hpp` (`Noncopyable`/`NonMovable`) y `util/index_list.hpp` (`IndexList<Index,Null>`): ciclo de vida sin `= delete` repetido y lista doble por índices compartiendo `prev`/`next`. |
+| HOST-431 | [sequence](431_sequence/README.md) | Secuenciador genérico (F8): `eng/core/util/sequence.hpp` — `KeyTrack` (claves con `Ease`, con `float` y `Fixed<s16,12>`), `EventTrack`, `Sequence` y `SequenceRunner` (ventanas de eventos, fin, loop y `seek`). |

@@ -32,6 +32,7 @@
 #include <eng/graphics/raster_intent.hpp>
 #include <eng/graphics/sprite.hpp>
 #include <eng/graphics/sprite_allocator.hpp>
+#include <eng/graphics/sprite_manager.hpp>
 #include <eng/scene/actor.hpp>
 #include <eng/scene/representation.hpp>
 
@@ -97,9 +98,19 @@ public:
 	}
 
 	/// Colocaciones de sprite hardware del **último** `emit` (válidas las `result().sprites`
-	/// primeras). El juego las aplica a su `SpriteManager` (o `Screen`).
+	/// primeras). Para el caso normal el juego no las necesita: usa `present`.
 	[[nodiscard]] eng::Span<const eng::scene::HwSpritePlacement> placements() const noexcept {
 		return eng::Span<const eng::scene::HwSpritePlacement> {m_placements, m_result.sprites};
+	}
+
+	/// **Publica los Sprite HW del frame** en la copperlist: primera config de cada canal en
+	/// `arm_line` (línea temprana) + rearmes verticales del multiplexado, con la paleta por
+	/// franja de las plantillas si la hay. Una sola llamada por frame tras `emit`; el juego
+	/// no toca placements, canales ni `SpriteManager`.
+	template <class Sched>
+	void present(Sched& sched, eng::u16 arm_line = 32u) const noexcept {
+		eng::graphics::SpriteManager::emit_placements_into(sched, placements(), arm_line,
+								  palette_events());
 	}
 	/// Intenciones de Copper del **último** `emit` (válidas las `result().copper` primeras):
 	/// necesidades ancladas de los actores. Se materializan por el `Plan` de Copper del
