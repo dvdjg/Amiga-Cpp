@@ -895,10 +895,17 @@ private:
 	}
 	static void stream_one(void* ctx, const void* a, const void* b, void* d, u8 shift) {
 		auto* self = static_cast<App*>(ctx);
-		if constexpr (requires(Backend& bb, const void* p, void* q) {
-				      bb.blitter_blob_run_one(p, p, q, u8{});
+		if constexpr (requires(Backend& bb, graphics::BlitPtr p) {
+				      bb.blitter_blob_run_one(p, p, p, u8{});
 			      }) {
-			self->m_backend.blitter_blob_run_one(a, b, d, shift);
+			// La racha `BlitStream` cruza punteros crudos (interfaz type-erased; migración
+			// pendiente). Aquí es la frontera declarada hacia `BlitPtr`: los búferes del
+			// `Screen` ya viven en Chip.
+			self->m_backend.blitter_blob_run_one(
+				graphics::BlitPtr::from_storage(static_cast<const u16*>(a)),
+				graphics::BlitPtr::from_storage(static_cast<const u16*>(b)),
+				graphics::BlitPtr::from_storage(static_cast<const u16*>(d)),
+				shift);
 		}
 	}
 	static bool stream_end(void* ctx) {

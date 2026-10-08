@@ -279,9 +279,12 @@ struct Bobs3DDemo {
 
 		build_bob_sheet();
 		copy_bob_dense();
+		// Punteros de frame tipados (Chip): el atlas denso vive en un bloque `MemBank<Chip>`,
+		// así que `BlitPtr` lo certifica sin fronteras crudas.
 		for (u8 f = 0; f < kBobFrames; ++f) {
-			m_frame_src[f] = m_bob_dense_block.view.data() +
-					 static_cast<u32>(f) * kBobDenseFrame;
+			m_frame_src[f] = eng::graphics::BlitPtr {
+				m_bob_dense_block.mem_view_chip(),
+				static_cast<eng::s32>(static_cast<eng::u32>(f) * kBobDenseFrame)};
 		}
 #if K_117_BG
 		copy_carrion();
@@ -344,12 +347,12 @@ struct Bobs3DDemo {
 #if K_117_BOBS && K_117_BATCH && K_117_FUSE
 		// Pase fusionado: proyecta y estampa en el mismo bucle (solapa transform <-> Blitter).
 		P_BEGIN(kProfBlits);
-		project_and_draw_stream(backend, screen.data());
+		project_and_draw_stream(backend, eng::graphics::BlitPtr {eng::as_chip(screen)});
 		P_END(kProfBlits);
 #elif K_117_BOBS && K_117_BATCH
 		// Fusor: calculo del vertice + programacion del blit en el mismo bucle.
 		P_BEGIN(kProfBlits);
-		draw_bobs_stream(backend, screen.data());
+		draw_bobs_stream(backend, eng::graphics::BlitPtr {eng::as_chip(screen)});
 		P_END(kProfBlits);
 #else
 		P_BEGIN(kProfDraw);
@@ -408,10 +411,10 @@ private:
 
 	/// Calcula el vertice y lanza su BOB en el MISMO bucle (estructura de `DrawObject`),
 	/// via el lote en streaming del backend: sin array intermedio.
-	void draw_bobs_stream(eng::amiga::AmigaBackend& backend, u8* screen) {
+	void draw_bobs_stream(eng::amiga::AmigaBackend& backend, eng::graphics::BlitPtr screen) {
 		const auto pts = m_object.points();
 		eng::amiga::OrBlobBatch batch;
-		batch.begin(backend.custom_registers(), kBobWords, K_117_BLITROWS, 0, kBobDestModulo);
+		batch.begin(backend.custom_regs(), kBobWords, K_117_BLITROWS, 0, kBobDestModulo);
 		u32 drawn = 0;
 		for (auto it = pts.begin(); it != pts.end(); ++it) {
 			if (drawn >= static_cast<u32>(K_117_MAXBLOBS)) {
@@ -454,12 +457,12 @@ private:
 	/// estampa el N: se solapa el transform (que corria con el Blitter parado) con el tramo
 	/// activo del Blitter. Misma salida que `transform_all_vertices` + `draw_bobs_stream` (no
 	/// hace falta escribir el array `vertex`).
-	void project_and_draw_stream(eng::amiga::AmigaBackend& backend, u8* screen) {
+	void project_and_draw_stream(eng::amiga::AmigaBackend& backend, eng::graphics::BlitPtr screen) {
 		using Proj = eng::math::projector<eng::math3d::Affine3<>>;
 		const Proj::cache pc = Proj::make(m_object.objectToWorld);
 		const auto pts = m_object.points();
 		eng::amiga::OrBlobBatch batch;
-		batch.begin(backend.custom_registers(), kBobWords, K_117_BLITROWS, 0, kBobDestModulo);
+		batch.begin(backend.custom_regs(), kBobWords, K_117_BLITROWS, 0, kBobDestModulo);
 		u32 drawn = 0;
 		for (auto it = pts.begin(); it != pts.end(); ++it) {
 			if (drawn >= static_cast<u32>(K_117_MAXBLOBS)) {
@@ -626,7 +629,7 @@ private:
 	eng::Block<eng::CopperTag> m_copper_block {};
 	const u16* m_copper_ptrs[kRing] = {nullptr, nullptr};
 	graphics::FramePlan m_plan {};
-	const u8* m_frame_src[kBobFrames] {};
+	eng::graphics::BlitPtr m_frame_src[kBobFrames] {};
 	obj::Object3D m_object {};
 };
 

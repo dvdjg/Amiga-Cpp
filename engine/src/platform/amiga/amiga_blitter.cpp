@@ -52,11 +52,11 @@ bool same_clear_state(const eng::graphics::BlitJob& a, const eng::graphics::Blit
 bool execute_clear_run(const eng::graphics::FramePlan& plan, u8 from, u8 to) {
 	const eng::graphics::BlitJob& f = plan.blit_job(from);
 	BlobBatch batch;
-	batch.begin(custom_base, BlobOp::Clear, f.words_per_row, f.height, 0, 0, 0,
-		    f.destination_modulo_bytes, g_blitter_service, g_blitter_service_user);
+	batch.begin(eng::amiga::CustomRegs::instance(), BlobOp::Clear, f.words_per_row, f.height, 0,
+		    0, 0, f.destination_modulo_bytes, g_blitter_service, g_blitter_service_user);
 	for (u8 i = from; i < to; ++i) {
 		const eng::graphics::BlitJob& j = plan.blit_job(i);
-		batch.one(nullptr, nullptr, j.destination.words(), 0u);
+		batch.one(eng::graphics::BlitPtr {}, eng::graphics::BlitPtr {}, j.destination, 0u);
 	}
 	return batch.end();
 }
@@ -67,14 +67,12 @@ bool execute_clear_run(const eng::graphics::FramePlan& plan, u8 from, u8 to) {
 bool execute_masked_run(const eng::graphics::FramePlan& plan, u8 from, u8 to) {
 	const eng::graphics::BlitJob& f = plan.blit_job(from);
 	BlobBatch batch;
-	batch.begin(custom_base, BlobOp::CookieCut, f.words_per_row, f.height,
-		    f.source_modulo_bytes, f.source_modulo_bytes,
-		    f.destination_modulo_bytes, f.destination_modulo_bytes,
-		    g_blitter_service, g_blitter_service_user);
+	batch.begin(eng::amiga::CustomRegs::instance(), BlobOp::CookieCut, f.words_per_row, f.height,
+		    f.source_modulo_bytes, f.source_modulo_bytes, f.destination_modulo_bytes,
+		    f.destination_modulo_bytes, g_blitter_service, g_blitter_service_user);
 	for (u8 i = from; i < to; ++i) {
 		const eng::graphics::BlitJob& j = plan.blit_job(i);
-		batch.one(j.mask.words(), j.source.words(), j.destination.words(),
-			  static_cast<eng::u8>(j.source_shift));
+		batch.one(j.mask, j.source, j.destination, static_cast<eng::u8>(j.source_shift));
 	}
 	return batch.end();
 }
@@ -852,10 +850,12 @@ void AmigaBackend::blitter_or_bobs_begin(u16 words, u16 height, s16 source_modul
 					   s16 dest_modulo) {
 	// Misma implementacion que el camino `inline` de coste cero (blob.hpp): una sola
 	// fuente de verdad para la secuencia de registros.
-	m_or_bob.begin(custom_base, words, height, source_modulo, dest_modulo);
+	m_or_bob.begin(eng::amiga::CustomRegs::instance(), words, height, source_modulo,
+		       dest_modulo);
 }
 
-void AmigaBackend::blitter_or_bobs_one(const void* source, void* dest, u8 shift) {
+void AmigaBackend::blitter_or_bobs_one(eng::graphics::BlitPtr source, eng::graphics::BlitPtr dest,
+				       u8 shift) {
 	m_or_bob.one(source, dest, shift);
 }
 
@@ -865,12 +865,13 @@ bool AmigaBackend::blitter_or_bobs_end() {
 
 void AmigaBackend::blitter_blob_run_begin(eng::amiga::BlobOp op, u16 words, u16 height, s16 amod,
 					  s16 bmod, s16 cmod, s16 dmod) {
-	m_blob_run.begin(custom_base, op, words, height, amod, bmod, cmod, dmod, g_blitter_service,
-			 g_blitter_service_user);
+	m_blob_run.begin(eng::amiga::CustomRegs::instance(), op, words, height, amod, bmod, cmod,
+			 dmod, g_blitter_service, g_blitter_service_user);
 	m_blt_common_valid = false; // el lote programó los registros comunes directamente
 }
 
-void AmigaBackend::blitter_blob_run_one(const void* a, const void* b, void* d, u8 shift) {
+void AmigaBackend::blitter_blob_run_one(eng::graphics::BlitPtr a, eng::graphics::BlitPtr b,
+					eng::graphics::BlitPtr d, u8 shift) {
 	m_blob_run.one(a, b, d, shift);
 }
 
@@ -895,8 +896,19 @@ bool AmigaBackend::blitter_strip_column(const void* src, void* dst, u16 words, s
 		const eng::u16 h = static_cast<eng::u16>((planelines - done) > 1024u ? 1024u
 									     : (planelines - done));
 		blitter_blob_run_begin(eng::amiga::BlobOp::Opaque, words, h, 0, 0, 0, dmod);
-		blitter_blob_run_one(s + static_cast<eng::u32>(done) * src_stride, nullptr,
-				     d + static_cast<eng::u32>(done) * dst_stride, shift);
+		// Frontera declarada: esta API aún recibe punteros crudos (el `Sink` de
+		// `field/strip_scroller.hpp` no está tipado; migración pendiente). El búfer de la
+		// columna ya vive en Chip (lo reserva el juego) y `BlitPtr` solo lo certifica.
+		blitter_blob_run_one(eng::graphics::BlitPtr::from_storage(
+					     reinterpret_cast<const eng::u16*>(s +
+									       static_cast<eng::u32>(done) *
+										       src_stride)),
+				     eng::graphics::BlitPtr {},
+				     eng::graphics::BlitPtr::from_storage(
+					     reinterpret_cast<const eng::u16*>(d +
+									       static_cast<eng::u32>(done) *
+										       dst_stride)),
+				     shift);
 		if (!blitter_blob_run_end()) {
 			return false;
 		}
@@ -912,7 +924,14 @@ bool AmigaBackend::blitter_or_bobs(const OrBobEntry* entries, u32 count, u16 wor
 	}
 	blitter_or_bobs_begin(words, height, source_modulo, dest_modulo);
 	for (u32 i = 0; i < count; ++i) {
-		blitter_or_bobs_one(entries[i].source, entries[i].dest, entries[i].shift);
+		// Frontera declarada: `graphics::OrBob` aún lleva punteros crudos (migración
+		// pendiente); el llamador ya garantiza Chip (atlas/frames en bloques DMA).
+		blitter_or_bobs_one(
+			eng::graphics::BlitPtr::from_storage(
+				static_cast<const eng::u16*>(entries[i].source)),
+			eng::graphics::BlitPtr::from_storage(
+				static_cast<const eng::u16*>(entries[i].dest)),
+			entries[i].shift);
 	}
 	return blitter_or_bobs_end();
 }

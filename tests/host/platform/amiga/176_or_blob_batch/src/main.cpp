@@ -1,12 +1,15 @@
 // Test host de eng::amiga::OrBlobBatch (secuencia de registros del lote de BOBs OR
-// intercalado portada de `DrawObject` de bobs3d). El lote es host-testable porque la base
-// de registros se inyecta como parametro: aqui se pasa un array local.
+// intercalado portada de `DrawObject` de bobs3d). El lote es host-testable porque el bloque
+// de registros se inyecta **tipado** (`CustomRegs::from_storage` sobre un array local) y los
+// punteros de Blitter son `BlitPtr` (direccion Chip). Los pares de punteros se escriben con
+// una unica escritura nativa de 32 bits y se leen nativas (el mock es RAM del host).
 #include <eng/platform/amiga/blob.hpp>
 
 #include <cstdio>
 
+using eng::amiga::CustomRegs;
 using eng::amiga::OrBlobBatch;
-using Reg = volatile eng::u16;
+using eng::graphics::BlitPtr;
 
 // Offsets (en palabras) de los registros custom que programa el lote. Deben coincidir
 // con las constantes privadas de `blob.hpp` (0x040/2, 0x096/2, ...).
@@ -32,11 +35,16 @@ static void check(bool ok, const char* msg) {
 	}
 }
 
-static eng::u32 rd32(Reg* r, eng::u16 word) {
+static eng::u32 rd32(volatile eng::u16* r, eng::u16 word) {
 	return *reinterpret_cast<volatile eng::u32*>(&r[word]);
 }
 
-static Reg regs[0x100] {};
+/// Puntero de prueba: direccion fija en Chip (frontera declarada del test host).
+static BlitPtr chip_ptr(eng::uintptr addr) {
+	return BlitPtr {eng::Address<eng::MemoryKind::Chip> {addr}};
+}
+
+static volatile eng::u16 regs[0x100] {};
 
 // Servicio de espera de prueba: cuenta las vueltas y, a la 3.a, simula que el Blitter acaba
 // bajando BBUSY. Verifica que `wait()` drena el fondo en vez de perder ciclos en el sondeo.
@@ -52,9 +60,10 @@ static void drain_stub(void*, eng::u16 vpos) {
 
 int main() {
 	OrBlobBatch batch;
+	const CustomRegs cregs = CustomRegs::from_storage(regs);
 
 	// begin: fija las constantes del lote una sola vez.
-	batch.begin(regs, 3, 96, /*amod=*/0, /*dmod=*/26);
+	batch.begin(cregs, 3, 96, /*amod=*/0, /*dmod=*/26);
 	check(regs[kDmacon] == static_cast<eng::u16>(0x8000u | 0x0200u | 0x0040u),
 	      "DMACON = SET de MASTER|BLITTER (no toca BLTPRI)");
 	check(regs[kBltcon1] == 0, "BLTCON1 = 0 (sin BSH; leccion de bobs3d)");
@@ -64,9 +73,9 @@ int main() {
 	check(regs[kBltsize] == 0, "begin no programa BLTSIZE");
 
 	// one: un BOB con desplazamiento fino. Comprobamos el valor del puntero (extremo a
-	// extremo, sin depender del orden de palabras) y el resto de campos.
-	const void* src = reinterpret_cast<const void*>(static_cast<eng::uintptr>(0x12345000u));
-	void* dst = reinterpret_cast<void*>(static_cast<eng::uintptr>(0x00abcd00u));
+	// extremo) y el resto de campos.
+	const BlitPtr src = chip_ptr(0x12345000u);
+	const BlitPtr dst = chip_ptr(0x00abcd00u);
 	batch.one(src, dst, 5u);
 
 	const eng::u16 expected_con0 =
@@ -89,7 +98,7 @@ int main() {
 	// hasta que el Blitter (simulado) lo baja. El servicio se registra en `begin`.
 	regs[kDmaconr] = 0x4000u; // Blitter "ocupado"
 	g_drained = 0;
-	batch.begin(regs, 3, 96, /*amod=*/0, /*dmod=*/26, drain_stub, nullptr);
+	batch.begin(cregs, 3, 96, /*amod=*/0, /*dmod=*/26, drain_stub, nullptr);
 	batch.end();
 	check(g_drained == 3, "wait() drena el servicio de fondo hasta que BBUSY baja");
 	check((regs[kDmaconr] & 0x4000u) == 0u, "BBUSY queda bajo (el Blitter 'acabo')");

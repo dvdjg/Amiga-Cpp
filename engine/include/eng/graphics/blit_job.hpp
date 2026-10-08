@@ -104,6 +104,14 @@ struct BlitPtr {
 	[[nodiscard]] constexpr const u16* cwords() const noexcept {
 		return reinterpret_cast<const u16*>(addr.cptr());
 	}
+	/// Avanza la dirección `off` **bytes** (mismo banco y rol): como `Address<Chip>::operator+`.
+	/// El offset conserva su tipo dentro de la expresión (GCC puede usar direccionamiento
+	/// indexado de 16 bits cuando cabe en `s16`/`s8`).
+	template <class Off>
+		requires eng::util::is_integral_v<Off>
+	[[nodiscard]] constexpr BlitPtr operator+(Off off) const noexcept {
+		return BlitPtr {addr + off};
+	}
 };
 
 /// Trabajo planar de Blitter.

@@ -474,6 +474,14 @@ private:
 	// ------------------------------------------------------------------
 	// Utilidades de memoria (CPU)
 	// ------------------------------------------------------------------
+	/// **Frontera declarada** hacia el Blitter: los buffers de trabajo de la demo viven en
+	/// bloques `MemBank<Chip>` (ver `init`), así que este es el punto único donde un puntero
+	/// de trabajo se eleva a `graphics::BlitPtr`. El API del backend ya no acepta punteros
+	/// crudos: sin este paso no compila (la memoria DMA viaja tipada por banco).
+	[[nodiscard]] static eng::graphics::BlitPtr dma(const void* p) noexcept {
+		return eng::graphics::BlitPtr::from_storage(static_cast<const eng::u16*>(p));
+	}
+
 	static void copy_bytes(u8* dst, const u8* src, u32 bytes) {
 		for (u32 i = 0; i < bytes; ++i) { dst[i] = src[i]; }
 	}
@@ -639,7 +647,8 @@ private:
 		backend.blitter_blob_run_begin(eng::graphics::BlobOp::Clear, kBufMod, kFgClearRows,
 					       0, 0, 0, 0);
 		for (u8 i = 0; i < 3u; ++i) {
-			backend.blitter_blob_run_one(nullptr, nullptr, m_fg[i].view.data(), 0u);
+			backend.blitter_blob_run_one(eng::graphics::BlitPtr {}, eng::graphics::BlitPtr {},
+						     dma(m_fg[i].view.data()), 0u);
 		}
 		backend.blitter_blob_run_end();
 	}
@@ -754,8 +763,8 @@ private:
 			for (u16 row = 0; row < 14u; ++row) {
 				const u16 tile = map[row * kBgTileRowWords];
 				const u8* src = m_bg_tiles + static_cast<u32>(tile) * kBgTileBytes;
-				backend.blitter_blob_run_one(src, src,
-							     dst + static_cast<u32>(row) * 32u, 0u);
+				backend.blitter_blob_run_one(dma(src), dma(src),
+							     dma(dst + static_cast<u32>(row) * 32u), 0u);
 			}
 			backend.blitter_blob_run_end();
 			offset = static_cast<u16>(offset + 1u);
@@ -790,8 +799,10 @@ private:
 				const u16 tile = map[row * kBgTileRowWords];
 				const u8* tile_src = m_bg_tiles + static_cast<u32>(tile) * kBgTileBytes;
 				u16* row_dst = dst + static_cast<u32>(row) * 16u * kLineWords;
-				backend.blitter_blob_run_one(tile_src + 2u, tile_src + 2u, row_dst, 0u);
-				backend.blitter_blob_run_one(tile_src + 0u, tile_src + 0u, row_dst + 2u, 0u);
+				backend.blitter_blob_run_one(dma(tile_src + 2u), dma(tile_src + 2u),
+							     dma(row_dst), 0u);
+				backend.blitter_blob_run_one(dma(tile_src), dma(tile_src),
+							     dma(row_dst + 2u), 0u);
 			}
 			backend.blitter_blob_run_end();
 			offset = static_cast<u16>(offset + 1u);
@@ -851,7 +862,7 @@ private:
 		backend.blitter_blob_run_begin(eng::graphics::BlobOp::Opaque, 2u, 32u, 0, 0, 0,
 					       kBufMod - 4u);
 		for (u8 i = 0; i < 3u; ++i) {
-			backend.blitter_blob_run_one(src, src, m_fg[i].view.data() + dest, 0u);
+			backend.blitter_blob_run_one(dma(src), dma(src), dma(m_fg[i].view.data() + dest), 0u);
 		}
 		backend.blitter_blob_run_end();
 	}
@@ -866,7 +877,7 @@ private:
 		for (u16 i = 0; i < kSbTiles; ++i) {
 			const u16 tile = kSbTileMap[i];
 			const u8* src = m_sb_tiles + static_cast<u32>(tile) * kSbTileBytes;
-			backend.blitter_blob_run_one(src, src, dst, 0u);
+			backend.blitter_blob_run_one(dma(src), dma(src), dma(dst), 0u);
 			dst += 1u; // el tile avanza 1 palabra (16 px)
 		}
 		backend.blitter_blob_run_end();
@@ -886,11 +897,13 @@ private:
 		if (entries[0].dst != nullptr) {
 			backend.blitter_blob_run_begin(eng::graphics::BlobOp::Opaque, 15u, 128u, 14, 14,
 						       14, 14);
-			backend.blitter_blob_run_one(entries[0].src, entries[0].src, entries[0].dst, 0u);
+			backend.blitter_blob_run_one(dma(entries[0].src), dma(entries[0].src),
+						     dma(entries[0].dst), 0u);
 			backend.blitter_blob_run_end();
 			backend.blitter_blob_run_begin(eng::graphics::BlobOp::Opaque, 12u, 128u, 20, 20,
 						       20, 20);
-			backend.blitter_blob_run_one(entries[1].src, entries[1].src, entries[1].dst, 0u);
+			backend.blitter_blob_run_one(dma(entries[1].src), dma(entries[1].src),
+						     dma(entries[1].dst), 0u);
 			backend.blitter_blob_run_end();
 		}
 
@@ -922,7 +935,8 @@ private:
 			// y*176 + (x>>3): sin multiplicación (176 = 16+32+128).
 			const u32 off = static_cast<u32>(y) * kFgMod + (x >> 3u);
 			u8* dst = m_fg[buf].view.data() + scroll + off;
-			backend.blitter_blob_run_one(m_masks, m_bobs, dst, static_cast<u8>(x & 0x0fu));
+			backend.blitter_blob_run_one(dma(m_masks), dma(m_bobs), dma(dst),
+						     static_cast<u8>(x & 0x0fu));
 			x = static_cast<u16>(x + 24u);
 		}
 		backend.blitter_blob_run_end();

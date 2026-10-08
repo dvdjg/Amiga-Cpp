@@ -378,10 +378,10 @@ public:
 				 eng::playfield::RasterPolicy {mode, min_px, true});
 	}
 
-	/// Base de registros custom (`$dff000`). Para rutinas de lote `inline` (p. ej.
-	/// `eng::amiga::OrBlobBatch`) que programan hardware sin un `jsr` por objeto.
-	volatile u16* custom_registers() const {
-		return reinterpret_cast<volatile u16*>(0xdff000);
+	/// Bloque de registros custom (`$DFF000`) **tipado**. Para rutinas de lote `inline`
+	/// (p. ej. `eng::amiga::OrBlobBatch`) que programan hardware sin un `jsr` por objeto.
+	[[nodiscard]] eng::amiga::CustomRegs custom_regs() const noexcept {
+		return eng::amiga::CustomRegs::instance();
 	}
 
 	/// Rellena triangulos planos con el **Blitter**: por cada triangulo dibuja el
@@ -564,7 +564,8 @@ public:
 	///   blitter_or_bobs_end();
 	void blitter_or_bobs_begin(u16 words, u16 height, s16 source_modulo, s16 dest_modulo);
 	/// Lanza UN BOB (espera al anterior, escribe `BLTCON0` OR + `APT/BPT/DPT` + start).
-	void blitter_or_bobs_one(const void* source, void* dest, u8 shift);
+	/// `source`/`dest` son `graphics::BlitPtr` (Chip RAM).
+	void blitter_or_bobs_one(eng::graphics::BlitPtr source, eng::graphics::BlitPtr dest, u8 shift);
 	/// Espera al ultimo BOB. `false` si el Blitter no responde.
 	bool blitter_or_bobs_end();
 
@@ -576,7 +577,10 @@ public:
 	/// ni copia**. `op` = `eng::amiga::BlobOp::{Or,CookieCut,Opaque,Clear}`.
 	void blitter_blob_run_begin(eng::amiga::BlobOp op, u16 words, u16 height, s16 amod, s16 bmod,
 				    s16 cmod, s16 dmod);
-	void blitter_blob_run_one(const void* a, const void* b, void* d, u8 shift);
+	/// `a`/`b`/`d` son `graphics::BlitPtr` (dirección DMA en Chip RAM): un `void*` suelto no
+	/// compila (ver `INTERNAL_TYPE_SYSTEM.md` §3.5).
+	void blitter_blob_run_one(eng::graphics::BlitPtr a, eng::graphics::BlitPtr b,
+				  eng::graphics::BlitPtr d, u8 shift);
 	/// Fija las ventanas de máscara (`BLTAFWM`/`BLTALWM`) de la racha en curso. Uso típico:
 	/// `blitter_blob_run_masks(0xffff, 0x0000)` para los BOBs de 3 palabras con desplazamiento
 	/// (descarta la tercera palabra; ver `BlobBatch::set_window_masks`).
@@ -702,7 +706,7 @@ public:
 	bool composition_playback_begin() noexcept {
 		if (m_audio.sfx().ready() || m_audio.music_playing() || m_composition_playing) return false;
 		m_paula.silence();
-		custom_registers()[0x09cu / 2u] = 0x0780u;
+		custom_regs().word(0x09cu / 2u) = 0x0780u;
 		m_composition_playing = true;
 		return true;
 	}

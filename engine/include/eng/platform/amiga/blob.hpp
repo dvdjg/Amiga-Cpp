@@ -12,17 +12,20 @@
 /// ciclos/objeto).
 ///
 /// Es una cabecera de **plataforma** (igual que `object3d.hpp`) y expone registros custom
-/// a proposito: es la frontera unsafe del backend. El puntero se obtiene con
-/// `AmigaBackend::custom_registers()`.
+/// a proposito: es la frontera unsafe del backend. El bloque de registros se pide tipado con
+/// `CustomRegs::instance()` (o `AmigaBackend::custom_regs()`), y los punteros de Blitter con
+/// `graphics::BlitPtr` (direccion DMA en Chip RAM; un `void*` suelto no compila).
 ///
 /// Uso:
 ///   eng::amiga::OrBlobBatch batch;
-///   batch.begin(backend.custom_registers(), words, height, amod, dmod);
-///   for (cada objeto) batch.one(src, dst, shift);
+///   batch.begin(backend.custom_regs(), words, height, amod, dmod);
+///   for (cada objeto) batch.one(src, dst, shift);   // BlitPtr
 ///   batch.end();
 
 #include <eng/core/types/types.hpp>
+#include <eng/graphics/blit_job.hpp>
 #include <eng/graphics/blitter_state.hpp>
+#include <eng/platform/amiga/custom_regs.hpp>
 
 namespace eng::amiga {
 
@@ -30,8 +33,6 @@ namespace eng::amiga {
 /// (sin estado global). Todos los metodos son `always_inline`.
 class OrBlobBatch {
 public:
-	using Reg = volatile eng::u16;
-
 	/// Espera de Blitter con **servicio de fondo opcional**: si se pasa `wait_fn`, se llama
 	/// `wait_fn(user, vpos)` en cada vuelta del sondeo a BBUSY (igual que
 	/// `AmigaBackend::wait_blitter`), de modo que las tareas de fondo avanzan en vez de ser tiempo
@@ -39,43 +40,40 @@ public:
 	/// `AmigaBackend::blitter_wait_service()`.
 	using WaitFn = void (*)(void*, eng::u16);
 
-	/// Fija las constantes del lote. `custom` = base de registros $dff000.
-	__attribute__((always_inline)) inline void begin(Reg* custom, eng::u16 words,
+	/// Fija las constantes del lote. `regs` = bloque de registros custom tipado.
+	__attribute__((always_inline)) inline void begin(CustomRegs regs, eng::u16 words,
 							 eng::u16 height, eng::s16 amod,
 							 eng::s16 dmod, WaitFn wait_fn = nullptr,
 							 void* wait_user = nullptr) {
-		c = custom;
+		regs_ = regs;
 		wait_fn_ = wait_fn;
 		wait_user_ = wait_user;
-		// DMACON: SET de MASTER + BLITTER. No toca BLTPRI (lo fija el copper), que
-		// hace que el Blitter no ceda slots a la CPU (mismo efecto que el original).
-		c[kDmacon] = static_cast<eng::u16>(0x8000u | 0x0200u | 0x0040u);
+		// Espera primero (por si el lote anterior dejó blits vivos) y habilita después el
+		// DMA de Blitter: SET de MASTER + BLITTER, sin tocar BLTPRI (lo gestiona la propia
+		// espera: nasty alrededor del sondeo).
 		wait();
+		regs_.word(kDmacon) = static_cast<eng::u16>(0x8000u | 0x0200u | 0x0040u);
 		con0 = static_cast<eng::u16>(kUseA | kUseB | kUseD | kMintermAOrB);
 		size = static_cast<eng::u16>((static_cast<eng::u16>(height) << 6u) | words);
-		c[kBltcon1] = 0;
-		c[kBltafwm] = 0xffff;
-		c[kBltalwm] = 0xffff;
-		c[kBltamod] = static_cast<eng::u16>(amod);
-		c[kBltbmod] = static_cast<eng::u16>(dmod);
-		c[kBltdmod] = static_cast<eng::u16>(dmod);
+		regs_.word(kBltcon1) = 0;
+		regs_.word(kBltafwm) = 0xffff;
+		regs_.word(kBltalwm) = 0xffff;
+		regs_.word(kBltamod) = static_cast<eng::u16>(amod);
+		regs_.word(kBltbmod) = static_cast<eng::u16>(dmod);
+		regs_.word(kBltdmod) = static_cast<eng::u16>(dmod);
 	}
 
-	/// Lanza UN objeto (espera al anterior antes de reprogramar los punteros).
-	__attribute__((always_inline)) inline void one(const void* source, void* dest,
-						       eng::u8 shift) {
+	/// Lanza UN objeto (espera al anterior antes de reprogramar los punteros). `source`/`dest`
+	/// son `graphics::BlitPtr` (Chip RAM).
+	__attribute__((always_inline)) inline void one(eng::graphics::BlitPtr source,
+						       eng::graphics::BlitPtr dest, eng::u8 shift) {
 		wait();
 		const eng::u16 s = static_cast<eng::u16>(static_cast<eng::u16>(shift & 0x0fu) << 12u);
-		c[kBltcon0] = static_cast<eng::u16>(s | con0);
-		// En Amiga `uintptr` es 32 bits (el `static_cast` es exacto); en host 64 bits se
-		// estrecha a la direccion de 32 bits (los punteros del test caben).
-		*reinterpret_cast<volatile eng::u32*>(&c[kBltapt]) =
-			static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(source));
-		*reinterpret_cast<volatile eng::u32*>(&c[kBltbpt]) =
-			static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(dest));
-		*reinterpret_cast<volatile eng::u32*>(&c[kBltdpt]) =
-			static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(dest));
-		c[kBltsize] = size;
+		regs_.word(kBltcon0) = static_cast<eng::u16>(s | con0);
+		write_ptr(kBltapt, source);
+		write_ptr(kBltbpt, dest);
+		write_ptr(kBltdpt, dest);
+		regs_.word(kBltsize) = size;
 	}
 
 	/// Espera al ultimo objeto del lote.
@@ -85,16 +83,24 @@ public:
 	}
 
 private:
+	/// Escribe el par PTH/PTL en una sola escritura de 32 bits (registros contiguos alineados
+	/// a 4 bytes; el build usa `-fno-strict-aliasing`).
+	__attribute__((always_inline)) inline void write_ptr(eng::u16 word_index,
+							     eng::graphics::BlitPtr p) const {
+		*reinterpret_cast<volatile eng::u32*>(&regs_.word(word_index)) =
+			static_cast<eng::u32>(p.addr.value);
+	}
+
 	/// BBUSY (DMACONR bit 14): `btst` sobre la palabra completa. Con servicio de fondo, lo drena
 	/// en cada vuelta (mismo patron que `AmigaBackend::wait_blitter`).
 	__attribute__((always_inline)) inline void wait() const {
 		if (wait_fn_ == nullptr) {
-			while ((c[kDmaconr] & 0x4000u) != 0u) {
+			while ((regs_.word(kDmaconr) & 0x4000u) != 0u) {
 			}
 			return;
 		}
-		while ((c[kDmaconr] & 0x4000u) != 0u) {
-			const eng::u32 vposr = *reinterpret_cast<volatile eng::u32*>(&c[kVposr]);
+		while ((regs_.word(kDmaconr) & 0x4000u) != 0u) {
+			const eng::u32 vposr = *reinterpret_cast<volatile eng::u32*>(&regs_.word(kVposr));
 			wait_fn_(wait_user_, static_cast<eng::u16>((vposr & 0x1ff00u) >> 8u));
 		}
 	}
@@ -118,7 +124,7 @@ private:
 	static constexpr eng::u16 kUseD = eng::graphics::kBlitterUseD;
 	static constexpr eng::u16 kMintermAOrB = eng::graphics::kBlitterMintermAOrB;
 
-	Reg* c = nullptr;
+	CustomRegs regs_ {};
 	eng::u16 con0 = 0;
 	eng::u16 size = 0;
 	WaitFn wait_fn_ = nullptr;

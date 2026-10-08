@@ -15,17 +15,22 @@
 /// punteros), igual que el original.
 ///
 /// Es cabecera de **plataforma** (como `blob.hpp`/`object3d.hpp`) y expone registros custom
-/// a propósito: es la frontera unsafe del backend. El puntero se obtiene con
-/// `AmigaBackend::custom_registers()`.
+/// a propósito: es la frontera unsafe del backend. El bloque de registros se pide tipado con
+/// `CustomRegs::instance()` (o `AmigaBackend::custom_regs()`), y los punteros de Blitter con
+/// `graphics::BlitPtr` (dirección `Address<MemoryKind::Chip>`): el compilador **no acepta**
+/// un `void*`/`volatile u16*` suelto, así que un destino en Fast/Slow RAM no compila.
 ///
 /// Uso (cookie-cut interleaved de la 213):
 ///   eng::amiga::BlobBatch batch;
-///   batch.begin(custom, eng::amiga::BlobOp::CookieCut, words, height, amod, bmod, cmod, dmod);
-///   for (cada BOB) batch.one(mask, image, dest, shift);
+///   batch.begin(eng::amiga::CustomRegs::instance(), eng::amiga::BlobOp::CookieCut, words,
+///               height, amod, bmod, cmod, dmod);
+///   for (cada BOB) batch.one(mask, image, dest, shift);   // mask/image/dest: BlitPtr
 ///   batch.end();
 
 #include <eng/core/types/types.hpp>
+#include <eng/graphics/blit_job.hpp>
 #include <eng/graphics/blitter_state.hpp>
+#include <eng/platform/amiga/custom_regs.hpp>
 
 namespace eng::amiga {
 
@@ -39,25 +44,27 @@ using BlobOp = eng::graphics::BlobOp;
 /// sin `jsr` por objeto (medido en `OrBlobBatch`/`bobs3d`: ~600 ciclos/objeto ahorrados).
 class BlobBatch {
 public:
-	using Reg = volatile eng::u16;
 	using WaitFn = void (*)(void*, eng::u16);
 
-	/// Fija las constantes del lote. `custom` = base de registros `$dff000`.
+	/// Fija las constantes del lote. `regs` = bloque de registros custom tipado
+	/// (`CustomRegs::instance()` en hardware).
 	/// `words`/`height` son el ancho (palabras) y el alto (filas físicas = alto lógico ×
 	/// planos en interleaved) del blit. `amod`/`bmod` son los módulos de A/B (bytes);
 	/// `cmod`/`dmod` los de C/D. Para cookie-cut interleaved del par `[…imagen][…máscara]`
 	/// el `bmod` es el mismo que `amod` (`= words·2`).
-	__attribute__((always_inline)) inline void begin(Reg* custom, BlobOp op, eng::u16 words,
+	__attribute__((always_inline)) inline void begin(CustomRegs regs, BlobOp op, eng::u16 words,
 							 eng::u16 height, eng::s16 amod, eng::s16 bmod,
 							 eng::s16 cmod, eng::s16 dmod,
 							 WaitFn wait_fn = nullptr, void* wait_user = nullptr) {
-		c = custom;
+		regs_ = regs;
 		op_ = op;
 		wait_fn_ = wait_fn;
 		wait_user_ = wait_user;
-		// DMACON: SET de MASTER + BLITTER (no toca BLTPRI; lo fija el copper).
-		c[kDmacon] = static_cast<eng::u16>(0x8000u | 0x0200u | 0x0040u);
+		// Espera primero (por si el lote anterior dejó blits vivos) y habilita después el
+		// DMA de Blitter: SET de MASTER + BLITTER, sin tocar BLTPRI (lo gestiona la propia
+		// espera: nasty alrededor del sondeo).
 		wait();
+		regs_.word(kDmacon) = static_cast<eng::u16>(0x8000u | 0x0200u | 0x0040u);
 		eng::u16 use = 0u;
 		eng::u16 minterm = 0u;
 		switch (op) {
@@ -85,36 +92,36 @@ public:
 	/// Lanza UN blob. `shift` = desplazamiento fino X (0..15). Según la operación:
 	///   - `Or`/`Opaque`: `a` = fuente (imagen), `b`/`d` = destino.
 	///   - `CookieCut`: `a` = máscara, `b` = imagen, `c`/`d` = destino (fondo).
+	/// Los tres punteros son `graphics::BlitPtr` (dirección DMA en **Chip RAM**): no se acepta
+	/// un `void*` suelto.
 	/// Espera al blob anterior antes de reprogramar los punteros (hardware: un juego de
 	/// registros); es la ÚNICA espera por objeto. La cola del Blitter es de un nivel: si
 	/// se encadenan las escrituras sin esperar, la siguiente pisa a la encolada y el
 	/// blit sale incompleto (probado: BOBs con anillos cortados). El original también
 	/// espera por objeto (`BlitBob`, `spr_layer/Sprite_Layer/GFX/blitter.asm:94`).
-	__attribute__((always_inline)) inline void one(const void* a, const void* b, void* d,
-						       eng::u8 shift) {
+	__attribute__((always_inline)) inline void one(eng::graphics::BlitPtr a, eng::graphics::BlitPtr b,
+						       eng::graphics::BlitPtr d, eng::u8 shift) {
 		wait();
 		if (op_ == BlobOp::Clear) {
 			// Solo D: sin fuente ni desplazamiento.
 			write_ptr(kBltdpt, d);
-			c[kBltsize] = size;
+			regs_.word(kBltsize) = size;
 			return;
 		}
 		if (op_ == BlobOp::Copy) {
 			// `D = C`: origen en C, destino en D, sin barrel shifter.
 			write_ptr(kBltcpt, a);
 			write_ptr(kBltdpt, d);
-			c[kBltsize] = size;
+			regs_.word(kBltsize) = size;
 			return;
 		}
 		const eng::u16 s = static_cast<eng::u16>(static_cast<eng::u16>(shift & 0x0fu) << 12u);
-		// CON0/CON1 en una sola escritura de 32 bits para cookie-cut (el original:
-		// `move.l d6,bltcon0`, con BSH en CON1); para el resto CON1 queda 0 (fijado en
-		// `begin`) y basta CON0.
-		if (op_ == BlobOp::CookieCut) {
-			write_long(kBltcon0, (static_cast<eng::u32>(static_cast<eng::u16>(base_con0 | s)) << 16u) | s);
-		} else {
-			c[kBltcon0] = static_cast<eng::u16>(base_con0 | s);
-		}
+		// CON0/CON1 en una sola escritura de 32 bits (el original: `move.l d6,bltcon0`):
+		// cookie-cut añade BSH en CON1; el resto deja CON1 = 0 (fijado en `begin`). Todo el
+		// par se escribe siempre empaquetado.
+		const eng::u16 con1 = (op_ == BlobOp::CookieCut) ? s : 0u;
+		write_long(kBltcon0,
+			   (static_cast<eng::u32>(static_cast<eng::u16>(base_con0 | s)) << 16u) | con1);
 		write_ptr(kBltapt, a);
 		if (op_ == BlobOp::CookieCut) {
 			write_ptr(kBltbpt, b);
@@ -123,7 +130,7 @@ public:
 			write_ptr(kBltbpt, d);
 		}
 		write_ptr(kBltdpt, d);
-		c[kBltsize] = size;
+		regs_.word(kBltsize) = size;
 	}
 
 	/// Fija las ventanas de máscara del lote (`BLTAFWM`/`BLTALWM`). Sirve para el truco de
@@ -146,15 +153,16 @@ private:
 	/// `move.l a2,bltapt`): una transaccion de bus en vez de dos. Los registros de punteros
 	/// ($048-$056) estan alineados a 4 bytes y el build usa `-fno-strict-aliasing`. El par
 	/// puede escribirse con el Blitter ocupado: queda latcheado para el siguiente blit.
-	__attribute__((always_inline)) inline void write_ptr(eng::u16 word_index, const void* p) {
-		write_long(word_index, static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(p)));
+	__attribute__((always_inline)) inline void write_ptr(eng::u16 word_index,
+							     eng::graphics::BlitPtr p) {
+		write_long(word_index, static_cast<eng::u32>(p.addr.value));
 	}
 
 	/// Escribe un registro doble (par contiguo de 16 bits) como una escritura de 32 bits,
 	/// big-endian: el primer registro del par va en los 16 bits altos. Los pares usados
 	/// (CON0/CON1, AFWM/ALWM, CMOD/BMOD, AMOD/DMOD) estan alineados a 4 bytes.
 	__attribute__((always_inline)) inline void write_long(eng::u16 word_index, eng::u32 v) {
-		*reinterpret_cast<volatile eng::u32*>(&c[word_index]) = v;
+		*reinterpret_cast<volatile eng::u32*>(&regs_.word(word_index)) = v;
 	}
 
 	/// BBUSY (DMACONR bit 14). Con `wait_fn`, drena fondo en cada vuelta.
@@ -164,14 +172,15 @@ private:
 	/// `blitter.cpp:1745-1770`, el robo del CPU se desactiva con `DMA_BLITPRI`).
 	/// Es la macro `BlitWait` del original (`spr_layer/Sprite_Layer/GFX/blitter.i:26-31`).
 	__attribute__((always_inline)) inline void wait() const {
-		c[kDmacon] = 0x8400u; // SETCLR | BLTPRI: activa nasty
-		while ((c[kDmaconr] & 0x4000u) != 0u) {
+		regs_.word(kDmacon) = 0x8400u; // SETCLR | BLTPRI: activa nasty
+		while ((regs_.word(kDmaconr) & 0x4000u) != 0u) {
 			if (wait_fn_ != nullptr) {
-				const eng::u32 vposr = *reinterpret_cast<volatile eng::u32*>(&c[kVposr]);
+				const eng::u32 vposr =
+					*reinterpret_cast<volatile eng::u32*>(&regs_.word(kVposr));
 				wait_fn_(wait_user_, static_cast<eng::u16>((vposr & 0x1ff00u) >> 8u));
 			}
 		}
-		c[kDmacon] = 0x0400u; // SETCLR=0 | BLTPRI: desactiva nasty
+		regs_.word(kDmacon) = 0x0400u; // SETCLR=0 | BLTPRI: desactiva nasty
 	}
 
 	// Offsets de registro (en palabras de 16 bits, `byte/2`).
@@ -202,7 +211,7 @@ private:
 	static constexpr eng::u16 kMintermCookieCut = eng::graphics::kBlitterMintermCookieCut;
 	static constexpr eng::u16 kMintermZero = eng::graphics::kBlitterMintermZero;
 
-	Reg* c = nullptr;
+	CustomRegs regs_ {};
 	eng::u16 base_con0 = 0;
 	eng::u16 size = 0;
 	BlobOp op_ = BlobOp::Or;
