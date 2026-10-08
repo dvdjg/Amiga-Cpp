@@ -14,6 +14,7 @@
 /// llamador no recompone la aritmética cada frame.
 
 #include <eng/core/types/types.hpp>
+#include <eng/graphics/blit_job.hpp>
 
 namespace eng::graphics {
 
@@ -66,12 +67,12 @@ enum class BlobOp : eng::u8 {
 	return static_cast<u16>(static_cast<u32>(words) * cck_per_word / cck_per_line);
 }
 
-/// Entrada de un lote de **BOBs OR por desplazamiento** (`D = A | D`): origen (frame del
-/// atlas), destino (plano 0 de la scanline) y desplazamiento fino X (0..15).
+/// Entrada de un lote de **BOBs OR por desplazamiento** (`D = A | D`): origen (frame del atlas), destino (plano 0 de la scanline) y desplazamiento fino X (0..15).
+/// Ambos punteros son `BlitPtr` (dirección DMA en Chip): la entrada no acepta punteros crudos.
 struct OrBob {
-	const void* source = nullptr;
-	void* dest = nullptr;
-	u8 shift = 0;
+	graphics::BlitPtr source {}; ///< Origen: el frame del atlas (en Chip, solo lectura).
+	graphics::BlitPtr dest {};   ///< Destino: plano 0 de la scanline del BOB (en Chip).
+	u8 shift = 0;                ///< Desplazamiento fino X en píxeles (0..15); el resto de la X va en la dirección del destino.
 };
 
 /// Parámetros **precalculados** de una línea EOR (ONEDOT) para el Blitter: los registros

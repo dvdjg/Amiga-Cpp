@@ -924,14 +924,8 @@ bool AmigaBackend::blitter_or_bobs(const OrBobEntry* entries, u32 count, u16 wor
 	}
 	blitter_or_bobs_begin(words, height, source_modulo, dest_modulo);
 	for (u32 i = 0; i < count; ++i) {
-		// Frontera declarada: `graphics::OrBob` aún lleva punteros crudos (migración
-		// pendiente); el llamador ya garantiza Chip (atlas/frames en bloques DMA).
-		blitter_or_bobs_one(
-			eng::graphics::BlitPtr::from_storage(
-				static_cast<const eng::u16*>(entries[i].source)),
-			eng::graphics::BlitPtr::from_storage(
-				static_cast<const eng::u16*>(entries[i].dest)),
-			entries[i].shift);
+		// `graphics::OrBob` ya lleva direcciones DMA tipadas: se reenvían tal cual, sin conversiones.
+		blitter_or_bobs_one(entries[i].source, entries[i].dest, entries[i].shift);
 	}
 	return blitter_or_bobs_end();
 }

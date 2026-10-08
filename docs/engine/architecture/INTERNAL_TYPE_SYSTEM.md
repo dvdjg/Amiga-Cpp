@@ -294,7 +294,10 @@ SSP propiedad de Exec. Para la política general de Fast (datos estáticos, cód
 | `BlobBatch::one(const void*, const void*, void*)` / `OrBlobBatch::one` | `one(BlitPtr, BlitPtr, BlitPtr, u8)` (hecho) |
 | `AmigaBackend::custom_registers() -> volatile u16*` | `hw_regs() -> HwRegs` (hecho) |
 | `blitter_blob_run_one(const void*, const void*, void*, u8)` / `blitter_or_bobs_one` | `(BlitPtr, BlitPtr, BlitPtr, u8)` / `(BlitPtr, BlitPtr, u8)` (hecho) |
-| `blitter_strip_column(const void*, void*, ...)` / `graphics::OrBob` / `BlitStream::one` | pendientes (hoy: frontera declarada `BlitPtr::from_storage` en el backend, documentada) |
+| `blitter_fill_words_strided(u16*, ...)` / `blitter_copy_words_strided(const u16*, u16*, ...)` | `(BlitPtr, ...)` (hecho) |
+| `BlitStream::one(void*, const void*, const void*, void*, u8)` (thunk type-erased) | `one(void*, BlitPtr, BlitPtr, BlitPtr, u8)` (hecho) |
+| `graphics::OrBob { const void* source; void* dest; }` | `{ BlitPtr source; BlitPtr dest; }` (hecho) |
+| `blitter_strip_column(const void*, void*, ...)` (Sink de `strip_scroller`) | pendiente (hoy: frontera declarada `BlitPtr::from_storage` en el backend, documentada) |
 
 ### 4.4 Copper / escenas EHB/HAM/tile
 

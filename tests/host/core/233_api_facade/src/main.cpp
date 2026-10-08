@@ -49,7 +49,7 @@ int main() {
 	const eng::graphics::OrBob bob {};
 	const eng::graphics::LineEor line {};
 	const eng::graphics::C2p4 c2p {};
-	check(bob.source == nullptr && line.bltsize == 0u && c2p.phase == 0u,
+	check(!bob.source.addr.valid() && line.bltsize == 0u && c2p.phase == 0u,
 	      "valores preparados de Blitter por la fachada");
 
 	// Rasterizador CPU por defecto (visible por la fachada).

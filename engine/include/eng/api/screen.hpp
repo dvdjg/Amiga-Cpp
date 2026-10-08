@@ -22,14 +22,13 @@
 
 namespace eng {
 
-/// **Racha de blits en streaming**, inyectada por el `App` en el `Screen` de forma *type-erased*
-/// (punteros a función + contexto): el `Screen` puede emitir blits inmediatos **sin conocer el
-/// backend**. Ver `Screen::stamp`/`clear_now` y `ZERO_COST_FRAME_PATH.md` §Streaming.
+/// **Racha de blits en streaming**, inyectada por el `App` en el `Screen` de forma *type-erased* (punteros a función + contexto): el `Screen` puede emitir blits inmediatos **sin conocer el backend**. Ver `Screen::stamp`/`clear_now` y `ZERO_COST_FRAME_PATH.md` §Streaming.
+/// Los punteros de Blitter viajan como `graphics::BlitPtr` (dirección DMA en Chip): la racha no acepta punteros crudos.
 struct BlitStream {
-	void* ctx = nullptr;
-	bool (*begin)(void*, graphics::BlobOp, u16, u16, s16, s16, s16, s16) = nullptr;
-	void (*one)(void*, const void*, const void*, void*, u8) = nullptr;
-	bool (*end)(void*) = nullptr;
+	void* ctx = nullptr; ///< Contexto de la racha; lo posee quien la inyecta (el `App`), el `Screen` solo lo devuelve tal cual.
+	bool (*begin)(void*, graphics::BlobOp, u16, u16, s16, s16, s16, s16) = nullptr; ///< Abre la racha con el estado común (`BlobOp`, palabras, alto y módulos).
+	void (*one)(void*, graphics::BlitPtr, graphics::BlitPtr, graphics::BlitPtr, u8) = nullptr; ///< Emite un objeto: canales A/B/D y desplazamiento fino (0..15).
+	bool (*end)(void*) = nullptr; ///< Cierra la racha (espera al último blit).
 	[[nodiscard]] bool valid() const noexcept { return begin != nullptr; }
 };
 
@@ -314,14 +313,18 @@ public:
 			}
 			const graphics::Bob& bob = sheet->bob();
 			const s16 wx = static_cast<s16>(x & ~15);
-			const u16* base = reinterpret_cast<const u16*>(
-				bob.sheet.address(static_cast<u32>(frame) * bob.frame_stride).cptr());
-			u8* dst = target.data() + static_cast<u32>(start_row) * static_cast<u32>(y) +
-				  (static_cast<u32>(wx < 0 ? 0 : wx) >> 3u);
+			// Origen: la hoja es un `ChipView<BobTag>`, así que `BlitPtr` sale de ella directamente (sin punteros crudos).
+			const eng::s32 frame_off = static_cast<eng::s32>(static_cast<eng::u32>(frame) * bob.frame_stride);
+			const graphics::BlitPtr image = graphics::BlitPtr {bob.sheet, frame_off};
+			const graphics::BlitPtr image_word1 = graphics::BlitPtr {bob.sheet, frame_off + static_cast<eng::s32>(words) * 2};
+			// Destino: plano 0 de la fila `y` de la rejilla de BOBs (interleaved), palabra `wx/16`.
+			const graphics::BlitPtr dst = graphics::BlitPtr {target.plane_address(
+				0u, static_cast<eng::s32>(start_row) * static_cast<eng::s32>(y) +
+					    static_cast<eng::s32>(wx < 0 ? 0 : wx) / 8)};
 			if (op == graphics::BlobOp::CookieCut) {
-				stream.one(stream.ctx, base + words, base, dst, static_cast<u8>(x & 15));
+				stream.one(stream.ctx, image_word1, image, dst, static_cast<u8>(x & 15));
 			} else {
-				stream.one(stream.ctx, base, base, dst, static_cast<u8>(x & 15));
+				stream.one(stream.ctx, image, image, dst, static_cast<u8>(x & 15));
 			}
 			return true;
 		}
@@ -391,25 +394,26 @@ public:
 					  : static_cast<s16>(static_cast<s32>(bt.row_bytes) *
 									     bt.plane_count -
 								     static_cast<s32>(words) * 2);
-		u8* dst = bt.data() + static_cast<u32>(box.y) * static_cast<u32>(bt.row_bytes) *
-					      static_cast<u32>(bt.plane_count);
+		// Destino: plano 0 de la fila `box.y` (la vista del destino ya es Chip, así que la dirección DMA sale de ella sin cast).
+		const graphics::BlitPtr dst = graphics::BlitPtr {bt.plane_address(
+			0u, static_cast<eng::s32>(box.y) * static_cast<eng::s32>(bt.row_bytes) *
+				    static_cast<eng::s32>(bt.plane_count))};
 		if (!m_stream.begin(m_stream.ctx, graphics::BlobOp::Clear, words, height, 0, 0, 0, dmod)) {
 			return false;
 		}
-		m_stream.one(m_stream.ctx, nullptr, nullptr, dst, 0u);
+		m_stream.one(m_stream.ctx, graphics::BlitPtr {}, graphics::BlitPtr {}, dst, 0u);
 		return m_stream.end(m_stream.ctx);
 	}
 
-	/// **Copia un rect ahora** (streaming, `D = C`): `words`×`height` palabras de `src` a `dst` con
-	/// módulos `cmod`/`dmod` (bytes). Para desplazar/copiar una banda fuera del plan (scroll).
-	bool copy_now(const void* src, void* dst, u16 words, u16 height, s16 cmod, s16 dmod) {
-		if (!m_stream.valid() || src == nullptr || dst == nullptr || words == 0u || height == 0u) {
+	/// **Copia un rect ahora** (streaming, `D = C`): `words`×`height` palabras de `src` a `dst` con módulos `cmod`/`dmod` (bytes). Para desplazar/copiar una banda fuera del plan (scroll). `src`/`dst` son direcciones DMA en Chip (`graphics::BlitPtr`).
+	bool copy_now(graphics::BlitPtr src, graphics::BlitPtr dst, u16 words, u16 height, s16 cmod, s16 dmod) {
+		if (!m_stream.valid() || !src.addr.valid() || !dst.addr.valid() || words == 0u || height == 0u) {
 			return false;
 		}
 		if (!m_stream.begin(m_stream.ctx, graphics::BlobOp::Copy, words, height, 0, 0, cmod, dmod)) {
 			return false;
 		}
-		m_stream.one(m_stream.ctx, src, nullptr, dst, 0u);
+		m_stream.one(m_stream.ctx, src, graphics::BlitPtr {}, dst, 0u);
 		return m_stream.end(m_stream.ctx);
 	}
 

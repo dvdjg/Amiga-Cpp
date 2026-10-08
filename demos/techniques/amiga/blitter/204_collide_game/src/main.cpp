@@ -133,12 +133,13 @@ struct CollideGame {
 		//    posicion (1 word de ancho, 8 filas), AND $80 + escaneo.
 		app.device().blitter_clear(m_band_a.view, 1u, kBytesPerRow, kBandPlaneBytes, kWidth, 8u, true);
 		app.device().blitter_clear(m_band_b.view, 1u, kBytesPerRow, kBandPlaneBytes, kWidth, 8u, true);
+		// Entradas del lote OR con direcciones DMA tipadas: el frame de la máscara y el plano 0 de la banda en la word `m_px` (el desplazamiento va en bytes).
 		const eng::graphics::OrBob pa {
-			m_player_mask.view.data(),
-			m_band_a.view.data() + static_cast<eng::u32>(m_px) * 2u, 0u};
+			eng::graphics::blit_ptr(m_player_mask.view),
+			eng::graphics::blit_ptr(m_band_a.view, static_cast<eng::s32>(static_cast<eng::u32>(m_px) * 2u)), 0u};
 		const eng::graphics::OrBob hb {
-			m_hazard_mask.view.data(),
-			m_band_b.view.data() + static_cast<eng::u32>(kHazardWord) * 2u, 0u};
+			eng::graphics::blit_ptr(m_hazard_mask.view),
+			eng::graphics::blit_ptr(m_band_b.view, static_cast<eng::s32>(static_cast<eng::u32>(kHazardWord) * 2u)), 0u};
 		(void)app.device().blitter_or_bobs(pa, 1u, 8u, static_cast<eng::s16>(kMaskRowBytes - 2u),
 						  static_cast<eng::s16>(kBytesPerRow - 2u));
 		(void)app.device().blitter_or_bobs(hb, 1u, 8u, static_cast<eng::s16>(kMaskRowBytes - 2u),
