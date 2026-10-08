@@ -362,6 +362,51 @@ async function withSideChannelLock(port, mode, owner, fn) {
 function sideAddr(value) {
     return `0x${(value >>> 0).toString(16)}`;
 }
+/// Apaga canales de render con el comando `render` del canal lateral (WinUAE-DBG con soporte):
+/// `render <bpl|spr|blt|cop,...> off` y `render cop-lines <from> <to>` (Copper cegado en ese
+/// rango de lineas). Devuelve false si el emulador no reconoce el comando (sin soporte) para
+/// que el llamador pueda caer al parcheo de copperlists.
+async function applyRenderToggles(port, spec) {
+    const channels = [];
+    let copRange = null;
+    for (const raw of spec.split(',').map((s) => s.trim().toLowerCase()).filter((s) => s !== '')) {
+        const rangeMatch = raw.match(/^(bpl|spr|blt|cop):(\d+)-(\d+)$/);
+        if (rangeMatch) {
+            if (rangeMatch[1] !== 'cop') {
+                console.log(`[run-demo] --hide: solo el copper admite rango de lineas (${raw}); se ignora`);
+                continue;
+            }
+            copRange = [parseInt(rangeMatch[2], 10), parseInt(rangeMatch[3], 10)];
+            continue;
+        }
+        if (raw === 'bpl' || raw === 'spr' || raw === 'blt' || raw === 'cop') {
+            channels.push(raw);
+            continue;
+        }
+        console.log(`[run-demo] --hide: canal desconocido '${raw}' (usa bpl,spr,blt,cop[,cop:l0-l1])`);
+    }
+    if (channels.length === 0 && copRange === null) {
+        return true;
+    }
+    let accepted = true;
+    await withSideChannelLock(port, 'takeover', 'run-demo', async () => {
+        if (channels.length > 0) {
+            const reply = await sendSideChannelCommand(port, `render ${channels.join(',')} off`, 4000);
+            if (!reply.includes('"ok":true')) {
+                console.log(`[run-demo] --hide: render rechazado (${reply}); fallback a parcheo de listas`);
+                accepted = false;
+            }
+        }
+        if (copRange !== null) {
+            const reply = await sendSideChannelCommand(port, `render cop-lines ${copRange[0]} ${copRange[1]}`, 4000);
+            if (!reply.includes('"ok":true')) {
+                console.log(`[run-demo] --hide: render cop-lines rechazado (${reply})`);
+                accepted = false;
+            }
+        }
+    });
+    return accepted;
+}
 function sendSideChannelCommand(port, command, timeoutMs = 3000) {
     return new Promise((resolve, reject) => {
         const socket = net.createConnection({ host: '127.0.0.1', port });
@@ -1352,23 +1397,27 @@ try {
         const reply = await protocol.sendMonitorCommand(cmd, 10000);
         console.log(`[run-demo] ${cmd}:\n${Buffer.from(reply, 'hex').toString('utf8').trim()}`);
     }
-    // --hide <bpl,spr,blt,cop>: captura con canales de render apagados (escena simplificada para
-    // vision). Parchea el DMACON de las copperlist en Chip via canal lateral; no requiere recompilar
-    // la demo y persiste porque la lista re-escribe el valor ya parcheado. Ver `patchCopperDmacon`.
+    // --hide <bpl,spr,blt,cop[,cop:l0-l1]>: captura con canales de render apagados (escena
+    // simplificada para vision). Preferente: comando `render` del canal lateral (WinUAE-DBG con
+    // soporte; apaga el canal en el emulador y el Copper puede cegarse en un rango de lineas);
+    // fallback: parchear el DMACON de las copperlist en Chip (ver `patchCopperDmacon`). No
+    // requiere recompilar la demo.
     const hideArg = String(argValue('--hide', ''));
     if (hideArg !== '') {
-        const bits = { bpl: 0x100, spr: 0x20, blt: 0x40, cop: 0x80 };
-        let mask = 0;
-        for (const item of hideArg.split(',').map((s) => s.trim().toLowerCase()).filter((s) => s !== '')) {
-            if (bits[item] === undefined) {
-                console.log(`[run-demo] --hide: canal desconocido '${item}' (usa bpl,spr,blt,cop)`);
-                continue;
+        const accepted = await applyRenderToggles(sideChannelPort, hideArg);
+        if (!accepted) {
+            const bits = { bpl: 0x100, spr: 0x20, blt: 0x40, cop: 0x80 };
+            let mask = 0;
+            for (const item of hideArg.split(',').map((s) => s.trim().toLowerCase()).filter((s) => s !== '')) {
+                if (bits[item] === undefined) {
+                    continue;
+                }
+                mask |= bits[item];
             }
-            mask |= bits[item];
-        }
-        if (mask !== 0) {
-            const patched = await patchCopperDmacon(sideChannelPort, mask);
-            console.log(`[run-demo] --hide ${hideArg}: ${patched.count} MOVE DMACON parcheados (mascara 0x${mask.toString(16)}): ${patched.hex}`);
+            if (mask !== 0) {
+                const patched = await patchCopperDmacon(sideChannelPort, mask);
+                console.log(`[run-demo] --hide ${hideArg}: ${patched.count} MOVE DMACON parcheados (mascara 0x${mask.toString(16)}): ${patched.hex}`);
+            }
         }
     }
     // WinUAE-DBG v2.1: aplicar reglas protect (block/set) tras READY
