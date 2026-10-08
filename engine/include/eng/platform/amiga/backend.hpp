@@ -592,8 +592,10 @@ public:
 	/// `words` palabras/planelínea y fine shift `shift` (0..15). Parte en trozos de `<= 1024`
 	/// planelíneas (límite de 10 bits del campo H de `BLTSIZE`). Es la ejecución del descriptor de
 	/// `field/strip_scroller.hpp` (`strip_blit_desc`). Ver `SCROLL_VARIANTS.md`.
-	bool blitter_strip_column(const void* src, void* dst, u16 words, s16 dmod, u16 planelines,
-				  u8 shift);
+	/// `src`/`dst` son direcciones DMA en Chip (`graphics::BlitPtr`): un puntero suelto no compila
+	/// (ver `INTERNAL_TYPE_SYSTEM.md` §3.5).
+	bool blitter_strip_column(eng::graphics::BlitPtr src, eng::graphics::BlitPtr dst, u16 words,
+				  s16 dmod, u16 planelines, u8 shift);
 
 	/// Area fill `XOR` del mismo rectangulo de UN plano (semilla = ultima palabra
 	/// del rectangulo, recorrido descendente). Port de `BitmapFillFast` acotado a

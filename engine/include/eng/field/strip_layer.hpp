@@ -123,7 +123,12 @@ public:
 		if (!m_composer.build()) return false;
 		m_composer.takeover(backend);
 		m_ctrl.set_geometry(m_geom);
-		m_ctrl.bind(m_ring_words, m_bank, m_column_words, m_bank_stride, *m_map.get(), backend);
+		// El anillo y la columna ya son bloques Chip tipados (`blit_ptr` eleva la vista); el banco
+		// llega del asset de tilemap (`TilemapView`, puntero con procedencia certificada) y se
+		// certifica en el único punto de frontera (`BlitPtr::from_storage`).
+		m_ctrl.bind(eng::graphics::blit_ptr(m_ring.view),
+			    eng::graphics::BlitPtr::from_storage(m_bank),
+			    eng::graphics::blit_ptr(m_column.view), m_bank_stride, *m_map.get(), backend);
 		m_ctrl.fill_ring();
 		m_ok = true;
 		return true;

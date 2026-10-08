@@ -14,6 +14,7 @@
 
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/types.hpp>
+#include <eng/graphics/blit_job.hpp>
 #include <eng/graphics/blitter_state.hpp>
 #include <eng/graphics/playfield_scroll.hpp>
 
@@ -322,7 +323,8 @@ template <class Geom>
 /// del puntero y el contenido no se descuadre al envolver (ver `StripScrollGeometry` y HOST-244).
 ///
 /// Contratos: `Map::tile_at(u16 col, u16 row) -> u16` (id de tile del banco) y
-/// `Sink::blitter_strip_column(src, dst, words, dmod, planelines, shift) -> bool`.
+/// `Sink::blitter_strip_column(src, dst, words, dmod, planelines, shift) -> bool`, con
+/// `src`/`dst` como `graphics::BlitPtr` (direcciones DMA en Chip; un puntero suelto no compila).
 template <class Geom, class Map, class Sink>
 class StripScrollController {
 public:
@@ -343,8 +345,13 @@ public:
 
 	/// Liga los buffers (anillo/banco/columna, en Chip) y los observadores del mapa y del backend
 	/// (`Ref`, no propietarios). Se llama una vez en el setup, antes de `fill_ring()`.
-	constexpr void bind(eng::u16* ring, const eng::u16* bank, eng::u16* column,
-			    eng::u16 bank_stride_words, Map& map, Sink& sink) noexcept {
+	/// Los tres llegan como **direcciones DMA tipadas** (`graphics::BlitPtr`, banco Chip): el
+	/// compose las toca por CPU con la vista de registro (`words()`/`cwords()`) y el Sink las
+	/// entrega al Blitter sin conversiones. Procedencia: `graphics::blit_ptr(vista)` (o
+	/// `BlitPtr::from_storage` en tests/asset con origen certificado; ver `INTERNAL_TYPE_SYSTEM.md`).
+	constexpr void bind(eng::graphics::BlitPtr ring, eng::graphics::BlitPtr bank,
+			    eng::graphics::BlitPtr column, eng::u16 bank_stride_words, Map& map,
+			    Sink& sink) noexcept {
 		m_ring = ring;
 		m_bank = bank;
 		m_column = column;
@@ -380,6 +387,8 @@ public:
 
 private:
 	/// Compone la columna `map_col` (tiles del `Map`) y la blitea en el word `ring_word` del anillo.
+	/// La columna (destino CPU del compose y origen DMA del blit) y el banco (origen CPU) se tocan
+	/// con la vista de registro de `BlitPtr` — no hay conversión a puntero suelto.
 	void paint_column(eng::u16 ring_word, eng::u16 map_col) noexcept {
 		eng::u16 ids[kMaxColumnTiles] {};
 		const eng::u16 tiles = m_geom.column_tiles < kMaxColumnTiles ? m_geom.column_tiles
@@ -387,15 +396,18 @@ private:
 		for (eng::u16 r = 0u; r < tiles; ++r) {
 			ids[r] = static_cast<eng::u16>(m_map->tile_at(map_col, r));
 		}
-		(void)compose_column(m_geom, m_column, m_bank, ids, m_bank_stride);
-		(void)m_sink->blitter_strip_column(m_column, m_ring + ring_word, m_geom.strip_words,
-						   m_geom.bltdmod_col, m_geom.column_planelines, 0u);
+		(void)compose_column(m_geom, m_column.words(), m_bank.cwords(), ids, m_bank_stride);
+		// `ring_word` es índice de palabra: la aritmética de `BlitPtr` es en bytes.
+		(void)m_sink->blitter_strip_column(m_column,
+						   m_ring + static_cast<eng::u32>(ring_word) * 2u,
+						   m_geom.strip_words, m_geom.bltdmod_col,
+						   m_geom.column_planelines, 0u);
 	}
 
 	Geom m_geom {};
-	eng::u16* m_ring = nullptr;
-	const eng::u16* m_bank = nullptr;
-	eng::u16* m_column = nullptr;
+	eng::graphics::BlitPtr m_ring {};
+	eng::graphics::BlitPtr m_bank {};
+	eng::graphics::BlitPtr m_column {};
 	eng::u16 m_bank_stride = 0u;
 	eng::Ref<Map> m_map {};
 	eng::Ref<Sink> m_sink {};

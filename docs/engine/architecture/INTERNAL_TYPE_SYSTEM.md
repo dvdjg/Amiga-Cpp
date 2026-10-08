@@ -283,13 +283,14 @@ SSP propiedad de Exec. Para la política general de Fast (datos estáticos, cód
 
 | Actual | Propuesta / hecho |
 |---|---|
-| `blitter_clear(u8* dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 w, u16 h)` | `blitter_clear(PlaneBytes, u8 planes, u16 row_bytes, u32 plane_bytes, u16 w, u16 h)` |
-| `blit_fill_from_mask(const u8* mask, u8* dst, ...)` | `blit_fill_from_mask(MaskBytes, PlaneBytes, u8 planes, ...)` |
-| `blitter_line(u8* plane, u16 row_bytes, ...)` | `blitter_line(PlaneBytes, u16 row_bytes, ...)` |
-| `c2p(const void* chunky, void* planes)` | `c2p(u32 w, u32 h, u32 stride, ChunkyView, PlaneBytes)` |
-| `move_bitplane_pointer(u8 plane, const void* address)` | `u8 plane` + `Address<MemoryKind::Chip>` |
-| `bitplanes() -> u8*` (escenas) | `bitplanes() -> PlaneBytes` (devuelto, sin cast) |
-| `MemoryBlock::data` crudo | `MemoryBlock::buffer<Tag>()` / `view<Tag>()` |
+| `blitter_clear(u8* dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 w, u16 h)` | `blitter_clear(PlaneBytes, ...)` (hecho) |
+| `blit_fill_from_mask(const u8* mask, u8* dst, ...)` | `blit_fill_from_mask(MaskBytes, PlaneBytes, ...)` (hecho) |
+| `blitter_line(u8* plane, u16 row_bytes, ...)` | pendiente (`blitter_line_eor_draw(..., u8* plane_ptr, u8* d_base)` sigue crudo) |
+| `c2p(const void* chunky, void* planes)` | `c2p(MemView<ChunkyTag, CK>, MemView<PlaneTag, PK>)` (hecho) |
+| `move_bitplane_pointer(u8 plane, const void* address)` | `u8 plane` + `Address<MemoryKind::Chip>` (hecho) |
+| `bitplanes() -> u8*` (escenas) | `bitplanes() -> PlaneBytes` (hecho) |
+| `MemoryBlock::data` crudo | `MemoryBlock::buffer<Tag>()` / `view<Tag>()` / `block<Tag>()` (hecho) |
+| `blitter_fill_polygon_strided(u8* plane_base, ...)` / `blitter_fill_rect(u8* plane_base, ...)` | `PlaneBytes` + strides (pendiente; frente de polígonos) |
 | `BlobBatch::begin(volatile u16*, ...)` / `OrBlobBatch::begin` | `begin(HwRegs, ...)` (hecho) |
 | `BlobBatch::one(const void*, const void*, void*)` / `OrBlobBatch::one` | `one(BlitPtr, BlitPtr, BlitPtr, u8)` (hecho) |
 | `AmigaBackend::custom_registers() -> volatile u16*` | `hw_regs() -> HwRegs` (hecho) |
@@ -297,7 +298,7 @@ SSP propiedad de Exec. Para la política general de Fast (datos estáticos, cód
 | `blitter_fill_words_strided(u16*, ...)` / `blitter_copy_words_strided(const u16*, u16*, ...)` | `(BlitPtr, ...)` (hecho) |
 | `BlitStream::one(void*, const void*, const void*, void*, u8)` (thunk type-erased) | `one(void*, BlitPtr, BlitPtr, BlitPtr, u8)` (hecho) |
 | `graphics::OrBob { const void* source; void* dest; }` | `{ BlitPtr source; BlitPtr dest; }` (hecho) |
-| `blitter_strip_column(const void*, void*, ...)` (Sink de `strip_scroller`) | pendiente (hoy: frontera declarada `BlitPtr::from_storage` en el backend, documentada) |
+| `blitter_strip_column(const void*, void*, ...)` (Sink de `strip_scroller`) | `blitter_strip_column(BlitPtr, BlitPtr, ...)` + `bind` del controlador con `BlitPtr` (hecho) |
 
 ### 4.4 Copper / escenas EHB/HAM/tile
 

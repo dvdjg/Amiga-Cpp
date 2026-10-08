@@ -879,36 +879,25 @@ bool AmigaBackend::blitter_blob_run_end() {
 	return m_blob_run.end();
 }
 
-bool AmigaBackend::blitter_strip_column(const void* src, void* dst, u16 words, s16 dmod,
-					u16 planelines, u8 shift) {
-	if (src == nullptr || dst == nullptr || words == 0u || planelines == 0u) {
+bool AmigaBackend::blitter_strip_column(eng::graphics::BlitPtr src, eng::graphics::BlitPtr dst,
+					u16 words, s16 dmod, u16 planelines, u8 shift) {
+	if (!src.addr.valid() || !dst.addr.valid() || words == 0u || planelines == 0u) {
 		return false;
 	}
 	// Origen contiguo (BLTAMOD=0): avanza `words*2` bytes por planelínea. Destino en el anillo
 	// interleaved: avanza `words*2 + dmod` (el dmod ya recorta el resto de la fila interleaved).
+	// Las direcciones ya llegan tipadas (`BlitPtr`): la aritmética es en bytes y conserva el banco.
 	const eng::u32 src_stride = static_cast<eng::u32>(words) * 2u;
 	const eng::u32 dst_stride = src_stride + static_cast<eng::u16>(dmod);
-	const eng::u8* s = static_cast<const eng::u8*>(src);
-	eng::u8* d = static_cast<eng::u8*>(dst);
 	eng::u16 done = 0u;
 	while (done < planelines) {
 		// H de BLTSIZE = 10 bits (max 1024 planelíneas): trocea la columna si hace falta.
 		const eng::u16 h = static_cast<eng::u16>((planelines - done) > 1024u ? 1024u
 									     : (planelines - done));
 		blitter_blob_run_begin(eng::amiga::BlobOp::Opaque, words, h, 0, 0, 0, dmod);
-		// Frontera declarada: esta API aún recibe punteros crudos (el `Sink` de
-		// `field/strip_scroller.hpp` no está tipado; migración pendiente). El búfer de la
-		// columna ya vive en Chip (lo reserva el juego) y `BlitPtr` solo lo certifica.
-		blitter_blob_run_one(eng::graphics::BlitPtr::from_storage(
-					     reinterpret_cast<const eng::u16*>(s +
-									       static_cast<eng::u32>(done) *
-										       src_stride)),
+		blitter_blob_run_one(src + static_cast<eng::u32>(done) * src_stride,
 				     eng::graphics::BlitPtr {},
-				     eng::graphics::BlitPtr::from_storage(
-					     reinterpret_cast<const eng::u16*>(d +
-									       static_cast<eng::u32>(done) *
-										       dst_stride)),
-				     shift);
+				     dst + static_cast<eng::u32>(done) * dst_stride, shift);
 		if (!blitter_blob_run_end()) {
 			return false;
 		}

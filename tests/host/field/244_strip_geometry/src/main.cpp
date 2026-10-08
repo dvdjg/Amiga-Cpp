@@ -165,17 +165,19 @@ bool simulate_controller(std::uint32_t seed) {
 		eng::u16 tile_at(eng::u16 col, eng::u16) const { return static_cast<eng::u16>(col % kNTiles); }
 	};
 	struct Sink {
-		eng::u16* ring;
-		bool blitter_strip_column(const eng::u16* src, void* dst, eng::u16, eng::s16, eng::u16,
-					  eng::u8) {
-			const auto* d = static_cast<const eng::u16*>(dst);
-			ring[d - ring] = src[0];
+		bool blitter_strip_column(eng::graphics::BlitPtr src, eng::graphics::BlitPtr dst,
+					  eng::u16, eng::s16, eng::u16, eng::u8) {
+			dst.words()[0] = src.cwords()[0];
 			return true;
 		}
-	} sink {ring.data()};
+	} sink {};
 	Map map {};
 	eng::playfield::StripScrollController<G, Map, Sink> ctrl {};
-	ctrl.bind(ring.data(), bank.data(), column.data(), kTileWords, map, sink);
+	// Los arrays del test viven en host: `from_storage` es la frontera declarada para
+	// procedencia certificada (el mismo rol que cumple en el backend; ver `blit_job.hpp`).
+	ctrl.bind(eng::graphics::BlitPtr::from_storage(ring.data()),
+		  eng::graphics::BlitPtr::from_storage(bank.data()),
+		  eng::graphics::BlitPtr::from_storage(column.data()), kTileWords, map, sink);
 	ctrl.fill_ring();
 	Lcg rng {seed * 2654435761u + 7u};
 	const long period = static_cast<long>(G::ring_w_words) * 16;
