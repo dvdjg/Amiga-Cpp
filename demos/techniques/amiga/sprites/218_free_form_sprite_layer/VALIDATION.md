@@ -131,6 +131,43 @@ El conteo de anillos con el detector de color del screenshot da **4 arriba + 5 a
 secuencia *step* (CPU detenida en el probe) los conteos varían (2-4 arriba) por el artefacto de
 frontera de escaneo descrito en §5.5, también presente en el build base.
 
+### 3.6 Detección con visión de la discontinuidad de 1-2 px del fondo (32 frames)
+
+Síntoma real (reportado por el usuario): cada 32 updates el fondo de montañas da una costura de
+1-2 px. El pase de visión genérico de §3.5 **no lo detectaba** (la escena tiene texto, BOBs y
+objetos grandes que dominan la atención y el detalle de 1 px no sobrevive al reescalado del
+modelo). Método que sí funciona (procedimiento general en `DEMO_VISUAL_DEBUG.md` §6.4.2):
+
+1. **Simplificar sin recompilar**: `run-demo.sh 218_free_form_sprite_layer --sequence-step-frames
+   40` (frames consecutivos, 1 update aparte) y de cada frame se recorta la **mayor caja sin
+   texto/anillos** (118x445 px en el borde derecho, detectada por máscara de colores + dilatación)
+   ampliada x2 con vecino más cercano.
+2. **Prompt genérico por pares** (sin mencionar el error ni el elemento):
+
+```text
+The attached images are consecutive frames of an animation, in chronological order (image 1 is
+the first). The scenery scrolls horizontally. Go pair by pair (1-2, 2-3, 3-4, ...) and estimate the
+horizontal displacement of the scenery texture between each pair, in pixels. Then answer: is the
+displacement the same in every pair, or does any pair differ from the rest? If a pair differs, say
+which one and describe exactly what the scenery does in that pair. Be precise and concise.
+```
+
+Respuesta cruda: «Pair 3-4 (frames f0031 to f0032) differs from the rest. In every other pair, the
+scenery moves a consistent 1 pixel to the left. However, in pair 3-4, the scenery moves 2 pixels
+to the left. This is evident because the white, jagged edge of the lower grey terrain… has moved
+two distinct pixel positions…».
+
+Confirmación objetiva: la correlación enmascarada del fondo (solo píxeles de montaña) da en el
+mismo par un residuo de **41.5** frente a ~16 del resto, con patrón `-2,0,-2,0…` roto en
+`f0031→f0032` y `f0032→f0033`. El mismo salto aparece en el build **anterior a este turno**
+(HEAD~1: residuo 41.5 en `f0031→f0032`), así que **no es una regresión de los cambios de §5.5**;
+el estado por update (traza temporal de `c32/ctl/cpos/listas`, retirada tras el diagnóstico) es
+fiel al original. La causa raíz queda **acotada** a la costura contenido↔posición del relevo de
+las dos parejas de copperlist en la frontera de 32 (el modelo y la correlación coinciden en
+±1-2 px); aislarla del todo requiere poder apagar por *regiones/líneas* el render desde el
+emulador (petición registrada: comando `render` en el canal lateral de WinUAE-DBG). **Fix
+pendiente**.
+
 ## 4. Cadencia y coste (medido con los contadores 0-4 del periférico de depuración)
 
 El efecto **ocupa más de un campo** de VBlank: el bucle no se queda un frame por VBlank. Por eso

@@ -6,6 +6,10 @@
 # Uso: tools/run/run-demo.sh <demo|test> [--wait-ms N] [--warp] [--keep-running]
 #       [--sequence-frames N] [--sequence-interval-ms N]
 #       [--sequence-step-frames N [--sequence-step-start-fine F]]
+#       [--hide bpl,spr,blt,cop]  apaga canales de render parcheando el DMACON de las copperlist
+#                                 en Chip (escena simplificada para análisis con visión; sin
+#                                 recompilar la demo). bpl=planos (RASTER), spr=sprites,
+#                                 blt=blitter, cop=copper (congela la lista)
 #       [--mouse-from X1,Y1
 #       --mouse-to X2,Y2] [--mouse-click] [--mouse-click-at dX,dY] [--screenshot ruta]
 #       [--protect target,block|set:0xVALUE,size] ...

@@ -227,6 +227,15 @@ status y reanuda; no depende del tiempo real):
   run status y la imagen quedan en el MISMO frame (sin la latencia del polling de los modos
   anteriores). Con `--sequence-step-start-fine F` se alinea la captura a ese `fine scroll`
   (p. ej. `2`) para evitar el cruce de word (`15 -> 0`) de cada 16 frames.
+- `--hide bpl,spr,blt,cop` captura con **canales de render apagados** (escena simplificada para
+  el análisis con visión; procedimiento en `DEMO_VISUAL_DEBUG.md` §6.4.2) **sin recompilar la
+  demo**: parchea por canal lateral el `MOVE DMACON` *dentro* de las copperlist en Chip (la lista
+  lo re-escribe cada frame, así que un `poke` al registro `$dff096` no persiste; el parche
+  sustituye el `SET` por un `CLEAR` y conserva el `BPLCON3` de cabecera). `bpl` = planos
+  (RASTER), `spr` = sprites, `blt` = blitter, `cop` = copper (congela la lista: «freeze frame»).
+  Ojo: apagar RASTER quita **todos** los planos; si el contenido de la capa se alimenta por
+  cobre/línea (p. ej. la 218), puede quitar más de lo que se pretende y conviene recortar una
+  zona limpia del frame en su lugar.
 
 Las capturas se guardan en `out/run/<demo>/sequence` como `frame_NNN_cameraXNN.png` /
 `frame_NNN_fineXNN.png`. Que la demo publique su scroll fino en `cameraX` es lo que habilita

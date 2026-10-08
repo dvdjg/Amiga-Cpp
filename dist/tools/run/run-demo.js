@@ -356,6 +356,12 @@ async function withSideChannelLock(port, mode, owner, fn) {
  * Envía una orden por el socket TCP del canal lateral (2346). Protocolo:
  * conectar -> saludar -> `<orden>\n` -> una línea de respuesta JSON (3s).
  */
+/// Direccion para el canal lateral: **siempre con prefijo `0x`**. Sin el, un hex todo-digitos
+/// (p. ej. `53250`) se interpreta como **decimal** y la lectura/escritura va a otra direccion
+/// (verificado con el canal: `mem 53250 8` responde `address=0x0000d002`).
+function sideAddr(value) {
+    return `0x${(value >>> 0).toString(16)}`;
+}
 function sendSideChannelCommand(port, command, timeoutMs = 3000) {
     return new Promise((resolve, reject) => {
         const socket = net.createConnection({ host: '127.0.0.1', port });
@@ -396,6 +402,73 @@ function sendSideChannelCommand(port, command, timeoutMs = 3000) {
             reject(err);
         });
     });
+}
+/// **Apaga canales de render** parcheando los `MOVE DMACON` de las copperlist que viven en Chip
+/// RAM: la demo re-escribe DMACON cada frame (p. ej. `#$83e0` con SETCLR), asi que un `poke` al
+/// registro `$dff096` no persiste; el parche va al **valor dentro de la lista**. Busca el par
+/// `00 96 83 e0` (MOVE DMACON #$83e0) por bloques de 4 KiB en Chip (0x000000-0x07FFFF) y Slow/Bogo
+/// (0xC00000-0xC7FFFF) y escribe el valor con los bits de `clearMask` apagados. Es la via para
+/// capturar **escenas simplificadas** sin recompilar la demo (p. ej. `--hide bpl` quita el
+/// texto/BOBs del playfield y deja solo la capa de sprites), utiles para el analisis con vision.
+/// Bits: RASTER (planos) = $0100, SPRITE = $0020, BLITTER = $0040, COPPER = $0080 (apagarlo
+/// congela la lista: modo "freeze frame").
+async function patchCopperDmacon(port, clearMask) {
+    const chunk = 4096;
+    const ranges = [
+        { start: 0x000000, end: 0x080000 },
+        { start: 0xc00000, end: 0xc80000 },
+    ];
+    const hits = [];
+    for (const range of ranges) {
+        for (let addr = range.start; addr < range.end; addr += chunk) {
+            let data;
+            try {
+                const reply = JSON.parse(await sendSideChannelCommand(port, `mem ${sideAddr(addr)} ${chunk}`, 4000));
+                if (!reply.ok || typeof reply.data !== 'string')
+                    continue;
+                // Guardarrail: el canal lateral responde con la direccion que realmente leyo; si no
+                // coincide, se ha interpretado mal (p. ej. hex todo-digitos como decimal) y el
+                // resultado no vale: se descarta el bloque.
+                if (typeof reply.address === 'string' && parseInt(reply.address, 16) !== addr)
+                    continue;
+                data = Buffer.from(reply.data, 'hex');
+            }
+            catch {
+                continue;
+            }
+            for (let i = 0; i + 4 <= data.length; i += 2) {
+                if (data[i] !== 0x00 || data[i + 1] !== 0x96 || data[i + 2] !== 0x83 || data[i + 3] !== 0xe0) {
+                    continue;
+                }
+                hits.push(addr + i);
+            }
+        }
+    }
+    // `poke` exige el lock `takeover` del canal lateral (si no, responde `lock_required`): se
+    // toman los pokes en una sola seccion critica.
+    await withSideChannelLock(port, 'takeover', 'run-demo', async () => {
+        for (const at of hits) {
+            // La lista solo **SETea** DMACON (SETCLR=1): quitar el bit de su valor no lo apaga (sigue
+            // encendido desde el arranque). Sin tocar la app, se reescriben las DOS MOVEs de cabecera:
+            //   [ini+0] `01FC 0000` (BPLCON3=0) -> `0096 <mascara>` = **CLEAR** de la mascara en DMACON
+            //   [ini+4] `0096 83E0` (SET)       -> `01FC 0000` (se conserva el BPLCON3: lo usan los
+            //                                      bancos de color de sprite)
+            //   [ini+8] (el valor 83E0)         -> `0096 0000` = MOVE a DMACON de valor 0 (NO-OP: no
+            //                                      selecciona ningun bit) para no descarrilar el Copper
+            // asi el SET de DMACON desaparece y los canales quedan como los dejo el arranque menos los
+            // que apaga el CLEAR.
+            const clearBytes = `0096${clearMask.toString(16).padStart(4, '0')}`;
+            const reply = await sendSideChannelCommand(port, `poke ${sideAddr(at - 4)} ${clearBytes}`, 4000);
+            if (!reply.includes('"ok":true')) {
+                console.log(`[run-demo] --hide: poke rechazado en 0x${(at - 4).toString(16)}: ${reply}`);
+            }
+            const reply2 = await sendSideChannelCommand(port, `poke ${sideAddr(at)} 01fc000000960000`, 4000);
+            if (!reply2.includes('"ok":true')) {
+                console.log(`[run-demo] --hide: poke rechazado en 0x${at.toString(16)}: ${reply2}`);
+            }
+        }
+    });
+    return { count: hits.length, hex: hits.map((a) => `0x${a.toString(16)}`).join(',') };
 }
 function decodeCameraFineX(runStatus) {
     if (!runStatus?.ok) {
@@ -658,7 +731,7 @@ async function resolveRunStatusAddress(client, linkedSymbol, mapSections, runtim
                 continue;
             for (let off = 0; off < MAX_PER_SECTION; off += CHUNK) {
                 try {
-                    const mem = await client.command(`mem ${(base + off).toString(16)} ${CHUNK}`, 2500);
+                    const mem = await client.command(`mem ${sideAddr(base + off)} ${CHUNK}`, 2500);
                     const hex = typeof mem?.data === 'string' ? mem.data : null;
                     if (hex === null || hex.length === 0)
                         break;
@@ -1279,6 +1352,25 @@ try {
         const reply = await protocol.sendMonitorCommand(cmd, 10000);
         console.log(`[run-demo] ${cmd}:\n${Buffer.from(reply, 'hex').toString('utf8').trim()}`);
     }
+    // --hide <bpl,spr,blt,cop>: captura con canales de render apagados (escena simplificada para
+    // vision). Parchea el DMACON de las copperlist en Chip via canal lateral; no requiere recompilar
+    // la demo y persiste porque la lista re-escribe el valor ya parcheado. Ver `patchCopperDmacon`.
+    const hideArg = String(argValue('--hide', ''));
+    if (hideArg !== '') {
+        const bits = { bpl: 0x100, spr: 0x20, blt: 0x40, cop: 0x80 };
+        let mask = 0;
+        for (const item of hideArg.split(',').map((s) => s.trim().toLowerCase()).filter((s) => s !== '')) {
+            if (bits[item] === undefined) {
+                console.log(`[run-demo] --hide: canal desconocido '${item}' (usa bpl,spr,blt,cop)`);
+                continue;
+            }
+            mask |= bits[item];
+        }
+        if (mask !== 0) {
+            const patched = await patchCopperDmacon(sideChannelPort, mask);
+            console.log(`[run-demo] --hide ${hideArg}: ${patched.count} MOVE DMACON parcheados (mascara 0x${mask.toString(16)}): ${patched.hex}`);
+        }
+    }
     // WinUAE-DBG v2.1: aplicar reglas protect (block/set) tras READY
     if (protectSpecs.length > 0) {
         report.protects = report.protects || [];
@@ -1346,9 +1438,9 @@ try {
             console.log(`[run-demo] automation key (tecnica) ${automationKeyValue} -> 0x${automationKeyAddr.toString(16)} (pre-secuencia)`);
             const valueHex = String(automationKeyValue).padStart(2, '0');
             await withSideChannelLock(sideChannelPort, 'takeover', 'run-demo', async () => {
-                await sendSideChannelCommand(sideChannelPort, `poke ${automationKeyAddr.toString(16)} ${valueHex}`);
+                await sendSideChannelCommand(sideChannelPort, `poke ${sideAddr(automationKeyAddr)} ${valueHex}`);
             });
-            const readback = await sendSideChannelCommand(sideChannelPort, `mem ${automationKeyAddr.toString(16)} 1`).catch((err) => String(err));
+            const readback = await sendSideChannelCommand(sideChannelPort, `mem ${sideAddr(automationKeyAddr)} 1`).catch((err) => String(err));
             report.automationKey = {
                 sample: 'pre-sequence',
                 technique: automationKeyValue,
@@ -1478,7 +1570,7 @@ try {
             const hexAddr = addr.toString(16);
             // Lee los 16 B del bitmask como 4 palabras BE; devuelve la lista de rawkeys con bit a 1.
             const readSet = async () => {
-                const reply = await sendSideChannelCommand(sideChannelPort, `mem ${hexAddr} 16`).catch(() => '');
+                const reply = await sendSideChannelCommand(sideChannelPort, `mem 0x${hexAddr} 16`).catch(() => '');
                 const m2 = reply.match(/"data"\s*:\s*"([0-9a-fA-F]+)"/);
                 if (!m2 || m2[1].length < 32)
                     return null;
@@ -1498,7 +1590,7 @@ try {
             const zeroMask = '0'.repeat(32);
             await withSideChannelLock(sideChannelPort, 'takeover', 'run-demo', async () => {
                 for (let id = from; id <= to; ++id) {
-                    await sendSideChannelCommand(sideChannelPort, `poke ${hexAddr} ${zeroMask}`).catch(() => '');
+                    await sendSideChannelCommand(sideChannelPort, `poke 0x${hexAddr} ${zeroMask}`).catch(() => '');
                     await protocol.sendMonitorCommand(`input event ${id} 1`, 5000);
                     await sleep(hold);
                     await protocol.sendMonitorCommand(`input event ${id} 0`, 5000);

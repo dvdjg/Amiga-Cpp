@@ -214,6 +214,19 @@ Analiza esta secuencia de frames consecutivos (N imágenes en orden temporal, mi
 
 Protocolo recomendado: **ventanas deslizantes** de 12-24 frames consecutivos (avance ~50% del tamaño), `--prompt` de arriba; la hoja de contacto del mismo tramo la revisa el agente; los hallazgos van al `<demoId>_report.md` (§6.5).
 
+### 6.4.2 Discontinuidades de movimiento fino (1-2 px): desplazamiento por par + escena simplificada
+
+Caso medido (2026-10, demo 218): una costura de 1-2 px en el scroll del fondo **una vez cada 32 frames** pasaba desapercibida al modelo. Dos cambios la hacen detectable:
+
+1. **Simplificar la escena quitando distractores** (sin recompilar la app): el runner puede apagar canales de *render* parcheando la copperlist (`--hide bpl,spr,blt,cop`; ver `BUILD_AND_RUN.md`), o se recorta una zona limpia del frame (la mayor caja sin texto/sprite, ampliada x2-x3 con vecino más cercano): el detalle de 1 px **no sobrevive al reescalado del modelo** si la imagen es ancha y está llena de elementos.
+2. **Prompt genérico de desplazamiento por par** (sin nombrar el error ni el elemento): el modelo estima el avance entre cada par consecutivo y localiza el par que difiere del patrón. Ejemplo verificado (frames consecutivos 1 update aparte, `--sequence-step-frames`):
+
+```text
+The attached images are consecutive frames of an animation, in chronological order (image 1 is the first). The scenery scrolls horizontally. Go pair by pair (1-2, 2-3, 3-4, ...) and estimate the horizontal displacement of the scenery texture between each pair, in pixels. Then answer: is the displacement the same in every pair, or does any pair differ from the rest? If a pair differs, say which one and describe exactly what the scenery does in that pair. Be precise and concise.
+```
+
+Con el recorte limpio x2, `qwen3-vl:8b-instruct-q8_0` respondió: «Pair 3-4 (frames f0031 to f0032) differs… in every other pair the scenery moves a consistent 1 pixel to the left. However, in pair 3-4, the scenery moves 2 pixels to the left… the white, jagged edge of the lower grey terrain has moved two distinct pixel positions…». La medición objetiva por correlación (ventana del fondo enmascarada) dio el mismo par con residuo 41.5 frente a ~16 del resto. Reglas que quedan: **frames consecutivos de verdad** (1 update aparte; con `--sequence-interval-ms` los pares no son comparables), **zona limpia ampliada**, y el agente confirma con la correlación/band-diff antes de dar por bueno el hallazgo.
+
 **Comparativa de modelos (misma ventana, f0024–f0035):** `qwen3-vl:8b-instruct-q8_0` da evolución frame a frame y señala cambios concretos (p. ej. el detalle amarillo de la torreta que cambia de forma); `gemma3:12b` es más verboso pero **inventa movimientos** (dice que la torreta se desplaza, siendo estática) y sus «anomalías» son vagas («posible variación de color… difícil determinar»). **Preferido: qwen3-vl**; gemma3 queda como segunda opinión. Además: para el flicker 1-de-cada-2 frames (bandas alternas) existe el check objetivo `node tools/analyze/check-alternating-bands.mjs <dirSeq>` (por bandas de 16 filas y alternancias de luminancia), que no depende del modelo.
 
 ### 6.5 Artefactos de una pasada de visión: nombres y ubicación
