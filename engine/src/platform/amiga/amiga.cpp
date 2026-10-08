@@ -4,6 +4,7 @@
 #include <proto/exec.h>
 #include <exec/memory.h>
 #include <eng/debug/prof.hpp>
+#include <eng/debug/peripheral.hpp>
 #include <eng/hw/info.hpp>
 
 
@@ -381,6 +382,108 @@ void AmigaBackend::clear_blit_service() {
 	g_blit_task = nullptr;
 	g_blit_task_user = nullptr;
 	level3_sync();
+}
+
+// --- Cola de blits por IRQ: API del backend -------------------------------------------
+// El detalle de la cola está en `amiga_internal.hpp` (estructura del job y arranque).
+// Aquí solo el estado del lote en curso y el encolado.
+void AmigaBackend::enable_blitter_queue() {
+	// Toma el slot de la IRQ de blit (exclusivo, `install_blit_service`): la tarea de
+	// nivel 3 arranca el siguiente job. Si otro servicio lo ocupa, no se toca.
+	if (g_blit_task != nullptr) {
+		return;
+	}
+	// La cola la leen el CPU y la IRQ: en Chip el Blitter en marcha se come el bus y cada
+	// encolado se vuelve lentísimo (~7,7k ciclos/job medidos). Fast (o Slow) si existe.
+	{
+		const eng::u32 bytes = static_cast<eng::u32>(kBlitQueueDepth) * sizeof(BlitQueueJob);
+		m_blit_queue_mem = eng::fast_or_slow<eng::WorkTag>(m_memmanager, bytes, 4u);
+		if (m_blit_queue_mem.valid()) {
+			g_blit_queue = reinterpret_cast<BlitQueueJob*>(m_blit_queue_mem.view.data());
+		}
+	}
+	g_blit_task = +[](void*, unsigned short) {
+		// Camino rápido: la IRQ BLIT llega en **cada** finalización de blit (también de los
+		// síncronos); si no hay cola pendiente no se toca ningún registro (una lectura de RAM
+		// y el retorno). Solo cuando hay un job encolado se programa el siguiente.
+		if (g_blit_q_head == g_blit_q_tail) {
+			g_blit_q_inflight = 0u;
+			return;
+		}
+		blitter_queue_start_next();
+	};
+	g_blit_task_user = nullptr;
+	level3_sync();
+}
+
+void AmigaBackend::blitter_queue_begin(eng::graphics::BlobOp op, u16 words, u16 height, s16 amod,
+				       s16 bmod, s16 cmod, s16 dmod) {
+	u16 use = 0u;
+	u16 minterm = 0u;
+	switch (op) {
+		case eng::graphics::BlobOp::Or:        use = eng::graphics::kBlitterUseA | eng::graphics::kBlitterUseB | eng::graphics::kBlitterUseD; minterm = eng::graphics::kBlitterMintermAOrB; break;
+		case eng::graphics::BlobOp::CookieCut: use = eng::graphics::kBlitterUseA | eng::graphics::kBlitterUseB | eng::graphics::kBlitterUseC | eng::graphics::kBlitterUseD; minterm = eng::graphics::kBlitterMintermCookieCut; break;
+		case eng::graphics::BlobOp::Opaque:    use = eng::graphics::kBlitterUseA | eng::graphics::kBlitterUseD; minterm = eng::graphics::kBlitterMintermCopyA; break;
+		case eng::graphics::BlobOp::Copy:      use = eng::graphics::kBlitterUseC | eng::graphics::kBlitterUseD; minterm = eng::graphics::kBlitterMintermCopyC; break;
+		case eng::graphics::BlobOp::Clear:     use = eng::graphics::kBlitterUseD; minterm = eng::graphics::kBlitterMintermZero; break;
+	}
+	m_q_cookie = (op == eng::graphics::BlobOp::CookieCut) || (op == eng::graphics::BlobOp::Or);
+	m_q_con0 = static_cast<u16>(use | minterm);
+	m_q_size = static_cast<u16>((static_cast<u16>(height) << 6u) | words);
+	m_q_amod = amod;
+	m_q_bmod = bmod;
+	m_q_cmod = cmod;
+	m_q_dmod = dmod;
+	m_q_afwm = 0xffffu;
+	m_q_alwm = 0xffffu;
+}
+
+void AmigaBackend::blitter_queue_masks(u16 afwm, u16 alwm) {
+	m_q_afwm = afwm;
+	m_q_alwm = alwm;
+}
+
+void AmigaBackend::blitter_queue_one(eng::graphics::BlitPtr a, eng::graphics::BlitPtr b,
+				     eng::graphics::BlitPtr d, u8 shift) {
+	// Ring SPSC lock-free: solo se avanza `tail` (stores de 16 bits). No hay que enmascarar
+	// la IRQ (no hay contador compartido que actualizar con RMW).
+	BlitQueueJob& j = g_blit_queue[g_blit_q_tail];
+	const u16 s = static_cast<u16>(static_cast<u16>(shift & 0x0fu) << 12u);
+	j.con0 = static_cast<u16>(m_q_con0 | s);
+	j.con1 = m_q_cookie ? s : 0u;
+	j.afwm = m_q_afwm;
+	j.alwm = m_q_alwm;
+	j.amod = static_cast<u16>(m_q_amod);
+	j.bmod = static_cast<u16>(m_q_bmod);
+	j.cmod = static_cast<u16>(m_q_cmod);
+	j.dmod = static_cast<u16>(m_q_dmod);
+	j.size = m_q_size;
+	j.a = a.addr.value;
+	j.b = static_cast<eng::u32>(m_q_cookie ? b.addr.value : d.addr.value);
+	j.c = m_q_cookie ? d.addr.value : 0u;
+	j.d = d.addr.value;
+	g_blit_q_tail = static_cast<u16>((g_blit_q_tail + 1u) & (kBlitQueueDepth - 1u));
+	// El arranque de la cadena lo hace `blitter_queue_kick()` (al final del encolado): así los
+	// jobs se escriben con el Blitter **parado** (en un A500 sin Fast la cola vive en Slow y
+	// escribirla con el Blitter en marcha cuesta ~6k ciclos/job por contención de bus).
+}
+
+void AmigaBackend::blitter_queue_kick() {
+	if (g_blit_q_inflight == 0u && g_blit_q_head != g_blit_q_tail) {
+		g_blit_q_inflight = 1u;
+		if ((custom_base[custom_dmaconr_offset] & 0x4000u) == 0u) {
+			blitter_queue_start_next();
+		}
+		// Si el Blitter está ocupado (job síncrono), su IRQ encadenará este.
+	}
+}
+
+void AmigaBackend::blitter_queue_drain() {
+	// Espera a que la cola se vacíe y el ultimo job termine, en modo nasty (como `wait_blitter`).
+	custom_base[custom_dmacon_offset] = dma_bltpri_set;
+	while (g_blit_q_head != g_blit_q_tail || g_blit_q_inflight != 0u) {
+	}
+	custom_base[custom_dmacon_offset] = dma_bltpri_clear;
 }
 
 // Despacha el nivel 4: AUD0..3 comparten vector. Lee INTREQR, limpia el bit de audio que

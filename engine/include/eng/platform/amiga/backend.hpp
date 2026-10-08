@@ -587,6 +587,24 @@ public:
 	void blitter_blob_run_masks(u16 afwm, u16 alwm) { m_blob_run.set_window_masks(afwm, alwm); }
 	bool blitter_blob_run_end();
 
+	/// **Cola de blits encadenados por IRQ** (INTF_BLIT → nivel 3; sin esperas activas por job).
+	/// El hardware no tiene cola (`BLTSIZE` con el Blitter ocupado espera), así que el patrón
+	/// sin esperas es encolar el estado completo de cada job y dejar que la IRQ de fin de blit
+	/// arranque el siguiente. `enable_blitter_queue` toma el slot de la IRQ de blit (exclusivo);
+	/// el flujo es `begin` (estado común) → N × `one` (encola) → `drain` (solo donde haga falta
+	/// el resultado). Los punteros deben quedar válidos hasta que la cola se drene. Ver
+	/// `VALIDATION.md` §4 de la 218 y la ficha de la técnica (presupuesto por job).
+	void enable_blitter_queue();
+	void blitter_queue_begin(eng::amiga::BlobOp op, u16 words, u16 height, s16 amod, s16 bmod,
+				 s16 cmod, s16 dmod);
+	void blitter_queue_masks(u16 afwm, u16 alwm);
+	void blitter_queue_one(eng::graphics::BlitPtr a, eng::graphics::BlitPtr b,
+			       eng::graphics::BlitPtr d, u8 shift);
+	/// Arranca la cadena tras encolar (los jobs se escriben con el Blitter parado; el arranque
+	/// solapa la ejecución con el trabajo de CPU que venga después). Sin él, la cola no corre.
+	void blitter_queue_kick();
+	void blitter_queue_drain();
+
 	/// **Tira de scroll** (columna entrante pre-compuesta): copia `planelines` planelíneas de `src`
 	/// (contiguo, `BLTAMOD=0`) al anillo interleaved `dst` (salto `dmod` bytes/planelínea) con
 	/// `words` palabras/planelínea y fine shift `shift` (0..15). Parte en trozos de `<= 1024`
@@ -810,6 +828,11 @@ private:
 	/// la misma implementacion `inline` de `blob.hpp` que usa el camino de coste cero.
 	eng::amiga::OrBlobBatch m_or_bob {};
 	eng::amiga::BlobBatch m_blob_run {}; ///< racha de blits en streaming (`blitter_blob_run_*`)
+	// Estado del lote en curso de la cola por IRQ (`blitter_queue_*`).
+	u16 m_q_con0 = 0, m_q_afwm = 0xffffu, m_q_alwm = 0xffffu, m_q_size = 0;
+	s16 m_q_amod = 0, m_q_bmod = 0, m_q_cmod = 0, m_q_dmod = 0;
+	bool m_q_cookie = false;
+	eng::Block<eng::WorkTag> m_blit_queue_mem {}; ///< cola en RAM CPU-privada (Fast o Slow) si hay
 	/// true una vez que la primera copperlist ha tomado el control completo del
 	/// display (INTENA/INTREQ/DMACON apagados e interrupciones del sistema
 	/// congeladas). Las instalaciones posteriores son solo swaps de puntero.

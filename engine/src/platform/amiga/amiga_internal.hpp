@@ -124,6 +124,78 @@ inline void* g_blit_task_user = nullptr;
 inline bool g_level3_installed = false;
 inline unsigned long g_level3_old_vector = 0;
 
+// --- Cola de jobs del Blitter encadenados por IRQ (nivel 3, BLIT) ----------------------
+// El hardware no tiene cola: escribir `BLTSIZE` con el Blitter ocupado espera
+// (`waitingblits()`, blitter.cpp; AHRM «blitter-finished»). El patrón para no hacer esperas
+// activas por job es encolar los trabajos y que la **IRQ de fin de blit** arranque el
+// siguiente (INTF_BLIT, bit 6 de INTREQ → nivel 3; AHRM :6532; WinUAE blitter.cpp:429,
+// `INTREQ_INT(6,3)`). La cola vive en RAM normal (solo la lee el CPU: la IRQ y el kick) y
+// guarda el **estado completo** de cada job (CON0/CON1, ventanas, módulos, punteros,
+// BLTSIZE): el nivel 3 no calcula nada, solo programa y dispara.
+struct BlitQueueJob {
+	unsigned short con0;   ///< BLTCON0 (canales + minterm + ASH)
+	unsigned short con1;   ///< BLTCON1 (BSH en cookie-cut)
+	unsigned short afwm;   ///< BLTAFWM
+	unsigned short alwm;   ///< BLTALWM (0 = descarta la última palabra/salida)
+	unsigned short amod;   ///< BLTAMOD (referencia, se escribe empaquetado con D)
+	unsigned short dmod;   ///< BLTDMOD
+	unsigned short cmod;   ///< BLTCMOD (empaquetado con B)
+	unsigned short bmod;   ///< BLTBMOD
+	unsigned short size;   ///< BLTSIZE (alto<<6 | ancho) — su escritura arranca el blit
+	unsigned short pad;    ///< alineación a 4 B
+	unsigned long a;       ///< punteros DMA (0 = no usado por la operación)
+	unsigned long b;
+	unsigned long c;
+	unsigned long d;
+};
+constexpr unsigned short kBlitQueueDepth = 64u;
+
+inline BlitQueueJob g_blit_queue_static[kBlitQueueDepth];
+/// Puntero a la cola. Por defecto la estática (BSS del programa, puede ser Chip: el Blitter en
+/// marcha se come el bus y cada encolado se vuelve lentísimo — medido en la 218 ~7,7k
+/// ciclos/job); `AmigaBackend::enable_blitter_queue` la reapunta a **Fast/Slow** (CPU-privada)
+/// cuando existe, que es lo correcto para una estructura que solo leen el CPU y la IRQ.
+inline BlitQueueJob* g_blit_queue = g_blit_queue_static;
+/// Ring **lock-free SPSC**: la CPU solo avanza `tail` (stores de 16 bits), la IRQ solo
+/// `head`; vacío ⇔ `head == tail`. Sin contador compartido (su RMW frente a la IRQ obligaba
+/// a enmascarar BLIT en cada encolado, y eso costaba ~7k ciclos/job medidos).
+inline volatile unsigned short g_blit_q_head = 0;  ///< próximo a ejecutar (IRQ)
+inline volatile unsigned short g_blit_q_tail = 0;  ///< próximo a encolar (CPU)
+inline volatile unsigned char g_blit_q_inflight = 0; ///< hay un job en el Blitter (o encolado)
+
+/// Arranca el siguiente job de la cola (llamado desde el kick de la CPU y desde la IRQ).
+inline void blitter_queue_start_next() {
+	if (g_blit_q_head == g_blit_q_tail) {
+		g_blit_q_inflight = 0u;
+		return;
+	}
+	const BlitQueueJob& j = g_blit_queue[g_blit_q_head];
+	// Pares contiguos en escrituras de 32 bits (CON0/CON1, AFWM/ALWM, CMOD/BMOD, AMOD/DMOD).
+	*reinterpret_cast<volatile unsigned long*>(&custom_base[custom_bltcon0_offset]) =
+		(static_cast<unsigned long>(j.con0) << 16u) | j.con1;
+	*reinterpret_cast<volatile unsigned long*>(&custom_base[custom_bltafwm_offset]) =
+		(static_cast<unsigned long>(j.afwm) << 16u) | j.alwm;
+	*reinterpret_cast<volatile unsigned long*>(&custom_base[custom_bltcmod_offset]) =
+		(static_cast<unsigned long>(j.cmod) << 16u) | j.bmod;
+	*reinterpret_cast<volatile unsigned long*>(&custom_base[custom_bltamod_offset]) =
+		(static_cast<unsigned long>(j.amod) << 16u) | j.dmod;
+	if (j.c != 0u) {
+		*reinterpret_cast<volatile unsigned long*>(&custom_base[custom_bltcpt_offset]) = j.c;
+	}
+	if (j.b != 0u) {
+		*reinterpret_cast<volatile unsigned long*>(&custom_base[custom_bltbpt_offset]) = j.b;
+	}
+	if (j.a != 0u) {
+		*reinterpret_cast<volatile unsigned long*>(&custom_base[custom_bltapt_offset]) = j.a;
+	}
+	if (j.d != 0u) {
+		*reinterpret_cast<volatile unsigned long*>(&custom_base[custom_bltdpt_offset]) = j.d;
+	}
+	g_blit_q_head = static_cast<unsigned short>((g_blit_q_head + 1u) & (kBlitQueueDepth - 1u));
+	// La escritura de BLTSIZE arranca el blit (último registro en programarse).
+	custom_base[custom_bltsize_offset] = j.size;
+}
+
 // **Señal Exec de VBlank** (modelo de mensajes): la IRQ de nivel 3 (VERTB) incrementa
 // `g_vblank_seq` y levanta la señal de la tarea que espera; los bucles de espera
 // (`wait_vblank` bloqueante y `os::wait`) **duermen en `Wait()`** en vez de sondear VPOSR.
