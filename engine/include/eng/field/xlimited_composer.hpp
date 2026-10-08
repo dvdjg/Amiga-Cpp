@@ -436,6 +436,11 @@ public:
 
     constexpr bool ok() const { return m_ok; }
     constexpr u16 copper_words() const { return m_copper_words; }
+    /// Depuración: puntero al bloque de copper activo (lo que ejecuta el Copper). Es
+    /// la vía correcta para trazar el display: NO leer `COP1LC` (write-only/PC).
+    const u16* debug_active_copper() const {
+        return m_copper_initialized ? m_copper.active_words() : nullptr;
+    }
 
 private:
     static constexpr u8 hardware_plane(u8 pf1_plane, bool is_pf1) {

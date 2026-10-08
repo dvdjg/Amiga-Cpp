@@ -795,9 +795,10 @@ public:
     constexpr u16 copper_words() const {
         return m_cfg.dpf.enabled ? m_dual.copper_words() : m_single.copper_words();
     }
-    /// Depuración: puntero al copper activo y palabras usadas.
+    /// Depuración: puntero al copper activo y palabras usadas. En DPF devuelve el
+    /// bloque del composer dual (vía correcta para trazar el display; NO leer COP1LC).
     const u16* debug_active_copper() const {
-        return m_cfg.dpf.enabled ? nullptr : m_single.debug_active_copper();
+        return m_cfg.dpf.enabled ? m_dual.debug_active_copper() : m_single.debug_active_copper();
     }
     /// ¿El split es siempre esperable con esta configuración (viewport <= 215)?
     /// Si es true, `linear_display` es innecesario: el modo split canónico usa
