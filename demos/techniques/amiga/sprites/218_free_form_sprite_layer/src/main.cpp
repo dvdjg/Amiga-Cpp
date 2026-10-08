@@ -432,14 +432,13 @@ struct SprLayerDemo {
 		eng::Words<eng::CopperTag> list = m_clist_words[idx];
 		backend.install_copper_list(list.data()); // frontera pendiente: install_copper_list aún recibe `u16*`
 		list[m_lay.shift_word] = m_fg_shift;
-		// Doble buffer del FG: alterna por update (paridad de `m_updates`). El selector del
-		// original (`btst #0,c32frame_cn_o+1`, `SPR_Layer.asm:378-398`) prueba el byte alto
-		// de un contador 0..31 — siempre 0: dibuja siempre en `fg_buf2`, el buffer visible,
-		// y con updates de más de un campo el haz lee los BOBs a medio escribir (parpadeo).
-		// Alternar los buffers (las tablas de restore por buffer existen para ello) dibuja
-		// en el oculto: el update termina antes del VBlank que lo muestra y el visible
-		// siempre está completo.
-		const u8 buf = ((m_updates & 1u) != 0u) ? 0u : 1u;
+		// Selector de buffer FG del original (`btst #0,c32frame_cn_o+1`, `SPR_Layer.asm:378-398`):
+		// prueba el byte alto de un contador 0..31, que vale siempre 0 → dibuja y muestra
+		// siempre `fg_buf2` (índice 1). Se replica tal cual: un doble buffer por update
+		// introduce un salto periódico de 8 px del playfield cada 16 updates (medido contra
+		// la referencia con el watchpoint de `COP1LC`), porque el avance grueso del puntero
+		// (+2 B cada 16 updates) queda a caballo entre los dos bitmaps.
+		const u8 buf = ((m_c32 & 0x100u) != 0u) ? 0u : 1u;
 		set_fg_ptrs(idx, buf, m_fg_offset);
 		const eng::u32 t4 = eng::debug::DebugPeripheral::cycle_counter();
 		draw_bobs(backend);
@@ -889,8 +888,9 @@ private:
 	// BOBs: restore desde el 3.er buffer + cookie-cut `$CA` (`BlitBob`)
 	// ------------------------------------------------------------------
 	void draw_bobs(eng::amiga::AmigaBackend& backend) {
-		// Paridad del update: el mismo buffer FG que publica `update()` (ver allí).
-		const bool second = (m_updates & 1u) != 0u;
+		// Selector del original (`btst #0,c32frame_cn_o+1`): siempre falso, buffer visible
+		// `fg_buf2` (mismo criterio que el selector de `update()`).
+		const bool second = (m_c32 & 0x100u) != 0u;
 		// --- Restore: copia el fondo limpio de fg_buf3 al buffer de dibujo ---
 		// Los BOBs de una fila están a 48 px = 3 palabras y comparten alineación, así que
 		// sus celdas de 3 palabras son contiguas: la unión de la fila de 5 BOBs son 15

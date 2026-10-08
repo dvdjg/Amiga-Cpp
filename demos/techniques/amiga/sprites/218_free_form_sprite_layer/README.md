@@ -118,12 +118,11 @@ bash ./tools/run/run-demo.sh demos/techniques/amiga/sprites/218_free_form_sprite
   de 32 bits: la tasa es ≈ **25 updates/s** en emulación ciclo-exacta, en línea con las ≈ 26 del
   original. Medido con los contadores del periférico de depuración; detalle en
   [`VALIDATION.md`](VALIDATION.md) §4.
-- **Doble buffer del FG** (desviación deliberada, documentada en §5.5 de la validación): el
-  original selecciona el buffer FG con `btst #0,c32frame_cn_o+1`
-  (`SPR_Layer.asm:378-398`) — el byte alto de un contador 0..31, siempre 0: usa siempre el buffer
-  visible y con updates de más de un campo los BOBs se leen a medio escribir (parpadeo según la
-  fase). El port alterna el buffer por update y dibuja en el oculto; el render por frame es el
-  mismo sin el desgarro.
+- **Selector de buffer FG fiel al original**: el original selecciona el buffer con
+  `btst #0,c32frame_cn_o+1` (`SPR_Layer.asm:378-398`) — el byte alto de un contador 0..31, siempre
+  0: usa siempre `fg_buf2`. El port lo replica tal cual; un doble buffer por update produce un
+  salto periódico de 8 px del playfield cada 16 updates (verificado contra la referencia con el
+  watchpoint de `COP1LC`; §3.6 de la validación).
 
 Nota: la demo **no vuelve a AmigaDOS** (el `takeover_display` del engine congela el SO) y **no
 procesa entrada**: el efecto arranca solo al cargar. La captura/cierre los hace el runner.

@@ -72,6 +72,54 @@ posiciones deja una **junta de una columna** en la frontera entre las columnas d
 El **`WAIT`** va al inicio de la línea (después del fetch DMA de sprites, `DDFSTRT`). Un `WAIT` por
 canal en su X **no** funciona. La CPU queda libre; se devora **DMA de Copper**.
 
+## Procedimiento reproducible (capas free-form nuevas)
+
+Receta para montar una capa free-form en otra demo/juego, en el orden que evita los fallos que ya
+costaron diagnóstico (referencia completa: `218_free_form_sprite_layer`; módulos del engine:
+`graphics/sprite_line_layer.hpp`, `effects::SpriteLayer`):
+
+1. **Geometría primero, en papel**: `n` columnas de 16 px (8 por DMA + `n-8` por Copper reusando
+   canales `k%8`), alto de banda `L` líneas. La X de cada columna avanza 8 unidades de `SPRxPOS`
+   (= 16 px); la reposición de fin de línea va **en orden inverso (7→0)** con `SPRxPOS` solo.
+2. **Estructuras DMA por canal** (doble juego A/B): cabecera `POS,CTL` + `L` parejas
+   `DATA,DATB` + terminador `0,0`. Sin terminador el canal sigue leyendo memoria y deja la
+   *columna fantasma* (`docs/reference/emulators/winuae/sprite-dma.md`).
+3. **Copperlist por línea**: `WAIT` al inicio + ráfaga de `SPRxPOS,SPRxDATB,SPRxDATA` por columna
+   (**nunca `SPRxCTL` por columna**: desarma el comparador; `SPRxDATA` es quien arma) + reposición.
+   Los punteros `SPRxPT` de la lista se fijan al juego de estructuras del par.
+4. **Scroll = mover X, no imagen**: `SPRxPOS` baja 1 unidad (1 px lores) cada 4 updates con
+   **vuelta a 0 tras 7** (`cpos_offset`), y el bit 0 de `SPRxCTL` alterna cada 2 (`$0C03/$0C02`)
+   para el medio píxel. Reparto: posiciones en 4 updates (cuartos de columna, repartiendo la
+   última entre bloques), DATA en 32 updates (1 columna/frame: `frames 0-7` estructuras,
+   `8-18` lista 1, `19-29` lista 2 tras retroceder 11 columnas, `30` retrocede 18 y el avance neto
+   es +1 columna/ciclo). El mundo avanza **una columna por ciclo de 32**; el
+   reset de posición (+14 px en 4 unidades) se compensa con el avance de contenido (−16 px).
+5. **Doble buffer de pares**: 4 copperlists; el par en pantalla y el par que se escribe nunca
+   coinciden. El índice de lista mostrada, el de escritura de DATA y el de estructuras flipan
+   juntos en el wrap de 32; el índice de posiciones, 4 updates antes (c32==28).
+6. **Anclaje de fase**: esperar **siempre la misma línea temprana** (`WaitRaster 0x2c` del
+   original) al inicio del update. Sin ancla, las escrituras vivas (`SPRxCTL` y las `SPRxPOS` de
+   las estructuras) caen en posiciones de haz distintas cada frame y barren la capa.
+7. **Un solo buffer de playfield** (si hay playfield): el selector por bit alto de un contador
+   0..31 del original es **código muerto, siempre el mismo buffer**. Alternar buffers por update
+   parece inofensivo pero introduce un salto periódico del playfield cuando el puntero de planos
+   avanza (medido: +8 px cada 16 updates).
+8. **Presupuesto**: medir con los contadores del periférico de depuración
+   (`run-demo.sh --read-debugperiph counters`); el update debe caber con holgura dentro del
+   periodo (en la 218: 220k de 284k ciclos = 2 campos) y el periodo quedar clavado al ancla.
+
+Medición y validación de la dinámica (lo que distingue un fallo real de un artefacto):
+
+- **Capturar a resolución de update con fase fija**: watchpoint de **escritura en `COP1LC`**
+  (`0xDFF080`) — una captura por update, el mismo punto del bucle siempre. La captura por *probe*
+  muestrea a resolución de frame y puede mostrar “congelados” que no existen.
+- **Correlacionar sobre contenido no periódico**: el tramado de la capa aliasa en cualquier
+  búsqueda de paso 2 (y el texto/BOBs pertenecen al playfield y contaminan la máscara). Usar el
+  **cuerpo de montaña** (grises medios) o bordes con contraste; con `dx` de paso 1 cuando se mide
+  medio píxel.
+- **Comparar contra la referencia con el mismo método** antes de tocar nada: si el patrón del port
+  es idéntico al del original, no hay bug. Cierre con visión (regla de oro) sobre una secuencia.
+
 ## Límites y notas
 
 - El efecto consume **mucho tiempo de raster** y es **proporcional al número de líneas** que ocupa: conviene acotarlo a una banda, mezclar con una banda de sprite layer estándar o dejar zonas sin efecto.

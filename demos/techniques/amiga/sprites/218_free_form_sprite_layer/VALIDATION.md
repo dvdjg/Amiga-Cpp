@@ -131,12 +131,12 @@ El conteo de anillos con el detector de color del screenshot da **4 arriba + 5 a
 secuencia *step* (CPU detenida en el probe) los conteos varían (2-4 arriba) por el artefacto de
 frontera de escaneo descrito en §5.5, también presente en el build base.
 
-### 3.6 Detección con visión de la discontinuidad de 1-2 px del fondo (32 frames)
+### 3.6 Discontinuidad periódica del fondo (32 updates): causa raíz y fix
 
-Síntoma real (reportado por el usuario): cada 32 updates el fondo de montañas da una costura de
+Síntoma real (reportado por el usuario): cada 32 updates el fondo de montañas daba una costura de
 1-2 px. El pase de visión genérico de §3.5 **no lo detectaba** (la escena tiene texto, BOBs y
 objetos grandes que dominan la atención y el detalle de 1 px no sobrevive al reescalado del
-modelo). Método que sí funciona (procedimiento general en `DEMO_VISUAL_DEBUG.md` §6.4.2):
+modelo). Método de visión que sí funciona (procedimiento general en `DEMO_VISUAL_DEBUG.md` §6.4.2):
 
 1. **Simplificar sin recompilar**: `run-demo.sh 218_free_form_sprite_layer --sequence-step-frames
    40` (frames consecutivos, 1 update aparte) y de cada frame se recorta la **mayor caja sin
@@ -157,16 +157,36 @@ scenery moves a consistent 1 pixel to the left. However, in pair 3-4, the scener
 to the left. This is evident because the white, jagged edge of the lower grey terrain… has moved
 two distinct pixel positions…».
 
-Confirmación objetiva: la correlación enmascarada del fondo (solo píxeles de montaña) da en el
-mismo par un residuo de **41.5** frente a ~16 del resto, con patrón `-2,0,-2,0…` roto en
-`f0031→f0032` y `f0032→f0033`. El mismo salto aparece en el build **anterior a este turno**
-(HEAD~1: residuo 41.5 en `f0031→f0032`), así que **no es una regresión de los cambios de §5.5**;
-el estado por update (traza temporal de `c32/ctl/cpos/listas`, retirada tras el diagnóstico) es
-fiel al original. La causa raíz queda **acotada** a la costura contenido↔posición del relevo de
-las dos parejas de copperlist en la frontera de 32 (el modelo y la correlación coinciden en
-±1-2 px); aislarla del todo requiere poder apagar por *regiones/líneas* el render desde el
-emulador (petición registrada: comando `render` en el canal lateral de WinUAE-DBG). **Fix
-pendiente**.
+**Diagnóstico definitivo (medición por `COP1LC`)**: el port y la referencia se capturaron con el
+mismo método — watchpoint de **escritura en `COP1LC`** (`0xDFF080`, una captura por update, fase
+fija), analizando el movimiento del **cuerpo de montaña** (máscara de grises medios, coste ~1 =
+pixel-perfecto y libre del alias del tramado periódico de la capa):
+
+| Captura | Patrón de dx (px captura = px pantalla) |
+|---|---|
+| Referencia (original, efecto en marcha) | `-2,-2,-2,…` constante en 71 updates, coste 0.5-1.3 |
+| Port con **doble buffer del FG** (cambio de §5.5) | `-2` constante **con un evento `+8` cada 16 updates** (coste 1.1) |
+| Port con **un solo buffer** (fiel al original) | `-2` constante en 71 updates, coste 1.1-1.3 |
+
+**Causa raíz**: el doble buffer del FG introducido en el turno de optimización (§5.5) alternaba el
+bitmap del playfield cada update; el avance grueso del puntero (+2 B = 16 px cada 16 updates)
+quedaba a caballo entre los dos bitmaps y producía un salto periódico de 8 px del playfield. El
+`btst #0,c32frame_cn_o+1` del original (`SPR_Layer.asm:378-398`) prueba el byte alto de un contador
+0..31 — siempre 0: el original usa **siempre el mismo buffer**. Restaurado ese comportamiento, el
+patrón del port es idéntico al de la referencia.
+
+**Corrección de interpretaciones previas**: los análisis de “costura de contenido↔posición” de
+este apartado venían de artefactos de medida acumulados (el tramado de la capa es periódico y
+aliasa en las correlaciones de paso 2; la captura por *probe* muestrea a resolución de frame, no de
+update; y las secuencias de `--hide` comparadas entre sí no aplicaban el toggle). El estado interno
+por update (contadores, staging de posiciones y datos, doble buffer de listas) se verificó correcto
+con breakpoint en `update_layer_data` (A4=`this`) y volcado de las 4 copperlists: el contenido de
+la pareja entrante avanza exactamente una columna. El modelo del relevo era correcto; el defecto
+era el buffer del FG.
+
+**Fix**: `main.cpp` usa el selector fiel (`m_c32 & 0x100`), un solo buffer. Verificado con el
+watchpoint de `COP1LC` (tabla) y con visión sobre el filmstrip del borde de montaña (respuesta
+cruda: «continuo y descendente… sin saltos ni retrocesos»).
 
 ## 4. Cadencia y coste (medido con los contadores 0-4 del periférico de depuración)
 
@@ -183,13 +203,13 @@ solo se comparan las cifras del **mismo build**:
 
 | Elemento | Ciclos | ≈ líneas |
 |---|---|---|
-| UpdateLayerPos (fills de POS) | 37 244 | 82 |
-| UpdateLayerData (columnas Copper) | 63 982 | 141 |
-| BOBs (2 restores fusionados + 9 dibujos) | 137 064 | 302 |
-| Update completo | 246 486 | 543 |
-| Periodo del bucle (update + espera) | 284 232 | 626 |
+| UpdateLayerPos (fills de POS) | 34 950 | 77 |
+| UpdateLayerData (columnas Copper, merge §5.6) | 40 752 | 90 |
+| BOBs (2 restores fusionados + 9 dibujos) | 122 126 | 269 |
+| Update completo | 220 574 | 486 |
+| Periodo del bucle (update + espera) | 284 212 | 626 |
 
-El periodo es **2 campos exactos** (284 204): el update termina ~17.7k ciclos antes del VBlank que
+El periodo es **2 campos exactos** (284 204): el update termina ~63k ciclos antes del VBlank que
 publica su copperlist, y el *blitter nasty* (`BlobBatch::wait()`, macro `BlitWait` del original,
 `GFX/blitter.i:26-31`) hace que el CPU no retrase al Blitter. Tasa resultante ≈ **25 updates/s**
 en la configuración ciclo-exacta; la referencia original corre a ≈ 26 updates/s con el mismo
@@ -284,41 +304,34 @@ Evidencia (contadores 0/4 del periférico, 3 arranques):
 | Patrón de desplazamiento del fondo | uniforme salvo deriva | uniforme y **periódico estable** |
 
 El bucle queda clavado a 3 campos con el estado de entonces (≈16.7 updates/s). Con las
-optimizaciones de §4 (servicio de blit desactivado + longs de 32 bits) el update cabe en **2
-campos exactos** y la cadencia es ≈25 updates/s, en línea con el original: el anclaje de fase se
-mantiene y pasa a ser la base del doble buffer (§5.5).
+optimizaciones de §4 (servicio de blit desactivado + longs de 32 bits + merges de §5.2/§5.6) el
+update cabe en **2 campos exactos** (284 204) y la cadencia es ≈25 updates/s: el anclaje de fase se
+mantiene.
 
-### 5.5 Doble buffer del FG (desgarro de BOBs) y servicio de blit
+### 5.5 Selector de buffer FG (fiel al original) y servicio de blit
 
-Síntoma: los BOBs aparecían incompletos (4-6 de 9) en capturas con la CPU parada en el *probe*.
+Síntoma observado en capturas con la CPU parada en el *probe*: los BOBs aparecían incompletos
+(4-6 de 9). Es un artefacto de muestreo (la frontera de escaneo mezcla dos campos y las bandas de
+BOBs se mueven 2 px por update); el mismo efecto aparece en el build base validado.
 
-Causa raíz (doble):
+El original selecciona el buffer FG/restore con `btst #0,c32frame_cn_o+1`
+(`SPR_Layer.asm:378-398`), el byte alto de un contador 0..31 — siempre 0: usa siempre `fg_buf2`.
+El port reproduce ese selector tal cual (`m_c32 & 0x100`).
 
-1. **El FG no se dobla**. El original selecciona el buffer FG/restore con
-   `btst #0,c32frame_cn_o+1` (`SPR_Layer.asm:378-398`), el byte alto de un contador 0..31 —
-   siempre 0: usa siempre `fg_buf2`, el buffer **visible**. Las tablas de restore por buffer y el
-   selector existen para doblar, pero el selector es código muerto. Con un update de más de un
-   campo, el haz lee los BOBs a medio escribir y el desgarro depende de la fase (por eso el
-   conteo varía entre frames y entre builds). El port reproduce el selector muerto
-   (`m_c32 & 0x100`) hasta esta sesión.
-2. Con el **servicio de blit de fondo** instalado, `wait_blitter` llama al servicio en cada
-   iteración del sondeo de `BBUSY` (`amiga_internal.hpp:210-221`): ~130k ciclos/update de coste
-   inútil con la cola vacía.
+Un turno de optimización intentó convertirlo en un doble buffer real (alternando por update para
+dibujar los BOBs en el buffer oculto). Se revirtió: con la alternancia, el avance grueso del
+puntero de planos (+2 B = 16 px cada 16 updates) queda a caballo entre los dos bitmaps y produce
+un **salto periódico de 8 px del playfield cada 16 updates** (medido contra la referencia con el
+watchpoint de `COP1LC`; §3.6). Con el buffer único el patrón es idéntico al original.
 
-Arreglo:
+Servicio de blit de fondo desactivado (`engine.set_blit_service_enabled(false)`): con él instalado,
+`wait_blitter` llama al servicio en cada iteración del sondeo de `BBUSY`
+(`amiga_internal.hpp:210-221`) — ~130k ciclos/update de coste inútil con la cola vacía. Sin tareas
+de fondo en esta demo, la espera queda como el sondeo «nasty» puro del original.
 
-- **Doble buffer real**: el buffer alterna por update (paridad de `m_updates`) y los BOBs se
-  dibujan en el oculto; el visible siempre está completo. Es la intención del selector original,
-  documentada como desviación deliberada (el render por frame es idéntico salvo el desgarro).
-- **Servicio de blit desactivado** en `main()`: sin tareas de fondo en esta demo, la espera es el
-  sondeo «nasty» puro del original.
-
-Verificación: el update (246 486 ciclos) termina **~17.7k ciclos antes** del VBlank que publica su
-copperlist (264 228), así que el buffer mostrado nunca está a medio dibujar; el screenshot en
-marcha muestra **9 anillos (4+5)** y la visión confirma texto sin roturas, 9 anillos completos y
-frases coherentes (§3.5). Los conteos de BOBs en la secuencia *step* (CPU parada en el probe) no
-son fiables: la frontera de escaneo mezcla dos campos y las bandas de BOBs (que se mueven 2 px
-por update) caen a distinto lado; el mismo artefacto aparece en el build base validado.
+Verificación: el update termina antes del VBlank que publica su copperlist (ver §4), el screenshot
+en marcha muestra **9 anillos (4+5)** y la visión confirma texto sin roturas, 9 anillos completos
+y frases coherentes (§3.5).
 
 ### 5.6 Tiles de FG: 28→14 rachas por ciclo
 
