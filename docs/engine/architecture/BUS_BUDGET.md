@@ -36,6 +36,37 @@ Totales orientativos por frame: PAL ≈ 227×312 ≈ 70 800 slots; NTSC ≈ 227�
 planos lores** o **4 hires** el bitplane DMA roba ~50 % de los slots even, y por eso los juegos
 clásicos bajaban a **288×240**, reducían a **25 fps** o recortaban la copperlist.
 
+## Reparto vertical: la ventana de VBlank (medido)
+
+El bus **no es uniforme a lo largo del frame**: el DMA de bitplanes solo existe en la ventana
+visible. Medido con el grid DMA del frame profiler (227×313 celdas, una por slot) en la demo 218
+contra su referencia:
+
+| Zona (PAL, display en línea 44) | Líneas | Slots libres/línea | Slots libres |
+|---|---|---|---|
+| Borde superior (VBlank) | 0-43 | ~215 | ~9,4k |
+| Ventana visible (4 planos + Copper denso) | 44-267 | ~41 | ~9,2k |
+| Borde inferior (VBlank) | 268-312 | ~215 | ~9,7k |
+
+Los dos bordes forman **un hueco continuo de ~89 líneas (~19k slots libres)** donde el Blitter
+corre a ~1 slot/2 ciclos; en la ventana compite con la CPU por los ~41 slots libres de cada línea
+y baja a ~1 slot/4-8 ciclos. Medido con el mismo job de BOB: **3,9 ciclos/slot en el borde vs 8,3
+en la ventana (2×)**.
+
+**Técnica de planificación**: empaquetar los blits pesados en el hueco del VBlank y dejar la
+ventana visible para el trabajo de CPU. La referencia de la 218 mete 17,5k de sus 23k slots de
+Blitter en los bordes (densidad de bus total 98,1 %); un port con los mismos blits repartidos por
+la ventana los ejecuta a la mitad de velocidad y no cabe en un campo. En A500 sin Fast RAM el
+**código también compite**: cada fetch de instrucción desde Chip es un slot (medido: 9,9k
+slots/campo de CPU frente a 4,7k de la referencia, que además pasa menos tiempo en esperas).
+
+**Implicación para el modelo**: el presupuesto por frame es una **cota inferior** de coste — dos
+escenas con los mismos slots totales pueden diferir 2× en tiempo de Blitter según dónde caigan.
+La extensión natural de `BusBudgetInput` es declarar las palabras de Blitter que corren en el
+blanco y las que caen en la ventana (con sus capacidades y velocidades respectivas) y avisar
+cuando el trabajo pesado no quepa en el hueco. Datos y método completos:
+`docs/debugging/investigaciones/218-campana-rendimiento.md`.
+
 ## API
 
 ```cpp
