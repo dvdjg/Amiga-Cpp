@@ -60,24 +60,39 @@ referencia. El resto de secciones está a la par o mejor. La siguiente pregunta 
 mismo blit tarda 2,4× más: hipótesis a falsar en F3 (orden/raster phase, estado de `BLTPRI`
 alrededor del job, y coste de emisión del `BlobBatch` frente al código inline del original).
 
-## Caveats de herramienta (medidos; no repetir el error)
+## F3 — Experimentos
 
-- **Leer registros custom o `VPOSR` con la CPU parada en un watchpoint no es fiable**: devuelven
-  valores internos (BLTSIZE/CON0 idénticos para jobs distintos; VPOSR constante 88 en 900
-  muestras). Para atribuir: **ciclos del canal lateral + deltas entre hits + clasificación por
-  PC**; para la forma del job, la fuente.
-- El canal lateral (`state.cycles`) es la referencia temporal fiable (256 unidades = 1 ciclo CPU).
+### F3-A (H1: dependencia de fase de raster) — **FALSADA** (hot-patch)
 
-## F3 — Siguiente experimento (una variable)
+Experimento: mover el ancla del bucle (`wait_raster_layer`, inmediato de `cmpi.l` en
+`0xc11ff4`, valor `0x2c00` = línea 44) **52 líneas en caliente** (poke a `0x6000` = línea 96) y
+comparar los contadores 7/8 (restore/dibujo de BOBs) y 10 (periodo). El poke de código se aplica
+con GDB (`pause` → `writeMemory` → `continue`); el `poke` del canal lateral con conexiones
+separadas no aplica de forma fiable (la cola/lock se suelta antes de ejecutar) — usar GDB para
+parchear código.
 
-**Hipótesis H1**: el wall 2,4× de los BOBs es de *emisión/orden* (fase de raster y estado
-`BLTPRI`), no del blit en sí.
+Resultado: **sin cambio** (19.444 / 102.860 / 284.192 antes y después; revertido y verificado).
+⇒ el wall 2,4× de los BOBs **no depende de la banda de raster**; H1 muerta. Queda H2: la
+*ejecución* del job bajo nuestras condiciones de bus (el profiler por scanline debe decir dónde
+se van los ciclos del Blitter durante los BOBs) y H3: el coste de emisión del `BlobBatch` frente
+al código inline (la comparación estática de registros dice que el nuestro escribe **menos**
+registros por job que el original: 6 vs 8 — H3 pierde fuerza).
 
-- **Experimento A (fuente, 1 variable)**: reordenar `draw_bobs` justo tras el ancla (línea 44),
-  replicando el orden del original (`.updcp` → punteros FG → restore → BOBs), sin tocar nada más.
-- **Métrica**: wall por job de los BOBs con `ref_probe.mjs` (PCs del port) + contadores 4/7/8 +
-  periodo (10).
-- **Delta esperado**: si H1 es cierta, el wall de los BOBs baja de ~11,2k a ~4,6k (−60k en el
-  update) → periodo ~142k = 1 campo.
-- **Falsación**: si el wall de los BOBs no baja ≥50 % del esperado o el hash de copperlists
-  cambia → H1 falsa; revertir y pasar a H2 (coste de emisión del `BlobBatch` vs código inline).
+### F3-B (siguiente): profiler por scanline (F2 pendiente)
+
+Volcado `.amigaprofile` de port y referencia en el mismo punto de escena (breakpoint determinista
++ `winuae_profile`). Comparar: actividad del Blitter por línea durante los BOBs, canales DMA
+activos, ciclos de CPU. Delta esperado si H2 es cierta: el Blitter del port pierde slots durante
+los BOBs (p. ej. Copper/DMA con prioridad distinta) → la columna «Slots de bus» de la tabla
+diferencial pasa a ser medida, no modelada.
+
+Caveats de herramienta (medidos):
+
+- Leer registros custom o `VPOSR` con la CPU parada en un watchpoint **no es fiable** (BLTSIZE/CON0
+  idénticos para jobs distintos; VPOSR constante 88 en 900 muestras).
+- El watchpoint de BLTSIZE **no captura los fills** de posiciones del port (19/update): sus
+  escrituras de `BLTSIZE` no disparan el watchpoint (¿camino `blit_fill_word_strided`?); para
+  esos, usar los contadores. Los jobs del batch se emiten desde `blitter_blob_run_one`
+  (`0xc10a14`/`0xc10c42`).
+- Para atribuir: ciclos del canal lateral + deltas entre hits + clasificación por PC; la forma
+  del job, de la fuente.
