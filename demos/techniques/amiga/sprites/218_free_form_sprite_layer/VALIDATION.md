@@ -188,7 +188,9 @@ era el buffer del FG.
 watchpoint de `COP1LC` (tabla) y con visión sobre el filmstrip del borde de montaña (respuesta
 cruda: «continuo y descendente… sin saltos ni retrocesos»).
 
-## 4. Cadencia y coste (medido con los contadores 0-4 del periférico de depuración)
+## 4. Cadencia y coste (contadores del periférico de depuración)
+
+Contadores: `0` = update completo, `1` = UpdateSprCtl, `2` = UpdateLayerPos, `3` = UpdateLayerData, `4` = BOBs (restore + cookie-cut + esperas), `5` = tiles FG, `6` = contadores+scroll+publicación+punteros, `7` = restore de BOBs, `8` = dibujo de BOBs (cookie-cut), `9` = espera final del Blitter, `10` = periodo del bucle.
 
 El efecto **ocupa más de un campo** de VBlank: el bucle no se queda un frame por VBlank. Por eso
 `g_eng_run_status.frame` ya no publica el tick de la IRQ (que avanza a 50 Hz aunque el update no
@@ -201,19 +203,74 @@ determinista (tres runs dan el mismo valor ±8 ciclos), pero entre builds la fas
 32 frames puede caer en un frame con más o menos trabajo (p. ej. con o sin tira de tiles), así que
 solo se comparan las cifras del **mismo build**:
 
-| Elemento | Ciclos | ≈ líneas |
-|---|---|---|
-| UpdateLayerPos (fills de POS) | 34 950 | 77 |
-| UpdateLayerData (columnas Copper, merge §5.6) | 40 752 | 90 |
-| BOBs (2 restores fusionados + 9 dibujos) | 122 126 | 269 |
-| Update completo | 220 574 | 486 |
-| Periodo del bucle (update + espera) | 284 212 | 626 |
+| UpdateSprCtl | ~1,3k |
+| UpdateLayerPos (fills de POS, 19 jobs) | 35,0-36,3k |
+| UpdateLayerData (columnas Copper, **2 jobs** con staging lineal) | 40,4k |
+| BOBs (2 restores + 9 cookie-cut = 11 jobs) | 122,5k |
+| Tiles FG | 17,7k |
+| Contadores+scroll+publicación+punteros | ~4,1k |
+| Update completo | 221,0-222,5k |
+| Periodo del bucle (update + espera de ancla) | 284,2k |
 
-El periodo es **2 campos exactos** (284 204): el update termina ~63k ciclos antes del VBlank que
-publica su copperlist, y el *blitter nasty* (`BlobBatch::wait()`, macro `BlitWait` del original,
-`GFX/blitter.i:26-31`) hace que el CPU no retrase al Blitter. Tasa resultante ≈ **25 updates/s**
-en la configuración ciclo-exacta; la referencia original corre a ≈ 26 updates/s con el mismo
-método indirecto (scroll del texto: 1 px por update).
+El periodo es **2 campos exactos** (284 204) y la tasa ≈ **25 updates/s** en la configuración
+ciclo-exacta.
+
+**Diagnóstico de cadencia (por qué no cabe en 1 campo y qué lo impide)**: el trabajo útil del
+update es **~100k ciclos**; los otros ~130k son **esperas del Blitter en serie**. Medido anulando
+temporalmente las esperas (`BlobBatch::wait` y `wait_blitter` a no-op; build de diagnóstico, no
+commiteado): update = **99 588** ciclos y periodo = **142 094 = 1 campo exacto (50 updates/s)**.
+Con las esperas, el reparto es: BOBs 127-137k (restore 22k + cookie-cut 105-116k: 9 jobs × ~11,7k),
+UpdateLayerData 64-65k (28 jobs × ~2,3k), UpdateLayerPos 35-36k (19 jobs × ~1,8k). Es decir: el coste
+por **job** (arranque del Blitter + arbitraje de bus frente al Copper) domina sobre los datos
+movidos, y el diseño es **secuencial por job** (un juego de registros: hay que esperar el job
+anterior antes de reprogramar punteros; `blob_batch.hpp:104-108`). Anular el «nasty» en las
+esperas empeora (el Blitter tarda hasta 3× más; medido: update 251k).
+
+**Intentos de fusión de jobs medidos**:
+
+- **Tiras de BOBs** (1 blit por fila de 5/4 BOBs con el pitch horneado y el desplazamiento fino en
+  el barrel shifter): **descartado**. El shifter arrastra bits entre celdas a través de los huecos
+  de 1 palabra (`BLTALWM=0` solo protege el final de *línea*, no los bordes internos): comparación
+  píxel a píxel contra la referencia, 8 700-18 400 px distintos por frame en los anillos. Además
+  infla el trabajo de bus (16 palabras × 128 planelíneas × 4 canales por fila frente a 9 × 3 × 128).
+  El original usa un blit por BOB exactamente por esto (ventana por línea en cada blit).
+- **Repartir el trabajo en más updates**: sin sitio en el calendario (datos: 22 escrituras de
+  columna en 22 frames del ciclo de 32; posiciones: 4 casos × 19 columnas en ventanas de 4; BOBs:
+  9 redibujados por update porque se mueven).
+
+**Staging lineal de columnas (aplicado y validado)**: `UpdateLayerData` (frames 8-29) pasa de 28
+jobs (14 filas de tile × 2 planos, 1 palabra × 16 líneas) a **2 jobs** (1 palabra × 224 líneas):
+la CPU ensambla la columna en un scratch Chip de 448 palabras (2 × 224: DATB desde la palabra
+`2j+1` del tile intercalado, DATA desde `2j`) y dos blits con `dmod=kSprColMod` escriben la
+columna. Medición: sección de datos **65k → 40k** ciclos, update **230k → 221,5k**; el ahorro es
+menor que el teórico porque el coste por job es **tiempo de pared bajo contención con el Copper**
+(escala con las líneas), no solo el arranque. Validación **determinista** (no por pantalla, que
+tiene ruido de fase entre builds): volcado de las 4 copperlists con los punteros enmascarados en
+el **mismo update exacto** (paso por el *probe* hasta f=5000) — **hash idéntico** entre el build
+con 28 jobs y el build con staging ✓.
+
+**Encolado por IRQ (implementado en el engine, descartado para esta demo)**: se añadió
+`AmigaBackend::blitter_queue_{begin,one,masks,kick,drain}` (ring SPSC lock-free en RAM
+CPU-privada + cadena por la IRQ BLIT de nivel 3, sin contador compartido ni máscara de IRQ).
+Funciona (los 13 jobs de BOBs se encadenan sin esperas por job), pero **no mejora la 218**: el
+límite real es el **tiempo de pared de los blits** bajo arbitraje con el Copper/bitplanes
+(~135k para la cadena de BOBs frente a 122k del camino síncrono), no las esperas del CPU; y aquí
+no hay trabajo de CPU que solapar (encolado 17k + drenado 136k = 268k total, peor que 221k).
+Hallazgo asociado: el diagnóstico previo «sin esperas el cuerpo cabe en 1 campo» era engañoso —
+sin esperas los jobs se pisaban y el trabajo no se completaba; el **trabajo de Blitter realmente
+serializado ≈ 230k ≈ 1,6 campos**, así que 50 updates/s no se alcanza con esta cantidad de blits
+(haría falta recortar trabajo: 9→7 BOBs ≈ −25k, insuficiente por sí solo). La cola queda como
+feature del engine para juegos con trabajo de CPU que solapar (lógica, audio), con el patrón
+descrito en la ficha de la técnica.
+
+**Para 50 Hz**: el objetivo requiere **recortar el trabajo de Blitter** (el encolado no basta: la
+suma de tiempos de pared de los blits es ~230k ≈ 1,6 campos). Levers medidos/cuantificados:
+9→7 BOBs (−25k aprox.), rediseño del reparto de `UpdateLayerPos`/`UpdateLayerData` (sus blits de
+1 palabra/línea son los menos eficientes del bus), y —si apareciera trabajo de CPU que solapar—
+la cola por IRQ ya implementada. La afirmación «la referencia corre a 1 campo por iteración»
+medida con el watchpoint de `COP1LC` queda **sin confirmar** (su build estaba en otra escena/fase
+y su reparto de trabajo por loop es igual o mayor que el del port); antes de fijar la cota hay que
+repetir esa comparación en el mismo punto.
 
 Camino hasta aquí (medido):
 

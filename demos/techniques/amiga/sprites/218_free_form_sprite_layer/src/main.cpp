@@ -294,7 +294,8 @@ struct SprLayerDemo {
 		}
 		m_sb = chip.reserve<eng::PlaneTag>(kSbBytes, 16u);
 		m_assets = chip.reserve<eng::TextureTag>(static_cast<u32>(kAssetBytes), 16u);
-		bool ok = m_sb.valid() && m_assets.valid() && m_minimal.valid();
+		m_bg_stage = chip.reserve<eng::TextureTag>(kLayerLines * 4u, 16u);
+		bool ok = m_sb.valid() && m_assets.valid() && m_minimal.valid() && m_bg_stage.valid();
 		for (u8 i = 0; i < 3; ++i) { ok = ok && m_fg[i].valid(); }
 		for (u8 i = 0; i < 4; ++i) { ok = ok && m_clist[i].valid(); }
 		for (u8 i = 0; i < 2; ++i) { ok = ok && m_spr[i].valid(); }
@@ -425,6 +426,7 @@ struct SprLayerDemo {
 		update_layer_data(backend);
 		const eng::u32 t3 = eng::debug::DebugPeripheral::cycle_counter();
 		update_fg_tiles(backend);
+		const eng::u32 t3b = eng::debug::DebugPeripheral::cycle_counter();
 		update_counters();
 		update_scroll();
 		// Publica la copperlist del frame y parchea el display principal (`COP1LC` sin `COPJMP`: el Copper recarga en el VBlank, como el `move.l a2,cop1lc` original).
@@ -443,17 +445,22 @@ struct SprLayerDemo {
 		const eng::u32 t4 = eng::debug::DebugPeripheral::cycle_counter();
 		draw_bobs(backend);
 		const eng::u32 t5 = eng::debug::DebugPeripheral::cycle_counter();
-		// Presupuesto por elemento del bucle (contadores 0-4 del periférico de depuración,
+		// Presupuesto por elemento del bucle (contadores del periférico de depuración,
 		// legibles con `run-demo.sh --read-debugperiph counters`): 0 = update completo,
-		// 1 = UpdateLayerPos, 2 = UpdateLayerData, 3 = BOBs (restore + dibujo),
-		// 4 = periodo del bucle (update + espera de VBlank). El efecto ocupa más de un
-		// campo: el periodo es el dato que refleja la tasa real de updates.
+		// 1 = UpdateSprCtl, 2 = UpdateLayerPos, 3 = UpdateLayerData, 4 = BOBs (restore +
+		// cookie-cut + esperas), 5 = tiles FG, 6 = contadores+scroll+publicación+punteros,
+		// 7 = restore de BOBs, 8 = dibujo de BOBs (cookie-cut), 9 = espera final del
+		// Blitter, 10 = periodo del bucle (update + espera de ancla). El efecto ocupa más
+		// de un campo (2 campos = 284 204 ciclos): el periodo es el dato de la tasa real.
 		static eng::u32 s_prev_t0 = 0;
 		eng::debug::DebugPeripheral::counter_value(0, t5 - t0);
-		eng::debug::DebugPeripheral::counter_value(1, t2 - t1);
-		eng::debug::DebugPeripheral::counter_value(2, t3 - t2);
-		eng::debug::DebugPeripheral::counter_value(3, t5 - t4);
-		eng::debug::DebugPeripheral::counter_value(4, t0 - s_prev_t0);
+		eng::debug::DebugPeripheral::counter_value(1, t1 - t0);
+		eng::debug::DebugPeripheral::counter_value(2, t2 - t1);
+		eng::debug::DebugPeripheral::counter_value(3, t3 - t2);
+		eng::debug::DebugPeripheral::counter_value(4, t5 - t4);
+		eng::debug::DebugPeripheral::counter_value(5, t3b - t3);
+		eng::debug::DebugPeripheral::counter_value(6, t4 - t3b);
+		eng::debug::DebugPeripheral::counter_value(10, t0 - s_prev_t0);
 		s_prev_t0 = t0;
 		// Rebote de los BOBs entre y=16 e y=224 (`bob_speed`/`bob_y`).
 		s16 speed = m_bob_speed;
@@ -467,7 +474,9 @@ struct SprLayerDemo {
 		}
 		m_bob_y = static_cast<u16>(y);
 		m_bob_speed = speed;
+		const eng::u32 tw0 = eng::debug::DebugPeripheral::cycle_counter();
 		backend.wait_blitter();
+		eng::debug::DebugPeripheral::counter_value(9, eng::debug::DebugPeripheral::cycle_counter() - tw0);
 		m_updates++;
 		eng::debug::mark_frame(g_eng_run_status, m_updates);
 	}
@@ -793,18 +802,35 @@ private:
 			// Subvista de la copperlist destino a partir del campo DATB de la columna: los offsets (col, row) van en palabras, como en la referencia.
 			eng::Words<eng::CopperTag> dst = m_clist_words[list].subspan(m_lay.datb_word[col]);
 			const u16* map = kBgTileMap + offset;
-			// Una racha: 28 medios tiles (A→D, 16 filas × 1 palabra; fuente con paso 4 bytes —palabras alternas— y destino con paso 168 bytes). Es la forma exacta del original (`layer.asm:358-363`): dos blits por fila, uno por plano, que escriben la pareja [plano1, plano0] de cada línea.
-			backend.blitter_blob_run_begin(eng::graphics::BlobOp::Opaque, 1u, 16u, 2, 0,
-						       kSprColMod, kSprColMod);
+			// Staging lineal: la CPU ensambla la columna (14 tiles) en un scratch Chip y **dos**
+			// blits de 1 palabra × 224 líneas escriben DATB y DATA. La secuencia de palabras es
+			// la misma que la de los 28 medios-tiles del original (`layer.asm:358-363`):
+			// DATB(j) = palabra j+1 del tile y DATA(j) = palabra j, por fila de tile. El coste
+			// por job del Blitter domina sobre los datos movidos (VALIDATION.md §4): 2 arranques
+			// en vez de 28.
+			// DATB(j) = palabra 2j+1 del tile (plano 1 de la línea j) y DATA(j) = palabra 2j
+			// (plano 0), con el tile intercalado por línea ([plano0, plano1] por línea).
+			u16* staged = m_bg_stage.view.as_words().data();
 			for (u16 row = 0; row < 14u; ++row) {
 				const u16 tile = map[row * kBgTileRowWords];
-				const eng::ByteView<eng::TextureTag> tile_src = m_bg_tiles.subspan(static_cast<u32>(tile) * kBgTileBytes);
-				eng::Words<eng::CopperTag> row_dst = dst.subspan(static_cast<u32>(row) * 16u * kLineWords);
-				backend.blitter_blob_run_one(eng::graphics::blit_ptr(tile_src.subspan(2u)), eng::graphics::blit_ptr(tile_src.subspan(2u)),
-							     eng::graphics::blit_ptr(row_dst), 0u);
-				backend.blitter_blob_run_one(eng::graphics::blit_ptr(tile_src), eng::graphics::blit_ptr(tile_src),
-							     eng::graphics::blit_ptr(row_dst.subspan(2u)), 0u);
+				const u16* tw = reinterpret_cast<const u16*>(
+					m_bg_tiles.data() + static_cast<u32>(tile) * kBgTileBytes);
+				for (u16 j = 0; j < 16u; ++j) {
+					staged[row * 16u + j] = tw[2u * j + 1u];
+					staged[kLayerLines + row * 16u + j] = tw[2u * j];
+				}
 			}
+			backend.blitter_blob_run_begin(eng::graphics::BlobOp::Opaque, 1u, kLayerLines, 0, 0,
+						       kSprColMod, kSprColMod);
+			backend.blitter_blob_run_one(eng::graphics::blit_ptr(m_bg_stage.view),
+						     eng::graphics::blit_ptr(m_bg_stage.view),
+						     eng::graphics::blit_ptr(dst), 0u);
+			backend.blitter_blob_run_one(
+				eng::graphics::blit_ptr(m_bg_stage.view,
+							static_cast<eng::s32>(kLayerLines) * 2),
+				eng::graphics::blit_ptr(m_bg_stage.view,
+							static_cast<eng::s32>(kLayerLines) * 2),
+				eng::graphics::blit_ptr(dst.subspan(2u)), 0u);
 			backend.blitter_blob_run_end();
 			offset = static_cast<u16>(offset + 1u);
 			if (offset >= kBgTileRowWords) { offset = 0u; }
@@ -897,6 +923,7 @@ private:
 		// palabras y la de 4 son 12. Dos copias equivalen a las 9 del original
 		// (`SPR_Layer.asm:404-411`), que escriben exactamente las mismas palabras.
 		RestoreEntry* entries = m_restore[second ? 0 : 1];
+		const eng::u32 tr0 = eng::debug::DebugPeripheral::cycle_counter();
 		if (entries[0].dst.addr.valid()) {
 			backend.blitter_blob_run_begin(eng::graphics::BlobOp::Opaque, 15u, 128u, 14, 14,
 						       14, 14);
@@ -907,6 +934,8 @@ private:
 			backend.blitter_blob_run_one(entries[1].src, entries[1].src, entries[1].dst, 0u);
 			backend.blitter_blob_run_end();
 		}
+		const eng::u32 tr1 = eng::debug::DebugPeripheral::cycle_counter();
+		eng::debug::DebugPeripheral::counter_value(7, tr1 - tr0);
 
 		// --- Dibujo: 9 BOBs a X = 40 + (c32 & 15) + 24*i ---
 		const u8 buf = second ? 0u : 1u;
@@ -938,6 +967,7 @@ private:
 			x = static_cast<u16>(x + 24u);
 		}
 		backend.blitter_blob_run_end();
+		eng::debug::DebugPeripheral::counter_value(8, eng::debug::DebugPeripheral::cycle_counter() - tr1);
 	}
 
 	// ------------------------------------------------------------------
@@ -1088,6 +1118,7 @@ private:
 	eng::Block<eng::SpriteTag, eng::MemoryKind::Chip> m_spr[2] {};    ///< Los 2 juegos de estructuras DMA de sprite (8 canales × 516 palabras).
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_sb {};         ///< Sub-buffer (barra inferior, 3 planos).
 	eng::Block<eng::TextureTag, eng::MemoryKind::Chip> m_assets {};   ///< Assets copiados a Chip: tiles BG/FG, tiles del sub-buffer, BOBs y máscaras.
+	eng::Block<eng::TextureTag, eng::MemoryKind::Chip> m_bg_stage {}; ///< Scratch lineal de una columna de fondo: 2 × 224 palabras (DATB, DATA) para los 2 blits del staging.
 	eng::Words<eng::CopperTag> m_clist_words[4] {};                   ///< Ventanas de trabajo (words) sobre las copperlists: se parchean por CPU y se instalan/entregan al Blitter.
 	eng::Words<eng::SpriteTag> m_sprset_words[2] {};                  ///< Ventanas de trabajo sobre los 2 juegos de estructuras DMA.
 	eng::Words<eng::PlaneTag> m_sb_words {};                          ///< Ventana de trabajo sobre el sub-buffer (words de sus 3 planos).
