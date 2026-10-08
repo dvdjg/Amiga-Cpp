@@ -78,13 +78,45 @@ se van los ciclos del Blitter durante los BOBs) y H3: el coste de emisión del `
 al código inline (la comparación estática de registros dice que el nuestro escribe **menos**
 registros por job que el original: 6 vs 8 — H3 pierde fuerza).
 
-### F3-B (siguiente): profiler por scanline (F2 pendiente)
+### F3-B (profiler por scanline) — **HECHO**: el problema es densidad de bus y fase
 
-Volcado `.amigaprofile` de port y referencia en el mismo punto de escena (breakpoint determinista
-+ `winuae_profile`). Comparar: actividad del Blitter por línea durante los BOBs, canales DMA
-activos, ciclos de CPU. Delta esperado si H2 es cierta: el Blitter del port pierde slots durante
-los BOBs (p. ej. Copper/DMA con prioridad distinta) → la columna «Slots de bus» de la tabla
-diferencial pasa a ser medida, no modelada.
+Medición con el mismo método en port y referencia (`winuae-profile.mjs`; el binario lleva un grid
+DMA posicional 227×313: cada celda es un slot de bus en (hpos,vpos); tipos: 1 refresh, 2 CPU,
+3 Copper, 5 Blitter, 6 bitplanes, 7 sprites — `include/debug.h:361-372`):
+
+| Slots de bus por campo | Port | Referencia |
+|---|---|---|
+| Copper + bitplanes + sprites + refresh | 41,9k (idéntico) | 41,9k (idéntico) |
+| Blitter | 11.834 (repartido por la zona visible) | 23.019 (17,5k en bordes: líneas 0-31 y 256-312) |
+| CPU (bus Chip) | 9.859 | 4.701 |
+| Densidad total de bus | 89,7 % | 98,1 % |
+
+Por update: el port mueve **127,4k slots** (2 campos) y la referencia **69,7k** (1 campo). El
+trabajo de Blitter por update es el mismo (~23k): la diferencia es (a) el display se paga dos veces
+(42k) y (b) la CPU mueve 19,7k slots/update vs 4,7k. **Presupuesto para 50 fps**: 42k (display) +
+23,7k (blitter) + ≤5k (CPU) ≈ 71k = exactamente un campo a la densidad de la referencia.
+
+Barrido de ancla por hot-patch (poke del inmediato del `cmpi.l` del ancla en `0xc11ff4`; 6
+lecturas por ancla, comparando vectores completos porque la clase de frame (`m_c32`) cambia el
+camino ejecutado):
+
+- ancla 44 (actual): update 220-240k; BOBs 100-112k; restores ~20k; periodo estable 284k.
+- ancla 0: update **176-179k** (−40k); BOBs **53-55k** (−48k, corren en el borde inferior);
+  restores **63-65k** (+44k, corren en mitad del display); periodo inestable (284k casi siempre,
+  picos de 426k/710k cuando el update de 1,25 campos pierde la ventana de línea 0).
+
+⇒ La fase importa y mucho: los BOBs bajan de 11,2k a ~5,9k por job cuando caen en el borde. El
+siguiente objetivo son los **restores** (reordenarlos al borde superior, donde los fills ya corren
+a ~2,3 ciclos/slot) y estabilizar la cadencia.
+
+Caveat de herramienta: el `poke` del canal lateral puede tardar en aplicar (verificar con `mem`);
+para parchear código es más fiable GDB (`pause` → `writeMemory` → `continue`).
+
+### F4 (siguiente, fuente, una variable)
+
+E1 = ancla en línea 0; E2 = reordenar restores justo tras el ancla (el original también los lleva
+al final, pero con un cuerpo mucho más corto). Medir vector completo de contadores + estabilidad
+de periodo; validar con hash determinista + visión.
 
 Caveats de herramienta (medidos):
 
