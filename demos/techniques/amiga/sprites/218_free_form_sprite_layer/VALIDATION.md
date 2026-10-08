@@ -116,6 +116,21 @@ BOBs por el submuestreo de frames (0,4,8,…) — el mismo falso negativo que pr
 del **original** («los círculos no cambian de posición»). La medición objetiva de la sección 2
 demuestra que el rebote existe y coincide con el original.
 
+### 3.5 Pase de regresión del doble buffer y del merge de tiles
+
+Prompt sobre el screenshot del build final (doble buffer + service-off + merge 28→14):
+
+> «This is a frame of a demo with scrolling text (several lines of orange/white text) over
+> mountains and 9 ring objects. Check CAREFULLY: (a) is any text line torn, split horizontally,
+> shifted, duplicated or with garbled/missing glyph rows? (b) are all 9 rings complete circles,
+> none cut? (c) do the text lines read as coherent sentences? Answer concisely per item.»
+
+Respuesta cruda: `(a) No. (b) Yes. (c) Yes.`
+
+El conteo de anillos con el detector de color del screenshot da **4 arriba + 5 abajo = 9**; en la
+secuencia *step* (CPU detenida en el probe) los conteos varían (2-4 arriba) por el artefacto de
+frontera de escaneo descrito en §5.5, también presente en el build base.
+
 ## 4. Cadencia y coste (medido con los contadores 0-4 del periférico de depuración)
 
 El efecto **ocupa más de un campo** de VBlank: el bucle no se queda un frame por VBlank. Por eso
@@ -124,22 +139,36 @@ termine) sino un **contador de updates** del efecto (`m_updates`), y `measure-fp
 tasa real de actualizaciones.
 
 Medición por elementos (`run-demo.sh --read-debugperiph counters`; unidades = ciclos de CPU,
-1 campo PAL = 142 102):
+1 campo PAL = 142 102). La captura es **single-shot** en READY+500 ms: dentro de un build es
+determinista (tres runs dan el mismo valor ±8 ciclos), pero entre builds la fase del contador de
+32 frames puede caer en un frame con más o menos trabajo (p. ej. con o sin tira de tiles), así que
+solo se comparan las cifras del **mismo build**:
 
 | Elemento | Ciclos | ≈ líneas |
 |---|---|---|
-| UpdateLayerPos (fills de POS) | 21 972 | 48 |
-| UpdateLayerData (columnas Copper) | 125 460 | 276 |
-| BOBs (2 restores fusionados + 9 dibujos) | 154 108 | 339 |
-| Update completo | 366 992 | 808 |
-| Periodo del bucle (update + espera) | 344 490 | 758 |
+| UpdateLayerPos (fills de POS) | 37 244 | 82 |
+| UpdateLayerData (columnas Copper) | 63 982 | 141 |
+| BOBs (2 restores fusionados + 9 dibujos) | 137 064 | 302 |
+| Update completo | 246 486 | 543 |
+| Periodo del bucle (update + espera) | 284 232 | 626 |
 
-Tasa resultante ≈ **20 updates/s** en la configuración ciclo-exacta del runner. La referencia
-original, medida con el mismo método indirecto (scroll del texto: 1 px por update), corre en ese
-mismo entorno a ≈ **26 updates/s**: el efecto es intrínsecamente más caro que un campo en
-emulación ciclo-exacta (los blits compiten con el DMA de display; el coste fijo por blit del
-emulador es ~2 000 ciclos). El original usa la macro `BlitWait` con *blitter nasty*; el engine
-aplica el mismo truco en `BlobBatch::wait()` (ver `engine/include/eng/platform/amiga/blob_batch.hpp`).
+El periodo es **2 campos exactos** (284 204): el update termina ~17.7k ciclos antes del VBlank que
+publica su copperlist, y el *blitter nasty* (`BlobBatch::wait()`, macro `BlitWait` del original,
+`GFX/blitter.i:26-31`) hace que el CPU no retrase al Blitter. Tasa resultante ≈ **25 updates/s**
+en la configuración ciclo-exacta; la referencia original corre a ≈ 26 updates/s con el mismo
+método indirecto (scroll del texto: 1 px por update).
+
+Camino hasta aquí (medido):
+
+- **Servicio de blit de fondo desactivado** (`engine.set_blit_service_enabled(false)`): con él
+  instalado, `wait_blitter` llama al servicio en **cada** iteración del sondeo de `BBUSY`
+  (`engine/src/platform/amiga/amiga_internal.hpp:210-221`); con la cola vacía eso es ~130k
+  ciclos/update de llamadas inútiles. Sin servicio, la espera es el sondeo «nasty» puro del
+  original. El update bajó de ~376k a ~246k.
+- **Escrituras de 32 bits** en los lotes de Blitter (`BLTCON0`+`BLTCON1`, `AFWM`+`ALWM`, módulos
+  empaquetados, punteros `move.l`): la sección de datos bajó de 125 806 a 63 982 ciclos.
+- **Restore de BOBs fusionado** (9→2 blits, §5.2) y **tiles de FG fusionados** (28→14 rachas,
+  §5.5; los mismos words de DMA, la mitad de arranques de blit).
 
 Medición de referencia del estado de título (cuando la demo aún esperaba clic): 49.97 fps,
 `fieldsPerFrame = 1.00059` — válida para el bucle ocioso, no para la tasa de updates del efecto.
@@ -152,8 +181,9 @@ Medición de referencia del estado de título (cuando la demo aún esperaba clic
 - **VERIFICADA** la dinámica: scroll del texto 1 px/update (correlación de banda, −2 px de captura
   por par = 1 px de pantalla), BOBs presentes y completos en todos los frames muestreados, misma
   trayectoria de rebote que el original.
-- **SIN VERIFICAR**: paridad de cadencia exacta con el original en emulación ciclo-exacta (el port
-  ≈ 20 updates/s, el original ≈ 26 en el mismo entorno; en hardware real ambos caben en un campo).
+- **Cadencia**: el update cabe en **2 campos exactos** (284 204 ciclos) y la tasa es ≈ 25
+  updates/s, en línea con las ≈ 26 del original en el mismo entorno (su update también supera un
+  campo en emulación ciclo-exacta).
 
 ### 5.1 Arranque (cambio pedido por el usuario)
 
@@ -167,11 +197,12 @@ polling de entrada en el bucle.
   copias por frame (15 y 12 palabras) porque los BOBs de una fila están a 48 px = 3 palabras con
   la misma alineación: la unión de sus celdas es contigua y escribe exactamente las mismas
   palabras (mismo fondo limpio, mismas posiciones).
-- **Regresión detectada y corregida (columnas Copper en negro)**: un intento de fusionar también
-  los 28 blits de media columna en 14 blits de 2 palabras (con una copia de tiles con pares
-  intercambiados) dejó las **columnas Copper en negro** (la geometría real del *half-tile* no es
-  la supuesta: la fila avanza 168 B en destino y 4 B en fuente). Revertido a la forma exacta del
-  original (dos blits de 1 palabra por fila, `layer.asm:358-363`), que es la validada en §1.
+- **Regresión detectada y corregida**: un intento previo de optimizar el pegado de tiles dejó las
+  **columnas Copper en negro**. La causa real no era la geometría del half-tile sino la escritura
+  de 32 bits de los lotes: `write_long(kBltcon0, base_con0)` sin desplazamiento dejaba `CON0=0` y
+  el valor en `CON1` (modo FILL) y corrompía los blits `Opaque`. Corregido con `<< 16`; los
+  lotes de 32 bits (y el merge de tiles de §5.5) revalidados con visión y comparación con el
+  original (§2, §3.4).
 
 ### 5.3 Scroll fino de la capa (arreglado)
 
@@ -215,9 +246,58 @@ Evidencia (contadores 0/4 del periférico, 3 arranques):
 | Coste del update | 338k–403k (±10 %) | **389.5k / 389.5k / 391.6k (±0.5 %)** |
 | Patrón de desplazamiento del fondo | uniforme salvo deriva | uniforme y **periódico estable** |
 
-El bucle queda clavado a 3 campos (≈16.7 updates/s en emulación ciclo-exacta; el original ≈25). El
-objetivo a medio plazo es bajar el update a ≤2 campos (merge correcto de los blits de columna +
-menos coste por blit) para igualar la cadencia del original; queda como deuda.
+El bucle queda clavado a 3 campos con el estado de entonces (≈16.7 updates/s). Con las
+optimizaciones de §4 (servicio de blit desactivado + longs de 32 bits) el update cabe en **2
+campos exactos** y la cadencia es ≈25 updates/s, en línea con el original: el anclaje de fase se
+mantiene y pasa a ser la base del doble buffer (§5.5).
+
+### 5.5 Doble buffer del FG (desgarro de BOBs) y servicio de blit
+
+Síntoma: los BOBs aparecían incompletos (4-6 de 9) en capturas con la CPU parada en el *probe*.
+
+Causa raíz (doble):
+
+1. **El FG no se dobla**. El original selecciona el buffer FG/restore con
+   `btst #0,c32frame_cn_o+1` (`SPR_Layer.asm:378-398`), el byte alto de un contador 0..31 —
+   siempre 0: usa siempre `fg_buf2`, el buffer **visible**. Las tablas de restore por buffer y el
+   selector existen para doblar, pero el selector es código muerto. Con un update de más de un
+   campo, el haz lee los BOBs a medio escribir y el desgarro depende de la fase (por eso el
+   conteo varía entre frames y entre builds). El port reproduce el selector muerto
+   (`m_c32 & 0x100`) hasta esta sesión.
+2. Con el **servicio de blit de fondo** instalado, `wait_blitter` llama al servicio en cada
+   iteración del sondeo de `BBUSY` (`amiga_internal.hpp:210-221`): ~130k ciclos/update de coste
+   inútil con la cola vacía.
+
+Arreglo:
+
+- **Doble buffer real**: el buffer alterna por update (paridad de `m_updates`) y los BOBs se
+  dibujan en el oculto; el visible siempre está completo. Es la intención del selector original,
+  documentada como desviación deliberada (el render por frame es idéntico salvo el desgarro).
+- **Servicio de blit desactivado** en `main()`: sin tareas de fondo en esta demo, la espera es el
+  sondeo «nasty» puro del original.
+
+Verificación: el update (246 486 ciclos) termina **~17.7k ciclos antes** del VBlank que publica su
+copperlist (264 228), así que el buffer mostrado nunca está a medio dibujar; el screenshot en
+marcha muestra **9 anillos (4+5)** y la visión confirma texto sin roturas, 9 anillos completos y
+frases coherentes (§3.5). Los conteos de BOBs en la secuencia *step* (CPU parada en el probe) no
+son fiables: la frontera de escaneo mezcla dos campos y las bandas de BOBs (que se mueven 2 px
+por update) caen a distinto lado; el mismo artefacto aparece en el build base validado.
+
+### 5.6 Tiles de FG: 28→14 rachas por ciclo
+
+El original reparte el pegado de cada tile de 32×32 en 28 frames por ciclo de 32 (`tilemap.asm`):
+dos rachas de 32 planelíneas (2 palabras) por tile, en los frames t y t+14, que escriben la mitad
+alta y la mitad baja de la fila de tiles. El port las fusiona en **una racha de 64 planelíneas**
+en el frame t (los frames t+14 quedan sin trabajo): la fuente de las dos mitades es contigua en el
+tile (mitad superior/inferior completa) y el destino es el mismo porque solo entra
+`fg_offset & 0xfffc`, que no cambia dentro del par (el +2 de `fg_offset` solo salta en el frame 31,
+fuera de los pares). El segundo cuarto queda escrito 14 frames antes, fuera de la ventana visible.
+
+Efecto: se mantienen los mismos words de DMA (el coste del Blitter no cambia) y se evitan ~42
+arranques de blit por ciclo (≈60-130 ciclos de CPU por update, <0.05 %): **no medible** con los
+contadores single-shot, que además muestrean fases distintas entre builds. Verificado equivalente
+por construcción (los mismos bytes en las mismas direcciones) y con visión (§3.5: sin líneas de
+texto rotas ni desplazadas, 9 anillos completos).
 
 ## 6. Deuda declarada
 

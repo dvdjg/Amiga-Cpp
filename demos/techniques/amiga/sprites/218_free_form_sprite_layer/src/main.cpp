@@ -146,8 +146,6 @@ constexpr u16 kScrollPan = 2;                   // bytes que avanza el puntero c
 constexpr u16 kFgTileRowWords = 32;             // palabras por fila del tilemap FG
 constexpr u16 kFgTileBytes = 512;               // tile 32x32x4
 constexpr u16 kFgHalfBytes = 256;               // 16 líneas (fg_thsize)
-constexpr u16 kFgQuarterBytes = 128;            // 8 líneas (fg_tqsize)
-constexpr u16 kFgQuarterY = kFgMod * 8u;        // 1408: 8 scanlines (fg_mod*ftile_height/4)
 constexpr u16 kFgHalfY = kFgMod * 16u;          // 2816: 16 scanlines (fg_mod*ftile_height/2)
 
 // --- Sub-buffer de 3 planos (`GFX/displaybuffers.i`) ---
@@ -434,7 +432,14 @@ struct SprLayerDemo {
 		eng::Words<eng::CopperTag> list = m_clist_words[idx];
 		backend.install_copper_list(list.data()); // frontera pendiente: install_copper_list aún recibe `u16*`
 		list[m_lay.shift_word] = m_fg_shift;
-		const u8 buf = ((m_c32 & 0x100u) != 0u) ? 0u : 1u;
+		// Doble buffer del FG: alterna por update (paridad de `m_updates`). El selector del
+		// original (`btst #0,c32frame_cn_o+1`, `SPR_Layer.asm:378-398`) prueba el byte alto
+		// de un contador 0..31 — siempre 0: dibuja siempre en `fg_buf2`, el buffer visible,
+		// y con updates de más de un campo el haz lee los BOBs a medio escribir (parpadeo).
+		// Alternar los buffers (las tablas de restore por buffer existen para ello) dibuja
+		// en el oculto: el update termina antes del VBlank que lo muestra y el visible
+		// siempre está completo.
+		const u8 buf = ((m_updates & 1u) != 0u) ? 0u : 1u;
 		set_fg_ptrs(idx, buf, m_fg_offset);
 		const eng::u32 t4 = eng::debug::DebugPeripheral::cycle_counter();
 		draw_bobs(backend);
@@ -833,30 +838,29 @@ private:
 			m_fgt_offset = offset;
 			return;
 		}
-		u16 quarter = 0u;
-		u16 quarter_y = 0u;
-		u8 f = frame;
-		if (f >= 14u) {
-			quarter = kFgQuarterBytes;
-			quarter_y = kFgQuarterY;
-			f = static_cast<u8>(f + 2u);
+		if (frame >= 14u) {
+			// El segundo cuarto de cada par (frames t+14) ya se pinta junto al primero en el
+			// frame t: la segunda mitad del ciclo no tiene trabajo.
+			return;
 		}
-		f = static_cast<u8>(f & 0x0fu);
+		const u8 f = frame;
 		const bool bottom = (f & 1u) != 0u;
 		const u8 row = static_cast<u8>(f >> 1u); // fila de tile (0..6)
 		offset = static_cast<u16>(offset + row * kFgTileRowWords);
 		const u16 tile = kFgTileMap[offset];
-		eng::ByteView<eng::TextureTag> src = m_fg_tiles.subspan(static_cast<u32>(tile) * kFgTileBytes + quarter);
-		// Destino: fila de tiles × 32 líneas (32*176 bytes) + cuarto (8 líneas) + scroll.
-		u32 dest = static_cast<u32>(row) * (kFgMod * 32u) + 40u +
-			   (static_cast<u32>(m_fg_offset) & 0xfffcu);
-		if (bottom) {
-			src = src.subspan(kFgHalfBytes);
-			dest += kFgHalfY;
-		}
-		dest += quarter_y;
-		// Una racha: 3 copias (A→D, 32 filas × 2 palabras, destino con paso 44 bytes).
-		backend.blitter_blob_run_begin(eng::graphics::BlobOp::Opaque, 2u, 32u, 0, 0, 0,
+		// Los DOS cuartos del tile (16 scanlines = 64 planelíneas) en una racha: fuente contigua
+		// (mitad superior o inferior del tile según `bottom`) con `BLTAMOD=0`, destino en la fila
+		// de tiles con paso `kBufMod` (dmod = kBufMod-4). Equivale a las dos rachas de 32 que el
+		// original reparte entre los frames t y t+14 (`tilemap.asm`): el destino es idéntico (solo
+		// entra `fg_offset & 0xfffc`, que no cambia dentro del par) y el segundo cuarto queda
+		// escrito 14 frames antes, fuera de la ventana visible (la tira va por delante del scroll).
+		const eng::ByteView<eng::TextureTag> src =
+			m_fg_tiles.subspan(static_cast<u32>(tile) * kFgTileBytes +
+					   (bottom ? kFgHalfBytes : 0u));
+		const u32 dest = static_cast<u32>(row) * (kFgMod * 32u) + 40u +
+				 (static_cast<u32>(m_fg_offset) & 0xfffcu) +
+				 (bottom ? kFgHalfY : 0u);
+		backend.blitter_blob_run_begin(eng::graphics::BlobOp::Opaque, 2u, 64u, 0, 0, 0,
 					       kBufMod - 4u);
 		for (u8 i = 0; i < 3u; ++i) {
 			backend.blitter_blob_run_one(eng::graphics::blit_ptr(src), eng::graphics::blit_ptr(src),
@@ -885,7 +889,8 @@ private:
 	// BOBs: restore desde el 3.er buffer + cookie-cut `$CA` (`BlitBob`)
 	// ------------------------------------------------------------------
 	void draw_bobs(eng::amiga::AmigaBackend& backend) {
-		const bool second = (m_c32 & 0x100u) != 0u;
+		// Paridad del update: el mismo buffer FG que publica `update()` (ver allí).
+		const bool second = (m_updates & 1u) != 0u;
 		// --- Restore: copia el fondo limpio de fg_buf3 al buffer de dibujo ---
 		// Los BOBs de una fila están a 48 px = 3 palabras y comparten alineación, así que
 		// sus celdas de 3 palabras son contiguas: la unión de la fila de 5 BOBs son 15
@@ -1133,6 +1138,12 @@ int main() {
 	eng::Engine engine {backend, game};
 	// Modelo de mensajes: el latido va por la IRQ de VBlank y el bucle principal duerme
 	// en `Wait()` cuando no hay nada que procesar.
+	// Esta demo no usa tareas de fondo (`BackgroundQueue` vacía): desactivar el servicio
+	// de blit evita que `wait_blitter` llame al servicio en **cada** iteración del sondeo
+	// de BBUSY (`amiga_internal.hpp:210-221`), ~130k ciclos/update de coste inútil. La
+	// espera queda como el sondeo «nasty» puro del original (`BlitWait`,
+	// `spr_layer/Sprite_Layer/GFX/blitter.i:26-31`) y el update cabe en 2 campos exactos.
+	engine.set_blit_service_enabled(false);
 	(void)eng::os::init(engine, 0u);
 	engine.run_frames(0xffff);
 
