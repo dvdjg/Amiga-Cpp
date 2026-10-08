@@ -5,13 +5,37 @@
 // registros que el motor escribe empaquetados (CON0/CON1, AFWM/ALWM, modulos, punteros) se
 // leen como u32 nativo: el mock es RAM del host.
 #include <eng/platform/amiga/blob_batch.hpp>
+#include <eng/platform/amiga/blob.hpp>
+#include <eng/api/screen.hpp>
 
 #include <cstdio>
+#include <type_traits>
 
 using eng::amiga::BlobBatch;
 using eng::amiga::BlobOp;
 using eng::amiga::HwRegs;
 using eng::graphics::BlitPtr;
+
+// --- Gate de tipos DMA (compile-time) -----------------------------------------------------------------
+// Las APIs que entregan memoria al Blitter **no** deben aceptar punteros crudos: si alguien relaja una
+// firma a `const void*`/`void*`, los conceptos de abajo pasan a satisfacerse y los `static_assert`
+// dejan de compilar (el test entero falla). Es el gate estático del invariante «DMA en Chip».
+// (`AmigaBackend` no es host-incluible —necesita los headers del SDK—; su firma `BlitPtr` se vigila
+// desde los builds de Amiga de las demos, que no compilarían con el helper `dma()` ya eliminado.)
+template <class B>
+concept AceptaPunteroCrudoEnOne = requires(B& b) {
+	b.one(static_cast<const void*>(nullptr), static_cast<const void*>(nullptr), static_cast<void*>(nullptr), eng::u8{});
+};
+static_assert(!AceptaPunteroCrudoEnOne<BlobBatch>, "BlobBatch::one debe recibir BlitPtr, no punteros crudos");
+static_assert(!AceptaPunteroCrudoEnOne<eng::amiga::OrBlobBatch>, "OrBlobBatch::one debe recibir BlitPtr, no punteros crudos");
+// En positivo: la firma tipada sí compila (la racha del Screen y el lote de BOBs).
+static_assert(requires(BlobBatch& b, BlitPtr p) { b.one(p, p, p, eng::u8{}); }, "BlobBatch::one(BlitPtr) debe compilar");
+static_assert(std::is_same_v<decltype(eng::BlitStream {}.one),
+			     void (*)(void*, eng::graphics::BlitPtr, eng::graphics::BlitPtr, eng::graphics::BlitPtr, eng::u8)>,
+	      "BlitStream::one debe usar BlitPtr (misma firma que el backend)");
+static_assert(std::is_same_v<decltype(eng::graphics::OrBob {}.source), BlitPtr>, "OrBob::source debe ser BlitPtr");
+static_assert(std::is_same_v<decltype(eng::graphics::OrBob {}.dest), BlitPtr>, "OrBob::dest debe ser BlitPtr");
+static_assert(std::is_same_v<decltype(eng::graphics::BlitJob {}.source), BlitPtr>, "BlitJob::source debe ser BlitPtr");
 
 // Offsets (en palabras) de los registros custom que programa el lote. Deben coincidir
 // con las constantes privadas de `blob_batch.hpp` (0x040/2, 0x096/2, ...).
