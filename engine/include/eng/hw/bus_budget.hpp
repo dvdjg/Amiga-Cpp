@@ -54,6 +54,17 @@ inline constexpr u32 kSpriteSlotsPerChannel = 2u; ///< 2 palabras/canal/línea
 inline constexpr u32 kCopperSlotsPerMove = 2u;
 inline constexpr u32 kCopperSlotsPerWait = 3u;
 
+/// Slots libres por línea en los bordes verticales (VBlank, sin DMA de bitplanes), medidos en la
+/// demo 218 con el grid DMA del frame profiler: ~215 (227 − refresh 4 − Copper ~8). Ver
+/// `docs/engine/architecture/BUS_BUDGET.md` §Reparto vertical y
+/// `docs/debugging/investigaciones/218-campana-rendimiento.md`.
+inline constexpr u32 kBorderFreeSlotsPerLine = 215u;
+
+/// Coste del Blitter por slot según la zona (medido en la 218: 3,9 ciclos/slot en el borde y
+/// 8,3 en la ventana visible, donde compite con la CPU por los ~41 slots libres de cada línea).
+inline constexpr u32 kBlitterBorderCyclesPerSlot = 4u;
+inline constexpr u32 kBlitterDisplayCyclesPerSlot = 8u;
+
 /// Franja horizontal con su modo. Hasta `kMaxBusBands` franjas por frame.
 struct BusBand {
 	u16 height = 0u;        ///< líneas de esta franja
@@ -76,11 +87,66 @@ struct BusBudgetInput {
 	u8 audio_channels = 0u;     ///< 0..4 (Paula)
 	u32 blitter_words = 0u;     ///< palabras totales del Blitter por frame (BOBs + fills + copias)
 	u8 blitter_channels = 2u;   ///< 1..4 lecturas de canal por palabra (cookie-cut = 4/5)
+	/// Slots de Blitter declarados por **coste** (`blit_cost`): si > 0, sustituye a
+	/// `blitter_words × blitter_channels` (permite jobs con canales distintos).
+	u32 blitter_slots = 0u;
+	/// De los slots de Blitter, cuántos se planifican en el **hueco de VBlank** (bordes).
+	/// 0 = todo en la ventana visible (el caso que dispara `kHintBlitterInDisplay`).
+	u32 blitter_blank_slots = 0u;
+	/// Copper declarado por **coste** (`copper_cost`), fuera de franja; se suma al de las franjas.
+	u32 copper_slots_extra = 0u;
 	bool use_fastram = false;   ///< CPU desde Fast RAM: alivia el bus de Chip
 	u32 cpu_chip_cycles = 0u;   ///< ciclos 68000 por frame que **tocan Chip RAM** (0 si Fast RAM)
 	u32 bands_count = 0u;
 	BusBand bands[kMaxBusBands] {};
 };
+
+/// Coste de bus de un elemento de escena (slots), acumulable en `constexpr`:
+/// `constexpr BusCost c = blit_cost(19u * 224u, 1u) + copper_cost(9632u, 224u);`.
+struct BusCost {
+	u32 blitter_slots = 0u;
+	u32 copper_slots = 0u;
+	u32 cpu_chip_cycles = 0u;
+	[[nodiscard]] constexpr BusCost operator+(const BusCost& o) const noexcept {
+		return BusCost {.blitter_slots = blitter_slots + o.blitter_slots,
+				.copper_slots = copper_slots + o.copper_slots,
+				.cpu_chip_cycles = cpu_chip_cycles + o.cpu_chip_cycles};
+	}
+	constexpr BusCost& operator+=(const BusCost& o) noexcept {
+		blitter_slots += o.blitter_slots;
+		copper_slots += o.copper_slots;
+		cpu_chip_cycles += o.cpu_chip_cycles;
+		return *this;
+	}
+};
+
+/// Coste de un job de Blitter: `words` palabras movidas × `channels` lecturas de canal (1..4;
+/// un fill con fuente cero = 1, copia A→D = 2, cookie-cut A+B+C+D = 4).
+[[nodiscard]] constexpr BusCost blit_cost(u32 words, u8 channels = 2u) noexcept {
+	const u32 ch = channels < 1u ? 1u : (channels > 4u ? 4u : channels);
+	return BusCost {.blitter_slots = words * ch};
+}
+
+/// Coste de Copper: `moves` MOVEs y `waits` WAITs.
+[[nodiscard]] constexpr BusCost copper_cost(u32 moves, u32 waits = 0u) noexcept {
+	return BusCost {.copper_slots = moves * kCopperSlotsPerMove + waits * kCopperSlotsPerWait};
+}
+
+/// Coste de CPU que toca Chip RAM (ciclos; 0 con Fast RAM).
+[[nodiscard]] constexpr BusCost cpu_cost(u32 chip_cycles) noexcept {
+	return BusCost {.cpu_chip_cycles = chip_cycles};
+}
+
+/// Vuelca un coste acumulado en una entrada del presupuesto. `blitter_blank_slots` = parte del
+/// Blitter planificada para el hueco de VBlank (el resto se asume en la ventana visible).
+[[nodiscard]] constexpr BusBudgetInput with_cost(BusBudgetInput in, const BusCost& c,
+						 u32 blitter_blank_slots = 0u) noexcept {
+	in.blitter_slots = c.blitter_slots;
+	in.blitter_blank_slots = blitter_blank_slots;
+	in.copper_slots_extra = c.copper_slots;
+	in.cpu_chip_cycles = c.cpu_chip_cycles;
+	return in;
+}
 
 /// Pistas (bitset) para la iteración del diseñador.
 enum BusBudgetHint : u16 {
@@ -90,6 +156,8 @@ enum BusBudgetHint : u16 {
 	kHintHiresHeavy = 1u << 3,     ///< ≥4 planos hires (roba casi todo el even)
 	kHintCpuNeedsFast = 1u << 4,   ///< la CPU en Chip se come > 50 % del presupuesto
 	kHintLowerFps = 1u << 5,       ///< bajar a 25/30 fps casi duplica el presupuesto lógico
+	kHintBlitterInDisplay = 1u << 6, ///< trabajo de Blitter > hueco de VBlank sin planificar en él
+	kHintVBlankOverflow = 1u << 7,   ///< lo planificado para el hueco no cabe: se derrama a la ventana
 };
 
 /// Resultado del presupuesto (slots de bus por frame lógico).
@@ -104,6 +172,15 @@ struct BusBudgetResult {
 	u16 remaining_pct10 = 0u;  ///< décimas de % (p. ej. 1234 = 123,4 %; 0 si >1000 %)
 	u8 bottleneck = 0u;        ///< índice de `BusResource` más cargado
 	u16 hints = 0u;            ///< bitset de `BusBudgetHint`
+	/// Reparto vertical (medido; ver BUS_BUDGET.md §Reparto vertical): slots libres del hueco de
+	/// VBlank (bordes) y de la ventana visible, colocación declarada del Blitter y estimación de
+	/// su tiempo de pared en ciclos 68000 con los coeficientes medidos por zona.
+	u32 vblank_free_slots = 0u;
+	u32 display_free_slots = 0u;
+	u32 blitter_blank_slots = 0u;    ///< declarado para el blanco (acotado al total)
+	u32 blitter_blank_overflow = 0u; ///< lo que no cabe en el hueco y correrá en la ventana
+	u32 blitter_display_slots = 0u;  ///< lo que realmente correrá en la ventana visible
+	u32 blitter_cycles_est = 0u;     ///< tiempo estimado del Blitter (ciclos 68000)
 };
 
 /// Palabras de bitplane por plano y por línea: lores = `ceil(width/16)`, hires = 40.
@@ -149,7 +226,7 @@ struct BusBudgetResult {
 	(void)visible_lines;
 
 	// Copper (even, prioridad sobre Blitter/CPU).
-	u32 copper = 0u;
+	u32 copper = in.copper_slots_extra;
 	for (u32 i = 0u; i < in.bands_count && i < kMaxBusBands; ++i) {
 		const BusBand& b = in.bands[i];
 		if (b.height == 0u) continue;
@@ -159,9 +236,9 @@ struct BusBudgetResult {
 		copper += c;
 	}
 
-	// Blitter (even): lecturas de canal por palabra.
+	// Blitter (even): slots directos si se declararon por coste; si no, lecturas por palabra.
 	const u32 channels = in.blitter_channels < 1u ? 1u : (in.blitter_channels > 4u ? 4u : in.blitter_channels);
-	const u32 blitter = in.blitter_words * channels;
+	const u32 blitter = in.blitter_slots != 0u ? in.blitter_slots : in.blitter_words * channels;
 
 	// CPU en Chip (even): 0 si corre desde Fast RAM.
 	const u32 cpu = in.use_fastram ? 0u : in.cpu_chip_cycles;
@@ -195,6 +272,26 @@ struct BusBudgetResult {
 	if (hires_heavy) r.hints |= kHintHiresHeavy;
 	if (r.total_slots != 0u && static_cast<u64>(cpu) * 2u > r.total_slots) r.hints |= kHintCpuNeedsFast;
 	if (r.total_slots != 0u && static_cast<u64>(r.used_slots) * 2u > r.total_slots) r.hints |= kHintLowerFps;
+
+	// --- Reparto vertical (medido): el bus no es uniforme a lo largo del frame ---
+	// Los bordes (VBlank) no tienen DMA de bitplanes: ~kBorderFreeSlotsPerLine libres por línea.
+	// En la ventana visible el Blitter compite con la CPU por los slots que dejan display+Copper.
+	const u32 vis = visible_lines < lines ? visible_lines : lines;
+	r.vblank_free_slots = (lines - vis) * kBorderFreeSlotsPerLine;
+	const u32 display_per_line = vis != 0u ? display / vis : 0u;
+	const u32 copper_per_line = vis != 0u ? copper / vis : 0u;
+	const u32 window_used_per_line = display_per_line + copper_per_line;
+	r.display_free_slots = vis * (window_used_per_line < kBusSlotsPerLine
+					      ? kBusSlotsPerLine - window_used_per_line
+					      : 0u);
+	const u32 blank = in.blitter_blank_slots > blitter ? blitter : in.blitter_blank_slots;
+	r.blitter_blank_slots = blank;
+	r.blitter_blank_overflow = blank > r.vblank_free_slots ? blank - r.vblank_free_slots : 0u;
+	r.blitter_display_slots = blitter - blank + r.blitter_blank_overflow;
+	r.blitter_cycles_est = r.blitter_blank_slots * kBlitterBorderCyclesPerSlot +
+			       r.blitter_display_slots * kBlitterDisplayCyclesPerSlot;
+	if (r.blitter_blank_overflow != 0u) r.hints |= kHintVBlankOverflow;
+	if (blitter > r.vblank_free_slots && blank == 0u) r.hints |= kHintBlitterInDisplay;
 	return r;
 }
 

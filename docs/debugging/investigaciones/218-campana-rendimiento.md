@@ -139,6 +139,26 @@ E1 = ancla en línea 0; E2 = reordenar restores justo tras el ancla (el original
 al final, pero con un cuerpo mucho más corto). Medir vector completo de contadores + estabilidad
 de periodo; validar con hash determinista + visión.
 
+### F4 — E1/E2 aplicados y medidos (ancla 300 + restores al principio)
+
+- **E1 (fuente, 1 variable)**: ancla 44 → **300** (borde inferior). Update 220k → **~168k**
+  (−52k); BOBs 100-112k → **40-54k** (borde); los restores pasan a 65-78k (caen a la ventana);
+  periodo estable 284k (2 campos).
+- **E2 (fuente, 1 variable)**: restores emitidos al **principio** del update (tras el ancla;
+  contador 7 = su wall). Update → **~163,5k**; restores → **20,8k** (3,0 ciclos/slot, borde ✓);
+  BOBs → ~55k; `[3]` datos ~57k (el ensamblado cae a la ventana).
+- **Suma cero estructural**: con 27,5k slots de Blitter, el hueco de 89 líneas absorbe ~18k
+  (a ~2,9 ciclos/slot); los ~9,4k restantes en la ventana cuestan ~11 ciclos/slot (~103k). Suelo
+  estimado ≈ 150k: para 1 campo (142k) hay que **recortar ~4-5k slots** (E3: fills de 19 jobs,
+  staging, tiles) o tiempo de CPU.
+- **Validación (regla de oro)**: secuencia de 6 frames + Ollama (`out/tmp/e2_seq`) → VEREDICTO:
+  **CORRECTO** (imagen completa, sin saltos ni tearing).
+- **Modelo** (`eng/hw/bus_budget.hpp` + HOST-350): dimensión vertical (hueco 88×215 = 18.920
+  slots; ventana con display+Copper ≈ 38-41 slots/línea) + costes constexpr (`blit_cost`,
+  `copper_cost`, `cpu_cost`, `with_cost`) + hints `kHintBlitterInDisplay`/`kHintVBlankOverflow`.
+  La 218 declara su escena y lleva un `static_assert` tripwire (el Blitter 27.488 > hueco y sin
+  plan → detectado al compilar). Al cerrar la campaña, actualizar el tripwire.
+
 Caveats de herramienta (medidos):
 
 - Leer registros custom o `VPOSR` con la CPU parada en un watchpoint **no es fiable** (BLTSIZE/CON0

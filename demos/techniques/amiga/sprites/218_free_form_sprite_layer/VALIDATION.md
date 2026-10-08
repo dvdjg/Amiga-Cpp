@@ -190,7 +190,7 @@ cruda: «continuo y descendente… sin saltos ni retrocesos»).
 
 ## 4. Cadencia y coste (contadores del periférico de depuración)
 
-Contadores: `0` = update completo, `1` = UpdateSprCtl, `2` = UpdateLayerPos, `3` = UpdateLayerData, `4` = BOBs (restore + cookie-cut + esperas), `5` = tiles FG, `6` = contadores+scroll+publicación+punteros, `7` = restore de BOBs, `8` = dibujo de BOBs (cookie-cut), `9` = espera final del Blitter, `10` = periodo del bucle.
+Contadores: `0` = update completo, `1` = UpdateSprCtl, `2` = restore de BOBs + UpdateLayerPos, `3` = UpdateLayerData, `4` = BOBs (cookie-cut + esperas), `5` = tiles FG, `6` = contadores+scroll+publicación+punteros, `7` = restore de BOBs, `8` = dibujo de BOBs (cookie-cut), `9` = espera final del Blitter, `10` = periodo del bucle.
 
 El efecto **ocupa más de un campo** de VBlank: el bucle no se queda un frame por VBlank. Por eso
 `g_eng_run_status.frame` ya no publica el tick de la IRQ (que avanza a 50 Hz aunque el update no
@@ -203,17 +203,19 @@ determinista (tres runs dan el mismo valor ±8 ciclos), pero entre builds la fas
 32 frames puede caer en un frame con más o menos trabajo (p. ej. con o sin tira de tiles), así que
 solo se comparan las cifras del **mismo build**:
 
-| UpdateSprCtl | ~1,3k |
-| UpdateLayerPos (fills de POS, 19 jobs) | 35,0-36,3k |
-| UpdateLayerData (columnas Copper, **2 jobs** con staging lineal) | 40,4k |
-| BOBs (2 restores + 9 cookie-cut = 11 jobs) | 122,5k |
-| Tiles FG | 17,7k |
-| Contadores+scroll+publicación+punteros | ~4,1k |
-| Update completo | 221,0-222,5k |
+| UpdateSprCtl | ~0,5k |
+| Restore de BOBs + UpdateLayerPos (fills de POS, 19 jobs) | ~46k |
+| UpdateLayerData (columnas Copper, **2 jobs** con staging lineal) | ~57k (frames 8-29) / ~1k (frames 30-31) |
+| BOBs (9 cookie-cut) | ~55k |
+| Tiles FG | ~3,8k |
+| Contadores+scroll+publicación+punteros | ~4,0k |
+| Update completo | ~163,5k (varía con la clase de frame, `m_c32`) |
 | Periodo del bucle (update + espera de ancla) | 284,2k |
 
 El periodo es **2 campos exactos** (284 204) y la tasa ≈ **25 updates/s** en la configuración
-ciclo-exacta.
+ciclo-exacta. Medición de la campaña F4 (ancla en línea 300 + restore al principio del update);
+las cifras anteriores a la campaña y su método completo están en
+`docs/debugging/investigaciones/218-campana-rendimiento.md`.
 
 **Diagnóstico de cadencia (por qué no cabe en 1 campo y qué lo impide)**: el trabajo útil del
 update es **~100k ciclos**; los otros ~130k son **esperas del Blitter en serie**. Medido anulando
@@ -263,14 +265,16 @@ serializado ≈ 230k ≈ 1,6 campos**, así que 50 updates/s no se alcanza con e
 feature del engine para juegos con trabajo de CPU que solapar (lógica, audio), con el patrón
 descrito en la ficha de la técnica.
 
-**Para 50 Hz**: el objetivo requiere **recortar el trabajo de Blitter** (el encolado no basta: la
-suma de tiempos de pared de los blits es ~230k ≈ 1,6 campos). Levers medidos/cuantificados:
-9→7 BOBs (−25k aprox.), rediseño del reparto de `UpdateLayerPos`/`UpdateLayerData` (sus blits de
-1 palabra/línea son los menos eficientes del bus), y —si apareciera trabajo de CPU que solapar—
-la cola por IRQ ya implementada. La afirmación «la referencia corre a 1 campo por iteración»
-medida con el watchpoint de `COP1LC` queda **sin confirmar** (su build estaba en otra escena/fase
-y su reparto de trabajo por loop es igual o mayor que el del port); antes de fijar la cota hay que
-repetir esa comparación en el mismo punto.
+**Para 50 Hz (campaña F4, medido)**: el update está en **~163,5k** tras el ancla en línea 300
+(borde inferior) y el restore de BOBs al principio del update. El reparto del bus es suma cero
+con el trabajo actual (**27,5k slots** de Blitter): el hueco de VBlank de 89 líneas absorbe ~18k
+slots a ~2,9 ciclos/slot; los ~9,4k que caen en la ventana visible cuestan ~11 ciclos/slot (solo
+hay ~41 slots libres por línea con el display+Copper del efecto). Suelo estimado ≈ 150k → falta
+**recortar ~4-5k slots** (fills de 19 jobs, staging, tiles) o tiempo de CPU. La referencia corre a
+**1,00 campo por iteración** (watchpoint de `COP1LC`: 141,6-142,6k ciclos) con 23,0k slots de
+Blitter, 17,4k de ellos en los bordes: la cota es alcanzable. Datos y método completos:
+`docs/debugging/investigaciones/218-campana-rendimiento.md`; modelo del bus:
+`docs/engine/architecture/BUS_BUDGET.md` §Reparto vertical.
 
 Camino hasta aquí (medido):
 

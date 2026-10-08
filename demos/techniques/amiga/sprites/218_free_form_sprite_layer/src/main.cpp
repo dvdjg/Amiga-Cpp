@@ -62,6 +62,7 @@
 #include <eng/api/api.hpp>
 #include <eng/debug/peripheral.hpp> // presupuesto por elemento del bucle (contadores 0-4)
 #include <eng/graphics/copper/scheduler.hpp>
+#include <eng/hw/bus_budget.hpp> // presupuesto de bus declarado (dimensión vertical incluida)
 #include <eng/os/os.hpp>
 #include <eng/platform/amiga/backend.hpp>
 
@@ -130,6 +131,41 @@ constexpr u16 kDiwstop = 0x1db1;
 constexpr u16 kDdfstrt = 0x0038;      // 19 palabras = 304 px por plano
 constexpr u16 kDdfstop = 0x00c8;
 constexpr u16 kBplcon0 = 0x4200;      // 4 planos, lo-res, color
+
+// ============================================================================
+// Presupuesto de bus declarado (medido; campaña de rendimiento, F3-B)
+// ============================================================================
+// Display 224 líneas × (refresh 4 + sprites 16 + bitplanes 80 = 100) + Copper (42 MOVE/línea
+// ≈ 19,2k slots, medido 19.160-19.226). Blitter por coste constexpr del frame más caro
+// (fills + staging + tiles + restores + BOBs) y CPU medida (slots de bus por update).
+// Datos y método: docs/debugging/investigaciones/218-campana-rendimiento.md y
+// docs/engine/architecture/BUS_BUDGET.md §Reparto vertical.
+constexpr eng::hw::BusCost kSceneBusCost =
+	eng::hw::copper_cost(9408u, 128u) +          // 42 MOVE × 224 líneas + WAITs
+	eng::hw::blit_cost(19u * 224u, 1u) +         // fills de posiciones (A = cero)
+	eng::hw::blit_cost(2u * 224u, 3u) +          // staging lineal de columnas
+	eng::hw::blit_cost(3u * 128u, 3u) +          // tiles FG (3 buffers, 2 palabras × 64 líneas)
+	eng::hw::blit_cost((15u + 12u) * 128u, 2u) + // restores (unión de las celdas de cada fila)
+	eng::hw::blit_cost(9u * 3u * 128u, 4u) +     // 9 BOBs cookie-cut (A+B+C+D)
+	eng::hw::cpu_cost(19700u);                   // CPU medida (9.859 slots/campo × 2)
+
+[[nodiscard]] constexpr eng::hw::BusBudgetInput scene_bus_input() noexcept {
+	eng::hw::BusBudgetInput in {};
+	in.bands_count = 1u;
+	in.bands[0].height = kLayerLines; // 224 líneas de DMA (la ventana del efecto)
+	in.bands[0].width = 320u;         // ancho de fetch: 20 palabras/plano
+	in.bands[0].bitplanes = 4u;
+	in.bands[0].sprites_active = 8u;
+	return eng::hw::with_cost(in, kSceneBusCost);
+}
+
+// Tripwire de compilación (campaña F4 abierta): el Blitter (27.488 slots) supera el hueco de
+// VBlank (88 líneas × 215 = 18.920) y no hay trabajo planificado en él → los blits pesados corren
+// en la ventana a ~mitad de velocidad. Al cerrar la campaña (ancla + orden), actualizar esta línea.
+static_assert(eng::hw::amiga500_bus_budget(scene_bus_input()).vblank_free_slots == 18920u,
+	      "hueco de VBlank medido: 88 líneas × 215 slots");
+static_assert((eng::hw::amiga500_bus_budget(scene_bus_input()).hints & eng::hw::kHintBlitterInDisplay) != 0u,
+	      "trampa conocida: Blitter > hueco de VBlank sin planificar (campaña F4 abierta)");
 
 // --- Foreground de 4 planos (`GFX/displaybuffers.i`) ---
 constexpr u16 kDisplayW = 288;
@@ -405,8 +441,12 @@ struct SprLayerDemo {
 	/// misma línea.
 	static void wait_raster_layer() {
 		// VPOSR/VHPOSR como long en $dff004; línea = bits 8-0 tras `lsr.l #1 / lsr.w #7`.
+		// Línea 300 (borde inferior, VBlank): los blits pesados del update caen en el hueco de
+		// bus del borde y corren a ~2-3 ciclos/slot (medido con el grid DMA del frame profiler:
+		// docs/debugging/investigaciones/218-campana-rendimiento.md). El original espera la 44;
+		// la campaña F4 midió que la 300 baja el update de ~220k a ~170k ciclos.
 		volatile const u32* const vpos = reinterpret_cast<volatile const u32*>(0x00dff004u);
-		while (((*vpos >> 8u) & 0x1ffu) != 0x2cu) {
+		while (((*vpos >> 8u) & 0x1ffu) != 0x12cu) {
 		}
 	}
 
@@ -421,6 +461,9 @@ struct SprLayerDemo {
 		}
 		update_spr_ctl();
 		const eng::u32 t1 = eng::debug::DebugPeripheral::cycle_counter();
+		// Restore de BOBs al principio (hueco de bus del borde; contador 7): limpia las celdas
+		// del frame anterior antes de que los BOBs dibujen al final del update.
+		restore_bobs(backend);
 		update_layer_pos(backend);
 		const eng::u32 t2 = eng::debug::DebugPeripheral::cycle_counter();
 		update_layer_data(backend);
@@ -443,12 +486,12 @@ struct SprLayerDemo {
 		const u8 buf = ((m_c32 & 0x100u) != 0u) ? 0u : 1u;
 		set_fg_ptrs(idx, buf, m_fg_offset);
 		const eng::u32 t4 = eng::debug::DebugPeripheral::cycle_counter();
-		draw_bobs(backend);
+		draw_bob_cells(backend);
 		const eng::u32 t5 = eng::debug::DebugPeripheral::cycle_counter();
 		// Presupuesto por elemento del bucle (contadores del periférico de depuración,
 		// legibles con `run-demo.sh --read-debugperiph counters`): 0 = update completo,
-		// 1 = UpdateSprCtl, 2 = UpdateLayerPos, 3 = UpdateLayerData, 4 = BOBs (restore +
-		// cookie-cut + esperas), 5 = tiles FG, 6 = contadores+scroll+publicación+punteros,
+		// 1 = UpdateSprCtl, 2 = restore + UpdateLayerPos, 3 = UpdateLayerData, 4 = BOBs
+		// (cookie-cut + esperas), 5 = tiles FG, 6 = contadores+scroll+publicación+punteros,
 		// 7 = restore de BOBs, 8 = dibujo de BOBs (cookie-cut), 9 = espera final del
 		// Blitter, 10 = periodo del bucle (update + espera de ancla). El efecto ocupa más
 		// de un campo (2 campos = 284 204 ciclos): el periodo es el dato de la tasa real.
@@ -913,7 +956,12 @@ private:
 	// ------------------------------------------------------------------
 	// BOBs: restore desde el 3.er buffer + cookie-cut `$CA` (`BlitBob`)
 	// ------------------------------------------------------------------
-	void draw_bobs(eng::amiga::AmigaBackend& backend) {
+	// El restore se emite al **principio** del update (tras el ancla, en el hueco de bus del
+	// borde), no junto a los BOBs: mide ~77k ciclos si cae en la ventana visible y ~16k en el
+	// borde (campaña F4). El original lo lleva al final, pero su cuerpo es mucho más corto y
+	// cae igualmente en el borde. El orden restore→BOBs se conserva (los BOBs limpian sobre la
+	// copia). Coste: 2 jobs de 15/12 palabras × 128 líneas.
+	void restore_bobs(eng::amiga::AmigaBackend& backend) {
 		// Selector del original (`btst #0,c32frame_cn_o+1`): siempre falso, buffer visible
 		// `fg_buf2` (mismo criterio que el selector de `update()`).
 		const bool second = (m_c32 & 0x100u) != 0u;
@@ -934,14 +982,17 @@ private:
 			backend.blitter_blob_run_one(entries[1].src, entries[1].src, entries[1].dst, 0u);
 			backend.blitter_blob_run_end();
 		}
-		const eng::u32 tr1 = eng::debug::DebugPeripheral::cycle_counter();
-		eng::debug::DebugPeripheral::counter_value(7, tr1 - tr0);
+		eng::debug::DebugPeripheral::counter_value(7, eng::debug::DebugPeripheral::cycle_counter() - tr0);
+	}
 
+	void draw_bob_cells(eng::amiga::AmigaBackend& backend) {
+		const bool second = (m_c32 & 0x100u) != 0u;
 		// --- Dibujo: 9 BOBs a X = 40 + (c32 & 15) + 24*i ---
 		const u8 buf = second ? 0u : 1u;
 		const u32 scroll = m_fg_offset;
 		u16 x = static_cast<u16>((m_c32 & 0x0fu) + m_bob_x);
 		RestoreEntry* out = m_restore[second ? 0 : 1];
+		const eng::u32 tr1 = eng::debug::DebugPeripheral::cycle_counter();
 		// Entradas de restore del próximo frame: la unión de las celdas de cada fila (fila par: BOBs 0,2,4,6,8 a X = x y 224-bob_y; impar: 1,3,5,7 a X = x+24 y bob_y). Las direcciones se construyen desde las vistas del buffer limpio (m_fg[2]) y del buffer de dibujo, con el offset ya en bytes.
 		{
 			const u32 off_even = static_cast<u32>(224u - m_bob_y) * kFgMod + (x >> 3u);
