@@ -462,7 +462,9 @@ struct SprLayerDemo {
 		update_spr_ctl();
 		const eng::u32 t1 = eng::debug::DebugPeripheral::cycle_counter();
 		// Restore de BOBs al principio (hueco de bus del borde; contador 7): limpia las celdas
-		// del frame anterior antes de que los BOBs dibujen al final del update.
+		// del frame anterior antes de que los BOBs dibujen al final del update. Medido: con el
+		// restore tras los fills (E2b) el total empata (164k vs 163,5k) y el restore sube a
+		// 37,6k al caer más tarde en la ventana; este orden es el mejor de los dos.
 		restore_bobs(backend);
 		update_layer_pos(backend);
 		const eng::u32 t2 = eng::debug::DebugPeripheral::cycle_counter();
@@ -490,7 +492,7 @@ struct SprLayerDemo {
 		const eng::u32 t5 = eng::debug::DebugPeripheral::cycle_counter();
 		// Presupuesto por elemento del bucle (contadores del periférico de depuración,
 		// legibles con `run-demo.sh --read-debugperiph counters`): 0 = update completo,
-		// 1 = UpdateSprCtl, 2 = restore + UpdateLayerPos, 3 = UpdateLayerData, 4 = BOBs
+		// 1 = UpdateSprCtl, 2 = UpdateLayerPos + restore de BOBs, 3 = UpdateLayerData, 4 = BOBs
 		// (cookie-cut + esperas), 5 = tiles FG, 6 = contadores+scroll+publicación+punteros,
 		// 7 = restore de BOBs, 8 = dibujo de BOBs (cookie-cut), 9 = espera final del
 		// Blitter, 10 = periodo del bucle (update + espera de ancla). El efecto ocupa más

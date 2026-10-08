@@ -159,6 +159,22 @@ de periodo; validar con hash determinista + visión.
   La 218 declara su escena y lleva un `static_assert` tripwire (el Blitter 27.488 > hueco y sin
   plan → detectado al compilar). Al cerrar la campaña, actualizar el tripwire.
 
+### F4b — E2b + barrido fino del ancla: **meseta ~163,5k**
+
+- **E2b** (intercambio fills/restore, 1 variable): 164,0k vs 163,5k de E2 — empate. Los restores
+  suben a 37,6k (pagan la ventana al ir segundos) y los BOBs bajan a ~49k. Se conserva el orden
+  de E2 (restore primero).
+- **Barrido fino del ancla** (líneas 298-308 por hot-patch): 163,1-164,3k — **curva plana**; no
+  hay punto mejor. El sistema está en un óptimo local con esta estructura.
+- **Conclusión estructural**: con 27,5k slots de Blitter el suelo del reparto es ~163k. Para el
+  campo único (142k) hace falta **recortar ~13 % de trabajo real** — candidatos medibles: 9→7
+  BOBs (≈ −9k ciclos de pared), área/cadencia del restore, tiles de 3 buffers. Orden y ancla ya
+  no dan más.
+- **Corrección de E3**: fusionar los 19 fills **no es viable** — el original hace 19 `BlitPattern`
+  con el valor POS en `BLTADAT` (`blitter.asm:35-42`, `layer.asm:87-170`), 1 slot/línea; una
+  fusión exigiría fuente de patrón (A con puntero) → +4,2k slots. El port ya es fiel aquí y más
+  rápido por job que el original (0,65k vs 3,43k ciclos/job).
+
 Caveats de herramienta (medidos):
 
 - Leer registros custom o `VPOSR` con la CPU parada en un watchpoint **no es fiable** (BLTSIZE/CON0
