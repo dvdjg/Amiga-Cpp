@@ -7,6 +7,7 @@ Optimización de código C++ y del chipset para las plataformas soportadas
 
 | Documento | Contenido |
 |-----------|-----------|
+| [METODO_OPTIMIZACION.md](METODO_OPTIMIZACION.md) | **Método de campaña** (obligatorio antes de optimizar o escribir código nuevo con impacto en rendimiento): principios (el coste es la especificación, presupuesto y mapa de contención antes de diseñar), fases F0–F5 con gates, tabla de presupuesto diferencial contra la referencia, protocolo de A/B con hot-patch y criterio de falsación, modelar vs medir, la referencia como oráculo, disciplina multi-sesión y checklist. |
 | [OPTIMIZACION_GPP_68000.md](OPTIMIZACION_GPP_68000.md) | Cómo compila g++/elf2hunk para 68000: reglas de tamaño vs velocidad, `-Os`, cuándo `-O1` engaña y warnings de `-Wextra`. |
 | [METODOLOGIA_PROFILING.md](METODOLOGIA_PROFILING.md) | Pipeline de medida (fps → secciones → muestras de CPU → bus), herramientas, trampas conocidas y optimizaciones identificadas con su evidencia. |
 | [MINIFLOAT16_SUMA_RESTA.md](MINIFLOAT16_SUMA_RESTA.md) | Referencia de investigación del `+`/`-` de `MiniFloat16`: modelo de coste, técnicas ya implementadas (early-out, tabla de renormalización) y candidatas (camino rápido `de == 0`, máscara de alineación). |

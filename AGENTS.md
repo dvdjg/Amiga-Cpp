@@ -158,6 +158,7 @@ El objetivo es que el usuario pueda **revisar** el trabajo antes de que se conso
 
 ### 1.15 Disciplina de coste de la máquina (68000 / A500)
 
+- **Toda tarea de optimización —y todo código nuevo con impacto en rendimiento (es decir, siempre)— empieza leyendo [`docs/guides/optimization/METODO_OPTIMIZACION.md`](docs/guides/optimization/METODO_OPTIMIZACION.md)**: presupuesto de bus y mapa de contención antes de diseñar, la referencia medida como oráculo con las mismas herramientas, experimentos de una sola variable con coste predicho y criterio de falsación, y hot-patch antes que rebuild. Es obligatorio también para hilos nuevos.
 - **Cada operación de un bucle cuesta ciclos y compite** con el Blitter, el Copper, los bitplanes y el resto del frame. Antes de poner una operación en un bucle **por píxel/línea o en el bucle de juego**, calcular su coste y decidir si cabe.
 - **Nada de `*`, `/` ni `%` en bucles por píxel/línea o en el bucle principal** sin justificarlo con medidas. Alternativas obligatorias: **desplazamientos** para potencias de 2; **`constexpr`** para precalcular en compilación lo que depende solo de constantes (figuras geométricas, perfiles, tablas de seno, mapas de color) e **indexar** en runtime; **sumas/restas acumuladas** para funciones lineales; **tablas ROM** para las no lineales. Recordar que `*`/`/`/`%` de **32 bits** son **libcalls** (`__mulsi3` ~50 ciclos, `__udivsi3`/`__modsi3` ~150) y `divu.w` ~140.
 - La explicación detallada (ciclos por operación, alternativas, verificación con `nm`/`asm-audit`) está en [§Disciplina de coste](docs/guides/optimization/OPTIMIZACION_GPP_68000.md).
@@ -274,6 +275,7 @@ Estas reglas son obligatorias, pero solo son relevantes cuando se toca su domini
 | **API del engine** (sin hardware, sin punteros, versátil, prueba de diseño) | `docs/engine/architecture/PUBLIC_API.md` |
 | **Estilo y restricciones de diseño** (gnu++23, sin excepciones/RTTI/heap, APIs paramétricas, agnosticismo del backend, comentarios didácticos) | `docs/engine/architecture/CODING_STYLE.md` |
 | **Rendimiento, comentario de optimizaciones y port de rutinas calientes a asm** | §12 de `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` |
+| **Optimizar (SIEMPRE: también al escribir código nuevo con impacto en rendimiento)** — campaña contra referencia, presupuesto de bus y mapa de contención, tabla de deltas, A/B con hot-patch y criterio de falsación, checklist de un solo cambio | `docs/guides/optimization/METODO_OPTIMIZACION.md` |
 | **Análisis de rendimiento de una demo** (medir SIEMPRE con el perfil `.amigaprofile` + IA local; hotspots por rutina y defectos de pantalla con visión) | `docs/tools/PROFILING_FROM_AGENT.md` |
 | **Copper y buffers de display** (`copper::Plan`, `MultiBuffered`, doble buffer de copperlist) | §6 de `docs/engine/architecture/DISPLAY_COMPOSITION.md` |
 | **Objetos: BOB ≠ polígono, transparencia, fondo, copper por objeto** | `docs/engine/architecture/OBJECT_SYSTEM.md` |

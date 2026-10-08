@@ -119,6 +119,39 @@ Medición y validación de la dinámica (lo que distingue un fallo real de un ar
   medio píxel.
 - **Comparar contra la referencia con el mismo método** antes de tocar nada: si el patrón del port
   es idéntico al del original, no hay bug. Cierre con visión (regla de oro) sobre una secuencia.
+- **Validación determinista entre builds** (la comparación por pantalla tiene ruido de fase: el
+  fin del update cae en una posición de haz distinta si el cuerpo cambia de duración): **volcar
+  las copperlists con los punteros enmascarados en el mismo update exacto** (avanzar con el
+  breakpoint del *probe* hasta `f` objetivo) y comparar el hash. Es la prueba de que un cambio de
+  emisión de blits escribe exactamente las mismas palabras.
+
+Presupuesto de Blitter (lo aprendido midiendo la 218 con los contadores 0-10 del periférico):
+
+- **El coste por job domina sobre los datos movidos.** Con el diseño síncrono (esperar cada blit),
+  ~60 jobs/update ≈ 10-20k ciclos de espera **por job** (arranque + **tiempo de pared bajo
+  contención con el Copper/bitplanes**, ratio ~20 veces el trabajo útil del blit). Medido en la
+  218: esperas en serie ≈ 130k de un update de 230k. Cuidado: un «build de diagnóstico» con las
+  esperas anuladas mide menos (~100k) pero **con los blits pisándose** (el trabajo no se hace):
+  la suma de tiempos de pared reales es el suelo del diseño.
+- **Fusionar jobs solo sin huecos con shifter**: un blit con barrel shift y celdas separadas
+  arrastra bits entre celdas (la ventana `AFWM`/`ALWM` solo protege los extremos de *línea*), así
+  que las «tiras» multi-objeto salen con artefactos; y ensanchar el blit sube el trabajo de bus.
+  El staging **lineal** (la CPU ensambla la fuente contigua y salen 2 jobs de N líneas) sí es
+  fiel y ahorra arranques.
+- **La solución de fondo es asíncrona —pero solo si hay CPU que solapar**: el Blitter tiene
+  interrupción de fin (`INTF_BLIT`, bit 6 de INTREQ → **nivel 3**; AHRM `:6532`; WinUAE
+  `blitter.cpp:429`). **No hay cola hardware**: escribir `BLTSIZE` con el Blitter ocupado espera
+  (AHRM; `waitingblits()` en `blitter.cpp:1955`), por lo que «blits en paralelo» = solapar CPU y
+  Blitter **encadenando jobs por IRQ** desde el bucle de mensajes (patrón implementado en
+  `AmigaBackend::blitter_queue_*`: ring SPSC lock-free + cadena por la IRQ BLIT; encolar con el
+  Blitter parado y `kick` al final). **Advertencia medida en la 218**: el encolado no acelera los
+  blits; si el update no tiene trabajo de CPU que solapar, el total empata o empeora (encolado +
+  drenado ≈ lo mismo que las esperas). Y en un A500 **sin Fast RAM la cola vive en Slow y
+  escribirla con el Blitter en marcha cuesta ~6k ciclos/job** por contención: encolar siempre con
+  el Blitter parado.
+- **Nunca esperas activas donde haya cola**: el sondeo «nasty» (`BLTPRI`) solo mientras no hay
+  nada que hacer; con trabajo de fondo, drenarlo durante el sondeo (servicio) o quitar el sondeo
+  con el encolado.
 
 ## Límites y notas
 

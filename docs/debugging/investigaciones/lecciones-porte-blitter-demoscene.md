@@ -35,3 +35,36 @@ La clave la aportó la referencia: **AHRM 3.ª, capítulo del Blitter, modo lín
 - **Gate determinista para rasterizadores.** Al importar algo que dibuja píxeles, añadir una métrica de píxeles (huecos internos, racha máxima, fuga al borde) además de la métrica visual gruesa. La visión local (ollama) no basta para artefactos de 1 px.
 - **Cuando una réplica se ve peor, investigar antes de desviar.** Una desviación que tapa un glitch debe quedar marcada como **pendiente de diagnóstico**, no como decisión final, hasta explicar el porqué del original.
 - **Comparar contra el original por fase.** Capturar N frames alineados (`frame*8`) del original por `.adf` y de la réplica, y medir solape de máscara/cuadro; una diferencia de forma delata el problema.
+
+## Lección de proceso (218): el coste no es un anexo — el modelo de contención es el diseño
+
+Sesiones repetidas intentando cerrar la cadencia de la 218 («SPR Layer») contra su referencia
+destaparon un patrón de fallo que no es de conocimiento del hardware sino de **modelo mental**:
+se razona como si el Blitter/Copper/CPU fueran llamadas de un API que se ejecutan «cuando toca»
+(emitir → esperar → listo), en vez de **recursos concurrentes que compiten por los mismos slots
+de bus por scanline**. Consecuencias medidas en estos hilos:
+
+- **«Sin esperas el cuerpo cabe en 1 campo»** era falso: quitando las esperas los jobs del
+  Blitter se pisan entre sí (un juego de registros, BLTSIZE con el Blitter ocupado espera —
+  waitingblits() en blitter.cpp) y el trabajo *no se hace*. El modelo correcto: la espera **es**
+  tiempo de bus del Blitter, no sobrecoste eliminable. La suma de tiempos de pared reales
+  (~230k ciclos ≈ 1,6 campos) es el suelo del diseño.
+- **La cola de blits por IRQ en RAM lenta**: se encolaba con el Blitter en marcha y cada encolado
+  costaba ~6k ciclos porque en un A500 la Slow RAM **comparte el bus con Agnus**. El modelo de
+  mapa de memoria/contención (chip/slow/fast, quién arbitra) habría predicho el coste.
+- **La IRQ BLIT dispara en *cada* finalización** (también de los blits síncronos) y su handler
+  paga accesos a registros bajo DMA activo: sin presupuestarlo, el «encadenado sin esperas»
+  añadió ~25 IRQs/update. Un handler debe salir por RAM (cola vacía) antes de tocar registros.
+- **El Copper del efecto (~85-100 ciclos DMA/línea, ~45 % del bus) es el telón de fondo de todo
+  blit**: cada job tarda ~20× su trabajo útil por el arbitraje. Tratarlo como «el efecto» y al
+  Blitter como «mi trabajo» impide atribuir los tiempos de pared.
+- **Tiras de BOBs (fusión de blits)**: diseño computacionalmente correcto pero invalidado por un
+  detalle de registro (el barrel shifter arrastra bits entre celdas; AFWM/ALWM solo protegen
+  los extremos de línea). Correcto ≠ suficiente.
+
+Regla que queda: **antes de diseñar o medir, escribir el presupuesto** — slots de Copper por
+línea, palabras × canales del Blitter, DMA de planos/sprites/audio, accesos a Chip del CPU — y el
+**mapa de contención** (qué recurso usa cada acceso y qué más está activo en ese rango de raster).
+Toda hipótesis lleva un coste predicho *antes* de medirse; si la medida contradice el modelo, se
+corrige el modelo. El profiler por scanline (.amigaprofile) y la fuente del emulador
+(fichero:línea) son la referencia, no los contadores caseros ni las correlaciones de pantalla.
