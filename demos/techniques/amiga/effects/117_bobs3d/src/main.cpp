@@ -414,7 +414,7 @@ private:
 	void draw_bobs_stream(eng::amiga::AmigaBackend& backend, eng::graphics::BlitPtr screen) {
 		const auto pts = m_object.points();
 		eng::amiga::OrBlobBatch batch;
-		batch.begin(backend.custom_regs(), kBobWords, K_117_BLITROWS, 0, kBobDestModulo);
+		batch.begin(backend.hw_regs(), kBobWords, K_117_BLITROWS, 0, kBobDestModulo);
 		u32 drawn = 0;
 		for (auto it = pts.begin(); it != pts.end(); ++it) {
 			if (drawn >= static_cast<u32>(K_117_MAXBLOBS)) {
@@ -462,7 +462,7 @@ private:
 		const Proj::cache pc = Proj::make(m_object.objectToWorld);
 		const auto pts = m_object.points();
 		eng::amiga::OrBlobBatch batch;
-		batch.begin(backend.custom_regs(), kBobWords, K_117_BLITROWS, 0, kBobDestModulo);
+		batch.begin(backend.hw_regs(), kBobWords, K_117_BLITROWS, 0, kBobDestModulo);
 		u32 drawn = 0;
 		for (auto it = pts.begin(); it != pts.end(); ++it) {
 			if (drawn >= static_cast<u32>(K_117_MAXBLOBS)) {

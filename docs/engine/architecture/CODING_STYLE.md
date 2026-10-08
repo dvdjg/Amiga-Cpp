@@ -49,6 +49,14 @@ abstraccion, pero sin perder control sobre memoria, coste y layout.
   frame: `retarget`"; "no zero-init de la timeline: bitset de tocadas").
 - **Preservar los comentarios antiguos**: adaptarlos o corregirlos, no reescribirlos; **sólo se
   borran** si ya no aplican o son falsos.
+- **Los comentarios de línea no se parten artificialmente**: un comentario ocupa **una sola línea
+  lógica**, por larga que sea; no se corta en varios `//` para «respetar» una anchura de columna
+  (mismo criterio que §1.2 de `AGENTS.md` para los párrafos de documentación: una idea, una línea).
+  Un comentario largo no es un problema: es señal de que explica un porqué que merece estar ahí.
+- **Explicitud antes que brevedad**: en el código conviven dos tipos de comentario — el *doc* del
+  miembro (qué es, unidades, rango, quién lo usa) y el *porqué* de una decisión no obvia. Ante la
+  duda, documentar de más: es preferible un comentario largo a un lector que tenga que deducir por
+  qué un puntero es crudo, por qué se reordena una espera o de dónde sale una constante.
 - **Clase fundamental de la arquitectura** (mucha del engine): acompañarla de un **diagrama
   ASCII** de arquitectura que deje claro su **cometido** y su **relación** con las demás piezas
   (formato: cajas `┌─┐` para layout/relaciones; ver §2 de `AGENTS.md`).

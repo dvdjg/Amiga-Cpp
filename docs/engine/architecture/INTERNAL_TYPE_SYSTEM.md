@@ -166,8 +166,8 @@ direcciones sí son tipos de dominio** y los productores los devuelven ya tipado
 - Se tipa la **procedencia DMA**: `BlitPtr` (dirección `Address<MemoryKind::Chip>` a words) para
   fuente, destino y máscara de un `BlitJob`; un **solo** tipo para los tres roles (el hardware del
   Blitter es simétrico y quién es fuente o destino lo decide el campo del `BlitJob`).
-- El **bloque de registros custom** (`$DFF000`) se pide tipado con `eng::amiga::CustomRegs`
-  (`CustomRegs::instance()` en hardware; `from_storage` solo para mocks de tests host). No es RAM:
+- El **bloque de registros custom** (`$DFF000`) se pide tipado con `eng::amiga::HwRegs`
+  (`HwRegs::instance()` en hardware; `from_storage` solo para mocks de tests host). No es RAM:
   no se describe con `Address<MemoryKind::*>`, que tipan bancos de memoria.
 
 ### 3.6 Memoria: medio (dato) vs vida
@@ -290,9 +290,9 @@ SSP propiedad de Exec. Para la política general de Fast (datos estáticos, cód
 | `move_bitplane_pointer(u8 plane, const void* address)` | `u8 plane` + `Address<MemoryKind::Chip>` |
 | `bitplanes() -> u8*` (escenas) | `bitplanes() -> PlaneBytes` (devuelto, sin cast) |
 | `MemoryBlock::data` crudo | `MemoryBlock::buffer<Tag>()` / `view<Tag>()` |
-| `BlobBatch::begin(volatile u16*, ...)` / `OrBlobBatch::begin` | `begin(CustomRegs, ...)` (hecho) |
+| `BlobBatch::begin(volatile u16*, ...)` / `OrBlobBatch::begin` | `begin(HwRegs, ...)` (hecho) |
 | `BlobBatch::one(const void*, const void*, void*)` / `OrBlobBatch::one` | `one(BlitPtr, BlitPtr, BlitPtr, u8)` (hecho) |
-| `AmigaBackend::custom_registers() -> volatile u16*` | `custom_regs() -> CustomRegs` (hecho) |
+| `AmigaBackend::custom_registers() -> volatile u16*` | `hw_regs() -> HwRegs` (hecho) |
 | `blitter_blob_run_one(const void*, const void*, void*, u8)` / `blitter_or_bobs_one` | `(BlitPtr, BlitPtr, BlitPtr, u8)` / `(BlitPtr, BlitPtr, u8)` (hecho) |
 | `blitter_strip_column(const void*, void*, ...)` / `graphics::OrBob` / `BlitStream::one` | pendientes (hoy: frontera declarada `BlitPtr::from_storage` en el backend, documentada) |
 

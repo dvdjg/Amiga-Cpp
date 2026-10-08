@@ -16,13 +16,13 @@
 ///
 /// Es cabecera de **plataforma** (como `blob.hpp`/`object3d.hpp`) y expone registros custom
 /// a propósito: es la frontera unsafe del backend. El bloque de registros se pide tipado con
-/// `CustomRegs::instance()` (o `AmigaBackend::custom_regs()`), y los punteros de Blitter con
+/// `HwRegs::instance()` (o `AmigaBackend::hw_regs()`), y los punteros de Blitter con
 /// `graphics::BlitPtr` (dirección `Address<MemoryKind::Chip>`): el compilador **no acepta**
 /// un `void*`/`volatile u16*` suelto, así que un destino en Fast/Slow RAM no compila.
 ///
 /// Uso (cookie-cut interleaved de la 213):
 ///   eng::amiga::BlobBatch batch;
-///   batch.begin(eng::amiga::CustomRegs::instance(), eng::amiga::BlobOp::CookieCut, words,
+///   batch.begin(eng::amiga::HwRegs::instance(), eng::amiga::BlobOp::CookieCut, words,
 ///               height, amod, bmod, cmod, dmod);
 ///   for (cada BOB) batch.one(mask, image, dest, shift);   // mask/image/dest: BlitPtr
 ///   batch.end();
@@ -30,7 +30,7 @@
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/blit_job.hpp>
 #include <eng/graphics/blitter_state.hpp>
-#include <eng/platform/amiga/custom_regs.hpp>
+#include <eng/platform/amiga/hw_regs.hpp>
 
 namespace eng::amiga {
 
@@ -44,15 +44,22 @@ using BlobOp = eng::graphics::BlobOp;
 /// sin `jsr` por objeto (medido en `OrBlobBatch`/`bobs3d`: ~600 ciclos/objeto ahorrados).
 class BlobBatch {
 public:
+	/// **Servicio de espera** opcional que el lote drena en cada vuelta del sondeo a BBUSY, igual
+	/// que `AmigaBackend::wait_blitter`. La firma es C (`fn(user, vpos)`) a propósito: el servicio
+	/// puede correr en contextos ISR-sensibles y su contexto lo **posee el llamador** (el backend
+	/// guarda ahí su slot de servicio de fondo; un test, lo que necesite). `vpos` = línea de raster
+	/// actual (bits 8-0 de VPOSR) por si el servicio quiere repartir su trabajo por la línea.
+	/// `nullptr` deja el sondeo como bucle apretado, sin drenar nada (idéntico al original).
 	using WaitFn = void (*)(void*, eng::u16);
 
-	/// Fija las constantes del lote. `regs` = bloque de registros custom tipado
-	/// (`CustomRegs::instance()` en hardware).
+	/// Fija las constantes del lote. `regs` = bloque de registros del hardware donde se va a
+	/// programar el lote (`HwRegs::instance()` en Amiga; en tests, `HwRegs::for_test`).
 	/// `words`/`height` son el ancho (palabras) y el alto (filas físicas = alto lógico ×
 	/// planos en interleaved) del blit. `amod`/`bmod` son los módulos de A/B (bytes);
 	/// `cmod`/`dmod` los de C/D. Para cookie-cut interleaved del par `[…imagen][…máscara]`
-	/// el `bmod` es el mismo que `amod` (`= words·2`).
-	__attribute__((always_inline)) inline void begin(CustomRegs regs, BlobOp op, eng::u16 words,
+	/// el `bmod` es el mismo que `amod` (`= words·2`). `wait_fn`/`wait_user` = servicio de
+	/// espera opcional (ver `WaitFn`); el lote solo guarda el contexto, nunca lo interpreta.
+	__attribute__((always_inline)) inline void begin(HwRegs regs, BlobOp op, eng::u16 words,
 							 eng::u16 height, eng::s16 amod, eng::s16 bmod,
 							 eng::s16 cmod, eng::s16 dmod,
 							 WaitFn wait_fn = nullptr, void* wait_user = nullptr) {
@@ -165,12 +172,14 @@ private:
 		*reinterpret_cast<volatile eng::u32*>(&regs_.word(word_index)) = v;
 	}
 
-	/// BBUSY (DMACONR bit 14). Con `wait_fn`, drena fondo en cada vuelta.
-	/// Sondea en modo «blitter nasty» (BLTPRI): el CPU suelta el bus mientras espera y
-	/// no le roba ciclos al Blitter. Sin ello, el Blitter de un blit largo (p. ej. los
-	/// BOBs de 384 palabras de la 218) tarda hasta 3x más (WinUAE ciclo-exacto:
-	/// `blitter.cpp:1745-1770`, el robo del CPU se desactiva con `DMA_BLITPRI`).
-	/// Es la macro `BlitWait` del original (`spr_layer/Sprite_Layer/GFX/blitter.i:26-31`).
+	/// **Espera a que el Blitter quede libre** (BBUSY de DMACONR, bit 14) en modo «blitter nasty»
+	/// (BLTPRI): el CPU suelta el bus mientras sondea y no le roba ciclos al Blitter. Sin ello, un
+	/// blit largo (p. ej. los BOBs de 384 palabras de la 218) tarda hasta 3x más (WinUAE
+	/// ciclo-exacto: `blitter.cpp:1745-1770`; el robo del CPU al Blitter se desactiva con
+	/// `DMA_BLITPRI`). Es la macro `BlitWait` del original (`spr_layer/Sprite_Layer/GFX/blitter.i:26-31`).
+	/// Mientras gira el sondeo, si hay `wait_fn_` registrado se llama en **cada vuelta** con el
+	/// contexto de `wait_user_` y la línea de raster actual: así el fondo (tareas del mini-SO)
+	/// avanza en vez de ser tiempo muerto. Es el único uso de `wait_fn_`/`wait_user_`.
 	__attribute__((always_inline)) inline void wait() const {
 		regs_.word(kDmacon) = 0x8400u; // SETCLR | BLTPRI: activa nasty
 		while ((regs_.word(kDmaconr) & 0x4000u) != 0u) {
@@ -211,12 +220,12 @@ private:
 	static constexpr eng::u16 kMintermCookieCut = eng::graphics::kBlitterMintermCookieCut;
 	static constexpr eng::u16 kMintermZero = eng::graphics::kBlitterMintermZero;
 
-	CustomRegs regs_ {};
-	eng::u16 base_con0 = 0;
-	eng::u16 size = 0;
-	BlobOp op_ = BlobOp::Or;
-	WaitFn wait_fn_ = nullptr;
-	void* wait_user_ = nullptr;
+	HwRegs regs_ {};            ///< Bloque de registros del hardware donde se programa el lote (en Amiga, `$DFF000` fijo; en tests, el mock de `HwRegs::for_test`).
+	eng::u16 base_con0 = 0;     ///< BLTCON0 base del lote (canales + minterm), **sin** el desplazamiento fino `ASH` que añade cada `one`.
+	eng::u16 size = 0;          ///< BLTSIZE común del lote: alto (filas físicas) en bits 15-6 y ancho (palabras) en 5-0.
+	BlobOp op_ = BlobOp::Or;    ///< Operación del lote; decide qué canales conecta cada `one` y cómo se interpretan `a`/`b`/`d`.
+	WaitFn wait_fn_ = nullptr;  ///< Servicio de espera opcional (ver `WaitFn`); `nullptr` = sondeo apretado sin drenar fondo.
+	void* wait_user_ = nullptr; ///< Contexto **opaco** del servicio: lo posee quien registró `wait_fn_` (el backend guarda ahí su slot de servicio); el lote solo lo devuelve tal cual en cada llamada, nunca lo interpreta. No es memoria DMA ni del lote.
 };
 
 } // namespace eng::amiga

@@ -250,8 +250,8 @@
   3    13  engine/include/eng/platform/amiga/backend.hpp
   2    18  engine/include/eng/platform/amiga/blob_batch.hpp
   2    12  engine/include/eng/platform/amiga/blob.hpp
-  1     0  engine/include/eng/platform/amiga/custom_regs.hpp
   1     1  engine/include/eng/platform/amiga/entry.hpp
+  1     1  engine/include/eng/platform/amiga/hw_regs.hpp
  10    10  engine/include/eng/platform/amiga/input_poll.hpp
   1    12  engine/include/eng/platform/amiga/lib3d.hpp
   0     4  engine/include/eng/platform/amiga/object3d_poly.hpp

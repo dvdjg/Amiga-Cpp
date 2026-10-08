@@ -273,18 +273,19 @@ private:
 	/// el POS (pasos de 2 px) no puede; afecta a todas las columnas del canal.
 	void patch_pos(eng::amiga::AmigaBackend& backend, CopperBlock& block,
 		       eng::Block<eng::SpriteTag>& sprite, u16 s) {
-		u16* w = block.view.as_words().data();
+		eng::Words<eng::CopperTag> w = block.view.as_words();
 		for (u16 j = kChannels; j < kCols; ++j) {
 			const u16 x = static_cast<u16>(kHpos0 + j * kColW - s);
-			backend.blitter_fill_words_strided(w + m_pos_base + (j - kChannels) * 6u, spr_pos(x),
-							  kLines, kLineWords, j == (kCols - 1u));
+			backend.blitter_fill_words_strided(
+				eng::graphics::blit_ptr(w.subspan(m_pos_base + (j - kChannels) * 6u)), spr_pos(x),
+				kLines, kLineWords, j == (kCols - 1u));
 		}
 		// Pixel impar de X: `SPRxCTL` bit0 (`../WinUAE-DBG/drawing.cpp:2706`:
 		// `sprxp = (pos&0xff)*2 + (ctl&1)`). Va en el CTL de las ESTRUCTURAS DMA, que es el CTL
 		// del canal: asi lo reciben igual las columnas DMA (POS de estructura) y las Copper
 		// (POS de copperlist), y `HSTART = (X)>>1` (el POS solo tiene pasos de 2 px).
 		const u16 ctl = static_cast<u16>((static_cast<u16>(kTop + kLines) << 8u) | (s & 1u));
-		u16* sp = sprite.view.as_words().data();
+		eng::Words<eng::SpriteTag> sp = sprite.view.as_words();
 		for (u8 c = 0u; c < kChannels; ++c) {
 			sp[static_cast<u32>(c) * kStride + 0u] =
 				spr_pos(static_cast<u16>(kHpos0 + c * kColW - s));

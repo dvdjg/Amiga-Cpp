@@ -104,15 +104,58 @@ struct BlitPtr {
 	[[nodiscard]] constexpr const u16* cwords() const noexcept {
 		return reinterpret_cast<const u16*>(addr.cptr());
 	}
-	/// Avanza la dirección `off` **bytes** (mismo banco y rol): como `Address<Chip>::operator+`.
-	/// El offset conserva su tipo dentro de la expresión (GCC puede usar direccionamiento
-	/// indexado de 16 bits cuando cabe en `s16`/`s8`).
+	/// Avanza la dirección `off` **bytes** (mismo banco y rol). El offset conserva su tipo dentro
+	/// de la expresión (GCC puede usar direccionamiento indexado de 16 bits cuando cabe en `s16`/`s8`).
+	/// Misma semántica que `Address<MemoryKind::Chip>::operator+`.
 	template <class Off>
 		requires eng::util::is_integral_v<Off>
 	[[nodiscard]] constexpr BlitPtr operator+(Off off) const noexcept {
 		return BlitPtr {addr + off};
 	}
+	/// Retrocede la dirección `off` **bytes** (mismo banco y rol).
+	template <class Off>
+		requires eng::util::is_integral_v<Off>
+	[[nodiscard]] constexpr BlitPtr operator-(Off off) const noexcept {
+		return BlitPtr {addr - off};
+	}
+	/// Avanza la dirección en sitio `off` **bytes** (mismo banco y rol).
+	template <class Off>
+		requires eng::util::is_integral_v<Off>
+	constexpr BlitPtr& operator+=(Off off) noexcept {
+		addr += off;
+		return *this;
+	}
+	/// Retrocede la dirección en sitio `off` **bytes** (mismo banco y rol).
+	template <class Off>
+		requires eng::util::is_integral_v<Off>
+	constexpr BlitPtr& operator-=(Off off) noexcept {
+		addr -= off;
+		return *this;
+	}
+	/// Distancia en **bytes** entre dos punteros de Blitter (mismo banco).
+	[[nodiscard]] constexpr eng::uintptr operator-(BlitPtr o) const noexcept { return addr - o.addr; }
+	/// Igualdad de dirección (mismo banco).
+	[[nodiscard]] constexpr bool operator==(BlitPtr o) const noexcept { return addr == o.addr; }
+	/// Desigualdad de dirección (mismo banco).
+	[[nodiscard]] constexpr bool operator!=(BlitPtr o) const noexcept { return addr != o.addr; }
+	/// Orden por dirección (mismo banco).
+	[[nodiscard]] constexpr bool operator<(BlitPtr o) const noexcept { return addr < o.addr; }
 };
+
+/// **BlitPtr desde una vista tipada** (bytes o words) con offset en **bytes**: eleva la vista a
+/// Chip con `as_chip` — el único punto donde se audita la procedencia del almacén (ver
+/// `INTERNAL_TYPE_SYSTEM.md` §«Procedencia de un Address<Chip>») — y construye la dirección DMA.
+/// Es el camino recomendado para quien tiene una vista de dominio (copperlist, plano, atlas) y
+/// necesita entregar una dirección al Blitter: no hay puntero crudo en la llamada. Para vistas de
+/// words el offset va en bytes (×2 del índice de palabra).
+template <class T, class Tag>
+[[nodiscard]] constexpr BlitPtr blit_ptr(eng::TaggedSpan<T, Tag> view, eng::s32 byte_off = 0) noexcept {
+	if constexpr (sizeof(T) == 1u) {
+		return BlitPtr {eng::as_chip(view, byte_off)};
+	} else {
+		return BlitPtr {eng::as_chip(view.as_bytes(), byte_off)};
+	}
+}
 
 /// Trabajo planar de Blitter.
 ///

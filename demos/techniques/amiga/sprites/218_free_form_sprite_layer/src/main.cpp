@@ -305,31 +305,33 @@ struct SprLayerDemo {
 			return;
 		}
 
-		// Assets DMA a Chip (el Blitter no ve Slow/Fast): tiles de fondo/foreground,
-		// sub-buffer, BOB y máscara. La fuente 8x8 se queda en el binario (solo CPU).
+		// Assets DMA a Chip (el Blitter no ve Slow/Fast): tiles de fondo/foreground, sub-buffer, BOB y máscara. La fuente 8x8 se queda en el binario (solo CPU).
 		u8* a = m_assets.view.data();
 		copy_bytes(a + kAssetBgOff, reinterpret_cast<const u8*>(spr_bgtiles), 832u);
 		copy_bytes(a + kAssetFgOff, reinterpret_cast<const u8*>(spr_fgtiles), 32256u);
 		copy_bytes(a + kAssetSbOff, reinterpret_cast<const u8*>(spr_sbtiles), 384u);
 		copy_bytes(a + kAssetBobOff, reinterpret_cast<const u8*>(spr_bobs), 512u);
 		copy_bytes(a + kAssetMaskOff, reinterpret_cast<const u8*>(spr_masks), 512u);
-		m_bg_tiles = a + kAssetBgOff;
-		m_fg_tiles = a + kAssetFgOff;
-		m_sb_tiles = a + kAssetSbOff;
-		m_bobs = a + kAssetBobOff;
-		m_masks = a + kAssetMaskOff;
+		// Vistas tipadas de cada asset dentro del bloque Chip (el tag es el del bloque; la vista es de solo lectura porque el Blitter solo las lee).
+		m_bg_tiles = m_assets.view.as_const().subspan(kAssetBgOff, 832u);
+		m_fg_tiles = m_assets.view.as_const().subspan(kAssetFgOff, 32256u);
+		m_sb_tiles = m_assets.view.as_const().subspan(kAssetSbOff, 384u);
+		m_bobs = m_assets.view.as_const().subspan(kAssetBobOff, 512u);
+		m_masks = m_assets.view.as_const().subspan(kAssetMaskOff, 512u);
 		m_font = reinterpret_cast<const u8*>(spr_font);
 
-		// Punteros de trabajo (equivalen a `clist_ptrs`/`sprset_ptrs`/`fg_buf1..3`).
-		for (u8 i = 0; i < 4; ++i) { m_clist_ptr[i] = m_clist[i].view.as_words().data(); }
-		m_sprset_ptr[0] = m_spr[0].view.as_words().data();
-		m_sprset_ptr[1] = m_spr[1].view.as_words().data();
-		m_sb_ptr = m_sb.view.as_words().data();
+		// Ventanas de trabajo tipadas (equivalen a `clist_ptrs`/`sprset_ptrs`/`fg_buf1..3` del original): el dominio va en el tipo (copperlist/estructura de sprite/sub-buffer) y el banco lo garantiza el bloque Chip del que salen.
+		for (u8 i = 0; i < 4; ++i) { m_clist_words[i] = m_clist[i].view.as_words(); }
+		m_sprset_words[0] = m_spr[0].view.as_words();
+		m_sprset_words[1] = m_spr[1].view.as_words();
+		m_sb_words = m_sb.view.as_words();
 
 		// Estructuras DMA iniciales: [POS, CTL, 224×($5555,$aaaa), 0,0] (`Data/sprites.asm`).
 		for (u8 set = 0; set < 2; ++set) {
 			for (u8 ch = 0; ch < kDmaCols; ++ch) {
-				u16* s = m_sprset_ptr[set] + static_cast<u32>(ch) * kSprStructWords;
+				// Subvista de la estructura del canal dentro del juego (516 palabras): así las escrituras quedan indexadas por palabra, como en la referencia.
+				eng::Words<eng::SpriteTag> s =
+					m_sprset_words[set].subspan(static_cast<u32>(ch) * kSprStructWords, kSprStructWords);
 				s[0] = static_cast<u16>(kDmaPos + ch * 8u);
 				s[1] = kSprCtl;
 				for (u16 l = 0; l < kLayerLines; ++l) {
@@ -349,7 +351,7 @@ struct SprLayerDemo {
 		// Punteros de la plantilla (`SetSPRPtrs`/`SetFGPtrs`/`SetSBPtrs` originales,
 		// antes de copiar para que las 4 listas queden completas).
 		m_sprshow = 0;
-		set_spr_ptrs(m_clist_ptr[0]);
+		set_spr_ptrs(m_clist_words[0]);
 		set_fg_ptrs(0u, 0u, 2u); // estado inicial del título: buf1 + 2 (`moveq #2,d3`)
 		set_sb_ptrs();
 
@@ -363,12 +365,13 @@ struct SprLayerDemo {
 		}
 		m_c32 = 0;
 		for (u8 i = 1; i < 4; ++i) {
-			copy_words(m_clist_ptr[i], m_clist_ptr[0], kClistWords);
+			// Copia palabra a palabra entre vistas tipadas (equivale al CopyMem original).
+			for (u32 w = 0; w < kClistWords; ++w) { m_clist_words[i][w] = m_clist_words[0][w]; }
 		}
 		// clist3/4 apuntan al segundo juego de estructuras (`spr0b..7b`).
 		m_sprshow = 1;
-		set_spr_ptrs(m_clist_ptr[2]);
-		set_spr_ptrs(m_clist_ptr[3]);
+		set_spr_ptrs(m_clist_words[2]);
+		set_spr_ptrs(m_clist_words[3]);
 		m_sprshow = 0;
 
 		// Limpieza de los 3 buffers FG (676 filas × 44 palabras, DMOD=0).
@@ -382,13 +385,13 @@ struct SprLayerDemo {
 			plot_text_multi(m_fg[i].view.data() + 4u, kFgMod, kBufMod, 4u, kTitleText,
 					sizeof(kTitleText) / sizeof(TextLine));
 		}
-		plot_text_multi(reinterpret_cast<u8*>(m_sb_ptr) + kSbTextOffset, kSbMod * 3u, kSbMod, 3u,
+		plot_text_multi(m_sb_words.as_bytes().data() + kSbTextOffset, kSbMod * 3u, kSbMod, 3u,
 				kSubText, sizeof(kSubText) / sizeof(TextLine));
 
 		// Display: toma de control y arranque **inmediato** del efecto (sin esperar
 		// eventos): la primera pantalla es el estado inicial del original (capa de
 		// sprites + texto del título) y el scroll empieza en el primer frame.
-		backend.takeover_display(m_clist_ptr[0]);
+		backend.takeover_display(m_clist_words[0].data()); // frontera pendiente: takeover_display aún recibe u16*
 		start_main_loop();
 		eng::debug::mark_ready(g_eng_run_status, kDetailReady);
 	}
@@ -426,11 +429,10 @@ struct SprLayerDemo {
 		update_fg_tiles(backend);
 		update_counters();
 		update_scroll();
-		// Publica la copperlist del frame y parchea el display principal (`COP1LC` sin
-		// `COPJMP`: el Copper recarga en el VBlank, como el `move.l a2,cop1lc` original).
+		// Publica la copperlist del frame y parchea el display principal (`COP1LC` sin `COPJMP`: el Copper recarga en el VBlank, como el `move.l a2,cop1lc` original).
 		const u8 idx = static_cast<u8>((m_clist_idx >> 2u) + (m_cshow_idx >> 2u));
-		u16* list = m_clist_ptr[idx];
-		backend.install_copper_list(list);
+		eng::Words<eng::CopperTag> list = m_clist_words[idx];
+		backend.install_copper_list(list.data()); // frontera pendiente: install_copper_list aún recibe `u16*`
 		list[m_lay.shift_word] = m_fg_shift;
 		const u8 buf = ((m_c32 & 0x100u) != 0u) ? 0u : 1u;
 		set_fg_ptrs(idx, buf, m_fg_offset);
@@ -474,14 +476,6 @@ private:
 	// ------------------------------------------------------------------
 	// Utilidades de memoria (CPU)
 	// ------------------------------------------------------------------
-	/// **Frontera declarada** hacia el Blitter: los buffers de trabajo de la demo viven en
-	/// bloques `MemBank<Chip>` (ver `init`), así que este es el punto único donde un puntero
-	/// de trabajo se eleva a `graphics::BlitPtr`. El API del backend ya no acepta punteros
-	/// crudos: sin este paso no compila (la memoria DMA viaja tipada por banco).
-	[[nodiscard]] static eng::graphics::BlitPtr dma(const void* p) noexcept {
-		return eng::graphics::BlitPtr::from_storage(static_cast<const eng::u16*>(p));
-	}
-
 	static void copy_bytes(u8* dst, const u8* src, u32 bytes) {
 		for (u32 i = 0; i < bytes; ++i) { dst[i] = src[i]; }
 	}
@@ -492,7 +486,7 @@ private:
 	// ------------------------------------------------------------------
 	// Construcción de la copperlist (`Data/copperlists.asm`, transcripción)
 	// ------------------------------------------------------------------
-	bool build_clist(eng::Block<eng::CopperTag>& block, ListLayout& lay) {
+	bool build_clist(eng::Block<eng::CopperTag, eng::MemoryKind::Chip>& block, ListLayout& lay) {
 		eng::copper::SchedulerT<false> sched {block};
 		// Cabecera: AGA, DMA (la referencia lo activa desde la CPU justo antes de
 		// arrancar el Copper; aquí lo hace el propio Copper en la línea 0, mismo estado),
@@ -605,18 +599,20 @@ private:
 	// ------------------------------------------------------------------
 	// Punteros de la copperlist (`SetSPRPtrs`/`SetFGPtrs`/`SetSBPtrs`)
 	// ------------------------------------------------------------------
-	void set_spr_ptrs(u16* list) {
-		const u16* set = m_sprset_ptr[m_sprshow];
+	/// Escribe los 8 punteros de sprite (`SPRxPT`) de `list` apuntando al juego de estructuras DMA activo (`m_sprshow`). La dirección sale del bloque Chip (`address()`, banco en el tipo): nada que castear.
+	void set_spr_ptrs(eng::Words<eng::CopperTag> list) {
 		for (u8 c = 0; c < 8u; ++c) {
-			const u32 addr = reinterpret_cast<u32>(set + static_cast<u32>(c) * kSprStructWords);
-			list[m_lay.spr_ptr_word + c * 4u + 0u] = static_cast<u16>(addr >> 16u);
-			list[m_lay.spr_ptr_word + c * 4u + 2u] = static_cast<u16>(addr & 0xffffu);
+			const eng::Address<eng::MemoryKind::Chip> a =
+				m_spr[m_sprshow].address(static_cast<eng::s32>(static_cast<eng::u32>(c) * kSprStructWords * 2u));
+			list[m_lay.spr_ptr_word + c * 4u + 0u] = static_cast<u16>(a.value >> 16u);
+			list[m_lay.spr_ptr_word + c * 4u + 2u] = static_cast<u16>(a.value & 0xffffu);
 		}
 	}
 
+	/// Escribe los 4 punteros de plano (`BPLxPT`) de la copperlist `clist_index` apuntando al buffer FG `buf_index` más `offset` (bytes).
 	void set_fg_ptrs(u8 clist_index, u8 buf_index, u16 offset) {
-		u16* list = m_clist_ptr[clist_index];
-		const u32 base = reinterpret_cast<u32>(m_fg[buf_index].view.data()) + offset;
+		eng::Words<eng::CopperTag> list = m_clist_words[clist_index];
+		const u32 base = static_cast<u32>(m_fg[buf_index].address(static_cast<eng::s32>(offset)).value);
 		for (u8 p = 0; p < 4u; ++p) {
 			const u32 addr = base + static_cast<u32>(p) * kBufMod;
 			list[m_lay.bpl_ptr_word + p * 4u + 0u] = static_cast<u16>(addr >> 16u);
@@ -624,9 +620,10 @@ private:
 		}
 	}
 
+	/// Escribe los 3 punteros de plano del sub-buffer (`BPLxPT`) en la copperlist 0 (la plantilla).
 	void set_sb_ptrs() {
-		u16* list = m_clist_ptr[0];
-		const u32 base = reinterpret_cast<u32>(m_sb_ptr);
+		eng::Words<eng::CopperTag> list = m_clist_words[0];
+		const u32 base = static_cast<u32>(m_sb.address(0).value);
 		for (u8 p = 0; p < 3u; ++p) {
 			const u32 addr = base + static_cast<u32>(p) * kSbMod;
 			list[m_lay.sb_ptr_word + p * 4u + 0u] = static_cast<u16>(addr >> 16u);
@@ -637,9 +634,11 @@ private:
 	// ------------------------------------------------------------------
 	// Blits (equivalentes a `GFX/blitter.asm` sobre la API del backend)
 	// ------------------------------------------------------------------
-	/// `BlitPattern`: rellena `rows` palabras con `value` separadas kLineWords.
-	void blit_pattern(eng::amiga::AmigaBackend& backend, u16* dst, u16 value, u16 rows) {
-		backend.blitter_fill_words_strided(dst, value, rows, kLineWords, true);
+	/// `BlitPattern`: rellena `rows` palabras con `value` separadas kLineWords, empezando en la palabra `word_off` de la copperlist `layer`. El offset va en palabras (como en la referencia) y `blit_ptr` lo convierte a bytes al construir la dirección DMA.
+	void blit_pattern(eng::amiga::AmigaBackend& backend, eng::Words<eng::CopperTag> layer,
+			  eng::u16 word_off, eng::u16 value, eng::u16 rows) {
+		backend.blitter_fill_words_strided(
+			eng::graphics::blit_ptr(layer, static_cast<eng::s32>(word_off) * 2), value, rows, kLineWords, true);
 	}
 
 	/// `BlitClearScreen`: 676 filas × 44 palabras con DMOD=0.
@@ -648,7 +647,7 @@ private:
 					       0, 0, 0, 0);
 		for (u8 i = 0; i < 3u; ++i) {
 			backend.blitter_blob_run_one(eng::graphics::BlitPtr {}, eng::graphics::BlitPtr {},
-						     dma(m_fg[i].view.data()), 0u);
+						     eng::graphics::blit_ptr(m_fg[i].view), 0u);
 		}
 		backend.blitter_blob_run_end();
 	}
@@ -658,7 +657,7 @@ private:
 	// ------------------------------------------------------------------
 	void update_spr_ctl() {
 		const u16 ctl = m_ctl_values[m_ctl_idx >> 1u];
-		u16* set = m_sprset_ptr[m_sprshow];
+		eng::Words<eng::SpriteTag> set = m_sprset_words[m_sprshow];
 		for (u8 c = 0; c < kDmaCols; ++c) {
 			set[static_cast<u32>(c) * kSprStructWords + 1u] = ctl;
 		}
@@ -668,10 +667,9 @@ private:
 	// `UpdateLayerPos` (layer.asm): un cuarto de las posiciones por frame
 	// ------------------------------------------------------------------
 	void update_layer_pos(eng::amiga::AmigaBackend& backend) {
-		// Copperlist objetivo: `4 - clist_idx + cpos_idx` (la que se mostrará en el
-		// siguiente bloque de 4 frames). Índices en bytes como el original.
+		// Copperlist objetivo: `4 - clist_idx + cpos_idx` (la que se mostrará en el siguiente bloque de 4 frames). Índices en bytes como el original.
 		const u8 target = static_cast<u8>(((4u - m_clist_idx) + m_cpos_idx) >> 2u);
-		u16* layer = m_clist_ptr[target];
+		eng::Words<eng::CopperTag> layer = m_clist_words[target];
 
 		switch (m_c4) {
 		case 0u: {
@@ -683,57 +681,57 @@ private:
 			// Columnas 1-4 completas + 3/4 de la 5.
 			u16 x = static_cast<u16>(kSprRPos - m_cpos_offset);
 			for (u8 c = 0; c < 4u; ++c) {
-				blit_pattern(backend, layer + m_lay.pos_word[c], x, kLayerLines);
+				blit_pattern(backend, layer, m_lay.pos_word[c], x, kLayerLines);
 				x = static_cast<u16>(x + 8u);
 			}
-			blit_pattern(backend, layer + m_lay.pos_word[4], x, (kLayerLines / 4u) * 3u);
+			blit_pattern(backend, layer, m_lay.pos_word[4], x, (kLayerLines / 4u) * 3u);
 			break;
 		}
 		case 1u: {
 			// 1/4 restante de la 5 + columnas 6-9 + 1/2 de la 10.
 			u16 x = static_cast<u16>((kSprRPos + 0x20u) - m_cpos_offset);
-			blit_pattern(backend,
-				     layer + m_lay.pos_word[4] + (kLayerLines / 4u) * 3u * kLineWords,
+			blit_pattern(backend, layer,
+				     static_cast<eng::u16>(m_lay.pos_word[4] + (kLayerLines / 4u) * 3u * kLineWords),
 				     x, kLayerLines / 4u);
 			for (u8 c = 5u; c < 9u; ++c) {
 				x = static_cast<u16>(x + 8u);
-				blit_pattern(backend, layer + m_lay.pos_word[c], x, kLayerLines);
+				blit_pattern(backend, layer, m_lay.pos_word[c], x, kLayerLines);
 			}
 			x = static_cast<u16>(x + 8u);
-			blit_pattern(backend, layer + m_lay.pos_word[9], x, kLayerLines / 2u);
+			blit_pattern(backend, layer, m_lay.pos_word[9], x, kLayerLines / 2u);
 			break;
 		}
 		case 2u: {
 			// 1/2 restante de la 10 + columna 11 + columnas 12-14 (223 líneas) + 1/4
 			// de la 15. Desde aquí las posiciones base son DMAPOS.
 			u16 x = static_cast<u16>((kSprRPos + 0x48u) - m_cpos_offset);
-			blit_pattern(backend,
-				     layer + m_lay.pos_word[9] + (kLayerLines / 2u) * kLineWords,
+			blit_pattern(backend, layer,
+				     static_cast<eng::u16>(m_lay.pos_word[9] + (kLayerLines / 2u) * kLineWords),
 				     x, kLayerLines / 2u);
 			x = static_cast<u16>(x + 8u);
-			blit_pattern(backend, layer + m_lay.pos_word[10], x, kLayerLines);
+			blit_pattern(backend, layer, m_lay.pos_word[10], x, kLayerLines);
 			u16 d = static_cast<u16>(kDmaPos - m_cpos_offset);
 			for (u8 c = 11u; c < 14u; ++c) {
-				blit_pattern(backend, layer + m_lay.pos_word[c], d, kLayerLines - 1u);
+				blit_pattern(backend, layer, m_lay.pos_word[c], d, kLayerLines - 1u);
 				d = static_cast<u16>(d + 8u);
 			}
-			blit_pattern(backend, layer + m_lay.pos_word[14], d, kLayerLines / 4u);
+			blit_pattern(backend, layer, m_lay.pos_word[14], d, kLayerLines / 4u);
 			break;
 		}
 		default: {
 			// 3/4 restantes de la 15 + columnas 16-19 (223 líneas) + posiciones de las
 			// 8 estructuras DMA.
 			u16 d = static_cast<u16>((kDmaPos + 0x18u) - m_cpos_offset);
-			blit_pattern(backend,
-				     layer + m_lay.pos_word[14] + (kLayerLines / 4u) * kLineWords,
+			blit_pattern(backend, layer,
+				     static_cast<eng::u16>(m_lay.pos_word[14] + (kLayerLines / 4u) * kLineWords),
 				     d, ((kLayerLines / 4u) * 3u) - 1u);
 			for (u8 c = 15u; c < kCols; ++c) {
 				d = static_cast<u16>(d + 8u);
-				blit_pattern(backend, layer + m_lay.pos_word[c], d, kLayerLines - 1u);
+				blit_pattern(backend, layer, m_lay.pos_word[c], d, kLayerLines - 1u);
 			}
 			// SPRxPOS de las estructuras DMA (canales 0..7): DMAPOS+8k − cpos_offset
 			// (`layer.asm:213-234`), mismo avance grueso que las columnas Copper.
-			u16* set = m_sprset_ptr[m_sprshow];
+			eng::Words<eng::SpriteTag> set = m_sprset_words[m_sprshow];
 			for (u8 c = 0; c < kDmaCols; ++c) {
 				set[static_cast<u32>(c) * kSprStructWords] = static_cast<u16>(
 					kDmaPos + static_cast<u16>(c * 8u) - m_cpos_offset);
@@ -755,16 +753,17 @@ private:
 		const u8 frame = static_cast<u8>(m_c32);
 		if (frame < 8u) {
 			// Frames 0-7: una columna DMA por frame (canal = frame), 14 tiles de 16x16.
-			u16* dst = m_sprset_ptr[m_sprupdate_idx >> 2u] +
-				   static_cast<u32>(frame) * kSprStructWords + 2u; // tras POS+CTL
+			// Subvista de la estructura del canal a partir de su campo DATA (tras POS+CTL): el destino del blit sale de una vista tipada, sin punteros crudos.
+			eng::Words<eng::SpriteTag> dst =
+				m_sprset_words[m_sprupdate_idx >> 2u].subspan(static_cast<u32>(frame) * kSprStructWords + 2u);
 			const u16* map = kBgTileMap + offset;
 			// Una racha de blits (A→D, 32 filas × 1 palabra, sin módulos).
 			backend.blitter_blob_run_begin(eng::graphics::BlobOp::Opaque, 1u, 32u, 0, 0, 0, 0);
 			for (u16 row = 0; row < 14u; ++row) {
 				const u16 tile = map[row * kBgTileRowWords];
-				const u8* src = m_bg_tiles + static_cast<u32>(tile) * kBgTileBytes;
-				backend.blitter_blob_run_one(dma(src), dma(src),
-							     dma(dst + static_cast<u32>(row) * 32u), 0u);
+				const eng::ByteView<eng::TextureTag> src = m_bg_tiles.subspan(static_cast<u32>(tile) * kBgTileBytes);
+				backend.blitter_blob_run_one(eng::graphics::blit_ptr(src), eng::graphics::blit_ptr(src),
+							     eng::graphics::blit_ptr(dst.subspan(static_cast<u32>(row) * 32u)), 0u);
 			}
 			backend.blitter_blob_run_end();
 			offset = static_cast<u16>(offset + 1u);
@@ -787,22 +786,20 @@ private:
 				list = static_cast<u8>(list + 1u);
 				col = static_cast<u8>(frame - 19u); // 0..10
 			}
-			u16* dst = m_clist_ptr[list] + m_lay.datb_word[col];
+			// Subvista de la copperlist destino a partir del campo DATB de la columna: los offsets (col, row) van en palabras, como en la referencia.
+			eng::Words<eng::CopperTag> dst = m_clist_words[list].subspan(m_lay.datb_word[col]);
 			const u16* map = kBgTileMap + offset;
-			// Una racha: 28 medios tiles (A→D, 16 filas × 1 palabra; fuente con paso
-			// 4 bytes —palabras alternas— y destino con paso 168 bytes). Es la forma
-			// exacta del original (`layer.asm:358-363`): dos blits por fila, uno por
-			// plano, que escriben la pareja [plano1, plano0] de cada línea.
+			// Una racha: 28 medios tiles (A→D, 16 filas × 1 palabra; fuente con paso 4 bytes —palabras alternas— y destino con paso 168 bytes). Es la forma exacta del original (`layer.asm:358-363`): dos blits por fila, uno por plano, que escriben la pareja [plano1, plano0] de cada línea.
 			backend.blitter_blob_run_begin(eng::graphics::BlobOp::Opaque, 1u, 16u, 2, 0,
 						       kSprColMod, kSprColMod);
 			for (u16 row = 0; row < 14u; ++row) {
 				const u16 tile = map[row * kBgTileRowWords];
-				const u8* tile_src = m_bg_tiles + static_cast<u32>(tile) * kBgTileBytes;
-				u16* row_dst = dst + static_cast<u32>(row) * 16u * kLineWords;
-				backend.blitter_blob_run_one(dma(tile_src + 2u), dma(tile_src + 2u),
-							     dma(row_dst), 0u);
-				backend.blitter_blob_run_one(dma(tile_src), dma(tile_src),
-							     dma(row_dst + 2u), 0u);
+				const eng::ByteView<eng::TextureTag> tile_src = m_bg_tiles.subspan(static_cast<u32>(tile) * kBgTileBytes);
+				eng::Words<eng::CopperTag> row_dst = dst.subspan(static_cast<u32>(row) * 16u * kLineWords);
+				backend.blitter_blob_run_one(eng::graphics::blit_ptr(tile_src.subspan(2u)), eng::graphics::blit_ptr(tile_src.subspan(2u)),
+							     eng::graphics::blit_ptr(row_dst), 0u);
+				backend.blitter_blob_run_one(eng::graphics::blit_ptr(tile_src), eng::graphics::blit_ptr(tile_src),
+							     eng::graphics::blit_ptr(row_dst.subspan(2u)), 0u);
 			}
 			backend.blitter_blob_run_end();
 			offset = static_cast<u16>(offset + 1u);
@@ -849,12 +846,12 @@ private:
 		const u8 row = static_cast<u8>(f >> 1u); // fila de tile (0..6)
 		offset = static_cast<u16>(offset + row * kFgTileRowWords);
 		const u16 tile = kFgTileMap[offset];
-		const u8* src = m_fg_tiles + static_cast<u32>(tile) * kFgTileBytes + quarter;
+		eng::ByteView<eng::TextureTag> src = m_fg_tiles.subspan(static_cast<u32>(tile) * kFgTileBytes + quarter);
 		// Destino: fila de tiles × 32 líneas (32*176 bytes) + cuarto (8 líneas) + scroll.
 		u32 dest = static_cast<u32>(row) * (kFgMod * 32u) + 40u +
 			   (static_cast<u32>(m_fg_offset) & 0xfffcu);
 		if (bottom) {
-			src += kFgHalfBytes;
+			src = src.subspan(kFgHalfBytes);
 			dest += kFgHalfY;
 		}
 		dest += quarter_y;
@@ -862,7 +859,8 @@ private:
 		backend.blitter_blob_run_begin(eng::graphics::BlobOp::Opaque, 2u, 32u, 0, 0, 0,
 					       kBufMod - 4u);
 		for (u8 i = 0; i < 3u; ++i) {
-			backend.blitter_blob_run_one(dma(src), dma(src), dma(m_fg[i].view.data() + dest), 0u);
+			backend.blitter_blob_run_one(eng::graphics::blit_ptr(src), eng::graphics::blit_ptr(src),
+						     eng::graphics::blit_ptr(m_fg[i].view, static_cast<eng::s32>(dest)), 0u);
 		}
 		backend.blitter_blob_run_end();
 	}
@@ -873,12 +871,12 @@ private:
 	void draw_sub_buffer(eng::amiga::AmigaBackend& backend) {
 		backend.blitter_blob_run_begin(eng::graphics::BlobOp::Opaque, 1u, 48u, 0, 0, 0,
 					       kSbMod - 2u);
-		u16* dst = m_sb_ptr;
 		for (u16 i = 0; i < kSbTiles; ++i) {
 			const u16 tile = kSbTileMap[i];
-			const u8* src = m_sb_tiles + static_cast<u32>(tile) * kSbTileBytes;
-			backend.blitter_blob_run_one(dma(src), dma(src), dma(dst), 0u);
-			dst += 1u; // el tile avanza 1 palabra (16 px)
+			const eng::ByteView<eng::TextureTag> src = m_sb_tiles.subspan(static_cast<u32>(tile) * kSbTileBytes);
+			// El tile avanza 1 palabra (16 px) por iteración: la subvista lo refleja sin aritmética de punteros.
+			backend.blitter_blob_run_one(eng::graphics::blit_ptr(src), eng::graphics::blit_ptr(src),
+						     eng::graphics::blit_ptr(m_sb_words.subspan(i)), 0u);
 		}
 		backend.blitter_blob_run_end();
 	}
@@ -894,16 +892,14 @@ private:
 		// palabras y la de 4 son 12. Dos copias equivalen a las 9 del original
 		// (`SPR_Layer.asm:404-411`), que escriben exactamente las mismas palabras.
 		RestoreEntry* entries = m_restore[second ? 0 : 1];
-		if (entries[0].dst != nullptr) {
+		if (entries[0].dst.addr.valid()) {
 			backend.blitter_blob_run_begin(eng::graphics::BlobOp::Opaque, 15u, 128u, 14, 14,
 						       14, 14);
-			backend.blitter_blob_run_one(dma(entries[0].src), dma(entries[0].src),
-						     dma(entries[0].dst), 0u);
+			backend.blitter_blob_run_one(entries[0].src, entries[0].src, entries[0].dst, 0u);
 			backend.blitter_blob_run_end();
 			backend.blitter_blob_run_begin(eng::graphics::BlobOp::Opaque, 12u, 128u, 20, 20,
 						       20, 20);
-			backend.blitter_blob_run_one(dma(entries[1].src), dma(entries[1].src),
-						     dma(entries[1].dst), 0u);
+			backend.blitter_blob_run_one(entries[1].src, entries[1].src, entries[1].dst, 0u);
 			backend.blitter_blob_run_end();
 		}
 
@@ -912,30 +908,27 @@ private:
 		const u32 scroll = m_fg_offset;
 		u16 x = static_cast<u16>((m_c32 & 0x0fu) + m_bob_x);
 		RestoreEntry* out = m_restore[second ? 0 : 1];
-		u8* clean = m_fg[2].view.data() + scroll;
-		// Entradas de restore del próximo frame: la unión de las celdas de cada fila
-		// (fila par: BOBs 0,2,4,6,8 a X = x y 224-bob_y; impar: 1,3,5,7 a X = x+24 y bob_y).
+		// Entradas de restore del próximo frame: la unión de las celdas de cada fila (fila par: BOBs 0,2,4,6,8 a X = x y 224-bob_y; impar: 1,3,5,7 a X = x+24 y bob_y). Las direcciones se construyen desde las vistas del buffer limpio (m_fg[2]) y del buffer de dibujo, con el offset ya en bytes.
 		{
 			const u32 off_even = static_cast<u32>(224u - m_bob_y) * kFgMod + (x >> 3u);
 			const u32 off_odd = static_cast<u32>(m_bob_y) * kFgMod + ((x + 24u) >> 3u);
-			u8* dst_buf = m_fg[buf].view.data() + scroll;
-			out[0].src = clean + off_even;
-			out[0].dst = dst_buf + off_even;
-			out[1].src = clean + off_odd;
-			out[1].dst = dst_buf + off_odd;
+			out[0].src = eng::graphics::blit_ptr(m_fg[2].view, static_cast<eng::s32>(scroll + off_even));
+			out[0].dst = eng::graphics::blit_ptr(m_fg[buf].view, static_cast<eng::s32>(scroll + off_even));
+			out[1].src = eng::graphics::blit_ptr(m_fg[2].view, static_cast<eng::s32>(scroll + off_odd));
+			out[1].dst = eng::graphics::blit_ptr(m_fg[buf].view, static_cast<eng::s32>(scroll + off_odd));
 		}
 		backend.blitter_blob_run_begin(eng::graphics::BlobOp::CookieCut, 3u, 128u,
 					       static_cast<s16>(0xfffe), static_cast<s16>(0xfffe),
 					       38, 38);
-		// La ventana de máscaras de la referencia: la última palabra del blit se
-		// descarta (`bltalwm=0`) para que el desplazamiento no escriba la palabra 3.
+		// La ventana de máscaras de la referencia: la última palabra del blit se descarta (`bltalwm=0`) para que el desplazamiento no escriba la palabra 3.
 		backend.blitter_blob_run_masks(0xffffu, 0x0000u);
 		for (u8 i = 0; i < kBobCount; ++i) {
 			const u16 y = ((i & 1u) == 0u) ? static_cast<u16>(224u - m_bob_y) : m_bob_y;
 			// y*176 + (x>>3): sin multiplicación (176 = 16+32+128).
 			const u32 off = static_cast<u32>(y) * kFgMod + (x >> 3u);
-			u8* dst = m_fg[buf].view.data() + scroll + off;
-			backend.blitter_blob_run_one(dma(m_masks), dma(m_bobs), dma(dst),
+			const eng::graphics::BlitPtr dst =
+				eng::graphics::blit_ptr(m_fg[buf].view, static_cast<eng::s32>(scroll + off));
+			backend.blitter_blob_run_one(eng::graphics::blit_ptr(m_masks), eng::graphics::blit_ptr(m_bobs), dst,
 						     static_cast<u8>(x & 0x0fu));
 			x = static_cast<u16>(x + 24u);
 		}
@@ -1023,8 +1016,8 @@ private:
 		m_fgt_offset = 0u;
 		for (u8 s = 0; s < 2u; ++s) {
 			for (u8 i = 0; i < 2u; ++i) {
-				m_restore[s][i].src = nullptr;
-				m_restore[s][i].dst = nullptr;
+				m_restore[s][i].src = {};
+				m_restore[s][i].dst = {};
 			}
 		}
 		m_bob_speed = -2;
@@ -1072,9 +1065,10 @@ private:
 	// ------------------------------------------------------------------
 	// Estado (espejo de las variables de `SPR_Layer.asm`)
 	// ------------------------------------------------------------------
+	/// Entrada de restore de una fila de BOBs: origen (el buffer limpio m_fg[2]) y destino (el buffer de dibujo) como **direcciones DMA tipadas** (BlitPtr), no punteros crudos.
 	struct RestoreEntry {
-		u8* src = nullptr;
-		u8* dst = nullptr;
+		eng::graphics::BlitPtr src {}; ///< Origen de la copia de restore (fondo limpio, sin BOBs).
+		eng::graphics::BlitPtr dst {}; ///< Destino de la copia (el buffer FG que se está dibujando).
 	};
 
 	// Palabras de la copperlist: 18982 de la referencia + el MOVE de DMACON de la
@@ -1082,21 +1076,22 @@ private:
 	static constexpr u32 kClistWords = 18990u;
 	static constexpr u32 kClistBytes = kClistWords * 2u;
 
-	eng::Block<eng::PlaneTag> m_fg[3] {};
-	eng::Block<eng::CopperTag> m_clist[4] {};
-	eng::Block<eng::CopperTag> m_minimal {}; ///< lista que aparca el Copper durante el init
-	eng::Block<eng::SpriteTag> m_spr[2] {};
-	eng::Block<eng::PlaneTag> m_sb {};
-	eng::Block<eng::TextureTag> m_assets {};
-	u16* m_clist_ptr[4] {};
-	u16* m_sprset_ptr[2] {};
-	u16* m_sb_ptr = nullptr;
-	const u8* m_bg_tiles = nullptr;
-	const u8* m_fg_tiles = nullptr;
-	const u8* m_sb_tiles = nullptr;
-	const u8* m_bobs = nullptr;
-	const u8* m_masks = nullptr;
-	const u8* m_font = nullptr;
+	// Bloques DMA: todos se reservan de `MemBank<Chip>`, así que llevan el banco **en el tipo** y sus direcciones (`address()`/`mem_view()`) son DMA-seguras sin comprobaciones ni casts.
+	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_fg[3] {};      ///< Los 3 buffers del playfield (texto + BOBs); el 3.º es la copia limpia para el restore.
+	eng::Block<eng::CopperTag, eng::MemoryKind::Chip> m_clist[4] {};  ///< Las 4 copperlists (dos parejas, doble buffer de 32 frames).
+	eng::Block<eng::CopperTag, eng::MemoryKind::Chip> m_minimal {};   ///< Lista que aparca el Copper durante el init (WAIT que nunca dispara).
+	eng::Block<eng::SpriteTag, eng::MemoryKind::Chip> m_spr[2] {};    ///< Los 2 juegos de estructuras DMA de sprite (8 canales × 516 palabras).
+	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_sb {};         ///< Sub-buffer (barra inferior, 3 planos).
+	eng::Block<eng::TextureTag, eng::MemoryKind::Chip> m_assets {};   ///< Assets copiados a Chip: tiles BG/FG, tiles del sub-buffer, BOBs y máscaras.
+	eng::Words<eng::CopperTag> m_clist_words[4] {};                   ///< Ventanas de trabajo (words) sobre las copperlists: se parchean por CPU y se instalan/entregan al Blitter.
+	eng::Words<eng::SpriteTag> m_sprset_words[2] {};                  ///< Ventanas de trabajo sobre los 2 juegos de estructuras DMA.
+	eng::Words<eng::PlaneTag> m_sb_words {};                          ///< Ventana de trabajo sobre el sub-buffer (words de sus 3 planos).
+	eng::ByteView<eng::TextureTag> m_bg_tiles {};                     ///< Vista de los tiles de fondo dentro del bloque de assets (Chip).
+	eng::ByteView<eng::TextureTag> m_fg_tiles {};                     ///< Vista de los tiles de foreground (glifos) dentro del bloque de assets.
+	eng::ByteView<eng::TextureTag> m_sb_tiles {};                     ///< Vista de los tiles del sub-buffer dentro del bloque de assets.
+	eng::ByteView<eng::TextureTag> m_bobs {};                         ///< Vista de la hoja de BOBs (4 planos intercalados) dentro del bloque de assets.
+	eng::ByteView<eng::TextureTag> m_masks {};                        ///< Vista de las máscaras de cookie-cut de los BOBs dentro del bloque de assets.
+	const u8* m_font = nullptr;                                       ///< Glifos 8x8 del binario: **solo CPU** (se dibujan con `plot_char`), no pasa por DMA, por eso sigue crudo.
 	ListLayout m_lay {};
 
 	u16 m_c2 = 0u;

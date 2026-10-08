@@ -52,7 +52,7 @@ bool same_clear_state(const eng::graphics::BlitJob& a, const eng::graphics::Blit
 bool execute_clear_run(const eng::graphics::FramePlan& plan, u8 from, u8 to) {
 	const eng::graphics::BlitJob& f = plan.blit_job(from);
 	BlobBatch batch;
-	batch.begin(eng::amiga::CustomRegs::instance(), BlobOp::Clear, f.words_per_row, f.height, 0,
+	batch.begin(eng::amiga::HwRegs::instance(), BlobOp::Clear, f.words_per_row, f.height, 0,
 		    0, 0, f.destination_modulo_bytes, g_blitter_service, g_blitter_service_user);
 	for (u8 i = from; i < to; ++i) {
 		const eng::graphics::BlitJob& j = plan.blit_job(i);
@@ -67,7 +67,7 @@ bool execute_clear_run(const eng::graphics::FramePlan& plan, u8 from, u8 to) {
 bool execute_masked_run(const eng::graphics::FramePlan& plan, u8 from, u8 to) {
 	const eng::graphics::BlitJob& f = plan.blit_job(from);
 	BlobBatch batch;
-	batch.begin(eng::amiga::CustomRegs::instance(), BlobOp::CookieCut, f.words_per_row, f.height,
+	batch.begin(eng::amiga::HwRegs::instance(), BlobOp::CookieCut, f.words_per_row, f.height,
 		    f.source_modulo_bytes, f.source_modulo_bytes, f.destination_modulo_bytes,
 		    f.destination_modulo_bytes, g_blitter_service, g_blitter_service_user);
 	for (u8 i = from; i < to; ++i) {
@@ -850,7 +850,7 @@ void AmigaBackend::blitter_or_bobs_begin(u16 words, u16 height, s16 source_modul
 					   s16 dest_modulo) {
 	// Misma implementacion que el camino `inline` de coste cero (blob.hpp): una sola
 	// fuente de verdad para la secuencia de registros.
-	m_or_bob.begin(eng::amiga::CustomRegs::instance(), words, height, source_modulo,
+	m_or_bob.begin(eng::amiga::HwRegs::instance(), words, height, source_modulo,
 		       dest_modulo);
 }
 
@@ -865,7 +865,7 @@ bool AmigaBackend::blitter_or_bobs_end() {
 
 void AmigaBackend::blitter_blob_run_begin(eng::amiga::BlobOp op, u16 words, u16 height, s16 amod,
 					  s16 bmod, s16 cmod, s16 dmod) {
-	m_blob_run.begin(eng::amiga::CustomRegs::instance(), op, words, height, amod, bmod, cmod,
+	m_blob_run.begin(eng::amiga::HwRegs::instance(), op, words, height, amod, bmod, cmod,
 			 dmod, g_blitter_service, g_blitter_service_user);
 	m_blt_common_valid = false; // el lote programó los registros comunes directamente
 }
@@ -1029,29 +1029,31 @@ bool AmigaBackend::blitter_fill_rect(eng::u8* plane_base, u8 planes, u32 plane_s
 	return wait ? wait_blitter() : true;
 }
 
-bool AmigaBackend::blitter_fill_words_strided(eng::u16* d, eng::u16 value, eng::u16 rows,
-					      u16 stride_words, bool wait) {
-	if (d == nullptr || rows == 0u || stride_words == 0u) {
+bool AmigaBackend::blitter_fill_words_strided(eng::graphics::BlitPtr d, eng::u16 value,
+					      eng::u16 rows, u16 stride_words, bool wait) {
+	if (!d.addr.valid() || rows == 0u || stride_words == 0u) {
 		return false;
 	}
 	// Habilita el Blitter SIN borrar el resto del DMA (bitplane/copper/sprite).
 	const u16 dma_cur = static_cast<u16>(custom_base[custom_dmaconr_offset] & 0x03ffu);
 	custom_base[custom_dmacon_offset] =
 		static_cast<u16>(dma_setclr | (dma_cur | dma_master | dma_blitter));
-	blit_fill_word_strided(d, value, rows,
+	// Escape explícito a puntero de words solo en la implementación (la dirección ya está tipada).
+	blit_fill_word_strided(d.words(), value, rows,
 			       static_cast<u16>(static_cast<u32>(stride_words) * 2u - 2u));
 	return wait ? wait_blitter() : true;
 }
 
-bool AmigaBackend::blitter_copy_words_strided(const eng::u16* s, eng::u16* d, eng::u16 words,
-					      eng::u16 rows, u16 smod_words, u16 dmod_words, bool wait) {
-	if (s == nullptr || d == nullptr || words == 0u || rows == 0u) {
+bool AmigaBackend::blitter_copy_words_strided(eng::graphics::BlitPtr s, eng::graphics::BlitPtr d,
+					      eng::u16 words, eng::u16 rows, u16 smod_words,
+					      u16 dmod_words, bool wait) {
+	if (!s.addr.valid() || !d.addr.valid() || words == 0u || rows == 0u) {
 		return false;
 	}
 	const u16 dma_cur = static_cast<u16>(custom_base[custom_dmaconr_offset] & 0x03ffu);
 	custom_base[custom_dmacon_offset] =
 		static_cast<u16>(dma_setclr | (dma_cur | dma_master | dma_blitter));
-	blit_copy_words_strided(s, d, words, rows, static_cast<u16>(smod_words * 2u),
+	blit_copy_words_strided(s.cwords(), d.words(), words, rows, static_cast<u16>(smod_words * 2u),
 				static_cast<u16>(dmod_words * 2u));
 	return wait ? wait_blitter() : true;
 }

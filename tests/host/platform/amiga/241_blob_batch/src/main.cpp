@@ -1,6 +1,6 @@
 // Test host de eng::amiga::BlobBatch (secuencia de registros del lote de blobs con estado
 // fijo, generalizacion de OrBlobBatch a OR/cookie-cut/opaco). El lote es host-testable
-// porque el bloque de registros se inyecta **tipado** (`CustomRegs::from_storage` sobre un
+// porque el bloque de registros se inyecta **tipado** (`HwRegs::for_test` sobre un
 // array local) y los punteros de Blitter son `BlitPtr` (direccion Chip). Los pares de
 // registros que el motor escribe empaquetados (CON0/CON1, AFWM/ALWM, modulos, punteros) se
 // leen como u32 nativo: el mock es RAM del host.
@@ -10,7 +10,7 @@
 
 using eng::amiga::BlobBatch;
 using eng::amiga::BlobOp;
-using eng::amiga::CustomRegs;
+using eng::amiga::HwRegs;
 using eng::graphics::BlitPtr;
 
 // Offsets (en palabras) de los registros custom que programa el lote. Deben coincidir
@@ -51,7 +51,7 @@ static volatile eng::u16 regs[0x100] {};
 
 int main() {
 	BlobBatch batch;
-	const CustomRegs cregs = CustomRegs::from_storage(regs);
+	const HwRegs cregs = HwRegs::for_test(regs);
 
 	// --- Cookie-cut interleaved (el caso de la demo 213): A=mascara, B=imagen, C=D=fondo.
 	// Geometria: 2 palabras por fila, 80 filas fisicas (16 logicas x 5 planos).

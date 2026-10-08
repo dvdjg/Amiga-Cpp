@@ -1,13 +1,13 @@
 // Test host de eng::amiga::OrBlobBatch (secuencia de registros del lote de BOBs OR
 // intercalado portada de `DrawObject` de bobs3d). El lote es host-testable porque el bloque
-// de registros se inyecta **tipado** (`CustomRegs::from_storage` sobre un array local) y los
+// de registros se inyecta **tipado** (`HwRegs::for_test` sobre un array local) y los
 // punteros de Blitter son `BlitPtr` (direccion Chip). Los pares de punteros se escriben con
 // una unica escritura nativa de 32 bits y se leen nativas (el mock es RAM del host).
 #include <eng/platform/amiga/blob.hpp>
 
 #include <cstdio>
 
-using eng::amiga::CustomRegs;
+using eng::amiga::HwRegs;
 using eng::amiga::OrBlobBatch;
 using eng::graphics::BlitPtr;
 
@@ -60,7 +60,7 @@ static void drain_stub(void*, eng::u16 vpos) {
 
 int main() {
 	OrBlobBatch batch;
-	const CustomRegs cregs = CustomRegs::from_storage(regs);
+	const HwRegs cregs = HwRegs::for_test(regs);
 
 	// begin: fija las constantes del lote una sola vez.
 	batch.begin(cregs, 3, 96, /*amod=*/0, /*dmod=*/26);

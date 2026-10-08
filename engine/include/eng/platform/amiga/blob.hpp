@@ -13,19 +13,19 @@
 ///
 /// Es una cabecera de **plataforma** (igual que `object3d.hpp`) y expone registros custom
 /// a proposito: es la frontera unsafe del backend. El bloque de registros se pide tipado con
-/// `CustomRegs::instance()` (o `AmigaBackend::custom_regs()`), y los punteros de Blitter con
+/// `HwRegs::instance()` (o `AmigaBackend::hw_regs()`), y los punteros de Blitter con
 /// `graphics::BlitPtr` (direccion DMA en Chip RAM; un `void*` suelto no compila).
 ///
 /// Uso:
 ///   eng::amiga::OrBlobBatch batch;
-///   batch.begin(backend.custom_regs(), words, height, amod, dmod);
+///   batch.begin(backend.hw_regs(), words, height, amod, dmod);
 ///   for (cada objeto) batch.one(src, dst, shift);   // BlitPtr
 ///   batch.end();
 
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/blit_job.hpp>
 #include <eng/graphics/blitter_state.hpp>
-#include <eng/platform/amiga/custom_regs.hpp>
+#include <eng/platform/amiga/hw_regs.hpp>
 
 namespace eng::amiga {
 
@@ -33,15 +33,17 @@ namespace eng::amiga {
 /// (sin estado global). Todos los metodos son `always_inline`.
 class OrBlobBatch {
 public:
-	/// Espera de Blitter con **servicio de fondo opcional**: si se pasa `wait_fn`, se llama
-	/// `wait_fn(user, vpos)` en cada vuelta del sondeo a BBUSY (igual que
-	/// `AmigaBackend::wait_blitter`), de modo que las tareas de fondo avanzan en vez de ser tiempo
-	/// muerto. `nullptr` = bucle apretado (identico al original). El servicio se obtiene de
-	/// `AmigaBackend::blitter_wait_service()`.
+	/// **Servicio de espera** opcional que el lote drena en cada vuelta del sondeo a BBUSY, igual
+	/// que `AmigaBackend::wait_blitter`: firma C (`fn(user, vpos)`) a propósito (el servicio puede
+	/// correr en contextos ISR-sensibles y el contexto lo posee el llamador; el backend guarda ahí
+	/// su slot de servicio). `vpos` = línea de raster actual (bits 8-0 de VPOSR). `nullptr` = bucle
+	/// apretado (idéntico al original). El backend lo pasa desde su servicio de espera de Blitter.
 	using WaitFn = void (*)(void*, eng::u16);
 
-	/// Fija las constantes del lote. `regs` = bloque de registros custom tipado.
-	__attribute__((always_inline)) inline void begin(CustomRegs regs, eng::u16 words,
+	/// Fija las constantes del lote. `regs` = bloque de registros del hardware (`HwRegs::instance()`
+	/// en Amiga; `HwRegs::for_test` en tests). `wait_fn`/`wait_user` = servicio de espera opcional
+	/// (ver `WaitFn`); el lote solo guarda el contexto, nunca lo interpreta.
+	__attribute__((always_inline)) inline void begin(HwRegs regs, eng::u16 words,
 							 eng::u16 height, eng::s16 amod,
 							 eng::s16 dmod, WaitFn wait_fn = nullptr,
 							 void* wait_user = nullptr) {
@@ -124,11 +126,11 @@ private:
 	static constexpr eng::u16 kUseD = eng::graphics::kBlitterUseD;
 	static constexpr eng::u16 kMintermAOrB = eng::graphics::kBlitterMintermAOrB;
 
-	CustomRegs regs_ {};
-	eng::u16 con0 = 0;
-	eng::u16 size = 0;
-	WaitFn wait_fn_ = nullptr;
-	void* wait_user_ = nullptr;
+	HwRegs regs_ {};            ///< Bloque de registros del hardware donde se programa el lote (en Amiga, `$DFF000` fijo; en tests, el mock de `HwRegs::for_test`).
+	eng::u16 con0 = 0;          ///< BLTCON0 del lote (A|B|D | minterm OR) sin el desplazamiento fino `ASH`, que añade cada `one`.
+	eng::u16 size = 0;          ///< BLTSIZE común del lote: alto (filas físicas) en bits 15-6 y ancho (palabras) en 5-0.
+	WaitFn wait_fn_ = nullptr;  ///< Servicio de espera opcional (ver `WaitFn`); `nullptr` = sondeo apretado sin drenar fondo.
+	void* wait_user_ = nullptr; ///< Contexto **opaco** del servicio: lo posee quien registró `wait_fn_`; el lote solo lo devuelve tal cual en cada llamada, nunca lo interpreta. No es memoria DMA ni del lote.
 };
 
 } // namespace eng::amiga

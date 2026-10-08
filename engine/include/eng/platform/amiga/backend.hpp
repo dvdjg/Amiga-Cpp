@@ -380,8 +380,8 @@ public:
 
 	/// Bloque de registros custom (`$DFF000`) **tipado**. Para rutinas de lote `inline`
 	/// (p. ej. `eng::amiga::OrBlobBatch`) que programan hardware sin un `jsr` por objeto.
-	[[nodiscard]] eng::amiga::CustomRegs custom_regs() const noexcept {
-		return eng::amiga::CustomRegs::instance();
+	[[nodiscard]] eng::amiga::HwRegs hw_regs() const noexcept {
+		return eng::amiga::HwRegs::instance();
 	}
 
 	/// Rellena triangulos planos con el **Blitter**: por cada triangulo dibuja el
@@ -611,18 +611,13 @@ public:
 			       u16 row_bytes, u16 bitmap_w, u16 bitmap_h, s32 x, s32 y, u16 w, u16 h,
 			       u8 color, bool wait = true);
 
-	/// **Fill strided de palabras** con el Blitter (D=A, A deshabilitado -> `BLTADAT` constante; 1
-	/// palabra por fila): escribe `value` en `rows` palabras separadas `stride_words` (palabras).
-	/// Pensado para parchear la **copperlist** (p. ej. `SPRxPOS`, que es constante por columna)
-	/// sin tocar la CPU. `d` debe estar alineada a palabra. Sincrono (`wait`).
-	bool blitter_fill_words_strided(eng::u16* d, eng::u16 value, eng::u16 rows, u16 stride_words,
-					bool wait = true);
+	/// **Fill strided de palabras** con el Blitter (D=A, A deshabilitado -> `BLTADAT` constante; 1 palabra por fila): escribe `value` en `rows` palabras separadas `stride_words` (palabras). Pensado para parchear la **copperlist** (p. ej. `SPRxPOS`, que es constante por columna) sin tocar la CPU. `d` = dirección DMA en Chip (alineada a palabra); se construye desde una vista tipada con `graphics::blit_ptr`. Sincrono (`wait`).
+	bool blitter_fill_words_strided(eng::graphics::BlitPtr d, eng::u16 value, eng::u16 rows,
+					u16 stride_words, bool wait = true);
 
-	/// **Copy strided de palabras** con el Blitter (A -> D, minterm `$F0`): `words` palabras por
-	/// fila en `rows` filas, modulos en palabras. Pensado para volcar columnas del mundo a la
-	/// copperlist (`DATB`+`DATA`) sin CPU. `s`/`d` alineadas a palabra. Sincrono (`wait`).
-	bool blitter_copy_words_strided(const eng::u16* s, eng::u16* d, eng::u16 words, eng::u16 rows,
-					u16 smod_words, u16 dmod_words, bool wait = true);
+	/// **Copy strided de palabras** con el Blitter (A -> D, minterm `$F0`): `words` palabras por fila en `rows` filas, modulos en palabras. Pensado para volcar columnas del mundo a la copperlist (`DATB`+`DATA`) sin CPU. `s`/`d` = direcciones DMA en Chip (alineadas a palabra), construidas con `graphics::blit_ptr`. Sincrono (`wait`).
+	bool blitter_copy_words_strided(eng::graphics::BlitPtr s, eng::graphics::BlitPtr d, eng::u16 words,
+					eng::u16 rows, u16 smod_words, u16 dmod_words, bool wait = true);
 
 	/// Escribe el registro de datos de un bitplane (`BLTxDAT`, $110 + 2*plane). Lo
 	/// usa fire-rgb para los bits HAM fijos de los planos 4/5 (`0x7777`/`0xcccc`).
@@ -706,7 +701,7 @@ public:
 	bool composition_playback_begin() noexcept {
 		if (m_audio.sfx().ready() || m_audio.music_playing() || m_composition_playing) return false;
 		m_paula.silence();
-		custom_regs().word(0x09cu / 2u) = 0x0780u;
+		hw_regs().word(0x09cu / 2u) = 0x0780u;
 		m_composition_playing = true;
 		return true;
 	}
