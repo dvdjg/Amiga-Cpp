@@ -62,7 +62,7 @@ alrededor del job, y coste de emisión del `BlobBatch` frente al código inline 
 
 ## F3 — Experimentos
 
-### F3-A (H1: dependencia de fase de raster) — **FALSADA** (hot-patch)
+### F3-A (H1: dependencia de fase de raster) — **CONFIRMADA** (con matiz)
 
 Experimento: mover el ancla del bucle (`wait_raster_layer`, inmediato de `cmpi.l` en
 `0xc11ff4`, valor `0x2c00` = línea 44) **52 líneas en caliente** (poke a `0x6000` = línea 96) y
@@ -71,12 +71,11 @@ con GDB (`pause` → `writeMemory` → `continue`); el `poke` del canal lateral 
 separadas no aplica de forma fiable (la cola/lock se suelta antes de ejecutar) — usar GDB para
 parchear código.
 
-Resultado: **sin cambio** (19.444 / 102.860 / 284.192 antes y después; revertido y verificado).
-⇒ el wall 2,4× de los BOBs **no depende de la banda de raster**; H1 muerta. Queda H2: la
-*ejecución* del job bajo nuestras condiciones de bus (el profiler por scanline debe decir dónde
-se van los ciclos del Blitter durante los BOBs) y H3: el coste de emisión del `BlobBatch` frente
-al código inline (la comparación estática de registros dice que el nuestro escribe **menos**
-registros por job que el original: 6 vs 8 — H3 pierde fuerza).
+Resultado: ancla 96 **no mejora** (update 221,9k vs 220,7k; BOBs 137k vs 122,6k) y la lectura
+aparentemente idéntica de [7]/[8] fue un artefacto de comparar clases de frame (`m_c32`)
+distintas. El barrido controlado de F3-B mostró que la fase **sí** importa (ancla 0 → −40k):
+H1 queda confirmada con el matiz de que lo que importa es la **ventana de bus** en que caen los
+blits (bordes vs display), no el orden del código en sí.
 
 ### F3-B (profiler por scanline) — **HECHO**: el problema es densidad de bus y fase
 
