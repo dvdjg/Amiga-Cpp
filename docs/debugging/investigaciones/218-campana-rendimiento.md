@@ -111,6 +111,28 @@ a ~2,3 ciclos/slot) y estabilizar la cadencia.
 Caveat de herramienta: el `poke` del canal lateral puede tardar en aplicar (verificar con `mem`);
 para parchear código es más fiable GDB (`pause` → `writeMemory` → `continue`).
 
+Mapa de por qué importa la banda (medido; slots de bus por línea):
+
+```
+Campo PAL (313 líneas, 227 slots/línea):
+  líneas 0-43    borde superior (sin DMA de bitplanes)   ~215 libres/línea
+  líneas 44-267  ventana visible (bitplanes+sprites+Copper+refresh ≈ 186)  ~41 libres/línea
+  líneas 268-312 borde inferior (sin DMA de bitplanes)   ~215 libres/línea
+  ⇒ libre por campo ≈ 89×215 + 224×41 ≈ 28,4k slots; el Blitter corre a ~1 slot/2 ciclos
+    cuando cae en los bordes y a ~1 slot/8 ciclos cuando cae en la ventana (compite con
+    los fetches de la CPU por los ~41 slots libres de cada línea visible).
+
+Reparto del Blitter por bandas de 32 líneas (slots/campo, grid DMA):
+
+banda:        0-31  32-63 64-95 96-127 128-159 160-191 192-223 224-255 256-287 288-312
+REFERENCIA:   6511  1933   667    494     474    1076    1351    1352    4118    4914
+              █████ ██     █      ▏       ▏      █       █       █       ████    █████
+              \____ borde sup. ____/        \______ ventana (poco) ______/  \_ borde inf. _/
+PORT ancla 44: 4003  2262  1278   1383    1295   1251    1238    1307    1053     669
+              ████  ██    █      █       █      █       █       █       █        █
+              repartido por TODA la ventana → cada job a ~8 ciclos/slot (2× más lento)
+```
+
 ### F4 (siguiente, fuente, una variable)
 
 E1 = ancla en línea 0; E2 = reordenar restores justo tras el ancla (el original también los lleva
