@@ -191,6 +191,31 @@ de periodo; validar con hash determinista + visión.
   ciclos/job vs ~300-400 del asm del original), el bloque del staging (~57k, mayor objetivo
   único) y publicación/contadores. La siguiente campaña (F5) es de **CPU/emisión**, no de fase.
 
+### F5 — Desglose del bloque de staging (contadores 11-14, medido)
+
+Desglose con contadores temporales en `update_layer_data` (frames 8-29):
+
+| Sub-bloque | En ventana (orden E2) | En borde (datos movidos al ancla) |
+|---|---|---|
+| Ensamblado CPU (224 iteraciones) | **39.956** (~178 ciclos/iteración) | 17.290 (~77) |
+| begin + job 1 | 4.966 | 1.730 |
+| wall job 1 + emisión job 2 | 6.014 | 1.440 |
+| end (job 2) | 4.568 | 934 |
+| **Total** | **~55,5k** | **~21,4k** |
+
+- Causa del ensamblado caro: corre en la ventana visible y cada acceso de CPU a Chip cuesta
+  ~19-44 ciclos por contención (el código también vive en RAM lenta, que comparte bus).
+- **Mover el bloque al ancla no mejora el total** (166-172k vs 163,5k): desplaza
+  restore+fills a la ventana (82-105k). El hueco (~57 líneas ≈ 26k ciclos) no aloja a la vez
+  ensamblado (17,3k) + restore (21k) + fills (12,5k): suma cero. La asignación de E2
+  (restore en el hueco; fills medio-hueco; ensamblado+jobs en la ventana) es la mejor medida.
+- **Consecuencia**: el staging lineal (28 jobs → 2 jobs + ensamblado CPU) ahorró slots pero
+  **añadió el ensamblado (17-40k de CPU)**, que bajo el modelo de bandas cuesta más de lo que
+  ahorra. Siguiente experimento (F5b): **A/B contra la estructura del original** —
+  `UpdateLayerData` con los 28 blits directos de medio-tile (sin ensamblado CPU), que además es
+  más fiel. Predicción: −17 a −40k (fuera el ensamblado) a cambio de +1,4k slots y +emisión
+  (~14k); neto favorable si los 28 jobs caen en hueco/medio-hueco.
+
 Caveats de herramienta (medidos):
 
 - Leer registros custom o `VPOSR` con la CPU parada en un watchpoint **no es fiable** (BLTSIZE/CON0
