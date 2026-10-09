@@ -205,7 +205,7 @@ solo se comparan las cifras del **mismo build**:
 
 | UpdateSprCtl | ~0,5k |
 | Restore de BOBs + UpdateLayerPos (fills de POS, 19 jobs) | ~46k |
-| UpdateLayerData (columnas Copper, **2 jobs** con staging lineal) | ~57k (frames 8-29) / ~1k (frames 30-31) |
+| UpdateLayerData (columnas Copper, **28 blits de medio-tile** como el original) | ~65k (frames 8-29) / ~1k (frames 30-31) |
 | BOBs (9 cookie-cut) | ~55k |
 | Tiles FG | ~3,8k |
 | Contadores+scroll+publicación+punteros | ~4,0k |
@@ -240,16 +240,16 @@ esperas empeora (el Blitter tarda hasta 3× más; medido: update 251k).
   columna en 22 frames del ciclo de 32; posiciones: 4 casos × 19 columnas en ventanas de 4; BOBs:
   9 redibujados por update porque se mueven).
 
-**Staging lineal de columnas (aplicado y validado)**: `UpdateLayerData` (frames 8-29) pasa de 28
-jobs (14 filas de tile × 2 planos, 1 palabra × 16 líneas) a **2 jobs** (1 palabra × 224 líneas):
-la CPU ensambla la columna en un scratch Chip de 448 palabras (2 × 224: DATB desde la palabra
-`2j+1` del tile intercalado, DATA desde `2j`) y dos blits con `dmod=kSprColMod` escriben la
-columna. Medición: sección de datos **65k → 40k** ciclos, update **230k → 221,5k**; el ahorro es
-menor que el teórico porque el coste por job es **tiempo de pared bajo contención con el Copper**
-(escala con las líneas), no solo el arranque. Validación **determinista** (no por pantalla, que
-tiene ruido de fase entre builds): volcado de las 4 copperlists con los punteros enmascarados en
-el **mismo update exacto** (paso por el *probe* hasta f=5000) — **hash idéntico** entre el build
-con 28 jobs y el build con staging ✓.
+**Columnas de datos (`UpdateLayerData`, frames 8-29) — estructura del original**: **28 blits de
+medio-tile** (14 filas de tile × 2 planos, 1 palabra × 16 líneas, `AMOD=2`, `DMOD=kSprColMod`),
+como `layer.asm:350-375`; el Blitter lee el tile directamente, sin ensamblado de CPU. El staging
+lineal (28 jobs → 2 jobs + ensamblado en scratch) que se probó antes **se descartó tras la
+campaña F5**: el ensamblado costaba 17-40k ciclos según banda (cada acceso de CPU a Chip en la
+ventana cuesta ~19-44 ciclos por contención) y el A/B con los 28 jobs directos da **el mismo
+total** (~164k vs ~163,5k) con estructura más simple y fiel. Medición y análisis:
+`docs/debugging/investigaciones/218-campana-rendimiento.md` §F5/F5b. La equivalencia de palabras
+escritas se validó en su día de forma **determinista** (hash de las 4 copperlists con punteros
+enmascarados en el mismo update exacto).
 
 **Encolado por IRQ (implementado en el engine, descartado para esta demo)**: se añadió
 `AmigaBackend::blitter_queue_{begin,one,masks,kick,drain}` (ring SPSC lock-free en RAM
@@ -270,7 +270,7 @@ descrito en la ficha de la técnica.
 con el trabajo actual (**27,5k slots** de Blitter): el hueco de VBlank de 89 líneas absorbe ~18k
 slots a ~2,9 ciclos/slot; los ~9,4k que caen en la ventana visible cuestan ~11 ciclos/slot (solo
 hay ~41 slots libres por línea con el display+Copper del efecto). Suelo estimado ≈ 150k → falta
-**recortar ~4-5k slots** (fills de 19 jobs, staging, tiles) o tiempo de CPU. La referencia corre a
+**recortar ~4-5k slots** (fills de 19 jobs, tiles, emisión por job) o tiempo de CPU. La referencia corre a
 **1,00 campo por iteración** (watchpoint de `COP1LC`: 141,6-142,6k ciclos) con 23,0k slots de
 Blitter, 17,4k de ellos en los bordes: la cota es alcanzable. Datos y método completos:
 `docs/debugging/investigaciones/218-campana-rendimiento.md`; modelo del bus:

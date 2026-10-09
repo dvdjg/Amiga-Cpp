@@ -216,6 +216,22 @@ Desglose con contadores temporales en `update_layer_data` (frames 8-29):
   más fiel. Predicción: −17 a −40k (fuera el ensamblado) a cambio de +1,4k slots y +emisión
   (~14k); neto favorable si los 28 jobs caen en hueco/medio-hueco.
 
+### F5b — A/B con la estructura del original: **empate, se queda la del original**
+
+- Implementado `UpdateLayerData` (frames 8-29) con los **28 blits de medio-tile** del original
+  (1 palabra × 16 líneas, `AMOD=2`, `DMOD=kSprColMod`, `layer.asm:350-375`); eliminado el scratch
+  `m_bg_stage` y el ensamblado.
+- Medición: update **~164,5k** (vs 163,5k del staging) — empate; `[3]` datos ~65,8k (vs ~57k).
+  Los 28 jobs directos cuestan lo mismo que ensamblado+2 jobs: el ensamblado no era desperdicio,
+  era un intercambio.
+- **Se conserva la estructura del original** (más fiel y más simple) y se elimina el scratch.
+- Validación (regla de oro): secuencia de 6 frames + Ollama → **CORRECTO**; periodo estable
+  284k (2 campos).
+- **Veredicto de la campaña**: la meseta ~163,5-164,5k es robusta frente a estructura, orden y
+  ancla (todos los repartos empatan por suma cero del hueco de bus). Cerrar el ~13% hasta 142k
+  exige **recortar trabajo real** (fidelidad): 9→7 BOBs (≈ −9k) o equivalente; es decisión de
+  diseño, no de optimización.
+
 Caveats de herramienta (medidos):
 
 - Leer registros custom o `VPOSR` con la CPU parada en un watchpoint **no es fiable** (BLTSIZE/CON0

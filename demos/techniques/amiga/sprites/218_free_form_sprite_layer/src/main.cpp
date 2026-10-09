@@ -330,8 +330,7 @@ struct SprLayerDemo {
 		}
 		m_sb = chip.reserve<eng::PlaneTag>(kSbBytes, 16u);
 		m_assets = chip.reserve<eng::TextureTag>(static_cast<u32>(kAssetBytes), 16u);
-		m_bg_stage = chip.reserve<eng::TextureTag>(kLayerLines * 4u, 16u);
-		bool ok = m_sb.valid() && m_assets.valid() && m_minimal.valid() && m_bg_stage.valid();
+		bool ok = m_sb.valid() && m_assets.valid() && m_minimal.valid();
 		for (u8 i = 0; i < 3; ++i) { ok = ok && m_fg[i].valid(); }
 		for (u8 i = 0; i < 4; ++i) { ok = ok && m_clist[i].valid(); }
 		for (u8 i = 0; i < 2; ++i) { ok = ok && m_spr[i].valid(); }
@@ -847,35 +846,27 @@ private:
 			// Subvista de la copperlist destino a partir del campo DATB de la columna: los offsets (col, row) van en palabras, como en la referencia.
 			eng::Words<eng::CopperTag> dst = m_clist_words[list].subspan(m_lay.datb_word[col]);
 			const u16* map = kBgTileMap + offset;
-			// Staging lineal: la CPU ensambla la columna (14 tiles) en un scratch Chip y **dos**
-			// blits de 1 palabra × 224 líneas escriben DATB y DATA. La secuencia de palabras es
-			// la misma que la de los 28 medios-tiles del original (`layer.asm:358-363`):
-			// DATB(j) = palabra j+1 del tile y DATA(j) = palabra j, por fila de tile. El coste
-			// por job del Blitter domina sobre los datos movidos (VALIDATION.md §4): 2 arranques
-			// en vez de 28.
-			// DATB(j) = palabra 2j+1 del tile (plano 1 de la línea j) y DATA(j) = palabra 2j
-			// (plano 0), con el tile intercalado por línea ([plano0, plano1] por línea).
-			u16* staged = m_bg_stage.view.as_words().data();
+			// 28 blits de medio-tile (14 filas × 2), **como el original** (`layer.asm:350-375`):
+			// 1 palabra × 16 líneas (`bg_thbsize`), AMOD=2 (palabras alternas del tile: plano 1
+			// para DATB y plano 0 para DATA) y DMOD=`sprcol_mod` (paso de línea en la copperlist).
+			// El Blitter lee el tile directamente: sin ensamblado de CPU (campaña F5: el
+			// ensamblado del staging lineal costaba 17-40k ciclos según banda; aquí se elimina).
+			backend.blitter_blob_run_begin(eng::graphics::BlobOp::Opaque, 1u, 16u, 2, 2,
+						       kSprColMod, kSprColMod);
 			for (u16 row = 0; row < 14u; ++row) {
 				const u16 tile = map[row * kBgTileRowWords];
-				const u16* tw = reinterpret_cast<const u16*>(
-					m_bg_tiles.data() + static_cast<u32>(tile) * kBgTileBytes);
-				for (u16 j = 0; j < 16u; ++j) {
-					staged[row * 16u + j] = tw[2u * j + 1u];
-					staged[kLayerLines + row * 16u + j] = tw[2u * j];
-				}
+				const eng::ByteView<eng::TextureTag> src =
+					m_bg_tiles.subspan(static_cast<u32>(tile) * kBgTileBytes);
+				// Fila de tile en la estructura: 16 líneas × sprcol_size (168 B) = 1344 palabras.
+				const eng::Words<eng::CopperTag> row_dst =
+					dst.subspan(static_cast<u32>(row) * (16u * (kSprColMod + 2u) / 2u));
+				backend.blitter_blob_run_one(eng::graphics::blit_ptr(src, 2),
+							     eng::graphics::blit_ptr(src, 2),
+							     eng::graphics::blit_ptr(row_dst), 0u);
+				backend.blitter_blob_run_one(eng::graphics::blit_ptr(src, 0),
+							     eng::graphics::blit_ptr(src, 0),
+							     eng::graphics::blit_ptr(row_dst.subspan(2u)), 0u);
 			}
-			backend.blitter_blob_run_begin(eng::graphics::BlobOp::Opaque, 1u, kLayerLines, 0, 0,
-						       kSprColMod, kSprColMod);
-			backend.blitter_blob_run_one(eng::graphics::blit_ptr(m_bg_stage.view),
-						     eng::graphics::blit_ptr(m_bg_stage.view),
-						     eng::graphics::blit_ptr(dst), 0u);
-			backend.blitter_blob_run_one(
-				eng::graphics::blit_ptr(m_bg_stage.view,
-							static_cast<eng::s32>(kLayerLines) * 2),
-				eng::graphics::blit_ptr(m_bg_stage.view,
-							static_cast<eng::s32>(kLayerLines) * 2),
-				eng::graphics::blit_ptr(dst.subspan(2u)), 0u);
 			backend.blitter_blob_run_end();
 			offset = static_cast<u16>(offset + 1u);
 			if (offset >= kBgTileRowWords) { offset = 0u; }
@@ -1171,7 +1162,6 @@ private:
 	eng::Block<eng::SpriteTag, eng::MemoryKind::Chip> m_spr[2] {};    ///< Los 2 juegos de estructuras DMA de sprite (8 canales × 516 palabras).
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_sb {};         ///< Sub-buffer (barra inferior, 3 planos).
 	eng::Block<eng::TextureTag, eng::MemoryKind::Chip> m_assets {};   ///< Assets copiados a Chip: tiles BG/FG, tiles del sub-buffer, BOBs y máscaras.
-	eng::Block<eng::TextureTag, eng::MemoryKind::Chip> m_bg_stage {}; ///< Scratch lineal de una columna de fondo: 2 × 224 palabras (DATB, DATA) para los 2 blits del staging.
 	eng::Words<eng::CopperTag> m_clist_words[4] {};                   ///< Ventanas de trabajo (words) sobre las copperlists: se parchean por CPU y se instalan/entregan al Blitter.
 	eng::Words<eng::SpriteTag> m_sprset_words[2] {};                  ///< Ventanas de trabajo sobre los 2 juegos de estructuras DMA.
 	eng::Words<eng::PlaneTag> m_sb_words {};                          ///< Ventana de trabajo sobre el sub-buffer (words de sus 3 planos).
