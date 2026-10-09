@@ -175,6 +175,22 @@ de periodo; validar con hash determinista + visión.
   fusión exigiría fuente de patrón (A con puntero) → +4,2k slots. El port ya es fiel aquí y más
   rápido por job que el original (0,65k vs 3,43k ciclos/job).
 
+### F4c — Perfil del plateau (ancla 300 + E2): el Blitter ya está bien colocado
+
+- **Grid DMA** (frame pesado): Blitter 15.777 slots, **82 % en los bordes** (bandas 0-31 y
+  256-312; top+bottom) + 2.793 en la ventana; CPU 8.978. Frame ligero: 6.723, todo en bordes.
+- Por update: **~22,5k slots de Blitter ≈ la referencia (23k)** y mejor colocados (82 % vs 75 %).
+- **Línea temporal de CPU** (muestras del perfil resueltas con el `.map`): bloques dominantes:
+  fills ~23k ciclos en `blitter_fill_words_strided` (emisión de 19 jobs + esperas);
+  **staging/datos: bloque de ~57k** (el mayor; ensamblado ~7k + 2 jobs + esperas); BOBs con la
+  CPU detenida (nasty) mezclada. Las muestras con PC=0 o direcciones fuera del `.text` (0xc42xxx,
+  ROM) son **estados de halt del nasty** durante los blits: el sampler no es fiable con la CPU
+  detenida (mismo caveat que VPOSR).
+- **Lectura**: el Blitter ya no es el problema (colocación y slots ≈ referencia). El ~13 %
+  restante es **coste de CPU/serialización por sección**: emisión por job (camino C++ ~550
+  ciclos/job vs ~300-400 del asm del original), el bloque del staging (~57k, mayor objetivo
+  único) y publicación/contadores. La siguiente campaña (F5) es de **CPU/emisión**, no de fase.
+
 Caveats de herramienta (medidos):
 
 - Leer registros custom o `VPOSR` con la CPU parada en un watchpoint **no es fiable** (BLTSIZE/CON0
