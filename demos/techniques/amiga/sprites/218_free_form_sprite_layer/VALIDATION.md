@@ -207,11 +207,20 @@ mal y la visión decía CORRECTO). Causas y corrección:
    oráculo único: primero las comprobaciones por memoria/correlación, luego la visión como apoyo.
 
 **Bug real encontrado con estas herramientas** (y corregido): el patch de `BPLCON1` (shift) y de
-los punteros `BPLxPT` del FG se aplicaba **solo a la copperlist publicada**, pero el display rota
-las 4 listas en ventanas de 4 updates (`m_clist_idx`/`m_cshow_idx`): una lista con valores de
-hace 4 updates mostraba un salto de ~4×0x11 (≈±4 px) en el scroll y punteros de FG atrasados
-(medido: L0=0x44/L1=0x00 estáticos mientras L2/L3 se parcheaban). Corrección: parchear **las 4
-listas** cada update (verificado por volcado: las 4 llevan el mismo valor fresco cada update).
+los punteros `BPLxPT` del FG se aplicaba **solo a la copperlist publicada** — y así lo hace el
+original (`SPR_Layer.asm:368-384`: `move.l a2,cop1lc(a6)` + `move.w fg_shift,shifts_o+2(a2)` +
+`SetFGPtrs` sobre `a2`). Un diagnóstico intermedio («listas atrasadas») era **erróneo** (las otras
+3 listas no se muestran) y se revirtió. El `±4 px` de las capturas era artefacto del screenshot.
+
+**Validación por decodificación de bitplanes** (`out/tmp/decode_frames.mjs`): en lugar de capturas,
+se reconstruye el frame **desde los 4 planos del buffer FG en memoria** (la lista publicada se
+identifica por coincidir su `BPLCON1` con el contador 15 = `m_fg_shift`; los punteros `BPL1-4PT`
+se extraen de los MOVEs `$00E0..$00EC`). Sobre esa secuencia determinista: el driver del scroll
+medido = `0xAA→0x99→0x88→…` (1 px/update = 50 px/s ✓) y la visión estricta sobre los frames
+decodificados (8 updates consecutivos, preguntas falsables de conteo) reporta **3 BOBs completos,
+circulares, sin defectos ni bordes artificiales** en los 8 frames. Nota de tooling: el primer
+intento del decodificador leía solo 2 planos (límite del bucle en `0xE6` en vez de `0xEC`) y
+devolvía frames idénticos — corregido.
 
 ## 4. Cadencia y coste (contadores del periférico de depuración)
 
