@@ -334,6 +334,30 @@ incorporada). Síntesis de la respuesta y de la verificación de fidelidad:
   con el suelo documentado; el trabajo de engine derivado (API de plantilla de copperlist,
   aplanado de emisión) sigue como línea propia en `ROADMAP_BLITTER_COPPER.md`.
 
+### F8 — 50 fps aplicado: recorte a 3 BOBs (autorizado por el usuario)
+
+**Motivo**: a 25 updates/s el usuario reportó **parpadeo visible** — la cadencia de 2 campos
+halva las periodicidades del efecto (la alternancia de `SPRxCTL` pasa de 25 Hz a 12,5 Hz, el
+movimiento de los BOBs y el scroll a 25 Hz de paso).
+
+- **Escalones medidos** (una variable, iterando el recorte): 9 BOBs = 163,5k (2 campos);
+  7 = 153,5-155k (insuficiente + cadencia mezclada); 5 = 145,5-152,3k (la clase staging+tiles
+  seguía por encima); **3 BOBs = 130,3-137,1k con periodo 142.066-142.146 en 12 lecturas =
+  1,00 campo UNIFORME en todas las clases de frame** (5-12k de margen) → **50 fps**.
+- **Validación (regla de oro)**: 8 frames + Ollama → CORRECTO (3 BOBs completos, sin estelas ni
+  parpadeo, sin tearing) — y de paso cubre el fix del restore (abajo).
+- **El tripwire de compilación saltó al aplicar el recorte** (con 3 BOBs el Blitter declarado,
+  14.432 slots, ya cabe en el hueco de 18.920 → el hint desaparece) y se actualizó al estado
+  viable: la escena ahora es factible por el modelo de bus.
+- **Bug latente corregido de paso**: las uniones fusionadas del restore copiaban solo las
+  primeras celdas de cada fila (ancho `n·3`); la fórmula correcta es `(n−1)·6 + 3` (las celdas de
+  una misma fila distan 2 BOBs = 48 px = **6 palabras**, y cada celda mide 3). Era invisible con
+  la x de los BOBs estática mod 16 (las celdas se redibujan en su sitio en cada update), pero se
+  corrige con el recorte.
+- **Fidelidad**: la referencia usa 9 BOBs; el recorte a 3 es la **concesión explícita del
+  usuario** para eliminar el parpadeo. Todo lo demás (estructura, 28 blits de datos, calendario
+  de 32 frames, 4 listas, nasty, equidistancia de la capa) permanece fiel al original.
+
 Caveats de herramienta (medidos):
 
 - Leer registros custom o `VPOSR` con la CPU parada en un watchpoint **no es fiable** (BLTSIZE/CON0

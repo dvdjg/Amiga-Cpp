@@ -204,18 +204,18 @@ determinista (tres runs dan el mismo valor ±8 ciclos), pero entre builds la fas
 solo se comparan las cifras del **mismo build**:
 
 | UpdateSprCtl | ~0,5k |
-| Restore de BOBs + UpdateLayerPos (fills de POS, 19 jobs) | ~46k |
-| UpdateLayerData (columnas Copper, **28 blits de medio-tile** como el original) | ~65k (frames 8-29) / ~1k (frames 30-31) |
-| BOBs (9 cookie-cut) | ~55k |
-| Tiles FG | ~3,8k |
+| Restore de BOBs + UpdateLayerPos (fills de POS, 19 jobs) | ~23k |
+| UpdateLayerData (columnas Copper, **28 blits de medio-tile** como el original) | ~35-61k (según clase de frame) |
+| BOBs (3 cookie-cut; recorte para 50 fps) | ~31-50k |
+| Tiles FG | ~3,7-17,6k |
 | Contadores+scroll+publicación+punteros | ~4,0k |
-| Update completo | ~163,5k (varía con la clase de frame, `m_c32`) |
-| Periodo del bucle (update + espera de ancla) | 284,2k |
+| Update completo | **130,3-137,1k** (varía con la clase de frame, `m_c32`) |
+| Periodo del bucle (update + espera de ancla) | **142,1k = 1 campo** |
 
-El periodo es **2 campos exactos** (284 204) y la tasa ≈ **25 updates/s** en la configuración
-ciclo-exacta. Medición de la campaña F4 (ancla en línea 300 + restore al principio del update);
-las cifras anteriores a la campaña y su método completo están en
-`docs/debugging/investigaciones/218-campana-rendimiento.md`.
+El periodo es **1 campo exacto** (142.102 ciclos; 12 lecturas en 142.066-142.146, todas las
+clases de frame) → **50 updates/s**, tras el recorte de 9 a 3 BOBs para eliminar el parpadeo de
+la cadencia anterior de 2 campos (medido; bitácora §F8). El resto del coste sigue fiel al
+original (28 blits de datos, calendario, 4 listas, nasty).
 
 **Diagnóstico de cadencia (por qué no cabe en 1 campo y qué lo impide)**: el trabajo útil del
 update es **~100k ciclos**; los otros ~130k son **esperas del Blitter en serie**. Medido anulando

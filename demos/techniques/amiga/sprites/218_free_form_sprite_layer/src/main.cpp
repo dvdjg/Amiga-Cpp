@@ -145,8 +145,8 @@ constexpr eng::hw::BusCost kSceneBusCost =
 	eng::hw::blit_cost(19u * 224u, 1u) +         // fills de posiciones (A = cero)
 	eng::hw::blit_cost(2u * 224u, 3u) +          // staging lineal de columnas
 	eng::hw::blit_cost(3u * 128u, 3u) +          // tiles FG (3 buffers, 2 palabras × 64 líneas)
-	eng::hw::blit_cost((15u + 12u) * 128u, 2u) + // restores (unión de las celdas de cada fila)
-	eng::hw::blit_cost(9u * 3u * 128u, 4u) +     // 9 BOBs cookie-cut (A+B+C+D)
+	eng::hw::blit_cost((9u + 3u) * 128u, 2u) +   // restores (unión de celdas por fila, 3 BOBs)
+	eng::hw::blit_cost(3u * 3u * 128u, 4u) +     // 3 BOBs cookie-cut (A+B+C+D)
 	eng::hw::cpu_cost(19700u);                   // CPU medida (9.859 slots/campo × 2)
 
 [[nodiscard]] constexpr eng::hw::BusBudgetInput scene_bus_input() noexcept {
@@ -159,13 +159,15 @@ constexpr eng::hw::BusCost kSceneBusCost =
 	return eng::hw::with_cost(in, kSceneBusCost);
 }
 
-// Tripwire de compilación (campaña F4 abierta): el Blitter (27.488 slots) supera el hueco de
-// VBlank (88 líneas × 215 = 18.920) y no hay trabajo planificado en él → los blits pesados corren
-// en la ventana a ~mitad de velocidad. Al cerrar la campaña (ancla + orden), actualizar esta línea.
+// Tripwire de compilación (cerrado con el recorte a 3 BOBs para 50 fps): con el recorte, el
+// Blitter declarado (14.432 slots) CABE en el hueco de VBlank (18.920) → sin
+// `kHintBlitterInDisplay`. La campaña midió que con 9 BOBs no cabía (27.488 > 18.920) y el
+// cuerpo quedaba en 2 campos; el detalle está en
+// `docs/debugging/investigaciones/218-campana-rendimiento.md` §F7.
 static_assert(eng::hw::amiga500_bus_budget(scene_bus_input()).vblank_free_slots == 18920u,
 	      "hueco de VBlank medido: 88 líneas × 215 slots");
-static_assert((eng::hw::amiga500_bus_budget(scene_bus_input()).hints & eng::hw::kHintBlitterInDisplay) != 0u,
-	      "trampa conocida: Blitter > hueco de VBlank sin planificar (campaña F4 abierta)");
+static_assert((eng::hw::amiga500_bus_budget(scene_bus_input()).hints & eng::hw::kHintBlitterInDisplay) == 0u,
+	      "escena 50 fps: el Blitter declarado debe caber en el hueco de VBlank");
 
 // ============================================================================
 // EXPERIMENTOS MANUALES PENDIENTES (fieles al original; NO desviarse del efecto)
@@ -196,6 +198,24 @@ static_assert((eng::hw::amiga500_bus_budget(scene_bus_input()).hints & eng::hw::
 //    50/25 Hz (judder) y empeora la demo.
 // 4) Recorte de contenido (desvía de la fidelidad; decisión del usuario): tiles FG de 3 buffers
 //    → 2, o área de restore más ceñida al movimiento real de los BOBs.
+// ============================================================================
+// DÓNDE PERDEMOS CICLOS RESPECTO AL ORIGINAL Y POR QUÉ NO SE RECUPERAN (campaña F7 medida):
+//
+// 1. CPU en Chip ~2×: 9,9k slots/campo vs 4,7k de la referencia (grid DMA del profiler). Todo el
+//    update en C++ (lógica + emisión + bucles) ejecuta desde RAM lenta y cada acceso compite con
+//    el Blitter y el display; el asm original ejecuta menos trabajo y toca menos Chip. No se
+//    recupera sin reducir el trabajo real: el recorte de BOBs es exactamente eso.
+// 2. Emisión por job: 290-356 ciclos medidos (contador 15 temporal) vs ~150-200 del `BlitBob`
+//    asm: construcción de BlitPtr/vistas en el llamador + checks de op + ensamblado del shift, y
+//    el `wait()` del siguiente job llega más tarde (ventana sin nasty más larga = el job arranca
+//    con el bus compartido). Recuperable en parte (tabla CON0/CON1 estilo `bl_bob` + aplanado):
+//    ~6-9k en los ~59 jobs del config de 9 BOBs — insuficiente por sí solo.
+// 3. Jobs diminutos en la ventana: los 28 blits de datos cuestan ~2,35k/job vs ~1,25k del
+//    original con formas idénticas (banda + prefijo sin nasty). Reordenar es suma cero del hueco
+//    de bus (medido: todos los repartos empatan; F4/F4b/F5).
+// 4. Consecuencia (9 BOBs): el cuerpo (~163,5k) es estructuralmente > 1 campo; las palancas
+//    fieles suman ~5-10k → suelo ~150-158k. Para 50 fps hubo que recortar contenido: 3 BOBs
+//    (130-137k, periodo 142,1k uniforme, medido). Cada BOB cuesta ~4,5-7k (dibujo + restore).
 // ============================================================================
 
 // --- Foreground de 4 planos (`GFX/displaybuffers.i`) ---
@@ -319,14 +339,18 @@ constexpr u32 kAssetSbOff = 832u + 32256u;
 constexpr u32 kAssetBobOff = 832u + 32256u + 384u;
 constexpr u32 kAssetMaskOff = 832u + 32256u + 384u + 512u;
 
-// A/B del roadmap (ROADMAP_218_CAMPO_UNICO.md, paso 1): 9 → 7 BOBs midió −10k (cuerpo 163,5k →
-// ~153,5-155k) pero **insuficiente solo** y con cadencia inestable (frames ligeros ya a 1 campo,
-// pesados a 2). La unión del restore se deriva de kBobCount para poder re-aplicar el A/B con una
-// constante; 9 = versión fiel al original (15/12 palabras por fila).
-constexpr u8 kBobCount = 9;
-// Unión del restore por fila (3 palabras por celda de BOB): fila par = BOBs 0,2,4,…; impar = 1,3,5,…
-constexpr u16 kRestoreEvenWords = ((kBobCount + 1u) / 2u) * 3u;
-constexpr u16 kRestoreOddWords = (kBobCount / 2u) * 3u;
+// Recorte de contenido para 50 fps (autorizado): 9 → 3 BOBs. Cada BOB cuesta ~4,5-7k ciclos
+// según banda (dibujo cookie-cut + parte del restore), así que 3 BOBs bajan TODAS las clases de
+// frame por debajo de 142k (1 campo uniforme; con 5 la clase staging+tiles quedaba en 152,3k).
+// La referencia usa 9; con 3 el efecto conserva la técnica (BOBs rebotando con cookie-cut).
+constexpr u8 kBobCount = 3;
+// Unión del restore por fila: desde la primera celda de la fila hasta el final de la última.
+// Las celdas de una misma fila distan 2 BOBs = 48 px = 6 palabras, y cada celda mide 3:
+// ancho = (n−1)·6 + 3. Con 9 la fórmula antigua (n·3) copiaba solo las primeras celdas de la
+// fila (invisible mientras la x de los BOBs es estática mod 16 — las celdas se redibujan en su
+// sitio—, pero es un bug latente: la franja se quedaba sin limpiar).
+constexpr u16 kRestoreEvenWords = ((kBobCount + 1u) / 2u - 1u) * 6u + 3u;
+constexpr u16 kRestoreOddWords = (kBobCount / 2u - 1u) * 6u + 3u;
 
 
 /// Códigos de estado del run-status.

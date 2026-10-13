@@ -104,25 +104,23 @@ bash ./tools/run/run-demo.sh demos/techniques/amiga/sprites/218_free_form_sprite
   --sequence-step-frames 24 --sequence-interval-ms 30
 ```
 
-## Estado: VALIDADA (capa de sprites) / cadencia 25 updates/s (objetivo: 50)
+## Estado: VALIDADA (capa de sprites) / **50 updates/s** (recorte a 3 BOBs)
 
 - **Capa de sprites correcta**: el fondo (columnas Copper + DMA) cubre toda la pantalla sin zonas
   negras ni cortadas; pantalla de título **pixel-idéntica** al original (0 de 281 880 píxeles
   distintos, captura del runner, mismo encuadre 756x576) y efecto en movimiento verificado con
-  visión («exactamente 9 bobs completos en cada frame, ningún frame roto»).
+  visión.
 - **Dinámica**: scroll del texto 1 px/update (medido por correlación); **capa de sprites
   0.5 px/update uniforme** (medido por correlación enmascarada solo-fondo: −1 px cada 2 updates);
-  BOBs con la trayectoria de rebote del original.
-- **Cadencia**: el update ocupa **~163,5k ciclos** (meseta medida; 2 campos = 284 204 → **25
-  updates/s**). La referencia corre a **1,00 campo por iteración (50 updates/s)**, medido con el
-  mismo método (watchpoint de `COP1LC`: 141,6-142,6k ciclos). La campaña de rendimiento cierra con
-  **suelo estructural documentado** (medido): el trabajo de Blitter es casi el de la referencia y
-  está mejor colocado; el residual es CPU/Chip del motor C++ y solape emisión/espera, no una
-  sección mal colocada. Registro de intentos:
-  [`docs/debugging/investigaciones/218-campana-rendimiento.md`](../../../../docs/debugging/investigaciones/218-campana-rendimiento.md),
-  consulta de cierre:
-  [`consulta-ref-218-1campo-en.md`](../../../../docs/debugging/investigaciones/consulta-ref-218-1campo-en.md),
-  plan y cierre: [`ROADMAP_218_CAMPO_UNICO.md`](../../../../docs/guides/roadmap/ROADMAP_218_CAMPO_UNICO.md).
+  BOBs con la trayectoria de rebote del original. **3 BOBs** (la referencia usa 9): recorte
+  autorizado para el campo único — con 9 el cuerpo quedaba en 2 campos y la cadencia de 25 Hz
+  producía parpadeo visible (la alternancia de `SPRxCTL` caía a 12,5 Hz).
+- **Cadencia**: **1,00 campo por update (142,1k ciclos; 12 lecturas en 142.066-142.146) = 50
+  updates/s**, todas las clases de frame (5-12k de margen). La referencia corre también a 1,00
+  campo por iteración (141,6-142,6k, watchpoint de `COP1LC`). El detalle del recorte, el suelo
+  estructural con 9 BOBs y el registro de intentos están en
+  [`docs/debugging/investigaciones/218-campana-rendimiento.md`](../../../../docs/debugging/investigaciones/218-campana-rendimiento.md)
+  (§F7-F8) y [`ROADMAP_218_CAMPO_UNICO.md`](../../../../docs/guides/roadmap/ROADMAP_218_CAMPO_UNICO.md).
 - **Selector de buffer FG fiel al original**: el original selecciona el buffer con
   `btst #0,c32frame_cn_o+1` (`SPR_Layer.asm:378-398`) — el byte alto de un contador 0..31, siempre
   0: usa siempre `fg_buf2`. El port lo replica tal cual; un doble buffer por update produce un

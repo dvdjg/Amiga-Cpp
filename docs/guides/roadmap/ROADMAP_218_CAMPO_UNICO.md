@@ -72,19 +72,18 @@ Si con 9 BOBs y el calendario exacto el cuerpo no baja de ~150k, **declarar el g
 (~15 %)** en `VALIDATION.md` y en el README, con la atribución medida (emisión C++ + volumen), y
 dejar el 25 updates/s documentado como excepción de presupuesto (AGENTS §3).
 
-### Cierre — **suelo estructural declarado** (consulta a Grok, F7)
+### Cierre — **50 fps alcanzado con recorte de contenido autorizado** (F8)
 
-Con los números medidos (ver la consulta `consulta-ref-218-1campo-en.md` y su respuesta):
-
-- No hay vía **fiel** documentada que recupere ≥20k: el trabajo de Blitter es casi el de la
-  referencia y está mejor colocado; el residual es **CPU/Chip (~2×), emisión (~2× por job) y
-  solape espera/emisión**, no una sección mal colocada.
-- Las palancas fieles restantes (tabla `CON0/CON1` estilo `bl_bob` ≈ +0,3k; aplanado de emisión)
-  dejan el suelo en **~150-158k ⇒ 2 campos**. Recortar el efecto (7 BOBs) no basta y rompe la
-  cadencia (mezcla 50/25 Hz medida).
-- Estado final: **~163,5k = 25 updates/s estables**, fiel al original (estructura, nasty, 28
-  blits, 4 listas) y validado con visión. La cadencia de 50 fps queda para el efecto solo si se
-  aceptan recortes de contenido — decisión del usuario.
+- Con 9 BOBs el cuerpo (~163,5k) es estructuralmente > 1 campo (suelo ~150-158k con palancas
+  fieles), y la cadencia de 25 Hz producía parpadeo visible (alternancia de `SPRxCTL` a 12,5 Hz).
+- **Iteración medida**: 7 BOBs = 153,5-155k (insuficiente + mezcla 50/25 Hz); 5 = 145,5-152,3k
+  (peor clase aún en 2 campos); **3 BOBs = 130,3-137,1k con periodo 142,1k uniforme = 50 fps**
+  (12 lecturas, todas las clases de frame, 5-12k de margen). Visión: CORRECTO.
+- El tripwire de compilación saltó con el recorte (el Blitter ya cabe en el hueco) y se actualizó
+  al estado viable; de paso se corrigió la fórmula de las uniones del restore
+  (`(n−1)·6 + 3`; ver bitácora §F8).
+- Fidelidad: 3 BOBs es la única concesión (autorizada); estructura, calendario, 28 blits, nasty y
+  4 listas permanecen fieles al original.
 
 ## Trabajo de engine derivado (generalizable, no solo 218)
 
