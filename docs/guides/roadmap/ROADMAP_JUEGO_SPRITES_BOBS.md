@@ -149,8 +149,8 @@ Orden por **dependencia y valor para juego**. Cada fase declara objetivo, contra
 | Fase | Estado |
 |---|---|
 | F1 actores compuestos | **Hecha**: `graphics/composite_visual.hpp` + `scene/composite_actor.hpp` (HOST-429) y fachada `api/objects.hpp` (`CompositeScene`, HOST-432); demo **063_composite_actors** validada con visión. `Visual.Kind` retirado y par *attached* derivado. |
-| F2 trayectorias/formaciones/pool | **Hecha**: `scene/{trajectory,formation,entity_pool}.hpp` (HOST-430); demo **064_shmup_wave** (formación seno en espejo + pool de enemigos) validada con visión. |
-| F3 DMA encadenado + selector | Propuesta (requiere verificación en fuente del emulador). |
+| F2 trayectorias/formaciones/pool | **Hecha**: `scene/{trajectory,formation,entity_pool}.hpp` (HOST-430) + **generadores de ola en V** `gen_formation_v`/`gen_formation_v_sine` (F2.1, HOST-435, usados por la demo); demo **064_shmup_wave** (formación seno en espejo + pool de enemigos) validada con visión. |
+| F3 DMA encadenado + selector | **Hecha**: builder `graphics/sprite_chain.hpp` (HOST-434), armado por registro + `emit_placements_into(chains)`, selector y cadena persistente; demo **219** validada (A/B de copperlist 304→114 words, 50 fps). Detalle en `ROADMAP_SPRITES_COMPLETO.md` §3.2. |
 | F4 cierre de pendientes de sprites | Drivers/demos pendientes (lista viva en `ROADMAP_UNIFICADO.md`). |
 | F5 márgenes FastCopy | Base hecha (`FastBobLayer`, HOST-355); preproceso de márgenes pendiente. |
 | F6 mecanismos de escenario | Propuesta (sólidos/puertas con diseño en `PIXEL_ART_2D_ISOMETRIC.md` §7). |

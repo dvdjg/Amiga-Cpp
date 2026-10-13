@@ -181,6 +181,8 @@ inline u16 gen_formation_v_sine(eng::Span<FormationMember<S>> out, u8 count,
 
 ### 3.2 F3 — Emisión DMA encadenada, híbrido y selector
 
+**Estado: hecha y validada en emulador.** `graphics/sprite_chain.hpp` (builder `build_sprite_dma_chain`, `patch_sprite_chain_block`, selector `choose_sprite_emit_plan`) + HOST-434; `SpriteManager::arm_dma_chain` (armado por registro de la primera franja + PT a la cadena) y `emit_placements_into(..., chains)`; demo **219_sprite_dma_chain** (20 balas = 1 canal) con A/B medido por telemetría de copperlist: **304 → 114 words/frame** (−190) y 49.92 fps/1.00159 campos por frame en los tres modos. Detalle y evidencia: `demos/techniques/amiga/sprites/219_sprite_dma_chain/VALIDATION.md`.
+
 **Objetivo:** cuando un canal sirve **varios placements en líneas disjuntas** (multiplexado vertical, ristras de tiros, grupos), sustituir los rearmes de Copper (un `WAIT` + 4 MOVEs por reaparición) por **una estructura encadenada en Chip** que Agnus recorre sola: `[POS,CTL,DAT/DATB…][POS,CTL,DAT/DATB…]…[0,0]`. El camino actual (rearme) se mantiene como estrategia por defecto.
 
 **Base del mecanismo (verificada en la fuente; citar en comentario y commit):**
@@ -199,15 +201,19 @@ inline u16 gen_formation_v_sine(eng::Span<FormationMember<S>> out, u8 count,
               └── el walk del DMA consume cabecera y datos de cada bloque en su franja ──┘
 ```
 
-#### 3.2.1 Contrato de la cadena (`eng/graphics/sprite_chain.hpp`, propuesto)
+#### 3.2.1 Contrato de la cadena (`eng/graphics/sprite_chain.hpp`) — **builder hecho (HOST-434)**
 
 ```cpp
+/// Máximo de bloques por canal con offsets registrados para el parcheo por frame.
+inline constexpr u8 kSpriteChainMaxBlocks = 32u;
+
 /// Estructura DMA encadenada de UN canal, en Chip RAM del llamador.
 struct SpriteDmaChain {
     eng::ChipView<eng::SpriteTag> storage {};  // buffer Chip; se pone a CERO al reservar (runway)
     u16 used = 0;                              // words escritas (sin contar el runway)
-    eng::util::Array<u16, 16> block_pos_words {};  // offset (words) de la POS de cada bloque
+    eng::util::Array<u16, kSpriteChainMaxBlocks> block_pos_words {}; // offset (words) de cada POS
     u8 block_count = 0;
+    u8 channel = 0xff;                         // canal de la cadena (paridad de ATTACH)
 };
 
 /// Codificación POS/CTL compartida con SpriteManager (misma convención que
@@ -217,30 +223,36 @@ struct SpritePosCtl { u16 pos; u16 ctl; };
                                                            bool attach) noexcept;
 
 /// Construye la cadena de los placements del MISMO canal (orden no decreciente de
-/// `vstart`, sin solape y con el gap ya garantizado por el allocator). Escribe
+/// `vstart` y con >= `kSpriteVerticalGapLines` líneas entre bloques). Escribe
 /// `POS,CTL` + `height*width_words*2` words de DATA por bloque + terminador 0,0.
-/// `block_pos_out` (opcional) recibe el offset de la POS de cada bloque (para parcheo).
 /// Devuelve false sin escribir nada si no cabe o algún placement es inválido.
 [[nodiscard]] bool build_sprite_dma_chain(eng::Span<const HwSpritePlacement> channel_placements,
-                                          SpriteDmaChain& out,
-                                          eng::Span<u16> block_pos_out = {}) noexcept;
+                                          SpriteDmaChain& out) noexcept;
 ```
 
-**Reglas del builder (todas testables en host):** posiciones ascendentes y sin solape (si no, devolver `false`); `height` recortado a 128; `data` no vacío y con words suficientes (`height*2*width_words`); `attach` solo en bloque de canal impar (bits del CTL); terminador `0,0` y **no tocar el resto del buffer** (el runway ya está a cero); todo-o-nada por canal (si no cabe, el selector usa `Rearm`).
+**Reglas del builder (todas testables en host):** un solo canal; posiciones ascendentes **con `kSpriteVerticalGapLines` de separación entre bloques** (más estricto que la ocupación del `SpriteAllocator`, que admite bloques contiguos con `bottom` exclusivo: el gap se exige aquí, no se hereda); `height` recortado a `kSpriteMaxHeightLines` y DATA suficiente (`height*width_words*2` words); `attach` solo en canal impar; terminador `0,0` y **no tocar el resto del buffer** (el runway ya está a cero); todo-o-nada por canal (si no cabe, el selector usa `Rearm`).
 
-**Extraer y compartir `encode_sprite_pos_ctl`**: hoy la codificación vive privada en `SpriteManager::emit_config` (`sprite_manager.hpp:396-411`); al crear el builder se **extrae a función libre** y ambos la usan (AGENTS §1.7: nada de dos codificaciones).
+**Extraer y compartir `encode_sprite_pos_ctl`**: hoy la codificación vive privada en `SpriteManager::emit_config` (`sprite_manager.hpp:396-411`); al integrar F3.2, `emit_config` pasa a **usar esta función** (AGENTS §1.7: nada de dos codificaciones; hasta entonces conviven y el golden de HOST-434 fija el formato).
 
-#### 3.2.2 Armado de la cadena (extensión de `SpriteManager`)
+#### 3.2.2 Armado de la cadena (extensión de `SpriteManager`) — **hecho**
 
 ```cpp
-/// Rearma el canal al inicio de la cadena: 1 WAIT + 2 MOVEs (SPRxPTH/PTL) en `arm_line`
-/// (línea temprana, antes del primer `VSTART`, tras el VBlank — patrón de 214).
-/// El DMA lee POS/CTL de la cabecera (custom.cpp:4078-4090). Si el A/B muestra una
-/// línea de latencia, escribir también la POS/CTL del primer bloque, como `arm_object`.
+/// Arma la cadena: POS/CTL de la PRIMERA franja por registro (patrón validado de
+/// `arm_object`) y SPRxPTH/L a la DATA del primer bloque (cabecera del buffer saltada).
+/// A partir de ahí el walk encadena solo: tras los datos del bloque llega a la POS del
+/// siguiente. Llamar tras un `wait_line_safe(arm_line)` compartido (línea temprana,
+/// antes del primer VSTART; `arm_line` con los registros POS/CTL ya escritos).
 template <class Sched>
-static void arm_dma_chain(Sched& sched, u16 arm_line, u8 channel,
-                          eng::ChipView<eng::SpriteTag> chain);
+static void arm_dma_chain(Sched& sched, u8 channel, eng::ChipView<eng::SpriteTag> chain,
+                          u16 x, u16 y, u16 height, bool attach = false);
 ```
+
+**Hallazgo de la validación en hardware emulado (demo 219).** Armar **solo** con `SPRxPT`
+(leyendo el DMA la cabecera del primer bloque por su cuenta) **no es fiable**: una franja
+cuya `VSTART` cae antes de que el walk consuma su cabecera desincroniza el canal (el DMA
+sigue leyendo DATA como cabeceras y avanza por la cadena sin armar nada — observado con
+la instrumentación de la 219: `SPR3POS/CTL` con words de la DATA). La primera franja se
+arma **por registro** (como `arm_object`) y el walk solo encadena a partir de la segunda.
 
 **Integración:** en `emit_placements_into`, los canales cuyo selector vote `Chain` se emiten con `arm_dma_chain` y **se saltan** sus rearmes por placement (decisión por canal, §3.2.4); el resto sigue con el camino actual (primera config en `arm_line` + `arm_object` en cada `vstart`).
 
@@ -249,11 +261,11 @@ static void arm_dma_chain(Sched& sched, u16 arm_line, u8 channel,
 Cuando el **conjunto de ranuras por canal es estable** (pool de tiros con `ranura → canal` fija en el nivel), la cadena se construye **una vez** (setup/nivel) y por frame solo se reescriben las 4 bytes de `POS/CTL` de cada bloque:
 
 ```cpp
-/// Parchea POS/CTL del bloque `i` (4 bytes) sin tocar la DATA. Llamar tras el último
+/// Parchea POS/CTL del bloque `block` (4 bytes) sin tocar la DATA. Llamar tras el último
 /// bloque mostrado (VBlank/borde inferior) o con doble cadena; el walk ocioso ya está
 /// en el runway de ceros y no consume los bloques hasta que se recarga SPRxPT.
-inline void patch_sprite_chain_block(SpriteDmaChain& chain, u8 block, u16 hpos, u16 vstart,
-                                     u16 height, bool attach) noexcept;
+[[nodiscard]] bool patch_sprite_chain_block(SpriteDmaChain& chain, u8 block, u16 hpos,
+                                            u16 vstart, u16 height, bool attach) noexcept;
 ```
 
 **Condiciones de uso (documentar en la cabecera):** el orden por Y de los bloques no cambia entre frames (si dos objetos se cruzan, la POS del bloque inferior pasaría por encima del superior: reordenar los control words ese frame o caer a `Chain` reconstruida); alturas constantes; imágenes constantes. Es el caso exacto de las ristras de tiros (misma imagen, X fija, Y avanza, orden estable por antigüedad).
@@ -416,10 +428,12 @@ void rope_resolve_player(Rope<s16>&, s16& feet_x, s16& feet_y, s16& vy, const Ro
 
 ## 4. Orden de trabajo (por dependencia y valor)
 
+**Decisión de arranque (corte elegido): C1**, entrando por **F3.1** (builder + golden host, sin tocar `SpriteManager`), porque es lógica pura verificable y valida el formato de la cadena antes de ninguna emisión. Estado: **F3 cerrada** — `graphics/sprite_chain.hpp` + **HOST-434** (golden de words, gap, recortes, parcheo, armado, selector), `SpriteManager` integrado (armado por registro + `emit_placements_into(chains)`) y demo **219** validada con visión, cadencia y A/B de copperlist (ver §3.2). El golden fijó además la regla de gap como **exigencia del builder** (el allocator admite bloques contiguos) y el armado por registro de la primera franja (armar solo con el puntero desincroniza el walk). Siguiente valor: C0 (tareas baratas: F2.1 generadores V, orden Y incremental, F5 márgenes) o C2 (bending/paleta) según prefiera el usuario.
+
 | Corte | Trabajo | Valor | Prerrequisitos |
 |---|---|---|---|
 | **C0** (rápido) | F2.1 generadores V; orden Y incremental; F5 preproceso de márgenes | Cierra huecos de F2/F5 con coste bajo | Ninguno |
-| **C1** (núcleo) | **F3** completo: builder + armado + selector (+ persistente) + demo A/B | Menos Copper y WAITs por objeto; base de las ristras | Fuente citada (§3.2, ya hecha); storage Chip del llamador |
+| **C1** (núcleo) | **F3** completo: builder (**hecho**, HOST-434) + armado + selector (+ persistente) + demo A/B | Menos Copper y WAITs por objeto; base de las ristras | Fuente citada (§3.2, ya hecha); storage Chip del llamador |
 | **C2** (efectos) | F4.2 bending; F7 integración + demo (F4.3) | Efectos de agua/ondas y color por zona con el arbitraje ya hecho | C1 no bloquea; scheduler/`BUS_BUDGET` |
 | **C3** (juego) | F6 cuerdas/muelles/catapulta | Mecanismos jugables reutilizando F1/F2 | F1/F2 (hechos) |
 | **C4** (condicionado) | F4.1 (cierre 218), F4.4 (pacing 215), demos de cierre F4.5 | Cierre técnico | Medidas/campaña en curso |
