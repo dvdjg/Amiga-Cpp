@@ -248,6 +248,45 @@ operaciones compatibles. `PaletteLine` puede fusionarse con otros `PaletteLine` 
 no debe fusionarse automáticamente con `PaletteSpan`, `ShiftLines`, `BitplaneSplit`, `Priority` o
 `BlitterJob`.
 
+## Línea de trabajo: API de plantilla de copperlist (propuesta, evidencia 218)
+
+El patrón de las 4 copperlists del original de la 218 (Jeroen Knoester) es una **optimización de
+diseño** generalizable: **plantilla fija + slots de parche conocidos + 2/4 buffers + publicación
+por `COP1LC`**. Permite actualizar sin tocar la lista visible y **repartir el trabajo caro**
+(p. ej. DATA de columnas) entre varios frames en vez de reventar el bus en uno. El port de la 218
+ya lo modela (4 listas, índices `m_clist_idx`/`m_cshow_idx`/`m_cdat_idx`, publicación por frame).
+
+Objetivo de engine: que un juego/scroller/HUD declare la plantilla y sus slots de parche sin
+conocer offsets mágicos; el swap de buffer y la publicación los gestiona el engine. Detalle del
+análisis: `docs/debugging/investigaciones/218-campana-rendimiento.md` y
+`ROADMAP_218_CAMPO_UNICO.md` (trabajo de engine derivado).
+
+1. Localizar slots parcheables en el build (offsets de POS/DATA/punteros) — la 218 ya lo tiene
+   (`m_lay.pos_word`, `m_lay.datb_word`, `m_lay.shift_word`).
+2. API mínima: `CopperTemplate` (estructura fija) + `patch_word(slot, v)` / `patch_span` +
+   `publish(COP1LC)`; 2 o 4 buffers cuando el efecto reparta trabajo entre frames.
+3. Reparto de calendario: declarar qué slots se actualizan cada frame / cada N (como el original:
+   posiciones cada 4, DATA cada 32).
+4. Emisión barata de parches: mismo espíritu que `BlobBatch` (estado fijo, escrituras de 32 bits,
+   sin reconstrucción en el hot-path).
+5. Declarar el coste de Copper en `BusBudget` (la 218 ya lo hace: ~43 MOVE/línea).
+6. No generalizar «siempre 4 listas» ni precalcular variantes del espacio de estados completo
+   (memoria): plantilla + parches + swap, solo cuando el reparto lo pida.
+
+## Línea de trabajo: aplanar la emisión del Blitter (evidencia 218, medida)
+
+`BlobBatch::one` mide **290-356 ciclos/job** de emisión pura (contador temporal, camino
+CookieCut) frente a ~150-200 del `BlitBob` del original (CON0+CON1 precalculados en tabla
+`bl_bob`). Sobrecoste real ~100-150 cc/job ≈ **6-9k por update** en escenas con ~59 jobs
+(dato: `ROADMAP_218_CAMPO_UNICO.md` §Paso 2). Mejoras candidatas, en orden:
+
+1. Tabla de pares CON0+CON1 por shift (16 entradas) — elimina el ensamblado de shift por job.
+2. Especialización por operación (`template<BlobOp Op>`) — elimina los checks runtime.
+3. Destinos/shifts precalculados por frame en el llamador (fuera del hot-path).
+4. Comprobar el `wait()` sin servicio y el prefijo nasty (cada job arranca con nasty OFF: lo
+   activa el `wait()` del siguiente — penaliza a los jobs diminutos).
+5. Asm del `one` solo con ahorro medido ≥ 100 cc/job.
+
 ## Siguiente orden de trabajo
 
 1. Equivalencia HOST-070 completada: stream individual frente al batch, con solo WAITs consecutivos idénticos colapsados; valores/prioridad y slots parcheables en segundo frame.

@@ -292,6 +292,20 @@ Plan completo: [`ROADMAP_218_CAMPO_UNICO.md`](../../guides/roadmap/ROADMAP_218_C
   **138-145k** — justo al filo de 142k. Es la última vía identificada sin más recortes de
   contenido.
 
+### F6b — Emisión pura medida (contador temporal en `BlobBatch::one`, camino CookieCut)
+
+- **Medición**: desde el fin del `wait()` (nasty OFF) hasta la escritura de `BLTSIZE`:
+  **290-356 ciclos por BOB** (58 muestras estables). Confirma el desensamblado (~38
+  instrucciones) y acota el aplanado real: ahorro esperable ~100-150 ciclos/job (tabla
+  `bl_bob` de CON0+CON1 precalculada por shift como el original, sin ensamblado de shift ni
+  checks de op) → **~6-9k en los ~59 jobs** (no 9-15k).
+- **Cuenta revisada**: 7 BOBs (−10k) + emisión plana (−6-9k) ≈ **146-148k — aún corto**.
+- **Hallazgo adicional** (por qué los 28 jobs de datos cuestan 2,35k/job frente a los 1,25k/job
+  del original con las mismas formas): el `nasty` solo se activa en el `wait()` del job
+  SIGUIENTE, así que cada job arranca con **nasty OFF** (CPU compitiendo por el bus); en jobs
+  diminutos (16 líneas) ese prefijo pesa proporción grande — y su banda (ventana visible) agrava
+  el efecto. No hay ganancia estructural ahí sin más reordenamiento (agotado).
+
 Caveats de herramienta (medidos):
 
 - Leer registros custom o `VPOSR` con la CPU parada en un watchpoint **no es fiable** (BLTSIZE/CON0
