@@ -7,13 +7,49 @@ común (F1) medidos con el método descrito; cualquier sesión nueva empieza rep
 gate verde.
 
 ```text
-□ Estado de escena congelado (port y referencia en el mismo plan de trabajo; capturas deterministas)
-□ Métrica de periodo común registrada (ref + port)  → F1 HECHA (abajo)
-□ Cota inferior estática de bus calculada           → pendiente (F2, siguiente)
-□ Volcado del profiler por scanline en ambos        → pendiente (F2, siguiente)
-□ Filas de la tabla de presupuesto pobladas         → semilla abajo (atribución medida)
-□ Siguiente experimento: ver «F3 propuesto»
+☑ Estado de escena congelado (port y referencia en el mismo plan de trabajo; capturas deterministas)
+☑ Métrica de periodo común registrada (ref + port)  → F1 HECHA (abajo)
+☑ Cota inferior estática de bus calculada           → F2/F3-B (hueco 18.920 slots; densidad ref 98,1 %)
+☑ Volcado del profiler por scanline en ambos        → F3-B/F4c (grid DMA 227×313)
+☑ Filas de la tabla de presupuesto pobladas         → F2 (atribución) + F4c (perfil del plateau)
+☑ Experimentos de fase (ancla/orden)                → F3-A/F4/F4b (ancla 300 + restore al inicio)
+☑ Estructura de datos de columna (staging vs 28)    → F5/F5b (empate; se queda la del original)
+□ Reducción de trabajo real (7 BOBs)                → siguiente (ROADMAP_218_CAMPO_UNICO.md)
+□ Emisión pura por job (contador + desensamblado)   → siguiente (ROADMAP_218_CAMPO_UNICO.md)
 ```
+
+## Registro de intentos — aciertos y fracasos (campaña completa, medido)
+
+**Fracasos / descartes** (probado sin ganancia neta, o corregido por un fallo posterior):
+
+| Intento | Resultado medido | Estado |
+|---|---|---|
+| **Tiras de BOBs** (1 blit por fila de 5/4, pitch horneado, shift en barrel) | El shifter arrastra bits entre celdas por los huecos de 1 palabra (`BLTALWM=0` solo protege el fin de línea): 8.700-18.400 px distintos/frame en los anillos; además +slots (16×128×4 por fila vs 9×3×128) | **Descartado** (el original usa 1 blit por BOB) |
+| **Cola de blits por IRQ** en la 218 (feature del engine, `2bc14b5f`) | Funciona (13 jobs encadenados sin esperas/job) pero no mejora: 268k vs 221k (no hay CPU que solapar; encolar en Slow cuesta ~6k/job con el Blitter en marcha) | Feature del engine para juegos con CPU que solapar; **descartada para esta demo** |
+| **Diagnóstico «sin esperas el cuerpo cabe en 1 campo»** (99.588 ciclos) | **Inválido**: los jobs se pisaban y el trabajo no se completaba; el trabajo de Blitter realmente serializado eran ~230k | Retirado |
+| **Doble buffer FG por update** (change propio, `518dc57b`) | Salto periódico de +8 px del playfield cada 16 updates (el avance grueso +2 B cae a caballo entre bitmaps) | **Revertido** a `fg_buf2` fiel (`a123db91`) |
+| **Borrado de un guard de auto-sanado** (sesión previa) | Guard necesario: sin él, salto de 8 px en todo el recorrido | Revertido |
+| **Staging lineal de columnas** (28 jobs → 2 + ensamblado CPU, `66618116`) | Ganó en su día (sección 65k→40k, update 230k→221,5k) pero en F5/F5b: el ensamblado cuesta 17-40k según banda y el A/B con los 28 blits directos **empata** (~164k) | **Descartado** en F5b (se queda la estructura fiel del original) |
+| **Ancla 44→96** (F3-A) | Sin mejora (221,9k vs 220,7k); la lectura «idéntica» de contadores era un confound de clase de frame | Descartado |
+| **E2b** (fills antes del restore) | Empate (164k vs 163,5k); el restore paga la ventana al ir segundo | Descartado (se queda restore primero) |
+| **Mover el bloque de datos al ancla** (F5) | Peor (166-172k): expulsa restore+fills a la ventana (82-105k) | **Revertido** |
+| **Fusionar los 19 fills** | No intentado; analizado en fuente: el original usa 19 `BlitPattern` con el valor en `BLTADAT`; fusionar exigiría fuente de patrón → +4,2k slots | **No viable** |
+
+**Aciertos** (mejoras conservadas, con su medida):
+
+| Mejora | Medida |
+|---|---|
+| **Desactivar el servicio de blit de fondo** (no-op con cola vacía dentro del sondeo de `BBUSY`) | ~376k → ~246k |
+| **Escrituras de 32 bits** en los lotes (CON0/CON1, AFWM/ALWM, módulos, punteros) | Sección de datos 125.806 → 63.982 |
+| **Restore de BOBs fusionado** (9→2 blits, unión de celdas por fila) | Las mismas palabras que el original, 2 arranques |
+| **Tiles FG fusionados** (28→14 rachas por ciclo) | Mismos words de DMA, mitad de arranques |
+| **Ancla en línea 300** (borde inferior, `wait_raster_layer`) | Update 220,7k → ~168k; BOBs 100-112k → 40-54k |
+| **Restore emitido al principio del update** (E2) | 163,5k; restore 77k → 20,8k (3,0 cc/slot en borde) |
+| **Fix del selector FG** (fiel a `btst #0,c32frame_cn_o+1`) | Elimina el salto de +8 px/16 updates |
+| **Validación determinista** (hash de 4 copperlists con punteros enmascarados, mismo update exacto vía probe stepping) | Distingue A/B sin ruido de fase |
+| **Herramientas de campaña**: grid DMA 227×313, línea temporal de CPU con `.map`, watchpoints BLTSIZE/COP1LC con clasificación por PC, hot-patch por GDB `writeMemory`, `dump_lists_hash`, secuencias+Ollama | Todo en `out/tmp/`; documentado en esta bitácora |
+| **Modelo de bus con dimensión vertical** (`eng/hw/bus_budget.hpp`): hueco VBlank vs ventana, costes constexpr (`blit_cost`/`copper_cost`/`cpu_cost`/`with_cost`), hints, HOST-350, tripwire `static_assert` en la 218 | Reusable por cualquier juego; detecta la trampa al compilar |
+| **Estructura del original en `UpdateLayerData`** (28 blits de medio-tile, sin ensamblado) | Empate ~164,5k y más fiel/simple (F5b) |
 
 ## F0 — Fidelidad (verde)
 
@@ -231,6 +267,30 @@ Desglose con contadores temporales en `update_layer_data` (frames 8-29):
   ancla (todos los repartos empatan por suma cero del hueco de bus). Cerrar el ~13% hasta 142k
   exige **recortar trabajo real** (fidelidad): 9→7 BOBs (≈ −9k) o equivalente; es decisión de
   diseño, no de optimización.
+
+### F6 — Roadmap de cierre: A/B 7 BOBs + desensamblado de la emisión (medido)
+
+Plan completo: [`ROADMAP_218_CAMPO_UNICO.md`](../../guides/roadmap/ROADMAP_218_CAMPO_UNICO.md).
+
+- **A/B 7 BOBs** (una variable; unión del restore derivada: 15/12 → 12/9 palabras):
+  cuerpo **~153,5-155k (−10k real**, un pico de 152,7k) — en línea con la estimación de −9k.
+  Pero: (a) **insuficiente solo** (faltan ~11-13k); (b) **cadencia inestable**: una lectura de
+  periodo dio **142.098 = 1 campo exacto** — los frames ligeros (30-31) ya caben en 1 campo y los
+  pesados (8-29) no → mezcla 50/25 Hz = judder, peor que 25 Hz uniformes para la demo.
+  → **Revertido a 9 BOBs** (fidelidad + cadencia estable); el lever queda parametrizado
+  (`kBobCount` + uniones derivadas) para re-aplicarlo junto con la emisión plana.
+
+- **Desensamblado de la emisión** (`blitter_blob_run_one`, `A500_debug.s`): fuera de la espera
+  (nasty), el camino CookieCut ejecuta **~38 instrucciones** (prologue, 2 escrituras DMACON,
+  checks Clear/Copy/CookieCut, ensamblado de CON0 con shift, 5 escrituras de registros, size,
+  epilogue) + el trabajo del llamador por job (selección de fila, `y*kFgMod`, construcción de
+  `BlitPtr`, `x&0xf`, `x+=24`). Comparado con `BlitBob` del original (~30-35 instrucciones, 8
+  `move.l` a custom): **~150-250 ciclos/job de sobrecoste** × ~59 jobs/update (19 fills + 28
+  datos + 7-9 BOBs + restores + tiles) ≈ **9-15k recuperables** con camino plano
+  (tablas de destino/shift precalculadas, `one_raw` sin `BlitPtr`, especialización por op).
+- **Cuenta del camino**: 7 BOBs (−10k medido) + emisión plana (−9-15k estimado) ≈
+  **138-145k** — justo al filo de 142k. Es la última vía identificada sin más recortes de
+  contenido.
 
 Caveats de herramienta (medidos):
 

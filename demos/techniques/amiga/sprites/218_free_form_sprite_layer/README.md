@@ -104,7 +104,7 @@ bash ./tools/run/run-demo.sh demos/techniques/amiga/sprites/218_free_form_sprite
   --sequence-step-frames 24 --sequence-interval-ms 30
 ```
 
-## Estado: VALIDADA (capa de sprites) / cadencia en línea con el original
+## Estado: VALIDADA (capa de sprites) / cadencia 25 updates/s (objetivo: 50)
 
 - **Capa de sprites correcta**: el fondo (columnas Copper + DMA) cubre toda la pantalla sin zonas
   negras ni cortadas; pantalla de título **pixel-idéntica** al original (0 de 281 880 píxeles
@@ -113,11 +113,14 @@ bash ./tools/run/run-demo.sh demos/techniques/amiga/sprites/218_free_form_sprite
 - **Dinámica**: scroll del texto 1 px/update (medido por correlación); **capa de sprites
   0.5 px/update uniforme** (medido por correlación enmascarada solo-fondo: −1 px cada 2 updates);
   BOBs con la trayectoria de rebote del original.
-- **Cadencia**: el update cabe en **2 campos exactos** (284 204 ciclos) tras desactivar el servicio
-  de blit de fondo (no-op con la cola vacía, ~130k ciclos/update) y pasar los lotes a escrituras
-  de 32 bits: la tasa es ≈ **25 updates/s** en emulación ciclo-exacta, en línea con las ≈ 26 del
-  original. Medido con los contadores del periférico de depuración; detalle en
-  [`VALIDATION.md`](VALIDATION.md) §4.
+- **Cadencia**: el update ocupa **~163,5k ciclos** (meseta medida; 2 campos = 284 204 → **25
+  updates/s**). La referencia corre a **1,00 campo por iteración (50 updates/s)**, medido con el
+  mismo método (watchpoint de `COP1LC`: 141,6-142,6k ciclos). El hueco restante (~13 %) está
+  atribuido en la campaña de rendimiento: colocación del Blitter ya ≈ referencia (82 % de los
+  slots en los bordes), el residual es **emisión CPU por job + volumen total de trabajo**;
+  detalle y registro de intentos en
+  [`docs/debugging/investigaciones/218-campana-rendimiento.md`](../../../../docs/debugging/investigaciones/218-campana-rendimiento.md)
+  y plan en [`ROADMAP_218_CAMPO_UNICO.md`](../../../../docs/guides/roadmap/ROADMAP_218_CAMPO_UNICO.md).
 - **Selector de buffer FG fiel al original**: el original selecciona el buffer con
   `btst #0,c32frame_cn_o+1` (`SPR_Layer.asm:378-398`) — el byte alto de un contador 0..31, siempre
   0: usa siempre `fg_buf2`. El port lo replica tal cual; un doble buffer por update produce un

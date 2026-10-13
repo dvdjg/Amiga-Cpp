@@ -288,7 +288,14 @@ constexpr u32 kAssetSbOff = 832u + 32256u;
 constexpr u32 kAssetBobOff = 832u + 32256u + 384u;
 constexpr u32 kAssetMaskOff = 832u + 32256u + 384u + 512u;
 
+// A/B del roadmap (ROADMAP_218_CAMPO_UNICO.md, paso 1): 9 → 7 BOBs midió −10k (cuerpo 163,5k →
+// ~153,5-155k) pero **insuficiente solo** y con cadencia inestable (frames ligeros ya a 1 campo,
+// pesados a 2). La unión del restore se deriva de kBobCount para poder re-aplicar el A/B con una
+// constante; 9 = versión fiel al original (15/12 palabras por fila).
 constexpr u8 kBobCount = 9;
+// Unión del restore por fila (3 palabras por celda de BOB): fila par = BOBs 0,2,4,…; impar = 1,3,5,…
+constexpr u16 kRestoreEvenWords = ((kBobCount + 1u) / 2u) * 3u;
+constexpr u16 kRestoreOddWords = (kBobCount / 2u) * 3u;
 
 
 /// Códigos de estado del run-status.
@@ -960,18 +967,21 @@ private:
 		const bool second = (m_c32 & 0x100u) != 0u;
 		// --- Restore: copia el fondo limpio de fg_buf3 al buffer de dibujo ---
 		// Los BOBs de una fila están a 48 px = 3 palabras y comparten alineación, así que
-		// sus celdas de 3 palabras son contiguas: la unión de la fila de 5 BOBs son 15
-		// palabras y la de 4 son 12. Dos copias equivalen a las 9 del original
+		// sus celdas de 3 palabras son contiguas: la unión por fila es de 3 palabras por BOB
+		// (9 BOBs → 15+12; 7 BOBs → 12+9). Dos copias equivalentes a las del original
 		// (`SPR_Layer.asm:404-411`), que escriben exactamente las mismas palabras.
+		// El módulo completa la fila de plano (44 B) tras la ventana del blit: 44 − ancho_en_bytes.
 		RestoreEntry* entries = m_restore[second ? 0 : 1];
 		const eng::u32 tr0 = eng::debug::DebugPeripheral::cycle_counter();
 		if (entries[0].dst.addr.valid()) {
-			backend.blitter_blob_run_begin(eng::graphics::BlobOp::Opaque, 15u, 128u, 14, 14,
-						       14, 14);
+			backend.blitter_blob_run_begin(eng::graphics::BlobOp::Opaque, kRestoreEvenWords, 128u,
+						       44 - kRestoreEvenWords * 2, 44 - kRestoreEvenWords * 2,
+						       44 - kRestoreEvenWords * 2, 44 - kRestoreEvenWords * 2);
 			backend.blitter_blob_run_one(entries[0].src, entries[0].src, entries[0].dst, 0u);
 			backend.blitter_blob_run_end();
-			backend.blitter_blob_run_begin(eng::graphics::BlobOp::Opaque, 12u, 128u, 20, 20,
-						       20, 20);
+			backend.blitter_blob_run_begin(eng::graphics::BlobOp::Opaque, kRestoreOddWords, 128u,
+						       44 - kRestoreOddWords * 2, 44 - kRestoreOddWords * 2,
+						       44 - kRestoreOddWords * 2, 44 - kRestoreOddWords * 2);
 			backend.blitter_blob_run_one(entries[1].src, entries[1].src, entries[1].dst, 0u);
 			backend.blitter_blob_run_end();
 		}
