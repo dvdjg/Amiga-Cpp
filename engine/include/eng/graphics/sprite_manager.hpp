@@ -43,6 +43,7 @@
 #include <eng/core/util/noncopyable.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/sprite.hpp>
+#include <eng/graphics/sprite_chain.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/memory/memory_manager.hpp>
 
@@ -263,6 +264,36 @@ public:
         emit_config(sched, channel, cfg, data);
     }
 
+    /// **Arma la cadena DMA de un canal** (`sprite_chain.hpp`): escribe `SPRxPOS`/`SPRxCTL`
+    /// de la **primera franja** (patrón validado de `arm_object`: demo 214/HOST-428) y
+    /// `SPRxPTH/L` a la **DATA del primer bloque** (la cadena tras su cabecera POS/CTL).
+    /// A partir de ahí el **walk** del DMA encadena solo: al consumir los datos del bloque
+    /// llega a la `POS` del siguiente (`custom.cpp:12012-12023`; el DMA procesa cada
+    /// cabecera con `dmastate == 0`, `custom.cpp:4078-4090`). Armar solo escribiendo el
+    /// puntero **no basta**: una franja cuyo `VSTART` llega antes de que el walk consuma su
+    /// cabecera desincroniza el canal (observado en la demo 219 con `VSTART` bajo el
+    /// armado); por eso la primera franja va por registro y su cabecera del buffer se
+    /// salta. Llamar **tras** un `wait_line_safe(arm_line)` compartido, con `arm_line`
+    /// temprana (antes del primer `VSTART` del canal) y la cadena ya construida y con
+    /// runway de ceros. La cadena se rearma cada frame (sin recarga el walk queda tras el
+    /// terminador: antipatrón *Phantom Sprite*, `winuae/sprite-dma.md`).
+    template <class Sched>
+    static void arm_dma_chain(Sched& sched, u8 channel, ChipView<SpriteTag> chain, u16 x, u16 y,
+                              u16 height, bool attach = false) {
+        if (channel >= 8u || chain.size() < 4u || height == 0u) return;
+        const u16 h = static_cast<u16>(height > kSpriteMaxHeightLines ? kSpriteMaxHeightLines
+                                                                      : height);
+        const SpritePosCtl e = encode_sprite_pos_ctl(x, y, h, attach);
+        sched.move(static_cast<copper::Register>(0x140 + channel * 8), e.pos);     // SPRxPOS
+        sched.move(static_cast<copper::Register>(0x142 + channel * 8), e.ctl);     // SPRxCTL
+        // PT a la DATA del primer bloque (cabecera POS/CTL de 2 words por delante).
+        const uintptr addr = (chain.address(0) + 4).value;
+        sched.move(static_cast<copper::Register>(0x120 + channel * 4),
+                   static_cast<u16>(addr >> 16)); // SPRxPTH
+        sched.move(static_cast<copper::Register>(0x122 + channel * 4),
+                   static_cast<u16>(addr & 0xffff)); // SPRxPTL
+    }
+
     /// **Arma una lista de `HwSpritePlacement`** (salida de `compose_sprites`) soportando el
     /// **multiplexado vertical** del `SpriteAllocator`: la **primera** config de cada canal se
     /// arma en `arm_line` (línea temprana compartida, patrón de objetos HOST-428) y cada
@@ -279,11 +310,40 @@ public:
     /// `extra` intercala **cambios de paleta por franja** (`SpritePaletteEvent`, 0-based:
     /// `colors[k]` → `COLOR[first+k]`, p. ej. los switches de una plantilla de actor) en su
     /// orden de línea con los rearmes. Sus líneas deben ser `> arm_line`.
+    ///
+    /// `chains` (F3, `sprite_chain.hpp`) activa la **emisión DMA encadenada** por canal: si
+    /// `chains[c]` está construida, es del canal `c` y cubre **todos** los placements válidos
+    /// de `c` (`block_count` coincide), el canal se arma con `arm_dma_chain` (2 MOVEs, sin
+    /// `POS`/`CTL`: los pone cada bloque de la cadena) y **se saltan** sus rearmes por
+    /// franja. El resto de canales sigue el camino actual. Una cadena que no cubra el canal
+    /// (p. ej. bloque nuevo sin cadena) **degrada a rearme** sola — nunca se mezcla a medias.
     template <class Sched>
     static void emit_placements_into(Sched& sched, eng::Span<const HwSpritePlacement> placements,
                                      u16 arm_line = 32u,
-                                     eng::Span<const SpritePaletteEvent> extra = {}) {
+                                     eng::Span<const SpritePaletteEvent> extra = {},
+                                     eng::Span<const SpriteDmaChain> chains = {}) {
+        // 0) Cobertura de cadena por canal: `chains[c]` lista si cubre todos los placements
+        //    válidos del canal `c` (mismo criterio de validez que el resto de la función).
+        bool use_chain[8] {};
+        if (!chains.empty()) {
+            u8 valid_count[8] {};
+            for (eng::u16 i = 0; i < placements.size(); ++i) {
+                const HwSpritePlacement& p = placements[i];
+                if (p.channel >= 8u || p.data.empty() || p.height == 0u ||
+                    p.width_words == 0u) {
+                    continue;
+                }
+                ++valid_count[p.channel];
+            }
+            for (u8 c = 0u; c < 8u; ++c) {
+                if (chains.size() <= c) break;
+                const SpriteDmaChain& ch = chains.data()[c];
+                use_chain[c] = ch.used != 0u && ch.channel == c &&
+                               ch.block_count == valid_count[c] && valid_count[c] != 0u;
+            }
+        }
         // 1) Primera config de cada canal: en la línea de armado temprana (un solo WAIT).
+        //    Canal con cadena: `SPRxPT` a la cadena; el resto: `arm_object` (POS/CTL/PT).
         bool seen[8] {};
         sched.wait_line_safe(arm_line);
         for (eng::u16 i = 0; i < placements.size(); ++i) {
@@ -293,10 +353,16 @@ public:
             }
             if (seen[p.channel]) continue;
             seen[p.channel] = true;
-            arm_object(sched, p.channel, p.data, p.hpos, p.vstart, p.height, p.attach);
+            if (use_chain[p.channel]) {
+                arm_dma_chain(sched, p.channel, chains.data()[p.channel].storage, p.hpos,
+                              p.vstart, p.height, p.attach);
+            } else {
+                arm_object(sched, p.channel, p.data, p.hpos, p.vstart, p.height, p.attach);
+            }
         }
         // 2) Rearmes del multiplexado vertical y eventos de paleta, fusionados por línea
-        //    (el Copper no puede esperar hacia atrás).
+        //    (el Copper no puede esperar hacia atrás). Un canal servido por cadena no
+        //    rearma: sus franjas ya van cocinadas en los bloques.
         bool marked[8] {};
         u16 ri = 0u;
         u16 r_idx = 0u;
@@ -313,6 +379,7 @@ public:
                     marked[p.channel] = true;
                     continue;
                 }
+                if (use_chain[p.channel]) continue; // franja servida por la cadena
                 if (p.vstart <= arm_line) continue; // por encima del armado: no visible
                 r_idx = static_cast<u16>(ri - 1u);
                 r_have = true;
@@ -385,26 +452,20 @@ private:
     /// Offsets de registros custom (base $dff000): SPRxPOS = 0x140 + x*8,
     /// SPRxCTL = 0x142 + x*8, SPRxPTH = 0x120 + x*4, SPRxPTL = 0x122 + x*4.
     ///
-    /// Layout de bits (AHRM cap. 5, verificado contra amiga-bootcamp
-    /// `08_graphics/sprites.md`):
-    ///   SPRxPOS: bits 15-8 = VSTART[7:0], bits 7-0 = HSTART[8:1]
-    ///            (la posición horizontal va en low-res pixels ÷ 2: los sprites
-    ///            solo se colocan en posiciones pares).
-    ///   SPRxCTL: bits 15-8 = VSTOP[7:0], bit 3 = VSTART[8], bit 2 = VSTOP[8],
-    ///            bit 1 = HSTART[0], bit 0 = ATTACH.
+    /// La pareja `POS`/`CTL` la codifica `encode_sprite_pos_ctl` (`sprite_chain.hpp`), la
+    /// **misma función** que usa la cadena DMA: una sola fuente del formato (AGENTS §1.7;
+    /// layout AHRM cap. 5 verificado contra amiga-bootcamp `08_graphics/sprites.md` y
+    /// `../WinUAE-DBG/custom.cpp:4044-4058`). `height` es el tramo visible (`VSTOP`
+    /// exclusivo); un `vstop <= vstart` codifica `VSTOP = VSTART` (sprite sin filas).
     template <class Sched>
     static void emit_config(Sched& sched, u8 channel, const SpriteConfig& s,
                             ChipView<SpriteTag> data) {
-        const u16 pos = static_cast<u16>(((s.vstart & 0xff) << 8) | ((s.hpos >> 1) & 0xff));
-        const u16 ctl = static_cast<u16>(
-            ((s.vstop & 0xff) << 8) |
-            (s.attach ? 0x0080u : 0x0000u) |     // bit 7: ATTACH (AHRM 4: "bit 7")
-            (((s.vstart >> 8) & 0x1u) << 2) |     // bit 2: VSTART[8]
-            (((s.vstop >> 8) & 0x1u) << 1) |      // bit 1: VSTOP[8]
-            (s.hpos & 0x1u)                       // bit 0: HSTART[0]
-        );
-        sched.move(static_cast<copper::Register>(0x140 + channel * 8), pos);     // SPRxPOS
-        sched.move(static_cast<copper::Register>(0x142 + channel * 8), ctl);     // SPRxCTL
+        const u16 height = (s.vstop > s.vstart)
+                               ? static_cast<u16>(s.vstop - s.vstart)
+                               : 0u;
+        const SpritePosCtl e = encode_sprite_pos_ctl(s.hpos, s.vstart, height, s.attach);
+        sched.move(static_cast<copper::Register>(0x140 + channel * 8), e.pos);     // SPRxPOS
+        sched.move(static_cast<copper::Register>(0x142 + channel * 8), e.ctl);     // SPRxCTL
         const uintptr addr = data.address(0).value;
         sched.move(static_cast<copper::Register>(0x120 + channel * 4), static_cast<u16>(addr >> 16));   // SPRxPTH
         sched.move(static_cast<copper::Register>(0x122 + channel * 4), static_cast<u16>(addr & 0xffff)); // SPRxPTL

@@ -27,6 +27,11 @@ inline constexpr u8 kSpriteMaxPerLine = kSpriteChannels;
 /// `bottom` es exclusivo). Fuente: `sprite-techniques-catalog.md` §Multiplexado vertical.
 inline constexpr u8 kSpriteVerticalGapLines = 1u;
 
+/// Altura máxima de un sprite (líneas): cota de recorte que aplican `SpriteConfig` /
+/// `HwSpritePlacement` (p. ej. `SpriteManager::apply` y `arm_object`). Fuente: AHRM 3.ª
+/// cap. 4 (la ventana `VSTART`..`VSTOP` del sprite).
+inline constexpr u16 kSpriteMaxHeightLines = 128u;
+
 /// Separación horizontal mínima, en píxeles low-res, entre **dos reusos del mismo canal en
 /// la MISMA línea** (multiplexado horizontal por Copper). Por debajo de ~24 px el Copper no
 /// llega a reescribir `SPRxPOS` a tiempo: es una carrera contra el haz, no un presupuesto por
