@@ -15,6 +15,7 @@ docs/guides/
 │   ├── REGLAS_PIPELINE_TILES.md      → reglas de oro del pipeline de tiles
 │   ├── ROADMAP_TILED_WORLD_SUPPORT.md → Tiled: parser/cooker, tilesets, capas, orientación y streaming
 │   ├── ROADMAP_JUEGO_SPRITES_BOBS.md → adecuación de sprites HW/BOBs para juego: compuestos, trayectorias y mecanismos
+│   ├── ROADMAP_SPRITES_COMPLETO.md   → evaluación de la consulta y plan detallado de las fases abiertas de sprites
 │   ├── PROBLEMA_LAUNCHER_DEMOS_NUEVAS.md → enunciado de un problema conocido
 │   └── …
 ├── optimization/        → guías de optimización 68000/C++ y rendimiento

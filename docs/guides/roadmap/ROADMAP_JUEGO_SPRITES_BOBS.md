@@ -142,6 +142,8 @@ La retirada de `emit_into` no se aplica todavía (rompería demos antiguas aún 
 
 ## 5. Roadmap de implementación
 
+El **plan de detalle de las fases abiertas** (evaluación punto por punto de la última consulta, contratos con código extraído y gates de verificación) está en [ROADMAP_SPRITES_COMPLETO.md](ROADMAP_SPRITES_COMPLETO.md); este documento conserva el análisis de adecuación y el mapa de fases.
+
 Orden por **dependencia y valor para juego**. Cada fase declara objetivo, contrato extraído (adaptado al estilo del engine: sin heap, sin RTTI, sin STL, tipos `u8`/`s16`/`Span`/`Ref`), encaje y verificación.
 
 | Fase | Estado |
