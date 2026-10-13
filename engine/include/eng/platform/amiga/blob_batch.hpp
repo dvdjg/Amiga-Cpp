@@ -126,6 +126,11 @@ public:
 		// CON0/CON1 en una sola escritura de 32 bits (el original: `move.l d6,bltcon0`):
 		// cookie-cut añade BSH en CON1; el resto deja CON1 = 0 (fijado en `begin`). Todo el
 		// par se escribe siempre empaquetado.
+		// EXPERIMENTO MANUAL (fiel al original, ver ROADMAP_218_CAMPO_UNICO.md §Paso 3): el
+		// original usa una **tabla** de CON0+CON1 por shift (`bl_bob`: $0fca0000, $1fca1000, …
+		// `spr_layer/Sprite_Layer/GFX/blitter.asm:114-119`); se puede sustituir este ensamblado
+		// por `write_long(kBltcon0, kBobConPair[shift & 0x0fu])` (tabla constexpr de 16
+		// entradas). Emisión pura medida: 290-356 cc/job; ahorro estimado 40-80 cc/job.
 		const eng::u16 con1 = (op_ == BlobOp::CookieCut) ? s : 0u;
 		write_long(kBltcon0,
 			   (static_cast<eng::u32>(static_cast<eng::u16>(base_con0 | s)) << 16u) | con1);

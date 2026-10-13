@@ -167,6 +167,38 @@ static_assert(eng::hw::amiga500_bus_budget(scene_bus_input()).vblank_free_slots 
 static_assert((eng::hw::amiga500_bus_budget(scene_bus_input()).hints & eng::hw::kHintBlitterInDisplay) != 0u,
 	      "trampa conocida: Blitter > hueco de VBlank sin planificar (campaña F4 abierta)");
 
+// ============================================================================
+// EXPERIMENTOS MANUALES PENDIENTES (fieles al original; NO desviarse del efecto)
+// ============================================================================
+// Meseta medida: update ~163,5k (2 campos, 25 udpates/s). La referencia corre a 1,00 campo
+// (142,1k). Agotado y medido (no repetir): anclas (meseta plana 163,1-164,3k), orden de secciones
+// (empates por suma cero del hueco de bus ~18-26k ciclos), staging lineal vs 28 blits (empate),
+// fusión de fills (no viable, +4,2k slots), tiras de BOBs (shifter arrastra bits). Bitácora:
+// docs/debugging/investigaciones/218-campana-rendimiento.md; plan:
+// docs/guides/roadmap/ROADMAP_218_CAMPO_UNICO.md; consulta a Grok:
+// docs/debugging/investigaciones/consulta-ref-218-1campo-en.md.
+//
+// Intentos que quedan SIN salirse del algoritmo del original (todos con la misma checklist:
+// un cambio + contadores 0/4/7/8/10 + periodo + visión):
+//
+// 1) Emisión especializada del lote de BOBs como `BlitBob` (el original usa la tabla `bl_bob`
+//    con CON0+CON1 precalculados por shift: `GFX/blitter.asm:114-119`; valores $0fca0000,
+//    $1fca1000, … $ffcaf000). En `engine/include/eng/platform/amiga/blob_batch.hpp`, camino
+//    CookieCut de `one()`: sustituir el ensamblado de shift por
+//    `write_long(kBltcon0, kBobConPair[shift & 0x0f]);` con una tabla constexpr de 16 entradas.
+//    Ganancia medida estimada: ~40-80 cc/job (emisión pura medida: 290-356 cc).
+// 2) `wait()` del lote: cada job arranca con nasty OFF (lo activa el `wait()` del siguiente);
+//    los jobs diminutos (28 de datos, 16 líneas) pagan ese prefijo (2,35k/job vs 1,25k del
+//    original con las mismas formas). El original tiene la misma estructura (BlitWait por job),
+//    así que cualquier cambio aquí es una desviación: MEDIR primero (contador 15 temporal en el
+//    backend, ver la bitácora F6b) y decidir.
+// 3) Re-aplicar el recorte a 7 BOBs (lever parametrizado: `kBobCount` + uniones derivadas;
+//    −10k medido) SOLO si además se baja de 142k en TODOS los frames: si no, la cadencia mezcla
+//    50/25 Hz (judder) y empeora la demo.
+// 4) Recorte de contenido (desvía de la fidelidad; decisión del usuario): tiles FG de 3 buffers
+//    → 2, o área de restore más ceñida al movimiento real de los BOBs.
+// ============================================================================
+
 // --- Foreground de 4 planos (`GFX/displaybuffers.i`) ---
 constexpr u16 kDisplayW = 288;
 constexpr u16 kBufMod = 44;                     // bytes por fila de un plano (352 px)
