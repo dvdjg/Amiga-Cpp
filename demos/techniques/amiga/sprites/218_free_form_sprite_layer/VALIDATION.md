@@ -188,6 +188,31 @@ era el buffer del FG.
 watchpoint de `COP1LC` (tabla) y con visión sobre el filmstrip del borde de montaña (respuesta
 cruda: «continuo y descendente… sin saltos ni retrocesos»).
 
+### 3.7 Corrección del procedimiento de validación por visión (fallo de proceso)
+
+La validación con visión de esta demo se hizo con capturas `monitor screenshot` a fases
+arbitrarias y preguntas genéricas: **es inválido** y así lo reportó el usuario (el efecto se veía
+mal y la visión decía CORRECTO). Causas y corrección:
+
+1. **Las capturas por `screenshot` son renders parciales** (a media campo): dos capturas en
+   updates distintos pueden diferir en >75.000 px con delta máx. 765 sin que el contenido cambie
+   (medido con `out/tmp/shot_reliability.mjs`). No sirven para medir movimiento ni para juzgar
+   sub-píxel.
+2. **La verdad del driver se mide por MEMORIA**, no por pantalla: contadores 15/16 (`m_fg_shift`,
+   `m_fg_offset`) leídos en **updates consecutivos exactos** con paso por el *probe*
+   (`out/tmp/step_counters.mjs`) → secuencia verificada: shift 0x99→0x88→…→0x00→0xff (1 px por
+   update = 50 px/s ✓) y volcado de las 4 copperlists por update (`out/tmp/step_shifts.mjs`).
+3. **La visión se usa solo sobre capturas deterministas** (updates exactos, secuencia completa del
+   ciclo) y con preguntas falsables (contar elementos por frame, describir anomalías), nunca como
+   oráculo único: primero las comprobaciones por memoria/correlación, luego la visión como apoyo.
+
+**Bug real encontrado con estas herramientas** (y corregido): el patch de `BPLCON1` (shift) y de
+los punteros `BPLxPT` del FG se aplicaba **solo a la copperlist publicada**, pero el display rota
+las 4 listas en ventanas de 4 updates (`m_clist_idx`/`m_cshow_idx`): una lista con valores de
+hace 4 updates mostraba un salto de ~4×0x11 (≈±4 px) en el scroll y punteros de FG atrasados
+(medido: L0=0x44/L1=0x00 estáticos mientras L2/L3 se parcheaban). Corrección: parchear **las 4
+listas** cada update (verificado por volcado: las 4 llevan el mismo valor fresco cada update).
+
 ## 4. Cadencia y coste (contadores del periférico de depuración)
 
 Contadores: `0` = update completo, `1` = UpdateSprCtl, `2` = restore de BOBs + UpdateLayerPos, `3` = UpdateLayerData, `4` = BOBs (cookie-cut + esperas), `5` = tiles FG, `6` = contadores+scroll+publicación+punteros, `7` = restore de BOBs, `8` = dibujo de BOBs (cookie-cut), `9` = espera final del Blitter, `10` = periodo del bucle.
