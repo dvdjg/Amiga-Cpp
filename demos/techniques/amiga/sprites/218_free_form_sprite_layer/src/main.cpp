@@ -541,16 +541,15 @@ struct SprLayerDemo {
 		// fiables para medir movimiento; ver VALIDATION.md §3.7).
 		eng::debug::DebugPeripheral::counter_value(15, m_fg_shift);
 		eng::debug::DebugPeripheral::counter_value(16, m_fg_offset);
-		// Publica la copperlist del frame (`COP1LC` sin `COPJMP`: el Copper recarga en el VBlank).
-		// EXPERIMENTO (procedimiento de visión, scroll ±4 px): el patch de shift/punteros va a
-		// **las cuatro listas** y no solo a la publicada — el display alterna listas en ventanas
-		// de 4 updates (m_clist_idx/m_cshow_idx) y una lista con valores de hace 4 updates
-		// muestra un salto de ~4×0x11 en el shift (medido por volcado de listas). El original
-		// parchea solo la publicada; experimento controlado: medir con las herramientas
-		// deterministas (step_shifts/scroll_rate) y revertir si no corrige.
+		// Publica la copperlist del frame y parchea el display principal (`COP1LC` sin `COPJMP`: el
+		// Copper recarga en el VBlank). **Solo la lista publicada** recibe el parche de shift y de
+		// punteros FG, como el original (`SPR_Layer.asm:368-384`: `move.l a2,cop1lc(a6)` +
+		// `move.w fg_shift,shifts_o+2(a2)` + `SetFGPtrs` sobre `a2`). Las otras 3 listas conservan
+		// valores de su última ventana: es correcto — no se muestran.
 		const u8 idx = static_cast<u8>((m_clist_idx >> 2u) + (m_cshow_idx >> 2u));
 		eng::Words<eng::CopperTag> list = m_clist_words[idx];
 		backend.install_copper_list(list.data()); // frontera pendiente: install_copper_list aún recibe `u16*`
+		list[m_lay.shift_word] = m_fg_shift;
 		// Selector de buffer FG del original (`btst #0,c32frame_cn_o+1`, `SPR_Layer.asm:378-398`):
 		// prueba el byte alto de un contador 0..31, que vale siempre 0 → dibuja y muestra
 		// siempre `fg_buf2` (índice 1). Se replica tal cual: un doble buffer por update
@@ -558,11 +557,7 @@ struct SprLayerDemo {
 		// la referencia con el watchpoint de `COP1LC`), porque el avance grueso del puntero
 		// (+2 B cada 16 updates) queda a caballo entre los dos bitmaps.
 		const u8 buf = ((m_c32 & 0x100u) != 0u) ? 0u : 1u;
-		for (u8 l = 0; l < 4u; ++l) {
-			eng::Words<eng::CopperTag> lp = m_clist_words[l];
-			lp[m_lay.shift_word] = m_fg_shift;
-			set_fg_ptrs(l, buf, m_fg_offset);
-		}
+		set_fg_ptrs(idx, buf, m_fg_offset);
 		const eng::u32 t4 = eng::debug::DebugPeripheral::cycle_counter();
 		draw_bob_cells(backend);
 		const eng::u32 t5 = eng::debug::DebugPeripheral::cycle_counter();
