@@ -72,6 +72,20 @@ Si con 9 BOBs y el calendario exacto el cuerpo no baja de ~150k, **declarar el g
 (~15 %)** en `VALIDATION.md` y en el README, con la atribución medida (emisión C++ + volumen), y
 dejar el 25 updates/s documentado como excepción de presupuesto (AGENTS §3).
 
+### Cierre — **suelo estructural declarado** (consulta a Grok, F7)
+
+Con los números medidos (ver la consulta `consulta-ref-218-1campo-en.md` y su respuesta):
+
+- No hay vía **fiel** documentada que recupere ≥20k: el trabajo de Blitter es casi el de la
+  referencia y está mejor colocado; el residual es **CPU/Chip (~2×), emisión (~2× por job) y
+  solape espera/emisión**, no una sección mal colocada.
+- Las palancas fieles restantes (tabla `CON0/CON1` estilo `bl_bob` ≈ +0,3k; aplanado de emisión)
+  dejan el suelo en **~150-158k ⇒ 2 campos**. Recortar el efecto (7 BOBs) no basta y rompe la
+  cadencia (mezcla 50/25 Hz medida).
+- Estado final: **~163,5k = 25 updates/s estables**, fiel al original (estructura, nasty, 28
+  blits, 4 listas) y validado con visión. La cadencia de 50 fps queda para el efecto solo si se
+  aceptan recortes de contenido — decisión del usuario.
+
 ## Trabajo de engine derivado (generalizable, no solo 218)
 
 - **API de Copper** (plantilla + slots de parche + 2/4 buffers + publicación de `COP1LC`): las 4

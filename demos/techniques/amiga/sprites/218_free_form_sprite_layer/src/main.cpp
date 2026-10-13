@@ -186,12 +186,11 @@ static_assert((eng::hw::amiga500_bus_budget(scene_bus_input()).hints & eng::hw::
 //    $1fca1000, … $ffcaf000). En `engine/include/eng/platform/amiga/blob_batch.hpp`, camino
 //    CookieCut de `one()`: sustituir el ensamblado de shift por
 //    `write_long(kBltcon0, kBobConPair[shift & 0x0f]);` con una tabla constexpr de 16 entradas.
-//    Ganancia medida estimada: ~40-80 cc/job (emisión pura medida: 290-356 cc).
-// 2) `wait()` del lote: cada job arranca con nasty OFF (lo activa el `wait()` del siguiente);
-//    los jobs diminutos (28 de datos, 16 líneas) pagan ese prefijo (2,35k/job vs 1,25k del
-//    original con las mismas formas). El original tiene la misma estructura (BlitWait por job),
-//    así que cualquier cambio aquí es una desviación: MEDIR primero (contador 15 temporal en el
-//    backend, ver la bitácora F6b) y decidir.
+//    Estimación medida: ~25-40 cc/job × 9 BOBs ≈ +0,3k — fiel pero pequeño.
+// 2) `wait()` del lote: verificado en fuente — el `BlitWait` del original (`GFX/blitter.i:26-31`)
+//    hace EXACTAMENTE lo mismo (nasty ON → poll BBUSY → nasty OFF); la ventana sin nasty por job
+//    es más larga aquí solo porque el trabajo de CPU por job es mayor (emisión ~290-356 cc vs
+//    ~150-200). Cualquier cambio de ese patrón sería una DESVIACIÓN: no hacerlo.
 // 3) Re-aplicar el recorte a 7 BOBs (lever parametrizado: `kBobCount` + uniones derivadas;
 //    −10k medido) SOLO si además se baja de 142k en TODOS los frames: si no, la cadencia mezcla
 //    50/25 Hz (judder) y empeora la demo.

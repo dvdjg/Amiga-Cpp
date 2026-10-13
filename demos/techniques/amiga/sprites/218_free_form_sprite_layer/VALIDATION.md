@@ -410,6 +410,26 @@ contadores single-shot, que además muestrean fases distintas entre builds. Veri
 por construcción (los mismos bytes en las mismas direcciones) y con visión (§3.5: sin líneas de
 texto rotas ni desplazadas, 9 anillos completos).
 
+### 5.7 Cierre de la campaña de rendimiento: suelo estructural (documentado)
+
+Campaña completa en `docs/debugging/investigaciones/218-campana-rendimiento.md` (registro de
+aciertos/fracasos, tabla diferencial, grid DMA, emisión medida) y consulta de cierre respondida en
+`docs/debugging/investigaciones/consulta-ref-218-1campo-en.md`. Conclusión, con números medidos:
+
+- El update queda en **~163,5k ciclos = 2 campos estables (25 updates/s)** frente al **1,00 campo
+  (142,1k) de la referencia**.
+- El trabajo de Blitter es casi el mismo (~22,5k vs ~23,0k slots) y está mejor colocado (82 % en
+  bordes vs 75 %); **no hay una sección mal colocada** (reordenaciones y anclas: meseta plana,
+  suma cero del hueco de bus).
+- El residual es **coste de CPU/espera del motor C++ alrededor del mismo trabajo de Blitter**:
+  CPU en Chip ~9,9k slots/campo vs ~4,7k de la referencia (solape emisión/espera peor; emisión
+  pura medida 290-356 cc/job vs ~150-200 del asm), no un codegen puntual.
+- Palancas **fieles** restantes documentadas (tabla `CON0/CON1` estilo `bl_bob`, ~+0,3k; aplanado
+  de emisión) suman en el mejor caso ~5-10k → suelo **~150-158k, por encima de 142k**. Recortar el
+  efecto (7 BOBs = −10k medido) no basta y desestabiliza la cadencia (mezcla 50/25 Hz).
+- El patrón de espera (`BlitWait`/`wait()`: nasty ON → poll `BBUSY` → nasty OFF) está verificado
+  **idéntico al original** (`GFX/blitter.i:26-31`): no hay desviación que corregir ahí.
+
 ## 6. Deuda declarada
 
 - No se ha hecho una comparación **fotograma a fotograma** del efecto: el instante del clic no es

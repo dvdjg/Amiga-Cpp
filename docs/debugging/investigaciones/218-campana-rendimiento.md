@@ -306,6 +306,34 @@ Plan completo: [`ROADMAP_218_CAMPO_UNICO.md`](../../guides/roadmap/ROADMAP_218_C
   diminutos (16 líneas) ese prefijo pesa proporción grande — y su banda (ventana visible) agrava
   el efecto. No hay ganancia estructural ahí sin más reordenamiento (agotado).
 
+### F7 — Cierre de campaña: **suelo estructural confirmado** (consulta a Grok)
+
+Consulta: [`consulta-ref-218-1campo-en.md`](consulta-ref-218-1campo-en.md) (respuesta de Grok
+incorporada). Síntesis de la respuesta y de la verificación de fidelidad:
+
+- **El modelo queda corregido**: «mismos slots de Blitter ⇒ mismo wall» es falso porque el wall lo
+  fijan la **mezcla borde/ventana, el tráfico de CPU en Chip y el coste de emitir/esperar**. El
+  dato decisivo: **CPU en Chip ~9,9k slots/campo (port) vs ~4,7k (ref)** con trabajo de Blitter
+  casi igual (~22,5k vs ~23k); la referencia satura más el bus (98,1 % vs 89,7 %) y su CPU **casi
+  no toca Chip en las bandas 5-7 y 9** (está en los waits), mientras la nuestra se reparte
+  uniforme (~1.100 slots/banda) — solapa peor emisión/espera.
+- **Verificación de fidelidad del nasty**: el `BlitWait` del original (`GFX/blitter.i:26-31`) hace
+  exactamente lo mismo que el `wait()` del port (nasty ON → poll `BBUSY` → nasty OFF): la
+  colocación es **fiel**. La ventana sin nasty por job es más larga solo porque el trabajo de CPU
+  por job es mayor (~290-356 cc de emisión vs ~150-200) → coherente con el diferencial de CPU.
+- **No hay vía fiel de ≥20k**: las palancas fieles restantes (tabla `CON0/CON1` estilo `bl_bob`
+  ≈ +0,3k estimado — 25-40 cc × 9 jobs; emisión plana; nasty en jobs cortos) suman ~5-10k en el
+  mejor caso → suelo ~150-158k, **por encima de 142k**. Recortar el efecto (7 BOBs = −10k) no
+  basta y desestabiliza el periodo (mezcla 50/25 Hz, medido).
+- Frase de cierre (Grok): *«Con el trabajo del efecto original, el port en C++23 no puede sostener
+  1 campo de forma estable. El Blitter útil es casi el del asm; el sobrecoste está en CPU/Chip,
+  emisión y espera, no en una sección mal colocada. Recortar el efecto baja el cuerpo pero no es
+  la misma demo y además desestabiliza el periodo.»*
+- **Estado final de la 218**: ~163,5k = 2 campos estables (25 updates/s), fiel al original
+  (estructura, orden de datos, 28 blits, nasty, 4 listas) y validado con visión. Campaña cerrada
+  con el suelo documentado; el trabajo de engine derivado (API de plantilla de copperlist,
+  aplanado de emisión) sigue como línea propia en `ROADMAP_BLITTER_COPPER.md`.
+
 Caveats de herramienta (medidos):
 
 - Leer registros custom o `VPOSR` con la CPU parada en un watchpoint **no es fiable** (BLTSIZE/CON0
