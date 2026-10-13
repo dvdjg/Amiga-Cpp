@@ -8,8 +8,9 @@
 //
 // Tutorial de la capa de dinámica de juego (F2/F8 del roadmap de objetos):
 //
-//   - **Formación** (`scene::Formation` + `formation_update`): 5 naves entran escalonadas
-//     con delays y offsets, siguiendo dos **rutas seno** en espejo (`gen_sine_vertical`).
+//   - **Formación** (`scene::Formation` + `formation_update`): 5 naves entran en V
+//     (`gen_formation_v_sine`, F2.1: punta primero y brazos escalonados) siguiendo dos
+//     **rutas seno** en espejo (`gen_sine_vertical`).
 //   - **Pool** (`scene::EntityPool`): las naves viven con `TrajectoryFollower` +
 //     `CompositeState` (contenido de 1 parte) y se reciclan al salir de pantalla. Se
 //     dibujan por **BOB** (contenido de 2 planos con máscara).
@@ -284,12 +285,13 @@ private:
 			eng::Span<const eng::scene::PathPoint<eng::s16>> {m_route_pts[1], n1}, false,
 			true};
 
-		for (eng::u8 i = 0u; i < kEnemies; ++i) {
-			m_members[i].delay_ticks = static_cast<eng::u16>(i * 6u);
-			m_members[i].offset.x() = static_cast<eng::s16>((static_cast<eng::s16>(i) - 2) * 28);
-			m_members[i].offset.y() = 0;
-			m_members[i].trajectory = static_cast<eng::u8>(i & 1u);
-		}
+		// Ola en V con seno en espejo (F2.1, `gen_formation_v_sine`): la punta entra
+		// primero, los brazos con delay creciente (paso 6 ticks) y apertura V de
+		// `28 / 2 = 14` px por paso; brazo izquierdo = ruta 0 (seno fase 0), derecho = ruta 1
+		// (fase 128). La geometría/delays salen del generador (HOST-435), no a mano.
+		(void)eng::scene::gen_formation_v_sine(
+			eng::Span<eng::scene::FormationMember<eng::s16>> {m_members, kEnemies},
+			kEnemies, 28, 6u, 0u, 1u);
 		m_wave.members = eng::Span<const eng::scene::FormationMember<eng::s16>> {m_members,
 											kEnemies};
 		m_wave.origin.x() = 160;

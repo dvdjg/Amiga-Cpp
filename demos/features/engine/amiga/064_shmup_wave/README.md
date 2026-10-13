@@ -2,8 +2,9 @@
 
 Tutorial de la capa de dinámica de juego:
 
-- **Formación** (`scene::Formation` + `formation_update`): 5 naves entran escalonadas (delays y
-  offsets) siguiendo dos **rutas seno** en espejo (`gen_sine_vertical`).
+- **Formación** (`scene::Formation` + `formation_update`): 5 naves entran en **V**
+  (`gen_formation_v_sine`, F2.1: punta primero y brazos escalonados) siguiendo dos
+  **rutas seno** en espejo (`gen_sine_vertical`).
 - **Pool de entidades** (`scene::EntityPool`): las naves viven con `TrajectoryFollower` +
   `CompositeState` (contenido de 1 parte) y se retiran al terminar su ruta. Se dibujan por
   **BOB** con `composite_emit_bobs` + borrado por caja.
