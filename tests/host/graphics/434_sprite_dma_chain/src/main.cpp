@@ -29,6 +29,9 @@
 //      cadena que no cubre el canal degrada a rearme.
 //   9) `choose_sprite_emit_plan` (F3.3): Rearm/Chain/ChainPersistent por canal, presupuesto
 //      de DATA y coherencia de índice/canal de la cadena.
+//  10) `build_sprite_dma_chain_for_channel` (filtrado de un span multicanal) y
+//      `choose_sprite_chain_actions`/`prepare_sprite_chains` (Build/Keep/Rearm y caída a
+//      rearme cuando la cadena no cabe).
 //
 // Ejecución:
 //   bash tools/run-host-tests.sh tests/host/graphics/434_sprite_dma_chain   (solo este)
@@ -51,12 +54,18 @@
 namespace {
 
 using eng::graphics::build_sprite_dma_chain;
+using eng::graphics::build_sprite_dma_chain_for_channel;
+using eng::graphics::choose_sprite_chain_actions;
 using eng::graphics::choose_sprite_emit_plan;
 using eng::graphics::encode_sprite_pos_ctl;
 using eng::graphics::HwSpritePlacement;
 using eng::graphics::kSpriteChainMaxBlocks;
 using eng::graphics::patch_sprite_chain_block;
+using eng::graphics::prepare_sprite_chains;
+using eng::graphics::SpriteChainAction;
 using eng::graphics::SpriteChainBudget;
+using eng::graphics::SpriteChainPlan;
+using eng::graphics::SpriteChainPrep;
 using eng::graphics::SpriteDmaChain;
 using eng::graphics::SpriteEmitPlan;
 using eng::graphics::SpriteEmitStrategy;
@@ -538,6 +547,97 @@ void test_selector() {
 	CHECK(p4.strategy[5] == SpriteEmitStrategy::Rearm);
 }
 
+void test_build_for_channel() {
+	std::printf("build_for_channel: filtra los placements del canal pedido\n");
+
+	alignas(4) eng::u16 d0[16] {};
+	alignas(4) eng::u16 d1[16] {};
+	HwSpritePlacement ps[3] = {
+		plc(5u, 40u, 140u, 8u, 1u, false, chip(d0)),
+		plc(2u, 100u, 160u, 8u, 1u, false, chip(d1)),
+		plc(5u, 40u, 180u, 8u, 1u, false, chip(d0)),
+	};
+	eng::u16 storage[64] {};
+	SpriteDmaChain chain {};
+	chain.storage = chip(storage);
+
+	CHECK(build_sprite_dma_chain_for_channel(eng::Span<const HwSpritePlacement> {ps, 3u}, 5u, chain));
+	CHECK(chain.block_count == 2u && chain.channel == 5u);
+	CHECK(chain.block_pos_words[0] == 0u);
+	CHECK(storage[0] == static_cast<eng::u16>((140u << 8u) | (40u >> 1u)));      // ch5@140
+	const eng::u16 b2 = static_cast<eng::u16>(2u + 16u);                        // tras 8 lineas
+	CHECK(storage[b2] == static_cast<eng::u16>((180u << 8u) | (40u >> 1u)));    // ch5@180
+	CHECK(chain.used == static_cast<eng::u16>(2u + 16u + 2u + 16u + 2u));      // + terminador
+
+	// Sin placements del canal, canal invalido o storage vacia: false sin escribir.
+	SpriteDmaChain none {};
+	none.storage = chip(storage);
+	CHECK(!build_sprite_dma_chain_for_channel(eng::Span<const HwSpritePlacement> {ps, 3u}, 7u, none));
+	CHECK(!build_sprite_dma_chain_for_channel(eng::Span<const HwSpritePlacement> {ps, 3u}, 8u, none));
+	none.storage = eng::ChipView<eng::SpriteTag> {};
+	CHECK(!build_sprite_dma_chain_for_channel(eng::Span<const HwSpritePlacement> {ps, 3u}, 5u, none));
+}
+
+void test_chain_actions_and_prep() {
+	std::printf("actions/prep: Build/Keep/Rearm y caida a rearme si no cabe\n");
+
+	alignas(4) eng::u16 d0[16] {};
+	alignas(4) eng::u16 d1[16] {};
+	HwSpritePlacement ps[3] = {
+		plc(5u, 40u, 140u, 8u, 1u, false, chip(d0)),
+		plc(2u, 100u, 160u, 8u, 1u, false, chip(d1)),
+		plc(5u, 40u, 180u, 8u, 1u, false, chip(d0)),
+	};
+	const eng::Span<const HwSpritePlacement> span_ps {ps, 3u};
+
+	eng::u16 storage5[64] {};
+	SpriteDmaChain chains[8] {};
+	chains[5].storage = chip(storage5);
+
+	// Con presupuesto: ch5 (2 bloques) -> Build; ch2 (1 bloque) -> Rearm.
+	SpriteChainPlan plan = choose_sprite_chain_actions(
+		span_ps, eng::Span<const SpriteDmaChain> {chains, 8u}, 0u, SpriteChainBudget {1000u});
+	CHECK(plan.action[5] == SpriteChainAction::Build);
+	CHECK(plan.action[2] == SpriteChainAction::Rearm);
+
+	SpriteChainPrep prep = prepare_sprite_chains(span_ps,
+						     eng::Span<SpriteDmaChain> {chains, 8u}, 0u,
+						     SpriteChainBudget {1000u});
+	CHECK(prep.built == 1u && prep.kept == 0u);
+	CHECK(prep.emit.strategy[5] == SpriteEmitStrategy::Chain);
+	CHECK(prep.emit.strategy[2] == SpriteEmitStrategy::Rearm);
+	CHECK(chains[5].block_count == 2u && chains[5].used != 0u);
+
+	// Segundo frame con ranuras estables: Keep (no reconstruye; los bytes quedan).
+	const eng::u16 pos_before = storage5[0];
+	prep = prepare_sprite_chains(span_ps, eng::Span<SpriteDmaChain> {chains, 8u},
+				     static_cast<eng::u8>(1u << 5u), SpriteChainBudget {1000u});
+	CHECK(prep.built == 0u && prep.kept == 1u);
+	CHECK(prep.emit.strategy[5] == SpriteEmitStrategy::ChainPersistent);
+	CHECK(storage5[0] == pos_before);
+
+	// Presupuesto 0: no se eligen cadenas nuevas (Rearm).
+	plan = choose_sprite_chain_actions(span_ps, eng::Span<const SpriteDmaChain> {chains, 8u}, 0u,
+					   SpriteChainBudget {0u});
+	CHECK(plan.action[5] == SpriteChainAction::Rearm);
+
+	// Persistente SIN cadena que cubra (block_count no cuadra): no Keep -> Rearm.
+	chains[5].block_count = 1u;
+	plan = choose_sprite_chain_actions(span_ps, eng::Span<const SpriteDmaChain> {chains, 8u},
+					   static_cast<eng::u8>(1u << 5u), SpriteChainBudget {0u});
+	CHECK(plan.action[5] == SpriteChainAction::Rearm);
+	chains[5].block_count = 2u;
+
+	// Build que no cabe (storage insuficiente): el plan efectivo cae a Rearm y used = 0.
+	eng::u16 tiny[8] {};
+	SpriteDmaChain chains2[8] {};
+	chains2[5].storage = chip(tiny);
+	prep = prepare_sprite_chains(span_ps, eng::Span<SpriteDmaChain> {chains2, 8u}, 0u,
+				     SpriteChainBudget {1000u});
+	CHECK(prep.built == 0u && prep.emit.strategy[5] == SpriteEmitStrategy::Rearm);
+	CHECK(chains2[5].used == 0u && chains2[5].block_count == 0u);
+}
+
 } // namespace
 
 int main() {
@@ -553,9 +653,11 @@ int main() {
 	test_arm_dma_chain();
 	test_placements_with_chain();
 	test_selector();
+	test_build_for_channel();
+	test_chain_actions_and_prep();
 
 	if (g_failures == 0) {
-		std::printf("OK: cadena DMA por canal validada (golden de words + armado + selector).\n");
+		std::printf("OK: cadena DMA por canal validada (golden de words + armado + selector + prep).\n");
 		return 0;
 	}
 	std::printf("FAIL: %d comprobacion(es) fallaron\n", g_failures);

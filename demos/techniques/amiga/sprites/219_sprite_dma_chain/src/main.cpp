@@ -36,6 +36,7 @@
 // (golden de words) y el armado; esta demo valida la emisión en hardware emulado.
 
 #include <eng/api/api.hpp>
+#include <eng/os/os.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/sprite_chain.hpp>
 #include <eng/graphics/sprite_manager.hpp>
@@ -380,7 +381,8 @@ int main() {
 	eng::amiga::AmigaBackend backend {};
 	DmaChainDemo game {};
 	eng::Engine engine { backend, game };
-	engine.run_frames_polling(0xffff);
+	(void)eng::os::init(engine, 0u);
+	engine.run_frames(0xffff);
 
 	return 0;
 }

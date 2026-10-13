@@ -45,15 +45,15 @@ dependen de hardware y no necesitan WinUAE.
 | `audio` | 36 | [audio/README.md](audio/README.md) |
 | `board` | 20 | [board/README.md](board/README.md) |
 | `cards` | 12 | [cards/README.md](cards/README.md) |
-| `core` | 81 | [core/README.md](core/README.md) |
+| `core` | 82 | [core/README.md](core/README.md) |
 | `field` | 35 | [field/README.md](field/README.md) |
-| `graphics` | 52 | [graphics/README.md](graphics/README.md) |
+| `graphics` | 55 | [graphics/README.md](graphics/README.md) |
 | `os` | 24 | [os/README.md](os/README.md) |
 | `parallel` | 1 | [parallel/README.md](parallel/README.md) |
 | `platform/amiga` | 12 | [platform/amiga/README.md](platform/amiga/README.md) |
 | `res` | 24 | [res/README.md](res/README.md) |
-| `scene` | 23 | [scene/README.md](scene/README.md) |
+| `scene` | 26 | [scene/README.md](scene/README.md) |
 | `sim` | 34 | [sim/README.md](sim/README.md) |
 | `ui` | 25 | [ui/README.md](ui/README.md) |
 
-Total: 398 tests. Los IDs `HOST-NNN` son únicos en todo `tests/host/` (no por categoría).
+Total: 405 tests. Los IDs `HOST-NNN` son únicos en todo `tests/host/` (no por categoría).

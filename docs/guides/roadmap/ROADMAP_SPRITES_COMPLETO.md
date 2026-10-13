@@ -290,7 +290,11 @@ La decisión fina se cierra con la medida (bus y ciclos) en la demo A/B; los umb
 enum class SpriteEmitStrategy : eng::u8 { Rearm, Chain, ChainPersistent };
 struct SpriteEmitPlan { SpriteEmitStrategy strategy[kSpriteChannels]; };
 [[nodiscard]] SpriteEmitPlan choose_sprite_emit_plan(eng::Span<const HwSpritePlacement> placements,
-                                                     eng::Span<const SpriteDmaChain> chains) noexcept;
+                                                     eng::Span<const SpriteDmaChain> chains,
+                                                     u8 stable_channels_mask,
+                                                     const SpriteChainBudget& budget) noexcept;
+// El compositor que reconstruye usa `choose_sprite_chain_actions`/`prepare_sprite_chains`
+// (Build/Keep/Rearm) — implementados con el mismo criterio.
 ```
 
 **Doble buffer:** las cadenas van dobles (2 `SpriteDmaChain` por canal, alternadas por frame) cuando se reconstruyen mientras la anterior se muestra; con `ChainPersistente` basta una con el parcheo en el VBlank.
@@ -302,6 +306,8 @@ struct SpriteEmitPlan { SpriteEmitStrategy strategy[kSpriteChannels]; };
 **Criterio de salida:** HOST en verde; A/B medido y registrado (`VALIDATION.md` de la demo); la estrategia por defecto sigue siendo `Rearm` hasta que la medida demuestre la ganancia en el caso concreto.
 
 ### 3.3 F4.2 — Bending por tabla de seno (`SPRxPOS` por línea)
+
+**Estado: hecha y validada en emulador.** `graphics/drivers/sprite_bend.hpp` (`emit_sprite_bend_into`: **varios canales intercalados por línea** con un `WAIT` compartido, tabla potencia de dos, recorte de X/altura, DATA con terminador) + **HOST-436** y demo **220** (dos columnas 16×64 ondulando en oposición): 49.97 fps / 1.00059 campos, **764 words** de copperlist, visión OK («curvadas/onduladas… sin cortes ni basura»). Hallazgo: emitir cada canal en bloque desordena los `WAIT` (por eso la firma es de varios canales).
 
 **Objetivo:** driver de deformación horizontal de un sprite que abarca N líneas, moviendo su X por línea con una tabla precalculada (agua, ondas, distorsión).
 
@@ -343,11 +349,15 @@ void emit_sprite_bend_into(Sched& sched, u8 channel, eng::ChipView<eng::SpriteTa
       → el BOB se declara con el ancla en (left, top): el juego sigue usando su x/y
 ```
 
-**Ubicación:** el cálculo vive en el pipeline de cocina de sprites (host); en el engine solo se documenta el contrato del asset (comentario en `Bob`/`FastBobLayer`). Ningún campo nuevo en `Visual`/`CompositePart` (frontera §2.4).
+**Estado: parcial — cálculo hecho.** `graphics/fast_bob_margins.hpp` (`fast_bob_margins`: padding y tamaño de hoja desde el desplazamiento máximo por eje, doblado con doble buffer) + **HOST-437**. Pendientes: el pipeline de cocina del asset (herramienta host que genera la hoja con padding) y la demo DPF con BOBs rápidos.
 
-**Tests/demo:** HOST del cálculo de márgenes (extremos, doble buffer, redondeo a words); demo DPF con BOBs rápidos dibujados con `FastBobLayer` (HOST-355) y visión (sin rastros, sin huecos).
+**Ubicación:** el cálculo vive en el pipeline de cocina de sprites (host) con el helper del engine; el contrato del asset queda documentado (comentario en `Bob`/`FastBobLayer`). Ningún campo nuevo en `Visual`/`CompositePart` (frontera §2.4).
+
+**Tests/demo:** HOST del cálculo de márgenes (hecho, HOST-437); demo DPF con BOBs rápidos dibujados con `FastBobLayer` (HOST-355) y visión (sin rastros, sin huecos) — pendiente.
 
 ### 3.5 F7 — Integración de la paleta de sprites y F4.3 (palette splitting)
+
+**Estado: hecha (integración + demo).** `ActorDesc::sprite_palette` (array indexado por registro) y el arbitraje en `compose_sprites` (deriva `first/count` del canal asignado; `CopperSwitch` → `SpritePaletteEvent` ordenado por línea que `present` intercala con los rearmes; `Degrade` → el actor entero cae a BOB); **HOST-391** (conmutación en franja disjunta y degradación por `z` en conflicto) y demo **221** validada (misma forma en dos paletas por franja; 49.92 fps). Pendiente declarado: arbitraje con la escena en 5+ planos/EHB (fuera de alcance de esta campaña).
 
 **Objetivo:** cerrar el planificador `sprite_palette.hpp` (hecho, HOST-433) con su integración real y una demo de división vertical de colores.
 
@@ -422,21 +432,21 @@ void rope_resolve_player(Rope<s16>&, s16& feet_x, s16& feet_y, s16& vy, const Ro
 
 ### 3.9 Cierre de microtareas de sprites (F4.5)
 
-1. **Orden Y incremental** del productor de intents (reutilizar el orden del frame anterior con insertion/gnome sobre lista casi ordenada): pendiente del `ROADMAP_UNIFICADO.md`; HOST de estabilidad del orden + demo 217 sin regresión.
+1. **Orden Y incremental — hecho**: la fachada (`SpriteScene`) conserva la secuencia de actores del frame anterior (`SpriteComposeScratch::prev_actors`); el compositor la usa para llegar casi ordenado por `top` al sort estable de `build_sprite_intents` (mismo resultado; O(n) con actores que se mueven poco). HOST-391 (re-emisión con movimiento: placements ordenados).
 2. **Demos de cierre:** HUD con `SpriteLineLayer` (HOST-418 sin demo) y prioridad `BPLCON2` por franjas (intent `Priority` sin demo).
 3. **Decidir 087** (arreglar o retirar): la técnica ya está cubierta por 207/208.
 
 ## 4. Orden de trabajo (por dependencia y valor)
 
-**Decisión de arranque (corte elegido): C1**, entrando por **F3.1** (builder + golden host, sin tocar `SpriteManager`), porque es lógica pura verificable y valida el formato de la cadena antes de ninguna emisión. Estado: **F3 cerrada** — `graphics/sprite_chain.hpp` + **HOST-434** (golden de words, gap, recortes, parcheo, armado, selector), `SpriteManager` integrado (armado por registro + `emit_placements_into(chains)`) y demo **219** validada con visión, cadencia y A/B de copperlist (ver §3.2). El golden fijó además la regla de gap como **exigencia del builder** (el allocator admite bloques contiguos) y el armado por registro de la primera franja (armar solo con el puntero desincroniza el walk). Siguiente valor: C0 (tareas baratas: F2.1 generadores V, orden Y incremental, F5 márgenes) o C2 (bending/paleta) según prefiera el usuario.
+**Decisión de arranque (corte elegido): C1**, entrando por **F3.1** (builder + golden host, sin tocar `SpriteManager`), porque es lógica pura verificable y valida el formato de la cadena antes de ninguna emisión. Estado: **F3 cerrada** (HOST-434, `SpriteManager` integrado, demo 219 con A/B de copperlist) y **F3 integrada en la fachada** (`SpriteScene::set_chains`/`prepare_chains`, HOST-391). **C0 hecho**: F2.1 (HOST-435), orden Y incremental (HOST-391) y cálculo de márgenes FastCopy (HOST-437; cocina/demo DPF pendientes). **C2 hecho**: bending F4.2 (HOST-436, demo 220) y paleta F7/F4.3 (HOST-391/433, demo 221). El golden fijó la regla de gap como **exigencia del builder** y el armado por registro de la primera franja; el bending, la emisión **intercalada** por línea. Siguiente valor: **C3** (mecanismos: cuerdas/muelles/catapulta) o **C4** condicionado (Jim Power/Free Form).
 
 | Corte | Trabajo | Valor | Prerrequisitos |
 |---|---|---|---|
-| **C0** (rápido) | F2.1 generadores V; orden Y incremental; F5 preproceso de márgenes | Cierra huecos de F2/F5 con coste bajo | Ninguno |
-| **C1** (núcleo) | **F3** completo: builder (**hecho**, HOST-434) + armado + selector (+ persistente) + demo A/B | Menos Copper y WAITs por objeto; base de las ristras | Fuente citada (§3.2, ya hecha); storage Chip del llamador |
-| **C2** (efectos) | F4.2 bending; F7 integración + demo (F4.3) | Efectos de agua/ondas y color por zona con el arbitraje ya hecho | C1 no bloquea; scheduler/`BUS_BUDGET` |
+| **C0** (rápido) | F2.1 generadores V (**hecho**, HOST-435); orden Y incremental (**hecho**, HOST-391); F5 márgenes (**cálculo hecho**, HOST-437) | Cierra huecos de F2/F5 con coste bajo | Ninguno |
+| **C1** (núcleo) | **F3** completo: builder + armado + selector + persistente + demo A/B (**hecho**); integración en la fachada (**hecha**) | Menos Copper y WAITs por objeto; base de las ristras | Fuente citada (§3.2, hecha); storage Chip del llamador |
+| **C2** (efectos) | F4.2 bending (**hecho**, HOST-436/demo 220); F7 integración + demo (**hecha**, HOST-391/demo 221) | Efectos de agua/ondas y color por zona | — |
 | **C3** (juego) | F6 cuerdas/muelles/catapulta | Mecanismos jugables reutilizando F1/F2 | F1/F2 (hechos) |
-| **C4** (condicionado) | F4.1 (cierre 218), F4.4 (pacing 215), demos de cierre F4.5 | Cierre técnico | Medidas/campaña en curso |
+| **C4** (condicionado) | F4.1 (cierre 218), F4.4 (pacing 215), demos de cierre F4.5, cocina F5/demo DPF | Cierre técnico | Medidas/campaña en curso |
 
 F3 **no** bloquea a C2/C3: el rearme por Copper actual es correcto; la cadena es optimización y se adopta por canal solo cuando la medida la respalde.
 

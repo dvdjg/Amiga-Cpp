@@ -32,6 +32,7 @@
 #include <eng/graphics/raster_intent.hpp>
 #include <eng/graphics/sprite.hpp>
 #include <eng/graphics/sprite_allocator.hpp>
+#include <eng/graphics/sprite_chain.hpp>
 #include <eng/graphics/sprite_manager.hpp>
 #include <eng/scene/actor.hpp>
 #include <eng/scene/representation.hpp>
@@ -55,6 +56,38 @@ public:
 	/// (vista Chip tipada, la lee el DMA).
 	/// \param pool  vista Chip de las estructuras (tamaño = pares vivos × 2 × estructura).
 	void set_cooked_pool(eng::ChipView<eng::SpriteTag> pool) noexcept { m_cooked = pool; }
+
+	/// **Cadenas DMA por canal** (F3, `sprite_chain.hpp`): el juego aporta ≥8
+	/// `SpriteDmaChain` con sus storages **Chip** puestas a cero (con runway de ceros tras
+	/// lo que escriba cada frame). Tras `emit`, `prepare_chains()` reconstruye lo que decida
+	/// el selector y `present()` las usa; sin `set_chains`, `present` emite por el camino de
+	/// rearmes (idéntico al de siempre). `budget` fija el umbral de DATA por frame (medido:
+	/// `BUS_BUDGET.md`); `stable_channels_mask` marca canales **persistentes** (ranuras
+	/// estables: el juego los parchea con `patch_sprite_chain_block`, no se reconstruyen).
+	void set_chains(eng::Span<eng::graphics::SpriteDmaChain> chains,
+			const eng::graphics::SpriteChainBudget& budget = {},
+			eng::u8 stable_channels_mask = 0u) noexcept {
+		m_chains = chains;
+		m_chain_budget = budget;
+		m_stable_channels = stable_channels_mask;
+	}
+
+	/// **Prepara las cadenas del último `emit`** (llamar tras `emit` y antes de `present`):
+	/// `Build` reconstruye los canales que el selector vote, `Keep` conserva los
+	/// persistentes (los parchea el juego). Sin `set_chains` es un no-op.
+	[[nodiscard]] eng::graphics::SpriteChainPrep prepare_chains() noexcept {
+		if (m_chains.empty()) {
+			return {};
+		}
+		return eng::graphics::prepare_sprite_chains(placements(), m_chains, m_stable_channels,
+							    m_chain_budget);
+	}
+
+	/// Cadenas configuradas (vacío = `present` emite por rearmes).
+	[[nodiscard]] eng::Span<const eng::graphics::SpriteDmaChain> chains() const noexcept {
+		return eng::Span<const eng::graphics::SpriteDmaChain> {m_chains.data(),
+								       m_chains.size()};
+	}
 
 	/// **Alta de un actor**. `ActorId{}` (inválido) si el almacén está lleno o la descripción no
 	/// tiene contenido (`visual.pixels`/`w`/`h`).
@@ -93,7 +126,11 @@ public:
 			eng::Span<eng::scene::CopperIntent> {m_copper, kCopperMax},
 			eng::Span<eng::graphics::SpritePaletteEvent> {m_palette, kPaletteMax}};
 		sc.cooked = m_cooked;
+		// Memoria del **orden Y incremental** (secuencia de actores del frame anterior).
+		sc.prev_actors = eng::Span<eng::u16> {m_prev_actors, MaxActors};
+		sc.prev_count = m_prev_count;
 		m_result = eng::scene::compose_sprites(plan, m_store, ctx, ctx.display_top, sc, copper);
+		m_prev_count = sc.prev_count; // la secuencia de este frame queda para el siguiente
 		return m_result;
 	}
 
@@ -105,12 +142,14 @@ public:
 
 	/// **Publica los Sprite HW del frame** en la copperlist: primera config de cada canal en
 	/// `arm_line` (línea temprana) + rearmes verticales del multiplexado, con la paleta por
-	/// franja de las plantillas si la hay. Una sola llamada por frame tras `emit`; el juego
-	/// no toca placements, canales ni `SpriteManager`.
+	/// franja de las plantillas si la hay. Con `set_chains` configurado y `prepare_chains()`
+	/// hecho, los canales con cadena se arman **sin rearmes** (la cadena los sirve). Una
+	/// sola llamada por frame tras `emit`; el juego no toca placements, canales ni
+	/// `SpriteManager`.
 	template <class Sched>
 	void present(Sched& sched, eng::u16 arm_line = 32u) const noexcept {
 		eng::graphics::SpriteManager::emit_placements_into(sched, placements(), arm_line,
-								  palette_events());
+								  palette_events(), chains());
 	}
 	/// Intenciones de Copper del **último** `emit` (válidas las `result().copper` primeras):
 	/// necesidades ancladas de los actores. Se materializan por el `Plan` de Copper del
@@ -137,6 +176,8 @@ private:
 	eng::scene::ActorStore<MaxActors> m_store {};
 	eng::scene::RepresentationAllocator m_alloc {};
 	eng::scene::ActorId m_order[MaxActors] {};
+	eng::u16 m_prev_actors[MaxActors] {}; ///< secuencia Y del frame anterior (incremental)
+	eng::u16 m_prev_count = 0u;
 	eng::scene::SpriteIntent m_intents[kMaxIntents] {};
 	eng::u16 m_intent_actor[kMaxIntents] {};
 	eng::scene::SpriteSlot m_slots[kMaxIntents] {};
@@ -144,6 +185,9 @@ private:
 	eng::scene::CopperIntent m_copper[kCopperMax] {};
 	eng::graphics::SpritePaletteEvent m_palette[kPaletteMax] {};
 	eng::ChipView<eng::SpriteTag> m_cooked {}; ///< pool de estructuras de pares *attached*
+	eng::Span<eng::graphics::SpriteDmaChain> m_chains {};     ///< cadenas DMA por canal (F3)
+	eng::graphics::SpriteChainBudget m_chain_budget {};       ///< presupuesto del selector
+	eng::u8 m_stable_channels = 0u;                           ///< bits de canales persistentes
 	eng::scene::SpriteComposeResult m_result {};
 };
 

@@ -196,20 +196,26 @@ scratch** (el `detail≈9861` de la 275, ya documentado en su README) y sacarlo 
   2. **Refinamientos del allocator** (`sprite-multiplexer-bob-fallback.md` §9): **hechos**
      canal preferido (`SpriteIntent::channel`), prioridad de asignación (`assign_rank`),
      **grupos con trayectoria** (corrida contigua para el bounding box o entera a BOB),
-     **ocupación exacta por línea** (bitfield) y **clasificación desde `ActorDesc`**
+     **ocupación exacta por línea** (bitfield), **clasificación desde `ActorDesc`**
      (`assign_rank`/`preferred_channel`/`group_*` en `build_sprite_intents`) — HOST-003/072;
-     demo 217 (fijo con canal preferido). **Pendiente**: orden Y incremental con memoria del
-     frame anterior. **DMA encadenado por canal: HECHO** — builder `graphics/sprite_chain.hpp`
-     + HOST-434, `SpriteManager::arm_dma_chain`/`emit_placements_into(chains)` y selector;
-     demo **219** validada (20 balas = 1 canal; A/B por telemetría: 304 → 114 words de
-     copperlist, 49.92 fps en los tres modos; `ROADMAP_SPRITES_COMPLETO.md` §3.2).
+     demo 217 (fijo con canal preferido) — y **orden Y incremental** (la fachada conserva la
+     secuencia de actores del frame anterior; HOST-391). **DMA encadenado por canal: HECHO** —
+     builder `graphics/sprite_chain.hpp` + HOST-434, `SpriteManager::arm_dma_chain`/
+     `emit_placements_into(chains)`, selector, cadena persistente y **integración en la
+     fachada** (`SpriteScene::set_chains`/`prepare_chains`); demo **219** validada (20 balas =
+     1 canal; A/B por telemetría: 304 → 114 words de copperlist, 49.9 fps;
+     `ROADMAP_SPRITES_COMPLETO.md` §3.2).
   3. **Camino legado**: `SpriteManager::emit_into` (un `WAIT` por `VSTART`) queda solo para los
      segmentos rearmados de la 053; decidir si se retira tras `emit_armed_into`.
   4. **Demos de cierre**: HUD con `SpriteLineLayer` (HOST-418, sin demo), prioridad `BPLCON2`
      por franjas (intent `Priority` existe, sin demo) y resolver
      `087_sprite_horizontal_rearm` (arreglar o retirar; la técnica ya está cubierta por 207/208).
-  5. **Bending por tabla de seno** (`SPRxPOS` por línea) y **palette splitting** con sprites
-     (parcial en 211).
+  5. **Bending por tabla de seno** (`SPRxPOS` por línea): **HECHO** — driver
+     `graphics/drivers/sprite_bend.hpp` (varios canales intercalados por línea) + HOST-436;
+     demo **220** validada (dos columnas 16×64 ondulando en oposición; 49.97 fps, 764 words
+     de copperlist, visión OK). **Palette splitting con sprites: HECHO** — arbitraje F7
+     integrado (`ActorDesc::sprite_palette` + `compose_sprites` + `SpritePaletteEvent`);
+     HOST-391; demo **221** validada (mismo arte en dos paletas por franja; 49.92 fps).
   6. **Cerrar 212/`FreeFormSpriteLayer`** (roto) o deprecarlo en favor de 213; añadir doble
      copperlist al Free Form (mejora apuntada en 213).
   7. **Sprites con playfields de 5-6 planos**: validar el robo de slots de fetch
@@ -228,7 +234,10 @@ en V `gen_formation_v`/`gen_formation_v_sine` (F2.1, HOST-435); `core/util/seque
 HOST-431) y el planificador `graphics/sprite_palette.hpp` (F7, HOST-433). Demos
 `063_composite_actors` (personaje de tres partes con BOB + Sprite HW) y `064_shmup_wave`
 (formaciones con rutas seno, pool y ráfagas por timeline), validadas con captura y visión;
-`219_sprite_dma_chain` (F3: emisión DMA encadenada, A/B de copperlist 304→114 words).
+`219_sprite_dma_chain` (F3: emisión DMA encadenada, A/B de copperlist 304→114 words),
+`220_sprite_bend` (F4.2: bending por línea, 764 words de copperlist) y
+`221_sprite_palette_split` (F7/F4.3: dos paletas por franja vía arbitraje), validada con
+captura y visión.
 En el contenido, `Visual` ya no lleva flags de hardware: el par *attached* se deriva del arte
 y `VisualKind` se ha retirado (la preferencia vive en `Representation`). Hallazgo abierto:
 alta dinámica de actores de sprite desde `update`

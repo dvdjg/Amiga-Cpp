@@ -7,11 +7,19 @@
 // buffers de trabajo ni un `FramePlan`. Los actores que no caben en sprite hardware se **degradan**
 // (`result.degraded`) o se dibujan como BOB.
 //
+// Cubre además la **integración F3 de cadenas DMA** por la fachada: `set_chains` +
+// `prepare_chains` (Build) + `present` → los actores que comparten canal (mismo
+// `preferred_channel`, franjas disjuntas) se sirven por cadena: un solo WAIT de armado y
+// **cero rearmes** en las franjas siguientes (contraste con el camino de rearme).
+//
 //   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/scene/391_sprite_scene
 
 #include <cstdio>
 
 #include <eng/api/sprites.hpp>
+#include <eng/graphics/copper/copper.hpp>
+#include <eng/graphics/copper/scheduler.hpp>
+#include <eng/memory/memory_manager.hpp>
 
 namespace {
 
@@ -25,6 +33,28 @@ void check(bool ok, const char* m) {
 
 /// Hoja 16x16 a 2 planos en memoria host (escape documentado del test: en Amiga sería Chip).
 eng::u16 g_sheet[16u * 2u] {};
+
+alignas(16) eng::u8 g_chip[8 * 1024];
+
+eng::MemoryManager make_memory() {
+	eng::MemoryManager mem;
+	mem.configure(g_chip, sizeof(g_chip), nullptr, 0u, nullptr, 0u, 16u);
+	return mem;
+}
+
+eng::copper::Scheduler make_scheduler(eng::MemoryManager& mem, eng::u32 words) {
+	return eng::copper::Scheduler {mem.chip().reserve<eng::CopperTag>(words * 2u, 16u)};
+}
+
+/// Cuenta los WAIT de una línea en la copperlist.
+unsigned count_wait_line(const eng::u16* w, eng::u16 count, eng::u16 line) {
+	unsigned n = 0;
+	for (eng::u16 i = 0; i + 1u < count; i += 2u) {
+		if (w[i] == 0xffffu) break;
+		if ((w[i] & 1u) != 0u && (w[i] >> 8u) == line) ++n;
+	}
+	return n;
+}
 
 } // namespace
 
@@ -80,10 +110,132 @@ int main() {
 	check(sp.remove(sp.store().id_at(0u)), "remove");
 	check(sp.count() == 0u, "count = 0 tras remove");
 
+	// --- F3: cadenas DMA por la fachada (emit -> prepare_chains -> present) ---------------
+	// Tres actores 16x8 con `preferred_channel = 0` y franjas disjuntas se sirven por UN
+	// canal (multiplexado vertical): el caso de la ristra que la cadena optimiza.
+	eng::SpriteScene<4u> ch_scene {};
+	ch_scene.set_budget(eng::scene::RepresentationBudget {8u, 60000u, 0u});
+	eng::graphics::Visual v8 = v;
+	v8.h = 8u;
+	v8.pixels = eng::Span<const eng::u16> {g_sheet, 16u}; // 8 líneas × 2 planos
+	eng::scene::ActorDesc cd = d;
+	cd.visual = v8;
+	cd.preferred_channel = 0u;
+	const eng::u16 ys[3] = {100u, 140u, 180u};
+	for (eng::u16 y : ys) {
+		cd.y = static_cast<eng::s16>(y);
+		check(ch_scene.add(cd).valid(), "add actor de ristra");
+	}
+	eng::graphics::FramePlan plan_ch {};
+	const auto rch = ch_scene.emit(plan_ch, ctx);
+	check(rch.ok && rch.sprites == 3u, "3 sprites compuestos");
+
+	// Sin cadenas: present emite un rearme por franja (WAIT en 140 y 180).
+	eng::MemoryManager mem_a = make_memory();
+	eng::copper::Scheduler sched_a = make_scheduler(mem_a, 256u);
+	ch_scene.present(sched_a, 32u);
+	sched_a.end();
+	check(count_wait_line(sched_a.data(), sched_a.words_used(), 32u) == 1u, "sin cadena: 1 armado");
+	check(count_wait_line(sched_a.data(), sched_a.words_used(), 140u) == 1u, "sin cadena: rearme 140");
+	check(count_wait_line(sched_a.data(), sched_a.words_used(), 180u) == 1u, "sin cadena: rearme 180");
+
+	// Con cadenas: prepare construye la del canal 0 y present no rearma ninguna franja.
+	alignas(4) eng::u16 chain_storage[64] {};
+	eng::graphics::SpriteDmaChain chains[8] {};
+	chains[0].storage = eng::ChipView<eng::SpriteTag> {
+		eng::Address<eng::MemoryKind::Chip>::from_storage(chain_storage),
+		sizeof(chain_storage)};
+	ch_scene.set_chains(eng::Span<eng::graphics::SpriteDmaChain> {chains, 8u},
+			    eng::graphics::SpriteChainBudget {1000u});
+	const eng::graphics::SpriteChainPrep prep = ch_scene.prepare_chains();
+	check(prep.built == 1u && prep.kept == 0u, "prepare: 1 canal construido");
+	check(prep.emit.strategy[0] == eng::graphics::SpriteEmitStrategy::Chain, "plan: Chain en 0");
+	check(ch_scene.chains()[0].block_count == 3u && ch_scene.chains()[0].used != 0u,
+	      "cadena de 3 bloques");
+
+	eng::MemoryManager mem_b = make_memory();
+	eng::copper::Scheduler sched_b = make_scheduler(mem_b, 256u);
+	ch_scene.present(sched_b, 32u);
+	sched_b.end();
+	check(count_wait_line(sched_b.data(), sched_b.words_used(), 32u) == 1u, "con cadena: 1 armado");
+	check(count_wait_line(sched_b.data(), sched_b.words_used(), 140u) == 0u, "con cadena: sin rearme 140");
+	check(count_wait_line(sched_b.data(), sched_b.words_used(), 180u) == 0u, "con cadena: sin rearme 180");
+
+	// Orden Y incremental: mover un actor y re-emitir mantiene el orden por `top` de los
+	// placements (la fachada conserva la secuencia de actores entre frames como memoria).
+	ch_scene.store().at(ch_scene.store().id_at(1u).index).desc.y = 108;
+	const auto rch2 = ch_scene.emit(plan_ch, ctx);
+	check(rch2.ok && rch2.sprites == 3u, "re-emit con movimiento ok");
+	{
+		const auto ps = ch_scene.placements();
+		bool sorted = true;
+		for (eng::usize i = 1u; i < ps.size(); ++i) {
+			if (ps[i].vstart < ps[i - 1u].vstart) sorted = false;
+		}
+		check(sorted, "placements ordenados por vstart (orden Y incremental)");
+	}
+
+	// --- F7: arbitraje de paleta de sprites (`ActorDesc::sprite_palette`) ---------------
+	eng::u16 pal_a[32] {};
+	eng::u16 pal_b[32] {};
+	eng::u16 pal_c[32] {};
+	for (eng::u16 i = 0u; i < 32u; ++i) {
+		pal_a[i] = static_cast<eng::u16>(0x100u + i);
+		pal_b[i] = static_cast<eng::u16>(0x200u + i);
+		pal_c[i] = static_cast<eng::u16>(0x300u + i);
+	}
+	eng::SpriteScene<8u> pal_scene {};
+	pal_scene.set_budget(eng::scene::RepresentationBudget {8u, 60000u, 0u});
+	eng::scene::ActorDesc pa = d;
+	pa.preferred_channel = 0u;
+	pa.sprite_palette = pal_a;
+	pa.y = 60;
+	eng::scene::ActorDesc pb = pa;
+	pb.sprite_palette = pal_b;
+	pb.y = 140;
+	check(pal_scene.add(pa).valid() && pal_scene.add(pb).valid(), "add paletas A/B");
+	eng::graphics::FramePlan plan_pal {};
+	const auto rpal = pal_scene.emit(plan_pal, ctx);
+	check(rpal.ok && rpal.sprites == 2u && rpal.degraded == 0u, "2 sprites con paletas A/B");
+	check(rpal.palette == 1u, "un evento de conmutacion de paleta");
+	const auto pev = pal_scene.palette_events();
+	// La `y` del actor es la línea raster del sprite: la conmutación va en su `top`.
+	check(pev.size() == 1u && pev[0].line == 140u, "conmutacion en la linea del segundo (y=140)");
+	check(pev.size() == 1u && pev[0].first == 16u && pev[0].count == 4u, "registros del par 0");
+	check(pev.size() == 1u && pev[0].colors == pal_b + 16u, "colores de B indexados por registro");
+
+	// Conflicto simultáneo: C (canal 1, misma franja que B, paleta distinta y menor `z`)
+	// degrada a BOB; B solo conmuta (A queda en otra franja).
+	eng::u16 g_mask[16] {};
+	eng::graphics::Visual vm = v;
+	vm.mask = eng::Span<const eng::u16> {g_mask, 16u};
+	eng::SpriteScene<8u> pal_scene2 {};
+	pal_scene2.set_budget(eng::scene::RepresentationBudget {8u, 60000u, 0u});
+	eng::scene::ActorDesc pc = pa;
+	pc.visual = vm;
+	pc.sprite_palette = pal_c;
+	pc.preferred_channel = 1u;
+	pc.y = 140;
+	pc.z = 10; // se emite antes (menor z) → pierde el conflicto
+	eng::scene::ActorDesc pb2 = pa;
+	pb2.sprite_palette = pal_b;
+	pb2.y = 140;
+	eng::scene::ActorDesc pa2 = pa;
+	pa2.y = 60;
+	check(pal_scene2.add(pc).valid() && pal_scene2.add(pb2).valid() &&
+		      pal_scene2.add(pa2).valid(),
+	      "add paletas A/B/C en conflicto");
+	eng::graphics::FramePlan plan_pal2 {};
+	const auto rpal2 = pal_scene2.emit(plan_pal2, ctx);
+	check(rpal2.ok, "compose con conflicto ok");
+	check(rpal2.degraded == 1u && rpal2.bobs == 1u, "el de menor z degrada a BOB");
+	check(rpal2.sprites == 2u, "A y B siguen como sprites");
+	check(rpal2.palette == 1u, "B conmuta (A en otra franja)");
+
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;
 	}
-	std::printf("OK: SpriteScene (alta + compose + degrade) validada.\n");
+	std::printf("OK: SpriteScene (alta + compose + degrade + cadenas F3 + paleta F7) validada.\n");
 	return 0;
 }

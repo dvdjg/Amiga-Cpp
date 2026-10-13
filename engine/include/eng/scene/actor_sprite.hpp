@@ -8,6 +8,7 @@
 #include <eng/graphics/sprite_attached.hpp>
 #include <eng/graphics/sprite_channel_window.hpp>
 #include <eng/graphics/sprite_limits.hpp>
+#include <eng/graphics/sprite_palette.hpp>
 #include <eng/scene/actor_store.hpp>
 
 namespace eng::scene {
@@ -18,7 +19,7 @@ struct SpriteComposeResult {
 	eng::u16 degraded = 0; ///< actores que no caben en hardware (`as_bob`)
 	eng::u16 bobs = 0;     ///< actores finalmente dibujados como BOB
 	eng::u16 copper = 0;   ///< intenciones de Copper escritas (ancladas a los actores)
-	eng::u16 palette = 0;  ///< eventos de paleta por franja (plantillas)
+	eng::u16 palette = 0;  ///< eventos de paleta por franja (plantillas + arbitraje F7)
 	bool ok = false;       ///< false = rechazo controlado (ver `OBJECT_SYSTEM.md`)
 };
 
@@ -36,6 +37,13 @@ struct SpriteComposeScratch {
 	/// insuficiente = la composición rechaza el par (nunca cocina fuera de rango).
 	eng::ChipView<eng::SpriteTag> cooked {};
 	eng::usize cooked_used = 0; ///< cursor del pool; lo avanza `compose_sprites`
+	/// **Orden Y del frame anterior** (memoria para el orden incremental): recibe la
+	/// secuencia de actores del frame previo (slot por actor, en el orden en que quedaron
+	/// sus intents tras el sort por `top`) y devuelve la de este frame. Con una escena
+	/// cuyos actores se mueven poco, el sort estable por `top` pasa de O(n²) a O(n) y los
+	/// empates conservan su orden entre frames (determinista). Opcional: vacío = sin memoria.
+	eng::Span<eng::u16> prev_actors {};
+	eng::u16 prev_count = 0u;
 };
 
 /// Compone los sprites del frame a partir de los actores:
@@ -52,7 +60,11 @@ struct SpriteComposeScratch {
 ///   5. los degradados a BOB se dibujan en el `FramePlan`, en orden por superficie y `z`
 ///      (cada actor degradado se dibuja UNA vez, desde su `Visual` de 4 planos o normal);
 ///   6. las necesidades de Copper ancladas de cada actor y la **paleta por franja** de su
-///      plantilla se escriben en `copper`.
+///      plantilla se escriben en `copper`;
+///   7. **arbitraje de paleta de sprites (F7)**: los actores con `ActorDesc::sprite_palette`
+///      declaran sus colores; el planificador decide **conmutación** (evento de paleta en su
+///      franja) o **degradación a BOB** (conflicto irresoluble en la misma franja/registros,
+///      el de menor orden de emisión cae). Los eventos de paleta quedan ordenados por línea.
 ///
 /// `ledger` (opcional) descuenta los canales que ocupan los **fondos por sprites** (ventanas:
 /// ver `docs/engine/architecture/SPRITE_CHANNEL_WINDOWS.md`): cada actor solo puede usar los
@@ -83,13 +95,134 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 	if (ordered == 0u) {
 		return r; // no caben en el buffer del llamador
 	}
+	// **Orden Y incremental** (memoria del frame anterior): si el scratch trae la
+	// secuencia de actores del frame previo (en el orden en que quedaron tras el sort por
+	// `top`), se reordena el orden de emisión para llegar **casi ordenado por `top`** al
+	// sort estable de `build_sprite_intents` — mismo resultado, menos movimientos (O(n) con
+	// actores que se mueven poco). Los actores nuevos (no presentes antes) van al final, en
+	// su orden por superficie/`z`.
+	if (!s.prev_actors.empty() && s.prev_count != 0u) {
+		u16 rank[MaxActors];
+		for (eng::u16 k = 0u; k < MaxActors; ++k) {
+			rank[k] = 0xffffu; // no estaba en el frame anterior
+		}
+		const eng::u16 pc = s.prev_count < static_cast<eng::u16>(s.prev_actors.size())
+					    ? s.prev_count
+					    : static_cast<eng::u16>(s.prev_actors.size());
+		for (eng::u16 k = 0u; k < pc; ++k) {
+			const eng::u16 slot = s.prev_actors[k];
+			if (slot < MaxActors) {
+				rank[slot] = k;
+			}
+		}
+		for (eng::u16 i = 1u; i < ordered; ++i) {
+			const ActorId cur = s.order[i];
+			const eng::u16 cur_rank = rank[cur.index];
+			eng::u16 j = i;
+			while (j > 0u && rank[s.order[j - 1u].index] > cur_rank) {
+				s.order[j] = s.order[j - 1u];
+				--j;
+			}
+			s.order[j] = cur;
+		}
+	}
 	// `n` cuenta INTENTS, no actores: un par *attached* produce dos (líder + impar).
 	const eng::u16 n =
 		build_sprite_intents(store, s.order.first(ordered), ctx, s.intents, s.intent_actor);
 	if (n == 0u) {
 		return r;
 	}
+	// Guarda la secuencia de actores de este frame (su orden Y tras el sort por `top`):
+	// memoria para el orden incremental del siguiente.
+	if (!s.prev_actors.empty()) {
+		eng::util::BitSet<MaxActors> seen_pa {};
+		eng::u16 pc = 0u;
+		for (eng::u16 i = 0u; i < n; ++i) {
+			const eng::u16 slot = s.intent_actor[i];
+			if (seen_pa.test(slot)) {
+				continue;
+			}
+			seen_pa.set(slot);
+			if (pc < static_cast<eng::u16>(s.prev_actors.size())) {
+				s.prev_actors[pc++] = slot;
+			}
+		}
+		s.prev_count = pc;
+	}
 	SpriteAllocator{}.assign(s.intents.first(n), s.slots, ledger);
+
+	// **F7: arbitraje de paleta de los sprites** (opt-in por actor, `sprite_palette`). Con
+	// las necesidades derivadas del canal asignado (par `16+4·(c/2)`; *attached* `17..31`),
+	// `plan_sprite_palettes` decide por uso: `CopperSwitch` (conmutación al entrar en su
+	// franja — se emite como `SpritePaletteEvent` para que el emisor la intercale con los
+	// rearmes) o `Degrade` (conflicto en la misma franja/registros: el actor entero pasa a
+	// BOB, como el overflow del allocator). Sin declaración, el actor no participa.
+	{
+		eng::graphics::SpritePaletteUse uses[MaxActors] {};
+		eng::graphics::SpritePaletteDecision dec[MaxActors] {};
+		u16 use_actor[MaxActors] {};
+		eng::u16 use_count = 0u;
+		eng::util::BitSet<MaxActors> pal_done {};
+		for (eng::u16 i = 0; i < n; ++i) {
+			const eng::u16 slot = s.intent_actor[i];
+			if (pal_done.test(slot) || s.slots[i].as_bob) {
+				continue; // un uso por actor; los BOB tienen paleta de playfield
+			}
+			pal_done.set(slot);
+			auto a = store.get(store.id_at(slot));
+			if (!a.valid() || a->desc.sprite_palette == nullptr ||
+			    !a->desc.sprite_template.empty()) {
+				continue; // sin declaración (o la plantilla ya arbitra su paleta)
+			}
+			// Franja del actor (min top / max bottom de sus intents) y registros del canal.
+			u16 top = s.intents[i].top;
+			u16 bottom = s.intents[i].bottom;
+			const bool pair = (static_cast<eng::u16>(i + 1u) < n) &&
+					  s.intents[i + 1u].attach &&
+					  s.intent_actor[i + 1u] == slot;
+			for (eng::u16 k = 0; k < n; ++k) {
+				if (s.intent_actor[k] != slot) {
+					continue;
+				}
+				if (s.intents[k].top < top) top = s.intents[k].top;
+				if (s.intents[k].bottom > bottom) bottom = s.intents[k].bottom;
+			}
+			eng::graphics::SpritePaletteUse& u = uses[use_count];
+			u.channel = s.slots[i].channel;
+			u.need.first = pair ? 17u
+					    : static_cast<u8>(16u + 4u * (s.slots[i].channel / 2u));
+			u.need.count = pair ? 15u : 4u;
+			u.need.top = top;
+			u.need.bottom = bottom;
+			u.colors = a->desc.sprite_palette;
+			u.z = static_cast<u8>(i); // orden de emisión (mayor = delante)
+			use_actor[use_count] = slot;
+			++use_count;
+		}
+		if (use_count != 0u) {
+			(void)eng::graphics::plan_sprite_palettes(
+				eng::Span<const eng::graphics::SpritePaletteUse> {uses, use_count},
+				eng::Span<eng::graphics::SpritePaletteDecision> {dec, use_count}, {});
+			for (eng::u16 k = 0; k < use_count; ++k) {
+				if (dec[k] == eng::graphics::SpritePaletteDecision::CopperSwitch) {
+					if (r.palette < s.palette.size()) {
+						eng::graphics::SpritePaletteEvent& ev = s.palette[r.palette++];
+						ev.line = uses[k].need.top;
+						// 0-based: `colors[first+i]` -> `COLOR[first+i]`
+						ev.colors = uses[k].colors + uses[k].need.first;
+						ev.first = uses[k].need.first;
+						ev.count = uses[k].need.count;
+					}
+				} else if (dec[k] == eng::graphics::SpritePaletteDecision::Degrade) {
+					for (eng::u16 j = 0; j < n; ++j) {
+						if (s.intent_actor[j] == use_actor[k]) {
+							s.slots[j].as_bob = true; // el actor entero cae a BOB
+						}
+					}
+				}
+			}
+		}
+	}
 
 	// Un actor puede aportar varios intents (par *attached*, cadena de franjas): el
 	// Copper y la paleta se emiten UNA vez (su primer intent); los placements, uno por
@@ -299,6 +432,17 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 	const eng::u16 emitted = emit_bob_fallbacks(plan, store, s.intent_actor, s.slots, n, ctx);
 	if (emitted == 0u && r.degraded != 0u) {
 		return r; // un degradado fue rechazado
+	}
+	// Los eventos de paleta quedan en orden de línea (el emisor los fusiona con los rearmes
+	// y el Copper no espera hacia atrás): ordenación por inserción (n pequeño).
+	for (eng::u16 i = 1u; i < r.palette; ++i) {
+		const eng::graphics::SpritePaletteEvent key = s.palette[i];
+		eng::u16 j = i;
+		while (j > 0u && s.palette[j - 1u].line > key.line) {
+			s.palette[j] = s.palette[j - 1u];
+			--j;
+		}
+		s.palette[j] = key;
 	}
 	r.bobs = emitted;
 	r.ok = true;
