@@ -152,7 +152,7 @@ Orden por **dependencia y valor para juego**. Cada fase declara objetivo, contra
 | F2 trayectorias/formaciones/pool | **Hecha**: `scene/{trajectory,formation,entity_pool}.hpp` (HOST-430) + **generadores de ola en V** `gen_formation_v`/`gen_formation_v_sine` (F2.1, HOST-435, usados por la demo); demo **064_shmup_wave** (formación seno en espejo + pool de enemigos) validada con visión. |
 | F3 DMA encadenado + selector | **Hecha**: builder `graphics/sprite_chain.hpp` (HOST-434), armado por registro + `emit_placements_into(chains)`, selector y cadena persistente; demo **219** validada (A/B de copperlist 304→114 words, 50 fps). Detalle en `ROADMAP_SPRITES_COMPLETO.md` §3.2. |
 | F4 cierre de pendientes de sprites | Drivers/demos pendientes (lista viva en `ROADMAP_UNIFICADO.md`). **Hechos**: bending (driver + HOST-436 + demo 220) y palette splitting (arbitraje F7 + HOST-391 + demo 221). |
-| F5 márgenes FastCopy | **Parcial**: cálculo `fast_bob_margins` + HOST-437; cocina del asset y demo DPF pendientes. |
+| F5 márgenes FastCopy | **Parcial**: cálculo `fast_bob_margins` (HOST-437) + cocina `tools/assets/sprite-pad.ts`; demo DPF pendiente. |
 | F6 mecanismos de escenario | Propuesta (sólidos/puertas con diseño en `PIXEL_ART_2D_ISOMETRIC.md` §7). |
 | F7 paleta de sprites | **Hecha**: planificador (HOST-433) + integración (`ActorDesc::sprite_palette`, `compose_sprites`) + demo 221. Pendiente declarado: arbitraje con escena en 5+ planos/EHB. |
 | F8 secuenciador (timeline) | **Hecho**: `core/util/sequence.hpp` (HOST-431); demo **064_shmup_wave** dirigida por timeline (ráfagas) validada con visión. |

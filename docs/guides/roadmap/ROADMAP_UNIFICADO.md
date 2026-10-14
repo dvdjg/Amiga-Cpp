@@ -192,7 +192,10 @@ scratch** (el `detail≈9861` de la 275, ya documentado en su README) y sacarlo 
      (`consulta-jim-power-data-line-pacing-en.md`): coste real del `MOVE` con 4 planos + DMA de
      sprites (robo de bus), régimen de head-start (¿ir *detrás* del haz?), por qué la copperlist
      real usa `hpos` variable por línea ($1c/$20/$24); fallback: `POS+DATB+DATA` por columna
-     (Free Form, 213).
+     (Free Form, 213). **Hallazgo documentado** (`winuae/sprite-dma.md` §Ventana de fetch): el
+     fetch de sprites de una línea termina donde arranca el de bitplanes
+     (`custom.cpp:9888-9889`/`10108-10112`) y un MOVE cuesta ≈8 lores px (AHRM :500/:514) — el
+     ajuste fino del `hpos` por línea queda pendiente sobre esa base.
   2. **Refinamientos del allocator** (`sprite-multiplexer-bob-fallback.md` §9): **hechos**
      canal preferido (`SpriteIntent::channel`), prioridad de asignación (`assign_rank`),
      **grupos con trayectoria** (corrida contigua para el bounding box o entera a BOB),
@@ -235,9 +238,10 @@ HOST-431) y el planificador `graphics/sprite_palette.hpp` (F7, HOST-433). Demos
 `063_composite_actors` (personaje de tres partes con BOB + Sprite HW) y `064_shmup_wave`
 (formaciones con rutas seno, pool y ráfagas por timeline), validadas con captura y visión;
 `219_sprite_dma_chain` (F3: emisión DMA encadenada, A/B de copperlist 304→114 words),
-`220_sprite_bend` (F4.2: bending por línea, 764 words de copperlist) y
-`221_sprite_palette_split` (F7/F4.3: dos paletas por franja vía arbitraje), validada con
-captura y visión.
+`220_sprite_bend` (F4.2: bending por línea, 764 words de copperlist),
+`221_sprite_palette_split` (F7/F4.3: dos paletas por franja vía arbitraje) y
+`222_sprite_effects_stack` (bending + palette split apilados sobre los mismos sprites),
+validadas con captura y visión.
 En el contenido, `Visual` ya no lleva flags de hardware: el par *attached* se deriva del arte
 y `VisualKind` se ha retirado (la preferencia vive en `Representation`). Hallazgo abierto:
 alta dinámica de actores de sprite desde `update`

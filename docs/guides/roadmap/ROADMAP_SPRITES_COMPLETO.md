@@ -142,6 +142,8 @@ Resumen de veredictos: **cubierto** (existe y está verificado por test host y/o
 - **Afirmaciones de hardware con fuente**: F3/F4.1/F4.2/F4.4 citan `../WinUAE-DBG/` y AHRM; sin demo A/B que lo valide, la fase queda NO VERIFICADA (AGENTS §0, §1.12).
 - **Una sola lista de estado**: al cerrar cada fase se actualiza `ROADMAP_UNIFICADO.md` §«Sprites hardware — estado»; este documento aporta el detalle y no duplica tablas de estado (AGENTS §1.3).
 - **Numeración**: toda demo/tool nueva se numera con `node tools/check/next-number.mjs demos/techniques/amiga/sprites` (y `tests/host/…` según catálogo) antes de crearla (NUMBERING.md).
+- **Tipos de dominio, no punteros crudos** (`CODING_STYLE.md` §Seguridad de tipos): las paletas de sprites viajan como `eng::PaletteWords` (vista de **dominio paleta** con tamaño, indexada por registro) en `ActorDesc::sprite_palette`, `HwSpritePaletteSwitch::colors`, `SpritePaletteEvent::colors` y `SpritePaletteUse::colors`. Pasar un `const u16*`, un `Span` agnóstico o una vista de otro dominio **no compila**, y el planificador **valida** que la vista cubra `[first, first+count)` antes de arbitrar (una vista corta se ignora; nunca se lee fuera de rango).
+- **Efectos acumulables y aplicables a cualquier sprite**: bending (driver por canal), conmutación de paleta (`SpritePaletteEvent` por franja) y cadenas DMA (estrategia de emisión) son ortogonales y se componen en la misma copperlist — demo **222** (bending + palette split sobre los mismos canales; 221 lo hace sobre otro par). El contrato de cada efecto (DATA con terminador para el bend; vista de paleta de 32 entradas para el arbitraje) es independiente del canal asignado.
 
 ## 3. Fases abiertas: instrucciones de implementación
 
@@ -349,7 +351,7 @@ void emit_sprite_bend_into(Sched& sched, u8 channel, eng::ChipView<eng::SpriteTa
       → el BOB se declara con el ancla en (left, top): el juego sigue usando su x/y
 ```
 
-**Estado: parcial — cálculo hecho.** `graphics/fast_bob_margins.hpp` (`fast_bob_margins`: padding y tamaño de hoja desde el desplazamiento máximo por eje, doblado con doble buffer) + **HOST-437**. Pendientes: el pipeline de cocina del asset (herramienta host que genera la hoja con padding) y la demo DPF con BOBs rápidos.
+**Estado: parcial — cálculo y cocina hechos.** `graphics/fast_bob_margins.hpp` (`fast_bob_margins`: padding y tamaño de hoja desde el desplazamiento máximo por eje, doblado con doble buffer) + **HOST-437**, y herramienta host **`tools/assets/sprite-pad.ts`** (+ `test-sprite-pad.ts`; paridad de fórmula con el helper, hoja con padding transparente). Pendiente: la demo DPF con BOBs rápidos (`FastBobLayer`, HOST-355) y visión (sin rastros, sin huecos).
 
 **Ubicación:** el cálculo vive en el pipeline de cocina de sprites (host) con el helper del engine; el contrato del asset queda documentado (comentario en `Bob`/`FastBobLayer`). Ningún campo nuevo en `Visual`/`CompositePart` (frontera §2.4).
 

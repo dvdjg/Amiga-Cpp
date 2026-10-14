@@ -55,6 +55,39 @@ Dos condiciones evitan el fantasma:
 2. El `WAIT` del rearmado Copper cae **después del fetch DMA** (`DDFSTRT`) y antes de la primera
    columna: así la `DATA` que escribe el Copper no la pisa el fetch del DMA.
 
+## Ventana de fetch por línea y pacing del Copper (demo 215)
+
+El DMA de sprites de una línea **solo se programa mientras el haz no ha llegado al fetch de
+bitplanes**: en `generate_sprites` el fetch solo ocurre si `hp <= plfstrt_sprite`
+(`../WinUAE-DBG/custom.cpp:10108-10112`) y `plfstrt_sprite` se fija al **arranque del
+secuenciador de bitplanes** (BPRUN) de esa línea (`custom.cpp:9888-9889`; se limpia a
+`0x100` al terminar, `custom.cpp:9916/9930/9971`). Con 4 planos el fetch de bitplanes
+arranca pronto (`DDFSTRT=$38` en las demos), así que **la ventana útil para que una
+escritura de `SPRxDATA`/`DATB` afecte a la fila de esa misma línea es corta**: si el
+Copper escribe después de que el fetch de la línea haya pasado, la DATA nueva se usa en la
+**siguiente** línea. Es la raíz del pacing de la técnica Jim Power (demo 215): el Copper
+debe escribir cada columna **justo antes** de su ventana, y por eso la copperlist original
+usa `hpos` variable por línea.
+
+Coste del Copper (AHRM 3.ª, cap. 5, «Copper»; `docs/reference/ahrm/…cat.md:500` y `:514`):
+
+- el Copper es un procesador de **dos ciclos** que pide el bus **solo en los ciclos de
+  memoria impares** (los pares son de audio, disco, refresh, sprites y, en low-res, del
+  display);
+- **MOVE/SKIP**: 2 ciclos de memoria y 2 words → **4 tiempos de ciclo de memoria por
+  instrucción** ≈ **8 píxeles low-res por MOVE** (el «un word cada 8 píxeles» del hilo);
+- **WAIT**: 3 ciclos de memoria y 6 tiempos + 1 ciclo de despertar.
+
+Cota de fondo con 4 planos: la CPU puede compartir ciclos alternos si el display tiene
+**4 o menos** planos; con **más de 4**, el fetch de bitplanes empieza a robar ciclos a la
+CPU (AHRM `:5767`).
+
+**Implicación para el engine:** el driver de bending (F4.2) y el patrón Jim Power escriben
+en la **misma familia de ventana**; las medidas de la demo 220 (64 líneas, 764 words)
+caben porque solo hay un sprite por canal y el fetch de cada fila ocurre al principio de
+línea. Para reescribir DATA a media línea (215) hay que ajustar el `hpos` del `WAIT` por
+línea al hueco real (variable, como el original), no un `hpos` fijo.
+
 ## Validación
 
 - `demos/techniques/amiga/sprites/206_sprite_collision`: sprite en estructura con cabecera → la **colisión
