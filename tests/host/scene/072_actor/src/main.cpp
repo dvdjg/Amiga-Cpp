@@ -566,7 +566,7 @@ void test_sprite_template_projection() {
 	tpl.add_segment(HwSpriteSegment {0u, 8u, 0u});
 	tpl.add_segment(HwSpriteSegment {16u, 8u, 8u});
 	// Línea del switch RELATIVA a `base_y` (aquí cae en la 104 absoluta).
-	tpl.add_switch(HwSpritePaletteSwitch {4u, sw_colors, 16u, 2u});
+	tpl.add_switch(HwSpritePaletteSwitch {4u, eng::PaletteWords {sw_colors, 2u}, 16u});
 
 	SpriteIntent intents[4] {};
 	CopperIntent copper[4] {};
@@ -592,9 +592,9 @@ void test_sprite_template_projection() {
 	CHECK(copper[0].top == 109u && copper[0].sprite_channel == 3u, "rearme en la linea 109");
 	CHECK(copper[0].sprite_ptr == tpl_bitmap + 16u, "rearme apunta a la DATA de la franja");
 	CHECK(set.palette_count == 1u, "switch de paleta proyectado");
-	CHECK(pal[0].line == 104u && pal[0].first == 16u && pal[0].count == 2u,
+	CHECK(pal[0].line == 104u && pal[0].first == 16u && pal[0].colors.size() == 2u,
 	      "paleta 0-based en la 104, COLOR16..");
-	CHECK(pal[0].colors == sw_colors, "los colores del switch");
+	CHECK(pal[0].colors.data() == sw_colors, "los colores del switch");
 
 	// Cadena vertical: `chain_id` marca las franjas para que el allocator las sirva en el
 	// MISMO canal; con `copper == nullptr` las intenciones de Copper se omiten sin marcar
@@ -881,7 +881,7 @@ void test_compose_template_chain() {
 		HwSpriteSegment {0u, kH, 0u},
 		HwSpriteSegment {kSegStride, kH, kH},
 	};
-	HwSpritePaletteSwitch sws[1] = {HwSpritePaletteSwitch {2u, &sw_color, 17u, 1u}};
+	HwSpritePaletteSwitch sws[1] = {HwSpritePaletteSwitch {2u, eng::PaletteWords {&sw_color, 1u}, 17u}};
 	eng::graphics::HwSpriteTemplateView tpl {};
 	tpl.bitmap = eng::Span<const eng::u16> {sheet, 2u * kSegStride};
 	tpl.segments = eng::Span<const eng::graphics::HwSpriteSegment> {segs, 2u};
@@ -938,9 +938,9 @@ void test_compose_template_chain() {
 		      reinterpret_cast<const eng::u8*>(sheet + kSegStride),
 	      "franja 1: DATA del segmento 1");
 	CHECK(res.palette == 1u && pal[0].line == 122u && pal[0].first == 17u &&
-		      pal[0].count == 1u,
+		      pal[0].colors.size() == 1u,
 	      "paleta de la plantilla en la escala del sprite");
-	CHECK(pal[0].colors != nullptr && pal[0].colors[0] == 0x0f0u, "color del switch");
+	CHECK(!pal[0].colors.empty() && pal[0].colors[0] == 0x0f0u, "color del switch");
 
 	// Sin canal libre (ventana que reserva los 8 canales en el tramo): la cadena degrada
 	// UNA vez a BOB, no una por franja.

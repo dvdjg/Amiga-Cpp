@@ -170,7 +170,9 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 			}
 			pal_done.set(slot);
 			auto a = store.get(store.id_at(slot));
-			if (!a.valid() || a->desc.sprite_palette == nullptr ||
+			// La paleta viaja como vista de dominio con tamaño (`PaletteWords`); una vista
+			// que no cubra COLOR16..31 (32 entradas) se ignora (nunca se lee fuera de rango).
+			if (!a.valid() || a->desc.sprite_palette.size() < 32u ||
 			    !a->desc.sprite_template.empty()) {
 				continue; // sin declaración (o la plantilla ya arbitra su paleta)
 			}
@@ -208,10 +210,11 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 					if (r.palette < s.palette.size()) {
 						eng::graphics::SpritePaletteEvent& ev = s.palette[r.palette++];
 						ev.line = uses[k].need.top;
-						// 0-based: `colors[first+i]` -> `COLOR[first+i]`
-						ev.colors = uses[k].colors + uses[k].need.first;
+						// 0-based: `colors[first+i]` -> `COLOR[first+i]` (vista recortada
+						// a los registros que el actor usa en su canal).
+						ev.colors = uses[k].colors.subspan(uses[k].need.first,
+										  uses[k].need.count);
 						ev.first = uses[k].need.first;
-						ev.count = uses[k].need.count;
 					}
 				} else if (dec[k] == eng::graphics::SpritePaletteDecision::Degrade) {
 					for (eng::u16 j = 0; j < n; ++j) {
@@ -267,7 +270,7 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 			}
 			for (eng::usize k = 0; k < tpl.switches.size(); ++k) {
 				const eng::graphics::HwSpritePaletteSwitch& sw = tpl.switches[k];
-				if (sw.line >= span || sw.colors == nullptr || sw.count == 0u) {
+				if (sw.line >= span || sw.colors.empty()) {
 					continue; // fuera del tramo o switch vacío
 				}
 				if (r.palette >= s.palette.size()) {
@@ -277,7 +280,6 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 				ev.line = static_cast<eng::u16>(rect.top + sw.line);
 				ev.colors = sw.colors;
 				ev.first = sw.first;
-				ev.count = sw.count;
 			}
 		}
 		if (s.slots[i].as_bob) {

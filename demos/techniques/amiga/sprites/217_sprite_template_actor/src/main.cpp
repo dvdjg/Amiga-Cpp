@@ -182,7 +182,8 @@ private:
 				static_cast<eng::u16>(i * kSegHeight),
 			};
 			m_template.switches[i] = {
-				static_cast<eng::u16>(i * (kSegHeight + 1u)), &kHues[i], 17u, 1u};
+				static_cast<eng::u16>(i * (kSegHeight + 1u)),
+				eng::PaletteWords {&kHues[i], 1u}, 17u};
 		}
 		m_template.segment_count = kSegments;
 		m_template.switch_count = kSegments;

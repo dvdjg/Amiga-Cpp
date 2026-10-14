@@ -31,10 +31,10 @@ using eng::graphics::SpritePaletteDecision;
 using eng::graphics::SpritePaletteNeed;
 using eng::graphics::SpritePaletteUse;
 
-alignas(4) eng::u16 g_pal_a[4] = {0x111u, 0x222u, 0x333u, 0x444u};
-alignas(4) eng::u16 g_pal_b[4] = {0x555u, 0x666u, 0x777u, 0x888u};
+alignas(4) eng::u16 g_pal_a[32] = {0x111u, 0x222u, 0x333u, 0x444u};
+alignas(4) eng::u16 g_pal_b[32] = {0x555u, 0x666u, 0x777u, 0x888u};
 
-SpritePaletteUse use(u8 channel, u8 first, u8 count, u16 top, u16 bottom, const u16* colors,
+SpritePaletteUse use(u8 channel, u8 first, u8 count, u16 top, u16 bottom, eng::PaletteWords colors,
 		     u8 z) {
 	return SpritePaletteUse {channel, SpritePaletteNeed {first, count, top, bottom}, colors, z};
 }
@@ -47,8 +47,8 @@ int main() {
 	// A) Conflicto simultáneo: mismo par (17..19) en líneas solapadas con paletas distintas
 	//    -> degrada el de menor z.
 	{
-		const SpritePaletteUse uses[2] = {use(0u, 17u, 3u, 100u, 120u, g_pal_a, 10u),
-						  use(1u, 17u, 3u, 100u, 120u, g_pal_b, 20u)};
+		const SpritePaletteUse uses[2] = {use(0u, 17u, 3u, 100u, 120u, eng::PaletteWords {g_pal_a, 32u}, 10u),
+						  use(1u, 17u, 3u, 100u, 120u, eng::PaletteWords {g_pal_b, 32u}, 20u)};
 		SpritePaletteDecision out[2] = {};
 		eng::graphics::CopperIntent copper[2] = {};
 		const eng::u16 n = plan_sprite_palettes(
@@ -62,8 +62,8 @@ int main() {
 
 	// B) Registros disjuntos (pares distintos) -> los dos OK.
 	{
-		const SpritePaletteUse uses[2] = {use(0u, 16u, 4u, 100u, 120u, g_pal_a, 10u),
-						  use(2u, 20u, 4u, 100u, 120u, g_pal_b, 20u)};
+		const SpritePaletteUse uses[2] = {use(0u, 16u, 4u, 100u, 120u, eng::PaletteWords {g_pal_a, 32u}, 10u),
+						  use(2u, 20u, 4u, 100u, 120u, eng::PaletteWords {g_pal_b, 32u}, 20u)};
 		SpritePaletteDecision out[2] = {};
 		const eng::u16 n = plan_sprite_palettes(
 			eng::Span<const SpritePaletteUse> {uses, 2u},
@@ -76,8 +76,8 @@ int main() {
 	// C) Reuso vertical: mismo canal/registros en franjas disjuntas y paletas distintas
 	//    -> conmutación por Copper en la línea de entrada del segundo.
 	{
-		const SpritePaletteUse uses[2] = {use(3u, 17u, 3u, 60u, 80u, g_pal_a, 10u),
-						  use(3u, 17u, 3u, 100u, 120u, g_pal_b, 10u)};
+		const SpritePaletteUse uses[2] = {use(3u, 17u, 3u, 60u, 80u, eng::PaletteWords {g_pal_a, 32u}, 10u),
+						  use(3u, 17u, 3u, 100u, 120u, eng::PaletteWords {g_pal_b, 32u}, 10u)};
 		SpritePaletteDecision out[2] = {};
 		eng::graphics::CopperIntent copper[2] = {};
 		const eng::u16 n = plan_sprite_palettes(
@@ -95,8 +95,8 @@ int main() {
 
 	// D) Misma paleta (mismo puntero) en franjas disjuntas -> sin conmutación.
 	{
-		const SpritePaletteUse uses[2] = {use(3u, 17u, 3u, 60u, 80u, g_pal_a, 10u),
-						  use(3u, 17u, 3u, 100u, 120u, g_pal_a, 10u)};
+		const SpritePaletteUse uses[2] = {use(3u, 17u, 3u, 60u, 80u, eng::PaletteWords {g_pal_a, 32u}, 10u),
+						  use(3u, 17u, 3u, 100u, 120u, eng::PaletteWords {g_pal_a, 32u}, 10u)};
 		SpritePaletteDecision out[2] = {};
 		const eng::u16 n = plan_sprite_palettes(
 			eng::Span<const SpritePaletteUse> {uses, 2u},
@@ -106,7 +106,7 @@ int main() {
 
 	// E) Sin requisito de paleta (count 0) -> Ok y sin tocar nada.
 	{
-		const SpritePaletteUse uses[1] = {use(0u, 0u, 0u, 0u, 0u, nullptr, 0u)};
+		const SpritePaletteUse uses[1] = {use(0u, 0u, 0u, 0u, 0u, eng::PaletteWords {}, 0u)};
 		SpritePaletteDecision out[1] = {SpritePaletteDecision::Degrade};
 		const eng::u16 n = plan_sprite_palettes(
 			eng::Span<const SpritePaletteUse> {uses, 1u},
@@ -117,8 +117,8 @@ int main() {
 	// F) Empate de z -> degrada el índice mayor; sin buffer de Copper la decisión se
 	//    mantiene pero no se emite la intención.
 	{
-		const SpritePaletteUse uses[2] = {use(0u, 17u, 3u, 100u, 120u, g_pal_a, 5u),
-						  use(1u, 17u, 3u, 100u, 120u, g_pal_b, 5u)};
+		const SpritePaletteUse uses[2] = {use(0u, 17u, 3u, 100u, 120u, eng::PaletteWords {g_pal_a, 32u}, 5u),
+						  use(1u, 17u, 3u, 100u, 120u, eng::PaletteWords {g_pal_b, 32u}, 5u)};
 		SpritePaletteDecision out[2] = {};
 		const eng::u16 n = plan_sprite_palettes(
 			eng::Span<const SpritePaletteUse> {uses, 2u},
@@ -127,14 +127,30 @@ int main() {
 			      out[1] == SpritePaletteDecision::Degrade,
 		      "empate de z: degrada el indice mayor");
 
-		const SpritePaletteUse vert[2] = {use(3u, 17u, 3u, 60u, 80u, g_pal_a, 1u),
-						  use(3u, 17u, 3u, 100u, 120u, g_pal_b, 1u)};
+		const SpritePaletteUse vert[2] = {use(3u, 17u, 3u, 60u, 80u, eng::PaletteWords {g_pal_a, 32u}, 1u),
+						  use(3u, 17u, 3u, 100u, 120u, eng::PaletteWords {g_pal_b, 32u}, 1u)};
 		SpritePaletteDecision out2[2] = {};
 		const eng::u16 n2 = plan_sprite_palettes(
 			eng::Span<const SpritePaletteUse> {vert, 2u},
 			eng::Span<SpritePaletteDecision> {out2, 2u}, {});
 		check(n2 == 0u && out2[1] == SpritePaletteDecision::CopperSwitch,
 		      "sin buffer: decision CopperSwitch sin emision");
+	}
+
+	// G) Vista corta: una paleta que no cubre sus registros se ignora (nunca se lee fuera
+	//    de rango): no degrada ni conmuta a nadie.
+	{
+		alignas(4) eng::u16 short_pal[16] = {0xaaau};
+		const SpritePaletteUse uses[2] = {
+			use(0u, 17u, 3u, 100u, 120u, eng::PaletteWords {short_pal, 16u}, 10u),
+			use(1u, 17u, 3u, 100u, 120u, eng::PaletteWords {g_pal_b, 32u}, 20u)};
+		SpritePaletteDecision out[2] = {};
+		const eng::u16 n = plan_sprite_palettes(
+			eng::Span<const SpritePaletteUse> {uses, 2u},
+			eng::Span<SpritePaletteDecision> {out, 2u}, {});
+		check(n == 0u && out[0] == SpritePaletteDecision::Ok &&
+			      out[1] == SpritePaletteDecision::Ok,
+		      "vista corta: se ignora (sin leer fuera de rango)");
 	}
 
 	if (g_fail != 0) {

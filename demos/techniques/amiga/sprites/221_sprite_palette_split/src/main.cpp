@@ -140,7 +140,9 @@ struct PaletteSplitDemo {
 			d.x = static_cast<eng::s16>(kX);
 			d.y = static_cast<eng::s16>(kY0[i]);
 			d.preferred_channel = 0u; // un solo canal: franjas disjuntas (reuso vertical)
-			d.sprite_palette = (i == 0u) ? kPalette.color : g_palette_b;
+			// Paleta como vista de dominio con tamaño (indexada por registro).
+			d.sprite_palette = (i == 0u) ? eng::PaletteWords {kPalette.color, 32u}
+						     : eng::PaletteWords {g_palette_b, 32u};
 			m_ids[i] = m_scene.add(d);
 			if (!m_ids[i].valid()) {
 				eng::debug::mark_failed(g_eng_run_status, 0x00022103u);

@@ -207,7 +207,7 @@ public:
             for (u8 s = 0; s < tpl.switch_count; ++s) {
                 const HwSpritePaletteSwitch& sw = tpl.switches[s];
                 if (sw.line < line || sw.line >= seg_end) continue;
-                for (u8 c = 0; c < sw.count; ++c) {
+                for (eng::usize c = 0; c < sw.colors.size(); ++c) {
                     sched.move(
                         static_cast<copper::Register>(0x180 + (sw.first + c) * 2u),
                         sw.colors[c]
@@ -398,11 +398,11 @@ public:
                 pull_rearm();
             } else {
                 const SpritePaletteEvent& ev = extra.data()[ei];
-                if (ev.line > arm_line && ev.colors != nullptr) {
+                if (ev.line > arm_line && !ev.colors.empty()) {
                     sched.wait_line_safe(ev.line);
                     // Switch 0-based: `colors[k]` -> COLOR[first+k] (como
                     // `SpriteManager::emit_template_into`).
-                    for (u8 k = 0; k < ev.count; ++k) {
+                    for (eng::usize k = 0; k < ev.colors.size(); ++k) {
                         sched.move(static_cast<copper::Register>(
                                            0x180u + (ev.first + k) * 2u),
                                    ev.colors[k]);

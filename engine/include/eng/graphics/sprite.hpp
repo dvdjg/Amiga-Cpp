@@ -43,13 +43,15 @@ struct HwSpriteSegment {
 
 /// Cambio de paleta asociado a una franja (color multiplexing por scanline).
 ///
-/// En `line` el Copper programa `COLORxx` (`first/count` de `colors`) para la franja.
-/// Es el equivalente portable del "sprite absorbe el color de fondo" de la demoscene.
+/// En `line` el Copper programa `COLORxx` para la franja: `colors[k]` → `COLOR[first+k]`
+/// (**0-based**). Los valores viajan como `eng::PaletteWords` — vista de palabras de
+/// **dominio paleta** con **tamaño**: pasar un puntero crudo, un `Span` agnóstico o una
+/// vista de otro dominio no compila (regla de seguridad de tipos sobre punteros crudos,
+/// `CODING_STYLE.md`; el número de colores es `colors.size()`).
 struct HwSpritePaletteSwitch {
     u16 line = 0;                  // linea raster de disparo
-    const u16* colors = nullptr;   // los valores COLORxx a programar
+    eng::PaletteWords colors {};   // los valores COLORxx a programar (0-based)
     u8  first = 0;                 // primer registro COLORxx
-    u8  count = 0;                 // cuantos
 };
 
 /// **Vista de una `HwSpriteTemplate` sin capacidad fija** (camino de actores): un
@@ -135,12 +137,12 @@ struct HwSpritePlacement {
 /// `HwSpritePaletteSwitch::colors`) y `line` va en la escala del llamador (absoluta para el
 /// camino de actores). No se usa `CopperIntent::PaletteLine` para esto porque su contrato
 /// indexa los colores de forma **absoluta** (`colors[first+i]`, ver `Scheduler::emit_palette`),
-/// incompatible con el switch 0-based de la plantilla.
+/// incompatible con el switch 0-based de la plantilla. El número de colores es
+/// `colors.size()` (vista de dominio, sin puntero crudo).
 struct SpritePaletteEvent {
-    u16 line = 0;              ///< línea (escala del llamador)
-    const u16* colors = nullptr; ///< valores a programar (0-based)
-    u8 first = 0;              ///< primer registro COLORxx
-    u8 count = 0;              ///< cuántos
+    u16 line = 0;                ///< línea (escala del llamador)
+    eng::PaletteWords colors {}; ///< valores a programar (0-based)
+    u8 first = 0;                ///< primer registro COLORxx
 };
 
 /// Salida de proyectar una `HwSpriteTemplate` al vocabulario de intenciones.
@@ -236,6 +238,9 @@ inline void sprite_template_view_to_intents(const HwSpriteTemplateView& tpl, u8 
         if (sw.line >= static_cast<u16>(end_line - base_y)) {
             continue; // fuera del tramo del sprite: no se proyecta
         }
+        if (sw.colors.empty()) {
+            continue; // switch sin colores
+        }
         if (out.palette == nullptr) {
             continue; // el llamador no recoge la paleta (la emite el compositor)
         }
@@ -244,7 +249,6 @@ inline void sprite_template_view_to_intents(const HwSpriteTemplateView& tpl, u8 
             ev.line = static_cast<u16>(base_y + sw.line);
             ev.colors = sw.colors;
             ev.first = sw.first;
-            ev.count = sw.count;
         } else {
             out.overflow = true;
         }

@@ -289,7 +289,7 @@ void test_placements_multiplex() {
 	// hacia atrás) y el MOVE de COLOR17 va antes del rearme de la franja 140.
 	eng::copper::Scheduler sched2 = make_scheduler(mem, 256u);
 	u16 color = 0x0f00u;
-	eng::graphics::SpritePaletteEvent ev {130u, &color, 17u, 1u};
+	eng::graphics::SpritePaletteEvent ev {130u, eng::PaletteWords {&color, 1u}, 17u};
 	eng::graphics::SpriteManager::emit_placements_into(
 		sched2, eng::Span<const eng::graphics::HwSpritePlacement> {ps, 4u}, 32u,
 		eng::Span<const eng::graphics::SpritePaletteEvent> {&ev, 1u});

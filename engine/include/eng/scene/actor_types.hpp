@@ -171,16 +171,20 @@ struct ActorDesc {
 	/// por este camino (rechazo controlado). Ver `sprite_template_to_intents` y
 	/// `docs/engine/architecture/OBJECT_SYSTEM.md` §2.
 	eng::graphics::HwSpriteTemplateView sprite_template {};
-	/// **Paleta de sprite** (opcional, F7): puntero de **identidad** a un array de colores
-	/// **indexado por registro `COLORxx`** (p. ej. un `eng::Palette32`; `colors[first+i]` es
-	/// el valor de `COLOR[first+i]`). `nullptr` = no declara paleta y no participa en el
-	/// arbitraje. El compositor deriva los registros del canal asignado (par
-	/// `16 + 4·(canal/2)`; *attached*, `17..31`) y `plan_sprite_palettes` decide:
-	/// **conmutación por Copper** al entrar en su franja (reuso vertical del canal) o
-	/// **degradación a BOB** si compite con otro sprite de paleta distinta en la misma
-	/// franja y registros (`sprite_palette.hpp`; `sprite-layer.md` §3-§4). No aplica al
-	/// camino de `sprite_template` (sus switches declaran la paleta por franja).
-	const eng::u16* sprite_palette = nullptr;
+	/// **Paleta de sprite** (opcional, F7): `eng::PaletteWords` — vista de **dominio
+	/// paleta** con tamaño, **indexada por registro `COLORxx`** (`colors[first+i]` es el
+	/// valor de `COLOR[first+i]`). Vacía = no declara paleta y no participa en el arbitraje.
+	/// Debe cubrir `COLOR16..31` (32 entradas: un `Palette32` o una tabla de 32 palabras);
+	/// una vista más corta se **ignora** en la composición (nunca se lee fuera de rango).
+	/// El tipo evita el puntero crudo: pasar un `const u16*`, un `Span` agnóstico o una
+	/// vista de otro dominio **no compila** (`CODING_STYLE.md` §Seguridad de tipos).
+	/// El compositor deriva los registros del canal asignado (par `16 + 4·(canal/2)`;
+	/// *attached*, `17..31`) y `plan_sprite_palettes` decide: **conmutación por Copper** al
+	/// entrar en su franja (reuso vertical del canal) o **degradación a BOB** si compite con
+	/// otro sprite de paleta distinta en la misma franja y registros (`sprite_palette.hpp`;
+	/// `sprite-layer.md` §3-§4). No aplica al camino de `sprite_template` (sus switches
+	/// declaran la paleta por franja).
+	eng::PaletteWords sprite_palette {};
 	eng::Ref<const Animation> animation {}; ///< opcional; sin ella el frame es el Visual
 	eng::s16 x = 0;                       ///< posición de mundo del ANCLA
 	eng::s16 y = 0;

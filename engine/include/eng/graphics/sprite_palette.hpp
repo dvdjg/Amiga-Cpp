@@ -42,11 +42,16 @@ struct SpritePaletteNeed {
 };
 
 /// Necesidad de paleta **de un sprite ya colocado**: canal, registros/franja, paleta
-/// (puntero de identidad) y prioridad `z` (mayor = delante).
+/// (vista de dominio con tamaño) y prioridad `z` (mayor = delante).
+///
+/// `colors` es una `eng::PaletteWords` **indexada por registro** (`colors[first+i]` es
+/// `COLOR[first+i]`): el tipo evita punteros crudos y el planificador **valida** que la
+/// vista cubra `[first, first+count)` antes de arbitrar (una vista corta se ignora, no se
+/// lee fuera de rango). La identidad de paleta es `colors.data()`.
 struct SpritePaletteUse {
 	u8 channel = 0;
 	SpritePaletteNeed need {};
-	const u16* colors = nullptr;  ///< palabras COLOR de su paleta (identidad por puntero)
+	eng::PaletteWords colors {}; ///< palabras COLOR de su paleta (identidad por vista)
 	u8 z = 0;
 };
 
@@ -96,8 +101,9 @@ inline u16 plan_sprite_palettes(Span<const SpritePaletteUse> uses,
 		if (i < out.size()) {
 			out[i] = SpritePaletteDecision::Ok;
 		}
-		if (ui.need.count == 0u || ui.colors == nullptr) {
-			continue;
+		if (ui.need.count == 0u || ui.colors.empty() ||
+		    ui.colors.size() < static_cast<usize>(ui.need.first) + ui.need.count) {
+			continue; // sin declaración (o vista corta: no cubre sus registros)
 		}
 		// 1) Conflicto simultáneo (líneas y registros solapados con paleta distinta).
 		bool degrade = false;
@@ -106,8 +112,9 @@ inline u16 plan_sprite_palettes(Span<const SpritePaletteUse> uses,
 				continue;
 			}
 			const SpritePaletteUse& uj = uses[j];
-			if (uj.need.count == 0u || uj.colors == nullptr ||
-			    uj.colors == ui.colors) {
+			if (uj.need.count == 0u || uj.colors.empty() ||
+			    uj.colors.size() < static_cast<usize>(uj.need.first) + uj.need.count ||
+			    uj.colors.data() == ui.colors.data()) {
 				continue;
 			}
 			if (lines_overlap(ui.need, uj.need) && regs_overlap(ui.need, uj.need) &&
@@ -130,8 +137,9 @@ inline u16 plan_sprite_palettes(Span<const SpritePaletteUse> uses,
 				continue;
 			}
 			const SpritePaletteUse& uj = uses[j];
-			if (uj.need.count == 0u || uj.colors == nullptr ||
-			    uj.colors == ui.colors) {
+			if (uj.need.count == 0u || uj.colors.empty() ||
+			    uj.colors.size() < static_cast<usize>(uj.need.first) + uj.need.count ||
+			    uj.colors.data() == ui.colors.data()) {
 				continue;
 			}
 			if (uj.need.bottom <= ui.need.top && regs_overlap(ui.need, uj.need)) {
@@ -151,7 +159,7 @@ inline u16 plan_sprite_palettes(Span<const SpritePaletteUse> uses,
 			c.kind = CopperIntentKind::PaletteLine;
 			c.top = ui.need.top;
 			c.bottom = ui.need.top;
-			c.colors = PaletteWords {ui.colors, ui.need.count};
+			c.colors = ui.colors; // indexada por registro (contrato de PaletteLine)
 			c.first = ui.need.first;
 			c.count = ui.need.count;
 		}

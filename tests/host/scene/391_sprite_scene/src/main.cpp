@@ -188,10 +188,10 @@ int main() {
 	pal_scene.set_budget(eng::scene::RepresentationBudget {8u, 60000u, 0u});
 	eng::scene::ActorDesc pa = d;
 	pa.preferred_channel = 0u;
-	pa.sprite_palette = pal_a;
+	pa.sprite_palette = eng::PaletteWords {pal_a, 32u};
 	pa.y = 60;
 	eng::scene::ActorDesc pb = pa;
-	pb.sprite_palette = pal_b;
+	pb.sprite_palette = eng::PaletteWords {pal_b, 32u};
 	pb.y = 140;
 	check(pal_scene.add(pa).valid() && pal_scene.add(pb).valid(), "add paletas A/B");
 	eng::graphics::FramePlan plan_pal {};
@@ -201,8 +201,10 @@ int main() {
 	const auto pev = pal_scene.palette_events();
 	// La `y` del actor es la línea raster del sprite: la conmutación va en su `top`.
 	check(pev.size() == 1u && pev[0].line == 140u, "conmutacion en la linea del segundo (y=140)");
-	check(pev.size() == 1u && pev[0].first == 16u && pev[0].count == 4u, "registros del par 0");
-	check(pev.size() == 1u && pev[0].colors == pal_b + 16u, "colores de B indexados por registro");
+	check(pev.size() == 1u && pev[0].first == 16u && pev[0].colors.size() == 4u,
+	      "registros del par 0");
+	check(pev.size() == 1u && pev[0].colors.data() == pal_b + 16u && pev[0].colors.size() == 4u,
+	      "colores de B indexados por registro");
 
 	// Conflicto simultáneo: C (canal 1, misma franja que B, paleta distinta y menor `z`)
 	// degrada a BOB; B solo conmuta (A queda en otra franja).
@@ -213,7 +215,7 @@ int main() {
 	pal_scene2.set_budget(eng::scene::RepresentationBudget {8u, 60000u, 0u});
 	eng::scene::ActorDesc pc = pa;
 	pc.visual = vm;
-	pc.sprite_palette = pal_c;
+	pc.sprite_palette = eng::PaletteWords {pal_c, 32u};
 	pc.preferred_channel = 1u;
 	pc.y = 140;
 	pc.z = 10; // se emite antes (menor z) → pierde el conflicto
