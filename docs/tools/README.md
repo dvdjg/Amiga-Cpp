@@ -25,6 +25,7 @@ Reglas principales (ver también `docs/STRUCTURE.md` §6):
 | Verificación visual | `tools/vision-review/README.md`, `docs/testing/VISION_REVIEW_ROADMAP.md` | `tools/vision-review/*` |
 | Pipeline de tiles/sprites | `tools/amiga-tiles/README.md`, `docs/demos/tile-pipeline/` | `tools/amiga-tiles/*`, `tools/ehb/*`, `tools/demo202/*` |
 | Assets (UAF-R) | `docs/tools/UAF_PACK.md` | `tools/assets/uaf-pack.ts` |
+| Márgenes del FastCopy (F5) | `docs/reference/amiga/techniques/dual-playfield-fastbobs.md`, `docs/guides/roadmap/ROADMAP_SPRITES_COMPLETO.md` §3.4 | `tools/assets/sprite-pad.ts` (+ `test-sprite-pad.ts`; paridad con `fast_bob_margins`/HOST-437) |
 | Manifiesto de assets | `docs/tools/ASSET_MANIFEST.md` | `tools/assets/gen-manifest.mjs`, `tools/check/asset-manifests.mjs` |
 | Audio (muestras del mixer) | `tools/audio/README.md` | `tools/audio/*.ts` |
 | FrameScope | `docs/testing/FRAMESCOPE_ROADMAP.md` | `tools/framescope/*` |
