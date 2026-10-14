@@ -1,0 +1,1 @@
+| HOST-440 | [version_label](440_version_label/README.md) | **Versionado de demos** (norma 2026-10): eng/debug/version.hpp — Version{major,minor,build} y ersion_label() (formato M.m.B sin stdlib, build desde -DENG_BUILD_NUMBER con contador en out/.build-number, capacidad corta sin desbordar). |
