@@ -8,6 +8,7 @@
 #include <eng/core/types/ptr.hpp>
 #include <eng/field/field_display.hpp>
 #include <eng/field/xlimited_playfield.hpp>
+#include <eng/graphics/composition/limits.hpp>
 
 namespace eng::playfield {
 
@@ -204,7 +205,10 @@ private:
         h.dmacon = static_cast<u16>(copper::DmaSetClear | copper::DmaMaster |
                                     copper::DmaCopper | copper::DmaBitplane |
                                     (m_cfg.sprites.valid() ? m_cfg.sprites->dma_bits() : 0));
-        h.bplcon0 = static_cast<u16>(0x0200u | (static_cast<u16>(view.planes) << 12u));
+        // BPLCON0 por el constructor único (`bplcon0_for`): BPU = planos del view. El EHB de
+        // 6 planos se activa por `BPLCON4` (AGA) más abajo, no por BPLCON0 (sin bit propio).
+        h.bplcon0 = graphics::composition::bplcon0_for(graphics::composition::SceneMode::Standard,
+                                                       view.planes);
         h.bplcon1 = view.bplcon1;
         h.bplcon2 = 0x0000u;
         // EHB (HalfBrite): con 6 planos en modo SINGLE, el bit 0 de BPLCON4 activa
@@ -484,7 +488,9 @@ private:
     bool emit_full(const PlayfieldHardwareView& pf1, const PlayfieldHardwareView& pf2) {
         copper::SchedulerT<false> sched { m_copper.inactive_block() };
         const u8 total = static_cast<u8>(m_cfg.planes_per_field * 2u);
-        const u16 bplcon0 = static_cast<u16>(0x0200u | (static_cast<u16>(total) << 12u) | 0x0400u);
+        // Constructor único de BPLCON0: modo doble playfield (bit DBLPF + COLOR + BPU).
+        const u16 bplcon0 = graphics::composition::bplcon0_for(
+            graphics::composition::SceneMode::DualPlayfield, total);
         // BPLCON1: nibble bajo = fine de PF1, alto = fine de PF2.
         const u16 bplcon1 = static_cast<u16>(
             ((pf2.bplcon1 & 0x0f) << 4) | (pf1.bplcon1 & 0x0f));

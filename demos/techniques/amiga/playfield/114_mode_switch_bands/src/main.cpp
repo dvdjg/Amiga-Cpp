@@ -99,7 +99,8 @@ struct DemoGame {
 		for (const Band& b : bands) {
 			eng::graphics::ModeSwitchZone z {};
 			z.top = static_cast<eng::u16>(diwstrt_y + b.start_line);
-			z.bplcon0 = static_cast<eng::u16>(0x0200u | (static_cast<eng::u16>(b.planes) << 12u));
+			z.bplcon0 = eng::graphics::composition::bplcon0_for(
+				eng::graphics::composition::SceneMode::Standard, b.planes);
 			z.set_bplcon1 = true; z.bplcon1 = 0u;
 			z.ddfstrt = ddfstrt; z.ddfstop = ddfstop;
 			// Layout SEPARADO (como `emit_planes_display`): cada plano es un bitmap

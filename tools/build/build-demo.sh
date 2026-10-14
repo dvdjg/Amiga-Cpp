@@ -249,6 +249,10 @@ if [ "$O0_BUILD" -eq 1 ]; then
 fi
 COMMON=(
 	"-g" "-MP" "-MMD" "-m68000" "$OPT" "-nostdlib" "-Wextra"
+	# **Coherencia de setup, capa 1** (`COHERENCIA_DE_SETUP.md`): un `[[nodiscard]]` cuyo
+	# resultado se ignora (install de servicio, takeover, plan de blits…) es **error de
+	# compilación**, no aviso. El escape explícito es `(void)` con comentario.
+	"-Werror=unused-result"
 	"-Wno-unused-function" "-Wno-volatile-register-var"
 	# `-fno-strict-aliasing`: el engine hace *type-punning* por diseño (registros custom
 	# `volatile u16*` accedidos como `u32`, `Block`/bancos que reinterpretan buffers tipados,

@@ -111,6 +111,7 @@ engine/
 │   ├── cards/            → motores de naipes (póker): baraja, reglas, equity, IA y simulación (eng::cards)
 │   ├── parallel/         → concurrencia abstracta (eng::parallel): hilos/mutex/atomicos no-op en m68k, std en host
 │   ├── debug/            → telemetría, run_status, periférico de depuración
+│   ├── setup/            → coherencia de configuración en setup (regiones, BPLCON0, orden de WAITs; `COHERENCIA_DE_SETUP.md`)
 │   └── platform/         → ANILLO 1: vocabulario de chipset por familia de máquina
 │       ├── backend.hpp   →   contrato de backend (lo que consume el Engine)
 │       └── amiga/        →   Amiga: backend.hpp, paula.hpp, input_poll.hpp, blob.hpp,

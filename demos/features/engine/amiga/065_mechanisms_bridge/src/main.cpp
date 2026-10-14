@@ -26,6 +26,10 @@
 // de cada objeto es su **paso máximo por tick**.
 
 #include <eng/api/api.hpp>
+#include <eng/core/data/utf8.hpp>
+#include <eng/debug/peripheral.hpp>
+#include <eng/debug/version.hpp>
+#include <eng/graphics/font5x7.hpp>
 #include <eng/graphics/sprite_manager.hpp>
 #include <eng/os/os.hpp>
 #include <eng/platform/amiga/backend.hpp>
@@ -178,12 +182,20 @@ struct MechanismsDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00006503u);
 			return;
 		}
+		draw_version_strip(0u);
 		backend.takeover_display(m_copper_ptr);
 		eng::debug::mark_ready(g_eng_run_status, 0x00006500u);
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
+		if (g_eng_run_status.state == static_cast<eng::u16>(eng::debug::RunState::Failed)) {
+			return;
+		}
+		const eng::u16 frame = context.frame.frame_index;
+		eng::debug::mark_frame(g_eng_run_status, frame);
+		const eng::u32 t0 = eng::debug::DebugPeripheral::cycle_counter();
+		m_period_kcycles = (t0 - m_last_cycle) / 1000u;
+		m_last_cycle = t0;
 
 		// --- Mecánica por tick -------------------------------------------------------
 		// Puente: simular siempre (12 puntos, coste mínimo); el jugador y las bolas lo
@@ -270,21 +282,27 @@ struct MechanismsDemo {
 		}
 
 		// --- Emisión -----------------------------------------------------------------
-		eng::copper::SchedulerT<false> sched { m_copper_block };
-		build_display(sched);
+		// La copperlist es **estática** (display + paleta + bandas): se emitió UNA vez en
+		// `init` (`build_copper` + `takeover_display`). Aquí solo se ejecuta el plan de
+		// blits del frame (**async**: la cadena avanza por IRQ mientras la CPU repinta la
+		// franja o espera el VBlank) y, cada 32 frames, la telemetría de la franja.
+		backend.frame_plan_async_wait(); // el plan del frame anterior ya no se toca
 		m_frame_plan.clear();
 		emit_bobs();
-		// Los BOB del plan se ejecutan por Blitter ANTES de publicar la copperlist del
-		// frame (patrón de la 064).
-		(void)backend.execute_frame_plan(m_frame_plan);
-		sched.wait_line(0xf8);
-		sched.end();
-		if (sched.ok()) {
-			m_copper_ptr = sched.data();
-			backend.install_copper_list(m_copper_ptr);
+		if (!backend.execute_frame_plan_async(m_frame_plan)) {
+			(void)backend.execute_frame_plan(m_frame_plan);
+		}
+		g_eng_run_status.detail = m_frame_plan.ok() ? m_frame_plan.blit_job_count() : 0x6510u;
+		m_update_kcycles = (eng::debug::DebugPeripheral::cycle_counter() - t0) / 1000u;
+		if ((frame & 31u) == 0u) {
+			draw_version_strip(frame);
+		}
+		{
 			auto& tel = g_eng_frame_telemetry;
-			tel.frame = context.frame.frame_index;
-			tel.copper_words = sched.words_used();
+			tel.frame = frame;
+			tel.blit_jobs = m_frame_plan.ok()
+						? static_cast<eng::u16>(m_frame_plan.blit_job_count())
+						: 0u;
 		}
 	}
 
@@ -302,7 +320,10 @@ private:
 	[[nodiscard]] static constexpr eng::u16 padded_words(eng::u16 w, eng::u16 h, eng::u16 pad) {
 		const eng::u16 pw = static_cast<eng::u16>(w + 2u * pad);
 		const eng::u16 ph = static_cast<eng::u16>(h + 2u * pad);
-		return static_cast<eng::u16>((((pw + 15u) / 16u) + 1u) * 4u * ph);
+		// **2 planos**: los valores de contenido (1 y 3) solo usan los bits 0-1. Declarar 4
+		// planos cuadruplicaba los blits por dibujo en un target planar (84 blits/frame en
+		// sync: la demo no pasaba de 17.6 fps).
+		return static_cast<eng::u16>((((pw + 15u) / 16u) + 1u) * 2u * ph);
 	}
 
 	/// Escribe una hoja planar con **padding transparente** (contenido centrado, valor en
@@ -334,7 +355,7 @@ private:
 		v.pixels = eng::Span<const eng::u16> {sheets + word_off, words};
 		v.w = pw;
 		v.h = ph;
-		v.bitplanes = 4u;
+		v.bitplanes = 2u;
 		v.frame_count = 1u;
 		eng::graphics::Bob b = eng::scene::bob_from_visual(
 			v, eng::graphics::BobLayout::Planar, eng::scene::TransparencyMode::ColorKey0);
@@ -433,6 +454,100 @@ private:
 		return m_copper_ok;
 	}
 
+	// ── Franja de versión/telemetría (norma del repo: 16 px de alto, 4 bpp, abajo) ──
+	/// Rellena la franja y=240..255 con `value` (planos 0-3) escribiendo las palabras.
+	void strip_fill(eng::u8 value) {
+		eng::u16* const planes = m_bitplane_block.view.as_words().data();
+		const eng::u16 wpr = static_cast<eng::u16>(kBytesPerRow / 2u);
+		for (eng::u8 p = 0u; p < kPlanes; ++p) {
+			const eng::u16 word = (value & (1u << p)) != 0u ? 0xffffu : 0x0000u;
+			for (eng::s16 y = 240; y < 256; ++y) {
+				eng::u16* const row = planes +
+						     static_cast<eng::u32>(p) * (kPlaneBytes / 2u) +
+						     static_cast<eng::u32>(y) * wpr;
+				for (eng::u16 i = 0u; i < wpr; ++i) {
+					row[i] = word;
+				}
+			}
+		}
+	}
+
+	/// Escribe `value` en el píxel (x, y) de la franja (planos 0-3).
+	void strip_set(eng::s16 x, eng::s16 y, eng::u8 value) {
+		if (x < 0 || x >= 320 || y < 240 || y >= 256) {
+			return;
+		}
+		eng::u16* const planes = m_bitplane_block.view.as_words().data();
+		const eng::u16 wpr = static_cast<eng::u16>(kBytesPerRow / 2u);
+		for (eng::u8 p = 0u; p < kPlanes; ++p) {
+			eng::u16* const row = planes + static_cast<eng::u32>(p) * (kPlaneBytes / 2u) +
+					      static_cast<eng::u32>(y) * wpr;
+			const eng::u16 bit = static_cast<eng::u16>(0x8000u >> (x & 15));
+			if ((value & (1u << p)) != 0u) {
+				row[x / 16] = static_cast<eng::u16>(row[x / 16] | bit);
+			} else {
+				row[x / 16] = static_cast<eng::u16>(row[x / 16] & ~bit);
+			}
+		}
+	}
+
+	/// Texto con la fuente 5x7 del engine dentro de la franja (avance 5 px).
+	void strip_text(eng::s16 x, eng::s16 y, const char* text, eng::u8 color) {
+		const eng::u8* p = reinterpret_cast<const eng::u8*>(text);
+		for (;;) {
+			const eng::u32 cp = eng::utf8::decode(p);
+			if (cp == 0u) {
+				break;
+			}
+			if (cp >= 32u) {
+				for (eng::u8 r = 0u; r < eng::Font5x7::kRows; ++r) {
+					const eng::u8 bits = eng::Font5x7::row(static_cast<eng::u16>(cp), r);
+					for (eng::u8 c = 0u; c < 5u; ++c) {
+						if ((bits & (0x10u >> c)) != 0u) {
+							strip_set(static_cast<eng::s16>(x + c),
+								  static_cast<eng::s16>(y + r), color);
+						}
+					}
+				}
+			}
+			x = static_cast<eng::s16>(x + 5);
+		}
+	}
+
+	/// Texto decimal con prefijo en la franja (sin stdlib).
+	void strip_num(eng::s16 x, eng::s16 y, const char* prefix, eng::u32 value, eng::u8 color) {
+		char buf[16];
+		eng::u8 n = 0u;
+		while (prefix[n] != '\0' && n + 1u < sizeof(buf)) {
+			buf[n] = prefix[n];
+			++n;
+		}
+		char tmp[10];
+		eng::u8 t = 0u;
+		do {
+			tmp[t++] = static_cast<char>('0' + (value % 10u));
+			value /= 10u;
+		} while (value != 0u && t < 10u);
+		while (t > 0u && n + 1u < sizeof(buf)) {
+			buf[n++] = tmp[--t];
+		}
+		buf[n] = '\0';
+		strip_text(x, y, buf, color);
+	}
+
+	/// Franja: nombre + versión + telemetría (F/U/T en k ciclos), repintada cada 32 frames.
+	void draw_version_strip(eng::u16 frame) {
+		strip_fill(4u); // fondo negro (COLOR04..)
+		strip_text(4, 241, "065 MECHANISMS BRIDGE", 1u);
+		char label[16];
+		(void)eng::debug::version_label(eng::debug::Version {1u, 0u}, label,
+						static_cast<eng::u8>(sizeof(label)));
+		strip_text(4, 249, label, 3u);
+		strip_num(96, 249, "F", frame, 1u);
+		strip_num(160, 249, "U", m_update_kcycles, 1u);
+		strip_num(240, 249, "T", m_period_kcycles, 1u);
+	}
+
 	bool m_copper_ok = false;
 	const eng::u16* m_copper_ptr = nullptr;
 	eng::graphics::FramePlan m_frame_plan {};
@@ -467,6 +582,10 @@ private:
 	eng::u16 m_respawn_timer = 0u;
 	eng::s16 m_target_x = 100;
 	eng::s16 m_target_y = kTargetY;
+	// Telemetría de la franja.
+	eng::u32 m_last_cycle = 0u;
+	eng::u32 m_update_kcycles = 0u;
+	eng::u32 m_period_kcycles = 0u;
 	// Bloques.
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::Block<eng::CopperTag> m_copper_block {};
@@ -482,6 +601,10 @@ int main() {
 	eng::amiga::AmigaBackend backend {};
 	MechanismsDemo game {};
 	eng::Engine engine { backend, game };
+	// La demo usa el **encadenado async** del `FramePlan` (su propia IRQ de fin de blit):
+	// `run_frames` instala por defecto el `BackgroundPump` como servicio de blit y el slot es
+	// exclusivo — sin esto, `execute_frame_plan_async` fallaría en silencio (bug 4 de la 066).
+	engine.set_blit_service_enabled(false);
 	(void)eng::os::init(engine, 0u);
 	engine.run_frames(0xffff);
 

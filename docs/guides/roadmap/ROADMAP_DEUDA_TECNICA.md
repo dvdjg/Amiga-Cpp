@@ -70,3 +70,9 @@ Hay demos que **no sirven actualmente** (110 rota; 085 a 3 fields; 202 con las m
 ## DT-008 · `profile.mjs` no resuelve `g_eng_prof`
 
 El símbolo vive en `.gnu.linkonce.b._ZN3eng5debug10g_eng_profE` y el `.map` no le da dirección resoluble por el script (`mapSections` solo mira `.text/.rodata/.eh_frame/.data/.bss`), así que el perfil por secciones no arranca. Mientras se arregla (o se instrumentan secciones del bucle XLimited), la atribución de coste se hizo por **ablación** (desactivar un elemento y medir) — método documentado en el informe de la 110.
+
+**Nota (2026-10) — lectura manual que sí funciona**: dirección = base de `.data` (canal lateral `state` → `sections[4]`) + (dirección de enlace de `g_eng_prof` del `.map` − base de enlace de `.data`); se lee con `mem <addr> <len>` del canal lateral. Así se midió la 066 (secciones del update: espera 0.7k / sim+plan+lanzamiento 163k / copper 0.3k).
+
+## DT-010 · Deriva de API en demos que ningún gate detecta — arreglado, falta el gate
+
+Al activar `-Werror=unused-result` y compilar la flota tocada (2026-10) aparecieron **tres demos que ya no compilaban** por deriva de API acumulada: 078 (`BlitPtr` desde puntero crudo — hoy exige `BlitPtr::from_storage`), 275 (`C2pRequest.chunky` copiaba un `Block` movible) y 117 (`Sprite::draw` con `[[nodiscard]]` ignorado). Ningún gate lo detectó porque **la regresión no compila todas las demos** por defecto. Arregladas las tres; **pendiente**: un gate barato que compile la flota (p. ej. un modo "solo compilar" de `test-regression.sh`) para que la deriva no vuelva a acumularse en silencio.

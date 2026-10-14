@@ -111,7 +111,8 @@ struct C2pSeamDemo {
 					 m_ref.view);
 		eng::graphics::FramePlan plan {};
 		const bool queued = m_scene.c2p(eng::playfield::C2pRequest {
-			.chunky = m_chunky,
+			// Vista no propietaria del buffer chunky (Block es movible, no copiable).
+			.chunky = eng::Block<eng::ChunkyTag> {m_chunky.view, m_chunky.kind},
 			.planes = eng::Block<eng::PlaneTag> {m_scene.buffer(0),
 							     eng::MemoryKind::Chip},
 			.width = kChunkyW,
@@ -122,7 +123,9 @@ struct C2pSeamDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00027504u);
 			return false;
 		}
-		backend.execute_frame_plan(plan);
+		// Plan de blits del frame; si fallara (plan inválido) el render quedaría incompleto:
+		// no hay camino alternativo en esta demo (resultado ignorado a propósito).
+		(void)backend.execute_frame_plan(plan);
 
 		eng::u32 diffs = 0;
 		for (eng::u32 p = 0; p < kPlanes; ++p) {
@@ -150,7 +153,12 @@ struct C2pSeamDemo {
 
 		eng::graphics::rotozoom_into<64, 64>(texture(), m_rot, m_chunky.view, kChunkyW, kChunkyH);
 		eng::graphics::FramePlan plan {};
-		m_scene.c2p(eng::playfield::C2pRequest {.chunky = m_chunky,
+		// El C2P del frame; la comprobación de equivalencia con la referencia CPU está más
+		// abajo y el consumidor ya recomputa desde la textura si algo faltara (resultado
+		// ignorado a propósito aquí).
+		(void)m_scene.c2p(eng::playfield::C2pRequest {
+			// Vista no propietaria del buffer chunky (Block es movible, no copiable).
+			.chunky = eng::Block<eng::ChunkyTag> {m_chunky.view, m_chunky.kind},
 						    .planes = eng::Block<eng::PlaneTag> {
 							      m_scene.back(),
 							      eng::MemoryKind::Chip},
@@ -158,7 +166,9 @@ struct C2pSeamDemo {
 						    .height = kChunkyH,
 						    .plane_stride = m_scene.plane_bytes(),
 						    .plane_count = kPlanes}, &plan);
-		backend.execute_frame_plan(plan);
+		// Plan de blits del frame; si fallara (plan inválido) el render quedaría incompleto:
+		// no hay camino alternativo en esta demo (resultado ignorado a propósito).
+		(void)backend.execute_frame_plan(plan);
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 	}
 

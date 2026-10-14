@@ -221,7 +221,7 @@ template <typename Ra, int Ea, typename Rb, int Eb, typename P>
 operator*(Fixed<Ra, Ea, P> a, Fixed<Rb, Eb, P> b) {
 	using CR = typename common_repr<Ra, Rb>::type;
 	using WR = typename mul_repr<Ra, Rb>::type;
-	// Por el rasgo rith (y no (s32)a * b): en 68000 da muls.w en vez de __mulsi3.
+	// Por el rasgo `arith` (y no (s32)a * b): en 68000 da muls.w en vez de __mulsi3.
 	return Fixed<WR, Ea + Eb, P> {arith<CR>::mul(static_cast<CR>(a.v), static_cast<CR>(b.v))};
 }
 

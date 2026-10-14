@@ -18,3 +18,10 @@ api/game.hpp
 # planner, §7) lo empuja sobre el umbral. Trocearlo por tema (base/mapping/dual/scroll) queda
 # para una pasada del motor; se acepta temporalmente para no bloquear la batería host.
 field/xlimited_scene.hpp
+
+#
+# platform/amiga/backend.hpp (896): contrato completo del backend Amiga (display, blitter,
+# servicios de IRQ, memoria, audio, raster) en una interfaz; trocearlo por tema (display /
+# blitter / servicios / memoria) es una pasada pendiente de HEADER_POLICY. Se acepta
+# temporalmente para no bloquear la bateria host.
+platform/amiga/backend.hpp

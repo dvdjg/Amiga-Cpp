@@ -160,8 +160,9 @@ struct BackgroundDemo {
 			context.background->set_max_slices_per_frame(4u);
 		}
 		// Motor de fondo por IRQ del timer A de la CIA-A (nivel 2), continuo: avanza el
-		// fondo a su propio ritmo, sin depender del frame.
-		backend.background_timer_start(0x2000u, &BackgroundDemo::on_timer, *this);
+		// fondo a su propio ritmo, sin depender del frame. Si no se pudiera instalar, el
+		// fondo no avanzaría (la demo no usa otro servicio de timer).
+		(void)backend.background_timer_start(0x2000u, &BackgroundDemo::on_timer, *this);
 		m_init_ok = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x0081u);
 	}

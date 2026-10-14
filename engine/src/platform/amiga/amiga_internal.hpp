@@ -127,6 +127,9 @@ inline void (*g_vbl_task)(void*, unsigned short) = nullptr;
 inline void* g_vbl_task_user = nullptr;
 inline void (*g_blit_task)(void*, unsigned short) = nullptr;
 inline void* g_blit_task_user = nullptr;
+/// Instalaciones de servicio de blit **rechazadas** por slot ocupado (diagnóstico de la
+/// incoherencia «el feeder async no se instaló»; ver `COHERENCIA_DE_SETUP.md`).
+inline eng::u32 g_blit_service_conflicts = 0u;
 inline bool g_level3_installed = false;
 inline unsigned long g_level3_old_vector = 0;
 

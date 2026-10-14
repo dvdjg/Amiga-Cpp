@@ -156,6 +156,7 @@
   1     4  engine/include/eng/debug/prof.hpp
   0     6  engine/include/eng/debug/run_status.hpp
   0    10  engine/include/eng/debug/telemetry.hpp
+  0     2  engine/include/eng/debug/version.hpp
   0    23  engine/include/eng/field/amiga_display_mapper.hpp
   0     5  engine/include/eng/field/chunk_cache.hpp
   0    11  engine/include/eng/field/cpu_primitives.hpp
@@ -169,17 +170,17 @@
   0     3  engine/include/eng/field/scroll_profile.hpp
   0     3  engine/include/eng/field/scroll_variant.hpp
   0     7  engine/include/eng/field/streaming_map.hpp
-  1     8  engine/include/eng/field/strip_composer.hpp
+  1     6  engine/include/eng/field/strip_composer.hpp
   2    35  engine/include/eng/field/surface.hpp
   0    36  engine/include/eng/field/tile_demo.hpp
   0     2  engine/include/eng/field/tile_map.hpp
   0    10  engine/include/eng/field/tile_source.hpp
   0     1  engine/include/eng/field/world_layer.hpp
   0     2  engine/include/eng/field/xlimited_base.hpp
-  0    44  engine/include/eng/field/xlimited_composer.hpp
+  0    40  engine/include/eng/field/xlimited_composer.hpp
   0    11  engine/include/eng/field/xlimited_mapping.hpp
   0     5  engine/include/eng/field/xlimited_robocod.hpp
-  0    42  engine/include/eng/field/xlimited_scene.hpp
+  0    40  engine/include/eng/field/xlimited_scene.hpp
   0     1  engine/include/eng/graphics/anim.hpp
   0     3  engine/include/eng/graphics/animation.hpp
   0     5  engine/include/eng/graphics/bitmap_view.hpp
@@ -187,9 +188,9 @@
   0     2  engine/include/eng/graphics/blitter_state.hpp
   2    13  engine/include/eng/graphics/c2p.hpp
   1     6  engine/include/eng/graphics/composition/copper_chunky.hpp
-  0    16  engine/include/eng/graphics/composition/limits.hpp
+  0    21  engine/include/eng/graphics/composition/limits.hpp
   0    19  engine/include/eng/graphics/composition/scene.hpp
-  0    42  engine/include/eng/graphics/composition/stages.hpp
+  0    38  engine/include/eng/graphics/composition/stages.hpp
   2     1  engine/include/eng/graphics/copper/double_buffer.hpp
   0    20  engine/include/eng/graphics/copper/plan.hpp
   0    20  engine/include/eng/graphics/copper/static_plan.hpp
@@ -292,6 +293,7 @@
   0    23  engine/include/eng/scene/scroll_plan.hpp
   0    15  engine/include/eng/scene/trajectory.hpp
   0    25  engine/include/eng/scene/virtual_scene.hpp
+  0    16  engine/include/eng/setup/coherence.hpp
   0     3  engine/include/eng/sim/archetypes.hpp
   0    10  engine/include/eng/sim/avatar.hpp
   0    63  engine/include/eng/sim/behavior.hpp

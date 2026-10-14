@@ -69,6 +69,7 @@ en C del repo hermano (`Cursor-Amiga-C`) está en [../c-engine/](../c-engine/REA
 | [BOARD_GAME_AI.md](BOARD_GAME_AI.md) | **Motores de tablero** (`eng::board`): ajedrez y Go 9×9 con footprint de 20 kB–1 MB, búsqueda adversaria, conocimiento en disquete y explicación NLG ES/EN. |
 | [PARALLEL_AND_THREADS.md](PARALLEL_AND_THREADS.md) | **Concurrencia** (`eng::parallel`): hilos, mutex, atómicos, condición y cancelación abstractos (no-ops en m68k, `std::` en el host) para optimizar en plataformas multinúcleo sin romper el Amiga. |
 | [HARDWARE_INVENTORY.md](HARDWARE_INVENTORY.md) | **Inventario de hardware** (`eng::hw`): `probe()` sondea CPU/FPU, chipset (OCS/ECS/AGA), Akiko/C2P, Kickstart, RAM por tipo, display (lo declara la app) y puertos; consultas de capacidad y heurísticas puras. |
+| [COHERENCIA_DE_SETUP.md](COHERENCIA_DE_SETUP.md) | **Coherencia de configuración**: que una incoherencia (BPLCON0 vs planos, offset que rebasa su bloque, WAIT que retrocede, servicio rechazado) no llegue a pantalla; tres capas (compilación con `[[nodiscard]]`+`-Werror`, validadores puros `eng::setup`, tests host 441) y el catálogo de casos. |
 
 ## Puntos de entrada del código
 

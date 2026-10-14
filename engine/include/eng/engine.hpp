@@ -211,7 +211,11 @@ class Engine {
 				BackgroundBlitterService blitter_service {&m_background, &context};
 				if (m_blit_service_enabled) {
 					if constexpr (requires { m_backend.set_blit_service(&BackgroundBlitterService::run, blitter_service); }) {
-						m_backend.set_blit_service(&BackgroundBlitterService::run, blitter_service);
+						// Si ya hay un servicio instalado (p. ej. el feeder async de la demo),
+						// el bombeo de fondo no se instala: el slot de IRQ de blit es exclusivo
+						// y la demo lo posee (`set_blit_service_enabled(false)` lo hace explícito).
+						(void)m_backend.set_blit_service(&BackgroundBlitterService::run,
+										 blitter_service);
 					}
 				}
 				// El bucle consume el latido: mientras no avance el contador, adelanta el

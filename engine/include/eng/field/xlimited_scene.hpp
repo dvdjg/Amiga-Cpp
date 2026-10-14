@@ -358,7 +358,8 @@ inline graphics::ModeSwitchZone make_hud_mode_switch_zone(
     eng::PaletteWords palette) {
     graphics::ModeSwitchZone z {};
     z.top = static_cast<eng::u16>((xlimited_detail::kDiwStrt >> 8u) + field.viewport_h);
-    z.bplcon0 = static_cast<eng::u16>(0x0200u | (static_cast<eng::u16>(hud.planes) << 12u));
+    z.bplcon0 = graphics::composition::bplcon0_for(graphics::composition::SceneMode::Standard,
+                                                   hud.planes);
     if (field.planes == 6u) { z.set_bplcon4 = true; z.bplcon4 = 0u; } // salir de EHB
     z.set_bplcon1 = true; z.bplcon1 = 0u;
     z.ddfstrt = xlimited_detail::kDdfStrt;

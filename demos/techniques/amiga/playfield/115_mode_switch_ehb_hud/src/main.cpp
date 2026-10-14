@@ -80,7 +80,8 @@ struct DemoGame {
 
 		eng::graphics::ModeSwitchZone z {};
 		z.top = static_cast<eng::u16>(diwstrt_y + hud_line);
-		z.bplcon0 = static_cast<eng::u16>(0x0200u | (static_cast<eng::u16>(hud_planes) << 12u));
+		z.bplcon0 = eng::graphics::composition::bplcon0_for(
+			eng::graphics::composition::SceneMode::Standard, hud_planes);
 		z.set_bplcon4 = true; z.bplcon4 = 0u; // salir de EHB en el HUD
 		z.set_bplcon1 = true; z.bplcon1 = 0u;
 		z.ddfstrt = ddfstrt; z.ddfstop = ddfstop;

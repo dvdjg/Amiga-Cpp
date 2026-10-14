@@ -184,9 +184,9 @@ struct DemoGame {
 		//    libre mientras el Blitter vacia los 6 bitplanes de la region.
 		eng::graphics::FramePlan plan;
 		eng::graphics::BlitJob job {};
-		job.source = m_blank;
-		job.destination = reinterpret_cast<eng::u16*>(
-			m_scene.bitplanes().data() + static_cast<eng::u32>(kClearY) * kRowBytes + kClearX / 8);
+		job.source = eng::graphics::BlitPtr::from_storage(m_blank);
+		job.destination = eng::graphics::BlitPtr::from_storage(reinterpret_cast<eng::u16*>(
+			m_scene.bitplanes().data() + static_cast<eng::u32>(kClearY) * kRowBytes + kClearX / 8));
 		job.words_per_row = kClearWords;
 		job.height = static_cast<eng::u16>(kClearH);
 		job.source_modulo_bytes = 0; // filas contiguas en la fuente
@@ -198,7 +198,9 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x00007802u);
 			return;
 		}
-		backend.execute_frame_plan(plan);
+		// Plan de blits del frame; si fallara (plan inválido) el render quedaría incompleto:
+		// no hay camino alternativo en esta demo (resultado ignorado a propósito).
+		(void)backend.execute_frame_plan(plan);
 
 		// 2) Rasterizado del solido (cubo = convexo): rotacion + culling, SIN orden painter.
 		const eng::u32 f = context.frame.frame_index;

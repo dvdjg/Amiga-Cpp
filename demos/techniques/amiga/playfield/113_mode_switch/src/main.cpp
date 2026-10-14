@@ -115,7 +115,8 @@ struct DemoGame {
 #if !K_NO_MODE_SWITCH
 		eng::graphics::ModeSwitchZone zone {};
 		zone.top = hud_raster;
-		zone.bplcon0 = static_cast<eng::u16>(0x0200u | (static_cast<eng::u16>(hud_planes_count) << 12u));
+		zone.bplcon0 = eng::graphics::composition::bplcon0_for(
+			eng::graphics::composition::SceneMode::Standard, hud_planes_count);
 		zone.ddfstrt = 0x0038u;
 		zone.ddfstop = 0x00d0u;
 		zone.bpl1mod = 0x0000u;

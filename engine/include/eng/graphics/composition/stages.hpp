@@ -68,30 +68,9 @@ namespace eng::graphics::composition {
 	};
 }
 
-/// **`BPLCON0` habituales** (BPU + COLOR / HAM / EHB).
-inline constexpr u16 kBplcon0_4Planes = 0x4200;      ///< 4 planos, COLOR
-inline constexpr u16 kBplcon0_4PlanesNoColor = 0x4000; ///< 4 planos, sin COLOR
-inline constexpr u16 kBplcon0_Ehb = 0x6200;          ///< EHB (6 planos, COLOR)
-inline constexpr u16 kBplcon0_Ham6 = 0x7a00;         ///< HAM6 (6 planos, COLOR, HAM)
-
-/// `BPLCON0` coherente con `mode` y `planes` (BPU = nº de planos, COLOR, y HAM/EHB si
-/// aplica). Evita cablear el registro en cada demo; para el caso estándar de 4 planos da
-/// `0x4200`. No cubre AGA (BPLCON3/FMODE aparte).
-[[nodiscard]] constexpr u16 bplcon0_for(SceneMode mode, u8 planes) {
-	const u16 bpu = static_cast<u16>((static_cast<u16>(planes) & 0x7u) << 12u);
-	constexpr u16 kColor = 0x0200u; ///< bit COLOR (color indexado)
-	constexpr u16 kHam = 0x0800u;   ///< bit HAM (HOMOD)
-	// EHB **no** tiene bit propio en `BPLCON0` (OCS/ECS): se activa con **6 planos** y
-	// `HOMOD = 0` (AHRM 3.ª, tabla de `BPLCON0`: «HOMOD=0 → EHB, solo si 6 bitplanes»). Por
-	// eso `Ehb` y `Standard` comparten `bpu | COLOR` (equivale a `kBplcon0_Ehb = 0x6200`).
-	switch (mode) {
-		case SceneMode::Ham:
-			return static_cast<u16>(bpu | kColor | kHam);
-		case SceneMode::Ehb:
-		default:
-			return static_cast<u16>(bpu | kColor);
-	}
-}
+/// `BPLCON0` coherente con `mode` y `planes`: `bplcon0_for` + constantes viven en
+/// `limits.hpp` (junto a `SceneMode`), que este fichero incluye vía `scene.hpp`. Es el único
+/// constructor del registro (ver `COHERENCIA_DE_SETUP.md`).
 
 /// Etapa de **display**: BPLCON0, DIW/DDF y punteros BPLxPT. Con layout `Interleaved` usa
 /// los módulos del `CanvasPlayfield` (un plano por fila) y expone `surface()`; con

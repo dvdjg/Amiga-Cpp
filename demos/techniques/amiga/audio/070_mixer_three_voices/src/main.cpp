@@ -171,8 +171,9 @@ private:
 
 	bool build_copper() {
 		eng::copper::SchedulerT<false> sched { m_copper_block };
-		// BPLCON0 = (planos << 12) | 0x0200 (mismo patrón que las demos de 6 planos).
-		const eng::u16 bplcon0 = static_cast<eng::u16>((static_cast<eng::u16>(kPlanes) << 12u) | 0x0200u);
+		// BPLCON0 por el constructor único del engine (BPU = planos + COLOR).
+		const eng::u16 bplcon0 = eng::graphics::composition::bplcon0_for(
+			eng::graphics::composition::SceneMode::Standard, kPlanes);
 		sched.emit_planes_display(
 			0x2c81, 0x2cc1, 0x0038, 0x00d0,
 			kBytesPerRow, bplcon0, kPlanes, m_bitplane_block.mem_view(), kPlaneBytes

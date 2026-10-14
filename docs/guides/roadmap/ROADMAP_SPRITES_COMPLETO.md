@@ -414,6 +414,8 @@ void rope_resolve_player(Rope<s16>&, s16& feet_x, s16& feet_y, s16& vy, const Ro
 
 **Demo:** puente de 12 eslabones cruzado por el jugador (deformación + apoyo) + catapulta que lanza una caja a un destructible; visión por secuencia y cadencia.
 
+**Estado (2026-10):** demo `065_mechanisms_bridge` construida y validada por visión (puente curvo que se deforma, jugador que camina/apoya, catapulta que dispara, bola, escombros; sin artefactos). Coste: 24.5 fps (async + hojas de 2 planos + copperlist estática + franja de versión) — **deuda de presupuesto documentada** en su `VALIDATION.md` (palanca medida: target/hojas **interleaved** → 1 blit por dibujo). HOST-438 cubre la lógica por unidad (verlet, muelle, catapulta).
+
 ### 3.7 F4.1 — Free Form: cierre por la campaña 218
 
 **Objetivo:** dejar de tratar el Free Form como pendiente del driver general y cerrarlo con la **campaña medida** en curso (`ROADMAP_218_CAMPO_UNICO.md`), que ya tiene el efecto, la instrumentación y el registro de intentos.

@@ -245,7 +245,7 @@ private:
 	eng::u16 m_last_window = 0xffffu;
 	// El MUNDO va en Chip RAM: lo lee el Blitter (copia) ademas de la CPU (emision).
 	eng::Block<eng::PlaneTag> m_world_block {};
-	eng::Words<eng::PlaneTag> m_world {}; ///< El mundo completo (words) en Chip: lo lee el Blitter (copias de columna) y lo escribe la CPU en uild_world.
+	eng::Words<eng::PlaneTag> m_world {}; ///< El mundo completo (words) en Chip: lo lee el Blitter (copias de columna) y lo escribe la CPU en `build_world`.
 	eng::effects::FreeFormSpriteLayer m_layer {};
 	eng::Block<eng::PlaneTag> m_bitplane {};
 	eng::Block<eng::CopperTag> m_copper {};

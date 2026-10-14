@@ -362,7 +362,9 @@ struct Bobs3DDemo {
 #endif
 		P_END(kProfDraw);
 		P_BEGIN(kProfBlits);
-		backend.execute_frame_plan(m_plan);
+		// Plan de blits del frame; si fallara (plan inválido) el render quedaría incompleto:
+		// no hay camino alternativo en esta demo (resultado ignorado a propósito).
+		(void)backend.execute_frame_plan(m_plan);
 		P_END(kProfBlits);
 #endif
 #endif // K_117_WORK
@@ -558,7 +560,9 @@ private:
 				z = bobs_height - kBobH;
 			}
 
-			sprite.draw(m_plan, target, static_cast<u8>(z >> 5), x, y);
+			// Si `draw` rechazara el sprite (bob/target inválido), no se dibuja: el
+			// consumidor ya recorta x/y/z al rango del efecto (resultado ignorado a propósito).
+			(void)sprite.draw(m_plan, target, static_cast<u8>(z >> 5), x, y);
 		}
 	}
 

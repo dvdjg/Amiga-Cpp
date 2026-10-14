@@ -56,6 +56,36 @@ enum class SceneMode : eng::u8 {
 	CopperChunky = 4,
 };
 
+/// **`BPLCON0` habituales** (BPU + COLOR / HAM / EHB / DPF).
+inline constexpr eng::u16 kBplcon0_4Planes = 0x4200;   ///< 4 planos, COLOR
+inline constexpr eng::u16 kBplcon0_4PlanesNoColor = 0x4000; ///< 4 planos, sin COLOR
+inline constexpr eng::u16 kBplcon0_Ehb = 0x6200;       ///< EHB (6 planos, COLOR)
+inline constexpr eng::u16 kBplcon0_Ham6 = 0x7a00;      ///< HAM6 (6 planos, COLOR, HAM)
+
+/// **`BPLCON0` coherente con `mode` y `planes`** (BPU = nº de planos, COLOR, y HAM/DBLPF si
+/// aplica). Es el **único constructor** del registro en el engine: cablearlo a mano en una
+/// demo es la fuente del fallo del «plano fantasma» (BPU ≠ planos emitidos; ver
+/// `docs/engine/architecture/COHERENCIA_DE_SETUP.md`). Para el caso estándar de 4 planos da
+/// `0x4200`. EHB no tiene bit propio (OCS/ECS): son 6 planos con HOMOD=0 (AHRM 3.ª, tabla de
+/// `BPLCON0`). No cubre AGA (BPLCON3/FMODE aparte).
+[[nodiscard]] constexpr eng::u16 bplcon0_for(SceneMode mode, eng::u8 planes) {
+	const eng::u16 bpu = static_cast<eng::u16>((static_cast<eng::u16>(planes) & 0x7u) << 12u);
+	constexpr eng::u16 kColor = 0x0200u; ///< bit COLOR (color indexado)
+	constexpr eng::u16 kDblpf = 0x0400u; ///< bit DBLPF (doble playfield)
+	constexpr eng::u16 kHam = 0x0800u;   ///< bit HAM (HOMOD)
+	switch (mode) {
+		case SceneMode::Ham:
+			return static_cast<eng::u16>(bpu | kColor | kHam);
+		case SceneMode::DualPlayfield:
+			return static_cast<eng::u16>(bpu | kColor | kDblpf);
+		case SceneMode::Ehb:
+		case SceneMode::CopperChunky:
+		case SceneMode::Standard:
+		default:
+			return static_cast<eng::u16>(bpu | kColor);
+	}
+}
+
 /// **Ancho de fetch de bitplanes** (AGA `FMODE` de planos): palabras de 16 bits que
 /// Agnus/Alice leen por slot de bus. OCS/ECS solo 1×; AGA admite 2× y 4×. Solo cambia el
 /// **coste de bus** del display (`dma_cost`), no su validez. Fuentes: `chipset_aga.md`

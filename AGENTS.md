@@ -280,6 +280,7 @@ Estas reglas son obligatorias, pero solo son relevantes cuando se toca su domini
 | **Demos atractivas, validación visual (Ollama) y gate de optimizaciones de render** | `docs/guides/methodology/DEMO_VISUAL_DEBUG.md` |
 | **API del engine** (sin hardware, sin punteros, versátil, prueba de diseño) | `docs/engine/architecture/PUBLIC_API.md` |
 | **Estilo y restricciones de diseño** (gnu++23, sin excepciones/RTTI/heap, APIs paramétricas, agnosticismo del backend, comentarios didácticos) | `docs/engine/architecture/CODING_STYLE.md` |
+| **Coherencia de configuración en setup** (constructor único de `BPLCON0`, validadores `eng::setup`, `[[nodiscard]]`+`-Werror=unused-result`, regiones y WAITs) | `docs/engine/architecture/COHERENCIA_DE_SETUP.md` |
 | **Rendimiento, comentario de optimizaciones y port de rutinas calientes a asm** | §12 de `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` |
 | **Optimizar (SIEMPRE: también al escribir código nuevo con impacto en rendimiento)** — campaña contra referencia, presupuesto de bus y mapa de contención, tabla de deltas, A/B con hot-patch y criterio de falsación, checklist de un solo cambio | `docs/guides/optimization/METODO_OPTIMIZACION.md` |
 | **Análisis de rendimiento de una demo** (medir SIEMPRE con el perfil `.amigaprofile` + IA local; hotspots por rutina y defectos de pantalla con visión) | `docs/tools/PROFILING_FROM_AGENT.md` |

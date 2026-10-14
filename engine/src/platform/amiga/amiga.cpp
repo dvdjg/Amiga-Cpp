@@ -372,12 +372,24 @@ void AmigaBackend::clear_vblank_service() {
 
 bool AmigaBackend::install_blit_service(ServiceSlot& slot) {
 	if (g_blit_task != nullptr) {
+		// Slot exclusivo ya ocupado (p. ej. el bombeo de fondo del `Engine` vs. el feeder
+		// async de la demo): se contabiliza para que la incoherencia sea diagnosticable
+		// (el fallo del 066 «L0/S0» fue exactamente esto). Ver `COHERENCIA_DE_SETUP.md`.
+		++g_blit_service_conflicts;
 		return false;
 	}
 	g_blit_task = slot.thunk;
 	g_blit_task_user = &slot;
 	level3_sync();
 	return true;
+}
+
+bool AmigaBackend::has_blit_service() const noexcept {
+	return g_blit_task != nullptr;
+}
+
+eng::u32 AmigaBackend::blit_service_conflicts() noexcept {
+	return g_blit_service_conflicts;
 }
 
 void AmigaBackend::clear_blit_service() {
@@ -716,7 +728,6 @@ namespace {
 struct SystemTakeoverState {
 	bool active = false;
 	bool forbidden = false;
-	struct GfxBase* gfx = nullptr;
 	struct View* old_view = nullptr;
 	eng::u16 old_intena = 0u;
 	eng::u16 old_dmacon = 0u;
@@ -734,9 +745,14 @@ bool AmigaBackend::takeover_system() {
 	g_sys.forbidden = true;
 	// 2) graphics.library: matar el display de Intuition y quedarse el Blitter. Sin esto el
 	// "libro de display" del SO puede reescribir COP1LC/INTENA en el siguiente VBlank.
-	g_sys.gfx = reinterpret_cast<struct GfxBase*>(OpenLibrary("graphics.library", 0));
-	if (g_sys.gfx != nullptr) {
-		g_sys.old_view = g_sys.gfx->ActiView;
+	// **Fuente única `GfxBase`**: las macros del SDK (`LoadView`/`WaitTOF`/`OwnBlitter`…)
+	// llaman a través del **global `GfxBase`** (declarado en `proto/graphics.h`, definido
+	// arriba en este fichero). Guardar la base en otra variable y dejar el global a cero
+	// produce `JSR (a6,-0xde)` con `a6 = 0` → PC `0xFFFFFF22` (crash real de la 066: la
+	// incoherencia era invisible hasta la primera macro).
+	GfxBase = reinterpret_cast<struct GfxBase*>(OpenLibrary("graphics.library", 0));
+	if (GfxBase != nullptr) {
+		g_sys.old_view = GfxBase->ActiView;
 		LoadView(nullptr);
 		WaitTOF();
 		WaitTOF();
@@ -772,20 +788,21 @@ void AmigaBackend::restore_system() {
 	m_async_busy = false;
 	m_async_service_installed = false;
 	// 3) Copper del sistema (copinit) + registros guardados.
-	if (g_sys.gfx != nullptr) {
-		*cop1lc = reinterpret_cast<eng::u32>(g_sys.gfx->copinit);
+	if (GfxBase != nullptr) {
+		*cop1lc = reinterpret_cast<eng::u32>(GfxBase->copinit);
 		custom_base[custom_copjmp1_offset] = 0x7fffu;
 	}
 	custom_base[custom_dmacon_offset] = g_sys.old_dmacon;
 	custom_base[custom_intena_offset] = g_sys.old_intena;
 	custom_base[custom_adkcon_offset] = g_sys.old_adkcon;
 	// 4) Devolver Blitter y display al SO y reactivar multitasking.
-	if (g_sys.gfx != nullptr) {
+	if (GfxBase != nullptr) {
 		DisownBlitter();
 		LoadView(g_sys.old_view);
 		WaitTOF();
 		WaitTOF();
-		CloseLibrary(reinterpret_cast<struct Library*>(g_sys.gfx));
+		CloseLibrary(reinterpret_cast<struct Library*>(GfxBase));
+		GfxBase = nullptr; // el global vuelve a cero con la librería cerrada
 	}
 	if (g_sys.forbidden) {
 		Permit();

@@ -11,6 +11,7 @@
 
 #include <eng/core/types/types.hpp>
 #include <eng/field/strip_scroller.hpp>
+#include <eng/graphics/composition/limits.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/copper/double_buffer.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
@@ -116,7 +117,8 @@ private:
 									    copper::DmaCopper |
 									    copper::DmaBitplane));
 		sched.move(copper::Register::BPLCON0,
-			   static_cast<eng::u16>(0x0200u | (static_cast<eng::u16>(m_geom.planes) << 12u)));
+			   graphics::composition::bplcon0_for(graphics::composition::SceneMode::Standard,
+							      m_geom.planes));
 		m_bplcon1_handle = sched.move_at(copper::Register::BPLCON1, 0u);
 		sched.move(copper::Register::BPLCON2, 0u);
 		sched.move(copper::Register::BPL1MOD, m_geom.bpl_mod);

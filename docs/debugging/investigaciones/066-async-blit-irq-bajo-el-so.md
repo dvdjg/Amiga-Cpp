@@ -56,6 +56,42 @@ lanzamientos/planos por job (rachas batch con posiciones alineadas, menos objeto
 programación por job (la caché de comunes, hoy desactivada por el bug 1 — solo segura con
 control absoluto y sin servidores del SO que usen el Blitter).
 
+## Segunda ronda: el crash del takeover y dos incoherencias silenciosas (cerrados)
+
+Tras integrar `takeover_system()` la demo dejó de alcanzar READY. Diagnóstico con el MCP
+(pila + desensamblado): PC `0xFFFFFF22` = `JSR.L (a6,-$00de)` con **`a6 = 0`**.
+
+- **GfxBase duplicado (crash real)**: `takeover_system` guardaba `OpenLibrary("graphics.library")`
+  en `g_sys.gfx`, pero las macros del SDK (`LoadView`/`WaitTOF`/`OwnBlitter`/`WaitBlit`) llaman
+  por el **global `GfxBase`**, que quedaba a 0. Fuente única: `GfxBase` en todo el
+  takeover/restore (`amiga.cpp`). Este crash era también la causa del «measure-fps devuelve
+  frames=0» que se atribuyó a la resolución del run-status.
+- **Unidades palabras/bytes (cazado por el sistema de coherencia)**: `sheet_advance` registraba
+  las hojas del bloque de BOBs sumando el offset en **palabras** a una dirección en **bytes**;
+  las regiones quedaban a mitad de camino y el mapa de regiones lo detectó (`0x7C001`, solape
+  parcial orb/slider). Corregido con `off * 2` — el chequeo pagó su coste en su primera demo.
+- **Cookie-cut planar sin dibujar (false silencioso)**: la demo declaraba `layout = Interleaved`
+  en hojas **planar**; `bob_draw` devuelve `false` para cookie-cut `Interleaved` con máscara en
+  plano suelto (`bob.hpp:399`) y el caminante/patrullero no se dibujaban (Or/Opaque ignoran ese
+  campo: usan el del target). Corregido a `Planar`; `check_bob_plan` (capa 2) lo detecta en
+  setup (`0x7C200`).
+
+## Perfil del frame (para el presupuesto de 50 fps)
+
+`g_eng_prof` (secciones del update, leídas por canal lateral) + `measure-fps`:
+
+| Medida | Valor |
+|---|---|
+| Frame (async, copper parcheado) | 188 965 ciclos = 1.33 campos = **37.5 fps**; 19 jobs |
+| Sección 0: espera de la cadena | 701 ciclos (la cadena ya terminó: sin espera explícita) |
+| Sección 1: sim + plan + lanzamiento | 163 003 ciclos (86 %) — bisecada: updates 62k, **lanzamiento ~100k** |
+| Sección 2: parcheo de armado + install | 338 ciclos (la re-emisión completa costaba ~10k) |
+
+Lectura: con 19 jobs × 2 planos (target planar) la cadena entera (38 blits con espera entre
+planos + 19 IRQs) se ejecuta **dentro del lanzamiento**: no hay solapamiento real CPU↔Blitter.
+Palancas medidas para el siguiente paso: menos jobs (borrados → opacos con padding), abaratar
+el coste por job (planos por job + IRQ), o lanzar la cadena antes (feeder incremental).
+
 ## Verificación
 
 Visión (Ollama, secuencia de 3 frames): **7/7 puntos SÍ** (degradado, 6 zonas, orbes OR,

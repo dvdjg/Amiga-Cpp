@@ -66,7 +66,7 @@ public:
 	/// Importante: esto no "posee toda la RAM del Amiga". Solo pide al ROM kernel los
 	/// bloques solicitados. En modo takeover futuro, esta misma API podra poblarse
 	/// con rangos fisicos conocidos sin pasar por Exec.
-	bool configure_memory(const MemoryConfig& config);
+	[[nodiscard]] bool configure_memory(const MemoryConfig& config);
 
 	/// Preflight y reserva los pools configurados por el composition root. `AvailMem` es una
 	/// instantánea del mayor bloque contiguo requerido; `AllocMem` sigue siendo el árbitro final.
@@ -202,7 +202,7 @@ public:
 	/// dejando el bucle principal al trabajo de fondo cooperativo (que la IRQ preempta).
 	/// `task` debe ser corta. Devuelve false si ya habia una instalada.
 	template <class C>
-	bool set_vblank_service(Service<C> task, C& user) {
+	[[nodiscard]] bool set_vblank_service(Service<C> task, C& user) {
 		if (task == nullptr) return false;
 		fill_slot(m_vblank_slot, task, user);
 		return install_vblank_service(m_vblank_slot);
@@ -216,7 +216,7 @@ public:
 	/// que el backend usa un **unico** handler que despacha por `INTREQR`. Util para
 	/// encadenar blits (el handler programa el siguiente) sin *polling* de `BBUSY`.
 	template <class C>
-	bool set_blit_service(Service<C> task, C& user) {
+	[[nodiscard]] bool set_blit_service(Service<C> task, C& user) {
 		if (task == nullptr) return false;
 		fill_slot(m_blit_slot, task, user);
 		return install_blit_service(m_blit_slot);
@@ -229,7 +229,7 @@ public:
 	/// AUD0..3; el llamador solo habilita el DMA de la voz que usa. Devuelve false si ya habia
 	/// una instalada.
 	template <class C>
-	bool set_audio_service(Service<C> task, C& user) {
+	[[nodiscard]] bool set_audio_service(Service<C> task, C& user) {
 		if (task == nullptr) return false;
 		if (m_audio.sfx().ready()) return false;
 		fill_slot(m_audio_slot, task, user);
@@ -246,7 +246,7 @@ public:
 	/// functor + su `user` (el IRQ no puede capturar). Ver
 	/// `docs/reference/amiga/techniques/blitter-memcpy.md` (modo asíncrono).
 	template <class C>
-	bool blitter_memcpy_async(eng::Span<u8> dst, eng::Span<const u8> src, Service<C> on_done,
+	[[nodiscard]] bool blitter_memcpy_async(eng::Span<u8> dst, eng::Span<const u8> src, Service<C> on_done,
 				  C& user) {
 		if (on_done == nullptr) return false;
 		if (!blitter_memcpy(dst, src, false)) {
@@ -280,7 +280,7 @@ public:
 	/// como base de un **reloj de tiempo real** (la CIA tiene TOD por hardware). Ver
 	/// `BACKGROUND_TASKS.md`.
 	template <class C>
-	bool background_timer_start(u16 latch, Service<C> task, C& user) {
+	[[nodiscard]] bool background_timer_start(u16 latch, Service<C> task, C& user) {
 		if (task == nullptr) return false;
 		fill_slot(m_timer_slot, task, user);
 		return install_timer_service(latch, m_timer_slot);
@@ -309,13 +309,24 @@ public:
 	/// guarda de `INTENA`/`DMACON`/`ADKCON` para la restauración. Llamar en `init` antes de
 	/// `takeover_display`. Ver
 	/// `docs/reference/amiga/hardware/takeover-y-restauracion-canonica.md`.
-	bool takeover_system();
+	[[nodiscard]] bool takeover_system();
 
 	/// **Devuelve el control al SO** (inverso de `takeover_system`): apaga DMA/IRQ, restaura
 	/// el vector de nivel 3 y el copper del sistema (`copinit`), los registros guardados,
 	/// `DisownBlitter`/`LoadView`/2×`WaitTOF` y `Permit()`. Tras esto la demo ya no debe
 	/// tocar el chipset.
 	void restore_system();
+
+	/// `true` si el **slot de IRQ de blit** (nivel 3, bit BLIT) ya está ocupado por un
+	/// servicio (bombeo de fondo del `Engine`, feeder async, cola de blits…). El slot es
+	/// **exclusivo**: quien lo necesite debe comprobarlo antes (o usar
+	/// `Engine::set_blit_service_enabled(false)` si va a poseerlo). Ver
+	/// `docs/engine/architecture/COHERENCIA_DE_SETUP.md`.
+	[[nodiscard]] bool has_blit_service() const noexcept;
+
+	/// Instalaciones de servicio de blit **rechazadas** por slot ocupado (global de
+	/// diagnóstico: si una demo esperaba su feeder async y esto sube, ese es el motivo).
+	[[nodiscard]] static eng::u32 blit_service_conflicts() noexcept;
 
 	/// Cambia la copperlist activa por otra ya construida en Chip RAM (swap).
 	///
@@ -336,7 +347,7 @@ public:
 	///
 	/// Por ahora solo materializa BOBs enmascarados mediante Blitter. Los parches de
 	/// paleta pertenecen a la escena (offsets internos de su copperlist).
-	bool execute_frame_plan(const graphics::FramePlan& plan);
+	[[nodiscard]] bool execute_frame_plan(const graphics::FramePlan& plan);
 
 	/// **Ejecuta el `FramePlan` de forma asíncrona** (vía IRQ de blit, `BLITTER_INTENT_QUEUE.md`
 	/// §6 vía I): lanza el primer trabajo (`wait=false`) y **vuelve de inmediato**; la IRQ de fin
@@ -347,7 +358,7 @@ public:
 	/// devuelva false); normalmente es el `FramePlan` de la escena, que no se limpia hasta el
 	/// `present()` siguiente. Devuelve `false` si el plan está vacío o no se pudo instalar el
 	/// servicio de IRQ (en ese caso, usar `execute_frame_plan`).
-	bool execute_frame_plan_async(const graphics::FramePlan& plan);
+	[[nodiscard]] bool execute_frame_plan_async(const graphics::FramePlan& plan);
 
 	/// `true` mientras la cadena asíncrona (o un blit suelto) sigue viva. Un juego que reutilice
 	/// o libere el `FramePlan` debe esperar a que baje (p. ej. al final del frame).
@@ -762,7 +773,7 @@ public:
 
 	/// Instala el servicio exclusivo de Paula; falla si Photon ya posee el vector nivel 4.
 	template <class C>
-	bool set_composition_audio_service(Service<C> task, C& user) {
+	[[nodiscard]] bool set_composition_audio_service(Service<C> task, C& user) {
 		return set_audio_service(task, user);
 	}
 
@@ -799,10 +810,10 @@ private:
 	// los vectores de interrupción. El API público es tipado (referencias).
 	void wait_vblank_run(void (*thunk)(void*, u16), void* user);
 	void install_blitter_service(ServiceSlot& slot);
-	bool install_vblank_service(ServiceSlot& slot);
-	bool install_blit_service(ServiceSlot& slot);
-	bool install_timer_service(u16 latch, ServiceSlot& slot);
-	bool install_audio_service(ServiceSlot& slot);
+	[[nodiscard]] bool install_vblank_service(ServiceSlot& slot);
+	[[nodiscard]] bool install_blit_service(ServiceSlot& slot);
+	[[nodiscard]] bool install_timer_service(u16 latch, ServiceSlot& slot);
+	[[nodiscard]] bool install_audio_service(ServiceSlot& slot);
 	/// Cuerpo común de `execute_frame_plan` (encadena varios) y `blitter_submit` (uno):
 	/// programa un `BlitJob`. `eor_open` mantiene la racha de líneas EOR entre jobs.
 	bool submit_blit_job(const graphics::BlitJob& job, bool& eor_open);

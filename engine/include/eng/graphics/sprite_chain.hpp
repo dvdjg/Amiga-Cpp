@@ -275,6 +275,9 @@ struct ChannelStats {
 	u32 data_words[kSpriteChannels] {};
 };
 
+/// Cuenta placements válidos y words de DATA por canal (mismo criterio que el builder:
+/// canal < `kSpriteChannels`, DATA no vacía, alto y ancho > 0, alto acotado a
+/// `kSpriteMaxHeightLines`). Pura: testeable en host.
 [[nodiscard]] inline ChannelStats channel_stats(
 	eng::Span<const HwSpritePlacement> placements) noexcept {
 	ChannelStats st {};
@@ -293,6 +296,9 @@ struct ChannelStats {
 
 } // namespace sprite_chain_detail
 
+/// **Selector de estrategia por canal** (la lógica descrita arriba): `Chain` /
+/// `ChainPersistent` / `Rearm` por canal según las cadenas construidas, las ranuras
+/// estables (`stable_channels_mask`) y el presupuesto de DATA. Pura: no toca hardware.
 [[nodiscard]] inline SpriteEmitPlan
 choose_sprite_emit_plan(eng::Span<const HwSpritePlacement> placements,
 			eng::Span<const SpriteDmaChain> chains, u8 stable_channels_mask,
