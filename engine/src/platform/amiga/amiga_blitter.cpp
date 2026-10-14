@@ -155,6 +155,11 @@ volatile eng::u32 g_blit_async_irqs = 0u;
 volatile eng::u32 g_blit_async_ends = 0u;
 volatile eng::u32 g_blit_async_submits = 0u;
 
+eng::u32 AmigaBackend::blit_async_launches() noexcept { return g_blit_async_launches; }
+eng::u32 AmigaBackend::blit_async_irqs() noexcept { return g_blit_async_irqs; }
+eng::u32 AmigaBackend::blit_async_ends() noexcept { return g_blit_async_ends; }
+eng::u32 AmigaBackend::blit_async_submits() noexcept { return g_blit_async_submits; }
+
 bool AmigaBackend::execute_frame_plan_async(const graphics::FramePlan& plan) {
 	if (!plan.ok() || plan.blit_job_count() == 0u) {
 		return false;
@@ -181,14 +186,35 @@ bool AmigaBackend::execute_frame_plan_async(const graphics::FramePlan& plan) {
 	g_blit_async_launches = g_blit_async_launches + 1u;
 	// Avisos con `after_jobs == 0` (declarados antes de encolar trabajo): se disparan ya.
 	fire_due_notifies();
+	// **Una IRQ BLIT por job** (bug 3 de la 066): un job multi-plano lanza un blit por plano y
+	// cada fin de blit pondría el latch de INTREQ. Sin gatear, la ISR vería 2-4 IRQs por job
+	// (doble avance de cadena + reprogramación intercalada a media cadena de planos) y el
+	// render salía corrupto. Se desarma BLIT en INTENA durante toda la programación y se
+	// rearma al final: el latch de INTREQ (independiente de INTENA) entrega UNA sola IRQ por
+	// job, cuando termina el último plano.
+	blit_irq_gate_begin();
 	g_in_blit_service = true;
 	const bool launched = blitter_submit(plan.blit_job(0u), /*wait=*/false);
 	g_in_blit_service = false;
+	blit_irq_gate_end();
 	if (!launched) {
 		m_async_busy = false;
 		return false;
 	}
 	return true;
+}
+
+/// Desarma la IRQ BLIT (INTENA) y limpia el latch pendiente de INTREQ: durante la
+/// programación de un job (posiblemente multi-plano) no se entrega ninguna IRQ.
+void AmigaBackend::blit_irq_gate_begin() noexcept {
+	custom_base[custom_intena_offset] = 0x0040u; // bit15=0 → CLEAR BLIT
+	custom_base[custom_intreq_offset] = 0x0040u; // limpia el latch pendiente
+}
+
+/// Rearma la IRQ BLIT: si el último plano ya terminó, el latch entrega la IRQ ahora; si no,
+/// la entregará al terminar. En ambos casos: exactamente una por job.
+void AmigaBackend::blit_irq_gate_end() noexcept {
+	custom_base[custom_intena_offset] = 0x8040u; // bit15=1 → SET BLIT
 }
 
 /// Dispara los avisos cuyo punto ya alcanzó la cadena (los trabajos `[0, m_async_next)` están
@@ -212,6 +238,9 @@ void AmigaBackend::fire_due_notifies() noexcept {
 
 void AmigaBackend::frame_plan_async_step(AmigaBackend& self, eng::u16) {
 	g_blit_async_irqs = g_blit_async_irqs + 1u;
+	if (!self.m_async_busy) {
+		return; // IRQ espuria (p. ej. de un blit síncrono con el servicio aún instalado)
+	}
 	const graphics::FramePlan* plan = self.m_async_plan;
 	if (plan == nullptr) {
 		self.m_async_busy = false;
@@ -226,10 +255,13 @@ void AmigaBackend::frame_plan_async_step(AmigaBackend& self, eng::u16) {
 		return;
 	}
 	// Programar el siguiente job DENTRO del servicio: `wait_blitter()` (los waits entre
-	// planos de un job multi-plano) no debe re-llamar al servicio (recursión).
+	// planos de un job multi-plano) no debe re-llamar al servicio (recursión). Y la IRQ BLIT
+	// va gateada para que un job multi-plano entregue UNA sola IRQ (ver gate_begin/end).
+	self.blit_irq_gate_begin();
 	g_in_blit_service = true;
 	const bool ok = self.blitter_submit(plan->blit_job(next), /*wait=*/false);
 	g_in_blit_service = false;
+	self.blit_irq_gate_end();
 	if (!ok) {
 		self.m_async_busy = false;
 		g_blit_async_ends = g_blit_async_ends + 1u;

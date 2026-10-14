@@ -343,6 +343,14 @@ public:
 	/// Espera a que la cadena asíncrona termine (bloqueo explícito, como `glFinish`).
 	void frame_plan_async_wait() noexcept { while (frame_plan_async_busy()) { } }
 
+	/// **Diagnóstico de la cadena async** (contadores globales, leíbles por la demo/HUD):
+	/// lanzamientos del primer job, IRQs de fin de blit atendidas, cierres de cadena y
+	/// submits con éxito dentro de la ISR. Definidos en `amiga_blitter.cpp`.
+	[[nodiscard]] static eng::u32 blit_async_launches() noexcept;
+	[[nodiscard]] static eng::u32 blit_async_irqs() noexcept;
+	[[nodiscard]] static eng::u32 blit_async_ends() noexcept;
+	[[nodiscard]] static eng::u32 blit_async_submits() noexcept;
+
 	/// **Avisos de la cadena** (`FramePlan::add_notify`): `fn(ctx, ticket)` se ejecuta **en la ISR**
 	/// de fin de blit al cruzar cada marca. Debe ser corto y **IRQ-safe** (típico: `port.post`).
 	/// Sin callback instalado, los avisos se consumen igual (no se disparan efectos).
@@ -854,6 +862,10 @@ private:
 	/// Programa el próximo job de la cadena async (llamado desde la ISR de blit). `true` si
 	/// quedan jobs; `false` cuando la cadena termina.
 	static void frame_plan_async_step(AmigaBackend& self, eng::u16 vpos);
+	/// Gate de la IRQ BLIT durante la programación de un job async: desarma BLIT en INTENA y
+	/// limpia el latch; al rearmar, un job multi-plano entrega **una sola** IRQ (bug 3 de 066).
+	void blit_irq_gate_begin() noexcept;
+	void blit_irq_gate_end() noexcept;
 };
 
 } // namespace eng::amiga

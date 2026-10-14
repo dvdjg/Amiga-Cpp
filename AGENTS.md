@@ -33,6 +33,12 @@ contexto irrelevante a quien trabaja en otra cosa.
   `fichero:línea`** en el comentario del código y en el commit. Un hallazgo de hardware **sin
   `file:line` está incompleto**. Índice «síntoma → fichero» y fichas en
   [`docs/reference/emulators/winuae/`](docs/reference/emulators/winuae/README.md); detalle en §1.12.
+- **Toda demo se versiona y lo muestra en pantalla** (norma desde 2026-10): versión
+  `major.minor.build` (`eng/debug/version.hpp`; el build lo inyecta `build-demo.sh` con contador
+  persistente `out/.build-number`). Cada demo **reserva la franja inferior de 16 px de alto y
+  4 bpp** para mostrar **nombre + versión + información de depuración** (contador de frames,
+  fps…). Alternativa admitida: ventana de debug de WinUAE con esos mismos datos. Referencia de
+  implementación: demo 066 (`draw_version_strip`).
 
 ---
 

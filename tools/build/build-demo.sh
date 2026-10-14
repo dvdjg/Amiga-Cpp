@@ -267,6 +267,19 @@ if [ -n "$EXTRA_DEFINES" ]; then
 	COMMON+=($EXTRA_DEFINES)
 fi
 
+# --- Cuenta de compilación (versionado de demos, norma desde 2026-10) --------
+# Contador global persistente: cada invocación de build-demo incrementa el número y se
+# inyecta como `-DENG_BUILD_NUMBER=n` (lo usa `eng/debug/version.hpp` y la franja de
+# nombre+versión de las demos). El fichero vive en out/ (ignorado por git si aplica).
+BUILD_COUNTER_FILE="$ROOT/out/.build-number"
+BUILD_NUMBER=1
+if [ -f "$BUILD_COUNTER_FILE" ]; then
+	BUILD_NUMBER=$(cat "$BUILD_COUNTER_FILE" 2>/dev/null || echo 0)
+	BUILD_NUMBER=$((BUILD_NUMBER + 1))
+fi
+echo "$BUILD_NUMBER" > "$BUILD_COUNTER_FILE"
+COMMON+=("-DENG_BUILD_NUMBER=$BUILD_NUMBER")
+
 # CPU/AGA según la máquina (ver arriba). Se añade DESPUÉS de `-m68000` para que
 # `-m68020`/`-m68030` lo sobreescriban (gana el último `-march`).
 if [ ${#MACHINE_FLAGS[@]} -gt 0 ]; then

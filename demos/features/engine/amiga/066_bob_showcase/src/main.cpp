@@ -31,6 +31,10 @@
 // 439_bob_render_matrix`).
 
 #include <eng/api/api.hpp>
+#include <eng/debug/peripheral.hpp>
+#include <eng/debug/version.hpp>
+#include <eng/core/data/utf8.hpp>
+#include <eng/graphics/font5x7.hpp>
 #include <eng/platform/amiga/backend.hpp>
 #include <eng/scene/bobs.hpp> // `scene::clear_box`
 
@@ -148,6 +152,7 @@ struct BobShowcaseDemo {
 							  256u, kPlanes, eng::graphics::BobLayout::Planar);
 		build_sheets();
 		build_background_art();
+		draw_version_strip(0u);
 		build_sprite_art();
 		if (!build_copper()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00006604u);
@@ -160,6 +165,13 @@ struct BobShowcaseDemo {
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		const eng::u16 f = context.frame.frame_index;
 		eng::debug::mark_frame(g_eng_run_status, f);
+		// Cronómetro de depuración (franja): periodo de frame y duración del update, en
+		// k ciclos (contador del periférico de debug; ver `eng/debug/peripheral.hpp`).
+		const eng::u32 t0 = eng::debug::DebugPeripheral::cycle_counter();
+		m_period_kcycles = (t0 - m_last_cycle) / 1000u;
+		m_last_cycle = t0;
+		// El plan del frame anterior no puede tocarse hasta que su cadena async termine.
+		backend.frame_plan_async_wait();
 		m_frame_plan.clear();
 
 		update_orbs();
@@ -170,10 +182,20 @@ struct BobShowcaseDemo {
 		update_bars();
 		update_jewels();
 
-		// **Ejecución síncrona**: con el render del async aún con defectos (ver
-		// `docs/debugging/investigaciones/066-async-blit-irq-bajo-el-so.md`) se usa el
-		// camino validado; el async da 49.92 fps y es el objetivo tras cerrar su bug.
-		(void)backend.execute_frame_plan(m_frame_plan);
+		// **Ejecución async** (cadena por IRQ de fin de blit; gate de INTENA en el motor para
+		// una IRQ por job — bug 3 cerrado). Si el servicio no se pudo instalar, degradar al
+		// camino síncrono (contrato de `execute_frame_plan_async`).
+		if (!backend.execute_frame_plan_async(m_frame_plan)) {
+			(void)backend.execute_frame_plan(m_frame_plan);
+		}
+		// Diagnóstico en la telemetría (`measure-fps --json`): nº de jobs si el plan es válido,
+		// 0x6610 si `plan.ok()` es falso (el async no lanza nada).
+		g_eng_run_status.detail =
+			m_frame_plan.ok() ? m_frame_plan.blit_job_count() : 0x6610u;
+		m_update_kcycles = (eng::debug::DebugPeripheral::cycle_counter() - t0) / 1000u;
+		if ((f & 31u) == 0u) {
+			draw_version_strip(f);
+		}
 		if (build_copper()) {
 			m_copper.install(backend);
 		}
@@ -466,6 +488,117 @@ private:
 		}
 	}
 
+	// ── Franja de versión (norma: 16 px de alto, 4 bpp, parte inferior) ────
+	/// Rellena la franja y=240..255 con `value` (planos 0-3) escribiendo las palabras.
+	void strip_fill(eng::u8 value) {
+		eng::u16* const planes = m_bitplane_block.view.as_words().data();
+		const eng::u16 wpr = static_cast<eng::u16>(kBytesPerRow / 2u);
+		for (eng::u8 p = 0u; p < 4u; ++p) {
+			const eng::u16 word = (value & (1u << p)) != 0u ? 0xffffu : 0x0000u;
+			for (eng::s16 y = 240; y < 256; ++y) {
+				eng::u16* const row = planes +
+						     static_cast<eng::u32>(p) * (kPlaneBytes / 2u) +
+						     static_cast<eng::u32>(y) * wpr;
+				for (eng::u16 i = 0u; i < wpr; ++i) {
+					row[i] = word;
+				}
+			}
+		}
+	}
+
+	/// Escribe `value` en el píxel (x, y) de la franja (planos 0-3).
+	void strip_set(eng::s16 x, eng::s16 y, eng::u8 value) {
+		if (x < 0 || x >= 320 || y < 240 || y >= 256) {
+			return;
+		}
+		eng::u16* const planes = m_bitplane_block.view.as_words().data();
+		const eng::u16 wpr = static_cast<eng::u16>(kBytesPerRow / 2u);
+		for (eng::u8 p = 0u; p < 4u; ++p) {
+			if ((value & (1u << p)) == 0u) {
+				continue;
+			}
+			eng::u16* const row = planes + static_cast<eng::u32>(p) * (kPlaneBytes / 2u) +
+					      static_cast<eng::u32>(y) * wpr;
+			row[x / 16] = static_cast<eng::u16>(row[x / 16] | (0x8000u >> (x & 15)));
+		}
+	}
+
+	/// Texto con la fuente 5x7 del engine dentro de la franja (avance 5 px).
+	void strip_text(eng::s16 x, eng::s16 y, const char* text, eng::u8 color) {
+		const eng::u8* p = reinterpret_cast<const eng::u8*>(text);
+		for (;;) {
+			const eng::u32 cp = eng::utf8::decode(p);
+			if (cp == 0u) {
+				break;
+			}
+			if (cp >= 32u) {
+				for (eng::u8 r = 0u; r < eng::Font5x7::kRows; ++r) {
+					const eng::u8 bits =
+						eng::Font5x7::row(static_cast<eng::u16>(cp), r);
+					for (eng::u8 c = 0u; c < 5u; ++c) {
+						if ((bits & (0x10u >> c)) != 0u) {
+							strip_set(static_cast<eng::s16>(x + c),
+								  static_cast<eng::s16>(y + r), color);
+						}
+					}
+				}
+			}
+			x = static_cast<eng::s16>(x + 5);
+		}
+	}
+
+	/// Texto decimal con prefijo en la franja (sin stdlib).
+	void strip_num(eng::s16 x, eng::s16 y, const char* prefix, eng::u32 value, eng::u8 color) {
+		char buf[16];
+		eng::u8 n = 0u;
+		while (prefix[n] != '\0' && n + 1u < sizeof(buf)) {
+			buf[n] = prefix[n];
+			++n;
+		}
+		char tmp[10];
+		eng::u8 t = 0u;
+		do {
+			tmp[t++] = static_cast<char>('0' + (value % 10u));
+			value /= 10u;
+		} while (value != 0u && t < 10u);
+		while (t > 0u && n + 1u < sizeof(buf)) {
+			buf[n++] = tmp[--t];
+		}
+		buf[n] = '\0';
+		strip_text(x, y, buf, color);
+	}
+
+	/// Texto hex de 6 dígitos con prefijo (diagnóstico de direcciones en la franja).
+	void strip_hex(eng::s16 x, eng::s16 y, char prefix, eng::uintptr value, eng::u8 color) {
+		char buf[8];
+		buf[0] = prefix;
+		for (eng::u8 i = 0u; i < 6u; ++i) {
+			const eng::u8 nib = static_cast<eng::u8>((value >> ((5u - i) * 4u)) & 0x0fu);
+			buf[1u + i] = static_cast<char>(nib < 10u ? '0' + nib : 'A' + (nib - 10u));
+		}
+		buf[7] = '\0';
+		strip_text(x, y, buf, color);
+	}
+
+	/// Franja de **nombre + versión (major.minor.build) + depuración** (norma del repo):
+	/// 16 px de alto y 4 bpp en la parte inferior. Se repinta cada 32 frames (coste bajo).
+	/// Depuración: frames, CPU del update (`U`) y periodo de frame (`T`), en k ciclos.
+	void draw_version_strip(eng::u16 frame) {
+		strip_fill(4u); // fondo oscuro (COLOR04)
+		strip_text(4, 241, "066 BOB SHOWCASE", 1u);
+		strip_hex(100, 241, 'B', reinterpret_cast<eng::uintptr>(m_bitplane_block.view.data()), 1u);
+		strip_hex(160, 241, 'C', reinterpret_cast<eng::uintptr>(m_copper.active_words()), 1u);
+		char label[16];
+		(void)eng::debug::version_label(eng::debug::Version {1u, 0u}, label,
+						static_cast<eng::u8>(sizeof(label)));
+		strip_text(4, 249, label, 2u);
+		strip_num(56, 249, "F", frame, 2u);
+		strip_num(120, 249, "U", m_update_kcycles, 2u);
+		strip_num(176, 249, "T", m_period_kcycles, 2u);
+		strip_num(232, 249, "L", eng::amiga::AmigaBackend::blit_async_launches(), 1u);
+		strip_num(268, 249, "S", eng::amiga::AmigaBackend::blit_async_submits(), 1u);
+	}
+
 	void build_background_art() {
 		eng::u16 seed = 0x1234u;
 		for (eng::u16 i = 0u; i < 90u; ++i) {
@@ -721,7 +854,10 @@ private:
 	/// sprites (orden de WAIT estrictamente creciente; ver notas de 066).
 	bool build_copper() {
 		eng::copper::SchedulerT<false> sched { m_copper.inactive_block() };
-		sched.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0, kBytesPerRow, 0x5200,
+		// BPLCON0 derivado del nº de planos: BPU (bits 12-14) = kPlanes; 0x0200 = color.
+		// Hardcodearlo causó el bug del 5º plano fantasma (BPL5PT basura → valores 16-31).
+		sched.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0, kBytesPerRow,
+					  static_cast<eng::u16>(0x4000u | (kPlanes << 12u)),
 					  kPlanes, m_bitplane_block.mem_view_chip(), kPlaneBytes);
 		sched.move(eng::copper::Register::DMACON,
 			   static_cast<eng::u16>(eng::copper::DmaSetClear | eng::copper::DmaMaster |
@@ -822,6 +958,9 @@ private:
 	// Sprites HW (armado directo por Copper).
 	eng::ChipView<eng::SpriteTag> m_ship_data {};
 	eng::u16 m_arm_frame = 0u;
+	eng::u32 m_last_cycle = 0u;
+	eng::u32 m_update_kcycles = 0u;
+	eng::u32 m_period_kcycles = 0u;
 
 	// Hojas y geometría.
 	eng::graphics::Bob m_orb {};
@@ -853,6 +992,11 @@ int main() {
 	eng::amiga::AmigaBackend backend {};
 	BobShowcaseDemo demo {};
 	eng::Engine engine { backend, demo };
+	// La demo usa el **encadenado async** del `FramePlan` (su propia IRQ de fin de blit):
+	// `run_frames` instala por defecto el `BackgroundPump` como servicio de blit y
+	// `install_blit_service` rechaza el segundo — sin esto, `execute_frame_plan_async`
+	// fallaba en silencio y los BOBs no se dibujaban (bug 4 de la 066).
+	engine.set_blit_service_enabled(false);
 	(void)eng::os::init(engine, 0u);
 	engine.run_frames(0xffff);
 

@@ -59,6 +59,11 @@ Modo final para demos/juegos exigentes.
 
 ## Toma de control del display (`takeover_display`)
 
+**Procedimiento canónico completo (entrada + salida, con `LoadView`/`OwnBlitter` y la
+restauración al SO):** [`docs/reference/amiga/hardware/takeover-y-restauracion-canonica.md`](../../reference/amiga/hardware/takeover-y-restauracion-canonica.md).
+El engine implementa la parte de **registros**; los gaps (parte de `graphics.library` en la entrada
+y un `restore_system()` de salida) están listados en ese documento.
+
 La transicion de OS-friendly a takeover del video se concretiza en un solo punto
 del backend: `AmigaBackend::takeover_display(const u16* copper_words)`
 (`engine/src/platform/amiga/amiga.cpp`). Se invoca una sola vez
