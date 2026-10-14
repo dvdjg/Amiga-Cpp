@@ -58,7 +58,7 @@ struct SpriteConfig {
     ChipView<SpriteTag> data {};
     u8 width_words = 1;          // 1 = 16 px, 2 = 32 px (SPRxCTL bit doble ancho)
     u8 height = 0;               // líneas (1..128)
-    u16 hpos = 0;                // posición horizontal (px)
+    u16 hpos = 0;                // X: HSTART absoluto en color-clocks (píxel = hpos − 0x81)
     u16 vstart = 0;              // línea vertical de inicio
     u16 vstop = 0;               // línea SIGUIENTE a la última visible (exclusiva; AHRM cap. 4)
     /// **Attached** al sprite anterior del par (bit 7 de `SPRxCTL`): 4 bits/píxel sobre

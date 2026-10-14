@@ -25,6 +25,7 @@
 #include <eng/platform/amiga/object3d_poly.hpp>
 #include <eng/retro/flat_shade_xor.hpp>
 #include <eng/api/api.hpp>
+#include <eng/debug/prof.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/platform/amiga/backend.hpp>
 
@@ -44,14 +45,9 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 	0,
 };
 
-// Perfilado por secciones: cabecera magica para localizarla por canal lateral y
-// deltas de ciclos de CPU (contador del periferico de depuracion 0xB7E928).
-// v[0]=clear v[1]=transform/culling v[2]=edges v[3]=fill v[4]=draw(edges+fill) v[5]=update total
-struct EngProf {
-	eng::u32 magic;
-	eng::u32 v[16];
-};
-__attribute__((used)) volatile EngProf g_eng_prof { 0x50524f46u, {0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u} };
+// Perfilado por secciones: se usa el bloque del ENGINE (`eng::debug::g_eng_prof`,
+// `ProfBlock`: magic + cycles[16]…), publicado en el `.map` y leído por
+// `tools/debug/profile.mjs` (la demo escribe `cycles[N]` a mano en los tramos que mide).
 }
 
 // Argumentos de las rutinas asm de support/flatshade_asm.s. GLOBAL y `extern "C"`
@@ -356,10 +352,10 @@ void draw_edges(obj::Object3D& object, eng::PlaneBytes planes,
 	}
 #endif
 	const eng::u32 t1 = rcycles();
-	g_eng_prof.v[10] = n_edges;
-	g_eng_prof.v[11] = n_lines;
-	g_eng_prof.v[12] = px_total;
-	g_eng_prof.v[2] = t1 - t0;
+	eng::debug::g_eng_prof.cycles[10] = n_edges;
+	eng::debug::g_eng_prof.cycles[11] = n_lines;
+	eng::debug::g_eng_prof.cycles[12] = px_total;
+	eng::debug::g_eng_prof.cycles[2] = t1 - t0;
 }
 
 /// Lanza (o espera) el area fill `XOR` sobre `planes`. `wait=false` lo lanza sin
@@ -399,8 +395,8 @@ void area_fill_planes(eng::PlaneBytes planes, eng::amiga::AmigaBackend& backend,
 #endif
 #endif
 	const eng::u32 t1 = rcycles();
-	g_eng_prof.v[3] = t1 - t0;
-	g_eng_prof.v[4] = t1 - t0;
+	eng::debug::g_eng_prof.cycles[3] = t1 - t0;
+	eng::debug::g_eng_prof.cycles[4] = t1 - t0;
 }
 
 #if K_FLATSHADE_ASM
@@ -525,7 +521,7 @@ struct FlatShadeDemo {
 		prepare_fs_args(planes, m_object);
 		const eng::u32 td0 = rcycles();
 		fs_draw_edges();
-		g_eng_prof.v[2] = rcycles() - td0;
+		eng::debug::g_eng_prof.cycles[2] = rcycles() - td0;
 #elif !FLATSHADE_LEGACY_DRAW
 		// Via del engine: reunir las aristas visibles y lanzar contorno EOR + area fill
 		// XOR con `retro::flat_shade_xor` (sin esperar el fill; se solapa con el
@@ -539,8 +535,8 @@ struct FlatShadeDemo {
 				eng::Span<const eng::retro::OutlineEdge> {edges, ne},
 				/*area_fill_wait=*/false);
 		}
-		g_eng_prof.v[2] = rcycles() - td0;
-		g_eng_prof.v[10] = ne;
+		eng::debug::g_eng_prof.cycles[2] = rcycles() - td0;
+		eng::debug::g_eng_prof.cycles[10] = ne;
 #else
 		draw_edges(m_object, planes, backend);
 #endif
@@ -581,10 +577,10 @@ struct FlatShadeDemo {
 		eng::lib3d::transform_vertices(m_object, static_cast<eng::s16>(kWidth / 2), static_cast<eng::s16>(kHeight / 2), g_bbox);
 #endif
 		const eng::u32 t2 = rcycles();
-		g_eng_prof.v[6] = ta - t1; // update_object_transformation
-		g_eng_prof.v[7] = tb - ta; // update_face_visibility
-		g_eng_prof.v[8] = tc - tb; // update_edge_visibility_convex
-		g_eng_prof.v[9] = t2 - tc; // transform_vertices
+		eng::debug::g_eng_prof.cycles[6] = ta - t1; // update_object_transformation
+		eng::debug::g_eng_prof.cycles[7] = tb - ta; // update_face_visibility
+		eng::debug::g_eng_prof.cycles[8] = tc - tb; // update_edge_visibility_convex
+		eng::debug::g_eng_prof.cycles[9] = t2 - tc; // transform_vertices
 
 		// 6) Publicar y rotar: `commit` instala la copperlist del buffer recien dibujado y
 		//    pasa al siguiente; despues se pre-cleara ESE (ni en pantalla ni en dibujo
@@ -597,9 +593,9 @@ struct FlatShadeDemo {
 
 		const eng::u32 t3 = rcycles();
 
-		g_eng_prof.v[0] = t1 - t0;
-		g_eng_prof.v[1] = t2 - t1;
-		g_eng_prof.v[5] = t3 - t0;
+		eng::debug::g_eng_prof.cycles[0] = t1 - t0;
+		eng::debug::g_eng_prof.cycles[1] = t2 - t1;
+		eng::debug::g_eng_prof.cycles[5] = t3 - t0;
 	}
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {

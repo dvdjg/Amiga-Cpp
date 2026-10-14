@@ -314,8 +314,12 @@ struct DkPortGame {
 			// y NES 0..239 -> linea Amiga +kDisplayVStart (misma geometria que el BG).
 			eng::graphics::SpriteConfig cfg {};
 			cfg.enabled = true;
-			cfg.data = eng::Span<const eng::u16> {
-				data + static_cast<eng::u32>(ch) * kSpriteInstanceWords, kSpriteInstanceWords};
+			// Vista tipada en Chip (el sprite DMA solo lee Chip): frontera explícita.
+			cfg.data = eng::ChipView<eng::SpriteTag> {
+				eng::Address<eng::MemoryKind::Chip>::from_storage(
+					reinterpret_cast<const eng::u8*>(
+						data + static_cast<eng::u32>(ch) * kSpriteInstanceWords)),
+				static_cast<eng::u32>(kSpriteInstanceWords) * 2u};
 			cfg.width_words = 1u;
 			cfg.height = kSpriteHeight;
 			cfg.hpos = static_cast<eng::u16>(ox + 128u);

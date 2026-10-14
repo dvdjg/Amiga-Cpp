@@ -12,9 +12,9 @@ sprites hardware. Referencia por píxeles exactos:
 | B | deslizadores con padding **FastCopy**: copia opaca ($F0) que tapa la posición previa sin borrado | `bob_draw(Opaque)` | **no solapar**: el padding se escribe opaco y borraría otro objeto — cada deslizador tiene su carril/corredor sin cruce |
 | C | caminante **cookie-cut planar** ($CA con máscara en plano aparte) sobre damero | `bob_draw(CookieCut)` + máscara | la máscara preserva el fondo; el borrado previo limpia solo los planos 0-1 |
 | D | patrullero cookie-cut + **save-under** del cofre | `bob_save_box`/`bob_restore_box` | la técnica que **sí** soporta solapes: restaura lo que había debajo byte a byte |
-| E | barras que borran su caja y se redibujan | `bob_erase_box` | como A (un objeto por zona ⇒ sin solape) |
+| E | barras **con padding** (copia opaca que limpia su estela: un job/frame) | `bob_draw(Opaque)` (el borrado por caja de la técnica se demuestra en A) |
 | F | joya multicolor de 4 planos con padding | `bob_draw(Opaque)` | como B (no solapa) |
-| G | **dos naves HW** (cada una par adjunto DAT/DATB = 15 colores) armadas por Copper | `encode_sprite_pos_ctl` + POS/CTL/PTR por canal | el armado va tras las bandas y **antes del VSTART** |
+| G | **dos naves HW** (cada una par adjunto DAT/DATB = 15 colores) armadas por Copper | `encode_sprite_pos_ctl` + POS/CTL/PTR por canal | el armado va tras las bandas y **antes del VSTART**; `hpos` es el **HSTART en color-clocks** (píxel = hpos − 0x81) y la línea visible = `VSTART` − 0x2C |
 
 Fondo: degradado de `COLOR00` por bandas de Copper (lista **estática**, se emite una vez y se
 parchean solo POS/CTL del armado de sprites por frame) + arte estático (marcos, dameros,
@@ -27,9 +27,10 @@ iconos, estrellas) en los planos 2-3 dibujado una vez.
 
 ## Estado (2026-10)
 
-- **37.5 fps async** (`execute_frame_plan_async` + `set_blit_service_enabled(false)`), 19
-  jobs/frame; techo de frame = CPU de la demo + cadena de blits (perfil por secciones en
-  `VALIDATION.md`). Objetivo 50 fps: palancas medidas (target interleaved, menos jobs).
+- **39.2 fps async** (`execute_frame_plan_async` + `set_blit_service_enabled(false)`), 18
+  jobs/frame (~8k ciclos/job); techo = CPU de la demo + cadena de blits (perfil por secciones
+  en `VALIDATION.md`). Objetivo 50 fps abierto: interleaved probado y descartado (restricción
+  de cobertura de planos), la barra ya fusionó su borrado; llegar a 50 exigiría ~5 jobs menos.
 - Render verificado con **visión** (secuencia) + **diff objetivo por zonas**: las 7 zonas y
   los sprites HW, sin artefactos. Informe y medidas: [VALIDATION.md](VALIDATION.md).
 - **Coherencia de setup** activa: regiones sin solape, `BPLCON0` vs planos, orden de WAITs y

@@ -130,7 +130,7 @@ struct StripGame {
 		m_layer.set_bank(m_bank_words, kTileWords);
 		m_layer.set_palette(pal.words());
 		m_layer.set_sizes(kRingBytes, kColumnBytes, 1536u);
-		if (!m_layer.begin(backend, mm)) {
+		if (!m_layer.begin(mm, backend)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012803u);
 			return;
 		}

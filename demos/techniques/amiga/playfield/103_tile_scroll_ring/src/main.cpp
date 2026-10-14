@@ -449,9 +449,11 @@ private:
 		for (eng::u8 pl = 0; pl < Scene::plane_count; ++pl) {
 			plan.add_tile_block_copy({
 				eng::graphics::BlitJobKind::CopyRect,
-				nullptr,
-				reinterpret_cast<const eng::u16*>(base + pl * plane_bytes + src_dx + src_dy),
-				reinterpret_cast<eng::u16*>(scratch),
+				eng::graphics::BlitPtr {},
+				eng::graphics::BlitPtr::from_storage(
+					reinterpret_cast<const eng::u16*>(base + pl * plane_bytes + src_dx + src_dy)),
+				eng::graphics::BlitPtr::from_storage(
+					reinterpret_cast<eng::u16*>(scratch)),
 				words,
 				height,
 				src_mod,
@@ -464,9 +466,11 @@ private:
 			});
 			plan.add_tile_block_copy({
 				eng::graphics::BlitJobKind::CopyRect,
-				nullptr,
-				reinterpret_cast<const eng::u16*>(scratch),
-				reinterpret_cast<eng::u16*>(m_scene.bitplanes().data() + pl * plane_bytes + dst_dx + dst_dy),
+				eng::graphics::BlitPtr {},
+				eng::graphics::BlitPtr::from_storage(
+					reinterpret_cast<const eng::u16*>(scratch)),
+				eng::graphics::BlitPtr::from_storage(reinterpret_cast<eng::u16*>(
+					m_scene.bitplanes().data() + pl * plane_bytes + dst_dx + dst_dy)),
 				words,
 				height,
 				0,

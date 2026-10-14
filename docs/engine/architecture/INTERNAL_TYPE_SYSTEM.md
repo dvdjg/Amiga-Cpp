@@ -463,3 +463,38 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
 - Formato de mundo y loader: `WORLD_FORMAT.md`, `STREAMING_LOADER.md`.
 - Contenido y streaming: `CONTENT_AND_TILEMAP.md`.
 - Rendimiento 68000: `docs/guides/optimization/OPTIMIZACION_GPP_68000.md`.
+
+## Barrido de punteros DMA crudos (2026-10)
+
+Auditoría de la flota buscando parámetros de API con **punteros crudos** donde el hardware hace
+DMA (Blitter/Copper/sprite/audio): la regla §1.10 exige que la procedencia vaya en el **tipo**
+(`BlitPtr`, `ChipView<Tag>`, `Words<Tag>`, `Address<MemoryKind::Chip>`). Distinción clave del
+barrido: solo son agujeros los punteros que el **hardware** lee/escribe; los que solo lee la
+**CPU** (tablas de teclado, paletas que se copian a MOVEs, el validador de WAITs, cachés de IA)
+pueden seguir crudos.
+
+**Corregido (2026-10):**
+
+- Demos de blitter con helpers `make_*_job(const u16*, u16*)`: **050/051/052** — los accesores
+  (`destination_at`/`staging_at`/`tile_source_at`/`screen_at`) ahora devuelven `BlitPtr`
+  construido desde `Block::mem_view_chip()` o `Scene::chip_planes()`, y los helpers toman
+  `BlitPtr` (el ejemplo que motivó el barrido fue `make_tile_upload_job` de la 052).
+- `graphics::make_interleaved_masked_bob`: `src`/`dest` → `BlitPtr`.
+
+**Pendiente (etapas con su alcance — DT-013):**
+
+1. **Copper**: `AmigaBackend::takeover_display(const u16*)` / `install_copper_list(const u16*)`
+   → `ChipView<CopperTag>` (DMA del Copper). **57 ficheros** de demos llaman; mecánico (la
+   mayoría tiene el `Block<CopperTag>` o el `DoubleBuffer` a mano: `m_copper.mem_view_chip()`).
+2. **Save-under**: `bob_save_box/restore_box(..., Span<u16> save, ...)` → vista tipada
+   (`Words<Tag>`). Rizoma: `ActorDesc::save[]` (`scene/actor_types.hpp`) y
+   `SpriteLayer::m_save` (`scene/layer.hpp`) también son `Span<u16>` → cambiar los tres juntos
+   + los llamadores (066, 050, actor_store, layer).
+3. **Intenciones de sprite**: `raster_intent.hpp` (`sprite_ptr`) y `sprite_line_layer.hpp`
+   (`line_data`) → `ChipView<SpriteTag>`; los compositores que las rellenan propagan la vista.
+4. **Tiles/mundo**: `xlimited_playfield.hpp` (`emit_world_rect(_masked)`), `tile_scroll.hpp`
+   (`tile_source/tile_planes`), `field_controller.hpp` (`cells/words/tile_words`),
+   `pattern_fill.hpp` (`pattern`) → `PlaneViewBytes`/`ChipView<Tag>` con offset.
+5. **Gate**: añadir a `tools/check/type-tagging.mjs` un patrón que vigile firmas nuevas con
+   `const u16*`/`u16*` en los directorios DMA (`engine/include/eng/{graphics,copper,field}`)
+   sobre baseline, para que no vuelvan a colarse.

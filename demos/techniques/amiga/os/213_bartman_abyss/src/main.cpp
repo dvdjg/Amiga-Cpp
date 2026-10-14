@@ -350,7 +350,9 @@ struct AbyssDemo {
 		// ORIGINAL: el handler de la IRQ de VBlank escribía el MOVE parcheable de `BPLCON1`
 		// (`*scroll = sin | (sin<<4)`). AQUÍ: `set_fine_scroll` pide el valor y el engine lo
 		// aplica en su propio latido de VBlank.
-		app.set_fine_scroll(kFineScroll[frame & 63u]);
+		// El patch de `BPLCON1` se registra en el setup; si no estuviera, el scroll
+		// quedaría fijo (no hay camino alternativo que valga la pena aquí).
+		(void)app.set_fine_scroll(kFineScroll[frame & 63u]);
 		// Limpia la banda de juego. ORIGINAL: blit D-only (`BLTCON0=A_TO_D|DEST`, `BLTDPT=image+
 		// 40*200*5`, `BLTDMOD=0`, `BLTSIZE=(56*5)<<6|20`). AQUÍ: `clear_box` encola el mismo
 		// blit D-only interleaved (filas 200..255 de los 5 planos) en el plan del frame.

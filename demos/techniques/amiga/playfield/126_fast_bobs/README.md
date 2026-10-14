@@ -15,8 +15,13 @@ enseña el camino correcto (bandas + capa de BOBs) sin nombrar registros ni `Bli
   juego solo mueve actores (`BobActor`).
 - El asset del BOB (cuadrado 16×16 con padding) se genera en **runtime** en Chip (planar 3
   planos), sin pipeline de assets.
+- **Márgenes F5** (`graphics::fast_bob_margins`): el asset declara el desplazamiento máximo
+  por eje (pasos **reales** 3, 2 px/frame) y el helper da el padding y el tamaño de la hoja
+  (**22×20**) con el ancla en `(kBobPadX, kBobPadY)`. La geometría no está cableada: sale del
+  contrato. La espera de frame es **activa** (`set_vblank_sleep(false)`, variante 2 del 212).
 
 La ficha de la técnica: [`docs/reference/amiga/techniques/dual-playfield-fastbobs.md`](../../../../docs/reference/amiga/techniques/dual-playfield-fastbobs.md).
+Validación (medidas + visión, sin rastros ni huecos): [VALIDATION.md](VALIDATION.md).
 
 ## Cómo se ejecuta
 

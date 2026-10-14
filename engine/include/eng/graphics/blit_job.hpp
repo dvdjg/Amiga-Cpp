@@ -256,14 +256,16 @@ struct BlitJob {
 /// mitad), `C = D` = destino; `ASH`/`BSH` desplazan ambos canales con el mismo `shift`. Ver
 /// `docs/reference/amiga/techniques/interleaved-bob-single-blit.md`. El job queda listo para
 /// `FramePlan::add_masked_bob` o `AmigaBackend::blitter_submit`.
-inline void make_interleaved_masked_bob(BlitJob& job, const u16* src, u16* dest, u16 w, u16 h,
+/// **Frontera tipada**: `src`/`dest` llegan como `BlitPtr` (direcciones **Chip** con
+/// procedencia en el tipo — no compila pasar memoria no-Chip ni un `u16*` suelto).
+inline void make_interleaved_masked_bob(BlitJob& job, BlitPtr src, BlitPtr dest, u16 w, u16 h,
 					u8 planes, u16 dest_row_bytes, u8 shift) noexcept {
 	const u16 words = static_cast<u16>(w / 16u);
 	job = BlitJob {};
 	job.kind = BlitJobKind::MaskedBobCookieCut;
-	job.source = BlitPtr::from_storage(src);         // primera mitad de la fila = imagen
-	job.mask = BlitPtr::from_storage(src + words);   // segunda mitad de la fila = máscara
-	job.destination = BlitPtr::from_storage(dest);
+	job.source = src;                                 // primera mitad de la fila = imagen
+	job.mask = src + static_cast<s32>(words) * 2;     // segunda mitad = máscara (+words, en bytes)
+	job.destination = dest;
 	job.words_per_row = words;
 	job.height = static_cast<u16>(h * planes);
 	// Avance por "fila" (una fila de UN plano): el par ocupa `2*words` palabras.

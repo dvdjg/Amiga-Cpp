@@ -106,29 +106,31 @@ void build_tile(eng::u16* tile, eng::u8 color_index, eng::u8 accent_index, eng::
 	}
 }
 
-eng::u16* tile_source_at(eng::Block<eng::TileBankTag>& block, eng::u16 tile_index) {
-	return reinterpret_cast<eng::u16*>(
-		block.view.data() + static_cast<eng::u32>(tile_index) * tile_bytes
-	);
+/// Puntero **tipado** (Chip) a la fuente de un tile: `BlitPtr` desde la vista tipada del
+/// bloque — el compilador no admite pasar memoria no-Chip ni un tipo suelto (regla §1.10).
+eng::graphics::BlitPtr tile_source_at(eng::Block<eng::TileBankTag>& block, eng::u16 tile_index) {
+	return eng::graphics::BlitPtr {
+		block.mem_view_chip(),
+		static_cast<eng::s32>(static_cast<eng::u32>(tile_index) * tile_bytes)};
 }
 
-eng::u16* staging_at(eng::Block<eng::PlaneTag>& block, eng::u16 x, eng::u16 y) {
+eng::graphics::BlitPtr staging_at(eng::Block<eng::PlaneTag>& block, eng::u16 x, eng::u16 y) {
 	const eng::u32 offset = static_cast<eng::u32>(y) * staging_bytes_per_row + (x / 8u);
-	return reinterpret_cast<eng::u16*>(block.view.data() + offset);
+	return eng::graphics::BlitPtr {block.mem_view_chip(), static_cast<eng::s32>(offset)};
 }
 
-eng::u16* screen_at(eng::u8* planes, eng::u16 x, eng::u16 y) {
+eng::graphics::BlitPtr screen_at(eng::ChipPlaneView planes, eng::u16 x, eng::u16 y) {
 	const eng::u32 offset = static_cast<eng::u32>(y) * screen_bytes_per_row + (x / 8u);
-	return reinterpret_cast<eng::u16*>(planes + offset);
+	return eng::graphics::BlitPtr {planes, static_cast<eng::s32>(offset)};
 }
 
 eng::graphics::BlitJob make_tile_upload_job(
-	const eng::u16* source,
-	eng::u16* destination
+	eng::graphics::BlitPtr source,
+	eng::graphics::BlitPtr destination
 ) {
 	return {
 		eng::graphics::BlitJobKind::TileBlockCopy,
-		nullptr,
+		eng::graphics::BlitPtr {}, // sin máscara
 		source,
 		destination,
 		tile_words_per_row,
@@ -143,12 +145,12 @@ eng::graphics::BlitJob make_tile_upload_job(
 }
 
 eng::graphics::BlitJob make_present_staging_job(
-	const eng::u16* source,
-	eng::u16* destination
+	eng::graphics::BlitPtr source,
+	eng::graphics::BlitPtr destination
 ) {
 	return {
 		eng::graphics::BlitJobKind::CopyRect,
-		nullptr,
+		eng::graphics::BlitPtr {}, // sin máscara en una copia
 		source,
 		destination,
 		staging_words_per_row,
@@ -190,10 +192,10 @@ struct DemoGame {
 
 		clear_block(m_tiles_block.view.data(), tile_bytes * tile_count);
 		clear_block(m_staging_block.view.data(), staging_plane_bytes * plane_count);
-		build_tile(tile_source_at(m_tiles_block, 0), 4, 14, 0);
-		build_tile(tile_source_at(m_tiles_block, 1), 6, 14, 1);
-		build_tile(tile_source_at(m_tiles_block, 2), 7, 14, 2);
-		build_tile(tile_source_at(m_tiles_block, 3), 5, 14, 3);
+		build_tile(tile_source_at(m_tiles_block, 0).words(), 4, 14, 0);
+		build_tile(tile_source_at(m_tiles_block, 1).words(), 6, 14, 1);
+		build_tile(tile_source_at(m_tiles_block, 2).words(), 7, 14, 2);
+		build_tile(tile_source_at(m_tiles_block, 3).words(), 5, 14, 3);
 
 		m_frame_plan.clear();
 		if (!prepare_tilemap_model()) {
@@ -219,8 +221,8 @@ struct DemoGame {
 		}
 
 		const eng::graphics::BlitJob present_job = make_present_staging_job(
-			m_staging_block.view.as_words().data(),
-			screen_at(m_scene.bitplanes().data(), present_x, present_y)
+			eng::graphics::BlitPtr {m_staging_block.mem_view_chip()},
+			screen_at(m_scene.chip_planes(), present_x, present_y)
 		);
 		if (!m_frame_plan.add_copy_rect(present_job) || !backend.execute_frame_plan(m_frame_plan)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000056u);

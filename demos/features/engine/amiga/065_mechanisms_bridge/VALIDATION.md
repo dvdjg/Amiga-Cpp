@@ -7,10 +7,25 @@ Fecha: 2026-10-14 · Config: A500_debug · Versión en pantalla: v1.0.x (franja 
 | Configuración | fps (measure-fps) | ciclos/frame | Notas |
 |---|---|---|---|
 | Estado previo (sync, hojas de 4 planos, copper re-emitido) | 17.62 | 402 555 (2.84 campos) | 84 blits/frame en sync |
-| **Entregado** (async, 2 planos, copper estático, franja) | **24.49** | **289 703 (2.04 campos)** | 18 jobs (2 planos/job) = 36 blits |
+| Async + 2 planos + copper estático + franja | 24.49 | 289 703 (2.04 campos) | 18 jobs |
+| **Entregado** (+ contratos de solape: brazo/jugador/bola) | **22.36** | **317 192 (2.24 campos)** | 18 jobs + cajas de borrado y máscaras |
 
-`detail=0x12` (telemetría de la demo) = 18 jobs/frame. Franja: U275/T275 k ciclos (coherente
-con la medida).
+`detail=0x13` (telemetría de la demo) = 19 jobs/frame. Franja: U294/T295 k ciclos.
+
+### Contratos de solape (corregidos en la pasada de contratos)
+
+- **Brazo de la catapulta**: 4 segmentos a ~6 px con hojas de 22 px → con copia **opaca** el
+  padding de cada uno borraba al anterior (solo se veía el último: "blobs"). Ahora los
+  segmentos del brazo son **cookie-cut con máscara** (`m_plank_m`) y se ensamblan en una barra
+  continua; la estela la limpia la **caja AABB del brazo anterior** en la pasada de borrado
+  (antes de ningún dibujo).
+- **Jugador**: camina SOBRE el puente; su padding opaco mordía la cuerda bajo sus pies cada
+  frame. Ahora es **cookie-cut** (`m_player_m`) + caja de borrado de su posición anterior.
+- **Bola y escombros**: vuelan sobre la cuerda (pads de 14 px); ahora **cookie-cut**
+  (`m_ball_m`) + cajas de borrado. La cuerda (y el resto) se redibuja **después** de la
+  pasada de borrado, así el frame es correcto en todos los cruces.
+- **Eslabones del puente, base y objetivo**: siguen **fastcopy** — su geometría no solapa
+  contenido ajeno (contenido 6 px vs separación 15 px), que es el contrato del FastCopy.
 
 ## Presupuesto — DEUDA DOCUMENTADA (excepción)
 

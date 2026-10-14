@@ -152,7 +152,8 @@ private:
 				static_cast<eng::u16>(i * kSpriteHeight),
 			};
 			const eng::u16 line = static_cast<eng::u16>(kBaseY + i * (kSpriteHeight + 1u));
-			m_template.switches[i] = { line, &kHues[i], 17, 1 };
+			// `PaletteWords` es una vista tipada (word view): puntero + tamaño.
+			m_template.switches[i] = {line, eng::PaletteWords {&kHues[i], 17u}, 1u};
 		}
 		m_template.segment_count = kInstances;
 		m_template.switch_count = kInstances;

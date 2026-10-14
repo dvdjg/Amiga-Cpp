@@ -25,7 +25,8 @@
 //   D "SAVE"   patrullero cookie-cut par + **save-under** de un segundo objeto: al salir,
 //              `bob_restore_box` devuelve el damero byte a byte (técnica que SÍ soporta
 //              solapes, restaurando lo que había debajo).
-//   E "ERASE"  barras que borran su caja previa (`bob_erase_box`) y se redibujan.
+//   E "ERASE"  barras con **padding** que limpian su propia estela con la copia opaca (un
+//              job/frame; el borrado por caja se demuestra en A).
 //   F "5PL"    joyas de **5 planos** (valores 16-31 de la paleta) con padding.
 //   G (abajo)  **Sprites HW**: dos naves (cada una un **par adjunto** DAT/DATB = 15
 //              colores) armadas por `SpriteManager::arm_object` en la copperlist.
@@ -114,6 +115,10 @@ constexpr eng::u16 kWalkW = 16, kWalkH = 16;   // par cookie-cut (ancho múltipl
 constexpr eng::u16 kPatW = 16, kPatH = 16;     // par cookie-cut
 constexpr eng::u16 kJewelW = 12, kJewelH = 12, kJewelPad = 4;
 constexpr eng::u16 kBarW = 12, kBarH = 8;
+// Padding de la barra = |paso| máximo en x (vx = 2): copia opaca que limpia su propia
+// estela (zona E: en movimiento solo está la barra; el damero vive en planos 2-3 y el
+// padding solo toca 0-1) → **un job** en vez de borrado+dibujo.
+constexpr eng::u16 kBarPad = 3;
 
 // ── Sprites HW ──────────────────────────────────────────────────────────────
 constexpr eng::u16 kShipW = 16, kShipH = 16;
@@ -486,13 +491,24 @@ private:
 		});
 		off = sheet_advance("jewel", off, jewel_w, jewel_h, 4u);
 
-		// Barra (erase): cuerpo 2 con puntas 3.
-		m_bar = make_bob(base + off, kBarW, kBarH, 2u, eng::graphics::BobDraw::Or);
-		write_sheet(base + off, kBarW, kBarH, 2u, [](eng::u16 x, eng::u16 y) -> eng::u8 {
-			if (y == 0u || y + 1u == kBarH) return 3u;
-			return (x < 2u || x + 2u >= kBarW) ? 1u : 2u;
-		});
-		off = sheet_advance("bar", off, kBarW, kBarH, 2u);
+		// Barra **con padding** (copia opaca): la propia copia limpia la estela (un job por
+		// frame; el borrado por caja de esa técnica queda demostrado en la zona A/orbes).
+		m_bar = make_bob(base + off, static_cast<eng::u16>(kBarW + 2u * kBarPad),
+			 static_cast<eng::u16>(kBarH + 2u * kBarPad), 2u, eng::graphics::BobDraw::Opaque);
+		write_sheet(base + off, static_cast<eng::u16>(kBarW + 2u * kBarPad),
+			    static_cast<eng::u16>(kBarH + 2u * kBarPad), 2u,
+			    [](eng::u16 x, eng::u16 y) -> eng::u8 {
+				    if (x < kBarPad || y < kBarPad || x >= kBarPad + kBarW ||
+					y >= kBarPad + kBarH) {
+					    return 0u; // padding transparente (se escribe 0 = limpia 0-1)
+				    }
+				    const eng::u16 cx = static_cast<eng::u16>(x - kBarPad);
+				    const eng::u16 cy = static_cast<eng::u16>(y - kBarPad);
+				    if (cy == 0u || cy + 1u == kBarH) return 3u;
+				    return (cx < 2u || cx + 2u >= kBarW) ? 1u : 2u;
+			    });
+		off = sheet_advance("bar", off, static_cast<eng::u16>(kBarW + 2u * kBarPad),
+				    static_cast<eng::u16>(kBarH + 2u * kBarPad), 2u);
 
 		// Save-under: un "cofre" 2-planos con save/restore (técnica distinta al par).
 		m_chest = make_bob(base + off, 16u, 16u, 2u, eng::graphics::BobDraw::Opaque);
@@ -764,10 +780,18 @@ private:
 	}
 
 	/// Posición de la nave `s` en el frame dado (vaivén horizontal determinista).
+	///
+	/// **Coordenada del armado**: la pareja POS/CTL lleva el **HSTART en color-clocks** (no
+	/// el píxel de pantalla): con la ventana estándar (DIWSTRT h=0x81), píxel = hpos − 0x81.
+	/// Verificado en emulador: con hpos=180 el sprite aparece en el píxel 51. La nave s=0
+	/// patrulla la mitad izquierda y la s=1 la derecha (sin solaparse); rango de píxeles
+	/// 8..288 dentro de la ventana.
 	static void ship_xy(eng::u16 frame, eng::u8 s, eng::u16& x, eng::u16& y) {
-		const eng::u16 span = static_cast<eng::u16>(200u - s * 60u);
+		const eng::u16 span = static_cast<eng::u16>(140u - s * 30u); // medio recorrido
 		const eng::u16 phase = static_cast<eng::u16>((frame * (2u + s)) % (2u * span));
-		x = static_cast<eng::u16>(60u + s * 40u + (phase < span ? phase : 2u * span - phase));
+		const eng::u16 px = static_cast<eng::u16>(8u + s * 150u +
+							  (phase < span ? phase : 2u * span - phase));
+		x = static_cast<eng::u16>(0x81u + px);
 		y = static_cast<eng::u16>(kSpriteY + (s == 0u ? 0 : 18));
 	}
 
@@ -958,13 +982,6 @@ private:
 	void update_bars() {
 		for (eng::u8 i = 0u; i < kBars; ++i) {
 			Bar& b = m_bars[i];
-			if (m_bar_prev_valid[i]) {
-				(void)eng::graphics::bob_erase_box(
-					m_frame_plan, m_bar, static_cast<eng::u16>(kBarW + 6u),
-					static_cast<eng::u16>(kBarH + 6u),
-					static_cast<eng::s16>(b.x - 3), static_cast<eng::s16>(b.y - 3),
-					m_target);
-			}
 			b.x = static_cast<eng::s16>(b.x + b.vx);
 			const eng::s16 minx = static_cast<eng::s16>(kZoneEx + 3);
 			const eng::s16 maxx = static_cast<eng::s16>(kZoneEx + kZoneEw - kBarW - 3);
@@ -972,7 +989,10 @@ private:
 				b.vx = static_cast<eng::s16>(-b.vx);
 				b.x = static_cast<eng::s16>(b.x + b.vx);
 			}
-			(void)eng::graphics::bob_draw(m_frame_plan, m_bar, 0u, b.x, b.y, m_target);
+			// Copia opaca con padding: sin borrado previo (un solo job por frame).
+			(void)eng::graphics::bob_draw(m_frame_plan, m_bar, 0u,
+						      static_cast<eng::s16>(b.x - kBarPad),
+						      static_cast<eng::s16>(b.y - kBarPad), m_target);
 			m_bar_prev_valid[i] = true;
 		}
 	}

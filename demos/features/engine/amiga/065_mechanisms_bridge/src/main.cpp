@@ -117,21 +117,38 @@ struct MechanismsDemo {
 			return;
 		}
 
-		// Hojas con **padding transparente** (4 planos; valor en planos 0-1): el contenido
-		// queda centrado y la copia opaca cubre el paso máximo del objeto.
+		// Hojas con **padding transparente** (2 planos; valor en planos 0-1): el contenido
+		// queda centrado y — para los objetos que NO se solapan con otros (eslabones del
+		// puente, base y objetivo) — la copia **opaca** cubre su paso máximo (FastCopy). Los
+		// objetos que SÍ se solapan (jugador sobre el puente, brazo de la catapulta, bola y
+		// escombros sobre la cuerda) usan **cookie-cut con máscara** (`_m`): su parte
+		// transparente no escribe y no borra al vecino; su estela se limpia con la pasada de
+		// borrado de `erase_old_boxes`. Contrato: `FastBobLayer`-style solo sin solape.
 		eng::u16* const sheets = m_sheet_block.view.as_words().data();
+		const eng::u16 plank_words = padded_words(6u, 6u, kPlankPad);
+		const eng::u16 player_words = padded_words(kPlayerW, kPlayerH, kPlayerPad);
+		const eng::u16 ball_words = padded_words(4u, 4u, kBallPad);
+		const eng::u16 target_words = padded_words(14u, 14u, kTargetPad);
 		m_plank = make_padded(sheets, 0u, 6u, 6u, kPlankPad, 3u);
-		m_player = make_padded(sheets, padded_words(6u, 6u, kPlankPad), kPlayerW, kPlayerH,
-				       kPlayerPad, 1u);
-		m_ball = make_padded(sheets,
-				     padded_words(6u, 6u, kPlankPad) +
-					     padded_words(kPlayerW, kPlayerH, kPlayerPad),
-				     4u, 4u, kBallPad, 1u);
+		m_player = make_padded(sheets, plank_words, kPlayerW, kPlayerH, kPlayerPad, 1u);
+		m_ball = make_padded(sheets, static_cast<eng::u16>(plank_words + player_words), 4u, 4u,
+				     kBallPad, 1u);
 		m_target_bob = make_padded(sheets,
-					   padded_words(6u, 6u, kPlankPad) +
-						   padded_words(kPlayerW, kPlayerH, kPlayerPad) +
-						   padded_words(4u, 4u, kBallPad),
+					   static_cast<eng::u16>(plank_words + player_words + ball_words),
 					   14u, 14u, kTargetPad, 3u);
+		// Máscaras de los objetos que se solapan (tras las hojas de contenido).
+		const eng::u16 mask_base =
+			static_cast<eng::u16>(plank_words + player_words + ball_words + target_words);
+		const eng::u16 plank_mask_words = mask_sheet_words(6u, 6u, kPlankPad);
+		const eng::u16 player_mask_words = mask_sheet_words(kPlayerW, kPlayerH, kPlayerPad);
+		m_plank_m = make_masked(sheets, 0u, mask_base, 6u, 6u, kPlankPad, 3u);
+		m_player_m = make_masked(sheets, plank_words,
+					 static_cast<eng::u16>(mask_base + plank_mask_words), kPlayerW,
+					 kPlayerH, kPlayerPad, 1u);
+		m_ball_m = make_masked(sheets, static_cast<eng::u16>(plank_words + player_words),
+				       static_cast<eng::u16>(mask_base + plank_mask_words +
+							     player_mask_words),
+				       4u, 4u, kBallPad, 1u);
 
 		// Puente: cadena recta con extremos anclados.
 		for (eng::u8 i = 0u; i < kLinks; ++i) {
@@ -288,6 +305,7 @@ struct MechanismsDemo {
 		// franja o espera el VBlank) y, cada 32 frames, la telemetría de la franja.
 		backend.frame_plan_async_wait(); // el plan del frame anterior ya no se toca
 		m_frame_plan.clear();
+		erase_old_boxes();
 		emit_bobs();
 		if (!backend.execute_frame_plan_async(m_frame_plan)) {
 			(void)backend.execute_frame_plan(m_frame_plan);
@@ -365,8 +383,52 @@ private:
 		return b;
 	}
 
-	void build_ballistic() {
-		// x = -4·i; y = -(v0·i − i²/4) con v0 = 12 (parábola entera, cocinada una vez).
+	/// Palabras de una hoja de **máscara** (1 plano, con guarda por fila).
+	[[nodiscard]] static constexpr eng::u16 mask_sheet_words(eng::u16 w, eng::u16 h, eng::u16 pad) {
+		const eng::u16 pw = static_cast<eng::u16>(w + 2u * pad);
+		const eng::u16 ph = static_cast<eng::u16>(h + 2u * pad);
+		return static_cast<eng::u16>((((pw + 15u) / 16u) + 1u) * ph);
+	}
+
+	/// Escribe la máscara (1 plano) de un contenido sólido `w×h` con padding transparente.
+	static void write_mask_sheet(eng::u16* sheets, eng::u16 word_off, eng::u16 w, eng::u16 h,
+				     eng::u16 pad) {
+		const eng::u16 pw = static_cast<eng::u16>(w + 2u * pad);
+		const eng::u16 ph = static_cast<eng::u16>(h + 2u * pad);
+		const eng::u16 words = mask_sheet_words(w, h, pad);
+		for (eng::u16 i = 0u; i < words; ++i) {
+			sheets[word_off + i] = 0u;
+		}
+		const eng::u16 row_words = static_cast<eng::u16>(((pw + 15u) / 16u) + 1u);
+		for (eng::u16 row = pad; row < static_cast<eng::u16>(pad + h); ++row) {
+			for (eng::u16 col = pad; col < static_cast<eng::u16>(pad + w); ++col) {
+				const eng::u16 wi = static_cast<eng::u16>(col / 16u);
+				const eng::u16 bit = static_cast<eng::u16>(15u - (col % 16u));
+				sheets[word_off + row * row_words + wi] |=
+					static_cast<eng::u16>(1u << bit);
+			}
+		}
+	}
+
+	/// Bob **cookie-cut con la máscara en plano aparte** (`SeparatePlane`): la parte
+	/// transparente **no escribe**, así que este camino NO borra a los vecinos — es el que
+	/// exige el contrato cuando los objetos se solapan (jugador sobre el puente, brazo de la
+	/// catapulta consigo mismo, bola/escombros sobre los eslabones). La posición anterior se
+	/// limpia con una **pasada de borrado** antes de dibujar (`erase_old_boxes`).
+	eng::graphics::Bob make_masked(eng::u16* sheets, eng::u16 sheet_off, eng::u16 mask_off,
+				       eng::u16 w, eng::u16 h, eng::u16 pad, eng::u16 value) {
+		eng::graphics::Bob b = make_padded(sheets, sheet_off, w, h, pad, value);
+		write_mask_sheet(sheets, mask_off, w, h, pad);
+		b.draw = eng::graphics::BobDraw::CookieCut;
+		b.mask_pack = eng::graphics::BobMaskPack::SeparatePlane;
+		b.mask = eng::ChipView<eng::BobTag> {
+			eng::Address<eng::MemoryKind::Chip>::from_storage(
+				reinterpret_cast<const eng::u8*>(sheets + mask_off)),
+			static_cast<eng::u32>(mask_sheet_words(w, h, pad) * 2u)};
+		return b;
+	}
+
+	void build_ballistic() {		// x = -4·i; y = -(v0·i − i²/4) con v0 = 12 (parábola entera, cocinada una vez).
 		for (eng::u16 i = 0u; i < kBallPoints; ++i) {
 			m_ball_pts[i].p.v[0] = static_cast<eng::s16>(-4 * static_cast<eng::s32>(i));
 			m_ball_pts[i].p.v[1] = static_cast<eng::s16>(
@@ -376,6 +438,35 @@ private:
 		m_ball_traj = eng::scene::Trajectory<eng::s16> {
 			eng::Span<const eng::scene::PathPoint<eng::s16>> {m_ball_pts, kBallPoints}, false,
 			true};
+	}
+
+	/// **Pasada de borrado** (antes de dibujar): limpia la caja de la posición ANTERIOR de
+	/// los objetos cookie-cut. Con todas las cajas borradas antes de ningún dibujo, los
+	/// solapes entre objetos del frame son correctos (y la cuerda se redibuja después).
+	void erase_old_boxes() {
+		if (m_player_prev_valid) {
+			(void)eng::graphics::bob_erase_box(m_frame_plan, m_player_m,
+							   static_cast<eng::u16>(kPlayerW + 2u),
+							   static_cast<eng::u16>(kPlayerH + 2u),
+							   m_player_prev_x, m_player_prev_y, m_target);
+		}
+		if (m_arm_prev_valid) {
+			(void)eng::graphics::bob_erase_box(m_frame_plan, m_plank_m,
+							   static_cast<eng::u16>(m_arm_prev_w),
+							   static_cast<eng::u16>(m_arm_prev_h), m_arm_prev_x,
+							   m_arm_prev_y, m_target);
+		}
+		if (m_ball_prev_valid) {
+			(void)eng::graphics::bob_erase_box(m_frame_plan, m_ball_m, 6u, 6u, m_ball_prev_x,
+							   m_ball_prev_y, m_target);
+		}
+		if (m_debris_prev_valid) {
+			for (eng::u8 i = 0u; i < 4u; ++i) {
+				(void)eng::graphics::bob_erase_box(m_frame_plan, m_ball_m, 6u, 6u,
+								   m_debris_prev_x[i],
+								   m_debris_prev_y[i], m_target);
+			}
+		}
 	}
 
 	void emit_bobs() {
@@ -395,33 +486,62 @@ private:
 			draw(m_plank, static_cast<eng::s16>(m_points[i].p.v[0] - 3),
 			     static_cast<eng::s16>(m_points[i].p.v[1] - 3), kPlankPad);
 		}
-		// Jugador.
-		draw(m_player, m_player_x, m_player_y, kPlayerPad);
-		// Catapulta: base fija + brazo "punteado" (3 cajas a lo largo del pivote→extremo).
+		// Jugador (cookie-cut: no borra la cuerda bajo sus pies; estela por pasada de borrado).
+		draw(m_player_m, m_player_x, m_player_y, kPlayerPad);
+		m_player_prev_x = static_cast<eng::s16>(m_player_x - 1);
+		m_player_prev_y = static_cast<eng::s16>(m_player_y - 1);
+		m_player_prev_valid = true;
+		// Catapulta: base fija (fastcopy) + brazo "punteado" con **cookie-cut**: los 4
+		// segmentos se solapan entre sí; con copia opaca el pad de uno borraría al anterior
+		// (solo se veía el último). Con máscara se ensamblan y la estela la limpia la pasada
+		// de borrado (caja AABB del brazo anterior).
 		draw(m_plank, static_cast<eng::s16>(kCatPivotX - 8), static_cast<eng::s16>(kCatPivotY),
 		     kPlankPad);
 		eng::math::Vec<2, eng::s32> tip {};
 		eng::scene::catapult_tip(m_catapult, tip);
+		eng::s16 ax0 = static_cast<eng::s16>(kCatPivotX - 8);
+		eng::s16 ay0 = static_cast<eng::s16>(kCatPivotY);
+		eng::s16 ax1 = static_cast<eng::s16>(kCatPivotX - 2);
+		eng::s16 ay1 = static_cast<eng::s16>(kCatPivotY + 6);
 		for (eng::u8 k = 1u; k <= 3u; ++k) {
 			const eng::s16 x = static_cast<eng::s16>(
 				kCatPivotX + (tip.v[0] - kCatPivotX) * k / 4);
 			const eng::s16 y = static_cast<eng::s16>(
 				kCatPivotY + (tip.v[1] - kCatPivotY) * k / 4);
-			draw(m_plank, static_cast<eng::s16>(x - 3), static_cast<eng::s16>(y - 3),
+			draw(m_plank_m, static_cast<eng::s16>(x - 3), static_cast<eng::s16>(y - 3),
 			     kPlankPad);
+			ax0 = ax0 < static_cast<eng::s16>(x - 3) ? ax0 : static_cast<eng::s16>(x - 3);
+			ay0 = ay0 < static_cast<eng::s16>(y - 3) ? ay0 : static_cast<eng::s16>(y - 3);
+			ax1 = ax1 > static_cast<eng::s16>(x + 3) ? ax1 : static_cast<eng::s16>(x + 3);
+			ay1 = ay1 > static_cast<eng::s16>(y + 3) ? ay1 : static_cast<eng::s16>(y + 3);
 		}
-		// Bola, objetivo y escombros.
+		m_arm_prev_x = static_cast<eng::s16>(ax0 - 1);
+		m_arm_prev_y = static_cast<eng::s16>(ay0 - 1);
+		m_arm_prev_w = static_cast<eng::s16>(ax1 - ax0 + 2);
+		m_arm_prev_h = static_cast<eng::s16>(ay1 - ay0 + 2);
+		m_arm_prev_valid = true;
+		// Bola, objetivo y escombros (bola y escombros cookie-cut: vuelan sobre la cuerda).
 		if (m_ball_active) {
-			draw(m_ball, static_cast<eng::s16>(m_ball_x - 2), static_cast<eng::s16>(m_ball_y - 2),
+			draw(m_ball_m, static_cast<eng::s16>(m_ball_x - 2), static_cast<eng::s16>(m_ball_y - 2),
 			     kBallPad);
+			m_ball_prev_x = static_cast<eng::s16>(m_ball_x - 3);
+			m_ball_prev_y = static_cast<eng::s16>(m_ball_y - 3);
+			m_ball_prev_valid = true;
+		} else {
+			m_ball_prev_valid = false;
 		}
 		if (m_target_active) {
 			draw(m_target_bob, m_target_x, m_target_y, kTargetPad);
 		}
 		if (m_debris_active) {
 			for (eng::u8 i = 0u; i < 4u; ++i) {
-				draw(m_ball, m_debris_x[i], m_debris_y[i], kBallPad);
+				draw(m_ball_m, m_debris_x[i], m_debris_y[i], kBallPad);
+				m_debris_prev_x[i] = static_cast<eng::s16>(m_debris_x[i] - 3);
+				m_debris_prev_y[i] = static_cast<eng::s16>(m_debris_y[i] - 3);
 			}
+			m_debris_prev_valid = true;
+		} else {
+			m_debris_prev_valid = false;
 		}
 	}
 
@@ -556,6 +676,25 @@ private:
 	eng::graphics::Bob m_player {};
 	eng::graphics::Bob m_ball {};
 	eng::graphics::Bob m_target_bob {};
+	// Variantes **cookie-cut** (máscara en plano aparte) de los objetos que se solapan.
+	eng::graphics::Bob m_plank_m {};
+	eng::graphics::Bob m_player_m {};
+	eng::graphics::Bob m_ball_m {};
+	// Estado de la pasada de borrado (posiciones ANTERIORES, en cajas de contenido).
+	bool m_player_prev_valid = false;
+	eng::s16 m_player_prev_x = 0;
+	eng::s16 m_player_prev_y = 0;
+	bool m_arm_prev_valid = false;
+	eng::s16 m_arm_prev_x = 0;
+	eng::s16 m_arm_prev_y = 0;
+	eng::s16 m_arm_prev_w = 0;
+	eng::s16 m_arm_prev_h = 0;
+	bool m_ball_prev_valid = false;
+	eng::s16 m_ball_prev_x = 0;
+	eng::s16 m_ball_prev_y = 0;
+	bool m_debris_prev_valid = false;
+	eng::s16 m_debris_prev_x[4] {};
+	eng::s16 m_debris_prev_y[4] {};
 	// Puente.
 	eng::scene::RopePoint<eng::s32> m_points[kLinks] {};
 	eng::scene::Rope<eng::s32> m_rope {};

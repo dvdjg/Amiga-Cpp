@@ -43,7 +43,7 @@ public:
 
 	/// Inicia el SFX mixer del `AudioSystem` referenciado (buffer Chip +
 	/// handler). La música se arranca con `play_music`.
-	bool init(MemorySystem& memory) {
+	bool init(MemoryManager& memory) {
 		return m_audio->init(memory);
 	}
 

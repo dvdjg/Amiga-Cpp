@@ -59,9 +59,30 @@ El runner ya soporta **`--sequence-step-frames N`** (`tools/run/run-demo.ts`): c
 
 **Estado:** causa localizada a geometría/mods DPF; siguiente paso leer ScrollingTricks + AHRM/emulador, corregir el compositor/base XLimited con el banco aislado y test de dígitos.
 
-## DT-009 · Auditoría de flota de demos (deuda masiva)
+## DT-009 · Auditoría de flota de demos: inventario fps HECHO — hoy: remediar
 
-Hay demos que **no sirven actualmente** (110 rota; 085 a 3 fields; 202 con las mismas bandas) y no existe un inventario. **Plan:** herramienta `tools/debug/audit-demos-fps.mjs` que recorra las demos construidas, ejecute `measure-fps` y vuelque una tabla (demo, fps, fields) en `out/`; con ella, registrar en DT cada demo NO VERIFICADA y priorizar. Barrido con `tools/test-regression.sh` para el estado funcional.
+**Herramienta hecha**: `tools/debug/audit-demos-fps.mjs` (sin argumentos = lista clave; `--all` = todas las construidas) → tabla en `out/fleet-fps/fleet-fps.{json,md}`. Primer barrido (2026-10, A500_debug):
+
+| demo | fps | campos |
+|---|---|---|
+| 110_ylimited_shooter | **12.5** | 4.00 |
+| 085_copper_plan_scene | **16.6** | 3.00 |
+| 116_flatshade_convex | **19.4** | 2.58 |
+| engine_amiga_065_mechanisms_bridge | **22.4** | 2.24 |
+| 202_xlimited_dpf | 28.5 | 1.76 |
+| 213_spr_layer | 36.5 | 1.37 |
+| 212_free_scroll_layer | 38.1 | 1.31 |
+| engine_amiga_066_bob_showcase | 39.2 | 1.27 |
+| 101_ehb_tile_scroll_driver | **49.9** | 1.00 |
+| 126_fast_bobs | **49.9** | 1.00 |
+| 218_free_form_sprite_layer | **49.9** | 1.00 |
+| 215_jim_power | **0** | — (no llega a medir: repasar su pacing/F4.4) |
+
+Pendiente: por cada demo < 50 fps, entrada propia (síntoma + atribución con perfil/secciones
+como en la 065/066) y **«scroll brusco»** como categoría de calidad aparte del fps (cadencia
+uniforme y sin tirones es gate del `PROCEDIMIENTO` §1; las demos con scroll de la familia
+tile/xlimited deben pasar por `check-elements`/band-diff en secuencia antes de declararse
+VERIFICADAS).
 
 ## DT-007 · Demo 085 a 16,6 fps (3 fields) y mancha blanca del disco
 
@@ -73,6 +94,62 @@ El símbolo vive en `.gnu.linkonce.b._ZN3eng5debug10g_eng_profE` y el `.map` no 
 
 **Nota (2026-10) — lectura manual que sí funciona**: dirección = base de `.data` (canal lateral `state` → `sections[4]`) + (dirección de enlace de `g_eng_prof` del `.map` − base de enlace de `.data`); se lee con `mem <addr> <len>` del canal lateral. Así se midió la 066 (secciones del update: espera 0.7k / sim+plan+lanzamiento 163k / copper 0.3k).
 
-## DT-010 · Deriva de API en demos que ningún gate detecta — arreglado, falta el gate
+## DT-013 · Barrido de punteros DMA crudos en APIs — etapas pendientes
 
-Al activar `-Werror=unused-result` y compilar la flota tocada (2026-10) aparecieron **tres demos que ya no compilaban** por deriva de API acumulada: 078 (`BlitPtr` desde puntero crudo — hoy exige `BlitPtr::from_storage`), 275 (`C2pRequest.chunky` copiaba un `Block` movible) y 117 (`Sprite::draw` con `[[nodiscard]]` ignorado). Ningún gate lo detectó porque **la regresión no compila todas las demos** por defecto. Arregladas las tres; **pendiente**: un gate barato que compile la flota (p. ej. un modo "solo compilar" de `test-regression.sh`) para que la deriva no vuelva a acumularse en silencio.
+Estudio completo y lo corregido (050/051/052 + `make_interleaved_masked_bob`) en
+`docs/engine/architecture/INTERNAL_TYPE_SYSTEM.md` §Barrido de punteros DMA crudos. Pendiente,
+por etapas (orden por relación valor/riesgo): (1) Copper `takeover_display`/`install_copper_list`
+→ `ChipView<CopperTag>` (57 ficheros, mecánico); (2) save-under `bob_save_box/restore_box` +
+`ActorDesc::save` + `SpriteLayer::m_save` → vista tipada (rizoma); (3) intenciones de sprite
+(`sprite_ptr`/`line_data`) → `ChipView<SpriteTag>`; (4) tiles/mundo (`xlimited_playfield`,
+`tile_scroll`, `field_controller`, `pattern_fill`); (5) patrón del gate en `type-tagging.mjs`
+para firmas nuevas.
+
+## DT-011 · FastBobLayer: hoja de márgenes MÍNIMOS congelaba la demo (126) — RESUELTO
+
+Síntoma: al cablear F5 en la 126 con los pasos **reales** del asset (3, 2 → hoja 22×20) la demo
+se congelaba (frame=0). La bisección de geometría (`22×18` ✗ · `22×20` ✗ · `22×32` ✓ ·
+`32×18` ✓ · `32×32` ✓) parecía señalar una combinación de ancho/alto.
+
+**Causa raíz real (watchpoint sobre INTENA + log de trazas)**: no era la geometría — era la
+**enfermedad del 212**: con el defecto `m_vblank_sleep = true` la espera de frame usa `Wait()`
+de exec bajo un SO vivo, y el planificador **reescribe INTENA en cada cambio de tarea,
+borrando el VERTB** que arma el engine (INTENAR quedaba en `master|BLIT` sin VERTB) → la tarea
+dormida para siempre. La hoja pequeña solo cambiaba el **timing** y hacía 100% reproducible la
+carrera que con la hoja grande casi nunca se disparaba. **Fix**: `set_vblank_sleep(false)`
+(variante 2 del 212: esperas activas por VPOSR, sin `Wait()`) en el `init` de la 126.
+
+**Resultado**: márgenes **mínimos** (3, 2 → 22×20) + 49.87 fps (1 campo) + visión OK (sin
+rastros ni huecos). Lección para demos bajo el runner: cualquier demo que tome el display y
+use `run_frames` con `Wait()` es sensible a este timing; el setup robusto es
+`set_vblank_sleep(false)` (y `takeover_system` si se necesita `Wait()` de verdad).
+
+## DT-012 · FastBobLayer: el camino de DEGRADACIÓN pinta basura en el borde izquierdo (126)
+
+Al cablear el camino lento de la capa (hoja cookie-cut sin padding + `set_slow_sheet`, hecho
+en esta pasada: antes apuntaba a la hoja RÁPIDA por error) y **dispararlo** en la 126 con un
+aumento de velocidad determinista (paso 5 > pad 3 en la ventana [112,128) de cada 128 frames),
+aparecen dos síntomas: (1) una **columna de basura** (píxeles del bob repetidos verticalmente)
+en el borde izquierdo del bitmap, pantalla completa de alto; (2) en al menos una instancia la
+demo queda congelada (frame=0 con la pantalla tomada).
+
+**Descartado con evidencia**: no es `m_painted` sin inicializar (está a cero); no es el orden
+de argumentos de `clear_box`; no es desajuste de layout hoja↔target (`check_bob_plan(bob,
+m_band.bob_target())` **pasa** — chequeo añadido al setup de la 126); no hay excepción.
+**Repro**: activar `speed = 5` en la ventana de la 126 (el disparo quedó comentado) y capturar
+secuencia — la columna aparece en los frames degradados. **Siguiente paso sugerido**: mirar
+el `Box` que la capa pasa a `clear_box` en la PRIMERA transición a lento (Δx del salto de
+fase) y el `m_painted` que resulta; y la geometría del target DPF en ese `clear_box`.
+
+## DT-010 · Deriva de API en demos: gate «compilar la flota» — RESUELTO (2026-10)
+
+Gate nuevo: `tools/build/build-all-demos.sh [-j N]` compila **todas** las demos (solo compilar) y falla si alguna no compila; deja un resumen en `out/build-all-demos/summary.txt` y el log concreto por demo. El contador de versión de `build-demo.sh` pasó a **incremento atómico** (lock `mkdir`) porque en paralelo el contador retrocedía.
+
+**Primer barrido: 101 OK / 29 FAIL** — deriva acumulada que ningún gate veía. Arregladas las 29 (fleet en **130/130 OK**):
+
+- **Cabeceras del engine obsoletas**: `GameAudio::init(MemorySystem&)` (→ `MemoryManager&`; 6 demos), `palette_transition`/`copper_chunky` con `[[nodiscard]]` ignorado (4 demos), `acp1.hpp` con división de 64 bits (`__udivdi3`, libcall prohibida; 2 demos).
+- **`BlitPtr` tipado**: `BlitJob` brace-init con punteros crudos → `BlitPtr::from_storage` (050/051/052/103/104/203/210).
+- **`ChipView` en el tipo**: `SpriteConfig::data`/`SpriteManager` (dk_port, dk_port_xl, 053), `HwSpritePlacement`/`SpriteConfig` con campos nuevos (107), orden de argumentos de `StripScrollLayer::begin` (128).
+- **`nodiscard`** (205/213/215) y **`atexit`** de un `static` local con destructor bajo `-nostdlib` (123), **`g_eng_prof` duplicado** (116 usa el bloque del engine).
+
+Pendiente del gate: integrarlo opcionalmente en la pasada de flota (hoy es on-demand por coste).

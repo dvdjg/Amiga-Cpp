@@ -271,8 +271,11 @@ inline constexpr eng::u16 kBplcon0Ham = 0x0800u;   ///< bit 11: HAM (HOMOD)
 				"cubre (usar InterleavedPair o una hoja planar)",
 				0u, 0u, 0u};
 		}
-		if (bob.mask.empty()) {
-			return {2u, "cookie-cut sin mascara", 0u, 0u, 0u};
+		// `SeparatePlane` exige la máscara en su propia vista; con `InterleavedPair` va
+		// DENTRO de la hoja (segunda mitad de cada fila de plano) y `bob.mask` vacío es lo
+		// correcto ahí.
+		if (bob.mask_pack == BobMaskPack::SeparatePlane && bob.mask.empty()) {
+			return {2u, "cookie-cut sin mascara (SeparatePlane)", 0u, 0u, 0u};
 		}
 	}
 	return {};

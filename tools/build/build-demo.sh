@@ -275,13 +275,28 @@ fi
 # Contador global persistente: cada invocación de build-demo incrementa el número y se
 # inyecta como `-DENG_BUILD_NUMBER=n` (lo usa `eng/debug/version.hpp` y la franja de
 # nombre+versión de las demos). El fichero vive en out/ (ignorado por git si aplica).
+# **Incremento ATÓMICO** (lock por `mkdir`, portable en Git Bash / Linux): sin esto, dos
+# builds concurrentes (p. ej. `build-all-demos.sh -j`) leen el mismo valor y el contador
+# retrocede (pasó: varias demos compartieron v1.0.24).
 BUILD_COUNTER_FILE="$ROOT/out/.build-number"
+BUILD_LOCK_DIR="$ROOT/out/.build-number.lock"
 BUILD_NUMBER=1
+_lock_tries=0
+while ! mkdir "$BUILD_LOCK_DIR" 2>/dev/null; do
+	_lock_tries=$((_lock_tries + 1))
+	if [ "$_lock_tries" -gt 600 ]; then
+		# Lock huérfano (>60 s): se retira y se sigue (mejor contador que bloqueo).
+		rmdir "$BUILD_LOCK_DIR" 2>/dev/null || true
+		_lock_tries=0
+	fi
+	sleep 0.1
+done
 if [ -f "$BUILD_COUNTER_FILE" ]; then
 	BUILD_NUMBER=$(cat "$BUILD_COUNTER_FILE" 2>/dev/null || echo 0)
 	BUILD_NUMBER=$((BUILD_NUMBER + 1))
 fi
 echo "$BUILD_NUMBER" > "$BUILD_COUNTER_FILE"
+rmdir "$BUILD_LOCK_DIR" 2>/dev/null || true
 COMMON+=("-DENG_BUILD_NUMBER=$BUILD_NUMBER")
 
 # CPU/AGA según la máquina (ver arriba). Se añade DESPUÉS de `-m68000` para que

@@ -898,10 +898,21 @@ scene_cfg.max_step = kStepMax;
                 data[y * 2] = a;
                 data[y * 2 + 1] = b;
             }
-            sp.set(0, {true,
-                       eng::ChipView<eng::SpriteTag> {
-                           eng::Address<eng::MemoryKind::Chip>::from_storage(data), 64u},
-                       1, 16, 120, 96, 111, 16});
+            // Sprite HW del HUD (diamante): campos explícitos. `hpos` es el HSTART
+            // absoluto en color-clocks: píxel = hpos − 0x81 (ventana estándar).
+            eng::graphics::SpriteConfig scfg {};
+            scfg.enabled = true;
+            scfg.data = eng::ChipView<eng::SpriteTag> {
+                eng::Address<eng::MemoryKind::Chip>::from_storage(
+                    reinterpret_cast<const eng::u8*>(data)),
+                64u};
+            scfg.width_words = 1u;
+            scfg.height = 16u;
+            scfg.hpos = static_cast<eng::u16>(0x81u + 120u);
+            scfg.vstart = 96u;
+            scfg.vstop = 112u;
+            scfg.attach = false;
+            sp.set(0u, scfg);
         }
 #endif
 

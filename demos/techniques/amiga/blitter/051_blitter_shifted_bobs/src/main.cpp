@@ -100,20 +100,20 @@ void build_shift_source(eng::u16* mask, eng::u16* source) {
 	}
 }
 
-eng::u16* destination_at(eng::u8* planes, eng::u16 x, eng::u16 y) {
+eng::graphics::BlitPtr destination_at(eng::ChipPlaneView planes, eng::u16 x, eng::u16 y) {
 	// El destino del Blitter sigue alineado a word; el desplazamiento fino vive en
 	// `BlitJob::source_shift`. Para x=73, empezamos en la word de x=64 y pedimos al
 	// Blitter que desplace mascara/datos 9 pixels.
 	const eng::u16 aligned_x = static_cast<eng::u16>(x & 0xfff0u);
 	const eng::u32 destination_offset =
 		static_cast<eng::u32>(y) * bytes_per_row + (aligned_x / 8u);
-	return reinterpret_cast<eng::u16*>(planes + destination_offset);
+	return eng::graphics::BlitPtr {planes, static_cast<eng::s32>(destination_offset)};
 }
 
 eng::graphics::BlitJob make_shifted_bob_job(
-	const eng::u16* mask,
-	const eng::u16* source,
-	eng::u16* destination
+	eng::graphics::BlitPtr mask,
+	eng::graphics::BlitPtr source,
+	eng::graphics::BlitPtr destination
 ) {
 	return {
 		eng::graphics::BlitJobKind::MaskedBobCookieCut,
@@ -166,9 +166,9 @@ struct DemoGame {
 
 		m_frame_plan.clear();
 		const eng::graphics::BlitJob draw = make_shifted_bob_job(
-			m_mask_block.view.as_words().data(),
-			m_source_block.view.as_words().data(),
-			destination_at(m_scene.bitplanes().data(), bob_x, bob_y)
+			eng::graphics::BlitPtr {m_mask_block.mem_view_chip()},
+			eng::graphics::BlitPtr {m_source_block.mem_view_chip()},
+			destination_at(m_scene.chip_planes(), bob_x, bob_y)
 		);
 
 		if (!m_frame_plan.add_dirty_rect({

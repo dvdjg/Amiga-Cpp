@@ -123,8 +123,12 @@ inline void wr32(eng::Span<eng::u8> file, eng::usize offset, eng::u32 value) noe
 		const eng::Span<const eng::u8> payload {file.data() + offset, size};
 		if (!eng::audio::auzx::parse(payload, auzx_header) || auzx_header.sample_rate != parsed.sample_rate ||
 		auzx_header.total_samples != samples || auzx_header.chunk_samples == 0u || auzx_header.num_chunks == 0u ||
-			(static_cast<eng::u64>(auzx_header.total_samples) + auzx_header.chunk_samples - 1u) /
-				auzx_header.chunk_samples != auzx_header.num_chunks) return false;
+			// Techo SIN división de 64 bits (`__udivdi3` es libcall prohibida en 68000):
+			// con u32, `(total + chunk - 1)/chunk` desborda si total ≈ 2^32; se hace como
+			// cociente + resto (dos libcalls de 32 bits, disponibles).
+			auzx_header.num_chunks !=
+				(samples / auzx_header.chunk_samples +
+				 ((samples % auzx_header.chunk_samples) != 0u ? 1u : 0u))) return false;
 		for (eng::u16 chunk_index = 0u; chunk_index < auzx_header.num_chunks; ++chunk_index) {
 			eng::u32 chunk_offset = 0u, chunk_size = 0u;
 			if (!eng::audio::auzx::chunk_extent(auzx_header, payload, chunk_index, chunk_offset, chunk_size) ||

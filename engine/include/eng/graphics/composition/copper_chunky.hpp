@@ -64,10 +64,16 @@ public:
 		m_ok = true;
 		scene.begin_build();
 		emit(scene.scheduler());
-		scene.end_build();
+		if (!scene.end_build()) {
+			m_ok = false;
+			return false;
+		}
 		scene.begin_build();
 		emit(scene.scheduler());
-		scene.end_build();
+		if (!scene.end_build()) {
+			m_ok = false;
+			return false;
+		}
 		return true;
 	}
 

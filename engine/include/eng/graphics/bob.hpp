@@ -241,7 +241,7 @@ inline bool bob_erase_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, 
 /// palabra extra del barrel shifter (desplazamiento fino), como el borrado. Único sitio del
 /// algoritmo: lo usan el camino de actor (`BackgroundPolicy::SaveUnder`, vía
 /// `scene::actor_detail::emit_save`) y el de intención (`BobErase::RestoreUnder`). El destino
-/// debe ser **planar** (planos contiguos).
+/// puede ser **planar** o **interleaved** (por plano, con el paso de fila por plano).
 inline bool bob_save_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, s16 y,
 			 const BobTarget& t, eng::Span<eng::u16> save, u16 save_words_per_row,
 			 u16 save_height) {
@@ -251,14 +251,20 @@ inline bool bob_save_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, s
 		return false; // sin buffer, buffer insuficiente o caja fuera por arriba/izquierda
 	}
 	const u32 save_row_bytes = static_cast<u32>(save_words_per_row) * 2u;
+	// Paso de fila DENTRO de un plano del destino: `row_bytes` (planar) o
+	// `row_bytes × planos` (interleaved: cada fila física contiene los N planos).
+	const u32 dest_row_step = t.interleaved()
+		? static_cast<u32>(t.row_bytes) * t.plane_count
+		: t.row_bytes;
 	BlitJob& job = plan.begin_blit_job(BlitJobKind::CopyRect);
 	job.destination = BlitPtr::from_storage(save.data());
 	job.source = BlitPtr::from_storage(reinterpret_cast<const u16*>(
-		t.data() + static_cast<u32>(y) * t.row_bytes + (static_cast<u32>(x & ~15) >> 3u)));
+		t.data() + static_cast<u32>(y) * (t.interleaved() ? dest_row_step : t.row_bytes) +
+		(static_cast<u32>(x & ~15) >> 3u)));
 	job.words_per_row = words;
 	job.height = h;
 	job.bitplane_count = bob.planes;
-	job.source_modulo_bytes = mod16(static_cast<s32>(t.row_bytes) - static_cast<s32>(words) * 2);
+	job.source_modulo_bytes = mod16(static_cast<s32>(dest_row_step) - static_cast<s32>(words) * 2);
 	job.destination_modulo_bytes = mod16(static_cast<s32>(save_row_bytes) - static_cast<s32>(words) * 2);
 	job.source_plane_stride_bytes = t.plane_pointer_step();
 	job.destination_plane_stride_bytes = save_row_bytes * save_height;
@@ -280,15 +286,20 @@ inline bool bob_restore_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x
 		return false; // sin buffer, buffer insuficiente o caja fuera por arriba/izquierda
 	}
 	const u32 save_row_bytes = static_cast<u32>(save_words_per_row) * 2u;
+	// Paso de fila DENTRO de un plano del destino (ver `bob_save_box`).
+	const u32 dest_row_step = t.interleaved()
+		? static_cast<u32>(t.row_bytes) * t.plane_count
+		: t.row_bytes;
 	BlitJob& job = plan.begin_blit_job(BlitJobKind::RestoreRect);
 	job.source = BlitPtr::from_storage(save.data());
 	job.destination = BlitPtr::from_storage(reinterpret_cast<u16*>(
-		t.data() + static_cast<u32>(y) * t.row_bytes + (static_cast<u32>(x & ~15) >> 3u)));
+		t.data() + static_cast<u32>(y) * (t.interleaved() ? dest_row_step : t.row_bytes) +
+		(static_cast<u32>(x & ~15) >> 3u)));
 	job.words_per_row = words;
 	job.height = h;
 	job.bitplane_count = bob.planes;
 	job.source_modulo_bytes = mod16(static_cast<s32>(save_row_bytes) - static_cast<s32>(words) * 2);
-	job.destination_modulo_bytes = mod16(static_cast<s32>(t.row_bytes) - static_cast<s32>(words) * 2);
+	job.destination_modulo_bytes = mod16(static_cast<s32>(dest_row_step) - static_cast<s32>(words) * 2);
 	job.source_plane_stride_bytes = save_row_bytes * save_height;
 	job.destination_plane_stride_bytes = t.plane_pointer_step();
 	job.source_words_per_row = 0u;

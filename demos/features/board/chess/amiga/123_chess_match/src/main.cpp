@@ -677,6 +677,10 @@ private:
 	Square m_last_to = 0;
 };
 
+// ~400 KB de TT: en estática de namespace (no en la pila del 68000 y sin el `atexit`
+// que el compilador emite para un `static` local con destructor en `-nostdlib`).
+static ChessMatch g_game {};
+
 } // namespace
 
 int main() {
@@ -684,8 +688,7 @@ int main() {
 	eng::debug::reset(g_eng_run_status);
 
 	eng::amiga::AmigaBackend backend {};
-	static ChessMatch game {}; // ~400 KB de TT: en estatica, no en la pila del 68000
-	eng::Engine engine {backend, game};
+	eng::Engine engine {backend, g_game};
 	engine.run_frames_polling(0xffff);
 
 	return 0;

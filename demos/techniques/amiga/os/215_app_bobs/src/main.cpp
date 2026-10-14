@@ -111,7 +111,9 @@ struct BobsDemo {
 	void render(auto& app) {
 		auto s = app.screen();
 		s.fill_box(eng::Box {0, 0, kWidth, kHeight}, 0u); // fondo (color 0)
-		s.bobs(m_bobs);                                   // capa de BOBs ordenada por `z`
+		// El retorno es el nº de bobs encolados (telemetría); la capa ya se validó al
+		// construirla (aquí no hay decisión que tomar).
+		(void)s.bobs(m_bobs);                             // capa de BOBs ordenada por `z`
 		app.present();
 		// READY tras varios frames completos: el primer render puede caer antes de que la captura
 		// vea un buffer ya publicado (mismo criterio que la 214).

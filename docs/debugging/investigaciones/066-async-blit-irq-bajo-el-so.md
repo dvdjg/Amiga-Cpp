@@ -92,6 +92,25 @@ planos + 19 IRQs) se ejecuta **dentro del lanzamiento**: no hay solapamiento rea
 Palancas medidas para el siguiente paso: menos jobs (borrados → opacos con padding), abaratar
 el coste por job (planos por job + IRQ), o lanzar la cadena antes (feeder incremental).
 
+## Experimento: target + hojas **interleaved** (un blit por dibujo) — medido y descartado
+
+Objetivo: eliminar la espera entre planos haciendo que cada dibujado sea **un solo blit**
+(la cadena pasa de 38 a 19 blits). Se implementó la conversión completa (bitmap, hojas,
+display con `BPL1MOD/BPL2MOD = (planos−1)·bytes_fila`, punteros por `plane_address`, y hojas
+par `InterleavedPair` para el cookie-cut) y se midió.
+
+**Resultado y restricción estructural**: el truco de un blit escribe las filas físicas
+`(y, plano)` **consecutivas** con un módulo único; eso solo es correcto si el BOB **cubre
+TODOS los planos del target** (la restricción que documenta T5 de HOST-439, cuyo target
+interleaved tiene 2 planos). Con los bobs de 2 planos de esta demo sobre un target de 4, el
+blit pisa las filas de los planos 2-3 → render corrupto (medido: 179.828 ciclos = 39.5 fps,
+y eso con menos trabajo del debido). Convertir los bobs a 4 planos lo arregla pero duplica
+el trabajo del Blitter (2× filas por dibujado), lo que anula la ganancia de encadenado.
+**Decisión: revertido** al layout planar (37.5 fps). La mejora de mecánica que sí queda: el
+esqueleto del experimento confirmó que el coste dominante es el **lanzamiento/encadenado**
+(~100k), no los words bliteados — la palanca útil sigue siendo **menos jobs** (p. ej. los
+borrados de orbes/barras → copia opaca con padding: −4 jobs).
+
 ## Verificación
 
 Visión (Ollama, secuencia de 3 frames): **7/7 puntos SÍ** (degradado, 6 zonas, orbes OR,

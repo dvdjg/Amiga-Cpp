@@ -346,7 +346,11 @@ struct DkXlGame {
 			inst[16u * 2u + 1u] = 0u;
 			eng::graphics::SpriteConfig cfg {};
 			cfg.enabled = true;
-			cfg.data = eng::Span<const eng::u16> {inst, kSpriteInstanceWords};
+			// Vista tipada en Chip (el sprite DMA solo lee Chip): frontera explícita.
+			cfg.data = eng::ChipView<eng::SpriteTag> {
+				eng::Address<eng::MemoryKind::Chip>::from_storage(
+					reinterpret_cast<const eng::u8*>(inst)),
+				static_cast<eng::u32>(kSpriteInstanceWords) * 2u};
 			cfg.width_words = 1u;
 			cfg.height = kSpriteHeight;
 			cfg.hpos = static_cast<eng::u16>(ox + 128u);

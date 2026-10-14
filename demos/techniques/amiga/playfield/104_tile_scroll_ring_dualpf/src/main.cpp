@@ -567,25 +567,28 @@ private:
 			// superficie -> scratch (scratch contiguo por fila: modulo 0)
 			plan.add_tile_block_copy({
 				eng::graphics::BlitJobKind::CopyRect,
-				nullptr,
-				reinterpret_cast<const eng::u16*>(base + pl * plane_bytes + src_dx + src_dy),
-				reinterpret_cast<eng::u16*>(scratch),
+				eng::graphics::BlitPtr {},
+				eng::graphics::BlitPtr::from_storage(
+					reinterpret_cast<const eng::u16*>(base + pl * plane_bytes + src_dx + src_dy)),
+				eng::graphics::BlitPtr::from_storage(
+					reinterpret_cast<eng::u16*>(scratch)),
 				words,
 				height,
-				src_mod,   // filas de la superficie separadas 44 bytes
-				0,         // scratch contiguo (42 bytes por fila)
+				src_mod,
+				0,
 				1,
 				0,
 				plane_bytes,
 				width_bytes,
 				false,
 			});
-			// scratch -> superficie (con el desplazamiento inverso)
 			plan.add_tile_block_copy({
 				eng::graphics::BlitJobKind::CopyRect,
-				nullptr,
-				reinterpret_cast<const eng::u16*>(scratch),
-				reinterpret_cast<eng::u16*>(m_scene.bitplanes().data() + pl * plane_bytes + dst_dx + dst_dy),
+				eng::graphics::BlitPtr {},
+				eng::graphics::BlitPtr::from_storage(
+					reinterpret_cast<const eng::u16*>(scratch)),
+				eng::graphics::BlitPtr::from_storage(reinterpret_cast<eng::u16*>(
+					m_scene.bitplanes().data() + pl * plane_bytes + dst_dx + dst_dy)),
 				words,
 				height,
 				0,

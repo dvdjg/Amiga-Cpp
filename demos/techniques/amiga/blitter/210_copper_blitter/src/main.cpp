@@ -206,8 +206,8 @@ private:
 		}
 		eng::graphics::BlitJob job {};
 		job.kind = eng::graphics::BlitJobKind::CopyRect;
-		job.source = vals.data();
-		job.destination = &cl[1];
+		job.source = eng::graphics::BlitPtr::from_storage(vals.data());
+		job.destination = eng::graphics::BlitPtr::from_storage(&cl[1]);
 		job.words_per_row = 1u;
 		job.height = n;
 		job.source_modulo_bytes = 0;

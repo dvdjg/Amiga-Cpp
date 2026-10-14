@@ -130,7 +130,9 @@ private:
 		for (u8 i = 0; i < 32u; ++i) {
 			m_runtime.color[i] = m_from[i];
 		}
-		eng::util::palette_lerp(
+		// El valor devuelto (nº de colores escritos) no se usa aquí: el rango lo fija
+		// `m_range` y se aplica entero.
+		(void)eng::util::palette_lerp(
 			{m_runtime.color + m_range.first, m_range.count},
 			{m_from + m_range.first, m_range.count},
 			{m_to + m_range.first, m_range.count},

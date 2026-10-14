@@ -115,10 +115,10 @@ void build_masked_bob(eng::u16* mask, eng::u16* source, eng::u8 outer_color, eng
 	}
 }
 
-eng::u16* destination_at(eng::u8* planes, eng::u16 x, eng::u16 y) {
+eng::graphics::BlitPtr destination_at(eng::ChipPlaneView planes, eng::u16 x, eng::u16 y) {
 	const eng::u32 destination_offset =
 		static_cast<eng::u32>(y) * bytes_per_row + (x / 8u);
-	return reinterpret_cast<eng::u16*>(planes + destination_offset);
+	return eng::graphics::BlitPtr {planes, static_cast<eng::s32>(destination_offset)};
 }
 
 /// Posicion horizontal animada del BOB.
@@ -153,8 +153,8 @@ void configure_blit_budget(eng::graphics::FramePlan& plan) {
 }
 
 eng::graphics::BlitJob make_copy_job(
-	const eng::u16* source,
-	eng::u16* destination,
+	eng::graphics::BlitPtr source,
+	eng::graphics::BlitPtr destination,
 	eng::s16 source_modulo,
 	eng::s16 destination_modulo,
 	eng::u32 source_stride,
@@ -162,7 +162,7 @@ eng::graphics::BlitJob make_copy_job(
 ) {
 	return {
 		eng::graphics::BlitJobKind::CopyRect,
-		nullptr,
+		eng::graphics::BlitPtr {}, // sin máscara en una copia
 		source,
 		destination,
 		bob_words_per_row,
@@ -178,9 +178,9 @@ eng::graphics::BlitJob make_copy_job(
 
 eng::graphics::BlitJob make_masked_job(
 	eng::graphics::BlitJobKind kind,
-	const eng::u16* mask,
-	const eng::u16* source,
-	eng::u16* destination
+	eng::graphics::BlitPtr mask,
+	eng::graphics::BlitPtr source,
+	eng::graphics::BlitPtr destination
 ) {
 	return {
 		kind,
@@ -254,15 +254,15 @@ struct DemoGame {
 		m_frame_plan.add_dirty_rect(bob_dirty_rect(blob_right_x, blob_y));
 		const eng::graphics::BlitJob blob_left_job = make_masked_job(
 			eng::graphics::BlitJobKind::MaskedBlobNoSave,
-			m_mask_block.view.as_words().data(),
-			m_blob_source_block.view.as_words().data(),
-			destination_at(m_scene.bitplanes().data(), blob_left_x, blob_y)
+			eng::graphics::BlitPtr {m_mask_block.mem_view_chip()},
+			eng::graphics::BlitPtr {m_blob_source_block.mem_view_chip()},
+			destination_at(m_scene.chip_planes(), blob_left_x, blob_y)
 		);
 		const eng::graphics::BlitJob blob_right_job = make_masked_job(
 			eng::graphics::BlitJobKind::MaskedBlobNoSave,
-			m_mask_block.view.as_words().data(),
-			m_blob_source_block.view.as_words().data(),
-			destination_at(m_scene.bitplanes().data(), blob_right_x, blob_y)
+			eng::graphics::BlitPtr {m_mask_block.mem_view_chip()},
+			eng::graphics::BlitPtr {m_blob_source_block.mem_view_chip()},
+			destination_at(m_scene.chip_planes(), blob_right_x, blob_y)
 		);
 
 		if (
@@ -294,8 +294,10 @@ struct DemoGame {
 		}
 
 		const eng::u16 current_x = animated_bob_x(context.frame.frame_index);
-		eng::u16* current_destination = destination_at(m_scene.bitplanes().data(), current_x, bob_y);
-		eng::u16* saved_background = m_saved_background_block.view.as_words().data();
+		const eng::graphics::BlitPtr current_destination =
+			destination_at(m_scene.chip_planes(), current_x, bob_y);
+		const eng::graphics::BlitPtr saved_background =
+			eng::graphics::BlitPtr {m_saved_background_block.mem_view_chip()};
 
 		m_frame_plan.clear();
 		configure_blit_budget(m_frame_plan);
@@ -306,8 +308,8 @@ struct DemoGame {
 				return;
 			}
 			const eng::graphics::BlitJob restore = make_copy_job(
-				m_saved_background_block.view.as_words().data(),
-				destination_at(m_scene.bitplanes().data(), m_previous_x, bob_y),
+				eng::graphics::BlitPtr {m_saved_background_block.mem_view_chip()},
+				destination_at(m_scene.chip_planes(), m_previous_x, bob_y),
 				0,
 				static_cast<eng::s16>(bytes_per_row - bob_words_per_row * sizeof(eng::u16)),
 				bob_plane_bytes,
@@ -334,8 +336,8 @@ struct DemoGame {
 		);
 		const eng::graphics::BlitJob draw = make_masked_job(
 			eng::graphics::BlitJobKind::MaskedBobCookieCut,
-			m_mask_block.view.as_words().data(),
-			m_source_block.view.as_words().data(),
+			eng::graphics::BlitPtr {m_mask_block.mem_view_chip()},
+			eng::graphics::BlitPtr {m_source_block.mem_view_chip()},
 			current_destination
 		);
 

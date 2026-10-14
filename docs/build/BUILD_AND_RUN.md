@@ -43,6 +43,12 @@ Test-Path "$env:AMIGA_BIN_PATH/opt/bin/m68k-amiga-elf-g++.exe" # debe devolver T
 & 'C:\Program Files\Git\bin\bash.exe' ./tools/build/build-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23 --debug --clean
 ```
 
+**Gate «compilar la flota»** (DT-010): compila **todas** las demos sin ejecutarlas; falla si alguna no compila (deriva de API acumulada) y deja el detalle en `out/build-all-demos/`:
+
+```bash
+bash tools/build/build-all-demos.sh -j 6      # paralelo; contador de versión atómico
+```
+
 Si el toolchain solo está en una extensión, asigna en `AMIGA_BIN_PATH` su carpeta `bin/win32`, por
 ejemplo `$env:USERPROFILE/.vscode/extensions/bartmanabyss.amiga-debug-1.8.2/bin/win32`. Conserva esa
 variable en la sesión al ejecutar `tools/test-regression.sh`; la regresión compila las demos mediante

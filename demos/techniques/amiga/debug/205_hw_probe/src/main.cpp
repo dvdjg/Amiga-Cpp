@@ -302,10 +302,15 @@ struct DemoGame {
 	void run_effect(composition::Scene& scene) {
 		eng::copper::Plan& plan = scene.plan();
 		const eng::u16 last = static_cast<eng::u16>(kFxFirstLine + kFxBands * kFxBandHeight);
-		plan.reserve_band(kFxFirstLine, last, 0x0001u);
+		if (!plan.reserve_band(kFxFirstLine, last, 0x0001u)) {
+			// `reserve_band` detecta solapes con otras bandas del plan: fallar claro.
+			eng::debug::mark_failed(g_eng_run_status, 0x00020509u);
+			return;
+		}
 		m_fx_intents = static_cast<eng::u16>(m_sky.bands());
 		m_fx_words = static_cast<eng::u16>(m_fx_intents * 4u);
-		plan.note_effect_cost({ m_fx_intents, m_fx_words });
+		// El informe del presupuesto se consulta aparte (`blit_budget_report`/telemetría).
+		(void)plan.note_effect_cost({ m_fx_intents, m_fx_words });
 		m_sky.set_phase(m_fx_phase);
 		m_sky.frame(scene);
 	}

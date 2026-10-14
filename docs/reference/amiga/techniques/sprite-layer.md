@@ -36,6 +36,12 @@ frame. Cada canal mide **16 px** (32/64 en AGA), **3 colores + transparencia** (
   control word 2».*
 - **X solo en píxeles lores pares** (HSTART va ÷2): en hires la posición es más gruesa que
   el playfield.
+- **Coordenadas del armado**: `HSTART` y `VSTART` son **valores absolutos del raster** (no
+  píxeles de pantalla). Con la ventana estándar (`DIWSTRT` = `0x2C81`): píxel visible =
+  `HSTART` − `0x81` y línea visible = `VSTART` − `0x2C`. Verificado en emulador (WinUAE-DBG):
+  armar el canal 0 con `hpos = 180` lo muestra en el **píxel 51** (= 180 − 129) y con
+  `vstart = 216` en la **línea 172** (= 216 − 44). Pasar píxeles de pantalla como si fueran
+  `HSTART` deja los sprites en el borde/ocultos cuando el valor < `0x81`.
 
 ## 3. Colores por par
 

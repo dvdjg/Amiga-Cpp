@@ -351,7 +351,7 @@ void emit_sprite_bend_into(Sched& sched, u8 channel, eng::ChipView<eng::SpriteTa
       → el BOB se declara con el ancla en (left, top): el juego sigue usando su x/y
 ```
 
-**Estado: parcial — cálculo y cocina hechos.** `graphics/fast_bob_margins.hpp` (`fast_bob_margins`: padding y tamaño de hoja desde el desplazamiento máximo por eje, doblado con doble buffer) + **HOST-437**, y herramienta host **`tools/assets/sprite-pad.ts`** (+ `test-sprite-pad.ts`; paridad de fórmula con el helper, hoja con padding transparente). Pendiente: la demo DPF con BOBs rápidos (`FastBobLayer`, HOST-355) y visión (sin rastros, sin huecos).
+**Estado: HECHA la demo y su validación (2026-10).** `graphics/fast_bob_margins.hpp` (`fast_bob_margins`: padding y tamaño de hoja desde el desplazamiento máximo por eje, doblado con doble buffer) + **HOST-437**, herramienta host **`tools/assets/sprite-pad.ts`** (+ `test-sprite-pad.ts`; paridad de fórmula con el helper), y **demo 126** (`FastBobLayer` + DPF por bandas) **cableada a los márgenes MÍNIMOS del asset** (3,2 → hoja 22×20) y **validada**: 49.87 fps (1 campo), visión OK (sin rastros ni huecos). La espera de frame usa la variante 2 del 212 (`set_vblank_sleep(false)`; el `Wait()` de exec bajo el runner borraba el VERTB — **DT-011**, resuelto). Pendiente menor: disparar la degradación a cookie-cut en la demo (`set_slow_sheet`).
 
 **Ubicación:** el cálculo vive en el pipeline de cocina de sprites (host) con el helper del engine; el contrato del asset queda documentado (comentario en `Bob`/`FastBobLayer`). Ningún campo nuevo en `Visual`/`CompositePart` (frontera §2.4).
 

@@ -124,7 +124,9 @@ struct HwSpriteTemplate {
 struct HwSpritePlacement {
     u8 channel = 0;        ///< canal hardware 0..7
     u8 priority = 0;       ///< prioridad frente a los playfields (0..3, `BPLCON2`)
-    u16 hpos = 0;          ///< X en píxeles
+    u16 hpos = 0;          ///< X: **HSTART absoluto en color-clocks** (no píxel de pantalla):
+                           ///< píxel visible = hpos − DIWSTRT h (0x81 en la ventana estándar).
+                           ///< Ver `docs/reference/amiga/techniques/sprite-layer.md` §2.
     u16 vstart = 0;        ///< primera línea raster (escala del compositor)
     u16 height = 0;        ///< líneas (1..128)
     u8 width_words = 1;    ///< 1 = 16 px, 2 = 32 px (doble ancho/attach)
