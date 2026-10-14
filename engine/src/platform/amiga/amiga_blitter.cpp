@@ -85,6 +85,13 @@ bool AmigaBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 
 	m_blitter_starts = 0;
 	m_blt_common_hits = 0;
+	// La caché de registros comunes NO es válida al entrar: entre frames el SO (o cualquier
+	// otro código) puede haber programado el Blitter (sus blits escriben BLTCON/MOD), así
+	// que los valores cacheados son basura de otro dueño. Sin esta invalidación, un job
+	// "igual" al último cacheado se saltaba las escrituras y bliteaba con los registros del
+	// SO (render corrupto observado en la demo 066 con el camino async, que no tiene rachas
+	// batch que invalidaran la caché). El cacheo DENTRO del frame sigue vigente.
+	m_blt_common_valid = false;
 	// Habilita el DMA del Blitter **solo si no lo está** (el Copper ya lo activa en el display):
 	// un MOVE a DMACON es caro con `cpu_cycle_exact` y escribirlo por job dominaba el bucle
 	// (16 BOBs/frame). La lectura de DMACONR cuesta una fracción de la escritura.
@@ -164,6 +171,9 @@ bool AmigaBackend::execute_frame_plan_async(const graphics::FramePlan& plan) {
 	while (m_async_busy) {
 		wait_blitter();
 	}
+	// La caché de registros comunes no cruza el límite de frame (el SO puede haber
+	// programado el Blitter entre medias; ver `execute_frame_plan`).
+	m_blt_common_valid = false;
 	m_async_plan = &plan;
 	m_async_next = 1u;
 	m_async_notify_next = 0u;
@@ -171,7 +181,10 @@ bool AmigaBackend::execute_frame_plan_async(const graphics::FramePlan& plan) {
 	g_blit_async_launches = g_blit_async_launches + 1u;
 	// Avisos con `after_jobs == 0` (declarados antes de encolar trabajo): se disparan ya.
 	fire_due_notifies();
-	if (!blitter_submit(plan.blit_job(0u), /*wait=*/false)) {
+	g_in_blit_service = true;
+	const bool launched = blitter_submit(plan.blit_job(0u), /*wait=*/false);
+	g_in_blit_service = false;
+	if (!launched) {
 		m_async_busy = false;
 		return false;
 	}
@@ -207,8 +220,17 @@ void AmigaBackend::frame_plan_async_step(AmigaBackend& self, eng::u16) {
 	// Al entrar aquí ha terminado el trabajo `m_async_next - 1`: dispara los avisos que toquen.
 	self.fire_due_notifies();
 	const u16 next = self.m_async_next;
-	if (next >= plan->blit_job_count() ||
-	    !self.blitter_submit(plan->blit_job(next), /*wait=*/false)) {
+	if (next >= plan->blit_job_count()) {
+		self.m_async_busy = false;
+		g_blit_async_ends = g_blit_async_ends + 1u;
+		return;
+	}
+	// Programar el siguiente job DENTRO del servicio: `wait_blitter()` (los waits entre
+	// planos de un job multi-plano) no debe re-llamar al servicio (recursión).
+	g_in_blit_service = true;
+	const bool ok = self.blitter_submit(plan->blit_job(next), /*wait=*/false);
+	g_in_blit_service = false;
+	if (!ok) {
 		self.m_async_busy = false;
 		g_blit_async_ends = g_blit_async_ends + 1u;
 		return;
@@ -353,6 +375,14 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 	// Registros derivados de la intención por el **encoder único** (`blitter_job_from`): la
 	// codificación (BLTCON/MOD/minterm) NO se duplica aquí. Se calcula **una vez por job** (no por
 	// plano: los comunes no dependen del plano) y los PUNTEROS sí se re-apuntan por canal y plano.
+	//
+	// **La caché de comunes NO se reutiliza entre jobs individuales**: los servidores del SO
+	// (encadenados por el dispatcher de la ROM, doc 212) pueden haber programado el Blitter
+	// entre dos jobs del mismo frame; un job "igual" al cacheado se saltaría las escrituras y
+	// bliteaba con registros ajenos (planos perdidos observados en la 066). Las RACHAS batch
+	// (`execute_masked_run`/`execute_clear_run`) sí fijan su estado explícitamente y no pasan
+	// por aquí.
+	m_blt_common_valid = false;
 	const graphics::BlitterJob b = graphics::blitter_job_from(job);
 	// Estado común del Blitter (`BLTCON*`, ventanas de A y módulos) — **idéntico entre planos**.
 	// Se escribe **por racha**: si un job consecutivo comparte estos registros con el anterior, se

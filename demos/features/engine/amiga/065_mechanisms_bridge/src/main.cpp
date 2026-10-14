@@ -1,0 +1,489 @@
+// Lanzar:
+//   Depurar   : bash ./tools/build/build-demo.sh demos/features/engine/amiga/065_mechanisms_bridge --debug   && bash ./tools/run/run-demo.sh demos/features/engine/amiga/065_mechanisms_bridge --keep-running
+//   Optimizada: bash ./tools/build/build-demo.sh demos/features/engine/amiga/065_mechanisms_bridge --release && bash ./tools/run/run-demo.sh demos/features/engine/amiga/065_mechanisms_bridge --keep-running
+
+// ============================================================================
+// Demo 065: mecanismos de escenario — puente flexible, jugador y catapulta (F6).
+// ============================================================================
+//
+// Tutorial de la capa de juego F6 (`ROADMAP_SPRITES_COMPLETO.md` §3.6):
+//
+//   - **Puente** (`scene::Rope<s32>` + `rope_step`): 12 eslabones con extremos anclados,
+//     integración verlet y restricciones de distancia (2 pasadas). Cada eslabón se dibuja
+//     como un BOB cuadrado; el puente se **deforma** al pisarlo y bajo los impulsos.
+//   - **Jugador**: caja que camina de lado a lado; su gravedad y los **pies** se resuelven
+//     contra la cuerda (`rope_find_contact` + `rope_resolve_player`): se apoya en la
+//     superficie y **empuja** el segmento al caer (impulso repartido entre sus dos puntos).
+//   - **Catapulta** (`scene::Catapult`): ciclo cargar → disparar; el **extremo** sale de la
+//     tabla de seno (`catapult_tip`) y al cruzar el ángulo de suelta nace la **bola**, que
+//     sigue una **trayectoria balística** cocinada (`scene::Trajectory` + follower).
+//   - **Destructible**: la caja objetivo se rompe al impacto y deja **escombros** con una
+//     trayectoria de caída (4 followers en paralelo).
+//
+// Fondo: playfield a cero con degradado de `COLOR00` por bandas de Copper; los BOB llevan
+// **padding transparente** en su hoja (principio del FastCopy de F5) y se copian opacos
+// (`$F0`): la propia copia tapa la posición anterior, sin borrado ni máscara. El padding
+// de cada objeto es su **paso máximo por tick**.
+
+#include <eng/api/api.hpp>
+#include <eng/graphics/sprite_manager.hpp>
+#include <eng/os/os.hpp>
+#include <eng/platform/amiga/backend.hpp>
+#include <eng/scene/mechanisms.hpp>
+#include <eng/scene/rope.hpp>
+#include <eng/scene/trajectory.hpp>
+
+#include <exec/execbase.h>
+#include <proto/exec.h>
+
+#include "support/gcc8_c_support.h"
+
+struct ExecBase* SysBase = nullptr;
+
+extern "C" {
+__attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
+	eng::debug::run_status_magic,
+	eng::debug::run_status_version,
+	static_cast<eng::u16>(eng::debug::RunState::Cold),
+	0,
+	0,
+};
+__attribute__((used)) volatile eng::debug::FrameTelemetry g_eng_frame_telemetry {
+	0xffffffffu, 0, 0, 0, 0, { 0, 0, 0 }
+};
+}
+
+namespace {
+
+constexpr eng::u16 kBytesPerRow = 40;
+constexpr eng::u8  kPlanes = 4;
+constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kBytesPerRow) * 256u;
+constexpr eng::u32 kBitplaneBytes = kPlaneBytes * kPlanes;
+
+// Puente: 12 eslabones de x=40 a x=260, reposo en y=150.
+constexpr eng::u8  kLinks = 12u;
+constexpr eng::s32 kBridgeX0 = 40;
+constexpr eng::s32 kBridgeStep = 20;
+constexpr eng::s32 kBridgeY = 150;
+constexpr eng::s32 kBridgeRest = 15; // rest_length (luz/11 = 20; 15 ⇒ catenario suave)
+constexpr eng::s32 kGroundY = 200;   // suelo (los pies y las bolas se paran aquí)
+
+// Jugador: caja 8x10 que camina de lado a lado.
+constexpr eng::s32 kPlayerW = 8;
+constexpr eng::s32 kPlayerH = 10;
+constexpr eng::s32 kPlayerFeetHalf = 4;
+constexpr eng::s16 kPlayerMinX = 16;
+constexpr eng::s16 kPlayerMaxX = 280;
+
+// Catapulta (pivote a la derecha) y su ciclo.
+constexpr eng::s32 kCatPivotX = 288;
+constexpr eng::s32 kCatPivotY = 170;
+constexpr eng::s32 kCatArm = 26;
+constexpr eng::s16 kCatRelease = 8;   // ángulo de suelta (unidades de tabla)
+constexpr eng::u16 kCycle = 240u;     // ticks del ciclo (carga en 0, disparo en 120)
+constexpr eng::u16 kFireTick = 120u;
+constexpr eng::s32 kTargetY = 172;    // altura de la caja objetivo
+
+// Padding de cada hoja = paso máximo por tick del objeto (principio FastCopy de F5).
+constexpr eng::u16 kPlankPad = 8u;   // puente (poca velocidad) y brazo de la catapulta
+constexpr eng::u16 kPlayerPad = 8u;  // jugador (vy tope 6)
+constexpr eng::u16 kBallPad = 14u;   // bola (hasta ~12 px/tick en la caída)
+constexpr eng::u16 kTargetPad = 2u;  // objetivo (estático)
+
+// Paleta: COLOR00 = fondo (degradado por Copper); COLOR01 = claro; COLOR03 = cálido.
+constexpr eng::Palette32 kPalette {{
+	0x012, 0xfff, 0x000, 0xfc6, 0x000, 0x000, 0x000, 0x000,
+	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
+	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
+	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
+}};
+
+struct MechanismsDemo {
+	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
+		eng::debug::mark_init_started(g_eng_run_status);
+		if (!backend.configure_memory({ 128u * 1024u, 8u * 1024u, 4u * 1024u })) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00006501u);
+			return;
+		}
+		m_bitplane_block = backend.memory_manager().chip().reserve<eng::PlaneTag>(kBitplaneBytes, 16);
+		m_copper_block = backend.memory_manager().chip().reserve<eng::CopperTag>(2048u, 16);
+		m_sheet_block = backend.memory_manager().chip().reserve<eng::BobTag>(4096u, 16);
+		if (!m_bitplane_block.valid() || !m_copper_block.valid() || !m_sheet_block.valid()) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00006502u);
+			return;
+		}
+
+		// Hojas con **padding transparente** (4 planos; valor en planos 0-1): el contenido
+		// queda centrado y la copia opaca cubre el paso máximo del objeto.
+		eng::u16* const sheets = m_sheet_block.view.as_words().data();
+		m_plank = make_padded(sheets, 0u, 6u, 6u, kPlankPad, 3u);
+		m_player = make_padded(sheets, padded_words(6u, 6u, kPlankPad), kPlayerW, kPlayerH,
+				       kPlayerPad, 1u);
+		m_ball = make_padded(sheets,
+				     padded_words(6u, 6u, kPlankPad) +
+					     padded_words(kPlayerW, kPlayerH, kPlayerPad),
+				     4u, 4u, kBallPad, 1u);
+		m_target_bob = make_padded(sheets,
+					   padded_words(6u, 6u, kPlankPad) +
+						   padded_words(kPlayerW, kPlayerH, kPlayerPad) +
+						   padded_words(4u, 4u, kBallPad),
+					   14u, 14u, kTargetPad, 3u);
+
+		// Puente: cadena recta con extremos anclados.
+		for (eng::u8 i = 0u; i < kLinks; ++i) {
+			m_points[i].p.v[0] = kBridgeX0 + static_cast<eng::s32>(i) * kBridgeStep;
+			m_points[i].p.v[1] = kBridgeY;
+			m_points[i].prev = m_points[i].p;
+			m_points[i].pinned = (i == 0u || i + 1u == kLinks);
+		}
+		m_rope.points = eng::Span<eng::scene::RopePoint<eng::s32>> {m_points, kLinks};
+		m_rope.rest_length = kBridgeRest;
+		m_rope.gravity = 1;
+		m_rope.iterations = 2u;
+
+		// Catapulta.
+		m_catapult.pivot.v[0] = kCatPivotX;
+		m_catapult.pivot.v[1] = kCatPivotY;
+		m_catapult.arm_length = kCatArm;
+		eng::scene::catapult_load(m_catapult);
+
+		// **Trayectoria balística** (relativa al punto de suelta): x retrocede 4 px/tick y
+		// la Y sube con `v0` y cae con la gravedad (entera, cocinada una vez).
+		build_ballistic();
+		// Trayectoria de caída de los escombros.
+		for (eng::u16 i = 0u; i < kDebrisPoints; ++i) {
+			m_fall_pts[i].p.v[0] = 0;
+			m_fall_pts[i].p.v[1] = static_cast<eng::s16>((i * i) / 2);
+			m_fall_pts[i].ticks = 1u;
+		}
+		m_fall_traj = eng::scene::Trajectory<eng::s16> {
+			eng::Span<const eng::scene::PathPoint<eng::s16>> {m_fall_pts, kDebrisPoints},
+			false, true};
+
+		// Posición del objetivo: donde la bola vuelve a `kTargetY` (escaneo de la curva).
+		eng::math::Vec<2, eng::s32> tip {};
+		m_catapult.angle = kCatRelease;
+		eng::scene::catapult_tip(m_catapult, tip);
+		m_target_x = static_cast<eng::s16>(tip.v[0] + m_ball_pts[0].p.v[0]);
+		for (eng::u16 i = 0u; i < kBallPoints; ++i) {
+			if (tip.v[1] + m_ball_pts[i].p.v[1] >= kTargetY) {
+				m_target_x = static_cast<eng::s16>(tip.v[0] + m_ball_pts[i].p.v[0]);
+				break;
+			}
+		}
+		m_target_y = static_cast<eng::s16>(kTargetY);
+		m_catapult.angle = 0;
+
+		if (!build_copper()) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00006503u);
+			return;
+		}
+		backend.takeover_display(m_copper_ptr);
+		eng::debug::mark_ready(g_eng_run_status, 0x00006500u);
+	}
+
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
+
+		// --- Mecánica por tick -------------------------------------------------------
+		// Puente: simular siempre (12 puntos, coste mínimo); el jugador y las bolas lo
+		// empujan con impulsos verlet.
+		eng::scene::rope_step(m_rope);
+
+		// Jugador: gravedad, avance lateral con rebote en los extremos y contacto.
+		m_player_vy = static_cast<eng::s32>(m_player_vy + 1); // gravedad
+		if (m_player_vy > 6) m_player_vy = 6;                 // velocidad de caída tope
+		m_player_x = static_cast<eng::s16>(m_player_x + m_player_dir);
+		if (m_player_x <= kPlayerMinX || m_player_x >= kPlayerMaxX) {
+			m_player_dir = static_cast<eng::s16>(-m_player_dir);
+		}
+		m_player_y = static_cast<eng::s16>(m_player_y + m_player_vy);
+		eng::math::Vec<2, eng::s32> feet {};
+		feet.v[0] = static_cast<eng::s32>(m_player_x) + kPlayerFeetHalf;
+		feet.v[1] = static_cast<eng::s32>(m_player_y) + kPlayerH;
+		eng::s32 vy = m_player_vy;
+		const auto contact = eng::scene::rope_find_contact(m_rope, feet, static_cast<eng::s32>(4));
+		eng::scene::rope_resolve_player(m_rope, feet, vy, contact, 0u);
+		if (feet.v[1] >= kGroundY) { // suelo (fuera del vano): se apoya y camina
+			feet.v[1] = kGroundY;
+			vy = 0;
+		}
+		m_player_y = static_cast<eng::s16>(feet.v[1] - kPlayerH);
+		m_player_vy = vy;
+
+		// Catapulta: ciclo cargar/disparar; la bola nace al cruzar el ángulo de suelta.
+		const eng::u16 phase = static_cast<eng::u16>(context.frame.frame_index % kCycle);
+		if (phase == 0u) {
+			eng::scene::catapult_load(m_catapult);
+		}
+		if (phase == kFireTick) {
+			eng::scene::catapult_fire(m_catapult);
+		}
+		const bool was_firing = m_catapult.firing;
+		eng::scene::catapult_update(m_catapult);
+		if (was_firing && m_catapult.angle >= kCatRelease && !m_ball_active) {
+			eng::math::Vec<2, eng::s32> tip {};
+			eng::scene::catapult_tip(m_catapult, tip);
+			m_ball_follower = eng::scene::TrajectoryFollower<eng::s16> {};
+			m_ball_follower.origin.v[0] = static_cast<eng::s16>(tip.v[0]);
+			m_ball_follower.origin.v[1] = static_cast<eng::s16>(tip.v[1]);
+			m_ball_active = true;
+		}
+		if (m_ball_active) {
+			eng::math::Vec<2, eng::s16> pos {};
+			eng::scene::trajectory_advance(m_ball_traj, m_ball_follower, 1u, pos);
+			m_ball_x = pos.v[0];
+			m_ball_y = pos.v[1];
+			// Impacto con la caja objetivo: la rompe y suelta 4 escombros.
+			if (m_target_active && m_ball_x >= m_target_x - 14 && m_ball_x <= m_target_x + 4 &&
+			    m_ball_y >= m_target_y - 4 && m_ball_y <= m_target_y + 14) {
+				m_target_active = false;
+				m_respawn_timer = 300u;
+				for (eng::u8 i = 0u; i < 4u; ++i) {
+					eng::scene::TrajectoryFollower<eng::s16>& f = m_debris[i];
+					f = eng::scene::TrajectoryFollower<eng::s16> {};
+					f.origin.v[0] = static_cast<eng::s16>(m_target_x + (i & 1u ? 6 : 0));
+					f.origin.v[1] = static_cast<eng::s16>(m_target_y + (i >= 2u ? 6 : 0));
+				}
+				m_debris_active = true;
+			}
+			if (m_ball_follower.finished || m_ball_y >= kGroundY) {
+				m_ball_active = false;
+			}
+		}
+		if (m_debris_active) {
+			bool any = false;
+			for (eng::u8 i = 0u; i < 4u; ++i) {
+				eng::math::Vec<2, eng::s16> pos {};
+				eng::scene::trajectory_advance(m_fall_traj, m_debris[i], 1u, pos);
+				m_debris_x[i] = pos.v[0];
+				m_debris_y[i] = pos.v[1];
+				if (!m_debris[i].finished && pos.v[1] < kGroundY) any = true;
+			}
+			m_debris_active = any;
+		}
+		if (!m_target_active && m_respawn_timer != 0u) {
+			--m_respawn_timer;
+			if (m_respawn_timer == 0u) {
+				m_target_active = true;
+			}
+		}
+
+		// --- Emisión -----------------------------------------------------------------
+		eng::copper::SchedulerT<false> sched { m_copper_block };
+		build_display(sched);
+		m_frame_plan.clear();
+		emit_bobs();
+		// Los BOB del plan se ejecutan por Blitter ANTES de publicar la copperlist del
+		// frame (patrón de la 064).
+		(void)backend.execute_frame_plan(m_frame_plan);
+		sched.wait_line(0xf8);
+		sched.end();
+		if (sched.ok()) {
+			m_copper_ptr = sched.data();
+			backend.install_copper_list(m_copper_ptr);
+			auto& tel = g_eng_frame_telemetry;
+			tel.frame = context.frame.frame_index;
+			tel.copper_words = sched.words_used();
+		}
+	}
+
+	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
+		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
+	}
+
+private:
+	static constexpr eng::u16 kBallPoints = 64u;
+	static constexpr eng::u16 kDebrisPoints = 32u;
+
+	/// Palabras de una hoja planar con padding (`w`/`h` son las del **contenido**; la hoja
+	/// crece `pad` por lado). Contrato compacto del engine: **una palabra de guarda por
+	/// fila** (`base_words + 1`; `bob_detail::sheet_row_bytes`).
+	[[nodiscard]] static constexpr eng::u16 padded_words(eng::u16 w, eng::u16 h, eng::u16 pad) {
+		const eng::u16 pw = static_cast<eng::u16>(w + 2u * pad);
+		const eng::u16 ph = static_cast<eng::u16>(h + 2u * pad);
+		return static_cast<eng::u16>((((pw + 15u) / 16u) + 1u) * 4u * ph);
+	}
+
+	/// Escribe una hoja planar con **padding transparente** (contenido centrado, valor en
+	/// planos 0-1) y devuelve su `Bob` (tamaño = contenido + 2·pad). El dibujo se hace en
+	/// `(x - pad, y - pad)`; la copia opaca cubre la posición anterior.
+	eng::graphics::Bob make_padded(eng::u16* sheets, eng::u16 word_off, eng::u16 w, eng::u16 h,
+				       eng::u16 pad, eng::u16 value) {
+		const eng::u16 pw = static_cast<eng::u16>(w + 2u * pad);
+		const eng::u16 ph = static_cast<eng::u16>(h + 2u * pad);
+		const eng::u16 words = padded_words(w, h, pad);
+		for (eng::u16 i = 0u; i < words; ++i) {
+			sheets[word_off + i] = 0u;
+		}
+		const eng::u16 hw = static_cast<eng::u16>((pw + 15u) / 16u);
+		const eng::u16 row_words = static_cast<eng::u16>(hw + 1u); // base + guarda
+		for (eng::u16 row = pad; row < static_cast<eng::u16>(pad + h); ++row) {
+			for (eng::u16 p = 0u; p < 2u; ++p) {
+				if ((value & (1u << p)) == 0u) continue;
+				for (eng::u16 col = pad; col < static_cast<eng::u16>(pad + w); ++col) {
+					// Solo las columnas del contenido (bit 15 = columna izquierda).
+					const eng::u16 wi = static_cast<eng::u16>(col / 16u);
+					const eng::u16 bit = static_cast<eng::u16>(15u - (col % 16u));
+					sheets[word_off + p * row_words * ph + row * row_words + wi] |=
+						static_cast<eng::u16>(1u << bit);
+				}
+			}
+		}
+		eng::graphics::Visual v {};
+		v.pixels = eng::Span<const eng::u16> {sheets + word_off, words};
+		v.w = pw;
+		v.h = ph;
+		v.bitplanes = 4u;
+		v.frame_count = 1u;
+		eng::graphics::Bob b = eng::scene::bob_from_visual(
+			v, eng::graphics::BobLayout::Planar, eng::scene::TransparencyMode::ColorKey0);
+		// Camino de esta demo: **copia opaca** ($F0) sobre hoja con padding (sin borrado).
+		b.draw = eng::graphics::BobDraw::Opaque;
+		b.erase = eng::graphics::BobErase::None;
+		return b;
+	}
+
+	void build_ballistic() {
+		// x = -4·i; y = -(v0·i − i²/4) con v0 = 12 (parábola entera, cocinada una vez).
+		for (eng::u16 i = 0u; i < kBallPoints; ++i) {
+			m_ball_pts[i].p.v[0] = static_cast<eng::s16>(-4 * static_cast<eng::s32>(i));
+			m_ball_pts[i].p.v[1] = static_cast<eng::s16>(
+				-(12 * static_cast<eng::s32>(i) - (static_cast<eng::s32>(i) * i) / 4));
+			m_ball_pts[i].ticks = 1u;
+		}
+		m_ball_traj = eng::scene::Trajectory<eng::s16> {
+			eng::Span<const eng::scene::PathPoint<eng::s16>> {m_ball_pts, kBallPoints}, false,
+			true};
+	}
+
+	void emit_bobs() {
+		// **Un solo pase**: copia opaca en `(x - pad, y - pad)`; el padding transparente de
+		// la hoja tapa la posición anterior (principio del FastCopy, F5). Sin borrado,
+		// sin máscara y sin save-under; el `pad` de cada objeto es su paso máximo/tick.
+		auto draw = [&](const eng::graphics::Bob& bob, eng::s16 x, eng::s16 y, eng::s16 pad) {
+			const eng::s16 px = static_cast<eng::s16>(x - pad);
+			const eng::s16 py = static_cast<eng::s16>(y - pad);
+			if (px < 0 || py < 0) {
+				return;
+			}
+			(void)eng::graphics::bob_draw(m_frame_plan, bob, 0u, px, py, m_target);
+		};
+		// Puente: un eslabón por punto.
+		for (eng::u8 i = 0u; i < kLinks; ++i) {
+			draw(m_plank, static_cast<eng::s16>(m_points[i].p.v[0] - 3),
+			     static_cast<eng::s16>(m_points[i].p.v[1] - 3), kPlankPad);
+		}
+		// Jugador.
+		draw(m_player, m_player_x, m_player_y, kPlayerPad);
+		// Catapulta: base fija + brazo "punteado" (3 cajas a lo largo del pivote→extremo).
+		draw(m_plank, static_cast<eng::s16>(kCatPivotX - 8), static_cast<eng::s16>(kCatPivotY),
+		     kPlankPad);
+		eng::math::Vec<2, eng::s32> tip {};
+		eng::scene::catapult_tip(m_catapult, tip);
+		for (eng::u8 k = 1u; k <= 3u; ++k) {
+			const eng::s16 x = static_cast<eng::s16>(
+				kCatPivotX + (tip.v[0] - kCatPivotX) * k / 4);
+			const eng::s16 y = static_cast<eng::s16>(
+				kCatPivotY + (tip.v[1] - kCatPivotY) * k / 4);
+			draw(m_plank, static_cast<eng::s16>(x - 3), static_cast<eng::s16>(y - 3),
+			     kPlankPad);
+		}
+		// Bola, objetivo y escombros.
+		if (m_ball_active) {
+			draw(m_ball, static_cast<eng::s16>(m_ball_x - 2), static_cast<eng::s16>(m_ball_y - 2),
+			     kBallPad);
+		}
+		if (m_target_active) {
+			draw(m_target_bob, m_target_x, m_target_y, kTargetPad);
+		}
+		if (m_debris_active) {
+			for (eng::u8 i = 0u; i < 4u; ++i) {
+				draw(m_ball, m_debris_x[i], m_debris_y[i], kBallPad);
+			}
+		}
+	}
+
+	void build_display(eng::copper::SchedulerT<false>& sched) {
+		sched.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0, kBytesPerRow, 0x4200,
+					  kPlanes, m_bitplane_block.mem_view_chip(), kPlaneBytes);
+		sched.move(eng::copper::Register::DMACON,
+			   static_cast<eng::u16>(eng::copper::DmaSetClear | eng::copper::DmaMaster |
+						 eng::copper::DmaCopper | eng::copper::DmaBitplane |
+						 eng::copper::DmaSprite));
+		sched.emit_palette(kPalette.color);
+		// Degradado de `COLOR00` por bandas de 32 líneas (fondo del playfield a cero).
+		for (eng::u8 band = 1u; band < 7u; ++band) {
+			sched.wait_line(static_cast<eng::u8>(44u + band * 32u));
+			sched.move(eng::copper::Register::COLOR00,
+				   static_cast<eng::u16>(0x012u + band * 0x111u));
+		}
+	}
+
+	bool build_copper() {
+		m_target = eng::graphics::make_bob_target(m_bitplane_block.mem_view_chip(), kBytesPerRow,
+							  256u, kPlanes,
+							  eng::graphics::BobLayout::Planar);
+		eng::copper::SchedulerT<false> sched { m_copper_block };
+		build_display(sched);
+		sched.wait_line(0xf8);
+		sched.end();
+		m_copper_ok = sched.ok();
+		m_copper_ptr = sched.data();
+		return m_copper_ok;
+	}
+
+	bool m_copper_ok = false;
+	const eng::u16* m_copper_ptr = nullptr;
+	eng::graphics::FramePlan m_frame_plan {};
+	eng::graphics::BobTarget m_target {};
+	eng::graphics::Bob m_plank {};
+	eng::graphics::Bob m_player {};
+	eng::graphics::Bob m_ball {};
+	eng::graphics::Bob m_target_bob {};
+	// Puente.
+	eng::scene::RopePoint<eng::s32> m_points[kLinks] {};
+	eng::scene::Rope<eng::s32> m_rope {};
+	// Jugador.
+	eng::s16 m_player_x = 24;
+	eng::s16 m_player_y = 100;
+	eng::s16 m_player_dir = 1;
+	eng::s32 m_player_vy = 0;
+	// Catapulta + bola + escombros + objetivo.
+	eng::scene::Catapult<eng::s32> m_catapult {};
+	eng::scene::PathPoint<eng::s16> m_ball_pts[kBallPoints] {};
+	eng::scene::Trajectory<eng::s16> m_ball_traj {};
+	eng::scene::TrajectoryFollower<eng::s16> m_ball_follower {};
+	bool m_ball_active = false;
+	eng::s16 m_ball_x = 0;
+	eng::s16 m_ball_y = 0;
+	eng::scene::PathPoint<eng::s16> m_fall_pts[kDebrisPoints] {};
+	eng::scene::Trajectory<eng::s16> m_fall_traj {};
+	eng::scene::TrajectoryFollower<eng::s16> m_debris[4] {};
+	eng::s16 m_debris_x[4] {};
+	eng::s16 m_debris_y[4] {};
+	bool m_debris_active = false;
+	bool m_target_active = true;
+	eng::u16 m_respawn_timer = 0u;
+	eng::s16 m_target_x = 100;
+	eng::s16 m_target_y = kTargetY;
+	// Bloques.
+	eng::Block<eng::PlaneTag> m_bitplane_block {};
+	eng::Block<eng::CopperTag> m_copper_block {};
+	eng::Block<eng::BobTag, eng::MemoryKind::Chip> m_sheet_block {};
+};
+
+} // namespace
+
+int main() {
+	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
+	eng::debug::reset(g_eng_run_status);
+
+	eng::amiga::AmigaBackend backend {};
+	MechanismsDemo game {};
+	eng::Engine engine { backend, game };
+	(void)eng::os::init(engine, 0u);
+	engine.run_frames(0xffff);
+
+	return 0;
+}

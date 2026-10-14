@@ -327,9 +327,14 @@ inline bool bob_draw_interleaved_pair(FramePlan& plan, const Bob& bob, u8 frame,
 	if (words == 0u) {
 		return false;
 	}
-	const u8 shift = static_cast<u8>(x & 15);
+	// Fuera por la izquierda: no se dibuja (mismo contrato que el camino normal; el recorte
+	// parcial izquierdo no lo cubre el barrel del Blitter).
 	const s16 wx = static_cast<s16>(x & ~15);
-	const s16 x_start = (wx < 0) ? 0 : wx;
+	if (wx < 0) {
+		return true;
+	}
+	const u8 shift = static_cast<u8>(x & 15);
+	const s16 x_start = wx;
 	const u32 start_row = static_cast<u32>(t.row_bytes) * t.plane_count;
 	const u32 frame_offset = static_cast<u32>(frame) * bob.frame_stride;
 	const u16* src = reinterpret_cast<const u16*>(bob.sheet.address(frame_offset).cptr());
@@ -393,11 +398,19 @@ __attribute__((always_inline)) inline bool bob_draw(FramePlan& plan, const Bob& 
 		// camino de un solo blit.
 		return false;
 	}
+	// **Fuera por la izquierda**: no se dibuja. El recorte parcial exigiría un
+	// desplazamiento a la IZQUIERDA de la fuente, que el barrel del Blitter no puede hacer
+	// (ASH solo desplaza a la derecha); mismo contrato que `y < 0`. Un bob a caballo del
+	// borde izquierdo aparece entero al alcanzar x >= 0 (el llamador decide si lo mantiene
+	// fuera con la lógica de juego). Antes se dibujaba en `x&15 + 16` (posición errónea).
+	const s16 wx = static_cast<s16>(x & ~15);
+	if (wx < 0) {
+		return true;
+	}
 	const u8 shift = static_cast<u8>(x & 15);
 	const bool inter = (t.layout == BobLayout::Interleaved);
 	const u16 words = blit_words(bob, shift);
-	const s16 wx = static_cast<s16>(x & ~15);
-	const s16 x_start = (wx < 0) ? 0 : wx;
+	const s16 x_start = wx;
 	const u32 start_row = inter ? static_cast<u32>(t.row_bytes) * t.plane_count : t.row_bytes;
 	const bool masked = bob.draw == BobDraw::CookieCut;
 	if (masked && bob.mask.empty()) {

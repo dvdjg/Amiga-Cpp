@@ -195,11 +195,13 @@
   0    20  engine/include/eng/graphics/copper/static_plan.hpp
   0     1  engine/include/eng/graphics/copper/template.hpp
   0     8  engine/include/eng/graphics/copper/timeline.hpp
+  0     9  engine/include/eng/graphics/drivers/sprite_bend.hpp
   3    46  engine/include/eng/graphics/drivers/tile_scroll.hpp
   0     4  engine/include/eng/graphics/effects/palette_cycle.hpp
   0     4  engine/include/eng/graphics/effects/palette_transition.hpp
   0    20  engine/include/eng/graphics/effects/raster_gradient.hpp
   0     7  engine/include/eng/graphics/effects/rotozoom.hpp
+  0     6  engine/include/eng/graphics/fast_bob_margins.hpp
   0    58  engine/include/eng/graphics/field_controller.hpp
   0     7  engine/include/eng/graphics/font_italic.hpp
   0     2  engine/include/eng/graphics/font5x7.hpp
@@ -213,11 +215,12 @@
   0     2  engine/include/eng/graphics/raster_intent.hpp
   0    33  engine/include/eng/graphics/sprite_allocator.hpp
   2     0  engine/include/eng/graphics/sprite_asset.hpp
+  3    11  engine/include/eng/graphics/sprite_chain.hpp
   0     1  engine/include/eng/graphics/sprite_channel_window.hpp
   0     8  engine/include/eng/graphics/sprite_collision.hpp
   0     4  engine/include/eng/graphics/sprite_line_layer.hpp
-  0    20  engine/include/eng/graphics/sprite_manager.hpp
-  0     2  engine/include/eng/graphics/sprite_palette.hpp
+  0    26  engine/include/eng/graphics/sprite_manager.hpp
+  0     5  engine/include/eng/graphics/sprite_palette.hpp
   0     6  engine/include/eng/graphics/sprite.hpp
   0    10  engine/include/eng/graphics/tile_planar.hpp
   0     3  engine/include/eng/graphics/tilemap/attribute_table.hpp
@@ -273,16 +276,18 @@
   0    40  engine/include/eng/retro/lib2d.hpp
   0    26  engine/include/eng/retro/minifloat_fixed.hpp
   0     2  engine/include/eng/retro/sintab.hpp
-  0    13  engine/include/eng/scene/actor_sprite.hpp
+  0    19  engine/include/eng/scene/actor_sprite.hpp
   0    20  engine/include/eng/scene/actor_store.hpp
   2    16  engine/include/eng/scene/actor_types.hpp
   0     9  engine/include/eng/scene/band_plan.hpp
   0     1  engine/include/eng/scene/banded_target.hpp
   0    18  engine/include/eng/scene/composite_actor.hpp
   0    35  engine/include/eng/scene/display.hpp
-  0     2  engine/include/eng/scene/formation.hpp
+  0    23  engine/include/eng/scene/formation.hpp
   0     7  engine/include/eng/scene/layer.hpp
+  0    21  engine/include/eng/scene/mechanisms.hpp
   0     1  engine/include/eng/scene/representation.hpp
+  0    31  engine/include/eng/scene/rope.hpp
   0    32  engine/include/eng/scene/route_camera.hpp
   0    23  engine/include/eng/scene/scroll_plan.hpp
   0    15  engine/include/eng/scene/trajectory.hpp

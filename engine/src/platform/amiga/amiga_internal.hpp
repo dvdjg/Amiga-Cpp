@@ -92,6 +92,9 @@ inline void write_custom_pointer(unsigned short word_offset, const void* pointer
 // Servicio opcional que se ejecuta mientras se espera al Blitter (drenado de fondo).
 inline void (*g_blitter_service)(void*, unsigned short) = nullptr;
 inline void* g_blitter_service_user = nullptr;
+/// `true` mientras el **servicio de blit** (feeder async) está programando un job:
+/// `wait_blitter()` no debe re-llamar al servicio desde dentro (anti-recursión).
+inline bool g_in_blit_service = false;
 
 // Motor de fondo por IRQ de CIA-A (nivel 2, peticion PORTS): timer A programable.
 inline void (*g_cia_task)(void*, unsigned short) = nullptr;
@@ -272,7 +275,12 @@ inline bool wait_blitter() {
 	// modo «blitter nasty» (BLTPRI): el CPU suelta el bus mientras sondea y el Blitter
 	// lo usa entero, como la macro `BlitWait` del original
 	// (`spr_layer/Sprite_Layer/GFX/blitter.i:26-31`; AHRM «blitter-nasty», l. 5803).
-	if (g_blitter_service == nullptr) {
+	//
+	// **Anti-recursión**: si estamos DENTRO del servicio de blit (el feeder async
+	// programando el siguiente job y esperando entre planos), NO se vuelve a llamar al
+	// servicio — sería re-entrar en el propio feeder y corromper la cadena (bug real
+	// encontrado en la 066 con jobs multi-plano por el camino async).
+	if (g_blitter_service == nullptr || g_in_blit_service) {
 		custom_base[custom_dmacon_offset] = dma_bltpri_set;
 		while ((custom_base[custom_dmaconr_offset] & dmaconr_blitter_busy) != 0u) {
 		}
