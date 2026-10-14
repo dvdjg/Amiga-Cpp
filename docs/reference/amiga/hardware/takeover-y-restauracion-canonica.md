@@ -5,15 +5,20 @@ clásica de la escena). Es lo que hacen los demos/intros "hard" que quieren el c
 que Intuition/graphics/input.device/filesystem toquen nada, desde un proceso AmigaDOS lanzado por
 `startup-sequence` (el modelo del runner).
 
-Relación con el engine:
-- `AmigaBackend::takeover_display` (`amiga.cpp:624-675`) implementa ya la parte de **registros**
-  (INTENA/INTREQ/DMACON `$7FFF`, COPCON, COP1LC, espera VBlank 311→0, COPJMP1) y sustituye el
-  vector de nivel 3 (`level3_sync`, `amiga.cpp:308-330`) — coherente con este procedimiento.
-- **Pendiente en el engine** (gaps respecto al procedimiento): llamar a la parte de
-  `graphics.library` (`LoadView(NULL)` + 2×`WaitTOF` + `OwnBlitter`) antes del takeover y un
-  `restore_system()` de salida (hoy `stop_display` no devuelve el SO: `backend.hpp:318-320`).
-- `set_vblank_sleep(false)` (variante 2 del doc 212) + `Forbid()` es el setup mínimo usado por las
-  demos actuales.
+Relación con el engine (**implementado desde 2026-10**):
+- `AmigaBackend::takeover_system()` (`amiga.cpp`) implementa la entrada completa: `Forbid()` +
+  `graphics.library` (`OpenLibrary`, `LoadView(NULL)`, 2×`WaitTOF`, `OwnBlitter`/`WaitBlit`) +
+  guarda de `INTENA`/`DMACON`/`ADKCON` (bit15=SET).
+- `AmigaBackend::restore_system()` implementa la salida completa: apaga DMA/IRQ, restaura el
+  vector de nivel 3 y el copper del sistema (`GfxBase->copinit` + `COPJMP1`), restaura los
+  registros guardados, `DisownBlitter`/`LoadView`(antiguo)/2×`WaitTOF`/`CloseLibrary` y
+  `Permit()`.
+- `takeover_display` (registros + `COPJMP1` del display propio) se llama después de
+  `takeover_system`, una vez, con la primera copperlist.
+- `set_vblank_sleep(false)` (variante 2 del doc 212) para la espera activa de VBlank bajo el
+  runner (AmigaDOS vivo).
+- Uso en demos: `backend.takeover_system()` en `init`; `backend.restore_system()` para volver al
+  SO. Referencia viva: demo 066.
 
 ## 1. Entrada (orden crítico, no invertible)
 

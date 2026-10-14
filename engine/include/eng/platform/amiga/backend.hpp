@@ -304,6 +304,19 @@ public:
 	/// VPOSR. Es close-to-the-metal: el sistema operativo no arbitra esta lista.
 	void takeover_display(const u16* copper_words);
 
+	/// **Toma de control del SISTEMA** (procedimiento canónico completo, idempotente):
+	/// `Forbid()` + `graphics.library` (`LoadView(NULL)`, 2×`WaitTOF`, `OwnBlitter`) +
+	/// guarda de `INTENA`/`DMACON`/`ADKCON` para la restauración. Llamar en `init` antes de
+	/// `takeover_display`. Ver
+	/// `docs/reference/amiga/hardware/takeover-y-restauracion-canonica.md`.
+	bool takeover_system();
+
+	/// **Devuelve el control al SO** (inverso de `takeover_system`): apaga DMA/IRQ, restaura
+	/// el vector de nivel 3 y el copper del sistema (`copinit`), los registros guardados,
+	/// `DisownBlitter`/`LoadView`/2×`WaitTOF` y `Permit()`. Tras esto la demo ya no debe
+	/// tocar el chipset.
+	void restore_system();
+
 	/// Cambia la copperlist activa por otra ya construida en Chip RAM (swap).
 	///
 	/// NO toma el control del display ni dispara COPJMP1: solo actualiza

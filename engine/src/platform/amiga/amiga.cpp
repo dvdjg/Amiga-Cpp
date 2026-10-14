@@ -2,6 +2,8 @@
 
 #include "support/gcc8_c_support.h"
 #include <proto/exec.h>
+#include <proto/graphics.h>
+#include <graphics/gfxbase.h>
 #include <exec/memory.h>
 #include <eng/debug/prof.hpp>
 #include <eng/debug/peripheral.hpp>
@@ -9,6 +11,10 @@
 
 
 #include "amiga_internal.hpp"
+
+// Base de `graphics.library` para los stubs inline de `proto/graphics.h` (la toma de control
+// la abre en `takeover_system` y la cierra en `restore_system`). Enlace C, como espera el stub.
+struct GfxBase* GfxBase = nullptr;
 
 using namespace eng::amiga::detail;
 
@@ -698,6 +704,93 @@ void AmigaBackend::stop_display() {
 	// antes de destruir la escena evita que Exec lea copperlists/bitplanes ya liberados.
 	custom_base[custom_dmacon_offset] = dma_clear_all;
 	m_display_taken = false;
+}
+
+// ── Toma de control del sistema y restauración (procedimiento canónico) ─────────────
+// Referencia: docs/reference/amiga/hardware/takeover-y-restauracion-canonica.md
+// Entrada: Forbid → graphics.library (LoadView(NULL) + 2×WaitTOF + OwnBlitter) → guardar
+// INTENA/DMACON/ADKCON → apagar todo → (el llamador instala su copper con takeover_display).
+// Salida: apagar todo → restaurar vector nivel 3 → copper del SO (copinit) → restaurar
+// registros → DisownBlitter/LoadView(antiguo)/2×WaitTOF → Permit.
+namespace {
+struct SystemTakeoverState {
+	bool active = false;
+	bool forbidden = false;
+	struct GfxBase* gfx = nullptr;
+	struct View* old_view = nullptr;
+	eng::u16 old_intena = 0u;
+	eng::u16 old_dmacon = 0u;
+	eng::u16 old_adkcon = 0u;
+};
+SystemTakeoverState g_sys {};
+} // namespace
+
+bool AmigaBackend::takeover_system() {
+	if (g_sys.active) {
+		return true;
+	}
+	// 1) Exec: congelar el planificador (control absoluto de la máquina). `Permit()` al salir.
+	Forbid();
+	g_sys.forbidden = true;
+	// 2) graphics.library: matar el display de Intuition y quedarse el Blitter. Sin esto el
+	// "libro de display" del SO puede reescribir COP1LC/INTENA en el siguiente VBlank.
+	g_sys.gfx = reinterpret_cast<struct GfxBase*>(OpenLibrary("graphics.library", 0));
+	if (g_sys.gfx != nullptr) {
+		g_sys.old_view = g_sys.gfx->ActiView;
+		LoadView(nullptr);
+		WaitTOF();
+		WaitTOF();
+		OwnBlitter();
+		WaitBlit();
+	}
+	// 3) Guardar estado hardware (bit15=SET para restaurarlo tal cual).
+	g_sys.old_dmacon = static_cast<eng::u16>(custom_base[custom_dmaconr_offset] | 0x8000u);
+	g_sys.old_intena = static_cast<eng::u16>(custom_base[custom_intenar_offset] | 0x8000u);
+	g_sys.old_adkcon = static_cast<eng::u16>(custom_base[custom_adkconr_offset] | 0x8000u);
+	g_sys.active = true;
+	return true;
+}
+
+void AmigaBackend::restore_system() {
+	if (!g_sys.active) {
+		return;
+	}
+	// 1) Apagar DMA/IRQ (higiene antes de tocar vectores/copper).
+	wait_blitter();
+	custom_base[custom_dmacon_offset] = dma_clear_all;
+	custom_base[custom_intena_offset] = dma_clear_all;
+	custom_base[custom_intreq_offset] = dma_clear_all;
+	custom_base[custom_adkcon_offset] = dma_clear_all;
+	// 2) Restaurar el vector de nivel 3 si lo sustituimos y desactivar servicios.
+	if (g_level3_installed) {
+		*reinterpret_cast<volatile eng::u32*>(0x6cu) = g_level3_old_vector;
+		g_level3_installed = false;
+	}
+	g_vbl_task = nullptr;
+	g_blit_task = nullptr;
+	m_display_taken = false;
+	m_async_busy = false;
+	m_async_service_installed = false;
+	// 3) Copper del sistema (copinit) + registros guardados.
+	if (g_sys.gfx != nullptr) {
+		*cop1lc = reinterpret_cast<eng::u32>(g_sys.gfx->copinit);
+		custom_base[custom_copjmp1_offset] = 0x7fffu;
+	}
+	custom_base[custom_dmacon_offset] = g_sys.old_dmacon;
+	custom_base[custom_intena_offset] = g_sys.old_intena;
+	custom_base[custom_adkcon_offset] = g_sys.old_adkcon;
+	// 4) Devolver Blitter y display al SO y reactivar multitasking.
+	if (g_sys.gfx != nullptr) {
+		DisownBlitter();
+		LoadView(g_sys.old_view);
+		WaitTOF();
+		WaitTOF();
+		CloseLibrary(reinterpret_cast<struct Library*>(g_sys.gfx));
+	}
+	if (g_sys.forbidden) {
+		Permit();
+	}
+	g_sys = SystemTakeoverState {};
 }
 
 void AmigaBackend::set_bitplane_dat(u8 plane, u16 value) {

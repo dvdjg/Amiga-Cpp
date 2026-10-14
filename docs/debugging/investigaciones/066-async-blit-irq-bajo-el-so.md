@@ -1,60 +1,63 @@
-# 066: bugs reales del camino de blits encontrados con el showcase (caché, recursión async, render async abierto)
+# 066: bugs del camino de blits encontrados con el showcase (todos cerrados)
 
-Estado: **2 bugs corregidos + 1 abierto**. Este doc sustituye a la hipótesis inicial "el SO mata la
-IRQ BLIT" (era incorrecta: el handler de nivel 3 del engine **no encadena** la ROM —
-`amiga.cpp:288-306` sustituye el vector entero; el doc 212 describe otro camino).
+Estado: **cerrado**. Cuatro bugs reales encontrados y corregidos durante la vitrina de BOBs.
+Este doc sustituye a la hipótesis inicial "el SO mata la IRQ BLIT" (incorrecta: el handler de
+nivel 3 del engine no encadena la ROM, `amiga.cpp:288-306`).
 
-## Medidas de referencia (build 066, `measure-fps`)
+## Bug 1 — Caché de registros comunes del Blitter cruzaba jobs/frames (motor)
+
+`m_blt_common_valid` sobrevivía entre jobs. Cualquier otro código (servidores del SO) puede
+programar el Blitter en cualquier hueco; un job "igual" al cacheado se saltaba las escrituras y
+bliteaba con registros ajenos → **planos perdidos**. Corregido: invalidación **por job** en
+`submit_blit_job` (`amiga_blitter.cpp`). Las rachas batch fijan su estado explícitamente.
+
+## Bug 2 — Recursión del feeder async por el servicio del `wait_blitter` (motor)
+
+`wait_blitter()` llama al servicio de blit registrado; en async ese servicio ES el feeder →
+un job multi-plano se re-entraba a sí mismo (cadena corrupta). Corregido con guard
+anti-recursión (`g_in_blit_service`, `amiga_internal.hpp`).
+
+## Bug 3 — La cadena avanzaba una vez por PLANO, no por JOB (motor)
+
+Un job multi-plano lanza un blit por plano y **cada fin de blit dispara la IRQ BLIT**: el
+feeder avanzaba 2-4 índices por job (saltaba jobs y reprogramaba a media cadena de planos) →
+render corrupto. Corregido con un **gate de INTENA**: se desarma BLIT y se limpia el latch de
+INTREQ durante la programación del job y se rearma al final; el latch (independiente de
+INTENA) entrega **exactamente una IRQ por job** (`blit_irq_gate_begin/end`). Más guard de IRQ
+espuria (`if (!m_async_busy) return;`).
+
+## Bug 4 — `run_frames` ya había instalado otro servicio de blit (demo/motor)
+
+`Engine::run_frames` instala el `BackgroundPump` como servicio de blit; `install_blit_service`
+rechaza el segundo (`amiga.cpp:367-370`) → `execute_frame_plan_async` fallaba **en silencio**
+cada frame y los BOBs **nunca se dibujaban** (la escena parecía "congelada": solo arte estático
++ sprites). Corregido en la demo con `engine.set_blit_service_enabled(false)` antes de
+`run_frames`, más degradación a `execute_frame_plan` si el async devuelve false. Diagnóstico
+usado: contadores `g_blit_async_*` (ahora accesibles vía
+`AmigaBackend::blit_async_launches()/…`) pintados en la franja: **L = 1 launch/frame,
+S = 17 submits/frame** con la cadena correcta.
+
+## Bug 5 (demo) — `BPLCON0` hardcodeado a 5 planos
+
+El display emitía `BPLCON0 = 0x5200` (BPU=5) tras reducir la demo a 4 planos → el 5º plano
+leía `BPL5PT` (basura) → colores 16-31 espurios (áreas rojas/verdes enormes). Corregido
+derivando `0x4000 | (kPlanes << 12)`.
+
+## Medidas finales (A500_debug)
 
 | Configuración | fps | ciclos/frame |
 |---|---|---|
-| Sync (`execute_frame_plan`) con todos los blits | 34.0 | 208667 |
-| **Sin blits** (resto igual) | **49.92** | **142102 (= 1 campo exacto)** |
-| **Async (`execute_frame_plan_async`) con todos los blits** | **49.92** | **142102** |
+| Sync, sin blits | 49.92 | 142102 (= 1 campo) |
+| Sync con blits | ~34 | 208667 |
+| **Async con blits (bugs 2-4 corregidos)** | **~39-44** | 183832 (T161 en franja) |
 
-Conclusión de coste: **todo el déficit del sync son los lanzamientos de blit** (66.5k ciclos de
-pared sobre el campo); el CPU de la demo + la espera de VBlank no añaden nada (sin blits el frame es
-exactamente 1 campo). El "88% en ROM" que se citó antes salió de un parseo del perfil que contaba
-marcadores no-PC (valores 1, 4, 7…) como muestras de ROM: **dato inválido, retirado**.
+La cadena async de 17 jobs cuesta ~42k ciclos de pared sobre el campo. Para 50 fps: reducir
+lanzamientos/planos por job (rachas batch con posiciones alineadas, menos objetos) o abaratar la
+programación por job (la caché de comunes, hoy desactivada por el bug 1 — solo segura con
+control absoluto y sin servidores del SO que usen el Blitter).
 
-## Bug 1 (corregido): la caché de registros comunes del Blitter cruzaba jobs/frames
+## Verificación
 
-`m_blt_common_valid` sobrevivía entre jobs individuales. Los servidores del SO (y cualquier otro
-código) pueden programar el Blitter en cualquier hueco; un job "igual" al cacheado se saltaba las
-escrituras y bliteaba con registros ajenos → **planos perdidos** (objetos a medio dibujar, colores
-imposibles). El camino sync lo tapaba a veces (las rachas batch invalidan), pero es un bug real.
-Corregido: `submit_blit_job` invalida la caché en cada job (`amiga_blitter.cpp`). Las rachas batch
-siguen fijando su estado explícitamente.
-
-## Bug 2 (corregido): recursión del feeder async por el servicio del `wait_blitter`
-
-`wait_blitter()` llama al **servicio de blit** registrado mientras espera. Con el camino async, ese
-servicio ES el feeder de la cadena (`frame_plan_async_step`); un job multi-plano hace
-`wait_blitter()` entre planos → el feeder se re-entraba a sí mismo y corrompía la cadena (render
-roto y reinicios). Corregido con un guard anti-recursión (`g_in_blit_service` en
-`amiga_internal.hpp`; el feeder y el lanzamiento inicial lo activan alrededor del submit).
-
-## Bug 3 (ABIERTO): con el async, ciertos jobs aún renderizan mal
-
-Con async + los dos fixes: **49.92 fps** pero el render sigue corrupto en un subconjunto de jobs:
-los **opacos** (deslizadores con padding, cofre save-under, joya) salen correctos; los **Or ($FC)**,
-**erase box** y **cookie-cut con máscara** salen mal (aros/aspas, planos perdidos). Con sync el
-mismo plan renderiza bien. No hay rachas batch en este plan (los estados difieren por el shift), así
-que sync y async ejecutan los mismos jobs individuales: la diferencia está en la **ejecución
-encadenada por ISR** de esos tipos. Sospechas a investigar (en orden):
-1. El ISR programa el siguiente job tras la IRQ de fin de blit; verificar con watchpoints si la
-   IRQ BLIT llega **antes** del fin real del blit en algún caso (el engine limpia `INTREQ` BLIT en
-   `level3_dispatch`; si el bit se limpia con el blit aún drenando los últimos words, el siguiente
-   job pisa registros en vuelo).
-2. El `wait_blitter()` con BLTPRI dentro del ISR (poll puro tras el guard) y su interacción con el
-   IRQ VERTB (latido) que preempta la cadena.
-3. Comparar registro a registro (BLTCON/MOD/punteros) el job N en sync vs async con watch de
-   Copper/CPU (memwatch `reportonly`) — el sync ya está validado contra HOST-439.
-
-## Recomendación
-
-- Hasta cerrar el bug 3: la 066 usa **sync** (34 fps, render correcto) o **async** (49.92 fps,
-  render con defectos conocidos). El fix correcto es el 3; no maquillar con workarounds.
-- El setup de control de la demo incluye `set_vblank_sleep(false)` + `Forbid()` (setup clásico de
-  demo; `Permit()` al salir). El takeover documentado está en
-  `docs/engine/architecture/HARDWARE_AND_ROM_KERNEL_POLICY.md` §«Toma de control del display».
+Visión (Ollama, secuencia de 3 frames): **7/7 puntos SÍ** (degradado, 6 zonas, orbes OR,
+sliders fast, cookie-cut + save-under sobre damero, barras/joya, sprites HW), movimiento en
+todas las zonas, sin artefactos. Diferencias entre frames: ~7.1-7.7k px.

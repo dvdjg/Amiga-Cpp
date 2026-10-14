@@ -130,10 +130,11 @@ struct BobShowcaseDemo {
 		// Variante 2 del 212: bajo un SO vivo, el Wait() de Exec mete ~0.5 campo de latencia
 		// de despertar por frame (perfil: 88% de las muestras en ROM/SO). Espera ACTIVA.
 		backend.set_vblank_sleep(false);
-		// **Control absoluto** (setup clásico de demo): Forbid() congela el planificador de
-		// Exec (las tareas del SO dejan de consumir CPU; la demo se queda la máquina). Se
-		// devuelve con Permit() al salir. Ver HARDWARE_AND_ROM_KERNEL_POLICY.md §toma.
-		Forbid();
+		// **Control absoluto** (procedimiento canónico del engine): Forbid + LoadView(NULL) +
+		// 2×WaitTOF + OwnBlitter + guarda de INTENA/DMACON/ADKCON. Vuelta al SO:
+		// `backend.restore_system()`. Ver
+		// `docs/reference/amiga/hardware/takeover-y-restauracion-canonica.md`.
+		(void)backend.takeover_system();
 		if (!backend.configure_memory({ 160u * 1024u, 8u * 1024u, 4u * 1024u })) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00006601u);
 			return;
