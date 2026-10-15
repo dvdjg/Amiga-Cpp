@@ -131,11 +131,23 @@ void test_configure_rejects() {
 	SpriteLineLayerConfig six_planes {};
 	six_planes.lines = 4u;
 	six_planes.channels = 1u;
+	six_planes.hpos0 = 161u;
 	six_planes.display_planes = 6u;
 	six_planes.line_data = data_view;
 	CHECK(!layer.configure(six_planes));
 	six_planes.display_planes = 5u;
 	CHECK(layer.configure(six_planes));
+
+	// Rearmado por línea con X antes del fetch de sprites: rechazado
+	// (check_sprite_line_hpos: HSTART >= 0x81 + 28); con armado único sí entra.
+	SpriteLineLayerConfig early_x {};
+	early_x.lines = 4u;
+	early_x.channels = 1u;
+	early_x.hpos0 = 100u;
+	early_x.line_data = data_view;
+	CHECK(!layer.configure(early_x));
+	early_x.per_line_rearm = false;
+	CHECK(layer.configure(early_x));
 
 	// Una válida sí entra.
 	SpriteLineLayerConfig ok {};
@@ -143,7 +155,7 @@ void test_configure_rejects() {
 	ok.lines = 3u;
 	ok.channel_first = 4u;
 	ok.channels = 2u;
-	ok.hpos0 = 100u;
+	ok.hpos0 = 161u;
 	ok.hpos_step = 16u;
 	ok.line_data = data_view;
 	CHECK(layer.configure(ok));
@@ -169,7 +181,7 @@ void test_emit_per_line_data() {
 	cfg.lines = 3u;
 	cfg.channel_first = 4u;
 	cfg.channels = 2u;
-	cfg.hpos0 = 50u;
+	cfg.hpos0 = 161u; // x de pantalla 32 (HSTART absoluto = 0x81 + 32)
 	cfg.hpos_step = 16u;
 	cfg.line_data = eng::ChipView<eng::SpriteTag> {
 		eng::Address<eng::MemoryKind::Chip>::from_storage(data), sizeof(data)};
@@ -186,16 +198,18 @@ void test_emit_per_line_data() {
 	const eng::u32 base = static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(data));
 	for (eng::u16 c = 0u; c < 2u; ++c) {
 		const eng::u16 ch = static_cast<eng::u16>(4u + c);
-		const eng::u16 hpos = static_cast<eng::u16>(50u + c * 16u);
+		// `hpos0` va en HSTART absoluto (píxel de pantalla = valor − 0x81).
+		const eng::u16 hstart = static_cast<eng::u16>(161u + c * 16u);
 		const eng::u16 pos_expected =
-			static_cast<eng::u16>((100u << 8u) | ((hpos >> 1u) & 0xffu));
-		const eng::u16 ctl_expected = static_cast<eng::u16>(103u << 8u); // VSTOP=103
+			static_cast<eng::u16>((100u << 8u) | ((hstart >> 1u) & 0xffu));
+		const eng::u16 ctl_expected =
+			static_cast<eng::u16>((103u << 8u) | (hstart & 1u)); // VSTOP=103 + HSTART[0]
 		const eng::u32 addr = base + static_cast<eng::u32>(c) * 3u * 4u;
 		const SpyMove* m = &spy.moves[static_cast<eng::u32>(c) * 4u];
 		CHECK(m[0].reg == 0x140u + ch * 8u && m[0].val == pos_expected);
 		CHECK(m[1].reg == 0x142u + ch * 8u && m[1].val == ctl_expected);
-		CHECK(m[2].reg == 0x120u + ch * 8u && m[2].val == (addr >> 16u));
-		CHECK(m[3].reg == 0x122u + ch * 8u && m[3].val == (addr & 0xffffu));
+		CHECK(m[2].reg == 0x120u + ch * 4u && m[2].val == (addr >> 16u));
+		CHECK(m[3].reg == 0x122u + ch * 4u && m[3].val == (addr & 0xffffu));
 	}
 	// Reposiciones: por línea (100..102), canales 4 y 5 con X creciente (WAIT monotono).
 	for (eng::u16 l = 0u; l < 3u; ++l) {
@@ -203,7 +217,7 @@ void test_emit_per_line_data() {
 		const SpyRepos& r1 = spy.repos[l * 2u + 1u];
 		CHECK(r0.channel == 4u && r1.channel == 5u);
 		CHECK(r0.vline == 100u + l && r1.vline == 100u + l);
-		CHECK(r0.hpos == 50u && r1.hpos == 66u);
+		CHECK(r0.hpos == 161u && r1.hpos == 177u);
 		CHECK(r1.hpos > r0.hpos);
 	}
 }
@@ -218,7 +232,7 @@ void test_attach_and_scroll() {
 	cfg.lines = 2u;
 	cfg.channel_first = 0u;
 	cfg.channels = 1u;
-	cfg.hpos0 = 40u;
+	cfg.hpos0 = 200u;
 	cfg.hpos_step = 16u;
 	cfg.attach = true;
 	cfg.line_data = eng::ChipView<eng::SpriteTag> {
@@ -236,14 +250,45 @@ void test_attach_and_scroll() {
 	layer.set_scroll(10u);
 	SpyScheduler spy2 {};
 	layer.emit_into(spy2);
-	CHECK(spy2.moves[0].val == static_cast<eng::u16>((0u << 8u) | (30u >> 1u)));
-	CHECK(spy2.repos[0].hpos == 30u && spy2.repos[1].hpos == 30u);
+	CHECK(spy2.moves[0].val == static_cast<eng::u16>((0u << 8u) | (190u >> 1u)));
+	CHECK(spy2.repos[0].hpos == 190u && spy2.repos[1].hpos == 190u);
 
-	// Scroll que saca el canal por la izquierda: no se emite nada.
-	layer.set_scroll(100u);
+	// Scroll que saca el canal por la izquierda del todo (HSTART < 0): no se emite nada.
+	layer.set_scroll(201u);
 	SpyScheduler spy3 {};
 	layer.emit_into(spy3);
 	CHECK(spy3.waits == 0u && spy3.move_count == 0u && spy3.repo_count == 0u);
+}
+
+void test_arm_only() {
+	std::printf("emit: armado unico (per_line_rearm=false, bandas vpos>255)\n");
+
+	alignas(16) static eng::u16 data[2 * 2 * 2] {};
+	SpriteLineLayer layer {};
+	SpriteLineLayerConfig cfg {};
+	cfg.first_line = 276u; // franja inferior: vpos crudo (DIWSTRT 0x2C + fila 232)
+	cfg.lines = 2u;
+	cfg.channel_first = 3u;
+	cfg.channels = 2u;
+	cfg.hpos0 = 0x81u + 32u;
+	cfg.hpos_step = 16u;
+	cfg.per_line_rearm = false;
+	cfg.line_data = eng::ChipView<eng::SpriteTag> {
+		eng::Address<eng::MemoryKind::Chip>::from_storage(data), sizeof(data)};
+	CHECK(layer.configure(cfg));
+
+	SpyScheduler spy {};
+	layer.emit_into(spy);
+	CHECK(spy.waits == 2u);      // un WAIT por canal (armado)
+	CHECK(spy.move_count == 8u); // POS+CTL+PTH+PTL por canal
+	CHECK(spy.repo_count == 0u); // sin rearmado por línea
+
+	// VSTART = 276 y VSTOP = 278: ambos > 255 -> bits 8 en CTL (VSTART[8]=bit 2,
+	// VSTOP[8]=bit 1) y los bytes altos = valor & 0xff (AHRM cap. 4).
+	CHECK(spy.moves[0].val == static_cast<eng::u16>((276u << 8u) | ((0x81u + 32u) >> 1u)));
+	CHECK((spy.moves[1].val & 0x0004u) != 0u); // VSTART[8]
+	CHECK((spy.moves[1].val & 0x0002u) != 0u); // VSTOP[8]
+	CHECK((spy.moves[1].val >> 8u) == (278u & 0xffu)); // VSTOP[7:0]
 }
 
 } // namespace
@@ -256,6 +301,7 @@ int main() {
 	test_configure_rejects();
 	test_emit_per_line_data();
 	test_attach_and_scroll();
+	test_arm_only();
 
 	if (g_failures == 0) {
 		std::printf("OK: capa de sprites por parcheo de POS+DATA por linea validada.\n");

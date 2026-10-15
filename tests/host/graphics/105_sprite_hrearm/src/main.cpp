@@ -125,8 +125,8 @@ void test_encoding() {
 		// pisa SPRxDATA; ver `winuae/sprite-dma.md` §Armado de un canal).
 		const eng::u32 addr = static_cast<eng::u32>(
 			reinterpret_cast<eng::uintptr>(spr_data));
-		CHECK(mv[2].reg == 0x120u + 3u * 8u && mv[2].val == (addr >> 16u), "SPRxPTH -> DATA");
-		CHECK(mv[3].reg == 0x122u + 3u * 8u && mv[3].val == (addr & 0xffffu),
+		CHECK(mv[2].reg == 0x120u + 3u * 4u && mv[2].val == (addr >> 16u), "SPRxPTH -> DATA");
+		CHECK(mv[3].reg == 0x122u + 3u * 4u && mv[3].val == (addr & 0xffffu),
 		      "SPRxPTL -> DATA");
 	}
 	// NO debe escribir SPRxDATA/DATB (los pisa el fetch: el dato va en la estructura).

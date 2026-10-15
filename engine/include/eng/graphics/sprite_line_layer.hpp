@@ -40,8 +40,10 @@ struct SpriteLineLayerConfig {
 	u16 lines = 0;         ///< nº de líneas que cubre la banda (1..512)
 	u8  channel_first = 0; ///< primer canal de la corrida (0..7)
 	u8  channels = 0;      ///< canales de la corrida (1..8)
-	u16 hpos0 = 0;         ///< X del primer canal (px low-res; el WAIT debe caer tras el
-			       ///< fetch de la línea, `DDFSTRT`/2 ≈ 28 px)
+	u16 hpos0 = 0;         ///< X del primer canal en **HSTART absoluto** (color-clocks;
+			       ///< píxel de pantalla = `hpos0 − kSpriteScreenXOrigin`, misma convención
+			       ///< que `SpriteManager`/`SpriteBend`; el WAIT debe caer tras el fetch de
+			       ///< la línea, `DDFSTRT`/2 ≈ 28 px)
 	u16 hpos_step = 16u;   ///< separación entre canales (debe ser > 0)
 	u16 scroll = 0;        ///< desplazamiento horizontal (px); se resta a cada X
 	/// Tabla de DATA por **canal** y línea: `[channel][line][2]` = `{DAT, DATB}` en Chip.
@@ -51,6 +53,16 @@ struct SpriteLineLayerConfig {
 	/// HUD vive aquí, no en MOVEs (ver `winuae/sprite-dma.md` §Armado de un canal).
 	eng::ChipView<eng::SpriteTag> line_data {};
 	bool attach = false;   ///< par attached (15 colores)
+	/// **Rearmado por línea** (patrón Parasol Stars): emite además una reposición `SPRxPOS`
+	/// por (línea, canal) — imprescindible cuando los canales se **reutilizan** a lo largo de
+	/// la banda (más segmentos que canales). Con `false` solo se emite el **armado** por canal
+	/// (un segmento por canal en todas las líneas de la banda). La reposición usa la espera
+	/// simple (`emit_sprite_horizontal_reposition`, `vline: u8`): **solo bandas ≤ 255**; para
+	/// bandas en `vpos > 255` (franja inferior) se usa el armado único — el secuenciador de
+	/// sprites **auto-arma** al llegar a `VSTART` (`custom.cpp:10088-10090`), así que basta con
+	/// dejar `POS`/`CTL`/`PT` escritos antes de la banda (`wait_line_safe` maneja el overflow
+	/// de VPOS con el par `0xffdf/0xfffe`; `copper.hpp`).
+	bool per_line_rearm = true;
 	/// Planos del display donde se parchea. El parcheo de DATA a media línea necesita hueco
 	/// de DMA en la línea: con más de `kSpriteLineDataMaxBitplanes` planos **no lo hay**
 	/// (check_sprite_line_data; `custom.cpp:10111`/`10130-10131`) y `configure` lo rechaza.
@@ -83,6 +95,11 @@ public:
 			return false;
 		}
 		if (!eng::setup::check_sprite_line_data(cfg.display_planes).ok()) {
+			return false;
+		}
+		// La reposición por línea escribe `SPRxPOS` a media línea: la primera X debe caer
+		// tras el fetch de sprites (check_sprite_line_hpos). El armado único no lo necesita.
+		if (cfg.per_line_rearm && !eng::setup::check_sprite_line_hpos(cfg.hpos0).ok()) {
 			return false;
 		}
 		m_cfg = cfg;
@@ -120,12 +137,17 @@ public:
 			const eng::uintptr addr =
 				m_cfg.line_data.address(static_cast<eng::s32>(ch) *
 							static_cast<eng::s32>(m_cfg.lines) * 4).value;
-			sched.move(static_cast<eng::copper::Register>(0x120u + channel * 8u),
+			sched.move(static_cast<eng::copper::Register>(0x120u + channel * 4u),
 				   static_cast<u16>(addr >> 16u));
-			sched.move(static_cast<eng::copper::Register>(0x122u + channel * 8u),
+			sched.move(static_cast<eng::copper::Register>(0x122u + channel * 4u),
 				   static_cast<u16>(addr & 0xffffu));
 		}
 		// 2) Reposición POS-only por (línea, canal): 1 MOVE por segmento (patrón Risky Woods).
+		// Solo con `per_line_rearm`: reutilizar canales dentro de la banda exige reposicionar
+		// por línea (y el Copper solo puede esperar vpos <= 255; ver el config).
+		if (!m_cfg.per_line_rearm) {
+			return;
+		}
 		for (u16 v = m_cfg.first_line; v < m_cfg.first_line + m_cfg.lines; ++v) {
 			for (u8 ch = 0u; ch < m_cfg.channels; ++ch) {
 				const s32 x =

@@ -8,9 +8,13 @@ Cubre:
 
 - `configure`: rechaza rango de líneas, corrida de canales, `hpos_step == 0` y tramos que
   se salen de los 8 canales.
-- **Emisión**: un `SpriteHorizontalRearm` por (línea, canal), en orden línea→canal, con
-  `hpos` creciente dentro de la línea y `vstart`/`vstop` de una sola scanline.
-- **DATA por línea** (tabla `[lines][channels][2]`) frente al par constante.
+- **Emisión** (rearmado por línea): un armado por canal (`POS`+`CTL`+`PT` con stride 4,
+  `0x120+ch*4`) y una **reposición** POS-only por (línea, canal), en orden línea→canal.
+- **Armado único** (`per_line_rearm=false`): solo `POS`+`CTL`+`PT` por canal, sin
+  reposiciones — la forma para bandas en `vpos > 255`, donde el `WAIT` del Copper no puede
+  apuntar (`custom.cpp:4427`) y el secuenciador auto-arma en `VSTART`
+  (`custom.cpp:10088-10090`).
+- **DATA por línea** (tabla `[channel][line][2]`) — la estructura que recibe `SPRxPT`.
 - **Scroll** horizontal (resta a la X, omite los canales fuera de pantalla) y **attach**.
 - Límites de hardware coherentes en `eng/graphics/sprite_limits.hpp`.
 

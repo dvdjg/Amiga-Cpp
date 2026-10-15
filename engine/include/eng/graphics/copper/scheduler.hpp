@@ -290,7 +290,9 @@ public:
 	///
 	/// Codificación (AHRM cap. 4): `SPRxPOS = (VSTART[7:0]<<8) | (HSTART[8:1])`;
 	/// `SPRxCTL = (VSTOP[7:0]<<8) | (VSTART[8]<<3) | (VSTOP[8]<<2) | (HSTART[0]<<1) | attach`.
-	/// Offsets: `SPRxPOS=0x140+x*8`, `SPRxCTL=0x142+x*8`, `SPRxPTH/L=0x120+x*8`.
+	/// Offsets: `SPRxPOS=0x140+x*8`, `SPRxCTL=0x142+x*8`, `SPRxPTH/L=0x120+x*4`
+	/// (el bloque de punteros usa stride 4: `SPR0PTH=0x120`, `SPR1PTH=0x124`; POS/CTL usan
+	/// stride 8).
 	void emit_sprite_horizontal_rearm(const graphics::SpriteHorizontalRearm& r,
 					  eng::ChipView<eng::SpriteTag> data) {
 		const u16 ch = r.channel & 7u;
@@ -306,8 +308,8 @@ public:
 		move(static_cast<u16>(0x140u + ch * 8u), pos);   // SPRxPOS
 		move(static_cast<u16>(0x142u + ch * 8u), ctl);   // SPRxCTL
 		const eng::u32 addr = data.address(0).value;     // estructura de DATA (el walk la lee)
-		move(static_cast<u16>(0x120u + ch * 8u), static_cast<u16>(addr >> 16u));   // SPRxPTH
-		move(static_cast<u16>(0x122u + ch * 8u), static_cast<u16>(addr & 0xffffu)); // SPRxPTL
+		move(static_cast<u16>(0x120u + ch * 4u), static_cast<u16>(addr >> 16u));   // SPRxPTH
+		move(static_cast<u16>(0x122u + ch * 4u), static_cast<u16>(addr & 0xffffu)); // SPRxPTL
 	}
 
 	/// **Reposiciona** un canal de sprite horizontalmente a media línea: espera a

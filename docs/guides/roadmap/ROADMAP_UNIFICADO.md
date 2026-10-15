@@ -213,14 +213,19 @@ scratch** (el `detail≈9861` de la 275, ya documentado en su README) y sacarlo 
      documentado** hasta el siguiente toque de esas demos (migrarlas a `emit_armed_into` es un
      refactor sin defecto asociado; no se toca una demo validada por limpieza).
   4. **Demos de cierre**: prioridad `BPLCON2` por franjas (intent `Priority` existe, sin
-     demo). **HUD con `SpriteLineLayer`**: demo **223_sprite_hud** construida (copperlist
-     estática: armado único por canal `POS+CTL+PT`→tabla de DATA + reposición POS-only por
-     línea; fps ≤1/s; 49,27 fps) pero **el render está ABIERTO** (los segmentos no aparecen;
-     la emisión y la lista están verificadas — pendiente la traza DMA del emulador;
-     `223_sprite_hud/VALIDATION.md`). `087_sprite_horizontal_rearm`: **RETIRADA (2026-10)** —
+     demo). **HUD con `SpriteLineLayer`**: demo **223_sprite_hud** **VERIFICADA (2026-10)** —
+     copperlist estática (armado único por canal `POS+CTL+PT`→tabla de DATA; `per_line_rearm=false`,
+     canales disjuntos 3+3+2) en la franja inferior (`vpos 276+`, `VSTART = DIWSTRT 0x2C + fila`),
+     fps ≤1/s; **49,87 fps**; render validado con visión ("223 HUD / v1.0.NNNN / FPS nn" en blanco).
+     El diagnóstico cazó y corrigió **tres defectos**: stride de `SPRxPT` (4, no 8 —
+     `custom.cpp:7462-7464`; `SpriteLineLayer` y `emit_sprite_horizontal_rearm` lo usaban mal),
+     X en HSTART absoluto (pantalla = HSTART − 0x81, `drawing.cpp:2706`) y la espera de la
+     franja inferior (la reposición POS-only es `vline: u8`; el armado usa el par de overflow
+     de `wait_line_pal` + el auto-armado en `VSTART`, `custom.cpp:10088-10090`). `087_sprite_horizontal_rearm`: **RETIRADA (2026-10)** —
      no renderizaba con ninguna estrategia y la técnica está cubierta por 207/208 + 053/217 +
-     `SpriteLineLayer`. Hallazgos de fuente en `winuae/sprite-dma.md` §Armado de un canal
-     (canal desarmado = sin fetch; la API ya **exige** el PT tipado — AGENTS §1.10).
+     `SpriteLineLayer`. Hallazgos de fuente en `winuae/sprite-dma.md` §Armado de un canal y
+     §Auto-armado en VSTART (canal desarmado = sin fetch; la API ya **exige** el PT tipado —
+     AGENTS §1.10).
   5. **Bending por tabla de seno** (`SPRxPOS` por línea): **HECHO** — driver
      `graphics/drivers/sprite_bend.hpp` (varios canales intercalados por línea) + HOST-436;
      demo **220** validada (dos columnas 16×64 ondulando en oposición; 49.97 fps, 764 words

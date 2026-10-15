@@ -77,6 +77,35 @@ Dos condiciones evitan el fantasma:
   armado** por DMA/registro. La demo 087 (retirada, 2026-10) mezclaba semilla por memoria con
   rearmado por registro y no llegaba a renderizar; la técnica viva está en 053/207/217.
 
+## Auto-armado en VSTART y esperas en vpos > 255 (hallazgo 2026-10, demo 223)
+
+- **El secuenciador auto-arma al llegar a `VSTART`**: en `generate_sprites`,
+  `if (vpos == s->vstart) { s->dmastate = 1; s->dmacycle = 1; }`
+  (`custom.cpp:10088-10090`), y se desarma en `vstop` (`custom.cpp:10099-10101`). Basta con
+  dejar `POS`/`CTL`/`PT` escritos **antes** de la banda: no hace falta Copper dentro de ella.
+- **Un `WAIT` simple del Copper solo alcanza la fase 0-255 de `vpos`**: la comparación usa
+  `vp = vpos & ((ir[1] >> 8 & 0x7F) | 0x80)` (`custom.cpp:4427`; `vcmp` se parsea en
+  `custom.cpp:9255-9256`) — con un único WAIT, las líneas 256-311 (bit 7 a 0) no son
+  expresables. Para esperar líneas ≥ 256 el engine usa el **par de overflow** de
+  `wait_line_pal` (`0xffdf/0xfffe`: espera al final de vpos 255 y después compara el byte
+  bajo con la fase ya bloqueada — `engine/include/eng/graphics/copper/copper.hpp:225-236`,
+  port de `CopWaitSafe`).
+- La **reposición POS-only** (`Scheduler::emit_sprite_horizontal_reposition`) recibe
+  `vline: u8` y usa la espera simple: no puede expresar líneas ≥ 256. Para bandas en la
+  franja inferior (HUD/status bar) se usa **armado único** con canales disjuntos (el
+  auto-armado de `VSTART` hace el resto); una banda con rearmado por línea ≥ 256 requeriría
+  un par de overflow al inicio + esperas de byte bajo.
+- **`SPRxPT` usa stride 4; `POS`/`CTL` stride 8**: `SPR0PTH=0x120`, `SPR1PTH=0x124`,
+  `SPR2PTH=0x128`… (`custom.cpp:7462-7464`), mientras `SPR0POS=0x140`, `SPR1POS=0x148`
+  (`custom.cpp:7468-7472`). Emitir el bloque de punteros con stride 8 escribe el `PT` de
+  otros canales y, con 5+ canales, cae sobre `SPRxPOS`/`CTL` (corrompe el armado).
+- **Los registros de sprite son write-only para la CPU**: la lectura de `$DFF120-$DFF17E`
+  cae en el `default: writeonly` del manejador (`custom.cpp:7119-7169`) y devuelve el latch
+  de la última escritura custom (`chipset_latch_rw`, `custom.cpp:7107`), no el estado del
+  canal. Para observar el estado interno: volcado del emulador (`winuae_custom_registers`:
+  `SL(spr[i].pt)`, `SW(s->pos)`, `SW(s->ctl)` — `custom.cpp:8080-8089`) o watchpoints con
+  `src=copper`.
+
 ## Ventana de fetch por línea y pacing del Copper (demo 215)
 
 El DMA de sprites de una línea **solo se programa mientras el haz no ha llegado al fetch de

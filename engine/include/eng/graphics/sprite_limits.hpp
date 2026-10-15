@@ -57,4 +57,23 @@ inline constexpr u8 kSpriteHscrollLostChannels = 1u;
 inline constexpr u16 kSpriteOffPos = 0xfe00u;
 inline constexpr u16 kSpriteOffCtl = 0xfe00u;
 
+/// Origen X de pantalla en el registro: el sprite aparece en `x_pantalla = HSTART − 0x81`
+/// (`HSTART = (SPRxPOS & 0xff)*2 + (SPRxCTL & 1)`; fuente: `../WinUAE-DBG/drawing.cpp:2706`,
+/// con el HSTART de la ventana estándar `DIWSTRT=0x81`). Para posicionar por **x de pantalla**
+/// el valor del registro es `x + kSpriteScreenXOrigin`.
+inline constexpr u16 kSpriteScreenXOrigin = 0x81u;
+
+/// X mínima de pantalla (px low-res) para **parchear `SPRxPOS` a media línea**: la escritura
+/// del Copper debe caer **después del fetch de sprites de la línea** (la ventana de sprites
+/// se cierra en el arranque del secuenciador de bitplanes, `../WinUAE-DBG/custom.cpp:10111`,
+/// `hp <= plfstrt_sprite`); con `DDFSTRT=$38` la primera escritura segura está en
+/// `DDFSTRT/2 ≈ 28` px. Es la X del primer tramo de un rearmado por línea
+/// (`SpriteLineLayer`, patrón Parasol Stars).
+inline constexpr u16 kSpriteLineMinX = 28u;
+
+/// HSTART mínimo del primer tramo de un rearmado por línea (la X mínima de pantalla pasada
+/// al registro): `kSpriteScreenXOrigin + kSpriteLineMinX`. Lo valida
+/// `setup::check_sprite_line_hpos`.
+inline constexpr u16 kSpriteLineMinHstart = kSpriteScreenXOrigin + kSpriteLineMinX;
+
 } // namespace eng::graphics

@@ -87,8 +87,10 @@ public:
 	Span<u8> sprite_data() { return { m_data.view.data(), m_data.view.size() }; }
 	Span<const u8> sprite_data() const { return { m_data.view.as_const().data(), m_data.view.size() }; }
 
-    /// Configura el canal `index` (0..7). Silenciosamente ignorado si `index >= 8` o si la
-    /// DATA del `cfg` no cubre `height*width_words*2` words (se deshabilita ese canal).
+    /// Configura el canal `index` (0..7). Silenciosamente ignorado si `index >= 8`; un
+    /// canal **habilitado sin DATA** (`ChipView` vacía) queda **deshabilitado**: la forma
+    /// parcial «enabled sin DATA» no existe (el armado exige la DATA tipada; AGENTS §1.10).
+    /// Si la DATA no cubre `height*width_words*2` words, el canal se deshabilita.
     /// \param index  canal de sprite (0..7).
     /// \param cfg    configuración del canal (posición/DATA/tamaño/paleta).
     void set(u8 index, const SpriteConfig& cfg) {
@@ -97,7 +99,11 @@ public:
         // Contrato de tamaño: un sprite habilitado necesita
         // `height*width_words*2` words (DAT+DATB por línea). Si la DATA del span
         // no lo cubre, se descarta (no se emite) en lugar de leer fuera de rango.
-        if (cfg.enabled && !cfg.data.empty()) {
+        if (cfg.enabled) {
+            if (cfg.data.empty()) {
+                m_spr[index].enabled = false;
+                return;
+            }
             // `height*width_words*2` words = ×2 bytes (la vista es de bytes).
             const usize need = static_cast<usize>(cfg.height) * cfg.width_words * 2u * 2u;
             if (cfg.data.size() < need) m_spr[index].enabled = false;

@@ -219,6 +219,18 @@ void test_sprite_line_data() {
 	      eng::graphics::kSpriteLineDataMaxBitplanes);
 }
 
+void test_sprite_line_hpos() {
+	std::printf("check_sprite_line_hpos: rearmado por linea tras el fetch de sprites\n");
+
+	// La X del primer tramo del rearmado debe caer tras el fetch (DDFSTRT/2 ~ 28 px de
+	// pantalla; custom.cpp:10111). HSTART absoluto: minimo 0x81 + 28 = 157.
+	CHECK(eng::setup::check_sprite_line_hpos(161u).ok()); // x de pantalla 32
+	CHECK(eng::setup::check_sprite_line_hpos(157u).ok()); // justo en el limite
+	CHECK(eng::setup::check_sprite_line_hpos(156u).code == 1u);
+	CHECK(eng::setup::check_sprite_line_hpos(100u).code == 1u);
+	CHECK(eng::setup::check_sprite_line_hpos(100u).expected == 157u);
+}
+
 } // namespace
 
 int main() {
@@ -230,6 +242,7 @@ int main() {
 	test_copper_wait_order();
 	test_bob_plan();
 	test_sprite_line_data();
+	test_sprite_line_hpos();
 
 	if (g_fail == 0) {
 		std::printf("OK: validadores de coherencia verificados con los fallos historicos.\n");

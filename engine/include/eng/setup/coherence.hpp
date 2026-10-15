@@ -229,6 +229,22 @@ inline constexpr eng::u16 kBplcon0Ham = 0x0800u;   ///< bit 11: HAM (HOMOD)
 	return {};
 }
 
+/// La X del primer tramo de un **rearmado por línea** (`SpriteLineLayer` con
+/// `per_line_rearm`) debe caer **después del fetch de sprites de la línea**: la escritura
+/// del Copper del `SPRxPOS` llega tarde si el primer tramo empieza antes de
+/// `kSpriteLineMinX` px de pantalla (la ventana de sprites se cierra en el arranque del
+/// secuenciador de bitplanes, `custom.cpp:10111`; `DDFSTRT=$38` → ≈28 px). `hstart` va en
+/// HSTART absoluto (x de pantalla = `hstart − kSpriteScreenXOrigin`). El armado único
+/// (bandas con `per_line_rearm=false`) no tiene esta carrera y no lo necesita.
+/// Códigos: 1 = X antes del fetch.
+[[nodiscard]] constexpr CheckResult check_sprite_line_hpos(eng::u16 hstart) noexcept {
+	if (hstart < eng::graphics::kSpriteLineMinHstart) {
+		return {1u, "rearmado de sprite antes del fetch de la linea", 0u,
+			eng::graphics::kSpriteLineMinHstart, hstart};
+	}
+	return {};
+}
+
 // =====================================================================================
 // Orden de los WAIT del Copper
 // =====================================================================================

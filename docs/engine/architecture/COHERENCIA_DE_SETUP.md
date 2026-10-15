@@ -51,6 +51,8 @@ Ambos comparten la misma clase: **un valor/resultado que debía ser coherente co
 - **`check_bplcon0` / `check_bplcon0_mode`**: `BPU` debe casar con los planos emitidos; bit COLOR presente; HAM=6 planos; DBLPF par; EHB=6 planos.
 - **`check_bob_plan`**: la combinación de campos de un `Bob` (draw/layout/mask_pack/máscara) está cubierta por el ejecutor; si no, `bob_draw` devolvería `false` en silencio (caso real: caminante/patrullero de 066 sin dibujar).
 - **`check_copper_wait_order`**: los WAIT de la lista emitida no pueden retroceder (un WAIT «ya pasado» espera al frame siguiente: el efecto desaparece). Entiende el par de overflow PAL (`0xffdf`/`0xfffe`) y el `END`.
+- **`check_sprite_line_data`**: el parcheo de `SPRxDATA`/`DATB` a media línea (patrón Brian the Lion) exige ≤5 planos de display (sin hueco de DMA no llega el ciclo del sprite; `custom.cpp:10111`/`10130-10131`); `SpriteLineLayer::configure` lo aplica.
+- **`check_sprite_line_hpos`**: en un **rearmado por línea** la X del primer tramo debe caer **tras el fetch de sprites** (`kSpriteLineMinHstart` = 0x81 + `DDFSTRT`/2; `custom.cpp:10111`); `SpriteLineLayer::configure` lo aplica solo con `per_line_rearm` (el armado único no tiene esa carrera).
 - **Servicios exclusivos**: `has_blit_service()` dice si el slot de IRQ de blit está ocupado; `blit_service_conflicts()` cuenta los rechazos (la incoherencia queda diagnosticable).
 
 Regla operativa: el `init` de una demo termina con los chequeos de coherencia de lo que ha construido; solo entonces `mark_ready`.
@@ -63,7 +65,7 @@ Regla operativa: el `init` de una demo termina con los chequeos de coherencia de
 
 - **Registros fuera de la lista de validadores** (DDF vs DIW, paleta vs planos): el patrón es extensible; añadir un validador puro + su caso en HOST-441.
 - **Errores de arte** (valores de píxel fuera de la paleta): cubierto por HOST-439 y la validación visual.
-- **Armado de sprites fuera de ventana**: pendiente de validador (necesita el contexto de raster actual).
+- **Armado de sprites fuera de ventana**: la X del rearmado por línea ya se valida (`check_sprite_line_hpos`); el resto del contexto de raster (VSTART vs armado) queda para el `SpriteScene`/drivers.
 - **Chequeo de todas las llamadas falibles del backend** (blitter_* individuales): hoy `[[nodiscard]]` cubre la API de setup/servicios; ampliarlo al resto es mecánico y puede hacerse por tandas (cada tanda = arreglar los ignorados con `(void)`+motivo o con manejo real).
 - **`(void)` como escape**: es deliberadamente visible en revisión; un `(void)` sin comentario del motivo es un hallazgo de revisión.
 

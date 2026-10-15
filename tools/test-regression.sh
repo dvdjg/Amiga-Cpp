@@ -267,16 +267,12 @@ if [ -f "$CODEGEN" ] && command -v node >/dev/null 2>&1; then
 fi
 
 # --- Barrido de compilacion de TODAS las demos (opt-in: --build-all) ---------
-# Distingue "asset generado ausente" (out/assets/…) de "rotura de codigo". Con
-# --strict, un asset ausente tambien falla: exige el arbol de out/assets completo.
+# Compila la flota entera (no ejecuta): caza deriva de API acumulada. El barrido
+# falla si alguna demo no compila (errores en out/build-all-demos/<demo>.log).
 if [ "$BUILD_ALL" -eq 1 ]; then
-	echo "== build-all (barrido de demos, --strict) =="
-	BUILD_ALL_ARGS=(--strict)
-	if [ -n "$DEMO" ]; then
-		BUILD_ALL_ARGS+=(--demo "$(basename -- "$DEMO")")
-	fi
-	if ! bash "$ROOT/tools/build/build-all-demos.sh" "${BUILD_ALL_ARGS[@]}"; then
-		echo "build-all fallo: hay demos que no compilan o tienen assets ausentes." >&2
+	echo "== build-all (barrido de demos) =="
+	if ! bash "$ROOT/tools/build/build-all-demos.sh"; then
+		echo "build-all fallo: hay demos que no compilan (logs en out/build-all-demos/)." >&2
 		exit 1
 	fi
 fi

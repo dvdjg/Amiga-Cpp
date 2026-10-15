@@ -1,21 +1,25 @@
 // ============================================================================
-// 223 SPRITE HUD — HUD de texto por SPRITES rearmados por línea.
+// 223 SPRITE HUD — HUD de texto por SPRITES con armado único (banda inferior).
 // ============================================================================
 //
-// Cierre de la familia de rearmado (`SpriteLineLayer`, HOST-418) y **HUD óptimo** de la
-// norma de versión: el texto (nombre + versión + fps) se dibuja con **sprites rearmados por
-// línea** (patrón Brian the Lion: POS/CTL por Copper a media línea), NO con escrituras al
-// bitmap. La copperlist queda **estática** tras el setup: el coste por frame del HUD es
-// **CERO** (el DMA de sprites la ejecuta sola; los bitplanes solo llevan un fondo pintado
-// una vez).
+// **HUD óptimo** de la norma de versión: el texto (nombre + versión + fps) se dibuja con
+// **sprites** (canales DMA), NO con escrituras al bitmap. La copperlist queda **estática**
+// tras el setup: el coste por frame del HUD es **CERO** (el DMA de sprites la ejecuta sola;
+// los bitplanes solo llevan un fondo pintado una vez).
 //
 // Mecánica (verificada contra WinUAE, `winuae/sprite-dma.md` §Armado de un canal):
 //  - cada canal se **arma una vez** por registro (POS+CTL+**PT** → su tabla de DATA; patrón
 //    `arm_object`/053). El DMA hace fetch de 2 palabras por línea y **avanza el walk** por
 //    la tabla: la DATA del HUD vive ahí, porque el registro `SPRxDATA` lo pisa el fetch;
-//  - por (línea, canal) el Copper hace una **reposición POS-only** (patrón Risky Woods,
-//    1 MOVE): el canal ya armado se redibuja más a la derecha en la misma línea;
-//  - el primer canal empieza en x=32 (> fetch de la línea, DDFSTRT/2 ≈ 28 px).
+//  - el **secuenciador de sprites auto-arma** el canal al llegar a `VSTART`
+//    (`custom.cpp:10088-10090`), así que basta con dejar los registros escritos antes de la
+//    banda (el armado usa `wait_line_safe`, que maneja vpos ≥ 256 con el par de overflow de
+//    `wait_line_pal`); la **reposición** POS-only del rearmado por línea solo llega a
+//    vpos ≤ 255 (`vline: u8`), así que la banda inferior usa **armado único**
+//    (`per_line_rearm=false`), sin rearmado por línea;
+//  - cada texto usa canales propios (3+3+2 = 8, sin reutilización dentro de la banda);
+//  - el primer canal empieza en x de pantalla 32 (> fetch de la línea, DDFSTRT/2 ≈ 28 px);
+//    la X de la API va en **HSTART absoluto** (pantalla = HSTART − 0x81, `drawing.cpp:2706`).
 //
 // El único valor dinámico es la estimación de fps: **≤1 actualización por segundo** y solo
 // cuando el número cambia, reconstruyendo la lista (con el HUD en la franja inferior la
@@ -68,18 +72,31 @@ constexpr u8 kPlanes = 3u;
 constexpr u32 kPlaneBytes = static_cast<u32>(kBytesPerRow) * kHeight;
 
 /// HUD en la franja inferior: tres textos apilados (7 filas de glifo; 8 líneas de banda).
-constexpr u16 kNameLine = 232u;    // "223 SPRITE HUD" (14 chars = 70 px -> 5 canales)
-constexpr u16 kVersionLine = 240u; // "v1.0.NNNN" (9 chars = 45 px -> 3 canales)
-constexpr u16 kFpsLine = 248u;     // "FPS nn" (6 chars = 30 px -> 2 canales)
-constexpr u16 kHpos0 = 32u;        // x del primer canal: tras el fetch de la línea
-constexpr u16 kHposStep = 16u;     // 1 canal = 16 px
-constexpr u8 kNameChannels = 5u;
+/// Las líneas van en **vpos crudo**: la pantalla empieza en `DIWSTRT` vpos 0x2C, así que la
+/// fila de pantalla 232 (franja inferior) es vpos `0x2C + 232 = 276`. El armado se escribe
+/// con el Copper antes de la banda (con el par de overflow de `wait_line_pal` para vpos ≥
+/// 256) y el **secuenciador auto-arma** cada canal al llegar a su `VSTART`
+/// (`custom.cpp:10088-10090`); la reposición POS-only del rearmado por línea no expresa
+/// vpos ≥ 256 (`vline: u8`), así que no hay rearmado por línea (`per_line_rearm=false`) y
+/// cada texto usa canales propios (3+3+2 = 8).
+constexpr u16 kDiwVstart = 0x2cu;  // vpos del borde superior de la pantalla (DIWSTRT)
+constexpr u16 kNameLine = kDiwVstart + 232u;    // "223 HUD" (7 chars = 35 px -> 3 canales)
+constexpr u16 kVersionLine = kDiwVstart + 240u; // "v1.0.NNNN" (9 chars = 45 px -> 3 canales)
+constexpr u16 kFpsLine = kDiwVstart + 248u;     // "FPS nn" (6 chars = 30 px -> 2 canales)
+constexpr u16 kHpos0 = 0x81u + 32u; // HSTART del primer canal: x de pantalla 32 (> fetch de la
+				    // línea, DDFSTRT/2 ≈ 28 px); el registro va en HSTART absoluto
+				    // (`drawing.cpp:2706`: pantalla = HSTART − 0x81)
+constexpr u16 kHposStep = 16u;      // 1 canal = 16 px
+constexpr u8 kNameChannels = 3u;
 constexpr u8 kVersionChannels = 3u;
 constexpr u8 kFpsChannels = 2u;
+constexpr u8 kNameFirst = 0u;    // canales por texto (sin reutilización: armado único)
+constexpr u8 kVersionFirst = 3u;
+constexpr u8 kFpsFirst = 6u;
 
 /// Palabras de la tabla HUD en Chip (`[channel][line][2]` por capa): la estructura que
 /// recibe `SPRxPT` (el DMA la lee por fetch, una fila por línea).
-constexpr u16 kNameWords = kNameChannels * 8u * 2u;       // 80
+constexpr u16 kNameWords = kNameChannels * 8u * 2u;       // 48
 constexpr u16 kVersionWords = kVersionChannels * 8u * 2u; // 48
 constexpr u16 kFpsWords = kFpsChannels * 8u * 2u;         // 32
 constexpr u16 kHudWords = kNameWords + kVersionWords + kFpsWords;
@@ -94,8 +111,8 @@ constexpr eng::Palette32 kPalette {{
 
 /// Renderiza `text` en la tabla `data` (`[channels][lines][2]`, 16 px por canal, avance
 /// 5 px). Solo pinta los píxeles encendidos; el resto queda transparente (00).
-/// El par `{DAT, DATB}` forma el índice de color `DAT*2 + DATB` (DAT = bit ALTO, AHRM
-/// cap. 4): para color 1 (COLOR17) el bit va en **DATB**.
+/// El valor de color del píxel es `DATB*2 + DAT` (DAT = bit BAJO, DATB = bit ALTO, AHRM
+/// cap. 4): para color 1 (COLOR17) el bit va en **DAT**.
 void render_text(u16* data, u8 lines, u8 channels, const char* text) {
 	for (u8 ch = 0u; ch < channels; ++ch) {
 		for (u8 l = 0u; l < lines; ++l) {
@@ -124,7 +141,7 @@ void render_text(u16* data, u8 lines, u8 channels, const char* text) {
 					}
 					const u16 bit = static_cast<u16>(px & 15u);
 					u16* const cell = &data[(static_cast<u32>(ch) * lines + r) * 2u];
-					cell[1] = static_cast<u16>(cell[1] | (0x8000u >> bit)); // DATB -> color 1
+					cell[0] = static_cast<u16>(cell[0] | (0x8000u >> bit)); // DAT -> color 1
 				}
 			}
 		}
@@ -158,21 +175,23 @@ struct SpriteHudDemo {
 			kNameWords * 2u, kVersionWords * 2u);
 		const eng::ChipView<eng::SpriteTag> fps_data = m_hud.mem_view_chip().subview(
 			(kNameWords + kVersionWords) * 2u, kFpsWords * 2u);
-		render_text(hud, 8u, kNameChannels, "223 SPRITE HUD");
+		render_text(hud, 8u, kNameChannels, "223 HUD");
 		char label[16];
 		(void)eng::debug::version_label(eng::debug::Version {1u, 0u}, label,
 						static_cast<eng::u8>(sizeof(label)));
 		render_text(hud + kNameWords, 8u, kVersionChannels, label);
 		render_text(hud + kNameWords + kVersionWords, 8u, kFpsChannels, "FPS --");
 
-		// Capas de rearmado por línea (una por texto). `display_planes` activa el validador
-		// de coherencia (`check_sprite_line_data`): con >5 planos configure devuelve false.
-		if (!m_name.configure({kNameLine, 8u, 0u, kNameChannels, kHpos0, kHposStep, 0u,
-				       name_data, false, kPlanes}) ||
-		    !m_version.configure({kVersionLine, 8u, 0u, kVersionChannels, kHpos0, kHposStep,
-					  0u, version_data, false, kPlanes}) ||
-		    !m_fps.configure({kFpsLine, 8u, 0u, kFpsChannels, kHpos0, kHposStep, 0u,
-				      fps_data, false, kPlanes})) {
+		// Capas de armado único (`per_line_rearm=false`: la banda está en vpos > 255, donde
+		// el Copper no puede esperar; el secuenciador auto-arma en `VSTART`). Canales
+		// disjuntos por texto (3+3+2). `display_planes` activa el validador de coherencia
+		// (`check_sprite_line_data`): con >5 planos configure devuelve false.
+		if (!m_name.configure({kNameLine, 8u, kNameFirst, kNameChannels, kHpos0, kHposStep,
+				       0u, name_data, false, false, kPlanes}) ||
+		    !m_version.configure({kVersionLine, 8u, kVersionFirst, kVersionChannels, kHpos0,
+					  kHposStep, 0u, version_data, false, false, kPlanes}) ||
+		    !m_fps.configure({kFpsLine, 8u, kFpsFirst, kFpsChannels, kHpos0, kHposStep, 0u,
+				      fps_data, false, false, kPlanes})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00022303u);
 			return;
 		}
@@ -253,13 +272,16 @@ private:
 						  kPlanes),
 					  kPlanes, m_bitplanes.mem_view_chip(), kPlaneBytes);
 		// Reset de los 8 canales antes de habilitar el DMA de sprites (mismo orden que la
-		// 053): PT a 0 y POS/CTL a 0 mientras el DMA está limpio.
+		// 053): PT a 0 y POS/CTL a 0 mientras el DMA está limpio. El bloque de punteros usa
+		// stride 4 (`SPR0PTH=0x120`, `SPR1PTH=0x124`...); POS/CTL, stride 8
+		// (`SPR0POS=0x140`, `SPR1POS=0x148`...).
 		for (u8 ch = 0u; ch < eng::graphics::kSpriteChannels; ++ch) {
-			const u16 base = static_cast<u16>(0x120u + ch * 8u);
-			sched.move(base, 0x0000u);                           // SPRxPTH
-			sched.move(static_cast<u16>(base + 2u), 0x0000u);    // SPRxPTL
-			sched.move(static_cast<u16>(base + 0x20u), 0x0000u); // SPRxCTL
-			sched.move(static_cast<u16>(base + 0x22u), 0x0000u); // SPRxPOS
+			const u16 pt = static_cast<u16>(0x120u + ch * 4u);
+			sched.move(pt, 0x0000u);                             // SPRxPTH
+			sched.move(static_cast<u16>(pt + 2u), 0x0000u);      // SPRxPTL
+			const u16 ctl = static_cast<u16>(0x142u + ch * 8u);
+			sched.move(ctl, 0x0000u);                            // SPRxCTL
+			sched.move(static_cast<u16>(ctl - 2u), 0x0000u);     // SPRxPOS
 		}
 		sched.move(copper::Register::DMACON,
 			   static_cast<u16>(copper::DmaSetClear | copper::DmaMaster | copper::DmaCopper |
