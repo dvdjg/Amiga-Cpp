@@ -159,7 +159,7 @@ struct SprLayerDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021303u); return;
 		}
 		m_cu_window[0] = 0u; m_cu_window[1] = 0u; m_active = 0u;
-		backend.takeover_display(m_cu[0].view.as_words().data());
+		backend.takeover_display(m_cu[0].mem_view_chip());
 		eng::debug::mark_ready(g_eng_run_status, 0x00021300u);
 	}
 	/// Scroll suave a pantalla completa (doble buffer): cada frame se parchea la copperlist
@@ -179,7 +179,7 @@ struct SprLayerDemo {
 			m_cu_window[inact] = window;
 		}
 		patch_pos(backend, m_cu[inact], m_sprite[inact], s);
-		backend.install_copper_list(m_cu[inact].view.as_words().data());
+		backend.install_copper_list(m_cu[inact].mem_view_chip());
 		m_active = inact;
 		eng::debug::mark_frame(g_eng_run_status, c.frame.frame_index);
 	}

@@ -73,7 +73,7 @@ struct AudioSystemDemo {
 
 		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00006103u); return; }
 
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 
 		// Orden canónico (música primero, mixer después): PtInit toca todos los
 		// canales de audio al arrancar, así que primero se arranca la música, se
@@ -89,6 +89,7 @@ struct AudioSystemDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_init_ok || m_confirmed) {
 			return;
 		}
@@ -168,7 +169,7 @@ private:
 		sched.end();
 		m_copper_ok = sched.ok();
 		m_copper_words = sched.words_used();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		return m_copper_ok;
 	}
 
@@ -179,7 +180,7 @@ private:
 	bool m_confirmed = false;
 	eng::u16 m_copper_words = 0;
 	eng::audio::SfxChannel m_alarm_ch = -1;
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::Block<eng::MusicTag> m_mod_block {};
 	eng::Block<eng::AudioTag> m_alarm_block {};
 	eng::Block<eng::AudioTag> m_beep_block {};

@@ -114,7 +114,7 @@ struct InputAggregatorDemo {
 			return;
 		}
 
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 		eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_copper_words));
 	}
 
@@ -242,7 +242,7 @@ private:
 
 		m_copper_ok = sched.ok();
 		m_copper_words = sched.words_used();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		return m_copper_ok;
 	}
 
@@ -256,7 +256,7 @@ private:
 	eng::amiga::MousePollState m_mouse_poll {};
 	eng::u16 m_palette[32] {};
 	eng::u16 m_color1_word = 0; // indice de la palabra de valor del MOVE COLOR01
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::Block<eng::CopperTag> m_copper_block {};
 	eng::graphics::CopperIntent m_intents[kBands] {};

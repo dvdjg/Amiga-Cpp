@@ -69,7 +69,7 @@ struct SampleChannelDemo {
 		}
 
 		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00007203u); return; }
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 
 		// Programa AUD0 para reproducir el sample real en bucle.
 		const eng::u32 bytes = static_cast<eng::u32>(g_sample_end - g_sample);
@@ -86,6 +86,7 @@ struct SampleChannelDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_init_ok || m_confirmed) {
 			return;
 		}
@@ -117,7 +118,7 @@ private:
 		sched.end();
 		m_copper_ok = sched.ok();
 		m_copper_words = sched.words_used();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		return m_copper_ok;
 	}
 
@@ -126,7 +127,7 @@ private:
 	bool m_init_ok = false;
 	bool m_confirmed = false;
 	eng::u16 m_copper_words = 0;
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bitplane_block {};
 	eng::Block<eng::CopperTag, eng::MemoryKind::Chip> m_copper_block {};
 };

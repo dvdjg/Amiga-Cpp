@@ -84,15 +84,16 @@ struct CollisionDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020603u);
 			return;
 		}
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 		// Par 0 (sprites 0/1) + bitplane 1 con match 1 (el rectángulo es color 1 = BP1=1).
 		backend.set_sprite_collision(eng::graphics::SpriteCollisionConfig {0x1u, 0x01u, 0x01u});
 		eng::debug::mark_ready(g_eng_run_status, 0x00020600u);
 	}
 
-	void update(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (m_copper_ok) {
-			backend.install_copper_list(m_copper_ptr);
+			backend.install_copper_list(m_copper_view);
 		}
 		// CLXDAT se autolimpia al leer: una lectura por frame (acumula el frame anterior).
 		const eng::graphics::SpriteCollisionResult c = backend.read_sprite_collision();
@@ -152,12 +153,12 @@ private:
 		sched.end();
 
 		m_copper_ok = sched.ok();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		return m_copper_ok;
 	}
 
 	bool m_copper_ok = false;
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::u16 m_raw = 0u;
 	eng::u32 m_hits = 0u;
 	eng::Block<eng::PlaneTag> m_bitplane_block {};

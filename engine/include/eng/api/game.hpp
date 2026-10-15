@@ -657,7 +657,7 @@ public:
 				return false;
 			}
 		}
-		if constexpr (requires(Backend& backend, const eng::u16* list) {
+		if constexpr (requires(Backend& backend, eng::ChipView<eng::CopperTag> list) {
 			      backend.takeover_display(list);
 		      }) {
 			const eng::Bytes<eng::CopperTag> slice = m_scene_copper.view;
@@ -669,7 +669,7 @@ public:
 			if (!sched.ok()) {
 				return false;
 			}
-			m_backend.takeover_display(sched.data());
+			m_backend.takeover_display(sched.chip_view());
 			return true;
 		} else {
 			return false;

@@ -174,14 +174,15 @@ struct JimPowerDemo {
 			return;
 		}
 		patch_pattern(0u);
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 		eng::debug::mark_ready(g_eng_run_status, 0x00021500u);
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		patch_pattern(static_cast<eng::u16>(context.frame.frame_index >> 1u));
 		if (m_copper_ok) {
-			backend.install_copper_list(m_copper_ptr);
+			backend.install_copper_list(m_copper_view);
 		}
 	}
 
@@ -278,7 +279,7 @@ private:
 		sched.end();
 
 		m_copper_ok = sched.ok();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		return m_copper_ok;
 	}
 
@@ -296,7 +297,7 @@ private:
 	}
 
 	bool m_copper_ok = false;
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::u16* m_sprites = nullptr;
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::Block<eng::CopperTag> m_copper_block {};

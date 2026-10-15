@@ -203,7 +203,7 @@ struct Dna3DDemo {
 				return;
 			}
 		}
-		backend.takeover_display(m_copper_ptrs[0]);
+		backend.takeover_display(m_copper_views[0]);
 
 		obj::new_object3d(m_object, dna_helix);
 		m_object.translate.z = eng::retro::q0 {-4000}; // fx4i(-250), como 079
@@ -229,7 +229,7 @@ struct Dna3DDemo {
 		draw_links(m_object, plane, backend);
 		draw_strands(m_object, plane, backend);
 
-		backend.install_copper_list(m_copper_ptrs[active]);
+		backend.install_copper_list(m_copper_views[active]);
 		m_active = static_cast<u8>((active + 1u) % kRing);
 	}
 
@@ -255,14 +255,14 @@ private:
 		sched.move(copper::Register::BPLCON1, kBplcon1);
 		sched.emit_palette(dna_colors, 0, 16);
 		sched.end();
-		m_copper_ptrs[active] = sched.data();
+		m_copper_views[active] = sched.chip_view();
 		return sched.ok();
 	}
 
 	u8 m_active = 0;
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::Block<eng::CopperTag> m_copper_block {};
-	const u16* m_copper_ptrs[kRing] = {nullptr, nullptr, nullptr, nullptr, nullptr};
+	eng::ChipView<eng::CopperTag> m_copper_views[kRing] {};
 	eng::object3d::Object3D m_object {};
 };
 

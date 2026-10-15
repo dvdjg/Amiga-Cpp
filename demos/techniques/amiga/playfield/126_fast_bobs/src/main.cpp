@@ -202,7 +202,7 @@ struct FastBobsDemo {
 				return;
 			}
 		}
-		backend.takeover_display(m_display_words);
+		backend.takeover_display(m_display_view);
 		eng::debug::mark_ready(g_eng_run_status, kHeight);
 	}
 
@@ -212,14 +212,16 @@ struct FastBobsDemo {
 			return;
 		}
 		const u32 f = context.frame.frame_index;
-		// Dos BOB en regiones separadas (no se solapan): camino rápido. La DEGRADACIÓN
-		// (movimiento > pad → clear_box + cookie-cut) tiene un bug abierto en la capa: al
-		// dispararse pinta una columna de basura en el borde izquierdo del bitmap y puede
-		// congelar la instancia — **DT-012**; la hoja lenta correcta ya está cableada
-		// (`set_slow_sheet`) para cuando se arregle (el disparo era `speed = 5` en la
-		// ventana [112,128) de cada 128 frames).
-		m_bobs[0] = {static_cast<s16>(16 + tri(f, 192u)), static_cast<s16>(32 + tri(f * 2u, 128u)),
-			     0u, true};
+		// Dos BOB en regiones separadas (no se solapan): camino rápido, salvo en la
+		// **ventana de disparo** [112,128) de cada 128 frames, donde bob0 acelera a 5 px/frame
+		// (pad = 3) y la capa **degrada a cookie-cut + clear** — es el camino lento real de la
+		// técnica, que quedó cubierto al arreglar DT-012 (el walk de máscara se salía de su
+		// plano con hoja planar + destino interleaved; HOST-439 T4b lo fija).
+		const u32 win = f % 128u;
+		const s16 boost =
+			(win >= 112u) ? static_cast<s16>((win - 112u) * 2) : static_cast<s16>(0);
+		m_bobs[0] = {static_cast<s16>(16 + tri(f, 192u) + boost),
+			     static_cast<s16>(32 + tri(f * 2u, 128u)), 0u, true};
 		m_bobs[1] = {static_cast<s16>(176 + tri(f * 3u, 128u)),
 			     static_cast<s16>(128 + tri(f, 96u)), 0u, true};
 
@@ -323,7 +325,7 @@ private:
 			return false;
 		}
 		sched.end();
-		m_display_words = sched.data();
+		m_display_view = sched.chip_view();
 		return sched.ok();
 	}
 
@@ -335,7 +337,7 @@ private:
 	eng::graphics::Sprite m_slow {};
 	eng::scene::FastBobLayer m_bobs {};
 	eng::graphics::FramePlan m_plan {};
-	u16* m_display_words = nullptr;
+	eng::ChipView<eng::CopperTag> m_display_view {};
 };
 
 } // namespace

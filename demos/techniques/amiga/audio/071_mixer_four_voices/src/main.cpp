@@ -95,7 +95,7 @@ struct FourVoicesDemo {
 		eng::audio::synth_sequence<kV4Note>(m_v4_block.view.data(), kV4Freq, kV4Count, kSampleRate, static_cast<eng::s16>(kAmplitude));
 
 		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00007103u); return; }
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 
 		if (!m_sfx.init(backend.memory_manager())) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00007104u);
@@ -119,6 +119,7 @@ struct FourVoicesDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_init_ok || m_confirmed) {
 			return;
 		}
@@ -145,7 +146,7 @@ struct FourVoicesDemo {
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		draw_scope();
-		if (build_copper()) backend.install_copper_list(m_copper_ptr);
+		if (build_copper()) backend.install_copper_list(m_copper_view);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -193,7 +194,7 @@ private:
 		sched.end();
 		m_copper_ok = sched.ok();
 		m_copper_words = sched.words_used();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		return m_copper_ok;
 	}
 
@@ -206,7 +207,7 @@ private:
 	eng::audio::SfxChannel m_ch1 = -1;
 	eng::audio::SfxChannel m_ch2 = -1;
 	eng::audio::SfxChannel m_ch3 = -1;
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::Block<eng::AudioTag> m_v1_block {};
 	eng::Block<eng::AudioTag> m_v2_block {};
 	eng::Block<eng::AudioTag> m_v3_block {};

@@ -221,7 +221,7 @@ struct WireframeDemo {
 				return;
 			}
 		}
-		backend.takeover_display(m_copper_ptrs[0]);
+		backend.takeover_display(m_copper_views[0]);
 
 		obj::new_object3d(m_object, pilka);
 		// fx4i(-250) = -250 * 16 = -4000 (4.12).
@@ -260,7 +260,7 @@ struct WireframeDemo {
 			return;
 		}
 
-		backend.install_copper_list(m_copper_ptrs[active]);
+		backend.install_copper_list(m_copper_views[active]);
 		m_active = static_cast<eng::u8>((active + 1u) % kRing);
 	}
 
@@ -286,7 +286,7 @@ private:
 		sched.move(copper::Register::BPLCON1, kBplcon1);
 		sched.emit_palette(wireframe_colors, 0, 16);
 		sched.end();
-		m_copper_ptrs[active] = sched.data();
+		m_copper_views[active] = sched.chip_view();
 		return sched.ok();
 	}
 
@@ -295,7 +295,7 @@ private:
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	playfield::ContiguousPlayfield m_lines_pf {}; ///< lienzo contiguo para las líneas (seam)
 	eng::Block<eng::CopperTag> m_copper_block {};
-	const eng::u16* m_copper_ptrs[kRing] = {nullptr, nullptr, nullptr, nullptr, nullptr};
+	eng::ChipView<eng::CopperTag> m_copper_views[kRing] {};
 	eng::object3d::Object3D m_object {};
 };
 

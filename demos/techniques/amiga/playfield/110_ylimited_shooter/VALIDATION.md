@@ -187,11 +187,39 @@ punteros, mods, enrollado, flicker) y la demo real con FG visible. **Sin verific
 mapa no uniforme (1 px/píxel) y los 50 fps del demo completo (pendiente del rediseño del FG,
 DT-001 F4).
 
+## Rediseño del FG (2026-10) — 12,49 → 27,41 fps
+
+El FG dejó de pintarse con `fill_rect` y pasó a **hojas pre-renderizadas + Blitter + relleno CPU
+con máscara de planos**:
+
+- **Nave y torreta**: hojas Chip de **16 variantes** (offset de palabra de `x`) con las formas
+  completas. La copia (`CopyRect` en un plan FG propio, ejecutado al principio del frame) empieza
+  **una palabra a la izquierda** de la caja y mide 4 palabras: el contenido (bit 16+v) cubre la
+  posición nueva y la anterior (movimiento ≤16 px/frame) → **sin job de borrado**.
+- **Balas y cañón**: relleno CPU directo sobre el lienzo (interleaved, con guarda) que escribe
+  **solo los planos del color** (`fg_fill`) y limpia **solo los planos del objeto anterior**
+  (`fg_clear`); sin multiplicaciones en el bucle (punteros en palabras).
+
+| Medida | Antes | Ahora |
+|---|---|---|
+| fps debug | 12,49 (4,00 fields) | **27,41 (1,82 fields)** |
+| ciclos/frame | 570.691 | **258.838** |
+| sección FG (perfil) | ~307-230k | ~83k (2 jobs ≈ 22k + balas ≈ 15k + torreta+cañón ≈ 17k + trig 1,3k) |
+
+**Atribución vigente** (perfil por secciones): scroll de motor **~45k** (`update_scroll` XLimited,
+familia DT-006), compose ~16k, FG ~83k, plan BG ~8,5k. **Para los 50 fps** quedan: el coste del
+scroll de motor y el lanzamiento de jobs (~11k por job encolado medido), y el camino definitivo
+es el FG por **sprites hardware** (DT-001 F5: cero escrituras de lienzo, solo parcheo de copper).
+Coste por operación medido: `docs/guides/optimization/ATRIBUCION_DE_CICLOS.md`.
+
+**Visión (secuencia fresca, 3 frames)**: «Nave y torreta completas y nítidas. Se ven balas y
+puntos del cañón. No hay artefactos visibles.» ×3 → **VEREDICTO: OK**.
+
 ## Conclusiones
 
 1. **Primeros auxilios validados** (commit `3067365e`): nave visible y en vaivén suave, torreta presente en 40/40 capturas (antes: 0/parcial en ~50%), cañón dibujado.
 2. **F1 (perfil) resuelto por ablación**: el **pintado del FG en CPU sobre el lienzo Chip single-buffer cuesta ~307k ciclos/frame (63%)**; sin él la demo queda en 1,25 fields (39,9 fps) y el resto (scroll+compose+bucle) son ~178k ciclos (25% sobre el presupuesto). Camino a 50 fps: **rediseñar el FG** (pre-render + Blitter/BOB o sprites) y recortar el resto (DT-001 F1/F4).
-3. **La demo sigue NO VERIFICADA**: 3,4–4,3 fields/frame, bandas inferiores estáticas en la ventana en vivo (bug de engine de la familia XLimited: **DT-006**, la 202 las tiene igual; el screenshot interno las recorta en negro), sin fine scroll X (F3), FG single-buffer (F4).
+3. **La demo sigue NO VERIFICADA por fps** (1,82 fields; el rediseño del FG la llevó de 4,00 a 1,82): quedan el scroll de motor (~45k) y el lanzamiento de jobs; bandas inferiores estáticas en la ventana en vivo (bug de engine de la familia XLimited: **DT-006**, la 202 las tiene igual; el screenshot interno las recorta en negro), sin fine scroll X (F3).
 4. **Capacidades observadas del modelo de visión** (a registrar en §6.4):
    - **Multi-imagen: no fiable.** Con 4 imágenes declaró «ambos frames»; con 2 declaró «un único frame». Estrategia operativa: **una imagen por llamada** o **hoja de contacto etiquetada** (que sí compara paneles).
    - **Movimiento lento y patrones periódicos: falsos negativos.** Declaró «nave estática» y «fondo fijo» donde la bbox y la traslación demuestran movimiento; los tiles de glifos periódicos ocultan la traslación.

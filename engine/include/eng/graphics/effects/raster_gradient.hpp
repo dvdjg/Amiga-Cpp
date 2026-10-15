@@ -132,8 +132,8 @@ public:
 
 	/// Tras **materializar** sus intenciones una vez (setup), casa cada banda con la palabra de
 	/// DATO que el `Plan` registró (por registro+fila). Habilita la animación barata: a partir
-	/// de aquí `patch_into` solo reescribe esas palabras, sin re-emitir la copperlist. Si el
-	/// `Plan` no expone slots (`slot_count`), la animación por parcheo queda desactivada.
+	/// de aquí `patch_words`/`patch_into` solo reescriben esas palabras, sin re-emitir la
+	/// copperlist (slots de `Plan`).
 	template <typename Plan>
 	void bind_slots(const Plan& plan) {
 		for (u16 b = 0; b < m_range.bands; ++b) {
@@ -149,21 +149,25 @@ public:
 		}
 	}
 
-	/// Actualiza los colores del degradado en la lista ya materializada (por frame): recalcula
-	/// la fila de la fase (sin divisiones) y escribe **solo las palabras de dato** (coste ~0).
-	/// Requiere `bind_slots` tras el `materialize` del setup.
-	template <typename Plan>
-	void patch_into(Plan& plan) const {
+	/// Actualiza los colores del degradado escribiendo **solo las palabras de dato** en el
+	/// buffer `words` dado (p. ej. `plan.inactive_words()`: el bloque trasero del doble buffer,
+	/// para parchear antes del `flip`). Requiere `bind_slots` tras el `materialize` del setup.
+	void patch_words(u16* words) const {
 		if (m_key_count == 0u) {
 			return;
 		}
 		const u16* const row = m_table[phase_index()];
-		u16* const words = plan.active_words();
 		for (u16 b = 0; b < m_range.bands; ++b) {
 			if (m_slot[b] != no_slot) {
 				words[m_slot[b]] = row[b];
 			}
 		}
+	}
+
+	/// Igual que `patch_words` sobre el bloque ACTIVO del `Plan` (el que ejecuta el Copper).
+	template <typename Plan>
+	void patch_into(Plan& plan) const {
+		patch_words(plan.active_words());
 	}
 
 private:

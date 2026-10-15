@@ -84,7 +84,7 @@ struct AudioDebugDemo {
 		}
 
 		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00006403u); return; }
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 
 		// Genera un ciclo de seno y calcula el diagnóstico.
 		eng::u8* sample = m_sample_block.view.data();
@@ -131,6 +131,7 @@ struct AudioDebugDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		// Cambia el tono cada kNoteFrames frames: una escala de Do mayor. Esto
 		// demuestra que el tono de UN canal de Paula cambia (sin ptplayer ni mixer).
 		const eng::u8 note = static_cast<eng::u8>((context.frame.frame_index / kNoteFrames) % 6u);
@@ -159,14 +160,14 @@ private:
 		sched.end();
 		m_copper_ok = sched.ok();
 		m_copper_words = sched.words_used();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		return m_copper_ok;
 	}
 
 	bool m_memory_ok = false;
 	bool m_copper_ok = false;
 	eng::u16 m_copper_words = 0;
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::Block<eng::AudioTag> m_sample_block {};
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bitplane_block {};
 	eng::Block<eng::CopperTag, eng::MemoryKind::Chip> m_copper_block {};

@@ -230,7 +230,7 @@ struct ActorDesc {
 	/// Necesidades de Copper ancladas al borde superior del actor (líneas RELATIVAS).
 	eng::Span<const CopperIntent> copper {};
 	/// Save-under (solo `SaveUnder`): un buffer por buffer de display.
-	eng::util::Array<eng::Span<eng::u16>, kActorBuffers> save {};
+	eng::util::Array<eng::ChipView<eng::BobTag>, kActorBuffers> save {};
 	eng::u16 save_words_per_row = 0; ///< capacidad de la rejilla de guardado
 	eng::u16 save_height = 0;
 };

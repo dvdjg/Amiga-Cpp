@@ -33,6 +33,12 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 extern "C" {
 __attribute__((used)) volatile eng::debug::FrameTelemetry g_eng_frame_telemetry {};
 }
+// Sellos del contador de ciclos del periférico por fase del INIT (atribución del arranque
+// por canal lateral: `mem <addr> 32`). Slots: 0 inicio, 1 mapas, 2 begin, 3 apply_tech,
+// 4 fill, 5 pre_scroll, 6 compose.
+extern "C" {
+__attribute__((used)) volatile eng::u32 g_init_stamps[8] {};
+}
 
 // Gancho de conmutación de técnica (1..9). Lo alimenta el input (CIAA, §15
 // input_poll cuando exista) o el auto-ciclo; el update lo consume y lo pone a 0.
@@ -451,15 +457,20 @@ void build_map(eng::Span<eng::u16> cells, eng::u32 seed) {
 // Mapa COHERENTE tipo nivel: bandas horizontales de hierba/muro/agua/camino con
 // pocos tiles repetidos (ideal para medir el skip-on-equal del engine).
 void build_map_coherent(eng::Span<eng::u16> cells) {
+    // `(x + y) % 97` con contador incremental por fila (se siembra con `y % 97`, una
+    // libcall por FILA en vez de una `%` de 32 bits por celda: `__umodsi3` ≈ 150 ciclos
+    // y con 80k celdas costaba ~12M de ciclos en el init).
     for (eng::u32 y = 0; y < kMapTilesY; ++y) {
         const eng::u16 band = static_cast<eng::u16>(y / 16u);
+        eng::u16 bush = static_cast<eng::u16>(y % 97u);
         for (eng::u32 x = 0; x < kMapTilesX; ++x) {
             eng::u16 t;
             if (band < 4u) t = 50;                 // hierba
             else if (band < 6u) t = 36;            // banda de muro
             else if (band < 14u) t = 5;            // agua central
             else t = 22;                           // camino
-            if (((x + y) % 97u) == 0u) t = 41;     // arbusto suelto (variedad)
+            if (bush == 0u) t = 41;                // arbusto suelto (variedad)
+            if (++bush == 97u) bush = 0u;
             cells.at(y * kMapTilesX + x) = t;
         }
     }
@@ -722,6 +733,8 @@ struct DemoGame {
     void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
         eng::debug::mark_init_started(g_eng_run_status);
         eng::debug::reset(g_eng_frame_telemetry);
+        // Checkpoints de init (atribución del arranque con el canal de depuración).
+        g_init_stamps[0] = eng::debug::DebugPeripheral::cycle_counter();
         // La reserva es el bloque Chip contiguo total; el uso real (~145 KB en DPF,
         // ~100 KB single) cabe en 360 KB sin acercarse al límite del A500.
         if (!backend.configure_memory({360u * 1024u, 16u * 1024u, 8u * 1024u})) {
@@ -749,6 +762,7 @@ struct DemoGame {
                     eng::Span<const eng::u16>::from_raw(g_map_cells, n));
             }
         }
+        g_init_stamps[1] = eng::debug::DebugPeripheral::cycle_counter();
 
         scene_cfg.viewport_w = kViewportW;
         scene_cfg.viewport_h = kViewportH;
@@ -812,15 +826,18 @@ scene_cfg.max_step = kStepMax;
             eng::debug::mark_failed(g_eng_run_status, 0x00010703u);
             return;
         }
+        g_init_stamps[2] = eng::debug::DebugPeripheral::cycle_counter();
         // Técnica inicial del muestrario (ciclo de vida): paso/patrón por técnica.
         {
             const eng::u8 start = static_cast<eng::u8>(K_START_TECH % (kTechCount ? kTechCount : 1u));
             apply_tech(start);
         }
+        g_init_stamps[3] = eng::debug::DebugPeripheral::cycle_counter();
         if (!scene.fill(backend, plan)) {
             eng::debug::mark_failed(g_eng_run_status, 0x00010705u);
             return;
         }
+        g_init_stamps[4] = eng::debug::DebugPeripheral::cycle_counter();
         // El fill de init ya cubre la variante inicial; no re-pintar en el 1er update.
         m_refillPending = false;
 #if K_CANVAS_FG
@@ -873,10 +890,12 @@ scene_cfg.max_step = kStepMax;
                 return;
             }
         }
+        g_init_stamps[5] = eng::debug::DebugPeripheral::cycle_counter();
         if (!scene.compose()) {
             eng::debug::mark_failed(g_eng_run_status, 0x00010708u);
             return;
         }
+        g_init_stamps[6] = eng::debug::DebugPeripheral::cycle_counter();
         scene.install(backend);
 
 #if K_SPRITE

@@ -480,21 +480,30 @@ pueden seguir crudos.
   construido desde `Block::mem_view_chip()` o `Scene::chip_planes()`, y los helpers toman
   `BlitPtr` (el ejemplo que motivó el barrido fue `make_tile_upload_job` de la 052).
 - `graphics::make_interleaved_masked_bob`: `src`/`dest` → `BlitPtr`.
+- **Copper (etapa 1 de DT-013, HECHA):** `AmigaBackend::takeover_display` /
+  `install_copper_list` reciben `eng::ChipView<eng::CopperTag>` (templado deducido; la
+  procedencia DMA viaja en el tipo). Accesores tipados añadidos: `ListBuilder::chip_view()` y
+  `SchedulerT::chip_view()` (lista emitida hasta `words_used()`), `DoubleBuffer::active_view()`/
+  `inactive_view()` (con `Plan`/`Scene` como delegados) y `Block::mem_view()`/`mem_view_chip()`
+  en los sitios de demo. Convertidos **61 ficheros** de demo con todos sus patrones: asignación
+  `sched.data()`→`sched.chip_view()`, arrays `m_copper_views[]`, `build_copper()` (retorno
+  tipado), `m_clist[]`/`m_cu[]` (`mem_view()`/`mem_view_chip()`), `m_scene.active_view()`
+  (Scene) y los dos `*cop1lc` del backend con `address(0).value`. Mocks host 069/070/234/240
+  actualizados a la firma tipada; flota **130/130** y suite host **411 OK**; humo runtime de 8
+  demos representativas (READY + fps de baseline + visión) sin regresión: el barrido es de
+  tipos, **sin coste en ejecución** (mismas direcciones, cero código nuevo).
 
 **Pendiente (etapas con su alcance — DT-013):**
 
-1. **Copper**: `AmigaBackend::takeover_display(const u16*)` / `install_copper_list(const u16*)`
-   → `ChipView<CopperTag>` (DMA del Copper). **57 ficheros** de demos llaman; mecánico (la
-   mayoría tiene el `Block<CopperTag>` o el `DoubleBuffer` a mano: `m_copper.mem_view_chip()`).
-2. **Save-under**: `bob_save_box/restore_box(..., Span<u16> save, ...)` → vista tipada
+1. **Save-under**: `bob_save_box/restore_box(..., Span<u16> save, ...)` → vista tipada
    (`Words<Tag>`). Rizoma: `ActorDesc::save[]` (`scene/actor_types.hpp`) y
    `SpriteLayer::m_save` (`scene/layer.hpp`) también son `Span<u16>` → cambiar los tres juntos
    + los llamadores (066, 050, actor_store, layer).
-3. **Intenciones de sprite**: `raster_intent.hpp` (`sprite_ptr`) y `sprite_line_layer.hpp`
+2. **Intenciones de sprite**: `raster_intent.hpp` (`sprite_ptr`) y `sprite_line_layer.hpp`
    (`line_data`) → `ChipView<SpriteTag>`; los compositores que las rellenan propagan la vista.
-4. **Tiles/mundo**: `xlimited_playfield.hpp` (`emit_world_rect(_masked)`), `tile_scroll.hpp`
+3. **Tiles/mundo**: `xlimited_playfield.hpp` (`emit_world_rect(_masked)`), `tile_scroll.hpp`
    (`tile_source/tile_planes`), `field_controller.hpp` (`cells/words/tile_words`),
    `pattern_fill.hpp` (`pattern`) → `PlaneViewBytes`/`ChipView<Tag>` con offset.
-5. **Gate**: añadir a `tools/check/type-tagging.mjs` un patrón que vigile firmas nuevas con
+4. **Gate**: añadir a `tools/check/type-tagging.mjs` un patrón que vigile firmas nuevas con
    `const u16*`/`u16*` en los directorios DMA (`engine/include/eng/{graphics,copper,field}`)
    sobre baseline, para que no vuelvan a colarse.

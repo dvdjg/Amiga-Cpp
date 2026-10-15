@@ -49,7 +49,7 @@ struct MockBackend {
 	MemoryManager* memory = nullptr;
 	MemoryManager& memory_manager() { return *memory; }
 	bool stopped_while_allocated = false;
-	const u16* installed_copper = nullptr;
+	eng::ChipView<eng::CopperTag> installed_copper {};
 	const u8* scene_buffer = nullptr;
 	u32 scene_plane_bytes = 0u;
 	bool camera_pixel = false;
@@ -66,7 +66,7 @@ struct MockBackend {
 	u8 bitmap_expected = 0u;
 	void boot() {}
 	void wait_vblank() {}
-	void takeover_display(const u16* words) { installed_copper = words; }
+	void takeover_display(eng::ChipView<eng::CopperTag> words) { installed_copper = words; }
 	void install_raster(graphics::composition::Scene& scene) {
 		scene_buffer = scene.buffer(0u).data();
 		scene_plane_bytes = scene.plane_bytes();
@@ -394,7 +394,7 @@ int main() {
 			check(start_app.set_display(display), "display se declara antes de start");
 			const auto started = start_app.start();
 			check(started.has_value(), "App::start compone la escena propia");
-			check(app_backend.installed_copper != nullptr,
+			check(!app_backend.installed_copper.empty(),
 			      "App::start instala la lista de display cuando el backend admite takeover");
 			check(start_app.screen().valid(), "App::start deja Screen ligada a la escena");
 			check(start_app.screen().fill(Box {0, 0, 8u, 8u}, 1u),

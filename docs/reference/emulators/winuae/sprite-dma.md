@@ -55,6 +55,28 @@ Dos condiciones evitan el fantasma:
 2. El `WAIT` del rearmado Copper cae **después del fetch DMA** (`DDFSTRT`) y antes de la primera
    columna: así la `DATA` que escribe el Copper no la pisa el fetch del DMA.
 
+## Armado de un canal: registro vs memoria (hallazgo 2026-10)
+
+- **Un canal desarmado NO hace fetch**: en `generate_sprites` el fetch exige `s->dmacycle`
+  (`custom.cpp:10055-10070`), y `dmacycle` solo se pone a 1 al **armar** (`vpos == s->vstart`
+  dentro de `generate_sprites` o `sprstartstop`). Un canal con `dmastate==0`/`dmacycle==0` no
+  lee su cabecera de memoria «por si acaso».
+- **`SPRxCTL_DMA` (cabecera leída por DMA) desarma después de procesarla**
+  (`custom.cpp:4078-4090`: `s->dmastate = 0; sprstartstop(s);`) y solo **rearma si en ese
+  instante `vpos == vstart`** de la cabecera nueva. Por eso «armar por memoria» (escribir
+  `SPRxPT` y dejar que el DMA lea la cabecera) solo funciona si la cabecera se procesa
+  **exactamente en su línea de `VSTART`** — el patrón de la cadena F3 (`arm_dma_chain`:
+  primera franja **por registro**, la cadena encadena a partir de la segunda).
+- **`SPRxCTL` por registro** (`custom.cpp:4066-4075`: `SPRxCTL` → `sprstartstop` +
+  `SPRxCTLPOS` + `sprstartstop`) **sí rearma** con el `vpos` del momento: es el armado fiable
+  del Copper (patrón `SpriteManager::arm_object`/`emit_config`; demos 053/214/219) — y la
+  `DATA` que el canal leerá por línea sale del **walk** (`SPRxPT`), no del registro escrito.
+- Corolario práctico: el rearmado horizontal por registro (`emit_sprite_horizontal_rearm`,
+  POS+CTL+DATA) funciona con `SPRxPT` apuntando a una **estructura de DATA** válida; el
+  POS-only (`emit_sprite_horizontal_reposition`, patrón Risky Woods) exige el canal **ya
+  armado** por DMA/registro. La demo 087 (retirada, 2026-10) mezclaba semilla por memoria con
+  rearmado por registro y no llegaba a renderizar; la técnica viva está en 053/207/217.
+
 ## Ventana de fetch por línea y pacing del Copper (demo 215)
 
 El DMA de sprites de una línea **solo se programa mientras el haz no ha llegado al fetch de

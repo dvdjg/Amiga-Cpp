@@ -115,7 +115,7 @@ struct SfxMixerDemo {
 		}
 
 		// Orden: primero el display (congela el sistema), luego el mixer.
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 
 		if (!m_sfx.init(backend.memory_manager())) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00005805u);
@@ -228,7 +228,7 @@ private:
 
 		m_copper_ok = sched.ok();
 		m_copper_words = sched.words_used();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		return m_copper_ok;
 	}
 
@@ -239,7 +239,7 @@ private:
 	eng::u32 m_total_channels = 0;
 	eng::audio::SfxChannel m_alarm_channel = -1;
 	eng::u16 m_palette[32] {};
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::Block<eng::AudioTag> m_beep_block {};
 	eng::Block<eng::AudioTag> m_alarm_block {};
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bitplane_block {};

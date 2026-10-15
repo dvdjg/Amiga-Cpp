@@ -366,6 +366,15 @@ public:
 		return m_words;
 	}
 
+	/// **Vista tipada (Chip)** de la lista emitida hasta `words_used()`: es la forma que
+	/// exigen `takeover_display`/`install_copper_list` (la procedencia DMA viaja en el tipo).
+	[[nodiscard]] constexpr eng::ChipView<eng::CopperTag> chip_view() const {
+		return eng::ChipView<eng::CopperTag> {
+			eng::Address<eng::MemoryKind::Chip>::from_storage(
+				reinterpret_cast<const eng::u8*>(m_words)),
+			static_cast<eng::u32>(m_used_words) * 2u};
+	}
+
 	constexpr u16 words_used() const {
 		return m_used_words;
 	}

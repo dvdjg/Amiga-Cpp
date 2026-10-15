@@ -390,6 +390,11 @@ public:
 	constexpr u16* active_words() const { return m_copper->active_words(); }
 	constexpr u16* inactive_words() const { return m_copper->inactive_words(); }
 
+	/// Vista **tipada (Chip)** de la copperlist activa/inactiva: forma que exigen
+	/// `takeover_display`/`install_copper_list` (la procedencia DMA viaja en el tipo).
+	[[nodiscard]] constexpr eng::ChipView<eng::CopperTag> active_view() const { return m_copper->active_view(); }
+	[[nodiscard]] constexpr eng::ChipView<eng::CopperTag> inactive_view() const { return m_copper->inactive_view(); }
+
 private:
 	/// Cuenta y ordena por línea **relativa al inicio del display** en O(n + 256): counting
 	/// por 256 líneas y un array de orden (`m_perm`). No reordena los `CopperIntent`: el

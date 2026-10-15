@@ -155,7 +155,7 @@ struct PaletteSplitDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00022104u);
 			return;
 		}
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 		eng::debug::mark_ready(g_eng_run_status, 0x00022100u);
 	}
 
@@ -183,8 +183,8 @@ struct PaletteSplitDemo {
 		sched.wait_line(0xf8);
 		sched.end();
 		if (sched.ok()) {
-			m_copper_ptr = sched.data();
-			backend.install_copper_list(m_copper_ptr);
+			m_copper_view = sched.chip_view();
+			backend.install_copper_list(m_copper_view);
 			auto& tel = g_eng_frame_telemetry;
 			tel.frame = context.frame.frame_index;
 			tel.copper_words = sched.words_used();
@@ -224,7 +224,7 @@ private:
 		sched.wait_line(0xf8);
 		sched.end();
 		m_copper_ok = sched.ok();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		return m_copper_ok;
 	}
 
@@ -251,7 +251,7 @@ private:
 	}
 
 	bool m_copper_ok = false;
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::ChipView<eng::SpriteTag> m_ring {};
 	eng::SpriteScene<8u> m_scene {};
 	eng::graphics::FramePlan m_frame_plan {};

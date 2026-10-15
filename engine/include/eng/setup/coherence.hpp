@@ -26,6 +26,7 @@
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/bob.hpp>
 #include <eng/graphics/composition/limits.hpp>
+#include <eng/graphics/sprite_limits.hpp>
 
 namespace eng::setup {
 
@@ -202,6 +203,28 @@ inline constexpr eng::u16 kBplcon0Ham = 0x0800u;   ///< bit 11: HAM (HOMOD)
 			break;
 		default:
 			break;
+	}
+	return {};
+}
+
+// =====================================================================================
+// Parcheo de SPRxDATA/DATB a media línea contra el nº de planos del display
+// =====================================================================================
+
+/// El parcheo de `SPRxDATA`/`DATB` **a media línea** (patrón Brian the Lion: capas de 2
+/// colores; lo emiten `SpriteLineLayer` y `SpriteHorizontalRearm`) necesita **hueco de DMA
+/// dentro de la línea** para el fetch del sprite. Con **más de**
+/// `kSpriteLineDataMaxBitplanes` planos el fetch de bitplanes ocupa la línea y el ciclo del
+/// sprite no llega: en WinUAE la ventana de sprites se cierra en el arranque del secuenciador
+/// de bitplanes (`custom.cpp:10111`, `hp <= plfstrt_sprite`; `custom.cpp:9888-9889` y
+/// `10008-10009` la recortan a DDFSTRT/BPRUN) y el último ciclo de plano solo sirve a sprites
+/// **si los planos acaban antes** (`custom.cpp:10130-10131`) — con 6 planos no acaban a
+/// tiempo. Contraste: `sprite-tricks-games.md` §Brian the Lion («solo 4/5 planos»).
+/// Códigos: 1 planos > `kSpriteLineDataMaxBitplanes`.
+[[nodiscard]] constexpr CheckResult check_sprite_line_data(eng::u8 planes) noexcept {
+	if (planes > eng::graphics::kSpriteLineDataMaxBitplanes) {
+		return {1u, "parcheo SPRxDATA a media linea con demasiados planos", 0u,
+			eng::graphics::kSpriteLineDataMaxBitplanes, planes};
 	}
 	return {};
 }

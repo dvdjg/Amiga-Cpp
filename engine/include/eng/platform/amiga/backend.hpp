@@ -302,7 +302,7 @@ public:
 	/// master+copper con un COPJMP1 alineado al inicio de linea. A partir de
 	/// aqui el engine no vuelve a usar exec: el bucle es espera activa por
 	/// VPOSR. Es close-to-the-metal: el sistema operativo no arbitra esta lista.
-	void takeover_display(const u16* copper_words);
+	void takeover_display(eng::ChipView<eng::CopperTag> copper_words);
 
 	/// **Toma de control del SISTEMA** (procedimiento canónico completo, idempotente):
 	/// `Forbid()` + `graphics.library` (`LoadView(NULL)`, 2×`WaitTOF`, `OwnBlitter`) +
@@ -337,7 +337,7 @@ public:
 	/// se haya llamado al menos una vez; en caso contrario se comporta como
 	/// una toma de control de un solo intento (compatibilidad con drivers
 	/// antiguos que solo conocian `install_copper_list`).
-	void install_copper_list(const u16* copper_words);
+	void install_copper_list(eng::ChipView<eng::CopperTag> copper_words);
 
 	/// Detiene los canales DMA del display antes de liberar la escena/copperlist que consumen.
 	/// No devuelve el control al sistema operativo: `takeover_display` ya congeló sus IRQ.

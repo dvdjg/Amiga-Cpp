@@ -1,60 +1,90 @@
 # VALIDATION — Demo 085 (`copper_plan_scene`)
 
 Informe de validación (F4/F5 de `docs/guides/methodology/PROCEDIMIENTO_DEMOS_Y_JUEGOS.md`).
-**Estado: NO VERIFICADA** — deuda abierta en `docs/guides/roadmap/ROADMAP_DEUDA_TECNICA.md` **DT-007**.
+**Estado: VERIFICADA** — DT-007 cerrada (2026-10).
 
 Intención esperada: escena con `copper::Plan`: cielo de 16 franjas de `COLOR00` en degradado que
-cicla y un BOB (disco) que se mueve en Lissajous aportando intenciones de color ancladas a su Y.
+cicla y un BOB (disco) que se mueve en Lissajous aportando color anclado a su Y (arcoíris por
+scanline), con lista estática + parcheo por slots.
+
+## Técnica vigente
+
+La lista de Copper se construye **una vez por bitmap** en el setup (doble buffer del `Plan`, una
+lista por bitmap: solo cambian los punteros `BPLxPT` del display) y por frame **solo se parchean
+palabras de DATO**:
+
+- cielo: 16 slots del efecto (`RasterGradientEffect::bind_slots` + `patch_words`) — la fase cicla;
+- BOB: intents `PaletteLine` de `COLOR01` para **todas** las líneas posibles del disco
+  (y ∈ [38, 218] → líneas [16, 240], posiciones fijas); por frame se parchea el rango
+  actual ∪ anterior (arcoíris dentro del disco, color base fuera);
+- disco: **dos blits** (borrado de la caja anterior con copia desde una fila de ceros repetida
+  con módulo `-8` + copia de la variante pre-shifteada de 16 offsets de palabra), sobre bitmaps
+  en doble buffer (el trasero se pinta mientras el delantero se muestra).
+
+La ruta previa (re-emitir + re-ordenar las ~85 intenciones cada frame y dibujar el disco por CPU
+byte a byte) costaba 426.7k ciclos/frame (3 campos); la vigente cabe en 1 campo.
 
 ## Mediciones
 
 | Medida | Comando | Resultado | Lectura |
 |---|---|---|---|
-| fps debug | `node tools/debug/measure-fps.mjs 085_copper_plan_scene A500_debug --json` | **16,62 fps · 3,01 fields · 426.733 ciclos/frame** | 3× el presupuesto → NO VERIFICADA por F3 |
-| elementos (8 frames de paso `fNNNN`) | `node tools/analyze/check-elements.mjs out/run/085_copper_plan_scene/A500_debug/sequence ffffff,00ff00,ff0000` | blanco **alterna 1088 ↔ 2204** (frames 1 y 5 doblan); rojo estable 324 | sospecha: el contorno blanco del disco se duplica/marca de más en ciertos frames |
-| captura | `run-demo.sh … --sequence-step-frames 8` | `frame_NNN_fNNNN.png` consecutivos | determinista (usa `eng_debug_ready_probe`) |
+| fps debug (vigente) | `node tools/debug/measure-fps.mjs 085_copper_plan_scene A500_debug --json` | **49,92 fps · 1,00 field · 142.102 ciclos/frame** | 50 fps, presupuesto cumplido |
+| perfil por secciones | `node tools/debug/profile.mjs 085_copper_plan_scene A500_debug` | blits del disco **20,6k** (12,9%) · parcheo **17,0k** (10,7%) · flip+commit 0,5k · resto (espera) 116k | trabajo real ≈ 38k de 142k → holgura amplia |
 
-Hotspot candidato (evidencia previa `asm-audit`): `eng::graphics::effects::RasterGradientEffect::rebuild()`
-(peso 16, 2 `mul` y 2 `mod`) — el `mod` en el bucle del cielo es caro; confirmar con perfil/ablación en F1.
-
-### Ablaciones F1 (medidas)
+### Atribución histórica (ablaciones F1, ruta previa)
 
 | Ablación | fps | fields | ciclos/frame | Atribución |
 |---|---|---|---|---|
-| baseline | 16,62 | 3,01 | 426.733 | — |
-| fase del cielo congelada (sin `rebuild` por frame) | 16,62 | 3,01 | 426.733 | `rebuild()` **no** es el hotspot |
-| sin intents del BOB | **24,99** | **2,00** | **283.920** | el BOB cuesta **~143k ciclos/frame** (33%) |
-| — | — | — | 284k restantes | base (plan + 16 intents de cielo + materialize/commit) **también 2× presupuesto** |
+| baseline (ruta previa) | 16,62 | 3,01 | 426.733 | — |
+| fase del cielo congelada | 16,62 | 3,01 | 426.733 | `rebuild()` del cielo **no** era el hotspot |
+| sin intents del BOB | 24,99 | 2,00 | 283.920 | el BOB ≈ 143k; la base (materialize/commit) ≈ 284k |
 
-Conclusión F1: hay **dos** focos de coste (BOB ≈ 143k y base del plan ≈ 284k); el ciclo del cielo (`rebuild`)
-queda descartado. El blanco alternante (1088↔2204) pasa a constante 1088 con la fase congelada: era el
-**ciclo de paleta del disco** (animación esperada), no corrupción → la «mancha blanca» de la visión es
-probablemente contenido del disco en ciertas fases.
+Perfil por secciones de la ruta previa (con las secciones del engine dentro de `materialize`):
+`sort_lines` 37,1k + `sort_prio` 32,7k + `emit` 123,7k = **194k de materialize para ~85
+intenciones** (~2,3k/intención), más ~119k del resto de `build_frame` y ~101k del dibujo del
+disco por CPU en Chip (contención). Los tres focos se eliminaron: materialize/sort solo en el
+setup, parcheo por slots y disco por Blitter.
 
 ## Prompts y respuestas (crudos)
 
-### A · Inventario sin contexto, una imagen (frame 4)
+### A · Inventario sin contexto, una imagen (frame 4, ruta previa)
 
 **Prompt:** «Es UNA captura de una animacion. No conoces el programa […]: 1) Inventario de elementos (forma, color, tamaño, cuántos). 2) ¿Algo que parezca basura, ruido, corte o zona incoherente? 3) ¿Hay un objeto nítido con forma propia sobre el fondo? Descríbelo. No inventes coordenadas.»
 
 **Respuesta** (cruda, extracto literal):
 > Bandas horizontales de color, al menos 12 […]. Un círculo blanco con borde blanco, ubicado en la esquina superior derecha, que contiene 8 franjas horizontales multicolores […] y un pequeño círculo rojo en el centro. […] **Sí. En la zona superior derecha, justo en el borde del círculo, hay una pequeña mancha de color blanco irregular que parece un artefacto de pixelización o un error de renderizado.** También […] el círculo no está alineado perfectamente con las bandas horizontales.
 
-**Contraste:** acierta el inventario (franjas + disco multicolor con centro rojo) y **señala una mancha blanca** en el borde del disco, que casa con el conteo objetivo (blanco 1088→2204 en frames 1 y 5). Queda como **sospecha bloqueante** hasta caracterizarla (DT-007).
+**Contraste:** acierta el inventario (franjas + disco multicolor con centro rojo). La «mancha
+blanca» era el **ciclo de paleta del disco** (con fase congelada el conteo objetivo queda
+constante), no corrupción.
 
-### A′ · Misma escena como hoja de contacto etiquetada (3 paneles)
+### B · Secuencia vigente (3 frames separados 1 s)
+
+**Prompt:** «…debe mostrar: fondo con degradado en bandas horizontales (cielo azul → violeta →
+naranja) que cicla; disco con borde blanco, brillo arriba-izquierda e interior con arcoíris suave,
+moviéndose. Para cada imagen: ¿degradado + disco? ¿la posición cambia? ¿artefactos (restos del
+disco anterior, basura, bandas rotas, disco cortado)?»
 
 **Respuesta** (cruda, extracto literal):
-> Se observan tres paneles rectangulares […] cada panel dividido en dos franjas horizontales de color sólido […]. Los colores cambian de panel a panel […]. No se observan cortes, zonas incoherentes o elementos de "basura".
+> IMAGEN 1: Fondo degradado y disco con borde blanco e interior multicolor están presentes. El disco se mueve hacia abajo. No hay artefactos visibles.
+> IMAGEN 2: Fondo degradado y disco con borde blanco e interior multicolor están presentes. El disco se mueve hacia la derecha. No hay artefactos visibles.
+> IMAGEN 3: Fondo degradado y disco con borde blanco e interior multicolor están presentes. El disco se mueve hacia la izquierda. No hay artefactos visibles.
+> VEREDICTO: OK
 
-**Lectura:** el montaje **pierde la resolución** necesaria para esta escena (no ve franjas ni disco: solo “dos bandas”). Confirma la regla de §6.4: montaje para inventario/presencia de elementos grandes, no para detalle; para detalle, **una imagen por llamada**.
+Nota de proceso: la primera pasada de visión de esta tanda leyó una secuencia **vieja** del
+directorio (`frame_NNN_fNNNN.png` de una captura anterior) y reportó un artefacto inexistente;
+se re-capturó (`--sequence-frames 6 --sequence-interval-ms 500`) antes de validar.
 
 ## Conclusiones
 
-1. La escena es **visualmente coherente** (franjas + disco con degradado), con una **sospecha de mancha blanca** en el borde del disco que coincide con el conteo objetivo.
-2. **NO VERIFICADA por rendimiento**: 3,01 fields/frame (~3× presupuesto). Hipótesis de hotspot: `RasterGradientEffect::rebuild()`; medir por ablación en F1.
-3. Captura determinista por paso de frame ya disponible (`--sequence-step-frames`).
+1. La escena es **visualmente coherente**: degradado que cicla + disco con borde blanco, brillo
+   e interior arcoíris, en movimiento y sin restos (visión OK sobre secuencia fresca).
+2. **VERIFICADA por rendimiento**: 49,92 fps / 1,00 field (era 16,62 / 3,01).
+3. La técnica vigente es el patrón de referencia para escenas de Copper animadas: lista estática
+   (por bitmap) + `bind_slots`/`patch_words` para colores + BOB por Blitter con variantes
+   pre-shifteadas. Ver `docs/guides/optimization/ATRIBUCION_DE_CICLOS.md`.
 
 ## Deuda registrada
 
-DT-007 (rendimiento 085 + mancha blanca del disco) · DT-003/§6.4 (límites del montaje vs imagen única).
+DT-007 cerrada. DT-003/§6.4 (límites del montaje vs imagen única) sigue vigente como nota de
+metodología.

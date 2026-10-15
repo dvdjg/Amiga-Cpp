@@ -82,7 +82,8 @@ struct DemoGame {
 		eng::debug::mark_ready(g_eng_run_status, 0x00020800u);
 	}
 
-	void update(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
+	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_async_started || m_async_done) {
 			return;
 		}

@@ -113,7 +113,7 @@ struct AudioMixerDemo {
 		// Orden canónico: primero se toma el display (congela el DMA del sistema,
 		// dejando solo master+copper+bitplane) y DESPUÉS se arranca el audio, para
 		// que DMACONR refleje el estado limpio del engine.
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 		apply_audio();
 		const eng::u16 dmaconr = *reinterpret_cast<volatile eng::u16*>(0xdff002u);
 
@@ -223,7 +223,7 @@ private:
 
 		m_copper_ok = sched.ok();
 		m_copper_words = sched.words_used();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		return m_copper_ok;
 	}
 
@@ -233,7 +233,7 @@ private:
 	eng::u16 m_period = 300;
 	eng::u8 m_volume = 48;
 	eng::u16 m_palette[32] {};
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::u8* m_sample = nullptr;
 	eng::Block<eng::AudioTag> m_sample_block {};
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bitplane_block {};

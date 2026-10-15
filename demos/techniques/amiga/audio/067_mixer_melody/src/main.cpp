@@ -79,7 +79,7 @@ struct MixerMelodyDemo {
 		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00006703u); return; }
 
 		// Orden: primero el display (congela el sistema), luego el mixer.
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 
 		if (!m_sfx.init(backend.memory_manager())) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00006704u);
@@ -99,6 +99,7 @@ struct MixerMelodyDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_init_ok || m_confirmed) {
 			return;
 		}
@@ -130,7 +131,7 @@ struct MixerMelodyDemo {
 		draw_scope();
 		// Reinstalar la copperlist cada frame (como 058): el mixer/arranque puede
 		// dejar el DMA de bitplanes apagado y la lista, al reiniciarse, lo reactiva.
-		if (build_copper()) backend.install_copper_list(m_copper_ptr);
+		if (build_copper()) backend.install_copper_list(m_copper_view);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -180,7 +181,7 @@ private:
 		sched.end();
 		m_copper_ok = sched.ok();
 		m_copper_words = sched.words_used();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		return m_copper_ok;
 	}
 
@@ -190,7 +191,7 @@ private:
 	bool m_confirmed = false;
 	eng::u16 m_copper_words = 0;
 	eng::audio::SfxChannel m_channel = -1;
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::Block<eng::AudioTag> m_melody_block {};
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bitplane_block {};
 	eng::Block<eng::CopperTag, eng::MemoryKind::Chip> m_copper_block {};

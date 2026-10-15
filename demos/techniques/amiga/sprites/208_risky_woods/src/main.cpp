@@ -202,11 +202,12 @@ struct RiskyWoodsDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020806u);
 			return;
 		}
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 		eng::debug::mark_ready(g_eng_run_status, 3u * 256u + kBands[0].pattern);
 	}
 
 	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		const eng::u32 pos = context.frame.frame_index;
 		const eng::u8 s = static_cast<eng::u8>(pos & (kShifts - 1u));
 		// Rotacion de columna cada kShifts px (contador incremental, sin `%`).
@@ -389,7 +390,7 @@ private:
 		sched.end();
 
 		m_copper_ok = sched.ok();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		m_copper_words = sched.data();
 		return m_copper_ok;
 	}
@@ -470,7 +471,7 @@ private:
 	}
 
 	bool m_copper_ok = false;
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::u16* m_copper_words = nullptr;
 	eng::u16 m_band_off[3] {};
 	eng::u8  m_k[3] {};

@@ -115,7 +115,7 @@ struct FreeFormDemo {
 		fill_window(0u);
 		m_last_window = 0u; // la ventana inicial ya esta montada
 		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00021204u); return; }
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 		eng::debug::mark_ready(g_eng_run_status, 0x00021200u);
 	}
 
@@ -236,11 +236,11 @@ private:
 		m_layer.bind(sched); // emite la capa y registra las palabras SPRxPOS (scroll ~0 CPU)
 		sched.wait_line(0xf8);
 		sched.end();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		return sched.ok();
 	}
 
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::u32 m_frame = 0u;
 	eng::u16 m_last_window = 0xffffu;
 	// El MUNDO va en Chip RAM: lo lee el Blitter (copia) ademas de la CPU (emision).

@@ -134,10 +134,15 @@ function parseElf(elf) {
 		}
 		if (!cur) continue;
 		const f = funcs.get(cur);
-		for (const [key, re] of PATTERNS) if (re.test(line)) f[key]++;
-		if (/\b(jsr|jbsr|bsr)\b/.test(line)) f.calls++;
-		if (flags.has('--ext') && ZEXT.test(line)) f.zext++;
-		if (BAD020.test(line)) f.bad020++; // 68020+/FPU: cuelga en 68000/OCS
+		// Los patrones se prueban SOLO sobre el mnemonico (tras la direccion): una direccion
+		// hex como `fadd:` (p. ej. dentro de una tabla de datos con simbolo) casaria los
+		// regex FPU/libcall por azar (colision de hex con `fadd`/`fabs`/`fbf`/`fbsf`). Bug
+		// real: falso positivo en `MasterVolTab51` (221) segun el desplazamiento de la tabla.
+		const insn = line.replace(/^\s*[0-9a-f]+:\s*/, '');
+		for (const [key, re] of PATTERNS) if (re.test(insn)) f[key]++;
+		if (/\b(jsr|jbsr|bsr)\b/.test(insn)) f.calls++;
+		if (flags.has('--ext') && ZEXT.test(insn)) f.zext++;
+		if (BAD020.test(insn)) f.bad020++; // 68020+/FPU: cuelga en 68000/OCS
 	}
 	return { funcs, ignored };
 }

@@ -207,6 +207,18 @@ void test_bob_plan() {
 	CHECK(eng::setup::check_bob_plan(or_bob, tgt).ok());
 }
 
+void test_sprite_line_data() {
+	std::printf("check_sprite_line_data: parcheo de DATA a media linea vs planos\n");
+
+	// Historico Brian the Lion (sprite-tricks-games.md): 4/5 planos dejan hueco de DMA para
+	// parchear SPRxDATA a media linea; con 6 no (custom.cpp:10111/10130-10131).
+	CHECK(eng::setup::check_sprite_line_data(4u).ok());
+	CHECK(eng::setup::check_sprite_line_data(5u).ok());
+	CHECK(eng::setup::check_sprite_line_data(6u).code == 1u);
+	CHECK(eng::setup::check_sprite_line_data(6u).expected ==
+	      eng::graphics::kSpriteLineDataMaxBitplanes);
+}
+
 } // namespace
 
 int main() {
@@ -217,6 +229,7 @@ int main() {
 	test_bplcon0();
 	test_copper_wait_order();
 	test_bob_plan();
+	test_sprite_line_data();
 
 	if (g_fail == 0) {
 		std::printf("OK: validadores de coherencia verificados con los fallos historicos.\n");

@@ -468,7 +468,7 @@ struct DkPortGame {
 		build_sprites_from_oam();
 		rebuild_scene_copper();
 		if (m_copper_ok) {
-			backend.install_copper_list(m_scene.active_words());
+			backend.install_copper_list(m_scene.active_view());
 		}
 	}
 

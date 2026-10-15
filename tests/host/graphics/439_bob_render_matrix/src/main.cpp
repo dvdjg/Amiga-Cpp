@@ -386,6 +386,41 @@ int main() {
 		CHECK(eng::test::soft_color(bitmap(), 15, 4) == 0u); // fuera: intacto
 	}
 
+	// ── T4b: cookie-cut planar + máscara SEPARADA → destino INTERLEAVED ────
+	// El caso que destapó DT-012: hoja planar y máscara de `height` filas sobre un destino
+	// interleaved. El blit único de `height*planos` filas leería la máscara más allá de su
+	// plano; aquí se deja un **canario 0xFFFF tras la máscara** para que esa lectura se vea:
+	// con el bug, el plano 1 sale con máscara=1 en TODAS las filas (color 3 en el interior);
+	// con el arreglo (por plano, misma máscara por plano) el interior queda preservado.
+	{
+		build_solid_sheet2();
+		build_mask_plane();
+		const eng::u16 mask_used = static_cast<eng::u16>(row_words_of(kBobW) * kBobH * 2u);
+		std::memset(g_mask + mask_used, 0xff, sizeof(g_mask) - mask_used);
+		std::memset(g_bitmap_il, 0, sizeof(g_bitmap_il));
+		for (eng::u16 y = 4u; y < 12u; ++y) {
+			bitmap_il().row_ptr(0u, y)[2] = 0xffu; // color 1 de fondo, cols 16..31
+			bitmap_il().row_ptr(0u, y)[3] = 0xffu;
+		}
+		eng::graphics::Bob b = make_bob(eng::graphics::BobDraw::CookieCut);
+		b.mask = chip_view(g_mask);
+		eng::graphics::FramePlan plan {};
+		CHECK(eng::graphics::bob_draw(plan, b, 0u, 16, 4, target_il()));
+		const auto res = eng::test::execute_plan(plan, bitmap_il());
+		expect_result(res, "T4b");
+		// Borde (máscara=1): imagen (color 2, el plano 0 queda a 0 por el minterm $CA).
+		CHECK(eng::test::soft_color(bitmap_il(), 16, 4) == 2u);
+		CHECK(eng::test::soft_color(bitmap_il(), 27, 11) == 2u);
+		// Interior (máscara=0): preservado (color 1) — el canario NO debe filtrarse.
+		CHECK(eng::test::soft_color(bitmap_il(), 17, 5) == 1u);
+		CHECK(eng::test::soft_color(bitmap_il(), 20, 8) == 1u);
+		// Fuera: intacto. (28,4) cae en la palabra procesada pero fuera de la máscara:
+		// preservado (C) = color 1 del pre-relleno; (15,4) ni se toca.
+		CHECK(eng::test::soft_color(bitmap_il(), 15, 4) == 0u);
+		CHECK(eng::test::soft_color(bitmap_il(), 28, 4) == 1u);
+		CHECK(eng::test::soft_color(bitmap_il(), 16, 12) == 0u);
+	}
+
 	// ── T5: destino y hoja interleaved (un pase, filas físicas = alto×planos) ─
 	{
 		build_interleaved_sheet();
@@ -481,17 +516,15 @@ int main() {
 		const eng::graphics::Bob b = make_bob();
 		const eng::u16 save_words = 2u; // 12 px + shift -> 1..2 palabras
 		eng::graphics::FramePlan plan {};
-		CHECK(eng::graphics::bob_save_box(plan, b, 12u, 8u, 16, 4, target(),
-						  eng::Span<eng::u16> {
-							  reinterpret_cast<eng::u16*>(g_save),
-							  static_cast<eng::usize>(save_words * 8u)},
+		// En host no hay Chip RAM: escape documentado del test (la vista solo transporta la
+		// procedencia; el buffer es el global g_save).
+		const eng::ChipView<eng::BobTag> save =
+			eng::as_chip(eng::Bytes<eng::BobTag> {g_save, sizeof(g_save)});
+		CHECK(eng::graphics::bob_save_box(plan, b, 12u, 8u, 16, 4, target(), save,
 						  save_words, 8u));
 		CHECK(eng::graphics::bob_draw(plan, make_bob(eng::graphics::BobDraw::Opaque), 0u, 16, 4,
 					      target()));
-		CHECK(eng::graphics::bob_restore_box(plan, b, 12u, 8u, 16, 4, target(),
-						     eng::Span<eng::u16> {
-							     reinterpret_cast<eng::u16*>(g_save),
-							     static_cast<eng::usize>(save_words * 8u)},
+		CHECK(eng::graphics::bob_restore_box(plan, b, 12u, 8u, 16, 4, target(), save,
 						     save_words, 8u));
 		const auto res = eng::test::execute_plan(plan, bitmap());
 		expect_result(res, "T8");
@@ -619,7 +652,7 @@ int main() {
 	check_canaries("final");
 
 	if (g_fail == 0) {
-		std::printf("OK: matriz de render de bobs validada (12 casos + canarios).\n");
+		std::printf("OK: matriz de render de bobs validada (13 casos + canarios).\n");
 		return 0;
 	}
 	std::printf("FAIL: %d comprobacion(es) fallaron\n", g_fail);

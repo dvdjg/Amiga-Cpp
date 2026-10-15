@@ -34,11 +34,11 @@ using eng::u16;
 using eng::u32;
 
 struct MockBackend {
-	const u16* taken = nullptr;
-	const u16* installed = nullptr;
+	eng::ChipView<eng::CopperTag> taken {};
+	eng::ChipView<eng::CopperTag> installed {};
 	unsigned installs = 0;
-	void takeover_display(const u16* words) { taken = words; }
-	void install_copper_list(const u16* words) {
+	void takeover_display(eng::ChipView<eng::CopperTag> words) { taken = words; }
+	void install_copper_list(eng::ChipView<eng::CopperTag> words) {
 		installed = words;
 		++installs;
 	}
@@ -214,7 +214,8 @@ int main() {
 		MockBackend backend;
 		plan.takeover(backend);
 		plan.commit(backend);
-		if (backend.taken != plan.active_words() || backend.installed != plan.active_words()) {
+		if (backend.taken.data() != plan.active_view().data() ||
+		    backend.installed.data() != plan.active_view().data()) {
 			std::printf("[FAIL] takeover/commit no publican el bloque activo\n");
 			return 1;
 		}

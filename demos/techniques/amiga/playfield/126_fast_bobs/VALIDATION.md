@@ -40,5 +40,17 @@ Prompt: `out/run/vision_prompt_126.txt` (movimiento + rastros + huecos).
 ## Alcance
 
 Verificado: copia rápida con padding **mínimo** sin rastros ni huecos, cadencia 1 campo,
-márgenes derivados del asset en A500_debug. **Sin verificar**: la degradación a cookie-cut de
-la capa (la demo no la dispara con estos pasos; necesita `set_slow_sheet`) y release `-O2`.
+márgenes derivados del asset en A500_debug. **Sin verificar**: release `-O2`.
+
+## Degradación a cookie-cut (2026-10) — cubierta
+
+La demo **dispara el camino lento** de la capa de forma determinista: bob0 acelera a 5 px/frame
+(pad = 3) en la ventana [112,128) de cada 128 frames → `clear_box` + cookie-cut (hoja lenta con
+máscara). Quedó cubierto al arreglar **DT-012** (el walk de la máscara se salía de su plano con
+hoja planar + destino interleaved; ahora por plano — HOST-439 T4b lo fija).
+
+| Medida | Resultado | Lectura |
+|---|---|---|
+| fps debug (con disparo) | **49,92 fps · 1,00 field · 1000 frames** | sin congelación ni coste extra |
+| franja izquierda (x 0..15), dentro vs fuera de la ventana | **576 px no-negros / 164 filas en ambas** | sin columna de basura (el síntoma de DT-012) |
+| visión (3 frames de la ventana, f117-f121) | «cuadrados completos y nítidos, sin artefactos ni zonas corruptas» ×3 | **VEREDICTO: OK** |

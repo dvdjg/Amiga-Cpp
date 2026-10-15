@@ -153,7 +153,7 @@ struct MusicMixerDemo {
 		}
 #endif
 
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 		m_audio.attach(backend.audio());
 
 		// 1) Musica PRIMERO (el playroutine inicializa los 4 canales). Modulo en Chip.
@@ -201,6 +201,7 @@ struct MusicMixerDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_init_ok) {
 			return;
 		}
@@ -254,7 +255,7 @@ private:
 		sched.move(eng::copper::color_register(0), 0x001u);
 		sched.move(eng::copper::color_register(1), 0x00Fu);
 		sched.end();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		return sched.ok();
 	}
 
@@ -268,7 +269,7 @@ private:
 	eng::u32 m_count[4] = {0u, 0u, 0u, 0u};
 	const eng::u8* m_data[4] = {nullptr, nullptr, nullptr, nullptr};
 	eng::u32 m_len[4] = {0u, 0u, 0u, 0u};
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bitplane_block {};
 	eng::Block<eng::CopperTag, eng::MemoryKind::Chip> m_copper_block {};
 	eng::Block<eng::AudioTag> m_mod_buf {}; ///< samples empaquetados P61 (si el modulo los trae)

@@ -87,7 +87,7 @@ struct DemoGame {
 
 		m_copper_ok = copper.ok();
 		m_copper_words = copper.words_used();
-		m_copper_words_ptr = copper.data();
+		m_copper_words_ptr = copper.chip_view();
 
 		if (m_memory_ok && m_copper_ok) {
 			// Toma el control del display una sola vez: apaga las
@@ -121,7 +121,7 @@ struct DemoGame {
 	bool m_memory_ok = false;
 	bool m_copper_ok = false;
 	eng::u16 m_copper_words = 0;
-	const eng::u16* m_copper_words_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_words_ptr {};
 };
 
 } // namespace

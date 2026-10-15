@@ -22,7 +22,9 @@ Causa raíz conocida hoy: la demo/engine hace **mucho más trabajo por frame que
 
 Plan **incremental** (una fase por pasada, cada una con medida y validación):
 
-- **F1 · Perfil y presupuesto. HECHO (ablación):** sin el bloque FG la demo pasa a **39,9 fps / 1,25 fields / 178k ciclos**; con FG, 485k → **el FG cuesta ~307k ciclos/frame (63%)** y el resto ~178k (25% sobre presupuesto). `profile.mjs` no resuelve `g_eng_prof` en estos builds (DT-008). Camino: rediseñar el FG (pre-render + Blitter/BOB o sprites) y recortar el resto.
+- **F1 · Perfil y presupuesto. HECHO (ablación + secciones):** sin el bloque FG la demo pasa a **39,9 fps / 1,25 fields / 178k ciclos**; con FG, 485k → **el FG cuesta ~307k ciclos/frame (63%)** y el resto ~178k (25% sobre presupuesto). `profile.mjs` no resuelve `g_eng_prof` en estos builds (DT-008). Camino: rediseñar el FG (pre-render + Blitter/BOB o sprites) y recortar el resto.
+- **F1-bis · Atribución por secciones (2026-10, perfil ya operativo):** total **426.733 ciclos/frame** (16,62 fps). Secciones: **FG 230k** (nave+balas ~120k, torreta ~108k), scroll (`update_scroll`) **44k**, compose **18k**, plan BG **10,7k**, puntería (trig) 1,3k; resto espera. **Bisect del FG:** con sink de relleno VACÍO el bloque sigue costando ~97k → **cada `fill_rect` cuesta ~6,5k ciclos por LLAMADA** (experimento: +10 fills de 2×2 = +65k) y cada **job de Blitter ~3-5k** (versión diferida de 60 jobs = 850k). El relleno CPU por palabras tampoco salva el bloque (las escrituras a Chip con el display DPF activo suman ~130k). Lecciones generales en `docs/guides/optimization/ATRIBUCION_DE_CICLOS.md`.
+- **F4 · Rediseño del FG. HECHO (2026-10) — 12,49 → 27,41 fps:** hojas pre-renderizadas de nave y torreta (16 variantes de offset de palabra; la copia empieza una palabra a la izquierda y mide 4 → cubre posición nueva ∪ anterior, **sin job de borrado**) en un plan FG ejecutado al principio del frame, y balas/cañón por relleno CPU directo con **máscara de planos** (`fg_fill`/`fg_clear`; sin mults en el bucle). Medido: el coste real por operación es ~11k por job encolado y ~2-3k por relleno CPU (ver `ATRIBUCION_DE_CICLOS.md`). **Queda para 50 fps**: el scroll de motor (~45k, `update_scroll` XLimited — familia DT-006), compose (~16k) y el lanzamiento de jobs; camino definitivo = **FG por sprites HW** (F5: cero escrituras de lienzo). Visión OK (3 frames, sin artefactos).
 - **F2 · Scroll. RECLASIFICADO:** las «tres bandas» inferiores son un **bug de engine de la familia XLimited** (la 202 las tiene igual) → **DT-006**. No es de la demo.
 - **F3 · Fine scroll X.** Definir el contrato (`Finite` con `BPLCON1` fino) o documentar la limitación; la demo debe moverse suave.
 - **F4 · FG sin tearing y en presupuesto.** El lienzo FG single-buffer dibujado por CPU es a la vez el hotspot (63%) y la fuente del flicker; candidato: pre-render + blit o canal de sprites/BOB.
@@ -76,17 +78,94 @@ El runner ya soporta **`--sequence-step-frames N`** (`tools/run/run-demo.ts`): c
 | 101_ehb_tile_scroll_driver | **49.9** | 1.00 |
 | 126_fast_bobs | **49.9** | 1.00 |
 | 218_free_form_sprite_layer | **49.9** | 1.00 |
-| 215_jim_power | **0** | — (no llega a medir: repasar su pacing/F4.4) |
+| 215_jim_power | **0** | — (explicado: la demo no llamaba `mark_frame`; el medidor cuenta por el contador de frames — **arreglado**, 49,97 fps) |
+
+**Actualización (2026-10):** 085 y 215 resueltas (DT-007; 215 = `mark_frame` ausente); barrido
+`mark_frame` aplicado a 34 demos que no marcaban frame (la telemetría es norma; sin ella
+`measure-fps` da 0). Queda **209_reactive_loop** (su `update` no recibe `GameContext`; marcar
+requiere revisar su bucle). Medidas nuevas: 104 = 38,8 fps · 112 = 12,1 fps · 128 = 49,9 ·
+107 = **no arranca** (DT-014).
 
 Pendiente: por cada demo < 50 fps, entrada propia (síntoma + atribución con perfil/secciones
 como en la 065/066) y **«scroll brusco»** como categoría de calidad aparte del fps (cadencia
 uniforme y sin tirones es gate del `PROCEDIMIENTO` §1; las demos con scroll de la familia
 tile/xlimited deben pasar por `check-elements`/band-diff en secuencia antes de declararse
-VERIFICADAS).
+VERIFICADAS). Barrido de cadencia hecho (DT-015): 112/128/202 uniformes; **101 y 104 con
+anomalías**.
 
-## DT-007 · Demo 085 a 16,6 fps (3 fields) y mancha blanca del disco
+## DT-014 · Demo 107 (`xlimited_corkscrew`): init de ~45 s (arranca; falta bajar el init)
 
-`measure-fps 085_copper_plan_scene A500_debug` = **16,62 fps / 3,01 fields / 426.733 ciclos**. **Atribución por ablación:** sin intents del BOB → **24,99 fps / 2,00 fields / 283.920 ciclos** (el BOB ≈ **143k**); congelar la fase del cielo (sin `rebuild`) **no** cambia nada; la base (plan + 16 intents de cielo + materialize/commit) sigue a **2× presupuesto (~284k)**. El blanco alternante (1088↔2204) era el **ciclo de paleta del disco** (constante 1088 con fase congelada), no corrupción. Informe: `demos/techniques/amiga/copper/085_copper_plan_scene/VALIDATION.md`.
+**Preexistente**: `run-demo` no alcanzaba READY en 40 s (`state=2 InitStarted`); con el engine en
+HEAD falla igual; última secuencia en `out/run/107…` del 2026-09-12. Inspección en vivo: el CPU
+**progresa** por bucles grandes (`memcpy`/`DIVU`) — init patológicamente largo, no cuelgue.
+
+**Arreglos aplicados (2026-10)**: (1) `build_map_coherent` con contador incremental en vez de
+`(x + y) % 97` por celda (80k `__umodsi3` ≈ 12M ciclos) → mapas 36,4k; (2) `pre_scroll` usa
+**`scroll_burst_right_px`** en tramos de 24 px (nuevo `XLimitedPlayfield::scroll_burst_right_px`;
+equivale a los pasos, HOST-034). **Resultado: READY en ~45 s** (antes: timeout).
+
+**Lo que queda**: la fase **Y** del pre-scroll (256 pasos × 2 playfields de `scroll_down`) —
+siguiente paso `burst_down`/`burst_up` en `ScrollEngine` (espejo de `burst_right`) o reducir
+`kPreScroll`. Sellos de ciclo del init legibles por canal lateral (`g_init_stamps` en la demo).
+Después: medir fps (la espera de `measure-fps` es más corta que el init) y cadencia. Ficha:
+`demos/techniques/amiga/playfield/107_xlimited_corkscrew/VALIDATION.md`.
+
+## DT-015 · Cadencias de la familia scroll (barrido 2026-10)
+
+Captura de 6 frames consecutivos (`--sequence-step-frames 6`) + `out/tmp/cadence.mjs` (diff por
+bandas entre pares) en la banda central:
+
+| demo | pares (diff %) | veredicto |
+|---|---|---|
+| 112_xlimited_robocod | 5,5 · 5,5 · 5,4 · 5,5 · 5,5 | **uniforme** (el problema es fps: 12,1) |
+| 128_strip_scroller | 23,8 · 23,9 · 23,9 · 23,8 · 23,7 | **uniforme** (49,9 fps) |
+| 202_xlimited_dpf | 48,8 · 48,9 · 48,9 · 48,9 · 49,0 | **uniforme** (28,5 fps, 2 campos) |
+| 101_ehb_tile_scroll_driver | 30,6 · **50,7** · **0,0** · 30,4 · 30,5 | **anomalía**: un frame repetido + un salto 1,7× |
+| 104_tile_scroll_ring_dualpf | **0,0 · 0,0 · 0,0 · 64,9 · 64,8** | **escalonado**: avanza a saltos (38,8 fps) |
+
+Siguiente paso: 101 y 104 — identificar el frame exacto (los nombres `frame_NNN_fNNNN.png` traen
+el nº de frame) y perfilarlo; luego visión de secuencia en toda la familia. VALIDATIONs creadas
+(101/104/107/112/128; 202 ampliada).
+
+**Barrido ampliado (2026-10, familia restante, settle 2 s):**
+
+| demo | pares | veredicto |
+|---|---|---|
+| 110_ylimited_shooter | 43,3 · 43,3 · 43,1 · 43,1 · 43,1 | **uniforme** (el rediseño del FG no rompió la cadencia) |
+| 203_world_tilemap_xlimited | 25,4 · 25,3 · 25,6 · 25,4 · 25,5 | **uniforme** |
+| 205_xy_limited_scroll | 18,5 · 18,6 · 18,7 · 18,7 · 18,7 | **uniforme** |
+| 130_app_scroll_ladder | 18,4 · 18,5 · 18,6 · 25,7 · **0,0** | uniforme + evento final (artefacto o fase) |
+| 131_app_split_screen | 0,7 · 2,4 · 0,7 · 0,7 · 0,7 | movimiento muy leve en la banda central (medir por franjas del split) |
+| 103_tile_scroll_ring | 86,5 · **0,0** · 29,1 · 49,1 · **0,0** | irregular (separar coreografía vs artefacto con ventana mayor) |
+| 105_tile_scroll_xyunlimited_dualpf | 46,1 · **0,0** · 46,2 · **0,0** · 46,1 | **alterna 46/0** (periódico; ¿paso a 2 frames?) |
+| 132_runtime_geometry / 204_app_strip_scroll | 0,0 ×5 (por intervalo) | **`update` no se ejecuta bajo el runner** (READY ✓, frames=0, pantalla estática; el `render` sí corre) — revisar el bucle del App |
+
+**Conclusiones del barrido completo:** uniformes 112/128/202/110/203/205; 101/104/130 = artefacto
+de captura (congelado en el ready-probe frente al swap de `COP1LC`) o fase de ruta; 103/105 con
+patrones a caracterizar (ventana mayor); 132/204 con el hook de `update` muerto. VALIDATIONs
+creadas para toda la lista.
+
+## DT-007 · Demo 085 a 16,6 fps (3 fields) y mancha blanca del disco — RESUELTO
+
+`measure-fps 085_copper_plan_scene A500_debug` era **16,62 fps / 3,01 fields / 426.733 ciclos**.
+**Atribución por ablación:** sin intents del BOB → **24,99 fps / 2,00 fields / 283.920 ciclos** (el
+BOB ≈ **143k**); congelar la fase del cielo (sin `rebuild`) **no** cambiaba nada; la base (plan + 16
+intents de cielo + materialize/commit) seguía a **2× presupuesto (~284k)**. El blanco alternante
+(1088↔2204) era el **ciclo de paleta del disco** (constante 1088 con fase congelada), no corrupción.
+
+**Causa raíz (perfil por secciones, 2026-10):** `Plan::materialize` costaba **194k para ~85
+intenciones** (`sort_lines` 37k + `sort_prio` 33k + `emit` 124k) y el dibujo del disco por CPU
+byte a byte en Chip (con contención de bus) otros **~101k**; el resto de `build_frame` ~119k.
+La demo re-emitía y re-ordenaba la lista ENTERA cada frame y pintaba el BOB a mano.
+
+**Arreglo:** lista **estática por bitmap** (setup; solo cambian los `BPLxPT`) + **parcheo por
+slots** (cielo con `RasterGradientEffect::bind_slots`/`patch_words`; BOB con intents de línea fija
+para todo el rango de Y y parcheo del rango actual ∪ anterior) + **disco por Blitter** (borrado
+desde fila de ceros con módulo −8 + copia de variante pre-shifteada de 16 offsets de palabra;
+bloque de variantes en Chip). Resultado: **49,92 fps / 1,00 field / 142.102 ciclos**, visión OK
+sobre secuencia fresca. Informe y lecciones:
+`demos/techniques/amiga/copper/085_copper_plan_scene/VALIDATION.md` y
+`docs/guides/optimization/ATRIBUCION_DE_CICLOS.md`.
 
 ## DT-008 · `profile.mjs` no resuelve `g_eng_prof`
 
@@ -97,13 +176,21 @@ El símbolo vive en `.gnu.linkonce.b._ZN3eng5debug10g_eng_profE` y el `.map` no 
 ## DT-013 · Barrido de punteros DMA crudos en APIs — etapas pendientes
 
 Estudio completo y lo corregido (050/051/052 + `make_interleaved_masked_bob`) en
-`docs/engine/architecture/INTERNAL_TYPE_SYSTEM.md` §Barrido de punteros DMA crudos. Pendiente,
-por etapas (orden por relación valor/riesgo): (1) Copper `takeover_display`/`install_copper_list`
-→ `ChipView<CopperTag>` (57 ficheros, mecánico); (2) save-under `bob_save_box/restore_box` +
-`ActorDesc::save` + `SpriteLayer::m_save` → vista tipada (rizoma); (3) intenciones de sprite
-(`sprite_ptr`/`line_data`) → `ChipView<SpriteTag>`; (4) tiles/mundo (`xlimited_playfield`,
-`tile_scroll`, `field_controller`, `pattern_fill`); (5) patrón del gate en `type-tagging.mjs`
-para firmas nuevas.
+`docs/engine/architecture/INTERNAL_TYPE_SYSTEM.md` §Barrido de punteros DMA crudos. Estado por
+etapas (orden por relación valor/riesgo):
+
+1. **Copper `takeover_display`/`install_copper_list` → `ChipView<CopperTag>` — HECHA.** Firmas del
+   backend tipadas; accesores `chip_view()` (ListBuilder/SchedulerT), `active_view()`/`inactive_view()`
+   (DoubleBuffer/Plan/Scene) y `mem_view()`/`mem_view_chip()` (bloques); 61 demos convertidas (incl.
+   variantes `m_copper_views[]`, `build_copper()`, `m_clist[]`, `m_display_view`, `m_scene.active_view()`,
+   `m_cu[].mem_view_chip()`); mocks host 069/070/234/240 actualizados; flota 130/130 y suite host 411 OK;
+   humo runtime (8 demos: READY + fps de baseline + visión) sin regresión — el barrido es de tipos,
+   sin coste en ejecución.
+2. Save-under `bob_save_box/restore_box` + `ActorDesc::save` + `SpriteLayer::m_save` → vista tipada
+   (rizoma; cambiar los tres juntos).
+3. Intenciones de sprite (`sprite_ptr`/`line_data`) → `ChipView<SpriteTag>`.
+4. Tiles/mundo (`xlimited_playfield`, `tile_scroll`, `field_controller`, `pattern_fill`).
+5. Patrón del gate en `type-tagging.mjs` para firmas nuevas.
 
 ## DT-011 · FastBobLayer: hoja de márgenes MÍNIMOS congelaba la demo (126) — RESUELTO
 
@@ -124,22 +211,30 @@ rastros ni huecos). Lección para demos bajo el runner: cualquier demo que tome 
 use `run_frames` con `Wait()` es sensible a este timing; el setup robusto es
 `set_vblank_sleep(false)` (y `takeover_system` si se necesita `Wait()` de verdad).
 
-## DT-012 · FastBobLayer: el camino de DEGRADACIÓN pinta basura en el borde izquierdo (126)
+## DT-012 · FastBobLayer: el camino de DEGRADACIÓN pintaba basura en el borde izquierdo (126) — RESUELTO
 
-Al cablear el camino lento de la capa (hoja cookie-cut sin padding + `set_slow_sheet`, hecho
-en esta pasada: antes apuntaba a la hoja RÁPIDA por error) y **dispararlo** en la 126 con un
-aumento de velocidad determinista (paso 5 > pad 3 en la ventana [112,128) de cada 128 frames),
-aparecen dos síntomas: (1) una **columna de basura** (píxeles del bob repetidos verticalmente)
-en el borde izquierdo del bitmap, pantalla completa de alto; (2) en al menos una instancia la
-demo queda congelada (frame=0 con la pantalla tomada).
+Al cablear el camino lento de la capa (hoja cookie-cut sin padding + `set_slow_sheet`) y
+**dispararlo** en la 126 (velocidad > pad en una ventana determinista) aparecían: (1) una columna
+de basura en el borde izquierdo; (2) en alguna instancia, congelación.
 
-**Descartado con evidencia**: no es `m_painted` sin inicializar (está a cero); no es el orden
-de argumentos de `clear_box`; no es desajuste de layout hoja↔target (`check_bob_plan(bob,
-m_band.bob_target())` **pasa** — chequeo añadido al setup de la 126); no hay excepción.
-**Repro**: activar `speed = 5` en la ventana de la 126 (el disparo quedó comentado) y capturar
-secuencia — la columna aparece en los frames degradados. **Siguiente paso sugerido**: mirar
-el `Box` que la capa pasa a `clear_box` en la PRIMERA transición a lento (Δx del salto de
-fase) y el `m_painted` que resulta; y la geometría del target DPF en ese `clear_box`.
+**Causa raíz (2026-10):** en `bob_draw` (`engine/include/eng/graphics/bob.hpp`), hoja **planar**
+con **máscara separada** sobre destino **interleaved** (el caso de la 126: PF1 DPF) ejecutaba UN
+blit de `height*planos` filas — el truco válido para la imagen sola (el orden físico de filas
+coincide). Pero la **máscara tiene `height` filas, no `height*planos`**: el walk de la máscara se
+salía de su plano y leía Chip ajena como máscara (planos 1+ con máscara basura).
+
+**Arreglo:** ese caso va **por plano** (misma máscara en cada uno; su walk usa `src_mod`, el
+stride real de la máscara) con el paso de fila FÍSICA del destino (`row_bytes*planos − words*2`);
+el blit único se conserva para imagen sola (sin regresión de los fast paths). **HOST-439 T4b**
+nuevo (hoja planar + máscara separada → target interleaved, con canario `0xFFFF` tras la máscara:
+con el bug el interior sale con máscara=1 y falla; con el arreglo pasa — sensibilidad verificada
+revirtiendo `flat`). El ejecutor SW del test generalizó su modelo OOB (paso de fila =
+`words*2 + DMOD`; en interleaved los planos comparten bloque).
+
+**Validación en la 126:** disparo reactivado (bob0 a 5 px/frame en [112,128) de cada 128 frames —
+el camino lento ya es parte del showcase); **49,92 fps / 1,00 field / 1000 frames**; franja
+izquierda idéntica dentro/fuera de la ventana (sin columna de basura); visión OK (3 frames,
+bobs completos, sin artefactos).
 
 ## DT-010 · Deriva de API en demos: gate «compilar la flota» — RESUELTO (2026-10)
 

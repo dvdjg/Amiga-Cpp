@@ -66,7 +66,7 @@ struct AudioModesDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021603u);
 			return;
 		}
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 
 		// A0: modo GameSfxOnly (los 4 canales para el mixer) + un SFX.
 		eng::audio::AudioConfig cfg {};
@@ -80,6 +80,7 @@ struct AudioModesDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_init_ok) {
 			return;
 		}
@@ -131,13 +132,13 @@ private:
 		sched.move(eng::copper::color_register(0), 0x001u);
 		sched.move(eng::copper::color_register(1), 0x00Fu);
 		sched.end();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		return sched.ok();
 	}
 
 	bool m_init_ok = false;
 	bool m_underrun_seen = false;
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bitplane_block {};
 	eng::Block<eng::CopperTag, eng::MemoryKind::Chip> m_copper_block {};
 	eng::Block<eng::AudioTag> m_beep_block {};

@@ -28,6 +28,7 @@
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/raster_intent.hpp>
 #include <eng/graphics/sprite_limits.hpp>
+#include <eng/setup/coherence.hpp>
 
 namespace eng::graphics {
 
@@ -46,6 +47,10 @@ struct SpriteLineLayerConfig {
 	u16 data_high = 0;     ///< `SPRxDATA` constante (si `line_data == nullptr`)
 	u16 data_low = 0;      ///< `SPRxDATB` constante (si `line_data == nullptr`)
 	bool attach = false;   ///< par attached (15 colores)
+	/// Planos del display donde se parchea. El parcheo de DATA a media línea necesita hueco
+	/// de DMA en la línea: con más de `kSpriteLineDataMaxBitplanes` planos **no lo hay**
+	/// (check_sprite_line_data; `custom.cpp:10111`/`10130-10131`) y `configure` lo rechaza.
+	u8 display_planes = 4u;
 };
 
 /// **Capa de sprites rearmada por línea.** Ver la ficha del fichero.
@@ -55,7 +60,9 @@ public:
 
 	/// Valida y fija la configuración. Devuelve `false` (sin tocar el estado) si:
 	/// `lines == 0`, el tramo se sale de 512 líneas, no hay canales, la corrida
-	/// `[channel_first, channel_first+channels)` se sale de los 8, o `hpos_step == 0`.
+	/// `[channel_first, channel_first+channels)` se sale de los 8, `hpos_step == 0`, o
+	/// `display_planes` supera `kSpriteLineDataMaxBitplanes` (sin hueco de DMA para el
+	/// parcheo de DATA a media línea — `check_sprite_line_data`).
 	[[nodiscard]] constexpr bool configure(const SpriteLineLayerConfig& cfg) noexcept {
 		if (cfg.lines == 0u || cfg.channels == 0u || cfg.hpos_step == 0u) {
 			return false;
@@ -64,6 +71,9 @@ public:
 			return false;
 		}
 		if (cfg.channel_first + cfg.channels > kSpriteChannels) {
+			return false;
+		}
+		if (!eng::setup::check_sprite_line_data(cfg.display_planes).ok()) {
 			return false;
 		}
 		m_cfg = cfg;

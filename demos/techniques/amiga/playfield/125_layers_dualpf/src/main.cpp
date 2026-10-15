@@ -150,7 +150,7 @@ struct LayersDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012503u);
 			return;
 		}
-		backend.takeover_display(m_copper_ptrs[0]);
+		backend.takeover_display(m_copper_views[0]);
 		eng::debug::mark_ready(g_eng_run_status, kHeight);
 	}
 
@@ -164,7 +164,7 @@ struct LayersDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012504u);
 			return;
 		}
-		backend.install_copper_list(m_copper_ptrs[m_active]);
+		backend.install_copper_list(m_copper_views[m_active]);
 		m_active = static_cast<u8>((m_active + 1u) % kLists);
 	}
 
@@ -242,7 +242,7 @@ private:
 			return false;
 		}
 		sched.end();
-		m_copper_ptrs[list] = sched.data();
+		m_copper_views[list] = sched.chip_view();
 		m_last_words = sched.words_used();
 		return sched.ok();
 	}
@@ -365,7 +365,7 @@ private:
 	u16 m_last_words = 0;
 	eng::Block<eng::PlaneTag> m_planes_block {};
 	eng::Block<eng::CopperTag> m_copper_block {};
-	const u16* m_copper_ptrs[kLists] = {nullptr, nullptr};
+	eng::ChipView<eng::CopperTag> m_copper_views[kLists] {};
 };
 
 } // namespace

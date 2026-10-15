@@ -99,8 +99,8 @@ struct ScrollEdgeDemo {
 
 		m_patch_ok = patch_selfcheck(backend);
 
-		const eng::u16* cl = build_copper();
-		if (cl == nullptr) {
+		const eng::ChipView<eng::CopperTag> cl = build_copper();
+		if (cl.empty()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021003u);
 			return;
 		}
@@ -116,8 +116,8 @@ struct ScrollEdgeDemo {
 		m_scroll_ok = scroll_step(backend);
 		// Linea de raster real al terminar los blits de CPU: suelo de la ventana del Copper.
 		m_cpu_end_line = backend.current_raster_line();
-		const eng::u16* cl = build_copper();
-		if (cl != nullptr) {
+		const eng::ChipView<eng::CopperTag> cl = build_copper();
+		if (!cl.empty()) {
 			backend.install_copper_list(cl);
 		}
 		// Telemetria del scroll fino en `detail` (bits 16-23, convencion `cameraX`): el runner
@@ -228,7 +228,7 @@ private:
 		return true;
 	}
 
-	[[nodiscard]] const eng::u16* build_copper() {
+	[[nodiscard]] eng::ChipView<eng::CopperTag> build_copper() {
 		eng::copper::SchedulerT<false> sched { m_copper };
 		sched.emit_planes_display(0x2c81, 0x2cc1, eng::effects::FineScroll::ddfstrt(), 0x00d0,
 					  kRowBytes, 0x1200, 1u, m_bitmap.mem_view_chip(), kPlaneBytes);
@@ -262,9 +262,9 @@ private:
 		sched.wait_line(0xf8u);
 		sched.end();
 		if (!sched.ok()) {
-			return nullptr;
+			return {};
 		}
-		return sched.data();
+		return sched.chip_view();
 	}
 
 	static constexpr eng::Palette32 kPalette {{

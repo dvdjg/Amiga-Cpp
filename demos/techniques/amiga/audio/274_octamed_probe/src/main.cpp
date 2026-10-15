@@ -76,7 +76,7 @@ struct OctaMedProbe {
 			eng::debug::mark_failed(g_eng_run_status, 0x00027403u);
 			return;
 		}
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 
 		// Diagnostico: `_Wait1line` del playroutine gira hasta que CAMBIA el byte bajo de
 		// VHPOSR (`$dff007`, contador H). Si aqui no cambia, ese bucle es un cuelgue.
@@ -117,6 +117,7 @@ struct OctaMedProbe {
 	}
 
 	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		m_audio.update_music(); // el playroutine MED es frame-driven
 		if (!m_ok || kReadyFrame == 0u) {
 			return;
@@ -144,12 +145,12 @@ private:
 		sched.move(eng::copper::color_register(0), 0x002u);
 		sched.move(eng::copper::color_register(1), 0x00Fu);
 		sched.end();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		return sched.ok();
 	}
 
 	bool m_ok = false;
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bitplane_block {};
 	eng::Block<eng::CopperTag, eng::MemoryKind::Chip> m_copper_block {};
 	eng::audio::AudioSystem m_audio {};

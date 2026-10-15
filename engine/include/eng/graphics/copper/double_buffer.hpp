@@ -108,6 +108,15 @@ public:
 	constexpr u16* active_words() const {
 		return reinterpret_cast<u16*>(m_blocks[m_active].view.data());
 	}
+
+	/// **Vista tipada (Chip)** del bloque activo/inactivo: para `takeover_display`/
+	/// `install_copper_list` (la procedencia DMA viaja en el tipo).
+	[[nodiscard]] constexpr eng::ChipView<eng::CopperTag> active_view() const {
+		return m_blocks[m_active].mem_view();
+	}
+	[[nodiscard]] constexpr eng::ChipView<eng::CopperTag> inactive_view() const {
+		return m_blocks[m_active ^ 1u].mem_view();
+	}
 	/// Words del bloque que la CPU debe escribir este frame.
 	constexpr u16* inactive_words() const {
 		return reinterpret_cast<u16*>(m_blocks[m_active ^ 1u].view.data());
@@ -128,7 +137,7 @@ public:
 	template <typename Backend>
 	void takeover(Backend& backend) const {
 		if (m_ok) {
-			backend.takeover_display(active_words());
+			backend.takeover_display(active_view());
 		}
 	}
 
@@ -137,7 +146,7 @@ public:
 	template <typename Backend>
 	void install(Backend& backend) const {
 		if (m_ok) {
-			backend.install_copper_list(active_words());
+			backend.install_copper_list(active_view());
 		}
 	}
 

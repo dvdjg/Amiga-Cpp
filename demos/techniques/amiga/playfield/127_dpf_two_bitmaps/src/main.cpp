@@ -132,7 +132,7 @@ struct DpfTwoBitmapsDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012703u);
 			return;
 		}
-		backend.takeover_display(m_copper_ptrs[0]);
+		backend.takeover_display(m_copper_views[0]);
 		m_active = 1u;
 		eng::debug::mark_ready(g_eng_run_status, kHeight);
 	}
@@ -158,7 +158,7 @@ struct DpfTwoBitmapsDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012704u);
 			return;
 		}
-		backend.install_copper_list(m_copper_ptrs[m_active]);
+		backend.install_copper_list(m_copper_views[m_active]);
 		m_active = static_cast<u8>((m_active + 1u) % kLists);
 
 		// BOB sobre PF1: `bob_target()` incluye el offset de scroll, asi que queda fijo en pantalla;
@@ -254,7 +254,7 @@ private:
 			return false;
 		}
 		sched.end();
-		m_copper_ptrs[list] = sched.data();
+		m_copper_views[list] = sched.chip_view();
 		return sched.ok();
 	}
 
@@ -269,7 +269,7 @@ private:
 	eng::graphics::Sprite m_sprite {};
 	eng::scene::FastBobLayer m_bobs {};
 	eng::graphics::FramePlan m_plan {};
-	const u16* m_copper_ptrs[kLists] = {nullptr, nullptr};
+	eng::ChipView<eng::CopperTag> m_copper_views[kLists] {};
 	u8 m_active = 0u;
 };
 

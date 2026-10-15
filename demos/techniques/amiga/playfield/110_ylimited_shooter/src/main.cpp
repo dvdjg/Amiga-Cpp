@@ -179,6 +179,20 @@ constexpr eng::u16 kDisplayH = kViewportH + 2 * kTileH; // anillo = visible + 2 
 // Mundo: 400 x 2048 px -> 25 x 128 tiles.
 constexpr eng::u16 kMapCols = 25;
 constexpr eng::u16 kMapRows = 128;
+
+// FG por hojas pre-renderizadas: 16 variantes (offset de palabra de `x`) por objeto; el
+// Blitter copia palabras ya alineadas. Las cajas cubren TODA la forma (borrado + dibujo).
+// Coste por frame: 4 jobs CopyRect (~3-5k cada uno) en vez de ~30 `fill_rect` (~6,5k/llamada).
+constexpr eng::u16 kShipBoxW = 20u;   // bbox de la nave (x-2 .. x+17)
+constexpr eng::u16 kShipBoxH = 20u;
+constexpr eng::u16 kTurretBoxW = 28u; // bbox de la torreta (x-6 .. x+21)
+constexpr eng::u16 kTurretBoxH = 18u;
+constexpr eng::u16 kShipSheetWords = 4u;   // 64 bits: contenido en [16, 58] → cubre prev ∪ nueva
+constexpr eng::u16 kTurretSheetWords = 4u; // (la copia empieza una palabra a la izquierda de `x0`)
+constexpr eng::u16 kShipSheetPlaneWords = kShipSheetWords * kShipBoxH;
+constexpr eng::u16 kTurretSheetPlaneWords = kTurretSheetWords * kTurretBoxH;
+constexpr eng::u32 kShipSheetBytes = 16u * 3u * kShipSheetPlaneWords * 2u;
+constexpr eng::u32 kTurretSheetBytes = 16u * 3u * kTurretSheetPlaneWords * 2u;
 constexpr eng::u16 kTilesetCount = 128;
 
 constexpr playfield::ScrollConsts kScrollConsts {
@@ -204,22 +218,40 @@ constexpr eng::u16 kPalette[16] {
 
 eng::u16 g_map[kMapCols * kMapRows] {};
 
-// Relleno de rect por Blitter D-only (sink del lienzo FG): los rects grandes
-// (borrados de nave/torreta) van por hardware; los pequeños siguen por CPU.
-// Patrón de la demo 215 (`Scene::set_rect_fill_sink`). Medido: ~12.5 fps vs
-// ~8.7 fps sin el sink (el camino CPU por píxel es más caro que el fill HW).
-bool rect_fill_cb(void* ctx, eng::u8* base, eng::u8 planes, eng::u32 plane_stride,
-                  eng::u32 row_stride, eng::u16 row_bytes, eng::u16 bw, eng::u16 bh,
-                  eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h, eng::u8 color) {
-	auto* b = static_cast<eng::amiga::AmigaBackend*>(ctx);
-	return b->blitter_fill_rect(base, planes, plane_stride, row_stride, row_bytes, bw, bh, x, y, w,
-	                            h, color, true);
+/// Escribe un rect de color en una hoja de 16 variantes (layout planar: variante, plano,
+/// filas × `words`). `lx`/`ly` van en coordenadas LOCALES a la caja del objeto y la variante
+/// `v` desplaza el contenido `v` bits: la copia del Blitter cae en la palabra de `x`.
+/// Solo se usa en el setup (el coste de init no importa).
+void sheet_rect(eng::u8* base, eng::u16 v, eng::u16 words, eng::u16 rows, eng::u8 planes,
+		eng::u16 lx, eng::u16 ly, eng::u16 w, eng::u16 h, eng::u8 color) {
+	const eng::u16 b0 = static_cast<eng::u16>(lx + v);
+	const eng::u16 b1 = static_cast<eng::u16>(lx + v + w - 1u);
+	const eng::u16 first = static_cast<eng::u16>(0xffffu >> (b0 & 15u));
+	const eng::u16 last = static_cast<eng::u16>(0xffffu << (15u - (b1 & 15u)));
+	for (eng::u8 p = 0; p < planes; ++p) {
+		for (eng::u16 r = 0; r < h; ++r) {
+			eng::u16* row = reinterpret_cast<eng::u16*>(
+				base + (static_cast<eng::u32>(v) * planes + p) *
+					       static_cast<eng::u32>(words) * rows * 2u +
+				static_cast<eng::u32>(ly + r) * words * 2u);
+			for (eng::u16 wd = b0 >> 4u; wd <= (b1 >> 4u); ++wd) {
+				eng::u16 mask = 0xffffu;
+				if (wd == (b0 >> 4u)) mask = static_cast<eng::u16>(mask & first);
+				if (wd == (b1 >> 4u)) mask = static_cast<eng::u16>(mask & last);
+				const eng::u16 val = ((color >> p) & 1u) != 0u ? mask : 0u;
+				row[wd] = static_cast<eng::u16>((row[wd] & ~mask) | val);
+			}
+		}
+	}
 }
 
 struct DemoGame {
 	playfield::XlimitedScene<kScrollConsts> scene {};
 	playfield::XlimitedSceneConfig scene_cfg {};
 	eng::graphics::FramePlan plan {};
+	/// Blits del FG (nave/torreta): se encolan aquí y se ejecutan en ráfaga al principio
+	/// del frame (el lienzo FG es single-buffer; el haz no debe alcanzar los objetos).
+	eng::graphics::FramePlan fg_plan {};
 	eng::u8 patrol = 0;          // fase del vaivén X
 	eng::u8 patrol_acc = 0;
 	bool ready = false;
@@ -239,10 +271,18 @@ struct DemoGame {
 	eng::s16 m_cannon_py[3] {};
 	bool m_cannon_valid = false;
 
+	// Hojas del FG (Chip, fuente del Blitter) y geometría del lienzo (interleaved).
+	eng::Block<eng::BobTag> m_ship_sheet {};
+	eng::Block<eng::BobTag> m_turret_sheet {};
+	eng::u8* m_fg_base = nullptr;
+	eng::u16 m_fg_row_bytes = 0;  // bytes por fila (plano a plano)
+	eng::u32 m_fg_row_stride = 0; // salto de fila (planes × row_bytes)
+	eng::u16 m_fg_guard = 0;      // guarda izquierda del lienzo (x pantalla → x bitmap)
+
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		// Perfilado por secciones (opt-in): scroll+blits, compose y FG. ~2 lecturas del
 		// contador por sección y frame; atribuye los fields por elemento (F1).
-		ENG_PROF_INIT(3);
+		ENG_PROF_INIT(7);
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({300u * 1024u, 16u * 1024u, 8u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011001u);
@@ -292,10 +332,25 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011002u);
 			return;
 		}
-		// Lienzo FG acelerado por Blitter: rects >=64 px por D-only (sink), resto CPU.
-		scene.set_rect_fill_sink(eng::playfield::RectFillSink {&backend, &rect_fill_cb});
-		scene.set_raster(&eng::playfield::kBlitterRaster,
-		                 eng::playfield::RasterPolicy {eng::playfield::AccelMode::Auto, 64u, true});
+		// FG por hojas + Blitter: el lienzo (interleaved, con guarda izquierda) se toca con
+		// 4 jobs `CopyRect` por frame + escrituras CPU diminutas (balas/cañón). Sin
+		// `fill_rect`: cada llamada costaba ~6,5k ciclos (medido; ATRIBUCION_DE_CICLOS.md).
+		{
+			const eng::playfield::PlayfieldHardwareView hv = scene.canvas_fg().hardware_view();
+			m_fg_base = hv.bitplanes.ptr();
+			m_fg_row_bytes = hv.bitmap_bytes_per_row;
+			m_fg_row_stride = static_cast<eng::u32>(hv.planes) * hv.bitmap_bytes_per_row;
+			m_fg_guard = static_cast<eng::u16>(hv.bitmap_bytes_per_row * 8u - hv.viewport_w);
+		}
+		m_ship_sheet = backend.memory_manager().chip().reserve<eng::BobTag>(kShipSheetBytes, 16u);
+		m_turret_sheet =
+			backend.memory_manager().chip().reserve<eng::BobTag>(kTurretSheetBytes, 16u);
+		if (!m_ship_sheet.valid() || !m_turret_sheet.valid()) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00011007u);
+			return;
+		}
+		build_fg_sheets();
+		build_fg_sheets();
 		// Arranca abajo del mundo, a media anchura (la nave sube). Con `wrap_y` el
 		// scroll es infinito: al pasar la fila 0 continúa por la 127 (sin teleport).
 		scene.bg().set_camera(kViewportW / 4, static_cast<eng::s32>(kMapRows * kTileH) - kViewportH);
@@ -320,6 +375,118 @@ struct DemoGame {
 		eng::debug::mark_ready(g_eng_run_status, 0x11000000u);
 	}
 
+	// --- FG por hojas + Blitter -------------------------------------------------
+
+	/// Encola una copia de caja del FG (`CopyRect` en `fg_plan`): destino **interleaved**
+	/// del lienzo (plano p a `row_bytes`, filas a `planes*row_bytes`), en palabras ya
+	/// alineadas (`bx >> 4`). `src_mod` repite la fila fuente (borrado: `-(words*2)`).
+	void blit_box(eng::s16 bx, eng::s16 by, const eng::u16* src, eng::s16 src_mod,
+		      eng::u32 src_plane_stride, eng::u16 words, eng::u16 rows) {
+		if (bx < 0 || by < 0) return; // la trayectoria acotada lo garantiza
+		eng::graphics::BlitJob job {};
+		job.kind = eng::graphics::BlitJobKind::CopyRect;
+		job.source = eng::graphics::BlitPtr::from_storage(src);
+		job.destination = eng::graphics::BlitPtr::from_storage(
+			reinterpret_cast<eng::u16*>(m_fg_base +
+				static_cast<eng::u32>(by) * m_fg_row_stride) +
+			(static_cast<eng::u16>(bx) >> 4u));
+		job.words_per_row = words;
+		job.height = rows;
+		job.source_modulo_bytes = src_mod;
+		job.destination_modulo_bytes = eng::graphics::mod16(
+			static_cast<eng::s32>(m_fg_row_stride) - static_cast<eng::s32>(words) * 2);
+		job.bitplane_count = 3u;
+		job.source_plane_stride_bytes = src_plane_stride;
+		job.destination_plane_stride_bytes = m_fg_row_bytes;
+		(void)fg_plan.add_copy_rect(job);
+	}
+
+	/// Relleno CPU directo sobre el lienzo FG (balas y puntos del cañón: demasiado pequeños
+	/// para un job). Escribe SOLO los planos con bit a 1 en `color`: el lienzo FG solo
+	/// contiene objetos, así que un plano sin bits del objeto ya está a 0 en su caja
+	/// (`fg_clear` limpia los planos del objeto anterior). Sin multiplicaciones en el bucle.
+	void fg_fill(eng::s16 x, eng::s16 y, eng::u16 w, eng::u16 h, eng::u8 color) {
+		if (x < 0 || y < 0 || w == 0u || h == 0u) return;
+		const eng::u16 bx0 = static_cast<eng::u16>(x + static_cast<eng::s16>(m_fg_guard));
+		const eng::u16 bx1 = static_cast<eng::u16>(bx0 + w - 1u);
+		const eng::u16 w0 = bx0 >> 4u;
+		const eng::u16 w1 = bx1 >> 4u;
+		const eng::u16 first = static_cast<eng::u16>(0xffffu >> (bx0 & 15u));
+		const eng::u16 last = static_cast<eng::u16>(0xffffu << (15u - (bx1 & 15u)));
+		const eng::u32 row_step = m_fg_row_stride >> 1u; // en palabras
+		const eng::u32 plane_step = m_fg_row_bytes >> 1u;
+		eng::u16* row = reinterpret_cast<eng::u16*>(
+				       m_fg_base + static_cast<eng::u32>(y) * m_fg_row_stride) +
+			       w0;
+		for (eng::u8 p = 0; p < 3u; ++p) {
+			if (((color >> p) & 1u) == 0u) continue;
+			eng::u16* r = row + static_cast<eng::u32>(p) * plane_step;
+			for (eng::u16 rr = 0; rr < h; ++rr) {
+				eng::u16* cell = r;
+				for (eng::u16 wd = w0; wd <= w1; ++wd, ++cell) {
+					eng::u16 mask = 0xffffu;
+					if (wd == w0) mask = static_cast<eng::u16>(mask & first);
+					if (wd == w1) mask = static_cast<eng::u16>(mask & last);
+					*cell = static_cast<eng::u16>(*cell | mask);
+				}
+				r += row_step;
+			}
+		}
+	}
+
+	/// Borrado CPU directo: limpia los planos de `plane_mask` en la caja (los que ocupaba
+	/// el objeto anterior; p. ej. bala = plano 1, cañón = planos 0+2).
+	void fg_clear(eng::s16 x, eng::s16 y, eng::u16 w, eng::u16 h, eng::u8 plane_mask) {
+		if (x < 0 || y < 0 || w == 0u || h == 0u) return;
+		const eng::u16 bx0 = static_cast<eng::u16>(x + static_cast<eng::s16>(m_fg_guard));
+		const eng::u16 bx1 = static_cast<eng::u16>(bx0 + w - 1u);
+		const eng::u16 w0 = bx0 >> 4u;
+		const eng::u16 w1 = bx1 >> 4u;
+		const eng::u16 first = static_cast<eng::u16>(0xffffu >> (bx0 & 15u));
+		const eng::u16 last = static_cast<eng::u16>(0xffffu << (15u - (bx1 & 15u)));
+		const eng::u32 row_step = m_fg_row_stride >> 1u;
+		const eng::u32 plane_step = m_fg_row_bytes >> 1u;
+		eng::u16* row = reinterpret_cast<eng::u16*>(
+				       m_fg_base + static_cast<eng::u32>(y) * m_fg_row_stride) +
+			       w0;
+		for (eng::u8 p = 0; p < 3u; ++p) {
+			if (((plane_mask >> p) & 1u) == 0u) continue;
+			eng::u16* r = row + static_cast<eng::u32>(p) * plane_step;
+			for (eng::u16 rr = 0; rr < h; ++rr) {
+				eng::u16* cell = r;
+				for (eng::u16 wd = w0; wd <= w1; ++wd, ++cell) {
+					eng::u16 mask = 0xffffu;
+					if (wd == w0) mask = static_cast<eng::u16>(mask & first);
+					if (wd == w1) mask = static_cast<eng::u16>(mask & last);
+					*cell = static_cast<eng::u16>(*cell & ~mask);
+				}
+				r += row_step;
+			}
+		}
+	}
+
+	/// Prerenderiza las hojas del FG (setup): nave y torreta con sus detalles en 16
+	/// variantes de offset de palabra. Cero coste por frame.
+	void build_fg_sheets() {
+		eng::u8* const ship = m_ship_sheet.view.data();
+		eng::u8* const turret = m_turret_sheet.view.data();
+		for (eng::u16 v = 0; v < 16u; ++v) {
+			// Nave (origen local = (x-2, y-8), contenido en el bit 16+v): morro, cabina,
+			// cuerpo, base, motor.
+			sheet_rect(ship, v, kShipSheetWords, kShipBoxH, 3u, 25u, 2u, 2u, 4u, 2u);
+			sheet_rect(ship, v, kShipSheetWords, kShipBoxH, 3u, 24u, 6u, 4u, 3u, 6u);
+			sheet_rect(ship, v, kShipSheetWords, kShipBoxH, 3u, 21u, 9u, 10u, 4u, 1u);
+			sheet_rect(ship, v, kShipSheetWords, kShipBoxH, 3u, 18u, 13u, 16u, 4u, 3u);
+			sheet_rect(ship, v, kShipSheetWords, kShipBoxH, 3u, 23u, 17u, 6u, 3u, 4u);
+			// Torreta (origen local = (x-6, y-1), contenido en el bit 16+v): base, cuerpo,
+			// cúpula, ojo.
+			sheet_rect(turret, v, kTurretSheetWords, kTurretBoxH, 3u, 22u, 13u, 16u, 4u, 3u);
+			sheet_rect(turret, v, kTurretSheetWords, kTurretBoxH, 3u, 24u, 7u, 12u, 6u, 4u);
+			sheet_rect(turret, v, kTurretSheetWords, kTurretBoxH, 3u, 27u, 3u, 6u, 4u, 6u);
+			sheet_rect(turret, v, kTurretSheetWords, kTurretBoxH, 3u, 29u, 4u, 2u, 2u, 7u);
+		}
+	}
+
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!ready) return;
@@ -327,6 +494,8 @@ struct DemoGame {
 
 		plan.clear();
 		plan.set_blit_budget_limits({8192, 16384, 4, 160});
+		fg_plan.clear();
+		fg_plan.set_blit_budget_limits({8192, 16384, 4, 160});
 
 		// --- FG: objetos (nave + balas + torreta) -----------------------------
 		// Se pinta NADA MÁS arrancar el frame, antes del scroll/compose: el lienzo FG es
@@ -336,7 +505,7 @@ struct DemoGame {
 		ENG_PROF_BEGIN(2); // sección 2: FG (objetos)
 		const eng::s16 ship_y = static_cast<eng::s16>(kViewportH - 16); // fila visible más baja
 		{
-			auto fg = scene.canvas_fg_surface();
+			ENG_PROF_BEGIN(4); // sección 4 (diagnóstico): estado + puntería (trig)
 
 			// 1) Estado nuevo (sin tocar el bitmap): X de la nave, disparo y balas.
 			if (m_ship_dir == 0) { ++m_ship_x; if (m_ship_x >= 200) m_ship_dir = 1; }
@@ -358,45 +527,55 @@ struct DemoGame {
 			const qa ddy = eng::math::scalar_traits<qa>::from_int(ship_cy - ey);
 			const auto aim = eng::math::angle_of(eng::math::Vec<2, qa> {{ddx, ddy}});
 			const eng::math::Vec<2, qa> dir = eng::math::from_angle(aim);
+			ENG_PROF_END(4);
 
-			// 3) Nave: borrado del área completa (rect >=64 px → Blitter D-only) y forma
-			//    con detalles (morro, cuerpo, cabina, base, motor).
-			fg.fill_rect(static_cast<eng::s16>(m_ship_px - 2), static_cast<eng::s16>(ship_y - 8), 20, 20, 0);
-			fg.fill_rect(static_cast<eng::s16>(m_ship_x + 7), static_cast<eng::s16>(ship_y - 6), 2, 4, 2);  // morro
-			fg.fill_rect(static_cast<eng::s16>(m_ship_x + 6), static_cast<eng::s16>(ship_y - 2), 4, 3, 6);  // cabina
-			fg.fill_rect(static_cast<eng::s16>(m_ship_x + 3), static_cast<eng::s16>(ship_y + 1), 10, 4, 1); // cuerpo
-			fg.fill_rect(m_ship_x, static_cast<eng::s16>(ship_y + 5), 16, 4, 3);                            // base
-			fg.fill_rect(static_cast<eng::s16>(m_ship_x + 5), static_cast<eng::s16>(ship_y + 9), 6, 3, 4);  // motor
-			m_ship_px = m_ship_x;
-
-			// 4) Balas: por bala, borrado de la posición previa + avance + repintado
-			//    pegados (mismo par de operaciones, sin trabajo intermedio).
-			for (auto& b : m_bullets) {
-				if (!b.live) continue;
-				fg.fill_rect(b.x, b.py, 2, 6, 0);
-				b.y = static_cast<eng::s16>(b.y - 6);
-				if (b.y < 2) { b.live = false; continue; }
-				fg.fill_rect(b.x, b.y, 2, 5, 2);
-				b.py = b.y;
+			ENG_PROF_BEGIN(5); // sección 5: nave + balas
+			// 3) Nave: UN blit — la copia empieza una palabra a la izquierda de la caja y mide
+			//    4 palabras: el contenido (bit 16+v) cubre la posición NUEVA y la anterior
+			//    (movimiento ≤ 16 px/frame), así que no hace falta borrado aparte. La copia
+			//    va alineada a palabra (16 variantes en la hoja).
+			{
+				const eng::s16 bx = static_cast<eng::s16>(m_ship_x - 2 + m_fg_guard - 16);
+				const eng::u16 v = static_cast<eng::u16>((bx + 16) & 15);
+				blit_box(bx, static_cast<eng::s16>(ship_y - 8),
+					 reinterpret_cast<const eng::u16*>(m_ship_sheet.view.data()) +
+						 static_cast<eng::u32>(v) * 3u * kShipSheetPlaneWords,
+					 0, kShipSheetPlaneWords * 2u, kShipSheetWords, kShipBoxH);
+				m_ship_px = m_ship_x;
 			}
 
-			// 5) Torreta enemiga: vaivén lento (además de apuntar al jugador); se borra el
-			//    área previa (rect grande → Blitter) y se dibuja una forma con cúpula, ojo
-			//    y base (nada de cuadrado plano). El cañón son 3 puntos que siguen a la nave.
+			// 4) Balas: CPU directo (2×6 px): borrado de la posición previa + avance +
+			//    repintado pegados (mismo par de operaciones, sin trabajo intermedio).
+			for (auto& b : m_bullets) {
+				if (!b.live) continue;
+				fg_clear(b.x, b.py, 2u, 6u, 2u); // la bala vive en el plano 1 (color 2)
+				b.y = static_cast<eng::s16>(b.y - 6);
+				if (b.y < 2) { b.live = false; continue; }
+				fg_fill(b.x, b.y, 2u, 5u, 2u);
+				b.py = b.y;
+			}
+			ENG_PROF_END(5);
+
+			ENG_PROF_BEGIN(6); // sección 6: torreta + cañón
+			// 5) Torreta enemiga: vaivén lento (además de apuntar al jugador); 2 blits
+			//    (borrado + copia de variante). El cañón son 3 puntos que siguen a la nave.
 			m_enemy_x += m_enemy_dir;
 			if (m_enemy_x >= 120) m_enemy_dir = -1;
 			else if (m_enemy_x <= 24) m_enemy_dir = 1;
 			if (m_cannon_valid) {
 				for (eng::u8 i = 0; i < 3u; ++i) {
-					fg.fill_rect(m_cannon_px[i], m_cannon_py[i], 2, 2, 0);
+					fg_clear(m_cannon_px[i], m_cannon_py[i], 2u, 2u, 5u); // puntos: planos 0+2
 				}
 			}
-			fg.fill_rect(static_cast<eng::s16>(m_enemy_px - 6), static_cast<eng::s16>(m_enemy_y - 1), 28, 18, 0);
-			fg.fill_rect(m_enemy_x, static_cast<eng::s16>(m_enemy_y + 12), 16, 4, 3);           // base
-			fg.fill_rect(static_cast<eng::s16>(m_enemy_x + 2), static_cast<eng::s16>(m_enemy_y + 6), 12, 6, 4); // cuerpo
-			fg.fill_rect(static_cast<eng::s16>(m_enemy_x + 5), static_cast<eng::s16>(m_enemy_y + 2), 6, 4, 6);  // cúpula
-			fg.fill_rect(static_cast<eng::s16>(m_enemy_x + 7), static_cast<eng::s16>(m_enemy_y + 3), 2, 2, 7);  // ojo
-			m_enemy_px = m_enemy_x;
+			{
+				const eng::s16 bx = static_cast<eng::s16>(m_enemy_x - 6 + m_fg_guard - 16);
+				const eng::u16 v = static_cast<eng::u16>((bx + 16) & 15);
+				blit_box(bx, static_cast<eng::s16>(m_enemy_y - 1),
+					 reinterpret_cast<const eng::u16*>(m_turret_sheet.view.data()) +
+						 static_cast<eng::u32>(v) * 3u * kTurretSheetPlaneWords,
+					 0, kTurretSheetPlaneWords * 2u, kTurretSheetWords, kTurretBoxH);
+				m_enemy_px = m_enemy_x;
+			}
 			for (eng::u8 i = 0; i < 3u; ++i) {
 				const qa li = eng::math::scalar_traits<qa>::from_int(
 					static_cast<int>(2u + i * 2u));
@@ -404,9 +583,16 @@ struct DemoGame {
 					ex + (eng::math::mul_norm(dir.v[0], li).v >> 6));
 				m_cannon_py[i] = static_cast<eng::s16>(
 					ey + (eng::math::mul_norm(dir.v[1], li).v >> 6));
-				fg.fill_rect(m_cannon_px[i], m_cannon_py[i], 2, 2, 5);
+				fg_fill(m_cannon_px[i], m_cannon_py[i], 2u, 2u, 5u);
 			}
 			m_cannon_valid = true;
+			ENG_PROF_END(6);
+		}
+		// Ejecuta la ráfaga del FG AQUÍ (temprano): el lienzo FG es single-buffer y el haz
+		// barre la torreta (y≈36) ~5.6 ms tras el VBlank; los 4 jobs terminan antes.
+		if (!backend.execute_frame_plan(fg_plan)) {
+			ready = false;
+			return;
 		}
 		ENG_PROF_END(2);
 

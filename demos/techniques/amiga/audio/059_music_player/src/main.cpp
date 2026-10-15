@@ -79,7 +79,7 @@ struct MusicPlayerDemo {
 			return;
 		}
 
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 
 		if (!m_sfx.init(backend.memory_manager())) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00005904u);
@@ -97,6 +97,7 @@ struct MusicPlayerDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		// La música (si hubiera módulo) avanza aquí, una vez por frame.
 		m_music.update();
 		(void)context;
@@ -133,7 +134,7 @@ private:
 
 		m_copper_ok = sched.ok();
 		m_copper_words = sched.words_used();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		return m_copper_ok;
 	}
 
@@ -141,7 +142,7 @@ private:
 	bool m_copper_ok = false;
 	bool m_music_ok = false;
 	eng::u16 m_copper_words = 0;
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::Block<eng::AudioTag> m_alarm_block {};
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bitplane_block {};
 	eng::Block<eng::CopperTag, eng::MemoryKind::Chip> m_copper_block {};

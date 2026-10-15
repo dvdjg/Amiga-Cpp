@@ -87,10 +87,12 @@ struct LayerDemo {
 		build_band(m_sprite.view.as_words().data(), 1, 96u, false);
 		build_band(m_sprite.view.as_words().data(), 2, 64u, true);
 		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00021103u); return; }
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 		eng::debug::mark_ready(g_eng_run_status, 0x00021100u);
 	}
-	void update(eng::amiga::AmigaBackend&, eng::GameContext&) {}
+	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
+	}
 	void render(eng::amiga::AmigaBackend&, eng::GameContext& c) {
 		eng::debug::probe_when_ready(g_eng_run_status, c.frame.frame_index);
 	}
@@ -159,7 +161,7 @@ private:
 		sched.wait_line(0xf8);
 		sched.end();
 		m_copper_ok = sched.ok();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		return m_copper_ok;
 	}
 
@@ -177,7 +179,7 @@ private:
 	}};
 
 	bool m_copper_ok = false;
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::effects::RiskyWoodsLayer m_layers[3] {};
 	eng::Block<eng::PlaneTag> m_bitplane {};
 	eng::Block<eng::CopperTag> m_copper {};

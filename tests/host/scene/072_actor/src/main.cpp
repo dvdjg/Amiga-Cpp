@@ -413,7 +413,7 @@ void test_emit_save_under() {
 	alloc.reset(RepresentationBudget {8u, 10000u, 0u});
 	ActorDesc d = make_desc();
 	d.background = BackgroundPolicy::SaveUnder;
-	d.save[0] = eng::Span<eng::u16> {g_save, 64u};
+	d.save[0] = chip_view(g_save);
 	d.save_words_per_row = 2u; // con desplazamiento fino el blit cubre 1 palabra extra
 	d.save_height = 8u;
 	const ActorId id = store.add(d, alloc);
@@ -1267,7 +1267,7 @@ void test_bob_save_under_helpers() {
 	b.planes = 1u;
 	b.layout = BobLayout::Planar;
 	BobTarget t = make_target();
-	eng::Span<eng::u16> save {g_save, 64u};
+	const auto save = chip_view(g_save);
 
 	// Guardar la caja (10..26, 20..28): con shift (x=10) cubre 1 palabra extra -> 2 palabras.
 	FramePlan plan {};

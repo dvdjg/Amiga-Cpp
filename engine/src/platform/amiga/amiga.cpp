@@ -639,7 +639,7 @@ graphics::SpriteCollisionResult AmigaBackend::read_sprite_collision() {
 	return graphics::decode_clxdat(custom_base[custom_clxdat_offset]);
 }
 
-void AmigaBackend::takeover_display(const u16* copper_words) {
+void AmigaBackend::takeover_display(eng::ChipView<eng::CopperTag> copper_words) {
 	// Al arrancar, Kickstart/AmigaDOS dejan viva toda la maquina de
 	// interrupciones y DMA: exec/graphics/intuition tienen sus handlers
 	// de VBL/ports/CIAA armados, y Agnus sigue fetchando el sprite del
@@ -673,7 +673,7 @@ void AmigaBackend::takeover_display(const u16* copper_words) {
 	custom_base[custom_copcon_offset] = copcon_cdang;
 
 	// 4) Programar nuestra copperlist (puntero COP1LC como LONG).
-	*cop1lc = reinterpret_cast<u32>(copper_words);
+	*cop1lc = static_cast<eng::u32>(copper_words.address(0).value);
 
 	// 5) Esperar el arranque de VBlank (linea 311 -> 0) para que el Copper
 	//    arranque ALINEADO al frame y no a media pantalla. Misma espera
@@ -692,7 +692,7 @@ void AmigaBackend::takeover_display(const u16* copper_words) {
 	m_display_taken = true;
 }
 
-void AmigaBackend::install_copper_list(const u16* copper_words) {
+void AmigaBackend::install_copper_list(eng::ChipView<eng::CopperTag> copper_words) {
 	// SWAP de copperlist (doble buffer; la 201 reinstala cada frame).
 	// Solo actualizamos el puntero: el Copper recarga COP1LC solo al comienzo
 	// del proximo VBlank. NUNCA COPJMP1 aqui: reiniciaria el Copper a media
@@ -706,7 +706,7 @@ void AmigaBackend::install_copper_list(const u16* copper_words) {
 		takeover_display(copper_words);
 		return;
 	}
-	*cop1lc = reinterpret_cast<u32>(copper_words);
+	*cop1lc = static_cast<eng::u32>(copper_words.address(0).value);
 }
 
 void AmigaBackend::stop_display() {

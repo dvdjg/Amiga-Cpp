@@ -22,3 +22,13 @@ la cubrirá junto con la 110 y la 201, y entonces se repetirán estas medidas.
 ## Deuda registrada
 
 DT-006 (bandas inferiores de la familia XLimited) · DT-004 (`measure-fps` sin resolver símbolos en 202 release).
+
+## Cadencia (2026-10)
+
+| Medida | Comando | Resultado | Lectura |
+|---|---|---|---|
+| fps debug | `node tools/debug/measure-fps.mjs 202_xlimited_dpf A500_debug --json` | **28,45 fps · 2,01 fields · 285.673 ciclos** (DT-009) | 2 campos por frame; excepción documentada pendiente |
+| cadencia (6 frames consecutivos, banda y=64..191) | `run-demo.sh … --sequence-step-frames 6` + `out/tmp/cadence.mjs 0 64 320 128 frame_*.png` | pares: **48,8 \| 48,9 \| 48,9 \| 48,9 \| 49,0** | cadencia **uniforme** (sin tirones relativos) |
+
+La banda central se actualiza de forma uniforme; el movimiento es regular pero a 2 campos por
+frame (28 fps). El defecto de la zona inferior (DT-006) sigue abierto.

@@ -39,7 +39,7 @@ public:
 	/// No propietario; los buffers deben vivir más que el ejecutor.
 	constexpr SpritePlanExecutor(eng::graphics::FramePlan& plan,
 				     const eng::graphics::BobTarget& target,
-				     eng::Span<eng::u16> save = {},
+				     eng::ChipView<eng::BobTag> save = {},
 				     eng::u16 save_words_per_row = 0u,
 				     eng::u16 save_height = 0u) noexcept {
 		bind(plan, target, save, save_words_per_row, save_height);
@@ -47,7 +47,7 @@ public:
 
 	/// Liga/religa el plan, el destino y el buffer de guardado (p. ej. tras reservar memoria).
 	constexpr void bind(eng::graphics::FramePlan& plan, const eng::graphics::BobTarget& target,
-			    eng::Span<eng::u16> save = {}, eng::u16 save_words_per_row = 0u,
+			    eng::ChipView<eng::BobTag> save = {}, eng::u16 save_words_per_row = 0u,
 			    eng::u16 save_height = 0u) noexcept {
 		m_plan = plan;
 		m_target = target;
@@ -118,7 +118,7 @@ public:
 private:
 	eng::Ref<eng::graphics::FramePlan> m_plan {};
 	eng::Ref<const eng::graphics::BobTarget> m_target {};
-	eng::Span<eng::u16> m_save {};
+	eng::ChipView<eng::BobTag> m_save {};
 	eng::u16 m_save_words_per_row = 0u;
 	eng::u16 m_save_height = 0u;
 	eng::Ref<eng::copper::Plan> m_copper {};

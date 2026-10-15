@@ -12,7 +12,6 @@ Estructura y numeración: [../../../../docs/STRUCTURE.md](../../../../docs/STRUC
 | [051_blitter_shifted_bobs](051_blitter_shifted_bobs/README.md) |
 | [052_tile_staging_blits](052_tile_staging_blits/README.md) |
 | [086_bob_objects](086_bob_objects/README.md) |
-| [087_sprite_horizontal_rearm](087_sprite_horizontal_rearm/README.md) |
 | [208_blitter_memcpy](208_blitter_memcpy/README.md) |
 | [203_polygon_planes](203_polygon_planes/README.md) |
 | [204_collide_game](204_collide_game/README.md) |

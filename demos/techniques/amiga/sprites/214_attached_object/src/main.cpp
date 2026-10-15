@@ -184,11 +184,12 @@ struct AttachedObjectDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021403u);
 			return;
 		}
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 		eng::debug::mark_ready(g_eng_run_status, 0x00021400u);
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		const eng::u16 f = context.frame.frame_index;
 		// Rebotes triangulares sin * ni / (máscara + resta sobre potencias de 2).
 		const eng::u16 tx = tri8(static_cast<eng::u16>(f & 0xffu));
@@ -208,7 +209,7 @@ struct AttachedObjectDemo {
 			m_spark_y[i] = static_cast<eng::u16>(48u + ty2);         // 48..175
 		}
 		if (build_copper()) {
-			backend.install_copper_list(m_copper_ptr);
+			backend.install_copper_list(m_copper_view);
 		}
 	}
 
@@ -336,7 +337,7 @@ private:
 		sched.end();
 
 		m_copper_ok = sched.ok();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		return m_copper_ok;
 	}
 
@@ -344,7 +345,7 @@ private:
 	static constexpr eng::u16 kSparkPhaseY[kSparkles] { 64u, 0u, 96u, 32u, 160u, 128u };
 
 	bool m_copper_ok = false;
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::u16* m_sprites = nullptr; ///< vista mutable del bloque (cocina del núcleo)
 	eng::u16 m_hero_x = kHeroX0;
 	eng::u16 m_hero_y = kHeroY0;

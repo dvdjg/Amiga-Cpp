@@ -237,13 +237,14 @@ inline bool bob_erase_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, 
 }
 
 /// **Save-under (guardar)**: copia la caja de `w x h` en `(x,y)` del destino (Chip) al buffer
-/// `save`; `false` si el buffer no da (rechazo controlado). El cálculo de palabras cubre la
-/// palabra extra del barrel shifter (desplazamiento fino), como el borrado. Único sitio del
-/// algoritmo: lo usan el camino de actor (`BackgroundPolicy::SaveUnder`, vía
-/// `scene::actor_detail::emit_save`) y el de intención (`BobErase::RestoreUnder`). El destino
-/// puede ser **planar** o **interleaved** (por plano, con el paso de fila por plano).
+/// `save` (vista tipada en Chip, tag `BobTag` como los bloques que lo reservan); `false` si el
+/// buffer no da (rechazo controlado). El cálculo de palabras cubre la palabra extra del barrel
+/// shifter (desplazamiento fino), como el borrado. Único sitio del algoritmo: lo usan el camino
+/// de actor (`BackgroundPolicy::SaveUnder`, vía `scene::actor_detail::emit_save`) y el de
+/// intención (`BobErase::RestoreUnder`). El destino puede ser **planar** o **interleaved** (por
+/// plano, con el paso de fila por plano).
 inline bool bob_save_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, s16 y,
-			 const BobTarget& t, eng::Span<eng::u16> save, u16 save_words_per_row,
+			 const BobTarget& t, eng::ChipView<eng::BobTag> save, u16 save_words_per_row,
 			 u16 save_height) {
 	const u16 words = static_cast<u16>((w + 15u) / 16u + ((x & 15) != 0 ? 1u : 0u));
 	if (save.empty() || words > save_words_per_row || h > save_height || y < 0 ||
@@ -257,7 +258,7 @@ inline bool bob_save_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, s
 		? static_cast<u32>(t.row_bytes) * t.plane_count
 		: t.row_bytes;
 	BlitJob& job = plan.begin_blit_job(BlitJobKind::CopyRect);
-	job.destination = BlitPtr::from_storage(save.data());
+	job.destination = BlitPtr {save};
 	job.source = BlitPtr::from_storage(reinterpret_cast<const u16*>(
 		t.data() + static_cast<u32>(y) * (t.interleaved() ? dest_row_step : t.row_bytes) +
 		(static_cast<u32>(x & ~15) >> 3u)));
@@ -278,7 +279,7 @@ inline bool bob_save_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, s
 /// **Save-under (restaurar)**: devuelve el buffer `save` a la caja de `w x h` en `(x,y)` del
 /// destino. Inverso de `bob_save_box`; mismo cálculo de palabras y misma guarda de capacidad.
 inline bool bob_restore_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, s16 y,
-			    const BobTarget& t, eng::Span<eng::u16> save, u16 save_words_per_row,
+			    const BobTarget& t, eng::ChipView<eng::BobTag> save, u16 save_words_per_row,
 			    u16 save_height) {
 	const u16 words = static_cast<u16>((w + 15u) / 16u + ((x & 15) != 0 ? 1u : 0u));
 	if (save.empty() || words > save_words_per_row || h > save_height || y < 0 ||
@@ -291,7 +292,7 @@ inline bool bob_restore_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x
 		? static_cast<u32>(t.row_bytes) * t.plane_count
 		: t.row_bytes;
 	BlitJob& job = plan.begin_blit_job(BlitJobKind::RestoreRect);
-	job.source = BlitPtr::from_storage(save.data());
+	job.source = BlitPtr {save};
 	job.destination = BlitPtr::from_storage(reinterpret_cast<u16*>(
 		t.data() + static_cast<u32>(y) * (t.interleaved() ? dest_row_step : t.row_bytes) +
 		(static_cast<u32>(x & ~15) >> 3u)));
@@ -420,10 +421,18 @@ __attribute__((always_inline)) inline bool bob_draw(FramePlan& plan, const Bob& 
 	}
 	const u8 shift = static_cast<u8>(x & 15);
 	const bool inter = (t.layout == BobLayout::Interleaved);
+	const bool masked = bob.draw == BobDraw::CookieCut;
+	const bool separate_mask = masked && bob.mask_pack == BobMaskPack::SeparatePlane;
+	// Hoja planar + destino interleaved: la IMAGEN sola cabe en UN blit (el orden físico de
+	// filas coincide, con módulo `sheet_row − words*2`). Con máscara SEPARADA **no**: la
+	// máscara tiene `height` filas, no `height*planos`, y el walk de `height*planos` filas se
+	// saldría de su plano (leería Chip ajena como máscara — DT-012: planos 1+ con máscara
+	// basura). Ese caso va **por plano** (misma máscara en cada uno: su walk usa `src_mod`,
+	// su stride real) con el paso de fila FÍSICA del destino interleaved.
+	const bool flat = inter && !separate_mask;
 	const u16 words = blit_words(bob, shift);
 	const s16 x_start = wx;
 	const u32 start_row = inter ? static_cast<u32>(t.row_bytes) * t.plane_count : t.row_bytes;
-	const bool masked = bob.draw == BobDraw::CookieCut;
 	if (masked && bob.mask.empty()) {
 		return false; // cookie-cut sin mascara
 	}
@@ -435,13 +444,14 @@ __attribute__((always_inline)) inline bool bob_draw(FramePlan& plan, const Bob& 
 	job.destination = BlitPtr::from_storage(reinterpret_cast<u16*>(
 		t.data() + static_cast<u32>(y) * start_row + (static_cast<u32>(x_start) >> 3u)));
 	job.words_per_row = words;
-	job.height = inter ? static_cast<u16>(bob.height * bob.planes) : bob.height;
+	job.height = flat ? static_cast<u16>(bob.height * bob.planes) : bob.height;
 	job.source_shift = shift;
-	job.bitplane_count = inter ? 1u : bob.planes;
+	job.bitplane_count = flat ? 1u : bob.planes;
 	job.source_modulo_bytes = mod16(static_cast<s32>(sheet_row_of(bob)) - static_cast<s32>(words) * 2);
-	job.destination_modulo_bytes = mod16(static_cast<s32>(t.row_bytes) - static_cast<s32>(words) * 2);
-	job.source_plane_stride_bytes = inter ? 0u : bob.height * sheet_row_of(bob);
-	job.destination_plane_stride_bytes = inter ? 0u : t.plane_pointer_step();
+	job.destination_modulo_bytes = mod16(
+		static_cast<s32>(flat ? t.row_bytes : start_row) - static_cast<s32>(words) * 2);
+	job.source_plane_stride_bytes = flat ? 0u : bob.height * sheet_row_of(bob);
+	job.destination_plane_stride_bytes = flat ? 0u : t.plane_pointer_step();
 	job.interleaved = inter;
 	job.minterm = (bob.draw == BobDraw::Or) ? 0x00fcu
 		    : (bob.draw == BobDraw::Opaque ? 0x00f0u

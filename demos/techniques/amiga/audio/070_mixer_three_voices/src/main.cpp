@@ -92,7 +92,7 @@ struct ThreeVoicesDemo {
 		eng::audio::synth_sequence<kCounterNote>(m_counter_block.view.data(), kCounterFreq, kCounterCount, kSampleRate, static_cast<eng::s16>(kAmplitude));
 
 		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00007003u); return; }
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 
 		if (!m_sfx.init(backend.memory_manager())) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00007004u);
@@ -114,6 +114,7 @@ struct ThreeVoicesDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_init_ok || m_confirmed) {
 			return;
 		}
@@ -140,7 +141,7 @@ struct ThreeVoicesDemo {
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		draw_scope();
-		if (build_copper()) backend.install_copper_list(m_copper_ptr);
+		if (build_copper()) backend.install_copper_list(m_copper_view);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -188,7 +189,7 @@ private:
 		sched.end();
 		m_copper_ok = sched.ok();
 		m_copper_words = sched.words_used();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		return m_copper_ok;
 	}
 
@@ -200,7 +201,7 @@ private:
 	eng::audio::SfxChannel m_ch0 = -1;
 	eng::audio::SfxChannel m_ch1 = -1;
 	eng::audio::SfxChannel m_ch2 = -1;
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::Block<eng::AudioTag> m_melody_block {};
 	eng::Block<eng::AudioTag> m_bass_block {};
 	eng::Block<eng::AudioTag> m_counter_block {};

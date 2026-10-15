@@ -32,12 +32,12 @@ struct MockBackend {
 	alignas(16) eng::u8 m_chip[16u * 1024u] {};
 	eng::MemoryManager m_mm {};
 	int takeovers = 0;
-	const eng::u16* last_copper = nullptr;
+	eng::ChipView<eng::CopperTag> last_copper {};
 	MockBackend() { (void)m_mm.configure(m_chip, sizeof(m_chip), nullptr, 0u, nullptr, 0u, 16u); }
 	eng::MemoryManager& memory_manager() { return m_mm; }
-	void takeover_display(const eng::u16* copper_words) {
+	void takeover_display(eng::ChipView<eng::CopperTag> list) {
 		++takeovers;
-		last_copper = copper_words;
+		last_copper = list;
 	}
 	void boot() {}
 	void wait_vblank() {}
@@ -248,7 +248,7 @@ int main() {
 		bands[1].planes = 0u; // tramo conmutado a top=128
 		check(app.present_scene(bands), "present_scene materializa 2 bandas y toma el display");
 		check(backend.takeovers == 1, "present_scene llama takeover_display una vez");
-		check(backend.last_copper != nullptr, "present_scene entrega una copperlist válida");
+		check(!backend.last_copper.empty(), "present_scene entrega una copperlist válida");
 
 		// Sin bandas → no toca el display.
 		const int before = backend.takeovers;

@@ -39,11 +39,11 @@ using eng::u16;
 using eng::u32;
 
 struct MockBackend {
-	const u16* taken = nullptr;
-	const u16* installed = nullptr;
+	eng::ChipView<eng::CopperTag> taken {};
+	eng::ChipView<eng::CopperTag> installed {};
 	unsigned installs = 0;
-	void takeover_display(const u16* words) { taken = words; }
-	void install_copper_list(const u16* words) {
+	void takeover_display(eng::ChipView<eng::CopperTag> words) { taken = words; }
+	void install_copper_list(eng::ChipView<eng::CopperTag> words) {
 		installed = words;
 		++installs;
 	}
@@ -59,7 +59,8 @@ MemoryManager make_memory() {
 
 /// Valor del MOVE de `reg` en la lista (0xffff/0x0000 si no aparece). Recorre pares
 /// MOVE; los WAIT tienen el bit 0 de la primera word a 1.
-u16 value_of(const u16* words, u16 count, u16 reg) {
+template <class W>
+u16 value_of(W words, u16 count, u16 reg) {
 	for (u16 i = 0; i + 1u < count; i += 2u) {
 		const u16 w0 = words[i];
 		if (w0 == 0xffffu) break;
@@ -96,7 +97,8 @@ int main() {
 		MockBackend backend;
 		db.takeover(backend);
 		db.install(backend);
-		if (backend.taken != db.active_words() || backend.installed != db.active_words()) {
+		if (backend.taken.data() != db.active_view().data() ||
+		    backend.installed.data() != db.active_view().data()) {
 			std::printf("[FAIL] takeover/install no publican el bloque activo\n");
 			return 1;
 		}
@@ -151,7 +153,7 @@ int main() {
 		// Primer build: AMBOS bloques llevan la lista completa (arranca en scroll 0).
 		MockBackend backend;
 		scene.install(backend);
-		const u16* first = backend.installed;
+		const auto first = backend.installed.view().as_words();
 		const u16 bplcon1_0 = value_of(first, count, static_cast<u16>(eng::copper::Register::BPLCON1));
 		const u16 bplpt_0 =
 			value_of(first, count, eng::copper::bitplane_pointer_low_register(0));
@@ -168,8 +170,8 @@ int main() {
 			return 1;
 		}
 		scene.install(backend);
-		const u16* second = backend.installed;
-		if (second == first) {
+		const auto second = backend.installed.view().as_words();
+		if (second.data() == first.data()) {
 			std::printf("[FAIL] el rebuild no publico el OTRO bloque (no hay doble buffer)\n");
 			return 1;
 		}

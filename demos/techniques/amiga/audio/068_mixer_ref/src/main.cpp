@@ -74,7 +74,7 @@ struct MixerRefDemo {
 		build_square(m_sample_block.view.data());
 
 		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00006803u); return; }
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 
 		// --- Secuencia ESPEJO de CMixer.c -------------------------------------
 		const eng::u32 buffer_size = eng::audio::mixer_amiga::get_buffer_size();
@@ -112,6 +112,7 @@ struct MixerRefDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_init_ok || m_confirmed) {
 			return;
 		}
@@ -139,7 +140,7 @@ struct MixerRefDemo {
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		draw_scope();
-		if (build_copper()) backend.install_copper_list(m_copper_ptr);
+		if (build_copper()) backend.install_copper_list(m_copper_view);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -187,7 +188,7 @@ private:
 		sched.end();
 		m_copper_ok = sched.ok();
 		m_copper_words = sched.words_used();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		return m_copper_ok;
 	}
 
@@ -197,7 +198,7 @@ private:
 	bool m_confirmed = false;
 	eng::u16 m_copper_words = 0;
 	eng::s32 m_channel = -1;
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::Block<eng::AudioTag> m_sample_block {};
 	eng::Block<eng::MixerBufferTag> m_buffer_block {};
 	eng::Block<eng::MixerBufferTag> m_plugin_buffer_block {};

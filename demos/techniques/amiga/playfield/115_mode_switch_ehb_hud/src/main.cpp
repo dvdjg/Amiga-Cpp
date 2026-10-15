@@ -97,9 +97,9 @@ struct DemoGame {
 		sched.end();
 		m_copper_ok = zone_ok && sched.ok();
 		m_copper_words = sched.words_used();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		if (m_memory_ok && m_copper_ok) {
-			backend.takeover_display(m_copper_ptr);
+			backend.takeover_display(m_copper_view);
 			eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_copper_words));
 		} else {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000116u);
@@ -108,10 +108,10 @@ struct DemoGame {
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
-		if (m_copper_ok) backend.install_copper_list(m_copper_ptr);
+		if (m_copper_ok) backend.install_copper_list(m_copper_view);
 	}
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		if (m_copper_ok && m_copper_words > 0) backend.install_copper_list(m_copper_ptr);
+		if (m_copper_ok && m_copper_words > 0) backend.install_copper_list(m_copper_view);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -136,7 +136,7 @@ private:
 	bool m_memory_ok = false;
 	bool m_copper_ok = false;
 	eng::u16 m_copper_words = 0;
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::Block<eng::PlaneTag> m_plane_block {};
 	eng::Block<eng::CopperTag> m_copper_block {};
 };

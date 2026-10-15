@@ -142,18 +142,21 @@ inline void execute_job(const eng::graphics::BlitJob& job, eng::u16 job_index,
 	// bitmap (es un buffer del llamador); la comprobación de fila/plano solo aplica al
 	// bitmap bajo prueba.
 	const eng::u8* const bm_lo = bm.base;
-	const eng::u8* const bm_hi = bm.base + plane_step * bm.planes;
+	const eng::u32 block_bytes = bm.interleaved
+		? static_cast<eng::u32>(bm.row_bytes) * bm.height * bm.planes
+		: bm.plane_stride() * bm.planes;
+	const eng::u8* const bm_hi = bm.base + block_bytes;
 	const bool d_external = r.bltdpt != nullptr &&
 				(static_cast<const eng::u8*>(r.bltdpt) < bm_lo ||
 				 static_cast<const eng::u8*>(r.bltdpt) >= bm_hi);
+	// Paso FÍSICO de fila del canal D: lo que avanza el Blitter por fila (`words·2 + DMOD`).
+	// No se asume `row_bytes`: en interleaved con blit POR PLANO el paso es `row_bytes·planos`.
+	const eng::s32 d_row_step = static_cast<eng::s32>(words) * 2 + r.bltdmod;
 	// El avance POR PLANO de cada canal sigue al backend (`amiga_blitter.cpp:392-429`):
 	// en el cookie-cut planar la máscara (A) es un único plano (NO avanza), la imagen (B)
 	// avanza con el stride de la hoja y C/D con el del destino; en or_blob B = D = destino.
 	const bool masked_kind = job.kind == eng::graphics::BlitJobKind::MaskedBobCookieCut ||
 				 job.kind == eng::graphics::BlitJobKind::MaskedBlobNoSave;
-	const bool copy_kind = job.kind == eng::graphics::BlitJobKind::CopyRect ||
-			       job.kind == eng::graphics::BlitJobKind::RestoreRect ||
-			       job.kind == eng::graphics::BlitJobKind::TileBlockCopy;
 	const eng::u32 a_step = masked_kind ? 0u : src_step;
 	const eng::u32 b_step = masked_kind ? src_step : dst_step;
 	const eng::u32 c_step = masked_kind ? dst_step : src_step;
@@ -168,15 +171,24 @@ inline void execute_job(const eng::graphics::BlitJob& job, eng::u16 job_index,
 					     : nullptr;
 		eng::u8* d_ptr = use_d ? static_cast<eng::u8*>(r.bltdpt) + plane * d_step : nullptr;
 
-		// Banda válida del plano para detectar OOB (los planos son contiguos). La fila de
-		// la escritura k es `fila_inicial + k` (el destino puede empezar a media altura).
-		const eng::u8* plane_lo = bm.base + plane * plane_step;
-		const eng::u8* plane_hi = plane_lo + plane_step;
+		// Región del plano para la detección de OOB: en planar contiguo es su bloque; en
+		// interleaved los planos **comparten** el bloque (las filas físicas intercalan los
+		// planos), así que la banda válida es el bloque entero.
+		const eng::u8* plane_lo = nullptr;
+		const eng::u8* plane_hi = nullptr;
+		if (bm.interleaved) {
+			plane_lo = bm.base;
+			plane_hi = bm.base + block_bytes;
+		} else {
+			plane_lo = bm.base + static_cast<eng::u32>(plane) * plane_step;
+			plane_hi = plane_lo + plane_step;
+		}
 		const eng::u8* d0 = use_d ? static_cast<const eng::u8*>(r.bltdpt) + plane * d_step
 					  : nullptr;
 		const eng::u32 start_row =
-			d0 != nullptr && d0 >= plane_lo
-				? static_cast<eng::u32>(d0 - plane_lo) / bm.row_bytes
+			d0 != nullptr && d0 >= plane_lo && d_row_step > 0
+				? static_cast<eng::u32>(d0 - plane_lo) /
+					  static_cast<eng::u32>(d_row_step)
 				: 0u;
 
 		// Holds del barrel shifter (por canal, persisten entre filas como en el hardware).
@@ -210,10 +222,12 @@ inline void execute_job(const eng::graphics::BlitJob& job, eng::u16 job_index,
 					eng::u8* const dst = d_ptr + w * 2u;
 					const eng::u8* const row_base =
 						plane_lo +
-						static_cast<eng::u32>(start_row + row) * bm.row_bytes;
+						static_cast<eng::u32>(start_row + row) *
+							static_cast<eng::u32>(d_row_step);
 					if (!d_external &&
 					    (dst < plane_lo || dst + 2u > plane_hi ||
-					     dst < row_base || dst + 2u > row_base + bm.row_bytes)) {
+					     dst < row_base ||
+					     dst + 2u > row_base + static_cast<eng::u32>(d_row_step))) {
 						res.out_of_bounds = true;
 						res.oob_job = job_index;
 					} else {

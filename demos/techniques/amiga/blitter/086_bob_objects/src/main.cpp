@@ -455,8 +455,7 @@ private:
 			} else {
 				d.transparency = scene::TransparencyMode::Opaque;
 				d.background = scene::BackgroundPolicy::SaveUnder;
-				d.save[0] = eng::Span<eng::u16> {
-					reinterpret_cast<eng::u16*>(m_save.view.data()), kSaveWords};
+				d.save[0] = m_save.mem_view_chip();
 				d.save_words_per_row = 3u; // 32 px -> 2 palabras + guarda del shift
 				d.save_height = kObjH;
 			}

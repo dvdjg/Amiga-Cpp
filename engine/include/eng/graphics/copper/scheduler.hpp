@@ -667,6 +667,11 @@ public:
 	constexpr bool ok() const { return m_builder.ok(); }
 	/// Puntero a las palabras de la copperlist (`u16`, Chip RAM).
 	constexpr u16* data() const { return m_builder.data(); }
+
+	/// Vista tipada (Chip) de la lista emitida (ver `ListBuilder::chip_view`).
+	[[nodiscard]] constexpr eng::ChipView<eng::CopperTag> chip_view() const {
+		return m_builder.chip_view();
+	}
 	/// Nº de palabras de Copper usadas hasta ahora.
 	constexpr u16 words_used() const { return m_builder.words_used(); }
 	/// Informe de presupuesto acumulado (válido solo si `Report`).

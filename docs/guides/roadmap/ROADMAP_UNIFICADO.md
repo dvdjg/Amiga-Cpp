@@ -208,11 +208,18 @@ scratch** (el `detail≈9861` de la 275, ya documentado en su README) y sacarlo 
      fachada** (`SpriteScene::set_chains`/`prepare_chains`); demo **219** validada (20 balas =
      1 canal; A/B por telemetría: 304 → 114 words de copperlist, 49.9 fps;
      `ROADMAP_SPRITES_COMPLETO.md` §3.2).
-  3. **Camino legado**: `SpriteManager::emit_into` (un `WAIT` por `VSTART`) queda solo para los
-     segmentos rearmados de la 053; decidir si se retira tras `emit_armed_into`.
-  4. **Demos de cierre**: HUD con `SpriteLineLayer` (HOST-418, sin demo), prioridad `BPLCON2`
-     por franjas (intent `Priority` existe, sin demo) y resolver
-     `087_sprite_horizontal_rearm` (arreglar o retirar; la técnica ya está cubierta por 207/208).
+  3. **Camino legado**: `SpriteManager::emit_into` (un `WAIT` por `VSTART`) sigue en uso por
+     **053, 062 y dk_port** (no solo la 053). **Decisión (2026-10): mantener como legado
+     documentado** hasta el siguiente toque de esas demos (migrarlas a `emit_armed_into` es un
+     refactor sin defecto asociado; no se toca una demo validada por limpieza).
+  4. **Demos de cierre**: HUD con `SpriteLineLayer` (HOST-418, sin demo) y prioridad `BPLCON2`
+     por franjas (intent `Priority` existe, sin demo). `087_sprite_horizontal_rearm`:
+     **RETIRADA (2026-10)** — no renderizaba su efecto con ninguna de las dos estrategias
+     (rearm por registro POS+CTL+DATA y reposition POS-only con semilla por DMA; captura
+     interna del emulador en marcha: 0 px del color del sprite en todo el frame) y la técnica
+     está cubierta por 207/208 + 053/217 + `SpriteLineLayer` (HOST-418). El hallazgo de fuente
+     quedó en `winuae/sprite-dma.md` §Armado de un canal (canal desarmado = sin fetch;
+     armado por memoria solo con `vpos == VSTART`).
   5. **Bending por tabla de seno** (`SPRxPOS` por línea): **HECHO** — driver
      `graphics/drivers/sprite_bend.hpp` (varios canales intercalados por línea) + HOST-436;
      demo **220** validada (dos columnas 16×64 ondulando en oposición; 49.97 fps, 764 words
@@ -221,8 +228,16 @@ scratch** (el `detail≈9861` de la 275, ya documentado en su README) y sacarlo 
      HOST-391; demo **221** validada (mismo arte en dos paletas por franja; 49.92 fps).
   6. **Cerrar 212/`FreeFormSpriteLayer`** (roto) o deprecarlo en favor de 213; añadir doble
      copperlist al Free Form (mejora apuntada en 213).
-  7. **Sprites con playfields de 5-6 planos**: validar el robo de slots de fetch
-     (`kSpriteLineDataMaxBitplanes`) y, si aplica, retomar el diagnóstico del rearm con 6 planos.
+  7. **Sprites con playfields de 5-6 planos**: **validado y ENFORZADO (2026-10)**. La
+     afirmación de `kSpriteLineDataMaxBitplanes` (parcheo de `SPRxDATA`/`DATB` a media línea
+     solo con ≤5 planos) se contrastó con WinUAE (`custom.cpp:10111` — la ventana de sprites
+     cierra en `plfstrt_sprite`; `9888-9889`/`10008-10009` la recortan a DDFSTRT/BPRUN;
+     `10130-10131` — el último ciclo de plano solo sirve a sprites si los planos acaban
+     antes) y con `sprite-tricks-games.md` §Brian the Lion. La constante deja de estar
+     huérfana: **`setup::check_sprite_line_data(planes)`** (coherencia, HOST-441) y
+     `SpriteLineLayer::configure` **rechaza `display_planes > 5`** (HOST-418) — el fallo
+     silencioso (render mal con 6 planos) pasa a fallo de setup. El «rearm con 6 planos» no
+     es un bug a arreglar sino el límite del hardware: queda como rechazo explícito.
   8. **Pipeline de assets**: cocinado del par *attached* en build-time (hoy en runtime) y carga
      desde UAF.
 

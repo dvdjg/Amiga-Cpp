@@ -86,7 +86,7 @@ struct GameExample {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021703u);
 			return;
 		}
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 
 		// Superficie estable: GameAudio sobre el AudioSystem del backend.
 		// Orden canónico (=062): música primero, luego reservar AUD0, luego el mixer, luego el banco.
@@ -116,6 +116,7 @@ struct GameExample {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_init_ok) {
 			return;
 		}
@@ -185,14 +186,14 @@ private:
 		sched.move(eng::copper::color_register(0), 0x000u);
 		sched.move(eng::copper::color_register(1), 0x002u);
 		sched.end();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		return sched.ok();
 	}
 
 	bool m_init_ok = false;
 	bool m_music_ok = false;
 	eng::audio::SfxChannel m_alarm_ch = -1;
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::Block<eng::MusicTag> m_mod_block {};
 	eng::Block<eng::AudioTag> m_alarm_block {};
 	eng::Block<eng::AudioTag> m_beep_block {};

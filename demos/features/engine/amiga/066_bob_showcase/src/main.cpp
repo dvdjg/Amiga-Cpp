@@ -955,12 +955,10 @@ private:
 	/// Save-under: `bob_save_box` al llegar + `bob_restore_box` al salir (2 planos).
 	void update_saveunder() {
 		if (m_chest_prev_valid) {
-			(void)eng::graphics::bob_restore_box(
-				m_frame_plan, m_chest, 16u, 16u, m_chest_x, m_chest_y, m_target,
-				eng::Span<eng::u16> {
-					reinterpret_cast<eng::u16*>(m_save_block.view.as_words().data()),
-					static_cast<eng::usize>(kChestSaveWords)},
-				kChestSaveRowWords, 16u);
+			(void)eng::graphics::bob_restore_box(m_frame_plan, m_chest, 16u, 16u, m_chest_x,
+							     m_chest_y, m_target,
+							     m_save_block.mem_view_chip(),
+							     kChestSaveRowWords, 16u);
 		}
 		m_chest_x = static_cast<eng::s16>(m_chest_x + m_chest_vx);
 		const eng::s16 minx = static_cast<eng::s16>(kZoneDx + 60);
@@ -969,12 +967,9 @@ private:
 			m_chest_vx = static_cast<eng::s16>(-m_chest_vx);
 			m_chest_x = static_cast<eng::s16>(m_chest_x + m_chest_vx);
 		}
-		(void)eng::graphics::bob_save_box(
-			m_frame_plan, m_chest, 16u, 16u, m_chest_x, m_chest_y, m_target,
-			eng::Span<eng::u16> {
-				reinterpret_cast<eng::u16*>(m_save_block.view.as_words().data()),
-				static_cast<eng::usize>(kChestSaveWords)},
-			kChestSaveRowWords, 16u);
+		(void)eng::graphics::bob_save_box(m_frame_plan, m_chest, 16u, 16u, m_chest_x,
+						  m_chest_y, m_target, m_save_block.mem_view_chip(),
+						  kChestSaveRowWords, 16u);
 		(void)eng::graphics::bob_draw(m_frame_plan, m_chest, 0u, m_chest_x, m_chest_y, m_target);
 		m_chest_prev_valid = true;
 	}

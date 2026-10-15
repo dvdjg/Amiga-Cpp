@@ -588,14 +588,32 @@ public:
         plan.clear();
         plan.set_blit_budget_limits({8192, 16384, 4, 120});
         const eng::u8 n = fields();
-        for (eng::s32 i = 0; i < px_x; ++i) {
-            for (eng::u8 pf = 0; pf < n; ++pf) {
-                if (!m_field[pf].scroll_right(plan)) return false;
-            }
-            if (plan.blit_job_count() >= 120) {
+        // X en **ráfaga** (geometría del cruce una vez por tramo): el pre-scroll es previo
+        // al display, no hace falta pintar cada paso intermedio y los blits emitidos son
+        // los mismos (`burst_right_px` ≡ pasos de `scroll_right`, HOST-034). En tramos de
+        // 24 px por si el plan (máx. 128 jobs) no cupiera para todo el recorrido.
+        if (px_x > 0) {
+            eng::s32 remaining = px_x;
+            while (remaining > 0) {
+                const eng::s32 chunk = remaining > 24 ? 24 : remaining; // ∈ [1, 24]
+                for (eng::u8 pf = 0; pf < n; ++pf) {
+                    if (!m_field[pf].scroll_burst_right_px(plan, chunk)) return false;
+                }
+                remaining -= chunk;
                 if (!backend.execute_frame_plan(plan)) return false;
                 plan.clear();
                 plan.set_blit_budget_limits({8192, 16384, 4, 120});
+            }
+        } else if (px_x < 0) {
+            for (eng::s32 i = 0; i < -px_x; ++i) {
+                for (eng::u8 pf = 0; pf < n; ++pf) {
+                    if (!m_field[pf].scroll_left(plan)) return false;
+                }
+                if (plan.blit_job_count() >= 120) {
+                    if (!backend.execute_frame_plan(plan)) return false;
+                    plan.clear();
+                    plan.set_blit_budget_limits({8192, 16384, 4, 120});
+                }
             }
         }
         for (eng::s32 i = 0; i < px_y; ++i) {

@@ -659,6 +659,12 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
         if (!this->m_initialized) return false;
         return m_scroll.scroll_right(plan, *this);
     }
+    /// Avance a la derecha en **ráfaga** (`px` píxeles, geometría del cruce una vez por
+    /// tramo): equivalente a `px` pasos de `scroll_right` (HOST-034). Lo usa el pre-scroll.
+    bool scroll_burst_right_px(graphics::FramePlan& plan, eng::u16 px) {
+        if (!this->m_initialized) return false;
+        return m_scroll.burst_right_px(plan, *this, px);
+    }
     /// Scroll de 1 px a la izquierda (no plane-shifted) — ScrollLeft corkscrew.
     bool scroll_left(graphics::FramePlan& plan) {
         if (!this->m_initialized) return false;

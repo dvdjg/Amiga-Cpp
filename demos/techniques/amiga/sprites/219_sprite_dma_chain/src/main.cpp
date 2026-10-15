@@ -195,7 +195,7 @@ struct DmaChainDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021904u);
 			return;
 		}
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 		eng::debug::mark_ready(g_eng_run_status, 0x00021900u);
 	}
 
@@ -281,8 +281,8 @@ private:
 
 	void install(eng::amiga::AmigaBackend& backend, const eng::copper::SchedulerT<false>& sched) {
 		if (sched.ok()) {
-			m_copper_ptr = sched.data();
-			backend.install_copper_list(m_copper_ptr);
+			m_copper_view = sched.chip_view();
+			backend.install_copper_list(m_copper_view);
 		}
 	}
 
@@ -319,7 +319,7 @@ private:
 		sched.wait_line(0xf8);
 		sched.end();
 		m_copper_ok = sched.ok();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		return m_copper_ok;
 	}
 
@@ -359,7 +359,7 @@ private:
 	}
 
 	bool m_copper_ok = false;
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::ChipView<eng::SpriteTag> m_img {};
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::Block<eng::CopperTag> m_copper_block {};

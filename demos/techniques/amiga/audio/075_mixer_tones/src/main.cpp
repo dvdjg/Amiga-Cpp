@@ -73,7 +73,7 @@ struct TonesDemo {
 		}
 
 		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00007503u); return; }
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 
 		if (!m_sfx.init(backend.memory_manager())) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00007504u);
@@ -85,6 +85,7 @@ struct TonesDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_init_ok) {
 			return;
 		}
@@ -123,7 +124,7 @@ struct TonesDemo {
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		draw_scope();
-		if (build_copper()) backend.install_copper_list(m_copper_ptr);
+		if (build_copper()) backend.install_copper_list(m_copper_view);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -203,7 +204,7 @@ private:
 		sched.end();
 		m_copper_ok = sched.ok();
 		m_copper_words = sched.words_used();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		return m_copper_ok;
 	}
 
@@ -218,7 +219,7 @@ private:
 	eng::u16 m_copper_words = 0;
 	bool m_on[4] = { false, false, false, false };
 	eng::audio::SfxChannel m_ch[4] = { -1, -1, -1, -1 };
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::Block<eng::AudioTag> m_tone_block {};
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bitplane_block {};
 	eng::Block<eng::CopperTag, eng::MemoryKind::Chip> m_copper_block {};

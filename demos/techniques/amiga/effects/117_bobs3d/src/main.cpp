@@ -296,7 +296,7 @@ struct Bobs3DDemo {
 				return;
 			}
 		}
-		backend.takeover_display(m_copper_ptrs[0]);
+		backend.takeover_display(m_copper_views[0]);
 
 		obj::new_object3d(m_object, pilka);
 		// fx4i(-256): (-256) << 4 en 4.12 = -4096.
@@ -370,7 +370,7 @@ struct Bobs3DDemo {
 #endif // K_117_WORK
 
 		P_BEGIN(kProfInstall);
-		backend.install_copper_list(m_copper_ptrs[active]);
+		backend.install_copper_list(m_copper_views[active]);
 		P_END(kProfInstall);
 		m_active = static_cast<u8>((active + 1u) % kRing);
 		P_END(kProfUpdate);
@@ -619,7 +619,7 @@ private:
 #endif
 		sched.end();
 
-		m_copper_ptrs[active] = sched.data();
+		m_copper_views[active] = sched.chip_view();
 		return sched.ok();
 	}
 
@@ -631,7 +631,7 @@ private:
 	eng::Block<eng::PlaneTag> m_bob_dense_block {};
 	eng::Block<eng::PlaneTag> m_carrion_block {};
 	eng::Block<eng::CopperTag> m_copper_block {};
-	const u16* m_copper_ptrs[kRing] = {nullptr, nullptr};
+	eng::ChipView<eng::CopperTag> m_copper_views[kRing] {};
 	graphics::FramePlan m_plan {};
 	eng::graphics::BlitPtr m_frame_src[kBobFrames] {};
 	obj::Object3D m_object {};

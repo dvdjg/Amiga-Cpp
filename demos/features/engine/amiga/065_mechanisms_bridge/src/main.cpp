@@ -200,7 +200,7 @@ struct MechanismsDemo {
 			return;
 		}
 		draw_version_strip(0u);
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 		eng::debug::mark_ready(g_eng_run_status, 0x00006500u);
 	}
 
@@ -570,7 +570,7 @@ private:
 		sched.wait_line(0xf8);
 		sched.end();
 		m_copper_ok = sched.ok();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		return m_copper_ok;
 	}
 
@@ -669,7 +669,7 @@ private:
 	}
 
 	bool m_copper_ok = false;
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::graphics::FramePlan m_frame_plan {};
 	eng::graphics::BobTarget m_target {};
 	eng::graphics::Bob m_plank {};

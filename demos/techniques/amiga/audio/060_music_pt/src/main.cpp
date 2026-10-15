@@ -78,7 +78,7 @@ struct MusicPtDemo {
 			return;
 		}
 
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 
 		// Música: PtPlayer (modo CIA). El orden canónico es música antes que mixer.
 		eng::audio::MusicModule mod {
@@ -92,6 +92,7 @@ struct MusicPtDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_init_ok || m_confirmed) {
 			return;
 		}
@@ -171,7 +172,7 @@ private:
 
 		m_copper_ok = sched.ok();
 		m_copper_words = sched.words_used();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		return m_copper_ok;
 	}
 
@@ -181,7 +182,7 @@ private:
 	bool m_init_ok = false;
 	bool m_confirmed = false;
 	eng::u16 m_copper_words = 0;
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::Block<eng::MusicTag> m_mod_block {};
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bitplane_block {};
 	eng::Block<eng::CopperTag, eng::MemoryKind::Chip> m_copper_block {};

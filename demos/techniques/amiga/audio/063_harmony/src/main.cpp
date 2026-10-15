@@ -91,7 +91,7 @@ struct HarmonyDemo {
 
 		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00006303u); return; }
 
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 
 		// Diagnóstico: volcar los 4 bytes de la primera nota de la melodía
 		// (offset 1084 + 0*16 + 1*4 = 1088) para verificar la codificación.
@@ -122,6 +122,7 @@ struct HarmonyDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_init_ok || m_confirmed) {
 			return;
 		}
@@ -215,7 +216,7 @@ private:
 		sched.end();
 		m_copper_ok = sched.ok();
 		m_copper_words = sched.words_used();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		return m_copper_ok;
 	}
 
@@ -226,7 +227,7 @@ private:
 	bool m_confirmed = false;
 	eng::u16 m_copper_words = 0;
 	eng::u16 m_period_early = 0;
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::Block<eng::MusicTag> m_mod_block {};
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bitplane_block {};
 	eng::Block<eng::CopperTag, eng::MemoryKind::Chip> m_copper_block {};

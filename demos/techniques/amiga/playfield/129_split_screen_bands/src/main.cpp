@@ -122,7 +122,7 @@ struct SplitScreenDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012903u);
 			return;
 		}
-		backend.takeover_display(sched.data());
+		backend.takeover_display(sched.chip_view());
 		ready = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x12900000u);
 	}

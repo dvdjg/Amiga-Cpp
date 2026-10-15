@@ -94,6 +94,16 @@ void test_configure_rejects() {
 	bad_range.channels = 1u;
 	CHECK(!layer.configure(bad_range));
 
+	// Planos del display: el parcheo de DATA a media línea exige hueco de DMA (≤ 5 planos;
+	// check_sprite_line_data, custom.cpp:10111/10130-10131).
+	SpriteLineLayerConfig six_planes {};
+	six_planes.lines = 4u;
+	six_planes.channels = 1u;
+	six_planes.display_planes = 6u;
+	CHECK(!layer.configure(six_planes));
+	six_planes.display_planes = 5u;
+	CHECK(layer.configure(six_planes));
+
 	// Una válida sí entra.
 	SpriteLineLayerConfig ok {};
 	ok.first_line = 10u;

@@ -32,6 +32,7 @@
 
 #include <eng/core/math/sinetable.hpp>
 #include <eng/api/api.hpp>
+#include <eng/debug/prof.hpp>
 #include <eng/graphics/copper/plan.hpp>
 #include <eng/graphics/effects/raster_gradient.hpp>
 #include <eng/graphics/raster_intent.hpp>
@@ -78,6 +79,12 @@ constexpr eng::u16 kSkyBandHeight = 16;
 constexpr eng::s16 kBobR = 22;
 constexpr eng::u16 kBobSpan = 2u * kBobR + 1u; // 45 filas
 constexpr eng::u16 kBobStride = 8u;            // bytes por fila y plano (45+7 bits)
+constexpr eng::u16 kBobWords = 4u;             // palabras por fila (64 bits ≥ 45 + 15 de shift)
+// Amplitud de la trayectoria en Y: 128 ± 90 → el disco puede cubrir las líneas de
+// pantalla [16, 240]. Las intenciones del BOB se emiten FIJAS para ese rango completo
+// (setup) y por frame solo se parchea su palabra de DATO.
+constexpr eng::u16 kBobLineMin = 16u;
+constexpr eng::u16 kBobLineMax = 240u;
 
 // Paleta base (antes de las zonas). COLOR00 lo pinta el cielo; el BOB usa 1/3/5.
 constexpr eng::u16 kBasePalette[16] = {
@@ -106,7 +113,9 @@ constexpr eng::SineTable<64, 64> kSin {};
 struct CopperPlanDemo {
 	void init(amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		if (!backend.configure_memory({96u * 1024u, 8u * 1024u, 4u * 1024u})) {
+		ENG_PROF_INIT(3); // secciones 0-2: dibujo del disco / parcheo de slots / flip+commit
+		// 112K chip: 2 bitmaps (60K) + doble copperlist (8K) + variantes del disco (17K) + resto.
+		if (!backend.configure_memory({112u * 1024u, 8u * 1024u, 4u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008501u);
 			return;
 		}
@@ -128,16 +137,35 @@ struct CopperPlanDemo {
 
 		m_bob_x = 160;
 		m_bob_y = 128;
+		// Fuentes del Blitter en Chip: variantes del disco (16 × 3 planos × 45 filas ×
+		// 8 bytes) y la fila de ceros del borrado (con módulo -8 se repite por fila).
+		m_shape = backend.memory_manager().chip().reserve<eng::BobTag>(
+			16u * 3u * kBobSpan * kBobStride, 16u);
+		m_zero = backend.memory_manager().chip().reserve<eng::BobTag>(16u, 16u);
+		if (!m_shape.valid() || !m_zero.valid()) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00008506u);
+			return;
+		}
+		for (eng::u8 i = 0; i < 16u; ++i) m_zero.view.data()[i] = 0u;
 		// Cielo: degradado por banda generado por el efecto (claves `kSky`, cíclico).
 		m_sky.configure({kFirstLine, kSkyBandHeight, kSkyBands, 0u});
 		m_sky.set_cyclic(true);
 		m_sky.set_keys(kSky);
-		build_shape();         // prerenderiza el disco (8 variantes de offset sub-byte)
-		draw_bob(0u);          // primer frame en el bitmap 0
-		if (!build_frame(0u)) {
+		build_shape();         // prerenderiza el disco (16 variantes de offset de palabra)
+		draw_bob(backend, 0u); // primer frame en el bitmap 0
+		// Lista ESTÁTICA en cada bloque del doble buffer (una por bitmap: solo cambian los
+		// punteros BPL del display). Después del setup el frame solo parchea datos.
+		if (!build_static_list(0u)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008504u);
 			return;
 		}
+		m_sky.bind_slots(m_plan); // palabras de DATO de las 16 bandas del cielo
+		bind_bob_slots();         // palabras de DATO de las líneas del disco (reg COLOR01)
+		if (!build_static_list(1u)) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00008505u);
+			return;
+		}
+		m_plan.flip(); // vuelve a dejar ACTIVO el bloque del bitmap 0 (el que se muestra)
 		m_plan.takeover(backend);
 		m_ready = true;
 		eng::debug::mark_ready(g_eng_run_status,
@@ -146,26 +174,34 @@ struct CopperPlanDemo {
 	}
 
 	void update(amiga::AmigaBackend& backend, eng::GameContext& context) {
-		(void)backend;
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_ready) return;
+		ENG_PROF_FRAME();
 
 		// Trayectoria en Lissajous (movimiento continuo en X y en Y).
 		const eng::u16 t = static_cast<eng::u16>(context.frame.frame_index);
 		m_bob_x = static_cast<eng::s16>(160 + (kSin[static_cast<eng::u8>(t & 63u)] * 120) / 64);
 		m_bob_y = static_cast<eng::s16>(128 + (kSin[static_cast<eng::u8>((t * 3u + 16u) & 63u)] * 90) / 64);
 
-		const eng::u8 back = m_back;
-		draw_bob(back);
-		if (!build_frame(back)) {
-			return;
-		}
-		m_back = static_cast<eng::u8>(back ^ 1u);
+		// `back` = el bitmap que se mostrará al publicar este frame (el bloque inactivo del
+		// plan es el suyo: se parchea ahí y el `flip` del render lo hace activo).
+		const eng::u8 back = static_cast<eng::u8>(m_back ^ 1u);
+		ENG_PROF_BEGIN(0); // sección 0: dos blits del disco (borrado + dibujo) en el bitmap trasero
+		draw_bob(backend, back);
+		ENG_PROF_END(0);
+		ENG_PROF_BEGIN(1); // sección 1: parcheo de slots (cielo + BOB) en el bloque inactivo
+		m_sky_phase = static_cast<eng::u8>((m_sky_phase + 1u) & 15u);
+		patch_frame();
+		ENG_PROF_END(1);
+		m_back = back;
 	}
 
 	void render(amiga::AmigaBackend& backend, eng::GameContext& context) {
-		// Publica la lista del frame (swap de COP1LC) tras VBlank.
+		// Publica la lista parcheada (swap de COP1LC) tras VBlank.
+		ENG_PROF_BEGIN(2); // sección 2: flip + commit (swap de COP1LC)
+		m_plan.flip();
 		m_plan.commit(backend);
+		ENG_PROF_END(2);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -181,15 +217,13 @@ private:
 		m_n = static_cast<eng::u16>(m_n + m_sky.fill_intents({m_intents + m_n, room}));
 	}
 
-	/// BOB: comunica su necesidad a la escena — su degradado (COLOR01) viaja con su Y con
-	/// **un cambio por scanline** (arcoiris suave: un paso de la tabla entre lineas
-	/// consecutivas), cubriendo el disco entero.
+	/// BOB: intents `PaletteLine` de COLOR01 para TODAS las líneas que el disco puede ocupar
+	/// (posiciones FIJAS, emitidas solo en el setup). Por frame el valor del disco viaja como
+	/// **parche de la palabra de DATO** (dentro del disco → arcoíris; fuera → color base), así
+	/// el `materialize`/`sort` se paga una vez y no en el bucle.
 	void add_bob_intents() {
-		for (eng::s16 row = -kBobR; row <= kBobR; ++row) {
-			const eng::s16 y = static_cast<eng::s16>(m_bob_y + row);
-			if (y < 0 || y >= static_cast<eng::s16>(kHeight)) continue;
-			const eng::u8 idx = static_cast<eng::u8>(((row + kBobR) * 4 + m_sky_phase) & 31);
-			push_intent(static_cast<eng::u16>((kFirstLine + y) & 0xffu), 1u, kRainbow[idx]);
+		for (eng::u16 line = kBobLineMin; line <= kBobLineMax; ++line) {
+			push_intent(static_cast<eng::u16>((kFirstLine + line) & 0xffu), 1u, kBasePalette[1]);
 		}
 	}
 
@@ -214,18 +248,19 @@ private:
 
 	// --- emision del frame ------------------------------------------------------
 
-	/// Emite el frame con el plan: parte estatica (display apuntando al bitmap TRASERO +
-	/// paleta base), las aportaciones (cielo y bob, en cualquier orden) y la cola.
-	bool build_frame(eng::u8 back) {
+	/// Emite la lista COMPLETA (estática) en el bloque inactivo del plan: display apuntando al
+	/// bitmap `b`, paleta base, intents de cielo y de BOB (posiciones fijas) y cola. Se ejecuta
+	/// solo en el setup (una vez por bitmap); a partir de ahí el frame solo parchea palabras de
+	/// DATO de los slots (`patch_frame`), sin re-emitir ni re-ordenar.
+	bool build_static_list(eng::u8 b) {
 		m_plan.begin_frame();
 		copper::Scheduler& s = m_plan.scheduler();
 		s.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0, kBytesPerRow, kBplcon0, kPlanes,
-				      m_bitmaps[back].mem_view_chip(), kPlaneBytes);
+				      m_bitmaps[b].mem_view_chip(), kPlaneBytes);
 		s.emit_palette(eng::PaletteWords {kBasePalette, 16u});
 		m_n = 0;
-		m_sky_phase = static_cast<eng::u8>((m_sky_phase + 1u) & 15u);
-		add_bob_intents();   // el BOB primero...
-		add_sky_intents();   // ...y el cielo despues: el PLAN los ordena por scanline.
+		add_bob_intents(); // el BOB primero...
+		add_sky_intents(); // ...y el cielo despues: el PLAN los ordena por scanline.
 		m_plan.add(m_intents, m_n);
 		m_plan.materialize();
 		s.wait_line(0xf8);
@@ -233,53 +268,106 @@ private:
 		return m_plan.end_frame();
 	}
 
-	// --- dibujo del BOB por CPU ------------------------------------------------
-
-	/// Borra la caja del disco (bytes, no pixel a pixel): el fondo es indice 0.
-	void erase_box(eng::u8* base, eng::s16 cx, eng::s16 cy) {
-		const eng::s16 x0 = static_cast<eng::s16>((cx - kBobR - 1) & ~7);
-		const eng::s16 x1 = static_cast<eng::s16>(cx + kBobR + 1);
-		if (x1 < 0 || x0 >= static_cast<eng::s16>(kWidth)) return;
-		const eng::u16 bx0 = static_cast<eng::u16>(x0 < 0 ? 0 : x0) >> 3u;
-		const eng::u16 bx1 = static_cast<eng::u16>(x1 >= static_cast<eng::s16>(kWidth)
-								   ? kBytesPerRow - 1u : x1 >> 3u);
-		const eng::s16 y0 = static_cast<eng::s16>(cy - kBobR - 1);
-		const eng::s16 y1 = static_cast<eng::s16>(cy + kBobR + 1);
-		for (eng::s16 y = y0; y <= y1; ++y) {
-			if (y < 0 || y >= static_cast<eng::s16>(kHeight)) continue;
-			for (eng::u8 p = 0; p < 3u; ++p) {
-				eng::u8* row = base + static_cast<eng::u32>(p) * kPlaneBytes +
-					       static_cast<eng::u32>(y) * kBytesPerRow;
-				for (eng::u16 b = bx0; b <= bx1; ++b) row[b] = 0u;
-			}
+	/// Casa las palabras de DATO del BOB con sus líneas de pantalla (los slots del plan),
+	/// en un array DENSO indexado por `linea - kBobLineMin`. Idéntico en ambos bloques: la
+	/// secuencia de emisión del setup es la misma.
+	void bind_bob_slots() {
+		for (eng::u16 j = 0u; j < m_plan.slot_count(); ++j) {
+			if (m_plan.slot_reg(j) != 1u) continue; // reg 1 = COLOR01 (disco)
+			const eng::u16 line = static_cast<eng::u16>(
+				(static_cast<eng::u16>(m_plan.slot_line(j)) - kFirstLine) & 0xffu);
+			m_bob_slot_word[line - kBobLineMin] = m_plan.slot_word(j);
 		}
 	}
 
-	/// Dibuja el disco del BOB en el bitmap `back` copiando la variante prerenderizada
-	/// que toca (offset sub-byte de `x`): el clasico BOB software. La trayectoria esta
-	/// acotada para que el disco no salga de pantalla (no hace falta recorte por pixel).
-	void draw_bob(eng::u8 back) {
-		eng::u8* base = m_bitmaps[back].view.data();
-		erase_box(base, m_prev_x[back], m_prev_y[back]);
-		const eng::s16 x0 = static_cast<eng::s16>(m_bob_x - kBobR);
-		const eng::u16 bx = static_cast<eng::u16>(x0) >> 3u;
-		const eng::u8 o = static_cast<eng::u8>(x0 & 7);
-		for (eng::u16 row = 0; row < kBobSpan; ++row) {
-			const eng::u32 off = (static_cast<eng::u32>(m_bob_y - kBobR) + row) * kBytesPerRow + bx;
-			for (eng::u8 p = 0; p < 3u; ++p) {
-				eng::u8* dst = base + static_cast<eng::u32>(p) * kPlaneBytes + off;
-				const eng::u8* src = m_shape[o][p][row];
-				for (eng::u8 b = 0; b < kBobStride; ++b) dst[b] = src[b];
-			}
+	/// Parcheo por frame (bloque INACTIVO, antes del `flip`): cielo (fase del efecto) y BOB
+	/// (arcoíris dentro del disco, color base fuera). Solo escribe palabras de DATO, y del
+	/// BOB únicamente las líneas que cambian (rango actual ∪ anterior: fuera de ahí ya
+	/// tienen el color base).
+	void patch_frame() {
+		eng::u16* const words = m_plan.inactive_words();
+		m_sky.set_phase(m_sky_phase);
+		m_sky.patch_words(words);
+		const eng::s16 lo = static_cast<eng::s16>(m_bob_y - kBobR);
+		const eng::s16 hi = static_cast<eng::s16>(m_bob_y + kBobR);
+		eng::s16 u0 = lo;
+		eng::s16 u1 = hi;
+		if (m_prev_hi >= m_prev_lo) { // el frame anterior dejó un rango válido
+			if (m_prev_lo < u0) u0 = m_prev_lo;
+			if (m_prev_hi > u1) u1 = m_prev_hi;
 		}
+		for (eng::s16 line = u0; line <= u1; ++line) {
+			eng::u16 color = kBasePalette[1];
+			if (line >= lo && line <= hi) {
+				const eng::s16 row = static_cast<eng::s16>(line - m_bob_y);
+				const eng::u8 idx = static_cast<eng::u8>(((row + kBobR) * 4 + m_sky_phase) & 31);
+				color = kRainbow[idx];
+			}
+			words[m_bob_slot_word[static_cast<eng::u16>(line) - kBobLineMin]] = color;
+		}
+		m_prev_lo = lo;
+		m_prev_hi = hi;
+	}
+
+	// --- dibujo del BOB por Blitter --------------------------------------------
+
+	/// Envía UNA caja del disco al Blitter: copia `kBobWords` palabras × `kBobSpan` filas ×
+	/// 3 planos con módulos/pasos del caso (variante pre-shifteada o fila de ceros). El
+	/// destino va alineado a palabra (`x0 >> 4`): las 16 variantes prerenderizadas evitan el
+	/// shift del Blitter y no tocan bits vecinos.
+	bool blit_box(amiga::AmigaBackend& backend, eng::u8* base, eng::s16 x0, eng::s16 y0,
+		      const eng::u16* src, eng::s16 src_mod, eng::u32 src_plane_stride, bool wait) {
+		// La trayectoria está acotada (x ∈ [40, 280], y ∈ [38, 218]): la caja siempre cae
+		// dentro de pantalla. Guarda defensiva: una caja fuera (p. ej. un `prev` sin
+		// inicializar) no se envía — el puntero envuelto escribiría memoria ajena.
+		const eng::u16 word_x = static_cast<eng::u16>(x0) >> 4u;
+		if (x0 < 0 || static_cast<eng::s16>(y0 - kBobR) < 0 ||
+		    word_x + kBobWords > kBytesPerRow / 2u) {
+			return false;
+		}
+		eng::graphics::BlitJob job {};
+		job.kind = eng::graphics::BlitJobKind::CopyRect;
+		job.source = eng::graphics::BlitPtr::from_storage(src);
+		job.destination = eng::graphics::BlitPtr::from_storage(
+			reinterpret_cast<eng::u16*>(base +
+				static_cast<eng::u32>(y0 - kBobR) * kBytesPerRow) + word_x);
+		job.words_per_row = kBobWords;
+		job.height = kBobSpan;
+		job.source_modulo_bytes = src_mod;
+		job.destination_modulo_bytes = eng::graphics::mod16(
+			static_cast<eng::s32>(kBytesPerRow) - static_cast<eng::s32>(kBobWords) * 2);
+		job.bitplane_count = 3u;
+		job.source_plane_stride_bytes = src_plane_stride;
+		job.destination_plane_stride_bytes = kPlaneBytes;
+		return backend.blitter_submit(job, wait);
+	}
+
+	/// Mueve el disco en el bitmap `back` con DOS blits: borra la caja anterior (copia desde
+	/// la fila de ceros, repetida con módulo `-8`) y copia la variante pre-shifteada en la
+	/// posición nueva. El CPU solo programa registros; la copia la hace el Blitter.
+	void draw_bob(amiga::AmigaBackend& backend, eng::u8 back) {
+		eng::u8* const base = m_bitmaps[back].view.data();
+		const eng::u16* const zero = reinterpret_cast<const eng::u16*>(m_zero.view.data());
+		const eng::s16 px0 = static_cast<eng::s16>(m_prev_x[back] - kBobR);
+		(void)blit_box(backend, base, px0, m_prev_y[back], zero,
+			       static_cast<eng::s16>(-(kBobWords * 2)), 0u, true);
+		const eng::s16 x0 = static_cast<eng::s16>(m_bob_x - kBobR);
+		const eng::u8 v = static_cast<eng::u8>(x0 & 15);
+		const eng::u16* const shape = reinterpret_cast<const eng::u16*>(
+			m_shape.view.data() +
+			static_cast<eng::u32>(v) * (3u * kBobSpan * kBobStride));
+		(void)blit_box(backend, base, x0, m_bob_y, shape, 0,
+			       3u * kBobSpan * kBobStride, true);
 		m_prev_x[back] = m_bob_x;
 		m_prev_y[back] = m_bob_y;
 	}
 
-	/// Prerenderiza el disco en 8 variantes (una por offset sub-byte de `x`): 3 planos,
-	/// 45 filas de 8 bytes. Asi el frame solo copia bytes y mueve el BOB a 50 fps.
+	/// Prerenderiza el disco en 16 variantes (offset de PALABRA de `x`, 0..15): 3 planos,
+	/// 45 filas de 8 bytes (64 bits = 45 + 15 de margen). Así el Blitter copia palabras ya
+	/// alineadas (sin shift) y el disco entra en cualquier x.
 	void build_shape() {
-		for (eng::u8 o = 0; o < 8u; ++o) {
+		eng::u8* const base = m_shape.view.data();
+		for (eng::u8 v = 0; v < 16u; ++v) {
 			for (eng::u16 row = 0; row < kBobSpan; ++row) {
 				const eng::s16 dy = static_cast<eng::s16>(row) - kBobR;
 				for (eng::s16 dx = -kBobR; dx <= kBobR; ++dx) {
@@ -292,14 +380,16 @@ private:
 					const eng::s16 hx = static_cast<eng::s16>(dx + kBobR / 3);
 					const eng::s16 hy = static_cast<eng::s16>(dy + kBobR / 3);
 					if (hx * hx + hy * hy <= (kBobR / 4) * (kBobR / 4)) idx = 3u;
-					const eng::u16 bit = static_cast<eng::u16>(dx + kBobR + o);
+					const eng::u16 bit = static_cast<eng::u16>(dx + kBobR + v);
 					const eng::u16 byte = bit >> 3u;
 					const eng::u8 mask = static_cast<eng::u8>(0x80u >> (bit & 7u));
 					for (eng::u8 p = 0; p < 3u; ++p) {
-						if (((idx >> p) & 1u) != 0u) {
-							m_shape[o][p][row][byte] = static_cast<eng::u8>(
-								m_shape[o][p][row][byte] | mask);
-						}
+						if (((idx >> p) & 1u) == 0u) continue;
+						eng::u8* const px =
+							base + (static_cast<eng::u32>(v) * 3u + p) *
+								       kBobSpan * kBobStride +
+							static_cast<eng::u32>(row) * kBobStride + byte;
+						*px = static_cast<eng::u8>(*px | mask);
 					}
 				}
 			}
@@ -307,18 +397,26 @@ private:
 	}
 
 	eng::Block<eng::PlaneTag> m_bitmaps[2] {};
-	eng::u8 m_shape[8][3][kBobSpan][kBobStride] {};
+	eng::Block<eng::BobTag> m_shape {}; ///< 16 variantes pre-shifteadas del disco (fuente del Blitter)
+	eng::Block<eng::BobTag> m_zero {};  ///< fila de ceros (fuente del borrado por Blitter)
 	copper::Plan m_plan {};
 	effects::RasterGradientEffect m_sky {};
 	graphics::CopperIntent m_intents[eng::copper::Plan::max_intents] {};
 	eng::u16 m_colors[eng::copper::Plan::max_intents * 2u] {};
 	eng::u16 m_n = 0;
+	// Slots del BOB (palabras de DATO de COLOR01), casados tras el materialize del setup:
+	// array DENSO indexado por línea (kBobLineMax - kBobLineMin + 1 líneas posibles).
+	static constexpr eng::u16 kMaxBobSlots = kBobLineMax - kBobLineMin + 1u;
+	eng::u16 m_bob_slot_word[kMaxBobSlots] {};
+	// Rango de líneas del disco parcheado en el frame anterior (unión con el actual).
+	eng::s16 m_prev_lo = 1;
+	eng::s16 m_prev_hi = 0;
 	eng::u8 m_back = 0;
 	eng::u8 m_sky_phase = 0;
 	eng::s16 m_bob_x = 0;
 	eng::s16 m_bob_y = 0;
-	eng::s16 m_prev_x[2] = {0, 0};
-	eng::s16 m_prev_y[2] = {0, 0};
+	eng::s16 m_prev_x[2] = {160, 160}; // = posición inicial del disco (la caja del primer borrado cae dentro)
+	eng::s16 m_prev_y[2] = {128, 128};
 	bool m_ready = false;
 };
 

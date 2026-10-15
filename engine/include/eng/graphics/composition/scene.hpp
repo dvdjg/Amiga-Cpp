@@ -387,6 +387,11 @@ public:
 	[[nodiscard]] constexpr const u16* active_words() const { return m_plan.active_words(); }
 	[[nodiscard]] constexpr const u16* inactive_words() const { return m_plan.inactive_words(); }
 
+	/// Vistas **tipadas (Chip)** de la copperlist activa/inactiva: para
+	/// `takeover_display`/`install_copper_list` (la procedencia DMA viaja en el tipo).
+	[[nodiscard]] constexpr eng::ChipView<eng::CopperTag> active_view() const { return m_plan.active_view(); }
+	[[nodiscard]] constexpr eng::ChipView<eng::CopperTag> inactive_view() const { return m_plan.inactive_view(); }
+
 	/// Publica la copperlist recién construida con `end_build` (la instala en el backend por
 	/// `COP1LC`). La ruta **planar** no lo necesita (lista estática + parcheo de `BPLxPT`); la
 	/// usa el modo **copper chunky**, cuya lista cambia cada frame.

@@ -114,7 +114,7 @@ struct AudioStreamDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00027203u);
 			return;
 		}
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_view);
 
 		// Stream: 2 buffers PCM del llamador (Chip). En modo fichero el PCM ya viene crudo
 		// (`Codec::None`); en modo sintetizado, la melodia va comprimida (`DeltaRle`).
@@ -163,6 +163,7 @@ struct AudioStreamDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_init_ok) {
 			return;
 		}
@@ -280,7 +281,7 @@ private:
 		sched.wait_line(static_cast<eng::u8>(kBarRow + 20u));
 		sched.move(eng::copper::color_register(0), 0xff0u);
 		sched.end();
-		m_copper_ptr = sched.data();
+		m_copper_view = sched.chip_view();
 		return sched.ok();
 	}
 
@@ -289,7 +290,7 @@ private:
 	// con la ISR; el contador de 16 bits se lee de un acceso (no se desgarra en el 68000).
 	eng::audio::PcmStream<kNumBuffers> m_stream {};
 	eng::audio::AudioFeeder<eng::audio::PcmStream<kNumBuffers>> m_feeder {m_stream};
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_bitplane_block {};
 	eng::Block<eng::CopperTag, eng::MemoryKind::Chip> m_copper_block {};
 	eng::Block<eng::AudioTag> m_pcm0 {};

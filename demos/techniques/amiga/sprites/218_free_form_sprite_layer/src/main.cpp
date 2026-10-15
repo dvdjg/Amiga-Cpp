@@ -377,10 +377,10 @@ struct SprLayerDemo {
 		// La lista aparca el Copper en un WAIT que nunca dispara; la pantalla queda en
 		// COLOR00 hasta el `takeover_display` final.
 		m_minimal = chip.reserve<eng::CopperTag>(16u, 16u);
-		u16* mini = m_minimal.view.as_words().data();
+		eng::Words<eng::CopperTag> mini = m_minimal.view.as_words();
 		mini[0] = 0xffffu; mini[1] = 0xfffeu;
 		mini[2] = 0xffffu; mini[3] = 0xfffeu;
-		backend.takeover_display(mini);
+		backend.takeover_display(m_minimal.mem_view());
 		for (u8 i = 0; i < 3; ++i) {
 			m_fg[i] = chip.reserve<eng::PlaneTag>(kBufBytes, 16u);
 		}
@@ -487,7 +487,7 @@ struct SprLayerDemo {
 		// Display: toma de control y arranque **inmediato** del efecto (sin esperar
 		// eventos): la primera pantalla es el estado inicial del original (capa de
 		// sprites + texto del título) y el scroll empieza en el primer frame.
-		backend.takeover_display(m_clist_words[0].data()); // frontera pendiente: takeover_display aún recibe u16*
+		backend.takeover_display(m_clist[0].mem_view());
 		start_main_loop();
 		eng::debug::mark_ready(g_eng_run_status, kDetailReady);
 	}
@@ -548,7 +548,7 @@ struct SprLayerDemo {
 		// valores de su última ventana: es correcto — no se muestran.
 		const u8 idx = static_cast<u8>((m_clist_idx >> 2u) + (m_cshow_idx >> 2u));
 		eng::Words<eng::CopperTag> list = m_clist_words[idx];
-		backend.install_copper_list(list.data()); // frontera pendiente: install_copper_list aún recibe `u16*`
+		backend.install_copper_list(m_clist[idx].mem_view());
 		list[m_lay.shift_word] = m_fg_shift;
 		// Selector de buffer FG del original (`btst #0,c32frame_cn_o+1`, `SPR_Layer.asm:378-398`):
 		// prueba el byte alto de un contador 0..31, que vale siempre 0 → dibuja y muestra

@@ -208,7 +208,11 @@ int main() {
 			  5, 2);
 
 		FramePlan plan;
-		SpritePlanExecutor exec {plan, target, eng::Span<eng::u16> {save2, 64u}, 3u, 16u};
+		SpritePlanExecutor exec {plan, target,
+					 eng::ChipView<eng::BobTag> {
+						 eng::Address<eng::MemoryKind::Chip>::from_storage(save2),
+						 sizeof(save2)},
+					 3u, 16u};
 		eng::graphics::DrawQueue<4u, SpritePlanExecutor, eng::NoDone> dq;
 		dq.bind(exec);
 
