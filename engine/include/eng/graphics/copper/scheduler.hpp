@@ -273,20 +273,26 @@ public:
 		++m_report.waits;
 	}
 
-	/// **Rearmado horizontal de un canal de sprite**: espera a `(vstart, hpos)` y
-	/// reescribe `SPRxPOS`/`SPRxCTL`/`SPRxDATA`/`SPRxDATB` para redibujar el MISMO canal
-	/// más a la derecha en la misma línea (multiplexado horizontal). NO toca `SPRxPT`.
+	/// **Rearmado horizontal de un canal de sprite**: espera a `(vstart, hpos)` y reescribe
+	/// `SPRxPOS`/`SPRxCTL` **y `SPRxPTH/L` → la estructura de DATA** para redibujar el MISMO
+	/// canal más a la derecha en la misma línea (multiplexado horizontal).
+	///
+	/// La **vista de DATA es obligatoria y tipada** (`ChipView<SpriteTag>`): el DMA hace fetch
+	/// de 2 palabras por línea desde `SPRxPT` y **pisa** los registros `SPRxDATA/DATB`, así que
+	/// la DATA del sprite vive en esa estructura (una fila por línea) y una forma sin `PT`
+	/// sería incorrecta por construcción (ver `winuae/sprite-dma.md` §Armado de un canal).
 	///
 	/// Se emite **por línea** (el truco se repite en cada scanline del efecto). El
 	/// llamador es responsable de la separación ≥24 px entre usos del mismo canal (carrera
-	/// contra el haz). Ver `graphics::SpriteHorizontalRearm` y
+	/// contra el haz) y de que `hpos` caiga **tras el fetch de la línea** (DDFSTRT/2).
+	/// Ver `graphics::SpriteHorizontalRearm` y
 	/// `docs/reference/amiga/techniques/sprite-horizontal-multiplex.md`.
 	///
 	/// Codificación (AHRM cap. 4): `SPRxPOS = (VSTART[7:0]<<8) | (HSTART[8:1])`;
 	/// `SPRxCTL = (VSTOP[7:0]<<8) | (VSTART[8]<<3) | (VSTOP[8]<<2) | (HSTART[0]<<1) | attach`.
-	/// Offsets: `SPRxPOS=0x140+x*8`, `SPRxCTL=0x142+x*8`, `SPRxDATA=0x144+x*8`,
-	/// `SPRxDATB=0x146+x*8`.
-	void emit_sprite_horizontal_rearm(const graphics::SpriteHorizontalRearm& r) {
+	/// Offsets: `SPRxPOS=0x140+x*8`, `SPRxCTL=0x142+x*8`, `SPRxPTH/L=0x120+x*8`.
+	void emit_sprite_horizontal_rearm(const graphics::SpriteHorizontalRearm& r,
+					  eng::ChipView<eng::SpriteTag> data) {
 		const u16 ch = r.channel & 7u;
 		wait_position(static_cast<u8>(r.vstart & 0xffu), static_cast<u8>(r.hpos & 0xfeu));
 		const u16 pos = static_cast<u16>(((r.vstart & 0xffu) << 8u) | ((r.hpos >> 1u) & 0xffu));
@@ -299,38 +305,19 @@ public:
 		);
 		move(static_cast<u16>(0x140u + ch * 8u), pos);   // SPRxPOS
 		move(static_cast<u16>(0x142u + ch * 8u), ctl);   // SPRxCTL
-		move(static_cast<u16>(0x144u + ch * 8u), r.data_high); // SPRxDATA (arma)
-		move(static_cast<u16>(0x146u + ch * 8u), r.data_low);  // SPRxDATB
-	}
-
-	/// Igual que `emit_sprite_horizontal_rearm(1)`, para una lista (misma línea).
-	///
-	/// La lista DEBE venir en `hpos` ascendente: el Copper ejecuta los WAIT en orden y
-	/// un WAIT ya pasado espera al frame siguiente. Aquí se salta el siguiente rearm si
-	/// su `hpos` es menor que el anterior (la lista la ordena el llamador).
-	void emit_sprite_horizontal_rearms(const graphics::SpriteHorizontalRearm* list, u16 count) {
-		if (list == nullptr) {
-			return;
-		}
-		u16 last_hpos = 0;
-		for (u16 i = 0; i < count; ++i) {
-			if (i > 0u && list[i].hpos < last_hpos) {
-				continue; // fuera de orden: se ignora (el llamador debe ordenar)
-			}
-			last_hpos = list[i].hpos;
-			emit_sprite_horizontal_rearm(list[i]);
-		}
+		const eng::u32 addr = data.address(0).value;     // estructura de DATA (el walk la lee)
+		move(static_cast<u16>(0x120u + ch * 8u), static_cast<u16>(addr >> 16u));   // SPRxPTH
+		move(static_cast<u16>(0x122u + ch * 8u), static_cast<u16>(addr & 0xffffu)); // SPRxPTL
 	}
 
 	/// **Reposiciona** un canal de sprite horizontalmente a media línea: espera a
-	/// `(vline, hpos)` y escribe SOLO `SPRxPOS`. No toca CTL ni DATA.
+	/// `(vline, hpos)` y escribe SOLO `SPRxPOS`. No toca CTL, PT ni DATA.
 	///
 	/// Es el patrón real del **Risky Woods** / R-Type 2 (copperlist desensamblada): el
-	/// canal se arma UNA vez por DMA (`SPRxPT` con POS/CTL/DATA válidos, VSTART/VSTOP que
-	/// cubren la línea) y el Copper **solo mueve `SPRxPOS`** repetidamente mientras el haz
-	/// barre; el armado del sprite persiste y el patrón (de 64 px) se repite. Es más
-	/// barato que `emit_sprite_horizontal_rearm` (1 MOVE en vez de 4) y es el que cabe en
-	/// el presupuesto de una línea completa.
+	/// canal se arma **una vez** (`emit_sprite_horizontal_rearm` o `arm_object`, con su
+	/// `SPRxPT` → estructura de DATA y VSTART/VSTOP que cubren la banda) y el Copper
+	/// **solo mueve `SPRxPOS`** repetidamente mientras el haz barre; el walk del DMA
+	/// entrega la DATA de cada línea. Es más barato que el rearmado (1 MOVE en vez de 5).
 	///
 	/// `vline` es la línea del efecto y `hpos` la posición horizontal (low-res px, mismo
 	/// valor que el HSTART de `SPRxPOS`). Al final de la línea hay que **resetear** el

@@ -212,14 +212,15 @@ scratch** (el `detail≈9861` de la 275, ya documentado en su README) y sacarlo 
      **053, 062 y dk_port** (no solo la 053). **Decisión (2026-10): mantener como legado
      documentado** hasta el siguiente toque de esas demos (migrarlas a `emit_armed_into` es un
      refactor sin defecto asociado; no se toca una demo validada por limpieza).
-  4. **Demos de cierre**: HUD con `SpriteLineLayer` (HOST-418, sin demo) y prioridad `BPLCON2`
-     por franjas (intent `Priority` existe, sin demo). `087_sprite_horizontal_rearm`:
-     **RETIRADA (2026-10)** — no renderizaba su efecto con ninguna de las dos estrategias
-     (rearm por registro POS+CTL+DATA y reposition POS-only con semilla por DMA; captura
-     interna del emulador en marcha: 0 px del color del sprite en todo el frame) y la técnica
-     está cubierta por 207/208 + 053/217 + `SpriteLineLayer` (HOST-418). El hallazgo de fuente
-     quedó en `winuae/sprite-dma.md` §Armado de un canal (canal desarmado = sin fetch;
-     armado por memoria solo con `vpos == VSTART`).
+  4. **Demos de cierre**: prioridad `BPLCON2` por franjas (intent `Priority` existe, sin
+     demo). **HUD con `SpriteLineLayer`**: demo **223_sprite_hud** construida (copperlist
+     estática: armado único por canal `POS+CTL+PT`→tabla de DATA + reposición POS-only por
+     línea; fps ≤1/s; 49,27 fps) pero **el render está ABIERTO** (los segmentos no aparecen;
+     la emisión y la lista están verificadas — pendiente la traza DMA del emulador;
+     `223_sprite_hud/VALIDATION.md`). `087_sprite_horizontal_rearm`: **RETIRADA (2026-10)** —
+     no renderizaba con ninguna estrategia y la técnica está cubierta por 207/208 + 053/217 +
+     `SpriteLineLayer`. Hallazgos de fuente en `winuae/sprite-dma.md` §Armado de un canal
+     (canal desarmado = sin fetch; la API ya **exige** el PT tipado — AGENTS §1.10).
   5. **Bending por tabla de seno** (`SPRxPOS` por línea): **HECHO** — driver
      `graphics/drivers/sprite_bend.hpp` (varios canales intercalados por línea) + HOST-436;
      demo **220** validada (dos columnas 16×64 ondulando en oposición; 49.97 fps, 764 words

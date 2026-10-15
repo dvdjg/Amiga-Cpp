@@ -41,6 +41,7 @@
 #include <eng/debug/peripheral.hpp>
 #include <eng/debug/prof.hpp>
 #include <eng/debug/version.hpp>
+#include <eng/debug/version_strip.hpp>
 #include <eng/core/data/utf8.hpp>
 #include <eng/graphics/font5x7.hpp>
 #include <eng/platform/amiga/backend.hpp>
@@ -207,7 +208,13 @@ struct BobShowcaseDemo {
 			}
 		}
 		build_background_art();
-		draw_version_strip(0u);
+		// Franja de versión BARATA (`VersionStrip`): fondo + nombre + versión se dibujan UNA
+		// vez; por frame solo queda el `tick` del fps (≤1 actualización/segundo, solo los
+		// dígitos que cambian). Sustituye al `draw_version_strip` que repintaba todo.
+		m_strip.init({m_bitplane_block.view.as_words().data(),
+			      static_cast<eng::u16>(kBytesPerRow / 2u),
+			      static_cast<eng::u32>(kPlaneBytes / 2u), 240u, 16u, 4u, 4u},
+			     "066 BOB SHOWCASE", {1u, 0u});
 		build_sprite_art();
 		// Emite la lista **en ambos bloques** del doble buffer (a partir de aquí solo se
 		// parchea el armado de sprites por frame). El chequeo de WAITs mira el activo.
@@ -269,9 +276,8 @@ struct BobShowcaseDemo {
 		g_eng_run_status.detail =
 			m_frame_plan.ok() ? m_frame_plan.blit_job_count() : 0x6610u;
 		m_update_kcycles = (eng::debug::DebugPeripheral::cycle_counter() - t0) / 1000u;
-		if ((f & 31u) == 0u) {
-			draw_version_strip(f);
-		}
+		// Fps estimados en la franja: ≤1 vez por segundo (y solo dígitos cambiados).
+		m_strip.tick(f, eng::debug::DebugPeripheral::cycle_counter());
 		// **Parcheo del armado** (no re-emisión): solo cambian POS/CTL de los 4 canales; el
 		// resto de la lista es estático. El bloque inactivo (la lista del frame anterior) se
 		// parchea y pasa a activo con `flip` + `install` (swap de COP1LC, sin COPJMP1).
@@ -604,117 +610,6 @@ private:
 				}
 				break;
 		}
-	}
-
-	// ── Franja de versión (norma: 16 px de alto, 4 bpp, parte inferior) ────
-	/// Rellena la franja y=240..255 con `value` (planos 0-3) escribiendo las palabras.
-	void strip_fill(eng::u8 value) {
-		eng::u16* const planes = m_bitplane_block.view.as_words().data();
-		const eng::u16 wpr = static_cast<eng::u16>(kBytesPerRow / 2u);
-		for (eng::u8 p = 0u; p < 4u; ++p) {
-			const eng::u16 word = (value & (1u << p)) != 0u ? 0xffffu : 0x0000u;
-			for (eng::s16 y = 240; y < 256; ++y) {
-				eng::u16* const row = planes +
-						     static_cast<eng::u32>(p) * (kPlaneBytes / 2u) +
-						     static_cast<eng::u32>(y) * wpr;
-				for (eng::u16 i = 0u; i < wpr; ++i) {
-					row[i] = word;
-				}
-			}
-		}
-	}
-
-	/// Escribe `value` en el píxel (x, y) de la franja (planos 0-3).
-	void strip_set(eng::s16 x, eng::s16 y, eng::u8 value) {
-		if (x < 0 || x >= 320 || y < 240 || y >= 256) {
-			return;
-		}
-		eng::u16* const planes = m_bitplane_block.view.as_words().data();
-		const eng::u16 wpr = static_cast<eng::u16>(kBytesPerRow / 2u);
-		for (eng::u8 p = 0u; p < 4u; ++p) {
-			if ((value & (1u << p)) == 0u) {
-				continue;
-			}
-			eng::u16* const row = planes + static_cast<eng::u32>(p) * (kPlaneBytes / 2u) +
-					      static_cast<eng::u32>(y) * wpr;
-			row[x / 16] = static_cast<eng::u16>(row[x / 16] | (0x8000u >> (x & 15)));
-		}
-	}
-
-	/// Texto con la fuente 5x7 del engine dentro de la franja (avance 5 px).
-	void strip_text(eng::s16 x, eng::s16 y, const char* text, eng::u8 color) {
-		const eng::u8* p = reinterpret_cast<const eng::u8*>(text);
-		for (;;) {
-			const eng::u32 cp = eng::utf8::decode(p);
-			if (cp == 0u) {
-				break;
-			}
-			if (cp >= 32u) {
-				for (eng::u8 r = 0u; r < eng::Font5x7::kRows; ++r) {
-					const eng::u8 bits =
-						eng::Font5x7::row(static_cast<eng::u16>(cp), r);
-					for (eng::u8 c = 0u; c < 5u; ++c) {
-						if ((bits & (0x10u >> c)) != 0u) {
-							strip_set(static_cast<eng::s16>(x + c),
-								  static_cast<eng::s16>(y + r), color);
-						}
-					}
-				}
-			}
-			x = static_cast<eng::s16>(x + 5);
-		}
-	}
-
-	/// Texto decimal con prefijo en la franja (sin stdlib).
-	void strip_num(eng::s16 x, eng::s16 y, const char* prefix, eng::u32 value, eng::u8 color) {
-		char buf[16];
-		eng::u8 n = 0u;
-		while (prefix[n] != '\0' && n + 1u < sizeof(buf)) {
-			buf[n] = prefix[n];
-			++n;
-		}
-		char tmp[10];
-		eng::u8 t = 0u;
-		do {
-			tmp[t++] = static_cast<char>('0' + (value % 10u));
-			value /= 10u;
-		} while (value != 0u && t < 10u);
-		while (t > 0u && n + 1u < sizeof(buf)) {
-			buf[n++] = tmp[--t];
-		}
-		buf[n] = '\0';
-		strip_text(x, y, buf, color);
-	}
-
-	/// Texto hex de 6 dígitos con prefijo (diagnóstico de direcciones en la franja).
-	void strip_hex(eng::s16 x, eng::s16 y, char prefix, eng::uintptr value, eng::u8 color) {
-		char buf[8];
-		buf[0] = prefix;
-		for (eng::u8 i = 0u; i < 6u; ++i) {
-			const eng::u8 nib = static_cast<eng::u8>((value >> ((5u - i) * 4u)) & 0x0fu);
-			buf[1u + i] = static_cast<char>(nib < 10u ? '0' + nib : 'A' + (nib - 10u));
-		}
-		buf[7] = '\0';
-		strip_text(x, y, buf, color);
-	}
-
-	/// Franja de **nombre + versión (major.minor.build) + depuración** (norma del repo):
-	/// 16 px de alto y 4 bpp en la parte inferior. Se repinta cada 32 frames (coste bajo).
-	/// Depuración: frames, CPU del update (`U`) y periodo de frame (`T`), en k ciclos.
-	void draw_version_strip(eng::u16 frame) {
-		strip_fill(4u); // fondo oscuro (COLOR04)
-		strip_text(4, 241, "066 BOB SHOWCASE", 1u);
-		strip_hex(100, 241, 'B', reinterpret_cast<eng::uintptr>(m_bitplane_block.view.data()), 1u);
-		strip_hex(160, 241, 'C', reinterpret_cast<eng::uintptr>(m_copper.active_words()), 1u);
-		char label[16];
-		(void)eng::debug::version_label(eng::debug::Version {1u, 0u}, label,
-						static_cast<eng::u8>(sizeof(label)));
-		strip_text(4, 249, label, 2u);
-		strip_num(56, 249, "F", frame, 2u);
-		strip_num(120, 249, "U", m_update_kcycles, 2u);
-		strip_num(176, 249, "T", m_period_kcycles, 2u);
-		strip_num(232, 249, "L", eng::amiga::AmigaBackend::blit_async_launches(), 1u);
-		strip_num(268, 249, "S", eng::amiga::AmigaBackend::blit_async_submits(), 1u);
 	}
 
 	void build_background_art() {
@@ -1148,6 +1043,7 @@ private:
 	eng::graphics::FramePlan m_frame_plan {};
 	eng::graphics::BobTarget m_target {};
 	eng::copper::DoubleBuffer m_copper {};
+	eng::debug::VersionStrip m_strip {}; ///< franja: estática + fps ≤1/s (tick por frame)
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::Block<eng::BobTag> m_bob_block {};
 	eng::Block<eng::BobTag> m_save_block {};

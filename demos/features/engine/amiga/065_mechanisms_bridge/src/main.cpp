@@ -29,6 +29,7 @@
 #include <eng/core/data/utf8.hpp>
 #include <eng/debug/peripheral.hpp>
 #include <eng/debug/version.hpp>
+#include <eng/debug/version_strip.hpp>
 #include <eng/graphics/font5x7.hpp>
 #include <eng/graphics/sprite_manager.hpp>
 #include <eng/os/os.hpp>
@@ -199,7 +200,12 @@ struct MechanismsDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00006503u);
 			return;
 		}
-		draw_version_strip(0u);
+		// Franja de versión BARATA (`VersionStrip`): fondo + nombre + versión UNA vez; por
+		// frame solo el `tick` del fps (≤1 actualización/segundo, solo dígitos cambiados).
+		m_strip.init({m_bitplane_block.view.as_words().data(),
+			      static_cast<eng::u16>(kBytesPerRow / 2u),
+			      static_cast<eng::u32>(kPlaneBytes / 2u), 240u, 16u, 4u, 4u},
+			     "065 MECHANISMS BRIDGE", {1u, 0u});
 		backend.takeover_display(m_copper_view);
 		eng::debug::mark_ready(g_eng_run_status, 0x00006500u);
 	}
@@ -312,9 +318,8 @@ struct MechanismsDemo {
 		}
 		g_eng_run_status.detail = m_frame_plan.ok() ? m_frame_plan.blit_job_count() : 0x6510u;
 		m_update_kcycles = (eng::debug::DebugPeripheral::cycle_counter() - t0) / 1000u;
-		if ((frame & 31u) == 0u) {
-			draw_version_strip(frame);
-		}
+		// Fps estimados en la franja: ≤1 vez por segundo (y solo dígitos cambiados).
+		m_strip.tick(frame, eng::debug::DebugPeripheral::cycle_counter());
 		{
 			auto& tel = g_eng_frame_telemetry;
 			tel.frame = frame;
@@ -574,102 +579,9 @@ private:
 		return m_copper_ok;
 	}
 
-	// ── Franja de versión/telemetría (norma del repo: 16 px de alto, 4 bpp, abajo) ──
-	/// Rellena la franja y=240..255 con `value` (planos 0-3) escribiendo las palabras.
-	void strip_fill(eng::u8 value) {
-		eng::u16* const planes = m_bitplane_block.view.as_words().data();
-		const eng::u16 wpr = static_cast<eng::u16>(kBytesPerRow / 2u);
-		for (eng::u8 p = 0u; p < kPlanes; ++p) {
-			const eng::u16 word = (value & (1u << p)) != 0u ? 0xffffu : 0x0000u;
-			for (eng::s16 y = 240; y < 256; ++y) {
-				eng::u16* const row = planes +
-						     static_cast<eng::u32>(p) * (kPlaneBytes / 2u) +
-						     static_cast<eng::u32>(y) * wpr;
-				for (eng::u16 i = 0u; i < wpr; ++i) {
-					row[i] = word;
-				}
-			}
-		}
-	}
-
-	/// Escribe `value` en el píxel (x, y) de la franja (planos 0-3).
-	void strip_set(eng::s16 x, eng::s16 y, eng::u8 value) {
-		if (x < 0 || x >= 320 || y < 240 || y >= 256) {
-			return;
-		}
-		eng::u16* const planes = m_bitplane_block.view.as_words().data();
-		const eng::u16 wpr = static_cast<eng::u16>(kBytesPerRow / 2u);
-		for (eng::u8 p = 0u; p < kPlanes; ++p) {
-			eng::u16* const row = planes + static_cast<eng::u32>(p) * (kPlaneBytes / 2u) +
-					      static_cast<eng::u32>(y) * wpr;
-			const eng::u16 bit = static_cast<eng::u16>(0x8000u >> (x & 15));
-			if ((value & (1u << p)) != 0u) {
-				row[x / 16] = static_cast<eng::u16>(row[x / 16] | bit);
-			} else {
-				row[x / 16] = static_cast<eng::u16>(row[x / 16] & ~bit);
-			}
-		}
-	}
-
-	/// Texto con la fuente 5x7 del engine dentro de la franja (avance 5 px).
-	void strip_text(eng::s16 x, eng::s16 y, const char* text, eng::u8 color) {
-		const eng::u8* p = reinterpret_cast<const eng::u8*>(text);
-		for (;;) {
-			const eng::u32 cp = eng::utf8::decode(p);
-			if (cp == 0u) {
-				break;
-			}
-			if (cp >= 32u) {
-				for (eng::u8 r = 0u; r < eng::Font5x7::kRows; ++r) {
-					const eng::u8 bits = eng::Font5x7::row(static_cast<eng::u16>(cp), r);
-					for (eng::u8 c = 0u; c < 5u; ++c) {
-						if ((bits & (0x10u >> c)) != 0u) {
-							strip_set(static_cast<eng::s16>(x + c),
-								  static_cast<eng::s16>(y + r), color);
-						}
-					}
-				}
-			}
-			x = static_cast<eng::s16>(x + 5);
-		}
-	}
-
-	/// Texto decimal con prefijo en la franja (sin stdlib).
-	void strip_num(eng::s16 x, eng::s16 y, const char* prefix, eng::u32 value, eng::u8 color) {
-		char buf[16];
-		eng::u8 n = 0u;
-		while (prefix[n] != '\0' && n + 1u < sizeof(buf)) {
-			buf[n] = prefix[n];
-			++n;
-		}
-		char tmp[10];
-		eng::u8 t = 0u;
-		do {
-			tmp[t++] = static_cast<char>('0' + (value % 10u));
-			value /= 10u;
-		} while (value != 0u && t < 10u);
-		while (t > 0u && n + 1u < sizeof(buf)) {
-			buf[n++] = tmp[--t];
-		}
-		buf[n] = '\0';
-		strip_text(x, y, buf, color);
-	}
-
-	/// Franja: nombre + versión + telemetría (F/U/T en k ciclos), repintada cada 32 frames.
-	void draw_version_strip(eng::u16 frame) {
-		strip_fill(4u); // fondo negro (COLOR04..)
-		strip_text(4, 241, "065 MECHANISMS BRIDGE", 1u);
-		char label[16];
-		(void)eng::debug::version_label(eng::debug::Version {1u, 0u}, label,
-						static_cast<eng::u8>(sizeof(label)));
-		strip_text(4, 249, label, 3u);
-		strip_num(96, 249, "F", frame, 1u);
-		strip_num(160, 249, "U", m_update_kcycles, 1u);
-		strip_num(240, 249, "T", m_period_kcycles, 1u);
-	}
-
 	bool m_copper_ok = false;
 	eng::ChipView<eng::CopperTag> m_copper_view {};
+	eng::debug::VersionStrip m_strip {}; ///< franja: estática + fps ≤1/s (tick por frame)
 	eng::graphics::FramePlan m_frame_plan {};
 	eng::graphics::BobTarget m_target {};
 	eng::graphics::Bob m_plank {};

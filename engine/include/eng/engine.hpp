@@ -14,6 +14,9 @@
 #include <eng/core/util/scope_guard.hpp>
 #include <eng/graphics/driver.hpp>
 #include <eng/task/background.hpp>
+#if defined(ENG_AMIGA)
+#include <eng/debug/run_status.hpp>
+#endif
 
 namespace eng {
 
@@ -153,6 +156,11 @@ class Engine {
 		for (u32 i = 0; i < frame_count; ++i) {
 			context.frame.frame_index = i;
 			context.frame.frames_elapsed = 1u; // polling: 1 latido por iteracion, sin salto
+			// Telemetría de frames del MOTOR (no de la demo): ninguna demo puede quedarse
+			// sin marcar frame (con la demo olvidándolo, `measure-fps` daba 0 fps).
+#if defined(ENG_AMIGA)
+			eng::debug::mark_frame(eng::debug::g_eng_run_status, i);
+#endif
 			reset_frame_scratch();
 			if (m_vblank_hook != nullptr) {
 				m_vblank_hook(m_vblank_user);
@@ -246,6 +254,10 @@ class Engine {
 					context.frame.frames_elapsed = beats; // catch-up (≥1; satura solo al envolver 2^32)
 					seen = hb.frames;
 					context.frame.frame_index = done;
+					// Telemetría de frames del MOTOR (no de la demo): ver `run_frames_polling`.
+#if defined(ENG_AMIGA)
+					eng::debug::mark_frame(eng::debug::g_eng_run_status, done);
+#endif
 					reset_frame_scratch();
 					m_game.update(m_backend, context);
 					m_game.render(m_backend, context);

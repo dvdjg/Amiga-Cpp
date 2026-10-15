@@ -40,6 +40,7 @@ Ambos comparten la misma clase: **un valor/resultado que debía ser coherente co
   constexpr eng::u16 kBplcon0 = composition::bplcon0_for(SceneMode::Standard, kPlanes);
   static_assert(eng::setup::check_bplcon0(kBplcon0, kPlanes).ok());
   ```
+- **Formas parciales de operación de hardware: no existen.** Si el hardware exige varios elementos acoplados, la API los pide **todos** (tipados) y no publica variantes con un subconjunto (AGENTS §1.10): armar/rearmar un canal de sprite exige `POS`+`CTL`+**`SPRxPT`→estructura tipada** (`emit_sprite_horizontal_rearm(r, ChipView<SpriteTag>)`; la variante POS+CTL+DATA sin PT — que sí existió — era **incorrecta por construcción**: el fetch del DMA pisa los registros, `winuae/sprite-dma.md` §Armado de un canal, bug 087/223) y `SpriteLineLayer::configure` **rechaza** configurarse sin su tabla de DATA (tipo obligatorio + tamaño validado). Al diseñar una API, la pregunta de gate es: «¿puede el llamador configurar esto a medias?» → si sí, cerrar la forma (tipo/argumento) o añadir validador.
 - Ya existía para escenas: `composition::valid_scene(res, limits)` (`consteval`) valida `SceneResources` contra el perfil de la máquina.
 
 ### Capa 2 — setup (runtime, antes de `mark_ready`)

@@ -170,8 +170,11 @@ struct BlitterWindow {
 /// Sprite Layer** (los 8 canales, fondo sin patrón). Ver
 /// `docs/reference/amiga/techniques/sprite-horizontal-multiplex.md`.
 ///
-/// **No toca `SPRxPT`**: el puntero apunta a una estructura POS/CTL+DATA; reasignarlo
-/// relanzaría la secuencia DMA. En modo manual se escriben los registros directos.
+/// **La DATA NO viaja aquí**: el rearmado va con `SPRxPT` → la estructura de DATA del canal
+/// (el DMA hace fetch de 2 palabras por línea y **pisa** `SPRxDATA`; ver
+/// `winuae/sprite-dma.md` §Armado de un canal). Por eso la emisión
+/// (`Scheduler::emit_sprite_horizontal_rearm`) **exige la vista tipada** de esa estructura:
+/// una forma POS+CTL+DATA sin `PT` es incorrecta por construcción y no existe en la API.
 ///
 /// Modelo de coste: es **carrera contra el haz**, no presupuesto por frame. Hacen falta
 /// **≥24 px** entre usos del mismo canal para que el Copper llegue a escribir los
@@ -181,8 +184,6 @@ struct SpriteHorizontalRearm {
     u16 hpos = 0;                 // posición horizontal (low-res px; se codifica /2)
     u16 vstart = 0;               // VSTART del tramo (línea de la primera fila)
     u16 vstop = 0;                // VSTOP (línea DESPUÉS de la última fila)
-    u16 data_high = 0;            // SPRxDATA (primera palabra de la fila)
-    u16 data_low = 0;             // SPRxDATB (segunda palabra de la fila)
     bool attach = false;          // bit de attach (par de canales a 15 colores)
 };
 

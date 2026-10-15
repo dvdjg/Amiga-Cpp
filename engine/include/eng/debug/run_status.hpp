@@ -91,6 +91,16 @@ inline void mark_frame(volatile RunStatus& status, u32 frame) {
 	status.frame = frame;
 }
 
+#if defined(ENG_AMIGA)
+/// Instancia única por programa (la define cada demo con enlace C, `extern "C"`). El
+/// **motor** marca el frame automáticamente en su bucle (`Engine::run_frames` /
+/// `run_frames_polling`), de modo que una demo **no puede olvidarse** de la telemetría de
+/// frames: sin ella `measure-fps` da 0 fps y el `ready-probe` no avanza (clase de fallo
+/// detectada en el barrido de la flota, 2026-10). Las llamadas de la demo siguen siendo
+/// válidas e idempotentes.
+extern "C" volatile RunStatus g_eng_run_status;
+#endif
+
 inline void probe_when_ready(volatile RunStatus& status, u32 frame, u32 min_frame = 3) {
 	if (status.state == static_cast<u16>(RunState::Ready) && frame >= min_frame) {
 		eng_debug_ready_probe();

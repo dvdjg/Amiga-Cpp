@@ -89,16 +89,20 @@ void test_encoding() {
 	MemoryManager mem = make_memory();
 	eng::copper::Scheduler sched = make_scheduler(mem, 256u);
 
-	// Canal 3, VSTART=0x2c, VSTOP=0x31, hpos=0x46 (low-res px), attach.
+	// Canal 3, VSTART=0x2c, VSTOP=0x31, hpos=0x46 (low-res px), attach. La DATA va como
+	// **vista tipada** (estructura del PT): sin ella la emisión no compila (forma parcial
+	// POS+CTL+DATA incorrecta por construcción).
+	alignas(16) static eng::u16 spr_data[8] {0x1234u, 0x5678u, 0x9abcu, 0xdef0u,
+						 0x1111u, 0x2222u, 0x3333u, 0x4444u};
+	const eng::ChipView<eng::SpriteTag> data_view {
+		eng::Address<eng::MemoryKind::Chip>::from_storage(spr_data), sizeof(spr_data)};
 	SpriteHorizontalRearm r {};
 	r.channel = 3u;
 	r.vstart = 0x2cu;
 	r.vstop = 0x31u;
 	r.hpos = 0x46u;
-	r.data_high = 0x1234u;
-	r.data_low = 0x5678u;
 	r.attach = true;
-	sched.emit_sprite_horizontal_rearm(r);
+	sched.emit_sprite_horizontal_rearm(r, data_view);
 	sched.end();
 
 	const u16* w = sched.data();
@@ -111,23 +115,28 @@ void test_encoding() {
 	const u16 pos_expected = static_cast<u16>((0x2cu << 8u) | ((0x46u >> 1u) & 0xffu));
 	const u16 ctl_expected = static_cast<u16>((0x31u << 8u) | 0x0080u);
 
-	CHECK(nm == 4u, "el rearm emite exactamente 4 MOVEs");
+	CHECK(nm == 4u, "el rearm emite exactamente 4 MOVEs (POS/CTL/PT)");
 	if (nm == 4u) {
 		CHECK(mv[0].reg == 0x140u + 3u * 8u, "SPRxPOS usa el offset del canal");
 		CHECK(mv[0].val == pos_expected, "SPRxPOS codifica VSTART/HSTART");
 		CHECK(mv[1].reg == 0x142u + 3u * 8u, "SPRxCTL usa el offset del canal");
 		CHECK(mv[1].val == ctl_expected, "SPRxCTL codifica VSTOP/HSTART-par/attach");
-		CHECK(mv[2].reg == 0x144u + 3u * 8u && mv[2].val == 0x1234u, "SPRxDATA (arma)");
-		CHECK(mv[3].reg == 0x146u + 3u * 8u && mv[3].val == 0x5678u, "SPRxDATB");
+		// **PT obligatorio**: la estructura de DATA del canal (el DMA la lee por fetch y
+		// pisa SPRxDATA; ver `winuae/sprite-dma.md` §Armado de un canal).
+		const eng::u32 addr = static_cast<eng::u32>(
+			reinterpret_cast<eng::uintptr>(spr_data));
+		CHECK(mv[2].reg == 0x120u + 3u * 8u && mv[2].val == (addr >> 16u), "SPRxPTH -> DATA");
+		CHECK(mv[3].reg == 0x122u + 3u * 8u && mv[3].val == (addr & 0xffffu),
+		      "SPRxPTL -> DATA");
 	}
-	// NO debe tocar SPRxPT (0x120..0x122 del canal).
-	bool touches_pt = false;
+	// NO debe escribir SPRxDATA/DATB (los pisa el fetch: el dato va en la estructura).
+	bool touches_data_regs = false;
 	for (unsigned i = 0; i < nm; ++i) {
-		if (mv[i].reg == 0x120u + 3u * 4u || mv[i].reg == 0x122u + 3u * 4u) {
-			touches_pt = true;
+		if (mv[i].reg == 0x144u + 3u * 8u || mv[i].reg == 0x146u + 3u * 8u) {
+			touches_data_regs = true;
 		}
 	}
-	CHECK(!touches_pt, "el rearm horizontal NO toca SPRxPT");
+	CHECK(!touches_data_regs, "el rearm no escribe SPRxDATA/DATB (los entrega el fetch)");
 	CHECK(has_wait_at(w, count, 0x2cu), "hay WAIT a la linea VSTART");
 
 	// El WAIT debe tener posicion horizontal (no esperar solo por V): comprobamos que
@@ -145,40 +154,47 @@ void test_encoding() {
 	CHECK(wait_has_h, "el WAIT del rearm espera a una posicion H concreta");
 }
 
-void test_list_order() {
+/// Dos rearms secuenciales (la variante de lista se retiró: la emisión exige la vista de
+/// DATA por canal; el llamador itera). El orden de `hpos` lo garantiza el llamador.
+void test_two_channels() {
 	MemoryManager mem = make_memory();
 	eng::copper::Scheduler sched = make_scheduler(mem, 256u);
 
-	SpriteHorizontalRearm list[3] {};
-	list[0].channel = 0u;
-	list[0].vstart = 0x40u;
-	list[0].vstop = 0x41u;
-	list[0].hpos = 0x20u;
-	list[0].data_high = 0xaaaa;
-	list[1].channel = 1u;
-	list[1].vstart = 0x40u;
-	list[1].vstop = 0x41u;
-	list[1].hpos = 0x10u; // ATRASADO: <= anterior -> debe ignorarse
-	list[1].data_high = 0xbbbb;
-	list[2].channel = 2u;
-	list[2].vstart = 0x40u;
-	list[2].vstop = 0x41u;
-	list[2].hpos = 0x38u;
-	list[2].data_high = 0xcccc;
-	sched.emit_sprite_horizontal_rearms(list, 3u);
+	alignas(16) static eng::u16 d0[4] {0xaaaa, 0xbbbb, 0xcccc, 0xdddd};
+	alignas(16) static eng::u16 d2[4] {0x1111, 0x2222, 0x3333, 0x4444};
+	const eng::ChipView<eng::SpriteTag> v0 {
+		eng::Address<eng::MemoryKind::Chip>::from_storage(d0), sizeof(d0)};
+	const eng::ChipView<eng::SpriteTag> v2 {
+		eng::Address<eng::MemoryKind::Chip>::from_storage(d2), sizeof(d2)};
+
+	SpriteHorizontalRearm a {};
+	a.channel = 0u;
+	a.vstart = 0x40u;
+	a.vstop = 0x41u;
+	a.hpos = 0x20u;
+	SpriteHorizontalRearm b {};
+	b.channel = 2u;
+	b.vstart = 0x40u;
+	b.vstop = 0x41u;
+	b.hpos = 0x38u;
+	sched.emit_sprite_horizontal_rearm(a, v0);
+	sched.emit_sprite_horizontal_rearm(b, v2);
 	sched.end();
 
 	Mv mv[16] {};
 	const unsigned nm = collect_moves(sched.data(), sched.words_used(), mv, 16u);
-	// 2 rearms validos * 4 MOVEs = 8; el atrasado se ignora.
-	CHECK(nm == 8u, "la lista ignora el rearm con hpos atrasado");
-	bool saw_ch1 = false;
+	CHECK(nm == 8u, "dos rearms = 8 MOVEs");
+	bool saw_ch0 = false;
+	bool saw_ch2 = false;
 	for (unsigned i = 0; i < nm; ++i) {
-		if (mv[i].reg == 0x140u + 1u * 8u) {
-			saw_ch1 = true;
+		if (mv[i].reg == 0x140u + 0u * 8u) {
+			saw_ch0 = true;
+		}
+		if (mv[i].reg == 0x140u + 2u * 8u) {
+			saw_ch2 = true;
 		}
 	}
-	CHECK(!saw_ch1, "el canal del rearm atrasado no se programa");
+	CHECK(saw_ch0 && saw_ch2, "cada canal lleva su POS/CTL/PT");
 }
 
 /// `SpriteManager` emite el bit ATTACH (0) de `SPRxCTL` cuando el sprite va attached.
@@ -382,7 +398,7 @@ void test_layer_effect() {
 
 int main() {
 	test_encoding();
-	test_list_order();
+	test_two_channels();
 	test_attach();
 	test_collision();
 	test_sprite_layer();

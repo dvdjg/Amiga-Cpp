@@ -25,7 +25,7 @@
   4    35  engine/include/eng/assets/uaf.hpp
   0     7  engine/include/eng/audio/acp1_stream.hpp
   0    18  engine/include/eng/audio/acp1_v3.hpp
-  0    29  engine/include/eng/audio/acp1.hpp
+  0    28  engine/include/eng/audio/acp1.hpp
   0    12  engine/include/eng/audio/aplib.hpp
   0     3  engine/include/eng/audio/asm_codec.hpp
   0     1  engine/include/eng/audio/audio_mode.hpp
@@ -156,6 +156,7 @@
   1     4  engine/include/eng/debug/prof.hpp
   0     6  engine/include/eng/debug/run_status.hpp
   0    10  engine/include/eng/debug/telemetry.hpp
+  1    27  engine/include/eng/debug/version_strip.hpp
   0     2  engine/include/eng/debug/version.hpp
   0    23  engine/include/eng/field/amiga_display_mapper.hpp
   0     5  engine/include/eng/field/chunk_cache.hpp
@@ -219,7 +220,7 @@
   3    11  engine/include/eng/graphics/sprite_chain.hpp
   0     1  engine/include/eng/graphics/sprite_channel_window.hpp
   0     8  engine/include/eng/graphics/sprite_collision.hpp
-  0     4  engine/include/eng/graphics/sprite_line_layer.hpp
+  0    17  engine/include/eng/graphics/sprite_line_layer.hpp
   0    26  engine/include/eng/graphics/sprite_manager.hpp
   0     5  engine/include/eng/graphics/sprite_palette.hpp
   0     6  engine/include/eng/graphics/sprite.hpp
