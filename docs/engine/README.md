@@ -61,6 +61,7 @@ Los de abajo son **diseño/decisión** (el *porqué*, contratos, roadmaps): el m
 - [VISUAL_EFFECT_SPRITE_DESIGN.md](architecture/VISUAL_EFFECT_SPRITE_DESIGN.md) — `Visual`/`CopperIntent`/`HwSprite*`/`Effect`.
 - [SCENE_AND_RESOURCES.md](architecture/SCENE_AND_RESOURCES.md) — escena retenida y ocupación de recursos.
 - **Scroll/tiles**: [PLAYFIELD_SCROLL_ARCHITECTURE.md](architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md), [XYLIMITED_ALGORITMO_GENERICO.md](architecture/XYLIMITED_ALGORITMO_GENERICO.md), [FAST_SCROLL.md](architecture/FAST_SCROLL.md), [CONTENT_AND_TILEMAP.md](architecture/CONTENT_AND_TILEMAP.md), [TILE_FIELD_API.md](architecture/TILE_FIELD_API.md), [AMIGA_8WAY_SCROLLING.md](architecture/AMIGA_8WAY_SCROLLING.md).
+- [PROCEDURAL_BITMAPS.md](architecture/PROCEDURAL_BITMAPS.md) — **bitmaps procedurales** (`eng::gfx::proc`): texturas tileables, atlas de materiales y terreno modular generados por CPU en carga.
 
 ### GUI
 

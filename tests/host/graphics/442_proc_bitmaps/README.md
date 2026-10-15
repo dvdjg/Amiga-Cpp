@@ -26,12 +26,17 @@ de material por altura y el generador de terreno modular (piezas + pintor + cat�
   píxeles remapeados dentro de la paleta de 16 colores, variantes deterministas,
   materiales distintos ⇒ texturas distintas, y **determinismo por seed** (dos atlas
   idénticos bit a bit).
-- **MaterialLayer**: altura 0 ⇒ banda de hierba (3..5), altura 1 ⇒ nieve (≥14); campo
+- **MaterialLayer**: altura 0 ⇒ banda de hierba (4..5), altura 1 ⇒ nieve (15); campo
   fBm interno en rango de paleta.
-- **Terreno**: set completo (40 piezas = 11 castillo + 6 río + 11 naturaleza + 12 extra),
+- **Terreno**: set completo (42 piezas = 11 castillo + 6 río + 13 naturaleza + 12 extra),
   `can_place` para muralla vertical consigo misma y puerta↔muralla horizontal, **el agua
   entra por el centro exacto del borde** (comparación con el píxel del material del
   atlas en dos tramos consecutivos) y la puerta abre el hueco transparente (índice 0).
+- **Variantes y colocador**: `add_variant` (píxeles con `apply_transform` + bordes con
+  `transform_edges`; `Identity` y falta de capacidad devuelven la base), `place_world`
+  (mapa 10×7 conectado con cueva, puerta y torre ancladas, río de borde a borde, puente en
+  la fila del camino; determinista; todas las piezas en paleta) y el encaje con
+  `eng::playfield::TileLayerMap` (`cells`/`width`/`height`, `tile_at` y `edge_tile`).
 
 ## Cómo está implementado
 
@@ -55,5 +60,7 @@ CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/graphics/442_proc_
 
 ## Estado
 
-Solo test host: la librería queda **NO VERIFICADA** en hardware hasta que una demo la
-ejercite (build → run → analyze + visión), conforme a `docs/testing/README.md`.
+Respaldo host de la librería. En hardware la ejercita la demo
+`demos/techniques/amiga/effects/119_proc_world` (colocación + composición + display,
+`VERIFIED` en su alcance; ver su `VALIDATION.md`); la generación runtime del atlas/set en
+68000 está **SIN VERIFICAR** (medida y precocinada en host, `PROCEDURAL_BITMAPS.md`).

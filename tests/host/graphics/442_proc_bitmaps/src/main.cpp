@@ -20,6 +20,7 @@
 
 // `proc/*.hpp` es genérico y NO incluye escalares concretos (§1.11): el test trae los suyos.
 #include <eng/core/math/minifloat.hpp>
+#include <eng/field/tile_map.hpp> // solo el test: verifica que el mapa colocado encaja con el tipo del field
 #include <eng/graphics/proc/atlas.hpp>
 #include <eng/graphics/proc/bitmap_buffer.hpp>
 #include <eng/graphics/proc/dither.hpp>
@@ -27,6 +28,7 @@
 #include <eng/graphics/proc/profile.hpp>
 #include <eng/graphics/proc/shapes.hpp>
 #include <eng/graphics/proc/terrain.hpp>
+#include <eng/graphics/proc/terrain_place.hpp>
 #include <eng/graphics/proc/textures.hpp>
 #include <eng/graphics/proc/tiles.hpp>
 
@@ -393,6 +395,27 @@ void test_atlas_scalar(const char* tag) {
 		bounds = bounds && eng::u16(d.base) + d.levels - 1u <= 15u;
 	}
 	check(bounds, tag);
+	// Los tramos no cruzan de tono (un material no mezcla colores de otra familia:
+	// mar/madera verdes, piedra con madera, etc.). Grupos por tono del doc del atlas.
+	const auto within = [&](proc::MaterialId id, u8 lo, u8 hi) {
+		const proc::MaterialDesc d = proc::TextureAtlas<32, 32, S>::desc(id);
+		return d.base >= lo && eng::u16(d.base) + d.levels - 1u <= hi;
+	};
+	bool tones = true;
+	const proc::MaterialId stone_family[] = {proc::MaterialId::Stone, proc::MaterialId::Granite,
+						 proc::MaterialId::Wall, proc::MaterialId::Rock,
+						 proc::MaterialId::Marble, proc::MaterialId::Cobble};
+	for (const proc::MaterialId m : stone_family) tones = tones && within(m, 10u, 11u);
+	const proc::MaterialId wood_family[] = {proc::MaterialId::Wood, proc::MaterialId::Roof,
+						proc::MaterialId::Rust};
+	for (const proc::MaterialId m : wood_family) tones = tones && within(m, 12u, 13u);
+	const proc::MaterialId green_family[] = {proc::MaterialId::Grass, proc::MaterialId::Moss};
+	for (const proc::MaterialId m : green_family) tones = tones && within(m, 4u, 5u);
+	// El follaje tiene su propio tono (verde profundo plano) para no confundirse con la hierba.
+	tones = tones && within(proc::MaterialId::Foliage, 14u, 14u);
+	const proc::MaterialId water_family[] = {proc::MaterialId::Water, proc::MaterialId::Foam};
+	for (const proc::MaterialId m : water_family) tones = tones && within(m, 2u, 3u);
+	check(tones, tag);
 	// Todos los pixeles remapeados caen en la paleta.
 	bool in_palette = true;
 	for (u8 m = 0; m < proc::kMaterialCount; ++m) {
@@ -490,7 +513,7 @@ void test_terrain_scalar(const char* tag) {
 	atlas.generate(0x7E5A1u, 16u);
 	terr::TerrainTileSet<32, 32, 64> set {};
 	set.generate(0xBEE5u, atlas, 6u);
-	check(set.count == 40u, tag); // 11 castillo + 6 rio + 11 naturaleza + 12 extra
+	check(set.count == 42u, tag); // 11 castillo + 6 rio + 13 naturaleza + 12 extra
 	bool in_palette = true;
 	for (u16 t = 0; t < set.count; ++t)
 		for (u16 i = 0; i < 32u * 32u; ++i) in_palette = in_palette && set.tiles[t].pixels[i] < 16u;
@@ -532,12 +555,12 @@ void test_terrain_scalar(const char* tag) {
 	terr::paint_terrain_tile(r1, river_spec, atlas, 0u, 0u, 6u);
 	proc::BitmapBuffer<32, 32> r2 {};
 	terr::paint_terrain_tile(r2, river_spec, atlas, 0u, 3u, 6u);
-	const auto& wtex = atlas.get(proc::MaterialId::Water, atlas.variant_at(0u, 0u, proc::MaterialId::Water));
-	const auto& wtex2 = atlas.get(proc::MaterialId::Water, atlas.variant_at(0u, 3u, proc::MaterialId::Water));
+	// El cauce muestrea la variante FIJA 0 (textura tileable: continuidad entre tiles).
+	const auto& wtex = atlas.get(proc::MaterialId::Water, 0u);
 	// El agua entra por el centro exacto de sus bordes: union de dos tramos consecutivos.
 	check(r1.at(16, 0) == wtex.at(16, 0), tag);   // borde N del tramo 1
 	check(r1.at(16, 31) == wtex.at(16, 31), tag); // borde S del tramo 1
-	check(r2.at(16, 0) == wtex2.at(16, 0), tag);  // borde N del tramo 2 (casa con el 1)
+	check(r2.at(16, 0) == wtex.at(16, 0), tag);   // borde N del tramo 2 (casa con el 1)
 
 	// La puerta abre el hueco transparente (indice 0) en el centro.
 	const u16 gate_idx = set.find([](const terr::TileSpec& s) {
@@ -548,6 +571,95 @@ void test_terrain_scalar(const char* tag) {
 
 void test_terrain() {
 	test_terrain_scalar<MiniFloat16>("terreno MF");
+}
+
+// ---------------------------------------------------------------------------
+// 11. Variantes transformadas, colocador de mundos y encaje con TileLayerMap
+// ---------------------------------------------------------------------------
+
+void test_variants_and_placer() {
+	proc::TextureAtlas<32, 32, MiniFloat16> atlas {};
+	atlas.generate(0x7E5A1u, 16u);
+	terr::TerrainTileSet<32, 32, 48> set {};
+	set.generate(0xBEE5u, atlas, 6u);
+	check(set.count == 42u, "catalogo con hierba llana y camino: 42 piezas");
+
+	// add_variant: los pixeles y los bordes son los transformados de la base.
+	const eng::u16 base = set.find([](const terr::TileSpec& s) {
+		return s.edges.n == terr::Edge::Water && s.edges.e == terr::Edge::Water &&
+		       s.edges.s == terr::Edge::Grass && s.edges.w == terr::Edge::Grass;
+	});
+	check(base < set.count, "pieza de curva de rio localizada");
+	const eng::u16 count_before = set.count;
+	const eng::u16 var = set.add_variant(base, proc::Transform::Rot90);
+	check(var == count_before && set.count == count_before + 1u, "add_variant anade una pieza");
+	proc::BitmapBuffer<32, 32> expected {};
+	proc::apply_transform(set.tiles[base], expected, proc::Transform::Rot90);
+	check(std::memcmp(set.tiles[var].pixels, expected.pixels, 32u * 32u) == 0,
+	      "add_variant: pixeles transformados");
+	const proc::EdgeSides<terr::Edge> ebase = set.specs[base].edges;
+	const proc::EdgeSides<terr::Edge> evar = set.specs[var].edges;
+	check(evar.n == ebase.w && evar.e == ebase.n && evar.s == ebase.e && evar.w == ebase.s,
+	      "add_variant: bordes transformados (Rot90)");
+	check(set.add_variant(base, proc::Transform::Identity) == base,
+	      "add_variant(Identity) devuelve la base");
+	// Capacidad justa: sin hueco, no se crea variante (devuelve la base, no corrompe).
+	{
+		terr::TerrainTileSet<32, 32, 42> tight {};
+		tight.generate(0xBEE5u, atlas, 6u);
+		check(tight.count == 42u && tight.add_variant(0u, proc::Transform::Rot90) == 0u,
+		      "add_variant sin capacidad devuelve la base");
+	}
+
+	// Colocador: mapa 10x7 conectado, determinista y con las estructuras ancladas. Se usa
+	// un set gemelo fresco (el `set` de arriba ya lleva una variante de prueba).
+	terr::TerrainTileSet<32, 32, 48> pset {};
+	pset.generate(0xBEE5u, atlas, 6u);
+	terr::TerrainLayout<10, 7> lay {};
+	check(terr::place_world(lay, pset, 0xBEE5u), "place_world: mapa conectado");
+	check(terr::layout_is_connected(lay, pset), "layout_is_connected: todas las uniones casan");
+	const auto spec_at = [&](eng::u16 x, eng::u16 y) -> const terr::TileSpec& {
+		return pset.specs[lay.at(x, y)];
+	};
+	check(terr::has(spec_at(0u, 0u).features, terr::Feature::CaveMouth), "cueva en la esquina (0,0)");
+	check(terr::has(spec_at(7u, 3u).features, terr::Feature::Gate), "puerta del castillo en (7,3)");
+	check(terr::has(spec_at(6u, 2u).features, terr::Feature::Tower), "torre en (6,2)");
+	check(spec_at(2u, 0u).edges.n == terr::Edge::Water, "el rio entra por el borde superior");
+	bool river_exit = false, bridge_on_road = false;
+	for (eng::u16 x = 0; x < 10u; ++x) {
+		if (spec_at(x, 6u).edges.s == terr::Edge::Water) river_exit = true;
+		if (terr::has(spec_at(x, 5u).features, terr::Feature::Bridge)) bridge_on_road = true;
+	}
+	check(river_exit, "el rio sale por el borde inferior");
+	check(bridge_on_road, "el camino cruza el rio con un puente (fila 5)");
+	// Todo el mapa usa la paleta del atlas.
+	bool in_palette = true;
+	for (eng::u16 y = 0; y < 7u; ++y) {
+		for (eng::u16 x = 0; x < 10u; ++x) {
+			for (eng::u16 j = 0; j < 32u * 32u; ++j) {
+				in_palette = in_palette && pset.tiles[lay.at(x, y)].pixels[j] < 16u;
+			}
+		}
+	}
+	check(in_palette, "todas las piezas del mapa estan en la paleta");
+
+	// Determinismo del colocador (set y semilla nuevos -> mismos indices).
+	terr::TerrainTileSet<32, 32, 48> pset2 {};
+	pset2.generate(0xBEE5u, atlas, 6u);
+	terr::TerrainLayout<10, 7> lay2 {};
+	check(terr::place_world(lay2, pset2, 0xBEE5u) &&
+		      std::memcmp(lay.cells, lay2.cells, sizeof(lay.cells)) == 0,
+	      "place_world determinista con la misma semilla");
+
+	// Encaje con el tipo del field: TerrainLayout -> TileLayerMap sin conversion de datos.
+	eng::playfield::TileLayerMap map {};
+	map.cells = lay.span();
+	map.width = 10u;
+	map.height = 7u;
+	map.wrap_x = 0u; // acotado: fuera del mapa devuelve `edge_tile`
+	map.edge_tile = 0u;
+	check(map.tile_at(3, 4) == lay.at(3u, 4u), "TileLayerMap consulta el mapa colocado");
+	check(map.tile_at(-1, 0) == 0u, "TileLayerMap devuelve edge_tile fuera del mapa");
 }
 
 // ---------------------------------------------------------------------------
@@ -582,38 +694,23 @@ void dump_visual_evidence(const char* dir) {
 		std::snprintf(path, sizeof(path), "%s/tile_%02u.ppm", dir, unsigned(t));
 		write_ppm(path, set.tiles[t].pixels, 32u, 32u, atlas.palette);
 	}
-	// Mapa de demostracion 5x4 con las piezas del set: fila 0 = rio vertical encadenado,
-	// fila 1 = muralla horizontal con puerta, filas 2-3 = piezas del catalogo en orden.
+	// `map.ppm`: el mundo completo que produce el COLOCADOR (10x7 piezas = 320x224),
+	// con cueva, rio meandriforme continuo, camino con puente, castillo con torre y
+	// puerta, aldea y naturaleza. Es la evidencia visual de `place_world`.
+	terr::TerrainLayout<10, 7> lay {};
+	if (!terr::place_world(lay, set, 0xBEE5u)) {
+		std::printf("[dump] ERROR: place_world no produjo un mapa conectado\n");
+	}
 	char mappath[512];
 	std::snprintf(mappath, sizeof(mappath), "%s/map.ppm", dir);
 	std::FILE* f = std::fopen(mappath, "wb");
 	if (f == nullptr) return;
-	const u16 mw = 5u, mh = 4u;
-	std::fprintf(f, "P6\n%u %u\n255\n", unsigned(mw * 32u), unsigned(mh * 32u));
-	const u16 river_i = set.find([](const terr::TileSpec& s) {
-		return s.edges.n == terr::Edge::Water && s.edges.s == terr::Edge::Water;
-	});
-	const u16 wall_i = set.find([](const terr::TileSpec& s) {
-		return s.edges.e == terr::Edge::Wall && s.edges.w == terr::Edge::Wall &&
-		       !terr::has(s.features, terr::Feature::Gate);
-	});
-	const u16 gate_i = set.find([](const terr::TileSpec& s) {
-		return terr::has(s.features, terr::Feature::Gate);
-	});
-	for (u16 cy = 0; cy < mh; ++cy) {
+	std::fprintf(f, "P6\n%u %u\n255\n", unsigned(10u * 32u), unsigned(7u * 32u));
+	for (u16 cy = 0; cy < 7u; ++cy) {
 		for (u16 row = 0; row < 32u; ++row) {
-			for (u16 cx = 0; cx < mw; ++cx) {
-				u16 idx = 0u;
-				if (cy == 0u) {
-					idx = river_i; // rio vertical encadenado (casa consigo mismo)
-				} else if (cy == 1u) {
-					idx = (cx == 2u) ? gate_i : wall_i; // muralla con puerta en el centro
-				} else {
-					idx = eng::u16((cy * mw + cx) % set.count);
-				}
-				if (idx >= set.count) idx = 0u;
+			for (u16 cx = 0; cx < 10u; ++cx) {
 				for (u16 px = 0; px < 32u; ++px) {
-					const u8 v = set.tiles[idx].at(px, row);
+					const u8 v = set.tiles[lay.at(cx, cy)].at(px, row);
 					const eng::u16 c = atlas.palette.color[v & 15u];
 					const u8 rgb[3] = {u8(((c >> 8u) & 0xFu) * 17u),
 							   u8(((c >> 4u) & 0xFu) * 17u),
@@ -624,8 +721,8 @@ void dump_visual_evidence(const char* dir) {
 		}
 	}
 	std::fclose(f);
-	std::printf("[dump] %u materiales + %u tiles + map.ppm en %s\n", unsigned(proc::kMaterialCount),
-		    unsigned(set.count), dir);
+	std::printf("[dump] %u materiales + %u tiles + mapa del colocador en %s\n",
+		    unsigned(proc::kMaterialCount), unsigned(set.count), dir);
 }
 
 } // namespace
@@ -645,6 +742,7 @@ int main(int argc, char** argv) {
 	test_atlas();
 	test_material_layer();
 	test_terrain();
+	test_variants_and_placer();
 	if (g_dump_dir != nullptr) dump_visual_evidence(g_dump_dir);
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);

@@ -22,8 +22,9 @@
 /// de rasgos (`Edge`), y un uso genérico puede usar `eng::u8`. El pegamento no conoce
 /// el significado del id, solo la igualdad.
 ///
-/// ## Estado de verificación: NO VERIFICADA
-/// Solo respaldada por test host (`HOST-442`); sin demo que la ejercite en hardware.
+/// ## Estado de verificación: VERIFICADA (demo 119)
+/// `apply_transform`/`transform_edges` se ejercitan en hardware vía
+/// `TerrainTileSet::add_variant` (curvas del río derivadas en carga); test `HOST-442`.
 
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/proc/dither.hpp>

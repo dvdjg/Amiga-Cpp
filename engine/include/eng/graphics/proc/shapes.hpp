@@ -17,18 +17,22 @@
 /// torre, casa, cueva) valen para cualquier escalar del consumidor.
 ///
 /// ## Estado de verificación: NO VERIFICADA
-/// Solo respaldada por test host (`HOST-442`); sin demo que la ejercite en hardware.
+/// Solo respaldada por test host (`HOST-442`); la demo 119 usa las piezas ya pintadas
+/// (precocinadas en host), así que estos sellos no corren en hardware — motivo y medida en
+/// `PROCEDURAL_BITMAPS.md` §Coste.
 
 #include <eng/core/math/noise.hpp>
 #include <eng/core/types/types.hpp>
 
 namespace eng::gfx::proc {
 
-/// Desviación entera simétrica `−amp..+amp` a partir de ruido `n ∈ [0,1)`:
-/// `trunc(n·(2·amp+1)) − amp`. Es la perturbación estándar de bordes orgánicos (el borde
-/// de un lago o una copa deja de ser un círculo matemático).
-/// \tparam S escalar del ruido. \param n ruido en [0,1). \param amp amplitud (±píxeles).
-/// \return entero en `[−amp, +amp]`.
+/// Desviación entera a partir de ruido `n ∈ [0,1]`: `trunc(n·(2·amp+1)) − amp`. Es la
+/// perturbación estándar de bordes orgánicos (el borde de un lago o una copa deja de ser
+/// un círculo matemático). Rango real `[−amp, +amp+1]`: `n` puede redondear a `1.0`
+/// exacto (la interpolación del ruido redondea al más cercano), así que las cotas de los
+/// atajos sin ruido de las primitivas usan `amp` por abajo y `amp+1` por arriba.
+/// \tparam S escalar del ruido. \param n ruido en [0,1]. \param amp amplitud (±píxeles).
+/// \return entero en `[−amp, +amp+1]`.
 template <class S>
 [[nodiscard]] constexpr eng::s32 jitter_from_noise(S n, eng::u8 amp) {
 	using eng::math::mul_norm;
@@ -79,23 +83,37 @@ struct RiverStroke {
 		const eng::s32 px = x - x0;
 		const eng::s32 py = y - y0;
 		const eng::s32 t = px * dx + py * dy;
-		// Ondulación orgánica: ruido 8× más grueso que el píxel (contorno suave, no dientes de sierra). La escala es una división por píxel (tabla de recíprocos del escalar, `minifloat.hpp:370`), acotada a la franja del cauce.
+		// La ondulación acota el ancho efectivo a [width−wobble, width+wobble]: fuera de esa
+		// banda la decisión no puede cambiar, así que el ruido solo se evalúa en el **borde**
+		// (mismo resultado bit a bit; el 68000 se ahorra la evaluación en el relleno). El
+		// ruido es 8× más grueso que el píxel: la escala es una división (tabla de recíprocos
+		// del escalar, `minifloat.hpp:370`), ya solo en los píxeles del borde.
+		const eng::s32 lo = eng::s32(width) - wobble;      // jitter mínimo = −wobble
+		const eng::s32 hi = eng::s32(width) + wobble + 1;  // jitter máximo = +wobble+1
+		auto decide = [&](eng::s32 dist2) -> eng::u8 {
+			if (lo >= 1 && dist2 <= lo * lo) return color;
+			if (dist2 > hi * hi) return 0u;
+			const S eighth = div_norm(scalar_traits<S>::one(), scalar_traits<S>::from_int(8));
+			const S n = value_noise2(mul_norm(scalar_traits<S>::from_int(x), eighth),
+						 mul_norm(scalar_traits<S>::from_int(y), eighth), seed);
+			const eng::s32 w = width + jitter_from_noise(n, wobble);
+			return (w > 0 && dist2 <= w * w) ? color : 0u;
+		};
+		if (t <= 0) return decide(px * px + py * py); // antes de A
+		if (t >= len2) { // después de B
+			const eng::s32 qx = x - x1;
+			const eng::s32 qy = y - y1;
+			return decide(qx * qx + qy * qy);
+		}
+		// Tramo medio: cross² / len² = distancia² al segmento (sin raíz ni división).
+		const eng::s32 cross = px * dy - py * dx;
+		if (lo >= 1 && cross * cross <= lo * lo * len2) return color;
+		if (cross * cross > hi * hi * len2) return 0u;
 		const S eighth = div_norm(scalar_traits<S>::one(), scalar_traits<S>::from_int(8));
 		const S n = value_noise2(mul_norm(scalar_traits<S>::from_int(x), eighth),
 					 mul_norm(scalar_traits<S>::from_int(y), eighth), seed);
 		const eng::s32 w = width + jitter_from_noise(n, wobble);
-		if (w <= 0) return 0u;
-		if (t <= 0) { // antes de A: distancia al extremo de entrada
-			return (px * px + py * py <= w * w) ? color : 0u;
-		}
-		if (t >= len2) { // después de B: distancia al extremo de salida
-			const eng::s32 qx = x - x1;
-			const eng::s32 qy = y - y1;
-			return (qx * qx + qy * qy <= w * w) ? color : 0u;
-		}
-		// Tramo medio: cross² / len² = distancia² al segmento (sin raíz ni división).
-		const eng::s32 cross = px * dy - py * dx;
-		return (cross * cross <= w * w * len2) ? color : 0u;
+		return (w > 0 && cross * cross <= w * w * len2) ? color : 0u;
 	}
 };
 
@@ -132,6 +150,10 @@ struct LakeBlob {
 		// Elipse en forma multiplicativa: dx²·ry² + dy²·rx² < (1 + ruido/256)·rx²·ry² (sin divisiones).
 		const eng::u32 e = eng::u32(dx * dx) * ry2 + eng::u32(dy * dy) * rx2;
 		const eng::u32 base = rx2 * ry2;
+		// El ruido abre el umbral hasta `base·40/256`: fuera de esa banda la decisión no
+		// cambia y solo se evalúa el ruido en el **borde** (mismo resultado bit a bit).
+		if (e < base) return color;
+		if (e >= base + ((base * 41u) >> 8u)) return 0u; // nw máximo real = 41
 		const S quarter = div_norm(scalar_traits<S>::one(), scalar_traits<S>::from_int(4));
 		const S n = value_noise2(mul_norm(scalar_traits<S>::from_int(x), quarter),
 					 mul_norm(scalar_traits<S>::from_int(y), quarter), seed);
@@ -168,10 +190,18 @@ struct TreeCanopy {
 		using eng::math::value_noise2;
 		const eng::s32 dx = x - cx;
 		const eng::s32 dy = y - cy;
-		const S n = value_noise2(scalar_traits<S>::from_int(x), scalar_traits<S>::from_int(y),
-					 seed);
-		const eng::s32 d2 = dx * dx + dy * dy + jitter_from_noise(n, 4);
-		if (d2 >= 0 && d2 <= r2) return foliage;
+		const eng::s32 d2 = dx * dx + dy * dy;
+		// La perturbación es [−4, +5] (`jitter_from_noise(_, 4)`) y su test lleva el
+		// guardián `d2 + jit >= 0` (valor negativo = fuera): si la decisión no puede
+		// cambiar, el ruido no se evalúa (mismo resultado bit a bit). Con `d2 < 4` el
+		// jitter negativo puede invalidar el test, así que esa zona también se evalúa.
+		if (d2 >= 4 && d2 + 5 <= eng::s32(r2)) return foliage;
+		if (d2 <= eng::s32(r2) + 4) {
+			const S n = value_noise2(scalar_traits<S>::from_int(x),
+						 scalar_traits<S>::from_int(y), seed);
+			const eng::s32 d2j = d2 + jitter_from_noise(n, 4);
+			if (d2j >= 0 && d2j <= eng::s32(r2)) return foliage;
+		}
 		if (draw_trunk && dy > 0 && dy < 6 && dx * dx <= 1) return trunk;
 		return 0u;
 	}
@@ -200,10 +230,17 @@ struct RockBlob {
 		using eng::math::value_noise2;
 		const eng::s32 dx = x - cx;
 		const eng::s32 dy = y - cy;
-		const S n = value_noise2(scalar_traits<S>::from_int(x), scalar_traits<S>::from_int(y),
-					 seed);
-		const eng::s32 d2 = dx * dx + dy * dy + jitter_from_noise(n, 4);
-		return (d2 >= 0 && d2 <= r2) ? color : 0u;
+		const eng::s32 d2 = dx * dx + dy * dy;
+		// Igual que la copa: el ruido (perturbación [−4, +5] con guardián `>= 0`) solo se
+		// evalúa en el borde (y junto al centro, donde el jitter negativo puede restar).
+		if (d2 >= 4 && d2 + 5 <= eng::s32(r2)) return color;
+		if (d2 <= eng::s32(r2) + 4) {
+			const S n = value_noise2(scalar_traits<S>::from_int(x),
+						 scalar_traits<S>::from_int(y), seed);
+			const eng::s32 d2j = d2 + jitter_from_noise(n, 4);
+			if (d2j >= 0 && d2j <= eng::s32(r2)) return color;
+		}
+		return 0u;
 	}
 };
 
@@ -275,31 +312,43 @@ struct WallSegment {
 
 	/// Evalúa el píxel `(x, y)`. \param x,y píxel del tile. \return `color`/`battlement` en la muralla, si no 0.
 	[[nodiscard]] constexpr eng::u8 operator()(eng::u16 x, eng::u16 y) const {
+		// Merlones a lo largo de la muralla: en las dos columnas (o filas) de los cantos de
+		// la franja, alternos cada 4 px — el patrón que hace leer "muralla" y no "valla".
+		const eng::u16 half = thickness / 2u;
 		switch (dir) {
 		case Dir::North:
-			if (in_strip(x, center_x)) {
-				return (y < edge_band && ((x / 4u) & 1u) != 0u) ? battlement : color;
-			}
-			return 0u;
 		case Dir::South:
 			if (in_strip(x, center_x)) {
-				return (y >= tile_h - edge_band && ((x / 4u) & 1u) != 0u) ? battlement
-											   : color;
+				const eng::u16 a = eng::u16(center_x - half);
+				const eng::u16 b = eng::u16(a + thickness - 1u);
+				const bool canto = (x == a) || (x == b);
+				return (canto && ((y / 4u) & 1u) != 0u) ? battlement : color;
 			}
 			return 0u;
 		case Dir::West:
-			if (in_strip(y, center_y)) {
-				return (x < edge_band && ((y / 4u) & 1u) != 0u) ? battlement : color;
-			}
-			return 0u;
 		case Dir::East:
 			if (in_strip(y, center_y)) {
-				return (x >= tile_w - edge_band && ((y / 4u) & 1u) != 0u) ? battlement
-										  : color;
+				const eng::u16 a = eng::u16(center_y - half);
+				const eng::u16 b = eng::u16(a + thickness - 1u);
+				const bool canto = (y == a) || (y == b);
+				return (canto && ((x / 4u) & 1u) != 0u) ? battlement : color;
 			}
 			return 0u;
-		default: // esquinas: las dos franjas (sin almenas, como en las torres vistas de cerca)
-			if (in_strip(x, center_x) || in_strip(y, center_y)) return color;
+		case Dir::NorthEast: // muro por N y E: codo (L) por el centro, no una cruz
+			if (in_strip(x, center_x) && y <= center_y) return color;
+			if (in_strip(y, center_y) && x >= center_x) return color;
+			return 0u;
+		case Dir::NorthWest: // muro por N y W
+			if (in_strip(x, center_x) && y <= center_y) return color;
+			if (in_strip(y, center_y) && x <= center_x) return color;
+			return 0u;
+		case Dir::SouthEast: // muro por S y E
+			if (in_strip(x, center_x) && y >= center_y) return color;
+			if (in_strip(y, center_y) && x >= center_x) return color;
+			return 0u;
+		default: // Dir::SouthWest: muro por S y W
+			if (in_strip(x, center_x) && y >= center_y) return color;
+			if (in_strip(y, center_y) && x <= center_x) return color;
 			return 0u;
 		}
 	}
@@ -313,25 +362,28 @@ struct TowerTop {
 	/// Centro de la torre en píxeles del tile.
 	eng::u16 cy = 16;
 	/// Radio al cuadrado exterior.
-	eng::u16 r2 = 64;
+	eng::u16 r2 = 100;
 	/// Color del muro del anillo (índice de paleta).
 	eng::u8 wall = 8;
 	/// Color del tejado interior (índice de paleta).
 	eng::u8 roof = 10;
 	/// Color de los merlones (índice de paleta).
 	eng::u8 merlon = 9;
+	/// Color del contorno exterior (oscuro: despega la torre del fondo).
+	eng::u8 outline = 0;
 	/// Ancho del anillo de merlones en unidades de d².
-	eng::u16 ring = 20;
+	eng::u16 ring = 44;
 
-	/// Evalúa el píxel `(x, y)`. \param x,y píxel del tile. \return `merlon`/`wall`/`roof` o 0 fuera del disco.
+	/// Evalúa el píxel `(x, y)`. \param x,y píxel del tile. \return `outline`/`merlon`/`wall`/`roof` o 0 fuera del disco.
 	[[nodiscard]] constexpr eng::u8 operator()(eng::u16 x, eng::u16 y) const {
 		const eng::s32 dx = x - cx;
 		const eng::s32 dy = y - cy;
 		const eng::s32 d2 = dx * dx + dy * dy;
 		if (d2 > r2) return 0u;
+		if (d2 > eng::s32(r2) - 4) return outline; // contorno oscuro del bastión
 		const eng::s32 inner = (r2 > ring) ? eng::s32(r2 - ring) : 0;
 		if (d2 > inner) {
-			// Patrón de merlones barato: paridad de (dx^dy) desplazado a rango positivo.
+			// Merlones baratos: paridad de (dx^dy) desplazado a rango positivo.
 			const eng::u16 ang = eng::u16((dx + 16) ^ (dy + 16));
 			return (ang & 2u) != 0u ? merlon : wall;
 		}

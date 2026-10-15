@@ -28,7 +28,8 @@
 /// (`octaves × value_noise2` por píxel): precalcular el tile una vez y reutilizarlo.
 ///
 /// ## Estado de verificación: NO VERIFICADA
-/// Solo respaldada por test host (`HOST-442`); sin demo que la ejercite en hardware.
+/// Solo respaldada por tests host (`HOST-442`/`HOST-443`); no corre en hardware en la demo
+/// 119 (atlas precocinado; medida en `PROCEDURAL_BITMAPS.md` §Coste).
 
 #include <eng/core/math/noise.hpp>
 #include <eng/core/math/scalar_ops.hpp>
@@ -49,13 +50,14 @@ template <class S>
 constexpr void domain_warp(S& x, S& y, eng::u32 seed, S strength, int period = 0) {
 	using eng::math::div_norm;
 	using eng::math::fbm2;
+	using eng::math::fbm2_cached;
 	using eng::math::mul_norm;
 	using eng::math::scalar_traits;
 	const S one = scalar_traits<S>::one();
 	const S two = scalar_traits<S>::from_int(2);
 	const S half = div_norm(one, two);
-	const S wx = fbm2(x, y, seed, 3, two, half, period) - half;
-	const S wy = fbm2(x + scalar_traits<S>::from_int(5), y + scalar_traits<S>::from_int(3),
+	const S wx = fbm2_cached(x, y, seed, 3, two, half, period) - half;
+	const S wy = fbm2_cached(x + scalar_traits<S>::from_int(5), y + scalar_traits<S>::from_int(3),
 			  seed + 17u, 3, two, half, period) -
 		     half;
 	x = x + mul_norm(wx, strength);
@@ -95,12 +97,13 @@ struct Clouds {
 	[[nodiscard]] S operator()(eng::u16 px, eng::u16 py) const {
 		using eng::math::div_norm;
 		using eng::math::fbm2;
+	using eng::math::fbm2_cached;
 		using eng::math::mul_norm;
 		using eng::math::scalar_traits;
 		const S x = mul_norm(scalar_traits<S>::from_int(px), scale);
 		const S y = mul_norm(scalar_traits<S>::from_int(py), scale);
 		const S two = scalar_traits<S>::from_int(2);
-		return fbm2(x, y, seed, octaves, two, div_norm(scalar_traits<S>::one(), two), period);
+		return fbm2_cached(x, y, seed, octaves, two, div_norm(scalar_traits<S>::one(), two), period);
 	}
 };
 
@@ -127,10 +130,11 @@ struct Marble {
 		using eng::math::mul_norm;
 		using eng::math::scalar_traits;
 		using eng::math::turbulence2;
+	using eng::math::turbulence2_cached;
 		const S x = mul_norm(scalar_traits<S>::from_int(px), scale);
 		const S y = mul_norm(scalar_traits<S>::from_int(py), scale);
 		const S two = scalar_traits<S>::from_int(2);
-		const S t = turbulence2(x, y, seed, octaves, two, div_norm(scalar_traits<S>::one(), two),
+		const S t = turbulence2_cached(x, y, seed, octaves, two, div_norm(scalar_traits<S>::one(), two),
 					period);
 		const S folded = fold_unit(x + mul_norm(t, turbulence_str));
 		return mul_norm(folded, folded); // contraste (pico estrecho en la vena)
@@ -161,10 +165,11 @@ struct Wood {
 		using eng::math::mul_norm;
 		using eng::math::scalar_traits;
 		using eng::math::turbulence2;
+	using eng::math::turbulence2_cached;
 		const S x = mul_norm(scalar_traits<S>::from_int(px), scale);
 		const S y = mul_norm(scalar_traits<S>::from_int(py), scale);
 		const S two = scalar_traits<S>::from_int(2);
-		const S t = turbulence2(x, y, seed, 4, two, div_norm(scalar_traits<S>::one(), two), period);
+		const S t = turbulence2_cached(x, y, seed, 4, two, div_norm(scalar_traits<S>::one(), two), period);
 		const S wobble = mul_norm(t, turbulence_str); // desfase de la veta por octava de ruido
 		const S v = mul_norm(y + wobble, scalar_traits<S>::from_int(ring_freq));
 		return fold_unit(v);
@@ -192,9 +197,11 @@ struct Stone {
 	[[nodiscard]] S operator()(eng::u16 px, eng::u16 py) const {
 		using eng::math::div_norm;
 		using eng::math::fbm2;
+	using eng::math::fbm2_cached;
 		using eng::math::lerp;
 		using eng::math::mul_norm;
 		using eng::math::ridged2;
+	using eng::math::ridged2_cached;
 		using eng::math::scalar_traits;
 		S x = mul_norm(scalar_traits<S>::from_int(px), scale);
 		S y = mul_norm(scalar_traits<S>::from_int(py), scale);
@@ -202,10 +209,10 @@ struct Stone {
 		const S half = div_norm(scalar_traits<S>::one(), two);
 		domain_warp(x, y, seed, div_norm(scalar_traits<S>::one(), scalar_traits<S>::from_int(3)),
 			    period);
-		const S r = ridged2(x, y, seed, octaves, two, half, period);
+		const S r = ridged2_cached(x, y, seed, octaves, two, half, period);
 		const S detail_mul_s = scalar_traits<S>::from_int(detail_mul);
 		const int detail_period = (period > 0) ? period * detail_mul : 0;
-		const S f = fbm2(mul_norm(x, detail_mul_s), mul_norm(y, detail_mul_s), seed + 31u, 3, two,
+		const S f = fbm2_cached(mul_norm(x, detail_mul_s), mul_norm(y, detail_mul_s), seed + 31u, 3, two,
 				 half, detail_period);
 		return lerp(f, r, div_norm(scalar_traits<S>::from_int(3), scalar_traits<S>::from_int(4)));
 	}
@@ -231,6 +238,7 @@ struct Granite {
 	[[nodiscard]] S operator()(eng::u16 px, eng::u16 py) const {
 		using eng::math::div_norm;
 		using eng::math::fbm2;
+	using eng::math::fbm2_cached;
 		using eng::math::lerp;
 		using eng::math::max;
 		using eng::math::min;
@@ -241,7 +249,7 @@ struct Granite {
 		const S y = mul_norm(scalar_traits<S>::from_int(py), scale);
 		const S two = scalar_traits<S>::from_int(2);
 		const S half = div_norm(scalar_traits<S>::one(), two);
-		const S base = fbm2(x, y, seed, octaves, two, half, period);
+		const S base = fbm2_cached(x, y, seed, octaves, two, half, period);
 		const S crystal_mul_s = scalar_traits<S>::from_int(crystal_mul);
 		const int cper = (period > 0) ? period * crystal_mul : 0;
 		const S cell = worley2_sq(mul_norm(x, crystal_mul_s), mul_norm(y, crystal_mul_s),
@@ -306,17 +314,19 @@ struct Rust {
 		using eng::math::div_norm;
 		using eng::math::mul_norm;
 		using eng::math::ridged2;
+	using eng::math::ridged2_cached;
 		using eng::math::scalar_traits;
 		using eng::math::turbulence2;
+	using eng::math::turbulence2_cached;
 		S x = mul_norm(scalar_traits<S>::from_int(px), scale);
 		S y = mul_norm(scalar_traits<S>::from_int(py), scale);
 		const S two = scalar_traits<S>::from_int(2);
 		const S half = div_norm(scalar_traits<S>::one(), two);
 		domain_warp(x, y, seed, half, period);
-		const S t = turbulence2(x, y, seed, 4, two, half, period);
+		const S t = turbulence2_cached(x, y, seed, 4, two, half, period);
 		const S ridge_mul_s = scalar_traits<S>::from_int(ridge_mul);
 		const int rper = (period > 0) ? period * ridge_mul : 0;
-		const S r = ridged2(mul_norm(x, ridge_mul_s), mul_norm(y, ridge_mul_s), seed + 11u, 3,
+		const S r = ridged2_cached(mul_norm(x, ridge_mul_s), mul_norm(y, ridge_mul_s), seed + 11u, 3,
 				    two, half, rper);
 		// t·2/3 + r·1/3 = lerp(r, t, 2/3)
 		return (r + mul_norm(t - r, div_norm(two, scalar_traits<S>::from_int(3))));
@@ -342,6 +352,7 @@ struct Moss {
 	[[nodiscard]] S operator()(eng::u16 px, eng::u16 py) const {
 		using eng::math::div_norm;
 		using eng::math::fbm2;
+	using eng::math::fbm2_cached;
 		using eng::math::min;
 		using eng::math::mul_norm;
 		using eng::math::scalar_traits;
@@ -350,7 +361,7 @@ struct Moss {
 		const S y = mul_norm(scalar_traits<S>::from_int(py), scale);
 		const S two = scalar_traits<S>::from_int(2);
 		const S half = div_norm(scalar_traits<S>::one(), two);
-		const S f = fbm2(x, y, seed, 4, two, half, period);
+		const S f = fbm2_cached(x, y, seed, 4, two, half, period);
 		const S div_s = scalar_traits<S>::from_int(patch_div);
 		const int pper = (period >= patch_div && patch_div > 0) ? period / patch_div : 0;
 		const S c = worley2_sq(div_norm(x, div_s), div_norm(y, div_s), seed + 19u, pper);

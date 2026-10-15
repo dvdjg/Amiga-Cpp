@@ -28,7 +28,8 @@
 /// Precalcular tiles y reutilizarlos es la estrategia (ver `atlas.hpp`).
 ///
 /// ## Estado de verificación: NO VERIFICADA
-/// Solo respaldada por test host (`HOST-442`); sin demo que la ejercite en hardware.
+/// Solo respaldada por test host (`HOST-442`); no corre en hardware en la demo 119
+/// (materiales precocinados; medida en `PROCEDURAL_BITMAPS.md` §Coste).
 
 #include <eng/core/math/noise.hpp>
 #include <eng/core/math/scalar_ops.hpp>
@@ -72,13 +73,14 @@ struct FbmFill {
 	[[nodiscard]] eng::u8 operator()(eng::u16 x, eng::u16 y) const {
 		using eng::math::div_norm;
 		using eng::math::fbm2;
+		using eng::math::fbm2_cached;
 		using eng::math::mul_norm;
 		using eng::math::scalar_traits;
 		const S fx = mul_norm(scalar_traits<S>::from_int(x), inv_size);
 		const S fy = mul_norm(scalar_traits<S>::from_int(y), inv_size);
 		const S two = scalar_traits<S>::from_int(2);
 		const S half = div_norm(scalar_traits<S>::one(), two);
-		const S n = fbm2(fx, fy, seed, octaves, two, half, period);
+		const S n = fbm2_cached(fx, fy, seed, octaves, two, half, period);
 		const eng::u8 inten = scalar_traits<S>::to_int(mul_norm(n, scalar_traits<S>::from_int(255)));
 		return dither ? quantize_dither(inten, x, y, levels) : quantize_plain(inten, levels);
 	}

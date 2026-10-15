@@ -17,6 +17,13 @@
 /// puede repetir sin costura. En `fbm` se asume `lacunarity == 2` para que todas las
 /// octavas compartan el periodo del dominio.
 ///
+/// **Rejilla de nodos precalculada** (`NoiseGrid2` y los atajos `fbm2_cached`/
+/// `turbulence2_cached`/`ridged2_cached`): para tiles pequeños y periódicos calcula los
+/// nodos del hash una vez por octava (en vez de 4 por píxel) con resultado **bit a bit
+/// idéntico** a las funciones libres (`HOST-444` lo verifica; en 68000 el hash es el
+/// grueso del coste — 16 multiplicaciones de 32 bits por muestra). Es una caché de
+/// **generación**: no reentrante y para `period > 0`.
+///
 /// ## Límites por escalar (importante)
 ///
 /// - Normaliza el valor de rejilla con `div_norm` (la división explícita del escalar), así
@@ -219,7 +226,7 @@ template <typename S>
 	int p = period;
 	for (int o = 0; o < octaves; ++o) {
 		const S xf = mul_norm(x, freq);
-		sum = sum + mul_norm(value_noise1(xf, seed + static_cast<eng::u32>(o), p), amp);
+		sum = sum + mul_norm(value_noise1(xf, seed + eng::u32(o), p), amp);
 		norm = norm + amp;
 		amp = mul_norm(amp, gain);
 		freq = mul_norm(freq, lacunarity);
@@ -244,7 +251,7 @@ template <typename S>
 	int p = period;
 	for (int o = 0; o < octaves; ++o) {
 		const S xf = mul_norm(x, freq), yf = mul_norm(y, freq);
-		sum = sum + mul_norm(value_noise2(xf, yf, seed + static_cast<eng::u32>(o), p), amp);
+		sum = sum + mul_norm(value_noise2(xf, yf, seed + eng::u32(o), p), amp);
 		norm = norm + amp;
 		amp = mul_norm(amp, gain);
 		freq = mul_norm(freq, lacunarity);
@@ -270,7 +277,7 @@ template <typename S>
 	for (int o = 0; o < octaves; ++o) {
 		const S xf = mul_norm(x, freq), yf = mul_norm(y, freq), zf = mul_norm(z, freq);
 		sum = sum +
-		      mul_norm(value_noise3(xf, yf, zf, seed + static_cast<eng::u32>(o), p), amp);
+		      mul_norm(value_noise3(xf, yf, zf, seed + eng::u32(o), p), amp);
 		norm = norm + amp;
 		amp = mul_norm(amp, gain);
 		freq = mul_norm(freq, lacunarity);
@@ -335,7 +342,7 @@ template <typename S>
 	int p = period;
 	for (int o = 0; o < octaves; ++o) {
 		const S n = value_noise2(mul_norm(x, freq), mul_norm(y, freq),
-					 seed + static_cast<eng::u32>(o), p);
+					 seed + eng::u32(o), p);
 		const S b = abs(mul_norm(scalar_traits<S>::from_int(2), n) - scalar_traits<S>::one());
 		sum = sum + mul_norm(b, amp);
 		norm = norm + amp;
@@ -361,7 +368,7 @@ template <typename S>
 	int p = period;
 	for (int o = 0; o < octaves; ++o) {
 		const S n = value_noise2(mul_norm(x, freq), mul_norm(y, freq),
-					 seed + static_cast<eng::u32>(o), p);
+					 seed + eng::u32(o), p);
 		const S r = scalar_traits<S>::one() -
 			    abs(mul_norm(scalar_traits<S>::from_int(2), n) - scalar_traits<S>::one());
 		sum = sum + mul_norm(mul_norm(r, r), amp);
@@ -371,6 +378,225 @@ template <typename S>
 		if (p > 0) p <<= 1;
 	}
 	return div_norm(sum, norm);
+}
+
+// ============================================================================
+//  Rejilla de nodos precalculada (generación de tiles; resultado IDÉNTICO)
+// ============================================================================
+
+/// **Rejilla de nodos de `value_noise2` para tiles pequeños y periódicos.** El ruido de
+/// rejilla calcula el hash de las cuatro esquinas en CADA evaluación (4 `hash2` por
+/// píxel y octava); con la rejilla los nodos se calculan **una vez** (`p²` por octava,
+/// `p = period·2^o`) y por píxel solo queda la interpolación (`smoothstep` + `lerp`, las
+/// MISMAS operaciones y en el mismo orden). Es la diferencia entre un tile que tarda
+/// décimas de segundo y otro que tarda milisegundos en un 68000 — todo el coste pasa a
+/// ser **generación** pura (carga), nunca de frame.
+///
+/// El resultado es **bit a bit idéntico** a `value_noise2`/`fbm2`/`turbulence2`/`ridged2`
+/// cuando la lacunaridad es 2 (el caso de `fbm2` con `period > 0`) y los parámetros
+/// coinciden: lo verifica `HOST-444` comparando ambos caminos. No es reentrante (una
+/// rejilla viva a la vez) y exige `period > 0` (tile periódico); para ruido sin periodo o
+/// fuera de este uso, usa las funciones libres.
+///
+/// ## Límites
+///
+/// `MaxNodes` acota la suma de nodos de todas las octavas (`Σ p_o²`): con el defecto
+/// (2048) caben `period·2^(octaves−1) ≤ 32` sobrado (p. ej. period 4 y 5 octavas →
+/// 16+64+256+1024 = 1360) pero NO el caso extremo `period=32` con muchas octavas; `build`
+/// devuelve `false` en ese caso (el llamador cae a la función libre).
+template <typename S, eng::u16 MaxNodes = 2048, int MaxOctaves = 6>
+class NoiseGrid2 {
+public:
+	/// Construye los nodos de `octaves` octavas con periodo base `period` (`> 0`).
+	/// \param seed,octaves,period mismos parámetros que `fbm2` (seed por octava = seed+o).
+	/// \return `false` si `period <= 0`, octavas fuera de rango o no caben en `MaxNodes`.
+	[[nodiscard]] bool build(eng::u32 seed, int octaves, int period) noexcept {
+		if (period <= 0 || octaves <= 0 || octaves > MaxOctaves) return false;
+		long total = 0;
+		int p = period;
+		for (int o = 0; o < octaves; ++o) {
+			total += long(p) * p;
+			p <<= 1;
+		}
+		if (total > long(MaxNodes)) return false;
+		m_seed = seed;
+		m_period = period;
+		m_octaves = eng::u8(octaves);
+		++m_builds;
+		eng::u16 off = 0u;
+		p = period;
+		for (int o = 0; o < octaves; ++o) {
+			m_off[o] = off;
+			for (int cy = 0; cy < p; ++cy) {
+				for (int cx = 0; cx < p; ++cx) {
+					// Misma celda y mismo hash que `value_noise2` (por eso el resultado es idéntico).
+					const eng::u32 sx = seed + eng::u32(o);
+					m_nodes[off + eng::u16(cy) * eng::u16(p) +
+						eng::u16(cx)] =
+						noise_detail::unit<S>(noise_detail::hash2(
+							noise_detail::u32c(cx),
+							noise_detail::hash2(noise_detail::u32c(cy), sx)));
+				}
+			}
+			off = eng::u16(off + p * p);
+			p <<= 1;
+		}
+		return true;
+	}
+
+	/// `fbm2` equivalente usando la rejilla (idéntico bit a bit con `lacunarity == 2`).
+	/// \param x,y coordenadas base. \param lacunarity,gain mismos factores que `fbm2`.
+	/// \return valor `[0,1)`.
+	[[nodiscard]] S fbm2(S x, S y, S lacunarity, S gain) const {
+		S sum = scalar_traits<S>::zero();
+		S amp = scalar_traits<S>::one();
+		S freq = scalar_traits<S>::one();
+		S norm = scalar_traits<S>::zero();
+		for (eng::u8 o = 0u; o < m_octaves; ++o) {
+			sum = sum + mul_norm(value_o(mul_norm(x, freq), mul_norm(y, freq), o), amp);
+			norm = norm + amp;
+			amp = mul_norm(amp, gain);
+			freq = mul_norm(freq, lacunarity);
+		}
+		return div_norm(sum, norm);
+	}
+
+	/// `turbulence2` equivalente usando la rejilla (idéntico bit a bit con lacunaridad 2).
+	/// \param x,y coordenadas base. \param lacunarity,gain mismos factores que `fbm2`.
+	/// \return valor `[0,1]`.
+	[[nodiscard]] S turbulence2(S x, S y, S lacunarity, S gain) const {
+		S sum = scalar_traits<S>::zero();
+		S amp = scalar_traits<S>::one();
+		S freq = scalar_traits<S>::one();
+		S norm = scalar_traits<S>::zero();
+		for (eng::u8 o = 0u; o < m_octaves; ++o) {
+			const S n = value_o(mul_norm(x, freq), mul_norm(y, freq), o);
+			const S b = abs(mul_norm(scalar_traits<S>::from_int(2), n) - scalar_traits<S>::one());
+			sum = sum + mul_norm(b, amp);
+			norm = norm + amp;
+			amp = mul_norm(amp, gain);
+			freq = mul_norm(freq, lacunarity);
+		}
+		return div_norm(sum, norm);
+	}
+
+	/// `ridged2` equivalente usando la rejilla (idéntico bit a bit con lacunaridad 2).
+	/// \param x,y coordenadas base. \param lacunarity,gain mismos factores que `fbm2`.
+	/// \return valor `[0,1]`.
+	[[nodiscard]] S ridged2(S x, S y, S lacunarity, S gain) const {
+		S sum = scalar_traits<S>::zero();
+		S amp = scalar_traits<S>::one();
+		S freq = scalar_traits<S>::one();
+		S norm = scalar_traits<S>::zero();
+		for (eng::u8 o = 0u; o < m_octaves; ++o) {
+			const S n = value_o(mul_norm(x, freq), mul_norm(y, freq), o);
+			const S r = scalar_traits<S>::one() -
+				    abs(mul_norm(scalar_traits<S>::from_int(2), n) - scalar_traits<S>::one());
+			sum = sum + mul_norm(mul_norm(r, r), amp);
+			norm = norm + amp;
+			amp = mul_norm(amp, gain);
+			freq = mul_norm(freq, lacunarity);
+		}
+		return div_norm(sum, norm);
+	}
+
+	/// Semilla de la rejilla (para depuración/diagnóstico).
+	[[nodiscard]] constexpr eng::u32 seed() const { return m_seed; }
+	/// Periodo base de la rejilla (`0` si `build` no se llamó).
+	[[nodiscard]] constexpr int period() const { return m_period; }
+	/// Octavas construidas.
+	[[nodiscard]] constexpr eng::u8 octaves() const { return m_octaves; }
+	/// Nº de construcciones realizadas (diagnóstico/tests: la caché debe reconstruir solo
+	/// cuando cambian los parámetros).
+	[[nodiscard]] constexpr eng::u16 builds() const { return m_builds; }
+
+private:
+	/// `value_noise2` del octave `o` con las esquinas de la rejilla (misma matemática que
+	/// la función libre: `ifloor`/`smoothstep`/`lwrap`/`lerp` en el mismo orden).
+	/// \param xf,yf coordenadas YA multiplicadas por la frecuencia del octave.
+	/// \param o índice de octava (0..octaves-1). \return valor `[0,1)`.
+	[[nodiscard]] S value_o(S xf, S yf, eng::u8 o) const {
+		using namespace noise_detail;
+		const int p = m_period << o;
+		const int ix = ifloor(xf), iy = ifloor(yf);
+		const S fx = smoothstep(xf - scalar_traits<S>::from_int(ix));
+		const S fy = smoothstep(yf - scalar_traits<S>::from_int(iy));
+		const int x0 = lwrap(ix, p), x1 = lwrap(ix + 1, p);
+		const int y0 = lwrap(iy, p), y1 = lwrap(iy + 1, p);
+		const S* g = m_nodes + m_off[o];
+		const eng::u16 up = eng::u16(p);
+		const S v00 = g[eng::u16(y0) * up + eng::u16(x0)];
+		const S v10 = g[eng::u16(y0) * up + eng::u16(x1)];
+		const S v01 = g[eng::u16(y1) * up + eng::u16(x0)];
+		const S v11 = g[eng::u16(y1) * up + eng::u16(x1)];
+		return lerp(lerp(v00, v10, fx), lerp(v01, v11, fx), fy);
+	}
+
+	// Miembros SIN inicializadores: la clase queda trivial (la rejilla estática se
+	// construye con `{}` = puesta a cero en BSS, sin guardas de inicialización que no
+	// existen en freestanding).
+	S m_nodes[MaxNodes];   ///< Nodos por octava (contiguos, `m_off[o]`).
+	eng::u16 m_off[MaxOctaves]; ///< Offset de la primera octava en `m_nodes`.
+	eng::u32 m_seed;       ///< Semilla base de la rejilla.
+	int m_period;          ///< Periodo base (`<= 0` = sin construir).
+	eng::u8 m_octaves;     ///< Octavas construidas.
+	eng::u16 m_builds;     ///< Construcciones (diagnóstico/tests).
+};
+
+/// Rejilla compartida por escalar para los atajos `*_cached` (una viva a la vez; son
+/// funciones de **generación**, no reentrantes — documentado en `NoiseGrid2`).
+/// \tparam S escalar del ruido. \return rejilla estática del escalar.
+template <typename S>
+[[nodiscard]] NoiseGrid2<S>& noise_grid_cache() {
+	static NoiseGrid2<S> grid {};
+	return grid;
+}
+
+/// `fbm2` con rejilla de nodos precalculada (bit a bit idéntico; ver `NoiseGrid2`).
+/// Reconstruye la rejilla solo si cambian `seed`/`octaves`/`period` (barato por llamada).
+/// Exige `period > 0` y `lacunarity == 2` (el caso de `fbm2` periódico).
+/// \param x,y coordenadas base. \param seed,octaves,period mismos parámetros que `fbm2`.
+/// \param lacunarity,gain factores de fbm (lacunarity debe ser 2). \return valor `[0,1)`.
+template <typename S>
+[[nodiscard]] S fbm2_cached(S x, S y, eng::u32 seed, int octaves, S lacunarity, S gain,
+			    int period) {
+	NoiseGrid2<S>& g = noise_grid_cache<S>();
+	if (g.period() != period || g.octaves() != eng::u8(octaves) || g.seed() != seed) {
+		if (!g.build(seed, octaves, period)) {
+			return fbm2(x, y, seed, octaves, lacunarity, gain, period);
+		}
+	}
+	return g.fbm2(x, y, lacunarity, gain);
+}
+
+/// `turbulence2` con rejilla de nodos precalculada (bit a bit idéntico; ver `NoiseGrid2`).
+/// \param x,y coordenadas base. \param seed,octaves,period mismos parámetros que la libre.
+/// \param lacunarity,gain factores (lacunarity debe ser 2). \return valor `[0,1]`.
+template <typename S>
+[[nodiscard]] S turbulence2_cached(S x, S y, eng::u32 seed, int octaves, S lacunarity, S gain,
+				   int period) {
+	NoiseGrid2<S>& g = noise_grid_cache<S>();
+	if (g.period() != period || g.octaves() != eng::u8(octaves) || g.seed() != seed) {
+		if (!g.build(seed, octaves, period)) {
+			return turbulence2(x, y, seed, octaves, lacunarity, gain, period);
+		}
+	}
+	return g.turbulence2(x, y, lacunarity, gain);
+}
+
+/// `ridged2` con rejilla de nodos precalculada (bit a bit idéntico; ver `NoiseGrid2`).
+/// \param x,y coordenadas base. \param seed,octaves,period mismos parámetros que la libre.
+/// \param lacunarity,gain factores (lacunarity debe ser 2). \return valor `[0,1]`.
+template <typename S>
+[[nodiscard]] S ridged2_cached(S x, S y, eng::u32 seed, int octaves, S lacunarity, S gain,
+			       int period) {
+	NoiseGrid2<S>& g = noise_grid_cache<S>();
+	if (g.period() != period || g.octaves() != eng::u8(octaves) || g.seed() != seed) {
+		if (!g.build(seed, octaves, period)) {
+			return ridged2(x, y, seed, octaves, lacunarity, gain, period);
+		}
+	}
+	return g.ridged2(x, y, lacunarity, gain);
 }
 
 } // namespace eng::math

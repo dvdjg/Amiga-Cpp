@@ -34,8 +34,10 @@
 /// El pintor es una plantilla sobre `S` (el escalar del atlas): en Amiga `MiniFloat16`;
 /// en host, `float`. Todo el coste es de **carga** (generación de tiles), nunca por frame.
 ///
-/// ## Estado de verificación: NO VERIFICADA
-/// Solo respaldada por test host (`HOST-442`); sin demo que la ejercite en hardware.
+/// ## Estado de verificación: VERIFICADA (demo 119)
+/// `TerrainTileSet`/`add_variant`/`can_place` se ejercitan en hardware (colocación del
+/// mundo en carga); tests host `HOST-442`/`HOST-443`.
+/// Diseño y uso: `docs/engine/architecture/PROCEDURAL_BITMAPS.md`.
 
 #include <eng/core/math/random.hpp>
 #include <eng/core/types/types.hpp>
@@ -88,9 +90,14 @@ inline constexpr TileSpec kRiverPieces[] = {
 	 .features = Feature::River | Feature::Bridge},
 };
 
-/// Catálogo de piezas de **naturaleza y aldea**: bosques, peñascos, sierras, lago,
-/// cultivos, casas y cueva.
+/// Catálogo de piezas de **naturaleza y aldea**: hierba llana, camino, bosques,
+/// peñascos, sierras, lago, cultivos, casas y cueva.
 inline constexpr TileSpec kNaturePieces[] = {
+	// Hierba llana (borde todo `Grass`): el relleno base del mapa.
+	{.features = Feature::None},
+	// Camino horizontal (borde E/W `Path`; la franja de transición lo dibuja): la
+	// versión vertical es un `apply_transform(Rot90)` que deriva el colocador.
+	{.edges = {Edge::Grass, Edge::Path, Edge::Grass, Edge::Path}, .features = Feature::None},
 	{.features = Feature::Trees},
 	{.features = Feature::Trees | Feature::Rocks},
 	{.edges = {Edge::Forest, Edge::Forest, Edge::Grass, Edge::Grass}, .features = Feature::Trees},
@@ -134,6 +141,25 @@ struct TerrainTileSet {
 		specs[count] = s;
 		paint_terrain_tile(tiles[count], s, atlas, tx, ty, border_w);
 		++count;
+	}
+
+	/// Añade una **variante transformada** de una pieza base (rotada/reflejada) reutilizando
+	/// su pintado: el píxel va con `apply_transform` y los bordes con `transform_edges`, así
+	/// que las conexiones se conservan sin volver a generar ruido (memoria y CPU ÷8 por
+	/// variante). Es lo que usa el colocador para orientar curvas de río y caminos.
+	/// \param base índice de la pieza base (`count` si no hay variante que crear).
+	/// \param t transformación a aplicar (`Identity` devuelve `base` sin añadir nada).
+	/// \return índice de la variante (nuevo) o `base` si no se creó.
+	[[nodiscard]] eng::u16 add_variant(eng::u16 base, Transform t) {
+		static_assert(TW == TH, "las variantes rotadas/reflejadas exigen tiles cuadrados");
+		if (t == Transform::Identity || base >= count || count >= MaxTiles) return base;
+		BitmapBuffer<TW, TH> out {};
+		apply_transform(tiles[base], out, t);
+		tiles[count] = out;
+		specs[count] = specs[base];
+		specs[count].edges = transform_edges(specs[base].edges, t);
+		++count;
+		return eng::u16(count - 1u);
 	}
 
 	/// Genera el set completo: catálogos de castillo, río y naturaleza + 12 variaciones

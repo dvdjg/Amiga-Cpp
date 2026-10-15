@@ -13,8 +13,8 @@
 ///        └─ features    rasgos del interior (rio, lago, arboles, muralla, patio…)
 /// ```
 ///
-/// ## Estado de verificación: NO VERIFICADA
-/// Solo respaldada por test host (`HOST-442`); sin demo que la ejercite en hardware.
+/// ## Estado de verificación: VERIFICADA (demo 119)
+/// `TileSpec`/`EdgeSides` se ejercitan en hardware (world + colocación); test `HOST-442`.
 
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/type_traits.hpp>

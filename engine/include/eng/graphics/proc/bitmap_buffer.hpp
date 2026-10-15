@@ -21,8 +21,10 @@
 /// de frame solo consume el buffer ya generado. Presupuesto y método:
 /// `docs/guides/optimization/METODO_OPTIMIZACION.md`.
 ///
-/// ## Estado de verificación: NO VERIFICADA
-/// Solo respaldada por test host (`HOST-442`); sin demo que la ejercite en hardware.
+/// ## Estado de verificación: VERIFICADA (demo 119)
+/// Ejercitada en hardware por `demos/techniques/amiga/effects/119_proc_world` (frames +
+/// composición del mundo); tests host `HOST-442`/`HOST-443`.
+/// Diseño y uso de la librería completa: `docs/engine/architecture/PROCEDURAL_BITMAPS.md`.
 
 #include <eng/core/types/types.hpp>
 

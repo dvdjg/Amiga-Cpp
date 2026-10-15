@@ -40,7 +40,10 @@
 /// fBm + Worley): **exclusivamente de carga**, nunca por frame.
 ///
 /// ## Estado de verificación: NO VERIFICADA
-/// Solo respaldada por test host (`HOST-442`); sin demo que la ejercite en hardware.
+/// Solo respaldada por tests host (`HOST-442`/`HOST-443`); la demo 119 usa el atlas
+/// precocinado en host (la generación runtime en 68000 está medida y queda fuera del
+/// presupuesto de carga: `PROCEDURAL_BITMAPS.md` §Coste).
+/// Diseño y uso: `docs/engine/architecture/PROCEDURAL_BITMAPS.md`.
 
 #include <eng/core/math/random.hpp>
 #include <eng/core/types/types.hpp>
@@ -99,6 +102,39 @@ struct MaterialDesc {
 	eng::u8 freq;
 };
 
+/// Tabla `constexpr` de materiales (niveles/base/frecuencia por `MaterialId`; fuente única
+/// que el atlas y el pintor comparten sin nombrar el escalar del atlas).
+/// \param id material consultado. \return descripción del material.
+[[nodiscard]] constexpr MaterialDesc material_desc(MaterialId id) {
+	switch (id) {
+	case MaterialId::Grass: return {"grass", 2, 4, 1};
+	case MaterialId::Dirt: return {"dirt", 2, 6, 2};
+	case MaterialId::Stone: return {"stone", 2, 10, 2};
+	case MaterialId::Granite: return {"granite", 2, 10, 2};
+	case MaterialId::Water: return {"water", 2, 2, 1};
+	case MaterialId::Foam: return {"foam", 2, 2, 4};
+	case MaterialId::Sand: return {"sand", 2, 6, 1};
+	case MaterialId::Wood: return {"wood", 2, 12, 2};
+	case MaterialId::Marble: return {"marble", 2, 10, 1};
+	case MaterialId::Wall: return {"wall", 2, 10, 2};
+	case MaterialId::Roof: return {"roof", 2, 12, 2};
+	case MaterialId::CropA: return {"crop_a", 2, 8, 2};
+	case MaterialId::CropB: return {"crop_b", 2, 7, 2};
+	// Follaje en su propio tono (verde profundo, plano): sin él las copas no se
+	// distinguirían de la hierba en un vistazo.
+	case MaterialId::Foliage: return {"foliage", 1, 14, 4};
+	case MaterialId::Trunk: return {"trunk", 1, 12, 3};
+	case MaterialId::Rock: return {"rock", 2, 10, 2};
+	case MaterialId::Cave: return {"cave", 2, 0, 1};
+	case MaterialId::Rust: return {"rust", 2, 12, 2};
+	case MaterialId::Moss: return {"moss", 2, 4, 4};
+	case MaterialId::Snow: return {"snow", 1, 15, 1};
+	case MaterialId::Path: return {"path", 2, 6, 2};
+	case MaterialId::Cobble: return {"cobble", 2, 10, 4};
+	default: return {"grass", 2, 4, 1}; // `Count` no es un material
+	}
+}
+
 /// **Atlas de materiales**: los `kMaterialCount × kVariantsPerMaterial` tiles de
 /// material + la paleta compartida de 16 colores.
 /// \tparam TW,TH geometría del tile (cuadrados de 32×32 típicos; el pintor usa TW).
@@ -119,35 +155,10 @@ struct TextureAtlas {
 	/// Semilla base del atlas (la usa `variant_at` para el hash de variante).
 	eng::u32 base_seed = 0;
 
-	/// Descripción de un material (niveles/base/frecuencia): tabla `constexpr` fija.
+	/// Descripción de un material (niveles/base/frecuencia): delega en la tabla libre
+	/// `material_desc` (fuente única que no exige nombrar el escalar del atlas).
 	/// \param id material consultado. \return descripción del material.
-	[[nodiscard]] static constexpr MaterialDesc desc(MaterialId id) {
-		switch (id) {
-		case MaterialId::Grass: return {"grass", 2, 4, 1};
-		case MaterialId::Dirt: return {"dirt", 2, 6, 2};
-		case MaterialId::Stone: return {"stone", 2, 10, 2};
-		case MaterialId::Granite: return {"granite", 2, 10, 2};
-		case MaterialId::Water: return {"water", 2, 2, 1};
-		case MaterialId::Foam: return {"foam", 2, 2, 4};
-		case MaterialId::Sand: return {"sand", 2, 7, 1};
-		case MaterialId::Wood: return {"wood", 2, 12, 2};
-		case MaterialId::Marble: return {"marble", 2, 11, 1};
-		case MaterialId::Wall: return {"wall", 2, 10, 2};
-		case MaterialId::Roof: return {"roof", 2, 12, 2};
-		case MaterialId::CropA: return {"crop_a", 2, 8, 2};
-		case MaterialId::CropB: return {"crop_b", 2, 7, 2};
-		case MaterialId::Foliage: return {"foliage", 2, 4, 4};
-		case MaterialId::Trunk: return {"trunk", 1, 12, 3};
-		case MaterialId::Rock: return {"rock", 2, 10, 2};
-		case MaterialId::Cave: return {"cave", 2, 0, 1};
-		case MaterialId::Rust: return {"rust", 2, 12, 2};
-		case MaterialId::Moss: return {"moss", 2, 4, 4};
-		case MaterialId::Snow: return {"snow", 1, 15, 1};
-		case MaterialId::Path: return {"path", 2, 7, 2};
-		case MaterialId::Cobble: return {"cobble", 2, 11, 4};
-		default: return {"grass", 2, 4, 1}; // `Count` no es un material
-		}
-	}
+	[[nodiscard]] static constexpr MaterialDesc desc(MaterialId id) { return material_desc(id); }
 
 	/// Genera el atlas completo: paleta (colores semánticos + jitter por seed) y las
 	/// `kMaterialCount × kVariantsPerMaterial` texturas. Costoso (de carga): 66 tiles de
@@ -206,9 +217,11 @@ private:
 		p.color[13] = 0x0B52u; // madera clara / veta
 		p.color[14] = 0x0280u; // verde profundo (follaje denso)
 		p.color[15] = 0x0EEEu; // nieve / luz
-		// El 0 (transparente) queda negro fijo; el resto varía ±1 por canal (12 bits).
+		// El 0 (transparente) y el 15 (nieve/luz) quedan fijos (negro y blanco puros); el
+		// resto varía ±1 por canal (12 bits) para que dos seeds den atlas distinguibles.
 		eng::Xoroshiro64pp rng {seed ^ 0x5A5A5A5Au, seed | 1u};
-		for (eng::u8 i = 1; i < total_colors; ++i) {
+		const eng::u8 last_jitter = total_colors >= 16u ? 14u : eng::u8(total_colors - 1u);
+		for (eng::u8 i = 1; i <= last_jitter; ++i) {
 			const eng::u16 c = p.color[i];
 			const eng::u8 r = (c >> 8u) & 0xFu;
 			const eng::u8 g = (c >> 4u) & 0xFu;

@@ -24,7 +24,8 @@
 /// en host y en Amiga. Todo el coste es de **generación** (carga), nunca por frame.
 ///
 /// ## Estado de verificación: NO VERIFICADA
-/// Solo respaldada por test host (`HOST-442`); sin demo que la ejercite en hardware.
+/// Solo respaldada por test host (`HOST-442`); la demo 119 usa las piezas ya pintadas
+/// (precocinadas en host; medida en `PROCEDURAL_BITMAPS.md` §Coste).
 
 #include <eng/core/math/noise.hpp>
 #include <eng/core/math/random.hpp>
@@ -40,17 +41,140 @@
 namespace eng::gfx::proc::terrain {
 
 /// ¿Este borde pinta franja de transición suave? No la pintan `Grass` (llano), `Water`
-/// (el cauce la sustituye) ni `Wall` (el tramo la sustituye): su continuidad es
-/// estructural, no una franja de material representativo.
+/// (el cauce la sustituye), `Path` (el camino la sustituye), `Wall` (el tramo la
+/// sustituye) ni `Cave` (la boca de cueva es el elemento visual; una franja negra
+/// perpendicular parecía un artefacto): su continuidad es **estructural** (curso por el
+/// centro del borde o pieza dedicada), no una franja de material perpendicular al borde.
 /// \param e id de borde. \return true si `apply_edge_transition` pinta su franja.
 [[nodiscard]] constexpr bool edge_has_transition(Edge e) {
 	switch (e) {
-	case Edge::Path:
 	case Edge::Forest:
 	case Edge::Ridge:
-	case Edge::Crop:
-	case Edge::Cave: return true;
+	case Edge::Crop: return true;
 	default: return false;
+	}
+}
+
+/// Puntos de conexión de un curso (`Water` o `Path`): el **centro** de cada borde con ese
+/// id, en orden N, E, S, W. Son los extremos con los que `stamp_course` encadena tramos
+/// entre tiles vecinos (dos tramos consecutivos casan por construcción).
+/// \param spec pieza. \param kind `Edge::Water` o `Edge::Path`. \param wx,wy arrays de 4
+///        salidas con las coordenadas (en píxeles del tile). \return nº de puntos (0..4).
+template <eng::u16 TW, eng::u16 TH>
+[[nodiscard]] constexpr eng::u8 course_points(const TileSpec& spec, Edge kind, eng::u16* wx,
+					      eng::u16* wy) {
+	eng::u8 n = 0u;
+	if (spec.edges.n == kind) {
+		wx[n] = eng::u16(TW / 2u);
+		wy[n] = 0u;
+		++n;
+	}
+	if (spec.edges.e == kind) {
+		wx[n] = eng::u16(TW - 1u);
+		wy[n] = eng::u16(TH / 2u);
+		++n;
+	}
+	if (spec.edges.s == kind) {
+		wx[n] = eng::u16(TW / 2u);
+		wy[n] = eng::u16(TH - 1u);
+		++n;
+	}
+	if (spec.edges.w == kind) {
+		wx[n] = 0u;
+		wy[n] = eng::u16(TH / 2u);
+		++n;
+	}
+	return n;
+}
+
+/// Estampa un **curso** del material `id` conectando los puntos de `course_points` con
+/// segmentos ondulados (`RiverStroke`): un tramo (dos puntos) o dos cruzados (cuatro
+/// puntos, el ensanche/cruce). Es el mecanismo compartido del cauce y del camino: la
+/// continuidad entre tiles sale de que los extremos son el centro exacto del borde.
+/// \tparam TW,TH geometría. \tparam S escalar. \param buf destino. \param atlas atlas.
+/// \param id material del curso. \param variant variante del material.
+/// \param wx,wy puntos de conexión. \param wn nº de puntos. \param width semi-ancho en píxeles.
+/// \param seed semilla de la ondulación. \param wobble amplitud de la ondulación (±px).
+template <eng::u16 TW, eng::u16 TH, class S>
+void stamp_course(BitmapBuffer<TW, TH>& buf, const TextureAtlas<TW, TH, S>& atlas, MaterialId id,
+		  eng::u8 variant, const eng::u16* wx, const eng::u16* wy, eng::u8 wn, eng::u16 width,
+		  eng::u32 seed, eng::u8 wobble) {
+	if (wn == 0u) return;
+	const BitmapBuffer<TW, TH>& tex = atlas.get(id, variant);
+	const eng::u16 x1 = (wn >= 2u) ? wx[1] : eng::u16(TW / 2u);
+	const eng::u16 y1 = (wn >= 2u) ? wy[1] : eng::u16(TH / 2u);
+	const RiverStroke<S> s1 {wx[0], wy[0], x1, y1, width, 1u, seed, wobble};
+	for (eng::u16 y = 0; y < TH; ++y) {
+		for (eng::u16 x = 0; x < TW; ++x) {
+			if (s1(x, y)) buf.at(x, y) = tex.at(x, y);
+		}
+	}
+	if (wn >= 4u) {
+		const RiverStroke<S> s2 {wx[2], wy[2], wx[3], wy[3], width, 1u, seed ^ 1u, wobble};
+		for (eng::u16 y = 0; y < TH; ++y) {
+			for (eng::u16 x = 0; x < TW; ++x) {
+				if (s2(x, y)) buf.at(x, y) = tex.at(x, y);
+			}
+		}
+	}
+}
+
+/// ¿El píxel `(x, y)` cae dentro de la franja de semi-ancho `w` del segmento
+/// `(x0,y0)-(x1,y1)`? Misma matemática que `RiverStroke` (sin ruido): productos para la
+/// proyección y `cross² ≤ w²·len²` en el tramo medio (sin raíz ni división).
+/// \param x0,y0,x1,y1 extremos del segmento. \param w semi-ancho en píxeles.
+/// \param x,y píxel a probar. \return true si está cubierto.
+[[nodiscard]] constexpr bool course_cover(eng::u16 x0, eng::u16 y0, eng::u16 x1, eng::u16 y1,
+					  eng::u16 w, eng::u16 x, eng::u16 y) {
+	const eng::s32 dx = x1 - x0;
+	const eng::s32 dy = y1 - y0;
+	const eng::s32 len2 = dx * dx + dy * dy;
+	if (len2 == 0) return false;
+	const eng::s32 px = x - x0;
+	const eng::s32 py = y - y0;
+	const eng::s32 t = px * dx + py * dy;
+	const eng::s32 w2 = eng::s32(w) * w;
+	if (t <= 0) return px * px + py * py <= w2;
+	if (t >= len2) {
+		const eng::s32 qx = x - x1;
+		const eng::s32 qy = y - y1;
+		return qx * qx + qy * qy <= w2;
+	}
+	const eng::s32 cross = px * dy - py * dx;
+	return cross * cross <= w2 * len2;
+}
+
+/// Estampa el **camino**: conecta los centros de los bordes `Path` con una franja de
+/// color **plano** del tramo `Path` de la paleta (núcleo claro + bordes oscuros). Un
+/// camino recto atraviesa el tile de borde a borde y encadena con los vecinos; una
+/// esquina dobla por el centro. Plano a propósito: una textura con manchas grandes hacía
+/// que cada tile pareciera un segmento suelto (el camino se leía a rayas).
+/// \tparam TW,TH geometría. \param buf destino. \param spec pieza.
+template <eng::u16 TW, eng::u16 TH>
+void paint_path(BitmapBuffer<TW, TH>& buf, const TileSpec& spec) {
+	eng::u16 wx[4] {};
+	eng::u16 wy[4] {};
+	const eng::u8 wn = course_points<TW, TH>(spec, Edge::Path, wx, wy);
+	if (wn == 0u) return;
+	const MaterialDesc pd = material_desc(MaterialId::Path);
+	const eng::u8 core = eng::u8(pd.base + pd.levels - 1u); // tono claro del tramo
+	const eng::u8 edge = pd.base;                           // tono oscuro
+	const eng::u16 x1 = (wn >= 2u) ? wx[1] : eng::u16(TW / 2u);
+	const eng::u16 y1 = (wn >= 2u) ? wy[1] : eng::u16(TH / 2u);
+	// Borde oscuro (semi-ancho 4) primero y núcleo claro (3) encima.
+	for (eng::u16 y = 0; y < TH; ++y) {
+		for (eng::u16 x = 0; x < TW; ++x) {
+			if (course_cover(wx[0], wy[0], x1, y1, 4u, x, y)) buf.at(x, y) = edge;
+			if (course_cover(wx[0], wy[0], x1, y1, 3u, x, y)) buf.at(x, y) = core;
+		}
+	}
+	if (wn >= 4u) {
+		for (eng::u16 y = 0; y < TH; ++y) {
+			for (eng::u16 x = 0; x < TW; ++x) {
+				if (course_cover(wx[2], wy[2], wx[3], wy[3], 4u, x, y)) buf.at(x, y) = edge;
+				if (course_cover(wx[2], wy[2], wx[3], wy[3], 3u, x, y)) buf.at(x, y) = core;
+			}
+		}
 	}
 }
 
@@ -109,8 +233,10 @@ void paint_base(BitmapBuffer<TW, TH>& buf, const TileSpec& spec, const TextureAt
 	MaterialId base = MaterialId::Grass;
 	if (has(spec.features, Feature::Crops)) base = MaterialId::CropA;
 	if (has(spec.features, Feature::CastleYard)) base = MaterialId::Cobble;
-	if (has(spec.features, Feature::Mountain)) base = MaterialId::Stone;
-	if (has(spec.features, Feature::CaveMouth)) base = MaterialId::Cave;
+	// La montaña y la cueva se estampan sobre el terreno base (hierba): la silueta rocosa
+	// y la boca oscura son los elementos visuales; un tile entero de piedra/negro lee
+	// como icono, no como relieve.
+	if (has(spec.features, Feature::CaveMouth)) base = MaterialId::Rock;
 	copy_material(buf, atlas, base, atlas.variant_at(tile_x, tile_y, base));
 }
 
@@ -181,56 +307,27 @@ void paint_river(BitmapBuffer<TW, TH>& buf, const TileSpec& spec, const TextureA
 		 eng::Xoroshiro64pp& rng, eng::u16 tile_x, eng::u16 tile_y) {
 	eng::u16 wx[4] {};
 	eng::u16 wy[4] {};
-	eng::u8 wn = 0;
-	if (spec.edges.n == Edge::Water) {
-		wx[wn] = TW / 2u;
-		wy[wn] = 0u;
-		++wn;
-	}
-	if (spec.edges.e == Edge::Water) {
-		wx[wn] = TW - 1u;
-		wy[wn] = TH / 2u;
-		++wn;
-	}
-	if (spec.edges.s == Edge::Water) {
-		wx[wn] = TW / 2u;
-		wy[wn] = TH - 1u;
-		++wn;
-	}
-	if (spec.edges.w == Edge::Water) {
-		wx[wn] = 0u;
-		wy[wn] = TH / 2u;
-		++wn;
-	}
+	const eng::u8 wn = course_points<TW, TH>(spec, Edge::Water, wx, wy);
 	if (wn == 0u) return;
 	const eng::u16 w = eng::u16(3u + rng.next_mod(3u)); // semi-ancho 3..5
 	const eng::u32 seed = rng.next();
-	const eng::u8 vw = atlas.variant_at(tile_x, tile_y, MaterialId::Water);
-	const eng::u8 vf = atlas.variant_at(tile_x, tile_y ^ 1u, MaterialId::Foam);
-	const eng::u16 x1 = (wn >= 2u) ? wx[1] : eng::u16(TW / 2u);
-	const eng::u16 y1 = (wn >= 2u) ? wy[1] : eng::u16(TH / 2u);
-	RiverStroke<S> shore {wx[0], wy[0], x1, y1, eng::u16(w + 1u), 1u, seed, 3u};
-	stamp_material(buf, atlas, MaterialId::Foam, vf, shore);
-	RiverStroke<S> stroke {wx[0], wy[0], x1, y1, w, 1u, seed, 3u};
-	stamp_material(buf, atlas, MaterialId::Water, vw, stroke);
-	if (wn >= 4u) {
-		RiverStroke<S> shore2 {wx[2], wy[2], wx[3], wy[3], eng::u16(w + 1u), 1u, seed ^ 1u, 3u};
-		stamp_material(buf, atlas, MaterialId::Foam, vf, shore2);
-		RiverStroke<S> stroke2 {wx[2], wy[2], wx[3], wy[3], w, 1u, seed ^ 1u, 3u};
-		stamp_material(buf, atlas, MaterialId::Water, vw, stroke2);
-	}
+	// Variante fija (0) para agua y espuma: la textura es tileable y el cauce continúa el
+	// mismo patrón en el tile vecino (sin cambios de tono en las juntas).
+	const eng::u8 vw = 0u;
+	const eng::u8 vf = 0u;
+	// Orilla más ancha primero: al pintar el agua encima queda el anillo de espuma.
+	stamp_course(buf, atlas, MaterialId::Foam, vf, wx, wy, wn, eng::u16(w + 1u), seed, 3u);
+	stamp_course(buf, atlas, MaterialId::Water, vw, wx, wy, wn, w, seed, 3u);
 	if (has(spec.features, Feature::Bridge)) {
-		const BitmapBuffer<TW, TH>& path =
-			atlas.get(MaterialId::Path, atlas.variant_at(tile_x, tile_y, MaterialId::Path));
+		// El camino de acceso ya lo pinta `paint_path` (se llama antes que el cauce): aquí
+		// van los **tablones** sobre el agua y las **barandillas oscuras** a los lados, que
+		// son lo que despega el puente del río (un simple corte del camino no se lee).
 		const BitmapBuffer<TW, TH>& wood =
 			atlas.get(MaterialId::Wood, atlas.variant_at(tile_x, tile_y, MaterialId::Wood));
+		const BitmapBuffer<TW, TH>& rail =
+			atlas.get(MaterialId::Cave, atlas.variant_at(tile_x, tile_y, MaterialId::Cave));
 		const eng::u16 y0 = TH / 2u >= 2u ? eng::u16(TH / 2u - 2u) : 0u;
 		const eng::u16 y1b = TH / 2u + 2u < TH ? eng::u16(TH / 2u + 2u) : eng::u16(TH - 1u);
-		for (eng::u16 y = y0; y <= y1b; ++y) {
-			for (eng::u16 x = 0; x < TW; ++x) {
-				buf.at(x, y) = path.at(x, y); // camino de acceso a ambos lados
-			}
-		}
 		const eng::u16 bw = eng::u16(w + 1u);
 		const eng::u16 bx = eng::u16(TW / 2u >= bw ? TW / 2u - bw : 0u);
 		const eng::u16 ex = eng::u16(TW / 2u + bw < TW ? TW / 2u + bw : TW - 1u);
@@ -238,6 +335,12 @@ void paint_river(BitmapBuffer<TW, TH>& buf, const TileSpec& spec, const TextureA
 			for (eng::u16 x = bx; x <= ex; ++x) {
 				buf.at(x, y) = wood.at(x, y); // tablones sobre el agua
 			}
+		}
+		if (y0 > 0u) {
+			for (eng::u16 x = bx; x <= ex; ++x) buf.at(x, eng::u16(y0 - 1u)) = rail.at(x, y0 - 1u);
+		}
+		if (y1b + 1u < TH) {
+			for (eng::u16 x = bx; x <= ex; ++x) buf.at(x, eng::u16(y1b + 1u)) = rail.at(x, y1b + 1u);
 		}
 	}
 }
@@ -304,8 +407,9 @@ void paint_rocks(BitmapBuffer<TW, TH>& buf, const TextureAtlas<TW, TH, S>& atlas
 }
 
 /// Estampa la silueta de montaña: un perfil de colina (`Profile1D`, amplitudes del
-/// diseño: 9/16 del alto con base 1/4) rellena con `Rock` y una cima de `Snow` (3 filas
-/// donde el perfil supera un tercio de su amplitud). Sin ruido por píxel: lookup puro.
+/// diseño: 9/16 del alto con base 1/4) con **sombreado de laderas** (la ladera este, bajo
+/// la luz del oeste, en material oscuro) y **cima nevada sólida** (crece con la altura).
+/// Sin ruido por píxel: lookup puro + tres materiales del atlas.
 /// \tparam TW,TH geometría. \tparam S escalar. \param buf destino. \param atlas atlas.
 /// \param tile_x,tile_y posición en el mapa (variantes de material).
 template <eng::u16 TW, eng::u16 TH, class S>
@@ -316,15 +420,22 @@ void paint_mountain(BitmapBuffer<TW, TH>& buf, const TextureAtlas<TW, TH, S>& at
 	const Profile1D<TW> profile = Profile1D<TW>::hill(amp, base);
 	const BitmapBuffer<TW, TH>& rock =
 		atlas.get(MaterialId::Rock, atlas.variant_at(tile_x, tile_y, MaterialId::Rock));
+	const BitmapBuffer<TW, TH>& shade =
+		atlas.get(MaterialId::Cave, atlas.variant_at(tile_x, tile_y, MaterialId::Cave));
 	const BitmapBuffer<TW, TH>& snow =
 		atlas.get(MaterialId::Snow, atlas.variant_at(tile_x, tile_y, MaterialId::Snow));
 	const eng::u16 snow_top = eng::u16(base + amp / 3u); // cima nevada sobre un tercio
 	for (eng::u16 x = 0; x < TW; ++x) {
 		const eng::u16 h = profile.y[x];
+		const eng::u16 hprev = profile.y[x > 0u ? eng::u16(x - 1u) : 0u];
+		const eng::u16 hnext = profile.y[x + 1u < TW ? eng::u16(x + 1u) : eng::u16(TW - 1u)];
+		const bool east_face = hnext < hprev; // bajando hacia el este: ladera en sombra
 		const eng::u16 y0 = h < TH ? eng::u16(TH - h) : 0u;
+		const eng::u16 cap = h > snow_top ? eng::u16(3u + (h - snow_top) / 2u) : 0u;
 		for (eng::u16 y = y0; y < TH; ++y) {
-			const bool snowy = h > snow_top && y < y0 + 3u;
-			buf.at(x, y) = snowy ? snow.at(x, y) : rock.at(x, y);
+			const eng::u16 rel = eng::u16(y - y0);
+			buf.at(x, y) = (rel < cap) ? snow.at(x, y)
+						   : (east_face ? shade.at(x, y) : rock.at(x, y));
 		}
 	}
 }
@@ -374,9 +485,9 @@ void paint_cave_mouth(BitmapBuffer<TW, TH>& buf, const TextureAtlas<TW, TH, S>& 
 		      eng::u16 tile_x, eng::u16 tile_y) {
 	CaveMouth cave {};
 	cave.cx = eng::u16(TW / 2u);
-	cave.cy = eng::u16(TH - 8u);
-	cave.rx = 7u;
-	cave.ry = 5u;
+	cave.cy = eng::u16(TH - 9u);
+	cave.rx = 9u;
+	cave.ry = 7u;
 	cave.dark = 1u;
 	cave.rock = 2u;
 	const BitmapBuffer<TW, TH>& dark =
@@ -454,17 +565,23 @@ void paint_tower(BitmapBuffer<TW, TH>& buf, const TextureAtlas<TW, TH, S>& atlas
 	TowerTop tower {};
 	tower.cx = eng::u16(TW / 2u);
 	tower.cy = eng::u16(TH / 2u);
-	tower.r2 = 70u;
+	tower.r2 = 100u; // radio ~10 px: torre prominente sobre el muro
 	tower.wall = 1u;
 	tower.roof = 2u;
 	tower.merlon = 3u;
-	tower.ring = 20u;
+	tower.outline = 4u;
+	tower.ring = 28u;
+	// Torre de piedra clásica vista cenital: disco claro (mármol) con anillo de merlones
+	// alternos (muro/mármol) y contorno oscuro. Sin él, un disco rojo plano se lee como
+	// objetivo/explosión, no como bastión.
 	const BitmapBuffer<TW, TH>& ring =
 		atlas.get(MaterialId::Wall, atlas.variant_at(tile_x, tile_y, MaterialId::Wall));
 	const BitmapBuffer<TW, TH>& roof =
-		atlas.get(MaterialId::Roof, atlas.variant_at(tile_x, tile_y, MaterialId::Roof));
+		atlas.get(MaterialId::Marble, atlas.variant_at(tile_x, tile_y, MaterialId::Marble));
 	const BitmapBuffer<TW, TH>& merlon =
 		atlas.get(MaterialId::Marble, atlas.variant_at(tile_x, tile_y, MaterialId::Marble));
+	const BitmapBuffer<TW, TH>& outline =
+		atlas.get(MaterialId::Cave, atlas.variant_at(tile_x, tile_y, MaterialId::Cave));
 	for (eng::u16 y = 0; y < TH; ++y) {
 		for (eng::u16 x = 0; x < TW; ++x) {
 			const eng::u8 c = tower(x, y);
@@ -474,6 +591,8 @@ void paint_tower(BitmapBuffer<TW, TH>& buf, const TextureAtlas<TW, TH, S>& atlas
 				buf.at(x, y) = roof.at(x, y);
 			} else if (c == tower.merlon) {
 				buf.at(x, y) = merlon.at(x, y);
+			} else if (c == tower.outline) {
+				buf.at(x, y) = outline.at(x, y);
 			}
 		}
 	}
@@ -670,6 +789,9 @@ void paint_terrain_tile(BitmapBuffer<TW, TH>& buf, const TileSpec& spec,
 	paint_base(buf, spec, atlas, tile_x, tile_y);
 	if (has(spec.features, Feature::Crops)) paint_crops(buf, atlas, rng, tile_x, tile_y);
 	if (has(spec.features, Feature::Lake)) paint_lake(buf, atlas, rng, tile_x, tile_y);
+	const bool path_edges = spec.edges.n == Edge::Path || spec.edges.e == Edge::Path ||
+				spec.edges.s == Edge::Path || spec.edges.w == Edge::Path;
+	if (path_edges) paint_path(buf, spec); // antes del cauce: el puente pinta encima
 	// El cauce se pinta siempre que haya bordes de agua (el catálogo lo empareja con River).
 	const bool water_edges = spec.edges.n == Edge::Water || spec.edges.e == Edge::Water ||
 				 spec.edges.s == Edge::Water || spec.edges.w == Edge::Water;
