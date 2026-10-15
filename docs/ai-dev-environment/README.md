@@ -58,17 +58,14 @@ editar código
 
 ## Lectura inicial para una nueva IA
 
-0. `docs/ai-dev-environment/DOC-MAP-PRINCIPAL.md` (navegación → documentación)
-1. `AGENTS.md`
-2. `docs/README.md`
-3. `docs/CONTINUATION_CONTEXT.md`
-4. `docs/build/BUILD_AND_RUN.md`
-5. `docs/emulation/mcp-live-coding-workflow.md`
-6. `docs/emulation/WINUAE_SIDE_CHANNEL_DEBUG.md`
-7. `docs/ai-dev-environment/project-map.md`
-8. `docs/ai-dev-environment/ollama-local.md`
-9. `docs/ai-dev-environment/session-evidence.md`
-10. `docs/ai-dev-environment/AMIGA_DEV_GUIDE.md` (entorno completo: compilar por máquina, WinUAE, GDB/canal lateral, MCP, capturas, perfil, Ollama)
+El orden de lectura de arranque es **único** y vive en `AGENTS.md` («Cómo usar este documento»); su router y el `DOC-MAP-PRINCIPAL.md` remiten a todo lo demás. Recursos del **entorno** que un hilo nuevo debe tener localizados:
+
+- `docs/emulation/mcp-live-coding-workflow.md` — flujo vivo de edición/depuración con MCP.
+- `docs/emulation/WINUAE_SIDE_CHANNEL_DEBUG.md` — canal lateral: contratos y comandos.
+- `docs/ai-dev-environment/project-map.md` — archivos y proyectos de alto valor.
+- `docs/ai-dev-environment/ollama-local.md` — visión local: modelos y operación segura.
+- `docs/ai-dev-environment/session-evidence.md` — ciclo de sesión y evidencias mínimas.
+- `docs/ai-dev-environment/AMIGA_DEV_GUIDE.md` — entorno completo (compilar por máquina, WinUAE, GDB/canal lateral, MCP, capturas, perfil, Ollama).
 
 ## Fuentes hermanas
 

@@ -344,16 +344,8 @@ docs/
 ```
 
 ### 10.1 Dónde va cada documento nuevo
-| Tema | Destino |
-|---|---|
-| Tutorial "cómo crear una demo" | `docs/guides/roadmap/` o `docs/guides/methodology/` (plantilla en `docs/demos/effects/`) |
-| Guía de estilo de código | `docs/engine/architecture/CODING_STYLE.md` |
-| Guía de optimización | `docs/guides/optimization/` |
-| Documentación de una tool concreta | `docs/tools/` + `README.md` junto al código de la tool |
-| Referencia de hardware/registros | `docs/reference/<platform>/hardware/` |
-| Técnicas de programación | `docs/reference/<platform>/techniques/` |
-| Roadmap / plan vigente | `docs/guides/roadmap/` |
-| Reportes de IA / informes de demos | `docs/demos/tile-pipeline/` (o el propio `demos/<platform>/NNN/README.md`) |
+
+La tabla única de destino («si el documento trata de… → va en…») vive en [docs/README.md](README.md), sección «Dónde va cada documento nuevo». No se mantiene una copia aquí: una sola fuente por función.
 
 ### 10.2 Formato (obligatorio)
 - Español con ortografía correcta (tildes, eñes, puntuación).

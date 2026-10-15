@@ -39,6 +39,7 @@ Hallazgos concretos de depuración: **bloqueos abiertos**, **post-mortems/leccio
 | [213_release-strict-aliasing.md](213_release-strict-aliasing.md) | **213, resuelto**: el render de los 16 BOBs se rompía en `--release` (`-O2`) por **strict aliasing** (type-punning) del engine; fix `-fno-strict-aliasing`. El «50 fps» de release era falso (el miscompile saltaba BOBs); con imagen correcta son 38 fps. Incluye la comparación de DMA/perfil con el original. |
 | [npc-table-scenarios.md](npc-table-scenarios.md) | Laboratorio de escenarios de mesa (`eng::sim` + `eng::cards`). |
 | [sim-ecosystem-scenarios.md](sim-ecosystem-scenarios.md) | Laboratorio de escenarios del ecosistema (`eng::sim`). |
+| [066-async-blit-irq-bajo-el-so.md](066-async-blit-irq-bajo-el-so.md) | **066, cerrado**: bugs del camino async de blits (caché de comunes entre jobs, recursión del feeder, una IRQ por job con gate INTENA, servicio nunca instalado — `run_frames` ya ocupaba el slot — y BPLCON0 con plano fantasma); medidas A/B sync vs async. |
 
 ## Consultas a IA externa (autocontenidas)
 
@@ -71,4 +72,3 @@ Norma: **preguntar al modelo externo (Grok) en inglés** — responde mejor en e
 | [consulta-ks13-trap-vertb.md](consulta-ks13-trap-vertb.md) | Versión en castellano de la consulta anterior (registro local). |
 | [consulta-ks13-trap-vertb-seguimiento-en.md](consulta-ks13-trap-vertb-seguimiento-en.md) | Follow-up: KS 1.3 exec **supervisor-dispatch table at `SysBase-$36`** (`$C00240`, entries #0 `$FC0F1C` supervisor-call with `INTENA=$C000`, #1 `$FC1F74` Disable/Enable via SOFT, #2/#3 exception/mode paths, #4 the `$FC08E6` trampoline). Crash = first call with **`a5=0`** (normal calls carry `a5=$C00240`), supervisor stack shows our `Wait()` path; asks to name the table/caller, whether `exec`'s Disable/Enable rewrites `INTENA` (clobbering VERTB), and whether `Wait()` can reach it with a null code pointer. |
 | [consulta-ks13-trap-vertb-seguimiento.md](consulta-ks13-trap-vertb-seguimiento.md) | Versión en castellano del seguimiento anterior (registro local). |
-| [066-async-blit-irq-bajo-el-so.md](066-async-blit-irq-bajo-el-so.md) | Bugs del camino async de blits de la demo 066 (cerrados): caché de comunes entre jobs, recursión del feeder, una IRQ por job (gate INTENA), servicio nunca instalado (`run_frames` ya ocupaba el slot) y BPLCON0 con plano fantasma; medidas A/B sync vs async. |un_frames ya ocupaba el slot) y BPLCON0 con plano fantasma; medidas A/B sync vs async. |

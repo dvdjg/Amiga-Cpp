@@ -19,13 +19,13 @@ repositorio mantiene dos flujos claramente separados:
 
 ## Cómo empezar
 
-1. **Organización del repo (obligatorio)**: [STRUCTURE.md](STRUCTURE.md).
-2. **Navegación IA → documentación (leer primero como IA)**: [ai-dev-environment/DOC-MAP-PRINCIPAL.md](ai-dev-environment/DOC-MAP-PRINCIPAL.md).
-3. **Para continuar el trabajo**: [CONTINUATION_CONTEXT.md](CONTINUATION_CONTEXT.md)
-   (estado del proyecto y orden de lectura).
-4. **Para operar build/run/analyze**: [build/BUILD_AND_RUN.md](build/BUILD_AND_RUN.md) y la **guía transversal del entorno Amiga** (toolchain, compilar A500/A1200/A4000/CD32, WinUAE, GDB/canal lateral, MCP, capturas, perfil, Ollama): [ai-dev-environment/AMIGA_DEV_GUIDE.md](ai-dev-environment/AMIGA_DEV_GUIDE.md).
-5. **Para usar el engine (tutoriales + referencia)**: [engine/manual/README.md](engine/manual/README.md).
-6. **Para entender el engine (diseño/decisión)**: [engine/README.md](engine/README.md).
+1. **Reglas operativas y orden de lectura (obligatorio)**: [AGENTS.md](../AGENTS.md) — único punto de arranque: reglas generales, router de tareas y checklist de cierre.
+2. **Organización del repo**: [STRUCTURE.md](STRUCTURE.md).
+3. **Navegación IA → documentación**: [ai-dev-environment/DOC-MAP-PRINCIPAL.md](ai-dev-environment/DOC-MAP-PRINCIPAL.md).
+4. **Estado y continuidad**: [CONTINUATION_CONTEXT.md](CONTINUATION_CONTEXT.md) (puntero al estado vigente) y [roadmap unificado](guides/roadmap/ROADMAP_UNIFICADO.md).
+5. **Para operar build/run/analyze**: [build/BUILD_AND_RUN.md](build/BUILD_AND_RUN.md) y la **guía transversal del entorno Amiga** (toolchain, compilar A500/A1200/A4000/CD32, WinUAE, GDB/canal lateral, MCP, capturas, perfil, Ollama): [ai-dev-environment/AMIGA_DEV_GUIDE.md](ai-dev-environment/AMIGA_DEV_GUIDE.md).
+6. **Para usar el engine (tutoriales + referencia)**: [engine/manual/README.md](engine/manual/README.md).
+7. **Para entender el engine (diseño/decisión)**: [engine/README.md](engine/README.md).
 
 ## Estructura del árbol
 
@@ -135,5 +135,4 @@ fuente nueva, añádela aquí en la misma pasada.
 | Operación IA, Ollama, evidencias y mapa de proyectos | `ai-dev-environment/` |
 | Navegación IA → documentación (qué leer antes de cada tarea) | `ai-dev-environment/DOC-MAP-PRINCIPAL.md` |
 
-> **Documentos nuevos → enlazarlos SIEMPRE aquí (o en AGENTS.md).** Un documento
-> sin enlace desde este índice o desde `AGENTS.md` se pierde para futuras sesiones.
+> **Documentos nuevos → enlazarlos SIEMPRE en la tabla «Dónde va cada documento nuevo» de este índice** (es la única tabla de destino; `STRUCTURE.md` §10.1 remite aquí). Si además es regla dura de dominio, añadir fila en `AGENTS.md` §4; si un programador lo buscaría por tarea, en `DOC-MAP-PRINCIPAL.md` §3. Un documento sin enlace desde este índice se pierde para futuras sesiones.

@@ -1,7 +1,8 @@
-# Registro de desarrollo
+# Registro de desarrollo (histórico)
 
-Este documento deja contexto operativo para continuar el proyecto incluso si se abre
-una conversacion nueva desde cero.
+> **Estado: histórico.** Registro de la fase inicial del engine (hasta ~2026-09): decisiones, descubrimientos y comandos **de aquella etapa**. No es estado vigente ni punto de entrada, y varios comandos citados (`.ps1`) ya no existen. El estado actual está en [`ROADMAP_UNIFICADO.md`](../roadmap/ROADMAP_UNIFICADO.md); los bloqueos abiertos, en [`debugging/investigaciones/README.md`](../../debugging/investigaciones/README.md); el orden de lectura para hilos nuevos, en [`AGENTS.md`](../../../AGENTS.md).
+
+Este documento deja contexto operativo de esa fase, por si hace falta reconstruirla.
 
 ## Estado actual
 
