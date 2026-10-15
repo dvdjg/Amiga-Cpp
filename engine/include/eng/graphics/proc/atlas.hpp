@@ -4,33 +4,44 @@
 /// **Atlas de materiales procedurales** (`TextureAtlas`): genera una vez, en carga, los
 /// tiles de material que consume el pintor de terreno (`terrain.hpp`) — hierba, piedra,
 /// agua, madera, muralla, tejado, nieve… — con **3 variantes** por material para que el
-/// mapa no se vea repetitivo, una **paleta compartida de 16 colores** (RGB444 de `eng::
-/// Palette32`, la de los registros físicos `COLOR00..15`) y las texturas tileables de
-/// `textures.hpp`.
+/// mapa no se vea repetitivo, una **paleta compartida de 32 colores** (RGB444 de `eng::
+/// Palette32`, la de los registros físicos `COLOR00..31`; el display usa 5 planos) y las
+/// texturas tileables de `textures.hpp`.
 ///
 /// También define `MaterialLayer`: varias bandas de material con umbrales y fundido por
 /// dither, para transiciones dentro del mismo tile (hierba → piedra → nieve).
 ///
 /// ```text
 ///   TextureAtlas<32,32,MiniFloat16>
-///     palette: eng::Palette32 (16 colores semánticos + jitter por seed)
+///     palette: eng::Palette32 (32 colores semánticos + jitter por seed)
 ///     textures[22][3]  ← fill_texture(Clouds/Stone/Marble/…) + remap a base de paleta
+///          │                  └─ paso de halftone: 2·levels−1 tonos aparentes (tableros)
 ///          get(id, variant).at(x,y)          variant_at(tile_x,tile_y,id)  (hash estable)
 ///          │
 ///          ▼
 ///   terrain::paint_terrain_tile(...)         compone cada tile de terreno
 /// ```
 ///
+/// ## Halftone (más colores aparentes)
+///
+/// La paleta tiene 32 colores reales (5 planos). Para que las familias de tono no se vean
+/// escalonadas, la generación añade un **paso de halftone**: cada textura se cuantiza a
+/// `2·levels−1` pasos y los impares se pintan como **tablero 2×2** entre los dos colores
+/// vecinos (`halftone_index`), de modo que el ojo ve el intermedio — una familia de 4
+/// colores muestra 7 tonos. El patrón es espacial y determinista (sin costura entre
+/// tiles); ver `dither.hpp`.
+///
 /// ## Índices de paleta por material
 ///
-/// `MaterialDesc::base` + `levels−1 ≤ 15` (la tabla está construida con esa cota; el test
-/// host la verifica). Los tramos están agrupados **por tono** para que un material no
-/// mezcle colores de otra familia (piedra con teja, etc.):
+/// `MaterialDesc::base` + `levels−1 ≤ 31` (la tabla está construida con esa cota; el test
+/// host la verifica). Los tramos están agrupados **por tono** (8 familias × 4 niveles) para
+/// que un material no mezcle colores de otra familia (piedra con teja, etc.):
 ///
 /// ```text
-///   0-1 cueva (negro)   2-3 agua/espuma   4-5 hierba/hoja/musgo   6-7 tierra/arena/camino
-///   8-9 cultivo A/B    10-11 piedra/granito/mármol/adoquín     12-13 madera/tejado/óxido
-///   14 verde oscuro    15 nieve (blanco)
+///    0-3 cueva (negro→gris cálido)      4-7 agua (abisal→espuma)
+///    8-11 hierba/hoja/musgo             12-15 tierra/arena/camino
+///   16-19 cultivo A/B (trigo)          20-23 piedra/granito/mármol/adoquín
+///   24-27 madera/tejado/óxido          28-31 follaje/nieve (frío y luz)
 /// ```
 ///
 /// ## Escalar
@@ -94,7 +105,7 @@ inline constexpr eng::u8 kVariantsPerMaterial = 3;
 struct MaterialDesc {
 	/// Nombre corto (depuración y documentación del atlas).
 	const char* name;
-	/// Niveles de color que usa (índices `base..base+levels-1`, con `base+levels-1 ≤ 15`).
+	/// Niveles de color que usa (índices `base..base+levels-1`, con `base+levels-1 ≤ 31`).
 	eng::u8 levels;
 	/// Primer índice de la paleta compartida.
 	eng::u8 base;
@@ -103,40 +114,42 @@ struct MaterialDesc {
 };
 
 /// Tabla `constexpr` de materiales (niveles/base/frecuencia por `MaterialId`; fuente única
-/// que el atlas y el pintor comparten sin nombrar el escalar del atlas).
+/// que el atlas y el pintor comparten sin nombrar el escalar del atlas). Las bases caen
+/// dentro de la familia de tono (8 familias de 4 niveles; ver el diagrama del fichero) y
+/// los tramos de una misma familia pueden solaparse (agua/espuma) para reutilizar steps.
 /// \param id material consultado. \return descripción del material.
 [[nodiscard]] constexpr MaterialDesc material_desc(MaterialId id) {
 	switch (id) {
-	case MaterialId::Grass: return {"grass", 2, 4, 1};
-	case MaterialId::Dirt: return {"dirt", 2, 6, 2};
-	case MaterialId::Stone: return {"stone", 2, 10, 2};
-	case MaterialId::Granite: return {"granite", 2, 10, 2};
-	case MaterialId::Water: return {"water", 2, 2, 1};
-	case MaterialId::Foam: return {"foam", 2, 2, 4};
-	case MaterialId::Sand: return {"sand", 2, 6, 1};
-	case MaterialId::Wood: return {"wood", 2, 12, 2};
-	case MaterialId::Marble: return {"marble", 2, 10, 1};
-	case MaterialId::Wall: return {"wall", 2, 10, 2};
-	case MaterialId::Roof: return {"roof", 2, 12, 2};
-	case MaterialId::CropA: return {"crop_a", 2, 8, 2};
-	case MaterialId::CropB: return {"crop_b", 2, 7, 2};
+	case MaterialId::Grass: return {"grass", 4, 8, 1};
+	case MaterialId::Dirt: return {"dirt", 3, 12, 2};
+	case MaterialId::Stone: return {"stone", 3, 20, 2};
+	case MaterialId::Granite: return {"granite", 3, 21, 2};
+	case MaterialId::Water: return {"water", 3, 4, 1};
+	case MaterialId::Foam: return {"foam", 2, 6, 4};
+	case MaterialId::Sand: return {"sand", 2, 13, 1};
+	case MaterialId::Wood: return {"wood", 3, 24, 2};
+	case MaterialId::Marble: return {"marble", 2, 22, 1};
+	case MaterialId::Wall: return {"wall", 3, 20, 2};
+	case MaterialId::Roof: return {"roof", 3, 25, 2};
+	case MaterialId::CropA: return {"crop_a", 3, 16, 2};
+	case MaterialId::CropB: return {"crop_b", 3, 17, 2};
 	// Follaje en su propio tono (verde profundo, plano): sin él las copas no se
 	// distinguirían de la hierba en un vistazo.
-	case MaterialId::Foliage: return {"foliage", 1, 14, 4};
-	case MaterialId::Trunk: return {"trunk", 1, 12, 3};
-	case MaterialId::Rock: return {"rock", 2, 10, 2};
-	case MaterialId::Cave: return {"cave", 2, 0, 1};
-	case MaterialId::Rust: return {"rust", 2, 12, 2};
-	case MaterialId::Moss: return {"moss", 2, 4, 4};
-	case MaterialId::Snow: return {"snow", 1, 15, 1};
-	case MaterialId::Path: return {"path", 2, 6, 2};
-	case MaterialId::Cobble: return {"cobble", 2, 10, 4};
-	default: return {"grass", 2, 4, 1}; // `Count` no es un material
+	case MaterialId::Foliage: return {"foliage", 2, 28, 4};
+	case MaterialId::Trunk: return {"trunk", 1, 24, 3};
+	case MaterialId::Rock: return {"rock", 3, 20, 2};
+	case MaterialId::Cave: return {"cave", 3, 0, 1};
+	case MaterialId::Rust: return {"rust", 2, 26, 2};
+	case MaterialId::Moss: return {"moss", 2, 8, 4};
+	case MaterialId::Snow: return {"snow", 2, 30, 1};
+	case MaterialId::Path: return {"path", 3, 12, 2};
+	case MaterialId::Cobble: return {"cobble", 3, 21, 4};
+	default: return {"grass", 4, 8, 1}; // `Count` no es un material
 	}
 }
 
 /// **Atlas de materiales**: los `kMaterialCount × kVariantsPerMaterial` tiles de
-/// material + la paleta compartida de 16 colores.
+/// material + la paleta compartida de 32 colores.
 /// \tparam TW,TH geometría del tile (cuadrados de 32×32 típicos; el pintor usa TW).
 /// \tparam S     escalar del ruido de generación (`MiniFloat16` en Amiga, `float` en host).
 template <eng::u16 TW, eng::u16 TH, class S>
@@ -148,9 +161,9 @@ struct TextureAtlas {
 
 	/// Tiles de material: `textures[material][variante]` (índices de paleta ya remapeados).
 	BitmapBuffer<TW, TH> textures[kMaterialCount][kVariantsPerMaterial] {};
-	/// Paleta compartida de 16 colores RGB444 (la base de la escena que muestre el mapa).
+	/// Paleta compartida de 32 colores RGB444 (la base de la escena que muestre el mapa).
 	eng::Palette32 palette {};
-	/// Colores usados de la paleta (`<= 16`).
+	/// Colores usados de la paleta (`<= 32`; el display necesita 5 planos).
 	eng::u8 total_colors = 0;
 	/// Semilla base del atlas (la usa `variant_at` para el hash de variante).
 	eng::u32 base_seed = 0;
@@ -160,14 +173,14 @@ struct TextureAtlas {
 	/// \param id material consultado. \return descripción del material.
 	[[nodiscard]] static constexpr MaterialDesc desc(MaterialId id) { return material_desc(id); }
 
-	/// Genera el atlas completo: paleta (colores semánticos + jitter por seed) y las
+	/// Genera el atlas completo: paleta (32 colores semánticos + jitter por seed) y las
 	/// `kMaterialCount × kVariantsPerMaterial` texturas. Costoso (de carga): 66 tiles de
-	/// fBm/Worley de `octaves` octavas.
+	/// fBm/Worley de `octaves` octavas. El atlas ocupa los 32 colores de `Palette32`
+	/// (5 planos de display; ver `PROCEDURAL_BITMAPS.md`).
 	/// \param seed semilla base (mismo seed = mismo atlas, host y Amiga).
-	/// \param max_palette colores de la paleta (16 el óptimo OCS; `<= 16` conserva la cota de `base`).
-	void generate(eng::u32 seed, eng::u8 max_palette = 16u) {
+	void generate(eng::u32 seed) {
 		base_seed = seed;
-		total_colors = max_palette < 16u ? max_palette : 16u;
+		total_colors = 32u;
 		build_palette(seed);
 		eng::Xoroshiro64pp rng {seed, seed ^ 0xA71A5u};
 		render_all(rng);
@@ -193,34 +206,59 @@ struct TextureAtlas {
 	}
 
 private:
-	/// Paleta semántica (16 colores RGB444 fijos por rol) + variación ligera ±1 por canal
-	/// con el RNG (dos atlas con seeds distintos no son idénticos, pero mantienen roles:
-	/// agua azul, hierba verde, piedra gris…). Se reserva 0 = negro/transparente.
+	/// Paleta semántica (32 colores RGB444 en 8 familias de 4 niveles) + variación ligera
+	/// ±1 por canal con el RNG (dos atlas con seeds distintos no son idénticos, pero
+	/// mantienen roles: agua azul, hierba verde, piedra gris…). Se reservan 0 = negro/
+	/// transparente y 31 = nieve/luz (puros); el jitter afecta a 1..30.
 	/// \param seed semilla del jitter.
 	void build_palette(eng::u32 seed) {
-		// Valores RGB444 con el canal dominante del rol (el doc de origen rotulaba colores
-		// como «hierba» con nibbles de ocre; aquí el valor y el rol coinciden).
+		// Valores RGB444 con el canal dominante del rol; dentro de cada familia los cuatro
+		// niveles van de oscuro a claro (los tramos de material los reutilizan).
 		eng::Palette32 p {};
-		p.color[0] = 0x0000u;  // transparente / cueva profunda
-		p.color[1] = 0x0321u;  // cueva clara (gris cálido oscuro)
-		p.color[2] = 0x0038u;  // agua profunda
-		p.color[3] = 0x006Au;  // agua clara / espuma
-		p.color[4] = 0x04A0u;  // hierba oscura / hoja / musgo
-		p.color[5] = 0x06C0u;  // hierba clara
-		p.color[6] = 0x0640u;  // tierra oscura
-		p.color[7] = 0x0B83u;  // arena / camino / cultivo B (pardo claro)
-		p.color[8] = 0x0A90u;  // cultivo A (verde amarillento)
-		p.color[9] = 0x0CB0u;  // cultivo A claro
-		p.color[10] = 0x0777u; // piedra / roca / muro
-		p.color[11] = 0x0AAAu; // granito / mármol / adoquín (gris claro)
-		p.color[12] = 0x0A64u; // madera / tejado / óxido (pardo cálido)
-		p.color[13] = 0x0B52u; // madera clara / veta
-		p.color[14] = 0x0280u; // verde profundo (follaje denso)
-		p.color[15] = 0x0EEEu; // nieve / luz
-		// El 0 (transparente) y el 15 (nieve/luz) quedan fijos (negro y blanco puros); el
-		// resto varía ±1 por canal (12 bits) para que dos seeds den atlas distinguibles.
+		// Familia 1: cueva (negro → gris cálido).
+		p.color[0] = 0x0000u;
+		p.color[1] = 0x0211u;
+		p.color[2] = 0x0321u;
+		p.color[3] = 0x0432u;
+		// Familia 2: agua (abisal → espuma).
+		p.color[4] = 0x0026u;
+		p.color[5] = 0x0038u;
+		p.color[6] = 0x004Cu;
+		p.color[7] = 0x006Au;
+		// Familia 3: hierba / hoja / musgo.
+		p.color[8] = 0x0480u;
+		p.color[9] = 0x04A0u;
+		p.color[10] = 0x05B0u;
+		p.color[11] = 0x06C0u;
+		// Familia 4: tierra / arena / camino.
+		p.color[12] = 0x0540u;
+		p.color[13] = 0x0640u;
+		p.color[14] = 0x0982u;
+		p.color[15] = 0x0B83u;
+		// Familia 5: cultivo A/B (trigo).
+		p.color[16] = 0x0990u;
+		p.color[17] = 0x0A90u;
+		p.color[18] = 0x0BB0u;
+		p.color[19] = 0x0CC0u;
+		// Familia 6: piedra / granito / mármol / adoquín.
+		p.color[20] = 0x0666u;
+		p.color[21] = 0x0777u;
+		p.color[22] = 0x0999u;
+		p.color[23] = 0x0AAAu;
+		// Familia 7: madera / tejado / óxido.
+		p.color[24] = 0x0843u;
+		p.color[25] = 0x0A64u;
+		p.color[26] = 0x0B52u;
+		p.color[27] = 0x0C75u;
+		// Familia 8: follaje profundo / nieve.
+		p.color[28] = 0x0180u;
+		p.color[29] = 0x02A0u;
+		p.color[30] = 0x0CCCu;
+		p.color[31] = 0x0EEEu;
+		// Solo el 0 (transparente) y el 31 (nieve/luz) quedan fijos; el resto varía ±1 por
+		// canal (12 bits) para que dos seeds den atlas distinguibles.
 		eng::Xoroshiro64pp rng {seed ^ 0x5A5A5A5Au, seed | 1u};
-		const eng::u8 last_jitter = total_colors >= 16u ? 14u : eng::u8(total_colors - 1u);
+		const eng::u8 last_jitter = eng::u8(total_colors - 2u);
 		for (eng::u8 i = 1; i <= last_jitter; ++i) {
 			const eng::u16 c = p.color[i];
 			const eng::u8 r = (c >> 8u) & 0xFu;
@@ -243,9 +281,12 @@ private:
 		return eng::u8(v < 0 ? 0 : (v > 15 ? 15 : v));
 	}
 
-	/// Renderiza las 3 variantes de un material con su textura y remapea los índices
-	/// locales al tramo `base..base+levels-1` de la paleta. Cada variante usa un seed
-	/// del RNG (determinista en el orden de la tabla).
+	/// Renderiza las 3 variantes de un material con su textura y aplica el **paso de
+	/// halftone**: la textura se cuantiza a `2·levels−1` pasos locales y `remap_halftone`
+	/// convierte los impares en tableros 2×2 del par vecino → la familia de `levels`
+	/// colores reales muestra `2·levels−1` tonos APARENTES (intermedios por checkerboard,
+	/// la petición de «más colores» sin tocar la paleta). Cada variante usa un seed del
+	/// RNG (determinista en el orden de la tabla).
 	/// \tparam TexFn constructor de la textura `(S seed) -> S(px,py)`. \param id material.
 	/// \param rng RNG compartido (avanza por variante). \param make_tex fábrica de la textura.
 	template <class TexFn>
@@ -254,19 +295,26 @@ private:
 		const eng::u8 mi = eng::util::to_underlying(id);
 		for (eng::u8 v = 0; v < kVariantsPerMaterial; ++v) {
 			const eng::u32 vseed = rng.next();
-			fill_texture(textures[mi][v], make_tex(vseed), d.levels, true);
-			remap_to_palette(textures[mi][v], d.base, d.levels);
+			// La mezcla la hace el tablero (no Bayer): cuantización plana a la escala
+			// aparente y reparto par/impar en `remap_halftone`.
+			fill_texture(textures[mi][v], make_tex(vseed), eng::u8(2u * d.levels - 1u), false);
+			remap_halftone(textures[mi][v], d.base, d.levels);
 		}
 	}
 
-	/// Remapea los índices locales `0..levels-1` al tramo `base..base+levels-1` de la
-	/// paleta compartida (`base + local % levels`; el test host comprueba la cota).
-	/// \param buf tile con índices locales. \param base primer índice del tramo.
-	/// \param levels tamaño del tramo.
-	static void remap_to_palette(BitmapBuffer<TW, TH>& buf, eng::u8 base, eng::u8 levels) {
-		const eng::u16 n = eng::u16(TW) * TH;
-		for (eng::u16 i = 0; i < n; ++i) {
-			buf.pixels[i] = eng::u8(base + buf.pixels[i] % levels);
+	/// Remapea los índices locales `0..2·levels−2` al tramo `base..base+levels-1` con el
+	/// paso de halftone: paso par = color sólido, impar = `halftone2x2` del par vecino
+	/// (intermedio aparente). La fase del tablero es la del píxel `(x, y)` del tile, así
+	/// que tiles contiguos siguen la misma retícula.
+	/// \param buf tile con pasos locales. \param base primer índice del tramo.
+	/// \param levels colores reales del tramo.
+	static void remap_halftone(BitmapBuffer<TW, TH>& buf, eng::u8 base, eng::u8 levels) {
+		const eng::u8 span = eng::u8(2u * levels - 1u);
+		for (eng::u16 y = 0; y < TH; ++y) {
+			for (eng::u16 x = 0; x < TW; ++x) {
+				const eng::u8 step = eng::u8(buf.at(x, y) % span);
+				buf.at(x, y) = halftone_index(step, base, levels, x, y);
+			}
 		}
 	}
 

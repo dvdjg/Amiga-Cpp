@@ -101,19 +101,30 @@ void stamp_course(BitmapBuffer<TW, TH>& buf, const TextureAtlas<TW, TH, S>& atla
 		  eng::u32 seed, eng::u8 wobble) {
 	if (wn == 0u) return;
 	const BitmapBuffer<TW, TH>& tex = atlas.get(id, variant);
-	const eng::u16 x1 = (wn >= 2u) ? wx[1] : eng::u16(TW / 2u);
-	const eng::u16 y1 = (wn >= 2u) ? wy[1] : eng::u16(TH / 2u);
-	const RiverStroke<S> s1 {wx[0], wy[0], x1, y1, width, 1u, seed, wobble};
-	for (eng::u16 y = 0; y < TH; ++y) {
-		for (eng::u16 x = 0; x < TW; ++x) {
-			if (s1(x, y)) buf.at(x, y) = tex.at(x, y);
-		}
+	// Tramo principal: p0→p1 (recto si son opuestos, diagonal si son adyacentes). Con 3
+	// puntos (desembocadura en T) los tres tramos van al CENTRO (una «Y» se lee como
+	// desembocadura en cualquier orientación); con 4, el segundo par.
+	const eng::u16 cx = eng::u16(TW / 2u);
+	const eng::u16 cy = eng::u16(TH / 2u);
+	const eng::u16 x1 = (wn >= 2u) ? wx[1] : cx;
+	const eng::u16 y1 = (wn >= 2u) ? wy[1] : cy;
+	struct Seg {
+		eng::u16 x0, y0, x1, y1;
+	};
+	Seg segs[3] {};
+	eng::u8 nseg = 0;
+	if (wn == 3u) {
+		for (eng::u8 i = 0; i < 3u; ++i) segs[nseg++] = {wx[i], wy[i], cx, cy};
+	} else {
+		segs[nseg++] = {wx[0], wy[0], x1, y1};
+		if (wn >= 4u) segs[nseg++] = {wx[2], wy[2], wx[3], wy[3]};
 	}
-	if (wn >= 4u) {
-		const RiverStroke<S> s2 {wx[2], wy[2], wx[3], wy[3], width, 1u, seed ^ 1u, wobble};
+	for (eng::u8 i = 0; i < nseg; ++i) {
+		const RiverStroke<S> s {segs[i].x0, segs[i].y0, segs[i].x1, segs[i].y1, width, 1u,
+					eng::u32(seed + i), wobble};
 		for (eng::u16 y = 0; y < TH; ++y) {
 			for (eng::u16 x = 0; x < TW; ++x) {
-				if (s2(x, y)) buf.at(x, y) = tex.at(x, y);
+				if (s(x, y)) buf.at(x, y) = tex.at(x, y);
 			}
 		}
 	}
@@ -159,20 +170,36 @@ void paint_path(BitmapBuffer<TW, TH>& buf, const TileSpec& spec) {
 	const MaterialDesc pd = material_desc(MaterialId::Path);
 	const eng::u8 core = eng::u8(pd.base + pd.levels - 1u); // tono claro del tramo
 	const eng::u8 edge = pd.base;                           // tono oscuro
-	const eng::u16 x1 = (wn >= 2u) ? wx[1] : eng::u16(TW / 2u);
-	const eng::u16 y1 = (wn >= 2u) ? wy[1] : eng::u16(TH / 2u);
-	// Borde oscuro (semi-ancho 4) primero y núcleo claro (3) encima.
-	for (eng::u16 y = 0; y < TH; ++y) {
-		for (eng::u16 x = 0; x < TW; ++x) {
-			if (course_cover(wx[0], wy[0], x1, y1, 4u, x, y)) buf.at(x, y) = edge;
-			if (course_cover(wx[0], wy[0], x1, y1, 3u, x, y)) buf.at(x, y) = core;
+	const eng::u16 cx = eng::u16(TW / 2u);
+	const eng::u16 cy = eng::u16(TH / 2u);
+	// Trazado: dos bordes opuestos → recta; dos adyacentes → **codo** (pasa por el centro);
+	// tres o cuatro → una «Y»/cruz por el centro (así la unión no sale sesgada).
+	struct Seg {
+		eng::u16 x0, y0, x1, y1;
+	};
+	Seg segs[4] {};
+	eng::u8 nseg = 0;
+	if (wn == 1u) {
+		segs[nseg++] = {wx[0], wy[0], cx, cy};
+	} else if (wn == 2u) {
+		const bool opposite = (wx[0] == wx[1]) || (wy[0] == wy[1]);
+		if (opposite) {
+			segs[nseg++] = {wx[0], wy[0], wx[1], wy[1]};
+		} else {
+			segs[nseg++] = {wx[0], wy[0], cx, cy};
+			segs[nseg++] = {cx, cy, wx[1], wy[1]};
 		}
+	} else {
+		for (eng::u8 i = 0; i < wn; ++i) segs[nseg++] = {wx[i], wy[i], cx, cy};
 	}
-	if (wn >= 4u) {
+	// Por tramo: borde oscuro (semi-ancho 4) primero y núcleo claro (3) encima.
+	for (eng::u8 i = 0; i < nseg; ++i) {
 		for (eng::u16 y = 0; y < TH; ++y) {
 			for (eng::u16 x = 0; x < TW; ++x) {
-				if (course_cover(wx[2], wy[2], wx[3], wy[3], 4u, x, y)) buf.at(x, y) = edge;
-				if (course_cover(wx[2], wy[2], wx[3], wy[3], 3u, x, y)) buf.at(x, y) = core;
+				if (course_cover(segs[i].x0, segs[i].y0, segs[i].x1, segs[i].y1, 4u, x, y))
+					buf.at(x, y) = edge;
+				if (course_cover(segs[i].x0, segs[i].y0, segs[i].x1, segs[i].y1, 3u, x, y))
+					buf.at(x, y) = core;
 			}
 		}
 	}

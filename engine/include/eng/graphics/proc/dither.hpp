@@ -1,19 +1,23 @@
 #pragma once
 
 /// \file dither.hpp
-/// **Dithering ordenado (matrices de Bayer)** y cuantización a `levels` índices de color
-/// (`eng::gfx::proc`). Es el puente entre una intensidad continua (0..255, p. ej. la
-/// salida de `fbm2`) y un índice de paleta discreto, sin interpolar color en RGB.
+/// **Dithering ordenado (matrices de Bayer)**, **halftone por tableros** y cuantización a
+/// `levels` índices de color (`eng::gfx::proc`). Es el puente entre una intensidad
+/// continua (0..255, p. ej. la salida de `fbm2`) y un índice de paleta discreto, sin
+/// interpolar color en RGB.
 ///
-/// Se usa en dos sitios: al cuantizar texturas (`to_index`, `fill_texture`) y al fundir
-/// dos materiales por peso (`MaterialLayer`) o un borde con el interior (`blend_index`).
-/// El umbral es **espacial y determinista**, así que dos tiles con la misma rampa no
-/// introducen costura (a diferencia de un dither temporal o aleatorio).
+/// Se usa en tres sitios: al cuantizar texturas (`to_index`, `fill_texture`), al fundir
+/// dos materiales por peso (`MaterialLayer`) o un borde con el interior (`blend_index`), y
+/// en el **paso de halftone** del atlas (`halftone2x2`/`halftone_index`): una familia de
+/// `n` colores reales muestra `2n−1` tonos aparentes tablero mediante. El umbral es
+/// **espacial y determinista**, así que dos tiles con la misma rampa no introducen costura
+/// (a diferencia de un dither temporal o aleatorio).
 ///
 /// ```text
 ///   intensidad 0..255 ──quantize_dither──► índice 0..levels-1
 ///                │              (umbral Bayer::threshold8: 0..251 por celda 8×8)
-///                └──quantize_plain──► índice redondeado (sin ruido)
+///                ├──quantize_plain──► índice redondeado (sin ruido)
+///                └──halftone_index──► tono aparente (sólido o tablero 2×2 del par vecino)
 /// ```
 ///
 /// ## Coste
@@ -92,6 +96,35 @@ struct Bayer {
 	const eng::u16 v =
 		intensity * (levels - 1u) + ((Bayer::threshold8(x, y) * (levels - 1u)) >> 8u) + 127u;
 	return v >> 8u;
+}
+
+/// **Tablero de ajedrez 2×2** entre dos índices (mezcla 50 %): los píxeles pares toman `a`
+/// y los impares `b` (fase `(x+y)&1`), de modo que el ojo percibe el color intermedio —
+/// el truco clásico para multiplicar los tonos aparentes de una paleta corta (halftone
+/// espacial). Determinista y sin costura: la fase depende del píxel, no del tile.
+/// \param a,b índices de los dos colores vecinos del tramo. \param x,y píxel (fase).
+/// \return `a` o `b` según la paridad de `x+y`.
+[[nodiscard]] constexpr eng::u8 halftone2x2(eng::u8 a, eng::u8 b, eng::u16 x, eng::u16 y) {
+	return (((x + y) & 1u) == 0u) ? a : b;
+}
+
+/// Índice aparente de una **escala de halftone** de `2·levels−1` pasos sobre el tramo
+/// `base..base+levels−1`: los pasos pares son el color sólido `base + step/2` y los
+/// impares el tablero entre ese color y el siguiente (el intermedio aparente). Así una
+/// familia de 4 colores reales muestra 7 tonos y una de 3 muestra 5.
+/// \param step  paso local `0..2·levels−2` (se satura). \param base primer índice del tramo.
+/// \param levels colores reales del tramo. \param x,y píxel (fase del tablero).
+/// \return índice de paleta del píxel (`base..base+levels−1`).
+[[nodiscard]] constexpr eng::u8 halftone_index(eng::u8 step, eng::u8 base, eng::u8 levels,
+					       eng::u16 x, eng::u16 y) {
+	if (levels <= 1u) return base;
+	const eng::u8 span = eng::u8(2u * levels - 2u);
+	const eng::u8 s = step > span ? span : step;
+	const eng::u8 solid = eng::u8(base + (s >> 1u));
+	if ((s & 1u) == 0u) {
+		return solid;
+	}
+	return halftone2x2(solid, eng::u8(solid + 1u), x, y);
 }
 
 } // namespace eng::gfx::proc

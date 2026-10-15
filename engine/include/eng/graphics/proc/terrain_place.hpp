@@ -99,20 +99,37 @@ template <class Set, eng::u16 W, eng::u16 H>
 
 } // namespace place_detail
 
+/// **Parámetros del mundo** de `place_world` (todos con defecto válido: el atajo sin
+/// parámetros es el mundo «clásico»). Permiten parametrizar el castillo y activar o no los
+/// rasgos que enriquecen el mapa (afluente, sendero a la puerta, lago junto al cauce).
+struct PlaceParams {
+	/// Columna del borde oeste del castillo (0 = automática: `W - 4`).
+	eng::u16 castle_c0 = 0u;
+	/// Fila del borde superior del castillo (el anillo ocupa 3×3).
+	eng::u16 castle_r0 = 1u;
+	/// **Afluente**: río secundario desde el borde este que desemboca en el cauce (T).
+	bool tributary = true;
+	/// **Sendero a la puerta**: ramal en T/L desde el camino hasta la puerta del castillo.
+	bool road_to_gate = true;
+	/// **Lago junto al cauce** (si no cabe, o está apagado, va a la esquina inferior derecha).
+	bool lake_beside_river = true;
+};
+
 /// **Coloca un mundo completo** en `out` (ver el diagrama del fichero). El set debe venir
-/// de `TerrainTileSet::generate` (catálogos completos) y tener capacidad para las 3
-/// variantes de curva que el río deriva (`MaxTiles >= catálogo + 12 + 4`); si no cabe
-/// alguna variante, el río usa la curva base y la validación final fallará de forma
-/// visible (`false`), nunca silenciosa.
+/// de `TerrainTileSet::generate` (catálogos completos) y tener capacidad para las
+/// variantes que el colocador deriva (curvas y desembocaduras, camino vertical, codo…:
+/// `MaxTiles >= catálogo + 12 + 12`); si no cabe alguna, la unión correspondiente usa la
+/// pieza base y la validación final falla de forma visible (`false`), nunca silenciosa.
 /// \tparam W,H tamaño del mapa en tiles (`W >= 8`, `H >= 6`).
 /// \tparam TW,TH,MaxTiles geometría/capacidad del set.
 /// \param out mapa a rellenar (se sobrescribe completo).
-/// \param set set de piezas (se le añaden las variantes de curva necesarias).
+/// \param set set de piezas (se le añaden las variantes derivadas necesarias).
 /// \param seed semilla (misma semilla = mismo mapa, host y Amiga).
+/// \param params parámetros del mundo (castillo, afluente, sendero, lago).
 /// \return true si el mapa queda conectado por casación (contrato de `layout_is_connected`).
 template <eng::u16 W, eng::u16 H, eng::u16 TW, eng::u16 TH, eng::u16 MaxTiles>
 [[nodiscard]] bool place_world(TerrainLayout<W, H>& out, TerrainTileSet<TW, TH, MaxTiles>& set,
-			       eng::u32 seed) {
+			       eng::u32 seed, const PlaceParams& params) {
 	static_assert(W >= 8u && H >= 6u, "el mapa minimo del colocador es 8x6");
 	using eng::Xoroshiro64pp;
 	using place_detail::green_neighbors_ok;
@@ -183,34 +200,90 @@ template <eng::u16 W, eng::u16 H, eng::u16 TW, eng::u16 TH, eng::u16 MaxTiles>
 	});
 	const eng::u16 cave = set.find([](const TileSpec& s) { return has(s.features, Feature::CaveMouth); });
 	const eng::u16 house = set.find([](const TileSpec& s) { return has(s.features, Feature::House); });
+	// Desembocadura en T del río (agua N/E/S) y cruce en T del camino (borde N/E/W).
+	const eng::u16 river_t = set.find([](const TileSpec& s) {
+		return s.features == Feature::River && s.edges.n == Edge::Water &&
+		       s.edges.e == Edge::Water && s.edges.s == Edge::Water && s.edges.w == Edge::Grass;
+	});
+	// Cruce en T del camino: tres bordes Path (N/E/W), sin rasgos.
+	const eng::u16 path_t = set.find([](const TileSpec& s) {
+		return s.features == Feature::None && s.edges.n == Edge::Path && s.edges.e == Edge::Path &&
+		       s.edges.s == Edge::Grass && s.edges.w == Edge::Path;
+	});
+	// Fondo de saco: camino que muere (solo borde N).
+	const eng::u16 path_stub = set.find([](const TileSpec& s) {
+		return s.features == Feature::None && s.edges.n == Edge::Path &&
+		       s.edges.e == Edge::Grass && s.edges.s == Edge::Grass &&
+		       s.edges.w == Edge::Grass;
+	});
 	if (grass >= set.count || road_h >= set.count || river_v >= set.count || curve_ne >= set.count ||
 	    bridge >= set.count || wall_v >= set.count || wall_h >= set.count || gate >= set.count ||
 	    tower >= set.count || trees >= set.count || rocks >= set.count || lake >= set.count ||
-	    mountain >= set.count || cave >= set.count || house >= set.count) {
+	    mountain >= set.count || cave >= set.count || house >= set.count || river_t >= set.count ||
+	    path_t >= set.count || path_stub >= set.count) {
 		return false; // catálogo incompleto: mejor no colocar un mapa roto
 	}
-	// Variantes de curva que el catálogo no trae (baratas: píxel transformado + bordes).
+	// Variantes que el catálogo no trae (baratas: píxel transformado + bordes).
 	const eng::u16 curve_se = set.add_variant(curve_ne, Transform::Rot90); // n=G,e=W,s=W,w=G
 	const eng::u16 curve_sw = set.add_variant(curve_ne, Transform::Rot180); // n=G,e=G,s=W,w=W
 	const eng::u16 curve_nw = set.add_variant(curve_ne, Transform::Rot270); // n=W,e=G,s=G,w=W
+	const eng::u16 river_h = set.add_variant(river_v, Transform::Rot90);    // agua E|W
+	const eng::u16 river_t90 = set.add_variant(river_t, Transform::Rot90);  // agua E|S|W
+	const eng::u16 river_t180 = set.add_variant(river_t, Transform::Rot180); // agua N|S|W
+	const eng::u16 river_t270 = set.add_variant(river_t, Transform::Rot270); // agua N|E|W
+	const eng::u16 road_v = set.add_variant(road_h, Transform::Rot90);      // camino N|S
+	const eng::u16 stub_s = set.add_variant(path_stub, Transform::Rot180);  // fondo de saco S
 
 	Xoroshiro64pp rng {seed, seed ^ 0x5EEDu};
 
-	// 1) Relleno base: hierba llana en todo el mapa.
+	// Geometría del mundo y validación de parámetros (falla de forma visible: nunca
+	// coloca un mapa roto).
+	const eng::u16 road_row = eng::u16(H - 2u);
+	const eng::u16 castle_c0 = params.castle_c0 != 0u ? params.castle_c0 : eng::u16(W - 4u);
+	const eng::u16 river_max = eng::u16(castle_c0 - 2u);
+	if (castle_c0 < 2u || eng::u16(castle_c0 + 3u) > W || eng::u16(W / 4u) > river_max ||
+	    params.castle_r0 < 1u || eng::u16(params.castle_r0 + 3u) > road_row) {
+		return false;
+	}
+
+	// Candidatos de relleno «verde» (bordes todo Grass): si el set trae rotaciones
+	// pre-derivadas (el generador host las añade), el RNG elige entre varias → el mapa
+	// no repite la misma textura en cada celda.
+	eng::u16 trees_list[8] {};
+	eng::u16 rocks_list[8] {};
+	eng::u16 plain_list[8] {};
+	eng::u8 n_trees = 0u, n_rocks = 0u, n_plain = 0u;
+	for (eng::u16 i = 0; i < set.count; ++i) {
+		const TileSpec& s = set.specs[i];
+		const bool all_grass = s.edges.n == Edge::Grass && s.edges.e == Edge::Grass &&
+				       s.edges.s == Edge::Grass && s.edges.w == Edge::Grass;
+		if (!all_grass) continue;
+		if (s.features == Feature::None) {
+			if (n_plain < 8u) plain_list[n_plain++] = i;
+		} else if (has(s.features, Feature::Rocks)) {
+			if (n_rocks < 8u) rocks_list[n_rocks++] = i;
+		} else if (has(s.features, Feature::Trees) && !has(s.features, Feature::House)) {
+			if (n_trees < 8u) trees_list[n_trees++] = i;
+		}
+	}
+	if (n_plain == 0u) plain_list[n_plain++] = grass; // set mínimo: al menos la base
+
+	// 1) Relleno base: hierba llana (variando la variante por celda para no repetir).
 	for (eng::u16 y = 0; y < H; ++y) {
-		for (eng::u16 x = 0; x < W; ++x) out.at(x, y) = grass;
+		for (eng::u16 x = 0; x < W; ++x) {
+			out.at(x, y) = plain_list[eng::u32(x + y * 3u) % eng::u32(n_plain)];
+		}
 	}
 
 	// 2) Río: camino de norte a sur con meandros (sin cambio de columna en la fila del
 	//    camino, para que el puente caiga en un tramo vertical).
-	const eng::u16 road_row = eng::u16(H - 2u);
-	const eng::u16 castle_c0 = eng::u16(W - 4u); // el castillo ocupa las 3 ultimas columnas - 1
-	const eng::u16 river_max = eng::u16(castle_c0 - 2u);
 	bool is_river[W * H] {};
+	eng::u16 row_col[H] {}; // columna del cauce en cada fila (para el lago y las anclas)
 	eng::u16 rc = eng::u16(W / 4u); // la entrada del rio, a un cuarto del ancho
 	eng::u16 next_shift_row = 1u;   // primer meandro permitido (nunca en la fila 0)
 	for (eng::u16 r = 0; r < H; ++r) {
 		is_river[r * W + rc] = true;
+		row_col[r] = rc;
 		// Sin meandro en la fila del camino NI en la de encima: el tramo del puente y su
 		// aproximación son verticales, así el camino y el cauce casan sin costuras.
 		const bool shift_ok = r + 1u < H && r != road_row && r + 1u != road_row;
@@ -224,20 +297,37 @@ template <eng::u16 W, eng::u16 H, eng::u16 TW, eng::u16 TH, eng::u16 MaxTiles>
 			}
 		}
 	}
+	// **Afluente** desde el borde este (fila 0) hasta desembocar en el cauce: entra en el
+	// mismo mapa de agua, así la máscara del cauce le pone su desembocadura en T sola.
+	if (params.tributary) {
+		for (eng::u16 x = eng::u16(row_col[0] + 1u); x < W; ++x) {
+			is_river[x] = true; // fila 0: `y*W + x` con y = 0
+		}
+	}
 	// Pieza de cada celda de río por máscara de lados de agua (N=1, E=2, S=4, W=8).
 	for (eng::u16 y = 0; y < H; ++y) {
 		for (eng::u16 x = 0; x < W; ++x) {
 			if (!is_river[y * W + x]) continue;
 			eng::u8 mask = 0u;
-			if (y == 0u || is_river[(y - 1u) * W + x]) mask = eng::u8(mask | 1u);
+			// En la fila 0 solo la DESEMBOCADURA de entrada (columna del cauce) da al
+			// borde superior: así el afluente que corre por la fila 0 no dibuja brazos
+			// de agua hacia arriba (solo el río «entra» por el borde).
+			const bool north = (y == 0u) ? (x == row_col[0]) : is_river[(y - 1u) * W + x];
+			if (north) mask = eng::u8(mask | 1u);
 			if (x + 1u < W && is_river[y * W + x + 1u]) mask = eng::u8(mask | 2u);
 			if (y + 1u < H && is_river[(y + 1u) * W + x]) mask = eng::u8(mask | 4u);
 			if (x > 0u && is_river[y * W + x - 1u]) mask = eng::u8(mask | 8u);
-			if (mask == 3u) out.at(x, y) = curve_ne;        // agua N y E
-			else if (mask == 6u) out.at(x, y) = curve_se;   // agua E y S
-			else if (mask == 12u) out.at(x, y) = curve_sw;  // agua S y W
-			else if (mask == 9u) out.at(x, y) = curve_nw;   // agua W y N
-			else out.at(x, y) = river_v; // N|S y (por construcción) ningún otro caso
+			if (mask == 3u) out.at(x, y) = curve_ne;         // agua N y E
+			else if (mask == 6u) out.at(x, y) = curve_se;    // agua E y S
+			else if (mask == 12u) out.at(x, y) = curve_sw;   // agua S y W
+			else if (mask == 9u) out.at(x, y) = curve_nw;    // agua W y N
+			else if (mask == 7u) out.at(x, y) = river_t;     // desembocadura: agua N/E/S
+			else if (mask == 11u) out.at(x, y) = river_t270; // agua N/E/W
+			else if (mask == 13u) out.at(x, y) = river_t180; // agua N/S/W
+			else if (mask == 14u) out.at(x, y) = river_t90;  // agua E/S/W
+			// Rectas: E|W (10) y las colas de borde (2/8); N|S (5) y colas (1/4).
+			else if (mask == 10u || mask == 2u || mask == 8u) out.at(x, y) = river_h;
+			else out.at(x, y) = river_v;
 		}
 	}
 
@@ -245,26 +335,47 @@ template <eng::u16 W, eng::u16 H, eng::u16 TW, eng::u16 TH, eng::u16 MaxTiles>
 	for (eng::u16 x = 0; x < W; ++x) {
 		out.at(x, road_row) = is_river[road_row * W + x] ? bridge : road_h;
 	}
+	// **Sendero a la puerta** (si hay sitio): cruce en T en el camino y ramal vertical
+	// hacia el castillo; la primera celda bajo la puerta es el fondo de saco (nace con
+	// borde de hierba hacia la puerta), el resto rectas.
+	const eng::u16 gate_x = eng::u16(castle_c0 + 1u);
+	if (params.road_to_gate && road_row > eng::u16(params.castle_r0 + 3u)) {
+		out.at(gate_x, road_row) = path_t;
+		out.at(gate_x, eng::u16(params.castle_r0 + 3u)) = stub_s;
+		for (eng::u16 r = eng::u16(params.castle_r0 + 4u); r < road_row; ++r) {
+			out.at(gate_x, r) = road_v;
+		}
+	}
 
 	// 4) Castillo 3x3 a la derecha: esquinas, muros, torre y puerta; patio de hierba.
-	const eng::u16 cr0 = 1u;
+	const eng::u16 cr0 = params.castle_r0;
 	const eng::u16 cc = castle_c0;
 	out.at(cc, cr0) = corner_tl;
 	out.at(eng::u16(cc + 2u), cr0) = corner_tr;
 	out.at(cc, eng::u16(cr0 + 2u)) = corner_bl;
 	out.at(eng::u16(cc + 2u), eng::u16(cr0 + 2u)) = corner_br;
-	out.at(eng::u16(cc + 1u), cr0) = wall_h;                      // muro superior
-	out.at(cc, eng::u16(cr0 + 1u)) = tower;                      // torre en el muro oeste
-	out.at(eng::u16(cc + 2u), eng::u16(cr0 + 1u)) = wall_v;      // muro este
-	out.at(eng::u16(cc + 1u), eng::u16(cr0 + 2u)) = gate;        // puerta al sur
+	out.at(eng::u16(cc + 1u), cr0) = wall_h;                 // muro superior
+	out.at(cc, eng::u16(cr0 + 1u)) = tower;                 // torre en el muro oeste
+	out.at(eng::u16(cc + 2u), eng::u16(cr0 + 1u)) = wall_v; // muro este
+	out.at(eng::u16(cc + 1u), eng::u16(cr0 + 2u)) = gate;   // puerta al sur
 	// El patio (centro) queda con hierba llana heredada del relleno.
 
 	// 5) Naturaleza y aldea (solo donde las cuatro caras son verdes).
-	const eng::u16 cave_x = 0u, cave_y = 0u;
-	if (green_neighbors_ok(set, out, cave_x, cave_y)) out.at(cave_x, cave_y) = cave;
+	if (green_neighbors_ok(set, out, 0u, 0u)) out.at(0u, 0u) = cave;
 	if (green_neighbors_ok(set, out, 0u, 1u)) out.at(0u, 1u) = mountain;
-	if (green_neighbors_ok(set, out, eng::u16(W - 1u), eng::u16(H - 1u)))
+	// **Lago junto al cauce** (a un lado del río; si no cabe, a la esquina inferior derecha).
+	bool lake_placed = false;
+	if (params.lake_beside_river) {
+		const eng::u16 lr = eng::u16(road_row - 1u);
+		const eng::u16 lx = eng::u16(row_col[lr] + 1u);
+		if (lx < cc && green_neighbors_ok(set, out, lx, lr)) {
+			out.at(lx, lr) = lake;
+			lake_placed = true;
+		}
+	}
+	if (!lake_placed && green_neighbors_ok(set, out, eng::u16(W - 1u), eng::u16(H - 1u))) {
 		out.at(eng::u16(W - 1u), eng::u16(H - 1u)) = lake;
+	}
 	// Dos casas en celdas verdes elegidas por el RNG sobre los candidatos del borde
 	// superior/inferior (lejos de la estructura).
 	eng::u8 houses_left = 2u;
@@ -278,18 +389,39 @@ template <eng::u16 W, eng::u16 H, eng::u16 TW, eng::u16 TH, eng::u16 MaxTiles>
 			}
 		}
 	}
-	// Bosque/rocas dispersos.
+	// Bosque/rocas dispersos, eligiendo variante entre los candidatos (menos repetición).
+	// El patio del castillo (celda central del anillo) queda despejado.
 	for (eng::u16 y = 0; y < H; ++y) {
 		for (eng::u16 x = 0; x < W; ++x) {
-			if (out.at(x, y) != grass) continue;
+			if (x >= cc && x <= eng::u16(cc + 2u) && y >= cr0 && y <= eng::u16(cr0 + 2u)) continue;
+			const TileSpec& cur = set.specs[out.at(x, y)];
+			const bool is_plain = cur.features == Feature::None &&
+					      cur.edges.n == Edge::Grass && cur.edges.e == Edge::Grass &&
+					      cur.edges.s == Edge::Grass && cur.edges.w == Edge::Grass;
+			if (!is_plain) continue;
 			if (eng::chance(rng, 1u, 7u) && green_neighbors_ok(set, out, x, y)) {
-				out.at(x, y) = (eng::chance(rng, 1u, 4u)) ? rocks : trees;
+				const bool rocky = eng::chance(rng, 1u, 4u) && n_rocks > 0u;
+				if (rocky) {
+					out.at(x, y) = rocks_list[rng.next_mod(eng::u32(n_rocks))];
+				} else if (n_trees > 0u) {
+					out.at(x, y) = trees_list[rng.next_mod(eng::u32(n_trees))];
+				}
 			}
 		}
 	}
 
 	// 6) Contrato: todas las uniones internas casan.
 	return layout_is_connected(out, set);
+}
+
+/// Atajo del mundo clásico (parámetros por defecto): véase la sobrecarga con `PlaceParams`.
+/// \tparam W,H,TW,TH,MaxTiles igual que en la sobrecarga principal. \param out mapa.
+/// \param set set de piezas. \param seed semilla. \return el contrato de casación.
+template <eng::u16 W, eng::u16 H, eng::u16 TW, eng::u16 TH, eng::u16 MaxTiles>
+[[nodiscard]] bool place_world(TerrainLayout<W, H>& out, TerrainTileSet<TW, TH, MaxTiles>& set,
+			       eng::u32 seed) {
+	const PlaceParams params {};
+	return place_world<W, H, TW, TH, MaxTiles>(out, set, seed, params);
 }
 
 } // namespace eng::gfx::proc::terrain

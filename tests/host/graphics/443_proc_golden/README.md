@@ -6,11 +6,12 @@ byte) mediante hashes FNV-1a.
 
 ## Qué cubre
 
-- **Paleta** del atlas (16 colores RGB444 con jitter por seed).
-- **Texturas**: las 22×3 muestras de material del `TextureAtlas`.
-- **Piezas**: las 42 del catálogo de terreno del `TerrainTileSet`.
+- **Paleta** del atlas (32 colores RGB444 con jitter por seed).
+- **Texturas**: las 22×3 muestras de material del `TextureAtlas` (con el paso de halftone).
+- **Piezas**: las 45 del catálogo de terreno del `TerrainTileSet`.
 - **Colocador**: el mapa 10×7 de `place_world` con **dos semillas** (ambos conectados por
-  `layout_is_connected`).
+  `layout_is_connected`; el mapa guarda índices, así que un cambio solo de *contenido* de
+  piezas no altera su hash si la colocación no cambia).
 
 Si un refactor cambia el render —colores, ruido, piezas o colocación— el hash cambia y el
 test falla: la decisión de aceptar el cambio visual es explícita (actualizar `kGolden*` con

@@ -34,6 +34,7 @@
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/c2p.hpp>
 #include <eng/graphics/composition/compose.hpp>
+#include <eng/graphics/font8.hpp>
 #include <eng/graphics/palette.hpp>
 #include <eng/memory/memory_manager.hpp>
 
@@ -43,10 +44,11 @@ namespace eng {
 /// (simple) o 2/3 (doble/triple): con doble, la CPU escribe el frame siguiente mientras el actual se
 /// convierte y publica.
 ///
-/// ⚠️ **Estado**: el camino de **4 planos** está verificado en hardware (demo 061_indexed_display);
-/// el **C2P** de 5/6 planos (`c2p_1x1_naive`) está verificado en host (HOST-367), pero el **display**
-/// de 5/6 planos aún **no renderiza** en hardware (bug abierto en la configuración de planos del
-/// `Scene` para profundidades ≠ 4). Usa 4 planos hasta cerrarlo.
+/// ⚠️ **Estado**: el camino de **4 planos** está verificado en hardware (demo 061_indexed_display) y
+/// el de **5 planos** también (demo 119_proc_world, `IndexedDisplay<5, 1>` con `MiniFloat16`,
+/// planar, 320×256: mapa de 32 colores + parcheo planar de la franja). El **C2P** de 5/6 planos
+/// (`c2p_1x1_naive`) está verificado en host (HOST-367); el **display** de **6 planos** sigue
+/// **sin verificar** en hardware.
 template <eng::u8 Planes = 4u, eng::u8 Buffers = 2u>
 class IndexedDisplay {
 public:
@@ -128,6 +130,42 @@ public:
 		m_scene.commit();
 	}
 
+	/// **Parcheo planar de texto** (telemetría) sobre el bitmap **mostrado**: escribe
+	/// celdas de 8×8 de `Font8` directamente en los bitplanes (color `fg` sobre fondo
+	/// `bg`), sin pasar por el chunky ni por el C2P. Coste ~bytes por carácter: es la vía
+	/// para refrescar un contador de frames/fps sobre un fondo **estático** (franja
+	/// inferior) sin pagar un frame entero de C2P. Patchea el buffer que el Copper está
+	/// mostrando ahora mismo; llámalo recién pasado el VBlank (p. ej. en `update`) para
+	/// que las líneas parcheadas queden fuera del haz de la zona inferior.
+	///
+	/// ⚠️ Un `present()` posterior **sobrescribe** el parche (el C2P reescribe los
+	/// planos): el patrón es presentar el fondo una vez y refrescar solo el texto.
+	/// \param x,y  esquina superior izquierda del primer glifo (px de pantalla).
+	/// \param text texto (bytes LATIN-1/ASCII acabados en NUL; 8 px por byte).
+	/// \param fg   índice de color del glifo (bits 0..`Planes`-1).
+	/// \param bg   índice de color de fondo de la celda (borra el dígito anterior).
+	void patch_text(eng::u16 x, eng::u16 y, const char* text, eng::u8 fg, eng::u8 bg) noexcept {
+		if (text == nullptr || m_w == 0u || m_rows == 0u) {
+			return;
+		}
+		// Buffer que el Copper muestra AHORA: el último publicado (con 1 buffer, el mismo).
+		const eng::u8 displayed =
+			(m_scene.buffer_count() > 1u)
+				? eng::u8((m_scene.back_index() + m_scene.buffer_count() - 1u) %
+					  m_scene.buffer_count())
+				: m_scene.back_index();
+		eng::u8* const base = m_scene.buffer(displayed).data();
+		if (base == nullptr) {
+			return;
+		}
+		const eng::u32 stride = m_scene.plane_bytes();   // separación entre planos
+		const eng::u16 row_bytes = m_scene.row_bytes();  // bytes de una fila de plano
+		for (const char* c = text; *c != '\0'; ++c) {
+			patch_glyph(base, stride, row_bytes, x, y, eng::u16(eng::u8(*c)), fg, bg);
+			x = eng::u16(x + 8u);
+		}
+	}
+
 	[[nodiscard]] eng::u16 width() const noexcept { return m_w; }
 	/// Alto de la **pantalla** en líneas (el del display, no el del framebuffer).
 	[[nodiscard]] eng::u16 height() const noexcept { return m_h; }
@@ -140,6 +178,44 @@ public:
 	[[nodiscard]] const eng::graphics::composition::Scene& scene() const noexcept { return m_scene; }
 
 private:
+	/// Celda 8×8 de un glifo escrita píxel a píxel en los `Planes` bitplanes (`fg`/`bg`
+	/// por bit; el byte de plano usa `0x80 >> (px & 7)`, MSB = píxel izquierdo). Recorta
+	/// contra la pantalla si la celda se sale.
+	/// \param base      inicio del bitmap planar (plano 0). \param stride bytes por plano.
+	/// \param row_bytes bytes por fila de un plano. \param x,y esquina de la celda.
+	/// \param codepoint glifo (`Font8`). \param fg,bg índices de color (glifo/fondo).
+	void patch_glyph(eng::u8* base, eng::u32 stride, eng::u16 row_bytes, eng::u16 x, eng::u16 y,
+			 eng::u16 codepoint, eng::u8 fg, eng::u8 bg) noexcept {
+		if (codepoint < 32u) {
+			return;
+		}
+		for (eng::u8 row = 0u; row < 8u; ++row) {
+			const eng::u16 py = eng::u16(y + row);
+			if (py >= m_rows) {
+				continue;
+			}
+			const eng::u8 bits = eng::Font8::row(codepoint, row);
+			for (eng::u8 col = 0u; col < 8u; ++col) {
+				const eng::u16 px = eng::u16(x + col);
+				if (px >= m_w) {
+					continue;
+				}
+				// Valor de índice del píxel (bit `col` de la fila = columna `col`).
+				const eng::u8 v = ((bits >> col) & 1u) != 0u ? fg : bg;
+				const eng::u32 off = eng::u32(py) * row_bytes + (px >> 3u);
+				const eng::u8 bit = eng::u8(0x80u >> (px & 7u));
+				for (eng::u8 p = 0u; p < Planes; ++p) {
+					eng::u8* const q = base + eng::u32(p) * stride + off;
+					if (((v >> p) & 1u) != 0u) {
+						*q = eng::u8(*q | bit);
+					} else {
+						*q = eng::u8(*q & eng::u8(~bit));
+					}
+				}
+			}
+		}
+	}
+
 	eng::graphics::composition::Scene m_scene {};
 	eng::Block<eng::ChunkyTag> m_chunky[Buffers] {};
 	eng::u16 m_w = 0u;

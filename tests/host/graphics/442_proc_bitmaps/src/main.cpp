@@ -110,6 +110,16 @@ void test_buffer_and_dither() {
 		}
 	check(d_range, "quantize_dither en rango 0..levels-1");
 	check(d_varies, "quantize_dither dithera alrededor del nivel medio (+-1)");
+
+	// Halftone: el tablero alterna a/b por la paridad de x+y (mezcla 50 % aparente) y la
+	// escala de 2·levels−1 pasos intercala los intermedios entre los sólidos.
+	check(proc::halftone2x2(1u, 2u, 0u, 0u) == 1u && proc::halftone2x2(1u, 2u, 1u, 0u) == 2u &&
+		      proc::halftone2x2(1u, 2u, 1u, 1u) == 1u,
+	      "halftone2x2 alterna por paridad de x+y");
+	check(proc::halftone_index(0u, 8u, 4u, 0u, 0u) == 8u, "halftone_index: paso 0 = base solida");
+	check(proc::halftone_index(6u, 8u, 4u, 0u, 0u) == 11u, "halftone_index: paso maximo = top");
+	const u8 hs = proc::halftone_index(1u, 8u, 4u, 0u, 0u);
+	check(hs == 8u || hs == 9u, "halftone_index: paso impar = tablero del par (8|9)");
 }
 
 // ---------------------------------------------------------------------------
@@ -385,18 +395,18 @@ void test_shapes() {
 template <class S>
 void test_atlas_scalar(const char* tag) {
 	proc::TextureAtlas<32, 32, S> atlas {};
-	atlas.generate(0x7E44A1u, 16u);
-	check(atlas.total_colors == 16u, tag);
-	// La cota de la tabla: base + levels-1 <= 15 para TODOS los materiales.
+	atlas.generate(0x7E44A1u);
+	check(atlas.total_colors == 32u, tag);
+	// La cota de la tabla: base + levels-1 <= 31 para TODOS los materiales.
 	bool bounds = true;
 	for (u8 m = 0; m < proc::kMaterialCount; ++m) {
 		const proc::MaterialDesc d =
 			proc::TextureAtlas<32, 32, S>::desc(proc::MaterialId(m));
-		bounds = bounds && eng::u16(d.base) + d.levels - 1u <= 15u;
+		bounds = bounds && eng::u16(d.base) + d.levels - 1u <= 31u;
 	}
 	check(bounds, tag);
 	// Los tramos no cruzan de tono (un material no mezcla colores de otra familia:
-	// mar/madera verdes, piedra con madera, etc.). Grupos por tono del doc del atlas.
+	// mar/madera verdes, piedra con madera, etc.). Familias de 4 niveles del doc del atlas.
 	const auto within = [&](proc::MaterialId id, u8 lo, u8 hi) {
 		const proc::MaterialDesc d = proc::TextureAtlas<32, 32, S>::desc(id);
 		return d.base >= lo && eng::u16(d.base) + d.levels - 1u <= hi;
@@ -405,23 +415,30 @@ void test_atlas_scalar(const char* tag) {
 	const proc::MaterialId stone_family[] = {proc::MaterialId::Stone, proc::MaterialId::Granite,
 						 proc::MaterialId::Wall, proc::MaterialId::Rock,
 						 proc::MaterialId::Marble, proc::MaterialId::Cobble};
-	for (const proc::MaterialId m : stone_family) tones = tones && within(m, 10u, 11u);
+	for (const proc::MaterialId m : stone_family) tones = tones && within(m, 20u, 23u);
 	const proc::MaterialId wood_family[] = {proc::MaterialId::Wood, proc::MaterialId::Roof,
-						proc::MaterialId::Rust};
-	for (const proc::MaterialId m : wood_family) tones = tones && within(m, 12u, 13u);
+						proc::MaterialId::Rust, proc::MaterialId::Trunk};
+	for (const proc::MaterialId m : wood_family) tones = tones && within(m, 24u, 27u);
 	const proc::MaterialId green_family[] = {proc::MaterialId::Grass, proc::MaterialId::Moss};
-	for (const proc::MaterialId m : green_family) tones = tones && within(m, 4u, 5u);
+	for (const proc::MaterialId m : green_family) tones = tones && within(m, 8u, 11u);
 	// El follaje tiene su propio tono (verde profundo plano) para no confundirse con la hierba.
-	tones = tones && within(proc::MaterialId::Foliage, 14u, 14u);
+	tones = tones && within(proc::MaterialId::Foliage, 28u, 29u);
 	const proc::MaterialId water_family[] = {proc::MaterialId::Water, proc::MaterialId::Foam};
-	for (const proc::MaterialId m : water_family) tones = tones && within(m, 2u, 3u);
+	for (const proc::MaterialId m : water_family) tones = tones && within(m, 4u, 7u);
+	const proc::MaterialId dirt_family[] = {proc::MaterialId::Dirt, proc::MaterialId::Sand,
+						proc::MaterialId::Path};
+	for (const proc::MaterialId m : dirt_family) tones = tones && within(m, 12u, 15u);
+	const proc::MaterialId crop_family[] = {proc::MaterialId::CropA, proc::MaterialId::CropB};
+	for (const proc::MaterialId m : crop_family) tones = tones && within(m, 16u, 19u);
+	tones = tones && within(proc::MaterialId::Cave, 0u, 3u);
+	tones = tones && within(proc::MaterialId::Snow, 30u, 31u);
 	check(tones, tag);
-	// Todos los pixeles remapeados caen en la paleta.
+	// Todos los pixeles remapeados caen en la paleta (32 colores: 5 planos).
 	bool in_palette = true;
 	for (u8 m = 0; m < proc::kMaterialCount; ++m) {
 		for (u8 v = 0; v < proc::kVariantsPerMaterial; ++v) {
 			const auto& t = atlas.get(proc::MaterialId(m), v);
-			for (u16 i = 0; i < 32u * 32u; ++i) in_palette = in_palette && t.pixels[i] < 16u;
+			for (u16 i = 0; i < 32u * 32u; ++i) in_palette = in_palette && t.pixels[i] < 32u;
 		}
 	}
 	check(in_palette, tag);
@@ -429,9 +446,9 @@ void test_atlas_scalar(const char* tag) {
 	const u8 v0 = atlas.variant_at(3u, 5u, proc::MaterialId::Stone);
 	check(v0 == atlas.variant_at(3u, 5u, proc::MaterialId::Stone), tag);
 	check(v0 < proc::kVariantsPerMaterial, tag);
-	// Paleta: 0 = negro (transparente), 15 = luz (nieve).
+	// Paleta: 0 = negro (transparente), 31 = luz (nieve).
 	check(atlas.palette.color[0] == 0u, tag);
-	check(atlas.palette.color[15] != 0u, tag);
+	check(atlas.palette.color[31] != 0u, tag);
 	// Materiales distintos tienen texturas distintas (no todo es el mismo ruido).
 	bool differ = false;
 	for (u16 i = 0; i < 32u * 32u; ++i) {
@@ -449,8 +466,8 @@ void test_atlas() {
 	test_atlas_scalar<float>("atlas float");
 	// Determinismo entre dos atlas con el mismo seed.
 	proc::TextureAtlas<32, 32, MiniFloat16> a {}, b {};
-	a.generate(0x1234u, 16u);
-	b.generate(0x1234u, 16u);
+	a.generate(0x1234u);
+	b.generate(0x1234u);
 	check(std::memcmp(a.get(proc::MaterialId::Water).pixels,
 			  b.get(proc::MaterialId::Water).pixels, 32u * 32u) == 0,
 	      "atlas determinista por seed");
@@ -463,7 +480,7 @@ void test_atlas() {
 template <class S>
 void test_material_layer_scalar(const char* tag) {
 	proc::TextureAtlas<32, 32, S> atlas {};
-	atlas.generate(0x51EEDu, 16u);
+	atlas.generate(0x51EEDu);
 	proc::MaterialLayer<32, 32, S> layer {};
 	using eng::math::scalar_traits;
 	const S zero = scalar_traits<S>::zero();
@@ -477,24 +494,26 @@ void test_material_layer_scalar(const char* tag) {
 	layer.add(proc::MaterialId::Stone, 1u, c30, c70, soft);
 	layer.add(proc::MaterialId::Snow, 2u, c65, one, soft);
 	proc::BitmapBuffer<32, 32> buf {};
-	// Altura baja -> hierba (tramo 4..5); altura alta -> nieve (tramo 15, blanco plano).
+	// Altura baja -> hierba (tramo 8..11); altura alta -> nieve (tramo 30..31, blanco).
 	layer.render_with_height(buf, atlas, [](u16, u16) { return scalar_traits<S>::zero(); });
 	bool low_ok = true;
 	for (u16 i = 0; i < 32u * 32u; ++i) {
-		low_ok = low_ok && buf.pixels[i] >= 4u && buf.pixels[i] <= 5u;
+		low_ok = low_ok && buf.pixels[i] >= 8u && buf.pixels[i] <= 11u;
 	}
 	check(low_ok, tag);
 	layer.render_with_height(buf, atlas,
 				 [](u16, u16) { return scalar_traits<S>::one(); });
 	bool high_ok = true;
-	for (u16 i = 0; i < 32u * 32u; ++i) high_ok = high_ok && buf.pixels[i] == 15u;
+	for (u16 i = 0; i < 32u * 32u; ++i) {
+		high_ok = high_ok && buf.pixels[i] >= 30u && buf.pixels[i] <= 31u;
+	}
 	check(high_ok, tag);
 	// El campo de altura interno (fBm) tambien rellena todo en rango.
 	layer.height_scale = proc::tile_scale<S>(32u, 2u);
 	layer.height_period = 2;
 	layer.render(buf, atlas);
 	bool in_palette = true;
-	for (u16 i = 0; i < 32u * 32u; ++i) in_palette = in_palette && buf.pixels[i] < 16u;
+	for (u16 i = 0; i < 32u * 32u; ++i) in_palette = in_palette && buf.pixels[i] < 32u;
 	check(in_palette, tag);
 }
 
@@ -510,13 +529,13 @@ void test_material_layer() {
 template <class S>
 void test_terrain_scalar(const char* tag) {
 	proc::TextureAtlas<32, 32, S> atlas {};
-	atlas.generate(0x7E5A1u, 16u);
+	atlas.generate(0x7E5A1u);
 	terr::TerrainTileSet<32, 32, 64> set {};
 	set.generate(0xBEE5u, atlas, 6u);
-	check(set.count == 42u, tag); // 11 castillo + 6 rio + 13 naturaleza + 12 extra
+	check(set.count == 45u, tag); // 11 castillo + 7 rio + 15 naturaleza + 12 extra
 	bool in_palette = true;
 	for (u16 t = 0; t < set.count; ++t)
-		for (u16 i = 0; i < 32u * 32u; ++i) in_palette = in_palette && set.tiles[t].pixels[i] < 16u;
+		for (u16 i = 0; i < 32u * 32u; ++i) in_palette = in_palette && set.tiles[t].pixels[i] < 32u;
 	check(in_palette, tag);
 
 	// Piezas del catalogo: todas presentes y con bordes validos.
@@ -579,10 +598,10 @@ void test_terrain() {
 
 void test_variants_and_placer() {
 	proc::TextureAtlas<32, 32, MiniFloat16> atlas {};
-	atlas.generate(0x7E5A1u, 16u);
-	terr::TerrainTileSet<32, 32, 48> set {};
+	atlas.generate(0x7E5A1u);
+	terr::TerrainTileSet<32, 32, 56> set {};
 	set.generate(0xBEE5u, atlas, 6u);
-	check(set.count == 42u, "catalogo con hierba llana y camino: 42 piezas");
+	check(set.count == 45u, "catalogo con hierba llana y camino: 45 piezas");
 
 	// add_variant: los pixeles y los bordes son los transformados de la base.
 	const eng::u16 base = set.find([](const terr::TileSpec& s) {
@@ -605,15 +624,15 @@ void test_variants_and_placer() {
 	      "add_variant(Identity) devuelve la base");
 	// Capacidad justa: sin hueco, no se crea variante (devuelve la base, no corrompe).
 	{
-		terr::TerrainTileSet<32, 32, 42> tight {};
+		terr::TerrainTileSet<32, 32, 45> tight {};
 		tight.generate(0xBEE5u, atlas, 6u);
-		check(tight.count == 42u && tight.add_variant(0u, proc::Transform::Rot90) == 0u,
+		check(tight.count == 45u && tight.add_variant(0u, proc::Transform::Rot90) == 0u,
 		      "add_variant sin capacidad devuelve la base");
 	}
 
 	// Colocador: mapa 10x7 conectado, determinista y con las estructuras ancladas. Se usa
 	// un set gemelo fresco (el `set` de arriba ya lleva una variante de prueba).
-	terr::TerrainTileSet<32, 32, 48> pset {};
+	terr::TerrainTileSet<32, 32, 56> pset {};
 	pset.generate(0xBEE5u, atlas, 6u);
 	terr::TerrainLayout<10, 7> lay {};
 	check(terr::place_world(lay, pset, 0xBEE5u), "place_world: mapa conectado");
@@ -624,7 +643,21 @@ void test_variants_and_placer() {
 	check(terr::has(spec_at(0u, 0u).features, terr::Feature::CaveMouth), "cueva en la esquina (0,0)");
 	check(terr::has(spec_at(7u, 3u).features, terr::Feature::Gate), "puerta del castillo en (7,3)");
 	check(terr::has(spec_at(6u, 2u).features, terr::Feature::Tower), "torre en (6,2)");
-	check(spec_at(2u, 0u).edges.n == terr::Edge::Water, "el rio entra por el borde superior");
+	// Desembocadura: la entrada del cauce (columna 2) se une al afluente de la fila 0 con
+	// la pieza T del catalogo (agua N/E/S; abre al oeste). Y el sendero sube a la puerta.
+	check(spec_at(2u, 0u).edges.n == terr::Edge::Water &&
+		      spec_at(2u, 0u).edges.e == terr::Edge::Water &&
+		      spec_at(2u, 0u).edges.s == terr::Edge::Water &&
+		      spec_at(2u, 0u).edges.w == terr::Edge::Grass,
+	      "desembocadura en T del afluente en (2,0)");
+	check(spec_at(5u, 0u).edges.e == terr::Edge::Water &&
+		      spec_at(5u, 0u).edges.w == terr::Edge::Water,
+	      "afluente horizontal por la fila 0 (recta E-W)");
+	check(spec_at(7u, 5u).edges.n == terr::Edge::Path && spec_at(7u, 5u).edges.e == terr::Edge::Path &&
+		      spec_at(7u, 5u).edges.s == terr::Edge::Grass,
+	      "cruce en T del sendero a la puerta (7,5)");
+	check(spec_at(7u, 4u).edges.s == terr::Edge::Path && spec_at(7u, 4u).edges.n == terr::Edge::Grass,
+	      "celda del sendero bajo la puerta (fondo de saco)");
 	bool river_exit = false, bridge_on_road = false;
 	for (eng::u16 x = 0; x < 10u; ++x) {
 		if (spec_at(x, 6u).edges.s == terr::Edge::Water) river_exit = true;
@@ -632,19 +665,29 @@ void test_variants_and_placer() {
 	}
 	check(river_exit, "el rio sale por el borde inferior");
 	check(bridge_on_road, "el camino cruza el rio con un puente (fila 5)");
+	// Lago junto al cauce: en la fila 4 (encima del camino, donde no hay meandro) y con el
+	// río como vecino oeste.
+	bool lake_beside = false;
+	for (eng::u16 x = 1u; x < 10u; ++x) {
+		const terr::TileSpec& ls = spec_at(x, 4u);
+		if (terr::has(ls.features, terr::Feature::Lake) && ls.edges.n == terr::Edge::Grass) {
+			lake_beside = terr::has(spec_at(eng::u16(x - 1u), 4u).features, terr::Feature::River);
+		}
+	}
+	check(lake_beside, "lago junto al cauce (fila 4, vecino oeste del rio)");
 	// Todo el mapa usa la paleta del atlas.
 	bool in_palette = true;
 	for (eng::u16 y = 0; y < 7u; ++y) {
 		for (eng::u16 x = 0; x < 10u; ++x) {
 			for (eng::u16 j = 0; j < 32u * 32u; ++j) {
-				in_palette = in_palette && pset.tiles[lay.at(x, y)].pixels[j] < 16u;
+				in_palette = in_palette && pset.tiles[lay.at(x, y)].pixels[j] < 32u;
 			}
 		}
 	}
 	check(in_palette, "todas las piezas del mapa estan en la paleta");
 
 	// Determinismo del colocador (set y semilla nuevos -> mismos indices).
-	terr::TerrainTileSet<32, 32, 48> pset2 {};
+	terr::TerrainTileSet<32, 32, 56> pset2 {};
 	pset2.generate(0xBEE5u, atlas, 6u);
 	terr::TerrainLayout<10, 7> lay2 {};
 	check(terr::place_world(lay2, pset2, 0xBEE5u) &&
@@ -681,7 +724,7 @@ void write_ppm(const char* path, const u8* pixels, u16 w, u16 h, const eng::Pale
 
 void dump_visual_evidence(const char* dir) {
 	proc::TextureAtlas<32, 32, MiniFloat16> atlas {};
-	atlas.generate(0x7E44A1u, 16u);
+	atlas.generate(0x7E44A1u);
 	char path[512];
 	for (u8 m = 0; m < proc::kMaterialCount; ++m) {
 		const proc::MaterialDesc d = decltype(atlas)::desc(proc::MaterialId(m));

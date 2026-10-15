@@ -88,6 +88,9 @@ inline constexpr TileSpec kRiverPieces[] = {
 	// Puente (agua N/S, camino E/W).
 	{.edges = {Edge::Water, Edge::Path, Edge::Water, Edge::Path},
 	 .features = Feature::River | Feature::Bridge},
+	// Desembocadura en T (agua N/E/S; abre al oeste): donde un afluente se une al cauce.
+	// Las otras tres orientaciones se derivan con `add_variant`.
+	{.edges = {Edge::Water, Edge::Water, Edge::Water, Edge::Grass}, .features = Feature::River},
 };
 
 /// Catálogo de piezas de **naturaleza y aldea**: hierba llana, camino, bosques,
@@ -98,6 +101,10 @@ inline constexpr TileSpec kNaturePieces[] = {
 	// Camino horizontal (borde E/W `Path`; la franja de transición lo dibuja): la
 	// versión vertical es un `apply_transform(Rot90)` que deriva el colocador.
 	{.edges = {Edge::Grass, Edge::Path, Edge::Grass, Edge::Path}, .features = Feature::None},
+	// Cruce en T de caminos (borde N/E/W; abre al sur).
+	{.edges = {Edge::Path, Edge::Path, Edge::Grass, Edge::Path}, .features = Feature::None},
+	// Fondo de saco (solo borde N): el senderito que muere en la puerta del castillo.
+	{.edges = {Edge::Path, Edge::Grass, Edge::Grass, Edge::Grass}, .features = Feature::None},
 	{.features = Feature::Trees},
 	{.features = Feature::Trees | Feature::Rocks},
 	{.edges = {Edge::Forest, Edge::Forest, Edge::Grass, Edge::Grass}, .features = Feature::Trees},

@@ -20,22 +20,28 @@ de material por altura y el generador de terreno modular (piezas + pintor + cat�
 - **Tiles Wang**: `edges_match` (casa/no casa por lado), `apply_transform` (Rot90×4 y
   FlipX×2 = identidad), `transform_edges` (giro coherente con el píxel), `BorderRamp`
   (0..255 monótona) y `blend_index` (alpha 0/255 estables).
+- **Dither y halftone**: cuantización plana/dither (extremos y rango), `halftone2x2`
+  (alterna por paridad de `x+y`) y `halftone_index` (paso par = sólido, impar = tablero
+  del par vecino; extremos saturados).
 - **Shapes**: lago/cauce (centro dentro, esquina fuera), máscara suave (interior opaco,
   exterior transparente), muralla/torre/casa/cueva (dentro/fuera).
-- **Atlas**: cota de la tabla (`base + levels-1 ≤ 15` para los 22 materiales), todos los
-  píxeles remapeados dentro de la paleta de 16 colores, variantes deterministas,
-  materiales distintos ⇒ texturas distintas, y **determinismo por seed** (dos atlas
-  idénticos bit a bit).
-- **MaterialLayer**: altura 0 ⇒ banda de hierba (4..5), altura 1 ⇒ nieve (15); campo
+- **Atlas**: cota de la tabla (`base + levels-1 ≤ 31` para los 22 materiales), familias de
+  tono (cueva 0-3, agua 4-7, hierba 8-11, tierra 12-15, cultivo 16-19, piedra 20-23,
+  madera 24-27, follaje/nieve 28-31), todos los píxeles remapeados dentro de la **paleta de
+  32 colores**, variantes deterministas, materiales distintos ⇒ texturas distintas, y
+  **determinismo por seed** (dos atlas idénticos bit a bit).
+- **MaterialLayer**: altura 0 ⇒ banda de hierba (8..11), altura 1 ⇒ nieve (30..31); campo
   fBm interno en rango de paleta.
-- **Terreno**: set completo (42 piezas = 11 castillo + 6 río + 13 naturaleza + 12 extra),
+- **Terreno**: set completo (45 piezas = 11 castillo + 7 río + 15 naturaleza + 12 extra),
   `can_place` para muralla vertical consigo misma y puerta↔muralla horizontal, **el agua
   entra por el centro exacto del borde** (comparación con el píxel del material del
   atlas en dos tramos consecutivos) y la puerta abre el hueco transparente (índice 0).
 - **Variantes y colocador**: `add_variant` (píxeles con `apply_transform` + bordes con
   `transform_edges`; `Identity` y falta de capacidad devuelven la base), `place_world`
-  (mapa 10×7 conectado con cueva, puerta y torre ancladas, río de borde a borde, puente en
-  la fila del camino; determinista; todas las piezas en paleta) y el encaje con
+  (mapa 10×7 conectado con cueva, puerta y torre ancladas, río de borde a borde con
+  **desembocadura en T del afluente** en la fila 0, afluente horizontal E-W, **cruce en T
+  del sendero** hacia la puerta con fondo de saco, **lago junto al cauce** en la fila 4,
+  puente en la fila del camino; determinista; todas las piezas en paleta) y el encaje con
   `eng::playfield::TileLayerMap` (`cells`/`width`/`height`, `tile_at` y `edge_tile`).
 
 ## Cómo está implementado

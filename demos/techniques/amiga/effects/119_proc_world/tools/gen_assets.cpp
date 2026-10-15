@@ -43,18 +43,41 @@ int main(int argc, char** argv) {
 	}
 
 	proc::TextureAtlas<32, 32, MF> atlas {};
-	atlas.generate(kAtlasSeed, 16u);
-	terr::TerrainTileSet<32, 32, 48> set {};
+	atlas.generate(kAtlasSeed);
+	// Capacidad: catálogo (45) + rotaciones de relleno cocidas aquí + las derivadas del
+	// río/caminos que el colocador añade en carga (9). 45 + 24 + 9 = 78 <= 80.
+	terr::TerrainTileSet<32, 32, 80> set {};
 	set.generate(kSetSeed, atlas, 6u);
+	// **Rotaciones de relleno pre-derivadas** (bordes todo `Grass` del catálogo: hierba,
+	// árboles, árboles+rocas, sierra, lago, cultivos y casas): el colocador de la demo
+	// elige entre ellas y el mapa no repite la misma textura; cocerlas aquí evita pagar
+	// `add_variant` (1 KB transformado por variante) en el 68000 de carga. Solo el
+	// catálogo (no las 12 variaciones extra, que ya aportan riqueza con otros seeds).
+	{
+		constexpr u16 catalog_n =
+			u16(sizeof(terr::kCastlePieces) / sizeof(terr::kCastlePieces[0]) +
+			    sizeof(terr::kRiverPieces) / sizeof(terr::kRiverPieces[0]) +
+			    sizeof(terr::kNaturePieces) / sizeof(terr::kNaturePieces[0]));
+		for (u16 i = 0; i < catalog_n; ++i) {
+			const auto& e = set.specs[i].edges;
+			if (e.n != terr::Edge::Grass || e.e != terr::Edge::Grass ||
+			    e.s != terr::Edge::Grass || e.w != terr::Edge::Grass) {
+				continue;
+			}
+			(void)set.add_variant(i, proc::Transform::Rot90);
+			(void)set.add_variant(i, proc::Transform::Rot180);
+			(void)set.add_variant(i, proc::Transform::Rot270);
+		}
+	}
 
 	std::fprintf(f, "// Generado por demos/techniques/amiga/effects/119_proc_world/tools/gen_assets.cpp\n");
 	std::fprintf(f, "// NO EDITAR a mano: regenerar con src/prebuild.sh (o borrando este fichero).\n");
 	std::fprintf(f, "#pragma once\n\n");
-	std::fprintf(f, "// Paleta RGB444 del atlas (16 colores compartidos por todo el mundo).\n");
-	std::fprintf(f, "static constexpr unsigned short kWorldPalette[16] = {\n\t");
-	for (u16 i = 0; i < 16u; ++i) {
-		std::fprintf(f, "0x%04X%s", unsigned(atlas.palette.color[i]), i + 1u < 16u ? ", " : "");
-		if ((i % 8u) == 7u && i + 1u < 16u) std::fprintf(f, "\n\t");
+	std::fprintf(f, "// Paleta RGB444 del atlas (32 colores compartidos por todo el mundo; 5 planos).\n");
+	std::fprintf(f, "static constexpr unsigned short kWorldPalette[32] = {\n\t");
+	for (u16 i = 0; i < 32u; ++i) {
+		std::fprintf(f, "0x%04X%s", unsigned(atlas.palette.color[i]), i + 1u < 32u ? ", " : "");
+		if ((i % 8u) == 7u && i + 1u < 32u) std::fprintf(f, "\n\t");
 	}
 	std::fprintf(f, "\n};\n\n");
 

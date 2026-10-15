@@ -4,9 +4,9 @@
 //
 // Congela el resultado de la generación con `MiniFloat16` (aritmética entera: portable
 // byte a byte entre compiladores/máquinas) mediante hashes FNV-1a de:
-//   - la paleta del atlas (16 colores),
+//   - la paleta del atlas (32 colores),
 //   - las 22×3 texturas de material,
-//   - las 42 piezas del catálogo de terreno,
+//   - las 45 piezas del catálogo de terreno,
 //   - el mapa que produce el colocador (10×7, dos semillas).
 //
 // Si un refactor cambia el RENDER (colores, texturas, piezas o colocación), este test
@@ -55,11 +55,11 @@ u32 hash_bytes(u32 h, const void* data, u32 n) {
 
 // Valores dorados (semilla 0x7E5A1u / sets 0xBEE5u y 0x1234u). Regenerar tras un
 // cambio visual ACEPTADO: anotar el nuevo valor y actualizarlo aquí.
-constexpr u32 kGoldenPalette = 0x5C7DD62Eu;
-constexpr u32 kGoldenTextures = 0x81CC37FBu;
-constexpr u32 kGoldenTiles = 0xFDDBB016u;
-constexpr u32 kGoldenMapSeedBEE5 = 0xBA2CDC19u;
-constexpr u32 kGoldenMapSeed1234 = 0x85908855u;
+constexpr u32 kGoldenPalette = 0xA732D734u;
+constexpr u32 kGoldenTextures = 0xD9CAFDE4u;
+constexpr u32 kGoldenTiles = 0x54AD6A83u;
+constexpr u32 kGoldenMapSeedBEE5 = 0x63BB7325u;
+constexpr u32 kGoldenMapSeed1234 = 0xF70358A9u;
 
 } // namespace
 
@@ -67,7 +67,7 @@ int main() {
 	std::printf("== HOST-443 proc golden (MiniFloat16, hashes FNV-1a) ==\n");
 
 	proc::TextureAtlas<32, 32, MF> atlas {};
-	atlas.generate(0x7E5A1u, 16u);
+	atlas.generate(0x7E5A1u);
 
 	u32 h_pal = hash_bytes(0x811C9DC5u, atlas.palette.color, sizeof(atlas.palette.color));
 	std::printf("  paleta : 0x%08X\n", unsigned(h_pal));
@@ -80,9 +80,9 @@ int main() {
 	}
 	std::printf("  texturas: 0x%08X\n", unsigned(h_tex));
 
-	terr::TerrainTileSet<32, 32, 48> set {};
+	terr::TerrainTileSet<32, 32, 56> set {};
 	set.generate(0xBEE5u, atlas, 6u);
-	check(set.count == 42u, "catalogo de 42 piezas");
+	check(set.count == 45u, "catalogo de 45 piezas");
 	u32 h_tiles = 0x811C9DC5u;
 	for (u16 t = 0; t < set.count; ++t) {
 		h_tiles = hash_bytes(h_tiles, set.tiles[t].pixels, 32u * 32u);
@@ -96,7 +96,7 @@ int main() {
 	const u32 h_map_a = hash_bytes(0x811C9DC5u, map_a.cells, sizeof(map_a.cells));
 	std::printf("  mapa A : 0x%08X\n", unsigned(h_map_a));
 
-	terr::TerrainTileSet<32, 32, 48> set_b {};
+	terr::TerrainTileSet<32, 32, 56> set_b {};
 	set_b.generate(0xBEE5u, atlas, 6u);
 	terr::TerrainLayout<10, 7> map_b {};
 	const bool ok_b = terr::place_world(map_b, set_b, 0x1234u);

@@ -12,10 +12,12 @@
 // de ciclos; ver `VALIDATION.md`). Los assets son deterministas byte a byte
 // (`MiniFloat16` es aritmética entera; `HOST-443` los ancla con un golden), así que el
 // pipeline host (`src/prebuild.sh` + `tools/gen_assets.cpp`, la MISMA librería del
-// engine) los cocina una vez y la demo solo hace lo que debe ser de carga:
-// **colocar** (`place_world`, que deriva las curvas del río con `add_variant`),
-// **componer** el mapa en el framebuffer y **publicarlo** una sola vez. El frame es
-// estático: todo el coste es de carga; el bucle solo late con el VBlank.
+// engine) cocina una vez el atlas, el catálogo **y las rotaciones de las piezas de
+// relleno** (variedad visual: hierba, árboles, rocas… sin repetir textura), y la demo
+// solo hace lo que debe ser de carga: **colocar** (`place_world`, que deriva únicamente
+// las orientaciones de río/caminos con `add_variant`), **componer** el mapa en el
+// framebuffer y **publicarlo** una sola vez. El frame es estático: todo el coste es de
+// carga; el bucle solo late con el VBlank.
 //
 // Qué enseña:
 //   - la fachada de generación (`eng::gfx::proc`): atlas → set → colocador por casación;
@@ -66,7 +68,7 @@ namespace proc = eng::gfx::proc;
 namespace terr = eng::gfx::proc::terrain;
 
 // Geometría: pantalla 320×256; mundo 10×7 tiles de 32 px = 320×224; debajo, la banda de
-// los 16 colores de la paleta (16 px) y la franja de versión (16 px, norma del repo).
+// los 32 colores de la paleta (16 px) y la franja de versión (16 px, norma del repo).
 constexpr u16 kScreenW = 320u;
 constexpr u16 kScreenH = 256u;
 constexpr u16 kWorldTile = 32u;
@@ -75,27 +77,43 @@ constexpr u16 kMapH = 7u;
 constexpr u16 kPaletteBandY = kMapH * kWorldTile;        // 224
 constexpr u16 kVersionStripY = u16(kPaletteBandY + 16u); // 240
 
+// Contador de frames de la franja: prefijo «F » + 6 dígitos parcheados por planos.
+constexpr u16 kFrameLabelX = 224u;
+constexpr u16 kFrameDigitsX = u16(kFrameLabelX + 8u);
+// Colores de la franja (31 = nieve/luz de la familia «frío»; 0 = transparente/negro).
+constexpr u8 kStripFg = 31u;
+constexpr u8 kStripBg = 0u;
+
 // Semilla del colocador (la del host: mismo mundo que los dumps de evidencia).
 constexpr u32 kMapSeed = 0xBEE5u;
 
-/// Formato de la demo (major.minor; el build lo inyecta el toolchain).
-constexpr eng::debug::Version kVersion {1u, 0u, 0u};
+/// Formato de la demo (major.minor; el `build` lo inyecta el toolchain como
+/// `-DENG_BUILD_NUMBER` y la franja lo muestra: `v<major>.<minor>.<build>`).
+constexpr eng::debug::Version kVersion {1u, 0u};
 
 struct ProcWorldDemo {
-	eng::IndexedDisplay<4u, 1u> m_fb {}; // 4 planos, buffer único (frame estático)
+	eng::IndexedDisplay<5u, 1u> m_fb {}; // 5 planos (paleta de 32 colores), buffer único
 	terr::TerrainLayout<kMapW, kMapH> m_layout {};
+	// Contador de frames mostrado en la franja (dígitos ASCII, incremento decimal).
+	char m_frames[7] = "000000";
 	u32 m_load_cycles = 0u;
 	bool m_init_ok = false;
 
-	/// Set de piezas: los buffers pesados (42 KB) viven en BSS como `static` (trivial, sin
+	/// Set de piezas: los buffers pesados (80 KB) viven en BSS como `static` (trivial, sin
 	/// `atexit`); el objeto de la demo se queda pequeño para ser un local de `main`.
-	static terr::TerrainTileSet<kWorldTile, kWorldTile, 48u>& tileset() {
-		static terr::TerrainTileSet<kWorldTile, kWorldTile, 48u> s {};
+	static terr::TerrainTileSet<kWorldTile, kWorldTile, 80u>& tileset() {
+		static terr::TerrainTileSet<kWorldTile, kWorldTile, 80u> s {};
 		return s;
 	}
 
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
+		// **Bajo un SO vivo**: la espera de VBlank debe ser ACTIVA (`set_vblank_sleep(false)`,
+		// variante 2 del 212). Con `Wait()` (defecto), el libro de display del SO reescribe
+		// `INTENA` y **borra el VERTB** del engine → la tarea queda dormida para siempre
+		// (frame congelado a los pocos frames; PC atrapado en el `STOP` de exec).
+		// Ver `docs/debugging/investigaciones/212-vblank-irq-apagada-por-el-so.md`.
+		backend.set_vblank_sleep(false);
 		// Chip: planos (40 KB) + chunky (80 KB) + copper (16 KB) + margen; el set vive en
 		// BSS del ejecutable (no Chip).
 		if (!backend.configure_memory({256u * 1024u, 8u * 1024u, 4u * 1024u})) {
@@ -118,10 +136,10 @@ struct ProcWorldDemo {
 		}
 		stage_mark(2u, eng::debug::DebugPeripheral::cycle_counter() - t_assets);
 
-		// 3) Framebuffer indexado con la paleta del atlas (16 colores RGB444 compartidos).
+		// 3) Framebuffer indexado con la paleta del atlas (32 colores RGB444 → 5 planos).
 		eng::Palette32 pal {};
-		for (u16 i = 0; i < 16u; ++i) pal.color[i] = kWorldPalette[i];
-		if (!m_fb.init(backend, kScreenW, kScreenH, pal.words(), 16u)) {
+		for (u16 i = 0; i < 32u; ++i) pal.color[i] = kWorldPalette[i];
+		if (!m_fb.init(backend, kScreenW, kScreenH, pal.words(), 32u)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011903u);
 			return;
 		}
@@ -137,7 +155,29 @@ struct ProcWorldDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend&, eng::GameContext&) {
-		// Sin trabajo por frame: el mundo se montó y publicó en `init`.
+		// El mundo se montó y publicó en `init`; por frame solo late la telemetría:
+		// contador de frames por **parcheo planar** (8×6 px de bitplanes, sin C2P).
+		if (!m_init_ok) {
+			return;
+		}
+		// Incremento decimal de 6 dígitos sin división (disciplina 68000: sin `/` por frame).
+		// Se recuerda el dígito más a la izquierda que cambió: parchear solo desde ahí
+		// (lo normal es 1 celda por frame; el acarreo es raro) mantiene el coste mínimo.
+		u8 first_changed = 5u;
+		for (u8 i = 5u;; --i) {
+			if (m_frames[i] != '9') {
+				++m_frames[i];
+				first_changed = i; // el más a la izquierda de esta pasada
+				break;
+			}
+			m_frames[i] = '0';
+			first_changed = i;
+			if (i == 0u) {
+				break; // desbordamiento de 999999: se queda a cero
+			}
+		}
+		m_fb.patch_text(u16(kFrameDigitsX + 8u * first_changed), kVersionStripY,
+				m_frames + first_changed, kStripFg, kStripBg);
 	}
 
 	void render(eng::amiga::AmigaBackend&, eng::GameContext& context) {
@@ -146,10 +186,10 @@ struct ProcWorldDemo {
 
 private:
 	/// Copia las piezas cocinadas (indexadas + especificaciones) al set de trabajo. La
-	/// copia es a BSS (memcpy de 42 KB): el set de la demo es mutable porque el colocador
+	/// copia es a BSS (memcpy de 69 KB): el set de la demo es mutable porque el colocador
 	/// añade variantes derivadas (`add_variant`).
 	static void load_assets() {
-		terr::TerrainTileSet<kWorldTile, kWorldTile, 48u>& set = tileset();
+		terr::TerrainTileSet<kWorldTile, kWorldTile, 80u>& set = tileset();
 		for (u16 i = 0; i < kWorldTileCount; ++i) {
 			for (u16 b = 0; b < kWorldTile * kWorldTile; ++b) {
 				set.tiles[i].pixels[b] = kWorldTiles[i][b];
@@ -184,11 +224,11 @@ private:
 				}
 			}
 		}
-		// Banda de paleta: 16 muestras de 20 px (la paleta que usa el mundo).
-		for (u16 i = 0; i < 16u; ++i) {
+		// Banda de paleta: 32 muestras de 10 px (la paleta que usa el mundo).
+		for (u16 i = 0; i < 32u; ++i) {
 			for (u16 y = kPaletteBandY; y < kVersionStripY; ++y) {
-				u8* dst = px.data() + y * kScreenW + i * (kScreenW / 16u);
-				for (u16 x = 0; x < kScreenW / 16u; ++x) dst[x] = u8(i);
+				u8* dst = px.data() + y * kScreenW + i * (kScreenW / 32u);
+				for (u16 x = 0; x < kScreenW / 32u; ++x) dst[x] = u8(i);
 			}
 		}
 		for (u16 y = kVersionStripY; y < kScreenH; ++y) {
@@ -215,8 +255,9 @@ private:
 		}
 	}
 
-	/// Franja inferior (16 px): nombre + versión y coste de carga (ciclos) + nº de piezas.
-	/// El contador de frames/fps vive en la ventana de depuración de WinUAE y la telemetría.
+	/// Franja inferior (16 px): nombre + versión, coste de carga (ciclos) y nº de piezas;
+	/// el contador de frames (a la derecha de la versión) se refresca por parcheo planar
+	/// en `update`; los fps se leen en la ventana de depuración de WinUAE / telemetría.
 	void draw_info_strip() {
 		char label[24];
 		const u8 vlen = eng::debug::version_label(kVersion, label, sizeof(label));
@@ -224,7 +265,10 @@ private:
 		u8 n = 11u;
 		for (u8 i = 0u; i < vlen && n + 1u < sizeof(line1); ++i) line1[n++] = label[i];
 		line1[n] = '\0';
-		draw_text(8u, u16(kVersionStripY + 0u), line1, 15u, 0u);
+		draw_text(8u, u16(kVersionStripY + 0u), line1, kStripFg, kStripBg);
+		// Contador de frames: «F » + los dígitos (se parchean por planos en cada update).
+		draw_text(kFrameLabelX, u16(kVersionStripY + 0u), "F", kStripFg, kStripBg);
+		draw_text(kFrameDigitsX, u16(kVersionStripY + 0u), m_frames, kStripFg, kStripBg);
 
 		char line2[40] = "LOAD ";
 		n = 5u;
@@ -247,7 +291,7 @@ private:
 		} while (count != 0u && nd < 8u);
 		while (nd > 0u && n + 1u < sizeof(line2)) line2[n++] = num[--nd];
 		line2[n] = '\0';
-		draw_text(8u, u16(kVersionStripY + 8u), line2, 15u, 0u);
+		draw_text(8u, u16(kVersionStripY + 8u), line2, kStripFg, kStripBg);
 	}
 };
 
