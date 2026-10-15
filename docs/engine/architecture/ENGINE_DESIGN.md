@@ -6,7 +6,8 @@ ciclo de vida), el encaje de las fuentes externas (demoscene-repo, amiga-bootcam
 Sevgi_Engine) y la **conversión del sistema actual** descrita paso a paso.
 
 Sustituye y absorbe a `VISUAL_EFFECT_SPRITE_DESIGN.md` (que queda como referencia de la
-parte gráfica/efectos). La libreta de la que parte es el `ROADMAP_ENGINE_CPP_AMIGA500.md` §20;
+parte gráfica/efectos). La libreta de la que parte es el roadmap histórico
+[`ROADMAP_ENGINE_CPP_AMIGA500.md`](../../guides/roadmap/ROADMAP_ENGINE_CPP_AMIGA500.md) §20;
 aquí se concreta con nombres de tipos, namespaces y dependencias.
 
 ## 0. Principios (invariantes de diseño)

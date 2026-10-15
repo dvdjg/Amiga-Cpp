@@ -41,6 +41,6 @@ juego simple **ignora** `device()`.
 Todos los métodos son **templates** sobre el backend: se instancian al usarlos, así que no exigen nada
 a un backend que no los tenga.
 
-> Fuente: `engine/include/eng/api/device.hpp`. Diseño: `docs/engine/architecture/ROADMAP_API_COHERENCE.md` (F2).
+> Fuente: `engine/include/eng/api/device.hpp`. Diseño: `docs/guides/roadmap/ROADMAP_API_COHERENCE.md` (F2).
 
 Volver a [`api/`](README.md) · [Referencia](../README.md) · [índice del manual](../../README.md).

@@ -4,8 +4,8 @@ Estado: **roadmap activo para limpiar la fachada de juego**. El diagnóstico se 
 `eng/api/game.hpp`, `device.hpp`, `assets.hpp` y los consumidores reales; no asumir que el boceto
 de este documento ya es el API implementado. Es la referencia para **no fijar dos verdades** al
 construir lo que falta (planner de capas, decoders de assets, `World` completo). Complementa
-los principios de [PUBLIC_API.md](PUBLIC_API.md) y el objetivo de
-[PUBLIC_GAME_API.md](PUBLIC_GAME_API.md).
+los principios de [PUBLIC_API.md](../../engine/architecture/PUBLIC_API.md) y el objetivo de
+[PUBLIC_GAME_API.md](../../engine/architecture/PUBLIC_GAME_API.md).
 
 ## 1. Propósito
 
@@ -256,11 +256,11 @@ técnicas.
 
 ## 6. Referencias
 
-- Principios y frontera: [PUBLIC_API.md](PUBLIC_API.md) (§1.1, §11, §12).
-- Objetivo de juego: [PUBLIC_GAME_API.md](PUBLIC_GAME_API.md).
-- Modelo retenido y recursos: [SCENE_AND_RESOURCES.md](SCENE_AND_RESOURCES.md).
-- Consolidación y decisiones: [ENGINE_STRUCTURE_REVIEW.md](ENGINE_STRUCTURE_REVIEW.md).
-- Estilo y restricciones: [CODING_STYLE.md](CODING_STYLE.md).
+- Principios y frontera: [PUBLIC_API.md](../../engine/architecture/PUBLIC_API.md) (§1.1, §11, §12).
+- Objetivo de juego: [PUBLIC_GAME_API.md](../../engine/architecture/PUBLIC_GAME_API.md).
+- Modelo retenido y recursos: [SCENE_AND_RESOURCES.md](../../engine/architecture/SCENE_AND_RESOURCES.md).
+- Consolidación y decisiones: [ENGINE_STRUCTURE_REVIEW.md](../../engine/architecture/ENGINE_STRUCTURE_REVIEW.md).
+- Estilo y restricciones: [CODING_STYLE.md](../../engine/architecture/CODING_STYLE.md).
 
 ## 7. Adaptaciones para consumidores externos (emulador NES)
 
@@ -270,7 +270,7 @@ interfaces `I*` (vocabulario **suyo**: `IChipMem`, `IBlitter`, `IScrollingLayer`
 su **API de dominio** + unos *helpers generales*, y el consumidor escribe un **adaptador fino**.
 Las `I*` deben ser **implementables o, al menos, equivalentes** con lo que el engine ofrece.
 La ficha del consumidor NES (opciones de implementación, índice de la referencia y **decisión de
-scroll**) vive en [NES_CONSUMER.md](../NES_CONSUMER.md).
+scroll**) vive en [NES_CONSUMER.md](../../engine/NES_CONSUMER.md).
 
 ### 7.1 Principio
 

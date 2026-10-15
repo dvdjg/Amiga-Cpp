@@ -7,7 +7,7 @@ en C del repo hermano (`Cursor-Amiga-C`) está en [../c-engine/](../c-engine/REA
 
 | Documento | Contenido |
 |-----------|-----------|
-| [ROADMAP_ENGINE_CPP_AMIGA500.md](ROADMAP_ENGINE_CPP_AMIGA500.md) | Hoja de ruta completa del engine C++ por fases (0-12) y libreta de diseño. |
+| [ROADMAP_ENGINE_CPP_AMIGA500.md](../../guides/roadmap/ROADMAP_ENGINE_CPP_AMIGA500.md) | Hoja de ruta inicial del engine C++ por fases (0-12) y libreta de diseño; **histórica** (vigente: `ROADMAP_UNIFICADO.md`). |
 | [CODING_STYLE.md](CODING_STYLE.md) | Restricciones y estilo: `gnu++23`, sin exceptions, sin RTTI, sin asignación dinámica en gameplay. |
 | [MATH_LIBRARY.md](MATH_LIBRARY.md) | Modelo de la librería de matemáticas genérica: `Fixed<Repr,Exp,Policy>`, `Vec`/`Mat`/`Affine`, escalar como parámetro de plantilla. |
 | [3D_PHYSICS.md](3D_PHYSICS.md) | **Física 3D realista en A500**: opciones (cinemática de estados, cuerpos rígidos arcade, SAT-3D de OBB, proxy de colisión), costes medidos por kernel y opción preferida por hitos. |
@@ -30,7 +30,7 @@ en C del repo hermano (`Cursor-Amiga-C`) está en [../c-engine/](../c-engine/REA
 | [FAST_SCROLL.md](FAST_SCROLL.md) | **Política de scroll rápido** (modo Sonic/Superfrog): `Fill` (`Progressive`/`TileBurst<N>`/`StripPrerender<C>`), `GuardPolicy`, dirección laceda a frontera de tile, tear-free y presupuesto. |
 | [PUBLIC_API.md](PUBLIC_API.md) | Principios de la **API pública**: la aplicación no ve hardware; planner que deduce la composición; tipos fuertes, handles, errores sin excepciones, init/frame. |
 | [PUBLIC_GAME_API.md](PUBLIC_GAME_API.md) | **API de juego (borrador evolutivo)**: `eng::App`/`eng::Screen` (`eng/api/game.hpp`) sobre lo que ya existe, con el mapeo desde el API interno; regla prioritaria: intuitivo, simple y sin restringir funcionalidad. |
-| [ROADMAP_API_COHERENCE.md](ROADMAP_API_COHERENCE.md) | **Coherencia de la API**: auditoría contrastada con código; `App`/`Device`/`Screen`/assets aún filtran interfaces internas y faltan capas/planner de juego. Fases de limpieza abiertas; la fachada no es todavía API final. |
+| [ROADMAP_API_COHERENCE.md](../../guides/roadmap/ROADMAP_API_COHERENCE.md) | **Coherencia de la API**: auditoría contrastada con código; `App`/`Device`/`Screen`/assets aún filtran interfaces internas y faltan capas/planner de juego. Fases de limpieza abiertas; la fachada no es todavía API final. |
 | [EFFECT_MODEL.md](EFFECT_MODEL.md) | **Modelo de efectos (diseño)**: contrato `Effect`, familias `DisplayEffect`/`RenderEffect`, composición en la escena, propiedad de banda y presupuesto por efecto. |
 | [INTERNAL_TYPE_SYSTEM.md](INTERNAL_TYPE_SYSTEM.md) | **Sistema de tipos internos** (tipo Rust): vistas con tag de dominio (`Bytes`/`Words`), unidades fuertes, direcciones/base, handles; auditoría de punteros crudos y frontera `unsafe` en el backend. |
 | [SCENE_AND_RESOURCES.md](SCENE_AND_RESOURCES.md) | Escena **retenida** (fuente única de recursos), **modelo de ocupación** (headroom/can_add), introspección de depuración y **representación de actores** (sprite/BOB/playfield) elegida por el engine. |

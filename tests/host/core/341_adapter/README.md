@@ -16,4 +16,4 @@ interfaz del consumidor.
 CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/341_adapter
 ```
 
-Ver `docs/engine/architecture/ROADMAP_API_COHERENCE.md` §7.
+Ver `docs/guides/roadmap/ROADMAP_API_COHERENCE.md` §7.

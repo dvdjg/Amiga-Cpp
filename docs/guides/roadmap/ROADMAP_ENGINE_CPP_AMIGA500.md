@@ -1,4 +1,6 @@
-# Roadmap del engine C++ para Amiga 500
+# Roadmap del engine C++ para Amiga 500 (histórico)
+
+> **Estado: histórico (fase 0–12, hasta ~2026-09).** Fue la hoja de ruta inicial del engine C++23. El estado vigente y las próximas direcciones están en [`ROADMAP_UNIFICADO.md`](ROADMAP_UNIFICADO.md); la estructura canónica actual, en [`docs/STRUCTURE.md`](../../STRUCTURE.md). Se conserva por su valor de diseño (p. ej. §20, la libreta de la que parten `ENGINE_DESIGN.md` y `VISUAL_EFFECT_SPRITE_DESIGN.md`). El directorio `engine/` propuesto en §2 no es el actual: vale como intención, no como descripción.
 
 Este documento define una hoja de ruta incremental para construir un engine C++ moderno
 para Amiga 500, empezando por escenas EHB ricas y extendiendo despues el soporte a

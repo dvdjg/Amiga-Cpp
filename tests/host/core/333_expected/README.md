@@ -12,4 +12,4 @@ engine (sin excepciones ni heap), el **idioma único de error** de las APIs nuev
 CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/core/333_expected
 ```
 
-Ver `docs/engine/architecture/ROADMAP_API_COHERENCE.md` (F1).
+Ver `docs/guides/roadmap/ROADMAP_API_COHERENCE.md` (F1).

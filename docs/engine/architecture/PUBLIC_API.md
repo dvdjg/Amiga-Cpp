@@ -29,7 +29,7 @@ Corolario de proceso: al añadir o tocar un módulo, preguntar «¿cómo lo pedi
 esa llamada; los tipos internos (planos, `FramePlan`, `Rasterizer`, `Scheduler`) se quedan dentro.
 
 **Estado de implementación:** este contrato describe el API público final, no la cobertura actual.
-La revisión contrastada con código está en [`ROADMAP_API_COHERENCE.md`](ROADMAP_API_COHERENCE.md)
+La revisión contrastada con código está en [`ROADMAP_API_COHERENCE.md`](../../guides/roadmap/ROADMAP_API_COHERENCE.md)
 §2.1. Siguen visibles `configure_memory`/reservas vía `Device`, `Screen::target()` y strides/planos
 en `Screen::blit`; la fachada todavía no cumple el contrato para un juego completo.
 

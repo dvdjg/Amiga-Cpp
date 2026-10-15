@@ -3,7 +3,7 @@
 Guía para el **emulador de NES** que corre sobre este engine. El emulador es un **consumidor
 externo**: define sus propias interfaces y las implementa sobre el engine. Regla:
 **la app pide, el engine dispone**; el engine **no** se diseña para la NES. Ver
-[ROADMAP_API_COHERENCE.md](architecture/ROADMAP_API_COHERENCE.md) §7.
+[ROADMAP_API_COHERENCE.md](../guides/roadmap/ROADMAP_API_COHERENCE.md) §7.
 
 > **Cómo acceder a cada recurso (guía práctica)**: este documento fija el *qué necesito / qué falta*;
 > la **integración real** —cómo se accede HOY a memoria, framebuffer, ROM, timing, entrada y audio por

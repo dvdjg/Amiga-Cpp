@@ -14,7 +14,7 @@ La tabla distingue piezas **disponibles en la fachada** de la experiencia final 
 No implica que el developer ya pueda crear un juego completo solo con vocabulario de dominio:
 para fondos, memoria de escena y varios flujos de asset todavía se baja a `Device`/`Scene` o se
 construye materialización en la app. El diagnóstico actualizado está en
-[`ROADMAP_API_COHERENCE.md`](ROADMAP_API_COHERENCE.md) §2.1.
+[`ROADMAP_API_COHERENCE.md`](../../guides/roadmap/ROADMAP_API_COHERENCE.md) §2.1.
 
 | Área | Existe hoy (interno) | Falta (objetivo) |
 |---|---|---|

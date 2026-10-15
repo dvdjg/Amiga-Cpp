@@ -214,7 +214,7 @@ Copper, sprites, audio/Paula).
 
 - [`MEMORY_MODEL.md`](MEMORY_MODEL.md)
 - [`RESOURCE_SYSTEM.md`](RESOURCE_SYSTEM.md)
-- [`ROADMAP_API_COHERENCE.md`](ROADMAP_API_COHERENCE.md)
+- [`ROADMAP_API_COHERENCE.md`](../../guides/roadmap/ROADMAP_API_COHERENCE.md)
 - [`INTERNAL_TYPE_SYSTEM.md`](INTERNAL_TYPE_SYSTEM.md)
 - [`RASTER.md`](RASTER.md)
 - Plan de correcciones por orden de importancia: [`../../guides/roadmap/ROADMAP_MEMORY_OWNERSHIP.md`](../../guides/roadmap/ROADMAP_MEMORY_OWNERSHIP.md).

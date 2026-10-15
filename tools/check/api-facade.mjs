@@ -25,7 +25,7 @@ const stripComment = (l) => {
 };
 
 // Hardware directo de `App` (debe ir por `app.device()`). Ver
-// docs/engine/architecture/ROADMAP_API_COHERENCE.md (F2b).
+// docs/guides/roadmap/ROADMAP_API_COHERENCE.md (F2b).
 const FORBIDDEN_APP = [
 	/\bapp\.memory\s*\(/,
 	/\bapp\.scene\s*\(/,

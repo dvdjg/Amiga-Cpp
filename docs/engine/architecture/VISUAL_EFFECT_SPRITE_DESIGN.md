@@ -1,6 +1,6 @@
 # Diseño de object/effects/copper: Visual, CopperIntent, HwSpriteTemplate y Effect
 
-Este documento concreta la libreta de diseño del roadmap (`ROADMAP_ENGINE_CPP_AMIGA500.md` §20,
+Este documento concreta la libreta de diseño del roadmap histórico ([`ROADMAP_ENGINE_CPP_AMIGA500.md`](../../guides/roadmap/ROADMAP_ENGINE_CPP_AMIGA500.md) §20,
 "Abstracciones que no debemos olvidar") en una estructura de clases y plantillas reutilizables.
 
 Motiva la incorporación de las fuentes externas (demoscene-repo, amiga-bootcamp, ACE,

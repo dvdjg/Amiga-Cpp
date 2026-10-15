@@ -7,6 +7,7 @@ metodología de trabajo y plantillas. Organización canónica en
 ```
 docs/guides/
 ├── roadmap/             → ROADMAP_VIGENTE (ROADMAP_UNIFICADO.md), planes y decisiones
+│   ├── README.md                     → estado de cada roadmap (activo/pausado/cerrado/histórico)
 │   ├── ROADMAP_UNIFICADO.md          → estado del engine/demos y próximas direcciones
 │   ├── ROADMAP_BOARD_GAMES.md        → motores de tablero (ajedrez/Go) y conocimiento en disquete
 │   ├── ROADMAP_CARD_GAMES.md         → motores de naipes (póker): reglas, equity, IA y simulación
@@ -30,6 +31,6 @@ docs/guides/
   `demos/amiga/` y se describen en `docs/STRUCTURE.md` §4.
 - Guías de estilo de código: `docs/engine/architecture/CODING_STYLE.md`.
 - Guías de optimización: `docs/guides/optimization/`.
-- Roadmaps y planes: `docs/guides/roadmap/`.
+- Roadmaps y planes: `docs/guides/roadmap/` (marcar su estado en el `README.md` de la carpeta). La tabla única de destino de un documento nuevo está en `docs/README.md`.
 - Soporte Tiled y pipeline de mundo/tilesets: `docs/guides/roadmap/ROADMAP_TILED_WORLD_SUPPORT.md`.
 - Runbooks de agentes y metodología: `docs/guides/methodology/`.

@@ -7,7 +7,7 @@
 ///
 /// Cada método reenvía al backend si lo soporta (`requires`); si no, es no-op (`false`). El
 /// juego simple puede **ignorar** `device()` por completo. Ver
-/// `docs/engine/architecture/ROADMAP_API_COHERENCE.md` (F2) y `PUBLIC_GAME_API.md` §5/12.
+/// `docs/guides/roadmap/ROADMAP_API_COHERENCE.md` (F2) y `PUBLIC_GAME_API.md` §5/12.
 
 #include <eng/api/copper.hpp>
 #include <eng/core/types/domains.hpp>

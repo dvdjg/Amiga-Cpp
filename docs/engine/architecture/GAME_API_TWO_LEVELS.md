@@ -126,6 +126,6 @@ caso de la 213 y el nivel B quede como escape, no como camino obligatorio.
 
 - Principios del API público y frontera público/interno: [PUBLIC_API.md](PUBLIC_API.md).
 - Guía de módulo a módulo (qué existe y qué falta, con gates): [PUBLIC_GAME_API.md](PUBLIC_GAME_API.md).
-- Deuda de coherencia del API y plan por fases: [ROADMAP_API_COHERENCE.md](ROADMAP_API_COHERENCE.md).
+- Deuda de coherencia del API y plan por fases: [ROADMAP_API_COHERENCE.md](../../guides/roadmap/ROADMAP_API_COHERENCE.md).
 - Modelo interno (algoritmo/superficie/composición/máquina): [PLAYFIELD_SCROLL_ARCHITECTURE.md](PLAYFIELD_SCROLL_ARCHITECTURE.md).
 - Estilo y reglas obligatorias de código: [CODING_STYLE.md](CODING_STYLE.md).

@@ -20,7 +20,7 @@ app.add_scroll_layer(m_layer);      // el App la conduce; el motor parchea el Co
 El juego expresa **intención** (mover el fondo, cambiar un color, colocar objetos); el engine **decide
 el cómo** y **posee los recursos**. El juego **no** toca planos, registros ni Blitter. Este contrato se
 usa incluso para **consumidores externos** (p. ej. un emulador): definen su vocabulario y un adaptador
-sobre `eng/api/api.hpp`, sin que el engine se acople a ellos (`docs/engine/architecture/ROADMAP_API_COHERENCE.md` §7).
+sobre `eng/api/api.hpp`, sin que el engine se acople a ellos (`docs/guides/roadmap/ROADMAP_API_COHERENCE.md` §7).
 
 ## 3. Sin heap, sin excepciones, sin RTTI
 

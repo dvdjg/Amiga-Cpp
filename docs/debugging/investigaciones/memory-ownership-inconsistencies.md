@@ -43,7 +43,7 @@ Este hallazgo cubre la relación entre `MemorySystem`, `MemoryManager`, `MemBank
 | `docs/engine/architecture/OBJECT_SYSTEM.md` | Atribuye la propiedad del framebuffer a `MemorySystem`/`Block`; debe reflejar `Scene`/`Bitmap` y el banco gestionado. |
 | `docs/engine/architecture/HARDWARE_AND_ROM_KERNEL_POLICY.md` | Presenta la gestión actual exclusivamente como arenas; ya existe `MemoryManager`/`BlockPool`, aunque la integración productiva aún es híbrida. |
 | `docs/engine/architecture/ENGINE_DESIGN.md` | El inventario de `eng::memory` omite `MemoryManager`, `MemBank`, `BlockPool` y `ScratchArena`. |
-| `docs/engine/architecture/ROADMAP_API_COHERENCE.md` | Conserva como diagnóstico actual la ausencia de arena Fast y el mapeo Fast→Slow, y no separa la inconsistencia de ownership de la migración de API. |
+| `docs/guides/roadmap/ROADMAP_API_COHERENCE.md` | Conserva como diagnóstico actual la ausencia de arena Fast y el mapeo Fast→Slow, y no separa la inconsistencia de ownership de la migración de API. |
 
 ## Criterio de cierre
 

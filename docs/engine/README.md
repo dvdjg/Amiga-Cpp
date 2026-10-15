@@ -25,8 +25,8 @@ Los de abajo son **diseño/decisión** (el *porqué*, contratos, roadmaps): el m
 - [PUBLIC_API.md](architecture/PUBLIC_API.md) — principios de la API pública (la app no ve hardware; intuitivo/simple/sin restringir).
 - [PUBLIC_GAME_API.md](architecture/PUBLIC_GAME_API.md) — **fachada de juego** (`eng::App`/`Screen`/`World`/`Device`) y mapeo desde el API interno.
 - [GAME_API_TWO_LEVELS.md](architecture/GAME_API_TWO_LEVELS.md) — **intención del API de juego**: dos niveles (dominio por defecto + escape *close-to-the-metal*), reglas y checklist.
-- [ROADMAP_API_COHERENCE.md](architecture/ROADMAP_API_COHERENCE.md) — auditoría de la API real y **plan por fases** (F0–F7) hacia una fachada de juego limpia; incluye consumidores externos (§7) y la ficha NES ([NES_CONSUMER.md](NES_CONSUMER.md)). La fachada actual sigue parcial.
-- [ROADMAP_ENGINE_CPP_AMIGA500.md](architecture/ROADMAP_ENGINE_CPP_AMIGA500.md) — hoja de ruta completa del engine por fases.
+- [ROADMAP_API_COHERENCE.md](../guides/roadmap/ROADMAP_API_COHERENCE.md) — auditoría de la API real y **plan por fases** (F0–F7) hacia una fachada de juego limpia; incluye consumidores externos (§7) y la ficha NES ([NES_CONSUMER.md](NES_CONSUMER.md)). La fachada actual sigue parcial.
+- [ROADMAP_ENGINE_CPP_AMIGA500.md](../guides/roadmap/ROADMAP_ENGINE_CPP_AMIGA500.md) — hoja de ruta inicial del engine por fases (**histórica**; el estado vigente es [ROADMAP_UNIFICADO.md](../guides/roadmap/ROADMAP_UNIFICADO.md)).
 
 ### Sistema interno de abstracciones (capas)
 
@@ -110,6 +110,6 @@ Los de abajo son **diseño/decisión** (el *porqué*, contratos, roadmaps): el m
 
 ## Roadmaps
 
-- [ROADMAP_ENGINE_CPP_AMIGA500.md](architecture/ROADMAP_ENGINE_CPP_AMIGA500.md) (fases del engine).
-- [ROADMAP_API_COHERENCE.md](architecture/ROADMAP_API_COHERENCE.md) (coherencia de la API, F1–F7).
+- [ROADMAP_API_COHERENCE.md](../guides/roadmap/ROADMAP_API_COHERENCE.md) (coherencia de la API, F1–F7).
+- [ROADMAP_ENGINE_CPP_AMIGA500.md](../guides/roadmap/ROADMAP_ENGINE_CPP_AMIGA500.md) (fases iniciales del engine; histórico).
 - Roadmaps por dominio en [docs/guides/roadmap/](../guides/roadmap/): `ROADMAP_UNIFICADO.md`, `ROADMAP_MINI_OS.md`, `ROADMAP_RESOURCES.md`, `ROADMAP_AUDIO.md`, `ROADMAP_GUI.md`, `ROADMAP_BOARD_GAMES.md`, `ROADMAP_BLITTER_COPPER.md`.
