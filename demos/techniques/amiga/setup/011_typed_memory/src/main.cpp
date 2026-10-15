@@ -35,7 +35,9 @@ struct TypedMemoryDemo {
 		}
 	}
 
-	void update(auto& app) { eng::debug::mark_frame(g_eng_run_status, app.frame()); }
+	// Sin trabajo por frame: el bucle del engine marca el frame (`mark_frame`) y la demo es
+	// estática (telemetría y render no cambian).
+	void update(auto&) {}
 
 	void render(auto& app) {
 		auto& d = app.debug();

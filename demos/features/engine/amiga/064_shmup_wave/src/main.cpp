@@ -134,7 +134,6 @@ struct ShmupWaveDemo {
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		const eng::u16 f = context.frame.frame_index;
-		eng::debug::mark_frame(g_eng_run_status, f);
 		m_frame_plan.clear();
 
 		// 1) Borra las cajas previas de los enemigos que ya entraron en el bitmap (los que

@@ -144,7 +144,6 @@ struct SpriteAllocatorDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		// §7: avanza la animación (el sprite publica la DATA del frame vigente) y recompone
 		// el frame (reparto + emisión). La copperlist se reconstruye porque cambia la DATA.
 		for (eng::u16 i = 0u; i < m_actors.count(); ++i) {

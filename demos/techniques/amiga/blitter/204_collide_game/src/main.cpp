@@ -119,7 +119,6 @@ struct CollideGame {
 	}
 
 	void update(auto& app) {
-		eng::debug::mark_frame(g_eng_run_status, app.frame());
 		app.device().wait_blitter();
 
 		// 1) Posicion del jugador: avanza 1 word (16 px) y rebota.

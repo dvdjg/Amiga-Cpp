@@ -124,7 +124,6 @@ struct DemoGame {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		compute_projection(); // matematica FUERA del vblank
 		(void)backend;        // la lista es estatica: `takeover` ya la instalo
 	}

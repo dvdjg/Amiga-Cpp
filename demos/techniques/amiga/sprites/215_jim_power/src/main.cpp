@@ -179,7 +179,6 @@ struct JimPowerDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		patch_pattern(static_cast<eng::u16>(context.frame.frame_index >> 1u));
 		if (m_copper_ok) {
 			backend.install_copper_list(m_copper_view);

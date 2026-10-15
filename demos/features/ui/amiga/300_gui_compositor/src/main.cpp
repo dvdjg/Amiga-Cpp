@@ -132,7 +132,6 @@ struct CompositorDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		(void)backend;
 		animate(static_cast<eng::u16>(context.frame.frame_index));
 	}

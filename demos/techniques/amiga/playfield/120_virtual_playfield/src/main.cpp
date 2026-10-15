@@ -118,7 +118,6 @@ struct DemoGame {
 	}
 
 	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_ready) return;
 		// SOLO se mueve la cámara: BigBufferScroll satura y reveer en los límites.
 		sweep(m_pf.cam_x(), m_dir_x);

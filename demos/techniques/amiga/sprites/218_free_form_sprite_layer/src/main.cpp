@@ -517,7 +517,6 @@ struct SprLayerDemo {
 		if (m_fg_offset == kFgScrollMax) {
 			// El original deja de actualizar al llegar a las 49 pantallas.
 			m_updates++;
-			eng::debug::mark_frame(g_eng_run_status, m_updates);
 			return;
 		}
 		update_spr_ctl();
@@ -594,7 +593,6 @@ struct SprLayerDemo {
 		backend.wait_blitter();
 		eng::debug::DebugPeripheral::counter_value(9, eng::debug::DebugPeripheral::cycle_counter() - tw0);
 		m_updates++;
-		eng::debug::mark_frame(g_eng_run_status, m_updates);
 	}
 
 	void render(eng::amiga::AmigaBackend&, eng::GameContext& c) {

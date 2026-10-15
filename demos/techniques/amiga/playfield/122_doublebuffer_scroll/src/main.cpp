@@ -113,7 +113,6 @@ struct DemoGame {
 	}
 
 	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_ready) return;
 		sweep(m_pf.cam_x(), m_dir_x);
 		sweep(m_pf.cam_y(), m_dir_y);

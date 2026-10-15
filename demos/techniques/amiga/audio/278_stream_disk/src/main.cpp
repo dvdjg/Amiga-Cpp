@@ -121,7 +121,6 @@ struct StreamDiskDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_init_ok) {
 			return;
 		}

@@ -62,7 +62,6 @@ struct FramebufferDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		// Escribe índices en el framebuffer trasero: barras horizontales que ciclan de color + una
 		// barra vertical que barre la pantalla. Se escribe de 4 en 4 bytes (u32) por velocidad.
 		eng::Span<eng::u8> px = m_fb.framebuffer();

@@ -197,7 +197,6 @@ struct DemoGame {
 
 	/// Mueve la cámara del `World` y sincroniza la del motor; el `App` conduce el frame.
 	void update(auto& app) {
-		eng::debug::mark_frame(g_eng_run_status, app.frame());
 		if (!ready) return;
 		terrain->camera().begin_frame();
 		terrain->camera().move_by(direction, 0);

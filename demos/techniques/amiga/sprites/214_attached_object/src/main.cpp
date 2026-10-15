@@ -189,7 +189,6 @@ struct AttachedObjectDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		const eng::u16 f = context.frame.frame_index;
 		// Rebotes triangulares sin * ni / (máscara + resta sobre potencias de 2).
 		const eng::u16 tx = tri8(static_cast<eng::u16>(f & 0xffu));

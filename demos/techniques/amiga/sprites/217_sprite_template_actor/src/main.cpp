@@ -126,7 +126,6 @@ struct SpriteTemplateActorDemo {
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		const eng::u16 f = context.frame.frame_index;
-		eng::debug::mark_frame(g_eng_run_status, f); // telemetría de fps
 		// Recorrido por TODA la pantalla (X e Y) con onda triangular, sin `*`/`/`:
 		// X = 144..398 e Y = 44..186 (el tótem mide 99 líneas y queda visible entero).
 		const eng::u16 tx = tri8(static_cast<eng::u16>(f << 1u));

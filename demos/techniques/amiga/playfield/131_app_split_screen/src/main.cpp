@@ -115,7 +115,6 @@ struct AppSplitGame {
 	}
 
 	void update(auto& app) {
-		eng::debug::mark_frame(g_eng_run_status, app.frame());
 		if (!m_ready) {
 			return;
 		}

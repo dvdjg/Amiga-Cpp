@@ -181,7 +181,6 @@ struct SprLayerDemo {
 		patch_pos(backend, m_cu[inact], m_sprite[inact], s);
 		backend.install_copper_list(m_cu[inact].mem_view_chip());
 		m_active = inact;
-		eng::debug::mark_frame(g_eng_run_status, c.frame.frame_index);
 	}
 	void render(eng::amiga::AmigaBackend&, eng::GameContext& c) {
 		eng::debug::probe_when_ready(g_eng_run_status, c.frame.frame_index);

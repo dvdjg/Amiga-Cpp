@@ -169,7 +169,6 @@ struct C2pSeamDemo {
 		// Plan de blits del frame; si fallara (plan inválido) el render quedaría incompleto:
 		// no hay camino alternativo en esta demo (resultado ignorado a propósito).
 		(void)backend.execute_frame_plan(plan);
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 	}
 
 	void render(eng::amiga::AmigaBackend&, eng::GameContext& context) {

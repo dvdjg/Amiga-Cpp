@@ -215,7 +215,6 @@ struct MechanismsDemo {
 			return;
 		}
 		const eng::u16 frame = context.frame.frame_index;
-		eng::debug::mark_frame(g_eng_run_status, frame);
 		const eng::u32 t0 = eng::debug::DebugPeripheral::cycle_counter();
 		m_period_kcycles = (t0 - m_last_cycle) / 1000u;
 		m_last_cycle = t0;

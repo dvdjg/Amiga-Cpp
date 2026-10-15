@@ -339,7 +339,6 @@ struct ChessMatch {
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		(void)backend;
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		const eng::u32 frame = context.frame.frame_index;
 
 		if (m_phase != Phase::GameOver) {

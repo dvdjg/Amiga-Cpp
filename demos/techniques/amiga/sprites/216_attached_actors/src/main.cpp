@@ -194,7 +194,6 @@ struct AttachedActorsDemo {
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		const eng::u16 f = context.frame.frame_index;
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index); // telemetría de fps
 		// Recorrido por TODA la pantalla (X e Y) con fases distintas por actor y sin
 		// `*`/`/`: X = 144..398 (todo el ancho visible; DIWSTRT x≈129) e Y = 44..~230.
 		// Los actores están **fijados a su canal** (`assign_rank` + `preferred_channel`), así

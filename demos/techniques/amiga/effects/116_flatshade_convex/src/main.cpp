@@ -498,7 +498,6 @@ struct FlatShadeDemo {
 	/// VBlank del engine o en el primer wait del siguiente update: el buffer nunca se ve
 	/// a medias (se muestra en el swap del update siguiente).
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_init_ok) {
 			return;
 		}

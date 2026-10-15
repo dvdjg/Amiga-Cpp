@@ -154,7 +154,6 @@ struct FreeFormDemo {
 			backend.blitter_fill_words_strided(eng::graphics::blit_ptr(w.subspan(base + cop_cols * 6u + i * 2u)),
 							   m_layer.column_pos(i), kBandLines, stride);
 		}
-		eng::debug::mark_frame(g_eng_run_status, c.frame.frame_index);
 	}
 	void render(eng::amiga::AmigaBackend&, eng::GameContext& c) {
 		eng::debug::probe_when_ready(g_eng_run_status, c.frame.frame_index);

@@ -93,7 +93,6 @@ struct DemoGame {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		const eng::u16 pulse = static_cast<eng::u16>((context.frame.frame_index >> 2) & 0x0f);
 		backend.set_color(0, static_cast<eng::u16>((pulse << 8) | 0x002));
 	}

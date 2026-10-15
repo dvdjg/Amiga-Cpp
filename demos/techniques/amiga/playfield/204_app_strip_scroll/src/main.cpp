@@ -145,7 +145,6 @@ struct AppStripGame {
 	}
 
 	void update(auto& app) {
-		eng::debug::mark_frame(g_eng_run_status, app.frame());
 		// La ruta recorre las fases; la capa lee `m_cam_x`/`m_cam_y` al ser conducida por el `App`.
 		m_route.advance(app.frame());
 		m_cam_x = m_route.x;

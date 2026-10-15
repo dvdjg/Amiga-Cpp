@@ -139,7 +139,6 @@ struct AppSpriteDemo {
 	}
 
 	void update(auto& app) {
-		eng::debug::mark_frame(g_eng_run_status, app.frame());
 		// La cámara de la capa de fondo avanza; el sprite se dibuja según su scroll.
 		if (auto l = app.world().layer(0u)) {
 			l->camera().set_scroll_x(static_cast<eng::u16>(app.frame() * 2u));

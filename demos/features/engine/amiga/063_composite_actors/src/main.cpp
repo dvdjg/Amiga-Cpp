@@ -131,7 +131,6 @@ struct CompositeActorsDemo {
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		const eng::u16 f = context.frame.frame_index;
-		eng::debug::mark_frame(g_eng_run_status, f);
 		m_frame_plan.clear();
 
 		// 1) Borra el rastro de la posición previa de cada personaje (piernas + torso).

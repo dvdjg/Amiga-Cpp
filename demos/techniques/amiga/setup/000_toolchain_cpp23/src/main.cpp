@@ -57,7 +57,6 @@ struct DemoGame {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		const eng::u16 shade = clamp_to_demo_range<eng::u16>(context.frame.frame_index & 0x0f);
 		const eng::u16 color = static_cast<eng::u16>((shade << 8) | (shade << 4) | shade);
 		backend.set_color(0, color);

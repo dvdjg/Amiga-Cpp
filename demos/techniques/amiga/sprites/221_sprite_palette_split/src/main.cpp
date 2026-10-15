@@ -160,7 +160,6 @@ struct PaletteSplitDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		// Pistón: los dos anillos suben/bajan juntos; la conmutación de paleta sigue a la
 		// franja del segundo (el evento se emite en su `top` de cada frame).
 		if (m_down) {

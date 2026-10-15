@@ -91,7 +91,6 @@ struct LayerDemo {
 		eng::debug::mark_ready(g_eng_run_status, 0x00021100u);
 	}
 	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 	}
 	void render(eng::amiga::AmigaBackend&, eng::GameContext& c) {
 		eng::debug::probe_when_ready(g_eng_run_status, c.frame.frame_index);

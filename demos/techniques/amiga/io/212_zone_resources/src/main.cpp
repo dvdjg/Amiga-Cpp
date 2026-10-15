@@ -99,7 +99,6 @@ struct ZoneGame {
 	/// **Sondea la E/S por frame** (no bloquea): `file_pump` resuelve la operación diferida y postea
 	/// el `FileDone`; al llegar, `AsyncOverlay` decodifica el `.engz` y carga el HUNK por segmento.
 	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (m_ready_status != 0 || !m_overlay.reading()) {
 			return;
 		}

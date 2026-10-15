@@ -200,7 +200,6 @@ struct DmaChainDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index); // telemetría de fps
 		// Pistón de la columna (sin `*`//`%`): 1 px/frame con rebote en los extremos.
 		if (m_piston_down) {
 			m_base = static_cast<eng::u16>(m_base + 1u);

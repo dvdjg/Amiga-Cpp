@@ -107,7 +107,6 @@ struct SpriteMultiplexDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		// Rebote horizontal suave (onda triangular): los seis sprites se desplazan en
 		// bloque, demostrando el reposicionado por Copper sin tocar los bitplanes.
 		const eng::u16 frame = context.frame.frame_index;

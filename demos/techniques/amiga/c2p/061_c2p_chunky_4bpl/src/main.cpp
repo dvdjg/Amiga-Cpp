@@ -278,7 +278,6 @@ struct RotozoomDemo {
 		c2p_1x1_4_asm(kChunkyW, kChunkyH, m_scene.plane_bytes(),
 			      m_chunky[buf].view.data(),
 			      m_scene.back().data());
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 	}
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {

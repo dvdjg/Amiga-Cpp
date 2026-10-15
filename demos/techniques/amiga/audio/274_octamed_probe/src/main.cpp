@@ -117,7 +117,6 @@ struct OctaMedProbe {
 	}
 
 	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		m_audio.update_music(); // el playroutine MED es frame-driven
 		if (!m_ok || kReadyFrame == 0u) {
 			return;

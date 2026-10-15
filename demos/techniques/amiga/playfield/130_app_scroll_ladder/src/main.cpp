@@ -159,7 +159,6 @@ struct LadderGame {
 	}
 
 	void update(auto& app) {
-		eng::debug::mark_frame(g_eng_run_status, app.frame());
 		m_route.advance(app.frame());
 		m_cam_x = m_route.x;
 		m_cam_y = m_route.y;

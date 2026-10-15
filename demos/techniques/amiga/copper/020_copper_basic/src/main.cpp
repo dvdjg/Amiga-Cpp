@@ -101,7 +101,6 @@ struct DemoGame {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		// La demo no anima nada desde CPU. El punto es que el Copper haga el trabajo
 		// de raster sin intervencion por frame.
 		if (m_copper_ok) {

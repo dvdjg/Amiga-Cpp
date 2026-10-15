@@ -308,7 +308,6 @@ struct Bobs3DDemo {
 	void on_frame(eng::u32 frame) {
 		m_frame = frame;
 		eng::amiga::AmigaBackend& backend = *m_backend;
-		eng::debug::mark_frame(g_eng_run_status, frame);
 		if (m_screen_block.view.data() == nullptr) {
 			return;
 		}

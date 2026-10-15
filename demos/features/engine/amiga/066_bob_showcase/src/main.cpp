@@ -244,7 +244,6 @@ struct BobShowcaseDemo {
 		}
 		const eng::u16 f = context.frame.frame_index;
 		ENG_PROF_FRAME();
-		eng::debug::mark_frame(g_eng_run_status, f);
 		// Cronómetro de depuración (franja): periodo de frame y duración del update, en
 		// k ciclos (contador del periférico de debug; ver `eng/debug/peripheral.hpp`).
 		const eng::u32 t0 = eng::debug::DebugPeripheral::cycle_counter();

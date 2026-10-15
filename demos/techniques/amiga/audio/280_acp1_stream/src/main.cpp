@@ -81,7 +81,6 @@ struct Acp1Demo {
 
 	/// Mezcla como máximo un chunk por frame y publica READY cuando la reproducción ya ha swapeado.
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_active) return;
 		refill_free_buffers();
 		if (m_stream.failed()) { stop(backend); fail(0x0002800au); return; }

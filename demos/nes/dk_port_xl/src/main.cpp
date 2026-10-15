@@ -442,7 +442,6 @@ struct DkXlGame {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!ready) return;
 		// Input: joystick Amiga -> botones NES (bit0=A,1=B,2=Select,3=Start,4=Up..7=Right).
 		{

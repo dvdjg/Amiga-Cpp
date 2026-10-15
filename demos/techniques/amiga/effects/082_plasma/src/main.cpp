@@ -111,7 +111,6 @@ struct PlasmaDemo {
 	}
 
 	void render(amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 

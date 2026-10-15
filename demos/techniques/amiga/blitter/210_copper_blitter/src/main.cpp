@@ -109,7 +109,6 @@ struct ScrollEdgeDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		// Blit del Copper (frame anterior): verifica la copia y limpia el destino.
 		m_last_ok = copied();
 		zero_dst();

@@ -169,7 +169,6 @@ struct BackgroundDemo {
 
 	void update(amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (!m_init_ok) return;
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 
 		// Bucle principal vivo: pulsa el fondo (COLOR00) por CPU cada frame, via la tarea
 		// de ciclo de vida de la escena. El Copper no toca COLOR00, asi que el valor

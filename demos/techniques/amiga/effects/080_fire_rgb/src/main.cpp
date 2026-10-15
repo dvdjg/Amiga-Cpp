@@ -298,7 +298,6 @@ struct FireDemo {
 
 	void update(amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (!m_init_ok) return;
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 
 #if K_FIRE_PROF
 		const eng::u32 tp0 = dbgp::DebugPeripheral::cycle_counter();

@@ -122,8 +122,7 @@ struct CardsBench {
 		eng::debug::mark_ready(g_eng_run_status, g_eng_run_status.detail);
 	}
 
-	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
+	void update(eng::amiga::AmigaBackend&, eng::GameContext&) {
 	}
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext&) {

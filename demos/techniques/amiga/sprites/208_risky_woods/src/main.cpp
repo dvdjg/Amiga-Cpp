@@ -207,7 +207,6 @@ struct RiskyWoodsDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		const eng::u32 pos = context.frame.frame_index;
 		const eng::u8 s = static_cast<eng::u8>(pos & (kShifts - 1u));
 		// Rotacion de columna cada kShifts px (contador incremental, sin `%`).

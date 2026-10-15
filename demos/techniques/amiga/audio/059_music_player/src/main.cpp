@@ -97,7 +97,6 @@ struct MusicPlayerDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		// La música (si hubiera módulo) avanza aquí, una vez por frame.
 		m_music.update();
 		(void)context;

@@ -141,7 +141,6 @@ struct BendDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		m_phase = static_cast<eng::u8>(m_phase + 2u); // la onda viaja ~2 px/frame
 
 		eng::copper::SchedulerT<false> sched { m_copper_block };

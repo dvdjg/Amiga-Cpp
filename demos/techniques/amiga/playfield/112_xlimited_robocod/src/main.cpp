@@ -230,7 +230,6 @@ struct DemoGame {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!ready) return;
 		plan.clear();
 		plan.set_blit_budget_limits({8192, 16384, 4, 200});

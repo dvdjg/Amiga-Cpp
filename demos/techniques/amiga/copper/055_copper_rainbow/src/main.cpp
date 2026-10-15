@@ -109,7 +109,6 @@ struct CopperRainbowDemo {
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		(void)backend;
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 

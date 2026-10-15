@@ -96,7 +96,6 @@ struct BobsDemo {
 	}
 
 	void update(auto& app) {
-		eng::debug::mark_frame(g_eng_run_status, app.frame());
 		for (eng::u8 i = 0u; i < kNActors; ++i) {
 			m_x[i] = static_cast<s16>(m_x[i] + m_dx[i]);
 			m_y[i] = static_cast<s16>(m_y[i] + m_dy[i]);

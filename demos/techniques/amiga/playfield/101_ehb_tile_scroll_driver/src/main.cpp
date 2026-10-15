@@ -369,7 +369,6 @@ struct DemoGame {
 	/// bitplane + `BPLCON1`. Esta separacion es la base para soportar otros drivers
 	/// y, mas adelante, otras maquinas.
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (m_ready) {
 			// Checkpoint 0: inicio de frame (el host mide el delta a otros slots).
 			eng::debug::DebugPeripheral::checkpoint(0);

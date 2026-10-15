@@ -176,8 +176,7 @@ struct DemoGame {
 		eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_scene.words()));
 	}
 
-	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
+	void update(eng::amiga::AmigaBackend&, eng::GameContext&) {
 	}
 
 	void render(eng::amiga::AmigaBackend&, eng::GameContext& context) {

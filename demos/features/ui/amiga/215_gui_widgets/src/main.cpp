@@ -173,7 +173,6 @@ struct DemoGame {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		(void)backend; // la lista es estatica: `takeover` ya la instalo
 		// Una sola lectura del raton por frame: mueve el cursor de hardware y, si el boton
 		// izquierdo cambio de estado, despacha el click al arbol de widgets.

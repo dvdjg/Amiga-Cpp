@@ -131,7 +131,6 @@ struct AudioDebugDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		// Cambia el tono cada kNoteFrames frames: una escala de Do mayor. Esto
 		// demuestra que el tono de UN canal de Paula cambia (sin ptplayer ni mixer).
 		const eng::u8 note = static_cast<eng::u8>((context.frame.frame_index / kNoteFrames) % 6u);

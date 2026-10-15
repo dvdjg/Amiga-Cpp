@@ -336,7 +336,6 @@ struct AbyssDemo {
 				}
 			}
 		}
-		eng::debug::mark_frame(g_eng_run_status, app.frame());
 
 	}
 

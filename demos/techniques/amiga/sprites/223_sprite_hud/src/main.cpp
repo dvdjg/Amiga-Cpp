@@ -205,7 +205,6 @@ struct SpriteHudDemo {
 
 	void update(amiga::AmigaBackend& backend, eng::GameContext& context) {
 		(void)backend;
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		// **Único valor dinámico**: fps estimados, ≤1 actualización por segundo y solo si el
 		// número cambia (reconstruye la lista; el resto del frame no toca nada).
 		const u32 now = eng::debug::DebugPeripheral::cycle_counter();

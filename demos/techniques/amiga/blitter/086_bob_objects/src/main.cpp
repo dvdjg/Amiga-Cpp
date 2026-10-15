@@ -271,7 +271,6 @@ struct BobObjectsDemo {
 	}
 
 	void update(auto& app) {
-		eng::debug::mark_frame(g_eng_run_status, app.frame());
 		// CALIBRACION: bucle de coste conocido. `profile.mjs` dara ciclos/frame con 1.0
 		// llamadas/frame; dividiendo entre 1000 salen los ciclos por iteracion y, con las
 		// ~4 instrucciones del bucle, la velocidad efectiva del CPU en este contexto (con

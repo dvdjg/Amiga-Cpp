@@ -136,7 +136,6 @@ struct CodecBench {
 	}
 
 	void update(eng::amiga::AmigaBackend&, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 	}
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext&) {

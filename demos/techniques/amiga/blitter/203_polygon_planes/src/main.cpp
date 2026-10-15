@@ -185,7 +185,6 @@ struct PolygonPlanesDemo {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_memory_ok) {
 			return;
 		}
