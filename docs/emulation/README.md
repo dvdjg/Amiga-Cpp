@@ -23,6 +23,19 @@ perfiles). Es el soporte del flujo `build -> run -> analyze`.
 | [instalar-mcp-debug-tools-vsix.md](instalar-mcp-debug-tools-vsix.md) | Instalación de MCP Debug Tools desde VSIX. |
 | [WINUAE_CONSOLE_COMMANDS.md](WINUAE_CONSOLE_COMMANDS.md) | Flujo F5 sobre el archivo actual y órdenes de consola reutilizables por personas e IA. |
 
+## Canónico por tema (evitar duplicar)
+
+Varios documentos cubren piezas del emulador; cada tema tiene **un** dueño. Al tocar uno de estos temas, el documento de la fila es la fuente única; los demás enlazan, no repiten.
+
+| Tema | Documento canónico |
+|---|---|
+| Flujo completo del entorno (toolchain → build → run → GDB/canal → capturas → perfil → Ollama) | [`ai-dev-environment/AMIGA_DEV_GUIDE.md`](../ai-dev-environment/AMIGA_DEV_GUIDE.md) |
+| Herramientas de depuración del fork y su uso (watchpoints, protect, rewind, MCP, inventario) | [`debugging/system/debug-winuae-v2-guide.md`](../debugging/system/debug-winuae-v2-guide.md) |
+| Comandos del día a día build/run/analyze y reglas del runner | [`build/BUILD_AND_RUN.md`](../build/BUILD_AND_RUN.md) |
+| Canal lateral (especificación y comandos) | [`WINUAE_SIDE_CHANNEL_DEBUG.md`](WINUAE_SIDE_CHANNEL_DEBUG.md) |
+| Paquetes y API del MCP (`winuae-emu`) | [`mcp-live-coding-workflow.md`](mcp-live-coding-workflow.md) |
+| Rarezas del emulador con `fichero:línea` (fuente WinUAE) | [`reference/emulators/winuae/`](../reference/emulators/winuae/README.md) |
+
 ## Enlaces relacionados
 
 - Operativa build/run/analyze: [../build/BUILD_AND_RUN.md](../build/BUILD_AND_RUN.md).
