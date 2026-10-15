@@ -145,6 +145,23 @@ de captura (congelado en el ready-probe frente al swap de `COP1LC`) o fase de ru
 patrones a caracterizar (ventana mayor); 132/204 con el hook de `update` muerto. VALIDATIONs
 creadas para toda la lista.
 
+## DT-016 · Demo 084 (`mf_rotation`): el analyze falla — el cubo sale azul (tono lejano), sin blanco
+
+**Preexistente**: en la regresión completa (`out/regression/20261015-015641` y `…-150014`) la 084
+compila y arranca (build ✓ run ✓) pero su `analyze` falla (`| 084_mf_rotation | ok | ok | fail | …
+| analyze |`); ya ocurría antes del hilo de sprites/HUD.
+
+**Reproducido (2026-10)**: `bash tools/analyze/analyze-demo.sh demos/techniques/amiga/3d/084_mf_rotation`
+→ `FAIL : white=0 < 8`. La captura renderiza (cubo/línea rotando sobre fondo oscuro, marco tenue)
+pero **la arista del cubo se pinta en azul** (~color 3) en vez de blanco: `shade_of(m_wz[..])`
+debería dar 7 (0xFFF) en las aristas cercanas y todas salen con el tono lejano → el sombreado por
+Z no discrimina (`m_wz` — profundidad transformada con `q0`/MiniFloat16) o `draw_line` ignora el
+color. El analyze exige `--min-white 8 --min-nonblue 5000` y white=0 lo bloquea.
+
+**Siguiente paso**: en la 084, volcar `m_wz` por arista (telemetría/`Periph` counters ya presentes)
+y comparar con `m_scr`; si la profundidad es correcta, revisar `draw_line` (color) del
+`playfield::Surface`. Ficha de la demo: `demos/techniques/amiga/3d/084_mf_rotation/README.md`.
+
 ## DT-007 · Demo 085 a 16,6 fps (3 fields) y mancha blanca del disco — RESUELTO
 
 `measure-fps 085_copper_plan_scene A500_debug` era **16,62 fps / 3,01 fields / 426.733 ciclos**.
