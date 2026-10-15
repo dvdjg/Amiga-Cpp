@@ -28,7 +28,7 @@ Leyenda: **ACTIVO** = guía el trabajo actual (aunque tenga fases entregadas y p
 | [ROADMAP_TIPOS_Y_CASTS.md](ROADMAP_TIPOS_Y_CASTS.md) | **ACTIVO** | Corrección de tipos y retirada de casts forzados, con fases y medición. |
 | [ROADMAP_JUEGO_SPRITES_BOBS.md](ROADMAP_JUEGO_SPRITES_BOBS.md) | **ACTIVO** | Adecuación de sprites HW/BOBs para juego: compuestos, trayectorias, mecanismos (F1–F8). |
 | [ROADMAP_SPRITES_COMPLETO.md](ROADMAP_SPRITES_COMPLETO.md) | **ACTIVO** | Plan de detalle de las fases **abiertas** de sprites (F3–F7) y tareas de cierre. |
-| [ROADMAP_218_CAMPO_UNICO.md](ROADMAP_218_CAMPO_UNICO.md) | **ACTIVO** | Campaña de rendimiento de la 218 «SPR Layer» a 1 campo (plan y criterios de falsación). |
+| [ROADMAP_218_CAMPO_UNICO.md](ROADMAP_218_CAMPO_UNICO.md) | **CERRADO** | Campaña de rendimiento de la 218 «SPR Layer»: cerrada en F8 con **50 fps** (recorte autorizado a 3 BOBs); residual de emisión y palancas fieles documentados. |
 | [ROADMAP_HW_ZOOM.md](ROADMAP_HW_ZOOM.md) | **ACTIVO** | Zoom hardware vertical (`BPLxMOD`) y horizontal (`BPLCON1`/$102). |
 | [ROADMAP_RASTER_ROAD.md](ROADMAP_RASTER_ROAD.md) | **ACTIVO** | Carretera/suelo por raster (`BPLxPT` por línea): perspectiva, curvas y rasantes. |
 | [ROADMAP_WORKBENCH.md](ROADMAP_WORKBENCH.md) | **ACTIVO** | Portabilidad a Workbench: UI + mini-SO + servicios del sistema. |
