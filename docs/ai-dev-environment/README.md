@@ -38,23 +38,9 @@ editar código
 - Un payload `metal/direct` requiere una entrada, pila y contexto de registros controlados; para iteración gráfica es hoy la ruta más directa.
 - La IA debe usar `observe` para leer, `assist` para entrada/perfilado y `takeover` solo para escrituras reversibles o pausa controlada.
 
-## Estado comprobado en esta máquina
+## Estado de la máquina de referencia
 
-- Ollama `0.32.14` responde en `http://127.0.0.1:11434`.
-- Modelo multimodal predeterminado: `qwen3-vl:8b-instruct-q8_0` (visión, 8.8B, Q8_0); la API muestra el modelo cargado en VRAM.
-- `gemma3:12b` está instalado como alternativa para capturas estáticas; no será el modelo predeterminado para secuencias.
-- El endpoint `http://127.0.0.1:11434/v1/chat/completions` responde y es compatible con `tools/vision-review/vision-review.ts`.
-- `mcp-winuae-emu` ya expone conexión, carga Hunk, ejecución, breakpoints, stepping, memoria, registros, custom registers, Copper, capturas, perfiles, entrada, snapshots y postmortems.
-- `Amiga-Cpp` ya tiene el runner `build -> run -> analyze`, FrameScope, aserciones de píxel y canal lateral con `poke`, `rollback`, auditoría, `pause` y `resume`.
-- La extensión Bartman está recomendada en `legacy/.vscode/extensions.json` y sus perfiles A500 están en `legacy/.vscode/launch.json` y `settings.json`.
-
-## Binarios activos
-
-`WinUAE-DBG\build.bat` compila `bin\winuae-gdb.exe` y el target `CopyToAmigaDebug` ejecuta `deploy-winuae-to-amiga-debug.ps1`, que copia el binario construido a todas las instalaciones Bartman encontradas bajo `.cursor\extensions` y `.vscode\extensions`. En esta máquina la copia activa verificada es `C:\Users\dvdjg\.vscode\extensions\bartmanabyss.amiga-debug-1.8.1\bin\win32\winuae-gdb.exe`; no se encontró una instalación Cursor equivalente. El hash de la copia activa es `191B301C38E41B47DDABE640DD8B9315D0068EC11C86C832525E727EC5BE8378`, distinto del binario antiguo que aún queda en `WinUAE-DBG\bin`; recompilar y ejecutar el target de despliegue es la forma correcta de sincronizarlos. La extensión y el ejecutable deben actualizarse como pareja cuando cambie la relocalización o el protocolo.
-
-## Recursos A500
-
-`C:\Amiga\KICK13.rom` es la ROM objetivo A500/Kickstart 1.3, mide 262144 bytes y tiene SHA-256 `EE05862D8102A0846AC4056DA7D549DB31625C7D47B24DFB7B3C9A5C113CA53`. La carpeta también contiene ADFs de juegos y capturas útiles como referencia visual, pero no se copiarán ROMs ni material de terceros al repositorio.
+El estado comprobado de una instalación operativa (versiones de Ollama, binarios activos de WinUAE-DBG con sus hashes y la ROM A500) se mantiene **verificado y fechado** en [`docs/debugging/system/setup-nuevo-equipo.md`](../debugging/system/setup-nuevo-equipo.md), junto a la guía de reinstalación. Aquí no se duplica: este README es el mapa del entorno, no su inventario.
 
 ## Lectura inicial para una nueva IA
 
