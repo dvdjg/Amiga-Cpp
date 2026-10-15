@@ -20,20 +20,43 @@ Monta y muestra en un Amiga 500 un **mundo de terreno generado proceduralmente**
   publica UNA vez con `eng::IndexedDisplay<5>` (32 colores, 5 planos; C2P por el engine en
   carga). El frame es estático: el coste por frame es solo la telemetría (ver abajo).
 
-## Por qué el atlas/set están precocinados
+## Generación EN TIEMPO DE COMPILACIÓN (C++23 `constexpr`)
 
-La generación completa del atlas en un 68000 cuesta **~3,4 G de ciclos** (medido con el
-periférico de depuración: el ruido paga `__mulsi3` en cada hash y una textura de 32×32
-ronda 50 M de ciclos; detalle y evidencias en [`VALIDATION.md`](VALIDATION.md)). Por eso la
-demo aplica el patrón del repo para assets de coste alto (como la 201 con su banco de
-tiles): **cocinar en host** (`src/prebuild.sh` + `tools/gen_assets.cpp`, hook de
-`build-demo.sh`) y **encajar en carga** lo que sí es barato: encajar las piezas, colocar el
-mundo y publicar. La carga medida en la demo es ~**1,2 M de ciclos** (~0,17 s).
+El atlas (66 texturas de 16×16 con ruido escalar) y el mundo completo (campos, gramática,
+máscaras y **pintado de las ~90 piezas**) se evalúan **con el compilador** al construir la
+demo: `make_world_atlas()`/`make_world()` en `src/main.cpp` son `constexpr` y el binario
+m68k incrusta el resultado (rodata). El coste es de build (`build.args` sube los límites
+`constexpr`; ~1 min extra) y **cero en la máquina**: la carga medida bajó de ≈103 M de
+ciclos (generación runtime en el 68000) a **≈7,9 M** (componer + C2P + verificar).
 
 ```text
-  host:  gen_assets (misma librería, MiniFloat16)  →  out/assets/proc-world/proc_world_assets.h
-  amiga: encajar set → place_world (casación) → componer (10×7) → present (C2P 5 planos) → VBlank
+  build (g++ m68k):  kWorldAtlas = generar atlas constexpr   (~30 s de compilador)
+                     kWorld      = generar mundo constexpr   (~30 s)
+  amiga (carga):     verificar contrato → componer 20×14 → present (C2P 5 planos) → VBlank
 ```
+
+La misma fuente corre en runtime en el host (`HOST-445`, dumps de visión) y el patrón de
+cómo habilitarlo (`if consteval` en las cachés, límites, `DEMO_FLAGS`) está en
+[`PROCEDURAL_BITMAPS.md`](../../../../../docs/engine/architecture/PROCEDURAL_BITMAPS.md) §9.
+
+### Vía OFFLINE (misma librería, mismas semillas)
+
+`tools/gen_assets.cpp` emite los MISMOS assets como header C++ (paleta, texturas, piezas
+pintadas, especificaciones y layout) para consumidores que no puedan (o no quieran) pagar
+la evaluación `constexpr` del compilador, otros targets, o inspección sin arrancar la
+demo. Determinista byte a byte (mismas semillas que la vía `constexpr` y que `HOST-445`;
+imprime huellas FNV comparables):
+
+```bash
+D=demos/techniques/amiga/effects/119_proc_world
+g++ -std=gnu++23 -O2 -Iengine/include $D/tools/gen_assets.cpp -o out/tmp/gen_assets_119
+./out/tmp/gen_assets_119 out/assets/proc-world/proc_world_assets.h
+```
+
+**Latido bajo un SO vivo**: el bucle usa el **modo de sondeo validado del doc 212**
+(`run_frames_polling`: sin secuestrar el vector de nivel 3 ni depender de IRQs/`Wait`) —
+estable a **49,8 fps**. Durante la validación se reconfirmó el fallo `a5=0` del 212 para el
+bucle por IRQ (evidencia y alcance en [`VALIDATION.md`](VALIDATION.md) §Latido).
 
 ## Franja de versión y telemetría viva
 
@@ -52,13 +75,11 @@ engine → la tarea queda dormida para siempre (frame congelado a los pocos fram
 ## Comandos
 
 ```bash
+# El build tarda ~1 min de más: el compilador evalúa la generación completa (ver build.args).
 bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/119_proc_world --debug
 bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/119_proc_world --warp
 bash ./tools/analyze/analyze-demo.sh demos/techniques/amiga/effects/119_proc_world
-node tools/debug/measure-fps.mjs 119_proc_world A500_debug --json
 ```
-
-Regenerar los assets cocinados (borra el header): `rm out/assets/proc-world/proc_world_assets.h`.
 
 ## Contrato que ilustra
 

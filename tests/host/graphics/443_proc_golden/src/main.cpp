@@ -56,8 +56,8 @@ u32 hash_bytes(u32 h, const void* data, u32 n) {
 // Valores dorados (semilla 0x7E5A1u / sets 0xBEE5u y 0x1234u). Regenerar tras un
 // cambio visual ACEPTADO: anotar el nuevo valor y actualizarlo aquí.
 constexpr u32 kGoldenPalette = 0xA732D734u;
-constexpr u32 kGoldenTextures = 0xD9CAFDE4u;
-constexpr u32 kGoldenTiles = 0x54AD6A83u;
+constexpr u32 kGoldenTextures = 0x5D1869AAu; // halftone en bloques 2x2
+constexpr u32 kGoldenTiles = 0x9BF98128u;
 constexpr u32 kGoldenMapSeedBEE5 = 0x63BB7325u;
 constexpr u32 kGoldenMapSeed1234 = 0xF70358A9u;
 

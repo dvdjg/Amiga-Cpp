@@ -185,7 +185,38 @@ Consecuencias de diseño, ya aplicadas:
 - Mejora futura registrada: un dominio entero (`mulu.w`) para la ruta de rejilla acercaría
   la generación runtime al presupuesto de carga.
 
-## 9. Estado de verificación
+## 9. Generación en TIEMPO DE COMPILACIÓN (`constexpr`)
+
+Todo el pipeline (atlas → texturas → formas → pintor → set por máscaras → generador de
+mundo) es **evaluable en compilación**: las cabeceras son `constexpr` y los puntos de
+contacto con el runtime están resueltos con `if consteval` (las cachés de nodos
+`fbm2_cached` usan la función pura en compilación; el resultado es idéntico bit a bit,
+lo ancla `HOST-444`). Uso en un TU de app:
+
+```cpp
+[[nodiscard]] constexpr auto make_world_atlas() {
+    proc::TextureAtlas<16, 16, eng::math::MiniFloat16> a {};
+    a.generate(0x7E5A1u);          // 66 texturas evaluadas por el compilador
+    return a;
+}
+inline constexpr auto kWorldAtlas = make_world_atlas();
+// …y el mundo: generate_biome_world es constexpr (ver la demo 119, `kWorld`).
+```
+
+- El compilador necesita más límite de operaciones:
+  `-fconstexpr-ops-limit=6000000000 -fconstexpr-loop-limit=100000000` (≈1 min de build
+  para atlas + mundo 20×14; la demo 119 lo declara en `build.args` como `DEMO_FLAGS`).
+- En el 68000 la generación cuesta **CERO**: la demo 119 incrusta el resultado (rodata) y
+  su carga bajó de ≈103 M de ciclos (generación runtime) a ≈7,9 M (componer + C2P).
+- La MISMA fuente sigue corriendo en runtime (host) para los tests de visión (`HOST-445`)
+  y en el 68000 como fallback; `HOST-443`/`HOST-445` anclan que ambos caminos producen el
+  MUNDO idéntico (mismas semillas).
+- Tabla de preparación original: `value_noise2`/`fbm2` ya eran `constexpr`; se convirtieron
+  `shapes` (operadores), `textures` (texturas + `to_index`/`fill_texture`), `atlas`
+  (`generate`/`render_all`), `terrain_paint` (pintores) y `terrain_biome`
+  (`tile_for`/`generate_biome_world`). El ruido entero (`noise_tile.hpp`) nació `constexpr`.
+
+## 10. Estado de verificación
 
 - **Host**: `HOST-442` cubre buffer, dither y halftone (`halftone2x2`/`halftone_index`), perfiles, evaluadores, transformaciones Wang, texturas (tileabilidad y rango con dos escalares), atlas (32 colores, familias de tono, determinismo), `MaterialLayer` y terreno (catálogo de 45, casación, agua por el centro del borde, hueco de la puerta, anclas del afluente en T, sendero a la puerta y lago junto al cauce).
 - **Visual (host)**: los PPM de evidencia (`--dump`, convertidos a hojas de contacto en `out/playground/proc-bitmaps/`) se validaron con el modelo de visión local (Ollama): las muestras de material se describen como texturas orgánicas con estructura (parches de hierba, grietas de roca, espuma, corteza…), los tiles de terreno se reconocen por elemento (muros grises, ríos azules, árboles, casas con tejado rojo, montañas con cima blanca, cueva) y en el mapa de demostración el modelo confirma el **cauce vertical continuo** de la columna (cruzado por el puente), la **estructura lineal gris con hueco oscuro** (muralla con puerta) y que los bordes de las baldosas encajan sin cortes bruscos.

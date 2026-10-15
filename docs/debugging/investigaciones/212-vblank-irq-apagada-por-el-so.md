@@ -167,3 +167,22 @@ apagaba. El re-arme de VERTB se conserva dentro de `wait_vblank_run` (variante 2
   [`consultas/consulta-ks13-trap-vertb-seguimiento-en.md`](consultas/consulta-ks13-trap-vertb-seguimiento-en.md) (con
   sus versiones en castellano), con la identificación de las rutinas ROM por dirección.
 - Bug de codegen previo: [`pump-timer-o1-codegen.md`](pump-timer-o1-codegen.md).
+
+## Reconfirmación con la demo 119 (build de carga rápida) y modo de sondeo
+
+La demo 119 (mundo de biomas generado en compilación, carga ≈1,1 s) **revive el fallo**
+al arrancar el bucle por IRQ antes de la actividad tardía del SO: `state=Ready` con el
+`frame` congelado a los pocos frames (6-69 según el camino de lanzamiento), el emulador
+sigue corriendo (ciclos avanzan) y el **PC muestreado alterna entre `0x0` y direcciones de
+código** (el CPU ejecutando la tabla de vectores: la tormenta del fallo `a5=0`). Reproduce
+con y sin `takeover_system()` y con espera activa (`set_vblank_sleep` false, variante 2):
+confirma que **no** es el clobber de `INTENA` sino la causa raíz (apartado 2), aún abierta
+para el bucle por IRQ/`Wait` bajo SO vivo.
+
+**Modo de sondeo (el adoptado por la 119)**: `run_frames_polling` no instala el servicio de
+VBlank (no secuestra el vector de nivel 3 ni depende de IRQs ni de `Wait()`; sondea `VPOSR`
+en `wait_vblank`) + `takeover_system()` para el display. Con eso la 119 queda estable a
+49,85 fps (1,003 campos/frame; `measure-fps`/`record-fps`) con regresión y flicker en
+verde. El coste es CPU ocupada sondeando; a cambio desaparece la tormenta de vectores.
+El fallo primario (`a5=0`) sigue abierto para el bucle por IRQ: vías del apartado
+«Estado final y siguientes pasos» (watchpoint en el primer frame; `AddIntServer`).

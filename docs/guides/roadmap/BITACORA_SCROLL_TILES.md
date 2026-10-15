@@ -51,6 +51,8 @@ La cifra histórica (101=~48, 102=~50, 103=~50, 104=~47,6) no era reproducible: 
 | `128_strip_scroller — strip scroller 2px objetos singulares (release)` | `A500_release` | 49,92 | 142 102 | 0x12800000 | 2026-10-03 | `22d7d700` | 1000 | 142 102 000 |
 | `119_proc_world` | `A500_debug` | 49,97 | 141 960 | 0x119 | 2026-10-15 | `a7a9e59f` | 1001 | 142 102 000 |
 | `119_proc_world — 119 32 colores + halftone + espera activa` | `A500_debug` | 49,92 | 142 102 | 0x119 | 2026-10-15 | `1730027e` | 500 | 71 051 000 |
+| `119_proc_world — 119 mundo 20x14 generado en COMPILACION (constexpr)` | `A500_debug` | 0,00 | 85 403 302 | 0x119 | 2026-10-15 | `bdaf2edc` | 0 | 85 403 302 |
+| `119_proc_world — 119 biomas 20x14 constexpr + generacion en compilacion (polling)` | `A500_debug` | 49,84 | 142 339 | 0x119 | 2026-10-15 | `bdaf2edc` | 600 | 85 403 302 |
 
 Contexto de medida: `CONFIG_ID` **`A500_debug`** (build `--debug`, `-O1`), emulador **WinUAE-DBG x86**, herramienta `tools/debug/measure-fps.mjs` (contador de ciclos del periférico `0xB7E928`, 7,09379 MHz). El fps depende de la **fase** del recorrido (`detail`): comparar siempre con el mismo `detail`. En hardware real las demos de scroll van a 50 fps.
 

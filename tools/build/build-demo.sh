@@ -306,9 +306,11 @@ if [ ${#MACHINE_FLAGS[@]} -gt 0 ]; then
 fi
 
 # Overrides por demo (`build.args` en el dir de la demo): una asignacion `CLAVE=valor` por
-# linea (comentarios con `#`). Claves admitidas: ENGINE_OPT / DEMO_OPT / C_OPT. Mismo espiritu
-# que `run.args` (opciones de ejecucion), pero para el build. No cambia el CONFIG_ID. Caso de
-# uso: la 212 fija `DEMO_OPT=-O2` por el bug de codegen de gcc 15 m68k a `-O1`.
+# linea (comentarios con `#`). Claves admitidas: ENGINE_OPT / DEMO_OPT / C_OPT /
+# DEMO_FLAGS / FAST_STACK. Mismo espiritu que `run.args` (opciones de ejecucion), pero
+# para el build. No cambia el CONFIG_ID. Casos de uso: la 212 fija `DEMO_OPT=-O2` por el
+# bug de codegen de gcc 15 m68k a `-O1`; la 119 usa `DEMO_FLAGS` para subir los limites
+# de evaluacion `constexpr` (la generacion procedural del mundo se evalua al compilar).
 if [ -f "$DEMO_PATH/build.args" ]; then
 	while IFS='=' read -r _k _v || [ -n "$_k" ]; do
 		_k="${_k%%[[:space:]]*}"
@@ -317,6 +319,7 @@ if [ -f "$DEMO_PATH/build.args" ]; then
 			ENGINE_OPT) ENGINE_OPT="$_v" ;;
 			DEMO_OPT) DEMO_OPT="$_v" ;;
 			C_OPT) C_OPT="$_v" ;;
+			DEMO_FLAGS) DEMO_FLAGS="$_v" ;;
 			FAST_STACK) FAST_STACK="$_v" ;;
 		esac
 	done <"$DEMO_PATH/build.args"
@@ -349,6 +352,10 @@ cpp_flags_for() {
 }
 ENGINE_CPP_FLAGS="$(cpp_flags_for "$ENGINE_OPT")"
 DEMO_CPP_FLAGS="$(cpp_flags_for "$DEMO_OPT")"
+# `DEMO_FLAGS`: flags extra SOLO para el TU de la demo (p. ej. limites de constexpr).
+if [ -n "${DEMO_FLAGS:-}" ]; then
+	DEMO_CPP_FLAGS="$DEMO_CPP_FLAGS $DEMO_FLAGS"
+fi
 c_flags_for() {
 	local opt="$1" f
 	local out=()

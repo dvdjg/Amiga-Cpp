@@ -1,0 +1,4 @@
+# El mundo de la 119 se genera EN COMPILACIÓN (atlas + campos + máscaras + pintado):
+# el gcc m68k evalua la generacion `constexpr` con estos limites subidos (~1 min extra
+# de build). Ver la cabecera de src/main.cpp y PROCEDURAL_BITMAPS.md.
+DEMO_FLAGS=-fconstexpr-ops-limit=6000000000 -fconstexpr-loop-limit=100000000

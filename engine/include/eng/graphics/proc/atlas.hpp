@@ -178,7 +178,7 @@ struct TextureAtlas {
 	/// fBm/Worley de `octaves` octavas. El atlas ocupa los 32 colores de `Palette32`
 	/// (5 planos de display; ver `PROCEDURAL_BITMAPS.md`).
 	/// \param seed semilla base (mismo seed = mismo atlas, host y Amiga).
-	void generate(eng::u32 seed) {
+	constexpr void generate(eng::u32 seed) {
 		base_seed = seed;
 		total_colors = 32u;
 		build_palette(seed);
@@ -189,7 +189,7 @@ struct TextureAtlas {
 	/// Tile de material de una variante concreta (0..`kVariantsPerMaterial`−1, con módulo).
 	/// \param id material. \param variant variante pedida (se envuelve con módulo).
 	/// \return buffer de índices del tile.
-	[[nodiscard]] const BitmapBuffer<TW, TH>& get(MaterialId id, eng::u8 variant = 0u) const {
+	[[nodiscard]] constexpr const BitmapBuffer<TW, TH>& get(MaterialId id, eng::u8 variant = 0u) const {
 		return textures[eng::util::to_underlying(id)][variant % kVariantsPerMaterial];
 	}
 
@@ -197,7 +197,7 @@ struct TextureAtlas {
 	/// estable (mismo tile → misma variante en cualquier máquina) que rompe la repetición.
 	/// \param tile_x,tile_y columna/fila del tile en el mapa. \param id material.
 	/// \return índice de variante 0..2.
-	[[nodiscard]] eng::u8 variant_at(eng::u16 tile_x, eng::u16 tile_y, MaterialId id) const {
+	[[nodiscard]] constexpr eng::u8 variant_at(eng::u16 tile_x, eng::u16 tile_y, MaterialId id) const {
 		eng::u32 h = base_seed ^ (eng::u32(tile_x) * 374761393u) ^
 			     (eng::u32(tile_y) * 668265263u) ^
 			     (eng::u32(eng::util::to_underlying(id)) * 2246822519u);
@@ -211,7 +211,7 @@ private:
 	/// mantienen roles: agua azul, hierba verde, piedra gris…). Se reservan 0 = negro/
 	/// transparente y 31 = nieve/luz (puros); el jitter afecta a 1..30.
 	/// \param seed semilla del jitter.
-	void build_palette(eng::u32 seed) {
+	constexpr void build_palette(eng::u32 seed) {
 		// Valores RGB444 con el canal dominante del rol; dentro de cada familia los cuatro
 		// niveles van de oscuro a claro (los tramos de material los reutilizan).
 		eng::Palette32 p {};
@@ -290,7 +290,7 @@ private:
 	/// \tparam TexFn constructor de la textura `(S seed) -> S(px,py)`. \param id material.
 	/// \param rng RNG compartido (avanza por variante). \param make_tex fábrica de la textura.
 	template <class TexFn>
-	void fill_variants(MaterialId id, eng::Xoroshiro64pp& rng, TexFn&& make_tex) {
+	constexpr void fill_variants(MaterialId id, eng::Xoroshiro64pp& rng, TexFn&& make_tex) {
 		const MaterialDesc d = desc(id);
 		const eng::u8 mi = eng::util::to_underlying(id);
 		for (eng::u8 v = 0; v < kVariantsPerMaterial; ++v) {
@@ -308,7 +308,7 @@ private:
 	/// que tiles contiguos siguen la misma retícula.
 	/// \param buf tile con pasos locales. \param base primer índice del tramo.
 	/// \param levels colores reales del tramo.
-	static void remap_halftone(BitmapBuffer<TW, TH>& buf, eng::u8 base, eng::u8 levels) {
+	static constexpr void remap_halftone(BitmapBuffer<TW, TH>& buf, eng::u8 base, eng::u8 levels) {
 		const eng::u8 span = eng::u8(2u * levels - 1u);
 		for (eng::u16 y = 0; y < TH; ++y) {
 			for (eng::u16 x = 0; x < TW; ++x) {
@@ -322,7 +322,7 @@ private:
 	/// la escala `tile_scale<S>(TW, freq)` y el periodo `freq` (tileable por construcción;
 	/// ver contrato de periodicidad en `textures.hpp`).
 	/// \param rng RNG del atlas (cada material y variante consume seeds en orden fijo).
-	void render_all(eng::Xoroshiro64pp& rng) {
+	constexpr void render_all(eng::Xoroshiro64pp& rng) {
 		namespace tx = tex;
 		using eng::math::div_norm;
 		using eng::math::scalar_traits;

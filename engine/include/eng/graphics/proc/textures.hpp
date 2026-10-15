@@ -94,7 +94,7 @@ struct Clouds {
 
 	/// Evalúa el valor de la textura en `(px, py)`.
 	/// \param px,py píxel del tile. \return valor `[0,1)` (cuantizar con `to_index`).
-	[[nodiscard]] S operator()(eng::u16 px, eng::u16 py) const {
+	[[nodiscard]] constexpr S operator()(eng::u16 px, eng::u16 py) const {
 		using eng::math::div_norm;
 		using eng::math::fbm2;
 	using eng::math::fbm2_cached;
@@ -125,7 +125,7 @@ struct Marble {
 
 	/// Evalúa el valor de la textura en `(px, py)`.
 	/// \param px,py píxel del tile. \return valor `[0,1)` (venas con contraste cuadrático).
-	[[nodiscard]] S operator()(eng::u16 px, eng::u16 py) const {
+	[[nodiscard]] constexpr S operator()(eng::u16 px, eng::u16 py) const {
 		using eng::math::div_norm;
 		using eng::math::mul_norm;
 		using eng::math::scalar_traits;
@@ -160,7 +160,7 @@ struct Wood {
 
 	/// Evalúa el valor de la textura en `(px, py)`.
 	/// \param px,py píxel del tile. \return valor `[0,1)` con bandas de veta.
-	[[nodiscard]] S operator()(eng::u16 px, eng::u16 py) const {
+	[[nodiscard]] constexpr S operator()(eng::u16 px, eng::u16 py) const {
 		using eng::math::div_norm;
 		using eng::math::mul_norm;
 		using eng::math::scalar_traits;
@@ -194,7 +194,7 @@ struct Stone {
 
 	/// Evalúa el valor de la textura en `(px, py)`.
 	/// \param px,py píxel del tile. \return valor `[0,1)` (3/4 crestas + 1/4 detalle).
-	[[nodiscard]] S operator()(eng::u16 px, eng::u16 py) const {
+	[[nodiscard]] constexpr S operator()(eng::u16 px, eng::u16 py) const {
 		using eng::math::div_norm;
 		using eng::math::fbm2;
 	using eng::math::fbm2_cached;
@@ -235,7 +235,7 @@ struct Granite {
 
 	/// Evalúa el valor de la textura en `(px, py)`.
 	/// \param px,py píxel del tile. \return valor `[0,1)` (2/3 base + 1/3 cristales).
-	[[nodiscard]] S operator()(eng::u16 px, eng::u16 py) const {
+	[[nodiscard]] constexpr S operator()(eng::u16 px, eng::u16 py) const {
 		using eng::math::div_norm;
 		using eng::math::fbm2;
 	using eng::math::fbm2_cached;
@@ -275,7 +275,7 @@ struct Foam {
 
 	/// Evalúa el valor de la textura en `(px, py)`.
 	/// \param px,py píxel del tile. \return valor `[0,1)` (borde luminoso + interior suave).
-	[[nodiscard]] S operator()(eng::u16 px, eng::u16 py) const {
+	[[nodiscard]] constexpr S operator()(eng::u16 px, eng::u16 py) const {
 		using eng::math::div_norm;
 		using eng::math::max;
 		using eng::math::min;
@@ -310,7 +310,7 @@ struct Rust {
 
 	/// Evalúa el valor de la textura en `(px, py)`.
 	/// \param px,py píxel del tile. \return valor `[0,1)` (2/3 turbulencia + 1/3 crestas).
-	[[nodiscard]] S operator()(eng::u16 px, eng::u16 py) const {
+	[[nodiscard]] constexpr S operator()(eng::u16 px, eng::u16 py) const {
 		using eng::math::div_norm;
 		using eng::math::mul_norm;
 		using eng::math::ridged2;
@@ -349,7 +349,7 @@ struct Moss {
 
 	/// Evalúa el valor de la textura en `(px, py)`.
 	/// \param px,py píxel del tile. \return valor `[0,1)` (fBm × máscara de parches).
-	[[nodiscard]] S operator()(eng::u16 px, eng::u16 py) const {
+	[[nodiscard]] constexpr S operator()(eng::u16 px, eng::u16 py) const {
 		using eng::math::div_norm;
 		using eng::math::fbm2;
 	using eng::math::fbm2_cached;
@@ -384,7 +384,7 @@ struct WeatheredStone {
 
 	/// Evalúa el valor de la textura en `(px, py)`.
 	/// \param px,py píxel del tile. \return valor `[0,1)` (piedra 3/5 + granito 1/5 + musgo 1/5).
-	[[nodiscard]] S operator()(eng::u16 px, eng::u16 py) const {
+	[[nodiscard]] constexpr S operator()(eng::u16 px, eng::u16 py) const {
 		using eng::math::div_norm;
 		using eng::math::mul_norm;
 		using eng::math::scalar_traits;
@@ -408,7 +408,7 @@ struct WeatheredStone {
 /// \param levels niveles de paleta (2..32). \param x,y píxel (módulo 8 para el dither).
 /// \param dither activa el dither ordenado. \return índice 0..levels-1.
 template <class S>
-[[nodiscard]] eng::u8 to_index(S value, eng::u8 levels, eng::u16 x, eng::u16 y, bool dither = true) {
+[[nodiscard]] constexpr eng::u8 to_index(S value, eng::u8 levels, eng::u16 x, eng::u16 y, bool dither = true) {
 	using eng::math::mul_norm;
 	using eng::math::scalar_traits;
 	const eng::u8 inten = scalar_traits<S>::to_int(mul_norm(value, scalar_traits<S>::from_int(255)));
@@ -421,7 +421,7 @@ template <class S>
 /// \param buf buffer destino. \param tex textura a muestrear. \param levels niveles de paleta.
 /// \param dither activa el dither ordenado.
 template <eng::u16 W, eng::u16 H, class TexFn>
-void fill_texture(BitmapBuffer<W, H>& buf, TexFn&& tex, eng::u8 levels = 16u, bool dither = true) {
+constexpr void fill_texture(BitmapBuffer<W, H>& buf, TexFn&& tex, eng::u8 levels = 16u, bool dither = true) {
 	for (eng::u16 y = 0; y < H; ++y) {
 		for (eng::u16 x = 0; x < W; ++x) {
 			buf.at(x, y) = to_index(tex(x, y), levels, x, y, dither);

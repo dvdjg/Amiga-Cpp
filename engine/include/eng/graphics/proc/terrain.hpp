@@ -139,7 +139,7 @@ struct TerrainTileSet {
 	/// \param atlas atlas de materiales. \param border_w ancho de la franja de borde.
 	/// \param rng RNG del set (determinista).
 	template <class S>
-	void add_piece(TileSpec s, const TextureAtlas<TW, TH, S>& atlas, eng::u8 border_w,
+	constexpr void add_piece(TileSpec s, const TextureAtlas<TW, TH, S>& atlas, eng::u8 border_w,
 		       eng::Xoroshiro64pp& rng) {
 		if (count >= MaxTiles) return;
 		s.seed = rng.next();
@@ -157,7 +157,7 @@ struct TerrainTileSet {
 	/// \param base índice de la pieza base (`count` si no hay variante que crear).
 	/// \param t transformación a aplicar (`Identity` devuelve `base` sin añadir nada).
 	/// \return índice de la variante (nuevo) o `base` si no se creó.
-	[[nodiscard]] eng::u16 add_variant(eng::u16 base, Transform t) {
+	[[nodiscard]] constexpr eng::u16 add_variant(eng::u16 base, Transform t) {
 		static_assert(TW == TH, "las variantes rotadas/reflejadas exigen tiles cuadrados");
 		if (t == Transform::Identity || base >= count || count >= MaxTiles) return base;
 		BitmapBuffer<TW, TH> out {};

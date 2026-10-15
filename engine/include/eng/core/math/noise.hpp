@@ -555,11 +555,16 @@ template <typename S>
 /// `fbm2` con rejilla de nodos precalculada (bit a bit idéntico; ver `NoiseGrid2`).
 /// Reconstruye la rejilla solo si cambian `seed`/`octaves`/`period` (barato por llamada).
 /// Exige `period > 0` y `lacunarity == 2` (el caso de `fbm2` periódico).
+/// **En evaluación de compilación** (`if consteval`) usa `fbm2` puro: la rejilla es una
+/// caché global de runtime y el resultado es idéntico bit a bit (`HOST-444`).
 /// \param x,y coordenadas base. \param seed,octaves,period mismos parámetros que `fbm2`.
 /// \param lacunarity,gain factores de fbm (lacunarity debe ser 2). \return valor `[0,1)`.
 template <typename S>
-[[nodiscard]] S fbm2_cached(S x, S y, eng::u32 seed, int octaves, S lacunarity, S gain,
-			    int period) {
+[[nodiscard]] constexpr S fbm2_cached(S x, S y, eng::u32 seed, int octaves, S lacunarity, S gain,
+				      int period) {
+	if consteval {
+		return fbm2(x, y, seed, octaves, lacunarity, gain, period);
+	}
 	NoiseGrid2<S>& g = noise_grid_cache<S>();
 	if (g.period() != period || g.octaves() != eng::u8(octaves) || g.seed() != seed) {
 		if (!g.build(seed, octaves, period)) {
@@ -569,12 +574,16 @@ template <typename S>
 	return g.fbm2(x, y, lacunarity, gain);
 }
 
-/// `turbulence2` con rejilla de nodos precalculada (bit a bit idéntico; ver `NoiseGrid2`).
+/// `turbulence2` con rejilla de nodos precalculada (bit a bit idéntico; ver `NoiseGrid2`),
+/// con la misma regla `if consteval` que `fbm2_cached` (en compilación, función pura).
 /// \param x,y coordenadas base. \param seed,octaves,period mismos parámetros que la libre.
 /// \param lacunarity,gain factores (lacunarity debe ser 2). \return valor `[0,1]`.
 template <typename S>
-[[nodiscard]] S turbulence2_cached(S x, S y, eng::u32 seed, int octaves, S lacunarity, S gain,
-				   int period) {
+[[nodiscard]] constexpr S turbulence2_cached(S x, S y, eng::u32 seed, int octaves, S lacunarity,
+					     S gain, int period) {
+	if consteval {
+		return turbulence2(x, y, seed, octaves, lacunarity, gain, period);
+	}
 	NoiseGrid2<S>& g = noise_grid_cache<S>();
 	if (g.period() != period || g.octaves() != eng::u8(octaves) || g.seed() != seed) {
 		if (!g.build(seed, octaves, period)) {
@@ -584,12 +593,16 @@ template <typename S>
 	return g.turbulence2(x, y, lacunarity, gain);
 }
 
-/// `ridged2` con rejilla de nodos precalculada (bit a bit idéntico; ver `NoiseGrid2`).
+/// `ridged2` con rejilla de nodos precalculada (bit a bit idéntico; ver `NoiseGrid2`),
+/// con la misma regla `if consteval` que `fbm2_cached` (en compilación, función pura).
 /// \param x,y coordenadas base. \param seed,octaves,period mismos parámetros que la libre.
 /// \param lacunarity,gain factores (lacunarity debe ser 2). \return valor `[0,1]`.
 template <typename S>
-[[nodiscard]] S ridged2_cached(S x, S y, eng::u32 seed, int octaves, S lacunarity, S gain,
-			       int period) {
+[[nodiscard]] constexpr S ridged2_cached(S x, S y, eng::u32 seed, int octaves, S lacunarity,
+					 S gain, int period) {
+	if consteval {
+		return ridged2(x, y, seed, octaves, lacunarity, gain, period);
+	}
 	NoiseGrid2<S>& g = noise_grid_cache<S>();
 	if (g.period() != period || g.octaves() != eng::u8(octaves) || g.seed() != seed) {
 		if (!g.build(seed, octaves, period)) {

@@ -71,7 +71,7 @@ struct RiverStroke {
 	eng::u8 wobble = 3;
 
 	/// Evalúa el píxel `(x, y)`. \param x,y píxel del tile. \return `color` si cae dentro del cauce ondulado, si no 0.
-	[[nodiscard]] eng::u8 operator()(eng::u16 x, eng::u16 y) const {
+	[[nodiscard]] constexpr eng::u8 operator()(eng::u16 x, eng::u16 y) const {
 		using eng::math::div_norm;
 		using eng::math::mul_norm;
 		using eng::math::scalar_traits;
@@ -137,7 +137,7 @@ struct LakeBlob {
 	eng::u32 seed = 0;
 
 	/// Evalúa el píxel `(x, y)`. \param x,y píxel del tile. \return `color` dentro de la elipse ondulada, si no 0.
-	[[nodiscard]] eng::u8 operator()(eng::u16 x, eng::u16 y) const {
+	[[nodiscard]] constexpr eng::u8 operator()(eng::u16 x, eng::u16 y) const {
 		using eng::math::div_norm;
 		using eng::math::mul_norm;
 		using eng::math::scalar_traits;
@@ -184,7 +184,7 @@ struct TreeCanopy {
 	eng::u32 seed = 0;
 
 	/// Evalúa el píxel `(x, y)`. \param x,y píxel del tile. \return `foliage`, `trunk` o 0 (fondo).
-	[[nodiscard]] eng::u8 operator()(eng::u16 x, eng::u16 y) const {
+	[[nodiscard]] constexpr eng::u8 operator()(eng::u16 x, eng::u16 y) const {
 		using eng::math::mul_norm;
 		using eng::math::scalar_traits;
 		using eng::math::value_noise2;
@@ -224,7 +224,7 @@ struct RockBlob {
 	eng::u32 seed = 0;
 
 	/// Evalúa el píxel `(x, y)`. \param x,y píxel del tile. \return `color` si cae en la roca, si no 0.
-	[[nodiscard]] eng::u8 operator()(eng::u16 x, eng::u16 y) const {
+	[[nodiscard]] constexpr eng::u8 operator()(eng::u16 x, eng::u16 y) const {
 		using eng::math::mul_norm;
 		using eng::math::scalar_traits;
 		using eng::math::value_noise2;
@@ -261,7 +261,7 @@ struct CropRows {
 	bool horizontal = true;
 
 	/// Evalúa el píxel `(x, y)`. \param x,y píxel del tile. \return uno de los dos colores de surco.
-	[[nodiscard]] eng::u8 operator()(eng::u16 x, eng::u16 y) const {
+	[[nodiscard]] constexpr eng::u8 operator()(eng::u16 x, eng::u16 y) const {
 		using eng::math::div_norm;
 		using eng::math::mul_norm;
 		using eng::math::scalar_traits;
@@ -479,7 +479,7 @@ struct SoftCircleMask {
 	eng::u32 seed = 0;
 
 	/// Evalúa la máscara en `(x, y)`. \param x,y píxel del tile. \return 1 = opaco, 0 = transparente.
-	[[nodiscard]] eng::u8 operator()(eng::u16 x, eng::u16 y) const {
+	[[nodiscard]] constexpr eng::u8 operator()(eng::u16 x, eng::u16 y) const {
 		using eng::math::mul_norm;
 		using eng::math::scalar_traits;
 		using eng::math::value_noise2;

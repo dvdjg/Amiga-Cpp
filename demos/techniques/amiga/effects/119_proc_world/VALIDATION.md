@@ -2,10 +2,14 @@
 
 Informe de validación (F4/F5 de `docs/guides/methodology/PROCEDIMIENTO_DEMOS_Y_JUEGOS.md`).
 
-**Estado: VERIFICADA (alcance por elemento, ver §Conclusiones)** — la demo monta el mundo
-con las piezas generadas, lo publica sin parpadeo a ~49,9 fps y el contenido se corresponde
-con la intención (validado con visión local). **SIN VERIFICAR**: la generación del atlas/set
-en el propio 68000 (medida, precocinada; ver §Coste de generación) y el display de 6 planos.
+**Estado: VERIFICADA (alcance por elemento, ver §Conclusiones)** — la demo genera el mundo
+**en tiempo de compilación** (sistema `constexpr` de C++23; §Generación en compilación),
+lo publica sin parpadeo **a 49,8 fps sostenidos** y el contenido se corresponde con la
+intención (validado con visión local). El latido usa el **modo de sondeo validado del doc
+212** (`run_frames_polling`: sin secuestrar el vector de nivel 3 ni depender de IRQs);
+durante la validación se reconfirmó el fallo **`a5=0`** del 212 para el bucle por IRQ+`Wait`
+bajo SO vivo (evidencia en §Latido: el 212 y el modo de sondeo). **SIN VERIFICAR**: la
+generación runtime del mundo en el 68000 (ya no se usa) y el display de 6 planos.
 
 Intención esperada: pantalla 320×256 con un mundo cenital 10×7 de piezas de 32 px y **32
 colores** (5 planos) — río continuo de norte a sur con 2 meandros y puente donde lo cruza el
@@ -15,6 +19,37 @@ saco); muralla 3×3 con torre y puerta; dos casas, cueva y sierra en la esquina 
 izquierda, **lago junto al cauce**, vegetación dispersa con **texturas en tableros 2×2
 (halftone)** — sin costuras entre piezas, con la banda de 32 colores y la franja de versión
 (16 px, nombre + build + contador de frames) abajo.
+
+## Generación en compilación (C++23 `constexpr`)
+
+El atlas (66 texturas de 16×16 con ruido escalar) y el mundo completo (campos + máscaras +
+pintado de las ~90 piezas) se evalúan **con el compilador** al construir la demo: en
+`main.cpp`, `make_world_atlas()`/`make_world()` son `constexpr` y el binario m68k incrusta
+el resultado (rodata). Los límites de evaluación (`-fconstexpr-ops-limit`) se suben en
+`build.args` (`DEMO_FLAGS`, clave nueva de `build-demo.sh`); el build tarda ~1 min de más.
+Medido: **el paso de carga del 68000 bajó de ≈103,4 M de ciclos (generación runtime) a
+≈7,9 M** (composición + C2P + verificación del contrato): la generación cuesta CERO en la
+máquina. El MISMO código sigue corriendo en runtime en el host (`HOST-445`, del que salen
+los dumps de visión y la sonda `constexpr` con static_assert), y `HOST-443` ancla el
+render byte a byte.
+
+## Latido: el 212 y el modo de sondeo
+
+Con la generación en compilación la carga es ~1,1 s — el bucle arranca ANTES de la
+actividad tardía del SO, y con el bucle por IRQ esa concurrencia **revive el fallo
+`a5=0`** del doc 212 (abierto como causa raíz): a los pocos frames (~6-69 según el camino
+de lanzamiento) la tarea muere — evidencia recogida en la validación: `state=Ready`,
+`frame` congelado, emulador vivo (ciclos avanzan) y **PC alternando entre `0x0` y código**
+(el CPU ejecutando la tabla de vectores). Reproduce con y sin `takeover_system()` y con
+espera activa (variante 2): no es el clobber de `INTENA`, es la causa raíz del 212.
+
+**Solución adoptada: el modo de sondeo validado del propio doc 212**
+(`run_frames_polling`): el bucle NO secuestra el vector de nivel 3 ni depende de IRQs ni de
+`Wait()` — sondea `VPOSR` en `wait_vblank` —, así la tormenta de vectores no aplica. Con
+`takeover_system()` (display propio) + sondeo, la demo queda **estable a 49,85 fps
+emulados, 1,003 campos/frame** (medido y grabado en `BITACORA_SCROLL_TILES.md`), con
+regresión y flicker en verde. Queda como deuda del ENGINE (no de la demo) cerrar el `a5=0`
+para el bucle por IRQ+`Wait` bajo SO vivo; el doc 212 lista las vías abiertas.
 
 ## Técnica vigente
 
@@ -35,12 +70,12 @@ izquierda, **lago junto al cauce**, vegetación dispersa con **texturas en table
 
 | Medida | Comando | Resultado | Lectura |
 |---|---|---|---|
-| fps (debug) | `node tools/debug/measure-fps.mjs 119_proc_world A500_debug --json` | `49.82–49.92 fps`, `1.004 campos/frame`, `142102–142386 ciclos/frame` | 1 campo por VBlank, CPU ociosa |
-| fps (grabado) | `node tools/debug/record-fps.mjs 119_proc_world A500_debug --samples 1` | `49.92 fps` (detail `0x119`) | fila registrada en `BITACORA_SCROLL_TILES.md` |
-| Carga (debug) | franja de versión de la captura | `LOAD 11636–12126KC` (≈1,2 M ciclos) | encaje + colocación + composición + C2P 5 planos |
+| fps (debug, sondeo) | `node tools/debug/measure-fps.mjs 119_proc_world A500_debug --json` | `49.85 fps`, `1.003 campos/frame`, `142291 ciclos/frame` | estable con `run_frames_polling` (ver §Latido) |
+| fps (grabado) | `node tools/debug/record-fps.mjs 119_proc_world A500_debug --samples 1` | `49.84 fps` (detail `0x119`) | fila registrada en `BITACORA_SCROLL_TILES.md` |
+| Carga (debug) | franja de versión de la captura | `LOAD 7921KC` (≈7,9 M ciclos) | solo composición + C2P + verificación (el mundo viene del compilador) |
 | Regresión + parpadeo | `tools/test-regression.sh --flicker --require-flicker-ok --demo … --warp` | **Regression OK** | gate de captura propio y `flicker` sin candidatos |
-| Gate de captura | `analyze-screenshot.sh` | `white=572 dark=13945 nonBlue=48124` | hierba/agua/masa presentes y franja legible |
-| Contador de frames | capturas seriadas | `F 000009 → F 000045 → F 000644 → F 000670` | el parcheo planar avanza con el bucle |
+| Gate de captura | `analyze-screenshot.sh` | `white=548 dark=13907 nonBlue=48158` | hierba/agua/masa presentes y franja legible |
+| Contador de frames | watcher + capturas | `50 → 965` (≥20 s) | avanza a ~50 fps con el bucle de sondeo |
 
 ### Contador de frames y número de build (persistencia)
 

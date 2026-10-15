@@ -98,14 +98,14 @@ struct Bayer {
 	return v >> 8u;
 }
 
-/// **Tablero de ajedrez 2×2** entre dos índices (mezcla 50 %): los píxeles pares toman `a`
-/// y los impares `b` (fase `(x+y)&1`), de modo que el ojo percibe el color intermedio —
-/// el truco clásico para multiplicar los tonos aparentes de una paleta corta (halftone
-/// espacial). Determinista y sin costura: la fase depende del píxel, no del tile.
+/// **Tablero de ajedrez 2×2** entre dos índices (mezcla 50 %): bloques de 2×2 píxeles que
+/// alternan `a`/`b` (fase `((x>>1)+(y>>1))&1`), la mezcla halftone clásica de los sets de
+/// tiles pequeños: a 16×16 px, un tablero de 1 px se lee como ruido y el bloque de 2×2 se
+/// lee como tono. Determinista y sin costura: la fase depende del píxel, no del tile.
 /// \param a,b índices de los dos colores vecinos del tramo. \param x,y píxel (fase).
-/// \return `a` o `b` según la paridad de `x+y`.
+/// \return `a` o `b` según el bloque del tablero 2×2.
 [[nodiscard]] constexpr eng::u8 halftone2x2(eng::u8 a, eng::u8 b, eng::u16 x, eng::u16 y) {
-	return (((x + y) & 1u) == 0u) ? a : b;
+	return ((((x >> 1u) + (y >> 1u)) & 1u) == 0u) ? a : b;
 }
 
 /// Índice aparente de una **escala de halftone** de `2·levels−1` pasos sobre el tramo

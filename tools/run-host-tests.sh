@@ -24,7 +24,10 @@ BUILD_DIR="$ROOT/out/host-tests"
 STD="gnu++23"
 # `-Werror=narrowing`: un estrechamiento en un braced-init (p. ej. `scalar{R(v)}` de un
 # fixed) suele indicar una perdida de precision no intencionada; debe romper el build.
-CXXFLAGS="-std=$STD -I$ROOT/engine/include -Wall -Wextra -Werror=narrowing -fno-rtti -O2 -static-libgcc -static-libstdc++"
+# Limites de `constexpr` subidos: los tests que evaluan generacion procedural en
+# compilacion (p. ej. 445, el mundo de biomas) necesitan mas de las 33 M operaciones por
+# defecto; no afectan a los tests que no superan el limite.
+CXXFLAGS="-std=$STD -I$ROOT/engine/include -Wall -Wextra -Werror=narrowing -fno-rtti -O2 -static-libgcc -static-libstdc++ -fconstexpr-ops-limit=2000000000 -fconstexpr-loop-limit=100000000"
 
 CXX="${CXX:-g++}"
 

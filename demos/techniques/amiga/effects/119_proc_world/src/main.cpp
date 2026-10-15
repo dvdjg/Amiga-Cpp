@@ -1,50 +1,51 @@
-// Demo 119 — PROC WORLD: terreno procedural de `eng::gfx::proc` en el Amiga real.
+// Demo 119 — PROC WORLD: mundo de biomas procedural de `eng::gfx::proc` en el Amiga real.
 // ----------------------------------------------------------------------------
-// Tutorial: el engine genera un mundo completo — atlas de materiales, piezas de terreno
-// con bordes casados y un mapa colocado por reglas (río con meandros + puente, camino,
-// castillo con torre y puerta, aldea, cueva, sierra, lago) — y esta demo lo **monta en
-// carga** (colocador + composición) y lo **muestra** con el `eng::IndexedDisplay`
-// (framebuffer indexado: el engine hace el C2P por Blitter y lo publica).
+// Tutorial: el engine genera un mundo completo **en carga** con el sistema de biomas
+// (`terrain_biome.hpp`) — campos de río/lago/arena/tierra/sierra con **ruido entero**
+// (`mulu.w`), gramática de adyacencia (el agua no toca tierra/roca sin arena), camino en
+// L con puente hasta la puerta del castillo y **set por máscaras**: cada celda pide la
+// pieza de sus cuatro lados (material del vecino) y el set la pinta/memoiza al momento
+// (canónica por rotación) — y lo **muestra** con `eng::IndexedDisplay<5>` (32 colores,
+// C2P por el engine en carga).
 //
-// **Por qué el atlas/set vienen precocinados del host**: la generación de los 66 tiles
-// de material cuesta ~3,4 G de ciclos en un 68000 (medido con el periférico de
-// depuración: el ruido paga `__mulsi3` en cada hash y una textura de 32×32 ronda 50 M
-// de ciclos; ver `VALIDATION.md`). Los assets son deterministas byte a byte
-// (`MiniFloat16` es aritmética entera; `HOST-443` los ancla con un golden), así que el
-// pipeline host (`src/prebuild.sh` + `tools/gen_assets.cpp`, la MISMA librería del
-// engine) cocina una vez el atlas, el catálogo **y las rotaciones de las piezas de
-// relleno** (variedad visual: hierba, árboles, rocas… sin repetir textura), y la demo
-// solo hace lo que debe ser de carga: **colocar** (`place_world`, que deriva únicamente
-// las orientaciones de río/caminos con `add_variant`), **componer** el mapa en el
-// framebuffer y **publicarlo** una sola vez. El frame es estático: todo el coste es de
-// carga; el bucle solo late con el VBlank.
+// **Generación EN COMPILACIÓN**: el atlas (incluido el ruido escalar de sus texturas) y
+// el mundo completo se evalúan con el **sistema `constexpr` de C++23 al compilar la
+// demo** — `make_world_atlas()`/`make_world()` corren en el compilador (los límites de
+// evaluación se suben en `build.args`: `-fconstexpr-ops-limit`), y el binario m68k incrusta
+// el resultado ya cocinado (rodata). En el 68000 no se genera NADA: la carga solo compone
+// el chunky y publica por C2P. (La generación en runtime sigue disponible — es la que
+// usa el host en los tests de visión, `HOST-445` — y en el 68000 costaba ~100 M de ciclos.)
+//
+// La coherencia es **por construcción**: los lados de cada pieza son el material del
+// vecino, la gramática repara los contactos prohibidos y el mundo se verifica con
+// `biome_world_connected` (en compilación vía `static_assert` del test host y en carga
+// con una comprobación de bajo coste sobre los datos incrustados).
 //
 // Qué enseña:
-//   - la fachada de generación (`eng::gfx::proc`): atlas → set → colocador por casación;
-//   - el patrón del repo para assets de coste alto: cocinar en host + encajar en runtime
-//     (igual que la demo 201 con su banco de tiles);
-//   - la franja inferior de 16 px con nombre + versión + ciclos de carga (el contador de
-//     frames/fps vive en la ventana de depuración de WinUAE / telemetría).
+//   - la fachada de generación (`eng::gfx::proc`): atlas → campos → máscaras → mundo,
+//     toda ella evaluable en compilación (`constexpr`) y en runtime (misma fuente);
+//   - el flujo «metaprogramación C++23»: cero coste de generación en el 68000 y assets
+//     deterministas byte a byte (`HOST-443`/`HOST-445` anclan el mismo resultado);
+//   - la franja inferior de 16 px con nombre + versión + ciclos de carga + contador de
+//     frames vivo por parcheo planar.
 //
 //   bash ./tools/build/build-demo.sh demos/techniques/amiga/effects/119_proc_world --debug
 //   bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/119_proc_world --warp
+//
+// (El build tarda ~1 min de más: el compilador evalúa la generación completa.)
 #include <eng/api/api.hpp>
 #include <eng/core/math/minifloat.hpp>
 #include <eng/debug/peripheral.hpp>
 #include <eng/debug/version.hpp>
 #include <eng/graphics/font8.hpp>
 #include <eng/graphics/proc/bitmap_buffer.hpp>
-#include <eng/graphics/proc/terrain.hpp>
-#include <eng/graphics/proc/terrain_place.hpp>
+#include <eng/graphics/proc/terrain_biome.hpp>
 #include <eng/platform/amiga/backend.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
 
 #include "support/gcc8_c_support.h"
-
-// Assets cocinados en host por src/prebuild.sh (MISMA librería; determinismo golden).
-#include "../../../../../../out/assets/proc-world/proc_world_assets.h"
 
 struct ExecBase* SysBase = nullptr;
 
@@ -67,13 +68,14 @@ using MF = eng::math::MiniFloat16;
 namespace proc = eng::gfx::proc;
 namespace terr = eng::gfx::proc::terrain;
 
-// Geometría: pantalla 320×256; mundo 10×7 tiles de 32 px = 320×224; debajo, la banda de
-// los 32 colores de la paleta (16 px) y la franja de versión (16 px, norma del repo).
+// Geometría: pantalla 320×256; mundo 20×14 tiles de 16 px = 320×224 (más celdas = más
+// variedad y transiciones); debajo, la banda de los 32 colores (16 px) y la franja de
+// versión (16 px, norma del repo).
 constexpr u16 kScreenW = 320u;
 constexpr u16 kScreenH = 256u;
-constexpr u16 kWorldTile = 32u;
-constexpr u16 kMapW = 10u;
-constexpr u16 kMapH = 7u;
+constexpr u16 kWorldTile = 16u;
+constexpr u16 kMapW = 20u;
+constexpr u16 kMapH = 14u;
 constexpr u16 kPaletteBandY = kMapH * kWorldTile;        // 224
 constexpr u16 kVersionStripY = u16(kPaletteBandY + 16u); // 240
 
@@ -84,8 +86,33 @@ constexpr u16 kFrameDigitsX = u16(kFrameLabelX + 8u);
 constexpr u8 kStripFg = 31u;
 constexpr u8 kStripBg = 0u;
 
-// Semilla del colocador (la del host: mismo mundo que los dumps de evidencia).
+// Semillas del host (mismo mundo que los dumps de evidencia: `HOST-445`/`v4`).
+constexpr u32 kAtlasSeed = 0x7E5A1u;
 constexpr u32 kMapSeed = 0xBEE5u;
+
+/// **Atlas generado en compilación**: el sistema `constexpr` evalúa las 66 texturas de
+/// 16×16 (ruido escalar incluido) durante el build; el resultado queda incrustado.
+[[nodiscard]] constexpr proc::TextureAtlas<kWorldTile, kWorldTile, MF> make_world_atlas() {
+	proc::TextureAtlas<kWorldTile, kWorldTile, MF> a {};
+	a.generate(kAtlasSeed);
+	return a;
+}
+inline constexpr proc::TextureAtlas<kWorldTile, kWorldTile, MF> kWorldAtlas = make_world_atlas();
+
+/// Datos del mundo incrustados (layout + set de piezas), generados en compilación.
+struct WorldData {
+	terr::TerrainLayout<kMapW, kMapH> layout {};
+	terr::BiomeTileSet<kWorldTile, kWorldTile, 224u> set {};
+};
+
+/// **Mundo generado en compilación** (`generate_biome_world` es `constexpr`): campos de
+/// bioma, gramática, máscaras y pintado de las piezas, todo evaluado por el compilador.
+[[nodiscard]] constexpr WorldData make_world() {
+	WorldData w {};
+	(void)terr::generate_biome_world<kMapW, kMapH>(w.layout, w.set, kWorldAtlas, kMapSeed);
+	return w;
+}
+inline constexpr WorldData kWorld = make_world();
 
 /// Formato de la demo (major.minor; el `build` lo inyecta el toolchain como
 /// `-DENG_BUILD_NUMBER` y la franja lo muestra: `v<major>.<minor>.<build>`).
@@ -93,27 +120,29 @@ constexpr eng::debug::Version kVersion {1u, 0u};
 
 struct ProcWorldDemo {
 	eng::IndexedDisplay<5u, 1u> m_fb {}; // 5 planos (paleta de 32 colores), buffer único
-	terr::TerrainLayout<kMapW, kMapH> m_layout {};
 	// Contador de frames mostrado en la franja (dígitos ASCII, incremento decimal).
 	char m_frames[7] = "000000";
 	u32 m_load_cycles = 0u;
 	bool m_init_ok = false;
 
-	/// Set de piezas: los buffers pesados (80 KB) viven en BSS como `static` (trivial, sin
-	/// `atexit`); el objeto de la demo se queda pequeño para ser un local de `main`.
-	static terr::TerrainTileSet<kWorldTile, kWorldTile, 80u>& tileset() {
-		static terr::TerrainTileSet<kWorldTile, kWorldTile, 80u> s {};
-		return s;
+	/// Deja fuera de `main` los objetos grandes: el atlas y el mundo viven en rodata
+	/// (`kWorldAtlas`/`kWorld`), así que la demo en sí es pequeña.
+	[[nodiscard]] static const terr::BiomeTileSet<kWorldTile, kWorldTile, 224u>& world_set() {
+		return kWorld.set;
 	}
 
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		// **Bajo un SO vivo**: la espera de VBlank debe ser ACTIVA (`set_vblank_sleep(false)`,
-		// variante 2 del 212). Con `Wait()` (defecto), el libro de display del SO reescribe
-		// `INTENA` y **borra el VERTB** del engine → la tarea queda dormida para siempre
-		// (frame congelado a los pocos frames; PC atrapado en el `STOP` de exec).
-		// Ver `docs/debugging/investigaciones/212-vblank-irq-apagada-por-el-so.md`.
+		// **Bajo un SO vivo**: espera de VBlank ACTIVA (`set_vblank_sleep(false)`, variante 2
+		// del 212: con `Wait()` el libro de display del SO reescribe `INTENA`/`VERTB` y la
+		// tarea queda dormida) **y toma de control del sistema** (patrón canónico de la 066:
+		// `Forbid` + `LoadView(NULL)` + `OwnBlitter`): sin ella el libro de display del SO
+		// sigue vivo y al reescribir `COP1LC`/`INTENA` (~1,4 s tras arrancar el bucle) mata
+		// el latido — frames congelados a ~67 con el emulador en marcha. Vuelta al SO:
+		// `backend.restore_system()`. Ver `212-vblank-irq-apagada-por-el-so.md` y
+		// `docs/reference/amiga/hardware/takeover-y-restauracion-canonica.md`.
 		backend.set_vblank_sleep(false);
+		(void)backend.takeover_system();
 		// Chip: planos (40 KB) + chunky (80 KB) + copper (16 KB) + margen; el set vive en
 		// BSS del ejecutable (no Chip).
 		if (!backend.configure_memory({256u * 1024u, 8u * 1024u, 4u * 1024u})) {
@@ -122,34 +151,28 @@ struct ProcWorldDemo {
 		}
 		const u32 t0 = eng::debug::DebugPeripheral::cycle_counter();
 
-		// 1) Encaja los assets precocinados (piezas + especificaciones) en el set.
-		load_assets();
-		stage_mark(1u, eng::debug::DebugPeripheral::cycle_counter() - t0);
-		const u32 t_assets = eng::debug::DebugPeripheral::cycle_counter();
-
-		// 2) Coloca el mundo por casación de bordes (río+puente, camino, castillo,
-		//    aldea, cueva...). El colocador deriva las curvas del río con `add_variant`.
-		if (!terr::place_world(m_layout, tileset(), kMapSeed) ||
-		    !terr::layout_is_connected(m_layout, tileset())) {
+		// 1) El mundo ya está generado EN COMPILACIÓN (`kWorld`); en carga solo se
+		//    verifica el contrato sobre los datos incrustados (~cientos de comparaciones).
+		if (!terr::biome_world_connected(kWorld.layout, kWorld.set)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011902u);
 			return;
 		}
-		stage_mark(2u, eng::debug::DebugPeripheral::cycle_counter() - t_assets);
+		stage_mark(1u, eng::debug::DebugPeripheral::cycle_counter() - t0);
 
-		// 3) Framebuffer indexado con la paleta del atlas (32 colores RGB444 → 5 planos).
+		// 2) Framebuffer indexado con la paleta del atlas (32 colores RGB444 → 5 planos).
 		eng::Palette32 pal {};
-		for (u16 i = 0; i < 32u; ++i) pal.color[i] = kWorldPalette[i];
+		for (u16 i = 0; i < 32u; ++i) pal.color[i] = kWorldAtlas.palette.color[i];
 		if (!m_fb.init(backend, kScreenW, kScreenH, pal.words(), 32u)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011903u);
 			return;
 		}
 		compose_world();
-		stage_mark(3u, eng::debug::DebugPeripheral::cycle_counter() - t_assets);
+		stage_mark(2u, eng::debug::DebugPeripheral::cycle_counter() - t0);
 
 		m_load_cycles = eng::debug::DebugPeripheral::cycle_counter() - t0;
 		draw_info_strip();
-		m_fb.present(); // C2P + publicación: una sola vez (contenido generado en carga)
-		stage_mark(4u, eng::debug::DebugPeripheral::cycle_counter() - m_load_cycles - t0);
+		m_fb.present(); // C2P + publicación: una sola vez (contenido ya generado)
+		stage_mark(3u, eng::debug::DebugPeripheral::cycle_counter() - m_load_cycles - t0);
 		m_init_ok = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x00000119u);
 	}
@@ -185,24 +208,6 @@ struct ProcWorldDemo {
 	}
 
 private:
-	/// Copia las piezas cocinadas (indexadas + especificaciones) al set de trabajo. La
-	/// copia es a BSS (memcpy de 69 KB): el set de la demo es mutable porque el colocador
-	/// añade variantes derivadas (`add_variant`).
-	static void load_assets() {
-		terr::TerrainTileSet<kWorldTile, kWorldTile, 80u>& set = tileset();
-		for (u16 i = 0; i < kWorldTileCount; ++i) {
-			for (u16 b = 0; b < kWorldTile * kWorldTile; ++b) {
-				set.tiles[i].pixels[b] = kWorldTiles[i][b];
-			}
-			const WorldSpecData& d = kWorldSpecs[i];
-			set.specs[i].edges = {terr::Edge(d.n), terr::Edge(d.e), terr::Edge(d.s),
-					      terr::Edge(d.w)};
-			set.specs[i].features = terr::Feature(d.features);
-			set.specs[i].seed = 0u;
-		}
-		set.count = kWorldTileCount;
-	}
-
 	/// Marca de etapa + ciclos en `g_eng_run_status.detail` (`stage<<24 | ciclos>>8`): si el
 	/// runner agota su espera o algo falla, el mensaje muestra la última etapa alcanzada.
 	/// \param stage número de etapa (1..4). \param cycles ciclos de la etapa.
@@ -216,7 +221,7 @@ private:
 		for (u16 cy = 0; cy < kMapH; ++cy) {
 			for (u16 cx = 0; cx < kMapW; ++cx) {
 				const proc::BitmapBuffer<kWorldTile, kWorldTile>& t =
-					tileset().tiles[m_layout.at(cx, cy)];
+					world_set().tiles[kWorld.layout.at(cx, cy)];
 				for (u16 row = 0; row < kWorldTile; ++row) {
 					u8* dst = px.data() + (cy * kWorldTile + row) * kScreenW +
 						  cx * kWorldTile;
@@ -284,7 +289,7 @@ private:
 		for (const char* c = tail; *c != '\0' && n + 1u < sizeof(line2); ++c) line2[n++] = *c;
 		char num[8];
 		u8 nd = 0u;
-		u16 count = tileset().count;
+		u16 count = world_set().count;
 		do {
 			num[nd++] = char('0' + (count % 10u));
 			count = u16(count / 10u);
@@ -302,9 +307,13 @@ int main() {
 	eng::debug::reset(g_eng_run_status);
 
 	eng::amiga::AmigaBackend backend {};
-	ProcWorldDemo game {}; // pequeño: el set pesado vive en BSS (ver `tileset()`)
+	ProcWorldDemo game {}; // el mundo generado en compilación vive en rodata (`kWorld`)
 	eng::Engine engine {backend, game};
-	engine.run_frames(0xffff);
+	// **Bucle por SONDO** (`run_frames_polling`): bajo un SO vivo es el modo VALIDADO del
+	// doc 212 — no se secuestra el vector de nivel 3 ni se depende de IRQs/Wait (el bucle
+	// sondea VPOSR en `wait_vblank`), así el `a5=0` de la tormenta de vectores no aplica.
+	// La espera activa y `takeover_system()` (display propio) siguen puestos arriba.
+	engine.run_frames_polling(0xffff);
 
 	return 0;
 }

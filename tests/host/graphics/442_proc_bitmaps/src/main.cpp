@@ -111,11 +111,11 @@ void test_buffer_and_dither() {
 	check(d_range, "quantize_dither en rango 0..levels-1");
 	check(d_varies, "quantize_dither dithera alrededor del nivel medio (+-1)");
 
-	// Halftone: el tablero alterna a/b por la paridad de x+y (mezcla 50 % aparente) y la
+	// Halftone: el tablero alterna a/b en bloques de 2×2 (mezcla 50 % aparente) y la
 	// escala de 2·levels−1 pasos intercala los intermedios entre los sólidos.
-	check(proc::halftone2x2(1u, 2u, 0u, 0u) == 1u && proc::halftone2x2(1u, 2u, 1u, 0u) == 2u &&
-		      proc::halftone2x2(1u, 2u, 1u, 1u) == 1u,
-	      "halftone2x2 alterna por paridad de x+y");
+	check(proc::halftone2x2(1u, 2u, 0u, 0u) == 1u && proc::halftone2x2(1u, 2u, 1u, 1u) == 1u &&
+		      proc::halftone2x2(1u, 2u, 2u, 0u) == 2u && proc::halftone2x2(1u, 2u, 2u, 2u) == 1u,
+	      "halftone2x2 alterna en bloques 2x2");
 	check(proc::halftone_index(0u, 8u, 4u, 0u, 0u) == 8u, "halftone_index: paso 0 = base solida");
 	check(proc::halftone_index(6u, 8u, 4u, 0u, 0u) == 11u, "halftone_index: paso maximo = top");
 	const u8 hs = proc::halftone_index(1u, 8u, 4u, 0u, 0u);
