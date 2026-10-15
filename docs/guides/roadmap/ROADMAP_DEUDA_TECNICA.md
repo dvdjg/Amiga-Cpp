@@ -145,22 +145,43 @@ de captura (congelado en el ready-probe frente al swap de `COP1LC`) o fase de ru
 patrones a caracterizar (ventana mayor); 132/204 con el hook de `update` muerto. VALIDATIONs
 creadas para toda la lista.
 
-## DT-016 · Demo 084 (`mf_rotation`): el analyze falla — el cubo sale azul (tono lejano), sin blanco
+## DT-016 · Demo 084 (`mf_rotation`): analyze — cubo sin blanco y trazado por CPU — RESUELTO (2026-10)
 
-**Preexistente**: en la regresión completa (`out/regression/20261015-015641` y `…-150014`) la 084
-compila y arranca (build ✓ run ✓) pero su `analyze` falla (`| 084_mf_rotation | ok | ok | fail | …
-| analyze |`); ya ocurría antes del hilo de sprites/HUD.
+**Preexistente**: en la regresión completa la 084 fallaba su `analyze` (`white=0 < 8`).
 
-**Reproducido (2026-10)**: `bash tools/analyze/analyze-demo.sh demos/techniques/amiga/3d/084_mf_rotation`
-→ `FAIL : white=0 < 8`. La captura renderiza (cubo/línea rotando sobre fondo oscuro, marco tenue)
-pero **la arista del cubo se pinta en azul** (~color 3) en vez de blanco: `shade_of(m_wz[..])`
-debería dar 7 (0xFFF) en las aristas cercanas y todas salen con el tono lejano → el sombreado por
-Z no discrimina (`m_wz` — profundidad transformada con `q0`/MiniFloat16) o `draw_line` ignora el
-color. El analyze exige `--min-white 8 --min-nonblue 5000` y white=0 lo bloquea.
+**Diagnóstico (con simulación host de la matemática, coincidente con el emulador: `m_wz` a
+±54–57 en el frame 120)**: la matemática (MiniFloat16 + `transform` 4.12) es correcta; el
+problema era el **trazado por CPU** (`draw_line` sin `FramePlan` → raster CPU): ~5,2M
+ciclos/frame (1,35 fps) y las aristas claras no llegaban a pintarse (el camino CPU dejaba el
+cubo casi invisible).
 
-**Siguiente paso**: en la 084, volcar `m_wz` por arista (telemetría/`Periph` counters ya presentes)
-y comparar con `m_scr`; si la profundidad es correcta, revisar `draw_line` (color) del
-`playfield::Surface`. Ficha de la demo: `demos/techniques/amiga/3d/084_mf_rotation/README.md`.
+**Arreglo**: el trazado va por **Blitter** (patrón 077/079: `scene.draw_target(&plan)` +
+`dt.line(...)` + `execute_frame_plan`) en `update` (no en `render`: el breakpoint del
+ready-probe en el vblank congelaba la captura a medio dibujar). **Analyze: OK
+(`white=174`)**; 2,04 fps (25 campos).
+
+**Lo que queda**: el fps sigue bajo (borrado por CPU — `add_line` con color 0 no se encola —
+y coste por job del Blitter). Ficha en el listado de calidad:
+`docs/guides/roadmap/DEMOS_A_ELIMINAR_O_MEJORAR.md`. La familia 077/078 (mismas líneas CPU) y
+079 (Blitter, coste/job) queda en el mismo listado.
+
+## DT-017 · Demos que vuelven al SO (crash) tras READY: contador de frame congelado
+
+**Síntoma**: la demo alcanza READY y renderiza (la captura del arranque es correcta), pero a
+los pocos frames el contador de `g_eng_run_status.frame` se congela y el PC acaba en la ROM
+del KickStart (`0xFCxxxx`): la demo **vuelve al SO**. `measure-fps` lo reporta como
+0 fps / ~1001,6 campos/frame (el contador no avanza en la ventana); el `analyze` de la
+regresión **no lo ve** (captura antes del crash).
+
+**Verificado**: `221_sprite_palette_split` (se congela en el frame 39; pc=0x00FC0F90, sr con
+S=1) — **preexistente**: recompilada con el engine anterior a los fixes de sprites
+(`b22013a2`) el crash es idéntico. Misma firma en `130_app_scroll_ladder`,
+`132_runtime_geometry`, `204_app_strip_scroll`, `214_floppy_raw`, `071_mixer_four_voices`.
+
+**Siguiente paso**: capturar el marco de excepción completo (SSP) en el momento del crash
+(breakpoint en el vector de excepción, `winuae_postmortem_capture`) y localizar la rutina;
+el crash a frame fijo (~39) apunta a un estado de animación concreto (pistón/paleta en 221).
+Listado de calidad asociado: `docs/guides/roadmap/DEMOS_A_ELIMINAR_O_MEJORAR.md`.
 
 ## DT-007 · Demo 085 a 16,6 fps (3 fields) y mancha blanca del disco — RESUELTO
 

@@ -942,6 +942,12 @@ private:
 		void update(Backend&, GameContext& ctx) {
 			self->m_context = ctx;
 			self->m_frame = ctx.frame.frame_index;
+			// Telemetría de frames del MOTOR (igual que los bucles del Engine): el bucle de
+			// la fachada es propio, así que si el juego no marca `g_eng_run_status` el
+			// contador queda congelado (measure-fps daba 0 fps / 1001,59 campos).
+#if defined(ENG_AMIGA)
+			eng::debug::mark_frame(eng::debug::g_eng_run_status, ctx.frame.frame_index);
+#endif
 			// Con escenas en la pila, la superior conduce el frame; sin escenas, el `Game`.
 			if (self->m_scene_depth > 0u) {
 				SceneSlot& slot = self->m_scenes[self->m_scene_depth - 1u];

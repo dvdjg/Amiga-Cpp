@@ -79,6 +79,11 @@ F0 Diseño -> F1 Esqueleto -> F2 Implementación por etapas -> F3 Gates técnico
 
 - Al **ejecutar cualquier demo** (propia o ajena), correr sus gates; si algo falla: **registrar DT** (síntoma, comando, evidencia), **avisar al usuario** y, si es del área que tocas, arreglarlo en una fase aparte.
 - **Barrido periódico de flota** (p. ej. al cerrar un hito): `tools/run-host-tests.sh` completo (tests + gates) y `tools/test-regression.sh` global. Todo rojo nuevo o preexistente que aparezca se registra en DT.
+- **Calidad por demo** (¿se ha empeorado? ¿merece la pena?): al tocar una demo, correr
+  `node tools/debug/audit-demos-quality.mjs <id>` (fps vs baseline, suelo de 25, uso de
+  hardware, analyze/visión con `--analyze --vision`) y `node tools/debug/check-fps.mjs
+  --demo <id> --warn-only`. El listado vivo de demos < 25 fps (a mejorar/eliminar) y los
+  criterios están en `docs/guides/roadmap/DEMOS_A_ELIMINAR_O_MEJORAR.md`.
 - Los fallos de gates con baseline obsoleta (cast/doc-coverage/raw-pointer) se **regeneran solo justificando**, como indica cada gate.
 
 ## 5. Checklist rápido de una demo nueva

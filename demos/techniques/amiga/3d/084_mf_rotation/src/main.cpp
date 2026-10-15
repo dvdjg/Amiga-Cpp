@@ -110,9 +110,15 @@ struct DemoGame {
 		backend.install_raster(m_scene); // Blitter/CPU según las caps del backend
 		draw_static();
 		{
-			playfield::Surface c = m_scene.surface();
+			// Un frame ya pintado antes de tomar el display (mismas líneas por Blitter).
+			eng::graphics::FramePlan plan {};
+			playfield::DrawTarget dt = m_scene.draw_target(&plan);
 			compute_projection();
-			draw_cube(c); // un frame ya pintado antes de tomar el display
+			draw_cube(dt);
+			if (!backend.execute_frame_plan(plan)) {
+				eng::debug::mark_failed(g_eng_run_status, 0x00008403u);
+				return;
+			}
 		}
 		m_scene.takeover(backend);
 		// Self-test de los trascendentes EN HARDWARE.
@@ -124,21 +130,27 @@ struct DemoGame {
 	}
 
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
+		(void)context;
 		compute_projection(); // matematica FUERA del vblank
-		(void)backend;        // la lista es estatica: `takeover` ya la instalo
+		// Trazado por **Blitter** (patrón 077/079): las 12 aristas (y el borrado de las del
+		// frame anterior) se encolan como `BlitJobKind::Line` en un `FramePlan` y el backend
+		// las ejecuta. Dibujar punto a punto por CPU costaba ~5,2M ciclos/frame (1,35 fps);
+		// el Blitter traza las líneas en hardware (~1-2k ciclos por línea + job).
+		eng::graphics::FramePlan plan {};
+		playfield::DrawTarget dt = m_scene.draw_target(&plan);
+		draw_cube(dt);
+		(void)backend.execute_frame_plan(plan);
 	}
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (!m_scene.ok()) return;
 		(void)backend;
-		playfield::Surface c = m_scene.surface();
-		draw_cube(c); // solo traza (rapido) durante el vblank
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
 private:
 	/// Rota el cubo un paso y proyecta los 8 vertices a coordenadas de pantalla (q0);
-	/// se hace en `update` para que `render` (vblank) solo tenga que trazar lineas.
+	/// se hace en `update` (tiempo visible), junto al trazado.
 	void compute_projection() {
 		// Telemetria: ciclos EMULADOS (periferico de depuracion) del calculo MF por
 		// frame. counter 1 = matriz (6 sin/cos + 2 Mat*Mat); counter 0 = total.
@@ -160,18 +172,19 @@ private:
 		Periph::counter_value(1, tb - ta);
 	}
 
-	void draw_cube(playfield::Surface& c) {
+	void draw_cube(playfield::DrawTarget& dt) {
 		// Borra SOLO las aristas del frame anterior (no un rectangulo): el display nunca
-		// queda vacio a mitad de frame (un `clear_rect` hacia que la captura cogiera el
-		// hueco) y se ahorra escribir toda la zona.
+		// queda vacio a mitad de frame y se ahorra escribir toda la zona. Borrado y trazado
+		// van al MISMO `FramePlan` (líneas por Blitter).
 		if (m_have_prev) {
 			for (const auto& e : kEdges) {
-				c.draw_line(m_prev[e[0]][0], m_prev[e[0]][1], m_prev[e[1]][0], m_prev[e[1]][1], 0);
+				(void)dt.line(m_prev[e[0]][0], m_prev[e[0]][1], m_prev[e[1]][0],
+					      m_prev[e[1]][1], 0);
 			}
 		}
 		for (const auto& e : kEdges) {
-			c.draw_line(m_scr[e[0]][0], m_scr[e[0]][1], m_scr[e[1]][0], m_scr[e[1]][1],
-			       shade_of(m_wz[e[0]], m_wz[e[1]]));
+			(void)dt.line(m_scr[e[0]][0], m_scr[e[0]][1], m_scr[e[1]][0], m_scr[e[1]][1],
+				      shade_of(m_wz[e[0]], m_wz[e[1]]));
 		}
 		for (int i = 0; i < 8; ++i) {
 			m_prev[i][0] = m_scr[i][0];
