@@ -43,6 +43,8 @@ Checks baratos que corren en `tools/test-regression.sh` y en la pasada completa 
 |---|---|
 | `encoding.mjs` | Que los archivos de texto sean UTF-8 válido y sin mojibake. Admite `[raices...]`. |
 | `links.mjs` | Que los enlaces relativos de la documentación resuelvan a ficheros/directorios existentes. Admite `[raíces...]`, `--quiet`, `--json` y `--update-baseline`. |
+| `doc-index.mjs` | Que cada doc de hallazgo esté indexado en el README de su carpeta y con nombre kebab-case (áreas declaradas en `doc-index-areas.txt`). |
+| `entrypoints.mjs` | Que las rutas de herramientas citadas en los documentos de arranque (AGENTS.md y docs de entrada) existan de verdad; caza instrucciones muertas (`tools/*.ps1` renombrados, etc.). |
 | `type-tagging.mjs` | Que no aparezca un `MemoryBlock` crudo convertido a tipo de dominio (INTERNAL_TYPE_SYSTEM.md §1). |
 | `scalar-support.mjs` | Que la tabla función × escalar de `SCALAR_LIBRARY.md` esté sincronizada con su fuente única. |
 | `math-diagnostics.sh` | Diagnósticos del vocabulario matemático fixed-point. |

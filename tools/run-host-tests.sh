@@ -311,6 +311,15 @@ if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 			exit 1
 		fi
 	fi
+	# Docs de arranque: rutas de herramientas citadas que no existen (instrucciones muertas).
+	ENTRYPOINTS="$ROOT/tools/check/entrypoints.mjs"
+	if [ -f "$ENTRYPOINTS" ] && command -v node >/dev/null 2>&1; then
+		echo "== entrypoints =="
+		if ! node "$ENTRYPOINTS"; then
+			echo "entrypoints fallo: un doc de arranque cita una ruta de herramienta que no existe." >&2
+			exit 1
+		fi
+	fi
 	# Manifiestos de assets: el header generado debe coincidir con su JSON (ROADMAP_GAME_API §4).
 	ASSET_MANIFESTS="$ROOT/tools/check/asset-manifests.mjs"
 	if [ -f "$ASSET_MANIFESTS" ] && command -v node >/dev/null 2>&1; then

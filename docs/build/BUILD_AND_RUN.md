@@ -109,18 +109,18 @@ Así el flujo `exportador -> incbin -> runtime` se reconstruye en cada build sin
 
 ## Analizar una demo
 
-```powershell
-.\tools\analyze\analyze-demo.ps1 demos\techniques\amiga\setup\000_toolchain_cpp23
+```bash
+bash ./tools/analyze/analyze-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23
 ```
 
 Esta primera version comprueba que existen los artefactos y que el mapa contiene
-simbolos basicos de arranque. Si ya existe una captura en `out\run\<demo>`, tambien
+simbolos basicos de arranque. Si ya existe una captura en `out/run/<demo>`, tambien
 ejecuta un analisis visual automatico de la imagen.
 
 ## Ejecutar una demo
 
-```powershell
-.\tools\run\run-demo.ps1 demos\techniques\amiga\setup\000_toolchain_cpp23
+```bash
+bash ./tools/run/run-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23
 ```
 
 El runner:
@@ -173,34 +173,31 @@ de pedir la imagen.
 
 Opciones utiles:
 
-```powershell
-.\tools\run\run-demo.ps1 demos\techniques\amiga\copper\030_ehb_palette_zones `
-  -SideChannelTimeoutMs 10000 `
-  -SideChannelPort 2346
+```bash
+bash ./tools/run/run-demo.sh demos/techniques/amiga/copper/030_ehb_palette_zones \
+  --side-channel-timeout-ms 10000 --side-channel-port 2346
 ```
 
 Para observar una demo manualmente sin que el runner cierre WinUAE al terminar la
 captura:
 
-```powershell
-.\tools\run\run-demo.ps1 demos\techniques\amiga\playfield\101_ehb_tile_scroll_driver -KeepRunning
+```bash
+bash ./tools/run/run-demo.sh demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver --keep-running
 ```
 
-Tambien hay un lanzador con menu para uso humano:
+Tambien hay un lanzador con menu **interactivo** para uso humano:
 
-```powershell
-.\tools\run\demo-menu.ps1
+```bash
+bash ./tools/run/demo-menu.sh
 ```
 
-Desde el menu puedes compilar, lanzar a ritmo real, analizar capturas, ejecutar
-pruebas de secuencia y dejar WinUAE abierto para depuracion. Por defecto no usa
-warp. Para automatizar una accion concreta sin menu:
+Desde el menu se elige la demo y la accion (compilar, lanzar a ritmo real, analizar
+capturas, canal lateral, regresion) y se puede dejar WinUAE abierto para depuracion.
+Por defecto no usa warp. Para automatizar, invoca directamente los wrappers
+(`tools/build/build-demo.sh`, `tools/run/run-demo.sh`, `tools/analyze/analyze-demo.sh`)
+sin pasar por el menu.
 
-```powershell
-.\tools\run\demo-menu.ps1 -Demo 101_ehb_tile_scroll_driver -Action Debug
-```
-
-`-Warp` existe solo como opcion explicita para pruebas de rendimiento bruto o
+`--warp` existe solo como opcion explicita para pruebas de rendimiento bruto o
 diagnostico. No se usa por defecto porque acelera los VBlank del emulador y puede
 hacer que una animacion correcta parezca demasiado rapida.
 
@@ -249,30 +246,26 @@ esta via (ejemplo: `210_copper_blitter` escribe `detail = (fine << 16) | 0x1FFF`
 
 Para consultar una instancia viva manualmente:
 
-```powershell
-.\tools\debug\winuae-side-channel.ps1 state
-.\tools\debug\winuae-side-channel.ps1 regs
-.\tools\debug\winuae-side-channel.ps1 mem 0xdff000 32
+```bash
+bash ./tools/debug/winuae-side-channel.sh state
+bash ./tools/debug/winuae-side-channel.sh regs
+bash ./tools/debug/winuae-side-channel.sh mem 0xdff000 32
 ```
 
 ## Automatizar el raton emulado
 
 Para mover el raton del Amiga sin usar ni capturar el raton fisico de Windows:
 
-```powershell
-.\tools\run\run-demo.ps1 demos\techniques\amiga\setup\000_toolchain_cpp23 `
-  -WaitMs 3000 `
-  -MouseFrom 32,40 `
-  -MouseTo 280,170 `
-  -MouseControl 160,10 `
-  -MouseClick
+```bash
+bash ./tools/run/run-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23 \
+  --wait-ms 3000 --mouse-from 32,40 --mouse-to 280,170 --mouse-click
 ```
 
 La herramienta envia comandos `input mouse abs` e `input mouse button` por el
-monitor de WinUAE-DBG. Soporta trayectorias lineales, Bezier cuadraticas y Bezier
-cubicas. El camino integrado en el runner es el recomendado para regresiones; el
-script `tools\input\mouse-path.ps1` queda disponible para sesiones donde ya haya
-un servidor GDB aceptando conexiones. Ver `docs\MOUSE_AUTOMATION.md`.
+monitor de WinUAE-DBG. El camino integrado en el runner es el recomendado para
+regresiones; el script `tools/input/mouse-path.sh` (`--from`, `--to`, `--control`
+lineal/quadratic/cubic, `--click`, `--drag`) queda disponible para sesiones donde ya
+haya un servidor GDB aceptando conexiones. Ver `docs/emulation/MOUSE_AUTOMATION.md`.
 
 ## Protect/cheat de memoria durante el run (`--protect`, WinUAE-DBG v2.1)
 
@@ -296,8 +289,8 @@ WinUAE-DBG (el x64 tiene un problema preexistente de handshake GDB).
 
 ## Analizar una captura
 
-```powershell
-.\tools\analyze\analyze-screenshot.ps1 out\run\000_toolchain_cpp23\screenshot.png
+```bash
+bash ./tools/analyze/analyze-screenshot.sh out/run/000_toolchain_cpp23/screenshot.png
 ```
 
 El analizador actual verifica dimensiones y presencia de los colores de overlay
@@ -307,17 +300,17 @@ para paletas, sprites, scroll y profiler.
 Si una demo define:
 
 ```text
-demos\<demo>\analyze-screenshot.ps1
+demos/<demo>/analyze-screenshot.sh
 ```
 
-`analyze-demo.ps1` usa ese analizador especifico en lugar del generico. Esto permite
+`analyze-demo.sh` usa ese analizador especifico en lugar del generico. Esto permite
 que demos close-to-the-metal, como una prueba de Copper a pantalla completa, validen
 la imagen por criterios propios.
 
 ## Regresion completa
 
-```powershell
-.\tools\test-regression.ps1
+```bash
+bash ./tools/test-regression.sh
 ```
 
 La regresion descubre las carpetas dentro de `demos`, y para cada una ejecuta:
@@ -326,13 +319,13 @@ La regresion descubre las carpetas dentro de `demos`, y para cada una ejecuta:
 2. run/captura;
 3. analisis.
 
-Si la demo incluye `analyze-sequence.ps1`, tambien ejecuta esa comprobacion y el
+Si la demo incluye `analyze-sequence.sh`, tambien ejecuta esa comprobacion y el
 informe muestra una columna `Sequence`.
 
 Para validacion determinista por pixel en secuencias (sin IA visual), ver:
 
 ```text
-docs\PIXEL_FRAME_ASSERTIONS.md
+docs/testing/PIXEL_FRAME_ASSERTIONS.md
 ```
 
 Ese documento define contratos por ROI/frame y checks como
@@ -341,8 +334,9 @@ Ese documento define contratos por ROI/frame y checks como
 
 Uso rapido sobre la demo 101:
 
-```powershell
-.\tools\test-regression.ps1 -Demo demos\techniques\amiga\playfield\101_ehb_tile_scroll_driver -PixelAssert -RequirePixelAssertOk
+```bash
+bash ./tools/test-regression.sh --demo demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver \
+  --pixel-assert --require-pixel-assert-ok
 ```
 
 El informe de regresion incluye columna `PixelAssert`.
@@ -350,18 +344,10 @@ El informe de regresion incluye columna `PixelAssert`.
 Para ejecutar tambien la bateria sintetica (casos positivos/negativos) antes de
 la regresion de demos:
 
-```powershell
-.\tools\test-regression.ps1 `
-  -Demo demos\techniques\amiga\playfield\101_ehb_tile_scroll_driver `
-  -PixelAssert -RequirePixelAssertOk `
-  -PixelAssertSelftest
-```
-
-Para ejecutar tambien el selftest sintetico (casos positivos/negativos) antes de
-la regresion:
-
-```powershell
-.\tools\test-regression.ps1 -Demo demos\techniques\amiga\playfield\101_ehb_tile_scroll_driver -PixelAssert -RequirePixelAssertOk -PixelAssertSelftest
+```bash
+bash ./tools/test-regression.sh \
+  --demo demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver \
+  --pixel-assert --require-pixel-assert-ok --pixel-assert-selftest
 ```
 
 El informe queda en:
@@ -373,16 +359,16 @@ out\regression\<timestamp>\regression-report.json
 
 Opciones utiles:
 
-```powershell
-.\tools\test-regression.ps1 -SkipRun
-.\tools\test-regression.ps1 -Demo demos\techniques\amiga\setup\000_toolchain_cpp23
-.\tools\test-regression.ps1 -ReleaseBuild
-.\tools\test-regression.ps1 -KeepGoing
-.\tools\test-regression.ps1 -Warp
+```bash
+bash ./tools/test-regression.sh --skip-run
+bash ./tools/test-regression.sh --demo demos/techniques/amiga/setup/000_toolchain_cpp23
+bash ./tools/test-regression.sh --release-build
+bash ./tools/test-regression.sh --keep-going
+bash ./tools/test-regression.sh --warp
 ```
 
-`-Warp` en regresion es util para ciclos internos rapidos de la IA. Para observar
-suavidad o depurar visualmente, usa el menu o `run-demo.ps1` sin `-Warp`.
+`--warp` en regresion es util para ciclos internos rapidos de la IA. Para observar
+suavidad o depurar visualmente, usa el menu o `run-demo.sh` sin `--warp`.
 
 ## Herramientas locales requeridas
 
@@ -394,7 +380,7 @@ suavidad o depurar visualmente, usa el menu o `run-demo.ps1` sin `-Warp`.
 
 ## Reglas del runner/emulador
 
-- `run-demo` configura WinUAE con `warp=false` por defecto. Usar `-Warp` solo para throughput/diagnóstico rápido, no para evaluar suavidad visual.
+- `run-demo` configura WinUAE con `warp=false` por defecto. Usar `--warp` solo para throughput/diagnóstico rápido, no para evaluar suavidad visual.
 - Las demos modernas deben exponer `g_eng_run_status`; el runner espera `READY` por canal lateral en `127.0.0.1:2346` y falla rápido si no llega.
 - El fallback por timeout es opt-in (`--allow-timeout-fallback`) y es para diagnóstico.
 - Las capturas de secuencia se limpian antes de cada ejecución (`out/run/<demo>/sequence`) para no mezclar frames antiguos.

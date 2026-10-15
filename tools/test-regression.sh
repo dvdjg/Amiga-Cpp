@@ -201,6 +201,20 @@ if [ -f "$DOC_INDEX_CHECK" ]; then
 	fi
 fi
 
+# --- Docs de arranque: rutas de herramientas citadas que no existen ---
+ENTRYPOINTS_CHECK="$ROOT/tools/check/entrypoints.mjs"
+if [ -f "$ENTRYPOINTS_CHECK" ]; then
+	if command -v node >/dev/null 2>&1; then
+		echo "== entrypoints =="
+		if ! node "$ENTRYPOINTS_CHECK"; then
+			echo "entrypoints fallo: un doc de arranque cita una ruta de herramienta que no existe." >&2
+			exit 1
+		fi
+	else
+		echo "node no disponible; se omite entrypoints." >&2
+	fi
+fi
+
 # --- Manifiestos de assets: el header generado debe coincidir con su JSON (ROADMAP_GAME_API 4) ---
 ASSET_MANIFESTS="$ROOT/tools/check/asset-manifests.mjs"
 if [ -f "$ASSET_MANIFESTS" ]; then
