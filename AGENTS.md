@@ -5,12 +5,30 @@ Reglas operativas para agentes IA en este repositorio. Este documento contiene l
 específicas de cada dominio**, que viven en su documento canónico para no cargar de
 contexto irrelevante a quien trabaja en otra cosa.
 
-## Cómo usar este documento
+## Cómo usar este documento (orden de lectura único)
 
-1. Antes de empezar cualquier tarea, leer `docs/ai-dev-environment/DOC-MAP-PRINCIPAL.md` (mapa «voy a hacer X → documentación»).
-2. Aplicar siempre las reglas generales de §1 y §3.
-3. Si la tarea cae en un dominio con regla propia, **leer su documento** (§4) antes de escribir código.
-4. Documentar en el sitio canónico y enlazar desde el índice correspondiente.
+1. Leer este documento completo (reglas generales §1 y operación §3) y el mapa «voy a hacer X → documentación»: `docs/ai-dev-environment/DOC-MAP-PRINCIPAL.md` (su §3 es el router **completo** de tareas, con las demos/APIs de referencia; §4, efecto → demo/API; §5, referencia de hardware).
+2. Localizar la tarea en el **router rápido** de abajo y leer los documentos indicados **antes** de escribir código; si la tarea cae en un dominio con regla propia, leer su documento (§4).
+3. Documentar en el sitio canónico: destino de un documento nuevo, `docs/README.md`; hallazgo por tema, `DOC-MAP-PRINCIPAL.md` §3; regla de dominio, §4.
+4. Al cerrar, repasar el **checklist de cierre de turno** (§5).
+
+Este es el **único orden de lectura de arranque**: cualquier otro documento que mencione «lectura inicial» remite aquí.
+
+### Router rápido (tareas más frecuentes)
+
+| Tarea | Leer antes |
+|---|---|
+| **Crear o arreglar una demo/juego** (procedimiento completo, fases F0–F5 y gates) | `docs/guides/methodology/PROCEDIMIENTO_DEMOS_Y_JUEGOS.md` |
+| **Validación visual / demos atractivas** (visión Ollama, secuencias, gate de render) | `docs/guides/methodology/DEMO_VISUAL_DEBUG.md` |
+| **Bug visual** (render que no cuadra sin causa de hardware clara) | `DEMO_VISUAL_DEBUG.md` + §1.5 (evidencia y alcance) |
+| **Hardware no cuadra** (Copper, sprites, Blitter, DMA, colisión, timers) | §1.12 y `docs/reference/emulators/winuae/README.md` — **PARAR antes de experimentar** |
+| **Optimizar o escribir código nuevo** (todo código tiene impacto en rendimiento) | `docs/guides/optimization/METODO_OPTIMIZACION.md` + §1.15 |
+| **Escribir/tocar API pública o lógica de demo** | `docs/engine/architecture/PUBLIC_API.md` + `CODING_STYLE.md` + §1.10/§1.11 |
+| **Tests y verificación por demo** | `docs/testing/README.md` |
+| **Coherencia de setup** (BPLCON0, regiones, WAITs, validadores) | `docs/engine/architecture/COHERENCIA_DE_SETUP.md` |
+| **Efecto demoscene nuevo / ingesta de repo externo** | `DOC-MAP-PRINCIPAL.md` §4 y §6 + `docs/demos/effects/DEMOSCENE_EFFECT_REPLICATION_POLICY.md` |
+| **Scroll/tiles/playfield, sprites/objetos, audio, mini-SO, GUI, recursos** | `DOC-MAP-PRINCIPAL.md` §3 (fila del dominio, con demos/APIs) |
+| **Documentar un hallazgo o investigación** | §1.3 (indexar en README de carpeta + DOC-MAP §3) y §1.12 si es hardware |
 
 ---
 
@@ -63,7 +81,7 @@ contexto irrelevante a quien trabaja en otra cosa.
 - Al incorporar una referencia externa (manual, repo, curso, ficha), comprobar primero si ya existe algo equivalente en `docs/` y decidir: sustituir si la nueva es superior, componer solo si aporta algo distinto sin repetir, o descartar si es inferior o duplicada. Documentar el resultado final, no el proceso.
 - **No incluir metainformación de proceso en los documentos de referencia**: fechas de edición/limpieza, «OCR corregido», «actualizado en <fecha>» o decisiones de ingesta no van en el contenido de la referencia ni de su índice; van en el mensaje de commit o, si procede, en una bitácora separada (`docs/guides/roadmap/`, `docs/debugging/`).
 - Los índices y README de `docs/` deben apuntar solo a lo que existe y es canónico; si se elimina un documento, actualizar todos los enlaces en la misma pasada.
-- **Todo documento de hallazgo o investigación queda indexado por tema en la misma pasada**, en dos niveles: (1) su README de carpeta (`docs/debugging/README.md`, `docs/reference/emulators/README.md`, …) con una fila descriptiva, y (2) si un programador lo buscaría por tema al tocar un dominio, una entrada en la tabla «tareas → documentación» de `docs/ai-dev-environment/DOC-MAP-PRINCIPAL.md` §3. Un hallazgo citado desde el código debe ser localizable por quien vaya a tocar ese código. El **nombre** del fichero es kebab-case, con prefijo `NNN_` solo si el doc es de una demo concreta. Se verifica con `node tools/check/doc-index.mjs` (áreas declaradas en `tools/check/doc-index-areas.txt`, sin tocar código; corre en `tools/run-host-tests.sh` y `tools/test-regression.sh`).
+- **Todo documento de hallazgo o investigación queda indexado por tema en la misma pasada**, en dos niveles: (1) su README de carpeta (`docs/debugging/README.md`, `docs/reference/emulators/README.md`, …) con una fila descriptiva, y (2) si un programador lo buscaría por tema al tocar un dominio, una entrada en la tabla «tareas → documentación» de `docs/ai-dev-environment/DOC-MAP-PRINCIPAL.md` §3. Un hallazgo citado desde el código debe ser localizable por quien vaya a tocar ese código. El **nombre** del fichero es kebab-case, con prefijo `NNN_` solo si el doc es de una demo concreta; los documentos existentes con `MAYÚSCULAS_CON_GUIONES_BAJOS` conservan su nombre (son canónicos): la convención aplica a ficheros **nuevos** y no se renombra en masa. Se verifica con `node tools/check/doc-index.mjs` (áreas declaradas en `tools/check/doc-index-areas.txt`, sin tocar código; corre en `tools/run-host-tests.sh` y `tools/test-regression.sh`).
 - **Los enlaces relativos de la documentación no deben quedar rotos**: `node tools/check/links.mjs` los valida y corre en `tools/test-regression.sh` y `tools/run-host-tests.sh`. La deuda histórica se acepta de forma explícita en `tools/check/links-baseline.txt`; regenerar con `--update-baseline` solo si se decide aceptar roturas nuevas.
 - Protocolo detallado de ingesta de repos/referencias externas: §6 de `docs/ai-dev-environment/DOC-MAP-PRINCIPAL.md`.
 - **Consultas a IA externa (Grok): preguntar SIEMPRE en inglés** (responde mejor en ese idioma). Si la consulta se redacta primero en castellano, guardar también la versión en inglés (`*-en.md`) y pasarle esa. Las consultas autocontenidas viven en `docs/debugging/investigaciones/` (`consulta-*.md`).
@@ -153,9 +171,9 @@ El objetivo es que el usuario pueda **revisar** el trabajo antes de que se conso
 
 - **Toda demo debe poder leerse como un tutorial de cómo se programa el engine**: enseña el camino correcto (la fachada estable) resolviendo un caso concreto, no solo «funciona». El código es material didáctico de primera clase.
 - **Comentarios al nivel de la intención**: cada bloque explica **qué** se hace con el vocabulario del engine (`App`/`Screen`/`Scene`/`BobLayer`/`RasterLayout`/`CopperIntent`…), **por qué** es así y **qué haría mal un lector** si bajara a bajo nivel; las decisiones no obvias (alineación, orden de registros, `MEMF_*`, límites de hardware) citan la referencia canónica.
-- **Sin bajo nivel gratuito**: la lógica de la demo usa la fachada (`eng/api/api.hpp` + tipos de dominio); no nombra registros del chipset, punteros crudos, `BlitJob`, bancos de memoria ni tipos del backend. Si algo obliga a bajar, es una abstracción que falta (§1.9) y se resuelve en el engine — no se deja crudo en la demo.
+- **Sin bajo nivel gratuito**: la lógica de la demo usa la fachada (`eng/api/api.hpp` + tipos de dominio); no nombra registros del chipset, punteros crudos, `BlitJob`, bancos de memoria ni tipos del backend. Si algo obliga a bajar, es una abstracción que falta (§1.10) y se resuelve en el engine — no se deja crudo en la demo.
 - **El comentario enseña la regla, no el paso a paso de la máquina**: nada de narrar cronología ni intentos descartados (eso va a `docs/debugging/`); el `README.md` de la demo presenta el efecto, la técnica (con su ficha en `docs/reference/`) y el contrato que ilustra.
-- **Números y líneas no obvias, justificados**: todo literal en una llamada a la API o en una operación cuyo propósito **no sea evidente al leerlo** lleva **comentario** (misma línea o encima) o un `constexpr` con nombre; y cualquier sentencia que no se explique sola lleva un **comentario de línea** (ver «Literales numéricos semánticos»).
+- **Números y líneas no obvias, justificados**: todo literal en una llamada a la API o en una operación cuyo propósito **no sea evidente al leerlo** lleva **comentario** (misma línea o encima) o un `constexpr` con nombre; y cualquier sentencia que no se explique sola lleva un **comentario de línea** (ver §1.16).
 
 ### 1.14 No cerrar el turno por criterio propio
 
@@ -169,6 +187,26 @@ El objetivo es que el usuario pueda **revisar** el trabajo antes de que se conso
 - **Cada operación de un bucle cuesta ciclos y compite** con el Blitter, el Copper, los bitplanes y el resto del frame. Antes de poner una operación en un bucle **por píxel/línea o en el bucle de juego**, calcular su coste y decidir si cabe.
 - **Nada de `*`, `/` ni `%` en bucles por píxel/línea o en el bucle principal** sin justificarlo con medidas. Alternativas obligatorias: **desplazamientos** para potencias de 2; **`constexpr`** para precalcular en compilación lo que depende solo de constantes (figuras geométricas, perfiles, tablas de seno, mapas de color) e **indexar** en runtime; **sumas/restas acumuladas** para funciones lineales; **tablas ROM** para las no lineales. Recordar que `*`/`/`/`%` de **32 bits** son **libcalls** (`__mulsi3` ~50 ciclos, `__udivsi3`/`__modsi3` ~150) y `divu.w` ~140.
 - La explicación detallada (ciclos por operación, alternativas, verificación con `nm`/`asm-audit`) está en [§Disciplina de coste](docs/guides/optimization/OPTIMIZACION_GPP_68000.md).
+
+### 1.16 Literales numéricos semánticos y comentarios de línea
+
+- Los literales con significado deben quedar explicados en el mismo uso o en un comentario inmediatamente anterior; si la explicación necesita contexto, enlazar/citar su fuente canónica. Se pueden dejar como literales cuando la constante nombrada añadiría ruido.
+- Usar `constexpr` cuando el valor tenga un nombre de dominio claro, se reutilice o haga más legible la configuración. Mantener el conjunto pequeño y coherente; no crear una constante por cada número. Antes de declarar límites derivados del hardware, buscar y reutilizar los existentes.
+- Ejemplo: `mark_failed(status, 0x00021303u)` debe documentar qué etapa de init representa o usar un identificador semántico si esos códigos se consultan en más de un sitio. En cambio, dimensiones y factores usados una sola vez pueden seguir literales si el comentario cercano explica su papel.
+- **Números en operaciones y llamadas a la API**: si el propósito de un literal **no es evidente al leerlo**, **justificarlo con un comentario** (en la misma línea o justo encima) o darle un nombre `constexpr`. Aplica a llamadas de configuración y a operaciones aritméticas/bit a bit. Ej.:
+  ```cpp
+  // 384K chip (bitplanes + copper + sprites), 8K slow (Bogo), 8K fast.
+  backend.configure_memory({ 384u * 1024u, 8u * 1024u, 8u * 1024u });
+  ```
+- **Comentario de línea cuando el código no se explica solo**: si una sentencia no deja claro **qué** hace o **por qué** usa ese valor, añadir un **comentario de línea** (en la misma línea o justo encima). Ej.:
+  ```cpp
+  // Registros de display: BPLCON0/BPLCON1/DIWSTRT/DIWSTOP; 40 B/fila, 4 planos, 320x256.
+  sched.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0, kBytesPerRow, 0x4200,
+                            kPlanes, m_bitplane.mem_view_chip(), kPlaneBytes);
+  // `v` = valor 1..3 del pixel; bit 0 -> DAT, bit 1 -> DATB (bit 15 = pixel 0, a la izquierda).
+  if ((v & 1u) != 0u) { dat = static_cast<eng::u16>(dat | (0x8000u >> px)); }
+  ```
+  Ver también §1.13 (comentarios didácticos: **qué**, **por qué** y **qué haría mal** un lector).
 
 ---
 
@@ -186,7 +224,10 @@ La organización de directorios es canónica y está especificada en **`docs/STR
 | `engine/` | Código del engine: `include/eng/` (API, algoritmos, librerías, capas de abstracción) + `src/platform/` (implementaciones backend por máquina). |
 | `demos/` | Demos en dos raíces: `techniques/<familia>/<categoría>/NNN_<tema>/` (técnicas de hardware) y `features/<feature>/<plataforma>/NNN_<tema>/` (features portables con lógica en el engine). Variante de build (`A500`/`A1200`/`ST`/`STE`) por `TARGET_MACHINE`, no por directorio. Los assets no viven en la demo: fuente en `assets/`, generados en `out/assets/<pipeline>/`. Ver `docs/guides/roadmap/PLAN_ORGANIZACION_DEMOS.md`. |
 | `assets/` | Assets fuente (raw, con licencia): `assets/<plataforma>/<dominio>/` (tiles-reference/, sprites/, audio/, maps/). Solo lectura por pipelines. |
-| `tools/` | Herramientas host del pipeline (TypeScript/bash, compiladas a `dist/`); `scripts/` = scripts de entorno; `support/` = ASM/C de apoyo al linkado. |
+| `tools/` | Herramientas host del pipeline (TypeScript/bash; el TS compila a `dist/`). |
+| `scripts/`, `support/` | Scripts de entorno/instalación (`scripts/`) y código de apoyo al linkado incluido en builds (`support/`: ASM/C, depackers). |
+| `tests/` | Tests host (`tests/host/<categoría>/NNN_<nombre>/`) y on-target (`tests/amiga/`); taxonomía y IDs HOST-NNN en `docs/testing/` (árbol en §12.1 de `docs/STRUCTURE.md`). |
+| `config/` | Configuración del emulador/entorno (`.uae`). |
 | `host-tools/` | Programas de apoyo independientes del engine (Go/C++ para PC). |
 | `playground/` | Experimentos de algoritmos/calidad; salida siempre en `out/playground/<experimento>/`. |
 | `games/` | Juegos generados con el engine (primeros en este repo, no en repos separados). |
@@ -219,26 +260,7 @@ Reglas críticas:
 - **Informe de validación por demo**: `VALIDATION.md` en la carpeta de la demo con **prompts de visión + respuestas crudas + medidas** (fps/ciclos, `tools/analyze/check-elements.mjs`, band-diff) **+ conclusiones**; obligatorio antes de declarar VERIFICADA y se actualiza si cambia el render o el coste.
 - Para flicker, ejecutar `tools/test-regression.sh --flicker --require-flicker-ok --demo <ruta>` y declarar `flicker-baseline.json` con `max_candidates: 0` y `max_blocks_low: 0` cuando la secuencia esté limpia. Pasar flicker no sustituye el contrato de movimiento de la demo.
 - Si no cumple FPS/flicker, la demo queda **abierta/no verificada**; no relajar el umbral ni alterar telemetría/cadencia para simular cumplimiento. Perfilar el hotspot y optimizar el trabajo real del frame.
-
-### Literales numéricos semánticos
-
-- Los literales con significado deben quedar explicados en el mismo uso o en un comentario inmediatamente anterior; si la explicación necesita contexto, enlazar/citar su fuente canónica. Se pueden dejar como literales cuando la constante nombrada añadiría ruido.
-- Usar `constexpr` cuando el valor tenga un nombre de dominio claro, se reutilice o haga más legible la configuración. Mantener el conjunto pequeño y coherente; no crear una constante por cada número. Antes de declarar límites derivados del hardware, buscar y reutilizar los existentes.
-- Ejemplo: `mark_failed(status, 0x00021303u)` debe documentar qué etapa de init representa o usar un identificador semántico si esos códigos se consultan en más de un sitio. En cambio, dimensiones y factores usados una sola vez pueden seguir literales si el comentario cercano explica su papel.
-- **Números en operaciones y llamadas a la API**: si el propósito de un literal **no es evidente al leerlo**, **justificarlo con un comentario** (en la misma línea o justo encima) o darle un nombre `constexpr`. Aplica a llamadas de configuración y a operaciones aritméticas/bit a bit. Ej.:
-  ```cpp
-  // 384K chip (bitplanes + copper + sprites), 8K slow (Bogo), 8K fast.
-  backend.configure_memory({ 384u * 1024u, 8u * 1024u, 8u * 1024u });
-  ```
-- **Comentario de línea cuando el código no se explica solo**: si una sentencia no deja claro **qué** hace o **por qué** usa ese valor, añadir un **comentario de línea** (en la misma línea o justo encima). Ej.:
-  ```cpp
-  // Registros de display: BPLCON0/BPLCON1/DIWSTRT/DIWSTOP; 40 B/fila, 4 planos, 320x256.
-  sched.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0, kBytesPerRow, 0x4200,
-                            kPlanes, m_bitplane.mem_view_chip(), kPlaneBytes);
-  // `v` = valor 1..3 del pixel; bit 0 -> DAT, bit 1 -> DATB (bit 15 = pixel 0, a la izquierda).
-  if ((v & 1u) != 0u) { dat = static_cast<eng::u16>(dat | (0x8000u >> px)); }
-  ```
-  Ver también §1.13 (comentarios didácticos: **qué**, **por qué** y **qué haría mal** un lector).
+- Literales numéricos, comentarios de línea y `constexpr`: §1.16.
 
 ### 3.1 Herramientas locales
 
@@ -299,7 +321,22 @@ Estas reglas son obligatorias, pero solo son relevantes cuando se toca su domini
 | **Inventario de hardware** (`eng::hw`: CPU/FPU, chipset, RAM por tipo, display, puertos) | `docs/engine/architecture/HARDWARE_INVENTORY.md` |
 | **Estado vigente y próximas direcciones del engine** | `docs/guides/roadmap/ROADMAP_UNIFICADO.md` |
 | **Numeración de demos/tests entre ramas** (anti-solape: bloques reservados) | `docs/ai-dev-environment/NUMBERING.md` |
-| **Bitácora de scroll por tiles (histórico)** | `docs/guides/roadmap/BITACORA_SCROLL_TILES.md` |
 
+> Esta tabla es solo para **reglas duras de dominio**. El router de tareas (con las demos/APIs de referencia de cada tipo de trabajo) es §3 de `docs/ai-dev-environment/DOC-MAP-PRINCIPAL.md`; el destino de un documento nuevo, `docs/README.md`; el estado de cada roadmap (activo/pausado/cerrado), `docs/guides/roadmap/README.md`.
 > Navegación general y protocolo de ingesta: `docs/ai-dev-environment/DOC-MAP-PRINCIPAL.md`.
 > Índice maestro de la documentación: `docs/README.md`.
+
+---
+
+## 5. Cierre de turno (checklist)
+
+Antes de dar un turno por cerrado, repasar en orden; cada punto enlaza su regla completa:
+
+1. **Evidencia y alcance** (§1.5): lo afirmado no excede lo probado; lo no cubierto queda **«SIN VERIFICAR»**, no «correcto».
+2. **Visión Ollama** (§0 y `DEMO_VISUAL_DEBUG.md` §6.4): si hay demo/efecto/imagen, mirar la salida real con el modelo de visión — para animación, **secuencia**, no una captura suelta.
+3. **Presupuesto y estabilidad** (§3): fps, cadencia sin tirones y flicker medidos; `VALIDATION.md` de la demo actualizado si cambió el render o el coste.
+4. **Versión en pantalla** (§0): la demo muestra nombre + versión + información de depuración (o la ventana de debug de WinUAE).
+5. **Docs en regla**: hallazgos indexados en su README de carpeta y en `DOC-MAP` §3; `node tools/check/doc-index.mjs`, `links.mjs`, `encoding.mjs` y `entrypoints.mjs` en verde (§1.3, §1.4).
+6. **Errores del engine ajenos al hilo**: registrados donde toca (`docs/debugging/`, `ROADMAP_DEUDA_TECNICA.md` o `DOC-MAP`), aunque no se hayan arreglado (§1.3).
+7. **«Próximos pasos recomendados»** (§1.6): 3–5, concretos, ordenados por prioridad.
+8. **Commits** (§1.9): el trabajo del turno **no** se commitea en el mismo turno; al inicio del siguiente se commitea lo revisado.
