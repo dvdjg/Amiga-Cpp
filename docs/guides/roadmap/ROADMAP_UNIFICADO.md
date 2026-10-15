@@ -189,7 +189,7 @@ scratch** (el `detail≈9861` de la 275, ya documentado en su README) y sacarlo 
   1. **Pacing del fondo *Jim Power*** (demo 215, NO VERIFICADA): DATA por línea + ráfaga pura de
      `SPRxPOS`. Con la receta aplicada solo se pintan las últimas columnas (el Copper adelanta
      al haz más de un período). Seguimiento con medidas enviado a Grok
-     (`consulta-jim-power-data-line-pacing-en.md`): coste real del `MOVE` con 4 planos + DMA de
+      (`consultas/consulta-jim-power-data-line-pacing-en.md`): coste real del `MOVE` con 4 planos + DMA de
      sprites (robo de bus), régimen de head-start (¿ir *detrás* del haz?), por qué la copperlist
      real usa `hpos` variable por línea ($1c/$20/$24); fallback: `POS+DATB+DATA` por columna
      (Free Form, 213). **Hallazgo documentado** (`winuae/sprite-dma.md` §Ventana de fetch): el

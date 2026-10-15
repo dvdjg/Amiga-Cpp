@@ -178,7 +178,7 @@ static_assert((eng::hw::amiga500_bus_budget(scene_bus_input()).hints & eng::hw::
 // fusión de fills (no viable, +4,2k slots), tiras de BOBs (shifter arrastra bits). Bitácora:
 // docs/debugging/investigaciones/218-campana-rendimiento.md; plan:
 // docs/guides/roadmap/ROADMAP_218_CAMPO_UNICO.md; consulta a Grok:
-// docs/debugging/investigaciones/consulta-ref-218-1campo-en.md.
+// docs/debugging/investigaciones/consultas/consulta-ref-218-1campo-en.md.
 //
 // Intentos que quedan SIN salirse del algoritmo del original (todos con la misma checklist:
 // un cambio + contadores 0/4/7/8/10 + periodo + visión):

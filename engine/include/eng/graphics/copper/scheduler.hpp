@@ -390,7 +390,7 @@ public:
 		// sprites (AHRM 3.ª cap. 7, Table 7-2 y el ejemplo `MOVE.W #$0024,BPLCON2`;
 		// «sprites have priority over playfields»). En single-playfield el campo que
 		// coloca el playfield es PF2P (bits 5-3; nota de Table 7-2 y consulta Grok en
-		// docs/debugging/investigaciones/consulta-bplcon2-single-playfield-priority-en.md);
+		// docs/debugging/investigaciones/consultas/consulta-bplcon2-single-playfield-priority-en.md);
 		// BPLCON2 no tiene reset documentado, así que se escribe siempre. Escribir
 		// `0x0000` pondría el playfield DELANTE de todos los sprites y estos solo se
 		// verían sobre los píxeles de color 0 del bitmap.

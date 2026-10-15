@@ -30,7 +30,7 @@ Receta de la fuente/Grok: **emit-once** + reparto por frames:
 - 4 copperlists (2 pares con doble buffer) + doble buffer de estructuras DMA; swap en VBlank.
 
 Ver `docs/reference/amiga/techniques/sprite-horizontal-multiplex.md` y la consulta
-`docs/debugging/investigaciones/consulta-freeform-scroll-blitter-en.md`.
+`docs/debugging/investigaciones/consultas/consulta-freeform-scroll-blitter-en.md`.
 
 ## Lanzar
 

@@ -50,7 +50,7 @@ public:
 		/// un canal cuesta 2 `MOVE` (≈16 px lo-res) y el «impar» de un par *attached* debe
 		/// llegar a tiempo o el par pierde los bits altos (cae a 4 colores): mínimo ≈16 px,
 		/// con margen cómodo ≈32–56 px según el número de reposiciones. Ver
-		/// `docs/debugging/investigaciones/consulta-ocs-attached-sprite-multiplexing-en.md`.
+		/// `docs/debugging/investigaciones/consultas/consulta-ocs-attached-sprite-multiplexing-en.md`.
 		u16 head_start = 32u;
 		/// Si `true`, cada canal **impar** del tramo se marca como *attached* (bit 7 de su
 		/// `SPRxCTL`): el par (par, impar) forma un sprite de 15 colores. El rearmado por

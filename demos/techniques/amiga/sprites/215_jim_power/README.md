@@ -66,4 +66,4 @@ bash ./tools/run/run-demo.sh demos/techniques/amiga/sprites/215_jim_power
 - `docs/reference/amiga/techniques/sprite-horizontal-multiplex.md` (pacing, ≥24 px por canal).
 - `demos/techniques/amiga/sprites/208_risky_woods` (banda no-*attached* con `WAIT` por período).
 - `demos/techniques/amiga/sprites/213_spr_layer` (Free Form validado).
-- `docs/debugging/investigaciones/consulta-jim-power-data-line-pacing-en.md` (consulta).
+- `docs/debugging/investigaciones/consultas/consulta-jim-power-data-line-pacing-en.md` (consulta).

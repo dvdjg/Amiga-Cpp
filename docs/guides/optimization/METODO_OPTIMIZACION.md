@@ -3,7 +3,7 @@
 **Lectura obligatoria antes de optimizar cualquier cosa y antes de escribir código nuevo con
 impacto en rendimiento** (es decir, siempre: en esta máquina el coste es parte de la
 especificación). Sintetiza la campaña por fases acordada con una IA externa (consulta en
-[`consulta-estrategia-optimizacion-referencia-en.md`](../../debugging/investigaciones/consulta-estrategia-optimizacion-referencia-en.md))
+[`consulta-estrategia-optimizacion-referencia-en.md`](../../debugging/investigaciones/consultas/consulta-estrategia-optimizacion-referencia-en.md))
 más las lecciones medidas en el repo ([lecciones del port del Blitter](../../debugging/investigaciones/lecciones-porte-blitter-demoscene.md)).
 Complementa a [`OPTIMIZACION_GPP_68000.md`](OPTIMIZACION_GPP_68000.md) (coste por operación y
 técnicas) y a [`METODOLOGIA_PROFILING.md`](METODOLOGIA_PROFILING.md) (pipeline de medida).

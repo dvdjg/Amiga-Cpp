@@ -163,7 +163,7 @@ apagaba. El re-arme de VERTB se conserva dentro de `wait_vblank_run` (variante 2
   `engine/src/platform/amiga/amiga.cpp` (re-arme de VERTB en `wait_vblank_run` y comentario de
   restricción en `install_vblank_service`), `engine/include/eng/platform/amiga/backend.hpp`
   (`set_vblank_sleep`, variante 2).
-- Consultas externas: [`consulta-ks13-trap-vertb-en.md`](consulta-ks13-trap-vertb-en.md) y
-  [`consulta-ks13-trap-vertb-seguimiento-en.md`](consulta-ks13-trap-vertb-seguimiento-en.md) (con
+- Consultas externas: [`consultas/consulta-ks13-trap-vertb-en.md`](consultas/consulta-ks13-trap-vertb-en.md) y
+  [`consultas/consulta-ks13-trap-vertb-seguimiento-en.md`](consultas/consulta-ks13-trap-vertb-seguimiento-en.md) (con
   sus versiones en castellano), con la identificación de las rutinas ROM por dirección.
 - Bug de codegen previo: [`pump-timer-o1-codegen.md`](pump-timer-o1-codegen.md).

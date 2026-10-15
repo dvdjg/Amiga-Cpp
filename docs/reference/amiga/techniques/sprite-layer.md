@@ -79,7 +79,7 @@ playfields», AHRM 3.ª cap. 7) coloca `PF1P`/`PF2P = 100` (playfields **detrás
 cuatro grupos de sprites). **En modo single-playfield el campo que coloca el playfield es
 `PF2P` (bits 5-3)**, no `PF1P` (AHRM, nota de Table 7-2: *«PF2P2-PF2P0 … are the priority
 bits for normal (non-dual) playfields»*; confirmado con Grok, ver
-[`consulta-bplcon2-single-playfield-priority-en.md`](../../debugging/investigaciones/consulta-bplcon2-single-playfield-priority-en.md)).
+[`consulta-bplcon2-single-playfield-priority-en.md`](../../debugging/investigaciones/consultas/consulta-bplcon2-single-playfield-priority-en.md)).
 Ojo con el valor `000`: **invierte** la relación y pone el playfield **delante de todos los
 sprites** (AHRM Table 7-2; los sprites solo se ven sobre los píxeles de color 0 del bitmap);
 el `emit_planes_display` del engine usaba `000` y se corrigió a `$24` — ver

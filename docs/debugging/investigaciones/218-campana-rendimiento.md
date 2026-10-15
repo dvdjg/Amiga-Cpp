@@ -308,7 +308,7 @@ Plan completo: [`ROADMAP_218_CAMPO_UNICO.md`](../../guides/roadmap/ROADMAP_218_C
 
 ### F7 — Cierre de campaña: **suelo estructural confirmado** (consulta a Grok)
 
-Consulta: [`consulta-ref-218-1campo-en.md`](consulta-ref-218-1campo-en.md) (respuesta de Grok
+Consulta: [`consultas/consulta-ref-218-1campo-en.md`](consultas/consulta-ref-218-1campo-en.md) (respuesta de Grok
 incorporada). Síntesis de la respuesta y de la verificación de fidelidad:
 
 - **El modelo queda corregido**: «mismos slots de Blitter ⇒ mismo wall» es falso porque el wall lo

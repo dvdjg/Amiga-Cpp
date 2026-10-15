@@ -1,7 +1,7 @@
 # HOST-244: geometría e invariantes del scroller de tiras (anillo de Copper)
 
 Prueba `eng/field/strip_scroller.hpp` (y la referencia del mismo nombre en
-`docs/debugging/investigaciones/consulta-scroll-optimizacion*.md`): `StripScrollGeometry` (constantes
+`docs/debugging/investigaciones/consultas/consulta-scroll-optimizacion*.md`): `StripScrollGeometry` (constantes
 compile-time) y `plan_strip_frame` (qué tira pintar y qué parchear en Copper, sin re-emitir).
 
 ## Qué comprueba

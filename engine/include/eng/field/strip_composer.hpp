@@ -4,7 +4,7 @@
 /// **Compositor del scroller de tiras** (`StripComposer<Geom>`): emite la copperlist **una vez**
 /// (con handles de las words de `BPLxPT`/`BPLCON1` y del split) y por frame **parchea** solo los
 /// valores de `strip_copper_values` (fine scroll, punteros de la ventana y split), sin re-emitir.
-/// Es el camino de scroll rápido (referencia en `docs/debugging/investigaciones/consulta-scroll-*`).
+/// Es el camino de scroll rápido (referencia en `docs/debugging/investigaciones/consultas/consulta-scroll-*`).
 ///
 /// El llamador posee el anillo; `set_ring(base)` da su dirección (Chip) y `patch(c)` aplica el plan.
 /// `build()` emite en ambos bloques del doble buffer; `install()` publica `COP1LC`.

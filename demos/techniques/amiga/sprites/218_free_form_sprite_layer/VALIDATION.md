@@ -448,7 +448,7 @@ texto rotas ni desplazadas, 9 anillos completos).
 
 Campaña completa en `docs/debugging/investigaciones/218-campana-rendimiento.md` (registro de
 aciertos/fracasos, tabla diferencial, grid DMA, emisión medida) y consulta de cierre respondida en
-`docs/debugging/investigaciones/consulta-ref-218-1campo-en.md`. Conclusión, con números medidos:
+`docs/debugging/investigaciones/consultas/consulta-ref-218-1campo-en.md`. Conclusión, con números medidos:
 
 - El update queda en **~163,5k ciclos = 2 campos estables (25 updates/s)** frente al **1,00 campo
   (142,1k) de la referencia**.

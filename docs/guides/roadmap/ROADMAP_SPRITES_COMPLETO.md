@@ -432,7 +432,7 @@ void rope_resolve_player(Rope<s16>&, s16& feet_x, s16& feet_y, s16& vy, const Ro
 
 **Estado:** demo 215 NO VERIFICADA; pacing abierto (adaptarse a la consulta de seguimiento ya enviada). El hilo de la consulta no aporta la pieza que falta (por qué el Copper se adelanta al haz con 4 planos y por qué la copperlist real usa `hpos` variable por línea).
 
-**Instrucciones:** mantener la investigación (`consulta-jim-power-data-line-pacing-en.md`); al incorporar la respuesta, revisar `../WinUAE-DBG/` (fetch de sprites y robo de bus) y aplicar el protocolo A/B; fallback documentado: `POS+DATB+DATA` por columna (213). No marcar VERIFICADA sin visión + cadencia.
+**Instrucciones:** mantener la investigación (`consultas/consulta-jim-power-data-line-pacing-en.md`); al incorporar la respuesta, revisar `../WinUAE-DBG/` (fetch de sprites y robo de bus) y aplicar el protocolo A/B; fallback documentado: `POS+DATB+DATA` por columna (213). No marcar VERIFICADA sin visión + cadencia.
 
 ### 3.9 Cierre de microtareas de sprites (F4.5)
 

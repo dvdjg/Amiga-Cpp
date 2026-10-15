@@ -113,7 +113,7 @@ biggest effect on my behaviour.
 ## Respuesta de Grok (recibida) — resumen incorporado
 
 La respuesta completa se recibió y se **sintetizó en el documento canónico**
-[METODO_OPTIMIZACION.md](../../guides/optimization/METODO_OPTIMIZACION.md) (fases F0–F5 con
+[METODO_OPTIMIZACION.md](../../../guides/optimization/METODO_OPTIMIZACION.md) (fases F0–F5 con
 gates, tabla de presupuesto diferencial, protocolo A/B con hot-patch y criterio de falsación,
 modelar vs medir, referencia como oráculo, disciplina multi-sesión, checklist y anti-patrones),
 cableado además en AGENTS.md §1.15/§4 y en DOC-MAP-PRINCIPAL.md §3. Puntos clave de la

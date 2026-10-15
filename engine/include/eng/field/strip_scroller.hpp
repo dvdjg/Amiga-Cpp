@@ -2,7 +2,7 @@
 
 /// \file strip_scroller.hpp
 /// **Scroller de tiras** (anillo de Copper + tira entrante) — camino rápido de scroll
-/// (referencia: `docs/debugging/investigaciones/consulta-scroll-optimizacion*.md`; test HOST-244).
+/// (referencia: `docs/debugging/investigaciones/consultas/consulta-scroll-optimizacion*.md`; test HOST-244).
 ///
 /// Geometría compile-time y **planificador por frame**: dado el scroll actual y el previo decide
 /// qué columna/fila entrante hay que pintar (una tira) y los valores de Copper a parchear
