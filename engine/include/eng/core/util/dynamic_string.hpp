@@ -11,10 +11,9 @@
 /// exactamente `size()` bytes y no se pueden pasar como cadena C. Para construir
 /// texto terminado en NUL con capacidad fija, usar `StaticString<N>`.
 ///
-/// El formateo de enteros evita la division (tabla de potencias y restas) para
-/// que, si algun dia se compila en 68000, no arrastre `__udivsi3`; el hex se
-/// resuelve con desplazamientos. No lanza: `append*` devuelve `false` si el
-/// asignador no puede crecer.
+/// El decimal lo compone el núcleo de `text.hpp` (`to_chars_scaled`: tabla de potencias
+/// y restas, sin `*`/`/` de 32 bits), y el hex se resuelve con desplazamientos. No lanza:
+/// `append*` devuelve `false` si el asignador no puede crecer.
 ///
 /// Uso:
 ///   eng::util::DynamicString<eng::util::HeapAlloc> out; // incluir heap_alloc.hpp (solo host)
@@ -23,7 +22,9 @@
 
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/allocator.hpp>
+#include <eng/core/util/static_string.hpp>
 #include <eng/core/util/string_view.hpp>
+#include <eng/core/util/text.hpp>
 #include <eng/core/util/vector.hpp>
 
 namespace eng::util {
@@ -101,32 +102,19 @@ public:
 		return true;
 	}
 
-	/// Anade `value` en decimal (sin division), con relleno a la izquierda
-	/// opcional hasta `min_width`.
+	/// Anade `value` en decimal (núcleo compartido de `text.hpp`), con relleno a la
+	/// izquierda opcional hasta `min_width`.
 	bool append_u32(u32 value, usize min_width = 0u, char pad = ' ') noexcept {
-		constexpr u32 kPow10[10] = {1u,       10u,      100u,      1000u,     10000u,
-					    100000u,  1000000u, 10000000u, 100000000u, 1000000000u};
-		int hi = 9;
-		while (hi > 0 && value < kPow10[hi]) {
-			--hi;
+		StaticString<11> digits; // 10 dígitos + terminador
+		if (!to_chars_scaled(digits, value, 0u)) {
+			return false;
 		}
-		const usize digits = static_cast<usize>(hi + 1);
-		for (usize i = digits; i < min_width; ++i) {
+		for (usize i = digits.size(); i < min_width; ++i) {
 			if (!append(pad)) {
 				return false;
 			}
 		}
-		for (int i = hi; i >= 0; --i) {
-			u8 d = 0u;
-			while (value >= kPow10[i]) {
-				value -= kPow10[i];
-				++d;
-			}
-			if (!append(static_cast<char>('0' + d))) {
-				return false;
-			}
-		}
-		return true;
+		return append(digits.view());
 	}
 
 	/// Anade `value` con signo en decimal.

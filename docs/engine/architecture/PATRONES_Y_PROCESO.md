@@ -36,7 +36,7 @@ Los **puntos de extensión** del engine, todos declarados en `eng/core/math/scal
 | `numeric_traits<S>` | límites, promoción | `fixed.hpp`, `minifloat.hpp` |
 | `scalar_div<S>` | división explícita (el núcleo prohíbe `/`) | saturante en fixed retro |
 | `scalar_const<S>` | constantes decimales → escalar | `from(0.5)` |
-| `scalar_decimal<S>` | decimal de texto: valor como entero ×10^k y su cuantización inversa | `fixed.hpp` (`to_chars`/`parse` con `Fixed`) |
+| `scalar_decimal<S>` | decimal de texto: valor como entero ×10^k y su cuantización inversa | `fixed.hpp`, `minifloat.hpp` (`to_chars`/`parse`) |
 | `noise_traits<S>` | ruido | `minifloat_math.hpp` |
 | `scalar_sin/cos/sqrt/…<S>` | funciones matemáticas | `fixed_math.hpp`, `minifloat_math.hpp` |
 | `mesh_traits<S>` | culling y clave de profundidad de una malla | `retro/fixed_mesh.hpp` |

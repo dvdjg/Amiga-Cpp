@@ -65,6 +65,32 @@ int main() {
 		check(text.view() == eu::StringView("abc"), "fallo deja el texto intacto");
 	}
 
+	// Formateo: decimal por el núcleo de `text.hpp` (sin `*`/`/`) y hex por desplazamientos.
+	{
+		alignas(16) eng::u8 storage[128] {};
+		eu::BumpAlloc alloc {eng::Span<eng::u8> {storage, sizeof(storage)}};
+		eu::DynamicString<eu::BumpAlloc> text {alloc};
+
+		check(text.append_u32(0u) && text.view() == eu::StringView("0"), "u32 0");
+		text.clear();
+		check(text.append_u32(4294967295u) && text.view() == eu::StringView("4294967295"),
+		      "u32 max");
+		text.clear();
+		check(text.append_u32(42u, 5u, '0') && text.view() == eu::StringView("00042"),
+		      "u32 con relleno a 5");
+		text.clear();
+		check(text.append_s32(-7) && text.view() == eu::StringView("-7"), "s32 -7");
+		text.clear();
+		check(text.append_s32(-2147483647 - 1) &&
+			      text.view() == eu::StringView("-2147483648"),
+		      "s32 min");
+		text.clear();
+		check(text.append_hex(0x2Au, 2u) && text.view() == eu::StringView("2a"), "hex 2a");
+		text.clear();
+		check(text.append_hex(0xF0u, 4u, true) && text.view() == eu::StringView("00F0"),
+		      "hex con relleno y mayúsculas");
+	}
+
 	if (g_fail != 0u) {
 		std::printf("FALLOS: %u\n", g_fail);
 		return 1;

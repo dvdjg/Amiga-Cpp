@@ -18,7 +18,7 @@ Categoría `core` de la batería host (L1). El índice de categorías está en [
 | HOST-052 | [math_generic_scalar](052_math_generic_scalar/README.md) | La librería es agnóstica del escalar: 4.12, 8.8, `float` y un complejo de usuario. |
 | HOST-054 | [light_ops](054_light_ops/README.md) | Sombreado por cara `eng::math::light_ops` e `hi16` contra referencia sin signo. |
 | HOST-055 | [inverse_rigid](055_inverse_rigid/README.md) | `math3d::inverse_rigid`: inversa de una transformación rígida (`mT`, `-mT·t`) contra la identidad. |
-| HOST-056 | [minifloat16](056_minifloat16/README.md) | `eng::math::MiniFloat16` (`eng/core/math/minifloat.hpp`): formato 1\|5\|10, conversiones, aritmética y matrices 2x2/3x3/4x4 contra `float`. |
+| HOST-056 | [minifloat16](056_minifloat16/README.md) | `eng::math::MiniFloat16` (`eng/core/math/minifloat.hpp`): formato 1\|5\|10, conversiones, aritmética y matrices 2x2/3x3/4x4 contra `float`, y decimal de texto (`scalar_decimal`, sin `float`). |
 | HOST-057 | [minifloat16_math](057_minifloat16_math/README.md) | `eng/core/math/minifloat_math.hpp`: `sqrt`/`exp`/`exp2`/`log`/`log2`/`log10`/`pow` (entero exacto)/`hypot` y trigonometría/`atan2` de `MiniFloat16` (16-bit, sin float ni libgcc) contra `std::`, más identidades de composición. |
 | HOST-058 | [minifloat_fixed](058_minifloat_fixed/README.md) | `eng/retro/minifloat_fixed.hpp`: puente `MiniFloat16` ↔ `fix`/`fix88` (conversiones saturadas, producto mixto y `transform` de coordenadas fijas con matriz MF). |
 | HOST-059 | [scalar_math](059_scalar_math/README.md) | Base escalar-independiente: `numeric_traits` + guards de compilación (`range_fits`/`require_division`), `interp.hpp` y `geometry.hpp` genéricos sobre `double`, `MiniFloat16` y `q12` (fixed). |

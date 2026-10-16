@@ -9,9 +9,12 @@ soft-float de `libgcc`: en un 68000 `float` se emula con `__addsf3`/`__mulsf3`/
 en un registro de datos y usa aritmética de 16 bits nativa y tablas.
 
 Es, además, un escalar de primera clase para la librería genérica de álgebra lineal:
-`scalar_traits<MiniFloat16>` está especializado en `eng/core/math/linalg.hpp`, así que
+`scalar_traits<MiniFloat16>` está especializado en `eng/core/math/minifloat.hpp`, así que
 `Vec<N>`, `Mat<N>` y `Affine<N>` funcionan con **el mismo código** que `float` o que el
-fixed-point `Fixed<...>`.
+fixed-point `Fixed<...>`. Para texto/HUD, `scalar_decimal<MiniFloat16>` (misma cabecera)
+lo convierte a/desde decimal (`eng/core/util/text.hpp`) **sin `float`** en el camino:
+por bits, con `divs.w`/`mulu16` y las mismas reglas de borde que su aritmética
+(`mf16_pack`); fuera del rango finito satura a ∞.
 
 ## 1. Formato
 

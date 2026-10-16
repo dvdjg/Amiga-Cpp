@@ -98,7 +98,7 @@
   0     6  engine/include/eng/core/math/light.hpp
   0    10  engine/include/eng/core/math/linalg.hpp
   0    49  engine/include/eng/core/math/minifloat_math.hpp
-  0   105  engine/include/eng/core/math/minifloat.hpp
+  0   123  engine/include/eng/core/math/minifloat.hpp
   0    21  engine/include/eng/core/math/noise.hpp
   0     1  engine/include/eng/core/math/numeric_traits.hpp
   0     9  engine/include/eng/core/math/random.hpp

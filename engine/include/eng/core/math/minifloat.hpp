@@ -48,8 +48,8 @@
 /// **Estado de verificación: verificada por demo** — la demo
 /// `demos/techniques/amiga/effects/083_fbm_noise` construye un mapa de altura con `fbm2<MiniFloat16>` en
 /// hardware (build/run/analyze OK) y ejercita la aritmética, `from_int` y las
-/// comparaciones. Ampliada por los tests host `tests/host/core/056_minifloat16` (aritmética
-/// y matrices), `057` (matemáticas), `058` (puente con fixed) y `060` (ruido). Las
+/// comparaciones. Ampliada por los tests host `tests/host/core/056_minifloat16` (aritmética,
+/// matrices y decimal de texto), `057` (matemáticas), `058` (puente con fixed) y `060` (ruido). Las
 /// funciones de `minifloat_math.hpp` siguen sin demo propia.
 
 #include <eng/core/math/arith.hpp>
@@ -194,10 +194,13 @@ inline constexpr eng::ct_array<eng::u16, 1024> mf16_rcp {[](eng::usize i) -> eng
 }
 
 /// Posición del bit más alto de `v` (0..31) por tabla de bytes (`mf16_clz8`), sin bucle.
-/// Lo usa `mul_add`: sustituye un `while` de hasta 22 iteraciones por 3 comparaciones +
-/// 1 lookup (el bucle dominaba el coste de `Mat*Mat`).
+/// Lo usa `mul_add` (sustituye un `while` de hasta 22 iteraciones por 3 comparaciones +
+/// 1 lookup, el bucle dominaba el coste de `Mat*Mat`) y el decimal de texto. Selecciona
+/// el byte NO NULO más alto y mira sus bits ahí: cubre los 32 bits (el byte `v>>24` no
+/// necesita máscara; en los demás, el `& 0xFF` descarta los bytes altos ya comprobados).
 [[nodiscard]] constexpr int msb_u32(eng::u32 v) {
 	if (v == 0u) return -1;
+	if ((v >> 24) != 0u) return 24 + (7 - static_cast<int>(mf16_clz8[v >> 24]));
 	if ((v >> 16) != 0u) return 16 + (7 - static_cast<int>(mf16_clz8[(v >> 16) & 0xFFu]));
 	if ((v >> 8) != 0u) return 8 + (7 - static_cast<int>(mf16_clz8[(v >> 8) & 0xFFu]));
 	return 7 - static_cast<int>(mf16_clz8[v & 0xFFu]);
@@ -586,6 +589,135 @@ struct scalar_traits<MiniFloat16> {
 template <>
 struct scalar_const<MiniFloat16> {
 	static constexpr MiniFloat16 from(double v) { return MiniFloat16(static_cast<float>(v)); }
+};
+
+/// Conversión decimal de texto del `MiniFloat16` (contrato `scalar_decimal<S>`,
+/// `scalar_fwd.hpp`): `scaled` da `x·10^k` como entero y `from_scaled` cuantiza al
+/// `MiniFloat16` más cercano, todo **por bits y sin `float`** (en 68000 un `float`
+/// arrastraría libgcc) y sin divisiones de 32×32: solo `divs.w` con cociente ≤ 2048,
+/// `mulu16` y desplazamientos. Redondeo al más cercano, como el resto del escalar; un
+/// valor fuera del rango finito satura a ∞ (es la semántica del tipo, la misma que su
+/// aritmética), no falla.
+template <>
+struct scalar_decimal<MiniFloat16> {
+	using S = MiniFloat16;
+
+	/// `m·10^k` (k ≤ 4) con la constante plegada por caso: sin multiplicación de runtime.
+	[[nodiscard]] static constexpr eng::u32 mul_pow10(eng::u32 m, eng::u8 k) noexcept {
+		switch (k) {
+		case 0u: return m;
+		case 1u: return m * 10u;
+		case 2u: return m * 100u;
+		case 3u: return m * 1000u;
+		default: return m * 10000u;
+		}
+	}
+
+	/// `10^k` (k ≤ 4): denominador del valor escalado.
+	[[nodiscard]] static constexpr eng::u32 pow10(eng::u8 k) noexcept {
+		switch (k) {
+		case 0u: return 1u;
+		case 1u: return 10u;
+		case 2u: return 100u;
+		case 3u: return 1000u;
+		default: return 10000u;
+		}
+	}
+
+	/// `5^k` (k ≤ 4): divisor de la fase de mantisa (cabe en `s16`: 625).
+	[[nodiscard]] static constexpr eng::u32 pow5(eng::u8 k) noexcept {
+		switch (k) {
+		case 0u: return 1u;
+		case 1u: return 5u;
+		case 2u: return 25u;
+		case 3u: return 125u;
+		default: return 625u;
+		}
+	}
+
+	/// `x·10^k` como entero con signo: `x = ±(1.mantisa)·2^(e-25)` → magnitud
+	/// `(0x400|mantisa)·10^k·2^(e-25)`, redondeando al más cercano al bajar de exponente.
+	/// Un valor que redondea a 0 se escribe sin signo (el entero escalado no tiene «cero
+	/// negativo»); ∞ satura al máximo del contrato (`s32`).
+	static constexpr eng::s32 scaled(S x, eng::u8 k) noexcept {
+		const eng::u16 body = static_cast<eng::u16>(x.raw & 0x7FFFu);
+		if (body == 0u) {
+			return 0;
+		}
+		const bool neg = (x.raw & MiniFloat16::sign_mask) != 0u;
+		if (body >= MiniFloat16::exp_mask) { // ∞: satura (el tipo no tiene más)
+			return neg ? (-0x7fffffff - 1) : 0x7fffffff;
+		}
+		const eng::u32 q =
+			mul_pow10(0x400u | static_cast<eng::u32>(x.raw & MiniFloat16::man_mask), k);
+		const int shift = static_cast<int>((x.raw >> 10) & 31) - 25;
+		eng::u32 mag = q;
+		if (shift > 0) {
+			mag = q << shift; // ≤ 65504·10^4 (< 2^31)
+		} else if (shift < 0) {
+			mag = (q + (1u << (-shift - 1))) >> (-shift); // redondeo al más cercano
+		}
+		const eng::s32 s = static_cast<eng::s32>(mag);
+		return neg ? -s : s;
+	}
+
+	/// Inversa: `q·10^-k` al `MiniFloat16` más cercano. El empaquetado y los bordes
+	/// (mínimo normal, cero, ∞) los resuelve `detail::mf16_pack`, el mismo de la
+	/// aritmética del escalar: una sola fuente para las reglas del formato.
+	static constexpr bool from_scaled(eng::s32 q, eng::u8 k, S& out) noexcept {
+		if (q == 0) {
+			out = MiniFloat16::zero();
+			return true;
+		}
+		const eng::u16 sign = static_cast<eng::u16>(q < 0 ? MiniFloat16::sign_mask : 0u);
+		const eng::u32 a =
+			q < 0 ? (static_cast<eng::u32>(-(q + 1)) + 1u) : static_cast<eng::u32>(q);
+		const eng::u32 den = pow10(k);
+		const eng::u32 five = pow5(k);
+		// |valor| > máximo finito → ∞ (redondeo por saturación del formato).
+		if (a > mul_pow10(65504u, k)) {
+			out = MiniFloat16::from_raw(static_cast<eng::u16>(sign | MiniFloat16::exp_mask));
+			return true;
+		}
+		// Exponente exacto: `valor ∈ [2^(e-bias), 2^(e-bias+1))` con `e0 = floor(log2)`
+		// (una corrección sobre `msb(a) - msb(den)`; los desplazamientos no desbordan
+		// porque `den·2^e0 ≤ 2·a` y `a·2^-e0 ≤ 2·den`).
+		int e0 = detail::msb_u32(a) - detail::msb_u32(den);
+		if (e0 >= 0) {
+			if (a < (den << e0)) {
+				--e0;
+			}
+		} else {
+			if ((a << (-e0)) < den) {
+				--e0;
+			}
+		}
+		const int e = e0 + MiniFloat16::bias;
+		// Mantisa `m = round(valor·2^(25-e))` con una `divs.w` (cociente ≤ 2048):
+		//   valor·2^(25-e) = a·2^(25-e-k)/5^k          (e ≤ 25)
+		//                  = (a/2^t)/5^k, t = k+e-25   (e > 25)
+		eng::u32 m;
+		if (e <= 25) {
+			const int u = 25 - e - k; // ≥ -4
+			const eng::u32 num = u >= 0 ? (a << u) : a;
+			const eng::u32 div = u >= 0 ? five : (five << (-u));
+			m = static_cast<eng::u32>(arith<eng::s16>::div(
+				static_cast<eng::s32>(num + (div >> 1)), static_cast<eng::s16>(div)));
+		} else {
+			const int t = k + e - 25; // ≥ 1
+			const eng::u32 hi = a >> t;
+			const eng::u32 low = a & ((1u << t) - 1u);
+			const eng::u32 q2 = static_cast<eng::u32>(arith<eng::s16>::div(
+				static_cast<eng::s32>(hi), static_cast<eng::s16>(five)));
+			const eng::u32 r2 =
+				hi - mulu16(static_cast<eng::u16>(q2), static_cast<eng::u16>(five));
+			// Redondeo exacto: el resto del cociente y los bits bajos desplazados deciden
+			// el medio ulp (`2·(r2·2^t + low) ≥ 5^k·2^t`).
+			m = q2 + ((2u * (r2 << t) + 2u * low) >= (five << t) ? 1u : 0u);
+		}
+		out = detail::mf16_pack(sign, e, static_cast<eng::u16>(m));
+		return true;
+	}
 };
 
 } // namespace eng::math

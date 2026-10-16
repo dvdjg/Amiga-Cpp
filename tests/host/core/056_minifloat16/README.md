@@ -19,6 +19,12 @@ Fija el formato, las conversiones y la aritmética del escalar de 16 bits `MiniF
   afines (`transform`/`compose`). Otra vez contra `float` con entradas idénticas.
 - **500 matrices 3x3 aleatorias** (LCG determinista) para barrer muchos casos.
 - **Rasgos** `scalar_traits<MiniFloat16>` (`zero`/`one`/`from_int`/`to_int`).
+- **Texto decimal** (`scalar_decimal<MiniFloat16>`, sin `float` en el camino): `scaled`
+  contra el oráculo `llround(x·10^k)` sobre exponentes 1..30 × 5 mantisas × signos;
+  forma textual (casos literales, ∞ satura), `parse` contra el constructor `float`
+  (oráculo independiente) y round-trip a 4 decimales dentro de medio ulp + cuantización;
+  además fija `detail::msb_u32` en los 32 bits (lo usa `from_scaled` y lo usaba `mul_add`
+  con valores < 2^24).
 
 ## Cómo se mide el error (importante)
 

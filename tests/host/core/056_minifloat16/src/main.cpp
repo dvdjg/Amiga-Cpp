@@ -28,6 +28,7 @@
 
 #include <eng/core/math/linalg.hpp>
 #include <eng/core/math/minifloat.hpp>
+#include <eng/core/util/text.hpp>
 
 using eng::math::MiniFloat16;
 namespace m = eng::math;
@@ -526,6 +527,131 @@ void test_scalar_traits() {
 	check(T::needs_normalize == false, "no necesita normalizar");
 }
 
+// ---------------------------------------------------------------------------
+//  6. Texto decimal (`scalar_decimal<MiniFloat16>`), sin float en el camino
+// ---------------------------------------------------------------------------
+
+void test_text_decimal() {
+	using T = m::scalar_decimal<MiniFloat16>;
+	namespace eu = eng::util;
+	// Mantisas representativas del barrido: 1.0, la menor, dos intermedias y la máxima.
+	constexpr int kMants[5] = {0, 1, 341, 682, 1023};
+
+	// `msb_u32` (tabla por bytes) cubre los 32 bits: `from_scaled` le pasa valores > 2^24.
+	check(m::detail::msb_u32(0u) == -1 && m::detail::msb_u32(1u) == 0 &&
+		      m::detail::msb_u32(0x00800000u) == 23 && m::detail::msb_u32(0x01000000u) == 24 &&
+		      m::detail::msb_u32(0x7fffffffu) == 30 && m::detail::msb_u32(0xffffffffu) == 31,
+	      "msb_u32 cubre los 32 bits");
+
+	// `scaled` contra el oráculo `llround(x·10^k)` (mismo redondeo: al más cercano,
+	// medio hacia fuera) sobre todo el abanico de exponentes y mantisas representativas.
+	{
+		bool scaled_ok = true;
+		for (int re = 1; re <= 30 && scaled_ok; ++re) {
+			for (int mant : kMants) {
+				for (int sgn = 0; sgn < 2 && scaled_ok; ++sgn) {
+					const eng::u16 raw = static_cast<eng::u16>(
+						(sgn != 0 ? 0x8000u : 0u) |
+						(static_cast<eng::u16>(re) << 10) | static_cast<eng::u16>(mant));
+					const MiniFloat16 x = MiniFloat16::from_raw(raw);
+					const double xd = static_cast<double>(static_cast<float>(x));
+					for (eng::u8 k = 0u; k <= 4u; ++k) {
+						long long p = 1;
+						for (eng::u8 i = 0u; i < k; ++i) p *= 10;
+						const eng::s32 want = static_cast<eng::s32>(
+							std::llround(xd * static_cast<double>(p)));
+						if (T::scaled(x, k) != want) {
+							scaled_ok = false;
+							std::printf("[FAIL] scaled raw=%04x k=%u got=%d want=%d\n", raw,
+								    static_cast<unsigned>(k), T::scaled(x, k),
+								    static_cast<int>(want));
+							break;
+						}
+					}
+				}
+			}
+		}
+		check(scaled_ok, "scaled == llround(x·10^k) en el barrido (e=1..30, 5 mantisas, signos)");
+	}
+
+	// Forma textual: casos literales (el oráculo del escalado ya validó los dígitos).
+	{
+		eu::StaticString<16> s;
+		check(eu::to_chars(s, MiniFloat16(1.0f), 2u) && s.view() == eu::StringView("1.00"),
+		      "to_chars 1.0 k=2");
+		s.clear();
+		check(eu::to_chars(s, MiniFloat16(-2.5f), 2u) && s.view() == eu::StringView("-2.50"),
+		      "to_chars -2.5 k=2");
+		s.clear();
+		check(eu::to_chars(s, MiniFloat16(65504.0f), 0u) && s.view() == eu::StringView("65504"),
+		      "to_chars max finito");
+		s.clear();
+		check(eu::to_chars(s, MiniFloat16(0.1f), 2u) && s.view() == eu::StringView("0.10"),
+		      "to_chars 0.1 (MF ~0.09998) k=2");
+		s.clear();
+		check(eu::to_chars(s, MiniFloat16(6.103515625e-5f), 4u) &&
+			      s.view() == eu::StringView("0.0001"),
+		      "to_chars 2^-14 k=4");
+		s.clear();
+		check(eu::to_chars(s, MiniFloat16::from_raw(0x8000u), 2u) &&
+			      s.view() == eu::StringView("0.00"),
+		      "to_chars -0 k=2");
+		s.clear();
+		check(eu::to_chars(s, MiniFloat16::from_raw(0x7C00u), 0u) &&
+			      s.view() == eu::StringView("2147483647"),
+		      "to_chars ∞ satura");
+	}
+
+	// `parse`: cuantización por bits contra el constructor `float` (oráculo independiente)
+	// y la saturación a ∞ fuera del rango finito.
+	{
+		MiniFloat16 v {};
+		check(eu::parse(eu::StringView("1.5"), v, 2u) && v.raw == 0x3E00u,
+		      "parse 1.5 -> 0x3E00");
+		check(eu::parse(eu::StringView("65504"), v, 0u) && v.raw == 0x7BFFu,
+		      "parse 65504 = max finito");
+		check(eu::parse(eu::StringView("65505"), v, 0u) && v.is_inf(),
+		      "parse 65505 -> inf (saturación del formato)");
+		check(eu::parse(eu::StringView("0.1"), v, 1u) && v.raw == 0x2E66u,
+		      "parse 0.1 -> 0x2E66");
+		check(eu::parse(eu::StringView("-0.001"), v, 3u) &&
+			      v.raw == static_cast<eng::u16>(0x8000u | 0x1419u),
+		      "parse -0.001 -> 0x9419");
+	}
+
+	// Round-trip a 4 decimales: |back - x| ≤ medio ulp + la cuantización decimal (5e-5).
+	{
+		bool ok = true;
+		for (int re = 1; re <= 30 && ok; ++re) {
+			for (int mant : kMants) {
+				for (int sgn = 0; sgn < 2 && ok; ++sgn) {
+					const eng::u16 raw = static_cast<eng::u16>(
+						(sgn != 0 ? 0x8000u : 0u) |
+						(static_cast<eng::u16>(re) << 10) | static_cast<eng::u16>(mant));
+					const MiniFloat16 x = MiniFloat16::from_raw(raw);
+					eu::StaticString<16> t;
+					MiniFloat16 back {};
+					if (!eu::to_chars(t, x, 4u) || !eu::parse(t.view(), back, 4u)) {
+						ok = false;
+						break;
+					}
+					const double diff =
+						std::fabs(static_cast<double>(static_cast<float>(back)) -
+							  static_cast<double>(static_cast<float>(x)));
+					const double ulp = std::ldexp(1.0, re - 25); // 2^(e-25)
+					if (diff > 0.5 * ulp + 5.0e-5 + 1.0e-9) {
+						ok = false;
+						std::printf("[FAIL] round-trip raw=%04x diff=%.3e ulp=%.3e\n", raw,
+							    diff, ulp);
+						break;
+					}
+				}
+			}
+		}
+		check(ok, "round-trip k=4 dentro de medio ulp + cuantización decimal");
+	}
+}
+
 } // namespace
 
 int main() {
@@ -536,6 +662,7 @@ int main() {
 	test_matrices();
 	test_random_matrices();
 	test_scalar_traits();
+	test_text_decimal();
 
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);

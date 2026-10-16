@@ -101,7 +101,7 @@ escriben solo con ellos, y añadir un escalar = especializarlos.
 | `scalar_sin/cos/sincos/tan/asin/acos/atan2<S>::op` | trigonometría (easings, rotación, apuntado) | ADL (`MiniFloat16`); `sincos`/`atan2` con serie `constexpr` para `float`/`double` | con `fixed_math.hpp` (tablas); sin él, no compila |
 | `scalar_exp2/log2/exp/log/pow<S>::op` | exponencial/log (`smooth_damp`, `pow`) | ADL (`MiniFloat16`) | con `fixed_math.hpp` (tablas); sin él, no compila |
 | `scalar_const<S>::from(double)` | constante fraccionaria de compilación (p. ej. `1.70158` del `_back`) | `static_cast<S>` | cuantiza a `E` bits fraccionarios |
-| `scalar_decimal<S>` | decimal de **texto** (`eng/core/util/text.hpp`: `to_chars(out, x, k)` / `parse(text, x, k)`, k ≤ 4) | — | `scaled` = `(x·10^k)>>E` con redondeo; inversa `(q·2^E)/10^k` con `divs.w` |
+| `scalar_decimal<S>` | decimal de **texto** (`eng/core/util/text.hpp`: `to_chars(out, x, k)` / `parse(text, x, k)`, k ≤ 4) | — | `scaled` = `(x·10^k)>>E` con redondeo; inversa `(q·2^E)/10^k` con `divs.w` (`MiniFloat16`: por bits, `mf16_pack` y `mulu16`) |
 
 La trigonometría/exponencial de `Fixed` es **opt-in**: vive en `eng/core/math/fixed_math.hpp` (no la arrastra `scalar_math.hpp`) y se incluye solo donde se usa, con el tamaño de tabla elegible en compilación.
 
