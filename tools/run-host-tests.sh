@@ -182,6 +182,15 @@ if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 			exit 1
 		fi
 	fi
+	# Documentacion de demo: INTENT.md + VISION.md (evaluacion con prompt canonico sin pistas).
+	DEMO_DOCS_CHECK="$ROOT/tools/check/demo-docs.mjs"
+	if [ -f "$DEMO_DOCS_CHECK" ] && command -v node >/dev/null 2>&1; then
+		echo "== demo-docs =="
+		if ! node "$DEMO_DOCS_CHECK"; then
+			echo "demo-docs fallo: demo sin INTENT.md/VISION.md (prompt canonico)." >&2
+			exit 1
+		fi
+	fi
 	MATH_DIAG="$ROOT/tools/check/math-diagnostics.sh"
 	if [ -f "$MATH_DIAG" ]; then
 		echo "== math-diagnostics =="

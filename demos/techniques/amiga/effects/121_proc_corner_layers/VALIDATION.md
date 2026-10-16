@@ -88,6 +88,13 @@ Captura del render congelado (actor estático en campo abierto, `vision-run` sob
   sin defectos. La **intermitencia del plano 0** al mezclar copias + racha cookie-cut en el
   mismo plan (DT-022) está **mitigada** (planes separados + reintento + strikes) y quedó
   documentada con evidencia en `docs/debugging/investigaciones/121-actor-plano-0-y-carencias-blits.md`.
+- **Evaluación de visión canónica** (`src/VISION.md`, prompt sin pistas): sobre una secuencia real
+  de la demo, el modelo describe el mundo correctamente (río/camino/puente/agua/casas/árboles/castillo y el
+  HUD «PROC STRUCTURES v… F n» / «X-LIMITED 20x13 PIECES») pero **no identifica al actor ni cambios de
+  escena aparte del contador** en esos frames. Consecuencia del procedimiento: la demo **NO queda verificada
+  visualmente** hasta cerrar los hallazgos de posición/captura del actor (ver INTENT.md §Estado y el informe
+  121). La evaluación NO se retoca a mano: se re-ejecuta `tools/analyze/vision-final.mjs` cuando el render
+  esté corregido.
 - **A/B del sistema de actores** (`K121_ACTOR_SYSTEM`, DT-024.3): el actor por `ActorStore` + `Animation` +
   `SaveUnder` + pack con guarda sobre el puente del anillo — **3/3 arranques limpios** con la guarda viva,
   **47,87 fps / 148,2k ciclos** y captura estática determinista con los **552 px del cuerpo exactos**. El camino
