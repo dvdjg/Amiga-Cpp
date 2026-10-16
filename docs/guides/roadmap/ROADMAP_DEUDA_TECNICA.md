@@ -364,6 +364,8 @@ En `tools/run/run-demo.ts`: (a) `--sequence-step-frames` pausa en el `ready-prob
 
 ## DT-024 · Migración de la demo 121 al sistema de actores (cierre de §14.8)
 
+**Estado (2026-10-16)**: puntos 1 y 2 **HECHOS**: `pack_interleaved_pair` (`blit_job.hpp`) cocina la hoja interleaved con guarda (subpíxeles 0..15 exactos en ambas mitades del byte, HOST-453) y el save-under del actor ya soporta destinos interleaved (guard levantado en `actor_store.hpp`; restauración byte a byte verificada sobre el anillo, HOST-453). Queda el punto 3: migrar la demo 121 y adaptar su chequeo/golden.
+
 El puente actor ↔ anillo corkscrew ya existe (`engine/include/eng/field/actor_target.hpp`, HOST-453) y `bob_draw` aplica el subpíxel con el barrel (`source_shift = x & 15`, una hoja por arte). Falta para migrar la 121 (`ActorStore` + `Animation` + `actor_emit` sobre el anillo):
 
 1. **Pack interleaved con guarda de 2 palabras**: la hoja pair debe ser `[img w0][img w1=0][mask w0][mask w1=0]` por fila y plano del destino; con 1 palabra por fila el shift arrastra bits de la máscara (en el blitter real AFWM gana sobre ALWM cuando solo hay una palabra; el test HOST-453 lo fija como borde). Documentar la receta en `OBJECT_SYSTEM.md` al migrar.

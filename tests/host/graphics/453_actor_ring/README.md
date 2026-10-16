@@ -10,21 +10,18 @@ reimplementar la fontanería de bandas/máscaras).
   (`row_bytes` = bytes por fila y plano, `height` = `display_height`, layout
   interleaved, base = asignación completa).
 - **Contrato del anillo**: `actor_ring_y` (visible → línea del anillo con
-  `display_offset`) y `actor_fits_ring` (el rect debe caber en el bucle **sin cruzar la
-  costura**; el emisor de actores aún no parte el rect — el de mundo sí).
-- **Emisión completa** (`scene::actor_emit` sobre el anillo): el rect sale en líneas del
-  anillo, el job cookie-cut interleaved va con la **hoja pack** ([imagen][máscara] por
-  fila y **plano del destino**), el destino cae en la línea del anillo correcta
-  (`(ring_y·planos + 0)·row_bytes`) y la ejecución software (modelo interleaved =
-  corkscrew) pinta los **píxeles exactos** con la transparencia de la máscara.
-- **Hallazgos de contrato que el test fija** (documentados también en el header):
-  - el `ActorEmitContext.clip` compara contra el rect **en coordenadas del anillo**
-    (con `offset.y = display_offset` el clip debe cubrir el bucle, no solo la ventana);
-  - en destinos interleaved, `bob_draw` exige `BobMaskPack::InterleavedPair` (el pack
-    suelto se rechaza — dispatch documentado en `bob.hpp`);
-  - los píxeles que el barrel arrastraría del byte bajo dependen de la palabra siguiente
-    del pack (guarda); este test cubre el byte alto exacto y ese borde lo cubren
-    HOST-439/450.
+  `display_offset`) y `actor_fits_ring` (el rect debe caber sin cruzar la costura;
+  el emisor de actores aún no parte el rect — el de mundo sí).
+- **Los 16 subpíxeles EXACTOS sobre el anillo** con el pack interleaved **con guarda**
+  (`pack_interleaved_pair`, `blit_job.hpp`): por fila y plano del destino,
+  `[imagen][guarda][máscara][guarda]`; la guarda a cero neutraliza el arrastre del
+  barrel y queda transparente. Verificado píxel a píxel en **ambas mitades del byte**.
+- **SaveUnder sobre el anillo**: el actor se mueve 16 veces y cada restauración devuelve
+  el fondo **byte a byte** (el anillo queda limpio fuera de la caja actual); es el gap
+  que bloqueaba la migración de la 121 (guard planar del actor, levantado).
+- **Hallazgos de contrato que el test fija** (también en el header): el
+  `ActorEmitContext.clip` compara contra el rect **en coordenadas del anillo**;
+  en destinos interleaved `bob_draw` exige `BobMaskPack::InterleavedPair`.
 
 ## Ejecución
 
@@ -34,6 +31,6 @@ bash tools/run-host-tests.sh tests/host/graphics/453_actor_ring
 
 ## Estado
 
-El puente queda validado en host; la **migración de la demo 121** a `ActorStore` +
-`Animation` sobre este puente es el paso que cierra `OBJECT_SYSTEM.md` §14.8 (demo con
-gate visual del sistema de actores).
+El puente y los dos gaps de motor (pack con guarda, save-under interleaved) quedan
+validados en host; la **migración de la demo 121** a `ActorStore` + `Animation` sobre
+este puente es el paso que cierra `OBJECT_SYSTEM.md` §14.8 (DT-024.3).

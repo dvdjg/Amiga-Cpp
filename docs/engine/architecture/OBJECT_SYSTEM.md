@@ -60,7 +60,7 @@ La separación de capas es la misma que en `VISUAL_EFFECT_SPRITE_DESIGN.md` §2:
 | **Puente actor ↔ anillo corkscrew** (`make_actor_target`, `actor_ring_y`, `actor_fits_ring`; clip en líneas del anillo, pack interleaved obligatorio) | EXISTE | `engine/include/eng/field/actor_target.hpp` (HOST-453) |
 | Recorte parcial del objeto a la ventana | PROPUESTO | el emisor rechaza el objeto que no cabe entero (hace falta máscara de fin de línea) |
 | Resolución de conflictos de Copper por `(superficie, z)` | EXISTE | `copper::Plan::add_prioritized` (orden ascendente por prioridad dentro de cada línea: la última escritura manda) |
-| Política de save-under por buffer | EXISTE | `emit_save`/`emit_restore` por buffer (`scene/actor.hpp`), solo con destino planar |
+| Política de save-under por buffer | EXISTE | `emit_save`/`emit_restore` por buffer (`scene/actor.hpp`), con destino planar **e interleaved** (anillo corkscrew verificado por HOST-453) |
 | Anclaje por frame distinto (hot-spot variable entre frames) | PROPUESTO | hoy el anclaje es por actor |
 | Superficie destino y orden `z` **por superficie** (`ActorDesc::surface`, `ActorEmitContext::targets`) | EXISTE | `engine/include/eng/scene/actor.hpp` |
 | Prioridad de sprite frente a los playfields (`ActorDesc::sprite_priority`, `SpriteIntent::priority`) | EXISTE | `scene/actor.hpp`, `graphics/raster_intent.hpp` |
@@ -306,7 +306,7 @@ Demo con gate visual (secuencias, no un frame suelto, y con veredicto de visión
 Ordenadas por dependencia, dentro del roadmap F6:
 
 1. **Estado de actor retenido** (`Actor` + `ActorStore<Max>` con handles generacionales), consumiendo `ActorTemplate`/`RepresentationAllocator` y el contenido de `Visual`/`Animation`. **HECHO** (`scene/actor.hpp`), cubierto por el test host `072_actor`.
-2. **Políticas de actor** (`TransparencyMode`, `BackgroundPolicy`) y su traducción a `BlitJob::minterm`/máscara y a la secuencia de jobs de save-under. **HECHO** (`transparency_plan`, `resolve_background`, `emit_save`/`emit_restore`), con `RestoreUnder` solo para destinos planares.
+2. **Políticas de actor** (`TransparencyMode`, `BackgroundPolicy`) y su traducción a `BlitJob::minterm`/máscara y a la secuencia de jobs de save-under. **HECHO** (`transparency_plan`, `resolve_background`, `emit_save`/`emit_restore`), con `RestoreUnder` para destinos planares e **interleaved** (anillo corkscrew verificado por HOST-453).
 3. **Anclaje y offset** por actor y animación con velocidad entera. **HECHO** (`actor_screen_rect`, `actor_tick`); el anclaje por frame distinto queda pendiente.
 4. **Emisión de BOB** desde el actor: `bob_draw`/`bob_erase_box` con el rectángulo efectivo y el origen del frame dentro de la hoja. **HECHO**; el **recorte parcial** a la ventana queda pendiente (hoy se rechaza el objeto que no cabe entero).
 5. **Necesidades de Copper ancladas**: conversión de relativas a absolutas. **HECHO** (`actor_emit_copper`); la fusión con prioridad por z en el `Plan` queda pendiente.
