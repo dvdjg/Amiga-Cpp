@@ -130,9 +130,10 @@ el dominio (`graphics::blob_run_from`/`blob_run_continues`/`blob_run_same`, `bli
 HOST-451) y la usan **las dos vías de ejecución del plan** — síncrona y async:
 
 - **`execute_frame_plan` (CPU)**: agrupa los jobs consecutivos que comparten el lote de estado fijo
-  (`BlobOp` + `BLTSIZE` + módulos; cookie-cut `$CA`, clear `$00` u OR `$FC` interleaved de un canal)
-  y los ejecuta con `BlobBatch` (estado programado una vez; por objeto, punteros + `shift` +
-  `BLTSIZE`). El resto de jobs van por el encoder genérico.
+  (`BlobOp` + `BLTSIZE` + módulos; cookie-cut `$CA`, clear `$00`, OR `$FC` interleaved de un canal
+  y **copias `$AA` multi-plano** con los planos/strides por objeto, `BlobBatch::one_planes`) y los
+  ejecuta con `BlobBatch` (estado programado una vez; por objeto, punteros + `shift` + `BLTSIZE`).
+  El resto de jobs van por el encoder genérico.
 - **Feeder async (IRQ)**: al cruzar una racha, `frame_plan_async_step` arranca el lote
   (`begin` + primer objeto) y cada IRQ de fin de blit escribe **solo el objeto siguiente**
   (`one()`), sin re-codificar registros en la ISR. Contador de diagnóstico:
@@ -145,6 +146,15 @@ HOST-451) y la usan **las dos vías de ejecución del plan** — síncrona y asy
 - **Equivalencia**: una racha escribe por objeto los **mismos registros efectivos** que el encoder
   (HOST-451, incluidas las ventanas `AFWM/ALWM` del OR); en emulador, los frames deterministas de
   la 213 (`f0020..f0024`, plan síncrono) son **byte-idénticos** (SHA256) antes y después del cambio.
+- **Contrato con el Blitter ocupado**: cada job del plan espera a `BBUSY==0` antes de programar
+  registros — el AHRM prohíbe escribir registros con un blit en curso y WinUAE reinicia el blitter
+  si se escribe `BLTSIZE` con uno activo (`docs/reference/emulators/winuae/blitter-busy-writes.md`,
+  `blitter.cpp:2036/2058/2101`). Encadenar sin esperar solo «funcionaba» por timing del bus y
+  perdía planos en bursts tras blits largos (DT-022: 1 de 4 arranques válidos fallaba el
+  auto-chequeo de la 121 antes del fix; 0 de 7 después). En la vía async la espera es ~gratis (la
+  IRQ llega con el blitter libre) y el coste medido en la 213 es nulo dentro del ruido (sync 32,30
+  vs 32,20–32,32 fps; async 27,41 vs 27,58). La comparación pixel a pixel del fix por
+  `--sequence-step-frames` **no es fiable** (captura a mitad de frame, DT-023).
 
 ### 6.1 Cuánto ahorra el modo asíncrono (medido, demo 213)
 

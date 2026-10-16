@@ -106,6 +106,23 @@ static BlitJob or_job(eng::u8 shift) {
 	return j;
 }
 
+/// Copia planar multi-plano (restaurador del carril de la 121): `planes` planos contiguos con
+/// strides explícitos, fuente con ancho de fila propio (módulo 38) y sin desplazamiento.
+static BlitJob copy_job(eng::u8 planes) {
+	BlitJob j {};
+	j.kind = BlitJobKind::CopyRect;
+	j.source = chip_ptr(0x00c40000u);
+	j.destination = chip_ptr(0x00c50000u);
+	j.words_per_row = 20u;
+	j.height = 16u;
+	j.source_modulo_bytes = 38;
+	j.destination_modulo_bytes = 36;
+	j.bitplane_count = planes;
+	j.source_plane_stride_bytes = 40u * 16u;
+	j.destination_plane_stride_bytes = 40u * 16u;
+	return j;
+}
+
 int main() {
 	const HwRegs cregs = HwRegs::for_test(regs);
 
@@ -148,6 +165,23 @@ int main() {
 		j.kind = BlitJobKind::LogicBlit;
 		check(!eng::graphics::blob_run_from(j, run), "LogicBlit NO es racha");
 
+		// Copias multi-plano sin desplazamiento (`D = C`): racha con CMOD derivado como el
+		// encoder (fuente compacta o con ancho de fila propio).
+		check(eng::graphics::blob_run_from(copy_job(3u), run) && run.op == BlobOp::Copy &&
+			      run.words == 20u && run.height == 16u && run.amod == 0 && run.bmod == 0 &&
+			      run.cmod == 38 && run.dmod == 36,
+		      "copia planar multi-plano sin shift -> racha Copy (C = origen, D = destino)");
+		j = copy_job(3u);
+		j.source_shift = 3u;
+		check(!eng::graphics::blob_run_from(j, run), "copia con shift NO es racha (barrel por A)");
+		j = copy_job(3u);
+		j.descending = true;
+		check(!eng::graphics::blob_run_from(j, run), "copia descendente NO es racha");
+		j = copy_job(3u);
+		j.source_words_per_row = 24u;
+		check(eng::graphics::blob_run_from(j, run) && run.cmod == static_cast<eng::s16>((24 - 20) * 2),
+		      "copia con ancho de fila propio deriva CMOD como el encoder");
+
 		// `blob_run_same`: el estado fijo ignora punteros y shift; cualquier módulo lo rompe.
 		check(eng::graphics::blob_run_same(masked_job(0u), masked_job(7u)),
 		      "mismo estado con shift distinto -> misma racha");
@@ -170,6 +204,11 @@ int main() {
 			      !eng::graphics::blob_run_continues(other, anchor) &&
 			      !eng::graphics::blob_run_continues(clear_job(), anchor),
 		      "blob_run_continues: sigue el mismo lote; módulos u operación distintos no");
+		BlobRun copy_anchor {};
+		check(eng::graphics::blob_run_from(copy_job(3u), copy_anchor) &&
+			      eng::graphics::blob_run_continues(copy_job(1u), copy_anchor) &&
+			      !eng::graphics::blob_run_continues(masked_job(0u), copy_anchor),
+		      "blob_run_continues: copias de distinto nº de planos comparten racha (por objeto)");
 	}
 
 	// --- 2) Equivalencia de registros: racha (BlobBatch) == encoder canónico -------------------
@@ -242,9 +281,10 @@ int main() {
 			compare_size(b);
 		}
 
-		// OR: A = objeto, B = D = destino (C deshabilitado).
-		const eng::u8 or_shifts[] = {0u, 9u};
-		for (eng::u8 shift : or_shifts) {
+		// OR: A = objeto, B = D = destino (C deshabilitado). Objeto de 3 palabras con guarda
+		// (`source_modulo_bytes = -6`): el barrido completo de `shift` (0..15) blinda la
+		// equivalencia de la ventana fina `BLTALWM = 0xffff << shift` con el encoder.
+		for (eng::u8 shift = 0u; shift < 16u; ++shift) {
 			BlobBatch batch;
 			BlobRun run {};
 			const BlitJob j = or_job(shift);
@@ -265,6 +305,34 @@ int main() {
 				       static_cast<eng::u16>(b.bltdmod)),
 			      "OR: AMOD/DMOD de la racha == encoder");
 			compare_size(b);
+		}
+
+		// Copia multi-plano: `C = origen`, `D = destino`; `one_planes` recorre los planos con los
+		// strides del job (el mismo bucle que `submit_blit_job` en el camino genérico).
+		{
+			BlobBatch batch;
+			BlobRun run {};
+			const BlitJob j = copy_job(3u);
+			check(eng::graphics::blob_run_from(j, run), "copia clasifica");
+			batch.begin(cregs, run.op, run.words, run.height, run.amod, run.bmod, run.cmod,
+				    run.dmod);
+			const eng::graphics::BlitterJob b = eng::graphics::blitter_job_from(j);
+			compare_common(b, "copia: CON0/CON1/AFWM/ALWM de la racha == encoder");
+			check(rd32(kBltamod) ==
+				      ((static_cast<eng::u32>(static_cast<eng::u16>(b.bltamod)) << 16u) |
+				       static_cast<eng::u16>(b.bltdmod)),
+			      "copia: AMOD/DMOD de la racha == encoder");
+			check(rd32(kBltcmod) ==
+				      ((static_cast<eng::u32>(static_cast<eng::u16>(b.bltcmod)) << 16u) |
+				       static_cast<eng::u16>(b.bltbmod)),
+			      "copia: CMOD/BMOD de la racha == encoder");
+			batch.one_planes(j.source, j.destination, j.bitplane_count,
+					 j.source_plane_stride_bytes, j.destination_plane_stride_bytes);
+			compare_size(b);
+			// `one_planes` deja en los registros el ÚLTIMO plano: base + 2·stride (640 B).
+			check(rd32(kBltcpt) == ptr32(b.bltcpt) + 2u * 640u &&
+				      rd32(kBltdpt) == ptr32(b.bltdpt) + 2u * 640u,
+			      "copia: los planos avanzan con los strides del job (plano 2 en registros)");
 		}
 
 		// Un segundo objeto de la racha solo reescribe punteros/shift/BLTSIZE (estado intacto).

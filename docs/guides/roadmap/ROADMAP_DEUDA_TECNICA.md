@@ -334,12 +334,26 @@ tipos. **Resuelto (2026-10-16)**: revisados ambos: los 3 de `planar_band.hpp` so
 `A500_release` de la 213 falla en init con `detail=0x06CBF005` (`mark_mem_failed` del grupo
 sprite/música, banco Chip con ~191 KB libres). Reproducible en el engine sin los cambios del
 turno. Detalle y evidencia: `docs/debugging/investigaciones/213_release-strict-aliasing.md`
-§Reapertura. Acción: comparar el orden/​tamaño de reservas debug vs release y el presupuesto de
-Chip del perfil.
+§Reapertura.
+
+**Causa raíz y fix (2026-10-16).** El Chip queda fragmentado por la carga del ejecutable: el mayor
+bloque al arrancar el juego es ~236 KiB en release (vs ~428 KiB en debug), y
+`game_memory_fit_available` restaba un headroom **fijo** de 128 KiB → pool de ~108 KiB para una
+necesidad de ~110 KiB (escena 50 KiB + assets img 50 KiB + bob/mod/copper). Fix:
+**el headroom de Chip escala con el bloque** (1/4, suelo 64 KiB, tope 128 KiB) en
+`memory_profile.hpp`; con 236 KiB el pool pasa a 172 KiB y la reserva de assets ya no da `NoSpace`
+(HOST-394 cubre el caso). **Pendiente**: con el pool arreglado la release avanza y queda **colgada
+en init** (`state=InitStarted`, PC estable en `MemBank::configure`, `debuggerState=2`) — verificado
+que **no** es el fix de espera del Blitter (persiste con `amiga_blitter.cpp` sin él). Siguiente
+paso: adjuntar GDB con `WINUAE_GDB_PERSIST_LISTENER=1` y hacer step/backtrace del cuelgue (la
+herramienta está en reparación por DT-023), y probar la hipótesis de **stack** (128 KiB del runner)
+subiéndolo a 256 KiB.
 
 ## DT-022 · Blitter: plano 0 perdido al mezclar copias y racha cookie-cut en un `FramePlan`
 
 Síntoma: en la demo 121 el actor pierde el **plano 0** de forma intermitente y posicional cuando el plan mezcla 5 `CopyRect` (restaurador) y una racha de 5 `MaskedBobCookieCut` (actor); invisible si el plano 0 del fondo vale 1. Evidencia: `detail=0x1F2102` (auto-chequeo, sub=0, body=30) y `detail=0x1E01252F` (guarda por frame, x≈260, body=30 ≥3 frames). Actor-only nunca falla; dos `execute_frame_plan` separados = 6/6 limpios. Detalle: `docs/debugging/investigaciones/121-actor-plano-0-y-carencias-blits.md`. Acción: test host de la secuencia mixta de registros (extiende HOST-451) y, con repro, fix del motor; mientras, la demo usa planes separados. Relacionado: el contrato de sincronía/verificación de lectura y el validador de geometría de anillo propuestos en el informe.
+
+**Motor corregido (2026-10-16) — contrato de escritura con el Blitter ocupado.** El mecanismo encaja con la fuente primaria: el AHRM prohíbe escribir registros del Blitter con un blit en curso («Multitasking and the Blitter») y WinUAE reinicia el blitter si se escribe `BLTSIZE` con uno activo (`blitter.cpp:2036/2058/2101`; ficha `docs/reference/emulators/winuae/blitter-busy-writes.md`). El plan encadenaba jobs sin esperar (solo «funcionaba» por timing del bus) → en un burst tras un blit largo se pisa el estado del que corre. Fix: `submit_blit_job` espera `BBUSY==0` antes de programar cada job (las rachas `BlobBatch` ya esperaban por objeto). Coste medido en la 213: nulo dentro del ruido (sync 32,30 vs 32,20–32,32 fps; async 27,41 vs 27,58). Reproducción en la demo pendiente de cierre: el A/B local con plan único quedó **contaminado por DT-023** (instancias huérfanas/step-capture); la verificación limpia es la herramienta golden de la 121 (`K121_GOLDEN_ACTORS` + `tools/analyze/verify-121-actor-golden.mjs`). Queda: re-ejecutar el plan único con esa verificación y, si sale limpio, retirar la mitigación de dos planes de la demo.
 
 ## DT-023 · Herramientas: capturas de secuencia a mitad de frame y `--config` ignorado
 

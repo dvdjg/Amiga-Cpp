@@ -172,7 +172,8 @@ eliminó la espera redundante por plano en `bitplane_count == 1`.
 **Estado — clasificación de rachas compartida y rachas async (2026-10).** La detección de rachas ya
 no vive en dos funciones ad-hoc del backend: la clasificación es de **dominio**
 (`graphics::blob_run_from`/`blob_run_continues`/`blob_run_same`, `blitter_state.hpp`) y cubre
-cookie-cut (`$CA`), clear (`$00`) y **OR** (`$FC`) interleaved de un canal. La usan las **dos** vías
+cookie-cut (`$CA`), clear (`$00`), **OR** (`$FC`) interleaved de un canal y **copias** (`$AA`
+multi-plano sin desplazamiento, `BlobBatch::one_planes`). La usan las **dos** vías
 del plan: `execute_frame_plan` (CPU) y el feeder async por IRQ de blit
 (`execute_frame_plan_async`/`frame_plan_async_step`), que arranca una racha con `BlobBatch::begin`
 y encadena cada objeto con `one()` (los registros comunes se programan una sola vez también en la

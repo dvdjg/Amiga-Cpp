@@ -8,6 +8,7 @@ Lo **observado** en el código fuente de WinUAE (local: `../WinUAE-DBG/`) al con
 | Sprite DMA | estructura de sprite con cabecera | [sprite-dma.md](sprite-dma.md) |
 | Color de sprite | prioridad de pareja (número de canal), ATTACH y reuso | [sprite-color-priority.md](sprite-color-priority.md) |
 | Blitter | arranque por `BLTSIZE`, decodificación, modos, canal D | [blitter.md](blitter.md) |
+| Blitter ocupado | escrituras de registros/`BLTSIZE` con blit activo (contrato AHRM; restart en WinUAE) | [blitter-busy-writes.md](blitter-busy-writes.md) |
 | Copper: autoridad de escritura | `CDANG` (`COPCON`) | [copper.md](copper.md) |
 | Disco a nivel de device | `DSKPT`/`DSKLEN`/`DSKBYTR` (DMA, MFM) | [trackdisk.md](trackdisk.md) |
 | IRQ de audio (`AUD0..3`, nivel 4) | `setirq`/`event_audxdat_func`, `AUDxLEN`/`AUDxLCH` | [audio-irq.md](audio-irq.md) |
@@ -25,6 +26,7 @@ Al depurar, **leer primero la fuente** de la fila correspondiente (regla dura AG
 | Estructura de sprite / cabecera / columna fantasma | `sprite-dma.md`, `custom.cpp` (`generate_sprites`) |
 | Blit desplazado/parcial, alto↔ancho | `custom.cpp:3963` (`BLTSIZE_func`); [blitter.md](blitter.md) |
 | Blit que no arranca | `custom.cpp` (`BLTSIZE` → `do_blitter`); [blitter.md](blitter.md) |
+| Planos perdidos al encadenar blits / escribir con Blitter ocupado | [blitter-busy-writes.md](blitter-busy-writes.md) (`blitter.cpp:2036/2058/2101`; AHRM «Multitasking and the Blitter») |
 | Copper no escribe / `CDANG` | [copper.md](copper.md) |
 | Colisión de sprites (`CLXCON`/`CLXDAT`) | [collision.md](collision.md) |
 | IRQ de audio / DMA de audio | [audio-irq.md](audio-irq.md) |

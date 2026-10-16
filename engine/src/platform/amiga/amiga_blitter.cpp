@@ -37,6 +37,14 @@ bool execute_blob_run(const eng::graphics::FramePlan& plan, u8 from, u8 to,
 				  plan.blit_job(i).destination, 0u);
 		}
 		break;
+	case BlobOp::Copy: // copia recta por planos (C = origen, D = destino)
+		for (u8 i = from; i < to; ++i) {
+			const eng::graphics::BlitJob& j = plan.blit_job(i);
+			batch.one_planes(j.source, j.destination, j.bitplane_count,
+					 j.source_plane_stride_bytes,
+					 j.destination_plane_stride_bytes);
+		}
+		break;
 	default: // BlobOp::Or: A = objeto, B = D = destino
 		for (u8 i = from; i < to; ++i) {
 			const eng::graphics::BlitJob& j = plan.blit_job(i);
@@ -168,6 +176,11 @@ void AmigaBackend::async_run_one(const graphics::BlitJob& j) {
 	case graphics::BlobOp::Clear: // solo D
 		m_async_run_batch.one(eng::graphics::BlitPtr {}, eng::graphics::BlitPtr {},
 				      j.destination, 0u);
+		break;
+	case graphics::BlobOp::Copy: // copia recta por planos (C = origen, D = destino)
+		m_async_run_batch.one_planes(j.source, j.destination, j.bitplane_count,
+					     j.source_plane_stride_bytes,
+					     j.destination_plane_stride_bytes);
 		break;
 	default: // BlobOp::Or: A = objeto, B = D = destino (ventana fina como el encoder)
 		m_async_run_batch.set_window_masks(0xffffu, static_cast<eng::u16>(0xffffu << shift));
@@ -344,6 +357,21 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 		return false;
 	}
 
+	// **Contrato de escritura con el Blitter ocupado** (AHRM 3.ª, «Multitasking and the
+	// Blitter»: «When a blit is in progress, none of the blitter registers should be
+	// written.»). WinUAE lo implementa reiniciando el blitter si se escribe `BLTSIZE` con
+	// un blit activo (`../WinUAE-DBG/blitter.cpp:2036` avisa «blitter was already active!»,
+	// `:2058` re-captura el estado y `:2101`/`:2119` reinician los contadores): el blit en
+	// curso **se pierde**. Por eso cada job espera a que el anterior termine (BBUSY==0)
+	// antes de tocar registros; encadenar jobs sin esperar solo «funcionaba» cuando cada
+	// blit acababa antes de la siguiente programación (dependiente del bus), y en bursts
+	// tras un blit largo perdía planos (DT-022, 121: restaurador + actor).
+	// En la vía async esta espera es de coste ~0: al entrar en la IRQ de fin de blit el
+	// Blitter ya está libre (el guard `g_in_blit_service` evita re-entrar en el feeder).
+	if (!wait_blitter()) {
+		return false;
+	}
+
 	if (fill) {
 		// **Relleno de color del rectangulo PRESERVANDO el borde parcial**. Cookie-cut con la
 		// mascara de borde como canal A: `D = (A & B) | (~A & C)` (minterm `$CA`). A = mascara
@@ -427,15 +455,10 @@ bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open)
 
 	const u32 source_plane_stride_words = job.source_plane_stride_bytes / sizeof(u16);
 	const u32 destination_plane_stride_words = job.destination_plane_stride_bytes / sizeof(u16);
-	// Todos los registros compartidos del Blitter deben fijarse solo cuando el job anterior
-	// terminó: el blit en curso lee BLTCON/MOD durante su ejecución. Bartman hace WaitBlit antes
-	// de programarlos; esperar únicamente antes de cambiar los punteros deja una carrera real.
-		// NO se llama `wait_blitter()`: en la cola asincrona (`wait=false`) el feeder programaria
-		// aqui registros del Blitter aun en curso y se bloquearia hasta que acabara, rompiendo el
-		// encadenado por IRQ. La programacion del `FillRect` solo toca registros que el job en
-		// curso no relee (BLTADAT/BDAT/DAT son data registers de solo escritura) y sus punteros
-		// los reinstala `write_custom_pointer`; el feeder arranca el blit y vuelve. En el camino
-		// sincrono (`wait=true`) el `blitter_submit` ya espera al terminar.
+	// La espera al blit anterior ya se hizo al entrar (contrato de escritura, arriba): los
+	// registros comunes que siguen se fijan con el Blitter libre. Los caminos que ya esperan
+	// por su cuenta (`fill`, línea, C2P) no pagan nada extra (BBUSY==0 → la espera es una
+	// lectura).
 
 	// Registros derivados de la intención por el **encoder único** (`blitter_job_from`): la
 	// codificación (BLTCON/MOD/minterm) NO se duplica aquí. Se calcula **una vez por job** (no por

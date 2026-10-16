@@ -145,6 +145,25 @@ public:
 		regs_.word(kBltsize) = size;
 	}
 
+	/// Lanza UN objeto de una racha de **copia multi-plano** (`D = C`): por plano escribe el
+	/// puntero de origen (C) y de destino (D) y `BLTSIZE`, con la **espera entre planos** que
+	/// exige el hardware (los registros de un blit en curso no se pueden reprogramar; ver
+	/// `docs/reference/emulators/winuae/blitter-busy-writes.md`). `src_step`/`dst_step` = bytes
+	/// entre planos (los strides del job). Es la forma de lote de las copias
+	/// `CopyRect`/`RestoreRect`/`TileBlockCopy` sin desplazamiento del camino genérico
+	/// (`submit_blit_job`), con el estado común fijado una sola vez en `begin`.
+	__attribute__((always_inline)) inline void one_planes(eng::graphics::BlitPtr src,
+							      eng::graphics::BlitPtr dst,
+							      eng::u8 planes, eng::u32 src_step,
+							      eng::u32 dst_step) {
+		for (eng::u8 p = 0u; p < planes; ++p) {
+			wait();
+			write_ptr(kBltcpt, src + static_cast<eng::s32>(static_cast<eng::u32>(p) * src_step));
+			write_ptr(kBltdpt, dst + static_cast<eng::s32>(static_cast<eng::u32>(p) * dst_step));
+			regs_.word(kBltsize) = size;
+		}
+	}
+
 	/// Fija las ventanas de máscara del lote (`BLTAFWM`/`BLTALWM`). Sirve para el truco de
 	/// los BOBs de 3 palabras: `alwm = 0x0000` **descarta la última palabra** del blit
 	/// (fuente y destino), de modo que un blit de 3 palabras con `ASH`/`BSH` lee y escribe

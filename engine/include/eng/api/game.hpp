@@ -882,6 +882,34 @@ public:
 		}
 	}
 	[[nodiscard]] bool async_present() const noexcept { return m_async_present; }
+
+	/// **Estadísticas de la cadena de blits async** (`set_async_present(true)`): contadores
+	/// acumulados del feeder por IRQ de fin de blit, para el HUD de depuración de la demo. Cero
+	/// si el backend no las expone (backend sin vía async). El juego no nombra el backend.
+	struct AsyncStats {
+		u32 launches = 0; ///< cadenas lanzadas (una por `present` async)
+		u32 runs = 0;     ///< rachas de estado fijo (`BlobBatch`) arrancadas en la cadena
+		u32 submits = 0;  ///< trabajos programados dentro de la ISR
+		u32 irqs = 0;     ///< IRQs de fin de blit atendidas
+		u32 ends = 0;     ///< cadenas cerradas
+	};
+	[[nodiscard]] AsyncStats async_stats() const noexcept {
+		AsyncStats s {};
+		if constexpr (requires(Backend& b) {
+				      b.blit_async_launches();
+				      b.blit_async_runs();
+				      b.blit_async_submits();
+				      b.blit_async_irqs();
+				      b.blit_async_ends();
+			      }) {
+			s.launches = Backend::blit_async_launches();
+			s.runs = Backend::blit_async_runs();
+			s.submits = Backend::blit_async_submits();
+			s.irqs = Backend::blit_async_irqs();
+			s.ends = Backend::blit_async_ends();
+		}
+		return s;
+	}
 	[[nodiscard]] bool shutdown_complete() const noexcept { return m_shutdown; }
 
 private:

@@ -69,11 +69,17 @@ int main() {
 	      "Fast explícita también se valida, no se ignora");
 	const auto constrained = game_memory_fit_available(game_memory_a500, 400u * 1024u,
 								    400u * 1024u, 0u);
-	check(constrained.pools.chip_bytes == 272u * 1024u &&
-	      constrained.pools.slow_bytes == 64u * 1024u,
-	      "perfil automático reduce pools según bloques libres y conserva headroom");
+	check(constrained.pools.chip_bytes == 300u * 1024u &&
+	      constrained.pools.slow_bytes == 36u * 1024u,
+	      "perfil automático reduce pools según bloques libres; headroom Chip = bloque/4 (100 KiB)");
 	check(game_memory_fits(constrained.pools, 400u * 1024u, 400u * 1024u, 0u),
 	      "perfil automático ajustado cabe en la instantánea de Exec");
+	// DT-021: Chip fragmentado por la carga del ejecutable (~236 KiB de mayor bloque en la 213
+	// release) — el suelo de 64 KiB evita el pool inservible de 108 KiB (128 KiB fijos).
+	const auto fragmented = game_memory_fit_available(game_memory_a500, 236u * 1024u,
+								   236u * 1024u, 0u);
+	check(fragmented.pools.chip_bytes == 172u * 1024u,
+	      "Chip fragmentado conserva el suelo de 64 KiB de headroom (pool útil para la escena)");
 	if (failures != 0) return 1;
 	std::printf("OK: game memory profiles and contiguous-block preflight.\n");
 	return 0;

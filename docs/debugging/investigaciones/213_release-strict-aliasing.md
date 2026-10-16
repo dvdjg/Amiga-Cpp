@@ -65,3 +65,18 @@ release de esta demo no cabe con la fragmentación por orden de reservas, o `con
 reserva menos Chip del que el manifiesto necesita. Próximo paso: leer `bank.snapshot()`/
 `g_mem_probe` del caso release (el detalle ya empaqueta libres/usados) y comparar el orden de
 reservas debug vs release.
+
+**Actualización (2026-10-16) — causa raíz del `NoSpace` y estado actual:**
+
+- El mayor bloque Chip al arrancar el juego es ~236 KiB en release (vs ~428 KiB en debug): el
+  propio ejecutable cargado en Chip lo fragmenta. `game_memory_fit_available` restaba 128 KiB
+  **fijos** de headroom → pool de ~108 KiB para una necesidad de ~110 KiB → `NoSpace` al reservar
+  el bob (3.840 B) con la escena y `img` ya dentro.
+- **Fix**: headroom de Chip escalado (bloque/4, suelo 64 KiB, tope 128 KiB) en
+  `engine/include/eng/platform/amiga/memory_profile.hpp`; cubierto por HOST-394 (caso 236 KiB →
+  pool 172 KiB). Con el fix, la reserva de assets ya no falla.
+- **Pendiente**: la release avanza y ahora queda **colgada en init** (`state=InitStarted`, PC
+  estable en `MemBank::configure`, `debuggerState=2` en el canal lateral). Verificado que **no** es
+  el fix de espera del Blitter (persiste con `amiga_blitter.cpp` sin él, `git stash` A/B). Próximo
+  paso: GDB con `WINUAE_GDB_PERSIST_LISTENER=1` + step/backtrace (la herramienta de captura está en
+  reparación, DT-023) y probar subir el stack del runner (128 KiB) a 256 KiB.

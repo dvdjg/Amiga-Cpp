@@ -76,13 +76,23 @@ inline constexpr GameMemoryProfile game_memory_a1200 {
 /// puede incluir bloques Chip que se reservarán primero, el pool Slow se calcula después de descontar
 /// la reserva Chip/Frame; evita contar dos veces un mismo bloque en el preflight. Solo debe usarse para
 /// la elección automática; los perfiles custom explícitos se validan y se respetan tal cual.
+///
+/// **El headroom de Chip escala con el bloque** (1/4, con suelo de 64 KiB y tope `chip_headroom`):
+/// con el Chip fragmentado por la carga del propio ejecutable, restar un valor fijo de 128 KiB a
+/// un bloque de ~236 KiB deja un pool inservible para la escena (DT-021: la 213 release fallaba
+/// con 108 KiB de pool y ~110 KiB de necesidad). El margen protege al SO en runtime, no cubre una
+/// reserva dura: el SO ya tiene asignado lo suyo al arrancar el juego.
 [[nodiscard]] constexpr GameMemoryProfile game_memory_fit_available(
 const GameMemoryProfile& preferred, eng::u32 largest_chip, eng::u32 largest_any,
 	eng::u32 largest_fast, eng::u32 chip_headroom = 128u * 1024u,
 	eng::u32 slow_headroom = 64u * 1024u) noexcept {
 	if (game_memory_fits(preferred.pools, largest_chip, largest_any, largest_fast)) return preferred;
 	auto pools = preferred.pools;
-	const eng::u32 chip_room = largest_chip > chip_headroom ? largest_chip - chip_headroom : 0u;
+	constexpr eng::u32 kMinChipHeadroom = 64u * 1024u;
+	const eng::u32 scaled = largest_chip / 4u;
+	const eng::u32 chip_headroom_eff = (scaled < kMinChipHeadroom ? kMinChipHeadroom
+					   : (scaled > chip_headroom ? chip_headroom : scaled));
+	const eng::u32 chip_room = largest_chip > chip_headroom_eff ? largest_chip - chip_headroom_eff : 0u;
 	const eng::u32 chip_sum = pools.chip_bytes + pools.frame_bytes;
 	if (chip_sum > chip_room) {
 		pools.frame_bytes = pools.frame_bytes < chip_room ? pools.frame_bytes : chip_room;

@@ -89,6 +89,7 @@
 
 #include <eng/api/api.hpp>
 #include <eng/api/assets.hpp>
+#include <eng/debug/hud_text.hpp>
 #include <eng/debug/mem_probe.hpp>
 #include <eng/debug/prof.hpp>
 #include <eng/debug/run_status.hpp>
@@ -127,6 +128,15 @@ constexpr eng::u8 kProfCount = 4u;
 /// cuenta. Diagnóstico del encadenado transparente (`BLITTER_INTENT_QUEUE.md` §6).
 constexpr eng::u16 kChainTicket = 0x00b1u;
 volatile eng::u32 g_chain_done_count = 0u;
+
+/// Añade `tag` + valor decimal a `out` desde `n` y devuelve el índice siguiente (contadores del
+/// overlay; el decimal lo formatea `eng::debug::dec_u16`, sin `/`/`%` — regla de coste §1.15).
+eng::u8 append_stat(char* out, eng::u8 n, char tag, eng::u32 v) {
+	out[n++] = tag;
+	n = static_cast<eng::u8>(n + eng::debug::dec_u16(static_cast<eng::u16>(v & 0xffffu), out + n));
+	out[n++] = ' ';
+	return n;
+}
 
 constexpr eng::u16 kWidth = 320u;
 constexpr eng::u16 kHeight = 256u;
@@ -339,6 +349,20 @@ struct AbyssDemo {
 
 	}
 
+	/// Re-formatea `m_stats_text` con los contadores de la cadena async (`app.async_stats()`).
+	/// Llamado cada 16 frames desde el overlay (fuera del camino caliente).
+	void format_async_stats(auto& app) {
+		const auto st = app.async_stats();
+		eng::u8 n = 0u;
+		n = append_stat(m_stats_text, n, 'L', st.launches);
+		n = append_stat(m_stats_text, n, 'R', st.runs);
+		n = append_stat(m_stats_text, n, 'S', st.submits);
+		n = append_stat(m_stats_text, n, 'I', st.irqs);
+		n = append_stat(m_stats_text, n, 'E', st.ends);
+		n = append_stat(m_stats_text, n, 'C', m_chain_done);
+		m_stats_text[n] = '\0';
+	}
+
 	void render(auto& app) {
 		auto s = app.screen();
 		const eng::u32 frame = app.frame();
@@ -431,6 +455,15 @@ struct AbyssDemo {
 			       static_cast<eng::s16>(f + 400), 440, 0x000000ffu);
 			d.text(static_cast<eng::s16>(f + 130), 418, "This is a WinUAE debug overlay",
 			       0x00ff00ffu);
+			// **Contadores de la cadena async** (feeder por IRQ, `BLITTER_INTENT_QUEUE.md` §6):
+			// L = cadenas lanzadas, R = rachas de estado fijo, S = submits en la ISR, I = IRQs
+			// de fin de blit, E = cierres de cadena, C = avisos `IntentDone` de la ristra
+			// (`kChainTicket`, contados en `update`). Se re-formatean cada 16 frames: el coste
+			// de la conversión no entra en el camino caliente (regla §1.15).
+			if ((frame & 15u) == 0u) {
+				format_async_stats(app);
+			}
+			d.text(static_cast<eng::s16>(f + 90), 370, m_stats_text, 0x00aa0000u);
 			ENG_PROF_END(kProfOverlay);
 		}
 
@@ -446,6 +479,8 @@ struct AbyssDemo {
 	eng::u32 m_vblank_msgs = 0u; ///< ticks `VBlank` leídos del latch/mensajes del mini-SO
 	eng::u32 m_last_frames_elapsed = 1u; ///< `frames_elapsed` del último tick (catch-up, M12)
 	eng::u32 m_chain_done = 0u;  ///< avisos `IntentDone` de la cadena async (kChainTicket)
+	/// Texto de contadores del overlay (`L… R… S… I… E… C…`), re-formateado cada 16 frames.
+	char m_stats_text[44] {};
 	bool m_ready = false;
 };
 

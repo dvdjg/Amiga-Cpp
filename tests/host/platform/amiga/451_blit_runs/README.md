@@ -14,14 +14,18 @@ clasificada debe escribir, por objeto, los mismos registros **efectivos** que el
 
 - **Clasificación**: cookie-cut `$CA` / clear `$00` / OR `$FC` interleaved de un solo canal
   entran; descendente, planar multi-plano, `source_words_per_row ≠ 0`, minterm ajeno, `height`
-  1024 y clear con salto entre planos quedan fuera.
+  1024 y clear con salto entre planos quedan fuera. Las **copias** (`CopyRect`/`RestoreRect`/
+  `TileBlockCopy`) entran sin desplazamiento (multi-plano por objeto vía `one_planes`); con shift
+  o descendentes quedan fuera.
 - **`blob_run_same`**: dos objetos con el mismo estado fijo (aunque cambien punteros y `shift`)
   pertenecen a la misma racha; cualquier módulo distinto (o tipo distinto) la rompe;
   `MaskedBlobNoSave` comparte racha con `MaskedBobCookieCut`.
 - **Equivalencia con el encoder** (`blitter_job_from`): `CON0/CON1` (con `ASH`/`BSH`),
   `AFWM/ALWM`, módulos de los canales usados, punteros (`A`=máscara/objeto, `B`/`C`/`D` según la
   operación) y `BLTSIZE` coinciden; un segundo objeto de la racha solo reescribe
-  punteros/`shift`/`BLTSIZE`.
+  punteros/`shift`/`BLTSIZE`. La racha OR usa un objeto de **3 palabras con guarda** y barre los
+  16 `shift` (ventana fina `BLTALWM = 0xffff << shift`); la racha de **copia multi-plano** verifica
+  el avance por planos (`one_planes`) con los strides del job.
 - **Intención real**: el `BlitJob` que produce `blit_job_from` para un `MaskedStamp` interleaved
   (el camino de `Screen::sprite`) clasifica como racha `CookieCut`.
 - **Validación**: `blit_op_valid` (fuente/máscara obligatorias por tipo, rect no vacío, `y ≥ 0`,

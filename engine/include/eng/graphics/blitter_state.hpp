@@ -62,7 +62,9 @@ enum class BlobOp : eng::u8 {
 /// (`BlobOp`) y los registros que **no cambian** entre sus objetos (`BLTSIZE` = `words`/`height`
 /// y módulos). Las rachas se ejecutan con el camino `BlobBatch` (escrituras de 32 bits, sin
 /// re-codificar el job y con una sola espera por objeto), en la CPU (`execute_frame_plan`) o
-/// encadenadas por la IRQ de blit (`execute_frame_plan_async`).
+/// encadenadas por la IRQ de blit (`execute_frame_plan_async`). Cubre cookie-cut `$CA`, clear
+/// `$00`, OR `$FC` (interleaved de un canal) y **copias `$AA`** (`D = C`, con los planos/strides
+/// por objeto vía `BlobBatch::one_planes`).
 struct BlobRun {
 	BlobOp op = BlobOp::Or; ///< operación del lote (decide canales, minterm y papeles de los punteros)
 	u16 words = 0;          ///< palabras por fila (BLTSIZE bits 5-0)
@@ -92,9 +94,31 @@ struct BlobRun {
 	case BlitJobKind::MaskedBlobNoSave:
 	case BlitJobKind::ClearRect:
 	case BlitJobKind::OrBlob:
+	case BlitJobKind::CopyRect:
+	case BlitJobKind::RestoreRect:
+	case BlitJobKind::TileBlockCopy:
 		break;
 	default:
 		return false;
+	}
+	// **Copias** (`D = C`, canal C = origen): sin desplazamiento (el shift usa el barrel por A y
+	// queda fuera del lote) y con el módulo de C derivado como en el encoder (fuente compacta o
+	// con ancho de fila propio). Los planos y strides son por objeto (`one_planes`).
+	const bool copy = j.kind == BlitJobKind::CopyRect || j.kind == BlitJobKind::RestoreRect ||
+			  j.kind == BlitJobKind::TileBlockCopy;
+	if (copy) {
+		if (j.descending || j.source_shift != 0u || j.words_per_row == 0u || j.height == 0u ||
+		    j.height > kBlitterSizeMaxHeight) {
+			return false;
+		}
+		const s16 cmod =
+			(j.source_words_per_row != 0u)
+				? static_cast<s16>((static_cast<s16>(j.source_words_per_row) -
+						    static_cast<s16>(j.words_per_row)) * 2)
+				: j.source_modulo_bytes;
+		out = {BlobOp::Copy, j.words_per_row, j.height, 0, 0, cmod,
+		       j.destination_modulo_bytes};
+		return true;
 	}
 	if (j.descending || !j.interleaved || j.bitplane_count != 1u ||
 	    j.source_words_per_row != 0u || j.words_per_row == 0u || j.height == 0u ||
