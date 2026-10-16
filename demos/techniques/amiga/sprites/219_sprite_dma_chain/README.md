@@ -1,5 +1,14 @@
 # 219 — Emisión DMA encadenada por canal (una ristra de 20 balas = 1 canal)
 
+
+## Búsqueda previa
+
+Evaluado el camino de juego de sprites (`SpriteManager`, `SpriteAllocator`,
+`actor_to_sprite_intent`; `OBJECT_SYSTEM.md`) antes de escribir la demo. Se emite a mano con
+`sprite_chain.hpp` (`arm_dma_chain`/`build_sprite_dma_chain`) a propósito: el sujeto de la
+demo es **la estructura DMA encadenada** (técnica F3) — la capa de actores se apoya en este
+camino, cubierto por HOST-434 y por las demos 216/217.
+
 Demo de la técnica **F3** (`docs/guides/roadmap/ROADMAP_SPRITES_COMPLETO.md` §3.2): cuando un canal de sprite sirve **varios objetos en franjas disjuntas** (multiplexado vertical), la emisión puede ser una **estructura DMA encadenada** que Agnus recorre sola, en lugar de un rearme por Copper en cada franja.
 
 La demo mantiene **20 balas** (16×8, 2 planos) en columna por **un solo canal** (el 3) con la columna “respirando” en Y (pistón: todas visibles y en el mismo orden por Y). El **cuadrado superior izquierdo** identifica la estrategia activa en las capturas: COLOR 1 = rearme, 2 = cadena, 3 = persistente.

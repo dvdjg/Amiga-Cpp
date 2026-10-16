@@ -1,5 +1,13 @@
 # 107_xlimited_corkscrew
 
+
+## Búsqueda previa
+
+Evaluado el sistema de objetos (`ActorStore`, `actor_emit`; `OBJECT_SYSTEM.md`) antes de
+escribir la demo. Se usa `add_world_bitmap` directamente a propósito: el sujeto de la demo
+es el **algoritmo corkscrew** (scroll 8-way) y su objeto que pasea es una sonda del campo,
+no un personaje de juego (para eso, el emisor de actores con representación elegida).
+
 Demo del algoritmo **XYLimited / corkscrew** de Georg Steger (ScrollingTricks):
 scroll **8-way** con el truco X-Limited extendido a vertical, sin el ruido del
 controlador circular de `TileFieldController`.

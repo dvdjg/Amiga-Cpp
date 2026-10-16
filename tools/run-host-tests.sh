@@ -172,6 +172,16 @@ if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 		echo "== casts =="
 		node "$CAST_CHECK" --check
 	fi
+	# Gate de arte previo: una demo/juego que use un patron de bajo nivel ya abstraido por
+	# el engine debe declararlo en su README ("## Busqueda previa"); ver prior-art-rules.txt.
+	PRIOR_ART_CHECK="$ROOT/tools/check/prior-art.mjs"
+	if [ -f "$PRIOR_ART_CHECK" ] && command -v node >/dev/null 2>&1; then
+		echo "== prior-art =="
+		if ! node "$PRIOR_ART_CHECK"; then
+			echo "prior-art fallo: uso de bajo nivel sin declarar la busqueda previa." >&2
+			exit 1
+		fi
+	fi
 	MATH_DIAG="$ROOT/tools/check/math-diagnostics.sh"
 	if [ -f "$MATH_DIAG" ]; then
 		echo "== math-diagnostics =="

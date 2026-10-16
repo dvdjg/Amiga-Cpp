@@ -1,0 +1,2 @@
+# Baseline del gate prior-art (ver tools/check/prior-art.mjs).
+# NO-REINCIDENCIA: las entradas que aparezcan aquí solo pueden desaparecer.

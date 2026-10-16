@@ -1,5 +1,14 @@
 # 218_free_form_sprite_layer — «SPR Layer» (Jeroen Knoester, 2018), recreación fiel
 
+
+## Búsqueda previa
+
+Evaluado el sistema de objetos (`actor_emit`, `ActorStore`, `bob_from_visual`;
+`OBJECT_SYSTEM.md`) antes de escribir la demo. Se usa `blob_batch.hpp` (BlobBatch) y los
+blits a mano a propósito: es un **port fiel 1:1** de la referencia SPR Layer (mismo reparto
+de blits y datos por contrato de recreación); la vía de juego para BOBs equivalentes es
+`bob_from_visual` + `actor_emit`.
+
 Port **funcional 1:1** de la demo de referencia **«SPR Layer»** (`../spr_layer/Sprite_Layer`,
 Jeroen Knoester, 2018): una **capa de fondo free-form de sprites** que cubre toda la pantalla
 (304 px, sin patrón repetitivo) **detrás** de un playfield de 4 planos (15 colores) que hace un

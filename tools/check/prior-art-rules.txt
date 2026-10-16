@@ -1,0 +1,6 @@
+# Reglas del gate prior-art (ver tools/check/prior-art.mjs).
+# TSV: id <TAB> descripción <TAB> patrones-de-bajo-nivel(;literal) <TAB> candidatos-del-engine(;símbolo) <TAB> doc-canónico
+# Si una demo usa algún patrón de una regla, su README debe declarar la búsqueda
+# (sección "## Búsqueda previa") citando el patrón y al menos un candidato existente.
+objects	Dibujo de objetos/actores a bajo nivel (bandas planares, cookie-cut, blobs)	planar_band.hpp;blob_batch.hpp;add_world_bitmap;add_world_window	actor_emit;ActorStore;bob_from_visual;build_sprite_intents	docs/engine/architecture/OBJECT_SYSTEM.md
+sprites	Emisión de sprites HW a mano (cadenas, rearmados)	sprite_chain.hpp;emit_sprite_horizontal_rearm;arm_dma_chain	SpriteManager;SpriteAllocator;actor_to_sprite_intent	docs/engine/architecture/OBJECT_SYSTEM.md

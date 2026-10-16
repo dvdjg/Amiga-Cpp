@@ -1,5 +1,16 @@
 # Demo 121 - PROC STRUCTURES (mundo cocido + motor de tiles X-Limited)
 
+
+## Búsqueda previa
+
+Evaluado el sistema de actores del engine (`ActorStore`, `actor_emit`, `build_sprite_intents`,
+`docs/engine/architecture/OBJECT_SYSTEM.md`) antes de escribir esta demo. Se usa el camino
+**directo** del playfield corkscrew (`add_world_bitmap_masked`/`add_world_window`) a propósito:
+es una demo-técnica del motor de tiles y de la fontanería del actor planar (bandas de
+subpíxel + oclusión) y sirve de banco de verificación del Blitter. La vía de juego (actor
+retenido + animación) es `eng/scene/actor.hpp`; su cableado con `Representation::Layer` a
+X-Limited está pendiente (§14.8 de `OBJECT_SYSTEM.md`) y esta demo es la candidata a migrar.
+
 Tutorial de la **cadena completa de un mundo de tiles** con el engine: generación procedural
 **en compilación** (`constexpr`), **cocido a tileset indexado** y fondo pintado por el
 **motor de tiles X-Limited** (`playfield::XlimitedScene`, corkscrew) con el Blitter — sin
