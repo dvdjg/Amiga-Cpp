@@ -325,7 +325,9 @@ private:
 		}
 		sched.end();
 		m_display_view = sched.chip_view();
-		return sched.ok();
+		// Validación de la lista declarativa (`RasterLayout`) antes de publicarla: END,
+		// registros escribibles (OCS) y orden de WAITs (capa 2 de COHERENCIA_DE_SETUP.md).
+		return sched.ok() && eng::setup::check_copper_list(sched).ok();
 	}
 
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_planes {};

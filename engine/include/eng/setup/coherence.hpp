@@ -397,6 +397,18 @@ inline constexpr eng::u16 kBplcon0Ham = 0x0800u;   ///< bit 11: HAM (HOMOD)
 	return {};
 }
 
+/// Azúcar para validar **justo después de cerrar un emisor** (`copper::Scheduler`,
+/// `ListBuilder`): equivale a `check_copper_list(e.data(), e.words_used(), chipset)`. El
+/// chipset por defecto es OCS; un perfil que admita registros ECS/AGA debe pasarlo.
+/// \param emisor   emisor con `data()`/`words_used()` (la lista ya terminada con `end()`).
+/// \param chipset  chipset objetivo (def. `OCS`).
+/// \return `CheckResult` del chequeo (mismos códigos que `check_copper_list`).
+template <class Emisor>
+[[nodiscard]] constexpr CheckResult check_copper_list(
+	const Emisor& emisor, eng::hw::Chipset chipset = eng::hw::Chipset::OCS) noexcept {
+	return check_copper_list(emisor.data(), emisor.words_used(), chipset);
+}
+
 /// **Comprueba el `stride` de un relleno por columnas** (`copper::ColumnPatch`): la primera
 /// palabra debe ser el DATO de un MOVE, el paso par >= 2, y cada fila debe caer sobre el
 /// dato de un MOVE dentro de la lista. Es la defensa contra "el blitter strided pisa un

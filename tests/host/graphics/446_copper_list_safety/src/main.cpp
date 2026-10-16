@@ -136,6 +136,7 @@ void test_check_list() {
 	sched.end();
 	const u16 words = sched.words_used();
 	CHECK(sched.ok(), "scheduler ok");
+	CHECK(eng::setup::check_copper_list(sched).ok(), "overload de emisor (Scheduler)");
 	const auto ok_list = eng::setup::check_copper_list(sched.data(), words, Chipset::OCS);
 	if (!ok_list.ok()) {
 		std::printf("  [FAIL] lista valida rechazada: code=%u word=%u (%s)\n", ok_list.code,

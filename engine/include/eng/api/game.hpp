@@ -46,6 +46,7 @@
 #include <eng/graphics/blit_job.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/bitmap_view.hpp>
+#include <eng/setup/coherence.hpp>
 #include <eng/hw/bus_budget.hpp>
 #include <eng/graphics/palette32.hpp>
 #include <eng/graphics/sprite_asset.hpp>
@@ -667,6 +668,12 @@ public:
 			}
 			sched.end();
 			if (!sched.ok()) {
+				return false;
+			}
+			// Validación de la lista declarativa (capa 2 de `COHERENCIA_DE_SETUP.md`): END,
+			// registros escribibles (OCS, el perfil con el que `start()` compone) y orden
+			// de WAITs. Si el Copper no podría ejecutarla, no se publica.
+			if (!eng::setup::check_copper_list(sched).ok()) {
 				return false;
 			}
 			m_backend.takeover_display(sched.chip_view());

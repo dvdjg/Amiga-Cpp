@@ -24,6 +24,8 @@ Cadencia de 131 (diferencias muy bajas en la banda central; medir por franjas de
 `scene::compose` valida la lista recién compuesta con `eng::setup::check_copper_list` (END,
 MOVEs a registros escribibles para el chipset del perfil —`ocs_a500` en la vía `App`— y orden
 de WAITs) antes de dar la composición por buena: si el Copper no pudiera ejecutarla, `start()`
-devolvería `CompositionFailed` en setup. Esta demo (composición por etapas con display +
-paleta + intents de scroll/split) llega a READY con el validador activo, así que el caso
-positivo real queda cubierto; los negativos viven en HOST-446/441.
+devolvería `CompositionFailed` en setup. Además, `App::present_layout` (la vía declarativa de
+`RasterLayout` que usa esta demo para el layout por bandas) ejecuta el mismo chequeo antes de
+publicar con `takeover_display`. Esta demo (composición por etapas con display + paleta +
+intents de scroll/split) llega a READY con el validador activo, así que el caso positivo real
+queda cubierto; los negativos viven en HOST-446/441.

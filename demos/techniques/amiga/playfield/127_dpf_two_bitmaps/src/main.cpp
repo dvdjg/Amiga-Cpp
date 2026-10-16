@@ -23,6 +23,7 @@
 
 #include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
+#include <eng/setup/coherence.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/platform/amiga/backend.hpp>
 #include <eng/scene/bobs.hpp>
@@ -254,7 +255,9 @@ private:
 		}
 		sched.end();
 		m_copper_views[list] = sched.chip_view();
-		return sched.ok();
+		// Validación de la lista declarativa (`RasterLayout`) antes de publicarla: END,
+		// registros escribibles (OCS) y orden de WAITs (capa 2 de COHERENCIA_DE_SETUP.md).
+		return sched.ok() && eng::setup::check_copper_list(sched).ok();
 	}
 
 	eng::Block<eng::PlaneTag, eng::MemoryKind::Chip> m_pf1 {};

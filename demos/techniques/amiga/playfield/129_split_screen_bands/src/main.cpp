@@ -10,6 +10,7 @@
 
 #include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
+#include <eng/setup/coherence.hpp>
 #include <eng/platform/amiga/backend.hpp>
 #include <eng/scene/display.hpp>
 #include <eng/scene/raster_plan.hpp>
@@ -118,7 +119,9 @@ struct SplitScreenDemo {
 			return;
 		}
 		sched.end();
-		if (!sched.ok()) {
+		// Validación de la lista declarativa (`RasterLayout`) antes de publicarla: END,
+		// registros escribibles (OCS) y orden de WAITs (capa 2 de COHERENCIA_DE_SETUP.md).
+		if (!sched.ok() || !eng::setup::check_copper_list(sched).ok()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012903u);
 			return;
 		}
