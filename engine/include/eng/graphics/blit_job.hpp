@@ -256,6 +256,10 @@ struct BlitJob {
 /// mitad), `C = D` = destino; `ASH`/`BSH` desplazan ambos canales con el mismo `shift`. Ver
 /// `docs/reference/amiga/techniques/interleaved-bob-single-blit.md`. El job queda listo para
 /// `FramePlan::add_masked_bob` o `AmigaBackend::blitter_submit`.
+/// **Sin palabra de guarda** (contrato del par «denso»): con `shift > 0` procesa `w/16`
+/// palabras y recorta el borde derecho del arte; para subpíxel exacto en ambas mitades usar
+/// la hoja con guarda (`pack_interleaved_pair` + `BobMaskPack::InterleavedPair`), donde la
+/// guarda aporta al barrel los bits del borde (AHRM 6; HOST-453).
 /// **Frontera tipada**: `src`/`dest` llegan como `BlitPtr` (direcciones **Chip** con
 /// procedencia en el tipo — no compila pasar memoria no-Chip ni un `u16*` suelto).
 inline void make_interleaved_masked_bob(BlitJob& job, BlitPtr src, BlitPtr dest, u16 w, u16 h,
@@ -286,16 +290,17 @@ inline void make_interleaved_masked_bob(BlitJob& job, BlitPtr src, BlitPtr dest,
 /// es 0, esos píxeles quedan **transparentes** (no se escriben). Receta fijada por
 /// HOST-453 (subpíxeles 0..15 exactos en ambas mitades del byte).
 ///
-/// El `Bob` del consumidor declara `width = W + 16` (la ventana incluye la guarda; el
-/// objeto ocupa los `W` primeros píxeles, el resto es invisible) y `height = H`;
-/// `bob_draw` deriva `words = (W+16)/16` y el par de canales del propio layout.
+/// El `Bob` del consumidor declara `width = 2·W` (ventana: cada mitad — imagen y máscara —
+/// es arte `W` más un bloque de guarda del tamaño del arte; el objeto ocupa los `W`
+/// primeros píxeles) y `height = H`; `bob_draw` deriva `words = 2·W/16` y el par de
+/// canales del propio layout.
 ///
 /// \tparam W ancho del objeto en píxeles (múltiplo de 16). \tparam H alto en filas.
 /// \tparam TargetPlanes planos del **destino** (las filas del blit).
 /// \param pixels índices de color W×H (bit `p` del índice = plano `p`; 0 = transparente).
 /// \param mask máscara W×H (0 = transparente) o `nullptr` (se deriva: `pixels != 0`).
-/// \param out hoja destino: `H · TargetPlanes · (2·W/16 + 2)` palabras (imagen + guarda +
-///        máscara + guarda por fila y plano).
+/// \param out hoja destino: `H · TargetPlanes · (4·W/16)` palabras = por fila física
+///        `[imagen k][guarda k][máscara k][guarda k]` con `k = W/16` (guardas a cero).
 template <eng::u16 W, eng::u16 H, eng::u8 TargetPlanes>
 constexpr void pack_interleaved_pair(const eng::u8* pixels, const eng::u8* mask, eng::u16* out) {
 	constexpr eng::u16 kWords = W / 16u; // palabras por mitad (imagen / máscara)

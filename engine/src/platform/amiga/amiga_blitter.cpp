@@ -28,7 +28,12 @@ bool execute_blob_run(const eng::graphics::FramePlan& plan, u8 from, u8 to,
 	case BlobOp::CookieCut: // A = máscara, B = imagen, C = D = fondo
 		for (u8 i = from; i < to; ++i) {
 			const eng::graphics::BlitJob& j = plan.blit_job(i);
-			batch.one(j.mask, j.source, j.destination, static_cast<eng::u8>(j.source_shift));
+			const eng::u8 shift = static_cast<eng::u8>(j.source_shift);
+			// Ventana fina `BLTALWM = 0xffff << shift` por objeto, la MISMA que escribe el
+			// encoder (`blitter_job_from`): recorta pre-shift los bits bajos de la máscara
+			// (AHRM 6) y evita el arrastre del barrel al borde izquierdo de la fila siguiente.
+			batch.set_window_masks(0xffffu, static_cast<eng::u16>(0xffffu << shift));
+			batch.one(j.mask, j.source, j.destination, shift);
 		}
 		break;
 	case BlobOp::Clear: // solo D
@@ -171,6 +176,7 @@ void AmigaBackend::async_run_one(const graphics::BlitJob& j) {
 	const eng::u8 shift = static_cast<eng::u8>(j.source_shift);
 	switch (m_async_run_op) {
 	case graphics::BlobOp::CookieCut: // A = máscara, B = imagen, C = D = fondo
+		m_async_run_batch.set_window_masks(0xffffu, static_cast<eng::u16>(0xffffu << shift));
 		m_async_run_batch.one(j.mask, j.source, j.destination, shift);
 		break;
 	case graphics::BlobOp::Clear: // solo D

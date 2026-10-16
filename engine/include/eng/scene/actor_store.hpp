@@ -7,16 +7,27 @@
 #include <eng/core/types/ptr.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/util/bitset.hpp>
+#include <eng/graphics/bob_ring.hpp>
 #include <eng/scene/actor_types.hpp>
 
 namespace eng::scene {
 
 namespace actor_detail {
 
+/// Rutas de fondo del actor. Con `ctx.ring_height != 0` (rect en líneas de un anillo
+/// corkscrew) delegan en las variantes `*_ring` de `graphics/bob_ring.hpp`, que parten
+/// la caja en la costura; sin anillo, el camino lineal paga solo la lectura del campo
+/// (una comparación por operación y actor, `bob_ring.hpp` documenta el coste).
 inline bool emit_save(FramePlan& plan, const Actor& a, const DirtyRect& r,
 		      const ActorEmitContext& ctx, const BobTarget& target) {
 	// El algoritmo vive en `graphics::bob_save_box` (única verdad, compartida con el camino de
 	// intención `BobErase::RestoreUnder`).
+	if (ctx.ring_height != 0u) {
+		return eng::graphics::bob_save_box_ring(plan, a.bob, r.width(), r.height(), r.left,
+							r.top, ctx.ring_height, target,
+							a.desc.save[ctx.buffer],
+							a.desc.save_words_per_row, a.desc.save_height);
+	}
 	return eng::graphics::bob_save_box(plan, a.bob, r.width(), r.height(), r.left, r.top, target,
 					   a.desc.save[ctx.buffer], a.desc.save_words_per_row,
 					   a.desc.save_height);
@@ -24,14 +35,23 @@ inline bool emit_save(FramePlan& plan, const Actor& a, const DirtyRect& r,
 
 inline bool emit_restore(FramePlan& plan, const Actor& a, const DirtyRect& r,
 			 const ActorEmitContext& ctx, const BobTarget& target) {
+	if (ctx.ring_height != 0u) {
+		return eng::graphics::bob_restore_box_ring(plan, a.bob, r.width(), r.height(), r.left,
+							   r.top, ctx.ring_height, target,
+							   a.desc.save[ctx.buffer],
+							   a.desc.save_words_per_row,
+							   a.desc.save_height);
+	}
 	return eng::graphics::bob_restore_box(plan, a.bob, r.width(), r.height(), r.left, r.top,
 					      target, a.desc.save[ctx.buffer],
 					      a.desc.save_words_per_row, a.desc.save_height);
 }
 
 /// Dibuja el frame `f` del actor como BOB, con el origen del frame dentro de la hoja.
+/// Con `ctx.ring_height != 0` el rect (en líneas de anillo) se parte en la costura
+/// (`bob_draw_ring`); sin anillo, `bob_draw` lineal exacto.
 inline bool emit_bob(FramePlan& plan, const Actor& a, const Frame& f, eng::s16 x, eng::s16 y,
-		     const BobTarget& target) {
+		     const ActorEmitContext& ctx, const BobTarget& target) {
 	using eng::graphics::bob_detail::sheet_row_of;
 	Bob b = a.bob;
 	const eng::u32 row = sheet_row_of(a.bob); // stride de la hoja (antes de cambiar w/h)
@@ -42,6 +62,9 @@ inline bool emit_bob(FramePlan& plan, const Actor& a, const Frame& f, eng::s16 x
 	b.height = f.h;
 	b.frame_count = 1u;
 	b.frame_stride = 0u;
+	if (ctx.ring_height != 0u) {
+		return eng::graphics::bob_draw_ring(plan, b, 0u, x, y, ctx.ring_height, target);
+	}
 	return eng::graphics::bob_draw(plan, b, 0u, x, y, target);
 }
 
@@ -68,8 +91,25 @@ inline ActorEmitStatus actor_emit(FramePlan& plan, Actor& a, const ActorEmitCont
 	if (!rect.valid()) {
 		return ActorEmitStatus::Nothing;
 	}
-	if (ctx.clip.valid() && !rect_contains(ctx.clip, rect)) {
-		return ActorEmitStatus::Clipped; // recorte parcial: pendiente (ver OBJECT_SYSTEM.md)
+	if (ctx.clip.valid()) {
+		if (ctx.ring_height == 0u) {
+			if (!rect_contains(ctx.clip, rect)) {
+				return ActorEmitStatus::Clipped; // recorte parcial: pendiente (OBJECT_SYSTEM.md)
+			}
+		} else {
+			// **Rect en líneas de un anillo** (corkscrew): el vertical NO se recorta
+			// contra el clip — la costura lo reparte el emisor (`bob_ring.hpp`). Solo se
+			// exige x dentro del clip, `ring_y` dentro del bucle y alto que quepa en él
+			// (el rect que cruza la costura es VÁLIDO; el chequeo lineal `rect_contains`
+			// lo rechazaría porque `top + h` puede exceder el bucle).
+			const bool ok = rect.left >= ctx.clip.left && rect.right <= ctx.clip.right &&
+					rect.top >= ctx.clip.top &&
+					eng::u32(rect.top) < eng::u32(ctx.ring_height) &&
+					f.h <= ctx.ring_height;
+			if (!ok) {
+				return ActorEmitStatus::Clipped;
+			}
+		}
 	}
 
 	const BackgroundPolicy policy = resolve_background(a.desc.background, f.w, f.h);
@@ -77,17 +117,27 @@ inline ActorEmitStatus actor_emit(FramePlan& plan, Actor& a, const ActorEmitCont
 
 	switch (policy) {
 		case BackgroundPolicy::ClearRect: {
-			if (prev.valid() &&
-			    !eng::graphics::bob_erase_box(plan, a.bob, prev.width(), prev.height(),
-							  prev.left, prev.top, target)) {
-				return ActorEmitStatus::Full;
+			if (prev.valid()) {
+				const bool erased =
+					(ctx.ring_height != 0u)
+						? eng::graphics::bob_erase_box_ring(
+							  plan, a.bob, prev.width(), prev.height(),
+							  prev.left, prev.top, ctx.ring_height, target)
+						: eng::graphics::bob_erase_box(plan, a.bob, prev.width(),
+									       prev.height(), prev.left,
+									       prev.top, target);
+				if (!erased) {
+					return ActorEmitStatus::Full;
+				}
 			}
 			break;
 		}
 		case BackgroundPolicy::SaveUnder: {
 			// El save-under soporta destino planar E interleaved (`bob_save_box` /
 			// `bob_restore_box` derivan el paso de fila por plano en ambos layouts; el
-			// buffer de guardado es planar por convenio). Verificado en el anillo
+			// buffer de guardado es planar por convenio). Con `ctx.ring_height != 0`
+			// las variantes `*_ring` parten la caja en la costura del anillo (el
+			// buffer refleja las filas, ver `bob_ring.hpp`). Verificado en el anillo
 			// corkscrew por HOST-453.
 			if (prev.valid() && !actor_detail::emit_restore(plan, a, prev, ctx, target)) {
 				return ActorEmitStatus::Full;
@@ -103,7 +153,7 @@ inline ActorEmitStatus actor_emit(FramePlan& plan, Actor& a, const ActorEmitCont
 			break;
 	}
 
-	if (!actor_detail::emit_bob(plan, a, f, rect.left, rect.top, target)) {
+	if (!actor_detail::emit_bob(plan, a, f, rect.left, rect.top, ctx, target)) {
 		return ActorEmitStatus::Full;
 	}
 

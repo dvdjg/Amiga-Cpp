@@ -10,15 +10,18 @@
 ///     coordenada que usan los blits de mundo. La vía natural con `ActorDesc` es dejar
 ///     `desc.y` en píxeles VISIBLES y sumar el offset de la vista en `desc.offset.y`
 ///     (o pasar directamente la línea del anillo).
-///   - El rect del objeto debe **caber en el bucle sin cruzar la costura**
-///     (`ring_y + h ≤ display_height`): el camino de actores aún **no** parte el rect en
-///     la costura (el emisor de mundo sí); `actor_fits_ring` es la comprobación, y las
-///     demos/el setup deben usarla antes de emitir (evita escrituras fuera del anillo).
+///   - El rect puede **cruzar la costura**: con `ActorEmitContext::ring_height =
+///     hv.display_height` el emisor la reparte en dos trabajos lineales
+///     (`graphics/bob_ring.hpp`: dibujo, borrado, save-under y restore; todas las
+///     variantes de BOB). Sin `ring_height` el emisor exige el rect entero dentro del
+///     bucle — `actor_fits_ring` es el chequeo barato para ese contrato (y para decidir
+///     en la lógica de juego si el actor «está en pantalla» sin envolver).
 ///   - La superficie destino es el anillo completo con layout **interleaved**
 ///     (`[línea][plano]`), `row_bytes` = `bitmap_bytes_per_row`.
 ///   - **Clip**: `ActorEmitContext::clip` se compara contra el rect tal cual, así que si el
 ///     offset incluye `display_offset` el clip debe cubrir las LÍNEAS DEL ANILLO
-///     (`{0, 0, viewport_w, display_height}`), no solo la ventana visible.
+///     (`{0, 0, viewport_w, display_height}`), no solo la ventana visible. Con
+///     `ring_height != 0` el clip solo recorta X y exige el rect dentro del bucle.
 ///   - **Pack del BOB**: en destinos interleaved `bob_draw` exige `BobMaskPack::InterleavedPair`
 ///     ([imagen][máscara] por fila y **plano del destino**); el pack suelto se rechaza
 ///     (dispatch documentado en `bob.hpp` y fijado por HOST-453).
@@ -32,12 +35,11 @@
 /// eng::graphics::BobTarget ring = eng::playfield::make_actor_target(hv);
 /// // ... en el update:
 /// a.desc.offset.y = eng::s16(hv.display_offset);   // visible -> anillo (una vez)
-/// if (eng::playfield::actor_fits_ring(hv, eng::s16(a.desc.y + hv.display_offset), f.h)) {
-///     eng::scene::ActorEmitContext ctx {};
-///     ctx.targets = eng::Span<const eng::graphics::BobTarget> {&ring, 1u};
-///     ctx.clip = DirtyRect {0, 0, s16(hv.viewport_w), s16(hv.viewport_h)};
-///     eng::scene::actor_emit(plan, a, ctx);
-/// }
+/// eng::scene::ActorEmitContext ctx {};
+/// ctx.targets = eng::Span<const eng::graphics::BobTarget> {&ring, 1u};
+/// ctx.clip = DirtyRect {0, 0, s16(hv.viewport_w), s16(hv.display_height)};
+/// ctx.ring_height = hv.display_height;  // reparto en la costura (0 = lineal)
+/// eng::scene::actor_emit(plan, a, ctx);
 /// ```
 
 #include <eng/core/types/types.hpp>
@@ -57,8 +59,9 @@ namespace eng::playfield {
 }
 
 /// ¿El rect de `h` filas en `ring_y` cabe entero en el bucle del anillo (sin cruzar la
-/// costura)? Los rects que la cruzan requieren partir la emisión (pendiente en la capa
-/// de actores): recházalos con esta comprobación antes de emitir.
+/// costura)? El emisor YA reparte los rects que la cruzan (`ActorEmitContext::ring_height`);
+/// esta comprobación es para quien necesite saberlo de antemano (validación de setup,
+/// lógica de «visible completa», decisiones de la demo) sin emitir.
 /// \param view vista de hardware. \param ring_y línea del anillo. \param h alto en filas.
 /// \return `true` si `0 ≤ ring_y` y `ring_y + h ≤ display_height`.
 [[nodiscard]] constexpr bool actor_fits_ring(const PlayfieldHardwareView& view, eng::s16 ring_y,

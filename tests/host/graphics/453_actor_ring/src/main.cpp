@@ -9,13 +9,18 @@
 //     (`pack_interleaved_pair`, blit_job.hpp): los 16 subpíxeles exactos en las DOS
 //     mitades del byte (la guarda a cero neutraliza el arrastre del barrel);
 //   - **SaveUnder sobre el anillo**: fondo guardado/restaurado byte a byte al mover el
-//     actor 16 veces (el gap que bloqueaba la migración de la 121).
+//     actor 16 veces (el gap que bloqueaba la migración de la 121);
+//   - **Costura del anillo** (`bob_ring.hpp`, `ActorEmitContext::ring_height`): un rect
+//     que cruza el final del bucle se reparte en dos trabajos (arriba + envuelto a la
+//     línea 0) — dibujo, save-under y restore; y las variantes Or (hoja flat
+//     interleaved y hoja planar apilada) para cubrir los tres convenios de avance.
 //
 //   bash tools/run-host-tests.sh tests/host/graphics/453_actor_ring
 
 #include <cstdio>
 
 #include <eng/field/actor_target.hpp>
+#include <eng/graphics/bob_ring.hpp>
 #include <eng/scene/actor.hpp>
 
 #include "../../../support/software_blitter.hpp"
@@ -78,6 +83,7 @@ alignas(16) u16 g_pack_host[8u * kPlanes * 4u] {}; // img+g+máscara+g por fila 
 alignas(16) u16 g_pack_be[8u * kPlanes * 4u] {};   // copia BIG-ENDIAN (lectura del soft blitter)
 alignas(16) u16 g_save[512] {};
 
+
 [[nodiscard]] bool art_at(u16 r, u16 c) { return c == r || c == (15u - r); }
 
 void cook_art() {
@@ -88,9 +94,9 @@ void cook_art() {
 	}
 	eng::graphics::pack_interleaved_pair<16u, 8u, u8(kPlanes)>(g_art, nullptr, g_pack_host);
 	// El ejecutor software lee memoria BIG-ENDIAN (convención Amiga): byte swap al vuelo.
+	const auto be = [](u16 v) { return u16((v >> 8u) | (v << 8u)); };
 	for (u32 i = 0u; i < 8u * kPlanes * 4u; ++i) {
-		const u16 v = g_pack_host[i];
-		g_pack_be[i] = u16((v >> 8u) | (v << 8u));
+		g_pack_be[i] = be(g_pack_host[i]);
 	}
 }
 
@@ -130,7 +136,7 @@ eng::ChipView<Tag> chip_view(const T (&a)[N]) {
 void set_pack_bob(eng::scene::Actor& a) {
 	a.bob.sheet = chip_view(g_pack_be);
 	a.bob.mask = {};
-	a.bob.width = 32u; // W + guarda
+	a.bob.width = 32u; // ventana 32 = 16 de arte + 16 de guarda (la guarda viaja DENTRO del width)
 	a.bob.height = 8u;
 	a.bob.planes = u8(kPlanes);
 	a.bob.layout = eng::graphics::BobLayout::Interleaved;
@@ -240,13 +246,231 @@ void test_subpixels_and_save_under() {
 	// Y el actor actual sigue exacto tras el último paso (ya verificado en el bucle).
 }
 
+// ---------------------------------------------------------------------------
+//  Costura del anillo: el actor CRUZA el final del bucle
+// ---------------------------------------------------------------------------
+// `ActorEmitContext::ring_height` activa el reparto (`graphics/bob_ring.hpp`): el dibujo
+// sale como dos trabajos (filas del arte 0..3 en las líneas 12..15 y filas 4..7
+// envueltas a las líneas 0..3), el save-under guarda con la MISMA partición (las filas
+// del buffer espejan las de la caja) y el restore posterior deja el anillo byte a byte.
+void test_ring_split_actor() {
+	cook_art();
+	for (auto& b : g_ring64) b = 0u;
+
+	ActorStore<1> store;
+	store.reset();
+	RepresentationAllocator alloc {};
+	alloc.reset(RepresentationBudget {8u, 10000u, 0u});
+	const eng::scene::ActorId id = make_pack_actor(store, alloc);
+	auto a = store.get(id);
+	set_pack_bob(*a);
+
+	const eng::graphics::BobTarget ring =
+		eng::playfield::make_actor_target(make_view(g_ring64, 8u, 64u));
+	ActorEmitContext ctx {};
+	ctx.targets = eng::Span<const eng::graphics::BobTarget> {&ring, 1u};
+	ctx.clip = eng::scene::DirtyRect {0, 0, 64, s16(kLines)};
+	ctx.buffer = 0;
+	ctx.ring_height = kLines; // reparto en la costura activo
+
+	eng::test::SoftBitmap bm {g_ring64, 8u, kLines, u8(kPlanes), true, 0u};
+	const s16 x = 16;
+	const u16 ring_y = u16(kLines - 4u); // 12: el rect de 8 filas cruza (4+4)
+	a->desc.offset.y = 0;
+	a->desc.y = s16(ring_y);
+	a->desc.x = x;
+	eng::graphics::FramePlan plan {};
+	eng::scene::DirtyRect rect {};
+	check(eng::scene::actor_emit(plan, *a, ctx, eng::Ref<eng::scene::DirtyRect> {&rect}) ==
+		      eng::scene::ActorEmitStatus::Ok, "actor en la costura: emite");
+	(void)eng::test::execute_plan(plan, bm);
+	// Arte exacto con la línea del anillo envuelta: fila r -> (12 + r) % 16.
+	for (u16 r = 0u; r < 8u; ++r) {
+		for (u16 c = 0u; c < 16u; ++c) {
+			const bool want = art_at(r, c);
+			const s16 line = s16((u32(ring_y) + u32(r)) % u32(kLines));
+			const bool got = eng::test::soft_pixel(bm, s16(x + s16(c)), line, 0u);
+			if (want != got) {
+				std::printf("[PX-costura] r=%u c=%u want=%d got=%d\n", unsigned(r),
+					    unsigned(c), int(want), int(got));
+				check(false, "actor partido en la costura: píxeles exactos");
+				return;
+			}
+		}
+	}
+	check(true, "actor partido en la costura: píxeles exactos");
+
+	// Mover a una posición SIN cruce: el restore del rect partido (prev) debe dejar el
+	// anillo limpio fuera de la caja nueva, y la caja nueva correcta.
+	plan.clear();
+	a->desc.y = s16(kOffset);
+	check(eng::scene::actor_emit(plan, *a, ctx, eng::Ref<eng::scene::DirtyRect> {&rect}) ==
+		      eng::scene::ActorEmitStatus::Ok, "actor movido tras la costura: emite");
+	(void)eng::test::execute_plan(plan, bm);
+	for (u16 r = 0u; r < 8u; ++r) {
+		for (u16 c = 0u; c < 16u; ++c) {
+			const bool want = art_at(r, c);
+			const bool got =
+				eng::test::soft_pixel(bm, s16(x + s16(c)), s16(kOffset + r), 0u);
+			if (want != got) {
+				check(false, "actor movido: caja nueva exacta");
+				return;
+			}
+		}
+	}
+	check(true, "actor movido: caja nueva exacta");
+	// La caja VIEJA (líneas 12..15 y 0..3, columnas del actor) quedó restaurada: solo la
+	// caja nueva puede tener píxeles (el arte vive en el plano 0; el resto de los planos
+	// y columnas no se tocan).
+	{
+		const u32 xb0 = u32(x) >> 3u;        // byte inicial de la ventana (2)
+		const u32 xb1 = (u32(x) + 32u) >> 3u; // byte final exclusivo (6)
+		u32 dirty = 0u;
+		for (u16 line = 0u; line < kLines; ++line) {
+			for (u16 b = 0u; b < 8u; ++b) {
+				const u32 off = (u32(line) * kPlanes) * 8u + b;
+				const bool in_new_box =
+					(line >= kOffset && line < kOffset + 8u) && (b >= xb0 && b < xb1);
+				if (!in_new_box && g_ring64[off] != 0u) {
+					++dirty;
+				}
+			}
+		}
+		check(dirty == 0u,
+		      "restore partido byte a byte (anillo limpio fuera de la caja nueva)");
+	}
+}
+
+// ---------------------------------------------------------------------------
+//  Costura del anillo: variantes Or (hoja flat interleaved y planar apilada)
+// ---------------------------------------------------------------------------
+// Cubre los TRES convenios de avance de fuente del rango de filas (`draw_rows`):
+//   - par (actor, arriba): avance = `planos · fila` por fila de arte;
+//   - flat Or: igual que el par (filas físicas = planos del destino);
+//   - planar Or: avance = `fila` (una fila de arte por fila de la hoja).
+void test_ring_split_variants() {
+	const auto be = [](u16 v) { return u16((v >> 8u) | (v << 8u)); };
+	// Hoja flat interleaved (solo imagen): por fila de arte, una fila por plano del
+	// destino, cada una de 1 palabra (arte 16 px) + 1 de guarda.
+	alignas(16) u16 sheet_il[8u * kPlanes * 2u] {};
+	// Hoja planar apilada: 1 bloque por plano, 8 filas por bloque (1 palabra + guarda).
+	alignas(16) u16 sheet_pl[kPlanes * 8u * 2u] {};
+	for (u16 r = 0u; r < 8u; ++r) {
+		u16 img = 0u;
+		for (u16 c = 0u; c < 16u; ++c) {
+			if (art_at(r, c)) {
+				img = u16(img | u16(0x8000u >> c));
+			}
+		}
+		for (u16 p = 0u; p < kPlanes; ++p) {
+			sheet_il[(u32(r) * kPlanes + p) * 2u] = (p == 0u) ? be(img) : 0u;
+			sheet_il[(u32(r) * kPlanes + p) * 2u + 1u] = 0u; // guarda del barrel
+			sheet_pl[(u32(p) * 8u + r) * 2u] = (p == 0u) ? be(img) : 0u;
+			sheet_pl[(u32(p) * 8u + r) * 2u + 1u] = 0u; // guarda del barrel
+		}
+	}
+	const u16 ring_y = u16(kLines - 4u);
+	const s16 x = 16;
+
+	// (a) Or flat interleaved sobre el anillo de 64 columnas (destino = g_ring64).
+	{
+		for (auto& b : g_ring64) b = 0u;
+		eng::graphics::Bob b {};
+		b.sheet = chip_view(sheet_il);
+		b.width = 16u;
+		b.height = 8u;
+		b.planes = u8(kPlanes);
+		b.layout = eng::graphics::BobLayout::Interleaved;
+		b.draw = eng::graphics::BobDraw::Or;
+		const eng::graphics::BobTarget ring =
+			eng::playfield::make_actor_target(make_view(g_ring64, 8u, 64u));
+		eng::graphics::FramePlan plan {};
+		check(eng::graphics::bob_draw_ring(plan, b, 0u, x, s16(ring_y), kLines, ring),
+		      "Or flat: emite partido");
+		eng::test::SoftBitmap bm {g_ring64, 8u, kLines, u8(kPlanes), true, 0u};
+		const eng::test::SoftBlitterResult res = eng::test::execute_plan(plan, bm);
+		check(!res.unsupported && !res.out_of_bounds && res.jobs_executed == 2u,
+		      "Or flat: dos trabajos (arriba + envuelto)");
+		for (u16 r = 0u; r < 8u; ++r) {
+			for (u16 c = 0u; c < 16u; ++c) {
+				const bool want = art_at(r, c);
+				const s16 line = s16((u32(ring_y) + u32(r)) % u32(kLines));
+				const bool got = eng::test::soft_pixel(bm, s16(x + s16(c)), line, 0u);
+				if (want != got) {
+					check(false, "Or flat: píxeles exactos en la costura");
+					return;
+				}
+			}
+		}
+		check(true, "Or flat: píxeles exactos en la costura");
+	}
+
+	// (b) Or planar apilado sobre un anillo planar de 16 líneas (1 plano, 8 B/fila).
+	{
+		alignas(16) u8 g_ring_pl[kLines * 8u] {};
+		eng::graphics::Bob b {};
+		b.sheet = chip_view(sheet_pl);
+		b.width = 16u;
+		b.height = 8u;
+		b.planes = 1u;
+		b.layout = eng::graphics::BobLayout::Planar;
+		b.draw = eng::graphics::BobDraw::Or;
+		const eng::graphics::BobTarget ring = eng::graphics::make_bob_target(
+			chip_view<eng::PlaneTag>(g_ring_pl), 8u, kLines, 1u,
+			eng::graphics::BobLayout::Planar);
+		eng::graphics::FramePlan plan {};
+		check(eng::graphics::bob_draw_ring(plan, b, 0u, x, s16(ring_y), kLines, ring),
+		      "Or planar: emite partido");
+		eng::test::SoftBitmap bm {g_ring_pl, 8u, kLines, 1u, false, 0u};
+		const eng::test::SoftBlitterResult res = eng::test::execute_plan(plan, bm);
+		check(!res.unsupported && !res.out_of_bounds && res.jobs_executed == 2u,
+		      "Or planar: dos trabajos (arriba + envuelto)");
+		for (u16 r = 0u; r < 8u; ++r) {
+			for (u16 c = 0u; c < 16u; ++c) {
+				const bool want = art_at(r, c);
+				const s16 line = s16((u32(ring_y) + u32(r)) % u32(kLines));
+				const bool got = eng::test::soft_pixel(bm, s16(x + s16(c)), line, 0u);
+				if (want != got) {
+					check(false, "Or planar: píxeles exactos en la costura");
+					return;
+				}
+			}
+		}
+		check(true, "Or planar: píxeles exactos en la costura");
+	}
+
+	// Sin cruce, el wrapper mantiene la vía lineal: UN solo trabajo.
+	{
+		for (auto& b : g_ring64) b = 0u;
+		eng::graphics::Bob b {};
+		b.sheet = chip_view(sheet_il);
+		b.width = 16u;
+		b.height = 8u;
+		b.planes = u8(kPlanes);
+		b.layout = eng::graphics::BobLayout::Interleaved;
+		b.draw = eng::graphics::BobDraw::Or;
+		const eng::graphics::BobTarget ring =
+			eng::playfield::make_actor_target(make_view(g_ring64, 8u, 64u));
+		eng::graphics::FramePlan plan {};
+		check(eng::graphics::bob_draw_ring(plan, b, 0u, x, s16(kOffset), kLines, ring),
+		      "Or sin cruce: emite");
+		eng::test::SoftBitmap bm {g_ring64, 8u, kLines, u8(kPlanes), true, 0u};
+		const eng::test::SoftBlitterResult res = eng::test::execute_plan(plan, bm);
+		check(!res.unsupported && !res.out_of_bounds && res.jobs_executed == 1u,
+		      "sin cruce: UN trabajo (via lineal, coste cero)");
+	}
+}
+
 } // namespace
 
 int main() {
 	test_bridge_geometry();
 	test_subpixels_and_save_under();
+	test_ring_split_actor();
+	test_ring_split_variants();
 	if (g_fail == 0) {
-		std::printf("OK: actor sobre el anillo (puente, costura, 16 subpixeles exactos y save-under).\n");
+		std::printf("OK: actor sobre el anillo (puente, costura, 16 subpixeles exactos, "
+			    "save-under y reparto en la costura).\n");
 		return 0;
 	}
 	std::printf("[FAIL] %d comprobaciones\n", g_fail);

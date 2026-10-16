@@ -245,6 +245,9 @@ int main() {
 			check(eng::graphics::blob_run_from(j, run), "masked clasifica");
 			batch.begin(cregs, run.op, run.words, run.height, run.amod, run.bmod, run.cmod,
 				    run.dmod);
+			// Ventana fina por objeto, igual que el ejecutor (sync/async) y el encoder:
+			// recorta pre-shift los bits bajos de la máscara (AHRM 6; HOST-439 T6b).
+			batch.set_window_masks(0xffffu, static_cast<eng::u16>(0xffffu << shift));
 			batch.one(j.mask, j.source, j.destination, shift);
 			const eng::graphics::BlitterJob b = eng::graphics::blitter_job_from(j);
 			compare_common(b, "cookie-cut: CON0/CON1/AFWM/ALWM de la racha == encoder");

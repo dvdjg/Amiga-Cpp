@@ -380,6 +380,13 @@ struct ActorEmitContext {
 	eng::s16 cam_y = 0;
 	eng::u8 buffer = 0;           ///< buffer de display en uso (0..kActorBuffers-1)
 	eng::u16 display_top = 0;     ///< línea raster del borde superior del display
+	/// **Alto del bucle del anillo** en líneas (`PlayfieldHardwareView::display_height`)
+	/// cuando el destino es un playfield corkscrew (X-Limited y afines): el rect del
+	/// actor se interpreta en **líneas del anillo** (`desc.y + desc.offset.y`) y el
+	/// emisor lo PARTE en la costura si la cruza (`graphics/bob_ring.hpp`: dibujo y
+	/// cajas salen como hasta dos trabajos lineales). `0` = sin anillo: camino lineal
+	/// exacto, con una única comparación extra por operación (`bob_ring.hpp`).
+	eng::u16 ring_height = 0u;
 };
 
 /// Proyecta el actor sobre el camino de SPRITE hardware (cuando el allocator lo

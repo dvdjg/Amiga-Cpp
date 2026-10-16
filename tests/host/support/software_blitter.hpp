@@ -198,9 +198,17 @@ inline void execute_job(const eng::graphics::BlitJob& job, eng::u16 job_index,
 			for (eng::u16 w = 0u; w < words; ++w) {
 				eng::u16 a = 0u;
 				if (use_a) {
-					// Máscara de primera/última palabra (masktable) sobre la palabra cruda.
-					const eng::u16 mask = w == 0u ? r.bltafwm
-							      : (w + 1u == words ? r.bltalwm : 0xffffu);
+					// Masktable espejo de WinUAE (`blitter.cpp:489-490`): arranca en
+					// `0xFFFF`, la PRIMERA palabra toma `AFWM` y la ÚLTIMA se «andea» con
+					// `ALWM` — en filas de una palabra **ambas aplican** (así lo hace el
+					// hardware; el shifter recibe el dato ya recortado, `blitter.cpp:530`).
+					eng::u16 mask = 0xffffu;
+					if (w == 0u) {
+						mask = r.bltafwm;
+					}
+					if (w + 1u == words) {
+						mask = static_cast<eng::u16>(mask & r.bltalwm);
+					}
 					const eng::u16 raw =
 						static_cast<eng::u16>(soft_detail::read16(a_ptr + w * 2u) & mask);
 					a = soft_detail::barrel(hold_a, raw, ash);

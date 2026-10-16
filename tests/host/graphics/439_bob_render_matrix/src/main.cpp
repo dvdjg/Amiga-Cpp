@@ -480,6 +480,50 @@ int main() {
 		CHECK(eng::test::soft_color(bitmap_il(), 32, 4) == 0u);
 	}
 
+	// ── T6b: arrastre del barrel enmascarado (`ALWM = 0xFFFF << shift`) ─────
+	// Hoja par SIN guarda con el bit BAJO de la última palabra a 1 (píxel 15, el rabo que
+	// el shift recorta) y desplazamiento 1: sin la ventana fina de `BLTALWM` (AHRM 6: las
+	// máscaras se «anded» al dato CRUDO antes del shift; WinUAE-DBG `blitter.cpp:530-531`)
+	// el bit bajo de la MÁSCARA de cada fila reaparece en el borde IZQUIERDO (píxel 0) de
+	// la fila siguiente y pinta basura (el `hold` del canal A persiste entre filas).
+	{
+		std::memset(g_bitmap_il, 0, sizeof(g_bitmap_il));
+		std::memset(g_sheet, 0, sizeof(g_sheet));
+		// Por fila y plano: [imagen][máscara]; bits 15,14 (píxeles 0,1) + bit 0 (píxel 15).
+		for (eng::u16 row = 0u; row < kBobH; ++row) {
+			for (eng::u8 p = 0u; p < 2u; ++p) {
+				const eng::u16 base = static_cast<eng::u16>((row * 2u + p) * 2u);
+				if (p == 1u) {
+					be_or(g_sheet, base, 0xc001u); // imagen (solo plano 1)
+				}
+				be_or(g_sheet, static_cast<eng::u32>(base + 1u), 0xc001u); // máscara
+			}
+		}
+		eng::graphics::Bob b {};
+		b.sheet = chip_view(g_sheet);
+		b.width = 16u;
+		b.height = kBobH;
+		b.planes = 2u;
+		b.layout = eng::graphics::BobLayout::Interleaved;
+		b.draw = eng::graphics::BobDraw::CookieCut;
+		b.mask_pack = eng::graphics::BobMaskPack::InterleavedPair;
+		eng::graphics::FramePlan plan {};
+		CHECK(eng::graphics::bob_draw(plan, b, 0u, 17, 4, target_il())); // shift = 1
+		const auto res = eng::test::execute_plan(plan, bitmap_il());
+		expect_result(res, "T6b");
+		// Positivo: el arte se pinta desplazado 1 (píxel 0 -> 17) en cada fila.
+		for (eng::u16 row = 0u; row < kBobH; ++row) {
+			CHECK(eng::test::soft_color(bitmap_il(), 17, static_cast<eng::s16>(4u + row)) == 2u);
+		}
+		// Borde izquierdo (píxel 0 de la palabra, x=16): limpio en TODAS las filas; la fila 0
+		// ya lo estaba (hold = 0), las filas 1+ dependen de `ALWM` (regresión).
+		for (eng::u16 row = 0u; row < kBobH; ++row) {
+			CHECK(eng::test::soft_color(bitmap_il(), 16, static_cast<eng::s16>(4u + row)) == 0u);
+		}
+		// El rabo recortado (píxel 15 -> x=32) no toca la palabra siguiente.
+		CHECK(eng::test::soft_color(bitmap_il(), 32, 4) == 0u);
+	}
+
 	// ── T7: erase box (ClearRect) ──────────────────────────────────────────
 	{
 		build_planar_sheet();

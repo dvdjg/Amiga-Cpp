@@ -21,12 +21,17 @@
 /// donde `base = (width+15)/16` y la última palabra es **guarda** (absorbe la lectura
 /// desplazada del barrel shifter). Planar: `planes · height` filas contiguas y una
 /// palabra extra al final. Interleaved: `height · planes` filas alternando planos,
-/// también con la guarda por fila. `frame_stride` separa frames (0 = denso).
+/// también con la guarda por fila. La hoja **par** (`BobMaskPack::InterleavedPair`) tiene
+/// su propio contrato: `[imagen k][guarda k][máscara k][guarda k]` por fila física con
+/// `width = 2·W` (ver el enum y `pack_interleaved_pair`). `frame_stride` separa frames
+/// (0 = denso).
 ///
 /// Contrato del **borrado** (`bob_erase`/`bob_erase_box`) y del **save-under**: la caja
 /// procesa `base + (shift != 0)` palabras — las MISMAS que el dibujo — porque con
 /// desplazamiento fino el blit escribe la palabra extra. Borrar solo `base` deja hasta
-/// 15 px por fila sin limpiar (residuo en el borde derecho del objeto).
+/// 15 px por fila sin limpiar (residuo en el borde derecho del objeto). La hoja par ya
+/// lleva la guarda dentro de su ventana: su caja procesa `width/16` palabras, igual que
+/// su dibujo (`bob_detail::box_words`).
 ///
 /// Uso por frame (el estado — posición, frame — lo lleva el llamador o un manager):
 ///
@@ -84,10 +89,14 @@ enum class BobMaskPack : u8 {
 	/// La máscara es un plano de 1 bit **aparte** (`Bob::mask`, misma rejilla). Es la forma
 	/// del cookie-cut planar.
 	SeparatePlane,
-	/// La hoja intercala `[imagen][máscara]` por cada fila de cada plano (`width/16` palabras
-	/// de imagen seguidas de `width/16` de máscara, sin guarda): cookie-cut con planos
-	/// intercalados en **un solo** blit (minterm `$CA`). `Bob::mask` se ignora (la máscara
-	/// va en la propia hoja). Contrato de `make_interleaved_masked_bob` (`blit_job.hpp`).
+	/// La hoja intercala por cada fila física `[imagen k][guarda k][máscara k][guarda k]`
+	/// (k = W/16 palabras; los bloques de guarda son del tamaño del arte, a cero): cookie-cut
+	/// con planos intercalados en **un solo** blit (minterm `$CA`). El `Bob` declara
+	/// `width = 2·W` (ventana: la mitad de imagen incluye su bloque de guarda) y el blit
+	/// procesa la mitad de imagen completa. `Bob::mask` se ignora (la máscara va en la
+	/// propia hoja). Contrato de `pack_interleaved_pair` (`blit_job.hpp`); la guarda aporta
+	/// al shifter los bits del borde derecho y su máscara nula no toca el destino (AHRM 6:
+	/// máscaras «anded» al dato crudo antes del shift; HOST-453, los 16 subpíxeles exactos).
 	InterleavedPair,
 };
 
@@ -155,7 +164,24 @@ constexpr u16 blit_words(const Bob& bob, u8 shift) {
 
 /// Bytes por fila de la HOJA (base + guarda).
 constexpr u32 sheet_row_bytes(const Bob& bob) {
+	if (bob.mask_pack == BobMaskPack::InterleavedPair &&
+	    bob.layout == BobLayout::Interleaved) {
+		// Fila FÍSICA de la hoja par: `[imagen k][guarda k][máscara k][guarda k]`
+		// (k = width/32; la ventana `width` = 2·k·16) → `width/4` bytes.
+		return static_cast<u32>(base_words(bob)) * 4u;
+	}
 	return (static_cast<u32>(base_words(bob)) + 1u) * 2u;
+}
+
+/// Palabras que la caja de borrado/save-under debe cubrir para igualar la **huella del
+/// dibujo** (`bob_draw`): el camino planar/interleaved procesa `base + (shift != 0)`; la
+/// hoja par procesa su ventana completa (`width/16`; la guarda ya va dentro) sin palabra
+/// extra. Compartido por `bob_erase_box`/`bob_save_box`/`bob_restore_box`.
+constexpr u16 box_words(const Bob& bob, u16 w, s16 x) {
+	const bool pair = bob.draw == BobDraw::CookieCut &&
+			  bob.mask_pack == BobMaskPack::InterleavedPair &&
+			  bob.layout == BobLayout::Interleaved;
+	return static_cast<u16>((w + 15u) / 16u + ((!pair && (x & 15) != 0) ? 1u : 0u));
 }
 
 /// Bytes por fila que separan dos filas consecutivas de la hoja: el valor declarado
@@ -194,8 +220,9 @@ inline bool bob_erase_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, 
 	const bool inter = (t.layout == BobLayout::Interleaved);
 	// La caja debe cubrir el objeto TAL COMO SE DIBUJA: con desplazamiento fino el blit
 	// procesa una palabra de más (`base + shift`), así que borrar `base` dejaría el borde
-	// derecho del objeto sin limpiar (residuo de hasta 15 px por fila).
-	const u16 words = static_cast<u16>((w + 15u) / 16u + ((x & 15) != 0 ? 1u : 0u));
+	// derecho del objeto sin limpiar (residuo de hasta 15 px por fila). La hoja par ya
+	// trae la guarda en la ventana: su huella es `width/16` (`box_words`).
+	const u16 words = box_words(bob, w, x);
 	const u32 start_row = inter ? static_cast<u32>(t.row_bytes) * t.plane_count
 				    : t.row_bytes; // fila del bitmap en la que empieza la caja
 	// **Construcción IN SITU**: ranura del plan, sin `BlitJob` local ni copia; se fijan todos los
@@ -246,7 +273,7 @@ inline bool bob_erase_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, 
 inline bool bob_save_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, s16 y,
 			 const BobTarget& t, eng::ChipView<eng::BobTag> save, u16 save_words_per_row,
 			 u16 save_height) {
-	const u16 words = static_cast<u16>((w + 15u) / 16u + ((x & 15) != 0 ? 1u : 0u));
+	const u16 words = bob_detail::box_words(bob, w, x);
 	if (save.empty() || words > save_words_per_row || h > save_height || y < 0 ||
 	    (x & ~15) < 0) {
 		return false; // sin buffer, buffer insuficiente o caja fuera por arriba/izquierda
@@ -281,7 +308,7 @@ inline bool bob_save_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, s
 inline bool bob_restore_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, s16 y,
 			    const BobTarget& t, eng::ChipView<eng::BobTag> save, u16 save_words_per_row,
 			    u16 save_height) {
-	const u16 words = static_cast<u16>((w + 15u) / 16u + ((x & 15) != 0 ? 1u : 0u));
+	const u16 words = bob_detail::box_words(bob, w, x);
 	if (save.empty() || words > save_words_per_row || h > save_height || y < 0 ||
 	    (x & ~15) < 0) {
 		return false; // sin buffer, buffer insuficiente o caja fuera por arriba/izquierda
@@ -326,15 +353,27 @@ inline bool bob_erase(FramePlan& plan, const Bob& bob, s16 x, s16 y, const BobTa
 
 /// Dibuja un objeto cookie-cut con hoja **par** (`BobMaskPack::InterleavedPair`): un único
 /// blit `$CA` con el cableado explícito de la hoja interleaved. La hoja intercala,
-/// por cada fila de cada plano, `width/16` palabras de imagen seguidas de `width/16` de máscara (sin
-/// palabra de guarda). Es la geometría de `make_interleaved_masked_bob` (`blit_job.hpp`); el
-/// bit de máscara de cada plano se materializa en el propio blit, sin copia expandida.
+/// por cada fila física, `[imagen k][guarda k][máscara k][guarda k]` (`k = W/16`, guardas a
+/// cero del tamaño del arte): es la geometría de `pack_interleaved_pair` (`blit_job.hpp`)
+/// con `bob.width = 2·W` (ventana). El bit de máscara de cada plano se materializa en el
+/// propio blit, sin copia expandida.
 /// El encoder conecta `A` = máscara (segunda mitad) y `B` = imagen (primera mitad) con
 /// `ASH = BSH = x & 15`, como el original de Bartman.
+/// `first_row`/`rows` limitan el RANGO de filas del arte (fila inicial y cuántas);
+/// `bob_draw` pasa `(0, height)` y el reparto en la costura del anillo
+/// (`bob_ring.hpp`) `(0, seg)` + `(seg, height − seg)`.
 inline bool bob_draw_interleaved_pair(FramePlan& plan, const Bob& bob, u8 frame, s16 x, s16 y,
-				      const BobTarget& t) {
+				      u16 first_row, u16 rows, const BobTarget& t) {
 	using namespace bob_detail;
 	// Precondición: `bob_draw` (único llamador) ya validó `bob`/`t` y `frame < frame_count`.
+	// `bob.width` es la **ventana** del arte en píxeles e **incluye la palabra de guarda**
+	// (arte + 16; la hoja pack la trae tras cada mitad: `[arte n][guarda][máscara n][guarda]`,
+	// `pack_interleaved_pair`). Se procesan TODAS las palabras de la ventana: con el subpíxel
+	// (`shift > 0`) el shifter `(previa << 16 | actual) >> shift` necesita la palabra
+	// siguiente por fila para que no se recorten las `shift` columnas derechas del arte; la
+	// guarda (cero) aporta esos bits y su máscara nula no altera el destino. `shift = 0`
+	// procesa también la guarda, que resulta un no-op (reescribe el destino con su valor).
+	// La máscara de cookie-cut vive en `src + words` (mitad derecha del par).
 	const u16 words = static_cast<u16>(bob.width / 16u);
 	if (words == 0u) {
 		return false;
@@ -349,7 +388,13 @@ inline bool bob_draw_interleaved_pair(FramePlan& plan, const Bob& bob, u8 frame,
 	const s16 x_start = wx;
 	const u32 start_row = static_cast<u32>(t.row_bytes) * t.plane_count;
 	const u32 frame_offset = static_cast<u32>(frame) * bob.frame_stride;
-	const u16* src = reinterpret_cast<const u16*>(bob.sheet.address(frame_offset).cptr());
+	// Rango de filas del arte: la fila `first_row` arranca en la fila FÍSICA
+	// `first_row · planos` del pack (una fila física por plano del destino, paso
+	// `sheet_row_of` = 4·k bytes con la guarda).
+	const u32 first_off = static_cast<u32>(first_row) * static_cast<u32>(bob.planes) *
+			      sheet_row_of(bob);
+	const u16* src = reinterpret_cast<const u16*>(
+		bob.sheet.address(frame_offset + first_off).cptr());
 	// **Construccion IN SITU** (coste cero): se rellena la ranura del plan directamente, sin
 	// `BlitJob` local (que en -O0 es un `memset`) ni copia (otro `memcpy`). Ver `ZERO_COST_FRAME_PATH.md`.
 	BlitJob& job = plan.begin_blit_job(BlitJobKind::MaskedBobCookieCut);
@@ -358,7 +403,7 @@ inline bool bob_draw_interleaved_pair(FramePlan& plan, const Bob& bob, u8 frame,
 	job.destination = BlitPtr::from_storage(reinterpret_cast<u16*>(
 		t.data() + static_cast<u32>(y) * start_row + (static_cast<u32>(x_start) >> 3u)));
 	job.words_per_row = words;
-	job.height = static_cast<u16>(bob.height * bob.planes);
+	job.height = static_cast<u16>(rows * bob.planes);
 	job.source_modulo_bytes = mod16u(words * 2u);
 	job.destination_modulo_bytes = mod16(static_cast<s32>(t.row_bytes) - static_cast<s32>(words) * 2);
 	job.bitplane_count = 1u;
@@ -377,32 +422,22 @@ inline bool bob_draw_interleaved_pair(FramePlan& plan, const Bob& bob, u8 frame,
 	return plan.commit_blit_job();
 }
 
-/// Dibuja el `frame` del objeto en `(x,y)`.
-///
-/// Camino caliente (un BOB por objeto y frame): `always_inline` para que el contrato
-/// de la hoja y la aritmetica de modulos queden dentro del bucle del llamador, sin
-/// `jsr` por objeto. Medido en la 117 (bobs3d): `draw` ~2.660 ciclos/BOB sin inline.
-/// \param plan   plan del frame (recibe el/los blit(s)).
-/// \param bob    objeto (hoja, máscara, layout, modo de dibujo).
-/// \param frame  índice de frame dentro de la hoja.
-/// \param x,y    posición del ancla (píxeles; el `offset` del `Bob` se aplica).
-/// \param t      geometría de destino (planos Chip, `row_bytes`, planos, layout).
-/// \return `false` si el `bob`/`t` no son válidos, el frame está fuera de rango o el
-///         cookie-cut interleaved no lo cubre el ejecutor.
-__attribute__((always_inline)) inline bool bob_draw(FramePlan& plan, const Bob& bob, u8 frame, s16 x, s16 y, const BobTarget& t) {
+/// **Núcleo del dibujo por RANGO de filas del arte** — única fuente de todos los caminos:
+/// `bob_draw` = `(0, bob.height)`; el reparto en la **costura del anillo** =
+/// `(0, seg)` + `(seg, height − seg)` con la segunda parte en la línea 0 del anillo
+/// (`eng/graphics/bob_ring.hpp`). `rows` limita las filas que recorre el blit; los **pasos**
+/// (stride de plano de la hoja, módulos, stride de plano del destino) se calculan siempre
+/// con la altura COMPLETA del objeto — por eso el rango viaja como parámetro y no como
+/// `bob.height` mutada (mutarla rompería `source_plane_stride_bytes` en los layouts por
+/// plano). Precondiciones, validadas por los llamadores: `valid(bob, t)`,
+/// `frame < frame_count`, `y >= 0`.
+__attribute__((always_inline)) inline bool draw_rows(FramePlan& plan, const Bob& bob, u8 frame,
+						     s16 x, s16 y, u16 first_row, u16 rows,
+						     const BobTarget& t) {
 	using namespace bob_detail;
-	if (!valid(bob, t) || frame >= bob.frame_count) {
-		return false;
-	}
-	if (y < 0) {
-		// Objeto fuera por arriba: no se dibuja (recorte parcial pendiente). Sin esta
-		// guarda el offset negativo del destino envuelve y el blit escribe FUERA del
-		// bitmap, corrompiendo Chip RAM (caso visto en la demo 064: enemigos a y=-24).
-		return true;
-	}
 	if (bob.draw == BobDraw::CookieCut && bob.layout == BobLayout::Interleaved) {
 		if (bob.mask_pack == BobMaskPack::InterleavedPair) {
-			return bob_draw_interleaved_pair(plan, bob, frame, x, y, t);
+			return bob_draw_interleaved_pair(plan, bob, frame, x, y, first_row, rows, t);
 		}
 		// Con máscara en un plano suelto, el cookie-cut intercalado exigiría una máscara
 		// "expandida" (una copia por plano) y modulos A/B distintos: no lo cubre el
@@ -436,21 +471,30 @@ __attribute__((always_inline)) inline bool bob_draw(FramePlan& plan, const Bob& 
 	if (masked && bob.mask.empty()) {
 		return false; // cookie-cut sin mascara
 	}
+	// Rango de filas del arte: en `flat` (hoja intercalada por los planos del destino)
+	// cada fila de arte ocupa `planos` filas físicas; en la hoja apilada por plano, una.
+	// `sheet_row_of` es el paso físico entre filas de la hoja (guarda incluida).
+	const u32 row_adv = sheet_row_of(bob);
+	const u32 first_off =
+		flat ? static_cast<u32>(first_row) * static_cast<u32>(bob.planes) * row_adv
+		     : static_cast<u32>(first_row) * row_adv;
 	// **Construcción IN SITU**: ranura del plan, sin `BlitJob` local ni copia.
 	BlitJob& job = plan.begin_blit_job(masked ? BlitJobKind::MaskedBobCookieCut
 						  : BlitJobKind::OrBlob);
 	job.source = BlitPtr::from_storage(reinterpret_cast<const u16*>(
-		bob.sheet.address(static_cast<u32>(frame) * bob.frame_stride).cptr()));
+		bob.sheet.address(static_cast<u32>(frame) * bob.frame_stride + first_off).cptr()));
 	job.destination = BlitPtr::from_storage(reinterpret_cast<u16*>(
 		t.data() + static_cast<u32>(y) * start_row + (static_cast<u32>(x_start) >> 3u)));
 	job.words_per_row = words;
-	job.height = flat ? static_cast<u16>(bob.height * bob.planes) : bob.height;
+	job.height = flat ? static_cast<u16>(rows * bob.planes) : rows;
 	job.source_shift = shift;
 	job.bitplane_count = flat ? 1u : bob.planes;
 	job.source_modulo_bytes = mod16(static_cast<s32>(sheet_row_of(bob)) - static_cast<s32>(words) * 2);
 	job.destination_modulo_bytes = mod16(
 		static_cast<s32>(flat ? t.row_bytes : start_row) - static_cast<s32>(words) * 2);
-	job.source_plane_stride_bytes = flat ? 0u : bob.height * sheet_row_of(bob);
+	// El stride entre planos de la hoja usa la altura COMPLETA (los planos distan
+	// `height · fila` aunque se dibuje un rango de filas).
+	job.source_plane_stride_bytes = flat ? 0u : bob.height * row_adv;
 	job.destination_plane_stride_bytes = flat ? 0u : t.plane_pointer_step();
 	job.interleaved = inter;
 	job.minterm = (bob.draw == BobDraw::Or) ? 0x00fcu
@@ -462,6 +506,35 @@ __attribute__((always_inline)) inline bool bob_draw(FramePlan& plan, const Bob& 
 		job.mask = BlitPtr::from_storage(reinterpret_cast<const u16*>(bob.mask.data()));
 	}
 	return plan.commit_blit_job();
+}
+
+/// Dibuja el `frame` del objeto COMPLETO en `(x,y)`.
+///
+/// Camino caliente (un BOB por objeto y frame): `always_inline` para que el contrato
+/// de la hoja y la aritmetica de modulos queden dentro del bucle del llamador, sin
+/// `jsr` por objeto. Medido en la 117 (bobs3d): `draw` ~2.660 ciclos/BOB sin inline.
+/// Para bitmaps **cíclicos** (costura del anillo) usar `bob_draw_ring`
+/// (`bob_ring.hpp`): parte el rect en la costura sin tocar este camino (coste cero
+/// cuando no hay cruce más allá de la comparación del wrapper).
+/// \param plan   plan del frame (recibe el/los blit(s)).
+/// \param bob    objeto (hoja, máscara, layout, modo de dibujo).
+/// \param frame  índice de frame dentro de la hoja.
+/// \param x,y    posición del ancla (píxeles; el `offset` del `Bob` se aplica).
+/// \param t      geometría de destino (planos Chip, `row_bytes`, planos, layout).
+/// \return `false` si el `bob`/`t` no son válidos, el frame está fuera de rango o el
+///         cookie-cut interleaved no lo cubre el ejecutor.
+__attribute__((always_inline)) inline bool bob_draw(FramePlan& plan, const Bob& bob, u8 frame, s16 x, s16 y, const BobTarget& t) {
+	using namespace bob_detail;
+	if (!valid(bob, t) || frame >= bob.frame_count) {
+		return false;
+	}
+	if (y < 0) {
+		// Objeto fuera por arriba: no se dibuja (recorte parcial pendiente). Sin esta
+		// guarda el offset negativo del destino envuelve y el blit escribe FUERA del
+		// bitmap, corrompiendo Chip RAM (caso visto en la demo 064: enemigos a y=-24).
+		return true;
+	}
+	return draw_rows(plan, bob, frame, x, y, 0u, bob.height, t);
 }
 
 } // namespace eng::graphics

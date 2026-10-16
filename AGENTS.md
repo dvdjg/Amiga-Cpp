@@ -72,7 +72,7 @@ Este es el **único orden de lectura de arranque**: cualquier otro documento que
 
 ### 1.2 Formato de la documentación
 
-- No poner saltos de línea a mitad de párrafo: cada párrafo es una línea lógica y el texto se adapta a la anchura del editor con *word wrap*.
+- No poner saltos de línea a mitad de párrafo: cada párrafo es una línea lógica y el texto se adapta a la anchura del editor con *word wrap*. **Gate mecánico**: `tools/check/md-wrap.mjs` (suite) falla si un `.md` tiene hard-wrap nuevo o creciente (baseline con conteo por fichero, solo puede bajar). No se limita la anchura de las líneas jamás: une el párrafo/ítem en UNA línea.
 - Se permiten saltos de línea explícitos solo para estructuras (listas, código, tablas, diagramas ASCII).
 - Añadir diagramas ASCII para ilustrar conceptos (capas, flujos, geometrías de buffers, zonas del Copper, etc.) cuando aclaren el texto.
 - **Escribir para un lector sin conocimiento histórico.** Los documentos de referencia describen el estado/objetivo **vigente**, no su evolución: no usar «antes/ahora/desaparece/hoy/ya no», no narrar el proceso ni las alternativas descartadas. Las notas de transición, decisiones descartadas, estado de fases y bitácoras van a `docs/debugging/` o `docs/guides/roadmap/`, nunca al documento de referencia.

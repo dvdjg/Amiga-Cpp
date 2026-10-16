@@ -258,7 +258,14 @@ struct BlitOp {
 	}
 	b.bltcon0 = control;
 	b.bltcon1 = masked ? bsh : 0u;
-	b.bltalwm = (clear || masked) ? 0xffffu : static_cast<eng::u16>(0xffffu << shift);
+	// **Ventana fina del barrel** (AHRM 6 + WinUAE `blitter.cpp:531`): el shifter arrastra
+	// `(palabra_anterior << 16 | palabra_actual) >> shift`, así que los bits bajos de la
+	// ÚLTIMA palabra de cada fila reaparecen en los bits ALTOS (borde izquierdo) de la fila
+	// siguiente. `ALWM = 0xFFFF << shift` los limpia ANTES del shift (las máscaras se
+	// "anded" con el dato crudo, AHRM 6). Sin ello, un BOB desplazado (`shift > 0`) escribe
+	// basura de la fila anterior en el borde izquierdo de cada fila — incluido el canal de
+	// máscara del cookie-cut. Aplica a TODOS los tipos; `shift = 0` la deja a `0xFFFF`.
+	b.bltalwm = static_cast<eng::u16>(0xffffu << shift);
 	b.bltamod = src_mod;
 	b.bltbmod = masked ? src_mod : (clear ? 0 : j.destination_modulo_bytes);
 	b.bltcmod = masked ? j.destination_modulo_bytes : src_mod;
