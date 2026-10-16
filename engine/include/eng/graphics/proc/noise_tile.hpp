@@ -120,9 +120,15 @@ inline constexpr SmoothstepTable kSmoothstep {};
 	const eng::u16 v10 = tile_node(ix1, iy0, seed);
 	const eng::u16 v01 = tile_node(ix0, iy1, seed);
 	const eng::u16 v11 = tile_node(ix1, iy1, seed);
-	const eng::u16 top = eng::u16(v00 + (((v10 - v00) * tx) >> 8u));
-	const eng::u16 bot = eng::u16(v01 + (((v11 - v01) * tx) >> 8u));
-	return eng::u8(top + (((bot - top) * ty) >> 8u));
+	// Los lerps se hacen con operandos de 16 bits explícitos (`muls.w` nativo):
+	// con `int*int` el m68k no puede probar el rango y emite `__mulsi3` (libcall,
+	// la que esta cabecera dice evitar). La aritmética es idéntica: la diferencia
+	// ∈ [−255,255] y el peso ∈ [0,255] caben en s16 y el producto en s32.
+	const eng::s16 top = eng::s16(
+		v00 + ((eng::s16(eng::s16(v10) - eng::s16(v00)) * eng::s16(tx)) >> 8u));
+	const eng::s16 bot = eng::s16(
+		v01 + ((eng::s16(eng::s16(v11) - eng::s16(v01)) * eng::s16(tx)) >> 8u));
+	return eng::u8(top + ((eng::s16(eng::s16(bot) - top) * eng::s16(ty)) >> 8u));
 }
 
 /// **fBm de ruido entero**: suma de octavas de `tile_noise2` (cada octava dobla la
