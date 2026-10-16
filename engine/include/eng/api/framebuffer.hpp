@@ -36,6 +36,7 @@
 #include <eng/graphics/composition/compose.hpp>
 #include <eng/graphics/font8.hpp>
 #include <eng/graphics/palette.hpp>
+#include <eng/graphics/planar_band.hpp>
 #include <eng/memory/memory_manager.hpp>
 
 namespace eng {
@@ -48,7 +49,10 @@ namespace eng {
 /// el de **5 planos** también (demo 119_proc_world, `IndexedDisplay<5, 1>` con `MiniFloat16`,
 /// planar, 320×256: mapa de 32 colores + parcheo planar de la franja). El **C2P** de 5/6 planos
 /// (`c2p_1x1_naive`) está verificado en host (HOST-367); el **display** de **6 planos** sigue
-/// **sin verificar** en hardware.
+/// **sin verificar** en hardware. El parcheo por **bandas planares** (`capture_band`/
+/// `restore_band`/`patch_band`) está verificado en hardware por la demo 121
+/// (`121_proc_corner_layers`: actor parcheado por frame con máscara de overhead) y en host por
+/// `HOST-450` (`planar_band`).
 template <eng::u8 Planes = 4u, eng::u8 Buffers = 2u>
 class IndexedDisplay {
 public:
@@ -130,6 +134,90 @@ public:
 		m_scene.commit();
 	}
 
+	/// Buffer que el Copper muestra AHORA: el último publicado (con 1 buffer, el mismo).
+	[[nodiscard]] eng::u8* displayed_base() noexcept {
+		const eng::u8 displayed =
+			(m_scene.buffer_count() > 1u)
+				? eng::u8((m_scene.back_index() + m_scene.buffer_count() - 1u) %
+					  m_scene.buffer_count())
+				: m_scene.back_index();
+		return m_scene.buffer(displayed).data();
+	}
+
+	/// Palabras de una **banda planar** `w × h` de este display (`w·h·Plan planes`),
+	/// para dimensionar el span que piden `capture_band`/`restore_band`/`patch_band`.
+	/// \param w,h palabras y filas. \return palabras de la banda.
+	[[nodiscard]] static constexpr eng::u32 band_words(eng::u16 w, eng::u16 h) noexcept {
+		return eng::graphics::band_words(w, h, Planes);
+	}
+	/// Palabras por fila de la ventana de un patrón de `w` píxeles con desplazamiento
+	/// 0..15 (`eng::graphics::band_window_words`), lo que consume
+	/// `make_band_from_pixels` para precomputar los 16 desplazamientos.
+	/// \param w ancho del patrón en píxeles. \return palabras por fila de la ventana.
+	[[nodiscard]] static constexpr eng::u16 band_window_words(eng::u16 w) noexcept {
+		return eng::graphics::band_window_words(w);
+	}
+
+	/// **Captura** una banda planar `(wx, y, w, h)` del buffer **mostrado** a `dst`
+	/// (`[plano][fila][palabra]`, `band_words(w,h)` palabras). Es el "fondo" que luego
+	/// restaura la ventana de un actor (`restore_band`). `wx` va en palabras (x/16).
+	/// \param wx,y palabra/fila iniciales. \param w,h tamaño en palabras/filas.
+	/// \param dst banda destino. \return false si la geometría o el span no valen.
+	[[nodiscard]] bool capture_band(eng::u16 wx, eng::u16 y, eng::u16 w, eng::u16 h,
+					eng::Span<eng::u16> dst) noexcept {
+		if (m_w == 0u || m_rows == 0u || w == 0u || h == 0u ||
+		    eng::u32(wx) + w > m_scene.row_bytes() / 2u || eng::u32(y) + h > m_rows ||
+		    dst.size() < band_words(w, h)) {
+			return false;
+		}
+		const eng::u8* const base = displayed_base();
+		if (base == nullptr) {
+			return false;
+		}
+		eng::graphics::get_band(base, m_scene.plane_bytes(), m_scene.row_bytes(), wx, y, w, h,
+					Planes, dst.data());
+		return true;
+	}
+
+	/// **Restaura** la banda `src` (de `capture_band`) en el buffer **mostrado**:
+	/// borra el rastro de un actor antes de repintarlo en su posición nueva.
+	/// Llámalo recién pasado el VBlank (parchea el buffer que el Copper muestra).
+	/// \param wx,y palabra/fila destino. \param w,h tamaño. \param src banda origen.
+	void restore_band(eng::u16 wx, eng::u16 y, eng::u16 w, eng::u16 h,
+			  eng::Span<const eng::u16> src) noexcept {
+		if (m_w == 0u || m_rows == 0u || w == 0u || h == 0u ||
+		    eng::u32(wx) + w > m_scene.row_bytes() / 2u || eng::u32(y) + h > m_rows ||
+		    src.size() < band_words(w, h)) {
+			return;
+		}
+		eng::u8* const base = displayed_base();
+		if (base == nullptr) {
+			return;
+		}
+		eng::graphics::put_band(base, m_scene.plane_bytes(), m_scene.row_bytes(), wx, y, w, h,
+					Planes, src.data());
+	}
+
+	/// **Parchea con máscara** (cookie-cut planar) sobre el buffer **mostrado**:
+	/// `dst = (dst & ~mask) | (src & mask)` — el actor solo escribe donde su máscara
+	/// (ya combinada por el llamador con la de la capa de overhead) está a 1.
+	/// \param wx,y palabra/fila destino. \param w,h tamaño. \param src banda del patrón.
+	/// \param mask máscara de 1 plano (`w·h` palabras; 1 = escribir).
+	void patch_band(eng::u16 wx, eng::u16 y, eng::u16 w, eng::u16 h,
+			eng::Span<const eng::u16> src, eng::Span<const eng::u16> mask) noexcept {
+		if (m_w == 0u || m_rows == 0u || w == 0u || h == 0u ||
+		    eng::u32(wx) + w > m_scene.row_bytes() / 2u || eng::u32(y) + h > m_rows ||
+		    src.size() < band_words(w, h) || mask.size() < eng::u32(w) * h) {
+			return;
+		}
+		eng::u8* const base = displayed_base();
+		if (base == nullptr) {
+			return;
+		}
+		eng::graphics::put_band_masked(base, m_scene.plane_bytes(), m_scene.row_bytes(), wx, y, w,
+					       h, Planes, src.data(), mask.data());
+	}
+
 	/// **Parcheo planar de texto** (telemetría) sobre el bitmap **mostrado**: escribe
 	/// celdas de 8×8 de `Font8` directamente en los bitplanes (color `fg` sobre fondo
 	/// `bg`), sin pasar por el chunky ni por el C2P. Coste ~bytes por carácter: es la vía
@@ -148,13 +236,8 @@ public:
 		if (text == nullptr || m_w == 0u || m_rows == 0u) {
 			return;
 		}
-		// Buffer que el Copper muestra AHORA: el último publicado (con 1 buffer, el mismo).
-		const eng::u8 displayed =
-			(m_scene.buffer_count() > 1u)
-				? eng::u8((m_scene.back_index() + m_scene.buffer_count() - 1u) %
-					  m_scene.buffer_count())
-				: m_scene.back_index();
-		eng::u8* const base = m_scene.buffer(displayed).data();
+		// Buffer que el Copper muestra AHORA (el último publicado; ver `displayed_base`).
+		eng::u8* const base = displayed_base();
 		if (base == nullptr) {
 			return;
 		}

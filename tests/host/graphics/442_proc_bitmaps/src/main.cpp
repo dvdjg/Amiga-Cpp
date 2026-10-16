@@ -713,7 +713,10 @@ void write_ppm(const char* path, const u8* pixels, u16 w, u16 h, const eng::Pale
 	std::FILE* f = std::fopen(path, "wb");
 	if (f == nullptr) return;
 	std::fprintf(f, "P6\n%u %u\n255\n", unsigned(w), unsigned(h));
-	for (u16 i = 0; i < eng::u16(w) * h; ++i) {
+	// Índice u32: con u16 el bucle no termina cuando la imagen supera 65535 píxeles
+	// (DT-019; el dump de mapas grandes se quedaba colgado).
+	const eng::u32 count = eng::u32(w) * h;
+	for (eng::u32 i = 0u; i < count; ++i) {
 		const eng::u16 c = pal.color[pixels[i] & 31u];
 		const u8 rgb[3] = {u8(((c >> 8u) & 0xFu) * 17u), u8(((c >> 4u) & 0xFu) * 17u),
 				   u8((c & 0xFu) * 17u)};

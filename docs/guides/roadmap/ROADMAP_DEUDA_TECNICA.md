@@ -297,14 +297,14 @@ una función `noinline` → `jsr __mulsi3` a `-O1`. La demo 119 debug ya llamaba
 (6 sitios) y `__udivsi3` (3) desde antes: el enlace funciona porque `support/gcc8_a_support.s`
 define las rutinas, pero cada llamada cuesta un salto + ~4 `mulu.w`.
 
-**Consecuencias y mitigaciones aplicadas:** en `noise_tile.hpp` los lerps pasan a operandos
-`s16` explícitos (bit-exacto: `HOST-443`/`HOST-444` verifican que el golden y la rejilla no
-cambian) y en `corner_tiles.hpp` los cuadrados del `stamp_disc` se indexan de una **tabla ROM**
-(`kSquares`, 257×u16) en vez de multiplicar. Tras ese cambio, el TU completo de las dos
-cabeceras queda con **0 libcalls a -O2**; a `-O1` queda solo el hash `mul_fold16` (patrón
-`u32(a)*u32(b)`, pre-existente). Regla práctica: para garantía total, modelar los productos
-como HImode (s16/u16 reales) o tabla — un `u32`-typed product puede degradar a libcall aunque
-el rango sea diminuto.
+**Mitigación aplicada (final):** los productos 16×16 del dominio van por el vocabulario
+del engine — `eng::math::mulu16`/`mul_wide` (`arith<m68k>`: asm `mulu`/`muls` con guard
+`if consteval`, portable y bit-exacto en `consteval`) y la tabla ROM `kSquares` para los
+cuadrados del `stamp_disc`. Con eso el TU completo de `noise_tile.hpp` +
+`corner_tiles.hpp` + `layered_map.hpp` queda con **0 libcalls (`nm`) a `-O1` y `-O2`**, y
+`HOST-443`/`HOST-444`/`HOST-445` confirman que no cambió ningún valor. Regla práctica:
+modelar los productos como HImode (s16/u16) o tabla — un producto con tipos `int`/`u32`
+puede degradar a libcall aunque el rango sea diminuto.
 
 **Segundo hallazgo (ICE):** un TU con una sola llamada a `Bayer::threshold8` (p. ej.
 `extern "C" u8 probe(u16 x, u16 y) { return eng::gfx::proc::Bayer::threshold8(x, y); }`) da
@@ -313,7 +313,7 @@ el rango sea diminuto.
 aquí no hay). Afecta solo a los builds `--o0` de depuración interactiva; `-O1`/`-O2` compilan.
 Registrado aquí; sin causa raíz en el fuente (bug de backend/CFI).
 
-## DT-019 · `write_ppm` de `HOST-442` no termina con imágenes > 65535 px
+## DT-019 · `write_ppm` de `HOST-442` no termina con imágenes > 65535 px — RESUELTO
 
 El helper `write_ppm` del test `tests/host/graphics/442_proc_bitmaps` usa índice `u16` en el
 bucle (`for (u16 i = 0; i < u16(w) * h; ++i)`): con `w*h > 65535` el índice desborda y el bucle

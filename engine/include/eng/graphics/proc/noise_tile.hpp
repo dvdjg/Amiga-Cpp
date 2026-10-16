@@ -27,16 +27,21 @@
 /// ## Estado de verificación: NO VERIFICADA
 /// Solo respaldada por test host (`HOST-445`); la demo 119 lo usa en carga (medido).
 
+#include <eng/core/math/arith.hpp>
 #include <eng/core/types/types.hpp>
 
 namespace eng::gfx::proc {
 
 /// Multiplica dos `u16` y pliega el producto a 16 bits (`mulu.w` + `xor`): la operación
-/// base del hash del ruido, barata en 68000 (sin `__mulsi3`). Para operandos cuyo producto
-/// cabe en 16 bits (`a·b ≤ 65535`) el plegado es exacto (la parte alta es 0).
+/// base del hash del ruido, barata en 68000 (sin `__mulsi3`). El producto va por
+/// `eng::math::mulu16` (el `arith<m68k>` del engine: `mulu.w` nativo en runtime,
+/// portable en `consteval`): con `u32(a)*u32(b)` suelto, el backend a `-O1` volvía a
+/// emitir `__mulsi3` aunque el rango quepa en 16 bits (`ROADMAP_DEUDA_TECNICA.md` DT-018).
+/// Para operandos cuyo producto cabe en 16 bits (`a·b ≤ 65535`) el plegado es exacto
+/// (la parte alta es 0).
 /// \param a,b operandos. \return `(a·b) ^ (a·b >> 16)` truncado a 16 bits.
 [[nodiscard]] constexpr eng::u16 mul_fold16(eng::u16 a, eng::u16 b) {
-	const eng::u32 p = eng::u32(a) * eng::u32(b);
+	const eng::u32 p = eng::math::mulu16(a, b);
 	return eng::u16(p ^ (p >> 16u));
 }
 
@@ -120,15 +125,15 @@ inline constexpr SmoothstepTable kSmoothstep {};
 	const eng::u16 v10 = tile_node(ix1, iy0, seed);
 	const eng::u16 v01 = tile_node(ix0, iy1, seed);
 	const eng::u16 v11 = tile_node(ix1, iy1, seed);
-	// Los lerps se hacen con operandos de 16 bits explícitos (`muls.w` nativo):
-	// con `int*int` el m68k no puede probar el rango y emite `__mulsi3` (libcall,
-	// la que esta cabecera dice evitar). La aritmética es idéntica: la diferencia
-	// ∈ [−255,255] y el peso ∈ [0,255] caben en s16 y el producto en s32.
+	// Los lerps van por `mul_wide` (`muls.w` nativo del backend m68k; portable en
+	// `consteval`): con `int*int` el m68k a -O1 no puede probar el rango y emite
+	// `__mulsi3`. La aritmética es la misma: la diferencia ∈ [−255,255] y el peso
+	// ∈ [0,255] caben en s16 y el producto en s32.
 	const eng::s16 top = eng::s16(
-		v00 + ((eng::s16(eng::s16(v10) - eng::s16(v00)) * eng::s16(tx)) >> 8u));
+		v00 + (eng::math::mul_wide(eng::s16(eng::s16(v10) - eng::s16(v00)), eng::s16(tx)) >> 8u));
 	const eng::s16 bot = eng::s16(
-		v01 + ((eng::s16(eng::s16(v11) - eng::s16(v01)) * eng::s16(tx)) >> 8u));
-	return eng::u8(top + ((eng::s16(eng::s16(bot) - top) * eng::s16(ty)) >> 8u));
+		v01 + (eng::math::mul_wide(eng::s16(eng::s16(v11) - eng::s16(v01)), eng::s16(tx)) >> 8u));
+	return eng::u8(top + (eng::math::mul_wide(eng::s16(eng::s16(bot) - top), eng::s16(ty)) >> 8u));
 }
 
 /// **fBm de ruido entero**: suma de octavas de `tile_noise2` (cada octava dobla la

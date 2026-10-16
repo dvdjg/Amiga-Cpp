@@ -1,0 +1,4 @@
+# La escena de la 121 (atlas + 16 tiles de esquinas + copas + bandas del actor) se
+# genera EN COMPILACIÓN: el gcc m68k evalua la generacion `constexpr` con estos limites
+# subidos. Ver la cabecera de src/main.cpp y PROCEDURAL_BITMAPS.md.
+DEMO_FLAGS=-fconstexpr-ops-limit=4000000000 -fconstexpr-loop-limit=100000000

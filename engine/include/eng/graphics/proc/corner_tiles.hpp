@@ -53,10 +53,13 @@
 /// shifts y lookups; sin divisiones en el bucle (el período del ruido y `u/v`
 /// son `constexpr`). Presupuesto: `docs/guides/optimization/METODO_OPTIMIZACION.md`.
 ///
-/// ## Estado de verificación: NO VERIFICADA
-/// Solo respaldada por test host (`HOST-448`); sin demo que la ejercite en hardware.
+/// ## Estado de verificación: VERIFICADA (demo 121)
+/// En hardware por `demos/techniques/amiga/effects/121_proc_corner_layers` (río y lago
+/// compuestos por máscaras de esquinas; orillas orgánicas y continuas en el barrido de
+/// 160 frames, con gate de presencia); tests host `HOST-448`.
 /// Diseño y uso: `docs/engine/architecture/PROCEDURAL_BITMAPS.md` §Transiciones por esquinas.
 
+#include <eng/core/math/arith.hpp>
 #include <eng/core/math/fast_div.hpp>
 #include <eng/core/math/random.hpp>
 #include <eng/core/types/types.hpp>
@@ -250,14 +253,17 @@ template <eng::u16 N>
 	constexpr eng::u8 kShift = eng::u8(8u - eng::ilog2(N));
 	const eng::u16 u = eng::u16(x << kShift); // 0..256 (256 = esquina opuesta)
 	const eng::u16 v = eng::u16(y << kShift);
-	// Esquinas y pesos en u16 (≤ 255/256): productos `mulu.w`, no `__mulsi3`.
+	// Productos 16×16 por `mulu16` (`mulu.w` nativo y portable en `consteval`): con
+	// `u32 * u16` el m68k a -O1 volvía a emitir `__mulsi3` (DT-018).
 	const eng::u16 nw = corner_set(m, Corner::NorthWest) ? 255u : 0u;
 	const eng::u16 ne = corner_set(m, Corner::NorthEast) ? 255u : 0u;
 	const eng::u16 sw = corner_set(m, Corner::SouthWest) ? 255u : 0u;
 	const eng::u16 se = corner_set(m, Corner::SouthEast) ? 255u : 0u;
-	const eng::u32 top = (eng::u32(nw) * eng::u16(256u - u) + eng::u32(ne) * u) >> 8u;
-	const eng::u32 bot = (eng::u32(sw) * eng::u16(256u - u) + eng::u32(se) * u) >> 8u;
-	return eng::u8((top * eng::u16(256u - v) + bot * v) >> 8u);
+	const eng::u32 top = (eng::math::mulu16(nw, eng::u16(256u - u)) + eng::math::mulu16(ne, u)) >> 8u;
+	const eng::u32 bot = (eng::math::mulu16(sw, eng::u16(256u - u)) + eng::math::mulu16(se, u)) >> 8u;
+	return eng::u8((eng::math::mulu16(eng::u16(top), eng::u16(256u - v)) +
+			eng::math::mulu16(eng::u16(bot), v)) >>
+		       8u);
 }
 
 /// **Clase del píxel** del pintor orgánico: campo bilineal + ruido entero tileable
@@ -273,9 +279,10 @@ template <eng::u16 N>
 						CornerNoise noise) {
 	const eng::s32 field = corner_field_q8<N>(x, y, m);
 	const eng::u8 n = corner_detail::corner_noise2<N>(x, y, noise);
-	// El producto en s16 (muls.w nativo; el rango lo garantiza la aritmética).
+	// El producto va por `mul_wide` (s16: `muls.w` nativo); el rango lo garantiza la
+	// aritmética (n−128 ∈ [−128,127], amp ≤ 255) y así el m68k no emite `__mulsi3`.
 	const eng::s32 pushed =
-		field + ((eng::s16(eng::s32(n) - 128) * eng::s16(noise.amp)) >> 8);
+		field + (eng::math::mul_wide(eng::s16(eng::s32(n) - 128), eng::s16(noise.amp)) >> 8);
 	const eng::s32 f = pushed < 0 ? 0 : (pushed > 255 ? 255 : pushed);
 	if (f < eng::s32(128 - kCornerEdgeBand)) return kCornerA;
 	if (f > eng::s32(128 + kCornerEdgeBand)) return kCornerB;
@@ -283,8 +290,8 @@ template <eng::u16 N>
 	// dominante (el centro de la franja es orilla sólida; el borde, dither puro).
 	const eng::s32 dist = f >= 128 ? f - 128 : 128 - f;
 	const eng::u16 band = kCornerEdgeBand;
-	const bool edge = (eng::u32(eng::u16(band - eng::u16(dist))) * 255u) >
-			  (eng::u32(eng::u16(Bayer::threshold8(x, y))) * band);
+	const bool edge = eng::math::mulu16(eng::u16(band - eng::u16(dist)), 255u) >
+			  eng::math::mulu16(eng::u16(Bayer::threshold8(x, y)), band);
 	if (edge) return kCornerEdge;
 	return f >= 128 ? kCornerB : kCornerA;
 }
@@ -484,9 +491,9 @@ constexpr void stamp_disc(OccupancyMap<CW, CH>& occ, eng::s16 cx, eng::s16 cy, e
 	if (rx == 0u || ry == 0u || rx > 128u || ry > 128u) return;
 	// Radios y productos en u16 (≤ 16384 y ≤ 65025): las multiplicaciones bajan a
 	// `mulu.w` (nativas) y no a `__mulsi3`, también en la ruta runtime del 68000.
-	const eng::u16 rx2 = eng::u16(eng::u32(rx) * rx);
-	const eng::u16 ry2 = eng::u16(eng::u32(ry) * ry);
-	const eng::u32 rr = eng::u32(rx2) * ry2;
+	const eng::u16 rx2 = eng::u16(eng::math::mulu16(rx, rx));
+	const eng::u16 ry2 = eng::u16(eng::math::mulu16(ry, ry));
+	const eng::u32 rr = eng::math::mulu16(rx2, ry2);
 	const eng::u32 band = rr >> 2u; // anillo de borde (≈ medio celda por eje)
 	for (eng::u16 y = 0u; y < CH; ++y) {
 		for (eng::u16 x = 0u; x < CW; ++x) {
@@ -498,7 +505,8 @@ constexpr void stamp_disc(OccupancyMap<CW, CH>& occ, eng::s16 cx, eng::s16 cy, e
 			const eng::u16 dx2 = corner_detail::kSquares.sq[eng::u16(dx + 128)];
 			const eng::u16 dy2 = corner_detail::kSquares.sq[eng::u16(dy + 128)];
 			if (dx2 > rx2 || dy2 > ry2) continue; // fuera de la elipse (caja)
-			const eng::u32 lhs = eng::u32(dx2) * ry2 + eng::u32(dy2) * rx2;
+			const eng::u32 lhs =
+				eng::math::mulu16(dx2, ry2) + eng::math::mulu16(dy2, rx2);
 			if (lhs + band < rr) {
 				occ.set(x, y, v); // núcleo: dentro garantizado
 				continue;

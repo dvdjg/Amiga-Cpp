@@ -45,8 +45,11 @@ enum class Edge : eng::u8 {
 	Count,
 };
 
-/// **Rasgo del interior** de un tile (máscara combinable con `operator|`).
-enum class Feature : eng::u16 {
+/// **Rasgo del interior** de un tile (máscara combinable con `operator|`). Es `u32`
+/// porque las **estructuras multi-tile** (casa 2×2, árbol grande 2×2) necesitan un
+/// bit por **parte** y por variante: cada celda de la estructura lleva el rasgo de su
+/// cuadrante y el pintor dibuja esa parte del diseño global (16 px de la pieza).
+enum class Feature : eng::u32 {
 	/// Sin rasgos: solo el material base.
 	None = 0u,
 	/// El interior lleva un cauce (conecta por los bordes `Water`).
@@ -75,6 +78,33 @@ enum class Feature : eng::u16 {
 	CaveMouth = 1u << 11u,
 	/// Puente sobre el cauce (con bordes `Water`+`Path`).
 	Bridge = 1u << 12u,
+	/// **Casa grande 2×2** (variante A: puerta en el cuadrante SW). La celda lleva el
+	/// bit de su cuadrante; el pintor dibuja esa parte del diseño global de 32×32.
+	/// Los cuatro bits van JUNTOS por estructura (`HouseA_NW | …` no: la celda lleva
+	/// solo el suyo) — la variante B espeja la puerta al cuadrante SE.
+	HouseA_NW = 1u << 13u,
+	/// Casa grande A: cuadrante noreste.
+	HouseA_NE = 1u << 14u,
+	/// Casa grande A: cuadrante suroeste (con la puerta).
+	HouseA_SW = 1u << 15u,
+	/// Casa grande A: cuadrante sureste.
+	HouseA_SE = 1u << 16u,
+	/// Casa grande B: cuadrante noroeste.
+	HouseB_NW = 1u << 17u,
+	/// Casa grande B: cuadrante noreste.
+	HouseB_NE = 1u << 18u,
+	/// Casa grande B: cuadrante suroeste.
+	HouseB_SW = 1u << 19u,
+	/// Casa grande B: cuadrante sureste (con la puerta).
+	HouseB_SE = 1u << 20u,
+	/// **Árbol grande 2×2**: cuadrante noroeste de la copa.
+	TreeBig_NW = 1u << 21u,
+	/// Árbol grande: cuadrante noreste.
+	TreeBig_NE = 1u << 22u,
+	/// Árbol grande: cuadrante suroeste (con medio tronco).
+	TreeBig_SW = 1u << 23u,
+	/// Árbol grande: cuadrante sureste (con medio tronco).
+	TreeBig_SE = 1u << 24u,
 };
 
 /// Combina dos rasgos (OR de la máscara).

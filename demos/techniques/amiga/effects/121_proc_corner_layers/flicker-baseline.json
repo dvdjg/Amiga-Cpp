@@ -1,0 +1,4 @@
+{
+  "max_candidates": 0,
+  "note": "Fondo estatico compuesto una vez (C2P) + parcheo planar del actor (1 px/frame) y digitos del HUD por parcheo de texto: el unico cambio por frame es el actor y el contador. Sin glitch temporal esperado; los 'bloques bajos' del frame-diff son el fondo estatico (metrica estructural), no se acotan."
+}

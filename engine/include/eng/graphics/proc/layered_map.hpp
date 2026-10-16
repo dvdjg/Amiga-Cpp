@@ -34,8 +34,10 @@
 /// La física completa por perfiles (dynamic bodies, plataformas móviles…) es otro
 /// nivel (`PIXEL_ART_2D_ISOMETRIC.md`); aquí solo el mínimo del tilemap.
 ///
-/// ## Estado de verificación: NO VERIFICADA
-/// Solo respaldada por test host (`HOST-448`); sin demo que la ejercite en hardware.
+/// ## Estado de verificación: VERIFICADA (demo 121)
+/// En hardware por `demos/techniques/amiga/effects/121_proc_corner_layers` (mapa
+/// ground/decal/overhead compuesto al framebuffer de runtime y actor entre capas que se
+/// oculta bajo las copas); tests host `HOST-448`.
 /// Diseño y uso: `docs/engine/architecture/PROCEDURAL_BITMAPS.md` §Mapas por capas.
 
 #include <eng/core/math/fast_div.hpp>
@@ -283,6 +285,25 @@ constexpr void blit_tile(BitmapBuffer<W, H>& dest, const BitmapBuffer<N, N>& til
 	}
 }
 
+/// Igual que la variante `BitmapBuffer`, pero sobre un **framebuffer de runtime**
+/// (`dest` con `stride` en píxeles: el buffer chunky del display, p. ej. el de
+/// `eng::IndexedDisplay::framebuffer()`), sin copia intermedia a un buffer de
+/// geometría fija.
+/// \tparam N lado del tile. \param dest buffer destino (filas con `stride`).
+/// \param stride píxeles por fila del destino. \param tile tile a copiar.
+/// \param dx,dy esquina. \param transparent true = no escribir el índice 0.
+template <eng::u16 N>
+constexpr void blit_tile(eng::Span<eng::u8> dest, eng::u16 stride, const BitmapBuffer<N, N>& tile,
+			 eng::u16 dx, eng::u16 dy, bool transparent) {
+	for (eng::u16 y = 0u; y < N; ++y) {
+		eng::u8* const row = dest.data() + eng::u32(dy + y) * stride + dx;
+		for (eng::u16 x = 0u; x < N; ++x) {
+			const eng::u8 p = tile.at(x, y);
+			if (!transparent || p != 0u) row[x] = p;
+		}
+	}
+}
+
 /// Callback «entre capas» por defecto (sin actores): evita una lambda local en la
 /// cabecera (el compilador m68k a `-O0` da ICE de CFI con lambdas locales).
 struct NoBetweenRender {
@@ -291,6 +312,29 @@ struct NoBetweenRender {
 	template <class Buf>
 	constexpr void operator()(Buf&) const {}
 };
+
+namespace layered_detail {
+
+/// Adapta el callback «entre capas» de la variante `BitmapBuffer` (recibe el buffer
+/// tipado) al de la variante `Span` (recibe la vista del framebuffer): el llamador de
+/// `BitmapBuffer` sigue escribiendo su callback contra el buffer y la implementación
+/// única es la de `Span`.
+/// \tparam Buf tipo del buffer (p. ej. `BitmapBuffer<W,H>`). \tparam Cb callback original.
+template <class Buf, class CbRef>
+struct BetweenOverSpan {
+	/// Tipo del callback sin la referencia de la deducción (`BF&&` deduce `Cb&`).
+	using Cb = eng::util::remove_reference_t<CbRef>;
+	Buf* buf = nullptr;     ///< buffer tipado (mismo almacenamiento que el span).
+	Cb* callback = nullptr; ///< callback original `void(Buf&)`.
+	/// Ignora el span (es el mismo almacenamiento) y llama al callback tipado.
+	/// \param vista vista del framebuffer (no usada).
+	constexpr void operator()(eng::Span<eng::u8> vista) const {
+		(void)vista;
+		(*callback)(*buf);
+	}
+};
+
+} // namespace layered_detail
 
 /// **Compone el mapa por capas** en `dest` (`W·N × H·N`): suelo (opaco) → decal
 /// (transparente) → `between(dest)` (los actores del juego se dibujan aquí:
@@ -306,31 +350,11 @@ template <eng::u16 W, eng::u16 H, eng::u16 N, class GroundFn, class DecalFn, cla
 constexpr void render_layered_map(const LayeredTileMap<W, H, N>& map,
 				  BitmapBuffer<W * N, H * N>& dest, GroundFn&& ground_of,
 				  DecalFn&& decal_of, OverFn&& over_of, BetweenFn&& between) {
-	for (eng::u16 cy = 0u; cy < H; ++cy) {
-		for (eng::u16 cx = 0u; cx < W; ++cx) {
-			const eng::u16 g = map.cell(MapLayer::Ground, cx, cy);
-			if (g != kEmptyTile) {
-				blit_tile(dest, ground_of(g), eng::u16(cx * N), eng::u16(cy * N), false);
-			}
-		}
-	}
-	for (eng::u16 cy = 0u; cy < H; ++cy) {
-		for (eng::u16 cx = 0u; cx < W; ++cx) {
-			const eng::u16 d = map.cell(MapLayer::Decal, cx, cy);
-			if (d != kEmptyTile) {
-				blit_tile(dest, decal_of(d), eng::u16(cx * N), eng::u16(cy * N), true);
-			}
-		}
-	}
-	between(dest);
-	for (eng::u16 cy = 0u; cy < H; ++cy) {
-		for (eng::u16 cx = 0u; cx < W; ++cx) {
-			const eng::u16 o = map.cell(MapLayer::Overhead, cx, cy);
-			if (o != kEmptyTile) {
-				blit_tile(dest, over_of(o), eng::u16(cx * N), eng::u16(cy * N), true);
-			}
-		}
-	}
+	render_layered_map(
+		map, eng::Span<eng::u8> {dest.pixels, eng::usize(W * N) * (H * N)}, eng::u16(W * N),
+		ground_of, decal_of, over_of,
+		layered_detail::BetweenOverSpan<BitmapBuffer<W * N, H * N>, BetweenFn> {&dest,
+										      &between});
 }
 
 /// \copydoc render_layered_map
@@ -342,6 +366,65 @@ constexpr void render_layered_map(const LayeredTileMap<W, H, N>& map,
 				  BitmapBuffer<W * N, H * N>& dest, GroundFn&& ground_of,
 				  DecalFn&& decal_of, OverFn&& over_of) {
 	render_layered_map(map, dest, ground_of, decal_of, over_of, NoBetweenRender {});
+}
+
+// ---------------------------------------------------------------------------
+//  Variante para framebuffers de runtime (`Span` + `stride`, sin geometría fija)
+// ---------------------------------------------------------------------------
+
+/// **Compone el mapa por capas** en un framebuffer de runtime: `dest` es la vista del
+/// buffer chunky (filas de `stride` píxeles; el de `eng::IndexedDisplay::framebuffer()`).
+/// Mismo contrato de capas y orden que la variante `BitmapBuffer`
+/// (suelo → decal → `between` → overhead); `between` recibe la vista completa.
+/// \tparam W,H,N geometría. \tparam GroundFn,DecalFn,OverFn proveedores por capa.
+/// \tparam BetweenFn `void(eng::Span<eng::u8>)`. \param map mapa. \param dest framebuffer.
+/// \param stride píxeles por fila. \param ground_of,decal_of,over_of proveedores.
+/// \param between actores.
+template <eng::u16 W, eng::u16 H, eng::u16 N, class GroundFn, class DecalFn, class OverFn,
+	  class BetweenFn>
+constexpr void render_layered_map(const LayeredTileMap<W, H, N>& map, eng::Span<eng::u8> dest,
+				  eng::u16 stride, GroundFn&& ground_of, DecalFn&& decal_of,
+				  OverFn&& over_of, BetweenFn&& between) {
+	for (eng::u16 cy = 0u; cy < H; ++cy) {
+		for (eng::u16 cx = 0u; cx < W; ++cx) {
+			const eng::u16 g = map.cell(MapLayer::Ground, cx, cy);
+			if (g != kEmptyTile) {
+				blit_tile(dest, stride, ground_of(g), eng::u16(cx * N), eng::u16(cy * N),
+					  false);
+			}
+		}
+	}
+	for (eng::u16 cy = 0u; cy < H; ++cy) {
+		for (eng::u16 cx = 0u; cx < W; ++cx) {
+			const eng::u16 d = map.cell(MapLayer::Decal, cx, cy);
+			if (d != kEmptyTile) {
+				blit_tile(dest, stride, decal_of(d), eng::u16(cx * N), eng::u16(cy * N),
+					  true);
+			}
+		}
+	}
+	between(dest);
+	for (eng::u16 cy = 0u; cy < H; ++cy) {
+		for (eng::u16 cx = 0u; cx < W; ++cx) {
+			const eng::u16 o = map.cell(MapLayer::Overhead, cx, cy);
+			if (o != kEmptyTile) {
+				blit_tile(dest, stride, over_of(o), eng::u16(cx * N), eng::u16(cy * N),
+					  true);
+			}
+		}
+	}
+}
+
+/// \copydoc render_layered_map
+/// Atajo sin actores de la variante `Span`.
+/// \tparam W,H,N geometría. \tparam GroundFn,DecalFn,OverFn proveedores por capa.
+/// \param map mapa. \param dest framebuffer. \param stride píxeles por fila.
+/// \param ground_of,decal_of,over_of proveedores.
+template <eng::u16 W, eng::u16 H, eng::u16 N, class GroundFn, class DecalFn, class OverFn>
+constexpr void render_layered_map(const LayeredTileMap<W, H, N>& map, eng::Span<eng::u8> dest,
+				  eng::u16 stride, GroundFn&& ground_of, DecalFn&& decal_of,
+				  OverFn&& over_of) {
+	render_layered_map(map, dest, stride, ground_of, decal_of, over_of, NoBetweenRender {});
 }
 
 } // namespace eng::gfx::proc

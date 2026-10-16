@@ -28,8 +28,11 @@
 #include <eng/graphics/proc/corner_tiles.hpp>
 #include <eng/graphics/proc/evaluators.hpp>
 #include <eng/graphics/proc/layered_map.hpp>
+#include <eng/graphics/proc/terrain_paint.hpp>
+#include <eng/graphics/proc/tile_bake.hpp>
 
 namespace proc = eng::gfx::proc;
+namespace terr = eng::gfx::proc::terrain;
 using eng::s16;
 using eng::u16;
 using eng::u8;
@@ -332,6 +335,19 @@ void test_layers() {
 	};
 	proc::render_layered_map(map, screen, ground_of, decal_of, over_of, actor);
 
+	// La variante `Span`+stride (framebuffer de runtime, la que usa la demo 121) compone
+	// EXACTAMENTE igual que la de `BitmapBuffer` (mismo orden y transparencia).
+	proc::BitmapBuffer<64, 48> screen_span {};
+	auto actor_span = [](eng::Span<u8> buf) {
+		for (u16 y = 22u; y < 32u; ++y) {
+			for (u16 x = 32u; x < 44u; ++x) buf[eng::u32(y) * 64u + x] = 31u;
+		}
+	};
+	proc::render_layered_map(map, eng::Span<u8> {screen_span.pixels, sizeof(screen_span.pixels)},
+				 64u, ground_of, decal_of, over_of, actor_span);
+	check(std::memcmp(screen.pixels, screen_span.pixels, sizeof(screen.pixels)) == 0,
+	      "capas: la variante Span+stride compone igual que BitmapBuffer");
+
 	check(screen.at(8u, 40u) == 9u, "capas: el suelo se pinta (hierba)");
 	check(screen.at(16u, 40u) == 9u, "capas: sin decal/copa el suelo manda");
 	check(screen.at(24u, 8u) == 2u, "capas: el decal no cero se pinta (flor)");
@@ -401,6 +417,141 @@ void test_collision() {
 	check(edge.x == 0, "move: el borde del mundo bloquea (outside = Solid)");
 
 	check(m.cell(proc::MapLayer::Ground, 2u, 0u) == 1u, "cell() lee la capa pedida");
+}
+
+// ---------------------------------------------------------------------------
+//  7. Cocido del mapa por capas a tileset indexado (dedup)
+// ---------------------------------------------------------------------------
+
+void test_bake() {
+	proc::LayeredTileMap<3, 2, 16> bm {};
+	proc::BitmapBuffer<16, 16> g[2] {};
+	proc::fill(g[0], [](u16, u16) { return 9u; });  // hierba
+	proc::fill(g[1], [](u16, u16) { return 4u; });  // agua
+	proc::BitmapBuffer<16, 16> d0 {};               // decal: 1 px de color 2
+	d0.at(8u, 8u) = 2u;
+	proc::BitmapBuffer<16, 16> c0 {};               // overhead: 1 px de color 28
+	c0.at(3u, 3u) = 28u;
+	bm.set_cell(proc::MapLayer::Ground, 1u, 1u, 1u); // charca en (1,1)
+	bm.set_cell(proc::MapLayer::Decal, 0u, 0u, 0u);  // flor en (0,0)
+	bm.set_cell(proc::MapLayer::Overhead, 2u, 1u, 0u); // copa en (2,1)
+
+	auto gout = [&](u16 i) -> const proc::BitmapBuffer<16, 16>& { return g[i]; };
+	auto dout = [&](u16) -> const proc::BitmapBuffer<16, 16>& { return d0; };
+	auto oout = [&](u16) -> const proc::BitmapBuffer<16, 16>& { return c0; };
+	const auto baked = proc::bake_layered_map<3, 2, 16, 16>(bm, gout, dout, oout);
+	check(baked.count == 4u && baked.overflow == 0u,
+	      "bake: 4 celdas distintas -> 4 piezas unicas");
+	check(baked.cells[0u] == 0u && baked.cells[1u] == 1u && baked.cells[2u] == 1u &&
+		      baked.cells[3u] == 1u && baked.cells[4u] == 2u && baked.cells[5u] == 3u,
+	      "bake: dedup reasigna celdas (primera aparicion = pieza nueva)");
+	check(baked.tiles[0u][8u * 16u + 8u] == 2u && baked.tiles[1u][8u * 16u + 8u] == 9u,
+	      "bake: la pieza con decal conserva el pixel de flor");
+	check(baked.tiles[2u][0u] == 4u && baked.tiles[3u][3u * 16u + 3u] == 28u,
+	      "bake: charca y copa en sus piezas");
+	check(baked.bank_view().size() == eng::usize(4u) * 256u, "bake: banco contiguo 4x256");
+	// Equivalencia: el cocido es exactamente lo que compone `render_layered_map`.
+	proc::BitmapBuffer<48, 32> full {};
+	proc::render_layered_map(bm, full, gout, dout, oout);
+	bool same = true;
+	for (u16 cy = 0u; cy < 2u; ++cy) {
+		for (u16 cx = 0u; cx < 3u; ++cx) {
+			const eng::u8* t = baked.tiles[baked.cells[cy * 3u + cx]];
+			for (u16 ly = 0u; ly < 16u; ++ly) {
+				for (u16 lx = 0u; lx < 16u; ++lx) {
+					same = same && full.at(u16(cx * 16u + lx), u16(cy * 16u + ly)) ==
+							    t[ly * 16u + lx];
+				}
+			}
+		}
+	}
+	check(same, "bake: pixel a pixel igual al render por capas");
+}
+
+// ---------------------------------------------------------------------------
+//  8. Estructuras multi-tile: casa grande 2×2 y árbol grande 2×2
+// ---------------------------------------------------------------------------
+
+/// ¿El índice está en el tramo de paleta de un material?
+bool in_tone(u8 v, proc::MaterialId id) {
+	const proc::MaterialDesc d = proc::material_desc(id);
+	return v >= d.base && v <= u8(d.base + d.levels - 1u);
+}
+
+/// Ensambla las 4 piezas de una estructura 2×2 en un buffer de 32×32.
+template <class S>
+void assemble_struct(proc::BitmapBuffer<32, 32>& out, const terr::TileSpec (&parts)[4],
+		     const proc::TextureAtlas<16, 16, S>& atlas) {
+	for (u8 p = 0u; p < 4u; ++p) {
+		proc::BitmapBuffer<16, 16> t {};
+		terr::paint_terrain_tile(t, parts[p], atlas, u16(p), 0u, 6u);
+		proc::blit_tile(out, t, u16((p & 1u) * 16u), u16((p >> 1u) * 16u), false);
+	}
+}
+
+void test_structs() {
+	proc::TextureAtlas<16, 16, MF> atlas {};
+	atlas.generate(0x7E5A1u);
+	const eng::u32 kSeed = 0x5717u;
+	// Casa grande A (puerta en SW) y B (puerta en SE): mismo diseño, puerta espejada.
+	terr::TileSpec house_a[4] = {
+		{.features = terr::Feature::HouseA_NW, .seed = kSeed},
+		{.features = terr::Feature::HouseA_NE, .seed = kSeed},
+		{.features = terr::Feature::HouseA_SW, .seed = kSeed},
+		{.features = terr::Feature::HouseA_SE, .seed = kSeed},
+	};
+	terr::TileSpec house_b[4] = {
+		{.features = terr::Feature::HouseB_NW, .seed = kSeed},
+		{.features = terr::Feature::HouseB_NE, .seed = kSeed},
+		{.features = terr::Feature::HouseB_SW, .seed = kSeed},
+		{.features = terr::Feature::HouseB_SE, .seed = kSeed},
+	};
+	proc::BitmapBuffer<32, 32> ha {};
+	proc::BitmapBuffer<32, 32> hb {};
+	assemble_struct(ha, house_a, atlas);
+	assemble_struct(hb, house_b, atlas);
+	// Tejado arriba (tramo de `Roof`) y fuera del contorno queda la base (hierba).
+	check(in_tone(ha.at(8u, 3u), proc::MaterialId::Roof) &&
+		      in_tone(ha.at(24u, 3u), proc::MaterialId::Roof),
+	      "casa 2x2: el tejado cubre el ancho (ambos cuadrantes de arriba)");
+	check(in_tone(ha.at(0u, 3u), proc::MaterialId::Grass) &&
+		      in_tone(ha.at(31u, 8u), proc::MaterialId::Grass),
+	      "casa 2x2: fuera del contorno queda el material base");
+	// Puertas: A abajo a la izquierda, B a la derecha; la otra mitad es pared.
+	check(in_tone(ha.at(7u, 28u), proc::MaterialId::Path) &&
+		      in_tone(ha.at(24u, 28u), proc::MaterialId::Wood),
+	      "casa A: puerta a la izquierda y pared a la derecha");
+	check(in_tone(hb.at(7u, 28u), proc::MaterialId::Wood) &&
+		      in_tone(hb.at(24u, 28u), proc::MaterialId::Path),
+	      "casa B: puerta espejada a la derecha");
+	// Ventanas de mármol en ambos lados de la planta baja.
+	check(in_tone(ha.at(6u, 19u), proc::MaterialId::Marble) &&
+		      in_tone(ha.at(25u, 19u), proc::MaterialId::Marble),
+	      "casa 2x2: ventanas en los dos cuadrantes inferiores");
+	// El diseño casa entre cuadrantes: la fila del tejado es continua.
+	bool roof_cont = true;
+	for (u16 gx = 2u; gx <= 29u; ++gx) {
+		roof_cont = roof_cont && in_tone(ha.at(gx, 10u), proc::MaterialId::Roof);
+	}
+	check(roof_cont, "casa 2x2: el tejado es continuo en la costura de cuadrantes");
+
+	// Árbol grande: copa continua entre cuadrantes y tronco centrado abajo.
+	terr::TileSpec tree[4] = {
+		{.features = terr::Feature::TreeBig_NW, .seed = kSeed},
+		{.features = terr::Feature::TreeBig_NE, .seed = kSeed},
+		{.features = terr::Feature::TreeBig_SW, .seed = kSeed},
+		{.features = terr::Feature::TreeBig_SE, .seed = kSeed},
+	};
+	proc::BitmapBuffer<32, 32> tr {};
+	assemble_struct(tr, tree, atlas);
+	check(in_tone(tr.at(16u, 13u), proc::MaterialId::Foliage) &&
+		      in_tone(tr.at(15u, 13u), proc::MaterialId::Foliage),
+	      "arbol 2x2: copa continua en la costura vertical");
+	check(in_tone(tr.at(15u, 30u), proc::MaterialId::Trunk) &&
+		      in_tone(tr.at(16u, 30u), proc::MaterialId::Trunk),
+	      "arbol 2x2: tronco en las columnas centrales (SW+SE)");
+	check(in_tone(tr.at(1u, 1u), proc::MaterialId::Grass),
+	      "arbol 2x2: la esquina lejana queda en hierba (copa irregular)");
 }
 
 // ---------------------------------------------------------------------------
@@ -518,6 +669,8 @@ int main(int argc, char** argv) {
 	test_stamps();
 	test_layers();
 	test_collision();
+	test_bake();
+	test_structs();
 	if (g_fail == 0 && g_dump_dir != nullptr) dump_visual_evidence(g_dump_dir);
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
