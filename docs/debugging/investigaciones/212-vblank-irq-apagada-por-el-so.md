@@ -168,6 +168,23 @@ apagaba. El re-arme de VERTB se conserva dentro de `wait_vblank_run` (variante 2
   sus versiones en castellano), con la identificación de las rutinas ROM por dirección.
 - Bug de codegen previo: [`pump-timer-o1-codegen.md`](pump-timer-o1-codegen.md).
 
+## Por qué el vector de nivel 3 es problemático (modelo)
+
+El 68000 tiene autovectores por **nivel** de interrupción, no por fuente: la Amiga conecta
+en el **nivel 3** tres fuentes (VERTB, BLIT, COPER) que por tanto comparten **un solo**
+vector ($6C). Ese vector es un **recurso propiedad del SO**: exec instala ahí su despacho y
+reparte a sus propios handlers/servidores. El engine, para el latido por IRQ,
+**sustituye el vector** y gestiona `INTENA` a mano (`level3_sync`). El setup **sí lo
+controla** (instala el vector, enciende VERTB/BLIT y los re-arma si el SO los borra:
+`wait_vblank_run`), pero **no puede impedir que su dueño lo use**: el libro de
+display/DOS del SO reescribe `INTENA` con estados que exec considera suyos, y rutinas ROM
+como el `Wait()` de exec hacen transiciones a supervisor con su tabla de despacho en RAM
+(`SysBase-$36`) esperando que el despacho de nivel 3 sea el suyo. Con el vector en manos
+ajenas, esa interacción degenera en el fallo `a5=0` (la CPU acaba ejecutando la tabla de
+vectores). Moraleja de diseño: **no secuestrar nivel 3 bajo un SO vivo**; o se sondea
+(`run_frames_polling`, lo adoptado por la 119), o se registra un **interrupt server**
+(`AddIntServer`, integrado con exec).
+
 ## Reconfirmación con la demo 119 (build de carga rápida) y modo de sondeo
 
 La demo 119 (mundo de biomas generado en compilación, carga ≈1,1 s) **revive el fallo**
@@ -184,5 +201,15 @@ VBlank (no secuestra el vector de nivel 3 ni depende de IRQs ni de `Wait()`; son
 en `wait_vblank`) + `takeover_system()` para el display. Con eso la 119 queda estable a
 49,85 fps (1,003 campos/frame; `measure-fps`/`record-fps`) con regresión y flicker en
 verde. El coste es CPU ocupada sondeando; a cambio desaparece la tormenta de vectores.
-El fallo primario (`a5=0`) sigue abierto para el bucle por IRQ: vías del apartado
-«Estado final y siguientes pasos» (watchpoint en el primer frame; `AddIntServer`).
+
+**Variante 3 (`AddIntServer`) probada y descartada**: se implementó el latido por
+**interrupt server de exec** (INTB_VERTB/BLIT; shims que preservan registros y hacen RTS;
+`level3_sync` no toca `$6C`) y se probó en la 119 en tres configuraciones:
+(a) servidor + `Wait()` + `Forbid` (takeover) → **deadlock**: bloquear la tarea en `Wait`
+con `Forbid` congela el planificador (ciclos detenidos en el `STOP` de exec);
+(b) servidor + espera activa + takeover → corazón a 0 (el servidor no despacha);
+(c) servidor + espera activa sin takeover → avanza ~47 frames y **muere igualmente** con
+el PC en ROM. Conclusión: la causa raíz no es *quién* posee el vector, sino la interacción
+de las IRQ con el estado de exec bajo el SO vivo (los tres caminos de IRQ medidos mueren;
+el sondeo es el único estable). La implementación experimental se retiró del engine; este
+apartado guarda el resultado y los números para no repetir la prueba.

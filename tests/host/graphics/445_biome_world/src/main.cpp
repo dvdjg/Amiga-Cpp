@@ -234,6 +234,45 @@ void test_world_scalar(const char* tag, terr::TerrainLayout<20, 14>& out_ref,
 	set_ref = set;
 }
 
+// Huellas FNV-1a del mundo generado, con el MISMO método que la vía OFFLINE de la demo
+// (`tools/gen_assets.cpp`): mismas semillas y misma librería ⇒ los MISMOS números. Ancla
+// que la vía offline, la runtime (este test) y la de compilación (que usa esta misma
+// función) producen el mismo mundo.
+/// Actualiza una FNV-1a continuando desde `h` (el método de la vía offline: los objetos se
+/// hashean byte a byte en secuencia, no por bloques).
+u32 fnv_update(u32 h, const void* data, u32 n) {
+	const u8* p = static_cast<const u8*>(data);
+	for (u32 i = 0u; i < n; ++i) {
+		h ^= p[i];
+		h *= 16777619u;
+	}
+	return h;
+}
+
+void test_world_hashes() {
+	proc::TextureAtlas<16, 16, MiniFloat16> atlas {};
+	atlas.generate(0x7E5A1u);
+	terr::BiomeTileSet<16, 16, 224> set {};
+	terr::TerrainLayout<20, 14> lay {};
+	check(terr::generate_biome_world<20, 14>(lay, set, atlas, 0xBEE5u), "mundo de huellas ok");
+	u32 h_pal = fnv_update(0x811C9DC5u, atlas.palette.color, sizeof(atlas.palette.color));
+	u32 h_tex = 0x811C9DC5u;
+	for (u16 m = 0u; m < proc::kMaterialCount; ++m) {
+		for (u16 v = 0u; v < proc::kVariantsPerMaterial; ++v) {
+			h_tex = fnv_update(h_tex, atlas.get(proc::MaterialId(m), u8(v)).pixels, 256u);
+		}
+	}
+	u32 h_tiles = 0x811C9DC5u;
+	for (u16 t = 0u; t < set.count; ++t) {
+		h_tiles = fnv_update(h_tiles, set.tiles[t].pixels, 256u);
+	}
+	const u32 h_map = fnv_update(0x811C9DC5u, lay.cells, sizeof(lay.cells));
+	check(h_pal == 0xA732D734u, "huella de paleta = via offline");
+	check(h_tex == 0xC0A35557u, "huella de texturas = via offline");
+	check(h_tiles == 0x740A678Cu, "huella de piezas = via offline");
+	check(h_map == 0x093DDAB0u, "huella de mapa = via offline");
+}
+
 void test_world() {
 	terr::TerrainLayout<20, 14> lay_a {};
 	terr::BiomeTileSet<16, 16, 224> set_a {};
@@ -311,6 +350,7 @@ int main(int argc, char** argv) {
 	test_grammar();
 	test_set();
 	test_world();
+	test_world_hashes();
 	if (g_dump_dir != nullptr) dump_visual_evidence(g_dump_dir);
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);

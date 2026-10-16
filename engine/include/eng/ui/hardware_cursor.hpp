@@ -64,9 +64,11 @@ struct HardwareCursor {
 			return;
 		}
 		const eng::uintptr sp = reinterpret_cast<eng::uintptr>(m_base);
-		const eng::u16 pth = static_cast<eng::u16>(0x120u + kChannel * 4u);
+		// El destino va tipado (`RegisterOffset`): el offset se deriva del canal del sprite.
+		const eng::copper::RegisterOffset pth {static_cast<eng::u16>(0x120u + kChannel * 4u)};
 		s.move(pth, static_cast<eng::u16>(sp >> 16));
-		s.move(static_cast<eng::u16>(pth + 2u), static_cast<eng::u16>(sp & 0xffffu));
+		s.move(eng::copper::RegisterOffset {static_cast<eng::u16>(pth.offset + 2u)},
+		       static_cast<eng::u16>(sp & 0xffffu));
 		s.move(eng::copper::Register::DMACON,
 		       static_cast<eng::u16>(eng::copper::DmaSetClear | eng::copper::DmaMaster |
 					     eng::copper::DmaCopper | eng::copper::DmaBitplane |

@@ -439,7 +439,9 @@ public:
                 // layout X-Limited de 320 px; el engine solo lo direcciona.
                 m_tiles[pf] = { eng::TileBankBytes { pb, pbSize }, eng::MemoryKind::Chip };
             } else if (isPf0 && !cfg.indexed_tiles.empty()) {
-                if (cfg.planes != 6) return eng::util::unexpected(eng::Result::Unsupported); // el pipeline EHB es 6 planos
+                // El builder indexado es **genérico en planos** (bit p del índice = plano p):
+                // sirve para el pipeline EHB de 6 planos y para mundos estándar de 4/5
+                // (el índice debe caber en `cfg.planes` bits). No se exige 6 planos.
                 const eng::Block<eng::TileBankTag> bank = xlimited_build_blocks_bitmap_from_indexed(
                     memory, cfg.planes, tw, th, cfg.tileset_count,
                     cfg.indexed_tiles, cfg.indexed_stride);

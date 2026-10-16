@@ -133,15 +133,13 @@ struct ProcWorldDemo {
 
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		// **Bajo un SO vivo**: espera de VBlank ACTIVA (`set_vblank_sleep(false)`, variante 2
-		// del 212: con `Wait()` el libro de display del SO reescribe `INTENA`/`VERTB` y la
-		// tarea queda dormida) **y toma de control del sistema** (patrón canónico de la 066:
-		// `Forbid` + `LoadView(NULL)` + `OwnBlitter`): sin ella el libro de display del SO
-		// sigue vivo y al reescribir `COP1LC`/`INTENA` (~1,4 s tras arrancar el bucle) mata
-		// el latido — frames congelados a ~67 con el emulador en marcha. Vuelta al SO:
-		// `backend.restore_system()`. Ver `212-vblank-irq-apagada-por-el-so.md` y
-		// `docs/reference/amiga/hardware/takeover-y-restauracion-canonica.md`.
-		backend.set_vblank_sleep(false);
+		// **Bajo un SO vivo**: el bucle usa el **modo de sondeo** validado del doc 212
+		// (`run_frames_polling`: sin latido por IRQ — no se secuestra el vector de nivel 3
+		// ni se depende de `Wait`) y **toma de control del sistema** (patrón canónico de la
+		// 066: `Forbid` + `LoadView(NULL)` + `OwnBlitter`) para que el libro de display no
+		// toque `COP1LC`/`INTENA`. Las vías de IRQ bajo SO vivo (vector propio con espera
+		// activa, y variante 3 con `AddIntServer`) se probaron y **también mueren** por la
+		// causa raíz abierta del 212 (ver el doc). Vuelta al SO: `backend.restore_system()`.
 		(void)backend.takeover_system();
 		// Chip: planos (40 KB) + chunky (80 KB) + copper (16 KB) + margen; el set vive en
 		// BSS del ejecutable (no Chip).
@@ -309,10 +307,9 @@ int main() {
 	eng::amiga::AmigaBackend backend {};
 	ProcWorldDemo game {}; // el mundo generado en compilación vive en rodata (`kWorld`)
 	eng::Engine engine {backend, game};
-	// **Bucle por SONDO** (`run_frames_polling`): bajo un SO vivo es el modo VALIDADO del
-	// doc 212 — no se secuestra el vector de nivel 3 ni se depende de IRQs/Wait (el bucle
-	// sondea VPOSR en `wait_vblank`), así el `a5=0` de la tormenta de vectores no aplica.
-	// La espera activa y `takeover_system()` (display propio) siguen puestos arriba.
+	// **Bucle por SONDO** (`run_frames_polling`): bajo un SO vivo es el modo estable del
+	// doc 212 — sondea `VPOSR` en `wait_vblank` sin depender de IRQs ni de `Wait` (el
+	// coste es CPU ocupada; a cambio, la tormenta de vectores del `a5=0` no aplica).
 	engine.run_frames_polling(0xffff);
 
 	return 0;

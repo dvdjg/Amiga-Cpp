@@ -61,6 +61,12 @@ struct TerrainLayout {
 	/// Vista mutable de las celdas para construir un `TileLayerMap` (`map.cells = l.span()`).
 	/// \return span de `W*H` índices.
 	[[nodiscard]] constexpr eng::Span<eng::u16> span() { return {cells, eng::usize(W) * H}; }
+	/// Vista de **solo lectura** (layouts generados en compilación/constantes):
+	/// `map.cells = l.span()` sobre un `const TerrainLayout`.
+	/// \return span constante de `W*H` índices.
+	[[nodiscard]] constexpr eng::Span<const eng::u16> span() const {
+		return {cells, eng::usize(W) * H};
+	}
 };
 
 /// ¿Todas las uniones internas del mapa casan? (`a.e == b.w` y `a.s == b.n` en cada

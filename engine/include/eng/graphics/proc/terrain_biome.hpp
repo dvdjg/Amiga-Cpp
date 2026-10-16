@@ -249,21 +249,23 @@ private:
 };
 
 // Declaraciones anticipadas de los auxiliares del pintor (se definen más abajo, tras el
-// pintor principal, para leer el fichero en el orden del algoritmo).
+// pintor principal, para leer el fichero en el orden del algoritmo). El `constexpr` va en
+// la DECLARACIÓN (regla del lenguaje): sin él, la definición posterior no sería utilizable
+// en evaluación de compilación.
 template <eng::u16 TW, eng::u16 TH>
 constexpr void paint_biome_path(BitmapBuffer<TW, TH>& buf, const TileSpec& spec);
 template <eng::u16 TW, eng::u16 TH, class S>
-constexpr void paint_shore(BitmapBuffer<TW, TH>& buf, const TextureAtlas<TW, TH, S>& atlas, Biome land,
-		 eng::u8 side, eng::u32 seed);
+constexpr void paint_shore(BitmapBuffer<TW, TH>& buf, const TextureAtlas<TW, TH, S>& atlas,
+			   Biome land, eng::u8 side, eng::u32 seed);
 template <eng::u16 TW, eng::u16 TH, class S>
-constexpr void paint_bank(BitmapBuffer<TW, TH>& buf, const TextureAtlas<TW, TH, S>& atlas, Biome land,
-		eng::u8 side, eng::Xoroshiro64pp& rng, eng::u32 seed);
+constexpr void paint_bank(BitmapBuffer<TW, TH>& buf, const TextureAtlas<TW, TH, S>& atlas,
+			  Biome land, eng::u8 side, eng::Xoroshiro64pp& rng, eng::u32 seed);
 template <eng::u16 TW, eng::u16 TH, class S>
-constexpr void blend_side(BitmapBuffer<TW, TH>& buf, const TextureAtlas<TW, TH, S>& atlas, MaterialId m,
-		eng::u8 side, eng::u8 border_w, eng::u32 seed);
+constexpr void blend_side(BitmapBuffer<TW, TH>& buf, const TextureAtlas<TW, TH, S>& atlas,
+			  MaterialId m, eng::u8 side, eng::u8 border_w, eng::u32 seed);
 template <eng::u16 TW, eng::u16 TH, class S>
 constexpr void paint_biome_features(BitmapBuffer<TW, TH>& buf, const BiomeSpec& spec,
-			  const TextureAtlas<TW, TH, S>& atlas, eng::Xoroshiro64pp& rng);
+				    const TextureAtlas<TW, TH, S>& atlas, eng::Xoroshiro64pp& rng);
 
 /// **Pinta una pieza de bioma** (ver el diagrama del fichero): base del material central,
 /// franjas de transición por lado con el material del vecino (arena/hierba/tierra/roca),
@@ -363,23 +365,32 @@ constexpr void paint_biome_path(BitmapBuffer<TW, TH>& buf, const TileSpec& spec)
 }
 
 /// Estampa la **orilla**: el centro es agua y el lado `i` es tierra → franja del material
-/// de tierra pegada al borde (rampa) con una línea de espuma entre agua y orilla.
+/// de tierra pegada al borde (rampa) con una línea de espuma **irregular** entre agua y
+/// orilla (el grosor de la espuma ondula con ruido entero: dos orillas del mismo material
+/// no repiten el borde recto).
 /// \tparam TW,TH geometría. \tparam S escalar. \param buf destino. \param atlas atlas.
 /// \param land material de tierra del lado. \param side 0..3 (N/E/S/W). \param seed seed.
 template <eng::u16 TW, eng::u16 TH, class S>
-constexpr void paint_shore(BitmapBuffer<TW, TH>& buf, const TextureAtlas<TW, TH, S>& atlas, Biome land,
-		 eng::u8 side, eng::u32 seed) {
+constexpr void paint_shore(BitmapBuffer<TW, TH>& buf, const TextureAtlas<TW, TH, S>& atlas,
+			   Biome land, eng::u8 side, eng::u32 seed) {
 	const eng::u16 sh = eng::u16(TW * 5u >> 5u) < 3u ? 3u : eng::u16(TW * 5u >> 5u);
 	const MaterialId lm = biome_material(land);
 	const eng::u8 lv = atlas.variant_at(eng::u16(seed), eng::u16(seed >> 8u), lm);
 	const eng::u8 fv = atlas.variant_at(eng::u16(seed ^ 1u), eng::u16(seed >> 8u), MaterialId::Foam);
 	const BitmapBuffer<TW, TH>& ltex = atlas.get(lm, lv);
 	const BitmapBuffer<TW, TH>& foam = atlas.get(MaterialId::Foam, fv);
-	for (eng::u16 j = 0u; j < sh + 2u; ++j) {
-		const eng::u8 alpha = j < sh ? 255u : 220u; // tierra sólida + espuma casi sólida
-		for (eng::u16 k = 0u; k < eng::u16(side < 2u ? TW : TH); ++k) {
-			const eng::u16 x = side < 2u ? k : (side == 3u ? j : eng::u16(TW - 1u - j));
-			const eng::u16 y = side == 0u ? j : (side == 2u ? eng::u16(TH - 1u - j) : k);
+	// Grosor de la espuma por columna/fila: ruido entero → línea de costa irregular
+	// (1..3 px de espuma sobre el borde de tierra, en vez de un anillo uniforme).
+	for (eng::u16 k = 0u; k < eng::u16(side < 2u ? TW : TH); ++k) {
+		const eng::u8 n = tile_noise2(eng::u16(k << 3u), eng::u16(seed), 3u, 8u, eng::u16(seed));
+		const eng::u16 foam_w = eng::u16(1u + (n >> 6u)); // 1..4 incluye el borde ondulado
+		for (eng::u16 j = 0u; j < eng::u16(sh + foam_w); ++j) {
+			const eng::u8 alpha =
+				j < sh ? 255u : 220u; // tierra sólida + espuma casi sólida
+			const eng::u16 x =
+				side < 2u ? k : (side == 3u ? j : eng::u16(TW - 1u - j));
+			const eng::u16 y =
+				side == 0u ? j : (side == 2u ? eng::u16(TH - 1u - j) : k);
 			const eng::u8 tex = j < sh ? ltex.at(x, y) : foam.at(x, y);
 			buf.at(x, y) = blend_index(buf.at(x, y), tex, alpha, x, y);
 		}
@@ -411,6 +422,8 @@ constexpr void paint_bank(BitmapBuffer<TW, TH>& buf, const TextureAtlas<TW, TH, 
 		wy[0] = eng::u16(TH / 2u);
 	}
 	const eng::u16 w = eng::u16(1u + (TW * 2u >> 5u) + rng.next_mod(2u)); // semi-ancho 2..3
+	// Ondulación 2 (±2 px, la del cauce clásico): con 3 el cauce se ensancha en exceso
+	// (probado y descartado); la variedad orgánica la aporta la espuma ruidosa de la orilla.
 	stamp_course(buf, atlas, MaterialId::Foam, 0u, wx, wy, 1u, eng::u16(w + 1u), seed, 2u);
 	stamp_course(buf, atlas, MaterialId::Water, 0u, wx, wy, 1u, w, seed, 2u);
 }
@@ -487,7 +500,14 @@ constexpr void paint_biome_features(BitmapBuffer<TW, TH>& buf, const BiomeSpec& 
 	if (has(spec.features, Feature::Trees)) paint_trees(buf, atlas, rng, tx, ty);
 	if (has(spec.features, Feature::Rocks)) paint_rocks(buf, atlas, rng, tx, ty);
 	if (has(spec.features, Feature::Mountain)) paint_mountain(buf, atlas, tx, ty);
-	if (has(spec.features, Feature::House)) paint_house(buf, atlas, rng, tx, ty);
+	if (has(spec.features, Feature::House)) {
+		paint_house(buf, atlas, rng, tx, ty);
+		// **Patio**: banda de tierra en los cuatro lados de la parcela — sin ella la casa
+		// se lee «flotando» sobre el campo uniforme (crítica de la validación de visión).
+		for (eng::u8 s = 0u; s < 4u; ++s) {
+			blend_side(buf, atlas, MaterialId::Dirt, s, 3u, spec.seed + s);
+		}
+	}
 	if (has(spec.features, Feature::CaveMouth)) paint_cave_mouth(buf, atlas, tx, ty);
 	if (has(spec.features, Feature::WallSeg)) paint_wall(buf, ts, atlas, tx, ty);
 	if (has(spec.features, Feature::Tower)) paint_tower(buf, atlas, tx, ty);
@@ -537,6 +557,8 @@ template <eng::u16 W, eng::u16 H, eng::u16 TW, eng::u16 TH, eng::u16 MaxTiles, c
 				mat[r * W + nc] = eng::u8(Biome::Water);
 				mat[r * W + nc + 1u] = eng::u8(Biome::Water);
 				rc = nc;
+				// Al menos una fila recta entre meandros: con meandro por fila el cauce
+				// se convierte en una escalera ancha e ilegible (probado y descartado).
 				next_shift_row = eng::u16(r + 2u);
 			}
 		}
@@ -626,10 +648,10 @@ template <eng::u16 W, eng::u16 H, eng::u16 TW, eng::u16 TH, eng::u16 MaxTiles, c
 		{0u, 2u, Feature::WallSeg, {Edge::Wall, Edge::Wall, Edge::Grass, Edge::Grass}},
 		{1u, 2u, Feature::Gate, {Edge::Grass, Edge::Wall, Edge::Grass, Edge::Wall}},
 		{2u, 2u, Feature::WallSeg, {Edge::Wall, Edge::Grass, Edge::Grass, Edge::Wall}},
-		{1u, 1u, Feature::None, {Edge::Grass, Edge::Grass, Edge::Grass, Edge::Grass}}, // patio
+		// Patio interior: adoquín con musgo (detalle visible del castillo).
+		{1u, 1u, Feature::CastleYard, {Edge::Grass, Edge::Grass, Edge::Grass, Edge::Grass}},
 	};
 	for (const CastlePiece& p : ring) {
-		if (p.features == Feature::None) continue; // el patio queda con hierba
 		feat[(castle_r0 + p.dy) * W + (cc + p.dx)] = p.features;
 		mat[(castle_r0 + p.dy) * W + (cc + p.dx)] = eng::u8(Biome::Grass);
 	}
