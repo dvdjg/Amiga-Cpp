@@ -318,19 +318,18 @@ namespace layered_detail {
 /// Adapta el callback «entre capas» de la variante `BitmapBuffer` (recibe el buffer
 /// tipado) al de la variante `Span` (recibe la vista del framebuffer): el llamador de
 /// `BitmapBuffer` sigue escribiendo su callback contra el buffer y la implementación
-/// única es la de `Span`.
-/// \tparam Buf tipo del buffer (p. ej. `BitmapBuffer<W,H>`). \tparam Cb callback original.
-template <class Buf, class CbRef>
+/// única es la de `Span`. Los dos enlaces son **referencias** (observadores sin
+/// propiedad) a la duración de la llamada; el adaptador se pasa como temporal.
+/// \tparam Buf tipo del buffer (p. ej. `BitmapBuffer<W,H>`). \tparam Cb callback (sin refs).
+template <class Buf, class Cb>
 struct BetweenOverSpan {
-	/// Tipo del callback sin la referencia de la deducción (`BF&&` deduce `Cb&`).
-	using Cb = eng::util::remove_reference_t<CbRef>;
-	Buf* buf = nullptr;     ///< buffer tipado (mismo almacenamiento que el span).
-	Cb* callback = nullptr; ///< callback original `void(Buf&)`.
+	Buf& buf;     ///< buffer tipado (mismo almacenamiento que el span).
+	Cb& callback; ///< callback original `void(Buf&)`.
 	/// Ignora el span (es el mismo almacenamiento) y llama al callback tipado.
 	/// \param vista vista del framebuffer (no usada).
 	constexpr void operator()(eng::Span<eng::u8> vista) const {
 		(void)vista;
-		(*callback)(*buf);
+		callback(buf);
 	}
 };
 
@@ -353,8 +352,9 @@ constexpr void render_layered_map(const LayeredTileMap<W, H, N>& map,
 	render_layered_map(
 		map, eng::Span<eng::u8> {dest.pixels, eng::usize(W * N) * (H * N)}, eng::u16(W * N),
 		ground_of, decal_of, over_of,
-		layered_detail::BetweenOverSpan<BitmapBuffer<W * N, H * N>, BetweenFn> {&dest,
-										      &between});
+		layered_detail::BetweenOverSpan<BitmapBuffer<W * N, H * N>,
+						 eng::util::remove_reference_t<BetweenFn>> {dest,
+											    between});
 }
 
 /// \copydoc render_layered_map
