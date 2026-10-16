@@ -27,6 +27,24 @@ En el **mismo** `FramePlan`: 5 jobs `CopyRect` (restaurador del carril) seguidos
 
 Pendiente: test host que reproduzca la **secuencia mixta** de registros (copias → racha cookie-cut) sobre un estado del Blitter simulado; si el host demuestra equivalencia, la hipótesis pasa al emulador (interacción del rearme del lote con el blit de copia anterior / `DMACON`/`BBUSY` con `cpu_cycle_exact`+warp). Hasta tener la causa raíz **no se ha tocado el motor**: ver carencias y sugerencias.
 
+## Bisección en hardware (2026-10-16): plan multi-job vs plan por objeto
+
+El **modo golden** de la demo (`K121_GOLDEN_ACTORS`, 16 subposiciones a la vez, paleta identidad)
+con el oráculo independiente `tools/analyze/verify-121-actor-golden.mjs` permite comparar formas de
+plan con el mismo render:
+
+| Variante | Resultado (oráculo) |
+|---|---|
+| Un plan con las 16 subposiciones (80 jobs = una racha cookie-cut de 80 objetos) | Caótico: 819 px del índice del cuerpo (vs 2060 esperados), subposiciones desplazadas (fracaso total en 6) |
+| Un `execute_frame_plan` por actor (16 planes de 5 jobs) | 10/16 subposiciones **exactas** (0 píxeles de actor fallidos); 6 perdidas/parciales (cols 0/3/4/6/7/9) + 127 px de daño colateral |
+| Un plan por actor, con el contrato de espera por job (`blitter-busy-writes.md`, en curso) | Igual que el anterior: el colateral del plan multi-job desaparece en el caso multi-job (127→3 px), pero los 6 actores perdidos persisten |
+
+Lectura: hay **dos síntomas distintos** en la misma familia. (1) El encadenado sin esperar a `BBUSY`
+pierde/desplaza objetos de los grupos largos (corregido por el contrato de espera por job;
+`docs/reference/emulators/winuae/blitter-busy-writes.md`). (2) Incluso con planes cortos y tras ese
+contrato, algunos actores NO se dibujan (o se dibujan ~2 celdas a la izquierda: los 127 px de colateral
+en x=105) — pendiente de aislar; el golden deja el banco listo para validar cada iteración del motor.
+
 ## Mitigación en la demo (121)
 
 1. **Dos planes por frame**: `update` ejecuta primero el restaurador y después el actor (coste: +1 `execute`/frame); el auto-chequeo (paso 5) hace lo mismo.
@@ -67,3 +85,21 @@ Con la mitigación: **3/3 medidas limpias a 47.67 fps (1.049 campos/frame)** —
 - Motor: `engine/src/platform/amiga/amiga_blitter.cpp` (ejecución del plan y rachas), `engine/include/eng/platform/amiga/blob_batch.hpp`, `engine/include/eng/graphics/blitter_state.hpp` (`blob_run_from`/`blob_run_continues`).
 - Tests relacionados: `HOST-451` (`tests/host/platform/amiga/451_blit_runs`), `HOST-241` (`tests/host/platform/amiga/241_blob_batch`).
 - Deuda registrada: `docs/guides/roadmap/ROADMAP_DEUDA_TECNICA.md` DT-022 (motor) y DT-023 (herramientas).
+
+## Fix del motor (2026-10-16): contrato de escritura con el Blitter ocupado
+
+El patrón encaja con la fuente primaria: el AHRM 3.ª («Multitasking and the Blitter») prohíbe
+escribir registros del Blitter con un blit en curso, y WinUAE **reinicia** el blitter si se escribe
+`BLTSIZE` con uno activo (`../WinUAE-DBG/blitter.cpp:2036` aviso, `:2058` re-init, `:2101`/`:2119`
+contadores a cero). El plan encadenaba jobs sin esperar; eso solo «funcionaba» cuando cada blit
+acababa antes de la siguiente programación (timing del bus), y en un burst tras un blit largo se
+pisa el estado del que corre — el plano perdido es el primero del burst. Ficha del hallazgo:
+`docs/reference/emulators/winuae/blitter-busy-writes.md`.
+
+Fix aplicado: `submit_blit_job` espera `BBUSY==0` antes de programar cada job (las rachas
+`BlobBatch` ya esperaban por objeto). Coste medido en la 213: nulo dentro del ruido (sync 32,30 vs
+32,20–32,32 fps; async 27,41 vs 27,58). Alcance declarado: el A/B local con plan único quedó
+**contaminado por DT-023** (instancias huérfanas sirviendo estado viejo y `--sequence-step-frames`
+capturando a mitad de frame); la reproducción limpia corresponde a la verificación golden de la
+demo (`K121_GOLDEN_ACTORS` + `tools/analyze/verify-121-actor-golden.mjs`). Con ella, si el plan
+único sale limpio, la mitigación de dos planes puede retirarse.
