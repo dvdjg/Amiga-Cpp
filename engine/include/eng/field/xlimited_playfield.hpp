@@ -597,6 +597,43 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
         return true;
     }
 
+    /// **Blit de mundo con ventana** sobre una banda planar completa: `band` es una copia
+    /// del fondo con layout `[plano][fila][band_words_per_row]` (p. ej. el carril guardado
+    /// al inicio) y `first_word` selecciona la ventana de `w_words` palabras dentro de
+    /// cada fila — el borrado barato de la posición anterior de un objeto que se mueve
+    /// (restaurar 2 palabras en vez de toda la banda). La columna de la banda ES la
+    /// coordenada de mundo: `wx` debe ser `first_word·16` (la banda empieza en x=0).
+    /// La ventana y el span se validan (`eng::setup::check_world_window` es la versión
+    /// de setup); el resto de la costura/espejo lo gestiona `add_world_bitmap`.
+    /// \param plan destino de los trabajos. \param band banda completa (Chip, palabra a palabra).
+    /// \param first_word columna inicial de la ventana (palabras). \param wx x de mundo de la
+    ///        ventana (múltiplo de 16, `first_word·16`). \param wy línea del anillo del blit.
+    /// \param w_words ancho de la ventana en palabras. \param h filas. \param
+    ///        band_words_per_row palabras por fila de la banda. \param planes planos.
+    /// \return `true` si la ventana es válida y los trabajos se encolaron.
+    bool add_world_window(graphics::FramePlan& plan, Span<const u16> band, u16 first_word,
+                          s32 wx, s32 wy, u16 w_words, u16 h, u16 band_words_per_row, u8 planes) {
+        if (!this->m_initialized || band.empty() || planes == 0u || w_words == 0u ||
+            band_words_per_row == 0u) {
+            return false;
+        }
+        if (static_cast<u32>(first_word) + static_cast<u32>(w_words) >
+            static_cast<u32>(band_words_per_row)) {
+            return false;
+        }
+        // La ventana cae en su columna de mundo (la banda empieza en x=0).
+        if (wx != static_cast<s32>(first_word) * 16) {
+            return false;
+        }
+        const u32 row_bytes = static_cast<u32>(band_words_per_row) * 2u;
+        const u32 plane_stride = row_bytes * static_cast<u32>(h);
+        const u16* base = band.data() + first_word;
+        const usize avail = band.size() - first_word;
+        return add_world_bitmap(plan, Span<const u16> {base, avail}, wx, wy,
+                                static_cast<u16>(w_words * 16u), h,
+                                static_cast<u16>(row_bytes), plane_stride, planes);
+    }
+
     /// Dibuja un BOB planar con máscara de transparencia en el MUNDO. Igual que
     /// `add_world_bitmap` (origen en Chip RAM, `wx` múltiplo de 16, costura y
     /// espejo gestionados) pero con un plano de máscara de 1 bit compartido con
