@@ -24,6 +24,7 @@ const FILES = [
 	'docs/ai-dev-environment/README.md',
 	'docs/ai-dev-environment/DOC-MAP-PRINCIPAL.md',
 	'docs/ai-dev-environment/AMIGA_DEV_GUIDE.md',
+	'docs/debugging/system/setup-nuevo-equipo.md',
 	'docs/build/BUILD_AND_RUN.md',
 	'docs/guides/methodology/PROCEDIMIENTO_DEMOS_Y_JUEGOS.md',
 ];

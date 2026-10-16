@@ -37,6 +37,20 @@ Este documento describe el **ecosistema completo** para compilar, ejecutar, depu
 - **MCP** envuelve ambos en tools para asistentes.
 - Puertos **configurables por entorno**: `WINUAE_GDB_PORT`, `WINUAE_SIDE_CHANNEL_PORT`, `WINUAE_GDB_PERSIST_LISTENER`. Cada hilo/agente debe usar **su propio par de puertos** para no colisionar (ver §7.4).
 
+## Canónico por tema
+
+Esta guía es la **vista transversal** (todo el ecosistema en un documento); cada tema tiene **un** dueño, y al solaparse gana el dueño. Los demás documentos enlazan, no duplican:
+
+| Tema | Documento canónico |
+|---|---|
+| Comandos del día a día build/run/analyze y reglas del runner | `docs/build/BUILD_AND_RUN.md` |
+| Herramientas de depuración del fork y su uso (watchpoints, protect, rewind, MCP) | `docs/debugging/system/debug-winuae-v2-guide.md` |
+| Canal lateral (especificación y comandos) | `docs/emulation/WINUAE_SIDE_CHANNEL_DEBUG.md` |
+| Flujo vivo de edición/depuración con MCP | `docs/emulation/mcp-live-coding-workflow.md` |
+| Perfilado desde el agente y visión local | `docs/tools/PROFILING_FROM_AGENT.md`, `docs/ai-dev-environment/ollama-local.md` |
+| Rarezas del emulador con `fichero:línea` (fuente WinUAE) | `docs/reference/emulators/winuae/README.md` |
+| Reinstalación del entorno en un equipo nuevo | `docs/debugging/system/setup-nuevo-equipo.md` |
+
 ---
 
 ## 1. Toolchain
