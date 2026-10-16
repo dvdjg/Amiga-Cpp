@@ -330,7 +330,33 @@ async function captureFrameSequence(protocol, sequenceDir, frameCount, intervalM
         runStatusBefore = { ok: false, error: err.message };
       }
     }
-    const frame: Record<string, any> = await captureScreenshot(protocol, framePath);
+    // **Vía preferente: canal lateral** — la acción `screenshot` corre en el hilo de
+    // emulación (frame VIVO). El `screenshot` del monitor GDB de este fork sirve un
+    // frame rancio (el primero del arranque): con él las secuencias salían con frames
+    // idénticos byte a byte (md5 repetido) aunque la demo avanzara. La vía monitor
+    // queda como reserva, con pausa + continue alrededor de la captura.
+    let frame: Record<string, any>;
+    if (sideChannel?.port) {
+      frame = await captureScreenshotViaSideChannel(sideChannel.port, framePath,
+        sideChannel.timeoutMs ?? 20000);
+      frame.pausedForCapture = false;
+    } else {
+      let pausedForCapture = false;
+      try {
+        await protocol.pause();
+        await sleep(120);
+        pausedForCapture = true;
+      } catch (err) {
+        pausedForCapture = false; // ya estaba parado (u orden no soportada)
+      }
+      frame = await captureScreenshot(protocol, framePath);
+      frame.pausedForCapture = pausedForCapture;
+      try {
+        await protocol.continue();
+      } catch (err) {
+        /* la captura ya quedó */
+      }
+    }
     frame.capturedAtMs = capturedAt;
     frame.runStatusBefore = runStatusBefore;
     if (sideChannel?.runtimeAddress) {
@@ -1080,6 +1106,24 @@ async function readSideChannelRunStatusOnce(port, runtimeAddress, timeoutMs) {
   await client.connect(timeoutMs);
   try {
     return await client.command(`runstatus ${runtimeAddress.toString(16)}`, timeoutMs);
+  } finally {
+    client.close();
+  }
+}
+
+/// Captura por el **canal lateral** (`screenshot <ruta>`): la acción se ejecuta en el
+/// HILO DE EMULACIÓN en el siguiente límite de frame, así que el PNG es el frame VIVO
+/// (a diferencia del `screenshot` del monitor GDB, que en este fork sirve un frame
+/// rancia — secuencias con frames idénticos). Es la vía que valida
+/// `tools/vision-review/selftest-screendump.mjs`.
+async function captureScreenshotViaSideChannel(port, imagePath, timeoutMs = 20000) {
+  const winPath = imagePath.replace(/\//g, '\\');
+  const client = new SideChannelClient(port);
+  await client.connect(timeoutMs);
+  try {
+    const reply = await client.command(`screenshot ${winPath}`, timeoutMs);
+    const ok = reply?.ok === true || reply?.ok === 'true';
+    return { path: imagePath, reply, replyText: JSON.stringify(reply), exists: fs.existsSync(imagePath), ok };
   } finally {
     client.close();
   }
@@ -1887,7 +1931,17 @@ if (index !== injectSample - 1) return;
   // (el frame de secuencia si lo reflejaba). Ajustable con `--screenshot-settle-ms`.
   await sleep(Math.max(0, parseInt(argValue('--screenshot-settle-ms', '300'), 10)));
 
-  const screenshot = await captureScreenshot(protocol, screenshotPath);
+  // **Vía preferente: canal lateral.** El `screenshot` del monitor GDB de este fork deja
+  // el subsistema de vídeo CONGELADO tras la primera captura: `screenshot.png` salía del
+  // frame del arranque y la secuencia entera repetía esa imagen (frames idénticos byte a
+  // byte aunque la demo avanzara). Con el canal lateral el PNG es el frame vivo y el
+  // vídeo sigue refrescando (secuencias con movimiento real).
+  let screenshot: Record<string, any>;
+  if (report.sideChannel?.runtimeAddress) {
+    screenshot = await captureScreenshotViaSideChannel(sideChannelPort, screenshotPath);
+  } else {
+    screenshot = await captureScreenshot(protocol, screenshotPath);
+  }
   report.screenshotReply = screenshot.reply;
   report.screenshotReplyText = screenshot.replyText;
   if (report.sideChannel?.runtimeAddress) {
