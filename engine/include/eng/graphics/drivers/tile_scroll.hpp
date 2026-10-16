@@ -45,6 +45,7 @@
 #include <eng/graphics/tilemap/tile_scroll.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/memory/memory_manager.hpp>
+#include <eng/setup/coherence.hpp>
 
 namespace eng::graphics::drivers {
 
@@ -777,7 +778,12 @@ private:
 		scheduler.end();
 		m_copper_report = scheduler.report();
 		m_copper_words = scheduler.words_used();
-		m_ok = scheduler.ok();
+		// Validación de setup (capa 2 de `COHERENCIA_DE_SETUP.md`): la lista del driver no
+		// usa registros ECS/AGA (display OCS), así que se comprueba contra OCS: END,
+		// registros escribibles y orden de WAITs. Si no es ejecutable, no se publica.
+		m_ok = scheduler.ok() &&
+		       eng::setup::check_copper_list(scheduler.data(), scheduler.words_used(),
+						     eng::hw::Chipset::OCS).ok();
 		return m_ok;
 	}
 

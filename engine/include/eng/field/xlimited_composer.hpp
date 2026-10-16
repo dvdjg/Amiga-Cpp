@@ -9,6 +9,7 @@
 #include <eng/field/field_display.hpp>
 #include <eng/field/xlimited_playfield.hpp>
 #include <eng/graphics/composition/limits.hpp>
+#include <eng/setup/coherence.hpp>
 
 namespace eng::playfield {
 
@@ -309,7 +310,11 @@ private:
         }
         sched.end();
         m_copper_words = sched.words_used();
-        m_ok = sched.ok();
+        // Validación de setup (capa 2 de `COHERENCIA_DE_SETUP.md`): la cabecera del
+        // compositor puede escribir `BPLCON3` (ECS), así que se comprueba contra ECS;
+        // END, registros escribibles y orden de WAITs. Si no es ejecutable, no se publica.
+        m_ok = sched.ok() && eng::setup::check_copper_list(sched.data(), sched.words_used(),
+                                                           eng::hw::Chipset::ECS).ok();
         return m_ok;
     }
 
@@ -574,7 +579,10 @@ private:
         }
         sched.end();
         m_copper_words = sched.words_used();
-        m_ok = sched.ok();
+        // Misma validación de setup que el compositor single (la lista dual no usa BPLCON3
+        // en la cabecera, pero comparte el chequeo con ECS por coherencia de chipset).
+        m_ok = sched.ok() && eng::setup::check_copper_list(sched.data(), sched.words_used(),
+                                                           eng::hw::Chipset::ECS).ok();
         return m_ok;
     }
 

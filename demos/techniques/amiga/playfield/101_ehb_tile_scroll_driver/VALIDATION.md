@@ -30,9 +30,21 @@ cadencia uniforme de 1 px/frame sin tirones.
 Artefacto de captura en el cruce de palabra (0,0 + salto) compartido con 104 — anotado como
 nota de herramienta; el contrato fino de 101 lo cubre su propio analizador (OK).
 
-La pasada de regresión con `--pixel-assert` sobre una ventana de 14 frames falla en el frame
-del cruce (`shift-left-1px-per-frame`, error ~0,31 > 0,01): el contrato `pixel-contract.json`
-exige el desplazamiento de 1 px en **toda** la ventana y el tirón de captura del cruce lo
-rompe. Confirmado **preexistente** con A/B del binario de `HEAD` sin cambios locales (falla en
-el mismo punto, índice 6/5 según fase de inicio): no lo introduce ningún cambio de la ronda
-del refactor tipado de copper.
+La pasada de regresión con `--pixel-assert` sobre una ventana de 14 frames **falla**
+(`shift-left-1px-per-frame`, error peor ~0,31 > 0,01). Diagnóstico con búsqueda de
+desplazamiento por par (`best dx` sobre la propia secuencia): la mayoría de pares casan con
+dx=2 px de captura (= 1 px lógico), pero hay pares con **dx=0** (frame de captura repetido) y
+**dx=4** (salto doble): es el artefacto de congelado del frame-step (documentado arriba,
+compartido con 104), **no** un cambio de fase de la cámara — ocurre dentro de la fase 0 (t≈25
+y t≈49 en las dos capturas), por lo que **acotar el contrato a "la fase de scroll izquierdo"
+no lo arreglaría**: el artefacto cae dentro de esa fase. El contrato estricto no puede pasar
+mientras el capturador repita/salte frames; la vía correcta es arreglar el frame-step del
+runner (o excluir pares no desplazados en el motor de aserciones), no relajar el umbral
+(ocultaría un atasco real de 1 frame). Confirmado **preexistente** con A/B del binario de
+`HEAD` sin cambios locales (falla en el mismo rango, índice 6/5 según captura): no lo introduce
+la ronda del refactor tipado de copper.
+
+**Validación de lista en setup (añadida)**: `TileScrollScene::emit_full_copper` comprueba su
+lista con `eng::setup::check_copper_list` (chipset OCS) antes de publicarla; si no fuese
+ejecutable, `ok()` sería `false` y la demo fallaría en la ruta de error existente. La pasada
+`build -> run` de esta ronda llega a READY (el validador acepta la lista real del driver).

@@ -55,6 +55,24 @@ void test_regions() {
 	CHECK(!p.ok() && p.code == 1u);
 	CHECK(p.index == 1u); // la segunda region es la culpable
 
+	// `validate_disjoint`: contrato de un mapa de **reservas de arena** (sin jerarquia):
+	// dos reservas que se contienen mutuamente se rechazan (caso 085: el bloque de copper
+	// dentro del rango del bitmap que el display lee).
+	{
+		RegionTable<4> overlap_alloc;
+		CHECK(overlap_alloc.add("bitmap1", 0x1f060u, 0x7800u)); // 0x1F060..0x26860
+		CHECK(overlap_alloc.add("copper_a", 0x25060u, 0x1000u)); // dentro de bitmap1
+		const CheckResult od = overlap_alloc.validate_disjoint();
+		CHECK(!od.ok() && od.code == 4u);
+		CHECK(od.index == 1u); // par (0,1)
+	}
+	{
+		RegionTable<4> disjoint_alloc;
+		CHECK(disjoint_alloc.add("bitmap0", 0x17860u, 0x7800u));
+		CHECK(disjoint_alloc.add("bitmap1", 0x1f060u, 0x7800u));
+		CHECK(disjoint_alloc.validate_disjoint().ok());
+	}
+
 	// Fuera del banco: el copper se sale del Chip RAM configurado.
 	RegionTable<2> out;
 	CHECK(out.add("copper", 0x7f000u, 0x2000u)); // termina en 0x81000 > 0x80000

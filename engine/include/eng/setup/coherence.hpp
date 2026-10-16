@@ -140,6 +140,41 @@ public:
 		return {};
 	}
 
+	/// Como `validate()`, y además exige que las regiones sean **disjuntas por pares**
+	/// (ninguna contiene a otra). Es el contrato de un mapa de **reservas de arena**: si
+	/// una reserva contiene a otra, el allocator entregó memoria ya cedida y un dueño
+	/// pisará al otro (caso 085: el bloque de copperlist dentro del rango del bitmap).
+	/// Códigos: 4 = una región contiene total o parcialmente a otra.
+	[[nodiscard]] constexpr CheckResult validate_disjoint() const noexcept {
+		const CheckResult basic = validate();
+		if (!basic.ok()) {
+			return basic;
+		}
+		for (eng::u16 i = 0u; i < m_count; ++i) {
+			const Region& a = m_regions[i];
+			if (a.bytes == 0u) {
+				continue;
+			}
+			for (eng::u16 j = i + 1u; j < m_count; ++j) {
+				const Region& b = m_regions[j];
+				if (b.bytes == 0u) {
+					continue;
+				}
+				const eng::u32 start = (a.base > b.base) ? a.base : b.base;
+				const eng::u32 a_end = a.base + a.bytes;
+				const eng::u32 b_end = b.base + b.bytes;
+				const eng::u32 end = (a_end < b_end) ? a_end : b_end;
+				if (start < end) {
+					// `index` empaqueta el par culpable: bits 8-15 = primera región (i),
+					// bits 0-7 = segunda (j). `expected`/`actual` = bases de ambas.
+					return {4u, "una reserva de arena contiene a otra (memoria ya entregada)",
+						static_cast<eng::u16>((i << 8u) | (j & 0xffu)), a.base, b.base};
+				}
+			}
+		}
+		return {};
+	}
+
 private:
 	Region m_regions[MaxRegions] {};
 	eng::u16 m_count = 0u;

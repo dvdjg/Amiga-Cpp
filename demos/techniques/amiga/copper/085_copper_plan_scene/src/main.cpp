@@ -37,6 +37,7 @@
 #include <eng/graphics/effects/raster_gradient.hpp>
 #include <eng/graphics/raster_intent.hpp>
 #include <eng/platform/amiga/backend.hpp>
+#include <eng/setup/coherence.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -62,13 +63,16 @@ namespace copper = eng::copper;
 namespace effects = eng::graphics::effects;
 namespace graphics = eng::graphics;
 
-// Geometria: 320x256 lowres, 4 planos (16 colores).
+// Geometria: 320x256 lowres, 3 planos (8 colores: fondo + disco con 1/3/5). El disco y el
+// cielo solo necesitan 3 planos, asi que BPU=3 es la configuracion semantica correcta (el
+// 4.º plano era contenido ajeno; v. VALIDATION.md y la deuda 085 abierta, que es de layout
+// de memoria en runtime: la copperlist cae dentro del rango del bitmap que el display lee).
 constexpr eng::u16 kWidth = 320;
 constexpr eng::u16 kHeight = 256;
-constexpr eng::u8 kPlanes = 4;
+constexpr eng::u8 kPlanes = 3;
 constexpr eng::u16 kBytesPerRow = kWidth / 8u;             // 40
 constexpr eng::u32 kPlaneBytes = kBytesPerRow * kHeight;   // 10240
-constexpr eng::u16 kBplcon0 = 0x4200;                      // 4 planos, color
+constexpr eng::u16 kBplcon0 = 0x3200;                      // 3 planos, color
 constexpr eng::u16 kFirstLine = 0x2cu;                     // arranque del display (PAL)
 
 // Cielo: 16 bandas de 16 lineas cubren las 256 visibles (con envuelta a 256 lineas).
@@ -147,6 +151,35 @@ struct CopperPlanDemo {
 			return;
 		}
 		for (eng::u8 i = 0; i < 16u; ++i) m_zero.view.data()[i] = 0u;
+
+		// Validación del layout (capa 2 de `COHERENCIA_DE_SETUP.md`): si dos reservas de arena
+		// se solapan, una lee memoria de la otra (el defecto abierto de 085: la copperlist
+		// ejecutada cae dentro del rango del bitmap). `validate_disjoint` lo convierte en
+		// fallo de setup con nombres, en vez de basura silenciosa en pantalla. Código:
+		// 0x85<<8 | índice del par culpable.
+		{
+			eng::setup::RegionTable<8> regions;
+			(void)regions.add("bitmap0", reinterpret_cast<eng::uintptr>(m_bitmaps[0].view.data()),
+					  kPlaneBytes * kPlanes);
+			(void)regions.add("bitmap1", reinterpret_cast<eng::uintptr>(m_bitmaps[1].view.data()),
+					  kPlaneBytes * kPlanes);
+			(void)regions.add("copper_a",
+					  reinterpret_cast<eng::uintptr>(m_plan.active_view().data()),
+					  static_cast<eng::u32>(m_plan.active_view().size()));
+			(void)regions.add("copper_b",
+					  reinterpret_cast<eng::uintptr>(m_plan.inactive_view().data()),
+					  static_cast<eng::u32>(m_plan.inactive_view().size()));
+			(void)regions.add("shape", reinterpret_cast<eng::uintptr>(m_shape.view.data()),
+					  m_shape.view.size());
+			(void)regions.add("zero", reinterpret_cast<eng::uintptr>(m_zero.view.data()),
+					  m_zero.view.size());
+			const eng::setup::CheckResult layout = regions.validate_disjoint();
+			if (!layout.ok()) {
+				eng::debug::mark_failed(g_eng_run_status,
+							static_cast<eng::u32>(0x00008500u | (layout.index & 0xffu)));
+				return;
+			}
+		}
 		// Cielo: degradado por banda generado por el efecto (claves `kSky`, cíclico).
 		m_sky.configure({kFirstLine, kSkyBandHeight, kSkyBands, 0u});
 		m_sky.set_cyclic(true);

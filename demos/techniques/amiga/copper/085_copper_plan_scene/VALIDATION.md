@@ -89,14 +89,19 @@ se re-capturó (`--sequence-frames 6 --sequence-interval-ms 500`) antes de valid
 DT-007 cerrada. DT-003/§6.4 (límites del montaje vs imagen única) sigue vigente como nota de
 metodología.
 
-## Defecto conocido (fuera del alcance de lo verificado arriba)
+## Defecto conocido (fuera del alcance de lo verificado arriba, ABIERTO)
 
-Capturas frescas por paridad de buffer (2026-10, verificación del refactor tipado de copper)
-encuentran un **defecto preexistente de layout de memoria**: el bloque de copperlist del `Plan`
-cae dentro del **4.º plano del bitmap 1** (`BPL4PT = COP1LC`), de modo que uno de cada dos
-frames muestra el disco en negro (índice +8 → COLOR08-15 = 0). Reproducido con el binario de
-`HEAD` sin cambios locales (capturas alternas con 6076/0/6076 píxeles negros interiores), así
-que **no** lo introduce ese refactor. Detalle, evidencia de registros y vías de arreglo:
-`docs/debugging/investigaciones/085-copper-solapa-plano4-bitmap1.md`. La conclusión 1 de este
-informe vale para los frames del bitmap 0; la demo queda **parcialmente verificada** hasta
-cerrar la deuda.
+Capturas frescas (2026-10, verificación del refactor tipado de copper) muestran el disco en
+**negro** en parte de los frames (conteo objetivo de píxeles negros interiores alternando
+6076/0/6076/3124). Evidencia de runtime (WinUAE-DBG): el bloque de copperlist que el Copper
+ejecuta (`COP1LC = 0x25060`) cae **dentro del rango del bitmap 1** (`[0x1F060, 0x26860)`), de
+modo que las palabras de la lista se leen como bits de plano y los píxeles del disco pasan a
+colores negros (`COLORxx = 0x000`). Es **preexistente** (mismo defecto con el binario de `HEAD`
+en un worktree limpio) y **no** lo introduce el refactor. La hipótesis del "4.º plano leyendo la
+copperlist" quedó descartada (con 3 planos persiste; el demo usa 3 planos y `BPU=3` por
+corrección semántica). Detalle, evidencia y plan de bisectado del allocator:
+`docs/debugging/investigaciones/085-copper-solapa-bitmap.md`. La demo lleva en su `init` una
+validación `RegionTable::validate_disjoint` de sus bloques (hoy pasa; deberá cazar el solape
+cuando el allocator se corrija). Hasta cerrar la deuda, la demo queda **parcialmente
+verificada**. El pixel-contract de 101 (defecto aparte, también preexistente) está anotado en su
+propio `VALIDATION.md`.
