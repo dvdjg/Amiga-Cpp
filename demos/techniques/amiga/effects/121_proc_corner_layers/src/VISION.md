@@ -2,9 +2,9 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-16T21:26:37.782Z
+- Fecha: 2026-10-16T23:47:05.519Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
-- Frames: frame_000.png, frame_001.png, frame_002.png (3)
+- Frames: frame_000.png, frame_001.png, frame_002.png, frame_003.png, frame_004.png (5)
 - Secuencia: `out/run/121_proc_corner_layers/A500_debug/sequence`
 
 ## Prompt (canónico, tools/analyze/vision-prompt.txt)
@@ -15,25 +15,22 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 ## Respuesta (cruda)
 
-**Imagen 1:**
-- **Escena:** Vista isométrica de un entorno pixelado con césped verde, agua azul, árboles verdes y un camino marrón.
-- **Elementos:**
-  - Dos estructuras de ladrillo rojo con techo marrón en la parte inferior izquierda.
-  - Un camino marrón que cruza la escena horizontalmente, cruzando un río.
-  - Árboles dispersos en el terreno.
-  - Un área de agua en la parte inferior derecha.
-  - Un objeto rectangular gris con un círculo blanco en la esquina superior derecha.
-  - Dos pequeñas figuras verdes en la parte inferior derecha.
-- **Texto en la parte inferior:**
-  - `PROC STRUCTURES v1.0.4140 F 64`
-  - `X-LIMITED 20x13 PIECES`
+Las tres imágenes son idénticas entre sí y no muestran ningún cambio temporal ni visual.
 
-**Imagen 2:**
-- **Escena:** La misma escena que en la imagen 1, con todos los elementos gráficos en la misma posición.
-- **Cambio observado:**
-  - El texto en la parte inferior cambia de `F 64` a `F 128`.
-- **Elementos gráficos:** Todos los elementos visuales son idénticos a la imagen 1, sin cambios en su posición, forma o estado.
+**Descripción de la escena:**
+
+*   **Estilo visual:** Es una captura de pantalla de un videojuego con gráficos de 8 bits, caracterizados por una paleta de colores limitada y una resolución baja.
+*   **Entorno:** El fondo es un terreno verde con textura de pixel art. Hay dos cuerpos de agua azules, uno a la izquierda y otro más grande a la derecha. Entre ellos, una vía de tierra marrón atraviesa la escena horizontalmente.
+*   **Elementos del entorno:**
+    *   **Árboles:** Hay varios árboles verdes con troncos marrones distribuidos por el terreno.
+    *   **Estructuras:** A la izquierda, hay dos torres de ladrillo rojo con detalles marrones y una pequeña ventana. En la parte superior derecha, hay una estructura rectangular gris con un objeto blanco dentro.
+    *   **Personaje:** Un personaje blanco, de forma circular con dos puntos negros (ojos), está situado en la parte superior de la torre de la izquierda.
+    *   **Otros objetos:** En la parte inferior derecha, hay dos pequeñas figuras verdes que parecen plantas o enemigos.
+*   **Texto en la parte inferior:** Sobre un fondo negro, se muestra el siguiente texto en letras blancas:
+    *   `PROC STRUCTURES v1.0.4161 F 0`
+    *   `X-LIMITED 20x13 PIECES`
 
 **Observaciones:**
-- No hay parpadeos, recortes, artefactos visibles ni elementos superpuestos.
-- El cambio entre las imágenes es exclusivamente el valor numérico en el texto de la parte inferior, que pasa de `F 64` a `F 128`. Todo lo demás permanece inalterado.
+
+*   **Consistencia:** No hay ningún cambio entre las imágenes. Todo permanece estático.
+*   **Elementos extraños o defectuosos:** No se observan artefactos, parpadeos, recortes ni elementos superpuestos. La escena es coherente y completa en todos los aspectos visibles.

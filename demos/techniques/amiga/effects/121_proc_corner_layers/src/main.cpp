@@ -694,6 +694,16 @@ struct ProcStructuresDemo {
 			d.animation = &kActorAnim;
 			d.x = s16(kActorMinX + kRingGuardX); // anillo (el sistema no aplica sesgo de X)
 			d.y = s16(kActorY);
+#if defined(K121_ACTOR_SEAM)
+			// **Modo costura** (verificación de hardware del reparto de `bob_ring.hpp`):
+			// el actor queda a 4 filas del FINAL del anillo (`kDisplayH`), de modo que el
+			// dibujo CRUZA la costura — 4 filas del arte caen en las últimas líneas
+			// VISIBLES de la ventana y las 12 restantes envuelven a las líneas 0.. de la
+			// guarda (fuera de la ventana; su corrección se comprueba leyendo el bitmap
+			// del anillo, `seam_check`). Columna limpia de copas (64): la máscara del
+			// pack no depende de la fila.
+			d.y = s16(kDisplayH - 4u - kRingGuardY);
+#endif
 			d.offset.y = s16(kRingGuardY); // visible -> anillo (contrato del puente)
 			d.transparency = eng::scene::TransparencyMode::Mask1Bit;
 			d.background = eng::scene::BackgroundPolicy::SaveUnder;
@@ -728,6 +738,13 @@ struct ProcStructuresDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012132u);
 			return;
 		}
+#if defined(K121_ACTOR_SEAM)
+		// Modo costura: el cuerpo ya no está en el carril — se comprueba el reparto
+		// (parte visible + parte envuelta a la guarda) leyendo el bitmap del anillo.
+		if (!seam_check()) {
+			return;
+		}
+#else
 		{
 			const u8 body = read_body_stable(u16(kActorMinX + kRingGuardX + 8u), u16(kActorY + 8u));
 			if (body != 31u) {
@@ -736,6 +753,7 @@ struct ProcStructuresDemo {
 				return;
 			}
 		}
+#endif
 #else
 		// **Auto-chequeo de hardware** (patrón de `COHERENCIA_DE_SETUP.md` §22): dibuja
 		// el actor con las MISMAS rutinas del frame en una posición fija, RELEE el
@@ -890,6 +908,12 @@ struct ProcStructuresDemo {
 				eng::debug::mark_failed(g_eng_run_status, 0x00012134u);
 				return;
 			}
+#if defined(K121_ACTOR_SEAM)
+			// Evidencia por frame del reparto en la costura (parte visible + envuelta).
+			if (!seam_check()) {
+				return;
+			}
+#endif
 		}
 #elif !defined(K121_SKIP_ACTOR)
 		// **Actor por Blitter**: (1) restaura SOLO la ventana de 2 palabras que ocupaba
@@ -1035,6 +1059,40 @@ private:
 		return eng::playfield::read_confirm(
 			[this, sx, sy] { return read_field_pixel(sx, sy); }, 31u);
 	}
+
+#if defined(K121_ACTOR_SEAM)
+	/// **Auto-chequeo del modo costura** (`bob_ring.hpp`): el actor está a 4 filas del
+	/// final del anillo, así que su dibujo se emite como DOS trabajos (parte visible +
+	/// envuelta). Lee el bitmap del anillo con la sonda de línea directa
+	/// (`read_ring_pixel`; la visible no llega a la guarda) y exige:
+	///   (a) fila del arte 2 → anillo `kDisplayH − 2` (última zona visible) = 31;
+	///   (b) fila del arte 12 → anillo 8 (guarda, parte ENVUELTA) = 31 — prueba de que
+	///       el segundo trabajo del reparto escribió en la zona correcta;
+	///   (c) fila del arte 15 → anillo 11 conserva el FONDO (no 31: la esquina del arte
+	///       es transparente y la máscara no debe pintarla; la guarda ya traía mundo).
+	/// Fallo en `detail` = 0x12135/0x12136/0x12137 | got<<16. La columna es la limpia
+	/// de copas (`kActorMinX + kRingGuardX + 8`): la máscara del pack es la silueta.
+	[[nodiscard]] bool seam_check() const {
+		const eng::playfield::PlayfieldHardwareView hv = scene.bg().hardware_view();
+		const u16 sx = u16(kActorMinX + kRingGuardX + 8u); // centro del arte (columna de bitmap)
+		const u8 top = eng::playfield::read_ring_pixel(hv, u16(kDisplayH - 2u), sx);
+		if (top != 31u) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00012135u | (u32(top) << 16u));
+			return false;
+		}
+		const u8 wrapped = eng::playfield::read_ring_pixel(hv, 8u, sx);
+		if (wrapped != 31u) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00012136u | (u32(wrapped) << 16u));
+			return false;
+		}
+		const u8 corner = eng::playfield::read_ring_pixel(hv, 11u, sx);
+		if (corner == 31u) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00012137u | (u32(corner) << 16u));
+			return false;
+		}
+		return true;
+	}
+#endif
 
 	/// **Auto-chequeo**: (1) tras ejecutar SOLO el restaurador del carril, un píxel del
 	/// carril debe ser el de la pieza cocida de la fila 9 (misma fuente que el banco);
@@ -1285,6 +1343,10 @@ private:
 		ctx.targets = eng::Span<const eng::graphics::BobTarget> {&m_ring_target, 1u};
 		ctx.clip = eng::scene::DirtyRect {0, 0, s16(hv.viewport_w), s16(hv.display_height)};
 		ctx.buffer = 0;
+		// **Anillo**: el rect del actor viaja en líneas del anillo y CRUZA la costura si
+		// toca — el emisor lo reparte en dos trabajos (`bob_ring.hpp`); sin cruce, vía
+		// lineal exacta con una única comparación.
+		ctx.ring_height = hv.display_height;
 		ctx.cam_x = 0;
 		ctx.cam_y = 0;
 		auto actor = m_actor_store.get(m_actor_id);
