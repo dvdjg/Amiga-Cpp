@@ -95,6 +95,13 @@ constexpr u16 kActorY = 144u;                            // fila 9
 // del anillo y + kRingGuardY. `add_world_bitmap*` recibe (y envuelve con `dmod2`)
 // la LÍNEA DEL ANILLO, no el y visible.
 constexpr u16 kRingGuardY = kTile;
+// **Guarda HORIZONTAL del display** (espejo de la vertical): la ventana del corkscrew
+// muestra la columna c del ANILLO en la pantalla c − 1 (la columna 0 es la guarda del
+// x-limited); el mundo pinta la columna del mapa c en la columna c + 1 del anillo. Un
+// objeto en x VISIBLE se dibuja en la COLUMNA DEL ANILLO x + kRingGuardX (y ahí se lee);
+// las consultas al MAPA (copas) van en coordenadas de pantalla. Sin este sesgo el objeto
+// sale una columna a la izquierda y su oclusión queda desfasada (medido con landmarks).
+constexpr u16 kRingGuardX = kTile;
 static_assert(kMainH == kMapH * kTile, "el campo visible es kMapH filas");
 constexpr u16 kActorMinX = 32u;
 constexpr u16 kActorMaxX = 256u; // EXPERIMENTO TEMPORAL (out/tmp): 272 excede el carril (288 px)
@@ -105,7 +112,7 @@ constexpr u32 kActorBandWords = kActorWords * kActorRows * 5u; // 160
 // + 32 px = 304 px = 19 celdas). Con 18 celdas, la ventana de restauración en el extremo
 // derecho leía una palabra fuera de la banda (la detección está en el validador de setup
 // `check_world_window`, que se ejecuta en init).
-constexpr u16 kLaneWordCells = 19u;
+constexpr u16 kLaneWordCells = 20u;
 constexpr u32 kLaneBandWords = kLaneWordCells * kActorRows * 5u; // 1520
 
 constexpr playfield::ScrollConsts kScrollConsts {
@@ -615,10 +622,12 @@ struct ProcStructuresDemo {
 				{0u, u16(kLaneWordCells * 16u), kActorRows, u8(kPlanes),
 				 u16(kLaneWordCells * 2u), kLaneBandWords * 2u / kPlanes, kLaneBandWords},
 				// (2) ventana de restauración (2 palabras).
-				{kActorMaxX, 32u, kActorRows, u8(kPlanes), u16(kLaneWordCells * 2u),
+				{kActorMaxX + kRingGuardX, 32u, kActorRows, u8(kPlanes),
+				 u16(kLaneWordCells * 2u),
 				 kLaneBandWords * 2u / kPlanes, kLaneBandWords},
 				// (3) actor (x extrema derecha + ventana de banda de 32 px).
-				{kActorMaxX, 32u, kActorRows, u8(kPlanes), 4u, u32(kActorRows) * 4u,
+				{kActorMaxX + kRingGuardX, 32u, kActorRows, u8(kPlanes), 4u,
+				 u32(kActorRows) * 4u,
 				 kActorBandWords}};
 			for (u8 i = 0u; i < 3u; ++i) {
 				const eng::setup::CheckResult r =
@@ -632,7 +641,7 @@ struct ProcStructuresDemo {
 				}
 			}
 			const eng::setup::CheckResult w =
-				eng::setup::check_world_window(u16(kActorMaxX / 16u), 2u,
+				eng::setup::check_world_window(u16((kActorMaxX + kRingGuardX) / 16u), 2u,
 							       u16(kLaneWordCells));
 			if (!w.ok()) {
 				eng::debug::mark_failed(g_eng_run_status,
@@ -720,7 +729,7 @@ struct ProcStructuresDemo {
 			return;
 		}
 		{
-			const u8 body = read_body_stable(u16(kActorMinX + 8u), u16(kActorY + 8u));
+			const u8 body = read_body_stable(u16(kActorMinX + kRingGuardX + 8u), u16(kActorY + 8u));
 			if (body != 31u) {
 				eng::debug::mark_failed(g_eng_run_status,
 							0x00012133u | (u32(body) << 16u));
@@ -790,7 +799,7 @@ struct ProcStructuresDemo {
 						    kActorBandWords},
 					    eng::Span<const eng::u16> {
 						    gm, eng::u32(kActorWords) * kActorRows},
-					    s32(cols[k] * 16u), s32(kActorY) + s32(kRingGuardY), 32u,
+					    s32(cols[k] * 16u + kRingGuardX), s32(kActorY) + s32(kRingGuardY), 32u,
 					    kActorRows, 4u, kActorRows * 4u, kPlanes)) {
 					eng::debug::mark_failed(g_eng_run_status, 0x00012120u);
 					return;
@@ -850,15 +859,12 @@ struct ProcStructuresDemo {
 #else
 		// Estático: 96 queda bajo copa (col. 6); en el camino del sistema se usa 200
 		// (columna limpia, 12) para que la captura estática muestre el actor entero.
-#if defined(K121_ACTOR_SYSTEM)
-		m_actor_x = 200u;
-#else
-		m_actor_x = 96u;
-#endif
+// 200 = columna 12 (limpia de copas): medible con landmarks en ambos caminos.
+		m_actor_x = 64u;
 #endif
 		{
 			auto actor = m_actor_store.get(m_actor_id);
-			actor->desc.x = s16(m_actor_x);
+			actor->desc.x = s16(m_actor_x + kRingGuardX);
 			cook_pack_mask(m_actor_x);
 			if (!emit_actor_system(backend)) {
 				m_ready = false;
@@ -874,7 +880,8 @@ struct ProcStructuresDemo {
 		// bajo la copa no se escribe y el bicho queda oculto.
 		if (!scene.bg().add_world_window(
 			    plan, eng::Span<const eng::u16> {m_lane_bg, kLaneBandWords},
-			    u16(m_restore_x / 16u), s32(m_restore_x), s32(kActorY) + s32(kRingGuardY),
+			    u16((m_restore_x + kRingGuardX) / 16u), s32(m_restore_x + kRingGuardX),
+			    s32(kActorY) + s32(kRingGuardY),
 			    2u, kActorRows, u16(kLaneWordCells), kPlanes)) {
 			m_ready = false;
 			eng::debug::mark_failed(g_eng_run_status, 0x00012110u);
@@ -905,14 +912,15 @@ struct ProcStructuresDemo {
 		}
 		m_actor_x = u16(s32(m_actor_x) + m_dir);
 #else
-		m_actor_x = 96u;
+		m_actor_x = 64u;
 #endif
 		patch_actor();
 		if (!scene.bg().add_world_bitmap_masked(
 			    plan, eng::Span<const eng::u16> {m_bands + eng::u32(m_actor_x & 15u) * kActorBandWords,
 							     kActorBandWords},
 			    eng::Span<const eng::u16> {m_mask, kActorWords * kActorRows},
-			    s32((m_actor_x >> 4u) << 4u), s32(kActorY) + s32(kRingGuardY), 32u, kActorRows,
+			    s32(((m_actor_x + kRingGuardX) >> 4u) << 4u), s32(kActorY) + s32(kRingGuardY),
+			    32u, kActorRows,
 4u,
 			    kActorRows * 4u, kPlanes)) {
 			m_ready = false;
@@ -933,11 +941,11 @@ struct ProcStructuresDemo {
 		// desajuste de planos/posición en un fallo visible con la x exacta en `detail`.
 #if !defined(K121_FREEZE_ACTOR_RENDER) && !defined(K121_GOLDEN_ACTORS)
 		{
-			const u16 bx = u16(m_actor_x + 8u);
-			const u16 col = u16(bx >> 4u);
-			const u16 bit = u16(0x8000u >> (bx & 15u));
+			const u16 bx = u16(m_actor_x + kRingGuardX + 8u); // anillo
+			const u16 sx = u16(m_actor_x + 8u);                // pantalla/mapa
 			const bool covered =
-				(kWorld.canopy_mask[kActorY + 8u][col] & bit) != 0u;
+				(kWorld.canopy_mask[kActorY + 8u][u16(sx >> 4u)] &
+				 u16(0x8000u >> (sx & 15u))) != 0u;
 			const u8 body = read_body_stable(bx, u16(kActorY + 8u));
 			// Tolerancia a fallos aislados: un desajuste persistente en el render
 			// (el caso real) falla TODOS los frames; un pico transitorio de un solo
@@ -1022,7 +1030,7 @@ private:
 		//     Con reintento: el grupo de copias del restaurador se ha visto con un plano
 		//     desviado en la primera pasada (clase de fallo de DT-022); un re-dibujo
 		//     inmediato lo resuelve y el fallo solo se reporta si persiste.
-		const u16 lane_cell = kBaked.cells[eng::u32(kActorY / kTile) * kMapW + 8u];
+		const u16 lane_cell = kBaked.cells[eng::u32(kActorY / kTile) * kMapW + 7u];
 		const u8 exp = kBaked.tiles[lane_cell][eng::u32(6u) * kTile + 9u];
 		u8 got = 0u;
 		for (u8 attempt = 0u; attempt < 2u; ++attempt) {
@@ -1107,10 +1115,10 @@ private:
 				eng::Span<const eng::u16> {m_bands + eng::u32(sub) * kActorBandWords,
 							   kActorBandWords},
 				eng::Span<const eng::u16> {m_mask, kActorWords * kActorRows},
-				s32((px >> 4u) << 4u), s32(kActorY) + s32(kRingGuardY), 32u, kActorRows,
+				s32(((px + kRingGuardX) >> 4u) << 4u), s32(kActorY) + s32(kRingGuardY), 32u, kActorRows,
 				4u, kActorRows * 4u, kPlanes);
 			const bool ran = queued && backend.execute_frame_plan(plan);
-			const u8 body = ran ? read_body_stable(u16(px + 8u), u16(kActorY + 8u)) : 0xFFu;
+			const u8 body = ran ? read_body_stable(u16(px + kRingGuardX + 8u), u16(kActorY + 8u)) : 0xFFu;
 			if (!ran) {
 				bad = 0x00012107u;
 			} else if (body != 31u) {
@@ -1133,11 +1141,11 @@ private:
 						m_bands + eng::u32(px & 15u) * kActorBandWords,
 						kActorBandWords},
 					eng::Span<const eng::u16> {m_mask, kActorWords * kActorRows},
-					s32((px >> 4u) << 4u), s32(kActorY) + s32(kRingGuardY), 32u,
+					s32(((px + kRingGuardX) >> 4u) << 4u), s32(kActorY) + s32(kRingGuardY), 32u,
 					kActorRows, 4u, kActorRows * 4u, kPlanes);
 				const bool ran = queued && backend.execute_frame_plan(plan);
 				const u8 body =
-					ran ? read_body_stable(u16(px + 8u), u16(kActorY + 8u)) : 0xFFu;
+					ran ? read_body_stable(u16(px + kRingGuardX + 8u), u16(kActorY + 8u)) : 0xFFu;
 				if (!ran) {
 					bad = 0x00012107u;
 				} else if (body != 31u) {
@@ -1180,11 +1188,11 @@ private:
 								      kActorBandWords},
 							      eng::Span<const eng::u16> {
 								      m_mask, kActorWords * kActorRows},
-							      s32((px >> 4u) << 4u),
+							      s32(((px + kRingGuardX) >> 4u) << 4u),
 							      s32(kActorY) + s32(kRingGuardY), 32u,
 							      kActorRows, 4u, kActorRows * 4u, kPlanes);
 				const bool ran = q1 && backend.execute_frame_plan(plan);
-				body = ran ? read_body_stable(u16(px + 8u), u16(kActorY + 8u))
+				body = ran ? read_body_stable(u16(px + kRingGuardX + 8u), u16(kActorY + 8u))
 					   : 0xFFu;
 				if (!ran) {
 					bad = 0x00012107u;
@@ -1211,7 +1219,7 @@ private:
 		for (u32 p = 0; p < kPlanes; ++p) {
 			for (u16 r = 0; r < kActorRows; ++r) {
 				for (u16 c = 0; c < kLaneWordCells; ++c) {
-					const u16 cell = kBaked.cells[u32(lane_row) * kMapW + c];
+					const u16 cell = kBaked.cells[u32(lane_row) * kMapW + (c == 0u ? 0u : u32(c) - 1u)];
 					const u8* const tile = kBaked.tiles[cell & 63u];
 					u16 word = 0u;
 					for (u16 x = 0; x < kTile; ++x) {

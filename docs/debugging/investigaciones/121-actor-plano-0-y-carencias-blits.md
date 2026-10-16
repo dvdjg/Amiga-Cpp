@@ -30,8 +30,7 @@ Pendiente: test host que reproduzca la **secuencia mixta** de registros (copias 
 ## Bisección en hardware (2026-10-16): plan multi-job vs plan por objeto
 
 El **modo golden** de la demo (`K121_GOLDEN_ACTORS`, 16 subposiciones a la vez, paleta identidad)
-con el oráculo independiente `tools/analyze/verify-121-actor-golden.mjs` permite comparar formas de
-plan con el mismo render:
+con el oráculo independiente `tools/analyze/verify-121-actor-golden.mjs` permite comparar formas de plan con el mismo render:
 
 | Variante | Resultado (oráculo) |
 |---|---|
@@ -41,9 +40,7 @@ plan con el mismo render:
 
 Lectura: hay **dos síntomas distintos** en la misma familia. (1) El encadenado sin esperar a `BBUSY`
 pierde/desplaza objetos de los grupos largos (corregido por el contrato de espera por job;
-`docs/reference/emulators/winuae/blitter-busy-writes.md`). (2) Incluso con planes cortos y tras ese
-contrato, algunos actores NO se dibujan (o se dibujan ~2 celdas a la izquierda: los 127 px de colateral
-en x=105) — pendiente de aislar; el golden deja el banco listo para validar cada iteración del motor.
+`docs/reference/emulators/winuae/blitter-busy-writes.md`). (2) Incluso con planes cortos y tras ese contrato, algunos actores NO se dibujan (o se dibujan ~2 celdas a la izquierda: los 127 px de colateral en x=105) — pendiente de aislar; el golden deja el banco listo para validar cada iteración del motor.
 
 ## Mitigación en la demo (121)
 
@@ -95,18 +92,9 @@ Con la mitigación: **3/3 medidas limpias a 47.67 fps (1.049 campos/frame)** —
 
 ## Fix del motor (2026-10-16): contrato de escritura con el Blitter ocupado
 
-El patrón encaja con la fuente primaria: el AHRM 3.ª («Multitasking and the Blitter») prohíbe
-escribir registros del Blitter con un blit en curso, y WinUAE **reinicia** el blitter si se escribe
-`BLTSIZE` con uno activo (`../WinUAE-DBG/blitter.cpp:2036` aviso, `:2058` re-init, `:2101`/`:2119`
-contadores a cero). El plan encadenaba jobs sin esperar; eso solo «funcionaba» cuando cada blit
-acababa antes de la siguiente programación (timing del bus), y en un burst tras un blit largo se
-pisa el estado del que corre — el plano perdido es el primero del burst. Ficha del hallazgo:
+El patrón encaja con la fuente primaria: el AHRM 3.ª («Multitasking and the Blitter») prohíbe escribir registros del Blitter con un blit en curso, y WinUAE **reinicia** el blitter si se escribe `BLTSIZE` con uno activo (`../WinUAE-DBG/blitter.cpp:2036` aviso, `:2058` re-init, `:2101`/`:2119`
+contadores a cero). El plan encadenaba jobs sin esperar; eso solo «funcionaba» cuando cada blit acababa antes de la siguiente programación (timing del bus), y en un burst tras un blit largo se pisa el estado del que corre — el plano perdido es el primero del burst. Ficha del hallazgo:
 `docs/reference/emulators/winuae/blitter-busy-writes.md`.
 
-Fix aplicado: `submit_blit_job` espera `BBUSY==0` antes de programar cada job (las rachas
-`BlobBatch` ya esperaban por objeto). Coste medido en la 213: nulo dentro del ruido (sync 32,30 vs
-32,20–32,32 fps; async 27,41 vs 27,58). Alcance declarado: el A/B local con plan único quedó
-**contaminado por DT-023** (instancias huérfanas sirviendo estado viejo y `--sequence-step-frames`
-capturando a mitad de frame); la reproducción limpia corresponde a la verificación golden de la
-demo (`K121_GOLDEN_ACTORS` + `tools/analyze/verify-121-actor-golden.mjs`). Con ella, si el plan
-único sale limpio, la mitigación de dos planes puede retirarse.
+Fix aplicado: `submit_blit_job` espera `BBUSY==0` antes de programar cada job (las rachas `BlobBatch` ya esperaban por objeto). Coste medido en la 213: nulo dentro del ruido (sync 32,30 vs 32,20–32,32 fps; async 27,41 vs 27,58). Alcance declarado: el A/B local con plan único quedó **contaminado por DT-023** (instancias huérfanas sirviendo estado viejo y `--sequence-step-frames`
+capturando a mitad de frame); la reproducción limpia corresponde a la verificación golden de la demo (`K121_GOLDEN_ACTORS` + `tools/analyze/verify-121-actor-golden.mjs`). Con ella, si el plan único sale limpio, la mitigación de dos planes puede retirarse.

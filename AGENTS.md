@@ -121,19 +121,8 @@ Este es el **único orden de lectura de arranque**: cualquier otro documento que
 - Antes de añadir un archivo nuevo en `engine/`, listar los helpers existentes del dominio y decidir explícitamente: ¿esto ya lo cubre `X`? ¿Puedo extender `X` en vez de crear `Y`?
 - Aplica también a **fuentes, tablas y glifos**: buscar si el carácter/glifo ya está antes de redibujarlo.
 - Un commit que añade algo que ya existía como duplicado se considera un error de proceso.
-- **Gate mecánico (no basta la buena intención)**: `tools/check/prior-art.mjs` (suite) exige que toda demo/juego que use un
-  patrón de bajo nivel ya abstraído por el engine (reglas en `tools/check/prior-art-rules.txt`, p. ej. dibujo de objetos con
-  `planar_band.hpp`/`blob_batch.hpp`/`add_world_bitmap*` frente a `eng/scene/actor.hpp`) **declare la búsqueda previa** en su
-  README bajo `## Búsqueda previa`, citando el patrón y al menos un símbolo candidato del engine (se verifica que exista).
-  El baseline solo admite demos históricas y puede encoger, no crecer. Ejecútalo antes de dar por buena una demo:
-  `node tools/check/prior-art.mjs --list`.
-- **Documentación de demo obligatoria (gate `demo-docs`)**: toda demo lleva, junto a sus fuentes
-  (`src/`), un **`INTENT.md`** (qué hace, qué pretende demostrar, elementos en pantalla y su evolución
-  temporal) y un **`VISION.md`** con la evaluación del modelo de visión. La evaluación final usa el
-  **prompt canónico** (`tools/analyze/vision-prompt.txt`, idéntico para todas las demos y SIN pistas) vía
-  `tools/analyze/vision-final.mjs`; las preguntas concretas por entidad son solo para depurar
-  (`vision-run.mjs`) y no entran en `VISION.md`. El gate (`node tools/check/demo-docs.mjs --list`) exige
-  secciones, contenido mínimo y el prompt verbatim; baseline solo para demos históricas.
+- **Gate mecánico (no basta la buena intención)**: `tools/check/prior-art.mjs` (suite) exige que toda demo/juego que use un patrón de bajo nivel ya abstraído por el engine (reglas en `tools/check/prior-art-rules.txt`, p. ej. dibujo de objetos con `planar_band.hpp`/`blob_batch.hpp`/`add_world_bitmap*` frente a `eng/scene/actor.hpp`) **declare la búsqueda previa** en su README bajo `## Búsqueda previa`, citando el patrón y al menos un símbolo candidato del engine (se verifica que exista). El baseline solo admite demos históricas y puede encoger, no crecer. Ejecútalo antes de dar por buena una demo: `node tools/check/prior-art.mjs --list`.
+- **Documentación de demo obligatoria (gate `demo-docs`)**: toda demo lleva, junto a sus fuentes (`src/`), un **`INTENT.md`** (qué hace, qué pretende demostrar, elementos en pantalla y su evolución temporal) y un **`VISION.md`** con la evaluación del modelo de visión. La evaluación final usa el **prompt canónico** (`tools/analyze/vision-prompt.txt`, idéntico para todas las demos y SIN pistas) vía `tools/analyze/vision-final.mjs`; las preguntas concretas por entidad son solo para depurar (`vision-run.mjs`) y no entran en `VISION.md`. El gate (`node tools/check/demo-docs.mjs --list`) exige secciones, contenido mínimo y el prompt verbatim; baseline solo para demos históricas.
 
 ### 1.8 Contexto técnico
 

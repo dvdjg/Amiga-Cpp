@@ -1,120 +1,47 @@
 # VALIDATION — 121_proc_corner_layers
 
-Informe de validación (F3/F4) de la demo del **mundo procedural cocido a tileset** y el
-**motor de tiles X-Limited**: estructuras multi-tile (río por esquinas, caminos con puente,
-castillo, casas 2×2 A/B, árboles 2×2), fondo pintado por el Blitter desde el banco de tiles
-y un **actor de 16×16** (Blitter, cookie-cut) que pasa por debajo de las copas. Todo lo medido
-es sobre `A500_debug` (warp); el alcance de cada afirmación está acotado en §5.
+Informe de validación (F3/F4) de la demo del **mundo procedural cocido a tileset** y el **motor de tiles X-Limited**: estructuras multi-tile (río por esquinas, caminos con puente, castillo, casas 2×2 A/B, árboles 2×2), fondo pintado por el Blitter desde el banco de tiles y un **actor de 16×16** (Blitter, cookie-cut) que pasa por debajo de las copas. Todo lo medido es sobre `A500_debug` (warp); el alcance de cada afirmación está acotado en §5.
 
 ## 1. Intención (F0)
 
-Mundo de 320×208 (20×13 tiles de 16 px, 32 colores del atlas procedural) + HUD de 1 bitplane
-(48 px). Contenido del mundo: río N→S con lago e isla (transiciones de esquinas), caminos
-(rectas/codos/curvas) con **puente** sobre el cauce, **castillo 3×3** (muralla por casación:
-esquinas, torre, puerta sur), **dos casas grandes 2×2** (variantes A/B con la puerta
-espejada), **árboles grandes 2×2** (copa continua), arbolitos, flores (decal) y **copas
-(overhead)** sobre el carril. El fondo se **pinta una vez con el motor de tiles** (sin C2P ni
-composición por píxel); por frame solo hay Blitter para el actor (restaurador de ventana +
-dibujo enmascarado) y el HUD cuando cambia el contador. Criterio de éxito visual: estructuras
-que casan (caminos encadenados, muralla cerrada, casas/troncos continuos), río y copas
-íntegros, y el bicho blanco (color 31 exclusivo) caminando el carril a 1 px/frame, **oculto
-bajo las copas**.
+Mundo de 320×208 (20×13 tiles de 16 px, 32 colores del atlas procedural) + HUD de 1 bitplane (48 px). Contenido del mundo: río N→S con lago e isla (transiciones de esquinas), caminos (rectas/codos/curvas) con **puente** sobre el cauce, **castillo 3×3** (muralla por casación:
+esquinas, torre, puerta sur), **dos casas grandes 2×2** (variantes A/B con la puerta espejada), **árboles grandes 2×2** (copa continua), arbolitos, flores (decal) y **copas (overhead)** sobre el carril. El fondo se **pinta una vez con el motor de tiles** (sin C2P ni composición por píxel); por frame solo hay Blitter para el actor (restaurador de ventana + dibujo enmascarado) y el HUD cuando cambia el contador. Criterio de éxito visual: estructuras que casan (caminos encadenados, muralla cerrada, casas/troncos continuos), río y copas íntegros, y el bicho blanco (color 31 exclusivo) caminando el carril a 1 px/frame, **oculto bajo las copas**.
 
 ## 2. Gates técnicos (F3)
 
 - `bash tools/test-regression.sh --flicker --require-flicker-ok --demo demos/techniques/amiga/effects/121_proc_corner_layers --warp`
   → **Regression OK** y **flicker OK** (`out/regression/20261016-183113/regression-report.md`;
   `flicker-baseline.json` con `max_candidates: 0`).
-- `node tools/debug/measure-fps.mjs 121_proc_corner_layers A500_debug --json` → **3/3 pasadas
-  limpias: 47,67 fps / 1,049 campos/frame / 148.798 ciclos/frame** (955 frames, 20 s;
-  `detail` = actor x | dir, p. ej. `0xffff00c6` = x=198, dir=−1). El plan del frame es **uno solo** (restaurador +
-  actor; el flake del plano 0 quedó resuelto en el motor por el contrato de espera por job,
-  `blitter-busy-writes.md`) y la guarda de render relee un píxel por frame. Verificación de la
-  vuelta al plan único: **7/7 arranques limpios** con telemetría viva; medida estable frente a
-  los dos planes (el coste era la espera, no trabajo extra).
-- **Presupuesto por elemento**: por frame solo hay (a) restaurador de **ventana de 2
-  palabras** × 16 filas × 5 planos desde el fondo del carril, (b) actor (16 bandas de
-  subpíxel precomputadas; 2 palabras × 16 filas × 5 planos enmascarados con
-  `actor & ~copas`) y (c) contador del HUD cada 64 frames (palabras, 1 plano). El fondo no
-  se recompone.
-- Tests host del dominio en verde: `HOST-442/443/444/445/448/450` (pintores de estructuras
-  2×2, cocido con dedup, banda planar, equivalencia `Span`).
+- `node tools/debug/measure-fps.mjs 121_proc_corner_layers A500_debug --json` → **3/3 pasadas limpias: 47,67 fps / 1,049 campos/frame / 148.798 ciclos/frame** (955 frames, 20 s;
+  `detail` = actor x | dir, p. ej. `0xffff00c6` = x=198, dir=−1). El plan del frame es **uno solo** (restaurador + actor; el flake del plano 0 quedó resuelto en el motor por el contrato de espera por job, `blitter-busy-writes.md`) y la guarda de render relee un píxel por frame. Verificación de la vuelta al plan único: **7/7 arranques limpios** con telemetría viva; medida estable frente a los dos planes (el coste era la espera, no trabajo extra).
+- **Presupuesto por elemento**: por frame solo hay (a) restaurador de **ventana de 2 palabras** × 16 filas × 5 planos desde el fondo del carril, (b) actor (16 bandas de subpíxel precomputadas; 2 palabras × 16 filas × 5 planos enmascarados con `actor & ~copas`) y (c) contador del HUD cada 64 frames (palabras, 1 plano). El fondo no se recompone.
+- Tests host del dominio en verde: `HOST-442/443/444/445/448/450` (pintores de estructuras 2×2, cocido con dedup, banda planar, equivalencia `Span`).
 
 ## 3. Contratos objetivos
 
-**Actor visible (campo abierto)**: en las capturas donde el actor está fuera de las copas,
-el color exclusivo `#eeeeee` (índice 31 del atlas) aparece con **552 px exactos** en un bbox
-de 16×16 en la fila del carril — medido en el render congelado (`K121_FREEZE_ACTOR_RENDER`,
-mismo camino de blits sin per-frame) y en capturas normales tras `READY`
+**Actor visible (campo abierto)**: en las capturas donde el actor está fuera de las copas, el color exclusivo `#eeeeee` (índice 31 del atlas) aparece con **552 px exactos** en un bbox de 16×16 en la fila del carril — medido en el render congelado (`K121_FREEZE_ACTOR_RENDER`, mismo camino de blits sin per-frame) y en capturas normales tras `READY`
 (bbox campo `x 112..127`, `y 144..159`, con el ojo `#443300` índice 2 en su columna).
 
-**Oclusión bajo copa**: con el actor bajo la celda de copa (p. ej. x=75, frame de settle),
-el blanco del actor es 0 px — la máscara combinada `actor & ~copas` no escribe bajo el
-follaje, por diseño.
+**Oclusión bajo copa**: con el actor bajo la celda de copa (p. ej. x=75, frame de settle), el blanco del actor es 0 px — la máscara combinada `actor & ~copas` no escribe bajo el follaje, por diseño.
 
-**Auto-chequeo de init (hardware)**: 18 sondas de cuerpo (`probe_x × probe_sub`), las 16
-subposiciones en columna limpia, integridad de las 16 bandas en Chip contra referencia
-recomputada, y la ruta exacta del bucle (restaurador + actor) con reintento único. Códigos de
-fallo documentados en `main.cpp` (`0x12100/0x12102/0x12106/0x12107/0x12109/0x12110-0x12114`).
+**Auto-chequeo de init (hardware)**: 18 sondas de cuerpo (`probe_x × probe_sub`), las 16 subposiciones en columna limpia, integridad de las 16 bandas en Chip contra referencia recomputada, y la ruta exacta del bucle (restaurador + actor) con reintento único. Códigos de fallo documentados en `main.cpp` (`0x12100/0x12102/0x12106/0x12107/0x12109/0x12110-0x12114`).
 
-**Guarda de render por frame**: relee el píxel del cuerpo cada frame (color 31; se salta bajo
-copa) con 3 strikes consecutivos → `detail=0x1212F | x<<8 | body<<24`. Es la guarda que
-localizó el defecto del plano 0 (DT-022).
+**Guarda de render por frame**: relee el píxel del cuerpo cada frame (color 31; se salta bajo copa) con 3 strikes consecutivos → `detail=0x1212F | x<<8 | body<<24`. Es la guarda que localizó el defecto del plano 0 (DT-022).
 
 ## 4. Visión (Ollama local, `qwen3-vl:8b-instruct-q8_0`)
 
-Captura del render congelado (actor estático en campo abierto, `vision-run` sobre
-`out/tmp/vision121_frozen/frame_000_f0043.png`; crudo en
-`121_proc_corner_layers_report.md`):
+Captura del render congelado (actor estático en campo abierto, `vision-run` sobre `out/tmp/vision121_frozen/frame_000_f0043.png`; crudo en `121_proc_corner_layers_report.md`):
 
-- Prompt (extracto): «Describe la escena completa… ¿Hay un sprite blanco de criatura (cuerpo
-  blanco, dos ojos oscuros) sobre el carril central? … ¿Detectas algún defecto visual: planos
-  desalineados, colores rotos, restos/rastros…? ¿El HUD se lee?».
-- Respuesta (cruda, extracto): «…ríos azules, caminos marrones, árboles verdes, casas y un
-  castillo en la distancia. Un actor congelado (sprite blanco con ojos oscuros) está en el
-  centro del carril central. […]»; «**No se detectan defectos visuales**: planos alineados,
-  colores consistentes, no hay rastros de frames anteriores ni partes duplicadas o faltantes
-  en el sprite»; HUD: «PROC STRUCTURES v1.0.4061 F 0» y «X-LIMITED 20×13 PIECES».
+- Prompt (extracto): «Describe la escena completa… ¿Hay un sprite blanco de criatura (cuerpo blanco, dos ojos oscuros) sobre el carril central? … ¿Detectas algún defecto visual: planos desalineados, colores rotos, restos/rastros…? ¿El HUD se lee?».
+- Respuesta (cruda, extracto): «…ríos azules, caminos marrones, árboles verdes, casas y un castillo en la distancia. Un actor congelado (sprite blanco con ojos oscuros) está en el centro del carril central. […]»; «**No se detectan defectos visuales**: planos alineados, colores consistentes, no hay rastros de frames anteriores ni partes duplicadas o faltantes en el sprite»; HUD: «PROC STRUCTURES v1.0.4061 F 0» y «X-LIMITED 20×13 PIECES».
 
 ## 5. Conclusiones y alcance
 
-- **Mundo procedural cocido + motor de tiles VERIFICADO en hardware en su alcance**: el
-  fondo (260 celdas deduplicadas) se pinta por Blitter y se describe por visión como río,
-  caminos, castillo, casas y árboles coherentes; las estructuras multi-tile casan (puente
-  sobre el cauce, muralla con puerta alineada al camino, casas 2×2 con puerta A/B, copas
-  2×2 continuas) — validación visual + tests host `HOST-448`.
-- **Actor por Blitter VERIFICADO en su alcance**: 552 px `#eeeeee` exactos en bbox 16×16 con
-  el ojo en su columna cuando el actor está en campo abierto; oculto bajo copa (0 px); visión
-  sin defectos. La **intermitencia del plano 0** al mezclar copias + racha cookie-cut en el
-  mismo plan (DT-022) está **mitigada** (planes separados + reintento + strikes) y quedó
-  documentada con evidencia en `docs/debugging/investigaciones/121-actor-plano-0-y-carencias-blits.md`.
-- **Evaluación de visión canónica** (`src/VISION.md`, prompt sin pistas): sobre una secuencia real
-  de la demo, el modelo describe el mundo correctamente (río/camino/puente/agua/casas/árboles/castillo y el
-  HUD «PROC STRUCTURES v… F n» / «X-LIMITED 20x13 PIECES») pero **no identifica al actor ni cambios de
-  escena aparte del contador** en esos frames. Consecuencia del procedimiento: la demo **NO queda verificada
-  visualmente** hasta cerrar los hallazgos de posición/captura del actor (ver INTENT.md §Estado y el informe
-  121). La evaluación NO se retoca a mano: se re-ejecuta `tools/analyze/vision-final.mjs` cuando el render
-  esté corregido.
-- **A/B del sistema de actores** (`K121_ACTOR_SYSTEM`, DT-024.3): el actor por `ActorStore` + `Animation` +
-  `SaveUnder` + pack con guarda sobre el puente del anillo — **3/3 arranques limpios** con la guarda viva,
-  **47,87 fps / 148,2k ciclos** y captura estática determinista con los **552 px del cuerpo exactos**. El camino
-  propio sigue siendo el default; el flip y el golden adaptado son el cierre pendiente de §14.8.
+- **Mundo procedural cocido + motor de tiles VERIFICADO en hardware en su alcance**: el fondo (260 celdas deduplicadas) se pinta por Blitter y se describe por visión como río, caminos, castillo, casas y árboles coherentes; las estructuras multi-tile casan (puente sobre el cauce, muralla con puerta alineada al camino, casas 2×2 con puerta A/B, copas 2×2 continuas) — validación visual + tests host `HOST-448`.
+- **Actor por Blitter VERIFICADO en su alcance**: 552 px `#eeeeee` exactos en bbox 16×16 con el ojo en su columna cuando el actor está en campo abierto; oculto bajo copa (0 px); visión sin defectos. La **intermitencia del plano 0** al mezclar copias + racha cookie-cut en el mismo plan (DT-022) está **mitigada** (planes separados + reintento + strikes) y quedó documentada con evidencia en `docs/debugging/investigaciones/121-actor-plano-0-y-carencias-blits.md`.
+- **Evaluación de visión canónica** (`src/VISION.md`, prompt sin pistas): sobre una secuencia real de la demo, el modelo describe el mundo correctamente (río/camino/puente/agua/casas/árboles/castillo y el HUD «PROC STRUCTURES v… F n» / «X-LIMITED 20x13 PIECES») pero **no identifica al actor ni cambios de escena aparte del contador** en esos frames. Consecuencia del procedimiento: la demo **NO queda verificada visualmente** hasta cerrar los hallazgos de posición/captura del actor (ver INTENT.md §Estado y el informe 121). La evaluación NO se retoca a mano: se re-ejecuta `tools/analyze/vision-final.mjs` cuando el render esté corregido.
+- **A/B del sistema de actores** (`K121_ACTOR_SYSTEM`, DT-024.3): el actor por `ActorStore` + `Animation` + `SaveUnder` + pack con guarda sobre el puente del anillo — **3/3 arranques limpios** con la guarda viva, **47,87 fps / 148,2k ciclos** y captura estática determinista con los **552 px del cuerpo exactos**. El camino propio sigue siendo el default; el flip y el golden adaptado son el cierre pendiente de §14.8.
 - **Marco**: 47,67 fps estables (1,049 campos/frame), 0 candidatos de flicker, regresión OK.
-- **Golden por subposición (en curso, dependiente de DT-022)**: existe el modo
-  `K121_GOLDEN_ACTORS` (16 actores a la vez, paleta identidad) y el oráculo independiente
-  `tools/analyze/verify-121-actor-golden.mjs` (reconstruye las bandas en JS desde el patrón
-  real). Con **un plan por actor** (`K121_GOLDEN_ONE_PLAN_PER_ACTOR`), el oráculo da
-  **10 de 16 subposiciones EXACTAS** (p. ej. subs 1/2/5/8..14 con 0 píxeles de actor
-  fallidos) y diagnostica 6 subs perdidos/parciales (cols 0/3/4/6/7/9) + ~127 px de daño
-  colateral fuera de ventanas; con **el plan multi-job original** el render es caótico
-  (819 vs 2060 px del índice del cuerpo). Ambos signos son de la clase de DT-022
-  (pérdida/desplazamiento de objetos en grupos de blits): el golden queda como banco de
-  validación del fix del motor y el cierre de este punto queda **pendiente** de él.
-- **SIN VERIFICAR**: (a-bis) el resto de subposiciones del golden (las 6 diagnosticadas) y el
-  daño colateral de 127 px hasta el fix de DT-022; (b) la captura
-  `--sequence-step-frames` de esta demo es poco fiable (pausa a mitad de frame; DT-023) y
-  **no** se usa como evidencia de movimiento — el contrato de 1 px/frame se apoya en la
-  telemetría (`detail` por frame) y en el frame-diff del flicker; (c) el camino async del
-  `FramePlan` no se usa en esta demo.
-- **Deuda abierta de la demo**: ninguna propia; las del hilo están en DT-022 (motor de
-  blits) y DT-023 (herramientas), con recomendaciones priorizadas en el informe de hallazgo.
+- **Golden por subposición (en curso, dependiente de DT-022)**: existe el modo `K121_GOLDEN_ACTORS` (16 actores a la vez, paleta identidad) y el oráculo independiente `tools/analyze/verify-121-actor-golden.mjs` (reconstruye las bandas en JS desde el patrón real). Con **un plan por actor** (`K121_GOLDEN_ONE_PLAN_PER_ACTOR`), el oráculo da **10 de 16 subposiciones EXACTAS** (p. ej. subs 1/2/5/8..14 con 0 píxeles de actor fallidos) y diagnostica 6 subs perdidos/parciales (cols 0/3/4/6/7/9) + ~127 px de daño colateral fuera de ventanas; con **el plan multi-job original** el render es caótico (819 vs 2060 px del índice del cuerpo). Ambos signos son de la clase de DT-022 (pérdida/desplazamiento de objetos en grupos de blits): el golden queda como banco de validación del fix del motor y el cierre de este punto queda **pendiente** de él.
+- **SIN VERIFICAR**: (a-bis) el resto de subposiciones del golden (las 6 diagnosticadas) y el daño colateral de 127 px hasta el fix de DT-022; (b) la captura `--sequence-step-frames` de esta demo es poco fiable (pausa a mitad de frame; DT-023) y **no** se usa como evidencia de movimiento — el contrato de 1 px/frame se apoya en la telemetría (`detail` por frame) y en el frame-diff del flicker; (c) el camino async del `FramePlan` no se usa en esta demo.
+- **Deuda abierta de la demo**: ninguna propia; las del hilo están en DT-022 (motor de blits) y DT-023 (herramientas), con recomendaciones priorizadas en el informe de hallazgo.
