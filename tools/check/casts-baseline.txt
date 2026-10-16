@@ -93,7 +93,7 @@
   0     2  engine/include/eng/core/math/fast_div.hpp
   0     6  engine/include/eng/core/math/fixed_affine.hpp
   0    80  engine/include/eng/core/math/fixed_math.hpp
-  0    50  engine/include/eng/core/math/fixed.hpp
+  0    67  engine/include/eng/core/math/fixed.hpp
   0     2  engine/include/eng/core/math/isqrt.hpp
   0     6  engine/include/eng/core/math/light.hpp
   0    10  engine/include/eng/core/math/linalg.hpp
@@ -142,7 +142,7 @@
   0     6  engine/include/eng/core/util/stats.hpp
   1     1  engine/include/eng/core/util/string_interner.hpp
   0     1  engine/include/eng/core/util/string_view.hpp
-  0     9  engine/include/eng/core/util/text.hpp
+  0    23  engine/include/eng/core/util/text.hpp
   0     1  engine/include/eng/core/util/type_traits.hpp
   0     1  engine/include/eng/core/util/union_find.hpp
   0     3  engine/include/eng/core/util/util.hpp
@@ -158,7 +158,7 @@
   0    10  engine/include/eng/debug/telemetry.hpp
   1    27  engine/include/eng/debug/version_strip.hpp
   0     2  engine/include/eng/debug/version.hpp
-  0     2  engine/include/eng/debug/hud_text.hpp
+  0     2  engine/include/eng/field/actor_target.hpp
   0    23  engine/include/eng/field/amiga_display_mapper.hpp
   0     5  engine/include/eng/field/chunk_cache.hpp
   0    11  engine/include/eng/field/cpu_primitives.hpp

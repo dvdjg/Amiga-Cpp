@@ -16,7 +16,7 @@ Utilidades y contenedores **sin dependencias del SO**: lo que en libstdc++ tirar
 
 ## Texto
 
-`StringView` (`string_view.hpp:27`), `static_string` (buffer de tamaño fijo), `dynamic_string` (con almacén propio) y `string_interner` (interning de símbolos). No usan heap salvo donde se declara explícitamente.
+`StringView` (`string_view.hpp:27`), `static_string` (buffer de tamaño fijo), `dynamic_string` (con almacén propio) y `string_interner` (interning de símbolos). No usan heap salvo donde se declara explícitamente. El decimal de texto vive en `text.hpp`: `to_chars` (cualquier entero de 8/16/32 bits), `to_chars_scaled` (valor ×10^k con el punto insertado) y `parse<T>` (con el rango de `T`); para un escalar fraccionario (`Fixed`, …) hay `to_chars`/`parse` con `frac_digits` a través del punto de extensión `eng::math::scalar_decimal<S>` — todo sin `*`/`/` de 32 bits en runtime.
 
 ## Memoria
 

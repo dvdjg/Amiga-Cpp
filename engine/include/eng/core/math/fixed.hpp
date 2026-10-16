@@ -666,6 +666,107 @@ struct scalar_div<Fixed<s32, E, P>> {
 	}
 };
 
+/// Conversión decimal de texto del `Fixed` (contrato `scalar_decimal<S>`, `scalar_fwd.hpp`):
+/// el valor pasa a entero escalado por `10^k` (k ≤ `kDecimalDigitsMax`) y vuelve cuantizado
+/// al ulp más cercano de `R`, todo en aritmética entera.
+///
+/// Se opera sobre la **magnitud** con redondeo al más cercano: el texto de un valor no
+/// depende de `Policy::Round` (se escribe igual con cualquier política) ni lo modifica.
+/// Es camino frío (HUD/config) y aun así evita libgcc: para `s16` todo cabe en `s32`
+/// (peor caso `32768·10^4 = 3.3·10^8`) y el cociente usa `arith<s16>::div` (`divs.w`).
+/// `Fixed<s32,…>` pediría aritmética de 64 bits en m68k y queda bloqueado con
+/// `static_assert` (igual que `scalar_div<Fixed<s32,E>>`).
+template <typename R, int E, typename P>
+struct scalar_decimal<Fixed<R, E, P>> {
+	using S = Fixed<R, E, P>;
+	/// Ancho de trabajo: `s32` para `s16` (todo cabe) y `s64` para `s32` (solo host).
+	using W = typename wide<R>::type;
+
+	/// `v·10^k` (k ≤ 4) con la constante plegada por caso: sin multiplicación de runtime.
+	[[nodiscard]] static constexpr W mul_pow10(W v, eng::u8 k) noexcept {
+		switch (k) {
+		case 0u: return v;
+		case 1u: return static_cast<W>(v * 10);
+		case 2u: return static_cast<W>(v * 100);
+		case 3u: return static_cast<W>(v * 1000);
+		default: return static_cast<W>(v * 10000);
+		}
+	}
+
+	/// `x·10^k` como entero (redondeo al más cercano sobre la magnitud), con el signo de `x`.
+	/// Un valor que redondea a 0 se escribe sin signo (`0.00`): el entero escalado no tiene
+	/// «cero negativo» y el texto no debe inventarlo. Precondición: `|x·10^k|` cabe en `s32`;
+	/// fuera de ahí se satura (un HUD no debe producir basura).
+	static constexpr eng::s32 scaled(S x, eng::u8 k) noexcept {
+#if defined(__m68k__)
+		if constexpr (sizeof(R) >= 4u) {
+			(void)x;
+			(void)k;
+			static_assert(sizeof(S) == 0u,
+				      "eng::util::to_chars de Fixed<s32,…> usaria libgcc de 64 bits en "
+				      "m68k; usa Fixed<s16,…> o compila para host");
+			return 0;
+		}
+#endif
+		const W mag = x.v < 0 ? -static_cast<W>(x.v) : static_cast<W>(x.v);
+		const W q = mul_pow10(mag, k);
+		W rounded = q;
+		if constexpr (E > 0) {
+			// El dígito k+1 decide: media unidad del último decimal antes de bajar de exponente.
+			rounded = (q + (static_cast<W>(1) << (E - 1))) >> E;
+		}
+		if constexpr (sizeof(R) >= 4u) {
+			if (rounded > W {0x7fffffff}) {
+				return x.v < 0 ? (-0x7fffffff - 1) : 0x7fffffff;
+			}
+		}
+		const eng::s32 q32 = static_cast<eng::s32>(rounded);
+		return x.v < 0 ? -q32 : q32;
+	}
+
+	/// Inversa: `q·10^-k` cuantizado al ulp más cercano de `R`; `false` (sin tocar `out`)
+	/// si el valor no cabe en el rango de `R`.
+	static constexpr bool from_scaled(eng::s32 q, eng::u8 k, S& out) noexcept {
+#if defined(__m68k__)
+		if constexpr (sizeof(R) >= 4u) {
+			(void)q;
+			(void)k;
+			(void)out;
+			static_assert(sizeof(S) == 0u,
+				      "eng::util::parse de Fixed<s32,…> usaria libgcc de 64 bits en "
+				      "m68k; usa Fixed<s16,…> o compila para host");
+			return false;
+		}
+#endif
+		const W den = mul_pow10(W {1}, k);
+		const W half = den >> 1; // media unidad del último decimal (redondeo al más cercano)
+		// Cota anti-desborde de `q·2^E` en el ancho de trabajo: parte de `(max+1)·10^k`
+		// (≤ 3.3·10^8 para `s16`) con el margen del redondeo en el lado negativo (`min` es
+		// `-max-1`). Es una cota superior del conjunto representable: el filtro exacto de
+		// rango lo hacen `hi_ex`/`lo_ex` más abajo.
+		const W base_prod = mul_pow10(static_cast<W>(limits<R>::max) + W {1}, k);
+		if (static_cast<W>(q) > (base_prod >> E) ||
+		    static_cast<W>(q) < -((base_prod + half + W {1}) >> E)) {
+			return false;
+		}
+		const W num = static_cast<W>(q) << E;
+		const W num2 = num >= W {0} ? num + half : num - half;
+		// Fuera de rango ⟺ el cociente (truncado hacia cero) se sale de `[min, max]` ⟺
+		// `num2` sale de `[(min-1)·10^k, (max+1)·10^k)`. Sin desborde: |num2| ≤ 3.3·10^8.
+		const W hi_ex = mul_pow10(static_cast<W>(limits<R>::max) + W {1}, k);
+		const W lo_ex = -mul_pow10(static_cast<W>(limits<R>::max) + W {2}, k);
+		if (num2 >= hi_ex || num2 <= lo_ex) {
+			return false;
+		}
+		if constexpr (sizeof(R) <= 2u) {
+			out = S {arith<R>::div(static_cast<eng::s32>(num2), static_cast<R>(den))};
+		} else {
+			out = S {static_cast<R>(num2 / den)}; // host: `wide<R>` es de 64 bits
+		}
+		return true;
+	}
+};
+
 /// `fila · vector`: `dot` de N pares con normalización **FUSIONADA** (los productos comparten
 /// exponente, se suman exactos y se normaliza una vez al escalar del vector). Lee una fórmula de
 /// transformación como lo que es: la fila `i` de `M*v`. Específico de `Fixed` (usa `repr`/`exp`/

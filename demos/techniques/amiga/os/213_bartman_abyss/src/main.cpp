@@ -89,7 +89,7 @@
 
 #include <eng/api/api.hpp>
 #include <eng/api/assets.hpp>
-#include <eng/debug/hud_text.hpp>
+#include <eng/core/util/text.hpp>
 #include <eng/debug/mem_probe.hpp>
 #include <eng/debug/prof.hpp>
 #include <eng/debug/run_status.hpp>
@@ -129,13 +129,12 @@ constexpr eng::u8 kProfCount = 4u;
 constexpr eng::u16 kChainTicket = 0x00b1u;
 volatile eng::u32 g_chain_done_count = 0u;
 
-/// Añade `tag` + valor decimal a `out` desde `n` y devuelve el índice siguiente (contadores del
-/// overlay; el decimal lo formatea `eng::debug::dec_u16`, sin `/`/`%` — regla de coste §1.15).
-eng::u8 append_stat(char* out, eng::u8 n, char tag, eng::u32 v) {
-	out[n++] = tag;
-	n = static_cast<eng::u8>(n + eng::debug::dec_u16(static_cast<eng::u16>(v & 0xffffu), out + n));
-	out[n++] = ' ';
-	return n;
+/// Añade `tag` + valor decimal (y un espacio) a `out` (contadores del overlay; el decimal lo
+/// formatea `eng::util::to_chars`, sin `/`/`%` — regla de coste §1.15).
+void append_stat(eng::util::StaticString<44>& out, char tag, eng::u32 v) {
+	(void)out.append(tag);
+	(void)eng::util::to_chars(out, static_cast<eng::u16>(v & 0xffffu));
+	(void)out.append(' ');
 }
 
 constexpr eng::u16 kWidth = 320u;
@@ -353,14 +352,13 @@ struct AbyssDemo {
 	/// Llamado cada 16 frames desde el overlay (fuera del camino caliente).
 	void format_async_stats(auto& app) {
 		const auto st = app.async_stats();
-		eng::u8 n = 0u;
-		n = append_stat(m_stats_text, n, 'L', st.launches);
-		n = append_stat(m_stats_text, n, 'R', st.runs);
-		n = append_stat(m_stats_text, n, 'S', st.submits);
-		n = append_stat(m_stats_text, n, 'I', st.irqs);
-		n = append_stat(m_stats_text, n, 'E', st.ends);
-		n = append_stat(m_stats_text, n, 'C', m_chain_done);
-		m_stats_text[n] = '\0';
+		m_stats_text.clear();
+		append_stat(m_stats_text, 'L', st.launches);
+		append_stat(m_stats_text, 'R', st.runs);
+		append_stat(m_stats_text, 'S', st.submits);
+		append_stat(m_stats_text, 'I', st.irqs);
+		append_stat(m_stats_text, 'E', st.ends);
+		append_stat(m_stats_text, 'C', m_chain_done);
 	}
 
 	void render(auto& app) {
@@ -463,7 +461,7 @@ struct AbyssDemo {
 			if ((frame & 15u) == 0u) {
 				format_async_stats(app);
 			}
-			d.text(static_cast<eng::s16>(f + 90), 370, m_stats_text, 0x00aa0000u);
+			d.text(static_cast<eng::s16>(f + 90), 370, m_stats_text.c_str(), 0x00aa0000u);
 			ENG_PROF_END(kProfOverlay);
 		}
 
@@ -480,7 +478,7 @@ struct AbyssDemo {
 	eng::u32 m_last_frames_elapsed = 1u; ///< `frames_elapsed` del último tick (catch-up, M12)
 	eng::u32 m_chain_done = 0u;  ///< avisos `IntentDone` de la cadena async (kChainTicket)
 	/// Texto de contadores del overlay (`L… R… S… I… E… C…`), re-formateado cada 16 frames.
-	char m_stats_text[44] {};
+	eng::util::StaticString<44> m_stats_text;
 	bool m_ready = false;
 };
 

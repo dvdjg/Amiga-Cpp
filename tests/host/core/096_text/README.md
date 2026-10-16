@@ -5,10 +5,15 @@ Respalda `engine/include/eng/core/util/text.hpp`.
 ## Qué cubre
 
 - `trim`, `split_next` (troceo por separador), `equal_ci` (sin distinguir mayúsculas).
-- `parse_u32`/`parse_s32` (con guarda de desbordamiento, sin división).
-- `to_chars_u32`/`to_chars_s32`: decimal a `StaticString<N>` **sin división** (tabla de
-  potencias de diez y restas, porque `v/10` en `u32` acabaría en libgcc).
-- `join` de varias `StringView` con separador.
+- `parse_u32`/`parse_s32` (núcleo con guarda de desbordamiento, sin división) y `join`.
+- Decimal **sin `*` ni `/`** (tabla de potencias de diez y restas): `to_chars_u32`/`to_chars_s32`,
+  `to_chars` genérico para cualquier entero de 8/16/32 bits, `to_chars_scaled` (valor ×10^k con
+  el punto insertado) y `parse<T>` con el rango de `T`.
+- Escalares fraccionarios por el punto de extensión `eng::math::scalar_decimal<S>`
+  (`to_chars(out, x, k)` / `parse(text, x, k)`), con **varios escalares** del mismo template
+  (`Fixed<s16,12>`, `Fixed<s16,8>` y `Fixed<s16,0>`): casos límite (min/max, signo, redondeo
+  al más cercano), rechazos (fuera de rango, decimales de más, formato) y **round-trip exacto**
+  a 4 decimales sobre todo el rango de `s16`.
 
 ## Uso previsto
 

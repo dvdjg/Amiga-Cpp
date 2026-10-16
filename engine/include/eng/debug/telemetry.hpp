@@ -7,7 +7,7 @@
 /// toca la escena del Amiga y no aparece en las capturas de gameplay: es el sitio para ver fps,
 /// número de frame y uso de memoria sin ensuciar la demo. `draw_telemetry` recibe cualquier
 /// "sink" con `text(s16 x, s16 y, const char* s, u32 rgb)` —p. ej. `AmigaBackend::DebugOverlay`—
-/// y compone las líneas con `eng::util::StaticString`/`to_chars_u32` (decimal sin división).
+/// y compone las líneas con `eng::util::StaticString`/`to_chars_scaled` (decimal sin `*`/`/`).
 ///
 /// ```cpp
 /// eng::debug::Telemetry t {};
@@ -68,15 +68,10 @@ void telemetry_from(MemoryManager& mm, MemorySystemT& mem, Telemetry& t) noexcep
 
 namespace detail {
 
-/// Añade `v` como `int.frac` (2 decimales) a `out`.
+/// Añade `v` como `int.frac` (2 decimales) a `out` (el decimal lo compone
+/// `eng::util::to_chars_scaled`, sin `/` ni `%` — regla de coste §1.15).
 inline void put_fixed2(TelemetryLine& out, eng::u32 v) noexcept {
-	(void)eng::util::to_chars_u32(out, v / 100u);
-	if (!out.append('.')) {
-		return;
-	}
-	const eng::u32 frac = v % 100u;
-	(void)out.append(static_cast<char>('0' + (frac / 10u)));
-	(void)out.append(static_cast<char>('0' + (frac % 10u)));
+	(void)eng::util::to_chars_scaled(out, v, 2u);
 }
 
 /// Añade `used/cap` decimal a `out`.

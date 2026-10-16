@@ -10,6 +10,8 @@
 /// Regla de oro del diseño: una cabecera es lo más genérica posible; sólo las de una
 /// implementación concreta (el propio escalar, `retro/`, `platform/`, `cpu/`) fijan tipos.
 
+#include <eng/core/types/types.hpp>
+
 namespace eng::math {
 
 template <typename S>
@@ -22,6 +24,26 @@ template <typename S>
 struct numeric_traits;
 template <typename S>
 struct noise_traits;
+
+/// **Conversión decimal de texto** del escalar, sin coma flotante en runtime: el escalar
+/// declara su valor como entero escalado por `10^k` (`scaled`) y la cuantización inversa
+/// al ulp de su representación (`from_scaled`).
+///
+///   scalar_decimal<Fixed<s16,12>>: scaled(x, 2) = round(x·100) ; from_scaled(150, 2) = 1.5
+///
+/// La consume `eng/core/util/text.hpp` (`to_chars(out, x, frac_digits)` /
+/// `parse(text, x, frac_digits`) para que el formateo/parseo decimal de un escalar
+/// fraccionario no incluya su cabecera ni asuma su formato. `k` va de 0 a
+/// `kDecimalDigitsMax`; una especialización que no pueda cumplirlo en la máquina objetivo
+/// puede bloquear la instanciación con `static_assert` (patrón `scalar_div<Fixed<s32,E>>`).
+template <typename S>
+struct scalar_decimal;
+
+/// Máximo de decimales del contrato de `scalar_decimal<S>` (leer/escribir un escalar con
+/// punto decimal). Con 4 decimales basta para HUD/config y garantiza que toda la aritmética
+/// de las especializaciones cabe en 32 bits para representaciones `s16` (p. ej. `x·10^4`
+/// de un 4.12: `32768·10000 = 3.3·10^8 < 2^31`).
+inline constexpr eng::u8 kDecimalDigitsMax = 4u;
 
 // Funciones matematicas como punto de extension (las definen `scalar_math.hpp` y, por
 // escalar, `minifloat_math.hpp`/`fixed_math.hpp`).

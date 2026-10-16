@@ -48,7 +48,7 @@ Categoría `core` de la batería host (L1). El índice de categorías está en [
 | HOST-093 | [stats](093_stats/README.md) | `util/stats.hpp`: sum/mean/varianza/desviación (acumuladores anchos, agnóstico de escalar). |
 | HOST-094 | [color](094_color/README.md) | `util/color.hpp`: conversiones y mezcla de color. |
 | HOST-095 | [collision](095_collision/README.md) | `util/collision.hpp`: AABB/círculo/rect y resolución. |
-| HOST-096 | [text](096_text/README.md) | `util/text.hpp`: formateo de enteros sin heap. |
+| HOST-096 | [text](096_text/README.md) | `util/text.hpp`: decimal sin `*`/`/` (enteros 8/16/32, escalado ×10^k y escalares fraccionarios vía `eng::math::scalar_decimal<S>`: `Fixed`) y parse con rango. |
 | HOST-097 | [grid](097_grid/README.md) | `util/grid.hpp`: rejilla 2D indexada. |
 | HOST-098 | [broadphase](098_broadphase/README.md) | `util/broadphase.hpp`: partición espacial para colisiones. |
 | HOST-099 | [pathfinding](099_pathfinding/README.md) | `util/pathfinding.hpp`: A*/BFS sobre rejilla. |

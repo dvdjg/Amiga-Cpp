@@ -263,15 +263,17 @@ Un efecto o juego escribe **sólo** el vocabulario genérico; la especializació
    DefaultPolicy / RoundPolicy / SaturatePolicy
    scalar_traits<S> / numeric_traits<S>  ( puntos de extensión )
    scalar_div<S> / scalar_sqrt<S>        (                      )
+   scalar_const<S> / scalar_decimal<S>   ( constantes, decimal de texto )
 ```
 
 Las tres conversiones tienen nombres que no se pisan: `rescale` cambia el exponente,
 `cast` la representación y `retag` sólo la política (coste cero). Los **puntos de
 extensión** que toca quien añade un escalar son `scalar_traits<S>` (álgebra),
-`numeric_traits<S>` (límites), y —si los algoritmos usados dividen o hacen `sqrt`—
-`scalar_div<S>` / `scalar_sqrt<S>`. `mul_norm`/`div_norm` son el vocabulario estable que
-usan los algoritmos; el resto de la metaprogramación (`wide`, `common_repr`, `mul_repr`)
-queda fuera del contrato.
+`numeric_traits<S>` (límites), y —si los algoritmos usados dividen, hacen `sqrt` o el
+escalar se lee/escribe en texto (`eng/core/util/text.hpp`)—
+`scalar_div<S>` / `scalar_sqrt<S>` / `scalar_decimal<S>`. `mul_norm`/`div_norm` son el
+vocabulario estable que usan los algoritmos; el resto de la metaprogramación (`wide`,
+`common_repr`, `mul_repr`) queda fuera del contrato.
 
 Las convenciones **Q** (`q12`, `q0`, `q24`, `q12_round`, `q12_sat`) **no** son núcleo:
 son vocabulario de la especialización retro y viven en `engine/include/eng/retro/fixed_q.hpp`
