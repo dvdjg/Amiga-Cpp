@@ -12,6 +12,10 @@ Código: `engine/include/eng/graphics/proc/`. Test host: `HOST-442` (`tests/host
   │   tiles:  muralla, torre, puerta, patio, río, lago, puente, bosque,    │
   │           montaña, aldea, cueva…   →  TerrainTileSet                │
   ├────────────────────────────────────────────────────────────────────────┤
+  │ corner:   transiciones por esquinas (dual-grid): OccupancyMap +        │
+  │           CornerTileset<16> + stamps (lago/río/rect)  → mapa           │
+  │ capas:    LayeredTileMap (ground/decal/overhead) + CellFlags (colisión)│
+  ├────────────────────────────────────────────────────────────────────────┤
   │ atlas:    TextureAtlas (22 materiales × 3 variantes + paleta de 32,    │
   │           con paso de halftone: 2·levels−1 tonos aparentes)            │
   │           MaterialLayer (bandas por altura: hierba→piedra→nieve)       │
@@ -25,7 +29,7 @@ Código: `engine/include/eng/graphics/proc/`. Test host: `HOST-442` (`tests/host
   │ evaluadores:  BitmapBuffer · Bayer/quantize · Profile1D · FbmFill ·    │
   │               CircleFill · Hill2D · Layer · fill/fill_masked           │
   │ tiles(Wang):  EdgeSides/edges_match · Transform/apply_transform ·      │
-  │               BorderRamp/blend_index                                   │
+  │               BorderRamp/blend_index · tile_noise2 (ruido entero)      │
   └────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -44,6 +48,8 @@ Código: `engine/include/eng/graphics/proc/`. Test host: `HOST-442` (`tests/host
 | `proc/terrain_types.hpp` | `Edge`, `Feature`, `TileSpec` (bordes tipados + rasgos del interior). |
 | `proc/terrain_paint.hpp` | El pintor de piezas (orden de capas, continuidad de bordes) y `paint_terrain_tile`. |
 | `proc/terrain.hpp` | Paraguas: tipos + pintor + catálogos (`kCastlePieces`/`kRiverPieces`/`kNaturePieces`) + `TerrainTileSet`. |
+| `proc/corner_tiles.hpp` | Autotiling por esquinas (dual-grid): `OccupancyMap`/`corner_mask`/`fill_corner_layout`, el pintor orgánico (campo bilineal + ruido entero + dither) y el duro (marching squares), `CornerTileset<N>` (16 variantes) y los stamps (`stamp_rect`/`stamp_disc`/`stamp_river`). |
+| `proc/layered_map.hpp` | Mapa ground/decal/overhead (`LayeredTileMap`) + `CellFlags`: transparencia por índice 0, `render_layered_map` con actores entre capas, `bake_flags` y `move_and_slide` por ejes. |
 
 ## 3. Escalar (contrato §1.11)
 
@@ -129,7 +135,59 @@ Catálogos: `kCastlePieces` (11), `kRiverPieces` (7: incluye la **desembocadura 
 
 Las 9 orientaciones que el catálogo no trae se derivan con `add_variant` (3 curvas + recta horizontal de río + 3 desembocaduras + camino vertical + fondo de saco). La salida es `TerrainLayout<W,H>` (celdas `u16` row-major) que se envuelve como `eng::playfield::TileLayerMap` **sin conversión** (`cells`/`width`/`height`); `layout_is_connected` verifica que cada unión interna casa (`can_place`); un set sin capacidad para las variantes falla de forma **visible** (`false`). Misma semilla = mismo mapa en host y Amiga (`HOST-442` ancla las estructuras, `HOST-443` el golden).
 
-## 7. Uso típico
+## 7. Transiciones por esquinas (autotiling dual-grid)
+
+`corner_tiles.hpp` conecta **dos terrenos de un campo continuo** (agua↔hierba, arena↔agua, camino↔hierba…) con el modelo **Wang 2-corner / dual-grid**: un tile se elige por la **máscara de 4 esquinas** (bit0 NW, bit1 NE, bit2 SW, bit3 SE; 2 terrenos → 16 variantes) y el motivo vive en las esquinas, no en el centro del tile — así un lago, un río ancho o una península se componen de transiciones que casan **por construcción**.
+
+```text
+  occupancy (malla (W+1)×(H+1), celda 0/1)        render (W×H tiles de N×N)
+      W W W W                                         el tile (tx,ty) cubre las esquinas
+      W W G G   ──corner_mask(occ,tx,ty)──▶ 0..15     occ(tx,ty)…occ(tx+1,ty+1)
+      W G G G   ──CornerTileset::compose──▶ mapa      y blitea la variante de la máscara
+      G G G G
+```
+
+| Pieza | Papel |
+|---|---|
+| `OccupancyMap<CW,CH>` | campo de ocupación a resolución de celda (`at` con borde `outside`, `fill`/`set`). |
+| `corner_mask`/`fill_corner_layout` | máscara del tile y rejilla de máscaras (convención dual-grid). |
+| `stamp_rect`/`stamp_disc`/`stamp_river` | sellos del mundo sobre el occupancy: el disco (lago/isla) tiene contorno ruidoso **contiguo sin motas** y el río meandriforme conserva la anchura. |
+| `CornerTileset<N>` | las 16 variantes pintadas una vez + `get`/`blit`/`compose`. |
+| `paint_corner_tile`/`paint_corner_materials` | el pintor: campo bilineal Q8 + ruido entero tileable + orilla con dither Bayer; la variante de materiales muestrea el `TextureAtlas` (variante fija 0, tileable). |
+| `paint_corner_hard`/`corner_solid` | marching squares puro (mitades, esquinas, sillas 6/9 resueltas por cuadrantes) para pixel-art nítido. |
+
+La **continuidad de la junta** es exacta, no estadística: el campo bilineal depende solo de las esquinas compartidas (la muestra virtual `x=N` del tile coincide con `x=0` del vecino) y el **ruido tiene período en píxeles que divide a N** (`tile_noise2`, celdas de 4 px), así que la ondulación de la orilla también es continua. El ruido es **uno por tileset**: una semilla por máscara (o por posición) rompería la junta — la ondulación de un lado y del otro dejaría de coincidir; la variedad la da la máscara y `CornerNoise::freq`. El test host verifica la ley para las **256 parejas de máscaras compatibles** en ambos pintores.
+
+```cpp
+eng::gfx::proc::OccupancyMap<21, 15> occ; // dual-grid: (20+1)×(14+1) para 20×14 tiles
+occ.fill(0);
+eng::gfx::proc::stamp_river(occ, 4, 2, 0x2117u);          // río N→S de 2 celdas con meandros
+eng::gfx::proc::stamp_disc(occ, 13, 6, 3, 2, 1, 0xD15Cu);  // lago de contorno ruidoso
+eng::gfx::proc::stamp_disc(occ, 13, 6, 1, 1, 0, 0x15A0u);  // isla interior (disco 0)
+eng::gfx::proc::CornerTileset<16> water_grass;
+water_grass.generate_organic({8, 4, 6}, {0x51D3u, 88u, 1u});
+eng::gfx::proc::BitmapBuffer<20 * 16, 14 * 16> map;
+water_grass.compose(occ, map);                             // blit por máscaras
+```
+
+## 8. Mapas por capas y colisión
+
+`layered_map.hpp` especifica el tilemap que necesita la vista con primer plano (copas que tapan al personaje, arcos, techos) **sin mezclar dibujo y física**:
+
+```text
+  orden de dibujo (atrás → delante)        capas SoA (una rejilla por capa)
+    0  Ground      (opaco)                 ground   u16[W*H]   índice de tile
+    1  Decal       (flores, sombras)       decal    u16[W*H]   kEmptyTile = vacío
+    2  [actores]   (jugador, NPCs)         overhead u16[W*H]   kEmptyTile = vacío
+    3  Overhead    (copas, arcos, techos)  flags    u8[W*H]    CellFlags
+```
+
+- **`LayeredTileMap<W,H,N>`** guarda las tres capas + `flags` por celda; cada capa se envuelve como `eng::playfield::TileLayerMap` **sin conversión** (`map.span(MapLayer::Ground)`), de modo que el scroll consume solo la capa que le toca.
+- **Transparencia**: el índice 0 de un tile es transparente (convenio del engine); decal y overhead se blitean con `blit_tile(..., transparent = true)`.
+- **`render_layered_map`** compone ground → decal → `between(dest)` (los actores van aquí: quedan **sobre el suelo y bajo las copas**) → overhead. `NoBetweenRender` es el callback vacío, para que la cabecera no necesite lambdas locales (el compilador m68k a `-O0` da ICE con ellas: `ROADMAP_PROCEDURAL_WORLDS.md`).
+- **La colisión no mira el dibujo**: `bake_flags(flags_of)` hornea las `CellFlags` desde el índice del **suelo** (el overhead nunca contribuye); `flags_at`/`flags_at_pixel` consultan y `move_and_slide` resuelve el AABB del actor **primero X y luego Y** — el eje bloqueado se revierte y el otro sigue (deslizamiento en esquinas); el borde del mundo es `outside = CellFlags::Solid`. La hitbox es la de los **pies** (más pequeña que el sprite). La física por perfiles (cuerpos dinámicos, plataformas móviles) es otro nivel: `PIXEL_ART_2D_ISOMETRIC.md`.
+
+## 9. Uso típico
 
 ```cpp
 // 1) Atlas de materiales (una vez, en carga): escalar MiniFloat16 en Amiga.
@@ -156,7 +214,7 @@ if (!eng::gfx::proc::terrain::place_world(layout, set, 0xBEE5u, params)) { /* fa
 
 La paleta del atlas se publica como cualquier otra: `atlas.palette` es un `eng::Palette32` (`palette32.hpp`) y se aplica con `Palette`/`FramePlan` (`palette.hpp`).
 
-## 8. Coste y presupuesto
+## 10. Coste y presupuesto
 
 Todo el trabajo es de **generación** (carga): `fill`/`fill_texture` recorren `W·H` píxeles una vez y las texturas pagan `octaves × value_noise2` por píxel; las operaciones por píxel que no son sumas/shifts están documentadas en el código con su coste y su justificación (p. ej. `divu.w` de los surcos de cultivo, divisiones de las elipses ya convertidas a **multiplicación** — `dx²·ry² + dy²·rx² < rx²·ry²` — o las rampas `constexpr` que sustituyen `sin`). **Nada de esto corre por frame**: el camino de frame solo lee el tile ya generado. Método y presupuesto: `docs/guides/optimization/METODO_OPTIMIZACION.md`.
 
@@ -216,9 +274,11 @@ inline constexpr auto kWorldAtlas = make_world_atlas();
   (`generate`/`render_all`), `terrain_paint` (pintores) y `terrain_biome`
   (`tile_for`/`generate_biome_world`). El ruido entero (`noise_tile.hpp`) nació `constexpr`.
 
-## 10. Estado de verificación
+## 12. Estado de verificación
 
 - **Host**: `HOST-442` cubre buffer, dither y halftone (`halftone2x2`/`halftone_index`), perfiles, evaluadores, transformaciones Wang, texturas (tileabilidad y rango con dos escalares), atlas (32 colores, familias de tono, determinismo), `MaterialLayer` y terreno (catálogo de 45, casación, agua por el centro del borde, hueco de la puerta, anclas del afluente en T, sendero a la puerta y lago junto al cauce).
+- **Host (esquinas y capas)**: `HOST-448` cubre `corner_tiles.hpp` (máscaras exactas, pintor duro y orgánico, **junta continua en las 256 parejas de máscaras compatibles**, stamps contiguos sin motas, composición por máscaras, materiales del atlas) y `layered_map.hpp` (transparencia por índice 0, actor entre decal y overhead, encaje con `TileLayerMap`, `bake_flags` desde el suelo, consultas y `move_and_slide` por ejes). Evidencia visual host en `out/playground/corner-layers/` (`--dump`): el río N→S cruza el mapa (73 px de agua en la fila 0 y 70 en la última, conteo objetivo), el lago lleva isla, las orillas son orgánicas sin huecos, y en el mapa por capas el actor queda **parcialmente tapado por una copa y parcialmente visible** (validado con el modelo de visión local; una pregunta del modelo sobre el río se refutó con el conteo por filas).
 - **Visual (host)**: los PPM de evidencia (`--dump`, convertidos a hojas de contacto en `out/playground/proc-bitmaps/`) se validaron con el modelo de visión local (Ollama): las muestras de material se describen como texturas orgánicas con estructura (parches de hierba, grietas de roca, espuma, corteza…), los tiles de terreno se reconocen por elemento (muros grises, ríos azules, árboles, casas con tejado rojo, montañas con cima blanca, cueva) y en el mapa de demostración el modelo confirma el **cauce vertical continuo** de la columna (cruzado por el puente), la **estructura lineal gris con hueco oscuro** (muralla con puerta) y que los bordes de las baldosas encajan sin cortes bruscos.
 - **On-target (demo 119, `demos/techniques/amiga/effects/119_proc_world`)**: **VERIFICADA en hardware en su alcance**: el mundo de 78 piezas (69 cocidas + 9 derivadas) colocado por `place_world` — río continuo con **desembocadura en T del afluente**, puente, **sendero hasta la puerta**, muralla con torre y puerta, cueva, sierra y **lago junto al cauce** — se compone con **32 colores (5 planos)** y se publica a ~49,9 fps sin parpadeo; la franja muestra nombre + versión (`v1.0.<build>` inyectado) + contador de frames vivo por parcheo planar (ver su `VALIDATION.md`). Los tests host `HOST-442`/`HOST-443`/`HOST-444` cubren la generación completa con dos escalares, el golden y la equivalencia de las optimizaciones.
-- **SIN VERIFICAR en 68000**: la generación runtime del atlas/set (`atlas.generate` + `set.generate`) — medida (≈3,4 G ciclos) y **no usada** por la demo, que precocina los assets en host (ver §Coste). El display de **6 planos** de `IndexedDisplay` tampoco tiene demo (el C2P sí, en `HOST-367`).
+- **SIN VERIFICAR en 68000**: la generación runtime del atlas/set (`atlas.generate` + `set.generate`) — medida (≈3,4 G ciclos) y **no usada** por la demo, que precocina los assets en host (ver §10). El display de **6 planos** de `IndexedDisplay` tampoco tiene demo (el C2P sí, en `HOST-367`).
+- **NO VERIFICADAS en hardware (solo host)**: `corner_tiles.hpp` y `layered_map.hpp` — `HOST-448` las respalda y la evidencia visual host es correcta, pero **ninguna demo las ejerce en el Amiga todavía**; hasta que exista (p. ej. un mundo con lago por esquinas, copas en overhead y un actor que pasa por debajo), su estado es el de esta línea.

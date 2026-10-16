@@ -286,3 +286,37 @@ Gate nuevo: `tools/build/build-all-demos.sh [-j N]` compila **todas** las demos 
 - **`nodiscard`** (205/213/215) y **`atexit`** de un `static` local con destructor bajo `-nostdlib` (123), **`g_eng_prof` duplicado** (116 usa el bloque del engine).
 
 Pendiente del gate: integrarlo opcionalmente en la pasada de flota (hoy es on-demand por coste).
+
+## DT-018 · m68k: `__mulsi3` a -O1 con operandos de 16 bits e ICE -O0 en `Bayer::threshold8`
+
+**Síntoma (medido al portar `corner_tiles.hpp`, 2026-10):** con el cruce m68k (GCC 15.1.0),
+`nm` del objeto expone `U __mulsi3` por multiplicaciones cuyos operandos **caben en 16 bits**;
+a `-O2` (el build de las demos) el backend las pliega a `mulu.w`/`muls.w`, pero a `-O1` (build
+de la regresión) siguen bajando a libcall. Reproducción mínima: `u32(a) * b` con `a,b` u16 en
+una función `noinline` → `jsr __mulsi3` a `-O1`. La demo 119 debug ya llamaba `__mulsi3`
+(6 sitios) y `__udivsi3` (3) desde antes: el enlace funciona porque `support/gcc8_a_support.s`
+define las rutinas, pero cada llamada cuesta un salto + ~4 `mulu.w`.
+
+**Consecuencias y mitigaciones aplicadas:** en `noise_tile.hpp` los lerps pasan a operandos
+`s16` explícitos (bit-exacto: `HOST-443`/`HOST-444` verifican que el golden y la rejilla no
+cambian) y en `corner_tiles.hpp` los cuadrados del `stamp_disc` se indexan de una **tabla ROM**
+(`kSquares`, 257×u16) en vez de multiplicar. Tras ese cambio, el TU completo de las dos
+cabeceras queda con **0 libcalls a -O2**; a `-O1` queda solo el hash `mul_fold16` (patrón
+`u32(a)*u32(b)`, pre-existente). Regla práctica: para garantía total, modelar los productos
+como HImode (s16/u16 reales) o tabla — un `u32`-typed product puede degradar a libcall aunque
+el rango sea diminuto.
+
+**Segundo hallazgo (ICE):** un TU con una sola llamada a `Bayer::threshold8` (p. ej.
+`extern "C" u8 probe(u16 x, u16 y) { return eng::gfx::proc::Bayer::threshold8(x, y); }`) da
+`internal compiler error: in dwarf2out_frame_debug_adjust_cfa, at dwarf2cfi.cc:1348` a `-O0`
+**también sin lambdas y con `-g0`** (el trigger documentado hasta ahora eran lambdas locales;
+aquí no hay). Afecta solo a los builds `--o0` de depuración interactiva; `-O1`/`-O2` compilan.
+Registrado aquí; sin causa raíz en el fuente (bug de backend/CFI).
+
+## DT-019 · `write_ppm` de `HOST-442` no termina con imágenes > 65535 px
+
+El helper `write_ppm` del test `tests/host/graphics/442_proc_bitmaps` usa índice `u16` en el
+bucle (`for (u16 i = 0; i < u16(w) * h; ++i)`): con `w*h > 65535` el índice desborda y el bucle
+no termina (el dump de `map.ppm` de 320×224=71680 px cuelga si algún día se conecta por ese
+camino; hoy el mapa se escribe con bucles de fila y no lo toca). `HOST-448` usa `u32` en su
+copia del helper (funcionó y se detectó ahí). **Arreglo:** cambiar el índice a `u32` en 442.

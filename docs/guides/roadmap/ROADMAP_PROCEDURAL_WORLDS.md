@@ -166,6 +166,11 @@ la **física de actores** (gravedad/nadar/escalar). Este roadmap los cubre.
    Verificar con `nm <obj> | grep -E '__mul|__div|__mod'` + el gate `generic-headers`.
 3. **`Fixed<s32,E>` no se divide en m68k** (`div_norm` usa libgcc de 64 bits); usar `Fixed<s16,E>`
    (E ≤ 15). Ver `engine/include/eng/core/math/fixed.hpp`.
+4. **`MULT:SI` degrada a `__mulsi3` a -O1 aunque los operandos quepan en 16 bits** (a -O2 el
+   backend pliega a `mulu.w`/`muls.w`): modelar los productos como HImode (`s16`/`u16` reales,
+   no `u32`-typed) o indexar tabla ROM. Medido y mitigado en `noise_tile.hpp`/`corner_tiles.hpp`
+   (`corner_tiles.hpp`+`layered_map.hpp` quedan con 0 libcalls a -O2); detalle y reproducción en
+   `ROADMAP_DEUDA_TECNICA.md` DT-018.
 
 ## Bloqueo medido: W1-fijo (ruido en punto fijo) — requiere revisar `noise.hpp`
 
