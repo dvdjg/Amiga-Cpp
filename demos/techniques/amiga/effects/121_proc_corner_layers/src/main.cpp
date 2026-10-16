@@ -33,6 +33,7 @@
 #include <eng/core/math/minifloat.hpp>
 #include <eng/debug/peripheral.hpp>
 #include <eng/debug/version.hpp>
+#include <eng/field/playfield_probe.hpp>
 #include <eng/field/xlimited_scene.hpp>
 #include <eng/graphics/proc/atlas.hpp>
 #include <eng/graphics/proc/corner_tiles.hpp>
@@ -520,6 +521,15 @@ struct ProcStructuresDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012103u);
 			return;
 		}
+		// **Invariante de geometría del anillo**: la guarda que suman los blits del actor
+		// (`kRingGuardY`) debe coincidir con el `display_offset` real de la vista — es el
+		// origen de la ventana visible que usan a la vez el Copper, los blits y la sonda
+		// (`read_visible_pixel`); si divergen, el actor se dibuja fuera de la fila que se
+		// muestra y la verificación leería otro píxel.
+		if (scene.bg().hardware_view().display_offset != kRingGuardY) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00012115u);
+			return;
+		}
 		// **Relleno por el motor de tiles**: todos los tiles del mundo al bitmap con el
 		// Blitter (banco interleaved). Sin compose por píxel ni C2P.
 		if (!scene.fill(backend, plan)) {
@@ -700,34 +710,24 @@ struct ProcStructuresDemo {
 	}
 
 private:
-	/// Lee el **color** (índice de paleta) del píxel visible `(sx, sy)` del bitmap del
-	/// campo: `hardware_view()` da el frontbuffer y la geometría que usan los blits; el
-	/// índice interleaved es `(línea·planos + plano)·bytes_fila + sx/8` (MSB =
-	/// píxel izquierdo, convenio Amiga). La línea del anillo lleva la guarda sumada.
+	/// Lee el **color** (índice de paleta) del píxel visible `(sx, sy)` del campo con la
+	/// **sonda del engine** (`eng::playfield::read_visible_pixel`): resuelve la línea del
+	/// anillo con el `display_offset` de la vista (la guarda del corkscrew) y el layout
+	/// intercalado, sin constantes mágicas en la demo. El init comprueba la invariante
+	/// `display_offset == kRingGuardY` (los blits usan esa misma guarda).
 	/// \param sx,sy píxel visible (0..319, 0..207). \return índice de color 0..31.
 	[[nodiscard]] u8 read_field_pixel(u16 sx, u16 sy) const {
-		const eng::playfield::PlayfieldHardwareView hv = scene.bg().hardware_view();
-		const eng::u8* const base = hv.bitplanes.cptr();
-		const eng::u32 bpr = hv.bitmap_bytes_per_row;
-		const u16 ring = u16(sy + kRingGuardY);
-		eng::u8 v = 0u;
-		for (eng::u8 p = 0u; p < kPlanes; ++p) {
-			const eng::u8 byte = base[(eng::u32(ring) * kPlanes + p) * bpr + (sx >> 3u)];
-			if ((byte & eng::u8(0x80u >> (sx & 7u))) != 0u) v = eng::u8(v | eng::u8(1u << p));
-		}
-		return v;
+		return eng::playfield::read_visible_pixel(scene.bg().hardware_view(), sx, sy);
 	}
 
-	/// Lee el color del cuerpo del actor con re-lectura de confirmación: se han
-	/// observado lecturas aisladas con un plano obsoleto (cuerpo=30/26) aunque
-	/// `execute_frame_plan` espera al último blit; una repetición inmediata confirma
-	/// el valor estable y evita fallos espurios del auto-chequeo.
+	/// Lee el color del cuerpo del actor con **re-lectura de confirmación**
+	/// (`eng::playfield::read_confirm`): se han observado lecturas aisladas con un plano
+	/// obsoleto (cuerpo=30/26) aunque `execute_frame_plan` espera al último blit; una
+	/// repetición inmediata confirma el valor estable y evita fallos espurios del
+	/// auto-chequeo.
 	[[nodiscard]] u8 read_body_stable(u16 sx, u16 sy) const {
-		u8 v = read_field_pixel(sx, sy);
-		for (u8 pass = 0u; pass < 2u && v != 31u; ++pass) {
-			v = read_field_pixel(sx, sy);
-		}
-		return v;
+		return eng::playfield::read_confirm(
+			[this, sx, sy] { return read_field_pixel(sx, sy); }, 31u);
 	}
 
 	/// **Auto-chequeo**: (1) tras ejecutar SOLO el restaurador del carril, un píxel del

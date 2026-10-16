@@ -347,6 +347,14 @@ public:
 	///
 	/// Por ahora solo materializa BOBs enmascarados mediante Blitter. Los parches de
 	/// paleta pertenecen a la escena (offsets internos de su copperlist).
+	///
+	/// **Contrato de sincronía**: espera al **último blit** del plan (`wait_blitter`)
+	/// antes de devolver; cualquier lectura del bitmap posterior al retorno observa las
+	/// escrituras del plan (para verificar píxeles usa `eng::playfield::read_visible_pixel`
+	/// y, contra lecturas transitorias, `read_confirm`). Anomalía abierta: al mezclar
+	/// jobs `CopyRect` y una racha cookie-cut en el MISMO plan puede perderse un plano de
+	/// forma intermitente (DT-022, `docs/debugging/investigaciones/121-actor-plano-0-y-carencias-blits.md`);
+	/// hasta su repro/fix, separa esas rutas en planes distintos o verifica con lectura.
 	[[nodiscard]] bool execute_frame_plan(const graphics::FramePlan& plan);
 
 	/// **Ejecuta el `FramePlan` de forma asíncrona** (vía IRQ de blit, `BLITTER_INTENT_QUEUE.md`
