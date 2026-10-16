@@ -101,11 +101,36 @@ void test_read_visible_pixel() {
 }
 
 // ---------------------------------------------------------------------------
+//  1b. Lectura por LÍNEA DEL ANILLO (`read_ring_pixel`): guarda y equivalencia
+// ---------------------------------------------------------------------------
+
+/// La parte envuelta de un objeto que cruza la costura del anillo aterriza en las
+/// líneas 0.. (guarda), que la lectura VISIBLE no alcanza: `read_ring_pixel` las lee
+/// directamente y debe coincidir con la visible en las líneas compartidas.
+void test_read_ring_pixel() {
+	std::memset(g_bitmap, 0, sizeof(g_bitmap));
+	const eng::playfield::PlayfieldHardwareView view = make_view();
+
+	line(0u, 0u)[0] = 0x80u;
+	line(0u, 2u)[0] = 0x80u;
+	check(eng::playfield::read_ring_pixel(view, 0u, 0u) == 0b101u,
+	      "ring 0 -> planos 0+2 (linea de guarda)");
+
+	// Equivalencia con la lectura visible en la línea del anillo compartida: visible
+	// (2,3) -> ring (offset+3)%8 = 0 (ya pintada arriba).
+	check(eng::playfield::read_ring_pixel(view, u16(u16(kOffset) + 3u) % 8u, 2u) ==
+		      eng::playfield::read_visible_pixel(view, 2u, 3u),
+	      "ring == visible para la misma linea del anillo");
+
+	check(eng::playfield::read_ring_pixel(view, 8u, 0u) == 0u, "ring == display_height -> 0");
+	check(eng::playfield::read_ring_pixel(view, 0u, kViewW) == 0u, "sx fuera de viewport -> 0");
+}
+
+// ---------------------------------------------------------------------------
 //  2. Límites: viewport, buffer nulo, planos/altura cero
 // ---------------------------------------------------------------------------
 
-void test_bounds() {
-	std::memset(g_bitmap, 0, sizeof(g_bitmap));
+void test_bounds() {	std::memset(g_bitmap, 0, sizeof(g_bitmap));
 	const eng::playfield::PlayfieldHardwareView view = make_view();
 	check(eng::playfield::read_visible_pixel(view, kViewW, 0u) == 0u, "sx == viewport_w -> 0");
 	check(eng::playfield::read_visible_pixel(view, 0u, kViewH) == 0u, "sy == viewport_h -> 0");
@@ -189,6 +214,7 @@ void test_wrapper() {
 
 int main() {
 	test_read_visible_pixel();
+	test_read_ring_pixel();
 	test_bounds();
 	test_read_confirm();
 	test_wrapper();
