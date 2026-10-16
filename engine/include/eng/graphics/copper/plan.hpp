@@ -328,10 +328,17 @@ public:
 				i = end;
 				continue;
 			}
+			const u16 before = m_sched.words_used();
 			m_sched.emit_copper_intents_fast(m_intents.span().subspan(idx, 1u));
-			// El slot del dato depende del tipo y del número de words emitidos por una intención;
-			// para la emisión individual sigue siendo el último word, igual que en la ruta previa.
-			m_slot_word[i] = static_cast<u16>(m_sched.words_used() - 1u);
+			// El slot apunta al ULTIMO MOVE emitido por la intencion (su opcode, 2 words
+			// antes del final). Si la intencion no emitio nada (p. ej. layout sin display),
+			// el slot queda invalido en vez de apuntar a una instruccion de otra intencion
+			// (defecto latente del contrato anterior, que guardaba `words_used()-1` siempre).
+			if (m_sched.words_used() != before) {
+				m_slot_word[i] = MoveSlot {static_cast<u16>(m_sched.words_used() - 2u)};
+			} else {
+				m_slot_word[i] = {};
+			}
 			m_slot_reg[i] = first.first;
 			m_slot_line[i] = first.top;
 			++i;
@@ -344,18 +351,25 @@ public:
 	/// que intenciones emitidas). Permiten que un efecto **pre-construido una vez** (setup)
 	/// actualice sus colores por frame escribiendo solo la palabra de DATO, sin re-emitir.
 	/// Casan por identidad `(slot_reg, slot_line)`; típicamente `PaletteLine` de 1 color.
+	/// Un slot inválido (`!valid()`) marca una intención que no llegó a emitirse.
 	[[nodiscard]] constexpr u16 slot_count() const { return m_slot_count; }
-	[[nodiscard]] constexpr u16 slot_word(u16 j) const { return m_slot_word[j]; }
+	[[nodiscard]] constexpr MoveSlot slot_word(u16 j) const { return m_slot_word[j]; }
 	[[nodiscard]] constexpr u8 slot_reg(u16 j) const { return m_slot_reg[j]; }
 	[[nodiscard]] constexpr u16 slot_line(u16 j) const { return m_slot_line[j]; }
 
 	/// Cierra la lista (`end`), guarda el informe y **voltea** el buffer. Devuelve false si
-	/// hubo overflow o la lista no cupo; en ese caso no debe publicarse.
+	/// hubo overflow o la lista no cupo; en ese caso no debe publicarse. Con
+	/// `ENG_COPPER_STRICT` (`copper::strict_mode`) además exige el informe publicable
+	/// (`ScheduleReport::publishable`: sin desborde de Timeline visible ni intenciones sin
+	/// manejar), para que ese defecto no llegue a pantalla en silencio.
 	bool end_frame() {
 		m_sched.end();
 		m_words = m_sched.words_used();
 		m_report = m_sched.report();
 		m_ok = m_sched.ok();
+		if constexpr (strict_mode) {
+			m_ok = m_ok && m_report.publishable();
+		}
 		m_copper->flip();
 		return m_ok && !m_overflow;
 	}
@@ -389,6 +403,11 @@ public:
 	/// Depuración/tests: words del bloque ACTIVO (el que ejecuta el Copper).
 	constexpr u16* active_words() const { return m_copper->active_words(); }
 	constexpr u16* inactive_words() const { return m_copper->inactive_words(); }
+
+	/// Vista de escritura del bloque activo/inactivo (para los helpers libres de parcheo
+	/// `copper::patch_data`/`patch_move32`/`patch_wait`, que exigen `Span`).
+	[[nodiscard]] constexpr eng::Span<u16> active_span() const { return m_copper->active_span(); }
+	[[nodiscard]] constexpr eng::Span<u16> inactive_span() const { return m_copper->inactive_span(); }
 
 	/// Vista **tipada (Chip)** de la copperlist activa/inactiva: forma que exigen
 	/// `takeover_display`/`install_copper_list` (la procedencia DMA viaja en el tipo).
@@ -466,7 +485,7 @@ private:
 	eng::util::Array<graphics::CopperIntent, max_intents> m_intents {}; ///< intenciones registradas este frame
 	eng::util::Array<u16, max_intents> m_prio {};      ///< (superficie << 8) | z
 	eng::util::Array<u16, max_intents> m_perm {};      ///< orden de emisión (índices a `m_intents`)
-	eng::util::Array<u16, max_intents> m_slot_word {}; ///< palabra de DATO de cada intent materializado
+	eng::util::Array<MoveSlot, max_intents> m_slot_word {}; ///< MOVE (opcode/dato) de cada intent materializado
 	eng::util::Array<u8, max_intents> m_slot_reg {};   ///< registro COLOR de arranque (identidad del slot)
 	eng::util::Array<u16, max_intents> m_slot_line {}; ///< línea raster (identidad del slot)
 	u16 m_slot_count = 0; ///< nº de slots registrados en el último `materialize()`

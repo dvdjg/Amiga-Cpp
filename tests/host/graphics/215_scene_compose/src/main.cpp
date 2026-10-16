@@ -65,7 +65,7 @@ int main() {
 	check(sky.valid(), "la etapa emitio un PatchHandle valido");
 	sky.set(0x0abcu);
 	const u16* words = s.scheduler().data();
-	check(words[sky.index + 1u] == 0x0abcu, "el PatchHandle parchea el color por frame");
+	check(words[sky.slot.data_word()] == 0x0abcu, "el PatchHandle parchea el color por frame");
 
 	// Ciclo de vida: una tarea (FunctionRef) de frame ligada a la escena. El lambda debe
 	// tener nombre (la referencia no lo copia).
@@ -149,7 +149,7 @@ int main() {
 	const copper::PatchHandle zone_h = graphics::composition::zone_color(s6.scheduler(), bindings[1], 2);
 	zone_h.set(0x0aaau);
 	const u16* zwords = s6.scheduler().data();
-	check(zwords[zone_h.index + 1u] == 0x0aaau, "un color de zona se parchea por frame");
+	check(zwords[zone_h.slot.data_word()] == 0x0aaau, "un color de zona se parchea por frame");
 
 	// Base comun: una zona parcheable de CUALQUIER registro (aqui offsets de scanline).
 	graphics::composition::Scene s7;
@@ -167,7 +167,7 @@ int main() {
 	const copper::PatchHandle mod_h = mod_zone.handle(s7.scheduler(), 0);
 	mod_h.set(0x0050u);
 	const u16* mw = s7.scheduler().data();
-	check(mw[mod_h.index + 1u] == 0x0050u, "un offset BPL1MOD se parchea por frame");
+	check(mw[mod_h.slot.data_word()] == 0x0050u, "un offset BPL1MOD se parchea por frame");
 
 	// Doble buffer de display: los BPLxPT se parchean al buffer trasero en commit().
 	graphics::composition::Scene s8;

@@ -91,12 +91,14 @@ public:
 
 	/// Puntero al `data` del bloque 0 de la fila `row` (válido entre `begin_frame`/`end_frame`).
 	/// Para rellenar la fila de golpe se escriben los `cols` colores con **paso de 2 words**
-	/// (cada `COLOR00` son `[registro, data]`): `p[0] = c; p += 2;`.
+	/// (cada `COLOR00` son `[registro, data]`): `p[0] = c; p += 2;`. Es el patrón que describe
+	/// `copper::ColumnPatch` (stride 2); HOST-446 valida la forma equivalente con
+	/// `eng::setup::check_copper_column` (paso par, filas sobre datos de MOVE).
 	[[nodiscard]] eng::u16* row(eng::u8 r) const {
 		if (!m_ok || m_base == nullptr || r >= m_cfg.rows) {
 			return nullptr;
 		}
-		return const_cast<eng::u16*>(m_base + m_slot[static_cast<eng::u16>(r) * MaxCols] + 1u);
+		return const_cast<eng::u16*>(m_base + m_slot[static_cast<eng::u16>(r) * MaxCols].data_word());
 	}
 
 	/// Cierra el frame: voltea al bloque recién escrito y lo instala (swap de `COP1LC`).
@@ -121,12 +123,12 @@ private:
 		for (eng::u16 y = 0; y < m_cfg.rows; ++y) {
 			const eng::u16 row_line = static_cast<eng::u16>(
 				static_cast<eng::u16>(y) * m_cfg.block_h + m_cfg.first_line);
-			const eng::u16 cop2lc = s.move32(copper::Register::COP2LCH, eng::Address<eng::MemoryKind::Chip> {});
-			const eng::u16 label = s.wait_masked(
+			const copper::MoveSlot cop2lc = s.move32(copper::Register::COP2LCH, eng::Address<eng::MemoryKind::Chip> {});
+			const copper::WaitSlot label = s.wait_masked(
 				static_cast<eng::u16>(row_line & 128u), m_cfg.label_hpos, 0u, 255u);
 			s.patch_move32(cop2lc, s.instruction_address(label));
 			for (eng::u16 x = 0; x <= m_cfg.cols; ++x) {
-				const eng::u16 ins = s.move_at(copper::Register::COLOR00, 0u);
+				const copper::MoveSlot ins = s.move_at(copper::Register::COLOR00, 0u);
 				if (x < m_cfg.cols) {
 					m_slot[static_cast<eng::u16>(y) * MaxCols + x] = ins;
 				}
@@ -139,7 +141,7 @@ private:
 
 	CopperChunkyConfig m_cfg {};
 	const eng::u16* m_base = nullptr; ///< bloque destino del frame (inactivo)
-	eng::u16 m_slot[MaxRows * MaxCols] {}; ///< índice de la instrucción `COLOR00` de (r,c)
+	copper::MoveSlot m_slot[MaxRows * MaxCols] {}; ///< MOVE `COLOR00` de (r,c) (dato en `data_word()`)
 	bool m_ok = false;
 };
 

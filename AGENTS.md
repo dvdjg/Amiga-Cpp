@@ -307,7 +307,7 @@ Estas reglas son obligatorias, pero solo son relevantes cuando se toca su domini
 | **Rendimiento, comentario de optimizaciones y port de rutinas calientes a asm** | §12 de `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` |
 | **Optimizar (SIEMPRE: también al escribir código nuevo con impacto en rendimiento)** — campaña contra referencia, presupuesto de bus y mapa de contención, tabla de deltas, A/B con hot-patch y criterio de falsación, checklist de un solo cambio | `docs/guides/optimization/METODO_OPTIMIZACION.md` |
 | **Análisis de rendimiento de una demo** (medir SIEMPRE con el perfil `.amigaprofile` + IA local; hotspots por rutina y defectos de pantalla con visión) | `docs/tools/PROFILING_FROM_AGENT.md` |
-| **Copper y buffers de display** (`copper::Plan`, `MultiBuffered`, doble buffer de copperlist) | §6 de `docs/engine/architecture/DISPLAY_COMPOSITION.md` |
+| **Copper y buffers de display** (`copper::Plan`, slots tipados `MoveSlot`/`WaitSlot`, doble buffer de copperlist, validadores `eng::setup::check_copper_list`) | §6 de `docs/engine/architecture/DISPLAY_COMPOSITION.md` |
 | **Objetos: BOB ≠ polígono, transparencia, fondo, copper por objeto** | `docs/engine/architecture/OBJECT_SYSTEM.md` |
 | **Blitter / minterms / líneas y polígonos** | `docs/reference/amiga/techniques/README.md` y `blitter-line-subpixel-fill.md` |
 | **Runner/emulador** (warp, READY, canvas, secuencias) | `docs/build/BUILD_AND_RUN.md` |

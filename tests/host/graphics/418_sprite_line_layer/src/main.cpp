@@ -67,6 +67,11 @@ struct SpyScheduler {
 			moves[move_count++] = SpyMove {static_cast<eng::u16>(reg), v};
 		}
 	}
+	void move(eng::copper::RegisterOffset reg, eng::u16 v) {
+		if (move_count < kMax) {
+			moves[move_count++] = SpyMove {reg.offset, v};
+		}
+	}
 	void emit_sprite_horizontal_reposition(eng::u8 ch, eng::u8 vline, eng::u16 hpos) {
 		if (repo_count < kMax) {
 			repos[repo_count++] = SpyRepos {ch, vline, hpos};

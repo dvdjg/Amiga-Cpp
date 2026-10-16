@@ -41,10 +41,10 @@ int main() {
 	check(h.valid(), "patchable devuelve un handle valido");
 
 	u16* words = reinterpret_cast<u16*>(block.view.data());
-	check(words[h.index + 1u] == 0x0123u, "el MOVE inicial esta en la lista");
+	check(words[h.slot.data_word()] == 0x0123u, "el MOVE inicial esta en la lista");
 
 	h.set(0x0abcu);
-	check(words[h.index + 1u] == 0x0abcu, "set() parchea el word de valor");
+	check(words[h.slot.data_word()] == 0x0abcu, "set() parchea el word de valor");
 
 	// Un handle invalido (por defecto) no hace nada.
 	const copper::PatchHandle none {};
@@ -53,7 +53,7 @@ int main() {
 
 	// Fuera de rango: `patch_data` valida y no escribe basura.
 	h.set(0x0defu);
-	check(words[h.index + 1u] == 0x0defu, "set() repetido sigue escribiendo el valor");
+	check(words[h.slot.data_word()] == 0x0defu, "set() repetido sigue escribiendo el valor");
 
 	if (failures == 0) {
 		std::printf("OK: copper::PatchHandle (MOVE parcheable por frame).\n");

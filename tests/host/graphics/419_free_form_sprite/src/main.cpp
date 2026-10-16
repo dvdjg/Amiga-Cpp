@@ -50,6 +50,9 @@ struct SpySched {
 	void move(eng::copper::Register reg, u16 v) {
 		if (n_moves < 8192u) { moves[n_moves++] = Mv {static_cast<u16>(reg), v}; }
 	}
+	void move(eng::copper::RegisterOffset reg, u16 v) {
+		if (n_moves < 8192u) { moves[n_moves++] = Mv {reg.offset, v}; }
+	}
 	void move(u16 reg, u16 v) {
 		if (n_moves < 8192u) { moves[n_moves++] = Mv {reg, v}; }
 	}

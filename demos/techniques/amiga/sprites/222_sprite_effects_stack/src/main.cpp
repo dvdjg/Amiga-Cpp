@@ -176,7 +176,7 @@ struct BendDemo {
 		// después de las escrituras de la fila anterior (la siguiente llamada del driver
 		// espera la línea 72, nunca hacia atrás).
 		for (eng::usize k = 0u; k < 4u; ++k) {
-			sched.move(static_cast<eng::copper::Register>(0x180u + (20u + k) * 2u),
+			sched.move(eng::copper::color_register(20u + k),
 				   kMagenta[k]);
 		}
 		const eng::graphics::drivers::SpriteBend bends2[2] = {

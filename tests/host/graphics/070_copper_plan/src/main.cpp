@@ -365,8 +365,8 @@ int main() {
 		const unsigned wait_count = wait_lines(prio.active_words(), prio.words(), emitted_lines, 4u);
 		if (wait_count != 1u ||
 		    prio.slot_count() != 2u || prio.slot_reg(0u) != 1u || prio.slot_reg(1u) != 1u ||
-		    prio.active_words()[prio.slot_word(0u)] != kLowP[1] ||
-		    prio.active_words()[prio.slot_word(1u)] != kHighP[1]) {
+		    prio.active_words()[prio.slot_word(0u).data_word()] != kLowP[1] ||
+		    prio.active_words()[prio.slot_word(1u).data_word()] != kHighP[1]) {
 			std::printf("[FAIL] batch PaletteLine debe compartir WAIT y conservar slots parcheables\n");
 			return 1;
 		}
@@ -413,8 +413,8 @@ int main() {
 		prio.add_prioritized(&patched_low, 1u, 0u, 10u);
 		prio.materialize();
 		if (!prio.end_frame() || prio.slot_count() != 2u ||
-		    prio.active_words()[prio.slot_word(0u)] != kPatchLow ||
-		    prio.active_words()[prio.slot_word(1u)] != kPatchHigh) {
+		    prio.active_words()[prio.slot_word(0u).data_word()] != kPatchLow ||
+		    prio.active_words()[prio.slot_word(1u).data_word()] != kPatchHigh) {
 			std::printf("[FAIL] slots del batch no siguen los MOVE al reemitir frame\n");
 			return 1;
 		}

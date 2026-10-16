@@ -121,9 +121,9 @@ public:
 				m_cfg.dma_data[static_cast<eng::u32>(ch) * m_cfg.dma_stride] = pos;
 				const eng::uintptr addr =
 					base + static_cast<eng::uintptr>(ch) * m_cfg.dma_stride * 2u;
-				sched.move(static_cast<copper::Register>(0x120u + ch * 4u),
+				sched.move(copper::sprite_pointer_high_register(ch),
 					   static_cast<u16>(addr >> 16));                 // SPRxPTH
-				sched.move(static_cast<copper::Register>(0x122u + ch * 4u),
+				sched.move(copper::sprite_pointer_low_register(ch),
 					   static_cast<u16>(addr & 0xffffu));             // SPRxPTL
 			}
 		}
@@ -158,15 +158,15 @@ public:
 				}
 				// Rearmado por Copper: **solo** `POS`+`DATB`+`DATA` (NO se escribe `SPRxCTL`;
 				// `SPRxDATA` arma el sprite). Ver `spr_layer/Data/copperlists.asm`.
-				sched.move(static_cast<copper::Register>(0x140u + ch * 8u), pos);    // SPRxPOS
-				sched.move(static_cast<copper::Register>(0x146u + ch * 8u), datb);   // SPRxDATB
-				sched.move(static_cast<copper::Register>(0x144u + ch * 8u), dat);    // SPRxDATA (arma)
+				sched.move(copper::sprite_pos_register(ch), pos);    // SPRxPOS
+				sched.move(copper::sprite_datb_register(ch), datb);  // SPRxDATB
+				sched.move(copper::sprite_data_register(ch), dat);   // SPRxDATA (arma)
 			}
 			// Fin de línea: reposiciona los canales DMA a la izquierda **en orden inverso** para
 			// que el próximo renglón los vuelva a dibujar en su sitio (fuente:
 			// `spr_layer/Data/copperlists.asm`, "End of line repositioning").
 			for (u16 i = m_cfg.dma_channels; i-- > 0u; ) {
-				sched.move(static_cast<copper::Register>(0x140u + i * 8u),
+				sched.move(copper::sprite_pos_register(static_cast<u8>(i)),
 					   pos_for(line, i));
 			}
 		}

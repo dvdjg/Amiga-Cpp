@@ -108,7 +108,7 @@ public:
 		sched.move(copper::Register::BPLCON2, m_cfg.bplcon2);
 		// Paleta por banda (si se pide): recarga los registros de color desde `palette_first_reg`.
 		for (eng::usize i = 0u; i < m_cfg.palette.size(); ++i) {
-			sched.move(static_cast<u16>(0x180u + (m_cfg.palette_first_reg + static_cast<u16>(i)) * 2u),
+			sched.move(copper::color_register(static_cast<u8>(m_cfg.palette_first_reg + static_cast<u16>(i))),
 				   m_cfg.palette[i]);
 		}
 
@@ -120,13 +120,13 @@ public:
 		const u16 vstop0 = m_cfg.first_line + m_cfg.lines;
 		for (u8 c = 0u; c < m_cfg.channels; ++c) {
 			const eng::Address<eng::MemoryKind::Chip> addr = base + c * m_cfg.dma_stride * 2u;
-			const u16 ch = m_cfg.channel_first + c;
-			const u16 pt_reg = 0x120u + ch * 4u;
-			// Guarda el **handle** (índice de la word de instrucción) para reescribir el `PT` por
+			const u8 ch = static_cast<u8>((m_cfg.channel_first + c) & 7u);
+			// Guarda el **slot** (instrucción MOVE) para reescribir el `PT` por
 			// frame sin re-emitir la lista (scroll suave a ~0 CPU; ver `patch_pt`).
-			m_pt_handle[ch][0] = sched.move_at(pt_reg, static_cast<u16>(addr.value >> 16u)); // SPRxPTH
-			m_pt_handle[ch][1] =
-				sched.move_at(static_cast<u16>(pt_reg + 2u), static_cast<u16>(addr.value & 0xffffu)); // SPRxPTL
+			m_pt_slot[ch][0] = sched.move_at(copper::sprite_pointer_high_register(ch),
+							 static_cast<u16>(addr.value >> 16u)); // SPRxPTH
+			m_pt_slot[ch][1] = sched.move_at(copper::sprite_pointer_low_register(ch),
+							 static_cast<u16>(addr.value & 0xffffu)); // SPRxPTL
 			// **Arma** el canal con un `SPRxCTL` válido (VSTART/VSTOP de la banda). Sin este
 			// registro el canal queda con VSTOP=0 y no dibuja: la reposición por línea solo
 			// escribe `SPRxPOS`, así que el VSTOP debe quedar fijado aquí. El DMA, al armar,
@@ -135,12 +135,13 @@ public:
 			// X visibles en la ráfaga; si el arranque dejara una X visible, se vería una
 			// columna "pegada" antes de la ráfaga.
 			const u16 arm_x = static_cast<u16>((m_cfg.screen_width >> 1u) & 0xffu);
-			sched.move(0x140u + ch * 8u, static_cast<u16>((m_cfg.first_line << 8u) | arm_x)); // SPRxPOS
+			sched.move(copper::sprite_pos_register(ch),
+				   static_cast<u16>((m_cfg.first_line << 8u) | arm_x)); // SPRxPOS
 			// Bit 7 = ATTACH en el canal IMPAR: el par (par, impar) forma 15 colores. Se fija
 			// aquí (armado) y el rearmado por línea (solo `SPRxPOS`) lo conserva.
 			const u16 ctl = static_cast<u16>((vstop0 << 8u) |
 							 ((m_cfg.attach && (ch & 1u)) ? 0x80u : 0u));
-			sched.move(0x142u + ch * 8u, ctl);                                     // SPRxCTL
+			sched.move(copper::sprite_ctl_register(ch), ctl); // SPRxCTL
 		}
 
 		const u16 vstop = m_cfg.first_line + m_cfg.lines;
@@ -182,7 +183,7 @@ public:
 						continue;
 					}
 					const u8 ch = static_cast<u8>((m_cfg.channel_first + c) & 7u);
-					sched.move(0x140u + ch * 8u,
+					sched.move(copper::sprite_pos_register(ch),
 						   static_cast<u16>((line << 8u) | ((px >> 1u) & 0xffu)));
 				}
 			}
@@ -191,8 +192,8 @@ public:
 		if (m_cfg.reset_at_end) {
 			for (u8 c = 0u; c < m_cfg.channels; ++c) {
 				const u8 ch = static_cast<u8>((m_cfg.channel_first + c) & 7u);
-				sched.move(static_cast<u16>(0x142u + ch * 8u), 0xfe00u);
-				sched.move(static_cast<u16>(0x140u + ch * 8u), 0xfe00u);
+				sched.move(copper::sprite_ctl_register(ch), 0xfe00u);
+				sched.move(copper::sprite_pos_register(ch), 0xfe00u);
 			}
 		}
 	}
@@ -232,10 +233,11 @@ public:
 
 	[[nodiscard]] const Config& config() const noexcept { return m_cfg; }
 
-	/// Índice (en words) de la word de instrucción `SPRxPTH` (`hi=0`) o `SPRxPTL` (`hi=1`) de un
-	/// canal, válido tras `emit_into`. Permite reescribir el `PT` por frame con `Sched::patch_data`
-	/// para un scroll **~0 CPU** (sin re-emitir la lista). Ver `FreeFormSpriteLayer` (patch del scroll).
-	[[nodiscard]] u16 pt_handle(u8 ch, u8 hi) const noexcept { return m_pt_handle[ch & 7u][hi & 1u]; }
+	/// Slot del MOVE `SPRxPTH` (`hi=0`) o `SPRxPTL` (`hi=1`) de un canal, válido tras
+	/// `emit_into`. Permite reescribir el `PT` por frame con `copper::patch_data`
+	/// (slot tipado: no puede caer sobre otra instrucción) para un scroll **~0 CPU** (sin
+	/// re-emitir la lista). Ver `FreeFormSpriteLayer` (patch del scroll).
+	[[nodiscard]] copper::MoveSlot pt_slot(u8 ch, u8 hi) const noexcept { return m_pt_slot[ch & 7u][hi & 1u]; }
 
 	/// Huella estimada en palabras de Copper: `BPLCON2` (1 MOVE) + arranque (4 MOVEs por
 	/// canal: `SPRxPTH/L`+`SPRxPOS`+`SPRxCTL`) + por línea [`periods` `WAIT` + `instances`
@@ -281,7 +283,7 @@ private:
 	u16 m_scroll = 0;
 	/// Handles de `SPRxPTH`/`SPRxPTL` capturados en `emit_into` (por canal), `mutable` porque el
 	/// emisor es `const` pero sirve como caché de índices para el parcheo por frame.
-	mutable u16 m_pt_handle[8][2] {};
+	mutable copper::MoveSlot m_pt_slot[8][2] {};
 };
 
 } // namespace eng::effects

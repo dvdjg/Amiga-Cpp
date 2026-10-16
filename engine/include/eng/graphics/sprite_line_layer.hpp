@@ -130,16 +130,16 @@ public:
 			const SpritePosCtl e = encode_sprite_pos_ctl(
 				static_cast<u16>(x), m_cfg.first_line, m_cfg.lines, m_cfg.attach);
 			sched.wait_line_safe(m_cfg.first_line);
-			sched.move(static_cast<eng::copper::Register>(0x140u + channel * 8u), e.pos);
-			sched.move(static_cast<eng::copper::Register>(0x142u + channel * 8u), e.ctl);
+			sched.move(eng::copper::sprite_pos_register(channel), e.pos);
+			sched.move(eng::copper::sprite_ctl_register(channel), e.ctl);
 			// PT → la DATA del canal (`[channel][line][2]`), no a una cabecera: el fetch
 			// entrega las filas y no hay nada que el registro pueda pisar (ver el config).
 			const eng::uintptr addr =
 				m_cfg.line_data.address(static_cast<eng::s32>(ch) *
 							static_cast<eng::s32>(m_cfg.lines) * 4).value;
-			sched.move(static_cast<eng::copper::Register>(0x120u + channel * 4u),
+			sched.move(eng::copper::sprite_pointer_high_register(channel),
 				   static_cast<u16>(addr >> 16u));
-			sched.move(static_cast<eng::copper::Register>(0x122u + channel * 4u),
+			sched.move(eng::copper::sprite_pointer_low_register(channel),
 				   static_cast<u16>(addr & 0xffffu));
 		}
 		// 2) Reposición POS-only por (línea, canal): 1 MOVE por segmento (patrón Risky Woods).

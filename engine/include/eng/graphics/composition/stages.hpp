@@ -55,15 +55,15 @@ namespace eng::graphics::composition {
 			const eng::u32 src = eng::math::mulu16(static_cast<u16>(sc.planes() - 1u - p),
 							      static_cast<u16>(pb));
 			const eng::Address<eng::MemoryKind::Chip> ip = planes.address(src);
-			const u16 idx = s.move_at(copper::bitplane_pointer_high_register(p),
-						  static_cast<u16>(ip.value >> 16));
+			const copper::MoveSlot hi_slot = s.move_at(copper::bitplane_pointer_high_register(p),
+								   static_cast<u16>(ip.value >> 16));
 			(void)s.move_at(copper::bitplane_pointer_low_register(p),
 					static_cast<u16>(ip.value & 0xffffu));
 			// Registra este MOVE como el parche del registro `p`, pero mostrando el plano
 			// `planes-1-p` (la permutación inversa). Así `commit` repunta correctamente en
 			// doble buffer sin deshacer la inversión.
 			sc.set_plane_patch_source(p, static_cast<u8>(sc.planes() - 1u - p),
-						  patch32_at(s, idx));
+						  patch32_at(s, hi_slot));
 		}
 	};
 }
@@ -119,11 +119,11 @@ namespace eng::graphics::composition {
 			for (u8 p = 0u; p < sc.planes(); ++p) {
 				const eng::Address<eng::MemoryKind::Chip> ip =
 					planes.address(p * sc.plane_bytes());
-				const u16 idx = s.move_at(copper::bitplane_pointer_high_register(p),
-							  static_cast<u16>(ip.value >> 16));
+				const copper::MoveSlot hi_slot = s.move_at(copper::bitplane_pointer_high_register(p),
+									   static_cast<u16>(ip.value >> 16));
 				(void)s.move_at(copper::bitplane_pointer_low_register(p),
 						static_cast<u16>(ip.value & 0xffffu));
-				sc.set_plane_patch(p, patch32_at(s, idx));
+				sc.set_plane_patch(p, patch32_at(s, hi_slot));
 			}
 		}
 	};
@@ -178,16 +178,19 @@ struct PatchSlot {
 	u16 value = 0; ///< valor inicial escrito (un dato = una palabra)
 };
 
-/// **Grupo de MOVEs parcheables emitidos en una línea** (base común). Guarda el índice del
+/// **Grupo de MOVEs parcheables emitidos en una línea** (base común). Guarda el slot del
 /// primer MOVE; cada slot es una instrucción de 2 words (MOVE + dato), de ahí el `+2*i`.
 struct PatchZone {
 	u8 line = 0;        ///< línea de raster donde se emite la zona
-	u16 first_move = 0; ///< índice del primer MOVE de la zona en la copperlist
+	copper::MoveSlot first_move {}; ///< MOVE inicial de la zona en la copperlist
 	u8 count = 0;       ///< nº de MOVEs (slots) de la zona
 
-	/// Handle al slot `i` para parchearlo por frame (cualquier registro).
+	/// Handle al slot `i` para parchearlo por frame (cualquier registro). El `+2*i` es la
+	/// distancia en words entre MOVEs **consecutivos** emitidos por `patchable_zone`/
+	/// `palette_zones` (invariante de esas etapas).
 	[[nodiscard]] copper::PatchHandle handle(copper::Scheduler& s, u8 i) const {
-		return s.patch_handle(static_cast<u16>(first_move + 2u * static_cast<u16>(i)));
+		return s.patch_handle(copper::MoveSlot {
+			static_cast<u16>(first_move + 2u * static_cast<u16>(i))});
 	}
 };
 
@@ -203,9 +206,9 @@ struct PatchZone {
 		z.line = line;
 		z.count = static_cast<u8>(slots.size());
 		for (eng::usize i = 0; i < slots.size(); ++i) {
-			const u16 idx = s.move_at(slots[i].reg, slots[i].value);
+			const copper::MoveSlot slot = s.move_at(slots[i].reg, slots[i].value);
 			if (i == 0u) {
-				z.first_move = idx;
+				z.first_move = slot;
 			}
 		}
 		if (out != nullptr) {
@@ -237,7 +240,7 @@ struct PatchZone {
 			if (static_cast<eng::u32>(first) + count > z.colors.size()) {
 				count = static_cast<u8>(z.colors.size() - first);
 			}
-			const u16 idx = sc.scheduler().emit_palette_zone_at(z.line, z.colors, first, count);
+			const copper::MoveSlot idx = sc.scheduler().emit_palette_zone_at(z.line, z.colors, first, count);
 			if (record) {
 				out[i] = PatchZone {z.line, idx, count};
 			}
@@ -250,7 +253,7 @@ struct PatchZone {
 [[nodiscard]] inline auto palette_patchable(eng::PaletteWords colors, u8 first, u8 count,
 					    PatchZone* out) {
 	return [=](Scene& sc) {
-		const u16 idx = sc.scheduler().emit_palette_at(colors, first, count);
+		const copper::MoveSlot idx = sc.scheduler().emit_palette_at(colors, first, count);
 		if (out != nullptr) {
 			*out = PatchZone {0u, idx, count};
 		}

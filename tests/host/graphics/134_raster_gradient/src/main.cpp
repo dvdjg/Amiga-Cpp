@@ -155,15 +155,15 @@ int main() {
 		const eng::u16* w = plan.active_words();
 		e.set_phase(0u);
 		e.patch_into(plan);
-		check(w[plan.slot_word(0)] == 0x00fu && w[plan.slot_word(1)] == 0x0f0u &&
-			      w[plan.slot_word(2)] == 0xf00u,
+		check(w[plan.slot_word(0).data_word()] == 0x00fu && w[plan.slot_word(1).data_word()] == 0x0f0u &&
+			      w[plan.slot_word(2).data_word()] == 0xf00u,
 		      "slot: phase 0 colores = claves");
 
 		// Al rotar la fase cambian SOLO las palabras de dato (no la estructura).
 		e.set_phase(1u);
 		e.patch_into(plan);
-		check(w[plan.slot_word(0)] == 0x0f0u && w[plan.slot_word(1)] == 0xf00u &&
-			      w[plan.slot_word(2)] == 0x00fu,
+		check(w[plan.slot_word(0).data_word()] == 0x0f0u && w[plan.slot_word(1).data_word()] == 0xf00u &&
+			      w[plan.slot_word(2).data_word()] == 0x00fu,
 		      "slot: phase 1 rota los colores en su sitio");
 	}
 

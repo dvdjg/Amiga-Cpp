@@ -352,7 +352,9 @@ using XlimitedSceneConfig = XlimitedSceneConfigT<TileLayerMap>;
 /// mismo ancho de fila, y recalcula `BPL1/2MOD` para `hud.planes`: como
 /// `field.bpl1mod = row*field_planes - viewport/8 - modulo_offset`, el del HUD es
 /// `field.bpl1mod - row*(field_planes - hud.planes)`. Si el campo es EHB (6 planos)
-/// y el HUD no, emite `BPLCON4=0` para salir del modo half-brite.
+/// y el HUD no, el HUD baja a `hud.planes` en `BPLCON0`: **EHB lo selecciona BPLCON0**
+/// (6 planos, HAM=0; AHRM 3.ª cap. 3 y `drawing.cpp:2741`), y la zona además fija
+/// `BPLCON3=0` (bit 0 `ENBPLCN3`, ECS) para que el tramo no herede funciones ECS del campo.
 inline graphics::ModeSwitchZone make_hud_mode_switch_zone(
     const PlayfieldHardwareView& field, const PlayfieldHardwareView& hud,
     eng::PaletteWords palette) {
@@ -360,7 +362,7 @@ inline graphics::ModeSwitchZone make_hud_mode_switch_zone(
     z.top = static_cast<eng::u16>((xlimited_detail::kDiwStrt >> 8u) + field.viewport_h);
     z.bplcon0 = graphics::composition::bplcon0_for(graphics::composition::SceneMode::Standard,
                                                    hud.planes);
-    if (field.planes == 6u) { z.set_bplcon4 = true; z.bplcon4 = 0u; } // salir de EHB
+    if (field.planes == 6u) { z.set_bplcon3 = true; z.bplcon3 = 0u; } // ENBPLCN3 off en el HUD
     z.set_bplcon1 = true; z.bplcon1 = 0u;
     z.ddfstrt = xlimited_detail::kDdfStrt;
     z.ddfstop = xlimited_detail::kDdfStop;

@@ -52,24 +52,26 @@ inline constexpr u8 kMaxScenePlanes = 6;  ///< planos de bitplane
 /// `BPLxPTH` + `BPLxPTL` o un parámetro de 32 bits. Es el caso **multi-registro** de la base
 /// común: un valor lógico que ocupa varios MOVEs.
 ///
-/// No guarda el emisor: los índices se aplican sobre la **lista activa** del `Plan`
+/// No guarda el emisor: los slots se aplican sobre la **lista activa** del `Plan`
 /// (`Scene::patch_plane_pointers`), que es el bloque que el Copper ejecuta. Guardar un
 /// `PatchHandle` (ligado al `Scheduler`) no serviría aquí: `Plan::begin_frame`/`end_frame`
 /// reorientan el emisor al bloque inactivo, así que el parche caería en el bitmap equivocado.
 struct Patch32 {
-	u16 hi_index = 0; ///< índice del MOVE de la mitad alta (p. ej. `BPLxPTH`)
-	u16 lo_index = 0; ///< índice del MOVE de la mitad baja (p. ej. `BPLxPTL`)
+	copper::MoveSlot hi {}; ///< MOVE de la mitad alta (p. ej. `BPLxPTH`)
+	copper::MoveSlot lo {}; ///< MOVE de la mitad baja (p. ej. `BPLxPTL`)
 
-	/// Escribe `value` repartido en `hi`/`lo` sobre `words` (la lista activa).
-	void apply(u16* words, eng::u32 value) const {
-		words[hi_index + 1u] = static_cast<u16>(value >> 16);
-		words[lo_index + 1u] = static_cast<u16>(value & 0xffffu);
+	/// Escribe `value` repartido en `hi`/`lo` sobre `words` (la lista activa). Los slots
+	/// tipados garantizan que ambas palabras son datos de MOVE.
+	void apply(eng::Span<u16> words, eng::u32 value) const {
+		copper::patch_data(words, hi, static_cast<u16>(value >> 16));
+		copper::patch_data(words, lo, static_cast<u16>(value & 0xffffu));
 	}
 };
 
-/// Construye un `Patch32` a partir del índice del MOVE `hi` (el `lo` va 2 words después).
-[[nodiscard]] inline Patch32 patch32_at(copper::Scheduler&, u16 hi_index) {
-	return Patch32 {hi_index, static_cast<u16>(hi_index + 2u)};
+/// Construye un `Patch32` a partir del slot del MOVE `hi` (el `lo` es la instrucción
+/// siguiente, 2 words después: par `move_at` consecutivos).
+[[nodiscard]] inline Patch32 patch32_at(copper::Scheduler&, copper::MoveSlot hi) {
+	return Patch32 {hi, hi.next_instruction()};
 }
 
 /// Escena viva: posee los bitplanes (contiguos) y la copperlist, y el emisor de Copper.
@@ -205,12 +207,12 @@ public:
 			return 0u;
 		}
 		const Patch32& patch = m_plane_patch[p];
-		if (patch.hi_index == 0u && patch.lo_index == 0u) {
+		if (!patch.hi.valid() && !patch.lo.valid()) {
 			return 0u;
 		}
 		const u16* words = m_plan.active_words();
-		return (static_cast<u32>(words[patch.hi_index + 1u]) << 16) |
-		       static_cast<u32>(words[patch.lo_index + 1u]);
+		return (static_cast<u32>(words[patch.hi.data_word()]) << 16) |
+		       static_cast<u32>(words[patch.lo.data_word()]);
 	}
 
 	/// `true` si el `BPLxPT` del registro `p` apunta al **plano de bitmap** `source` del buffer
@@ -551,7 +553,7 @@ private:
 			return;
 		}
 		const eng::ChipPlaneView planes = m_buffers[index].mem_view();
-		u16* words = m_plan.active_words();
+		const eng::Span<u16> words = m_plan.active_span();
 		for (u8 p = 0u; p < m_res.planes; ++p) {
 			const u8 src = (m_plane_source[p] < m_res.planes) ? m_plane_source[p] : p;
 			const eng::u32 off = eng::math::mulu32x16(m_plane_bytes, static_cast<u16>(src));

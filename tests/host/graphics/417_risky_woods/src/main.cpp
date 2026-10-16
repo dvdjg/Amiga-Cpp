@@ -57,21 +57,26 @@ struct SpySched {
 			moves[n_moves++] = Mv {static_cast<u16>(reg), v};
 		}
 	}
+	void move(eng::copper::RegisterOffset reg, u16 v) {
+		if (n_moves < 512u) {
+			moves[n_moves++] = Mv {reg.offset, v};
+		}
+	}
 	void move(u16 reg, u16 v) {
 		if (n_moves < 512u) {
 			moves[n_moves++] = Mv {reg, v};
 		}
 	}
-	/// MOVE parcheable: devuelve el índice (en words) de la instrucción.
-	u16 move_at(eng::copper::Register reg, u16 v) {
+	/// MOVE parcheable: devuelve el slot de la instrucción (índice en words del opcode).
+	eng::copper::MoveSlot move_at(eng::copper::Register reg, u16 v) {
 		const u16 idx = static_cast<u16>(n_moves * 2u);
 		move(reg, v);
-		return idx;
+		return eng::copper::MoveSlot {idx};
 	}
-	u16 move_at(u16 reg, u16 v) {
+	eng::copper::MoveSlot move_at(eng::copper::RegisterOffset reg, u16 v) {
 		const u16 idx = static_cast<u16>(n_moves * 2u);
 		move(reg, v);
-		return idx;
+		return eng::copper::MoveSlot {idx};
 	}
 	[[nodiscard]] u16 words_used() const { return static_cast<u16>(n_moves * 2u); }
 	void wait_line_safe(u16) {}

@@ -29,3 +29,10 @@ cadencia uniforme de 1 px/frame sin tirones.
 
 Artefacto de captura en el cruce de palabra (0,0 + salto) compartido con 104 — anotado como
 nota de herramienta; el contrato fino de 101 lo cubre su propio analizador (OK).
+
+La pasada de regresión con `--pixel-assert` sobre una ventana de 14 frames falla en el frame
+del cruce (`shift-left-1px-per-frame`, error ~0,31 > 0,01): el contrato `pixel-contract.json`
+exige el desplazamiento de 1 px en **toda** la ventana y el tirón de captura del cruce lo
+rompe. Confirmado **preexistente** con A/B del binario de `HEAD` sin cambios locales (falla en
+el mismo punto, índice 6/5 según fase de inicio): no lo introduce ningún cambio de la ronda
+del refactor tipado de copper.

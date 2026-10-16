@@ -245,10 +245,10 @@ private:
 		// SPREN: así el DMA no arma con los registros basura que dejó AmigaDOS.
 		const eng::uintptr sprite_base = reinterpret_cast<eng::uintptr>(m_sprite_block.view.data());
 		for (eng::u8 c = 0; c < 8u; ++c) {
-			sched.move(static_cast<eng::u16>(0x120u + c * 4u), static_cast<eng::u16>(sprite_base >> 16));   // SPRxPTH
-			sched.move(static_cast<eng::u16>(0x122u + c * 4u), static_cast<eng::u16>(sprite_base & 0xffffu)); // SPRxPTL
-			sched.move(static_cast<eng::u16>(0x142u + c * 8u), 0x0000); // SPRxCTL (VSTOP=0)
-			sched.move(static_cast<eng::u16>(0x140u + c * 8u), 0x0000); // SPRxPOS (VSTART=0)
+			sched.move(eng::copper::sprite_pointer_high_register(c), static_cast<eng::u16>(sprite_base >> 16));   // SPRxPTH
+			sched.move(eng::copper::sprite_pointer_low_register(c), static_cast<eng::u16>(sprite_base & 0xffffu)); // SPRxPTL
+			sched.move(eng::copper::sprite_ctl_register(c), 0x0000); // SPRxCTL (VSTOP=0)
+			sched.move(eng::copper::sprite_pos_register(c), 0x0000); // SPRxPOS (VSTART=0)
 		}
 		sched.move(
 			eng::copper::Register::DMACON,

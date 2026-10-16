@@ -41,21 +41,23 @@ reusable al engine y luego se hace el DPF en 202.
 > ## Resuelto 2026-09-03 (II) — franja HUD de la 201: fix `hud_planes=6` validado + regresión 107 sin regresión + cierre del caso
 >
 > **Qué se arregló y su evidencia (causa: la 201 es EHB de 6 planos y el `scene_cfg` traía
-> `hud_planes` heredado).** La demo 201 muestra el **mapa EHB** (BPLCON4=1, 6 planes) y
-> dentro de él una **zona HUD de 48 px** (`hud_raster=249`) donde el engine debe **apagar el
-> EHB** para renderizar el HUD con su propia paleta. El `scene_cfg.hud_planes` estaba mal
-> (se heredó de una config de 4 planos) y la zona HUD no cuadraba con el canvas del HUD
-> `draw_hud` (que pinta fondo negro + 3 líneas de texto). El fix es **`hud_planes=6`**
-> (`demos/techniques/amiga/playfield/201_ehb_map/src/main.cpp`, `scene_cfg`), que hace que la zona HUD del copper
-> emigre a planos 1-6 y apague el EHB (BPLCON4=0) correctamente.
+> `hud_planes` heredado).** La demo 201 muestra el **mapa EHB** (6 planos con HAM=0 en
+> `BPLCON0`; el `$106` de la cabecera es `BPLCON3`/`ENBPLCN3`) y dentro de él una **zona HUD
+> de 48 px** (`hud_raster=249`) donde el engine baja los planos del tramo para que el
+> half-brite no aplique y renderiza el HUD con su propia paleta. El `scene_cfg.hud_planes`
+> estaba mal (se heredó de una config de 4 planos) y la zona HUD no cuadraba con el canvas
+> del HUD `draw_hud` (que pinta fondo negro + 3 líneas de texto). El fix es
+> **`hud_planes=6`** (`demos/techniques/amiga/playfield/201_ehb_map/src/main.cpp`, `scene_cfg`), que hace que la zona
+> HUD del copper emigre a planos 1-6 con su `BPLCON0` correctamente.
 >
 > **Evidencia concluyente (3 vías independientes):** (1) dump real del copper de la zona HUD
-> (`ptrscan.mjs`): `WAIT vpos=249` → `BPLCON0=0x6200` (6 pl), `BPLCON4=0x0000` (EHB off),
+> (`ptrscan.mjs`): `WAIT vpos=249` → `BPLCON0=0x6200` (6 pl), `BPLCON3(0x106)=0x0000`
+> (ENBPLCN3 off; el EHB del tramo lo determina el `BPLCON0` del HUD),
 > `BPLCON1=0` y los 6 `BPL1PT..6PT` al canvas HUD `0x4b670..0x4b738`; la zona *main* mantiene
-> `BPLCON4=0x0001` (EHB on). (2) Histograma de la captura (filas de texto del HUD ~480-515
+> `BPLCON3(0x106)=0x0001` (funciones ECS del header). (2) Histograma de la captura (filas de texto del HUD ~480-515
 > negro al 87-100 %, marrón 0). (3) Ollama local `qwen3-vl:8b-instruct-q8_0`: "franja HUD con
 > fondo NEGRO". El marrón `0x844` observado antes en filas 448-479/516-533 es el **borde
-> inferior del mapa EHB** (BPLCON4=1), contenido legítimo, no una fuga de los planos 5-6 del
+> inferior del mapa EHB** (6 planos), contenido legítimo, no una fuga de los planos 5-6 del
 > HUD.
 >
 > **Regresión 107: sin regresión.** Build `--clean` OK (solo el warning benigno

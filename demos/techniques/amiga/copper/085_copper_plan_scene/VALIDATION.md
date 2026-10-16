@@ -88,3 +88,15 @@ se re-capturó (`--sequence-frames 6 --sequence-interval-ms 500`) antes de valid
 
 DT-007 cerrada. DT-003/§6.4 (límites del montaje vs imagen única) sigue vigente como nota de
 metodología.
+
+## Defecto conocido (fuera del alcance de lo verificado arriba)
+
+Capturas frescas por paridad de buffer (2026-10, verificación del refactor tipado de copper)
+encuentran un **defecto preexistente de layout de memoria**: el bloque de copperlist del `Plan`
+cae dentro del **4.º plano del bitmap 1** (`BPL4PT = COP1LC`), de modo que uno de cada dos
+frames muestra el disco en negro (índice +8 → COLOR08-15 = 0). Reproducido con el binario de
+`HEAD` sin cambios locales (capturas alternas con 6076/0/6076 píxeles negros interiores), así
+que **no** lo introduce ese refactor. Detalle, evidencia de registros y vías de arreglo:
+`docs/debugging/investigaciones/085-copper-solapa-plano4-bitmap1.md`. La conclusión 1 de este
+informe vale para los frames del bitmap 0; la demo queda **parcialmente verificada** hasta
+cerrar la deuda.

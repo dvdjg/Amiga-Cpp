@@ -262,6 +262,12 @@ void test_sprite_layer() {
 			}
 			++moves;
 		}
+		void move(eng::copper::RegisterOffset reg, eng::u16 v) {
+			if (reg.offset == static_cast<eng::u16>(eng::copper::Register::BPLCON2)) {
+				bplcon2 = v;
+			}
+			++moves;
+		}
 		void wait_line_safe(eng::u16) { ++waits; }
 		void wait_position_safe(eng::u16, eng::u8) { ++waits; }
 	};

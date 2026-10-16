@@ -63,23 +63,33 @@ struct ScheduleReport {
 	bool ok = false;                  ///< `true` si la lista cupo en el bloque reservado
 	bool has_visible_heavy_palette_zone = false; ///< hay zona de paleta pesada en área visible
 	bool has_visible_timeline_spill = false;     ///< hay desborde de Timeline en área visible
+
+	/// **Publicable**: la lista cupo, no desborda el presupuesto de la Timeline en área
+	/// visible y no dejó intenciones sin manejar. Es el criterio que endurece
+	/// `Plan::end_frame()` cuando se compila con `ENG_COPPER_STRICT` (ver
+	/// `copper::strict_mode`). Las zonas de paleta pesadas **no** cuentan como defecto:
+	/// son un coste deliberado de muchas escenas EHB.
+	[[nodiscard]] constexpr bool publishable() const {
+		return ok && !has_visible_timeline_spill && unhandled_intents == 0u;
+	}
 };
 
 /// **Handle tipado a un MOVE de la lista** para parchearlo por frame con precisión
 /// quirúrgica. Guarda el emisor (el `Plan` lo reorienta al bloque trasero cada frame, así
-/// que el handle sigue siendo válido tras el swap) y el índice de la instrucción.
+/// que el handle sigue siendo válido tras el swap) y el `MoveSlot` de la instrucción:
+/// el tipo impide que un parche de dato caiga sobre un WAIT o el opcode de otro MOVE.
 /// `set(value)` escribe el word de valor; coste ~1 store tras una comprobación barata.
 struct PatchHandle {
 	void* owner = nullptr; ///< objeto emisor del MOVE (p. ej. el `ListBuilder`/`Plan`)
-	void (*apply)(void*, u16, u16) = nullptr; ///< `apply(owner, index, value)`
-	u16 index = 0; ///< índice de la word de instrucción (el dato va en `index + 1`)
+	void (*apply)(void*, MoveSlot, u16) = nullptr; ///< `apply(owner, slot, value)`
+	MoveSlot slot {}; ///< instrucción MOVE emisora (su dato se parchea)
 
 	/// `true` si el handle apunta a una instrucción (no nulo).
 	[[nodiscard]] constexpr bool valid() const { return apply != nullptr; }
 	/// Escribe el word de valor del MOVE referenciado (no-op si el handle es nulo).
 	void set(u16 value) const {
 		if (apply != nullptr) {
-			apply(owner, index, value);
+			apply(owner, slot, value);
 		}
 	}
 };
@@ -124,7 +134,7 @@ public:
 		m_report = {};
 	}
 
-	/// Emite un MOVE generico.
+	/// Emite un MOVE generico a un registro del enum (destino validado por construccion).
 	///
 	/// Se mantiene publico porque algunos drivers tempranos necesitan registrar
 	/// movimientos concretos. A medida que aparezcan APIs mas expresivas, este metodo
@@ -136,91 +146,98 @@ public:
 		}
 	}
 
-	__attribute__((always_inline)) inline void move(u16 custom_register_offset, u16 value) {
-		m_builder.move(custom_register_offset, value);
+	/// Emite un MOVE a un destino del **dominio** (`RegisterOffset`): offset ya validado
+	/// por un constructor del dominio (colors, punteros, sprites). Inventar un offset
+	/// requiere `RegisterOffset{...}` explicito y el validador de setup lo comprueba.
+	__attribute__((always_inline)) inline void move(RegisterOffset offset, u16 value) {
+		m_builder.move(offset, value);
 		if constexpr (Report) {
 			++m_report.display_moves;
 		}
 	}
 
 	/// MOVE con escritura de 32 bits (1 store); útil en copperlists largas por línea.
-	__attribute__((always_inline)) inline void move32(u16 custom_register_offset, u16 value) {
-		m_builder.move32(custom_register_offset, value);
+	__attribute__((always_inline)) inline void move32(RegisterOffset offset, u16 value) {
+		m_builder.move32(offset, value);
 		if constexpr (Report) {
 			++m_report.display_moves;
 		}
 	}
 
-	/// Emite un MOVE y devuelve un **handle** (índice de la word de instrucción) para
+	/// Emite un MOVE y devuelve un **handle** (slot de la instrucción) para
 	/// parchear su dato despues con `patch_data`. Es la via para que un driver
 	/// parchee registros por frame sin depender de offsets cableados (ver
 	/// `copper::DoubleBuffer`).
 	/// \param reg    registro destino.
 	/// \param value  palabra de dato.
-	/// \return índice (en words) del MOVE emitido (para `patch_data`).
-	u16 move_at(Register reg, u16 value) {
+	/// \return slot del MOVE emitido (para `patch_data`).
+	MoveSlot move_at(Register reg, u16 value) {
 		++m_report.display_moves;
 		return m_builder.move_at(reg, value);
 	}
 
-	/// Igual que `move_at(Register, ...)` para registros custom por offset.
-	u16 move_at(u16 custom_register_offset, u16 value) {
+	/// Igual que `move_at(Register, ...)` para destinos del dominio (`RegisterOffset`).
+	MoveSlot move_at(RegisterOffset offset, u16 value) {
 		++m_report.display_moves;
-		return m_builder.move_at(custom_register_offset, value);
+		return m_builder.move_at(offset, value);
 	}
 
-	/// Emite un MOVE **parcheable** y devuelve un `PatchHandle` (guarda el índice y este
+	/// Emite un MOVE **parcheable** y devuelve un `PatchHandle` (guarda el slot y este
 	/// emisor). La app lo escribe por frame con `set(value)`; el `Plan` reorienta el
 	/// scheduler al bloque trasero, así que el handle sigue válido tras el swap.
 	/// \param reg    registro destino.
 	/// \param value  palabra de dato inicial.
 	/// \return handle para reescribir el dato por frame (`handle.set(v)`).
 	[[nodiscard]] PatchHandle patchable(Register reg, u16 value) {
-		const u16 index = move_at(reg, value);
+		const MoveSlot slot = move_at(reg, value);
 		return PatchHandle {
 			this,
-			[](void* o, u16 i, u16 v) { static_cast<SchedulerT*>(o)->patch_data(i, v); },
-			index};
+			[](void* o, MoveSlot s, u16 v) { static_cast<SchedulerT*>(o)->patch_data(s, v); },
+			slot};
 	}
 
-	/// Handle a un MOVE **ya emitido**, por su índice (p. ej. una zona de paleta emitida
+	/// Handle a un MOVE **ya emitido**, por su slot (p. ej. una zona de paleta emitida
 	/// con `move_at`), para parchearlo por frame.
-	[[nodiscard]] PatchHandle patch_handle(u16 index) {
+	[[nodiscard]] PatchHandle patch_handle(MoveSlot slot) {
 		return PatchHandle {
 			this,
-			[](void* o, u16 i, u16 v) { static_cast<SchedulerT*>(o)->patch_data(i, v); },
-			index};
+			[](void* o, MoveSlot s, u16 v) { static_cast<SchedulerT*>(o)->patch_data(s, v); },
+			slot};
 	}
 
 	/// Sobrescribe el dato de un MOVE emitido con `move_at` (mismo handle).
-	/// `instruction_word` = índice del MOVE; `value` = nueva palabra de dato.
-	void patch_data(u16 instruction_word, u16 value) { m_builder.patch_data(instruction_word, value); }
+	/// `slot` = MOVE del que se parchea el dato; `value` = nueva palabra de dato.
+	void patch_data(MoveSlot slot, u16 value) { m_builder.patch_data(slot, value); }
 
 	/// Sobrescribe el REGISTRO (destino) de un MOVE emitido con `move_at`.
-	/// `instruction_word` = índice del MOVE; `reg` = offset del registro destino.
-	void patch_move_reg(u16 instruction_word, u16 reg) {
-		m_builder.patch_move_reg(instruction_word, reg);
+	/// `slot` = MOVE cuyo opcode se reescribe; `reg` = nuevo registro destino.
+	void patch_move_reg(MoveSlot slot, RegisterOffset reg) {
+		m_builder.patch_move_reg(slot, reg);
 	}
 
-	/// Sobrescribe la LINEA de un WAIT emitido antes (indice de su word0).
-	void patch_wait(u16 instruction_word, u16 vpos, u8 hpos = 1) {
-		m_builder.patch_wait(instruction_word, vpos, hpos);
+	/// Sobrescribe la LINEA de un WAIT emitido antes. La posicion debe caer en 0..255:
+	/// por encima la lista necesita el par de overflow y el builder queda no valido.
+	void patch_wait(WaitSlot slot, u16 vpos, u8 hpos = 1) {
+		m_builder.patch_wait(slot, vpos, hpos);
 	}
 
 	// --- Primitivas crudas (para etapas que emiten su propia lista, p. ej. copper chunky).
 	//     Delegan en el `ListBuilder` del scheduler (sin contabilidad de Timeline). ---
-	u16 wait_raw(u16 vp, u16 hp, u16 mask) { return m_builder.wait_raw(vp, hp, mask); }
-	u16 wait_masked(u16 vp, u16 hp, u16 vpmask, u16 hpmask) {
+	WaitSlot wait_raw(u16 vp, u16 hp, u16 mask) { return m_builder.wait_raw(vp, hp, mask); }
+	WaitSlot wait_masked(u16 vp, u16 hp, u16 vpmask, u16 hpmask) {
 		return m_builder.wait_masked(vp, hp, vpmask, hpmask);
 	}
-	u16 move32(Register reg, eng::Address<eng::MemoryKind::Chip> address) { return m_builder.move32(reg, address); }
-	void patch_move32(u16 instruction_word, eng::Address<eng::MemoryKind::Chip> address) {
-		m_builder.patch_move32(instruction_word, address);
+	MoveSlot move32(Register reg, eng::Address<eng::MemoryKind::Chip> address) { return m_builder.move32(reg, address); }
+	void patch_move32(MoveSlot slot, eng::Address<eng::MemoryKind::Chip> address) {
+		m_builder.patch_move32(slot, address);
 	}
-	[[nodiscard]] constexpr eng::Address<eng::MemoryKind::Chip> instruction_address(u16 instruction_word) const {
-		return m_builder.instruction_address(instruction_word);
+	[[nodiscard]] constexpr eng::Address<eng::MemoryKind::Chip> instruction_address(MoveSlot slot) const {
+		return m_builder.instruction_address(slot);
 	}
-	u16 skip(u16 vpos, u16 hpos) { return m_builder.skip(vpos, hpos); }
+	[[nodiscard]] constexpr eng::Address<eng::MemoryKind::Chip> instruction_address(WaitSlot slot) const {
+		return m_builder.instruction_address(slot);
+	}
+	WaitSlot skip(u16 vpos, u16 hpos) { return m_builder.skip(vpos, hpos); }
 
 	/// Carga un puntero BPLxPT desde una intención de display. Mantiene los dos
 	/// MOVEs del puntero en el scheduler, también para los splits verticales.
@@ -231,12 +248,14 @@ public:
 
 	/// Emite un WAIT de raster sin asociarlo a una paleta. Camino caliente.
 	/// \param line  línea de espera (0..255).
-	__attribute__((always_inline)) inline void wait_line(u8 line) {
-		m_builder.wait_line(line);
+	/// \return slot del WAIT (para `patch_wait`).
+	__attribute__((always_inline)) inline WaitSlot wait_line(u8 line) {
+		const WaitSlot slot = m_builder.wait_line(line);
 		if constexpr (Report) {
 			m_timeline.reserve_wait(line);
 			++m_report.waits;
 		}
+		return slot;
 	}
 
 	/// Emite un WAIT a una linea PAL completa (0..311) manejando el overflow.
@@ -244,33 +263,39 @@ public:
 	/// Delega en `ListBuilder::wait_line_pal` (port de `CopWaitSafe` de libgfx). El
 	/// timeline solo reserva las lineas 0..255 (zona visible); las lineas del borde
 	/// inferior/VBlank no compiten por H-BLANK y no se presupuestan aqui.
-	__attribute__((always_inline)) inline void wait_line_safe(u16 line) {
-		m_builder.wait_line_pal(line);
+	/// \return slot del WAIT (para `patch_wait`).
+	__attribute__((always_inline)) inline WaitSlot wait_line_safe(u16 line) {
+		const WaitSlot slot = m_builder.wait_line_pal(line);
 		if constexpr (Report) {
 			if (line <= 255u) {
 				m_timeline.reserve_wait(static_cast<u8>(line & 0xffu));
 			}
 			++m_report.waits;
 		}
+		return slot;
 	}
 
 	/// Emite un WAIT a una posicion concreta (V y H): para "copper bars" a mitad de
 	/// scanline. Camino caliente.
-	__attribute__((always_inline)) inline void wait_position(u8 line, u8 hpos) {
-		m_builder.wait_position(line, hpos);
+	/// \return slot del WAIT (para `patch_wait`).
+	__attribute__((always_inline)) inline WaitSlot wait_position(u8 line, u8 hpos) {
+		const WaitSlot slot = m_builder.wait_position(line, hpos);
 		m_timeline.reserve_wait(line);
 		++m_report.waits;
+		return slot;
 	}
 
 	/// WAIT a una POSICION (V y H) de una linea PAL completa (0..311): port exacto de
 	/// `CopWaitSafe` conservando la comparacion horizontal (`ListBuilder::wait_position_pal`).
 	/// Para cambios de paleta por scanline mas alla de la linea 255 sin perder el H.
-	__attribute__((always_inline)) inline void wait_position_safe(u16 line, u8 hpos) {
-		m_builder.wait_position_pal(line, hpos);
+	/// \return slot del WAIT (para `patch_wait`).
+	__attribute__((always_inline)) inline WaitSlot wait_position_safe(u16 line, u8 hpos) {
+		const WaitSlot slot = m_builder.wait_position_pal(line, hpos);
 		if (line <= 255u) {
 			m_timeline.reserve_wait(static_cast<u8>(line & 0xffu));
 		}
 		++m_report.waits;
+		return slot;
 	}
 
 	/// **Rearmado horizontal de un canal de sprite**: espera a `(vstart, hpos)` y reescribe
@@ -305,11 +330,11 @@ public:
 			(((r.vstop >> 8u) & 0x1u) << 1u) |    // bit 1: VSTOP[8]
 			(r.hpos & 0x1u)                       // bit 0: HSTART[0]
 		);
-		move(static_cast<u16>(0x140u + ch * 8u), pos);   // SPRxPOS
-		move(static_cast<u16>(0x142u + ch * 8u), ctl);   // SPRxCTL
+		move(sprite_pos_register(static_cast<u8>(ch)), pos);
+		move(sprite_ctl_register(static_cast<u8>(ch)), ctl);
 		const eng::u32 addr = data.address(0).value;     // estructura de DATA (el walk la lee)
-		move(static_cast<u16>(0x120u + ch * 4u), static_cast<u16>(addr >> 16u));   // SPRxPTH
-		move(static_cast<u16>(0x122u + ch * 4u), static_cast<u16>(addr & 0xffffu)); // SPRxPTL
+		move(sprite_pointer_high_register(static_cast<u8>(ch)), static_cast<u16>(addr >> 16u));
+		move(sprite_pointer_low_register(static_cast<u8>(ch)), static_cast<u16>(addr & 0xffffu));
 	}
 
 	/// **Reposiciona** un canal de sprite horizontalmente a media línea: espera a
@@ -325,9 +350,9 @@ public:
 	/// valor que el HSTART de `SPRxPOS`). Al final de la línea hay que **resetear** el
 	/// canal a la izquierda (otra llamada con el `hpos` inicial) antes de la siguiente.
 	void emit_sprite_horizontal_reposition(u8 channel, u8 vline, u16 hpos) {
-		const u16 ch = channel & 7u;
+		const u8 ch = static_cast<u8>(channel & 7u);
 		wait_position(vline, static_cast<u8>(hpos & 0xfeu));
-		move(static_cast<u16>(0x140u + ch * 8u),
+		move(sprite_pos_register(ch),
 		     static_cast<u16>((static_cast<u16>(vline) << 8u) | ((hpos >> 1u) & 0xffu)));
 	}
 
@@ -412,7 +437,7 @@ public:
 	///
 	/// En el WAIT de `zone.top` reprograma, en orden canónico MI09:
 	/// `BPLCON0` -> `DDFSTRT`/`DDFSTOP` -> `BPL1MOD`/`BPL2MOD` -> `BPLxPT` (par por
-	/// plano) -> `BPLCON4`/`BPLCON1` (opcionales) -> paleta (opcional). Los registros
+	/// plano) -> `BPLCON3`/`BPLCON1` (opcionales) -> paleta (opcional). Los registros
 	/// de modo van DESPUÉS de los punteros (intercalarlos pierde el último plano).
 	/// Devuelve `false` si la zona no es utilizable (DDF desalineado, planos fuera de
 	/// rango o falta la base cuando `planes > 0`); en ese caso no emite nada.
@@ -437,13 +462,13 @@ public:
 				)
 			);
 		}
-		// Las escrituras de modo que NO son geometría (BPLCON4, BPLCON1) van DESPUES
+		// Las escrituras de modo que NO son geometría (BPLCON3, BPLCON1) van DESPUES
 		// de los punteros: intercalarlas entre BPLCON0 y DDF/módulos/punteros hace
 		// que el DMA pierda el ultimo plano del tramo (verificado en WinUAE-DBG con
 		// 4/5 planos; ver OPTIMIZACION_GPP_68000.md). Orden canónico estricto:
 		// BPLCON0 -> DDF -> módulos -> BPLxPT -> (modo/paleta).
-		if (zone.set_bplcon4) {
-			move(Register::BPLCON4, zone.bplcon4);
+		if (zone.set_bplcon3) {
+			move(Register::BPLCON3, zone.bplcon3);
 		}
 		if (zone.set_bplcon1) {
 			move(Register::BPLCON1, zone.bplcon1);
@@ -475,11 +500,11 @@ public:
 		}
 	}
 
-	/// Como `emit_palette` pero emitido con `move_at`, devolviendo el índice del primer MOVE
+	/// Como `emit_palette` pero emitido con `move_at`, devolviendo el slot del primer MOVE
 	/// (para parchear los colores por frame). Mismo registro en el informe.
-	u16 emit_palette_at(eng::PaletteWords colors, u8 first = 0, u8 count = 32) {
+	MoveSlot emit_palette_at(eng::PaletteWords colors, u8 first = 0, u8 count = 32) {
 		if (colors.empty() || first >= 32) {
-			return 0u;
+			return MoveSlot {};
 		}
 		if (first + count > 32) {
 			count = static_cast<u8>(32 - first);
@@ -487,15 +512,15 @@ public:
 		if (static_cast<eng::u32>(first) + count > colors.size()) {
 			count = static_cast<u8>(colors.size() - first);
 		}
-		u16 first_index = 0u;
+		MoveSlot first_slot {};
 		for (u8 i = 0; i < count; ++i) {
-			const u16 idx = move_at(color_register(static_cast<u8>(first + i)), colors[first + i]);
+			const MoveSlot slot = move_at(color_register(static_cast<u8>(first + i)), colors[first + i]);
 			if (i == 0u) {
-				first_index = idx;
+				first_slot = slot;
 			}
 			++m_report.palette_moves;
 		}
-		return first_index;
+		return first_slot;
 	}
 
 	/// Espera a una linea y aplica una paleta.
@@ -515,8 +540,8 @@ public:
 		emit_palette(colors, first, count);
 	}
 
-	/// Igual que `emit_palette_zone` pero devuelve el índice del primer MOVE (parcheable).
-	u16 emit_palette_zone_at(u8 line, eng::PaletteWords colors, u8 first = 0, u8 count = 32) {
+	/// Igual que `emit_palette_zone` pero devuelve el slot del primer MOVE (parcheable).
+	MoveSlot emit_palette_zone_at(u8 line, eng::PaletteWords colors, u8 first = 0, u8 count = 32) {
 		wait_line(line);
 		m_timeline.reserve_moves(line, count);
 		if (count >= 16) {
@@ -592,7 +617,7 @@ public:
 	/// cada MOVE para conservar los handles del `copper::Plan`. Devuelve false sin escribir si
 	/// el grupo no es homogéneo; el caller entonces usa `emit_copper_intents_fast`.
 	[[nodiscard]] bool emit_palette_line_batch(eng::Span<const graphics::CopperIntent> intents,
-						  eng::Span<const u16> order, eng::Span<u16> data_words,
+						  eng::Span<const u16> order, eng::Span<MoveSlot> data_words,
 						  u16 slot_start) {
 		if (order.empty() || static_cast<eng::usize>(slot_start) + order.size() > data_words.size()) return false;
 		const u16 count = static_cast<u16>(order.size());
@@ -613,7 +638,8 @@ public:
 		for (u16 i = 0u; i < count; ++i) {
 			const graphics::CopperIntent& it = intents[order[i]];
 			m_builder.move(color_register(it.first), it.colors[it.first]);
-			data_words[slot_start + i] = static_cast<u16>(m_builder.words_used() - 1u);
+			// El MOVE ocupa las dos ultimas palabras: opcode en `used-2`, dato en `used-1`.
+			data_words[slot_start + i] = MoveSlot {static_cast<u16>(m_builder.words_used() - 2u)};
 			if constexpr (Report) {
 				if (it.top <= 255u) m_timeline.reserve_moves(static_cast<u8>(it.top), 1u);
 			}
@@ -724,8 +750,9 @@ private:
 					// `SpriteManager` los programa por separado.
 					const eng::Address<eng::MemoryKind::Chip> addr =
 						eng::Address<eng::MemoryKind::Chip>::from_storage(intent.sprite_ptr);
-					move(static_cast<u16>(0x120u + static_cast<u16>(intent.sprite_channel) * 4u), static_cast<u16>(addr.value >> 16));
-					move(static_cast<u16>(0x122u + static_cast<u16>(intent.sprite_channel) * 4u), static_cast<u16>(addr.value & 0xffffu));
+					const u8 ch = static_cast<u8>(intent.sprite_channel & 7u);
+					move(sprite_pointer_high_register(ch), static_cast<u16>(addr.value >> 16));
+					move(sprite_pointer_low_register(ch), static_cast<u16>(addr.value & 0xffffu));
 				}
 				break;
 			case graphics::CopperIntentKind::Priority:

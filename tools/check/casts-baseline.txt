@@ -16,8 +16,8 @@
   0     1  engine/include/eng/api/copper.hpp
   0     1  engine/include/eng/api/device.hpp
   0     3  engine/include/eng/api/effects/fine_scroll.hpp
-  0    25  engine/include/eng/api/effects/risky_woods.hpp
-  1    43  engine/include/eng/api/effects/sprite_layer.hpp
+  0    23  engine/include/eng/api/effects/risky_woods.hpp
+  1    38  engine/include/eng/api/effects/sprite_layer.hpp
   0     3  engine/include/eng/api/framebuffer.hpp
   0    19  engine/include/eng/api/objects.hpp
   0     1  engine/include/eng/api/scroll.hpp
@@ -99,7 +99,7 @@
   0    10  engine/include/eng/core/math/linalg.hpp
   0    49  engine/include/eng/core/math/minifloat_math.hpp
   0   105  engine/include/eng/core/math/minifloat.hpp
-  0    26  engine/include/eng/core/math/noise.hpp
+  0    21  engine/include/eng/core/math/noise.hpp
   0     1  engine/include/eng/core/math/numeric_traits.hpp
   0     9  engine/include/eng/core/math/random.hpp
   0    34  engine/include/eng/core/math/scalar_math.hpp
@@ -190,14 +190,14 @@
   2    13  engine/include/eng/graphics/c2p.hpp
   1     6  engine/include/eng/graphics/composition/copper_chunky.hpp
   0    21  engine/include/eng/graphics/composition/limits.hpp
-  0    19  engine/include/eng/graphics/composition/scene.hpp
+  0    18  engine/include/eng/graphics/composition/scene.hpp
   0    38  engine/include/eng/graphics/composition/stages.hpp
   2     1  engine/include/eng/graphics/copper/double_buffer.hpp
   0    20  engine/include/eng/graphics/copper/plan.hpp
   0    20  engine/include/eng/graphics/copper/static_plan.hpp
   0     1  engine/include/eng/graphics/copper/template.hpp
   0     8  engine/include/eng/graphics/copper/timeline.hpp
-  0     9  engine/include/eng/graphics/drivers/sprite_bend.hpp
+  0     7  engine/include/eng/graphics/drivers/sprite_bend.hpp
   3    46  engine/include/eng/graphics/drivers/tile_scroll.hpp
   0     4  engine/include/eng/graphics/effects/palette_cycle.hpp
   0     4  engine/include/eng/graphics/effects/palette_transition.hpp
@@ -220,8 +220,8 @@
   3    11  engine/include/eng/graphics/sprite_chain.hpp
   0     1  engine/include/eng/graphics/sprite_channel_window.hpp
   0     8  engine/include/eng/graphics/sprite_collision.hpp
-  0    17  engine/include/eng/graphics/sprite_line_layer.hpp
-  0    26  engine/include/eng/graphics/sprite_manager.hpp
+  0    13  engine/include/eng/graphics/sprite_line_layer.hpp
+  0    18  engine/include/eng/graphics/sprite_manager.hpp
   0     5  engine/include/eng/graphics/sprite_palette.hpp
   0     6  engine/include/eng/graphics/sprite.hpp
   0    10  engine/include/eng/graphics/tile_planar.hpp
@@ -294,7 +294,7 @@
   0    23  engine/include/eng/scene/scroll_plan.hpp
   0    15  engine/include/eng/scene/trajectory.hpp
   0    25  engine/include/eng/scene/virtual_scene.hpp
-  0    18  engine/include/eng/setup/coherence.hpp
+  0    20  engine/include/eng/setup/coherence.hpp
   0     3  engine/include/eng/sim/archetypes.hpp
   0    10  engine/include/eng/sim/avatar.hpp
   0    63  engine/include/eng/sim/behavior.hpp

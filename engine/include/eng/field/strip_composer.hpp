@@ -61,20 +61,21 @@ public:
 	}
 
 	/// **Parchea** en el bloque inactivo los valores de Copper (BPLxPT de la ventana + BPLCON1 +
-	/// split) y lo publica. No re-emite la lista.
+	/// split) y lo publica. No re-emite la lista. Los parches van por slots tipados (`MoveSlot`):
+	/// no pueden caer sobre el opcode del MOVE ni sobre un WAIT.
 	/// \param c  valores de Copper del frame (`strip_copper_values`).
 	/// \return `false` si la lista no está construida o falta la base del anillo.
 	bool patch(const StripCopper& c) noexcept {
 		if (!m_built || m_base == nullptr) return false;
-		eng::u16* const w = m_copper.inactive_words();
-		w[m_bplcon1_handle + 1u] = c.bplcon1;
+		const eng::Span<eng::u16> w = m_copper.inactive_span();
+		copper::patch_data(w, m_bplcon1_slot, c.bplcon1);
 		for (eng::u8 p = 0u; p < m_geom.planes; ++p) {
 			const eng::u32 addr = base_addr(c.pt_byte[p]);
-			w[m_pt_handle[p][0] + 1u] = static_cast<eng::u16>(addr >> 16u);
-			w[m_pt_handle[p][1] + 1u] = static_cast<eng::u16>(addr & 0xffffu);
+			copper::patch_data(w, m_pt_slot[p][0], static_cast<eng::u16>(addr >> 16u));
+			copper::patch_data(w, m_pt_slot[p][1], static_cast<eng::u16>(addr & 0xffffu));
 			if (m_geom.split_vertical) {
-				w[m_split_pt_handle[p][0] + 1u] = static_cast<eng::u16>(addr >> 16u);
-				w[m_split_pt_handle[p][1] + 1u] = static_cast<eng::u16>(addr & 0xffffu);
+				copper::patch_data(w, m_split_pt_slot[p][0], static_cast<eng::u16>(addr >> 16u));
+				copper::patch_data(w, m_split_pt_slot[p][1], static_cast<eng::u16>(addr & 0xffffu));
 			}
 		}
 		m_copper.flip();
@@ -96,10 +97,10 @@ public:
 
 	[[nodiscard]] constexpr bool ok() const noexcept { return m_ok; }
 	[[nodiscard]] constexpr bool built() const noexcept { return m_built; }
-	[[nodiscard]] constexpr eng::u16 bplcon1_handle() const noexcept { return m_bplcon1_handle; }
-	/// Handle (índice de palabra) del MOVE parcheable de `BPLxPT` del plano `plane` (`hl` 0=alto, 1=bajo).
-	[[nodiscard]] constexpr eng::u16 pt_handle(eng::u8 plane, eng::u8 hl) const noexcept {
-		return m_pt_handle[plane][hl];
+	[[nodiscard]] constexpr copper::MoveSlot bplcon1_slot() const noexcept { return m_bplcon1_slot; }
+	/// Slot del MOVE parcheable de `BPLxPT` del plano `plane` (`hl` 0=alto, 1=bajo).
+	[[nodiscard]] constexpr copper::MoveSlot pt_slot(eng::u8 plane, eng::u8 hl) const noexcept {
+		return m_pt_slot[plane][hl];
 	}
 	[[nodiscard]] const eng::u16* debug_active_words() const noexcept { return m_copper.active_words(); }
 
@@ -109,7 +110,7 @@ private:
 		return reinterpret_cast<eng::uintptr>(m_base) + off;
 	}
 
-	/// Emite la copperlist completa una vez en el bloque inactivo (setup), con los handles.
+	/// Emite la copperlist completa una vez en el bloque inactivo (setup), con los slots.
 	bool emit() noexcept {
 		copper::SchedulerT<false> sched { m_copper.inactive_block() };
 		sched.move(copper::Register::DMACON, static_cast<eng::u16>(copper::DmaSetClear |
@@ -119,7 +120,7 @@ private:
 		sched.move(copper::Register::BPLCON0,
 			   graphics::composition::bplcon0_for(graphics::composition::SceneMode::Standard,
 							      m_geom.planes));
-		m_bplcon1_handle = sched.move_at(copper::Register::BPLCON1, 0u);
+		m_bplcon1_slot = sched.move_at(copper::Register::BPLCON1, 0u);
 		sched.move(copper::Register::BPLCON2, 0u);
 		sched.move(copper::Register::BPL1MOD, m_geom.bpl_mod);
 		sched.move(copper::Register::BPL2MOD, m_geom.bpl_mod);
@@ -129,8 +130,8 @@ private:
 		sched.move(copper::Register::DDFSTOP, kStripDdfStop);
 		sched.emit_palette(m_palette, 0u, 32u);
 		for (eng::u8 p = 0u; p < m_geom.planes; ++p) {
-			m_pt_handle[p][0] = sched.move_at(copper::bitplane_pointer_high_register(p), 0u);
-			m_pt_handle[p][1] = sched.move_at(copper::bitplane_pointer_low_register(p), 0u);
+			m_pt_slot[p][0] = sched.move_at(copper::bitplane_pointer_high_register(p), 0u);
+			m_pt_slot[p][1] = sched.move_at(copper::bitplane_pointer_low_register(p), 0u);
 		}
 		if (m_geom.split_vertical) {
 			// Split: la linea de corte es `0x2c + viewport_h`. Si cruza la 255 (OCS VPOS de 8
@@ -142,9 +143,9 @@ private:
 				sched.wait_raw(static_cast<eng::u16>(m_geom.split_line), 0x01u, 0xfffeu);
 			}
 			for (eng::u8 p = 0u; p < m_geom.planes; ++p) {
-				m_split_pt_handle[p][0] =
+				m_split_pt_slot[p][0] =
 					sched.move_at(copper::bitplane_pointer_high_register(p), 0u);
-				m_split_pt_handle[p][1] =
+				m_split_pt_slot[p][1] =
 					sched.move_at(copper::bitplane_pointer_low_register(p), 0u);
 			}
 		}
@@ -157,9 +158,9 @@ private:
 	eng::PaletteWords m_palette {};
 	Geom m_geom {};
 	const eng::u16* m_base = nullptr;
-	eng::u16 m_bplcon1_handle = 0u;
-	eng::u16 m_pt_handle[8][2] {};
-	eng::u16 m_split_pt_handle[8][2] {};
+	copper::MoveSlot m_bplcon1_slot {}; ///< MOVE parcheable de `BPLCON1` (fine scroll)
+	copper::MoveSlot m_pt_slot[8][2] {}; ///< MOVEs parcheables de `BPLxPTH`/`BPLxPTL` (ventana)
+	copper::MoveSlot m_split_pt_slot[8][2] {}; ///< MOVEs de los punteros del split vertical
 	bool m_ok = false;
 	bool m_built = false;
 };

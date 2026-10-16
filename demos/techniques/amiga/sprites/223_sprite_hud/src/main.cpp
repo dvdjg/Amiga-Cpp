@@ -275,12 +275,10 @@ private:
 		// stride 4 (`SPR0PTH=0x120`, `SPR1PTH=0x124`...); POS/CTL, stride 8
 		// (`SPR0POS=0x140`, `SPR1POS=0x148`...).
 		for (u8 ch = 0u; ch < eng::graphics::kSpriteChannels; ++ch) {
-			const u16 pt = static_cast<u16>(0x120u + ch * 4u);
-			sched.move(pt, 0x0000u);                             // SPRxPTH
-			sched.move(static_cast<u16>(pt + 2u), 0x0000u);      // SPRxPTL
-			const u16 ctl = static_cast<u16>(0x142u + ch * 8u);
-			sched.move(ctl, 0x0000u);                            // SPRxCTL
-			sched.move(static_cast<u16>(ctl - 2u), 0x0000u);     // SPRxPOS
+			sched.move(eng::copper::sprite_pointer_high_register(ch), 0x0000u); // SPRxPTH
+			sched.move(eng::copper::sprite_pointer_low_register(ch), 0x0000u);  // SPRxPTL
+			sched.move(eng::copper::sprite_ctl_register(ch), 0x0000u);          // SPRxCTL
+			sched.move(eng::copper::sprite_pos_register(ch), 0x0000u);          // SPRxPOS
 		}
 		sched.move(copper::Register::DMACON,
 			   static_cast<u16>(copper::DmaSetClear | copper::DmaMaster | copper::DmaCopper |

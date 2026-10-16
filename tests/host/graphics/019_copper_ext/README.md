@@ -12,7 +12,9 @@ Valida la codificación **exacta de libgfx** que necesita el efecto `plasma` (di
   (word bajo), luego `reg` (word alto).
 - **`move_at` + `patch_data`**: emitir una instrucción y parchear su word de valor (el
   patrón del plasma: una instrucción `COLOR00` por bloque, parcheada cada frame como
-  `CopSetColor`).
+  `CopSetColor`). Con el modelo tipado, `move_at` devuelve `MoveSlot` y `patch_data` solo
+  acepta ese tipo: el parche no puede caer sobre un WAIT (y `patch_wait` solo acepta
+  `WaitSlot`).
 - `COP2LCH`/`COP2LCL`/`COPJMP2` añadidos al enum `Register`.
 
 ## Ejecución

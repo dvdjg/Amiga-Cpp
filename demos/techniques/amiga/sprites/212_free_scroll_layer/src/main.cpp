@@ -222,10 +222,10 @@ private:
 		const eng::uintptr base = reinterpret_cast<eng::uintptr>(m_sprite.view.data());
 		for (eng::u8 ch = 0u; ch < kChannels; ++ch) {
 			const eng::uintptr addr = base + static_cast<eng::uintptr>(ch) * kDmaStride * 2u;
-			sched.move(static_cast<eng::u16>(0x120u + ch * 4u), static_cast<eng::u16>(addr >> 16));
-			sched.move(static_cast<eng::u16>(0x122u + ch * 4u), static_cast<eng::u16>(addr & 0xffffu));
-			sched.move(static_cast<eng::u16>(0x142u + ch * 8u), 0x0000u);
-			sched.move(static_cast<eng::u16>(0x140u + ch * 8u), 0x0000u);
+			sched.move(eng::copper::sprite_pointer_high_register(ch), static_cast<eng::u16>(addr >> 16));
+			sched.move(eng::copper::sprite_pointer_low_register(ch), static_cast<eng::u16>(addr & 0xffffu));
+			sched.move(eng::copper::sprite_ctl_register(ch), 0x0000u);
+			sched.move(eng::copper::sprite_pos_register(ch), 0x0000u);
 		}
 		sched.move(eng::copper::Register::DMACON,
 			   static_cast<eng::u16>(eng::copper::DmaSetClear | eng::copper::DmaMaster |

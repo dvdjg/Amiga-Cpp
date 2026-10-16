@@ -215,7 +215,7 @@ public:
                 if (sw.line < line || sw.line >= seg_end) continue;
                 for (eng::usize c = 0; c < sw.colors.size(); ++c) {
                     sched.move(
-                        static_cast<copper::Register>(0x180 + (sw.first + c) * 2u),
+                        copper::color_register(static_cast<u8>(sw.first + c)),
                         sw.colors[c]
                     );
                 }
@@ -290,13 +290,13 @@ public:
         const u16 h = static_cast<u16>(height > kSpriteMaxHeightLines ? kSpriteMaxHeightLines
                                                                       : height);
         const SpritePosCtl e = encode_sprite_pos_ctl(x, y, h, attach);
-        sched.move(static_cast<copper::Register>(0x140 + channel * 8), e.pos);     // SPRxPOS
-        sched.move(static_cast<copper::Register>(0x142 + channel * 8), e.ctl);     // SPRxCTL
+        sched.move(copper::sprite_pos_register(channel), e.pos); // SPRxPOS
+        sched.move(copper::sprite_ctl_register(channel), e.ctl); // SPRxCTL
         // PT a la DATA del primer bloque (cabecera POS/CTL de 2 words por delante).
         const uintptr addr = (chain.address(0) + 4).value;
-        sched.move(static_cast<copper::Register>(0x120 + channel * 4),
+        sched.move(copper::sprite_pointer_high_register(channel),
                    static_cast<u16>(addr >> 16)); // SPRxPTH
-        sched.move(static_cast<copper::Register>(0x122 + channel * 4),
+        sched.move(copper::sprite_pointer_low_register(channel),
                    static_cast<u16>(addr & 0xffff)); // SPRxPTL
     }
 
@@ -409,8 +409,7 @@ public:
                     // Switch 0-based: `colors[k]` -> COLOR[first+k] (como
                     // `SpriteManager::emit_template_into`).
                     for (eng::usize k = 0; k < ev.colors.size(); ++k) {
-                        sched.move(static_cast<copper::Register>(
-                                           0x180u + (ev.first + k) * 2u),
+                        sched.move(copper::color_register(static_cast<u8>(ev.first + k)),
                                    ev.colors[k]);
                     }
                 }
@@ -470,11 +469,11 @@ private:
                                ? static_cast<u16>(s.vstop - s.vstart)
                                : 0u;
         const SpritePosCtl e = encode_sprite_pos_ctl(s.hpos, s.vstart, height, s.attach);
-        sched.move(static_cast<copper::Register>(0x140 + channel * 8), e.pos);     // SPRxPOS
-        sched.move(static_cast<copper::Register>(0x142 + channel * 8), e.ctl);     // SPRxCTL
+        sched.move(copper::sprite_pos_register(channel), e.pos); // SPRxPOS
+        sched.move(copper::sprite_ctl_register(channel), e.ctl); // SPRxCTL
         const uintptr addr = data.address(0).value;
-        sched.move(static_cast<copper::Register>(0x120 + channel * 4), static_cast<u16>(addr >> 16));   // SPRxPTH
-        sched.move(static_cast<copper::Register>(0x122 + channel * 4), static_cast<u16>(addr & 0xffff)); // SPRxPTL
+        sched.move(copper::sprite_pointer_high_register(channel), static_cast<u16>(addr >> 16));   // SPRxPTH
+        sched.move(copper::sprite_pointer_low_register(channel), static_cast<u16>(addr & 0xffff)); // SPRxPTL
     }
 
     SpriteConfig m_spr[8] {};

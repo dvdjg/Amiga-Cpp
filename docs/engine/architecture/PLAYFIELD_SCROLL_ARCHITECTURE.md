@@ -171,7 +171,7 @@ punteros): un tramo con más planos para el juego y otro con menos para el HUD/m
   geometría de fetch anterior hasta que el pipeline se recarga. El API es
   `eng::graphics::ModeSwitchZone` + `Scheduler::emit_mode_switch_zone` (HOST-042); las demos
   `113`/`114`/`115` verifican 5→2, 5→4/3/2 (franjas apiladas) y EHB 6→HUD 4 sin EHB (MI09). El
-  orden debe ser estricto `BPLCON0`→`DDF`→módulos→`BPLxPT`→(`BPLCON4`/`BPLCON1`/paleta): intercalar
+  orden debe ser estricto `BPLCON0`→`DDF`→módulos→`BPLxPT`→(`BPLCON3`/`BPLCON1`/paleta): intercalar
   los registros de modo entre la geometría y los punteros hace que el DMA pierda el último plano.
 
 ### 4.2 Modos de display

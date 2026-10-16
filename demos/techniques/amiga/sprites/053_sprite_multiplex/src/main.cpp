@@ -170,10 +170,10 @@ private:
 		// habilitar SPREN abajo, el sprite arme con los registros basura de AmigaDOS
 		// y haga una lectura DMA de un puntero inválido.
 		const eng::u32 sprite_addr = reinterpret_cast<eng::u32>(m_sprite_block.view.data());
-		sched.move(0x120, static_cast<eng::u16>(sprite_addr >> 16));   // SPR0PTH
-		sched.move(0x122, static_cast<eng::u16>(sprite_addr & 0xffff)); // SPR0PTL
-		sched.move(0x142, 0x0000); // SPR0CTL (VSTOP=0)
-		sched.move(0x140, 0x0000); // SPR0POS (VSTART=0)
+		sched.move(eng::copper::sprite_pointer_high_register(0u), static_cast<eng::u16>(sprite_addr >> 16));   // SPR0PTH
+		sched.move(eng::copper::sprite_pointer_low_register(0u), static_cast<eng::u16>(sprite_addr & 0xffff)); // SPR0PTL
+		sched.move(eng::copper::sprite_ctl_register(0u), 0x0000); // SPR0CTL (VSTOP=0)
+		sched.move(eng::copper::sprite_pos_register(0u), 0x0000); // SPR0POS (VSTART=0)
 		// `emit_planes_display` no activa el DMA de sprites: lo habilitamos aquí.
 		sched.move(
 			eng::copper::Register::DMACON,

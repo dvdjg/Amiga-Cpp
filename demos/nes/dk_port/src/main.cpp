@@ -344,7 +344,7 @@ struct DkPortGame {
 			}
 			// COLOR17..31 (0x1A2 + c*2): subpaletas de sprite; NO pisar COLOR02/03 del BG.
 			for (eng::u8 c = 0; c < 8u; ++c) {
-				sc.scheduler().move(static_cast<eng::copper::Register>(0x1A2u + c * 2u),
+				sc.scheduler().move(eng::copper::color_register(17u + c),
 						    nes_to_amiga(n2a_ppu_pal(static_cast<eng::u8>(0x11u + c))));
 			}
 			// Anade SPREN sin borrar los bits que ya activo `display()`
@@ -388,7 +388,7 @@ struct DkPortGame {
 		auto sprite_stage = [this](gfx::Scene& sc) {
 			// Subpaleta de sprites: COLOR17..31 (0x1A2 + c*2) = $3F11..$3F1F.
 			for (eng::u8 c = 0; c < 8u; ++c) {
-				sc.scheduler().move(static_cast<eng::copper::Register>(0x1A2u + c * 2u),
+				sc.scheduler().move(eng::copper::color_register(17u + c),
 						    nes_to_amiga(n2a_ppu_pal(static_cast<eng::u8>(0x11u + c))));
 			}
 			sc.scheduler().move(eng::copper::Register::DMACON,

@@ -704,12 +704,12 @@ private:
 				const auto e = eng::graphics::encode_sprite_pos_ctl(
 					x, y, kShipH, c != 0u);
 				m_arm_pos_idx[ch] = sched.move_at(
-					static_cast<eng::u16>(0x140u + ch * 8u), e.pos);
+					eng::copper::sprite_pos_register(ch), e.pos);
 				m_arm_ctl_idx[ch] = sched.move_at(
-					static_cast<eng::u16>(0x142u + ch * 8u), e.ctl);
-				sched.move(static_cast<eng::u16>(0x120u + ch * 4u),
+					eng::copper::sprite_ctl_register(ch), e.ctl);
+				sched.move(eng::copper::sprite_pointer_high_register(ch),
 					   static_cast<eng::u16>(addr >> 16));
-				sched.move(static_cast<eng::u16>(0x122u + ch * 4u),
+				sched.move(eng::copper::sprite_pointer_low_register(ch),
 					   static_cast<eng::u16>(addr & 0xffffu));
 			}
 		}
@@ -1021,8 +1021,8 @@ private:
 	eng::u16 m_arm_frame = 0u;
 	/// Índices (palabra de la copperlist) de los MOVE de SPRxPOS/SPRxCTL por canal: se
 	/// capturan en la emisión (setup) y se usan para parchear el armado por frame.
-	eng::u16 m_arm_pos_idx[kShips * 2u] {};
-	eng::u16 m_arm_ctl_idx[kShips * 2u] {};
+	eng::copper::MoveSlot m_arm_pos_idx[kShips * 2u] {}; ///< MOVEs `SPRxPOS` del armado (parche por frame)
+	eng::copper::MoveSlot m_arm_ctl_idx[kShips * 2u] {}; ///< MOVEs `SPRxCTL` del armado (parche por frame)
 	eng::u32 m_last_cycle = 0u;
 	eng::u32 m_update_kcycles = 0u;
 	eng::u32 m_period_kcycles = 0u;

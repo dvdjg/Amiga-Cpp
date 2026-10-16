@@ -302,7 +302,7 @@ private:
 				const eng::u8 idx = static_cast<eng::u8>(((row + kBobR) * 4 + m_sky_phase) & 31);
 				color = kRainbow[idx];
 			}
-			words[m_bob_slot_word[static_cast<eng::u16>(line) - kBobLineMin]] = color;
+			words[m_bob_slot_word[static_cast<eng::u16>(line) - kBobLineMin].data_word()] = color;
 		}
 		m_prev_lo = lo;
 		m_prev_hi = hi;
@@ -406,7 +406,7 @@ private:
 	// Slots del BOB (palabras de DATO de COLOR01), casados tras el materialize del setup:
 	// array DENSO indexado por línea (kBobLineMax - kBobLineMin + 1 líneas posibles).
 	static constexpr eng::u16 kMaxBobSlots = kBobLineMax - kBobLineMin + 1u;
-	eng::u16 m_bob_slot_word[kMaxBobSlots] {};
+	eng::copper::MoveSlot m_bob_slot_word[kMaxBobSlots] {};
 	// Rango de líneas del disco parcheado en el frame anterior (unión con el actual).
 	eng::s16 m_prev_lo = 1;
 	eng::s16 m_prev_hi = 0;

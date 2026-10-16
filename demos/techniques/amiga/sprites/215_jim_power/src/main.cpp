@@ -253,13 +253,13 @@ private:
 			const eng::u8 ch = static_cast<eng::u8>(kChA + k);
 			const eng::uintptr addr =
 				base + static_cast<eng::uintptr>(k == 0u ? kBgOffA : kBgOffB) * 2u;
-			sched.move(static_cast<eng::u16>(0x120u + ch * 4u),
+			sched.move(eng::copper::sprite_pointer_high_register(ch),
 				   static_cast<eng::u16>(addr >> 16u));                  // SPRxPTH
-			sched.move(static_cast<eng::u16>(0x122u + ch * 4u),
+			sched.move(eng::copper::sprite_pointer_low_register(ch),
 				   static_cast<eng::u16>(addr & 0xffffu));              // SPRxPTL
-			sched.move(static_cast<eng::u16>(0x142u + ch * 8u), kBandCtl); // SPRxCTL
+			sched.move(eng::copper::sprite_ctl_register(ch), kBandCtl); // SPRxCTL
 			const eng::u16 x_lo = static_cast<eng::u16>(kFirstPos + k * kPosStep);
-			sched.move(static_cast<eng::u16>(0x140u + ch * 8u),
+			sched.move(eng::copper::sprite_pos_register(ch),
 				   static_cast<eng::u16>((kFirstLine << 8u) | x_lo));      // SPRxPOS
 		}
 
@@ -270,7 +270,7 @@ private:
 			for (eng::u16 k = 0; k < kColumns; ++k) {
 				const eng::u8 ch = ((k & 1u) != 0u) ? kChB : kChA;
 				const eng::u16 x_lo = static_cast<eng::u16>(kFirstPos + k * kPosStep);
-				sched.move(static_cast<eng::u16>(0x140u + ch * 8u),
+				sched.move(eng::copper::sprite_pos_register(ch),
 					   static_cast<eng::u16>((line << 8u) | x_lo));
 			}
 		}

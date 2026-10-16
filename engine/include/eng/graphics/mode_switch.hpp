@@ -10,15 +10,21 @@
 /// reprogramando, en este orden canónico:
 ///
 ///   BPLCON0 (BPU + bits de modo) -> DDFSTRT/DDFSTOP -> BPL1MOD/BPL2MOD
-///     -> BPLxPT (par alto/bajo por plano) -> [BPLCON4] -> [BPLCON1] -> [paleta]
+///     -> BPLxPT (par alto/bajo por plano) -> [BPLCON3] -> [BPLCON1] -> [paleta]
 ///
 /// El orden importa: el `DDF` y los módulos deben quedar reprogramados **antes** de
 /// los punteros para que la línea del corte empiece a leer el tramo nuevo con su
-/// geometría, y los registros de modo que no son geometría (`BPLCON4`/`BPLCON1`)
+/// geometría, y los registros de modo que no son geometría (`BPLCON3`/`BPLCON1`)
 /// van **después** de los punteros: intercalarlos entre `BPLCON0` y los punteros
 /// hace que el DMA pierda el último plano del tramo (verificado en WinUAE-DBG con
 /// 4/5 planos; ver `OPTIMIZACION_GPP_68000.md`). Es el invariante MI09 de
 /// `docs/reference/amiga/hardware/amiga-hardware-invariants-microtests.md`.
+///
+/// El modo EHB **no** lo selecciona `BPLCON3`: sale de `BPLCON0` con 6 planos y HAM=0
+/// (AHRM 3.ª cap. 3, "Color selection in Extra Half Brite mode", y `drawing.cpp:2741`);
+/// lo que existe en `BPLCON3` es el bit 9 `KILLEHB` (AHRM Appendix C) y el bit 0
+/// `ENBPLCN3` (habilita las funciones ECS). Un tramo sin EHB se consigue bajando los
+/// planos en `BPLCON0` (lo que ya hace la zona) o con `KILLEHB`.
 ///
 /// La variante que **no** cambia geometría (sólo reapunta planos/paleta manteniendo
 /// `BPLCON0`/`DDF`/`BPLxMOD` del campo) es `CopperIntentKind::BitplaneSplit`; ambas
@@ -30,8 +36,8 @@
 ///   ───────────────────────                       ──────────────────────────────────
 ///   …                                             WAIT al raster de `top`, y en ORDEN canónico:
 ///   [ corte en `top` ] ────────────────────────►   BPLCON0(BPU+modo) → DDFSTRT/DDFSTOP → BPL1MOD/BPL2MOD
-///   …                                               → BPLxPT (alto/bajo por plano) → [BPLCON4] → [BPLCON1] → [paleta]
-///   El DDF/mods van ANTES de los punteros; BPLCON4/BPLCON1 DESPUÉS (intercalarlos pierde el último plano).
+///   …                                               → BPLxPT (alto/bajo por plano) → [BPLCON3] → [BPLCON1] → [paleta]
+///   El DDF/mods van ANTES de los punteros; BPLCON3/BPLCON1 DESPUÉS (intercalarlos pierde el último plano).
 /// ```
 
 #include <eng/core/types/domains.hpp>
@@ -48,8 +54,8 @@ namespace eng::graphics {
 struct ModeSwitchZone {
 	u16 top = 0;                  // línea raster del corte (inicio del tramo)
 	u16 bplcon0 = 0;              // BPU + bits de modo (HIRES/EHB/DBLPF...) del tramo
-	bool set_bplcon4 = false;     // true = emitir BPLCON4 (p. ej. 0 para salir de EHB)
-	u16 bplcon4 = 0;
+	bool set_bplcon3 = false;     // true = emitir BPLCON3 (bit 0 ENBPLCN3, bit 9 KILLEHB)
+	u16 bplcon3 = 0;
 	bool set_bplcon1 = false;     // true = emitir BPLCON1 (p. ej. 0 para anular el fino)
 	u16 bplcon1 = 0;
 	u16 ddfstrt = 0;

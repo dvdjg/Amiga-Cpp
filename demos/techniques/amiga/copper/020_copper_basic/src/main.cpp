@@ -5,6 +5,7 @@
 #include <eng/api/api.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/platform/amiga/backend.hpp>
+#include <eng/setup/coherence.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -89,12 +90,23 @@ struct DemoGame {
 		m_copper_words = copper.words_used();
 		m_copper_words_ptr = copper.chip_view();
 
-		if (m_memory_ok && m_copper_ok) {
+		// Validación de setup (capa 2 de `COHERENCIA_DE_SETUP.md`): la lista debe ser
+		// ejecutable tal cual (terminador END, MOVEs a registros del chipset, orden de
+		// WAITs). Es el chequeo positivo de `eng::setup::check_copper_list` sobre una
+		// lista real; los casos negativos viven en HOST-446. Si fallara, no se arranca
+		// el display a ciegas: el código queda en el RunStatus (0x21<<8 | code).
+		const eng::setup::CheckResult list_check = eng::setup::check_copper_list(
+			copper.data(), copper.words_used(), eng::hw::Chipset::OCS);
+
+		if (m_memory_ok && m_copper_ok && list_check.ok()) {
 			// Toma el control del display una sola vez: apaga las
 			// interrupciones/dma del sistema y arranca la copperlist alineada
 			// al VBL. En update/render solo se hace swap de puntero.
 			backend.takeover_display(m_copper_words_ptr);
 			eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_copper_words));
+		} else if (!list_check.ok()) {
+			eng::debug::mark_failed(g_eng_run_status,
+						static_cast<eng::u32>(0x00002100u | list_check.code));
 		} else {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000020u);
 		}

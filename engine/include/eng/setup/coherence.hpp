@@ -26,6 +26,7 @@
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/bob.hpp>
 #include <eng/graphics/composition/limits.hpp>
+#include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/sprite_limits.hpp>
 
 namespace eng::setup {
@@ -284,6 +285,106 @@ inline constexpr eng::u16 kBplcon0Ham = 0x0800u;   ///< bit 11: HAM (HOMOD)
 		}
 		prev = pos;
 		have_prev = true;
+	}
+	return {};
+}
+
+// =====================================================================================
+// Validez de la copperlist emitida (estructura + registros + orden de WAITs)
+// =====================================================================================
+
+/// **Comprueba una copperlist completa palabra a palabra** contra el mapa real del chipset:
+/// terminador, MOVEs a registros no escribibles, instrucciones tras el `END`, terminadores
+/// mal formados y el orden de WAITs (`check_copper_wait_order`). Es el chequeo de setup de
+/// una lista ya emitida: convierte "instrucción no válida"/"lista descuadrada" en un fallo
+/// con índice y motivo antes de publicar.
+///
+/// Decodificación (WinUAE-DBG): `reg = word0 & 0x1fe` y MOVE ssi bit 0 de word0 es 0
+/// (`custom.cpp:9266`); el `END` reconocido por el chipset es el par `0xffff`/`0xfffe`
+/// (`custom.cpp:9542`, `COP_waitforever`); un MOVE a registro inexistente o de solo lectura
+/// no tiene efecto (el bus hace un acceso de lectura, `custom.cpp:7603-7611`) y la
+/// escribibilidad por offset+chipset vive en `copper::copper_register_access`.
+///
+/// Códigos: 1 = sin terminador `0xffff`/`0xfffe` · 2 = MOVE a registro no escribible para el
+/// chipset · 3 = WAIT retrocede (de `check_copper_wait_order`) · 4 = instrucciones tras el
+/// `END` (inalcanzables) · 5 = `0xffff` con máscara distinta de `0xfffe` (espera infinita) ·
+/// 6 = MOVE con bits no canónicos en la palabra de registro · 7 = nº impar de palabras.
+[[nodiscard]] constexpr CheckResult check_copper_list(
+	const eng::u16* words, eng::u16 words_count,
+	eng::hw::Chipset chipset = eng::hw::Chipset::OCS) noexcept {
+	if (words == nullptr || words_count == 0u) {
+		return {1u, "copperlist vacia (sin terminador)", 0u, 0xffffu, 0u};
+	}
+	const eng::u16 last_word = static_cast<eng::u16>(words_count - 1u);
+	if ((words_count & 1u) != 0u) {
+		return {7u, "copperlist con numero impar de palabras (instruccion partida)",
+			last_word, 0u, words_count};
+	}
+	bool ended = false;
+	for (eng::u16 i = 0u; i + 1u < words_count; i = i + 2u) {
+		const eng::u16 inst = words[i];
+		const eng::u16 data = words[i + 1u];
+		if (ended) {
+			return {4u, "instrucciones tras el END (inalcanzables; ¿lista pegada?)", i, 0xffffu,
+				inst};
+		}
+		if (inst == 0xffffu) {
+			if (data != 0xfffeu) {
+				return {5u, "0xffff con mascara distinta de 0xfffe (espera infinita)",
+					i, 0xfffeu, data};
+			}
+			ended = true;
+			continue;
+		}
+		if ((inst & 0x1u) != 0u) {
+			continue; // WAIT/SKIP (el orden lo valida check_copper_wait_order abajo)
+		}
+		// MOVE: el hardware solo mira los bits 9-1 (A9-A1) de la palabra de registro; unos
+		// bits altos encendidos son basura de una lista escrita a mano (AHRM Table 2-2).
+		const eng::u16 reg = inst & 0x1feu;
+		if (inst != reg) {
+			return {6u, "MOVE con bits no canonicos en la palabra de registro", i, reg, inst};
+		}
+		if (!copper::copper_register_writable(reg, chipset)) {
+			return {2u, "MOVE del Copper a registro no escribible para el chipset", i, 0u,
+				static_cast<eng::u32>(copper::copper_register_access(reg))};
+		}
+	}
+	if (!ended) {
+		return {1u, "copperlist sin terminador 0xffff/0xfffe (el Copper correria fuera)",
+			last_word, 0xffffu, 0u};
+	}
+	const CheckResult order = check_copper_wait_order(words, words_count);
+	if (!order.ok()) {
+		// Se reetiqueta con el código propio (3) para no colisionar con el 1 de esta función.
+		return {3u, order.message, order.index, order.expected, order.actual};
+	}
+	return {};
+}
+
+/// **Comprueba el `stride` de un relleno por columnas** (`copper::ColumnPatch`): la primera
+/// palabra debe ser el DATO de un MOVE, el paso par >= 2, y cada fila debe caer sobre el
+/// dato de un MOVE dentro de la lista. Es la defensa contra "el blitter strided pisa un
+/// WAIT por un módulo mal puesto": la forma se valida contra las instrucciones emitidas.
+/// Códigos: 1 = forma no representable (stride/primera fila) · 2 = fila fuera de la lista ·
+/// 3 = la fila no cae sobre el dato de un MOVE.
+[[nodiscard]] constexpr CheckResult check_copper_column(const eng::u16* words,
+							eng::u16 words_count,
+							const copper::ColumnPatch& patch) noexcept {
+	if (words == nullptr || !patch.valid()) {
+		return {1u, "ColumnPatch no representable (stride par >= 2 y primer MOVE validos)",
+			0u, 2u, patch.stride_words};
+	}
+	for (eng::u16 r = 0u; r < patch.rows; ++r) {
+		const eng::u16 idx = patch.data_word(r);
+		if (idx >= words_count) {
+			return {2u, "fila del ColumnPatch fuera de la lista", r, words_count, idx};
+		}
+		const eng::u16 opcode = words[idx - 1u];
+		if ((opcode & 0x1u) != 0u) {
+			return {3u, "la fila del ColumnPatch no cae sobre el dato de un MOVE", r, 0u,
+				opcode};
+		}
 	}
 	return {};
 }

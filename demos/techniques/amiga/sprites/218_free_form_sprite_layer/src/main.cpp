@@ -618,19 +618,19 @@ private:
 		// Cabecera: AGA, DMA (la referencia lo activa desde la CPU justo antes de
 		// arrancar el Copper; aquí lo hace el propio Copper en la línea 0, mismo estado),
 		// ventana, DDF, BPLCON0 (4 planos) y BPLCON2 (PF2>PF1>SPR).
-		sched.move(0x1fcu, 0x0000u);
-		sched.move(0x096u, 0x83e0u); // DMACON: SETCLR|MASTER|RASTER|COPPER|BLITTER|SPRITE
-		sched.move(0x08eu, kDiwstrt);
-		sched.move(0x090u, kDiwstop);
-		sched.move(0x092u, kDdfstrt);
-		sched.move(0x094u, kDdfstop);
-		sched.move(0x100u, kBplcon0);
-		sched.move(0x104u, 0x0000u);
+		sched.move(eng::copper::RegisterOffset {0x1fcu}, 0x0000u); // FMODE (AGA): reservado en OCS; 0 = fetch A500
+		sched.move(eng::copper::Register::DMACON, 0x83e0u); // DMACON: SETCLR|MASTER|RASTER|COPPER|BLITTER|SPRITE
+		sched.move(eng::copper::Register::DIWSTRT, kDiwstrt);
+		sched.move(eng::copper::Register::DIWSTOP, kDiwstop);
+		sched.move(eng::copper::Register::DDFSTRT, kDdfstrt);
+		sched.move(eng::copper::Register::DDFSTOP, kDdfstop);
+		sched.move(eng::copper::Register::BPLCON0, kBplcon0);
+		sched.move(eng::copper::Register::BPLCON2, 0x0000u);
 		// Punteros de sprite (SPR0PT..SPR7PT); se rellenan con `set_spr_ptrs`.
 		lay.spr_ptr_word = static_cast<u16>(sched.words_used() + 1u);
 		for (u8 c = 0; c < 8u; ++c) {
-			sched.move(static_cast<u16>(0x120u + c * 4u), 0u);
-			sched.move(static_cast<u16>(0x122u + c * 4u), 0u);
+			sched.move(eng::copper::sprite_pointer_high_register(c), 0u);
+			sched.move(eng::copper::sprite_pointer_low_register(c), 0u);
 		}
 		// Paleta en la línea 42 (justo antes de DIWSTRT=44): 32 colores.
 		sched.wait_raw(0x2au, 1u, 0xfffeu);
@@ -638,13 +638,13 @@ private:
 		// Punteros de planos del FG (BPL1..4PT), módulos y BPLCON1 (scroll fino).
 		lay.bpl_ptr_word = static_cast<u16>(sched.words_used() + 1u);
 		for (u8 p = 0; p < 4u; ++p) {
-			sched.move(static_cast<u16>(0x0e0u + p * 4u), 0u);
-			sched.move(static_cast<u16>(0x0e2u + p * 4u), 0u);
+			sched.move(eng::copper::bitplane_pointer_high_register(p), 0u);
+			sched.move(eng::copper::bitplane_pointer_low_register(p), 0u);
 		}
-		sched.move(0x108u, kFgDispMod);
-		sched.move(0x10au, kFgDispMod);
+		sched.move(eng::copper::Register::BPL1MOD, kFgDispMod);
+		sched.move(eng::copper::Register::BPL2MOD, kFgDispMod);
 		lay.shift_word = static_cast<u16>(sched.words_used() + 1u);
-		sched.move(0x102u, 0x0000u);
+		sched.move(eng::copper::Register::BPLCON1, 0x0000u);
 
 		// --- Capa de sprites: 212 líneas con VP=$2c..$ff ---
 		for (u16 l = 0; l < kLayer1Lines; ++l) {
@@ -659,26 +659,26 @@ private:
 
 		// --- Sub-buffer: línea 268, apaga el DMA de planos, re-engancha a media línea ---
 		sched.wait_raw(0x0cu, 1u, 0xfffeu);
-		sched.move(0x096u, 0x0100u); // DMACON: limpia BPLEN
+		sched.move(eng::copper::Register::DMACON, 0x0100u); // DMACON: limpia BPLEN
 		sched.wait_raw(0x0cu, 0x188u, 0xfffeu); // hpos $c5 → palabra $0cc5
-		sched.move(0x096u, 0x8100u); // DMACON: activa BPLEN
-		sched.move(0x092u, 0x0040u); // DDFSTRT/STOP del sub-buffer (288 px)
-		sched.move(0x094u, 0x00c8u);
-		sched.move(0x108u, kSbDispMod);
-		sched.move(0x10au, kSbDispMod);
-		sched.move(0x100u, 0x3200u); // BPLCON0: 3 planos
-		sched.move(0x102u, 0x0000u); // BPLCON1: sin shift
+		sched.move(eng::copper::Register::DMACON, 0x8100u); // DMACON: activa BPLEN
+		sched.move(eng::copper::Register::DDFSTRT, 0x0040u); // DDFSTRT/STOP del sub-buffer (288 px)
+		sched.move(eng::copper::Register::DDFSTOP, 0x00c8u);
+		sched.move(eng::copper::Register::BPL1MOD, kSbDispMod);
+		sched.move(eng::copper::Register::BPL2MOD, kSbDispMod);
+		sched.move(eng::copper::Register::BPLCON0, 0x3200u); // BPLCON0: 3 planos
+		sched.move(eng::copper::Register::BPLCON1, 0x0000u); // BPLCON1: sin shift
 		lay.sb_ptr_word = static_cast<u16>(sched.words_used() + 1u);
 		for (u8 p = 0; p < 3u; ++p) {
-			sched.move(static_cast<u16>(0x0e0u + p * 4u), 0u);
-			sched.move(static_cast<u16>(0x0e2u + p * 4u), 0u);
+			sched.move(eng::copper::bitplane_pointer_high_register(p), 0u);
+			sched.move(eng::copper::bitplane_pointer_low_register(p), 0u);
 		}
 		// Paleta del sub-buffer: 7 colores desde `subpal+2` en **COLOR01..COLOR07**
 		// (`color+2` = $DFF182 = COLOR01; la referencia avanza de 2 en 2 hasta $18E).
 		for (u8 i = 0; i < 7u; ++i) {
-			sched.move(static_cast<u16>(0x182u + i * 2u), kSubPal[1u + i]);
+			sched.move(eng::copper::color_register(1u + i), kSubPal[1u + i]);
 		}
-		sched.move(0x104u, 0x0000u);
+		sched.move(eng::copper::Register::BPLCON2, 0x0000u);
 		sched.end();
 		return sched.ok();
 	}
@@ -693,10 +693,10 @@ private:
 				m_lay.pos_word[c] = static_cast<u16>(sched.words_used() + 1u);
 				m_lay.datb_word[c] = static_cast<u16>(sched.words_used() + 3u);
 			}
-			sched.move(static_cast<u16>(0x140u + c * 8u),
+			sched.move(eng::copper::sprite_pos_register(c),
 				   static_cast<u16>(kSprRPos + c * 8u));
-			sched.move(static_cast<u16>(0x146u + c * 8u), 0xaaaau);
-			sched.move(static_cast<u16>(0x144u + c * 8u), 0x5555u);
+			sched.move(eng::copper::sprite_datb_register(c), 0xaaaau);
+			sched.move(eng::copper::sprite_data_register(c), 0x5555u);
 		}
 		// Columnas 9..11 → canales 0..2 (reuso), posiciones SPRRPOS+$40..$50.
 		for (u8 c = 8u; c < 11u; ++c) {
@@ -704,10 +704,10 @@ private:
 				m_lay.pos_word[c] = static_cast<u16>(sched.words_used() + 1u);
 				m_lay.datb_word[c] = static_cast<u16>(sched.words_used() + 3u);
 			}
-			sched.move(static_cast<u16>(0x140u + (c - 8u) * 8u),
+			sched.move(eng::copper::sprite_pos_register((c - 8u)),
 				   static_cast<u16>(kSprRPos + c * 8u));
-			sched.move(static_cast<u16>(0x146u + (c - 8u) * 8u), 0xaaaau);
-			sched.move(static_cast<u16>(0x144u + (c - 8u) * 8u), 0x5555u);
+			sched.move(eng::copper::sprite_datb_register((c - 8u)), 0xaaaau);
+			sched.move(eng::copper::sprite_data_register((c - 8u)), 0x5555u);
 		}
 		// Reposición: canales 7..0 a DMAPOS+$38..DMAPOS (orden inverso). Estas palabras
 		// son además las «columnas 12..19» que reparte `UpdateLayerPos`.
@@ -717,7 +717,7 @@ private:
 					// col 12+i (i=0 → ch0 = DMAPOS) va al final del bloque.
 					m_lay.pos_word[11u + i] = static_cast<u16>(sched.words_used() + 1u);
 				}
-				sched.move(static_cast<u16>(0x140u + i * 8u),
+				sched.move(eng::copper::sprite_pos_register(i),
 					   static_cast<u16>(kDmaRPos + i * 8u));
 			}
 		}

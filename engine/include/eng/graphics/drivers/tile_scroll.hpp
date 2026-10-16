@@ -791,16 +791,17 @@ private:
 	/// Parchea en el bloque inactivo las words que dependen de la camara y lo publica.
 	///
 	/// La lista completa se emitio una sola vez; el scroll solo cambia `BPLCON1` y los
-	/// punteros `BPLxPT`. Los handles los devolvio `move_at` al emitir, asi que el
-	/// parcheo no depende del layout de la lista. Re-emitir la lista completa cada
-	/// frame costaba ~63K ciclos; parchear 13 words cuesta ~3K.
+	/// punteros `BPLxPT`. Los slots los devolvio `move_at` al emitir (`MoveSlot`), asi que
+	/// el parcheo no depende del layout de la lista ni puede caer sobre el opcode de un
+	/// MOVE o sobre un WAIT. Re-emitir la lista completa cada frame costaba ~63K ciclos;
+	/// parchear 13 words cuesta ~3K.
 	bool patch_copper() {
-		u16* const words = m_copper.inactive_words();
-		words[m_patch_bplcon1 + 1u] = m_display.bplcon1;
+		const eng::Span<u16> words = m_copper.inactive_span();
+		copper::patch_data(words, m_patch_bplcon1, m_display.bplcon1);
 		for (u8 plane = 0; plane < plane_count; ++plane) {
 			const uintptr address = plane_pointer(plane);
-			words[m_patch_bplpt[plane][0] + 1u] = static_cast<u16>(address >> 16);
-			words[m_patch_bplpt[plane][1] + 1u] = static_cast<u16>(address & 0xffffu);
+			copper::patch_data(words, m_patch_bplpt[plane][0], static_cast<u16>(address >> 16));
+			copper::patch_data(words, m_patch_bplpt[plane][1], static_cast<u16>(address & 0xffffu));
 		}
 		m_copper.flip();
 		return true;
@@ -813,8 +814,8 @@ private:
 	copper::ScheduleReport m_copper_report {};
 	u16 m_scroll[2] {};
 	u16 m_scroll_y[2] {};
-	u16 m_patch_bplcon1 = 0;
-	u16 m_patch_bplpt[plane_count][2] {};
+	copper::MoveSlot m_patch_bplcon1 {}; ///< MOVE de `BPLCON1` (parche del fine scroll)
+	copper::MoveSlot m_patch_bplpt[plane_count][2] {}; ///< MOVEs `BPLxPTH`/`BPLxPTL` por plano
 	u16 m_copper_words = 0;
 	bool m_copper_initialized = false;
 	bool m_ok = false;

@@ -357,10 +357,10 @@ private:
 		const eng::uintptr spr_base = reinterpret_cast<eng::uintptr>(m_sprite_block.view.data());
 		const eng::uintptr off_ptr = spr_base + static_cast<eng::uintptr>(sprite_words() - kOffWords) * 2u;
 		for (eng::u8 c = 0; c < 8u; ++c) {
-			sched.move(static_cast<eng::u16>(0x120u + c * 4u), static_cast<eng::u16>(off_ptr >> 16));
-			sched.move(static_cast<eng::u16>(0x122u + c * 4u), static_cast<eng::u16>(off_ptr & 0xffffu));
-			sched.move(static_cast<eng::u16>(0x142u + c * 8u), kOffWord);
-			sched.move(static_cast<eng::u16>(0x140u + c * 8u), kOffWord);
+			sched.move(eng::copper::sprite_pointer_high_register(c), static_cast<eng::u16>(off_ptr >> 16));
+			sched.move(eng::copper::sprite_pointer_low_register(c), static_cast<eng::u16>(off_ptr & 0xffffu));
+			sched.move(eng::copper::sprite_ctl_register(c), kOffWord);
+			sched.move(eng::copper::sprite_pos_register(c), kOffWord);
 		}
 		sched.move(eng::copper::Register::DMACON,
 			   static_cast<eng::u16>(eng::copper::DmaSetClear | eng::copper::DmaMaster |
@@ -376,11 +376,11 @@ private:
 		for (eng::u8 i = 0; i < kObjs; ++i) {
 			const eng::u8 ch = i;
 			const eng::uintptr addr = spr_base + static_cast<eng::uintptr>(m_obj_off + i * kObjStride) * 2u;
-			sched.move(static_cast<eng::u16>(0x120u + ch * 4u), static_cast<eng::u16>(addr >> 16));
-			sched.move(static_cast<eng::u16>(0x122u + ch * 4u), static_cast<eng::u16>(addr & 0xffffu));
-			m_obj_pos_idx[i] = sched.move_at(static_cast<eng::u16>(0x140u + ch * 8u),
+			sched.move(eng::copper::sprite_pointer_high_register(ch), static_cast<eng::u16>(addr >> 16));
+			sched.move(eng::copper::sprite_pointer_low_register(ch), static_cast<eng::u16>(addr & 0xffffu));
+			m_obj_pos_idx[i] = sched.move_at(eng::copper::sprite_pos_register(ch),
 							 static_cast<eng::u16>((kObjY << 8u) | ((kObjBaseX[i] >> 1u) & 0xffu)));
-			sched.move(static_cast<eng::u16>(0x142u + ch * 8u),
+			sched.move(eng::copper::sprite_ctl_register(ch),
 				   static_cast<eng::u16>((kObjY + kObjH) << 8u));
 		}
 		emit_band(sched, spr_base, 1);
@@ -407,16 +407,16 @@ private:
 		if (bd.attach) {
 			// Franja C (15 colores): recarga COLOR16-31 con la paleta arcoiris.
 			for (eng::u8 i = 0; i < 16u; ++i) {
-				sched.move(static_cast<eng::u16>(0x180u + (16u + i) * 2u), kRainbow[i]);
+				sched.move(eng::copper::color_register(16u + i), kRainbow[i]);
 			}
 		} else if (b == 1u) {
 			// Franja B: el fondo va en canales 2..7 (par 1-3, COLOR20-31); los objetos en
 			// canales 0/1 (par 0, COLOR16-19), libres aqui. Se recargan con colores propios
 			// para que NO se camuflen con el fondo.
-			sched.move(static_cast<eng::u16>(0x180u + 16u * 2u), 0x000u);
-			sched.move(static_cast<eng::u16>(0x180u + 17u * 2u), 0xf00u); // objeto 0 (rojo)
-			sched.move(static_cast<eng::u16>(0x180u + 18u * 2u), 0xfffu); // objeto 1 (blanco)
-			sched.move(static_cast<eng::u16>(0x180u + 19u * 2u), 0x0f0u);
+			sched.move(eng::copper::color_register(16), 0x000u);
+			sched.move(eng::copper::color_register(17), 0xf00u); // objeto 0 (rojo)
+			sched.move(eng::copper::color_register(18), 0xfffu); // objeto 1 (blanco)
+			sched.move(eng::copper::color_register(19), 0x0f0u);
 		}
 		for (eng::u8 c = 0; c < bd.channels; ++c) {
 			const eng::u8 ch = static_cast<eng::u8>(bd.channel_first + c);
@@ -426,12 +426,12 @@ private:
 			// mismo pixel, NO es un sprite 16px a la derecha (por eso no se usa c sino c>>1).
 			const eng::u8 colx = bd.attach ? static_cast<eng::u8>(c >> 1u) : c;
 			const eng::u16 x = static_cast<eng::u16>(kDisplayX0 + colx * kColWidth);
-			m_pt_idx[b][c][0] = sched.move_at(static_cast<eng::u16>(0x120u + ch * 4u),
+			m_pt_idx[b][c][0] = sched.move_at(eng::copper::sprite_pointer_high_register(ch),
 							  static_cast<eng::u16>(addr >> 16u));
-			m_pt_idx[b][c][1] = sched.move_at(static_cast<eng::u16>(0x122u + ch * 4u),
+			m_pt_idx[b][c][1] = sched.move_at(eng::copper::sprite_pointer_low_register(ch),
 							  static_cast<eng::u16>(addr & 0xffffu));
-			sched.move(static_cast<eng::u16>(0x140u + ch * 8u), sprite_pos(bd.top, x));
-			sched.move(static_cast<eng::u16>(0x142u + ch * 8u), sprite_ctl(bd.top, bottom, x, bd.attach && (c & 1u)));
+			sched.move(eng::copper::sprite_pos_register(ch), sprite_pos(bd.top, x));
+			sched.move(eng::copper::sprite_ctl_register(ch), sprite_ctl(bd.top, bottom, x, bd.attach && (c & 1u)));
 		}
 		const eng::u16 period = bd.pattern;
 		for (eng::u16 line = bd.top; line < bottom; ++line) {
@@ -462,7 +462,7 @@ private:
 					const eng::u8 colx = bd.attach ? static_cast<eng::u8>(c >> 1u) : c;
 					const eng::u16 x = static_cast<eng::u16>(xstart + colx * kColWidth);
 					if (x >= kDisplayX0 + kDisplayW) { break; }
-					sched.move(static_cast<eng::u16>(0x140u + ch * 8u),
+					sched.move(eng::copper::sprite_pos_register(ch),
 						   static_cast<eng::u16>((line << 8u) | ((x >> 1u) & 0xffu)));
 				}
 			}

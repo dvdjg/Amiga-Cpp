@@ -3,7 +3,7 @@
 // ============================================================================
 //
 // Valida el orden canonico MI09 que emite `Scheduler::emit_mode_switch_zone`:
-//   WAIT top -> BPLCON0 -> [BPLCON4] -> DDFSTRT/DDFSTOP -> BPL1MOD/BPL2MOD
+//   WAIT top -> BPLCON0 -> [BPLCON3] -> DDFSTRT/DDFSTOP -> BPL1MOD/BPL2MOD
 //     -> BPLxPT (par por plano) -> [paleta]
 // y las guardas (DDF desalineado / planos fuera de rango / sin base). Base de la
 // Fase 1b (HUD con menos planos) del refactor de playfields.
@@ -45,7 +45,7 @@ constexpr u16 hi(eng::uintptr a) { return static_cast<u16>((a >> 16) & 0xffffu);
 } // namespace
 
 int main() {
-	// --- Zona base: 2 planos, BPLCON4, DDF y paleta de 2 colores ---------------
+	// --- Zona base: 2 planos, BPLCON3, DDF y paleta de 2 colores --------------
 	g_planes_bank.configure(g_planes, sizeof(g_planes), 2u);
 	const eng::ChipPlaneView planes =
 		g_planes_bank.reserve<eng::PlaneTag>(sizeof(g_planes), 2u).mem_view();
@@ -53,8 +53,8 @@ int main() {
 	ModeSwitchZone zone {};
 	zone.top = 0x50u;
 	zone.bplcon0 = 0x2200u;   // COLOR + BPU=2
-	zone.set_bplcon4 = true;
-	zone.bplcon4 = 0x0000u;   // salir de EHB en el tramo
+	zone.set_bplcon3 = true;
+	zone.bplcon3 = 0x0000u;   // ENBPLCN3 off en el tramo (ECS)
 	zone.ddfstrt = 0x0038u;
 	zone.ddfstop = 0x00d0u;
 	zone.bpl1mod = 0x0000u;
@@ -97,9 +97,9 @@ int main() {
 	i = static_cast<u16>(i + 2u);
 	check(w[i] == static_cast<u16>(Register::BPL2PTL) && w[i + 1u] == lo(base + 40u), "BPL2PTL");
 	i = static_cast<u16>(i + 2u);
-	// Modo (BPLCON4/BPLCON1) DESPUES de los punteros: no intercalarlo en la
+	// Modo (BPLCON3/BPLCON1) DESPUES de los punteros: no intercalarlo en la
 	// geometria (el DMA perderia el ultimo plano; ver scheduler.hpp).
-	check(w[i] == static_cast<u16>(Register::BPLCON4) && w[i + 1u] == 0x0000u, "BPLCON4 tras punteros");
+	check(w[i] == static_cast<u16>(Register::BPLCON3) && w[i + 1u] == 0x0000u, "BPLCON3 tras punteros");
 	i = static_cast<u16>(i + 2u);
 	check(w[i] == static_cast<u16>(Register::BPLCON1) && w[i + 1u] == 0x0000u, "BPLCON1 tras punteros");
 	i = static_cast<u16>(i + 2u);
@@ -113,7 +113,7 @@ int main() {
 	check(rep.palette_moves == 2u, "palette_moves = 2");
 	check(rep.waits == 1u, "un WAIT");
 
-	// --- Sin BPLCON4 y sin paleta: se omiten --------------------------------
+	// --- Sin BPLCON3 y sin paleta: se omiten --------------------------------
 	Scheduler s2 { words_block() };
 	ModeSwitchZone z2 {};
 	z2.top = 0x40u;

@@ -360,12 +360,12 @@ private:
 		// Reset de los 8 canales (PT válido + VSTART/VSTOP=0) antes de habilitar SPREN.
 		const eng::uintptr sprite_base = reinterpret_cast<eng::uintptr>(m_sprite_block.view.data());
 		for (eng::u8 c = 0u; c < 8u; ++c) {
-			sched.move(static_cast<eng::copper::Register>(0x120u + c * 4u),
+			sched.move(eng::copper::sprite_pointer_high_register(c),
 				   static_cast<eng::u16>(sprite_base >> 16));
-			sched.move(static_cast<eng::copper::Register>(0x122u + c * 4u),
+			sched.move(eng::copper::sprite_pointer_low_register(c),
 				   static_cast<eng::u16>(sprite_base & 0xffffu));
-			sched.move(static_cast<eng::copper::Register>(0x142u + c * 8u), 0u);
-			sched.move(static_cast<eng::copper::Register>(0x140u + c * 8u), 0u);
+			sched.move(eng::copper::sprite_ctl_register(c), 0u);
+			sched.move(eng::copper::sprite_pos_register(c), 0u);
 		}
 		sched.move(eng::copper::Register::DMACON,
 			   static_cast<eng::u16>(eng::copper::DmaSetClear | eng::copper::DmaMaster |

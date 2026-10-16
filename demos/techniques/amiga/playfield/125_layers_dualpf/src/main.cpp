@@ -104,7 +104,7 @@ constexpr u16 kDdfstrt = 0x0030;
 constexpr u16 kDdfstop = 0x00d0;
 constexpr u16 kBplcon0 = 0x6600; // 6 planos + DBLPF
 constexpr u16 kBplcon2 = 0x0024;
-constexpr u16 kBplcon3 = 0x0c00; // offset 0x106 (el enum del engine no lo nombra)
+constexpr u16 kBplcon3 = 0x0c00; // offset 0x106 (BPLCON3: ECS/AGA, enhanced features)
 constexpr u16 kVstrt = 0x2c;	 // DIWSTRT alto: linea visible 0 -> vpos 0x2c+y
 
 constexpr u16 kDmacon = 0x8380; // SET | MASTER | COPPER | BITPLANE
@@ -207,7 +207,7 @@ private:
 		sched.move(copper::Register::DMACON, kDmacon);
 		sched.move(copper::Register::BPLCON0, kBplcon0);
 		sched.move(copper::Register::BPLCON2, kBplcon2);
-		sched.move(static_cast<u16>(0x106), kBplcon3);
+		sched.move(eng::copper::Register::BPLCON3, kBplcon3);
 		sched.move(copper::Register::DIWSTRT, kDiwstrt);
 		sched.move(copper::Register::DIWSTOP, kDiwstop);
 		sched.move(copper::Register::DDFSTRT, kDdfstrt);
@@ -263,10 +263,10 @@ private:
 
 		sched.move(copper::Register::COLOR00, 0);
 		for (u16 i = 0; i < 6u; ++i) {
-			sched.move32(static_cast<u16>(0x180u + (i + 1u) * 2u), *bg_pal++);
+			sched.move32(eng::copper::color_register(1u + i), *bg_pal++);
 		}
 		for (u16 i = 0; i < 5u; ++i) {
-			sched.move32(static_cast<u16>(0x180u + (i + 9u) * 2u), *fg_pal++);
+			sched.move32(eng::copper::color_register(9u + i), *fg_pal++);
 		}
 
 		if (m_bg_y + kHeight >= background_height - 1) {
@@ -333,7 +333,7 @@ private:
 				bg_pal++;
 				if constexpr (kBands) {
 					for (u16 i = 0; i < 6u; ++i) {
-						sched.move32(static_cast<u16>(0x180u + (i + 1u) * 2u),
+						sched.move32(eng::copper::color_register(1u + i),
 							     *bg_pal);
 						++bg_pal;
 					}
@@ -346,7 +346,7 @@ private:
 				fg_pal++;
 				if constexpr (kBands) {
 					for (u16 i = 0; i < 5u; ++i) {
-						sched.move32(static_cast<u16>(0x180u + (i + 9u) * 2u),
+						sched.move32(eng::copper::color_register(9u + i),
 							     *fg_pal);
 						++fg_pal;
 					}

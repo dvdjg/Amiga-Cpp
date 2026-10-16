@@ -8,7 +8,7 @@ que el campo).
 ## Qué fija
 
 - El orden canónico MI09 en un único `WAIT`:
-  `BPLCON0 → [BPLCON4] → DDFSTRT/DDFSTOP → BPL1MOD/BPL2MOD → BPLxPT → [paleta]`.
+  `BPLCON0 → [BPLCON3] → DDFSTRT/DDFSTOP → BPL1MOD/BPL2MOD → BPLxPT → [paleta]`.
 - Que el `DDF` va antes que los módulos y que los punteros van al final (cada plano,
   par PTH/PTL, con `plane_bytes` de stride).
 - Las guardas: `DDF` debe ser múltiplo de 4 (`ddf_aligned()`), `planes ≤ 6` y no se

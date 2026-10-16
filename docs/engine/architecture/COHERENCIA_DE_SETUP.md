@@ -34,12 +34,14 @@ Ambos comparten la misma clase: **un valor/resultado que debía ser coherente co
 ### Capa 1 — el compilador
 
 - **Constructor único por registro crítico**: `composition::bplcon0_for(mode, planes)` es el único camino a `BPLCON0`; el campo nunca se cablea a mano (regla de revisión: un literal `0x4?00`/`0x5?00`/`0x6?00` en código nuevo es sospechoso de duplicar el constructor).
+- **Modelo tipado del Copper**: un destino de `MOVE` es un `copper::RegisterOffset` (del enum `Register` o de un constructor de dominio: `color_register`, `bitplane_pointer_*`, `sprite_*_register`); los emisores parcheables devuelven **slots tipados** (`MoveSlot` de `move_at`; `WaitSlot` de los `wait_*`/`skip`) y los parches solo aceptan el tipo correspondiente: parchear el dato de un `MOVE` con el índice de un `WAIT` (el «descuadre» clásico) **no compila**. Inventar un offset exige `RegisterOffset{...}` explícito y greppable. `copper::column_patch` describe un relleno con paso (blitter strided / copper-chunky).
 - **`[[nodiscard]]` + `-Werror=unused-result`**: toda operación de setup/servicio que devuelve `bool` es **error de compilación** si se ignora. El escape explícito es `(void)` **con comentario del motivo**.
 - **`static_assert` sobre los validadores puros**: cuando la configuración es `constexpr` (el caso de las demos con `kPlanes`), el chequeo se congela en compilación:
   ```cpp
   constexpr eng::u16 kBplcon0 = composition::bplcon0_for(SceneMode::Standard, kPlanes);
   static_assert(eng::setup::check_bplcon0(kBplcon0, kPlanes).ok());
   ```
+  Lo mismo para escenas estáticas de Copper: `compile_intents` calcula el **presupuesto por línea** (`heaviest_line_moves`, `visible_over_budget_lines`) y el llamador lo congela con `static_assert` (HOST-446 compila una escena «malvada» que debe detectarse).
 - **Formas parciales de operación de hardware: no existen.** Si el hardware exige varios elementos acoplados, la API los pide **todos** (tipados) y no publica variantes con un subconjunto (AGENTS §1.10): armar/rearmar un canal de sprite exige `POS`+`CTL`+**`SPRxPT`→estructura tipada** (`emit_sprite_horizontal_rearm(r, ChipView<SpriteTag>)`; la variante POS+CTL+DATA sin PT — que sí existió — era **incorrecta por construcción**: el fetch del DMA pisa los registros, `winuae/sprite-dma.md` §Armado de un canal, bug 087/223) y `SpriteLineLayer::configure` **rechaza** configurarse sin su tabla de DATA (tipo obligatorio + tamaño validado). Al diseñar una API, la pregunta de gate es: «¿puede el llamador configurar esto a medias?» → si sí, cerrar la forma (tipo/argumento) o añadir validador.
 - Ya existía para escenas: `composition::valid_scene(res, limits)` (`consteval`) valida `SceneResources` contra el perfil de la máquina.
 
@@ -51,6 +53,8 @@ Ambos comparten la misma clase: **un valor/resultado que debía ser coherente co
 - **`check_bplcon0` / `check_bplcon0_mode`**: `BPU` debe casar con los planos emitidos; bit COLOR presente; HAM=6 planos; DBLPF par; EHB=6 planos.
 - **`check_bob_plan`**: la combinación de campos de un `Bob` (draw/layout/mask_pack/máscara) está cubierta por el ejecutor; si no, `bob_draw` devolvería `false` en silencio (caso real: caminante/patrullero de 066 sin dibujar).
 - **`check_copper_wait_order`**: los WAIT de la lista emitida no pueden retroceder (un WAIT «ya pasado» espera al frame siguiente: el efecto desaparece). Entiende el par de overflow PAL (`0xffdf`/`0xfffe`) y el `END`.
+- **`check_copper_list`**: chequeo completo de la lista emitida palabra a palabra: terminador `0xffff`/`0xfffe` presente, `MOVE`s solo a registros **escribibles para el chipset** (`copper::copper_register_access`, tabla contrastada con WinUAE `identify.cpp` y `custom.cpp`), sin instrucciones tras el `END`, sin terminadores mal formados (`0xffff` con máscara distinta de `0xfffe` = espera infinita), sin palabras de registro no canónicas y con el orden de WAITs. La demo 020 lo ejecuta en su `init` como caso positivo real y HOST-446 cubre los negativos.
+- **`check_copper_column`**: un relleno con paso sobre la copperlist (blitter de columnas, `CopperChunkyLayer`) declara su `copper::ColumnPatch` (primer MOVE, stride par ≥ 2, filas) y el validador comprueba que cada fila cae sobre el DATO de un MOVE dentro de la lista: «pisar un WAIT por un módulo mal puesto» deja de ser un descuadre silencioso.
 - **`check_sprite_line_data`**: el parcheo de `SPRxDATA`/`DATB` a media línea (patrón Brian the Lion) exige ≤5 planos de display (sin hueco de DMA no llega el ciclo del sprite; `custom.cpp:10111`/`10130-10131`); `SpriteLineLayer::configure` lo aplica.
 - **`check_sprite_line_hpos`**: en un **rearmado por línea** la X del primer tramo debe caer **tras el fetch de sprites** (`kSpriteLineMinHstart` = 0x81 + `DDFSTRT`/2; `custom.cpp:10111`); `SpriteLineLayer::configure` lo aplica solo con `per_line_rearm` (el armado único no tiene esa carrera).
 - **Servicios exclusivos**: `has_blit_service()` dice si el slot de IRQ de blit está ocupado; `blit_service_conflicts()` cuenta los rechazos (la incoherencia queda diagnosticable).
@@ -59,7 +63,7 @@ Regla operativa: el `init` de una demo termina con los chequeos de coherencia de
 
 ### Capa 3 — tests host
 
-`tests/host/debug/441_setup_coherence` ejercita cada validador **con el fallo histórico como caso** (BPU=5 con 4 planos, WAIT que retrocede tras el de las bandas de 065, hoja que rebasa el bloque, región fuera del banco). Si un validador se relaja, el test cae.
+`tests/host/debug/441_setup_coherence` ejercita cada validador **con el fallo histórico como caso** (BPU=5 con 4 planos, WAIT que retrocede tras el de las bandas de 065, hoja que rebasa el bloque, región fuera del banco). `tests/host/graphics/446_copper_list_safety` cubre el bloque de Copper: slots tipados, `check_copper_list` (lista real aceptada; sin END, registros no escribibles por chipset, instrucciones tras el END, terminador mal formado y WAIT retrocedido rechazados), `check_copper_column` y el presupuesto `static_assert` de `compile_intents`. Si un validador se relaja, el test cae.
 
 ## 4. Qué NO cubre (y su vía)
 
@@ -71,7 +75,9 @@ Regla operativa: el `init` de una demo termina con los chequeos de coherencia de
 
 ## 5. Referencias
 
-- Validador: `engine/include/eng/setup/coherence.hpp`; test: `tests/host/debug/441_setup_coherence/`.
+- Validador: `engine/include/eng/setup/coherence.hpp`; tests: `tests/host/debug/441_setup_coherence/` y `tests/host/graphics/446_copper_list_safety/` (caso positivo de `check_copper_list` en vivo: demo `020_copper_basic`).
+- Modelo tipado del Copper: `engine/include/eng/graphics/copper/copper.hpp` (`RegisterOffset`, `MoveSlot`/`WaitSlot`, `ColumnPatch`, `copper_register_access`) y `copper/scheduler.hpp` (`PatchHandle` tipado, `ScheduleReport::publishable`); modo estricto `ENG_COPPER_STRICT` en `Plan::end_frame`.
 - Constructor único: `bplcon0_for` en `engine/include/eng/graphics/composition/limits.hpp` (junto a `SceneMode` y `validate`/`valid_scene`).
+- Fuente de hardware de la tabla de registros y de la decodificación: `docs/reference/emulators/winuae/copper.md` (WinUAE-DBG `custom.cpp`/`identify.cpp`) + AHRM 3.ª Appendix B/C.
 - Casos: `docs/debugging/investigaciones/066-async-blit-irq-bajo-el-so.md` (plano fantasma, L0/S0) y la lección de orden de WAITs de 065 (`PROCEDIMIENTO_DEMOS_Y_JUEGOS.md` §3.15-20).
 - Enforce de compilación: `tools/build/build-demo.sh` (`-Werror=unused-result`).

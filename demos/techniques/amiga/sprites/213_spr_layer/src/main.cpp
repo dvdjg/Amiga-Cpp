@@ -234,8 +234,8 @@ private:
 		const eng::uintptr sbase = reinterpret_cast<eng::uintptr>(sprite.view.data());
 		for (u8 c = 0u; c < kChannels; ++c) {
 			const eng::uintptr addr = sbase + static_cast<eng::uintptr>(c) * kStride * 2u;
-			sched.move(static_cast<u16>(0x120u + c * 4u), static_cast<u16>(addr >> 16u));
-			sched.move(static_cast<u16>(0x122u + c * 4u), static_cast<u16>(addr & 0xffffu));
+			sched.move(eng::copper::sprite_pointer_high_register(c), static_cast<u16>(addr >> 16u));
+			sched.move(eng::copper::sprite_pointer_low_register(c), static_cast<u16>(addr & 0xffffu));
 		}
 		sched.move(eng::copper::Register::BPLCON2, 0x0000u); // prioridad: sprites detras del playfield
 		sched.move(eng::copper::Register::DMACON,
@@ -252,13 +252,13 @@ private:
 				const u8 ch = static_cast<u8>(j % kChannels);
 				const u16 wc = static_cast<u16>((window + j) % kWorldCols);
 				const usize t = (static_cast<usize>(wc) * kLines + l) * 2u;
-				sched.move(static_cast<u16>(0x140u + ch * 8u),
+				sched.move(eng::copper::sprite_pos_register(ch),
 					   spr_pos(static_cast<u16>(kHpos0 + j * kColW - s)));
-				sched.move(static_cast<u16>(0x146u + ch * 8u), m_world[t + 0u]); // DATB
-				sched.move(static_cast<u16>(0x144u + ch * 8u), m_world[t + 1u]); // DATA (arma)
+				sched.move(eng::copper::sprite_datb_register(ch), m_world[t + 0u]); // DATB
+				sched.move(eng::copper::sprite_data_register(ch), m_world[t + 1u]); // DATA (arma)
 			}
 			for (u8 c = kChannels; c-- > 0u; ) { // reposicion a la izquierda, orden inverso
-				sched.move(static_cast<u16>(0x140u + c * 8u),
+				sched.move(eng::copper::sprite_pos_register(c),
 					   spr_pos(static_cast<u16>(kHpos0 + c * kColW - s)));
 			}
 		}

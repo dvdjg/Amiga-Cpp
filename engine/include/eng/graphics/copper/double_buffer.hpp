@@ -19,10 +19,10 @@
 ///   copper::DoubleBuffer copper;
 ///   copper.begin(memory, config.copper_bytes);
 ///   // primer frame: emitir la lista completa en el bloque inactivo y voltear
-///   { copper::Scheduler s { copper.inactive_block() }; ...; m_handle = s.move_at(...); }
+///   { copper::Scheduler s { copper.inactive_block() }; ...; m_slot = s.move_at(...); }
 ///   copper.flip();
 ///   // por frame: parchear el inactivo y publicar
-///   copper.inactive_words()[m_handle + 1u] = nuevo_valor;
+///   copper::patch_data(copper.inactive_span(), m_slot, nuevo_valor);
 ///   copper.flip();
 ///   copper.install(backend);
 ///
@@ -120,6 +120,16 @@ public:
 	/// Words del bloque que la CPU debe escribir este frame.
 	constexpr u16* inactive_words() const {
 		return reinterpret_cast<u16*>(m_blocks[m_active ^ 1u].view.data());
+	}
+
+	/// Vista de escritura del bloque activo/inactivo: la forma que piden los helpers de
+	/// parcheo (`copper::patch_data(span, slot, valor)`), con el slot tipado que devolvió
+	/// `Scheduler::move_at` al emitir sobre ese mismo bloque.
+	[[nodiscard]] constexpr eng::Span<u16> active_span() const {
+		return eng::Span<u16> {active_words(), m_blocks[m_active].view.size() / 2u};
+	}
+	[[nodiscard]] constexpr eng::Span<u16> inactive_span() const {
+		return eng::Span<u16> {inactive_words(), m_blocks[m_active ^ 1u].view.size() / 2u};
 	}
 
 	/// Un `Scheduler` ligado al bloque inactivo (para reemitir o emitir+MOVE inicial).

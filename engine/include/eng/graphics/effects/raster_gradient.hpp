@@ -29,6 +29,7 @@
 #include <eng/core/util/array.hpp>
 #include <eng/core/util/color.hpp>
 #include <eng/core/math/arith.hpp>
+#include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/raster_intent.hpp>
 
 namespace eng::graphics::effects {
@@ -130,14 +131,14 @@ public:
 		plan.add(m_intents, n);
 	}
 
-	/// Tras **materializar** sus intenciones una vez (setup), casa cada banda con la palabra de
-	/// DATO que el `Plan` registró (por registro+fila). Habilita la animación barata: a partir
-	/// de aquí `patch_words`/`patch_into` solo reescriben esas palabras, sin re-emitir la
-	/// copperlist (slots de `Plan`).
+	/// Tras **materializar** sus intenciones una vez (setup), casa cada banda con el MOVE de
+	/// la palabra de DATO que el `Plan` registró (por registro+fila). Habilita la animación
+	/// barata: a partir de aquí `patch_words`/`patch_into` solo reescriben esas palabras, sin
+	/// re-emitir la copperlist (slots tipados de `Plan`).
 	template <typename Plan>
 	void bind_slots(const Plan& plan) {
 		for (u16 b = 0; b < m_range.bands; ++b) {
-			m_slot[b] = no_slot;
+			m_slot[b] = copper::MoveSlot {};
 			const u16 line = static_cast<u16>(m_range.first_line +
 							 static_cast<u32>(b) * m_range.band_height);
 			for (u16 j = 0; j < plan.slot_count(); ++j) {
@@ -158,8 +159,8 @@ public:
 		}
 		const u16* const row = m_table[phase_index()];
 		for (u16 b = 0; b < m_range.bands; ++b) {
-			if (m_slot[b] != no_slot) {
-				words[m_slot[b]] = row[b];
+			if (m_slot[b].valid()) {
+				words[m_slot[b].data_word()] = row[b];
 			}
 		}
 	}
@@ -239,10 +240,9 @@ private:
 	bool m_pow2 = false;
 	/// Mascara `m_key_count - 1` cuando `m_pow2` (si no, 0).
 	u16 m_pmask = 0;
-	/// Palabra de DATO por banda en la copperlist ya materializada (`no_slot` si no casó). La
-	/// fija `bind_slots` en setup; la usa `patch_into` para animar sin re-emitir.
-	static constexpr u16 no_slot = 0xffffu;
-	eng::util::Array<u16, max_bands> m_slot {};
+	/// Palabra de DATO por banda en la copperlist ya materializada (slot inválido si no casó).
+	/// La fija `bind_slots` en setup; la usa `patch_into` para animar sin re-emitir.
+	eng::util::Array<copper::MoveSlot, max_bands> m_slot {};
 };
 
 } // namespace eng::graphics::effects

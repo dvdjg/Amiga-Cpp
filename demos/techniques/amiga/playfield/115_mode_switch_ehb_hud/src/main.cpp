@@ -27,11 +27,13 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
-/// Microtest MI09: campo **EHB** (6 planos, BPLCON4=1) arriba + HUD de **4 planos**
-/// sin EHB abajo, conmutado por `ModeSwitchZone`. Es el uso real de 201: al bajar
-/// al HUD se reprograma BPLCON0 (BPU=4) y BPLCON4=0, o el bit half-brite mezclaria
-/// colores. El test comprueba que el campo muestra >32 colores (EHB) y el HUD se
-/// queda en 16 (sus 4 planos).
+/// Microtest MI09: campo **EHB** (6 planos, HAM=0 en `BPLCON0`) arriba + HUD de **4 planos**
+/// sin EHB abajo, conmutado por `ModeSwitchZone`. El EHB lo selecciona `BPLCON0` (6 planos,
+/// HAM/DPF a 0; AHRM 3.ª cap. 3 y WinUAE `drawing.cpp:2741`), así que al bajar al HUD basta
+/// reprogramar `BPLCON0` (BPU=4): con 4 planos el half-brite no existe y los colores 32..63
+/// dejan de mezclarse. `BPLCON3` (0x106) se fija además a 0 (bit 0 `ENBPLCN3`, ECS) para que
+/// el HUD no herede funciones ECS del campo (no selecciona EHB; eso es `KILLEHB`, bit 9).
+/// El test comprueba que el campo muestra >32 colores (EHB) y el HUD se queda en 16 (sus 4 planos).
 struct DemoGame {
 	static constexpr eng::u16 width = 320;
 	static constexpr eng::u16 height = 256;
@@ -75,14 +77,14 @@ struct DemoGame {
 			m_plane_block.mem_view_chip().subview(0,
 							      static_cast<eng::usize>(field_planes) * plane_bytes),
 			plane_bytes);
-		sched.move(eng::copper::Register::BPLCON4, 0x0001u); // EHB en el campo
+		sched.move(eng::copper::Register::BPLCON3, 0x0001u); // ENBPLCN3 (ECS) en el campo
 		sched.emit_palette(eng::PaletteWords { colors, 32u });
 
 		eng::graphics::ModeSwitchZone z {};
 		z.top = static_cast<eng::u16>(diwstrt_y + hud_line);
 		z.bplcon0 = eng::graphics::composition::bplcon0_for(
 			eng::graphics::composition::SceneMode::Standard, hud_planes);
-		z.set_bplcon4 = true; z.bplcon4 = 0u; // salir de EHB en el HUD
+		z.set_bplcon3 = true; z.bplcon3 = 0u; // ENBPLCN3 off en el HUD
 		z.set_bplcon1 = true; z.bplcon1 = 0u;
 		z.ddfstrt = ddfstrt; z.ddfstop = ddfstop;
 		z.bpl1mod = 0x0000u; z.bpl2mod = 0x0000u;

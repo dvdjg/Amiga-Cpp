@@ -98,8 +98,8 @@ inline void emit_sprite_bend_into(Sched& sched, eng::Span<const SpriteBend> spri
 			}
 			const SpritePosCtl e = encode_sprite_pos_ctl(static_cast<u16>(x), line,
 								     static_cast<u16>(end - line), false);
-			sched.move(static_cast<u16>(0x140u + s.channel * 8u), e.pos); // SPRxPOS
-			sched.move(static_cast<u16>(0x142u + s.channel * 8u), e.ctl); // SPRxCTL
+			sched.move(copper::sprite_pos_register(s.channel), e.pos); // SPRxPOS
+			sched.move(copper::sprite_ctl_register(s.channel), e.ctl); // SPRxCTL
 		}
 		if (++in_step >= step) {
 			in_step = 0u;

@@ -195,13 +195,15 @@ mini-fuente 5×7 para el HUD.
 
 ## 3. Mecánicas del Amiga que se explotan
 
-**Modo EHB (Half-Bright, planos 1-6).** Con `BPLCON4 = 1` y 6 bitplanes, el chipset genera
-automáticamente los colores *half* `32..63` como `base/2` por componente de los 32 bases
-(`COLOR00..31`). Por eso la demo carga **solo 32 registros de color** (`kEhbPalette` toma los
-32 bases; `g_palette[32]`) y el hardware fabrica los 32 oscuros gratis. El índice del tile
-se interpreta directamente: el bit 5 del índice EHB enciende el plano 6 / half
+**Modo EHB (Half-Bright, planos 1-6).** Con 6 bitplanes y HAM/DPF a 0 en `BPLCON0` (AHRM 3.ª
+cap. 3, «Color selection in Extra Half Brite mode»; WinUAE `drawing.cpp:2741`), el chipset
+genera automáticamente los colores *half* `32..63` como `base/2` por componente de los 32
+bases (`COLOR00..31`). Por eso la demo carga **solo 32 registros de color** (`kEhbPalette`
+toma los 32 bases; `g_palette[32]`) y el hardware fabrica los 32 oscuros gratis. El índice
+del tile se interpreta directamente: el bit 5 del índice EHB enciende el plano 6 / half
 (`main.cpp:118`, `xlimited_scene.hpp` conversión índice→planos). Esto dobla la paleta
-"percibida" a 64 sin gastar planos extra ni CPU.
+"percibida" a 64 sin gastar planos extra ni CPU. El registro `$106` de la cabecera es
+`BPLCON3` (bit 0 `ENBPLCN3`, funciones ECS): **no** selecciona EHB, que sale de `BPLCON0`.
 
 **Scroll horizontal y vertical acelerado por hardware.** El desplazamiento fino lo hace el
 chipset, no la CPU:
@@ -215,21 +217,22 @@ La CPU *no* dibuja cada frame la pantalla: calcula las coordenadas y programa re
 frame está en pintar con Blitter las columnas/filas nuevas, no en el display.
 
 **Copper (copperlist programada con zonas).** Una sola copperlist por frame:
-- la **zona main** mantiene `BPLCON4=1` (EHB on) y los 6 `BPLxPT` al campo de scroll,
-- en la **zona HUD** (`hud_raster`) se apaga el EHB (`BPLCON4=0`) y se apuntan los planos
-  al lienzo del HUD, con su propia paleta.
+- la **zona main** mantiene los 6 planos (EHB activo por `BPLCON0`) y los 6 `BPLxPT` al campo
+  de scroll,
+- en la **zona HUD** (`hud_raster`) el tramo baja a los planos del HUD (`BPLCON0`), con lo
+  que el half-brite no aplica, y se apuntan los planos al lienzo del HUD, con su propia paleta.
 
 Esto permite un HUD de texto con colores planos distintos del mapa, recortado de la misma
 copperlist en la parte baja de la pantalla (split vertical). Ver la verificación del dump
 real del Copper en `docs/guides/roadmap/XLIMITED_8WAY_EHB_201.md`.
 
 ```
-             BPLCON4   planos        contenido
-screen  ┌──────┬──────────┬──────────────────┐
-  main  │ 1    │ 1..6     │ mapa EHB (scroll)│
-        ├──────┼──────────┼──────────────────┤
-  HUD   │ 0    │ 1..6     │ telemetría texto │
-        └──────┴──────────┴──────────────────┘
+             planos            contenido
+screen  ┌────────────────┬──────────────────────┐
+  main  │ 1..6 (EHB)     │ mapa con scroll      │
+        ├────────────────┼──────────────────────┤
+  HUD   │ 1..n (sin EHB) │ telemetría de texto  │
+        └────────────────┴──────────────────────┘
 ```
 
 **Blitter (DMA de copia de bloques).** Cada tile es un único `BlitJob` interleaved
@@ -517,11 +520,13 @@ bits (raster <= 255), así que el split solo es fiable si `split_line + 41 <= 25
 
 ### 7.7 EHB (6 planos) — detalles que no tocar
 
-- `BPLCON4 = 1` activa Half-Bright con 6 planos: solo se cargan 32 registros de color base
-  (COLOR00..31) y el hardware fabrica los half (32..63) como base/2.
+- El Half-Bright lo activa `BPLCON0` con 6 planos y HAM/DPF a 0 (AHRM 3.ª cap. 3; WinUAE
+  `drawing.cpp:2741`): solo se cargan 32 registros de color base (COLOR00..31) y el hardware
+  fabrica los half (32..63) como base/2. El `BPLCON3` (`$106`) de la cabecera es el bit 0
+  `ENBPLCN3` de ECS, no un selector de EHB.
 - Convención BASES-PRIMERO: el índice EHB 0..63 ya es el número de color; bit 5 = plano 6 = half.
-- Al cambiar de playfield (zona HUD) hay que reprogramar BPLCON0 con el nº de planos del HUD y
-  `BPLCON4 = 0` (sin EHB), o el bit half/EHB mezcla colores en la franja.
+- Al cambiar de playfield (zona HUD) hay que reprogramar `BPLCON0` con el nº de planos del HUD
+  (con menos de 6 planos el half-brite no aplica), o el bit half/EHB mezcla colores en la franja.
 
 ### 7.8 Orden de verificación de cualquier cambio
 

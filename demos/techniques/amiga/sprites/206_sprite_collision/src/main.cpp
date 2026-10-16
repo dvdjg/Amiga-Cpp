@@ -141,8 +141,8 @@ private:
 					  kPlanes, m_bitplane_block.mem_view_chip(), kPlaneBytes);
 		// SPR0PT -> estructura DMA (cabecera + DATA). El resto de canales, sin sprite.
 		const eng::uintptr sp = reinterpret_cast<eng::uintptr>(m_sprite_block.view.data());
-		sched.move(static_cast<eng::copper::Register>(0x120u), static_cast<eng::u16>(sp >> 16));
-		sched.move(static_cast<eng::copper::Register>(0x122u), static_cast<eng::u16>(sp & 0xffffu));
+		sched.move(eng::copper::sprite_pointer_high_register(0u), static_cast<eng::u16>(sp >> 16));
+		sched.move(eng::copper::sprite_pointer_low_register(0u), static_cast<eng::u16>(sp & 0xffffu));
 		sched.move(eng::copper::Register::DMACON,
 			   static_cast<eng::u16>(eng::copper::DmaSetClear | eng::copper::DmaMaster |
 						 eng::copper::DmaCopper | eng::copper::DmaBitplane |

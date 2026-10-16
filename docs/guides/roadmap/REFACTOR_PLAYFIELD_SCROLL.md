@@ -51,7 +51,7 @@ en el proceso.
 - Caso de uso: juego de 5 planos arriba + HUD de 4/3/2 planos abajo, sin arrastrar la geometría.
 - **Hecho (API + microtests + integración)**: `eng::graphics::ModeSwitchZone` (`mode_switch.hpp`)
   y `copper::Scheduler::emit_mode_switch_zone`, con el orden estricto
-  `BPLCON0`→`DDF`→módulos→`BPLxPT`→(`BPLCON4`/`BPLCON1`/paleta) (HOST-042). Microtests hardware:
+  `BPLCON0`→`DDF`→módulos→`BPLxPT`→(`BPLCON3`/`BPLCON1`/paleta) (HOST-042). Microtests hardware:
   113 (5→2), 114 (campo 5 + franjas 4/3/2 apiladas) y 115 (EHB 6 → HUD 4 sin EHB); verificación
   determinista `verify-113/114/115`. **MI09 verificado** (detalle en
   `amiga-hardware-invariants-microtests.md`).

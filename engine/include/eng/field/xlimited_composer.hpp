@@ -38,13 +38,14 @@ namespace eng::playfield {
 /// Compartida por los compositores single y dual.
 struct RasterColorZone {
     u16 line = 0;
-    copper::Register reg = copper::Register::COLOR00;
+    /// Destino del MOVE de la zona (el modelo tipado del Copper: `color_register`).
+    copper::RegisterOffset reg = copper::color_register(0u);
     u16 color = 0;
 };
 
 /// Construye una zona de color por raster para el registro COLOR`index`.
 constexpr RasterColorZone raster_color(u16 line, u8 color_index, u16 color) {
-    return { line, static_cast<copper::Register>(copper::color_register(color_index)), color };
+    return { line, copper::color_register(color_index), color };
 }
 
 class XlimitedDisplayComposer {
@@ -205,18 +206,19 @@ private:
         h.dmacon = static_cast<u16>(copper::DmaSetClear | copper::DmaMaster |
                                     copper::DmaCopper | copper::DmaBitplane |
                                     (m_cfg.sprites.valid() ? m_cfg.sprites->dma_bits() : 0));
-        // BPLCON0 por el constructor único (`bplcon0_for`): BPU = planos del view. El EHB de
-        // 6 planos se activa por `BPLCON4` (AGA) más abajo, no por BPLCON0 (sin bit propio).
+        // BPLCON0 por el constructor único (`bplcon0_for`): BPU = planos del view; con 6
+        // planos y HAM=DPF=0 el chipset entra en **EHB** (AHRM 3.ª cap. 3 "Color selection
+        // in Extra Half Brite mode"; WinUAE `drawing.cpp:2741`), sin bit propio en BPLCON0.
         h.bplcon0 = graphics::composition::bplcon0_for(graphics::composition::SceneMode::Standard,
                                                        view.planes);
         h.bplcon1 = view.bplcon1;
         h.bplcon2 = 0x0000u;
-        // EHB (HalfBrite): con 6 planos en modo SINGLE, el bit 0 de BPLCON4 activa
-        // el modo EHB — el plano 6 deja de ser un bit de color y actúa como
-        // selector "half": color = base/2. Es la semántica del tilebank BASES-
-        // PRIMERO de la 201 (índices 0..31 base, 32..63 = half automático).
-        h.set_bplcon4 = (view.planes == 6u);
-        h.bplcon4 = 0x0001u;
+        // BPLCON3 (0x106, ECS): bit 0 `ENBPLCN3` = habilita las funciones ECS extendidas
+        // (AHRM Appendix C; `drawing.cpp:2999`). **No** selecciona EHB: el half-brite sale
+        // de BPLCON0 (6 planos) y el bit que lo anula es `KILLEHB` (bit 9). Se escribe para
+        // fijar el estado ECS de forma determinista en el tilebank de la 201.
+        h.set_bplcon3 = (view.planes == 6u);
+        h.bplcon3 = 0x0001u;
         h.bpl1mod = view.bpl1mod;
         h.bpl2mod = view.bpl2mod;
         h.diwstrt = m_cfg.diwstrt;
@@ -383,37 +385,38 @@ public:
     /// **Camino caliente**: parchea SOLO los punteros BPLxPT en el bloque inactivo y lo publica,
     /// sin re-emitir la lista (re-emitir costaba ~63K ciclos/frame; parchear ~2-3K). Devuelve
     /// `false` si el conjunto de punteros cambió (split por campo distinto al emitido), en cuyo
-    /// caso el llamador debe re-emitir. Los handles los dio `move_at` al emitir, así que no
-    /// dependen de offsets cableados.
+    /// caso el llamador debe re-emitir. Los slots los dio `move_at` al emitir (`MoveSlot`/
+    /// `WaitSlot`), así que no dependen de offsets cableados y no pueden caer sobre una palabra
+    /// que no sea el dato/la línea de la instrucción correcta.
     bool patch(const PlayfieldHardwareView& pf1, const PlayfieldHardwareView& pf2) {
         if (!m_ok) return false;
         if (pf1.split_active != m_split_a || pf2.split_active != m_split_b) return false;
-        u16* const w = m_copper.inactive_words();
+        const eng::Span<u16> w = m_copper.inactive_span();
         // BPLCON1 (fine X de ambos campos) y la LÍNEA del WAIT del split avanzan
         // cada frame de scroll: se reescriben aquí sin re-emitir la lista.
-        w[m_patch_bplcon1_word + 1u] = ((pf2.bplcon1 & 0x0f) << 4) | (pf1.bplcon1 & 0x0f);
-        if (m_patch_split_wait_word != 0xffffu) {
+        copper::patch_data(w, m_patch_bplcon1, ((pf2.bplcon1 & 0x0f) << 4) | (pf1.bplcon1 & 0x0f));
+        if (m_patch_split_wait.valid()) {
             const u16 sl = pf1.split_active ? pf1.split_line : pf2.split_line;
             const u16 raster = (m_cfg.diwstrt >> 8u) + sl;
-            const u8 wait = raster > 0xffu ? 0xffu : raster;
-            w[m_patch_split_wait_word] = (wait << 8u) | 0x01u;
+            const u8 wait = raster > 0xffu ? 0xffu : static_cast<u8>(raster);
+            copper::patch_wait(w, m_patch_split_wait, wait);
         }
         for (u8 i = 0; i < m_cfg.planes_per_field; ++i) {
             const uintptr a1 = field_plane_address(pf1, i, pf1.planeaddy).value;
             const uintptr a2 = field_plane_address(pf2, i, pf2.planeaddy).value;
-            w[m_patch_pf1[i][0] + 1u] = static_cast<u16>(a1 >> 16);
-            w[m_patch_pf1[i][1] + 1u] = static_cast<u16>(a1 & 0xffffu);
-            w[m_patch_pf2[i][0] + 1u] = static_cast<u16>(a2 >> 16);
-            w[m_patch_pf2[i][1] + 1u] = static_cast<u16>(a2 & 0xffffu);
+            copper::patch_data(w, m_patch_pf1[i][0], static_cast<u16>(a1 >> 16));
+            copper::patch_data(w, m_patch_pf1[i][1], static_cast<u16>(a1 & 0xffffu));
+            copper::patch_data(w, m_patch_pf2[i][0], static_cast<u16>(a2 >> 16));
+            copper::patch_data(w, m_patch_pf2[i][1], static_cast<u16>(a2 & 0xffffu));
             if (pf1.split_active) {
                 const uintptr s1 = field_plane_address(pf1, i, pf1.split_planeaddy).value;
-                w[m_patch_split_pf1[i][0] + 1u] = static_cast<u16>(s1 >> 16);
-                w[m_patch_split_pf1[i][1] + 1u] = static_cast<u16>(s1 & 0xffffu);
+                copper::patch_data(w, m_patch_split_pf1[i][0], static_cast<u16>(s1 >> 16));
+                copper::patch_data(w, m_patch_split_pf1[i][1], static_cast<u16>(s1 & 0xffffu));
             }
             if (pf2.split_active) {
                 const uintptr s2 = field_plane_address(pf2, i, pf2.split_planeaddy).value;
-                w[m_patch_split_pf2[i][0] + 1u] = static_cast<u16>(s2 >> 16);
-                w[m_patch_split_pf2[i][1] + 1u] = static_cast<u16>(s2 & 0xffffu);
+                copper::patch_data(w, m_patch_split_pf2[i][0], static_cast<u16>(s2 >> 16));
+                copper::patch_data(w, m_patch_split_pf2[i][1], static_cast<u16>(s2 & 0xffffu));
             }
         }
         m_copper.flip();
@@ -498,9 +501,9 @@ private:
             static_cast<u16>(copper::DmaSetClear | copper::DmaMaster |
                              copper::DmaCopper | copper::DmaBitplane));
         sched.move(copper::Register::BPLCON0, bplcon0);
-        // Handle del MOVE de BPLCON1: el fine X cambia con cada pixel de scroll y
+        // Slot del MOVE de BPLCON1: el fine X cambia con cada pixel de scroll y
         // el camino caliente solo parchea words (no re-emite la lista).
-        m_patch_bplcon1_word = sched.move_at(copper::Register::BPLCON1, bplcon1);
+        m_patch_bplcon1 = sched.move_at(copper::Register::BPLCON1, bplcon1);
         sched.move(copper::Register::BPLCON2, m_cfg.foreground_is_pf2 ? 0x0040u : 0x0000u);
         // Módulos: en DPF AMBOS playfields se muestran con el MISMO DDF/fetch, así
         // que el módulo de cada uno debe usar el fetch real de PF1 (no el suyo
@@ -542,15 +545,14 @@ private:
         // (split) y el otro lineal/mirror (sin split, Y independiente): el lineal
         // nunca se re-apunta, su display lee contiguo su mirror.
         const bool aS = pf1.split_active, bS = pf2.split_active;
-        m_patch_split_wait_word = 0xffffu;
+        m_patch_split_wait = {};
         if (aS || bS) {
             const u16 split_line = aS ? pf1.split_line : pf2.split_line;
             raster = static_cast<u16>((m_cfg.diwstrt >> 8u) + split_line);
             const u8 wait = raster > 0xffu ? 0xffu : static_cast<u8>(raster);
-            // Handle de la word del WAIT: el camino caliente reescribe la LÍNEA
-            // (el split avanza cada pixel de scroll; re-emitir costaría ~63K).
-            m_patch_split_wait_word = sched.words_used();
-            sched.wait_line(wait);
+            // Slot del WAIT: el camino caliente reescribe la LÍNEA (el split avanza
+            // cada pixel de scroll; re-emitir costaría ~63K).
+            m_patch_split_wait = sched.wait_line(wait);
             for (u8 i = 0; i < m_cfg.planes_per_field; ++i) {
                 if (aS) {
                     const uintptr s = field_plane_address(pf1, i, pf1.split_planeaddy).value;
@@ -582,16 +584,16 @@ private:
     bool m_initialized = false;
     bool m_copper_initialized = false;
     bool m_ok = false;
-    // Handles de parcheo (indice de la word de instruccion del MOVE) de los punteros BPLxPT,
-    // guardados por `emit_full` con `move_at` y reescritos por `patch` sin re-emitir.
-    u16 m_patch_pf1[6][2] {};
-    u16 m_patch_pf2[6][2] {};
-    u16 m_patch_split_pf1[6][2] {};
-    u16 m_patch_split_pf2[6][2] {};
-    /// Word de la instrucción MOVE de BPLCON1 (0xffff si no aplica).
-    u16 m_patch_bplcon1_word = 0xffffu;
-    /// Word de la instrucción WAIT del split (0xffff = la lista no lleva split).
-    u16 m_patch_split_wait_word = 0xffffu;
+    // Slots de parcheo (`MoveSlot`/`WaitSlot`) de los punteros BPLxPT y del fine scroll,
+    // guardados por `emit_full` con `move_at`/`wait_line` y reescritos por `patch` sin re-emitir.
+    copper::MoveSlot m_patch_pf1[6][2] {};
+    copper::MoveSlot m_patch_pf2[6][2] {};
+    copper::MoveSlot m_patch_split_pf1[6][2] {};
+    copper::MoveSlot m_patch_split_pf2[6][2] {};
+    /// MOVE de BPLCON1 (`valid()` false si no aplica).
+    copper::MoveSlot m_patch_bplcon1 {};
+    /// WAIT del split (`valid()` false = la lista no lleva split).
+    copper::WaitSlot m_patch_split_wait {};
     bool m_split_a = false;
     bool m_split_b = false;
 };

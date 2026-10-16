@@ -153,8 +153,9 @@ el banco (222 KB) más el display en 512 KB de Chip RAM.
 - `XlimitedScene` **alia** el banco (`scene_cfg.blocks_prebuilt`), no lo copia ni lo
   transforma: el rectángulo de Chip total (banco + display + copper) cabe en 512 KB.
 - La paleta solo carga las 32 bases en `COLOR00..31` (`g_palette[i] =
-  kEhbPalette[i]`); el bit 0 de `BPLCON4=1` activa EHB (`xlimited.hpp` compositor
-  single 6 planos) y el hardware genera los half con `base >> 1`.
+  kEhbPalette[i]`); el EHB lo activa `BPLCON0` con 6 planos y HAM=0 (AHRM 3.ª cap. 3;
+  `xlimited.hpp` compositor single 6 planos; el `$106` que emite el header es `BPLCON3`,
+  bit 0 `ENBPLCN3` de ECS) y el hardware genera los half con `base >> 1`.
 - El mapa `kRenderMap` es la **tabla de índices**: cada celda dice qué tile del banco
   pintar; `draw_block_job` (`xlimited.hpp:772`) resuelve el índice → offset del banco
   `(block%20, block/20)` y programa el blit.

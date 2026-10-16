@@ -161,8 +161,12 @@ struct InputAggregatorDemo {
 		draw_cross(m_bitplane_block.view.data(), m_cx, m_cy);
 
 		// 4) Parchear SOLO el valor de COLOR01 en la copperlist ya construida (estructura
-		//    fija): no se reconstruye ni se reinstala la lista cada frame.
-		reinterpret_cast<eng::u16*>(m_copper_block.view.data())[m_color1_word] = cross;
+		//    fija): no se reconstruye ni se reinstala la lista cada frame. El parche va por
+		//    el slot tipado (no puede caer sobre el opcode de otro MOVE ni sobre un WAIT).
+		const eng::Span<eng::u16> copper_words {
+			reinterpret_cast<eng::u16*>(m_copper_block.view.data()),
+			m_copper_block.view.size() / 2u};
+		eng::copper::patch_data(copper_words, m_color1_slot, cross);
 		(void)backend;
 		(void)context;
 	}
@@ -226,11 +230,13 @@ private:
 		// Paleta: emitimos los MOVEs uno a uno para guardar el indice de la palabra de
 		// valor de COLOR01, que es lo unico que cambia por frame (color de la cruz).
 		for (eng::u8 i = 0; i < 32u; ++i) {
-			const eng::u16 idx = sched.move_at(
-				static_cast<eng::u16>(eng::copper::Register::COLOR00) + static_cast<eng::u16>(i) * 2u,
+			const eng::copper::MoveSlot slot = sched.move_at(
+				eng::copper::color_register(i),
 				m_palette[i]);
 			if (i == 1u) {
-				m_color1_word = static_cast<eng::u16>(idx + 1u); // palabra de valor del MOVE
+				// Slot tipado del MOVE COLOR01: la palabra de valor se parchea por frame
+				// con `copper::patch_data` (el tipo impide caer sobre el opcode/otro MOVE).
+				m_color1_slot = slot;
 			}
 		}
 		build_bands();
@@ -254,7 +260,7 @@ private:
 	eng::u16 m_cy = kScreenH / 2u;
 	eng::amiga::MousePollState m_mouse_poll {};
 	eng::u16 m_palette[32] {};
-	eng::u16 m_color1_word = 0; // indice de la palabra de valor del MOVE COLOR01
+	eng::copper::MoveSlot m_color1_slot {}; // MOVE de COLOR01 (el dato se parchea por frame)
 	eng::ChipView<eng::CopperTag> m_copper_view {};
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::Block<eng::CopperTag> m_copper_block {};

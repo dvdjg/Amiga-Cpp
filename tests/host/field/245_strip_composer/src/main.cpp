@@ -51,14 +51,14 @@ int main() {
 	const eng::u16* w = comp.debug_active_words();
 	check(w != nullptr, "copperlist activa disponible");
 	if (w != nullptr) {
-		check(w[comp.bplcon1_handle() + 1u] == 0xccu, "BPLCON1 parcheado = fine duplicado");
+		check(w[comp.bplcon1_slot().data_word()] == 0xccu, "BPLCON1 parcheado = fine duplicado");
 		const eng::uintptr base = reinterpret_cast<eng::uintptr>(g_ring);
 		for (eng::u8 p = 0u; p < Geom::planes; ++p) {
 			const eng::u32 addr = static_cast<eng::u32>(base) +
 					      static_cast<eng::u32>(p) * Geom::ring_w_bytes + 1u * 2u;
-			check(w[comp.pt_handle(p, 0u) + 1u] == static_cast<eng::u16>(addr >> 16u),
+			check(w[comp.pt_slot(p, 0u).data_word()] == static_cast<eng::u16>(addr >> 16u),
 			      "BPLxPT alto por plano");
-			check(w[comp.pt_handle(p, 1u) + 1u] == static_cast<eng::u16>(addr & 0xffffu),
+			check(w[comp.pt_slot(p, 1u).data_word()] == static_cast<eng::u16>(addr & 0xffffu),
 			      "BPLxPT bajo por plano");
 		}
 	}

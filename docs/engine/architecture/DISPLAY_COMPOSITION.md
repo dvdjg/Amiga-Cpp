@@ -75,15 +75,9 @@ Reglas:
 
 ## 4. Capa 2 — emisión: `Scheduler` y `ListBuilder`
 
-`eng::copper::ListBuilder` (`copper/copper.hpp:111`) emite palabras y devuelve **handles de
-parcheo** (`move_at`, `move32`/`patch_move32`, `patch_data`, `instruction_address`).
-`eng::copper::Scheduler` (`copper/scheduler.hpp:51`) ofrece la capa de intención
-(`emit_planes_display`, `emit_palette`, `emit_palette_zone`, `emit_copper_intents`,
-`emit_mode_switch_zone`, `wait_line_safe`) y un `ScheduleReport` con presupuesto de línea
-(`heavy_palette_zones`, `timeline_spill`).
+`eng::copper::ListBuilder` (`copper/copper.hpp`) emite palabras y devuelve **slots tipados** de parcheo: `move_at`/`move32` devuelven `MoveSlot` (`patch_data`, `patch_move_reg`, `patch_move32`) y los `WAIT` devuelven `WaitSlot` (`patch_wait`); un parche no puede caer sobre la palabra equivocada porque el tipo lo impide, y los destinos son `RegisterOffset` del dominio (nunca offsets crudos sueltos). `eng::copper::Scheduler` (`copper/scheduler.hpp`) ofrece la capa de intención (`emit_planes_display`, `emit_palette`, `emit_palette_zone`, `emit_copper_intents`, `emit_mode_switch_zone`, `wait_line_safe`) y un `ScheduleReport` con presupuesto de línea (`heavy_palette_zones`, `timeline_spill`) y `publishable()`.
 
-Estas dos son **herramientas**, no dueños: no deciden qué cambia por frame ni cuándo se
-publica la lista.
+Estas dos son **herramientas**, no dueños: no deciden qué cambia por frame ni cuándo se publica la lista. Antes de publicar, la lista emitida se valida en setup con `eng::setup::check_copper_list` (estructura/END, registros escribibles por chipset, orden de WAITs) y los rellenos con paso con `check_copper_column`; `ENG_COPPER_STRICT` convierte un informe no publicable en un fallo de `Plan::end_frame` (ver `COHERENCIA_DE_SETUP.md`).
 
 ## 5. Capa 3 — orquestación: `copper::Plan`
 
@@ -152,6 +146,7 @@ El orden por scanline queda a cargo del plan, que materializa en el bloque trase
 8. **Dos granularidades distintas, no confundirlas**: *buffers de display* (bitmaps) → `scene::compose` (`SceneResources.buffers` = 1/2/3); *buffers de copperlist* → `copper::DoubleBuffer` (lo que usa el `Plan`; `attach()` permite orquestar uno externo).
 9. Un display sin bitplanes usa el modo `SceneMode::CopperChunky` (`planes == 0`); la escena no reserva planos.
 10. **Nº de buffers de display frente a la carga del frame (anti-tearing).** El swap de bitmap es `COP1LC` y solo surte efecto **al comienzo del siguiente VBlank**. Con un `update` que **arranca alineado a VBlank** y dura `W` campos, **2 buffers** bastan sin tearing: se dibuja el buffer que acaba de salir de pantalla (patrón de `effects/bobs3d`: clear/draw + `TaskWaitVBlank` + swap). Si `W` **no** esta alineado (p. ej. `Engine::run_frames` relanza `update` a media pantalla cuando `W > 1` campo), con 2 buffers el dibujo del destino empieza antes del swap y hay **tearing**; entonces hacen falta **`ceil(W/campo) + 1` buffers** (habitualmente 3 = triple buffer), que desacoplan dibujo y visualización. Regla practica: si el efecto no cabe en 1 campo, `run_frames_polling` + 2 buffers es lo mas simple y sin tearing; usar 3 buffers (`SceneResources.buffers = 3`) cuando se necesite no alinear. Caso medido y documentado: **demo 117_bobs3d** (`docs/demos/effects/BOBS3D_PORT_PLAN.md` §6 y §9.3).
+11. **Parchear solo por slot tipado**: los efectos/drivers que parchean por frame guardan el `copper::MoveSlot`/`WaitSlot` que devolvió la emisión (o un `PatchHandle`/`Patch32`) y escriben con `copper::patch_data`/`patch_wait` sobre el bloque activo/inactivo; los rellenos con paso (blitter de columnas, copper-chunky) declaran su `copper::ColumnPatch` y lo validan (`check_copper_column`). Un índice de palabra crudo en la lógica de efecto es señal de una abstracción que falta.
 
 Ejemplo vivo: **demo 085 `copper_plan_scene`** (cielo por bandas de la escena + BOB con degradado anclado a su Y, dos fuentes que el plan ordena por scanline).
 
