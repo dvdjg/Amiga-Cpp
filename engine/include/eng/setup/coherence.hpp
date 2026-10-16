@@ -344,6 +344,9 @@ inline constexpr eng::u16 kBplcon0Ham = 0x0800u;   ///< bit 11: HAM (HOMOD)
 /// chipset · 3 = WAIT retrocede (de `check_copper_wait_order`) · 4 = instrucciones tras el
 /// `END` (inalcanzables) · 5 = `0xffff` con máscara distinta de `0xfffe` (espera infinita) ·
 /// 6 = MOVE con bits no canónicos en la palabra de registro · 7 = nº impar de palabras.
+/// **Reinicios de tramo**: una lista con `COPJMP1`/`COPJMP2` se re-ejecuta desde un label
+/// (copper-chunky/plasma), así que no tiene un recorrido monotónico de WAITs; en ese caso
+/// el código 3 se omite (estructura y registros se siguen comprobando).
 [[nodiscard]] constexpr CheckResult check_copper_list(
 	const eng::u16* words, eng::u16 words_count,
 	eng::hw::Chipset chipset = eng::hw::Chipset::OCS) noexcept {
@@ -356,6 +359,7 @@ inline constexpr eng::u16 kBplcon0Ham = 0x0800u;   ///< bit 11: HAM (HOMOD)
 			last_word, 0u, words_count};
 	}
 	bool ended = false;
+	bool restarts = false;
 	for (eng::u16 i = 0u; i + 1u < words_count; i = i + 2u) {
 		const eng::u16 inst = words[i];
 		const eng::u16 data = words[i + 1u];
@@ -384,10 +388,19 @@ inline constexpr eng::u16 kBplcon0Ham = 0x0800u;   ///< bit 11: HAM (HOMOD)
 			return {2u, "MOVE del Copper a registro no escribible para el chipset", i, 0u,
 				static_cast<eng::u32>(copper::copper_register_access(reg))};
 		}
+		// Reinicio de tramo por la propia lista (copper-chunky/plasma): invalida el modelo
+		// monotónico de WAITs (la lista se re-ejecuta desde un label).
+		if (reg == static_cast<eng::u16>(copper::Register::COPJMP1) ||
+		    reg == static_cast<eng::u16>(copper::Register::COPJMP2)) {
+			restarts = true;
+		}
 	}
 	if (!ended) {
 		return {1u, "copperlist sin terminador 0xffff/0xfffe (el Copper correria fuera)",
 			last_word, 0xffffu, 0u};
+	}
+	if (restarts) {
+		return {};
 	}
 	const CheckResult order = check_copper_wait_order(words, words_count);
 	if (!order.ok()) {

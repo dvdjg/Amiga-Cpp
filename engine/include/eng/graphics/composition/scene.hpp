@@ -21,6 +21,7 @@
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/copper/plan.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
+#include <eng/setup/coherence.hpp>
 #include <eng/graphics/composition/limits.hpp>
 #include <eng/graphics/playfield_scroll.hpp>
 #include <eng/hw/info.hpp>
@@ -99,6 +100,8 @@ public:
 		}
 		m_memory.reset();
 		m_res = {};
+		m_chipset = eng::hw::Chipset::OCS;
+		m_list_validated = false;
 		m_buffer_count = 1u;
 		m_back = 0u;
 		m_plane_bytes = 0u;
@@ -131,13 +134,31 @@ public:
 			m_config_error = e;
 			return false;
 		}
+		m_chipset = limits.chipset;
+		m_list_validated = false;
 		return init_raw(memory, res);
 	}
 
 	/// Abre la construcción del programa (retarget del emisor al bloque trasero).
 	void begin_build() { m_plan.begin_frame(); }
-	/// Cierra el programa (orden + presupuesto) y voltea el buffer. `false` si no cupo.
-	[[nodiscard]] bool end_build() { return m_plan.end_frame(); }
+	/// Cierra el programa (orden + presupuesto) y voltea el buffer. `false` si no cupo o, en
+	/// la **primera** construcción tras `init`, si la lista no supera
+	/// `eng::setup::check_copper_list` (END, registros escribibles para el chipset del
+	/// perfil y orden de WAITs). Es validación de **setup**: los rebuilds por frame no la
+	/// repiten (coste cero en el bucle de animación).
+	[[nodiscard]] bool end_build() {
+		if (!m_plan.end_frame()) {
+			return false;
+		}
+		if (!m_list_validated) {
+			m_list_validated = eng::setup::check_copper_list(
+						   m_plan.active_words(), m_plan.words(), m_chipset).ok();
+			if (!m_list_validated) {
+				return false;
+			}
+		}
+		return true;
+	}
 
 	/// **Fine-scroll horizontal del playfield**: valor de **retardo de `BPLCON1`** (0..15,
 	/// color-clocks), escrito tal cual en los dos nibbles (PF1 y PF2) — el mismo valor que
@@ -580,6 +601,8 @@ private:
 	eng::util::Array<EffectFn, kMaxEffects> m_effects {}; ///< efectos (orden de registro)
 	u8 m_effect_count = 0; ///< nº de efectos registrados
 	ConfigError m_config_error {}; ///< motivo del último rechazo de configuración (vacío = ok)
+	eng::hw::Chipset m_chipset = eng::hw::Chipset::OCS; ///< chipset del perfil de `init` (validador de lista)
+	bool m_list_validated = false; ///< la primera lista tras `init` pasó `check_copper_list`
 	eng::Ref<hw::HwInfo> m_hw_info {}; ///< inventario ligado (no propietario); publica el display
 };
 

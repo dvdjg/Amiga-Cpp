@@ -7,7 +7,6 @@
 /// (`*_words`) para el presupuesto de Copper. La escena vive en `scene.hpp`.
 
 #include <eng/graphics/composition/scene.hpp>
-#include <eng/setup/coherence.hpp>
 
 namespace eng::graphics::composition {
 
@@ -411,13 +410,17 @@ struct PatchZone {
 /// ejecuta las etapas en orden, cierra la lista. El perfil es **obligatorio**. El motivo del
 /// rechazo queda en `scene.config_error()`. Para configs conocidas en compilación, además,
 /// usar `static_assert(valid_scene(res, limits))`.
+///
+/// El cierre (`Scene::end_build`) valida la lista compuesta con
+/// `eng::setup::check_copper_list` (END, registros escribibles para el chipset del perfil y
+/// orden de WAITs): una lista que el Copper no podría ejecutar se rechaza en setup.
 /// \param scene   escena a construir.
 /// \param memory  gestor de memoria (Chip).
 /// \param res     recursos (geometría/planos/buffers/layout).
 /// \param limits  perfil de display.
 /// \param stages  etapas `void(Scene&)` a ejecutar en orden.
-/// \return `false` si `res` no es válida, no cabe (ver `config_error()`) o la lista
-///         compuesta no supera `eng::setup::check_copper_list` para el chipset del perfil.
+/// \return `false` si `res` no es válida, no cabe (ver `config_error()`) o la lista no
+///         supera la validación de setup.
 template <class... Stages>
 bool compose(Scene& scene, MemoryManager& memory, const SceneResources& res,
 	     const DisplayLimits& limits, Stages... stages) {
@@ -426,14 +429,7 @@ bool compose(Scene& scene, MemoryManager& memory, const SceneResources& res,
 	}
 	scene.begin_build();
 	(stages(scene), ...);
-	if (!scene.end_build()) {
-		return false;
-	}
-	// **Validación de la lista compuesta** (capa 2 de `COHERENCIA_DE_SETUP.md`): END,
-	// MOVEs a registros escribibles para el chipset del perfil y orden de WAITs. Una
-	// lista que el Copper no podría ejecutar se rechaza aquí, en setup, y no se publica.
-	return eng::setup::check_copper_list(scene.active_words(), scene.plan().words(),
-					     limits.chipset).ok();
+	return scene.end_build();
 }
 
 /// **Composición de juego sin config explícita**: perfil OCS/A500 y display derivado de `res`

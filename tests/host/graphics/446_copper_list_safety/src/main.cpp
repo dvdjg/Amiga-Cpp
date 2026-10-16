@@ -207,6 +207,24 @@ void test_check_list() {
 		CHECK(eng::setup::check_copper_list(w, 8u, Chipset::OCS).ok(),
 		      "par de overflow reinicia el orden");
 	}
+	// Lista con **reinicio de tramo** (COPJMP2, patron copper-chunky/plasma): el recorrido
+	// monotono de WAITs no aplica (la lista se re-ejecuta desde un label), pero estructura y
+	// registros se siguen validando.
+	{
+		const u16 w[10] = {0x5001u, 0xff00u,                              // WAIT 0x50
+				   static_cast<u16>(Register::COLOR00), 0x0001u,
+				   0x2001u, 0xff00u,                              // WAIT 0x20 (retrocede)
+				   static_cast<u16>(Register::COPJMP2), 0x0000u,  // reinicio de tramo
+				   0xffffu, 0xfffeu};
+		CHECK(eng::setup::check_copper_list(w, 10u, Chipset::OCS).ok(),
+		      "COPJMP2 exime del orden monotono de WAITs");
+	}
+	{
+		const u16 w[6] = {0x0002u, 0x0100u, // DMACONR: solo lectura
+				  static_cast<u16>(Register::COPJMP2), 0x0000u, 0xffffu, 0xfffeu};
+		check_result(eng::setup::check_copper_list(w, 6u, Chipset::OCS), 2u,
+			     "COPJMP2 no exime de registros no escribibles");
+	}
 }
 
 // ---------------------------------------------------------------------------------------
