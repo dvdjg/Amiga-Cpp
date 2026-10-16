@@ -277,4 +277,55 @@ inline void make_interleaved_masked_bob(BlitJob& job, BlitPtr src, BlitPtr dest,
 	job.interleaved = true;
 }
 
+/// **Cocina la hoja interleaved pair CON GUARDA** que consume `Bob` con
+/// `BobMaskPack::InterleavedPair` sobre destinos interleaved (bitmaps del corkscrew y
+/// campos de doble playfield): por **cada fila del objeto y cada plano del destino**,
+/// `[imagen w][guarda][máscara w][guarda]` (la guarda = 1 palabra a cero tras cada
+/// mitad). Con `shift > 0` el barrel arrastra bits del byte bajo de la palabra
+/// siguiente; la guarda a cero los neutraliza — y como la máscara de la guarda también
+/// es 0, esos píxeles quedan **transparentes** (no se escriben). Receta fijada por
+/// HOST-453 (subpíxeles 0..15 exactos en ambas mitades del byte).
+///
+/// El `Bob` del consumidor declara `width = W + 16` (la ventana incluye la guarda; el
+/// objeto ocupa los `W` primeros píxeles, el resto es invisible) y `height = H`;
+/// `bob_draw` deriva `words = (W+16)/16` y el par de canales del propio layout.
+///
+/// \tparam W ancho del objeto en píxeles (múltiplo de 16). \tparam H alto en filas.
+/// \tparam TargetPlanes planos del **destino** (las filas del blit).
+/// \param pixels índices de color W×H (bit `p` del índice = plano `p`; 0 = transparente).
+/// \param mask máscara W×H (0 = transparente) o `nullptr` (se deriva: `pixels != 0`).
+/// \param out hoja destino: `H · TargetPlanes · (2·W/16 + 2)` palabras (imagen + guarda +
+///        máscara + guarda por fila y plano).
+template <eng::u16 W, eng::u16 H, eng::u8 TargetPlanes>
+constexpr void pack_interleaved_pair(const eng::u8* pixels, const eng::u8* mask, eng::u16* out) {
+	constexpr eng::u16 kWords = W / 16u; // palabras por mitad (imagen / máscara)
+	constexpr eng::u16 kRowWords = static_cast<eng::u16>(4u * kWords); // img+g+máscara+g
+	for (eng::u16 r = 0u; r < H; ++r) {
+		for (eng::u8 p = 0u; p < TargetPlanes; ++p) {
+			eng::u16* row = out + (static_cast<eng::u32>(r) * TargetPlanes + p) * kRowWords;
+			for (eng::u16 w = 0u; w < kWords; ++w) {
+				eng::u16 img = 0u;
+				eng::u16 msk = 0u;
+				for (eng::u16 b = 0u; b < 16u; ++b) {
+					const eng::u16 x = static_cast<eng::u16>(w * 16u + b);
+					const eng::u8 v = pixels[static_cast<eng::u32>(r) * W + x];
+					const bool opaque = (mask != nullptr)
+								    ? (mask[static_cast<eng::u32>(r) * W + x] != 0u)
+								    : (v != 0u);
+					if (((v >> p) & 1u) != 0u) {
+						img = static_cast<eng::u16>(img | (0x8000u >> b));
+					}
+					if (opaque) {
+						msk = static_cast<eng::u16>(msk | (0x8000u >> b));
+					}
+				}
+				row[w] = img;                   // imagen
+				row[kWords + w] = 0u;           // guarda de la imagen
+				row[2u * kWords + w] = msk;     // máscara
+				row[3u * kWords + w] = 0u;      // guarda de la máscara
+			}
+		}
+	}
+}
+
 } // namespace eng::graphics

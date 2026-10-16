@@ -85,10 +85,10 @@ inline ActorEmitStatus actor_emit(FramePlan& plan, Actor& a, const ActorEmitCont
 			break;
 		}
 		case BackgroundPolicy::SaveUnder: {
-			// El save-under cuenta con planos contiguos en el destino.
-			if (target.layout != BobLayout::Planar) {
-				return ActorEmitStatus::Full;
-			}
+			// El save-under soporta destino planar E interleaved (`bob_save_box` /
+			// `bob_restore_box` derivan el paso de fila por plano en ambos layouts; el
+			// buffer de guardado es planar por convenio). Verificado en el anillo
+			// corkscrew por HOST-453.
 			if (prev.valid() && !actor_detail::emit_restore(plan, a, prev, ctx, target)) {
 				return ActorEmitStatus::Full;
 			}
