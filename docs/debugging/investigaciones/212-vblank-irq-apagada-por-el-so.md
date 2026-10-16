@@ -213,3 +213,34 @@ el PC en ROM. Conclusión: la causa raíz no es *quién* posee el vector, sino l
 de las IRQ con el estado de exec bajo el SO vivo (los tres caminos de IRQ medidos mueren;
 el sondeo es el único estable). La implementación experimental se retiró del engine; este
 apartado guarda el resultado y los números para no repetir la prueba.
+
+### Sonda sin GDB (canal lateral) y hallazgos del intento 2026-10-16
+
+Al instrumentar la captura del primer momento mortal (build de la 119 con la puerta
+`K119_PROBE_IRQ`: `set_vblank_sleep(false)` + `run_frames`) aparecieron tres hechos que
+condicionan cualquier intento futuro:
+
+1. **El stub GDB muere EN la tormenta**: la conexión se resetea en el momento del fallo
+   (el CPU ejecutando la tabla de vectores corrompe también los hooks del depurador). Es
+   la explicación de por qué «attach después de la muerte» fallaba siempre: no hay stub
+   que atender. **El canal lateral SÍ sobrevive** (`regs` y `mem` siguen respondiendo) y
+   es la vía de observación viable.
+2. **Método sin GDB** (scripts temporales `out/tmp/a5probe.mjs`, `a5find.mjs`,
+   `a5delta.mjs`): muestreo de `regs` en anillo + lecturas `mem` por canal lateral, y
+   **delta de carga validado por BYTES del ELF** — comparar el `.text` del `.elf` en disco
+   contra la RAM viva (el literal `0x454e4752` del magic aparece también en el código, así
+   que validar por *patrón* da falsos positivos; por *bytes* 3/4 probes exactos + el
+   longword relocalizado distinto a propósito). Delta verificado de este build:
+   `0xc0c790` (p. ej. `main` linked `0x9bac` ↔ runtime `0xc1631c`).
+3. **A `-O1` el bucle IRQ cuelga en el arranque, DENTRO de `memset`** (PC fijo en
+   `memset+0x1a` durante miles de muestras): es el bug de codegen de `-O1` ya documentado
+   en [`pump-timer-o1-codegen.md`](pump-timer-o1-codegen.md) — **tapa** la reproducción de
+   la tormenta, no es la tormenta. Dato colateral: el estado del run-status quedó
+   `Booted, frame=0` (murió antes de `init`), coherente con el cuelgue de arranque.
+
+**Receta para el siguiente intento** (captura de la tormenta): elegir primero el perfil
+donde el bucle IRQ *llega a morir* con el código actual (a `-O0` + espera activa el doc
+describe que AVANZA sin el fallo; el `-O2` tiene su propio bug de arranque documentado);
+una vez elegido, muestrear por canal lateral con el anillo y, al detectar la anomalía
+(`pc < 0x500` o `a5 == 0`), volcar pila y tabla de vectores *por el canal lateral* (el
+GDB ya no estará).

@@ -313,8 +313,17 @@ private:
         // Validación de setup (capa 2 de `COHERENCIA_DE_SETUP.md`): la cabecera del
         // compositor puede escribir `BPLCON3` (ECS), así que se comprueba contra ECS;
         // END, registros escribibles y orden de WAITs. Si no es ejecutable, no se publica.
-        m_ok = sched.ok() && eng::setup::check_copper_list(sched.data(), sched.words_used(),
-                                                           eng::hw::Chipset::ECS).ok();
+        //
+        // **Se valida UNA vez**: la estructura de la lista la fija el setup y `compose()`
+        // puede correr cada frame (scroll) re-emitiéndola idéntica; recorrerla entera por
+        // frame era coste puro (el pico medido en la 120/201: ~200 k ciclos/frame). El flag
+        // `sched.ok()` (barato) sí se reevalúa siempre.
+        m_ok = sched.ok();
+        if (m_ok && !m_setup_checked) {
+            m_ok = eng::setup::check_copper_list(sched.data(), sched.words_used(),
+                                                 eng::hw::Chipset::ECS).ok();
+            m_setup_checked = true;
+        }
         return m_ok;
     }
 
@@ -323,6 +332,7 @@ private:
     u16 m_copper_words = 0;
     bool m_initialized = false;
     bool m_copper_initialized = false;
+    bool m_setup_checked = false; ///< la validación de setup corre una vez (estructura fija)
     bool m_ok = false;
 };
 
@@ -580,9 +590,15 @@ private:
         sched.end();
         m_copper_words = sched.words_used();
         // Misma validación de setup que el compositor single (la lista dual no usa BPLCON3
-        // en la cabecera, pero comparte el chequeo con ECS por coherencia de chipset).
-        m_ok = sched.ok() && eng::setup::check_copper_list(sched.data(), sched.words_used(),
-                                                           eng::hw::Chipset::ECS).ok();
+        // en la cabecera, pero comparte el chequeo con ECS por coherencia de chipset), y
+        // también **una sola vez**: la estructura es estática y `compose()` puede correr
+        // por frame (scroll). Ver el compositor single para la medida del pico.
+        m_ok = sched.ok();
+        if (m_ok && !m_setup_checked) {
+            m_ok = eng::setup::check_copper_list(sched.data(), sched.words_used(),
+                                                 eng::hw::Chipset::ECS).ok();
+            m_setup_checked = true;
+        }
         return m_ok;
     }
 
@@ -591,6 +607,7 @@ private:
     u16 m_copper_words = 0;
     bool m_initialized = false;
     bool m_copper_initialized = false;
+    bool m_setup_checked = false; ///< la validación de setup corre una vez (estructura fija)
     bool m_ok = false;
     // Slots de parcheo (`MoveSlot`/`WaitSlot`) de los punteros BPLxPT y del fine scroll,
     // guardados por `emit_full` con `move_at`/`wait_line` y reescritos por `patch` sin re-emitir.

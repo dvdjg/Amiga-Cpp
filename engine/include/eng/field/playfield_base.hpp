@@ -274,6 +274,33 @@ public:
         return true;
     }
 
+    /// **Palabra de patrón por planos**: escribe la palabra `bits` (16 px, MSB = izquierda)
+    /// en la línea `wy` a partir de `wx` (múltiplo de 16). Para cada plano: los planos
+    /// seleccionados por `color` reciben `bits`; el resto, fondo 0 — de una sola escritura
+    /// por plano, sin máscara ni recorte de clip. Es la primitiva de la impresión de texto
+    /// por palabras (`Surface::draw_text_words`): la palabra cubre los 16 px completos, así
+    /// que pinta patrón y fondo de golpe. General en planos y color (con 1 plano y
+    /// `color=1` es una única escritura). Devuelve false si la palabra cae fuera del bitmap.
+    bool store_plane_word(eng::pix wx, eng::pix wy, u16 bits, u8 color) {
+        if (!m_initialized) return false;
+        if (wx < 0 || (wx & 15) != 0) return false;
+        const u32 byte = byte_for(wx);
+        if (byte + 2u > m_bytes_per_row) return false;
+        // Mismo cálculo de direcciones que `write_planes`: interleaved (strides 0) o
+        // contiguo (strides fijados en `bind`). `byte_for` ya garantiza byte PAR.
+        const u32 pstride = (m_plane_stride != 0u) ? m_plane_stride : m_bytes_per_row;
+        const u32 rstride = (m_row_stride != 0u) ? m_row_stride : m_bytes_per_row;
+        u32 off = eng::math::mulu16(static_cast<u16>(planeline_for(wy)),
+                                    static_cast<u16>(rstride)) + byte;
+        for (u8 p = 0u; p < m_planes; ++p) {
+            if (off + 2u > m_total_bytes) return false;
+            u16* w = reinterpret_cast<u16*>((m_frontbuffer + off).ptr());
+            *w = ((color & static_cast<u8>(1u << p)) != 0u) ? bits : static_cast<u16>(0u);
+            off += pstride;
+        }
+        return true;
+    }
+
     /// Escribe un tramo horizontal `[x0, x1]` (inclusive) en la fila `wy`. Un byte completo
     /// (16 píxeles) se resuelve con una sola escritura por plano; los extremos parciales van
     /// con máscara. Es la versión rápida del bucle de `write_pixel` para el relleno de

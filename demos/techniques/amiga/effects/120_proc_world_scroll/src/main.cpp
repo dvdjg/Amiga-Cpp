@@ -45,6 +45,7 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 	0,
 	0,
 };
+
 }
 
 namespace {
@@ -113,26 +114,11 @@ constexpr playfield::ScrollConsts kScrollConsts {
 /// Formato de la demo (major.minor; el build lo inyecta como -DENG_BUILD_NUMBER).
 constexpr eng::debug::Version kVersion {1u, 0u};
 
-// Paleta del HUD (4 planos = 16 colores): texto claro/atenuado sobre negro.
-eng::u16 g_hud_palette[16] {
-	0x000u, 0xFFFu, 0xAAFu, 0x666u, 0xF00u, 0x0F0u, 0x00Fu, 0xFF0u,
-	0x0FFu, 0xF0Fu, 0x844u, 0x884u, 0x448u, 0x444u, 0x222u, 0xDDDu,
-};
+// Paleta del HUD (UN plano = 2 colores): fondo negro, texto blanco. El HUD de
+// depuración debe ser lo más sencillo posible: 1 bitplane y texto impreso por palabras.
+eng::u16 g_hud_palette[2] { 0x000u, 0xFFFu };
 // Paleta del CAMPO (32 colores del atlas; se rellena en `init` desde el constexpr).
 eng::u16 g_world_palette[32] {};
-
-/// Dibuja texto 8×8 (Font8) en la superficie del HUD; \param ink y \param bg índices de
-/// la paleta del HUD; cada celda se rellena con `bg` (borra el dígito anterior).
-void hud_text(playfield::Surface& s, eng::s32 x, eng::s32 y, const char* text, u8 ink, u8 bg) {
-	for (; *text != '\0'; ++text) {
-		s.fill_rect(x, y, 8, 8, bg);
-		if (*text != ' ') {
-			const char one[2] {*text, '\0'};
-			(void)s.draw_text(x, y, one, ink);
-		}
-		x += 8;
-	}
-}
 
 /// Número decimal a cadena (para la telemetría del HUD).
 void u16_str(u16 v, char* out) {
@@ -158,6 +144,7 @@ struct ScrollWorldDemo {
 	char m_frame_text[12] = "F 0";
 	bool m_ready = false;
 	bool m_hud_dirty = true;
+	bool m_hud_cleared = false; // el lienzo del HUD se limpia una vez (ver `draw_hud`)
 
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
@@ -170,10 +157,11 @@ struct ScrollWorldDemo {
 		scene_cfg.viewport_w = kViewportW;
 		scene_cfg.viewport_h = kViewportH;
 		scene_cfg.hud.height = kHudH;
-		// HUD con la MISMA profundidad que el campo (5 planos): la zona de overlay solo
-		// conmuta BPLxPT (sin ModeSwitchZone de BPLCON0/BPLMOD), que es la vía con menos
-		// piezas móviles; el texto usa la paleta del mundo (31 = blanco, 0 = negro).
-		scene_cfg.hud.planes = 0u; // 0 = heredar cfg.planes
+		// HUD de depuración **lo más sencillo posible**: UN bitplane con paleta propia de
+		// 2 colores (la zona de overlay conmuta BPLCON0/BPLxPT + COLOR00/01 vía
+		// `ModeSwitchZone`) y el texto se imprime por **palabras de 16 px** con
+		// `Surface::draw_text_words` (dos glifos por palabra; nunca píxel a píxel).
+		scene_cfg.hud.planes = 1u;
 		scene_cfg.hud.palette = g_hud_palette;
 		scene_cfg.tile_width = kTile;
 		scene_cfg.tile_height = kTile;
@@ -222,24 +210,53 @@ struct ScrollWorldDemo {
 		if (!m_ready) {
 			return;
 		}
+		// Ablaciones de medición (compiladas, temporales): saltan una etapa para cuantificar
+		// su coste con `measure-fps` (bit0 compose, bit1 update/execute, bit2 install).
+#if defined(K120_SKIP_COMPOSE)
+		const u8 ab = 1u;
+#elif defined(K120_SKIP_UPDATE)
+		const u8 ab = 2u;
+#elif defined(K120_SKIP_INSTALL)
+		const u8 ab = 4u;
+#else
+		const u8 ab = 0u;
+#endif
 		plan.clear();
 		plan.set_blit_budget_limits({8192, 16384, 6, 120});
-		// Scroll X continuo de 1 px/frame (Y fija): al cruzar cada límite de 16 px la
-		// escena blittea solo la columna entrante.
-		scene.update(plan, 1, 0, context.frame.frame_index);
-		if (!backend.execute_frame_plan(plan)) {
-			m_ready = false;
-			eng::debug::mark_failed(g_eng_run_status, 0x00012010u);
-			return;
+		if (
+#if defined(K120_PROBE_ABLATE)
+			(ab & 2u) == 0u
+#else
+			true
+#endif
+		) {
+			// Scroll X continuo de 1 px/frame (Y fija): al cruzar cada límite de 16 px
+			// la escena blittea solo la columna entrante.
+			scene.update(plan, 1, 0, context.frame.frame_index);
+			if (!backend.execute_frame_plan(plan)) {
+				m_ready = false;
+				eng::debug::mark_failed(g_eng_run_status, 0x00012010u);
+				return;
+			}
 		}
-		if (!scene.compose()) {
-			m_ready = false;
-			eng::debug::mark_failed(g_eng_run_status, 0x00012011u);
-			return;
+		if (
+#if defined(K120_PROBE_ABLATE)
+			(ab & 1u) == 0u
+#else
+			true
+#endif
+		) {
+			if (!scene.compose()) {
+				m_ready = false;
+				eng::debug::mark_failed(g_eng_run_status, 0x00012011u);
+				return;
+			}
 		}
 		++m_frames;
+#if !defined(K120_SKIP_HUD)
 		if ((m_frames & 63u) == 0u) {
-			// Contador del HUD ~1 vez/segundo (coste de texto, no por frame).
+			// Contador del HUD ~1 vez/segundo; el redibujado completo es ~100 escrituras
+			// de palabra (se imprime por palabras, ver `draw_hud`), coste despreciable.
 			char num[8];
 			u16_str(u16(m_frames & 0xFFFFu), num);
 			u8 n = 0u;
@@ -249,41 +266,60 @@ struct ScrollWorldDemo {
 			m_frame_text[n] = '\0';
 			m_hud_dirty = true;
 		}
+#endif
 	}
 
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (m_ready) {
+#if defined(K120_SKIP_INSTALL)
+			const u8 ab = 4u;
+#else
+			const u8 ab = 0u;
+#endif
+#if !defined(K120_SKIP_HUD)
 			if (m_hud_dirty) {
 				draw_hud();
 				m_hud_dirty = false;
 			}
-			scene.install(backend);
+#endif
+			if ((ab & 4u) == 0u) {
+				scene.install(backend);
+			}
 		}
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
 private:
-	/// Pinta la franja HUD: nombre + versión (norma del repo) + piezas y frames. El lienzo
-	/// del HUD NO nace limpio (memoria Chip): se borra entero antes de pintar y el texto se
-	/// desplaza `kHudFetchGuard` px (la guarda de fetch queda fuera de la ventana visible,
-	/// como en la 201). Tinta 31 = blanco de la paleta del mundo; fondo 0.
+	/// Pinta la franja HUD (1 bitplane): nombre + versión (norma del repo) + contador de
+	/// frames. El lienzo NO nace limpio (memoria Chip): se borra entero UNA vez, en el
+	/// primer pintado. El texto se imprime con `Surface::draw_text_words` (genérico en
+	/// planos/color; aquí 1 plano y tinta 1), que compone **dos glifos por palabra de
+	/// 16 px** y escribe palabras consecutivas del plano (ocho escrituras por par de
+	/// glifos, patrón + fondo de golpe): el redibujado completo de la línea son ~100
+	/// escrituras de palabra, sin bucle por píxel ni por bit.
+	///
+	/// La celda inicial (x=16, múltiplo de 16 para la alineación a palabra) queda tras la
+	/// guarda de fetch del corkscrew, que no se ve (como en la 201).
 	void draw_hud() {
-		constexpr eng::s32 kHudFetchGuard = 16;
+		constexpr eng::s32 kHudTextX = 16;
 		auto hud = scene.hud_surface();
-		hud.fill_rect(0, 0, 512, kHudH, 0u);
+		if (!m_hud_cleared) {
+			hud.fill_rect(0, 0, 512, kHudH, 0u);
+			m_hud_cleared = true;
+		}
 		char label[24];
 		const u8 vlen = eng::debug::version_label(kVersion, label, sizeof(label));
-		char line1[32] = "PROC WORLD SCROLL ";
+		char line1[40] = "PROC WORLD SCROLL ";
 		u8 n = 18u;
 		for (u8 i = 0u; i < vlen && n + 1u < sizeof(line1); ++i) line1[n++] = label[i];
 		line1[n] = '\0';
 		// La ventana útil del lienzo del HUD en esta geometría muestra una sola línea de
-		// 8 px: nombre + versión (norma del repo) + contador de frames, en 272 px.
+		// 8 px: nombre + versión (norma del repo) + contador de frames.
 		const char* sep = "  ";
 		for (const char* c = sep; *c != '\0' && n + 1u < sizeof(line1); ++c) line1[n++] = *c;
 		for (const char* c = m_frame_text; *c != '\0' && n + 1u < sizeof(line1); ++c) line1[n++] = *c;
 		line1[n] = '\0';
-		hud_text(hud, eng::s32(2 + kHudFetchGuard), 1, line1, 31u, 0u);
+		(void)hud.draw_text_words(kHudTextX, 1, line1, 1u);
 	}
 };
 

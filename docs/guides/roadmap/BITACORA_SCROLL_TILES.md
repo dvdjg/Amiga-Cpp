@@ -54,6 +54,12 @@ La cifra histórica (101=~48, 102=~50, 103=~50, 104=~47,6) no era reproducible: 
 | `119_proc_world — 119 mundo 20x14 generado en COMPILACION (constexpr)` | `A500_debug` | 0,00 | 85 403 302 | 0x119 | 2026-10-15 | `bdaf2edc` | 0 | 85 403 302 |
 | `119_proc_world — 119 biomas 20x14 constexpr + generacion en compilacion (polling)` | `A500_debug` | 49,84 | 142 339 | 0x119 | 2026-10-15 | `bdaf2edc` | 600 | 85 403 302 |
 | `120_proc_world_scroll — 120 mundo 40x28 constexpr + X-Limited scroll (integracion)` | `A500_debug` | 33,86 | 209 487 | 0x120 | 2026-10-16 | `d459266b` | 407 | 85 261 200 |
+| `120_proc_world_scroll — HUD incremental (parcheo por celdas)` | `A500_debug` | 48,67 | 145 739 | 0x120 | 2026-10-16 | `2cbc4a26` | 586 | 85 403 302 |
+| `120_proc_world_scroll — HUD incremental (release)` | `A500_release` | 48,59 | 145 989 | 0x120 | 2026-10-16 | `2cbc4a26` | 585 | 85 403 302 |
+| `120_proc_world_scroll — HUD 1bpp por palabras (draw_text_words)` | `A500_debug` | 49,17 | 144 266 | 0x120 | 2026-10-16 | `05a41ddc` | 591 | 85 261 200 |
+| `120_proc_world_scroll — HUD 1bpp por palabras (draw_text_words, release)` | `A500_release` | 49,17 | 144 266 | 0x120 | 2026-10-16 | `05a41ddc` | 591 | 85 261 200 |
+| `120_proc_world_scroll — HUD 1bpp generico (draw_text_words, planos+color)` | `A500_debug` | 48,51 | 146 246 | 0x120 | 2026-10-16 | `05a41ddc` | 583 | 85 261 200 |
+| `120_proc_world_scroll — HUD 1bpp generico (draw_text_words, release)` | `A500_release` | 49,17 | 144 270 | 0x120 | 2026-10-16 | `05a41ddc` | 590 | 85 119 098 |
 
 Contexto de medida: `CONFIG_ID` **`A500_debug`** (build `--debug`, `-O1`), emulador **WinUAE-DBG x86**, herramienta `tools/debug/measure-fps.mjs` (contador de ciclos del periférico `0xB7E928`, 7,09379 MHz). El fps depende de la **fase** del recorrido (`detail`): comparar siempre con el mismo `detail`. En hardware real las demos de scroll van a 50 fps.
 

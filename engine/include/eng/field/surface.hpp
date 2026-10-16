@@ -217,6 +217,47 @@ public:
         return true;
     }
 
+    /// **Texto por palabras** (fuente 8×8, Font8): imprime `text` con **escrituras de
+    /// palabra de 16 píxeles** — dos glifos por palabra, ocho escrituras por par de glifos
+    /// (patrón y fondo de golpe) — sin pasar por píxel, tramo ni máscara. El color se aplica
+    /// como en `draw_text` (índice de la paleta del playfield): cada plano recibe el patrón
+    /// o fondo 0 según el bit del color, para cualquier número de planos. Con un solo plano
+    /// y `color=1` es la franja de depuración más sencilla (una escritura por palabra).
+    ///
+    /// Es el camino de las franjas de HUD; para texto general (recorte fino, UTF-8) usar
+    /// `draw_text`. Requisito del algoritmo: `x` alineada a 16 px (2 celdas de 8). Los
+    /// bytes de `text` se tratan como code points directos (ASCII/LATIN-1; sin decodificar
+    /// UTF-8). La línea completa (8 filas) debe caer dentro del clip; el texto se trunca al
+    /// borde y la celda impar final se rellena con espacio. Devuelve false si no pinta.
+    bool draw_text_words(s32 x, s32 y, const char* text, u8 color) {
+        if (!valid()) return false;
+        if (y < m_clip.y ||
+            y + static_cast<s32>(eng::Font8::kRows) > m_clip.y + static_cast<s32>(m_clip.h)) {
+            return false;
+        }
+        if (x < m_clip.x || (x & 15) != 0) return false;
+        u16 n = 0u;
+        if (text != nullptr) {
+            while (text[n] != '\0' && n < 64u) ++n;
+        }
+        const s32 x_end = m_clip.x + static_cast<s32>(m_clip.w);
+        for (u16 p = 0u; p * 2u < n; ++p) {
+            const s32 wx = x + static_cast<s32>(p) * 16;
+            if (wx + 16 > x_end) break;
+            const u16 c0 = static_cast<u16>(static_cast<u8>(text[p * 2u]));
+            const u16 c1 = (p * 2u + 1u < n)
+                ? static_cast<u16>(static_cast<u8>(text[p * 2u + 1u]))
+                : static_cast<u16>(' ');
+            for (u8 r = 0u; r < eng::Font8::kRows; ++r) {
+                const u16 hi = static_cast<u16>(rev8(eng::Font8::row(c0, r)) << 8u);
+                const u16 lo = static_cast<u16>(rev8(eng::Font8::row(c1, r)));
+                (void)m_target->store_plane_word(wx, y + static_cast<s32>(r),
+                                                 static_cast<u16>(hi | lo), color);
+            }
+        }
+        return true;
+    }
+
     /// Texto desde code points ya decodificados (sin volver a decodificar).
     bool draw_codepoints(s32 x, s32 y, const u32* cps, eng::usize count, u8 color) {
         if (!valid() || cps == nullptr) return false;
@@ -301,6 +342,16 @@ public:
     }
 
 private:
+    /// Inversión de bits de un byte: Font8 guarda **bit 0 = columna izquierda** y el
+    /// bitplane Amiga tiene el **MSB a la izquierda**, así que cada byte de fila de glifo
+    /// se invierte al colocarlo en la palabra. Tres pasos de máscara, sin tabla.
+    static constexpr u8 rev8(u8 v) {
+        v = static_cast<u8>(((v & 0x55u) << 1u) | ((v >> 1u) & 0x55u));
+        v = static_cast<u8>(((v & 0x33u) << 2u) | ((v >> 2u) & 0x33u));
+        v = static_cast<u8>((v << 4u) | (v >> 4u));
+        return v;
+    }
+
     /// Rasterizador efectivo: el del playfield o el CPU por defecto (nunca nulo).
     eng::NonNull<Rasterizer> rasterizer() const {
         const eng::Ref<Rasterizer> r = m_target->rasterizer();

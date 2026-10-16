@@ -307,10 +307,18 @@ int main() {
 	eng::amiga::AmigaBackend backend {};
 	ProcWorldDemo game {}; // el mundo generado en compilación vive en rodata (`kWorld`)
 	eng::Engine engine {backend, game};
+#if defined(K119_PROBE_IRQ)
+	// Sonda del fallo `a5=0` (doc 212; scaffolding de diagnóstico, sin define no existe):
+	// latido por IRQ con espera activa (variante 2) — reproduce la tormenta de vectores a
+	// los pocos frames y permite capturarla con watchpoints desde GDB.
+	backend.set_vblank_sleep(false);
+	engine.run_frames(0xffff);
+#else
 	// **Bucle por SONDO** (`run_frames_polling`): bajo un SO vivo es el modo estable del
 	// doc 212 — sondea `VPOSR` en `wait_vblank` sin depender de IRQs ni de `Wait` (el
 	// coste es CPU ocupada; a cambio, la tormenta de vectores del `a5=0` no aplica).
 	engine.run_frames_polling(0xffff);
+#endif
 
 	return 0;
 }

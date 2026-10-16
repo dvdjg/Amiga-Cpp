@@ -13,8 +13,11 @@ límite de 16 px; el resto de la pantalla no se toca.
   **5 planos estándar** (sin EHB). El builder indexado es genérico en planos.
 - **Scroll**: `XlimitedScene` + `ScrollConsts` (divisores en compilación; sin `__udivsi3`
   en el camino caliente), `TileLayerMap` toroidal en X, cámara 1 px/frame.
-- **HUD**: franja de 48 px (misma profundidad que el campo: la zona solo conmuta BPLxPT)
-  con `PROC WORLD SCROLL v1.0.<build>` + contador de frames (norma del repo).
+- **HUD**: franja de 48 px **de UN bitplane** (paleta propia de 2 colores; la zona de
+  overlay conmuta BPLCON0/BPLxPT + COLOR00/01) con `PROC WORLD SCROLL v1.0.<build>` +
+  contador de frames (norma del repo). El texto se imprime con `Surface::draw_text_words`:
+  **dos glifos por palabra de 16 px**, ocho escrituras de palabra por par (glifos + fondo de
+  golpe), nunca píxel a píxel — el HUD de depuración debe ser lo más sencillo posible.
 
 ## Comandos
 
@@ -24,10 +27,18 @@ bash ./tools/run/run-demo.sh demos/techniques/amiga/effects/120_proc_world_scrol
 node tools/debug/measure-fps.mjs 120_proc_world_scroll A500_debug --json
 ```
 
+## Ablaciones de medición (scaffolding compilado, coste cero por defecto)
+
+Las macros de build `K120_SKIP_COMPOSE`, `K120_SKIP_UPDATE`, `K120_SKIP_INSTALL` y
+`K120_SKIP_HUD` saltan una etapa del frame para cuantificar su coste con `measure-fps` y
+`EXTRA_DEFINES` (p. ej. `EXTRA_DEFINES='-DK120_SKIP_HUD=1'`). Son la sonda de presupuesto de
+la demo (procedimiento A/B en `docs/guides/optimization/METODO_OPTIMIZACION.md`); sin define,
+el código compila la ruta normal y no tienen coste en runtime.
+
 ## Estado (ver [`VALIDATION.md`](VALIDATION.md))
 
-Render y scroll **VERIFICADOS** (captura + visión). El **presupuesto de 50 fps queda NO
-VERIFICADO**: en el engine actual el coste por frame del camino de composición del scroll
-está inflado (~201 k ciclos/frame, 1,42 campos) y afecta también a la referencia 201
-(22,6 fps debug); es deuda de optimización del camino X-Limited (no de la integración:
-esta demo rinde MEJOR que la referencia). Queda registrado con medidas en la validación.
+Render, scroll y **cadencia VERIFICADOS en el alcance probado**: 48,7 fps (debug y release,
+1,027 campos/frame) con el HUD incremental y cero candidatos de flicker; la referencia
+estática 119 mide 49,85 fps con el mismo bucle. El techo de 37 fps anterior era el HUD
+completo, no el camino de plan/composición (ablacionado: por debajo del ruido). Queda
+registrado con medidas y visión en la validación.
