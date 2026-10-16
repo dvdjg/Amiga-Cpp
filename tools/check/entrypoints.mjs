@@ -53,6 +53,50 @@ Uso: node tools/check/entrypoints.mjs [--quiet] [--help]
 const problems = [];
 const seen = new Set();
 
+// SECCIONES CANONICAS de AGENTS.md: un truncado del documento de arranque (edicion
+// scriptada que pierde el resto del fichero, merge mal resuelto...) debe FALLAR aqui,
+// no descubrirse leyendo. Si se elimina una seccion a proposito, se quita tambien de
+// esta lista en el mismo commit (acto deliberado y revisable).
+const AGENTS_SECTIONS = [
+	'## 0.',
+	'### 1.1',
+	'### 1.2',
+	'### 1.3',
+	'### 1.4',
+	'### 1.5',
+	'### 1.6',
+	'### 1.7',
+	'### 1.8',
+	'### 1.9',
+	'### 1.10',
+	'### 1.11',
+	'### 1.12',
+	'### 1.13',
+	'### 1.14',
+	'### 1.15',
+	'### 1.16',
+	'## 2.',
+	'### 2.1',
+	'## 3.',
+	'### 3.1',
+	'### 3.2',
+	'### 3.3',
+	'### 3.4',
+	'## 4.',
+	'## 5. Cierre de turno',
+];
+{
+	const agentsPath = path.join(ROOT, 'AGENTS.md');
+	if (fs.existsSync(agentsPath)) {
+		const agents = fs.readFileSync(agentsPath, 'utf8');
+		for (const section of AGENTS_SECTIONS) {
+			if (!agents.includes(section)) {
+				problems.push(`AGENTS.md: falta la seccion "${section}" (truncado o edicion incompleta)`);
+			}
+		}
+	}
+}
+
 function existsRepoOrRelative(file, target) {
 	// La cita puede ser relativa a la raiz del repo (habitual) o al propio
 	// documento (enlaces Markdown como `tools/README.md` desde docs/).

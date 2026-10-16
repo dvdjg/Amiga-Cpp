@@ -127,3 +127,226 @@ Este es el **único orden de lectura de arranque**: cualquier otro documento que
   README bajo `## Búsqueda previa`, citando el patrón y al menos un símbolo candidato del engine (se verifica que exista).
   El baseline solo admite demos históricas y puede encoger, no crecer. Ejecútalo antes de dar por buena una demo:
   `node tools/check/prior-art.mjs --list`.
+
+### 1.8 Contexto técnico
+
+- **Antes de implementar cualquier mecanismo técnico** (registro o comportamiento de hardware, protocolo, formato, peculiaridad del toolchain o del chipset), **localizar y leer la documentación de referencia relevante**. No inventar ni descubrir por prueba y error.
+- Fuentes preferentes: `docs/reference/ahrm/` (AHRM 3.ª), el repo hermano `../amiga-bootcamp/` (p. ej. `01_hardware/common/cia_chips.md`, `video_timing.md`, `dma_architecture.md`), los headers del SDK (`…/opt/m68k-amiga-elf/sys-include/hardware/*.h`) y los datasheets.
+- Si no existe doc en el repo, **traerla o crearla antes de programar** (regla de ingesta de referencias: buscar, comparar calidad, componer/sustituir).
+- **Citar la referencia** (ruta del doc, datasheet, sección) en el comentario del código y en el commit.
+- Ejemplo (2026-09): el timer de CIA no recargaba por poner `CRA bit3 RUNMODE=1` (one-shot); leer `cia_chips.md` lo documenta como «0 = continuo» y fue la corrección directa.
+
+### 1.9 Commits por turno
+
+El objetivo es que el usuario pueda **revisar** el trabajo antes de que se consolide en git.
+
+- **Al comenzar un turno**, hacer commit de lo que quedó **sin commitear** del turno anterior (solo lo hecho en el hilo actual), ya revisado.
+- El trabajo producido en el **turno en curso** no se commitea en ese mismo turno, aunque complete una tarea pendiente o un arreglo: se deja sin commitear para que el usuario lo repase, y se commitea al inicio del turno siguiente salvo que el usuario pida lo contrario.
+- No incluir en ese commit cambios ajenos al hilo actual.
+
+### 1.10 API pública y backends
+
+- La lógica de demo/juego incluye la **fachada** `eng/api/api.hpp` (un solo include con la API estable) y, si es una demo Amiga, su backend. No acumular includes sueltos de `eng/core`, `eng/engine.hpp`, `eng/graphics/composition`… salvo lo que no cubra la fachada (3D, efectos, utilidades concretas).
+- La lógica de demo **no nombra tipos del backend** (`AmigaBackend::C2p4State`, `…::OrBobEntry`, `…::LineEorParams`): usa el **tipo de dominio** (`eng::graphics::C2p4`/`OrBob`/`LineEor`) o la API del seam (`FramePlan`, `Rasterizer`, `DrawTarget`). El backend se instancia en `main()` y se pasa al `Engine`.
+- El backend no expone registros ni punteros a la app; si una demo necesita un valor preparado por hardware, se declara en la capa de dominio y el backend lo **aliasa** (ver `docs/engine/architecture/ENGINE_STRUCTURE_REVIEW.md`).
+- **API público final**: debe ser **lo más intuitivo y simple posible** y **no restringir funcionalidad** (ver §1.1 de `docs/engine/architecture/PUBLIC_API.md`). Las interfaces **intermedias** del engine pueden ser técnicas; lo que consume el juego, no. Mientras falten módulos, se escribe el API de lo que ya existe y se adapta después. Al tocar un módulo, preguntar «¿cómo lo pediría un juego?».
+- **Menos recursos en runtime = mejor opción (prioridad de diseño).** Ante varias soluciones válidas, elegir la de **menor coste en CPU/DMA/memoria en ejecución**. Resolver en **compilación** lo que se pueda (`template`/`constexpr`/disposición fija; **cero heap, cero cola, cero despacho dinámico**) y dejar la sobrecarga de runtime solo como **último recurso** (cuando no hay otra). La opción elegida debe además **simplificar el uso** (ladrillos que encajan). Aplica a toda decisión de arquitectura (capas, colas de intenciones, drivers, efectos), no solo a la de este hilo.
+- **Fast RAM**: los juegos detectan en **runtime** si hay Fast RAM (Agnus no la ve, CPU a plena velocidad) y la usan para tareas intensivas de CPU. **No** usar Slow RAM para eso (comparte el bus DMA pero Agnus no la ve: lo peor de ambos).
+- **Memoria DMA = tipada por banco (Chip), y el compilador lo exige.** Ningún buffer que el hardware lea por **DMA** (Copper, `BPLxPT`, sprite `SPRxPT`/`DATA`, blitter, audio) puede llegar como `Span`/`TaggedSpan` **sin banco**: la API debe llevar el banco en el **tipo** (`Address<MemoryKind::Chip>`, `MemView<Tag, MemoryKind::Chip>`/`ChipView<Tag>`, `Block<Tag, MemoryKind::Chip>`) de modo que pasar RAM **Slow/Fast** (o una `Span` agnóstica) **no compile**. Un `Span<T>` suelto que termina en DMA es un **agujero de tipos**: la procedencia la garantiza la **fuente** (`Block<Tag, Chip>`, `as_chip`), nunca se inventa ni se reinterpreta. Ver `engine/include/eng/core/types/typed.hpp` y `docs/engine/architecture/INTERNAL_TYPE_SYSTEM.md`.
+- **Operación de hardware acoplada = UNA API con TODOS los elementos (tipados); las formas parciales NO se exponen.** Si el hardware exige N cosas acopladas para que una técnica sea correcta, la firma las pide todas (o el tipo las contiene): una variante con un subconjunto es **incorrecta por construcción** y no debe existir en la API. Ejemplos: `BPLCON0` solo por `bplcon0_for` (constructor único, `COHERENCIA_DE_SETUP.md`); armar/rearmar un canal de sprite exige `POS`+`CTL`+**`SPRxPT`→estructura tipada** (`emit_sprite_horizontal_rearm(r, ChipView<SpriteTag>)` — una forma POS+CTL+DATA sin PT es incorrecta: el fetch del DMA pisa los registros, `winuae/sprite-dma.md` §Armado de un canal); la `SpriteLineLayer` no se configura sin su tabla de DATA (`configure` la exige y la valida). Señal de alarma al diseñar: «esta API permite configurar la operación a medias» → cerrar la forma parcial (tipo/argumento obligatorio) o añadir validador de setup (`eng::setup`). El coste de una API más verbosa se acepta a cambio de que el estado incorrecto **no sea representable**.
+
+### 1.11 Genericidad de las cabeceras
+
+- Una cabecera del engine debe ser **genérica sobre lo que varía** (escalar, dimensión, capacidad, política) siempre que el algoritmo no dependa de un tipo concreto. **No** fijar `s16`/`float`/`u32` en la firma si el algoritmo vale para cualquier tipo con las operaciones requeridas.
+- Usar el **patrón del repo**: `template <class S>` con `eng::math` (`Vec<2,S>`, `scalar_traits`, `scalar_sqrt`, `div_norm`/`mul_norm`) para el escalar; parámetros `constexpr` de plantilla para capacidades; `Span`/vistas para buffers. Ejemplos de referencia: `eng/ai/steering/steering.hpp`, `eng/core/math/linalg.hpp`, `eng/core/math/geometry.hpp`.
+- Si una parte **no** puede ser genérica (p. ej. una fase amplia atada a `s16`), **decoplarla como política de plantilla** o recibirla como parámetro, en vez de hardcodear el tipo en el algoritmo. Ejemplo: `eng/ai/steering/crowd.hpp` (`Crowd<S, Broadphase>`).
+- El test host de una cabecera genérica debe ejercitarla con **al menos dos escalares** cuando aplique (p. ej. `s32` y `float`), además de los casos límite.
+- Al tocar una cabecera existente, preguntar «¿esto vale solo para este tipo?»; si la respuesta es sí y no hay motivo, generalizarla en la misma pasada.
+- **Una cabecera de plantilla no impone el escalar ni arrastra su implementación.** El escalar (o cualquier representación concreta: `Fixed`, `MiniFloat16`, `float`…) es **parámetro de plantilla**; la cabecera usa solo el **vocabulario genérico** (`scalar_traits`, `scalar_const`, `mul_norm`/`div_norm`, `fbm2`, `worley2`…). Por tanto **no** debe `#include` la cabecera de un escalar concreto (`eng/core/math/fixed.hpp`, `eng/core/math/minifloat.hpp`) ni su soporte matemático (`fixed_math.hpp`, `minifloat_math.hpp`), ni fijar un alias interno del estilo `using MF = MiniFloat16;`. Un backend con `float` nativo debe poder instanciarla con `float` sin traerse `Fixed`/`MiniFloat16`, y viceversa. **Prevalece el algoritmo; el escalar lo elige el consumidor** (el host/test puede incluir el escalar que quiera y pasarlo como `Fx`).
+- **Test negativo obligatorio**: instanciar la cabecera con **dos escalares distintos** (p. ej. `float` y `Fixed<s16,12>`) demuestra que no impone uno. El gate `tools/check/generic-headers.mjs` cierra el caso estático (tipo concreto o include de escalar en cabecera genérica → falla) y vigila con tope por fichero los tipos crudos en contexto genérico (`generic-headers-raw-baseline.txt`, solo puede bajar).
+- **La plantilla no se ata a un tipo de dato concreto.** Un `template` cuyo algoritmo vale para varios tipos (`u8`, `s16`, `q12`/`Fixed`, `float`…) no fija el tipo en ningún punto —campos internos, `ct_array<s32,…>`, retornos, parámetros o alias `using T = s16`—: el tipo que varía (también la **representación de salida** de un generador o tabla) es **parámetro de plantilla** (con defecto si no debe romper los usos existentes) o **punto de extensión** (`scalar_traits`, `numeric_traits`, `scalar_const`…). Si un tipo concreto necesita comportamiento o representación propia, se aporta como **especialización explícita** del template para ese tipo (patrón del repo: `scalar_div<Fixed<…>>`, `scalar_sqrt<Fixed<…>>`, `FixedSineTable<R,E,Size,Iter>`), no con ramas internas que asuman el tipo. Ejemplo ya aplicado: `SineTable<Amp, Steps, T, Offset>` (con la conversión de muestra `sine_sample<T>` especializada por `Fixed`) y las ondas de `audio/wave_tables.hpp` (`wave_traits<T>` con `synth_tone<Len,T>`). El test negativo con dos tipos distintos es obligatorio también aquí. Detalle: `docs/engine/architecture/CODING_STYLE.md` §Reglas obligatorias de diseño.
+- **Generalista primero; la optimización es una ruta interna, no una API.** Toda función o método nuevo se diseña para el **caso general** (p. ej. cualquier número de planos, cualquier color/valor, cualquier tamaño que el algoritmo permita) con **argumentos de función** o **parámetros de plantilla** — nunca con un caso concreto en el nombre o en la firma (`…_mono`, `…_1bpp`, `…_4planos`, `…_320`). Si hace falta una ruta rápida para un caso concreto, vive **dentro** de la misma función (rama sobre el argumento, `if constexpr`, **especialización de plantilla**): la API general no cambia y sirve también el caso rápido. Prueba al declarar: **«¿esto valdría igual con N planos / otro color / otro tamaño?»**; si no, decidir si la restricción es del **algoritmo** (va documentada en la firma, con la alternativa general citada) o de **implementación** (no debe verse desde fuera). El test cubre el caso general y contrasta la equivalencia si hay ruta especializada. Regla completa y ejemplo real (`store_mono_word`→`store_plane_word`, HOST-449): `CODING_STYLE.md` §Reglas obligatorias de diseño.
+- **Las optimizaciones propias no deben OCULTAR defectos.** Sustituir una *libcall* (`__mulsi3`, `__divsf3`…) por una rutina propia quita la señal barata que delataba coste/incorrección. Regla: **nunca** hacerlo sin (a) un **test de equivalencia contra una referencia independiente** (operación nativa o algoritmo clásico; idealmente byte a byte) y (b) comprobar que el binario **sigue en 68000** con `node tools/analyze/asm-audit.mjs <elf>` (falla si hay **68020+/FPU**: `muls.l`, `fmove`, `extb.l`, `bf*`, `cas.l`…). El silencio de las libcalls no es prueba de corrección. Ver `docs/reference/toolchain/m68k-gcc.md` §3.
+
+### 1.12 Si el hardware no funciona: fuente del emulador
+
+- **Disparador (obligatorio, sin decidir «si consulto o no»)**: en cuanto un mecanismo de hardware **no cuadre** —píxel/color que no sale, sprite tapado, elemento desplazado, fila/columna con basura, parpadeo, etc.—, **PARAR** y leer la fuente **antes** de construir diagnósticos o experimentos. No se redescubre por prueba y error lo que está escrito en la referencia. Índice «síntoma → fichero» y fichas por tema: [`docs/reference/emulators/winuae/README.md`](docs/reference/emulators/winuae/README.md).
+- Cuando un mecanismo del chipset **no se comporta como se espera** y la documentación de referencia (`docs/reference/ahrm/`, `../amiga-bootcamp/`, datasheets) no lo explica, la **implementación del emulador es la referencia de facto**: leer su **código fuente**.
+- **Fuente local**: `../WinUAE-DBG/`. Ficheros clave: `custom.cpp` (registros custom: handlers de escritura/lectura, p. ej. `CLXCON`/`CLXDAT`), `drawing.cpp` (render por píxel/línea: colisión, sprites, playfield), `include/custom.h` (mapa de registros), `cfgfile.cpp` (preferencias como `collision_level`).
+- **Procedimiento**: (1) localizar con `grep -rnE '<REG>|<término>'`; (2) leer el handler en `custom.cpp` y la lógica por píxel/línea en `drawing.cpp`; (3) comprobar **preferencias** que puedan desactivar la función (p. ej. `currprefs.collision_level`); (4) contrastar con el AHRM y **anotar la discrepancia**; (5) validar en emulador con una demo (caso positivo **y** negativo).
+- Documentar el hallazgo en `docs/reference/emulators/<emulador>/<tema>.md` (índice en `docs/reference/emulators/README.md`), citando **fichero y línea** (sin `fichero:línea` el hallazgo **no está hecho**). Ficha de referencia por **tema**: mecanismo observado (tabla `registro/handler/fuente`), contraste con el AHRM, implicación para el engine y enlaces al código que la usa. Ejemplo: [`winuae/audio-irq.md`](docs/reference/emulators/winuae/audio-irq.md) (IRQ de audio: `setirq`/`event_audxdat_func`, `AUDxLEN`/`AUDxLCH`, contraste AHRM `:4378`, y por qué el servicio de nivel 4 es el sitio del *swap*).
+- **Completar la referencia**: si el emulador aclara o corrige la doc del manual, añadir la aclaración a la copia local (`docs/reference/ahrm/ERRATA_Y_NOTAS.md` o la ficha de técnica), indicando **de dónde se obtuvo** (emulador + `fichero:línea`).
+
+### 1.13 Las demos son tutoriales
+
+- **Toda demo debe poder leerse como un tutorial de cómo se programa el engine**: enseña el camino correcto (la fachada estable) resolviendo un caso concreto, no solo «funciona». El código es material didáctico de primera clase.
+- **Comentarios al nivel de la intención**: cada bloque explica **qué** se hace con el vocabulario del engine (`App`/`Screen`/`Scene`/`BobLayer`/`RasterLayout`/`CopperIntent`…), **por qué** es así y **qué haría mal un lector** si bajara a bajo nivel; las decisiones no obvias (alineación, orden de registros, `MEMF_*`, límites de hardware) citan la referencia canónica.
+- **Sin bajo nivel gratuito**: la lógica de la demo usa la fachada (`eng/api/api.hpp` + tipos de dominio); no nombra registros del chipset, punteros crudos, `BlitJob`, bancos de memoria ni tipos del backend. Si algo obliga a bajar, es una abstracción que falta (§1.10) y se resuelve en el engine — no se deja crudo en la demo.
+- **El comentario enseña la regla, no el paso a paso de la máquina**: nada de narrar cronología ni intentos descartados (eso va a `docs/debugging/`); el `README.md` de la demo presenta el efecto, la técnica (con su ficha en `docs/reference/`) y el contrato que ilustra.
+- **Números y líneas no obvias, justificados**: todo literal en una llamada a la API o en una operación cuyo propósito **no sea evidente al leerlo** lleva **comentario** (misma línea o encima) o un `constexpr` con nombre; y cualquier sentencia que no se explique sola lleva un **comentario de línea** (ver §1.16).
+
+### 1.14 No cerrar el turno por criterio propio
+
+- **El turno se cierra cuando el trabajo pedido está terminado, no antes.** No se corta por longitud, cansancio, presupuesto percibido ni por «dejar margen»: se sigue trabajando hasta completar lo encomendado.
+- **Única excepción —discrepancia técnica—:** se corta el turno (y se **pregunta al usuario**) solo cuando se cree que **no se puede resolver un punto por una discrepancia técnica** y se prefiere su decisión antes de continuar. En ese caso, se nombra el bloqueo y las opciones concretas.
+- Entregar trabajo **parcial como si fuera el final** sin que medie (a) trabajo terminado o (b) un bloqueo técnico declarado se considera un **fallo de proceso**. Si algo queda a medias, se dice explícitamente qué falta y por qué, no se disfraza de cierre.
+
+### 1.15 Disciplina de coste de la máquina (68000 / A500)
+
+- **Toda tarea de optimización —y todo código nuevo con impacto en rendimiento (es decir, siempre)— empieza leyendo [`docs/guides/optimization/METODO_OPTIMIZACION.md`](docs/guides/optimization/METODO_OPTIMIZACION.md)**: presupuesto de bus y mapa de contención antes de diseñar, la referencia medida como oráculo con las mismas herramientas, experimentos de una sola variable con coste predicho y criterio de falsación, y hot-patch antes que rebuild. Es obligatorio también para hilos nuevos.
+- **Cada operación de un bucle cuesta ciclos y compite** con el Blitter, el Copper, los bitplanes y el resto del frame. Antes de poner una operación en un bucle **por píxel/línea o en el bucle de juego**, calcular su coste y decidir si cabe.
+- **Nada de `*`, `/` ni `%` en bucles por píxel/línea o en el bucle principal** sin justificarlo con medidas. Alternativas obligatorias: **desplazamientos** para potencias de 2; **`constexpr`** para precalcular en compilación lo que depende solo de constantes (figuras geométricas, perfiles, tablas de seno, mapas de color) e **indexar** en runtime; **sumas/restas acumuladas** para funciones lineales; **tablas ROM** para las no lineales. Recordar que `*`/`/`/`%` de **32 bits** son **libcalls** (`__mulsi3` ~50 ciclos, `__udivsi3`/`__modsi3` ~150) y `divu.w` ~140.
+- La explicación detallada (ciclos por operación, alternativas, verificación con `nm`/`asm-audit`) está en [§Disciplina de coste](docs/guides/optimization/OPTIMIZACION_GPP_68000.md).
+
+### 1.16 Literales numéricos semánticos y comentarios de línea
+
+- Los literales con significado deben quedar explicados en el mismo uso o en un comentario inmediatamente anterior; si la explicación necesita contexto, enlazar/citar su fuente canónica. Se pueden dejar como literales cuando la constante nombrada añadiría ruido.
+- Usar `constexpr` cuando el valor tenga un nombre de dominio claro, se reutilice o haga más legible la configuración. Mantener el conjunto pequeño y coherente; no crear una constante por cada número. Antes de declarar límites derivados del hardware, buscar y reutilizar los existentes.
+- Ejemplo: `mark_failed(status, 0x00021303u)` debe documentar qué etapa de init representa o usar un identificador semántico si esos códigos se consultan en más de un sitio. En cambio, dimensiones y factores usados una sola vez pueden seguir literales si el comentario cercano explica su papel.
+- **Números en operaciones y llamadas a la API**: si el propósito de un literal **no es evidente al leerlo**, **justificarlo con un comentario** (en la misma línea o justo encima) o darle un nombre `constexpr`. Aplica a llamadas de configuración y a operaciones aritméticas/bit a bit. Ej.:
+  ```cpp
+  // 384K chip (bitplanes + copper + sprites), 8K slow (Bogo), 8K fast.
+  backend.configure_memory({ 384u * 1024u, 8u * 1024u, 8u * 1024u });
+  ```
+- **Comentario de línea cuando el código no se explica solo**: si una sentencia no deja claro **qué** hace o **por qué** usa ese valor, añadir un **comentario de línea** (en la misma línea o justo encima). Ej.:
+  ```cpp
+  // Registros de display: BPLCON0/BPLCON1/DIWSTRT/DIWSTOP; 40 B/fila, 4 planos, 320x256.
+  sched.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0, kBytesPerRow, 0x4200,
+                            kPlanes, m_bitplane.mem_view_chip(), kPlaneBytes);
+  // `v` = valor 1..3 del pixel; bit 0 -> DAT, bit 1 -> DATB (bit 15 = pixel 0, a la izquierda).
+  if ((v & 1u) != 0u) { dat = static_cast<eng::u16>(dat | (0x8000u >> px)); }
+  ```
+  Ver también §1.13 (comentarios didácticos: **qué**, **por qué** y **qué haría mal** un lector).
+
+---
+
+## 2. El repositorio
+
+- El repo mantiene un proyecto C Amiga legado en `legacy/` (`legacy/Makefile`, `legacy/out/a.exe`) y un flujo nuevo de demos del engine C++23 en `demos/` + `tools/`; no mezclarlos por error.
+- Para trabajo del engine, usar los wrappers shell de `tools/` en vez de invocar el `legacy/Makefile`.
+
+### 2.1 Estructura (obligatoria)
+
+La organización de directorios es canónica y está especificada en **`docs/STRUCTURE.md`**. Antes de crear cualquier archivo o directorio, definir dónde debe vivir según esa especificación. Resumen de las áreas raíz:
+
+| Área | Contenido |
+|---|---|
+| `engine/` | Código del engine: `include/eng/` (API, algoritmos, librerías, capas de abstracción) + `src/platform/` (implementaciones backend por máquina). |
+| `demos/` | Demos en dos raíces: `techniques/<familia>/<categoría>/NNN_<tema>/` (técnicas de hardware) y `features/<feature>/<plataforma>/NNN_<tema>/` (features portables con lógica en el engine). Variante de build (`A500`/`A1200`/`ST`/`STE`) por `TARGET_MACHINE`, no por directorio. Los assets no viven en la demo: fuente en `assets/`, generados en `out/assets/<pipeline>/`. Ver `docs/guides/roadmap/PLAN_ORGANIZACION_DEMOS.md`. |
+| `assets/` | Assets fuente (raw, con licencia): `assets/<plataforma>/<dominio>/` (tiles-reference/, sprites/, audio/, maps/). Solo lectura por pipelines. |
+| `tools/` | Herramientas host del pipeline (TypeScript/bash; el TS compila a `dist/`). |
+| `scripts/`, `support/` | Scripts de entorno/instalación (`scripts/`) y código de apoyo al linkado incluido en builds (`support/`: ASM/C, depackers). |
+| `tests/` | Tests host (`tests/host/<categoría>/NNN_<nombre>/`) y on-target (`tests/amiga/`); taxonomía y IDs HOST-NNN en `docs/testing/` (árbol en §12.1 de `docs/STRUCTURE.md`). |
+| `config/` | Configuración del emulador/entorno (`.uae`). |
+| `host-tools/` | Programas de apoyo independientes del engine (Go/C++ para PC). |
+| `playground/` | Experimentos de algoritmos/calidad; salida siempre en `out/playground/<experimento>/`. |
+| `games/` | Juegos generados con el engine (primeros en este repo, no en repos separados). |
+| `docs/` | Documentación: `engine/` (arquitectura), `demos/` (efectos y tile-pipeline), `tools/`, `reference/<plataforma>/` (hardware/técnicas), `guides/` (roadmap, optimización, metodología), `debugging/`, `build/`, `emulation/`, `testing/`. |
+| `out/` | Todo lo generado (gitignored); reglas canónicas en `out/README.md`. Prohibido crear directorios ad-hoc sueltos aquí. |
+| `obj/`, `dist/` | Intermedios de compilación y TypeScript compilado (gitignored; regenerables). |
+| `artifacts/` | Resultados/evidencia canónicos commiteados y congelados (no regenerables por defecto). |
+| `legacy/` | Proyecto C Amiga congelado. |
+
+Reglas críticas:
+
+- Los assets **generados** por pipelines van a `out/assets/<pipeline>/…` (nunca a `assets/`), y cada tool debe aceptar `--out` con un defecto ya canónico.
+- La salida de experimentos/medidas va a `out/playground/<experimento>/`.
+- Los juegos en `games/` usan el mismo flujo build/run/analyze que las demos.
+- Cualquier salida temporal va a `out/tmp/`; si ves un directorio suelto en `out/`, muévelo al área canónica correspondiente y corrige la tool que lo crea.
+- **Nada de binarios/media en git**: no añadir archivos binarios ni media masiva (PNG/JPG/audio/vídeo/archivos compilados). `.gitignore` los excluye por defecto; solo se versionan los assets fuente de `assets/`. Si un pipeline o una IA genera imágenes/`.bin`, la salida va a `out/` (ignorado) y el resultado «canónico» de texto (informes/README) a `docs/` o `artifacts/`.
+
+---
+
+## 3. Operación (build / run / analyze)
+
+### Objetivos de rendimiento y estabilidad visual de demos Amiga
+
+- Objetivo de cierre: **un frame de juego completado por cada VBlank PAL** (frecuencia nominal Amiga de 50 Hz; WinUAE suele reportar aproximadamente 49,9–50,0 fps) y **cero flicker/tearing**. Una demo cuyo efecto principal sea relleno de polígonos debe alcanzar al menos **25 fps**. Al medir, registrar fps/ciclos por frame y comparar implementaciones A/B equivalentes para cuantificar el coste de la abstracción; una diferencia menor que la resolución/ruido del medidor se informa como «no medible», no como coste cero absoluto.
+- **Sin tirones y con CPU baja (obligatorio)**: verificar **siempre** que la animación mantiene **cadencia uniforme** (ningún frame que ocupe 2 VBlanks, sin picos de ciclos por frame) y que el **trabajo por frame es escaso** (CPU holgada, sin hotspots puntuales). Un **tirón** o un **pico de procesamiento** en ciertos momentos es señal de que **la técnica puede no ser válida**: perfilar ese instante (`.amigaprofile` + IA local) antes de dar la demo por buena y, si el pico es intrínseco al algoritmo, replantear la técnica en vez de maquillar la medida.
+- **Sincronización de frame por señal, no por polling**: las demos sincronizan con el VBlank por el **latido del mini-SO en la IRQ** (`eng::os::init` + `Engine::run_frames`): la IRQ levanta una **señal Exec** y el bucle **duerme en `Wait()`** (CPU en el `STOP` de Exec) cuando no hay nada más que procesar. No usar sondeo de `VPOSR` (`run_frames_polling`) en demos nuevas salvo fallback justificado (backend sin servicio de VBlank).
+- Medir, no inferir: usar `node tools/debug/measure-fps.mjs <demoId> A500_debug --json`; para diagnóstico, perfilar con `node tools/debug/profile.mjs <demoId> A500_debug` o `node tools/debug/winuae-profile.mjs <demoId> A500_debug <frames>`. Registrar medidas en `docs/guides/roadmap/BITACORA_SCROLL_TILES.md` con `tools/debug/record-fps.mjs`.
+- **Excepciones de presupuesto, documentadas**: solo demos intrínsecamente cargantes, con suelo **25 fps**, motivo y medida en el `VALIDATION.md` de la demo (procedimiento: §1 de `docs/guides/methodology/PROCEDIMIENTO_DEMOS_Y_JUEGOS.md`). Sin documentar, la demo queda NO VERIFICADA.
+- **Presupuesto por elemento del bucle y peor caso**: desglosar el coste por elemento (scroll, composición, objetos, IA…) y medir las **rutas que no se ejecutan siempre** (spawn, wrap del scroll, cambio de fase). Un pico repetido (tirón) invalida la demo hasta replantear la técnica.
+- **Informe de validación por demo**: `VALIDATION.md` en la carpeta de la demo con **prompts de visión + respuestas crudas + medidas** (fps/ciclos, `tools/analyze/check-elements.mjs`, band-diff) **+ conclusiones**; obligatorio antes de declarar VERIFICADA y se actualiza si cambia el render o el coste.
+- Para flicker, ejecutar `tools/test-regression.sh --flicker --require-flicker-ok --demo <ruta>` y declarar `flicker-baseline.json` con `max_candidates: 0` y `max_blocks_low: 0` cuando la secuencia esté limpia. Pasar flicker no sustituye el contrato de movimiento de la demo.
+- Si no cumple FPS/flicker, la demo queda **abierta/no verificada**; no relajar el umbral ni alterar telemetría/cadencia para simular cumplimiento. Perfilar el hotspot y optimizar el trabajo real del frame.
+- Literales numéricos, comentarios de línea y `constexpr`: §1.16.
+
+### 3.1 Herramientas locales
+
+Windows nativo + Git Bash + Node.js. **No usar WSL** ni un `bash` sin ruta absoluta para invocar binarios `.exe` del toolchain: puede resolver a WSL y no ejecutar el GCC de Windows. En este workspace, el toolchain está en `../vscode-amiga-debug/bin/win32`; exporta esa carpeta como `AMIGA_BIN_PATH`, comprueba `opt/bin/m68k-amiga-elf-g++.exe` y lanza build/run/analyze/regression desde PowerShell con `& 'C:\Program Files\Git\bin\bash.exe' <script> ...`. Los scripts también detectan las extensiones Bartman en `%USERPROFILE%\.cursor\extensions` y `%USERPROFILE%\.vscode\extensions`, y el build elige el GCC más reciente entre candidatos válidos. Receta y comandos completos: `docs/build/BUILD_AND_RUN.md` §Requisitos y §Compilar una demo.
+
+### 3.2 Comandos canónicos
+
+- Compilar una demo desde PowerShell: `& 'C:\Program Files\Git\bin\bash.exe' ./tools/build/build-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23 --debug --clean`
+- Ejecutar una demo y capturar: `& 'C:\Program Files\Git\bin\bash.exe' ./tools/run/run-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23`
+- Analizar una demo: `& 'C:\Program Files\Git\bin\bash.exe' ./tools/analyze/analyze-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23`
+- Regresión completa: `& 'C:\Program Files\Git\bin\bash.exe' ./tools/test-regression.sh`
+- Bucle de regresión de una demo: `& 'C:\Program Files\Git\bin\bash.exe' ./tools/test-regression.sh --demo demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver --warp`
+
+### 3.3 Orden de verificación (no saltar)
+
+- Orden por defecto: `build -> run -> analyze`. `tools/test-regression.sh` impone ese orden por demo.
+- La regresión usa build estilo debug por defecto (`--debug` interno). Usar `--release` solo cuando se necesite comportamiento de optimización release.
+- Detalle operativo y reglas del runner/emulador: `docs/build/BUILD_AND_RUN.md`.
+
+### 3.4 WinUAE concurrente: puertos y convivencia entre hilos
+
+- **Los dos puertos son configurables** por entorno: el servidor GDB del fork lee **`WINUAE_GDB_PORT`** (por defecto 2345) y el canal lateral lee **`WINUAE_SIDE_CHANNEL_PORT`** (por defecto 2346). El runner pasa el puerto al proceso del emulador (el `spawn` lo hereda), así que **cliente y servidor coinciden**: cada hilo/agente puede depurar en paralelo con su **par de puertos propio** (p. ej. GDB 2355 + canal 2421) sin colisión. `WINUAE_GDB_PERSIST_LISTENER` mantiene el GDB escuchando tras desconectar. Requiere la build del fork con «GDB port configurable» (commit `6783d952`).
+- **Regla de convivencia**: **cada hilo/agente elige al empezar su par de puertos** y lo usa siempre; **si un puerto está ocupado, no forzar: usar otro par** (no conectarse a una instancia ajena). Antes de lanzar, el runner comprueba con `netstat` si los puertos están ocupados y **falla con un mensaje claro**; `--wait-port <segundos>` espera a que se liberen y `--reset-emulator` libera **solo** los PIDs que los escuchan.
+- **Nunca matar** procesos `winuae-gdb`/`winuae64` ajenos: solo cerrar los propios (por PID) al terminar. Nunca `taskkill /IM winuae-gdb.exe`, que mata a todas las instancias. Registrar los PIDs lanzados y limpiarlos al terminar (no dejar instancias huérfanas ocupando puertos).
+- Detalle completo y bases de puertos: `docs/debugging/system/debug-winuae-v2-guide.md` §1.3–1.4.
+
+Ejemplo: `WINUAE_GDB_PORT=2355 WINUAE_SIDE_CHANNEL_PORT=2421 bash ./tools/run/run-demo.sh demos/techniques/amiga/setup/000_toolchain_cpp23`.
+
+---
+
+## 4. Reglas específicas (leer el documento del dominio antes de trabajar en él)
+
+Estas reglas son obligatorias, pero solo son relevantes cuando se toca su dominio. Cada una vive en su documento canónico (fuente única).
+
+| Regla / dominio | Documento obligatorio |
+|---|---|
+| **Tests y verificación por demo** (toda API con test; NO VERIFICADA si no hay demo) | `docs/testing/README.md` |
+| **Construcción por etapas de efectos gráficos/hardware** (CPU primero, luego Blitter/Copper; equivalencia CPU como referencia; parar tras 3–4 intentos) | `docs/guides/methodology/PROTOCOLO_ETAPAS_GRAFICOS.md` |
+| **Crear o arreglar una demo/juego (procedimiento completo)** (fases F0–F5, gates, presupuesto 50 fps, visión y deuda) | `docs/guides/methodology/PROCEDIMIENTO_DEMOS_Y_JUEGOS.md` |
+| **Demos atractivas, validación visual (Ollama) y gate de optimizaciones de render** | `docs/guides/methodology/DEMO_VISUAL_DEBUG.md` |
+| **API del engine** (sin hardware, sin punteros, versátil, prueba de diseño) | `docs/engine/architecture/PUBLIC_API.md` |
+| **Estilo y restricciones de diseño** (gnu++23, sin excepciones/RTTI/heap, APIs paramétricas, agnosticismo del backend, comentarios didácticos) | `docs/engine/architecture/CODING_STYLE.md` |
+| **Coherencia de configuración en setup** (constructor único de `BPLCON0`, validadores `eng::setup`, `[[nodiscard]]`+`-Werror=unused-result`, regiones y WAITs) | `docs/engine/architecture/COHERENCIA_DE_SETUP.md` |
+| **Rendimiento, comentario de optimizaciones y port de rutinas calientes a asm** | §12 de `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` |
+| **Optimizar (SIEMPRE: también al escribir código nuevo con impacto en rendimiento)** — campaña contra referencia, presupuesto de bus y mapa de contención, tabla de deltas, A/B con hot-patch y criterio de falsación, checklist de un solo cambio | `docs/guides/optimization/METODO_OPTIMIZACION.md` |
+| **Análisis de rendimiento de una demo** (medir SIEMPRE con el perfil `.amigaprofile` + IA local; hotspots por rutina y defectos de pantalla con visión) | `docs/tools/PROFILING_FROM_AGENT.md` |
+| **Copper y buffers de display** (`copper::Plan`, slots tipados `MoveSlot`/`WaitSlot`, doble buffer de copperlist, validadores `eng::setup::check_copper_list`) | §6 de `docs/engine/architecture/DISPLAY_COMPOSITION.md` |
+| **Objetos: BOB ≠ polígono, transparencia, fondo, copper por objeto** | `docs/engine/architecture/OBJECT_SYSTEM.md` |
+| **Blitter / minterms / líneas y polígonos** | `docs/reference/amiga/techniques/README.md` y `blitter-line-subpixel-fill.md` |
+| **Runner/emulador** (warp, READY, canvas, secuencias) | `docs/build/BUILD_AND_RUN.md` |
+| **WinUAE: instancias múltiples y depuración avanzada (GDB/canal lateral/MCP)** | `docs/debugging/system/debug-winuae-v2-guide.md` |
+| **Pipeline de tiles/EHB** (cuantizar antes de extraer, comparar al 100 %, etc.) | `docs/guides/roadmap/REGLAS_PIPELINE_TILES.md` |
+| **Motores de tablero (ajedrez/Go), footprint 20 kB–1 MB y conocimiento en disquete** | `docs/engine/architecture/BOARD_GAME_AI.md` + `docs/guides/roadmap/ROADMAP_BOARD_GAMES.md` |
+| **Concurrencia y portabilidad multinúcleo (hilos/mutex/atómicos)** | `docs/engine/architecture/PARALLEL_AND_THREADS.md` |
+| **Mini-SO de mensajes y UI reactiva** (`eng::os`/`eng::ui`: puerto, prioridad, VBlank latched, entrada por registros, timers, E/S asíncrona, tareas de fondo) | `docs/engine/architecture/MINI_OS_MESSAGE_LOOP.md` (+ `MINI_OS_INPUT.md`, `MINI_OS_TIME.md`, `MINI_OS_IO.md`, `MINI_OS_TASKS.md`, `GUI_LIBRARY.md`) |
+| **Audio** (`eng::audio`: modos/canales, mixer, música P61/pt/OctaMED, streaming desde disquete y codecs) | `docs/engine/architecture/GAME_AUDIO.md` (+ `AUDIO_MIXER.md`, `MUSIC_PLAYER.md`, `AUDIO_STREAMING.md`, `ROADMAP_AUDIO.md`) |
+| **Caché de assets y código dinámico** (`eng::res`: LRU/prioridad/refcount, presupuestos Chip/Fast, DynLoader `.englib`) | `docs/engine/architecture/RESOURCE_SYSTEM.md` (+ `ROADMAP_RESOURCES.md`, `MINI_OS_IO.md`) |
+| **Inventario de hardware** (`eng::hw`: CPU/FPU, chipset, RAM por tipo, display, puertos) | `docs/engine/architecture/HARDWARE_INVENTORY.md` |
+| **Estado vigente y próximas direcciones del engine** | `docs/guides/roadmap/ROADMAP_UNIFICADO.md` |
+| **Numeración de demos/tests entre ramas** (anti-solape: bloques reservados) | `docs/ai-dev-environment/NUMBERING.md` |
+
+> Esta tabla es solo para **reglas duras de dominio**. El router de tareas (con las demos/APIs de referencia de cada tipo de trabajo) es §3 de `docs/ai-dev-environment/DOC-MAP-PRINCIPAL.md`; el destino de un documento nuevo, `docs/README.md`; el estado de cada roadmap (activo/pausado/cerrado), `docs/guides/roadmap/README.md`.
+> Navegación general y protocolo de ingesta: `docs/ai-dev-environment/DOC-MAP-PRINCIPAL.md`.
+> Índice maestro de la documentación: `docs/README.md`.
+
+---
+
+## 5. Cierre de turno (checklist)
+
+Antes de dar un turno por cerrado, repasar en orden; cada punto enlaza su regla completa:
+
+1. **Evidencia y alcance** (§1.5): lo afirmado no excede lo probado; lo no cubierto queda **«SIN VERIFICAR»**, no «correcto».
+2. **Visión Ollama** (§0 y `DEMO_VISUAL_DEBUG.md` §6.4): si hay demo/efecto/imagen, mirar la salida real con el modelo de visión — para animación, **secuencia**, no una captura suelta.
+3. **Presupuesto y estabilidad** (§3): fps, cadencia sin tirones y flicker medidos; `VALIDATION.md` de la demo actualizado si cambió el render o el coste.
+4. **Versión en pantalla** (§0): la demo muestra nombre + versión + información de depuración (o la ventana de debug de WinUAE).
+5. **Docs en regla**: hallazgos indexados en su README de carpeta y en `DOC-MAP` §3; `node tools/check/doc-index.mjs`, `links.mjs`, `encoding.mjs` y `entrypoints.mjs` en verde (§1.3, §1.4).
+6. **Errores del engine ajenos al hilo**: registrados donde toca (`docs/debugging/`, `ROADMAP_DEUDA_TECNICA.md` o `DOC-MAP`), aunque no se hayan arreglado (§1.3).
+7. **«Próximos pasos recomendados»** (§1.6): 3–5, concretos, ordenados por prioridad.
+8. **Commits** (§1.9): el trabajo del turno **no** se commitea en el mismo turno; al inicio del siguiente se commitea lo revisado.
