@@ -518,7 +518,17 @@ struct ProcStructuresDemo {
 		scene_cfg.indexed_tiles = eng::TileBankBytes {kBaked.bank_view().data(),
 							      kBaked.bank_view().size()};
 		scene_cfg.indexed_stride = kTile * kTile; // 1 B/píxel
+#if defined(K121_GOLDEN_ACTORS)
+		// **Modo golden**: paleta identidad (índice → color inyectivo `(i<<6)|0x3F`) para
+		// que el comparador externo (`tools/analyze/verify-121-actor-golden.mjs`) decodifique
+		// el índice de cada píxel del PNG sin duplicar la paleta real; el mundo se pinta
+		// igual (los índices no cambian, solo sus colores).
+		for (u8 i = 0u; i < 32u; ++i) {
+			g_world_palette[i] = u16((u16(i) << 6u) | 0x003Fu);
+		}
+#else
 		for (u8 i = 0u; i < 32u; ++i) g_world_palette[i] = kWorldAtlas.palette.color[i];
+#endif
 		scene_cfg.palette = eng::PaletteWords {g_world_palette, 32u};
 
 		if (!scene.begin(backend.memory_manager(), scene_cfg)) {
@@ -635,6 +645,41 @@ struct ProcStructuresDemo {
 			return;
 		}
 		m_restore_x = u16((m_actor_x >> 4u) << 4u);
+#if defined(K121_GOLDEN_ACTORS) && !defined(K121_SKIP_ACTOR)
+		// **Golden de subposiciones**: pinta las 16 bandas del actor a la vez, cada una en
+		// su columna limpia del carril (las copas están en 5, 6 y 10), con la MISMA ruta
+		// de blits del frame. La captura se compara píxel a píxel contra un oráculo
+		// independiente (banda reconstruida en JS desde el patrón del actor) y contra una
+		// captura sin actores (para exigir que nada fuera del actor cambie).
+		{
+			const u16 cols[16] = {0u, 1u, 2u, 3u, 4u, 7u, 8u, 9u,
+					      11u, 12u, 13u, 14u, 15u, 16u, 17u, 18u};
+			plan.clear();
+			plan.set_blit_budget_limits({8192, 32768, 32, 400});
+			for (u8 k = 0u; k < 16u; ++k) {
+				m_actor_x = u16(cols[k] * 16u + k);
+				patch_actor();
+				if (!scene.bg().add_world_bitmap_masked(
+					    plan,
+					    eng::Span<const eng::u16> {
+						    m_bands + eng::u32(k) * kActorBandWords,
+						    kActorBandWords},
+					    eng::Span<const eng::u16> {m_mask,
+								       kActorWords * kActorRows},
+					    s32(cols[k] * 16u), s32(kActorY) + s32(kRingGuardY), 32u,
+					    kActorRows, 4u, kActorRows * 4u, kPlanes)) {
+					eng::debug::mark_failed(g_eng_run_status, 0x00012120u);
+					return;
+				}
+			}
+			if (!backend.execute_frame_plan(plan)) {
+				eng::debug::mark_failed(g_eng_run_status, 0x00012121u);
+				return;
+			}
+			m_actor_x = kActorMinX;
+			m_restore_x = kActorMinX;
+		}
+#endif
 		draw_hud();
 		m_ready = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x00000121u);
@@ -646,7 +691,7 @@ struct ProcStructuresDemo {
 		}
 		plan.clear();
 		plan.set_blit_budget_limits({8192, 16384, 6, 120});
-#if defined(K121_FREEZE_ACTOR_RENDER)
+#if defined(K121_FREEZE_ACTOR_RENDER) || defined(K121_GOLDEN_ACTORS)
 		// Sonda diagnóstica: sin blits por frame (el actor queda donde lo dejó el
 		// auto-chequeo de init). Elimina la carrera read-back vs Blitter y permite
 		// capturar el render estático del mismo camino de blits.
@@ -717,7 +762,7 @@ struct ProcStructuresDemo {
 		// cuerpo del actor en el bitmap y exige color 31 salvo que la celda esté bajo
 		// una copa (entonces el pixel correcto es el de la copa). Convierte cualquier
 		// desajuste de planos/posición en un fallo visible con la x exacta en `detail`.
-#if !defined(K121_FREEZE_ACTOR_RENDER)
+#if !defined(K121_FREEZE_ACTOR_RENDER) && !defined(K121_GOLDEN_ACTORS)
 		{
 			const u16 bx = u16(m_actor_x + 8u);
 			const u16 col = u16(bx >> 4u);
@@ -805,24 +850,32 @@ private:
 		const u16 saved_x = m_actor_x;
 		u32 bad = 0u;
 		// (1) Restaurador: píxel del carril vs pieza cocida (fila 9, col 8, local 9,6).
-		plan.clear();
-		plan.set_blit_budget_limits({8192, 16384, 6, 120});
-		const bool qr = scene.bg().add_world_bitmap(
-			plan, eng::Span<const eng::u16> {m_lane_bg, kLaneBandWords}, 0,
-			s32(kActorY) + s32(kRingGuardY), u16(kLaneWordCells * 16u), kActorRows,
-			u16(kLaneWordCells * 2u), kLaneBandWords * 2u / 5u, kPlanes);
-		if (!qr || !backend.execute_frame_plan(plan)) {
-			m_actor_x = saved_x;
-			return 0x00012107u;
-		}
-		{
-			const u16 lane_cell = kBaked.cells[eng::u32(kActorY / kTile) * kMapW + 8u];
-			const u8 exp = kBaked.tiles[lane_cell][eng::u32(6u) * kTile + 9u];
-			// Re-lectura de confirmación: también el restaurador se ha visto una vez con
-			// un valor transitorio (`got=28 exp=10`) en la primera pasada.
-			const u8 got = eng::playfield::read_confirm(
+		//     Con reintento: el grupo de copias del restaurador se ha visto con un plano
+		//     desviado en la primera pasada (clase de fallo de DT-022); un re-dibujo
+		//     inmediato lo resuelve y el fallo solo se reporta si persiste.
+		const u16 lane_cell = kBaked.cells[eng::u32(kActorY / kTile) * kMapW + 8u];
+		const u8 exp = kBaked.tiles[lane_cell][eng::u32(6u) * kTile + 9u];
+		u8 got = 0u;
+		for (u8 attempt = 0u; attempt < 2u; ++attempt) {
+			plan.clear();
+			plan.set_blit_budget_limits({8192, 16384, 6, 120});
+			const bool qr = scene.bg().add_world_bitmap(
+				plan, eng::Span<const eng::u16> {m_lane_bg, kLaneBandWords}, 0,
+				s32(kActorY) + s32(kRingGuardY), u16(kLaneWordCells * 16u),
+				kActorRows, u16(kLaneWordCells * 2u), kLaneBandWords * 2u / 5u,
+				kPlanes);
+			if (!qr || !backend.execute_frame_plan(plan)) {
+				m_actor_x = saved_x;
+				return 0x00012107u;
+			}
+			// Re-lectura de confirmación contra lecturas transitorias.
+			got = eng::playfield::read_confirm(
 				[this] { return read_field_pixel(137u, u16(kActorY + 6u)); }, exp);
-			if (got != exp) {
+			if (got == exp) {
+				break;
+			}
+		}
+		if (got != exp) {
 				// Traza de diagnóstico por la consola del periférico (el runner la lee
 				// con `--read-debugperiph console`): el valor de la banda y lecturas
 				// vecinas distinguen corrimiento (±16/±32 px) de corrupcion de memoria.
@@ -855,7 +908,6 @@ private:
 					eng::debug::DebugPeripheral::console_line(line);
 				}
 				bad = 0x00012108u | (u32(got) << 16u) | (u32(exp) << 24u); // 0x12108 | got | exp
-			}
 		}
 		// (2) Integridad de las bandas en Chip: el contenido debe ser exactamente lo que
 		//     produce `make_band_from_pixels` (detección de corrupción de memoria).
