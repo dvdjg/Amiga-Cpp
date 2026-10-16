@@ -138,7 +138,11 @@ Reglas:
   acoplamiento y permitir inline en las demos (criterio en
   `docs/engine/architecture/HEADER_POLICY.md`).
 - **Cabeceras gigantes → partir por tema**, no mover a `.cpp`: se conserva el inline y no
-  se rompen consumidores (cabecera-paraguas). Lo vigila `tools/check/engine-tree.mjs`.
+  se rompen consumidores (cabecera-paraguas). **El criterio es la reutilización/cohesión, no el
+  tamaño**: se parte cuando el corte separa una pieza reutilizable (consumidores reales o lógica
+  ya duplicada) o una responsabilidad con frontera limpia; un bloque cohesivo que solo es grande
+  se acepta en `tools/check/header-impl-baseline.txt` con justificación. Lo vigila
+  `tools/check/header-impl.mjs`.
 - **Frontera dominio ↔ plataforma**: el anillo 0 no incluye `eng/platform/<familia>` ni
   referencias registros custom. Lo vigila `tools/check/platform-boundaries.mjs`.
 - Algoritmos nuevos: si son genéricos (no dependen de hardware) van a `core/` o
