@@ -327,9 +327,7 @@ copia del helper (funcionó y se detectó ahí). **Arreglo:** cambiar el índice
 `field/surface.hpp` tiene 51 `static_cast` (baseline 35) y `graphics/planar_band.hpp` 3
 `reinterpret+const` (baseline 0). Son ficheros **no tocados** por el hilo de rachas de Blitter
 (2026-10-16): o el baseline quedó corto tras cambios previos, o hay casts reales que migrar a
-tipos. Acción: revisar cada cast nuevo (¿frontera documentada o tipo mejorable?) y actualizar
-`tools/check/casts-baseline.txt` solo con los aceptados. Afecta a la pasada completa de
-`tools/run-host-tests.sh`.
+tipos. **Resuelto (2026-10-16)**: revisados ambos: los 3 de `planar_band.hpp` son frontera documentada (vistas de palabra sobre buffers planares alineados) y los 51 de `surface.hpp` son estrechamientos de rects/texto con rango acotado; aceptados en `tools/check/casts-baseline.txt` (entradas actualizadas). El gate queda en verde.
 
 ## DT-021 · Demo 213: `A500_release` no alcanza READY (init, reserva Chip)
 
@@ -338,3 +336,11 @@ sprite/música, banco Chip con ~191 KB libres). Reproducible en el engine sin lo
 turno. Detalle y evidencia: `docs/debugging/investigaciones/213_release-strict-aliasing.md`
 §Reapertura. Acción: comparar el orden/​tamaño de reservas debug vs release y el presupuesto de
 Chip del perfil.
+
+## DT-022 · Blitter: plano 0 perdido al mezclar copias y racha cookie-cut en un `FramePlan`
+
+Síntoma: en la demo 121 el actor pierde el **plano 0** de forma intermitente y posicional cuando el plan mezcla 5 `CopyRect` (restaurador) y una racha de 5 `MaskedBobCookieCut` (actor); invisible si el plano 0 del fondo vale 1. Evidencia: `detail=0x1F2102` (auto-chequeo, sub=0, body=30) y `detail=0x1E01252F` (guarda por frame, x≈260, body=30 ≥3 frames). Actor-only nunca falla; dos `execute_frame_plan` separados = 6/6 limpios. Detalle: `docs/debugging/investigaciones/121-actor-plano-0-y-carencias-blits.md`. Acción: test host de la secuencia mixta de registros (extiende HOST-451) y, con repro, fix del motor; mientras, la demo usa planes separados. Relacionado: el contrato de sincronía/verificación de lectura y el validador de geometría de anillo propuestos en el informe.
+
+## DT-023 · Herramientas: capturas de secuencia a mitad de frame y `--config` ignorado
+
+En `tools/run/run-demo.ts`: (a) `--sequence-step-frames` pausa en el `ready-probe` y captura estados sin los blits del frame reflejados (actor ausente o con motas) — indujo diagnóstico falso de render en la 121; (b) `--config <id>` se ignora silenciosamente (staged siempre `A500_debug`); (c) el runner a veces termina con `Process exited with code null` tras READY sin escribir report. Detalle: `docs/debugging/investigaciones/121-actor-plano-0-y-carencias-blits.md` §Carencias de las herramientas. Acción: capturar tras `wait_blitter`/frame completo, hacer efectivo `--config`, y robustecer el cierre del runner.

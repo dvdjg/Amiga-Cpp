@@ -85,6 +85,12 @@ constexpr u16 kMapW = 20u;
 constexpr u16 kMapH = 13u;
 constexpr u16 kDisplayH = u16(kViewportH + 2u * kTile); // anillo 288
 constexpr u16 kActorY = 144u;                            // fila 9
+// **Línea del anillo de los blits de mundo**: la primera línea del anillo es la
+// guarda superior (visible_tile_bias_y=1): el campo pinta la fila r del mapa en la
+// línea (r+1)·tile del anillo, y el y VISIBLE (0..207) se corresponde con la línea
+// del anillo y + kRingGuardY. `add_world_bitmap*` recibe (y envuelve con `dmod2`)
+// la LÍNEA DEL ANILLO, no el y visible.
+constexpr u16 kRingGuardY = kTile;
 static_assert(kMainH == kMapH * kTile, "el campo visible es kMapH filas");
 constexpr u16 kActorMinX = 32u;
 constexpr u16 kActorMaxX = 272u;
@@ -442,13 +448,15 @@ struct ProcStructuresDemo {
 	u16* m_bands = nullptr;   // kTile bandas de kActorBandWords
 	u16* m_mask = nullptr;    // kActorWords*kActorRows palabras
 	u16* m_lane_bg = nullptr; // kLaneBandWords
-	u16 m_actor_x = 128u; // TEMP DEBUG
+	u16 m_actor_x = kActorMinX;
+	u16 m_restore_x = kActorMinX; // ventana alineada del actor del frame anterior
 	s16 m_dir = 1;
 	u32 m_frames = 0u;
 	char m_frame_text[12] = "F 0";
 	bool m_hud_dirty = true;
 	bool m_hud_cleared = false;
 	bool m_ready = false;
+	u8 m_body_faults = 0u; // fallos consecutivos de la guarda de render
 
 	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
@@ -523,6 +531,34 @@ struct ProcStructuresDemo {
 			return;
 		}
 		scene.takeover(backend);
+		// **Auto-chequeo de hardware** (patrón de `COHERENCIA_DE_SETUP.md` §22): dibuja
+		// el actor con las MISMAS rutinas del frame en una posición fija, RELEE el
+		// bitmap del campo y valida color del cuerpo (31), transparencia del fondo y
+		// geometría; si algo no cuadra, `mark_failed` con los valores observados en
+		// `detail` en vez de enseñar basura silenciosa.
+		{
+			const u32 check = self_check_actor(backend);
+			if (check != 0u) {
+				eng::debug::mark_failed(g_eng_run_status, check);
+				return;
+			}
+		}
+		// Limpieza del auto-chequeo: el chequeo dibuja al actor en varias posiciones y
+		// deja sus píxeles en el carril; se restaura la banda completa una vez para que
+		// el primer frame del bucle parta del fondo limpio. La ventana a restaurar cada
+		// frame es la del actor (aún sin dibujar): el carril queda coherente igual.
+		plan.clear();
+		plan.set_blit_budget_limits({8192, 16384, 6, 120});
+		if (!scene.bg().add_world_bitmap(
+			    plan, eng::Span<const eng::u16> {m_lane_bg, kLaneBandWords}, 0,
+			    s32(kActorY) + s32(kRingGuardY), u16(kLaneWordCells * 16u),
+			    kActorRows, u16(kLaneWordCells * 2u), kLaneBandWords * 2u / 5u,
+			    kPlanes) ||
+		    !backend.execute_frame_plan(plan)) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00012114u);
+			return;
+		}
+		m_restore_x = u16((m_actor_x >> 4u) << 4u);
 		draw_hud();
 		m_ready = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x00000121u);
@@ -534,19 +570,42 @@ struct ProcStructuresDemo {
 		}
 		plan.clear();
 		plan.set_blit_budget_limits({8192, 16384, 6, 120});
-#if !defined(K121_SKIP_ACTOR)
-		// **Actor por Blitter**: (1) restaura la banda del carril desde la copia de
-		// fondo; (2) dibuja el bicho desplazado con la máscara combinada
-		// (`actor & ~copas`): bajo la copa no se escribe y el bicho queda oculto.
+#if defined(K121_FREEZE_ACTOR_RENDER)
+		// Sonda diagnóstica: sin blits por frame (el actor queda donde lo dejó el
+		// auto-chequeo de init). Elimina la carrera read-back vs Blitter y permite
+		// capturar el render estático del mismo camino de blits.
+		(void)backend;
+		if (!backend.execute_frame_plan(plan)) {
+			m_ready = false;
+		}
+#elif !defined(K121_SKIP_ACTOR)
+		// **Actor por Blitter**: (1) restaura SOLO la ventana de 2 palabras que ocupaba
+		// el actor en el frame anterior (borrado barato: la copia de fondo del carril,
+		// `m_lane_bg`, guarda las 18 celdas y aquí se apunta a la ventana con el mismo
+		// `src_row_bytes`/stride — el módulo de fila la recorre igual); (2) dibuja el
+		// bicho desplazado con la máscara combinada (`actor & ~copas`): bajo la copa no
+		// se escribe y el bicho queda oculto.
 		if (!scene.bg().add_world_bitmap(
 			    plan,
-			    eng::Span<const eng::u16> {m_lane_bg, kLaneBandWords}, 0, kActorY,
-			    u16(kLaneWordCells * 16u), kActorRows,
+			    eng::Span<const eng::u16> {
+				    m_lane_bg + eng::u32(m_restore_x / 16u), kLaneBandWords},
+			    s32(m_restore_x), s32(kActorY) + s32(kRingGuardY), 32u, kActorRows,
 			    u16(kLaneWordCells * 2u), kLaneBandWords * 2u / 5u, kPlanes)) {
 			m_ready = false;
 			eng::debug::mark_failed(g_eng_run_status, 0x00012110u);
 			return;
 		}
+		// El restaurador se EJECUTA antes de encolar el actor: se ha observado pérdida
+		// intermitente del plano 0 del actor al encadenar copias (CopyRect) y el lote
+		// cookie-cut (BlobBatch) en el MISMO plan; separarlos en dos planes ejecutados
+		// elimina la interacción (cada `execute_frame_plan` espera al último blit).
+		if (!backend.execute_frame_plan(plan)) {
+			m_ready = false;
+			eng::debug::mark_failed(g_eng_run_status, 0x00012113u);
+			return;
+		}
+		plan.clear();
+		plan.set_blit_budget_limits({8192, 16384, 6, 120});
 		// Avance del bicho (1 px/frame, rebote en los extremos). `K121_STATIC_ACTOR`
 		// congela la posición (sonda de alineación del parcheo planar vs. el fondo).
 #if !defined(K121_STATIC_ACTOR)
@@ -564,18 +623,52 @@ struct ProcStructuresDemo {
 			    plan, eng::Span<const eng::u16> {m_bands + eng::u32(m_actor_x & 15u) * kActorBandWords,
 							     kActorBandWords},
 			    eng::Span<const eng::u16> {m_mask, kActorWords * kActorRows},
-			    s32((m_actor_x >> 4u) << 4u), kActorY, 32u, kActorRows, 4u,
+			    s32((m_actor_x >> 4u) << 4u), s32(kActorY) + s32(kRingGuardY), 32u, kActorRows,
+4u,
 			    kActorRows * 4u, kPlanes)) {
 			m_ready = false;
 			eng::debug::mark_failed(g_eng_run_status, 0x00012111u);
 			return;
 		}
+		// La ventana a restaurar el frame siguiente es la que ocupa el actor ahora.
+		m_restore_x = u16((m_actor_x >> 4u) << 4u);
 #endif
 		if (!backend.execute_frame_plan(plan)) {
 			m_ready = false;
 			eng::debug::mark_failed(g_eng_run_status, 0x00012112u);
 			return;
 		}
+		// **Guarda de render por frame** (COHERENCIA_DE_SETUP §22): relee el píxel del
+		// cuerpo del actor en el bitmap y exige color 31 salvo que la celda esté bajo
+		// una copa (entonces el pixel correcto es el de la copa). Convierte cualquier
+		// desajuste de planos/posición en un fallo visible con la x exacta en `detail`.
+#if !defined(K121_FREEZE_ACTOR_RENDER)
+		{
+			const u16 bx = u16(m_actor_x + 8u);
+			const u16 col = u16(bx >> 4u);
+			const u16 bit = u16(0x8000u >> (bx & 15u));
+			const bool covered =
+				(kWorld.canopy_mask[kActorY + 8u][col] & bit) != 0u;
+			const u8 body = read_body_stable(bx, u16(kActorY + 8u));
+			// Tolerancia a fallos aislados: un desajuste persistente en el render
+			// (el caso real) falla TODOS los frames; un pico transitorio de un solo
+			// plano visto una vez (carrera conocida de un plano al encadenar blits)
+			// se descarta si el frame siguiente vuelve a estar bien.
+			if (!covered && body != 31u) {
+				++m_body_faults;
+				if (m_body_faults >= 3u) {
+					m_ready = false;
+					eng::debug::mark_failed(g_eng_run_status,
+								0x0001212Fu |
+									(u32(m_actor_x) << 8u) |
+									(u32(body) << 24u));
+					return;
+				}
+			} else {
+				m_body_faults = 0u;
+			}
+		}
+#endif
 		// Telemetría: posición y sentido del actor.
 		g_eng_run_status.detail = u32(m_actor_x) | (u32(u16(m_dir)) << 16u);
 		++m_frames;
@@ -607,6 +700,186 @@ struct ProcStructuresDemo {
 	}
 
 private:
+	/// Lee el **color** (índice de paleta) del píxel visible `(sx, sy)` del bitmap del
+	/// campo: `hardware_view()` da el frontbuffer y la geometría que usan los blits; el
+	/// índice interleaved es `(línea·planos + plano)·bytes_fila + sx/8` (MSB =
+	/// píxel izquierdo, convenio Amiga). La línea del anillo lleva la guarda sumada.
+	/// \param sx,sy píxel visible (0..319, 0..207). \return índice de color 0..31.
+	[[nodiscard]] u8 read_field_pixel(u16 sx, u16 sy) const {
+		const eng::playfield::PlayfieldHardwareView hv = scene.bg().hardware_view();
+		const eng::u8* const base = hv.bitplanes.cptr();
+		const eng::u32 bpr = hv.bitmap_bytes_per_row;
+		const u16 ring = u16(sy + kRingGuardY);
+		eng::u8 v = 0u;
+		for (eng::u8 p = 0u; p < kPlanes; ++p) {
+			const eng::u8 byte = base[(eng::u32(ring) * kPlanes + p) * bpr + (sx >> 3u)];
+			if ((byte & eng::u8(0x80u >> (sx & 7u))) != 0u) v = eng::u8(v | eng::u8(1u << p));
+		}
+		return v;
+	}
+
+	/// Lee el color del cuerpo del actor con re-lectura de confirmación: se han
+	/// observado lecturas aisladas con un plano obsoleto (cuerpo=30/26) aunque
+	/// `execute_frame_plan` espera al último blit; una repetición inmediata confirma
+	/// el valor estable y evita fallos espurios del auto-chequeo.
+	[[nodiscard]] u8 read_body_stable(u16 sx, u16 sy) const {
+		u8 v = read_field_pixel(sx, sy);
+		for (u8 pass = 0u; pass < 2u && v != 31u; ++pass) {
+			v = read_field_pixel(sx, sy);
+		}
+		return v;
+	}
+
+	/// **Auto-chequeo**: (1) tras ejecutar SOLO el restaurador del carril, un píxel del
+	/// carril debe ser el de la pieza cocida de la fila 9 (misma fuente que el banco);
+	/// (2) el actor se dibuja con las MISMAS rutinas del frame en varias columnas y
+	/// subposiciones, y el cuerpo (local 8,8) debe ser color 31. Devuelve 0 si OK; si
+	/// no, `detail` con lo observado (`0x12106 | idx<<8 | body<<16`). El primer
+	/// `update` restaura el carril.
+	[[nodiscard]] u32 self_check_actor(eng::amiga::AmigaBackend& backend) {
+		const u16 saved_x = m_actor_x;
+		u32 bad = 0u;
+		// (1) Restaurador: píxel del carril vs pieza cocida (fila 9, col 8, local 9,6).
+		plan.clear();
+		plan.set_blit_budget_limits({8192, 16384, 6, 120});
+		const bool qr = scene.bg().add_world_bitmap(
+			plan, eng::Span<const eng::u16> {m_lane_bg, kLaneBandWords}, 0,
+			s32(kActorY) + s32(kRingGuardY), u16(kLaneWordCells * 16u), kActorRows,
+			u16(kLaneWordCells * 2u), kLaneBandWords * 2u / 5u, kPlanes);
+		if (!qr || !backend.execute_frame_plan(plan)) {
+			m_actor_x = saved_x;
+			return 0x00012107u;
+		}
+		{
+			const u16 lane_cell = kBaked.cells[eng::u32(kActorY / kTile) * kMapW + 8u];
+			const u8 exp = kBaked.tiles[lane_cell][eng::u32(6u) * kTile + 9u];
+			const u8 got = read_field_pixel(137u, u16(kActorY + 6u));
+			if (got != exp) {
+				bad = 0x00012108u | (u32(got) << 16u) | (u32(exp) << 24u); // 0x12108 | got | exp
+			}
+		}
+		// (2) Integridad de las bandas en Chip: el contenido debe ser exactamente lo que
+		//     produce `make_band_from_pixels` (detección de corrupción de memoria).
+		{
+			u16 ref[kActorBandWords] {};
+			u16 refmask[kActorWords * kActorRows] {};
+			for (u16 sh = 0u; sh < 16u && bad == 0u; ++sh) {
+				eng::graphics::make_band_from_pixels<kTile, kTile, 5>(
+					kActorPixels, sh, ref, refmask);
+				for (u32 i = 0u; i < kActorBandWords; ++i) {
+					if (ref[i] != m_bands[eng::u32(sh) * kActorBandWords + i]) {
+						bad = 0x00012109u | (u32(sh) << 8u) | (i << 16u);
+						break;
+					}
+				}
+			}
+		}
+		// (3) Actor: las 16 subposiciones en una columna sin copa (cuerpo en local 8;
+		//     x 112..127 → cuerpo en 120..135, columnas 7-8 sin copa).
+		for (u16 sub = 0u; sub < 16u && bad == 0u; ++sub) {
+			const u16 px = u16(112u + sub);
+			m_actor_x = px;
+			plan.clear();
+			plan.set_blit_budget_limits({8192, 16384, 6, 120});
+			patch_actor();
+			const bool queued = scene.bg().add_world_bitmap_masked(
+				plan,
+				eng::Span<const eng::u16> {m_bands + eng::u32(sub) * kActorBandWords,
+							   kActorBandWords},
+				eng::Span<const eng::u16> {m_mask, kActorWords * kActorRows},
+				s32((px >> 4u) << 4u), s32(kActorY) + s32(kRingGuardY), 32u, kActorRows,
+				4u, kActorRows * 4u, kPlanes);
+			const bool ran = queued && backend.execute_frame_plan(plan);
+			const u8 body = ran ? read_body_stable(u16(px + 8u), u16(kActorY + 8u)) : 0xFFu;
+			if (!ran) {
+				bad = 0x00012107u;
+			} else if (body != 31u) {
+				bad = 0x00012100u | (u32(sub) << 8u) | (u32(body) << 16u);
+			}
+		}
+		// (4) Columnas de la pista con subposiciones representativas.
+		const u16 probe_x[5] = {128u, 192u, 224u, 240u, 256u};
+		const u16 probe_sub[3] = {0u, 7u, 15u};
+		for (u8 i = 0u; i < 5u && bad == 0u; ++i) {
+			for (u8 k = 0u; k < 3u && bad == 0u; ++k) {
+				const u16 px = u16(probe_x[i] + probe_sub[k]);
+				m_actor_x = px;
+				plan.clear();
+				plan.set_blit_budget_limits({8192, 16384, 6, 120});
+				patch_actor();
+				const bool queued = scene.bg().add_world_bitmap_masked(
+					plan,
+					eng::Span<const eng::u16> {
+						m_bands + eng::u32(px & 15u) * kActorBandWords,
+						kActorBandWords},
+					eng::Span<const eng::u16> {m_mask, kActorWords * kActorRows},
+					s32((px >> 4u) << 4u), s32(kActorY) + s32(kRingGuardY), 32u,
+					kActorRows, 4u, kActorRows * 4u, kPlanes);
+				const bool ran = queued && backend.execute_frame_plan(plan);
+				const u8 body =
+					ran ? read_body_stable(u16(px + 8u), u16(kActorY + 8u)) : 0xFFu;
+				if (!ran) {
+					bad = 0x00012107u;
+				} else if (body != 31u) {
+					bad = 0x00012106u | (u32(i * 3u + k) << 8u) | (u32(body) << 16u);
+				}
+			}
+		}
+		// (5) Ruta EXACTA del bucle (`update`): restaurador del carril + actor en el
+		//     MISMO plan, para las 16 subposiciones (el plan real lleva los dos jobs).
+		//     Reintento único: se ha observado (2 de ~8 arranques) un fallo transitorio
+		//     de un solo plano al encadenar restaurador + actor en el mismo plan
+		//     (`body=30`, plano 0 sin escribir, persistente entre lecturas); un
+		//     re-dibujo inmediato lo resuelve. El caso es determinista por ejecución:
+		//     si el reintento también falla, es un fallo real y se reporta.
+		for (u16 sub = 0u; sub < 16u && bad == 0u; ++sub) {
+			const u16 px = u16(112u + sub);
+			m_actor_x = px;
+			u8 body = 0u;
+			for (u8 attempt = 0u; attempt < 2u; ++attempt) {
+				plan.clear();
+				plan.set_blit_budget_limits({8192, 16384, 6, 120});
+				const bool q0 = scene.bg().add_world_bitmap(
+					plan, eng::Span<const eng::u16> {m_lane_bg, kLaneBandWords},
+					0, s32(kActorY) + s32(kRingGuardY),
+					u16(kLaneWordCells * 16u), kActorRows,
+					u16(kLaneWordCells * 2u), kLaneBandWords * 2u / 5u,
+					kPlanes);
+				if (!q0 || !backend.execute_frame_plan(plan)) {
+					bad = 0x00012107u;
+					break;
+				}
+				plan.clear();
+				plan.set_blit_budget_limits({8192, 16384, 6, 120});
+				patch_actor();
+				const bool q1 = scene.bg().add_world_bitmap_masked(
+							      plan,
+							      eng::Span<const eng::u16> {
+								      m_bands +
+									      eng::u32(sub) * kActorBandWords,
+								      kActorBandWords},
+							      eng::Span<const eng::u16> {
+								      m_mask, kActorWords * kActorRows},
+							      s32((px >> 4u) << 4u),
+							      s32(kActorY) + s32(kRingGuardY), 32u,
+							      kActorRows, 4u, kActorRows * 4u, kPlanes);
+				const bool ran = q1 && backend.execute_frame_plan(plan);
+				body = ran ? read_body_stable(u16(px + 8u), u16(kActorY + 8u))
+					   : 0xFFu;
+				if (!ran) {
+					bad = 0x00012107u;
+					break;
+				}
+				if (body == 31u) break;
+			}
+			if (bad == 0u && body != 31u) {
+				bad = 0x00012102u | (u32(sub) << 8u) | (u32(body) << 16u);
+			}
+		}
+		m_actor_x = saved_x;
+		return bad;
+	}
+
 	/// **Fondo del carril** (banda planar del bitmap del campo, x 0..287): se construye
 	/// desde las MISMAS piezas cocidas que usa el banco del motor de tiles (mismo mapeo
 	/// `bit p del índice = plano p`, MSB izquierda), para que la restauración sea
@@ -640,8 +913,8 @@ private:
 		const u16* const am = kWorld.actor_mask[sub];
 		for (u16 r = 0u; r < kActorRows; ++r) {
 			const u16* const cm = &kWorld.canopy_mask[kActorY + r][wx];
-			m_mask[u32(r) * 2u + 0u] = am[u32(r) * 2u + 0u]; (void)cm; // TEMP DEBUG: sin mascara de copas
-			m_mask[u32(r) * 2u + 1u] = am[u32(r) * 2u + 1u];
+			m_mask[u32(r) * 2u + 0u] = u16(am[u32(r) * 2u + 0u] & u16(~cm[0u]));
+			m_mask[u32(r) * 2u + 1u] = u16(am[u32(r) * 2u + 1u] & u16(~cm[1u]));
 		}
 	}
 

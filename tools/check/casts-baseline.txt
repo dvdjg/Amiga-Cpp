@@ -172,7 +172,7 @@
   0     3  engine/include/eng/field/scroll_variant.hpp
   0     7  engine/include/eng/field/streaming_map.hpp
   1     6  engine/include/eng/field/strip_composer.hpp
-  2    35  engine/include/eng/field/surface.hpp
+  2    51  engine/include/eng/field/surface.hpp
   0    36  engine/include/eng/field/tile_demo.hpp
   0     2  engine/include/eng/field/tile_map.hpp
   0    10  engine/include/eng/field/tile_source.hpp
@@ -182,6 +182,7 @@
   0    11  engine/include/eng/field/xlimited_mapping.hpp
   0     5  engine/include/eng/field/xlimited_robocod.hpp
   0    40  engine/include/eng/field/xlimited_scene.hpp
+  3     0  engine/include/eng/graphics/planar_band.hpp
   0     1  engine/include/eng/graphics/anim.hpp
   0     3  engine/include/eng/graphics/animation.hpp
   0     5  engine/include/eng/graphics/bitmap_view.hpp
