@@ -158,6 +158,7 @@
   0    10  engine/include/eng/debug/telemetry.hpp
   1    27  engine/include/eng/debug/version_strip.hpp
   0     2  engine/include/eng/debug/version.hpp
+  0     2  engine/include/eng/debug/hud_text.hpp
   0    23  engine/include/eng/field/amiga_display_mapper.hpp
   0     5  engine/include/eng/field/chunk_cache.hpp
   0    11  engine/include/eng/field/cpu_primitives.hpp
@@ -187,7 +188,7 @@
   0     3  engine/include/eng/graphics/animation.hpp
   0     5  engine/include/eng/graphics/bitmap_view.hpp
   0     6  engine/include/eng/graphics/bitmap.hpp
-  0     2  engine/include/eng/graphics/blitter_state.hpp
+  0     5  engine/include/eng/graphics/blitter_state.hpp
   2    13  engine/include/eng/graphics/c2p.hpp
   1     6  engine/include/eng/graphics/composition/copper_chunky.hpp
   0    21  engine/include/eng/graphics/composition/limits.hpp
@@ -254,7 +255,7 @@
   0     2  engine/include/eng/parallel/parallel.hpp
   0     1  engine/include/eng/platform/amiga/asset_backend.hpp
   3    13  engine/include/eng/platform/amiga/backend.hpp
-  2    18  engine/include/eng/platform/amiga/blob_batch.hpp
+  2    22  engine/include/eng/platform/amiga/blob_batch.hpp
   2    12  engine/include/eng/platform/amiga/blob.hpp
   1     1  engine/include/eng/platform/amiga/entry.hpp
   1     1  engine/include/eng/platform/amiga/hw_regs.hpp
