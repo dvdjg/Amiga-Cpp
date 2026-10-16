@@ -57,6 +57,7 @@ La separación de capas es la misma que en `VISUAL_EFFECT_SPRITE_DESIGN.md` §2:
 | Emisión del actor (borrado/restauración + dibujo + Copper anclado) | EXISTE | `actor_emit`, `actor_emit_copper` (`scene/actor.hpp`) |
 | Anclaje y offset por actor, animación con velocidad entera | EXISTE | `actor_screen_rect`, `actor_tick` (`scene/actor.hpp`) |
 | Traslación al bitmap-anillo | EXISTE | `ring_physical` (`scene/actor.hpp`) |
+| **Puente actor ↔ anillo corkscrew** (`make_actor_target`, `actor_ring_y`, `actor_fits_ring`; clip en líneas del anillo, pack interleaved obligatorio) | EXISTE | `engine/include/eng/field/actor_target.hpp` (HOST-453) |
 | Recorte parcial del objeto a la ventana | PROPUESTO | el emisor rechaza el objeto que no cabe entero (hace falta máscara de fin de línea) |
 | Resolución de conflictos de Copper por `(superficie, z)` | EXISTE | `copper::Plan::add_prioritized` (orden ascendente por prioridad dentro de cada línea: la última escritura manda) |
 | Política de save-under por buffer | EXISTE | `emit_save`/`emit_restore` por buffer (`scene/actor.hpp`), solo con destino planar |
@@ -311,7 +312,7 @@ Ordenadas por dependencia, dentro del roadmap F6:
 5. **Necesidades de Copper ancladas**: conversión de relativas a absolutas. **HECHO** (`actor_emit_copper`); la fusión con prioridad por z en el `Plan` queda pendiente.
 6. **Cableado de la degradación sprite → BOB**: `SpriteAllocator::as_bob` a `BlitJob` con el mismo `Visual`. **HECHO en el engine**: `build_sprite_intents` (una intención por actor, ordenada por `top`) + `emit_bob_fallbacks` (emite como BOB los degradados, en orden por superficie y `z`, con `bob_from_visual`); falta reescribir la demo 054 para consumirlo.
 7. **Objeto CPU** sobre `Surface` con política de fondo y presupuesto. **PENDIENTE**.
-8. **Demo con gate visual** que consuma el sistema (hoy solo hay test host): pendiente, es lo que convierte la capa en verificada según `docs/testing/README.md`.
+8. **Demo con gate visual** que consuma el sistema (hoy solo hay test host): pendiente; el **puente actor ↔ anillo corkscrew** ya existe (`field/actor_target.hpp`, HOST-453) — la demo 121 es la candidata a migrar (`ActorStore` + `Animation` sobre el puente).
 
 ## 15. Repaso final: clasificación de abstracciones, fronteras y huecos
 
