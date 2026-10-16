@@ -85,3 +85,9 @@ Arreglo: como `launch-winuae.mjs` ya hacía, **validar el magic** (`0x454e4752`)
 cuadra, **escanear** las secciones runtime. Lección: al resolver símbolos relocalizados,
 validar contra un centinela conocido; no asumir que el orden de secciones del `.map`
 coincide con el del ejecutable cargado.
+
+## 10. Un helper `detail` con rango documentado se prueba en su rango (`msb_u32`)
+
+`detail::msb_u32` (`minifloat.hpp`) documentaba «posición del bit más alto (0..31)» pero su rama de 24-31 bits estaba mal: `mf16_clz8[(v >> 16) & 0xFFu]` enmascaraba el cociente, así que con bytes altos puestos devolvía un msb demasiado bajo (`v = 17.060.000` daba 18 en vez de 24). El único llamador hasta entonces era `mul_add`, cuyo `mag` nunca llega a `2^24` por construcción: el bug era **invisible**.
+
+Lo destapó el primer consumidor con rango completo, `scalar_decimal<MiniFloat16>::from_scaled` (valores hasta `6.5e8`): exponente y mantisa mal calculados → el round-trip del test fallaba con `raw=0x66AA diff=1664`. Regla: un helper con un rango **documentado** se prueba en los bordes de ese rango (2^23/2^24/2^31−1), no solo con los valores que hoy le pasa su llamador; y un consumidor nuevo que amplía el dominio de un helper heredado debe añadir ese caso límite (HOST-056 lo fija). El fallo se localizó con un programa suelto de depuración que imprimía `scaled`, el texto y el `raw` de vuelta, no leyendo el test entero a ojo.
