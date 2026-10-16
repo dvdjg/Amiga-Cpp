@@ -692,7 +692,7 @@ struct ProcStructuresDemo {
 			d.visual.h = kTile;
 			d.visual.bitplanes = u8(kPlanes);
 			d.animation = &kActorAnim;
-			d.x = s16(kActorMinX);
+			d.x = s16(kActorMinX + kRingGuardX); // anillo (el sistema no aplica sesgo de X)
 			d.y = s16(kActorY);
 			d.offset.y = s16(kRingGuardY); // visible -> anillo (contrato del puente)
 			d.transparency = eng::scene::TransparencyMode::Mask1Bit;
@@ -713,7 +713,7 @@ struct ProcStructuresDemo {
 			actor->bob.sheet = eng::ChipView<eng::BobTag> {
 				eng::Address<eng::MemoryKind::Chip>::from_storage(m_pack), 640u};
 			actor->bob.mask = {};
-			actor->bob.width = 32u; // arte (16) + guarda (16)
+			actor->bob.width = 32u; // ventana = arte (kTile) + guarda (kTile)
 			actor->bob.height = kTile;
 			actor->bob.planes = u8(kPlanes);
 			actor->bob.layout = eng::graphics::BobLayout::Interleaved;
@@ -833,6 +833,26 @@ struct ProcStructuresDemo {
 		if (!m_ready) {
 			return;
 		}
+		// **Sonda del buffer de display** (una vez, ya con el Copper ejecutando la
+		// copperlist de la escena): BPL1PT debe apuntar al MISMO bloque que la base de
+		// los blits (la diferencia esperada es solo el offset de ventana, ≪ 4 KB). Si
+		// divergen, la pantalla nunca mostrará lo que se dibuja — el fallo que la guarda
+		// (que lee la base de los blits) no puede ver.
+		if (m_frames == 3u) { // tras el swap de copperlist (instalacion con margen)
+			const volatile eng::u16* const dff =
+				reinterpret_cast<const volatile eng::u16*>(0xDFF0E0u);
+			const eng::u32 bpl =
+				(eng::u32(dff[0] & 0x00FFu) << 16u) | eng::u32(dff[1] & 0xFFFEu);
+			const eng::u32 base = scene.bg().hardware_view().bitplanes.value;
+			const eng::u32 delta = (bpl > base) ? (bpl - base) : (base - bpl);
+			if (delta > 4096u) {
+				m_ready = false;
+				eng::debug::mark_failed(
+					g_eng_run_status,
+					0x00012141u | (((delta >> 8u) & 0xFFFFu) << 8u));
+				return;
+			}
+		}
 		plan.clear();
 		plan.set_blit_budget_limits({8192, 16384, 6, 120});
 #if defined(K121_FREEZE_ACTOR_RENDER) || defined(K121_GOLDEN_ACTORS)
@@ -857,9 +877,8 @@ struct ProcStructuresDemo {
 		}
 		m_actor_x = u16(s32(m_actor_x) + m_dir);
 #else
-		// Estático: 96 queda bajo copa (col. 6); en el camino del sistema se usa 200
-		// (columna limpia, 12) para que la captura estática muestre el actor entero.
-// 200 = columna 12 (limpia de copas): medible con landmarks en ambos caminos.
+		// Estático: 64 = centro en la columna 4 (limpia de copas 5/6/10); medible con
+		// landmarks en ambos caminos.
 		m_actor_x = 64u;
 #endif
 		{
