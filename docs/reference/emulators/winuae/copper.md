@@ -50,7 +50,21 @@ pantalla quedaba con el último color escrito y el blit no ocurría).
   varios WAIT en la misma posición comparten el presupuesto HBlank de esa línea (lo modela el
   acumulador de `compile_intents` y la `Timeline`).
 
-## 3. Mapa de registros escribibles (identify.cpp)
+## 3. Recarga de `COP1LC`: se lacha en el wrap V=maxvpos→0 (carrera con la escritura)
+
+El Copper **no** relee `COP1LC` al principio del campo visible: la recarga automática ocurre en el
+**wrap vertical**, cuando V pasa de `maxvpos` a 0 (`custom.cpp:11237-11245` llama `COPJMP(1, 1)`,
+que fija `cop_state.vblankip = cop1lc`, `custom.cpp:3052`, y el estado de arranque del Copper).
+Consecuencia fina: una escritura de la CPU a `COP1LC` en el **borde del VBlank** (p. ej. justo
+después de despertar en V=311, a ~1 scanline del wrap) **compite con el latch**: si entra antes
+del wrap, el campo que empieza la usa; si entra después, la usa el campo siguiente (un campo de
+más de latencia). Eso produce campos repetidos/saltados en capturas por paso (evidencia: demo
+101, pares con MD5 idéntico y `best-dx` 0/4 en la secuencia; corregido instalando el swap con
+margen dentro del campo; la regresión con `--pixel-assert` pasa). Regla práctica del engine: el
+swap de `COP1LC` se escribe **con margen dentro del campo** (parte visible o inicio del VBlank),
+nunca a caballo del wrap.
+
+## 4. Mapa de registros escribibles (identify.cpp)
 
 `WinUAE-DBG/identify.cpp:135-395` (tabla `custd`) lleva los flags por registro:
 `CD_WO` = write-only, `CD_ECS_AGNUS`/`CD_ECS_DENISE`/`CD_AGA`, y **flags 0 = registro de

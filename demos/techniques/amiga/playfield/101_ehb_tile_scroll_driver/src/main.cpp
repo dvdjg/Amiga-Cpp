@@ -395,20 +395,22 @@ struct DemoGame {
 				eng::debug::mark_failed(g_eng_run_status, 0x00000115u);
 				return;
 			}
+			// **Swap de COP1LC con margen dentro del campo** (no en el borde del VBlank): el
+			// Copper recarga su puntero en el wrap V=maxvpos->0 (WinUAE-DBG `custom.cpp:11237-11245`
+			// -> `COPJMP(1,1)` -> `vblankip = cop1lc`, `custom.cpp:3052`). Instalar justo tras
+			// despertar en V=311 deja la escritura a ~1 scanline del wrap y la carrera produce
+			// campos repetidos/saltados en las capturas por paso (evidencia: pares con MD5 igual
+			// y best-dx 0/4 en la secuencia; ahora 1 px limpio por paso). El swap durante la parte
+			// visible no toca la lista en curso: `install_copper_list` solo escribe COP1LC (nunca
+			// COPJMP1), y la recarga ocurre en el VBlank siguiente.
+			m_scene.install(backend);
 			publish_status(camera_x, camera_y, tile_jobs);
 		}
 	}
 
-	/// Reinstala la copperlist vigente y mantiene vivo el probe lateral.
-	///
-	/// En esta demo la lista se recompila en `update`, pero se instala aqui, despues
-	/// de que `Engine::run_frames` haya esperado VBlank. Esto evita disparar
-	/// `COPJMP1` en mitad de la zona visible, que partiria la imagen y haria que la
-	/// mitad inferior leyese punteros de bitplane reiniciados.
+	/// Mantiene vivo el probe por frame del runner (la lista se instala en `update`).
 	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		if (m_ready) {
-			m_scene.install(backend);
-		}
+		(void)backend;
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 

@@ -36,6 +36,7 @@
 
 #include <eng/core/types/types.hpp>
 #include <eng/graphics/plane_layout.hpp>
+#include <eng/hw/info.hpp>
 
 namespace eng::graphics::composition {
 
@@ -171,6 +172,10 @@ struct DisplayLimits {
 	/// Slots usables por línea en PAL: 227.5 color clocks − ~1.5 de sync/blanking.
 	/// Fuente: `dma_architecture.md` ("The Scanline Budget").
 	u16 slots_per_line = 226;
+	/// **Chipset** del perfil, para los validadores de la lista emitida
+	/// (`eng::setup::check_copper_list`): decide qué registros puede escribir el Copper
+	/// (p. ej. `BPLCON3` es ECS, `BPLCON4`/`FMODE` son AGA).
+	eng::hw::Chipset chipset = eng::hw::Chipset::OCS;
 };
 
 // ---------------------------------------------------------------------------------------
@@ -185,6 +190,7 @@ inline constexpr DisplayLimits ocs_a500 {
 	6, 3, 6, 6,                                        // planos: normal/DPF/HAM/EHB
 	true, true, true, false,                           // HAM/EHB/DPF sí, AGA no
 	3, 1, 27, 226,                                     // buffers, fetch 1×, slots
+	eng::hw::Chipset::OCS,
 };
 
 /// **ECS** (A500+/A600/A3000): en **lores** comparte los límites de OCS (mismos planos,
@@ -197,6 +203,7 @@ inline constexpr DisplayLimits ecs {
 	6, 3, 6, 6,
 	true, true, true, false,
 	3, 1, 27, 226,
+	eng::hw::Chipset::ECS,
 };
 
 /// **AGA** (A1200/A4000/CD32): hasta 8 planos (256 colores), HAM8, DPF 4+4, `FMODE`.
@@ -207,6 +214,7 @@ inline constexpr DisplayLimits aga_a1200 {
 	8, 4, 8, 6,      // 8 planos normales y HAM8; DPF 4+4; EHB sigue 6
 	true, true, true, true,
 	3, 4, 27, 226,   // fetch hasta 4× (FMODE=4×)
+	eng::hw::Chipset::AGA,
 };
 
 // ---------------------------------------------------------------------------------------

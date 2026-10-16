@@ -374,7 +374,10 @@ public:
 		return m_ok && !m_overflow;
 	}
 
-	/// Publica el buffer delantero (swap de `COP1LC`). Llamar tras VBlank.
+	/// Publica el buffer delantero (swap de `COP1LC`). Escribir el swap **con margen dentro
+	/// del campo**: el Copper lacha `COP1LC` en el wrap `V=maxvpos→0` (WinUAE-DBG
+	/// `custom.cpp:11237-11245`) y una escritura a caballo del borde del VBlank añade un
+	/// campo de latencia intermitente (ver `reference/emulators/winuae/copper.md` §3).
 	/// \param backend  el backend (instala la copperlist).
 	template <typename Backend>
 	void commit(Backend& backend) const {

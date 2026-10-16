@@ -7,6 +7,7 @@
 /// (`*_words`) para el presupuesto de Copper. La escena vive en `scene.hpp`.
 
 #include <eng/graphics/composition/scene.hpp>
+#include <eng/setup/coherence.hpp>
 
 namespace eng::graphics::composition {
 
@@ -415,7 +416,8 @@ struct PatchZone {
 /// \param res     recursos (geometría/planos/buffers/layout).
 /// \param limits  perfil de display.
 /// \param stages  etapas `void(Scene&)` a ejecutar en orden.
-/// \return `false` si `res` no es válida o no cabe (ver `config_error()`).
+/// \return `false` si `res` no es válida, no cabe (ver `config_error()`) o la lista
+///         compuesta no supera `eng::setup::check_copper_list` para el chipset del perfil.
 template <class... Stages>
 bool compose(Scene& scene, MemoryManager& memory, const SceneResources& res,
 	     const DisplayLimits& limits, Stages... stages) {
@@ -424,7 +426,14 @@ bool compose(Scene& scene, MemoryManager& memory, const SceneResources& res,
 	}
 	scene.begin_build();
 	(stages(scene), ...);
-	return scene.end_build();
+	if (!scene.end_build()) {
+		return false;
+	}
+	// **Validación de la lista compuesta** (capa 2 de `COHERENCIA_DE_SETUP.md`): END,
+	// MOVEs a registros escribibles para el chipset del perfil y orden de WAITs. Una
+	// lista que el Copper no podría ejecutar se rechaza aquí, en setup, y no se publica.
+	return eng::setup::check_copper_list(scene.active_words(), scene.plan().words(),
+					     limits.chipset).ok();
 }
 
 /// **Composición de juego sin config explícita**: perfil OCS/A500 y display derivado de `res`
