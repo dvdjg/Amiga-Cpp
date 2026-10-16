@@ -88,6 +88,10 @@ Captura del render congelado (actor estático en campo abierto, `vision-run` sob
   sin defectos. La **intermitencia del plano 0** al mezclar copias + racha cookie-cut en el
   mismo plan (DT-022) está **mitigada** (planes separados + reintento + strikes) y quedó
   documentada con evidencia en `docs/debugging/investigaciones/121-actor-plano-0-y-carencias-blits.md`.
+- **A/B del sistema de actores** (`K121_ACTOR_SYSTEM`, DT-024.3): el actor por `ActorStore` + `Animation` +
+  `SaveUnder` + pack con guarda sobre el puente del anillo — **3/3 arranques limpios** con la guarda viva,
+  **47,87 fps / 148,2k ciclos** y captura estática determinista con los **552 px del cuerpo exactos**. El camino
+  propio sigue siendo el default; el flip y el golden adaptado son el cierre pendiente de §14.8.
 - **Marco**: 47,67 fps estables (1,049 campos/frame), 0 candidatos de flicker, regresión OK.
 - **Golden por subposición (en curso, dependiente de DT-022)**: existe el modo
   `K121_GOLDEN_ACTORS` (16 actores a la vez, paleta identidad) y el oráculo independiente

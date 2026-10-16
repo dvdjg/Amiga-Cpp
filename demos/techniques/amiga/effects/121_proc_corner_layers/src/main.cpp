@@ -33,6 +33,7 @@
 #include <eng/core/math/minifloat.hpp>
 #include <eng/debug/peripheral.hpp>
 #include <eng/debug/version.hpp>
+#include <eng/field/actor_target.hpp>
 #include <eng/field/playfield_probe.hpp>
 #include <eng/field/xlimited_scene.hpp>
 #include <eng/graphics/proc/atlas.hpp>
@@ -42,6 +43,7 @@
 #include <eng/graphics/proc/terrain_paint.hpp>
 #include <eng/graphics/proc/tile_bake.hpp>
 #include <eng/platform/amiga/backend.hpp>
+#include <eng/scene/actor.hpp>
 #include <eng/setup/world_blit.hpp>
 
 #include <exec/execbase.h>
@@ -270,6 +272,14 @@ inline constexpr eng::u8 kActorPixels[kTile * kTile] = {
 	0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
 };
 
+#if defined(K121_ACTOR_SYSTEM)
+// Frame y animación del actor para el camino con el SISTEMA del engine (DT-024.3): la
+// ventana mide 32 px (16 del arte + 16 de guarda del pack) por 16 de alto.
+constexpr eng::scene::Frame kActorFrames[1] = {{0, 0, 32u, 16u}};
+constexpr eng::scene::Animation kActorAnim {eng::Span<const eng::scene::Frame> {kActorFrames, 1u},
+					    true};
+#endif
+
 [[nodiscard]] constexpr WorldData make_world() {
 	WorldData w {};
 	// 1) Las 16 transiciones de esquinas con materiales (agua/hierba/espuma).
@@ -457,6 +467,18 @@ struct ProcStructuresDemo {
 #if defined(K121_GOLDEN_ACTORS)
 	u16* m_gmask = nullptr; // 16 máscaras (golden): kTile slots de kActorWords*kActorRows
 #endif
+#if defined(K121_ACTOR_SYSTEM)
+	// Camino del SISTEMA de actores (DT-024.3): hoja pack con guarda + buffer de
+	// save-under + el actor retenido del engine.
+	eng::Block<eng::PlaneTag> m_aux {};
+	u16* m_pack = nullptr;     // 16 filas × 5 planos × (img+guarda+máscara+guarda) = 320
+	u16* m_save_buf = nullptr; // save-under: 3 palabras/fila × 16 filas × 5 planos
+	eng::graphics::BobTarget m_ring_target {};
+	eng::scene::ActorStore<1> m_actor_store {};
+	eng::scene::RepresentationAllocator m_actor_alloc {};
+	eng::scene::ActorId m_actor_id {};
+	u16 m_sil_mask[kTile] {}; // silueta del actor por fila (precomputada: art != 0)
+#endif
 	u16 m_actor_x = kActorMinX;
 	u16 m_restore_x = kActorMinX; // ventana alineada del actor del frame anterior
 	s16 m_dir = 1;
@@ -629,6 +651,83 @@ struct ProcStructuresDemo {
 			return;
 		}
 		scene.takeover(backend);
+#if defined(K121_ACTOR_SYSTEM)
+		// **Camino del SISTEMA de actores** (DT-024.3, A/B con `K121_ACTOR_SYSTEM`):
+		// hoja pack con guarda (`pack_interleaved_pair`) + `ActorStore`/`Animation` +
+		// `SaveUnder`, emitidos sobre el anillo con el puente `actor_target`. Sin bandas
+		// por subpíxel ni restaurador de ventana propios: el sistema lo cubre.
+		m_aux = backend.memory_manager().chip().reserve<eng::PlaneTag>(2048u, 16u);
+		if (!m_aux.valid()) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00012130u);
+			return;
+		}
+		m_pack = reinterpret_cast<u16*>(m_aux.view.data());
+		m_save_buf = m_pack + 320u;
+		eng::graphics::pack_interleaved_pair<kTile, kTile, kPlanes>(kActorPixels, nullptr,
+									    m_pack);
+		for (u16 r = 0u; r < kTile; ++r) {
+			u16 sil = 0u;
+			for (u16 b = 0u; b < kTile; ++b) {
+				if (kActorPixels[u32(r) * kTile + b] != 0u) {
+					sil = u16(sil | u16(0x8000u >> b));
+				}
+			}
+			m_sil_mask[r] = sil;
+		}
+		cook_pack_mask(u16(kActorMinX));
+		m_ring_target = eng::playfield::make_actor_target(scene.bg().hardware_view());
+		{
+			eng::scene::ActorDesc d {};
+			d.visual.pixels = eng::Span<const eng::u16> {m_pack, 320u};
+			d.visual.w = kTile;
+			d.visual.h = kTile;
+			d.visual.bitplanes = u8(kPlanes);
+			d.animation = &kActorAnim;
+			d.x = s16(kActorMinX);
+			d.y = s16(kActorY);
+			d.offset.y = s16(kRingGuardY); // visible -> anillo (contrato del puente)
+			d.transparency = eng::scene::TransparencyMode::Mask1Bit;
+			d.background = eng::scene::BackgroundPolicy::SaveUnder;
+			d.save[0] = eng::ChipView<eng::BobTag> {
+				eng::Address<eng::MemoryKind::Chip>::from_storage(m_save_buf), 480u};
+			d.save_words_per_row = 3u; // 2 palabras (32 px) + guarda del shift
+			d.save_height = kTile;
+			m_actor_store.reset();
+			m_actor_alloc.reset(eng::scene::RepresentationBudget {8u, 10000u, 0u});
+			m_actor_id = m_actor_store.add(d, m_actor_alloc);
+			auto actor = m_actor_store.get(m_actor_id);
+			if (!actor.valid()) {
+				eng::debug::mark_failed(g_eng_run_status, 0x00012131u);
+				return;
+			}
+			// Contrato del destino interleaved: pack con guarda (ver HOST-453).
+			actor->bob.sheet = eng::ChipView<eng::BobTag> {
+				eng::Address<eng::MemoryKind::Chip>::from_storage(m_pack), 640u};
+			actor->bob.mask = {};
+			actor->bob.width = 32u; // arte (16) + guarda (16)
+			actor->bob.height = kTile;
+			actor->bob.planes = u8(kPlanes);
+			actor->bob.layout = eng::graphics::BobLayout::Interleaved;
+			actor->bob.mask_pack = eng::graphics::BobMaskPack::InterleavedPair;
+			actor->bob.draw = eng::graphics::BobDraw::CookieCut;
+			actor->bob.frame_count = 1u;
+			actor->bob.frame_stride = 0u;
+		}
+		// **Auto-chequeo del camino nuevo**: emite una vez en la posición inicial y relee
+		// el cuerpo (el primer `update` restaurará esa caja con el save-under).
+		if (!emit_actor_system(backend)) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00012132u);
+			return;
+		}
+		{
+			const u8 body = read_body_stable(u16(kActorMinX + 8u), u16(kActorY + 8u));
+			if (body != 31u) {
+				eng::debug::mark_failed(g_eng_run_status,
+							0x00012133u | (u32(body) << 16u));
+				return;
+			}
+		}
+#else
 		// **Auto-chequeo de hardware** (patrón de `COHERENCIA_DE_SETUP.md` §22): dibuja
 		// el actor con las MISMAS rutinas del frame en una posición fija, RELEE el
 		// bitmap del campo y valida color del cuerpo (31), transparencia del fondo y
@@ -715,6 +814,7 @@ struct ProcStructuresDemo {
 			m_restore_x = kActorMinX;
 		}
 #endif
+#endif // !K121_ACTOR_SYSTEM
 		draw_hud();
 		m_ready = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x00000121u);
@@ -733,6 +833,38 @@ struct ProcStructuresDemo {
 		(void)backend;
 		if (!backend.execute_frame_plan(plan)) {
 			m_ready = false;
+		}
+#elif defined(K121_ACTOR_SYSTEM)
+		// **Actor por el SISTEMA del engine** (A/B de DT-024.3): avance con el mismo
+		// contrato (1 px/frame con rebote), re-cocido de la máscara si cambia la columna
+		// (oclusión por copas) y emisión: SaveUnder restaura/guarda el fondo y el pack
+		// con guarda dibuja el subpíxel que toque (sin bandas ni ventana propias).
+		(void)eng::scene::actor_tick(*m_actor_store.get(m_actor_id), 1u);
+#if !defined(K121_STATIC_ACTOR)
+		if (m_dir > 0 && m_actor_x >= kActorMaxX) {
+			m_dir = -1;
+		} else if (m_dir < 0 && m_actor_x <= kActorMinX) {
+			m_dir = 1;
+		}
+		m_actor_x = u16(s32(m_actor_x) + m_dir);
+#else
+		// Estático: 96 queda bajo copa (col. 6); en el camino del sistema se usa 200
+		// (columna limpia, 12) para que la captura estática muestre el actor entero.
+#if defined(K121_ACTOR_SYSTEM)
+		m_actor_x = 200u;
+#else
+		m_actor_x = 96u;
+#endif
+#endif
+		{
+			auto actor = m_actor_store.get(m_actor_id);
+			actor->desc.x = s16(m_actor_x);
+			cook_pack_mask(m_actor_x);
+			if (!emit_actor_system(backend)) {
+				m_ready = false;
+				eng::debug::mark_failed(g_eng_run_status, 0x00012134u);
+				return;
+			}
 		}
 #elif !defined(K121_SKIP_ACTOR)
 		// **Actor por Blitter**: (1) restaura SOLO la ventana de 2 palabras que ocupaba
@@ -1092,6 +1224,49 @@ private:
 			}
 		}
 	}
+
+#if defined(K121_ACTOR_SYSTEM)
+	/// **Cocina la máscara del pack** (por fila y plano) para la posición `x`: cada bit
+	/// local `b` de la hoja cae en pantalla en `x + b` (el blit desplaza imagen y máscara
+	/// juntas con `shift`), así que la copa se muestrea en la columna REAL de cada píxel
+	/// — no en la columna alineada (error de ±subpíxel que la guarda cazó en x=86).
+	/// Las imágenes del pack son estáticas: solo cambia la máscara.
+	void cook_pack_mask(u16 x) {
+		const u16 s = u16(x & 15u);
+		const u16 wx = u16(x >> 4u);
+		for (u16 r = 0u; r < kTile; ++r) {
+			const u16* const crow = &kWorld.canopy_mask[u32(kActorY) + r][0u];
+			// Copas de las dos columnas que puede tocar el actor (composición por shift:
+			// el bit b de la máscara mira la copa en la pantalla x+b = columna wx, bit s+b
+			// de la secuencia [col wx | col wx+1]).
+			const u32 pair = (u32(crow[wx]) << 16u) | u32(crow[wx + 1u]);
+			const u16 canopy = u16(pair >> (16u - s));
+			const u16 m0 = u16(m_sil_mask[r] & u16(~canopy));
+			for (u8 p = 0u; p < kPlanes; ++p) {
+				m_pack[(u32(r) * kPlanes + p) * 4u + 2u] = m0; // máscara del par
+			}
+		}
+	}
+
+	/// Emite el actor con el SISTEMA del engine (un plan/execute por frame): SaveUnder
+	/// restaura la caja previa y guarda la actual; el pack dibuja con la guarda invisible.
+	[[nodiscard]] bool emit_actor_system(eng::amiga::AmigaBackend& backend) {
+		plan.clear();
+		plan.set_blit_budget_limits({8192, 16384, 16u, 240u});
+		eng::scene::ActorEmitContext ctx {};
+		const eng::playfield::PlayfieldHardwareView hv = scene.bg().hardware_view();
+		ctx.targets = eng::Span<const eng::graphics::BobTarget> {&m_ring_target, 1u};
+		ctx.clip = eng::scene::DirtyRect {0, 0, s16(hv.viewport_w), s16(hv.display_height)};
+		ctx.buffer = 0;
+		ctx.cam_x = 0;
+		ctx.cam_y = 0;
+		auto actor = m_actor_store.get(m_actor_id);
+		if (eng::scene::actor_emit(plan, *actor, ctx) != eng::scene::ActorEmitStatus::Ok) {
+			return false;
+		}
+		return backend.execute_frame_plan(plan);
+	}
+#endif
 
 	/// Combina la máscara del subpíxel tocado con la negación de la máscara de copas
 	/// (solo 32 palabras por frame: el trabajo por píxel lo hace el Blitter).
