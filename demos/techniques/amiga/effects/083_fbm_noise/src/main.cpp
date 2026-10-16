@@ -15,6 +15,7 @@
 // miles de evaluaciones de ruido. La paleta codifica agua/arena/verde/roca/nieve.
 #include <eng/core/math/minifloat_math.hpp>
 #include <eng/core/math/noise.hpp>
+#include <eng/core/util/text.hpp>
 #include <eng/api/api.hpp>
 #include <eng/api/effects.hpp>
 #include <eng/platform/amiga/backend.hpp>
@@ -92,7 +93,7 @@ struct FbmDemo {
 		eng::debug::mark_ready(g_eng_run_status, 0x0083u);
 	}
 
-	void update(amiga::AmigaBackend& backend, eng::GameContext&) {
+	void update(amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (!m_init_ok) return;
 		// Offset de muestreo animado (Q8 de celda gruesa) en ping-pong, sin costura.
 		m_ox += m_dx;
@@ -103,6 +104,7 @@ struct FbmDemo {
 		else if (m_oy <= 0) { m_oy = 0; m_dy = 1; }
 
 		draw_frame(backend);
+		update_hud(backend, context.frame.frame_index);
 	}
 
 	void render(amiga::AmigaBackend& backend, eng::GameContext& context) {
@@ -111,6 +113,27 @@ struct FbmDemo {
 	}
 
 private:
+	/// HUD de depuración (overlay de WinUAE): el display es solo copper (sin bitplanes),
+	/// así que el único sitio donde cabe texto es la capa de depuración. Muestra el valor
+	/// **fbm del punto de muestreo animado**; el decimal lo compone `eng::util::to_chars`
+	/// con `scalar_decimal<MiniFloat16>` (por bits, sin `float`) **en el 68000**: es la
+	/// verificación en hardware de la conversión decimal del escalar. Se re-formatea cada
+	/// 16 frames (fuera del camino caliente, regla de coste §1.15).
+	void update_hud(amiga::AmigaBackend& backend, eng::u32 frame) {
+		if ((frame & 15u) != 0u) {
+			return;
+		}
+		const MF kStep(0.25f);
+		const MF fx = eng::math::scalar_traits<MF>::from_int(m_ox >> 8) * kStep;
+		const MF fy = eng::math::scalar_traits<MF>::from_int(m_oy >> 8) * kStep;
+		const MF n = eng::math::fbm2(fx, fy, 0x1234u, 3, MF(2.0f), MF(0.5f));
+		m_hud.clear();
+		(void)m_hud.append("fbm ");
+		(void)eng::util::to_chars(m_hud, n, 3u);
+		auto& d = backend.debug();
+		d.clear();
+		d.text(8, 8, m_hud.c_str(), 0x00ffffffu);
+	}
 	void build_coarse() {
 		// fbm 2D de 3 octavas sobre la rejilla gruesa; coordenadas/constantes sin float.
 		const MF kStep(0.25f);
@@ -213,6 +236,8 @@ private:
 	u16 m_palette[256] {};
 	s32 m_ox = 0, m_oy = 0;
 	s16 m_dx = 1, m_dy = 1;
+	/// Línea del HUD (`fbm 0.000`); el decimal lo compone el decimal de texto del engine.
+	eng::util::StaticString<16> m_hud {};
 	bool m_init_ok = false;
 };
 

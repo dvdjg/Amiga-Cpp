@@ -66,7 +66,6 @@ demos/techniques/amiga/debug/205_hw_probe
 demos/techniques/amiga/effects/040_palette_cycle_effect
 demos/techniques/amiga/effects/080_fire_rgb
 demos/techniques/amiga/effects/082_plasma
-demos/techniques/amiga/effects/083_fbm_noise
 demos/techniques/amiga/effects/116_flatshade_convex
 demos/techniques/amiga/effects/117_bobs3d
 demos/techniques/amiga/effects/118_dna3d
