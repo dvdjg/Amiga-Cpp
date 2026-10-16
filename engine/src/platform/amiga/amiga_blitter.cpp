@@ -12,67 +12,42 @@ using namespace eng::amiga::detail;
 namespace eng::amiga {
 
 namespace {
-/// Job de cookie-cut interleaved con el contrato del par `[imagen][mascara]`: un solo blit
-/// (`bitplane_count == 1`) y el minterm `$CA`. Es el caso que puede ejecutarse como lote de
-/// **estado fijo** (`BlobBatch`).
-///
-/// Referencia del lote y su motivación: `docs/engine/architecture/BLITTER_INTENT_QUEUE.md` y
-/// `docs/guides/roadmap/ROADMAP_BLITTER_COPPER.md` (§"copias, cookie-cut y fast blobs").
-/// La medición A/B (2026-10, demo 213) y el detalle del API quedan ahí para la doc del API.
-bool batchable_masked(const eng::graphics::BlitJob& j) {
-	return j.kind == eng::graphics::BlitJobKind::MaskedBobCookieCut && j.interleaved &&
-	       j.bitplane_count == 1u && j.source_words_per_row == 0u && !j.descending &&
-	       j.minterm == eng::graphics::kBlitterMintermCookieCut;
-}
-
-/// Dos jobs de cookie-cut comparten el estado **fijo** del lote si coinciden en todo menos
-/// los punteros y el desplazamiento fino (`source_shift`).
-bool same_masked_state(const eng::graphics::BlitJob& a, const eng::graphics::BlitJob& b) {
-	return a.words_per_row == b.words_per_row && a.height == b.height &&
-	       a.source_modulo_bytes == b.source_modulo_bytes &&
-	       a.destination_modulo_bytes == b.destination_modulo_bytes &&
-	       a.minterm == b.minterm;
-}
-
-/// Job de clear interleaved en **bloque continuo** (una fila física por plano, `D=0`): el
-/// contrato del `clear_box` de banda completa (`bitplane_count == 1`, sin saltos entre planos).
-bool batchable_clear(const eng::graphics::BlitJob& j) {
-	return j.kind == eng::graphics::BlitJobKind::ClearRect && j.interleaved &&
-	       j.bitplane_count == 1u && j.destination_plane_stride_bytes == 0u && !j.descending &&
-	       j.minterm == 0x00u;
-}
-
-/// Dos clears comparten estado fijo si coinciden en ancho, módulo de destino y minterm.
-bool same_clear_state(const eng::graphics::BlitJob& a, const eng::graphics::BlitJob& b) {
-	return a.words_per_row == b.words_per_row &&
-	       a.destination_modulo_bytes == b.destination_modulo_bytes && a.minterm == b.minterm;
-}
-
-/// Ejecuta una racha `[from, to)` de clears interleaved con estado fijo (`BlobBatch`).
-bool execute_clear_run(const eng::graphics::FramePlan& plan, u8 from, u8 to) {
-	const eng::graphics::BlitJob& f = plan.blit_job(from);
+/// Ejecuta una racha `[from, to)` de trabajos que comparten un **lote de estado fijo** (`run`,
+/// clasificado por `graphics::blob_run_from`): fija los registros comunes UNA vez
+/// (`BlobBatch::begin`) y por objeto escribe solo los punteros, el desplazamiento fino y
+/// `BLTSIZE` (`one`), con **una sola espera** por objeto. Es el camino del `main.c` de
+/// referencia, aplicado a cualquier racha homogénea del `FramePlan` (cookie-cut, clear u OR).
+/// Referencia del lote y su motivación: `docs/engine/architecture/BLITTER_INTENT_QUEUE.md`.
+bool execute_blob_run(const eng::graphics::FramePlan& plan, u8 from, u8 to,
+		      const eng::graphics::BlobRun& run) {
 	BlobBatch batch;
-	batch.begin(eng::amiga::HwRegs::instance(), BlobOp::Clear, f.words_per_row, f.height, 0,
-		    0, 0, f.destination_modulo_bytes, g_blitter_service, g_blitter_service_user);
-	for (u8 i = from; i < to; ++i) {
-		const eng::graphics::BlitJob& j = plan.blit_job(i);
-		batch.one(eng::graphics::BlitPtr {}, eng::graphics::BlitPtr {}, j.destination, 0u);
-	}
-	return batch.end();
-}
-
-/// Ejecuta una racha `[from, to)` de cookie-cut interleaved con el estado común fijado UNA vez
-/// (`BlobBatch`): sin re-codificar por job y con **una sola espera** por objeto. Es el camino
-/// del `main.c` de referencia, aplicado a una racha homogénea del `FramePlan`.
-bool execute_masked_run(const eng::graphics::FramePlan& plan, u8 from, u8 to) {
-	const eng::graphics::BlitJob& f = plan.blit_job(from);
-	BlobBatch batch;
-	batch.begin(eng::amiga::HwRegs::instance(), BlobOp::CookieCut, f.words_per_row, f.height,
-		    f.source_modulo_bytes, f.source_modulo_bytes, f.destination_modulo_bytes,
-		    f.destination_modulo_bytes, g_blitter_service, g_blitter_service_user);
-	for (u8 i = from; i < to; ++i) {
-		const eng::graphics::BlitJob& j = plan.blit_job(i);
-		batch.one(j.mask, j.source, j.destination, static_cast<eng::u8>(j.source_shift));
+	batch.begin(eng::amiga::HwRegs::instance(), run.op, run.words, run.height, run.amod,
+		    run.bmod, run.cmod, run.dmod, g_blitter_service, g_blitter_service_user);
+	// La operación se resuelve UNA vez (fuera del bucle): dentro solo se programa el objeto.
+	switch (run.op) {
+	case BlobOp::CookieCut: // A = máscara, B = imagen, C = D = fondo
+		for (u8 i = from; i < to; ++i) {
+			const eng::graphics::BlitJob& j = plan.blit_job(i);
+			batch.one(j.mask, j.source, j.destination, static_cast<eng::u8>(j.source_shift));
+		}
+		break;
+	case BlobOp::Clear: // solo D
+		for (u8 i = from; i < to; ++i) {
+			batch.one(eng::graphics::BlitPtr {}, eng::graphics::BlitPtr {},
+				  plan.blit_job(i).destination, 0u);
+		}
+		break;
+	default: // BlobOp::Or: A = objeto, B = D = destino
+		for (u8 i = from; i < to; ++i) {
+			const eng::graphics::BlitJob& j = plan.blit_job(i);
+			const eng::u8 shift = static_cast<eng::u8>(j.source_shift);
+			// La ventana fina `BLTALWM = 0xffff << shift` es la MISMA que escribe el encoder
+			// (`blitter_job_from`): recorta los bits bajos que el barrel shifter arrastra tras
+			// la última palabra. Sin igualarla, la racha no sería equivalente al camino genérico.
+			batch.set_window_masks(0xffffu, static_cast<eng::u16>(0xffffu << shift));
+			batch.one(j.source, j.destination, j.destination, shift);
+		}
+		break;
 	}
 	return batch.end();
 }
@@ -102,36 +77,22 @@ bool AmigaBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 	const u8 job_count = plan.blit_job_count();
 	u8 job_index = 0u;
 	while (job_index < job_count) {
-		// Racha homogénea de cookie-cut interleaved: se ejecuta con estado fijo (`BlobBatch`),
-		// sin re-codificar registros por job ni pagar la espera extra del bucle por plano.
-		if (batchable_masked(plan.blit_job(job_index))) {
+		// Racha homogénea (cookie-cut, clear u OR interleaved de un canal): se ejecuta con
+		// estado fijo (`BlobBatch`), sin re-codificar registros por job ni pagar la espera
+		// extra del bucle por plano. La clasificación la comparten las vías CPU y async
+		// (`graphics::blob_run_from`).
+		graphics::BlobRun run {};
+		if (graphics::blob_run_from(plan.blit_job(job_index), run)) {
 			u8 end = static_cast<u8>(job_index + 1u);
-			while (end < job_count &&
-			       same_masked_state(plan.blit_job(job_index), plan.blit_job(end))) {
+			while (end < job_count && graphics::blob_run_continues(plan.blit_job(end), run)) {
 				++end;
 			}
 			if (static_cast<u8>(end - job_index) >= 2u) {
-				if (!execute_masked_run(plan, job_index, end)) {
+				if (!execute_blob_run(plan, job_index, end, run)) {
 					return false;
 				}
 				// El lote escribió registros directamente: la caché de estado común ya no
 				// refleja el hardware.
-				m_blt_common_valid = false;
-				m_blitter_starts += static_cast<u16>(end - job_index);
-				job_index = end;
-				continue;
-			}
-		}
-		if (batchable_clear(plan.blit_job(job_index))) {
-			u8 end = static_cast<u8>(job_index + 1u);
-			while (end < job_count &&
-			       same_clear_state(plan.blit_job(job_index), plan.blit_job(end))) {
-				++end;
-			}
-			if (static_cast<u8>(end - job_index) >= 2u) {
-				if (!execute_clear_run(plan, job_index, end)) {
-					return false;
-				}
 				m_blt_common_valid = false;
 				m_blitter_starts += static_cast<u16>(end - job_index);
 				job_index = end;
@@ -149,16 +110,71 @@ bool AmigaBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 
 /// Diagnóstico del feeder async de `FramePlan` (leíble por el canal lateral del emulador con
 /// `tools/debug/probe_*`): lanzamientos del primer job, pasos de la ISR de encadenado (uno por
-/// fin de blit), cierres de cadena y submits con éxito dentro de la ISR.
+/// fin de blit), cierres de cadena, submits con éxito dentro de la ISR y rachas de estado fijo
+/// arrancadas (cada racha cubre varios objetos con los registros comunes programados una vez).
 volatile eng::u32 g_blit_async_launches = 0u;
 volatile eng::u32 g_blit_async_irqs = 0u;
 volatile eng::u32 g_blit_async_ends = 0u;
 volatile eng::u32 g_blit_async_submits = 0u;
+volatile eng::u32 g_blit_async_runs = 0u;
 
 eng::u32 AmigaBackend::blit_async_launches() noexcept { return g_blit_async_launches; }
 eng::u32 AmigaBackend::blit_async_irqs() noexcept { return g_blit_async_irqs; }
 eng::u32 AmigaBackend::blit_async_ends() noexcept { return g_blit_async_ends; }
 eng::u32 AmigaBackend::blit_async_submits() noexcept { return g_blit_async_submits; }
+eng::u32 AmigaBackend::blit_async_runs() noexcept { return g_blit_async_runs; }
+
+/// Entrega del trabajo `index` de la cadena async. Si abre una racha homogénea de estado fijo
+/// (`graphics::blob_run_from` con ≥2 objetos) arranca el lote (`BlobBatch::begin`) y escribe el
+/// primer objeto; el resto de la racha lo encadena la IRQ sin re-codificar registros
+/// (`async_run_one`). Si no, programa por el encoder genérico (`blitter_submit`, `wait=false`).
+/// El lote se crea **sin** servicio de espera (`nullptr`): su `wait()` puede correr en la ISR y
+/// no debe drenar servicios de fondo desde dentro del despacho de interrupción.
+bool AmigaBackend::async_program_job(const graphics::FramePlan& plan, u16 index) {
+	const graphics::BlitJob& j = plan.blit_job(index);
+	graphics::BlobRun run {};
+	if (graphics::blob_run_from(j, run)) {
+		const u16 count = plan.blit_job_count();
+		u16 end = static_cast<u16>(index + 1u);
+		while (end < count && graphics::blob_run_continues(plan.blit_job(end), run)) {
+			++end;
+		}
+		if (static_cast<u16>(end - index) >= 2u) {
+			// El canal `BlobBatch` del feeder es un miembro propio (`m_async_run_batch`): la API
+			// pública `blitter_blob_run_*` usa otro (`m_blob_run`) y no se pisan.
+			m_async_run_batch.begin(eng::amiga::HwRegs::instance(), run.op, run.words, run.height,
+						run.amod, run.bmod, run.cmod, run.dmod);
+			m_async_run_op = run.op;
+			m_async_run_to = end;
+			m_async_run_active = true;
+			m_blt_common_valid = false; // el lote programa los registros comunes directamente
+			async_run_one(j);
+			g_blit_async_runs = g_blit_async_runs + 1u;
+			return true;
+		}
+	}
+	return blitter_submit(j, /*wait=*/false);
+}
+
+/// Escribe un objeto de la racha async en curso: la IRQ de fin de blit garantiza que el blit
+/// anterior terminó, así que `one()` (punteros + `CON0`/shift + `BLTSIZE`) es el único trabajo;
+/// el estado común lo fijó `begin` al arrancar la racha.
+void AmigaBackend::async_run_one(const graphics::BlitJob& j) {
+	const eng::u8 shift = static_cast<eng::u8>(j.source_shift);
+	switch (m_async_run_op) {
+	case graphics::BlobOp::CookieCut: // A = máscara, B = imagen, C = D = fondo
+		m_async_run_batch.one(j.mask, j.source, j.destination, shift);
+		break;
+	case graphics::BlobOp::Clear: // solo D
+		m_async_run_batch.one(eng::graphics::BlitPtr {}, eng::graphics::BlitPtr {},
+				      j.destination, 0u);
+		break;
+	default: // BlobOp::Or: A = objeto, B = D = destino (ventana fina como el encoder)
+		m_async_run_batch.set_window_masks(0xffffu, static_cast<eng::u16>(0xffffu << shift));
+		m_async_run_batch.one(j.source, j.destination, j.destination, shift);
+		break;
+	}
+}
 
 bool AmigaBackend::execute_frame_plan_async(const graphics::FramePlan& plan) {
 	if (!plan.ok() || plan.blit_job_count() == 0u) {
@@ -182,6 +198,7 @@ bool AmigaBackend::execute_frame_plan_async(const graphics::FramePlan& plan) {
 	m_async_plan = &plan;
 	m_async_next = 1u;
 	m_async_notify_next = 0u;
+	m_async_run_active = false;
 	m_async_busy = true;
 	g_blit_async_launches = g_blit_async_launches + 1u;
 	// Avisos con `after_jobs == 0` (declarados antes de encolar trabajo): se disparan ya.
@@ -191,10 +208,11 @@ bool AmigaBackend::execute_frame_plan_async(const graphics::FramePlan& plan) {
 	// (doble avance de cadena + reprogramación intercalada a media cadena de planos) y el
 	// render salía corrupto. Se desarma BLIT en INTENA durante toda la programación y se
 	// rearma al final: el latch de INTREQ (independiente de INTENA) entrega UNA sola IRQ por
-	// job, cuando termina el último plano.
+	// job, cuando termina el último plano. Con rachas de estado fijo (`async_program_job`) el
+	// primer objeto vale por un job (un blit): la cuenta de IRQs por job se mantiene.
 	blit_irq_gate_begin();
 	g_in_blit_service = true;
-	const bool launched = blitter_submit(plan.blit_job(0u), /*wait=*/false);
+	const bool launched = async_program_job(plan, 0u);
 	g_in_blit_service = false;
 	blit_irq_gate_end();
 	if (!launched) {
@@ -250,19 +268,34 @@ void AmigaBackend::frame_plan_async_step(AmigaBackend& self, eng::u16) {
 	self.fire_due_notifies();
 	const u16 next = self.m_async_next;
 	if (next >= plan->blit_job_count()) {
+		self.m_async_run_active = false;
 		self.m_async_busy = false;
 		g_blit_async_ends = g_blit_async_ends + 1u;
 		return;
 	}
 	// Programar el siguiente job DENTRO del servicio: `wait_blitter()` (los waits entre
 	// planos de un job multi-plano) no debe re-llamar al servicio (recursión). Y la IRQ BLIT
-	// va gateada para que un job multi-plano entregue UNA sola IRQ (ver gate_begin/end).
+	// va gateada para que un job multi-plano entregue UNA sola IRQ (ver gate_begin/end). Si el
+	// job pertenece a la racha de estado fijo en curso, `async_run_one` escribe solo el objeto
+	// (los registros comunes ya están programados por `begin`).
 	self.blit_irq_gate_begin();
 	g_in_blit_service = true;
-	const bool ok = self.blitter_submit(plan->blit_job(next), /*wait=*/false);
+	bool ok = false;
+	if (self.m_async_run_active) {
+		if (next < self.m_async_run_to) {
+			self.async_run_one(plan->blit_job(next));
+			ok = true;
+		} else {
+			self.m_async_run_active = false; // racha agotada: seguir por el camino genérico
+			ok = self.async_program_job(*plan, next);
+		}
+	} else {
+		ok = self.async_program_job(*plan, next);
+	}
 	g_in_blit_service = false;
 	self.blit_irq_gate_end();
 	if (!ok) {
+		self.m_async_run_active = false;
 		self.m_async_busy = false;
 		g_blit_async_ends = g_blit_async_ends + 1u;
 		return;

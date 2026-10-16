@@ -193,11 +193,12 @@ public:
 		return layer.emit(*m_target.plan(), m_target.bob_target(), fine_scroll);
 	}
 
-	/// **Encola un aviso** (`ticket`) en el plan del frame: en modo asíncrono
-	/// (`App::set_async_present(true)`) la IRQ de fin de blit lo publica como
-	/// `MsgType::IntentDone` (con el `ticket` en `payload.user.a`) cuando hayan terminado los
-	/// trabajos encolados **hasta ahora**. Para avisar al final de la ristra, llamar tras el
-	/// último `sprite`/`clear_box`/… No consume Blitter: es una marca en la cadena.
+	/// **Encola un aviso** (`ticket`) en el plan del frame: se publica como `MsgType::IntentDone`
+	/// (con el `ticket` en `payload.user.a`) cuando hayan terminado los trabajos encolados
+	/// **hasta ahora** — en modo asíncrono lo dispara la IRQ de fin de blit al cruzar el punto; en
+	/// modo síncrono se publica al terminar la cadena (el `present` espera al último blit). Para
+	/// avisar al final de la ristra, llamar tras el último `sprite`/`clear_box`/… No consume
+	/// Blitter: es una marca en la cadena.
 	bool notify(u16 ticket) {
 		if (!m_target.plan().valid()) {
 			return false;

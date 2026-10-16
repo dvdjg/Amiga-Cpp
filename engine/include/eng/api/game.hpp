@@ -819,11 +819,19 @@ public:
 	}
 
 	/// Camino **síncrono**: ejecuta el plan y commitea en el mismo punto (esperas activas). Es el
-	/// defecto de baja latencia.
+	/// defecto de baja latencia. Los **avisos** de la cadena (`Screen::notify`) se publican al
+	/// terminar la ejecución (el `execute_frame_plan` espera al último blit): en orden, como
+	/// `MsgType::IntentDone`, de modo que el contrato del ticket no depende del modo de present.
 	void present_sync() {
+		bool executed = false;
 		if constexpr (requires(Backend& b, const graphics::FramePlan& p) { b.execute_frame_plan(p); }) {
 			if (m_plan.ok()) {
-				(void)m_backend.execute_frame_plan(m_plan);
+				executed = m_backend.execute_frame_plan(m_plan);
+			}
+		}
+		if (executed) {
+			for (u8 i = 0u; i < m_plan.notify_count(); ++i) {
+				on_chain_notify(this, m_plan.notify(i).ticket);
 			}
 		}
 		if (m_scene.valid()) {

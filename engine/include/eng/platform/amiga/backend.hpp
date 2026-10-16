@@ -374,6 +374,9 @@ public:
 	[[nodiscard]] static eng::u32 blit_async_irqs() noexcept;
 	[[nodiscard]] static eng::u32 blit_async_ends() noexcept;
 	[[nodiscard]] static eng::u32 blit_async_submits() noexcept;
+	/// Rachas de estado fijo (`BlobBatch`) arrancadas dentro de la cadena async: cada una cubre
+	/// varios objetos con los registros comunes programados una sola vez.
+	[[nodiscard]] static eng::u32 blit_async_runs() noexcept;
 
 	/// **Avisos de la cadena** (`FramePlan::add_notify`): `fn(ctx, ticket)` se ejecuta **en la ISR**
 	/// de fin de blit al cruzar cada marca. Debe ser corto y **IRQ-safe** (típico: `port.post`).
@@ -877,6 +880,21 @@ private:
 	volatile u16 m_async_next = 0u;
 	volatile bool m_async_busy = false;
 	bool m_async_service_installed = false;
+	/// **Racha de estado fijo en curso** de la cadena async (`graphics::blob_run_from`): con
+	/// `m_async_run_active`, los trabajos `[m_async_next, m_async_run_to)` comparten el lote
+	/// `m_async_run_batch` (registros comunes programados una vez) y cada IRQ escribe solo el
+	/// objeto siguiente. La clasificación es la MISMA que usa la vía síncrona.
+	bool m_async_run_active = false;
+	u16 m_async_run_to = 0u; ///< índice final (exclusivo) de la racha en curso
+	graphics::BlobOp m_async_run_op = graphics::BlobOp::Or; ///< operación del lote de la racha
+	eng::amiga::BlobBatch m_async_run_batch {}; ///< lote de estado fijo de la racha async en curso
+	/// Programa el trabajo `index` de la cadena async: si abre una racha homogénea (≥2 objetos)
+	/// arranca el lote de estado fijo (`begin` + primer objeto); si no, va por el encoder
+	/// genérico (`blitter_submit`). Debe llamarse con el gate de IRQ armado por el llamador.
+	[[nodiscard]] bool async_program_job(const graphics::FramePlan& plan, u16 index);
+	/// Escribe el objeto `j` de la racha async en curso (el blit anterior ya terminó: lo
+	/// garantiza la IRQ de fin de blit que encadena).
+	void async_run_one(const graphics::BlitJob& j);
 	/// Índice del próximo aviso de `m_async_plan` por disparar; callback de aviso (IRQ-safe).
 	u8 m_async_notify_next = 0u;
 	ChainNotifyFn m_chain_notify = nullptr;

@@ -58,6 +58,102 @@ enum class BlobOp : eng::u8 {
 	Clear,     ///< `D = 0` (borrado de cajas homogéneas).
 };
 
+/// **Lote de estado fijo** que puede ejecutar una racha homogénea del `FramePlan`: la operación
+/// (`BlobOp`) y los registros que **no cambian** entre sus objetos (`BLTSIZE` = `words`/`height`
+/// y módulos). Las rachas se ejecutan con el camino `BlobBatch` (escrituras de 32 bits, sin
+/// re-codificar el job y con una sola espera por objeto), en la CPU (`execute_frame_plan`) o
+/// encadenadas por la IRQ de blit (`execute_frame_plan_async`).
+struct BlobRun {
+	BlobOp op = BlobOp::Or; ///< operación del lote (decide canales, minterm y papeles de los punteros)
+	u16 words = 0;          ///< palabras por fila (BLTSIZE bits 5-0)
+	u16 height = 0;         ///< filas físicas del blit (BLTSIZE bits 15-6)
+	s16 amod = 0;           ///< módulo del canal A del lote (bytes)
+	s16 bmod = 0;           ///< módulo del canal B del lote (bytes)
+	s16 cmod = 0;           ///< módulo del canal C del lote (bytes)
+	s16 dmod = 0;           ///< módulo del canal D del lote (bytes)
+};
+
+/// **Clasifica un trabajo del plan como racha de estado fijo**: devuelve `true` y rellena `out`
+/// con su `BlobRun` si el trabajo se ejecuta con `BlobBatch` (un blit por job: destino
+/// intercalado de un solo canal, sin descendente ni fuente con ancho propio, con el minterm y los
+/// módulos del lote) sin cambiar de resultado. Los trabajos no clasificables (multi-plano,
+/// desplazados en descendente, `Line`/`C2P`, …) van por el encoder genérico.
+///
+/// La altura 1024 queda **fuera** del lote (`BLTSIZE` la codifica como 0 y solo el encoder la
+/// resuelve); el resto de `height` cabe en el campo de 10 bits.
+/// \param j    trabajo del plan.
+/// \param out  lote resultante (solo válido si devuelve `true`).
+/// \return `true` si `j` es ejecutable como racha de estado fijo.
+[[nodiscard]] constexpr bool blob_run_from(const BlitJob& j, BlobRun& out) noexcept {
+	// Salida temprana por tipo (la mayoría de jobs de un plan no son rachas): el resto de
+	// comprobaciones solo se pagan para los tipos clasificables.
+	switch (j.kind) {
+	case BlitJobKind::MaskedBobCookieCut:
+	case BlitJobKind::MaskedBlobNoSave:
+	case BlitJobKind::ClearRect:
+	case BlitJobKind::OrBlob:
+		break;
+	default:
+		return false;
+	}
+	if (j.descending || !j.interleaved || j.bitplane_count != 1u ||
+	    j.source_words_per_row != 0u || j.words_per_row == 0u || j.height == 0u ||
+	    j.height > kBlitterSizeMaxHeight) {
+		return false;
+	}
+	switch (j.kind) {
+	case BlitJobKind::MaskedBobCookieCut:
+	case BlitJobKind::MaskedBlobNoSave:
+		// `A` = máscara, `B` = imagen, `C = D` = fondo; el par avanza con el mismo módulo.
+		if (j.minterm != kBlitterMintermCookieCut) {
+			return false;
+		}
+		out = {BlobOp::CookieCut, j.words_per_row, j.height, j.source_modulo_bytes,
+		       j.source_modulo_bytes, j.destination_modulo_bytes, j.destination_modulo_bytes};
+		return true;
+	case BlitJobKind::ClearRect:
+		// Solo D, bloque continuo por filas (sin salto entre planos).
+		if (j.minterm != kBlitterMintermZero || j.destination_plane_stride_bytes != 0u) {
+			return false;
+		}
+		out = {BlobOp::Clear, j.words_per_row, j.height, 0, 0, 0, j.destination_modulo_bytes};
+		return true;
+	case BlitJobKind::OrBlob:
+		// `A` = objeto, `B = D` = destino (aditivo). C no participa.
+		if (j.minterm != kBlitterMintermAOrB) {
+			return false;
+		}
+		out = {BlobOp::Or, j.words_per_row, j.height, j.source_modulo_bytes,
+		       j.destination_modulo_bytes, 0, j.destination_modulo_bytes};
+		return true;
+	default:
+		return false;
+	}
+}
+
+/// **¿`j` continúa la racha `run`?** (una sola clasificación del candidato). Es la consulta del
+/// bucle de detección de rachas cuando el `BlobRun` del primer trabajo ya está calculado: `false`
+/// si `j` no es clasificable o si su lote difiere en operación, tamaño o módulos.
+/// \param j    trabajo candidato a seguir en la racha.
+/// \param run  lote de estado fijo del primer trabajo de la racha.
+/// \return `true` si `j` comparte el `BlobRun` de `run`.
+[[nodiscard]] constexpr bool blob_run_continues(const BlitJob& j, const BlobRun& run) noexcept {
+	BlobRun r {};
+	return blob_run_from(j, r) && r.op == run.op && r.words == run.words && r.height == run.height &&
+	       r.amod == run.amod && r.bmod == run.bmod && r.cmod == run.cmod && r.dmod == run.dmod;
+}
+
+/// Dos trabajos pertenecen a la **misma racha de estado fijo** si su `BlobRun` coincide (operación,
+/// tamaño y módulos): solo cambian punteros y desplazamiento fino (`source_shift`). Es la
+/// condición que agrupa objetos consecutivos en un único lote.
+/// \param a  trabajo de referencia.
+/// \param b  trabajo candidato a seguir en la misma racha.
+/// \return `true` si ambos son clasificables y con idéntico `BlobRun`.
+[[nodiscard]] constexpr bool blob_run_same(const BlitJob& a, const BlitJob& b) noexcept {
+	BlobRun ra {};
+	return blob_run_from(a, ra) && blob_run_continues(b, ra);
+}
+
 /// **Modelo de coste del Blitter**: líneas de raster que ocupa un blit de `words` palabras.
 /// El Blitter mueve ~1 palabra cada `cck_per_word` CCK con el DMA de bitplanes activo
 /// (medido ~140 líneas para ~5 100 palabras en la demo 210; ~`cck_per_line` CCK por línea

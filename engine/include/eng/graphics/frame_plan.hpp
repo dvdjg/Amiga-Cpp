@@ -30,6 +30,7 @@
 #include <eng/core/types/domains.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/core/util/array.hpp>
+#include <eng/graphics/bitmap_view.hpp>
 #include <eng/graphics/blit_job.hpp>
 #include <eng/res/asset_cache.hpp>
 
@@ -605,7 +606,10 @@ private:
 	}
 
 	/// Valida la última ranura, la consume y suma el presupuesto. **No** reconstruye el informe
-	/// (diferido: `finalize`/acceso al informe); así añadir N trabajos no es O(N²).
+	/// (diferido: `finalize`/acceso al informe); así añadir N trabajos no es O(N²). La validación
+	/// incluye los **límites de `BLTSIZE`** (ancho 1..63 palabras —64 se codifica como 0 y el
+	/// encoder no lo maneja— y alto ≤ 1024, que se codifica como 0): un job fuera de rango deja el
+	/// plan no-ok en vez de programar un blit truncado.
 	__attribute__((always_inline)) inline bool finish_blit_job() noexcept {
 		BlitJob& job = m_blit_jobs[m_blit_job_count];
 		const BlitJobKind kind = job.kind;
@@ -616,6 +620,7 @@ private:
 		if ((!no_source && job.source.words() == nullptr) || job.destination.words() == nullptr ||
 		    job.words_per_row == 0 || job.height == 0 || job.bitplane_count == 0 ||
 		    job.source_shift >= 16u ||
+		    job.words_per_row >= kBlitterMaxWordsPerRow || job.height > kBlitterMaxRows ||
 		    (!no_source && job.source_plane_stride_bytes == 0 && !job.interleaved) ||
 		    (job.destination_plane_stride_bytes == 0 && !job.interleaved) ||
 		    (masked && job.mask.words() == nullptr)) {

@@ -1,7 +1,7 @@
 # 213 — render roto en release (`-O2`): *strict aliasing*
 
-**Estado:** resuelto. Causa: **aliasing estricto** (type-punning) en el engine a `-O2`. Fix:
-`-fno-strict-aliasing` en `tools/build/build-demo.sh`.
+**Estado:** resuelto (aliasing). **Reabierto (2026-10):** el init de `A500_release` vuelve a fallar,
+ahora de forma determinista; ver la nota al final.
 
 ## Síntoma
 
@@ -42,3 +42,26 @@ flag cubre el resto de *punning* del engine.
 - El original da 50 fps porque su Blitter corre con el bus libre (lanza los blits en el blanking) y
   su CPU por frame es pequeña (tiene ciclos de sobra, `WaitLine` = espera activa). La nuestra gasta
   ~40–50 k ciclos más de CPU (construir el plan por BOB + ejecutarlo) — **pendiente de reducir**.
+
+## Reapertura (2026-10-16): init release falla en la carga de sprite/música
+
+`A500_release` (config por defecto de la 213) **no alcanza READY** en la revisión actual: el runner
+aborta con `La demo informo FAILED por canal lateral: detail=0x06CBF005`. El detalle decodifica como
+`mark_mem_failed` del grupo de sprite/música (`base=0x05`), con causa `0` y la sonda de banco
+`{libres ≈ 191 KB, usados ≈ 108 KB}`: el **banco Chip rechaza la reserva con hueco libre** —
+fragmentación o presupuesto del bloque, no un fallo de geometría.
+
+Evidencia de atribución:
+
+- **Reproducible en el engine sin los cambios del turno** (`git stash` de `engine/`): mismo
+  `detail=0x06CBF005` en `A500_release`.
+- La config con flags de A/B (`-DK_STREAM_BOBS=0`) falla aún antes (copia de fondo,
+  `detail=0x21304`), también con y sin los cambios del turno.
+- En **debug** (`A500_debug`, `-O1`) el init completa y la demo renderiza (verificado con capturas
+  completas y visión).
+
+**Deuda abierta** (ajena al hilo de las rachas de Blitter): o el presupuesto de memoria del perfil
+release de esta demo no cabe con la fragmentación por orden de reservas, o `configure_game_memory`
+reserva menos Chip del que el manifiesto necesita. Próximo paso: leer `bank.snapshot()`/
+`g_mem_probe` del caso release (el detalle ya empaqueta libres/usados) y comparar el orden de
+reservas debug vs release.

@@ -54,14 +54,51 @@ struct BlitOp {
 /// Los bits de `BLTCON0` (canales, `ASH` y minterms) viven en `blitter_state.hpp`
 /// (`kBlitterUseX`/`kBlitterMinterm*`), referencia única compartida con el backend.
 
+/// **Geometría codificable** de una intención de blit: la petición tiene destino (y fuente/máscara
+/// cuando su tipo las exige), rectángulo no vacío con `y >= 0` (el encoder calcula el offset de
+/// destino en `u32`: un `y` negativo lo desbordaría), desplazamiento fino 0..15 y ancho de fila
+/// que cabe en `BLTSIZE` (1..63 palabras; 64 se codifica como 0 y el encoder no lo maneja). Es el
+/// predicado de la **barrera de debug** del encoder (`blit_job_from`) y el que puede usar quien
+/// encola (p. ej. para descartar una petición clipada antes de llegar al plan); la última barrera
+/// dura sigue siendo `FramePlan::finish_blit_job` (rechaza y deja el plan no-ok en vez de codificar
+/// basura). El **clip no es automático** (`BlitJob`): un rect fuera de la zona por X o por abajo es
+/// responsabilidad del llamador y aquí no se valida.
+/// \param op  intención de blit (`Fill`/`Stamp`/`MaskedStamp`).
+/// \return `true` si el encoder puede materializarla sin desbordar `BLTSIZE`/offsets.
+[[nodiscard]] constexpr bool blit_op_valid(const BlitOp& op) noexcept {
+	if (!op.dst.valid() || op.rect.w == 0u || op.rect.h == 0u || op.rect.y < 0 || op.ashift > 15u) {
+		return false;
+	}
+	// Mismo cálculo de palabras que `blit_job_from` (área desplazada de 16 px).
+	const eng::u16 words = static_cast<eng::u16>(
+		(op.rect.w + 15u) / 16u + (((op.rect.x & 15) != 0) ? 1u : 0u));
+	if (words == 0u || words >= eng::graphics::kBlitterMaxWordsPerRow) {
+		return false;
+	}
+	switch (op.kind) {
+	case BlitOp::Kind::Fill:
+		return true;
+	case BlitOp::Kind::Stamp:
+		return op.src.valid();
+	case BlitOp::Kind::MaskedStamp:
+		return op.src.valid() && op.mask.valid();
+	}
+	return false;
+}
+
 /// **Único sitio** que traduce la **intención** (`BlitOp`: zona + rect) al **trabajo de Blitter**
 /// (`BlitJob`) — el tipo que describe el `FramePlan` y que el backend ya ejecuta. La intención
 /// **no inventa un «juego de registros» paralelo**: reusa el trabajo canónico; el paso a registros
 /// lo hace `blitter_job_from`. `Fill` → `ClearRect`; `Stamp` → `OrBlob`; `MaskedStamp` →
 /// `MaskedBobCookieCut`. `Stamp`/`MaskedStamp` leen desde la esquina de su zona y desplazan con `ASH`.
+///
+/// En debug (`ENG_ASSERT` activo) exige `blit_op_valid(op)`: una intención sin destino/fuente/
+/// máscara o con geometría no codificable **detiene la CPU** en el punto del error en vez de
+/// programar un blit desbordado (política del engine: invariantes que el tipo no impone).
 /// \param op  intención de blit (`Fill`/`Stamp`/`MaskedStamp`).
 /// \return el `BlitJob` canónico equivalente.
 [[nodiscard]] inline BlitJob blit_job_from(const BlitOp& op) noexcept {
+	ENG_ASSERT(blit_op_valid(op));
   const bool inter = op.dst.interleaved();
 	const eng::u8 planes = op.dst.plane_count;
 	const eng::u32 row = inter ? static_cast<eng::u32>(op.dst.row_bytes) * planes

@@ -55,6 +55,9 @@ verdad necesita el resultado.
 - **`blitter_job_from(const BlitJob&) -> BlitterJob`** — el **único encoder** a registros
   (`BLTCON*`/`BLTxPT`/`BLTSIZE`). Lo usan el backend (CPU/IRQ) y el `CopperBlitterExecutor`.
   La intención **no inventa un «juego de registros» paralelo**.
+- **`blob_run_from`/`blob_run_continues`** (`graphics/blitter_state.hpp`) — la **clasificación de
+  racha**: qué `BlitJob` ejecuta con lote de estado fijo (`BlobOp` + `BLTSIZE` + módulos) y hasta
+  dónde llega la racha homogénea. La comparten el ejecutor síncrono y el feeder async (HOST-451).
 - `BlitJob`/`BlitterJob` usan **`BlitPtr`** (dirección `Address<Chip>` a words) para fuente,
   destino y máscara: **un solo tipo** para los tres roles (el hardware es simétrico; quién es
   fuente o destino lo decide el campo).
@@ -120,13 +123,28 @@ el avance del Blitter ocurre en el **hueco de VBlank** (poll) o en la **IRQ de b
   escribe los registros en su línea. La ISR, si se usa, interrumpe brevemente y **no** altera la
   labor de fondo (transparente).
 
-**Camino `inline` vs llamada de backend.** `OrBlobBatch` (`platform/amiga/blob.hpp`) es el camino
-**`always_inline`** del mismo estado (`kBlitterMintermAOrB`…, misma verdad en `blitter_state.hpp`):
-evita un `jsr` por objeto (~600 c/BOB medido en 117). `submit_blit_job` es una **llamada de backend**
-con prologue; su caché de estado común (por racha) reduce escrituras, pero **no** iguala el inline.
-No son duplicados: son **dos vías del mismo estado** (una para lotes homogéneos desde la demo, otra
-para el `FramePlan` heterogéneo). Unificarlas = que la cola pueda emitir el lote `inline` cuando los
-  jobs son homogéneos (`sort_by_state` es el primer paso).
+**Rachas homogéneas: el plan emite el lote.** El camino `inline` (`OrBlobBatch`/`BlobBatch`) y la
+llamada de backend (`submit_blit_job`) son **dos vías del mismo estado** (una para lotes homogéneos,
+otra para el `FramePlan` heterogéneo). La unificación está hecha: la clasificación de rachas vive en
+el dominio (`graphics::blob_run_from`/`blob_run_continues`/`blob_run_same`, `blitter_state.hpp`,
+HOST-451) y la usan **las dos vías de ejecución del plan** — síncrona y async:
+
+- **`execute_frame_plan` (CPU)**: agrupa los jobs consecutivos que comparten el lote de estado fijo
+  (`BlobOp` + `BLTSIZE` + módulos; cookie-cut `$CA`, clear `$00` u OR `$FC` interleaved de un canal)
+  y los ejecuta con `BlobBatch` (estado programado una vez; por objeto, punteros + `shift` +
+  `BLTSIZE`). El resto de jobs van por el encoder genérico.
+- **Feeder async (IRQ)**: al cruzar una racha, `frame_plan_async_step` arranca el lote
+  (`begin` + primer objeto) y cada IRQ de fin de blit escribe **solo el objeto siguiente**
+  (`one()`), sin re-codificar registros en la ISR. Contador de diagnóstico:
+  `AmigaBackend::blit_async_runs()`.
+- **La caché de estado común de `submit_blit_job` está desactivada por job a propósito** (bug 1 de
+  066: sus valores pueden ser de otro dueño — el SO comparte el Blitter; ver
+  `docs/debugging/investigaciones/066-async-blit-irq-bajo-el-so.md`). Por eso la única vía para
+  omitir las ~8 escrituras de estado por objeto es ejecutar una **racha** (`BlobBatch`), no un job
+  suelto.
+- **Equivalencia**: una racha escribe por objeto los **mismos registros efectivos** que el encoder
+  (HOST-451, incluidas las ventanas `AFWM/ALWM` del OR); en emulador, los frames deterministas de
+  la 213 (`f0020..f0024`, plan síncrono) son **byte-idénticos** (SHA256) antes y después del cambio.
 
 ### 6.1 Cuánto ahorra el modo asíncrono (medido, demo 213)
 
@@ -165,8 +183,9 @@ CPU: ver las claves.
 Claves del A/B:
 
 - **El async elimina la espera del hilo principal** (sección `present` de ~130 k a ~4 k ciclos) y
-  encadena cadenas **heterogéneas** sin código extra: el feeder usa `blitter_submit` por job, y la
-  caché de estado común del backend omite las reprogramaciones dentro de cada racha.
+  encadena cadenas **heterogéneas** sin código extra: el feeder usa `blitter_submit` por job
+  (encoder genérico) y, en rachas homogéneas, la ejecución por lote (`blit_async_runs()` ≥ 1 por
+  frame en la 213; `blit_async_ends()` == frames y `chain_done` ≈ frames con los avisos).
 - **El async no acelera el frame si el trabajo de CPU es gordo**: al solapar CPU y Blitter, el **bus
   compartido** hace que el 68000 pierda slots y el `render` se infle (~153 k → ~700 k ciclos en
   `-O0`). El resultado neto empeora (24,96 → 22,51 fps en debug; 28,55 → 25,21 en release). El solape
@@ -175,7 +194,9 @@ Claves del A/B:
   mucha CPU-pesada entre frames o cuando el siguiente job lo dispara el **Copper** (sin competir).
 - **Corrección de ciclo de vida**: la cadena retiene el `FramePlan`; el motor espera su fin y hace el
   `commit` al **inicio del frame siguiente** (`App::begin_async_frame`), de modo que el frame mostrado
-  está completo (sin tearing) y el plan no se reutiliza con la cadena viva.
+  está completo (sin tearing) y el plan no se reutiliza con la cadena viva. En la 213 (bitmap único,
+  sin swap) una captura a mitad de cadena puede verse parcial: es la naturaleza del dibujado
+  asíncrono sobre un solo buffer, no un fallo de la cadena.
 - **El slot de la IRQ de blit es exclusivo**: el bucle por defecto instala el servicio de fondo
   (`BackgroundBlitterService`, `engine.hpp`) y, si no se libera, el modo async **falla en silencio**
   y cae al camino síncrono. `App::set_async_present(true)` desactiva ese servicio del engine
@@ -183,9 +204,11 @@ Claves del A/B:
 
 **Avisos de la cadena (tickets).** El plan admite **marcas de aviso** (`FramePlan::add_notify`,
 expuestas por `Screen::notify`): cada una lleva un `ticket` y dispara cuando han terminado los
-trabajos encolados **hasta su declaración**. La IRQ de fin de blit las publica como
-`MsgType::IntentDone` con el `ticket` en `payload.user.a`, y el juego los drena en su `update`. Un
-aviso al final de la ristra se declara tras el último `sprite`/`clear_box`:
+trabajos encolados **hasta su declaración**. Se publican como `MsgType::IntentDone` con el `ticket`
+en `payload.user.a`, y el juego los drena en su `update`; el contrato no depende del modo de
+present: en **async** los dispara la IRQ de fin de blit al cruzar el punto, y en **síncrono** los
+publica el `present` al cerrar la cadena (el `execute_frame_plan` espera al último blit). Un aviso al
+final de la ristra se declara tras el último `sprite`/`clear_box`:
 
 ```cpp
 auto s = app.screen();
@@ -198,6 +221,21 @@ app.present();                 // async: la IRQ encadena y publica IntentDone al
 Verificado de punta a punta en la 213 (`A500_k_async_present1_*`): un aviso por frame, contado en
 `update` (`IntentDone` con `kChainTicket`), ≈ frames mostrados. Con `ReorderPolicy::GroupByState` los
 avisos inmovilizan el orden (la agrupación no debe mover sus puntos).
+
+**A/B de las rachas (2026-10-16, A500, 213 con `-DK_STREAM_BOBS=0`).** `blob_run_from` compartido en
+ambas vías (mismo binario reconstruido con/sin el cambio):
+
+| Config (debug) | antes | después |
+|---|---|---|
+| `K_ASYNC_PRESENT=1` (plan + IRQ) | 26,53 fps (1,885 campos) | **27,58 fps (1,813 campos)** |
+| `K_ASYNC_PRESENT=0` (plan + CPU) | 33,05 fps / 214 656 ciclos-f | 32,2–32,3 fps / 219 500 ciclos-f |
+
+Lectura honesta: el **async mejora ~4 %** (menos escrituras de registros por objeto dentro de la
+ISR). En el síncrono el perfil (`profile.mjs`) da **+0,4 % de ciclos ocupados** (y +0,47 k en una
+sección cuyo código no cambió: parte es colocación de código), mientras que `measure-fps` muestra
++2,4 % de ciclos **de pared**: la demo está **justo en el umbral de 1,5 campos** (1,513 → 1,55), así
+que el delta de pared lo domina la cuantización de VBlank, no el trabajo por frame. La equivalencia
+visual en esa vía es **byte a byte** (SHA256 de `f0020..f0024` idénticos antes/después).
 
 Implicación para el modo asíncrono: es el **método opt-in de la fachada** con un contrato claro
 (cadena transparente + avisos por Id). El síncrono sigue siendo el defecto de baja latencia cuando el

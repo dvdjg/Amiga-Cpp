@@ -405,10 +405,11 @@ struct AbyssDemo {
 #endif
 		ENG_PROF_END(kProfRender);
 		ENG_PROF_BEGIN(kProfPresent);
-		// **Aviso de fin de ristra** (solo async): pide que la IRQ publique `IntentDone` con
-		// `kChainTicket` cuando terminen TODOS los trabajos encolados (clear + 16 BOBs). Es la
-		// petición de aviso intermedia que describe `BLITTER_INTENT_QUEUE.md` §6: un Id por
-		// barrera, sin sondeo. En modo síncrono `notify` no tiene efecto (nadie lo lee).
+		// **Aviso de fin de ristra**: pide que se publique `IntentDone` con `kChainTicket` cuando
+		// terminen TODOS los trabajos encolados (clear + 16 BOBs). Es la petición de aviso
+		// intermedia que describe `BLITTER_INTENT_QUEUE.md` §6: un Id por barrera, sin sondeo.
+		// La IRQ de fin de blit lo dispara en modo async; el `present` síncrono lo publica al
+		// cerrar la cadena (el contrato del ticket no depende del modo de present).
 		if constexpr (K_ASYNC_PRESENT != 0) {
 			(void)app.screen().notify(kChainTicket);
 		}

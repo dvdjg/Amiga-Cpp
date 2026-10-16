@@ -169,6 +169,20 @@ mismo estado fijo (módulos, alto, ancho y minterm) y los ejecuta con `BlobBatch
 por job; invalida la caché de estado común al terminar (escribió registros directamente). Además se
 eliminó la espera redundante por plano en `bitplane_count == 1`.
 
+**Estado — clasificación de rachas compartida y rachas async (2026-10).** La detección de rachas ya
+no vive en dos funciones ad-hoc del backend: la clasificación es de **dominio**
+(`graphics::blob_run_from`/`blob_run_continues`/`blob_run_same`, `blitter_state.hpp`) y cubre
+cookie-cut (`$CA`), clear (`$00`) y **OR** (`$FC`) interleaved de un canal. La usan las **dos** vías
+del plan: `execute_frame_plan` (CPU) y el feeder async por IRQ de blit
+(`execute_frame_plan_async`/`frame_plan_async_step`), que arranca una racha con `BlobBatch::begin`
+y encadena cada objeto con `one()` (los registros comunes se programan una sola vez también en la
+ISR). Contadores de diagnóstico: `blit_async_runs()`. Equivalencia verificada con HOST-451
+(registros por objeto == `blitter_job_from`) y, en emulador, con captura determinista por frame:
+los frames `f0020..f0024` de `A500_k_async_present0_k_stream_bobs0_debug` son **idénticos byte a
+byte** (SHA256) antes y después del cambio. Avisos de la cadena (`Screen::notify`): en modo async
+los dispara la IRQ al cruzar el punto; en modo síncrono los publica el `present` al cerrar la
+cadena (mismo contrato de ticket). Detalle y A/B: `BLITTER_INTENT_QUEUE.md` §6.
+
 La **reordenación** de los trabajos del frame es ahora **explícita** (`graphics::ReorderPolicy` en
 `frame_plan.hpp`): por defecto `PreserveOrder` respeta el orden de emisión; `GroupByState` —que el
 juego declara con `set_reorder_policy`— habilita `sort_by_state()` y **obliga al llamador a
@@ -206,8 +220,9 @@ debería devolver la demo a 1 campo. Verificación A/B pendiente: mover los 16 B
 9,4 %) junto a la evidencia de `OrBlobBatch` en BOBS3D (`blits` 231,7k → 202,5k) para medir la ruta
 cookie-cut/clear de la demo 086. Primero separar arranques, escrituras de estado y espera; solo
 después decidir si se agrupan operaciones del mismo BOB o se parametriza el lote lógico. La prueba
-debe comparar píxeles y cantidad de arranques; no generalizar `OrBlobBatch` a minterms distintos sin
-esa medición.
+debe comparar píxeles y cantidad de arranques. La generalización del lote a OR/async ya se hizo
+**con** esa medición (HOST-451 + SHA256 por frame + A/B: `BLITTER_INTENT_QUEUE.md` §6); extenderlo a
+más operaciones (copias multi-plano, fills) sigue sujeto al mismo gate.
 
 ## Línea de trabajo: Copper en el hotpath
 

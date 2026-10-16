@@ -320,3 +320,21 @@ bucle (`for (u16 i = 0; i < u16(w) * h; ++i)`): con `w*h > 65535` el índice des
 no termina (el dump de `map.ppm` de 320×224=71680 px cuelga si algún día se conecta por ese
 camino; hoy el mapa se escribe con bucles de fila y no lo toca). `HOST-448` usa `u32` en su
 copia del helper (funcionó y se detectó ahí). **Arreglo:** cambiar el índice a `u32` en 442.
+
+## DT-020 · `cast-audit --check` en rojo sobre HEAD (baseline desactualizado)
+
+`node tools/analyze/cast-audit.mjs --check` falla en HEAD sin cambios locales:
+`field/surface.hpp` tiene 51 `static_cast` (baseline 35) y `graphics/planar_band.hpp` 3
+`reinterpret+const` (baseline 0). Son ficheros **no tocados** por el hilo de rachas de Blitter
+(2026-10-16): o el baseline quedó corto tras cambios previos, o hay casts reales que migrar a
+tipos. Acción: revisar cada cast nuevo (¿frontera documentada o tipo mejorable?) y actualizar
+`tools/check/casts-baseline.txt` solo con los aceptados. Afecta a la pasada completa de
+`tools/run-host-tests.sh`.
+
+## DT-021 · Demo 213: `A500_release` no alcanza READY (init, reserva Chip)
+
+`A500_release` de la 213 falla en init con `detail=0x06CBF005` (`mark_mem_failed` del grupo
+sprite/música, banco Chip con ~191 KB libres). Reproducible en el engine sin los cambios del
+turno. Detalle y evidencia: `docs/debugging/investigaciones/213_release-strict-aliasing.md`
+§Reapertura. Acción: comparar el orden/​tamaño de reservas debug vs release y el presupuesto de
+Chip del perfil.
