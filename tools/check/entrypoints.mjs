@@ -85,14 +85,45 @@ const AGENTS_SECTIONS = [
 	'## 4.',
 	'## 5. Cierre de turno',
 ];
-{
-	const agentsPath = path.join(ROOT, 'AGENTS.md');
-	if (fs.existsSync(agentsPath)) {
-		const agents = fs.readFileSync(agentsPath, 'utf8');
-		for (const section of AGENTS_SECTIONS) {
-			if (!agents.includes(section)) {
-				problems.push(`AGENTS.md: falta la seccion "${section}" (truncado o edicion incompleta)`);
-			}
+
+// Mapa documento de arranque -> secciones minimas. Un truncado de cualquiera de ellos
+// (el fallo real de AGENTS.md, 2026-10-16: 104/272 lineas) debe fallar aqui.
+const REQUIRED_SECTIONS = new Map([
+	['AGENTS.md', AGENTS_SECTIONS],
+	['docs/ai-dev-environment/DOC-MAP-PRINCIPAL.md', [
+		'## 1. Protocolo previo a cualquier tarea',
+		'## 2. Lectura contextual',
+		'## 3. Tabla de tareas',
+		'## 4. Efectos demoscene',
+		'## 5. Referencia oficial de hardware',
+		'## 6. Protocolo de ingesta',
+		'## 7. Enlaces r',
+		'## 8. Herramientas y rutas operativas',
+	]],
+	['docs/guides/methodology/PROCEDIMIENTO_DEMOS_Y_JUEGOS.md', [
+		'## 0. Documentos can',
+		'## 1. Presupuesto de la m',
+		'## 2. Fases y puertas',
+		'## 3. Reglas duras',
+		'## 4. Errores del engine',
+		'## 5. Checklist',
+	]],
+	['docs/CONTINUATION_CONTEXT.md', [
+		'## Estado vigente',
+		'## Operaci',
+		'## Restricciones permanentes',
+	]],
+]);
+for (const [doc, sections] of REQUIRED_SECTIONS) {
+	const full = path.join(ROOT, doc);
+	if (!fs.existsSync(full)) {
+		problems.push(`${doc}: no existe (documento de arranque)`);
+		continue;
+	}
+	const text = fs.readFileSync(full, 'utf8');
+	for (const section of sections) {
+		if (!text.includes(section)) {
+			problems.push(`${doc}: falta la seccion "${section}" (truncado o edicion incompleta)`);
 		}
 	}
 }
