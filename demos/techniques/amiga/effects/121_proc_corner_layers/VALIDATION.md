@@ -27,11 +27,11 @@ bajo las copas**.
   `flicker-baseline.json` con `max_candidates: 0`).
 - `node tools/debug/measure-fps.mjs 121_proc_corner_layers A500_debug --json` → **3/3 pasadas
   limpias: 47,67 fps / 1,049 campos/frame / 148.798 ciclos/frame** (955 frames, 20 s;
-  `detail` = actor x | dir, p. ej. `0xffff00c6` = x=198, dir=−1). El plan del frame va en
-  **dos** `execute_frame_plan` (restaurador y actor separados, mitigación de DT-022) y la
-  guarda de render relee un píxel por frame; frente al plan único (142 k) el split cuesta
-  ~6,7 k ciclos/frame (≈3 líneas), dentro del presupuesto de frame (199 k), con frames
-  ocasionales a 2 campos.
+  `detail` = actor x | dir, p. ej. `0xffff00c6` = x=198, dir=−1). El plan del frame es **uno solo** (restaurador +
+  actor; el flake del plano 0 quedó resuelto en el motor por el contrato de espera por job,
+  `blitter-busy-writes.md`) y la guarda de render relee un píxel por frame. Verificación de la
+  vuelta al plan único: **7/7 arranques limpios** con telemetría viva; medida estable frente a
+  los dos planes (el coste era la espera, no trabajo extra).
 - **Presupuesto por elemento**: por frame solo hay (a) restaurador de **ventana de 2
   palabras** × 16 filas × 5 planos desde el fondo del carril, (b) actor (16 bandas de
   subpíxel precomputadas; 2 palabras × 16 filas × 5 planos enmascarados con

@@ -454,6 +454,9 @@ struct ProcStructuresDemo {
 	u16* m_bands = nullptr;   // kTile bandas de kActorBandWords
 	u16* m_mask = nullptr;    // kActorWords*kActorRows palabras
 	u16* m_lane_bg = nullptr; // kLaneBandWords
+#if defined(K121_GOLDEN_ACTORS)
+	u16* m_gmask = nullptr; // 16 máscaras (golden): kTile slots de kActorWords*kActorRows
+#endif
 	u16 m_actor_x = kActorMinX;
 	u16 m_restore_x = kActorMinX; // ventana alineada del actor del frame anterior
 	s16 m_dir = 1;
@@ -473,7 +476,13 @@ struct ProcStructuresDemo {
 		}
 		m_scratch = backend.memory_manager().chip().reserve<eng::PlaneTag>(
 			eng::u32(kTile) * kActorBandWords * 2u +
-				eng::u32(kActorWords * kActorRows) * 2u + kLaneBandWords * 2u + 8u,
+				eng::u32(kActorWords * kActorRows) * 2u + kLaneBandWords * 2u + 8u
+#if defined(K121_GOLDEN_ACTORS)
+				// Golden: una máscara por subposición (los 16 dibujos del plan se
+				// ejecutan tras el bucle; compartir `m_mask` usaría la de la última).
+				+ eng::u32(kTile * kActorWords * kActorRows) * 2u
+#endif
+			,
 			16u);	if (!m_scratch.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012102u);
 			return;
@@ -489,6 +498,9 @@ struct ProcStructuresDemo {
 				kActorPixels, sh, m_bands + eng::u32(sh) * kActorBandWords, m_mask);
 		}
 		build_lane_background();
+#if defined(K121_GOLDEN_ACTORS)
+		m_gmask = m_lane_bg + kLaneBandWords; // 16 slots de máscara (ver reserve)
+#endif
 
 		// Config del motor de tiles: mapa cocido, banco indexado, cámara fija (no hay
 		// llamadas a `update`), campo 320×208 + HUD de 1 bitplane.
@@ -658,14 +670,27 @@ struct ProcStructuresDemo {
 			plan.set_blit_budget_limits({8192, 32768, 32, 400});
 			for (u8 k = 0u; k < 16u; ++k) {
 				m_actor_x = u16(cols[k] * 16u + k);
-				patch_actor();
+				// Máscara propia del slot k (los 16 dibujos se ejecutan juntos: cada uno
+				// necesita la suya; `patch_actor` comparte `m_mask` y no sirve aquí).
+				u16* const gm = m_gmask + eng::u32(k) * (kActorWords * kActorRows);
+				{
+					const u16 wx = u16(m_actor_x >> 4u);
+					const u16* const am = kWorld.actor_mask[k];
+					for (u16 r = 0u; r < kActorRows; ++r) {
+						const u16* const cm = &kWorld.canopy_mask[kActorY + r][wx];
+						gm[eng::u32(r) * 2u + 0u] =
+							u16(am[eng::u32(r) * 2u + 0u] & u16(~cm[0u]));
+						gm[eng::u32(r) * 2u + 1u] =
+							u16(am[eng::u32(r) * 2u + 1u] & u16(~cm[1u]));
+					}
+				}
 				if (!scene.bg().add_world_bitmap_masked(
 					    plan,
 					    eng::Span<const eng::u16> {
 						    m_bands + eng::u32(k) * kActorBandWords,
 						    kActorBandWords},
-					    eng::Span<const eng::u16> {m_mask,
-								       kActorWords * kActorRows},
+					    eng::Span<const eng::u16> {
+						    gm, eng::u32(kActorWords) * kActorRows},
 					    s32(cols[k] * 16u), s32(kActorY) + s32(kRingGuardY), 32u,
 					    kActorRows, 4u, kActorRows * 4u, kPlanes)) {
 					eng::debug::mark_failed(g_eng_run_status, 0x00012120u);
@@ -723,11 +748,13 @@ struct ProcStructuresDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012110u);
 			return;
 		}
-		// El restaurador se EJECUTA antes de encolar el actor: se ha observado pérdida
-		// intermitente del plano 0 del actor al encadenar copias (CopyRect) y el lote
-		// cookie-cut (BlobBatch) en el MISMO plan; separarlos en dos planes ejecutados
-		// elimina la interacción (cada `execute_frame_plan` espera al último blit).
-#if !defined(K121_SINGLE_PLAN) // EXPERIMENTO TEMPORAL (out/tmp): plan único para el A/B del fix
+		// **Plan único por frame** (restaurador + actor en el MISMO `FramePlan`): la
+		// pérdida intermitente del plano 0 que obligaba a separarlos quedó resuelta en el
+		// motor por el contrato de espera por job (`blitter-busy-writes.md`; escribir
+		// BLTSIZE con un blit activo lo pierde). Verificado 5/5 arranques con telemetría
+		// viva y medidas estables (47,67 fps / 148,8k ciclos, igual que con dos planes).
+		// `K121_TWO_PLAN_SPLIT` conserva el camino separado para el A/B.
+#if defined(K121_TWO_PLAN_SPLIT)
 		if (!backend.execute_frame_plan(plan)) {
 			m_ready = false;
 			eng::debug::mark_failed(g_eng_run_status, 0x00012113u);

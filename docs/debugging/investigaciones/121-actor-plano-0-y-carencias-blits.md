@@ -79,6 +79,13 @@ Con la mitigación: **3/3 medidas limpias a 47.67 fps (1.049 campos/frame)** —
 4. **Emisor de restauración por ventana** y **emisor con oclusión** en el playfield (los dos patrones de la demo que hoy van a mano).
 5. **Arreglar las herramientas**: `--config` real, captura esperando `wait_blitter`/frame completo, y handshake MCP con la config del repo (revisar el diálogo «WinUAE message»).
 
+## Estado final (2026-10-16)
+
+- **Causa raíz (motor)**: escribir registros del Blitter (BLTSIZE) con un blit activo lo reinicia/pierde — documentado con `fichero:línea` en `docs/reference/emulators/winuae/blitter-busy-writes.md` y corregido con el contrato de espera por job (commit `052f17e4`).
+- **Demo 121**: vuelta al **plan único** verificada 7/7 arranques limpios (47,67 fps); la sonda, la guarda, el validador de anillo y el emisor de ventana quedan como herramientas permanentes de la demo.
+- **Banco golden**: el modo `K121_GOLDEN_ACTORS` + `tools/analyze/verify-121-actor-golden.mjs` compara 16 subposiciones contra un oráculo JS independiente. Con máscara propia por slot (bug del propio golden corregido: los 16 dibujos del plan compartían `m_mask`): **10/16 exactas**; persisten 6 (cols 0/3/4/6/7/9, una parcial) y ~127 px de daño colateral en x≈105 — anomalía residual abierta con banco listo para reproducir y validar el fix.
+- **Herramientas**: `--config` funciona (escribe en `out/run/<demo>/<CONFIG_ID>/`); step-capture sirve estado previo al dibujo (no usar para validar render); capturas simples + telemetría + golden son las vías fiables.
+
 ## Enlaces
 
 - Demo: `demos/techniques/amiga/effects/121_proc_corner_layers/` (`VALIDATION.md` con las medidas y el informe de visión).
