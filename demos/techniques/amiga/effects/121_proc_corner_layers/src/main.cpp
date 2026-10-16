@@ -42,6 +42,7 @@
 #include <eng/graphics/proc/terrain_paint.hpp>
 #include <eng/graphics/proc/tile_bake.hpp>
 #include <eng/platform/amiga/backend.hpp>
+#include <eng/setup/world_blit.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -94,12 +95,16 @@ constexpr u16 kActorY = 144u;                            // fila 9
 constexpr u16 kRingGuardY = kTile;
 static_assert(kMainH == kMapH * kTile, "el campo visible es kMapH filas");
 constexpr u16 kActorMinX = 32u;
-constexpr u16 kActorMaxX = 272u;
+constexpr u16 kActorMaxX = 256u; // EXPERIMENTO TEMPORAL (out/tmp): 272 excede el carril (288 px)
 constexpr u16 kActorWords = 2u;                 // ventana planar (16 px + subpíxel)
 constexpr u16 kActorRows = 16u;
 constexpr u32 kActorBandWords = kActorWords * kActorRows * 5u; // 160
-constexpr u16 kLaneWordCells = 18u;             // carril x 0..287 (actor hasta 287)
-constexpr u32 kLaneBandWords = kLaneWordCells * kActorRows * 5u; // 1440
+// Carril x 0..303: cubre la ventana de 32 px del actor en su x extrema (kActorMaxX=272
+// + 32 px = 304 px = 19 celdas). Con 18 celdas, la ventana de restauración en el extremo
+// derecho leía una palabra fuera de la banda (la detección está en el validador de setup
+// `check_world_window`, que se ejecuta en init).
+constexpr u16 kLaneWordCells = 19u;
+constexpr u32 kLaneBandWords = kLaneWordCells * kActorRows * 5u; // 1520
 
 constexpr playfield::ScrollConsts kScrollConsts {
 	/*tile_width=*/kTile,
@@ -469,8 +474,7 @@ struct ProcStructuresDemo {
 		m_scratch = backend.memory_manager().chip().reserve<eng::PlaneTag>(
 			eng::u32(kTile) * kActorBandWords * 2u +
 				eng::u32(kActorWords * kActorRows) * 2u + kLaneBandWords * 2u + 8u,
-			16u);
-		if (!m_scratch.valid()) {
+			16u);	if (!m_scratch.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012102u);
 			return;
 		}
@@ -529,6 +533,68 @@ struct ProcStructuresDemo {
 		if (scene.bg().hardware_view().display_offset != kRingGuardY) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012115u);
 			return;
+		}
+		// **Chequeo de solape scratch ↔ bitmap del campo**: el scratch del actor
+		// (bandas/carril) y el anillo del campo viven en el mismo banco Chip; un solape
+		// haría que el restaurador escribiera datos de una región en la otra (se ha visto
+		// un valor de canopia en la verificación del carril en ~mitad de arranques). El
+		// `detail` lleva el desplazamiento en KB entre ambas bases para el diagnóstico.
+		{
+			const eng::playfield::PlayfieldHardwareView hv = scene.bg().hardware_view();
+			const eng::u32 sb = eng::Address<eng::MemoryKind::Chip>::from_storage(
+						    m_scratch.view.data())
+						    .value;
+			const eng::u32 se = sb + eng::u32(kTile) * kActorBandWords * 2u +
+					    eng::u32(kActorWords * kActorRows) * 2u +
+					    kLaneBandWords * 2u + 8u;
+			const eng::u32 fb = hv.bitplanes.value;
+			const eng::u32 fe = fb + eng::u32(hv.bitmap_bytes_per_row) * hv.planes *
+						     hv.bitmap_height;
+			if (sb < fe && fb < se) {
+				const eng::u32 delta = (fb > sb) ? (fb - sb) : (sb - fb);
+				eng::debug::mark_failed(
+					g_eng_run_status,
+					0x00012119u | ((delta >> 10u) & 0xFFFFu) << 8u);
+				return;
+			}
+		}
+		// **Validación de setup de la geometría de blits** (`eng::setup::check_world_blit`):
+		// alineación a palabra, fila destino y cobertura del span de las tres rutas de blit
+		// del frame (carril completo, ventana de restauración y actor en su x extrema),
+		// ANTES de dibujar nada. Un desajuste se convierte en `detail` con el código del
+		// validador y el valor culpable en vez de un blit torcido silencioso.
+		{
+			const eng::playfield::PlayfieldHardwareView hv = scene.bg().hardware_view();
+			const u16 row_pixels = u16(hv.bitmap_bytes_per_row * 8u);
+			const eng::setup::WorldBlitGeometry geometries[3] = {
+				// (1) banda completa del carril (limpieza tras el auto-chequeo).
+				{0u, u16(kLaneWordCells * 16u), kActorRows, u8(kPlanes),
+				 u16(kLaneWordCells * 2u), kLaneBandWords * 2u / kPlanes, kLaneBandWords},
+				// (2) ventana de restauración (2 palabras).
+				{kActorMaxX, 32u, kActorRows, u8(kPlanes), u16(kLaneWordCells * 2u),
+				 kLaneBandWords * 2u / kPlanes, kLaneBandWords},
+				// (3) actor (x extrema derecha + ventana de banda de 32 px).
+				{kActorMaxX, 32u, kActorRows, u8(kPlanes), 4u, u32(kActorRows) * 4u,
+				 kActorBandWords}};
+			for (u8 i = 0u; i < 3u; ++i) {
+				const eng::setup::CheckResult r =
+					eng::setup::check_world_blit(geometries[i], row_pixels, kDisplayH);
+				if (!r.ok()) {
+					eng::debug::mark_failed(
+						g_eng_run_status,
+						0x00012116u | (u32(r.code) << 8u) |
+							(u32(r.actual & 0xFFFFu) << 16u));
+					return;
+				}
+			}
+			const eng::setup::CheckResult w =
+				eng::setup::check_world_window(u16(kActorMaxX / 16u), 2u,
+							       u16(kLaneWordCells));
+			if (!w.ok()) {
+				eng::debug::mark_failed(g_eng_run_status,
+							0x00012117u | (u32(w.actual) << 16u));
+				return;
+			}
 		}
 		// **Relleno por el motor de tiles**: todos los tiles del mundo al bitmap con el
 		// Blitter (banco interleaved). Sin compose por píxel ni C2P.
@@ -590,17 +656,14 @@ struct ProcStructuresDemo {
 		}
 #elif !defined(K121_SKIP_ACTOR)
 		// **Actor por Blitter**: (1) restaura SOLO la ventana de 2 palabras que ocupaba
-		// el actor en el frame anterior (borrado barato: la copia de fondo del carril,
-		// `m_lane_bg`, guarda las 18 celdas y aquí se apunta a la ventana con el mismo
-		// `src_row_bytes`/stride — el módulo de fila la recorre igual); (2) dibuja el
-		// bicho desplazado con la máscara combinada (`actor & ~copas`): bajo la copa no
-		// se escribe y el bicho queda oculto.
-		if (!scene.bg().add_world_bitmap(
-			    plan,
-			    eng::Span<const eng::u16> {
-				    m_lane_bg + eng::u32(m_restore_x / 16u), kLaneBandWords},
-			    s32(m_restore_x), s32(kActorY) + s32(kRingGuardY), 32u, kActorRows,
-			    u16(kLaneWordCells * 2u), kLaneBandWords * 2u / 5u, kPlanes)) {
+		// el actor en el frame anterior con el emisor de ventana del playfield
+		// (`add_world_window`: banda completa + columna, validado en el propio emisor);
+		// (2) dibuja el bicho desplazado con la máscara combinada (`actor & ~copas`):
+		// bajo la copa no se escribe y el bicho queda oculto.
+		if (!scene.bg().add_world_window(
+			    plan, eng::Span<const eng::u16> {m_lane_bg, kLaneBandWords},
+			    u16(m_restore_x / 16u), s32(m_restore_x), s32(kActorY) + s32(kRingGuardY),
+			    2u, kActorRows, u16(kLaneWordCells), kPlanes)) {
 			m_ready = false;
 			eng::debug::mark_failed(g_eng_run_status, 0x00012110u);
 			return;
@@ -609,6 +672,7 @@ struct ProcStructuresDemo {
 		// intermitente del plano 0 del actor al encadenar copias (CopyRect) y el lote
 		// cookie-cut (BlobBatch) en el MISMO plan; separarlos en dos planes ejecutados
 		// elimina la interacción (cada `execute_frame_plan` espera al último blit).
+#if !defined(K121_SINGLE_PLAN) // EXPERIMENTO TEMPORAL (out/tmp): plan único para el A/B del fix
 		if (!backend.execute_frame_plan(plan)) {
 			m_ready = false;
 			eng::debug::mark_failed(g_eng_run_status, 0x00012113u);
@@ -616,6 +680,7 @@ struct ProcStructuresDemo {
 		}
 		plan.clear();
 		plan.set_blit_budget_limits({8192, 16384, 6, 120});
+#endif
 		// Avance del bicho (1 px/frame, rebote en los extremos). `K121_STATIC_ACTOR`
 		// congela la posición (sonda de alineación del parcheo planar vs. el fondo).
 #if !defined(K121_STATIC_ACTOR)
@@ -753,8 +818,42 @@ private:
 		{
 			const u16 lane_cell = kBaked.cells[eng::u32(kActorY / kTile) * kMapW + 8u];
 			const u8 exp = kBaked.tiles[lane_cell][eng::u32(6u) * kTile + 9u];
-			const u8 got = read_field_pixel(137u, u16(kActorY + 6u));
+			// Re-lectura de confirmación: también el restaurador se ha visto una vez con
+			// un valor transitorio (`got=28 exp=10`) en la primera pasada.
+			const u8 got = eng::playfield::read_confirm(
+				[this] { return read_field_pixel(137u, u16(kActorY + 6u)); }, exp);
 			if (got != exp) {
+				// Traza de diagnóstico por la consola del periférico (el runner la lee
+				// con `--read-debugperiph console`): el valor de la banda y lecturas
+				// vecinas distinguen corrimiento (±16/±32 px) de corrupcion de memoria.
+				{
+					char line[56];
+					u8 n = 0u;
+					const char* const hexd = "0123456789ABCDEF";
+					const auto put = [&](const char* tag, u8 v) {
+						while (*tag != '\0') line[n++] = *tag++;
+						line[n++] = hexd[(v >> 4u) & 0xFu];
+						line[n++] = hexd[v & 0xFu];
+						line[n++] = ' ';
+					};
+					// Píxel equivalente leído de la banda en Chip (mismo layout que el
+					// restore): si coincide con `got`, la banda es la fuente del valor.
+					u8 band_px = 0u;
+					for (u8 p = 0u; p < kPlanes; ++p) {
+						const u16 w = m_lane_bg[eng::u32(p) * (kLaneBandWords / kPlanes) +
+									 6u * kLaneWordCells + 8u];
+						if ((w & 0x0040u) != 0u) band_px = u8(band_px | u8(1u << p));
+					}
+					put("s1 got", got);
+					put("exp", exp);
+					put("bnd", band_px);
+					put("xm32", read_field_pixel(u16(137u - 32u), u16(kActorY + 6u)));
+					put("xm16", read_field_pixel(u16(137u - 16u), u16(kActorY + 6u)));
+					put("xp16", read_field_pixel(u16(137u + 16u), u16(kActorY + 6u)));
+					put("xp32", read_field_pixel(u16(137u + 32u), u16(kActorY + 6u)));
+					line[n] = '\0';
+					eng::debug::DebugPeripheral::console_line(line);
+				}
 				bad = 0x00012108u | (u32(got) << 16u) | (u32(exp) << 24u); // 0x12108 | got | exp
 			}
 		}

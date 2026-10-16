@@ -16,6 +16,7 @@
 #include <cstdio>
 
 #include <eng/setup/coherence.hpp>
+#include <eng/setup/world_blit.hpp>
 
 namespace {
 
@@ -249,6 +250,60 @@ void test_sprite_line_hpos() {
 	CHECK(eng::setup::check_sprite_line_hpos(100u).expected == 157u);
 }
 
+// ---------------------------------------------------------------------------
+//  Blits de mundo: geometría del anillo y ventanas de restauración (demo 121)
+// ---------------------------------------------------------------------------
+
+void test_world_blit() {
+	std::printf("-- blits de mundo: alineacion, fila, bucle del anillo, span y ventana\n");
+
+	// Línea del anillo: la ventana visible empieza en display_offset y envuelve.
+	CHECK(eng::setup::ring_line_for_visible(16u, 0u, 288u) == 16u);
+	CHECK(eng::setup::ring_line_for_visible(16u, 143u, 288u) == 159u);
+	CHECK(eng::setup::ring_line_for_visible(16u, 272u, 288u) == 0u);   // 288 % 288
+	CHECK(eng::setup::ring_line_for_visible(16u, 279u, 288u) == 7u);
+	CHECK(eng::setup::ring_line_for_visible(16u, 5u, 0u) == 16u);      // sin anillo
+
+	// Actor de la 121: x=272 (extrema), 32 px, 16 filas, 5 planos, banda de 160 palabras.
+	eng::setup::WorldBlitGeometry actor {272u, 32u, 16u, 5u, 4u, 64u, 160u};
+	CHECK(actor.need_words() == 4u * 32u + 15u * 2u + 2u);
+	CHECK(eng::setup::check_world_blit(actor, 352u, 288u).ok());
+
+	// El fallo real: la ventana en x=272 con el carril de 18 celdas se salía de la banda
+	// (la corrección fue subir el carril a 19 celdas = 304 px).
+	CHECK(eng::setup::check_world_window(17u, 2u, 18u).code == 6u);
+	CHECK(eng::setup::check_world_window(17u, 2u, 18u).actual == 19u);
+	CHECK(eng::setup::check_world_window(17u, 2u, 19u).ok());
+	CHECK(eng::setup::check_world_window(0u, 2u, 19u).ok());
+	CHECK(eng::setup::check_world_window(18u, 1u, 19u).ok());
+	CHECK(eng::setup::check_world_window(19u, 1u, 19u).code == 6u);
+	CHECK(eng::setup::check_world_window(5u, 0u, 19u).code == 6u);
+
+	// x desalineado a 16.
+	eng::setup::WorldBlitGeometry misaligned = actor;
+	misaligned.x = 264u;
+	CHECK(eng::setup::check_world_blit(misaligned).code == 1u);
+	// Ancho no múltiplo de 16.
+	eng::setup::WorldBlitGeometry badw = actor;
+	badw.w = 20u;
+	CHECK(eng::setup::check_world_blit(badw).code == 2u);
+	// Alto 0 o mayor que el bucle del anillo.
+	eng::setup::WorldBlitGeometry badh = actor;
+	badh.h = 0u;
+	CHECK(eng::setup::check_world_blit(badh).code == 3u);
+	badh.h = 300u;
+	CHECK(eng::setup::check_world_blit(badh, 0u, 288u).code == 3u);
+	// Excede la fila destino (x+w = 304 > 300).
+	CHECK(eng::setup::check_world_blit(actor, 300u, 288u).code == 4u);
+	CHECK(eng::setup::check_world_blit(actor, 300u, 288u).actual == 304u);
+	CHECK(eng::setup::check_world_blit(actor, 304u, 288u).ok()); // justo en el limite
+	// Span insuficiente (una palabra menos).
+	eng::setup::WorldBlitGeometry badspan = actor;
+	badspan.span_words = actor.need_words() - 1u;
+	CHECK(eng::setup::check_world_blit(badspan).code == 5u);
+	CHECK(eng::setup::check_world_blit(badspan).expected == actor.need_words());
+}
+
 } // namespace
 
 int main() {
@@ -261,6 +316,7 @@ int main() {
 	test_bob_plan();
 	test_sprite_line_data();
 	test_sprite_line_hpos();
+	test_world_blit();
 
 	if (g_fail == 0) {
 		std::printf("OK: validadores de coherencia verificados con los fallos historicos.\n");

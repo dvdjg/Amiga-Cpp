@@ -50,7 +50,7 @@ Con la mitigación: **3/3 medidas limpias a 47.67 fps (1.049 campos/frame)** —
 
 1. **`--sequence-step-frames` captura a mitad de frame**: la pausa en el `ready-probe` + screenshot entrega estados donde los blits del frame **no están reflejados** (actor ausente o con «motas»), y la secuencia completa parecía demostrar un defecto de render inexistente. Lo correcto era la captura simple tras `READY` (mostró el actor completo) o pausar tras `wait_blitter`.
 2. **`--config <id>` se ignora silenciosamente**: fuerza `A500_debug` aunque se pida otra config (y a veces el «mejor» build por timestamps la sombrea) — verificado copiando binarios a mano.
-3. **Crash intermitente del runner** tras `READY` (`[WinUAE] Process exited with code null`, report sin `finalSideChannel`) — deja capturas viejas con apariencia de nuevas.
+3. **Crash intermitente del runner** tras `READY` (`[WinUAE] Process exited with code null`, report sin `finalSideChannel`) — deja capturas viejas con apariencia de nuevas. Además, una **instancia huérfana** de un run anterior puede quedar escuchando en los puertos y **servir estados viejos** al run siguiente (fallos idénticos repetidos con el mismo `detail` en arranques consecutivos; con higiene de procesos antes de cada run: 9/10 limpios).
 4. **MCP WinUAE**: `connect`/`connect_existing` con `config/mcp-amiga-c-debug.uae` expiran aunque el puerto GDB está `LISTENING`; en el lanzamiento manual apareció una ventana «WinUAE message» (posible diálogo modal bloqueando el handshake).
 
 ## Recomendaciones priorizadas (motor robusto)
