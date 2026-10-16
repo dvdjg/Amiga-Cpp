@@ -191,6 +191,15 @@ if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 			exit 1
 		fi
 	fi
+	# Markdown sin hard-wrap: parrafos/items en UNA linea logica (AGENTS §1.2).
+	MD_WRAP_CHECK="$ROOT/tools/check/md-wrap.mjs"
+	if [ -f "$MD_WRAP_CHECK" ] && command -v node >/dev/null 2>&1; then
+		echo "== md-wrap =="
+		if ! node "$MD_WRAP_CHECK"; then
+			echo "md-wrap fallo: hard-wrap nuevo (une el parrafo en una linea; word wrap del editor)." >&2
+			exit 1
+		fi
+	fi
 	MATH_DIAG="$ROOT/tools/check/math-diagnostics.sh"
 	if [ -f "$MATH_DIAG" ]; then
 		echo "== math-diagnostics =="
