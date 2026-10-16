@@ -671,6 +671,16 @@ struct ProcStructuresDemo {
 					eng::debug::mark_failed(g_eng_run_status, 0x00012120u);
 					return;
 				}
+#if defined(K121_GOLDEN_ONE_PLAN_PER_ACTOR)
+				// Bisección: cada actor en su PROPIO plan/execute (para aislar si el
+				// corrimiento de subposiciones viene del plan multi-job/lote).
+				if (!backend.execute_frame_plan(plan)) {
+					eng::debug::mark_failed(g_eng_run_status, 0x00012121u);
+					return;
+				}
+				plan.clear();
+				plan.set_blit_budget_limits({8192, 32768, 32, 400});
+#endif
 			}
 			if (!backend.execute_frame_plan(plan)) {
 				eng::debug::mark_failed(g_eng_run_status, 0x00012121u);

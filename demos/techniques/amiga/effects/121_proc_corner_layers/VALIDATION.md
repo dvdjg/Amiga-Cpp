@@ -89,8 +89,18 @@ Captura del render congelado (actor estático en campo abierto, `vision-run` sob
   mismo plan (DT-022) está **mitigada** (planes separados + reintento + strikes) y quedó
   documentada con evidencia en `docs/debugging/investigaciones/121-actor-plano-0-y-carencias-blits.md`.
 - **Marco**: 47,67 fps estables (1,049 campos/frame), 0 candidatos de flicker, regresión OK.
-- **SIN VERIFICAR**: (a) los 16 subpíxeles del actor se cubren por las bandas y el barrido
-  1 px/frame, pero no se ha capturado un golden por subposición; (b) la captura
+- **Golden por subposición (en curso, dependiente de DT-022)**: existe el modo
+  `K121_GOLDEN_ACTORS` (16 actores a la vez, paleta identidad) y el oráculo independiente
+  `tools/analyze/verify-121-actor-golden.mjs` (reconstruye las bandas en JS desde el patrón
+  real). Con **un plan por actor** (`K121_GOLDEN_ONE_PLAN_PER_ACTOR`), el oráculo da
+  **10 de 16 subposiciones EXACTAS** (p. ej. subs 1/2/5/8..14 con 0 píxeles de actor
+  fallidos) y diagnostica 6 subs perdidos/parciales (cols 0/3/4/6/7/9) + ~127 px de daño
+  colateral fuera de ventanas; con **el plan multi-job original** el render es caótico
+  (819 vs 2060 px del índice del cuerpo). Ambos signos son de la clase de DT-022
+  (pérdida/desplazamiento de objetos en grupos de blits): el golden queda como banco de
+  validación del fix del motor y el cierre de este punto queda **pendiente** de él.
+- **SIN VERIFICAR**: (a-bis) el resto de subposiciones del golden (las 6 diagnosticadas) y el
+  daño colateral de 127 px hasta el fix de DT-022; (b) la captura
   `--sequence-step-frames` de esta demo es poco fiable (pausa a mitad de frame; DT-023) y
   **no** se usa como evidencia de movimiento — el contrato de 1 px/frame se apoya en la
   telemetría (`detail` por frame) y en el frame-diff del flicker; (c) el camino async del

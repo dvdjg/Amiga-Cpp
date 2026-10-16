@@ -35,8 +35,10 @@ if (args.length < 2) {
 }
 const [goldenPath, pristinePath] = args;
 
-// Geometría de la demo (field -> png 2x con borde de 38/15 px amiga).
-const OX = 38, OY = 15, S = 2;
+// Geometría de la demo (field -> png 2x). OX calibrado empíricamente contra el render
+// del actor congelado (bbox 552 px): el origen del campo en el PNG es (78, 30), es decir
+// 39/15 px amiga en el capture 2x (el DIWSTRT izquierdo es impar: 0x81).
+const OX = 39, OY = 15, S = 2;
 const ACTOR_Y = 144;
 const COLS = [0, 1, 2, 3, 4, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18];
 
