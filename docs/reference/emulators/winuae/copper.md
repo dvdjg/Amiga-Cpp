@@ -86,6 +86,17 @@ access» (`custom.cpp:7603-7611`). La tabla del engine (`copper.hpp`,
 el bit 9 es `KILLEHB` (AHRM Appendix C) y el bit 0 `ENBPLCN3` habilita las funciones ECS
 (`drawing.cpp:2999`).
 
+## 5. `DDFSTRT`/`DDFSTOP`: la escritura enmascara los bits bajos en silencio
+
+Los handlers no rechazan valores desalineados: aplican `v &= ddf_mask` y la escritura sigue
+(`custom.cpp:3770-3785`), con `ddf_mask` = `0xfc` en OCS y `0xfe` en ECS (`custom.cpp:1206`).
+Consecuencia: en OCS un `DDFSTRT`/`DDFSTOP` no múltiplo de 4 **no da error** — se recorta y la
+ventana de fetch queda desplazada respecto a la intención. El contrato de fetch del engine exige
+múltiplo de 4 en todos los chipset (`ModeSwitchZone::ddf_aligned`) y el validador de setup lo
+convierte en fallo (`check_copper_list`, código 8; `COHERENCIA_DE_SETUP.md`). Nota OCS del
+comentario del handler (`custom.cpp:542-552`): el *hard start limit* de `DDFSTRT` impide además
+más de una región `DDFSTRT`/`DDFSTOP` por scanline; ECS/AGA no tienen ese límite.
+
 ## Validación
 
 - `demos/techniques/amiga/blitter/210_copper_blitter`: `BlitterJob` en el borde inferior copia 256 words; la copia

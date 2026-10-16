@@ -225,6 +225,53 @@ void test_check_list() {
 		check_result(eng::setup::check_copper_list(w, 6u, Chipset::OCS), 2u,
 			     "COPJMP2 no exime de registros no escribibles");
 	}
+	// Geometria de fetch (DDF): pareja alineada valida; desalineada -> 8; invertida -> 9.
+	{
+		const u16 w[8] = {static_cast<u16>(Register::DDFSTRT), 0x0038u,
+				  static_cast<u16>(Register::DDFSTOP), 0x00d0u,
+				  static_cast<u16>(Register::COLOR00), 0x0000u, 0xffffu, 0xfffeu};
+		CHECK(eng::setup::check_copper_list(w, 8u, Chipset::OCS).ok(),
+		      "pareja DDF 0x38/0xd0 valida");
+	}
+	// Dos tramos (mode-switch): cada DDFSTOP se empareja con su DDFSTRT, sin comparar
+	// entre zonas (el DDFSTOP de la 2.ª zona es menor que el de la 1.ª, y es valido).
+	{
+		const u16 w[12] = {static_cast<u16>(Register::DDFSTRT), 0x0038u,
+				   static_cast<u16>(Register::DDFSTOP), 0x00d0u,
+				   static_cast<u16>(Register::DDFSTRT), 0x0040u,
+				   static_cast<u16>(Register::DDFSTOP), 0x00c8u,
+				   static_cast<u16>(Register::COLOR00), 0x0000u, 0xffffu, 0xfffeu};
+		CHECK(eng::setup::check_copper_list(w, 12u, Chipset::OCS).ok(),
+		      "parejas DDF por tramos");
+	}
+	{
+		const u16 w[6] = {static_cast<u16>(Register::DDFSTRT), 0x003au, // no multiplo de 4
+				  static_cast<u16>(Register::DDFSTOP), 0x00d0u, 0xffffu, 0xfffeu};
+		check_result(eng::setup::check_copper_list(w, 6u, Chipset::OCS), 8u,
+			     "DDFSTRT desalineado");
+	}
+	{
+		const u16 w[6] = {static_cast<u16>(Register::DDFSTRT), 0x0038u,
+				  static_cast<u16>(Register::DDFSTOP), 0x00d2u, // no multiplo de 4
+				  0xffffu, 0xfffeu};
+		check_result(eng::setup::check_copper_list(w, 6u, Chipset::OCS), 8u,
+			     "DDFSTOP desalineado");
+	}
+	{
+		const u16 w[6] = {static_cast<u16>(Register::DDFSTRT), 0x0040u,
+				  static_cast<u16>(Register::DDFSTOP), 0x0030u, // < DDFSTRT
+				  0xffffu, 0xfffeu};
+		check_result(eng::setup::check_copper_list(w, 6u, Chipset::OCS), 9u,
+			     "ventana DDF invertida");
+	}
+	// `DDFSTOP == DDFSTRT` es la ventana de 1 palabra que describe el propio AHRM
+	// (`DDFSTRT = DDFSTOP - 8*(palabras-1)`): se admite.
+	{
+		const u16 w[6] = {static_cast<u16>(Register::DDFSTRT), 0x0038u,
+				  static_cast<u16>(Register::DDFSTOP), 0x0038u, 0xffffu, 0xfffeu};
+		CHECK(eng::setup::check_copper_list(w, 6u, Chipset::OCS).ok(),
+		      "DDF de 1 palabra (stop == strt) admitido");
+	}
 }
 
 // ---------------------------------------------------------------------------------------

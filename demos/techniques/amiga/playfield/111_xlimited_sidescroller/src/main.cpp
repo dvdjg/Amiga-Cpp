@@ -253,6 +253,12 @@ struct DemoGame {
 		if (!composed) {
 			ready = false; eng::debug::mark_failed(g_eng_run_status, 0x00011111u); return;
 		}
+		// Instala la copperlist AQUI (con margen dentro del campo, no en `render`): el latch de
+		// COP1LC ocurre en el wrap V=max->0 (`custom.cpp:11237`) y una escritura pegada al wait
+		// del VBlank corre carrera con el latch (campos repetidos/saltados intermitentes;
+		// mecanismo y evidencia: demo 101). El swap solo escribe COP1LC (nunca COPJMP1): no
+		// toca la lista en curso y la recarga ocurre en el VBlank siguiente.
+		scene.install(backend);
 
 		// FG: nave con vaivén vertical + balas hacia la derecha.
 		ENG_PROF_BEGIN(kProfFg);
@@ -286,8 +292,8 @@ struct DemoGame {
 			((scroll_x >> 8) & 0xffu);
 	}
 
-	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		if (ready) scene.install(backend);
+	void render(eng::amiga::AmigaBackend&, eng::GameContext& context) {
+		// La publicacion (swap de COP1LC) va en `update` (con margen dentro del campo); aqui solo telemetria.
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 };

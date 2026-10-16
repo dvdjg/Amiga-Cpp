@@ -17,3 +17,9 @@ Informe de validación (F4/F5 de `docs/guides/methodology/PROCEDIMIENTO_DEMOS_Y_
 ## Deuda registrada
 
 Fps/visión de 203 (pendiente, no bloqueante).
+
+### Pixel-assert (paso de frame)
+
+`--pixel-assert` verde: `shift-left-1px-per-frame` dx=−1, 8 frames, 0 pares duplicados, 7 pares
+desplazados (MeanDiffAvg 18,2; informe `out/regression/20261016-133928`). Sin cambios de código en
+esta pasada: la publicación la conduce el `App` (la demo no instala `COP1LC`).

@@ -343,10 +343,13 @@ inline constexpr eng::u16 kBplcon0Ham = 0x0800u;   ///< bit 11: HAM (HOMOD)
 /// Códigos: 1 = sin terminador `0xffff`/`0xfffe` · 2 = MOVE a registro no escribible para el
 /// chipset · 3 = WAIT retrocede (de `check_copper_wait_order`) · 4 = instrucciones tras el
 /// `END` (inalcanzables) · 5 = `0xffff` con máscara distinta de `0xfffe` (espera infinita) ·
-/// 6 = MOVE con bits no canónicos en la palabra de registro · 7 = nº impar de palabras.
+/// 6 = MOVE con bits no canónicos en la palabra de registro · 7 = nº impar de palabras ·
+/// 8 = `DDFSTRT`/`DDFSTOP` no alineado a 4 (el chipset enmascara los bits bajos en silencio)
+/// · 9 = `DDFSTOP` < `DDFSTRT` (ventana de fetch invertida; se emparejan por tramos, así
+/// que las listas de mode-switch con una pareja DDF por zona se validan igual).
 /// **Reinicios de tramo**: una lista con `COPJMP1`/`COPJMP2` se re-ejecuta desde un label
 /// (copper-chunky/plasma), así que no tiene un recorrido monotónico de WAITs; en ese caso
-/// el código 3 se omite (estructura y registros se siguen comprobando).
+/// el código 3 se omite (estructura, registros y geometría de fetch se siguen comprobando).
 [[nodiscard]] constexpr CheckResult check_copper_list(
 	const eng::u16* words, eng::u16 words_count,
 	eng::hw::Chipset chipset = eng::hw::Chipset::OCS) noexcept {
@@ -360,6 +363,8 @@ inline constexpr eng::u16 kBplcon0Ham = 0x0800u;   ///< bit 11: HAM (HOMOD)
 	}
 	bool ended = false;
 	bool restarts = false;
+	eng::u16 pending_ddfstrt = 0u; // último DDFSTRT sin su DDFSTOP (ventana abierta)
+	bool have_ddfstrt = false;
 	for (eng::u16 i = 0u; i + 1u < words_count; i = i + 2u) {
 		const eng::u16 inst = words[i];
 		const eng::u16 data = words[i + 1u];
@@ -387,6 +392,37 @@ inline constexpr eng::u16 kBplcon0Ham = 0x0800u;   ///< bit 11: HAM (HOMOD)
 		if (!copper::copper_register_writable(reg, chipset)) {
 			return {2u, "MOVE del Copper a registro no escribible para el chipset", i, 0u,
 				static_cast<eng::u32>(copper::copper_register_access(reg))};
+		}
+		// Geometría del fetch (DDFSTRT/DDFSTOP): invariantes independientes del modo de
+		// display. El chipset **enmascara los bits bajos en silencio** al escribir
+		// (`ddf_mask` = 0xfc en OCS y 0xfe en ECS, `custom.cpp:1206`) y un valor no
+		// alineado a 4 desplaza/recorta la ventana del tramo sin dar error; el contrato
+		// de fetch del engine exige múltiplo de 4 en todos los chipsets
+		// (`ModeSwitchZone::ddf_aligned`, `mode_switch.hpp:75`). El rango frente al
+		// perfil (DDFSTRT >= 0x18, DDFSTOP <= 0xd8, palabras de fetch) lo cubre
+		// `composition::validate` (regla 10, `limits.hpp:311`), que sí conoce el modo.
+		if (reg == static_cast<eng::u16>(copper::Register::DDFSTRT) ||
+		    reg == static_cast<eng::u16>(copper::Register::DDFSTOP)) {
+			if ((data & 0x0003u) != 0u) {
+				return {8u, "DDFSTRT/DDFSTOP no alineado a 4 (el chipset enmascara los bits bajos en silencio)",
+					i, 0u, data};
+			}
+			if (reg == static_cast<eng::u16>(copper::Register::DDFSTRT)) {
+				pending_ddfstrt = data; // abre ventana; el siguiente DDFSTOP la cierra
+				have_ddfstrt = true;
+			} else if (have_ddfstrt) {
+				// Un DDFSTOP cierra la ventana abierta por el último DDFSTRT (listas de
+				// mode-switch: una pareja por tramo; consumir la pareja evita comparar
+				// DDFSTOP de una zona con DDFSTRT de otra). Menor que DDFSTRT es una
+				// ventana invertida (no se fetchea ningún plano); igualar es la ventana
+				// de 1 palabra que describe el propio AHRM
+				// (`DDFSTRT = DDFSTOP - 8*(palabras-1)` con palabras = 1) y se admite.
+				if (data < pending_ddfstrt) {
+					return {9u, "DDFSTOP < DDFSTRT (ventana de fetch invertida)",
+						i, pending_ddfstrt, data};
+				}
+				have_ddfstrt = false;
+			}
 		}
 		// Reinicio de tramo por la propia lista (copper-chunky/plasma): invalida el modelo
 		// monotónico de WAITs (la lista se re-ejecuta desde un label).
