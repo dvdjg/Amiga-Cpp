@@ -364,3 +364,15 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 **Arreglo:** `eng_fast_stack_alloc` inicializa `SysBase` desde el vector 4 si es `NULL` antes de `AllocMem` (`support/gcc8_c_support.c`), que es la capa de plataforma correcta para el arranque previo a `main`.
 
 **Evidencia:** `run-demo` alcanza READY y captura screenshot con el binario nuevo; desensamblado verificado en MCP (`eng_fast_stack_alloc` carga `SysBase` y solo entonces ejecuta el LVO de `AllocMem`).
+
+## DT-030 - Barrido de flota tras los bounds: 214 y 215 fuera de presupuesto - ABIERTA
+
+**Origen:** paso 5 de cierre de F8 (comprobar que los bounds/contratos no degradan las demos de `stamp`/plan).
+
+**Medidas (`A500_debug`, `measure-fps`, 20 s) y A/B:**
+
+- Sin regresión en las demos tocadas por los bounds: **122** 49,87/1,003 (release 49,92/1,002), **213** (streaming `stamp`/`clear_now`) **49,92/1,002**, **117** 16,67 (fleet: 16,61).
+- **214_app_sprite: 0,70 fps / 71,5 campos** (fleet previo: 0,70). La imagen es correcta (fondo + 2 objetos por `sprite`/actor), pero el frame es ~10 M ciclos. No lo introducen los bounds (mismo número con bounds activos/desactivados); deuda propia de la demo.
+- **215_app_bobs: 24,94 fps / 2,00 campos** (fleet previo: 30,72/1,63). A/B: con la `main` anterior al `run_demo` y con los bounds desactivados mide ~25,0; la caída no viene de F8, sino del motor/medida entre el barrido de flota y HEAD. La secuencia muestra los **4 objetos** (rojo delante del amarillo), sin ghosting.
+
+**Siguiente paso:** perfilar 214 (coste por frame del fondo/actor) y 215 (¿Blitter/plan? ¿heartbeat?) con `.amigaprofile` + IA local antes de tocar la técnica; registrar el resultado en el `VALIDATION.md` de cada una si se corrigen.
