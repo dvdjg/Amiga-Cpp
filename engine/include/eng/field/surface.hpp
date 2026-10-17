@@ -119,8 +119,8 @@ public:
         if (!valid()) return false;
         const s32 cx0 = m_clip.x;
         const s32 cy0 = m_clip.y;
-        const s32 cx1 = m_clip.x + static_cast<s32>(m_clip.w) - 1;
-        const s32 cy1 = m_clip.y + static_cast<s32>(m_clip.h) - 1;
+        const s32 cx1 = m_clip.x + m_clip.w - 1;
+        const s32 cy1 = m_clip.y + m_clip.h - 1;
         const s32 rx0 = x0 < cx0 ? cx0 : x0;
         const s32 rx1 = x1 > cx1 ? cx1 : x1;
         if (rx1 < rx0 || y < cy0 || y > cy1) return false;

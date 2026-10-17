@@ -151,10 +151,11 @@
   0     2  engine/include/eng/cpu/m68k/affine.hpp
   0     5  engine/include/eng/cpu/m68k/arith.hpp
   0     3  engine/include/eng/cpu/m68k/light.hpp
+  0     2  engine/include/eng/debug/hud.hpp
   0     3  engine/include/eng/debug/mem_probe.hpp
  16     7  engine/include/eng/debug/peripheral.hpp
   1     4  engine/include/eng/debug/prof.hpp
-  0     6  engine/include/eng/debug/run_status.hpp
+  0     7  engine/include/eng/debug/run_status.hpp
   0     8  engine/include/eng/debug/telemetry.hpp
   1    27  engine/include/eng/debug/version_strip.hpp
   0     2  engine/include/eng/debug/version.hpp
@@ -173,7 +174,7 @@
   0     3  engine/include/eng/field/scroll_variant.hpp
   0     7  engine/include/eng/field/streaming_map.hpp
   1     6  engine/include/eng/field/strip_composer.hpp
-  2    51  engine/include/eng/field/surface.hpp
+  2    55  engine/include/eng/field/surface.hpp
   0    36  engine/include/eng/field/tile_demo.hpp
   0     2  engine/include/eng/field/tile_map.hpp
   0    10  engine/include/eng/field/tile_source.hpp
@@ -209,7 +210,7 @@
   0     7  engine/include/eng/graphics/font_italic.hpp
   0     2  engine/include/eng/graphics/font5x7.hpp
   0     4  engine/include/eng/graphics/font8.hpp
-  1    13  engine/include/eng/graphics/frame_plan.hpp
+  1    17  engine/include/eng/graphics/frame_plan.hpp
   3    28  engine/include/eng/graphics/glyph_cache.hpp
   0     8  engine/include/eng/graphics/mesh_renderer.hpp
   0     7  engine/include/eng/graphics/palette.hpp
@@ -226,6 +227,7 @@
   0    18  engine/include/eng/graphics/sprite_manager.hpp
   0     5  engine/include/eng/graphics/sprite_palette.hpp
   0     6  engine/include/eng/graphics/sprite.hpp
+  0     1  engine/include/eng/graphics/target_bounds.hpp
   0    10  engine/include/eng/graphics/tile_planar.hpp
   0     3  engine/include/eng/graphics/tilemap/attribute_table.hpp
   0     8  engine/include/eng/graphics/tilemap/tile_editor.hpp
@@ -357,6 +359,7 @@
   0     6  engine/include/eng/ui/widget.hpp
   0    33  engine/include/eng/ui/widgets.hpp
   0     2  engine/include/eng/ui/window.hpp
+  1     1  engine/src/platform/amiga/amiga_boot.cpp
   0    20  engine/src/platform/amiga/amiga_c2p.cpp
   8     8  engine/src/platform/amiga/amiga_file.cpp
   3    13  engine/src/platform/amiga/amiga_floppy.cpp

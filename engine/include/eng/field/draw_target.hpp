@@ -66,7 +66,7 @@ public:
 	/// materializador de capas indexadas emite uno por run). No pasa por el seam CPU/Blitter.
 	/// \return `false` si el tramo queda fuera del clip.
 	bool fill_run(eng::Box b, eng::u8 color) {
-		return m_surface.fill_span(b.x, static_cast<eng::s32>(b.x) + b.w - 1, b.y, color);
+		return m_surface.fill_span(b.x, b.right(), b.y, color);
 	}
 	/// \param x0,y0,x1,y1  extremos; \param color  índice; \param op  operación.
 	/// \return `false` si la línea queda fuera del clip.
