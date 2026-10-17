@@ -259,6 +259,13 @@ public:
 		       eng::u8 color, RasterOp op) override {
 		if (op != RasterOp::Copy) return CpuRaster::fill_rect(pf, x, y, w, h, color, op);
 		if (!pf.initialized() || w == 0u || h == 0u) return false;
+		// **Runs de una fila** (h == 1): el arranque del Blitter (setup + espera, ~miles de
+		// ciclos) domina cualquier ahorro; la CPU escribe una palabra por plano y palabra.
+		// Es el caso del materializador de capas indexadas (`world_render.hpp`), que emite
+		// un `fill` por run: sin esta regla cada run costaba un arranque de Blitter.
+		if (h == 1u) {
+			return CpuRaster::fill_rect(pf, x, y, w, h, color, op);
+		}
 		// `Auto` decide por coste: usa el Blitter si hay sink y el área supera el umbral.
 		const RasterPolicy& pol = pf.raster_policy();
 		const eng::u32 area = static_cast<eng::u32>(w) * static_cast<eng::u32>(h);

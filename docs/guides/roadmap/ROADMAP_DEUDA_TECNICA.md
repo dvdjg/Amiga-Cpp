@@ -274,7 +274,7 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 
 **Evidencia:** `demos/features/rpg/amiga/001_rpg_dungeon/VALIDATION.md` (tabla de medidas y ablaciones); código y comentarios de coste en `src/main.cpp` de esa demo.
 
-## DT-026 — Demo 116 (`flatshade_convex`): 19,7 fps (< suelo 25) y optimizaciones que exigen el referee async
+## DT-026 — Demo 116 (`flatshade_convex`): 21,62 fps (< suelo 25) — campaña de paridad CERRADA sin asm, vías agotadas y medidas
 
 **Origen:** modernización de 079/116 (2026-10-17): trazado por lote (`retro::wire_lines`), loop `run_frames`, servicio de Blitter off, HUD por zona de 1 bpp sin coste por frame y soporte `bbox` en `flat_shade_xor`.
 
@@ -313,6 +313,25 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 - [ ] **Arreglar la ruta asm del draw** (`flatshade_asm.s`): el octante invertido está corregido, pero el build `K_FLATSHADE_ASM=1` sigue dibujando rayas (regresión posterior a septiembre: entonces dibujaba con desfase de 1-2 px). Máximo candidato para cruzar 25 fps si el transform asm (1,8× medido) se puede usar. Diagnóstico siguiente: comparar `fs_transform_vertices` contra `lib3d::transform_vertices` con `freeze-diff` sobre el wireframe (`FLATSHADE_SKIP_FILL=1`).
 
 **Estado jornada 3 (2026-10-17, campaña de paridad por EL API DE ALTO NIVEL — el usuario descarta la vía asm como truco):** release **19,21 → 21,62 fps (2,60 → 2,31 campos)** con: HUD en **banda superior legal** (WAIT 44/58; +1,7 fps — enmienda a DT-027: las zonas ≤255 son la vía canónica), **`wait_blitter` restaura BLTPRI** en vez de apagarlo (el original corre con BLITHOG global; +0,33), **`-O3` en la TU de la demo** (`build.args`; +0,33) y **long-writes de pares contiguos en `blitter_line_draw`** (+0,08). Órdenes de pipeline medidos: clear al final = 21,23; antes del transform = 20,50; al principio del siguiente update = 21,01 → se conserva el orden propio. **Suelo del pipeline actual** (ablaciones release: transform+overhead 142k = 1 campo; fill ~66k, edges ~112k, clear ~100k expuestos): ~262k de blitter serial = 1,85 campos ≈ 27 fps con solape perfecto; la holgura restante (~44k) es espera por línea del contrato de registros del Blitter + cuantización a VBlank. **La 116 sigue ABIERTA** (21,62 < 25); próximos candidatos de engine: batching del camino de líneas, sin trucos de demo.
+
+**Cierre de la campaña (2026-10-17):** final **release 21,62 fps / 2,312 campos** (debug 20,51) frente a los **2,00 campos (25 fps)** de la original medida. La brecha (~0,31 campos ≈ 44k) está acotada y explicada: el blitter serial (262k = 1,85 campos) **cabe** en 2 campos; el exceso es el acoplamiento BLTPRI (el CPU se estira ~40-60k al solapar los blits largos — el transform de 90k bajo el fill de 131k) + espera por línea (hardware: en modo LINE los registros se leen en vivo, no hay shadow-programming) + cuantización a VBlank.
+
+**Todos los intentos de rendimiento realizados, con veredicto medido** (detalle fila a fila en `docs/guides/optimization/OPTIMIZACION_GPP_68000.md`, entradas 2026-10-17):
+
+| Intento | Resultado |
+|---|---|
+| Referee async del `FramePlan` (líneas+fill+clear encadenados por IRQ) | 8,9 fps vs 18,05 — refutado para cadenas largas de blits cortos (coste por job ~3,5-4k) |
+| Órdenes de pipeline: clear primero / pre-transform | 20,43 y 21,02 vs 21,73 (el orden propio gana; medido 4 veces) |
+| Clear acotado a bbox (4 jobs de 1 plano) | 19,24 vs 19,26 — sin cambio (el clear ya está oculto) |
+| Fill acotado 4-jobs-por-plano | 16,81 — peor (serialización de los 4 jobs) |
+| Fill acotado **un blit contiguo** (`blitter_area_fill(..., bbox)`) | ≈0 fps (el ahorro cae en la cola absorbida); **pixel-exacto**, se conserva por menos bus |
+| Hoist de `BLTDPT` al preludio | +0,11 y **REVERTIDO: rompía la paridad del contorno** (el Blitter muta D en modo línea) — rayas horizontales |
+| `ENGINE_OPT=-O3` | 21,61 vs 21,62 — sin cambio |
+| Nasty selectivo (off en la fase de líneas) | 21,63 vs 21,72 — wash (el wait por línea rearma nasty) |
+| Interleaving cooperativo del transform en las esperas (`FLATSHADE_PUMP`, bomba global y con ventana) | 14,7 / 14,8 vs 21,62 — refutado (el bloque síncrono ya corre bajo el fill; la bomba ejecuta bajo nasty, desborda esperas cortas y drena en serie) |
+| Ruta asm del transform/draw (`flatshade_asm.s`, 1,8× medido) | rutas no válida (rayas); descartada por directiva (nada de asm/trucos de demo) |
+
+**Única vía restante identificada** (decisión de producto del usuario): rediseño de la técnica del contorno (menos operaciones de blitter — p. ej. contorno por Copper o segmentos largos) o asm *de engine* testeado para `lib3d` (la original NO usa asm: gana por codegen del compilador). Nada pendiente en el camino del API de alto nivel.
 
 **Evidencia:** `demos/techniques/amiga/effects/116_flatshade_convex/VALIDATION.md`; notas de coste en `src/main.cpp` de 079/116; perfiles en `out/debug/*` de la campaña.
 
@@ -365,14 +384,14 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 
 **Evidencia:** `run-demo` alcanza READY y captura screenshot con el binario nuevo; desensamblado verificado en MCP (`eng_fast_stack_alloc` carga `SysBase` y solo entonces ejecuta el LVO de `AllocMem`).
 
-## DT-030 - Barrido de flota tras los bounds: 214 y 215 fuera de presupuesto - ABIERTA
+## DT-030 - Barrido de flota tras los bounds: 214 fuera de presupuesto; 215 resuelta - ABIERTA
 
 **Origen:** paso 5 de cierre de F8 (comprobar que los bounds/contratos no degradan las demos de `stamp`/plan).
 
 **Medidas (`A500_debug`, `measure-fps`, 20 s) y A/B:**
 
 - Sin regresión en las demos tocadas por los bounds: **122** 49,87/1,003 (release 49,92/1,002), **213** (streaming `stamp`/`clear_now`) **49,92/1,002**, **117** 16,67 (fleet: 16,61).
-- **214_app_sprite: 0,70 fps / 71,5 campos** (fleet previo: 0,70). Imagen correcta. Perfil nativo: CPU saturada cada campo, bitplanes 20.480 accesos/campo (nominal) y **0 accesos de Blitter**; el muestreo de PC cae en `materialize_bitmap_layers` (`world_render.hpp`): el fondo indexado (damero con tramos de 1–2 px) se re-materializa **por frame a base de `screen.fill` por tramo** (~163.840 `fill`/frame ≈ 10 M ciclos). Plan: expansión byte→planos por palabra o C2P de Blitter; mientras, pre-render planar + `Screen::bitmap`. Detalle en `demos/.../214_app_sprite/VALIDATION.md`.
-- **215_app_bobs: 24,94 fps / 2,00 campos** (fleet previo: 30,72/1,63). Secuencia correcta (4 objetos, rojo delante del amarillo). Perfil: campos alternos con 10,6k/31,0k accesos de Blitter (canal 5) y «CPU ocupada 100 %» que incluye `wait_blitter`; la demo limpia la **pantalla completa** con `fill_box` cada frame. A/B descarta bounds y `run_demo` (~25,0 en ambos). Plan: limpiar solo la huella de los actores o usar capa `Fill`. Detalle en `demos/.../215_app_bobs/VALIDATION.md`.
+- **215_app_bobs: RESUELTA — 49,92 fps / 1,002 campos** (antes 24,94/2,005). Limpieza **acotada** por huella del actor (`clear_box` encolado, una caja por actor) + display de **2 planos** (la paleta usa 0..3) + limpieza entera una sola vez; el DMA de Blitter baja de 10,6k/31,0k a ~0,9k accesos/frame. Visión canónica sin artefactos. Detalle en `demos/.../215_app_bobs/VALIDATION.md`.
+- **214_app_sprite: 0,70 fps / 71,5 campos** (sigue abierta). Imagen correcta. **Causa raíz refinada por ablaciones** (ver `VALIDATION.md`): el coste de `materialize_bitmap_layers` es **por fila materializada (~15 k ciclos/fila)**, no por run — una fila suelta es gratis y 256 filas cuestan ~3,8 M aunque cada una sea un único run de 320 px (555 runs → 9,4 M; release igual: 1,89 fps). El patrón del damero multiplica los runs, pero incluso con runs largos no cabe. `screen.fill_run` (tramo CPU sin el seam CPU/Blitter, nuevo en el engine) y la regla «h == 1 → CPU» del `BlitterRaster` **no** cambian la medida: el coste vive en el camino de escritura por palabra del playfield (hooks virtuales por palabra, RMW por plano y `mulu` por chunk). **Siguiente paso:** escritor directo de fila indexada a nivel de playfield (punteros por plano 1×/fila, stores sin RMW en grupos completos, máscara solo en bordes; objetivo ~600 ciclos/fila) o cache de materialización + scroll por hardware sobre bitmap planar pre-renderizado. Detalle en `demos/.../214_app_sprite/VALIDATION.md`.
 
-**Siguiente paso:** aplicar los planes de las dos `VALIDATION.md` (214: materializador de capa indexada; 215: limpieza acotada) y volver a medir.
+**Siguiente paso:** implementar el escritor directo de fila (o el cache+scroll) para la 214 y volver a medir.

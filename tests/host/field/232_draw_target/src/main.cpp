@@ -3,7 +3,7 @@
 // ============================================================================
 //
 // Valida que `DrawTarget` agrupa el destino y enruta las primitivas por el `Surface`
-// (`fill`/`line`/`frame`/`c2p`), y que `box()` expone el clip del destino. Se enlaza un
+// (`fill`/`fill_run`/`line`/`frame`/`c2p`), y que `box()` expone el clip del destino. Se enlaza un
 // `ContiguousPlayfield` a memoria host (sin Chip), de modo que el test es puro.
 //
 // Las comprobaciones cuentan BITS por plano (no bytes exactos): el playfield escribe
@@ -123,8 +123,20 @@ int main() {
 	check(screen.circle(24, 4, 3, 2u, eng::playfield::RasterOp::Xor), "circle Xor segunda pasada");
 	check(bits_in_plane(planes, 1) == p1_before, "circle Xor se cancela sin puntos duplicados");
 
+	// fill_run: tramo horizontal por CPU (el materializador de capas indexadas emite uno por
+	// run); mismo resultado que `fill` de una fila, con recorte al clip.
+	const eng::u32 p2_before = bits_in_plane(planes, 2);
+	check(screen.fill_run(eng::Box {4, 3, 8u, 1u}, 4u), "fill_run");
+	check(bits_in_plane(planes, 2) == p2_before + 8u, "fill_run: 8 bits nuevos en el plano 2");
+	// Tramo que cruza el borde izquierdo: se recorta (x=0 ya lo pintó el frame -> 3 nuevos).
+	check(screen.fill_run(eng::Box {-4, 3, 8u, 1u}, 4u), "fill_run recortado por la izquierda");
+	check(bits_in_plane(planes, 2) == p2_before + 11u, "fill_run: recorte deja 3 px nuevos");
+	// Fuera del clip: false sin dibujar.
+	check(!screen.fill_run(eng::Box {-8, 3, 8u, 1u}, 4u), "fill_run fuera del clip");
+	check(!screen.fill_run(eng::Box {4, 100, 8u, 1u}, 4u), "fill_run fuera por abajo");
+
 	if (failures == 0) {
-		std::printf("OK: DrawTarget (fill/line/frame/c2p/circle + box) validado.\n");
+		std::printf("OK: DrawTarget (fill/fill_run/line/frame/c2p/circle + box) validado.\n");
 		return 0;
 	}
 	std::printf("FAIL: %d comprobaciones\n", failures);

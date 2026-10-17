@@ -9,9 +9,10 @@ Se enlaza un `ContiguousPlayfield` a memoria host y se dibuja con `DrawTarget`:
 
 1. `box()` devuelve el clip del destino.
 2. `fill(Box, color)` deja 8 bits en el plano 0 y no toca los demás.
-3. `line(...)` deja una fila completa (32 bits) en el plano 1.
-4. `frame(Box, color)` deja el perímetro (2 filas + 2 columnas) en el plano 2.
-5. `c2p(req)` (vía `Rasterizer::c2p`) escribe 16 bits en el plano 3.
+3. `fill_run(Box, color)` (tramo horizontal por CPU, el camino del materializador de capas indexadas) pinta el tramo exacto y se recorta al clip.
+4. `line(...)` deja una fila completa (32 bits) en el plano 1.
+5. `frame(Box, color)` deja el perímetro (2 filas + 2 columnas) en el plano 2.
+6. `c2p(req)` (vía `Rasterizer::c2p`) escribe 16 bits en el plano 3.
 
 Las comprobaciones cuentan **bits por plano** (no bytes exactos): el playfield escribe
 palabras y el orden de bits depende del endianness del host; el conteo es portable.
@@ -24,7 +25,7 @@ Motivo: antes, dibujar exigía coordinar `Scene::surface()`, el `Rasterizer` del
 ## Salida de referencia
 
 ```
-OK: DrawTarget (fill/line/frame/c2p + box) validado.
+OK: DrawTarget (fill/fill_run/line/frame/c2p/circle + box) validado.
 ```
 
 ## Ejecutar

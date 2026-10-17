@@ -80,7 +80,6 @@ demos/techniques/amiga/os/209_reactive_loop
 demos/techniques/amiga/os/212_message_loop
 demos/techniques/amiga/os/213_bartman_abyss
 demos/techniques/amiga/os/214_app_sprite
-demos/techniques/amiga/os/215_app_bobs
 demos/techniques/amiga/playfield/100_virtual_tile_scene_scroll
 demos/techniques/amiga/playfield/101_ehb_tile_scroll_driver
 demos/techniques/amiga/playfield/103_tile_scroll_ring

@@ -1,35 +1,34 @@
 # 215 - app_bobs: informe de validación
 
-Informe de validación de la demo (procedimiento F0–F5 de `docs/guides/methodology/PROCEDIMIENTO_DEMOS_Y_JUEGOS.md`). Pasada de perfilado 2026-10.
+Informe de validación de la demo (procedimiento F0–F5 de `docs/guides/methodology/PROCEDIMIENTO_DEMOS_Y_JUEGOS.md`). Pasada de perfilado y corrección 2026-10.
 
 ## Estado
 
-**ABIERTA (rendimiento)**. La imagen es correcta —secuencia de 6 frames con **4 objetos** (dos rojos, dos amarillos), el rojo por delante del amarillo (orden por `z`), sin ghosting— pero la cadencia es de **24,94 fps / 2,00 campos/frame / 284.489 ciclos**; el barrido de flota previo registraba 30,72 fps/1,63 campos. Deuda en DT-030.
+**VERIFICADA (rendimiento)**. La imagen es correcta —4 actores (dos rojos, dos amarillos), el amarillo por delante del rojo cuando se solapan (`z`), sin restos ni ghosting— y la cadencia es de **49,92 fps / 1,002 campos/frame / 142.102 ciclos** en `A500_debug` (antes 24,94 fps / 2,005 campos). Deuda DT-030 cerrada para esta demo.
 
 ## Medidas (`A500_debug`, `tools/debug/measure-fps.mjs`, 20 s)
 
 | Medida | Valor |
 |---|---|
-| fps emulado | 24,94 |
-| campos/frame | 2,005 |
-| ciclos/frame | 284.489 |
+| fps emulado | 49,92 |
+| campos/frame | 1,002 |
+| ciclos/frame | 142.102 |
 
-Perfil nativo (`tools/debug/winuae-profile.mjs 215_app_bobs A500_debug 4`), alternando campos:
+Perfil nativo (`tools/debug/winuae-profile.mjs 215_app_bobs A500_debug 4`):
 
-| Campo | CPU ocupada | DMA (canal 5 = Blitter) |
-|---|---|---|
-| par | 142.102 (0 % libre) | 10.586 accesos |
-| impar | 142.102 (0 % libre) | 30.984 accesos |
+| Métrica | Valor |
+|---|---|
+| DMA de Blitter (canal 5) | ~0,9k accesos/frame (antes 10,6k/31,0k) |
+| DMA de bitplanes (canal 6) | 10.240 palabras/frame (2 planos) |
+| CPU (canal 2) | ~29k accesos/frame |
 
-## Interpretación
+## Corrección aplicada
 
-La demo limpia **la pantalla completa** con `screen.fill_box` (320×256×4) y luego emite los BOBs; el reparto de DMA (canal 5) refleja ese relleno + los objetos. El «CPU ocupada 100 %» incluye las **esperas activas** del Blitter (`wait_blitter`), por eso aparece saturado en ambos campos aunque el trabajo sea de Blitter. El A/B de la caída 30,72→24,94 descarta los límites del plan y la migración a `run_demo` (con la `main` anterior y sin bounds mide ~25,0; DT-030).
+1. **Limpieza acotada**: se elimina el `screen.fill_box` a pantalla completa por frame; el buffer se limpia entero **una vez** (nace sin limpiar) y cada frame se limpia solo la **huella previa** de cada actor con `clear_box` (una caja por actor, encolada en el plan). La demo pasa a un solo buffer (la huella previa es la única que hay que limpiar).
+2. **Display de 2 planos**: la paleta usa índices 0..3, así que el modo pasa de 4 a 2 planos (mitad de fetch de bitplanes y de copper), sin cambiar lo que se ve.
 
-## Plan de corrección (DT-030)
-
-1. No rellenar la pantalla completa por frame: limpiar solo la huella previa de los actores (o usar una capa `Fill` del `World`, que se materializa con relleno acotado).
-2. Medir A/B con `screen.bobs`/streaming y confirmar 1 campo; registrar aquí la nueva medida.
+El coste por frame baja de ~284k a ~142k ciclos: el frame vuelve a caber en un VBlank. La imagen no cambia (los actores siguen siendo opacos y se redibujan enteros cada frame; la limpieza de huella no deja restos).
 
 ## Alcance y límites
 
-Cubierto: fps/ciclos, perfil nativo de 4 campos, imagen en secuencia (4 objetos, orden `z`). **SIN VERIFICAR**: la optimización propuesta y el modo release.
+Cubierto: fps/ciclos, perfil nativo de 4 campos, imagen en secuencia sin artefactos (visión canónica, `src/VISION.md`), orden `z` en el solape. **SIN VERIFICAR**: release y máquinas distintas de A500.

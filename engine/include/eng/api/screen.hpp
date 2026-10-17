@@ -57,6 +57,13 @@ public:
 	/// \param color  índice de paleta.
 	/// \return `false` si el rectángulo queda fuera del clip.
 	bool fill(Box box, u8 color) { return m_target.fill(box, color); }
+	/// **Tramo horizontal por CPU** (`Copy`, palabra a palabra): la vía barata cuando se
+	/// emiten muchos tramos cortos (materializador de capas indexadas, tiras de HUD), sin el
+	/// coste de arranque del Blitter por llamada. `box.h` se ignora (es un run de 1 fila).
+	/// \param box    tramo (`x`, `y`, `w`) a rellenar.
+	/// \param color  índice de paleta.
+	/// \return `false` si queda fuera del clip.
+	bool fill_run(Box box, u8 color) { return m_target.fill_run(box, color); }
 	/// Dibuja el **marco** de `box` con `color`.
 	/// \param box    rectángulo.
 	/// \param color  índice de paleta.

@@ -18,7 +18,7 @@
 namespace eng {
 
 /// Emite las capas `Bitmap` del mundo como filas de color indexado sobre `screen` (run-length por
-/// fila para reducir el número de `fill`). Devuelve `false` si alguna fila no cupo en el plan.
+/// fila para reducir el número de operaciones). Devuelve `false` si alguna fila no cupo.
 template <class World>
 [[nodiscard]] bool materialize_bitmap_layers(World& world, u16 width, u16 height,
 					     Screen screen) noexcept {
@@ -28,8 +28,11 @@ template <class World>
 			const u8 color = row[i];
 			usize end = i + 1u;
 			while (end < row.size() && row[end] == color) ++end;
-			if (!screen.fill(Box {static_cast<s16>(x + i), static_cast<s16>(y),
-					      static_cast<u16>(end - i), 1u}, color)) {
+			// `fill_run` (CPU, palabra a palabra): un `fill` por run con el seam CPU/Blitter
+			// costaba miles de ciclos por llamada en un patrón con tramos cortos (el run de
+			// una fila no amortiza un arranque de Blitter; ver `DT-030`).
+			if (!screen.fill_run(Box {static_cast<s16>(x + i), static_cast<s16>(y),
+						  static_cast<u16>(end - i), 1u}, color)) {
 				return false;
 			}
 			i = end;

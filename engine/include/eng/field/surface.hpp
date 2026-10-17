@@ -111,6 +111,22 @@ public:
         return fully_inside;
     }
 
+    /// **Tramo horizontal por CPU** (`Copy`, palabra a palabra): rellena `[x0, x1]` de la fila
+    /// `y` sin pasar por el seam CPU/Blitter. Es la vía barata cuando se emiten **muchos tramos
+    /// cortos** (materializador de capas indexadas, HUD): cada llamada escribe una palabra por
+    /// plano y palabra, sin arranque de Blitter. `false` si queda fuera del clip.
+    bool fill_span(s32 x0, s32 x1, s32 y, u8 color) {
+        if (!valid()) return false;
+        const s32 cx0 = m_clip.x;
+        const s32 cy0 = m_clip.y;
+        const s32 cx1 = m_clip.x + static_cast<s32>(m_clip.w) - 1;
+        const s32 cy1 = m_clip.y + static_cast<s32>(m_clip.h) - 1;
+        const s32 rx0 = x0 < cx0 ? cx0 : x0;
+        const s32 rx1 = x1 > cx1 ? cx1 : x1;
+        if (rx1 < rx0 || y < cy0 || y > cy1) return false;
+        return m_target->draw_span(rx0, rx1, y, color);
+    }
+
     /// Polígono **convexo** relleno, recortado contra el clip de la superficie.
     ///
     /// Recorta el polígono con `eng::retro::clip_polygon` (Sutherland-Hodgman) contra el

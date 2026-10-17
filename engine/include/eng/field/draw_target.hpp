@@ -62,6 +62,12 @@ public:
 	bool fill(eng::Box b, eng::u8 color, RasterOp op = RasterOp::Copy) {
 		return m_surface.fill_rect(b.x, b.y, b.w, b.h, color, op);
 	}
+	/// **Tramo horizontal por CPU** (`Copy`): vía barata para muchos tramos cortos (el
+	/// materializador de capas indexadas emite uno por run). No pasa por el seam CPU/Blitter.
+	/// \return `false` si el tramo queda fuera del clip.
+	bool fill_run(eng::Box b, eng::u8 color) {
+		return m_surface.fill_span(b.x, static_cast<eng::s32>(b.x) + b.w - 1, b.y, color);
+	}
 	/// \param x0,y0,x1,y1  extremos; \param color  índice; \param op  operación.
 	/// \return `false` si la línea queda fuera del clip.
 	bool line(eng::s16 x0, eng::s16 y0, eng::s16 x1, eng::s16 y1, eng::u8 color,

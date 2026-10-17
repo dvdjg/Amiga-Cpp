@@ -20,7 +20,7 @@ using eng::u32;
 
 constexpr u16 kWidth = 320u;
 constexpr u16 kHeight = 256u;
-constexpr eng::u8 kPlanes = 4u;
+constexpr eng::u8 kPlanes = 2u; // la paleta usa 0..3: dos planos bastan (menos fetch de bitplanes)
 
 // Hoja planar OPACA (sin máscara): frame = [plano0][plano1] de `kH` filas; cada fila `kBase+1`
 // palabras (la última, guarda del barrel shifter). `kFrames` frames densos por hoja.
@@ -93,12 +93,29 @@ struct BobsDemo {
 		m_bobs.tick(); // avanza la animacion ligada de cada actor
 	}
 
+	// Huella pintada del frame anterior (por actor): con un solo buffer, la huella previa
+	// es la que hay que limpiar antes de redibujar.
+	eng::Box m_painted0[kNActors] {};
+
 	void render(auto& app) {
 		auto s = app.screen();
-		s.fill_box(eng::Box {0, 0, kWidth, kHeight}, 0u); // fondo (color 0)
+		if (app.frame() == 0u) {
+			// El buffer nace sin limpiar: se limpia entero una vez.
+			s.fill_box(eng::Box {0, 0, kWidth, kHeight}, 0u);
+		} else {
+			// Limpieza **acotada**: solo la huella previa de los actores, no la pantalla.
+			// Los actores se mueven ≤ 1 px/frame, así que la huella del frame anterior cubre
+			// cualquier resto. `clear_box` va encolado en el plan (Blitter).
+			for (eng::u8 i = 0u; i < kNActors; ++i) {
+				if (!m_painted0[i].empty()) (void)s.clear_box(m_painted0[i]);
+			}
+		}
 		// El retorno es el nº de bobs encolados (telemetría); la capa ya se validó al
 		// construirla (aquí no hay decisión que tomar).
-		(void)s.bobs(m_bobs);                             // capa de BOBs ordenada por `z`
+		(void)s.bobs(m_bobs); // capa de BOBs ordenada por `z`
+		for (eng::u8 i = 0u; i < kNActors; ++i) {
+			m_painted0[i] = eng::Box {m_x[i], m_y[i], kObjW, kObjH};
+		}
 		app.present();
 		// READY tras varios frames completos: el primer render puede caer antes de que la captura
 		// vea un buffer ya publicado (mismo criterio que la 214).
@@ -153,7 +170,7 @@ int main() {
 	display.width = kWidth;
 	display.height = kHeight;
 	display.color_depth = kPlanes;
-	display.buffers = 2u;              // doble buffer: sin tearing mientras el Blitter dibuja
+	display.buffers = 1u;              // un buffer: la limpieza acotada no necesita doble buffer
 	display.palette.color[0] = 0x013u; // fondo oscuro
 	display.palette.color[1] = 0xf00u; // rojo
 	display.palette.color[2] = 0x0f0u; // verde
