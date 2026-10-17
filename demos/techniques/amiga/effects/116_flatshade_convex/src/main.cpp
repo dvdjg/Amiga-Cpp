@@ -123,15 +123,18 @@ constexpr eng::u16 kBplcon1 = 0x0000;
 constexpr eng::u16 kMaxFaceVerts = 8;
 
 // Franja de depuracion (norma del repo): nombre + version + contador de frames en una ZONA
-// APARTE con un 5º plano de 1 bpp (512 B) que la copperlist activa con el WAIT del builder
-// al final de la lista (el comparador de WAIT usa semantica `>=` y dispara en la raster 255;
-// ver la nota de geometria en la demo 079). El texto se pinta por palabras
-// (`Surface::draw_text_words`) y se ACTUALIZA SOLO AL CAMBIO: coste por frame CERO. La
-// paleta 16..31 replica la del sombreado (16 = tinta de la franja) para que los pixeles del
-// balon que caen dentro de la banda conserven su color (la zona suma +16 al indice).
+// APARTE con un 5º plano de 1 bpp de tamano COMPLETO (8 KB) activo TODO el frame (BPLCON0
+// de 5 planos + puntero en la cabecera de la lista, sin WAITs: una zona `>255` no se puede
+// cerrar — el comparador usa semantica `>=` sobre V[7:0], `WinUAE-DBG/custom.cpp:4416`
+// `coppercomp` — y el plano quedaba encendido mostrando basura; fallo real 2026-10-17). El
+// texto se pinta por palabras (`Surface::draw_text_words`) y se ACTUALIZA SOLO AL CAMBIO:
+// coste por frame ~0 (fetch fijo del plano aparte). La franja va en la banda superior
+// (filas de plano 6..13 -> filas ~16..23 de la ventana; el balon empieza en la ~27) y la
+// paleta 16..31 es un ESPEJO de la del sombreado (16 = tinta) para que el +16 que el 5º
+// plano suma a toda la pantalla sea transparente fuera del texto.
 constexpr eng::u16 kHudRows = 16;
-constexpr eng::u32 kHudBytes = static_cast<eng::u32>(kBytesPerRow) * kHudRows;
-constexpr eng::u16 kHudZoneWait = 284;
+constexpr eng::u32 kHudBytes = static_cast<eng::u32>(kBytesPerRow) * kHeight; // plano completo
+constexpr eng::s32 kHudY = 6; // fila de PLANO del texto (-> fila 16 de la ventana)
 constexpr eng::u8 kHudColor = 1u;
 constexpr eng::s32 kHudCounterX = 176; // multiplo de 16, tras "FLATSHADE vX.Y.BBBBB"
 constexpr eng::debug::Version kVersion {2u, 0u};
@@ -458,9 +461,9 @@ struct FlatShadeDemo {
 		// `bind_raw` es el tamano de PLANO (kHudBytes), no el de fila.
 		(void)m_hud_pf.bind_raw(m_hud_block.view.data(),
 					static_cast<eng::u32>(m_hud_block.view.size()),
-					kWidth, kHudRows, 1, kHudBytes);
+					kWidth, kHeight, 1, kHudBytes);
 		(void)backend.blitter_clear(m_hud_block.view.subspan(0u, kHudBytes), 1u, kBytesPerRow,
-					    kHudBytes, kWidth, kHudRows);
+					    kHudBytes, kWidth, kHeight);
 		draw_hud_static();
 		draw_hud_counter(0u);
 
@@ -482,14 +485,16 @@ struct FlatShadeDemo {
 						    eng::PaletteWords {g_hud_band_colors, 32u}, 16u, 16u);
 				    },
 				    [this](scene::Scene& sc) {
-					    sc.scheduler().move_bitplane_pointer(
-						    4, m_hud_block.mem_view_chip().address(0));
-					    sc.scheduler().wait_line_safe(kHudZoneWait);
+					    // 5º plano (franja) activo TODO el frame: BPLCON0 de 5 planos + puntero
+					    // estatico (sin zonas/WAITs >255: no se pueden cerrar con el comparador
+					    // >= de WinUAE y quedaban encendidas — franjas de basura).
 					    sc.scheduler().move(
 						    copper::Register::BPLCON0,
 						    eng::graphics::composition::bplcon0_for(
 							    eng::graphics::composition::SceneMode::Standard,
 							    5u));
+					    sc.scheduler().move_bitplane_pointer(
+						    4, m_hud_block.mem_view_chip().address(0));
 				    })) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011603u);
 			return;
@@ -685,7 +690,7 @@ private:
 			line[n++] = label[i];
 		}
 		line[n] = '\0';
-		(void)hud.draw_text_words(0, 4, line, kHudColor);
+		(void)hud.draw_text_words(0, kHudY, line, kHudColor);
 	}
 
 	/// Contador de frames del HUD (campo fijo de 6 caracteres en `kHudCounterX`): 3
@@ -704,7 +709,7 @@ private:
 			field[n++] = tmp[--t];
 		}
 		field[6] = '\0';
-		(void)hud.draw_text_words(kHudCounterX, 4, field, kHudColor);
+		(void)hud.draw_text_words(kHudCounterX, kHudY, field, kHudColor);
 	}
 
 	bool m_init_ok = false;

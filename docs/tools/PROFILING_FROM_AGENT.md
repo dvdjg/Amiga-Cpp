@@ -32,6 +32,34 @@ node tools/debug/profile.mjs <demo> [CONFIG]
 
 Antes de capturar, matar instancias huérfanas de WinUAE (bloquean los puertos GDB 2345/2346) y asegurarse de que el binario y su `.map`/`.elf` existen en `out/demos/<demo>/<CONFIG>/`.
 
+## El HUD no puede contaminar la medida (regla de medición)
+
+**Antes de medir rendimiento, comprobar el coste del HUD de depuración.** Un HUD dibujado por
+frame sobre los planos de la escena (o sobre varios planos) **distorsiona la medida** y convierte
+una demo rápida en una lenta artificialmente. Casos medidos en este repo:
+
+| HUD | Coste medido | Fuente |
+|---|---|---|
+| Texto por frame en playfield de 4 planos (3 líneas de 40) | **~750k ciclos/frame (≈6 campos)** | DT-025 (`001_rpg_dungeon`) |
+| Texto por frame en 5 planos (anillo de la 079, prototipo de paso) | **~205k ciclos/frame** | campaña 079/116 (este doc) |
+| 5º plano de 1 bpp **activo todo el frame** (pintado solo al cambio) | **~0,1–0,25 campos/frame** (fetch fijo; 079 ≈ −2,6 fps, 116 ≈ −1,7 fps) | 079/116 modernizadas |
+| Zona de 5º plano con WAIT `>255` | **Rota**: dispara en la raster 255 (`>=`) y no se puede cerrar; franjas de basura | DT-027 |
+
+Receta del HUD ligero (norma del repo, §0 de `AGENTS.md`): **zona aparte** de la pantalla con
+**1–2 bitplanes propios activos TODO el frame** (`BPLCON0` + puntero en la cabecera de la
+lista de cobre) y **paleta espejo** (`palette[16]=tinta`, `palette[16+k]=palette[k]`) para que
+el +16 del plano sea transparente fuera del texto. **No** usar «zonas» de WAIT `>255` para
+encerrar el plano: el comparador del Copper usa semántica `>=` sobre `V[7:0]`
+(`WinUAE-DBG/custom.cpp:4416` `coppercomp`), dispara en la raster 255 y **no permite ningún
+WAIT posterior** dentro de la lista (el plano queda encendido — fallo real de 079/116,
+2026-10-17). **Actualización solo al cambio**: etiqueta estática una vez; contador en campo de
+ancho fijo ~1 vez/segundo (24 escrituras), escritura **por palabras**
+(`Surface::draw_text_words`), nunca por píxel ni por frame. La franja va en una banda libre
+del efecto (medir la geometría real del display antes de colocarla: en la 079/116 la ventana
+visible son ~240 filas y el fetch va desfasado; ver `src/main.cpp` de la 079). Para medir fps
+de la lógica **sin** HUD, usar el toggle de ablación de la demo (`K120_SKIP_HUD` es la
+referencia) y comparar A/B.
+
 ## La tabla de unwind
 
 El comando `monitor profile N "" bin` produce **0 muestras de CPU**: WinUAE necesita un `.unwind` que le diga cómo desenrollar la pila para atribuir la muestra a la función. `tools/debug/winuae-profile.mjs` lo construye portando la `UnwindTable` del plugin:

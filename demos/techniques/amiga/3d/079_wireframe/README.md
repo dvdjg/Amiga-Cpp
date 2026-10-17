@@ -22,11 +22,11 @@ En la parte baja de la ventana muestra la franja de depuración (nombre + versi�
 
 - **Sincronización**: `Engine::run_frames` (latido por IRQ de VBlank + espera bloqueada en `Wait()`); el demo no usa la cola de fondo, así que el servicio de Blitter va desactivado (`set_blit_service_enabled(false)`): las esperas entre líneas son sondeo apretado sin llamada de servicio por vuelta.
 - **Pre-clear solapado**: el plano que se dibujará en el próximo update está **oculto** en la copperlist vigente (los 4 mostrados son `active`, `active+2..active+4`), así que su borrado (blit lanzado sin esperar) corre en paralelo con la CPU del frame y el primer trazo del update siguiente lo sincroniza.
-- **Franja de depuración (1 bpp, coste por frame CERO)**: el texto se pinta por palabras (`Surface::draw_text_words`) en un bloque de 512 B; la parte estática una vez en `init` y el contador ~1 vez/segundo (24 escrituras). La copperlist activa el 5º plano con un WAIT del builder; la banda 16..31 de la paleta replica la del alambre (16 = tinta) para no recolorear el balón dentro de la banda. Geometría medida en emulador: el WAIT `>255` dispara en la raster 255 (semántica `>=` de WinUAE, `custom.cpp:4416` `coppercomp`) → la franja queda en las filas de ventana ≈216..224.
+- **Franja de depuración (1 bpp, coste por frame CERO)**: el texto se pinta por palabras (`Surface::draw_text_words`) en su propio **plano completo de 1 bpp**; la parte estática una vez en `init` y el contador ~1 vez/segundo (24 escrituras). El 5º plano va **activo todo el frame** en el header de la copperlist (sin WAITs: una zona `>255` no se puede cerrar con el comparador `>=` de WinUAE, `custom.cpp:4416` `coppercomp`) y la paleta 16..31 es un **espejo** de la del alambre (16 = tinta) para que el +16 del plano sea transparente. La franja queda en la banda superior (filas de ventana ≈16..23).
 
 ## Rendimiento
 
-`A500_debug`, `measure-fps` (2026-10-17): **35,7 fps / 1,40 campos/frame** (~199k ciclos/update). Antes de la modernización: 6,86 fps / 7,29 campos (el camino antiguo pagaba el O(2) del informe de presupuesto del `FramePlan` por línea, `memset`/`memcpy` por job del plan, sondeo de VBlank y servicio de blit por vuelta). Detalle por secciones y evidencia: `VALIDATION.md`.
+`A500_debug`, `measure-fps` (2026-10-17): **33,1 fps / 1,51 campos/frame** (~214k ciclos/update; incluye el +0,11 campos del 5º plano del HUD). Antes de la modernización: 6,86 fps / 7,29 campos (el camino antiguo pagaba el O(2) del informe de presupuesto del `FramePlan` por línea, `memset`/`memcpy` por job del plan, sondeo de VBlank y servicio de blit por vuelta). Detalle por secciones y evidencia: `VALIDATION.md`.
 
 ## Uso
 

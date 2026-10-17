@@ -23,6 +23,14 @@ for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const c = rgb(x, y); f
 let bg = 0, best = -1;
 for (const [c, n] of freq) if (n > best) { best = n; bg = c; }
 
+// Banda del HUD de depuracion (norma del repo desde 2026-10): el 5º plano de 1 bpp pinta
+// nombre+version+contador en la banda superior de la ventana; sus pixeles NO son parte del
+// balon y no deben entrar en el blob/silueta (el texto rompia el gate de convexidad).
+// Filas de VENTANA (la captura escala H/256): 12..28 cubre el texto (~16..23) con margen.
+const hudY0 = Math.floor((12 * H) / 256);
+const hudY1 = Math.ceil((28 * H) / 256);
+const inHudBand = (y) => y >= hudY0 && y <= hudY1;
+
 let count = 0, minX = W, minY = H, maxX = -1, maxY = -1, sx = 0, sy = 0;
 const colors = new Set();
 // Silueta por fila (primer/ultimo pixel del blob): un objeto CONVEXO tiene un contorno
@@ -31,6 +39,7 @@ const colors = new Set();
 // bandas y aparecen saltos enormes aunque cobertura/tonos/bbox sigan OK.
 const rowL = new Int32Array(H).fill(-1), rowR = new Int32Array(H).fill(-1);
 for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+  if (inHudBand(y)) continue;
   const c = rgb(x, y);
   if (c === bg || c === 0) continue;
   count++; colors.add(c); sx += x; sy += y;

@@ -16,7 +16,7 @@ Objeto **convexo** `pilka` (malla `obj2c`, 60 vértices / 90 aristas / 32 caras)
 ## Elementos en pantalla
 
 - **Balón (dodecaedro/icosaedro truncado) con caras sólidas** de tonos azules: cada cara visible con su tono de luz (0..15, paleta `flatshade_colors`), la cara más clara girada hacia el observador. El contorno EOR delimita silueta y aristas de contraste.
-- **Franja de depuración** en la parte baja de la ventana (filas de ventana ≈216..224): texto blanco `FLATSHADE v2.0.<build>  F <frames>` sobre fondo oscuro (plano de 1 bpp, paleta de banda 16..31).
+- **Franja de depuración** en la banda superior de la ventana (filas ≈16..23, libre del balón): texto blanco `FLATSHADE v2.0.<build>  F <frames>` sobre fondo oscuro (**5º plano de 1 bpp activo todo el frame**, paleta espejo 16..31 para no alterar la escena).
 - Fondo oscuro uniforme (`#001122` del original).
 
 ## Evolución temporal
@@ -24,4 +24,4 @@ Objeto **convexo** `pilka` (malla `obj2c`, 60 vértices / 90 aristas / 32 caras)
 - La rotación avanza **8 unidades de vuelta (0..4095) por frame** (`m_angle + 8`): giro continuo; las caras cambian de tono y la cara más iluminada va recorriendo el sólido.
 - Con la pipeline de 3 buffers el frame mostrado va **un paso por detrás** del calculado (latencia de 1 frame, como el original).
 - Con `-DFLATSHADE_FREEZE_ANGLE=N` el ángulo se congela (capturas deterministas; dos builds con el mismo ángulo dan el mismo PNG byte a byte, gate `freeze-diff`).
-- Cadencia medida (`A500_debug`, 2026-10): **19,7 fps** (2,54 campos/frame, ~360k ciclos/update). Sigue por debajo del suelo de 25 fps del efecto de relleno de polígonos: la deuda y el plan (referee async) están en DT-026 de `ROADMAP_DEUDA_TECNICA.md`.
+- Cadencia medida (`A500_debug`, 2026-10): **18,1 fps** (2,77 campos/frame, ~393k ciclos/update; incluye el fetch del 5º plano del HUD). Sigue por debajo del suelo de 25 fps del efecto de relleno de polígonos: la deuda y el plan (referee async) están en DT-026 de `ROADMAP_DEUDA_TECNICA.md`.

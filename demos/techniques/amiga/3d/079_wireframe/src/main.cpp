@@ -81,23 +81,26 @@ constexpr eng::u32 kBitmapBytes = kPlaneBytes * kRing;
 constexpr eng::u32 kCopperPerList = 512;
 
 // Franja de depuracion (norma del repo): nombre + version + contador de frames en una
-// ZONA APARTE de la pantalla, sobre un quinto plano de 1 bpp que la copperlist activa con
-// un WAIT (`wait_line_safe`, par de overflow del builder). El texto se pinta con
-// `Surface::draw_text_words` (por palabras de 16 px, dos glifos por palabra) en su propio
-// bloque de 512 B y se ACTUALIZA SOLO AL CAMBIO: la parte estatica (nombre + version) una
-// vez en init y el contador ~1 vez/segundo (24 escrituras de palabra). Coste por frame:
-// CERO (la zona y la paleta son estaticas en la copperlist).
+// ZONA APARTE de la pantalla, sobre un quinto plano de 1 bpp. El texto se pinta con
+// `Surface::draw_text_words` (por palabras de 16 px, dos glifos por palabra) y se ACTUALIZA
+// SOLO AL CAMBIO: la parte estatica una vez en init y el contador ~1 vez/segundo
+// (24 escrituras). Coste por frame: CERO (nada de la franja se toca en el bucle).
 //
-// GEOMETRIA (medida en emulador; el comparador de WAIT de WinUAE usa semantica `>=` sobre
-// V[7:0], custom.cpp:4416 `coppercomp`): un WAIT por encima de la 255 cae SIEMPRE en la
-// raster 255 (H~222), no en la linea pedida. Con el WAIT del builder (`wait_line_safe`,
-// par 0xffdf/0xfffe) la zona se activa ahi: el plano 5 empieza a fetchear en la raster
-// 256 = fila 212 de la ventana visible (VSTART=0x2c=44) y la franja queda en las filas
-// ~216..224, por debajo del balon. La paleta 16..31 replica la del alambre (16 = tinta de
-// la franja) para que los pixeles del balon dentro de la banda no cambien de color.
-constexpr eng::u16 kHudRows = 16;
-constexpr eng::u32 kHudBytes = static_cast<eng::u32>(kBytesPerRow) * kHudRows;
-constexpr eng::u16 kHudZoneWait = 284; // linea pedida al builder; dispara en 255 (>=)
+// GEOMETRIA (medida en emulador):
+//  - El comparador de WAIT de WinUAE usa semantica `>=` sobre V[7:0] (`custom.cpp:4416`
+//    coppercomp): un WAIT por encima de la 255 cae SIEMPRE en la raster 255 (H~222), no en
+//    la linea pedida; una "zona" activada ahi NO se puede cerrar dentro de la lista (todo
+//    WAIT posterior dispara al instante) y el 5º plano se quedaba ENCENDIDO hasta el final
+//    de la siguiente lista (franjas de basura). Por eso el plano del HUD va activo TODO el
+//    frame (BPLCON0 de 5 planos en el header): determinista y sin zonas.
+//  - El fetch va desfasado ~10 filas: la fila de plano P se ve en la fila P+10 de la
+//    ventana (VSTART=0x2c=44). El texto va en las filas de plano 6..13 -> filas 16..23 de
+//    la ventana (franja SUPERIOR, libre: el balon empieza en la ~27).
+//  - La paleta 16..31 replica la del alambre (16 = tinta de la franja) para que el +16 que
+//    anade el 5º plano a TODA la pantalla sea transparente fuera del texto.
+constexpr eng::u16 kHudRows = 16;      // filas del texto (una celda de Font8 + margen)
+constexpr eng::u32 kHudBytes = static_cast<eng::u32>(kBytesPerRow) * kHeight; // plano completo
+constexpr eng::s32 kHudY = 6;          // fila de PLANO del texto (-> fila 16 de la ventana)
 constexpr eng::u8 kHudColor = 1u;      // 1 bpp: patron del plano de la franja
 /// X del campo del contador en el lienzo del HUD (multiplo de 16 para `draw_text_words`;
 /// queda tras "WIREFRAME vX.Y.BBBBB").
@@ -219,14 +222,15 @@ struct WireframeDemo {
 			g_hud_band_colors[16u + k] = wireframe_colors[k];
 		}
 
-		// Lienzo de la franja: su PROPIO bloque de 1 plano (256x16, 512 B). El
-		// `plane_stride` de `bind_raw` es el tamano de PLANO (kHudBytes), no el de fila.
+		// Lienzo de la franja: su PROPIO plano completo (256x256, 1 bpp): con el 5º plano
+		// activo todo el frame, el fetch recorre las 256 filas del bloque (un buffer de
+		// solo 16 filas leeria fuera). `plane_stride` de `bind_raw` = tamano de PLANO.
 		(void)m_hud_pf.bind_raw(m_hud_block.view.data(),
 					static_cast<eng::u32>(m_hud_block.view.size()),
-					kWidth, kHudRows, 1, kHudBytes);
-		// El lienzo no nace limpio: se borra UNA vez; despues solo se redibuja al cambio.
+					kWidth, kHeight, 1, kHudBytes);
+		// El plano no nace limpio: se borra UNA vez; despues solo se redibuja al cambio.
 		(void)backend.blitter_clear(m_hud_block.view.subspan(0u, kHudBytes), 1u, kBytesPerRow,
-					    kHudBytes, kWidth, kHudRows);
+					    kHudBytes, kWidth, kHeight);
 		draw_hud_static();
 		draw_hud_counter(0u);
 
@@ -330,7 +334,8 @@ private:
 	/// init sobre el lienzo de 1 bpp (`m_hud_pf`). `Surface::draw_text_words` escribe por
 	/// palabras de 16 px (dos glifos por palabra; nunca pixel a pixel).
 	void draw_hud_static() {
-		auto hud = playfield::Surface {m_hud_pf, playfield::SurfaceRect {0, 0, kWidth, kHudRows}};
+		auto hud = playfield::Surface {m_hud_pf,
+					       playfield::SurfaceRect {0, kHudY, kWidth, kHudRows}};
 		char line[32] = "WIREFRAME ";
 		eng::u8 n = 10u;
 		char label[16];
@@ -339,14 +344,15 @@ private:
 			line[n++] = label[i];
 		}
 		line[n] = '\0';
-		(void)hud.draw_text_words(0, 4, line, kHudColor);
+		(void)hud.draw_text_words(0, kHudY, line, kHudColor);
 	}
 
 	/// Contador de frames del HUD: campo FIJO de 6 caracteres ("F 1234", relleno con
 	/// espacios) en `kHudCounterX` (multiplo de 16 para `draw_text_words`). Se redibuja
 	/// solo cuando el numero cambia (~1 vez/segundo): 3 palabras x 8 filas = 24 escrituras.
 	void draw_hud_counter(eng::u32 frames) {
-		auto hud = playfield::Surface {m_hud_pf, playfield::SurfaceRect {0, 0, kWidth, kHudRows}};
+		auto hud = playfield::Surface {m_hud_pf,
+					       playfield::SurfaceRect {0, kHudY, kWidth, kHudRows}};
 		char field[7] = "F     ";
 		char tmp[8];
 		eng::u8 t = 0u;
@@ -359,40 +365,38 @@ private:
 			field[n++] = tmp[--t];
 		}
 		field[6] = '\0';
-		(void)hud.draw_text_words(kHudCounterX, 4, field, kHudColor);
+		(void)hud.draw_text_words(kHudCounterX, kHudY, field, kHudColor);
 	}
 
 	/// Construye la copperlist para el plano `active`: bit3=planes[active],
 	/// bit2=planes[active-1], bit1=planes[active-2], bit0=planes[active-3] (mod 5),
-	/// como el parcheo de `BPLxPT` del original; mas la ZONA de la franja (5º plano,
-	/// 1 bpp) activada por el WAIT del builder al final de la lista.
+	/// como el parcheo de `BPLxPT` del original. El 5º plano (franja de depuracion,
+	/// 1 bpp) va activo TODO el frame en el header (sin zonas/WAITs: ver la nota de
+	/// geometria arriba).
 	bool build_copper(eng::u8 active) {
 		// Anillo de copperlists: cada tramo del bloque es una lista independiente.
 		const eng::Bytes<eng::CopperTag> slice = m_copper_block.view.subspan(
 			static_cast<eng::u32>(active) * kCopperPerList, kCopperPerList);
 		copper::Scheduler sched { eng::Block<eng::CopperTag> { slice, m_copper_block.kind } };
-		sched.emit_planes_display(kDiwstrt, kDiwstop, kDdfstrt, kDdfstop, kBytesPerRow, kBplcon0,
-					  kPlanes, m_bitplane_block.mem_view_chip(), kPlaneBytes);
+		// BPLCON0 con 5 planos (los 4 del original + el de la franja): constructor unico.
+		const eng::u8 planes5 = static_cast<eng::u8>(kPlanes + 1u);
+		sched.emit_planes_display(kDiwstrt, kDiwstop, kDdfstrt, kDdfstop, kBytesPerRow,
+					  eng::graphics::composition::bplcon0_for(
+						  eng::graphics::composition::SceneMode::Standard,
+						  planes5),
+					  planes5, m_bitplane_block.mem_view_chip(), kPlaneBytes);
 		for (eng::u8 n = 0; n < kPlanes; ++n) {
 			const eng::u8 idx = static_cast<eng::u8>((active + 2u + n) % kRing);
 			sched.move_bitplane_pointer(n, m_bitplane_block.mem_view_chip().address(static_cast<eng::s32>(idx) * static_cast<eng::s32>(kPlaneBytes)));
 		}
-		// 5º plano (franja): el puntero se fija al principio de la lista (como el build
-		// original del port; con la zona activada solo en el tramo final, ver abajo).
+		// 5º plano (franja): puntero estatico al plano del HUD (no rota con el anillo).
 		sched.move_bitplane_pointer(kPlanes, m_hud_block.mem_view_chip().address(0));
 		sched.move(copper::Register::BPLCON1, kBplcon1);
 		sched.emit_palette(wireframe_colors, 0, 16);
-		// Paleta de la banda 16..31 (16 = tinta de la franja, 17..31 = color del balon sin
-		// cambiar dentro de la banda; ver `g_hud_band_colors` en `init`).
+		// Paleta 16..31 (16 = tinta de la franja, 17..31 = copia de 1..15): el 5º plano
+		// suma +16 al indice de color de TODA la pantalla; el espejo lo hace transparente
+		// fuera del texto (ver `g_hud_band_colors` en `init`).
 		sched.emit_palette(eng::PaletteWords {g_hud_band_colors, 32u}, 16, 16);
-		// Zona del HUD: WAIT del builder (par de overflow; dispara en la raster 255 por la
-		// semantica `>=` del comparador, ver la nota de geometria arriba) + BPLCON0 con 5
-		// planos. La zona dura hasta el final de la lista.
-		sched.wait_line_safe(kHudZoneWait);
-		sched.move(copper::Register::BPLCON0,
-			   eng::graphics::composition::bplcon0_for(
-				   eng::graphics::composition::SceneMode::Standard,
-				   static_cast<eng::u8>(kPlanes + 1u)));
 		sched.end();
 		m_copper_views[active] = sched.chip_view();
 		return sched.ok();

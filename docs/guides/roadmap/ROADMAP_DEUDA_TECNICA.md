@@ -280,16 +280,35 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 
 **Medidas (`A500_debug`, `measure-fps`):**
 
-- 079: **6,86 → 35,7 fps** (7,29 → 1,40 campos/frame). Cierra el problema reportado («se pierden frames»).
-- 116: **19,20 → 19,70 fps** (2,60 → 2,54 campos/frame). **Sigue por debajo del suelo de 25 fps** del efecto de relleno de polígonos → demo **ABIERTA**.
+- 079: **6,86 → 35,7 fps** (7,29 → 1,40 campos/frame); tras el fix del HUD a plano uniforme, **33,1 fps** (1,51 campos; el 5º plano cuesta ~0,11 campos). Cierra el problema reportado («se pierden frames»).
+- 116: **19,20 → 19,70 fps** (2,54 campos/frame) y, tras el fix del HUD a plano uniforme, **18,05 fps** (2,77 campos; el 5º plano cuesta ~0,23 campos). **Sigue por debajo del suelo de 25 fps** del efecto de relleno de polígonos → demo **ABIERTA**.
 
-**Hallazgo clave (acotado y medido):** el fill XOR acotado a la caja del objeto («bbox», soporte nuevo de `eng::retro::flat_shade_xor(…, bbox)`) y el clear acotado por buffer **empeoran** el frame en la pipeline síncrona actual (19,2 → 17,3 fps): el fill acotado son **4 jobs** (uno por plano) cuyo `wait_blitter` interno serializa la CPU con el Blitter dentro del `update` (el barrido completo era **un solo job** lanzado sin esperar). La vía correcta para cobrar el recorte (~56k de fill + ~40k de clear) es el **referee async** del `FramePlan` (encadenado por IRQ de fin de blit, viable bajo el SO según la 066/`066-async-blit-irq-bajo-el-so.md`), que aún **no cubre el área fill XOR** (no existe `BlitJobKind::AreaFill`).
+**Hallazgo colateral (HUD, corregido):** el HUD de la primera pasada usaba una «zona» de 5º plano activada con un WAIT `>255`; con la semántica `>=` del comparador (`custom.cpp:4416` `coppercomp`) dispara en la raster 255 y **la lista termina ahí (STOP)**: el plano quedaba encendido (franjas de basura). Corregido con **plano activo todo el frame + paleta espejo** en ambas demos (detalle en `PROFILING_FROM_AGENT.md` y los `VALIDATION.md`).
+
+**Hallazgo clave (acotado y medido):** el fill XOR acotado a la caja del objeto («bbox», soporte nuevo de `eng::retro::flat_shade_xor(…, bbox)`) y el clear acotado por buffer **empeoran** el frame en la pipeline síncrona actual (19,2 → 17,3 fps): el fill acotado son **4 jobs** (uno por plano) cuyo `wait_blitter` interno serializa la CPU con el Blitter dentro del `update` (el barrido completo era **un solo job** lanzado sin esperar). La vía correcta para cobrar el recorte (~56k de fill + ~40k de clear) es el **referee async** del `FramePlan` (encadenado por IRQ de fin de blit, viable bajo el SO según la 066/`066-async-blit-irq-bajo-el-so.md`).
+
+**Estado del prototipo async (2026-10-17):** se inició el port de la 116 a `execute_frame_plan_async` (líneas EOR + AreaFill + ClearRect en un plan por frame). La base del engine quedó **añadida** (`BlitJobKind::AreaFill` + `make_area_fill_rect` + encoder + submit + validación/presupuesto del plan; sin demo que la ejercite → SIN VERIFICAR en target). El prototipo de la demo quedó **colgado** (la cadena se atasca tras ~52 jobs: IRQ de fin de blit del último job no vista; contadores `g_blit_async_*`: 3 launches, 156 submits, 2 ends) y se **retiró** para no dejar la demo rota; el diagnóstico queda aquí para retomarlo.
 
 **Plan:**
 
-- [ ] `BlitJobKind::AreaFill` en el encoder/ejecutor (A=D, `FILL_XOR|DESC`, rect + stride por planos) para que el fill entre en un `FramePlan` async junto a las líneas EOR y el clear.
-- [ ] Refactor de la 116 a `execute_frame_plan_async` (líneas EOR + AreaFill + ClearRect) con el servicio de blit **activado** y `wait` en el update siguiente; medir esperando ≥25 fps.
+- [x] `BlitJobKind::AreaFill` en el encoder/ejecutor (A=D, `FILL_XOR|DESC`, rect + stride por planos) + validación/presupuesto del plan — base lista.
+- [ ] Diagnóstico del cuelgue del protagonista async (¿job de línea EOR programado desde la ISR con BBUSY ya bajo? ¿gate INTENA/latch perdido en el último job?) con el binario de prueba y los contadores `g_blit_async_*`; luego reactivar el plan async (líneas EOR + AreaFill + ClearRect) con el servicio de blit **activado** y `wait` en el update siguiente; medir esperando ≥25 fps.
 - [ ] Si el async no bastara: valorar la ruta asm del transform (`flatshade_asm.s`, 1,8x medido) — con el fix del desfase del contorno pendiente.
 
 **Evidencia:** `demos/techniques/amiga/effects/116_flatshade_convex/VALIDATION.md`; notas de coste en `src/main.cpp` de 079/116; perfiles en `out/debug/*` de la campaña.
+
+## DT-027 — HUD ligero obligatorio al medir rendimiento (recomendación para hilos futuros)
+
+**Origen:** campaña 079/116 (2026-10-17) y hallazgo previo de la RPG 001 (DT-025).
+
+**Lección medida:** un HUD de texto dibujado **por frame** contamina la medida de fps: 3 líneas de 40 caracteres en 4 planos ≈ **750k ciclos/frame** (DT-025) y un prototipo de franja pintada cada frame en los 5 planos de la 079 ≈ **205k ciclos/frame** (medido por ablación A/B: 17,45 vs 36,27 fps). El HUD de **zona aparte con 1 bpp** y actualización **solo al cambio** mide **0 ciclos/frame** (las 079/116 modernizadas lo usan y mantienen su fps íntegra).
+
+**Regla para futuros hilos** (amplía §0 de `AGENTS.md`, que exige el HUD más sencillo posible):
+
+- Al **medir rendimiento** (y en general), el HUD va en **zona aparte** de la pantalla con **1–2 bitplanes propios** activos **todo el frame** (`BPLCON0` + puntero en la cabecera de la lista), **nunca** repintado sobre los planos del efecto ni por frame.
+- **Prohibido cerrar el HUD con una «zona» de WAIT `>255`**: el comparador del Copper usa semántica `>=` sobre `V[7:0]` (`custom.cpp:4416` `coppercomp`), un WAIT por encima de la 255 dispara en la raster 255 y **no se puede volver a esperar nada después** dentro de la lista: el plano extra queda encendido más allá de su banda (franjas de basura; pasó en 079/116, 2026-10-17).
+- El **delta** del plano fijo se absorbe con la **paleta espejo** (`palette[16]=tinta`, `palette[16+k]=palette[k]`) para que sumar +16 al índice de color sea transparente fuera del texto; el coste queda en el fetch fijo (~0,1–0,25 campos según demo), medido y anotado.
+- Etiqueta estática UNA vez; contador en **campo de ancho fijo** reescrito ~1 vez/segundo (24 escrituras); texto **por palabras** (`Surface::draw_text_words`).
+- Antes de dar una medida de fps por buena, revisar el coste del HUD (ablación o profile) y dejarlo anotado en el `VALIDATION.md`.
+- Detalle operativo y casos medidos: `docs/tools/PROFILING_FROM_AGENT.md` §«El HUD no puede contaminar la medida».
 

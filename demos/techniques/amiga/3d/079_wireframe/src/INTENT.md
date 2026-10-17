@@ -16,7 +16,7 @@ Dibuja el objeto `pilka` (malla `obj2c` de 60 vértices / 90 aristas / 32 caras,
 ## Elementos en pantalla
 
 - **Balón de fútbol en alambre**, líneas azules (paleta `wireframe_colors`, 16 tonos de azul), centrado y ocupando ~2/3 de la ventana; los 4 planos visibles forman el rastro cromático (color 8 = frame actual, 7/3/1 = anteriores).
-- **Franja de depuración** en la parte baja de la ventana (filas de ventana ≈216..224): texto blanco `WIREFRAME v2.0.<build>  F <frames>` sobre fondo oscuro, pintado en un plano de 1 bpp con paleta propia (banda 16..31 que replica la del alambre para no alterar el color del balón dentro de la banda).
+- **Franja de depuración** en la banda superior de la ventana (filas ≈16..23, libre del balón): texto blanco `WIREFRAME v2.0.<build>  F <frames>` sobre fondo oscuro, pintada en un **5º plano de 1 bpp activo todo el frame** (sin zonas de Copper; el fetch extra ~0,11 campos) con paleta espejo 16..31 para no alterar ningún color de la escena.
 - Fondo azul oscuro uniforme (COLOR00 del original, `0x012`).
 
 ## Evolución temporal
@@ -24,4 +24,4 @@ Dibuja el objeto `pilka` (malla `obj2c` de 60 vértices / 90 aristas / 32 caras,
 - La rotación avanza **8 unidades de vuelta (0..4095) por frame** en los tres ejes (como el original, `frameCount * 8`): giro continuo perceptible en la secuencia (la visibilidad de caras y aristas hace que el alambre "ruede").
 - El contador del HUD se incrementa 1 por frame y se **repinta 1 vez/segundo** (campo de ancho fijo, 24 escrituras de palabra); no hay otros cambios de contenido.
 - Con `-DWIREFRAME_FREEZE_ANGLE=N` la rotación se congela en `N` vueltas (capturas deterministas para A/B pixel a pixel).
-- Cadencia medida (`A500_debug`, 2026-10): **35,7 fps** (1,40 campos/frame, ~199k ciclos/update); se ejecuta un update por frame de juego sin tirones de dos campos.
+- Cadencia medida (`A500_debug`, 2026-10): **33,1 fps** (1,51 campos/frame, ~214k ciclos/update); se ejecuta un update por frame de juego sin tirones de dos campos.

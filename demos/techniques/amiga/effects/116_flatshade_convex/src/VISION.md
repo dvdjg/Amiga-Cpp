@@ -2,7 +2,7 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-17T08:24:30.999Z
+- Fecha: 2026-10-17T11:20:32.118Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
 - Frames: frame_000.png, frame_002.png, frame_004.png, frame_005.png, frame_007.png (5)
 - Secuencia: `out/run/116_flatshade_convex/A500_debug/sequence`
@@ -15,19 +15,22 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 ## Respuesta (cruda)
 
-Las tres imágenes muestran una secuencia visual de un objeto tridimensional, un poliedro con caras planas (posiblemente un icosaedro o un poliedro similar), renderizado con un estilo de sombreado plano (flat shading) sobre un fondo oscuro.
+**Imagen 1:**
+- **Elemento central:** Un poliedro esférico compuesto por múltiples caras planas de forma irregular, coloreado en distintos tonos de azul. Las caras más cercanas a la fuente de luz (superior) son de un azul claro, mientras que las caras más alejadas (inferiores y laterales) son de un azul más oscuro. El poliedro tiene un aspecto pixelado.
+- **Texto en la parte superior:** "FLATSHADE v2.0.4255 F 0".
+- **Fondo:** Negro.
 
-**Elementos comunes en todas las imágenes:**
-*   **Objeto central:** Un poliedro compuesto por múltiples caras planas de color azul. Las caras varían en tono, desde un azul claro (más brillante) hasta un azul oscuro (más oscuro), creando una ilusión de profundidad y orientación. La forma del poliedro es simétrica y se asemeja a una esfera poligonal.
-*   **Texto en la parte inferior:** En la parte inferior de cada imagen, hay un texto en mayúsculas que dice: `FLATSHADE v2.0.4243 F 0`. Este texto es el mismo en todas las imágenes, excepto por el valor numérico que aparece después de la "F".
-*   **Fondo:** Un fondo de color negro o azul muy oscuro, uniforme.
+**Imagen 2:**
+- **Elemento central:** El mismo poliedro, ahora con un cambio en la iluminación. Las caras que antes eran azules claras ahora son de un azul más intenso, y las caras oscuras se han vuelto aún más oscuras, creando un contraste mayor. La iluminación parece haberse movido hacia arriba.
+- **Texto en la parte superior:** "FLATSHADE v2.0.4255 F 128".
+- **Fondo:** Negro.
 
-**Cambios entre imágenes:**
-*   **Imagen 1:** El valor numérico a la derecha del texto es `0`. El poliedro está orientado de forma que una de sus caras centrales es de un azul claro, y las caras circundantes son de tonos azules más oscuros.
-*   **Imagen 2:** El valor numérico cambia a `292`. El poliedro ha girado ligeramente, mostrando una cara diferente como la más brillante en el centro.
-*   **Imagen 3:** El valor numérico cambia a `192`. El poliedro ha girado nuevamente, mostrando otra cara central brillante, diferente a las anteriores.
+**Imagen 3:**
+- **Elemento central:** El poliedro se ha girado ligeramente hacia arriba y hacia la izquierda. La cara central (hexagonal) ahora está más orientada hacia el espectador y es la más brillante. Las caras laterales y superiores están más iluminadas, mientras que las inferiores son más oscuras.
+- **Texto en la parte superior:** "FLATSHADE v2.0.4255 F 128".
+- **Fondo:** Negro.
 
-**Observaciones:**
-*   El objeto parece estar girando lentamente en un eje, lo que cambia la cara que está más orientada hacia el observador y, por lo tanto, el valor numérico que se muestra.
-*   El valor numérico "F" seguido de un número (0, 292, 192) probablemente representa un ángulo de rotación o un identificador de frame en la animación.
-*   No hay artefactos visibles, recortes, superposiciones ni elementos incompletos. La secuencia es coherente y muestra una animación simple de rotación.
+**Cambios observables:**
+- El valor "F" en la parte superior cambia de "0" a "128" entre la primera y la segunda imagen.
+- El poliedro gira entre la segunda y la tercera imagen.
+- La iluminación del poliedro cambia de forma perceptible entre las imágenes, lo que sugiere que el programa está simulando un cambio de ángulo de luz o una rotación del objeto.

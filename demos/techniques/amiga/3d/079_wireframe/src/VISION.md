@@ -2,7 +2,7 @@
 
 <!-- generado por tools/analyze/vision-final.mjs; no editar a mano -->
 
-- Fecha: 2026-10-17T08:23:49.225Z
+- Fecha: 2026-10-17T11:20:01.492Z
 - Modelo: `qwen3-vl:8b-instruct-q8_0`
 - Frames: frame_000.png, frame_002.png, frame_004.png, frame_005.png, frame_007.png (5)
 - Secuencia: `out/run/079_wireframe/A500_debug/sequence`
@@ -15,22 +15,19 @@ Las imágenes adjuntas van EN ORDEN TEMPORAL (si hay más de una). Describe con 
 
 ## Respuesta (cruda)
 
-Las tres imágenes muestran una secuencia visual de un mismo objeto 3D, un poliedro esférico de tipo icosaedro truncado o similar, representado como un wireframe (esqueleto de líneas) en color azul brillante sobre un fondo oscuro.
+Las tres imágenes muestran una representación de wireframe de una esfera, con un texto en la parte superior que indica la versión del programa y un valor que cambia.
 
 **Elementos comunes en todas las imágenes:**
-*   **Objeto central:** Un poliedro con múltiples caras poligonales (predominantemente pentagonales y hexagonales, como un balón de fútbol), delineado con líneas azules. La estructura es simétrica y se asemeja a una esfera poligonal.
-*   **Texto en la parte inferior:** Una leyenda en letras blancas que dice `WIREFRAME v2.0.4240 F [número]`.
-    *   En la primera imagen, el número es `64`.
-    *   En la segunda, es `198`.
-    *   En la tercera, es `256`.
-*   **Fondo:** Un color azul marino o negro uniforme.
+*   **Fondo:** Un fondo de color azul oscuro.
+*   **Texto superior:** En la parte superior, centrado horizontalmente, se muestra el texto "WIREFRAME v2.0.4259" en letras blancas, seguido por "F 0" en la primera imagen y "F 128" en las siguientes.
+*   **Objeto central:** Una esfera tridimensional representada como una red de líneas azules que forman polígonos (principalmente hexágonos y pentágonos). La esfera está centrada en la imagen.
 
 **Cambios entre imágenes:**
-*   **El número en la leyenda cambia progresivamente:** `64` → `198` → `256`. Este número parece indicar el número de caras del poliedro, que aumenta en cada paso.
-*   **La apariencia del objeto cambia:** A medida que el número de caras aumenta, el poliedro se vuelve más suave y redondeado, aproximándose visualmente a una esfera perfecta. La estructura se vuelve más densa y detallada.
-*   **La perspectiva cambia ligeramente:** La orientación del objeto en el espacio 3D cambia entre las imágenes, lo que sugiere que el objeto está girando o que la cámara se está moviendo. En la primera imagen, se ve más desde un ángulo lateral; en la tercera, se ve más desde arriba.
+*   **Imagen 1:** El texto muestra "F 0". La esfera está orientada de forma que se ve una sección de su superficie, con múltiples polígonos visibles.
+*   **Imagen 2:** El texto muestra "F 128". La esfera ha girado ligeramente, mostrando una vista diferente, con un polígono central más prominente.
+*   **Imagen 3:** El texto sigue siendo "F 128". La esfera ha girado aún más, ahora mostrando una vista más frontal y plana, con un polígono hexagonal central muy visible y los bordes de la esfera más alineados con los bordes de la imagen.
 
 **Observaciones:**
-*   No hay parpadeos, recortes ni artefactos visibles.
-*   El objeto está centrado en todas las imágenes.
-*   La secuencia parece mostrar la evolución del poliedro a medida que aumenta el número de caras, lo que es coherente con la visualización de una esfera poligonal en un programa de modelado 3D.
+*   Las imágenes parecen ser capturas de pantalla de un programa de visualización 3D.
+*   El valor "F" cambia de 0 a 128, lo que sugiere que el programa está cambiando una configuración, posiblemente relacionada con el modo de visualización, el nivel de detalle o un parámetro de renderizado.
+*   No hay artefactos visibles como parpadeos, recortes o elementos superpuestos. La esfera se muestra de forma completa en cada imagen.

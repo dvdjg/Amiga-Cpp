@@ -7,9 +7,22 @@ Informe de validación de la demo (procedimiento F0-F5). Pasada de modernizació
 | Build | fps emulado | campos/frame | ciclos/frame |
 |---|---|---|---|
 | HEAD (antes) | 19,20 | 2,60 | 369.564 |
-| Modernizada | **19,70** | 2,54 | 360.056 |
+| Modernizada (zona HUD por WAIT) | 19,70 | 2,54 | 360.056 |
+| Modernizada (HUD de plano uniforme, fix gráfico) | **18,05** | **2,77** | 392.909 |
 
-Cambios de esta pasada: `run_frames` (IRQ + `Wait()`, sin sondeo de VPOSR), `set_blit_service_enabled(false)` (la demo no usa la cola de fondo) y **franja de depuración de coste cero** (zona de 1 bpp activada por Copper en una etapa de `scene::compose`, texto estático + contador de 24 escrituras/segundo; el render por frame no cambia).
+Cambios de esta pasada: `run_frames` (IRQ + `Wait()`, sin sondeo de VPOSR), `set_blit_service_enabled(false)` (la demo no usa la cola de fondo) y **franja de depuración de coste cero**: **5º plano de 1 bpp activo todo el frame** (etapa de `scene::compose`; sin zonas de Copper — ver el fix gráfico abajo), texto estático + contador de 24 escrituras/segundo; el render por frame no cambia. El fetch del 5º plano cuesta ~0,23 campos (-1,65 fps) y es el precio de la corrección (el plano alternativo «zona por WAIT >255» no es cerrable).
+
+## Fix gráfico del HUD (2026-10-17, urgente)
+
+El HUD de la primera pasada activaba el 5º plano con un WAIT `>255` al final de la
+copperlist **estática** del `Scene`: con la semántica `>=` del comparador de WinUAE
+(`custom.cpp:4416` `coppercomp`) el disparo caía en la raster 255 y la lista **terminaba
+ahí (STOP)**: el 5º plano quedaba **encendido para siempre** y la pantalla mostraba franjas
+verticales de basura (memoria del plano fuera de su banda). Arreglo estructural: **BPLCON0
+de 5 planos en la cabecera, activo todo el frame** (sin WAITs/zona), plano del HUD de
+tamaño completo (8 KB, el fetch recorre 256 filas) y **paleta espejo 16..31** (palette[16]
+= tinta, palette[16+k] = palette[k]) para que el +16 del 5º plano sea transparente en la
+escena. La franja queda en la banda superior (filas de ventana ≈16..23, libre del balón).
 
 ## Experimentos acotados y descartados (medidos)
 
@@ -25,12 +38,12 @@ Cambios de esta pasada: `run_frames` (IRQ + `Wait()`, sin sondeo de VPOSR), `set
 
 ## Fidelidad
 
-- La pasada no modifica el render del sólido (la técnica de contorno EOR + area fill XOR, los transforms y la composición quedan igual); el único cambio de imagen es la **franja de depuración** nueva (zona de 1 bpp abajo, filas ≈216..224).
+- La pasada no modifica el render del sólido (la técnica de contorno EOR + area fill XOR, los transforms y la composición quedan igual); el único cambio de imagen es la **franja de depuración** nueva (5º plano de 1 bpp, banda superior, filas ≈16..23).
 - El gate de fase congelada (`FLATSHADE_FREEZE_ANGLE` + `tools/analyze/freeze-diff.mjs`) sigue siendo el contrato determinista: aplica si se toca el dibujo (p. ej. al portar el fill al plan async).
 
 ## Límites del alcance (SIN VERIFICAR / abierto)
 
-- **Presupuesto**: 19,7 fps < 25 → demo **ABIERTA** (DT-026). La deuda no es de corrección visual sino de camino de ejecución (referee async del `FramePlan`).
+- **Presupuesto**: 18,05 fps < 25 → demo **ABIERTA** (DT-026). La deuda no es de corrección visual sino de camino de ejecución (referee async del `FramePlan`; hay un prototipo async iniciado en el turno del 2026-10-17 que quedó **colgado** en la cadena de jobs y se retiró — la base del engine (`BlitJobKind::AreaFill`) quedó añadida para retomarlo).
 - La medida cubre `A500_debug`; no se midió `A500_release`.
 - No se declaró `flicker-baseline.json` en esta pasada.
 - La ruta asm (`K_FLATSHADE_ASM=1`) sigue sin ser válida (desfase de contorno, README): no se ha tocado.
