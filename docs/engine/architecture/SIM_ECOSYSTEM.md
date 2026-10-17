@@ -363,15 +363,11 @@ estado del mundo) y `world.hpp` define `SimWorld : SimWorldCore<...>` (planifica
 objetos/economía, percepción/memoria, lenguaje y mapa mental). Los consumidores incluyen
 `<eng/sim/world.hpp>` (la derivada trae la base) y usan la API pública de `SimWorld` sin cambios.
 
-Los módulos están **verificados por test host** y con gate de codegen; al no tener todavía
-un consumidor en una demo, están **NO VERIFICADOS por demo** (ver
-[docs/testing/README.md](../../testing/README.md)). El primer juego de `games/` con
-criaturas los verificará en el 68000.
+Los módulos están **verificados por test host** y con gate de codegen; su consumidor real en el 68000 es `games/300_sim_world` (build → run → analyze OK; overlay con nombre, versión y contador de frames, sincronización por señal de VBlank), que ejerce el LOD con cámara y la planificación integrada. Las APIs del ecosistema que ese juego no toca siguen marcadas **NO VERIFICADAS por demo** (ver [docs/testing/README.md](../../testing/README.md)).
 
 ## 13. Crecimiento
 
-Líneas abiertas, en orden de valor: **consumidor real en `games/`** que ejercite todo en
-el 68000; **percepción imperfecta** (ruidos sin fuente, olores que engañan) para emergencia
+Líneas abiertas, en orden de valor: **ampliar el consumidor real de `games/`** (`games/300_sim_world` ya valida LOD + GOAP integrado; falta que ejerza percepción, economía y sociedad en pantalla); **percepción imperfecta** (ruidos sin fuente, olores que engañan) para emergencia
 y errores creíbles; **capacidad por región** (aforo por bioma en vez de un tope global) para
 poblaciones más fieles; y **tácticas de manada** más ricas (emboscada, relevos, roles
 dinámicos). El laboratorio de escenarios y sus ajustes se documentan en

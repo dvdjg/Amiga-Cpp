@@ -86,7 +86,7 @@ Los de abajo son **diseño/decisión** (el *porqué*, contratos, roadmaps): el m
 
 ### IA y simulación
 
-- [GAME_AI_LIBRARY.md](architecture/GAME_AI_LIBRARY.md) · [SIM_ECOSYSTEM.md](architecture/SIM_ECOSYSTEM.md) · [NPC_PSYCHOLOGY.md](architecture/NPC_PSYCHOLOGY.md) · [GOAP_EXTENDED.md](architecture/GOAP_EXTENDED.md) · [BOARD_GAME_AI.md](architecture/BOARD_GAME_AI.md) · [CARD_GAME_AI.md](architecture/CARD_GAME_AI.md).
+- [GAME_AI_LIBRARY.md](architecture/GAME_AI_LIBRARY.md) · [SIM_ECOSYSTEM.md](architecture/SIM_ECOSYSTEM.md) · [NPC_PSYCHOLOGY.md](architecture/NPC_PSYCHOLOGY.md) · [RPG_LAYER.md](architecture/RPG_LAYER.md) · [GOAP_EXTENDED.md](architecture/GOAP_EXTENDED.md) · [BOARD_GAME_AI.md](architecture/BOARD_GAME_AI.md) · [CARD_GAME_AI.md](architecture/CARD_GAME_AI.md).
 
 ### Estilo, hardware y concurrencia
 

@@ -1,7 +1,6 @@
 # Roadmap unificado del engine Amiga (reunificación)
 
-Fecha: 2026-09. Este fichero **reúne** los roadmaps/disposiciones dispersos y fija
-el estado real del engine y de las demos, para decidir por dónde seguir.
+Fecha: 2026-09. Este fichero **reúne** los roadmaps/disposiciones dispersos y fija el estado real del engine y de las demos, para decidir por dónde seguir.
 
 ## Inventario de roadmaps / documentos de dirección
 
@@ -24,6 +23,7 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
 | `docs/guides/roadmap/ROADMAP_BOARD_GAMES.md` | **vigente (B0–B7 y B9 hechos; trackloader y B8.3 pendientes)** | Motores de tablero (`eng::board`): ajedrez completo (reglas, búsqueda, evaluación, conocimiento consumido, NLG y E/S de fichero del PC) con **Chess960, King of the Hill, Three-check y torneos rápidos**, y Go 9×9 completo (reglas, pase/superko, apertura y búsqueda), verificado por HOST-137…151 y HOST-179…184; `games/100_chess` y `games/101_go` corren en emulador (build→run→analyze). Faltan el trackloader Amiga, packers de tablas/patrones y MCTS ligero de Go. Diseño en `docs/engine/architecture/BOARD_GAME_AI.md` y concurrencia en `docs/engine/architecture/PARALLEL_AND_THREADS.md` |
 | `docs/guides/roadmap/ROADMAP_CARD_GAMES.md` | **vigente (C0–C4 hechos; C5 juego pendiente)** | Motores de naipes (`eng::cards`): póker **Texas Hold'em No-Limit** con baraja determinista, reglas (ciegas, calles, acciones legales, botes laterales y showdown), evaluador de 5/7, equity Monte Carlo, **rangos y tabla preflop de 169 clases**, IA por estilos con modelo de rival y simulación CPU vs CPU, verificado por HOST-188…193 con **footprint `N20`…`N512`**; codegen 68000 sin libcalls (sonda de codegen) y herramienta host `tools/cards/selfplay.sh`. Falta el juego con UI en `games/` (API **NO VERIFICADA** en hardware). Diseño en `docs/engine/architecture/CARD_GAME_AI.md` |
 | `docs/guides/roadmap/ROADMAP_NPC_PSYCHOLOGY.md` | **nuevo (P0–P5 planificados)** | Perfil psicológico de NPC sobre `eng::sim`: arquetipos (~35 personalidades), rasgos de psique, aptitudes, defectos, **expresión no verbal** (canales/gestos, control y fugas), **lectura de tells** (Bayes-lite, pardillo vs listillo), evolución de partida (tilt/racha) y **convenciones secretas** (base del Mus). Diseño y catálogos en `docs/engine/architecture/NPC_PSYCHOLOGY.md`; tests HOST-199…203 |
+| `docs/guides/roadmap/ROADMAP_RPG.md` | **nuevo (M0–M2 hechos; M3–M7 planificados)** | Capa RPG/CRPG (`eng::rpg`) sobre `eng::sim`: núcleo de mundo con **hechos persistentes** (cambio efectivo por epoch), **objetos tipo+instancia** con handles de generación, inventario/equipo, atributos derivados por fases fijas, reloj y **save determinista por componente**; M1 (**entidades de mundo, verbos, cerraduras, puente `Needs`**) y M2 (**recetas/estaciones, mejora y afijos**) implementados. Diseño en `docs/engine/architecture/RPG_LAYER.md`; verificado con HOST-454…461 y la demo `demos/features/rpg/amiga/001_rpg_dungeon` (build→run→analyze, 48 fps, visión OK); juego piloto M6 pendiente |
 | `docs/guides/roadmap/ROADMAP_MINI_OS.md` | **vigente (M0–M6 entregados; M2/M7 casi, M8 parcial; M9–M11 pendientes)** | **Mini-SO de mensajes** (`eng::os`) y capa de UI reactiva (`eng::ui`): puerto IRQ-safe, señales, productores de VBlank/input/disco/timers y bucle de aplicación sin espera activa, componiendo con `BackgroundQueue`/`InputAggregator`/`Engine`. Diseño en `docs/engine/architecture/MINI_OS_MESSAGE_LOOP.md`; tests HOST-219…222/236/238/250…257 y demo 208. Pendiente: telemetría (M9), tareas async (M10) y corrutinas (M11) |
 | `docs/guides/roadmap/ROADMAP_GUI.md` | **vigente (G0–G8 entregados)** | **Librería GUI** (`eng::ui`): chrome sobre `Surface`, tema/branding, widgets (Button/Check/Radio/EditBox/Slider), eventos/foco, dirty rects y **ventanas con compositor y backing store** (mover/redimensionar sin invalidar vecinas), con **keymaps nacionales** (US/ES/FR/IT/DE/RU) y **teclas muertas**. Tests HOST-223…230 y HOST-261…266; demo `215_gui_widgets` verificada con `verify-gui-widgets.mjs`. Pendiente de G8: acelerar con Blitter el *copy* del compositor (hoy CPU) y validar las tablas de teclado contra el ROM. Diseño en `docs/engine/architecture/GUI_LIBRARY.md` |
 | `docs/guides/roadmap/ROADMAP_MEMORY_OWNERSHIP.md` | **pausado** | Correcciones de ownership existentes respaldadas por tests; deuda MEM residual se atiende solo con un consumidor y fallo concreto, sin infraestructura preventiva adicional. |
@@ -31,347 +31,70 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
 
 ## Objetivo: API por **intenciones** (estado y qué falta)
 
-**Objetivo.** Un engine completo, conceptualmente bien diseñado, que exponga un **API basado en
-intenciones**: el juego **declara qué quiere** (una escena, un efecto, un objeto) y el engine
-**decide cómo** (CPU/Blitter/Copper), con la **memoria etiquetada** (Chip para el hardware DMA) y
-tipos descriptivos que hagan **imposible** el uso equivocado.
+**Objetivo.** Un engine completo, conceptualmente bien diseñado, que exponga un **API basado en intenciones**: el juego **declara qué quiere** (una escena, un efecto, un objeto) y el engine
+**decide cómo** (CPU/Blitter/Copper), con la **memoria etiquetada** (Chip para el hardware DMA) y tipos descriptivos que hagan **imposible** el uso equivocado.
 
 **Conseguido (base sólida).**
-- **Tipos fuertes y genéricos** (`Fixed`/`Vec`/`Span`/`Ref`), tablas en compilación (`ct_array`;
-  `InvSqrtTable<R,E,N>` genérica), escalar como parámetro de plantilla.
-- **Memoria etiquetada**: `Tag` de dominio + **banco** (`MemView`/`Block`/`ChipView`), con **tres
-  puentes** (`mem_view_chip`/`as_chip`/`from_storage`) y su regla de uso (`INTERNAL_TYPE_SYSTEM.md`).
-- **Una sola ruta de blit**: `BlitOp` (intención) → `blit_job_from` → `BlitJob` (trabajo) →
-  `blitter_job_from` → `BlitterJob` (registros), compartido por CPU y Copper; el backend ya usa el
-  encoder (camino plano y línea; 086/116 idénticas). `c2p` con **despacho por banco**.
-- **Gates** que sostienen el diseño: `casts` (+ `casts-frontier.txt`), `generic-headers`,
-  `raw-pointer-members`, `api-facade`, `type-tagging`, `doc-coverage`, `duplicate-constants`.
+- **Tipos fuertes y genéricos** (`Fixed`/`Vec`/`Span`/`Ref`), tablas en compilación (`ct_array`; `InvSqrtTable<R,E,N>` genérica), escalar como parámetro de plantilla.
+- **Memoria etiquetada**: `Tag` de dominio + **banco** (`MemView`/`Block`/`ChipView`), con **tres puentes** (`mem_view_chip`/`as_chip`/`from_storage`) y su regla de uso (`INTERNAL_TYPE_SYSTEM.md`).
+- **Una sola ruta de blit**: `BlitOp` (intención) → `blit_job_from` → `BlitJob` (trabajo) → `blitter_job_from` → `BlitterJob` (registros), compartido por CPU y Copper; el backend ya usa el encoder (camino plano y línea; 086/116 idénticas). `c2p` con **despacho por banco**.
+- **Recursos acotados en emisión (F8 de `ROADMAP_API_COHERENCE.md`)**: `bob_draw`/erase/save validan geometría y reserva (`storage_bytes_used`), `FramePlan::begin_*_job` no rebasa el array con el plan lleno, `ListBuilder` rechaza capacidad < 2 y la racha de blits acota su destino (HOST-232/388/439). El port de `circles` (demo 122) añade `Screen::circle`/`pixel`/`text_words` a la fachada y mide 49,87 fps.
+- **Gates** que sostienen el diseño: `casts` (+ `casts-frontier.txt`), `generic-headers`, `raw-pointer-members`, `api-facade`, `type-tagging`, `doc-coverage`, `duplicate-constants`.
 
 **Qué falta (huecos, priorizados).**
-1. **El vocabulario único de intención (alto nivel).** Hoy las intenciones viven dispersas
-   (`BlitOp`, `CopperIntent`/`SpriteIntent`, los efectos, la declaración de escena). Falta **un**
-   modelo declarativo (la escena/capa/efecto como intención) que el **planner** compile a lo bajo
-   (ver `PUBLIC_API.md` §4). Es el corazón del API de intenciones. **En marcha**: el mecanismo
-   (`IntentQueue` + `DrawRecipe`/`scene::DrawLayer` + `IntentDone` por evento) y su contrato
-   ([`INTENT_PLANNER.md`](../../engine/architecture/INTENT_PLANNER.md)) ya existen y están probados
-   (HOST-368/369); falta **el vocabulario completo** (Sprite/efectos/audio) y el planner que lo
-   compile.
-2. **Un sumidero de ejecución.** `FramePlan` (lote del frame) y `BlitQueue` (cola asíncrona)
-   coexisten; ya hay `PlanExecutor` (la cola vuelca al plan). **Decidido** (§7.1 de
-   [`INTENT_PLANNER.md`](../../engine/architecture/INTENT_PLANNER.md)): el **`FramePlan` es *el*
-   sumidero**, la cola es **genérica** (`IntentQueue<N, Item, Executor, Done>`; `BlitQueue` = su
-   instancia con `Item = BlitOp`) y las vías son **políticas**. Falta alinear los `concept`s de
-   ejecutor y escribir el `AudioPlan` análogo.
-3. **Los últimos punteros crudos.** `BlitJob`/`BlitterJob` (`u16*`/`void*`), el backend y
-   `object3d` aún exponen crudo. Deben ir a vista/`Address` hasta **una** frontera (el registro).
-4. **Los descriptores de "dibujable".** `Bob`/`Sprite`/`Visual`/`Actor`/`*Layer` se solapan; hay
-   que fijar la jerarquía (blob crudo → asset cocinado → actor retenido → intención).
-5. **El contrato de memoria en el tipo.** El caso C2P (un *scratch* escondido → `detail≠0`) es el
-   patrón general: **si un API necesita un layout/medio concreto, lo lleva en el tipo**; el
-   fallback CPU↔Blitter lo **decide el tag** (ya hecho en `c2p`).
+1. **El vocabulario único de intención (alto nivel).** Hoy las intenciones viven dispersas (`BlitOp`, `CopperIntent`/`SpriteIntent`, los efectos, la declaración de escena). Falta **un** modelo declarativo (la escena/capa/efecto como intención) que el **planner** compile a lo bajo (ver `PUBLIC_API.md` §4). Es el corazón del API de intenciones. **En marcha**: el mecanismo (`IntentQueue` + `DrawRecipe`/`scene::DrawLayer` + `IntentDone` por evento) y su contrato ([`INTENT_PLANNER.md`](../../engine/architecture/INTENT_PLANNER.md)) ya existen y están probados (HOST-368/369); falta **el vocabulario completo** (Sprite/efectos/audio) y el planner que lo compile.
+2. **Un sumidero de ejecución.** `FramePlan` (lote del frame) y `BlitQueue` (cola asíncrona) coexisten; ya hay `PlanExecutor` (la cola vuelca al plan). **Decidido** (§7.1 de [`INTENT_PLANNER.md`](../../engine/architecture/INTENT_PLANNER.md)): el **`FramePlan` es *el* sumidero**, la cola es **genérica** (`IntentQueue<N, Item, Executor, Done>`; `BlitQueue` = su instancia con `Item = BlitOp`) y las vías son **políticas**. Falta alinear los `concept`s de ejecutor y escribir el `AudioPlan` análogo.
+3. **Los últimos punteros crudos.** `BlitJob`/`BlitterJob` (`u16*`/`void*`), el backend y `object3d` aún exponen crudo. Deben ir a vista/`Address` hasta **una** frontera (el registro).
+4. **Los descriptores de "dibujable".** `Bob`/`Sprite`/`Visual`/`Actor`/`*Layer` se solapan; hay que fijar la jerarquía (blob crudo → asset cocinado → actor retenido → intención).
+5. **El contrato de memoria en el tipo.** El caso C2P (un *scratch* escondido → `detail≠0`) es el patrón general: **si un API necesita un layout/medio concreto, lo lleva en el tipo**; el fallback CPU↔Blitter lo **decide el tag** (ya hecho en `c2p`).
 6. **Memoria/arena con RAII** (`Block`/`MemBank`) coherente con los tags y con la **vida**.
 7. **Generalidad del escalar** en el 3D (`object3d`/`mesh3d`): el último tramo crudo.
 8. **Docs como contrato**: un doc canónico por capa + `DOC-MAP` al día (en curso).
 
-**Plan para llegar.** (a) Fijar el **planner de intención** (§1): vocabulario + compilación a
-`BlitOp`/`CopperIntent`. (b) **Sumidero único** (§2). (c) **Sin punteros crudos** hasta una frontera
-(§3). (d) **Jerarquía del dibujable** (§4) y el **contrato de memoria en el tipo** (§5).
-(e) Cerrar §6–§8.
+**Plan para llegar.** (a) Fijar el **planner de intención** (§1): vocabulario + compilación a `BlitOp`/`CopperIntent`. (b) **Sumidero único** (§2). (c) **Sin punteros crudos** hasta una frontera (§3). (d) **Jerarquía del dibujable** (§4) y el **contrato de memoria en el tipo** (§5). (e) Cerrar §6–§8.
 
-**C2P — APARCADO.** La reingeniería del C2P queda **parked** (no gastar turnos): la base
-(`c2p()` con despacho por banco + `C2pRequest` con `Block`) está hecha; quedan el **contrato de
-scratch** (el `detail≈9861` de la 275, ya documentado en su README) y sacarlo de `BlitJobKind`.
+**C2P — APARCADO.** La reingeniería del C2P queda **parked** (no gastar turnos): la base (`c2p()` con despacho por banco + `C2pRequest` con `Block`) está hecha; quedan el **contrato de scratch** (el `detail≈9861` de la 275, ya documentado en su README) y sacarlo de `BlitJobKind`.
 **Criterio**: si la vía se vuelve cargante en C++ se hará en **asm**, no rediseñando el plan.
 
 ## Estado real del engine y las demos (2026-09)
 
-- **Scroll**: corkscrew 8-way X-Limited (`XLimitedPlayfield` + `ScrollEngine` +
-  `ScrollSink`), tiles interleaved de 320 px, wrap toroidal, anillo vertical. Además, el
-  **camino de tiras** (Copper ring + tira entrante) a **50 fps single** (`field/strip_scroller.hpp`
-  + `strip_composer.hpp`, HOST-244/245; demo 128) queda **cerrado como algoritmo**: la interfaz de
-  juego es `scene::ScrollSpec` (técnica + período de mapa + velocidad) en la capa, y
-  `field::StripScrollGeometry<…, MapWords>` deriva el anillo correcto (`visible + período`) e
-  impide por `static_assert`/invariante de contenido el descuadre al envolver. El modelo objetivo
-  separa algoritmo/superficie/composición/máquina
-  (`docs/engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md`) con plan en
-  `docs/guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md`; el scroll horizontal sigue **estable** (sin
-  más cambios de algoritmo) y el frente abierto pasa a la fachada de juego (§7 de
-  `ROADMAP_GAME_API.md`).
-- **DPF 3+3** (`XlimitedDualComposer` + `XlimitedScene`): dos playfields con
-  banco/mapa/paso propios, transparencia del FG (PF1 color 0), `BPLCON1` por
-  campo; bancos reales por campo a 3..6 planos (`blocks_prebuilt`, `blocks_prebuilt2`).
-- **Y por campo (flexible, paramétrico, sin macros)**: `dual_linear_field` +
-  `linear_display` + split por campo en el compositor. Modos: corkscrew dual
-  (Y compartida), lineal dual (Y independiente en ambos, 2× mirror) y mixto.
-- **Demos**: 107 (corkscrew/DPF showcase), 201 (EHB mapa real, tour 8-way), 202
-  (DPF 3+3 mapa real 8c + plaquettes, recorrido con Lissajous, por defecto FG
-  lineal/Y propia + BG corkscrew/split, variante `kShareY`).
+- **Scroll**: corkscrew 8-way X-Limited (`XLimitedPlayfield` + `ScrollEngine` + `ScrollSink`), tiles interleaved de 320 px, wrap toroidal, anillo vertical. Además, el **camino de tiras** (Copper ring + tira entrante) a **50 fps single** (`field/strip_scroller.hpp` + `strip_composer.hpp`, HOST-244/245; demo 128) queda **cerrado como algoritmo**: la interfaz de juego es `scene::ScrollSpec` (técnica + período de mapa + velocidad) en la capa, y `field::StripScrollGeometry<…, MapWords>` deriva el anillo correcto (`visible + período`) e impide por `static_assert`/invariante de contenido el descuadre al envolver. El modelo objetivo separa algoritmo/superficie/composición/máquina (`docs/engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md`) con plan en `docs/guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md`; el scroll horizontal sigue **estable** (sin más cambios de algoritmo) y el frente abierto pasa a la fachada de juego (§7 de `ROADMAP_GAME_API.md`).
+- **DPF 3+3** (`XlimitedDualComposer` + `XlimitedScene`): dos playfields con banco/mapa/paso propios, transparencia del FG (PF1 color 0), `BPLCON1` por campo; bancos reales por campo a 3..6 planos (`blocks_prebuilt`, `blocks_prebuilt2`).
+- **Y por campo (flexible, paramétrico, sin macros)**: `dual_linear_field` + `linear_display` + split por campo en el compositor. Modos: corkscrew dual (Y compartida), lineal dual (Y independiente en ambos, 2× mirror) y mixto.
+- **Demos**: 107 (corkscrew/DPF showcase), 201 (EHB mapa real, tour 8-way), 202 (DPF 3+3 mapa real 8c + plaquettes, recorrido con Lissajous, por defecto FG lineal/Y propia + BG corkscrew/split, variante `kShareY`).
 - **Telemetría por frame** leíble (símbolo en `.data`), lectura arreglada.
-- Sin `linear_display` por defecto en 202: viewport recortado 320×208 para split
-  canónico; mapas toroidales.
-- **Matemática y assets (import demoscene, 2026-09)**: `eng/retro/lib2d.hpp`
-  (lib2d: matrices 2×2 4.12 + `clip_line`/`clip_polygon`) y `eng/platform/amiga/gfx3d.hpp`
-  (lib3d: `Mat3x3`, rotaciones, `compose`, `face_visible`); modelo de malla en
-  `eng/core/data/mesh3d.hpp` (`MeshView` + `mesh_transform` + `mesh_painter_order` con
-  culling y shell sort) — tests HOST-010/011/013.
-  Base del contenedor de assets UAF-R: `eng/assets/uaf.hpp` (`Blob` valida
-  header/chunks por offset; consumidores `PaletteView`/`BitplanesView`/`SampleView`/
-  `StringsView`/`TilesView`/`SpritesView`/`CopperView`/`MeshAssetView`, test HOST-012)
-  con exportador host `tools/assets/uaf-pack.ts` (chunky→planar, sprites/copper/malla
-  `obj2c`, `packUaf`/`parseUaf`, doc `docs/tools/UAF_PACK.md`). La cola de
-  blits/presupuesto ya existía (`frame_plan.hpp`); el borrado del sólido la usa vía
-  `AmigaBackend::execute_frame_plan` (Blitter). Validación en hardware con las demos
-  `077_math3d_cube` (alambre) y `078_math3d_solid` (relleno por tramos de byte/word,
-  malla cargada desde un blob UAF-R incbinado y borrado por Blitter). `mesh_painter_order`
-  soporta caras de doble cara; gate visual `tools/analyze/verify-math3d-cube.mjs`.
-  Relleno por Blitter en `AmigaBackend::fill_triangles_blitter` (line + area fill
-  en máscara + cookie-cut, portado de `libblit`/amiga-bootcamp) y `blit_fill_from_mask`
-  (máscara CPU + cookie-cut Blitter) tras `-DK_FILL_BLITTER=1`. WIP: ambas rutas Blitter
-  dibujan pero el resultado sale rayado (alineación/carry de los canales A/C-D), así que
-  el relleno por CPU (tramos de byte/word) es el defecto y las de Blitter quedan en
-   depuración. Para depurar se usan capturas + `tools/analyze/ollama-desc.mjs` (visión).
-- **IA de juego (`eng::ai`) — G1–G4 entregados** y verificados por test host: planificación
-  GOAP (HOST-107), decisión (`AgentFsm`, utility, behavior tree y blackboard; HOST-110…113),
-  navegación (flow field, waypoints con A* y navmesh lite con string-pulling; HOST-114/116/118)
-  y movimiento/percepción (steering + mapa de influencia y memoria; HOST-115/117). Falta la
-  verificación por demo y G5 (diseño). Detalle: `docs/engine/architecture/GAME_AI_LIBRARY.md`;
-  plan y catálogo: `docs/guides/roadmap/ROADMAP_GAME_AI.md`.
-- **Ecosistema vivo (`eng::sim`) — modelo base entregado** y verificado por test host:
-  criatura (necesidades con peligro ambiental genérico, personalidad, relaciones con
-  **afecto dirigido**, trackers, mente de doce emociones, conocimiento aprendido/compartido,
-  genoma y jerarquía), mundo con LOD abstracto/realizado, tick escalonado, grafo de
-  habitaciones, migración al refugio, **ciclo de vida y reproducción** con gestación,
-  **objetos materiales** (inventario + ejecución del plan), **economía/reputación**,
-  **terreno y clima** por región (representación algorítmica del mundo + `astar`),
-  **rumores/memoria de grupo**, sociedad/enjambre (HOST-152…154, HOST-156…175),
-  **cuerpo procedural** expresivo (HOST-156), **percepción multimodal** (visión/oído/olfato/
-  tacto/gusto/temperatura; HOST-160), **atención** y **sentidos por genética** (HOST-162),
-  **memoria de corto y largo plazo** con consolidación, **memoria espacial/rutas macro**,
-  **mapa mental aplicado al movimiento** (corto y fino; HOST-161/163/164/166), **clima con
-  frentes** (HOST-165), **terreno dinámico** (HOST-167), **trueque/reputación** (HOST-168),
-  **biomas/ecosistemas** (HOST-169), **lenguaje/gestos** atados a emoción y jerarquía
-  (HOST-170), **cultura/rituales** y **manadas** (HOST-171/172), un **laboratorio de
-  escenarios** con digesto y ajustes (HOST-173; bitácora en
-  `docs/debugging/investigaciones/sim-ecosystem-scenarios.md`) y **jugador simulado con LOD** (despertar
-  gradual y reparto por frames), **aforo dinámico** (estación/clima) y **entrada humana**
-  (HOST-174/175), y **planificación GOAP integrada** con dominio de construcción
-  (HOST-155), con gate de codegen 68000. Reutiliza `eng::ai` (utility, percepción,
-  navegación, steering, GOAP). La planificación cubre además **anytime** (`set_budget`/
-  `partial`), **caché selectiva** (`invalidate_selective` + LRU), **HTN** (`planning/htn.hpp`,
-  descomposición de coste mínimo) y **selección GOAP/HTN** (`PlanKind`/`plan_for`); HOST-322/316/317/318.
-  Hay **benchmark Amiga** (`demos/features/sim/amiga/001_sim_bench`): A500 con 12 criaturas, la
-  planificación realista cuesta **~1.1x** el tick (el peor caso sin caché era ~18x), cerrado
-  usando la **caché de planes** en el driver, el **intervalo de replan** y el **LOD** de quién
-  planifica. Destapó y corrigió el libcall `__popcountsi2` (ahora SWAR freestanding). Falta el
-  **consumidor real en `games/`** y las líneas de
-  crecimiento (percepción imperfecta, tácticas de manada). Detalle:
-  `docs/engine/architecture/SIM_ECOSYSTEM.md`.
+- Sin `linear_display` por defecto en 202: viewport recortado 320×208 para split canónico; mapas toroidales.
+- **Matemática y assets (import demoscene, 2026-09)**: `eng/retro/lib2d.hpp` (lib2d: matrices 2×2 4.12 + `clip_line`/`clip_polygon`) y `eng/platform/amiga/gfx3d.hpp` (lib3d: `Mat3x3`, rotaciones, `compose`, `face_visible`); modelo de malla en `eng/core/data/mesh3d.hpp` (`MeshView` + `mesh_transform` + `mesh_painter_order` con culling y shell sort) — tests HOST-010/011/013. Base del contenedor de assets UAF-R: `eng/assets/uaf.hpp` (`Blob` valida header/chunks por offset; consumidores `PaletteView`/`BitplanesView`/`SampleView`/ `StringsView`/`TilesView`/`SpritesView`/`CopperView`/`MeshAssetView`, test HOST-012) con exportador host `tools/assets/uaf-pack.ts` (chunky→planar, sprites/copper/malla `obj2c`, `packUaf`/`parseUaf`, doc `docs/tools/UAF_PACK.md`). La cola de blits/presupuesto ya existía (`frame_plan.hpp`); el borrado del sólido la usa vía `AmigaBackend::execute_frame_plan` (Blitter). Validación en hardware con las demos `077_math3d_cube` (alambre) y `078_math3d_solid` (relleno por tramos de byte/word, malla cargada desde un blob UAF-R incbinado y borrado por Blitter). `mesh_painter_order` soporta caras de doble cara; gate visual `tools/analyze/verify-math3d-cube.mjs`. Relleno por Blitter en `AmigaBackend::fill_triangles_blitter` (line + area fill en máscara + cookie-cut, portado de `libblit`/amiga-bootcamp) y `blit_fill_from_mask` (máscara CPU + cookie-cut Blitter) tras `-DK_FILL_BLITTER=1`. WIP: ambas rutas Blitter dibujan pero el resultado sale rayado (alineación/carry de los canales A/C-D), así que el relleno por CPU (tramos de byte/word) es el defecto y las de Blitter quedan en depuración. Para depurar se usan capturas + `tools/analyze/ollama-desc.mjs` (visión).
+- **IA de juego (`eng::ai`) — G1–G4 entregados** y verificados por test host: planificación GOAP (HOST-107), decisión (`AgentFsm`, utility, behavior tree y blackboard; HOST-110…113), navegación (flow field, waypoints con A* y navmesh lite con string-pulling; HOST-114/116/118) y movimiento/percepción (steering + mapa de influencia y memoria; HOST-115/117). Falta la verificación por demo y G5 (diseño). Detalle: `docs/engine/architecture/GAME_AI_LIBRARY.md`; plan y catálogo: `docs/guides/roadmap/ROADMAP_GAME_AI.md`.
+- **Ecosistema vivo (`eng::sim`) — modelo base entregado** y verificado por test host: criatura (necesidades con peligro ambiental genérico, personalidad, relaciones con **afecto dirigido**, trackers, mente de doce emociones, conocimiento aprendido/compartido, genoma y jerarquía), mundo con LOD abstracto/realizado, tick escalonado, grafo de habitaciones, migración al refugio, **ciclo de vida y reproducción** con gestación, **objetos materiales** (inventario + ejecución del plan), **economía/reputación**, **terreno y clima** por región (representación algorítmica del mundo + `astar`), **rumores/memoria de grupo**, sociedad/enjambre (HOST-152…154, HOST-156…175), **cuerpo procedural** expresivo (HOST-156), **percepción multimodal** (visión/oído/olfato/ tacto/gusto/temperatura; HOST-160), **atención** y **sentidos por genética** (HOST-162), **memoria de corto y largo plazo** con consolidación, **memoria espacial/rutas macro**, **mapa mental aplicado al movimiento** (corto y fino; HOST-161/163/164/166), **clima con frentes** (HOST-165), **terreno dinámico** (HOST-167), **trueque/reputación** (HOST-168), **biomas/ecosistemas** (HOST-169), **lenguaje/gestos** atados a emoción y jerarquía (HOST-170), **cultura/rituales** y **manadas** (HOST-171/172), un **laboratorio de escenarios** con digesto y ajustes (HOST-173; bitácora en `docs/debugging/investigaciones/sim-ecosystem-scenarios.md`) y **jugador simulado con LOD** (despertar gradual y reparto por frames), **aforo dinámico** (estación/clima) y **entrada humana** (HOST-174/175), y **planificación GOAP integrada** con dominio de construcción (HOST-155), con gate de codegen 68000. Reutiliza `eng::ai` (utility, percepción, navegación, steering, GOAP). La planificación cubre además **anytime** (`set_budget`/ `partial`), **caché selectiva** (`invalidate_selective` + LRU), **HTN** (`planning/htn.hpp`, descomposición de coste mínimo) y **selección GOAP/HTN** (`PlanKind`/`plan_for`); HOST-322/316/317/318. Hay **benchmark Amiga** (`demos/features/sim/amiga/001_sim_bench`): A500 con 12 criaturas, la planificación realista cuesta **~1.1x** el tick (el peor caso sin caché era ~18x), cerrado usando la **caché de planes** en el driver, el **intervalo de replan** y el **LOD** de quién planifica. Destapó y corrigió el libcall `popcountsi2` (ahora SWAR freestanding). El **consumidor real en `games/`** existe (`games/300_sim_world`: build → run → analyze OK; LOD con cámara + GOAP integrado; overlay con versión y contador, sincronización por señal); quedan las líneas de crecimiento (percepción imperfecta, tácticas de manada). Detalle: `docs/engine/architecture/SIM_ECOSYSTEM.md`.
 
 ## Sprites hardware — estado
 
-- **Validado (demos + tests host)**: multiplexado vertical "chasing the raster" + color
-  multiplexing (053); `SpriteAllocator` con overflow → BOB (054; HOST-003/416); colisión
-  `CLXCON`/`CLXDAT` (206); sprite-as-playfield con rearmado horizontal (207); Risky Woods con
-  ventanas de canales (208/211; HOST-417/416); Free Form no repetitivo con scroll (213);
-  **par *attached* de 15 colores**: cocinado `cook_attached_pair` (HOST-427), armado
-  `SpriteManager::arm_object`/`emit_armed_into` (HOST-428; demos 214/054) y **end-to-end por
-  actores** (contenido de 4 planos y 16 px → par derivado → dos intents/placements + cocinado
-  en el pool Chip; HOST-072/428; demo 216); **plantilla de franjas por actores** ("chasing the raster":
-  cadena `chain_id` al mismo canal, rearme por franja y paleta por franja
-  `SpritePaletteEvent`; HOST-003/072/428; demo 217); **armado de placements con rearme
-  vertical** del canal reutilizado (`emit_placements_into`, HOST-428) y doble buffer de
-  copperlist en las demos; **animación de DATA por frame** en el camino de objetos
-  (HOST-072; demos 054/216). Interfaz:
-  `emit_planes_display` fija `BPLCON2=0x0024` (sprites delante; AHRM cap. 7 Table 7-2 — en
-  single-playfield manda `PF2P` — ver `winuae/sprite-color-priority.md`) y
-  `SpriteConfig::data`/`HwSpritePlacement::data` van tipados `ChipView<SpriteTag>`.
-- **Pendiente (por prioridad)**:
-  1. **Pacing del fondo *Jim Power*** (demo 215, NO VERIFICADA): DATA por línea + ráfaga pura de
-     `SPRxPOS`. Con la receta aplicada solo se pintan las últimas columnas (el Copper adelanta
-     al haz más de un período). Seguimiento con medidas enviado a Grok
-      (`consultas/consulta-jim-power-data-line-pacing-en.md`): coste real del `MOVE` con 4 planos + DMA de
-     sprites (robo de bus), régimen de head-start (¿ir *detrás* del haz?), por qué la copperlist
-     real usa `hpos` variable por línea ($1c/$20/$24); fallback: `POS+DATB+DATA` por columna
-     (Free Form, 213). **Hallazgo documentado** (`winuae/sprite-dma.md` §Ventana de fetch): el
-     fetch de sprites de una línea termina donde arranca el de bitplanes
-     (`custom.cpp:9888-9889`/`10108-10112`) y un MOVE cuesta ≈8 lores px (AHRM :500/:514) — el
-     ajuste fino del `hpos` por línea queda pendiente sobre esa base.
-  2. **Refinamientos del allocator** (`sprite-multiplexer-bob-fallback.md` §9): **hechos**
-     canal preferido (`SpriteIntent::channel`), prioridad de asignación (`assign_rank`),
-     **grupos con trayectoria** (corrida contigua para el bounding box o entera a BOB),
-     **ocupación exacta por línea** (bitfield), **clasificación desde `ActorDesc`**
-     (`assign_rank`/`preferred_channel`/`group_*` en `build_sprite_intents`) — HOST-003/072;
-     demo 217 (fijo con canal preferido) — y **orden Y incremental** (la fachada conserva la
-     secuencia de actores del frame anterior; HOST-391). **DMA encadenado por canal: HECHO** —
-     builder `graphics/sprite_chain.hpp` + HOST-434, `SpriteManager::arm_dma_chain`/
-     `emit_placements_into(chains)`, selector, cadena persistente y **integración en la
-     fachada** (`SpriteScene::set_chains`/`prepare_chains`); demo **219** validada (20 balas =
-     1 canal; A/B por telemetría: 304 → 114 words de copperlist, 49.9 fps;
-     `ROADMAP_SPRITES_COMPLETO.md` §3.2).
-  3. **Camino legado**: `SpriteManager::emit_into` (un `WAIT` por `VSTART`) sigue en uso por
-     **053, 062 y dk_port** (no solo la 053). **Decisión (2026-10): mantener como legado
-     documentado** hasta el siguiente toque de esas demos (migrarlas a `emit_armed_into` es un
-     refactor sin defecto asociado; no se toca una demo validada por limpieza).
-  4. **Demos de cierre**: prioridad `BPLCON2` por franjas (intent `Priority` existe, sin
-     demo). **HUD con `SpriteLineLayer`**: demo **223_sprite_hud** **VERIFICADA (2026-10)** —
-     copperlist estática (armado único por canal `POS+CTL+PT`→tabla de DATA; `per_line_rearm=false`,
-     canales disjuntos 3+3+2) en la franja inferior (`vpos 276+`, `VSTART = DIWSTRT 0x2C + fila`),
-     fps ≤1/s; **49,87 fps**; render validado con visión ("223 HUD / v1.0.NNNN / FPS nn" en blanco).
-     El diagnóstico cazó y corrigió **tres defectos**: stride de `SPRxPT` (4, no 8 —
-     `custom.cpp:7462-7464`; `SpriteLineLayer` y `emit_sprite_horizontal_rearm` lo usaban mal),
-     X en HSTART absoluto (pantalla = HSTART − 0x81, `drawing.cpp:2706`) y la espera de la
-     franja inferior (la reposición POS-only es `vline: u8`; el armado usa el par de overflow
-     de `wait_line_pal` + el auto-armado en `VSTART`, `custom.cpp:10088-10090`). `087_sprite_horizontal_rearm`: **RETIRADA (2026-10)** —
-     no renderizaba con ninguna estrategia y la técnica está cubierta por 207/208 + 053/217 +
-     `SpriteLineLayer`. Hallazgos de fuente en `winuae/sprite-dma.md` §Armado de un canal y
-     §Auto-armado en VSTART (canal desarmado = sin fetch; la API ya **exige** el PT tipado —
-     AGENTS §1.10).
-  5. **Bending por tabla de seno** (`SPRxPOS` por línea): **HECHO** — driver
-     `graphics/drivers/sprite_bend.hpp` (varios canales intercalados por línea) + HOST-436;
-     demo **220** validada (dos columnas 16×64 ondulando en oposición; 49.97 fps, 764 words
-     de copperlist, visión OK). **Palette splitting con sprites: HECHO** — arbitraje F7
-     integrado (`ActorDesc::sprite_palette` + `compose_sprites` + `SpritePaletteEvent`);
-     HOST-391; demo **221** validada (mismo arte en dos paletas por franja; 49.92 fps).
-  6. **Cerrar 212/`FreeFormSpriteLayer`** (roto) o deprecarlo en favor de 213; añadir doble
-     copperlist al Free Form (mejora apuntada en 213).
-  7. **Sprites con playfields de 5-6 planos**: **validado y ENFORZADO (2026-10)**. La
-     afirmación de `kSpriteLineDataMaxBitplanes` (parcheo de `SPRxDATA`/`DATB` a media línea
-     solo con ≤5 planos) se contrastó con WinUAE (`custom.cpp:10111` — la ventana de sprites
-     cierra en `plfstrt_sprite`; `9888-9889`/`10008-10009` la recortan a DDFSTRT/BPRUN;
-     `10130-10131` — el último ciclo de plano solo sirve a sprites si los planos acaban
-     antes) y con `sprite-tricks-games.md` §Brian the Lion. La constante deja de estar
-     huérfana: **`setup::check_sprite_line_data(planes)`** (coherencia, HOST-441) y
-     `SpriteLineLayer::configure` **rechaza `display_planes > 5`** (HOST-418) — el fallo
-     silencioso (render mal con 6 planos) pasa a fallo de setup. El «rearm con 6 planos» no
-     es un bug a arreglar sino el límite del hardware: queda como rechazo explícito.
-  8. **Pipeline de assets**: cocinado del par *attached* en build-time (hoy en runtime) y carga
-     desde UAF.
+- **Validado (demos + tests host)**: multiplexado vertical "chasing the raster" + color multiplexing (053); `SpriteAllocator` con overflow → BOB (054; HOST-003/416); colisión `CLXCON`/`CLXDAT` (206); sprite-as-playfield con rearmado horizontal (207); Risky Woods con ventanas de canales (208/211; HOST-417/416); Free Form no repetitivo con scroll (213); **par *attached* de 15 colores**: cocinado `cook_attached_pair` (HOST-427), armado `SpriteManager::arm_object`/`emit_armed_into` (HOST-428; demos 214/054) y **end-to-end por actores** (contenido de 4 planos y 16 px → par derivado → dos intents/placements + cocinado en el pool Chip; HOST-072/428; demo 216); **plantilla de franjas por actores** ("chasing the raster": cadena `chain_id` al mismo canal, rearme por franja y paleta por franja `SpritePaletteEvent`; HOST-003/072/428; demo 217); **armado de placements con rearme vertical** del canal reutilizado (`emit_placements_into`, HOST-428) y doble buffer de copperlist en las demos; **animación de DATA por frame** en el camino de objetos (HOST-072; demos 054/216). Interfaz: `emit_planes_display` fija `BPLCON2=0x0024` (sprites delante; AHRM cap. 7 Table 7-2 — en single-playfield manda `PF2P` — ver `winuae/sprite-color-priority.md`) y `SpriteConfig::data`/`HwSpritePlacement::data` van tipados `ChipView<SpriteTag>`.
+- **Pendiente (por prioridad)**: 1. **Pacing del fondo *Jim Power*** (demo 215, NO VERIFICADA): DATA por línea + ráfaga pura de `SPRxPOS`. Con la receta aplicada solo se pintan las últimas columnas (el Copper adelanta al haz más de un período). Seguimiento con medidas enviado a Grok (`consultas/consulta-jim-power-data-line-pacing-en.md`): coste real del `MOVE` con 4 planos + DMA de sprites (robo de bus), régimen de head-start (¿ir *detrás* del haz?), por qué la copperlist real usa `hpos` variable por línea ($1c/$20/$24); fallback: `POS+DATB+DATA` por columna (Free Form, 213). **Hallazgo documentado** (`winuae/sprite-dma.md` §Ventana de fetch): el fetch de sprites de una línea termina donde arranca el de bitplanes (`custom.cpp:9888-9889`/`10108-10112`) y un MOVE cuesta ≈8 lores px (AHRM :500/:514) — el ajuste fino del `hpos` por línea queda pendiente sobre esa base. 2. **Refinamientos del allocator** (`sprite-multiplexer-bob-fallback.md` §9): **hechos** canal preferido (`SpriteIntent::channel`), prioridad de asignación (`assign_rank`), **grupos con trayectoria** (corrida contigua para el bounding box o entera a BOB), **ocupación exacta por línea** (bitfield), **clasificación desde `ActorDesc`** (`assign_rank`/`preferred_channel`/`group_*` en `build_sprite_intents`) — HOST-003/072; demo 217 (fijo con canal preferido) — y **orden Y incremental** (la fachada conserva la secuencia de actores del frame anterior; HOST-391). **DMA encadenado por canal: HECHO** — builder `graphics/sprite_chain.hpp` + HOST-434, `SpriteManager::arm_dma_chain`/ `emit_placements_into(chains)`, selector, cadena persistente y **integración en la fachada** (`SpriteScene::set_chains`/`prepare_chains`); demo **219** validada (20 balas = 1 canal; A/B por telemetría: 304 → 114 words de copperlist, 49.9 fps; `ROADMAP_SPRITES_COMPLETO.md` §3.2). 3. **Camino legado**: `SpriteManager::emit_into` (un `WAIT` por `VSTART`) sigue en uso por **053, 062 y dk_port** (no solo la 053). **Decisión (2026-10): mantener como legado documentado** hasta el siguiente toque de esas demos (migrarlas a `emit_armed_into` es un refactor sin defecto asociado; no se toca una demo validada por limpieza). 4. **Demos de cierre**: prioridad `BPLCON2` por franjas (intent `Priority` existe, sin demo). **HUD con `SpriteLineLayer`**: demo **223_sprite_hud** **VERIFICADA (2026-10)** — copperlist estática (armado único por canal `POS+CTL+PT`→tabla de DATA; `per_line_rearm=false`, canales disjuntos 3+3+2) en la franja inferior (`vpos 276+`, `VSTART = DIWSTRT 0x2C + fila`), fps ≤1/s; **49,87 fps**; render validado con visión ("223 HUD / v1.0.NNNN / FPS nn" en blanco). El diagnóstico cazó y corrigió **tres defectos**: stride de `SPRxPT` (4, no 8 — `custom.cpp:7462-7464`; `SpriteLineLayer` y `emit_sprite_horizontal_rearm` lo usaban mal), X en HSTART absoluto (pantalla = HSTART − 0x81, `drawing.cpp:2706`) y la espera de la franja inferior (la reposición POS-only es `vline: u8`; el armado usa el par de overflow de `wait_line_pal` + el auto-armado en `VSTART`, `custom.cpp:10088-10090`). `087_sprite_horizontal_rearm`: **RETIRADA (2026-10)** — no renderizaba con ninguna estrategia y la técnica está cubierta por 207/208 + 053/217 + `SpriteLineLayer`. Hallazgos de fuente en `winuae/sprite-dma.md` §Armado de un canal y §Auto-armado en VSTART (canal desarmado = sin fetch; la API ya **exige** el PT tipado — AGENTS §1.10). 5. **Bending por tabla de seno** (`SPRxPOS` por línea): **HECHO** — driver `graphics/drivers/sprite_bend.hpp` (varios canales intercalados por línea) + HOST-436; demo **220** validada (dos columnas 16×64 ondulando en oposición; 49.97 fps, 764 words de copperlist, visión OK). **Palette splitting con sprites: HECHO** — arbitraje F7 integrado (`ActorDesc::sprite_palette` + `compose_sprites` + `SpritePaletteEvent`); HOST-391; demo **221** validada (mismo arte en dos paletas por franja; 49.92 fps). 6. **Cerrar 212/`FreeFormSpriteLayer`** (roto) o deprecarlo en favor de 213; añadir doble copperlist al Free Form (mejora apuntada en 213). 7. **Sprites con playfields de 5-6 planos**: **validado y ENFORZADO (2026-10)**. La afirmación de `kSpriteLineDataMaxBitplanes` (parcheo de `SPRxDATA`/`DATB` a media línea solo con ≤5 planos) se contrastó con WinUAE (`custom.cpp:10111` — la ventana de sprites cierra en `plfstrt_sprite`; `9888-9889`/`10008-10009` la recortan a DDFSTRT/BPRUN; `10130-10131` — el último ciclo de plano solo sirve a sprites si los planos acaban antes) y con `sprite-tricks-games.md` §Brian the Lion. La constante deja de estar huérfana: **`setup::check_sprite_line_data(planes)`** (coherencia, HOST-441) y `SpriteLineLayer::configure` **rechaza `display_planes > 5`** (HOST-418) — el fallo silencioso (render mal con 6 planos) pasa a fallo de setup. El «rearm con 6 planos» no es un bug a arreglar sino el límite del hardware: queda como rechazo explícito. 8. **Pipeline de assets**: cocinado del par *attached* en build-time (hoy en runtime) y carga desde UAF.
 
-La **capa de juego** sobre este soporte (objetos compuestos multi-parte, trayectorias/formaciones
-con pool de entidades, mecanismos flexibles y la optimización de emisión DMA encadenada) se
-analiza y se planifica en [ROADMAP_JUEGO_SPRITES_BOBS.md](ROADMAP_JUEGO_SPRITES_BOBS.md)
-(fases F1–F8); este roadmap sigue siendo la fuente única del estado de las técnicas de sprites.
-**Capa de juego (hecha, con demos)**: `graphics/composite_visual.hpp` + `scene/composite_actor.hpp`
-(F1, HOST-429) con la fachada `api/objects.hpp` (`CompositeScene`, HOST-432);
-`scene/{trajectory,formation,entity_pool}.hpp` (F2, HOST-430) con los generadores de ola
-en V `gen_formation_v`/`gen_formation_v_sine` (F2.1, HOST-435); `core/util/sequence.hpp` (F8,
-HOST-431) y el planificador `graphics/sprite_palette.hpp` (F7, HOST-433). Demos
-`063_composite_actors` (personaje de tres partes con BOB + Sprite HW) y `064_shmup_wave`
-(formaciones con rutas seno, pool y ráfagas por timeline), validadas con captura y visión;
-`219_sprite_dma_chain` (F3: emisión DMA encadenada, A/B de copperlist 304→114 words),
-`220_sprite_bend` (F4.2: bending por línea, 764 words de copperlist),
-`221_sprite_palette_split` (F7/F4.3: dos paletas por franja vía arbitraje) y
-`222_sprite_effects_stack` (bending + palette split apilados sobre los mismos sprites),
-validadas con captura y visión.
-En el contenido, `Visual` ya no lleva flags de hardware: el par *attached* se deriva del arte
-y `VisualKind` se ha retirado (la preferencia vive en `Representation`). Hallazgo abierto:
-alta dinámica de actores de sprite desde `update`
-(`docs/debugging/investigaciones/064-sprite-hw-creado-en-update-no-publica.md`).
+La **capa de juego** sobre este soporte (objetos compuestos multi-parte, trayectorias/formaciones con pool de entidades, mecanismos flexibles y la optimización de emisión DMA encadenada) se analiza y se planifica en [ROADMAP_JUEGO_SPRITES_BOBS.md](ROADMAP_JUEGO_SPRITES_BOBS.md) (fases F1–F8); este roadmap sigue siendo la fuente única del estado de las técnicas de sprites.
+**Capa de juego (hecha, con demos)**: `graphics/composite_visual.hpp` + `scene/composite_actor.hpp` (F1, HOST-429) con la fachada `api/objects.hpp` (`CompositeScene`, HOST-432); `scene/{trajectory,formation,entity_pool}.hpp` (F2, HOST-430) con los generadores de ola en V `gen_formation_v`/`gen_formation_v_sine` (F2.1, HOST-435); `core/util/sequence.hpp` (F8, HOST-431) y el planificador `graphics/sprite_palette.hpp` (F7, HOST-433). Demos `063_composite_actors` (personaje de tres partes con BOB + Sprite HW) y `064_shmup_wave` (formaciones con rutas seno, pool y ráfagas por timeline), validadas con captura y visión; `219_sprite_dma_chain` (F3: emisión DMA encadenada, A/B de copperlist 304→114 words), `220_sprite_bend` (F4.2: bending por línea, 764 words de copperlist), `221_sprite_palette_split` (F7/F4.3: dos paletas por franja vía arbitraje) y `222_sprite_effects_stack` (bending + palette split apilados sobre los mismos sprites), validadas con captura y visión. En el contenido, `Visual` ya no lleva flags de hardware: el par *attached* se deriva del arte y `VisualKind` se ha retirado (la preferencia vive en `Representation`). Hallazgo abierto: alta dinámica de actores de sprite desde `update` (`docs/debugging/investigaciones/064-sprite-hw-creado-en-update-no-publica.md`).
 
 ## Input y audio — estado (2026-09)
 
-- **Hecho (input, paso 6 de `ENGINE_DESIGN.md` §5)**: `eng::input::InputAggregator`
-  (`PadState`, `MouseState`, `KeyState`) en `engine/include/eng/input/input.hpp`,
-  validado por HOST-004. Backend de lectura corregido en `eng/platform/amiga/input_poll.hpp`:
-  direcciones por `JOY0DAT`/`JOY1DAT` (código de Gray por eje; arriba/abajo con XOR),
-  fuego por `CIAAPRA` bits 6/7, y `poll_input(InputAggregator&)`. Decodificación pura
-  validada por HOST-006 (mismo mapeo que los motores ACE/Sevgi y el AHRM). Demo
-  `056_input_aggregator` (cruz móvil + fuego + tecla) compila/ejecuta a READY.
-- **Hecho (input, ratón + CD32)**: `poll_mouse` (delta por `JOY0DAT` + botones por
-  `CIAAPRA`/`POTINP`), `read_cd32_buttons` (protocolo serie `POTGO`) y
-  `decode_cd32_buttons` (puro) en `input_poll.hpp`. `PadState` ampliado con
-  `reverse`/`forward`. Decodificación CD32 validada por HOST-007 (mismo mapeo que
-  Sevgi). **Pendiente**: validar la lectura serie en emulador (sensible a timing).
-- **Hecho (audio SFX, paso 7 de `ENGINE_DESIGN.md` §5)**: `eng::audio::SampleEvent`,
-  `MusicEvent`, `AudioPlan` y `AudioMixer` en `engine/include/eng/audio/audio.hpp`,
-  validado por HOST-005. **Integrado de forma nativa el Audio Mixer 3.7 (Photon)**:
-  código ASM en `support/audio_mixer/` (ensamblado con VASM a ELF en `build-demo.sh`),
-  envoltura de juego `eng::audio::SfxMixer` en `engine/include/eng/audio/sfx_mixer.hpp`.
-  Config actual: `MIXER_SINGLE`, salida `DMAF_AUD0`, 4 voces software, 11 kHz,
-  `MIXER_C_DEFS=1`. Demo `058_sfx_mixer` reproduce un bucle + beep; `DMACONR`=0x381
-  (`AUD0EN`+`DMAEN`) y `MixerGetTotalChannelCount()`=4. Documentado en
-  `docs/engine/architecture/AUDIO_MIXER.md` (requisitos de muestras preprocesadas,
-  capacidades, configuración, API, preprocesado, rendimiento). Herramienta host
-  `tools/audio/sample-converter.ts` (+ test) para preprocesar muestras (±32, múlt. 4).
-- **Hecho (música, `MusicPlayer`)**: reproductor **P61** (Photon/Scoopex) importado
-  de `demoscene-repo-orig/lib/libp61` a `support/music/` (`p61.asm` +
-  `P6112-Play.i`, ensamblado con VASM). Envoltura de juego `eng::audio::P61Player`
-  en `engine/include/eng/audio/music_player.hpp` (API sin punteros: `MusicModule`
-  = `Span<const u8>`). Demo `059_music_player` enlaza SFX mixer + P61 y llega a
-  READY (`P61_Init` falla limpiamente sin módulo). **Importado** también
-  **ptplayer** (Frank Wille): `support/music/pt.asm` + `ptplayer.i` + `support/vbr.s`
-  (`_ExcVecBase=0`). Envoltura `eng::audio::PtPlayer` (modo CIA) y demo
-  `060_music_pt`: genera un `.mod` mínimo en memoria y reproduce música real
-  (`DMACONR` con `AUD0EN` activo tras ~100 frames). **Consolidado** en
-  `eng::audio::AudioSystem` (`engine/include/eng/audio/audio_system.hpp`): fachada
-  única que compone `SfxMixer` + `P61Player`/`PtPlayer`; demo `061_audio_system`
-  demuestra coexistencia SFX (AUD0) + música (AUD1) con el orden canónico
-  música→canal reservado→mixer. Añadido `set_master_volume` (volumen global SFX+
-  música). **Capa de juego** `eng::audio::GameAudio` (`game_audio.hpp`) +
-  `SampleBank`/`allow_trigger`/`allow_group` (puros, `sfx_bank.hpp`): banco de
-  sonidos por `id`, política de voces (cooldown, límite de instancias, agrupación,
-  prioridad) y ducking; validado por HOST-008 y demo `062_game_audio`. **El audio
-  lo posee ahora el backend** (`AmigaBackend::audio()`/`audio_init()`); el
-  `GameAudio` se enlaza con `attach(backend.audio())`. Guía completa (API +
-  generación de música y sonidos desde herramientas externas) en
-  `docs/engine/architecture/GAME_AUDIO.md`.
-  **Pendiente**: `libahx` (necesita `.BIN` + libc).
-  Ver `docs/engine/architecture/MUSIC_PLAYER.md`.
-- **Regla de API aplicada**: la capa de audio no expone punteros crudos al
-  programador; las áreas de memoria contigua se representan con `eng::Span`
-  (`SfxSample` y `MusicModule`). Los punteros quedan en la capa interna
-  (`MixerEffect`/wrappers `jsr`).
-- **Pendiente (audio, parado 2026-09 por tiempo)**: el mixer de 4 voces con
-  **samples one-shot** solo deja oír ~2 voces al mezclar una caja de ritmos
-  (`074_mixer_drums`). El **loop** sí se oye en las 4 (`076_mixer_sample_channels`,
-  estilo 075 de tonos). Los 4 canales reciben disparos (contadores 4:2:8:1), así que
-  se sospecha del camino **one-shot** del mixer (o del balance perceptual); siguiente
-  prueba: disparar los 4 samples one-shot a la vez, y si falla, pasar 074 a
-  loop+`stop()`. Otros arreglos ya hechos y documentados en `AUDIO_MIXER.md`:
-  buffers de plugin no nulos (o el mixer queda en silencio), desbordamiento de
-  `(f<<22)` para f>1024, generación de tono sin discontinuidad de bucle
-  (`synth_tone`/`synth_sequence`) y tool `tools/audio/prep-sample.ts`
-  (WAV→raw→remuestreo→normalizar/escalar, con test).
-  **Rendimiento**: con el mixer activo el bucle cae a ~2-5 fps emulados (vs ~normal
-  sin mixer); `MIXER_WORDSIZED`/`MIXER_SIZEX32` NO mejoran → el coste es
-  por-interrupción (IRQ de audio + reprogramación de DMA), probablemente exagerado
-  por WinUAE; **validar en hardware real**. Opción a probar: `MIXER_EXTERNAL_IRQ_DMA`
-  (la doc permite que el IRQ/DMA los lleve el motor/OS). Ver `AUDIO_MIXER.md`
-  §"Rendimiento medido en el emulador".
+- **Hecho (input, paso 6 de `ENGINE_DESIGN.md` §5)**: `eng::input::InputAggregator` (`PadState`, `MouseState`, `KeyState`) en `engine/include/eng/input/input.hpp`, validado por HOST-004. Backend de lectura corregido en `eng/platform/amiga/input_poll.hpp`: direcciones por `JOY0DAT`/`JOY1DAT` (código de Gray por eje; arriba/abajo con XOR), fuego por `CIAAPRA` bits 6/7, y `poll_input(InputAggregator&)`. Decodificación pura validada por HOST-006 (mismo mapeo que los motores ACE/Sevgi y el AHRM). Demo `056_input_aggregator` (cruz móvil + fuego + tecla) compila/ejecuta a READY.
+- **Hecho (input, ratón + CD32)**: `poll_mouse` (delta por `JOY0DAT` + botones por `CIAAPRA`/`POTINP`), `read_cd32_buttons` (protocolo serie `POTGO`) y `decode_cd32_buttons` (puro) en `input_poll.hpp`. `PadState` ampliado con `reverse`/`forward`. Decodificación CD32 validada por HOST-007 (mismo mapeo que Sevgi). **Pendiente**: validar la lectura serie en emulador (sensible a timing).
+- **Hecho (audio SFX, paso 7 de `ENGINE_DESIGN.md` §5)**: `eng::audio::SampleEvent`, `MusicEvent`, `AudioPlan` y `AudioMixer` en `engine/include/eng/audio/audio.hpp`, validado por HOST-005. **Integrado de forma nativa el Audio Mixer 3.7 (Photon)**: código ASM en `support/audio_mixer/` (ensamblado con VASM a ELF en `build-demo.sh`), envoltura de juego `eng::audio::SfxMixer` en `engine/include/eng/audio/sfx_mixer.hpp`. Config actual: `MIXER_SINGLE`, salida `DMAF_AUD0`, 4 voces software, 11 kHz, `MIXER_C_DEFS=1`. Demo `058_sfx_mixer` reproduce un bucle + beep; `DMACONR`=0x381 (`AUD0EN`+`DMAEN`) y `MixerGetTotalChannelCount()`=4. Documentado en `docs/engine/architecture/AUDIO_MIXER.md` (requisitos de muestras preprocesadas, capacidades, configuración, API, preprocesado, rendimiento). Herramienta host `tools/audio/sample-converter.ts` (+ test) para preprocesar muestras (±32, múlt. 4).
+- **Hecho (música, `MusicPlayer`)**: reproductor **P61** (Photon/Scoopex) importado de `demoscene-repo-orig/lib/libp61` a `support/music/` (`p61.asm` + `P6112-Play.i`, ensamblado con VASM). Envoltura de juego `eng::audio::P61Player` en `engine/include/eng/audio/music_player.hpp` (API sin punteros: `MusicModule` = `Span<const u8>`). Demo `059_music_player` enlaza SFX mixer + P61 y llega a READY (`P61_Init` falla limpiamente sin módulo). **Importado** también **ptplayer** (Frank Wille): `support/music/pt.asm` + `ptplayer.i` + `support/vbr.s` (`_ExcVecBase=0`). Envoltura `eng::audio::PtPlayer` (modo CIA) y demo `060_music_pt`: genera un `.mod` mínimo en memoria y reproduce música real (`DMACONR` con `AUD0EN` activo tras ~100 frames). **Consolidado** en `eng::audio::AudioSystem` (`engine/include/eng/audio/audio_system.hpp`): fachada única que compone `SfxMixer` + `P61Player`/`PtPlayer`; demo `061_audio_system` demuestra coexistencia SFX (AUD0) + música (AUD1) con el orden canónico música→canal reservado→mixer. Añadido `set_master_volume` (volumen global SFX+ música). **Capa de juego** `eng::audio::GameAudio` (`game_audio.hpp`) + `SampleBank`/`allow_trigger`/`allow_group` (puros, `sfx_bank.hpp`): banco de sonidos por `id`, política de voces (cooldown, límite de instancias, agrupación, prioridad) y ducking; validado por HOST-008 y demo `062_game_audio`. **El audio lo posee ahora el backend** (`AmigaBackend::audio()`/`audio_init()`); el `GameAudio` se enlaza con `attach(backend.audio())`. Guía completa (API + generación de música y sonidos desde herramientas externas) en `docs/engine/architecture/GAME_AUDIO.md`. **Pendiente**: `libahx` (necesita `.BIN` + libc). Ver `docs/engine/architecture/MUSIC_PLAYER.md`.
+- **Regla de API aplicada**: la capa de audio no expone punteros crudos al programador; las áreas de memoria contigua se representan con `eng::Span` (`SfxSample` y `MusicModule`). Los punteros quedan en la capa interna (`MixerEffect`/wrappers `jsr`).
+- **Pendiente (audio, parado 2026-09 por tiempo)**: el mixer de 4 voces con **samples one-shot** solo deja oír ~2 voces al mezclar una caja de ritmos (`074_mixer_drums`). El **loop** sí se oye en las 4 (`076_mixer_sample_channels`, estilo 075 de tonos). Los 4 canales reciben disparos (contadores 4:2:8:1), así que se sospecha del camino **one-shot** del mixer (o del balance perceptual); siguiente prueba: disparar los 4 samples one-shot a la vez, y si falla, pasar 074 a loop+`stop()`. Otros arreglos ya hechos y documentados en `AUDIO_MIXER.md`: buffers de plugin no nulos (o el mixer queda en silencio), desbordamiento de `(f<<22)` para f>1024, generación de tono sin discontinuidad de bucle (`synth_tone`/`synth_sequence`) y tool `tools/audio/prep-sample.ts` (WAV→raw→remuestreo→normalizar/escalar, con test). **Rendimiento**: con el mixer activo el bucle cae a ~2-5 fps emulados (vs ~normal sin mixer); `MIXER_WORDSIZED`/`MIXER_SIZEX32` NO mejoran → el coste es por-interrupción (IRQ de audio + reprogramación de DMA), probablemente exagerado por WinUAE; **validar en hardware real**. Opción a probar: `MIXER_EXTERNAL_IRQ_DMA` (la doc permite que el IRQ/DMA los lleve el motor/OS). Ver `AUDIO_MIXER.md` §"Rendimiento medido en el emulador".
 
 ## Tests host — estado (2026-09)
 
-- **g++ nativo instalado** (WinLibs GCC 16.2.0, mingw-w64 ucrt) en
-  `C:\Users\dvdjg\Documents\programa\AI\Amiga\mingw64`. No está en el PATH: para
-  correr `tools/run-host-tests.sh` usar
-  `CXX="C:\...\Amiga\mingw64\bin\g++.exe" bash tools/run-host-tests.sh`.
-- **Corregido** el cast puntero→`u32` (portabilidad 32/64 bits): las cabeceras de
-  gráficos/field ahora usan `eng::uintptr` para extraer direcciones de punteros
-  (`copper.hpp`, `sprite_manager.hpp`, `tile_scroll.hpp`, `dpf_composer.hpp`,
-  `xlimited.hpp`). En m68k `uintptr == u32` (no-op).
-- Tests host: HOST-000 (math), HOST-001 (graphics_driver_contract), HOST-002
-  (raster_intent), HOST-003 (sprite_allocator), HOST-004 (input), HOST-005
-  (audio), HOST-006 (input_decode) y HOST-007 (input_cd32) **pasan**. El **ICE de
-  gcc 16.2.0** de HOST-001 quedó resuelto moviendo `SineTable` a definición
-  out-of-class en `xlimited_scene.hpp` (bug del compilador, no del código).
+- **g++ nativo instalado** (WinLibs GCC 16.2.0, mingw-w64 ucrt) en `C:\Users\dvdjg\Documents\programa\AI\Amiga\mingw64`. No está en el PATH: para correr `tools/run-host-tests.sh` usar `CXX="C:\...\Amiga\mingw64\bin\g++.exe" bash tools/run-host-tests.sh`.
+- **Corregido** el cast puntero→`u32` (portabilidad 32/64 bits): las cabeceras de gráficos/field ahora usan `eng::uintptr` para extraer direcciones de punteros (`copper.hpp`, `sprite_manager.hpp`, `tile_scroll.hpp`, `dpf_composer.hpp`, `xlimited.hpp`). En m68k `uintptr == u32` (no-op).
+- Tests host: HOST-000 (math), HOST-001 (graphics_driver_contract), HOST-002 (raster_intent), HOST-003 (sprite_allocator), HOST-004 (input), HOST-005 (audio), HOST-006 (input_decode) y HOST-007 (input_cd32) **pasan**. El **ICE de gcc 16.2.0** de HOST-001 quedó resuelto moviendo `SineTable` a definición out-of-class en `xlimited_scene.hpp` (bug del compilador, no del código).
 
 ## Inventario de hardware (`eng::hw`) — estado (2026-09)
 
-- **Hecho**: `eng/hw/info.hpp` (tipos POD, consultas de capacidad, heurísticas puras, `probe`
-  declarado) y sondeo Amiga en `amiga_hw.cpp` (Exec `AttnFlags`/versión, `DENISEID`,
-  `MemList`, `DIWSTRT/STOP`). Display **publicado por la composición**: `Scene::bind_hw_info` →
-  `hw::set_display` al programar el modo (paso 4). Verificado en **A500** por la demo 205 y por
-  HOST-234 (publicación) y HOST-235 (consultas/heurísticas). Doc:
-  `docs/engine/architecture/HARDWARE_INVENTORY.md`.
-- **Pendiente**:
-  1. **Sondeo de Akiko/CD32**: implementar la detección con un registro verificado (hoy
-     `caps.akiko`/`caps.c2p_hw` existen pero nunca se activan).
-  2. **Integrar `hw` en el arranque del engine**: `probe()` una vez en `boot()` y exponerlo como
-     `app.hw()` en `App` (paso natural tras `PUBLIC_GAME_API.md`).
-  3. **Verificación AGA en emulador** (A1200/A4000): opción de máquina en el runner o variante de
-     demo, para pasar de cobertura lógica (HOST-235) a real.
-  4. **Consumir el inventario en el mini-SO/GUI** (panel de diagnóstico) reutilizando el overlay de
-     la demo 010.
+- **Hecho**: `eng/hw/info.hpp` (tipos POD, consultas de capacidad, heurísticas puras, `probe` declarado) y sondeo Amiga en `amiga_hw.cpp` (Exec `AttnFlags`/versión, `DENISEID`, `MemList`, `DIWSTRT/STOP`). Display **publicado por la composición**: `Scene::bind_hw_info` → `hw::set_display` al programar el modo (paso 4). Verificado en **A500** por la demo 205 y por HOST-234 (publicación) y HOST-235 (consultas/heurísticas). Doc: `docs/engine/architecture/HARDWARE_INVENTORY.md`.
+- **Pendiente**: 1. **Sondeo de Akiko/CD32**: implementar la detección con un registro verificado (hoy `caps.akiko`/`caps.c2p_hw` existen pero nunca se activan). 2. **Integrar `hw` en el arranque del engine**: `probe()` una vez en `boot()` y exponerlo como `app.hw()` en `App` (paso natural tras `PUBLIC_GAME_API.md`). 3. **Verificación AGA en emulador** (A1200/A4000): opción de máquina en el runner o variante de demo, para pasar de cobertura lógica (HOST-235) a real. 4. **Consumir el inventario en el mini-SO/GUI** (panel de diagnóstico) reutilizando el overlay de la demo 010.
 
 ## Deuda de genericidad de cabeceras (roadmap dedicado)
 
@@ -383,214 +106,91 @@ Registro transversal de deuda y demos **NO VERIFICADAS**: [ROADMAP_DEUDA_TECNICA
 
 ## Decisiones tomadas en 202 (a respetar)
 
-1. El scroll debe ser **un único algoritmo toroidal** (sin modos de borde finito);
-   el recorrido se acota a un primer paso del mundo para no mostrar la costura.
-2. Sin `linear_display` global salvo elección explícita; para Y independiente se
-   usa el modo por campo (split + lineal/mirror).
-3. Sin macros de selección en C++: constantes paramétricas (`if constexpr`) o
-   plantillas; el engine configura por datos.
-4. Telemetría y `analyze-sequence.sh` como gate por demo (movimiento continuo +
-   regresión de la Y independiente).
-5. Pipeline de tiles por defecto: paleta `mediancut` + dither `atkinson` a 8
-   colores. Se añadió el dither `checker` (checkerboard de dos colores cercanos,
-   estilo core-design, para sintetizar colores perdidos tras la cuantización) y
-   los nombres de tiling incluyen tamaño de tile y dither (`…c_tN_<paleta>_<dither>…`).
+1. El scroll debe ser **un único algoritmo toroidal** (sin modos de borde finito); el recorrido se acota a un primer paso del mundo para no mostrar la costura.
+2. Sin `linear_display` global salvo elección explícita; para Y independiente se usa el modo por campo (split + lineal/mirror).
+3. Sin macros de selección en C++: constantes paramétricas (`if constexpr`) o plantillas; el engine configura por datos.
+4. Telemetría y `analyze-sequence.sh` como gate por demo (movimiento continuo + regresión de la Y independiente).
+5. Pipeline de tiles por defecto: paleta `mediancut` + dither `atkinson` a 8 colores. Se añadió el dither `checker` (checkerboard de dos colores cercanos, estilo core-design, para sintetizar colores perdidos tras la cuantización) y los nombres de tiling incluyen tamaño de tile y dither (`…c_tN_<paleta>_<dither>…`).
 
 ## Soporte de 256 px de scroll vía `linear_display` (decisión abierta)
 
-Objetivo: poder usar un **viewport de scroll de 256 px** (pantalla completa, sin gastar 48 px en un
-HUD) manteniendo el corkscrew 8-way.
+Objetivo: poder usar un **viewport de scroll de 256 px** (pantalla completa, sin gastar 48 px en un HUD) manteniendo el corkscrew 8-way.
 
-Motivo: el comparador de 8 bits del Copper impide el **split móvil** en líneas raster ≥256 y el
-corte se recorta a 255. Es límite de hardware común a OCS/ECS/AGA, ratificado por IA externa
-(`docs/guides/roadmap/CONSULTA-SPLIT-208.md`).
+Motivo: el comparador de 8 bits del Copper impide el **split móvil** en líneas raster ≥256 y el corte se recorta a 255. Es límite de hardware común a OCS/ECS/AGA, ratificado por IA externa (`docs/guides/roadmap/CONSULTA-SPLIT-208.md`).
 
-Vía: `linear_display` (espejo vertical del bucle). Ya está implementado y es el defecto de la demo
-107 (`K_LINEAR=1`), verificado con 0/119 pares desincronizados.
+Vía: `linear_display` (espejo vertical del bucle). Ya está implementado y es el defecto de la demo 107 (`K_LINEAR=1`), verificado con 0/119 pares desincronizados.
 
 Coste conocido:
-- **Blitter**: cada celda entrante se blittea 2× (bucle + espejo) → ~2× `blit_jobs`/`blit_words` en
-  los cruces. El coste es proporcional al salto, no al tamaño de pantalla.
-- **Chip RAM**: `display_height × row_bytes × planes` bytes extra en el campo espejado (anillo 288,
-  44 B/fila, 6 planos ≈ 74 KB; menos con 3-5 planos).
+- **Blitter**: cada celda entrante se blittea 2× (bucle + espejo) → ~2× `blit_jobs`/`blit_words` en los cruces. El coste es proporcional al salto, no al tamaño de pantalla.
+- **Chip RAM**: `display_height × row_bytes × planes` bytes extra en el campo espejado (anillo 288, 44 B/fila, 6 planos ≈ 74 KB; menos con 3-5 planos).
 - **DPF**: con `dual_linear_field` el sobrecoste recae solo en el campo lineal.
 
 Pendiente:
-1. Medir fps reales de un corkscrew a 256 px con `linear_display` en una demo (gate 50 fps) y fijar
-   el presupuesto de Chip RAM del modo.
+1. Medir fps reales de un corkscrew a 256 px con `linear_display` en una demo (gate 50 fps) y fijar el presupuesto de Chip RAM del modo.
 2. Decidir si se promueve a modo estándar de la 107/202 o se deja como variante paramétrica.
 
-Alternativa más barata si se acepta menos área: **campo corto + HUD** (208 de scroll + 48 de HUD),
-canónico desde la 201.
+Alternativa más barata si se acepta menos área: **campo corto + HUD** (208 de scroll + 48 de HUD), canónico desde la 201.
 
 ## F6 — Variante rápida «Sonic» (medición E1, 2026-09)
 
-Objetivo: pasos >2 px/frame (5-6 px, estilo Sonic) garantizando que la fila/
-columna entrante se dibuja siempre a tiempo, y tiles de 32×32.
+Objetivo: pasos >2 px/frame (5-6 px, estilo Sonic) garantizando que la fila/ columna entrante se dibuja siempre a tiempo, y tiles de 32×32.
 
 > **Diseño general**: la política de relleno y guarda para scroll rápido está en
 > `docs/engine/architecture/FAST_SCROLL.md` (`Progressive` | `TileBurst<N>` | `StripPrerender<C>`,
 > `guard_tiles`, dirección laceda a frontera de tile, tear-free). Esta sección conserva la
 > medición E1 que la motiva y las opciones de tiles 32×32.
 
-Medición E1 (parámetro `kFastStep` en la 202, sin macros): con `kFastStep=6` la
-telemetría real da `blit_jobs` máx 27 (media 12) y `blit_words` máx 1296 → carga
-baja para 50 fps; el cruce de 16 px pinta su columna/fila dentro del mismo frame
-(paint-then-advance) → **no hace falta draw-ahead por coste** a estas velocidades.
+Medición E1 (parámetro `kFastStep` en la 202, sin macros): con `kFastStep=6` la telemetría real da `blit_jobs` máx 27 (media 12) y `blit_words` máx 1296 → carga baja para 50 fps; el cruce de 16 px pinta su columna/fila dentro del mismo frame (paint-then-advance) → **no hace falta draw-ahead por coste** a estas velocidades.
 
 Pendientes de F6:
-- Verificar/arreglar el camino completo de tiles **32×32** (banco X-Limited,
-  fetch/guardas, fillup) en el engine y validarlo en una demo/variante.
-  Estado: el direccionado del banco en `draw_block_job` ya es genérico (320 px →
-  `320/tile` bloques/fila, words = tile/16). **Bloqueo de algoritmo**: el 8-way
-  X-Limited recorre el tile píxel a píxel con `fetch_scroll_pixels = 16` y
-  `BPLCON1` de 4 bits (0..15), es decir está pensado para tiles de 16; con tiles
-  de 32 el fine del chipset (máx 16) no cubre el tile completo. Opciones:
-    A) Tratar el tile de 32 como dos macro-pasos de 16 (redibujo/plane-shift cada
-       16 px dentro del tile) — extensión del algoritmo.
-       Diseño (resumen A): el 8-way conserva el fine de 16 (BPLCON1 0..15) y el
-       pointer avanza cada 16 world-px; cada tile de 32 se divide en DOS «macro-
-       celdas» de 16 que se redibujan por separado según cruce. Concretamente:
-       - `draw_block_job` ya escribe words=tile/16 (2 en 32) → dibuja el tile
-         completo cuando se pinta su celda.
-       - El scroll (scroll_right/left/down/up) pasa a cruzar cada 16 px de la
-         macroc el del (en lugar de cada tile): al cruzar el 1er macro-paso de un
-         tile 32 se muestra la mitad ya dibujada; al cruzar el 2º se redibuja el
-         siguiente tile. Es un cambio acotado a `scroll_engine.hpp` (granularidad
-         de cruce = 16 fijo, no tile) + el fetch/guarda de `tile_width`.
-    B) En el test DPF BG=32/FG=16, usar scroll 16 para el BG (tiles de 32 solo
-       como «macro-celda» de contenido, movimiento 8-way cada 16) — sin cambiar
-       el fine del algoritmo.
-       Nota tras análisis: con fine 16 y celdas de 32 «de contenido», el test se
-       reduce a la demo actual de 16; no ejercita de verdad tiles de 32. Solo la
-       opción A valida 32 real en 8-way.
-    C) Posponer 32 hasta documentar bien A.
-- Decidir si a saltos ≥ 2 cruces/frame conviene pre-dibujar N columnas/filas según
-  la velocidad (opción paramétrica del scroll, sin tocar la regla de dibujo).
+- Verificar/arreglar el camino completo de tiles **32×32** (banco X-Limited, fetch/guardas, fillup) en el engine y validarlo en una demo/variante. Estado: el direccionado del banco en `draw_block_job` ya es genérico (320 px → `320/tile` bloques/fila, words = tile/16). **Bloqueo de algoritmo**: el 8-way X-Limited recorre el tile píxel a píxel con `fetch_scroll_pixels = 16` y `BPLCON1` de 4 bits (0..15), es decir está pensado para tiles de 16; con tiles de 32 el fine del chipset (máx 16) no cubre el tile completo. Opciones: A) Tratar el tile de 32 como dos macro-pasos de 16 (redibujo/plane-shift cada 16 px dentro del tile) — extensión del algoritmo. Diseño (resumen A): el 8-way conserva el fine de 16 (BPLCON1 0..15) y el pointer avanza cada 16 world-px; cada tile de 32 se divide en DOS «macro- celdas» de 16 que se redibujan por separado según cruce. Concretamente: - `draw_block_job` ya escribe words=tile/16 (2 en 32) → dibuja el tile completo cuando se pinta su celda. - El scroll (scroll_right/left/down/up) pasa a cruzar cada 16 px de la macroc el del (en lugar de cada tile): al cruzar el 1er macro-paso de un tile 32 se muestra la mitad ya dibujada; al cruzar el 2º se redibuja el siguiente tile. Es un cambio acotado a `scroll_engine.hpp` (granularidad de cruce = 16 fijo, no tile) + el fetch/guarda de `tile_width`. B) En el test DPF BG=32/FG=16, usar scroll 16 para el BG (tiles de 32 solo como «macro-celda» de contenido, movimiento 8-way cada 16) — sin cambiar el fine del algoritmo. Nota tras análisis: con fine 16 y celdas de 32 «de contenido», el test se reduce a la demo actual de 16; no ejercita de verdad tiles de 32. Solo la opción A valida 32 real en 8-way. C) Posponer 32 hasta documentar bien A.
+- Decidir si a saltos ≥ 2 cruces/frame conviene pre-dibujar N columnas/filas según la velocidad (opción paramétrica del scroll, sin tocar la regla de dibujo).
 
 ## Preguntas abiertas y próximas direcciones (a decidir)
 
 Opciones (no excluyentes, conviene priorizar):
 
-- **A. Capa de bobs/personajes en el FG lineal** (estilo Megatyphoon: escribir
-  solo donde el bob no solapa a otros, sin releer pantalla). Aporta el “juego de
-  plataformas” real sobre la base DPF.
-- **B. Varias capas de parallax** (BG mero fondo + FG plataformas 8-way, estilo
-  Jim Powers): demostrar/validar con 2+ capas y Y por capa.
-- **C. Mapa/editor y metadatos**: retomar Tiled (metadatos, objetos, spawns) y el
-  camino completo de pipeline hacia un nivel jugable.
-- **D. Escenas/juego end-to-end**: elegir un caso de uso (plataformas o shooter 8
-  way) y construir la primera escena «de juego» encima del engine parametrizado,
-  cerrando el F5 de forma real (harness por feature).
-- **E. Robustez/rendimiento**: telemetría con gate estricto 50 fps en las demos y
-  presupuesto de Chip RAM por modo DPF (matriz de memoria documentada).
-- **F. Streaming de contenido y carga desde disco**: llevar `StreamingWorldMap`/`ChunkCache` a un
-  `Loader` real que lea del disquete en segundo plano mientras se dibuja (patrón de loaders de
-  juego). Formato de mundo: `docs/engine/architecture/WORLD_FORMAT.md`; diseño del Loader:
-  `docs/engine/architecture/STREAMING_LOADER.md`; base de hardware (trackdisk vs. trackloader vs.
-  HD): `docs/reference/amiga/techniques/trackloading.md`; pasos concretos en Fase 7 de
-  `docs/guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md`.
+- **A. Capa de bobs/personajes en el FG lineal** (estilo Megatyphoon: escribir solo donde el bob no solapa a otros, sin releer pantalla). Aporta el “juego de plataformas” real sobre la base DPF.
+- **B. Varias capas de parallax** (BG mero fondo + FG plataformas 8-way, estilo Jim Powers): demostrar/validar con 2+ capas y Y por capa.
+- **C. Mapa/editor y metadatos**: retomar Tiled (metadatos, objetos, spawns) y el camino completo de pipeline hacia un nivel jugable.
+- **D. Escenas/juego end-to-end**: elegir un caso de uso (plataformas o shooter 8 way) y construir la primera escena «de juego» encima del engine parametrizado, cerrando el F5 de forma real (harness por feature).
+- **E. Robustez/rendimiento**: telemetría con gate estricto 50 fps en las demos y presupuesto de Chip RAM por modo DPF (matriz de memoria documentada).
+- **F. Streaming de contenido y carga desde disco**: llevar `StreamingWorldMap`/`ChunkCache` a un `Loader` real que lea del disquete en segundo plano mientras se dibuja (patrón de loaders de juego). Formato de mundo: `docs/engine/architecture/WORLD_FORMAT.md`; diseño del Loader: `docs/engine/architecture/STREAMING_LOADER.md`; base de hardware (trackdisk vs. trackloader vs. HD): `docs/reference/amiga/techniques/trackloading.md`; pasos concretos en Fase 7 de `docs/guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md`.
 
-Recomendación inicial: **D** (caso de uso concreto, p. ej. plataformas con BG
-fondo + FG mapa 8-way, reutilizando 202/DPF) para cerrar el F5 y forzar el resto
-de decisiones (bobs, Tiled, memoria) con un objetivo real; en paralelo **E**
-ligero (gate 50 fps + tabla de memoria) para no perder el presupuesto.
+Recomendación inicial: **D** (caso de uso concreto, p. ej. plataformas con BG fondo + FG mapa 8-way, reutilizando 202/DPF) para cerrar el F5 y forzar el resto de decisiones (bobs, Tiled, memoria) con un objetivo real; en paralelo **E** ligero (gate 50 fps + tabla de memoria) para no perder el presupuesto.
 
 ## Plan — Shooter/side-scroller con ejes limitados + RoboCod (2026-09)
 
-Decisión (usuario): la familia de scroll es **XYLimited** con **modo por eje**
-(`Ring` / `Finite` / `Off`, `ScrollMode::OneDirection`). Un juego usa un eje
-**largo** (anillo) y el otro **corto** (finito, sin guardas). DPF siempre, con el
-FG dedicado a **objetos** (naves, disparos) y el BG al tilemap de scroll. Se
-desarrolla en varios turnos; el orden es 1→2→3.
+Decisión (usuario): la familia de scroll es **XYLimited** con **modo por eje** (`Ring` / `Finite` / `Off`, `ScrollMode::OneDirection`). Un juego usa un eje
+**largo** (anillo) y el otro **corto** (finito, sin guardas). DPF siempre, con el FG dedicado a **objetos** (naves, disparos) y el BG al tilemap de scroll. Se desarrolla en varios turnos; el orden es 1→2→3.
 
 ### Parte 1 — Shooter vertical puro (primero)
 - Mundo **400 px de ancho × 2048 px de alto**; tiles 16×16 → **25×128** celdas.
-- **Tileset de 128 tiles**. Mapa = índices `u16` (25·128 = 3200 words ≈ 6.3 KB); el
-  framebuffer de scroll sigue **acotado** (solo índices/tileset crecen).
-- **X `Finite`** (recorrido 0..80, sin anillo ni guardas laterales), **Y `Ring`
-  one-direction** (solo la fila entrante; la nave no vuelve a bajar),
-  `display_height = 256+32`, cámara inicial a media altura (`set_camera`).
-- **DPF**: BG = tilemap XYLimited; FG = capa de objetos (planos pares) para
-  naves/disparos.
+- **Tileset de 128 tiles**. Mapa = índices `u16` (25·128 = 3200 words ≈ 6.3 KB); el framebuffer de scroll sigue **acotado** (solo índices/tileset crecen).
+- **X `Finite`** (recorrido 0..80, sin anillo ni guardas laterales), **Y `Ring` one-direction** (solo la fila entrante; la nave no vuelve a bajar), `display_height = 256+32`, cámara inicial a media altura (`set_camera`).
+- **DPF**: BG = tilemap XYLimited; FG = capa de objetos (planos pares) para naves/disparos.
 - Demo prevista: `demos/techniques/amiga/playfield/110_ylimited_shooter`.
 
 ### Parte 2 — Side-scroller horizontal (después)
 - Mundo **4096 px de ancho × 320 px de alto**; tiles 16×16 → **256×20** celdas.
-- **Tileset de 128 tiles**. **X `Ring`** (XLimited, scroll largo), **Y `Finite`/
-  `Off`** (alto corto). **DPF** con FG de objetos.
-- Requiere simetría de ejes: `y_mode` (`Finite`/`Off`) y X `Ring` largo (hoy X
-  `Ring` ya existe; falta el `y_mode`).
+- **Tileset de 128 tiles**. **X `Ring`** (XLimited, scroll largo), **Y `Finite`/ `Off`** (alto corto). **DPF** con FG de objetos.
+- Requiere simetría de ejes: `y_mode` (`Finite`/`Off`) y X `Ring` largo (hoy X `Ring` ya existe; falta el `y_mode`).
 - Demo prevista: `demos/techniques/amiga/playfield/111_xlimited_sidescroller`.
 
 ### Parte 3 — XYLimited 5 planos con fondo estilo RoboCod
-- Escena **XYLimited de 5 bitplanes**; el **fondo** usa el truco **RoboCod**
-  (un plano con offset de scroll propio), **mapeando las paletas para que queden
-  16 colores** visibles.
-- Trabajo de engine: **parallax por plano** (offset por plano sumado en
-  `draw_block_job` **y** en la emisión de `BPLxPT`, con la cámara como fuente y
-  envolviendo en el anillo) + **patrón de tiles propio** del plano de fondo
-  (admite tiles grandes, p. ej. 64×64; el Blitter y el tileset ya soportan
-  múltiplos de 16).
+- Escena **XYLimited de 5 bitplanes**; el **fondo** usa el truco **RoboCod** (un plano con offset de scroll propio), **mapeando las paletas para que queden 16 colores** visibles.
+- Trabajo de engine: **parallax por plano** (offset por plano sumado en `draw_block_job` **y** en la emisión de `BPLxPT`, con la cámara como fuente y envolviendo en el anillo) + **patrón de tiles propio** del plano de fondo (admite tiles grandes, p. ej. 64×64; el Blitter y el tileset ya soportan múltiplos de 16).
 
 ### Estado del engine para este plan (2026-09)
 - ✅ `AxisMode` (`Ring`/`Finite`/`Off`) en `XlimitedConfig` y `XLimitedPlayfield`.
-- ✅ X `Finite`: bitmap = ancho de mundo, puntero directo, sin creep ni guardas
-  (`ScrollEngine::scroll_right/left`); `set_camera(x,y)`; `one_direction` corregido
-  en `scroll_left`/`scroll_up`.
+- ✅ X `Finite`: bitmap = ancho de mundo, puntero directo, sin creep ni guardas (`ScrollEngine::scroll_right/left`); `set_camera(x,y)`; `one_direction` corregido en `scroll_left`/`scroll_up`.
 - ✅ `x_mode` reenviado por `XlimitedSceneConfig`; `bg().set_camera(...)` disponible.
-- ✅ Test host **`023_limited_axes`** (scenario del shooter: X finito + Y anillo
-  one-direction).
-- ✅ Parte 1: demo **`110_ylimited_shooter`** (400×2048, tileset 128, X `Finite`,
-  Y anillo one-direction) **con DPF**: BG = corkscrew XYLimited (PF1) + FG = lienzo
-  de objetos (PF2, delante) dibujando nave y disparos; cámara inicial abajo,
-  telemetría de cámara en `detail`, `analyze` OK. (Falta pulido visual de los
-  objetos.)
-- ✅ Engine: `XlimitedDualConfig.foreground_is_pf2` (PF2 delante), validación del
-  compositor DPF relajada (corkscrew + lienzo estático) y **módulo de PF2 corregido**
-  (usaba fetch 40 estándar en vez del 42 del corkscrew → el lienzo se descuadraba en
-  líneas).
-- ✅ Parte 2: demo **`111_xlimited_sidescroller`** (4096×320, 256×20 tiles, tileset
-  128, **X `Ring`** con mapa toroidal, **Y fijo** `scroll_y=false`, DPF con FG de
-  objetos: nave con barrido vertical + balas), `analyze` OK y telemetría de cámara.
-  Pendiente fino: `y_mode` `Finite` para un Y corto *con* scroll (hoy Y fijo), si un
-  juego lo necesita.
-- ✅ Consumer vertical-slice `203_world_tilemap_xlimited`: `World::TileLayer` →
-  `WorldTileMapView` → `XlimitedScene`, compilado y llega a READY en WinUAE/A500.
-  **Contrato, estabilidad y overhead verificados:** regresión con READY, 8 frames distintos,
-  pixel contract PASS, `--flicker --require-flicker-ok` PASS (cero candidatos y bloques
-  tras compensación de paneo; prueba sintética conserva sensibilidad a flicker/corrupción)
-  y análisis de visión sin anomalías. Las filas de tiles se precalculan conservando el
-  patrón. **A/B de abstracción:** el mismo driver/mapa con `WorldTileMapView` y con
-  `TileLayerMap` directo midieron ambos 142 102 ciclos/frame y 49,92 fps en ventanas de 60 s;
-  overhead medible del adaptador en el bucle: 0 ciclos/frame dentro de la resolución del contador.
-  Aceptación PAL: un update por VBlank nominal (~49,9–50 Hz); la cifra cumple. HOST-336
-  pasa al compilar y ejecutar directamente con MinGW nativo; el wrapper bash de host no puede
-  ejecutar ese PE en Git Bash por formato.
-- ✅ Parte 3: demo **`112_xlimited_robocod`** — XYLimited de **5 planos** con el
-  plano 4 de **fondo geométrico con parallax RoboCod** (`parallax_plane=4`,
-  `parallax_div=2`: su `BPLxPT` avanza a la mitad), paleta de 32 índices mapeada a
-  16 tonos (bit 4 = capa de fondo). El patrón son "tiles" geométricos procedurales
-  (`XLimitedPlayfield::fill_parallax_pattern`), sustituibles por arte después.
-  `analyze` OK.
-  Ajuste visual (2026-09): **XYLimited 8-way** con movimiento en X e Y (rebote sobre
-  el área extra), **X `Finite`** (el patrón de fondo no choca con el *unroll* del
-  X-Limited largo), **FG de plataformas (~15%)** sobre **85% de fondo**, paleta con
-  el **truco RoboCod** (`palette[c]==palette[c+16]` para que el plano de fondo no
-  tiña el FG; solo el índice 0/16 pasa de negro a patrón). El fondo son **bandas
-  diagonales** geométricas procedurales con `parallax_div=2`. `analyze` OK.
-  **Rediseño final (2026-09)**: el plano de fondo en un **mismo playfield no
-  funciona** — el blit del FG escribe el 5.º plano a 0 y **borra el fondo** en las
-  filas que entran al scrollear (el Blitter interleaved no salta un plano; haría
-  falta blit por plano). Solución limpia: **DPF de 2 capas** (`112` reescrita, 3+3):
-  FG = plataformas (PF1, delante) + BG = patrón geométrico (PF2) a **mitad de
-  velocidad** (parallax); cada capa con su bitmap, sin borrados. Ollama lo valida
-  (“plataformas naranjas sobre fondo de bandas diagonales azules, limpio”).
-  **Raster colors HECHAS**: el color del patrón de fondo (`COLOR14`) cambia por banda
-  de raster a **tonos pastel** que contrastan con el negro (compositor dual: `ColorZone`
-  + `linear_display`, sin split), más un **motivo de puntos** en los tiles (se ve el
-  tileado). Pendiente: **tileset artístico** y más motivos.- ⏳ Transversal: **tiles 64×64** en `BlocksBitmap`/pipeline (128 tiles ya se usa);
-  matriz de memoria Chip por modo DPF.
+- ✅ Test host **`023_limited_axes`** (scenario del shooter: X finito + Y anillo one-direction).
+- ✅ Parte 1: demo **`110_ylimited_shooter`** (400×2048, tileset 128, X `Finite`, Y anillo one-direction) **con DPF**: BG = corkscrew XYLimited (PF1) + FG = lienzo de objetos (PF2, delante) dibujando nave y disparos; cámara inicial abajo, telemetría de cámara en `detail`, `analyze` OK. (Falta pulido visual de los objetos.)
+- ✅ Engine: `XlimitedDualConfig.foreground_is_pf2` (PF2 delante), validación del compositor DPF relajada (corkscrew + lienzo estático) y **módulo de PF2 corregido** (usaba fetch 40 estándar en vez del 42 del corkscrew → el lienzo se descuadraba en líneas).
+- ✅ Parte 2: demo **`111_xlimited_sidescroller`** (4096×320, 256×20 tiles, tileset 128, **X `Ring`** con mapa toroidal, **Y fijo** `scroll_y=false`, DPF con FG de objetos: nave con barrido vertical + balas), `analyze` OK y telemetría de cámara. Pendiente fino: `y_mode` `Finite` para un Y corto *con* scroll (hoy Y fijo), si un juego lo necesita.
+- ✅ Consumer vertical-slice `203_world_tilemap_xlimited`: `World::TileLayer` → `WorldTileMapView` → `XlimitedScene`, compilado y llega a READY en WinUAE/A500. **Contrato, estabilidad y overhead verificados:** regresión con READY, 8 frames distintos, pixel contract PASS, `--flicker --require-flicker-ok` PASS (cero candidatos y bloques tras compensación de paneo; prueba sintética conserva sensibilidad a flicker/corrupción) y análisis de visión sin anomalías. Las filas de tiles se precalculan conservando el patrón. **A/B de abstracción:** el mismo driver/mapa con `WorldTileMapView` y con `TileLayerMap` directo midieron ambos 142 102 ciclos/frame y 49,87 fps en ventanas de 60 s; overhead medible del adaptador en el bucle: 0 ciclos/frame dentro de la resolución del contador. Aceptación PAL: un update por VBlank nominal (~49,9–50 Hz); la cifra cumple. HOST-336 pasa al compilar y ejecutar directamente con MinGW nativo; el wrapper bash de host no puede ejecutar ese PE en Git Bash por formato.
+- ✅ Parte 3: demo **`112_xlimited_robocod`** — XYLimited de **5 planos** con el plano 4 de **fondo geométrico con parallax RoboCod** (`parallax_plane=4`, `parallax_div=2`: su `BPLxPT` avanza a la mitad), paleta de 32 índices mapeada a 16 tonos (bit 4 = capa de fondo). El patrón son "tiles" geométricos procedurales (`XLimitedPlayfield::fill_parallax_pattern`), sustituibles por arte después. `analyze` OK. Ajuste visual (2026-09): **XYLimited 8-way** con movimiento en X e Y (rebote sobre el área extra), **X `Finite`** (el patrón de fondo no choca con el *unroll* del X-Limited largo), **FG de plataformas (~15%)** sobre **85% de fondo**, paleta con el **truco RoboCod** (`palette[c]==palette[c+16]` para que el plano de fondo no tiña el FG; solo el índice 0/16 pasa de negro a patrón). El fondo son **bandas diagonales** geométricas procedurales con `parallax_div=2`. `analyze` OK. **Rediseño final (2026-09)**: el plano de fondo en un **mismo playfield no funciona** — el blit del FG escribe el 5.º plano a 0 y **borra el fondo** en las filas que entran al scrollear (el Blitter interleaved no salta un plano; haría falta blit por plano). Solución limpia: **DPF de 2 capas** (`112` reescrita, 3+3): FG = plataformas (PF1, delante) + BG = patrón geométrico (PF2) a **mitad de velocidad** (parallax); cada capa con su bitmap, sin borrados. Ollama lo valida (“plataformas naranjas sobre fondo de bandas diagonales azules, limpio”). **Raster colors HECHAS**: el color del patrón de fondo (`COLOR14`) cambia por banda de raster a **tonos pastel** que contrastan con el negro (compositor dual: `ColorZone` + `linear_display`, sin split), más un **motivo de puntos** en los tiles (se ve el tileado). Pendiente: **tileset artístico** y más motivos.- ⏳ Transversal: **tiles 64×64** en `BlocksBitmap`/pipeline (128 tiles ya se usa); matriz de memoria Chip por modo DPF.
 - ⏳ Fino: `y_mode` `Finite` (Y corto con scroll); pulido de objetos de 110/111.
 
 ## Subsistema de gráficos poligonales / wireframe (propuesta 2026-09)
@@ -604,11 +204,7 @@ desarrolla en varios turnos; el orden es 1→2→3.
 
 **Diseño propuesto** (capas análogas a `RastPort`, sin exponer registros/planos):
 
-```text
-  Object3D/MeshView  ->  MeshRenderer  ->  PolygonSurface (Blitter)
-     (datos 3D)         culling + transform    draw_line / fill_polygon
-                        + visibilidad          (oculta planos, d_base,
-                                                row_bytes, minterms)
+```text Object3D/MeshView  ->  MeshRenderer  ->  PolygonSurface (Blitter) (datos 3D)         culling + transform    draw_line / fill_polygon + visibilidad          (oculta planos, d_base, row_bytes, minterms)
 ```
 
 - **`PolygonSurface`** (contexto de dibujo): expone `draw_line(p0,p1,color)` y `fill_polygon(pts,color)` eligiendo internamente la ruta (contorno `ONEDOT`+EOR + `area fill` XOR, o máscara + cookie-cut) y aplicando el truco `BLTDPTR`. Firma sin punteros ni registros (regla de API del engine); funciona igual en 4/5/6 planos y EHB/DPF.
@@ -635,52 +231,21 @@ Pendiente: una demo que ejercite el relleno poligonal por frame exige **abaratar
 
 ## Rasterizado acelerado (seam `Surface`/`Rasterizer`) — próximas mejoras (2026-09)
 
-El seam está en `engine/include/eng/field/raster.hpp` (`Rasterizer` + `CpuRaster`/`BlitterRaster`,
-`RasterOp`, `RasterCaps`/`RasterPolicy`) y `Surface` es el contexto de dispositivo. Detalle en
-`docs/engine/architecture/RASTER.md`. Estado: relleno CPU/Blitter, copia CPU/Blitter (32 bits,
-shifts/DESC), **líneas** OR y EOR/ONEDOT (con recorte de segmento y lote EOR), **blit lógico**
-(`blit_shadow` `$C0` / `blit_glow` `$FC`), **colisión pixel-perfect** (`blitter_collide`,
-verificada por self-test de 077) y `RasterCaps` OCS/AGA por target. Mejoras pendientes, por
-prioridad:
+El seam está en `engine/include/eng/field/raster.hpp` (`Rasterizer` + `CpuRaster`/`BlitterRaster`, `RasterOp`, `RasterCaps`/`RasterPolicy`) y `Surface` es el contexto de dispositivo. Detalle en `docs/engine/architecture/RASTER.md`. Estado: relleno CPU/Blitter, copia CPU/Blitter (32 bits, shifts/DESC), **líneas** OR y EOR/ONEDOT (con recorte de segmento y lote EOR), **blit lógico** (`blit_shadow` `$C0` / `blit_glow` `$FC`), **colisión pixel-perfect** (`blitter_collide`, verificada por self-test de 077) y `RasterCaps` OCS/AGA por target. Mejoras pendientes, por prioridad:
 
-1. **Colisión en un juego**: `blitter_collide` en el bucle con bandas de 1 plano + flash —
-   demo **204_collide_game** (verificada: jugador se mueve y la colisión dispara el flash).
-2. **Relleno con patrón**: `FramePlan::add_pattern_fill` (kind `PatternFill`, reusa el camino
-   `OrBlob`: A = patrón de **una fila** repetida en vertical con el módulo de A, B = D, minterm
-   `$FC`) y `graphics::add_rect_pattern` (patrón **multifila**: un `PatternFill` por fila del
-   patrón) — **verificados en hardware** por la demo 203 (suelo con tablero de 2 filas) y por
-   HOST-217.
-3. **C2P en el seam**: `Rasterizer::c2p(C2pRequest, plan)` unifica chunky→planar: CPU
-   (`c2p_1x1_4`/`c2p_1x1_naive`) y **Blitter** (`BlitJobKind::C2P`, 13 fases) por la misma
-   interfaz; `Scene::c2p` lo expone. HOST-218 valida la ruta CPU (equivalente a la referencia) y
-   el encolado `C2P` del `BlitterRaster`. **Bug corregido (2026-09)**: `Scene::c2p(req, plan)` ->
-   `DrawTarget::c2p` usaba el `rasterizer()` del playfield (CPU) **ignorando el `plan`**, así que
-   devolvía `true` sin encolar el C2P del Blitter (la conversión CPU sí se hacía, pero sobre el
-   buffer de la escena mientras el display esperaba el commit). `DrawTarget::c2p` enruta ahora a
-   `kBlitterRaster` cuando hay `plan`. **Pendiente**: demo que consuma el seam con resultado
-   verificado (`demos/techniques/amiga/c2p/275_c2p_seam` es **WIP**: `detail != 0`, el contrato del buffer
-   `chunky` del `BlitterRaster` exige que su **2ª mitad** sea el *scratch* planar de las 13 fases
-   — `eng/graphics/blitter_state.hpp` `C2p4::chunky`; hay que darle ese layout y comparar con la
-   referencia CPU).
-4. **`FMODE` por target**: programar 2×/4× según `raster_caps().bus` (AGA) en copias/fills; hoy
-   solo se declara la capacidad.
-5. **Demo de `blit_shadow`/`blit_glow`** en un actor real (no solo el host test) e integración en
-   `actor` (la política `SubtractiveAnd`/`AdditiveOr` ya existe; falta el consumidor).
-6. **Rendimiento**: medir con `Timeline`/perfil y decidir si conviene un `FillRect` propio (evitar
-   el camino de polígono) o alinear/padear más los buffers.
-7. **Migrar 116** (opcional): su ruta por defecto ya es `retro::flat_shade_xor` (HOST-213); las
-   rutas `draw_edges`/asm son opt-in de diagnóstico.
+1. **Colisión en un juego**: `blitter_collide` en el bucle con bandas de 1 plano + flash — demo **204_collide_game** (verificada: jugador se mueve y la colisión dispara el flash).
+2. **Relleno con patrón**: `FramePlan::add_pattern_fill` (kind `PatternFill`, reusa el camino `OrBlob`: A = patrón de **una fila** repetida en vertical con el módulo de A, B = D, minterm `$FC`) y `graphics::add_rect_pattern` (patrón **multifila**: un `PatternFill` por fila del patrón) — **verificados en hardware** por la demo 203 (suelo con tablero de 2 filas) y por HOST-217.
+3. **C2P en el seam**: `Rasterizer::c2p(C2pRequest, plan)` unifica chunky→planar: CPU (`c2p_1x1_4`/`c2p_1x1_naive`) y **Blitter** (`BlitJobKind::C2P`, 13 fases) por la misma interfaz; `Scene::c2p` lo expone. HOST-218 valida la ruta CPU (equivalente a la referencia) y el encolado `C2P` del `BlitterRaster`. **Bug corregido (2026-09)**: `Scene::c2p(req, plan)` -> `DrawTarget::c2p` usaba el `rasterizer()` del playfield (CPU) **ignorando el `plan`**, así que devolvía `true` sin encolar el C2P del Blitter (la conversión CPU sí se hacía, pero sobre el buffer de la escena mientras el display esperaba el commit). `DrawTarget::c2p` enruta ahora a `kBlitterRaster` cuando hay `plan`. **Pendiente**: demo que consuma el seam con resultado verificado (`demos/techniques/amiga/c2p/275_c2p_seam` es **WIP**: `detail != 0`, el contrato del buffer `chunky` del `BlitterRaster` exige que su **2ª mitad** sea el *scratch* planar de las 13 fases — `eng/graphics/blitter_state.hpp` `C2p4::chunky`; hay que darle ese layout y comparar con la referencia CPU).
+4. **`FMODE` por target**: programar 2×/4× según `raster_caps().bus` (AGA) en copias/fills; hoy solo se declara la capacidad.
+5. **Demo de `blit_shadow`/`blit_glow`** en un actor real (no solo el host test) e integración en `actor` (la política `SubtractiveAnd`/`AdditiveOr` ya existe; falta el consumidor).
+6. **Rendimiento**: medir con `Timeline`/perfil y decidir si conviene un `FillRect` propio (evitar el camino de polígono) o alinear/padear más los buffers.
+7. **Migrar 116** (opcional): su ruta por defecto ya es `retro::flat_shade_xor` (HOST-213); las rutas `draw_edges`/asm son opt-in de diagnóstico.
 
 ### Relleno de polígonos compuesto por bitplane (hecho; falta demo dedicada)
 
-`eng/graphics/polygon_planes.hpp` implementa la composición por bitplane: el Blitter rellena
-máscaras de 1 bit y el color es un patrón de bits, así que se rellena **por plano** (un fill por
-plano) en vez de polígono a polígono, cancelando las aristas compartidas por caras del mismo bit.
+`eng/graphics/polygon_planes.hpp` implementa la composición por bitplane: el Blitter rellena máscaras de 1 bit y el color es un patrón de bits, así que se rellena **por plano** (un fill por plano) en vez de polígono a polígono, cancelando las aristas compartidas por caras del mismo bit.
 - **Referencia CPU** `fill_polygons_by_plane_cpu` (even-odd scanline por plano), test **HOST-217**.
-- **API de alto nivel** `PlaneFillBuilder<MaxFaces>` (`submit`/`fill_cpu`/`faces`), patrón
-  `SubmitPoly`/`EndFrame`; el llamador posee los vértices (sin heap).
-- **Camino Blitter** `AmigaBackend::fill_polygons_by_plane` (contorno XOR ONEDOT en lote por
-  plano + area fill `FILL_XOR`), **verificado por el self-test de 077** y por la **demo 203**
-  (cubo girando con caras sombreadas por profundidad + suelo con patrón).
-- **Pendiente**: una demo de juego que use colisión (`blitter_collide`) en el bucle, y llevar el
-  C2P al seam (`Rasterizer`).
+- **API de alto nivel** `PlaneFillBuilder<MaxFaces>` (`submit`/`fill_cpu`/`faces`), patrón `SubmitPoly`/`EndFrame`; el llamador posee los vértices (sin heap).
+- **Camino Blitter** `AmigaBackend::fill_polygons_by_plane` (contorno XOR ONEDOT en lote por plano + area fill `FILL_XOR`), **verificado por el self-test de 077** y por la **demo 203** (cubo girando con caras sombreadas por profundidad + suelo con patrón).
+- **Pendiente**: una demo de juego que use colisión (`blitter_collide`) en el bucle, y llevar el C2P al seam (`Rasterizer`).
+

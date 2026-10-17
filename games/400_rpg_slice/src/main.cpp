@@ -50,6 +50,8 @@
 #include <eng/rpg/stats.hpp>
 #include <eng/rpg/world.hpp>
 #include <eng/platform/amiga/backend.hpp>
+#include <eng/platform/amiga/blob_batch.hpp>
+#include <eng/platform/amiga/hw_regs.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -611,6 +613,20 @@ struct RpgSlice {
 	};
 	RouteCache m_route_cache[2] {};
 	eng::u8 m_route_cache_next = 0u;
+
+	/// Trabajo de copia de casilla 16x16 (1 palabra) recogido por frame: `patch` = indice
+	/// en `m_patches` a estampar, o `0xff` = restaurar esa casilla desde la imagen cocinada
+	/// (borrado de estela). El render recoge y `emit_cell_jobs` emite **dos rachas** de
+	/// Blitter (una espera por objeto) en vez de N x `copy_now` (begin/end por celda y
+	/// plano: decenas de esperas por frame en el paseo).
+	struct CellJob {
+		eng::u8 patch; ///< indice de parche, o `0xff` = restaurar desde la imagen
+		eng::u8 x;
+		eng::u8 y;
+	};
+	static constexpr eng::u8 kCellJobsMax = 56u;
+	eng::util::Array<CellJob, kCellJobsMax> m_cell_jobs {};
+	eng::u8 m_cell_jobs_n = 0u;
 
 	/// Entradas de sala acumuladas: se publica en el `detail` del run-status (un ping-pong
 	/// de puertas lo dispara; un valor estable = transiciones puntuales).
@@ -1420,58 +1436,96 @@ struct RpgSlice {
 	}
 
 	/// Copia un parche 16x16 (interleaved en Chip) a una casilla de la pantalla.
-	void stamp_cell(auto& s, const eng::Block<eng::BobTag, eng::MemoryKind::Chip>& patch,
-			eng::u8 tx, eng::u8 ty) {
-		if (!patch.alive()) {
+	/// Recoge una casilla a **estampar** desde un parche (`m_patches[i]`); ver `CellJob`.
+	void push_stamp(eng::u8 patch, eng::u8 tx, eng::u8 ty) {
+		if (m_cell_jobs_n >= kCellJobsMax) {
 			return;
 		}
-		const auto src = patch.view.as_words();
-		const auto bt = s.target().bob_target();
-		const eng::s16 dmod = static_cast<eng::s16>(static_cast<eng::s32>(bt.row_bytes) - 2);
-		for (eng::u8 plane = 0u; plane < 4u; ++plane) {
-			const eng::graphics::BlitPtr sp {
-			    eng::graphics::blit_ptr(src, static_cast<eng::s32>(plane) * 2)};
-			const eng::graphics::BlitPtr dp {bt.plane_address(
-			    plane, static_cast<eng::s32>(ty) * kTile * bt.row_bytes +
-				       static_cast<eng::s32>(tx * 2))};
-			(void)s.copy_now(sp, dp, 1u, kTile, 6, dmod);
-		}
+		m_cell_jobs[m_cell_jobs_n] = CellJob {patch, tx, ty};
+		++m_cell_jobs_n;
 	}
 
-	/// Restaura una casilla 16x16 **desde la imagen cocinada** a la pantalla (un blit por
-	/// plano): asi se borra la estela de un actor sin repintar la sala entera. El origen es
-	/// plane-major (filas contiguas de 40 B → `cmod = 38`); el destino, la rejilla de la
-	/// pantalla (`dmod = row_bytes - 2`).
-	void restore_cell(auto& s, eng::u8 tx, eng::u8 ty) {
-		if (!active_image().alive()) {
-			return;
-		}
-		const auto img = active_image().view.as_words();
-		const auto bt = s.target().bob_target();
-		const eng::s16 dmod = static_cast<eng::s16>(static_cast<eng::s32>(bt.row_bytes) - 2);
-		for (eng::u8 plane = 0u; plane < 4u; ++plane) {
-			const eng::graphics::BlitPtr src {eng::graphics::blit_ptr(
-			    img, static_cast<eng::s32>(plane) * kImagePlaneWords * 2 +
-				 static_cast<eng::s32>(ty) * kTile * kImageWordsPerRow * 2 +
-				 static_cast<eng::s32>(tx) * 2)};
-			const eng::graphics::BlitPtr dst {bt.plane_address(
-			    plane, static_cast<eng::s32>(ty) * kTile * bt.row_bytes +
-				       static_cast<eng::s32>(tx) * 2)};
-			(void)s.copy_now(src, dst, 1u, kTile, 38, dmod);
-		}
-	}
-
-	/// Restaura el rectangulo de casillas `[x0..x1]x[y0..y1]` (sin ordenar) desde la imagen.
-	void erase_cells(auto& s, eng::u8 x0, eng::u8 y0, eng::u8 x1, eng::u8 y1) {
+	/// Recoge el rectangulo `[x0..x1]x[y0..y1]` de casillas a **restaurar** desde la imagen
+	/// cocinada (sin ordenar): borra la estela de un actor sin repintar la sala entera.
+	void push_erase_rect(eng::u8 x0, eng::u8 y0, eng::u8 x1, eng::u8 y1) {
 		const eng::u8 lx = x0 < x1 ? x0 : x1;
 		const eng::u8 ly = y0 < y1 ? y0 : y1;
 		const eng::u8 hx = x0 < x1 ? x1 : x0;
 		const eng::u8 hy = y0 < y1 ? y1 : y0;
 		for (eng::u8 ty = ly; ty <= hy; ++ty) {
 			for (eng::u8 tx = lx; tx <= hx; ++tx) {
-				restore_cell(s, tx, ty);
+				push_stamp(0xffu, tx, ty); // 0xff = restaurar desde `active_image`
 			}
 		}
+	}
+
+	/// Emite el trabajo recogido en `m_cell_jobs` como **dos rachas** `D = C` de
+	/// `eng::amiga::BlobBatch` (capa de plataforma; mismo patron que la demo 213): el estado
+	/// comun (1 palabra x 16 filas, modulos) se fija una vez y por objeto solo se reprograman
+	/// punteros y `BLTSIZE` con **una espera** (la que exige el OCS para reprogramar; sin
+	/// ella el blit encolado se pisa — `blob_batch.hpp`). Racha 1: restauraciones desde la
+	/// imagen (origen plane-major, `cmod = 38`); racha 2: parches (`cmod = 6`). El orden
+	/// (restaurar y despues estampar) es el que deja a los actores por encima de su estela.
+	void emit_cell_jobs(auto& s) {
+		if (m_cell_jobs_n == 0u || !active_image().alive()) {
+			m_cell_jobs_n = 0u;
+			return;
+		}
+		const auto img = active_image().view.as_words();
+		const auto bt = s.target().bob_target();
+		const eng::s16 dmod = static_cast<eng::s16>(static_cast<eng::s32>(bt.row_bytes) - 2);
+		eng::amiga::BlobBatch batch {};
+		const eng::amiga::HwRegs regs = eng::amiga::HwRegs::instance();
+		// Racha 1: restauraciones (0xff) desde la imagen.
+		bool open = false;
+		for (eng::u8 i = 0u; i < m_cell_jobs_n; ++i) {
+			const CellJob& j = m_cell_jobs[i];
+			if (j.patch != 0xffu) {
+				continue;
+			}
+			if (!open) {
+				batch.begin(regs, eng::amiga::BlobOp::Copy, 1u, kTile, 0, 0, 38, dmod);
+				open = true;
+			}
+			for (eng::u8 plane = 0u; plane < 4u; ++plane) {
+				const eng::graphics::BlitPtr src {eng::graphics::blit_ptr(
+				    img, static_cast<eng::s32>(plane) * kImagePlaneWords * 2 +
+					     static_cast<eng::s32>(j.y) * kTile * kImageWordsPerRow * 2 +
+					     static_cast<eng::s32>(j.x) * 2)};
+				const eng::graphics::BlitPtr dst {bt.plane_address(
+				    plane, static_cast<eng::s32>(j.y) * kTile * bt.row_bytes +
+					       static_cast<eng::s32>(j.x) * 2)};
+				batch.one(src, eng::graphics::BlitPtr {}, dst, 0u);
+			}
+		}
+		if (open) {
+			batch.end();
+		}
+		// Racha 2: estampados de parches (fuentes distintas, misma geometria).
+		open = false;
+		for (eng::u8 i = 0u; i < m_cell_jobs_n; ++i) {
+			const CellJob& j = m_cell_jobs[i];
+			if (j.patch == 0xffu || !m_patches[j.patch].alive()) {
+				continue;
+			}
+			if (!open) {
+				batch.begin(regs, eng::amiga::BlobOp::Copy, 1u, kTile, 0, 0, 6, dmod);
+				open = true;
+			}
+			const auto src = m_patches[j.patch].view.as_words();
+			for (eng::u8 plane = 0u; plane < 4u; ++plane) {
+				const eng::graphics::BlitPtr sp {
+				    eng::graphics::blit_ptr(src, static_cast<eng::s32>(plane) * 2)};
+				const eng::graphics::BlitPtr dp {bt.plane_address(
+				    plane, static_cast<eng::s32>(j.y) * kTile * bt.row_bytes +
+					       static_cast<eng::s32>(j.x) * 2)};
+				batch.one(sp, eng::graphics::BlitPtr {}, dp, 0u);
+			}
+		}
+		if (open) {
+			batch.end();
+		}
+		m_cell_jobs_n = 0u;
 	}
 
 	/// Republica la **banda del HUD** (filas 208..223) desde la imagen al buffer trasero: un
@@ -1614,19 +1668,25 @@ struct RpgSlice {
 		draw_hud(s);
 		ENG_PROF_END(kProfPubs);
 		// Banda inferior (224..255) negra: dos filas de parches negros en los dos primeros
-		// renders (uno por buffer); despues nadie la toca.
+		// renders (uno por buffer); despues nadie la toca. Va por el mismo lote de casillas
+		// (la racha de estampado lo emite junto al resto del frame).
 		if (m_static_paints < 2u) {
+			m_cell_jobs_n = 0u;
 			for (eng::u8 tx = 0u; tx < 20u; ++tx) {
-				stamp_cell(s, m_patches[13], tx, 14u);
-				stamp_cell(s, m_patches[13], tx, 15u);
+				push_stamp(13u, tx, 14u);
+				push_stamp(13u, tx, 15u);
 			}
+			emit_cell_jobs(s);
 			++m_static_paints;
 		}
 #ifndef K_SLICE_NO_DYN
-		// **Borrado de estelas** antes de pintar: restaura desde la imagen las casillas
-		// donde estaba cada actor dos frames atras (la huella que queda en este buffer).
+		// **Trabajo de casillas del frame** (una racha de Blitter, ver `emit_cell_jobs`):
+		// se recoge primero el borrado de estelas (donde estaba cada actor dos frames atras:
+		// la huella que queda en este buffer) y despues los estampados, en el mismo orden
+		// que el pase directo anterior; el estado (historiales) avanza en la recogida.
+		m_cell_jobs_n = 0u;
 		if (m_tx != m_prev2x || m_ty != m_prev2y) {
-			erase_cells(s, m_tx, m_ty, m_prev2x, m_prev2y);
+			push_erase_rect(m_tx, m_ty, m_prev2x, m_prev2y);
 		}
 		if (m_room == 1u) {
 			for (eng::u8 i = 0u; i < 3u; ++i) {
@@ -1635,7 +1695,7 @@ struct RpgSlice {
 					continue;
 				}
 				if (w.x != w.p2x || w.y != w.p2y) {
-					erase_cells(s, w.x, w.y, w.p2x, w.p2y);
+					push_erase_rect(w.x, w.y, w.p2x, w.p2y);
 				}
 				w.p2x = w.p1x;
 				w.p2y = w.p1y;
@@ -1650,17 +1710,17 @@ struct RpgSlice {
 		m_prev1y = m_ty;
 		// Puerta del torreon cerrada (parche solo mientras no se desbloquea).
 		if (m_room == 1u && !m_facts.has(kDoorOpen)) {
-			stamp_cell(s, m_patches[11], 19u, 7u);
+			push_stamp(11u, 19u, 7u);
 		}
 		// Cofre abierto (el cerrado va en la imagen cocinada).
 		if (m_room == 2u && m_chest_open != 0u) {
-			stamp_cell(s, m_patches[12], kChestX, kChestY);
+			push_stamp(12u, kChestX, kChestY);
 		}
 		// Lobos vivos.
 		if (m_room == 1u) {
 			for (eng::u8 i = 0u; i < 3u; ++i) {
 				if (!m_wolves[i].dead) {
-					stamp_cell(s, m_patches[2], m_wolves[i].x, m_wolves[i].y);
+					push_stamp(2u, m_wolves[i].x, m_wolves[i].y);
 				}
 			}
 		}
@@ -1674,19 +1734,16 @@ struct RpgSlice {
 			const eng::u8 tx = static_cast<eng::u8>(e.x >> 4u);
 			const eng::u8 ty = static_cast<eng::u8>(e.y >> 4u);
 			switch (inst->type) {
-				case kItemPotion: stamp_cell(s, m_patches[6], tx, ty); break;
-				case kItemPelt: stamp_cell(s, m_patches[7], tx, ty); break;
-				case kItemKey: stamp_cell(s, m_patches[8], tx, ty); break;
-				case kItemRelic: stamp_cell(s, m_patches[9], tx, ty); break;
+				case kItemPotion: push_stamp(6u, tx, ty); break;
+				case kItemPelt: push_stamp(7u, tx, ty); break;
+				case kItemKey: push_stamp(8u, tx, ty); break;
+				case kItemRelic: push_stamp(9u, tx, ty); break;
 				default: break;
 			}
 		}
 		// Jugador (con espada si la lleva equipada).
-		if (m_equip.slots[0].valid()) {
-			stamp_cell(s, m_patches[1], m_tx, m_ty);
-		} else {
-			stamp_cell(s, m_patches[0], m_tx, m_ty);
-		}
+		push_stamp(m_equip.slots[0].valid() ? 1u : 0u, m_tx, m_ty);
+		emit_cell_jobs(s);
 #endif
 		ENG_PROF_BEGIN(kProfPresent);
 		app.present();

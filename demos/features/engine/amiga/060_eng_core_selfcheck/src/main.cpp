@@ -7,81 +7,47 @@
 // ============================================================================
 //
 // Valida en WinUAE los ports de libmisc/libc que cubre el test host HOST-000,
-// dibujando el resultado en BITPLANES REALES visibles en la ventana del Amiga
-// (no solo overlay del depurador).
+// dibujando el resultado en BITPLANES REALES visibles en la ventana del Amiga.
 //
-// Display: escena EHB (320x256, 6 planos) sobre `scene::compose` — el mismo modelo probado
-// de las demos 030/050. El texto se rasteriza por CPU con la fuente `Font8`
-// (LATIN-1) en el formato filas bit0=izquierda, coherente con el raster host.
+// Arranque de alto nivel (`run_demo`): `main` declara el display (320x256, 6 planos con la
+// paleta del self-check) y `run_demo` pone memoria, `start` y bucle; la demo no incluye
+// soporte de plataforma ni escribe `SysBase`/`g_eng_run_status`. El texto se dibuja por la
+// fachada (`screen.text`, Font8), no escribiendo planos a mano.
 //
-// Para juegos, el texto debe ir por la API de contexto de dispositivo:
-// `Surface::draw_text`/`draw_text_literal` (ver demo 201). Esta demo es un
-// self-check de algoritmos, por eso escribe bitplanes directamente.
-//
-// Fases (las mismas que HOST-000) ejecutadas en init, resultado en
-// `g_eng_run_status.detail`:
-//
-//   0x060100FF  todas las fases OK (self-check completo)
-//   0x06000201  isqrt fallo  ·  0x06000202  crc32 fallo
-//   0x06000203  random fallo  ·  0x06000204  sort fallo
+// Fases (las mismas que HOST-000) ejecutadas en init; el fallo queda en el `RunStatus`
+// (`BootFail::Game`) y la pantalla lo muestra con los indicadores por fase.
 //
 // Build (Windows nativo):
 //   bash tools/build/build-demo.sh demos/features/engine/amiga/060_eng_core_selfcheck --clean
 //   <Node de Windows> dist/tools/run/run-demo.js demos\features\engine\amiga\060_eng_core_selfcheck --warp
 
+#include <eng/api/api.hpp>
 #include <eng/core/data/crc32.hpp>
+#include <eng/core/data/sort.hpp>
 #include <eng/core/math/isqrt.hpp>
 #include <eng/core/math/random.hpp>
-#include <eng/core/data/sort.hpp>
 #include <eng/core/types/span.hpp>
-#include <eng/api/api.hpp>
-#include <eng/core/data/utf8.hpp>
-#include <eng/graphics/font8.hpp>
-#include <eng/platform/amiga/backend.hpp>
-
-#include <exec/execbase.h>
-#include <proto/exec.h>
-
-#include "support/gcc8_c_support.h"
-
-struct ExecBase* SysBase = nullptr;
-
-extern "C" {
-__attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
-	eng::debug::run_status_magic,
-	eng::debug::run_status_version,
-	static_cast<eng::u16>(eng::debug::RunState::Cold),
-	0,
-	0,
-};
-}
+#include <eng/platform/amiga/entry.hpp> // run_demo: plataforma/memoria/display/bucle
 
 namespace {
 
-namespace scene = eng::graphics::composition;
-
-constexpr eng::u16 kScreenW = 320u;
-constexpr eng::u16 kScreenH = 256u;
-constexpr eng::u16 kBytesPerRow = 40u;
-constexpr eng::u8 kPlanes = 6u;
-constexpr eng::u32 kPlaneBytes = 10240u;
-
-// Índices EHB (0..63): texto blanco 31, amarillo 30, rojo 26, cian 20 (pie).
-// Con EHB el 6.º plano suma 32 (half-brite); los índices aquí son de la paleta
-// base 0..31.
-//
-// NOTA sobre el fondo: `kBgIndex = 1` (0x06a) define un azul de fondo que NO se
-// pinta. El texto se rasteriza por OR bit a bit sobre los planos; el amarillo
-// (30 = 0b11110) no pone el bit 0 (que es el bit del color de fondo 1), así que
-// se dibuja "hueco" por ese bit. Si rellenáramos el plano 0 con 0xFF, el fondo
-// azul asomaría a través de cada glifo amarillo (manchándolo). Para un fondo de
-// color correcto habría que rasterizar el texto con máscara (clear+set) en vez
-// de OR; como esto es un self-check de algoritmos, dejamos el fondo negro
-// (COLOR00 = 0x000) intencionadamente.
-constexpr eng::u8 kBgIndex = 1;
+// Índices de la paleta base (0..31): texto blanco 31, amarillo 30, rojo 26, cian 20 (pie).
+// El display es de 6 planos; los índices < 32 no tocan el 6.º plano, así que el resultado es
+// el mismo que el EHB original para estos colores.
 constexpr eng::u8 kTextWhite = 31;
 constexpr eng::u8 kTextYellow = 30;
 constexpr eng::u8 kTextFail = 26;
+
+/// Paleta del self-check (32 entradas de 12 bits; la 6.ª mitad EHB no se usa).
+constexpr eng::Palette32 kPalette {{
+	0x000, 0x06a, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
+	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
+	0x000, 0x000, 0x000, 0x000, 0x0aa, 0x000, 0xf00, 0x000,
+	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0xff0, 0xfff,
+}};
+
+/// Versión del HUD; el build la inyecta `build-demo.sh`.
+constexpr eng::debug::Version kVersion {1u, 0u};
 
 // Resultado del self-check.
 struct SelfCheck {
@@ -91,13 +57,6 @@ struct SelfCheck {
 	bool sort_ok = false;
 
 	bool ok() const { return isqrt_ok && crc32_ok && random_ok && sort_ok; }
-	eng::u32 detail() const {
-		if (ok()) return 0x060100FFu;
-		if (!isqrt_ok) return 0x06000201u;
-		if (!crc32_ok) return 0x06000202u;
-		if (!random_ok) return 0x06000203u;
-		return 0x06000204u;
-	}
 };
 
 SelfCheck g_check;
@@ -184,140 +143,56 @@ const char* ok_fail(bool ok) {
 struct CoreSelfcheckDemo {
 	static consteval int language_level_marker() { return 23; }
 
-	void init(eng::amiga::AmigaBackend& backend, eng::GameContext&) {
-		eng::debug::mark_init_started(g_eng_run_status);
+	void init(auto& app) {
 		static_assert(language_level_marker() == 23);
 
-		m_memory_ok = backend.configure_memory({
-			80u * 1024u, // Chip: bitplanes EHB + copperlist
-			8u * 1024u,  // Slow: metadatos
-			4u * 1024u,  // Frame scratch
-		});
-
-		const eng::Palette32 palette {
-			0x000, 0x06a, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
-			0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
-			0x000, 0x000, 0x000, 0x000, 0x0aa, 0x000, 0xf00, 0x000,
-			0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0xff0, 0xfff,
-		};
-		scene::SceneResources res = scene::planar(320u, 256u, 6);
-		res.mode = scene::SceneMode::Ehb;
-
-		m_scene_ok = scene::compose(m_scene, backend.memory_manager(), res,
-				    scene::ocs_a500,
-				scene::display(res),
-				scene::palette(eng::PaletteWords {palette.color, 32u}, 0u, 32u));
-		if (!m_memory_ok || !m_scene_ok) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00000050u);
-			return;
-		}
-
-		// Ejecuta las fases y dibuja el resultado en los bitplanes.
+		// Ejecuta las fases y dibuja el resultado por la **fachada** (Font8, cualquier nº de
+		// planos/color): `screen.text` resuelve el mapeo y el recorte.
 		check_isqrt();
 		check_crc32();
 		check_random();
 		check_sort();
 
-		eng::u8* planes = m_scene.bitplanes().data();
-		draw_text(planes, 16, 16, "Demo 060 - eng::core self-check", kTextWhite);
-		draw_text(planes, 16, 40, "isqrt  : ", kTextWhite);
-		draw_text(planes, 100, 40, ok_fail(g_check.isqrt_ok),
-		          g_check.isqrt_ok ? kTextYellow : kTextFail);
-		draw_text(planes, 16, 56, "crc32  : ", kTextWhite);
-		draw_text(planes, 100, 56, ok_fail(g_check.crc32_ok),
-		          g_check.crc32_ok ? kTextYellow : kTextFail);
-		draw_text(planes, 16, 72, "random : ", kTextWhite);
-		draw_text(planes, 100, 72, ok_fail(g_check.random_ok),
-		          g_check.random_ok ? kTextYellow : kTextFail);
-		draw_text(planes, 16, 88, "sort   : ", kTextWhite);
-		draw_text(planes, 100, 88, ok_fail(g_check.sort_ok),
-		          g_check.sort_ok ? kTextYellow : kTextFail);
-		draw_text(planes, 16, 120,
-		          g_check.ok() ? "SELF-CHECK: ALL PHASES OK" : "SELF-CHECK: FAILED",
-		          g_check.ok() ? kTextYellow : kTextFail);
-		draw_text(planes, 16, 240, "optica: eng::core ports", 20);
+		auto s = app.screen();
+		s.clear(0u); // fondo negro determinista (los planos nacen sin limpiar)
+		eng::debug::mark_ready(g_eng_run_status, 0x61u); // DIAG tras clear
+		s.text(16, 16, "Demo 060 - eng::core self-check", kTextWhite);
+		eng::debug::mark_ready(g_eng_run_status, 0x62u); // DIAG tras texto 1
+		s.text(16, 40, "isqrt  : ", kTextWhite);
+		s.text(100, 40, ok_fail(g_check.isqrt_ok), g_check.isqrt_ok ? kTextYellow : kTextFail);
+		s.text(16, 56, "crc32  : ", kTextWhite);
+		s.text(100, 56, ok_fail(g_check.crc32_ok), g_check.crc32_ok ? kTextYellow : kTextFail);
+		s.text(16, 72, "random : ", kTextWhite);
+		s.text(100, 72, ok_fail(g_check.random_ok), g_check.random_ok ? kTextYellow : kTextFail);
+		s.text(16, 88, "sort   : ", kTextWhite);
+		s.text(100, 88, ok_fail(g_check.sort_ok), g_check.sort_ok ? kTextYellow : kTextFail);
+		s.text(16, 120, g_check.ok() ? "SELF-CHECK: ALL PHASES OK" : "SELF-CHECK: FAILED",
+		       g_check.ok() ? kTextYellow : kTextFail);
+		s.text(16, 240, "optica: eng::core ports", 20);
+		(void)eng::debug::draw_hud(s, "CORE 060", kVersion, app.frame(), kTextWhite);
 
-		// Toma el control del display una sola vez (apaga interrupciones/DMA
-		// del sistema y arranca la primera copperlist alineada al VBL). La
-		// pantalla es estatica, asi que no hay swaps por frame.
-		m_scene.takeover(backend);
-
-		if (g_check.ok()) {
-			eng::debug::mark_ready(g_eng_run_status, g_check.detail());
+		if (!g_check.ok()) {
+			eng::amiga::mark_failed(eng::debug::BootFail::Game);
 		} else {
-			eng::debug::mark_failed(g_eng_run_status, g_check.detail());
+			eng::amiga::mark_ready();
 		}
 	}
 
-	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		(void)backend;
-	}
-
-	void render(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
-		// Instalar la copperlist UNA sola vez (en init). Reinstalarla en cada
-		// frame hace COPJMP1 (reinicio del Copper) y puede producir un glitch
-		// esporádico de 1 frame (banda azul vertical) si el reinicio cae a
-		// media pantalla. La pantalla es estática, así que una instalación
-		// basta. (Ver docs/debugging/README o CONTINUATION_CONTEXT sobre el
-		// reinicio del Copper en render.)
-		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
-	}
-
-private:
-/// Rasteriza un code point (UTF-8 ya decodificado) en los bitplanes EHB.
-    /// `planes` es la base de los planos EHB, con layout contiguo (SEPARATE): cada
-    /// plano p vive a `planes + p*kPlaneBytes` y dentro del plano el byte es
-    /// `y*kBytesPerRow + x/8` (BPLMOD=0 en el display). El glifo usa filas
-    /// bit0=izquierda (Font8); el píxel (x+k,y+r) marca el bit 0x80>>((x+k)&7).
-    void draw_text(eng::u8* planes, eng::s32 x, eng::s32 y, const char* text, eng::u8 color) {
-        const eng::u8* p = reinterpret_cast<const eng::u8*>(text);
-        for (;;) {
-            const eng::u32 cp = eng::utf8::decode(p);
-            if (cp == 0u) {
-                break; // NUL (fin de cadena) o byte inválido/fuera de LATIN-1
-            }
-            if (cp >= 32u) {
-                for (eng::u8 row = 0; row < eng::Font8::kRows; ++row) {
-                    const eng::u8 glyph = eng::Font8::row(static_cast<eng::u16>(cp), row);
-                    if (glyph == 0u) {
-                        continue;
-                    }
-                    const eng::u16 py = static_cast<eng::u16>(y + row);
-                    for (eng::u8 k = 0; k < 8u; ++k) {
-                        if ((glyph & (1u << k)) == 0u) {
-                            continue;
-                        }
-                        const eng::u16 px = static_cast<eng::u16>(x + k);
-                        const eng::u32 byte = static_cast<eng::u32>(py) * kBytesPerRow + (px / 8u);
-                        const eng::u8 bit = static_cast<eng::u8>(0x80u >> (px & 7u));
-                        for (eng::u8 pl = 0; pl < kPlanes; ++pl) {
-                            if (color & (1u << pl)) {
-                                planes[static_cast<eng::u32>(pl) * kPlaneBytes + byte] |= bit;
-                            }
-                        }
-                    }
-                }
-            }
-            x += 8;
-        }
-    }
-
-	scene::Scene m_scene {};
-	bool m_memory_ok = false;
-	bool m_scene_ok = false;
+	// Pantalla estática: no hay trabajo por frame (el HUD se rotula en init).
+	void update(auto&) {}
+	void render(auto&) {}
 };
-
 
 } // namespace
 
 int main() {
-	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
-	eng::debug::reset(g_eng_run_status);
-
-	eng::amiga::AmigaBackend backend {};
+	// Display imperativo: 320x256 con 6 planos y la paleta del self-check; `run_demo` pone
+	// memoria, `start` y bucle. La pantalla es estática (se pinta en `init`).
+	eng::GameDisplay display {};
+	display.width = 320u;
+	display.height = 256u;
+	display.color_depth = 6u;
+	display.palette = kPalette;
 	CoreSelfcheckDemo game {};
-	eng::Engine engine { backend, game };
-	engine.run_frames_polling(0xffff);
-
-	return 0;
+	return eng::amiga::run_demo(game, display);
 }

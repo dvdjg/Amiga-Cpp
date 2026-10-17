@@ -107,6 +107,7 @@ engine/
 │   ├── scene/            → escena virtual / cámara
 │   ├── ai/               → IA de juego (ai/planning: GOAP; familias decision/navigation/steering/perception/design)
 │   ├── sim/              → ecosistema vivo (eng::sim): criaturas, necesidades, mente, sociedad y LOD abstracto/realizado
+│   ├── rpg/              → capa RPG/CRPG (eng::rpg): hechos, objetos con instancia, inventario/equipo, stats y save
 │   ├── board/            → motores de tablero (ajedrez/Go): reglas, búsqueda adversaria, aperturas/finales, NLG (eng::board)
 │   ├── cards/            → motores de naipes (póker): baraja, reglas, equity, IA y simulación (eng::cards)
 │   ├── parallel/         → concurrencia abstracta (eng::parallel): hilos/mutex/atomicos no-op en m68k, std en host
@@ -402,7 +403,7 @@ tests/
 ├── host/                 → L1 unitario host (g++ nativo), agnóstico de hardware
 │   ├── README.md         → índice de categorías
 │   └── <categoría>/      → core, graphics, field, scene, platform/amiga,
-│                           ai, sim, board, cards, os, ui, audio, res, parallel
+│                           ai, sim, rpg, board, cards, os, ui, audio, res, parallel
 │                           (cada una con README.md de catálogo y NNN_<nombre>/)
 ├── amiga/                → on-target (WinUAE): l0_bare_metal/, l1_backend/, l2_copper_frameplan/
 └── atarist/              → (futuro)
