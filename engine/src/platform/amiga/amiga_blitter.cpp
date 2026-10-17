@@ -205,6 +205,10 @@ bool AmigaBackend::execute_frame_plan_async(const graphics::FramePlan& plan) {
 		if (!set_blit_service(&AmigaBackend::frame_plan_async_step, *this)) {
 			return false;
 		}
+		// El servicio es el FEEDER: su unica fuente valida es la IRQ de fin de blit.
+		// `wait_blitter()` no debe despacharlo desde tareas (ver la bandera en
+		// `amiga_internal.hpp`; bug real de la 116 async, DT-026).
+		g_blit_service_referee_only = true;
 		m_async_service_installed = true;
 	}
 	// Si la cadena del frame anterior sigue viva, se espera (no se puede pisar el plan anterior).

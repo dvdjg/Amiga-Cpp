@@ -2,13 +2,13 @@
  *
  * Implementa las cuatro rutinas calientes del efecto (face/edge visibility, transform
  * de vertices y draw de aristas) y sustituye a sus equivalentes C++ cuando la demo se
- * compila con `-DK_FLATSHADE_ASM=1`. El default es la ruta C++ (`K_FLATSHADE_ASM=0`),
- * que es la que renderiza bien; la ruta asm aun no es valida: `fs_update_face_visibility`,
- * `fs_update_edge_visibility_convex` y `fs_transform_vertices` son correctas, pero
- * `fs_draw_edges` dibuja el contorno con un desfase de ~1-2 px y, con el area fill XOR
- * (paridad por scanline), el relleno se rompe en bandas/triangulos. `verify-116` da PASS
- * pese a ello: el gate valido es visual (wireframe con `-DFLATSHADE_SKIP_FILL=1` o
- * secuencia + Ollama). Ver la bitacora OPTIMIZACION_GPP_68000.md.
+ * compila con `-DK_FLATSHADE_ASM=1`. El default es la ruta C++ (`K_FLATSHADE_ASM=0`).
+ * Historial: `fs_draw_edges` elegia el octante del modo linea con la condicion
+ * INVERTIDA (`x1 < x0` en vez de `x0 >= x1` para AUL/SUL), lo que espejaba la pendiente
+ * en la mitad de las aristas y desfasaba el contorno ~1-2 px (el area fill XOR, por
+ * paridad, se rompia). Corregido 2026-10 contra `line_prepare_impl` de
+ * `amiga_blitter.cpp` (la ruta C++ que renderiza); el gate del contorno es
+ * `FLATSHADE_FREEZE_ANGLE` + `freeze-diff` pixel a pixel.
  *
  * Cuidado al tocar `.Lwait_blit`: espera BBUSY usando d0 como scratch, y
  * `fs_draw_edges` tiene en d0 el BLTCON0 que escribe justo despues del wait; por eso
@@ -472,17 +472,22 @@ fs_draw_edges:
 	/* octante: decide bltcon1 y reordena dmax/dmin (d7=dmax, d0=dmin) */
 	cmp.w	d0,d7				/* dmax >= dmin ? */
 	blo.w	.Lde_oct_b
-	/* dmax >= dmin: x0>=x1 -> AUL|SUD|LM|OD (0x17); x0<x1 -> SUD|LM|OD (0x13) */
+	/* dmax >= dmin: x0>=x1 -> AUL|SUD|LM|OD (0x17); x0<x1 -> SUD|LM|OD (0x13).
+	 * REFERENCIA: `line_prepare_impl` de amiga_blitter.cpp (`x0 >= x1 ? aul : 0`).
+	 * El comparador anterior estaba invertido (`cmp.w d3,d5; blt` probaba
+	 * `x1 < x0`) y el octante salia espejado en la mitad de las aristas: el
+	 * contorno quedaba desfasado ~1-2 px (deuda documentada del port asm,
+	 * DT-026). */
 	move.w	#0x0013,d1
-	cmp.w	d3,d5
-	blt.w	.Lde_oct_ok
+	cmp.w	d5,d3				/* x0 - x1 */
+	blt.w	.Lde_oct_ok			/* x0 < x1 -> sin AUL */
 	or.w	#0x0004,d1			/* | AUL */
 	bra.w	.Lde_oct_ok
 .Lde_oct_b:
-	/* dmax < dmin: x0>=x1 -> SUL|LM|OD; x0<x1 -> LM|OD ; swap dmax/dmin */
+	/* dmax < dmin: x0>=x1 -> SUL|LM|OD (0x0b); x0<x1 -> LM|OD (0x03); swap dmax/dmin */
 	move.w	#0x0003,d1
-	cmp.w	d3,d5
-	blt.w	.Lde_oct_swap
+	cmp.w	d5,d3				/* x0 - x1 */
+	blt.w	.Lde_oct_swap			/* x0 < x1 -> sin SUL */
 	or.w	#0x0008,d1			/* | SUL */
 .Lde_oct_swap:
 	exg	d7,d0				/* d7<->d0: d7=dmin, d0=dmax */

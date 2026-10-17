@@ -271,6 +271,7 @@ void AmigaBackend::install_blitter_service(ServiceSlot& slot) {
 void AmigaBackend::clear_blitter_service() {
 	g_blitter_service = nullptr;
 	g_blitter_service_user = nullptr;
+	g_blit_service_referee_only = false; // el feeder async ya no esta registrado
 }
 
 AmigaBackend::BlitWaitService AmigaBackend::blitter_wait_service() const noexcept {

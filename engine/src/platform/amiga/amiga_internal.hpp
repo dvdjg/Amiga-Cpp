@@ -98,6 +98,16 @@ inline void* g_blitter_service_user = nullptr;
 /// `true` mientras el **servicio de blit** (feeder async) está programando un job:
 /// `wait_blitter()` no debe re-llamar al servicio desde dentro (anti-recursión).
 inline bool g_in_blit_service = false;
+/// `true` cuando el servicio de blit registrado es el **feeder de `FramePlan` async**
+/// (`frame_plan_async_step`): ese servicio SOLO debe correr desde la IRQ de fin de blit
+/// (una entrega por job); si `wait_blitter()` lo despachara desde la tarea principal
+/// (p. ej. en la espera `while (m_async_busy) wait_blitter()` de
+/// `execute_frame_plan_async`, con el blit de la cadena aun ocupado), la cadena
+/// avanzaria DOS veces por job (llamada de tarea + IRQ real) y se descuadraria —
+/// bug real de la 116 async (DT-026): submits cortos, "ends" espurios y atasco con la
+/// ultima IRQ consumida por el avanzo paralelo. Con esta bandera `wait_blitter()` hace
+/// sondeo puro de `BBUSY` (como sin servicio). La pone/quita el instalador async.
+inline bool g_blit_service_referee_only = false;
 
 // Motor de fondo por IRQ de CIA-A (nivel 2, peticion PORTS): timer A programable.
 inline void (*g_cia_task)(void*, unsigned short) = nullptr;
@@ -285,8 +295,11 @@ inline bool wait_blitter() {
 	// **Anti-recursión**: si estamos DENTRO del servicio de blit (el feeder async
 	// programando el siguiente job y esperando entre planos), NO se vuelve a llamar al
 	// servicio — sería re-entrar en el propio feeder y corromper la cadena (bug real
-	// encontrado en la 066 con jobs multi-plano por el camino async).
-	if (g_blitter_service == nullptr || g_in_blit_service) {
+	// encontrado en la 066 con jobs multi-plano por el camino async). Y si el servicio
+	// registrado es el feeder del `FramePlan` async (`g_blit_service_referee_only`),
+	// tampoco se despacha nunca desde aqui: su unica fuente valida es la IRQ de fin de
+	// blit (ver la nota de la bandera).
+	if (g_blitter_service == nullptr || g_in_blit_service || g_blit_service_referee_only) {
 		custom_base[custom_dmacon_offset] = dma_bltpri_set;
 		while ((custom_base[custom_dmaconr_offset] & dmaconr_blitter_busy) != 0u) {
 		}

@@ -30,6 +30,8 @@
 #include <eng/graphics/composition/limits.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/platform/amiga/backend.hpp>
+#include <eng/graphics/frame_plan.hpp> // plan async (FLATSHADE_ASYNC, DT-026)
+#include <eng/graphics/blit_job.hpp>   // make_area_fill_rect / BlitJob del plan async
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -48,7 +50,7 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 };
 
 // Perfilado por secciones: se usa el bloque del ENGINE (`eng::debug::g_eng_prof`,
-// `ProfBlock`: magic + cycles[16]…), publicado en el `.map` y leído por
+// `ProfBlock`: magic + cycles[16]⬦), publicado en el `.map` y leído por
 // `tools/debug/profile.mjs` (la demo escribe `cycles[N]` a mano en los tramos que mide).
 }
 
@@ -219,12 +221,40 @@ void draw_faces(obj::Object3D& object, eng::PlaneBytes planes, eng::amiga::Amiga
 // Seleccion de ruta y perfilado por secciones (todo por defecto a 0/1).
 //   -DFLATSHADE_FAITHFUL=0  -> ruta alternativa por cara (blitter_fill_polygon).
 //   -DFLATSHADE_LINE_OR=1   -> lineas OR en vez de EOR (solo ruta fiel).
+//   -DFLATSHADE_ASYNC=1     -> referee async del `FramePlan` (DT-026): contorno EOR +
+//                              area fill ACOTADO a la bbox + clear del buffer siguiente
+//                              encolados en UN plan por frame; los encadena la IRQ de
+//                              fin de blit y la CPU queda libre (el `commit` y el
+//                              reciclado del plan van al arranque del update siguiente).
+//                              Ignora los SKIP_* (perfilado por secciones de la ruta sync).
 //   -DFLATSHADE_SKIP_CLEAR/EDGES/FILL=1 -> omite esa seccion (perfilar por diferencia).
 #ifndef FLATSHADE_FAITHFUL
 #define FLATSHADE_FAITHFUL 1
 #endif
 #ifndef FLATSHADE_LINE_OR
 #define FLATSHADE_LINE_OR 0
+#endif
+#ifndef FLATSHADE_ASYNC
+#define FLATSHADE_ASYNC 0
+#endif
+// Diagnostico de ablacion del plan async (nombres CORTOS: el CONFIG_ID del build
+// concatena los defines y una ruta larga revienta MAX_PATH en Windows).
+#ifndef FLATSHADE_NOFILL
+#define FLATSHADE_NOFILL 0 ///< plan async sin jobs de fill
+#endif
+#ifndef FLATSHADE_NOCLEAR
+#define FLATSHADE_NOCLEAR 0 ///< plan async sin jobs de clear
+#endif
+#ifndef FLATSHADE_CLEAR_BBOX
+// Clear del buffer siguiente acotado a la UNION de las bbox de este frame y el
+// anterior (+margen): solo esa region puede tener tinta de frames pasados (las
+// lineas y el area fill XOR solo escriben dentro de la bbox del objeto; el buffer
+// se muestra 2 swaps despues). Medido 2026-10 (release): el clear completo exponia
+// ~0,48 campos; ver VALIDATION/bitacora.
+#define FLATSHADE_CLEAR_BBOX 0
+#endif
+#if FLATSHADE_ASYNC && (FLATSHADE_SKIP_CLEAR || FLATSHADE_SKIP_EDGES || FLATSHADE_SKIP_FILL)
+#error "FLATSHADE_ASYNC no combina con los FLATSHADE_SKIP_* (usa la ruta sincrona para perfilar secciones)"
 #endif
 #ifndef FLATSHADE_SKIP_CLEAR
 #define FLATSHADE_SKIP_CLEAR 0
@@ -563,11 +593,153 @@ struct FlatShadeDemo {
 	/// clear queda escondido bajo el fill. El wait del fill se absorbe en la espera de
 	/// VBlank del engine o en el primer wait del siguiente update: el buffer nunca se ve
 	/// a medias (se muestra en el swap del update siguiente).
+#if FLATSHADE_ASYNC
+	/// Construye el plan del frame para el **referee async** (DT-026). El ORDEN importa:
+	///  1. contorno EOR (un job de linea por arista x plano de su mascara): fija la
+	///     paridad que el area fill convierte en interior;
+	///  2. area fill XOR **acotado a la bbox del objeto** (4 jobs, uno por plano): en la
+	///     cadena async el recorte no serializa la CPU (la leccion del intento sincrono),
+	///     asi que se cobra el recorte de DMA (~56k);
+	///  3. clear del buffer **siguiente** (1 job multi-plano): tras el `commit` del update
+	///     proximo sera el trasero a dibujar; ahora ni se muestra ni se dibuja, asi que el
+	///     clear puede ir al final de la cadena (recortarlo por filas es la deuda viva).
+	/// Las direcciones via `BlitPtr::from_storage`: los buffers de la escena son `Block`
+	/// Chip por construccion (`scene::compose`), y la via tipada `chip_planes()` solo
+	/// cubre el buffer `back()` (aqui hacen falta tambien planos y el buffer siguiente).
+	void build_chain_plan(eng::PlaneBytes planes, const eng::retro::OutlineEdge* edges,
+			      eng::u32 ne) {
+		const auto ptr = [](eng::u8* p) {
+			return eng::graphics::BlitPtr::from_storage(
+				reinterpret_cast<eng::u16*>(p));
+		};
+		for (eng::u32 i = 0u; i < ne; ++i) {
+			const eng::retro::OutlineEdge& e = edges[i];
+			// Las aristas HORIZONTALES se descartan, como en la ruta sincrona
+			// (`draw_edges`/`flat_shade_xor`): no aportan contorno y, dibujadas, meten
+			// pixeles extra en los vertices que descuadran el area fill. En el plan es
+			// ADEMAS obligatorio: `blitter_line_eor_prepare` devuelve false para ellas,
+			// el job no arranca ningun blit y la cadena esperaria una IRQ que no llega
+			// (DT-026: cuelgue reproducible de la cadena async).
+			if (e.y0 == e.y1) {
+				continue;
+			}
+			for (eng::u8 p = 0u; p < kPlanes; ++p) {
+				if ((e.color & (1u << p)) == 0u) {
+					continue;
+				}
+				eng::graphics::BlitJob& j =
+					m_plan.begin_line_job(eng::graphics::BlitJobKind::LineEor);
+				j.destination = ptr(planes.data() +
+						    static_cast<eng::u32>(p) * kPlaneBytes);
+				j.line.base = ptr(planes.data());
+				j.line.row_bytes = kBytesPerRow;
+				j.line.x0 = e.x0;
+				j.line.y0 = e.y0;
+				j.line.x1 = e.x1;
+				j.line.y1 = e.y1;
+				j.bitplane_count = 1u;
+				(void)m_plan.commit_line_job();
+			}
+		}
+		// Rango del barrido del fill: bbox proyectada + 2 px de margen (como la ruta
+		// sincrona con FLATSHADE_FILL_BBOX); sin bbox valida, el ancho completo.
+		eng::s16 x0 = 0;
+		eng::s16 y0 = 0;
+		eng::s16 x1 = static_cast<eng::s16>(kWidth - 1u);
+		eng::s16 y1 = static_cast<eng::s16>(kHeight - 1u);
+		if (g_bbox[1] >= g_bbox[0] && g_bbox[3] >= g_bbox[2]) {
+			x0 = static_cast<eng::s16>(g_bbox[0] - 2); if (x0 < 0) x0 = 0;
+			y0 = static_cast<eng::s16>(g_bbox[2] - 2); if (y0 < 0) y0 = 0;
+			x1 = static_cast<eng::s16>(g_bbox[1] + 2); if (x1 > 255) x1 = 255;
+			y1 = static_cast<eng::s16>(g_bbox[3] + 2); if (y1 > 255) y1 = 255;
+		}
+		const eng::u16 wx0 = static_cast<eng::u16>(x0) & 0xfff0u;
+		const eng::u16 wx1 = static_cast<eng::u16>(x1) | 0x000fu;
+		const eng::u16 words = static_cast<eng::u16>((static_cast<eng::u16>(wx1 - wx0) + 16u) >> 4);
+		const eng::u16 rows = static_cast<eng::u16>(y1 - y0 + 1);
+#if !FLATSHADE_NOFILL
+		for (eng::u8 p = 0u; p < kPlanes; ++p) {
+			eng::graphics::BlitJob j {};
+			eng::graphics::make_area_fill_rect(
+				j, ptr(planes.data() + static_cast<eng::u32>(p) * kPlaneBytes),
+				kBytesPerRow, wx0, y0, words, rows);
+			(void)m_plan.add_area_fill(j);
+		}
+#else
+		(void)words;
+		(void)rows;
+#endif
+		// Clear del buffer siguiente (kBuffers = 3: uno mostrado, uno en dibujo, el
+		// tercero es el que este clear deja listo para dentro de dos updates).
+		//
+		// UN job por plano (cada uno = 1 blit): las vias del feeder estan probadas con
+		// jobs de un solo blit (lineas y fills); los multi-blit pagan esperas internas
+		// dentro de la ISR con el gate INTENA cerrado. El recorte por filas del clear
+		// (no barrer 1024 filas) es deuda viva (misma leccion que el fill).
+		const eng::u8 next =
+			static_cast<eng::u8>((m_scene.back_index() + 1u) % m_scene.buffer_count());
+		eng::PlaneBytes next_planes = m_scene.buffer(next);
+#if !FLATSHADE_NOCLEAR
+		for (eng::u8 p = 0u; p < kPlanes; ++p) {
+			eng::graphics::BlitJob c {};
+			c.kind = eng::graphics::BlitJobKind::ClearRect;
+			c.destination = ptr(next_planes.data() +
+					    static_cast<eng::u32>(p) * kPlaneBytes);
+			c.words_per_row = static_cast<eng::u16>(kBytesPerRow / 2u);
+			c.height = kHeight;
+			c.bitplane_count = 1u;
+			c.destination_plane_stride_bytes = kPlaneBytes;
+			(void)m_plan.add_clear_rect(c);
+		}
+#else
+		(void)next_planes;
+#endif
+	}
+#endif
+
 	void update(eng::amiga::AmigaBackend& backend, eng::GameContext& context) {
 		if (!m_init_ok) {
 			return;
 		}
 
+#if FLATSHADE_ASYNC
+		// ── Arranque del frame ASYNC (DT-026) ───────────────────────────────────
+		// La cadena del frame anterior (contorno + fill acotado + clear encadenados
+		// por la IRQ de fin de blit) termina aqui: espera explicita (glFinish),
+		// publicacion del buffer ya dibujado (`commit`, mismo swap de `BPLxPT`) y
+		// reciclado del plan. El buffer de ESTE frame es el que los jobs de clear de
+		// esa cadena dejaron limpio.
+		//
+		// VEREDICTO MEDIDO (2026-10-17): la cadena async FUNCIONA (esta variante no
+		// cuelga) pero con ~60 jobs cortos por frame sale MAS LENTA que la pipeline
+		// sincrona en A500 ciclo-exacto: 8,9 fps (5,6 campos) vs 18,05 (2,77). Cada
+		// job paga arranque de Blitter (~1,4k) + IRQ de nivel 3 + re-programacion en
+		// la ISR (~2,5-4k en total), y con 51 blits de linea eso son ~200k/frame que
+		// la via sincrona NO paga (encadena en el mismo hilo sin round-trip de IRQ).
+		// El referee async es para cadenas CORTAS de blits LARGOS (los runs de
+		// cookie-cut de la 066/212), no para listas de lineas. Se conserva como via
+		// documentada + test de sintomas; el default sigue siendo la sincrona.
+		if (m_chain_launched) {
+			eng::u32 spins = 0u;
+			eng::u32 spin_t0 = rcycles();
+			while (backend.frame_plan_async_busy()) {
+				// El giro cede el bus al Blitter (BLTPRI nasty via `wait_blitter`).
+				(void)backend.wait_blitter();
+				++spins;
+			}
+			// Diagnostico (visible en el `detail` del run-status): ciclos esperando
+			// la cadena del frame anterior — la porcion no solapada del 5,6 campos.
+			g_eng_run_status.detail = rcycles() - spin_t0;
+			(void)spins;
+			m_scene.commit();
+			m_plan.clear();
+			m_chain_launched = false;
+		}
+		g_eng_run_status.detail = 0x11620000u;
+		eng::PlaneBytes planes = m_scene.back();
+
+		const eng::u32 t0 = rcycles();
+#else
 		// El buffer en el que se dibuja este frame (el trasero del triple buffer).
 		eng::PlaneBytes planes = m_scene.back();
 
@@ -579,6 +751,7 @@ struct FlatShadeDemo {
 
 		// 2) El swap de display lo hace `commit()` al final del update: publica el buffer
 		//    recien dibujado (se vera en el VBlank siguiente) y rota el trasero.
+#endif
 
 		// 3) Contorno (+ fill) sobre el buffer pre-clearado (estado ya precalculado).
 #if FLATSHADE_FAITHFUL
@@ -594,18 +767,48 @@ struct FlatShadeDemo {
 		eng::retro::OutlineEdge edges[64];
 		const eng::u32 td0 = rcycles();
 		const eng::u32 ne = gather_visible_edges(m_object, edges, 64u);
+#if FLATSHADE_ASYNC
 		if (ne != 0u) {
-			// Contorno + area fill XOR en barrido COMPLETO. El fill se podria acotar a la
-			// caja del objeto (`flat_shade_xor(..., g_bbox)`), pero en esta pipeline
-			// SINCRONA el fill acotado son 4 jobs (uno por plano) que esperan entre si
-			// dentro del update: la CPU se bloquea ~el fill entero y el frame EMPEORA
-			// (medido: 19.2 -> 17.3 fps). El recorte compensa con el referee async
-			// (encadenado por IRQ de fin de blit), que es la via pendiente.
+			// Cadena async: contorno + fill acotado + clear del buffer siguiente. El
+			// fill acotado (la ganancia de DMA) ya no serializa la CPU: la encadena la
+			// IRQ de fin de blit mientras este update sigue con el transform.
+			build_chain_plan(planes, edges, ne);
+			g_eng_run_status.detail = 0x1163u | (static_cast<eng::u32>(m_plan.blit_job_count()) << 16u);
+			m_chain_launched = backend.execute_frame_plan_async(m_plan);
+			g_eng_run_status.detail = m_chain_launched
+							  ? (0x11640000u |
+							     ((backend.blit_async_launches() & 0xffu) << 8u) |
+							     (backend.blit_async_ends() & 0xffu))
+							  : 0x11640F00u; // bit 8: execute devolvio false
+			if (!m_chain_launched) {
+				// Backend sin servicio de IRQ (o plan rechazado): caida al camino
+				// sincrono con el mismo contorno (sin fill acotado: no hay cadena).
+				m_plan.clear();
+				eng::retro::flat_shade_xor(
+					backend, planes, kBytesPerRow, kPlaneBytes, kPlanes, kWidth,
+					kHeight,
+					eng::Span<const eng::retro::OutlineEdge> {edges, ne},
+					/*area_fill_wait=*/false);
+			}
+		}
+#else
+		if (ne != 0u) {
+			// Contorno + area fill XOR. Con FLATSHADE_FILL_BBOX=1 el fill se acota a la
+			// caja del objeto (4 jobs de un plano, esperando solo el ultimo): en la
+			// pipeline sin CRONA sincrona esto serializa algo de CPU con el Blitter
+			// dentro del update; el experimento de 2026-10 lo mide en aislado (la
+			// leccion de septiembre mezclaba fill+clear). Sin bbox: barrido completo.
+#if FLATSHADE_FILL_BBOX
+			const eng::s16* fill_bbox = g_bbox;
+#else
+			const eng::s16* fill_bbox = nullptr;
+#endif
 			eng::retro::flat_shade_xor(
 				backend, planes, kBytesPerRow, kPlaneBytes, kPlanes, kWidth, kHeight,
 				eng::Span<const eng::retro::OutlineEdge> {edges, ne},
-				/*area_fill_wait=*/false);
+				/*area_fill_wait=*/false, fill_bbox);
 		}
+#endif
 		eng::debug::g_eng_prof.cycles[2] = rcycles() - td0;
 		eng::debug::g_eng_prof.cycles[10] = ne;
 #else
@@ -660,10 +863,63 @@ struct FlatShadeDemo {
 		//    con el clear acotado por bbox serian 4 jobs que esperan entre si dentro del
 		//    update y bloquearian la CPU (medido: empeora el frame; la via buena es el
 		//    referee async). Ver la nota del fill.
+#if FLATSHADE_ASYNC
+		// En async el `commit` va al arranque del update siguiente (tras
+		// `frame_plan_async_wait`) y el clear es el ultimo job de la cadena: aqui no se
+		// toca el display.
+#else
 		m_scene.commit();
 #if !FLATSHADE_SKIP_CLEAR
+#if FLATSHADE_CLEAR_BBOX
+		// Clear ACOTADO a la union de la bbox pintada en el frame anterior y la del
+		// actual (+2 px de margen), filas [y0..y1] por plano: fuera de esa banda el
+		// buffer no puede tener tinta (lineas EOR y fill XOR escriben solo dentro de
+		// la bbox; el eje del fill completo no deja marca fuera del interior). Un job
+		// de clear por plano (4 blits), esperando solo el ultimo — la leccion de
+		// septiembre es NO trocear por jobs que esperan entre si dentro del update
+		// (fill bbox = 4 jobs → empeoro), pero el clear acotado nunca se midio solo.
+		eng::s16 cx0 = 0, cx1 = static_cast<eng::s16>(kWidth - 1u);
+		eng::s16 cy0 = 0, cy1 = static_cast<eng::s16>(kHeight - 1u);
+		if (g_bbox[1] >= g_bbox[0] && g_bbox[3] >= g_bbox[2]) {
+			cx0 = g_bbox[0];
+			cx1 = g_bbox[1];
+			cy0 = g_bbox[2];
+			cy1 = g_bbox[3];
+			if (m_painted_bbox[3] >= m_painted_bbox[2]) {
+				if (m_painted_bbox[0] < cx0) cx0 = m_painted_bbox[0];
+				if (m_painted_bbox[1] > cx1) cx1 = m_painted_bbox[1];
+				if (m_painted_bbox[2] < cy0) cy0 = m_painted_bbox[2];
+				if (m_painted_bbox[3] > cy1) cy1 = m_painted_bbox[3];
+			}
+			cx0 = static_cast<eng::s16>(cx0 - 2); if (cx0 < 0) cx0 = 0;
+			cy0 = static_cast<eng::s16>(cy0 - 2); if (cy0 < 0) cy0 = 0;
+			cx1 = static_cast<eng::s16>(cx1 + 2); if (cx1 > 255) cx1 = 255;
+			cy1 = static_cast<eng::s16>(cy1 + 2); if (cy1 > 255) cy1 = 255;
+			m_painted_bbox[0] = g_bbox[0];
+			m_painted_bbox[1] = g_bbox[1];
+			m_painted_bbox[2] = g_bbox[2];
+			m_painted_bbox[3] = g_bbox[3];
+		} else {
+			m_painted_bbox[2] = -1; // sin pintura valida: el proximo vuelve al barrido completo
+		}
+		// Columnas alineadas a 16 px y filas [cy0..cy1] (el blit de clear arranca en
+		// la fila cy0 de cada plano: DPT = plano + cy0*row_bytes).
+		const eng::u16 words = static_cast<eng::u16>(((static_cast<eng::u16>(cx1) | 0x000fu) + 1u) >> 4u);
+		const eng::u16 rows = static_cast<eng::u16>(cy1 - cy0 + 1);
+		eng::PlaneBytes clear_base = m_scene.back();
+		for (eng::u8 p = 0u; p < kPlanes; ++p) {
+			(void)backend.blitter_clear(
+				clear_base.subspan(static_cast<eng::u32>(p) * kPlaneBytes +
+							   static_cast<eng::u32>(cy0) * kBytesPerRow,
+						   static_cast<eng::u32>(rows) * kBytesPerRow),
+				1u, kBytesPerRow, kPlaneBytes, words * 16u, rows,
+				static_cast<eng::u8>(p + 1u) == kPlanes);
+		}
+#else
 		backend.blitter_clear(m_scene.back(), kPlanes, kBytesPerRow, kPlaneBytes,
 				      kWidth, kHeight, false);
+#endif
+#endif
 #endif
 
 		const eng::u32 t3 = rcycles();
@@ -743,6 +999,20 @@ private:
 	bool m_memory_ok = false;
 	eng::s16 m_angle = 0;
 	eng::debug::HudFpsWindow m_hud_fps {}; ///< ventana de 1 s para el campo de fps del HUD
+#if FLATSHADE_CLEAR_BBOX
+	/// bbox (en px de pantalla) del ULTIMO frame pintado: el clear acotado barre la
+	/// union de esta y la actual (la region que puede tener tinta en el buffer a
+	/// limpiar). s16[4] = {x0, x1, y0, y1}.
+	eng::s16 m_painted_bbox[4] {0, 0, -1, -1};
+#endif
+#if FLATSHADE_ASYNC
+	/// Plan de blits del frame para el referee async (DT-026): contorno EOR + area fill
+	/// acotado + clear del buffer siguiente. Se recicla cada frame tras `async_wait`.
+	eng::graphics::FramePlan m_plan {};
+	/// `true` entre `execute_frame_plan_async` y el `frame_plan_async_wait` + `commit`
+	/// del update siguiente (alli se publica y se limpia el plan).
+	bool m_chain_launched = false;
+#endif
 	scene::Scene m_scene {};
 	eng::Block<eng::MaskTag> m_mask_block {};
 	eng::Block<eng::PlaneTag> m_hud_block {};

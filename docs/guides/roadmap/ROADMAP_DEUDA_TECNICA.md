@@ -293,13 +293,24 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 
 **Hallazgo clave (acotado y medido):** el fill XOR acotado a la caja del objeto («bbox», soporte nuevo de `eng::retro::flat_shade_xor(…, bbox)`) y el clear acotado por buffer **empeoran** el frame en la pipeline síncrona actual (19,2 → 17,3 fps): el fill acotado son **4 jobs** (uno por plano) cuyo `wait_blitter` interno serializa la CPU con el Blitter dentro del `update` (el barrido completo era **un solo job** lanzado sin esperar). La vía correcta para cobrar el recorte (~56k de fill + ~40k de clear) es el **referee async** del `FramePlan` (encadenado por IRQ de fin de blit, viable bajo el SO según la 066/`066-async-blit-irq-bajo-el-so.md`).
 
-**Estado del prototipo async (2026-10-17):** se inició el port de la 116 a `execute_frame_plan_async` (líneas EOR + AreaFill + ClearRect en un plan por frame). La base del engine quedó **añadida** (`BlitJobKind::AreaFill` + `make_area_fill_rect` + encoder + submit + validación/presupuesto del plan; sin demo que la ejercite → SIN VERIFICAR en target). El prototipo de la demo quedó **colgado** (la cadena se atasca tras ~52 jobs: IRQ de fin de blit del último job no vista; contadores `g_blit_async_*`: 3 launches, 156 submits, 2 ends) y se **retiró** para no dejar la demo rota; el diagnóstico queda aquí para retomarlo.
+**Estado del prototipo async (2026-10-17, jornada 2):** el port de la 116 a `execute_frame_plan_async` (líneas EOR + AreaFill acotado + ClearRect por plano, un plan por frame) está **reconstruido, SIN cuelgue, detrás de `-DFLATSHADE_ASYNC=1`** y con **veredicto medido negativo**: 8,9 fps (5,6 campos) frente a 18,05 de la vía síncrona. Tres causas raíz encontradas y corregidas por el camino (todas con fix de engine o de demo):
+
+1. **Aristas horizontales en el plan**: `blitter_line_eor_prepare` devuelve `false` para ellas (se descartan, como en el pintor): el job no arranca ningún blit pero el encoder devolvía éxito → la cadena esperaba una IRQ que nunca llega. Corregido en `build_chain_plan` (skip `y0==y1`).
+2. **El feeder async se despachaba desde contexto de tarea**: `wait_blitter()` llama al servicio de blit registrado mientras espera `BBUSY`; con el feeder instalado, la espera `while (m_async_busy) wait_blitter()` de `execute_frame_plan_async` avanzaba la cadena EN PARALELO a la IRQ real (doble avance por job → descuadre/cuelgue). Corregido con la bandera `g_blit_service_referee_only` (`amiga_internal.hpp`, la pone el instalador async): `wait_blitter()` hace sondeo puro cuando el servicio es el feeder.
+3. **El giro de espera expoliaba el bus**: un sondeo pelado de `m_async_busy` roba slots al Blitter de la cadena (×2 de duración). `frame_plan_async_wait()` (engine) y el giro de la demo ceden el bus con BLTPRI (`wait_blitter`).
+
+**Coste estructural (medido por ablación):** con la cadena de solo-líneas el frame sube a 4,15 campos para ~51 blits cortos → cada job paga ~3,5-4k ciclos de arranque de Blitter (~1,4k) + IRQ de nivel 3 + re-programación en la ISR. La vía síncrona encadena los mismos blits sin round-trip de IRQ (~1,9k/job). **Conclusión: el referee async es para cadenas CORTAS de blits LARGOS (los runs de cookie-cut de 066/212), no para listas de 50+ líneas** — la infraestructura y los tres fixes quedan; la demo vuelve a la síncrona.
+
+**Experimentos de recorte, medidos en aislado (release, esta jornada):** clear acotado a la bbox (4 jobs de 1 plano, esperando solo el último) = **19,24 fps vs 19,26 del barrido completo → sin cambio** (el clear ya está oculto en la pipeline de 3 buffers: la lectura de septiembre «el clear son 68k expuestos» NO aplica al árbol actual); fill acotado a la bbox = **16,81 fps → peor** (la serialización de los 4 jobs dentro del update se come el recorte: confirma la lección de septiembre en aislado). El umbral de 25 fps NO está en el clear: está en las **líneas (~114k) y el fill completo (~131k)**, que solo bajan con la ruta asm del draw (rota, ver abajo) o una técnica distinta.
+
+**Ruta asm del transform/draw:** el desfase de contorno tenía una causa concreta más: `fs_draw_edges` elegía el octante con la condición **invertida** (`x1 < x0` en vez de `x0 >= x1` para AUL/SUL; contraste `line_prepare_impl`, `amiga_blitter.cpp:854`). **Corregido** en `support/flatshade_asm.s` — pero la ruta sigue **NO VALIDA**: el build `-DK_FLATSHADE_ASM=1` dibuja rayas (más roto que el «desfase de 1-2 px» de septiembre) y no avanza frames; el default (`K_FLATSHADE_ASM=0`) queda intacto (18,12 fps debug / 19,26 release, contorno correcto).
 
 **Plan:**
 
-- [x] `BlitJobKind::AreaFill` en el encoder/ejecutor (A=D, `FILL_XOR|DESC`, rect + stride por planos) + validación/presupuesto del plan — base lista.
-- [ ] Diagnóstico del cuelgue del protagonista async (¿job de línea EOR programado desde la ISR con BBUSY ya bajo? ¿gate INTENA/latch perdido en el último job?) con el binario de prueba y los contadores `g_blit_async_*`; luego reactivar el plan async (líneas EOR + AreaFill + ClearRect) con el servicio de blit **activado** y `wait` en el update siguiente; medir esperando ≥25 fps.
-- [ ] Si el async no bastara: valorar la ruta asm del transform (`flatshade_asm.s`, 1,8x medido) — con el fix del desfase del contorno pendiente.
+- [x] `BlitJobKind::AreaFill` en el encoder/ejecutor (A=D, `FILL_XOR|DESC`, rect + stride por planos) + validación/presupuesto del plan — base lista y ya **ejercitada en target** por el plan async de la 116 (flag `FLATSHADE_ASYNC`).
+- [x] Diagnóstico del cuelgue del protagonista async: tres causas raíz (horizontales en el plan, feeder despachado desde tarea, giro sin BLTPRI), todas corregidas (`g_blit_service_referee_only`, `frame_plan_async_wait` con nasty, skip de horizontales). El prototipo completó cadenas y se midió: **8,9 fps vs 18,05 síncrona** → veredicto negativo para cadenas largas; la vía queda documentada para cadenas cortas de blits largos.
+- [x] Experimentos de recorte en aislado (release): clear-bbox sin cambio (19,24 vs 19,26), fill-bbox peor (16,81). El umbral de 25 fps está en líneas+fill, no en el clear.
+- [ ] **Arreglar la ruta asm del draw** (`flatshade_asm.s`): el octante invertido está corregido, pero el build `K_FLATSHADE_ASM=1` sigue dibujando rayas (regresión posterior a septiembre: entonces dibujaba con desfase de 1-2 px). Máximo candidato para cruzar 25 fps si el transform asm (1,8× medido) se puede usar. Diagnóstico siguiente: comparar `fs_transform_vertices` contra `lib3d::transform_vertices` con `freeze-diff` sobre el wireframe (`FLATSHADE_SKIP_FILL=1`).
 
 **Evidencia:** `demos/techniques/amiga/effects/116_flatshade_convex/VALIDATION.md`; notas de coste en `src/main.cpp` de 079/116; perfiles en `out/debug/*` de la campaña.
 
@@ -338,6 +349,16 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 - Chequeo `capacity < 2` en `ListBuilder`.
 - `Screen::stamp::at`/`clear_now`: límites de destino, dirección de `clear_now` con `box.x` alineado a 16 y `dmod` correcto.
 
-**Gates:** HOST-232 (círculo/clip), HOST-388 (plan lleno), HOST-439 (fuera de buffer/reserva corta/límite exacto/shift, canarios) y demo 122 (`build -> run -> analyze`, 49,87 fps, visión limpia). La 213 (streaming con 16 BOBs) se midió tras el cambio: **49,97 fps / 1,001 campos** (el chequeo de `StampRun::at` se compensó usando `mulu.w` en vez de `__mulsi3` para el offset de fila/frame).
+**Gates:** HOST-232 (círculo/clip), HOST-388 (plan lleno), HOST-439 (fuera de buffer/reserva corta/límite exacto/shift, canarios) y demo 122 (`build -> run -> analyze`, 49,92 fps, visión limpia). La 213 (streaming con 16 BOBs) se midió tras el cambio: **49,97 fps / 1,001 campos** (el chequeo de `StampRun::at` se compensó usando `mulu.w` en vez de `__mulsi3` para el offset de fila/frame).
 
 **Pendiente (no bloquea):** validación genérica de `BlitJob` en la alta (`BoundTarget`), contrato de tamaño de la hoja del BOB, canarios de capacidad en `SpriteManager`/`copper::Plan`/`TileScrollDriver`/audio y barrido de `Block::view.data()` en demos técnicas. Plan en `ROADMAP_API_COHERENCE.md` §F8 y `ROADMAP_MEMORY_OWNERSHIP.md` Fase 8.
+
+## DT-029 - Demo 011 (`typed_memory`): no alcanza READY (state=0, `PC=0x4`) - ABIERTA
+
+**Síntoma:** `bash ./tools/run/run-demo.sh demos/techniques/amiga/setup/011_typed_memory` agota los 40 s con `state=0`/`detail=0x0`. En vivo (canal lateral) el CPU queda en `PC=0x4`, `SR=0x14`, señal de un salto a dirección inválida antes de que `reset()` del run-status llegue a ejecutarse.
+
+**Alcance:** se reproduce **también** con el `entry.hpp` de HEAD (que define y asigna `SysBase` en `main`), así que no lo introduce el bootstrap de plataforma de este hilo. `122_circles` y `213_bartman_abyss` (mismo backend) arrancan bien, de modo que no es un fallo global del backend.
+
+**Siguiente paso:** depurar con GDB/MCP el primer `PC` anómalo de la 011 (revisar la cadena `App::run`/heartbeat, que `bd27c2b7` tocó en `engine.hpp`) y añadirlo al barrido de flota.
+
+**Evidencia:** salida de `run-demo` (timeout de READY, `state=0`) y lectura del canal lateral (`state` con `pc=0x4`, `sr=0x14`) en sesión MCP sobre `out/run/011_typed_memory/A500_debug/runner.uae`.

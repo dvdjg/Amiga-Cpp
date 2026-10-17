@@ -373,7 +373,15 @@ public:
 	[[nodiscard]] bool frame_plan_async_busy() const noexcept;
 
 	/// Espera a que la cadena asíncrona termine (bloqueo explícito, como `glFinish`).
-	void frame_plan_async_wait() noexcept { while (frame_plan_async_busy()) { } }
+	/// El giro **cede el bus al Blitter** (`wait_blitter`, BLTPRI nasty): un sondeo a
+	/// pelo de `m_async_busy` desde la tarea principal expolia slots de bus al Blitter
+	/// de la cadena y la alarga ~×2 (medido en la 116, DT-026: 5,7 campos/frame con
+	/// sondeo pelado vs ~2,6 con nasty).
+	void frame_plan_async_wait() noexcept {
+		while (frame_plan_async_busy()) {
+			(void)wait_blitter();
+		}
+	}
 
 	/// **Diagnóstico de la cadena async** (contadores globales, leíbles por la demo/HUD):
 	/// lanzamientos del primer job, IRQs de fin de blit atendidas, cierres de cadena y

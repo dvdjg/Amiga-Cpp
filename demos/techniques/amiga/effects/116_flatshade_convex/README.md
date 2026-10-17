@@ -55,22 +55,15 @@ del original, siguiendo el patrón de `fire_loop.s` (demo 080): `fs_update_face_
 `fs_update_edge_visibility_convex`, `fs_transform_vertices` y `fs_draw_edges`. El flag
 `K_FLATSHADE_ASM` (**default 0**, versión C++ canónica) elige entre la ruta C++ y la asm.
 
-**La ruta asm aún no es válida.** `fs_update_face_visibility`, `fs_update_edge_visibility_convex`
-y `fs_transform_vertices` son correctas (con el `draw_edges` C++ encima el balón sale bien),
-pero **`fs_draw_edges` dibuja el contorno con un desfase de ~1-2 px** respecto a la ruta C++.
-Como el **area fill es XOR** (conmuta el relleno en cada píxel del contorno y lo propaga por
-paridad de scanline), ese desfase rompe la paridad y el relleno se desmadra en bandas y
-triángulos. `verify-116` da PASS (cobertura y nº de tonos no detectan el desfase) — **el gate
-válido aquí es visual**: secuencia + Ollama preguntando por anomalías, o comparar el wireframe
-con `-DFLATSHADE_SKIP_FILL=1`. Medido con el wireframe: ~2900 px de contorno en ambas rutas
-pero solo ~96 en común. Mientras no se iguale píxel a píxel, `K_FLATSHADE_ASM=1` es solo para
-depurar la ruta asm (no produce la imagen esperada).
+**La ruta asm aún no es válida.** `fs_update_face_visibility`, `fs_update_edge_visibility_convex` y `fs_transform_vertices` son correctas (con el `draw_edges` C++ encima el balón sale bien), pero **`fs_draw_edges` no reproduce el contorno**. Historial: en septiembre salía con un desfase de ~1-2 px (wireframe: ~2900 px de contorno en ambas rutas, solo ~96 en común), y en la pasada de 2026-10 el build `K_FLATSHADE_ASM=1` **dibuja rayas** y no avanza frames — se corrigió entremedias una causa concreta (la elección de octante usaba `x1 < x0` en lugar de `x0 >= x1` para AUL/SUL; contraste con `line_prepare_impl`), pero hay más deuda. Como el **area fill es XOR** (conmuta el relleno en cada píxel del contorno y lo propaga por paridad de scanline), cualquier desfase rompe la paridad y el relleno se desmadra. **El gate válido es visual**: secuencia + Ollama preguntando por anomalías, o comparar el wireframe con `-DFLATSHADE_SKIP_FILL=1` (`verify-116` da PASS con la imagen rota: no detecta desfases de contorno). Diagnóstico siguiente en DT-026: `freeze-diff` de `fs_transform_vertices` vs `lib3d` sobre el wireframe.
 
-Dos trampas ya conocidas al depurar la ruta asm: `.Lwait_blit` debe **preservar `d0`**
-(`fs_draw_edges` lo usa como BLTCON0 y lo escribe justo tras el wait; si lo pisa se programa
-DMACONR como con0 y ningún blit de línea pinta, balón ausente sin crashear), y el bucle
-reutiliza `d5` como `x1` (no sirve de contador; `fs_draw_edges` cuenta con slots de pila).
-Detalles en la bitácora `docs/guides/optimization/OPTIMIZACION_GPP_68000.md`.
+Dos trampas ya conocidas al depurar la ruta asm: `.Lwait_blit` debe **preservar `d0`** (`fs_draw_edges` lo usa como BLTCON0 y lo escribe justo tras el wait; si lo pisa se programa DMACONR como con0 y ningún blit de línea pinta, balón ausente sin crashear), y el bucle reutiliza `d5` como `x1` (no sirve de contador; `fs_draw_edges` cuenta con slots de pila). Detalles en la bitácora `docs/guides/optimization/OPTIMIZACION_GPP_68000.md`.
+
+## Variantes de ruta (`FLATSHADE_ASYNC` y ablaciones)
+
+- `-DFLATSHADE_ASYNC=1`: ejecuta contorno + fill acotado + clear por plano como **cadenas del referee async** (`FramePlan` encadenado por la IRQ de fin de blit; fix de engine `g_blit_service_referee_only`). Funciona y no cuelga, pero **es más lenta en esta demo** (8,9 fps / 5,6 campos vs 18,05 / 2,77): ~51 jobs cortos de línea pagando arranque de Blitter + IRQ + re-programación por job. Se conserva como vía documentada (útil para cadenas cortas de blits largos); el default es la síncrona. Diagnóstico completo en DT-026.
+- `-DFLATSHADE_CLEAR_BBOX=1` (release): clear acotado a la union de bboxes — **19,24 fps vs 19,26** del barrido completo: el clear ya está oculto en la pipeline de 3 buffers, no hay nada que cobrar.
+- `-DFLATSHADE_FILL_BBOX=1` (release): fill acotado a bbox — **16,81 fps vs 19,26**: la serialización de sus 4 jobs dentro del update se come el recorte (confirma la lección de septiembre, ahora medida en aislado).
 
 ## Paridad del contorno (clave del relleno)
 
