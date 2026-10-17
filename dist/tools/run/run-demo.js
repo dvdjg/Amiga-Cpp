@@ -1075,6 +1075,12 @@ async function captureFramePreferred(protocol, sideChannelPort, imagePath, timeo
     catch (err) {
         frame = { path: imagePath, ok: false, error: err instanceof Error ? err.message : String(err), exists: false };
     }
+    // La captura del canal lateral responde `queued`: se escribe en el hilo de emulación en
+    // el siguiente límite de frame, así que hay que esperar el PNG antes de decidir.
+    const waitDeadline = Date.now() + 3000;
+    while (!fs.existsSync(imagePath) && Date.now() < waitDeadline) {
+        await sleep(60);
+    }
     if (!fs.existsSync(imagePath)) {
         frame = await captureScreenshot(protocol, imagePath);
     }
