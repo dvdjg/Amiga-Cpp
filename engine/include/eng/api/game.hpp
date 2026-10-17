@@ -95,6 +95,18 @@ public:
 		if (frames != kRunIndefinitely) shutdown();
 	}
 
+	/// Igual que `run` pero con el bucle de **sondeo** del engine (`run_frames_polling`):
+	/// `update -> wait_vblank -> render` en el bucle principal, con el hook de VBlank
+	/// (mini-SO) llamado también desde ahí, **sin depender de la IRQ de VBlank**. Es la
+	/// variante robusta bajo un SO vivo que reescribe `INTENA` y puede apagar `VERTB`
+	/// (ver `docs/debugging/investigaciones/212-vblank-irq-apagada-por-el-so.md`); a cambio,
+	/// la espera del VBlank es activa (la CPU sondea `VPOSR`) en vez de dormir en `Wait()`.
+	void run_polling(u32 frames = kRunIndefinitely) {
+		m_engine.set_vblank_hook(&App::on_vblank, this);
+		m_engine.run_frames_polling(frames);
+		if (frames != kRunIndefinitely) shutdown();
+	}
+
 	/// Detiene el backend antes de liberar la escena propia. Idempotente; `run()` también lo llama
 	/// al acabar un número finito de frames, para hacer comprobable el ciclo de vida en integración.
 	void shutdown() noexcept {

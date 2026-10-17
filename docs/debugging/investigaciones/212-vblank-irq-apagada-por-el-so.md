@@ -244,3 +244,19 @@ describe que AVANZA sin el fallo; el `-O2` tiene su propio bug de arranque docum
 una vez elegido, muestrear por canal lateral con el anillo y, al detectar la anomalía
 (`pc < 0x500` o `a5 == 0`), volcar pila y tabla de vectores *por el canal lateral* (el
 GDB ya no estará).
+
+### Intento 2026-10-17 (juego 400): el latido no llega y la espera VPOSR también se atasca
+
+El juego 400 (proceso AmigaDOS sin takeover, `set_vblank_sleep(false)`) congela el frame en ~50 % de los arranques (frames parados observados: 0, 19, 21, 90, 176, 298, 349) **mostrando un frame correctamente renderizado** y con `state=3`. Evidencia:
+
+- Traza por single-step (`vCont;s` + `g`) del estado parado: el bucle principal está sano (`BackgroundQueue::run_slice -> main -> wait_vblank_run`) y se queda en el **sondeo de VPOSR**; los valores que el invitado lee en el bucle **avanzan** (D0 = `0xa0000195 .. 0xa000056d`, +1 hpos por instrucción del step): el haz está vivo.
+- `hb.frames` solo lo incrementa `VBlankHeartbeat::run` (IRQ VERTB): si el frame del juego no avanza pese a la espera, **la IRQ del latido no llega** (o llega a un ritmo ínfimo).
+- **Experimento A** (rearme incondicional de `level3_sync` en cada espera, en lugar de decidir leyendo INTENA): sin mejora; el registro es de escritura y la lectura no es fiable, pero el rearme extra no recupera el latido.
+- **Experimento B** (watchdog en `Engine::run_frames`: `irq_beats` + latido sintético desde el bucle con el hook del mini-SO, patrón del modo polling): evita el cuelgue total, pero el arranque degradado corre a **0,17 fps deterministas** — la propia espera VPOSR retorna una vez cada ~5,5 s, así que el watchdog apenas sintetiza. Es decir: en el estado malo **se atascan a la vez la entrega de VERTB y la condición de salida del sondeo VPOSR**; el denominador común está en la interacción emulador/SO alrededor de la ventana de VBlank.
+- Ambos experimentos se revirtieron (el watchdog convertiría un cuelgue claro en un modo degradado inutilizable). Estado del engine: el del commit.
+
+**Siguiente receta**: instrumentar el backend para que **publique a globals** (leídos por canal lateral, sin `mem` sobre custom, que devuelve la instantánea cacheada) el long de `$DFF004` crudo, `INTREQR`/lectura de `INTENA` y `irq_beats` en cada vuelta de `wait_vblank_run`; reproducir el cuelgue y decidir si (a) el long de VPOSR deja de cumplir la condición (¿`lol`/`LOF`? ¿modo de vídeo?), o (b) VERTB no llega a `INTREQ`. Con eso se sabrá si el fallo es del lado Agnus (VPOSR) o del lado interrupción (INTENA/dispatch).
+
+**Salida práctica (juego 400)**: la variante robusta para un juego bajo AmigaDOS es **no depender de la IRQ**: `App::run_polling` (`Engine::run_frames_polling`) corre `update -> wait_vblank -> render` en el bucle principal con el hook del mini-SO llamado desde ahí. Con ese driver, tres arranques consecutivos del juego 400 dieron la **misma** medida (44,72 fps, crónica completa) sin cuelgues, frente a los parones deterministas del bucle por IRQ en el momento en que la ROM apaga VERTB. La deuda queda para `run_frames` bajo SO vivo.
+
+

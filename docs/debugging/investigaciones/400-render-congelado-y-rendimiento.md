@@ -42,25 +42,23 @@ Nota de herramienta: la lectura de **registros custom por canal lateral no es fi
   - **Copia de la sala por frame**: 4 blits de 20x224 palabras (≈140 k ciclos, mas de un campo). Ahora la imagen se **publica solo al cambiar** (`m_room_publish = 2u` en `cook_room`, en el HUD sucio y en los eventos de inventario/muerte/puerta): dos renders cubren los dos buffers; las estelas de actores se borran restaurando la casilla desde la imagen (`restore_cell`/`erase_cells`, con historial de 2 frames como la demo 001).
 - Tras los fixes: **42,9-45,2 fps** con el bucle durmiendo parte del frame (44 % en `wait`); el tramo que queda es el render (~80 k ciclos/frame medidos con la instrumentacion del worktree, incluido `present`) → siguiente paso natural: agrupar los blits de parches en una sola racha y recortar el HUD.
 
-## 4. Cuelgue intermitente de VBlank (parcialmente mitigado; queda el latido muerto bajo SO vivo)
+## 4. Cuelgue intermitente de VBlank (resuelto en el juego con el bucle de sondeo)
 
-Con el juego ya rapido aparecio un cuelgue total reproducible: el frame se para (observados 0, 19, 21, 90, 176, 298, 349 en distintos arranques, ~50 % de las veces) mientras el display muestra un frame **correctamente renderizado**; `state=3`.
+Sintoma: el juego se congelaba (frames parados en 0, 19, 21, 71, 90, 176, 298, 349 en distintos arranques; ~50 % de boots) mostrando un frame **correctamente renderizado** con `state=3`; con la ultima build el cuelgue llego a ser **determinista** (misma imagen congelada en arranques distintos = mismo momento de juego).
 
-Evidencia recogida (GDB + canal lateral):
+Evidencia:
 
-- Traza por single-step en el estado parado: el bucle principal esta sano (`run_slice -> main -> wait_vblank_run`) y se queda en el **sondeo de `VPOSR`** de `wait_vblank_run` (`amiga.cpp:234-264`).
-- Los valores que el invitado lee en ese bucle **avanzan** (D0 = `0xa0000195 .. 0xa000056d`): el haz esta vivo. La mascara del engine (`& 0x1ff00` sobre el long de `$DFF004`) decodifica, segun la fuente del emulador (`WinUAE-DBG/custom.cpp:2429-2463`), **hpos (VPOSR bit0 = vpos bit 8)**: la condicion de salida es `hpos==0x37 && vpos>=256`, que ocurre en cada linea de la mitad baja del campo.
-- Pese a ello el frame del juego no avanza durante decenas de segundos: el bucle principal espera `hb.frames != seen` y ese contador solo lo incrementa el **latido de VBlank** (`VBlankHeartbeat::run`); es decir, **la IRQ VERTB no llega** mientras el CPU sigue ejecutando (lo que excluye un cuelgue del bucle del juego).
-- Es la misma clase de fallo de `212-vblank-irq-apagada-por-el-so.md` (la ROM de AmigaDOS reescribe INTENA y el rearme `level3_sync` del engine no siempre lo recupera). El cambio a espera activa (`set_vblank_sleep(false)`) elimino una manifestacion previa (PC en la ROM de dispatch, `$FC0F90`) pero **no** este modo (latido perdido).
-- No lo introducen los cambios de este turno: ocurre igual con las builds previas a las optimizaciones y ya estaba abierto en la sesion anterior ("cuelgue state=1 intermitente").
+- Traza por single-step: el bucle principal esta sano (`BackgroundQueue::run_slice -> main -> wait_vblank_run`) y se queda en el sondeo de `VPOSR`; el haz esta vivo (los valores que el invitado lee avanzan). `hb.frames` solo lo incrementa `VBlankHeartbeat::run` (IRQ VERTB) ⇒ **la IRQ del latido no llega**.
+- El momento del cuelgue (~1,5-2 s de juego) coincide con el fin del arranque del AmigaDOS (la ROM reescribe INTENA y apaga VERTB: `212-vblank-irq-apagada-por-el-so.md`). Con el rearme condicional (leyendo INTENA, que no es fiable) el latido no se recupera; el **rearme incondicional** probado tampoco (intento revertido), y un **watchdog** de latido sintetico convertia el cuelgue en un modo degradado a 0,17 fps (tambien revertido).
+- **Fix en el juego**: `app.run_polling(...)` (`App::run_polling` → `Engine::run_frames_polling`): `update -> wait_vblank -> render` en el bucle principal con el hook del mini-SO llamado desde ahi, **sin depender de la IRQ de VBlank**. Verificado: tres arranques consecutivos identicos (44,72 fps / 158 6xx ciclos/frame, cronica completa) y secuencia de 14 frames con 14 hashes distintos hasta `OBJ:VICTORY`.
+- Queda como **deuda del engine** que el bucle por IRQ (`run_frames`) bajo un SO vivo pueda perder VERTB; receta de diagnostico en la ficha 212.
 
-**Siguiente paso (engine)**: hacer que el rearme del latido sea verificable (contador de rearmes + comprobar INTREQ/INTENA en el bucle de espera activa) y, si la IRQ no se puede recuperar bajo AmigaDOS, que el bucle principal detecte el latido perdido (p. ej. por VPOSR) y lo cubra, en vez de esperar un contador que no llega. Ficha: `212-vblank-irq-apagada-por-el-so.md`.
-
-## 5. Segunda pasada de rendimiento (precocina de salas y banda de HUD)
+## 5. Segunda pasada de rendimiento (precocina, banda de HUD, navegacion A* y driver de frames)
 
 - **Pre-cocina de las tres salas en `init`** (`cook_room_into` por sala; `enter_room` solo conmuta `m_room_imgs[m_room]`): elimina el tiron de ~1 M ciclos que cada puerta pagaba incluso con la tabla ROM. El cofre abierto ya no re-cocina: el parche de cofre abierto cubre el cerrado horneado (misma huella 14x10).
 - **Banda de HUD** (`publish_hud_band`, 16 filas x 20 palabras x 4 planos): los cambios de HUD (contador ~2/s y eventos) republican solo la banda, no la imagen completa.
-- Medidas (`measure-fps`, A500_debug, ventanas de 40 s): **45,7 fps / 155 105 ciclos/frame (1,093 campos)** con la cronica completa; los frames sin transicion ya son 1,00 campo — el residual son las republicaciones completas al entrar en sala y el jitter del SO. La media depende de la ventana (con varias puertas en 20 s baja a ~37-43).
+- **Navegacion del guion con `eng::util::astar`** (rejilla 32x16 con relleno no transitable, coste 1, scratch fijo sin heap): el guion indica destino y el camino rodea NPCs/arboles/lobos en movimiento; la ruta se replanifica al cambiar de paso/sala o si el siguiente tramo se tapa. Validado en host (simulador: cronica completa en 1.305 frames) y en vivo.
+- Medidas finales (`measure-fps`, A500_debug): **44,7-45,7 fps / 155 332-158 625 ciclos/frame (1,095-1,118 campos)** con la cronica completa y cadencia determinista entre arranques; los frames sin transicion ya son 1,00 campo.
 
 ## Evidencia y herramientas
 

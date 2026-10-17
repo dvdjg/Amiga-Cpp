@@ -28,6 +28,7 @@
 //   bash tools/run/run-demo.sh games/400_rpg_slice
 
 #include <eng/api/api.hpp>
+#include <eng/core/util/pathfinding.hpp>
 #include <eng/core/util/static_string.hpp>
 #include <eng/core/util/text.hpp>
 #include <eng/debug/version.hpp>
@@ -73,6 +74,12 @@ constexpr eng::u16 kHeight = 256u;   // 14 filas de mapa (224 px) + 2 de HUD
 constexpr eng::u16 kTile = 16u;
 constexpr eng::u16 kMapW = 20u;
 constexpr eng::u16 kMapH = 14u;      // fila 13 = banda inferior del mapa (muro)
+
+// Rejilla de navegacion del pathfinder (`eng::util::astar` exige W potencia de dos): las
+// columnas kMapW..kNavW-1 y las filas kMapH..kNavH-1 son relleno no transitable.
+constexpr eng::u16 kNavW = 32u;
+constexpr eng::u16 kNavH = 16u;
+constexpr eng::u8 kNavShift = 5u;    // log2(kNavW): `celda >> kNavShift` da la fila
 constexpr eng::u16 kHudY = 224u;
 constexpr eng::u8 kMovePeriod = 8u;  // frames por paso de casilla
 constexpr eng::u8 kWolfPeriod = 10u; // frames por paso de lobo en persecucion
@@ -563,6 +570,17 @@ struct RpgSlice {
 	/// Historial del jugador (posicion hace 1 y 2 renders) para borrar la estela del buffer
 	/// de turno restaurando desde la imagen cocinada.
 	eng::u8 m_prev1x = 3u, m_prev1y = 11u, m_prev2x = 3u, m_prev2y = 11u;
+
+	// Navegacion del guion con el pathfinder del engine (`eng::util::astar`): scratch fijo
+	// (sin heap) sobre la rejilla kNavW x kNavH, mas la ruta cacheada y su estado.
+	eng::util::Array<eng::s16, static_cast<eng::usize>(kNavW) * kNavH> m_nav_came {};
+	eng::util::Array<eng::u16, static_cast<eng::usize>(kNavW) * kNavH> m_nav_g {};
+	eng::util::Array<eng::u8, static_cast<eng::usize>(kNavW) * kNavH> m_nav_closed {};
+	eng::util::Array<eng::u16, 64> m_nav_path {};
+	eng::u8 m_nav_len = 0u;     ///< celdas validas de `m_nav_path` (0 = sin ruta)
+	eng::u8 m_nav_idx = 0u;     ///< proximo tramo del camino a seguir
+	eng::u8 m_nav_step = 0xffu; ///< paso del guion con el que se planifico (invalida si cambia)
+	eng::u8 m_nav_room = 0xffu; ///< sala con la que se planifico (invalida si cambia)
 
 	/// Entradas de sala acumuladas: se publica en el `detail` del run-status (un ping-pong
 	/// de puertas lo dispara; un valor estable = transiciones puntuales).
@@ -1161,30 +1179,84 @@ struct RpgSlice {
 			}
 			return pad;
 		}
-		// Paseo por ejes con **rodeo de obstaculos**: el guion no lleva pathfinding (la
-		// navegacion real llegara con la integracion RPG<->sim); si la casilla del eje
-		// preferido (X) esta ocupada (NPC, arbol, lobo), el paso va por Y para bordearla
-		// en vez de empujar indefinidamente contra ella.
-		const bool want_x = (m_tx != t.x);
-		const bool want_y = (m_ty != t.y);
-		bool use_x = want_x;
-		if (want_x) {
-			const eng::u8 sx = static_cast<eng::u8>(m_tx < t.x ? m_tx + 1u : m_tx - 1u);
-			use_x = !blocked(sx, m_ty);
+		// **Navegacion con el pathfinder del engine** (`eng::util::astar`, el mismo que
+		// expone `eng::sim` sobre su rejilla): el guion indica destino y el camino rodea
+		// obstaculos (NPCs, arboles, lobos que se mueven) sin heuristicas artesanales.
+		// La rejilla usa W=32 (potencia de dos, requisito de `astar`) con las columnas
+		// 20..31 declaradas no transitables.
+		if (m_nav_step != m_step || m_nav_room != m_room) {
+			plan_route(t.x, t.y);
 		}
-		if (use_x) {
-			pad.right = m_tx < t.x;
-			pad.left = m_tx > t.x;
-		} else if (want_y) {
-			pad.down = m_ty < t.y;
-			pad.up = m_ty > t.y;
-		} else {
-			// X tapado y fila ya alineada: reintenta X (p. ej. una puerta transitoria);
-			// si sigue tapado, el guion avanza de paso al cambiar de sala.
-			pad.right = m_tx < t.x;
-			pad.left = m_tx > t.x;
+		if (m_nav_idx >= m_nav_len) {
+			return pad; // sin ruta viva (no deberia: los destinos son alcanzables)
 		}
+		// Avance del tramo: si el jugador ya pisa la casilla objetivo, pasa a la siguiente.
+		if (nav_cell(m_tx, m_ty) == m_nav_path[m_nav_idx]) {
+			++m_nav_idx;
+			if (m_nav_idx >= m_nav_len) {
+				return pad;
+			}
+		}
+		// Si el siguiente tramo se tapo (un lobo se movio a esa casilla), replanifica.
+		if (!nav_open(m_nav_path[m_nav_idx])) {
+			plan_route(t.x, t.y);
+			if (m_nav_idx >= m_nav_len) {
+				return pad;
+			}
+		}
+		const eng::u16 next = m_nav_path[m_nav_idx];
+		const eng::u8 nx = static_cast<eng::u8>(next & (kNavW - 1u));
+		const eng::u8 ny = static_cast<eng::u8>(next >> kNavShift);
+		pad.right = nx > m_tx;
+		pad.left = nx < m_tx;
+		pad.down = ny > m_ty;
+		pad.up = ny < m_ty;
 		return pad;
+	}
+
+	/// Indice de celda de la rejilla de navegacion (`kNavW`x`kNavH`).
+	[[nodiscard]] static constexpr eng::u16 nav_cell(eng::u8 x, eng::u8 y) noexcept {
+		return static_cast<eng::u16>(static_cast<eng::u16>(y) * kNavW + x);
+	}
+
+	/// Casilla transitable para la navegacion: dentro del mapa y no bloqueada; las puertas
+	/// cuentan como transitables (pisarlas cambia de sala). Las columnas 20..31 de la
+	/// rejilla (relleno hasta la potencia de dos) nunca lo son.
+	[[nodiscard]] bool nav_open(eng::u16 cell) const noexcept {
+		const eng::u8 x = static_cast<eng::u8>(cell & (kNavW - 1u));
+		const eng::u8 y = static_cast<eng::u8>(cell >> kNavShift);
+		if (x >= kMapW || y >= kMapH) {
+			return false;
+		}
+		return (door_at(x, y) != nullptr) || !blocked(x, y);
+	}
+
+	/// Planifica la ruta a `(tx,ty)` con `eng::util::astar` (coste 1 por paso) y deja
+	/// `m_nav_path`/`m_nav_idx` listos para seguir el camino. El coste fue del engine: no
+	/// se reimplementa busqueda aqui. Si falla (destino ocupado transitoriamente, p. ej. un
+	/// lobo encima), NO marca el plan: el llamador reintenta al frame siguiente.
+	void plan_route(eng::u8 tx, eng::u8 ty) {
+		m_nav_len = 0u;
+		m_nav_idx = 0u;
+		const eng::u16 start = nav_cell(m_tx, m_ty);
+		const eng::u16 goal = nav_cell(tx, ty);
+		if (start == goal) {
+			m_nav_step = m_step;
+			m_nav_room = m_room;
+			return;
+		}
+		const auto walkable = [this](eng::u16 i) -> bool { return nav_open(i); };
+		const auto unit_cost = [](eng::u16, eng::u16) -> eng::u16 { return 1u; };
+		if (!eng::util::astar<kNavW, kNavH>(start, goal, walkable, unit_cost,
+						    m_nav_came.span(), m_nav_g.span(),
+						    m_nav_closed.span())) {
+			return;
+		}
+		m_nav_len = static_cast<eng::u8>(eng::util::reconstruct_path<kNavW, kNavH>(
+		    m_nav_came.span(), start, goal, m_nav_path.span()));
+		m_nav_idx = (m_nav_len > 1u) ? 1u : 0u;
+		m_nav_step = m_step;
+		m_nav_room = m_room;
 	}
 
 	// --- Frame -------------------------------------------------------------------
@@ -1577,6 +1649,9 @@ int main() {
 		return 0;
 	}
 	g_eng_run_status.detail = 0x40114u; // init + start completos; esperando primer render
-	app.run(0xffffu);
+	// **Bucle de sondeo** (`run_polling`), no el de IRQ: bajo AmigaDOS vivo la ROM reescribe
+	// INTENA y puede apagar VERTB, dejando el latido muerto y el frame congelado (misma clase
+	// que `212-vblank-irq-apagada-por-el-so.md`). El sondeo de VPOSR no depende de esa IRQ.
+	app.run_polling(0xffffu);
 	return 0;
 }
