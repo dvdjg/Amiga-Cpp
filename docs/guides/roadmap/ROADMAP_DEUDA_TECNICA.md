@@ -355,12 +355,12 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 
 **Pendiente (no bloquea):** canarios de capacidad en `SpriteManager`/`copper::Plan`/`TileScrollDriver`/audio y barrido de `Block::view.data()` en demos técnicas. **Hecho después de este registro:** contrato de tamaño de la hoja del BOB (`frame_bytes`/`mask_bytes`) con los 9 tests de hojas débiles endurecidos, y validación genérica de `BlitJob` en el `FramePlan` (`TargetBounds` + `blit_job_within`). Plan en `ROADMAP_API_COHERENCE.md` §F8 y `ROADMAP_MEMORY_OWNERSHIP.md` Fase 8.
 
-## DT-029 - Demo 011 (`typed_memory`): no alcanza READY (state=0, `PC=0x4`) - ABIERTA
+## DT-029 - Demo 011 (`typed_memory`): no alcanza READY (state=0, `PC=0x4`) - RESUELTO
 
-**Síntoma:** `bash ./tools/run/run-demo.sh demos/techniques/amiga/setup/011_typed_memory` agota los 40 s con `state=0`/`detail=0x0`. En vivo (canal lateral) el CPU queda en `PC=0x4`, `SR=0x14`, señal de un salto a dirección inválida antes de que `reset()` del run-status llegue a ejecutarse.
+**Síntoma:** `bash ./tools/run/run-demo.sh demos/techniques/amiga/setup/011_typed_memory` agotaba los 40 s con `state=0`/`detail=0x0`. En vivo (canal lateral) el CPU queda en `PC=0x4`, `SR=0x14`, `A6=0`, antes de que `reset()` del run-status llegue a ejecutarse.
 
-**Alcance:** se reproduce **también** con el `entry.hpp` de HEAD (que define y asigna `SysBase` en `main`), así que no lo introduce el bootstrap de plataforma de este hilo. `122_circles` y `213_bartman_abyss` (mismo backend) arrancan bien, de modo que no es un fallo global del backend.
+**Causa:** la demo pide `FAST_STACK=1` (`build.args`) y su `_start` llama a `eng_fast_stack_alloc` **antes** de los constructores y de `main`; esa función usaba `AllocMem` con `SysBase` aún `NULL`, de modo que saltaba a `(a6=0) - 0xc6` y moría. No era un fallo del bootstrap: con el `entry.hpp` de HEAD pasaba igual.
 
-**Siguiente paso:** depurar con GDB/MCP el primer `PC` anómalo de la 011 (revisar la cadena `App::run`/heartbeat, que `bd27c2b7` tocó en `engine.hpp`) y añadirlo al barrido de flota.
+**Arreglo:** `eng_fast_stack_alloc` inicializa `SysBase` desde el vector 4 si es `NULL` antes de `AllocMem` (`support/gcc8_c_support.c`), que es la capa de plataforma correcta para el arranque previo a `main`.
 
-**Evidencia:** salida de `run-demo` (timeout de READY, `state=0`) y lectura del canal lateral (`state` con `pc=0x4`, `sr=0x14`) en sesión MCP sobre `out/run/011_typed_memory/A500_debug/runner.uae`.
+**Evidencia:** `run-demo` alcanza READY y captura screenshot con el binario nuevo; desensamblado verificado en MCP (`eng_fast_stack_alloc` carga `SysBase` y solo entonces ejecuta el LVO de `AllocMem`).

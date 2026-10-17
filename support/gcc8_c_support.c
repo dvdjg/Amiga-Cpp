@@ -10,6 +10,13 @@ unsigned long strlen(const char* s) {
 }
 
 void* eng_fast_stack_alloc(unsigned long bytes) {
+	// `_start` (camino ENG_FAST_STACK) llama aquí **antes** de los constructores y de `main`,
+	// así que `SysBase` aún puede ser NULL: se inicializa desde el vector 4 (lo mismo que hace
+	// `amiga_boot.cpp` en init_array). Sin esto, `AllocMem` salta a `(a6=0)-0xc6` y la app
+	// muere en el arranque (DT-029).
+	if (SysBase == NULL) {
+		SysBase = *((struct ExecBase**)4UL);
+	}
 	if (bytes < 8) bytes = 8;
 	APTR p = AllocMem(bytes, MEMF_FAST | MEMF_CLEAR);
 	if (!p) return NULL;
