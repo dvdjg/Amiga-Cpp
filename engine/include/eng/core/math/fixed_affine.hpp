@@ -21,6 +21,7 @@
 #include <eng/core/math/arith.hpp>
 #include <eng/core/math/fixed.hpp>
 #include <eng/core/math/linalg.hpp>
+#include <eng/core/types/ptr.hpp>
 #include <eng/core/types/types.hpp>
 
 namespace eng::math {
@@ -56,10 +57,11 @@ struct projector<Affine<N, SR, SL>> {
 	using length_t = SL;
 
 	/// Lo precalculable UNA vez por matriz: los términos de traslación plegados.
-	/// `a` es un **puntero** (no referencia) para que el cache sea almacenable en
-	/// estado persistente (interleaving cooperativo del transform, DT-026).
+	/// `a` es un **observador no propietario** (`eng::Ref`, anulable) para que el cache
+	/// sea almacenable en estado persistente (interleaving cooperativo del transform,
+	/// DT-026) sin exponer un puntero crudo (regla de punteros del repo).
 	struct cache {
-		const affine_t* a = nullptr;
+		eng::Ref<const affine_t> a {};
 		s32 e0; // fila x: `(t.x − normfx(m00·m01)) << 8`
 		s32 e1; // fila y
 		s16 tz; // fila z: la traslación va sin plegar (la fila z normaliza)
@@ -70,7 +72,7 @@ struct projector<Affine<N, SR, SL>> {
 	/// por frame**, no por vértice; `project` consume el cache en el camino caliente.
 	[[nodiscard]] static cache make(const affine_t& a) {
 		return cache {
-			&a,
+			a,
 			static_cast<s32>((static_cast<s32>(a.t.x().v) - dot(a.m.m[0][0], a.m.m[0][1]).v) << 8),
 			static_cast<s32>((static_cast<s32>(a.t.y().v) - dot(a.m.m[1][0], a.m.m[1][1]).v) << 8),
 			static_cast<s16>(a.t.z().v - dot(a.m.m[2][0], a.m.m[2][1]).v)};

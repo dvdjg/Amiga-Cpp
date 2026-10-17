@@ -409,3 +409,17 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 - **`screen.text` en escena de 6 planos cuelga en target** (aislado en la 060: `screen.clear` OK, el primer `text` no vuelve; el runner ve `state=InitStarted`). En host, HOST-232 cubre el mismo caso (6 planos contiguos + `draw_text`) y pasa, así que es específico del 68000 (¿trap de alineación/illegal en `draw_span`/`write_planes` con 6 planos?). **Bloquea la migración de la 060 a `run_demo`**; pendiente reproducir con el depurador y corregir.
 
 **Siguiente paso:** capa de scroll por hardware con los actores en PF2 (1 campo estable) e investigar la escena de 2 planos.
+
+## DT-031 - Gate `raw-pointer-members` en rojo por dos observadores crudos ajenos al HUD - CERRADA
+
+**Síntoma:** `node tools/check/raw-pointer-members.mjs` falla en `master` con dos claves fuera de baseline: `eng/core/math/fixed_affine.hpp:a` (miembro `const affine_t* a` del `projector<Affine>::cache`) y `eng/retro/wireframe.hpp:clip` (parámetro `const Rect* clip = nullptr` de la emisión de líneas). Ninguna de las dos cabeceras está modificada por este hilo.
+
+**Evidencia:** salida del gate (`2 puntero(s) a objeto no propietario sin justificar`); `raw-pointer-members-baseline.txt` solo lista `fixed_affine.hpp:m0/m1/m2`, no las claves nuevas. Las cabeceras proceden de commits recientes de los frentes 116/wireframe (`81ef2e27`, `e533c1fe`).
+
+**Impacto:** el gate corre en la pasada completa de `tools/run-host-tests.sh`; mientras esté rojo, la suite completa no puede ponerse en verde y el trabajo nuevo no puede distinguir «rojo propio» de «rojo heredado» (§1.5 y §1.7).
+
+**Plan:** (1) `cache::a` → `eng::Ref<const affine_t>` (el acceso `c.a->` no cambia; `make` lo construye desde `&a`); (2) `clip` → `eng::Ref<const eng::retro::Rect>` con `clip.valid()`; (3) re-ejecutar el gate y los HOST de wireframe/116 y retirar de la baseline cualquier entrada asociada. Coordinar con el frente 116/wireframe activo antes de tocar ambas cabeceras.
+
+**Resolución (2026-10-17, frente 116/wireframe):** aplicado el plan en ambas cabeceras — `cache::a` es `eng::Ref<const affine_t>` (anulable, para el estado persistente del interleaving; `make` construye desde la referencia) y `wire_lines(..., eng::Ref<const eng::retro::Rect> clip = nullptr)` con `clip.valid()`; los llamadores con `&rect`/`nullptr` no cambian (conversión implícita). Verificado: **gate OK**; HOST-213/047/050/053/011/013 verdes; builds release de 079/116 OK; 116 medido **21,64 fps / 2,311 campos** (banda 21,62..21,72, cambio de tipo sin coste) y `asm-audit` TOTAL `mul32=14` sin cambios (codegen idéntico). La baseline conserva solo las entradas `fixed_affine.hpp:m0/m1/m2` (locales del camino caliente, deuda aceptada aparte).
+
+**Estado: CERRADA** (resuelta por el frente 116/wireframe, que es el autor de ambas cabeceras).

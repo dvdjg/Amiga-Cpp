@@ -33,6 +33,7 @@
 /// de Blitter; esta cabecera no conoce registros (igual que `flat_shade_xor.hpp`).
 
 #include <eng/core/types/domains.hpp>
+#include <eng/core/types/ptr.hpp>
 #include <eng/core/types/span.hpp>
 #include <eng/core/types/types.hpp>
 #include <eng/retro/flat_shade_xor.hpp> // `OutlineEdge` (arista proyectada del layer retro)
@@ -58,7 +59,7 @@ template <class Backend>
 inline eng::u32 wire_lines(Backend& backend, eng::PlaneBytes planes, eng::u16 row_bytes,
 			   eng::u32 plane_bytes, eng::u8 plane_count,
 			   eng::Span<const OutlineEdge> edges, bool wait = true,
-			   const eng::retro::Rect* clip = nullptr) {
+			   eng::Ref<const eng::retro::Rect> clip = nullptr) {
 	// Modo COPIA (sin ONEDOT/EOR): aquí NO hay truco de paridad — el canal D va a la
 	// propia línea (`d_base = nullptr`) y `blitter_line_draw` lo reescribe POR LÍNEA
 	// (en modo línea el Blitter muta el puntero D durante el blit; ver el CONTRATO DE
@@ -75,7 +76,7 @@ inline eng::u32 wire_lines(Backend& backend, eng::PlaneBytes planes, eng::u16 ro
 			continue;
 		}
 		eng::s16 x0 = e.x0, y0 = e.y0, x1 = e.x1, y1 = e.y1;
-		if (clip != nullptr) {
+		if (clip.valid()) {
 			// Recorte de LIBRERÍA (opt-in): las aristas que quedan fuera del lienzo
 			// compartido se descartan y las parciales entran recortadas (si no, el
 			// Blitter en modo línea escribiría fuera del plano).
