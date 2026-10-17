@@ -214,9 +214,8 @@ La base G0–G8 cubre widgets, foco básico, modales, compositor y rutas de rast
 constituye todavía un sistema completo de interacción. El contrato detallado está en
 [`GUI_COMPLETENESS.md`](../../engine/architecture/GUI_COMPLETENESS.md).
 
-- Unificar la documentación y el código de `UiEventKind`: añadir `TextInput`, `PointerCancel`,
-  `FocusIn`, `FocusOut` y `Action`, o documentar explícitamente qué eventos no forman parte del
-  núcleo.
+- Unificar la documentación y el código de `UiEventKind`: añadir `TextInput`, `PointerCancel`, `FocusIn`, `FocusOut` y `Action`, o documentar explícitamente qué eventos no forman parte del núcleo.
+- **Progreso (2026-10)**: `PointerCancel` y `Action` (con `UiAction`) ya están en `event.hpp`; `UiContext` resuelve foco (`NextFocus`/`PreviousFocus`), `Cancel` y `PointerCancel`, y `action_widget` activa botón/casilla/radio (`Accept`/`Activate`) — cubierto por HOST-225. Pendiente: captura/propagación, `hover`, `TextInput`/`FocusIn`/`FocusOut` y `TextModel`.
 - Añadir captura de puntero, hover, `MouseMove`/drag y propagación `capture → target → bubble`.
 - Separar rawkeys de acciones semánticas (`Accept`, `Cancel`, navegación, edición, clipboard) y
   centralizar repetición de teclas.

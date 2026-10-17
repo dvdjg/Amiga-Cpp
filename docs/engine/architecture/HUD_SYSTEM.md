@@ -130,7 +130,7 @@ struct HudRegionSpec {
     eng::u8 z = 0;                 ///< orden entre overlays; mayor = delante
     bool capture_input = false;    ///< consume la entrada de la región
     HudBudget budget {};
-    const HudTheme* theme = nullptr;
+    eng::Ref<const HudTheme> theme {}; ///< tema (observador; la app es la dueña)
 };
 ```
 
@@ -223,7 +223,7 @@ La lista de operaciones se genera solo para componentes sucios. El *hit map* de 
 ### 5.5 Contadores, texto y coste
 
 - El contador **formatea solo cuando cambia el valor**. No se convierte a texto en cada frame.
-- Base 10 y dígitos típicos (1–8) usan una tabla `constexpr` de potencias y **sustracción repetida**; se evita `divu.w`/`__udivsi3` en el camino caliente. La ruta genérica para bases 2–36 usa la misma tabla de potencias calculada en *setup*, con coste acotado por `base × digits` y solo al cambiar el valor.
+- Las potencias de la base se construyen por **sumas repetidas** (base ≤ 36) y los dígitos por **sustracción repetida**: sin multiplicación ni división (`__mulsi3`/`__udivsi3`) en la actualización, con coste acotado por `base × dígitos` y solo al cambiar el valor. Verificado en la compilación m68k de H0: el objeto de `eng/hud` no referencia helpers caros (`asm-audit`).
 - El texto se dibuja con `draw_text`/`draw_text_words` para cadenas cortas y con `GlyphCache` cuando el umbral medido lo justifica; **nunca un *blit* por glifo**.
 - Los dígitos y etiquetas viven en buffers de capacidad fija del componente; la operación `Text`/`Digits` referencia ese buffer y es válida hasta `present()` en el mismo frame.
 
@@ -268,7 +268,7 @@ El HUD no elige Copper para pintar un medidor salvo que el estilo sea explícita
 
 - La franja es un `CanvasPlayfield` con layout interleaved, igual que el resto de lienzos del engine. El presentador escribe operaciones en su `Surface` y el compositor emite `BPLxPT` para la banda.
 - Con planos distintos al campo se usa `ModeSwitchZone` (o el mecanismo equivalente del compositor) y se validan `BPLCON0`, offsets y línea de corte.
-- **Doble buffer de banda**: dos lienzos del mismo tamaño; el split publica el delantero y el presentador escribe el trasero. El intercambio se hace por punteros en el Copper, no copiando el bitmap. Si la franja es estática, un solo lienzo y actualización en la ventana de VBlank es suficiente.
+- **Doble buffer de banda**: dos lienzos del mismo tamaño; el split publica el delantero y el presentador escribe el trasero. El intercambio se hace por punteros en el Copper (`BPLxPT` del tramo), no copiando el bitmap. Mecanismo previsto: el presentador reemite la zona de conmutación (`Scheduler::emit_mode_switch_zone`) con la base del lienzo trasero en la **copperlist trasera** (el doble buffer de copperlist ya existe); el coste por frame es de unos pocos `MOVE` y no de una copia. La evidencia del repo respalda el doble buffer: un lienzo vivo actualizado durante el barrido produce *tearing* (DT-001, FG de la demo 110: «el fix real es doble buffer del FG con flip en la copperlist»). Si la franja es estática, un solo lienzo y actualización en la ventana de VBlank es suficiente; la elección se cierra con medida en H1 (coste de reemisión vs. actualización in-place y ausencia de *tearing*), no por intuición.
 - La franja inferior de 320×256 es el caso canónico (`top = 208`, `height = 48`); la superior (`top = 0`, `height = 32`) es válida si el corte y la ventana de display lo permiten. Las franjas laterales quedan fuera de alcance.
 - El HUD de depuración obligatorio de las demos no se mezcla con la franja interactiva: se reserva una línea de 1 bpp o se usa la ventana de debug de WinUAE, según [`AGENTS.md` §0](../../../AGENTS.md).
 
@@ -322,10 +322,11 @@ Idle ──move──> Hover ──down──> Pressed ──move > umbral──
 - *Drag* = se supera `kDragStartPx` con el botón pulsado; se crea la `DragSession` global y se captura el puntero hasta `drop` o cancelación.
 - El doble click se mide en frames de VBlank (`double_click_frames`) y se usa solo donde el juego lo declare (por ejemplo, usar un objeto); no es un evento universal del HUD.
 - La captura se libera en `PointerUp`, `PointerCancel`, cierre del panel, pérdida de foco de la aplicación o cambio de escena.
+- **Subconjunto de entrada vigente (H2)**: hasta que G9 cierre el contrato de `eng::ui`, el HUD consume los tipos que `UiEventKind` ya define — `MouseMove`, `MouseDown`, `MouseUp`, `JoyButton` y `Tick` — y se alinea con G9 (`PointerMove`/`PointerDown`/`PointerUp`/`PointerCancel`/`Action`/`TextInput`) sin mantener una máquina paralela. `HudInput` es un consumidor del evento, no un segundo despachador.
 
 ### 7.3 Teclado y joystick
 
-- El HUD consume `UiAction` (tras G9) para `Accept`, `Cancel`, `NextFocus`, `PreviousFocus` y navegación; no interpreta *rawkeys*.
+- El HUD consume `UiAction` (tras G9) para `Accept`, `Cancel`, `NextFocus`, `PreviousFocus` y navegación; no interpreta *rawkeys*. Mientras G9 no exponga `UiAction`, el subconjunto vigente usa `KeyDown`/`KeyUp` con la traducción de `eng::ui::keymap` y `JoyButton` para el pad.
 - Sin ratón, cada rejilla mantiene un índice de **foco** independiente de la **selección**. El joystick mueve el foco por filas/columnas; `Fire` equivale a *click*; el botón secundario cancela.
 - La repetición de movimiento la aporta el servicio de entrada o el `Tick` de VBlank; el widget no la implementa.
 - `focus_index` es visible (marco o realce) y participa en el *dirty* de interacción.
@@ -366,8 +367,9 @@ struct HudTheme {
 
 ### 8.2 `IconAtlas` y pipeline
 
-- El atlas es un bitmap planar en Chip (`ChipView<HudAtlasTag>`) con tabla de frames (`frame_w`, `frame_h`, `count`, `planes`, `masked`, `stride`). El presentador calcula el offset del frame; se prefieren dimensiones potencia de dos para usar desplazamientos.
-- El pipeline de assets vive en el host: `tools/assets/hud-atlas.mjs` (o una extensión del generador de manifiestos) lee `assets/amiga/hud/`, cuantiza, convierte a planar, emite el atlas y la tabla de frames a `out/assets/hud/`. El juego referencia el manifiesto; no hay decodificación ni asignación en runtime.
+- El atlas es un bitmap planar en Chip (`ChipView<HudAtlasTag>`) con tabla de frames (`frame_w`, `frame_h`, `count`, `planes`, `masked`, `stride_words`). El presentador calcula el offset del frame; se prefieren dimensiones potencia de dos para usar desplazamientos.
+- **Formato canónico del atlas (H6)**: un solo bloque de palabras interleaved por filas, con los frames contiguos; cada frame ocupa `stride_words` palabras **por plano** (`stride_words = ceil(frame_w/16) × frame_h`), y el offset del frame `f` es `f × planes × stride_words` palabras. `planes` ∈ 1..3 con máscara opcional (1 bit de máscara + 1–2 de color) o 1..6 sin máscara para paneles con paleta propia; `masked = true` exige un plano de máscara por frame (índice 0 = transparente). `frame_w`/`frame_h` son potencia de dos hasta 64×64; frames mayores van a un atlas propio. La tabla de frames es un `constexpr` del manifiesto (mismo orden que el pipeline), no un fichero que se parsee en runtime.
+- El pipeline de assets vive en el host: `tools/assets/hud-atlas.mjs` (implementado) lee `assets/amiga/hud/`, cuantiza (exacta o *median-cut* sobre RGB444), convierte a planar interleaved, y emite el atlas, la tabla de frames y el JSON de procedencia a `out/assets/hud/<nombre>/`; `--check` verifica la sincronía byte a byte y `--selftest` fija geometría, bit order y round-trip 100 % (corre en la pasada completa de `tools/run-host-tests.sh`). El juego referencia el manifiesto; no hay decodificación ni asignación en runtime.
 - Los iconos de 1–3 planos con máscara cubren inventario, vidas y cursores; los iconos de más planos se reservan para paneles con paleta propia.
 
 ### 8.3 *Skins* y reutilización

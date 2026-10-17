@@ -36,6 +36,7 @@ assets/
 | `amiga/tiles-reference/real_640/*` | Redimensiones Lanczos a ~640px usadas como referencia del pipeline (generadas a partir de las fuentes anteriores). |
 | `amiga/sprites/abyss/abyss.bpl`, `abyss.pal`, `bob.bpl` | Assets de la demo clásica de Bartman/vscode-amiga-debug (`BartmanBasic`): imagen interleaved 320×256×5, paleta de 32 colores y hoja de 6 BOBs 32×16 enmascarados. Uso interno de prueba; la demo 213 los reproduce. |
 | `amiga/audio/testmod.p61` | Módulo P61 de ejemplo ("P61.testmod" de Skylord/Sector 7) usado por las demos de música; mismo fichero que el del ejemplo de Bartman. |
+| `amiga/hud/test_icons.png` | Hoja de prueba del pipeline de atlas del HUD (`tools/assets/hud-atlas.mjs`): 4 iconos 16×16 enmascarados (cuadrado, cruz, anillo, rombo) generados en el repo para validar el formato planar interleaved. Uso interno de prueba. |
 
 *Nota: `assets/amiga/tiles-reference` fue reubicado aquí en la reorganización; las
 tools leen de esta ruta canónica.*

@@ -29,7 +29,7 @@ const VOCABULARY_DIR = /^platform\//;
 // Cabecera de contrato de backend permitida desde el dominio.
 const ALLOWED_INCLUDE = /^eng\/platform\/backend\.hpp$/;
 // Dominio puro (punto 2: sin registros custom).
-const PURE_DOMAIN = /^(core|ai|sim|board|cards|ui|os|res|parallel|task|debug|hw|input|audio|memory)\//;
+const PURE_DOMAIN = /^(core|ai|sim|board|cards|ui|hud|os|res|parallel|task|debug|hw|input|audio|memory)\//;
 
 const INCLUDE_RE = /#\s*include\s*[<"]([^>"]+)[>"]/;
 // Registros custom: `0xdff000`, `$dff0a0`, `DFF000` (en código, no en comentario).

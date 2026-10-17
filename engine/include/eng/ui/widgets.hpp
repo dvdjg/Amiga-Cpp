@@ -357,6 +357,55 @@ inline bool event_widget(Widget& w, const UiEvent& ev) {
 	return false;
 }
 
+/// **Acción semántica** sobre un widget (G9): `Accept`/`Activate` activan botón, casilla o radio
+/// (el equivalente de teclado/pad al click del foco). Devuelve `true` si la consumió.
+inline bool action_widget(Widget& w, UiAction action) {
+	if (action != UiAction::Accept && action != UiAction::Activate) {
+		return false;
+	}
+	switch (w.type) {
+	case WidgetType::Button: {
+		auto& b = static_cast<Button&>(w);
+		if (!b.has(WfEnabled)) {
+			return false;
+		}
+		if (b.on_click) {
+			b.on_click();
+		}
+		b.mark_dirty();
+		return true;
+	}
+	case WidgetType::Check: {
+		auto& c = static_cast<CheckBox&>(w);
+		if (!c.has(WfEnabled)) {
+			return false;
+		}
+		if (c.value != nullptr) {
+			*c.value = !*c.value;
+		}
+		if (c.on_change) {
+			c.on_change();
+		}
+		c.mark_dirty();
+		return true;
+	}
+	case WidgetType::Radio: {
+		auto& r = static_cast<RadioButton&>(w);
+		if (!r.has(WfEnabled)) {
+			return false;
+		}
+		radio_activate(r);
+		if (r.on_change) {
+			r.on_change();
+		}
+		r.mark_dirty();
+		return true;
+	}
+	default:
+		return false;
+	}
+}
+
 /// Dibuja `w` y su subárbol de **atrás hacia delante** (hijos en orden de creación, para que el
 /// más nuevo —al frente— quede encima). Útil para componer el árbol sobre una `Surface`.
 inline void draw_tree(Widget& w, UiPainter& p) {

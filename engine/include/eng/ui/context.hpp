@@ -150,6 +150,20 @@ public:
 		case UiEventKind::Tick:
 			tick_toasts(root);
 			return false;
+		case UiEventKind::PointerCancel: {
+			// Pérdida de foco global, cierre de ventana o cambio de escena: el click en curso
+			// se cancela sin disparar `on_click` (contrato G9 de captura de puntero).
+			Widget* t = m_pressed.get();
+			m_pressed.reset();
+			if (t == nullptr) {
+				return false;
+			}
+			t->clear_flag(WfPressed);
+			t->mark_dirty();
+			return true;
+		}
+		case UiEventKind::Action:
+			return dispatch_action(ev);
 		case UiEventKind::None:
 		case UiEventKind::MouseMove:
 		case UiEventKind::KeyUp:
@@ -247,6 +261,41 @@ private:
 		for (Widget* c = n->first_child; c != nullptr; c = c->next) {
 			tick_toasts(c);
 		}
+	}
+
+	/// **Acciones semánticas** (G9): navegación de foco (`NextFocus`/`PreviousFocus`), `Cancel`
+	/// (cierra el diálogo/popup superior, equivalente a `Esc`) y activación del widget con foco;
+	/// el resto se ofrece al widget con foco para que los controles personalizados las consuman.
+	bool dispatch_action(const UiEvent& ev) noexcept {
+		switch (ev.action) {
+		case UiAction::NextFocus:
+			focus_next(false);
+			return true;
+		case UiAction::PreviousFocus:
+			focus_next(true);
+			return true;
+		case UiAction::Cancel: {
+			Window* top = find_top_kind(root, WindowKind::Dialog);
+			if (top == nullptr) {
+				top = find_top_kind(root, WindowKind::Popup);
+			}
+			if (top != nullptr) {
+				top->clear_flag(WfVisible);
+				top->mark_dirty();
+				return true;
+			}
+			break;
+		}
+		default:
+			break;
+		}
+		if (focus == nullptr) {
+			return false;
+		}
+		if (action_widget(*focus, ev.action)) {
+			return true;
+		}
+		return event_widget(*focus, ev);
 	}
 
 	eng::Ref<Widget> m_pressed {};

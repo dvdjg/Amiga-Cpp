@@ -15,22 +15,22 @@ Plan de implementación del diseño canónico [`HUD_SYSTEM.md`](../../engine/arc
 
 ### H0 — Modelo, *handles* y contrato de región
 
-- **Entregable**: esqueleto de `engine/include/eng/hud/` con `model.hpp` (`Meter`, `Counter`, `IconGrid`, `Slot`, `DragSession`, `Label`, `Button`, `Panel`), `region.hpp` (`HudPlacement`, `HudBand`, `HudBudget`, `HudRegionSpec`), `theme.hpp` (tipos de tema y estilos) y las listas de capacidad fija `HudDrawOp`/`HudHitRect`/`HudGridHit`. *Handles* tipados para cada componente y errores de capacidad en *setup*.
-- **Detalle**: [`HUD_SYSTEM.md`](../../engine/architecture/HUD_SYSTEM.md) §4–§5. Los identificadores son índices/*handles*, no cadenas; el contador formatea por sustracción repetida con tabla `constexpr`; el modelo no incluye cabeceras de `eng::ui` ni de `eng::rpg`.
-- **Verificación**: **HOST-467** — alta de componentes hasta capacidad, error al desbordar, `set()` marca *dirty* solo al cambiar el valor visible, contador base 10/base 16 con ceros a la izquierda y negativos, `DragSession` con transiciones válidas e inválidas, y `HudRegionSpec` inválida rechazada.
-- **Estado**: **pendiente**.
+- **Entregable**: `engine/include/eng/hud/` con `model.hpp` (`Meter`, `Counter`, `IconGrid`, `Slot` como `HudSlotView`, `DragSession`, `Label`, `Button`, `Panel`), `region.hpp` (`HudPlacement`, `HudBand`, `HudBudget`, `HudRegionSpec` + validadores), `theme.hpp` (estilos, `IconAtlas`, `HudTheme`), `hud.hpp` (fachada) y `README.md`. *Handles* tipados para cada componente y errores de capacidad en *setup*.
+- **Detalle**: [`HUD_SYSTEM.md`](../../engine/architecture/HUD_SYSTEM.md) §4–§5. Los identificadores son índices/*handles*, no cadenas; el contador formatea con potencias por sumas repetidas y sustracción repetida (sin multiplicación ni división; compilación m68k auditada sin helpers caros); el modelo no incluye cabeceras de `eng::ui` ni de `eng::rpg`.
+- **Verificación**: **HOST-467** — alta de componentes hasta capacidad, error al desbordar, `set()` marca *dirty* solo al cambiar el valor visible, contador base 10/16/2 con ceros a la izquierda y negativos, rejilla con selección/foco, `DragSession` con transiciones válidas e inválidas, y `HudRegionSpec` inválida rechazada. El test instancia el modelo con dos configuraciones de capacidad distintas.
+- **Estado**: **HECHO (2026-10)** — `HOST-467` (`tests/host/ui/467_hud_model`, catálogo `ui`) en verde; gates `engine-tree`/`platform-boundaries` ampliados con el módulo `hud`; cabeceras marcadas **NO VERIFICADAS por demo** hasta H1.
 
 ### H1 — Franja propia, `Meter`, `Counter` y *pips*
 
 - **Entregable**: `HudStrip` sobre `CanvasPlayfield` con `Surface`, `DirtyList` y operaciones de dibujo; `Meter` lineal y segmentado; `Counter` con `Font8`/`Font5x7`; *pips* de vidas por *tiles* (la ruta sprite llega en H4); tema por defecto con paleta de banda; compilación a `LayerPlan` con `LayerRole::Overlay` y `ModeSwitchZone` cuando los planos difieren.
-- **Detalle**: franja canónica inferior `top = 208`, `height = 48` en 320×256; la franja no resta altura al anillo de scroll; el split y la paleta se validan con `eng::setup`. El HUD de depuración de la demo se mantiene en una línea de 1 bpp o en la ventana de WinUAE.
+- **Detalle**: franja canónica inferior `top = 208`, `height = 48` en 320×256; la franja no resta altura al anillo de scroll; el split y la paleta se validan con `eng::setup`. **Decisión de doble buffer medida aquí**: comparar la reemisión de la zona de conmutación con la base del lienzo trasero (`Scheduler::emit_mode_switch_zone` en la copperlist trasera) frente a la actualización in-place en VBlank, con coste por frame (movimientos de Copper), ausencia de *tearing* y fps; evidencia previa del repo: DT-001 (FG de la demo 110) documenta *tearing* con buffer único actualizado durante el barrido y prescribe doble buffer con flip en la copperlist. La opción elegida se documenta en `HUD_SYSTEM.md` §6.3. El HUD de depuración de la demo se mantiene en una línea de 1 bpp o en la ventana de WinUAE.
 - **Verificación**: **HOST-468** — equivalencia de operaciones contra un `Surface` de referencia, *dirty* que no repinta lo estático, medidor con `value`/`max` en los extremos y paleta de banda correcta. **Demo `302_hud_band`** con `INTENT.md`, `VALIDATION.md` y visión por secuencia; fps/cadencia y *flicker* dentro de presupuesto.
 - **Estado**: **pendiente**.
 
 ### H2 — *Hit-test*, selección y foco de joystick
 
 - **Entregable**: `HudInput` sobre el contrato de eventos; *hit map* por región (rectángulos ordenados + fórmula de rejilla); `IconGrid` con selección y foco independientes; `Button`; navegación por joystick/pad; captura de entrada por región (`capture_input`).
-- **Dependencia**: G9 de [`ROADMAP_GUI.md`](ROADMAP_GUI.md) (captura de puntero, `PointerMove`/`PointerCancel`, propagación y `UiAction`). Si G9 aún no está cerrado, H2 implementa el subconjunto `PointerMove`/`PointerDown`/`PointerUp`/`Action` y converge con el contrato final sin duplicar la máquina de eventos.
+- **Dependencia**: G9 de [`ROADMAP_GUI.md`](ROADMAP_GUI.md) (captura de puntero, `PointerMove`/`PointerCancel`, propagación y `UiAction`). Hasta que G9 cierre, H2 consume el subconjunto vigente de `UiEventKind` (`MouseMove`/`MouseDown`/`MouseUp`/`JoyButton`/`Tick`, más `KeyDown`/`KeyUp` con `eng::ui::keymap`) y converge con el contrato final sin duplicar la máquina de eventos.
 - **Detalle**: el *slot* se calcula al recibir el evento, no por frame; el *hit map* y el pintado comparten transformación; un *click* es *down* + *up* en el mismo objetivo; el joystick mueve el foco por filas/columnas.
 - **Verificación**: **HOST-469** — prioridad de regiones, rejilla con pitch no múltiplo de 16, *click* dentro/fuera, foco con bordes de rejilla, consumo y paso al juego según `capture_input`. **Demo `303_hud_icons`** (inventario en franja o panel) con selección por ratón y joystick; visión y medidas.
 - **Estado**: **pendiente**.
@@ -61,15 +61,15 @@ Plan de implementación del diseño canónico [`HUD_SYSTEM.md`](../../engine/arc
 - **Entregable**: `HudTheme` con presets y cambio en caliente; `IconAtlas` tipado en Chip y pipeline `tools/assets/hud-atlas.mjs` (o extensión del generador de manifiestos) con salida en `out/assets/hud/`; *skins* (`MeterStyle`/`CounterStyle`/`IconSet`); fachada `eng/hud/hud.hpp` incluida desde `eng/api/api.hpp`; tabla de umbrales CPU/Blitter/Copper medida en A500 y páginas de manual/referencia de lo implementado.
 - **Detalle**: el atlas se genera en host (cuantización → planar → frames), sin decodificación en runtime; las dimensiones potencia de dos son preferentes; el cambio de tema marca todo sucio y recarga la paleta en el siguiente split. Los umbrales se fijan con medidas, no por intuición.
 - **Verificación**: **HOST-473** — atlas y tabla de frames (geometría, *stride*, máscara), cambio de tema, *skins* equivalentes sobre el mismo modelo y fachada. **Demo de cierre** (extensión de `306_hud_crpg` o `307_hud_skins` si se reserva número) con dos temas, medición completa, *flicker*, regresión y visión.
-- **Estado**: **pendiente**.
+- **Estado**: **parcial** — pipeline de atlas entregado (`tools/assets/hud-atlas.mjs` con `--selftest` en la suite, `--check` determinista y asset de prueba `assets/amiga/hud/test_icons.png`); pendientes `HudTheme` con presets/cambio en caliente, integración del atlas en una demo, umbrales medidos y fachada.
 
 ## Tests y demos previstos
 
-Los identificadores reservan el siguiente hueco global de tests (**HOST-467**) y el siguiente libre de `demos/features/ui/amiga` (**302**), según [`NUMBERING.md`](../../ai-dev-environment/NUMBERING.md). Si otra rama los ocupa antes, se renumeran en la misma pasada y se actualiza este roadmap.
+Los identificadores reservan el siguiente hueco global de tests (**HOST-468** en adelante) y el siguiente libre de `demos/features/ui/amiga` (**302**), según [`NUMBERING.md`](../../ai-dev-environment/NUMBERING.md). Si otra rama los ocupa antes, se renumeran en la misma pasada y se actualiza este roadmap.
 
 | ID | Tipo | Contenido |
 |---|---|---|
-| HOST-467 | test | Modelo, *handles*, capacidad, *dirty*, contadores, `DragSession` y contrato de región. |
+| HOST-467 | test | Modelo, *handles*, capacidad, *dirty*, contadores, `DragSession` y contrato de región. **HECHO** (H0). |
 | HOST-468 | test | Franja, operaciones de dibujo, `Meter`/`Counter`/`pips` y equivalencia contra `Surface`. |
 | HOST-469 | test | *Hit map*, prioridad de regiones, rejilla, selección, foco y consumo de entrada. |
 | HOST-470 | test | *Drag & drop*: umbral, captura, destino, cancelación y cantidades. |
@@ -96,4 +96,4 @@ Los identificadores reservan el siguiente hueco global de tests (**HOST-467**) y
 
 ## Estado
 
-**Ninguna fase implementada.** El diseño está en [`HUD_SYSTEM.md`](../../engine/architecture/HUD_SYSTEM.md) y el plan en este documento. El siguiente paso verificable es **H0**: crear el esqueleto de `eng/hud/`, fijar *handles*/capacidades y pasar **HOST-467** antes de dibujar una sola franja.
+**H0 HECHO (2026-10).** `engine/include/eng/hud/` contiene el modelo (`Hud<...>` con *handles*, componentes y `DragSession`), el contrato de región con validadores y el tema/atlas; verificado por **HOST-467** (`tests/host/ui/467_hud_model`, catálogo `ui`) e instanciado con dos configuraciones de capacidad. Las cabeceras quedan **NO VERIFICADAS por demo** hasta que exista `302_hud_band`. El siguiente paso verificable es **H1**: franja `CanvasPlayfield` con `Counter`/`Meter`/`pips`, decisión de doble buffer medida y demo con visión, fps y *flicker*.

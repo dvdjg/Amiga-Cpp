@@ -26,7 +26,7 @@ No depende del mini-SO (`eng::os`), pero se integra con él por el puente `os::M
 | `text.hpp` | `text_width`, `draw_text_clipped` (reusa `Font8`/`Font5x7`). **Implementado** (HOST-223). |
 | `widget.hpp` | `WidgetType`, `WidgetFlags` y `Widget` (árbol intrusivo, sin heap ni `virtual`). **Implementado** (HOST-224). |
 | `dirty.hpp` | `DirtyList<Max>` con fusión de regiones (rects = `eng::Box`). **Implementado** (HOST-224). |
-| `event.hpp` | `UiEvent`, `UiEventKind`. **Implementado** (HOST-220). |
+| `event.hpp` | `UiEvent`, `UiEventKind`, `UiAction` (G9: `PointerCancel`, `Action`, acciones semánticas). **Implementado** (HOST-220/225). |
 | `widgets.hpp` | `Panel`/`Label` (G1), `Button` (G2), `CheckBox`/`RadioButton` (G3), `Window` (G6), `Slider`, `ScrollBar`, `ListView`. Despacho por `switch` exhaustivo y `measure`. **Implementado** (HOST-224/225/226/229/262/311/312). |
 | `keys.hpp` | Teclas lógicas de la UI (imprimibles ASCII/Latin-1 + edición/navegación). **Implementado** (HOST-227). |
 | `keymap.hpp` | Traducción **rawkey Amiga → carácter** por **distribución nacional** (US/ES/FR/IT/DE/RU) + Shift + **teclas muertas** (`compose`/`rawkey_to_char`). **Implementado** (HOST-261/263/265); validar las tablas contra el ROM, pendiente. |

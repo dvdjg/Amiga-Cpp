@@ -17,8 +17,36 @@ enum class UiEventKind : eng::u8 {
 	MouseUp,
 	KeyDown,
 	KeyUp,
-	JoyButton, ///< joystick/gamepad (botón o dirección)
-	Tick,      ///< VBlank: caret, toasts, animación
+	JoyButton,     ///< joystick/gamepad (botón o dirección)
+	Tick,          ///< VBlank: caret, toasts, animación
+	PointerCancel, ///< cancelación de puntero (pérdida de foco global, cierre de ventana, cambio de escena)
+	Action,        ///< acción semántica (`UiAction`), ya traducida del rawkey por la capa de entrada
+};
+
+/// **Acción semántica** de UI (G9): el widget no depende del *scancode* ni del layout nacional.
+/// La capa de entrada traduce rawkey → `UiAction`; los widgets consumen la acción y solo miran
+/// `KeyDown`/`KeyUp` cuando necesitan repetición o combinaciones.
+enum class UiAction : eng::u8 {
+	None = 0,
+	Accept,        ///< confirmar (Return/Enter)
+	Cancel,        ///< cancelar/cerrar (Esc)
+	NextFocus,     ///< siguiente foco (Tab)
+	PreviousFocus, ///< foco anterior (Shift+Tab)
+	MoveLeft,      ///< navegación izquierda
+	MoveRight,     ///< navegación derecha
+	MoveUp,        ///< navegación arriba
+	MoveDown,      ///< navegación abajo
+	PageUp,        ///< página anterior
+	PageDown,      ///< página siguiente
+	Home,          ///< inicio
+	End,           ///< fin
+	Delete,        ///< borrar hacia delante
+	Copy,          ///< copiar
+	Cut,           ///< cortar
+	Paste,         ///< pegar
+	SelectAll,     ///< seleccionar todo
+	Activate,      ///< activar el elemento con foco (click del foco)
+	ContextMenu,   ///< menú contextual
 };
 
 /// Evento de UI. Genérico para ratón, teclado, joystick y tick.
@@ -28,6 +56,7 @@ struct UiEvent {
 	eng::s16 y = 0;
 	eng::u8 buttons = 0;  ///< bitmask de botones del ratón
 	eng::u16 key = 0;     ///< scancode Amiga
+	UiAction action = UiAction::None; ///< acción semántica (solo con `UiEventKind::Action`)
 	bool shift = false;
 	bool ctrl = false;
 	bool alt = false;

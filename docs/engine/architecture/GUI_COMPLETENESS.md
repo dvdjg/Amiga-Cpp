@@ -25,10 +25,7 @@ UiPainter → Surface → Rasterizer → FramePlan  integrado
         └── Copper: composición de display, paleta y publicación
 ```
 
-La documentación de `GUI_LIBRARY.md` menciona `Text`, `MouseDrag` y `FocusLost`, pero
-`engine/include/eng/ui/event.hpp` todavía no los define. `UiContext` tampoco procesa actualmente
-`MouseMove`, `KeyUp` ni `JoyButton`. La API de eventos debe converger antes de ampliar el catálogo de
-widgets.
+**G9 parcial entregado**: `UiEventKind` incorpora `PointerCancel` y `Action`, y `UiEvent` lleva `UiAction` (acciones semánticas). `UiContext` resuelve `NextFocus`/`PreviousFocus`, `Cancel` (cierra el diálogo/popup superior) y `PointerCancel` (cancela el click en curso sin disparar `on_click`), y `action_widget` activa botón/casilla/radio con `Accept`/`Activate` (HOST-225). Quedan para cerrar G9: captura de puntero y propagación `capture → target → bubble`, `hover`, `TextInput`/`FocusIn`/`FocusOut`, repetición centralizada y `TextModel`.
 
 ## Abstracciones que faltan
 

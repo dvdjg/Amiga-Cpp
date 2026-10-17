@@ -358,21 +358,31 @@ Entrada (eng::os Msg, o síncrona)
 namespace eng::ui {
 
 enum class UiEventKind : eng::u8 {
-	MouseMove, MouseDown, MouseUp, MouseDrag,
-	KeyDown, KeyUp, Text, FocusLost, Tick,
+	None, MouseMove, MouseDown, MouseUp, KeyDown, KeyUp, JoyButton, Tick,
+	PointerCancel, ///< cancelación de puntero (pérdida de foco, cierre, cambio de escena)
+	Action,        ///< acción semántica (`UiAction`) ya traducida por la capa de entrada
+};
+
+enum class UiAction : eng::u8 {
+	None, Accept, Cancel, NextFocus, PreviousFocus,
+	MoveLeft, MoveRight, MoveUp, MoveDown, PageUp, PageDown, Home, End, Delete,
+	Copy, Cut, Paste, SelectAll, Activate, ContextMenu,
 };
 
 struct UiEvent {
-	UiEventKind kind = UiEventKind::MouseMove;
+	UiEventKind kind = UiEventKind::None;
 	eng::s16 x = 0;
 	eng::s16 y = 0;
-	eng::u16 key = 0;        ///< scancode Amiga o ASCII segun la capa de entrada
+	eng::u16 key = 0;        ///< tecla lógica (ver `keys.hpp`); el rawkey lo traduce la entrada
+	UiAction action = UiAction::None; ///< acción semántica (solo con `UiEventKind::Action`)
 	eng::u8 buttons = 0;
 	bool shift = false;
 };
 
 } // namespace eng::ui
 ```
+
+- **Acciones semánticas (G9, implementado)**: `UiContext` resuelve `NextFocus`/`PreviousFocus` (ciclo de foco), `Cancel` (cierra el diálogo/popup superior, equivalente a `Esc`), `PointerCancel` (cancela el click en curso sin disparar `on_click`) y delega `Accept`/`Activate` en el widget con foco (`action_widget`: botón, casilla y radio); el resto de acciones se ofrecen al widget con foco.
 
 - **Hit-test**: recorrer el árbol desde el último hijo (más al frente) y devolver el primer
   widget `Visible|Enabled` que contenga el punto. Los hijos se insertan al frente en

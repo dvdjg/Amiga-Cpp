@@ -39,6 +39,13 @@ eng::ui::UiEvent mouse(eng::ui::UiEventKind k, eng::s16 x, eng::s16 y) {
 	return e;
 }
 
+eng::ui::UiEvent action(eng::ui::UiAction a) {
+	eng::ui::UiEvent e;
+	e.kind = eng::ui::UiEventKind::Action;
+	e.action = a;
+	return e;
+}
+
 constexpr eng::u16 kW = 32u;
 constexpr eng::u16 kH = 16u;
 constexpr eng::u16 kRow = static_cast<eng::u16>(((kW / 8u) + 3u) & ~3u);
@@ -120,6 +127,28 @@ int main() {
 	// --- un deshabilitado se salta ---
 	b.clear_flag(eng::ui::WfEnabled);
 	check(ctx.hit_test(&root, 15, 5) == &a, "hit-test salta el deshabilitado");
+
+	// --- G9: PointerCancel cancela el click en curso (no dispara on_click) ---
+	b.set_flag(eng::ui::WfEnabled);
+	clicks_a = 0;
+	check(ctx.dispatch(mouse(eng::ui::UiEventKind::MouseDown, 5, 5)), "MouseDown antes de cancelar");
+	check(a.has(eng::ui::WfPressed), "press activo antes de cancelar");
+	check(ctx.dispatch(mouse(eng::ui::UiEventKind::PointerCancel, 0, 0)),
+	      "PointerCancel consume con press activo");
+	check(!a.has(eng::ui::WfPressed), "PointerCancel limpia pressed");
+	ctx.dispatch(mouse(eng::ui::UiEventKind::MouseUp, 5, 5));
+	check(clicks_a == 0, "tras PointerCancel el up no dispara");
+
+	// --- G9: acciones semanticas (foco y activacion) ---
+	ctx.set_focus(&a);
+	check(ctx.dispatch(action(eng::ui::UiAction::NextFocus)), "NextFocus consume");
+	check(ctx.focus == &b, "NextFocus mueve a B");
+	check(ctx.dispatch(action(eng::ui::UiAction::PreviousFocus)), "PreviousFocus consume");
+	check(ctx.focus == &a, "PreviousFocus vuelve a A");
+	clicks_a = 0;
+	check(ctx.dispatch(action(eng::ui::UiAction::Activate)), "Activate consume");
+	check(clicks_a == 1, "Activate dispara on_click del foco");
+	check(!ctx.dispatch(action(eng::ui::UiAction::Cancel)), "Cancel sin dialogo no consume");
 
 	// --- dibujo del boton (bisel segun WfPressed) ---
 	alignas(2) eng::u8 planes[kPlaneStride * kPlanes] {};

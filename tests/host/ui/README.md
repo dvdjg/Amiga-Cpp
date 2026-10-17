@@ -8,7 +8,7 @@ Categoría `ui` de la batería host (L1). El índice de categorías está en [..
 |----|------|-----------|
 | HOST-223 | [ui_painter](223_ui_painter/README.md) | GUI G0: `eng::ui::UiPainter`/`UiTheme` (chrome: `fill`/`frame`/`bevel_out`/`bevel_in`/`panel`/`button_face`/glifo), medida y recorte de texto (`text_width`/`draw_text_clipped`) y `eng::ui::Rect` = `eng::Box`. |
 | HOST-224 | [ui_widgets](224_ui_widgets/README.md) | GUI G1: árbol de widgets (`eng/ui/widget.hpp`), `DirtyList<Max>` (fusión/desborde) y `Panel`/`Label` con `draw_widget` (`switch` exhaustivo) y `measure`. |
-| HOST-225 | [ui_context](225_ui_context/README.md) | GUI G2: `eng::ui::UiContext` (hit-test de delante hacia atrás, foco, despacho) y `Button` (`on_click` al soltar dentro, una vez). |
+| HOST-225 | [ui_context](225_ui_context/README.md) | GUI G2: `eng::ui::UiContext` (hit-test de delante hacia atrás, foco, despacho) y `Button` (`on_click` al soltar dentro, una vez); G9: `PointerCancel` y acciones semánticas (`UiAction`: foco, `Activate`, `Cancel`). |
 | HOST-226 | [ui_toggle](226_ui_toggle/README.md) | GUI G3: `CheckBox` (alterna `*value` al soltar dentro) y `RadioButton` (activa uno y desactiva el grupo por `group_id`). |
 | HOST-227 | [ui_edit](227_ui_edit/README.md) | GUI G4: foco de teclado (`Tab`/`Shift+Tab`) y `EditBox` (buffer externo, insertar/borrar, caret y vista horizontal). |
 | HOST-228 | [ui_layout](228_ui_layout/README.md) | GUI G5: `layout_stack_v`/`layout_stack_h`, `anchor`, `measure` de botón y cambio de tema (recolorea). |
@@ -31,3 +31,5 @@ Categoría `ui` de la batería host (L1). El índice de categorías está en [..
 | HOST-313 | [ui_text_blit](313_ui_text_blit/README.md) | Texto por Blitter con caché de glifos (`GlyphMask`/`GlyphCache`/`draw_text_blit`): cookie-cut, 2 glifos/palabra, equivalencia píxel a píxel con la CPU. |
 | HOST-314 | [ui_layout_adaptive](314_ui_layout_adaptive/README.md) | Layout adaptable: `grid`, `flow`+wrap, `column_fill`, `fit al contenido`, `center`; texto ajustado (`text_wrap_lines`/`draw_text_wrapped`, `Label.wrap`). |
 | HOST-315 | [font_variants](315_font_variants/README.md) | Variantes de fuente: cursiva (*shear*) de `Font8`/`Font5x7` y micro-fuente `Font3x5` derivada. |
+| HOST-467 | [hud_model](467_hud_model/README.md) | HUD H0 (`eng/hud/model.hpp`, `region.hpp`, `theme.hpp`): handles tipados de capacidad fija (regiones/widgets/slots/ops/hits), `set()` marca *dirty* solo al cambiar el valor visible, `Counter` base 10/16/2 con ceros a la izquierda y negativos (sin división), rejilla con selección/foco, transiciones de `DragSession` y `HudRegionSpec` inválida rechazada. |
+| HOST-468 | [hud_strip](468_hud_strip/README.md) | HUD H1 (`eng/hud/strip.hpp`): `HudStrip` ligado a bloque Chip (validación de configuración y tamaño), limpieza con el fondo del tema y `apply_hud_ops` (`Fill`/`Frame`/`Text`/`Digits`) con recorte; `Blit`/`Sprite`/`Palette` reservadas a H4/H6. |

@@ -408,6 +408,16 @@ if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 			exit 1
 		fi
 	fi
+	# Atlas de iconos del HUD: auto-test sin assets (geometria, bit order MSB-first, round-trip).
+	ST_HUD_ATLAS="$ROOT/tools/assets/hud-atlas.mjs"
+	if [ -f "$ST_HUD_ATLAS" ] && command -v node >/dev/null 2>&1; then
+		echo "== selftest-hud-atlas =="
+		ec=0; node "$ST_HUD_ATLAS" --selftest || ec=$?
+		if [ "$ec" -ne 0 ]; then
+			echo "selftest-hud-atlas fallo: el atlas del HUD no fija geometria/bit order/round-trip." >&2
+			exit 1
+		fi
+	fi
 	# Host-tool `audio-compressor`: se compila para que HOST-382 no se omita en un checkout
 	# limpio. Si el build falla se avisa y se sigue (el test depende de un binario externo y
 	# se salta por diseno); no se convierte en fallo duro de la suite.
