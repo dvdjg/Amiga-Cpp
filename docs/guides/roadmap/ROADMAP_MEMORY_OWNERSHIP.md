@@ -194,7 +194,7 @@ se puede** sin `clear()` total. La memoria del engine se reparte en **dos vidas 
 - **Copperlist**: `ListBuilder::write_pair`/`move32` rechazan capacidad `< 2` (antes `capacity - 2` envolvía y escribía con puntero nulo/vacío). La capacidad ya viajaba en el `Block<CopperTag, Chip>`.
 - **Racha de blits**: `Screen::stamp::at` y `clear_now` acotan contra la geometría del destino; `clear_now` exige `x` alineado a 16 (el blit D-only no lleva máscara de borde).
 
-**Pendiente** (detalle y gates en [`ROADMAP_API_COHERENCE.md`](ROADMAP_API_COHERENCE.md) §F8): barrido de escrituras directas `Block::view.data()` en demos técnicas. Quedan hechos el **contrato de tamaño de la hoja del BOB** (`frame_bytes`/`mask_bytes`), la **validación genérica de `BlitJob`** (`TargetBounds` + `blit_job_within`) y la **auditoría de capacidad de owners** (copper plan/builder, SpriteManager, cadenas DMA, tile scroll y audio, con canario de `ListBuilder` 0/1 en HOST-446).
+**Hecho** (detalle y gates en [`ROADMAP_API_COHERENCE.md`](ROADMAP_API_COHERENCE.md) §F8): barrido de escrituras directas `Block::view.data()` en demos técnicas, con el gate `demo-raw-writes` (32 demos técnicas declaradas como frontera, 0 en baseline). Quedan hechos el **contrato de tamaño de la hoja del BOB** (`frame_bytes`/`mask_bytes`), la **validación genérica de `BlitJob`** (`TargetBounds` + `blit_job_within`) y la **auditoría de capacidad de owners** (copper plan/builder, SpriteManager, cadenas DMA, tile scroll y audio, con canario de `ListBuilder` 0/1 en HOST-446).
 
 ## Estado: frente pausado
 

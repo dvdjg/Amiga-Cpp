@@ -353,7 +353,7 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 
 **Gates:** HOST-232 (círculo/clip), HOST-388 (plan lleno), HOST-439 (fuera de buffer/reserva corta/límite exacto/shift, canarios) y demo 122 (`build -> run -> analyze`, 49,92 fps, visión limpia). La 213 (streaming con 16 BOBs) se midió tras el cambio: **49,97 fps / 1,001 campos** (el chequeo de `StampRun::at` se compensó usando `mulu.w` en vez de `__mulsi3` para el offset de fila/frame).
 
-**Pendiente (no bloquea):** canarios de capacidad en `SpriteManager`/`copper::Plan`/`TileScrollDriver`/audio y barrido de `Block::view.data()` en demos técnicas. **Hecho después de este registro:** contrato de tamaño de la hoja del BOB (`frame_bytes`/`mask_bytes`) con los 9 tests de hojas débiles endurecidos, y validación genérica de `BlitJob` en el `FramePlan` (`TargetBounds` + `blit_job_within`). Plan en `ROADMAP_API_COHERENCE.md` §F8 y `ROADMAP_MEMORY_OWNERSHIP.md` Fase 8.
+**Hecho después de este registro:** contrato de tamaño de la hoja del BOB (`frame_bytes`/`mask_bytes`) con los 9 tests de hojas débiles endurecidos; validación genérica de `BlitJob` en el `FramePlan` (`TargetBounds` + `blit_job_within`); barrido de `Block::view.data()` con el gate `demo-raw-writes`; y canarios de audio en target (`tests/amiga/l1_backend/002_audio_leases`, L1-002). Pendiente (no bloquea): canarios de capacidad en `SpriteManager`/`copper::Plan`/`TileScrollDriver`. Plan en `ROADMAP_API_COHERENCE.md` §F8 y `ROADMAP_MEMORY_OWNERSHIP.md` Fase 8.
 
 ## DT-029 - Demo 011 (`typed_memory`): no alcanza READY (state=0, `PC=0x4`) - RESUELTO
 
