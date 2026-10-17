@@ -258,7 +258,13 @@ void draw_faces(obj::Object3D& object, eng::PlaneBytes planes, eng::amiga::Amiga
 #define FLATSHADE_SKIP_FILL 0
 #endif
 #ifndef FLATSHADE_FILL_BBOX
-#define FLATSHADE_FILL_BBOX 0
+// Barrido del area fill ACORTADO por la bbox del objeto (`blitter_area_fill(..., bbox)`,
+// un solo blit contiguo: semilla bajo la caja del ultimo plano, fin tras la caja del
+// plano 0; las filas externas son limpias y omitirlas es NO-OP de pixel). Medido
+// 2026-10: el intento antiguo de 4 jobs por plano empeoraba (se serializaban); este
+// ahorra el barrido de las filas externas (~6k) con un solo blit. `=0` vuelve al
+// barrido completo para A/B.
+#define FLATSHADE_FILL_BBOX 1
 #endif
 #ifndef FLATSHADE_FREEZE_ANGLE
 // Angulo FIJO para capturas deterministas (0 = anima). Con esto la captura no depende

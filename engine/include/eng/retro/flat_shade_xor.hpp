@@ -71,8 +71,10 @@ inline eng::u32 flat_shade_xor(Backend& backend, eng::PlaneBytes planes, eng::u1
 			       eng::u32 plane_bytes, eng::u8 plane_count, eng::u16 width,
 			       eng::u16 height, eng::Span<const OutlineEdge> edges,
 			       bool area_fill_wait = true, const eng::s16* bbox = nullptr) {
-	backend.blitter_lines_begin(row_bytes);
 	eng::u8* base = planes.data();
+	// `base` como `BLTDPT` fijo del lote: el truco del original (D siempre en la base
+	// del bitmap) y los draws se ahorran esa escritura por linea-plano.
+	backend.blitter_lines_begin(row_bytes, base);
 	eng::u32 lines = 0u;
 	for (eng::usize i = 0u; i < edges.size(); ++i) {
 		const OutlineEdge& e = edges[i];
@@ -97,34 +99,15 @@ inline eng::u32 flat_shade_xor(Backend& backend, eng::PlaneBytes planes, eng::u1
 					  height, area_fill_wait);
 		return lines;
 	}
-	// Fill acotado por cara: una caja con TODAS las cruces del contorno basta para que la
-	// paridad rellene igual que el barrido completo (no hay cruces fuera).
-	eng::s16 x0 = static_cast<eng::s16>(bbox[0] - 2);
-	eng::s16 y0 = static_cast<eng::s16>(bbox[2] - 2);
-	eng::s16 x1 = static_cast<eng::s16>(bbox[1] + 2);
-	eng::s16 y1 = static_cast<eng::s16>(bbox[3] + 2);
-	if (x0 < 0) x0 = 0;
-	if (y0 < 0) y0 = 0;
-	const eng::s16 max_x = static_cast<eng::s16>(width - 1u);
-	const eng::s16 max_y = static_cast<eng::s16>(height - 1u);
-	if (x1 > max_x) x1 = max_x;
-	if (y1 > max_y) y1 = max_y;
-	if (x1 < x0 || y1 < y0) {
-		return lines;
-	}
-	const eng::u16 wx0 = static_cast<eng::u16>(x0) & 0xfff0u;
-	const eng::u16 wx1 = static_cast<eng::u16>(x1) | 0x000fu;
-	const eng::u16 words = static_cast<eng::u16>((static_cast<eng::u16>(wx1 - wx0) + 16u) >> 4u);
-	const eng::u16 rows = static_cast<eng::u16>(y1 - y0 + 1);
-	for (eng::u8 p = 0u; p < plane_count; ++p) {
-		eng::PlaneBytes plane {
-			base + static_cast<eng::u32>(p) * plane_bytes, plane_bytes};
-		// Cada fill espera internamente al anterior (programa los registros con el
-		// Blitter libre); el `area_fill_wait` solo gobierna la espera FINAL, igual que en
-		// el barrido completo.
-		backend.blitter_area_fill_rect(plane, row_bytes, wx0, y0, words, rows,
-					       area_fill_wait);
-	}
+	// Fill acotado: **UN solo blit contiguo** con el barrido acortado por la caja del
+	// contorno (`blitter_area_fill(..., bbox)`): la semilla va bajo la caja (fila
+	// maxY+2 del último plano) y el barrido muere tras la fila minY-2 del plano 0.
+	// Las filas externas son limpias por contrato (la caja cubre TODO el contorno con
+	// margen de 2 px) y una fila sin cruces reescribe D con su propio valor, así que
+	// omitirlas deja la paridad y los píxeles intactos. Sustituye al intento de 4 jobs
+	// por plano, medido peor (se serializaban dentro del update).
+	backend.blitter_area_fill(planes, plane_count, row_bytes, plane_bytes, width, height,
+				  area_fill_wait, bbox);
 	return lines;
 }
 

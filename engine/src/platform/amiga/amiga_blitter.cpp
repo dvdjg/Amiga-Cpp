@@ -831,7 +831,7 @@ bool AmigaBackend::blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 x0
 	return wait_blitter();
 }
 
-void AmigaBackend::blitter_lines_begin(u16 row_bytes) {
+void AmigaBackend::blitter_lines_begin(u16 row_bytes, eng::u8* d_base) {
 	// Setup común para una secuencia de líneas por Blitter (modo LINE, copia o EOR/ONEDOT),
 	// equivalente al preludio de `DrawObject` en flatshade-convex y wireframe del
 	// demoscene-repo-orig (`bltafwm/bltalwm=-1, bltadat=0x8000, bltbdat=0xffff,
@@ -841,6 +841,13 @@ void AmigaBackend::blitter_lines_begin(u16 row_bytes) {
 	// con `cpu_cycle_exact`, y reescribirlos por arista×plano es desperdicio (el original
 	// no lo hace). NO espera al Blitter: el primer `blitter_line_*_draw` (que sí espera)
 	// sincroniza con cualquier blit previo (el clear).
+	//
+	// `d_base` (opcional) fija **`BLTDPT` a la base del bitmap** UNA vez: es el truco del
+	// original de flatshade (el primer píxel de la línea va por D a un punto inofensivo —
+	// mantiene la paridad del contorno en los vértices). Sin él, cada `blitter_line_draw`
+	// deja D en la propia línea (modo copia de wireframe). Con D fijado aquí, los draws
+	// del lote se AHORRAN la escritura de `BLTDPT` (~57 ciclos × línea × plano;
+	// `m_line_fixed_dpt`). No mezclar draws con distinto `d_base` en el mismo lote.
 	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
 	custom_base[custom_bltafwm_offset] = 0xffff;
 	custom_base[custom_bltalwm_offset] = 0xffff;
@@ -848,6 +855,10 @@ void AmigaBackend::blitter_lines_begin(u16 row_bytes) {
 	custom_base[custom_bltbdat_offset] = 0xffff;
 	custom_base[custom_bltcmod_offset] = row_bytes;
 	custom_base[custom_bltdmod_offset] = row_bytes;
+	m_line_fixed_dpt = d_base != nullptr;
+	if (d_base != nullptr) {
+		write_custom_pointer(custom_bltdpt_offset, d_base);
+	}
 }
 
 /// Cuerpo común de `blitter_line_prepare` (modo copia) y `blitter_line_eor_prepare`
@@ -919,13 +930,18 @@ void AmigaBackend::blitter_line_draw(const LineEorParams& p, eng::u8* plane_ptr,
 	write_custom_pointer(custom_bltapt_offset,
 			     reinterpret_cast<void*>(static_cast<u32>(static_cast<s32>(p.derr))));
 	write_custom_pointer(custom_bltcpt_offset, data);
-	write_custom_pointer(custom_bltdpt_offset, d_base != nullptr ? d_base : data);
+	// `BLTDPT`: fijo a la base del bitmap si el lote lo hoisto en
+	// `blitter_lines_begin(..., d_base)` (ver `m_line_fixed_dpt`); en modo copia
+	// (sin d_base) va a la propia linea, como dicta el uso del canal D.
+	if (!m_line_fixed_dpt) {
+		write_custom_pointer(custom_bltdpt_offset, d_base != nullptr ? d_base : data);
+	}
 	custom_base[custom_bltsize_offset] = p.bltsize;
 	// Sin esperar aqui: la siguiente operacion (o el swap de copperlist) sincroniza.
 }
 
 bool AmigaBackend::blitter_area_fill(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 width, u16 height,
-				       bool wait) {
+				       bool wait, const eng::s16* bbox) {
 	if (dst.data() == nullptr || planes == 0u || width < 16u || height == 0u) {
 		return false;
 	}
@@ -935,7 +951,34 @@ bool AmigaBackend::blitter_area_fill(eng::PlaneBytes dst, u8 planes, u16 row_byt
 	// contorno, de modo que rellena el interior (port de `BlitterFillArea`; el
 	// original `flatshade-convex` usaba altura 0 por un bug, insuficiente).
 	u8* bltpt = dst.data() + static_cast<u32>(plane_bytes) * planes - 2u;
-	const u16 bltsize = static_cast<u16>((0u << 6) | (width >> 4));
+	u16 bltsize = static_cast<u16>((0u << 6) | (width >> 4));
+	// Barrido ACORTADO por bbox (ver la cabecera de la API): semilla en la fila
+	// min(maxY+2, h-1) del ULTIMO plano y fin tras la fila max(minY-2, 0) del plano 0.
+	// Un solo blit: los planos son contiguos y las filas omitidas son limpias por
+	// contrato (omidirlas es un NO-OP de pixel — una fila sin cruces reescribe D).
+	if (bbox != nullptr) {
+		eng::s32 r = static_cast<eng::s32>(bbox[3]) + 2; // fila semilla (bajo el contorno)
+		eng::s32 n = static_cast<eng::s32>(bbox[2]) - 2; // ultima fila a procesar (plano 0)
+		const eng::s32 last = static_cast<eng::s32>(height) - 1;
+		if (r > last) {
+			r = last;
+		}
+		if (n < 0) {
+			n = 0;
+		}
+		// Solo acorta si quedan margenes limpios arriba/abajo; si no, barrido completo.
+		if (r < last || n > 0) {
+			const eng::s32 rows = (r + 1) +
+					      (static_cast<eng::s32>(planes) - 2) * static_cast<eng::s32>(height) +
+					      (static_cast<eng::s32>(height) - n);
+			if (rows >= 1 && rows <= 1024) {
+				bltpt = dst.data() + static_cast<u32>(planes - 1u) * plane_bytes +
+					static_cast<u32>(r) * row_bytes + row_bytes - 2u;
+				bltsize = static_cast<u16>(((rows == 1024) ? 0u : static_cast<u16>(rows)) << 6) |
+					  static_cast<u16>(width >> 4);
+			}
+		}
+	}
 	wait_blitter();
 	write_custom_pointer(custom_bltapt_offset, bltpt);
 	write_custom_pointer(custom_bltdpt_offset, bltpt);

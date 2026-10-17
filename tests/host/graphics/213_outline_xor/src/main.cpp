@@ -26,13 +26,17 @@ struct MockBackend {
 	int draws = 0;
 	int fills = 0;
 	int waits = 0;
+	bool begin_dpt_fixed = false; ///< `blitter_lines_begin` recibio `d_base` (BLTDPT fijo del lote)
 	u16 fill_planes = 0;
 	u16 fill_w = 0;
 	u16 fill_h = 0;
 	bool fill_wait = true;
 	s16 last_x0 = 0, last_y0 = 0, last_x1 = 0, last_y1 = 0;
 
-	void blitter_lines_begin(u16) { ++begins; }
+	void blitter_lines_begin(u16, u8* d_base = nullptr) {
+		++begins;
+		begin_dpt_fixed = (d_base != nullptr);
+	}
 	bool blitter_line_eor_prepare(LineEorParams& out, u16, s16 x0, s16 y0, s16 x1, s16 y1) {
 		out.dummy = 1;
 		++prepares;
@@ -46,14 +50,17 @@ struct MockBackend {
 		return true;
 	}
 	void blitter_line_draw(const LineEorParams&, u8*, u8*) { ++draws; }
-	bool blitter_area_fill(eng::PlaneBytes, u8 planes, u16, u32, u16 w, u16 h, bool wait) {
+	bool blitter_area_fill(eng::PlaneBytes, u8 planes, u16, u32, u16 w, u16 h, bool wait,
+			       const eng::s16* bbox = nullptr) {
 		++fills;
 		fill_planes = planes;
 		fill_w = w;
 		fill_h = h;
 		fill_wait = wait;
+		fill_bbox = bbox;
 		return true;
 	}
+	const eng::s16* fill_bbox = nullptr; ///< bbox recibida por el area fill (nullptr = barrido completo)
 	bool blitter_area_fill_rect(eng::PlaneBytes, u16, u16 wx0, s16 y0, u16 words, u16 rows,
 				    bool wait) {
 		++rect_fills;
@@ -91,10 +98,14 @@ int main() {
 	};
 
 	MockBackend backend;
-	const u32 lines = flat_shade_xor(backend, eng::PlaneBytes {}, 40u, 8192u, 4u, 256u, 256u,
+	static eng::u8 pixels[32768] = {};
+	eng::PlaneBytes planes {pixels, sizeof(pixels)};
+	const u32 lines = flat_shade_xor(backend, planes, 40u, 8192u, 4u, 256u, 256u,
 					 eng::Span<const OutlineEdge> {edges, 3u});
 
 	check(backend.begins == 1, "los comunes del modo linea se fijan UNA vez");
+	check(backend.begin_dpt_fixed,
+	      "flat_shade_xor fija BLTDPT (base del bitmap) en el preludio del lote");
 	check(backend.prepares == 2, "la arista horizontal se descarta (2 prepares)");
 	check(backend.draws == 3, "una linea por plano del color (2 + 1)");
 	check(lines == 3u, "flat_shade_xor devuelve las lineas-plano lanzadas");
@@ -102,6 +113,17 @@ int main() {
 	check(backend.fill_planes == 4u && backend.fill_w == 256u && backend.fill_h == 256u,
 	      "el area fill cubre los planos y la pantalla pedidos");
 	check(backend.fill_wait, "el area fill espera por defecto");
+	check(backend.fill_bbox == nullptr, "sin bbox: barrido completo");
+
+	// Con bbox: un SOLO area fill con la caja (barrido acortado contiguo; el backend
+	// real la aplica, el mock solo registra que llega la caja).
+	backend = MockBackend {};
+	const eng::s16 face_bbox[4] = {10, 80, 20, 60};
+	(void)flat_shade_xor(backend, planes, 40u, 8192u, 4u, 256u, 256u,
+			     eng::Span<const OutlineEdge> {edges, 3u}, /*area_fill_wait=*/true,
+			     face_bbox);
+	check(backend.fills == 1, "con bbox: sigue siendo UN solo area fill (un blit contiguo)");
+	check(backend.fill_bbox == face_bbox, "la bbox llega al area fill del backend");
 
 	// `area_fill_wait = false`: el fill se encola (para solapar con la CPU).
 	(void)flat_shade_xor(backend, eng::PlaneBytes {}, 40u, 8192u, 4u, 256u, 256u,
