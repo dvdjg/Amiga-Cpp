@@ -1029,30 +1029,34 @@ struct RpgSlice {
 	static constexpr Step kScript[] = {
 		{0u, 5u, 10u, 0u}, {0u, 5u, 10u, 1u},                   // 0-1 anciana: encargo+espada
 		{0u, 7u, 11u, 0u},                                      // 2 recoger las pocimas
-		{0u, 6u, 8u, 0u}, {0u, 18u, 8u, 0u}, {0u, 18u, 7u, 0u}, // 3-5 sendero al este
+		{0u, 7u, 8u, 0u}, {0u, 18u, 8u, 0u}, {0u, 18u, 7u, 0u}, // 3-5 sendero al este
 		{0u, 19u, 7u, 0u},                                      // 6 puerta (a bosque)
 		{1u, 1u, 6u, 0u}, {1u, 6u, 6u, 0u}, {1u, 6u, 5u, 0u},   // 7-9 lobo 1
-		{1u, 6u, 5u, 1u}, {1u, 6u, 5u, 1u},                     // 10-11 dos espadazos
-		{1u, 6u, 4u, 0u},                                       // 12 piel
-		{1u, 6u, 6u, 0u}, {1u, 10u, 6u, 0u}, {1u, 10u, 9u, 0u}, // 13-15 lobo 2
-		{1u, 10u, 9u, 1u}, {1u, 10u, 9u, 1u},                   // 16-17
-		{1u, 10u, 10u, 0u},                                     // 18 piel
-		{1u, 10u, 6u, 0u}, {1u, 15u, 6u, 0u},                   // 19-20 lobo 3
-		{1u, 15u, 6u, 1u}, {1u, 15u, 6u, 1u},                   // 21-22
-		{1u, 15u, 5u, 0u},                                      // 23 piel
-		{1u, 8u, 6u, 0u},                                       // 24 pocima del sendero
-		{1u, 1u, 7u, 0u}, {1u, 0u, 7u, 0u},                     // 25-26 puerta oeste
-		{0u, 18u, 7u, 0u}, {0u, 18u, 8u, 0u}, {0u, 11u, 9u, 0u}, {0u, 11u, 10u, 0u}, // 27-30 mercader
-		{0u, 11u, 10u, 1u}, {0u, 11u, 10u, 1u}, {0u, 11u, 10u, 1u}, {0u, 11u, 10u, 1u}, // 31-34 vender x3 y comprar la llave
-		{0u, 18u, 10u, 0u}, {0u, 18u, 8u, 0u}, {0u, 18u, 7u, 0u}, // 35-37 volver al este
-		{0u, 19u, 7u, 0u},                                      // 38 puerta (a bosque)
-		{1u, 18u, 7u, 0u}, {1u, 18u, 7u, 1u},                   // 39-40 abrir el torreon
-		{1u, 19u, 7u, 0u},                                      // 41 puerta (a mazmorra)
-		{2u, 1u, 6u, 0u}, {2u, 5u, 6u, 0u}, {2u, 5u, 8u, 0u}, {2u, 7u, 8u, 0u}, // 42-45 rodeo
-		{2u, 7u, 4u, 0u}, {2u, 8u, 5u, 0u}, {2u, 15u, 5u, 0u}, {2u, 15u, 4u, 0u}, // 46-49 al cofre
-		{2u, 15u, 4u, 1u},                                      // 50 abrir el cofre
-		{2u, 16u, 4u, 0u}, {2u, 16u, 3u, 0u},                   // 51-52 recoger la reliquia
-		{2u, 8u, 5u, 0u}, {2u, 15u, 5u, 0u},                    // 53-54 patrulla (se repite)
+		// Tres amagos por lobo: el golpe efectivo va en el 1.er y 3.er flanco del fuego
+		// (cadencia 12 frames por paso < enfriamiento 18 de `player_attack`): dos golpes
+		// de espada dejan al lobo en 0 y sueltan la piel. Con dos pasos el 2.o golpe
+		// caia en enfriamiento y el lobo sobrevivia persiguiendo al jugador.
+		{1u, 6u, 5u, 1u}, {1u, 6u, 5u, 1u}, {1u, 6u, 5u, 1u},   // 10-12 dos espadazos
+		{1u, 6u, 4u, 0u},                                       // 13 piel
+		{1u, 6u, 6u, 0u}, {1u, 10u, 6u, 0u}, {1u, 10u, 9u, 0u}, // 14-16 lobo 2
+		{1u, 10u, 9u, 1u}, {1u, 10u, 9u, 1u}, {1u, 10u, 9u, 1u}, // 17-19
+		{1u, 10u, 10u, 0u},                                     // 20 piel
+		{1u, 10u, 6u, 0u}, {1u, 15u, 6u, 0u},                   // 21-22 lobo 3
+		{1u, 15u, 6u, 1u}, {1u, 15u, 6u, 1u}, {1u, 15u, 6u, 1u}, // 23-25
+		{1u, 15u, 5u, 0u},                                      // 26 piel
+		{1u, 8u, 6u, 0u},                                       // 27 pocima del sendero
+		{1u, 1u, 7u, 0u}, {1u, 0u, 7u, 0u},                     // 28-29 puerta oeste
+		{0u, 18u, 7u, 0u}, {0u, 18u, 8u, 0u}, {0u, 11u, 9u, 0u}, {0u, 11u, 10u, 0u}, // 30-33 mercader
+		{0u, 11u, 10u, 1u}, {0u, 11u, 10u, 1u}, {0u, 11u, 10u, 1u}, {0u, 11u, 10u, 1u}, // 34-37 vender x3 y comprar la llave
+		{0u, 11u, 11u, 0u}, {0u, 18u, 11u, 0u}, {0u, 18u, 8u, 0u}, {0u, 18u, 7u, 0u}, // 38-41 volver al este por abajo (el mercader bloquea la fila 10)
+		{0u, 19u, 7u, 0u},                                      // 42 puerta (a bosque)
+		{1u, 18u, 7u, 0u}, {1u, 18u, 7u, 1u},                   // 43-44 abrir el torreon
+		{1u, 19u, 7u, 0u},                                      // 45 puerta (a mazmorra)
+		{2u, 1u, 6u, 0u}, {2u, 5u, 6u, 0u}, {2u, 5u, 8u, 0u}, {2u, 7u, 8u, 0u}, // 46-49 rodeo
+		{2u, 7u, 4u, 0u}, {2u, 8u, 5u, 0u}, {2u, 15u, 5u, 0u}, {2u, 15u, 4u, 0u}, // 50-53 al cofre
+		{2u, 15u, 4u, 1u},                                      // 54 abrir el cofre
+		{2u, 16u, 4u, 0u}, {2u, 16u, 3u, 0u},                   // 55-56 recoger la reliquia
+		{2u, 8u, 5u, 0u}, {2u, 15u, 5u, 0u},                    // 57-58 patrulla (se repite)
 	};
 	static constexpr eng::u8 kScriptCount = static_cast<eng::u8>(sizeof(kScript) / sizeof(kScript[0]));
 	static constexpr eng::u8 kPatrolIndex = static_cast<eng::u8>(sizeof(kScript) / sizeof(kScript[0]) - 2u);
@@ -1083,10 +1087,29 @@ struct RpgSlice {
 			}
 			return pad;
 		}
-		pad.right = m_tx < t.x;
-		pad.left = m_tx > t.x;
-		pad.down = (pad.right == pad.left) && m_ty < t.y;
-		pad.up = (pad.right == pad.left) && !pad.down && m_ty > t.y;
+		// Paseo por ejes con **rodeo de obstaculos**: el guion no lleva pathfinding (la
+		// navegacion real llegara con la integracion RPG<->sim); si la casilla del eje
+		// preferido (X) esta ocupada (NPC, arbol, lobo), el paso va por Y para bordearla
+		// en vez de empujar indefinidamente contra ella.
+		const bool want_x = (m_tx != t.x);
+		const bool want_y = (m_ty != t.y);
+		bool use_x = want_x;
+		if (want_x) {
+			const eng::u8 sx = static_cast<eng::u8>(m_tx < t.x ? m_tx + 1u : m_tx - 1u);
+			use_x = !blocked(sx, m_ty);
+		}
+		if (use_x) {
+			pad.right = m_tx < t.x;
+			pad.left = m_tx > t.x;
+		} else if (want_y) {
+			pad.down = m_ty < t.y;
+			pad.up = m_ty > t.y;
+		} else {
+			// X tapado y fila ya alineada: reintenta X (p. ej. una puerta transitoria);
+			// si sigue tapado, el guion avanza de paso al cambiar de sala.
+			pad.right = m_tx < t.x;
+			pad.left = m_tx > t.x;
+		}
 		return pad;
 	}
 
