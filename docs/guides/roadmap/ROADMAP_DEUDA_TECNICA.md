@@ -405,8 +405,8 @@ Referencia: `docs/engine/architecture/OBJECT_SYSTEM.md` §2/§14.8; evidencia de
 
 **Hallazgos colaterales (2026-10, sin resolver):**
 
-- **Escena de 2 planos + sprite + actor: la demo se cuelga** a los pocos frames (contador parado en ~5 con READY ya alcanzado). Aislado: con 2 planos, la composición sola va a 1 campo, el sprite solo también y el actor solo también; el cuelgue aparece con los dos. Repro: 214 con `color_depth = 2`. Pendiente: depurar con GDB (PC/trap) la emisión con 2 planos.
-- **`screen.text` en escena de 6 planos cuelga en target** (aislado en la 060: `screen.clear` OK, el primer `text` no vuelve; el runner ve `state=InitStarted`). En host, HOST-232 cubre el mismo caso (6 planos contiguos + `draw_text`) y pasa, así que es específico del 68000 (¿trap de alineación/illegal en `draw_span`/`write_planes` con 6 planos?). **Bloquea la migración de la 060 a `run_demo`**; pendiente reproducir con el depurador y corregir.
+- **Escena de 2 planos: el bucle se queda bloqueado en `Wait()` de VBlank** a los ~41 frames (CPU en el `STOP` del task idle del SO; el contador de frames se congela). **No** es un trap: un stub en los vectores de bus/address/illegal/div0 no se dispara y el estado queda Ready. Con **4 planos** el mismo binario avanza con normalidad (511→945 frames en 5 s). Repro: 214 con `color_depth = 2`. Pendiente: inspeccionar `INTENA`/vector VERTB y el servicio de VBlank del engine cuando se congela.
+- **`screen.text` en escena de 6 planos**: el cuelgue observado **no reproducía** (artefacto transitorio de builds con WIP ajeno a medias); con el engine actual la 060 migrada alcanza READY, dibuja el self-check y mide **49,92 fps / 1,00 campos**. La migración queda hecha (baseline de ergonomía 133→132).
 
 **Siguiente paso:** capa de scroll por hardware con los actores en PF2 (1 campo estable) e investigar la escena de 2 planos.
 

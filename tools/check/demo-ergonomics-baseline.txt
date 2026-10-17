@@ -3,7 +3,6 @@
 # migrar a `run_demo` + `draw_hud` y borrar la linea. Solo puede encoger.
 demos/features/board/chess/amiga/123_chess_match
 demos/features/cards/amiga/124_cards_bench
-demos/features/engine/amiga/060_eng_core_selfcheck
 demos/features/engine/amiga/061_indexed_display
 demos/features/engine/amiga/062_sprite_scene
 demos/features/engine/amiga/063_composite_actors

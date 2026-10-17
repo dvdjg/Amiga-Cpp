@@ -12,10 +12,7 @@
 // Arranque de alto nivel (`run_demo`): `main` declara el display (320x256, 6 planos con la
 // paleta del self-check) y `run_demo` pone memoria, `start` y bucle; la demo no incluye
 // soporte de plataforma ni escribe `SysBase`/`g_eng_run_status`. El texto se dibuja por la
-// fachada (`screen.text`, Font8), no escribiendo planos a mano.
-//
-// Fases (las mismas que HOST-000) ejecutadas en init; el fallo queda en el `RunStatus`
-// (`BootFail::Game`) y la pantalla lo muestra con los indicadores por fase.
+// fachada (`screen.text`, Font8).
 //
 // Build (Windows nativo):
 //   bash tools/build/build-demo.sh demos/features/engine/amiga/060_eng_core_selfcheck --clean
@@ -32,13 +29,11 @@
 namespace {
 
 // Índices de la paleta base (0..31): texto blanco 31, amarillo 30, rojo 26, cian 20 (pie).
-// El display es de 6 planos; los índices < 32 no tocan el 6.º plano, así que el resultado es
-// el mismo que el EHB original para estos colores.
-constexpr eng::u8 kTextWhite = 31;
-constexpr eng::u8 kTextYellow = 30;
-constexpr eng::u8 kTextFail = 26;
+constexpr eng::u8 kTextWhite = 31u;
+constexpr eng::u8 kTextYellow = 30u;
+constexpr eng::u8 kTextFail = 26u;
 
-/// Paleta del self-check (32 entradas de 12 bits; la 6.ª mitad EHB no se usa).
+/// Paleta del self-check (32 entradas de 12 bits).
 constexpr eng::Palette32 kPalette {{
 	0x000, 0x06a, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
 	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
@@ -155,9 +150,7 @@ struct CoreSelfcheckDemo {
 
 		auto s = app.screen();
 		s.clear(0u); // fondo negro determinista (los planos nacen sin limpiar)
-		eng::debug::mark_ready(g_eng_run_status, 0x61u); // DIAG tras clear
 		s.text(16, 16, "Demo 060 - eng::core self-check", kTextWhite);
-		eng::debug::mark_ready(g_eng_run_status, 0x62u); // DIAG tras texto 1
 		s.text(16, 40, "isqrt  : ", kTextWhite);
 		s.text(100, 40, ok_fail(g_check.isqrt_ok), g_check.isqrt_ok ? kTextYellow : kTextFail);
 		s.text(16, 56, "crc32  : ", kTextWhite);
@@ -168,7 +161,7 @@ struct CoreSelfcheckDemo {
 		s.text(100, 88, ok_fail(g_check.sort_ok), g_check.sort_ok ? kTextYellow : kTextFail);
 		s.text(16, 120, g_check.ok() ? "SELF-CHECK: ALL PHASES OK" : "SELF-CHECK: FAILED",
 		       g_check.ok() ? kTextYellow : kTextFail);
-		s.text(16, 240, "optica: eng::core ports", 20);
+		s.text(16, 240, "optica: eng::core ports", 20u);
 		(void)eng::debug::draw_hud(s, "CORE 060", kVersion, app.frame(), kTextWhite);
 
 		if (!g_check.ok()) {
