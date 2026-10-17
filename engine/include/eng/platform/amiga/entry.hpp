@@ -101,17 +101,19 @@ inline void mark_failed(::eng::debug::BootFail stage) {
 
 namespace detail {
 
-/// Cuerpo compartido de `run_demo`: memoria del juego (`nullptr` = perfil de juego), display
-/// declarado, `start` y bucle. Los fallos quedan en el `RunStatus` con `BootFail`.
+/// Cuerpo compartido de `run_demo`: memoria del juego (inválida = perfil de juego), display
+/// declarado, `start` y bucle. Los fallos quedan en el `RunStatus` con `BootFail`. La
+/// configuración opcional viaja como `eng::Ref` (referencia no propietaria, regla del repo),
+/// no como puntero crudo.
 template <class Demo>
-int run_demo_impl(Demo& demo, const GameDisplay& display, const MemoryConfig* memory) {
+int run_demo_impl(Demo& demo, const GameDisplay& display, eng::Ref<const MemoryConfig> memory) {
 	ensure_boot();
 	::eng::debug::reset(g_eng_run_status);
 	::eng::debug::mark_init_started(g_eng_run_status);
 
 	AmigaBackend backend {};
-	const bool memory_ok = (memory != nullptr) ? backend.configure_memory(*memory)
-						   : backend.configure_game_memory();
+	const bool memory_ok = memory.valid() ? backend.configure_memory(*memory)
+					      : backend.configure_game_memory();
 	if (!memory_ok) {
 		::eng::debug::mark_failed(g_eng_run_status, ::eng::debug::BootFail::Memory);
 		return 0;
@@ -135,14 +137,14 @@ int run_demo_impl(Demo& demo, const GameDisplay& display, const MemoryConfig* me
 /// \param display  descripción imperativa del display (`GameDisplay`, con sus campos).
 template <class Demo>
 int run_demo(Demo& demo, const GameDisplay& display) {
-	return detail::run_demo_impl(demo, display, nullptr);
+	return detail::run_demo_impl(demo, display, {});
 }
 
 /// Igual, con un **presupuesto de memoria explícito** (`MemoryConfig` por banco) para apps
 /// que no usan el perfil de juego por defecto.
 template <class Demo>
 int run_demo(Demo& demo, const GameDisplay& display, const MemoryConfig& memory) {
-	return detail::run_demo_impl(demo, display, &memory);
+	return detail::run_demo_impl(demo, display, memory);
 }
 
 } // namespace eng::amiga
