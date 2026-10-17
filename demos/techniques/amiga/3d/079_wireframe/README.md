@@ -26,7 +26,7 @@ En la parte superior de la ventana muestra la franja de depuración (nombre + ve
 
 ## Rendimiento
 
-`A500_debug`, `measure-fps` (2026-10-17): **32,7 fps / 1,53 campos/frame**; con el build **release** (`-O2`): **37,04 fps / 1,35 campos/frame** (incluye el +0,11 campos del 5º plano del HUD; el HUD de campos dinámicos no cuesta por frame). El campo de fps del propio HUD coincide con `measure-fps` (validado con capturas separadas y su delta de contador). Antes de la modernización: 6,86 fps / 7,29 campos (el camino antiguo pagaba el O(2) del informe de presupuesto del `FramePlan` por línea, `memset`/`memcpy` por job del plan, sondeo de VBlank y servicio de blit por vuelta). Detalle por secciones y evidencia: `VALIDATION.md`.
+`A500_debug`, `measure-fps` (2026-10-17): **32,7 fps / 1,53 campos/frame**; con el build **release** (`-O2`): **37,04 fps / 1,35 campos/frame**; con el HUD en **banda superior legal** (WAIT 44/58, ver abajo): **39,72 fps / 1,26 campos/frame** (el fetch del 5º plano baja de ~290 a ~14 filas/campo). El campo de fps del propio HUD coincide con `measure-fps` (validado con capturas separadas y su delta de contador). Antes de la modernización: 6,86 fps / 7,29 campos (el camino antiguo pagaba el O(2) del informe de presupuesto del `FramePlan` por línea, `memset`/`memcpy` por job del plan, sondeo de VBlank y servicio de blit por vuelta). Detalle por secciones y evidencia: `VALIDATION.md`.
 
 ## Uso
 

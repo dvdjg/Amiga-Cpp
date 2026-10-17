@@ -24,4 +24,4 @@ Dibuja el objeto `pilka` (malla `obj2c` de 60 vértices / 90 aristas / 32 caras,
 - La rotación avanza **8 unidades de vuelta (0..4095) por frame** en los tres ejes (como el original, `frameCount * 8`): giro continuo perceptible en la secuencia (la visibilidad de caras y aristas hace que el alambre "ruede").
 - El contador del HUD se incrementa 1 por frame y se **repinta junto al fps ~1 vez/segundo** (campos de ancho fijo, ~56 escrituras de palabra); no hay otros cambios de contenido.
 - Con `-DWIREFRAME_FREEZE_ANGLE=N` la rotación se congela en `N` vueltas (capturas deterministas para A/B pixel a pixel).
-- Cadencia medida (2026-10): **32,7 fps** (`A500_debug`, 1,53 campos/frame, ~217k ciclos/update) y **37,04 fps** (`A500_release`, 1,35 campos); se ejecuta un update por frame de juego sin tirones de dos campos.
+- Cadencia medida (2026-10): **32,7 fps** (`A500_debug`, 1,53 campos/frame, ~217k ciclos/update) y **39,72 fps** (`A500_release`, 1,26 campos) con el HUD en banda superior legal (WAIT 44/58); se ejecuta un update por frame de juego sin tirones de dos campos.

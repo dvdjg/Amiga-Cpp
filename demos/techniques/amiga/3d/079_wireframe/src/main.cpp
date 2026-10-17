@@ -397,32 +397,43 @@ private:
 	/// Construye la copperlist para el plano `active`: bit3=planes[active],
 	/// bit2=planes[active-1], bit1=planes[active-2], bit0=planes[active-3] (mod 5),
 	/// como el parcheo de `BPLxPT` del original. El 5º plano (franja de depuracion,
-	/// 1 bpp) va activo TODO el frame en el header (sin zonas/WAITs: ver la nota de
-	/// geometria arriba).
+	/// 1 bpp) va como **banda superior LEGAL**: se enciende en el WAIT de la raster 44
+	/// (inicio de la ventana) y se apaga en la 58 (ambas < 255; una zona `>255` no es
+	/// cerrable — `coppercomp` es `>=`, ver DT-027). El fetch del HUD cubre ~14 filas
+	/// en vez de ~290: mismo patron medido en la 116 (+~1,7 fps).
 	bool build_copper(eng::u8 active) {
 		// Anillo de copperlists: cada tramo del bloque es una lista independiente.
 		const eng::Bytes<eng::CopperTag> slice = m_copper_block.view.subspan(
 			static_cast<eng::u32>(active) * kCopperPerList, kCopperPerList);
 		copper::Scheduler sched { eng::Block<eng::CopperTag> { slice, m_copper_block.kind } };
-		// BPLCON0 con 5 planos (los 4 del original + el de la franja): constructor unico.
-		const eng::u8 planes5 = static_cast<eng::u8>(kPlanes + 1u);
+		using eng::graphics::composition::SceneMode;
+		// Base: 4 planos (los del original); el 5º se enciende solo en la banda del HUD.
 		sched.emit_planes_display(kDiwstrt, kDiwstop, kDdfstrt, kDdfstop, kBytesPerRow,
-					  eng::graphics::composition::bplcon0_for(
-						  eng::graphics::composition::SceneMode::Standard,
-						  planes5),
-					  planes5, m_bitplane_block.mem_view_chip(), kPlaneBytes);
+					  eng::graphics::composition::bplcon0_for(SceneMode::Standard,
+										  kPlanes),
+					  kPlanes, m_bitplane_block.mem_view_chip(), kPlaneBytes);
 		for (eng::u8 n = 0; n < kPlanes; ++n) {
 			const eng::u8 idx = static_cast<eng::u8>((active + 2u + n) % kRing);
 			sched.move_bitplane_pointer(n, m_bitplane_block.mem_view_chip().address(static_cast<eng::s32>(idx) * static_cast<eng::s32>(kPlaneBytes)));
 		}
-		// 5º plano (franja): puntero estatico al plano del HUD (no rota con el anillo).
-		sched.move_bitplane_pointer(kPlanes, m_hud_block.mem_view_chip().address(0));
 		sched.move(copper::Register::BPLCON1, kBplcon1);
 		sched.emit_palette(wireframe_colors, 0, 16);
 		// Paleta 16..31 (16 = tinta de la franja, 17..31 = copia de 1..15): el 5º plano
-		// suma +16 al indice de color de TODA la pantalla; el espejo lo hace transparente
+		// suma +16 al indice de color dentro de la banda; el espejo lo hace transparente
 		// fuera del texto (ver `g_hud_band_colors` en `init`).
 		sched.emit_palette(eng::PaletteWords {g_hud_band_colors, 32u}, 16, 16);
+		// Banda del HUD: 5º plano (1 bpp) ENCENDIDO entre las rasters 44 y 58. Con el
+		// puntero fijado en la raster 44, la fila de plano P se ve en la P+10 de la
+		// ventana (mismo desfase del fetch que con el plano global): el texto (filas de
+		// plano 6..13) sigue saliendo en las filas ~16..23.
+		sched.wait_line(44u);
+		const eng::u8 planes5 = static_cast<eng::u8>(kPlanes + 1u);
+		sched.move(copper::Register::BPLCON0,
+			   eng::graphics::composition::bplcon0_for(SceneMode::Standard, planes5));
+		sched.move_bitplane_pointer(kPlanes, m_hud_block.mem_view_chip().address(0));
+		sched.wait_line(58u);
+		sched.move(copper::Register::BPLCON0,
+			   eng::graphics::composition::bplcon0_for(SceneMode::Standard, kPlanes));
 		sched.end();
 		m_copper_views[active] = sched.chip_view();
 		return sched.ok();
