@@ -279,7 +279,7 @@ inline constexpr eng::u8 kActorPixels[kTile * kTile] = {
 	0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
 };
 
-#if defined(K121_ACTOR_SYSTEM)
+#if !defined(K121_ACTOR_LEGACY) && !defined(K121_SKIP_ACTOR)
 // Frame y animación del actor para el camino con el SISTEMA del engine (DT-024.3): la
 // ventana mide 32 px (16 del arte + 16 de guarda del pack) por 16 de alto.
 constexpr eng::scene::Frame kActorFrames[1] = {{0, 0, 32u, 16u}};
@@ -474,14 +474,18 @@ struct ProcStructuresDemo {
 #if defined(K121_GOLDEN_ACTORS)
 	u16* m_gmask = nullptr; // 16 máscaras (golden): kTile slots de kActorWords*kActorRows
 #endif
-#if defined(K121_ACTOR_SYSTEM)
+#if !defined(K121_ACTOR_LEGACY) && !defined(K121_SKIP_ACTOR)
 	// Camino del SISTEMA de actores (DT-024.3): hoja pack con guarda + buffer de
 	// save-under + el actor retenido del engine.
 	eng::Block<eng::PlaneTag> m_aux {};
 	u16* m_pack = nullptr;     // 16 filas × 5 planos × (img+guarda+máscara+guarda) = 320
 	u16* m_save_buf = nullptr; // save-under: 3 palabras/fila × 16 filas × 5 planos
 	eng::graphics::BobTarget m_ring_target {};
+#if defined(K121_GOLDEN_ACTORS)
+	eng::scene::ActorStore<17> m_actor_store {}; // 16 del golden + el del auto-chequeo
+#else
 	eng::scene::ActorStore<1> m_actor_store {};
+#endif
 	eng::scene::RepresentationAllocator m_actor_alloc {};
 	eng::scene::ActorId m_actor_id {};
 	u16 m_sil_mask[kTile] {}; // silueta del actor por fila (precomputada: art != 0)
@@ -660,8 +664,9 @@ struct ProcStructuresDemo {
 			return;
 		}
 		scene.takeover(backend);
-#if defined(K121_ACTOR_SYSTEM)
-		// **Camino del SISTEMA de actores** (DT-024.3, A/B con `K121_ACTOR_SYSTEM`):
+#if !defined(K121_ACTOR_LEGACY) && !defined(K121_SKIP_ACTOR)
+		// **Camino del SISTEMA de actores** (DT-024: camino por DEFECTO; el camino propio
+		// queda tras `K121_ACTOR_LEGACY` para el A/B):
 		// hoja pack con guarda (`pack_interleaved_pair`) + `ActorStore`/`Animation` +
 		// `SaveUnder`, emitidos sobre el anillo con el puente `actor_target`. Sin bandas
 		// por subpíxel ni restaurador de ventana propios: el sistema lo cubre.
@@ -712,7 +717,11 @@ struct ProcStructuresDemo {
 			d.save_words_per_row = 3u; // 2 palabras (32 px) + guarda del shift
 			d.save_height = kTile;
 			m_actor_store.reset();
+#if defined(K121_GOLDEN_ACTORS)
+			m_actor_alloc.reset(eng::scene::RepresentationBudget {24u, 20000u, 0u});
+#else
 			m_actor_alloc.reset(eng::scene::RepresentationBudget {8u, 10000u, 0u});
+#endif
 			m_actor_id = m_actor_store.add(d, m_actor_alloc);
 			auto actor = m_actor_store.get(m_actor_id);
 			if (!actor.valid()) {
@@ -752,6 +761,95 @@ struct ProcStructuresDemo {
 							0x00012133u | (u32(body) << 16u));
 				return;
 			}
+		}
+#endif
+#if defined(K121_GOLDEN_ACTORS) && !defined(K121_SKIP_ACTOR)
+		// **Golden de subposiciones por el SISTEMA** (gate visual de §14.8): 16 actores
+		// del `ActorStore` a la vez — cada uno en su columna limpia del carril con su
+		// subposición (mismos pares col/sub que el oráculo JS). Los 16 COMPARTEN el pack:
+		// en columna limpia la máscara es la silueta (no hay copa que recortar) y el
+		// subpíxel lo aplica el shifter del par. Sin save-under (política `None`: los 16
+		// conviven) y SIN clip: las últimas columnas (17/18) desbordan la fila del anillo
+		// por la guarda del par (máscara 0 -> D=C, no-op: sin daño colateral — el camino
+		// propio sí escribía el desbordamiento). Captura vs
+		// `tools/analyze/verify-121-actor-golden.mjs` (paleta identidad).
+		{
+			// Limpieza del actor del auto-chequeo: se restaura su caja (save-under del
+			// emit de arriba) para no dejar píxeles fuera de las 16 ventanas.
+			{
+				auto a0 = m_actor_store.get(m_actor_id);
+				const eng::scene::DirtyRect& prev = a0->prev[0];
+				if (prev.valid()) {
+					plan.clear();
+					plan.set_blit_budget_limits({8192, 16384, 6, 120});
+					if (!eng::graphics::bob_restore_box_ring(
+						    plan, a0->bob, prev.width(), prev.height(), prev.left,
+						    prev.top, scene.bg().hardware_view().display_height, m_ring_target, a0->desc.save[0],
+						    a0->desc.save_words_per_row, a0->desc.save_height) ||
+					    !backend.execute_frame_plan(plan)) {
+						eng::debug::mark_failed(g_eng_run_status, 0x00012122u);
+						return;
+					}
+				}
+			}
+			const u16 cols[16] = {0u, 1u, 2u, 3u, 4u, 7u, 8u, 9u,
+					      11u, 12u, 13u, 14u, 15u, 16u, 17u, 18u};
+			eng::scene::ActorEmitContext gctx {};
+			gctx.targets = eng::Span<const eng::graphics::BobTarget> {&m_ring_target, 1u};
+			gctx.buffer = 0;
+			gctx.ring_height = scene.bg().hardware_view().display_height;
+			// `gctx.clip` queda inválido (sin recorte): el par hace no-op el desborde.
+			plan.clear();
+			plan.set_blit_budget_limits({8192, 32768, 32, 400});
+			for (u8 k = 0u; k < 16u; ++k) {
+				eng::scene::ActorDesc gd {};
+				gd.visual.pixels = eng::Span<const eng::u16> {m_pack, 320u};
+				gd.visual.w = kTile;
+				gd.visual.h = kTile;
+				gd.visual.bitplanes = u8(kPlanes);
+				gd.animation = &kActorAnim;
+				gd.x = s16(cols[k] * 16u + k + kRingGuardX); // anillo (como el golden propio)
+				gd.y = s16(kActorY);
+				gd.offset.y = s16(kRingGuardY);
+				gd.transparency = eng::scene::TransparencyMode::Mask1Bit;
+				gd.background = eng::scene::BackgroundPolicy::None;
+				const eng::scene::ActorId gid = m_actor_store.add(gd, m_actor_alloc);
+				auto ga = m_actor_store.get(gid);
+				if (!ga.valid()) {
+					eng::debug::mark_failed(g_eng_run_status, 0x00012123u);
+					return;
+				}
+				ga->bob.sheet = eng::ChipView<eng::BobTag> {
+					eng::Address<eng::MemoryKind::Chip>::from_storage(m_pack), 640u};
+				ga->bob.mask = {};
+				ga->bob.width = 32u;
+				ga->bob.height = kTile;
+				ga->bob.planes = u8(kPlanes);
+				ga->bob.layout = eng::graphics::BobLayout::Interleaved;
+				ga->bob.mask_pack = eng::graphics::BobMaskPack::InterleavedPair;
+				ga->bob.draw = eng::graphics::BobDraw::CookieCut;
+				ga->bob.frame_count = 1u;
+				ga->bob.frame_stride = 0u;
+				if (eng::scene::actor_emit(plan, *ga, gctx) !=
+				    eng::scene::ActorEmitStatus::Ok) {
+					eng::debug::mark_failed(g_eng_run_status, 0x00012124u);
+					return;
+				}
+#if defined(K121_GOLDEN_ONE_PLAN_PER_ACTOR)
+				if (!backend.execute_frame_plan(plan)) {
+					eng::debug::mark_failed(g_eng_run_status, 0x00012125u);
+					return;
+				}
+				plan.clear();
+				plan.set_blit_budget_limits({8192, 32768, 32, 400});
+#endif
+			}
+			if (!backend.execute_frame_plan(plan)) {
+				eng::debug::mark_failed(g_eng_run_status, 0x00012125u);
+				return;
+			}
+			m_actor_x = kActorMinX;
+			m_restore_x = kActorMinX;
 		}
 #endif
 #else
@@ -881,7 +979,7 @@ struct ProcStructuresDemo {
 		if (!backend.execute_frame_plan(plan)) {
 			m_ready = false;
 		}
-#elif defined(K121_ACTOR_SYSTEM)
+#elif !defined(K121_ACTOR_LEGACY)
 		// **Actor por el SISTEMA del engine** (A/B de DT-024.3): avance con el mismo
 		// contrato (1 px/frame con rebote), re-cocido de la máscara si cambia la columna
 		// (oclusión por copas) y emisión: SaveUnder restaura/guarda el fondo y el pack
@@ -915,7 +1013,7 @@ struct ProcStructuresDemo {
 			}
 #endif
 		}
-#elif !defined(K121_SKIP_ACTOR)
+#elif defined(K121_ACTOR_LEGACY) && !defined(K121_SKIP_ACTOR)
 		// **Actor por Blitter**: (1) restaura SOLO la ventana de 2 palabras que ocupaba
 		// el actor en el frame anterior con el emisor de ventana del playfield
 		// (`add_world_window`: banda completa + columna, validado en el propio emisor);
@@ -1310,7 +1408,7 @@ private:
 		}
 	}
 
-#if defined(K121_ACTOR_SYSTEM)
+#if !defined(K121_ACTOR_LEGACY) && !defined(K121_SKIP_ACTOR)
 	/// **Cocina la máscara del pack** (por fila y plano) para la posición `x`: cada bit
 	/// local `b` de la hoja cae en pantalla en `x + b` (el blit desplaza imagen y máscara
 	/// juntas con `shift`), así que la copa se muestrea en la columna REAL de cada píxel

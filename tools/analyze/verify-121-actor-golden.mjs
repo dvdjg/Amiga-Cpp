@@ -38,7 +38,32 @@ const [goldenPath, pristinePath] = args;
 // Geometría de la demo (field -> png 2x). OX calibrado empíricamente contra el render
 // del actor congelado (bbox 552 px): el origen del campo en el PNG es (78, 30), es decir
 // 39/15 px amiga en el capture 2x (el DIWSTRT izquierdo es impar: 0x81).
-const OX = 39, OY = 15, S = 2;
+// El borde del capture VARÍA por run (posición/tamaño de la ventana de WinUAE): un
+// origen fijo desplazaba el muestreo 1 px cuando el borde cambiaba (fallos falsos de
+// borde). Se DETECTA el origen del campo: primera columna/fila con un tramo largo
+// no-negro (el campo mide 512 px de alto en el capture 2x); si no se detecta, se cae
+// al valor histórico 39/15.
+const S = 2;
+// Origen del campo por el BLANCO IDENTIDAD del índice 31 (color (i<<6)|0x3F -> PNG
+// (119,255,255)): solo los actores lo pintan, así que su bbox ancla la geometría —
+// su borde izquierdo = el píxel 31 más a la IZQUIERDA del patrón (col 1, filas 6-8)
+// del sub 0, y su borde superior = la fila 0 del arte (y=144). El borde del capture
+// VARÍA por run (ventana), así que un OX/OY fijo desplazaba el muestreo.
+function detectOriginFromWhite(png) {
+	const W = png.width, H = png.height, d = png.data;
+	let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
+	for (let y = 0; y < H; y++) {
+		for (let x = 0; x < W; x++) {
+			const i = (y * W + x) * 4;
+			if (d[i] === 119 && d[i + 1] === 255 && d[i + 2] === 255) {
+				x0 = Math.min(x0, x); x1 = Math.max(x1, x);
+				y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+			}
+		}
+	}
+	if (x1 < 0) return { bx: -1, by: -1 };
+	return { bx: x0 - 1 * S, by: y0 - 144 * S };
+}
 const ACTOR_Y = 144;
 const COLS = [0, 1, 2, 3, 4, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18];
 
@@ -75,6 +100,11 @@ if (golden.width !== pristine.width || golden.height !== pristine.height) {
 	console.error('capturas de tamanos distintos');
 	process.exit(2);
 }
+// Origen del campo detectado en la captura GOLDEN (ver `detectOriginFromWhite`).
+const { bx, by } = detectOriginFromWhite(golden);
+const OX = bx >= 0 ? bx / S : 39;
+const OY = by >= 0 ? by / S : 15;
+console.log(`[origen] campo png (${bx},${by}) -> OX=${OX} OY=${OY}`);
 function px(png, ax, ay) {
 	const x = (ax + OX) * S, y = (ay + OY) * S;
 	if (x < 0 || y < 0 || x >= png.width || y >= png.height) return { r: -1, g: -1, b: -1 };
@@ -85,6 +115,16 @@ const sameRGB = (a, b) => a.r === b.r && a.g === b.g && a.b === b.b;
 
 let fails = 0;
 const report = { actor: [], window: 0, outside: 0, perSub: [] };
+// Unión de los patrones de los 16 actores (para el chequeo de ventana solapada).
+const coveredAll = new Set();
+for (let k = 0; k < 16; k++) {
+	const X = COLS[k] * 16;
+	for (let r = 0; r < 16; r++) {
+		for (let c = 0; c < 16; c++) {
+			if (actor[r * 16 + c] !== 0) coveredAll.add((ACTOR_Y + r) * 4096 + (X + k + c));
+		}
+	}
+}
 for (let k = 0; k < 16; k++) {
 	const X = COLS[k] * 16;
 	let actorBad = 0, actorCount = 0, winBad = 0, firstBad = null;
@@ -102,7 +142,10 @@ for (let k = 0; k < 16; k++) {
 			}
 		}
 	}
-	// (2) la ventana de 32 px del blit, fuera del actor: intacta (== prístino).
+	// (2) la ventana de 32 px del blit, fuera del actor: intacta (== prístino). Las
+	// ventanas de actores VECINOS se solapan (cols adyacentes 0..4/7..9/11..16), así que
+	// se excluye también la UNIÓN de los patrones de los 16 (esos píxeles son de otro
+	// actor, no daño).
 	const covered = new Set();
 	for (let r = 0; r < 16; r++) {
 		for (let c = 0; c < 16; c++) {
@@ -111,7 +154,8 @@ for (let k = 0; k < 16; k++) {
 	}
 	for (let r = 0; r < 16; r++) {
 		for (let x = X; x < X + 32; x++) {
-			if (covered.has((ACTOR_Y + r) * 4096 + x)) continue;
+			const key = (ACTOR_Y + r) * 4096 + x;
+			if (covered.has(key) || coveredAll.has(key)) continue;
 			const a = px(golden, x, ACTOR_Y + r);
 			const b = px(pristine, x, ACTOR_Y + r);
 			if (!sameRGB(a, b)) winBad++;
