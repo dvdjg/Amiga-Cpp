@@ -306,6 +306,15 @@ if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 			exit 1
 		fi
 	fi
+	# Escrituras crudas por view.data() en demos/juegos: fronteras declaradas + baseline decreciente.
+	DEMO_RAW_WRITES="$ROOT/tools/check/demo-raw-writes.mjs"
+	if [ -f "$DEMO_RAW_WRITES" ] && command -v node >/dev/null 2>&1; then
+		echo "== demo-raw-writes =="
+		if ! node "$DEMO_RAW_WRITES"; then
+			echo "demo-raw-writes fallo: escritura cruda sin declarar; usa la primitiva del engine o declara la frontera." >&2
+			exit 1
+		fi
+	fi
 	# Estructura tematica del engine (eng/ y core/ por tema; familias de backend).
 	ENGINE_TREE="$ROOT/tools/check/engine-tree.mjs"
 	if [ -f "$ENGINE_TREE" ] && command -v node >/dev/null 2>&1; then

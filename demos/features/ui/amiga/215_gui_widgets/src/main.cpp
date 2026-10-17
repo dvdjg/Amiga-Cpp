@@ -360,7 +360,7 @@ private:
 			if (!blk.valid()) {
 				return false;
 			}
-			for (eng::u32 i = 0; i < fplane; ++i) blk.view.data()[i] = 0u;
+			blk.view.first(fplane).fill(0u);
 			if (!backend.blitter_fill_rect(blk.view.data(), 1u, fplane, frow, frow, fw, fh, 16, 2,
 						       16u, 3u, 1u, true)) {
 				return false;
@@ -377,7 +377,7 @@ private:
 			if (!blk.valid()) {
 				return false;
 			}
-			for (eng::u32 i = 0; i < fplane; ++i) blk.view.data()[i] = 0xffu;
+			blk.view.first(fplane).fill(0xffu);
 			if (!backend.blitter_fill_rect(blk.view.data(), 1u, fplane, frow, frow, fw, fh, 10, 2,
 						       20u, 3u, 0u, true)) {
 				return false;
@@ -396,9 +396,7 @@ private:
 			if (!blk.valid()) {
 				return false;
 			}
-			for (eng::u32 i = 0; i < static_cast<eng::u32>(fplane) * planes; ++i) {
-				blk.view.data()[i] = 0u;
-			}
+			blk.view.first(static_cast<eng::u32>(fplane) * planes).fill(0u);
 			if (!backend.blitter_fill_rect(blk.view.data(), planes, fplane, frow, frow, fw, fh, 0,
 						       0, fw, fh, 7u, true)) {
 				return false;
@@ -434,7 +432,7 @@ private:
 		// del self-test sincrono: `afwm = $FFFF >> 10 = $003F` (bits set = x10..15, que son los
 		// pixeles **afectados** del primer word) y `alwm = $FFFF << 2 = $FFFC` (x16..29 afectados
 		// del ultimo word). El borde (x<10 y x>=30) debe seguir a 1 si el cookie-cut preserva la D.
-		for (eng::u32 i = 0; i < fplane; ++i) blk.view.data()[i] = 0xffu;
+		blk.view.first(fplane).fill(0xffu);
 		eng::graphics::BlitJob job {};
 		job.kind = eng::graphics::BlitJobKind::FillRect;
 		job.destination = eng::graphics::BlitPtr::from_storage(

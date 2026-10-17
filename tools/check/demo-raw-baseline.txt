@@ -1,0 +1,3 @@
+# Baseline del gate demo-raw-writes (ver tools/check/demo-raw-writes.mjs):
+# ficheros con escritura directa por view.data() pendientes de migrar a primitivas
+# del engine. NO-REINCIDENCIA: solo puede encoger.

@@ -62,3 +62,6 @@ El objetivo no es que la demo tenga el menor número de líneas posible, sino qu
 ## 9. Gate mecánico
 
 `tools/check/demo-ergonomics.mjs` (en `tools/run-host-tests.sh`) comprueba en `demos/` y `games/` que una app **nueva** no incluye cabeceras de `support/`, no nombra `SysBase` ni define `g_eng_run_status`, no usa `run(0x...)` y no pasa literales hexadecimales a `mark_failed`/`mark_ready`. Las apps históricas están en `demo-ergonomics-baseline.txt`; la baseline **solo puede encoger**: al migrar una app a `run_demo`/`draw_hud` se borra su línea. La demo de referencia que cumple el gate es `demos/techniques/amiga/effects/122_circles`.
+
+`tools/check/demo-raw-writes.mjs` vigila el otro escape: **escribir a través de `Block::view.data()`**. Cuando existe una primitiva del engine (p. ej. `view.first(n).fill(v)` para rellenar, `screen`/`DrawTarget` para dibujar) se usa; una escritura cruda que sea el mecanismo de una demo técnica se declara en `tools/check/demo-raw-frontier.txt` con su razón, y cualquier otra queda como deuda en `demo-raw-baseline.txt` (solo puede encoger). Una dirección `reinterpret_cast<const …*>(view.data())` para un registro o `BlitPtr` es lectura y no cuenta.
+
